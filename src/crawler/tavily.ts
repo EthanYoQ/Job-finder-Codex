@@ -82,9 +82,33 @@ const RETRYABLE_ERROR_CODES = new Set([
   "ETIMEDOUT",
   "ERR_NETWORK"
 ]);
+const MISSING_TAVILY_CREDENTIALS_MESSAGE =
+  "Tavily extraction is not configured: no Tavily credentials were provided";
+const RETRYABLE_MESSAGE_PATTERNS = [
+  /\b(?:408|409|425|429|500|502|503|504)\b/i,
+  /\b5xx\b/i,
+  /\btime(?:d)?\s*out\b/i,
+  /\btimeout\b/i,
+  /\brate[-\s]?limit(?:ed)?\b/i,
+  /\bquota\s+exceeded\b/i,
+  /\btoo\s+many\s+requests\b/i,
+  /\btemporarily\s+unavailable\b/i
+];
+const NON_RETRYABLE_MESSAGE_PATTERNS = [
+  /\binvalid\s+(?:api\s+)?key\b/i,
+  /\bunauthori[sz]ed\b/i,
+  /\bauthentication\b/i,
+  /\bauthorization\b/i,
+  /\bforbidden\b/i,
+  /\b(?:401|403)\b/i
+];
 
 export function createTavilyKeyRing(keys: readonly string[]): TavilyKeyRing {
-  const normalizedKeys = keys.map((key) => key.trim()).filter(Boolean);
+  const normalizedKeys = [...new Set(keys.map((key) => key.trim()).filter(Boolean))];
+  if (normalizedKeys.length === 0) {
+    throw new Error(MISSING_TAVILY_CREDENTIALS_MESSAGE);
+  }
+
   let currentIndex = 0;
 
   return {
@@ -110,6 +134,10 @@ export async function extractOfficialSourceWithTavily(
   request: TavilyExtractRequest,
   deps: TavilyExtractDeps
 ): Promise<TavilyExtractResult> {
+  if (deps.keyRing.size < 1) {
+    throw new Error(MISSING_TAVILY_CREDENTIALS_MESSAGE);
+  }
+
   const extract = deps.extract ?? extractWithDefaultTavilyClient;
   let attempts = 0;
   let lastError: unknown;
@@ -174,7 +202,7 @@ async function runExtract(
   } catch (error) {
     return {
       ok: false,
-      retryable: false,
+      retryable: isRetryableError(error),
       error
     };
   }
@@ -225,7 +253,19 @@ function isRetryableError(error: unknown): boolean {
   }
 
   const errorCode = getErrorCode(error);
-  return errorCode !== undefined && RETRYABLE_ERROR_CODES.has(errorCode);
+  if (errorCode !== undefined && RETRYABLE_ERROR_CODES.has(errorCode)) {
+    return true;
+  }
+
+  return isRetryableMessage(errorToMessage(error));
+}
+
+function isRetryableMessage(message: string): boolean {
+  if (!message || NON_RETRYABLE_MESSAGE_PATTERNS.some((pattern) => pattern.test(message))) {
+    return false;
+  }
+
+  return RETRYABLE_MESSAGE_PATTERNS.some((pattern) => pattern.test(message));
 }
 
 function getStatusCode(error: unknown): number | undefined {
