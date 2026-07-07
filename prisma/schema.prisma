@@ -60,8 +60,6 @@ model Company {
   updatedAt           DateTime            @updatedAt
   sources             RecruitmentSource[]
   jobs                Job[]
-  feedback            Feedback[]
-  recommendedCompanies RecommendedCompany[]
 
   @@index([pinyinName])
 }
@@ -128,7 +126,6 @@ model Job {
   lifecycleStatus       JobLifecycleStatus @default(ACTIVE)
   company               Company            @relation(fields: [companyId], references: [id], onDelete: Cascade)
   source                RecruitmentSource  @relation(fields: [sourceId], references: [id], onDelete: Cascade)
-  feedbacks             Feedback[]
 
   @@unique([sourceId, sourceJobId])
   @@index([city, category])
@@ -147,24 +144,20 @@ model Feedback {
   userAgent   String
   status      FeedbackStatus @default(OPEN)
   createdAt   DateTime       @default(now())
-  company     Company?       @relation(fields: [companyId], references: [id], onDelete: SetNull)
-  job         Job?           @relation(fields: [jobId], references: [id], onDelete: SetNull)
 
   @@index([status, createdAt])
 }
 
 model RecommendedCompany {
-  id                 String         @id @default(cuid())
-  companyId          String?
-  companyName        String
-  officialWebsiteUrl String?
-  recruitmentEntryUrl String?
-  reason             String?
-  ip                 String
-  userAgent          String
-  status             FeedbackStatus @default(OPEN)
-  createdAt          DateTime       @default(now())
-  company            Company?       @relation(fields: [companyId], references: [id], onDelete: SetNull)
+  id                  String         @id @default(cuid())
+  companyName         String
+  officialWebsiteUrl   String?
+  recruitmentEntryUrl  String?
+  reason              String?
+  ip                  String
+  userAgent           String
+  status              FeedbackStatus @default(OPEN)
+  createdAt           DateTime       @default(now())
 
   @@index([status, createdAt])
 }
