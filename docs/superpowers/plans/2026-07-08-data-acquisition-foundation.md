@@ -59,7 +59,7 @@
 - Produces: `candidateCompanies`, `getSocialSources()`, `getCandidatePoolStats()`, `NormalizedJobRecordSchema`, `NormalizedJobRecord`, `hasRequiredJobFields(record)`, `buildJobDedupeKey(record)`.
 - Consumes: `ATSKind`, `Company`, `RecruitmentSource`, `VerificationStatus` from `src/domain/company.ts`; `JobCategory` from `src/domain/search.ts`.
 
-- [ ] **Step 1: Install data acquisition dependency**
+- [x] **Step 1: Install data acquisition dependency**
 
 Run:
 
@@ -69,7 +69,7 @@ npm install cheerio @tavily/core
 
 Expected: `package.json` and `package-lock.json` update; install exits 0.
 
-- [ ] **Step 2: Add failing registry tests**
+- [x] **Step 2: Add failing registry tests**
 
 Create `tests/data/companyRegistry.test.ts`:
 
@@ -105,7 +105,7 @@ describe("P0 company registry", () => {
 });
 ```
 
-- [ ] **Step 3: Run registry test to verify it fails**
+- [x] **Step 3: Run registry test to verify it fails**
 
 Run:
 
@@ -115,7 +115,7 @@ npm test -- tests/data/companyRegistry.test.ts
 
 Expected: FAIL because `src/data/companyRegistry.ts` does not exist.
 
-- [ ] **Step 4: Add failing normalized job tests**
+- [x] **Step 4: Add failing normalized job tests**
 
 Create `tests/crawler/normalizedJob.test.ts`:
 
@@ -180,7 +180,7 @@ describe("normalized job record", () => {
 });
 ```
 
-- [ ] **Step 5: Run normalized job test to verify it fails**
+- [x] **Step 5: Run normalized job test to verify it fails**
 
 Run:
 
@@ -190,7 +190,7 @@ npm test -- tests/crawler/normalizedJob.test.ts
 
 Expected: FAIL because `src/crawler/normalizedJob.ts` does not exist.
 
-- [ ] **Step 6: Implement registry and normalized job contract**
+- [x] **Step 6: Implement registry and normalized job contract**
 
 Implement:
 
@@ -259,10 +259,10 @@ For `src/data/companyRegistry.ts`, export 80-120 candidate companies using the c
 Add `.env.example` keys without secrets:
 
 ```dotenv
-TAVILY_API_KEYS="tvly-dev-replace-key-0,tvly-dev-replace-key-1,tvly-dev-replace-key-2"
+TAVILY_API_KEYS="replace-with-tavily-key-0,replace-with-tavily-key-1,replace-with-tavily-key-2"
 ```
 
-- [ ] **Step 7: Verify Task 1**
+- [x] **Step 7: Verify Task 1**
 
 Run:
 
@@ -273,7 +273,7 @@ npm run typecheck
 
 Expected: tests and typecheck pass.
 
-- [ ] **Step 8: Commit Task 1**
+- [x] **Step 8: Commit Task 1**
 
 Run:
 
@@ -296,7 +296,7 @@ Expected: commit created.
 - Produces: `createTavilyKeyRing(keys)`, `extractOfficialSourceWithTavily(request, deps)`, `TavilyExtractRequest`, `TavilyExtractResult`.
 - Consumes: `TAVILY_API_KEYS` from environment in later CLI/worker tasks.
 
-- [ ] **Step 1: Write failing Tavily tests**
+- [x] **Step 1: Write failing Tavily tests**
 
 Create `tests/crawler/tavily.test.ts`:
 
@@ -365,7 +365,7 @@ describe("Tavily extraction wrapper", () => {
 });
 ```
 
-- [ ] **Step 2: Run Tavily test to verify it fails**
+- [x] **Step 2: Run Tavily test to verify it fails**
 
 Run:
 
@@ -375,7 +375,7 @@ npm test -- tests/crawler/tavily.test.ts
 
 Expected: FAIL because `src/crawler/tavily.ts` does not exist.
 
-- [ ] **Step 3: Implement Tavily wrapper**
+- [x] **Step 3: Implement Tavily wrapper**
 
 Implement a wrapper that accepts injected `extract` for tests, rotates keys on retryable failures, and redacts key values from thrown errors. The default dependency should use `@tavily/core` dynamically so browser bundles do not include it:
 
@@ -385,7 +385,7 @@ const client = tavily({ apiKey });
 await client.extract(urls, { extractDepth, format: "markdown", query, chunksPerSource });
 ```
 
-- [ ] **Step 4: Verify Task 2**
+- [x] **Step 4: Verify Task 2**
 
 Run:
 
@@ -396,7 +396,7 @@ npm run typecheck
 
 Expected: tests and typecheck pass.
 
-- [ ] **Step 5: Commit Task 2**
+- [x] **Step 5: Commit Task 2**
 
 Run:
 
@@ -425,7 +425,7 @@ Expected: commit created.
 - Produces: `SourceAdapter`, `CrawlAdapterInput`, `CrawlAdapterResult`, `officialJsonAdapter`, `htmlTableAdapter`.
 - Consumes: `NormalizedJobRecord` and source metadata from Task 1.
 
-- [ ] **Step 1: Write failing adapter contract tests**
+- [x] **Step 1: Write failing adapter contract tests**
 
 Create `tests/crawler/adapters.test.ts` with one test each for:
 
@@ -436,7 +436,7 @@ Create `tests/crawler/adapters.test.ts` with one test each for:
 
 Each assertion must use `hasRequiredJobFields(record)` and must not inspect parser-private helpers.
 
-- [ ] **Step 2: Run adapter tests to verify they fail**
+- [x] **Step 2: Run adapter tests to verify they fail**
 
 Run:
 
@@ -446,7 +446,7 @@ npm test -- tests/crawler/adapters.test.ts
 
 Expected: FAIL because adapter files do not exist.
 
-- [ ] **Step 3: Implement adapter interfaces and deterministic adapters**
+- [x] **Step 3: Implement adapter interfaces and deterministic adapters**
 
 Implement:
 
@@ -454,7 +454,7 @@ Implement:
 - `htmlTableAdapter.extract(input)` using Cheerio selectors configured by task input.
 - Both adapters return `{ status: "SUCCESS", jobs, observation }` when at least one job is normalized, otherwise `{ status: "FAILED", failureReason }`.
 
-- [ ] **Step 4: Verify Task 3**
+- [x] **Step 4: Verify Task 3**
 
 Run:
 
@@ -465,7 +465,7 @@ npm run typecheck
 
 Expected: tests and typecheck pass.
 
-- [ ] **Step 5: Commit Task 3**
+- [x] **Step 5: Commit Task 3**
 
 Run:
 
@@ -488,7 +488,7 @@ Expected: commit created.
 - Produces: `applyCrawlObservation(previousJobs, currentJobs, options)`, `JobSnapshot`, `LifecycleDecision`.
 - Consumes: `NormalizedJobRecord` and `buildJobDedupeKey(record)`.
 
-- [ ] **Step 1: Write failing lifecycle tests**
+- [x] **Step 1: Write failing lifecycle tests**
 
 Create `tests/crawler/lifecycle.test.ts` with tests for:
 
@@ -500,7 +500,7 @@ Create `tests/crawler/lifecycle.test.ts` with tests for:
 - failed crawls do not increment missing count;
 - reappearing jobs become `ACTIVE` and reset missing count.
 
-- [ ] **Step 2: Run lifecycle tests to verify they fail**
+- [x] **Step 2: Run lifecycle tests to verify they fail**
 
 Run:
 
@@ -510,11 +510,11 @@ npm test -- tests/crawler/lifecycle.test.ts
 
 Expected: FAIL because `src/crawler/lifecycle.ts` does not exist.
 
-- [ ] **Step 3: Implement lifecycle reducer**
+- [x] **Step 3: Implement lifecycle reducer**
 
 Implement pure functions only. Do not add database calls in this task. Use `ACTIVE`, `SUSPECTED_OFFLINE`, and `OFFLINE` string lifecycle states compatible with Prisma enum names.
 
-- [ ] **Step 4: Verify Task 4**
+- [x] **Step 4: Verify Task 4**
 
 Run:
 
@@ -525,7 +525,7 @@ npm run typecheck
 
 Expected: tests and typecheck pass.
 
-- [ ] **Step 5: Commit Task 4**
+- [x] **Step 5: Commit Task 4**
 
 Run:
 
@@ -548,7 +548,7 @@ Expected: commit created.
 - Consumes all files from Tasks 1-4.
 - Produces no runtime interface; verifies the new foundation is coherent and ready for later database/worker integration.
 
-- [ ] **Step 1: Run full verification**
+- [x] **Step 1: Run full verification**
 
 Run:
 
@@ -561,7 +561,7 @@ npm run prisma:validate
 
 Expected: all commands pass.
 
-- [ ] **Step 2: Confirm no secrets were committed**
+- [x] **Step 2: Confirm no secrets were committed**
 
 Run:
 
@@ -571,11 +571,11 @@ rg -n "tvly-dev-[A-Za-z0-9_-]+" .
 
 Expected: no matches in tracked source/docs.
 
-- [ ] **Step 3: Mark this plan complete in the progress ledger**
+- [x] **Step 3: Mark this plan complete in the progress ledger**
 
 Append lines to `.superpowers/sdd/progress.md` for each completed task range and note that this plan still does not implement production scheduling, PostgreSQL persistence, admin UI, or 50 live verified companies.
 
-- [ ] **Step 4: Commit verification marker**
+- [x] **Step 4: Commit verification marker**
 
 Run:
 
