@@ -329,4 +329,37 @@ describe("runP0CrawlBatch", () => {
       }
     ]);
   });
+
+  it("finalizes the batch as failed when a due source throws during fetch and rethrows the error", async () => {
+    const plan = planFor("source-astrazeneca-social");
+    const db = fakeDb();
+    const fetchError = new Error("network timeout");
+    const fetch = vi.fn(async () => {
+      throw fetchError;
+    });
+
+    await expect(
+      runP0CrawlBatch([plan], {
+        db,
+        fetch,
+        now: NOW,
+        getPreviousJobs: async () => [],
+        getRecentObservations: async () => [],
+        isBaselineCompleted: async () => true
+      })
+    ).rejects.toThrow(fetchError);
+
+    expect(fetch).toHaveBeenCalledTimes(1);
+    expect(db.calls.observations).toEqual([]);
+    expect(db.calls.jobs).toEqual([]);
+    expect(db.calls.batchesUpdated).toEqual([
+      {
+        where: { id: "batch-1" },
+        data: {
+          finishedAt: NOW,
+          status: "FAILED"
+        }
+      }
+    ]);
+  });
 });

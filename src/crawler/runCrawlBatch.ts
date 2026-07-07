@@ -57,60 +57,72 @@ export async function runP0CrawlBatch(
   let successfulSourceCount = 0;
   let failedSourceCount = 0;
   let skippedSourceCount = 0;
+  let status: "SUCCESS" | "FAILED" = "SUCCESS";
+  let result: P0CrawlBatchResult | undefined;
+  let thrownError: unknown;
 
-  for (const plan of plans) {
-    const recentObservations = await deps.getRecentObservations(plan.source.id);
-    const sourceState = toSourceScheduleState(plan.source.id, recentObservations);
+  try {
+    for (const plan of plans) {
+      const recentObservations = await deps.getRecentObservations(plan.source.id);
+      const sourceState = toSourceScheduleState(plan.source.id, recentObservations);
 
-    if (!isSourceDueForScheduledRun(sourceState, batchStartedAt)) {
-      skippedSourceCount += 1;
-      continue;
+      if (!isSourceDueForScheduledRun(sourceState, batchStartedAt)) {
+        skippedSourceCount += 1;
+        continue;
+      }
+
+      dueSourceCount += 1;
+
+      const baselineCompletedBeforeCrawl = await deps.isBaselineCompleted(plan.source.id);
+      const previousJobs = await deps.getPreviousJobs(plan.source.id);
+      const crawlResult = await runSourceCrawl(plan, {
+        fetch: deps.fetch,
+        isBaseline: !baselineCompletedBeforeCrawl
+      });
+      const lifecycleDecisions = applyCrawlObservation(previousJobs, crawlResult.jobs, {
+        crawlSucceeded: crawlResult.status === "SUCCESS",
+        observedAt: crawlResult.observation.crawledAt.toISOString(),
+        baselineCompletedBeforeCrawl
+      });
+      const commands = buildIngestionCommands(crawlResult, lifecycleDecisions);
+
+      await executeIngestionCommands(commands, { batchId: batch.id }, deps.db);
+
+      if (crawlResult.status === "SUCCESS") {
+        successfulSourceCount += 1;
+        continue;
+      }
+
+      failedSourceCount += 1;
     }
 
-    dueSourceCount += 1;
-
-    const baselineCompletedBeforeCrawl = await deps.isBaselineCompleted(plan.source.id);
-    const previousJobs = await deps.getPreviousJobs(plan.source.id);
-    const crawlResult = await runSourceCrawl(plan, {
-      fetch: deps.fetch,
-      isBaseline: !baselineCompletedBeforeCrawl
-    });
-    const lifecycleDecisions = applyCrawlObservation(previousJobs, crawlResult.jobs, {
-      crawlSucceeded: crawlResult.status === "SUCCESS",
-      observedAt: crawlResult.observation.crawledAt.toISOString(),
-      baselineCompletedBeforeCrawl
-    });
-    const commands = buildIngestionCommands(crawlResult, lifecycleDecisions);
-
-    await executeIngestionCommands(commands, { batchId: batch.id }, deps.db);
-
-    if (crawlResult.status === "SUCCESS") {
-      successfulSourceCount += 1;
-      continue;
-    }
-
-    failedSourceCount += 1;
+    status = failedSourceCount > 0 ? "FAILED" : "SUCCESS";
+    result = {
+      batchId: batch.id,
+      plannedSourceCount: plans.length,
+      dueSourceCount,
+      successfulSourceCount,
+      failedSourceCount,
+      skippedSourceCount
+    };
+  } catch (error) {
+    status = "FAILED";
+    thrownError = error;
   }
-
-  const batchFinishedAt = resolveNow(deps.now);
-  const status = failedSourceCount > 0 ? "FAILED" : "SUCCESS";
 
   await deps.db.crawlBatch.update({
     where: { id: batch.id },
     data: {
-      finishedAt: batchFinishedAt,
+      finishedAt: resolveNow(deps.now),
       status
     }
   });
 
-  return {
-    batchId: batch.id,
-    plannedSourceCount: plans.length,
-    dueSourceCount,
-    successfulSourceCount,
-    failedSourceCount,
-    skippedSourceCount
-  };
+  if (thrownError) {
+    throw thrownError;
+  }
+
+  return result!;
 }
 
 function resolveNow(now: RunP0CrawlBatchDeps["now"]): Date {
