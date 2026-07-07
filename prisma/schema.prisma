@@ -77,6 +77,23 @@ enum FeedbackStatus {
   SPAM
 }
 
+enum AdminRole {
+  ADMIN
+}
+
+enum AdminSessionStatus {
+  ACTIVE
+  REVOKED
+  EXPIRED
+}
+
+enum ManualCrawlStatus {
+  QUEUED
+  RUNNING
+  SUCCEEDED
+  FAILED
+}
+
 model Company {
   id                  String              @id @default(cuid())
   officialChineseName  String              @unique
@@ -105,6 +122,7 @@ model RecruitmentSource {
   company                  Company             @relation(fields: [companyId], references: [id], onDelete: Cascade)
   crawlObservations        CrawlObservation[]
   jobs                     Job[]
+  manualCrawlRequests      ManualCrawlRequest[]
 
   @@index([companyId, kind])
   @@index([status])
@@ -214,4 +232,68 @@ model AccessEvent {
 
   @@index([ip, occurredAt])
   @@index([eventType, occurredAt])
+}
+
+model AdminUser {
+  id           String             @id @default(cuid())
+  email        String             @unique
+  passwordHash String
+  role         AdminRole          @default(ADMIN)
+  disabledAt   DateTime?
+  createdAt    DateTime           @default(now())
+  updatedAt    DateTime           @updatedAt
+  sessions     AdminSession[]
+  auditEvents  AdminAuditEvent[]
+  manualCrawls ManualCrawlRequest[]
+
+  @@index([role])
+}
+
+model AdminSession {
+  id          String             @id @default(cuid())
+  adminUserId String
+  tokenHash   String             @unique
+  status      AdminSessionStatus @default(ACTIVE)
+  ip          String
+  userAgent   String
+  expiresAt   DateTime
+  createdAt   DateTime           @default(now())
+  adminUser   AdminUser          @relation(fields: [adminUserId], references: [id], onDelete: Cascade)
+
+  @@index([adminUserId, status])
+  @@index([expiresAt])
+}
+
+model AdminAuditEvent {
+  id          String    @id @default(cuid())
+  adminUserId String
+  action      String
+  targetType  String
+  targetId    String?
+  ip          String
+  userAgent   String
+  metadata    Json?
+  createdAt   DateTime  @default(now())
+  adminUser   AdminUser @relation(fields: [adminUserId], references: [id], onDelete: Cascade)
+
+  @@index([adminUserId, createdAt])
+  @@index([action, createdAt])
+}
+
+model ManualCrawlRequest {
+  id            String            @id @default(cuid())
+  sourceId      String
+  requestedById String
+  status        ManualCrawlStatus @default(QUEUED)
+  reason        String?
+  createdAt     DateTime          @default(now())
+  startedAt     DateTime?
+  finishedAt    DateTime?
+  failureReason String?
+  source        RecruitmentSource @relation(fields: [sourceId], references: [id], onDelete: Cascade)
+  requestedBy   AdminUser         @relation(fields: [requestedById], references: [id], onDelete: Restrict)
+
+  @@index([sourceId, status])
+  @@index([requestedById, createdAt])
+  @@index([status, createdAt])
 }

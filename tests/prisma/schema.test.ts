@@ -52,4 +52,30 @@ describe("prisma schema", () => {
     expect(schema).toMatch(/cities\s+String\[\]\s+@default\(\[\]\)/);
     expect(schema).toMatch(/@@index\(\[visibleInFrontend,\s*lifecycleStatus\]\)/);
   });
+
+  it("stores protected admin users, sessions, audit events, and manual crawl requests", () => {
+    expect(schema).toMatch(/enum AdminRole\s+\{/);
+    expect(schema).toMatch(/ADMIN/);
+    expect(schema).toMatch(/enum AdminSessionStatus\s+\{/);
+    expect(schema).toMatch(/ACTIVE/);
+    expect(schema).toMatch(/REVOKED/);
+    expect(schema).toMatch(/EXPIRED/);
+    expect(schema).toMatch(/enum ManualCrawlStatus\s+\{/);
+    expect(schema).toMatch(/QUEUED/);
+    expect(schema).toMatch(/RUNNING/);
+    expect(schema).toMatch(/SUCCEEDED/);
+    expect(schema).toMatch(/FAILED/);
+    expect(schema).toMatch(/model AdminUser\s+\{/);
+    expect(schema).toMatch(/email\s+String\s+@unique/);
+    expect(schema).toMatch(/passwordHash\s+String/);
+    expect(schema).toMatch(/model AdminSession\s+\{/);
+    expect(schema).toMatch(/tokenHash\s+String\s+@unique/);
+    expect(schema).toMatch(/expiresAt\s+DateTime/);
+    expect(schema).toMatch(/model AdminAuditEvent\s+\{/);
+    expect(schema).toMatch(/action\s+String/);
+    expect(schema).toMatch(/model ManualCrawlRequest\s+\{/);
+    expect(schema).toMatch(/sourceId\s+String/);
+    expect(schema).toMatch(/requestedById\s+String/);
+    expect(schema).toMatch(/status\s+ManualCrawlStatus\s+@default\(QUEUED\)/);
+  });
 });
