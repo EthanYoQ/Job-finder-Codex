@@ -45,4 +45,11 @@ describe("prisma schema", () => {
     expect(schema).toMatch(/LOCATION\s+@map\("location"\)/);
     expect(schema).toMatch(/stableRequiredFields\s+RequiredJobField\[\]/);
   });
+
+  it("stores frontend visibility, new labels, and multi-city job evidence", () => {
+    expect(schema).toMatch(/visibleInFrontend\s+Boolean\s+@default\(true\)/);
+    expect(schema).toMatch(/isNew\s+Boolean\s+@default\(false\)/);
+    expect(schema).toMatch(/cities\s+String\[\]\s+@default\(\[\]\)/);
+    expect(schema).toMatch(/@@index\(\[visibleInFrontend,\s*lifecycleStatus\]\)/);
+  });
 });

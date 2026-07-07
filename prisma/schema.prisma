@@ -146,6 +146,7 @@ model Job {
   listUrl               String?
   locationRaw           String
   city                  String
+  cities                String[]           @default([])
   category              JobCategory
   secondaryCategory     JobCategory?
   classificationConfidence Float?
@@ -161,12 +162,15 @@ model Job {
   lastSeenAt            DateTime           @default(now())
   missingSuccessCount   Int                @default(0)
   lifecycleStatus       JobLifecycleStatus @default(ACTIVE)
+  visibleInFrontend     Boolean            @default(true)
+  isNew                 Boolean            @default(false)
   company               Company            @relation(fields: [companyId], references: [id], onDelete: Cascade)
   source                RecruitmentSource  @relation(fields: [sourceId], references: [id], onDelete: Cascade)
 
   @@unique([sourceId, dedupeKey])
   @@index([city, category])
   @@index([companyId, lifecycleStatus])
+  @@index([visibleInFrontend, lifecycleStatus])
   @@index([firstSeenAt])
 }
 
