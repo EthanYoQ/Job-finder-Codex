@@ -17,6 +17,7 @@ const CHINA_UTC_OFFSET_HOURS = 8;
 const CHINA_UTC_OFFSET_MS = CHINA_UTC_OFFSET_HOURS * 60 * 60 * 1000;
 const MORNING_WINDOW_MINUTE = 8 * 60;
 const EVENING_WINDOW_MINUTE = 20 * 60;
+const EXPLICIT_TIMEZONE_PATTERN = /(Z|[+-]\d{2}:\d{2})$/i;
 
 export function nextP0CrawlWindow(now: Date): P0CrawlWindow {
   const chinaDate = chinaDateParts(now);
@@ -113,5 +114,14 @@ function p0WindowForChinaDate(
 }
 
 function timestamp(value: string | Date): number {
-  return value instanceof Date ? value.getTime() : new Date(value).getTime();
+  if (value instanceof Date) {
+    return value.getTime();
+  }
+
+  const normalizedValue = value.trim();
+  if (!EXPLICIT_TIMEZONE_PATTERN.test(normalizedValue)) {
+    return Number.NaN;
+  }
+
+  return new Date(normalizedValue).getTime();
 }
