@@ -31,6 +31,15 @@ describe("SEO route policy", () => {
     expect(isIndexableRoute("/terms")).toBe(true);
   });
 
+  it("keeps admin operations, manual crawl, internal batch, and raw data routes out of indexing", () => {
+    expect(isIndexableRoute("/admin/login")).toBe(false);
+    expect(isIndexableRoute("/admin/sources")).toBe(false);
+    expect(isIndexableRoute("/admin/manual-crawl")).toBe(false);
+    expect(isIndexableRoute("/internal/crawl-batches")).toBe(false);
+    expect(isIndexableRoute("/internal/raw-jobs")).toBe(false);
+    expect(isIndexableRoute("/api/admin/sources")).toBe(false);
+  });
+
   it("does not index result pages, APIs, admin, or deep data paths", () => {
     expect(isIndexableRoute("/search")).toBe(false);
     expect(isIndexableRoute("/city/beijing/category/sales")).toBe(false);
