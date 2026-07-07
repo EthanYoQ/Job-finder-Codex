@@ -34,7 +34,8 @@ export interface MokaSourceFetchDeps {
 }
 
 const MOKA_JOBS_ENDPOINT = "https://app.mokahr.com/api/outer/ats-apply/website/jobs/v2";
-const MOKA_PAGE_SIZE = 200;
+const MOKA_PAGE_SIZE = 50;
+const MOKA_MAX_REDIRECTS = 10;
 
 export function createMokaSourceFetch(deps: MokaSourceFetchDeps = {}): SourceFetchFunction {
   return async (plan) => {
@@ -45,7 +46,7 @@ export function createMokaSourceFetch(deps: MokaSourceFetchDeps = {}): SourceFet
     }
 
     try {
-      const http = deps.http ?? defaultMokaHttpClient;
+      const http = deps.http ?? createDefaultMokaHttpClient();
       const page = await http({
         url: plan.source.officialEntryUrl,
         method: "GET",
@@ -144,21 +145,100 @@ export function decryptMokaResponse(response: MokaEncryptedResponse, aesIv: stri
   return JSON.parse(decrypted);
 }
 
-async function defaultMokaHttpClient(request: MokaHttpRequest): Promise<MokaHttpResponse> {
-  const init: RequestInit = { method: request.method };
-  if (request.headers) {
-    init.headers = request.headers;
+function createDefaultMokaHttpClient(): MokaHttpClient {
+  const cookies = new Map<string, string>();
+
+  return async (request) => defaultMokaHttpClient(request, cookies);
+}
+
+async function defaultMokaHttpClient(
+  request: MokaHttpRequest,
+  cookies: Map<string, string>
+): Promise<MokaHttpResponse> {
+  let currentUrl = request.url;
+
+  for (let redirectCount = 0; redirectCount <= MOKA_MAX_REDIRECTS; redirectCount += 1) {
+    const response = await fetch(currentUrl, buildFetchInit(request, cookies));
+    storeResponseCookies(response.headers, cookies);
+
+    if (!isRedirect(response.status)) {
+      return {
+        status: response.status,
+        body: await response.text()
+      };
+    }
+
+    const location = response.headers.get("location");
+    if (!location) {
+      return {
+        status: response.status,
+        body: await response.text()
+      };
+    }
+
+    currentUrl = new URL(location, currentUrl).toString();
   }
+
+  throw new Error("Moka request exceeded redirect limit");
+}
+
+function buildFetchInit(request: MokaHttpRequest, cookies: Map<string, string>): RequestInit {
+  const init: RequestInit = { method: request.method };
+
+  const headers = new Headers(request.headers);
+  const cookieHeader = cookieHeaderValue(cookies);
+  if (request.method === "GET" && cookieHeader) {
+    headers.set("Cookie", cookieHeader);
+  }
+  init.headers = headers;
+
   if (request.body) {
     init.body = JSON.stringify(request.body);
   }
 
-  const response = await fetch(request.url, init);
+  init.redirect = "manual";
 
-  return {
-    status: response.status,
-    body: await response.text()
-  };
+  return init;
+}
+
+function isRedirect(status: number): boolean {
+  return status >= 300 && status < 400;
+}
+
+function storeResponseCookies(headers: Headers, cookies: Map<string, string>): void {
+  for (const setCookie of getSetCookieValues(headers)) {
+    const cookiePair = setCookie.split(";")[0]?.trim();
+    if (!cookiePair) {
+      continue;
+    }
+
+    const separatorIndex = cookiePair.indexOf("=");
+    if (separatorIndex <= 0) {
+      continue;
+    }
+
+    cookies.set(cookiePair.slice(0, separatorIndex), cookiePair.slice(separatorIndex + 1));
+  }
+}
+
+function getSetCookieValues(headers: Headers): string[] {
+  const withGetSetCookie = headers as Headers & { getSetCookie?: () => string[] };
+  const setCookieValues = withGetSetCookie.getSetCookie?.();
+  if (setCookieValues && setCookieValues.length > 0) {
+    return setCookieValues;
+  }
+
+  const combinedHeader = headers.get("set-cookie");
+  return combinedHeader ? splitCombinedSetCookieHeader(combinedHeader) : [];
+}
+
+function splitCombinedSetCookieHeader(header: string): string[] {
+  return header.split(/,(?=\s*[^;,]+=)/).map((value) => value.trim()).filter(Boolean);
+}
+
+function cookieHeaderValue(cookies: ReadonlyMap<string, string>): string | undefined {
+  const pairs = [...cookies.entries()].map(([name, value]) => `${name}=${value}`);
+  return pairs.length > 0 ? pairs.join("; ") : undefined;
 }
 
 function parseEncryptedResponse(body: string): MokaEncryptedResponse | undefined {

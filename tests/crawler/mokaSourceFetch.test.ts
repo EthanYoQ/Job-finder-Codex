@@ -1,5 +1,5 @@
 import { createCipheriv } from "node:crypto";
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   createMokaSourceFetch,
   decryptMokaResponse,
@@ -64,6 +64,10 @@ function encryptedResponse(payload: unknown): MokaEncryptedResponse {
 }
 
 describe("Moka source fetch", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
   it("extracts Moka init data from the hidden input", () => {
     const initData = extractMokaInitData(
       htmlWithInitData({
@@ -146,7 +150,7 @@ describe("Moka source fetch", () => {
     expect(requests[1]?.body).toMatchObject({
       orgId: "beigene",
       siteId: "98934",
-      limit: 200,
+      limit: 50,
       offset: 0,
       isCampusJob: false
     });
@@ -165,6 +169,87 @@ describe("Moka source fetch", () => {
         ]
       }
     });
+  });
+
+  it("carries Moka redirect cookies when using the default HTTP client", async () => {
+    const requests: Array<{ url: string; cookie: string; redirect: RequestRedirect | undefined }> = [];
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: string | URL | Request, init?: RequestInit) => {
+        const url = typeof input === "string" ? input : input instanceof URL ? input.toString() : input.url;
+        const headers = new Headers(init?.headers);
+        requests.push({ url, cookie: headers.get("cookie") ?? "", redirect: init?.redirect });
+
+        if (url.includes("/apply/beigene/98934") && !headers.get("cookie")?.includes("connect.sid=session")) {
+          return new Response("Found. Redirecting to the same Moka path", {
+            status: 302,
+            headers: [
+              ["location", "/apply/beigene/98934?sourceToken=token"],
+              ["set-cookie", "connect.sid=session; Path=/; HttpOnly"],
+              ["set-cookie", "csrfCk=csrf; Path=/; HttpOnly"]
+            ]
+          });
+        }
+
+        if (url.includes("/apply/beigene/98934")) {
+          return new Response(
+            htmlWithInitData({
+              aesIv,
+              mode: "social",
+              siteId: "98934",
+              org: { id: "beigene", siteId: 98934, name: "百济神州" }
+            }),
+            { status: 200 }
+          );
+        }
+
+        if (url.includes("/api/outer/ats-apply/website/jobs/v2")) {
+          return new Response(
+            JSON.stringify(
+              encryptedResponse({
+                success: true,
+                data: {
+                  jobs: [
+                    {
+                      id: "job-1",
+                      title: "Research Chief",
+                      locations: [{ cityName: "上海市" }]
+                    }
+                  ]
+                }
+              })
+            ),
+            { status: 200 }
+          );
+        }
+
+        throw new Error(`Unexpected fetch URL: ${url}`);
+      })
+    );
+
+    const fetch = createMokaSourceFetch({ now: () => new Date(capturedAt) });
+    const result = await fetch(plan);
+
+    expect(result).toMatchObject({ ok: true, capturedAt });
+    expect(
+      requests.some(
+        (request) =>
+          request.url.includes("/apply/beigene/98934") &&
+          request.cookie.includes("connect.sid=session")
+      )
+    ).toBe(true);
+    expect(
+      requests
+        .filter((request) => request.url.includes("/apply/beigene/98934"))
+        .every((request) => request.redirect === "manual")
+    ).toBe(true);
+    expect(
+      requests.some(
+        (request) =>
+          request.url.includes("/api/outer/ats-apply/website/jobs/v2") &&
+          request.cookie.includes("connect.sid=session")
+      )
+    ).toBe(false);
   });
 
   it("returns a failed fetch result when used on a non-Moka source", async () => {
