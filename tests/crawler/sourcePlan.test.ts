@@ -49,8 +49,12 @@ describe("source crawl planning", () => {
       "html-table"
     );
     expect(getPlanBySourceId(plans, "source-cspc-social")?.adapterId).toBe("official-json");
-    expect(getPlanBySourceId(plans, "source-beigene-social")?.adapterId).toBe("official-json");
-    expect(getPlanBySourceId(plans, "source-beigene-social")?.json).toMatchObject({
+    const beigenePlan = getPlanBySourceId(plans, "source-beigene-social");
+    expect(beigenePlan?.adapterId).toBe("official-json");
+    if (beigenePlan?.adapterId !== "official-json") {
+      throw new Error("Expected Beigene plan to use official-json adapter");
+    }
+    expect(beigenePlan.json).toMatchObject({
       jobsPath: "data.jobs",
       fields: {
         sourceJobId: "id",
