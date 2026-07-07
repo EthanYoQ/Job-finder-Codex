@@ -17,22 +17,13 @@ describe("P0 readiness report", () => {
     );
   });
 
-  it("flags registry sources that are labelled verified but cannot be planned for crawl", () => {
+  it("does not flag declared verified sources once every verified source has a crawl plan", () => {
     const report = getP0ReadinessReport();
 
-    expect(report.declaredVerifiedSocialSources).toBeGreaterThan(
-      report.configuredVerifiedSocialSources
-    );
-    expect(report.verifiedSourcesMissingCrawlPlan).toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({
-          sourceId: "source-beigene-social",
-          companyId: "company-beigene",
-          companyName: "百济神州"
-        })
-      ])
-    );
-    expect(report.blockers.map((blocker) => blocker.code)).toContain(
+    expect(report.declaredVerifiedSocialSources).toBe(5);
+    expect(report.configuredVerifiedSocialSources).toBe(5);
+    expect(report.verifiedSourcesMissingCrawlPlan).toEqual([]);
+    expect(report.blockers.map((blocker) => blocker.code)).not.toContain(
       "VERIFIED_SOURCE_WITHOUT_CRAWL_PLAN"
     );
   });

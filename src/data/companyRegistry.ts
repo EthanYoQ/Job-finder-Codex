@@ -125,7 +125,8 @@ const CANDIDATE_SEEDS: CandidateSeed[] = [
     status: "VERIFIED_SCRAPABLE",
     atsKind: "MOKA",
     officialWebsiteUrl: "https://www.beonemedicines.com.cn/",
-    socialEntryUrl: "https://www.beonemedicines.com.cn/careers/careers/",
+    socialEntryUrl:
+      "https://app.mokahr.com/apply/beigene/98934?sourceToken=ac8c1724c2ec857aed0ae5d025631e2a#/jobs",
     officialChainEvidenceUrl: "https://www.beonemedicines.com.cn/careers/careers/",
     includeCampusPlaceholder: true
   },

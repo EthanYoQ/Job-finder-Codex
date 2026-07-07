@@ -97,6 +97,20 @@ const REPRESENTATIVE_CONFIGS: Record<string, RepresentativeSourceConfig> = {
         category: "positionType"
       }
     }
+  },
+  "source-beigene-social": {
+    adapterId: "official-json",
+    json: {
+      jobsPath: "data.jobs",
+      fields: {
+        sourceJobId: "id",
+        officialTitle: "title",
+        officialUrl: "officialUrl",
+        locationRaw: "locationRaw",
+        cities: "cities"
+      },
+      defaultCategory: "其他"
+    }
   }
 };
 

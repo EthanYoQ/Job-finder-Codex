@@ -49,5 +49,17 @@ describe("source crawl planning", () => {
       "html-table"
     );
     expect(getPlanBySourceId(plans, "source-cspc-social")?.adapterId).toBe("official-json");
+    expect(getPlanBySourceId(plans, "source-beigene-social")?.adapterId).toBe("official-json");
+    expect(getPlanBySourceId(plans, "source-beigene-social")?.json).toMatchObject({
+      jobsPath: "data.jobs",
+      fields: {
+        sourceJobId: "id",
+        officialTitle: "title",
+        officialUrl: "officialUrl",
+        locationRaw: "locationRaw",
+        cities: "cities"
+      },
+      defaultCategory: "其他"
+    });
   });
 });
