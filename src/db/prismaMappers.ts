@@ -61,6 +61,10 @@ const PRISMA_TO_JOB_CATEGORY = Object.fromEntries(
   Object.entries(JOB_CATEGORY_TO_PRISMA).map(([category, prismaName]) => [prismaName, category])
 ) as Record<PrismaJobCategoryName, JobCategory>;
 
+const PRISMA_TO_REQUIRED_FIELD = Object.fromEntries(
+  Object.entries(REQUIRED_FIELD_TO_PRISMA).map(([field, prismaName]) => [prismaName, field])
+) as Record<PrismaRequiredJobFieldName, RequiredJobField>;
+
 const PRISMA_TO_LIFECYCLE = Object.fromEntries(
   Object.entries(LIFECYCLE_TO_PRISMA).map(([status, prismaName]) => [prismaName, status])
 ) as Record<PrismaLifecycleStatusName, LifecycleStatus>;
@@ -71,6 +75,12 @@ export function toPrismaJobCategory(category: JobCategory): PrismaJobCategoryNam
 
 export function toPrismaRequiredJobField(field: RequiredJobField): PrismaRequiredJobFieldName {
   return REQUIRED_FIELD_TO_PRISMA[field];
+}
+
+export function fromPrismaRequiredJobField(
+  field: PrismaRequiredJobFieldName
+): RequiredJobField {
+  return PRISMA_TO_REQUIRED_FIELD[field];
 }
 
 export function toPrismaLifecycleStatus(status: LifecycleStatus): PrismaLifecycleStatusName {
