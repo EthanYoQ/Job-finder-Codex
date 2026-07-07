@@ -18,7 +18,6 @@ import { filterJobs, sortCompanies, type CompanyResult, type JobResult } from ".
 type ConsentState = "pending" | "closed" | "accepted";
 
 const GLOBAL_LAST_FETCHED = "2026-07-07 08:00";
-const MARKET_JOB_COUNT = 128;
 const DEFAULT_CITY = "北京";
 const DEFAULT_CATEGORY = "销售";
 
@@ -48,18 +47,17 @@ export function App() {
     const results = filterJobs({
       city,
       keyword,
-      categories: [],
-      onlyNew: false
+      categories: categoryChip ? [categoryChip] : [],
+      onlyNew: showsOnlyNewChip
     });
 
     return sortCompanies(results, "PINYIN_ASC").map((company) => ({
       ...company,
       jobs: [...company.jobs].sort(compareJobsByPublishedAt)
     }));
-  }, [city, keyword]);
+  }, [city, keyword, categoryChip, showsOnlyNewChip]);
 
   const matchingJobCount = countJobs(companyResults);
-  const displayedJobCount = keyword.trim() ? matchingJobCount : MARKET_JOB_COUNT;
 
   function acceptConsent() {
     if (!hasCheckedConsent) {
@@ -186,7 +184,7 @@ export function App() {
         <section aria-label="职位概览" className="summary-card">
           <div>
             <div className="summary-count">
-              <span>{displayedJobCount}</span>
+              <span>{matchingJobCount}</span>
               <small>个职位</small>
             </div>
             <p>
