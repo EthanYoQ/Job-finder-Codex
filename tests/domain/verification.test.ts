@@ -61,7 +61,7 @@ describe("verified scrapable gate", () => {
     expect(isVerifiedScrapable(source, observations)).toBe(false);
   });
 
-  it("accepts sources with official evidence and two successful stable crawls", () => {
+  it("rejects sources that still have pending adapter status even with two successful stable crawls", () => {
     const observations: CrawlObservation[] = [
       {
         id: "crawl-1",
@@ -81,7 +81,34 @@ describe("verified scrapable gate", () => {
       }
     ];
 
-    expect(isVerifiedScrapable(source, observations)).toBe(true);
+    expect(isVerifiedScrapable(source, observations)).toBe(false);
+  });
+
+  it("accepts sources with official evidence and two successful stable crawls", () => {
+    const verifiedSource: RecruitmentSource = {
+      ...source,
+      status: "VERIFIED_SCRAPABLE"
+    };
+    const observations: CrawlObservation[] = [
+      {
+        id: "crawl-1",
+        sourceId: verifiedSource.id,
+        crawledAt: new Date("2026-07-07T08:00:00Z"),
+        successful: true,
+        structuredJobCount: 12,
+        stableRequiredFields: [...requiredFields]
+      },
+      {
+        id: "crawl-2",
+        sourceId: verifiedSource.id,
+        crawledAt: new Date("2026-07-07T20:00:00Z"),
+        successful: true,
+        structuredJobCount: 12,
+        stableRequiredFields: [...requiredFields]
+      }
+    ];
+
+    expect(isVerifiedScrapable(verifiedSource, observations)).toBe(true);
   });
 
   it("blocks P0 launch until at least 50 companies are verified scrapable", () => {
@@ -94,6 +121,7 @@ describe("verified scrapable gate", () => {
       sources: [
         {
           ...source,
+          status: "VERIFIED_SCRAPABLE",
           id: `source-${index}`,
           companyId: `company-${index}`
         }

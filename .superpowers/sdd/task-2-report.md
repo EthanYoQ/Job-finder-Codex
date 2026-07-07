@@ -55,3 +55,22 @@ Result:
 
 - Unverified by this task: whether `officialEntryUrl` and `officialChainEvidenceUrl` should also be validated for format or reachability beyond being present.
 - Unverified by this task: whether future launch rules will need additional status checks beyond the current `SOCIAL` and crawl-stability conditions.
+
+## Fix Update
+
+- Aligned `isVerifiedScrapable()` with the clarified launch-gate rule by requiring `source.status === "VERIFIED_SCRAPABLE"` in addition to the existing official evidence and crawl-stability checks.
+- Updated the verification tests so pending-adapter sources are rejected even after two successful stable crawls, the positive two-crawl case uses a verified source, and launch-gate fixtures are marked `VERIFIED_SCRAPABLE`.
+
+## Verification
+
+Ran:
+
+```bash
+npm test -- tests/domain/verification.test.ts
+npm run typecheck
+```
+
+Result:
+
+- Targeted verification tests passed: 5 tests passed
+- Typecheck passed

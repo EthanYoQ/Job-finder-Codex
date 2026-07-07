@@ -20,6 +20,7 @@ export function isVerifiedScrapable(
   observations: CrawlObservation[]
 ): boolean {
   if (source.kind !== "SOCIAL") return false;
+  if (source.status !== "VERIFIED_SCRAPABLE") return false;
   if (!source.officialEntryUrl || !source.officialChainEvidenceUrl) return false;
 
   const successfulStableCrawls = observations.filter((observation) => {
