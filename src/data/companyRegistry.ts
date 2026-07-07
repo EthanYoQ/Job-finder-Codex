@@ -1,4 +1,24 @@
-import type { ATSKind, Company, RecruitmentSource, VerificationStatus } from "../domain/company";
+import type { ATSKind, SourceKind, VerificationStatus } from "../domain/company";
+
+export interface CandidateRecruitmentSource {
+  id: string;
+  companyId: string;
+  kind: SourceKind;
+  atsKind: ATSKind;
+  status: VerificationStatus;
+  officialEntryUrl?: string;
+  officialChainEvidenceUrl?: string;
+  campusEntryUrl?: string;
+}
+
+export interface CandidateCompany {
+  id: string;
+  officialChineseName: string;
+  officialWebsiteUrl?: string;
+  pinyinName: string;
+  inclusionReason: string;
+  sources: CandidateRecruitmentSource[];
+}
 
 export interface CandidatePoolStats {
   totalCandidates: number;
@@ -25,46 +45,37 @@ const P0_MIN_CANDIDATES = 80;
 const P0_MAX_CANDIDATES = 120;
 const P0_MIN_VERIFIED_SCRAPABLE = 50;
 
-function registryCandidatePlaceholderUrl(companyId: string, path: string): string {
-  return `https://registry-candidate.invalid/${companyId}/${path}`;
-}
-
 function sourceIdFor(companyId: string, kind: "social" | "campus"): string {
   return `source-${companyId.replace(/^company-/, "")}-${kind}`;
 }
 
-function toRecruitmentSource(seed: CandidateSeed): RecruitmentSource {
-  const officialWebsiteUrl =
-    seed.officialWebsiteUrl ?? registryCandidatePlaceholderUrl(seed.id, "official-website");
-
+function toRecruitmentSource(seed: CandidateSeed): CandidateRecruitmentSource {
   return {
     id: sourceIdFor(seed.id, "social"),
     companyId: seed.id,
     kind: "SOCIAL",
     atsKind: seed.atsKind ?? "UNKNOWN",
-    officialEntryUrl: seed.socialEntryUrl ?? registryCandidatePlaceholderUrl(seed.id, "social"),
-    officialChainEvidenceUrl: seed.officialChainEvidenceUrl ?? officialWebsiteUrl,
-    status: seed.status ?? "UNVERIFIED"
+    status: seed.status ?? "UNVERIFIED",
+    ...(seed.socialEntryUrl && seed.officialChainEvidenceUrl
+      ? { officialEntryUrl: seed.socialEntryUrl }
+      : {}),
+    ...(seed.officialChainEvidenceUrl
+      ? { officialChainEvidenceUrl: seed.officialChainEvidenceUrl }
+      : {})
   };
 }
 
-function toCampusSource(seed: CandidateSeed): RecruitmentSource {
-  const campusEntryUrl = registryCandidatePlaceholderUrl(seed.id, "campus");
-
+function toCampusSource(seed: CandidateSeed): CandidateRecruitmentSource {
   return {
     id: sourceIdFor(seed.id, "campus"),
     companyId: seed.id,
     kind: "CAMPUS",
     atsKind: "UNKNOWN",
-    officialEntryUrl: campusEntryUrl,
-    officialChainEvidenceUrl:
-      seed.officialWebsiteUrl ?? registryCandidatePlaceholderUrl(seed.id, "official-website"),
-    campusEntryUrl,
     status: "UNVERIFIED"
   };
 }
 
-function toCompany(seed: CandidateSeed): Company {
+function toCompany(seed: CandidateSeed): CandidateCompany {
   const sources = [toRecruitmentSource(seed)];
 
   if (seed.includeCampusPlaceholder) {
@@ -74,27 +85,24 @@ function toCompany(seed: CandidateSeed): Company {
   return {
     id: seed.id,
     officialChineseName: seed.officialChineseName,
-    officialWebsiteUrl:
-      seed.officialWebsiteUrl ?? registryCandidatePlaceholderUrl(seed.id, "official-website"),
     pinyinName: seed.pinyinName,
     inclusionReason: seed.inclusionReason,
-    sources
+    sources,
+    ...(seed.officialWebsiteUrl ? { officialWebsiteUrl: seed.officialWebsiteUrl } : {})
   };
 }
 
-// Placeholder `.invalid` URLs mark registry candidates that still need official-chain verification.
-// Only companies with research evidence from docs/research/p0-company-and-reuse-research.md are VERIFIED_SCRAPABLE.
+// Missing official-chain evidence is represented by absent URL fields.
+// Only companies with first-party official-chain evidence are VERIFIED_SCRAPABLE.
 const CANDIDATE_SEEDS: CandidateSeed[] = [
   {
     id: "company-hengrui",
     officialChineseName: "江苏恒瑞医药股份有限公司",
     pinyinName: "hengrui",
     inclusionReason: "国内头部药企、已实测",
-    status: "VERIFIED_SCRAPABLE",
+    status: "ENTRY_FOUND_PENDING_ADAPTER",
     atsKind: "MOKA",
-    officialWebsiteUrl: "https://app.mokahr.com/social-recruitment/hengrui/145996",
     socialEntryUrl: "https://app.mokahr.com/social-recruitment/hengrui/145996#/jobs",
-    officialChainEvidenceUrl: "https://app.mokahr.com/social-recruitment/hengrui/145996#/jobs",
     includeCampusPlaceholder: true
   },
   {
@@ -157,9 +165,9 @@ const CANDIDATE_SEEDS: CandidateSeed[] = [
     inclusionReason: "国内头部药企、已实测",
     status: "VERIFIED_SCRAPABLE",
     atsKind: "BEISEN_ZHIYE",
-    officialWebsiteUrl: "https://fosunpharma.zhiye.com/",
+    officialWebsiteUrl: "https://www.fosunpharma.com/careers",
     socialEntryUrl: "https://fosunpharma.zhiye.com/social",
-    officialChainEvidenceUrl: "https://fosunpharma.zhiye.com/social"
+    officialChainEvidenceUrl: "https://www.fosunpharma.com/careers"
   },
   {
     id: "company-novartis",
@@ -789,13 +797,15 @@ const CANDIDATE_SEEDS: CandidateSeed[] = [
   }
 ];
 
-export const candidateCompanies: Company[] = CANDIDATE_SEEDS.map(toCompany);
+export const candidateCompanies: CandidateCompany[] = CANDIDATE_SEEDS.map(toCompany);
 
-export function getSocialSources(companies: readonly Company[]): RecruitmentSource[] {
+export function getSocialSources(
+  companies: readonly CandidateCompany[]
+): CandidateRecruitmentSource[] {
   return companies.flatMap((company) => company.sources).filter((source) => source.kind === "SOCIAL");
 }
 
-export function getCandidatePoolStats(companies: readonly Company[]): CandidatePoolStats {
+export function getCandidatePoolStats(companies: readonly CandidateCompany[]): CandidatePoolStats {
   const sources = companies.flatMap((company) => company.sources);
   const verifiedScrapableCompanies = companies.filter((company) =>
     company.sources.some(
