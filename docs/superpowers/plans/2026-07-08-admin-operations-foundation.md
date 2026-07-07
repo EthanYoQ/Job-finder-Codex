@@ -45,7 +45,7 @@
 - Produces: Prisma enums `AdminRole`, `AdminSessionStatus`, `ManualCrawlStatus`; models `AdminUser`, `AdminSession`, `AdminAuditEvent`, `ManualCrawlRequest`.
 - Consumes: existing `Company`, `RecruitmentSource`, `Feedback`, `RecommendedCompany`, and `Job` models.
 
-- [ ] **Step 1: Write failing schema tests**
+- [x] **Step 1: Write failing schema tests**
 
 Add this test to `tests/prisma/schema.test.ts`:
 
@@ -77,7 +77,7 @@ it("stores protected admin users, sessions, audit events, and manual crawl reque
 });
 ```
 
-- [ ] **Step 2: Run schema tests to verify they fail**
+- [x] **Step 2: Run schema tests to verify they fail**
 
 Run:
 
@@ -87,7 +87,7 @@ npm test -- tests/prisma/schema.test.ts
 
 Expected: FAIL because admin models and enums do not exist.
 
-- [ ] **Step 3: Add admin schema models**
+- [x] **Step 3: Add admin schema models**
 
 Modify `prisma/schema.prisma` by adding enums after `FeedbackStatus`:
 
@@ -184,7 +184,7 @@ model ManualCrawlRequest {
 }
 ```
 
-- [ ] **Step 4: Verify Task 1**
+- [x] **Step 4: Verify Task 1**
 
 Run:
 
@@ -196,7 +196,7 @@ npm run typecheck
 
 Expected: schema tests, Prisma validation, and typecheck pass.
 
-- [ ] **Step 5: Commit Task 1**
+- [x] **Step 5: Commit Task 1**
 
 Run:
 
@@ -219,7 +219,7 @@ Expected: commit created.
 - Produces: `hashAdminPassword(password, salt?)`, `verifyAdminPassword(password, encodedHash)`, `createAdminSession(adminUserId, context, deps)`, `assertActiveAdminSession(token, context, deps)`.
 - Consumes: injected `AdminAuthDb` delegate with `adminSession.create` and `adminSession.findUnique`.
 
-- [ ] **Step 1: Write failing auth tests**
+- [x] **Step 1: Write failing auth tests**
 
 Create `tests/admin/auth.test.ts`:
 
@@ -302,7 +302,7 @@ describe("admin auth", () => {
 });
 ```
 
-- [ ] **Step 2: Run auth tests to verify they fail**
+- [x] **Step 2: Run auth tests to verify they fail**
 
 Run:
 
@@ -312,7 +312,7 @@ npm test -- tests/admin/auth.test.ts
 
 Expected: FAIL because `src/admin/auth.ts` does not exist.
 
-- [ ] **Step 3: Implement admin auth**
+- [x] **Step 3: Implement admin auth**
 
 Create `src/admin/auth.ts`:
 
@@ -322,7 +322,7 @@ Create `src/admin/auth.ts`:
 - session duration is exactly 24 hours;
 - `assertActiveAdminSession` finds by `tokenHash`, requires `status === "ACTIVE"`, `expiresAt > now`, matching `ip` and `userAgent`, and no `adminUser.disabledAt`.
 
-- [ ] **Step 4: Verify Task 2**
+- [x] **Step 4: Verify Task 2**
 
 Run:
 
@@ -333,7 +333,7 @@ npm run typecheck
 
 Expected: auth tests and typecheck pass.
 
-- [ ] **Step 5: Commit Task 2**
+- [x] **Step 5: Commit Task 2**
 
 Run:
 
@@ -356,7 +356,7 @@ Expected: commit created.
 - Consumes: authenticated admin context `{ adminUserId, ip, userAgent }`.
 - Produces: `queueManualCrawl`, `reviewFeedback`, `reviewRecommendedCompany`, `applyJobCategoryCorrection`, `listSourceHealth`.
 
-- [ ] **Step 1: Write failing operations tests**
+- [x] **Step 1: Write failing operations tests**
 
 Create `tests/admin/operations.test.ts` with fake delegates and tests proving:
 
@@ -366,7 +366,7 @@ Create `tests/admin/operations.test.ts` with fake delegates and tests proving:
 - `applyJobCategoryCorrection` updates `humanCorrectedCategory`, `humanCorrectedSecondaryCategory`, `humanCorrectionReason`, `humanCorrectedAt`, and audit event;
 - `listSourceHealth` returns sources with latest observation, consecutive failure count, structured job count, and verification status without exposing raw job rows.
 
-- [ ] **Step 2: Run operations tests to verify they fail**
+- [x] **Step 2: Run operations tests to verify they fail**
 
 Run:
 
@@ -376,7 +376,7 @@ npm test -- tests/admin/operations.test.ts
 
 Expected: FAIL because `src/admin/operations.ts` does not exist.
 
-- [ ] **Step 3: Implement admin operations**
+- [x] **Step 3: Implement admin operations**
 
 Create `src/admin/operations.ts` using injected delegates:
 
@@ -387,7 +387,7 @@ Create `src/admin/operations.ts` using injected delegates:
 - `applyJobCategoryCorrection` accepts domain Chinese category labels and maps them with `toPrismaJobCategory`;
 - `listSourceHealth` sorts latest observations by `crawledAt` descending and uses `toSourceScheduleState` for consecutive failure count.
 
-- [ ] **Step 4: Verify Task 3**
+- [x] **Step 4: Verify Task 3**
 
 Run:
 
@@ -398,7 +398,7 @@ npm run typecheck
 
 Expected: operations tests, mapper/state tests, and typecheck pass.
 
-- [ ] **Step 5: Commit Task 3**
+- [x] **Step 5: Commit Task 3**
 
 Run:
 
@@ -421,7 +421,7 @@ Expected: commit created.
 - Consumes: existing `isIndexableRoute(path)` and route policy tests.
 - Produces: route policy coverage for admin, internal batch, manual crawl, and raw data paths.
 
-- [ ] **Step 1: Write failing route-policy tests**
+- [x] **Step 1: Write failing route-policy tests**
 
 Extend `tests/domain/route-policy.test.ts`:
 
@@ -436,7 +436,7 @@ it("keeps admin operations, manual crawl, internal batch, and raw data routes ou
 });
 ```
 
-- [ ] **Step 2: Run route-policy tests to verify they fail if policy is incomplete**
+- [x] **Step 2: Run route-policy tests to verify they fail if policy is incomplete**
 
 Run:
 
@@ -446,11 +446,11 @@ npm test -- tests/domain/route-policy.test.ts
 
 Expected: FAIL if any route is currently indexable; PASS is acceptable only if the existing policy already blocks every path. Keep the added regression test either way.
 
-- [ ] **Step 3: Implement route policy if needed**
+- [x] **Step 3: Implement route policy if needed**
 
 If the new test fails, update `src/domain/route-policy.ts` so `/admin`, `/api`, `/internal`, and raw/batch/manual crawl paths are non-indexable. Do not make search-result pages indexable.
 
-- [ ] **Step 4: Verify Task 4**
+- [x] **Step 4: Verify Task 4**
 
 Run:
 
@@ -461,7 +461,7 @@ npm run typecheck
 
 Expected: route-policy tests and typecheck pass.
 
-- [ ] **Step 5: Commit Task 4**
+- [x] **Step 5: Commit Task 4**
 
 Run:
 
@@ -480,7 +480,7 @@ Expected: commit created if files changed.
 - Modify: `docs/superpowers/plans/2026-07-08-admin-operations-foundation.md`
 - Modify: `.superpowers/sdd/progress.md`
 
-- [ ] **Step 1: Run full verification**
+- [x] **Step 1: Run full verification**
 
 Run:
 
@@ -494,11 +494,11 @@ git grep -n -E "tvly-dev-[A-Za-z0-9_-]+" -- . ':!.superpowers'
 
 Expected: all test/build/schema commands pass; grep returns no matches.
 
-- [ ] **Step 2: Mark progress**
+- [x] **Step 2: Mark progress**
 
 Append progress entries noting this plan implements admin auth/session contracts, protected admin operations, manual recrawl queueing, feedback/recommendation review, human category corrections, and route indexing protection, but still does not implement admin UI screens, production deployment, WAF/rate limits, backups, monitoring, or 50 live verified companies.
 
-- [ ] **Step 3: Commit verification marker**
+- [x] **Step 3: Commit verification marker**
 
 Run:
 
