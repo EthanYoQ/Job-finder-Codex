@@ -43,7 +43,7 @@
 - Produces: `SourceCrawlPlan`, `buildSourceCrawlPlans(companies)`, `getPlanBySourceId(plans, sourceId)`.
 - Consumes: `CandidateCompany`, `CandidateRecruitmentSource` from `src/data/companyRegistry.ts`; adapter config types from `src/crawler/adapters/types.ts`.
 
-- [ ] **Step 1: Write failing source-plan tests**
+- [x] **Step 1: Write failing source-plan tests**
 
 Create `tests/crawler/sourcePlan.test.ts`:
 
@@ -74,7 +74,7 @@ describe("source crawl planning", () => {
 });
 ```
 
-- [ ] **Step 2: Run test to verify it fails**
+- [x] **Step 2: Run test to verify it fails**
 
 Run:
 
@@ -84,7 +84,7 @@ npm test -- tests/crawler/sourcePlan.test.ts
 
 Expected: FAIL because `src/crawler/sourcePlan.ts` does not exist.
 
-- [ ] **Step 3: Implement source crawl plans**
+- [x] **Step 3: Implement source crawl plans**
 
 Create `src/crawler/sourcePlan.ts` with:
 
@@ -209,7 +209,7 @@ export function getPlanBySourceId(
 }
 ```
 
-- [ ] **Step 4: Verify Task 1**
+- [x] **Step 4: Verify Task 1**
 
 Run:
 
@@ -220,7 +220,7 @@ npm run typecheck
 
 Expected: tests and typecheck pass.
 
-- [ ] **Step 5: Commit Task 1**
+- [x] **Step 5: Commit Task 1**
 
 Run:
 
@@ -243,7 +243,7 @@ Expected: commit created.
 - Produces: `runSourceCrawl(plan, deps)`, `SourceFetchResult`, `SourceFetchFunction`.
 - Consumes: `SourceCrawlPlan`, `officialJsonAdapter`, `htmlTableAdapter`.
 
-- [ ] **Step 1: Write failing runner tests**
+- [x] **Step 1: Write failing runner tests**
 
 Create tests for:
 
@@ -252,7 +252,7 @@ Create tests for:
 - failed fetch returns a failed observation without adapter execution;
 - non-baseline crawl passes `isBaseline: false` through to normalized jobs.
 
-- [ ] **Step 2: Run test to verify it fails**
+- [x] **Step 2: Run test to verify it fails**
 
 Run:
 
@@ -262,7 +262,7 @@ npm test -- tests/crawler/runSourceCrawl.test.ts
 
 Expected: FAIL because runner does not exist.
 
-- [ ] **Step 3: Implement dependency-injected runner**
+- [x] **Step 3: Implement dependency-injected runner**
 
 Implement `runSourceCrawl(plan, deps)` as a pure async function. `deps.fetch(plan)` returns:
 
@@ -275,7 +275,7 @@ type SourceFetchResult =
 
 Runner selects adapter by `plan.adapterId`, returns the adapter result, and never opens a network connection itself.
 
-- [ ] **Step 4: Verify Task 2**
+- [x] **Step 4: Verify Task 2**
 
 Run:
 
@@ -286,7 +286,7 @@ npm run typecheck
 
 Expected: tests and typecheck pass.
 
-- [ ] **Step 5: Commit Task 2**
+- [x] **Step 5: Commit Task 2**
 
 Run:
 
@@ -309,7 +309,7 @@ Expected: commit created.
 - Produces: `buildIngestionCommands(result, lifecycleDecisions)`, `IngestionCommand`.
 - Consumes: `CrawlAdapterResult`, `LifecycleDecision`.
 
-- [ ] **Step 1: Write failing ingestion tests**
+- [x] **Step 1: Write failing ingestion tests**
 
 Create tests for:
 
@@ -317,7 +317,7 @@ Create tests for:
 - suspected/offline lifecycle statuses become hidden front-end eligibility flags;
 - failed result produces only crawl observation insert and no job upserts.
 
-- [ ] **Step 2: Run test to verify it fails**
+- [x] **Step 2: Run test to verify it fails**
 
 Run:
 
@@ -327,7 +327,7 @@ npm test -- tests/crawler/ingestion.test.ts
 
 Expected: FAIL because ingestion builder does not exist.
 
-- [ ] **Step 3: Implement ingestion command builder**
+- [x] **Step 3: Implement ingestion command builder**
 
 Implement command union:
 
@@ -339,7 +339,7 @@ export type IngestionCommand =
 
 `visibleInFrontend` is true only for `ACTIVE`.
 
-- [ ] **Step 4: Verify Task 3**
+- [x] **Step 4: Verify Task 3**
 
 Run:
 
@@ -350,7 +350,7 @@ npm run typecheck
 
 Expected: tests and typecheck pass.
 
-- [ ] **Step 5: Commit Task 3**
+- [x] **Step 5: Commit Task 3**
 
 Run:
 
@@ -372,7 +372,7 @@ Expected: commit created.
 **Interfaces:**
 - Produces: `P0_CRAWL_WINDOWS`, `isSourceDueForScheduledRun(sourceState, now)`, `nextP0CrawlWindow(now)`.
 
-- [ ] **Step 1: Write failing schedule tests**
+- [x] **Step 1: Write failing schedule tests**
 
 Create tests proving:
 
@@ -381,7 +381,7 @@ Create tests proving:
 - sources already successfully crawled in the current window are not due;
 - sources with three consecutive failures remain due for retry/attention.
 
-- [ ] **Step 2: Run test to verify it fails**
+- [x] **Step 2: Run test to verify it fails**
 
 Run:
 
@@ -391,11 +391,11 @@ npm test -- tests/crawler/schedule.test.ts
 
 Expected: FAIL because schedule policy does not exist.
 
-- [ ] **Step 3: Implement schedule policy**
+- [x] **Step 3: Implement schedule policy**
 
 Implement deterministic string/date helpers only; do not add timers or background workers in this task.
 
-- [ ] **Step 4: Verify Task 4**
+- [x] **Step 4: Verify Task 4**
 
 Run:
 
@@ -406,7 +406,7 @@ npm run typecheck
 
 Expected: tests and typecheck pass.
 
-- [ ] **Step 5: Commit Task 4**
+- [x] **Step 5: Commit Task 4**
 
 Run:
 
@@ -425,7 +425,7 @@ Expected: commit created.
 - Modify: `docs/superpowers/plans/2026-07-08-crawl-orchestration-and-ingestion.md`
 - Modify: `.superpowers/sdd/progress.md`
 
-- [ ] **Step 1: Run full verification**
+- [x] **Step 1: Run full verification**
 
 Run:
 
@@ -439,11 +439,11 @@ git grep -n -E "tvly-dev-[A-Za-z0-9_-]+" -- . ':!.superpowers'
 
 Expected: all test/build/schema commands pass; grep returns no matches.
 
-- [ ] **Step 2: Mark progress**
+- [x] **Step 2: Mark progress**
 
 Append progress entries noting this plan implements crawl orchestration and ingestion commands, but still does not implement live crawler deployment, PostgreSQL writes, admin UI, or 50 live verified companies.
 
-- [ ] **Step 3: Commit verification marker**
+- [x] **Step 3: Commit verification marker**
 
 Run:
 
