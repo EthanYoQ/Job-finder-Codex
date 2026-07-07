@@ -45,7 +45,7 @@
 - Consumes: `SourceCrawlPlan` from `src/crawler/sourcePlan.ts`; `SourceFetchFunction` from `src/crawler/runSourceCrawl.ts`; `extractOfficialSourceWithTavily` and `TavilyExtractDeps` from `src/crawler/tavily.ts`.
 - Produces: `createTavilySourceFetch(deps): SourceFetchFunction`.
 
-- [ ] **Step 1: Write failing Tavily source fetch tests**
+- [x] **Step 1: Write failing Tavily source fetch tests**
 
 Create `tests/crawler/tavilySourceFetch.test.ts` with three concrete tests:
 
@@ -159,7 +159,7 @@ describe("createTavilySourceFetch", () => {
 });
 ```
 
-- [ ] **Step 2: Run Tavily source fetch tests to verify they fail**
+- [x] **Step 2: Run Tavily source fetch tests to verify they fail**
 
 Run:
 
@@ -169,7 +169,7 @@ npm test -- tests/crawler/tavilySourceFetch.test.ts
 
 Expected: FAIL because `src/crawler/tavilySourceFetch.ts` does not exist.
 
-- [ ] **Step 3: Implement Tavily source fetch**
+- [x] **Step 3: Implement Tavily source fetch**
 
 Create `src/crawler/tavilySourceFetch.ts` with:
 
@@ -182,7 +182,7 @@ Create `src/crawler/tavilySourceFetch.ts` with:
 - JSON plans parse raw JSON or fenced ```json code block; invalid JSON returns `{ ok: false, capturedAt, failureReason }`;
 - empty Tavily results return `{ ok: false, capturedAt, failureReason }`.
 
-- [ ] **Step 4: Verify Task 1**
+- [x] **Step 4: Verify Task 1**
 
 Run:
 
@@ -193,7 +193,7 @@ npm run typecheck
 
 Expected: focused tests and typecheck pass.
 
-- [ ] **Step 5: Commit Task 1**
+- [x] **Step 5: Commit Task 1**
 
 Run:
 
@@ -218,7 +218,7 @@ Expected: commit created.
 - Consumes: persisted job/source/observation rows from Prisma-like delegates.
 - Produces: `fromPrismaJobCategory(name)`, `fromPrismaLifecycleStatus(name)`, `toJobSnapshots(rows)`, `toSourceScheduleState(sourceId, observations)`.
 
-- [ ] **Step 1: Write failing mapper and state tests**
+- [x] **Step 1: Write failing mapper and state tests**
 
 Extend `tests/db/prismaMappers.test.ts` with reverse mapping assertions:
 
@@ -309,7 +309,7 @@ describe("crawl state repository mappers", () => {
 });
 ```
 
-- [ ] **Step 2: Run mapper and state tests to verify they fail**
+- [x] **Step 2: Run mapper and state tests to verify they fail**
 
 Run:
 
@@ -319,7 +319,7 @@ npm test -- tests/db/prismaMappers.test.ts tests/db/crawlStateRepository.test.ts
 
 Expected: FAIL because reverse mappers and state repository do not exist.
 
-- [ ] **Step 3: Implement reverse mappers and crawl state mapping**
+- [x] **Step 3: Implement reverse mappers and crawl state mapping**
 
 Implement reverse maps in `src/db/prismaMappers.ts`. Create `src/db/crawlStateRepository.ts` with row interfaces and pure mappers:
 
@@ -329,7 +329,7 @@ Implement reverse maps in `src/db/prismaMappers.ts`. Create `src/db/crawlStateRe
 - `isBaseline` is `false` for previous persisted snapshots;
 - `toSourceScheduleState(sourceId, observations)` sorts observations descending, finds latest successful crawl, and counts consecutive latest failures before that success.
 
-- [ ] **Step 4: Verify Task 2**
+- [x] **Step 4: Verify Task 2**
 
 Run:
 
@@ -340,7 +340,7 @@ npm run typecheck
 
 Expected: tests and typecheck pass.
 
-- [ ] **Step 5: Commit Task 2**
+- [x] **Step 5: Commit Task 2**
 
 Run:
 
@@ -363,7 +363,7 @@ Expected: commit created.
 - Consumes: `SourceCrawlPlan`, `SourceFetchFunction`, `applyCrawlObservation`, `buildIngestionCommands`, `executeIngestionCommands`, `isSourceDueForScheduledRun`, and state mappers from Task 2.
 - Produces: `runP0CrawlBatch(plans, deps)` and summary type `P0CrawlBatchResult`.
 
-- [ ] **Step 1: Write failing batch runner tests**
+- [x] **Step 1: Write failing batch runner tests**
 
 Create `tests/crawler/runCrawlBatch.test.ts` with tests for:
 
@@ -373,7 +373,7 @@ Create `tests/crawler/runCrawlBatch.test.ts` with tests for:
 
 Use fake DB delegates with `crawlBatch.create`, `crawlBatch.update`, `crawlObservation.create`, and `job.upsert`.
 
-- [ ] **Step 2: Run batch runner tests to verify they fail**
+- [x] **Step 2: Run batch runner tests to verify they fail**
 
 Run:
 
@@ -383,7 +383,7 @@ npm test -- tests/crawler/runCrawlBatch.test.ts
 
 Expected: FAIL because `src/crawler/runCrawlBatch.ts` does not exist.
 
-- [ ] **Step 3: Implement crawl batch runner**
+- [x] **Step 3: Implement crawl batch runner**
 
 Create `src/crawler/runCrawlBatch.ts` with:
 
@@ -396,7 +396,7 @@ Create `src/crawler/runCrawlBatch.ts` with:
 - final status is `"FAILED"` when any source result is failed, otherwise `"SUCCESS"`;
 - summary includes `batchId`, `plannedSourceCount`, `dueSourceCount`, `successfulSourceCount`, `failedSourceCount`, and `skippedSourceCount`.
 
-- [ ] **Step 4: Verify Task 3**
+- [x] **Step 4: Verify Task 3**
 
 Run:
 
@@ -407,7 +407,7 @@ npm run typecheck
 
 Expected: tests and typecheck pass.
 
-- [ ] **Step 5: Commit Task 3**
+- [x] **Step 5: Commit Task 3**
 
 Run:
 
@@ -426,7 +426,7 @@ Expected: commit created.
 - Modify: `docs/superpowers/plans/2026-07-08-live-crawl-batch-foundation.md`
 - Modify: `.superpowers/sdd/progress.md`
 
-- [ ] **Step 1: Run full verification**
+- [x] **Step 1: Run full verification**
 
 Run:
 
@@ -440,11 +440,11 @@ git grep -n -E "tvly-dev-[A-Za-z0-9_-]+" -- . ':!.superpowers'
 
 Expected: all test/build/schema commands pass; grep returns no matches.
 
-- [ ] **Step 2: Mark progress**
+- [x] **Step 2: Mark progress**
 
 Append progress entries noting this plan implements Tavily-backed fetch construction, persisted crawl-state mapping, and testable batch orchestration, but still does not implement a cron scheduler, admin UI, production deployment, WAF/rate limits, backups, monitoring, or 50 live verified companies.
 
-- [ ] **Step 3: Commit verification marker**
+- [x] **Step 3: Commit verification marker**
 
 Run:
 
