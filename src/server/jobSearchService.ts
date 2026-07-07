@@ -62,7 +62,7 @@ export interface DatabaseSearchJobResult {
   id: string;
   title: string;
   officialTitle: string;
-  officialPublishedAt: string;
+  officialPublishedAt: string | null;
   city: string;
   category: JobCategory;
   isNew: boolean;
@@ -211,7 +211,13 @@ function sortCompanies(
 
   if (sort === "LATEST_POSTED") {
     sorted.sort((left, right) => {
-      return getLatestPublishedTimestamp(right) - getLatestPublishedTimestamp(left);
+      const publishedAtDifference = comparePublishedAtDesc(getLatestPublishedAt(left), getLatestPublishedAt(right));
+
+      if (publishedAtDifference !== 0) {
+        return publishedAtDifference;
+      }
+
+      return left.pinyin.localeCompare(right.pinyin);
     });
 
     return sorted;
@@ -239,15 +245,46 @@ function compareJobsByPublishedAtDesc(
   left: DatabaseSearchJobResult,
   right: DatabaseSearchJobResult
 ): number {
-  return Date.parse(right.officialPublishedAt) - Date.parse(left.officialPublishedAt);
+  const publishedAtDifference = comparePublishedAtDesc(left.officialPublishedAt, right.officialPublishedAt);
+
+  if (publishedAtDifference !== 0) {
+    return publishedAtDifference;
+  }
+
+  const titleDifference = left.title.localeCompare(right.title);
+
+  if (titleDifference !== 0) {
+    return titleDifference;
+  }
+
+  return left.id.localeCompare(right.id);
 }
 
-function getLatestPublishedTimestamp(company: DatabaseSearchCompanyResult): number {
+function getLatestPublishedAt(company: DatabaseSearchCompanyResult): string | null {
   const firstJob = company.jobs[0];
 
-  return firstJob ? Date.parse(firstJob.officialPublishedAt) : 0;
+  return firstJob?.officialPublishedAt ?? null;
 }
 
-function toIsoString(value: Date | null): string {
-  return value?.toISOString() ?? "";
+function comparePublishedAtDesc(left: string | null, right: string | null): number {
+  if (left === right) {
+    return 0;
+  }
+
+  if (left === null) {
+    return 1;
+  }
+
+  if (right === null) {
+    return -1;
+  }
+
+  const leftTimestamp = left ? Date.parse(left) : Number.NEGATIVE_INFINITY;
+  const rightTimestamp = right ? Date.parse(right) : Number.NEGATIVE_INFINITY;
+
+  return rightTimestamp - leftTimestamp;
+}
+
+function toIsoString(value: Date | null): string | null {
+  return value?.toISOString() ?? null;
 }
