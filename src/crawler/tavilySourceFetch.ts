@@ -31,8 +31,9 @@ async function fetchSourcePlan(
       deps
     );
 
-    const rawContent = result.results.find((item) => item.url === officialEntryUrl)?.rawContent?.trim();
-    if (!rawContent) {
+    const rawContent = result.results.find((item) => item.url === officialEntryUrl)?.rawContent;
+    const normalizedContent = rawContent?.trim();
+    if (rawContent === undefined || !normalizedContent) {
       return {
         ok: false,
         capturedAt,
@@ -41,7 +42,7 @@ async function fetchSourcePlan(
     }
 
     if (plan.adapterId === "official-json") {
-      const payload = parseJsonContent(rawContent);
+      const payload = parseJsonContent(normalizedContent);
       if (payload === undefined) {
         return {
           ok: false,

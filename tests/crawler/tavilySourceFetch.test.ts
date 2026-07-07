@@ -71,6 +71,27 @@ describe("createTavilySourceFetch", () => {
     });
   });
 
+  it("returns html rawContent exactly as Tavily provided it for html-table plans", async () => {
+    const rawHtml = "\n  <table>\n    <tr><td>  keep spacing  </td></tr>\n  </table>  \n";
+    const fetch = createTavilySourceFetch({
+      keyRing: createTavilyKeyRing(["key-1"]),
+      now: () => new Date("2026-07-08T00:00:00.000Z"),
+      extract: async () => ({
+        ok: true,
+        data: {
+          results: [{ url: "https://example.com/careers", rawContent: rawHtml }],
+          failedResults: []
+        }
+      })
+    });
+
+    await expect(fetch(htmlPlan)).resolves.toEqual({
+      ok: true,
+      capturedAt: "2026-07-08T00:00:00.000Z",
+      html: rawHtml
+    });
+  });
+
   it("parses JSON raw content for official-json plans", async () => {
     const fetch = createTavilySourceFetch({
       keyRing: createTavilyKeyRing(["key-1"]),
@@ -88,6 +109,31 @@ describe("createTavilySourceFetch", () => {
       ok: true,
       capturedAt: "2026-07-08T00:00:00.000Z",
       payload: { jobs: [{ id: "1" }] }
+    });
+  });
+
+  it("parses fenced json raw content for official-json plans", async () => {
+    const fetch = createTavilySourceFetch({
+      keyRing: createTavilyKeyRing(["key-1"]),
+      now: () => new Date("2026-07-08T00:00:00.000Z"),
+      extract: async () => ({
+        ok: true,
+        data: {
+          results: [
+            {
+              url: "https://example.com/careers",
+              rawContent: "```json\n{\"jobs\":[{\"id\":\"1\",\"title\":\"Engineer\"}]}\n```"
+            }
+          ],
+          failedResults: []
+        }
+      })
+    });
+
+    await expect(fetch(jsonPlan)).resolves.toEqual({
+      ok: true,
+      capturedAt: "2026-07-08T00:00:00.000Z",
+      payload: { jobs: [{ id: "1", title: "Engineer" }] }
     });
   });
 
