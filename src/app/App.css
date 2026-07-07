@@ -9,10 +9,28 @@
   --color-border: #c9d4e5;
   --color-border-soft: #d9e1ec;
   --color-new: #d97706;
+  --shadow-border:
+    0 0 0 1px rgba(0, 0, 0, 0.06),
+    0 1px 2px -1px rgba(0, 0, 0, 0.06),
+    0 2px 4px rgba(0, 0, 0, 0.04);
+  --shadow-border-blue:
+    0 0 0 1px rgba(31, 95, 209, 0.18),
+    0 1px 2px -1px rgba(31, 95, 209, 0.1),
+    0 2px 4px rgba(17, 24, 39, 0.04);
+  --shadow-border-hover:
+    0 0 0 1px rgba(31, 95, 209, 0.28),
+    0 1px 2px -1px rgba(31, 95, 209, 0.12),
+    0 2px 5px rgba(17, 24, 39, 0.06);
   color: var(--color-ink);
   background: var(--color-page);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: geometricPrecision;
+  font-optical-sizing: auto;
   font-family:
-    Inter, "PingFang SC", "Microsoft YaHei", "Noto Sans CJK SC", Arial, sans-serif;
+    system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC",
+    "Microsoft YaHei UI", "Microsoft YaHei",
+    "Noto Sans CJK SC", Arial, sans-serif;
 }
 
 * {
@@ -34,6 +52,12 @@ button {
   border: 0;
 }
 
+button,
+a,
+input {
+  -webkit-tap-highlight-color: transparent;
+}
+
 a {
   color: inherit;
 }
@@ -45,10 +69,10 @@ a {
 }
 
 .workbench {
-  width: min(100%, 390px);
+  width: min(100%, 426px);
   min-height: 100vh;
   margin: 0 auto;
-  padding: 19px 13px 28px;
+  padding: 19px 14px 28px;
 }
 
 .workbench[aria-hidden="true"] {
@@ -66,16 +90,17 @@ a {
 .app-header h1 {
   margin: 0;
   color: #111827;
-  font-size: 17px;
-  font-weight: 760;
+  font-size: 15px;
+  font-weight: 650;
   line-height: 1.15;
   letter-spacing: 0;
+  text-wrap: balance;
 }
 
 .app-header span {
   color: #1f2937;
-  font-size: 12px;
-  font-weight: 560;
+  font-size: 10.5px;
+  font-weight: 500;
 }
 
 .search-panel {
@@ -106,14 +131,18 @@ a {
   justify-content: center;
   border-radius: 6px;
   cursor: pointer;
+  transform-origin: center;
+  transition-duration: 150ms;
+  transition-property: background-color, box-shadow, color, transform;
+  transition-timing-function: ease-out;
 }
 
 .keyword-field,
 .city-button,
 .filter-button {
   height: 38px;
-  border: 1px solid var(--color-border);
   background: rgba(255, 255, 255, 0.96);
+  box-shadow: var(--shadow-border-blue);
   color: var(--color-ink);
 }
 
@@ -152,7 +181,8 @@ a {
   outline: 0;
   color: var(--color-ink);
   background: transparent;
-  font-size: 10.4px;
+  font-size: 9.8px;
+  font-weight: 400;
 }
 
 .keyword-field input::placeholder {
@@ -162,16 +192,16 @@ a {
 .city-button {
   gap: 4px;
   padding: 0 6px;
-  font-size: 13px;
-  font-weight: 610;
+  font-size: 12px;
+  font-weight: 600;
   white-space: nowrap;
 }
 
 .filter-button {
   gap: 2px;
   padding: 0 5px;
-  font-size: 12.5px;
-  font-weight: 650;
+  font-size: 11.7px;
+  font-weight: 600;
   white-space: nowrap;
 }
 
@@ -191,14 +221,14 @@ a {
 }
 
 .filter-chip {
-  height: 27px;
+  height: 25px;
   gap: 5px;
   padding: 0 8px;
-  border: 1px solid #a7c7e9;
   color: var(--color-primary-dark);
   background: #f7fbff;
-  font-size: 12px;
-  font-weight: 650;
+  box-shadow: var(--shadow-border-blue);
+  font-size: 10.8px;
+  font-weight: 600;
 }
 
 .clear-button,
@@ -207,14 +237,14 @@ a {
   padding: 0;
   color: #758092;
   background: transparent;
-  font-size: 12px;
+  font-size: 11px;
 }
 
 .collapse-filter {
   flex: 0 0 auto;
   gap: 4px;
   color: var(--color-primary-dark);
-  font-weight: 650;
+  font-weight: 600;
 }
 
 .collapse-filter svg {
@@ -227,6 +257,11 @@ input:disabled {
   opacity: 0.58;
 }
 
+button:active:not(:disabled),
+.official-link:active {
+  transform: scale(0.96);
+}
+
 .summary-card {
   display: flex;
   align-items: center;
@@ -235,9 +270,9 @@ input:disabled {
   min-height: 64px;
   margin: 15px 0 12px;
   padding: 13px 10px;
-  border: 1px solid var(--color-border-soft);
   border-radius: 8px;
   background: rgba(255, 255, 255, 0.96);
+  box-shadow: var(--shadow-border);
 }
 
 .summary-left {
@@ -252,15 +287,16 @@ input:disabled {
 
 .summary-count span {
   color: var(--color-primary-dark);
-  font-size: 27px;
-  font-weight: 780;
+  font-size: 22.5px;
+  font-weight: 650;
+  font-variant-numeric: tabular-nums;
   line-height: 1;
 }
 
 .summary-count small {
   color: var(--color-ink);
-  font-size: 13.5px;
-  font-weight: 620;
+  font-size: 11px;
+  font-weight: 600;
 }
 
 .summary-card p {
@@ -269,15 +305,16 @@ input:disabled {
   gap: 8px;
   margin: 9px 0 0;
   color: #374151;
-  font-size: 12px;
+  font-size: 10.5px;
   line-height: 1.2;
+  font-variant-numeric: tabular-nums;
   white-space: nowrap;
 }
 
 .summary-card p strong {
   color: var(--color-ink);
-  font-size: 12px;
-  font-weight: 760;
+  font-size: 10.8px;
+  font-weight: 650;
 }
 
 .summary-divider {
@@ -294,16 +331,17 @@ input:disabled {
   padding: 0 8px;
   color: #243044;
   background: var(--color-surface-muted);
-  font-size: 12px;
-  font-weight: 620;
+  box-shadow: var(--shadow-border);
+  font-size: 10.8px;
+  font-weight: 600;
   white-space: nowrap;
 }
 
 .company-list {
   overflow: hidden;
-  border: 1px solid var(--color-border-soft);
   border-radius: 8px;
   background: rgba(255, 255, 255, 0.98);
+  box-shadow: var(--shadow-border);
 }
 
 .company-row + .company-row {
@@ -322,9 +360,10 @@ input:disabled {
 }
 
 .company-toggle strong {
-  font-size: 14.5px;
-  font-weight: 760;
+  font-size: 12.5px;
+  font-weight: 600;
   line-height: 1.2;
+  text-wrap: balance;
 }
 
 .company-toggle span {
@@ -332,7 +371,8 @@ input:disabled {
   align-items: center;
   gap: 10px;
   color: #666f80;
-  font-size: 13px;
+  font-size: 11.2px;
+  font-variant-numeric: tabular-nums;
   white-space: nowrap;
 }
 
@@ -370,10 +410,11 @@ input:disabled {
   gap: 5px;
   margin: 0;
   color: var(--color-ink);
-  font-size: 12.5px;
-  font-weight: 760;
+  font-size: 10.8px;
+  font-weight: 600;
   line-height: 1.25;
   letter-spacing: 0;
+  text-wrap: balance;
 }
 
 .new-badge {
@@ -386,16 +427,17 @@ input:disabled {
   border-radius: 3px;
   color: var(--color-new);
   background: #fff8eb;
-  font-size: 10.5px;
-  font-weight: 720;
+  font-size: 9.5px;
+  font-weight: 650;
 }
 
 .job-copy p {
   margin: 3px 0 0;
   color: #374151;
-  font-size: 11px;
+  font-size: 9.8px;
   line-height: 1.28;
   overflow-wrap: anywhere;
+  text-wrap: pretty;
 }
 
 .job-meta {
@@ -404,7 +446,7 @@ input:disabled {
   gap: 8px;
   margin-top: 5px;
   color: #6b7280;
-  font-size: 10.5px;
+  font-size: 9.4px;
   line-height: 1;
 }
 
@@ -426,19 +468,19 @@ input:disabled {
   width: 82px;
   height: 29px;
   gap: 2px;
-  border: 1px solid #96b8df;
   color: var(--color-primary-dark);
   background: #ffffff;
-  font-size: 11px;
-  font-weight: 720;
+  box-shadow: var(--shadow-border-blue);
+  font-size: 9.8px;
+  font-weight: 600;
   line-height: 1;
   white-space: nowrap;
   text-decoration: none;
 }
 
 .official-link:hover {
-  border-color: var(--color-primary);
   background: #f7fbff;
+  box-shadow: var(--shadow-border-hover);
 }
 
 .modal-overlay,
@@ -455,9 +497,10 @@ input:disabled {
 .consent-modal,
 .locked-panel {
   width: min(100%, 286px);
-  border: 1px solid rgba(201, 212, 229, 0.7);
   background: var(--color-surface);
-  box-shadow: 0 22px 46px rgba(17, 24, 39, 0.2);
+  box-shadow:
+    0 0 0 1px rgba(0, 0, 0, 0.06),
+    0 22px 46px rgba(17, 24, 39, 0.2);
 }
 
 .consent-modal {
@@ -479,17 +522,19 @@ input:disabled {
 .modal-close:hover {
   color: var(--color-primary);
   background: var(--color-surface-muted);
+  box-shadow: var(--shadow-border);
 }
 
 .consent-modal h2,
 .locked-panel h2 {
   margin: 0;
   color: var(--color-ink);
-  font-size: 22px;
-  font-weight: 780;
+  font-size: 18px;
+  font-weight: 650;
   line-height: 1.2;
   text-align: center;
   letter-spacing: 0;
+  text-wrap: balance;
 }
 
 .modal-accent {
@@ -505,8 +550,9 @@ input:disabled {
 .locked-panel p {
   margin: 0;
   color: #475467;
-  font-size: 14px;
+  font-size: 12px;
   line-height: 1.65;
+  text-wrap: pretty;
 }
 
 .consent-check {
@@ -516,7 +562,7 @@ input:disabled {
   align-items: start;
   margin: 19px 0 22px;
   color: #344054;
-  font-size: 14px;
+  font-size: 12px;
   line-height: 1.55;
 }
 
@@ -530,7 +576,7 @@ input:disabled {
 .consent-check a {
   margin-left: 4px;
   color: var(--color-primary);
-  font-weight: 720;
+  font-weight: 650;
   text-decoration: none;
 }
 
@@ -544,8 +590,8 @@ input:disabled {
   height: 49px;
   color: #ffffff;
   background: var(--color-primary);
-  font-size: 17px;
-  font-weight: 760;
+  font-size: 14px;
+  font-weight: 650;
 }
 
 .enter-button:hover:not(:disabled),
@@ -565,7 +611,7 @@ input:disabled {
   min-height: 46px;
   color: #ffffff;
   background: var(--color-primary);
-  font-weight: 760;
+  font-weight: 650;
 }
 
 @media (min-width: 700px) {

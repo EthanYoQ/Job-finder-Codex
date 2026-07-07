@@ -5,42 +5,48 @@ source visual truth:
 - color/modal target: `docs/design/references/blue-consent-palette-reference.png`
 
 implementation screenshot:
-- pending consent: `docs/design/qa/task4-replica/pending-consent.png`
-- accepted workbench: `docs/design/qa/task4-replica/accepted-workbench.png`
-- closed locked state: `docs/design/qa/task4-replica/closed-locked.png`
+- pending consent modal, 426 CSS px at 2x: `docs/design/qa/task4-polish/pending-modal-2x.png`
+- accepted workbench, 426 CSS px at 2x: `docs/design/qa/task4-polish/accepted-workbench-2x.png`
+- pending consent modal, 390 x 844: `docs/design/qa/task4-polish/pending-modal.png`
+- accepted workbench, 390 x 844: `docs/design/qa/task4-polish/accepted-workbench.png`
 
-viewport: 390 x 844
+viewport:
+- primary QA viewport: 426 x 800, deviceScaleFactor 2, matching the 852 px wide reference images
+- fallback mobile viewport: 390 x 844, deviceScaleFactor 1
 
-state: mobile, first-visit consent modal, accepted workbench, closed consent locked state
+state:
+- mobile, first-visit consent modal
+- mobile, accepted workbench after checking consent and clicking enter
 
 full-view comparison evidence:
-- pending consent: `docs/design/qa/task4-replica/comparison-pending.png`
-- accepted workbench: `docs/design/qa/task4-replica/comparison-accepted.png`
-- closed locked state: `docs/design/qa/task4-replica/comparison-closed.png`
+- accepted workbench: `docs/design/qa/task4-polish/comparison-accepted-2x.png`
+- consent modal: `docs/design/qa/task4-polish/comparison-modal-2x.png`
 
 focused region comparison evidence:
-- search and summary: `docs/design/qa/task4-replica/focus-search-summary.png`
-- expanded job list: `docs/design/qa/task4-replica/focus-expanded-job.png`
+- search and summary typography: `docs/design/qa/task4-polish/focus-search-summary-2x.png`
+- company and job typography: `docs/design/qa/task4-polish/focus-job-list-2x.png`
 
 findings:
 - No remaining P0/P1/P2 findings.
-- Fonts and typography: the implementation now uses the same compact hierarchy as the layout reference: inline product name and subtitle, small search controls, compact company rows, dense job titles, smaller English secondary titles, and no negative letter spacing. Residual P3: the generated source image has slightly lighter font rendering than Chromium text.
-- Spacing and layout rhythm: the accepted state matches the target workbench structure: one-line header, single-row search/city/filter controls, chip row with `销售` / `MSL` / `只看新增`, summary card, pinyin sort, one rounded company list, `辉瑞` expanded by default, and `诺华` / `信达生物` visible near the bottom at 390 x 844.
-- Colors and tokens: green visual affordances from the layout target were intentionally mapped to the blue palette from the color reference. Amber `新增` badges remain because both references use amber for new-job status.
-- Image quality and assets: no product imagery is required. All icons are `lucide-react` line icons; there are no emoji, Unicode pseudo-icons, handcrafted SVG paths, CSS art icons, or placeholder drawings.
-- Copy and content: visible UI is Chinese except `Job-search` and official English job titles. The page only shows the global crawl timestamp and does not show company-level crawl times or extra fields.
-- Accessibility and interactions: first visit shows a centered modal, not a page section; closing the modal locks the app; users can reopen and accept. Search, chips, accordion, official links, and controls remain interactive after consent.
+- Fonts and typography: implementation now uses the 426 px mobile width baseline, `system-ui` first in the font stack, root antialiasing, reduced optical weights, balanced headings, pretty body wrapping, and tabular numerals for dynamic counts/timestamps. Residual P3: rendered browser text remains crisper and slightly heavier than the generated visual reference.
+- Spacing and layout rhythm: the workbench max width now matches the 852 px reference image at 2x. Search controls, chip row, summary card, company list, and expanded job rows align to the selected layout structure. Residual P3: the accepted-state comparison excludes the reference image's bottom privacy sheet because the implementation moves privacy confirmation into the separate modal state requested later.
+- Colors and tokens: green visual affordances from the layout target are intentionally mapped to the blue palette from the color/modal target. Amber `新增` badges remain as the new-job marker.
+- Surfaces and polish: cards and bordered controls now use layered shadow-border treatment instead of hard container borders, while row dividers remain real borders for list separation. Interactive controls use explicit transitions and `scale(0.96)` press feedback.
+- Image quality and assets: no product imagery is required. All visible icons are `lucide-react` line icons; no emoji, Unicode pseudo-icons, handcrafted SVG paths, CSS-art icons, or placeholder drawings were introduced.
+- Copy and content: visible UI remains Chinese except `Job-search` and official English job titles. The page only shows the global crawl timestamp and does not show company-level crawl times or extra operational fields.
+- Accessibility and interactions: the first visit shows a centered confirmation modal; closing the modal keeps the app locked; users can reopen and accept. Search, chips, accordion, official links, and controls remain interactive after consent.
 
 patches made since previous QA:
-- Rebuilt the accepted workbench to match the layout reference instead of the earlier simplified blue-card layout.
-- Removed the bottom navigation from this screen because it is not part of the selected layout reference.
-- Restored the design-reference summary and list density: `128 个职位`, `5 家公司`, five company rows, and `辉瑞` expanded with five job rows.
-- Added the visible `MSL` chip and MSL search alias while keeping the displayed job title aligned with the reference.
-- Compressed typography, control widths, row heights, and official-link buttons to remove wrapping and match the reference density.
+- Applied the `make-interfaces-feel-better` typography pass: root font smoothing, system UI font priority, text-wrap rules, tabular numerals, and lower optical weights for company/job/modal text.
+- Applied the `make-interfaces-feel-better` surface pass: shadow-border variables for cards and controls, retained list dividers, and explicit transition properties instead of `transition: all`.
+- Added `scale(0.96)` active feedback for buttons and official links.
+- Changed the mobile workbench max width from 390 px to 426 px so the 852 px reference image compares at the correct 2x baseline.
+- Regenerated full-view and focused QA screenshots under `docs/design/qa/task4-polish/`.
 
 verification:
-- `npm test -- tests/app/App.test.tsx` passed: 6 tests.
+- `npm test` passed: 6 test files, 38 tests.
 - `npm run typecheck` passed.
 - `npm run build` passed.
+- `npm run prisma:validate` passed.
 
 final result: passed
