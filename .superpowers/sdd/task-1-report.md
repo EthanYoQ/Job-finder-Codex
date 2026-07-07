@@ -81,3 +81,23 @@ The implementation matches the brief tightly:
 
 - `package-lock.json` was created by `npm install` and will need to be kept in sync with future dependency changes.
 - The current verification test is a focused smoke test for module availability and type-shape usage; deeper behavioral coverage belongs to later tasks that consume these domain types.
+
+## Fix Follow-Up
+
+Aligned the phase 1 naming contracts after review and user clarification:
+
+- Updated the plan's global constraint wording to use `company/title/officialUrl/location`.
+- Updated the Task 1 package name examples to `job-search`.
+- Updated the actual root `package.json` name to `job-search`.
+- Updated the scratch Task 1 brief to keep its package.json example in sync.
+
+## Validation
+
+Commands run after the naming updates:
+
+```bash
+npm test -- tests/domain/verification.test.ts
+npm run typecheck
+```
+
+Both commands passed.

@@ -12,7 +12,7 @@
 
 - P0 candidate pool target is 80-120 companies.
 - Formal P0 launch is blocked until at least 50 companies are marked `VERIFIED_SCRAPABLE`.
-- `VERIFIED_SCRAPABLE` requires official chain evidence, structured job records, two successful stable crawls, and company/title/link/location fields.
+- `VERIFIED_SCRAPABLE` requires official chain evidence, structured job records, two successful stable crawls, and company/title/officialUrl/location fields.
 - City is required for search. Job category, keyword, and company are optional.
 - No public API, no bulk export, no deep pagination, no stable third-party query contract.
 - Before privacy consent, only privacy policy, service terms, and static homepage shell may be accessed.
@@ -73,7 +73,7 @@ Create `package.json`:
 
 ```json
 {
-  "name": "pharma-job-aggregator",
+  "name": "job-search",
   "private": true,
   "type": "module",
   "engines": {
