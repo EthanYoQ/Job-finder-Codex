@@ -1,0 +1,183 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum VerificationStatus {
+  UNVERIFIED
+  ENTRY_FOUND_PENDING_ADAPTER
+  VERIFIED_SCRAPABLE
+  TEMP_UNSCRAPABLE
+  EXCLUDED
+}
+
+enum SourceKind {
+  SOCIAL
+  CAMPUS
+}
+
+enum AtsKind {
+  OFFICIAL_HTML
+  OFFICIAL_JSON
+  MOKA
+  BEISEN_ZHIYE
+  WORKDAY
+  SUCCESSFACTORS
+  REDSEA
+  BROWSER_FALLBACK
+  UNKNOWN
+}
+
+enum CrawlStatus {
+  SUCCESS
+  FAILED
+}
+
+enum JobLifecycleStatus {
+  ACTIVE
+  SUSPECTED_OFFLINE
+  OFFLINE
+}
+
+enum FeedbackStatus {
+  OPEN
+  REVIEWED
+  CLOSED
+  SPAM
+}
+
+model Company {
+  id                  String              @id @default(cuid())
+  officialChineseName  String              @unique
+  officialWebsiteUrl   String
+  pinyinName          String
+  inclusionReason     String
+  createdAt           DateTime            @default(now())
+  updatedAt           DateTime            @updatedAt
+  sources             RecruitmentSource[]
+  jobs                Job[]
+  feedback            Feedback[]
+  recommendedCompanies RecommendedCompany[]
+
+  @@index([pinyinName])
+}
+
+model RecruitmentSource {
+  id                       String              @id @default(cuid())
+  companyId                String
+  kind                     SourceKind
+  atsKind                  AtsKind
+  officialEntryUrl         String
+  officialChainEvidenceUrl String
+  campusEntryUrl           String?
+  status                   VerificationStatus  @default(UNVERIFIED)
+  createdAt                DateTime            @default(now())
+  updatedAt                DateTime            @updatedAt
+  company                  Company             @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  crawlObservations        CrawlObservation[]
+  jobs                     Job[]
+
+  @@index([companyId, kind])
+  @@index([status])
+}
+
+model CrawlBatch {
+  id           String             @id @default(cuid())
+  startedAt    DateTime           @default(now())
+  finishedAt   DateTime?
+  status       CrawlStatus
+  observations CrawlObservation[]
+}
+
+model CrawlObservation {
+  id                   String            @id @default(cuid())
+  sourceId             String
+  batchId              String
+  crawledAt            DateTime          @default(now())
+  successful           Boolean
+  structuredJobCount   Int               @default(0)
+  stableRequiredFields Json
+  failureReason        String?
+  source               RecruitmentSource @relation(fields: [sourceId], references: [id], onDelete: Cascade)
+  batch                CrawlBatch        @relation(fields: [batchId], references: [id], onDelete: Cascade)
+
+  @@index([sourceId, crawledAt])
+  @@index([successful])
+}
+
+model Job {
+  id                    String             @id @default(cuid())
+  companyId             String
+  sourceId              String
+  sourceJobId           String?
+  officialTitle         String
+  auxiliaryChineseTitle String?
+  officialUrl           String
+  listUrl               String?
+  locationRaw           String
+  city                  String
+  category              String
+  officialPublishedAt   DateTime?
+  firstSeenAt           DateTime           @default(now())
+  lastSeenAt            DateTime           @default(now())
+  missingSuccessCount   Int                @default(0)
+  lifecycleStatus       JobLifecycleStatus @default(ACTIVE)
+  company               Company            @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  source                RecruitmentSource  @relation(fields: [sourceId], references: [id], onDelete: Cascade)
+  feedbacks             Feedback[]
+
+  @@unique([sourceId, sourceJobId])
+  @@index([city, category])
+  @@index([companyId, lifecycleStatus])
+  @@index([firstSeenAt])
+}
+
+model Feedback {
+  id          String         @id @default(cuid())
+  companyId   String?
+  jobId       String?
+  issueType   String
+  description String
+  contact     String?
+  ip          String
+  userAgent   String
+  status      FeedbackStatus @default(OPEN)
+  createdAt   DateTime       @default(now())
+  company     Company?       @relation(fields: [companyId], references: [id], onDelete: SetNull)
+  job         Job?           @relation(fields: [jobId], references: [id], onDelete: SetNull)
+
+  @@index([status, createdAt])
+}
+
+model RecommendedCompany {
+  id                 String         @id @default(cuid())
+  companyId          String?
+  companyName        String
+  officialWebsiteUrl String?
+  recruitmentEntryUrl String?
+  reason             String?
+  ip                 String
+  userAgent          String
+  status             FeedbackStatus @default(OPEN)
+  createdAt          DateTime       @default(now())
+  company            Company?       @relation(fields: [companyId], references: [id], onDelete: SetNull)
+
+  @@index([status, createdAt])
+}
+
+model AccessEvent {
+  id         String   @id @default(cuid())
+  ip         String
+  userAgent  String
+  path       String
+  eventType  String
+  occurredAt DateTime @default(now())
+  metadata   Json?
+
+  @@index([ip, occurredAt])
+  @@index([eventType, occurredAt])
+}
