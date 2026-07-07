@@ -2,6 +2,7 @@ export interface JobResult {
   id: string;
   title: string;
   officialTitle?: string;
+  officialPublishedAt: string;
   city: string;
   category: string;
   isNew: boolean;
@@ -25,6 +26,7 @@ export const companies: CompanyResult[] = [
         id: "az-sales-beijing",
         title: "区域销售经理（北京）",
         officialTitle: "Regional Sales Manager (Beijing)",
+        officialPublishedAt: "2026-07-04T09:00:00.000Z",
         city: "北京",
         category: "销售",
         isNew: true,
@@ -41,6 +43,7 @@ export const companies: CompanyResult[] = [
         id: "beigene-clinical",
         title: "临床研究监察员（CRA）",
         officialTitle: "Clinical Research Associate (CRA)",
+        officialPublishedAt: "2026-07-04T08:00:00.000Z",
         city: "北京",
         category: "临床运营",
         isNew: true,
@@ -57,6 +60,7 @@ export const companies: CompanyResult[] = [
         id: "pfizer-medical-info",
         title: "医学信息沟通专员（呼吸领域）",
         officialTitle: "Medical Information Associate (Respiratory)",
+        officialPublishedAt: "2026-07-03T09:00:00.000Z",
         city: "北京",
         category: "销售",
         isNew: true,
@@ -66,6 +70,7 @@ export const companies: CompanyResult[] = [
         id: "pfizer-msl",
         title: "MSL 医学科学联络官",
         officialTitle: "Medical Science Liaison (Oncology)",
+        officialPublishedAt: "2026-07-05T10:00:00.000Z",
         city: "北京",
         category: "医学事务",
         isNew: false,
@@ -75,6 +80,7 @@ export const companies: CompanyResult[] = [
         id: "pfizer-market-access",
         title: "市场准入专员",
         officialTitle: "Market Access Specialist",
+        officialPublishedAt: "2026-06-28T08:00:00.000Z",
         city: "北京",
         category: "市场准入",
         isNew: false,
@@ -91,6 +97,7 @@ export const companies: CompanyResult[] = [
         id: "novartis-product",
         title: "肿瘤产品医药代表",
         officialTitle: "Oncology Product Representative",
+        officialPublishedAt: "2026-07-06T12:00:00.000Z",
         city: "北京",
         category: "销售",
         isNew: false,
@@ -107,6 +114,7 @@ export const companies: CompanyResult[] = [
         id: "innovent-sales",
         title: "高级医学信息沟通经理",
         officialTitle: "Senior Medical Information Manager",
+        officialPublishedAt: "2026-07-01T09:30:00.000Z",
         city: "北京",
         category: "销售",
         isNew: false,

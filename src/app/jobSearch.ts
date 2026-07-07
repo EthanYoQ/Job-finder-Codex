@@ -28,6 +28,17 @@ function matchesKeyword(companyName: string, job: JobResult, keyword: string): b
   );
 }
 
+function compareByPinyin(left: CompanyResult, right: CompanyResult): number {
+  return left.pinyin.localeCompare(right.pinyin, "zh-CN");
+}
+
+function latestPublishedAt(jobs: JobResult[]): string {
+  return jobs.reduce(
+    (latest, job) => (job.officialPublishedAt > latest ? job.officialPublishedAt : latest),
+    ""
+  );
+}
+
 export function filterJobs(filters: SearchFilters): CompanyResult[] {
   const city = filters.city.trim();
   if (!city) {
@@ -58,21 +69,20 @@ export function sortCompanies(
   const sorted = [...companyResults];
 
   if (sortMode === "JOB_COUNT_DESC") {
-    return sorted.sort(
-      (left, right) =>
-        right.jobs.length - left.jobs.length ||
-        left.pinyin.localeCompare(right.pinyin, "zh-CN")
-    );
+    return sorted.sort((left, right) => right.jobs.length - left.jobs.length || compareByPinyin(left, right));
   }
 
   if (sortMode === "LATEST") {
     return sorted.sort((left, right) => {
-      const leftHasNew = left.jobs.some((job) => job.isNew) ? 1 : 0;
-      const rightHasNew = right.jobs.some((job) => job.isNew) ? 1 : 0;
+      const leftLatestPublishedAt = latestPublishedAt(left.jobs);
+      const rightLatestPublishedAt = latestPublishedAt(right.jobs);
 
-      return rightHasNew - leftHasNew || left.pinyin.localeCompare(right.pinyin, "zh-CN");
+      return (
+        rightLatestPublishedAt.localeCompare(leftLatestPublishedAt, "zh-CN") ||
+        compareByPinyin(left, right)
+      );
     });
   }
 
-  return sorted.sort((left, right) => left.pinyin.localeCompare(right.pinyin, "zh-CN"));
+  return sorted.sort(compareByPinyin);
 }

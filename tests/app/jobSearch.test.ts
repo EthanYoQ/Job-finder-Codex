@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { filterJobs, sortCompanies } from "../../src/app/jobSearch";
+import {
+  companies as reExportedCompanies,
+  filterJobs,
+  sortCompanies
+} from "../../src/app/jobSearch";
+import { companies as jobDataCompanies } from "../../src/app/jobData";
 
 describe("frontend job search helpers", () => {
   it("requires a city before returning company results", () => {
@@ -19,7 +24,7 @@ describe("frontend job search helpers", () => {
     expect(results[0]?.jobs.map((job) => job.title)).toContain("MSL 医学科学联络官");
   });
 
-  it("filters near-seven-day new jobs without treating all baseline jobs as new", () => {
+  it("filters jobs marked as new without treating all baseline jobs as new", () => {
     const results = filterJobs({
       city: "北京",
       keyword: "",
@@ -46,5 +51,43 @@ describe("frontend job search helpers", () => {
       "诺华",
       "信达生物"
     ]);
+  });
+
+  it("sorts companies by latest official job publish date instead of isNew", () => {
+    const results = filterJobs({
+      city: "北京",
+      keyword: "",
+      categories: [],
+      onlyNew: false
+    });
+
+    expect(sortCompanies(results, "LATEST").map((company) => company.companyName)).toEqual([
+      "诺华",
+      "辉瑞",
+      "阿斯利康",
+      "百济神州",
+      "信达生物"
+    ]);
+  });
+
+  it("sorts companies by matching job count descending with pinyin tie-breaks", () => {
+    const results = filterJobs({
+      city: "北京",
+      keyword: "",
+      categories: [],
+      onlyNew: false
+    });
+
+    expect(sortCompanies(results, "JOB_COUNT_DESC").map((company) => company.companyName)).toEqual([
+      "辉瑞",
+      "阿斯利康",
+      "百济神州",
+      "诺华",
+      "信达生物"
+    ]);
+  });
+
+  it("re-exports companies from jobSearch", () => {
+    expect(reExportedCompanies).toBe(jobDataCompanies);
   });
 });
