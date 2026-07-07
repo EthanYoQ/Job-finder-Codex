@@ -103,7 +103,12 @@ const REPRESENTATIVE_CONFIGS: Record<string, RepresentativeSourceConfig> = {
 export function buildSourceCrawlPlans(companies: readonly CandidateCompany[]): SourceCrawlPlan[] {
   return companies.flatMap((company) =>
     company.sources.flatMap((source): SourceCrawlPlan[] => {
-      if (source.kind !== "SOCIAL" || !source.officialEntryUrl || !source.officialChainEvidenceUrl) {
+      if (
+        source.kind !== "SOCIAL" ||
+        source.status !== "VERIFIED_SCRAPABLE" ||
+        !source.officialEntryUrl ||
+        !source.officialChainEvidenceUrl
+      ) {
         return [];
       }
 
