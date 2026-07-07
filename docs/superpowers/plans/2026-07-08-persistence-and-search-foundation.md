@@ -46,7 +46,7 @@
 - Produces: generated Prisma Client runtime dependency and schema fields `Job.cities`, `Job.visibleInFrontend`, `Job.isNew`.
 - Consumes: existing `Job` model and existing schema validation script.
 
-- [ ] **Step 1: Write failing schema tests**
+- [x] **Step 1: Write failing schema tests**
 
 Add this test to `tests/prisma/schema.test.ts`:
 
@@ -59,7 +59,7 @@ it("stores frontend visibility, new labels, and multi-city job evidence", () => 
 });
 ```
 
-- [ ] **Step 2: Run schema tests to verify they fail**
+- [x] **Step 2: Run schema tests to verify they fail**
 
 Run:
 
@@ -69,7 +69,7 @@ npm test -- tests/prisma/schema.test.ts
 
 Expected: FAIL because the new `Job` fields and index do not exist.
 
-- [ ] **Step 3: Install Prisma Client runtime**
+- [x] **Step 3: Install Prisma Client runtime**
 
 Run:
 
@@ -79,7 +79,7 @@ npm install @prisma/client@^6.0.0
 
 Expected: `package.json` and `package-lock.json` include `@prisma/client`.
 
-- [ ] **Step 4: Add persisted front-end state to the Job model**
+- [x] **Step 4: Add persisted front-end state to the Job model**
 
 Modify `prisma/schema.prisma` inside `model Job`:
 
@@ -105,7 +105,7 @@ and add this index with the other `Job` indexes:
   @@index([visibleInFrontend, lifecycleStatus])
 ```
 
-- [ ] **Step 5: Verify Task 1**
+- [x] **Step 5: Verify Task 1**
 
 Run:
 
@@ -117,7 +117,7 @@ npm run typecheck
 
 Expected: schema tests, Prisma validation, and typecheck pass.
 
-- [ ] **Step 6: Commit Task 1**
+- [x] **Step 6: Commit Task 1**
 
 Run:
 
@@ -140,7 +140,7 @@ Expected: commit created.
 - Consumes: `JOB_CATEGORIES` and `JobCategory` from `src/domain/search.ts`; `RequiredJobField` from `src/domain/company.ts`; `LifecycleStatus` from `src/crawler/lifecycle.ts`.
 - Produces: `toPrismaJobCategory(category)`, `toPrismaRequiredJobField(field)`, `toPrismaLifecycleStatus(status)`.
 
-- [ ] **Step 1: Write failing mapper tests**
+- [x] **Step 1: Write failing mapper tests**
 
 Create `tests/db/prismaMappers.test.ts`:
 
@@ -197,7 +197,7 @@ describe("Prisma enum mappers", () => {
 });
 ```
 
-- [ ] **Step 2: Run mapper tests to verify they fail**
+- [x] **Step 2: Run mapper tests to verify they fail**
 
 Run:
 
@@ -207,7 +207,7 @@ npm test -- tests/db/prismaMappers.test.ts
 
 Expected: FAIL because `src/db/prismaMappers.ts` does not exist.
 
-- [ ] **Step 3: Implement Prisma enum mappers**
+- [x] **Step 3: Implement Prisma enum mappers**
 
 Create `src/db/prismaMappers.ts` with total mappings for the project enums:
 
@@ -284,7 +284,7 @@ export function toPrismaLifecycleStatus(status: LifecycleStatus): PrismaLifecycl
 }
 ```
 
-- [ ] **Step 4: Verify Task 2**
+- [x] **Step 4: Verify Task 2**
 
 Run:
 
@@ -295,7 +295,7 @@ npm run typecheck
 
 Expected: mapper tests and typecheck pass.
 
-- [ ] **Step 5: Commit Task 2**
+- [x] **Step 5: Commit Task 2**
 
 Run:
 
@@ -318,7 +318,7 @@ Expected: commit created.
 - Consumes: `IngestionCommand` from `src/crawler/ingestion.ts`; mapper functions from Task 2.
 - Produces: `executeIngestionCommands(commands, context, db)` and `PrismaIngestionDb`.
 
-- [ ] **Step 1: Write failing ingestion repository tests**
+- [x] **Step 1: Write failing ingestion repository tests**
 
 Create `tests/db/ingestionRepository.test.ts` with tests that use fake delegates:
 
@@ -448,7 +448,7 @@ describe("executeIngestionCommands", () => {
 });
 ```
 
-- [ ] **Step 2: Run ingestion repository tests to verify they fail**
+- [x] **Step 2: Run ingestion repository tests to verify they fail**
 
 Run:
 
@@ -458,7 +458,7 @@ npm test -- tests/db/ingestionRepository.test.ts
 
 Expected: FAIL because `src/db/ingestionRepository.ts` does not exist.
 
-- [ ] **Step 3: Implement ingestion executor**
+- [x] **Step 3: Implement ingestion executor**
 
 Create `src/db/ingestionRepository.ts` that:
 
@@ -470,7 +470,7 @@ Create `src/db/ingestionRepository.ts` that:
 - stores `visibleInFrontend` and `isNew` directly from the ingestion command;
 - maps Chinese job categories and lifecycle statuses through `src/db/prismaMappers.ts`.
 
-- [ ] **Step 4: Verify Task 3**
+- [x] **Step 4: Verify Task 3**
 
 Run:
 
@@ -481,7 +481,7 @@ npm run typecheck
 
 Expected: ingestion repository tests, mapper tests, and typecheck pass.
 
-- [ ] **Step 5: Commit Task 3**
+- [x] **Step 5: Commit Task 3**
 
 Run:
 
@@ -504,7 +504,7 @@ Expected: commit created.
 - Consumes: `SearchRequestSchema` from `src/domain/search.ts`; mapper functions from Task 2.
 - Produces: `searchJobsFromDatabase(request, db)` returning `{ companies, totalJobs, lastUpdatedAt }`.
 
-- [ ] **Step 1: Write failing search service tests**
+- [x] **Step 1: Write failing search service tests**
 
 Create `tests/server/jobSearchService.test.ts` with fake job rows and a fake delegate:
 
@@ -599,7 +599,7 @@ describe("searchJobsFromDatabase", () => {
 });
 ```
 
-- [ ] **Step 2: Run search service tests to verify they fail**
+- [x] **Step 2: Run search service tests to verify they fail**
 
 Run:
 
@@ -609,7 +609,7 @@ npm test -- tests/server/jobSearchService.test.ts
 
 Expected: FAIL because `src/server/jobSearchService.ts` does not exist.
 
-- [ ] **Step 3: Implement internal search service**
+- [x] **Step 3: Implement internal search service**
 
 Create `src/server/jobSearchService.ts` that:
 
@@ -622,7 +622,7 @@ Create `src/server/jobSearchService.ts` that:
 - groups returned rows by company;
 - returns companies sorted by pinyin by default, by latest official publish time for `LATEST_POSTED`, and by matching job count for `MATCHING_JOB_COUNT_DESC`.
 
-- [ ] **Step 4: Verify Task 4**
+- [x] **Step 4: Verify Task 4**
 
 Run:
 
@@ -633,7 +633,7 @@ npm run typecheck
 
 Expected: search service tests, domain search tests, and typecheck pass.
 
-- [ ] **Step 5: Commit Task 4**
+- [x] **Step 5: Commit Task 4**
 
 Run:
 
@@ -652,7 +652,7 @@ Expected: commit created.
 - Modify: `docs/superpowers/plans/2026-07-08-persistence-and-search-foundation.md`
 - Modify: `.superpowers/sdd/progress.md`
 
-- [ ] **Step 1: Run full verification**
+- [x] **Step 1: Run full verification**
 
 Run:
 
@@ -666,11 +666,11 @@ git grep -n -E "tvly-dev-[A-Za-z0-9_-]+" -- . ':!.superpowers'
 
 Expected: all test/build/schema commands pass; grep returns no matches.
 
-- [ ] **Step 2: Mark progress**
+- [x] **Step 2: Mark progress**
 
 Append progress entries noting this plan implements Prisma runtime, persisted job state, ingestion execution, and internal search service, but still does not implement live fetcher deployment, admin UI, public deployment security, backups, monitoring, or 50 live verified companies.
 
-- [ ] **Step 3: Commit verification marker**
+- [x] **Step 3: Commit verification marker**
 
 Run:
 
