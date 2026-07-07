@@ -100,7 +100,7 @@ model CrawlObservation {
   crawledAt            DateTime          @default(now())
   successful           Boolean
   structuredJobCount   Int               @default(0)
-  stableRequiredFields Json
+  stableRequiredFields  String[]
   failureReason        String?
   source               RecruitmentSource @relation(fields: [sourceId], references: [id], onDelete: Cascade)
   batch                CrawlBatch        @relation(fields: [batchId], references: [id], onDelete: Cascade)
