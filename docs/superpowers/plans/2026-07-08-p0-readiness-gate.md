@@ -32,7 +32,7 @@
   - `P0ReadinessReport`
   - `getP0ReadinessReport(input?: P0ReadinessInput): P0ReadinessReport`
 
-- [ ] **Step 1: Write the failing report test**
+- [x] **Step 1: Write the failing report test**
 
 Create `tests/readiness/p0Readiness.test.ts`:
 
@@ -138,13 +138,13 @@ describe("P0 readiness report", () => {
 });
 ```
 
-- [ ] **Step 2: Run the focused test and verify it fails**
+- [x] **Step 2: Run the focused test and verify it fails**
 
 Run: `npm test -- tests/readiness/p0Readiness.test.ts`
 
 Expected: FAIL because `src/readiness/p0Readiness.ts` does not exist.
 
-- [ ] **Step 3: Implement the readiness report**
+- [x] **Step 3: Implement the readiness report**
 
 Create `src/readiness/p0Readiness.ts`:
 
@@ -293,7 +293,7 @@ function buildBlockers({
 }
 ```
 
-- [ ] **Step 4: Run focused tests and typecheck**
+- [x] **Step 4: Run focused tests and typecheck**
 
 Run: `npm test -- tests/readiness/p0Readiness.test.ts`
 
@@ -303,7 +303,7 @@ Run: `npm run typecheck`
 
 Expected: PASS.
 
-- [ ] **Step 5: Commit Task 1**
+- [x] **Step 5: Commit Task 1**
 
 Run:
 
@@ -323,7 +323,7 @@ git commit -m "feat: add P0 readiness report"
 - Consumes: `getP0ReadinessReport()`.
 - Produces: npm script `p0:readiness` that prints a markdown report and exits `1` when P0 is blocked.
 
-- [ ] **Step 1: Write the failing CLI test**
+- [x] **Step 1: Write the failing CLI test**
 
 Create `tests/readiness/p0ReadinessReportCli.test.ts`:
 
@@ -356,13 +356,13 @@ describe("P0 readiness CLI", () => {
 });
 ```
 
-- [ ] **Step 2: Run the focused CLI test and verify it fails**
+- [x] **Step 2: Run the focused CLI test and verify it fails**
 
 Run: `npm test -- tests/readiness/p0ReadinessReportCli.test.ts`
 
 Expected: FAIL because `scripts/p0-readiness-report.ts` does not exist.
 
-- [ ] **Step 3: Implement the CLI script**
+- [x] **Step 3: Implement the CLI script**
 
 Create `scripts/p0-readiness-report.ts`:
 
@@ -400,7 +400,7 @@ if (report.blockers.length > 0) {
 process.exitCode = report.canLaunchP0 ? 0 : 1;
 ```
 
-- [ ] **Step 4: Add npm script**
+- [x] **Step 4: Add npm script**
 
 Modify `package.json`:
 
@@ -410,7 +410,7 @@ Modify `package.json`:
 
 Keep the existing scripts unchanged.
 
-- [ ] **Step 5: Run focused verification**
+- [x] **Step 5: Run focused verification**
 
 Run: `npm test -- tests/readiness/p0ReadinessReportCli.test.ts`
 
@@ -420,7 +420,7 @@ Run: `npm run p0:readiness`
 
 Expected: prints the report and exits with code `1` while P0 remains blocked.
 
-- [ ] **Step 6: Commit Task 2**
+- [x] **Step 6: Commit Task 2**
 
 Run:
 
@@ -439,7 +439,7 @@ git commit -m "feat: add P0 readiness report CLI"
 - Consumes: `npm run p0:readiness`.
 - Produces: documentation note that the canonical P0 launch gate is the readiness report, not raw registry status labels.
 
-- [ ] **Step 1: Add PRD readiness note**
+- [x] **Step 1: Add PRD readiness note**
 
 In `docs/prd/pharma-job-aggregator-prd.md`, add this paragraph after the existing P0 launch blocking paragraph:
 
@@ -447,7 +447,7 @@ In `docs/prd/pharma-job-aggregator-prd.md`, add this paragraph after the existin
 The implementation must use `npm run p0:readiness` as the local launch-gate check. A company source status label alone is not enough for P0 readiness; the check must also confirm a configured crawl plan and two latest successful stable crawl observations. If the report exits non-zero, the project remains internal/prototype only.
 ```
 
-- [ ] **Step 2: Add spec readiness note**
+- [x] **Step 2: Add spec readiness note**
 
 In `docs/superpowers/specs/2026-07-07-pharma-job-aggregator-design.md`, add this paragraph after the “已验证可抓取”的判定标准 list:
 
@@ -455,7 +455,7 @@ In `docs/superpowers/specs/2026-07-07-pharma-job-aggregator-design.md`, add this
 Implementation note: `npm run p0:readiness` is the canonical local readiness check. Registry labels, official URLs, and source-plan configuration are treated as separate evidence layers; a source is not P0 launch evidence unless the readiness report also sees two latest successful stable crawl observations.
 ```
 
-- [ ] **Step 3: Run doc-focused checks**
+- [x] **Step 3: Run doc-focused checks**
 
 Run: `npm run p0:readiness`
 
@@ -465,7 +465,7 @@ Run: `git grep -n -E "tvly-dev-[A-Za-z0-9_-]+" -- . ':!.superpowers'`
 
 Expected: no matches.
 
-- [ ] **Step 4: Commit Task 3**
+- [x] **Step 4: Commit Task 3**
 
 Run:
 
@@ -483,7 +483,7 @@ git commit -m "docs: document P0 readiness gate"
 - Consumes: all changes from Tasks 1-3.
 - Produces: completed plan checkboxes only after fresh verification.
 
-- [ ] **Step 1: Run full verification**
+- [x] **Step 1: Run full verification**
 
 Run:
 
@@ -501,11 +501,11 @@ Expected:
 - `npm run p0:readiness` exits `1` because P0 is still blocked; this is expected and must not be treated as a test failure.
 - Tavily key grep has no matches.
 
-- [ ] **Step 2: Mark checkboxes complete**
+- [x] **Step 2: Mark checkboxes complete**
 
 Only after Step 1 verification, change every checkbox in this plan from `[ ]` to `[x]`.
 
-- [ ] **Step 3: Commit Task 4**
+- [x] **Step 3: Commit Task 4**
 
 Run:
 
