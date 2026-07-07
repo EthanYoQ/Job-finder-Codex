@@ -6,8 +6,8 @@ import {
   type NormalizedJobRecord
 } from "../normalizedJob";
 import type {
-  CrawlAdapterInput,
   CrawlAdapterResult,
+  HtmlTableAdapterInput,
   HtmlFieldSelector,
   SourceAdapter
 } from "./types";
@@ -15,18 +15,14 @@ import type {
 const REQUIRED_FIELDS = ["company", "title", "officialUrl", "location"] as const;
 const DEFAULT_CATEGORY: JobCategory = "其他";
 
-export const htmlTableAdapter: SourceAdapter = {
+export const htmlTableAdapter: SourceAdapter<HtmlTableAdapterInput> = {
   id: "html-table",
   extract(input) {
     if (input.source.kind !== "SOCIAL") {
       return failed(input, "Only SOCIAL sources are supported for P0 ingestion");
     }
 
-    if (!input.table) {
-      return failed(input, "Missing HTML table adapter configuration");
-    }
-
-    const $ = load(input.html ?? "");
+    const $ = load(input.html);
     const jobs = $(input.table.rowSelector)
       .toArray()
       .flatMap((row) => normalizeTableRow(input, row));
@@ -43,12 +39,8 @@ export const htmlTableAdapter: SourceAdapter = {
   }
 };
 
-function normalizeTableRow(input: CrawlAdapterInput, row: AnyNode): NormalizedJobRecord[] {
-  if (!input.table) {
-    return [];
-  }
-
-  const $ = load(input.html ?? "");
+function normalizeTableRow(input: HtmlTableAdapterInput, row: AnyNode): NormalizedJobRecord[] {
+  const $ = load(input.html);
   const { fields } = input.table;
   const officialTitle = readField($, row, fields.officialTitle);
   const officialUrl = absoluteUrl(readField($, row, fields.officialUrl), input.source.officialEntryUrl);
@@ -149,7 +141,7 @@ function optionalString(key: string, value: string | undefined): Record<string, 
 }
 
 function observation(
-  input: CrawlAdapterInput,
+  input: HtmlTableAdapterInput,
   successful: boolean,
   structuredJobCount: number,
   failureReason?: string
@@ -165,7 +157,7 @@ function observation(
   };
 }
 
-function failed(input: CrawlAdapterInput, failureReason: string): CrawlAdapterResult {
+function failed(input: HtmlTableAdapterInput, failureReason: string): CrawlAdapterResult {
   return {
     status: "FAILED",
     jobs: [],

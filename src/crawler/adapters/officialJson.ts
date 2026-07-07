@@ -5,23 +5,19 @@ import {
 } from "../normalizedJob";
 import type {
   AdapterPath,
-  CrawlAdapterInput,
   CrawlAdapterResult,
+  OfficialJsonAdapterInput,
   SourceAdapter
 } from "./types";
 
 const REQUIRED_FIELDS = ["company", "title", "officialUrl", "location"] as const;
 const DEFAULT_CATEGORY: JobCategory = "其他";
 
-export const officialJsonAdapter: SourceAdapter = {
+export const officialJsonAdapter: SourceAdapter<OfficialJsonAdapterInput> = {
   id: "official-json",
   extract(input) {
     if (input.source.kind !== "SOCIAL") {
       return failed(input, "Only SOCIAL sources are supported for P0 ingestion");
-    }
-
-    if (!input.json) {
-      return failed(input, "Missing official JSON adapter configuration");
     }
 
     const rawJobs = resolveJobs(input.payload, input.json.jobsPath);
@@ -44,8 +40,8 @@ function resolveJobs(payload: unknown, jobsPath: AdapterPath | undefined): unkno
   return Array.isArray(jobs) ? jobs : [];
 }
 
-function normalizeJsonJob(input: CrawlAdapterInput, rawJob: unknown): NormalizedJobRecord[] {
-  if (!isObject(rawJob) || !input.json) {
+function normalizeJsonJob(input: OfficialJsonAdapterInput, rawJob: unknown): NormalizedJobRecord[] {
+  if (!isObject(rawJob)) {
     return [];
   }
 
@@ -179,7 +175,7 @@ function optionalString(key: string, value: string | undefined): Record<string, 
 }
 
 function observation(
-  input: CrawlAdapterInput,
+  input: OfficialJsonAdapterInput,
   successful: boolean,
   structuredJobCount: number,
   failureReason?: string
@@ -195,7 +191,7 @@ function observation(
   };
 }
 
-function failed(input: CrawlAdapterInput, failureReason: string): CrawlAdapterResult {
+function failed(input: OfficialJsonAdapterInput, failureReason: string): CrawlAdapterResult {
   return {
     status: "FAILED",
     jobs: [],

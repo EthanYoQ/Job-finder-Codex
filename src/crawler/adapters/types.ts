@@ -62,16 +62,24 @@ export interface HtmlTableConfig {
   defaultCategory?: JobCategory;
 }
 
-export interface CrawlAdapterInput {
+export interface BaseCrawlAdapterInput {
   company: CrawlAdapterCompany;
   source: CrawlAdapterSource;
   capturedAt: string;
-  payload?: unknown;
-  html?: string;
-  json?: OfficialJsonConfig;
-  table?: HtmlTableConfig;
   isBaseline?: boolean;
 }
+
+export interface OfficialJsonAdapterInput extends BaseCrawlAdapterInput {
+  payload: unknown;
+  json: OfficialJsonConfig;
+}
+
+export interface HtmlTableAdapterInput extends BaseCrawlAdapterInput {
+  html: string;
+  table: HtmlTableConfig;
+}
+
+export type CrawlAdapterInput = OfficialJsonAdapterInput | HtmlTableAdapterInput;
 
 export type CrawlAdapterResult =
   | {
@@ -86,7 +94,7 @@ export type CrawlAdapterResult =
       observation: CrawlObservation;
     };
 
-export interface SourceAdapter {
+export interface SourceAdapter<Input extends BaseCrawlAdapterInput = BaseCrawlAdapterInput> {
   id: string;
-  extract(input: CrawlAdapterInput): CrawlAdapterResult;
+  extract(input: Input): CrawlAdapterResult;
 }

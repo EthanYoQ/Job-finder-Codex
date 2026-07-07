@@ -2,12 +2,12 @@ import { readFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
-import { candidateCompanies } from "../../src/data/companyRegistry";
 import { htmlTableAdapter } from "../../src/crawler/adapters/htmlTable";
 import { officialJsonAdapter } from "../../src/crawler/adapters/officialJson";
 import type {
-  CrawlAdapterInput,
-  CrawlAdapterResult
+  CrawlAdapterCompany,
+  CrawlAdapterResult,
+  CrawlAdapterSource
 } from "../../src/crawler/adapters/types";
 import {
   NormalizedJobRecordSchema,
@@ -21,40 +21,81 @@ const fixtureDirectory = resolve(
   "../../src/crawler/fixtures"
 );
 
+interface FixtureMetadata {
+  company: CrawlAdapterCompany;
+  source: CrawlAdapterSource;
+}
+
+const ASTRAZENECA_METADATA = {
+  company: {
+    id: "company-astrazeneca",
+    officialChineseName: "阿斯利康制药有限公司"
+  },
+  source: {
+    id: "source-astrazeneca-social",
+    companyId: "company-astrazeneca",
+    kind: "SOCIAL",
+    atsKind: "OFFICIAL_JSON",
+    officialEntryUrl: "https://job-search.astrazeneca.cn/%e6%b1%82%e8%81%8c",
+    officialChainEvidenceUrl: "https://www.astrazeneca.cn/careers",
+    status: "VERIFIED_SCRAPABLE"
+  }
+} as const satisfies FixtureMetadata;
+
+const CSPC_METADATA = {
+  company: {
+    id: "company-cspc",
+    officialChineseName: "石药控股集团有限公司"
+  },
+  source: {
+    id: "source-cspc-social",
+    companyId: "company-cspc",
+    kind: "SOCIAL",
+    atsKind: "REDSEA",
+    officialEntryUrl: "https://www.e-cspc.com/hr/",
+    officialChainEvidenceUrl: "https://www.e-cspc.com/hr/",
+    status: "VERIFIED_SCRAPABLE"
+  }
+} as const satisfies FixtureMetadata;
+
+const FOSUN_PHARMA_METADATA = {
+  company: {
+    id: "company-fosun-pharma",
+    officialChineseName: "上海复星医药（集团）股份有限公司"
+  },
+  source: {
+    id: "source-fosun-pharma-social",
+    companyId: "company-fosun-pharma",
+    kind: "SOCIAL",
+    atsKind: "BEISEN_ZHIYE",
+    officialEntryUrl: "https://fosunpharma.zhiye.com/social",
+    officialChainEvidenceUrl: "https://www.fosunpharma.com/careers",
+    status: "VERIFIED_SCRAPABLE"
+  }
+} as const satisfies FixtureMetadata;
+
+const NOVARTIS_METADATA = {
+  company: {
+    id: "company-novartis",
+    officialChineseName: "北京诺华制药有限公司"
+  },
+  source: {
+    id: "source-novartis-social",
+    companyId: "company-novartis",
+    kind: "SOCIAL",
+    atsKind: "OFFICIAL_HTML",
+    officialEntryUrl: "https://prod1.novartis.com/careers/career-search/tag/LOC_CN",
+    officialChainEvidenceUrl: "https://prod1.novartis.com/careers/career-search/tag/LOC_CN",
+    status: "VERIFIED_SCRAPABLE"
+  }
+} as const satisfies FixtureMetadata;
+
 function readFixture(path: string): string {
   return readFileSync(resolve(fixtureDirectory, path), "utf8");
 }
 
 function readJsonFixture(path: string): unknown {
   return JSON.parse(readFixture(path));
-}
-
-function metadataFor(companyId: string): Pick<CrawlAdapterInput, "company" | "source"> {
-  const company = candidateCompanies.find((candidate) => candidate.id === companyId);
-  if (!company) {
-    throw new Error(`Missing fixture company ${companyId}`);
-  }
-
-  const source = company.sources.find((candidateSource) => candidateSource.kind === "SOCIAL");
-  if (!source?.officialEntryUrl || !source.officialChainEvidenceUrl) {
-    throw new Error(`Missing official social source metadata for ${companyId}`);
-  }
-
-  return {
-    company: {
-      id: company.id,
-      officialChineseName: company.officialChineseName
-    },
-    source: {
-      id: source.id,
-      companyId: source.companyId,
-      kind: source.kind,
-      atsKind: source.atsKind,
-      officialEntryUrl: source.officialEntryUrl,
-      officialChainEvidenceUrl: source.officialChainEvidenceUrl,
-      status: source.status
-    }
-  };
 }
 
 function expectSuccessfulJobs(result: CrawlAdapterResult): NormalizedJobRecord[] {
@@ -71,10 +112,34 @@ function expectSuccessfulJobs(result: CrawlAdapterResult): NormalizedJobRecord[]
   return result.jobs;
 }
 
+function expectFailedResult(result: CrawlAdapterResult, failureReason: string): void {
+  expect(result.status).toBe("FAILED");
+  if (result.status !== "FAILED") {
+    throw new Error("Expected failed adapter result");
+  }
+
+  expect(result.jobs).toEqual([]);
+  expect(result.failureReason).toBe(failureReason);
+  expect(result.observation.failureReason).toBe(failureReason);
+  expect(result.observation.successful).toBe(false);
+  expect(result.observation.structuredJobCount).toBe(0);
+  expect(result.observation.stableRequiredFields).toEqual([]);
+}
+
+function assertAdapterTypeBoundaries(): void {
+  // @ts-expect-error official JSON extraction requires payload and json config.
+  officialJsonAdapter.extract({ ...ASTRAZENECA_METADATA, capturedAt });
+
+  // @ts-expect-error HTML table extraction requires html and table config.
+  htmlTableAdapter.extract({ ...NOVARTIS_METADATA, capturedAt });
+}
+
+void assertAdapterTypeBoundaries;
+
 describe("crawler source adapters", () => {
   it("normalizes at least one Beijing job from an official JSON fixture", () => {
     const result = officialJsonAdapter.extract({
-      ...metadataFor("company-astrazeneca"),
+      ...ASTRAZENECA_METADATA,
       capturedAt,
       payload: readJsonFixture("astrazeneca-official-json.json"),
       json: {
@@ -99,7 +164,7 @@ describe("crawler source adapters", () => {
 
   it("normalizes title, city, category, and official URL from an HTML table fixture", () => {
     const result = htmlTableAdapter.extract({
-      ...metadataFor("company-novartis"),
+      ...NOVARTIS_METADATA,
       capturedAt,
       html: readFixture("novartis-table.html"),
       table: {
@@ -123,7 +188,7 @@ describe("crawler source adapters", () => {
 
   it("maps multiple rows from a Zhiye-like table into normalized records", () => {
     const result = htmlTableAdapter.extract({
-      ...metadataFor("company-fosun-pharma"),
+      ...FOSUN_PHARMA_METADATA,
       capturedAt,
       html: readFixture("zhiyelike-table.html"),
       table: {
@@ -149,9 +214,8 @@ describe("crawler source adapters", () => {
 
   it("normalizes Redsea-style network JSON even when DOM content is empty", () => {
     const result = officialJsonAdapter.extract({
-      ...metadataFor("company-cspc"),
+      ...CSPC_METADATA,
       capturedAt,
-      html: "",
       payload: readJsonFixture("redsea-json.json"),
       json: {
         jobsPath: "result.list",
@@ -170,5 +234,41 @@ describe("crawler source adapters", () => {
     expect(job?.officialTitle).toBe("质量保证专员");
     expect(job?.category).toBe("质量");
     expect(job?.officialUrl).toBe("https://www.e-cspc.com/hr/job/CSPC-001");
+  });
+
+  it("returns the external failure contract when JSON payload has no normalized jobs", () => {
+    const result = officialJsonAdapter.extract({
+      ...ASTRAZENECA_METADATA,
+      capturedAt,
+      payload: { data: { jobs: [] } },
+      json: {
+        jobsPath: "data.jobs",
+        fields: {
+          officialTitle: "title",
+          officialUrl: "url",
+          locationRaw: "location"
+        }
+      }
+    });
+
+    expectFailedResult(result, "No normalized jobs found in JSON payload");
+  });
+
+  it("returns the external failure contract when HTML table has no normalized jobs", () => {
+    const result = htmlTableAdapter.extract({
+      ...NOVARTIS_METADATA,
+      capturedAt,
+      html: "<table><tbody></tbody></table>",
+      table: {
+        rowSelector: "tbody tr",
+        fields: {
+          officialTitle: { selector: "[data-field='title']" },
+          officialUrl: { selector: "[data-field='title'] a", attribute: "href" },
+          locationRaw: { selector: "[data-field='city']" }
+        }
+      }
+    });
+
+    expectFailedResult(result, "No normalized jobs found in HTML table");
   });
 });
