@@ -1066,7 +1066,7 @@ Expected: commit created.
 - Consumes all Phase 1 files.
 - Produces no new runtime interface; verifies the foundation is coherent.
 
-- [ ] **Step 1: Run all tests**
+- [x] **Step 1: Run all tests**
 
 Run:
 
@@ -1076,7 +1076,7 @@ npm test
 
 Expected: all Vitest suites pass.
 
-- [ ] **Step 2: Run typecheck**
+- [x] **Step 2: Run typecheck**
 
 Run:
 
@@ -1086,7 +1086,7 @@ npm run typecheck
 
 Expected: TypeScript exits 0.
 
-- [ ] **Step 3: Run Prisma validation**
+- [x] **Step 3: Run Prisma validation**
 
 Run:
 
@@ -1096,7 +1096,7 @@ npm run prisma:validate
 
 Expected: Prisma reports schema valid.
 
-- [ ] **Step 4: Confirm Product Design UI gate remains closed**
+- [x] **Step 4: Confirm Product Design UI gate remains closed**
 
 Run:
 
@@ -1106,7 +1106,7 @@ rg -n "visual directions|visual target|Product Design" docs/superpowers/specs/20
 
 Expected: output includes the requirement that Phase 3 frontend development needs Product Design brief confirmation, three visual directions, and a selected visual target.
 
-- [ ] **Step 5: Commit final plan execution marker**
+- [x] **Step 5: Commit final plan execution marker**
 
 Run:
 
