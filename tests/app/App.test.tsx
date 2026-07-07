@@ -61,6 +61,12 @@ describe("Job-search frontend app", () => {
     expect(screen.getByText("全站最后抓取 2026-07-07 08:00")).toBeInTheDocument();
     expect(screen.getByText("128")).toBeInTheDocument();
     expect(screen.getByText("5 家公司")).toBeInTheDocument();
+    expect(screen.getByRole("navigation", { name: "底部导航" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "职位发现" })).toHaveAttribute(
+      "aria-current",
+      "page"
+    );
+    expect(screen.getByRole("button", { name: "我的" })).toBeInTheDocument();
   });
 
   it("renders the visual reference default chips and expanded company", async () => {

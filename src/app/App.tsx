@@ -3,9 +3,11 @@ import {
   ChevronDown,
   ChevronRight,
   ExternalLink,
+  List,
   MapPin,
   Search,
   SlidersHorizontal,
+  User,
   X
 } from "lucide-react";
 import { useMemo, useState, type MouseEvent } from "react";
@@ -368,6 +370,17 @@ export function App() {
             );
           })}
         </section>
+
+        <nav aria-label="底部导航" className="bottom-nav">
+          <button aria-current="page" disabled={isLocked} type="button">
+            <List aria-hidden="true" size={22} />
+            <span>职位发现</span>
+          </button>
+          <button disabled={isLocked} type="button">
+            <User aria-hidden="true" size={22} />
+            <span>我的</span>
+          </button>
+        </nav>
       </main>
 
       {consentState === "pending" ? (

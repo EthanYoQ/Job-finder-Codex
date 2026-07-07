@@ -69,10 +69,12 @@ a {
 }
 
 .workbench {
+  display: flex;
+  flex-direction: column;
   width: min(100%, 426px);
   min-height: 100vh;
   margin: 0 auto;
-  padding: 19px 14px 28px;
+  padding: 19px 14px 10px;
 }
 
 .workbench[aria-hidden="true"] {
@@ -342,6 +344,47 @@ button:active:not(:disabled),
   border-radius: 8px;
   background: rgba(255, 255, 255, 0.98);
   box-shadow: var(--shadow-border);
+}
+
+.bottom-nav {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  min-height: 54px;
+  margin-top: auto;
+  padding: 7px 40px 0;
+  color: #667085;
+  background: rgba(244, 247, 251, 0.96);
+  box-shadow: 0 -1px 0 rgba(15, 23, 42, 0.06);
+}
+
+.bottom-nav button {
+  display: inline-flex;
+  min-width: 0;
+  min-height: 44px;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  color: inherit;
+  background: transparent;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 10.5px;
+  font-weight: 600;
+  line-height: 1.2;
+  transform-origin: center;
+  transition-duration: 150ms;
+  transition-property: color, transform;
+  transition-timing-function: ease-out;
+}
+
+.bottom-nav button[aria-current="page"] {
+  color: var(--color-primary);
+}
+
+.bottom-nav button:active:not(:disabled) {
+  transform: scale(0.96);
 }
 
 .company-row + .company-row {
