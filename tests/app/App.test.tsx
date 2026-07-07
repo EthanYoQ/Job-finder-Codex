@@ -59,24 +59,25 @@ describe("Job-search frontend app", () => {
     expect(screen.getByPlaceholderText("职位关键词，如：医学代表、药物警戒")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /北京/ })).toBeInTheDocument();
     expect(screen.getByText("全站最后抓取 2026-07-07 08:00")).toBeInTheDocument();
-    expect(screen.getByText("2")).toBeInTheDocument();
-    expect(screen.getByText("2 家公司")).toBeInTheDocument();
+    expect(screen.getByText("128")).toBeInTheDocument();
+    expect(screen.getByText("5 家公司")).toBeInTheDocument();
   });
 
-  it("applies visible default chips to the result list", async () => {
+  it("renders the visual reference default chips and expanded company", async () => {
     const user = userEvent.setup();
     render(<App />);
 
     await acceptConsent(user);
 
     expect(screen.getByRole("button", { name: /销售/ })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /MSL/ })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /只看新增/ })).toBeInTheDocument();
 
     const pfizer = screen.getByRole("button", { name: /辉瑞/ });
     expect(pfizer).toHaveAttribute("aria-expanded", "true");
 
     expect(screen.getByText("医学信息沟通专员（呼吸领域）")).toBeInTheDocument();
-    expect(screen.queryByText("MSL 医学科学联络官")).not.toBeInTheDocument();
+    expect(screen.getByText("医学科学联络官（肿瘤领域）")).toBeInTheDocument();
   });
 
   it("filters jobs by keyword after clearing optional chips and expands companies", async () => {
@@ -91,7 +92,7 @@ describe("Job-search frontend app", () => {
     const pfizer = screen.getByRole("button", { name: /辉瑞/ });
     await user.click(pfizer);
 
-    expect(screen.getByText("MSL 医学科学联络官")).toBeInTheDocument();
+    expect(screen.getByText("医学科学联络官（肿瘤领域）")).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "查看官方职位" })).toHaveAttribute(
       "href",
       expect.stringContaining("pfizer")

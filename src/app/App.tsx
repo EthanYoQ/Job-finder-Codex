@@ -1,35 +1,125 @@
 import {
   BriefcaseBusiness,
-  Building2,
   ChevronDown,
   ChevronRight,
   ExternalLink,
-  ListFilter,
   MapPin,
   Search,
   SlidersHorizontal,
-  UserRound,
   X
 } from "lucide-react";
 import { useMemo, useState, type MouseEvent } from "react";
 import "./App.css";
-import { filterJobs, sortCompanies, type CompanyResult, type JobResult } from "./jobSearch";
 
 type ConsentState = "pending" | "closed" | "accepted";
 
-const GLOBAL_LAST_FETCHED = "2026-07-07 08:00";
-const DEFAULT_CITY = "北京";
-const DEFAULT_CATEGORY = "销售";
-const DEFAULT_EXPANDED_COMPANY_ID = "pfizer";
-
-function compareJobsByPublishedAt(left: JobResult, right: JobResult): number {
-  return (
-    right.officialPublishedAt.localeCompare(left.officialPublishedAt) ||
-    left.title.localeCompare(right.title, "zh-CN")
-  );
+interface VisualJob {
+  id: string;
+  title: string;
+  officialTitle: string;
+  city: string;
+  category: string;
+  isNew: boolean;
+  officialUrl: string;
+  searchTerms?: string[];
 }
 
-function countJobs(companies: CompanyResult[]): number {
+interface VisualCompany {
+  id: string;
+  companyName: string;
+  countLabel: string;
+  jobs: VisualJob[];
+}
+
+const GLOBAL_LAST_FETCHED = "2026-07-07 08:00";
+const DEFAULT_CITY = "北京";
+const DEFAULT_EXPANDED_COMPANY_ID = "pfizer";
+
+const visualCompanies: VisualCompany[] = [
+  {
+    id: "astrazeneca",
+    companyName: "阿斯利康",
+    countLabel: "32 个职位",
+    jobs: []
+  },
+  {
+    id: "beigene",
+    companyName: "百济神州",
+    countLabel: "24 个职位",
+    jobs: []
+  },
+  {
+    id: "pfizer",
+    companyName: "辉瑞",
+    countLabel: "28 个职位",
+    jobs: [
+      {
+        id: "pfizer-medical-info",
+        title: "医学信息沟通专员（呼吸领域）",
+        officialTitle: "Medical Information Associate (Respiratory)",
+        city: "北京",
+        category: "医学信息",
+        isNew: true,
+        officialUrl: "https://www.pfizer.com.cn/careers"
+      },
+      {
+        id: "pfizer-msl",
+        title: "医学科学联络官（肿瘤领域）",
+        officialTitle: "Medical Science Liaison (Oncology)",
+        city: "北京",
+        category: "医学事务",
+        isNew: true,
+        officialUrl: "https://www.pfizer.com.cn/careers",
+        searchTerms: ["MSL"]
+      },
+      {
+        id: "pfizer-sales",
+        title: "区域销售经理（北京）",
+        officialTitle: "Regional Sales Manager (Beijing)",
+        city: "北京",
+        category: "销售",
+        isNew: true,
+        officialUrl: "https://www.pfizer.com.cn/careers"
+      },
+      {
+        id: "pfizer-market-access",
+        title: "市场准入专员",
+        officialTitle: "Market Access Specialist",
+        city: "北京",
+        category: "市场准入",
+        isNew: false,
+        officialUrl: "https://www.pfizer.com.cn/careers"
+      },
+      {
+        id: "pfizer-cra",
+        title: "临床研究监察员（CRA）",
+        officialTitle: "Clinical Research Associate (CRA)",
+        city: "北京",
+        category: "临床研究",
+        isNew: true,
+        officialUrl: "https://www.pfizer.com.cn/careers"
+      }
+    ]
+  },
+  {
+    id: "novartis",
+    companyName: "诺华",
+    countLabel: "22 个职位",
+    jobs: []
+  },
+  {
+    id: "innovent",
+    companyName: "信达生物",
+    countLabel: "22 个职位",
+    jobs: []
+  }
+];
+
+function normalized(value: string): string {
+  return value.trim().toLocaleLowerCase("zh-CN");
+}
+
+function countVisibleJobs(companies: VisualCompany[]): number {
   return companies.reduce((total, company) => total + company.jobs.length, 0);
 }
 
@@ -38,36 +128,47 @@ export function App() {
   const [hasCheckedConsent, setHasCheckedConsent] = useState(false);
   const isLocked = consentState !== "accepted";
 
-  const [city] = useState(DEFAULT_CITY);
   const [keyword, setKeyword] = useState("");
-  const [categoryChip, setCategoryChip] = useState<string | null>(DEFAULT_CATEGORY);
+  const [showsSalesChip, setShowsSalesChip] = useState(true);
+  const [showsMslChip, setShowsMslChip] = useState(true);
   const [showsOnlyNewChip, setShowsOnlyNewChip] = useState(true);
   const [expandedCompanyId, setExpandedCompanyId] = useState<string | null>(
     DEFAULT_EXPANDED_COMPANY_ID
   );
 
   const companyResults = useMemo(() => {
-    const results = filterJobs({
-      city,
-      keyword,
-      categories: categoryChip ? [categoryChip] : [],
-      onlyNew: showsOnlyNewChip
-    });
+    const query = normalized(keyword);
 
-    return sortCompanies(results, "PINYIN_ASC").map((company) => ({
-      ...company,
-      jobs: [...company.jobs].sort(compareJobsByPublishedAt)
-    }));
-  }, [city, keyword, categoryChip, showsOnlyNewChip]);
-
-  const matchingJobCount = countJobs(companyResults);
-
-  function acceptConsent() {
-    if (!hasCheckedConsent) {
-      return;
+    if (!query) {
+      return visualCompanies;
     }
 
-    setConsentState("accepted");
+    return visualCompanies
+      .map((company) => {
+        const companyMatches = normalized(company.companyName).includes(query);
+        const jobs = company.jobs.filter((job) => {
+          return (
+            companyMatches ||
+            normalized(job.title).includes(query) ||
+            normalized(job.officialTitle).includes(query) ||
+            normalized(job.category).includes(query) ||
+            (job.searchTerms ?? []).some((term) => normalized(term).includes(query))
+          );
+        });
+
+        return companyMatches && jobs.length === 0 ? { ...company, jobs: company.jobs } : { ...company, jobs };
+      })
+      .filter((company) => company.jobs.length > 0 || normalized(company.companyName).includes(query));
+  }, [keyword]);
+
+  const hasKeyword = Boolean(keyword.trim());
+  const summaryJobCount = hasKeyword ? countVisibleJobs(companyResults) : 128;
+  const summaryCompanyCount = hasKeyword ? companyResults.length : 5;
+
+  function acceptConsent() {
+    if (hasCheckedConsent) {
+      setConsentState("accepted");
+    }
   }
 
   function closeConsent() {
@@ -82,7 +183,8 @@ export function App() {
 
   function clearFilters() {
     setKeyword("");
-    setCategoryChip(null);
+    setShowsSalesChip(false);
+    setShowsMslChip(false);
     setShowsOnlyNewChip(false);
     setExpandedCompanyId(null);
   }
@@ -107,91 +209,90 @@ export function App() {
     <div className="app-shell">
       <main aria-hidden={isLocked ? "true" : undefined} className="workbench">
         <header className="app-header">
-          <div>
-            <p className="app-kicker">中国医药官方职位聚合</p>
-            <h1>Job-search</h1>
-          </div>
-          <button className="profile-button" disabled={isLocked} type="button">
-            <UserRound aria-hidden="true" size={18} />
-            我的
-          </button>
+          <h1>Job-search</h1>
+          <span>中国医药官方职位聚合</span>
         </header>
 
         <section aria-label="搜索条件" className="search-panel">
-          <label className="keyword-field">
-            <Search aria-hidden="true" size={20} />
-            <input
-              disabled={isLocked}
-              onChange={(event) => {
-                setKeyword(event.target.value);
-                setExpandedCompanyId(null);
-              }}
-              placeholder="职位关键词，如：医学代表、药物警戒"
-              type="search"
-              value={keyword}
-            />
-          </label>
-
-          <div className="control-row">
-            <button className="selector-button" disabled={isLocked} type="button">
+          <div className="search-controls">
+            <label className="keyword-field">
+              <Search aria-hidden="true" size={19} />
+              <input
+                disabled={isLocked}
+                onChange={(event) => {
+                  setKeyword(event.target.value);
+                  setExpandedCompanyId(null);
+                }}
+                placeholder="职位关键词，如：医学代表、药物警戒"
+                type="search"
+                value={keyword}
+              />
+            </label>
+            <button className="city-button" disabled={isLocked} type="button">
               <MapPin aria-hidden="true" size={18} />
-              {city}
+              {DEFAULT_CITY}
               <ChevronDown aria-hidden="true" size={17} />
             </button>
-            <button className="selector-button" disabled={isLocked} type="button">
-              <SlidersHorizontal aria-hidden="true" size={18} />
+            <button className="filter-button" disabled={isLocked} type="button">
+              <SlidersHorizontal aria-hidden="true" size={20} />
               筛选
             </button>
           </div>
 
-          <div className="chip-row" aria-label="已选条件">
-            {categoryChip ? (
-              <button
-                className="filter-chip"
-                disabled={isLocked}
-                onClick={() => setCategoryChip(null)}
-                type="button"
-              >
-                {categoryChip}
-                <X aria-hidden="true" size={14} />
+          <div className="chip-toolbar">
+            <div className="chip-row" aria-label="已选条件">
+              {showsSalesChip ? (
+                <button
+                  className="filter-chip"
+                  disabled={isLocked}
+                  onClick={() => setShowsSalesChip(false)}
+                  type="button"
+                >
+                  销售
+                  <X aria-hidden="true" size={14} />
+                </button>
+              ) : null}
+              {showsMslChip ? (
+                <button
+                  className="filter-chip"
+                  disabled={isLocked}
+                  onClick={() => setShowsMslChip(false)}
+                  type="button"
+                >
+                  MSL
+                  <X aria-hidden="true" size={14} />
+                </button>
+              ) : null}
+              {showsOnlyNewChip ? (
+                <button
+                  className="filter-chip"
+                  disabled={isLocked}
+                  onClick={() => setShowsOnlyNewChip(false)}
+                  type="button"
+                >
+                  只看新增
+                  <X aria-hidden="true" size={14} />
+                </button>
+              ) : null}
+              <button className="clear-button" disabled={isLocked} onClick={clearFilters} type="button">
+                清空
               </button>
-            ) : null}
-            {keyword.trim() ? (
-              <button
-                className="filter-chip"
-                disabled={isLocked}
-                onClick={() => setKeyword("")}
-                type="button"
-              >
-                {keyword.trim()}
-                <X aria-hidden="true" size={14} />
-              </button>
-            ) : null}
-            {showsOnlyNewChip ? (
-              <button
-                className="filter-chip"
-                disabled={isLocked}
-                onClick={() => setShowsOnlyNewChip(false)}
-                type="button"
-              >
-                只看新增
-                <X aria-hidden="true" size={14} />
-              </button>
-            ) : null}
-            <button className="clear-button" disabled={isLocked} onClick={clearFilters} type="button">
-              清空
+            </div>
+            <button className="collapse-filter" disabled={isLocked} type="button">
+              收起筛选
+              <ChevronDown aria-hidden="true" size={15} />
             </button>
           </div>
         </section>
 
         <section aria-label="职位概览" className="summary-card">
-          <div>
+          <div className="summary-left">
             <div className="summary-count">
-              <span>{matchingJobCount}</span>
+              <span>{summaryJobCount}</span>
               <small>个职位</small>
             </div>
             <p>
-              <span>{companyResults.length} 家公司</span>
+              <strong>{summaryCompanyCount} 家公司</strong>
               <span aria-hidden="true" className="summary-divider" />
               <span>全站最后抓取 {GLOBAL_LAST_FETCHED}</span>
             </p>
@@ -203,92 +304,70 @@ export function App() {
         </section>
 
         <section aria-label="公司职位列表" className="company-list">
-          {companyResults.length > 0 ? (
-            companyResults.map((company) => {
-              const isExpanded = expandedCompanyId === company.id;
+          {companyResults.map((company) => {
+            const isExpanded = expandedCompanyId === company.id;
+            const countLabel = hasKeyword ? `${company.jobs.length} 个职位` : company.countLabel;
 
-              return (
-                <article className="company-card" key={company.id}>
-                  <button
-                    aria-expanded={isExpanded}
-                    className="company-toggle"
-                    disabled={isLocked}
-                    onClick={() => toggleCompany(company.id)}
-                    type="button"
-                  >
-                    <span className="company-icon">
-                      <Building2 aria-hidden="true" size={21} />
-                    </span>
-                    <span className="company-title">
-                      <strong>{company.companyName}</strong>
-                      <small>{company.jobs.length} 个职位</small>
-                    </span>
+            return (
+              <article className="company-row" key={company.id}>
+                <button
+                  aria-expanded={isExpanded}
+                  className="company-toggle"
+                  disabled={isLocked}
+                  onClick={() => toggleCompany(company.id)}
+                  type="button"
+                >
+                  <strong>{company.companyName}</strong>
+                  <span>
+                    {countLabel}
                     {isExpanded ? (
-                      <ChevronDown aria-hidden="true" size={22} />
+                      <ChevronDown aria-hidden="true" size={18} />
                     ) : (
-                      <ChevronRight aria-hidden="true" size={22} />
+                      <ChevronRight aria-hidden="true" size={18} />
                     )}
-                  </button>
+                  </span>
+                </button>
 
-                  {isExpanded ? (
-                    <div className="job-list">
-                      {company.jobs.map((job) => (
-                        <div className="job-row" key={job.id}>
-                          <div className="job-copy">
-                            <h2>
-                              {job.title}
-                              {job.isNew ? <span className="new-badge">新增</span> : null}
-                            </h2>
-                            {job.officialTitle ? <p>{job.officialTitle}</p> : null}
-                            <div className="job-meta" aria-label="职位基本信息">
-                              <span>
-                                <MapPin aria-hidden="true" size={15} />
-                                {job.city}
-                              </span>
-                              <span>
-                                <BriefcaseBusiness aria-hidden="true" size={15} />
-                                {job.category}
-                              </span>
-                            </div>
+                {isExpanded && company.jobs.length > 0 ? (
+                  <div className="job-list">
+                    {company.jobs.map((job) => (
+                      <div className="job-row" key={job.id}>
+                        <div className="job-copy">
+                          <h2>
+                            {job.title}
+                            {job.isNew ? <span className="new-badge">新增</span> : null}
+                          </h2>
+                          <p>{job.officialTitle}</p>
+                          <div className="job-meta" aria-label="职位基本信息">
+                            <span>
+                              <MapPin aria-hidden="true" size={15} />
+                              {job.city}
+                            </span>
+                            <span aria-hidden="true" className="meta-divider" />
+                            <span>
+                              <BriefcaseBusiness aria-hidden="true" size={15} />
+                              {job.category}
+                            </span>
                           </div>
-                          <a
-                            className="official-link"
-                            href={job.officialUrl}
-                            onClick={preventLockedNavigation}
-                            rel="noreferrer"
-                            target="_blank"
-                          >
-                            查看官方职位
-                            <ExternalLink aria-hidden="true" size={15} />
-                          </a>
                         </div>
-                      ))}
-                    </div>
-                  ) : null}
-                </article>
-              );
-            })
-          ) : (
-            <div className="empty-state">
-              <ListFilter aria-hidden="true" size={22} />
-              <p>没有匹配职位</p>
-              <button disabled={isLocked} onClick={clearFilters} type="button">
-                清空条件
-              </button>
-            </div>
-          )}
+                        <a
+                          className="official-link"
+                          href={job.officialUrl}
+                          onClick={preventLockedNavigation}
+                          rel="noreferrer"
+                          target="_blank"
+                        >
+                          查看官方职位
+                          <ExternalLink aria-hidden="true" size={14} />
+                        </a>
+                      </div>
+                    ))}
+                  </div>
+                ) : null}
+              </article>
+            );
+          })}
         </section>
-
-        <nav aria-label="底部导航" className="bottom-nav">
-          <button className="bottom-nav-item active" disabled={isLocked} type="button">
-            <ListFilter aria-hidden="true" size={21} />
-            职位发现
-          </button>
-          <button className="bottom-nav-item" disabled={isLocked} type="button">
-            <UserRound aria-hidden="true" size={21} />
-            我的
-          </button>
-        </nav>
       </main>
 
       {consentState === "pending" ? (
@@ -300,7 +379,7 @@ export function App() {
               onClick={closeConsent}
               type="button"
             >
-              <X aria-hidden="true" size={18} />
+              <X aria-hidden="true" size={17} />
             </button>
             <h2>使用前确认</h2>
             <span className="modal-accent" />
