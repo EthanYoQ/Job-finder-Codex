@@ -94,7 +94,7 @@ export type AdminOperationsDb = {
       where: { id: string };
       data: {
         humanCorrectedCategory: PrismaJobCategoryName;
-        humanCorrectedSecondaryCategory?: PrismaJobCategoryName;
+        humanCorrectedSecondaryCategory: PrismaJobCategoryName | null;
         humanCorrectionReason: string;
         humanCorrectedAt: Date;
       };
@@ -227,9 +227,8 @@ export async function applyJobCategoryCorrection(
     where: { id: input.jobId },
     data: {
       humanCorrectedCategory: toPrismaJobCategory(input.category),
-      ...(input.secondaryCategory === undefined
-        ? {}
-        : { humanCorrectedSecondaryCategory: toPrismaJobCategory(input.secondaryCategory) }),
+      humanCorrectedSecondaryCategory:
+        input.secondaryCategory === undefined ? null : toPrismaJobCategory(input.secondaryCategory),
       humanCorrectionReason: input.reason,
       humanCorrectedAt: correctedAt
     }

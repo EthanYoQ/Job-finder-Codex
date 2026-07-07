@@ -178,6 +178,18 @@ describe("admin operations", () => {
     ]);
   });
 
+  it("rejects unsupported recommended company statuses", async () => {
+    const db = createDb();
+
+    await expect(
+      reviewRecommendedCompany(
+        { recommendationId: "recommendation-1", status: "PENDING", note: "no-op" },
+        adminContext,
+        { db }
+      )
+    ).rejects.toThrow("Invalid recommended company review status");
+  });
+
   it("applies human category corrections using domain labels and writes an audit event", async () => {
     const jobUpdates: Array<unknown> = [];
     const auditCreates: Array<unknown> = [];
@@ -234,6 +246,66 @@ describe("admin operations", () => {
             category: "医学事务",
             secondaryCategory: "市场",
             reason: "human review"
+          }
+        }
+      }
+    ]);
+  });
+
+  it("clears an existing secondary category correction when no secondary category is supplied", async () => {
+    const jobUpdates: Array<unknown> = [];
+    const auditCreates: Array<unknown> = [];
+    const correctedAt = new Date("2026-07-08T11:00:00.000Z");
+    const db = createDb({
+      job: {
+        async update(args) {
+          jobUpdates.push(args);
+          return { id: "job-2" };
+        }
+      },
+      adminAuditEvent: {
+        async create(args) {
+          auditCreates.push(args);
+          return { id: "audit-2" };
+        }
+      }
+    });
+
+    const result = await applyJobCategoryCorrection(
+      {
+        jobId: "job-2",
+        category: "销售",
+        reason: "clear stale secondary category"
+      },
+      adminContext,
+      { db, now: () => correctedAt }
+    );
+
+    expect(result).toEqual({ id: "job-2" });
+    expect(jobUpdates).toEqual([
+      {
+        where: { id: "job-2" },
+        data: {
+          humanCorrectedCategory: "SALES",
+          humanCorrectedSecondaryCategory: null,
+          humanCorrectionReason: "clear stale secondary category",
+          humanCorrectedAt: correctedAt
+        }
+      }
+    ]);
+    expect(auditCreates).toEqual([
+      {
+        data: {
+          adminUserId: "admin-1",
+          action: "APPLY_JOB_CATEGORY_CORRECTION",
+          targetType: "Job",
+          targetId: "job-2",
+          ip: "127.0.0.1",
+          userAgent: "vitest",
+          metadata: {
+            jobId: "job-2",
+            category: "销售",
+            reason: "clear stale secondary category"
           }
         }
       }
