@@ -47,6 +47,8 @@
 4. 字段至少包含公司、岗位标题、官方来源链接、城市或地点信息。
 5. 若来源只提供列表页链接，也必须能把官方入口和岗位标题保存为可审计证据。
 
+Implementation note: `npm run p0:readiness` is the canonical local readiness check. Registry labels, official URLs, and source-plan configuration are treated as separate evidence layers; a source is not P0 launch evidence unless the readiness report also sees two latest successful stable crawl observations.
+
 ## 信息架构
 
 ### 首页搜索页

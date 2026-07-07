@@ -152,6 +152,8 @@ P0 公司范围为外资药企中国区、国内 Top 30 药企、国内知名 Bi
 - The Korean-server cross-border compliance question remains unverified and must be reviewed separately before public launch.
 - Formal P0 launch is blocked until the company verification gate is met: candidate company pool 80-120, with at least 50 companies marked “已验证可抓取” under the full definition above.
 
+The implementation must use `npm run p0:readiness` as the local launch-gate check. A company source status label alone is not enough for P0 readiness; the check must also confirm a configured crawl plan and two latest successful stable crawl observations. If the report exits non-zero, the project remains internal/prototype only.
+
 ## Testing Decisions
 
 - Primary test seam is the source adapter contract. Each supported source must prove it can return normalized job records from an official source URL, recorded payload, browser DOM, or API response.
