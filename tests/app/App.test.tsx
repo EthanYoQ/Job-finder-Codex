@@ -73,7 +73,7 @@ describe("Job-search frontend app", () => {
     expect(screen.getByRole("button", { name: /只看新增/ })).toBeInTheDocument();
 
     const pfizer = screen.getByRole("button", { name: /辉瑞/ });
-    await user.click(pfizer);
+    expect(pfizer).toHaveAttribute("aria-expanded", "true");
 
     expect(screen.getByText("医学信息沟通专员（呼吸领域）")).toBeInTheDocument();
     expect(screen.queryByText("MSL 医学科学联络官")).not.toBeInTheDocument();

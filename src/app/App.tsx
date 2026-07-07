@@ -20,6 +20,7 @@ type ConsentState = "pending" | "closed" | "accepted";
 const GLOBAL_LAST_FETCHED = "2026-07-07 08:00";
 const DEFAULT_CITY = "北京";
 const DEFAULT_CATEGORY = "销售";
+const DEFAULT_EXPANDED_COMPANY_ID = "pfizer";
 
 function compareJobsByPublishedAt(left: JobResult, right: JobResult): number {
   return (
@@ -41,7 +42,9 @@ export function App() {
   const [keyword, setKeyword] = useState("");
   const [categoryChip, setCategoryChip] = useState<string | null>(DEFAULT_CATEGORY);
   const [showsOnlyNewChip, setShowsOnlyNewChip] = useState(true);
-  const [expandedCompanyId, setExpandedCompanyId] = useState<string | null>(null);
+  const [expandedCompanyId, setExpandedCompanyId] = useState<string | null>(
+    DEFAULT_EXPANDED_COMPANY_ID
+  );
 
   const companyResults = useMemo(() => {
     const results = filterJobs({

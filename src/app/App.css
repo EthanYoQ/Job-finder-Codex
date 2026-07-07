@@ -47,7 +47,7 @@ a {
   width: min(100%, 430px);
   min-height: 100vh;
   margin: 0 auto;
-  padding: 28px 14px 88px;
+  padding: 28px 14px 104px;
 }
 
 .workbench[aria-hidden="true"] {
@@ -336,6 +336,8 @@ a {
 
 .job-row {
   display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
   gap: 12px;
   padding: 16px 14px;
   border-bottom: 1px solid #e3e9f2;
@@ -402,7 +404,7 @@ a {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  justify-self: start;
+  justify-self: end;
   gap: 6px;
   min-height: 38px;
   padding: 0 12px;
@@ -446,16 +448,21 @@ a {
 }
 
 .bottom-nav {
-  position: sticky;
+  position: fixed;
+  right: auto;
   bottom: 0;
+  left: 50%;
+  z-index: 10;
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 8px;
-  margin: 18px -14px -88px;
+  width: min(100%, 430px);
+  margin: 0;
   padding: 10px 24px 18px;
   border-top: 1px solid #d7e0ee;
   background: rgba(255, 255, 255, 0.94);
   backdrop-filter: blur(12px);
+  transform: translateX(-50%);
 }
 
 .bottom-nav-item {
@@ -624,12 +631,4 @@ a {
     justify-self: end;
   }
 
-  .job-row {
-    grid-template-columns: 1fr auto;
-    align-items: center;
-  }
-
-  .official-link {
-    justify-self: end;
-  }
 }
