@@ -35,7 +35,7 @@
   - `extractMokaInitData(html: string): MokaInitData | undefined`
   - `decryptMokaResponse(response: MokaEncryptedResponse, aesIv: string): unknown`
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 Create `tests/crawler/mokaSourceFetch.test.ts`:
 
@@ -228,13 +228,13 @@ describe("Moka source fetch", () => {
 });
 ```
 
-- [ ] **Step 2: Run the focused test and verify it fails**
+- [x] **Step 2: Run the focused test and verify it fails**
 
 Run: `npm test -- tests/crawler/mokaSourceFetch.test.ts`
 
 Expected: FAIL because `src/crawler/mokaSourceFetch.ts` does not exist.
 
-- [ ] **Step 3: Implement the Moka source fetcher**
+- [x] **Step 3: Implement the Moka source fetcher**
 
 Create `src/crawler/mokaSourceFetch.ts`:
 
@@ -488,7 +488,7 @@ function isObject(value: unknown): value is Record<string, unknown> {
 }
 ```
 
-- [ ] **Step 4: Run focused tests and typecheck**
+- [x] **Step 4: Run focused tests and typecheck**
 
 Run: `npm test -- tests/crawler/mokaSourceFetch.test.ts`
 
@@ -498,7 +498,7 @@ Run: `npm run typecheck`
 
 Expected: PASS.
 
-- [ ] **Step 5: Commit Task 1**
+- [x] **Step 5: Commit Task 1**
 
 Run:
 
@@ -519,7 +519,7 @@ git commit -m "feat: add Moka encrypted source fetch"
 - Consumes: existing `officialJsonAdapter` config shape.
 - Produces: `buildSourceCrawlPlans(candidateCompanies)` includes `source-beigene-social`.
 
-- [ ] **Step 1: Write failing source-plan/readiness assertions**
+- [x] **Step 1: Write failing source-plan/readiness assertions**
 
 Modify `tests/crawler/sourcePlan.test.ts` in the deterministic adapter test:
 
@@ -553,13 +553,13 @@ it("does not flag declared verified sources once every verified source has a cra
 });
 ```
 
-- [ ] **Step 2: Run focused tests and verify they fail**
+- [x] **Step 2: Run focused tests and verify they fail**
 
 Run: `npm test -- tests/crawler/sourcePlan.test.ts tests/readiness/p0Readiness.test.ts`
 
 Expected: FAIL because Beigene is not planned yet and readiness still flags the missing crawl plan.
 
-- [ ] **Step 3: Update Beigene registry source**
+- [x] **Step 3: Update Beigene registry source**
 
 In `src/data/companyRegistry.ts`, update `company-beigene` fields:
 
@@ -571,7 +571,7 @@ In `src/data/companyRegistry.ts`, update `company-beigene` fields:
 
 Keep `status: "VERIFIED_SCRAPABLE"` and `atsKind: "MOKA"` unchanged.
 
-- [ ] **Step 4: Add Beigene representative config**
+- [x] **Step 4: Add Beigene representative config**
 
 In `src/crawler/sourcePlan.ts`, add to `REPRESENTATIVE_CONFIGS`:
 
@@ -592,7 +592,7 @@ In `src/crawler/sourcePlan.ts`, add to `REPRESENTATIVE_CONFIGS`:
   },
 ```
 
-- [ ] **Step 5: Run focused verification**
+- [x] **Step 5: Run focused verification**
 
 Run: `npm test -- tests/crawler/sourcePlan.test.ts tests/readiness/p0Readiness.test.ts`
 
@@ -602,7 +602,7 @@ Run: `npm run p0:readiness`
 
 Expected: exits `1`, shows configured verified social sources `5`, no “Verified sources missing crawl plans” section, and still blocks on `VERIFIED_COMPANIES_BELOW_50` with `0/50`.
 
-- [ ] **Step 6: Commit Task 2**
+- [x] **Step 6: Commit Task 2**
 
 Run:
 
@@ -621,7 +621,7 @@ git commit -m "feat: register Beigene Moka crawl plan"
 - Consumes: `SourceFetchFunction`.
 - Produces: `createSourceFetchRouter({ moka, fallback }): SourceFetchFunction`.
 
-- [ ] **Step 1: Write the failing router test**
+- [x] **Step 1: Write the failing router test**
 
 Create `tests/crawler/sourceFetchRouter.test.ts`:
 
@@ -696,13 +696,13 @@ describe("source fetch router", () => {
 });
 ```
 
-- [ ] **Step 2: Run focused test and verify it fails**
+- [x] **Step 2: Run focused test and verify it fails**
 
 Run: `npm test -- tests/crawler/sourceFetchRouter.test.ts`
 
 Expected: FAIL because `src/crawler/sourceFetchRouter.ts` does not exist.
 
-- [ ] **Step 3: Implement router**
+- [x] **Step 3: Implement router**
 
 Create `src/crawler/sourceFetchRouter.ts`:
 
@@ -722,7 +722,7 @@ export function createSourceFetchRouter({
 }
 ```
 
-- [ ] **Step 4: Run focused tests and typecheck**
+- [x] **Step 4: Run focused tests and typecheck**
 
 Run: `npm test -- tests/crawler/sourceFetchRouter.test.ts`
 
@@ -732,7 +732,7 @@ Run: `npm run typecheck`
 
 Expected: PASS.
 
-- [ ] **Step 5: Commit Task 3**
+- [x] **Step 5: Commit Task 3**
 
 Run:
 
@@ -750,7 +750,7 @@ git commit -m "feat: add source fetch router"
 - Consumes: Tasks 1-3.
 - Produces: completed plan checkboxes only after fresh verification.
 
-- [ ] **Step 1: Run full verification**
+- [x] **Step 1: Run full verification**
 
 Run:
 
@@ -768,11 +768,11 @@ Expected:
 - `npm run p0:readiness` exits `1` because P0 still has `0/50` crawl-evidenced verified companies. It should no longer include the missing Beigene crawl-plan blocker.
 - Tavily key grep has no matches.
 
-- [ ] **Step 2: Mark checkboxes complete**
+- [x] **Step 2: Mark checkboxes complete**
 
 Only after Step 1 verification, change every task checkbox in this plan from `[ ]` to `[x]`.
 
-- [ ] **Step 3: Commit Task 4**
+- [x] **Step 3: Commit Task 4**
 
 Run:
 
