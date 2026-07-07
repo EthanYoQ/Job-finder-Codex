@@ -62,7 +62,7 @@
 - Produces: `npm run dev`, `npm run build`, React/Vite entrypoint, jsdom-enabled UI tests.
 - Later tasks consume the frontend harness to add components and tests.
 
-- [ ] **Step 1: Install frontend dependencies**
+- [x] **Step 1: Install frontend dependencies**
 
 Run:
 
@@ -73,7 +73,7 @@ npm install -D @vitejs/plugin-react @testing-library/react @testing-library/user
 
 Expected: package files update and install exits 0.
 
-- [ ] **Step 2: Update scripts and test dependencies**
+- [x] **Step 2: Update scripts and test dependencies**
 
 Update `package.json` scripts to include:
 
@@ -124,7 +124,7 @@ Expected dev dependencies include:
 }
 ```
 
-- [ ] **Step 3: Update TypeScript config**
+- [x] **Step 3: Update TypeScript config**
 
 Update `tsconfig.json`:
 
@@ -148,7 +148,7 @@ Update `tsconfig.json`:
 }
 ```
 
-- [ ] **Step 4: Replace Vitest config with Vite config re-export**
+- [x] **Step 4: Replace Vitest config with Vite config re-export**
 
 Create `vite.config.ts`:
 
@@ -175,7 +175,7 @@ Replace `vitest.config.ts`:
 export { default } from "./vite.config";
 ```
 
-- [ ] **Step 5: Add test setup**
+- [x] **Step 5: Add test setup**
 
 Create `test.setup.ts`:
 
@@ -183,7 +183,7 @@ Create `test.setup.ts`:
 import "@testing-library/jest-dom/vitest";
 ```
 
-- [ ] **Step 6: Add initial React mount files**
+- [x] **Step 6: Add initial React mount files**
 
 Create `index.html`:
 
@@ -229,7 +229,7 @@ createRoot(root).render(
 );
 ```
 
-- [ ] **Step 7: Run baseline verification**
+- [x] **Step 7: Run baseline verification**
 
 Run:
 
@@ -241,7 +241,7 @@ npm run build
 
 Expected: all commands pass.
 
-- [ ] **Step 8: Commit**
+- [x] **Step 8: Commit**
 
 Run:
 
@@ -265,7 +265,7 @@ Expected: commit created.
 - Produces: `companies`, `filterJobs(request)`, `sortCompanies(companies, sortMode)`, `SearchFilters`, `CompanyResult`, `JobResult`.
 - Later UI consumes these helpers without embedding filtering logic in React components.
 
-- [ ] **Step 1: Write failing pure tests**
+- [x] **Step 1: Write failing pure tests**
 
 Create `tests/app/jobSearch.test.ts`:
 
@@ -322,7 +322,7 @@ describe("frontend job search helpers", () => {
 });
 ```
 
-- [ ] **Step 2: Run test to verify it fails**
+- [x] **Step 2: Run test to verify it fails**
 
 Run:
 
@@ -332,7 +332,7 @@ npm test -- tests/app/jobSearch.test.ts
 
 Expected: FAIL because `src/app/jobSearch.ts` does not exist.
 
-- [ ] **Step 3: Implement sample data**
+- [x] **Step 3: Implement sample data**
 
 Create `src/app/jobData.ts`:
 
@@ -456,7 +456,7 @@ export const companies: CompanyResult[] = [
 ];
 ```
 
-- [ ] **Step 4: Implement helpers**
+- [x] **Step 4: Implement helpers**
 
 Create `src/app/jobSearch.ts`:
 
@@ -517,7 +517,7 @@ export function sortCompanies(
 }
 ```
 
-- [ ] **Step 5: Run tests and typecheck**
+- [x] **Step 5: Run tests and typecheck**
 
 Run:
 
@@ -528,7 +528,7 @@ npm run typecheck
 
 Expected: both commands pass.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 Run:
 
@@ -553,7 +553,7 @@ Expected: commit created.
 - Consumes: `filterJobs`, `sortCompanies`, sample `CompanyResult`.
 - Produces: interactive mobile search workbench with consent modal, locked state, filters, company accordion, and official links.
 
-- [ ] **Step 1: Write failing UI tests**
+- [x] **Step 1: Write failing UI tests**
 
 Create `tests/app/App.test.tsx`:
 
@@ -645,7 +645,7 @@ describe("Job-search frontend app", () => {
 });
 ```
 
-- [ ] **Step 2: Run tests to verify they fail**
+- [x] **Step 2: Run tests to verify they fail**
 
 Run:
 
@@ -655,7 +655,7 @@ npm test -- tests/app/App.test.tsx
 
 Expected: FAIL because `src/app/App.tsx` does not exist.
 
-- [ ] **Step 3: Implement React app**
+- [x] **Step 3: Implement React app**
 
 Create `src/app/App.tsx` with these required state names and behaviors:
 
@@ -692,7 +692,7 @@ Create `src/app/App.css` implementing:
 - modal center overlay, close button, disabled locked state.
 - no border radius above `8px` except modal may use `10px` only if needed for visual fidelity.
 
-- [ ] **Step 4: Wire the real app entrypoint**
+- [x] **Step 4: Wire the real app entrypoint**
 
 Replace `src/main.tsx`:
 
@@ -714,7 +714,7 @@ createRoot(root).render(
 );
 ```
 
-- [ ] **Step 5: Run focused tests and build**
+- [x] **Step 5: Run focused tests and build**
 
 Run:
 
@@ -726,7 +726,7 @@ npm run build
 
 Expected: all commands pass.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 Run:
 
@@ -749,7 +749,7 @@ Expected: commit created.
 - Consumes: selected visual target references and built app.
 - Produces: running local app and `design-qa.md` with `final result: passed`.
 
-- [ ] **Step 1: Run full verification**
+- [x] **Step 1: Run full verification**
 
 Run:
 
@@ -762,7 +762,7 @@ npm run prisma:validate
 
 Expected: all commands pass.
 
-- [ ] **Step 2: Start local server**
+- [x] **Step 2: Start local server**
 
 Run:
 
@@ -772,7 +772,7 @@ npm run dev -- --port 5173
 
 Expected: Vite serves the app at `http://127.0.0.1:5173/`.
 
-- [ ] **Step 3: Capture app at selected state**
+- [x] **Step 3: Capture app at selected state**
 
 Use the Product Design browser order. Preferred browser tools are Browser plugin, then Chrome plugin. If neither is available, use Playwright only if the user has already allowed browser automation in this project thread.
 
@@ -783,7 +783,7 @@ Capture:
 - Accepted state after checking consent and pressing `进入 Job-search`.
 - Closed state after pressing close button, showing locked page.
 
-- [ ] **Step 4: Write design QA report**
+- [x] **Step 4: Write design QA report**
 
 Create `design-qa.md` with:
 
@@ -815,7 +815,7 @@ final result: blocked
 
 Update `final result` to `passed` only when no actionable P0/P1/P2 findings remain.
 
-- [ ] **Step 5: Fix QA findings**
+- [x] **Step 5: Fix QA findings**
 
 If QA reports P0/P1/P2 issues, patch the affected files, then run:
 
@@ -827,7 +827,7 @@ npm run build
 
 Expected: all commands pass. Repeat capture and QA until `design-qa.md` says `final result: passed`.
 
-- [ ] **Step 6: Commit QA result and fixes**
+- [x] **Step 6: Commit QA result and fixes**
 
 Run:
 

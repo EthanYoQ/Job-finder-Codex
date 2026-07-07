@@ -57,7 +57,7 @@
 - Produces: `Company`, `RecruitmentSource`, `CrawlObservation`, `VerificationStatus`, `ATSKind`, `SourceKind`, `RequiredJobField` types from `src/domain/company.ts`.
 - Later tasks consume these types in verification, Prisma mapping, route policy, and admin workflows.
 
-- [ ] **Step 1: Initialize git repository**
+- [x] **Step 1: Initialize git repository**
 
 Run:
 
@@ -67,7 +67,7 @@ git init
 
 Expected: repository initialized and future `git status --short` succeeds.
 
-- [ ] **Step 2: Create project harness files**
+- [x] **Step 2: Create project harness files**
 
 Create `package.json`:
 
@@ -156,7 +156,7 @@ ADMIN_EMAIL="admin@example.com"
 ADMIN_PASSWORD_HASH="replace-with-argon2id-hash"
 ```
 
-- [ ] **Step 3: Install dependencies**
+- [x] **Step 3: Install dependencies**
 
 Run:
 
@@ -166,7 +166,7 @@ npm install
 
 Expected: `node_modules/` and `package-lock.json` are created; command exits 0.
 
-- [ ] **Step 4: Write failing domain type test**
+- [x] **Step 4: Write failing domain type test**
 
 Create `tests/domain/verification.test.ts`:
 
@@ -201,7 +201,7 @@ describe("company source domain", () => {
 });
 ```
 
-- [ ] **Step 5: Run test to verify it fails**
+- [x] **Step 5: Run test to verify it fails**
 
 Run:
 
@@ -211,7 +211,7 @@ npm test -- tests/domain/verification.test.ts
 
 Expected: FAIL because `src/domain/company.ts` does not exist.
 
-- [ ] **Step 6: Implement domain types**
+- [x] **Step 6: Implement domain types**
 
 Create `src/domain/company.ts`:
 
@@ -269,7 +269,7 @@ export interface Company {
 }
 ```
 
-- [ ] **Step 7: Run test and typecheck**
+- [x] **Step 7: Run test and typecheck**
 
 Run:
 
@@ -280,7 +280,7 @@ npm run typecheck
 
 Expected: both commands pass.
 
-- [ ] **Step 8: Commit**
+- [x] **Step 8: Commit**
 
 Run:
 
@@ -303,7 +303,7 @@ Expected: commit created.
 - Consumes: `RecruitmentSource`, `CrawlObservation`, `RequiredJobField`, `Company` from `src/domain/company.ts`.
 - Produces: `isVerifiedScrapable(source, observations): boolean`, `countVerifiedCompanies(companies, observationsBySource): number`, `canLaunchP0(companies, observationsBySource): boolean`.
 
-- [ ] **Step 1: Add failing verification tests**
+- [x] **Step 1: Add failing verification tests**
 
 Append to `tests/domain/verification.test.ts`:
 
@@ -414,7 +414,7 @@ describe("verified scrapable gate", () => {
 });
 ```
 
-- [ ] **Step 2: Run tests to verify they fail**
+- [x] **Step 2: Run tests to verify they fail**
 
 Run:
 
@@ -424,7 +424,7 @@ npm test -- tests/domain/verification.test.ts
 
 Expected: FAIL because `src/domain/verification.ts` does not exist.
 
-- [ ] **Step 3: Implement verification logic**
+- [x] **Step 3: Implement verification logic**
 
 Create `src/domain/verification.ts`:
 
@@ -483,7 +483,7 @@ export function canLaunchP0(
 }
 ```
 
-- [ ] **Step 4: Run tests and typecheck**
+- [x] **Step 4: Run tests and typecheck**
 
 Run:
 
@@ -494,7 +494,7 @@ npm run typecheck
 
 Expected: tests and typecheck pass.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 Run:
 
@@ -517,7 +517,7 @@ Expected: commit created.
 - Produces: `JobCategory`, `JOB_CATEGORIES`, `SearchRequestSchema`, `CompanyExpansionRequestSchema`, `COMPANY_EXPANSION_PAGE_SIZE`, `COMPANY_EXPANSION_MAX_RETURNED`.
 - Later API and frontend tasks consume these contracts.
 
-- [ ] **Step 1: Write failing search contract tests**
+- [x] **Step 1: Write failing search contract tests**
 
 Create `tests/domain/search.test.ts`:
 
@@ -591,7 +591,7 @@ describe("company expansion contract", () => {
 });
 ```
 
-- [ ] **Step 2: Run tests to verify they fail**
+- [x] **Step 2: Run tests to verify they fail**
 
 Run:
 
@@ -601,7 +601,7 @@ npm test -- tests/domain/search.test.ts
 
 Expected: FAIL because `src/domain/search.ts` does not exist.
 
-- [ ] **Step 3: Implement search contracts**
+- [x] **Step 3: Implement search contracts**
 
 Create `src/domain/search.ts`:
 
@@ -661,7 +661,7 @@ export const CompanyExpansionRequestSchema = z
   });
 ```
 
-- [ ] **Step 4: Run tests and typecheck**
+- [x] **Step 4: Run tests and typecheck**
 
 Run:
 
@@ -672,7 +672,7 @@ npm run typecheck
 
 Expected: tests and typecheck pass.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 Run:
 
@@ -695,7 +695,7 @@ Expected: commit created.
 - Produces: `canAccessWithoutConsent(pathname): boolean`, `isIndexableRoute(pathname): boolean`, `shouldLoadOperationalAnalytics(pathname, hasConsent): boolean`.
 - Later route handlers and middleware consume these policy functions.
 
-- [ ] **Step 1: Write failing route policy tests**
+- [x] **Step 1: Write failing route policy tests**
 
 Create `tests/domain/route-policy.test.ts`:
 
@@ -743,7 +743,7 @@ describe("SEO route policy", () => {
 });
 ```
 
-- [ ] **Step 2: Run tests to verify they fail**
+- [x] **Step 2: Run tests to verify they fail**
 
 Run:
 
@@ -753,7 +753,7 @@ npm test -- tests/domain/route-policy.test.ts
 
 Expected: FAIL because `src/domain/route-policy.ts` does not exist.
 
-- [ ] **Step 3: Implement route policy**
+- [x] **Step 3: Implement route policy**
 
 Create `src/domain/route-policy.ts`:
 
@@ -785,7 +785,7 @@ export function shouldLoadOperationalAnalytics(
 }
 ```
 
-- [ ] **Step 4: Run tests and typecheck**
+- [x] **Step 4: Run tests and typecheck**
 
 Run:
 
@@ -796,7 +796,7 @@ npm run typecheck
 
 Expected: tests and typecheck pass.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 Run:
 
@@ -819,7 +819,7 @@ Expected: commit created.
 - Consumes: domain concepts from previous tasks.
 - Produces: Prisma schema with companies, recruitment sources, crawl batches, crawl observations, jobs, feedback, recommended companies, and access events.
 
-- [ ] **Step 1: Write failing schema validation test**
+- [x] **Step 1: Write failing schema validation test**
 
 Create `tests/prisma/schema.test.ts`:
 
@@ -840,7 +840,7 @@ describe("prisma schema", () => {
 });
 ```
 
-- [ ] **Step 2: Run schema test to verify it fails**
+- [x] **Step 2: Run schema test to verify it fails**
 
 Run:
 
@@ -850,7 +850,7 @@ npm test -- tests/prisma/schema.test.ts
 
 Expected: FAIL because `prisma/schema.prisma` does not exist.
 
-- [ ] **Step 3: Implement Prisma schema**
+- [x] **Step 3: Implement Prisma schema**
 
 Create `prisma/schema.prisma`:
 
@@ -1033,7 +1033,7 @@ model AccessEvent {
 }
 ```
 
-- [ ] **Step 4: Run schema test and direct validation**
+- [x] **Step 4: Run schema test and direct validation**
 
 Run:
 
@@ -1044,7 +1044,7 @@ npm run prisma:validate
 
 Expected: both commands pass.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 Run:
 
