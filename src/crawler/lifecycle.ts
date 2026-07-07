@@ -18,6 +18,7 @@ export interface LifecycleDecision extends JobSnapshot {
 export interface ApplyCrawlObservationOptions {
   crawlSucceeded: boolean;
   observedAt: string;
+  baselineCompletedBeforeCrawl: boolean;
 }
 
 export function applyCrawlObservation(
@@ -43,15 +44,21 @@ export function applyCrawlObservation(
 
   for (const [dedupeKey, record] of currentByKey) {
     const previous = previousByKey.get(dedupeKey);
+    const isNew =
+      previous === undefined &&
+      options.crawlSucceeded &&
+      options.baselineCompletedBeforeCrawl &&
+      !record.isBaseline;
 
     decisions.push({
       dedupeKey,
+      // Normalized records are treated as immutable reducer inputs; preserve references.
       record,
       lifecycleStatus: "ACTIVE",
       missingSuccessfulCrawlCount: 0,
       firstSeenAt: previous?.firstSeenAt ?? options.observedAt,
       lastSeenAt: options.observedAt,
-      isNew: previous === undefined && !record.isBaseline
+      isNew
     });
   }
 

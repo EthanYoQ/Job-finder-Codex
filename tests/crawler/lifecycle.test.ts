@@ -66,13 +66,32 @@ describe("crawl lifecycle reducer", () => {
 
     const decisions = applyCrawlObservation([], [baselineJob], {
       crawlSucceeded: true,
-      observedAt: OBSERVED_AT
+      observedAt: OBSERVED_AT,
+      baselineCompletedBeforeCrawl: false
     });
 
     expect(decisions).toHaveLength(1);
     expect(decisionFor(decisions, baselineJob)).toMatchObject({
       dedupeKey: buildJobDedupeKey(baselineJob),
       record: baselineJob,
+      lifecycleStatus: "ACTIVE",
+      missingSuccessfulCrawlCount: 0,
+      isNew: false,
+      firstSeenAt: OBSERVED_AT,
+      lastSeenAt: OBSERVED_AT
+    });
+  });
+
+  it("stores first-ever non-baseline crawl jobs without marking them new before baseline completion", () => {
+    const job = makeJob({ isBaseline: false });
+
+    const decisions = applyCrawlObservation([], [job], {
+      crawlSucceeded: true,
+      observedAt: OBSERVED_AT,
+      baselineCompletedBeforeCrawl: false
+    });
+
+    expect(decisionFor(decisions, job)).toMatchObject({
       lifecycleStatus: "ACTIVE",
       missingSuccessfulCrawlCount: 0,
       isNew: false,
@@ -88,7 +107,8 @@ describe("crawl lifecycle reducer", () => {
 
     const decisions = applyCrawlObservation(previousJobs, [existingJob, newJob], {
       crawlSucceeded: true,
-      observedAt: OBSERVED_AT
+      observedAt: OBSERVED_AT,
+      baselineCompletedBeforeCrawl: true
     });
 
     expect(decisionFor(decisions, newJob)).toMatchObject({
@@ -106,7 +126,8 @@ describe("crawl lifecycle reducer", () => {
 
     const decisions = applyCrawlObservation(previousJobs, [], {
       crawlSucceeded: true,
-      observedAt: OBSERVED_AT
+      observedAt: OBSERVED_AT,
+      baselineCompletedBeforeCrawl: true
     });
 
     expect(decisionFor(decisions, job)).toMatchObject({
@@ -124,7 +145,8 @@ describe("crawl lifecycle reducer", () => {
 
     const decisions = applyCrawlObservation(previousJobs, [], {
       crawlSucceeded: true,
-      observedAt: OBSERVED_AT
+      observedAt: OBSERVED_AT,
+      baselineCompletedBeforeCrawl: true
     });
 
     expect(decisionFor(decisions, job)).toMatchObject({
@@ -145,7 +167,8 @@ describe("crawl lifecycle reducer", () => {
 
     const decisions = applyCrawlObservation(previousJobs, [], {
       crawlSucceeded: true,
-      observedAt: OBSERVED_AT
+      observedAt: OBSERVED_AT,
+      baselineCompletedBeforeCrawl: true
     });
 
     expect(decisionFor(decisions, job)).toMatchObject({
@@ -161,7 +184,8 @@ describe("crawl lifecycle reducer", () => {
 
     const decisions = applyCrawlObservation(previousJobs, [], {
       crawlSucceeded: false,
-      observedAt: OBSERVED_AT
+      observedAt: OBSERVED_AT,
+      baselineCompletedBeforeCrawl: true
     });
 
     expect(decisionFor(decisions, job)).toMatchObject({
@@ -185,7 +209,8 @@ describe("crawl lifecycle reducer", () => {
 
     const decisions = applyCrawlObservation(previousJobs, [reappearingJob], {
       crawlSucceeded: true,
-      observedAt: OBSERVED_AT
+      observedAt: OBSERVED_AT,
+      baselineCompletedBeforeCrawl: true
     });
 
     expect(decisionFor(decisions, reappearingJob)).toMatchObject({
