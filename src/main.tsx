@@ -1,9 +1,6 @@
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
-
-function PlaceholderApp() {
-  return <main>Job-search</main>;
-}
+import { App } from "./app/App";
 
 const root = document.getElementById("root");
 
@@ -13,6 +10,6 @@ if (!root) {
 
 createRoot(root).render(
   <StrictMode>
-    <PlaceholderApp />
+    <App />
   </StrictMode>
 );
