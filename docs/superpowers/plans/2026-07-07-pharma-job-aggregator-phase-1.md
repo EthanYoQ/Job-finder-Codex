@@ -13,7 +13,7 @@
 - P0 candidate pool target is 80-120 companies.
 - Formal P0 launch is blocked until at least 50 companies are marked `VERIFIED_SCRAPABLE`.
 - `VERIFIED_SCRAPABLE` requires official chain evidence, structured job records, two successful stable crawls, and company/title/officialUrl/location fields.
-- City is required for search. Job category, keyword, and company are optional.
+- City is required for search; job category filter, keyword filter, and company filter are optional; normalized job records still store a main category, and low-confidence classifications are stored as `其他`.
 - No public API, no bulk export, no deep pagination, no stable third-party query contract.
 - Before privacy consent, only privacy policy, service terms, and static homepage shell may be accessed.
 - Search-result pages and city/category result pages must not be indexed.
