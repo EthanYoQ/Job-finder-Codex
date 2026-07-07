@@ -37,6 +37,33 @@ enum CrawlStatus {
   FAILED
 }
 
+enum RequiredJobField {
+  COMPANY      @map("company")
+  TITLE        @map("title")
+  OFFICIAL_URL @map("officialUrl")
+  LOCATION     @map("location")
+}
+
+enum JobCategory {
+  SALES                   @map("销售")
+  MARKETING               @map("市场")
+  BUSINESS                @map("商务")
+  CHANNEL                 @map("渠道")
+  KA                      @map("KA")
+  MEDICAL_AFFAIRS         @map("医学事务")
+  CLINICAL_OPERATIONS     @map("临床运营")
+  REGULATORY              @map("注册")
+  DRUG_SAFETY             @map("药物警戒/安全")
+  RESEARCH_SCIENCE        @map("研发/科学")
+  MANUFACTURING_ENGINEERING @map("生产/工程")
+  QUALITY                 @map("质量")
+  MARKET_ACCESS_GOVERNMENT @map("市场准入/政府事务")
+  DATA_IT                 @map("数据/IT")
+  SUPPLY_CHAIN_PROCUREMENT @map("供应链/采购")
+  CORPORATE_FUNCTIONS     @map("职能")
+  OTHER                   @map("其他")
+}
+
 enum JobLifecycleStatus {
   ACTIVE
   SUSPECTED_OFFLINE
@@ -98,7 +125,7 @@ model CrawlObservation {
   crawledAt            DateTime          @default(now())
   successful           Boolean
   structuredJobCount   Int               @default(0)
-  stableRequiredFields  String[]
+  stableRequiredFields  RequiredJobField[]
   failureReason        String?
   source               RecruitmentSource @relation(fields: [sourceId], references: [id], onDelete: Cascade)
   batch                CrawlBatch        @relation(fields: [batchId], references: [id], onDelete: Cascade)
@@ -111,6 +138,7 @@ model Job {
   id                    String             @id @default(cuid())
   companyId             String
   sourceId              String
+  dedupeKey             String
   sourceJobId           String?
   officialTitle         String
   auxiliaryChineseTitle String?
@@ -118,7 +146,16 @@ model Job {
   listUrl               String?
   locationRaw           String
   city                  String
-  category              String
+  category              JobCategory
+  secondaryCategory     JobCategory?
+  classificationConfidence Float?
+  classificationRationale  String?
+  classificationModelVersion String?
+  classificationHardRuleHit String?
+  humanCorrectedCategory   JobCategory?
+  humanCorrectedSecondaryCategory JobCategory?
+  humanCorrectionReason    String?
+  humanCorrectedAt         DateTime?
   officialPublishedAt   DateTime?
   firstSeenAt           DateTime           @default(now())
   lastSeenAt            DateTime           @default(now())
@@ -127,7 +164,7 @@ model Job {
   company               Company            @relation(fields: [companyId], references: [id], onDelete: Cascade)
   source                RecruitmentSource  @relation(fields: [sourceId], references: [id], onDelete: Cascade)
 
-  @@unique([sourceId, sourceJobId])
+  @@unique([sourceId, dedupeKey])
   @@index([city, category])
   @@index([companyId, lifecycleStatus])
   @@index([firstSeenAt])

@@ -15,6 +15,17 @@ const REQUIRED_FIELDS: RequiredJobField[] = [
 const REQUIRED_SUCCESSFUL_STABLE_CRAWLS = 2;
 export const P0_MIN_VERIFIED_SCRAPABLE_COMPANIES = 50;
 
+function isSuccessfulStableObservation(
+  observation: CrawlObservation
+): boolean {
+  if (!observation.successful) return false;
+  if (observation.structuredJobCount <= 0) return false;
+
+  return REQUIRED_FIELDS.every((field) =>
+    observation.stableRequiredFields.includes(field)
+  );
+}
+
 export function isVerifiedScrapable(
   source: RecruitmentSource,
   observations: CrawlObservation[]
@@ -23,16 +34,16 @@ export function isVerifiedScrapable(
   if (source.status !== "VERIFIED_SCRAPABLE") return false;
   if (!source.officialEntryUrl || !source.officialChainEvidenceUrl) return false;
 
-  const successfulStableCrawls = observations.filter((observation) => {
-    if (!observation.successful) return false;
-    if (observation.structuredJobCount <= 0) return false;
+  const latestObservations = observations
+    .filter((observation) => observation.sourceId === source.id)
+    .sort((left, right) => right.crawledAt.getTime() - left.crawledAt.getTime())
+    .slice(0, REQUIRED_SUCCESSFUL_STABLE_CRAWLS);
 
-    return REQUIRED_FIELDS.every((field) =>
-      observation.stableRequiredFields.includes(field)
-    );
-  });
+  if (latestObservations.length < REQUIRED_SUCCESSFUL_STABLE_CRAWLS) {
+    return false;
+  }
 
-  return successfulStableCrawls.length >= REQUIRED_SUCCESSFUL_STABLE_CRAWLS;
+  return latestObservations.every(isSuccessfulStableObservation);
 }
 
 export function countVerifiedCompanies(
