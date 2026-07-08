@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { JOB_CATEGORIES, type JobCategory } from "../domain/search";
 import type { AdminDashboardModel } from "./adminViewModel";
 
@@ -26,6 +26,14 @@ type CorrectionDraft = {
   reason: string;
 };
 
+function createCorrectionDraft(category: JobCategory): CorrectionDraft {
+  return {
+    category,
+    secondaryCategory: "",
+    reason: ""
+  };
+}
+
 export function AdminApp({
   isAuthenticated,
   model,
@@ -39,16 +47,27 @@ export function AdminApp({
   const [password, setPassword] = useState("");
   const [correctionDrafts, setCorrectionDrafts] = useState<Record<string, CorrectionDraft>>(() =>
     Object.fromEntries(
-      model.categoryCorrectionQueue.map((item) => [
-        item.jobId,
-        {
-          category: item.suggestedCategory,
-          secondaryCategory: "",
-          reason: ""
-        }
-      ])
+      model.categoryCorrectionQueue.map((item) => [item.jobId, createCorrectionDraft(item.suggestedCategory)])
     )
   );
+
+  useEffect(() => {
+    setCorrectionDrafts((current) => {
+      let hasNewDraft = false;
+      const nextDrafts = { ...current };
+
+      for (const item of model.categoryCorrectionQueue) {
+        if (nextDrafts[item.jobId] !== undefined) {
+          continue;
+        }
+
+        nextDrafts[item.jobId] = createCorrectionDraft(item.suggestedCategory);
+        hasNewDraft = true;
+      }
+
+      return hasNewDraft ? nextDrafts : current;
+    });
+  }, [model.categoryCorrectionQueue]);
 
   async function handleLogin() {
     await onLogin({ username, password });
@@ -214,7 +233,7 @@ export function AdminApp({
                           setCorrectionDrafts((current) => ({
                             ...current,
                             [item.jobId]: {
-                              ...draft,
+                              ...(current[item.jobId] ?? createCorrectionDraft(item.suggestedCategory)),
                               category: event.target.value as JobCategory
                             }
                           }))
@@ -236,7 +255,7 @@ export function AdminApp({
                           setCorrectionDrafts((current) => ({
                             ...current,
                             [item.jobId]: {
-                              ...draft,
+                              ...(current[item.jobId] ?? createCorrectionDraft(item.suggestedCategory)),
                               secondaryCategory: event.target.value as "" | JobCategory
                             }
                           }))
@@ -259,7 +278,7 @@ export function AdminApp({
                           setCorrectionDrafts((current) => ({
                             ...current,
                             [item.jobId]: {
-                              ...draft,
+                              ...(current[item.jobId] ?? createCorrectionDraft(item.suggestedCategory)),
                               reason: event.target.value
                             }
                           }))

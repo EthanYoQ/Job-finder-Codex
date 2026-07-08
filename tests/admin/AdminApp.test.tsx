@@ -6,6 +6,7 @@ import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { AdminApp, type AdminAppProps } from "../../src/admin/AdminApp";
 import { buildAdminDashboardModel } from "../../src/admin/adminViewModel";
+import type { JobCategory } from "../../src/domain/search";
 
 afterEach(() => {
   cleanup();
@@ -59,6 +60,57 @@ function createModel() {
         suggestedCategory: "医学事务"
       }
     ]
+  });
+}
+
+function createModelWithCorrectionJobs(
+  jobs: Array<{
+    jobId: string;
+    companyName: string;
+    jobTitle: string;
+    currentCategory: JobCategory;
+    suggestedCategory: JobCategory;
+  }>
+) {
+  return buildAdminDashboardModel({
+    sourceHealth: [
+      {
+        sourceId: "source-critical",
+        companyId: "company-critical",
+        companyName: "问题药企",
+        verificationStatus: "VERIFIED_SCRAPABLE",
+        structuredJobCount: 5,
+        consecutiveFailureCount: 4,
+        latestObservation: {
+          crawledAt: new Date("2026-07-08T11:00:00.000Z"),
+          successful: false,
+          structuredJobCount: 0,
+          failureReason: "timeout"
+        }
+      }
+    ],
+    feedbackQueue: [
+      {
+        id: "feedback-1",
+        companyName: "辉瑞",
+        jobTitle: "MSL",
+        issueType: "职位信息有误",
+        description: "城市写错",
+        status: "OPEN",
+        createdAt: new Date("2026-07-08T09:00:00.000Z")
+      }
+    ],
+    recommendationQueue: [
+      {
+        id: "recommendation-1",
+        companyName: "礼来",
+        officialWebsiteUrl: "https://www.lilly.com/cn",
+        note: "补充覆盖",
+        status: "OPEN",
+        createdAt: new Date("2026-07-08T08:00:00.000Z")
+      }
+    ],
+    categoryCorrectionQueue: jobs
   });
 }
 
@@ -182,6 +234,70 @@ describe("AdminApp", () => {
       secondaryCategory: "市场",
       reason: "人工复核确认"
     });
+  });
+
+  it("renders newly queued correction items after rerender without overwriting existing drafts", async () => {
+    const user = userEvent.setup();
+    const onApplyCategoryCorrection = vi.fn(async () => {});
+    const initialModel = createModelWithCorrectionJobs([
+      {
+        jobId: "job-1",
+        companyName: "阿斯利康",
+        jobTitle: "医学科学联络官",
+        currentCategory: "其他",
+        suggestedCategory: "医学事务"
+      }
+    ]);
+
+    const { rerender } = render(
+      <AdminApp
+        isAuthenticated={true}
+        model={initialModel}
+        onLogin={vi.fn()}
+        onQueueManualCrawl={vi.fn()}
+        onReviewFeedback={vi.fn()}
+        onReviewRecommendation={vi.fn()}
+        onApplyCategoryCorrection={onApplyCategoryCorrection}
+      />
+    );
+
+    const correctionSection = screen.getByRole("region", { name: "Category Correction" });
+    await user.type(within(correctionSection).getByLabelText("纠正原因"), "保留已有草稿");
+
+    const updatedModel = createModelWithCorrectionJobs([
+      {
+        jobId: "job-1",
+        companyName: "阿斯利康",
+        jobTitle: "医学科学联络官",
+        currentCategory: "其他",
+        suggestedCategory: "医学事务"
+      },
+      {
+        jobId: "job-2",
+        companyName: "诺华",
+        jobTitle: "地区经理",
+        currentCategory: "销售",
+        suggestedCategory: "市场"
+      }
+    ]);
+
+    rerender(
+      <AdminApp
+        isAuthenticated={true}
+        model={updatedModel}
+        onLogin={vi.fn()}
+        onQueueManualCrawl={vi.fn()}
+        onReviewFeedback={vi.fn()}
+        onReviewRecommendation={vi.fn()}
+        onApplyCategoryCorrection={onApplyCategoryCorrection}
+      />
+    );
+
+    expect(screen.getByText("诺华")).toBeInTheDocument();
+    const reasonInputs = screen.getAllByLabelText("纠正原因");
+    expect(reasonInputs).toHaveLength(2);
+    expect(reasonInputs[0]).toHaveValue("保留已有草稿");
+    expect(reasonInputs[1]).toHaveValue("");
   });
 
   it("does not render raw export or bulk download controls", () => {

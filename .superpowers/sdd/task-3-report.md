@@ -1,52 +1,49 @@
-Files changed
-- `src/data/companyRegistry.ts`
-- `src/crawler/sourcePlan.ts`
-- `tests/crawler/sourcePlan.test.ts`
-- `tests/data/companyRegistry.test.ts`
+# Task 3 Report
 
-Test commands run and results
-- Red phase:
-  - Command: `npm test -- tests/crawler/sourcePlan.test.ts tests/data/companyRegistry.test.ts`
-  - Result: FAIL as expected.
-  - Failure evidence:
-    - `tests/data/companyRegistry.test.ts`: HengRui source still had `status: "ENTRY_FOUND_PENDING_ADAPTER"` instead of `VERIFIED_SCRAPABLE`.
-    - `tests/crawler/sourcePlan.test.ts`: `source-astrazeneca-social` still resolved to `adapterId: "official-json"` instead of `html-table`.
-    - `tests/crawler/sourcePlan.test.ts`: wave-1 source-plan expectations for AstraZeneca/HengRui/Kelun did not match current configuration.
-- Green phase:
-  - Command: `npm test -- tests/crawler/sourcePlan.test.ts tests/data/companyRegistry.test.ts tests/crawler/adapters.test.ts`
-  - Result: PASS. `3` test files passed, `17` tests passed.
-- Typecheck:
-  - Command: `npm run typecheck`
-  - Result: PASS.
+## Scope implemented
 
-Commit hash
-- `c0f1e1d`
+Task 3 delivers the admin console surface for internal operations only:
 
-Self-review notes
-- Followed TDD sequence from the brief: wrote new assertions first, captured the expected red-phase failures, then implemented the minimum registry and source-plan changes.
-- Reused a shared `MOKA_JSON_CONFIG` for Beigene and HengRui as required.
-- Updated the pre-existing HengRui exclusion assertion in `tests/crawler/sourcePlan.test.ts` because it contradicted the new verified-source requirement and caused a false negative during focused verification.
-- Kept changes within the owned source/test files from the task brief.
+- `Admin Console` shell with authenticated and unauthenticated states
+- `Source Health` list showing verification status, structured job count, recent outcome, failure reason, and manual crawl action
+- `Feedback Review` queue with reviewed/closed actions
+- `Recommendation Review` queue with reviewed/closed actions
+- `Category Correction` queue with editable correction drafts and submit action
 
-Concerns
-- `CodeGraph` was not initialized in this workspace, so structural inspection fell back to direct file reads. This did not block the task.
+Out of scope and intentionally not added:
 
-## Review fix
+- raw job export
+- bulk download
+- front-end account, favorites, or subscription features
+- changes to admin auth or admin operations contracts
 
-Files changed
-- `src/data/companyRegistry.ts`
-- `src/crawler/sourcePlan.ts`
-- `tests/crawler/sourcePlan.test.ts`
-- `tests/data/companyRegistry.test.ts`
+## TDD / test flow
 
-Commands and results
-- `npm test -- tests/crawler/sourcePlan.test.ts tests/data/companyRegistry.test.ts tests/crawler/adapters.test.ts` -> PASS
+Red:
+
+- Added a rerender regression test in `tests/admin/AdminApp.test.tsx` covering a new `categoryCorrectionQueue` item arriving after mount while an existing draft already contains user input.
+- Ran `npm test -- tests/admin/AdminApp.test.tsx`.
+- Observed expected failure: the newly queued correction item did not render after rerender.
+
+Green:
+
+- Updated `src/admin/AdminApp.tsx` to merge newly arrived correction items into local draft state without overwriting existing drafts.
+- Re-ran `npm test -- tests/admin/AdminApp.test.tsx`.
+- Result: PASS.
+
+## Verification results
+
+- `npm test -- tests/admin/auth.test.ts tests/admin/operations.test.ts tests/admin/AdminApp.test.tsx tests/admin/adminViewModel.test.ts` -> PASS
 - `npm run typecheck` -> PASS
+- `npm run build` -> PASS
 
-Commit hash
-- `58d3aec`
+## Files changed
 
-Self-review
-- CSPC is no longer treated as wave-1 plannable: its company source status now reflects entry found but still pending follow-up, and its representative source config was removed.
-- Source plan tests now assert the exact six allowed wave-1 source IDs and explicitly reject CSPC planning.
-- This fix is scoped to the requested files only.
+- `src/admin/AdminApp.tsx`
+- `tests/admin/AdminApp.test.tsx`
+- `.superpowers/sdd/task-3-report.md`
+
+## Concerns
+
+- No known functional blocker remains in the Task 3 reviewer-finding scope.
+- The correction draft sync is additive by design: new queue items are initialized locally, while existing drafts stay untouched until the user edits or submits them.
