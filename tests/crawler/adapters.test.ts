@@ -168,13 +168,13 @@ describe("crawler source adapters", () => {
       capturedAt,
       html: readFixture("novartis-table.html"),
       table: {
-        rowSelector: "table[data-testid='jobs'] tbody tr",
+        rowSelector: "table.views-table tbody tr",
         fields: {
-          sourceJobId: { selector: "[data-field='id']" },
-          officialTitle: { selector: "[data-field='title']" },
-          officialUrl: { selector: "[data-field='title'] a", attribute: "href" },
-          locationRaw: { selector: "[data-field='city']" },
-          category: { selector: "[data-field='category']" }
+          sourceJobId: { selector: "td.views-field-field-job-title a", attribute: "href" },
+          officialTitle: { selector: "td.views-field-field-job-title a" },
+          officialUrl: { selector: "td.views-field-field-job-title a", attribute: "href" },
+          locationRaw: { selector: "td.views-field-field-job-work-location" },
+          category: { selector: "td.views-field-field-job-functional-area" }
         }
       }
     });
@@ -182,8 +182,10 @@ describe("crawler source adapters", () => {
     const [job] = expectSuccessfulJobs(result);
     expect(job?.officialTitle).toBe("Medical Science Liaison");
     expect(job?.cities).toEqual(["上海"]);
-    expect(job?.category).toBe("医学事务");
-    expect(job?.officialUrl).toBe("https://prod1.novartis.com/careers/job/nov-cn-001");
+    expect(job?.category).toBe("其他");
+    expect(job?.officialUrl).toBe(
+      "https://www.novartis.com/careers/careers/job/job-cn-medical-science-liaison"
+    );
   });
 
   it("maps multiple rows from a Zhiye-like table into normalized records", () => {

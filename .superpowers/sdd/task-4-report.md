@@ -186,10 +186,36 @@ Results:
 
 ## Commit Hash
 
-- Pending at report write time; actual hash recorded in the final task response after commit creation
+- `8c954b0`
 
 ## Remaining Concerns
 
 - Confirmed fact: these fixes only align tests and fixtures to the current wave-1 source plan and do not change production behavior.
 - Confirmed fact: `tests/prisma/schema.test.ts` passed when rerun alone in `2505ms`, so no schema-timeout change was needed.
 - Unconfirmed concern: adapter tests in other files may still reference the older Novartis fixture shape; they were outside the owned write scope for this task.
+
+# Task 4 adapter fixture follow-up
+
+## Files Changed
+
+- `tests/crawler/adapters.test.ts`
+- `.superpowers/sdd/task-4-report.md`
+
+## Red Evidence
+
+- After commit `8c954b0`, `npm test` still failed in `tests/crawler/adapters.test.ts`.
+- Verified failure:
+  - `crawler source adapters > normalizes title, city, category, and official URL from an HTML table fixture`
+  - the test still used the old Novartis fixture selectors while `src/crawler/fixtures/novartis-table.html` had been updated to the current Drupal table shape.
+
+## Commands And Results
+
+- `npm test -- tests/crawler/adapters.test.ts`
+  - First result: failed with stale selector/expectation mismatch.
+  - After updating only the test selectors and expectations: passed, `1` file, `6` tests.
+- `npm test`
+  - Result: passed, `34` files, `157` tests.
+
+## Remaining Concerns
+
+- Confirmed fact: this follow-up changed test expectations only; production source code was not changed.
