@@ -20,8 +20,8 @@ describe("P0 readiness report", () => {
   it("does not flag declared verified sources once every verified source has a crawl plan", () => {
     const report = getP0ReadinessReport();
 
-    expect(report.declaredVerifiedSocialSources).toBe(5);
-    expect(report.configuredVerifiedSocialSources).toBe(5);
+    expect(report.declaredVerifiedSocialSources).toBe(6);
+    expect(report.configuredVerifiedSocialSources).toBe(6);
     expect(report.verifiedSourcesMissingCrawlPlan).toEqual([]);
     expect(report.blockers.map((blocker) => blocker.code)).not.toContain(
       "VERIFIED_SOURCE_WITHOUT_CRAWL_PLAN"

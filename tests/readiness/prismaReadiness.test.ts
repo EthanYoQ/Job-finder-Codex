@@ -69,7 +69,7 @@ describe("Prisma readiness report", () => {
       orderBy: { pinyinName: "asc" }
     });
     expect(report.totalCandidates).toBe(candidateCompanies.length);
-    expect(report.declaredVerifiedSocialSources).toBe(5);
+    expect(report.declaredVerifiedSocialSources).toBe(6);
     expect(report.crawlEvidencedVerifiedCompanies).toBe(1);
     expect(report.canLaunchP0).toBe(false);
   });

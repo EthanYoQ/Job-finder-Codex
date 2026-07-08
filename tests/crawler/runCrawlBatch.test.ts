@@ -20,10 +20,6 @@ function readFixture(path: string): string {
   return readFileSync(resolve(fixtureDirectory, path), "utf8");
 }
 
-function readJsonFixture(path: string): unknown {
-  return JSON.parse(readFixture(path));
-}
-
 function planFor(sourceId: string): SourceCrawlPlan {
   const plan = getPlanBySourceId(plans, sourceId);
 
@@ -116,7 +112,7 @@ describe("runP0CrawlBatch", () => {
     const fetch = vi.fn(async () => ({
       ok: true as const,
       capturedAt: CAPTURED_AT,
-      payload: readJsonFixture("astrazeneca-official-json.json")
+      html: readFixture("astrazeneca-search-results.html")
     }));
 
     const result = await runP0CrawlBatch([plan], {
@@ -267,10 +263,13 @@ describe("runP0CrawlBatch", () => {
         where: {
           sourceId_dedupeKey: {
             sourceId: plan.source.id,
-            dedupeKey: `${plan.source.id}:NOV-CN-001`
+            dedupeKey:
+              `${plan.source.id}:https://www.novartis.com/careers/careers/job/job-cn-medical-science-liaison`
           }
         },
         create: expect.objectContaining({
+          sourceJobId: null,
+          officialUrl: "https://www.novartis.com/careers/careers/job/job-cn-medical-science-liaison",
           lifecycleStatus: "ACTIVE",
           visibleInFrontend: true,
           isNew: true,

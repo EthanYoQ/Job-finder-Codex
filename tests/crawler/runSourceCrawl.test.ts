@@ -17,10 +17,6 @@ function readFixture(path: string): string {
   return readFileSync(resolve(fixtureDirectory, path), "utf8");
 }
 
-function readJsonFixture(path: string): unknown {
-  return JSON.parse(readFixture(path));
-}
-
 function planFor(sourceId: string): SourceCrawlPlan {
   const plan = getPlanBySourceId(plans, sourceId);
 
@@ -32,14 +28,14 @@ function planFor(sourceId: string): SourceCrawlPlan {
 }
 
 describe("runSourceCrawl", () => {
-  it("uses the official JSON adapter and returns normalized jobs", async () => {
+  it("uses the HTML table adapter for AstraZeneca and returns normalized jobs", async () => {
     const plan = planFor("source-astrazeneca-social");
     const fetch: SourceFetchFunction = async (receivedPlan) => {
       expect(receivedPlan).toBe(plan);
       return {
         ok: true,
         capturedAt,
-        payload: readJsonFixture("astrazeneca-official-json.json")
+        html: readFixture("astrazeneca-search-results.html")
       };
     };
 
@@ -53,7 +49,10 @@ describe("runSourceCrawl", () => {
     expect(result.jobs).toHaveLength(2);
     expect(result.jobs[0]?.officialTitle).toBe("Regional Sales Manager (Beijing)");
     expect(result.jobs[0]?.isBaseline).toBe(true);
-    expect(result.observation.id).toBe(`${plan.source.id}:official-json:${capturedAt}`);
+    expect(result.jobs[0]?.officialUrl).toBe(
+      "https://job-search.astrazeneca.cn/jobs/regional-sales-manager-beijing"
+    );
+    expect(result.observation.id).toBe(`${plan.source.id}:html-table:${capturedAt}`);
     expect(result.observation.structuredJobCount).toBe(2);
   });
 
