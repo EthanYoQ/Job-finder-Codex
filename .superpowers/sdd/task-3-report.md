@@ -1,49 +1,66 @@
-# Task 3 Report
+# Task 3 Admin Console Evidence Record
 
-## Scope implemented
+## Scope Covered
 
-Task 3 delivers the admin console surface for internal operations only:
+Task 3 implements the minimal admin console surface for internal operations. This evidence record covers the full Task 3 package, including the original implementation commit and the follow-up correction-draft fix.
 
-- `Admin Console` shell with authenticated and unauthenticated states
-- `Source Health` list showing verification status, structured job count, recent outcome, failure reason, and manual crawl action
-- `Feedback Review` queue with reviewed/closed actions
-- `Recommendation Review` queue with reviewed/closed actions
-- `Category Correction` queue with editable correction drafts and submit action
+Complete changed-file list for the Task 3 package:
 
-Out of scope and intentionally not added:
-
-- raw job export
-- bulk download
-- front-end account, favorites, or subscription features
-- changes to admin auth or admin operations contracts
-
-## TDD / test flow
-
-Red:
-
-- Added a rerender regression test in `tests/admin/AdminApp.test.tsx` covering a new `categoryCorrectionQueue` item arriving after mount while an existing draft already contains user input.
-- Ran `npm test -- tests/admin/AdminApp.test.tsx`.
-- Observed expected failure: the newly queued correction item did not render after rerender.
-
-Green:
-
-- Updated `src/admin/AdminApp.tsx` to merge newly arrived correction items into local draft state without overwriting existing drafts.
-- Re-ran `npm test -- tests/admin/AdminApp.test.tsx`.
-- Result: PASS.
-
-## Verification results
-
-- `npm test -- tests/admin/auth.test.ts tests/admin/operations.test.ts tests/admin/AdminApp.test.tsx tests/admin/adminViewModel.test.ts` -> PASS
-- `npm run typecheck` -> PASS
-- `npm run build` -> PASS
-
-## Files changed
-
+- `src/admin/adminViewModel.ts`
 - `src/admin/AdminApp.tsx`
+- `tests/admin/adminViewModel.test.ts`
 - `tests/admin/AdminApp.test.tsx`
 - `.superpowers/sdd/task-3-report.md`
 
-## Concerns
+## Commit Trail
 
-- No known functional blocker remains in the Task 3 reviewer-finding scope.
-- The correction draft sync is additive by design: new queue items are initialized locally, while existing drafts stay untouched until the user edits or submits them.
+- `0c9916c feat: add minimal admin console`
+- `dafd237 fix: refresh admin correction drafts`
+
+## Original Implementation Evidence
+
+Commit `0c9916c` added:
+
+- unauthenticated login-only admin state
+- authenticated source health summary
+- manual crawl action
+- feedback review action
+- recommended-company review action
+- category correction action
+- view-model sorting/summarization for source health and admin queues
+- tests for no raw job export or bulk download controls
+
+The original worker reported:
+
+- `npm test -- tests/admin/auth.test.ts tests/admin/operations.test.ts tests/admin/AdminApp.test.tsx tests/admin/adminViewModel.test.ts` PASS, 4 files, 24 tests
+- `npm run typecheck` PASS
+- `npm run build` PASS
+
+Red-phase command output for the original `0c9916c` implementation was not retained in this repository. The parent commit did not contain `src/admin/AdminApp.tsx`, `src/admin/adminViewModel.ts`, `tests/admin/AdminApp.test.tsx`, or `tests/admin/adminViewModel.test.ts`, so the added tests depended on new Task 3 files, but the exact failing command output is not independently preserved.
+
+## Follow-Up Fix Evidence
+
+Commit `dafd237` fixed the category correction draft refresh behavior:
+
+- newly arrived category correction queue items appear after rerender
+- existing unsent drafts are preserved when new queue data arrives
+
+The fix worker reported:
+
+- `npm test -- tests/admin/auth.test.ts tests/admin/operations.test.ts tests/admin/AdminApp.test.tsx tests/admin/adminViewModel.test.ts` PASS, 4 files, 25 tests
+- `npm run typecheck` PASS
+- `npm run build` PASS
+
+## Current Verification
+
+Controller reran the current Task 3 gates after this report correction:
+
+- `npm test -- tests/admin/auth.test.ts tests/admin/operations.test.ts tests/admin/AdminApp.test.tsx tests/admin/adminViewModel.test.ts` PASS
+- `npm run typecheck` PASS
+- `npm run build` PASS
+
+## Evidence Notes
+
+- `src/admin/adminViewModel.ts` and `tests/admin/adminViewModel.test.ts` cover admin-side view-model sorting and queue shaping.
+- `src/admin/AdminApp.tsx` and `tests/admin/AdminApp.test.tsx` cover login gating, source health, manual crawl, feedback review, recommended-company review, category correction, and the rerender draft fix.
+- `.superpowers/sdd/task-3-report.md` is the tracked evidence record for this task.
