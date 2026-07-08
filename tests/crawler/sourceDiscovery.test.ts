@@ -70,4 +70,37 @@ describe("source discovery candidates", () => {
       byAtsKind: { MOKA: 2 }
     });
   });
+
+  it("rejects discovery candidates that do not explicitly stay outside readiness evidence", () => {
+    expect(() =>
+      parseSourceDiscoveryCandidates([
+        {
+          companyId: "company-a",
+          companyName: "A",
+          officialWebsiteUrl: "https://a.example/",
+          officialEntryUrl: "https://a.example/jobs",
+          officialChainEvidenceUrl: "https://a.example/careers",
+          atsKind: "MOKA",
+          confidence: "HIGH",
+          discoveryMethod: "official page inspection"
+        }
+      ])
+    ).toThrow();
+
+    expect(() =>
+      parseSourceDiscoveryCandidates([
+        {
+          companyId: "company-a",
+          companyName: "A",
+          officialWebsiteUrl: "https://a.example/",
+          officialEntryUrl: "https://a.example/jobs",
+          officialChainEvidenceUrl: "https://a.example/careers",
+          atsKind: "MOKA",
+          confidence: "HIGH",
+          discoveryMethod: "official page inspection",
+          formalEvidenceStatus: "READY"
+        }
+      ])
+    ).toThrow();
+  });
 });
