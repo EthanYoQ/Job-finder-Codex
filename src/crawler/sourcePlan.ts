@@ -41,46 +41,52 @@ type RepresentativeSourceConfig =
       table: HtmlTableConfig;
     };
 
+const MOKA_JSON_CONFIG: OfficialJsonConfig = {
+  jobsPath: "data.jobs",
+  fields: {
+    sourceJobId: "id",
+    officialTitle: "title",
+    officialUrl: "officialUrl",
+    locationRaw: "locationRaw",
+    cities: "cities"
+  },
+  defaultCategory: "其他"
+};
+
 const REPRESENTATIVE_CONFIGS: Record<string, RepresentativeSourceConfig> = {
   "source-astrazeneca-social": {
-    adapterId: "official-json",
-    json: {
-      jobsPath: "data.jobs",
+    adapterId: "html-table",
+    table: {
+      rowSelector: "#search-results-list li",
       fields: {
-        sourceJobId: "id",
-        officialTitle: "title",
-        auxiliaryChineseTitle: "titleCn",
-        officialUrl: "url",
-        locationRaw: "location",
-        cities: "cities",
-        category: "category",
-        officialPublishedAt: "publishedAt"
+        officialTitle: { selector: "a.search-results-link h2" },
+        officialUrl: { selector: "a.search-results-link", attribute: "href" },
+        locationRaw: { selector: "span.job-location" }
       }
     }
   },
   "source-novartis-social": {
     adapterId: "html-table",
     table: {
-      rowSelector: "table[data-testid='jobs'] tbody tr",
+      rowSelector: "table.views-table tbody tr",
       fields: {
-        sourceJobId: { selector: "[data-field='id']" },
-        officialTitle: { selector: "[data-field='title']" },
-        officialUrl: { selector: "[data-field='title'] a", attribute: "href" },
-        locationRaw: { selector: "[data-field='city']" },
-        category: { selector: "[data-field='category']" }
+        officialTitle: { selector: "td.views-field-field-job-title a" },
+        officialUrl: {
+          selector: "td.views-field-field-job-title a",
+          attribute: "href"
+        },
+        locationRaw: { selector: "td.views-field-field-job-work-location" }
       }
     }
   },
   "source-fosun-pharma-social": {
     adapterId: "html-table",
     table: {
-      rowSelector: ".job-table tbody tr",
+      rowSelector: "table tr",
       fields: {
-        sourceJobId: { selector: ".job-id" },
-        officialTitle: { selector: ".job-title" },
-        officialUrl: { selector: ".job-title a", attribute: "href" },
-        locationRaw: { selector: ".job-city" },
-        category: { selector: ".job-category" }
+        officialTitle: { selector: "td:nth-child(1) a" },
+        officialUrl: { selector: "td:nth-child(1) a", attribute: "href" },
+        locationRaw: { selector: "td:nth-child(4) a" }
       }
     }
   },
@@ -100,16 +106,21 @@ const REPRESENTATIVE_CONFIGS: Record<string, RepresentativeSourceConfig> = {
   },
   "source-beigene-social": {
     adapterId: "official-json",
-    json: {
-      jobsPath: "data.jobs",
+    json: MOKA_JSON_CONFIG
+  },
+  "source-hengrui-social": {
+    adapterId: "official-json",
+    json: MOKA_JSON_CONFIG
+  },
+  "source-kelun-social": {
+    adapterId: "html-table",
+    table: {
+      rowSelector: ".jobsTable tr:not(.title)",
       fields: {
-        sourceJobId: "id",
-        officialTitle: "title",
-        officialUrl: "officialUrl",
-        locationRaw: "locationRaw",
-        cities: "cities"
-      },
-      defaultCategory: "其他"
+        officialTitle: { selector: "td:nth-child(1) a" },
+        officialUrl: { selector: "td:nth-child(1) a", attribute: "href" },
+        locationRaw: { selector: "td:nth-child(5)" }
+      }
     }
   }
 };

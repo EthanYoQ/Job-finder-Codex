@@ -79,4 +79,22 @@ describe("P0 company registry", () => {
     expect(socialSource?.officialEntryUrl).toBeUndefined();
     expect(socialSource?.officialChainEvidenceUrl).toBeUndefined();
   });
+
+  it("records official-chain evidence for wave 1 added sources", () => {
+    const byId = new Map(candidateCompanies.map((company) => [company.id, company]));
+
+    expect(byId.get("company-hengrui")?.sources[0]).toMatchObject({
+      status: "VERIFIED_SCRAPABLE",
+      atsKind: "MOKA",
+      officialEntryUrl: "https://app.mokahr.com/social-recruitment/hengrui/145996#/jobs",
+      officialChainEvidenceUrl: "https://www.hengrui.com/development/recruit.html"
+    });
+
+    expect(byId.get("company-kelun")?.sources[0]).toMatchObject({
+      status: "VERIFIED_SCRAPABLE",
+      atsKind: "BEISEN_ZHIYE",
+      officialEntryUrl: "https://kelun.zhiye.com/social",
+      officialChainEvidenceUrl: "https://www.kelun.com/intro/3.html"
+    });
+  });
 });

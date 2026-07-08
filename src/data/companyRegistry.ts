@@ -100,9 +100,11 @@ const CANDIDATE_SEEDS: CandidateSeed[] = [
     officialChineseName: "江苏恒瑞医药股份有限公司",
     pinyinName: "hengrui",
     inclusionReason: "国内头部药企、已实测",
-    status: "ENTRY_FOUND_PENDING_ADAPTER",
+    status: "VERIFIED_SCRAPABLE",
     atsKind: "MOKA",
+    officialWebsiteUrl: "https://www.hengrui.com/",
     socialEntryUrl: "https://app.mokahr.com/social-recruitment/hengrui/145996#/jobs",
+    officialChainEvidenceUrl: "https://www.hengrui.com/development/recruit.html",
     includeCampusPlaceholder: true
   },
   {
@@ -197,7 +199,13 @@ const CANDIDATE_SEEDS: CandidateSeed[] = [
     id: "company-kelun",
     officialChineseName: "四川科伦药业股份有限公司",
     pinyinName: "kelun",
-    inclusionReason: "国内头部药企"
+    inclusionReason: "国内头部药企",
+    status: "VERIFIED_SCRAPABLE",
+    atsKind: "BEISEN_ZHIYE",
+    officialWebsiteUrl: "https://www.kelun.com/",
+    socialEntryUrl: "https://kelun.zhiye.com/social",
+    officialChainEvidenceUrl: "https://www.kelun.com/intro/3.html",
+    includeCampusPlaceholder: true
   },
   {
     id: "company-roche-china",
