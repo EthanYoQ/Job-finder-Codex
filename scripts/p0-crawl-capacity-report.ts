@@ -1,3 +1,6 @@
+import { resolve } from "node:path";
+import { fileURLToPath } from "node:url";
+
 export interface CrawlCapacityInput {
   sourceCount: number;
   httpSourceCount: number;
@@ -32,7 +35,11 @@ export function estimateCrawlCapacity(input: CrawlCapacityInput): CrawlCapacityE
   };
 }
 
-if (import.meta.url === `file://${process.argv[1]}`) {
+const isDirectRun =
+  typeof process.argv[1] === "string" &&
+  resolve(fileURLToPath(import.meta.url)) === resolve(process.argv[1]);
+
+if (isDirectRun) {
   const estimate = estimateCrawlCapacity({
     sourceCount: Number(process.env.P0_SOURCE_COUNT ?? 50),
     httpSourceCount: Number(process.env.P0_HTTP_SOURCE_COUNT ?? 45),
