@@ -70,7 +70,7 @@ describe("P0 launch readiness aggregator", () => {
     expect(redactValue("DATABASE_URL=postgres://user:secret@db.example.com:5432/jobs")).toBe(
       "DATABASE_URL=[REDACTED]"
     );
-    expect(redactValue("TAVILY_API_KEY=tvly-dev-secret-key")).toBe("TAVILY_API_KEY=[REDACTED]");
+    expect(redactValue("TAVILY_API_KEY=tvly-dev-REDACTED")).toBe("TAVILY_API_KEY=[REDACTED]");
     expect(redactValue("--token=abcdef")).toBe("--token=[REDACTED]");
   });
 });

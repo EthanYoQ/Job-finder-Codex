@@ -34,7 +34,7 @@
    - Exit code: `1`
    - Important output: no output; treated as clean per brief
 
-6. `$env:DATABASE_URL='postgresql://job_finder:job_finder@localhost:5432/job_finder?schema=public'; npm run p0:crawl -- --force --source-id source-beigene-social --source-id source-hengrui-social --source-id source-astrazeneca-social --source-id source-novartis-social --source-id source-fosun-pharma-social --source-id source-kelun-social`
+6. `$env:DATABASE_URL='postgresql://<redacted>'; npm run p0:crawl -- --force --source-id source-beigene-social --source-id source-hengrui-social --source-id source-astrazeneca-social --source-id source-novartis-social --source-id source-fosun-pharma-social --source-id source-kelun-social`
    - Exit code: `0`
    - Important output:
      - `Planned sources: 6`
@@ -44,7 +44,7 @@
      - `Skipped sources: 0`
    - No Tavily credentials were requested in output
 
-7. `$env:DATABASE_URL='postgresql://job_finder:job_finder@localhost:5432/job_finder?schema=public'; npm run p0:crawl -- --force --source-id source-beigene-social --source-id source-hengrui-social --source-id source-astrazeneca-social --source-id source-novartis-social --source-id source-fosun-pharma-social --source-id source-kelun-social`
+7. `$env:DATABASE_URL='postgresql://<redacted>'; npm run p0:crawl -- --force --source-id source-beigene-social --source-id source-hengrui-social --source-id source-astrazeneca-social --source-id source-novartis-social --source-id source-fosun-pharma-social --source-id source-kelun-social`
    - Exit code: `0`
    - Important output:
      - `Planned sources: 6`
@@ -54,7 +54,7 @@
      - `Skipped sources: 0`
    - No Tavily credentials were requested in output
 
-8. `$env:DATABASE_URL='postgresql://job_finder:job_finder@localhost:5432/job_finder?schema=public'; npm run p0:readiness -- --db`
+8. `$env:DATABASE_URL='postgresql://<redacted>'; npm run p0:readiness -- --db`
    - Exit code: `1`
    - Important output:
      - `Candidate companies: 110`
