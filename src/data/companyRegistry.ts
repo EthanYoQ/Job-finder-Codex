@@ -143,7 +143,7 @@ const CANDIDATE_SEEDS: CandidateSeed[] = [
     officialChineseName: "石药控股集团有限公司",
     pinyinName: "shiyao",
     inclusionReason: "国内头部药企、已实测",
-    status: "VERIFIED_SCRAPABLE",
+    status: "ENTRY_FOUND_PENDING_ADAPTER",
     atsKind: "REDSEA",
     officialWebsiteUrl: "https://www.e-cspc.com/",
     socialEntryUrl: "https://www.e-cspc.com/hr/",

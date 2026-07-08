@@ -12,6 +12,7 @@ describe("source crawl planning", () => {
     expect(plans.every((plan) => plan.source.officialEntryUrl)).toBe(true);
     expect(plans.every((plan) => plan.source.officialChainEvidenceUrl)).toBe(true);
     expect(plans.some((plan) => plan.company.id === "company-hengrui")).toBe(true);
+    expect(plans.some((plan) => plan.company.id === "company-cspc")).toBe(false);
   });
 
   it("does not plan pending sources even when they have official urls and adapter config", () => {
@@ -46,7 +47,7 @@ describe("source crawl planning", () => {
     expect(getPlanBySourceId(plans, "source-fosun-pharma-social")?.adapterId).toBe(
       "html-table"
     );
-    expect(getPlanBySourceId(plans, "source-cspc-social")?.adapterId).toBe("official-json");
+    expect(getPlanBySourceId(plans, "source-cspc-social")).toBeUndefined();
     const beigenePlan = getPlanBySourceId(plans, "source-beigene-social");
     expect(beigenePlan?.adapterId).toBe("official-json");
     if (beigenePlan?.adapterId !== "official-json") {
@@ -68,6 +69,18 @@ describe("source crawl planning", () => {
   it("configures direct HTML and Moka crawl plans for wave 1 verified sources", () => {
     const plans = buildSourceCrawlPlans(candidateCompanies);
     const byId = new Map(plans.map((plan) => [plan.source.id, plan]));
+    const plannedSourceIds = new Set(plans.map((plan) => plan.source.id));
+
+    expect(plannedSourceIds).toEqual(
+      new Set([
+        "source-astrazeneca-social",
+        "source-novartis-social",
+        "source-fosun-pharma-social",
+        "source-beigene-social",
+        "source-hengrui-social",
+        "source-kelun-social"
+      ])
+    );
 
     expect(byId.get("source-astrazeneca-social")).toMatchObject({
       adapterId: "html-table",
@@ -133,5 +146,7 @@ describe("source crawl planning", () => {
         }
       }
     });
+
+    expect(byId.get("source-cspc-social")).toBeUndefined();
   });
 });

@@ -96,5 +96,12 @@ describe("P0 company registry", () => {
       officialEntryUrl: "https://kelun.zhiye.com/social",
       officialChainEvidenceUrl: "https://www.kelun.com/intro/3.html"
     });
+
+    expect(byId.get("company-cspc")?.sources[0]).toMatchObject({
+      status: "ENTRY_FOUND_PENDING_ADAPTER",
+      atsKind: "REDSEA",
+      officialEntryUrl: "https://www.e-cspc.com/hr/",
+      officialChainEvidenceUrl: "https://www.e-cspc.com/hr/"
+    });
   });
 });

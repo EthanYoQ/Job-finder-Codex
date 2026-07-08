@@ -90,20 +90,6 @@ const REPRESENTATIVE_CONFIGS: Record<string, RepresentativeSourceConfig> = {
       }
     }
   },
-  "source-cspc-social": {
-    adapterId: "official-json",
-    json: {
-      jobsPath: "result.list",
-      fields: {
-        sourceJobId: "jobCode",
-        officialTitle: "jobName",
-        officialUrl: "applyUrl",
-        locationRaw: "workPlace",
-        cities: "cityList",
-        category: "positionType"
-      }
-    }
-  },
   "source-beigene-social": {
     adapterId: "official-json",
     json: MOKA_JSON_CONFIG
