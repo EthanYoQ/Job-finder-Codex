@@ -377,7 +377,7 @@ git commit -m "feat: add source discovery evidence manifest"
 - Consumes: `candidateCompanies` from `src/data/companyRegistry.ts`.
 - Produces: at least 44 high-confidence discovery candidates that are not counted as readiness evidence.
 
-- [ ] **Step 1: Run discovery searches by ATS group**
+- [x] **Step 1: Run discovery searches by ATS group**
 
 Use Agent Reach / Exa / Tavily only for discovery. Do not save secrets. Use query families:
 
@@ -391,7 +391,7 @@ mcporter call 'exa.web_search_exa(query: "site:successfactors.com China pharma c
 
 For every candidate, verify the official chain by reading the company official site or official careers page. Record only candidates where the official-chain page is first-party or a first-party page links to the ATS entry.
 
-- [ ] **Step 2: Append discovery candidates**
+- [x] **Step 2: Append discovery candidates**
 
 Append candidates to `docs/research/p0-source-discovery-candidates.json` using this exact object shape:
 
@@ -418,7 +418,7 @@ Rules:
 - Use `confidence: "MEDIUM"` when official-chain evidence is first-party but selector/API details still need browser verification.
 - Do not use `confidence: "LOW"` for implementation waves.
 
-- [ ] **Step 3: Validate manifest**
+- [x] **Step 3: Validate manifest**
 
 Run:
 
@@ -429,7 +429,7 @@ npm run typecheck
 
 Expected: PASS.
 
-- [ ] **Step 4: Commit Task 3**
+- [x] **Step 4: Commit Task 3**
 
 Run:
 
