@@ -189,7 +189,7 @@ a {
 
 .view-strip {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 8px;
   margin-bottom: 16px;
 }
@@ -292,9 +292,20 @@ a {
 }
 
 .filter-block,
-.stacked-panel {
+.stacked-panel,
+.recommendation-form {
   display: grid;
   gap: 12px;
+}
+
+.auxiliary-panel {
+  margin-top: 16px;
+}
+
+.auxiliary-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
 }
 
 .filter-heading,

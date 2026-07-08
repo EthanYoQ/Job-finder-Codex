@@ -3,7 +3,7 @@
  */
 import { cleanup, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { App } from "../../src/app/App";
 import type {
   AppDataProvider,
@@ -18,12 +18,6 @@ afterEach(() => {
 });
 
 function createRecordingProvider() {
-  const searchCalls: unknown[] = [];
-  const coverageCalls: unknown[] = [];
-  const feedbackCalls: unknown[] = [];
-  const recommendationCalls: unknown[] = [];
-  const documentCalls: string[] = [];
-
   const searchResult: SearchResult = {
     companies: [
       {
@@ -82,7 +76,7 @@ function createRecordingProvider() {
             id: "pfizer-msl-1",
             title: "肿瘤 MSL",
             officialTitle: "Oncology MSL",
-            officialPublishedAt: "2026-07-08T07:00:00.000Z",
+            officialPublishedAt: "2026-07-09T07:00:00.000Z",
             city: "北京",
             category: "医学事务",
             isNew: true,
@@ -138,36 +132,27 @@ function createRecordingProvider() {
     }
   };
 
+  const searchJobs = vi.fn(async (request) => request && searchResult);
+  const listCoverage = vi.fn(async (request) => request && coverageResult);
+  const submitFeedback = vi.fn(async (request) => request && receipt);
+  const recommendCompany = vi.fn(async (request) => request && receipt);
+  const getDocument = vi.fn(async (slug: "privacy" | "terms") => documents[slug]);
+
   const provider: AppDataProvider = {
-    async searchJobs(request) {
-      searchCalls.push(request);
-      return searchResult;
-    },
-    async listCoverage(request) {
-      coverageCalls.push(request);
-      return coverageResult;
-    },
-    async submitFeedback(request) {
-      feedbackCalls.push(request);
-      return receipt;
-    },
-    async recommendCompany(request) {
-      recommendationCalls.push(request);
-      return receipt;
-    },
-    async getDocument(slug) {
-      documentCalls.push(slug);
-      return documents[slug];
-    }
+    searchJobs,
+    listCoverage,
+    submitFeedback,
+    recommendCompany,
+    getDocument
   };
 
   return {
     provider,
-    searchCalls,
-    coverageCalls,
-    feedbackCalls,
-    recommendationCalls,
-    documentCalls
+    searchJobs,
+    listCoverage,
+    submitFeedback,
+    recommendCompany,
+    getDocument
   };
 }
 
@@ -188,18 +173,18 @@ describe("App product flows", () => {
     render(<App dataProvider={recording.provider} />);
 
     expect(screen.getByRole("dialog", { name: "使用前确认" })).toBeInTheDocument();
-    expect(recording.searchCalls).toHaveLength(0);
+    expect(recording.searchJobs).not.toHaveBeenCalled();
 
     await user.click(screen.getByRole("link", { name: "隐私政策" }));
     expect(await screen.findByRole("heading", { name: "隐私说明" })).toBeInTheDocument();
-    expect(recording.documentCalls).toContain("privacy");
-    expect(recording.searchCalls).toHaveLength(0);
+    expect(recording.getDocument).toHaveBeenCalledWith("privacy");
+    expect(recording.searchJobs).not.toHaveBeenCalled();
     await user.click(screen.getByRole("button", { name: "关闭文档" }));
 
     await user.click(screen.getByRole("link", { name: "服务条款" }));
     expect(await screen.findByRole("heading", { name: "使用条款" })).toBeInTheDocument();
-    expect(recording.documentCalls).toContain("terms");
-    expect(recording.searchCalls).toHaveLength(0);
+    expect(recording.getDocument).toHaveBeenCalledWith("terms");
+    expect(recording.searchJobs).not.toHaveBeenCalled();
     await user.click(screen.getByRole("button", { name: "关闭文档" }));
 
     await user.click(screen.getByRole("button", { name: "关闭确认弹窗" }));
@@ -207,7 +192,29 @@ describe("App product flows", () => {
     expect(screen.getByRole("button", { name: "重新打开确认" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "查看隐私说明" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "查看使用条款" })).toBeInTheDocument();
-    expect(recording.searchCalls).toHaveLength(0);
+    expect(recording.searchJobs).not.toHaveBeenCalled();
+  });
+
+  it("passes current UI filters to the provider when searching", async () => {
+    const user = userEvent.setup();
+    const recording = createRecordingProvider();
+    render(<App dataProvider={recording.provider} />);
+
+    await acceptConsent(user);
+    await user.type(screen.getByPlaceholderText("职位关键词"), "MSL");
+    await user.click(screen.getByRole("checkbox", { name: "医学事务" }));
+    await user.click(screen.getByRole("checkbox", { name: "只看新增" }));
+    await user.click(screen.getByRole("button", { name: "最新发布" }));
+    await user.click(screen.getByRole("button", { name: "搜索职位" }));
+
+    expect(recording.searchJobs).toHaveBeenCalledTimes(1);
+    expect(recording.searchJobs).toHaveBeenCalledWith({
+      city: "北京",
+      keyword: "MSL",
+      categories: ["医学事务"],
+      sort: "LATEST",
+      onlyNew: true
+    });
   });
 
   it("loads grouped Beijing results after consent and updates by category and keyword", async () => {
@@ -217,15 +224,6 @@ describe("App product flows", () => {
 
     await acceptConsent(user);
     await runBeijingSearch(user);
-
-    expect(recording.searchCalls).toHaveLength(1);
-    expect(recording.searchCalls[0]).toMatchObject({
-      city: "北京",
-      keyword: "",
-      categories: [],
-      sort: "PINYIN_ASC",
-      onlyNew: false
-    });
 
     expect(await screen.findByText("阿斯利康")).toBeInTheDocument();
     expect(screen.getByText("辉瑞")).toBeInTheDocument();
@@ -276,7 +274,7 @@ describe("App product flows", () => {
     await user.type(screen.getByPlaceholderText("搜索已覆盖公司"), "辉");
 
     await waitFor(() => {
-      expect(recording.coverageCalls.at(-1)).toMatchObject({ keyword: "辉" });
+      expect(recording.listCoverage).toHaveBeenLastCalledWith({ keyword: "辉", offset: 0, limit: 50 });
     });
 
     expect(await screen.findByText("辉瑞")).toBeInTheDocument();
@@ -301,37 +299,67 @@ describe("App product flows", () => {
     await user.click(screen.getByRole("button", { name: "提交反馈" }));
 
     await waitFor(() => {
-      expect(recording.feedbackCalls).toEqual([
-        {
+      expect(recording.submitFeedback).toHaveBeenCalledWith({
           issueType: "职位信息有误",
           description: "职位链接跳转错误",
           companyId: "pfizer",
           jobId: "pfizer-msl-1"
-        }
-      ]);
+        });
     });
 
     expect(await screen.findByText("反馈已提交，待人工核查。")).toBeInTheDocument();
   });
 
-  it("submits a recommended company and returns the admin review message", async () => {
+  it("applies only-new filtering and updates company order when sort changes", async () => {
     const user = userEvent.setup();
     const recording = createRecordingProvider();
     render(<App dataProvider={recording.provider} />);
 
     await acceptConsent(user);
-    await user.click(screen.getByRole("button", { name: "推荐公司" }));
+    await runBeijingSearch(user);
+
+    expect(screen.getByText("6 个职位")).toBeInTheDocument();
+
+    await user.click(screen.getByRole("checkbox", { name: "只看新增" }));
+
+    await waitFor(() => {
+      expect(screen.getByText("3 个职位")).toBeInTheDocument();
+      expect(screen.queryByText("市场准入经理")).not.toBeInTheDocument();
+    });
+
+    const companyCards = () => screen.getAllByTestId(/company-/);
+
+    expect(companyCards()[0]).toHaveAttribute("data-testid", "company-astrazeneca");
+    expect(companyCards()[1]).toHaveAttribute("data-testid", "company-pfizer");
+
+    await user.click(screen.getByRole("button", { name: "最新发布" }));
+
+    await waitFor(() => {
+      expect(companyCards()[0]).toHaveAttribute("data-testid", "company-pfizer");
+      expect(companyCards()[1]).toHaveAttribute("data-testid", "company-astrazeneca");
+    });
+  });
+
+  it("keeps recommendation out of the primary view strip and still submits from an auxiliary entry", async () => {
+    const user = userEvent.setup();
+    const recording = createRecordingProvider();
+    render(<App dataProvider={recording.provider} />);
+
+    await acceptConsent(user);
+
+    const viewStrip = screen.getByRole("region", { name: "产品流程" });
+    expect(within(viewStrip).queryByRole("button", { name: "推荐公司" })).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "推荐未覆盖公司" }));
     await user.type(screen.getByLabelText("公司名称"), "礼来");
     await user.type(screen.getByLabelText("官网链接"), "https://www.lilly.com/cn");
     await user.click(screen.getByRole("button", { name: "提交推荐" }));
 
     await waitFor(() => {
-      expect(recording.recommendationCalls).toEqual([
-        {
+      expect(recording.recommendCompany).toHaveBeenCalledWith({
           companyName: "礼来",
           officialWebsiteUrl: "https://www.lilly.com/cn"
-        }
-      ]);
+      });
     });
 
     expect(await screen.findByText("已收到推荐，公司会进入管理员复核队列。")).toBeInTheDocument();

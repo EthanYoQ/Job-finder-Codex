@@ -26,7 +26,7 @@ import type { SortMode } from "./jobSearch";
 import "./App.css";
 
 type ConsentState = "pending" | "closed" | "accepted";
-type ViewMode = "discover" | "coverage" | "recommend";
+type ViewMode = "discover" | "coverage";
 
 interface AppProps {
   dataProvider?: AppDataProvider;
@@ -173,6 +173,7 @@ export function App({ dataProvider = createDemoAppDataProvider() }: AppProps) {
 
   const [feedbackDraft, setFeedbackDraft] = useState<FeedbackDraft | null>(null);
   const [feedbackMessage, setFeedbackMessage] = useState("");
+  const [isRecommendationFormOpen, setIsRecommendationFormOpen] = useState(false);
   const [recommendCompanyName, setRecommendCompanyName] = useState("");
   const [recommendWebsiteUrl, setRecommendWebsiteUrl] = useState("");
   const [recommendMessage, setRecommendMessage] = useState("");
@@ -250,10 +251,10 @@ export function App({ dataProvider = createDemoAppDataProvider() }: AppProps) {
     try {
       const result = await dataProvider.searchJobs({
         city,
-        keyword: "",
-        categories: [],
+        keyword,
+        categories: selectedCategories,
         sort,
-        onlyNew: false
+        onlyNew
       });
 
       setSearchResult(result);
@@ -351,13 +352,6 @@ export function App({ dataProvider = createDemoAppDataProvider() }: AppProps) {
             onClick={() => setActiveView("coverage")}
           >
             查看覆盖公司
-          </ViewButton>
-          <ViewButton
-            active={activeView === "recommend"}
-            icon={<Send aria-hidden="true" size={16} />}
-            onClick={() => setActiveView("recommend")}
-          >
-            推荐公司
           </ViewButton>
         </section>
 
@@ -665,46 +659,70 @@ export function App({ dataProvider = createDemoAppDataProvider() }: AppProps) {
           </section>
         ) : null}
 
-        {activeView === "recommend" ? (
-          <section className="panel stacked-panel" aria-label="推荐公司">
-            <div className="panel-heading">
-              <Send aria-hidden="true" size={18} />
-              <div>
-                <strong>推荐公司</strong>
-                <p>补充未覆盖但有官方招聘入口的药企。</p>
+        <section className="panel stacked-panel auxiliary-panel" aria-label="辅助操作">
+          <div className="panel-heading">
+            <Send aria-hidden="true" size={18} />
+            <div>
+              <strong>辅助操作</strong>
+              <p>补充未覆盖但有官方招聘入口的药企。</p>
+            </div>
+          </div>
+          <div className="auxiliary-actions">
+            <button
+              aria-expanded={isRecommendationFormOpen}
+              className="secondary-button"
+              onClick={() => {
+                setIsRecommendationFormOpen((current) => !current);
+                setRecommendMessage("");
+              }}
+              type="button"
+            >
+              <Send aria-hidden="true" size={16} />
+              推荐未覆盖公司
+            </button>
+          </div>
+
+          {isRecommendationFormOpen ? (
+            <div className="recommendation-form">
+              <div className="panel-heading">
+                <Send aria-hidden="true" size={18} />
+                <div>
+                  <strong>推荐公司</strong>
+                  <p>提交后会进入管理员复核队列。</p>
+                </div>
               </div>
+              <label className="form-field">
+                <span>公司名称</span>
+                <input
+                  aria-label="公司名称"
+                  onChange={(event) => setRecommendCompanyName(event.target.value)}
+                  type="text"
+                  value={recommendCompanyName}
+                />
+              </label>
+              <label className="form-field">
+                <span>官网链接</span>
+                <input
+                  aria-label="官网链接"
+                  onChange={(event) => setRecommendWebsiteUrl(event.target.value)}
+                  type="url"
+                  value={recommendWebsiteUrl}
+                />
+              </label>
+              <div className="panel-actions">
+                <button className="primary-button" onClick={submitRecommendation} type="button">
+                  提交推荐
+                </button>
+              </div>
+              {recommendMessage !== "" ? (
+                <p className="success-banner">
+                  <CheckCircle2 aria-hidden="true" size={16} />
+                  {recommendMessage}
+                </p>
+              ) : null}
             </div>
-            <label className="form-field">
-              <span>公司名称</span>
-              <input
-                aria-label="公司名称"
-                onChange={(event) => setRecommendCompanyName(event.target.value)}
-                type="text"
-                value={recommendCompanyName}
-              />
-            </label>
-            <label className="form-field">
-              <span>官网链接</span>
-              <input
-                aria-label="官网链接"
-                onChange={(event) => setRecommendWebsiteUrl(event.target.value)}
-                type="url"
-                value={recommendWebsiteUrl}
-              />
-            </label>
-            <div className="panel-actions">
-              <button className="primary-button" onClick={submitRecommendation} type="button">
-                提交推荐
-              </button>
-            </div>
-            {recommendMessage !== "" ? (
-              <p className="success-banner">
-                <CheckCircle2 aria-hidden="true" size={16} />
-                {recommendMessage}
-              </p>
-            ) : null}
-          </section>
-        ) : null}
+          ) : null}
+        </section>
       </main>
 
       {consentState === "pending" ? (
