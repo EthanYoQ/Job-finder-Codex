@@ -1,5 +1,8 @@
 import { existsSync, readFileSync } from "node:fs";
+import { mkdtempSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
 import { resolve } from "node:path";
+import { execFileSync } from "node:child_process";
 import { describe, expect, it } from "vitest";
 
 const repoRoot = process.cwd();
@@ -39,10 +42,12 @@ describe("deployment configuration", () => {
 
     expect(compose).toMatch(/npm run p0:crawl/);
     expect(compose).toMatch(/npx tsx ops\/monitoring-check\.ts/);
+    expect(compose).toMatch(/node dist\/server\/httpServer\.js|"npm",\s*"run",\s*"start"|npm run start/);
     expect(dockerfile).toMatch(/COPY --from=build \/app\/scripts \.\/scripts/);
     expect(dockerfile).toMatch(/COPY --from=build \/app\/src \.\/src/);
     expect(dockerfile).toMatch(/COPY --from=build \/app\/prisma \.\/prisma/);
     expect(dockerfile).toMatch(/COPY --from=deps \/app\/node_modules \.\/node_modules|RUN npm ci(?!\s+--omit=dev)/);
+    expect(dockerfile).toMatch(/apt-get update && apt-get install -y --no-install-recommends postgresql-client|apk add --no-cache postgresql-client/);
   });
 
   it("configures nginx no-index protections, rate limits, and denied internal paths", () => {
@@ -71,5 +76,54 @@ describe("deployment configuration", () => {
     expect(script).toMatch(/process\.exitCode|process\.exit\(/);
     expect(script).toMatch(/readString\(readinessSummary,\s*"latestBackupAt"\)/);
     expect(script).toMatch(/readBoolean\(readinessSummary,\s*"latestBackupSucceeded"\)/);
+  });
+
+  it("falls back to readinessSummary latestBackupAt when crawlSummary omits it", () => {
+    const tempDir = mkdtempSync(resolve(tmpdir(), "job-finder-monitoring-"));
+    const readinessSummaryPath = resolve(tempDir, "readiness-summary.json");
+    const crawlSummaryPath = resolve(tempDir, "crawl-summary.json");
+
+    writeFileSync(
+      readinessSummaryPath,
+      JSON.stringify({
+        latestBackupAt: "2026-07-07T06:00:00.000Z",
+        latestBackupSucceeded: true
+      }),
+      "utf8"
+    );
+    writeFileSync(
+      crawlSummaryPath,
+      JSON.stringify({
+        latestBackupSucceeded: true,
+        consecutiveFailuresByCompany: {}
+      }),
+      "utf8"
+    );
+
+    let stderr = "";
+
+    try {
+      execFileSync(
+        process.execPath,
+        ["node_modules/tsx/dist/cli.mjs", "ops/monitoring-check.ts"],
+        {
+          cwd: repoRoot,
+          env: {
+            ...process.env,
+            HEALTHCHECK_URL: "http://127.0.0.1:9/healthz",
+            READINESS_SUMMARY_PATH: readinessSummaryPath,
+            CRAWL_SUMMARY_PATH: crawlSummaryPath
+          },
+          encoding: "utf8",
+          stdio: ["ignore", "pipe", "pipe"]
+        }
+      );
+    } catch (error) {
+      const result = error as { stderr?: string };
+      stderr = result.stderr ?? "";
+    }
+
+    expect(stderr).toContain("BACKUP_STALE");
+    expect(stderr).toContain("31 hours old");
   });
 });

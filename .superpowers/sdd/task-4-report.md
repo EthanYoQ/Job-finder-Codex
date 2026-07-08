@@ -231,3 +231,50 @@
 - Confirmed fact: the runtime image is now self-consistent with the current compose worker/scheduler/monitor commands.
 - Confirmed fact: Postgres remains unexposed to the public network in compose.
 - Unconfirmed operational dependency: the locked-origin section is a documentation/template control and still requires operators to provide their own current CDN/WAF trusted proxy include file and matching header configuration at deploy time.
+
+# Task 4 second fix: production health server and postgres client
+
+## Scope
+
+- Changed only:
+  - `Dockerfile`
+  - `package.json`
+  - `src/server/httpServer.ts`
+  - `tests/server/httpServer.test.ts`
+  - `ops/docker-compose.yml`
+  - `tests/ops/deploymentConfig.test.ts`
+  - `.superpowers/sdd/task-4-report.md`
+- `tests/server/opsMonitoring.test.ts` was left unchanged because the new behavior-level `latestBackupAt` fallback proof belongs to `ops/monitoring-check.ts`, and that behavior is now covered by executing the monitoring script in `tests/ops/deploymentConfig.test.ts`.
+- No frontend, admin, or crawler business logic changed.
+
+## Red Evidence
+
+- `npm test -- tests/server/httpServer.test.ts`
+  - Initial result: failed because `src/server/httpServer.ts` did not exist.
+- `npm test -- tests/ops/deploymentConfig.test.ts`
+  - Initial result: failed because compose/web still pointed at the old runtime path and there was no static proof that the runtime image installs PostgreSQL client tooling.
+
+## Fix
+
+- Added a minimal Node HTTP server at `src/server/httpServer.ts` that:
+  - routes `/healthz`, `/privacy`, `/terms`, `/robots.txt`, and `/api/*` through `handlePublicApi`
+  - serves the Vite-built site from `dist/`
+  - starts from `package.json` via `npm run start`
+- Switched the runtime container and compose `web` service to the Node server instead of `vite preview`.
+- Installed `postgresql-client` in the runtime image so `pg_dump` and `psql` are available to backup/restore flows.
+- Upgraded deployment coverage from static text matching to a behavior-level fallback check by executing `ops/monitoring-check.ts` with a `readinessSummary`-only `latestBackupAt` input and asserting that the script emits the expected stale-backup alert.
+
+## Commands And Results
+
+- `npm test -- tests/ops/deploymentConfig.test.ts tests/ops/backupRestore.test.ts tests/server/opsMonitoring.test.ts tests/server/httpServer.test.ts`
+  - Result: passed, `4` files, `11` tests.
+- `npm run typecheck`
+  - Result: passed.
+- `npm run build`
+  - Result: passed.
+
+## Remaining Concerns
+
+- Confirmed fact: the new HTTP server is exercised by test only on `/healthz`; homepage static serving is implemented but not behavior-tested in this task because the reviewer requirement only mandated the health route.
+- Confirmed fact: backup/restore client availability is proven statically from the Dockerfile install step, not by running a built container image inside this task.
+- Unconfirmed operational dependency: `npm run start` uses `tsx` from the existing dependency tree in the runtime image. That is consistent with the current Dockerfile, but no separate production-only dependency pruning flow was introduced here.
