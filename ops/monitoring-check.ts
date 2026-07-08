@@ -35,7 +35,7 @@ async function main(): Promise<void> {
       latestBackupSucceeded:
         readBoolean(crawlSummary, "latestBackupSucceeded") ??
         readBoolean(readinessSummary, "latestBackupSucceeded") ??
-        process.env.LATEST_BACKUP_SUCCEEDED !== "false"
+        readEnvBoolean("LATEST_BACKUP_SUCCEEDED")
     },
     crawl: {
       globalSuccessRate:
@@ -162,4 +162,13 @@ function readEnvNumber(name: string): number | undefined {
 
   const parsed = Number(value);
   return Number.isFinite(parsed) ? parsed : undefined;
+}
+
+function readEnvBoolean(name: string): boolean | undefined {
+  const value = process.env[name];
+  if (value === undefined) {
+    return undefined;
+  }
+
+  return value === "true";
 }

@@ -4,6 +4,7 @@ import { tmpdir } from "node:os";
 import { resolve } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { createServer } from "../../src/server/httpServer";
+import { createMemoryRateLimitStore } from "../../src/server/rateLimit";
 
 const openServers = new Set<Server>();
 
@@ -56,7 +57,8 @@ describe("http server", () => {
         adminAuditEvent: { create: async () => ({}) },
         manualCrawlRequest: { create: async () => ({ id: "crawl-1" }) },
         recruitmentSource: { findMany: async () => [] }
-      }
+      },
+      rateLimitStore: createMemoryRateLimitStore()
     };
 
     return createServer(db, { staticRoot });
@@ -108,5 +110,40 @@ describe("http server", () => {
     const dashboard = await fetch(`http://127.0.0.1:${address.port}/admin/api/dashboard`);
     expect(dashboard.status).toBe(401);
     expect(dashboard.headers.get("x-robots-tag")).toBe("noindex, nofollow");
+  });
+
+  it("does not let direct clients bypass API rate limits with spoofed forwarded headers", async () => {
+    const originalTrustedProxyCidrs = process.env.TRUSTED_PROXY_CIDRS;
+    process.env.TRUSTED_PROXY_CIDRS = "";
+
+    try {
+      const address = await listen(createTestServer());
+      const responses: number[] = [];
+
+      for (let index = 0; index < 31; index += 1) {
+        const response = await fetch(`http://127.0.0.1:${address.port}/api/feedback`, {
+          method: "POST",
+          headers: {
+            "content-type": "application/json",
+            "x-job-search-consent": "accepted",
+            "x-forwarded-for": `203.0.113.${index + 1}`
+          },
+          body: JSON.stringify({
+            issueType: "职位信息有误",
+            description: "测试反馈"
+          })
+        });
+        responses.push(response.status);
+      }
+
+      expect(responses.slice(0, 30).every((status) => status === 201)).toBe(true);
+      expect(responses[30]).toBe(429);
+    } finally {
+      if (originalTrustedProxyCidrs === undefined) {
+        delete process.env.TRUSTED_PROXY_CIDRS;
+      } else {
+        process.env.TRUSTED_PROXY_CIDRS = originalTrustedProxyCidrs;
+      }
+    }
   });
 });

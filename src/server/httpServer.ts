@@ -2,6 +2,7 @@ import { PrismaClient } from "@prisma/client";
 import { createServer as createNodeServer, type IncomingMessage, type Server, type ServerResponse } from "node:http";
 import { readFile } from "node:fs/promises";
 import { extname, resolve } from "node:path";
+import { pathToFileURL } from "node:url";
 import { handleAdminApi, type AdminApiDeps, type AdminApiResponse } from "./adminApi";
 import { handlePublicApi, type PublicApiDeps, type PublicApiResponse } from "./publicApi";
 
@@ -199,10 +200,67 @@ async function readRequestBody(request: IncomingMessage): Promise<unknown> {
 }
 
 function getRequestIp(request: IncomingMessage): string {
+  const remoteAddress = normalizeIpAddress(request.socket.remoteAddress ?? "");
+  if (!isTrustedProxyAddress(remoteAddress, process.env.TRUSTED_PROXY_CIDRS ?? "")) {
+    return remoteAddress;
+  }
+
   const forwardedFor = request.headers["x-forwarded-for"];
   const headerValue = Array.isArray(forwardedFor) ? forwardedFor[0] : forwardedFor;
 
-  return headerValue?.split(",")[0]?.trim() ?? request.socket.remoteAddress ?? "";
+  return normalizeIpAddress(headerValue?.split(",")[0]?.trim() ?? remoteAddress);
+}
+
+function isTrustedProxyAddress(remoteAddress: string, trustedCidrs: string): boolean {
+  if (remoteAddress === "" || trustedCidrs.trim() === "") {
+    return false;
+  }
+
+  return trustedCidrs
+    .split(",")
+    .map((entry) => entry.trim())
+    .filter((entry) => entry !== "")
+    .some((cidr) => isIpInCidr(remoteAddress, cidr));
+}
+
+function isIpInCidr(ipAddress: string, cidr: string): boolean {
+  const [range, prefixText] = cidr.split("/");
+  if (!range || !prefixText) {
+    return ipAddress === normalizeIpAddress(cidr);
+  }
+
+  const ip = ipv4ToNumber(ipAddress);
+  const rangeIp = ipv4ToNumber(normalizeIpAddress(range));
+  const prefix = Number(prefixText);
+
+  if (ip === undefined || rangeIp === undefined || !Number.isInteger(prefix) || prefix < 0 || prefix > 32) {
+    return ipAddress === normalizeIpAddress(range);
+  }
+
+  const mask = prefix === 0 ? 0 : (0xffffffff << (32 - prefix)) >>> 0;
+  return (ip & mask) === (rangeIp & mask);
+}
+
+function ipv4ToNumber(ipAddress: string): number | undefined {
+  const parts = ipAddress.split(".");
+  if (parts.length !== 4) {
+    return undefined;
+  }
+
+  const bytes = parts.map((part) => Number(part));
+  if (bytes.some((byte) => !Number.isInteger(byte) || byte < 0 || byte > 255)) {
+    return undefined;
+  }
+
+  return (((bytes[0] ?? 0) << 24) | ((bytes[1] ?? 0) << 16) | ((bytes[2] ?? 0) << 8) | (bytes[3] ?? 0)) >>> 0;
+}
+
+function normalizeIpAddress(value: string): string {
+  if (value.startsWith("::ffff:")) {
+    return value.slice("::ffff:".length);
+  }
+
+  return value;
 }
 
 function resolveStaticPath(staticRoot: string, pathname: string): string | undefined {
@@ -233,6 +291,6 @@ function writeResponse(response: ServerResponse, publicApiResponse: HttpResponse
   response.end(JSON.stringify(publicApiResponse.body));
 }
 
-if (process.argv[1] && import.meta.url === new URL(process.argv[1], "file:").href) {
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   void startServer();
 }

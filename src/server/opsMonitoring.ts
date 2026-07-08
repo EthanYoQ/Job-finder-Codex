@@ -1,5 +1,6 @@
 export type OpsAlertCode =
   | "WEBSITE_DOWN"
+  | "BACKUP_MISSING"
   | "BACKUP_FAILED"
   | "BACKUP_STALE"
   | "CRAWL_SUCCESS_BELOW_SLO"
@@ -26,7 +27,7 @@ export interface OpsAlertInput {
   };
   backup: {
     latestBackupAt?: string;
-    latestBackupSucceeded: boolean;
+    latestBackupSucceeded?: boolean;
   };
   crawl: {
     globalSuccessRate?: number;
@@ -63,7 +64,7 @@ export function evaluateOpsAlerts(input: OpsAlertInput): OpsAlert[] {
     });
   }
 
-  if (!input.backup.latestBackupSucceeded) {
+  if (input.backup.latestBackupSucceeded === false) {
     alerts.push({
       code: "BACKUP_FAILED",
       severity: "critical",
@@ -72,7 +73,13 @@ export function evaluateOpsAlerts(input: OpsAlertInput): OpsAlert[] {
   }
 
   const latestBackupAt = toDate(input.backup.latestBackupAt);
-  if (latestBackupAt) {
+  if (!latestBackupAt) {
+    alerts.push({
+      code: "BACKUP_MISSING",
+      severity: "critical",
+      message: "No successful backup evidence is available."
+    });
+  } else {
     const ageHours = (input.now.getTime() - latestBackupAt.getTime()) / 3_600_000;
     if (ageHours > BACKUP_STALE_HOURS) {
       alerts.push({
