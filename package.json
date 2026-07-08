@@ -13,6 +13,7 @@
     "test:watch": "vitest",
     "typecheck": "tsc --noEmit",
     "prisma:validate": "node ./scripts/prisma-validate.mjs",
+    "p0:crawl": "tsx scripts/p0-crawl.ts",
     "p0:readiness": "tsx scripts/p0-readiness-report.ts"
   },
   "dependencies": {
