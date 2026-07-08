@@ -186,7 +186,7 @@ git commit -m "feat: guard formal crawl evidence sources"
 **Interfaces:**
 - Produces: `SourceDiscoveryCandidate`, `parseSourceDiscoveryCandidates(input: unknown): SourceDiscoveryCandidate[]`, `summarizeSourceDiscoveryCandidates(candidates)`.
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 Create `tests/crawler/sourceDiscovery.test.ts`:
 
@@ -266,7 +266,7 @@ describe("source discovery candidates", () => {
 });
 ```
 
-- [ ] **Step 2: Run focused test and verify it fails**
+- [x] **Step 2: Run focused test and verify it fails**
 
 Run:
 
@@ -276,7 +276,7 @@ npm test -- tests/crawler/sourceDiscovery.test.ts
 
 Expected: FAIL because `src/crawler/sourceDiscovery.ts` does not exist.
 
-- [ ] **Step 3: Implement discovery manifest parser**
+- [x] **Step 3: Implement discovery manifest parser**
 
 Create `src/crawler/sourceDiscovery.ts`:
 
@@ -345,7 +345,7 @@ Create `docs/research/p0-source-discovery-candidates.json` with an empty audited
 []
 ```
 
-- [ ] **Step 4: Run focused verification**
+- [x] **Step 4: Run focused verification**
 
 Run:
 
@@ -356,7 +356,7 @@ npm run typecheck
 
 Expected: PASS.
 
-- [ ] **Step 5: Commit Task 2**
+- [x] **Step 5: Commit Task 2**
 
 Run:
 
