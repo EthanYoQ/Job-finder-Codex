@@ -1,3 +1,4 @@
+import { candidateCompanies } from "../data/companyRegistry";
 import { getP0ReadinessReport, type P0ReadinessReport } from "./p0Readiness";
 import {
   toP0ReadinessInput,
@@ -40,6 +41,10 @@ export async function getP0ReadinessReportFromDb(
   db: P0ReadinessPrismaDb
 ): Promise<P0ReadinessReport> {
   const rows = await db.company.findMany(READINESS_COMPANY_QUERY);
+  const persistedInput = toP0ReadinessInput(rows);
 
-  return getP0ReadinessReport(toP0ReadinessInput(rows));
+  return getP0ReadinessReport({
+    companies: candidateCompanies,
+    observationsBySource: persistedInput.observationsBySource ?? {}
+  });
 }

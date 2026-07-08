@@ -87,7 +87,7 @@ describe("executeIngestionCommands", () => {
           successful: true,
           structuredJobCount: 1,
           stableRequiredFields: ["COMPANY", "TITLE", "OFFICIAL_URL", "LOCATION"],
-          failureReason: undefined
+          failureReason: null
         }
       }
     ]);
