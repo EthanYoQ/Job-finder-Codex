@@ -1,402 +1,720 @@
 import {
   BriefcaseBusiness,
+  Building2,
+  CheckCircle2,
   ChevronDown,
   ChevronRight,
   ExternalLink,
+  FileText,
   List,
   MapPin,
+  MessageSquareWarning,
   Search,
-  SlidersHorizontal,
-  User,
+  Send,
+  ShieldCheck,
   X
 } from "lucide-react";
-import { useMemo, useState, type MouseEvent } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
+import {
+  createDemoAppDataProvider,
+  type AppDataProvider,
+  type CoverageCompany,
+  type SearchCompany,
+  type StaticDocumentResult
+} from "./appDataProvider";
+import type { SortMode } from "./jobSearch";
 import "./App.css";
 
 type ConsentState = "pending" | "closed" | "accepted";
+type ViewMode = "discover" | "coverage" | "recommend";
 
-interface VisualJob {
-  id: string;
-  title: string;
-  officialTitle: string;
-  city: string;
-  category: string;
-  isNew: boolean;
-  officialUrl: string;
-  searchTerms?: string[];
+interface AppProps {
+  dataProvider?: AppDataProvider;
 }
 
-interface VisualCompany {
-  id: string;
-  companyName: string;
-  countLabel: string;
-  jobs: VisualJob[];
+interface FeedbackDraft {
+  issueType: string;
+  description: string;
+  companyId?: string;
+  companyName?: string;
+  jobId?: string;
+  jobTitle?: string;
 }
 
-const GLOBAL_LAST_FETCHED = "2026-07-07 08:00";
 const DEFAULT_CITY = "北京";
-const DEFAULT_EXPANDED_COMPANY_ID = "pfizer";
+const DEFAULT_COMPANY_ROW_CAP = 3;
+const CITY_OPTIONS = ["北京", "上海", "广州"];
+const CATEGORY_OPTIONS = ["销售", "医学事务", "市场准入", "临床运营"];
 
-const visualCompanies: VisualCompany[] = [
-  {
-    id: "astrazeneca",
-    companyName: "阿斯利康",
-    countLabel: "32 个职位",
-    jobs: []
-  },
-  {
-    id: "beigene",
-    companyName: "百济神州",
-    countLabel: "24 个职位",
-    jobs: []
-  },
-  {
-    id: "pfizer",
-    companyName: "辉瑞",
-    countLabel: "28 个职位",
-    jobs: [
-      {
-        id: "pfizer-medical-info",
-        title: "医学信息沟通专员（呼吸领域）",
-        officialTitle: "Medical Information Associate (Respiratory)",
-        city: "北京",
-        category: "医学信息",
-        isNew: true,
-        officialUrl: "https://www.pfizer.com.cn/careers"
-      },
-      {
-        id: "pfizer-msl",
-        title: "医学科学联络官（肿瘤领域）",
-        officialTitle: "Medical Science Liaison (Oncology)",
-        city: "北京",
-        category: "医学事务",
-        isNew: true,
-        officialUrl: "https://www.pfizer.com.cn/careers",
-        searchTerms: ["MSL"]
-      },
-      {
-        id: "pfizer-sales",
-        title: "区域销售经理（北京）",
-        officialTitle: "Regional Sales Manager (Beijing)",
-        city: "北京",
-        category: "销售",
-        isNew: true,
-        officialUrl: "https://www.pfizer.com.cn/careers"
-      },
-      {
-        id: "pfizer-market-access",
-        title: "市场准入专员",
-        officialTitle: "Market Access Specialist",
-        city: "北京",
-        category: "市场准入",
-        isNew: false,
-        officialUrl: "https://www.pfizer.com.cn/careers"
-      },
-      {
-        id: "pfizer-cra",
-        title: "临床研究监察员（CRA）",
-        officialTitle: "Clinical Research Associate (CRA)",
-        city: "北京",
-        category: "临床研究",
-        isNew: true,
-        officialUrl: "https://www.pfizer.com.cn/careers"
-      }
-    ]
-  },
-  {
-    id: "novartis",
-    companyName: "诺华",
-    countLabel: "22 个职位",
-    jobs: []
-  },
-  {
-    id: "innovent",
-    companyName: "信达生物",
-    countLabel: "22 个职位",
-    jobs: []
-  }
-];
-
-function normalized(value: string): string {
+function normalize(value: string): string {
   return value.trim().toLocaleLowerCase("zh-CN");
 }
 
-function countVisibleJobs(companies: VisualCompany[]): number {
-  return companies.reduce((total, company) => total + company.jobs.length, 0);
+function formatTimestamp(value: string | null): string {
+  if (value === null) {
+    return "暂无更新";
+  }
+
+  return value.slice(0, 16).replace("T", " ");
 }
 
-export function App() {
+function sortCompanies(companies: SearchCompany[], sort: SortMode): SearchCompany[] {
+  const sorted = [...companies];
+
+  if (sort === "JOB_COUNT_DESC") {
+    return sorted.sort(
+      (left, right) =>
+        right.jobs.length - left.jobs.length || left.pinyin.localeCompare(right.pinyin, "zh-CN")
+    );
+  }
+
+  if (sort === "LATEST") {
+    const latestFor = (company: SearchCompany) =>
+      company.jobs.reduce(
+        (latest, job) =>
+          (job.officialPublishedAt ?? "").localeCompare(latest, "zh-CN") > 0
+            ? job.officialPublishedAt ?? ""
+            : latest,
+        ""
+      );
+
+    return sorted.sort(
+      (left, right) =>
+        latestFor(right).localeCompare(latestFor(left), "zh-CN") ||
+        left.pinyin.localeCompare(right.pinyin, "zh-CN")
+    );
+  }
+
+  return sorted.sort((left, right) => left.pinyin.localeCompare(right.pinyin, "zh-CN"));
+}
+
+function applyClientFilters(
+  companies: SearchCompany[],
+  keyword: string,
+  categories: string[],
+  onlyNew: boolean,
+  sort: SortMode
+): SearchCompany[] {
+  const normalizedKeyword = normalize(keyword);
+  const selectedCategories = new Set(categories);
+
+  return sortCompanies(
+    companies
+      .map((company) => ({
+        ...company,
+        jobs: company.jobs.filter((job) => {
+          const keywordMatches =
+            normalizedKeyword === "" ||
+            normalize(company.companyName).includes(normalizedKeyword) ||
+            normalize(job.title).includes(normalizedKeyword) ||
+            normalize(job.officialTitle).includes(normalizedKeyword) ||
+            normalize(job.category).includes(normalizedKeyword);
+          const categoryMatches =
+            selectedCategories.size === 0 || selectedCategories.has(job.category);
+          const newMatches = !onlyNew || job.isNew;
+
+          return keywordMatches && categoryMatches && newMatches;
+        })
+      }))
+      .filter((company) => company.jobs.length > 0),
+    sort
+  );
+}
+
+function ViewButton({
+  active,
+  children,
+  icon,
+  onClick
+}: {
+  active: boolean;
+  children: ReactNode;
+  icon: ReactNode;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      aria-pressed={active}
+      className={`view-button${active ? " is-active" : ""}`}
+      onClick={onClick}
+      type="button"
+    >
+      {icon}
+      <span>{children}</span>
+    </button>
+  );
+}
+
+export function App({ dataProvider = createDemoAppDataProvider() }: AppProps) {
   const [consentState, setConsentState] = useState<ConsentState>("pending");
   const [hasCheckedConsent, setHasCheckedConsent] = useState(false);
   const isLocked = consentState !== "accepted";
 
+  const [activeView, setActiveView] = useState<ViewMode>("discover");
+  const [city, setCity] = useState("");
   const [keyword, setKeyword] = useState("");
-  const [showsSalesChip, setShowsSalesChip] = useState(true);
-  const [showsMslChip, setShowsMslChip] = useState(true);
-  const [showsOnlyNewChip, setShowsOnlyNewChip] = useState(true);
-  const [expandedCompanyId, setExpandedCompanyId] = useState<string | null>(
-    DEFAULT_EXPANDED_COMPANY_ID
-  );
+  const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
+  const [onlyNew, setOnlyNew] = useState(false);
+  const [sort, setSort] = useState<SortMode>("PINYIN_ASC");
 
-  const companyResults = useMemo(() => {
-    const query = normalized(keyword);
+  const [searchResult, setSearchResult] = useState<{
+    companies: SearchCompany[];
+    totalJobs: number;
+    lastUpdatedAt: string | null;
+  } | null>(null);
+  const [isSearching, setIsSearching] = useState(false);
 
-    if (!query) {
-      return visualCompanies;
+  const [expandedCompanyId, setExpandedCompanyId] = useState<string | null>(null);
+  const [rowCaps, setRowCaps] = useState<Record<string, number>>({});
+
+  const [coverageKeyword, setCoverageKeyword] = useState("");
+  const [coverageResults, setCoverageResults] = useState<CoverageCompany[]>([]);
+  const [coverageLoading, setCoverageLoading] = useState(false);
+
+  const [feedbackDraft, setFeedbackDraft] = useState<FeedbackDraft | null>(null);
+  const [feedbackMessage, setFeedbackMessage] = useState("");
+  const [recommendCompanyName, setRecommendCompanyName] = useState("");
+  const [recommendWebsiteUrl, setRecommendWebsiteUrl] = useState("");
+  const [recommendMessage, setRecommendMessage] = useState("");
+
+  const [document, setDocument] = useState<StaticDocumentResult | null>(null);
+  const [documentLoading, setDocumentLoading] = useState<"privacy" | "terms" | null>(null);
+
+  const visibleCompanies = useMemo(() => {
+    if (searchResult === null) {
+      return [];
     }
 
-    return visualCompanies
-      .map((company) => {
-        const companyMatches = normalized(company.companyName).includes(query);
-        const jobs = company.jobs.filter((job) => {
-          return (
-            companyMatches ||
-            normalized(job.title).includes(query) ||
-            normalized(job.officialTitle).includes(query) ||
-            normalized(job.category).includes(query) ||
-            (job.searchTerms ?? []).some((term) => normalized(term).includes(query))
-          );
-        });
+    return applyClientFilters(searchResult.companies, keyword, selectedCategories, onlyNew, sort);
+  }, [keyword, onlyNew, searchResult, selectedCategories, sort]);
 
-        return companyMatches && jobs.length === 0 ? { ...company, jobs: company.jobs } : { ...company, jobs };
-      })
-      .filter((company) => company.jobs.length > 0 || normalized(company.companyName).includes(query));
-  }, [keyword]);
+  const visibleJobCount = visibleCompanies.reduce((sum, company) => sum + company.jobs.length, 0);
 
-  const hasKeyword = Boolean(keyword.trim());
-  const summaryJobCount = hasKeyword ? countVisibleJobs(companyResults) : 128;
-  const summaryCompanyCount = hasKeyword ? companyResults.length : 5;
-
-  function acceptConsent() {
-    if (hasCheckedConsent) {
-      setConsentState("accepted");
-    }
-  }
-
-  function closeConsent() {
-    setHasCheckedConsent(false);
-    setConsentState("closed");
-  }
-
-  function reopenConsent() {
-    setHasCheckedConsent(false);
-    setConsentState("pending");
-  }
-
-  function clearFilters() {
-    setKeyword("");
-    setShowsSalesChip(false);
-    setShowsMslChip(false);
-    setShowsOnlyNewChip(false);
-    setExpandedCompanyId(null);
-  }
-
-  function toggleCompany(companyId: string) {
-    if (isLocked) {
+  useEffect(() => {
+    if (consentState !== "accepted" || activeView !== "coverage") {
       return;
     }
 
-    setExpandedCompanyId((currentCompanyId) =>
-      currentCompanyId === companyId ? null : companyId
+    let cancelled = false;
+    setCoverageLoading(true);
+
+    dataProvider
+      .listCoverage({ keyword: coverageKeyword, offset: 0, limit: 50 })
+      .then((result) => {
+        if (!cancelled) {
+          setCoverageResults(result.companies);
+        }
+      })
+      .finally(() => {
+        if (!cancelled) {
+          setCoverageLoading(false);
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [activeView, consentState, coverageKeyword, dataProvider]);
+
+  async function openDocument(slug: "privacy" | "terms") {
+    setDocumentLoading(slug);
+    const nextDocument = await dataProvider.getDocument(slug);
+    setDocument(nextDocument);
+    setDocumentLoading(null);
+  }
+
+  function closeConsent() {
+    setConsentState("closed");
+    setHasCheckedConsent(false);
+  }
+
+  function acceptConsent() {
+    if (!hasCheckedConsent) {
+      return;
+    }
+
+    setConsentState("accepted");
+    setActiveView("discover");
+    setCity(DEFAULT_CITY);
+  }
+
+  async function handleSearch() {
+    if (consentState !== "accepted" || city === "") {
+      return;
+    }
+
+    setIsSearching(true);
+    setFeedbackDraft(null);
+    setFeedbackMessage("");
+
+    try {
+      const result = await dataProvider.searchJobs({
+        city,
+        keyword: "",
+        categories: [],
+        sort,
+        onlyNew: false
+      });
+
+      setSearchResult(result);
+      setExpandedCompanyId(null);
+      setRowCaps({});
+    } finally {
+      setIsSearching(false);
+    }
+  }
+
+  function toggleCategory(category: string) {
+    setSelectedCategories((current) =>
+      current.includes(category)
+        ? current.filter((entry) => entry !== category)
+        : [...current, category]
     );
   }
 
-  function preventLockedNavigation(event: MouseEvent<HTMLAnchorElement>) {
-    if (isLocked) {
-      event.preventDefault();
+  function toggleCompany(companyId: string) {
+    setExpandedCompanyId((current) => (current === companyId ? null : companyId));
+  }
+
+  function openFeedback(company: SearchCompany, job: SearchCompany["jobs"][number]) {
+    setFeedbackMessage("");
+    setFeedbackDraft({
+      issueType: "",
+      description: "",
+      companyId: company.id,
+      companyName: company.companyName,
+      jobId: job.id,
+      jobTitle: job.title
+    });
+  }
+
+  async function submitFeedback() {
+    if (
+      feedbackDraft === null ||
+      feedbackDraft.issueType.trim() === "" ||
+      feedbackDraft.description.trim() === ""
+    ) {
+      return;
     }
+
+    await dataProvider.submitFeedback({
+      issueType: feedbackDraft.issueType,
+      description: feedbackDraft.description,
+      ...(feedbackDraft.companyId === undefined ? {} : { companyId: feedbackDraft.companyId }),
+      ...(feedbackDraft.jobId === undefined ? {} : { jobId: feedbackDraft.jobId })
+    });
+
+    setFeedbackMessage("反馈已提交，待人工核查。");
+    setFeedbackDraft(null);
+  }
+
+  async function submitRecommendation() {
+    if (recommendCompanyName.trim() === "" || recommendWebsiteUrl.trim() === "") {
+      return;
+    }
+
+    await dataProvider.recommendCompany({
+      companyName: recommendCompanyName.trim(),
+      officialWebsiteUrl: recommendWebsiteUrl.trim()
+    });
+
+    setRecommendMessage("已收到推荐，公司会进入管理员复核队列。");
+    setRecommendCompanyName("");
+    setRecommendWebsiteUrl("");
   }
 
   return (
     <div className="app-shell">
       <main aria-hidden={isLocked ? "true" : undefined} className="workbench">
         <header className="app-header">
-          <h1>Job-search</h1>
-          <span>中国医药官方职位聚合</span>
+          <div>
+            <h1>Job-search</h1>
+            <p>中国医药官方职位聚合</p>
+          </div>
+          <button className="document-trigger" onClick={() => openDocument("privacy")} type="button">
+            <ShieldCheck aria-hidden="true" size={16} />
+            隐私说明
+          </button>
         </header>
 
-        <section aria-label="搜索条件" className="search-panel">
-          <div className="search-controls">
+        <section className="view-strip" aria-label="产品流程">
+          <ViewButton
+            active={activeView === "discover"}
+            icon={<List aria-hidden="true" size={16} />}
+            onClick={() => setActiveView("discover")}
+          >
+            职位发现
+          </ViewButton>
+          <ViewButton
+            active={activeView === "coverage"}
+            icon={<Building2 aria-hidden="true" size={16} />}
+            onClick={() => setActiveView("coverage")}
+          >
+            查看覆盖公司
+          </ViewButton>
+          <ViewButton
+            active={activeView === "recommend"}
+            icon={<Send aria-hidden="true" size={16} />}
+            onClick={() => setActiveView("recommend")}
+          >
+            推荐公司
+          </ViewButton>
+        </section>
+
+        {activeView === "discover" ? (
+          <>
+            <section aria-label="搜索条件" className="panel search-panel">
+              <div className="search-controls">
+                <label className="keyword-field">
+                  <Search aria-hidden="true" size={18} />
+                  <input
+                    aria-label="职位关键词"
+                    onChange={(event) => setKeyword(event.target.value)}
+                    placeholder="职位关键词"
+                    type="search"
+                    value={keyword}
+                  />
+                </label>
+                <button className="search-button" onClick={handleSearch} type="button">
+                  <Search aria-hidden="true" size={16} />
+                  {isSearching ? "搜索中" : "搜索职位"}
+                </button>
+              </div>
+
+              <div className="city-group" role="radiogroup" aria-label="城市">
+                {CITY_OPTIONS.map((option) => (
+                  <label
+                    className={`city-option${city === option ? " is-active" : ""}`}
+                    key={option}
+                  >
+                    <input
+                      checked={city === option}
+                      name="city"
+                      onChange={() => setCity(option)}
+                      type="radio"
+                      value={option}
+                    />
+                    <MapPin aria-hidden="true" size={15} />
+                    <span>{option}</span>
+                  </label>
+                ))}
+              </div>
+
+              <div className="filter-block">
+                <div className="filter-heading">
+                  <SlidersIcon />
+                  <span>筛选条件</span>
+                </div>
+                <div className="category-grid">
+                  {CATEGORY_OPTIONS.map((category) => (
+                    <label className="toggle-chip" key={category}>
+                      <input
+                        checked={selectedCategories.includes(category)}
+                        onChange={() => toggleCategory(category)}
+                        type="checkbox"
+                      />
+                      <span>{category}</span>
+                    </label>
+                  ))}
+                </div>
+                <label className="toggle-row">
+                  <input
+                    checked={onlyNew}
+                    onChange={(event) => setOnlyNew(event.target.checked)}
+                    type="checkbox"
+                  />
+                  <span>只看新增</span>
+                </label>
+                <div className="sort-row" aria-label="排序">
+                  <button
+                    aria-pressed={sort === "PINYIN_ASC"}
+                    className={`sort-button${sort === "PINYIN_ASC" ? " is-active" : ""}`}
+                    onClick={() => setSort("PINYIN_ASC")}
+                    type="button"
+                  >
+                    拼音 A-Z
+                  </button>
+                  <button
+                    aria-pressed={sort === "LATEST"}
+                    className={`sort-button${sort === "LATEST" ? " is-active" : ""}`}
+                    onClick={() => setSort("LATEST")}
+                    type="button"
+                  >
+                    最新发布
+                  </button>
+                  <button
+                    aria-pressed={sort === "JOB_COUNT_DESC"}
+                    className={`sort-button${sort === "JOB_COUNT_DESC" ? " is-active" : ""}`}
+                    onClick={() => setSort("JOB_COUNT_DESC")}
+                    type="button"
+                  >
+                    职位数量
+                  </button>
+                </div>
+              </div>
+            </section>
+
+            <section aria-label="职位概览" className="panel summary-card">
+              <div>
+                <strong>{visibleJobCount} 个职位</strong>
+                <p>{visibleCompanies.length} 家公司</p>
+              </div>
+              <span>最后更新 {formatTimestamp(searchResult?.lastUpdatedAt ?? null)}</span>
+            </section>
+
+            <section aria-label="公司职位列表" className="company-list">
+              {searchResult === null ? (
+                <div className="empty-state">
+                  <BriefcaseBusiness aria-hidden="true" size={18} />
+                  <p>选择城市并搜索后加载官方职位分组结果。</p>
+                </div>
+              ) : visibleCompanies.length === 0 ? (
+                <div className="empty-state">
+                  <Search aria-hidden="true" size={18} />
+                  <p>当前筛选下没有匹配职位。</p>
+                </div>
+              ) : (
+                visibleCompanies.map((company) => {
+                  const isExpanded = expandedCompanyId === company.id;
+                  const cap = rowCaps[company.id] ?? DEFAULT_COMPANY_ROW_CAP;
+                  const visibleJobs = company.jobs.slice(0, cap);
+
+                  return (
+                    <article
+                      className="company-card"
+                      data-testid={`company-${company.id}`}
+                      key={company.id}
+                    >
+                      <button
+                        aria-expanded={isExpanded}
+                        className="company-toggle"
+                        onClick={() => toggleCompany(company.id)}
+                        type="button"
+                      >
+                        <strong>{company.companyName}</strong>
+                        <span>
+                          {company.jobs.length} 个职位
+                          {isExpanded ? (
+                            <ChevronDown aria-hidden="true" size={16} />
+                          ) : (
+                            <ChevronRight aria-hidden="true" size={16} />
+                          )}
+                        </span>
+                      </button>
+
+                      {isExpanded ? (
+                        <div className="job-list">
+                          {visibleJobs.map((job) => (
+                            <div className="job-row" key={job.id}>
+                              <div className="job-copy">
+                                <h2>
+                                  {job.title}
+                                  {job.isNew ? <span className="new-badge">新增</span> : null}
+                                </h2>
+                                <p>{job.officialTitle}</p>
+                                <div className="job-meta">
+                                  <span>
+                                    <MapPin aria-hidden="true" size={14} />
+                                    {job.city}
+                                  </span>
+                                  <span>
+                                    <BriefcaseBusiness aria-hidden="true" size={14} />
+                                    {job.category}
+                                  </span>
+                                </div>
+                              </div>
+                              <div className="job-actions">
+                                <a
+                                  aria-label={`查看官方职位 ${job.title}`}
+                                  className="official-link"
+                                  href={job.officialUrl}
+                                  rel="noreferrer"
+                                  target="_blank"
+                                >
+                                  查看官方职位
+                                  <ExternalLink aria-hidden="true" size={14} />
+                                </a>
+                                <button
+                                  aria-label={`反馈此职位 ${job.title}`}
+                                  className="secondary-button"
+                                  onClick={() => openFeedback(company, job)}
+                                  type="button"
+                                >
+                                  反馈此职位
+                                </button>
+                              </div>
+                            </div>
+                          ))}
+
+                          {company.jobs.length > cap ? (
+                            <button
+                              className="row-cap-button"
+                              onClick={() =>
+                                setRowCaps((current) => ({
+                                  ...current,
+                                  [company.id]: company.jobs.length
+                                }))
+                              }
+                              type="button"
+                            >
+                              查看全部 {company.jobs.length} 个职位
+                            </button>
+                          ) : null}
+                        </div>
+                      ) : null}
+                    </article>
+                  );
+                })
+              )}
+            </section>
+
+            {feedbackDraft !== null ? (
+              <section className="panel feedback-panel" aria-label="职位反馈">
+                <div className="panel-heading">
+                  <MessageSquareWarning aria-hidden="true" size={18} />
+                  <div>
+                    <strong>职位反馈</strong>
+                    <p>
+                      {feedbackDraft.companyName} / {feedbackDraft.jobTitle}
+                    </p>
+                  </div>
+                </div>
+                <label className="form-field">
+                  <span>反馈类型</span>
+                  <select
+                    aria-label="反馈类型"
+                    onChange={(event) =>
+                      setFeedbackDraft((current) =>
+                        current === null ? current : { ...current, issueType: event.target.value }
+                      )
+                    }
+                    value={feedbackDraft.issueType}
+                  >
+                    <option value="">请选择</option>
+                    <option value="职位信息有误">职位信息有误</option>
+                    <option value="链接不可用">链接不可用</option>
+                    <option value="重复职位">重复职位</option>
+                  </select>
+                </label>
+                <label className="form-field">
+                  <span>反馈内容</span>
+                  <textarea
+                    aria-label="反馈内容"
+                    onChange={(event) =>
+                      setFeedbackDraft((current) =>
+                        current === null ? current : { ...current, description: event.target.value }
+                      )
+                    }
+                    rows={3}
+                    value={feedbackDraft.description}
+                  />
+                </label>
+                <div className="panel-actions">
+                  <button className="secondary-button" onClick={() => setFeedbackDraft(null)} type="button">
+                    取消
+                  </button>
+                  <button className="primary-button" onClick={submitFeedback} type="button">
+                    提交反馈
+                  </button>
+                </div>
+              </section>
+            ) : null}
+
+            {feedbackMessage !== "" ? (
+              <p className="success-banner">
+                <CheckCircle2 aria-hidden="true" size={16} />
+                {feedbackMessage}
+              </p>
+            ) : null}
+          </>
+        ) : null}
+
+        {activeView === "coverage" ? (
+          <section className="panel stacked-panel" aria-label="公司覆盖">
+            <div className="panel-heading">
+              <Building2 aria-hidden="true" size={18} />
+              <div>
+                <strong>已覆盖公司</strong>
+                <p>仅展示公司名称与官网入口。</p>
+              </div>
+            </div>
             <label className="keyword-field">
-              <Search aria-hidden="true" size={19} />
+              <Search aria-hidden="true" size={18} />
               <input
-                disabled={isLocked}
-                onChange={(event) => {
-                  setKeyword(event.target.value);
-                  setExpandedCompanyId(null);
-                }}
-                placeholder="职位关键词，如：医学代表、药物警戒"
+                aria-label="搜索已覆盖公司"
+                onChange={(event) => setCoverageKeyword(event.target.value)}
+                placeholder="搜索已覆盖公司"
                 type="search"
-                value={keyword}
+                value={coverageKeyword}
               />
             </label>
-            <button className="city-button" disabled={isLocked} type="button">
-              <MapPin aria-hidden="true" size={18} />
-              {DEFAULT_CITY}
-              <ChevronDown aria-hidden="true" size={17} />
-            </button>
-            <button className="filter-button" disabled={isLocked} type="button">
-              <SlidersHorizontal aria-hidden="true" size={20} />
-              筛选
-            </button>
-          </div>
+            <div className="coverage-list">
+              {coverageLoading ? (
+                <p className="muted-copy">加载中...</p>
+              ) : (
+                coverageResults.map((company) => (
+                  <article className="coverage-row" key={company.id}>
+                    <strong>{company.companyName}</strong>
+                    <a href={company.officialWebsiteUrl} rel="noreferrer" target="_blank">
+                      {company.officialWebsiteUrl}
+                    </a>
+                  </article>
+                ))
+              )}
+            </div>
+          </section>
+        ) : null}
 
-          <div className="chip-toolbar">
-            <div className="chip-row" aria-label="已选条件">
-              {showsSalesChip ? (
-                <button
-                  className="filter-chip"
-                  disabled={isLocked}
-                  onClick={() => setShowsSalesChip(false)}
-                  type="button"
-                >
-                  销售
-                  <X aria-hidden="true" size={14} />
-                </button>
-              ) : null}
-              {showsMslChip ? (
-                <button
-                  className="filter-chip"
-                  disabled={isLocked}
-                  onClick={() => setShowsMslChip(false)}
-                  type="button"
-                >
-                  MSL
-                  <X aria-hidden="true" size={14} />
-                </button>
-              ) : null}
-              {showsOnlyNewChip ? (
-                <button
-                  className="filter-chip"
-                  disabled={isLocked}
-                  onClick={() => setShowsOnlyNewChip(false)}
-                  type="button"
-                >
-                  只看新增
-                  <X aria-hidden="true" size={14} />
-                </button>
-              ) : null}
-              <button className="clear-button" disabled={isLocked} onClick={clearFilters} type="button">
-                清空
+        {activeView === "recommend" ? (
+          <section className="panel stacked-panel" aria-label="推荐公司">
+            <div className="panel-heading">
+              <Send aria-hidden="true" size={18} />
+              <div>
+                <strong>推荐公司</strong>
+                <p>补充未覆盖但有官方招聘入口的药企。</p>
+              </div>
+            </div>
+            <label className="form-field">
+              <span>公司名称</span>
+              <input
+                aria-label="公司名称"
+                onChange={(event) => setRecommendCompanyName(event.target.value)}
+                type="text"
+                value={recommendCompanyName}
+              />
+            </label>
+            <label className="form-field">
+              <span>官网链接</span>
+              <input
+                aria-label="官网链接"
+                onChange={(event) => setRecommendWebsiteUrl(event.target.value)}
+                type="url"
+                value={recommendWebsiteUrl}
+              />
+            </label>
+            <div className="panel-actions">
+              <button className="primary-button" onClick={submitRecommendation} type="button">
+                提交推荐
               </button>
             </div>
-            <button className="collapse-filter" disabled={isLocked} type="button">
-              收起筛选
-              <ChevronDown aria-hidden="true" size={15} />
-            </button>
-          </div>
-        </section>
-
-        <section aria-label="职位概览" className="summary-card">
-          <div className="summary-left">
-            <div className="summary-count">
-              <span>{summaryJobCount}</span>
-              <small>个职位</small>
-            </div>
-            <p>
-              <strong>{summaryCompanyCount} 家公司</strong>
-              <span aria-hidden="true" className="summary-divider" />
-              <span>全站最后抓取 {GLOBAL_LAST_FETCHED}</span>
-            </p>
-          </div>
-          <button className="sort-button" disabled={isLocked} type="button">
-            排序：拼音 A-Z
-            <ChevronDown aria-hidden="true" size={16} />
-          </button>
-        </section>
-
-        <section aria-label="公司职位列表" className="company-list">
-          {companyResults.map((company) => {
-            const isExpanded = expandedCompanyId === company.id;
-            const countLabel = hasKeyword ? `${company.jobs.length} 个职位` : company.countLabel;
-
-            return (
-              <article className="company-row" key={company.id}>
-                <button
-                  aria-expanded={isExpanded}
-                  className="company-toggle"
-                  disabled={isLocked}
-                  onClick={() => toggleCompany(company.id)}
-                  type="button"
-                >
-                  <strong>{company.companyName}</strong>
-                  <span>
-                    {countLabel}
-                    {isExpanded ? (
-                      <ChevronDown aria-hidden="true" size={18} />
-                    ) : (
-                      <ChevronRight aria-hidden="true" size={18} />
-                    )}
-                  </span>
-                </button>
-
-                {isExpanded && company.jobs.length > 0 ? (
-                  <div className="job-list">
-                    {company.jobs.map((job) => (
-                      <div className="job-row" key={job.id}>
-                        <div className="job-copy">
-                          <h2>
-                            {job.title}
-                            {job.isNew ? <span className="new-badge">新增</span> : null}
-                          </h2>
-                          <p>{job.officialTitle}</p>
-                          <div className="job-meta" aria-label="职位基本信息">
-                            <span>
-                              <MapPin aria-hidden="true" size={15} />
-                              {job.city}
-                            </span>
-                            <span aria-hidden="true" className="meta-divider" />
-                            <span>
-                              <BriefcaseBusiness aria-hidden="true" size={15} />
-                              {job.category}
-                            </span>
-                          </div>
-                        </div>
-                        <a
-                          className="official-link"
-                          href={job.officialUrl}
-                          onClick={preventLockedNavigation}
-                          rel="noreferrer"
-                          target="_blank"
-                        >
-                          查看官方职位
-                          <ExternalLink aria-hidden="true" size={14} />
-                        </a>
-                      </div>
-                    ))}
-                  </div>
-                ) : null}
-              </article>
-            );
-          })}
-        </section>
-
-        <nav aria-label="底部导航" className="bottom-nav">
-          <button aria-current="page" disabled={isLocked} type="button">
-            <List aria-hidden="true" size={22} />
-            <span>职位发现</span>
-          </button>
-          <button disabled={isLocked} type="button">
-            <User aria-hidden="true" size={22} />
-            <span>我的</span>
-          </button>
-        </nav>
+            {recommendMessage !== "" ? (
+              <p className="success-banner">
+                <CheckCircle2 aria-hidden="true" size={16} />
+                {recommendMessage}
+              </p>
+            ) : null}
+          </section>
+        ) : null}
       </main>
 
       {consentState === "pending" ? (
         <div className="modal-overlay">
           <section aria-label="使用前确认" className="consent-modal" role="dialog">
-            <button
-              aria-label="关闭确认弹窗"
-              className="modal-close"
-              onClick={closeConsent}
-              type="button"
-            >
-              <X aria-hidden="true" size={17} />
+            <button aria-label="关闭确认弹窗" className="icon-button" onClick={closeConsent} type="button">
+              <X aria-hidden="true" size={16} />
             </button>
             <h2>使用前确认</h2>
-            <span className="modal-accent" />
-            <p>为使用职位搜索服务，请先同意隐私政策和服务条款。</p>
+            <p>先完成同意，前台才会请求职位搜索结果。</p>
             <label className="consent-check">
               <input
                 checked={hasCheckedConsent}
@@ -405,20 +723,30 @@ export function App() {
               />
               <span>
                 我已阅读并同意
-                <a href="/privacy" onClick={(event) => event.preventDefault()}>
-                  《隐私政策》
+                <a
+                  className="inline-link"
+                  href="/privacy"
+                  onClick={(event) => {
+                    event.preventDefault();
+                    void openDocument("privacy");
+                  }}
+                >
+                  隐私政策
                 </a>
-                <a href="/terms" onClick={(event) => event.preventDefault()}>
-                  《服务条款》
+                和
+                <a
+                  className="inline-link"
+                  href="/terms"
+                  onClick={(event) => {
+                    event.preventDefault();
+                    void openDocument("terms");
+                  }}
+                >
+                  服务条款
                 </a>
               </span>
             </label>
-            <button
-              className="enter-button"
-              disabled={!hasCheckedConsent}
-              onClick={acceptConsent}
-              type="button"
-            >
+            <button className="primary-button large-button" disabled={!hasCheckedConsent} onClick={acceptConsent} type="button">
               进入 Job-search
             </button>
           </section>
@@ -429,13 +757,42 @@ export function App() {
         <div className="locked-overlay">
           <section aria-label="页面已锁定" className="locked-panel">
             <h2>使用前请先完成确认</h2>
-            <p>关闭确认弹窗后，页面会保持锁定。重新打开并勾选同意后才能进入。</p>
-            <button onClick={reopenConsent} type="button">
+            <p>关闭确认后，职位搜索会保持锁定。</p>
+            <button className="primary-button" onClick={() => setConsentState("pending")} type="button">
               重新打开确认
             </button>
+            <button className="secondary-button" onClick={() => openDocument("privacy")} type="button">
+              查看隐私说明
+            </button>
+            <button className="secondary-button" onClick={() => openDocument("terms")} type="button">
+              查看使用条款
+            </button>
+          </section>
+        </div>
+      ) : null}
+
+      {document !== null || documentLoading !== null ? (
+        <div className="modal-overlay">
+          <section aria-label="文档内容" className="document-modal" role="dialog">
+            <button aria-label="关闭文档" className="icon-button" onClick={() => setDocument(null)} type="button">
+              <X aria-hidden="true" size={16} />
+            </button>
+            <div className="panel-heading">
+              <FileText aria-hidden="true" size={18} />
+              <div>
+                <h2>{document?.title ?? "加载中"}</h2>
+              </div>
+            </div>
+            <div className="document-body">
+              {documentLoading !== null ? documentLoading : document?.body}
+            </div>
           </section>
         </div>
       ) : null}
     </div>
   );
+}
+
+function SlidersIcon() {
+  return <BriefcaseBusiness aria-hidden="true" size={16} />;
 }

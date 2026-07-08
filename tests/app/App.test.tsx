@@ -1,119 +1,339 @@
 /**
  * @vitest-environment jsdom
  */
-import { cleanup, render, screen } from "@testing-library/react";
+import { cleanup, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it } from "vitest";
 import { App } from "../../src/app/App";
+import type {
+  AppDataProvider,
+  CoverageResult,
+  FeedbackReceipt,
+  SearchResult,
+  StaticDocumentResult
+} from "../../src/app/appDataProvider";
 
 afterEach(() => {
   cleanup();
 });
 
-describe("Job-search frontend app", () => {
+function createRecordingProvider() {
+  const searchCalls: unknown[] = [];
+  const coverageCalls: unknown[] = [];
+  const feedbackCalls: unknown[] = [];
+  const recommendationCalls: unknown[] = [];
+  const documentCalls: string[] = [];
+
+  const searchResult: SearchResult = {
+    companies: [
+      {
+        id: "astrazeneca",
+        companyName: "阿斯利康",
+        pinyin: "a si li kang",
+        jobs: [
+          {
+            id: "az-msl-1",
+            title: "医学科学联络官",
+            officialTitle: "Medical Science Liaison",
+            officialPublishedAt: "2026-07-08T08:00:00.000Z",
+            city: "北京",
+            category: "医学事务",
+            isNew: true,
+            officialUrl: "https://careers.astrazeneca.com.cn/msl"
+          },
+          {
+            id: "az-sales-1",
+            title: "区域销售经理",
+            officialTitle: "Regional Sales Manager",
+            officialPublishedAt: "2026-07-07T08:00:00.000Z",
+            city: "北京",
+            category: "销售",
+            isNew: true,
+            officialUrl: "https://careers.astrazeneca.com.cn/sales"
+          },
+          {
+            id: "az-access-1",
+            title: "市场准入经理",
+            officialTitle: "Market Access Manager",
+            officialPublishedAt: "2026-07-06T08:00:00.000Z",
+            city: "北京",
+            category: "市场准入",
+            isNew: false,
+            officialUrl: "https://careers.astrazeneca.com.cn/access"
+          },
+          {
+            id: "az-medical-1",
+            title: "医学顾问",
+            officialTitle: "Medical Advisor",
+            officialPublishedAt: "2026-07-05T08:00:00.000Z",
+            city: "北京",
+            category: "医学事务",
+            isNew: false,
+            officialUrl: "https://careers.astrazeneca.com.cn/advisor"
+          }
+        ]
+      },
+      {
+        id: "pfizer",
+        companyName: "辉瑞",
+        pinyin: "hui rui",
+        jobs: [
+          {
+            id: "pfizer-msl-1",
+            title: "肿瘤 MSL",
+            officialTitle: "Oncology MSL",
+            officialPublishedAt: "2026-07-08T07:00:00.000Z",
+            city: "北京",
+            category: "医学事务",
+            isNew: true,
+            officialUrl: "https://www.pfizer.com.cn/careers/msl"
+          },
+          {
+            id: "pfizer-sales-1",
+            title: "地区销售主管",
+            officialTitle: "Area Sales Lead",
+            officialPublishedAt: "2026-07-04T08:00:00.000Z",
+            city: "北京",
+            category: "销售",
+            isNew: false,
+            officialUrl: "https://www.pfizer.com.cn/careers/sales"
+          }
+        ]
+      }
+    ],
+    totalJobs: 6,
+    lastUpdatedAt: "2026-07-08T09:00:00.000Z"
+  };
+
+  const coverageResult: CoverageResult = {
+    companies: [
+      {
+        id: "astrazeneca",
+        companyName: "阿斯利康",
+        officialWebsiteUrl: "https://www.astrazeneca.com.cn/"
+      },
+      {
+        id: "pfizer",
+        companyName: "辉瑞",
+        officialWebsiteUrl: "https://www.pfizer.com.cn/"
+      }
+    ],
+    offset: 0,
+    limit: 50,
+    hasMore: false
+  };
+
+  const receipt: FeedbackReceipt = { id: "receipt-1", status: "OPEN" };
+
+  const documents: Record<"privacy" | "terms", StaticDocumentResult> = {
+    privacy: {
+      slug: "privacy",
+      title: "隐私说明",
+      body: "本服务在用户明确同意前，不提供职位搜索。"
+    },
+    terms: {
+      slug: "terms",
+      title: "使用条款",
+      body: "本服务仅用于求职信息查询与纠错反馈。"
+    }
+  };
+
+  const provider: AppDataProvider = {
+    async searchJobs(request) {
+      searchCalls.push(request);
+      return searchResult;
+    },
+    async listCoverage(request) {
+      coverageCalls.push(request);
+      return coverageResult;
+    },
+    async submitFeedback(request) {
+      feedbackCalls.push(request);
+      return receipt;
+    },
+    async recommendCompany(request) {
+      recommendationCalls.push(request);
+      return receipt;
+    },
+    async getDocument(slug) {
+      documentCalls.push(slug);
+      return documents[slug];
+    }
+  };
+
+  return {
+    provider,
+    searchCalls,
+    coverageCalls,
+    feedbackCalls,
+    recommendationCalls,
+    documentCalls
+  };
+}
+
+describe("App product flows", () => {
   async function acceptConsent(user: ReturnType<typeof userEvent.setup>) {
     await user.click(screen.getByRole("checkbox", { name: /我已阅读并同意/ }));
     await user.click(screen.getByRole("button", { name: "进入 Job-search" }));
   }
 
-  it("shows a first-visit consent modal and locks the page until consent is accepted", async () => {
+  async function runBeijingSearch(user: ReturnType<typeof userEvent.setup>) {
+    await user.click(screen.getByRole("radio", { name: "北京" }));
+    await user.click(screen.getByRole("button", { name: "搜索职位" }));
+  }
+
+  it("keeps search locked before consent and allows privacy and terms before search", async () => {
     const user = userEvent.setup();
-    render(<App />);
+    const recording = createRecordingProvider();
+    render(<App dataProvider={recording.provider} />);
 
     expect(screen.getByRole("dialog", { name: "使用前确认" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "进入 Job-search" })).toBeDisabled();
-    expect(screen.getByRole("main", { hidden: true })).toHaveAttribute("aria-hidden", "true");
+    expect(recording.searchCalls).toHaveLength(0);
 
-    await user.click(screen.getByRole("checkbox", { name: /我已阅读并同意/ }));
-    await user.click(screen.getByRole("button", { name: "进入 Job-search" }));
+    await user.click(screen.getByRole("link", { name: "隐私政策" }));
+    expect(await screen.findByRole("heading", { name: "隐私说明" })).toBeInTheDocument();
+    expect(recording.documentCalls).toContain("privacy");
+    expect(recording.searchCalls).toHaveLength(0);
+    await user.click(screen.getByRole("button", { name: "关闭文档" }));
 
-    expect(screen.queryByRole("dialog", { name: "使用前确认" })).not.toBeInTheDocument();
-    expect(screen.getByRole("main")).not.toHaveAttribute("aria-hidden", "true");
-  });
-
-  it("keeps the page unusable when the consent modal is closed", async () => {
-    const user = userEvent.setup();
-    render(<App />);
+    await user.click(screen.getByRole("link", { name: "服务条款" }));
+    expect(await screen.findByRole("heading", { name: "使用条款" })).toBeInTheDocument();
+    expect(recording.documentCalls).toContain("terms");
+    expect(recording.searchCalls).toHaveLength(0);
+    await user.click(screen.getByRole("button", { name: "关闭文档" }));
 
     await user.click(screen.getByRole("button", { name: "关闭确认弹窗" }));
-
-    expect(screen.queryByRole("dialog", { name: "使用前确认" })).not.toBeInTheDocument();
     expect(screen.getByText("使用前请先完成确认")).toBeInTheDocument();
-    expect(screen.getByRole("main", { hidden: true })).toHaveAttribute("aria-hidden", "true");
-
-    await user.click(screen.getByRole("button", { name: "重新打开确认" }));
-    expect(screen.getByRole("dialog", { name: "使用前确认" })).toBeInTheDocument();
-
-    await acceptConsent(user);
-    expect(screen.queryByRole("dialog", { name: "使用前确认" })).not.toBeInTheDocument();
-    expect(screen.getByRole("main")).not.toHaveAttribute("aria-hidden", "true");
+    expect(screen.getByRole("button", { name: "重新打开确认" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "查看隐私说明" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "查看使用条款" })).toBeInTheDocument();
+    expect(recording.searchCalls).toHaveLength(0);
   });
 
-  it("renders the selected search workbench content after consent", async () => {
+  it("loads grouped Beijing results after consent and updates by category and keyword", async () => {
     const user = userEvent.setup();
-    render(<App />);
+    const recording = createRecordingProvider();
+    render(<App dataProvider={recording.provider} />);
 
     await acceptConsent(user);
+    await runBeijingSearch(user);
 
-    expect(screen.getByText("Job-search")).toBeInTheDocument();
-    expect(screen.getByPlaceholderText("职位关键词，如：医学代表、药物警戒")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /北京/ })).toBeInTheDocument();
-    expect(screen.getByText("全站最后抓取 2026-07-07 08:00")).toBeInTheDocument();
-    expect(screen.getByText("128")).toBeInTheDocument();
-    expect(screen.getByText("5 家公司")).toBeInTheDocument();
-    expect(screen.getByRole("navigation", { name: "底部导航" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "职位发现" })).toHaveAttribute(
-      "aria-current",
-      "page"
-    );
-    expect(screen.getByRole("button", { name: "我的" })).toBeInTheDocument();
+    expect(recording.searchCalls).toHaveLength(1);
+    expect(recording.searchCalls[0]).toMatchObject({
+      city: "北京",
+      keyword: "",
+      categories: [],
+      sort: "PINYIN_ASC",
+      onlyNew: false
+    });
+
+    expect(await screen.findByText("阿斯利康")).toBeInTheDocument();
+    expect(screen.getByText("辉瑞")).toBeInTheDocument();
+    expect(screen.getByText("6 个职位")).toBeInTheDocument();
+
+    await user.click(screen.getByRole("checkbox", { name: "医学事务" }));
+    await user.type(screen.getByPlaceholderText("职位关键词"), "MSL");
+
+    await waitFor(() => {
+      expect(screen.getByText("辉瑞")).toBeInTheDocument();
+      expect(screen.queryByText("阿斯利康")).not.toBeInTheDocument();
+      expect(screen.queryByText("区域销售经理")).not.toBeInTheDocument();
+    });
+
+    await user.click(screen.getByRole("button", { name: /辉瑞/ }));
+    expect(screen.getByText("肿瘤 MSL")).toBeInTheDocument();
   });
 
-  it("renders the visual reference default chips and expanded company", async () => {
+  it("shows official job links and per-company cap control when expanding a company", async () => {
     const user = userEvent.setup();
-    render(<App />);
+    const recording = createRecordingProvider();
+    render(<App dataProvider={recording.provider} />);
 
     await acceptConsent(user);
+    await runBeijingSearch(user);
 
-    expect(screen.getByRole("button", { name: /销售/ })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /MSL/ })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /只看新增/ })).toBeInTheDocument();
+    await user.click(await screen.findByRole("button", { name: /阿斯利康/ }));
 
-    const pfizer = screen.getByRole("button", { name: /辉瑞/ });
-    expect(pfizer).toHaveAttribute("aria-expanded", "true");
-
-    expect(screen.getByText("医学信息沟通专员（呼吸领域）")).toBeInTheDocument();
-    expect(screen.getByText("医学科学联络官（肿瘤领域）")).toBeInTheDocument();
-  });
-
-  it("filters jobs by keyword after clearing optional chips and expands companies", async () => {
-    const user = userEvent.setup();
-    render(<App />);
-
-    await acceptConsent(user);
-    await user.click(screen.getByRole("button", { name: "清空" }));
-    await user.clear(screen.getByPlaceholderText("职位关键词，如：医学代表、药物警戒"));
-    await user.type(screen.getByPlaceholderText("职位关键词，如：医学代表、药物警戒"), "MSL");
-
-    const pfizer = screen.getByRole("button", { name: /辉瑞/ });
-    await user.click(pfizer);
-
-    expect(screen.getByText("医学科学联络官（肿瘤领域）")).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "查看官方职位" })).toHaveAttribute(
+    const companyCard = screen.getByTestId("company-astrazeneca");
+    expect(within(companyCard).getByText("医学科学联络官")).toBeInTheDocument();
+    expect(within(companyCard).getByRole("link", { name: "查看官方职位 医学科学联络官" })).toHaveAttribute(
       "href",
-      expect.stringContaining("pfizer")
+      "https://careers.astrazeneca.com.cn/msl"
     );
+    expect(within(companyCard).queryByText("医学顾问")).not.toBeInTheDocument();
+
+    await user.click(within(companyCard).getByRole("button", { name: "查看全部 4 个职位" }));
+    expect(within(companyCard).getByText("医学顾问")).toBeInTheDocument();
   });
 
-  it("clears selected filters without resetting the required city", async () => {
+  it("shows coverage search with company names and official website links only", async () => {
     const user = userEvent.setup();
-    render(<App />);
+    const recording = createRecordingProvider();
+    render(<App dataProvider={recording.provider} />);
 
     await acceptConsent(user);
-    await user.click(screen.getByRole("button", { name: "清空" }));
+    await user.click(screen.getByRole("button", { name: "查看覆盖公司" }));
+    await user.type(screen.getByPlaceholderText("搜索已覆盖公司"), "辉");
 
-    expect(screen.queryByText("MSL")).not.toBeInTheDocument();
-    expect(screen.queryByText("只看新增")).not.toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /北京/ })).toBeInTheDocument();
+    await waitFor(() => {
+      expect(recording.coverageCalls.at(-1)).toMatchObject({ keyword: "辉" });
+    });
+
+    expect(await screen.findByText("辉瑞")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "https://www.pfizer.com.cn/" })).toHaveAttribute(
+      "href",
+      "https://www.pfizer.com.cn/"
+    );
+    expect(screen.queryByText("医学科学联络官")).not.toBeInTheDocument();
+  });
+
+  it("submits contextual feedback with company and job ids", async () => {
+    const user = userEvent.setup();
+    const recording = createRecordingProvider();
+    render(<App dataProvider={recording.provider} />);
+
+    await acceptConsent(user);
+    await runBeijingSearch(user);
+    await user.click(await screen.findByRole("button", { name: /辉瑞/ }));
+    await user.click(screen.getByRole("button", { name: "反馈此职位 肿瘤 MSL" }));
+    await user.selectOptions(screen.getByLabelText("反馈类型"), "职位信息有误");
+    await user.type(screen.getByLabelText("反馈内容"), "职位链接跳转错误");
+    await user.click(screen.getByRole("button", { name: "提交反馈" }));
+
+    await waitFor(() => {
+      expect(recording.feedbackCalls).toEqual([
+        {
+          issueType: "职位信息有误",
+          description: "职位链接跳转错误",
+          companyId: "pfizer",
+          jobId: "pfizer-msl-1"
+        }
+      ]);
+    });
+
+    expect(await screen.findByText("反馈已提交，待人工核查。")).toBeInTheDocument();
+  });
+
+  it("submits a recommended company and returns the admin review message", async () => {
+    const user = userEvent.setup();
+    const recording = createRecordingProvider();
+    render(<App dataProvider={recording.provider} />);
+
+    await acceptConsent(user);
+    await user.click(screen.getByRole("button", { name: "推荐公司" }));
+    await user.type(screen.getByLabelText("公司名称"), "礼来");
+    await user.type(screen.getByLabelText("官网链接"), "https://www.lilly.com/cn");
+    await user.click(screen.getByRole("button", { name: "提交推荐" }));
+
+    await waitFor(() => {
+      expect(recording.recommendationCalls).toEqual([
+        {
+          companyName: "礼来",
+          officialWebsiteUrl: "https://www.lilly.com/cn"
+        }
+      ]);
+    });
+
+    expect(await screen.findByText("已收到推荐，公司会进入管理员复核队列。")).toBeInTheDocument();
   });
 });
