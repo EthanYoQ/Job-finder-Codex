@@ -11,10 +11,9 @@ import {
 import { runP0CrawlBatch } from "../src/crawler/runCrawlBatch";
 import { createMokaSourceFetch } from "../src/crawler/mokaSourceFetch";
 import { createHttpHtmlSourceFetch } from "../src/crawler/httpHtmlSourceFetch";
+import { createUnsupportedSourceFetch } from "../src/crawler/unsupportedSourceFetch";
 import { createSourceFetchRouter } from "../src/crawler/sourceFetchRouter";
 import { buildSourceCrawlPlans } from "../src/crawler/sourcePlan";
-import { createTavilyKeyRing } from "../src/crawler/tavily";
-import { createTavilySourceFetch } from "../src/crawler/tavilySourceFetch";
 
 function printHelp(): void {
   console.log("Usage: npm run p0:crawl -- [--source-id <sourceId>] [--force]");
@@ -22,16 +21,6 @@ function printHelp(): void {
   console.log("Runs configured P0 official-source crawl plans and persists observations to PostgreSQL.");
   console.log("Use --source-id more than once to run selected sources only.");
   console.log("Use --force to bypass the schedule gate for manual validation crawls.");
-}
-
-function readTavilyKeys(env: NodeJS.ProcessEnv): string[] {
-  return [
-    ...(env.TAVILY_API_KEYS ?? "")
-      .split(",")
-      .map((value) => value.trim())
-      .filter(Boolean),
-    ...(env.TAVILY_API_KEY ? [env.TAVILY_API_KEY] : [])
-  ];
 }
 
 let options: ReturnType<typeof parseP0CrawlArgs>;
@@ -56,16 +45,10 @@ try {
   console.error(error instanceof Error ? error.message : String(error));
   process.exit(2);
 }
-let tavilyFetch: ReturnType<typeof createTavilySourceFetch> | undefined;
 const fetch = createSourceFetchRouter({
   moka: createMokaSourceFetch(),
   html: createHttpHtmlSourceFetch(),
-  fallback: (plan) => {
-    tavilyFetch ??= createTavilySourceFetch({
-      keyRing: createTavilyKeyRing(readTavilyKeys(process.env))
-    });
-    return tavilyFetch(plan);
-  }
+  fallback: createUnsupportedSourceFetch()
 });
 
 const prisma = new PrismaClient();

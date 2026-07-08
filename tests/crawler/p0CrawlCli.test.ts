@@ -51,6 +51,13 @@ describe("P0 crawl CLI", () => {
     expect(output).not.toMatch(/tvly-dev-[A-Za-z0-9_-]+/);
   });
 
+  it("does not advertise Tavily as a formal readiness evidence fetcher", () => {
+    const output = runCli(["--help"]);
+
+    expect(output).toContain("Runs configured P0 official-source crawl plans");
+    expect(output).not.toContain("Tavily-backed readiness");
+  });
+
   it("validates source ids before requiring Tavily credentials", () => {
     const output = runCliExpectingFailure(["--source-id", "missing-source"]);
 
