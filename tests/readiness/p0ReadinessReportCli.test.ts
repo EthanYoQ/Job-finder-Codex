@@ -28,4 +28,21 @@ describe("P0 readiness CLI", () => {
     expect(output).toContain("VERIFIED_COMPANIES_BELOW_50");
     expect(output).not.toMatch(/tvly-dev-[A-Za-z0-9_-]+/);
   });
+
+  it("prints usage for the database readiness mode without exposing secrets", () => {
+    const output = execFileSync(
+      process.platform === "win32" ? "cmd.exe" : "npx",
+      process.platform === "win32"
+        ? ["/d", "/s", "/c", "npx", "tsx", "scripts/p0-readiness-report.ts", "--help"]
+        : ["tsx", "scripts/p0-readiness-report.ts", "--help"],
+      {
+        cwd: process.cwd(),
+        encoding: "utf8"
+      }
+    );
+
+    expect(output).toContain("Usage: npm run p0:readiness -- [--db]");
+    expect(output).toContain("--db");
+    expect(output).not.toMatch(/tvly-dev-[A-Za-z0-9_-]+/);
+  });
 });
