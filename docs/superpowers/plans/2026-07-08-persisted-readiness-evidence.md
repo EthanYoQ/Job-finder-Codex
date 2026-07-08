@@ -34,7 +34,7 @@
   - `PersistedReadinessCompanyRow`
   - `toP0ReadinessInput(rows: readonly PersistedReadinessCompanyRow[]): P0ReadinessInput`
 
-- [ ] **Step 1: Write the failing mapper test**
+- [x] **Step 1: Write the failing mapper test**
 
 Create `tests/readiness/persistedReadiness.test.ts`:
 
@@ -151,13 +151,13 @@ describe("persisted readiness mapper", () => {
 });
 ```
 
-- [ ] **Step 2: Run the focused test and verify it fails**
+- [x] **Step 2: Run the focused test and verify it fails**
 
 Run: `npm test -- tests/readiness/persistedReadiness.test.ts`
 
 Expected: FAIL because `src/readiness/persistedReadiness.ts` and `fromPrismaRequiredJobField` do not exist.
 
-- [ ] **Step 3: Add reverse required-field mapper**
+- [x] **Step 3: Add reverse required-field mapper**
 
 Modify `src/db/prismaMappers.ts`:
 
@@ -177,7 +177,7 @@ export function fromPrismaRequiredJobField(
 }
 ```
 
-- [ ] **Step 4: Implement persisted mapper**
+- [x] **Step 4: Implement persisted mapper**
 
 Create `src/readiness/persistedReadiness.ts`:
 
@@ -268,7 +268,7 @@ function toCandidateCompany(row: PersistedReadinessCompanyRow): CandidateCompany
 }
 ```
 
-- [ ] **Step 5: Run focused verification**
+- [x] **Step 5: Run focused verification**
 
 Run: `npm test -- tests/readiness/persistedReadiness.test.ts`
 
@@ -278,7 +278,7 @@ Run: `npm run typecheck`
 
 Expected: PASS.
 
-- [ ] **Step 6: Commit Task 1**
+- [x] **Step 6: Commit Task 1**
 
 Run:
 
@@ -299,7 +299,7 @@ git commit -m "feat: map persisted readiness evidence"
   - `P0ReadinessPrismaDb`
   - `getP0ReadinessReportFromDb(db: P0ReadinessPrismaDb): Promise<P0ReadinessReport>`
 
-- [ ] **Step 1: Write the failing DB report test**
+- [x] **Step 1: Write the failing DB report test**
 
 Create `tests/readiness/prismaReadiness.test.ts`:
 
@@ -377,13 +377,13 @@ describe("Prisma readiness report", () => {
 });
 ```
 
-- [ ] **Step 2: Run focused test and verify it fails**
+- [x] **Step 2: Run focused test and verify it fails**
 
 Run: `npm test -- tests/readiness/prismaReadiness.test.ts`
 
 Expected: FAIL because `src/readiness/prismaReadiness.ts` does not exist.
 
-- [ ] **Step 3: Implement Prisma report**
+- [x] **Step 3: Implement Prisma report**
 
 Create `src/readiness/prismaReadiness.ts`:
 
@@ -435,7 +435,7 @@ export async function getP0ReadinessReportFromDb(
 }
 ```
 
-- [ ] **Step 4: Run focused verification**
+- [x] **Step 4: Run focused verification**
 
 Run: `npm test -- tests/readiness/prismaReadiness.test.ts tests/readiness/persistedReadiness.test.ts`
 
@@ -445,7 +445,7 @@ Run: `npm run typecheck`
 
 Expected: PASS.
 
-- [ ] **Step 5: Commit Task 2**
+- [x] **Step 5: Commit Task 2**
 
 Run:
 
@@ -464,7 +464,7 @@ git commit -m "feat: add database readiness report"
 - Consumes: `getP0ReadinessReportFromDb(db)`.
 - Produces: `npm run p0:readiness -- --db` database-backed mode.
 
-- [ ] **Step 1: Add CLI behavior tests**
+- [x] **Step 1: Add CLI behavior tests**
 
 Modify `tests/readiness/p0ReadinessReportCli.test.ts` by adding:
 
@@ -487,13 +487,13 @@ Modify `tests/readiness/p0ReadinessReportCli.test.ts` by adding:
   });
 ```
 
-- [ ] **Step 2: Run focused CLI test and verify it fails**
+- [x] **Step 2: Run focused CLI test and verify it fails**
 
 Run: `npm test -- tests/readiness/p0ReadinessReportCli.test.ts`
 
 Expected: FAIL because `--help` is not implemented.
 
-- [ ] **Step 3: Implement CLI modes**
+- [x] **Step 3: Implement CLI modes**
 
 Modify `scripts/p0-readiness-report.ts`:
 
@@ -555,7 +555,7 @@ function printReport(report: P0ReadinessReport): void {
 }
 ```
 
-- [ ] **Step 4: Run focused verification**
+- [x] **Step 4: Run focused verification**
 
 Run: `npm test -- tests/readiness/p0ReadinessReportCli.test.ts`
 
@@ -569,7 +569,7 @@ Run: `npm run p0:readiness -- --help`
 
 Expected: exits `0` and prints usage.
 
-- [ ] **Step 5: Commit Task 3**
+- [x] **Step 5: Commit Task 3**
 
 Run:
 
@@ -587,7 +587,7 @@ git commit -m "feat: add database readiness CLI mode"
 - Consumes: Tasks 1-3.
 - Produces: completed plan checkboxes only after fresh verification.
 
-- [ ] **Step 1: Run full verification**
+- [x] **Step 1: Run full verification**
 
 Run:
 
@@ -607,11 +607,11 @@ Expected:
 - `npm run p0:readiness -- --help` exits `0`.
 - Tavily key grep has no matches.
 
-- [ ] **Step 2: Mark checkboxes complete**
+- [x] **Step 2: Mark checkboxes complete**
 
 Only after Step 1 verification, change every task checkbox in this plan from `[ ]` to `[x]`.
 
-- [ ] **Step 3: Commit Task 4**
+- [x] **Step 3: Commit Task 4**
 
 Run:
 
