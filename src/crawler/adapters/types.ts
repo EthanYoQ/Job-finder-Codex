@@ -42,10 +42,17 @@ export interface OfficialJsonConfig {
   defaultCategory?: JobCategory;
 }
 
-export interface HtmlFieldSelector {
-  selector: string;
-  attribute?: string;
-}
+export type HtmlFieldSelector =
+  | {
+      selector: string;
+      attribute?: string;
+      value?: never;
+    }
+  | {
+      value: string;
+      selector?: never;
+      attribute?: never;
+    };
 
 export interface HtmlTableFieldMap {
   sourceJobId?: HtmlFieldSelector;

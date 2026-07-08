@@ -262,6 +262,55 @@ describe("crawler source adapters", () => {
     expect(job?.cities).toEqual(["广州"]);
   });
 
+  it("uses a static field value for official URL while preserving per-row ids", () => {
+    const result = htmlTableAdapter.extract({
+      company: {
+        id: "company-grand-pharma-china",
+        officialChineseName: "远大医药（中国）有限公司"
+      },
+      source: {
+        id: "source-grand-pharma-china-social",
+        companyId: "company-grand-pharma-china",
+        kind: "SOCIAL",
+        atsKind: "OFFICIAL_HTML",
+        officialEntryUrl: "https://job.grandpharma.cn/",
+        officialChainEvidenceUrl: "https://job.grandpharma.cn/",
+        status: "VERIFIED_SCRAPABLE"
+      },
+      capturedAt,
+      html: `
+        <div class="jobs">
+          <div class="job-card">
+            <div class="job-title">医学经理</div>
+            <div class="job-meta"><span>武汉</span></div>
+          </div>
+          <div class="job-card">
+            <div class="job-title">招商主管</div>
+            <div class="job-meta"><span>上海</span></div>
+          </div>
+        </div>
+      `,
+      table: {
+        rowSelector: ".job-card",
+        fields: {
+          sourceJobId: { selector: ".job-title" },
+          officialTitle: { selector: ".job-title" },
+          officialUrl: { value: "https://official.example/jobs" },
+          locationRaw: { selector: ".job-meta span:nth-child(1)" }
+        }
+      }
+    });
+
+    const jobs = expectSuccessfulJobs(result);
+    expect(jobs).toHaveLength(2);
+    expect(jobs.map((job) => job.sourceJobId)).toEqual(["医学经理", "招商主管"]);
+    expect(new Set(jobs.map((job) => job.sourceJobId)).size).toBe(2);
+    expect(jobs.map((job) => job.officialUrl)).toEqual([
+      "https://official.example/jobs",
+      "https://official.example/jobs"
+    ]);
+  });
+
   it("normalizes Redsea-style network JSON even when DOM content is empty", () => {
     const result = officialJsonAdapter.extract({
       ...CSPC_METADATA,

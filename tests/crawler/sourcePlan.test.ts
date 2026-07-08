@@ -75,18 +75,26 @@ describe("source crawl planning", () => {
       new Set([
         "source-akeso-social",
         "source-allist-social",
+        "source-alphamab-social",
+        "source-ascentage-social",
         "source-astrazeneca-social",
         "source-novartis-social",
         "source-fosun-pharma-social",
         "source-beigene-social",
         "source-beta-pharma-social",
         "source-cstone-social",
+        "source-grand-pharma-china-social",
         "source-hansoh-social",
         "source-hengrui-social",
+        "source-hisun-social",
+        "source-huahai-social",
+        "source-joincare-social",
         "source-kelun-social",
         "source-kelun-biotech-social",
         "source-kpc-social",
         "source-mabwell-social",
+        "source-nhwa-social",
+        "source-puluo-social",
         "source-rcbio-social",
         "source-sanofi-china-social"
       ])
@@ -337,6 +345,155 @@ describe("source crawl planning", () => {
           cities: "cities"
         },
         defaultCategory: "其他"
+      }
+    });
+  });
+
+  it("configures bulk task 6 static official html source plans", () => {
+    const plans = buildSourceCrawlPlans(candidateCompanies);
+    const byId = new Map(plans.map((plan) => [plan.source.id, plan]));
+
+    expect(byId.get("source-grand-pharma-china-social")).toMatchObject({
+      adapterId: "html-table",
+      source: {
+        atsKind: "OFFICIAL_HTML",
+        officialEntryUrl: "https://job.grandpharma.cn/",
+        officialChainEvidenceUrl: "https://job.grandpharma.cn/"
+      },
+      table: {
+        rowSelector: ".job-card",
+        fields: {
+          sourceJobId: { selector: ".job-title" },
+          officialTitle: { selector: ".job-title" },
+          officialUrl: { value: "https://job.grandpharma.cn/" },
+          locationRaw: { selector: ".job-meta span:nth-child(1)" }
+        }
+      }
+    });
+
+    expect(byId.get("source-joincare-social")).toMatchObject({
+      adapterId: "html-table",
+      source: {
+        atsKind: "OFFICIAL_HTML",
+        officialEntryUrl: "https://www.joincare.com/Social_recruitment.html",
+        officialChainEvidenceUrl: "https://www.joincare.com/Social_recruitment.html"
+      },
+      table: {
+        rowSelector: ".job_item",
+        fields: {
+          sourceJobId: { selector: ".e_text-16" },
+          officialTitle: { selector: ".e_text-16" },
+          officialUrl: { value: "https://www.joincare.com/Social_recruitment.html" },
+          locationRaw: { selector: ".cbox-13-2" }
+        }
+      }
+    });
+
+    expect(byId.get("source-puluo-social")).toMatchObject({
+      adapterId: "html-table",
+      source: {
+        atsKind: "OFFICIAL_HTML",
+        officialEntryUrl: "https://www.apeloa.com/join.html",
+        officialChainEvidenceUrl: "https://www.apeloa.com/join.html"
+      },
+      table: {
+        rowSelector: ".join2 .table99.name",
+        fields: {
+          sourceJobId: { selector: "> div:nth-child(1) p" },
+          officialTitle: { selector: "> div:nth-child(1) p" },
+          officialUrl: { value: "https://www.apeloa.com/join.html" },
+          locationRaw: { selector: "> div:nth-child(4) p" }
+        }
+      }
+    });
+
+    expect(byId.get("source-hisun-social")).toMatchObject({
+      adapterId: "html-table",
+      source: {
+        atsKind: "OFFICIAL_HTML",
+        officialEntryUrl: "https://www.hisunpharm.com/main/recruit-list.thtml?cId=10982",
+        officialChainEvidenceUrl: "https://www.hisunpharm.com/main/recruit.thtml?cId=10981"
+      },
+      table: {
+        rowSelector: ".job_list li",
+        fields: {
+          sourceJobId: { selector: "a", attribute: "id" },
+          officialTitle: { selector: ".job_name" },
+          officialUrl: { value: "https://www.hisunpharm.com/main/recruit-list.thtml?cId=10982" },
+          locationRaw: { selector: ".job_place" }
+        }
+      }
+    });
+
+    expect(byId.get("source-huahai-social")).toMatchObject({
+      adapterId: "html-table",
+      source: {
+        atsKind: "OFFICIAL_HTML",
+        officialEntryUrl: "https://www.huahaipharm.com/zpgw.html",
+        officialChainEvidenceUrl: "https://www.huahaipharm.com/zpgw.html"
+      },
+      table: {
+        rowSelector: "tr.tr_title",
+        fields: {
+          sourceJobId: { selector: "td:nth-child(1)" },
+          officialTitle: { selector: "td:nth-child(1)" },
+          officialUrl: { value: "https://www.huahaipharm.com/zpgw.html" },
+          locationRaw: { selector: "td:nth-child(2)" }
+        }
+      }
+    });
+
+    expect(byId.get("source-alphamab-social")).toMatchObject({
+      adapterId: "html-table",
+      source: {
+        atsKind: "OFFICIAL_HTML",
+        officialEntryUrl: "https://www.alphamabonc.com/career/job.html",
+        officialChainEvidenceUrl: "https://www.alphamabonc.com/career/job.html"
+      },
+      table: {
+        rowSelector: ".s_job > ul > li",
+        fields: {
+          sourceJobId: { selector: ".title h2" },
+          officialTitle: { selector: ".title h2" },
+          officialUrl: { value: "https://www.alphamabonc.com/career/job.html" },
+          locationRaw: { selector: ".title h3" }
+        }
+      }
+    });
+
+    expect(byId.get("source-ascentage-social")).toMatchObject({
+      adapterId: "html-table",
+      source: {
+        atsKind: "OFFICIAL_HTML",
+        officialEntryUrl: "https://ascentage.com/careers/job-opportunities/",
+        officialChainEvidenceUrl: "https://ascentage.com/careers/job-opportunities/"
+      },
+      table: {
+        rowSelector: '.list-data:contains("Beijing")',
+        fields: {
+          sourceJobId: { selector: "h4 a", attribute: "href" },
+          officialTitle: { selector: ".job-title" },
+          officialUrl: { selector: "h4 a", attribute: "href" },
+          locationRaw: { selector: ".job-location" }
+        }
+      }
+    });
+
+    expect(byId.get("source-nhwa-social")).toMatchObject({
+      adapterId: "html-table",
+      source: {
+        atsKind: "OFFICIAL_HTML",
+        officialEntryUrl: "https://www.nhwa-group.com/job/ren-cai-zhao-pin-list-0.htm",
+        officialChainEvidenceUrl: "https://www.nhwa-group.com/job/ren-cai-zhao-pin-list-0.htm"
+      },
+      table: {
+        rowSelector: "._jt",
+        fields: {
+          sourceJobId: { selector: ".job_name" },
+          officialTitle: { selector: ".job_name" },
+          officialUrl: { value: "https://www.nhwa-group.com/job/ren-cai-zhao-pin-list-0.htm" },
+          locationRaw: { selector: ".job_add" }
+        }
       }
     });
   });

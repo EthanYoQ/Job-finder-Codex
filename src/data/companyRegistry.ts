@@ -297,7 +297,12 @@ const CANDIDATE_SEEDS: CandidateSeed[] = [
     id: "company-grand-pharma-china",
     officialChineseName: "远大医药（中国）有限公司",
     pinyinName: "yuanda-yiyao",
-    inclusionReason: "国内头部药企"
+    inclusionReason: "国内头部药企",
+    status: "VERIFIED_SCRAPABLE",
+    atsKind: "OFFICIAL_HTML",
+    officialWebsiteUrl: "https://www.grandpharma.cn/",
+    socialEntryUrl: "https://job.grandpharma.cn/",
+    officialChainEvidenceUrl: "https://job.grandpharma.cn/"
   },
   {
     id: "company-pien-tze-huang",
@@ -428,7 +433,12 @@ const CANDIDATE_SEEDS: CandidateSeed[] = [
     id: "company-huahai",
     officialChineseName: "浙江华海药业股份有限公司",
     pinyinName: "huahai",
-    inclusionReason: "国内知名药企"
+    inclusionReason: "国内知名药企",
+    status: "VERIFIED_SCRAPABLE",
+    atsKind: "OFFICIAL_HTML",
+    officialWebsiteUrl: "https://www.huahaipharm.com/",
+    socialEntryUrl: "https://www.huahaipharm.com/zpgw.html",
+    officialChainEvidenceUrl: "https://www.huahaipharm.com/zpgw.html"
   },
   {
     id: "company-darentang",
@@ -458,7 +468,12 @@ const CANDIDATE_SEEDS: CandidateSeed[] = [
     id: "company-joincare",
     officialChineseName: "健康元药业集团股份有限公司",
     pinyinName: "jiankangyuan",
-    inclusionReason: "国内知名药企"
+    inclusionReason: "国内知名药企",
+    status: "VERIFIED_SCRAPABLE",
+    atsKind: "OFFICIAL_HTML",
+    officialWebsiteUrl: "https://www.joincare.com/",
+    socialEntryUrl: "https://www.joincare.com/Social_recruitment.html",
+    officialChainEvidenceUrl: "https://www.joincare.com/Social_recruitment.html"
   },
   {
     id: "company-haleon-china",
@@ -494,7 +509,12 @@ const CANDIDATE_SEEDS: CandidateSeed[] = [
     id: "company-hisun",
     officialChineseName: "浙江海正药业股份有限公司",
     pinyinName: "haizheng",
-    inclusionReason: "国内知名药企"
+    inclusionReason: "国内知名药企",
+    status: "VERIFIED_SCRAPABLE",
+    atsKind: "OFFICIAL_HTML",
+    officialWebsiteUrl: "https://www.hisunpharm.com/",
+    socialEntryUrl: "https://www.hisunpharm.com/main/recruit-list.thtml?cId=10982",
+    officialChainEvidenceUrl: "https://www.hisunpharm.com/main/recruit.thtml?cId=10981"
   },
   {
     id: "company-allist",
@@ -558,7 +578,12 @@ const CANDIDATE_SEEDS: CandidateSeed[] = [
     id: "company-nhwa",
     officialChineseName: "江苏恩华药业股份有限公司",
     pinyinName: "enhua",
-    inclusionReason: "国内知名药企"
+    inclusionReason: "国内知名药企",
+    status: "VERIFIED_SCRAPABLE",
+    atsKind: "OFFICIAL_HTML",
+    officialWebsiteUrl: "https://www.nhwa-group.com/",
+    socialEntryUrl: "https://www.nhwa-group.com/job/ren-cai-zhao-pin-list-0.htm",
+    officialChainEvidenceUrl: "https://www.nhwa-group.com/job/ren-cai-zhao-pin-list-0.htm"
   },
   {
     id: "company-beta-pharma",
@@ -581,7 +606,12 @@ const CANDIDATE_SEEDS: CandidateSeed[] = [
     id: "company-puluo",
     officialChineseName: "普洛药业股份有限公司",
     pinyinName: "puluo",
-    inclusionReason: "国内知名药企"
+    inclusionReason: "国内知名药企",
+    status: "VERIFIED_SCRAPABLE",
+    atsKind: "OFFICIAL_HTML",
+    officialWebsiteUrl: "https://www.apeloa.com/",
+    socialEntryUrl: "https://www.apeloa.com/join.html",
+    officialChainEvidenceUrl: "https://www.apeloa.com/join.html"
   },
   {
     id: "company-hualan-bio",
@@ -806,7 +836,12 @@ const CANDIDATE_SEEDS: CandidateSeed[] = [
     id: "company-ascentage",
     officialChineseName: "亚盛医药",
     pinyinName: "yasheng",
-    inclusionReason: "知名 Biotech 候选"
+    inclusionReason: "知名 Biotech 候选",
+    status: "VERIFIED_SCRAPABLE",
+    atsKind: "OFFICIAL_HTML",
+    officialWebsiteUrl: "https://ascentage.com/",
+    socialEntryUrl: "https://ascentage.com/careers/job-opportunities/",
+    officialChainEvidenceUrl: "https://ascentage.com/careers/job-opportunities/"
   },
   {
     id: "company-harbour-bio",
@@ -835,7 +870,12 @@ const CANDIDATE_SEEDS: CandidateSeed[] = [
     id: "company-alphamab",
     officialChineseName: "康宁杰瑞",
     pinyinName: "kangning-jierui",
-    inclusionReason: "知名 Biotech 候选"
+    inclusionReason: "知名 Biotech 候选",
+    status: "VERIFIED_SCRAPABLE",
+    atsKind: "OFFICIAL_HTML",
+    officialWebsiteUrl: "https://www.alphamabonc.com/",
+    socialEntryUrl: "https://www.alphamabonc.com/career/job.html",
+    officialChainEvidenceUrl: "https://www.alphamabonc.com/career/job.html"
   },
   {
     id: "company-everest-medicines",

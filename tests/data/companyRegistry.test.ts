@@ -228,4 +228,104 @@ describe("P0 company registry", () => {
       ]
     });
   });
+
+  it("records official-chain evidence for the bulk task 6 static official html wave", () => {
+    const byId = new Map(candidateCompanies.map((company) => [company.id, company]));
+
+    expect(byId.get("company-grand-pharma-china")).toMatchObject({
+      officialWebsiteUrl: "https://www.grandpharma.cn/",
+      sources: [
+        expect.objectContaining({
+          status: "VERIFIED_SCRAPABLE",
+          atsKind: "OFFICIAL_HTML",
+          officialEntryUrl: "https://job.grandpharma.cn/",
+          officialChainEvidenceUrl: "https://job.grandpharma.cn/"
+        })
+      ]
+    });
+
+    expect(byId.get("company-joincare")).toMatchObject({
+      officialWebsiteUrl: "https://www.joincare.com/",
+      sources: [
+        expect.objectContaining({
+          status: "VERIFIED_SCRAPABLE",
+          atsKind: "OFFICIAL_HTML",
+          officialEntryUrl: "https://www.joincare.com/Social_recruitment.html",
+          officialChainEvidenceUrl: "https://www.joincare.com/Social_recruitment.html"
+        })
+      ]
+    });
+
+    expect(byId.get("company-puluo")).toMatchObject({
+      officialWebsiteUrl: "https://www.apeloa.com/",
+      sources: [
+        expect.objectContaining({
+          status: "VERIFIED_SCRAPABLE",
+          atsKind: "OFFICIAL_HTML",
+          officialEntryUrl: "https://www.apeloa.com/join.html",
+          officialChainEvidenceUrl: "https://www.apeloa.com/join.html"
+        })
+      ]
+    });
+
+    expect(byId.get("company-hisun")).toMatchObject({
+      officialWebsiteUrl: "https://www.hisunpharm.com/",
+      sources: [
+        expect.objectContaining({
+          status: "VERIFIED_SCRAPABLE",
+          atsKind: "OFFICIAL_HTML",
+          officialEntryUrl: "https://www.hisunpharm.com/main/recruit-list.thtml?cId=10982",
+          officialChainEvidenceUrl: "https://www.hisunpharm.com/main/recruit.thtml?cId=10981"
+        })
+      ]
+    });
+
+    expect(byId.get("company-huahai")).toMatchObject({
+      officialWebsiteUrl: "https://www.huahaipharm.com/",
+      sources: [
+        expect.objectContaining({
+          status: "VERIFIED_SCRAPABLE",
+          atsKind: "OFFICIAL_HTML",
+          officialEntryUrl: "https://www.huahaipharm.com/zpgw.html",
+          officialChainEvidenceUrl: "https://www.huahaipharm.com/zpgw.html"
+        })
+      ]
+    });
+
+    expect(byId.get("company-alphamab")).toMatchObject({
+      officialWebsiteUrl: "https://www.alphamabonc.com/",
+      sources: [
+        expect.objectContaining({
+          status: "VERIFIED_SCRAPABLE",
+          atsKind: "OFFICIAL_HTML",
+          officialEntryUrl: "https://www.alphamabonc.com/career/job.html",
+          officialChainEvidenceUrl: "https://www.alphamabonc.com/career/job.html"
+        })
+      ]
+    });
+
+    expect(byId.get("company-ascentage")).toMatchObject({
+      officialWebsiteUrl: "https://ascentage.com/",
+      sources: [
+        expect.objectContaining({
+          status: "VERIFIED_SCRAPABLE",
+          atsKind: "OFFICIAL_HTML",
+          officialEntryUrl: "https://ascentage.com/careers/job-opportunities/",
+          officialChainEvidenceUrl: "https://ascentage.com/careers/job-opportunities/"
+        })
+      ]
+    });
+
+    expect(byId.get("company-nhwa")).toMatchObject({
+      officialWebsiteUrl: "https://www.nhwa-group.com/",
+      sources: [
+        expect.objectContaining({
+          status: "VERIFIED_SCRAPABLE",
+          atsKind: "OFFICIAL_HTML",
+          officialEntryUrl: "https://www.nhwa-group.com/job/ren-cai-zhao-pin-list-0.htm",
+          officialChainEvidenceUrl: "https://www.nhwa-group.com/job/ren-cai-zhao-pin-list-0.htm"
+        })
+      ]
+    });
+  });
 });

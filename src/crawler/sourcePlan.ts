@@ -214,6 +214,102 @@ const REPRESENTATIVE_CONFIGS: Record<string, RepresentativeSourceConfig> = {
   "source-rcbio-social": {
     adapterId: "official-json",
     json: MOKA_JSON_CONFIG
+  },
+  "source-grand-pharma-china-social": {
+    adapterId: "html-table",
+    table: {
+      rowSelector: ".job-card",
+      fields: {
+        sourceJobId: { selector: ".job-title" },
+        officialTitle: { selector: ".job-title" },
+        officialUrl: { value: "https://job.grandpharma.cn/" },
+        locationRaw: { selector: ".job-meta span:nth-child(1)" }
+      }
+    }
+  },
+  "source-joincare-social": {
+    adapterId: "html-table",
+    table: {
+      rowSelector: ".job_item",
+      fields: {
+        sourceJobId: { selector: ".e_text-16" },
+        officialTitle: { selector: ".e_text-16" },
+        officialUrl: { value: "https://www.joincare.com/Social_recruitment.html" },
+        locationRaw: { selector: ".cbox-13-2" }
+      }
+    }
+  },
+  "source-puluo-social": {
+    adapterId: "html-table",
+    table: {
+      rowSelector: ".join2 .table99.name",
+      fields: {
+        sourceJobId: { selector: "> div:nth-child(1) p" },
+        officialTitle: { selector: "> div:nth-child(1) p" },
+        officialUrl: { value: "https://www.apeloa.com/join.html" },
+        locationRaw: { selector: "> div:nth-child(4) p" }
+      }
+    }
+  },
+  "source-hisun-social": {
+    adapterId: "html-table",
+    table: {
+      rowSelector: ".job_list li",
+      fields: {
+        sourceJobId: { selector: "a", attribute: "id" },
+        officialTitle: { selector: ".job_name" },
+        officialUrl: { value: "https://www.hisunpharm.com/main/recruit-list.thtml?cId=10982" },
+        locationRaw: { selector: ".job_place" }
+      }
+    }
+  },
+  "source-huahai-social": {
+    adapterId: "html-table",
+    table: {
+      rowSelector: "tr.tr_title",
+      fields: {
+        sourceJobId: { selector: "td:nth-child(1)" },
+        officialTitle: { selector: "td:nth-child(1)" },
+        officialUrl: { value: "https://www.huahaipharm.com/zpgw.html" },
+        locationRaw: { selector: "td:nth-child(2)" }
+      }
+    }
+  },
+  "source-alphamab-social": {
+    adapterId: "html-table",
+    table: {
+      rowSelector: ".s_job > ul > li",
+      fields: {
+        sourceJobId: { selector: ".title h2" },
+        officialTitle: { selector: ".title h2" },
+        officialUrl: { value: "https://www.alphamabonc.com/career/job.html" },
+        locationRaw: { selector: ".title h3" }
+      }
+    }
+  },
+  "source-ascentage-social": {
+    adapterId: "html-table",
+    table: {
+      rowSelector: '.list-data:contains("Beijing")',
+      fields: {
+        sourceJobId: { selector: "h4 a", attribute: "href" },
+        officialTitle: { selector: ".job-title" },
+        officialUrl: { selector: "h4 a", attribute: "href" },
+        locationRaw: { selector: ".job-location" }
+      }
+    }
+  },
+  "source-nhwa-social": {
+    adapterId: "html-table",
+    table: {
+      rowSelector: "._jt",
+      fields: {
+        sourceJobId: { selector: ".job_name" },
+        officialTitle: { selector: ".job_name" },
+        officialUrl: { value: "https://www.nhwa-group.com/job/ren-cai-zhao-pin-list-0.htm" },
+        locationRaw: { selector: ".job_add" }
+      }
+    }
   }
 };
 
