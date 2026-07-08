@@ -35,7 +35,7 @@
 - Consumes: `SourceFetchFunction` from `src/crawler/runSourceCrawl.ts`.
 - Produces: `createUnsupportedSourceFetch(): SourceFetchFunction`.
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 Create `tests/crawler/unsupportedSourceFetch.test.ts`:
 
@@ -97,7 +97,7 @@ it("does not advertise Tavily as a formal readiness evidence fetcher", () => {
 });
 ```
 
-- [ ] **Step 2: Run focused tests and verify they fail**
+- [x] **Step 2: Run focused tests and verify they fail**
 
 Run:
 
@@ -107,7 +107,7 @@ npm test -- tests/crawler/unsupportedSourceFetch.test.ts tests/crawler/p0CrawlCl
 
 Expected: FAIL because `src/crawler/unsupportedSourceFetch.ts` does not exist.
 
-- [ ] **Step 3: Implement formal unsupported fetcher and wire it into the CLI fallback**
+- [x] **Step 3: Implement formal unsupported fetcher and wire it into the CLI fallback**
 
 Create `src/crawler/unsupportedSourceFetch.ts`:
 
@@ -154,7 +154,7 @@ Then replace the Tavily fallback in `createSourceFetchRouter` wiring with:
 
 Keep the Tavily wrapper module and tests intact for discovery tooling, but do not use it as the formal `p0:crawl` fallback.
 
-- [ ] **Step 4: Run focused verification**
+- [x] **Step 4: Run focused verification**
 
 Run:
 
@@ -165,7 +165,7 @@ npm run typecheck
 
 Expected: PASS.
 
-- [ ] **Step 5: Commit Task 1**
+- [x] **Step 5: Commit Task 1**
 
 Run:
 
