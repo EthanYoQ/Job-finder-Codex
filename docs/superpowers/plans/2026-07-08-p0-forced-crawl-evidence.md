@@ -30,7 +30,7 @@
 - Consumes: existing `runP0CrawlBatch(plans, deps)`.
 - Produces: optional `force?: boolean` on `RunP0CrawlBatchDeps`.
 
-- [ ] **Step 1: Write failing force behavior test**
+- [x] **Step 1: Write failing force behavior test**
 
 Modify `tests/crawler/runCrawlBatch.test.ts` by adding this test inside `describe("runP0CrawlBatch", () => { ... })`:
 
@@ -83,13 +83,13 @@ Modify `tests/crawler/runCrawlBatch.test.ts` by adding this test inside `describ
   });
 ```
 
-- [ ] **Step 2: Run focused test and verify it fails**
+- [x] **Step 2: Run focused test and verify it fails**
 
 Run: `npm test -- tests/crawler/runCrawlBatch.test.ts`
 
 Expected: FAIL because `force` is not supported and the source is skipped.
 
-- [ ] **Step 3: Implement force option**
+- [x] **Step 3: Implement force option**
 
 Modify `src/crawler/runCrawlBatch.ts`:
 
@@ -116,7 +116,7 @@ Then change the due check inside the loop to:
       }
 ```
 
-- [ ] **Step 4: Run focused verification**
+- [x] **Step 4: Run focused verification**
 
 Run: `npm test -- tests/crawler/runCrawlBatch.test.ts`
 
@@ -126,7 +126,7 @@ Run: `npm run typecheck`
 
 Expected: PASS.
 
-- [ ] **Step 5: Commit Task 1**
+- [x] **Step 5: Commit Task 1**
 
 Run:
 
@@ -149,7 +149,7 @@ git commit -m "feat: support forced P0 crawl batches"
 - Consumes: `RunP0CrawlBatchDeps.force`.
 - Produces: `parseP0CrawlArgs(["--force"])` and `npm run p0:crawl -- --force`.
 
-- [ ] **Step 1: Write failing command and CLI tests**
+- [x] **Step 1: Write failing command and CLI tests**
 
 Modify `tests/crawler/p0CrawlCommand.test.ts`:
 
@@ -205,13 +205,13 @@ Modify `tests/crawler/p0CrawlCli.test.ts` help test:
     expect(output).toContain("--force");
 ```
 
-- [ ] **Step 2: Run focused tests and verify they fail**
+- [x] **Step 2: Run focused tests and verify they fail**
 
 Run: `npm test -- tests/crawler/p0CrawlCommand.test.ts tests/crawler/p0CrawlCli.test.ts`
 
 Expected: FAIL because `--force` is not parsed or printed.
 
-- [ ] **Step 3: Implement force parsing and wiring**
+- [x] **Step 3: Implement force parsing and wiring**
 
 Modify `src/crawler/p0CrawlCommand.ts`:
 
@@ -255,7 +255,7 @@ When calling `runP0CrawlCommand` after pre-selecting plans, keep only the force 
     options: { help: false, sourceIds: [], force: options.force },
 ```
 
-- [ ] **Step 4: Run focused verification**
+- [x] **Step 4: Run focused verification**
 
 Run: `npm test -- tests/crawler/p0CrawlCommand.test.ts tests/crawler/p0CrawlCli.test.ts tests/crawler/runCrawlBatch.test.ts`
 
@@ -265,7 +265,7 @@ Run: `npm run typecheck`
 
 Expected: PASS.
 
-- [ ] **Step 5: Commit Task 2**
+- [x] **Step 5: Commit Task 2**
 
 Run:
 
@@ -285,7 +285,7 @@ git commit -m "feat: add forced P0 crawl CLI option"
 - Consumes: Tasks 1-2.
 - Produces: completed plan checkboxes after verification, plus real local evidence that one configured source can reach `1/50` with two successful forced/manual crawls.
 
-- [ ] **Step 1: Run full verification**
+- [x] **Step 1: Run full verification**
 
 Run:
 
@@ -303,7 +303,7 @@ Expected:
 - `npm run p0:crawl -- --help` exits `0` and includes `--force`.
 - Tavily key grep has no matches.
 
-- [ ] **Step 2: Run real forced Beigene crawl against local PostgreSQL**
+- [x] **Step 2: Run real forced Beigene crawl against local PostgreSQL**
 
 With process-level `DATABASE_URL` only, run:
 
@@ -316,7 +316,7 @@ Expected:
 - reports `Successful sources: 1`.
 - does not require Tavily credentials because the selected source is Moka.
 
-- [ ] **Step 3: Verify database readiness evidence**
+- [x] **Step 3: Verify database readiness evidence**
 
 With the same process-level `DATABASE_URL`, run:
 
@@ -330,11 +330,11 @@ Expected:
 - reports `Crawl-evidenced verified companies: 1/50`.
 - still blocks on `VERIFIED_COMPANIES_BELOW_50`.
 
-- [ ] **Step 4: Mark checkboxes complete**
+- [x] **Step 4: Mark checkboxes complete**
 
 Only after Steps 1-3 verification, change every task checkbox in this plan from `[ ]` to `[x]`.
 
-- [ ] **Step 5: Commit Task 3**
+- [x] **Step 5: Commit Task 3**
 
 Run:
 
