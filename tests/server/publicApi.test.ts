@@ -30,4 +30,173 @@ describe("public API route policy", () => {
     expect(blocked.headers["x-robots-tag"]).toBe("noindex, nofollow");
     expect(deps.db.job.findMany).not.toHaveBeenCalled();
   });
+
+  it("returns paginated coverage results with a hard cap", async () => {
+    const deps = {
+      db: {
+        job: { findMany: vi.fn() },
+        crawlObservation: { findFirst: vi.fn() },
+        company: {
+          findMany: vi.fn(async () =>
+            Array.from({ length: 80 }, (_, index) => ({
+              id: `company-${index + 1}`,
+              officialChineseName: `药企 ${index + 1}`,
+              officialWebsiteUrl: `https://example.com/${index + 1}`,
+              pinyinName: `company ${String(index + 1).padStart(2, "0")}`
+            }))
+          )
+        },
+        feedback: { create: vi.fn() },
+        recommendedCompany: { create: vi.fn() }
+      },
+      now: () => new Date("2026-07-08T00:00:00.000Z")
+    };
+
+    const response = await handlePublicApi(
+      {
+        method: "GET",
+        path: "/api/coverage",
+        query: { keyword: "", offset: "5", limit: "50" },
+        headers: { "x-job-search-consent": "accepted" },
+        body: undefined,
+        ip: "1.2.3.4"
+      },
+      deps
+    );
+
+    expect(response.status).toBe(200);
+    expect(response.body).toMatchObject({
+      offset: 5,
+      limit: 50,
+      hasMore: true
+    });
+    expect((response.body as { companies: unknown[] }).companies).toHaveLength(50);
+  });
+
+  it("returns 400 for invalid bulk pagination before suspicious request challenge", async () => {
+    const deps = {
+      db: {
+        job: { findMany: vi.fn() },
+        crawlObservation: { findFirst: vi.fn() },
+        company: { findMany: vi.fn(async () => []) },
+        feedback: { create: vi.fn() },
+        recommendedCompany: { create: vi.fn() }
+      },
+      now: () => new Date("2026-07-08T00:00:00.000Z")
+    };
+
+    const response = await handlePublicApi(
+      {
+        method: "GET",
+        path: "/api/search",
+        query: { city: "北京", limit: "500", offset: "5000" },
+        headers: { "x-job-search-consent": "accepted", "user-agent": "python-requests/2.31" },
+        body: undefined,
+        ip: "1.2.3.4"
+      },
+      deps
+    );
+
+    expect(response.status).toBe(400);
+    expect(response.body).toMatchObject({ error: "INVALID_REQUEST" });
+    expect(deps.db.job.findMany).not.toHaveBeenCalled();
+  });
+
+  it("caps search companies and per-company jobs at the API layer", async () => {
+    const deps = {
+      db: {
+        job: {
+          findMany: vi.fn(async () =>
+            Array.from({ length: 60 }, (_, companyIndex) =>
+              Array.from({ length: 12 }, (_, jobIndex) => ({
+                id: `job-${companyIndex + 1}-${jobIndex + 1}`,
+                companyId: `company-${companyIndex + 1}`,
+                officialTitle: `Role ${jobIndex + 1}`,
+                auxiliaryChineseTitle: null,
+                officialUrl: `https://example.com/${companyIndex + 1}/${jobIndex + 1}`,
+                officialPublishedAt: new Date(`2026-07-${String((jobIndex % 9) + 1).padStart(2, "0")}T00:00:00.000Z`),
+                city: "北京",
+                cities: ["北京"],
+                category: "SALES",
+                isNew: false,
+                company: {
+                  id: `company-${companyIndex + 1}`,
+                  officialChineseName: `药企 ${companyIndex + 1}`,
+                  pinyinName: `company ${String(companyIndex + 1).padStart(2, "0")}`
+                }
+              }))
+            ).flat()
+          )
+        },
+        crawlObservation: {
+          findFirst: vi.fn(async () => ({ crawledAt: new Date("2026-07-08T00:00:00.000Z") }))
+        },
+        company: { findMany: vi.fn(async () => []) },
+        feedback: { create: vi.fn() },
+        recommendedCompany: { create: vi.fn() }
+      },
+      now: () => new Date("2026-07-08T00:00:00.000Z")
+    };
+
+    const response = await handlePublicApi(
+      {
+        method: "GET",
+        path: "/api/search",
+        query: { city: "北京", offset: "5", limit: "50" },
+        headers: { "x-job-search-consent": "accepted" },
+        body: undefined,
+        ip: "1.2.3.4"
+      },
+      deps
+    );
+
+    expect(response.status).toBe(200);
+    expect((response.body as { companies: Array<{ jobs: unknown[] }> }).companies).toHaveLength(50);
+    expect((response.body as { companies: Array<{ jobs: unknown[] }> }).companies[0]?.jobs).toHaveLength(10);
+    expect(
+      (response.body as { companies: Array<{ id: string }> }).companies.map((company) => company.id).slice(0, 3)
+    ).toEqual(["company-6", "company-7", "company-8"]);
+  });
+
+  it("returns 400 for malformed feedback and recommend-company bodies", async () => {
+    const deps = {
+      db: {
+        job: { findMany: vi.fn() },
+        crawlObservation: { findFirst: vi.fn() },
+        company: { findMany: vi.fn(async () => []) },
+        feedback: { create: vi.fn() },
+        recommendedCompany: { create: vi.fn() }
+      },
+      now: () => new Date("2026-07-08T00:00:00.000Z")
+    };
+
+    const feedbackResponse = await handlePublicApi(
+      {
+        method: "POST",
+        path: "/api/feedback",
+        query: {},
+        headers: { "x-job-search-consent": "accepted" },
+        body: "bad payload",
+        ip: "1.2.3.4"
+      },
+      deps
+    );
+
+    const companyResponse = await handlePublicApi(
+      {
+        method: "POST",
+        path: "/api/recommend-company",
+        query: {},
+        headers: { "x-job-search-consent": "accepted" },
+        body: { companyName: "", officialWebsiteUrl: 123 },
+        ip: "1.2.3.4"
+      },
+      deps
+    );
+
+    expect(feedbackResponse.status).toBe(400);
+    expect(companyResponse.status).toBe(400);
+    expect(deps.db.feedback.create).not.toHaveBeenCalled();
+    expect(deps.db.recommendedCompany.create).not.toHaveBeenCalled();
+  });
 });

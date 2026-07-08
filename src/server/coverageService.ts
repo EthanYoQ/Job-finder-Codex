@@ -1,5 +1,7 @@
 export interface CoverageRequest {
   keyword: string;
+  offset?: number;
+  limit?: number;
 }
 
 export interface CoverageCompany {
@@ -10,6 +12,9 @@ export interface CoverageCompany {
 
 export interface CoverageResult {
   companies: CoverageCompany[];
+  offset: number;
+  limit: number;
+  hasMore: boolean;
 }
 
 type CoverageRow = {
@@ -34,6 +39,8 @@ export interface CoverageDb {
 
 export async function listCompanyCoverage(request: CoverageRequest, db: CoverageDb): Promise<CoverageResult> {
   const keyword = request.keyword.trim().toLocaleLowerCase("zh-CN");
+  const offset = request.offset ?? 0;
+  const limit = request.limit ?? 50;
   const rows = await db.company.findMany({
     select: {
       id: true,
@@ -62,5 +69,12 @@ export async function listCompanyCoverage(request: CoverageRequest, db: Coverage
       officialWebsiteUrl: row.officialWebsiteUrl as string
     }));
 
-  return { companies };
+  const pagedCompanies = companies.slice(offset, offset + limit);
+
+  return {
+    companies: pagedCompanies,
+    offset,
+    limit,
+    hasMore: offset + limit < companies.length
+  };
 }

@@ -130,3 +130,38 @@ npm run typecheck
 - `C:\Vibe Coding Project\Job Finder\tests\server\feedbackService.test.ts`
 - `C:\Vibe Coding Project\Job Finder\tests\server\publicApi.test.ts`
 - `C:\Vibe Coding Project\Job Finder\.superpowers\sdd\task-1-report.md`
+
+## Reviewer Fix Follow-Up
+
+### Known Facts
+
+- `/api/coverage` now accepts API pagination inputs through `handlePublicApi(...)` and returns:
+  - `companies`
+  - `offset`
+  - `limit`
+  - `hasMore`
+- `listCompanyCoverage(...)` now slices the matched company list by `offset` and `limit` instead of returning the full set.
+- `/api/search` now enforces API-level pagination validation in `publicApi.ts` with:
+  - default `limit = 50`
+  - max `limit = 50`
+  - `offset >= 0`
+  - `offset + limit <= 500`
+- `/api/search` now applies response-level capping even if the underlying search service returns more:
+  - company list sliced by `offset` and `limit`
+  - each company keeps at most `10` jobs via existing `COMPANY_EXPANSION_PAGE_SIZE`
+- malformed bodies for `/api/feedback` and `/api/recommend-company` now return `400 INVALID_REQUEST` instead of throwing uncaught exceptions.
+- invalid bulk pagination for `/api/search` now returns `400` before suspicious-request `429` handling.
+
+### Verification
+
+- Ran:
+
+```bash
+npm test -- tests/server/rateLimit.test.ts tests/server/staticDocuments.test.ts tests/server/coverageService.test.ts tests/server/feedbackService.test.ts tests/server/publicApi.test.ts
+npm run typecheck
+```
+
+- Result:
+  - 5 test files passed
+  - 11 tests passed
+  - `tsc --noEmit` passed

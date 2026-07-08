@@ -1,12 +1,10 @@
-import { ZodError } from "zod";
-import { SearchRequestSchema } from "../domain/search";
+import { z, ZodError } from "zod";
+import { COMPANY_EXPANSION_PAGE_SIZE, SearchRequestSchema } from "../domain/search";
 import { searchJobsFromDatabase, type PrismaJobSearchDb } from "./jobSearchService";
 import {
   createFeedback,
   createRecommendedCompany,
   type FeedbackDb,
-  type FeedbackInput,
-  type RecommendedCompanyInput,
   type RequestContext
 } from "./feedbackService";
 import { checkRateLimit, classifySuspiciousRequest, createMemoryRateLimitStore, type RateLimitStore } from "./rateLimit";
@@ -38,6 +36,30 @@ export interface PublicApiDeps {
 }
 
 const DEFAULT_RATE_LIMIT_STORE = createMemoryRateLimitStore();
+const API_DEFAULT_LIMIT = 50;
+const API_MAX_LIMIT = 50;
+const API_MAX_WINDOW = 500;
+
+const ApiPaginationSchema = z
+  .object({
+    offset: z.coerce.number().int().min(0).default(0),
+    limit: z.coerce.number().int().min(1).max(API_MAX_LIMIT).default(API_DEFAULT_LIMIT)
+  })
+  .refine((value) => value.offset + value.limit <= API_MAX_WINDOW, {
+    message: "Pagination exceeds the controlled loading cap"
+  });
+
+const FeedbackInputSchema = z.object({
+  issueType: z.string().trim().min(1),
+  description: z.string().trim().min(1),
+  companyId: z.string().trim().min(1).optional(),
+  jobId: z.string().trim().min(1).optional()
+});
+
+const RecommendedCompanyInputSchema = z.object({
+  companyName: z.string().trim().min(1),
+  officialWebsiteUrl: z.string().trim().min(1)
+});
 
 export async function handlePublicApi(request: PublicApiRequest, deps: PublicApiDeps): Promise<PublicApiResponse> {
   const headers = createBaseHeaders(request.path);
@@ -75,6 +97,12 @@ export async function handlePublicApi(request: PublicApiRequest, deps: PublicApi
         headers,
         body: { error: "CONSENT_REQUIRED" }
       };
+    }
+
+    const paginationValidation = validateApiPagination(request);
+
+    if (!paginationValidation.success) {
+      return invalidRequest(headers, paginationValidation.error);
     }
 
     const context = toRequestContext(request);
@@ -118,15 +146,33 @@ export async function handlePublicApi(request: PublicApiRequest, deps: PublicApi
       }
 
       const result = await searchJobsFromDatabase(parsed.data, deps.db);
+      const pagedCompanies = result.companies.slice(
+        paginationValidation.data.offset,
+        paginationValidation.data.offset + paginationValidation.data.limit
+      );
+
       return {
         status: 200,
         headers,
-        body: result
+        body: {
+          ...result,
+          companies: pagedCompanies.map((company) => ({
+            ...company,
+            jobs: company.jobs.slice(0, COMPANY_EXPANSION_PAGE_SIZE)
+          }))
+        }
       };
     }
 
     if (request.path === "/api/coverage" && request.method === "GET") {
-      const result = await listCompanyCoverage({ keyword: getSingleValue(request.query.keyword) ?? "" }, deps.db);
+      const result = await listCompanyCoverage(
+        {
+          keyword: getSingleValue(request.query.keyword) ?? "",
+          offset: paginationValidation.data.offset,
+          limit: paginationValidation.data.limit
+        },
+        deps.db
+      );
       return {
         status: 200,
         headers,
@@ -136,7 +182,12 @@ export async function handlePublicApi(request: PublicApiRequest, deps: PublicApi
 
     if (request.path === "/api/feedback" && request.method === "POST") {
       const body = normalizeFeedbackInput(request.body);
-      const result = await createFeedback(body, context, deps.db);
+
+      if (!body.success) {
+        return invalidRequest(headers, body.error);
+      }
+
+      const result = await createFeedback(body.data, context, deps.db);
       return {
         status: 201,
         headers,
@@ -146,7 +197,12 @@ export async function handlePublicApi(request: PublicApiRequest, deps: PublicApi
 
     if (request.path === "/api/recommend-company" && request.method === "POST") {
       const body = normalizeRecommendedCompanyInput(request.body);
-      const result = await createRecommendedCompany(body, context, deps.db);
+
+      if (!body.success) {
+        return invalidRequest(headers, body.error);
+      }
+
+      const result = await createRecommendedCompany(body.data, context, deps.db);
       return {
         status: 201,
         headers,
@@ -194,22 +250,40 @@ function normalizeSearchRequest(query: Record<string, string | string[] | undefi
   };
 }
 
-function normalizeFeedbackInput(body: unknown): FeedbackInput {
-  const data = asRecord(body);
+function validateApiPagination(request: PublicApiRequest) {
+  if (
+    request.method === "GET" &&
+    (request.path === "/api/search" || request.path === "/api/coverage")
+  ) {
+    return ApiPaginationSchema.safeParse({
+      offset: getSingleValue(request.query.offset),
+      limit: getSingleValue(request.query.limit)
+    });
+  }
+
+  return ApiPaginationSchema.safeParse({});
+}
+
+function normalizeFeedbackInput(body: unknown) {
+  const parsed = FeedbackInputSchema.safeParse(body);
+
+  if (!parsed.success) {
+    return parsed;
+  }
+
   return {
-    issueType: requireString(data.issueType, "issueType"),
-    description: requireString(data.description, "description"),
-    ...(typeof data.companyId === "string" ? { companyId: data.companyId } : {}),
-    ...(typeof data.jobId === "string" ? { jobId: data.jobId } : {})
+    success: true as const,
+    data: {
+      issueType: parsed.data.issueType,
+      description: parsed.data.description,
+      ...(parsed.data.companyId === undefined ? {} : { companyId: parsed.data.companyId }),
+      ...(parsed.data.jobId === undefined ? {} : { jobId: parsed.data.jobId })
+    }
   };
 }
 
-function normalizeRecommendedCompanyInput(body: unknown): RecommendedCompanyInput {
-  const data = asRecord(body);
-  return {
-    companyName: requireString(data.companyName, "companyName"),
-    officialWebsiteUrl: requireString(data.officialWebsiteUrl, "officialWebsiteUrl")
-  };
+function normalizeRecommendedCompanyInput(body: unknown) {
+  return RecommendedCompanyInputSchema.safeParse(body);
 }
 
 function getSingleValue(value: string | string[] | undefined): string | undefined {
@@ -249,20 +323,4 @@ function invalidRequest(headers: Record<string, string>, error: ZodError): Publi
       details: error.issues.map((issue) => issue.message)
     }
   };
-}
-
-function asRecord(value: unknown): Record<string, unknown> {
-  if (typeof value === "object" && value !== null) {
-    return value as Record<string, unknown>;
-  }
-
-  throw new Error("Request body must be an object");
-}
-
-function requireString(value: unknown, field: string): string {
-  if (typeof value === "string" && value.trim() !== "") {
-    return value;
-  }
-
-  throw new Error(`Invalid ${field}`);
 }
