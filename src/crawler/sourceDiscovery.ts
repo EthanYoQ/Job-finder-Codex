@@ -7,6 +7,7 @@ const AtsKindSchema = z.enum([
   "MOKA",
   "BEISEN_ZHIYE",
   "WORKDAY",
+  "HOTJOB_WECRUIT",
   "SUCCESSFACTORS",
   "REDSEA",
   "BROWSER_FALLBACK",

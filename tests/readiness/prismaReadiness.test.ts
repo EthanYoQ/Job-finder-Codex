@@ -5,6 +5,7 @@ import {
 } from "../../src/readiness/prismaReadiness";
 import type { PersistedReadinessCompanyRow } from "../../src/readiness/persistedReadiness";
 import { candidateCompanies } from "../../src/data/companyRegistry";
+import { P0_MIN_VERIFIED_SCRAPABLE_COMPANIES } from "../../src/domain/verification";
 
 describe("Prisma readiness report", () => {
   it("queries companies, sources, and latest crawl observations for the readiness gate", async () => {
@@ -69,7 +70,7 @@ describe("Prisma readiness report", () => {
       orderBy: { pinyinName: "asc" }
     });
     expect(report.totalCandidates).toBe(candidateCompanies.length);
-    expect(report.declaredVerifiedSocialSources).toBe(6);
+    expect(report.declaredVerifiedSocialSources).toBe(P0_MIN_VERIFIED_SCRAPABLE_COMPANIES);
     expect(report.crawlEvidencedVerifiedCompanies).toBe(1);
     expect(report.canLaunchP0).toBe(false);
   });

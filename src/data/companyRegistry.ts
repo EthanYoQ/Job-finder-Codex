@@ -216,7 +216,12 @@ const CANDIDATE_SEEDS: CandidateSeed[] = [
     id: "company-roche-china",
     officialChineseName: "上海罗氏制药有限公司",
     pinyinName: "luoshi",
-    inclusionReason: "外资药企中国区"
+    inclusionReason: "外资药企中国区",
+    status: "VERIFIED_SCRAPABLE",
+    atsKind: "WORKDAY",
+    officialWebsiteUrl: "https://www.roche.com.cn/",
+    socialEntryUrl: "https://roche.wd3.myworkdayjobs.com/roche-ext",
+    officialChainEvidenceUrl: "https://careers.roche.com/cn/zh/china-mainland"
   },
   {
     id: "company-shanghai-pharma",
@@ -228,7 +233,12 @@ const CANDIDATE_SEEDS: CandidateSeed[] = [
     id: "company-pfizer-china",
     officialChineseName: "辉瑞中国",
     pinyinName: "huirui",
-    inclusionReason: "外资药企中国区"
+    inclusionReason: "外资药企中国区",
+    status: "VERIFIED_SCRAPABLE",
+    atsKind: "WORKDAY",
+    officialWebsiteUrl: "https://www.pfizer.com/",
+    socialEntryUrl: "https://pfizer.wd1.myworkdayjobs.com/PfizerCareers",
+    officialChainEvidenceUrl: "https://www.pfizer.com/about/careers"
   },
   {
     id: "company-hansoh",
@@ -257,35 +267,155 @@ const CANDIDATE_SEEDS: CandidateSeed[] = [
     id: "company-cr-sanjiu",
     officialChineseName: "华润三九医药股份有限公司",
     pinyinName: "huarun-sanjiu",
-    inclusionReason: "国内头部药企"
+    inclusionReason: "国内头部药企",
+    status: "VERIFIED_SCRAPABLE",
+    atsKind: "HOTJOB_WECRUIT",
+    officialWebsiteUrl: "https://www.999.com.cn/",
+    socialEntryUrl: "https://wecruit.hotjob.cn/SU613834ecbef57c3b6383b50e/pb/index.html",
+    officialChainEvidenceUrl: "https://www.999.com.cn/applicationGuide/index.html"
   },
   {
     id: "company-msd-china",
     officialChineseName: "默沙东（中国）投资有限公司",
     pinyinName: "moshadong",
-    inclusionReason: "外资药企中国区"
+    inclusionReason: "外资药企中国区",
+    status: "VERIFIED_SCRAPABLE",
+    atsKind: "WORKDAY",
+    officialWebsiteUrl: "https://www.msdchina.com.cn/",
+    socialEntryUrl: "https://msd.wd5.myworkdayjobs.com/SearchJobs",
+    officialChainEvidenceUrl: "https://jobs.msd.com/cn/zh"
+  },
+  {
+    id: "company-bms-china",
+    officialChineseName: "百时美施贵宝中国",
+    pinyinName: "baishi-meishiguibao",
+    inclusionReason: "外资药企中国区",
+    status: "VERIFIED_SCRAPABLE",
+    atsKind: "WORKDAY",
+    officialWebsiteUrl: "https://www.bms.com/cn",
+    socialEntryUrl: "https://bristolmyerssquibb.wd5.myworkdayjobs.com/BMS",
+    officialChainEvidenceUrl: "https://careers.bms.com/cn/"
+  },
+  {
+    id: "company-gilead-china",
+    officialChineseName: "吉利德科学",
+    pinyinName: "jilide-kexue",
+    inclusionReason: "外资药企中国区",
+    status: "VERIFIED_SCRAPABLE",
+    atsKind: "WORKDAY",
+    officialWebsiteUrl: "https://www.gileadchina.cn/",
+    socialEntryUrl: "https://gilead.wd1.myworkdayjobs.com/gileadcareers",
+    officialChainEvidenceUrl: "https://www.gilead.com/careers/opportunities"
+  },
+  {
+    id: "company-agilent-china",
+    officialChineseName: "安捷伦科技（中国）有限公司",
+    pinyinName: "anjielun",
+    inclusionReason: "器械/生命科学企业中国区",
+    status: "VERIFIED_SCRAPABLE",
+    atsKind: "WORKDAY",
+    officialWebsiteUrl: "https://www.agilent.com.cn/",
+    socialEntryUrl: "https://agilent.wd5.myworkdayjobs.com/Agilent_Careers",
+    officialChainEvidenceUrl: "https://careers.agilent.com/locations/asia-pacific/china/"
+  },
+  {
+    id: "company-abbott-china",
+    officialChineseName: "雅培中国",
+    pinyinName: "yapei",
+    inclusionReason: "外资医药/器械企业中国区",
+    status: "VERIFIED_SCRAPABLE",
+    atsKind: "WORKDAY",
+    officialWebsiteUrl: "https://www.abbott.com/",
+    socialEntryUrl: "https://abbott.wd5.myworkdayjobs.com/abbottcareers",
+    officialChainEvidenceUrl: "https://www.abbott.com/careers.html"
+  },
+  {
+    id: "company-stryker-china",
+    officialChineseName: "史赛克中国",
+    pinyinName: "shisaike",
+    inclusionReason: "外资器械企业中国区",
+    status: "VERIFIED_SCRAPABLE",
+    atsKind: "WORKDAY",
+    officialWebsiteUrl: "https://www.stryker.com/",
+    socialEntryUrl: "https://stryker.wd1.myworkdayjobs.com/StrykerCareers",
+    officialChainEvidenceUrl: "https://careers.stryker.com/"
+  },
+  {
+    id: "company-gehc-china",
+    officialChineseName: "通用电气医疗中国",
+    pinyinName: "tongyong-dianqi-yiliao",
+    inclusionReason: "外资器械企业中国区",
+    status: "VERIFIED_SCRAPABLE",
+    atsKind: "WORKDAY",
+    officialWebsiteUrl: "https://www.gehealthcare.com/",
+    socialEntryUrl: "https://gehc.wd5.myworkdayjobs.com/gehc_externalsite",
+    officialChainEvidenceUrl: "https://www.gehealthcare.com/about/careers"
+  },
+  {
+    id: "company-edwards-china",
+    officialChineseName: "爱德华生命科学中国",
+    pinyinName: "aidehua-shengming-kexue",
+    inclusionReason: "外资器械企业中国区",
+    status: "VERIFIED_SCRAPABLE",
+    atsKind: "WORKDAY",
+    officialWebsiteUrl: "https://www.edwards.com/",
+    socialEntryUrl: "https://edwards.wd5.myworkdayjobs.com/edwardscareers",
+    officialChainEvidenceUrl: "https://www.edwards.com/careers/jobsearch"
+  },
+  {
+    id: "company-medtronic-china",
+    officialChineseName: "美敦力中国",
+    pinyinName: "meidunli",
+    inclusionReason: "外资器械企业中国区",
+    status: "VERIFIED_SCRAPABLE",
+    atsKind: "WORKDAY",
+    officialWebsiteUrl: "https://www.medtronic.com/",
+    socialEntryUrl: "https://medtronic.wd1.myworkdayjobs.com/MedtronicCareers",
+    officialChainEvidenceUrl: "https://medtronic.wd1.myworkdayjobs.com/MedtronicCareers"
+  },
+  {
+    id: "company-thermo-fisher-china",
+    officialChineseName: "赛默飞世尔科技中国",
+    pinyinName: "saimofei-shier",
+    inclusionReason: "外资生命科学/器械企业中国区",
+    status: "VERIFIED_SCRAPABLE",
+    atsKind: "OFFICIAL_JSON",
+    officialWebsiteUrl: "https://www.thermofisher.com/",
+    socialEntryUrl: "https://jobs.thermofisher.com/global/en/china-jobs",
+    officialChainEvidenceUrl: "https://jobs.thermofisher.com/global/en"
   },
   {
     id: "company-bayer-healthcare",
     officialChineseName: "拜耳医药保健有限公司",
     pinyinName: "baier",
-    inclusionReason: "外资药企中国区"
+    inclusionReason: "外资药企中国区",
+    status: "VERIFIED_SCRAPABLE",
+    atsKind: "SUCCESSFACTORS",
+    officialWebsiteUrl: "https://www.bayer.com.cn/",
+    socialEntryUrl: "https://jobs.bayer.com/search/?q=&locationsearch=China&locale=zh_CN",
+    officialChainEvidenceUrl: "https://www.bayer.com.cn/zh-hans/zhaoxiannashi"
   },
   {
     id: "company-novo-nordisk-china",
     officialChineseName: "诺和诺德（中国）制药有限公司",
     pinyinName: "nuohe-nuode",
-    inclusionReason: "外资药企中国区"
+    inclusionReason: "外资药企中国区",
+    status: "VERIFIED_SCRAPABLE",
+    atsKind: "OFFICIAL_JSON",
+    officialWebsiteUrl: "https://www.novonordisk.com/",
+    socialEntryUrl: "https://www.novonordisk.com/careers/find-a-job/career-search-results.html",
+    officialChainEvidenceUrl: "https://www.novonordisk.com/careers/find-a-job.html"
   },
   {
     id: "company-innovent",
     officialChineseName: "信达生物制药（苏州）有限公司",
     pinyinName: "xinda-shengwu",
     inclusionReason: "知名 Biotech、用户指定",
-    status: "ENTRY_FOUND_PENDING_ADAPTER",
+    status: "VERIFIED_SCRAPABLE",
+    atsKind: "OFFICIAL_JSON",
     officialWebsiteUrl: "https://www.innoventbio.com/",
-    socialEntryUrl: "https://www.innoventbio.com/",
-    officialChainEvidenceUrl: "https://www.innoventbio.com/"
+    socialEntryUrl: "https://www.innoventbio.com/cn/recruit",
+    officialChainEvidenceUrl: "https://www.innoventbio.com/cn/recruit"
   },
   {
     id: "company-yunnan-baiyao",
@@ -427,7 +557,12 @@ const CANDIDATE_SEEDS: CandidateSeed[] = [
     id: "company-takeda-china",
     officialChineseName: "武田（中国）投资有限公司",
     pinyinName: "wutian",
-    inclusionReason: "外资药企中国区"
+    inclusionReason: "外资药企中国区",
+    status: "VERIFIED_SCRAPABLE",
+    atsKind: "OFFICIAL_HTML",
+    officialWebsiteUrl: "https://www.takeda.com.cn/",
+    socialEntryUrl: "https://jobs.takeda.com/location/china-jobs/1113/1814991/2",
+    officialChainEvidenceUrl: "https://www.takeda.com/careers/"
   },
   {
     id: "company-huahai",
@@ -450,7 +585,12 @@ const CANDIDATE_SEEDS: CandidateSeed[] = [
     id: "company-simcere",
     officialChineseName: "先声药业有限公司",
     pinyinName: "xiansheng",
-    inclusionReason: "国内知名药企"
+    inclusionReason: "国内知名药企",
+    status: "VERIFIED_SCRAPABLE",
+    atsKind: "HOTJOB_WECRUIT",
+    officialWebsiteUrl: "https://www.simcere.com/",
+    socialEntryUrl: "https://wecruit.hotjob.cn/SU61458d83bef57c54dcb4e43f/pb/index.html",
+    officialChainEvidenceUrl: "https://www.simcere.com/jrwm/jrwm.aspx"
   },
   {
     id: "company-jichuan",
@@ -479,7 +619,12 @@ const CANDIDATE_SEEDS: CandidateSeed[] = [
     id: "company-haleon-china",
     officialChineseName: "赫力昂（中国）有限公司",
     pinyinName: "haleon",
-    inclusionReason: "外资药企中国区"
+    inclusionReason: "外资药企中国区",
+    status: "VERIFIED_SCRAPABLE",
+    atsKind: "WORKDAY",
+    officialWebsiteUrl: "https://www.haleon.com/",
+    socialEntryUrl: "https://gsknch.wd3.myworkdayjobs.com/GSKCareers",
+    officialChainEvidenceUrl: "https://www.haleon.com/careers"
   },
   {
     id: "company-cr-double-crane",
@@ -560,7 +705,12 @@ const CANDIDATE_SEEDS: CandidateSeed[] = [
     id: "company-zaiding",
     officialChineseName: "再鼎医药（上海）有限公司",
     pinyinName: "zaiding",
-    inclusionReason: "知名 Biotech"
+    inclusionReason: "知名 Biotech",
+    status: "VERIFIED_SCRAPABLE",
+    atsKind: "OFFICIAL_HTML",
+    officialWebsiteUrl: "https://cn.zailaboratory.com/",
+    socialEntryUrl: "https://cn.zailaboratory.com/jobs/",
+    officialChainEvidenceUrl: "https://cn.zailaboratory.com/careers/"
   },
   {
     id: "company-hutchmed",
@@ -629,13 +779,23 @@ const CANDIDATE_SEEDS: CandidateSeed[] = [
     id: "company-boehringer-ingelheim-china",
     officialChineseName: "勃林格殷格翰（中国）投资有限公司",
     pinyinName: "boehringer-ingelheim",
-    inclusionReason: "外资药企中国区"
+    inclusionReason: "外资药企中国区",
+    status: "VERIFIED_SCRAPABLE",
+    atsKind: "SUCCESSFACTORS",
+    officialWebsiteUrl: "https://www.boehringer-ingelheim.com/",
+    socialEntryUrl: "https://jobs.boehringer-ingelheim.com/search/?q=&locationsearch=China",
+    officialChainEvidenceUrl: "https://jobs.boehringer-ingelheim.com/"
   },
   {
     id: "company-merck-china",
     officialChineseName: "默克中国医药健康",
     pinyinName: "moke",
-    inclusionReason: "外资药企中国区"
+    inclusionReason: "外资药企中国区",
+    status: "VERIFIED_SCRAPABLE",
+    atsKind: "OFFICIAL_JSON",
+    officialWebsiteUrl: "https://www.merckgroup.com/",
+    socialEntryUrl: "https://careers.emdgroup.com/us/en/search-results?keywords=China",
+    officialChainEvidenceUrl: "https://careers.emdgroup.com/us/en/"
   },
   {
     id: "company-taibang-bio",
@@ -659,13 +819,23 @@ const CANDIDATE_SEEDS: CandidateSeed[] = [
     id: "company-haisco",
     officialChineseName: "海思科医药集团股份有限公司",
     pinyinName: "haisike",
-    inclusionReason: "国内知名药企"
+    inclusionReason: "国内知名药企",
+    status: "VERIFIED_SCRAPABLE",
+    atsKind: "HOTJOB_WECRUIT",
+    officialWebsiteUrl: "https://www.haisco.com/",
+    socialEntryUrl: "https://wecruit.hotjob.cn/SU6663b85a1eb8051cd22556e3/pb/social.html",
+    officialChainEvidenceUrl: "https://www.haisco.com/recruitment.html"
   },
   {
     id: "company-sinocelltech",
     officialChineseName: "北京神州细胞生物技术集团股份公司",
     pinyinName: "shenzhou-xibao",
-    inclusionReason: "知名 Biotech"
+    inclusionReason: "知名 Biotech",
+    status: "VERIFIED_SCRAPABLE",
+    atsKind: "HOTJOB_WECRUIT",
+    officialWebsiteUrl: "https://www.sinocelltech.com/",
+    socialEntryUrl: "https://www.hotjob.cn/wt/SCT/web/index",
+    officialChainEvidenceUrl: "https://www.sinocelltech.com/Gather/job/pid/7.html"
   },
   {
     id: "company-luye",
@@ -735,7 +905,23 @@ const CANDIDATE_SEEDS: CandidateSeed[] = [
     id: "company-kenvue-china",
     officialChineseName: "科赴中国",
     pinyinName: "kefu",
-    inclusionReason: "外资药企中国区"
+    inclusionReason: "外资药企中国区",
+    status: "VERIFIED_SCRAPABLE",
+    atsKind: "WORKDAY",
+    officialWebsiteUrl: "https://www.kenvue.com/",
+    socialEntryUrl: "https://kenvue.wd5.myworkdayjobs.com/kenvue",
+    officialChainEvidenceUrl: "https://www.kenvue.com/careers"
+  },
+  {
+    id: "company-amgen-china",
+    officialChineseName: "安进中国",
+    pinyinName: "anjin",
+    inclusionReason: "外资药企中国区",
+    status: "VERIFIED_SCRAPABLE",
+    atsKind: "WORKDAY",
+    officialWebsiteUrl: "https://www.amgen.cn/",
+    socialEntryUrl: "https://amgen.wd1.myworkdayjobs.com/Careers",
+    officialChainEvidenceUrl: "https://www.amgen.com/careers"
   },
   {
     id: "company-hongri",

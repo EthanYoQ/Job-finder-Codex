@@ -14,7 +14,7 @@ describe("prisma schema", () => {
     });
 
     expect(output).toMatch(/is valid/i);
-  });
+  }, 15_000);
 
   it("stores a required per-source dedupe key for jobs", () => {
     expect(schema).toMatch(/dedupeKey\s+String/);

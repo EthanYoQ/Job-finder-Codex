@@ -11,6 +11,10 @@ import {
 import { runP0CrawlBatch } from "../src/crawler/runCrawlBatch";
 import { createMokaSourceFetch } from "../src/crawler/mokaSourceFetch";
 import { createHttpHtmlSourceFetch } from "../src/crawler/httpHtmlSourceFetch";
+import { createWorkdaySourceFetch } from "../src/crawler/workdaySourceFetch";
+import { createHotjobWecruitSourceFetch } from "../src/crawler/hotjobWecruitSourceFetch";
+import { createHotjobLegacySourceFetch } from "../src/crawler/hotjobLegacySourceFetch";
+import { createOfficialJsonSourceFetch } from "../src/crawler/officialJsonSourceFetch";
 import { createUnsupportedSourceFetch } from "../src/crawler/unsupportedSourceFetch";
 import { createSourceFetchRouter } from "../src/crawler/sourceFetchRouter";
 import { buildSourceCrawlPlans } from "../src/crawler/sourcePlan";
@@ -48,6 +52,10 @@ try {
 const fetch = createSourceFetchRouter({
   moka: createMokaSourceFetch(),
   html: createHttpHtmlSourceFetch(),
+  officialJson: createOfficialJsonSourceFetch(),
+  workday: createWorkdaySourceFetch(),
+  hotjob: createHotjobWecruitSourceFetch(),
+  hotjobLegacy: createHotjobLegacySourceFetch(),
   fallback: createUnsupportedSourceFetch()
 });
 

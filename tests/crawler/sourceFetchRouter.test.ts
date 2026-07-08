@@ -124,4 +124,46 @@ describe("source fetch router", () => {
     await expect(router(plan)).resolves.toMatchObject({ ok: true, html: "<table></table>" });
     expect(calls).toEqual(["html"]);
   });
+
+  it("routes Workday sources to the Workday fetcher when provided", async () => {
+    const calls: string[] = [];
+    const router = createSourceFetchRouter({
+      moka: async () => {
+        calls.push("moka");
+        return { ok: false, capturedAt, failureReason: "wrong" };
+      },
+      workday: async () => {
+        calls.push("workday");
+        return { ok: true, capturedAt, payload: { jobPostings: [] } };
+      },
+      fallback: async () => {
+        calls.push("fallback");
+        return { ok: false, capturedAt, failureReason: "wrong" };
+      }
+    });
+
+    await expect(router(planWithAtsKind("WORKDAY"))).resolves.toMatchObject({ ok: true });
+    expect(calls).toEqual(["workday"]);
+  });
+
+  it("routes Hotjob Wecruit sources to the Hotjob fetcher when provided", async () => {
+    const calls: string[] = [];
+    const router = createSourceFetchRouter({
+      moka: async () => {
+        calls.push("moka");
+        return { ok: false, capturedAt, failureReason: "wrong" };
+      },
+      hotjob: async () => {
+        calls.push("hotjob");
+        return { ok: true, capturedAt, payload: { jobs: [] } };
+      },
+      fallback: async () => {
+        calls.push("fallback");
+        return { ok: false, capturedAt, failureReason: "wrong" };
+      }
+    });
+
+    await expect(router(planWithAtsKind("HOTJOB_WECRUIT"))).resolves.toMatchObject({ ok: true });
+    expect(calls).toEqual(["hotjob"]);
+  });
 });

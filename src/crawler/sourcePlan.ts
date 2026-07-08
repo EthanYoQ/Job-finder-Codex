@@ -1,5 +1,9 @@
 import type { CandidateCompany, CandidateRecruitmentSource } from "../data/companyRegistry";
 import type { HtmlTableConfig, OfficialJsonConfig } from "./adapters/types";
+import type { HotjobWecruitFetchConfig } from "./hotjobWecruitSourceFetch";
+import type { HotjobLegacyFetchConfig } from "./hotjobLegacySourceFetch";
+import type { OfficialJsonFetchConfig } from "./officialJsonSourceFetch";
+import type { WorkdayFetchConfig } from "./workdaySourceFetch";
 
 export type CrawlAdapterId = "official-json" | "html-table";
 
@@ -23,6 +27,10 @@ export type SourceCrawlPlan =
       company: PlannedCompany;
       source: PlannedSource;
       json: OfficialJsonConfig;
+      officialJsonFetch?: OfficialJsonFetchConfig;
+      workday?: WorkdayFetchConfig;
+      hotjob?: HotjobWecruitFetchConfig;
+      hotjobLegacy?: HotjobLegacyFetchConfig;
     }
   | {
       adapterId: "html-table";
@@ -35,6 +43,10 @@ type RepresentativeSourceConfig =
   | {
       adapterId: "official-json";
       json: OfficialJsonConfig;
+      officialJsonFetch?: OfficialJsonFetchConfig;
+      workday?: WorkdayFetchConfig;
+      hotjob?: HotjobWecruitFetchConfig;
+      hotjobLegacy?: HotjobLegacyFetchConfig;
     }
   | {
       adapterId: "html-table";
@@ -45,6 +57,41 @@ const MOKA_JSON_CONFIG: OfficialJsonConfig = {
   jobsPath: "data.jobs",
   fields: {
     sourceJobId: "id",
+    officialTitle: "title",
+    officialUrl: "officialUrl",
+    locationRaw: "locationRaw",
+    cities: "cities"
+  },
+  defaultCategory: "其他"
+};
+
+const WORKDAY_JSON_CONFIG: OfficialJsonConfig = {
+  jobsPath: "jobPostings",
+  fields: {
+    sourceJobId: "sourceJobId",
+    officialTitle: "title",
+    officialUrl: "officialUrl",
+    locationRaw: "locationRaw",
+    cities: "cities"
+  },
+  defaultCategory: "其他"
+};
+
+const HOTJOB_WECRUIT_JSON_CONFIG: OfficialJsonConfig = {
+  jobsPath: "jobs",
+  fields: {
+    sourceJobId: "sourceJobId",
+    officialTitle: "title",
+    officialUrl: "officialUrl",
+    locationRaw: "locationRaw"
+  },
+  defaultCategory: "其他"
+};
+
+const OFFICIAL_API_JSON_CONFIG: OfficialJsonConfig = {
+  jobsPath: "jobs",
+  fields: {
+    sourceJobId: "sourceJobId",
     officialTitle: "title",
     officialUrl: "officialUrl",
     locationRaw: "locationRaw",
@@ -94,9 +141,244 @@ const REPRESENTATIVE_CONFIGS: Record<string, RepresentativeSourceConfig> = {
     adapterId: "official-json",
     json: MOKA_JSON_CONFIG
   },
+  "source-pfizer-china-social": {
+    adapterId: "official-json",
+    json: WORKDAY_JSON_CONFIG,
+    workday: {
+      tenant: "pfizer",
+      site: "PfizerCareers",
+      appliedFacets: {
+        Location_Country: ["6cb77610a8a543aea2d6bc10457e35d4"]
+      },
+      pageSize: 20,
+      maxPages: 10
+    }
+  },
+  "source-haleon-china-social": {
+    adapterId: "official-json",
+    json: WORKDAY_JSON_CONFIG,
+    workday: {
+      tenant: "gsknch",
+      site: "GSKCareers",
+      appliedFacets: {
+        location: [
+          "03fe97f04c9a01333d3739eea7577455",
+          "03fe97f04c9a01ebc5af2deea7576a55",
+          "15dc3becd679105e714122093995f79f",
+          "b5196703399c0188e29d0aedaf53abef"
+        ]
+      },
+      pageSize: 20,
+      maxPages: 5,
+      cityHints: {
+        "SHANGHAI QIANTAN PLAZA": ["上海"],
+        "Suzhou Plant Tech Industry Park": ["苏州"]
+      }
+    }
+  },
+  "source-roche-china-social": {
+    adapterId: "official-json",
+    json: WORKDAY_JSON_CONFIG,
+    workday: {
+      tenant: "roche",
+      site: "roche-ext",
+      searchText: "China",
+      pageSize: 20,
+      maxPages: 5
+    }
+  },
+  "source-msd-china-social": {
+    adapterId: "official-json",
+    json: WORKDAY_JSON_CONFIG,
+    workday: {
+      tenant: "msd",
+      site: "SearchJobs",
+      searchText: "China",
+      pageSize: 20,
+      maxPages: 5
+    }
+  },
+  "source-bms-china-social": {
+    adapterId: "official-json",
+    json: WORKDAY_JSON_CONFIG,
+    workday: {
+      tenant: "bristolmyerssquibb",
+      site: "BMS",
+      searchText: "China",
+      pageSize: 20,
+      maxPages: 5
+    }
+  },
+  "source-gilead-china-social": {
+    adapterId: "official-json",
+    json: WORKDAY_JSON_CONFIG,
+    workday: {
+      tenant: "gilead",
+      site: "gileadcareers",
+      searchText: "China",
+      pageSize: 20,
+      maxPages: 3
+    }
+  },
+  "source-agilent-china-social": {
+    adapterId: "official-json",
+    json: WORKDAY_JSON_CONFIG,
+    workday: {
+      tenant: "agilent",
+      site: "Agilent_Careers",
+      searchText: "China",
+      pageSize: 20,
+      maxPages: 5
+    }
+  },
+  "source-abbott-china-social": {
+    adapterId: "official-json",
+    json: WORKDAY_JSON_CONFIG,
+    workday: {
+      tenant: "abbott",
+      site: "abbottcareers",
+      searchText: "China",
+      pageSize: 20,
+      maxPages: 5
+    }
+  },
+  "source-stryker-china-social": {
+    adapterId: "official-json",
+    json: WORKDAY_JSON_CONFIG,
+    workday: {
+      tenant: "stryker",
+      site: "StrykerCareers",
+      searchText: "China",
+      pageSize: 20,
+      maxPages: 5
+    }
+  },
+  "source-gehc-china-social": {
+    adapterId: "official-json",
+    json: WORKDAY_JSON_CONFIG,
+    workday: {
+      tenant: "gehc",
+      site: "gehc_externalsite",
+      searchText: "China",
+      pageSize: 20,
+      maxPages: 5
+    }
+  },
+  "source-edwards-china-social": {
+    adapterId: "official-json",
+    json: WORKDAY_JSON_CONFIG,
+    workday: {
+      tenant: "edwards",
+      site: "edwardscareers",
+      searchText: "China",
+      pageSize: 20,
+      maxPages: 5
+    }
+  },
+  "source-medtronic-china-social": {
+    adapterId: "official-json",
+    json: WORKDAY_JSON_CONFIG,
+    workday: {
+      tenant: "medtronic",
+      site: "MedtronicCareers",
+      searchText: "China",
+      pageSize: 20,
+      maxPages: 5
+    }
+  },
+  "source-kenvue-china-social": {
+    adapterId: "official-json",
+    json: WORKDAY_JSON_CONFIG,
+    workday: {
+      tenant: "kenvue",
+      site: "kenvue",
+      appliedFacets: {
+        locationCountry: ["6cb77610a8a543aea2d6bc10457e35d4"]
+      },
+      pageSize: 20,
+      maxPages: 2
+    }
+  },
+  "source-amgen-china-social": {
+    adapterId: "official-json",
+    json: WORKDAY_JSON_CONFIG,
+    workday: {
+      tenant: "amgen",
+      site: "Careers",
+      appliedFacets: {
+        LocationCountry: ["6cb77610a8a543aea2d6bc10457e35d4"]
+      },
+      pageSize: 20,
+      maxPages: 3
+    }
+  },
+  "source-simcere-social": {
+    adapterId: "official-json",
+    json: HOTJOB_WECRUIT_JSON_CONFIG,
+    hotjob: {
+      suiteKey: "SU61458d83bef57c54dcb4e43f",
+      pageSize: 20,
+      maxPages: 25
+    }
+  },
+  "source-haisco-social": {
+    adapterId: "official-json",
+    json: HOTJOB_WECRUIT_JSON_CONFIG,
+    hotjob: {
+      suiteKey: "SU6663b85a1eb8051cd22556e3",
+      pageSize: 20,
+      maxPages: 10
+    }
+  },
+  "source-cr-sanjiu-social": {
+    adapterId: "official-json",
+    json: HOTJOB_WECRUIT_JSON_CONFIG,
+    hotjob: {
+      suiteKey: "SU613834ecbef57c3b6383b50e",
+      pageSize: 20,
+      maxPages: 20
+    }
+  },
   "source-hengrui-social": {
     adapterId: "official-json",
     json: MOKA_JSON_CONFIG
+  },
+  "source-bayer-healthcare-social": {
+    adapterId: "html-table",
+    table: {
+      rowSelector: "#searchresults tbody tr",
+      fields: {
+        officialTitle: { selector: ".jobTitle.hidden-phone a.jobTitle-link" },
+        officialUrl: {
+          selector: ".jobTitle.hidden-phone a.jobTitle-link",
+          attribute: "href"
+        },
+        locationRaw: { selector: "td.colLocation" }
+      }
+    }
+  },
+  "source-takeda-china-social": {
+    adapterId: "html-table",
+    table: {
+      rowSelector: "#search-results-list li",
+      fields: {
+        sourceJobId: { selector: "button.js-save-job-btn", attribute: "data-job-id" },
+        officialTitle: { selector: "h2.title" },
+        officialUrl: { selector: "a[href*='/job/']", attribute: "href" },
+        locationRaw: { selector: ".location" }
+      }
+    }
+  },
+  "source-zaiding-social": {
+    adapterId: "html-table",
+    table: {
+      rowSelector: ".space-y-2 > .bg-white",
+      fields: {
+        officialTitle: { selector: ".font-bold.text-black.text-xl" },
+        officialUrl: { value: "https://cn.zailaboratory.com/jobs/" },
+        locationRaw: { selector: ".font-normal.mt-2" }
+      }
+    }
   },
   "source-kelun-social": {
     adapterId: "html-table",
@@ -214,6 +496,60 @@ const REPRESENTATIVE_CONFIGS: Record<string, RepresentativeSourceConfig> = {
   "source-rcbio-social": {
     adapterId: "official-json",
     json: MOKA_JSON_CONFIG
+  },
+  "source-innovent-social": {
+    adapterId: "official-json",
+    json: OFFICIAL_API_JSON_CONFIG,
+    officialJsonFetch: {
+      kind: "innovent",
+      endpointUrl: "https://www.innoventbio.com/api/jobs?limit=200"
+    }
+  },
+  "source-novo-nordisk-china-social": {
+    adapterId: "official-json",
+    json: OFFICIAL_API_JSON_CONFIG,
+    officialJsonFetch: {
+      kind: "novo-nordisk",
+      endpointUrl:
+        "https://www.novonordisk.com/bin/nncorp/careersearch?keyword=&country=China%20Mainland&category=&locale=en"
+    }
+  },
+  "source-boehringer-ingelheim-china-social": {
+    adapterId: "html-table",
+    table: {
+      rowSelector: "#job-tile-list li.job-tile",
+      fields: {
+        officialTitle: { selector: ".jobTitle-link" },
+        officialUrl: { selector: ".jobTitle-link", attribute: "href" },
+        locationRaw: { selector: '.section-field.location div[id$="-value"]' }
+      }
+    }
+  },
+  "source-merck-china-social": {
+    adapterId: "official-json",
+    json: OFFICIAL_API_JSON_CONFIG,
+    officialJsonFetch: {
+      kind: "phenom",
+      detailBaseUrl: "https://careers.emdgroup.com/us/en/job"
+    }
+  },
+  "source-thermo-fisher-china-social": {
+    adapterId: "official-json",
+    json: OFFICIAL_API_JSON_CONFIG,
+    officialJsonFetch: {
+      kind: "phenom",
+      detailBaseUrl: "https://jobs.thermofisher.com/global/en/job"
+    }
+  },
+  "source-sinocelltech-social": {
+    adapterId: "official-json",
+    json: HOTJOB_WECRUIT_JSON_CONFIG,
+    hotjobLegacy: {
+      listUrl: "https://www.hotjob.cn/wt/SCT/web/mode400/position/list",
+      suitePath: "wt/SCT",
+      pageSize: 20,
+      maxPages: 10
+    }
   },
   "source-grand-pharma-china-social": {
     adapterId: "html-table",
@@ -350,7 +686,11 @@ export function buildSourceCrawlPlans(companies: readonly CandidateCompany[]): S
               adapterId: "official-json",
               company: plannedCompany,
               source: plannedSource,
-              json: config.json
+              json: config.json,
+              ...(config.officialJsonFetch ? { officialJsonFetch: config.officialJsonFetch } : {}),
+              ...(config.workday ? { workday: config.workday } : {}),
+              ...(config.hotjob ? { hotjob: config.hotjob } : {}),
+              ...(config.hotjobLegacy ? { hotjobLegacy: config.hotjobLegacy } : {})
             }
           : {
               adapterId: "html-table",

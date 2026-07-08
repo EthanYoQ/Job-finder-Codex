@@ -13,6 +13,7 @@ export type ATSKind =
   | "MOKA"
   | "BEISEN_ZHIYE"
   | "WORKDAY"
+  | "HOTJOB_WECRUIT"
   | "SUCCESSFACTORS"
   | "REDSEA"
   | "BROWSER_FALLBACK"

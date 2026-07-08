@@ -26,11 +26,11 @@ describe("P0 company registry", () => {
     expect(stats.totalCandidates).toBeLessThanOrEqual(120);
   });
 
-  it("does not mark the registry as P0-launchable before 50 companies are verified scrapable", () => {
+  it("marks the registry as P0-launchable once 50 companies are configured verified scrapable", () => {
     const stats = getCandidatePoolStats(candidateCompanies);
 
-    expect(stats.verifiedScrapableCompanies).toBeLessThan(50);
-    expect(stats.canLaunchP0).toBe(false);
+    expect(stats.verifiedScrapableCompanies).toBeGreaterThanOrEqual(50);
+    expect(stats.canLaunchP0).toBe(true);
   });
 
   it("separates social sources from campus sources", () => {
@@ -324,6 +324,343 @@ describe("P0 company registry", () => {
           atsKind: "OFFICIAL_HTML",
           officialEntryUrl: "https://www.nhwa-group.com/job/ren-cai-zhao-pin-list-0.htm",
           officialChainEvidenceUrl: "https://www.nhwa-group.com/job/ren-cai-zhao-pin-list-0.htm"
+        })
+      ]
+    });
+  });
+
+  it("records official-chain evidence for the Workday source wave", () => {
+    const byId = new Map(candidateCompanies.map((company) => [company.id, company]));
+
+    expect(byId.get("company-pfizer-china")).toMatchObject({
+      officialWebsiteUrl: "https://www.pfizer.com/",
+      sources: [
+        expect.objectContaining({
+          status: "VERIFIED_SCRAPABLE",
+          atsKind: "WORKDAY",
+          officialEntryUrl: "https://pfizer.wd1.myworkdayjobs.com/PfizerCareers",
+          officialChainEvidenceUrl: "https://www.pfizer.com/about/careers"
+        })
+      ]
+    });
+
+    expect(byId.get("company-haleon-china")).toMatchObject({
+      officialWebsiteUrl: "https://www.haleon.com/",
+      sources: [
+        expect.objectContaining({
+          status: "VERIFIED_SCRAPABLE",
+          atsKind: "WORKDAY",
+          officialEntryUrl: "https://gsknch.wd3.myworkdayjobs.com/GSKCareers",
+          officialChainEvidenceUrl: "https://www.haleon.com/careers"
+        })
+      ]
+    });
+
+    expect(byId.get("company-roche-china")).toMatchObject({
+      officialWebsiteUrl: "https://www.roche.com.cn/",
+      sources: [
+        expect.objectContaining({
+          status: "VERIFIED_SCRAPABLE",
+          atsKind: "WORKDAY",
+          officialEntryUrl: "https://roche.wd3.myworkdayjobs.com/roche-ext",
+          officialChainEvidenceUrl: "https://careers.roche.com/cn/zh/china-mainland"
+        })
+      ]
+    });
+
+    expect(byId.get("company-msd-china")).toMatchObject({
+      officialWebsiteUrl: "https://www.msdchina.com.cn/",
+      sources: [
+        expect.objectContaining({
+          status: "VERIFIED_SCRAPABLE",
+          atsKind: "WORKDAY",
+          officialEntryUrl: "https://msd.wd5.myworkdayjobs.com/SearchJobs",
+          officialChainEvidenceUrl: "https://jobs.msd.com/cn/zh"
+        })
+      ]
+    });
+
+    expect(byId.get("company-bms-china")).toMatchObject({
+      officialWebsiteUrl: "https://www.bms.com/cn",
+      sources: [
+        expect.objectContaining({
+          status: "VERIFIED_SCRAPABLE",
+          atsKind: "WORKDAY",
+          officialEntryUrl: "https://bristolmyerssquibb.wd5.myworkdayjobs.com/BMS",
+          officialChainEvidenceUrl: "https://careers.bms.com/cn/"
+        })
+      ]
+    });
+
+    expect(byId.get("company-gilead-china")).toMatchObject({
+      officialWebsiteUrl: "https://www.gileadchina.cn/",
+      sources: [
+        expect.objectContaining({
+          status: "VERIFIED_SCRAPABLE",
+          atsKind: "WORKDAY",
+          officialEntryUrl: "https://gilead.wd1.myworkdayjobs.com/gileadcareers",
+          officialChainEvidenceUrl: "https://www.gilead.com/careers/opportunities"
+        })
+      ]
+    });
+
+    expect(byId.get("company-agilent-china")).toMatchObject({
+      officialWebsiteUrl: "https://www.agilent.com.cn/",
+      sources: [
+        expect.objectContaining({
+          status: "VERIFIED_SCRAPABLE",
+          atsKind: "WORKDAY",
+          officialEntryUrl: "https://agilent.wd5.myworkdayjobs.com/Agilent_Careers",
+          officialChainEvidenceUrl: "https://careers.agilent.com/locations/asia-pacific/china/"
+        })
+      ]
+    });
+
+    expect(byId.get("company-abbott-china")).toMatchObject({
+      officialWebsiteUrl: "https://www.abbott.com/",
+      sources: [
+        expect.objectContaining({
+          status: "VERIFIED_SCRAPABLE",
+          atsKind: "WORKDAY",
+          officialEntryUrl: "https://abbott.wd5.myworkdayjobs.com/abbottcareers",
+          officialChainEvidenceUrl: "https://www.abbott.com/careers.html"
+        })
+      ]
+    });
+
+    expect(byId.get("company-stryker-china")).toMatchObject({
+      officialWebsiteUrl: "https://www.stryker.com/",
+      sources: [
+        expect.objectContaining({
+          status: "VERIFIED_SCRAPABLE",
+          atsKind: "WORKDAY",
+          officialEntryUrl: "https://stryker.wd1.myworkdayjobs.com/StrykerCareers",
+          officialChainEvidenceUrl: "https://careers.stryker.com/"
+        })
+      ]
+    });
+
+    expect(byId.get("company-gehc-china")).toMatchObject({
+      officialWebsiteUrl: "https://www.gehealthcare.com/",
+      sources: [
+        expect.objectContaining({
+          status: "VERIFIED_SCRAPABLE",
+          atsKind: "WORKDAY",
+          officialEntryUrl: "https://gehc.wd5.myworkdayjobs.com/gehc_externalsite",
+          officialChainEvidenceUrl: "https://www.gehealthcare.com/about/careers"
+        })
+      ]
+    });
+
+    expect(byId.get("company-edwards-china")).toMatchObject({
+      officialWebsiteUrl: "https://www.edwards.com/",
+      sources: [
+        expect.objectContaining({
+          status: "VERIFIED_SCRAPABLE",
+          atsKind: "WORKDAY",
+          officialEntryUrl: "https://edwards.wd5.myworkdayjobs.com/edwardscareers",
+          officialChainEvidenceUrl: "https://www.edwards.com/careers/jobsearch"
+        })
+      ]
+    });
+
+    expect(byId.get("company-medtronic-china")).toMatchObject({
+      officialWebsiteUrl: "https://www.medtronic.com/",
+      sources: [
+        expect.objectContaining({
+          status: "VERIFIED_SCRAPABLE",
+          atsKind: "WORKDAY",
+          officialEntryUrl: "https://medtronic.wd1.myworkdayjobs.com/MedtronicCareers",
+          officialChainEvidenceUrl: "https://medtronic.wd1.myworkdayjobs.com/MedtronicCareers"
+        })
+      ]
+    });
+  });
+
+  it("records official-chain evidence for the Hotjob Wecruit source wave", () => {
+    const byId = new Map(candidateCompanies.map((company) => [company.id, company]));
+
+    expect(byId.get("company-simcere")).toMatchObject({
+      officialWebsiteUrl: "https://www.simcere.com/",
+      sources: [
+        expect.objectContaining({
+          status: "VERIFIED_SCRAPABLE",
+          atsKind: "HOTJOB_WECRUIT",
+          officialEntryUrl: "https://wecruit.hotjob.cn/SU61458d83bef57c54dcb4e43f/pb/index.html",
+          officialChainEvidenceUrl: "https://www.simcere.com/jrwm/jrwm.aspx"
+        })
+      ]
+    });
+
+    expect(byId.get("company-haisco")).toMatchObject({
+      officialWebsiteUrl: "https://www.haisco.com/",
+      sources: [
+        expect.objectContaining({
+          status: "VERIFIED_SCRAPABLE",
+          atsKind: "HOTJOB_WECRUIT",
+          officialEntryUrl: "https://wecruit.hotjob.cn/SU6663b85a1eb8051cd22556e3/pb/social.html",
+          officialChainEvidenceUrl: "https://www.haisco.com/recruitment.html"
+        })
+      ]
+    });
+
+    expect(byId.get("company-cr-sanjiu")).toMatchObject({
+      officialWebsiteUrl: "https://www.999.com.cn/",
+      sources: [
+        expect.objectContaining({
+          status: "VERIFIED_SCRAPABLE",
+          atsKind: "HOTJOB_WECRUIT",
+          officialEntryUrl: "https://wecruit.hotjob.cn/SU613834ecbef57c3b6383b50e/pb/index.html",
+          officialChainEvidenceUrl: "https://www.999.com.cn/applicationGuide/index.html"
+        })
+      ]
+    });
+  });
+
+  it("records official-chain evidence for the final P0 source wave", () => {
+    const byId = new Map(candidateCompanies.map((company) => [company.id, company]));
+
+    expect(byId.get("company-innovent")).toMatchObject({
+      officialWebsiteUrl: "https://www.innoventbio.com/",
+      sources: [
+        expect.objectContaining({
+          status: "VERIFIED_SCRAPABLE",
+          atsKind: "OFFICIAL_JSON",
+          officialEntryUrl: "https://www.innoventbio.com/cn/recruit",
+          officialChainEvidenceUrl: "https://www.innoventbio.com/cn/recruit"
+        })
+      ]
+    });
+
+    expect(byId.get("company-novo-nordisk-china")).toMatchObject({
+      officialWebsiteUrl: "https://www.novonordisk.com/",
+      sources: [
+        expect.objectContaining({
+          status: "VERIFIED_SCRAPABLE",
+          atsKind: "OFFICIAL_JSON",
+          officialEntryUrl:
+            "https://www.novonordisk.com/careers/find-a-job/career-search-results.html",
+          officialChainEvidenceUrl: "https://www.novonordisk.com/careers/find-a-job.html"
+        })
+      ]
+    });
+
+    expect(byId.get("company-boehringer-ingelheim-china")).toMatchObject({
+      officialWebsiteUrl: "https://www.boehringer-ingelheim.com/",
+      sources: [
+        expect.objectContaining({
+          status: "VERIFIED_SCRAPABLE",
+          atsKind: "SUCCESSFACTORS",
+          officialEntryUrl: "https://jobs.boehringer-ingelheim.com/search/?q=&locationsearch=China",
+          officialChainEvidenceUrl: "https://jobs.boehringer-ingelheim.com/"
+        })
+      ]
+    });
+
+    expect(byId.get("company-merck-china")).toMatchObject({
+      officialWebsiteUrl: "https://www.merckgroup.com/",
+      sources: [
+        expect.objectContaining({
+          status: "VERIFIED_SCRAPABLE",
+          atsKind: "OFFICIAL_JSON",
+          officialEntryUrl: "https://careers.emdgroup.com/us/en/search-results?keywords=China",
+          officialChainEvidenceUrl: "https://careers.emdgroup.com/us/en/"
+        })
+      ]
+    });
+
+    expect(byId.get("company-sinocelltech")).toMatchObject({
+      officialWebsiteUrl: "https://www.sinocelltech.com/",
+      sources: [
+        expect.objectContaining({
+          status: "VERIFIED_SCRAPABLE",
+          atsKind: "HOTJOB_WECRUIT",
+          officialEntryUrl: "https://www.hotjob.cn/wt/SCT/web/index",
+          officialChainEvidenceUrl: "https://www.sinocelltech.com/Gather/job/pid/7.html"
+        })
+      ]
+    });
+
+    expect(byId.get("company-thermo-fisher-china")).toMatchObject({
+      officialWebsiteUrl: "https://www.thermofisher.com/",
+      sources: [
+        expect.objectContaining({
+          status: "VERIFIED_SCRAPABLE",
+          atsKind: "OFFICIAL_JSON",
+          officialEntryUrl: "https://jobs.thermofisher.com/global/en/china-jobs",
+          officialChainEvidenceUrl: "https://jobs.thermofisher.com/global/en"
+        })
+      ]
+    });
+  });
+
+  it("records official-chain evidence for the global static HTML source wave", () => {
+    const byId = new Map(candidateCompanies.map((company) => [company.id, company]));
+
+    expect(byId.get("company-bayer-healthcare")).toMatchObject({
+      officialWebsiteUrl: "https://www.bayer.com.cn/",
+      sources: [
+        expect.objectContaining({
+          status: "VERIFIED_SCRAPABLE",
+          atsKind: "SUCCESSFACTORS",
+          officialEntryUrl: "https://jobs.bayer.com/search/?q=&locationsearch=China&locale=zh_CN",
+          officialChainEvidenceUrl: "https://www.bayer.com.cn/zh-hans/zhaoxiannashi"
+        })
+      ]
+    });
+
+    expect(byId.get("company-takeda-china")).toMatchObject({
+      officialWebsiteUrl: "https://www.takeda.com.cn/",
+      sources: [
+        expect.objectContaining({
+          status: "VERIFIED_SCRAPABLE",
+          atsKind: "OFFICIAL_HTML",
+          officialEntryUrl: "https://jobs.takeda.com/location/china-jobs/1113/1814991/2",
+          officialChainEvidenceUrl: "https://www.takeda.com/careers/"
+        })
+      ]
+    });
+  });
+
+  it("records official-chain evidence for the Kenvue and Zai Lab source wave", () => {
+    const byId = new Map(candidateCompanies.map((company) => [company.id, company]));
+
+    expect(byId.get("company-kenvue-china")).toMatchObject({
+      officialWebsiteUrl: "https://www.kenvue.com/",
+      sources: [
+        expect.objectContaining({
+          status: "VERIFIED_SCRAPABLE",
+          atsKind: "WORKDAY",
+          officialEntryUrl: "https://kenvue.wd5.myworkdayjobs.com/kenvue",
+          officialChainEvidenceUrl: "https://www.kenvue.com/careers"
+        })
+      ]
+    });
+
+    expect(byId.get("company-zaiding")).toMatchObject({
+      officialWebsiteUrl: "https://cn.zailaboratory.com/",
+      sources: [
+        expect.objectContaining({
+          status: "VERIFIED_SCRAPABLE",
+          atsKind: "OFFICIAL_HTML",
+          officialEntryUrl: "https://cn.zailaboratory.com/jobs/",
+          officialChainEvidenceUrl: "https://cn.zailaboratory.com/careers/"
+        })
+      ]
+    });
+  });
+
+  it("records official-chain evidence for the Amgen Workday source", () => {
+    const byId = new Map(candidateCompanies.map((company) => [company.id, company]));
+
+    expect(byId.get("company-amgen-china")).toMatchObject({
+      officialWebsiteUrl: "https://www.amgen.cn/",
+      sources: [
+        expect.objectContaining({
+          status: "VERIFIED_SCRAPABLE",
+          atsKind: "WORKDAY",
+          officialEntryUrl: "https://amgen.wd1.myworkdayjobs.com/Careers",
+          officialChainEvidenceUrl: "https://www.amgen.com/careers"
         })
       ]
     });
