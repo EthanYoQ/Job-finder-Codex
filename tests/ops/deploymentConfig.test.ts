@@ -33,6 +33,18 @@ describe("deployment configuration", () => {
     expect(compose).toMatch(/Aliyun Korea|Korea origin|Seoul/i);
   });
 
+  it("keeps runtime image inputs aligned with worker, scheduler, backup, and monitor commands", () => {
+    const dockerfile = readRequiredFile(dockerfilePath);
+    const compose = readRequiredFile(composePath);
+
+    expect(compose).toMatch(/npm run p0:crawl/);
+    expect(compose).toMatch(/npx tsx ops\/monitoring-check\.ts/);
+    expect(dockerfile).toMatch(/COPY --from=build \/app\/scripts \.\/scripts/);
+    expect(dockerfile).toMatch(/COPY --from=build \/app\/src \.\/src/);
+    expect(dockerfile).toMatch(/COPY --from=build \/app\/prisma \.\/prisma/);
+    expect(dockerfile).toMatch(/COPY --from=deps \/app\/node_modules \.\/node_modules|RUN npm ci(?!\s+--omit=dev)/);
+  });
+
   it("configures nginx no-index protections, rate limits, and denied internal paths", () => {
     const nginx = readRequiredFile(nginxPath);
 
@@ -45,6 +57,9 @@ describe("deployment configuration", () => {
     expect(nginx).toMatch(/\/api\/|\/admin\/|\/search\//);
     expect(nginx).toMatch(/deny all;/);
     expect(nginx).toMatch(/\/raw\/|\/batch\/|\~ \/\./);
+    expect(nginx).toMatch(/locked origin/i);
+    expect(nginx).toMatch(/trusted prox(y|ies)|allowlist/i);
+    expect(nginx).toMatch(/default deny|deny-by-default|deny all except/i);
   });
 
   it("ships a monitoring check command that reads env-driven health and database inputs", () => {
@@ -54,5 +69,7 @@ describe("deployment configuration", () => {
     expect(script).toContain("DATABASE_URL");
     expect(script).toMatch(/process\.env/);
     expect(script).toMatch(/process\.exitCode|process\.exit\(/);
+    expect(script).toMatch(/readString\(readinessSummary,\s*"latestBackupAt"\)/);
+    expect(script).toMatch(/readBoolean\(readinessSummary,\s*"latestBackupSucceeded"\)/);
   });
 });

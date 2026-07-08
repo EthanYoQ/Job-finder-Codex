@@ -82,6 +82,9 @@ services:
       - "${HTTP_PORT:-80}:80"
     volumes:
       - ./nginx.conf:/etc/nginx/conf.d/default.conf:ro
+      # Locked origin example: mount a provider-managed trusted proxy allowlist
+      # include here and keep nginx deny-by-default for direct origin traffic.
+      # - ./trusted-proxies.conf:/etc/nginx/conf.d/trusted-proxies.conf:ro
     networks:
       - internal
 

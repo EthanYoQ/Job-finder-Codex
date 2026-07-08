@@ -183,3 +183,51 @@
 
 - Wave 1 live evidence target is met.
 - P0 remains blocked because `6/50` is below the required 50 crawl-evidenced verified companies.
+
+# Task 4 fix: ops runtime alignment
+
+## Scope
+
+- Changed only:
+  - `Dockerfile`
+  - `ops/docker-compose.yml`
+  - `ops/nginx.conf`
+  - `ops/monitoring-check.ts`
+  - `tests/ops/deploymentConfig.test.ts`
+  - `.superpowers/sdd/task-4-report.md`
+- No frontend, admin, or crawler business logic changed.
+
+## Red Evidence
+
+- `npm test -- tests/ops/deploymentConfig.test.ts`
+  - Result before fixes: failed with 3 reviewer-aligned regressions
+  - Verified failures:
+    - runtime image did not include `scripts/`, `src/`, `prisma/`, or a `tsx`-capable dependency set even though compose runs `npm run p0:crawl` and `npx tsx ops/monitoring-check.ts`
+    - nginx config did not document locked origin / trusted proxy allowlist / default deny semantics
+    - `ops/monitoring-check.ts` read `latestBackupSucceeded` from `readinessSummary` but not `latestBackupAt`
+
+## Fix
+
+- Runtime image now reuses the dependency tree from the install stage and copies `scripts/`, `src/`, `prisma/`, and `tsconfig.json` so the existing worker/scheduler/monitor commands are valid inside the image.
+- Compose now documents the trusted proxy allowlist mount point for locked-origin setups without hardcoding vendor IPs.
+- Nginx now carries an explicit locked-origin comment template covering trusted proxy allowlist and deny-by-default posture.
+- `ops/monitoring-check.ts` now reads `latestBackupAt` from `crawlSummary`, then `readinessSummary`, then env fallback, matching the existing `latestBackupSucceeded` fallback shape.
+- Regression test coverage was added to `tests/ops/deploymentConfig.test.ts`.
+
+## Commands And Results
+
+- `npm test -- tests/ops/deploymentConfig.test.ts`
+  - First result: failed, `1` file, `3` failed tests.
+  - Final result: passed, `1` file, `4` passed tests.
+- `npm test -- tests/ops/deploymentConfig.test.ts tests/ops/backupRestore.test.ts tests/server/opsMonitoring.test.ts`
+  - Result: passed, `3` files, `9` tests.
+- `npm run typecheck`
+  - Result: passed.
+- `npm run build`
+  - Result: passed.
+
+## Remaining Concerns
+
+- Confirmed fact: the runtime image is now self-consistent with the current compose worker/scheduler/monitor commands.
+- Confirmed fact: Postgres remains unexposed to the public network in compose.
+- Unconfirmed operational dependency: the locked-origin section is a documentation/template control and still requires operators to provide their own current CDN/WAF trusted proxy include file and matching header configuration at deploy time.

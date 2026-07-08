@@ -28,7 +28,10 @@ async function main(): Promise<void> {
     now: new Date(),
     health,
     backup: {
-      latestBackupAt: readString(crawlSummary, "latestBackupAt") ?? process.env.LATEST_BACKUP_AT,
+      latestBackupAt:
+        readString(crawlSummary, "latestBackupAt") ??
+        readString(readinessSummary, "latestBackupAt") ??
+        process.env.LATEST_BACKUP_AT,
       latestBackupSucceeded:
         readBoolean(crawlSummary, "latestBackupSucceeded") ??
         readBoolean(readinessSummary, "latestBackupSucceeded") ??
