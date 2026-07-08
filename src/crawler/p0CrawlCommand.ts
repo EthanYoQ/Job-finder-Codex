@@ -8,6 +8,7 @@ import type { SourceCrawlPlan } from "./sourcePlan";
 export interface P0CrawlOptions {
   help: boolean;
   sourceIds: string[];
+  force?: boolean;
 }
 
 export interface P0CrawlCommandResult {
@@ -61,10 +62,14 @@ export function parseP0CrawlArgs(args: readonly string[]): P0CrawlOptions {
       continue;
     }
 
+    if (arg === "--force") {
+      continue;
+    }
+
     throw new Error(`Unknown argument: ${arg}`);
   }
 
-  return { help: false, sourceIds };
+  return { help: false, sourceIds, force: args.includes("--force") };
 }
 
 export function selectP0CrawlPlans(
@@ -100,12 +105,14 @@ export async function runP0CrawlCommand({
   const selectedPlans = selectP0CrawlPlans(plans, options);
   const syncResult = await syncPlannedSourcesToDb(selectedPlans, companies, db);
   const runtimeDeps = createRuntimeDeps(db);
-  const batch = await runP0CrawlBatch(selectedPlans, {
+  const batchDeps = {
     db,
     fetch,
     now,
-    ...runtimeDeps
-  });
+    ...runtimeDeps,
+    ...(options.force === undefined ? {} : { force: options.force })
+  };
+  const batch = await runP0CrawlBatch(selectedPlans, batchDeps);
 
   return {
     syncedCompanyCount: syncResult.companyCount,

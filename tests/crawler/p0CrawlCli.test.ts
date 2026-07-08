@@ -47,6 +47,7 @@ describe("P0 crawl CLI", () => {
 
     expect(output).toContain("Usage: npm run p0:crawl -- [--source-id <sourceId>]");
     expect(output).toContain("--source-id");
+    expect(output).toContain("--force");
     expect(output).not.toMatch(/tvly-dev-[A-Za-z0-9_-]+/);
   });
 

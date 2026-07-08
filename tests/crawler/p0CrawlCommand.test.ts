@@ -47,7 +47,13 @@ describe("P0 crawl command", () => {
     expect(parseP0CrawlArgs(["--help"])).toEqual({ help: true, sourceIds: [] });
     expect(parseP0CrawlArgs(["--source-id", "source-test-social"])).toEqual({
       help: false,
-      sourceIds: ["source-test-social"]
+      sourceIds: ["source-test-social"],
+      force: false
+    });
+    expect(parseP0CrawlArgs(["--source-id", "source-test-social", "--force"])).toEqual({
+      help: false,
+      sourceIds: ["source-test-social"],
+      force: true
     });
     expect(() => parseP0CrawlArgs(["--source-id"])).toThrow("--source-id requires a value");
   });
@@ -126,5 +132,46 @@ describe("P0 crawl command", () => {
       }
     });
     expect(formatP0CrawlResult(result)).toContain("Successful sources: 1");
+  });
+
+  it("parses force and passes it into the batch runner", async () => {
+    expect(parseP0CrawlArgs(["--source-id", "source-test-social", "--force"])).toEqual({
+      help: false,
+      sourceIds: ["source-test-social"],
+      force: true
+    });
+
+    const runP0CrawlBatch = vi.fn(async () => ({
+      batchId: "batch-1",
+      plannedSourceCount: 1,
+      dueSourceCount: 1,
+      successfulSourceCount: 1,
+      failedSourceCount: 0,
+      skippedSourceCount: 0
+    }));
+
+    await runP0CrawlCommand({
+      plans: [plan],
+      companies: [company],
+      options: { help: false, sourceIds: [], force: true },
+      db: {
+        company: { upsert: vi.fn() },
+        recruitmentSource: { upsert: vi.fn() },
+        job: { findMany: vi.fn(), upsert: vi.fn() },
+        crawlObservation: { findMany: vi.fn(), findFirst: vi.fn(), create: vi.fn() },
+        crawlBatch: { create: vi.fn(), update: vi.fn() }
+      },
+      fetch: vi.fn(),
+      now: () => new Date("2026-07-08T08:00:00.000Z"),
+      syncPlannedSourcesToDb: vi.fn(async () => ({ companyCount: 1, sourceCount: 1 })),
+      createRuntimeDeps: vi.fn(() => ({
+        getPreviousJobs: async () => [],
+        getRecentObservations: async () => [],
+        isBaselineCompleted: async () => false
+      })),
+      runP0CrawlBatch
+    });
+
+    expect(runP0CrawlBatch).toHaveBeenCalledWith([plan], expect.objectContaining({ force: true }));
   });
 });

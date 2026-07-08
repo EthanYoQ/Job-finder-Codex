@@ -16,10 +16,11 @@ import { createTavilyKeyRing } from "../src/crawler/tavily";
 import { createTavilySourceFetch } from "../src/crawler/tavilySourceFetch";
 
 function printHelp(): void {
-  console.log("Usage: npm run p0:crawl -- [--source-id <sourceId>]");
+  console.log("Usage: npm run p0:crawl -- [--source-id <sourceId>] [--force]");
   console.log("");
   console.log("Runs configured P0 official-source crawl plans and persists observations to PostgreSQL.");
   console.log("Use --source-id more than once to run selected sources only.");
+  console.log("Use --force to bypass the schedule gate for manual validation crawls.");
 }
 
 function readTavilyKeys(env: NodeJS.ProcessEnv): string[] {
@@ -71,7 +72,7 @@ try {
   const result = await runP0CrawlCommand({
     plans: selectedPlans,
     companies: candidateCompanies,
-    options: { help: false, sourceIds: [] },
+    options: { help: false, sourceIds: [], force: options.force },
     db: prisma,
     fetch,
     now: () => new Date(),
