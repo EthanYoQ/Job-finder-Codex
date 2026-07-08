@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   getLaunchReadinessGates,
   redactValue,
+  resolveCommandInvocation,
   runLaunchReadiness
 } from "../../scripts/p0-launch-readiness";
 
@@ -72,5 +73,25 @@ describe("P0 launch readiness aggregator", () => {
     );
     expect(redactValue("TAVILY_API_KEY=tvly-dev-REDACTED")).toBe("TAVILY_API_KEY=[REDACTED]");
     expect(redactValue("--token=abcdef")).toBe("--token=[REDACTED]");
+  });
+
+  it("runs npm gates through cmd.exe on Windows instead of spawning npm.cmd directly", () => {
+    const invocation = resolveCommandInvocation("npm", ["test", "--", "tests/app/App.test.tsx"]);
+
+    if (process.platform === "win32") {
+      expect(invocation.executable.toLocaleLowerCase()).toContain("cmd");
+      expect(invocation.args).toEqual([
+        "/d",
+        "/s",
+        "/c",
+        "npm test -- tests/app/App.test.tsx"
+      ]);
+      return;
+    }
+
+    expect(invocation).toEqual({
+      executable: "npm",
+      args: ["test", "--", "tests/app/App.test.tsx"]
+    });
   });
 });

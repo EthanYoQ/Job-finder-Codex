@@ -25,7 +25,7 @@ async function main(): Promise<void> {
   ]);
 
   const alerts = evaluateOpsAlerts({
-    now: new Date(),
+    now: process.env.MONITORING_NOW ? new Date(process.env.MONITORING_NOW) : new Date(),
     health,
     backup: {
       latestBackupAt:

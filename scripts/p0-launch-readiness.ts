@@ -115,10 +115,10 @@ export async function runLaunchReadiness(
 
 async function defaultRunCommand(gate: LaunchGate): Promise<LaunchGateResult> {
   const [command, ...args] = gate.command;
-  const executable = resolveExecutable(command);
+  const invocation = resolveCommandInvocation(command, args);
 
   try {
-    const result = await execFileAsync(executable, args, {
+    const result = await execFileAsync(invocation.executable, invocation.args, {
       cwd: process.cwd(),
       encoding: "utf8",
       env: process.env,
@@ -147,12 +147,23 @@ async function defaultRunCommand(gate: LaunchGate): Promise<LaunchGateResult> {
   }
 }
 
-function resolveExecutable(command: string): string {
+export function resolveCommandInvocation(command: string, args: string[]): { executable: string; args: string[] } {
   if (process.platform === "win32" && command === "npm") {
-    return "npm.cmd";
+    return {
+      executable: process.env.ComSpec ?? "cmd.exe",
+      args: ["/d", "/s", "/c", ["npm", ...args].map(quoteWindowsShellArg).join(" ")]
+    };
   }
 
-  return command;
+  return { executable: command, args };
+}
+
+function quoteWindowsShellArg(value: string): string {
+  if (value.length > 0 && !/[\s"]/u.test(value)) {
+    return value;
+  }
+
+  return `"${value.replace(/"/g, '\\"')}"`;
 }
 
 function firstNonEmptyLine(value: string): string | undefined {

@@ -112,7 +112,8 @@ describe("deployment configuration", () => {
             ...process.env,
             HEALTHCHECK_URL: "http://127.0.0.1:9/healthz",
             READINESS_SUMMARY_PATH: readinessSummaryPath,
-            CRAWL_SUMMARY_PATH: crawlSummaryPath
+            CRAWL_SUMMARY_PATH: crawlSummaryPath,
+            MONITORING_NOW: "2026-07-08T13:00:00.000Z"
           },
           encoding: "utf8",
           stdio: ["ignore", "pipe", "pipe"]
