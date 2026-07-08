@@ -44,7 +44,7 @@ Commands and results
 - `npm run typecheck` -> PASS
 
 Commit hash
-- `0a47e6f`
+- `58d3aec`
 
 Self-review
 - CSPC is no longer treated as wave-1 plannable: its company source status now reflects entry found but still pending follow-up, and its representative source config was removed.
