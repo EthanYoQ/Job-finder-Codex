@@ -29,7 +29,7 @@
 - Consumes: `SourceFetchFunction`, `SourceFetchResult`, `SourceCrawlPlan`.
 - Produces: `createHttpHtmlSourceFetch(deps?: HttpHtmlSourceFetchDeps): SourceFetchFunction`.
 
-- [ ] **Step 1: Write failing tests**
+- [x] **Step 1: Write failing tests**
 
 Create `tests/crawler/httpHtmlSourceFetch.test.ts`:
 
@@ -149,13 +149,13 @@ describe("createHttpHtmlSourceFetch", () => {
 });
 ```
 
-- [ ] **Step 2: Run focused test and verify it fails**
+- [x] **Step 2: Run focused test and verify it fails**
 
 Run: `npm test -- tests/crawler/httpHtmlSourceFetch.test.ts`
 
 Expected: FAIL because `src/crawler/httpHtmlSourceFetch.ts` does not exist.
 
-- [ ] **Step 3: Implement direct HTML source fetch**
+- [x] **Step 3: Implement direct HTML source fetch**
 
 Create `src/crawler/httpHtmlSourceFetch.ts`:
 
@@ -236,7 +236,7 @@ function failed(capturedAt: string, failureReason: string): SourceFetchResult {
 }
 ```
 
-- [ ] **Step 4: Run focused verification**
+- [x] **Step 4: Run focused verification**
 
 Run: `npm test -- tests/crawler/httpHtmlSourceFetch.test.ts`
 
@@ -244,7 +244,7 @@ Run: `npm run typecheck`
 
 Expected: PASS.
 
-- [ ] **Step 5: Commit Task 1**
+- [x] **Step 5: Commit Task 1**
 
 Run:
 
@@ -266,7 +266,7 @@ git commit -m "feat: fetch official HTML sources directly"
 - Consumes: `createHttpHtmlSourceFetch`.
 - Produces: `SourceFetchRouterDeps.html?: SourceFetchFunction`.
 
-- [ ] **Step 1: Write failing router test**
+- [x] **Step 1: Write failing router test**
 
 Modify `tests/crawler/sourceFetchRouter.test.ts` to add a test proving html-table plans use `html` before `fallback`:
 
@@ -306,13 +306,13 @@ it("routes html-table plans to the direct HTML fetcher when provided", async () 
 });
 ```
 
-- [ ] **Step 2: Run focused test and verify it fails**
+- [x] **Step 2: Run focused test and verify it fails**
 
 Run: `npm test -- tests/crawler/sourceFetchRouter.test.ts`
 
 Expected: FAIL because `html` is not accepted by `createSourceFetchRouter`.
 
-- [ ] **Step 3: Implement routing**
+- [x] **Step 3: Implement routing**
 
 Modify `src/crawler/sourceFetchRouter.ts`:
 
@@ -350,7 +350,7 @@ import { createHttpHtmlSourceFetch } from "../src/crawler/httpHtmlSourceFetch";
 
 Then pass `html: createHttpHtmlSourceFetch()` when constructing `createSourceFetchRouter`.
 
-- [ ] **Step 4: Run focused verification**
+- [x] **Step 4: Run focused verification**
 
 Run: `npm test -- tests/crawler/sourceFetchRouter.test.ts tests/crawler/p0CrawlCli.test.ts`
 
@@ -358,7 +358,7 @@ Run: `npm run typecheck`
 
 Expected: PASS.
 
-- [ ] **Step 5: Commit Task 2**
+- [x] **Step 5: Commit Task 2**
 
 Run:
 
@@ -381,7 +381,7 @@ git commit -m "feat: route HTML crawl plans to direct fetch"
 - Consumes: direct HTML routing and existing Moka source fetch.
 - Produces: configured crawl plans for `source-astrazeneca-social`, `source-novartis-social`, `source-fosun-pharma-social`, `source-beigene-social`, `source-hengrui-social`, and `source-kelun-social`.
 
-- [ ] **Step 1: Write failing source-plan tests**
+- [x] **Step 1: Write failing source-plan tests**
 
 Modify `tests/crawler/sourcePlan.test.ts`:
 
@@ -476,13 +476,13 @@ it("records official-chain evidence for wave 1 added sources", () => {
 });
 ```
 
-- [ ] **Step 2: Run focused tests and verify they fail**
+- [x] **Step 2: Run focused tests and verify they fail**
 
 Run: `npm test -- tests/crawler/sourcePlan.test.ts tests/data/companyRegistry.test.ts`
 
 Expected: FAIL because HengRui/Kelun are not configured and HTML plan selectors are still old.
 
-- [ ] **Step 3: Update registry and source plans**
+- [x] **Step 3: Update registry and source plans**
 
 Modify `src/data/companyRegistry.ts`:
 
@@ -530,7 +530,7 @@ const MOKA_JSON_CONFIG: OfficialJsonConfig = {
 - Change `source-fosun-pharma-social` to direct `html-table` with the selectors from Step 1.
 - Add `source-kelun-social` with the selectors from Step 1.
 
-- [ ] **Step 4: Run focused verification**
+- [x] **Step 4: Run focused verification**
 
 Run: `npm test -- tests/crawler/sourcePlan.test.ts tests/data/companyRegistry.test.ts tests/crawler/adapters.test.ts`
 
@@ -538,7 +538,7 @@ Run: `npm run typecheck`
 
 Expected: PASS.
 
-- [ ] **Step 5: Commit Task 3**
+- [x] **Step 5: Commit Task 3**
 
 Run:
 
@@ -558,7 +558,7 @@ git commit -m "feat: add wave 1 verified source plans"
 - Consumes: Tasks 1-3.
 - Produces: completed plan checkboxes and local PostgreSQL readiness evidence for the wave 1 sources.
 
-- [ ] **Step 1: Run full verification**
+- [x] **Step 1: Run full verification**
 
 Run:
 
@@ -574,7 +574,7 @@ Expected:
 - Test, typecheck, build, and Prisma validation pass.
 - Tavily key grep has no matches.
 
-- [ ] **Step 2: Run two forced crawls for wave 1 sources**
+- [x] **Step 2: Run two forced crawls for wave 1 sources**
 
 With process-level `DATABASE_URL`, run the same command twice:
 
@@ -589,7 +589,7 @@ Expected for each run:
 - reports `Failed sources: 0`.
 - does not require Tavily credentials.
 
-- [ ] **Step 3: Verify database readiness evidence**
+- [x] **Step 3: Verify database readiness evidence**
 
 With the same process-level `DATABASE_URL`, run:
 
@@ -603,11 +603,11 @@ Expected:
 - reports `Crawl-evidenced verified companies: 6/50`.
 - still blocks on `VERIFIED_COMPANIES_BELOW_50`.
 
-- [ ] **Step 4: Mark checkboxes complete**
+- [x] **Step 4: Mark checkboxes complete**
 
 Only after Steps 1-3 verification, change every task checkbox in this plan from `[ ]` to `[x]`.
 
-- [ ] **Step 5: Commit Task 4**
+- [x] **Step 5: Commit Task 4**
 
 Run:
 

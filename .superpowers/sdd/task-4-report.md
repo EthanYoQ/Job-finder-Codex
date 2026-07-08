@@ -219,3 +219,29 @@ Results:
 ## Remaining Concerns
 
 - Confirmed fact: this follow-up changed test expectations only; production source code was not changed.
+
+# Task 4 final verification rerun
+
+## Commands And Results
+
+- `npm test`
+  - Result: passed, `34` files, `157` tests.
+- `npm run typecheck`
+  - Result: passed.
+- `npm run build`
+  - Result: passed.
+- `npm run prisma:validate`
+  - Result: passed.
+- `git grep -n -E "tvly-dev-[A-Za-z0-9_-]+" -- . ':!.superpowers'`
+  - Result: exit `1` with no output; treated as clean/no tracked Tavily key matches.
+- First forced wave-1 crawl with process-level `DATABASE_URL`
+  - Result: exit `0`; `Planned sources: 6`, `Successful sources: 6`, `Failed sources: 0`, `Skipped sources: 0`.
+- Second forced wave-1 crawl with process-level `DATABASE_URL`
+  - Result: exit `0`; `Planned sources: 6`, `Successful sources: 6`, `Failed sources: 0`, `Skipped sources: 0`.
+- `npm run p0:readiness -- --db` with process-level `DATABASE_URL`
+  - Result: exit `1`; `Candidate companies: 110`, `Declared verified social sources: 6`, `Configured verified social sources: 6`, `Crawl-evidenced verified companies: 6/50`, blocker `VERIFIED_COMPANIES_BELOW_50`.
+
+## Final Status
+
+- Wave 1 live evidence target is met.
+- P0 remains blocked because `6/50` is below the required 50 crawl-evidenced verified companies.
