@@ -33,7 +33,7 @@
   - `CompanyRegistrySyncDb`
   - `syncPlannedSourcesToDb(plans: readonly SourceCrawlPlan[], companies: readonly CandidateCompany[], db: CompanyRegistrySyncDb): Promise<CompanyRegistrySyncResult>`
 
-- [ ] **Step 1: Write the failing registry sync test**
+- [x] **Step 1: Write the failing registry sync test**
 
 Create `tests/db/companyRegistrySync.test.ts`:
 
@@ -162,13 +162,13 @@ describe("syncPlannedSourcesToDb", () => {
 });
 ```
 
-- [ ] **Step 2: Run the focused test and verify it fails**
+- [x] **Step 2: Run the focused test and verify it fails**
 
 Run: `npm test -- tests/db/companyRegistrySync.test.ts`
 
 Expected: FAIL because `src/db/companyRegistrySync.ts` does not exist.
 
-- [ ] **Step 3: Implement registry sync**
+- [x] **Step 3: Implement registry sync**
 
 Create `src/db/companyRegistrySync.ts`:
 
@@ -289,7 +289,7 @@ export async function syncPlannedSourcesToDb(
 }
 ```
 
-- [ ] **Step 4: Run focused verification**
+- [x] **Step 4: Run focused verification**
 
 Run: `npm test -- tests/db/companyRegistrySync.test.ts`
 
@@ -299,7 +299,7 @@ Run: `npm run typecheck`
 
 Expected: PASS.
 
-- [ ] **Step 5: Commit Task 1**
+- [x] **Step 5: Commit Task 1**
 
 Run:
 
@@ -322,7 +322,7 @@ git commit -m "feat: sync planned crawl sources to database"
   - `PrismaCrawlRuntimeDb`
   - `createPrismaCrawlRuntimeDeps(db: PrismaCrawlRuntimeDb)`
 
-- [ ] **Step 1: Write the failing runtime repository test**
+- [x] **Step 1: Write the failing runtime repository test**
 
 Create `tests/db/crawlRuntimeRepository.test.ts`:
 
@@ -438,13 +438,13 @@ describe("createPrismaCrawlRuntimeDeps", () => {
 });
 ```
 
-- [ ] **Step 2: Run focused test and verify it fails**
+- [x] **Step 2: Run focused test and verify it fails**
 
 Run: `npm test -- tests/db/crawlRuntimeRepository.test.ts`
 
 Expected: FAIL because `src/db/crawlRuntimeRepository.ts` does not exist.
 
-- [ ] **Step 3: Implement runtime repository**
+- [x] **Step 3: Implement runtime repository**
 
 Create `src/db/crawlRuntimeRepository.ts`:
 
@@ -536,7 +536,7 @@ export function createPrismaCrawlRuntimeDeps(db: PrismaCrawlRuntimeDb) {
 }
 ```
 
-- [ ] **Step 4: Run focused verification**
+- [x] **Step 4: Run focused verification**
 
 Run: `npm test -- tests/db/crawlRuntimeRepository.test.ts tests/db/crawlStateRepository.test.ts`
 
@@ -546,7 +546,7 @@ Run: `npm run typecheck`
 
 Expected: PASS.
 
-- [ ] **Step 5: Commit Task 2**
+- [x] **Step 5: Commit Task 2**
 
 Run:
 
@@ -571,7 +571,7 @@ git commit -m "feat: read crawl runtime state from database"
   - `runP0CrawlCommand(deps: RunP0CrawlCommandDeps): Promise<P0CrawlCommandResult>`
   - `formatP0CrawlResult(result: P0CrawlCommandResult): string`
 
-- [ ] **Step 1: Write the failing command test**
+- [x] **Step 1: Write the failing command test**
 
 Create `tests/crawler/p0CrawlCommand.test.ts`:
 
@@ -687,13 +687,13 @@ describe("P0 crawl command", () => {
 });
 ```
 
-- [ ] **Step 2: Run focused test and verify it fails**
+- [x] **Step 2: Run focused test and verify it fails**
 
 Run: `npm test -- tests/crawler/p0CrawlCommand.test.ts`
 
 Expected: FAIL because `src/crawler/p0CrawlCommand.ts` does not exist.
 
-- [ ] **Step 3: Implement command orchestration**
+- [x] **Step 3: Implement command orchestration**
 
 Create `src/crawler/p0CrawlCommand.ts`:
 
@@ -826,7 +826,7 @@ export function formatP0CrawlResult(result: P0CrawlCommandResult): string {
 }
 ```
 
-- [ ] **Step 4: Run focused verification**
+- [x] **Step 4: Run focused verification**
 
 Run: `npm test -- tests/crawler/p0CrawlCommand.test.ts`
 
@@ -836,7 +836,7 @@ Run: `npm run typecheck`
 
 Expected: PASS.
 
-- [ ] **Step 5: Commit Task 3**
+- [x] **Step 5: Commit Task 3**
 
 Run:
 
@@ -858,7 +858,7 @@ git commit -m "feat: orchestrate P0 crawl command"
 - Consumes: `runP0CrawlCommand`, `syncPlannedSourcesToDb`, `createPrismaCrawlRuntimeDeps`, existing source fetchers.
 - Produces: `npm run p0:crawl -- [--source-id <sourceId>]`.
 
-- [ ] **Step 1: Write the failing CLI help test**
+- [x] **Step 1: Write the failing CLI help test**
 
 Create `tests/crawler/p0CrawlCli.test.ts`:
 
@@ -890,13 +890,13 @@ describe("P0 crawl CLI", () => {
 });
 ```
 
-- [ ] **Step 2: Run focused CLI test and verify it fails**
+- [x] **Step 2: Run focused CLI test and verify it fails**
 
 Run: `npm test -- tests/crawler/p0CrawlCli.test.ts`
 
 Expected: FAIL because `scripts/p0-crawl.ts` does not exist.
 
-- [ ] **Step 3: Implement CLI wiring**
+- [x] **Step 3: Implement CLI wiring**
 
 Create `scripts/p0-crawl.ts`:
 
@@ -982,7 +982,7 @@ Modify `package.json` scripts block by adding:
 "p0:crawl": "tsx scripts/p0-crawl.ts"
 ```
 
-- [ ] **Step 4: Run focused verification**
+- [x] **Step 4: Run focused verification**
 
 Run: `npm test -- tests/crawler/p0CrawlCli.test.ts tests/crawler/p0CrawlCommand.test.ts`
 
@@ -996,7 +996,7 @@ Run: `npm run typecheck`
 
 Expected: PASS.
 
-- [ ] **Step 5: Commit Task 4**
+- [x] **Step 5: Commit Task 4**
 
 Run:
 
@@ -1016,7 +1016,7 @@ git commit -m "feat: add P0 crawl CLI"
 - Consumes: Tasks 1-4.
 - Produces: completed plan checkboxes only after fresh verification.
 
-- [ ] **Step 1: Run full verification**
+- [x] **Step 1: Run full verification**
 
 Run:
 
@@ -1038,11 +1038,11 @@ Expected:
 - `npm run p0:readiness -- --help` exits `0`.
 - Tavily key grep has no matches.
 
-- [ ] **Step 2: Mark checkboxes complete**
+- [x] **Step 2: Mark checkboxes complete**
 
 Only after Step 1 verification, change every task checkbox in this plan from `[ ]` to `[x]`.
 
-- [ ] **Step 3: Commit Task 5**
+- [x] **Step 3: Commit Task 5**
 
 Run:
 
