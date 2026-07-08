@@ -29,6 +29,31 @@ function planWithAtsKind(atsKind: SourceCrawlPlan["source"]["atsKind"]): SourceC
   };
 }
 
+const beisenPlan: SourceCrawlPlan = {
+  adapterId: "official-json",
+  company: {
+    id: "company-fosun-pharma",
+    officialChineseName: "上海复星医药（集团）股份有限公司"
+  },
+  source: {
+    id: "source-fosun-pharma-social",
+    companyId: "company-fosun-pharma",
+    kind: "SOCIAL",
+    atsKind: "BEISEN_ZHIYE",
+    status: "VERIFIED_SCRAPABLE",
+    officialEntryUrl: "https://fosunpharma.zhiye.com/social",
+    officialChainEvidenceUrl: "https://www.fosunpharma.com/careers"
+  },
+  json: {
+    jobsPath: "jobs",
+    fields: {
+      officialTitle: "jobName",
+      officialUrl: "applyUrl",
+      locationRaw: "city"
+    }
+  }
+};
+
 describe("source fetch router", () => {
   it("routes Moka sources to the Moka fetcher", async () => {
     const calls: string[] = [];
@@ -64,5 +89,39 @@ describe("source fetch router", () => {
 
     expect(result.ok).toBe(true);
     expect(calls).toEqual(["fallback"]);
+  });
+
+  it("routes html-table plans to the direct HTML fetcher when provided", async () => {
+    const calls: string[] = [];
+    const plan = {
+      ...beisenPlan,
+      adapterId: "html-table",
+      table: {
+        rowSelector: "tr",
+        fields: {
+          officialTitle: { selector: "td:nth-child(1)" },
+          officialUrl: { selector: "a", attribute: "href" },
+          locationRaw: { selector: "td:nth-child(2)" }
+        }
+      }
+    } as const;
+
+    const router = createSourceFetchRouter({
+      moka: async () => {
+        calls.push("moka");
+        return { ok: false, capturedAt: "2026-07-08T00:00:00.000Z", failureReason: "wrong" };
+      },
+      html: async () => {
+        calls.push("html");
+        return { ok: true, capturedAt: "2026-07-08T00:00:00.000Z", html: "<table></table>" };
+      },
+      fallback: async () => {
+        calls.push("fallback");
+        return { ok: false, capturedAt: "2026-07-08T00:00:00.000Z", failureReason: "wrong" };
+      }
+    });
+
+    await expect(router(plan)).resolves.toMatchObject({ ok: true, html: "<table></table>" });
+    expect(calls).toEqual(["html"]);
   });
 });

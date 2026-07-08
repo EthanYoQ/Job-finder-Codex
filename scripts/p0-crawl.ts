@@ -10,6 +10,7 @@ import {
 } from "../src/crawler/p0CrawlCommand";
 import { runP0CrawlBatch } from "../src/crawler/runCrawlBatch";
 import { createMokaSourceFetch } from "../src/crawler/mokaSourceFetch";
+import { createHttpHtmlSourceFetch } from "../src/crawler/httpHtmlSourceFetch";
 import { createSourceFetchRouter } from "../src/crawler/sourceFetchRouter";
 import { buildSourceCrawlPlans } from "../src/crawler/sourcePlan";
 import { createTavilyKeyRing } from "../src/crawler/tavily";
@@ -58,6 +59,7 @@ try {
 let tavilyFetch: ReturnType<typeof createTavilySourceFetch> | undefined;
 const fetch = createSourceFetchRouter({
   moka: createMokaSourceFetch(),
+  html: createHttpHtmlSourceFetch(),
   fallback: (plan) => {
     tavilyFetch ??= createTavilySourceFetch({
       keyRing: createTavilyKeyRing(readTavilyKeys(process.env))
