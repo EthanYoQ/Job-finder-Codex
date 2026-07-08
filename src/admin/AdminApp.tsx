@@ -1,0 +1,283 @@
+import { useState } from "react";
+import { JOB_CATEGORIES, type JobCategory } from "../domain/search";
+import type { AdminDashboardModel } from "./adminViewModel";
+
+export type AdminAppProps = {
+  isAuthenticated: boolean;
+  model: AdminDashboardModel;
+  onLogin: (input: { username: string; password: string }) => Promise<void> | void;
+  onQueueManualCrawl: (input: { sourceId: string; reason: string }) => Promise<void> | void;
+  onReviewFeedback: (input: { feedbackId: string; status: "REVIEWED" | "CLOSED" }) => Promise<void> | void;
+  onReviewRecommendation: (input: {
+    recommendationId: string;
+    status: "REVIEWED" | "CLOSED";
+  }) => Promise<void> | void;
+  onApplyCategoryCorrection: (input: {
+    jobId: string;
+    category: JobCategory;
+    secondaryCategory?: JobCategory;
+    reason: string;
+  }) => Promise<void> | void;
+};
+
+type CorrectionDraft = {
+  category: JobCategory;
+  secondaryCategory: "" | JobCategory;
+  reason: string;
+};
+
+export function AdminApp({
+  isAuthenticated,
+  model,
+  onLogin,
+  onQueueManualCrawl,
+  onReviewFeedback,
+  onReviewRecommendation,
+  onApplyCategoryCorrection
+}: AdminAppProps) {
+  const [username, setUsername] = useState("");
+  const [password, setPassword] = useState("");
+  const [correctionDrafts, setCorrectionDrafts] = useState<Record<string, CorrectionDraft>>(() =>
+    Object.fromEntries(
+      model.categoryCorrectionQueue.map((item) => [
+        item.jobId,
+        {
+          category: item.suggestedCategory,
+          secondaryCategory: "",
+          reason: ""
+        }
+      ])
+    )
+  );
+
+  async function handleLogin() {
+    await onLogin({ username, password });
+  }
+
+  async function handleCorrectionSubmit(jobId: string) {
+    const draft = correctionDrafts[jobId];
+
+    if (draft === undefined || draft.reason.trim() === "") {
+      return;
+    }
+
+    await onApplyCategoryCorrection({
+      jobId,
+      category: draft.category,
+      ...(draft.secondaryCategory === "" ? {} : { secondaryCategory: draft.secondaryCategory }),
+      reason: draft.reason.trim()
+    });
+  }
+
+  return (
+    <main>
+      <h1>Admin Console</h1>
+
+      {!isAuthenticated ? (
+        <section aria-label="Login">
+          <label>
+            <span>管理员账号</span>
+            <input
+              aria-label="管理员账号"
+              onChange={(event) => setUsername(event.target.value)}
+              type="text"
+              value={username}
+            />
+          </label>
+          <label>
+            <span>管理员密码</span>
+            <input
+              aria-label="管理员密码"
+              onChange={(event) => setPassword(event.target.value)}
+              type="password"
+              value={password}
+            />
+          </label>
+          <button onClick={() => void handleLogin()} type="button">
+            登录
+          </button>
+        </section>
+      ) : (
+        <>
+          <section aria-label="Source Health">
+            <h2>Source Health</h2>
+            <ul>
+              {model.sources.map((source) => (
+                <li key={source.sourceId}>
+                  <strong>{source.companyName}</strong>
+                  <div>状态: {source.verificationStatus}</div>
+                  <div>已入库职位 {source.structuredJobCount}</div>
+                  <div>连续失败 {source.consecutiveFailureCount} 次</div>
+                  <div>最近结果: {source.latestOutcomeLabel}</div>
+                  {source.latestFailureReason === null ? null : (
+                    <div>最近失败原因: {source.latestFailureReason}</div>
+                  )}
+                  {source.canQueueManualCrawl ? (
+                    <button
+                      onClick={() =>
+                        void onQueueManualCrawl({
+                          sourceId: source.sourceId,
+                          reason: "admin-console"
+                        })
+                      }
+                      type="button"
+                    >
+                      加入手动抓取
+                    </button>
+                  ) : null}
+                </li>
+              ))}
+            </ul>
+          </section>
+
+          <section aria-label="Feedback Review">
+            <h2>Feedback Review</h2>
+            <ul>
+              {model.feedbackQueue.map((feedback) => (
+                <li key={feedback.id}>
+                  <strong>{feedback.companyName}</strong>
+                  <div>{feedback.jobTitle}</div>
+                  <div>{feedback.issueType}</div>
+                  <div>{feedback.description}</div>
+                  <button
+                    onClick={() => void onReviewFeedback({ feedbackId: feedback.id, status: "REVIEWED" })}
+                    type="button"
+                  >
+                    标记反馈已复核
+                  </button>
+                  <button
+                    onClick={() => void onReviewFeedback({ feedbackId: feedback.id, status: "CLOSED" })}
+                    type="button"
+                  >
+                    关闭反馈
+                  </button>
+                </li>
+              ))}
+            </ul>
+          </section>
+
+          <section aria-label="Recommendation Review">
+            <h2>Recommendation Review</h2>
+            <ul>
+              {model.recommendationQueue.map((recommendation) => (
+                <li key={recommendation.id}>
+                  <strong>{recommendation.companyName}</strong>
+                  <div>{recommendation.officialWebsiteUrl}</div>
+                  <div>{recommendation.note}</div>
+                  <button
+                    onClick={() =>
+                      void onReviewRecommendation({
+                        recommendationId: recommendation.id,
+                        status: "REVIEWED"
+                      })
+                    }
+                    type="button"
+                  >
+                    标记推荐已复核
+                  </button>
+                  <button
+                    onClick={() =>
+                      void onReviewRecommendation({
+                        recommendationId: recommendation.id,
+                        status: "CLOSED"
+                      })
+                    }
+                    type="button"
+                  >
+                    关闭推荐
+                  </button>
+                </li>
+              ))}
+            </ul>
+          </section>
+
+          <section aria-label="Category Correction">
+            <h2>Category Correction</h2>
+            <ul>
+              {model.categoryCorrectionQueue.map((item) => {
+                const draft = correctionDrafts[item.jobId];
+
+                if (draft === undefined) {
+                  return null;
+                }
+
+                return (
+                  <li key={item.jobId}>
+                    <strong>{item.companyName}</strong>
+                    <div>{item.jobTitle}</div>
+                    <div>当前类目: {item.currentCategory}</div>
+                    <label>
+                      <span>纠正后主类目</span>
+                      <select
+                        aria-label="纠正后主类目"
+                        onChange={(event) =>
+                          setCorrectionDrafts((current) => ({
+                            ...current,
+                            [item.jobId]: {
+                              ...draft,
+                              category: event.target.value as JobCategory
+                            }
+                          }))
+                        }
+                        value={draft.category}
+                      >
+                        {JOB_CATEGORIES.map((category) => (
+                          <option key={category} value={category}>
+                            {category}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                    <label>
+                      <span>纠正后副类目</span>
+                      <select
+                        aria-label="纠正后副类目"
+                        onChange={(event) =>
+                          setCorrectionDrafts((current) => ({
+                            ...current,
+                            [item.jobId]: {
+                              ...draft,
+                              secondaryCategory: event.target.value as "" | JobCategory
+                            }
+                          }))
+                        }
+                        value={draft.secondaryCategory}
+                      >
+                        <option value="">无</option>
+                        {JOB_CATEGORIES.map((category) => (
+                          <option key={category} value={category}>
+                            {category}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                    <label>
+                      <span>纠正原因</span>
+                      <input
+                        aria-label="纠正原因"
+                        onChange={(event) =>
+                          setCorrectionDrafts((current) => ({
+                            ...current,
+                            [item.jobId]: {
+                              ...draft,
+                              reason: event.target.value
+                            }
+                          }))
+                        }
+                        type="text"
+                        value={draft.reason}
+                      />
+                    </label>
+                    <button onClick={() => void handleCorrectionSubmit(item.jobId)} type="button">
+                      提交类目纠正
+                    </button>
+                  </li>
+                );
+              })}
+            </ul>
+          </section>
+        </>
+      )}
+    </main>
+  );
+}
