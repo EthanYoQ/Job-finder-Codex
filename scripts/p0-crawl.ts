@@ -5,7 +5,8 @@ import { createPrismaCrawlRuntimeDeps } from "../src/db/crawlRuntimeRepository";
 import {
   formatP0CrawlResult,
   parseP0CrawlArgs,
-  runP0CrawlCommand
+  runP0CrawlCommand,
+  selectP0CrawlPlans
 } from "../src/crawler/p0CrawlCommand";
 import { runP0CrawlBatch } from "../src/crawler/runCrawlBatch";
 import { createMokaSourceFetch } from "../src/crawler/mokaSourceFetch";
@@ -45,19 +46,32 @@ if (options.help) {
   process.exit(0);
 }
 
-const keyRing = createTavilyKeyRing(readTavilyKeys(process.env));
+const plans = buildSourceCrawlPlans(candidateCompanies);
+let selectedPlans: ReturnType<typeof selectP0CrawlPlans>;
+try {
+  selectedPlans = selectP0CrawlPlans(plans, options);
+} catch (error) {
+  console.error(error instanceof Error ? error.message : String(error));
+  process.exit(2);
+}
+let tavilyFetch: ReturnType<typeof createTavilySourceFetch> | undefined;
 const fetch = createSourceFetchRouter({
   moka: createMokaSourceFetch(),
-  fallback: createTavilySourceFetch({ keyRing })
+  fallback: (plan) => {
+    tavilyFetch ??= createTavilySourceFetch({
+      keyRing: createTavilyKeyRing(readTavilyKeys(process.env))
+    });
+    return tavilyFetch(plan);
+  }
 });
 
 const prisma = new PrismaClient();
 
 try {
   const result = await runP0CrawlCommand({
-    plans: buildSourceCrawlPlans(candidateCompanies),
+    plans: selectedPlans,
     companies: candidateCompanies,
-    options,
+    options: { help: false, sourceIds: [] },
     db: prisma,
     fetch,
     now: () => new Date(),
