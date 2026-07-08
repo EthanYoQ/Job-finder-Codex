@@ -2,6 +2,7 @@ import { PrismaClient } from "@prisma/client";
 import { createServer as createNodeServer, type IncomingMessage, type Server, type ServerResponse } from "node:http";
 import { readFile } from "node:fs/promises";
 import { extname, resolve } from "node:path";
+import { handleAdminApi, type AdminApiDeps, type AdminApiResponse } from "./adminApi";
 import { handlePublicApi, type PublicApiDeps, type PublicApiResponse } from "./publicApi";
 
 const DEFAULT_HOST = "0.0.0.0";
@@ -21,7 +22,10 @@ export interface HttpServerOptions {
   staticRoot?: string;
 }
 
-export function createServer(deps: PublicApiDeps, options: HttpServerOptions = {}): Server {
+type HttpServerDeps = PublicApiDeps & AdminApiDeps;
+type HttpResponse = PublicApiResponse | AdminApiResponse;
+
+export function createServer(deps: HttpServerDeps, options: HttpServerOptions = {}): Server {
   const staticRoot = resolve(options.staticRoot ?? resolve(process.cwd(), "dist"));
 
   return createNodeServer((request, response) => {
@@ -72,7 +76,7 @@ export async function startServer(): Promise<Server> {
 async function handleRequest(
   request: IncomingMessage,
   response: ServerResponse,
-  deps: PublicApiDeps,
+  deps: HttpServerDeps,
   staticRoot: string
 ): Promise<void> {
   const url = new URL(request.url ?? "/", `http://${request.headers.host ?? "127.0.0.1"}`);
@@ -94,6 +98,22 @@ async function handleRequest(
     return;
   }
 
+  if (url.pathname.startsWith("/admin/api/")) {
+    const adminApiResponse = await handleAdminApi(
+      {
+        method: request.method ?? "GET",
+        path: url.pathname,
+        headers: toHeaderRecord(request),
+        body: await readRequestBody(request),
+        ip: getRequestIp(request),
+        ...(request.headers["user-agent"] === undefined ? {} : { userAgent: request.headers["user-agent"] })
+      },
+      deps
+    );
+    writeResponse(response, adminApiResponse);
+    return;
+  }
+
   if ((request.method ?? "GET") !== "GET" && request.method !== "HEAD") {
     writeResponse(response, {
       status: 405,
@@ -112,6 +132,9 @@ async function handleRequest(
   try {
     const content = await readFile(filePath);
     response.statusCode = 200;
+    if (url.pathname === "/admin" || url.pathname.startsWith("/admin/")) {
+      response.setHeader("x-robots-tag", "noindex, nofollow");
+    }
     response.setHeader("content-type", CONTENT_TYPES[extname(filePath)] ?? "application/octet-stream");
     response.end(request.method === "HEAD" ? undefined : content);
   } catch {
@@ -183,13 +206,15 @@ function getRequestIp(request: IncomingMessage): string {
 }
 
 function resolveStaticPath(staticRoot: string, pathname: string): string | undefined {
-  const relativePath = pathname === "/" ? "index.html" : pathname.slice(1);
+  const relativePath = pathname === "/" || pathname === "/admin" || pathname.startsWith("/admin/")
+    ? "index.html"
+    : pathname.slice(1);
   const filePath = resolve(staticRoot, relativePath);
 
   return filePath.startsWith(staticRoot) ? filePath : undefined;
 }
 
-function writeResponse(response: ServerResponse, publicApiResponse: PublicApiResponse): void {
+function writeResponse(response: ServerResponse, publicApiResponse: HttpResponse): void {
   response.statusCode = publicApiResponse.status;
 
   for (const [key, value] of Object.entries(publicApiResponse.headers)) {

@@ -30,7 +30,7 @@ export function getLaunchReadinessGates(): LaunchGate[] {
   return [
     {
       name: "Frontend flow",
-      command: ["npm", "test", "--", "tests/app/App.test.tsx"]
+      command: ["npm", "test", "--", "tests/app/App.test.tsx", "tests/app/appDataProvider.test.ts"]
     },
     {
       name: "Route and rate-limit",
@@ -38,6 +38,7 @@ export function getLaunchReadinessGates(): LaunchGate[] {
         "npm",
         "test",
         "--",
+        "tests/server/httpServer.test.ts",
         "tests/server/publicApi.test.ts",
         "tests/server/rateLimit.test.ts",
         "tests/domain/route-policy.test.ts"
@@ -45,7 +46,7 @@ export function getLaunchReadinessGates(): LaunchGate[] {
     },
     {
       name: "Admin console",
-      command: ["npm", "test", "--", "tests/admin/AdminApp.test.tsx"]
+      command: ["npm", "test", "--", "tests/admin/AdminApp.test.tsx", "tests/server/adminApi.test.ts"]
     },
     {
       name: "Backup and restore",

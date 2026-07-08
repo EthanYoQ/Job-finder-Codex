@@ -1,3 +1,4 @@
+import type { Prisma } from "@prisma/client";
 import { toSourceScheduleState } from "../db/crawlStateRepository";
 import { toPrismaJobCategory, type PrismaJobCategoryName } from "../db/prismaMappers";
 import type { VerificationStatus } from "../domain/company";
@@ -21,7 +22,7 @@ type AdminAuditCreateArgs = {
     targetId: string | null;
     ip: string;
     userAgent: string;
-    metadata?: Record<string, unknown>;
+    metadata?: Prisma.InputJsonValue;
   };
 };
 
@@ -335,7 +336,7 @@ async function writeAuditEvent(
     action: string;
     targetType: string;
     targetId: string | null;
-    metadata?: Record<string, unknown>;
+    metadata?: Prisma.InputJsonValue;
   }
 ): Promise<void> {
   await db.adminAuditEvent.create({

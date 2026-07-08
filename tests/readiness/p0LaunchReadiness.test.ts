@@ -12,9 +12,9 @@ describe("P0 launch readiness aggregator", () => {
     const gateCommands = gates.map((gate) => gate.command.join(" "));
 
     expect(gateCommands).toEqual([
-      "npm test -- tests/app/App.test.tsx",
-      "npm test -- tests/server/publicApi.test.ts tests/server/rateLimit.test.ts tests/domain/route-policy.test.ts",
-      "npm test -- tests/admin/AdminApp.test.tsx",
+      "npm test -- tests/app/App.test.tsx tests/app/appDataProvider.test.ts",
+      "npm test -- tests/server/httpServer.test.ts tests/server/publicApi.test.ts tests/server/rateLimit.test.ts tests/domain/route-policy.test.ts",
+      "npm test -- tests/admin/AdminApp.test.tsx tests/server/adminApi.test.ts",
       "npm test -- tests/ops/backupRestore.test.ts tests/ops/deploymentConfig.test.ts",
       "npm test -- tests/server/opsMonitoring.test.ts",
       "npm test",

@@ -1,0 +1,145 @@
+import { createHash } from "node:crypto";
+import { describe, expect, it, vi } from "vitest";
+import { handleAdminApi } from "../../src/server/adminApi";
+
+function tokenHash(token: string): string {
+  return createHash("sha256").update(token).digest("hex");
+}
+
+function createDb() {
+  return {
+    adminUser: { findUnique: vi.fn(async () => null) },
+    adminSession: {
+      create: vi.fn(async () => ({})),
+      findUnique: vi.fn(async () => ({
+        id: "session-1",
+        adminUserId: "admin-1",
+        tokenHash: tokenHash("valid-token"),
+        status: "ACTIVE" as const,
+        ip: "127.0.0.1",
+        userAgent: "vitest",
+        expiresAt: new Date("2026-07-09T00:00:00.000Z"),
+        adminUser: { id: "admin-1", disabledAt: null }
+      }))
+    },
+    manualCrawlRequest: { create: vi.fn(async () => ({ id: "manual-1" })) },
+    adminAuditEvent: { create: vi.fn(async () => ({})) },
+    feedback: {
+      create: vi.fn(async () => ({ id: "feedback-1" })),
+      update: vi.fn(async () => ({ id: "feedback-1", status: "REVIEWED" })),
+      findMany: vi.fn(async () => [
+        {
+          id: "feedback-1",
+          issueType: "职位信息有误",
+          description: "城市写错",
+          status: "OPEN",
+          createdAt: new Date("2026-07-08T09:00:00.000Z"),
+          companyId: "company-1",
+          jobId: "job-1"
+        }
+      ])
+    },
+    recommendedCompany: {
+      create: vi.fn(async () => ({ id: "recommendation-1" })),
+      update: vi.fn(async () => ({ id: "recommendation-1", status: "REVIEWED" })),
+      findMany: vi.fn(async () => [
+        {
+          id: "recommendation-1",
+          companyName: "礼来",
+          officialWebsiteUrl: "https://www.lilly.com/cn",
+          recruitmentEntryUrl: null,
+          reason: "补充覆盖",
+          status: "OPEN",
+          createdAt: new Date("2026-07-08T08:00:00.000Z")
+        }
+      ])
+    },
+    job: {
+      findMany: vi.fn(async () => [
+        {
+          id: "job-other",
+          officialTitle: "Unclassified Role",
+          auxiliaryChineseTitle: "待分类职位",
+          category: "OTHER",
+          company: { officialChineseName: "辉瑞" }
+        }
+      ]),
+      update: vi.fn(async () => ({ id: "job-other" }))
+    },
+    recruitmentSource: {
+      findMany: vi.fn(async () => [
+        {
+          id: "source-1",
+          companyId: "company-1",
+          status: "VERIFIED_SCRAPABLE" as const,
+          company: { officialChineseName: "辉瑞" },
+          crawlObservations: [
+            {
+              crawledAt: new Date("2026-07-08T10:00:00.000Z"),
+              successful: true,
+              structuredJobCount: 3,
+              failureReason: null
+            }
+          ],
+          _count: { jobs: 3 }
+        }
+      ])
+    },
+    crawlObservation: { findFirst: vi.fn(async () => null) },
+    company: { findMany: vi.fn(async () => []) }
+  };
+}
+
+function request(path: string, overrides: Partial<Parameters<typeof handleAdminApi>[0]> = {}) {
+  return {
+    method: "GET",
+    path,
+    headers: { authorization: "Bearer valid-token" },
+    body: undefined,
+    ip: "127.0.0.1",
+    userAgent: "vitest",
+    ...overrides
+  };
+}
+
+describe("admin API", () => {
+  it("returns dashboard data for an active admin session", async () => {
+    const db = createDb();
+
+    const response = await handleAdminApi(request("/admin/api/dashboard"), {
+      db,
+      now: () => new Date("2026-07-08T12:00:00.000Z")
+    });
+
+    expect(response.status).toBe(200);
+    expect(response.headers["x-robots-tag"]).toBe("noindex, nofollow");
+    expect(response.body).toMatchObject({
+      sources: [{ sourceId: "source-1", companyName: "辉瑞" }],
+      feedbackQueue: [{ id: "feedback-1" }],
+      recommendationQueue: [{ id: "recommendation-1" }],
+      categoryCorrectionQueue: [{ jobId: "job-other", companyName: "辉瑞" }]
+    });
+  });
+
+  it("rejects invalid category corrections before admin operations run", async () => {
+    const db = createDb();
+
+    const response = await handleAdminApi(
+      request("/admin/api/category-correction", {
+        method: "POST",
+        body: {
+          jobId: "job-other",
+          category: "不是合法类目",
+          reason: "测试"
+        }
+      }),
+      {
+        db,
+        now: () => new Date("2026-07-08T12:00:00.000Z")
+      }
+    );
+
+    expect(response.status).toBe(400);
+    expect(db.job.update).not.toHaveBeenCalled();
+  });
+});

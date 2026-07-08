@@ -65,10 +65,11 @@ export async function handlePublicApi(request: PublicApiRequest, deps: PublicApi
   const headers = createBaseHeaders(request.path);
 
   if (request.path === "/privacy" || request.path === "/terms") {
+    const document = getStaticDocument(request.path.slice(1) as "privacy" | "terms");
     return {
       status: 200,
       headers: { ...headers, "content-type": "text/plain; charset=utf-8" },
-      body: getStaticDocument(request.path.slice(1) as "privacy" | "terms")
+      body: `${document.title}\n\n${document.body}`
     };
   }
 

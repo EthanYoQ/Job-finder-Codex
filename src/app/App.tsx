@@ -44,7 +44,7 @@ interface FeedbackDraft {
 const DEFAULT_CITY = "北京";
 const DEFAULT_COMPANY_ROW_CAP = 3;
 const CITY_OPTIONS = ["北京", "上海", "广州"];
-const CATEGORY_OPTIONS = ["销售", "医学事务", "市场准入", "临床运营"];
+const CATEGORY_OPTIONS = ["销售", "医学事务", "市场准入/政府事务", "临床运营"];
 
 function normalize(value: string): string {
   return value.trim().toLocaleLowerCase("zh-CN");

@@ -83,6 +83,8 @@ export interface AppDataProvider {
   getDocument(slug: "privacy" | "terms"): Promise<StaticDocumentResult>;
 }
 
+type ServerSortMode = "COMPANY_PINYIN_ASC" | "LATEST_POSTED" | "MATCHING_JOB_COUNT_DESC";
+
 const DEMO_WEBSITES: Record<string, string> = {
   astrazeneca: "https://www.astrazeneca.com.cn/",
   beigene: "https://www.beigene.com.cn/",
@@ -203,4 +205,117 @@ export function createDemoAppDataProvider(): AppDataProvider {
       return DEMO_DOCUMENTS[slug];
     }
   };
+}
+
+export function createHttpAppDataProvider(baseUrl = ""): AppDataProvider {
+  return {
+    async searchJobs(request) {
+      const params = new URLSearchParams({
+        city: request.city,
+        sort: toServerSort(request.sort),
+        limit: "50",
+        offset: "0"
+      });
+
+      if (request.keyword.trim() !== "") {
+        params.set("keyword", request.keyword.trim());
+      }
+
+      for (const category of request.categories) {
+        params.append("categories", toServerCategory(category));
+      }
+
+      if (request.onlyNew) {
+        params.set("newWithinDays", "7");
+      }
+
+      const response = await fetch(`${baseUrl}/api/search?${params.toString()}`, {
+        headers: { "x-job-search-consent": "accepted" }
+      });
+
+      return readJson<SearchResult>(response);
+    },
+    async listCoverage(request) {
+      const params = new URLSearchParams({
+        keyword: request.keyword,
+        offset: String(request.offset ?? 0),
+        limit: String(request.limit ?? 50)
+      });
+      const response = await fetch(`${baseUrl}/api/coverage?${params.toString()}`, {
+        headers: { "x-job-search-consent": "accepted" }
+      });
+
+      return readJson<CoverageResult>(response);
+    },
+    async submitFeedback(request) {
+      const response = await fetch(`${baseUrl}/api/feedback`, {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          "x-job-search-consent": "accepted"
+        },
+        body: JSON.stringify(request)
+      });
+
+      return readJson<FeedbackReceipt>(response);
+    },
+    async recommendCompany(request) {
+      const response = await fetch(`${baseUrl}/api/recommend-company`, {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          "x-job-search-consent": "accepted"
+        },
+        body: JSON.stringify(request)
+      });
+
+      return readJson<FeedbackReceipt>(response);
+    },
+    async getDocument(slug) {
+      const response = await fetch(`${baseUrl}/${slug}`);
+      const body = await readText(response);
+
+      return {
+        slug,
+        title: slug === "privacy" ? "隐私说明" : "使用条款",
+        body
+      };
+    }
+  };
+}
+
+function toServerSort(sort: SortMode): ServerSortMode {
+  if (sort === "LATEST") {
+    return "LATEST_POSTED";
+  }
+
+  if (sort === "JOB_COUNT_DESC") {
+    return "MATCHING_JOB_COUNT_DESC";
+  }
+
+  return "COMPANY_PINYIN_ASC";
+}
+
+function toServerCategory(category: string): string {
+  if (category === "市场准入") {
+    return "市场准入/政府事务";
+  }
+
+  return category;
+}
+
+async function readJson<T>(response: Response): Promise<T> {
+  if (!response.ok) {
+    throw new Error(`Request failed with status ${response.status}`);
+  }
+
+  return (await response.json()) as T;
+}
+
+async function readText(response: Response): Promise<string> {
+  if (!response.ok) {
+    throw new Error(`Request failed with status ${response.status}`);
+  }
+
+  return response.text();
 }

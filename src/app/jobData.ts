@@ -82,7 +82,7 @@ export const companies: CompanyResult[] = [
         officialTitle: "Market Access Specialist",
         officialPublishedAt: "2026-06-28T08:00:00.000Z",
         city: "北京",
-        category: "市场准入",
+        category: "市场准入/政府事务",
         isNew: false,
         officialUrl: "https://www.pfizer.com.cn/careers"
       }
