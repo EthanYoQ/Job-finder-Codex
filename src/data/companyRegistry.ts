@@ -193,7 +193,12 @@ const CANDIDATE_SEEDS: CandidateSeed[] = [
     id: "company-sanofi-china",
     officialChineseName: "赛诺菲（中国）投资有限公司",
     pinyinName: "sainuofei",
-    inclusionReason: "外资药企中国区"
+    inclusionReason: "外资药企中国区",
+    status: "VERIFIED_SCRAPABLE",
+    atsKind: "OFFICIAL_HTML",
+    officialWebsiteUrl: "https://www.sanofi.com/",
+    socialEntryUrl: "https://jobs.sanofi.com/en/china",
+    officialChainEvidenceUrl: "https://jobs.sanofi.com/en/china"
   },
   {
     id: "company-kelun",
@@ -229,7 +234,12 @@ const CANDIDATE_SEEDS: CandidateSeed[] = [
     id: "company-hansoh",
     officialChineseName: "翰森制药集团有限公司",
     pinyinName: "hansen",
-    inclusionReason: "国内头部药企"
+    inclusionReason: "国内头部药企",
+    status: "VERIFIED_SCRAPABLE",
+    atsKind: "BEISEN_ZHIYE",
+    officialWebsiteUrl: "https://cn.hspharm.com/",
+    socialEntryUrl: "https://hspharm.zhiye.com/Social",
+    officialChainEvidenceUrl: "https://cn.hspharm.com/site/solr.htm"
   },
   {
     id: "company-guangzhou-pharma",
@@ -323,7 +333,12 @@ const CANDIDATE_SEEDS: CandidateSeed[] = [
     id: "company-akeso",
     officialChineseName: "中山康方生物医药有限公司",
     pinyinName: "kangfang",
-    inclusionReason: "知名 Biotech"
+    inclusionReason: "知名 Biotech",
+    status: "VERIFIED_SCRAPABLE",
+    atsKind: "OFFICIAL_HTML",
+    officialWebsiteUrl: "https://www.akesobio.com/",
+    socialEntryUrl: "https://www.akesobio.com/cn/career/social-recruitment/",
+    officialChainEvidenceUrl: "https://www.akesobio.com/cn/career/"
   },
   {
     id: "company-changchun-high-tech",
@@ -485,7 +500,12 @@ const CANDIDATE_SEEDS: CandidateSeed[] = [
     id: "company-allist",
     officialChineseName: "上海艾力斯医药科技股份有限公司",
     pinyinName: "ailisi",
-    inclusionReason: "知名 Biotech"
+    inclusionReason: "知名 Biotech",
+    status: "VERIFIED_SCRAPABLE",
+    atsKind: "BEISEN_ZHIYE",
+    officialWebsiteUrl: "https://www.allist.com.cn/",
+    socialEntryUrl: "https://allist.zhiye.com/Social",
+    officialChainEvidenceUrl: "https://www.allist.com.cn/recruit.html"
   },
   {
     id: "company-buchang",
@@ -544,7 +564,12 @@ const CANDIDATE_SEEDS: CandidateSeed[] = [
     id: "company-beta-pharma",
     officialChineseName: "贝达药业股份有限公司",
     pinyinName: "beida",
-    inclusionReason: "知名创新药企业"
+    inclusionReason: "知名创新药企业",
+    status: "VERIFIED_SCRAPABLE",
+    atsKind: "BEISEN_ZHIYE",
+    officialWebsiteUrl: "https://www.bettapharma.com/",
+    socialEntryUrl: "https://bettapharma.zhiye.com/Social",
+    officialChainEvidenceUrl: "https://www.bettapharma.com/Jobs/"
   },
   {
     id: "company-grand-life-sciences",
@@ -652,13 +677,23 @@ const CANDIDATE_SEEDS: CandidateSeed[] = [
     id: "company-rcbio",
     officialChineseName: "荣昌生物制药（烟台）股份有限公司",
     pinyinName: "rongchang-shengwu",
-    inclusionReason: "知名 Biotech"
+    inclusionReason: "知名 Biotech",
+    status: "VERIFIED_SCRAPABLE",
+    atsKind: "MOKA",
+    officialWebsiteUrl: "https://www.remegen.com/",
+    socialEntryUrl: "https://app.mokahr.com/social-recruitment/remegen/45549#/jobs",
+    officialChainEvidenceUrl: "https://www.remegen.com/index.php?cid=45&v=listing"
   },
   {
     id: "company-kpc",
     officialChineseName: "昆药集团股份有限公司",
     pinyinName: "kunyao",
-    inclusionReason: "国内知名药企"
+    inclusionReason: "国内知名药企",
+    status: "VERIFIED_SCRAPABLE",
+    atsKind: "OFFICIAL_HTML",
+    officialWebsiteUrl: "https://www.kpc.com.cn/",
+    socialEntryUrl: "https://www.kpc.com.cn/job/she-hui-zhao-pin-list-0.htm",
+    officialChainEvidenceUrl: "https://www.kpc.com.cn/job/index.htm"
   },
   {
     id: "company-xinhua-pharma",
@@ -754,7 +789,12 @@ const CANDIDATE_SEEDS: CandidateSeed[] = [
     id: "company-kelun-biotech",
     officialChineseName: "科伦博泰生物",
     pinyinName: "kelun-botai",
-    inclusionReason: "知名 Biotech 候选"
+    inclusionReason: "知名 Biotech 候选",
+    status: "VERIFIED_SCRAPABLE",
+    atsKind: "BEISEN_ZHIYE",
+    officialWebsiteUrl: "https://www.kelun-biotech.com/",
+    socialEntryUrl: "https://kelunbotai.zhiye.com/Social",
+    officialChainEvidenceUrl: "https://www.kelun-biotech.com/RecruitTalented.aspx"
   },
   {
     id: "company-henlius",
@@ -784,7 +824,12 @@ const CANDIDATE_SEEDS: CandidateSeed[] = [
     id: "company-cstone",
     officialChineseName: "基石药业",
     pinyinName: "jishi",
-    inclusionReason: "知名 Biotech 候选"
+    inclusionReason: "知名 Biotech 候选",
+    status: "VERIFIED_SCRAPABLE",
+    atsKind: "OFFICIAL_HTML",
+    officialWebsiteUrl: "https://www.cstonepharma.com/",
+    socialEntryUrl: "https://www.cstonepharma.com/join/job.html",
+    officialChainEvidenceUrl: "https://www.cstonepharma.com/join/job.html"
   },
   {
     id: "company-alphamab",
@@ -802,7 +847,12 @@ const CANDIDATE_SEEDS: CandidateSeed[] = [
     id: "company-mabwell",
     officialChineseName: "迈威生物",
     pinyinName: "maiwei",
-    inclusionReason: "知名 Biotech 候选"
+    inclusionReason: "知名 Biotech 候选",
+    status: "VERIFIED_SCRAPABLE",
+    atsKind: "OFFICIAL_HTML",
+    officialWebsiteUrl: "https://www.mabwell.com/",
+    socialEntryUrl: "https://www.mabwell.com/jobs.html",
+    officialChainEvidenceUrl: "https://www.mabwell.com/careers.html"
   }
 ];
 

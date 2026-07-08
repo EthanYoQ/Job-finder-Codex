@@ -104,4 +104,128 @@ describe("P0 company registry", () => {
       officialChainEvidenceUrl: "https://www.e-cspc.com/hr/"
     });
   });
+
+  it("records official-chain evidence for the task 4 verified source batch", () => {
+    const byId = new Map(candidateCompanies.map((company) => [company.id, company]));
+
+    expect(byId.get("company-beta-pharma")).toMatchObject({
+      officialWebsiteUrl: "https://www.bettapharma.com/",
+      sources: [
+        expect.objectContaining({
+          status: "VERIFIED_SCRAPABLE",
+          atsKind: "BEISEN_ZHIYE",
+          officialEntryUrl: "https://bettapharma.zhiye.com/Social",
+          officialChainEvidenceUrl: "https://www.bettapharma.com/Jobs/"
+        })
+      ]
+    });
+
+    expect(byId.get("company-allist")).toMatchObject({
+      officialWebsiteUrl: "https://www.allist.com.cn/",
+      sources: [
+        expect.objectContaining({
+          status: "VERIFIED_SCRAPABLE",
+          atsKind: "BEISEN_ZHIYE",
+          officialEntryUrl: "https://allist.zhiye.com/Social",
+          officialChainEvidenceUrl: "https://www.allist.com.cn/recruit.html"
+        })
+      ]
+    });
+
+    expect(byId.get("company-hansoh")).toMatchObject({
+      officialWebsiteUrl: "https://cn.hspharm.com/",
+      sources: [
+        expect.objectContaining({
+          status: "VERIFIED_SCRAPABLE",
+          atsKind: "BEISEN_ZHIYE",
+          officialEntryUrl: "https://hspharm.zhiye.com/Social",
+          officialChainEvidenceUrl: "https://cn.hspharm.com/site/solr.htm"
+        })
+      ]
+    });
+
+    expect(byId.get("company-kelun-biotech")).toMatchObject({
+      officialWebsiteUrl: "https://www.kelun-biotech.com/",
+      sources: [
+        expect.objectContaining({
+          status: "VERIFIED_SCRAPABLE",
+          atsKind: "BEISEN_ZHIYE",
+          officialEntryUrl: "https://kelunbotai.zhiye.com/Social",
+          officialChainEvidenceUrl: "https://www.kelun-biotech.com/RecruitTalented.aspx"
+        })
+      ]
+    });
+
+    expect(byId.get("company-kpc")).toMatchObject({
+      officialWebsiteUrl: "https://www.kpc.com.cn/",
+      sources: [
+        expect.objectContaining({
+          status: "VERIFIED_SCRAPABLE",
+          atsKind: "OFFICIAL_HTML",
+          officialEntryUrl: "https://www.kpc.com.cn/job/she-hui-zhao-pin-list-0.htm",
+          officialChainEvidenceUrl: "https://www.kpc.com.cn/job/index.htm"
+        })
+      ]
+    });
+
+    expect(byId.get("company-mabwell")).toMatchObject({
+      officialWebsiteUrl: "https://www.mabwell.com/",
+      sources: [
+        expect.objectContaining({
+          status: "VERIFIED_SCRAPABLE",
+          atsKind: "OFFICIAL_HTML",
+          officialEntryUrl: "https://www.mabwell.com/jobs.html",
+          officialChainEvidenceUrl: "https://www.mabwell.com/careers.html"
+        })
+      ]
+    });
+
+    expect(byId.get("company-akeso")).toMatchObject({
+      officialWebsiteUrl: "https://www.akesobio.com/",
+      sources: [
+        expect.objectContaining({
+          status: "VERIFIED_SCRAPABLE",
+          atsKind: "OFFICIAL_HTML",
+          officialEntryUrl: "https://www.akesobio.com/cn/career/social-recruitment/",
+          officialChainEvidenceUrl: "https://www.akesobio.com/cn/career/"
+        })
+      ]
+    });
+
+    expect(byId.get("company-sanofi-china")).toMatchObject({
+      officialWebsiteUrl: "https://www.sanofi.com/",
+      sources: [
+        expect.objectContaining({
+          status: "VERIFIED_SCRAPABLE",
+          atsKind: "OFFICIAL_HTML",
+          officialEntryUrl: "https://jobs.sanofi.com/en/china",
+          officialChainEvidenceUrl: "https://jobs.sanofi.com/en/china"
+        })
+      ]
+    });
+
+    expect(byId.get("company-cstone")).toMatchObject({
+      officialWebsiteUrl: "https://www.cstonepharma.com/",
+      sources: [
+        expect.objectContaining({
+          status: "VERIFIED_SCRAPABLE",
+          atsKind: "OFFICIAL_HTML",
+          officialEntryUrl: "https://www.cstonepharma.com/join/job.html",
+          officialChainEvidenceUrl: "https://www.cstonepharma.com/join/job.html"
+        })
+      ]
+    });
+
+    expect(byId.get("company-rcbio")).toMatchObject({
+      officialWebsiteUrl: "https://www.remegen.com/",
+      sources: [
+        expect.objectContaining({
+          status: "VERIFIED_SCRAPABLE",
+          atsKind: "MOKA",
+          officialEntryUrl: "https://app.mokahr.com/social-recruitment/remegen/45549#/jobs",
+          officialChainEvidenceUrl: "https://www.remegen.com/index.php?cid=45&v=listing"
+        })
+      ]
+    });
+  });
 });

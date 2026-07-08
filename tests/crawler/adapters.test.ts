@@ -214,6 +214,54 @@ describe("crawler source adapters", () => {
     expect(jobs.map((record) => record.sourceKind)).toEqual(["SOCIAL", "SOCIAL"]);
   });
 
+  it("reads row-level attributes when a field selector uses :scope", () => {
+    const result = htmlTableAdapter.extract({
+      company: {
+        id: "company-akeso",
+        officialChineseName: "中山康方生物医药有限公司"
+      },
+      source: {
+        id: "source-akeso-social",
+        companyId: "company-akeso",
+        kind: "SOCIAL",
+        atsKind: "OFFICIAL_HTML",
+        officialEntryUrl: "https://www.akesobio.com/cn/career/social-recruitment/",
+        officialChainEvidenceUrl: "https://www.akesobio.com/cn/career/",
+        status: "VERIFIED_SCRAPABLE"
+      },
+      capturedAt,
+      html: `
+        <div class="jobs">
+          <a
+            class="job-card"
+            href="/cn/career/social-recruitment/detail-1"
+            data-content-id="AKESO-001"
+            data-location="广州"
+          >
+            <h3>医学信息沟通专员</h3>
+          </a>
+        </div>
+      `,
+      table: {
+        rowSelector: "a.job-card",
+        fields: {
+          sourceJobId: { selector: ":scope", attribute: "data-content-id" },
+          officialTitle: { selector: "h3" },
+          officialUrl: { selector: ":scope", attribute: "href" },
+          locationRaw: { selector: ":scope", attribute: "data-location" }
+        }
+      }
+    });
+
+    const [job] = expectSuccessfulJobs(result);
+    expect(job?.sourceJobId).toBe("AKESO-001");
+    expect(job?.officialTitle).toBe("医学信息沟通专员");
+    expect(job?.officialUrl).toBe(
+      "https://www.akesobio.com/cn/career/social-recruitment/detail-1"
+    );
+    expect(job?.cities).toEqual(["广州"]);
+  });
+
   it("normalizes Redsea-style network JSON even when DOM content is empty", () => {
     const result = officialJsonAdapter.extract({
       ...CSPC_METADATA,

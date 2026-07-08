@@ -73,12 +73,22 @@ describe("source crawl planning", () => {
 
     expect(plannedSourceIds).toEqual(
       new Set([
+        "source-akeso-social",
+        "source-allist-social",
         "source-astrazeneca-social",
         "source-novartis-social",
         "source-fosun-pharma-social",
         "source-beigene-social",
+        "source-beta-pharma-social",
+        "source-cstone-social",
+        "source-hansoh-social",
         "source-hengrui-social",
-        "source-kelun-social"
+        "source-kelun-social",
+        "source-kelun-biotech-social",
+        "source-kpc-social",
+        "source-mabwell-social",
+        "source-rcbio-social",
+        "source-sanofi-china-social"
       ])
     );
 
@@ -148,5 +158,186 @@ describe("source crawl planning", () => {
     });
 
     expect(byId.get("source-cspc-social")).toBeUndefined();
+  });
+
+  it("configures task 4 ATS-grouped verified source plans", () => {
+    const plans = buildSourceCrawlPlans(candidateCompanies);
+    const byId = new Map(plans.map((plan) => [plan.source.id, plan]));
+
+    expect(byId.get("source-beta-pharma-social")).toMatchObject({
+      adapterId: "html-table",
+      source: {
+        atsKind: "BEISEN_ZHIYE",
+        officialEntryUrl: "https://bettapharma.zhiye.com/Social",
+        officialChainEvidenceUrl: "https://www.bettapharma.com/Jobs/"
+      },
+      table: {
+        rowSelector: ".jobsTable tr:not(.title)",
+        fields: {
+          officialTitle: { selector: "td:nth-child(1) a" },
+          officialUrl: { selector: "td:nth-child(1) a", attribute: "href" },
+          locationRaw: { selector: "td:nth-child(3)" }
+        }
+      }
+    });
+
+    expect(byId.get("source-allist-social")).toMatchObject({
+      adapterId: "html-table",
+      source: {
+        atsKind: "BEISEN_ZHIYE",
+        officialEntryUrl: "https://allist.zhiye.com/Social",
+        officialChainEvidenceUrl: "https://www.allist.com.cn/recruit.html"
+      },
+      table: {
+        rowSelector: ".jobsTable tr:not(.title)",
+        fields: {
+          officialTitle: { selector: "td:nth-child(1) a" },
+          officialUrl: { selector: "td:nth-child(1) a", attribute: "href" },
+          locationRaw: { selector: "td:nth-child(3)" }
+        }
+      }
+    });
+
+    expect(byId.get("source-hansoh-social")).toMatchObject({
+      adapterId: "html-table",
+      source: {
+        atsKind: "BEISEN_ZHIYE",
+        officialEntryUrl: "https://hspharm.zhiye.com/Social",
+        officialChainEvidenceUrl: "https://cn.hspharm.com/site/solr.htm"
+      },
+      table: {
+        rowSelector: ".jobsTable tr:not(.title)",
+        fields: {
+          officialTitle: { selector: "td:nth-child(1) a" },
+          officialUrl: { selector: "td:nth-child(1) a", attribute: "href" },
+          locationRaw: { selector: "td:nth-child(3)" }
+        }
+      }
+    });
+
+    expect(byId.get("source-kelun-biotech-social")).toMatchObject({
+      adapterId: "html-table",
+      source: {
+        atsKind: "BEISEN_ZHIYE",
+        officialEntryUrl: "https://kelunbotai.zhiye.com/Social",
+        officialChainEvidenceUrl: "https://www.kelun-biotech.com/RecruitTalented.aspx"
+      },
+      table: {
+        rowSelector: "tr:has(.jname a)",
+        fields: {
+          officialTitle: { selector: ".jname a" },
+          officialUrl: { selector: ".jname a", attribute: "href" },
+          locationRaw: { selector: ".jcity", attribute: "title" }
+        }
+      }
+    });
+
+    expect(byId.get("source-kpc-social")).toMatchObject({
+      adapterId: "html-table",
+      source: {
+        atsKind: "OFFICIAL_HTML",
+        officialEntryUrl: "https://www.kpc.com.cn/job/she-hui-zhao-pin-list-0.htm",
+        officialChainEvidenceUrl: "https://www.kpc.com.cn/job/index.htm"
+      },
+      table: {
+        rowSelector: ".JobList-J1 li:not(.first)",
+        fields: {
+          officialTitle: { selector: "._t1" },
+          officialUrl: { selector: "a", attribute: "href" },
+          locationRaw: { selector: "._t4" }
+        }
+      }
+    });
+
+    expect(byId.get("source-mabwell-social")).toMatchObject({
+      adapterId: "html-table",
+      source: {
+        atsKind: "OFFICIAL_HTML",
+        officialEntryUrl: "https://www.mabwell.com/jobs.html",
+        officialChainEvidenceUrl: "https://www.mabwell.com/careers.html"
+      },
+      table: {
+        rowSelector: ".recJob_list li",
+        fields: {
+          officialTitle: { selector: "a.recJob_name span:nth-child(1)" },
+          officialUrl: { selector: "a.recJob_name", attribute: "href" },
+          locationRaw: { selector: "a.recJob_name span:nth-child(2)" }
+        }
+      }
+    });
+
+    expect(byId.get("source-akeso-social")).toMatchObject({
+      adapterId: "html-table",
+      source: {
+        atsKind: "OFFICIAL_HTML",
+        officialEntryUrl: "https://www.akesobio.com/cn/career/social-recruitment/",
+        officialChainEvidenceUrl: "https://www.akesobio.com/cn/career/"
+      },
+      table: {
+        rowSelector: "a.job-card",
+        fields: {
+          sourceJobId: { selector: ":scope", attribute: "data-content-id" },
+          officialTitle: { selector: "h3" },
+          officialUrl: { selector: ":scope", attribute: "href" },
+          locationRaw: { selector: ":scope", attribute: "data-location" }
+        }
+      }
+    });
+
+    expect(byId.get("source-sanofi-china-social")).toMatchObject({
+      adapterId: "html-table",
+      source: {
+        atsKind: "OFFICIAL_HTML",
+        officialEntryUrl: "https://jobs.sanofi.com/en/china",
+        officialChainEvidenceUrl: "https://jobs.sanofi.com/en/china"
+      },
+      table: {
+        rowSelector: ".job-list li",
+        fields: {
+          sourceJobId: { selector: "a", attribute: "data-job-id" },
+          officialTitle: { selector: "span.job-title" },
+          officialUrl: { selector: "a", attribute: "href" },
+          locationRaw: { selector: "span.job-location" }
+        }
+      }
+    });
+
+    expect(byId.get("source-cstone-social")).toMatchObject({
+      adapterId: "html-table",
+      source: {
+        atsKind: "OFFICIAL_HTML",
+        officialEntryUrl: "https://www.cstonepharma.com/join/job.html",
+        officialChainEvidenceUrl: "https://www.cstonepharma.com/join/job.html"
+      },
+      table: {
+        rowSelector: "li.wow.slideInUp",
+        fields: {
+          sourceJobId: { selector: "a", attribute: "href" },
+          officialTitle: { selector: ".txt em" },
+          officialUrl: { selector: "a", attribute: "href" },
+          locationRaw: { selector: ".txt span:nth-of-type(2)" }
+        }
+      }
+    });
+
+    expect(byId.get("source-rcbio-social")).toMatchObject({
+      adapterId: "official-json",
+      source: {
+        atsKind: "MOKA",
+        officialEntryUrl: "https://app.mokahr.com/social-recruitment/remegen/45549#/jobs",
+        officialChainEvidenceUrl: "https://www.remegen.com/index.php?cid=45&v=listing"
+      },
+      json: {
+        jobsPath: "data.jobs",
+        fields: {
+          sourceJobId: "id",
+          officialTitle: "title",
+          officialUrl: "officialUrl",
+          locationRaw: "locationRaw",
+          cities: "cities"
+        },
+        defaultCategory: "其他"
+      }
+    });
   });
 });

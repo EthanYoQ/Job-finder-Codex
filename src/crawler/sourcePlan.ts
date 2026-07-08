@@ -108,6 +108,112 @@ const REPRESENTATIVE_CONFIGS: Record<string, RepresentativeSourceConfig> = {
         locationRaw: { selector: "td:nth-child(5)" }
       }
     }
+  },
+  "source-beta-pharma-social": {
+    adapterId: "html-table",
+    table: {
+      rowSelector: ".jobsTable tr:not(.title)",
+      fields: {
+        officialTitle: { selector: "td:nth-child(1) a" },
+        officialUrl: { selector: "td:nth-child(1) a", attribute: "href" },
+        locationRaw: { selector: "td:nth-child(3)" }
+      }
+    }
+  },
+  "source-allist-social": {
+    adapterId: "html-table",
+    table: {
+      rowSelector: ".jobsTable tr:not(.title)",
+      fields: {
+        officialTitle: { selector: "td:nth-child(1) a" },
+        officialUrl: { selector: "td:nth-child(1) a", attribute: "href" },
+        locationRaw: { selector: "td:nth-child(3)" }
+      }
+    }
+  },
+  "source-hansoh-social": {
+    adapterId: "html-table",
+    table: {
+      rowSelector: ".jobsTable tr:not(.title)",
+      fields: {
+        officialTitle: { selector: "td:nth-child(1) a" },
+        officialUrl: { selector: "td:nth-child(1) a", attribute: "href" },
+        locationRaw: { selector: "td:nth-child(3)" }
+      }
+    }
+  },
+  "source-kelun-biotech-social": {
+    adapterId: "html-table",
+    table: {
+      rowSelector: "tr:has(.jname a)",
+      fields: {
+        officialTitle: { selector: ".jname a" },
+        officialUrl: { selector: ".jname a", attribute: "href" },
+        locationRaw: { selector: ".jcity", attribute: "title" }
+      }
+    }
+  },
+  "source-kpc-social": {
+    adapterId: "html-table",
+    table: {
+      rowSelector: ".JobList-J1 li:not(.first)",
+      fields: {
+        officialTitle: { selector: "._t1" },
+        officialUrl: { selector: "a", attribute: "href" },
+        locationRaw: { selector: "._t4" }
+      }
+    }
+  },
+  "source-mabwell-social": {
+    adapterId: "html-table",
+    table: {
+      rowSelector: ".recJob_list li",
+      fields: {
+        officialTitle: { selector: "a.recJob_name span:nth-child(1)" },
+        officialUrl: { selector: "a.recJob_name", attribute: "href" },
+        locationRaw: { selector: "a.recJob_name span:nth-child(2)" }
+      }
+    }
+  },
+  "source-akeso-social": {
+    adapterId: "html-table",
+    table: {
+      rowSelector: "a.job-card",
+      fields: {
+        sourceJobId: { selector: ":scope", attribute: "data-content-id" },
+        officialTitle: { selector: "h3" },
+        officialUrl: { selector: ":scope", attribute: "href" },
+        locationRaw: { selector: ":scope", attribute: "data-location" }
+      }
+    }
+  },
+  "source-sanofi-china-social": {
+    adapterId: "html-table",
+    table: {
+      rowSelector: ".job-list li",
+      fields: {
+        sourceJobId: { selector: "a", attribute: "data-job-id" },
+        officialTitle: { selector: "span.job-title" },
+        officialUrl: { selector: "a", attribute: "href" },
+        locationRaw: { selector: "span.job-location" }
+      }
+    }
+  },
+  "source-cstone-social": {
+    adapterId: "html-table",
+    table: {
+      rowSelector: "li.wow.slideInUp",
+      fields: {
+        sourceJobId: { selector: "a", attribute: "href" },
+        officialTitle: { selector: ".txt em" },
+        officialUrl: { selector: "a", attribute: "href" },
+        locationRaw: { selector: ".txt span:nth-of-type(2)" }
+      }
+    }
+  },
+  "source-rcbio-social": {
+    adapterId: "official-json",
+    json: MOKA_JSON_CONFIG
   }
 };
 

@@ -91,7 +91,7 @@ function readField(
   row: AnyNode,
   field: HtmlFieldSelector
 ): string | undefined {
-  const element = $(row).find(field.selector).first();
+  const element = field.selector === ":scope" ? $(row).first() : $(row).find(field.selector).first();
   const rawValue = field.attribute ? element.attr(field.attribute) : element.text();
   return cleanString(rawValue);
 }
