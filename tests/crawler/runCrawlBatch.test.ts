@@ -163,6 +163,53 @@ describe("runP0CrawlBatch", () => {
     ]);
   });
 
+  it("runs a source in the current schedule window when force is enabled", async () => {
+    const plan = planFor("source-beigene-social");
+    const db = fakeDb();
+    const fetch = vi.fn(async () => ({
+      ok: true as const,
+      capturedAt: CAPTURED_AT,
+      payload: {
+        success: true,
+        data: {
+          jobs: [
+            {
+              id: "beigene-job-1",
+              title: "Research Chief",
+              officialUrl: "https://app.mokahr.com/apply/beigene/98934#/job/beigene-job-1",
+              locationRaw: "上海市",
+              cities: ["上海市"]
+            }
+          ]
+        }
+      }
+    }));
+
+    const result = await runP0CrawlBatch([plan], {
+      db,
+      fetch,
+      now: NOW,
+      force: true,
+      getPreviousJobs: async () => [],
+      getRecentObservations: async () => [
+        {
+          crawledAt: new Date("2026-07-08T00:15:00.000Z"),
+          successful: true
+        }
+      ],
+      isBaselineCompleted: async () => true
+    });
+
+    expect(fetch).toHaveBeenCalledTimes(1);
+    expect(result).toMatchObject({
+      plannedSourceCount: 1,
+      dueSourceCount: 1,
+      successfulSourceCount: 1,
+      failedSourceCount: 0,
+      skippedSourceCount: 0
+    });
+  });
+
   it("runs due sources through fetch, lifecycle, and ingestion upserts", async () => {
     const plan = planFor("source-novartis-social");
     const db = fakeDb();

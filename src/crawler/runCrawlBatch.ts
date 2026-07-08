@@ -36,6 +36,7 @@ export interface RunP0CrawlBatchDeps {
   };
   fetch: SourceFetchFunction;
   now: Date | (() => Date);
+  force?: boolean;
   getPreviousJobs(sourceId: string): Promise<readonly JobSnapshot[]>;
   getRecentObservations(sourceId: string): Promise<readonly PersistedCrawlObservationRow[]>;
   isBaselineCompleted(sourceId: string): Promise<boolean>;
@@ -66,7 +67,7 @@ export async function runP0CrawlBatch(
       const recentObservations = await deps.getRecentObservations(plan.source.id);
       const sourceState = toSourceScheduleState(plan.source.id, recentObservations);
 
-      if (!isSourceDueForScheduledRun(sourceState, batchStartedAt)) {
+      if (!deps.force && !isSourceDueForScheduledRun(sourceState, batchStartedAt)) {
         skippedSourceCount += 1;
         continue;
       }
