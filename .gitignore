@@ -6,4 +6,5 @@ coverage/
 .next/
 playwright-report/
 test-results/
+.docker-build-provenance.bundle
 .superpowers/sdd/task-1-report.md

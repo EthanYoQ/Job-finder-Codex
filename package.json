@@ -23,6 +23,7 @@
     "p0:data-quality": "tsx scripts/p0-data-quality.ts",
     "p0:launch-readiness": "tsx scripts/p0-launch-readiness.ts",
     "browser:smoke": "node scripts/browser-runtime-smoke.mjs",
+    "docker:export-provenance": "tsx scripts/export-docker-build-provenance.ts",
     "phase4:manifest": "tsx scripts/generate-phase4-release-manifest.ts",
     "phase4:manifest-candidate": "tsx scripts/generate-phase4-code-candidate-manifest.ts",
     "phase4:scan-candidate": "tsx scripts/scan-phase4-candidate.ts --prestage",
