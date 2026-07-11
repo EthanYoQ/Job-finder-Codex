@@ -1,48 +1,18 @@
 {
   "schemaVersion": "phase4-code-candidate-v1",
   "planId": "docs/superpowers/plans/2026-07-10-p0-recovery-and-release-evidence.md",
-  "baseHead": "eabe00134199f74013e00bf8962beee78eacd369",
+  "baseHead": "e7d6db913404d443884d631c488d0d6e83854669",
   "entries": [
     {
-      "path": ".dockerignore",
-      "sha256": "102f91e09f39329e284476297f96f7577bd3fe8e0495b3282d241b12a59b5f91",
-      "bytes": 98,
-      "role": "runtime"
-    },
-    {
-      "path": ".gitignore",
-      "sha256": "094da5c71f3d1321721ed9dcb81e24d599363c2f438eb3f444a7b5d0202d0d9a",
-      "bytes": 152,
-      "role": "runtime"
-    },
-    {
-      "path": "package.json",
-      "sha256": "0ed45f87e6f7df72366f3c0ae38f70e87165548552ab3d727234bf2ab6c21caf",
-      "bytes": 2688,
-      "role": "runtime"
-    },
-    {
-      "path": "scripts/export-docker-build-provenance.ts",
-      "sha256": "b0ace0d6e864c1bb42fcf3d6c00e27c18df3a47583f5657392cede35c37c2e85",
-      "bytes": 221,
-      "role": "tool"
-    },
-    {
-      "path": "scripts/generate-build-identity.ts",
-      "sha256": "0e545af978639ec2b42affdc6166a039466334f64fc00d8de594467bf3190bd6",
-      "bytes": 718,
-      "role": "tool"
-    },
-    {
       "path": "src/readiness/dockerBuildProvenance.ts",
-      "sha256": "637d4b597b7e83cf441f4574891f8e6b127ec255d6f9302b031f3204f6f3d560",
-      "bytes": 2036,
+      "sha256": "a501342efec14b60566b63e97635e5e58efc837b43c405ef5eaf4a74da06f3fe",
+      "bytes": 4955,
       "role": "runtime"
     },
     {
       "path": "tests/readiness/dockerBuildProvenance.test.ts",
-      "sha256": "eb163c31b41f19f412d625fde353059e19506a4a4357c78cb6e8994fc20586ce",
-      "bytes": 3441,
+      "sha256": "ec81d8fd18972ccbe41deb79dc09261b9004555b63386b5b392432c46a52835b",
+      "bytes": 6861,
       "role": "test"
     }
   ]
