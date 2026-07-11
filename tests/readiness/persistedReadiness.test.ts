@@ -10,7 +10,7 @@ const persistedBeigene: PersistedReadinessCompanyRow = {
   officialChineseName: "百济神州",
   officialWebsiteUrl: "https://www.beonemedicines.com.cn/",
   pinyinName: "baiji-shenzhou",
-  inclusionReason: "知名 Biotech、已实测",
+  inclusionReason: "FOREIGN_PHARMA",
   sources: [
     {
       id: "source-beigene-social",
@@ -29,6 +29,15 @@ const persistedBeigene: PersistedReadinessCompanyRow = {
           crawledAt: new Date("2026-07-08T20:00:00.000Z"),
           successful: true,
           structuredJobCount: 50,
+          expectedJobCount: null,
+          completenessStatus: "VERIFIED",
+          completenessEvidenceKind: "COMPLETE_PAGE_TRAVERSAL",
+          completenessEvidenceUrl:
+            "https://app.mokahr.com/apply/beigene/98934?sourceToken=token#/jobs",
+          completenessBlockerReason: null,
+          totalPages: 1,
+          pageSize: 50,
+          pagesVisited: 1,
           stableRequiredFields: ["COMPANY", "TITLE", "OFFICIAL_URL", "LOCATION"],
           failureReason: null
         },
@@ -38,6 +47,15 @@ const persistedBeigene: PersistedReadinessCompanyRow = {
           crawledAt: new Date("2026-07-08T08:00:00.000Z"),
           successful: true,
           structuredJobCount: 50,
+          expectedJobCount: null,
+          completenessStatus: "VERIFIED",
+          completenessEvidenceKind: "COMPLETE_PAGE_TRAVERSAL",
+          completenessEvidenceUrl:
+            "https://app.mokahr.com/apply/beigene/98934?sourceToken=token#/jobs",
+          completenessBlockerReason: null,
+          totalPages: 1,
+          pageSize: 50,
+          pagesVisited: 1,
           stableRequiredFields: ["COMPANY", "TITLE", "OFFICIAL_URL", "LOCATION"],
           failureReason: null
         }
@@ -58,7 +76,14 @@ describe("persisted readiness mapper", () => {
     expect(input.observationsBySource?.["source-beigene-social"]).toEqual([
       expect.objectContaining({
         id: "obs-newest",
-        stableRequiredFields: ["company", "title", "officialUrl", "location"]
+        stableRequiredFields: ["company", "title", "officialUrl", "location"],
+        completenessStatus: "VERIFIED",
+        completenessEvidenceKind: "COMPLETE_PAGE_TRAVERSAL",
+        completenessEvidenceUrl:
+          "https://app.mokahr.com/apply/beigene/98934?sourceToken=token#/jobs",
+        totalPages: 1,
+        pageSize: 50,
+        pagesVisited: 1
       }),
       expect.objectContaining({
         id: "obs-older",
@@ -67,15 +92,15 @@ describe("persisted readiness mapper", () => {
     ]);
   });
 
-  it("lets persisted stable observations count as crawl-evidenced readiness", () => {
+  it("does not let persisted observations bypass active independently verified plans", () => {
     const report = getP0ReadinessReport(toP0ReadinessInput([persistedBeigene]));
 
-    expect(report.crawlEvidencedVerifiedCompanies).toBe(1);
+    expect(report.crawlEvidencedVerifiedCompanies).toBe(0);
     expect(report.blockers.map((blocker) => blocker.code)).toContain(
       "CANDIDATE_POOL_OUT_OF_RANGE"
     );
     expect(report.blockers.map((blocker) => blocker.code)).toContain(
-      "VERIFIED_COMPANIES_BELOW_50"
+      "VERIFIED_COMPANIES_BELOW_60"
     );
   });
 
@@ -93,6 +118,15 @@ describe("persisted readiness mapper", () => {
                 crawledAt: new Date("2026-07-09T08:00:00.000Z"),
                 successful: false,
                 structuredJobCount: 0,
+                expectedJobCount: null,
+                completenessStatus: "FAILED",
+                completenessEvidenceKind: "FETCH_FAILURE",
+                completenessEvidenceUrl:
+                  "https://app.mokahr.com/apply/beigene/98934?sourceToken=token#/jobs",
+                completenessBlockerReason: "blocked",
+                totalPages: null,
+                pageSize: null,
+                pagesVisited: null,
                 stableRequiredFields: [],
                 failureReason: "blocked"
               },

@@ -75,6 +75,10 @@ export function getLaunchReadinessGates(): LaunchGate[] {
     {
       name: "DB readiness",
       command: ["npm", "run", "p0:readiness", "--", "--db"]
+    },
+    {
+      name: "DB data quality",
+      command: ["npm", "run", "p0:data-quality", "--", "--db"]
     }
   ];
 }

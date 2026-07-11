@@ -1,6 +1,15 @@
 import { createDecipheriv } from "node:crypto";
 import { load } from "cheerio";
 import type { SourceFetchFunction, SourceFetchResult } from "./runSourceCrawl";
+import { deriveCanonicalPaginationEvidence, evaluatePaginationEvidence } from "./paginationEvidence";
+import {
+  parsePersistentSourceFetchEvidence,
+  sanitizeEvidenceHttpUrl,
+  sha256Bytes,
+  type PersistentSourceFetchEvidence,
+  type SourceFetchArtifactDraft,
+  type SourceFetchPageTrace
+} from "./sourceFetchEvidence";
 
 export interface MokaInitData {
   aesIv: string;
@@ -24,6 +33,9 @@ export interface MokaHttpRequest {
 export interface MokaHttpResponse {
   status: number;
   body: string;
+  finalUrl?: string;
+  contentType?: string;
+  capturedAt?: string;
 }
 
 export type MokaHttpClient = (request: MokaHttpRequest) => Promise<MokaHttpResponse>;
@@ -36,17 +48,23 @@ export interface MokaSourceFetchDeps {
 const MOKA_JOBS_ENDPOINT = "https://app.mokahr.com/api/outer/ats-apply/website/jobs/v2";
 const MOKA_PAGE_SIZE = 50;
 const MOKA_MAX_REDIRECTS = 10;
+const MOKA_MAX_PAGES = 100;
 
 export function createMokaSourceFetch(deps: MokaSourceFetchDeps = {}): SourceFetchFunction {
   return async (plan) => {
-    const capturedAt = (deps.now ?? (() => new Date()))().toISOString();
+    const now = deps.now ?? (() => new Date());
+    const capturedAt = now().toISOString();
+    const crawlStartedAtMs = Date.parse(capturedAt);
+    let previousResponseCapturedAtMs = crawlStartedAtMs;
+    let latestEvidence: PersistentSourceFetchEvidence | undefined;
+    let latestEvaluation: ReturnType<typeof evaluatePaginationEvidence> | undefined;
 
     if (plan.source.atsKind !== "MOKA") {
       return failed(capturedAt, "Moka source fetch only supports MOKA sources");
     }
 
     try {
-      const http = deps.http ?? createDefaultMokaHttpClient();
+      const http = deps.http ?? createDefaultMokaHttpClient(now);
       const page = await http({
         url: plan.source.officialEntryUrl,
         method: "GET",
@@ -55,51 +73,329 @@ export function createMokaSourceFetch(deps: MokaSourceFetchDeps = {}): SourceFet
       if (page.status < 200 || page.status >= 300) {
         return failed(capturedAt, `Moka entry page returned HTTP ${page.status}`);
       }
+      previousResponseCapturedAtMs = assertEvidenceResponse(page, {
+        expected: "entry",
+        requestedUrl: plan.source.officialEntryUrl,
+        crawlStartedAtMs,
+        previousCapturedAtMs: previousResponseCapturedAtMs,
+        observedNowMs: now().getTime()
+      });
+
+      const artifacts: SourceFetchArtifactDraft[] = [mokaArtifact({
+        logicalKey: "moka-entry-0000",
+        kind: "OFFICIAL_COMPANY_PAGE",
+        requestedUrl: credentialSafeEntryUrl(plan.source.officialEntryUrl),
+        response: page,
+        extractorLocator: "html:#init-data[value]"
+      })];
 
       const initData = extractMokaInitData(page.body);
       if (!initData) {
-        return failed(capturedAt, "Moka init-data was not found or incomplete");
+        latestEvidence = mokaEntryFailureEvidence(artifacts[0]!);
+        return failed(capturedAt, "Moka init-data was not found or incomplete", latestEvidence);
       }
 
-      const api = await http({
-        url: MOKA_JOBS_ENDPOINT,
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json;charset=UTF-8",
-          Origin: new URL(plan.source.officialEntryUrl).origin,
-          Referer: plan.source.officialEntryUrl,
-          "User-Agent": "job-search-crawler/0.1"
-        },
-        body: {
-          orgId: initData.orgId,
-          siteId: initData.siteId,
-          limit: MOKA_PAGE_SIZE,
-          offset: 0,
-          needStat: true,
-          isCampusJob: false,
-          site: initData.mode,
-          locale: "zh-CN"
+      const jobs: Record<string, unknown>[] = [];
+      const pages: SourceFetchPageTrace[] = [];
+      const fetchLosses: PersistentSourceFetchEvidence["fetchLosses"] = [];
+      let firstPayload: unknown;
+      let expectedJobCount: number | undefined;
+      let pagesVisited = 0;
+      let rawCount = 0;
+      let parsedCount = 0;
+      let validCount = 0;
+      let parseDiscardCount = 0;
+      let validationDiscardCount = 0;
+      const seenOfficialIds = new Set<string>();
+
+      for (let pageIndex = 0; pageIndex < MOKA_MAX_PAGES; pageIndex += 1) {
+        const offset = pageIndex * MOKA_PAGE_SIZE;
+        const api = await http({
+          url: MOKA_JOBS_ENDPOINT,
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json;charset=UTF-8",
+            Origin: new URL(plan.source.officialEntryUrl).origin,
+            Referer: plan.source.officialEntryUrl,
+            "User-Agent": "job-search-crawler/0.1"
+          },
+          body: {
+            orgId: initData.orgId,
+            siteId: initData.siteId,
+            limit: MOKA_PAGE_SIZE,
+            offset,
+            needStat: true,
+            isCampusJob: false,
+            site: initData.mode,
+            locale: "zh-CN"
+          }
+        });
+        if (api.status < 200 || api.status >= 300) {
+          return failed(capturedAt, `Moka jobs API returned HTTP ${api.status}`);
         }
-      });
-      if (api.status < 200 || api.status >= 300) {
-        return failed(capturedAt, `Moka jobs API returned HTTP ${api.status}`);
+        previousResponseCapturedAtMs = assertEvidenceResponse(api, {
+          expected: "api",
+          requestedUrl: MOKA_JOBS_ENDPOINT,
+          crawlStartedAtMs,
+          previousCapturedAtMs: previousResponseCapturedAtMs,
+          observedNowMs: now().getTime()
+        });
+
+        const artifactLogicalKey = `moka-page-${String(pageIndex).padStart(4, "0")}`;
+        artifacts.push(mokaArtifact({
+          logicalKey: artifactLogicalKey,
+          kind: "PAGINATION_PAGE",
+          requestedUrl: MOKA_JOBS_ENDPOINT,
+          response: api,
+          extractorLocator: mokaTotalLocator(artifactLogicalKey, offset)
+        }));
+
+        const encrypted = parseEncryptedResponse(api.body);
+        if (!encrypted) {
+          latestEvidence = mokaFailedPageEvidence({
+            artifacts, pages, fetchLosses, rawCount, parsedCount, validCount,
+            parseDiscardCount, validationDiscardCount, artifactLogicalKey,
+            pageIndex, offset, response: api, code: "INVALID_ENVELOPE"
+          });
+          return failed(capturedAt, "Moka jobs API returned an invalid encrypted response", latestEvidence);
+        }
+
+        let decryptedText: string;
+        try {
+          decryptedText = decryptMokaText(encrypted, initData.aesIv);
+        } catch {
+          latestEvidence = mokaFailedPageEvidence({
+            artifacts, pages, fetchLosses, rawCount, parsedCount, validCount,
+            parseDiscardCount, validationDiscardCount, artifactLogicalKey,
+            pageIndex, offset, response: api, code: "DECRYPTION_FAILED"
+          });
+          return failed(capturedAt, "Moka jobs API response decryption failed", latestEvidence);
+        }
+        let decrypted: unknown;
+        try {
+          decrypted = JSON.parse(decryptedText);
+        } catch {
+          latestEvidence = mokaFailedPageEvidence({
+            artifacts, pages, fetchLosses, rawCount, parsedCount, validCount,
+            parseDiscardCount, validationDiscardCount, artifactLogicalKey,
+            pageIndex, offset, response: api, code: "INVALID_DECRYPTED_JSON"
+          });
+          return failed(capturedAt, "Moka decrypted response was not valid JSON", latestEvidence);
+        }
+        let rawPageJobs: unknown[];
+        try {
+          rawPageJobs = requireMokaJobs(decrypted);
+        } catch {
+          latestEvidence = mokaFailedPageEvidence({
+            artifacts, pages, fetchLosses, rawCount, parsedCount, validCount,
+            parseDiscardCount, validationDiscardCount, artifactLogicalKey,
+            pageIndex, offset, response: api, code: "INVALID_RECORD_COLLECTION"
+          });
+          return failed(capturedAt, "Moka decrypted response is missing the required data.jobs array", latestEvidence);
+        }
+        firstPayload = firstPayload ?? decrypted;
+        const totalEvidence = readMokaTotalEvidence(decrypted);
+        const pageTotal = totalEvidence?.value;
+        artifacts[artifacts.length - 1] = {
+          ...artifacts[artifacts.length - 1]!,
+          extractorLocator: mokaTotalLocator(artifactLogicalKey, offset, totalEvidence?.jsonPath)
+        };
+        expectedJobCount = expectedJobCount ?? pageTotal;
+        const pageJobs: Record<string, unknown>[] = [];
+        const rawJobIds: string[] = [];
+        const validJobIds: string[] = [];
+        for (let recordIndex = 0; recordIndex < rawPageJobs.length; recordIndex += 1) {
+          const raw = rawPageJobs[recordIndex];
+          const rawLocator = mokaRawLocator(raw, artifactLogicalKey, pageIndex, recordIndex);
+          const rawEvidenceId = irreversibleEvidenceId(mokaJobId(raw) ?? ["missing-id", recordIndex, raw]);
+          if (!rawJobIds.includes(rawEvidenceId)) rawJobIds.push(rawEvidenceId);
+          rawCount += 1;
+          if (!isObject(raw) || Array.isArray(raw)) {
+            parseDiscardCount += 1;
+            fetchLosses.push({
+              stage: "PARSE",
+              reason: "Moka record is not an object",
+              rawLocator,
+              details: { code: "NON_OBJECT_RECORD", pageSequence: pageIndex, recordIndex },
+              recordedAt: api.capturedAt
+            });
+            continue;
+          }
+          parsedCount += 1;
+          const missingField = missingMokaRequiredField(raw);
+          if (missingField) {
+            validationDiscardCount += 1;
+            fetchLosses.push({
+              stage: "VALIDATION",
+              reason: "Moka record is missing a required field",
+              rawLocator,
+              details: { code: "MISSING_REQUIRED_FIELD", field: missingField, pageSequence: pageIndex, recordIndex },
+              recordedAt: api.capturedAt
+            });
+            continue;
+          }
+          const sensitiveField = sensitiveMokaField(raw);
+          if (sensitiveField) {
+            validationDiscardCount += 1;
+            fetchLosses.push({
+              stage: "VALIDATION",
+              reason: "Moka record contains sensitive output material",
+              rawLocator,
+              details: { code: "SENSITIVE_OUTPUT", field: sensitiveField, pageSequence: pageIndex, recordIndex },
+              recordedAt: api.capturedAt
+            });
+            continue;
+          }
+          if (isExplicitlyOutsideChina(raw)) {
+            validationDiscardCount += 1;
+            fetchLosses.push({
+              stage: "VALIDATION",
+              reason: "Moka record is explicitly outside China scope",
+              rawLocator,
+              details: { code: "OUT_OF_SCOPE", pageSequence: pageIndex, recordIndex },
+              recordedAt: api.capturedAt
+            });
+            continue;
+          }
+          const officialId = mokaJobId(raw)!;
+          if (seenOfficialIds.has(officialId)) {
+            validationDiscardCount += 1;
+            fetchLosses.push({
+              stage: "VALIDATION",
+              reason: "Moka record duplicates an official job ID",
+              rawLocator,
+              details: { code: "DUPLICATE_OFFICIAL_ID", field: "id", pageSequence: pageIndex, recordIndex },
+              recordedAt: api.capturedAt
+            });
+            continue;
+          }
+          seenOfficialIds.add(officialId);
+          const enriched = enrichMokaJob(raw, plan.source.officialEntryUrl);
+          if (!isObject(enriched)) throw new Error("Moka validated record did not enrich to an object");
+          pageJobs.push(enriched);
+          validCount += 1;
+          validJobIds.push(irreversibleEvidenceId(mokaJobId(raw)!));
+        }
+        pagesVisited += 1;
+        jobs.push(...pageJobs);
+
+        const hasNext = pageTotal === undefined
+          ? rawPageJobs.length === MOKA_PAGE_SIZE
+          : rawCount < pageTotal;
+        const isLastAllowedPage = pageIndex === MOKA_MAX_PAGES - 1;
+        const returnedOffset = readMokaOffset(decrypted) ?? null;
+        const allValidIds = new Set([...pages.flatMap((candidate) => candidate.validJobIds), ...validJobIds]);
+        const termination: SourceFetchPageTrace["termination"] = hasNext
+          ? (isLastAllowedPage ? "MAX_PAGE_LIMIT" : "CONTINUE")
+          : pageTotal === 0 && rawPageJobs.length === 0
+            ? "EMPTY_PAGE"
+            : pageTotal !== undefined && allValidIds.size === pageTotal
+              ? "DECLARED_TOTAL_REACHED"
+              : "NEXT_ABSENT";
+        pages.push({
+          sequence: pageIndex,
+          artifactLogicalKey,
+          requestedOffset: offset,
+          returnedOffset,
+          requestedPage: null,
+          returnedPage: null,
+          requestedPageSize: MOKA_PAGE_SIZE,
+          returnedPageSize: null,
+          rawJobIds,
+          validJobIds,
+          declaredTotal: pageTotal ?? null,
+          declaredCount: null,
+          declaredPages: null,
+          nextPageSignalBefore: pageIndex === 0 ? null : String(offset),
+          nextPageSignalAfter: hasNext ? String(offset + MOKA_PAGE_SIZE) : null,
+          responseFingerprintSha256: sha256Bytes(Buffer.from(api.body, "utf8")).sha256,
+          termination,
+          anomalyCodes: [],
+          capturedAt: api.capturedAt!
+        });
+
+        if (!hasNext || isLastAllowedPage) {
+          break;
+        }
       }
 
-      const encrypted = parseEncryptedResponse(api.body);
-      if (!encrypted) {
-        return failed(capturedAt, "Moka jobs API returned an invalid encrypted response");
+      const officialTotalPage = pages.find((candidate) => candidate.declaredTotal !== null && candidate.declaredTotal !== undefined);
+      const rawEvidence = parsePersistentSourceFetchEvidence({
+        captureTool: { name: "moka-http", version: "1" },
+        artifacts,
+        pages,
+        ...(officialTotalPage && expectedJobCount !== undefined
+          ? {
+              declaredCompleteness: {
+                kind: "OFFICIAL_TOTAL_COUNT",
+                value: expectedJobCount,
+                artifactLogicalKey: officialTotalPage.artifactLogicalKey,
+                extractorLocator: artifacts.find(
+                  (artifact) => artifact.logicalKey === officialTotalPage.artifactLogicalKey
+                )!.extractorLocator,
+                scope: "SOURCE"
+              }
+            }
+          : {}),
+        fetchCounts: { rawCount, parsedCount, validCount, parseDiscardCount, validationDiscardCount },
+        fetchLosses
+      });
+      latestEvidence = rawEvidence;
+      const evidence = deriveCanonicalPaginationEvidence({
+        evidence: rawEvidence,
+        expectedChannelIds: [],
+        filteredOutput: true
+      });
+      latestEvidence = evidence;
+      const paginationEvaluation = evaluatePaginationEvidence({
+        evidence,
+        expectedChannelIds: [],
+        filteredOutput: true
+      });
+      latestEvaluation = paginationEvaluation;
+      if (!paginationEvaluation.safeCompleteness) {
+        return failed(
+          capturedAt,
+          `Moka pagination evidence failed: ${paginationEvaluation.derivedAnomalyCodes.join(",")}`,
+          evidence,
+          paginationEvaluation
+        );
       }
 
       return {
         ok: true,
         capturedAt,
-        payload: enrichMokaPayload(
-          decryptMokaResponse(encrypted, initData.aesIv),
-          plan.source.officialEntryUrl
-        )
+        payload: mergeMokaJobs(firstPayload, jobs),
+        completeness:
+          expectedJobCount === undefined
+            ? {
+                completenessStatus: "NEEDS_MANUAL_COMPLETENESS_REVIEW",
+                completenessEvidenceKind: "WEAK_MANUAL_SAMPLE",
+                completenessEvidenceUrl: credentialSafeEntryUrl(plan.source.officialEntryUrl),
+                completenessBlockerReason: "Moka response did not include an official total count",
+                pageSize: MOKA_PAGE_SIZE,
+                pagesVisited
+              }
+            : {
+                completenessStatus: "NEEDS_MANUAL_COMPLETENESS_REVIEW",
+                expectedJobCount,
+                completenessEvidenceKind: "OFFICIAL_TOTAL_COUNT",
+                completenessEvidenceUrl: credentialSafeEntryUrl(plan.source.officialEntryUrl),
+                completenessBlockerReason: "Official Moka total is archived; downstream adapter accounting must prove final dedupe output",
+                totalPages: Math.ceil(expectedJobCount / MOKA_PAGE_SIZE),
+                pageSize: MOKA_PAGE_SIZE,
+                pagesVisited
+              },
+        fetchEvidence: evidence,
+        paginationEvaluation
       };
     } catch (error) {
-      return failed(capturedAt, error instanceof Error ? error.message : String(error));
+      return failed(
+        capturedAt,
+        error instanceof Error ? error.message : String(error),
+        latestEvidence,
+        latestEvaluation
+      );
     }
   };
 }
@@ -134,6 +430,10 @@ export function extractMokaInitData(html: string): MokaInitData | undefined {
 }
 
 export function decryptMokaResponse(response: MokaEncryptedResponse, aesIv: string): unknown {
+  return JSON.parse(decryptMokaText(response, aesIv));
+}
+
+function decryptMokaText(response: MokaEncryptedResponse, aesIv: string): string {
   const decipher = createDecipheriv(
     "aes-128-cbc",
     Buffer.from(response.necromancer, "utf8"),
@@ -142,18 +442,19 @@ export function decryptMokaResponse(response: MokaEncryptedResponse, aesIv: stri
   let decrypted = decipher.update(response.data, "base64", "utf8");
   decrypted += decipher.final("utf8");
 
-  return JSON.parse(decrypted);
+  return decrypted;
 }
 
-function createDefaultMokaHttpClient(): MokaHttpClient {
+function createDefaultMokaHttpClient(now: () => Date): MokaHttpClient {
   const cookies = new Map<string, string>();
 
-  return async (request) => defaultMokaHttpClient(request, cookies);
+  return async (request) => defaultMokaHttpClient(request, cookies, now);
 }
 
 async function defaultMokaHttpClient(
   request: MokaHttpRequest,
-  cookies: Map<string, string>
+  cookies: Map<string, string>,
+  now: () => Date
 ): Promise<MokaHttpResponse> {
   let currentUrl = request.url;
 
@@ -164,7 +465,12 @@ async function defaultMokaHttpClient(
     if (!isRedirect(response.status)) {
       return {
         status: response.status,
-        body: await response.text()
+        body: await response.text(),
+        finalUrl: currentUrl,
+        ...(response.headers.get("content-type")
+          ? { contentType: response.headers.get("content-type")! }
+          : {}),
+        capturedAt: now().toISOString()
       };
     }
 
@@ -172,7 +478,12 @@ async function defaultMokaHttpClient(
     if (!location) {
       return {
         status: response.status,
-        body: await response.text()
+        body: await response.text(),
+        finalUrl: currentUrl,
+        ...(response.headers.get("content-type")
+          ? { contentType: response.headers.get("content-type")! }
+          : {}),
+        capturedAt: now().toISOString()
       };
     }
 
@@ -257,17 +568,252 @@ function parseEncryptedResponse(body: string): MokaEncryptedResponse | undefined
   }
 }
 
-function enrichMokaPayload(payload: unknown, officialEntryUrl: string): unknown {
-  if (!isObject(payload) || !isObject(payload.data) || !Array.isArray(payload.data.jobs)) {
-    return payload;
+function assertEvidenceResponse(
+  response: MokaHttpResponse,
+  input: {
+    expected: "entry" | "api";
+    requestedUrl: string;
+    crawlStartedAtMs: number;
+    previousCapturedAtMs: number;
+    observedNowMs: number;
+  }
+): number {
+  assertEvidenceResponseShape(response, input.expected);
+  const finalUrl = new URL(response.finalUrl!);
+  const requestedUrl = new URL(input.requestedUrl);
+  const trustedMokaUrl =
+    finalUrl.protocol === "https:" && !finalUrl.username && !finalUrl.password &&
+    finalUrl.origin === requestedUrl.origin && requestedUrl.origin === "https://app.mokahr.com" &&
+    finalUrl.pathname.replace(/\/+$/, "") === requestedUrl.pathname.replace(/\/+$/, "") &&
+    (input.expected === "entry" || (!finalUrl.search && !finalUrl.hash));
+  if (!trustedMokaUrl) {
+    throw new Error(`Moka ${input.expected} response has an invalid final URL`);
+  }
+  const capturedAtMs = strictEvidenceInstant(response.capturedAt!);
+  if (capturedAtMs < input.crawlStartedAtMs) {
+    throw new Error("Moka response captured time precedes crawl start");
+  }
+  if (capturedAtMs > input.observedNowMs) {
+    throw new Error("Moka response captured time is unexpectedly in the future");
+  }
+  if (capturedAtMs < input.previousCapturedAtMs) {
+    throw new Error("Moka response captured time must be non-decreasing");
+  }
+  return capturedAtMs;
+}
+
+function assertEvidenceResponseShape(response: MokaHttpResponse, expected: "entry" | "api"): void {
+  if (
+    typeof response.finalUrl !== "string" || !response.finalUrl ||
+    typeof response.contentType !== "string" || !response.contentType.trim() ||
+    typeof response.capturedAt !== "string"
+  ) {
+    throw new Error("Moka response is missing required evidence metadata (final URL, content type, or captured time)");
+  }
+  const essence = response.contentType.split(";", 1)[0]!.trim().toLowerCase();
+  const validContentType = expected === "entry"
+    ? essence === "text/html"
+    : essence === "application/json" || /^application\/[a-z0-9.+-]+\+json$/.test(essence);
+  if (!validContentType) {
+    throw new Error(`Moka ${expected} response has an invalid Content-Type`);
+  }
+  sanitizeEvidenceHttpUrl(credentialSafeEntryUrl(response.finalUrl));
+}
+
+function strictEvidenceInstant(value: string): number {
+  if (!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/.test(value)) {
+    throw new Error("Moka response captured time must be a canonical UTC instant");
+  }
+  const parsed = new Date(value);
+  if (!Number.isFinite(parsed.getTime()) || parsed.toISOString() !== value) {
+    throw new Error("Moka response captured time is invalid");
+  }
+  return parsed.getTime();
+}
+
+function mokaArtifact(input: {
+  logicalKey: string;
+  kind: "OFFICIAL_COMPANY_PAGE" | "PAGINATION_PAGE";
+  requestedUrl: string;
+  response: MokaHttpResponse;
+  extractorLocator: string;
+}): SourceFetchArtifactDraft {
+  assertEvidenceResponseShape(input.response, input.kind === "OFFICIAL_COMPANY_PAGE" ? "entry" : "api");
+  return {
+    id: input.logicalKey,
+    logicalKey: input.logicalKey,
+    kind: input.kind,
+    requestedUrl: sanitizeEvidenceHttpUrl(credentialSafeEntryUrl(input.requestedUrl)),
+    finalUrl: sanitizeEvidenceHttpUrl(credentialSafeEntryUrl(input.response.finalUrl!)),
+    httpStatus: input.response.status,
+    contentType: input.response.contentType!,
+    capturedAt: input.response.capturedAt!,
+    body: input.response.body,
+    extractorLocator: input.extractorLocator
+  };
+}
+
+function mokaTotalLocator(artifactLogicalKey: string, offset: number, jsonPath = "unavailable"): string {
+  return `moka-envelope-v1|raw:${artifactLogicalKey}|request:offset=${offset},limit=${MOKA_PAGE_SIZE}` +
+    `|init:moka-entry-0000|decrypt:aes-128-cbc-v1|json:${jsonPath}`;
+}
+
+function mokaEntryFailureEvidence(entryArtifact: SourceFetchArtifactDraft): PersistentSourceFetchEvidence {
+  const body = typeof entryArtifact.body === "string"
+    ? Buffer.from(entryArtifact.body, "utf8")
+    : Buffer.from(entryArtifact.body);
+  const fingerprint = sha256Bytes(body).sha256;
+  return parsePersistentSourceFetchEvidence({
+    captureTool: { name: "moka-http", version: "1" },
+    artifacts: [entryArtifact],
+    pages: [{
+      sequence: 0,
+      artifactLogicalKey: entryArtifact.logicalKey,
+      requestedCursor: null,
+      returnedCursor: null,
+      requestedOffset: null,
+      returnedOffset: null,
+      requestedPage: null,
+      returnedPage: null,
+      requestedPageSize: null,
+      returnedPageSize: null,
+      rawJobIds: [`sha256:${fingerprint}`],
+      validJobIds: [],
+      declaredTotal: null,
+      declaredCount: null,
+      declaredPages: null,
+      nextPageSignalBefore: null,
+      nextPageSignalAfter: null,
+      responseFingerprintSha256: fingerprint,
+      termination: "FAILED",
+      anomalyCodes: [],
+      capturedAt: entryArtifact.capturedAt
+    }],
+    fetchCounts: {
+      rawCount: 1,
+      parsedCount: 0,
+      validCount: 0,
+      parseDiscardCount: 1,
+      validationDiscardCount: 0
+    },
+    fetchLosses: [{
+      stage: "PARSE",
+      reason: "Moka entry init data is missing or invalid",
+      rawLocator: `${entryArtifact.logicalKey}#sha256:${fingerprint}`,
+      details: { code: "INVALID_INIT_DATA", pageSequence: 0 },
+      recordedAt: entryArtifact.capturedAt
+    }]
+  });
+}
+
+function mokaFailedPageEvidence(input: {
+  artifacts: SourceFetchArtifactDraft[];
+  pages: SourceFetchPageTrace[];
+  fetchLosses: PersistentSourceFetchEvidence["fetchLosses"];
+  rawCount: number;
+  parsedCount: number;
+  validCount: number;
+  parseDiscardCount: number;
+  validationDiscardCount: number;
+  artifactLogicalKey: string;
+  pageIndex: number;
+  offset: number;
+  response: MokaHttpResponse;
+  code: "INVALID_ENVELOPE" | "DECRYPTION_FAILED" | "INVALID_DECRYPTED_JSON" | "INVALID_RECORD_COLLECTION";
+}): PersistentSourceFetchEvidence {
+  const rawLocator = `${input.artifactLogicalKey}#response#sha256:${
+    sha256Bytes(Buffer.from(input.response.body, "utf8")).sha256
+  }`;
+  return parsePersistentSourceFetchEvidence({
+    captureTool: { name: "moka-http", version: "1" },
+    artifacts: input.artifacts,
+    pages: [
+      ...input.pages,
+      {
+        sequence: input.pageIndex,
+        artifactLogicalKey: input.artifactLogicalKey,
+        requestedOffset: input.offset,
+        returnedOffset: null,
+        requestedPage: null,
+        returnedPage: null,
+        requestedPageSize: MOKA_PAGE_SIZE,
+        returnedPageSize: null,
+        rawJobIds: [irreversibleEvidenceId(input.response.body)],
+        validJobIds: [],
+        declaredTotal: null,
+        declaredCount: null,
+        declaredPages: null,
+        nextPageSignalBefore: input.pageIndex === 0 ? null : String(input.offset),
+        nextPageSignalAfter: null,
+        responseFingerprintSha256: sha256Bytes(Buffer.from(input.response.body, "utf8")).sha256,
+        termination: "FAILED",
+        anomalyCodes: [],
+        capturedAt: input.response.capturedAt!
+      }
+    ],
+    fetchCounts: {
+      rawCount: input.rawCount + 1,
+      parsedCount: input.parsedCount,
+      validCount: input.validCount,
+      parseDiscardCount: input.parseDiscardCount + 1,
+      validationDiscardCount: input.validationDiscardCount
+    },
+    fetchLosses: [
+      ...input.fetchLosses,
+      {
+        stage: "PARSE",
+        reason: "Moka response could not be converted to a record collection",
+        rawLocator,
+        details: { code: input.code, pageSequence: input.pageIndex },
+        recordedAt: input.response.capturedAt
+      }
+    ]
+  });
+}
+
+function credentialSafeEntryUrl(value: string): string {
+  const url = new URL(value);
+  url.search = "";
+  url.hash = "";
+  return url.toString();
+}
+
+function readMokaTotalEvidence(payload: unknown): { value: number; jsonPath: string } | undefined {
+  if (!isObject(payload) || !isObject(payload.data)) {
+    return undefined;
   }
 
+  const stats = isObject(payload.data.jobStats) ? payload.data.jobStats : undefined;
+  const candidates: Array<[unknown, string]> = [
+    [stats?.total, "$.data.jobStats.total"],
+    [payload.data.total, "$.data.total"],
+    [payload.data.count, "$.data.count"]
+  ];
+  for (const [candidate, jsonPath] of candidates) {
+    const value = numberValue(candidate);
+    if (value !== undefined) return { value, jsonPath };
+  }
+  return undefined;
+}
+
+function requireMokaJobs(payload: unknown): unknown[] {
+  if (!isObject(payload) || !isObject(payload.data) || !Array.isArray(payload.data.jobs)) {
+    throw new Error("Moka decrypted response is missing the required data.jobs array");
+  }
+
+  return payload.data.jobs;
+}
+
+function readMokaOffset(payload: unknown): number | undefined {
+  if (!isObject(payload) || !isObject(payload.data)) return undefined;
+  return numberValue(payload.data.offset);
+}
+
+function mergeMokaJobs(firstPayload: unknown, jobs: unknown[]): unknown {
+  void firstPayload;
   return {
-    ...payload,
-    data: {
-      ...payload.data,
-      jobs: payload.data.jobs.map((job) => enrichMokaJob(job, officialEntryUrl))
-    }
+    success: true,
+    data: { jobs }
   };
 }
 
@@ -276,20 +822,125 @@ function enrichMokaJob(job: unknown, officialEntryUrl: string): unknown {
     return job;
   }
 
-  const sourceJobId = stringValue(job.id);
+  const sourceJobId = mokaJobId(job);
   const cities = citiesFromMokaLocations(job.locations);
 
   return {
-    ...job,
-    ...(sourceJobId ? { officialUrl: buildMokaJobUrl(officialEntryUrl, sourceJobId) } : {}),
-    ...(cities.length > 0 ? { locationRaw: cities.join("、"), cities } : {})
+    id: irreversibleEvidenceId(sourceJobId),
+    title: requiredText(job.title),
+    officialUrl: buildMokaJobUrl(officialEntryUrl, sourceJobId!),
+    locationRaw: cities.join("、"),
+    cities
   };
 }
 
 function buildMokaJobUrl(officialEntryUrl: string, sourceJobId: string): string {
   const url = new URL(officialEntryUrl);
-  url.hash = `/job/${sourceJobId}`;
+  url.search = "";
+  url.hash = `/job/${encodeURIComponent(sourceJobId)}`;
   return url.toString();
+}
+
+function mokaRawLocator(
+  raw: unknown,
+  artifactLogicalKey: string,
+  pageSequence: number,
+  recordIndex: number
+): string {
+  return `${artifactLogicalKey}#page-${pageSequence}#record-${recordIndex}#sha256:${
+    sha256Bytes(Buffer.from(JSON.stringify(raw), "utf8")).sha256
+  }`;
+}
+
+function irreversibleEvidenceId(value: unknown): string {
+  return `sha256:${sha256Bytes(Buffer.from(JSON.stringify(value), "utf8")).sha256}`;
+}
+
+function missingMokaRequiredField(job: Record<string, unknown>): string | undefined {
+  if (!mokaJobId(job)) return "id";
+  if (!requiredText(job.title)) return "title";
+  if (citiesFromMokaLocations(job.locations).length === 0) return "locations";
+  return undefined;
+}
+
+function mokaJobId(job: unknown): string | undefined {
+  if (!isObject(job) || Array.isArray(job)) return undefined;
+  if (typeof job.id === "string") return job.id.trim() || undefined;
+  if (typeof job.id === "number" && Number.isSafeInteger(job.id)) return String(job.id);
+  return undefined;
+}
+
+function requiredText(value: unknown): string | undefined {
+  return typeof value === "string" ? value.trim() || undefined : undefined;
+}
+
+function isExplicitlyOutsideChina(job: Record<string, unknown>): boolean {
+  if (!Array.isArray(job.locations) || job.locations.length === 0) return false;
+  const countries = job.locations.flatMap((location) => {
+    if (!isObject(location)) return [];
+    const country = stringValue(location.country);
+    return country ? [normalizeCountry(country)] : [];
+  });
+  return countries.length > 0 && countries.every((country) => !CHINA_COUNTRY_ALIASES.has(country));
+}
+
+const CHINA_COUNTRY_ALIASES = new Set([
+  "cn", "prc", "china", "mainlandchina", "peoplesrepublicofchina",
+  "中国", "中国大陆", "大陆", "中华人民共和国"
+]);
+
+function normalizeCountry(value: string): string {
+  return value.normalize("NFKC").toLowerCase().replace(/[^a-z0-9\u3400-\u9fff]/g, "");
+}
+
+function sensitiveMokaField(job: Record<string, unknown>): "id" | "title" | "locations" | undefined {
+  const id = mokaJobId(job);
+  if (id && containsCredentialMaterial(id)) return "id";
+  const title = requiredText(job.title);
+  if (title && containsCredentialMaterial(title)) return "title";
+  if (Array.isArray(job.locations)) {
+    for (const location of job.locations) {
+      if (!isObject(location) || Array.isArray(location)) continue;
+      for (const value of [location.cityName, location.provinceName, location.country]) {
+        const text = requiredText(value);
+        if (text && containsCredentialMaterial(text)) return "locations";
+      }
+    }
+  }
+  return undefined;
+}
+
+function containsCredentialMaterial(value: string): boolean {
+  const decoded = decodeCredentialText(value);
+  if (/\b(?:bearer|basic)\s+[A-Za-z0-9._~+\/-]{4,}/i.test(decoded)) return true;
+  const assignments = decoded.matchAll(/([A-Za-z][A-Za-z0-9_.-]{1,63})\s*[:=]\s*([^\s,;]+)/g);
+  for (const match of assignments) {
+    const key = match[1]!.normalize("NFKC").toLowerCase().replace(/[^a-z0-9]/g, "");
+    if (WORKDAY_TASK5C_SENSITIVE_ASSIGNMENT_KEYS.has(key) && match[2]) return true;
+  }
+  return false;
+}
+
+// Explicitly aligned with the Workday/Task 5C credential boundary; kept local
+// because the existing Workday scanner is private and has different return semantics.
+const WORKDAY_TASK5C_SENSITIVE_ASSIGNMENT_KEYS = new Set([
+  "auth", "authorization", "basic", "bearer", "cookie", "password", "passwd", "pwd",
+  "secret", "session", "sessionid", "credential", "token", "sourcetoken",
+  "accesstoken", "refreshtoken", "apikey", "clientsecret", "jwt", "xapikey"
+]);
+
+function decodeCredentialText(value: string): string {
+  let decoded = value.normalize("NFKC");
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    try {
+      const next = decodeURIComponent(decoded).normalize("NFKC");
+      if (next === decoded) break;
+      decoded = next;
+    } catch {
+      break;
+    }
+  }
+  return decoded.normalize("NFKC");
 }
 
 function citiesFromMokaLocations(value: unknown): string[] {
@@ -318,11 +969,22 @@ function stringValue(value: unknown): string | undefined {
   return undefined;
 }
 
-function failed(capturedAt: string, failureReason: string): SourceFetchResult {
+function numberValue(value: unknown): number | undefined {
+  return typeof value === "number" && Number.isFinite(value) && value >= 0 ? value : undefined;
+}
+
+function failed(
+  capturedAt: string,
+  failureReason: string,
+  fetchEvidence?: PersistentSourceFetchEvidence,
+  paginationEvaluation?: ReturnType<typeof evaluatePaginationEvidence>
+): SourceFetchResult {
   return {
     ok: false,
     capturedAt,
-    failureReason
+    failureReason,
+    ...(fetchEvidence ? { fetchEvidence } : {}),
+    ...(paginationEvaluation ? { paginationEvaluation } : {})
   };
 }
 

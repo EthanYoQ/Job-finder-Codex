@@ -42,7 +42,8 @@ describe("deployment configuration", () => {
     const dockerfile = readRequiredFile(dockerfilePath);
     const compose = readRequiredFile(composePath);
 
-    expect(compose).toMatch(/npm run p0:crawl/);
+    expect(compose).toMatch(/"p0:scheduler"/);
+    expect(readRequiredFile(resolve(repoRoot, "scripts", "p0-formal-crawl-once.ts"))).toMatch(/npm.*p0:crawl/s);
     expect(compose).toMatch(/npx tsx ops\/monitoring-check\.ts/);
     expect(compose).toMatch(/node dist\/server\/httpServer\.js|"npm",\s*"run",\s*"start"|npm run start/);
     expect(compose).toContain("TRUSTED_PROXY_CIDRS");

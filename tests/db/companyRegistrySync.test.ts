@@ -8,7 +8,8 @@ const plannedCompany: CandidateCompany = {
   officialChineseName: "测试药企",
   officialWebsiteUrl: "https://example.com",
   pinyinName: "ceshi-yaoqi",
-  inclusionReason: "测试来源",
+  category: "FOREIGN_PHARMA",
+      targetStatus: "ACTIVE",
   sources: [
     {
       id: "source-test-social",
@@ -57,6 +58,9 @@ function fakeDb() {
     },
     recruitmentSource: {
       upsert: vi.fn(async (args: unknown) => args)
+    },
+    job: {
+      updateMany: vi.fn(async () => ({ count: 3 }))
     }
   };
 }
@@ -67,7 +71,11 @@ describe("syncPlannedSourcesToDb", () => {
 
     const result = await syncPlannedSourcesToDb([plan], [plannedCompany], db);
 
-    expect(result).toEqual({ companyCount: 1, sourceCount: 1 });
+    expect(result).toEqual({
+      companyCount: 1,
+      sourceCount: 1,
+      hiddenUnplannedVisibleJobCount: 0
+    });
     expect(db.company.upsert).toHaveBeenCalledWith({
       where: { id: "company-test" },
       create: {
@@ -75,13 +83,13 @@ describe("syncPlannedSourcesToDb", () => {
         officialChineseName: "测试药企",
         officialWebsiteUrl: "https://example.com",
         pinyinName: "ceshi-yaoqi",
-        inclusionReason: "测试来源"
+        inclusionReason: "FOREIGN_PHARMA"
       },
       update: {
         officialChineseName: "测试药企",
         officialWebsiteUrl: "https://example.com",
         pinyinName: "ceshi-yaoqi",
-        inclusionReason: "测试来源"
+        inclusionReason: "FOREIGN_PHARMA"
       }
     });
     expect(db.recruitmentSource.upsert).toHaveBeenCalledWith({
@@ -103,6 +111,7 @@ describe("syncPlannedSourcesToDb", () => {
         status: "VERIFIED_SCRAPABLE"
       }
     });
+    expect(db.job.updateMany).not.toHaveBeenCalled();
   });
 
   it("throws instead of writing fake company website URLs", async () => {
@@ -115,5 +124,6 @@ describe("syncPlannedSourcesToDb", () => {
 
     expect(db.company.upsert).not.toHaveBeenCalled();
     expect(db.recruitmentSource.upsert).not.toHaveBeenCalled();
+    expect(db.job.updateMany).not.toHaveBeenCalled();
   });
 });

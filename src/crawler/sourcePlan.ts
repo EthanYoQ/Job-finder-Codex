@@ -1,4 +1,12 @@
-import type { CandidateCompany, CandidateRecruitmentSource } from "../data/companyRegistry";
+import { createHash } from "node:crypto";
+import {
+  expectedOfficialSurfaces,
+  hasUnresolvedSurfaceScope,
+  type CandidateCompany,
+  type CandidateRecruitmentSource,
+  type ExpectedOfficialRecruitmentSurface,
+  type ExpectedRecruitmentChannel
+} from "../data/companyRegistry";
 import type { HtmlTableConfig, OfficialJsonConfig } from "./adapters/types";
 import type { HotjobWecruitFetchConfig } from "./hotjobWecruitSourceFetch";
 import type { HotjobLegacyFetchConfig } from "./hotjobLegacySourceFetch";
@@ -7,7 +15,9 @@ import type { WorkdayFetchConfig } from "./workdaySourceFetch";
 
 export type CrawlAdapterId = "official-json" | "html-table";
 
-type PlannedCompany = Pick<CandidateCompany, "id" | "officialChineseName">;
+export type ExecutableExpectedChannel = Pick<ExpectedRecruitmentChannel, "channelId" | "kind">;
+
+type PlannedCompany = Pick<CandidateCompany, "id" | "officialChineseName"> & { category?: CandidateCompany["category"] };
 type PlannedSource = Required<
   Pick<
     CandidateRecruitmentSource,
@@ -19,9 +29,9 @@ type PlannedSource = Required<
     | "officialEntryUrl"
     | "officialChainEvidenceUrl"
   >
->;
+> & { surfaceId?: string };
 
-export type SourceCrawlPlan =
+export type SourceCrawlPlan = (
   | {
       adapterId: "official-json";
       company: PlannedCompany;
@@ -37,9 +47,14 @@ export type SourceCrawlPlan =
       company: PlannedCompany;
       source: PlannedSource;
       table: HtmlTableConfig;
+    }) & {
+      expectedChannels?: readonly ExecutableExpectedChannel[];
+      expectedChannelSetHash?: string;
     };
 
-type RepresentativeSourceConfig =
+type RepresentativeSourceConfig = {
+  formalEligibility?: "QUARANTINED_PENDING_TRUSTED_ORACLE";
+} & (
   | {
       adapterId: "official-json";
       json: OfficialJsonConfig;
@@ -51,7 +66,8 @@ type RepresentativeSourceConfig =
   | {
       adapterId: "html-table";
       table: HtmlTableConfig;
-    };
+    }
+);
 
 const MOKA_JSON_CONFIG: OfficialJsonConfig = {
   jobsPath: "data.jobs",
@@ -100,11 +116,75 @@ const OFFICIAL_API_JSON_CONFIG: OfficialJsonConfig = {
   defaultCategory: "其他"
 };
 
+const CHROME_LIKE_HTML_REQUEST_HEADERS = {
+  "User-Agent":
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36",
+  Accept: "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+  "Accept-Language": "zh-CN,zh;q=0.9,en;q=0.8"
+} satisfies Record<string, string>;
+
+const JNJ_INNOVATIVE_MEDICINE_JOB_FAMILY_GROUPS = [
+  "604dc786859810010c32535ce4950000", // Pharmaceutical Sales
+  "604dc786859810010c3230da4ca90000", // Market Access
+  "604dc786859810010c3241cd1fbe0000", // Medical Affairs Group
+  "604dc786859810010c31feafcd920000", // Discovery & Pre-Clinical/Clinical Development
+  "604dc786859810010c3277a8e7e80000", // R&D Operations
+  "604dc786859810010c3292e41b5d0000" // Regulatory Affairs Group
+] as const;
+
 const REPRESENTATIVE_CONFIGS: Record<string, RepresentativeSourceConfig> = {
+  "source-johnson-innovative-medicine-social": {
+    formalEligibility: "QUARANTINED_PENDING_TRUSTED_ORACLE",
+    adapterId: "official-json",
+    json: WORKDAY_JSON_CONFIG,
+    workday: {
+      tenant: "jj",
+      site: "JJ",
+      searchText: "China",
+      appliedFacets: {
+        jobFamilyGroup: JNJ_INNOVATIVE_MEDICINE_JOB_FAMILY_GROUPS
+      },
+      pageSize: 20,
+      maxPages: 5
+    }
+  },
+  "source-astellas-china-social": {
+    adapterId: "html-table",
+    table: {
+      rowSelector: "a[href$='.pdf'][href*='/global/zh/']",
+      pagination: {
+        totalPagesSelector: "body",
+        totalPagesAttribute: "data-total-pages",
+        pageSearchParam: "page",
+        maxPages: 1,
+        expectedJobCountSelector: "a[href$='.pdf'][href*='/global/zh/']"
+      },
+      fields: {
+        sourceJobId: {
+          selector: ":scope",
+          attribute: "href",
+          pattern: "/([^/]+)\\.pdf$"
+        },
+        officialTitle: { selector: ":scope" },
+        officialUrl: { selector: ":scope", attribute: "href" },
+        locationRaw: { value: "中国" }
+      },
+      defaultCategory: "其他",
+      requestHeaders: CHROME_LIKE_HTML_REQUEST_HEADERS
+    }
+  },
   "source-astrazeneca-social": {
     adapterId: "html-table",
     table: {
       rowSelector: "#search-results-list li",
+      pagination: {
+        totalPagesSelector: "#search-results",
+        totalPagesAttribute: "data-total-pages",
+        pageSearchParam: "p",
+        maxPages: 25,
+        expectedJobCountSelector: "#search-results",
+        expectedJobCountAttribute: "data-total-job-results"
+      },
       fields: {
         officialTitle: { selector: "a.search-results-link h2" },
         officialUrl: { selector: "a.search-results-link", attribute: "href" },
@@ -112,10 +192,48 @@ const REPRESENTATIVE_CONFIGS: Record<string, RepresentativeSourceConfig> = {
       }
     }
   },
+  "source-abbvie-china-social": {
+    adapterId: "html-table",
+    table: {
+      rowSelector: ".attrax-vacancy-tile",
+      pagination: {
+        totalPagesSelector: ".attrax-pagination__results-of--2",
+        totalPagesAttribute: "data-total-pages",
+        totalPagesPattern: "(\\d+)",
+        pageSearchParam: "page",
+        maxPages: 10,
+        expectedJobCountSelector: ".attrax-pagination__total-results",
+        expectedJobCountPattern: "(\\d+)"
+      },
+      fields: {
+        sourceJobId: {
+          selector: ".attrax-vacancy-tile__title",
+          attribute: "href",
+          pattern: "jid-(\\d+)"
+        },
+        officialTitle: { selector: ".attrax-vacancy-tile__title" },
+        officialUrl: {
+          selector: ".attrax-vacancy-tile__title",
+          attribute: "href"
+        },
+        locationRaw: {
+          selector: ".attrax-vacancy-tile__location-freetext .attrax-vacancy-tile__item-value"
+        }
+      }
+    }
+  },
   "source-novartis-social": {
     adapterId: "html-table",
     table: {
       rowSelector: "table.views-table tbody tr",
+      pagination: {
+        totalPagesSelector: ".pagination a[title*='out of']",
+        totalPagesAttribute: "title",
+        totalPagesPattern: "out of\\s+(\\d+)\\s+pages",
+        pageSearchParam: "page",
+        pageNumberOffset: -1,
+        maxPages: 10
+      },
       fields: {
         officialTitle: { selector: "td.views-field-field-job-title a" },
         officialUrl: {
@@ -130,11 +248,42 @@ const REPRESENTATIVE_CONFIGS: Record<string, RepresentativeSourceConfig> = {
     adapterId: "html-table",
     table: {
       rowSelector: "table tr",
+      pagination: {
+        totalPagesSelector: "a[href*='PageIndex=']",
+        totalPagesAttribute: "href",
+        totalPagesPattern: "PageIndex=(\\d+)",
+        totalPagesMode: "max",
+        pageSearchParam: "PageIndex",
+        maxPages: 20
+      },
       fields: {
         officialTitle: { selector: "td:nth-child(1) a" },
         officialUrl: { selector: "td:nth-child(1) a", attribute: "href" },
         locationRaw: { selector: "td:nth-child(4) a" }
       }
+    }
+  },
+  "source-qilu-social": {
+    adapterId: "official-json",
+    json: OFFICIAL_API_JSON_CONFIG,
+    officialJsonFetch: {
+      kind: "beisen-zhiye-2022",
+      category: "1",
+      pageSize: 100,
+      maxPages: 5,
+      detailPath: "social/detail"
+    }
+  },
+  "source-cr-pharma-social": {
+    adapterId: "official-json",
+    json: HOTJOB_WECRUIT_JSON_CONFIG,
+    hotjobLegacy: {
+      listUrl:
+        "https://crc.wintalent.cn/wt/crpharma/web/json/position/list?operational=4319f781ebd22dcdc82a3d63a839b4e4480b851dc2aa80a7c13a4e46157692d92f30c07cd9fb7ca40e2238cb94dd7768650b5b2b62309867f9fbd8b3d7c3e118&positionType=0&comPart=&sicCorpCode=&brandCode=1&releaseTime=0&trademark=0&useForm=&recruitType=2&projectId=&lanType=1&positionName=&workPlace=&keyWord=&xuanJiangStr=&site=",
+      suitePath: "wt/crpharma",
+      paginationMode: "query-page",
+      pageSize: 10,
+      maxPages: 5
     }
   },
   "source-beigene-social": {
@@ -176,6 +325,17 @@ const REPRESENTATIVE_CONFIGS: Record<string, RepresentativeSourceConfig> = {
       }
     }
   },
+  "source-gsk-china-social": {
+    adapterId: "official-json",
+    json: OFFICIAL_API_JSON_CONFIG,
+    officialJsonFetch: {
+      kind: "phenom",
+      detailBaseUrl: "https://jobs.gsk.com/cn/zh/job",
+      countryFilter: "China",
+      pageSize: 50,
+      maxPages: 3
+    }
+  },
   "source-roche-china-social": {
     adapterId: "official-json",
     json: WORKDAY_JSON_CONFIG,
@@ -184,7 +344,7 @@ const REPRESENTATIVE_CONFIGS: Record<string, RepresentativeSourceConfig> = {
       site: "roche-ext",
       searchText: "China",
       pageSize: 20,
-      maxPages: 5
+      maxPages: 20
     }
   },
   "source-msd-china-social": {
@@ -312,6 +472,17 @@ const REPRESENTATIVE_CONFIGS: Record<string, RepresentativeSourceConfig> = {
       maxPages: 3
     }
   },
+  "source-biogen-china-social": {
+    adapterId: "official-json",
+    json: WORKDAY_JSON_CONFIG,
+    workday: {
+      tenant: "biibhr",
+      site: "external",
+      searchText: "China",
+      pageSize: 20,
+      maxPages: 3
+    }
+  },
   "source-simcere-social": {
     adapterId: "official-json",
     json: HOTJOB_WECRUIT_JSON_CONFIG,
@@ -339,14 +510,148 @@ const REPRESENTATIVE_CONFIGS: Record<string, RepresentativeSourceConfig> = {
       maxPages: 20
     }
   },
+  "source-jichuan-social": {
+    adapterId: "official-json",
+    json: OFFICIAL_API_JSON_CONFIG,
+    officialJsonFetch: {
+      kind: "beisen-zhiye-2022",
+      category: "1",
+      pageSize: 100,
+      maxPages: 5,
+      detailPath: "social/detail"
+    }
+  },
+  "source-cms-social": {
+    adapterId: "official-json",
+    json: OFFICIAL_API_JSON_CONFIG,
+    officialJsonFetch: {
+      kind: "beisen-zhiye-2022",
+      category: "1",
+      pageSize: 100,
+      maxPages: 5,
+      detailPath: "social/detail",
+      defaultLocationRaw: "未披露"
+    }
+  },
+  "source-kanghong-social": {
+    adapterId: "official-json",
+    json: OFFICIAL_API_JSON_CONFIG,
+    officialJsonFetch: {
+      kind: "beisen-zhiye-2022",
+      category: "1",
+      pageSize: 100,
+      maxPages: 5,
+      detailPath: "social/detail"
+    }
+  },
+  "source-yiling-social": {
+    adapterId: "official-json",
+    json: OFFICIAL_API_JSON_CONFIG,
+    officialJsonFetch: {
+      kind: "beisen-zhiye-2022",
+      category: "1",
+      pageSize: 100,
+      maxPages: 5,
+      detailPath: "social/detail"
+    }
+  },
+  "source-innocare-social": {
+    adapterId: "official-json",
+    json: OFFICIAL_API_JSON_CONFIG,
+    officialJsonFetch: {
+      kind: "beisen-zhiye-2022",
+      category: "1",
+      pageSize: 100,
+      maxPages: 5,
+      detailPath: "social/detail"
+    }
+  },
+  "source-henlius-social": {
+    adapterId: "official-json",
+    json: OFFICIAL_API_JSON_CONFIG,
+    officialJsonFetch: {
+      kind: "beisen-zhiye-2022",
+      category: "1",
+      pageSize: 100,
+      maxPages: 5,
+      detailPath: "social/detail"
+    }
+  },
+  "source-better-pharma-social": {
+    adapterId: "official-json",
+    json: OFFICIAL_API_JSON_CONFIG,
+    officialJsonFetch: {
+      kind: "beisen-zhiye-2022",
+      category: "1",
+      pageSize: 100,
+      maxPages: 5,
+      detailPath: "social/detail"
+    }
+  },
   "source-hengrui-social": {
     adapterId: "official-json",
     json: MOKA_JSON_CONFIG
+  },
+  "source-jimin-kexin-social": {
+    adapterId: "official-json",
+    json: MOKA_JSON_CONFIG
+  },
+  "source-united-lab-social": {
+    adapterId: "official-json",
+    json: OFFICIAL_API_JSON_CONFIG,
+    officialJsonFetch: {
+      kind: "beisen-zhiye-2022",
+      category: "1",
+      pageSize: 100,
+      maxPages: 5,
+      detailPath: "social/detail"
+    }
+  },
+  "source-3sbio-social": {
+    adapterId: "official-json",
+    json: OFFICIAL_API_JSON_CONFIG,
+    officialJsonFetch: {
+      kind: "beisen-zhiye-2022",
+      category: "1",
+      pageSize: 100,
+      maxPages: 5,
+      detailPath: "social/detail"
+    }
+  },
+  "source-tianjin-pharma-social": {
+    adapterId: "official-json",
+    json: OFFICIAL_API_JSON_CONFIG,
+    officialJsonFetch: {
+      kind: "beisen-zhiye-2022",
+      category: "1",
+      pageSize: 100,
+      maxPages: 5,
+      detailPath: "social/detail"
+    }
+  },
+  "source-cttq-social": {
+    adapterId: "official-json",
+    json: OFFICIAL_API_JSON_CONFIG,
+    officialJsonFetch: {
+      kind: "beisen-zhiye-2022",
+      category: "1",
+      pageSize: 100,
+      maxPages: 10,
+      detailPath: "social/detail"
+    }
   },
   "source-bayer-healthcare-social": {
     adapterId: "html-table",
     table: {
       rowSelector: "#searchresults tbody tr",
+      pagination: {
+        totalPagesSelector: ".pagination-current",
+        totalPagesAttribute: "max",
+        pageSearchParam: "page",
+        maxPages: 1,
+        expectedJobCountSelector: ".paginationLabel",
+        expectedJobCountPattern: "\\/\\s*(\\d+)"
+      },
       fields: {
         officialTitle: { selector: ".jobTitle.hidden-phone a.jobTitle-link" },
         officialUrl: {
@@ -361,6 +666,15 @@ const REPRESENTATIVE_CONFIGS: Record<string, RepresentativeSourceConfig> = {
     adapterId: "html-table",
     table: {
       rowSelector: "#search-results-list li",
+      pagination: {
+        totalPagesSelector: "#search-results",
+        totalPagesAttribute: "data-total-pages",
+        pageSearchParam: "page",
+        maxPages: 30,
+        expectedJobCountSelector: "#search-results",
+        expectedJobCountAttribute: "data-total-job-results",
+        ajaxMode: "talentbrew"
+      },
       fields: {
         sourceJobId: { selector: "button.js-save-job-btn", attribute: "data-job-id" },
         officialTitle: { selector: "h2.title" },
@@ -374,8 +688,17 @@ const REPRESENTATIVE_CONFIGS: Record<string, RepresentativeSourceConfig> = {
     table: {
       rowSelector: ".space-y-2 > .bg-white",
       fields: {
+        sourceJobId: {
+          selector: "zai-button",
+          attribute: ":link",
+          pattern: "jobs/(\\d+)/"
+        },
         officialTitle: { selector: ".font-bold.text-black.text-xl" },
-        officialUrl: { value: "https://cn.zailaboratory.com/jobs/" },
+        officialUrl: {
+          selector: "zai-button",
+          attribute: ":link",
+          pattern: "url:\\s*'([^']+)'"
+        },
         locationRaw: { selector: ".font-normal.mt-2" }
       }
     }
@@ -384,6 +707,14 @@ const REPRESENTATIVE_CONFIGS: Record<string, RepresentativeSourceConfig> = {
     adapterId: "html-table",
     table: {
       rowSelector: ".jobsTable tr:not(.title)",
+      pagination: {
+        totalPagesSelector: "a[href*='PageIndex=']",
+        totalPagesAttribute: "href",
+        totalPagesPattern: "PageIndex=(\\d+)",
+        totalPagesMode: "max",
+        pageSearchParam: "PageIndex",
+        maxPages: 20
+      },
       fields: {
         officialTitle: { selector: "td:nth-child(1) a" },
         officialUrl: { selector: "td:nth-child(1) a", attribute: "href" },
@@ -394,11 +725,22 @@ const REPRESENTATIVE_CONFIGS: Record<string, RepresentativeSourceConfig> = {
   "source-beta-pharma-social": {
     adapterId: "html-table",
     table: {
-      rowSelector: ".jobsTable tr:not(.title)",
+      rowSelector: "tr.showjob",
+      pagination: {
+        totalPagesSelector: "body",
+        totalPagesAttribute: "data-total-pages",
+        totalPagesPattern: "当前第\\d+\\/(\\d+)页",
+        pageSearchParam: "page",
+        pageUrlTemplate: "https://www.bettapharma.com/Jobs/index/page/{page}",
+        maxPages: 5,
+        expectedJobCountSelector: "body",
+        expectedJobCountPattern: "共\\s*(\\d+)\\s*条记录"
+      },
       fields: {
-        officialTitle: { selector: "td:nth-child(1) a" },
-        officialUrl: { selector: "td:nth-child(1) a", attribute: "href" },
-        locationRaw: { selector: "td:nth-child(3)" }
+        sourceJobId: { selector: "td:nth-child(1) .tdb" },
+        officialTitle: { selector: "td:nth-child(1) .tdb" },
+        officialUrl: { value: "https://www.bettapharma.com/Jobs/" },
+        locationRaw: { selector: "td:nth-child(5)" }
       }
     }
   },
@@ -417,10 +759,86 @@ const REPRESENTATIVE_CONFIGS: Record<string, RepresentativeSourceConfig> = {
     adapterId: "html-table",
     table: {
       rowSelector: ".jobsTable tr:not(.title)",
+      pagination: {
+        totalPagesSelector: "a[href*='PageIndex=']",
+        totalPagesAttribute: "href",
+        totalPagesPattern: "PageIndex=(\\d+)",
+        totalPagesMode: "max",
+        pageSearchParam: "PageIndex",
+        maxPages: 60,
+        expectedJobCountSelector: "body",
+        expectedJobCountPattern: "共\\s*(\\d+)\\s*条记录"
+      },
       fields: {
         officialTitle: { selector: "td:nth-child(1) a" },
         officialUrl: { selector: "td:nth-child(1) a", attribute: "href" },
         locationRaw: { selector: "td:nth-child(3)" }
+      }
+    }
+  },
+  "source-nhu-social": {
+    adapterId: "official-json",
+    json: OFFICIAL_API_JSON_CONFIG,
+    officialJsonFetch: {
+      kind: "beisen-zhiye-2022",
+      category: "1",
+      pageSize: 100,
+      maxPages: 5,
+      detailPath: "Social/detail"
+    }
+  },
+  "source-yangzijiang-social": {
+    adapterId: "official-json",
+    json: OFFICIAL_API_JSON_CONFIG,
+    officialJsonFetch: {
+      kind: "beisen-zhiye-2022",
+      category: "1",
+      pageSize: 100,
+      maxPages: 5,
+      detailPath: "social/detail",
+      defaultLocationRaw: "未披露"
+    }
+  },
+  "source-viatris-social": {
+    adapterId: "html-table",
+    table: {
+      rowSelector: ".position-list-body .position-item",
+      pagination: {
+        totalPagesSelector: "#pageTurnUl li:first-child",
+        totalPagesAttribute: "data-total-pages",
+        pageSearchParam: "offset",
+        pageSearchParamMode: "offset",
+        pageSize: 10,
+        maxPages: 60,
+        ajaxMode: "tupu360"
+      },
+      fields: {
+        sourceJobId: {
+          selector: ".e-title a",
+          attribute: "href",
+          pattern: "positionId=([^&]+)"
+        },
+        officialTitle: { selector: ".e-title a" },
+        officialUrl: { selector: ".e-title a", attribute: "href" },
+        locationRaw: { selector: ".e-city" }
+      }
+    }
+  },
+  "source-servier-china-social": {
+    adapterId: "html-table",
+    table: {
+      rowSelector: "#searchresults tbody tr",
+      pagination: {
+        totalPagesSelector: "#noresults",
+        totalPagesAttribute: "data-total-pages",
+        pageSearchParam: "page",
+        maxPages: 1,
+        expectedJobCountSelector: "#noresults"
+      },
+      fields: {
+        officialTitle: { selector: ".jobTitle-link" },
+        officialUrl: { selector: ".jobTitle-link", attribute: "href" },
+        locationRaw: { selector: ".colLocation" }
       }
     }
   },
@@ -447,14 +865,14 @@ const REPRESENTATIVE_CONFIGS: Record<string, RepresentativeSourceConfig> = {
     }
   },
   "source-mabwell-social": {
-    adapterId: "html-table",
-    table: {
-      rowSelector: ".recJob_list li",
-      fields: {
-        officialTitle: { selector: "a.recJob_name span:nth-child(1)" },
-        officialUrl: { selector: "a.recJob_name", attribute: "href" },
-        locationRaw: { selector: "a.recJob_name span:nth-child(2)" }
-      }
+    adapterId: "official-json",
+    json: OFFICIAL_API_JSON_CONFIG,
+    officialJsonFetch: {
+      kind: "beisen-zhiye-2022",
+      category: "1",
+      pageSize: 100,
+      maxPages: 5,
+      detailPath: "social/detail"
     }
   },
   "source-akeso-social": {
@@ -462,7 +880,6 @@ const REPRESENTATIVE_CONFIGS: Record<string, RepresentativeSourceConfig> = {
     table: {
       rowSelector: "a.job-card",
       fields: {
-        sourceJobId: { selector: ":scope", attribute: "data-content-id" },
         officialTitle: { selector: "h3" },
         officialUrl: { selector: ":scope", attribute: "href" },
         locationRaw: { selector: ":scope", attribute: "data-location" }
@@ -472,11 +889,20 @@ const REPRESENTATIVE_CONFIGS: Record<string, RepresentativeSourceConfig> = {
   "source-sanofi-china-social": {
     adapterId: "html-table",
     table: {
-      rowSelector: ".job-list li",
+      rowSelector: "#search-results-list li",
+      pagination: {
+        totalPagesSelector: "#search-results",
+        totalPagesAttribute: "data-total-pages",
+        pageSearchParam: "page",
+        pageUrlTemplate: "https://jobs.sanofi.com/en/location/china-jobs/2649/1814991/2/{page}",
+        maxPages: 25,
+        expectedJobCountSelector: "#search-results",
+        expectedJobCountAttribute: "data-total-job-results"
+      },
       fields: {
-        sourceJobId: { selector: "a", attribute: "data-job-id" },
-        officialTitle: { selector: "span.job-title" },
-        officialUrl: { selector: "a", attribute: "href" },
+        sourceJobId: { selector: "button.js-save-job-btn", attribute: "data-job-id" },
+        officialTitle: { selector: "h2" },
+        officialUrl: { selector: "a[href*='/job/']", attribute: "href" },
         locationRaw: { selector: "span.job-location" }
       }
     }
@@ -505,6 +931,107 @@ const REPRESENTATIVE_CONFIGS: Record<string, RepresentativeSourceConfig> = {
       endpointUrl: "https://www.innoventbio.com/api/jobs?limit=200"
     }
   },
+  "source-daiichi-sankyo-china-social": {
+    adapterId: "official-json",
+    json: OFFICIAL_API_JSON_CONFIG,
+    officialJsonFetch: {
+      kind: "cnstaff",
+      pageSize: 15,
+      maxPages: 10
+    }
+  },
+  "source-teva-china-social": {
+    adapterId: "html-table",
+    table: {
+      rowSelector: ".position, .job-card, [data-testid='job-card']",
+      pagination: {
+        totalPagesSelector: "body",
+        totalPagesAttribute: "data-total-pages",
+        pageSearchParam: "location",
+        maxPages: 1,
+        expectedJobCountSelector: "body",
+        expectedJobCountPattern: "\"count\"\\s*:\\s*(\\d+)"
+      },
+      fields: {
+        sourceJobId: { selector: "a", attribute: "href" },
+        officialTitle: { selector: "a" },
+        officialUrl: { selector: "a", attribute: "href" },
+        locationRaw: { value: "China" }
+      }
+    }
+  },
+  "source-grifols-china-social": {
+    adapterId: "official-json",
+    json: OFFICIAL_API_JSON_CONFIG,
+    officialJsonFetch: {
+      kind: "jobsyn-solr",
+      endpointUrl: "https://prod-search-api.jobsyn.org/api/v1/solr/search",
+      siteOrigin: "grifols.jobs",
+      location: "chn",
+      pageSize: 9,
+      maxPages: 5,
+      detailBaseUrl: "https://grifols.jobs"
+    }
+  },
+  "source-csl-china-social": {
+    adapterId: "html-table",
+    table: {
+      rowSelector: "a[href^='https://jobs.csl.com/en/jobs/']",
+      pagination: {
+        totalPagesSelector: "body",
+        totalPagesAttribute: "data-total-pages",
+        pageSearchParam: "page",
+        pageSize: 25,
+        maxPages: 5,
+        expectedJobCountSelector: "body",
+        expectedJobCountPattern: "Showing\\s+\\d+\\s+to\\s+\\d+\\s+of\\s+(\\d+)\\s+results"
+      },
+      fields: {
+        sourceJobId: {
+          selector: ":scope",
+          attribute: "href"
+        },
+        officialTitle: { selector: "p.text-18" },
+        officialUrl: { selector: ":scope", attribute: "href" },
+        locationRaw: { selector: "p:has(svg[aria-hidden='true'])" }
+      }
+    }
+  },
+  "source-sandoz-china-social": {
+    adapterId: "official-json",
+    json: OFFICIAL_API_JSON_CONFIG,
+    officialJsonFetch: {
+      kind: "sandoz-jsonapi",
+      endpointUrl: "https://sandoz-com.cms.sandoz.com/jsonapi/views/job_search/job_search",
+      countryTermName: "LOC_CN",
+      pageSize: 10,
+      maxPages: 50,
+      detailBaseUrl: "https://www.sandoz.com"
+    }
+  },
+  "source-lilly-china-social": {
+    adapterId: "official-json",
+    json: OFFICIAL_API_JSON_CONFIG,
+    officialJsonFetch: {
+      kind: "phenom",
+      detailBaseUrl: "https://careers.lilly.com/us/en/job",
+      countryFilter: "China",
+      pageSize: 50,
+      maxPages: 10
+    }
+  },
+  "source-cspc-social": {
+    adapterId: "official-json",
+    json: OFFICIAL_API_JSON_CONFIG,
+    officialJsonFetch: {
+      kind: "redsea-zp-channel",
+      rootId: "cspc",
+      channelQrIds: [
+        "0beb3022-3214-4333-a2e7-20786c4916d5",
+        "623d3b53-0d75-4649-8d4c-df366532fb58"
+      ]
+    }
+  },
   "source-novo-nordisk-china-social": {
     adapterId: "official-json",
     json: OFFICIAL_API_JSON_CONFIG,
@@ -518,6 +1045,16 @@ const REPRESENTATIVE_CONFIGS: Record<string, RepresentativeSourceConfig> = {
     adapterId: "html-table",
     table: {
       rowSelector: "#job-tile-list li.job-tile",
+      pagination: {
+        totalPagesSelector: "#tile-search-results-label",
+        totalPagesAttribute: "data-total-pages",
+        pageSearchParam: "startrow",
+        pageSearchParamMode: "offset",
+        pageSize: 25,
+        maxPages: 10,
+        expectedJobCountSelector: "#tile-search-results-label",
+        expectedJobCountPattern: "of\\s+(\\d+)\\s+Jobs"
+      },
       fields: {
         officialTitle: { selector: ".jobTitle-link" },
         officialUrl: { selector: ".jobTitle-link", attribute: "href" },
@@ -530,7 +1067,32 @@ const REPRESENTATIVE_CONFIGS: Record<string, RepresentativeSourceConfig> = {
     json: OFFICIAL_API_JSON_CONFIG,
     officialJsonFetch: {
       kind: "phenom",
-      detailBaseUrl: "https://careers.emdgroup.com/us/en/job"
+      detailBaseUrl: "https://careers.emdgroup.com/us/en/job",
+      countryFilter: "China",
+      pageSize: 50,
+      maxPages: 10
+    }
+  },
+  "source-organon-china-social": {
+    adapterId: "official-json",
+    json: OFFICIAL_API_JSON_CONFIG,
+    officialJsonFetch: {
+      kind: "phenom",
+      detailBaseUrl: "https://jobs.organon.com/cn/zh/job",
+      countryFilter: "China",
+      pageSize: 50,
+      maxPages: 5
+    }
+  },
+  "source-ucb-china-social": {
+    adapterId: "official-json",
+    json: OFFICIAL_API_JSON_CONFIG,
+    officialJsonFetch: {
+      kind: "phenom",
+      detailBaseUrl: "https://careers.ucb.com/global/en/job",
+      countryFilter: "China",
+      pageSize: 50,
+      maxPages: 5
     }
   },
   "source-thermo-fisher-china-social": {
@@ -541,14 +1103,30 @@ const REPRESENTATIVE_CONFIGS: Record<string, RepresentativeSourceConfig> = {
       detailBaseUrl: "https://jobs.thermofisher.com/global/en/job"
     }
   },
-  "source-sinocelltech-social": {
-    adapterId: "official-json",
-    json: HOTJOB_WECRUIT_JSON_CONFIG,
-    hotjobLegacy: {
-      listUrl: "https://www.hotjob.cn/wt/SCT/web/mode400/position/list",
-      suitePath: "wt/SCT",
-      pageSize: 20,
-      maxPages: 10
+  "source-jacobio-social": {
+    adapterId: "html-table",
+    table: {
+      rowSelector: ".job-list",
+      pagination: {
+        totalPagesSelector: ".title-region h3",
+        totalPagesAttribute: "data-total-pages",
+        pageSearchParam: "page",
+        maxPages: 1,
+        expectedJobCountSelector: ".title-region h3",
+        expectedJobCountPattern: "目前共有\\s*(\\d+)\\s*个招聘职位"
+      },
+      fields: {
+        sourceJobId: {
+          selector: "h2 a",
+          attribute: "href",
+          pattern: "/career/(\\d+)"
+        },
+        officialTitle: { selector: "h2 a" },
+        officialUrl: { selector: "h2 a", attribute: "href" },
+        locationRaw: { value: "中国" }
+      },
+      defaultCategory: "其他",
+      requestHeaders: CHROME_LIKE_HTML_REQUEST_HEADERS
     }
   },
   "source-grand-pharma-china-social": {
@@ -561,6 +1139,17 @@ const REPRESENTATIVE_CONFIGS: Record<string, RepresentativeSourceConfig> = {
         officialUrl: { value: "https://job.grandpharma.cn/" },
         locationRaw: { selector: ".job-meta span:nth-child(1)" }
       }
+    }
+  },
+  "source-xiuzheng-social": {
+    adapterId: "official-json",
+    json: OFFICIAL_API_JSON_CONFIG,
+    officialJsonFetch: {
+      kind: "xiuzheng-job-list",
+      endpointUrl: "https://www.xiuzheng.com/front/human-resource/job-list",
+      detailBaseUrl: "https://www.xiuzheng.com/#/recruitDetail",
+      pageSize: 10,
+      maxPages: 5
     }
   },
   "source-joincare-social": {
@@ -611,6 +1200,40 @@ const REPRESENTATIVE_CONFIGS: Record<string, RepresentativeSourceConfig> = {
       }
     }
   },
+  "source-tongrentang-social": {
+    adapterId: "html-table",
+    table: {
+      rowSelector: "a[href*='/menu54/newsDetail/']:contains('招聘')",
+      pagination: {
+        totalPagesSelector: "body",
+        totalPagesAttribute: "data-total-pages",
+        totalPagesPattern: "共\\s*(\\d+)\\s*页",
+        pageSearchParam: "page",
+        pageUrlTemplate: "https://www.tongrentang.com/newsList/54/{page}.html",
+        maxPages: 10
+      },
+      fields: {
+        sourceJobId: {
+          selector: ":scope",
+          attribute: "href",
+          pattern: "newsDetail/([^./]+)"
+        },
+        officialTitle: { selector: ":scope" },
+        officialUrl: { selector: ":scope", attribute: "href" },
+        locationRaw: { value: "未披露" }
+      }
+    }
+  },
+  "source-lunan-social": {
+    adapterId: "official-json",
+    json: OFFICIAL_API_JSON_CONFIG,
+    officialJsonFetch: {
+      kind: "hcm-cloud",
+      pageSize: 20,
+      maxPages: 5,
+      defaultLocationRaw: "未披露"
+    }
+  },
   "source-alphamab-social": {
     adapterId: "html-table",
     table: {
@@ -624,15 +1247,14 @@ const REPRESENTATIVE_CONFIGS: Record<string, RepresentativeSourceConfig> = {
     }
   },
   "source-ascentage-social": {
-    adapterId: "html-table",
-    table: {
-      rowSelector: '.list-data:contains("Beijing")',
-      fields: {
-        sourceJobId: { selector: "h4 a", attribute: "href" },
-        officialTitle: { selector: ".job-title" },
-        officialUrl: { selector: "h4 a", attribute: "href" },
-        locationRaw: { selector: ".job-location" }
-      }
+    adapterId: "official-json",
+    json: OFFICIAL_API_JSON_CONFIG,
+    officialJsonFetch: {
+      kind: "beisen-zhiye-2022",
+      category: "1",
+      pageSize: 100,
+      maxPages: 5,
+      detailPath: "social/detail"
     }
   },
   "source-nhwa-social": {
@@ -646,10 +1268,40 @@ const REPRESENTATIVE_CONFIGS: Record<string, RepresentativeSourceConfig> = {
         locationRaw: { selector: ".job_add" }
       }
     }
+  },
+  "source-dongyangguang-social": {
+    adapterId: "official-json",
+    json: OFFICIAL_API_JSON_CONFIG,
+    officialJsonFetch: {
+      kind: "beisen-zhiye-2022",
+      category: "1",
+      pageSize: 100,
+      maxPages: 5,
+      detailPath: "Social/detail"
+    }
   }
 };
 
-export function buildSourceCrawlPlans(companies: readonly CandidateCompany[]): SourceCrawlPlan[] {
+export function buildSourceCrawlPlans(
+  companies: readonly CandidateCompany[],
+  surfaces: readonly ExpectedOfficialRecruitmentSurface[] = expectedOfficialSurfaces
+): SourceCrawlPlan[] {
+  return buildPlans(companies, surfaces, true);
+}
+
+export function buildDiscoverySourcePlanCandidates(
+  companies: readonly CandidateCompany[],
+  surfaces: readonly ExpectedOfficialRecruitmentSurface[] = expectedOfficialSurfaces
+): SourceCrawlPlan[] {
+  return buildPlans(companies, surfaces, false);
+}
+
+function buildPlans(
+  companies: readonly CandidateCompany[],
+  surfaces: readonly ExpectedOfficialRecruitmentSurface[],
+  requireIndependentOracle: boolean
+): SourceCrawlPlan[] {
+  const oracleBySurfaceId = new Map(surfaces.map((surface) => [surface.surfaceId, surface]));
   return companies.flatMap((company) =>
     company.sources.flatMap((source): SourceCrawlPlan[] => {
       if (
@@ -662,16 +1314,31 @@ export function buildSourceCrawlPlans(companies: readonly CandidateCompany[]): S
       }
 
       const config = REPRESENTATIVE_CONFIGS[source.id];
-      if (!config) {
+      const surface = source.surfaceId ? oracleBySurfaceId.get(source.surfaceId) : undefined;
+      if (
+        !config ||
+        (requireIndependentOracle && config.formalEligibility === "QUARANTINED_PENDING_TRUSTED_ORACLE") ||
+        !surface ||
+        surface.companyId !== company.id ||
+        surface.kind !== "SOCIAL" ||
+        surface.status !== "INCLUDED" ||
+        (requireIndependentOracle && surface.oracleStatus !== "INDEPENDENTLY_VERIFIED") ||
+        (requireIndependentOracle && hasUnresolvedSurfaceScope(surface)) ||
+        surface.officialEntryUrl !== source.officialEntryUrl ||
+        !surface.officialChainEvidenceUrls.includes(source.officialChainEvidenceUrl) ||
+        surface.adapterId !== config.adapterId
+      ) {
         return [];
       }
 
       const plannedCompany: PlannedCompany = {
         id: company.id,
-        officialChineseName: company.officialChineseName
+        officialChineseName: company.officialChineseName,
+        category: company.category
       };
       const plannedSource: PlannedSource = {
         id: source.id,
+        ...(source.surfaceId ? { surfaceId: source.surfaceId } : {}),
         companyId: source.companyId,
         kind: source.kind,
         atsKind: source.atsKind,
@@ -680,12 +1347,33 @@ export function buildSourceCrawlPlans(companies: readonly CandidateCompany[]): S
         officialChainEvidenceUrl: source.officialChainEvidenceUrl
       };
 
+      let expectedChannels: ExecutableExpectedChannel[];
+      try {
+        expectedChannels = canonicalExpectedChannels(
+          surface.channels
+            .filter((channel) => channel.status === "EXPECTED")
+            .map(({ channelId, kind }) => ({ channelId, kind }))
+        );
+      } catch {
+        return [];
+      }
+      if (
+        requireIndependentOracle &&
+        (!hasExactAdapterChannelCoverage(config, source.id, expectedChannels) || expectedChannels.length === 0)
+      ) {
+        return [];
+      }
+      const channelBinding = requireIndependentOracle
+        ? { expectedChannels, expectedChannelSetHash: expectedChannelSetHash(expectedChannels) }
+        : {};
+
       const plan: SourceCrawlPlan =
         config.adapterId === "official-json"
           ? {
               adapterId: "official-json",
               company: plannedCompany,
               source: plannedSource,
+              ...channelBinding,
               json: config.json,
               ...(config.officialJsonFetch ? { officialJsonFetch: config.officialJsonFetch } : {}),
               ...(config.workday ? { workday: config.workday } : {}),
@@ -696,12 +1384,155 @@ export function buildSourceCrawlPlans(companies: readonly CandidateCompany[]): S
               adapterId: "html-table",
               company: plannedCompany,
               source: plannedSource,
+              ...channelBinding,
               table: config.table
             };
 
       return [plan];
     })
   );
+}
+
+export function canonicalExpectedChannels(
+  channels: readonly ExecutableExpectedChannel[]
+): ExecutableExpectedChannel[] {
+  const canonical = channels.map((channel) => ({ channelId: channel.channelId, kind: channel.kind }));
+  if (canonical.some((channel) => !channel.channelId.trim())) throw new Error("Expected channel id must be nonblank");
+  if (new Set(canonical.map((channel) => channel.channelId)).size !== canonical.length) {
+    throw new Error("Duplicate expected channel id");
+  }
+  return canonical.sort((left, right) =>
+    compareUtf8(left.channelId, right.channelId) || compareUtf8(left.kind, right.kind)
+  );
+}
+
+export function expectedChannelSetHash(channels: readonly ExecutableExpectedChannel[]): string {
+  return createHash("sha256")
+    .update(JSON.stringify(canonicalExpectedChannels(channels)), "utf8")
+    .digest("hex");
+}
+
+function configuredChannelIds(config: RepresentativeSourceConfig, sourceId: string): string[] {
+  if (
+    config.adapterId === "official-json" &&
+    config.officialJsonFetch?.kind === "redsea-zp-channel"
+  ) {
+    return [...config.officialJsonFetch.channelQrIds];
+  }
+  return [`source:${sourceId}:default`];
+}
+
+function hasExactAdapterChannelCoverage(
+  config: RepresentativeSourceConfig,
+  sourceId: string,
+  channels: readonly ExecutableExpectedChannel[]
+): boolean {
+  try {
+    const expectedIds = canonicalExpectedChannels(channels).map((channel) => channel.channelId);
+    const configuredIds = configuredChannelIds(config, sourceId).sort(compareUtf8);
+    return new Set(configuredIds).size === configuredIds.length &&
+      JSON.stringify(expectedIds) === JSON.stringify(configuredIds);
+  } catch {
+    return false;
+  }
+}
+
+export function validateExecutablePlanChannelBinding(plan: SourceCrawlPlan): void {
+  if (!plan.expectedChannels || !plan.expectedChannelSetHash) {
+    throw new Error("Executable source plan channel binding is required");
+  }
+  const canonical = canonicalExpectedChannels(plan.expectedChannels);
+  if (JSON.stringify(canonical) !== JSON.stringify(plan.expectedChannels)) {
+    throw new Error("Executable source plan channels must be canonical");
+  }
+  if (expectedChannelSetHash(canonical) !== plan.expectedChannelSetHash) {
+    throw new Error("Executable source plan channel hash mismatch");
+  }
+  const expectedAdapter =
+    plan.source.atsKind === "OFFICIAL_HTML" || plan.source.atsKind === "SUCCESSFACTORS"
+      ? "html-table"
+      : plan.source.atsKind === "UNKNOWN" || plan.source.atsKind === "BROWSER_FALLBACK"
+        ? undefined
+        : "official-json";
+  if (!expectedAdapter || expectedAdapter !== plan.adapterId) {
+    throw new Error("Executable source plan adapter does not match ATS kind");
+  }
+  const config: RepresentativeSourceConfig = plan.adapterId === "official-json"
+    ? {
+        adapterId: "official-json", json: plan.json,
+        ...(plan.officialJsonFetch ? { officialJsonFetch: plan.officialJsonFetch } : {}),
+        ...(plan.workday ? { workday: plan.workday } : {}),
+        ...(plan.hotjob ? { hotjob: plan.hotjob } : {}),
+        ...(plan.hotjobLegacy ? { hotjobLegacy: plan.hotjobLegacy } : {})
+      }
+    : { adapterId: "html-table", table: plan.table };
+  if (!hasExactAdapterChannelCoverage(config, plan.source.id, canonical)) {
+    throw new Error("Executable source plan channels are not fully covered by adapter config");
+  }
+}
+
+export interface SourcePlanCoverage {
+  unexpectedPlanSourceIds: string[];
+  missingEligibleSurfaceIds: string[];
+  blockedExpectedSurfaceIds: string[];
+}
+
+export function getSourcePlanCoverage(
+  companies: readonly CandidateCompany[],
+  plans: readonly SourceCrawlPlan[]
+): SourcePlanCoverage {
+  const companyIds = new Set(companies.map((company) => company.id));
+  const surfaces = expectedOfficialSurfaces.filter((surface) => companyIds.has(surface.companyId));
+  const eligible = surfaces.filter(
+    (surface) =>
+      surface.kind === "SOCIAL" &&
+      surface.status === "INCLUDED" &&
+      surface.oracleStatus === "INDEPENDENTLY_VERIFIED" &&
+      !hasUnresolvedSurfaceScope(surface) &&
+      Boolean(surface.officialEntryUrl) &&
+      surface.officialChainEvidenceUrls.length > 0 &&
+      Boolean(surface.adapterId)
+  );
+  const plannedSurfaceIds = new Set(plans.map((plan) => plan.source.surfaceId).filter(Boolean));
+  const eligibleIds = new Set(eligible.map((surface) => surface.surfaceId));
+  return {
+    unexpectedPlanSourceIds: plans
+      .filter((plan) => !plan.source.surfaceId || !eligibleIds.has(plan.source.surfaceId))
+      .map((plan) => plan.source.id)
+      .sort(compareUtf8),
+    missingEligibleSurfaceIds: eligible
+      .filter((surface) => !plannedSurfaceIds.has(surface.surfaceId))
+      .map((surface) => surface.surfaceId)
+      .sort(compareUtf8),
+    blockedExpectedSurfaceIds: surfaces
+      .filter((surface) => surface.kind === "SOCIAL" && !eligibleIds.has(surface.surfaceId))
+      .map((surface) => surface.surfaceId)
+      .sort(compareUtf8)
+  };
+}
+
+function canonicalPlanValue(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map(canonicalPlanValue);
+  if (value && typeof value === "object") {
+    return Object.fromEntries(
+      Object.entries(value as Record<string, unknown>)
+        .filter(([, item]) => item !== undefined)
+        .sort(([left], [right]) => compareUtf8(left, right))
+        .map(([key, item]) => [key, canonicalPlanValue(item)])
+    );
+  }
+  return value;
+}
+
+export function activeSourcePlanSha256(plans: readonly SourceCrawlPlan[]): string {
+  const ordered = [...plans].sort((left, right) => compareUtf8(left.source.id, right.source.id));
+  return createHash("sha256")
+    .update(JSON.stringify(canonicalPlanValue(ordered)), "utf8")
+    .digest("hex");
+}
+
+function compareUtf8(left: string, right: string): number {
+  return Buffer.from(left, "utf8").compare(Buffer.from(right, "utf8"));
 }
 
 export function getPlanBySourceId(

@@ -1,5 +1,9 @@
 import type { LifecycleStatus } from "../crawler/lifecycle";
-import type { RequiredJobField } from "../domain/company";
+import type {
+  CompletenessEvidenceKind,
+  CompletenessStatus,
+  RequiredJobField
+} from "../domain/company";
 import type { JobCategory } from "../domain/search";
 
 export type PrismaJobCategoryName =
@@ -23,6 +27,8 @@ export type PrismaJobCategoryName =
 
 export type PrismaRequiredJobFieldName = "COMPANY" | "TITLE" | "OFFICIAL_URL" | "LOCATION";
 export type PrismaLifecycleStatusName = "ACTIVE" | "SUSPECTED_OFFLINE" | "OFFLINE";
+export type PrismaCompletenessStatusName = CompletenessStatus;
+export type PrismaCompletenessEvidenceKindName = CompletenessEvidenceKind;
 
 const JOB_CATEGORY_TO_PRISMA = {
   销售: "SALES",

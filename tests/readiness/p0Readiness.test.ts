@@ -4,54 +4,54 @@ import { P0_MIN_VERIFIED_SCRAPABLE_COMPANIES } from "../../src/domain/verificati
 import { getP0ReadinessReport } from "../../src/readiness/p0Readiness";
 
 describe("P0 readiness report", () => {
-  it("keeps the current project blocked until 50 crawl-evidenced companies are ready", () => {
+  it("keeps the current project blocked until all 60 crawl-evidenced companies are ready", () => {
     const report = getP0ReadinessReport();
 
-    expect(report.totalCandidates).toBeGreaterThanOrEqual(80);
-    expect(report.totalCandidates).toBeLessThanOrEqual(120);
+    expect(report.totalCandidates).toBe(60);
     expect(report.requiredVerifiedCompanies).toBe(P0_MIN_VERIFIED_SCRAPABLE_COMPANIES);
-    expect(report.crawlEvidencedVerifiedCompanies).toBeLessThan(50);
+    expect(report.crawlEvidencedVerifiedCompanies).toBeLessThan(60);
     expect(report.canLaunchP0).toBe(false);
     expect(report.blockers.map((blocker) => blocker.code)).toContain(
-      "VERIFIED_COMPANIES_BELOW_50"
+      "VERIFIED_COMPANIES_BELOW_60"
     );
   });
 
-  it("does not flag declared verified sources once every verified source has a crawl plan", () => {
+  it("blocks every research-pending source from active planning", () => {
     const report = getP0ReadinessReport();
 
-    expect(report.declaredVerifiedSocialSources).toBe(P0_MIN_VERIFIED_SCRAPABLE_COMPANIES);
-    expect(report.configuredVerifiedSocialSources).toBe(P0_MIN_VERIFIED_SCRAPABLE_COMPANIES);
-    expect(report.verifiedSourcesMissingCrawlPlan).toEqual([]);
-    expect(report.blockers.map((blocker) => blocker.code)).not.toContain(
+    expect(report.declaredVerifiedSocialSources).toBe(46);
+    expect(report.configuredVerifiedSocialSources).toBe(0);
+    expect(report.verifiedSourcesMissingCrawlPlan).toHaveLength(46);
+    expect(report.blockers.map((blocker) => blocker.code)).toContain(
       "VERIFIED_SOURCE_WITHOUT_CRAWL_PLAN"
     );
   });
 
-  it("allows a synthetic launch only when 50 companies have configured plans and stable observations", () => {
-    const readyCompanies = Array.from({ length: 80 }, (_, index) => ({
+  it("does not let caller-supplied configured ids bypass the independent oracle", () => {
+    const readyCompanies = Array.from({ length: 60 }, (_, index) => ({
       id: `company-ready-${index}`,
       officialChineseName: `测试药企${index}`,
       pinyinName: `ceshi-${index}`,
       officialWebsiteUrl: `https://company-${index}.example.com`,
-      inclusionReason: "测试样本",
+      category: "FOREIGN_PHARMA" as const,
+      targetStatus: "ACTIVE" as const,
       sources: [
         {
           id: `source-ready-${index}-social`,
           companyId: `company-ready-${index}`,
           kind: "SOCIAL" as const,
           atsKind: "OFFICIAL_JSON" as const,
-          status: index < 50 ? ("VERIFIED_SCRAPABLE" as const) : ("ENTRY_FOUND_PENDING_ADAPTER" as const),
+          status: "VERIFIED_SCRAPABLE" as const,
           officialEntryUrl: `https://company-${index}.example.com/jobs`,
           officialChainEvidenceUrl: `https://company-${index}.example.com/careers`
         }
       ]
     }));
     const configuredSourceIds = new Set(
-      readyCompanies.slice(0, 50).map((company) => company.sources[0]!.id)
+      readyCompanies.map((company) => company.sources[0]!.id)
     );
     const observationsBySource = Object.fromEntries(
-      readyCompanies.slice(0, 50).map((company) => {
+      readyCompanies.map((company) => {
         const sourceId = company.sources[0]!.id;
         return [
           sourceId,
@@ -62,6 +62,9 @@ describe("P0 readiness report", () => {
               crawledAt: new Date("2026-07-07T08:00:00Z"),
               successful: true,
               structuredJobCount: 3,
+              completenessStatus: "VERIFIED" as const,
+              completenessEvidenceKind: "OFFICIAL_TOTAL_COUNT" as const,
+              completenessEvidenceUrl: `https://${sourceId}.example.com/jobs`,
               stableRequiredFields: ["company", "title", "officialUrl", "location"] as const
             },
             {
@@ -70,6 +73,9 @@ describe("P0 readiness report", () => {
               crawledAt: new Date("2026-07-07T20:00:00Z"),
               successful: true,
               structuredJobCount: 3,
+              completenessStatus: "VERIFIED" as const,
+              completenessEvidenceKind: "OFFICIAL_TOTAL_COUNT" as const,
+              completenessEvidenceUrl: `https://${sourceId}.example.com/jobs`,
               stableRequiredFields: ["company", "title", "officialUrl", "location"] as const
             }
           ]
@@ -83,8 +89,8 @@ describe("P0 readiness report", () => {
       observationsBySource
     });
 
-    expect(report.crawlEvidencedVerifiedCompanies).toBe(50);
-    expect(report.blockers).toEqual([]);
-    expect(report.canLaunchP0).toBe(true);
+    expect(report.crawlEvidencedVerifiedCompanies).toBe(0);
+    expect(report.blockers.map((blocker) => blocker.code)).toContain("VERIFIED_SOURCE_WITHOUT_CRAWL_PLAN");
+    expect(report.canLaunchP0).toBe(false);
   });
 });

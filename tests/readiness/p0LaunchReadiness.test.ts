@@ -21,7 +21,8 @@ describe("P0 launch readiness aggregator", () => {
       "npm run typecheck",
       "npm run build",
       "npm run prisma:validate",
-      "npm run p0:readiness -- --db"
+      "npm run p0:readiness -- --db",
+      "npm run p0:data-quality -- --db"
     ]);
   });
 
@@ -43,7 +44,7 @@ describe("P0 launch readiness aggregator", () => {
             ok: false,
             exitCode: 2,
             stdout: "type error",
-            stderr: "DATABASE_URL=postgres://user:secret@db.example.com:5432/jobs"
+            stderr: "DATABASE_URL=postgres://user:placeholder@db.example.com:5432/jobs"
           };
         }
 
@@ -68,7 +69,7 @@ describe("P0 launch readiness aggregator", () => {
   });
 
   it("redacts secret-looking env assignments and URLs", () => {
-    expect(redactValue("DATABASE_URL=postgres://user:secret@db.example.com:5432/jobs")).toBe(
+    expect(redactValue("DATABASE_URL=postgres://user:placeholder@db.example.com:5432/jobs")).toBe(
       "DATABASE_URL=[REDACTED]"
     );
     expect(redactValue("TAVILY_API_KEY=tvly-dev-REDACTED")).toBe("TAVILY_API_KEY=[REDACTED]");

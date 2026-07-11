@@ -1,5 +1,3 @@
-version: "3.9"
-
 # Recommended baseline for the full stack: 4 vCPU and 8 GB RAM.
 # Put Cloudflare or an equivalent WAF/CDN in front of nginx; this file keeps
 # the origin generic and does not assume an ICP filing. Aliyun Korea / Seoul
@@ -27,6 +25,10 @@ services:
     build:
       context: ..
       dockerfile: Dockerfile
+      args: &release-build-args
+        BUILD_COMMIT_SHA: ${BUILD_COMMIT_SHA:?set BUILD_COMMIT_SHA}
+        BUILD_SOURCE_CLEAN: ${BUILD_SOURCE_CLEAN:?set BUILD_SOURCE_CLEAN}
+        BUILD_SOURCE_TREE_SHA256: ${BUILD_SOURCE_TREE_SHA256:?set BUILD_SOURCE_TREE_SHA256}
     restart: unless-stopped
     command: ["npm", "run", "start"]
     environment:
@@ -36,6 +38,11 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+    volumes:
+      - type: volume
+        source: formal-artifacts
+        target: /app/outputs
+        read_only: true
     expose:
       - "3000"
     networks:
@@ -45,10 +52,28 @@ services:
     build:
       context: ..
       dockerfile: Dockerfile
-    restart: unless-stopped
-    command: ["sh", "-lc", "npm run p0:crawl -- --force"]
+      args: *release-build-args
+    profiles: ["manual"]
+    restart: "no"
+    command: ["npm", "run", "p0:formal-crawl-once"]
     environment:
       DATABASE_URL: ${DATABASE_URL:?set DATABASE_URL}
+      P0_FULL_RELEASE_MEMBERSHIP_FILE: /run/release-authority/membership.json
+      P0_FULL_RELEASE_MEMBERSHIP_FILE_SHA256: ${P0_FULL_RELEASE_MEMBERSHIP_FILE_SHA256:?set membership pin}
+      P0_FULL_RELEASE_ORACLE_FILE: /run/release-authority/oracle.json
+      P0_FULL_RELEASE_ORACLE_FILE_SHA256: ${P0_FULL_RELEASE_ORACLE_FILE_SHA256:?set oracle pin}
+    volumes:
+      - type: bind
+        source: ${P0_FULL_RELEASE_MEMBERSHIP_FILE:?set membership file}
+        target: /run/release-authority/membership.json
+        read_only: true
+      - type: volume
+        source: formal-artifacts
+        target: /app/outputs
+      - type: bind
+        source: ${P0_FULL_RELEASE_ORACLE_FILE:?set oracle file}
+        target: /run/release-authority/oracle.json
+        read_only: true
     depends_on:
       postgres:
         condition: service_healthy
@@ -59,16 +84,27 @@ services:
     build:
       context: ..
       dockerfile: Dockerfile
+      args: *release-build-args
     restart: unless-stopped
-    command:
-      [
-        "sh",
-        "-lc",
-        "while true; do npm run p0:crawl -- --force; sleep ${CRAWL_INTERVAL_SECONDS:-43200}; done"
-      ]
+    command: ["npm", "run", "p0:scheduler"]
     environment:
       DATABASE_URL: ${DATABASE_URL:?set DATABASE_URL}
-      CRAWL_INTERVAL_SECONDS: ${CRAWL_INTERVAL_SECONDS:-43200}
+      P0_FULL_RELEASE_MEMBERSHIP_FILE: /run/release-authority/membership.json
+      P0_FULL_RELEASE_MEMBERSHIP_FILE_SHA256: ${P0_FULL_RELEASE_MEMBERSHIP_FILE_SHA256:?set membership pin}
+      P0_FULL_RELEASE_ORACLE_FILE: /run/release-authority/oracle.json
+      P0_FULL_RELEASE_ORACLE_FILE_SHA256: ${P0_FULL_RELEASE_ORACLE_FILE_SHA256:?set oracle pin}
+    volumes:
+      - type: bind
+        source: ${P0_FULL_RELEASE_MEMBERSHIP_FILE:?set membership file}
+        target: /run/release-authority/membership.json
+        read_only: true
+      - type: volume
+        source: formal-artifacts
+        target: /app/outputs
+      - type: bind
+        source: ${P0_FULL_RELEASE_ORACLE_FILE:?set oracle file}
+        target: /run/release-authority/oracle.json
+        read_only: true
     depends_on:
       postgres:
         condition: service_healthy
@@ -94,6 +130,7 @@ services:
     build:
       context: ..
       dockerfile: Dockerfile
+      args: *release-build-args
     restart: unless-stopped
     command:
       [
@@ -118,6 +155,7 @@ services:
     build:
       context: ..
       dockerfile: Dockerfile
+      args: *release-build-args
     restart: unless-stopped
     command:
       [
@@ -136,12 +174,18 @@ services:
         condition: service_healthy
       web:
         condition: service_started
+    volumes:
+      - type: volume
+        source: formal-artifacts
+        target: /app/outputs
+        read_only: true
     networks:
       - internal
 
 volumes:
   postgres-data:
   backup-data:
+  formal-artifacts:
 
 networks:
   internal:

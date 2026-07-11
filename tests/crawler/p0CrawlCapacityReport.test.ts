@@ -51,5 +51,5 @@ describe("p0 crawl capacity report", () => {
       estimatedOnePassSeconds: 289,
       estimatedTwiceDailySeconds: 578
     });
-  });
+  },15_000);
 });

@@ -13,13 +13,28 @@ const REQUIRED_FIELDS: RequiredJobField[] = [
 ];
 
 const REQUIRED_SUCCESSFUL_STABLE_CRAWLS = 2;
-export const P0_MIN_VERIFIED_SCRAPABLE_COMPANIES = 50;
+export const P0_REQUIRED_COMPANIES = 60;
+export const P0_MIN_VERIFIED_SCRAPABLE_COMPANIES = 60;
 
 function isSuccessfulStableObservation(
   observation: CrawlObservation
 ): boolean {
   if (!observation.successful) return false;
+  if (
+    observation.structuredJobCount === 0 &&
+    observation.expectedJobCount === 0 &&
+    observation.completenessStatus === "VERIFIED"
+  ) {
+    return true;
+  }
   if (observation.structuredJobCount <= 0) return false;
+  if (observation.completenessStatus !== "VERIFIED") return false;
+  if (
+    observation.expectedJobCount !== undefined &&
+    observation.structuredJobCount !== observation.expectedJobCount
+  ) {
+    return false;
+  }
 
   return REQUIRED_FIELDS.every((field) =>
     observation.stableRequiredFields.includes(field)
@@ -62,8 +77,7 @@ export function canLaunchP0(
   observationsBySource: Record<string, CrawlObservation[]>
 ): boolean {
   return (
-    companies.length >= 80 &&
-    companies.length <= 120 &&
+    companies.length === P0_REQUIRED_COMPANIES &&
     countVerifiedCompanies(companies, observationsBySource) >=
       P0_MIN_VERIFIED_SCRAPABLE_COMPANIES
   );

@@ -6,7 +6,7 @@ const scriptDir = dirname(fileURLToPath(import.meta.url));
 const projectRoot = resolve(scriptDir, "..");
 const databaseUrl =
   process.env.DATABASE_URL ||
-  "postgresql://job_finder:job_finder@localhost:5432/job_finder?schema=public";
+  "postgresql://placeholder:placeholder@127.0.0.1:1/placeholder?schema=public";
 
 const command = process.platform === "win32" ? "cmd.exe" : "npm";
 const args =

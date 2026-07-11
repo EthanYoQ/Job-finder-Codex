@@ -80,6 +80,9 @@ describe("searchJobsFromDatabase", () => {
         where: expect.objectContaining({
           visibleInFrontend: true,
           lifecycleStatus: "ACTIVE",
+          sourceId: {
+            in: []
+          },
           companyId: { in: ["company-a"] },
           category: { in: ["SALES"] },
           isNew: true
@@ -87,6 +90,11 @@ describe("searchJobsFromDatabase", () => {
         include: { company: true }
       })
     );
+
+    const call = vi.mocked(db.job.findMany).mock.calls[0]?.[0] as
+      | { where: { sourceId: { in: string[] } } }
+      | undefined;
+    expect(call?.where.sourceId.in).toEqual([]);
   });
 
   it("sorts latest posted deterministically when some jobs have null publish dates", async () => {

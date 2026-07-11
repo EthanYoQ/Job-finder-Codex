@@ -1,0 +1,1 @@
+ALTER TYPE "CompletenessStatus" ADD VALUE 'PENDING' BEFORE 'VERIFIED';

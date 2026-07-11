@@ -1,5 +1,6 @@
 import type {
   ATSKind,
+  CompletenessEvidence,
   CrawlObservation,
   SourceKind,
   VerificationStatus
@@ -21,7 +22,7 @@ export interface CrawlAdapterSource {
   kind: SourceKind;
   atsKind: ATSKind;
   officialEntryUrl: string;
-  officialChainEvidenceUrl: string;
+  officialChainEvidenceUrl?: string;
   status: VerificationStatus;
 }
 
@@ -46,12 +47,14 @@ export type HtmlFieldSelector =
   | {
       selector: string;
       attribute?: string;
+      pattern?: string;
       value?: never;
     }
   | {
       value: string;
       selector?: never;
       attribute?: never;
+      pattern?: never;
     };
 
 export interface HtmlTableFieldMap {
@@ -67,6 +70,24 @@ export interface HtmlTableConfig {
   rowSelector: string;
   fields: HtmlTableFieldMap;
   defaultCategory?: JobCategory;
+  requestHeaders?: Record<string, string>;
+  pagination?: {
+    totalPagesSelector: string;
+    totalPagesAttribute: string;
+    totalPagesPattern?: string;
+    totalPagesMode?: "first" | "max";
+    pageSearchParam: string;
+    pageSearchParamMode?: "page" | "offset";
+    pageUrlTemplate?: string;
+    pageNumberOffset?: number;
+    pageSize?: number;
+    maxPages: number;
+    expectedJobCountSelector?: string;
+    expectedJobCountAttribute?: string;
+    expectedJobCountPattern?: string;
+    expectedJobCountValue?: number;
+    ajaxMode?: "talentbrew" | "tupu360";
+  };
 }
 
 export interface BaseCrawlAdapterInput {
@@ -74,6 +95,7 @@ export interface BaseCrawlAdapterInput {
   source: CrawlAdapterSource;
   capturedAt: string;
   isBaseline?: boolean;
+  completeness?: CompletenessEvidence;
 }
 
 export interface OfficialJsonAdapterInput extends BaseCrawlAdapterInput {
@@ -88,17 +110,43 @@ export interface HtmlTableAdapterInput extends BaseCrawlAdapterInput {
 
 export type CrawlAdapterInput = OfficialJsonAdapterInput | HtmlTableAdapterInput;
 
+export type AdapterLossReason = "RAW_ROW_NOT_OBJECT" | "TITLE_INVALID" | "URL_INVALID" |
+  "LOCATION_INVALID" | "CITIES_INVALID" | "CATEGORY_INVALID" | "DATE_INVALID" |
+  "SENSITIVE_OUTPUT" | "NORMALIZED_SCHEMA_INVALID";
+export interface AdapterLoss { stage: "PARSE" | "VALIDATION"; reason: AdapterLossReason; rawIndex: number }
+export interface AdapterCollisionGroup {
+  dedupeKeySha256: string;
+  candidateKeySha256: string[];
+  winnerKeySha256: string;
+  droppedCount: number;
+  dropReason: "DUPLICATE_DEDUPE_KEY_DETERMINISTIC_WINNER";
+}
+export interface AdapterReconciliation {
+  rawInputCount: number;
+  parsedCount: number;
+  validBeforeDedupeCount: number;
+  dedupeInputCount: number;
+  dedupeOutputCount: number;
+  adapterLosses: AdapterLoss[];
+  collisionGroups: AdapterCollisionGroup[];
+  outputJobKeyCommitments: string[];
+  outputJobKeySetSha256: string;
+  ledgerSha256: string;
+}
+
 export type CrawlAdapterResult =
   | {
       status: "SUCCESS";
       jobs: NormalizedJobRecord[];
       observation: CrawlObservation;
+      reconciliation?: AdapterReconciliation;
     }
   | {
       status: "FAILED";
       jobs: [];
       failureReason: string;
       observation: CrawlObservation;
+      reconciliation?: AdapterReconciliation;
     };
 
 export interface SourceAdapter<Input extends BaseCrawlAdapterInput = BaseCrawlAdapterInput> {

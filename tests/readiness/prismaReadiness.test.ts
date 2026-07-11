@@ -15,7 +15,7 @@ describe("Prisma readiness report", () => {
         officialChineseName: "百济神州",
         officialWebsiteUrl: "https://www.beonemedicines.com.cn/",
         pinyinName: "baiji-shenzhou",
-        inclusionReason: "知名 Biotech、已实测",
+        inclusionReason: "FOREIGN_PHARMA",
         sources: [
           {
             id: "source-beigene-social",
@@ -34,6 +34,15 @@ describe("Prisma readiness report", () => {
                 crawledAt: new Date("2026-07-08T20:00:00.000Z"),
                 successful: true,
                 structuredJobCount: 50,
+                expectedJobCount: 50,
+                completenessStatus: "VERIFIED",
+                completenessEvidenceKind: "OFFICIAL_TOTAL_COUNT",
+                completenessEvidenceUrl:
+                  "https://app.mokahr.com/apply/beigene/98934?sourceToken=token#/jobs",
+                completenessBlockerReason: null,
+                totalPages: 1,
+                pageSize: 50,
+                pagesVisited: 1,
                 stableRequiredFields: ["COMPANY", "TITLE", "OFFICIAL_URL", "LOCATION"],
                 failureReason: null
               },
@@ -43,6 +52,15 @@ describe("Prisma readiness report", () => {
                 crawledAt: new Date("2026-07-08T08:00:00.000Z"),
                 successful: true,
                 structuredJobCount: 50,
+                expectedJobCount: 50,
+                completenessStatus: "VERIFIED",
+                completenessEvidenceKind: "OFFICIAL_TOTAL_COUNT",
+                completenessEvidenceUrl:
+                  "https://app.mokahr.com/apply/beigene/98934?sourceToken=token#/jobs",
+                completenessBlockerReason: null,
+                totalPages: 1,
+                pageSize: 50,
+                pagesVisited: 1,
                 stableRequiredFields: ["COMPANY", "TITLE", "OFFICIAL_URL", "LOCATION"],
                 failureReason: null
               }
@@ -70,8 +88,9 @@ describe("Prisma readiness report", () => {
       orderBy: { pinyinName: "asc" }
     });
     expect(report.totalCandidates).toBe(candidateCompanies.length);
-    expect(report.declaredVerifiedSocialSources).toBe(P0_MIN_VERIFIED_SCRAPABLE_COMPANIES);
-    expect(report.crawlEvidencedVerifiedCompanies).toBe(1);
+    expect(report.declaredVerifiedSocialSources).toBe(46);
+    expect(report.configuredVerifiedSocialSources).toBe(0);
+    expect(report.crawlEvidencedVerifiedCompanies).toBe(0);
     expect(report.canLaunchP0).toBe(false);
   });
 });

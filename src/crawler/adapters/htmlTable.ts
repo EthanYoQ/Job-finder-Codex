@@ -11,6 +11,10 @@ import type {
   HtmlFieldSelector,
   SourceAdapter
 } from "./types";
+import { completenessObservationFields } from "./completeness";
+import { emptyReconciliation, reconcileAdapterRows } from "./reconciliation";
+import type { AdapterLoss } from "./types";
+import { containsSensitiveAdapterValue, isSafeAdapterUrl, isSensitiveAdapterUrl } from "./safeAdapterValue";
 
 const REQUIRED_FIELDS = ["company", "title", "officialUrl", "location"] as const;
 const DEFAULT_CATEGORY: JobCategory = "其他";
@@ -23,37 +27,61 @@ export const htmlTableAdapter: SourceAdapter<HtmlTableAdapterInput> = {
     }
 
     const $ = load(input.html);
-    const jobs = $(input.table.rowSelector)
-      .toArray()
-      .flatMap((row) => normalizeTableRow(input, row));
+    const rows = $(input.table.rowSelector).toArray();
+    if (unsafeAdapterMetadata(input)) {
+      const losses: AdapterLoss[] = rows.map((_row, rawIndex) => ({ stage: "VALIDATION", reason: "SENSITIVE_OUTPUT", rawIndex }));
+      const reconciliation = reconcileAdapterRows(rows.length, rows.length, [], losses).reconciliation;
+      return failed(redactedInput(input), "Adapter input metadata is unsafe", reconciliation);
+    }
+    const valid: NormalizedJobRecord[] = [];
+    const adapterLosses: AdapterLoss[] = [];
+    rows.forEach((row, rawIndex) => { const normalized = normalizeTableRow(input, row);
+      if ("job" in normalized) valid.push(normalized.job);
+      else adapterLosses.push({ stage: normalized.stage, reason: normalized.reason, rawIndex }); });
+    const { jobs, reconciliation } = reconcileAdapterRows(rows.length, rows.length, valid, adapterLosses);
 
     if (jobs.length === 0) {
-      return failed(input, "No normalized jobs found in HTML table");
+      return failed(input, "No normalized jobs found in HTML table", reconciliation);
     }
 
     return {
       status: "SUCCESS",
       jobs,
-      observation: observation(input, true, jobs.length)
+      observation: observation(input, true, reconciliation.dedupeOutputCount, undefined, readExpectedJobCount(input)), reconciliation
     };
   }
 };
 
-function normalizeTableRow(input: HtmlTableAdapterInput, row: AnyNode): NormalizedJobRecord[] {
+function unsafeAdapterMetadata(input: HtmlTableAdapterInput): boolean {
+  return [input.source.id, input.source.companyId, input.company.id, input.company.officialChineseName]
+    .some(containsSensitiveAdapterValue);
+}
+
+function redactedInput(input: HtmlTableAdapterInput): HtmlTableAdapterInput {
+  return { ...input, company: { id: "redacted-company", officialChineseName: "redacted-company" },
+    source: { ...input.source, id: "redacted-source", companyId: "redacted-company" } };
+}
+
+function normalizeTableRow(input: HtmlTableAdapterInput, row: AnyNode):
+  { job: NormalizedJobRecord } | { stage: "VALIDATION"; reason: AdapterLoss["reason"] } {
   const $ = load(input.html);
   const { fields } = input.table;
   const officialTitle = readField($, row, fields.officialTitle);
-  const officialUrl = absoluteUrl(readField($, row, fields.officialUrl), input.source.officialEntryUrl);
+  const rawOfficialUrl = readField($, row, fields.officialUrl);
   const locationRaw = readField($, row, fields.locationRaw);
 
-  if (!officialTitle || !officialUrl || !locationRaw) {
-    return [];
-  }
+  if (!officialTitle) return { stage: "VALIDATION", reason: "TITLE_INVALID" };
+  if (!rawOfficialUrl || !isSafeAdapterUrl(rawOfficialUrl, input.source.officialEntryUrl)) return { stage: "VALIDATION", reason: rawOfficialUrl && isSensitiveAdapterUrl(rawOfficialUrl, input.source.officialEntryUrl) ? "SENSITIVE_OUTPUT" : "URL_INVALID" };
+  const officialUrl = absoluteUrl(rawOfficialUrl, input.source.officialEntryUrl)!;
+  if (!locationRaw) return { stage: "VALIDATION", reason: "LOCATION_INVALID" };
 
-  const category = categoryFromValue(
-    fields.category ? readField($, row, fields.category) : undefined,
-    input.table.defaultCategory
-  );
+  const categoryValue = fields.category ? readField($, row, fields.category) : undefined;
+  if (categoryValue !== undefined && !isJobCategory(categoryValue)) return { stage: "VALIDATION", reason: "CATEGORY_INVALID" };
+  const category = categoryValue ?? input.table.defaultCategory ?? DEFAULT_CATEGORY;
+  const sourceJobId = fields.sourceJobId ? readField($, row, fields.sourceJobId) : undefined;
+  const auxiliaryTitle = fields.auxiliaryChineseTitle ? readField($, row, fields.auxiliaryChineseTitle) : undefined;
+  if ([sourceJobId, officialTitle, locationRaw, rawOfficialUrl, auxiliaryTitle].some((value) => value !== undefined && containsSensitiveAdapterValue(value)))
+    return { stage: "VALIDATION", reason: "SENSITIVE_OUTPUT" };
 
   const parsed = NormalizedJobRecordSchema.safeParse({
     companyId: input.company.id,
@@ -70,20 +98,22 @@ function normalizeTableRow(input: HtmlTableAdapterInput, row: AnyNode): Normaliz
     isBaseline: input.isBaseline ?? true,
     evidence: {
       officialEntryUrl: input.source.officialEntryUrl,
-      officialChainEvidenceUrl: input.source.officialChainEvidenceUrl,
+      ...(input.source.officialChainEvidenceUrl
+        ? { officialChainEvidenceUrl: input.source.officialChainEvidenceUrl }
+        : {}),
       capturedAt: input.capturedAt
     },
     ...optionalString(
       "sourceJobId",
-      fields.sourceJobId ? readField($, row, fields.sourceJobId) : undefined
+      sourceJobId
     ),
     ...optionalString(
       "auxiliaryChineseTitle",
-      fields.auxiliaryChineseTitle ? readField($, row, fields.auxiliaryChineseTitle) : undefined
+      auxiliaryTitle
     )
   });
 
-  return parsed.success ? [parsed.data] : [];
+  return parsed.success ? { job: parsed.data } : { stage: "VALIDATION", reason: "NORMALIZED_SCHEMA_INVALID" };
 }
 
 function readField(
@@ -97,7 +127,7 @@ function readField(
 
   const element = field.selector === ":scope" ? $(row).first() : $(row).find(field.selector).first();
   const rawValue = field.attribute ? element.attr(field.attribute) : element.text();
-  return cleanString(rawValue);
+  return cleanString(applyPattern(rawValue, field.pattern));
 }
 
 function cleanString(value: unknown): string | undefined {
@@ -109,6 +139,15 @@ function cleanString(value: unknown): string | undefined {
   return normalized || undefined;
 }
 
+function applyPattern(value: unknown, pattern: string | undefined): unknown {
+  if (!pattern || typeof value !== "string") {
+    return value;
+  }
+
+  const match = value.match(new RegExp(pattern));
+  return match?.[1] ?? match?.[0];
+}
+
 function citiesFromLocation(locationRaw: string): string[] {
   return locationRaw
     .split(/[,，;；、/]/)
@@ -116,16 +155,21 @@ function citiesFromLocation(locationRaw: string): string[] {
     .filter(Boolean);
 }
 
-function categoryFromValue(value: string | undefined, defaultCategory?: JobCategory): JobCategory {
-  if (isJobCategory(value)) {
-    return value;
-  }
-
-  return defaultCategory ?? DEFAULT_CATEGORY;
-}
-
 function isJobCategory(value: string | undefined): value is JobCategory {
   return JOB_CATEGORIES.includes(value as JobCategory);
+}
+
+function readExpectedJobCount(input: HtmlTableAdapterInput): number | undefined {
+  const pagination = input.table.pagination;
+  if (!pagination?.expectedJobCountSelector || !pagination.expectedJobCountAttribute) {
+    return undefined;
+  }
+
+  const $ = load(input.html);
+  const value = $(pagination.expectedJobCountSelector).first().attr(pagination.expectedJobCountAttribute);
+  const parsed = Number(value);
+
+  return Number.isInteger(parsed) && parsed >= 0 ? parsed : undefined;
 }
 
 function absoluteUrl(value: string | undefined, baseUrl: string): string | undefined {
@@ -134,7 +178,9 @@ function absoluteUrl(value: string | undefined, baseUrl: string): string | undef
   }
 
   try {
-    return new URL(value, baseUrl).toString();
+    const url = new URL(value, baseUrl);
+    if (!isSafeAdapterUrl(url.toString(), baseUrl)) return undefined;
+    return url.toString();
   } catch {
     return undefined;
   }
@@ -148,24 +194,31 @@ function observation(
   input: HtmlTableAdapterInput,
   successful: boolean,
   structuredJobCount: number,
-  failureReason?: string
+  failureReason?: string,
+  expectedJobCount?: number
 ): CrawlAdapterResult["observation"] {
   return {
     id: `${input.source.id}:html-table:${input.capturedAt}`,
     sourceId: input.source.id,
     crawledAt: new Date(input.capturedAt),
     successful,
-    stableRequiredFields: successful ? [...REQUIRED_FIELDS] : [],
+    stableRequiredFields: successful && structuredJobCount > 0 ? [...REQUIRED_FIELDS] : [],
     structuredJobCount,
+    ...completenessObservationFields({
+      completeness: input.completeness,
+      structuredJobCount,
+      defaultEvidenceUrl: input.source.officialEntryUrl,
+      ...(expectedJobCount === undefined ? {} : { expectedJobCount })
+    }),
     ...(failureReason ? { failureReason } : {})
   };
 }
 
-function failed(input: HtmlTableAdapterInput, failureReason: string): CrawlAdapterResult {
+function failed(input: HtmlTableAdapterInput, failureReason: string, reconciliation = emptyReconciliation()): CrawlAdapterResult {
   return {
     status: "FAILED",
     jobs: [],
     failureReason,
-    observation: observation(input, false, 0, failureReason)
+    observation: observation(input, false, 0, failureReason), reconciliation
   };
 }

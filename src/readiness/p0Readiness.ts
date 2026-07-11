@@ -7,12 +7,13 @@ import type {
 } from "../domain/company";
 import {
   isVerifiedScrapable,
+  P0_REQUIRED_COMPANIES,
   P0_MIN_VERIFIED_SCRAPABLE_COMPANIES
 } from "../domain/verification";
 
 export type P0ReadinessBlockerCode =
   | "CANDIDATE_POOL_OUT_OF_RANGE"
-  | "VERIFIED_COMPANIES_BELOW_50"
+  | "VERIFIED_COMPANIES_BELOW_60"
   | "VERIFIED_SOURCE_WITHOUT_CRAWL_PLAN";
 
 export interface P0ReadinessBlocker {
@@ -52,9 +53,10 @@ export interface P0ReadinessInput {
 
 export function getP0ReadinessReport(input: P0ReadinessInput = {}): P0ReadinessReport {
   const companies = input.companies ?? candidateCompanies;
-  const configuredSourceIds =
-    input.configuredSourceIds ??
-    new Set(buildSourceCrawlPlans(companies).map((plan) => plan.source.id));
+  const activeSourceIds = new Set(buildSourceCrawlPlans(companies).map((plan) => plan.source.id));
+  const configuredSourceIds = input.configuredSourceIds
+    ? new Set([...input.configuredSourceIds].filter((sourceId) => activeSourceIds.has(sourceId)))
+    : activeSourceIds;
   const observationsBySource = input.observationsBySource ?? {};
   const declaredVerifiedSources = companies.flatMap((company) =>
     company.sources
@@ -140,16 +142,16 @@ function buildBlockers({
 }): P0ReadinessBlocker[] {
   const blockers: P0ReadinessBlocker[] = [];
 
-  if (totalCandidates < 80 || totalCandidates > 120) {
+  if (totalCandidates !== P0_REQUIRED_COMPANIES) {
     blockers.push({
       code: "CANDIDATE_POOL_OUT_OF_RANGE",
-      message: `P0 candidate pool must contain 80-120 companies; current count is ${totalCandidates}.`
+      message: `P0 candidate pool must contain exactly ${P0_REQUIRED_COMPANIES} companies; current count is ${totalCandidates}.`
     });
   }
 
   if (crawlEvidencedVerifiedCompanies < P0_MIN_VERIFIED_SCRAPABLE_COMPANIES) {
     blockers.push({
-      code: "VERIFIED_COMPANIES_BELOW_50",
+      code: "VERIFIED_COMPANIES_BELOW_60",
       message: `P0 requires at least ${P0_MIN_VERIFIED_SCRAPABLE_COMPANIES} crawl-evidenced verified companies; current count is ${crawlEvidencedVerifiedCompanies}.`
     });
   }

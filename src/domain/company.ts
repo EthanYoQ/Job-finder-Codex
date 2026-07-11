@@ -21,6 +21,30 @@ export type ATSKind =
 
 export type RequiredJobField = "company" | "title" | "officialUrl" | "location";
 
+export type CompletenessStatus =
+  | "VERIFIED"
+  | "NEEDS_MANUAL_COMPLETENESS_REVIEW"
+  | "INCOMPLETE"
+  | "FAILED";
+
+export type CompletenessEvidenceKind =
+  | "OFFICIAL_TOTAL_COUNT"
+  | "OFFICIAL_TOTAL_PAGES"
+  | "COMPLETE_PAGE_TRAVERSAL"
+  | "WEAK_MANUAL_SAMPLE"
+  | "FETCH_FAILURE";
+
+export interface CompletenessEvidence {
+  completenessStatus: CompletenessStatus;
+  expectedJobCount?: number;
+  completenessEvidenceKind?: CompletenessEvidenceKind;
+  completenessEvidenceUrl?: string;
+  completenessBlockerReason?: string;
+  totalPages?: number;
+  pageSize?: number;
+  pagesVisited?: number;
+}
+
 export interface CrawlObservation {
   id: string;
   sourceId: string;
@@ -28,6 +52,14 @@ export interface CrawlObservation {
   successful: boolean;
   stableRequiredFields: RequiredJobField[];
   structuredJobCount: number;
+  expectedJobCount?: number;
+  completenessStatus?: CompletenessStatus;
+  completenessEvidenceKind?: CompletenessEvidenceKind;
+  completenessEvidenceUrl?: string;
+  completenessBlockerReason?: string;
+  totalPages?: number;
+  pageSize?: number;
+  pagesVisited?: number;
   failureReason?: string;
 }
 
@@ -47,6 +79,7 @@ export interface Company {
   officialChineseName: string;
   officialWebsiteUrl: string;
   pinyinName: string;
-  inclusionReason: string;
+  category: "FOREIGN_PHARMA" | "DOMESTIC_PHARMA";
+  targetStatus: "ACTIVE" | "BLOCKED_NO_PUBLIC_SOURCE" | "BLOCKED_EVIDENCE_GAP";
   sources: RecruitmentSource[];
 }

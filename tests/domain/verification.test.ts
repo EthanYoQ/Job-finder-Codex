@@ -20,6 +20,9 @@ function createObservation(
     crawledAt: new Date(crawledAt),
     successful: true,
     structuredJobCount: 12,
+    completenessStatus: "VERIFIED",
+    completenessEvidenceKind: "OFFICIAL_TOTAL_COUNT",
+    completenessEvidenceUrl: "https://example.com/jobs",
     stableRequiredFields: [...requiredFields],
     ...overrides
   };
@@ -49,7 +52,8 @@ function createCompany(
     officialChineseName: `测试药企${index}`,
     officialWebsiteUrl: `https://example-${index}.com`,
     pinyinName: `ce shi yao qi ${index}`,
-    inclusionReason: "测试样本",
+    category: "FOREIGN_PHARMA",
+      targetStatus: "ACTIVE",
     sources: [
       createSource({
         id: `source-${index}`,
@@ -89,7 +93,8 @@ describe("company source domain", () => {
       officialChineseName: "江苏恒瑞医药股份有限公司",
       officialWebsiteUrl: "https://www.hengrui.com",
       pinyinName: "jiang su heng rui yi yao gu fen you xian gong si",
-      inclusionReason: "国内头部药企、已实测",
+      category: "FOREIGN_PHARMA",
+      targetStatus: "ACTIVE",
       sources: [socialSource]
     };
 
@@ -182,9 +187,85 @@ describe("verified scrapable gate", () => {
     expect(isVerifiedScrapable(verifiedSource, observations)).toBe(true);
   });
 
-  it("blocks P0 launch until at least 50 companies are verified scrapable", () => {
-    const companies: Company[] = Array.from({ length: 49 }, (_, index) =>
+  it("rejects successful crawls that do not include verified completeness evidence", () => {
+    const verifiedSource = createSource({
+      status: "VERIFIED_SCRAPABLE"
+    });
+    const olderObservation = createObservation(verifiedSource.id, "2026-07-07T08:00:00Z", {
+      id: "crawl-1"
+    });
+    const newerObservation = createObservation(verifiedSource.id, "2026-07-07T20:00:00Z", {
+      id: "crawl-2"
+    });
+    delete olderObservation.completenessStatus;
+    delete newerObservation.completenessStatus;
+    const observations = [olderObservation, newerObservation];
+
+    expect(isVerifiedScrapable(verifiedSource, observations)).toBe(false);
+  });
+
+  it("rejects successful crawls when structured jobs are below the source-declared expected count", () => {
+    const verifiedSource = createSource({
+      status: "VERIFIED_SCRAPABLE"
+    });
+    const observations = [
+      createObservation(verifiedSource.id, "2026-07-07T08:00:00Z", {
+        id: "crawl-1",
+        structuredJobCount: 15,
+        expectedJobCount: 283
+      }),
+      createObservation(verifiedSource.id, "2026-07-07T20:00:00Z", {
+        id: "crawl-2",
+        structuredJobCount: 15,
+        expectedJobCount: 283
+      })
+    ];
+
+    expect(isVerifiedScrapable(verifiedSource, observations)).toBe(false);
+  });
+
+  it("accepts official zero-job observations when the latest two crawls have verified zero expected count", () => {
+    const verifiedSource = createSource({
+      status: "VERIFIED_SCRAPABLE"
+    });
+    const observations = [
+      createObservation(verifiedSource.id, "2026-07-07T08:00:00Z", {
+        id: "crawl-1",
+        structuredJobCount: 0,
+        expectedJobCount: 0,
+        stableRequiredFields: []
+      }),
+      createObservation(verifiedSource.id, "2026-07-07T20:00:00Z", {
+        id: "crawl-2",
+        structuredJobCount: 0,
+        expectedJobCount: 0,
+        stableRequiredFields: []
+      })
+    ];
+
+    expect(isVerifiedScrapable(verifiedSource, observations)).toBe(true);
+  });
+
+  it("blocks P0 launch until all 60 confirmed companies are verified scrapable", () => {
+    const companies: Company[] = Array.from({ length: 60 }, (_, index) =>
       createCompany(index)
+    );
+    const observationsBySource = Object.fromEntries(
+      companies.map((company, index) => {
+        const sourceId = company.sources[0]!.id;
+        return [sourceId, index < 59 ? createVerifiedObservationPair(sourceId) : []];
+      })
+    );
+
+    expect(countVerifiedCompanies(companies, observationsBySource)).toBe(59);
+    expect(canLaunchP0(companies, observationsBySource)).toBe(false);
+  });
+
+  it("allows launch only when all 60 confirmed companies have verified completeness evidence", () => {
+    const companies: Company[] = Array.from({ length: 60 }, (_, index) =>
+      createCompany(index, {
+        status: "VERIFIED_SCRAPABLE"
+      })
     );
     const observationsBySource = Object.fromEntries(
       companies.map((company) => {
@@ -193,47 +274,24 @@ describe("verified scrapable gate", () => {
       })
     );
 
-    expect(countVerifiedCompanies(companies, observationsBySource)).toBe(49);
-    expect(canLaunchP0(companies, observationsBySource)).toBe(false);
-  });
-
-  it("allows launch at the exact boundary of 80 companies with 50 verified", () => {
-    const companies: Company[] = Array.from({ length: 80 }, (_, index) =>
-      createCompany(index, {
-        status: index < 50 ? "VERIFIED_SCRAPABLE" : "ENTRY_FOUND_PENDING_ADAPTER"
-      })
-    );
-    const observationsBySource = Object.fromEntries(
-      companies.map((company, index) => {
-        const sourceId = company.sources[0]!.id;
-        return [
-          sourceId,
-          index < 50 ? createVerifiedObservationPair(sourceId) : []
-        ];
-      })
-    );
-
-    expect(countVerifiedCompanies(companies, observationsBySource)).toBe(50);
+    expect(countVerifiedCompanies(companies, observationsBySource)).toBe(60);
     expect(canLaunchP0(companies, observationsBySource)).toBe(true);
   });
 
-  it("blocks launch when the candidate pool exceeds 120 companies", () => {
-    const companies: Company[] = Array.from({ length: 121 }, (_, index) =>
+  it("blocks launch when the candidate pool is not exactly 60 companies", () => {
+    const companies: Company[] = Array.from({ length: 61 }, (_, index) =>
       createCompany(index, {
-        status: index < 60 ? "VERIFIED_SCRAPABLE" : "ENTRY_FOUND_PENDING_ADAPTER"
+        status: "VERIFIED_SCRAPABLE"
       })
     );
     const observationsBySource = Object.fromEntries(
-      companies.map((company, index) => {
+      companies.map((company) => {
         const sourceId = company.sources[0]!.id;
-        return [
-          sourceId,
-          index < 60 ? createVerifiedObservationPair(sourceId) : []
-        ];
+        return [sourceId, createVerifiedObservationPair(sourceId)];
       })
     );
 
-    expect(countVerifiedCompanies(companies, observationsBySource)).toBe(60);
+    expect(countVerifiedCompanies(companies, observationsBySource)).toBe(61);
     expect(canLaunchP0(companies, observationsBySource)).toBe(false);
   });
 

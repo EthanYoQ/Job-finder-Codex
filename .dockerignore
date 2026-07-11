@@ -1,0 +1,10 @@
+node_modules
+dist
+outputs
+.codegraph
+.playwright-cli
+.superpowers
+.agents
+.codex
+tools
+*.log

@@ -1,5 +1,7 @@
 import { SearchRequestSchema, type JobCategory } from "../domain/search";
 import { toPrismaJobCategory, type PrismaJobCategoryName } from "../db/prismaMappers";
+import { buildSourceCrawlPlans } from "../crawler/sourcePlan";
+import { candidateCompanies } from "../data/companyRegistry";
 
 export interface PrismaJobSearchDb {
   job: {
@@ -55,6 +57,9 @@ interface PrismaLikeJobWhereInput {
   companyId?: {
     in: string[];
   };
+  sourceId: {
+    in: string[];
+  };
   isNew?: true;
 }
 
@@ -102,6 +107,8 @@ const PRISMA_TO_JOB_CATEGORY: Record<PrismaJobCategoryName, JobCategory> = {
   OTHER: "其他"
 };
 
+const CURRENT_P0_SOURCE_IDS = buildSourceCrawlPlans(candidateCompanies).map((plan) => plan.source.id);
+
 export async function searchJobsFromDatabase(
   request: unknown,
   db: PrismaJobSearchDb
@@ -130,6 +137,7 @@ function buildWhereClause(request: ReturnType<typeof SearchRequestSchema.parse>)
   const where: PrismaLikeJobWhereInput = {
     visibleInFrontend: true,
     lifecycleStatus: "ACTIVE",
+    sourceId: { in: CURRENT_P0_SOURCE_IDS },
     OR: [
       { cities: { has: request.city } },
       { city: request.city },

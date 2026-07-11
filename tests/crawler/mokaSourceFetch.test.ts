@@ -5,7 +5,8 @@ import {
   decryptMokaResponse,
   extractMokaInitData,
   type MokaEncryptedResponse,
-  type MokaHttpClient
+  type MokaHttpClient,
+  type MokaHttpResponse
 } from "../../src/crawler/mokaSourceFetch";
 import type { SourceCrawlPlan } from "../../src/crawler/sourcePlan";
 
@@ -63,6 +64,18 @@ function encryptedResponse(payload: unknown): MokaEncryptedResponse {
   return { data, necromancer };
 }
 
+function evidenceResponse(body: string, kind: "entry" | "api"): MokaHttpResponse {
+  return {
+    status: 200,
+    body,
+    finalUrl: kind === "entry"
+      ? "https://app.mokahr.com/apply/beigene/98934#/jobs"
+      : "https://app.mokahr.com/api/outer/ats-apply/website/jobs/v2",
+    contentType: kind === "entry" ? "text/html; charset=utf-8" : "application/json",
+    capturedAt
+  };
+}
+
 describe("Moka source fetch", () => {
   afterEach(() => {
     vi.unstubAllGlobals();
@@ -100,20 +113,19 @@ describe("Moka source fetch", () => {
     const http: MokaHttpClient = async (request) => {
       requests.push(request);
       if (request.method === "GET") {
-        return {
-          status: 200,
-          body: htmlWithInitData({
+        return evidenceResponse(
+          htmlWithInitData({
             aesIv,
             mode: "social",
             siteId: "98934",
             org: { id: "beigene", siteId: 98934, name: "百济神州" }
-          })
-        };
+          }),
+          "entry"
+        );
       }
 
-      return {
-        status: 200,
-        body: JSON.stringify(
+      return evidenceResponse(
+        JSON.stringify(
           encryptedResponse({
             success: true,
             data: {
@@ -127,8 +139,9 @@ describe("Moka source fetch", () => {
               ]
             }
           })
-        )
-      };
+        ),
+        "api"
+      );
     };
 
     const fetch = createMokaSourceFetch({
@@ -159,16 +172,90 @@ describe("Moka source fetch", () => {
       data: {
         jobs: [
           {
-            id: "job-1",
+            id: expect.stringMatching(/^sha256:[0-9a-f]{64}$/),
             title: "Research Chief",
             officialUrl:
-              "https://app.mokahr.com/apply/beigene/98934?sourceToken=token#/job/job-1",
+              "https://app.mokahr.com/apply/beigene/98934#/job/job-1",
             locationRaw: "上海市",
             cities: ["上海市"]
           }
         ]
       }
     });
+    expect(result.completeness).toMatchObject({
+      completenessStatus: "NEEDS_MANUAL_COMPLETENESS_REVIEW",
+      expectedJobCount: 1,
+      completenessEvidenceKind: "OFFICIAL_TOTAL_COUNT",
+      completenessEvidenceUrl: "https://app.mokahr.com/apply/beigene/98934",
+      totalPages: 1,
+      pageSize: 50,
+      pagesVisited: 1
+    });
+  });
+
+  it("continues Moka pagination until the official total is exhausted", async () => {
+    const requests: Array<{ url: string; method: string; body?: unknown }> = [];
+    const http: MokaHttpClient = async (request) => {
+      requests.push(request);
+      if (request.method === "GET") {
+        return evidenceResponse(
+          htmlWithInitData({
+            aesIv,
+            mode: "social",
+            siteId: "98934",
+            org: { id: "beigene", siteId: 98934, name: "百济神州" }
+          }),
+          "entry"
+        );
+      }
+
+      const offset = Number((request.body as { offset?: unknown }).offset);
+      const pageJobs = offset === 0
+        ? Array.from({ length: 50 }, (_, index) => ({
+            id: `job-${index}`,
+            title: `Role ${index}`,
+            locations: [{ cityName: "上海市" }]
+          }))
+        : [
+            {
+              id: "job-50",
+              title: "Role 50",
+              locations: [{ cityName: "上海市" }]
+            }
+          ];
+      return evidenceResponse(
+        JSON.stringify(
+          encryptedResponse({
+            success: true,
+            data: {
+              jobStats: { total: 51 },
+              jobs: pageJobs
+            }
+          })
+        ),
+        "api"
+      );
+    };
+
+    const fetch = createMokaSourceFetch({
+      http,
+      now: () => new Date(capturedAt)
+    });
+    const result = await fetch(plan);
+
+    expect(result).toMatchObject({
+      ok: true,
+      completeness: {
+        completenessStatus: "NEEDS_MANUAL_COMPLETENESS_REVIEW",
+        expectedJobCount: 51,
+        pagesVisited: 2
+      }
+    });
+    expect(
+      requests
+        .filter((request) => request.method === "POST")
+        .map((request) => (request.body as { offset?: unknown }).offset)
+    ).toEqual([0, 50]);
   });
 
   it("carries Moka redirect cookies when using the default HTTP client", async () => {
@@ -199,7 +286,7 @@ describe("Moka source fetch", () => {
               siteId: "98934",
               org: { id: "beigene", siteId: 98934, name: "百济神州" }
             }),
-            { status: 200 }
+            { status: 200, headers: { "content-type": "text/html; charset=utf-8" } }
           );
         }
 
@@ -219,7 +306,7 @@ describe("Moka source fetch", () => {
                 }
               })
             ),
-            { status: 200 }
+            { status: 200, headers: { "content-type": "application/json" } }
           );
         }
 

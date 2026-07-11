@@ -5,6 +5,7 @@ import type { CandidateCompany } from "../data/companyRegistry";
 export interface CompanyRegistrySyncResult {
   companyCount: number;
   sourceCount: number;
+  hiddenUnplannedVisibleJobCount: number;
 }
 
 export interface CompanyRegistrySyncDb {
@@ -79,13 +80,13 @@ export async function syncPlannedSourcesToDb(
         officialChineseName: company.officialChineseName,
         officialWebsiteUrl: company.officialWebsiteUrl,
         pinyinName: company.pinyinName,
-        inclusionReason: company.inclusionReason
+        inclusionReason: company.category
       },
       update: {
         officialChineseName: company.officialChineseName,
         officialWebsiteUrl: company.officialWebsiteUrl,
         pinyinName: company.pinyinName,
-        inclusionReason: company.inclusionReason
+        inclusionReason: company.category
       }
     });
 
@@ -116,6 +117,7 @@ export async function syncPlannedSourcesToDb(
 
   return {
     companyCount,
-    sourceCount: plans.length
+    sourceCount: plans.length,
+    hiddenUnplannedVisibleJobCount: 0
   };
 }
