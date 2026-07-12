@@ -319,7 +319,14 @@ describe("source crawl planning", () => {
         atsKind: "OFFICIAL_JSON"
       },
       officialJsonFetch: {
-        kind: "phenom"
+        kind: "phenom",
+        facetScope: {
+          countryIncludeDescriptor: "China",
+          exclusionFacet: {
+            field: "jobLevelId",
+            descriptors: ["A - Current Student", "B - Recent University Graduate(<1 year of experience)"]
+          }
+        }
       }
     });
     expect(getPlanBySourceId(plans, "source-gsk-china-social")).toMatchObject({
@@ -331,7 +338,8 @@ describe("source crawl planning", () => {
       officialJsonFetch: {
         kind: "phenom",
         countryFilter: "China",
-        pageSize: 50
+        pageSize: 50,
+        allowedApplyOrigins: ["https://gsk.wd5.myworkdayjobs.com"]
       }
     });
     expect(getPlanBySourceId(plans, "source-lilly-china-social")).toMatchObject({
@@ -345,7 +353,8 @@ describe("source crawl planning", () => {
         kind: "phenom",
         countryFilter: "China",
         pageSize: 50,
-        maxPages: 10
+        maxPages: 10,
+        allowedApplyOrigins: ["https://lilly.wd115.myworkdayjobs.com"]
       }
     });
     expect(getPlanBySourceId(plans, "source-organon-china-social")).toMatchObject({
@@ -357,7 +366,8 @@ describe("source crawl planning", () => {
       officialJsonFetch: {
         kind: "phenom",
         countryFilter: "China",
-        pageSize: 50
+        pageSize: 50,
+        allowedApplyOrigins: ["https://organon.wd5.myworkdayjobs.com"]
       }
     });
     expect(getPlanBySourceId(plans, "source-ucb-china-social")).toMatchObject({
@@ -368,7 +378,14 @@ describe("source crawl planning", () => {
       },
       officialJsonFetch: {
         kind: "phenom",
-        countryFilter: "China",
+        facetScope: {
+          countryIncludeDescriptor: "China",
+          exclusionFacet: {
+            field: "category",
+            descriptors: ["Internships & Junior Positions"]
+          }
+        },
+        allowOmittedOffsetForSinglePage: true,
         pageSize: 50
       }
     });

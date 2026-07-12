@@ -351,6 +351,7 @@ const REPRESENTATIVE_CONFIGS: Record<string, RepresentativeSourceConfig> = {
       kind: "phenom",
       detailBaseUrl: "https://jobs.gsk.com/cn/zh/job",
       countryFilter: "China",
+      allowedApplyOrigins: ["https://gsk.wd5.myworkdayjobs.com"],
       pageSize: 50,
       maxPages: 3
     }
@@ -1064,6 +1065,7 @@ const REPRESENTATIVE_CONFIGS: Record<string, RepresentativeSourceConfig> = {
       kind: "phenom",
       detailBaseUrl: "https://careers.lilly.com/us/en/job",
       countryFilter: "China",
+      allowedApplyOrigins: ["https://lilly.wd115.myworkdayjobs.com"],
       pageSize: 50,
       maxPages: 10
     }
@@ -1116,7 +1118,16 @@ const REPRESENTATIVE_CONFIGS: Record<string, RepresentativeSourceConfig> = {
     officialJsonFetch: {
       kind: "phenom",
       detailBaseUrl: "https://careers.emdgroup.com/us/en/job",
-      countryFilter: "China",
+      facetScope: {
+        countryIncludeDescriptor: "China",
+        exclusionFacet: {
+          field: "jobLevelId",
+          descriptors: [
+            "A - Current Student",
+            "B - Recent University Graduate(<1 year of experience)"
+          ]
+        }
+      },
       pageSize: 50,
       maxPages: 10
     }
@@ -1128,6 +1139,7 @@ const REPRESENTATIVE_CONFIGS: Record<string, RepresentativeSourceConfig> = {
       kind: "phenom",
       detailBaseUrl: "https://jobs.organon.com/cn/zh/job",
       countryFilter: "China",
+      allowedApplyOrigins: ["https://organon.wd5.myworkdayjobs.com"],
       pageSize: 50,
       maxPages: 5
     }
@@ -1138,7 +1150,14 @@ const REPRESENTATIVE_CONFIGS: Record<string, RepresentativeSourceConfig> = {
     officialJsonFetch: {
       kind: "phenom",
       detailBaseUrl: "https://careers.ucb.com/global/en/job",
-      countryFilter: "China",
+      facetScope: {
+        countryIncludeDescriptor: "China",
+        exclusionFacet: {
+          field: "category",
+          descriptors: ["Internships & Junior Positions"]
+        }
+      },
+      allowOmittedOffsetForSinglePage: true,
       pageSize: 50,
       maxPages: 5
     }

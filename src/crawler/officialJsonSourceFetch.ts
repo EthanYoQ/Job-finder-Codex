@@ -49,7 +49,16 @@ export type OfficialJsonFetchConfig =
       facetScope?: {
         countryIncludeDescriptor: string;
         categoryExcludeDescriptors: string[];
+        exclusionFacet?: never;
+      } | {
+        countryIncludeDescriptor: string;
+        categoryExcludeDescriptors?: never;
+        exclusionFacet: {
+          field: "category" | "jobLevelId" | "type";
+          descriptors: string[];
+        };
       };
+      allowOmittedOffsetForSinglePage?: boolean;
       pageSize?: number;
       maxPages?: number;
     }
@@ -2402,7 +2411,7 @@ async function fetchPhenomWidgets({
   const sourceScopedChinaRequest = !facetScope && countryFilter === "China";
   let formalSelectedFields: Record<string, string[]> = { country: [countryFilter] };
   let structuredExpectedTotal: number | undefined;
-  let allowedCategoryDescriptors: ReadonlySet<string> | undefined;
+  let allowedExclusionFacetDescriptors: ReadonlySet<string> | undefined;
   let declaredTotal: number | undefined;
   let declaredArtifactKey: string | undefined;
   let declaredLocator: string | undefined;
@@ -2425,6 +2434,20 @@ async function fetchPhenomWidgets({
       return phenomFailure(capturedAt, "Phenom global country descriptor is missing or ambiguous",
         artifacts, pages, counts, losses);
     }
+    if (facetScope.requireGlobalDescriptorProof) {
+      const globalExclusionAggregation = exactPhenomAggregation(
+        globalPreflight.envelope,
+        facetScope.exclusionField
+      );
+      if (!globalExclusionAggregation ||
+        [...globalExclusionAggregation.values()].reduce((sum, value) => sum + value, 0) !==
+          globalPreflight.envelope.totalHits ||
+        facetScope.exclusionDescriptors.some((descriptor) => !globalExclusionAggregation.has(descriptor))) {
+        return phenomFailure(capturedAt,
+          "Phenom global exclusion facet is missing descriptors or is not a complete partition",
+          artifacts, pages, counts, losses);
+      }
+    }
 
     const countryPreflight = await fetchPhenomFacetPreflight({
       http, endpoint: widgetEndpoint, entryUrl: safeEntryUrl, pageConfig,
@@ -2444,24 +2467,26 @@ async function fetchPhenomWidgets({
       return phenomFailure(capturedAt, "Phenom country facet preflight drifted or returned an out-of-scope sample",
         artifacts, pages, counts, losses);
     }
-    const categories = exactPhenomAggregation(countryPreflight.envelope, "category");
-    if (!categories || [...categories.values()].reduce((sum, value) => sum + value, 0) !== countryCount ||
-      facetScope.categoryExcludeDescriptors.some((descriptor) => !categories.has(descriptor))) {
-      return phenomFailure(capturedAt, "Phenom category aggregation is not a complete mutually exclusive partition",
+    const exclusionAggregation = exactPhenomAggregation(countryPreflight.envelope, facetScope.exclusionField);
+    if (!exclusionAggregation ||
+      [...exclusionAggregation.values()].reduce((sum, value) => sum + value, 0) !== countryCount ||
+      (!facetScope.requireGlobalDescriptorProof &&
+        facetScope.exclusionDescriptors.some((descriptor) => !exclusionAggregation.has(descriptor)))) {
+      return phenomFailure(capturedAt, "Phenom exclusion facet is not a complete mutually exclusive partition",
         artifacts, pages, counts, losses);
     }
-    const allowed = [...categories.keys()].filter(
-      (descriptor) => !facetScope.categoryExcludeDescriptors.includes(descriptor)
+    const allowed = [...exclusionAggregation.keys()].filter(
+      (descriptor) => !facetScope.exclusionDescriptors.includes(descriptor)
     ).sort();
     if (allowed.length === 0) {
       return phenomFailure(capturedAt, "Phenom structured facet scope excludes every category",
         artifacts, pages, counts, losses);
     }
-    structuredExpectedTotal = allowed.reduce((sum, descriptor) => sum + categories.get(descriptor)!, 0);
-    allowedCategoryDescriptors = new Set(allowed);
+    structuredExpectedTotal = allowed.reduce((sum, descriptor) => sum + exclusionAggregation.get(descriptor)!, 0);
+    allowedExclusionFacetDescriptors = new Set(allowed);
     formalSelectedFields = {
       country: [facetScope.countryIncludeDescriptor],
-      category: allowed
+      [facetScope.exclusionField]: allowed
     };
   }
 
@@ -2545,17 +2570,23 @@ async function fetchPhenomWidgets({
       pageTotal = refineSearch.totalHits;
       if (structuredExpectedTotal !== undefined && pageTotal !== structuredExpectedTotal) {
         pages.push(phenomPageTrace({ artifact, sequence: pageIndex, requestedOffset, termination: "FAILED" }));
-        return phenomFailure(capturedAt, "Phenom filtered total does not equal the allowed category partition",
+        return phenomFailure(capturedAt, "Phenom filtered total does not equal the allowed exclusion partition",
           artifacts, pages, counts, losses);
       }
     }
     let returnedOffset: number | null = null;
-    if (facetScope && !hasOwn(refineSearch, "from")) {
+    const safelyOmittedSinglePageOffset = facetScope && config.allowOmittedOffsetForSinglePage === true &&
+      !hasOwn(refineSearch, "from") && pageIndex === 0 && requestedOffset === 0 &&
+      pageTotal !== undefined && pageTotal <= pageSize &&
+      (refineData.jobs as unknown[]).length === pageTotal;
+    if (facetScope && !hasOwn(refineSearch, "from") && !safelyOmittedSinglePageOffset) {
       pages.push(phenomPageTrace({ artifact, sequence: pageIndex, requestedOffset, termination: "FAILED" }));
       return phenomFailure(capturedAt, "Phenom structured facet page requires own from",
         artifacts, pages, counts, losses);
     }
-    if (hasOwn(refineSearch, "from")) {
+    if (safelyOmittedSinglePageOffset) {
+      returnedOffset = 0;
+    } else if (hasOwn(refineSearch, "from")) {
       if (!isNonnegativeInteger(refineSearch.from)) {
         pages.push(phenomPageTrace({ artifact, sequence: pageIndex, requestedOffset, termination: "FAILED" }));
         return phenomFailure(capturedAt, "Phenom $.refineSearch.from must be a nonnegative integer",
@@ -2600,7 +2631,9 @@ async function fetchPhenomWidgets({
       const locationRaw = stringValue(raw.location) ?? stringValue(raw.cityStateCountry) ??
         firstString(raw.multi_location) ?? stringValue(raw.city);
       const applyUrlRaw = stringValue(raw.applyUrl);
-      const missing = !id ? "id" : !title ? "title" : !locationRaw ? "locationRaw" : !applyUrlRaw ? "officialUrl" : undefined;
+      const reqId = stringValue(raw.reqId);
+      const missing = !id ? "id" : !title ? "title" : !locationRaw ? "locationRaw" :
+        !applyUrlRaw && !reqId ? "officialUrl" : undefined;
       if (missing) {
         recordPhenomLoss(losses, counts, "VALIDATION", "MISSING_REQUIRED_FIELD", rawLocator, pageIndex, recordIndex, missing);
         continue;
@@ -2615,7 +2648,7 @@ async function fetchPhenomWidgets({
       }
       const city = stringValue(raw.city);
       if (facetScope && (stringValue(raw.country) !== facetScope.countryIncludeDescriptor ||
-        !allowedCategoryDescriptors?.has(stringValue(raw.category) ?? ""))) {
+        !allowedExclusionFacetDescriptors?.has(stringValue(raw[facetScope.exclusionField]) ?? ""))) {
         recordPhenomLoss(losses, counts, "VALIDATION", "OUT_OF_SCOPE", rawLocator, pageIndex, recordIndex);
         pages.push(phenomPageTrace({
           artifact, sequence: pageIndex, requestedOffset, returnedOffset,
@@ -2635,7 +2668,9 @@ async function fetchPhenomWidgets({
       }
       let officialUrl: string;
       try {
-        officialUrl = safePhenomJobUrl(applyUrlRaw!, detailBaseUrl, allowedApplyOrigins);
+        officialUrl = applyUrlRaw
+          ? safePhenomJobUrl(applyUrlRaw, detailBaseUrl, allowedApplyOrigins)
+          : safePhenomDerivedDetailUrl(reqId!, detailBaseUrl);
       } catch {
         recordPhenomLoss(losses, counts, "VALIDATION", "UNSAFE_OFFICIAL_URL", rawLocator, pageIndex, recordIndex, "officialUrl");
         continue;
@@ -2735,19 +2770,35 @@ type CompletePhenomPageConfig = {
 
 type PhenomFacetScope = NonNullable<Extract<OfficialJsonFetchConfig, { kind: "phenom" }>["facetScope"]>;
 
+type ValidPhenomFacetScope = {
+  countryIncludeDescriptor: string;
+  exclusionField: "category" | "jobLevelId" | "type";
+  exclusionDescriptors: string[];
+  requireGlobalDescriptorProof: boolean;
+};
+
 type PhenomFacetEnvelope = {
   totalHits: number;
   jobs: unknown[];
   aggregations: unknown[];
 };
 
-function validPhenomFacetScope(value: PhenomFacetScope | undefined): PhenomFacetScope | undefined {
+function validPhenomFacetScope(value: PhenomFacetScope | undefined): ValidPhenomFacetScope | undefined {
   if (!value || typeof value.countryIncludeDescriptor !== "string" ||
-    !value.countryIncludeDescriptor.trim() || !Array.isArray(value.categoryExcludeDescriptors) ||
-    value.categoryExcludeDescriptors.length === 0 ||
-    value.categoryExcludeDescriptors.some((item) => typeof item !== "string" || !item.trim()) ||
-    new Set(value.categoryExcludeDescriptors).size !== value.categoryExcludeDescriptors.length) return undefined;
-  return value;
+    !value.countryIncludeDescriptor.trim()) return undefined;
+  const modern = "exclusionFacet" in value && value.exclusionFacet !== undefined;
+  const field = modern ? value.exclusionFacet.field : "category";
+  const descriptors = modern ? value.exclusionFacet.descriptors : value.categoryExcludeDescriptors;
+  if (!["category", "jobLevelId", "type"].includes(field) || !Array.isArray(descriptors) ||
+    descriptors.length === 0 ||
+    descriptors.some((item) => typeof item !== "string" || !item.trim()) ||
+    new Set(descriptors).size !== descriptors.length) return undefined;
+  return {
+    countryIncludeDescriptor: value.countryIncludeDescriptor,
+    exclusionField: field,
+    exclusionDescriptors: descriptors,
+    requireGlobalDescriptorProof: modern
+  };
 }
 
 function phenomWidgetRequestBody(
@@ -3035,6 +3086,16 @@ function safePhenomJobUrl(
   const url = safeOfficialJsonEndpoint(new URL(raw, detailBaseUrl).toString());
   if (!allowedOrigins.has(new URL(url).origin)) {
     throw new Error("Phenom official job origin mismatch");
+  }
+  return url;
+}
+
+function safePhenomDerivedDetailUrl(reqId: string, detailBaseUrl: string): string {
+  if (!safeOfficialJsonId(reqId)) throw new Error("Phenom reqId is invalid");
+  const base = safeOfficialJsonEndpoint(detailBaseUrl);
+  const url = safeOfficialJsonEndpoint(`${base.replace(/\/+$/u, "")}/${encodeURIComponent(reqId)}`);
+  if (new URL(url).origin !== new URL(base).origin) {
+    throw new Error("Phenom derived detail origin mismatch");
   }
   return url;
 }

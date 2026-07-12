@@ -256,6 +256,155 @@ describe("Phenom evidence instrumentation", () => {
     expect(locators.join("\n")).not.toContain("requestCountry");
   });
 
+  it("proves and applies a source-configured job-level partition instead of assuming category semantics", async () => {
+    const scopedPlan = {
+      ...plan,
+      officialJsonFetch: {
+        ...plan.officialJsonFetch,
+        facetScope: {
+          countryIncludeDescriptor: "China",
+          exclusionFacet: {
+            field: "jobLevelId",
+            descriptors: ["A - Current Student"]
+          }
+        },
+        pageSize: 2
+      }
+    } satisfies SourceCrawlPlan;
+    const requests: Array<{ method?: string; body?: string }> = [];
+    const bodies = [
+      facetPageBody([], 10, 0, [
+        { field: "country", value: { China: 3, Germany: 7 } },
+        { field: "jobLevelId", value: {
+          "A - Current Student": 1,
+          "B - Recent University Graduate(<1 year of experience)": 2,
+          "C - Professional": 7
+        } }
+      ]),
+      facetPageBody([job("SAMPLE", { jobLevelId: "C - Professional" })], 3, 0, [
+        { field: "jobLevelId", value: { "A - Current Student": 1, "C - Professional": 2 } }
+      ]),
+      facetPageBody([
+        job("CN-1", { jobLevelId: "C - Professional" }),
+        job("CN-2", { jobLevelId: "C - Professional" })
+      ], 2, 0, [])
+    ];
+    const fetcher = createOfficialJsonSourceFetch({
+      now: () => new Date(capturedAt),
+      http: async (request) => {
+        requests.push(request);
+        return request.method === "POST"
+          ? response(bodies.shift()!, widgetUrl, "application/json")
+          : response(entryHtml(), entryUrl, "text/html");
+      }
+    });
+
+    const result = await fetcher(scopedPlan);
+    expect(result).toMatchObject({
+      ok: true,
+      completeness: { expectedJobCount: 2 },
+      fetchEvidence: { fetchCounts: { rawCount: 2, validCount: 2 } }
+    });
+    expect(requests.slice(1).map((request) => JSON.parse(request.body ?? "{}").selected_fields)).toEqual([
+      {},
+      { country: ["China"] },
+      { country: ["China"], jobLevelId: ["C - Professional"] }
+    ]);
+  });
+
+  it("derives a same-origin public detail URL from reqId when Phenom omits applyUrl", async () => {
+    const fetcher = createOfficialJsonSourceFetch({
+      now: () => new Date(capturedAt),
+      http: async (request) => request.method === "POST"
+        ? response(pageBody([job("SEQ-301040", { reqId: "301040", applyUrl: "" })], 1, 0), widgetUrl, "application/json")
+        : response(entryHtml(), entryUrl, "text/html")
+    });
+
+    await expect(fetcher(plan)).resolves.toMatchObject({
+      ok: true,
+      payload: { jobs: [{ officialUrl: "https://careers.example.test/cn/zh/job/301040" }] },
+      fetchEvidence: { fetchCounts: { rawCount: 1, validCount: 1 } }
+    });
+  });
+
+  it("accepts an excluded descriptor absent from the country partition only after global descriptor proof", async () => {
+    const scopedPlan = {
+      ...plan,
+      officialJsonFetch: {
+        ...plan.officialJsonFetch,
+        facetScope: {
+          countryIncludeDescriptor: "China",
+          exclusionFacet: {
+            field: "category",
+            descriptors: ["Internships & Junior Positions"]
+          }
+        }
+      }
+    } satisfies SourceCrawlPlan;
+    const bodies = [
+      facetPageBody([], 4, 0, [
+        { field: "country", value: { China: 1, Belgium: 3 } },
+        { field: "category", value: { Professional: 3, "Internships & Junior Positions": 1 } }
+      ]),
+      facetPageBody([job("SAMPLE", { category: "Professional" })], 1, 0, [
+        { field: "category", value: { Professional: 1 } }
+      ]),
+      facetPageBody([job("CN-1", { category: "Professional" })], 1, 0, [])
+    ];
+    const fetcher = createOfficialJsonSourceFetch({
+      now: () => new Date(capturedAt),
+      http: async (request) => request.method === "POST"
+        ? response(bodies.shift()!, widgetUrl, "application/json")
+        : response(entryHtml(), entryUrl, "text/html")
+    });
+
+    await expect(fetcher(scopedPlan)).resolves.toMatchObject({
+      ok: true,
+      completeness: { expectedJobCount: 1 },
+      fetchEvidence: { fetchCounts: { rawCount: 1, validCount: 1 } }
+    });
+  });
+
+  it("accepts an omitted offset only for an opt-in dynamically proven single-page facet result", async () => {
+    const scopedPlan = {
+      ...plan,
+      officialJsonFetch: {
+        ...plan.officialJsonFetch,
+        facetScope: {
+          countryIncludeDescriptor: "China",
+          exclusionFacet: { field: "category", descriptors: ["Internships"] }
+        },
+        allowOmittedOffsetForSinglePage: true,
+        pageSize: 50
+      }
+    } satisfies SourceCrawlPlan;
+    const bodies = [
+      facetPageBody([], 4, 0, [
+        { field: "country", value: { China: 1, Belgium: 3 } },
+        { field: "category", value: { Professional: 3, Internships: 1 } }
+      ]),
+      facetPageBody([job("SAMPLE", { category: "Professional" })], 1, 0, [
+        { field: "category", value: { Professional: 1 } }
+      ]),
+      JSON.stringify({ refineSearch: {
+        totalHits: 1,
+        data: { jobs: [job("CN-1", { category: "Professional" })] }
+      } })
+    ];
+    const fetcher = createOfficialJsonSourceFetch({
+      now: () => new Date(capturedAt),
+      http: async (request) => request.method === "POST"
+        ? response(bodies.shift()!, widgetUrl, "application/json")
+        : response(entryHtml(), entryUrl, "text/html")
+    });
+
+    await expect(fetcher(scopedPlan)).resolves.toMatchObject({
+      ok: true,
+      completeness: { expectedJobCount: 1, pagesVisited: 1 },
+      fetchEvidence: { pages: [{ requestedOffset: 0, returnedOffset: 0, termination: "NEXT_ABSENT" }] }
+    });
+  });
+
   it.each([
     ["first page missing totalHits", 0, JSON.stringify({ refineSearch: { from: 0, data: { jobs: [] } } })],
     ["first page missing from", 0, JSON.stringify({ refineSearch: { totalHits: 2, data: { jobs: [] } } })],
