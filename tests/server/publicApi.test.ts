@@ -2,6 +2,33 @@ import { describe, expect, it, vi } from "vitest";
 import { handlePublicApi } from "../../src/server/publicApi";
 
 describe("public API route policy", () => {
+  it("serves privacy before consent without loading job or coverage data", async () => {
+    const findJobs = vi.fn();
+    const findCompanies = vi.fn();
+    const response = await handlePublicApi(
+      {
+        method: "GET",
+        path: "/privacy",
+        query: {},
+        headers: {},
+        body: undefined,
+        ip: "1.2.3.4"
+      },
+      {
+        db: {
+          job: { findMany: findJobs },
+          company: { findMany: findCompanies }
+        } as never,
+        checkDatabaseReadiness: async () => true
+      }
+    );
+
+    expect(response.status).toBe(200);
+    expect(response.body).toContain("隐私说明");
+    expect(findJobs).not.toHaveBeenCalled();
+    expect(findCompanies).not.toHaveBeenCalled();
+  });
+
   it.each([Number.NaN, -100])("normalizes invalid readiness timeout %s to the shared default", async (readinessTimeoutMs) => {
     vi.useFakeTimers();
     try {

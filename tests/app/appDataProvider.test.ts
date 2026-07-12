@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { createHttpAppDataProvider } from "../../src/app/appDataProvider";
+import { createDemoAppDataProvider, createHttpAppDataProvider } from "../../src/app/appDataProvider";
+import { getStaticDocument } from "../../src/server/staticDocuments";
 
 const originalFetch = globalThis.fetch;
 
@@ -47,6 +48,14 @@ describe("createHttpAppDataProvider", () => {
     });
 
     expect(fetchMock).toHaveBeenCalledWith("/privacy");
+  });
+});
+
+describe("createDemoAppDataProvider", () => {
+  it("uses the canonical privacy document instead of a drifting demo copy", async () => {
+    await expect(createDemoAppDataProvider().getDocument("privacy")).resolves.toEqual(
+      getStaticDocument("privacy")
+    );
   });
 });
 
