@@ -34,24 +34,24 @@ ENV NODE_ENV=production
 ENV HOME=/tmp
 ENV XDG_CONFIG_HOME=/tmp/.config
 ENV XDG_CACHE_HOME=/tmp/.cache
-ENV PATH=/usr/local/lib/postgresql/16/bin:${PATH}
 RUN apt-get update && apt-get install -y --no-install-recommends chromium libpq5 libreadline8 util-linux \
   && rm -rf /var/lib/apt/lists/*
-COPY --from=pg16-client /usr/lib/postgresql/16/bin/pg_dump /usr/local/lib/postgresql/16/bin/pg_dump
-COPY --from=pg16-client /usr/lib/postgresql/16/bin/pg_restore /usr/local/lib/postgresql/16/bin/pg_restore
-COPY --from=pg16-client /usr/lib/postgresql/16/bin/psql /usr/local/lib/postgresql/16/bin/psql
-RUN test "$(command -v pg_dump)" = "/usr/local/lib/postgresql/16/bin/pg_dump" \
-  && test "$(command -v pg_restore)" = "/usr/local/lib/postgresql/16/bin/pg_restore" \
-  && test "$(command -v psql)" = "/usr/local/lib/postgresql/16/bin/psql" \
+COPY --from=pg16-client /usr/lib/postgresql/16/bin/pg_dump /usr/local/bin/pg_dump
+COPY --from=pg16-client /usr/lib/postgresql/16/bin/pg_restore /usr/local/bin/pg_restore
+COPY --from=pg16-client /usr/lib/postgresql/16/bin/psql /usr/local/bin/psql
+RUN test "$(command -v pg_dump)" = "/usr/local/bin/pg_dump" \
+  && test "$(command -v pg_restore)" = "/usr/local/bin/pg_restore" \
+  && test "$(command -v psql)" = "/usr/local/bin/psql" \
+  && sh -lc 'test "$(command -v pg_dump)" = "/usr/local/bin/pg_dump" && test "$(command -v pg_restore)" = "/usr/local/bin/pg_restore" && test "$(command -v psql)" = "/usr/local/bin/psql"' \
   && test "$(command -v flock)" = "/usr/bin/flock" \
   && pg_dump --version | grep -E '^pg_dump \(PostgreSQL\) 16\.14([ .]|$)' \
   && pg_restore --version | grep -E '^pg_restore \(PostgreSQL\) 16\.14([ .]|$)' \
   && psql --version | grep -E '^psql \(PostgreSQL\) 16\.14([ .]|$)' \
   && flock --version | grep -E '^flock from util-linux [0-9]' \
   && flock -n /tmp/flock-build-probe true \
-  && ldd -r /usr/local/lib/postgresql/16/bin/pg_dump > /tmp/pg_dump.ldd 2>&1 \
-  && ldd -r /usr/local/lib/postgresql/16/bin/pg_restore > /tmp/pg_restore.ldd 2>&1 \
-  && ldd -r /usr/local/lib/postgresql/16/bin/psql > /tmp/psql.ldd 2>&1 \
+  && ldd -r /usr/local/bin/pg_dump > /tmp/pg_dump.ldd 2>&1 \
+  && ldd -r /usr/local/bin/pg_restore > /tmp/pg_restore.ldd 2>&1 \
+  && ldd -r /usr/local/bin/psql > /tmp/psql.ldd 2>&1 \
   && ! grep -E 'not found|undefined symbol' /tmp/pg_dump.ldd /tmp/pg_restore.ldd /tmp/psql.ldd \
   && rm -f /tmp/flock-build-probe /tmp/pg_dump.ldd /tmp/pg_restore.ldd /tmp/psql.ldd
 COPY package.json ./package.json

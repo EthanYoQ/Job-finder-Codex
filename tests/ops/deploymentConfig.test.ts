@@ -69,21 +69,22 @@ describe("deployment configuration", () => {
     expect(dockerfile).toContain(
       "FROM postgres:16-bookworm@sha256:da788743d2060767375896de4d646f7576f5911461444b372616f19ea61db2ec AS pg16-client"
     );
-    expect(dockerfile).toMatch(/^COPY --from=pg16-client \/usr\/lib\/postgresql\/16\/bin\/pg_dump \/usr\/local\/lib\/postgresql\/16\/bin\/pg_dump$/mu);
-    expect(dockerfile).toMatch(/^COPY --from=pg16-client \/usr\/lib\/postgresql\/16\/bin\/pg_restore \/usr\/local\/lib\/postgresql\/16\/bin\/pg_restore$/mu);
-    expect(dockerfile).toMatch(/^COPY --from=pg16-client \/usr\/lib\/postgresql\/16\/bin\/psql \/usr\/local\/lib\/postgresql\/16\/bin\/psql$/mu);
+    expect(dockerfile).toMatch(/^COPY --from=pg16-client \/usr\/lib\/postgresql\/16\/bin\/pg_dump \/usr\/local\/bin\/pg_dump$/mu);
+    expect(dockerfile).toMatch(/^COPY --from=pg16-client \/usr\/lib\/postgresql\/16\/bin\/pg_restore \/usr\/local\/bin\/pg_restore$/mu);
+    expect(dockerfile).toMatch(/^COPY --from=pg16-client \/usr\/lib\/postgresql\/16\/bin\/psql \/usr\/local\/bin\/psql$/mu);
     expect(dockerfile).not.toMatch(/COPY --from=pg16-client \/usr\/lib\/postgresql\/16\/bin\/?\s/u);
     expect(dockerfile).not.toMatch(/apt-get install[^\n]*postgresql-client/u);
-    expect(dockerfile).toMatch(/^ENV PATH=\/usr\/local\/lib\/postgresql\/16\/bin:\$\{PATH\}$/mu);
-    expect(dockerfile).toMatch(/command -v pg_dump[^\n]*\/usr\/local\/lib\/postgresql\/16\/bin\/pg_dump/u);
-    expect(dockerfile).toMatch(/command -v pg_restore[^\n]*\/usr\/local\/lib\/postgresql\/16\/bin\/pg_restore/u);
-    expect(dockerfile).toMatch(/command -v psql[^\n]*\/usr\/local\/lib\/postgresql\/16\/bin\/psql/u);
+    expect(dockerfile).not.toMatch(/^ENV PATH=.*postgresql\/16/mu);
+    expect(dockerfile).toMatch(/command -v pg_dump[^\n]*\/usr\/local\/bin\/pg_dump/u);
+    expect(dockerfile).toMatch(/command -v pg_restore[^\n]*\/usr\/local\/bin\/pg_restore/u);
+    expect(dockerfile).toMatch(/command -v psql[^\n]*\/usr\/local\/bin\/psql/u);
+    expect(dockerfile).toMatch(/sh -lc[^\n]*command -v pg_dump[^\n]*\/usr\/local\/bin\/pg_dump/u);
     expect(dockerfile).toContain("pg_dump --version | grep -E '^pg_dump \\(PostgreSQL\\) 16\\.14");
     expect(dockerfile).toContain("pg_restore --version | grep -E '^pg_restore \\(PostgreSQL\\) 16\\.14");
     expect(dockerfile).toContain("psql --version | grep -E '^psql \\(PostgreSQL\\) 16\\.14");
-    expect(dockerfile).toMatch(/ldd -r \/usr\/local\/lib\/postgresql\/16\/bin\/pg_dump/u);
-    expect(dockerfile).toMatch(/ldd -r \/usr\/local\/lib\/postgresql\/16\/bin\/pg_restore/u);
-    expect(dockerfile).toMatch(/ldd -r \/usr\/local\/lib\/postgresql\/16\/bin\/psql/u);
+    expect(dockerfile).toMatch(/ldd -r \/usr\/local\/bin\/pg_dump/u);
+    expect(dockerfile).toMatch(/ldd -r \/usr\/local\/bin\/pg_restore/u);
+    expect(dockerfile).toMatch(/ldd -r \/usr\/local\/bin\/psql/u);
     expect(dockerfile).toMatch(/not found\|undefined symbol/u);
     expect(dockerfile).toMatch(/apt-get install[^\n]*libpq5[^\n]*libreadline8[^\n]*util-linux/u);
     expect(dockerfile).toMatch(/command -v flock[^\n]*\/usr\/bin\/flock/u);

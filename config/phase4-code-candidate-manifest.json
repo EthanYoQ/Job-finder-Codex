@@ -1,72 +1,18 @@
 {
   "schemaVersion": "phase4-code-candidate-v1",
   "planId": "docs/superpowers/plans/2026-07-10-p0-recovery-and-release-evidence.md",
-  "baseHead": "e5eaf193eb34a0dd33e5e5507a68ae3c8516f732",
+  "baseHead": "977f27f9da6e2fce3630f32a79a357fe6f8ffeb2",
   "entries": [
     {
-      "path": ".env.example",
-      "sha256": "99e9df15fa9334f8b57af3f6f984f8e1024cb9cccad5926be3fc6b3850d6e5bd",
-      "bytes": 488,
-      "role": "runtime"
-    },
-    {
       "path": "Dockerfile",
-      "sha256": "953ca8406605264275b4d4fb26f457ffd07b3b30d0a0500865c8b30e48ffddd3",
-      "bytes": 3844,
+      "sha256": "8e49fed7e254281d2571f661fb017f0c08677f2df75a0e3a1609d5e29b3e8478",
+      "bytes": 3822,
       "role": "runtime"
-    },
-    {
-      "path": "ops/backup.ps1",
-      "sha256": "4e95279df6b16d9733d5ac58fec1fae926efb39adae9c6b64027a21dbca29a05",
-      "bytes": 4352,
-      "role": "runtime"
-    },
-    {
-      "path": "ops/backup.sh",
-      "sha256": "eea56de962acb548a855d2d386d5b129efadb9f0984f1e9eff0187e80567376b",
-      "bytes": 3019,
-      "role": "runtime"
-    },
-    {
-      "path": "ops/docker-compose.yml",
-      "sha256": "7d77567dea0ec9ee2d348a3f0427424eb6c846d1c89307ca492b86ec48d2f948",
-      "bytes": 6992,
-      "role": "runtime"
-    },
-    {
-      "path": "ops/restore-test.ps1",
-      "sha256": "5501391f6f0c48f641b205eb73bfe39077ebf188433724a493a3f6a841847c7c",
-      "bytes": 3350,
-      "role": "runtime"
-    },
-    {
-      "path": "ops/restore-test.sh",
-      "sha256": "9867e114cee66e90c30ecf0756e60bd9dda1cb666db84806c3ab440c96f34e93",
-      "bytes": 3009,
-      "role": "runtime"
-    },
-    {
-      "path": "tests/admin/adminPasswordEnvContract.test.ts",
-      "sha256": "086e0a1049b17514bcbf207fde60b11ddac324ef10eacb4fd44aa72bd3230fc2",
-      "bytes": 1436,
-      "role": "test"
-    },
-    {
-      "path": "tests/crawler/browserRuntimeDependency.test.ts",
-      "sha256": "a0b28ecaea4c14f38db4db7bdee995e94de00a70dc8fbe8227364ceddc199f38",
-      "bytes": 2490,
-      "role": "test"
-    },
-    {
-      "path": "tests/ops/backupRestore.test.ts",
-      "sha256": "96871d7e265b5cf6807941f20aab7206988ea37cdb639e7e3ef23c7641d3abd7",
-      "bytes": 13178,
-      "role": "test"
     },
     {
       "path": "tests/ops/deploymentConfig.test.ts",
-      "sha256": "7dd13fca7c9b980417bed81f0dff840d218e78bd1e4e6e68932a6b737bbbd339",
-      "bytes": 12097,
+      "sha256": "24c8bdcd246202466aca2687a69679c99b130c2fd0f7ab2197872b43ab5b0ffb",
+      "bytes": 11977,
       "role": "test"
     }
   ]
