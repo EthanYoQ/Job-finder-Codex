@@ -220,6 +220,20 @@ enum AdminSessionStatus {
 enum ManualCrawlStatus {
   QUEUED
   RUNNING
+  SUCCESS
+  FAILED
+}
+
+enum ManualCrawlEventActor {
+  ADMIN
+  SYSTEM
+}
+
+enum ManualCrawlEventType {
+  ENQUEUED
+  CLAIMED
+  LEASE_RECLAIMED
+  HEARTBEAT
   SUCCEEDED
   FAILED
 }
@@ -330,6 +344,7 @@ model CrawlBatch {
   paginationEvidence          PaginationEvidence[]
   lossLedgerEntries           LossLedgerEntry[]
   transportAttempts           TransportAttemptEvidence[]
+  manualCrawlRequests         ManualCrawlRequest[]
 
   @@unique([id, releaseCandidateId])
   @@index([releaseCandidateId, startedAt])
@@ -721,6 +736,7 @@ model AdminUser {
   sessions     AdminSession[]
   auditEvents  AdminAuditEvent[]
   manualCrawls ManualCrawlRequest[]
+  manualCrawlEvents ManualCrawlRequestEvent[]
 
   @@index([role])
 }
@@ -762,14 +778,41 @@ model ManualCrawlRequest {
   requestedById String
   status        ManualCrawlStatus @default(QUEUED)
   reason        String?
+  ownerId       String?
+  heartbeatAt   DateTime?
+  leaseExpiresAt DateTime?
+  attemptCount  Int               @default(0)
+  crawlBatchId  String?
   createdAt     DateTime          @default(now())
   startedAt     DateTime?
   finishedAt    DateTime?
-  failureReason String?
+  failureCode   String?
   source        RecruitmentSource @relation(fields: [sourceId], references: [id], onDelete: Cascade)
   requestedBy   AdminUser         @relation(fields: [requestedById], references: [id], onDelete: Restrict)
+  crawlBatch    CrawlBatch?       @relation(fields: [crawlBatchId], references: [id], onDelete: Restrict)
+  events        ManualCrawlRequestEvent[]
 
   @@index([sourceId, status])
   @@index([requestedById, createdAt])
   @@index([status, createdAt])
+  @@index([ownerId, leaseExpiresAt])
+  @@index([crawlBatchId])
+}
+
+model ManualCrawlRequestEvent {
+  id          String                 @id @default(cuid())
+  requestId   String
+  eventType   ManualCrawlEventType
+  actor       ManualCrawlEventActor
+  adminUserId String?
+  ownerId     String?
+  fromStatus  ManualCrawlStatus?
+  toStatus    ManualCrawlStatus
+  failureCode String?
+  createdAt   DateTime               @default(now())
+  request     ManualCrawlRequest     @relation(fields: [requestId], references: [id], onDelete: Restrict)
+  adminUser   AdminUser?             @relation(fields: [adminUserId], references: [id], onDelete: Restrict)
+
+  @@index([requestId, createdAt])
+  @@index([adminUserId, createdAt])
 }

@@ -109,6 +109,7 @@ describe("prisma schema", () => {
       ,"20260711230000_parent_lifecycle_projection_gate"
       ,"20260711240000_lifecycle_trigger_security_closure"
       ,"20260712020000_release_runtime_identity"
+      ,"20260713010000_manual_crawl_request_ownership"
     ]);
     const statements = crawlStatusValuesMigration
       .split("\n")

@@ -16,56 +16,32 @@ const adminContext: AdminOperationContext = {
 };
 
 describe("admin operations", () => {
-  it("queues a manual crawl request with QUEUED status and writes an audit event", async () => {
-    const manualCrawlCreates: Array<unknown> = [];
-    const auditCreates: Array<unknown> = [];
-    const db = createDb({
-      manualCrawlRequest: {
-        async create(args) {
-          manualCrawlCreates.push(args);
-          return { id: "crawl-1" };
-        }
-      },
-      adminAuditEvent: {
-        async create(args) {
-          auditCreates.push(args);
-          return { id: "audit-1" };
-        }
-      }
-    });
+  it("queues through the transactional manual crawl repository", async () => {
+    const enqueues: Array<unknown> = [];
+    const db = createDb();
 
     const result = await queueManualCrawl(
       { sourceId: "source-1", reason: "manual verification" },
       adminContext,
-      { db }
+      {
+        db,
+        manualCrawlRequestRepository: {
+          async enqueue(input) {
+            enqueues.push(input);
+            return { id: "crawl-1" };
+          }
+        }
+      }
     );
 
     expect(result).toEqual({ id: "crawl-1" });
-    expect(manualCrawlCreates).toEqual([
+    expect(enqueues).toEqual([
       {
-        data: {
-          sourceId: "source-1",
-          requestedById: "admin-1",
-          status: "QUEUED",
-          reason: "manual verification"
-        }
-      }
-    ]);
-    expect(auditCreates).toEqual([
-      {
-        data: {
-          adminUserId: "admin-1",
-          action: "QUEUE_MANUAL_CRAWL",
-          targetType: "RecruitmentSource",
-          targetId: "source-1",
-          ip: "127.0.0.1",
-          userAgent: "vitest",
-          metadata: {
-            sourceId: "source-1",
-            reason: "manual verification",
-            manualCrawlRequestId: "crawl-1"
-          }
-        }
+        sourceId: "source-1",
+        requestedById: "admin-1",
+        reason: "manual verification",
+        ip: "127.0.0.1",
+        userAgent: "vitest"
       }
     ]);
   });

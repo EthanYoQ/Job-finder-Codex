@@ -3,6 +3,11 @@ import { toSourceScheduleState } from "../db/crawlStateRepository";
 import { toPrismaJobCategory, type PrismaJobCategoryName } from "../db/prismaMappers";
 import type { VerificationStatus } from "../domain/company";
 import type { JobCategory } from "../domain/search";
+import {
+  createManualCrawlRequestRepository,
+  type ManualCrawlRequestDb,
+  type ManualCrawlRequestRepository
+} from "../db/manualCrawlRequestRepository";
 
 type FeedbackReviewStatus = "REVIEWED" | "CLOSED" | "SPAM";
 type RecommendationReviewStatus = FeedbackReviewStatus;
@@ -133,6 +138,7 @@ export type AdminOperationsDb = {
 export type AdminOperationsDeps = {
   db: AdminOperationsDb;
   now?: () => Date;
+  manualCrawlRequestRepository?: Pick<ManualCrawlRequestRepository, "enqueue">;
 };
 
 export async function queueManualCrawl(
@@ -140,27 +146,16 @@ export async function queueManualCrawl(
   context: AdminOperationContext,
   deps: AdminOperationsDeps
 ): Promise<ManualCrawlRequestRecord> {
-  const request = await deps.db.manualCrawlRequest.create({
-    data: {
-      sourceId: input.sourceId,
-      requestedById: context.adminUserId,
-      status: "QUEUED",
-      ...(input.reason === undefined ? {} : { reason: input.reason })
-    }
+  const repository = deps.manualCrawlRequestRepository ?? createManualCrawlRequestRepository({
+    db: deps.db as unknown as ManualCrawlRequestDb
   });
-
-  await writeAuditEvent(context, deps.db, {
-    action: "QUEUE_MANUAL_CRAWL",
-    targetType: "RecruitmentSource",
-    targetId: input.sourceId,
-    metadata: {
-      sourceId: input.sourceId,
-      ...(input.reason === undefined ? {} : { reason: input.reason }),
-      manualCrawlRequestId: request.id
-    }
+  return repository.enqueue({
+    sourceId: input.sourceId,
+    requestedById: context.adminUserId,
+    ip: context.ip,
+    userAgent: context.userAgent,
+    ...(input.reason === undefined ? {} : { reason: input.reason })
   });
-
-  return request;
 }
 
 export async function reviewFeedback(
