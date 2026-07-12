@@ -153,4 +153,39 @@ describe("admin API", () => {
     expect(response.status).toBe(400);
     expect(db.job.update).not.toHaveBeenCalled();
   });
+
+  it("maps a duplicate active manual crawl from the default repository path to 409", async () => {
+    const db = createDb() as ReturnType<typeof createDb> & { $transaction: Function };
+    db.$transaction = async (callback: Function) => callback(manualCrawlTx({
+      createError: Object.assign(new Error("duplicate"), { code: "P2002" })
+    }));
+    const response = await handleAdminApi(request("/admin/api/manual-crawl", {
+      method: "POST", body: { sourceId: "source-1", reason: "verify" }
+    }), { db, now: () => new Date("2026-07-08T12:00:00.000Z") });
+    expect(response).toMatchObject({ status: 409, body: { error: "ALREADY_ACTIVE" } });
+  });
+
+  it("maps a drifted ineligible manual crawl from the default repository path to 422", async () => {
+    const db = createDb() as ReturnType<typeof createDb> & { $transaction: Function };
+    db.$transaction = async (callback: Function) => callback(manualCrawlTx({ sourceStatus: "UNVERIFIED" }));
+    const response = await handleAdminApi(request("/admin/api/manual-crawl", {
+      method: "POST", body: { sourceId: "source-1", reason: "verify" }
+    }), { db, now: () => new Date("2026-07-08T12:00:00.000Z") });
+    expect(response).toMatchObject({ status: 422, body: { error: "NOT_EXECUTABLE" } });
+  });
 });
+
+function manualCrawlTx(options: { createError?: unknown; sourceStatus?: string } = {}) {
+  return {
+    recruitmentSource: { findUnique: vi.fn(async () => ({
+      id: "source-1", companyId: "company-roche-china", kind: "SOCIAL", atsKind: "MOKA",
+      status: options.sourceStatus ?? "VERIFIED_SCRAPABLE"
+    })) },
+    manualCrawlRequest: { create: vi.fn(async () => {
+      if (options.createError) throw options.createError;
+      return { id: "manual-1" };
+    }) },
+    manualCrawlRequestEvent: { create: vi.fn(async () => ({})) },
+    adminAuditEvent: { create: vi.fn(async () => ({})) }
+  };
+}

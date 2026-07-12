@@ -38,5 +38,18 @@ describe("manual crawl persistence contract", () => {
     expect(schema).toContain("enum ManualCrawlEventActor");
     expect(migration).toContain("prevent_manual_crawl_request_event_mutation");
     expect(migration).toContain('BEFORE UPDATE OR DELETE ON "ManualCrawlRequestEvent"');
+    expect(migration).toContain("ManualCrawlRequestEvent_transition_check");
+    expect(migration).toContain("btrim(\"ownerId\") <> ''");
+  });
+
+  it("uses an explicit failure-code enum and safely remediates legacy rows before constraints", () => {
+    expect(schema).toContain("enum ManualCrawlFailureCode");
+    expect(model("ManualCrawlRequest")).toMatch(/^\s*failureCode\s+ManualCrawlFailureCode\?/m);
+    expect(migration).toMatch(/UPDATE "ManualCrawlRequest"[\s\S]+"failureReason" = 'MANUAL_CRAWL_FAILED'/);
+    expect(migration).toContain("ROW_NUMBER() OVER");
+    expect(migration).toContain("DUPLICATE_ACTIVE_REQUEST");
+    expect(migration.indexOf("ROW_NUMBER() OVER")).toBeLessThan(
+      migration.indexOf('CREATE UNIQUE INDEX "ManualCrawlRequest_one_active_per_source"')
+    );
   });
 });

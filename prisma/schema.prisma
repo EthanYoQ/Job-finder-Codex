@@ -238,6 +238,12 @@ enum ManualCrawlEventType {
   FAILED
 }
 
+enum ManualCrawlFailureCode {
+  MANUAL_CRAWL_FAILED
+  SOURCE_CRAWL_FAILED
+  DUPLICATE_ACTIVE_REQUEST
+}
+
 model Company {
   id                  String              @id @default(cuid())
   officialChineseName  String              @unique
@@ -786,7 +792,7 @@ model ManualCrawlRequest {
   createdAt     DateTime          @default(now())
   startedAt     DateTime?
   finishedAt    DateTime?
-  failureCode   String?
+  failureCode   ManualCrawlFailureCode?
   source        RecruitmentSource @relation(fields: [sourceId], references: [id], onDelete: Cascade)
   requestedBy   AdminUser         @relation(fields: [requestedById], references: [id], onDelete: Restrict)
   crawlBatch    CrawlBatch?       @relation(fields: [crawlBatchId], references: [id], onDelete: Restrict)
@@ -808,7 +814,7 @@ model ManualCrawlRequestEvent {
   ownerId     String?
   fromStatus  ManualCrawlStatus?
   toStatus    ManualCrawlStatus
-  failureCode String?
+  failureCode ManualCrawlFailureCode?
   createdAt   DateTime               @default(now())
   request     ManualCrawlRequest     @relation(fields: [requestId], references: [id], onDelete: Restrict)
   adminUser   AdminUser?             @relation(fields: [adminUserId], references: [id], onDelete: Restrict)

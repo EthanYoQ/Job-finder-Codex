@@ -11,6 +11,7 @@ export type ManualCrawlRequestRepositoryErrorCode =
   | "ALREADY_ACTIVE"
   | "OWNERSHIP_LOST"
   | "INVALID_MANUAL_BATCH"
+  | "INVALID_OWNER_OR_LEASE"
   | "UNSAFE_FAILURE_CODE";
 
 export class ManualCrawlRequestRepositoryError extends Error {
@@ -41,6 +42,11 @@ type ClaimedManualCrawlRequest = {
   previousStatus?: "QUEUED" | "RUNNING";
 };
 
+export const SAFE_MANUAL_CRAWL_FAILURE_CODES = Object.freeze([
+  "MANUAL_CRAWL_FAILED", "SOURCE_CRAWL_FAILED", "DUPLICATE_ACTIVE_REQUEST"
+] as const);
+export type ManualCrawlFailureCode = (typeof SAFE_MANUAL_CRAWL_FAILURE_CODES)[number];
+
 type ManualCrawlTransaction = {
   recruitmentSource: {
     findUnique(args: {
@@ -51,11 +57,25 @@ type ManualCrawlTransaction = {
   crawlBatch: {
     findUnique(args: {
       where: { id: string };
-      select: { id: true; kind: true };
-    }): Promise<{ id: string; kind: string | null } | null>;
+      select: {
+        id: true; kind: true; status: true; plannedSourceIds: true;
+        sourceResults: { select: {
+          sourceId: true; transportState: true; adapterState: true;
+          completenessState: true; atomicCommitState: true;
+        } };
+      };
+    }): Promise<{
+      id: string; kind: string | null; status: string; plannedSourceIds: unknown;
+      sourceResults: Array<{ sourceId: string; transportState: string; adapterState: string;
+        completenessState: string; atomicCommitState: string }>;
+    } | null>;
   };
   manualCrawlRequest: {
     create(args: { data: Record<string, unknown> }): Promise<ManualCrawlRequestRecord>;
+    findUnique(args: {
+      where: { id: string };
+      select: { id: true; sourceId: true; ownerId: true; status: true };
+    }): Promise<{ id: string; sourceId: string; ownerId: string | null; status: string } | null>;
     updateMany(args: { where: Record<string, unknown>; data: Record<string, unknown> }): Promise<CountResult>;
   };
   manualCrawlRequestEvent: {
@@ -74,7 +94,8 @@ export type ManualCrawlRequestDb = {
 export type ManualCrawlRequestRepository = ReturnType<typeof createManualCrawlRequestRepository>;
 
 const inScopeCompanyIds = new Set(canonicalPhase1InScopeRosterMembers.map(({ id }) => id));
-const SAFE_FAILURE_CODE = /^[A-Z][A-Z0-9_]{2,63}$/;
+const canonicalInScopeCompanyIds = Object.freeze(canonicalPhase1InScopeRosterMembers.map(({ id }) => id));
+const safeFailureCodeSet: ReadonlySet<string> = new Set(SAFE_MANUAL_CRAWL_FAILURE_CODES);
 
 export function evaluateCanonicalManualCrawlEligibility(source: ManualCrawlSource): ManualCrawlEligibility {
   if (isUserAuthorizedPhase1Exclusion(source.companyId)) {
@@ -160,9 +181,10 @@ export function createManualCrawlRequestRepository(input: {
       now: Date;
       leaseExpiresAt: Date;
     }): Promise<ClaimedManualCrawlRequest | null> {
+      assertValidLease(claim.ownerId, claim.now, claim.leaseExpiresAt);
       return input.db.$transaction(async (transaction) => {
         const rows = await transaction.$queryRawUnsafe<ClaimedManualCrawlRequest[]>(CLAIM_NEXT_SQL,
-          claim.now, claim.ownerId, claim.leaseExpiresAt);
+          claim.now, claim.ownerId, claim.leaseExpiresAt, canonicalInScopeCompanyIds);
         const claimed = rows[0] ?? null;
         if (!claimed) return null;
         const reclaimed = claimed.previousStatus === "RUNNING";
@@ -187,6 +209,7 @@ export function createManualCrawlRequestRepository(input: {
       now: Date;
       leaseExpiresAt: Date;
     }): Promise<void> {
+      assertValidLease(heartbeat.ownerId, heartbeat.now, heartbeat.leaseExpiresAt);
       await input.db.$transaction(async (transaction) => {
         const result = await transaction.manualCrawlRequest.updateMany({
           where: { id: heartbeat.requestId, ownerId: heartbeat.ownerId, status: "RUNNING" },
@@ -204,10 +227,24 @@ export function createManualCrawlRequestRepository(input: {
       now: Date;
     }): Promise<void> {
       await input.db.$transaction(async (transaction) => {
-        const batch = await transaction.crawlBatch.findUnique({
-          where: { id: finish.crawlBatchId }, select: { id: true, kind: true }
+        const request = await transaction.manualCrawlRequest.findUnique({
+          where: { id: finish.requestId },
+          select: { id: true, sourceId: true, ownerId: true, status: true }
         });
-        if (!batch || batch.kind !== "MANUAL_SOURCE") {
+        if (!request || request.ownerId !== finish.ownerId || request.status !== "RUNNING") {
+          throw new ManualCrawlRequestRepositoryError("OWNERSHIP_LOST");
+        }
+        const batch = await transaction.crawlBatch.findUnique({
+          where: { id: finish.crawlBatchId },
+          select: {
+            id: true, kind: true, status: true, plannedSourceIds: true,
+            sourceResults: { select: {
+              sourceId: true, transportState: true, adapterState: true,
+              completenessState: true, atomicCommitState: true
+            } }
+          }
+        });
+        if (!isSuccessfulManualSourceBatch(batch, request.sourceId)) {
           throw new ManualCrawlRequestRepositoryError("INVALID_MANUAL_BATCH");
         }
         const result = await transaction.manualCrawlRequest.updateMany({
@@ -228,7 +265,7 @@ export function createManualCrawlRequestRepository(input: {
       failureCode: string;
       now: Date;
     }): Promise<void> {
-      if (!SAFE_FAILURE_CODE.test(finish.failureCode)) {
+      if (!safeFailureCodeSet.has(finish.failureCode)) {
         throw new ManualCrawlRequestRepositoryError("UNSAFE_FAILURE_CODE");
       }
       await input.db.$transaction(async (transaction) => {
@@ -241,7 +278,7 @@ export function createManualCrawlRequestRepository(input: {
         });
         assertOwnedUpdate(result);
         await createSystemEvent(transaction, finish.requestId, finish.ownerId, "FAILED", "RUNNING", "FAILED",
-          finish.failureCode);
+          finish.failureCode as ManualCrawlFailureCode);
       });
     }
   };
@@ -249,12 +286,17 @@ export function createManualCrawlRequestRepository(input: {
 
 const CLAIM_NEXT_SQL = `
 WITH candidate AS (
-  SELECT "id", "status" AS "previousStatus"
-  FROM "ManualCrawlRequest"
-  WHERE "status" = 'QUEUED'
-     OR ("status" = 'RUNNING' AND "leaseExpiresAt" <= $1)
-  ORDER BY "createdAt" ASC, "id" ASC
-  FOR UPDATE SKIP LOCKED
+  SELECT request."id", request."status" AS "previousStatus"
+  FROM "ManualCrawlRequest" AS request
+  JOIN "RecruitmentSource" AS source ON source."id" = request."sourceId"
+  WHERE (request."status" = 'QUEUED'
+     OR (request."status" = 'RUNNING' AND request."leaseExpiresAt" <= $1))
+    AND source."companyId" = ANY($4::text[])
+    AND source."status" = 'VERIFIED_SCRAPABLE'
+    AND source."kind" = 'SOCIAL'
+    AND source."atsKind" <> 'UNKNOWN'
+  ORDER BY request."createdAt" ASC, request."id" ASC
+  FOR UPDATE OF request, source SKIP LOCKED
   LIMIT 1
 ), claimed AS (
   UPDATE "ManualCrawlRequest" AS request
@@ -282,7 +324,7 @@ async function createSystemEvent(
   eventType: "HEARTBEAT" | "SUCCEEDED" | "FAILED",
   fromStatus: "RUNNING",
   toStatus: "RUNNING" | "SUCCESS" | "FAILED",
-  failureCode?: string
+  failureCode?: ManualCrawlFailureCode
 ): Promise<void> {
   await transaction.manualCrawlRequestEvent.create({
     data: {
@@ -294,4 +336,23 @@ async function createSystemEvent(
 
 function isUniqueViolation(error: unknown): boolean {
   return typeof error === "object" && error !== null && "code" in error && error.code === "P2002";
+}
+
+function assertValidLease(ownerId: string, now: Date, leaseExpiresAt: Date): void {
+  if (ownerId.trim() === "" || leaseExpiresAt.getTime() <= now.getTime()) {
+    throw new ManualCrawlRequestRepositoryError("INVALID_OWNER_OR_LEASE");
+  }
+}
+
+function isSuccessfulManualSourceBatch(
+  batch: Awaited<ReturnType<ManualCrawlTransaction["crawlBatch"]["findUnique"]>>,
+  sourceId: string
+): boolean {
+  if (!batch || batch.kind !== "MANUAL_SOURCE" || batch.status !== "SUCCESS") return false;
+  if (!Array.isArray(batch.plannedSourceIds) || batch.plannedSourceIds.length !== 1 ||
+      batch.plannedSourceIds[0] !== sourceId || batch.sourceResults.length !== 1) return false;
+  const result = batch.sourceResults[0]!;
+  return result.sourceId === sourceId && result.transportState === "SUCCEEDED" &&
+    result.adapterState === "SUCCEEDED" && result.completenessState === "VERIFIED" &&
+    result.atomicCommitState === "COMMITTED";
 }

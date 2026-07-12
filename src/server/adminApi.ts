@@ -16,6 +16,7 @@ import {
 } from "../admin/auth";
 import { buildAdminDashboardModel } from "../admin/adminViewModel";
 import { JOB_CATEGORIES, type JobCategory } from "../domain/search";
+import { ManualCrawlRequestRepositoryError } from "../db/manualCrawlRequestRepository";
 
 export interface AdminApiRequest {
   method: string;
@@ -187,11 +188,22 @@ export async function handleAdminApi(request: AdminApiRequest, deps: AdminApiDep
   if (request.path === "/admin/api/manual-crawl" && request.method === "POST") {
     const parsed = ManualCrawlSchema.safeParse(request.body);
     if (!parsed.success) return badRequest(headers);
-    return {
-      status: 202,
-      headers,
-      body: await queueManualCrawl(parsed.data, operationContext, { db: deps.db })
-    };
+    try {
+      return {
+        status: 202,
+        headers,
+        body: await queueManualCrawl(parsed.data, operationContext, { db: deps.db })
+      };
+    } catch (error) {
+      if (error instanceof ManualCrawlRequestRepositoryError) {
+        return {
+          status: error.code === "ALREADY_ACTIVE" ? 409 : 422,
+          headers,
+          body: { error: error.code }
+        };
+      }
+      throw error;
+    }
   }
 
   if (request.path === "/admin/api/feedback-review" && request.method === "POST") {

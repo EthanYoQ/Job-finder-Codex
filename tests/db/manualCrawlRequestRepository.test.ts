@@ -61,10 +61,13 @@ describe("manual crawl request repository", () => {
 
     expect(claimed).toMatchObject({ id: "request-1", attemptCount: 1 });
     expect(calls.raw).toHaveLength(1);
-    expect(calls.raw[0].sql).toContain("FOR UPDATE SKIP LOCKED");
+    expect(calls.raw[0].sql).toContain("FOR UPDATE OF request, source SKIP LOCKED");
     expect(calls.raw[0].sql).toMatch(/WITH\s+candidate[\s\S]+UPDATE\s+"ManualCrawlRequest"/);
     expect(calls.raw[0].sql).toContain("$1");
-    expect(calls.raw[0].values).toEqual([NOW, "worker-1", LEASE]);
+    expect(calls.raw[0].values.slice(0, 3)).toEqual([NOW, "worker-1", LEASE]);
+    expect(calls.raw[0].sql).toContain('JOIN "RecruitmentSource"');
+    expect(calls.raw[0].values[3]).not.toContain("company-humanwell");
+    expect(calls.raw[0].values[3]).not.toContain("company-north-china-pharma");
     expect(calls.eventCreate[0]).toEqual({ data: expect.objectContaining({
       requestId: "request-1", eventType: "CLAIMED", actor: "SYSTEM", adminUserId: null,
       ownerId: "worker-1", toStatus: "RUNNING"
@@ -78,6 +81,15 @@ describe("manual crawl request repository", () => {
     expect(calls.eventCreate).toHaveLength(0);
   });
 
+  it("does not claim a historically queued request after source eligibility or exclusion policy drifts", async () => {
+    const { db, calls } = fakeDb({ claimRows: [] });
+    const repository = createManualCrawlRequestRepository({ db, evaluateEligibility: eligible });
+    await expect(repository.claimNext({ ownerId: "worker-1", now: NOW, leaseExpiresAt: LEASE })).resolves.toBeNull();
+    expect(calls.raw[0].sql).toContain('source."status" = \'VERIFIED_SCRAPABLE\'');
+    expect(calls.raw[0].sql).toContain('source."kind" = \'SOCIAL\'');
+    expect(calls.raw[0].sql).toContain('source."companyId" = ANY($4::text[])');
+  });
+
   it("marks a lease-expired RUNNING row as reclaimed from RUNNING", async () => {
     const { db, calls } = fakeDb({
       claimRows: [{ id: "request-1", sourceId: "source-1", attemptCount: 2, previousStatus: "RUNNING" }]
@@ -87,6 +99,16 @@ describe("manual crawl request repository", () => {
     expect(calls.eventCreate[0]).toEqual({ data: expect.objectContaining({
       eventType: "LEASE_RECLAIMED", fromStatus: "RUNNING", toStatus: "RUNNING", ownerId: "worker-2"
     }) });
+  });
+
+  it("rejects blank owners and non-future leases before opening a transaction", async () => {
+    const fixture = fakeDb();
+    const repository = createManualCrawlRequestRepository({ db: fixture.db, evaluateEligibility: eligible });
+    await expect(repository.claimNext({ ownerId: " ", now: NOW, leaseExpiresAt: LEASE }))
+      .rejects.toMatchObject({ code: "INVALID_OWNER_OR_LEASE" });
+    await expect(repository.heartbeat({ requestId: "request-1", ownerId: "worker", now: NOW, leaseExpiresAt: NOW }))
+      .rejects.toMatchObject({ code: "INVALID_OWNER_OR_LEASE" });
+    expect(fixture.calls.transactionCount).toBe(0);
   });
 
   it("heartbeats only a RUNNING request owned by the caller", async () => {
@@ -101,7 +123,12 @@ describe("manual crawl request repository", () => {
     const { db, calls } = fakeDb();
     const repository = createManualCrawlRequestRepository({ db, evaluateEligibility: eligible });
     await repository.finishSuccess({ requestId: "request-1", ownerId: "worker-1", crawlBatchId: "batch-1", now: NOW });
-    expect(calls.batchFind[0]).toEqual({ where: { id: "batch-1" }, select: { id: true, kind: true } });
+    expect(calls.requestFind[0]).toEqual({
+      where: { id: "request-1" }, select: { id: true, sourceId: true, ownerId: true, status: true }
+    });
+    expect(calls.batchFind[0]).toEqual({ where: { id: "batch-1" }, select: expect.objectContaining({
+      id: true, kind: true, status: true, plannedSourceIds: true, sourceResults: expect.any(Object)
+    }) });
     expect(calls.requestUpdateMany[0]).toEqual({
       where: { id: "request-1", ownerId: "worker-1", status: "RUNNING" },
       data: expect.objectContaining({ status: "SUCCESS", crawlBatchId: "batch-1", finishedAt: NOW })
@@ -109,6 +136,22 @@ describe("manual crawl request repository", () => {
     expect(calls.eventCreate[0]).toEqual({ data: expect.objectContaining({
       eventType: "SUCCEEDED", actor: "SYSTEM", ownerId: "worker-1", fromStatus: "RUNNING", toStatus: "SUCCESS"
     }) });
+  });
+
+  it.each([
+    ["different source", { plannedSourceIds: ["source-2"] }],
+    ["failed batch", { status: "FAILED" }],
+    ["incomplete source result", { sourceResults: [{
+      sourceId: "source-1", transportState: "SUCCEEDED", adapterState: "SUCCEEDED",
+      completenessState: "INCOMPLETE", atomicCommitState: "COMMITTED"
+    }] }]
+  ])("rejects success binding for a %s", async (_label, batch) => {
+    const fixture = fakeDb({ batch });
+    const repository = createManualCrawlRequestRepository({ db: fixture.db, evaluateEligibility: eligible });
+    await expect(repository.finishSuccess({
+      requestId: "request-1", ownerId: "worker-1", crawlBatchId: "batch-1", now: NOW
+    })).rejects.toMatchObject({ code: "INVALID_MANUAL_BATCH" });
+    expect(fixture.calls.requestUpdateMany).toHaveLength(0);
   });
 
   it("stores only an allow-listed safe error code and never a stack or secret", async () => {
@@ -120,7 +163,7 @@ describe("manual crawl request repository", () => {
       data: expect.objectContaining({ status: "FAILED", failureCode: "SOURCE_CRAWL_FAILED", finishedAt: NOW })
     });
     await expect(repository.finishFailed({
-      requestId: "request-1", ownerId: "worker-1", failureCode: "password=secret\nError: stack", now: NOW
+      requestId: "request-1", ownerId: "worker-1", failureCode: "SK_LIVE_SUPERSECRET123", now: NOW
     })).rejects.toMatchObject({ code: "UNSAFE_FAILURE_CODE" });
   });
 
@@ -139,11 +182,12 @@ type FakeOptions = {
   createError?: unknown;
   claimRows?: unknown[];
   updateCount?: number;
+  batch?: Record<string, unknown>;
 };
 
 function fakeDb(options: FakeOptions = {}): { db: ManualCrawlRequestDb; calls: Record<string, any> } {
   const calls: Record<string, any> = {
-    sourceFind: [], batchFind: [], requestCreate: [], requestUpdateMany: [], eventCreate: [], auditCreate: [], raw: [], transactionCount: 0
+    sourceFind: [], requestFind: [], batchFind: [], requestCreate: [], requestUpdateMany: [], eventCreate: [], auditCreate: [], raw: [], transactionCount: 0
   };
   const tx: any = {
     recruitmentSource: { async findUnique(args: unknown) {
@@ -154,10 +198,19 @@ function fakeDb(options: FakeOptions = {}): { db: ManualCrawlRequestDb; calls: R
     } },
     crawlBatch: { async findUnique(args: unknown) {
       calls.batchFind.push(args);
-      return { id: "batch-1", kind: "MANUAL_SOURCE" };
+      return {
+        id: "batch-1", kind: "MANUAL_SOURCE", status: "SUCCESS", plannedSourceIds: ["source-1"],
+        sourceResults: [{ sourceId: "source-1", transportState: "SUCCEEDED", adapterState: "SUCCEEDED",
+          completenessState: "VERIFIED", atomicCommitState: "COMMITTED" }],
+        ...options.batch
+      };
     } },
     manualCrawlRequest: {
       async create(args: unknown) { calls.requestCreate.push(args); if (options.createError) throw options.createError; return { id: "request-1" }; },
+      async findUnique(args: unknown) {
+        calls.requestFind.push(args);
+        return { id: "request-1", sourceId: "source-1", ownerId: "worker-1", status: "RUNNING" };
+      },
       async updateMany(args: unknown) { calls.requestUpdateMany.push(args); return { count: options.updateCount ?? 1 }; }
     },
     manualCrawlRequestEvent: { async create(args: unknown) { calls.eventCreate.push(args); return { id: "event-1" }; } },
