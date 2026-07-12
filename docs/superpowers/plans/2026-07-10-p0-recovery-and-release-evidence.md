@@ -4,7 +4,7 @@
 >
 > **Controlling PRD scope:** Exactly 30 foreign pharmaceutical companies plus exactly 30 domestic pharmaceutical companies. A target company may not be replaced merely because its public recruitment surface is difficult to crawl. Job completeness is judged only inside recruitment entries that are publicly linked or explicitly endorsed by the company's official website at capture time.
 >
-> **Blocked-company rule:** A target without a public official-website-linked social recruitment entry remains in the roster with `NO_PUBLIC_OFFICIAL_CAREERS_LINK_AT_CAPTURE_TIME`; it is never replaced to make readiness green, and that no-link status is not by itself a crawl-completeness blocker. A target with a public official-website-linked social recruitment entry that cannot be completely crawled remains blocked until that entry passes the evidence gate.
+> **Blocked-company rule:** A target without a public official-website-linked social recruitment entry remains in the roster with `NO_PUBLIC_OFFICIAL_CAREERS_LINK_AT_CAPTURE_TIME`; it is never replaced to make readiness green, and that no-link status is not by itself a crawl-completeness blocker. Except for the two exact `USER_AUTHORIZED_PHASE1_EXCLUSION` records defined below, a target with a public official-website-linked social recruitment entry that cannot be completely crawled remains blocked until that entry passes the evidence gate. The exclusions remain roster members and never imply complete job coverage.
 >
 > **Trust state:** `TRUST_FREEZE` / data confidence D. No job-count, readiness, launch, or manual-review claim is valid until a release candidate (RC) satisfies every gate in this plan.
 
@@ -14,9 +14,11 @@
 
 **Resumed from Goal:** `019f4295-1a92-7202-8e38-1bdd8cec8351`
 
-**Goal objective:** 完成 Job-search PRD 一期的端到端生产上线：严格覆盖用户确认的 30 家外资医药企业和 30 家国内制药企业，建立可独立证明公司官网招聘链接内社招职位完整性的官方招聘 source/channel 数据链路；实现准确职位抓取、AI 岗位分类、英文标题中文辅助翻译、生命周期、搜索聚合、后台运营、安全反爬、隐私、部署、备份、监控和每日两次调度；通过同一可复现 RC 下的全量验证与独立 QA，并以 job.orz.md 可安全稳定访问为最终交付。不得用替换企业、硬编码总数、放松门禁、历史绿灯或生产 adapter 自证来完成目标。该完整性判断不要求证明公司不存在其它未由官网公开链接或明确背书的社招渠道。
+**Goal objective (as overridden by the 2026-07-13 user authorization):** 完成 Job-search PRD 一期的端到端生产上线：严格保留用户确认的 30 家外资医药企业和 30 家国内制药企业固定名单；对该固定名单中除 `company-humanwell` 与 `company-north-china-pharma` 两项用户授权一期排除企业之外的所有目标企业，建立可独立证明公司官网招聘链接内社招职位完整性的官方招聘 source/channel 数据链路；实现准确职位抓取、AI 岗位分类、英文标题中文辅助翻译、生命周期、搜索聚合、后台运营、安全反爬、隐私、部署、备份、监控和每日两次调度；通过同一可复现 RC 下的全量验证与独立 QA。不得用替换企业、硬编码通过数量、放松门禁、历史绿灯或生产 adapter 自证来完成目标。该完整性判断不要求证明公司不存在其它未由官网公开链接或明确背书的社招渠道。本期不以 `job.orz.md` 的域名解析、证书或外部可访问性作为 Goal、部署门禁或最终交付条件。
 
 **Goal judgment standard update (2026-07-12):** For each target company, completion evidence covers the social-recruitment jobs visible from official website-linked recruitment entries only. The denominator is the audited inventory of official website links, redirects, ATS tenants, pages, APIs, filters, and channels reachable from those entries at capture time. The release claim must not imply coverage of hidden ATS tenants, WeChat-only postings, third-party boards, regional legal-entity channels, or other recruitment paths that are not publicly linked or explicitly endorsed by the official company website.
+
+**Goal judgment standard update (2026-07-13, user-authorized override):** The immutable roster remains exactly 30 foreign pharmaceutical companies plus exactly 30 domestic pharmaceutical companies. The canonical company IDs `company-humanwell` and `company-north-china-pharma` remain in that roster but MUST be marked `USER_AUTHORIZED_PHASE1_EXCLUSION`. They are dynamically excluded by company identity and status from Phase 1 official-entry completeness, the formal crawl denominator, independent source/channel QA, and release blocking. Their jobs MUST NOT be claimed complete. Every other roster company (58 under this exact authorization) remains in scope for official-website-linked or explicitly endorsed social-recruitment completeness. The number 58 is descriptive evidence derived from the roster and exclusion records, not a hard-coded passing threshold; all code and gates MUST calculate the denominator dynamically. `job.orz.md`, its DNS, certificate, and external-access state are fully outside this Goal, its deployment gate, and its final deliverable; all other deployment, application-security, backup, monitoring, scheduler, privacy, and compliance requirements remain in force.
 
 **Recovery point:** `outputs/p0-rc/p0-rc-20260710-001/`
 
@@ -28,15 +30,15 @@ This index is the controlling execution order. Detailed requirements later in th
 
 | Phase | Scope | Status | Exit evidence |
 | --- | --- | --- | --- |
-| 0 | Goal/RC baseline and reproducible environment | BLOCKED_PHASE0_BACKUP_TOOLCHAIN | Git/runtime hashes, pre-mutation backup, successful restore-to-test, DB snapshot, manifest authorization |
-| 1 | Batch, evidence, transaction, pagination, official-chain, and readiness gates | PENDING | RED-GREEN tests, migrations, full engineering checks, independent read-only review |
-| 2 | Strict 30+30 roster and official-link source/channel model | PENDING | Human-readable roster, machine official-link oracle seed, official-chain archive, no unauthorized replacements |
-| 3 | PRD lifecycle and grace-set data-quality invariants | PENDING | 1/2/3 miss, failure/incomplete, reappearance, transaction, and set-reconciliation tests |
-| 4 | AI classification, translation, durable human corrections, and manual crawl worker | PENDING | Real queue/worker/DB evidence and regression tests |
+| 0 | Goal/RC baseline and reproducible environment | COMPLETED | Git/runtime hashes, pre-mutation backup, successful restore-to-test, DB snapshot, manifest authorization |
+| 1 | Batch, evidence, transaction, pagination, official-chain, and readiness gates | COMPLETED | RED-GREEN tests, migrations, full engineering checks, independent read-only review |
+| 2 | Strict 30+30 roster and official-link source/channel model before the 2026-07-13 scope delta | COMPLETED | Human-readable roster, machine official-link oracle seed, official-chain archive, no unauthorized replacements |
+| 3 | PRD lifecycle and grace-set data-quality invariants | COMPLETED | 1/2/3 miss, failure/incomplete, reappearance, transaction, and set-reconciliation tests |
+| 4 | 2026-07-13 dynamic scope-delta implementation plus AI classification, translation, durable human corrections, and manual crawl worker | IN_PROGRESS | RED-GREEN scope-policy tests, exact changed-code RC evidence, and real queue/worker/DB evidence |
 | 5 | Two formal complete official-link rebuild batches in one RC | PENDING | Two immutable completed batches and fresh zero-blocker DB gates |
 | 6 | Real-DB product and admin acceptance | PENDING | Product/admin workflows and browser matrix evidence against the RC database |
 | 7 | Deployment, security, backup, monitoring, scheduler, and compliance | PENDING | Production-operability tests and compliance sign-off evidence |
-| 8 | Independent QA, repair loop, and final release evidence | PENDING | Independent oracle for 60 companies, no P0/P1 findings, final 60-company table |
+| 8 | Independent QA, repair loop, and final release evidence | PENDING | Independent oracle for every dynamically in-scope company, global exclusion-policy/disclosure verification, no P0/P1 findings, final 60-company table |
 
 Only one phase may be `IN_PROGRESS`. A phase cannot advance until its exit evidence exists under the active RC.
 
@@ -44,15 +46,15 @@ Only one phase may be `IN_PROGRESS`. A phase cannot advance until its exit evide
 
 | Gate | Baseline | Reason |
 | --- | --- | --- |
-| G1 scope consistency | FAIL | Current registry explicitly permits `国内制药递补`, contains a known 28 foreign + 30 domestic + 2 replacement composition, and includes slash-joined company names. |
-| G2 official chain and coverage | FAIL | Latest readable audit reports only 40 strong and 20 incomplete sources; official website-linked recruitment entries are not independently inventoried. |
-| G3 provable crawl completeness | FAIL | Batch, provenance, transaction, pagination, loss accounting, and official-total/page-traversal evidence gaps are confirmed for the official website-linked entry scope. |
-| G4 two formal rebuilds | BLOCKED | No two completed immutable batches exist under one reproducible RC. |
-| G5 classification/translation/lifecycle | FAIL | AI-first queue/translation are absent and current one-miss lifecycle conflicts with PRD semantics. |
-| G6 user product | PARTIAL_NOT_VERIFIED | Some UI exists, but real-RC DB and required browser matrix evidence are absent. |
-| G7 admin/operations | FAIL | Manual crawl worker and complete review/alert workflows are not proven end-to-end. |
-| G8 production/security/compliance | BLOCKED_NOT_VERIFIED | Fresh deploy, restore drill, notifier, scheduler lock, edge controls, and legal judgment are absent. |
-| G9 engineering/independent QA | BLOCKED | No final-RC fresh command bundle or independent 60-company official-link oracle exists. |
+| G1 scope consistency | PARTIAL_PENDING_SCOPE_DELTA | RC008 establishes the fixed 30 foreign plus 30 domestic roster with no replacements, but predates the 2026-07-13 authorization and does not prove dynamic exclusion behavior. G1 requires RED-GREEN policy tests and exact changed-code RC evidence before it can pass. |
+| G2 official chain and coverage | PARTIAL_PENDING_FORMAL_CRAWL | RC008 preserves the reviewed official-link model and source-chain evidence. Final evidence still requires capture-time coverage for every dynamically in-scope company. The two authorized exclusions receive no company-level official-entry/source/completeness review; only the global exclusion-policy mechanics and final disclosure are verified. |
+| G3 provable crawl completeness | PARTIAL_ENGINEERING_PASS | RC008 preserves passing batch, provenance, transaction, pagination, loss-accounting, and verifier implementation evidence. Completeness remains unproven until the formal dynamically scoped crawl batches pass. |
+| G4 two formal rebuilds | PENDING | Two completed immutable formal batches for the dynamically derived denominator are not yet final-RC evidence. |
+| G5 classification/translation/lifecycle | PARTIAL_RC008_EVIDENCE | Lifecycle engineering evidence is preserved; final AI classification, translation, correction, and real-data closure remains in progress. |
+| G6 user product | PARTIAL_RC008_EVIDENCE | Existing product/build evidence is reusable, but final acceptance must run against the exact changed-code/formal-crawl RC and its database. |
+| G7 admin/operations | PARTIAL_RC008_EVIDENCE | Existing worker/admin/monitoring engineering evidence is reusable; final real-operational closure remains pending. |
+| G8 production/security/compliance | PARTIAL_RC008_EVIDENCE | RC008 image, empty-DB, backup/restore, edge, and bounded runtime evidence is preserved. Remaining deployment, notifier, scheduler, privacy, and compliance gates exclude only `job.orz.md`-specific DNS/certificate/external-access checks; equivalent checks for any other deployed endpoint remain required. |
+| G9 engineering/independent QA | PARTIAL_RC008_EVIDENCE | RC008 engineering and independent QA evidence remains reusable, but final changed code and formal crawls require fresh exact-RC-bound independent QA for every dynamically in-scope company plus global exclusion-policy/disclosure verification. The excluded companies receive no company-level source/completeness QA. |
 
 Goal completion is prohibited while any row is not `PASS` with fresh RC-bound evidence.
 
@@ -64,9 +66,10 @@ Goal completion is prohibited while any row is not `PASS` with fresh RC-bound ev
 2. Tavily, Agent Reach, search engines, ATS tenant discovery, and third-party job boards are discovery inputs only. Readiness evidence must be archived from the official company chain or the official recruitment system it endorses.
 3. Every artifact lives under `outputs/p0-rc/<rcId>/` and references the RC manifest.
 4. Any code, roster, source-plan, database, or oracle change invalidates the current RC and starts a new RC.
-5. Any blocked official-website-linked social recruitment entry blocks RC completion while preserving evidence for companies that passed. A company with no public official-website-linked social recruitment entry is retained in the 60-company roster with an explicit no-link status and does not create a crawl-completeness blocker.
-6. No failed, incomplete, blocked, skipped, stale, or non-atomic crawl may drive lifecycle removal.
-7. No PRD business rule may be weakened to make a technical gate pass.
+5. Any blocked official-website-linked social recruitment entry for a dynamically in-scope company blocks RC completion while preserving evidence for companies that passed. A company with no public official-website-linked social recruitment entry is retained in the 60-company roster with an explicit no-link status and does not create a crawl-completeness blocker. `company-humanwell` and `company-north-china-pharma` remain roster members marked `USER_AUTHORIZED_PHASE1_EXCLUSION`; they are excluded from this blocking rule without any claim that their jobs are complete.
+6. The formal crawl/QA denominator is derived from the immutable roster minus records carrying the authorized exclusion status for the exact canonical company IDs above. Code, tests, manifests, and reports may not hard-code an expected passing company count.
+7. No failed, incomplete, blocked, skipped, stale, or non-atomic crawl may drive lifecycle removal.
+8. No PRD business rule may be weakened to make a technical gate pass.
 
 ## Phase 0 - Freeze and restore a reproducible environment
 
@@ -108,7 +111,7 @@ All behavior changes follow RED-GREEN-REFACTOR.
 
 ### 1.3 Readiness provenance
 
-- Readiness accepts only all observations for the audited official website-linked social-recruitment denominator from the same completed full batch, RC, commit, source-plan hash, and source-config hash, together with exact company-level audit/no-link adjudication for all 60 roster companies.
+- Readiness accepts only all observations for the dynamically derived audited official website-linked social-recruitment denominator from the same completed full batch, RC, commit, source-plan hash, and source-config hash, together with exact company-level audit/no-link adjudication for every dynamically in-scope company and global exclusion-policy/roster-disclosure evidence. The excluded companies receive no company-level official-entry, source, channel, or completeness audit.
 - Enforce a documented freshness limit and reject historical-observation stitching.
 - Require two completed full batches from the same RC for final release evidence.
 - Compare canonical job-key sets and hashes in addition to counts.
@@ -138,6 +141,7 @@ All behavior changes follow RED-GREEN-REFACTOR.
 
 - Restore the user-confirmed, immutable 30 foreign + 30 domestic pharmaceutical roster.
 - Remove replacement semantics from P0 readiness. Record excluded device, diagnostics, life-science-tool, medtech, and consumer-health companies outside the 60-company target set.
+- Preserve `company-humanwell` and `company-north-china-pharma` inside that roster. The later 2026-07-13 scope contract requires `USER_AUTHORIZED_PHASE1_EXCLUSION` and canonical-ID/status-driven denominator selection; its implementation/evidence belongs to Phase 4 and is not claimed by the completed pre-delta Phase 2 evidence.
 - Log the roster decision source and hash in the RC manifest and PRD/spec change history.
 
 ### 2.2 Expected official website-linked recruitment entries
@@ -154,8 +158,8 @@ All behavior changes follow RED-GREEN-REFACTOR.
 
 ### 2.4 Phase gate and review
 
-- Produce a human-readable 60-company roster and machine-readable official-link source/channel oracle seed.
-- Request code review and an independent read-only roster/source-chain QA.
+- Produce a human-readable 60-company roster and machine-readable official-link source/channel oracle seed. Both must disclose the two exact authorized exclusions and must not claim their jobs or official-entry coverage are complete.
+- Request code review and an independent read-only roster/source-chain QA for dynamically in-scope companies. The authorized exclusions receive no company-level official-entry, source, or completeness QA; review is limited to the global policy mechanics and required release disclosure.
 
 ## Phase 3 - Restore PRD lifecycle semantics
 
@@ -186,16 +190,17 @@ All behavior changes follow RED-GREEN-REFACTOR.
 
 Under one RC, commit, roster hash, source-plan hash, source-config hash, schema version, and database snapshot lineage:
 
+0. Before a formal crawl, implement the 2026-07-13 scope delta with RED-GREEN tests proving canonical-ID/status-driven exclusion, dynamic denominator derivation, absence of a hard-coded passing total, and truthful exclusion disclosure. RC008 predates this delta and cannot prove it; the implementation and tests must bind to the exact changed-code RC.
 1. Run two complete full official-link crawl batches.
-2. Each batch requires the planned denominator to equal the audited official website-linked social recruitment entry set for the 60-company roster, skipped 0, and 100% transport, adapter success, completeness, and atomic commit for that denominator.
+2. Each batch requires the planned denominator to equal the audited official website-linked social recruitment entry set dynamically derived from the fixed roster after applying exact `USER_AUTHORIZED_PHASE1_EXCLUSION` records, skipped 0, and 100% transport, adapter success, completeness, and atomic commit for that denominator. No expected passing total may be hard-coded.
 3. Archive every official website-linked source's expected evidence, pagination proof, counters, collision/discard ledger, canonical job-key set/hash, active set/hash, and official-chain evidence.
 4. Both batches must complete; data-quality must report zero blockers; readiness must consume only those batches.
-5. Any blocked official website-linked social recruitment entry blocks the RC. Preserve passing evidence and investigate through systematic debugging; do not replace the company, hard-code a total, relax a gate, or change lifecycle semantics. A no-public-official-link company status remains auditable roster evidence, not a crawl-completeness blocker.
+5. Any blocked official website-linked social recruitment entry for a dynamically in-scope company blocks the RC. Preserve passing evidence and investigate through systematic debugging; do not replace the company, hard-code a total, relax a gate, or change lifecycle semantics. A no-public-official-link company status remains auditable roster evidence, not a crawl-completeness blocker. The two exact authorized exclusions are not researched, crawled, or counted as completeness blockers in Phase 1 and must never receive a job-completeness claim.
 
 ## Phase 5 - Independent oracle and QA
 
 - The QA agent must be new to the RC, read-only, and prohibited from modifying code or DB.
-- Build an independent official website-linked entry/source/channel oracle for all 60 companies. Production adapters may not self-certify.
+- Build an independent official website-linked entry/source/channel oracle for every dynamically in-scope company. Production adapters may not self-certify. Do not perform any company-level official-entry, source, channel, or completeness review for `company-humanwell` or `company-north-china-pharma`; independently verify only the global policy mechanics and final disclosure, without using either excluded company as a source-completeness subject.
 - For official totals, archive the raw official evidence. Without totals, independently traverse all pages/channels reachable from each official website-linked entry and archive first/middle/last pages, fingerprints, and job-ID sets.
 - Manually verify every historical incident source, low-count source, no-total source, and new/changed adapter; stratified-sample at least 20% of the remainder using a fixed seed derived from the RC ID.
 - The QA report records reviewer/agent ID, RC ID, commit SHA, DB snapshot hash, both batch IDs, source-plan hash, oracle version, and raw evidence paths.
@@ -216,7 +221,7 @@ Under one RC, commit, roster hash, source-plan hash, source-config hash, schema 
 - Use one scheduling owner for the two Beijing-time daily windows and a distributed lock preventing overlapping batches.
 - Deliver and test a real alert notifier.
 - Perform a real backup and restore-to-test drill with integrity checks.
-- Configure and test `job.orz.md`, TLS, WAF/CDN, trusted-proxy-only origin access, and shared rate limiting; an in-memory map is not sufficient production protection.
+- Configure and test deployment-level TLS where applicable, WAF/CDN or equivalent edge controls, trusted-proxy-only origin access, and shared rate limiting; an in-memory map is not sufficient production protection. Only checks specific to `job.orz.md`—its DNS, its certificate, and its external accessibility—are outside this Goal and gate; equivalent checks for any other deployed endpoint remain required.
 - Complete privacy policy coverage for data categories, purposes, access control, retention, deletion/export contact workflow, and leave cross-border legal review as a blocker until signed off.
 
 ## Final release gate
@@ -226,20 +231,25 @@ The exact phrase `PRD Phase 1 complete` is prohibited unless all are fresh and l
 - Clean/reproducible RC with code and evidence bound to a commit.
 - Exact 30+30 roster, no unauthorized replacements.
 - Two complete official-link batches from the same RC.
-- Independent official website-linked source/channel oracle for all 60 companies; blocked official-link entry count zero.
+- Independent official website-linked source/channel oracle for every dynamically in-scope company; blocked official-link entry count zero within that derived denominator. The two authorized exclusions receive no company-level official-entry/source/completeness QA; only global exclusion-policy mechanics and final disclosure are verified.
 - Data-quality, readiness, and launch-readiness all pass from the RC database.
 - Classification, translation, durable human correction, and manual crawl request loops pass against real data.
 - Fresh DB migration/seed succeeds.
-- Backup restore, monitor alert, scheduler lock, TLS/WAF/origin protection tests pass.
+- Backup restore, monitor alert, scheduler lock, and deployment-level security/edge/origin protection tests pass; only `job.orz.md`-specific DNS, certificate, and external-access checks are excluded.
 - Fresh full test suite, typecheck, build, and Prisma validation pass.
 - New independent QA has no P0/P1 findings.
-- Final 60-company table contains company, official website, official website-linked recruitment entry inventory, campus status, included source/channels, official count or page-traversal proof, crawled count, job-set hash, evidence URL/path, both batch IDs, no-public-link status where applicable, and QA status.
+- Final 60-company table contains company, official website, official website-linked recruitment entry inventory, campus status, included source/channels, official count or page-traversal proof, crawled count, job-set hash, evidence URL/path, both batch IDs, no-public-link status where applicable, authorized-exclusion status where applicable, and QA status. For the two authorized exclusions, company-level official-entry/source/completeness and QA fields are explicitly not applicable, no company-level review is performed, and no complete-job claim is made.
+- Final release notes explicitly disclose that 人福医药 (`company-humanwell`) and 华北制药 (`company-north-china-pharma`) are user-authorized Phase 1 exclusions, that no job-completeness claim is made for either company, and that `job.orz.md` accessibility is not a Phase 1 deliverable.
+
+## RC008 evidence preservation after the 2026-07-13 scope authorization
+
+- RC008's already-passed code, image, database, empty-database, backup/restore, edge/security, and independent-QA artifacts remain immutable historical, reusable evidence for unchanged gates.
+- This controlling-plan update by itself does not create a new RC and does not require rerunning an unchanged passed gate.
+- Any implementation change required to encode dynamic exclusions, and both formal crawl batches, must bind their code, manifest, database lineage, source-plan/config hashes, and independent QA to their exact immutable RC. Historical RC008 evidence may support unchanged gates but may not self-certify changed code or new formal crawl results.
 
 ## Current baseline and immediate next action
 
-- Imported independent-audit fact: trust level D; latest readable audit reported 40 `VERIFIED_STRONG` and 20 `INCOMPLETE`.
-- Imported independent-audit fact: historical 60/60/zero-issue reports conflict with the latest audit and are invalid as release evidence.
-- Imported independent-audit fact: the inherited workspace is heavily dirty and prior reports are not bound to a reproducible commit/database snapshot.
-- Imported independent-audit fact: offline code checks passed previously, while DB-backed launch readiness did not; these results are historical only.
-- Unverified today: Docker/PostgreSQL health, precise current dirty-file counts, whether the interrupted batch committed any partial state, and whether an existing database backup is restorable.
-- Immediate action: finish Phase 0 probes and backup/restore before any migration, crawl, lifecycle mutation, or readiness run.
+- Phases 0-3 are complete. Phase 4 is the sole `IN_PROGRESS` phase; Phases 5-8 remain pending.
+- RC008 preserves reviewed, exact-image, database, empty-database, backup/restore, security/edge, full-engineering, and independent-QA evidence for unchanged gates. It is not by itself final evidence for later changed code or formal crawls.
+- The immutable roster remains exactly 30 foreign plus 30 domestic companies. The 2026-07-13 policy requires 人福医药 and 华北制药 to remain roster members as exact `USER_AUTHORIZED_PHASE1_EXCLUSION` records outside Phase 1 completeness/source-QA/release-blocking scope; RC008 predates this policy, so its dynamic implementation is not yet proven.
+- Immediate action: encode and verify dynamic exclusion behavior under TDD if the current implementation does not already enforce it, then continue the remaining-company formal crawls and exact-RC-bound final QA. Do not research the two excluded companies and do not perform `job.orz.md` DNS, certificate, or external-access work.
