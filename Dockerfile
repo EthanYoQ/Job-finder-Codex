@@ -4,9 +4,14 @@ FROM node:22-bookworm-slim@sha256:53ada149d435c38b14476cb57e4a7da73c15595aba79bd
 WORKDIR /app
 COPY package.json ./package.json
 COPY package-lock.json ./package-lock.json
+COPY prisma ./prisma
+RUN apt-get update && apt-get install -y --no-install-recommends openssl && rm -rf /var/lib/apt/lists/*
 RUN PRISMA_CLI_BINARY_TARGETS=debian-openssl-3.0.x npm ci
+RUN npx prisma generate --schema=prisma/schema.prisma
 RUN test -s /app/node_modules/@prisma/engines/schema-engine-debian-openssl-3.0.x
 RUN test -s /app/node_modules/@prisma/engines/libquery_engine-debian-openssl-3.0.x.so.node
+RUN test -s /app/node_modules/.prisma/client/default.js
+RUN test -s /app/node_modules/.prisma/client/libquery_engine-debian-openssl-3.0.x.so.node
 
 FROM deps AS build
 ARG BUILD_COMMIT_SHA

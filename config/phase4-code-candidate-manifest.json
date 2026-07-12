@@ -1,18 +1,36 @@
 {
   "schemaVersion": "phase4-code-candidate-v1",
   "planId": "docs/superpowers/plans/2026-07-10-p0-recovery-and-release-evidence.md",
-  "baseHead": "977f27f9da6e2fce3630f32a79a357fe6f8ffeb2",
+  "baseHead": "c575139329edcdb489e99025fe7198821e874bf2",
   "entries": [
     {
       "path": "Dockerfile",
-      "sha256": "8e49fed7e254281d2571f661fb017f0c08677f2df75a0e3a1609d5e29b3e8478",
-      "bytes": 3822,
+      "sha256": "22f88509529276c3070fc3900ac15a1fe4292a1ffda8bb2dfa8f8903db4e2296",
+      "bytes": 4147,
+      "role": "runtime"
+    },
+    {
+      "path": "ops/docker-compose.yml",
+      "sha256": "ad11b948b4d8c212647ed50f885e3936b98ec46b80e96c5ab51c971b6054b388",
+      "bytes": 7561,
+      "role": "runtime"
+    },
+    {
+      "path": "ops/monitoring-check.ts",
+      "sha256": "017f0332242c840b3b6724b9ed4ee6df8b59412dcebade503fa87e1190d486d5",
+      "bytes": 8371,
       "role": "runtime"
     },
     {
       "path": "tests/ops/deploymentConfig.test.ts",
-      "sha256": "24c8bdcd246202466aca2687a69679c99b130c2fd0f7ab2197872b43ab5b0ffb",
-      "bytes": 11977,
+      "sha256": "5c0c549c80e04430f3dc2ffa0dc9f2e94b84f09e4afd9ffbaf0b3499345899d1",
+      "bytes": 22749,
+      "role": "test"
+    },
+    {
+      "path": "tests/readiness/prismaOfflineEngines.test.ts",
+      "sha256": "de74d7a49e5a3318c360eda120548db00c37b2a5650aeb31633098bc49eab1a2",
+      "bytes": 2631,
       "role": "test"
     }
   ]

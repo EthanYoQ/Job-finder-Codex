@@ -1,5 +1,6 @@
+import { createHash } from "node:crypto";
 import { existsSync, readFileSync } from "node:fs";
-import { mkdtempSync, writeFileSync } from "node:fs";
+import { mkdtempSync, symlinkSync, utimesSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { resolve } from "node:path";
 import { execFileSync } from "node:child_process";
@@ -25,6 +26,21 @@ function readComposeService(compose: string, serviceName: string): string {
 
   expect(match, `${serviceName} service should exist`).not.toBeNull();
   return match?.[0] ?? "";
+}
+
+function runMonitoringCheck(env: NodeJS.ProcessEnv): { status: number | null; stderr: string } {
+  try {
+    execFileSync(process.execPath, ["node_modules/tsx/dist/cli.mjs", "ops/monitoring-check.ts"], {
+      cwd: repoRoot,
+      env: { ...process.env, ...env },
+      encoding: "utf8",
+      stdio: ["ignore", "pipe", "pipe"]
+    });
+    return { status: 0, stderr: "" };
+  } catch (error) {
+    const result = error as { status?: number | null; stderr?: string };
+    return { status: result.status ?? null, stderr: result.stderr ?? "" };
+  }
 }
 
 describe("deployment configuration", () => {
@@ -111,16 +127,14 @@ describe("deployment configuration", () => {
     expect(nginx).toMatch(/default deny|deny-by-default|deny all except/i);
   });
 
-  it("ships a monitoring check command that reads env-driven health and database inputs", () => {
+  it("ships a monitoring check command that reads env-driven health, database, and backup artifact inputs", () => {
     const script = readRequiredFile(monitoringCheckPath);
 
     expect(script).toContain("/healthz");
     expect(script).toContain("DATABASE_URL");
+    expect(script).toContain("BACKUP_DIR");
     expect(script).toMatch(/process\.env/);
     expect(script).toMatch(/process\.exitCode|process\.exit\(/);
-    expect(script).toMatch(/readString\(readinessSummary,\s*"latestBackupAt"\)/);
-    expect(script).toMatch(/readBoolean\(readinessSummary,\s*"latestBackupSucceeded"\)/);
-    expect(script).toContain("readEnvBoolean(\"LATEST_BACKUP_SUCCEEDED\")");
   });
 
   it("uses a Windows-safe direct-run guard for the HTTP server entrypoint", () => {
@@ -173,15 +187,237 @@ describe("deployment configuration", () => {
     expect(backup).not.toMatch(/healthcheck:[\s\S]*-name\s+["']\*\.dump["']/u);
   });
 
-  it("falls back to readinessSummary latestBackupAt when crawlSummary omits it", () => {
+  it("mounts backup evidence read-only and uses paths that exist inside the monitor container", () => {
+    const compose = readRequiredFile(composePath);
+    const monitor = readComposeService(compose, "monitor");
+
+    expect(monitor).toMatch(/restart:\s*["']on-failure:3["']/u);
+    expect(monitor).toContain("set -eu; while true; do npx tsx ops/monitoring-check.ts; sleep");
+    expect(monitor).toMatch(/BACKUP_DIR:\s*\/backups/u);
+    expect(monitor).toMatch(/READINESS_SUMMARY_PATH:\s*\$\{READINESS_SUMMARY_PATH:-\/app\/outputs\//u);
+    expect(monitor).toMatch(/CRAWL_SUMMARY_PATH:\s*\$\{CRAWL_SUMMARY_PATH:-\/app\/outputs\//u);
+    expect(monitor).toMatch(/source:\s*backup-data[\s\S]*target:\s*\/backups[\s\S]*read_only:\s*true/u);
+    expect(monitor).toMatch(/backup:\s*\n\s+condition:\s*service_healthy/u);
+    expect(monitor).toMatch(/postgres:\s*\n\s+condition:\s*service_healthy/u);
+  });
+
+  it("waits for initial web health without disabling runtime website checks", () => {
+    const compose = readRequiredFile(composePath);
+    const web = readComposeService(compose, "web");
+    const monitor = readComposeService(compose, "monitor");
+
+    expect(web).toMatch(/healthcheck:[\s\S]*\/healthz/u);
+    expect(monitor).toMatch(/web:\s*\n\s+condition:\s*service_healthy/u);
+    expect(monitor).toContain("HEALTHCHECK_URL");
+    expect(readRequiredFile(monitoringCheckPath)).toContain("checkHealth(healthUrl)");
+  });
+
+  it("derives successful backup evidence from the newest canonical marker and archive", () => {
+    const tempDir = mkdtempSync(resolve(tmpdir(), "job-finder-monitoring-backup-"));
+    const archiveName = "jobfinder-20260712T120000Z.dump";
+    const archivePath = resolve(tempDir, archiveName);
+    const markerPath = `${archivePath}.sha256`;
+    const archive = Buffer.from("stream-me-instead-of-loading-a-production-dump");
+    writeFileSync(archivePath, archive);
+    writeFileSync(markerPath, `${createHash("sha256").update(archive).digest("hex")}  ${archiveName}\n`, "utf8");
+    const markerTime = new Date("2026-07-12T12:00:00.000Z");
+    utimesSync(markerPath, markerTime, markerTime);
+
+    const readinessSummaryPath = resolve(tempDir, "readiness-summary.json");
+    const crawlSummaryPath = resolve(tempDir, "crawl-summary.json");
+    writeFileSync(
+      readinessSummaryPath,
+      JSON.stringify({ latestBackupAt: "2020-01-01T00:00:00.000Z", latestBackupSucceeded: false }),
+      "utf8"
+    );
+    writeFileSync(crawlSummaryPath, JSON.stringify({ consecutiveFailuresByCompany: {} }), "utf8");
+
+    const result = runMonitoringCheck({
+      BACKUP_DIR: tempDir,
+      HEALTHCHECK_URL: "http://127.0.0.1:9/healthz",
+      READINESS_SUMMARY_PATH: readinessSummaryPath,
+      CRAWL_SUMMARY_PATH: crawlSummaryPath,
+      MONITORING_NOW: "2026-07-12T13:00:00.000Z"
+    });
+
+    expect(result.stderr).not.toMatch(/BACKUP_(?:FAILED|MISSING|STALE)/u);
+  });
+
+  it("fails closed for a missing marker and invalid newest backup artifacts", () => {
+    const scenarios = [
+      {
+        name: "wrong marker basename",
+        marker: (hash: string) => `${hash}  another.dump\n`,
+        archive: true
+      },
+      {
+        name: "path traversal marker basename",
+        marker: (hash: string) => `${hash}  ../outside.dump\n`,
+        archive: true
+      },
+      {
+        name: "non-canonical multiline marker",
+        marker: (hash: string, archiveName: string) => `${hash}  ${archiveName}\nextra\n`,
+        archive: true
+      },
+      {
+        name: "checksum mismatch",
+        marker: (_hash: string, archiveName: string) => `${"0".repeat(64)}  ${archiveName}\n`,
+        archive: true
+      },
+      {
+        name: "missing archive",
+        marker: (hash: string, archiveName: string) => `${hash}  ${archiveName}\n`,
+        archive: false
+      }
+    ];
+
+    for (const scenario of scenarios) {
+      const tempDir = mkdtempSync(resolve(tmpdir(), "job-finder-monitoring-backup-"));
+      const olderArchiveName = "jobfinder-20260711T120000Z.dump";
+      const olderArchivePath = resolve(tempDir, olderArchiveName);
+      const olderArchive = Buffer.from("older-valid-backup");
+      writeFileSync(olderArchivePath, olderArchive);
+      writeFileSync(
+        `${olderArchivePath}.sha256`,
+        `${createHash("sha256").update(olderArchive).digest("hex")}  ${olderArchiveName}\n`,
+        "utf8"
+      );
+      const olderTime = new Date("2026-07-11T12:00:00.000Z");
+      utimesSync(`${olderArchivePath}.sha256`, olderTime, olderTime);
+      const archiveName = "jobfinder-20260712T120000Z.dump";
+      const archivePath = resolve(tempDir, archiveName);
+      const archive = Buffer.from("backup");
+      const hash = createHash("sha256").update(archive).digest("hex");
+      if (scenario.archive) writeFileSync(archivePath, archive);
+      writeFileSync(`${archivePath}.sha256`, scenario.marker(hash, archiveName), "utf8");
+      const result = runMonitoringCheck({
+        BACKUP_DIR: tempDir,
+        HEALTHCHECK_URL: "http://127.0.0.1:9/healthz",
+        READINESS_SUMMARY_PATH: resolve(tempDir, "absent-readiness.json"),
+        CRAWL_SUMMARY_PATH: resolve(tempDir, "absent-crawl.json"),
+        LATEST_BACKUP_AT: "2026-07-12T12:00:00.000Z",
+        LATEST_BACKUP_SUCCEEDED: "true",
+        MONITORING_NOW: "2026-07-12T13:00:00.000Z"
+      });
+      expect(result.status, scenario.name).not.toBe(0);
+      expect(result.stderr, scenario.name).toMatch(/BACKUP_(?:FAILED|MISSING)/u);
+    }
+
+    const emptyDir = mkdtempSync(resolve(tmpdir(), "job-finder-monitoring-backup-"));
+    const missing = runMonitoringCheck({
+      BACKUP_DIR: emptyDir,
+      HEALTHCHECK_URL: "http://127.0.0.1:9/healthz",
+      READINESS_SUMMARY_PATH: resolve(emptyDir, "absent-readiness.json"),
+      CRAWL_SUMMARY_PATH: resolve(emptyDir, "absent-crawl.json"),
+      LATEST_BACKUP_AT: "2026-07-12T12:00:00.000Z",
+      LATEST_BACKUP_SUCCEEDED: "true",
+      MONITORING_NOW: "2026-07-12T13:00:00.000Z"
+    });
+    expect(missing.stderr).toContain("BACKUP_MISSING");
+  });
+
+  it("fails closed when the newest marker-like entry or its archive is a symbolic link", () => {
+    for (const symlinkKind of ["marker", "archive"] as const) {
+      const tempDir = mkdtempSync(resolve(tmpdir(), "job-finder-monitoring-backup-symlink-"));
+      const olderArchiveName = "jobfinder-20260712T060000Z.dump";
+      const olderArchivePath = resolve(tempDir, olderArchiveName);
+      const olderArchive = Buffer.from("older-valid-backup");
+      writeFileSync(olderArchivePath, olderArchive);
+      writeFileSync(
+        `${olderArchivePath}.sha256`,
+        `${createHash("sha256").update(olderArchive).digest("hex")}  ${olderArchiveName}\n`,
+        "utf8"
+      );
+      const olderTime = new Date("2026-07-12T06:00:00.000Z");
+      utimesSync(`${olderArchivePath}.sha256`, olderTime, olderTime);
+
+      const newestArchiveName = "jobfinder-20260712T120000Z.dump";
+      const newestArchivePath = resolve(tempDir, newestArchiveName);
+      const newestMarkerPath = `${newestArchivePath}.sha256`;
+      const targetArchivePath = resolve(tempDir, "symlink-target.dump");
+      const targetMarkerPath = resolve(tempDir, "symlink-target.marker");
+      const targetArchive = Buffer.from("newest-backup-through-symlink");
+      const targetMarker = `${createHash("sha256").update(targetArchive).digest("hex")}  ${newestArchiveName}\n`;
+      writeFileSync(targetArchivePath, targetArchive);
+
+      if (symlinkKind === "marker") {
+        writeFileSync(newestArchivePath, targetArchive);
+        writeFileSync(targetMarkerPath, targetMarker, "utf8");
+        symlinkSync(targetMarkerPath, newestMarkerPath, "file");
+      } else {
+        symlinkSync(targetArchivePath, newestArchivePath, "file");
+        writeFileSync(newestMarkerPath, targetMarker, "utf8");
+      }
+
+      const result = runMonitoringCheck({
+        BACKUP_DIR: tempDir,
+        HEALTHCHECK_URL: "http://127.0.0.1:9/healthz",
+        READINESS_SUMMARY_PATH: resolve(tempDir, "absent-readiness.json"),
+        CRAWL_SUMMARY_PATH: resolve(tempDir, "absent-crawl.json"),
+        MONITORING_NOW: "2026-07-12T13:00:00.000Z"
+      });
+
+      expect(result.status, symlinkKind).not.toBe(0);
+      expect(result.stderr, symlinkKind).toMatch(/BACKUP_(?:FAILED|MISSING)/u);
+    }
+  });
+
+  it("uses a deterministic ordinal name tie-break and fails closed for an invalid equal-mtime winner", () => {
+    const tempDir = mkdtempSync(resolve(tmpdir(), "job-finder-monitoring-backup-tie-"));
+    const validArchiveName = "jobfinder-B.dump";
+    const validArchive = Buffer.from("valid-equal-mtime-backup");
+    writeFileSync(resolve(tempDir, validArchiveName), validArchive);
+    writeFileSync(
+      resolve(tempDir, `${validArchiveName}.sha256`),
+      `${createHash("sha256").update(validArchive).digest("hex")}  ${validArchiveName}\n`,
+      "utf8"
+    );
+
+    const ordinalWinnerName = "jobfinder-a.dump";
+    writeFileSync(resolve(tempDir, ordinalWinnerName), "invalid-equal-mtime-backup", "utf8");
+    writeFileSync(
+      resolve(tempDir, `${ordinalWinnerName}.sha256`),
+      `${"0".repeat(64)}  ${ordinalWinnerName}\n`,
+      "utf8"
+    );
+    const equalTime = new Date("2026-07-12T12:00:00.000Z");
+    utimesSync(resolve(tempDir, `${validArchiveName}.sha256`), equalTime, equalTime);
+    utimesSync(resolve(tempDir, `${ordinalWinnerName}.sha256`), equalTime, equalTime);
+
+    const result = runMonitoringCheck({
+      BACKUP_DIR: tempDir,
+      HEALTHCHECK_URL: "http://127.0.0.1:9/healthz",
+      READINESS_SUMMARY_PATH: resolve(tempDir, "absent-readiness.json"),
+      CRAWL_SUMMARY_PATH: resolve(tempDir, "absent-crawl.json"),
+      MONITORING_NOW: "2026-07-12T13:00:00.000Z"
+    });
+
+    expect(ordinalWinnerName > validArchiveName).toBe(true);
+    expect(result.status).not.toBe(0);
+    expect(result.stderr).toContain("BACKUP_FAILED");
+  });
+
+  it("uses the canonical marker mtime for backup staleness instead of summary claims", () => {
     const tempDir = mkdtempSync(resolve(tmpdir(), "job-finder-monitoring-"));
+    const archiveName = "jobfinder-20260707T060000Z.dump";
+    const archivePath = resolve(tempDir, archiveName);
+    const archive = Buffer.from("backup");
+    writeFileSync(archivePath, archive);
+    writeFileSync(
+      `${archivePath}.sha256`,
+      `${createHash("sha256").update(archive).digest("hex")}  ${archiveName}\n`,
+      "utf8"
+    );
+    const markerTime = new Date("2026-07-07T06:00:00.000Z");
+    utimesSync(`${archivePath}.sha256`, markerTime, markerTime);
     const readinessSummaryPath = resolve(tempDir, "readiness-summary.json");
     const crawlSummaryPath = resolve(tempDir, "crawl-summary.json");
 
     writeFileSync(
       readinessSummaryPath,
       JSON.stringify({
-        latestBackupAt: "2026-07-07T06:00:00.000Z",
+        latestBackupAt: "2026-07-08T12:59:00.000Z",
         latestBackupSucceeded: true
       }),
       "utf8"
@@ -205,6 +441,7 @@ describe("deployment configuration", () => {
           cwd: repoRoot,
           env: {
             ...process.env,
+            BACKUP_DIR: tempDir,
             HEALTHCHECK_URL: "http://127.0.0.1:9/healthz",
             READINESS_SUMMARY_PATH: readinessSummaryPath,
             CRAWL_SUMMARY_PATH: crawlSummaryPath,

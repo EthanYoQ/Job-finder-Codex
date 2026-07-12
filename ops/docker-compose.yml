@@ -45,6 +45,18 @@ services:
         read_only: true
     expose:
       - "3000"
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "fetch('http://127.0.0.1:3000/healthz').then(async response => { const body = await response.json(); if (!response.ok || body.ok !== true) process.exit(1); }).catch(() => process.exit(1))"
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 30s
     networks:
       - internal
 
@@ -192,28 +204,35 @@ services:
       context: ..
       dockerfile: Dockerfile
       args: *release-build-args
-    restart: unless-stopped
+    restart: "on-failure:3"
     command:
       [
         "sh",
         "-lc",
-        "while true; do npx tsx ops/monitoring-check.ts; sleep ${MONITOR_INTERVAL_SECONDS:-300}; done"
+        "set -eu; while true; do npx tsx ops/monitoring-check.ts; sleep ${MONITOR_INTERVAL_SECONDS:-300}; done"
       ]
     environment:
       HEALTHCHECK_URL: ${HEALTHCHECK_URL:-http://web:3000/healthz}
       DATABASE_URL: ${DATABASE_URL:-}
+      BACKUP_DIR: /backups
       MONITOR_INTERVAL_SECONDS: ${MONITOR_INTERVAL_SECONDS:-300}
-      READINESS_SUMMARY_PATH: ${READINESS_SUMMARY_PATH:-/app/var/readiness-summary.json}
-      CRAWL_SUMMARY_PATH: ${CRAWL_SUMMARY_PATH:-/app/var/crawl-summary.json}
+      READINESS_SUMMARY_PATH: ${READINESS_SUMMARY_PATH:-/app/outputs/readiness-summary.json}
+      CRAWL_SUMMARY_PATH: ${CRAWL_SUMMARY_PATH:-/app/outputs/crawl-summary.json}
     depends_on:
+      backup:
+        condition: service_healthy
       postgres:
         condition: service_healthy
       web:
-        condition: service_started
+        condition: service_healthy
     volumes:
       - type: volume
         source: formal-artifacts
         target: /app/outputs
+        read_only: true
+      - type: volume
+        source: backup-data
+        target: /backups
         read_only: true
     networks:
       - internal
