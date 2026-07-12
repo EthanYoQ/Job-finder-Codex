@@ -20,7 +20,7 @@ describe("ops monitoring alerts", () => {
       now,
       health: { ok: false, statusCode: 503 },
       backup: { latestBackupAt: "2026-07-08T10:00:00.000Z", latestBackupSucceeded: false },
-      crawl: { globalSuccessRate: 0.92, consecutiveFailuresByCompany: {} },
+      crawl: { summaryState: "VALID", globalSuccessRate: 0.92, consecutiveFailuresByCompany: {} },
       certificate: { expiresAt: "2026-08-20T00:00:00.000Z" },
       resources: { diskUsedPercent: 93, memoryUsedPercent: 91 },
       traffic: { requestsLastHour: 1200, baselineRequestsPerHour: 1000 }
@@ -44,6 +44,7 @@ describe("ops monitoring alerts", () => {
       health: { ok: true, statusCode: 200 },
       backup: { latestBackupAt: "2026-07-08T10:00:00.000Z", latestBackupSucceeded: true },
       crawl: {
+        summaryState: "VALID",
         globalSuccessRate: 0.79,
         consecutiveFailuresByCompany: {
           "company-a": 3,
@@ -76,11 +77,27 @@ describe("ops monitoring alerts", () => {
         now,
         health: { ok: true, statusCode: 200 },
         backup: { latestBackupAt: "2026-07-08T10:00:00.000Z", latestBackupSucceeded: true },
-        crawl: { globalSuccessRate: 0.95, consecutiveFailuresByCompany: { "company-a": 2 } },
+        crawl: { summaryState: "VALID", globalSuccessRate: 0.95, consecutiveFailuresByCompany: { "company-a": 2 } },
         certificate: { expiresAt: "2026-08-20T00:00:00.000Z" },
         resources: { diskUsedPercent: 62, memoryUsedPercent: 58 },
         traffic: { requestsLastHour: 1050, baselineRequestsPerHour: 1000 }
       })
     ).toEqual([]);
+  });
+
+  it.each([
+    ["MISSING", "CRAWL_SUMMARY_MISSING"],
+    ["INVALID", "CRAWL_SUMMARY_INVALID"],
+    ["STALE", "CRAWL_SUMMARY_STALE"]
+  ] as const)("fails closed for a %s crawl summary", async (summaryState, code) => {
+    const { evaluateOpsAlerts } = await loadOpsMonitoringModule();
+    const alerts = evaluateOpsAlerts({
+      now,
+      health: { ok: true, statusCode: 200 },
+      backup: { latestBackupAt: "2026-07-08T10:00:00.000Z", latestBackupSucceeded: true },
+      crawl: { summaryState, consecutiveFailuresByCompany: {} }
+    }) as OpsAlert[];
+
+    expect(alerts).toContainEqual(expect.objectContaining({ code, severity: "critical" }));
   });
 });

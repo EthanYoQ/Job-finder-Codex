@@ -13,6 +13,7 @@ const nginxPath = resolve(repoRoot, "ops/nginx.conf");
 const backupPath = resolve(repoRoot, "ops/backup.sh");
 const monitoringCheckPath = resolve(repoRoot, "ops/monitoring-check.ts");
 const httpServerPath = resolve(repoRoot, "src/server/httpServer.ts");
+const p0CrawlPath = resolve(repoRoot, "scripts/p0-crawl.ts");
 
 function readRequiredFile(path: string): string {
   expect(existsSync(path), `${path} should exist`).toBe(true);
@@ -164,6 +165,18 @@ describe("deployment configuration", () => {
     expect(script).not.toMatch(/new Socket|checkPostgresSocket/u);
     expect(script).toMatch(/process\.env/);
     expect(script).toMatch(/process\.exitCode|process\.exit\(/);
+  });
+
+  it("publishes formal crawl summaries from terminal batch results and persisted source health", () => {
+    const script = readRequiredFile(p0CrawlPath);
+
+    expect(script).toContain("runAndPublishCrawlSummary");
+    expect(script).toContain("collectConsecutiveFailuresByCompany");
+    expect(script).toContain("writeCrawlSummaryAtomic");
+    expect(script).toContain("CRAWL_SUMMARY_PATH");
+    const monitor = readRequiredFile(monitoringCheckPath);
+    expect(monitor).not.toMatch(/readNumber\(readinessSummary,\s*["']globalSuccessRate["']\)/u);
+    expect(monitor).not.toMatch(/readRecord\(readinessSummary,\s*["']consecutiveFailuresByCompany["']\)/u);
   });
 
   it("rejects a TCP listener that does not authenticate or speak the PostgreSQL protocol", async () => {

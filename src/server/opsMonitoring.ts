@@ -4,6 +4,9 @@ export type OpsAlertCode =
   | "BACKUP_FAILED"
   | "BACKUP_STALE"
   | "CRAWL_SUCCESS_BELOW_SLO"
+  | "CRAWL_SUMMARY_MISSING"
+  | "CRAWL_SUMMARY_INVALID"
+  | "CRAWL_SUMMARY_STALE"
   | "COMPANY_CONSECUTIVE_FAILURES"
   | "CERTIFICATE_EXPIRING"
   | "HIGH_DISK_USAGE"
@@ -30,6 +33,7 @@ export interface OpsAlertInput {
     latestBackupSucceeded?: boolean;
   };
   crawl: {
+    summaryState: "VALID" | "MISSING" | "INVALID" | "STALE";
     globalSuccessRate?: number;
     consecutiveFailuresByCompany: Record<string, number>;
   };
@@ -55,6 +59,16 @@ const TRAFFIC_SPIKE_MULTIPLIER = 3;
 
 export function evaluateOpsAlerts(input: OpsAlertInput): OpsAlert[] {
   const alerts: OpsAlert[] = [];
+
+  const summaryAlert = {
+    MISSING: ["CRAWL_SUMMARY_MISSING", "No crawl summary is available."],
+    INVALID: ["CRAWL_SUMMARY_INVALID", "The crawl summary is malformed or unsupported."],
+    STALE: ["CRAWL_SUMMARY_STALE", "The crawl summary is stale."]
+  } as const;
+  if (input.crawl.summaryState !== "VALID") {
+    const [code, message] = summaryAlert[input.crawl.summaryState];
+    alerts.push({ code, severity: "critical", message });
+  }
 
   if (!input.health.ok || (input.health.statusCode !== undefined && input.health.statusCode >= 500)) {
     alerts.push({

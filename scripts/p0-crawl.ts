@@ -6,6 +6,13 @@ import {
   runP0CrawlCommand
 } from "../src/crawler/p0CrawlCommand";
 import {runFormalCleanup} from "../src/crawler/formalCleanup";
+import { resolve } from "node:path";
+import {
+  buildExceptionalCrawlSummary,
+  collectConsecutiveFailuresByCompany,
+  runAndPublishCrawlSummary,
+  writeCrawlSummaryAtomic
+} from "../src/crawler/crawlSummary";
 
 function printHelp(): void {
   console.log("Usage: npm run p0:crawl -- [--force]");
@@ -38,6 +45,8 @@ const [{ candidateCompanies }, { buildSourceCrawlPlans }] = await Promise.all([
 ]);
 
 const plans = buildSourceCrawlPlans(candidateCompanies);
+const crawlSummaryPath = process.env.CRAWL_SUMMARY_PATH ?? resolve(process.cwd(), "outputs", "crawl-summary.json");
+const crawlCapturedAt = new Date();
 let identity: ReturnType<typeof requireP0RuntimeIdentity>;
 try {
   if(options.sourceIds.length>0)throw new Error("Partial diagnostic selection cannot certify formal release evidence");
@@ -58,10 +67,13 @@ try {
 const { assertFormalBrowserReady } = await import("../src/readiness/formalBrowserPreflight");
 const [{acquireFormalAdvisoryLock},{acquireFormalCrawlLock,FORMAL_CRAWL_LOCK_PATH},{unlink}]=await Promise.all([
   import("../src/crawler/formalAdvisoryLock"),import("../src/crawler/formalCrawlLock"),import("node:fs/promises")]);
-const advisoryLock=await acquireFormalAdvisoryLock({databaseUrl:process.env.DATABASE_URL??""});
+let advisoryLock:Awaited<ReturnType<typeof acquireFormalAdvisoryLock>>|undefined;
 let fileLock:Awaited<ReturnType<typeof acquireFormalCrawlLock>>|undefined;
 let prisma:{ $disconnect():Promise<void> }|undefined;
+let loadPersistedFailures:(()=>Promise<Record<string,number>>)|undefined;
+let summaryPublished=false;
 try{
+advisoryLock=await acquireFormalAdvisoryLock({databaseUrl:process.env.DATABASE_URL??""});
 fileLock=await acquireFormalCrawlLock();
 await assertFormalBrowserReady();
 
@@ -104,26 +116,52 @@ const fetch = createSourceFetchRouter({
 });
 
 prisma = new PrismaClient();
+  const runtimeDeps=createPrismaCrawlRuntimeDeps(prisma);
+  loadPersistedFailures=()=>collectConsecutiveFailuresByCompany(
+    plans.map(plan=>({companyId:plan.company.id,sourceId:plan.source.id})),
+    runtimeDeps.getRecentObservations
+  );
 
-  const result = await runP0CrawlCommand({
-    plans,
-    companies: candidateCompanies,
-    options,
+  const result = await runAndPublishCrawlSummary({
     identity,
-    db: prisma,
-    fetch,
-    now: () => new Date(),
-    syncPlannedSourcesToDb,
-    createRuntimeDeps: createPrismaCrawlRuntimeDeps,
-    runP0CrawlBatch
+    capturedAt:crawlCapturedAt,
+    run:()=>runP0CrawlCommand({
+      plans,
+      companies: candidateCompanies,
+      options,
+      identity,
+      db: prisma!,
+      fetch,
+      now: () => new Date(),
+      syncPlannedSourcesToDb,
+      createRuntimeDeps:()=>runtimeDeps,
+      runP0CrawlBatch
+    }),
+    loadConsecutiveFailuresByCompany:loadPersistedFailures,
+    publish:async summary=>{
+      await writeCrawlSummaryAtomic(crawlSummaryPath,summary);
+      summaryPublished=true;
+    }
   });
 
   console.log(formatP0CrawlResult(result));
   process.exitCode = p0CrawlBatchExitCode(result.batch);
-}finally{
+ }catch(error){
+   if(!summaryPublished){
+     let persistedFailures:Record<string,number>|null=null;
+     if(loadPersistedFailures){
+       try{persistedFailures=await loadPersistedFailures();}catch{persistedFailures=null;}
+     }
+     await writeCrawlSummaryAtomic(crawlSummaryPath,buildExceptionalCrawlSummary({
+       identity,capturedAt:crawlCapturedAt,finishedAt:new Date(),consecutiveFailuresByCompany:persistedFailures
+     }));
+     summaryPublished=true;
+   }
+   throw error;
+ }finally{
   await runFormalCleanup([
     ...(prisma?[{name:"Prisma disconnect",run:()=>prisma!.$disconnect()}]:[]),
     ...(fileLock?[{name:"filesystem lock close",run:()=>fileLock!.close()},{name:"filesystem lock unlink",run:()=>unlink(FORMAL_CRAWL_LOCK_PATH).catch(error=>{if((error as NodeJS.ErrnoException).code!=="ENOENT")throw error;})}]:[]),
-    {name:"PostgreSQL advisory lock release",run:()=>advisoryLock.release()}
+    ...(advisoryLock?[{name:"PostgreSQL advisory lock release",run:()=>advisoryLock!.release()}]:[])
   ]);
 }

@@ -4,6 +4,7 @@ import { access, lstat, open, readFile, readdir, type FileHandle } from "node:fs
 import { basename, resolve } from "node:path";
 import { evaluateOpsAlerts, type OpsAlertInput } from "../src/server/opsMonitoring";
 import { checkPostgresReadiness, DEFAULT_POSTGRES_READINESS_TIMEOUT_MS } from "../src/server/postgresReadiness";
+import { DEFAULT_CRAWL_SUMMARY_MAX_AGE_HOURS, readCrawlSummaryFile } from "../src/crawler/crawlSummary";
 
 interface JsonMap {
   [key: string]: unknown;
@@ -20,27 +21,28 @@ async function main(): Promise<void> {
   const crawlSummaryPath = process.env.CRAWL_SUMMARY_PATH ?? `${process.cwd()}/var/crawl-summary.json`;
   const certificateExpiresAt = process.env.CERTIFICATE_EXPIRES_AT;
 
-  const [health, dbReachable, backupEvidence, readinessSummary, crawlSummary] = await Promise.all([
+  const [health, dbReachable, backupEvidence, readinessSummary, crawlEvidence] = await Promise.all([
     checkHealth(healthUrl),
     checkPostgresReadiness(databaseUrl, {
       timeoutMs: Number(process.env.POSTGRES_READINESS_TIMEOUT_MS ?? DEFAULT_POSTGRES_READINESS_TIMEOUT_MS)
     }),
     readBackupEvidence(backupDir),
     readOptionalJson(readinessSummaryPath),
-    readOptionalJson(crawlSummaryPath)
+    readCrawlSummaryFile(crawlSummaryPath, {
+      now: process.env.MONITORING_NOW ? new Date(process.env.MONITORING_NOW) : new Date(),
+      maxAgeHours: Number(process.env.CRAWL_SUMMARY_MAX_AGE_HOURS ?? DEFAULT_CRAWL_SUMMARY_MAX_AGE_HOURS)
+    })
   ]);
+  const crawlSummary = crawlEvidence.state === "VALID" ? crawlEvidence.summary : undefined;
 
   const alerts = evaluateOpsAlerts({
     now: process.env.MONITORING_NOW ? new Date(process.env.MONITORING_NOW) : new Date(),
     health,
     backup: backupEvidence,
     crawl: {
-      globalSuccessRate:
-        readNumber(crawlSummary, "globalSuccessRate") ?? readNumber(readinessSummary, "globalSuccessRate"),
-      consecutiveFailuresByCompany: toFailureMap(
-        readRecord(crawlSummary, "consecutiveFailuresByCompany") ??
-          readRecord(readinessSummary, "consecutiveFailuresByCompany")
-      )
+      summaryState: crawlEvidence.state,
+      globalSuccessRate: readNumber(crawlSummary, "globalSuccessRate"),
+      consecutiveFailuresByCompany: toFailureMap(readRecord(crawlSummary, "consecutiveFailuresByCompany"))
     },
     certificate: {
       expiresAt: certificateExpiresAt ?? readString(readinessSummary, "certificateExpiresAt")
