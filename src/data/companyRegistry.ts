@@ -1,11 +1,17 @@
 import { createHash } from "node:crypto";
 import type { ATSKind, SourceKind, VerificationStatus } from "../domain/company";
+import {
+  derivePhase1Scope,
+  isUserAuthorizedPhase1Exclusion,
+  USER_AUTHORIZED_PHASE1_EXCLUSION
+} from "./phase1ScopePolicy";
 
 export type CompanyCategory = "FOREIGN_PHARMA" | "DOMESTIC_PHARMA";
 export type TargetStatus =
   | "ACTIVE"
   | "NO_PUBLIC_OFFICIAL_CAREERS_LINK_AT_CAPTURE_TIME"
-  | "BLOCKED_EVIDENCE_GAP";
+  | "BLOCKED_EVIDENCE_GAP"
+  | typeof USER_AUTHORIZED_PHASE1_EXCLUSION;
 export type OfficialSurfaceStatus = "INCLUDED" | "BLOCKED_NO_STRUCTURED_PUBLIC_SOURCE" | "BLOCKED_UNVERIFIED";
 export type IndependentOracleStatus = "RESEARCH_PENDING_INDEPENDENT_VERIFICATION" | "INDEPENDENTLY_VERIFIED";
 export type RecruitmentScope =
@@ -46,6 +52,8 @@ export interface CandidateCompany {
 
 export interface CandidatePoolStats {
   totalCandidates: number;
+  phase1InScopeCompanies: number;
+  authorizedExclusionCompanies: number;
   socialSources: number;
   campusSources: number;
   verifiedScrapableCompanies: number;
@@ -111,6 +119,7 @@ function surfaceIdFor(companyId: string, kind: "social" | "campus", index = 0): 
 }
 
 function socialSourceSeedsFor(seed: CandidateSeed): CandidateSocialSourceSeed[] {
+  if (seed.targetStatus === USER_AUTHORIZED_PHASE1_EXCLUSION) return [];
   if (seed.socialSources !== undefined) {
     const hasLegacySourceFields = [
       seed.status,
@@ -666,10 +675,8 @@ const CANDIDATE_SEEDS: CandidateSeed[] = [
     officialChineseName: "人福医药集团股份公司",
     pinyinName: "renfu-yiyao",
     category: "DOMESTIC_PHARMA",
-    status: "UNVERIFIED",
-    atsKind: "UNKNOWN",
-    officialWebsiteUrl: "http://www.humanwell.com.cn/",
-    officialChainEvidenceUrl: "http://www.humanwell.com.cn/"
+    targetStatus: USER_AUTHORIZED_PHASE1_EXCLUSION,
+    officialWebsiteUrl: "http://www.humanwell.com.cn/"
   },
   {
     id: "company-nhu",
@@ -785,10 +792,8 @@ const CANDIDATE_SEEDS: CandidateSeed[] = [
     officialChineseName: "华北制药集团有限责任公司",
     pinyinName: "huabei-zhiyao",
     category: "DOMESTIC_PHARMA",
-    status: "UNVERIFIED",
-    atsKind: "UNKNOWN",
-    officialWebsiteUrl: "https://www.ncpc.com/",
-    officialChainEvidenceUrl: "https://www.ncpc.com/"
+    targetStatus: USER_AUTHORIZED_PHASE1_EXCLUSION,
+    officialWebsiteUrl: "https://www.ncpc.com/"
   },
   {
     id: "company-3sbio",
@@ -1053,6 +1058,15 @@ export function validateStrictCompanyRegistry(
   if (surfaces.some((surface) => noLinkCompanyIds.has(surface.companyId))) {
     errors.push("NO_LINK_COMPANY_HAS_SURFACE");
   }
+  try {
+    const scope = derivePhase1Scope(companies);
+    const excludedIds = new Set(scope.authorizedExclusionCompanies.map(({ id }) => id));
+    if (surfaces.some((surface) => excludedIds.has(surface.companyId))) {
+      errors.push("AUTHORIZED_PHASE1_EXCLUSION_HAS_SURFACE");
+    }
+  } catch {
+    errors.push("INVALID_PHASE1_SCOPE_POLICY");
+  }
   if (surfaces.some((surface) => surface.legalEntityScope.length === 0 || surface.businessUnitScope.length === 0 || surface.brandScope.length === 0)) errors.push("EMPTY_SURFACE_SCOPE");
   if (surfaces.some((surface) => surface.channels.length === 0)) errors.push("EMPTY_SURFACE_CHANNELS");
   if (surfaces.some((surface) => surface.oracleStatus === "INDEPENDENTLY_VERIFIED" && hasUnresolvedSurfaceScope(surface))) errors.push("VERIFIED_SURFACE_HAS_UNRESOLVED_SCOPE");
@@ -1128,14 +1142,19 @@ function isValidHttpUrl(value: unknown): value is string {
 export function getSocialSources(
   companies: readonly CandidateCompany[]
 ): CandidateRecruitmentSource[] {
-  return companies.flatMap((company) => company.sources).filter((source) => source.kind === "SOCIAL");
+  return companies
+    .filter((company) => !isUserAuthorizedPhase1Exclusion(company.id))
+    .flatMap((company) => company.sources)
+    .filter((source) => source.kind === "SOCIAL");
 }
 
 export function getCandidatePoolStats(
   companies: readonly CandidateCompany[],
   officialSurfaces: readonly ExpectedOfficialRecruitmentSurface[] = expectedOfficialSurfaces
 ): CandidatePoolStats {
-  const sources = companies.flatMap((company) => company.sources);
+  const scope = derivePhase1Scope(companies);
+  const inScopeCompanies = scope.inScopeCompanies;
+  const sources = inScopeCompanies.flatMap((company) => company.sources);
   const activeSurfaceIds = new Set(
     officialSurfaces
       .filter((surface) =>
@@ -1150,7 +1169,7 @@ export function getCandidatePoolStats(
       )
       .map((surface) => surface.surfaceId)
   );
-  const verifiedScrapableCompanies = companies.filter((company) =>
+  const verifiedScrapableCompanies = inScopeCompanies.filter((company) =>
     company.sources.some(
       (source) =>
         source.kind === "SOCIAL" &&
@@ -1167,13 +1186,13 @@ export function getCandidatePoolStats(
     socialSources.flatMap((source) => source.surfaceId ? [source.surfaceId] : [])
   );
   const expectedSocialSurfaceIds = new Set(expectedSocialSurfaces.map((surface) => surface.surfaceId));
-  const noLinkCompaniesAreEmpty = companies
+  const noLinkCompaniesAreEmpty = inScopeCompanies
     .filter((company) => company.targetStatus === "NO_PUBLIC_OFFICIAL_CAREERS_LINK_AT_CAPTURE_TIME")
     .every((company) =>
       company.sources.length === 0 &&
       !officialSurfaces.some((surface) => surface.companyId === company.id)
     );
-  const linkedCompaniesAreReady = companies
+  const linkedCompaniesAreReady = inScopeCompanies
     .filter((company) => company.targetStatus !== "NO_PUBLIC_OFFICIAL_CAREERS_LINK_AT_CAPTURE_TIME")
     .every((company) =>
       company.targetStatus !== "BLOCKED_EVIDENCE_GAP" &&
@@ -1195,6 +1214,8 @@ export function getCandidatePoolStats(
 
   return {
     totalCandidates: companies.length,
+    phase1InScopeCompanies: scope.inScopeCompanies.length,
+    authorizedExclusionCompanies: scope.authorizedExclusionCount,
     socialSources: socialSources.length,
     campusSources: sources.filter((source) => source.kind === "CAMPUS").length,
     verifiedScrapableCompanies,

@@ -1,6 +1,7 @@
 import type { SourceCrawlPlan } from "../crawler/sourcePlan";
 import type { CandidateCompany } from "../data/companyRegistry";
 import { assertExactConfirmedCompanyRosterV3 } from "../data/confirmedCompanyRosterV3";
+import { derivePhase1Scope, isUserAuthorizedPhase1Exclusion } from "../data/phase1ScopePolicy";
 
 export interface CompanyRegistrySyncResult {
   companyCount: number;
@@ -67,12 +68,16 @@ export async function syncPlannedSourcesToDb(
   const companyById = new Map(companies.map((company) => [company.id, company]));
   if (companyById.size !== companies.length) throw new Error("Supplied company roster contains duplicate ids");
   assertExactConfirmedCompanyRosterV3(companies.map(({ id, category }) => ({ id, category })));
+  derivePhase1Scope(companies);
   const orderedCompanies = [...companies].sort((left, right) => compareUtf8(left.id, right.id));
   const rosterSourceById = new Map<string, CandidateCompany["sources"][number]>();
   for (const company of orderedCompanies) {
     requireHttpUrl(company.officialWebsiteUrl, `${company.id} officialWebsiteUrl`);
     if (company.targetStatus === "NO_PUBLIC_OFFICIAL_CAREERS_LINK_AT_CAPTURE_TIME" && company.sources.length > 0) {
       throw new Error(`${company.id} is a no-link company and must have zero sources`);
+    }
+    if (isUserAuthorizedPhase1Exclusion(company.id) && company.sources.length > 0) {
+      throw new Error(`${company.id} is an authorized Phase 1 exclusion and must have zero sources`);
     }
     for (const source of company.sources) {
       if (rosterSourceById.has(source.id)) throw new Error(`Duplicate roster source id: ${source.id}`);
@@ -87,6 +92,9 @@ export async function syncPlannedSourcesToDb(
     sourceIds.add(plan.source.id);
     const company = companyById.get(plan.company.id);
     if (!company) throw new Error(`${plan.company.id} is missing from candidateCompanies`);
+    if (isUserAuthorizedPhase1Exclusion(company.id)) {
+      throw new Error(`${company.id} is an authorized Phase 1 exclusion and cannot own a crawl plan`);
+    }
     if (plan.company.category !== company.category) {
       throw new Error(`${plan.company.id} has mismatched plan category`);
     }

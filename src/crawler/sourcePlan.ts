@@ -7,6 +7,10 @@ import {
   type ExpectedOfficialRecruitmentSurface,
   type ExpectedRecruitmentChannel
 } from "../data/companyRegistry";
+import {
+  isUserAuthorizedPhase1Exclusion,
+  USER_AUTHORIZED_PHASE1_EXCLUSION
+} from "../data/phase1ScopePolicy";
 import type { HtmlTableConfig, OfficialJsonConfig } from "./adapters/types";
 import type { HotjobWecruitFetchConfig } from "./hotjobWecruitSourceFetch";
 import type { HotjobLegacyFetchConfig } from "./hotjobLegacySourceFetch";
@@ -1303,6 +1307,9 @@ function buildPlans(
 ): SourceCrawlPlan[] {
   const oracleBySurfaceId = new Map(surfaces.map((surface) => [surface.surfaceId, surface]));
   return companies.flatMap((company) =>
+    isUserAuthorizedPhase1Exclusion(company.id) || company.targetStatus === USER_AUTHORIZED_PHASE1_EXCLUSION
+      ? []
+      :
     company.sources.flatMap((source): SourceCrawlPlan[] => {
       if (
         source.kind !== "SOCIAL" ||

@@ -3,6 +3,7 @@ import type { CandidateCompany } from "../../src/data/companyRegistry";
 import type { SourceCrawlPlan } from "../../src/crawler/sourcePlan";
 import { syncPlannedSourcesToDb } from "../../src/db/companyRegistrySync";
 import { confirmedCompanyRosterV3Members } from "../../src/data/confirmedCompanyRosterV3";
+import { USER_AUTHORIZED_PHASE1_EXCLUSION } from "../../src/data/phase1ScopePolicy";
 
 const firstMember = confirmedCompanyRosterV3Members[0]!;
 const plannedCompany: CandidateCompany = {
@@ -28,7 +29,10 @@ const plannedCompany: CandidateCompany = {
 const rosterCompanies: CandidateCompany[] = confirmedCompanyRosterV3Members.map((member, index) => index === 0
   ? plannedCompany
   : { id: member.id, officialChineseName: `药企${index}`, officialWebsiteUrl: `https://company-${index}.example.com`,
-      pinyinName: `company-${index}`, category: member.category, targetStatus: "BLOCKED_EVIDENCE_GAP", sources: [] });
+      pinyinName: `company-${index}`, category: member.category,
+      targetStatus: member.id === "company-humanwell" || member.id === "company-north-china-pharma"
+        ? USER_AUTHORIZED_PHASE1_EXCLUSION : "BLOCKED_EVIDENCE_GAP",
+      sources: [] });
 
 const plan: SourceCrawlPlan = {
   adapterId: "official-json",
@@ -181,6 +185,27 @@ describe("syncPlannedSourcesToDb", () => {
     expect(db.$transaction).not.toHaveBeenCalled();
     expect(db.company.upsert).not.toHaveBeenCalled();
     expect(db.recruitmentSource.upsert).not.toHaveBeenCalled();
+  });
+
+  it.each(["source", "plan"] as const)("rejects an authorized exclusion carrying a %s before writes", async (kind) => {
+    const excluded = rosterCompanies.find((company) => company.id === "company-humanwell")!;
+    const excludedSource = { ...plannedCompany.sources[0]!, id: "source-humanwell-social", companyId: excluded.id };
+    const companies = rosterCompanies.map((company) => company.id === excluded.id
+      ? { ...company, sources: [excludedSource] }
+      : company);
+    const excludedPlan = {
+      ...plan,
+      company: { ...plan.company, id: excluded.id, officialChineseName: excluded.officialChineseName, category: excluded.category },
+      source: { ...plan.source, id: excludedSource.id, companyId: excluded.id }
+    };
+    const db = fakeDb();
+
+    await expect(syncPlannedSourcesToDb(
+      kind === "plan" ? [plan, excludedPlan] : [plan],
+      companies,
+      db as never
+    )).rejects.toThrow(/authorized exclusion|phase 1 exclusion|humanwell/i);
+    expect(db.$transaction).not.toHaveBeenCalled();
   });
 
   it.each([

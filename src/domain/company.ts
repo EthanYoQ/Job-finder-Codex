@@ -83,6 +83,7 @@ export interface Company {
   targetStatus:
     | "ACTIVE"
     | "NO_PUBLIC_OFFICIAL_CAREERS_LINK_AT_CAPTURE_TIME"
-    | "BLOCKED_EVIDENCE_GAP";
+    | "BLOCKED_EVIDENCE_GAP"
+    | typeof import("../data/phase1ScopePolicy").USER_AUTHORIZED_PHASE1_EXCLUSION;
   sources: RecruitmentSource[];
 }

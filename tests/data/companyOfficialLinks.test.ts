@@ -4,6 +4,8 @@ import type {
   CandidateCompany,
   ExpectedOfficialRecruitmentSurface
 } from "../../src/data/companyRegistry";
+import { confirmedCompanyRosterV3Members } from "../../src/data/confirmedCompanyRosterV3";
+import { USER_AUTHORIZED_PHASE1_EXCLUSION } from "../../src/data/phase1ScopePolicy";
 
 const NO_LINK_STATUS = "NO_PUBLIC_OFFICIAL_CAREERS_LINK_AT_CAPTURE_TIME";
 
@@ -19,7 +21,7 @@ interface SyntheticCandidateSeed {
   officialChineseName: string;
   pinyinName: string;
   category: "FOREIGN_PHARMA" | "DOMESTIC_PHARMA";
-  targetStatus?: "ACTIVE" | typeof NO_LINK_STATUS;
+  targetStatus?: "ACTIVE" | typeof NO_LINK_STATUS | typeof USER_AUTHORIZED_PHASE1_EXCLUSION;
   officialWebsiteUrl: string;
   socialEntryUrl?: string;
   officialChainEvidenceUrl?: string;
@@ -43,7 +45,8 @@ function requireRegistryBuilder(): RegistryBuilder {
 
 function makeSyntheticSeeds(options: { secondSourceForFirstLinked?: boolean } = {}): SyntheticCandidateSeed[] {
   return Array.from({ length: 60 }, (_, index) => {
-    const noLink = index >= 58;
+    const member = confirmedCompanyRosterV3Members[index]!;
+    const authorizedExclusion = member.id === "company-humanwell" || member.id === "company-north-china-pharma";
     const companyNumber = index + 1;
     const source = (suffix: string): SyntheticSocialSourceSeed => ({
       status: "VERIFIED_SCRAPABLE",
@@ -53,13 +56,13 @@ function makeSyntheticSeeds(options: { secondSourceForFirstLinked?: boolean } = 
     });
 
     return {
-      id: `company-synthetic-${companyNumber}`,
+      id: member.id,
       officialChineseName: `合成药企${companyNumber}`,
       pinyinName: `synthetic-${companyNumber}`,
-      category: index < 30 ? "FOREIGN_PHARMA" : "DOMESTIC_PHARMA",
-      targetStatus: noLink ? NO_LINK_STATUS : "ACTIVE",
+      category: member.category,
+      targetStatus: authorizedExclusion ? USER_AUTHORIZED_PHASE1_EXCLUSION : "ACTIVE",
       officialWebsiteUrl: `https://company-${companyNumber}.example.com/`,
-      ...(noLink
+      ...(authorizedExclusion
         ? {}
         : {
             socialSources:
@@ -89,16 +92,16 @@ function fullyResolveSurface(
 }
 
 describe("official-link registry cardinality", () => {
-  it("validates a 30+30 roster with two exact no-link companies and 58 linked companies", () => {
+  it("validates a 30+30 roster with two exact authorized exclusions and 58 linked companies", () => {
     const built = requireRegistryBuilder()(makeSyntheticSeeds());
 
     expect(built.companies).toHaveLength(60);
     expect(built.companies.filter((company) => company.category === "FOREIGN_PHARMA")).toHaveLength(30);
     expect(built.companies.filter((company) => company.category === "DOMESTIC_PHARMA")).toHaveLength(30);
-    expect(built.companies.filter((company) => company.targetStatus === NO_LINK_STATUS)).toHaveLength(2);
+    expect(built.companies.filter((company) => company.targetStatus === USER_AUTHORIZED_PHASE1_EXCLUSION)).toHaveLength(2);
     expect(
       built.companies
-        .filter((company) => company.targetStatus === NO_LINK_STATUS)
+        .filter((company) => company.targetStatus === USER_AUTHORIZED_PHASE1_EXCLUSION)
         .every((company) => company.sources.length === 0)
     ).toBe(true);
     expect(built.surfaces).toHaveLength(58);
@@ -211,7 +214,7 @@ describe("official-link registry cardinality", () => {
     };
 
     expect(() => requireRegistryBuilder()(seeds)).toThrowError(
-      "CONFLICTING_SOCIAL_SOURCE_FIELDS:company-synthetic-60"
+      "CONFLICTING_SOCIAL_SOURCE_FIELDS:company-yangzijiang"
     );
   });
 });

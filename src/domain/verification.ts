@@ -5,6 +5,10 @@ import type {
   RequiredJobField
 } from "./company";
 import { assertExactConfirmedCompanyRosterV3 } from "../data/confirmedCompanyRosterV3";
+import {
+  derivePhase1Scope,
+  USER_AUTHORIZED_PHASE1_EXCLUSION
+} from "../data/phase1ScopePolicy";
 
 const REQUIRED_FIELDS: RequiredJobField[] = [
   "company",
@@ -66,6 +70,7 @@ export function countVerifiedCompanies(
   observationsBySource: Record<string, CrawlObservation[]>
 ): number {
   return companies.filter((company) =>
+    company.targetStatus !== USER_AUTHORIZED_PHASE1_EXCLUSION &&
     company.sources.some((source) =>
       isVerifiedScrapable(source, observationsBySource[source.id] ?? [])
     )
@@ -78,8 +83,10 @@ export function canLaunchP0(
   configuredSourceIds: ReadonlySet<string>
 ): boolean {
   if (!hasExactP0Roster(companies)) return false;
+  let inScopeCompanies: Company[];
+  try { inScopeCompanies = derivePhase1Scope(companies).inScopeCompanies; } catch { return false; }
   if (!configuredSourceIds) return false;
-  const requiredSources = companies.flatMap((company) =>
+  const requiredSources = inScopeCompanies.flatMap((company) =>
     company.sources.filter((source) => source.kind === "SOCIAL").map((source) => ({ company, source }))
   );
   const requiredSourceIds = requiredSources.map(({ source }) => source.id);
@@ -88,7 +95,7 @@ export function canLaunchP0(
       configuredSourceIds.size !== requiredSourceIds.length ||
       requiredSourceIds.some((sourceId) => !configuredSourceIds.has(sourceId))) return false;
 
-  return companies.every((company) => {
+  return inScopeCompanies.every((company) => {
     if (company.targetStatus === "BLOCKED_EVIDENCE_GAP") return false;
     if (company.targetStatus === "NO_PUBLIC_OFFICIAL_CAREERS_LINK_AT_CAPTURE_TIME") {
       return false;

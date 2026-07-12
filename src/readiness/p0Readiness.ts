@@ -1,5 +1,6 @@
 import { buildSourceCrawlPlans } from "../crawler/sourcePlan";
 import { candidateCompanies, type CandidateCompany } from "../data/companyRegistry";
+import { derivePhase1Scope } from "../data/phase1ScopePolicy";
 import type {
   CrawlObservation,
   RecruitmentSource,
@@ -18,7 +19,8 @@ export type P0ReadinessBlockerCode =
   | "BLOCKING_EVIDENCE_GAP"
   | "NO_LINK_AUTHORITY_MISSING"
   | "INVALID_COMPANY_OFFICIAL_LINK_STATUS"
-  | "INVALID_SOURCE_GRAPH";
+  | "INVALID_SOURCE_GRAPH"
+  | "INVALID_PHASE1_SCOPE_POLICY";
 
 export interface P0ReadinessBlocker {
   code: P0ReadinessBlockerCode;
@@ -35,6 +37,8 @@ export interface P0ReadinessReport {
   totalCandidates: number;
   foreignPharmaCompanies: number;
   domesticPharmaCompanies: number;
+  phase1InScopeCompanies: number;
+  authorizedExclusionCompanies: number;
   requiredOfficialLinkSources: number;
   plannedOfficialLinkSources: number;
   crawlEvidencedOfficialLinkSources: number;
@@ -60,7 +64,17 @@ export interface P0ReadinessInput {
 
 export function getP0ReadinessReport(input: P0ReadinessInput = {}): P0ReadinessReport {
   const companies = input.companies ?? candidateCompanies;
-  const sourceGraph = validateSourceGraph(companies);
+  let policyError: Error | undefined;
+  let inScopeCompanies: readonly CandidateCompany[] = companies;
+  let authorizedExclusionCount = 0;
+  try {
+    const scope = derivePhase1Scope(companies);
+    inScopeCompanies = scope.inScopeCompanies;
+    authorizedExclusionCount = scope.authorizedExclusionCount;
+  } catch (error) {
+    policyError = error instanceof Error ? error : new Error("Invalid Phase 1 scope policy");
+  }
+  const sourceGraph = validateSourceGraph(inScopeCompanies);
   const activeSourceIds = new Set(buildSourceCrawlPlans(companies).map((plan) => plan.source.id));
   const configuredSourceIds = input.configuredSourceIds
     ? new Set([...input.configuredSourceIds].filter((sourceId) => activeSourceIds.has(sourceId)))
@@ -88,11 +102,11 @@ export function getP0ReadinessReport(input: P0ReadinessInput = {}): P0ReadinessR
           )
         : false;
   }).length;
-  const noPublicOfficialCareersLinkCompanies = companies.filter((company) =>
+  const noPublicOfficialCareersLinkCompanies = inScopeCompanies.filter((company) =>
     company.targetStatus === "NO_PUBLIC_OFFICIAL_CAREERS_LINK_AT_CAPTURE_TIME").length;
-  const blockingEvidenceGapCompanies = companies.filter((company) =>
+  const blockingEvidenceGapCompanies = inScopeCompanies.filter((company) =>
     company.targetStatus === "BLOCKED_EVIDENCE_GAP").length;
-  const invalidStatusCompanies = companies.filter((company) => {
+  const invalidStatusCompanies = inScopeCompanies.filter((company) => {
     if (company.targetStatus === "NO_PUBLIC_OFFICIAL_CAREERS_LINK_AT_CAPTURE_TIME") return company.sources.length > 0;
     if (company.targetStatus === "BLOCKED_EVIDENCE_GAP") return false;
     const socialSources = company.sources.filter((source) => source.kind === "SOCIAL");
@@ -110,13 +124,16 @@ export function getP0ReadinessReport(input: P0ReadinessInput = {}): P0ReadinessR
     blockingEvidenceGapCompanies,
     noPublicOfficialCareersLinkCompanies,
     invalidStatusCompanies,
-    sourceGraphIssueCount: sourceGraph.issueCount
+    sourceGraphIssueCount: sourceGraph.issueCount,
+    ...(policyError ? { policyError } : {})
   });
 
   return {
     totalCandidates: companies.length,
     foreignPharmaCompanies: companies.filter((company) => company.category === "FOREIGN_PHARMA").length,
     domesticPharmaCompanies: companies.filter((company) => company.category === "DOMESTIC_PHARMA").length,
+    phase1InScopeCompanies: inScopeCompanies.length,
+    authorizedExclusionCompanies: authorizedExclusionCount,
     requiredOfficialLinkSources: requiredOfficialLinkSources.length,
     plannedOfficialLinkSources: plannedOfficialLinkSources.length,
     crawlEvidencedOfficialLinkSources,
@@ -164,7 +181,8 @@ function buildBlockers({
   blockingEvidenceGapCompanies,
   noPublicOfficialCareersLinkCompanies,
   invalidStatusCompanies,
-  sourceGraphIssueCount
+  sourceGraphIssueCount,
+  policyError
 }: {
   companies: readonly CandidateCompany[];
   plannedOfficialLinkSourceCount: number;
@@ -174,6 +192,7 @@ function buildBlockers({
   noPublicOfficialCareersLinkCompanies: number;
   invalidStatusCompanies: readonly CandidateCompany[];
   sourceGraphIssueCount: number;
+  policyError?: Error;
 }): P0ReadinessBlocker[] {
   const blockers: P0ReadinessBlocker[] = [];
 
@@ -183,6 +202,11 @@ function buildBlockers({
       message: `P0 roster must contain exactly ${P0_REQUIRED_COMPANIES} unique companies with 30 foreign and 30 domestic; current total is ${companies.length}.`
     });
   }
+
+  if (policyError) blockers.push({
+    code: "INVALID_PHASE1_SCOPE_POLICY",
+    message: policyError.message
+  });
 
   if (crawlEvidencedOfficialLinkSources !== plannedOfficialLinkSourceCount) {
     blockers.push({

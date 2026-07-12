@@ -39,6 +39,15 @@ describe("60-company pharma registry", () => {
     expect(candidateCompanies).toHaveLength(60);
     expect(foreignCompanies).toHaveLength(30);
     expect(domesticCompanies).toHaveLength(30);
+    expect(candidateCompanies.filter((company) =>
+      company.targetStatus === "USER_AUTHORIZED_PHASE1_EXCLUSION"
+    ).map((company) => company.id).sort()).toEqual([
+      "company-humanwell",
+      "company-north-china-pharma"
+    ]);
+    expect(candidateCompanies.filter((company) =>
+      company.targetStatus === "USER_AUTHORIZED_PHASE1_EXCLUSION"
+    ).every((company) => company.sources.length === 0)).toBe(true);
   });
 
   it("excludes device, life-science tool, consumer-health, and pure diagnostics companies", () => {
@@ -98,6 +107,10 @@ describe("60-company pharma registry", () => {
     const stats = getCandidatePoolStats(candidateCompanies);
 
     expect(stats.totalCandidates).toBe(60);
+    expect(stats.authorizedExclusionCompanies).toBe(2);
+    expect(stats.phase1InScopeCompanies).toBe(
+      stats.totalCandidates - stats.authorizedExclusionCompanies
+    );
     expect(stats.socialSources).toBe(getSocialSources(candidateCompanies).length);
     expect(stats.verifiedScrapableCompanies).toBeLessThan(60);
     expect(stats.canLaunchP0).toBe(false);

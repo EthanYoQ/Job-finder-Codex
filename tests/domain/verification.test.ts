@@ -49,14 +49,16 @@ function createCompany(
   sourceOverrides: Partial<RecruitmentSource> = {}
 ): Company {
   const rosterMember = confirmedCompanyRosterV3Members[index];
+  const authorizedExclusion = rosterMember?.id === "company-humanwell" ||
+    rosterMember?.id === "company-north-china-pharma";
   return {
     id: rosterMember?.id ?? `company-extra-${index}`,
     officialChineseName: `测试药企${index}`,
     officialWebsiteUrl: `https://example-${index}.com`,
     pinyinName: `ce shi yao qi ${index}`,
     category: rosterMember?.category ?? "DOMESTIC_PHARMA",
-      targetStatus: "ACTIVE",
-    sources: [
+    targetStatus: authorizedExclusion ? "USER_AUTHORIZED_PHASE1_EXCLUSION" : "ACTIVE",
+    sources: authorizedExclusion ? [] : [
       createSource({
         id: `source-${index}`,
         companyId: rosterMember?.id ?? `company-extra-${index}`,
@@ -252,14 +254,9 @@ describe("verified scrapable gate", () => {
     expect(isVerifiedScrapable(verifiedSource, observations)).toBe(true);
   });
 
-  it("keeps static launch fail-closed for 58 evidenced sources plus two unsigned no-link companies", () => {
+  it("keeps two authorized exclusions outside verified completeness and launch blocking", () => {
     const companies: Company[] = Array.from({ length: 60 }, (_, index) => {
-      const company = createCompany(index, { status: "VERIFIED_SCRAPABLE" });
-      return index < 58 ? company : {
-        ...company,
-        targetStatus: "NO_PUBLIC_OFFICIAL_CAREERS_LINK_AT_CAPTURE_TIME",
-        sources: []
-      };
+      return createCompany(index, { status: "VERIFIED_SCRAPABLE" });
     });
     const observationsBySource = Object.fromEntries(
       companies.flatMap((company) => {
@@ -270,7 +267,7 @@ describe("verified scrapable gate", () => {
     );
 
     expect(countVerifiedCompanies(companies, observationsBySource)).toBe(58);
-    expect(canLaunchP0(companies, observationsBySource, configuredSourceIds(companies))).toBe(false);
+    expect(canLaunchP0(companies, observationsBySource, configuredSourceIds(companies))).toBe(true);
   });
 
   it("rejects an exact confirmed 30+30 caller roster when all no-link adjudications lack startup-v3 authority", () => {
@@ -324,13 +321,14 @@ describe("verified scrapable gate", () => {
       })
     );
     const observationsBySource = Object.fromEntries(
-      companies.map((company) => {
+      companies.flatMap((company) => {
+        if (company.sources.length === 0) return [];
         const sourceId = company.sources[0]!.id;
-        return [sourceId, createVerifiedObservationPair(sourceId)];
+        return [[sourceId, createVerifiedObservationPair(sourceId)]];
       })
     );
 
-    expect(countVerifiedCompanies(companies, observationsBySource)).toBe(61);
+    expect(countVerifiedCompanies(companies, observationsBySource)).toBe(59);
     expect(canLaunchP0(companies, observationsBySource, configuredSourceIds(companies))).toBe(false);
   });
 

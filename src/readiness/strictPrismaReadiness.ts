@@ -6,6 +6,7 @@ import {
   type StrictReadinessBatch
 } from "./strictPersistedReadiness";
 import { getP0DataQualityReport } from "./dataQuality";
+import { isUserAuthorizedPhase1Exclusion } from "../data/phase1ScopePolicy";
 
 export interface StrictPrismaReadinessDb {
   crawlBatch: { findMany(args: Record<string, unknown>): Promise<StrictPrismaBatchRow[]> };
@@ -138,6 +139,8 @@ export async function getStrictP0ReadinessReportFromDb(db: StrictPrismaReadiness
   return {totalCandidates:expected.companyAudits.length,
     foreignPharmaCompanies:expected.companyAudits.filter(audit=>audit.category==="FOREIGN_PHARMA").length,
     domesticPharmaCompanies:expected.companyAudits.filter(audit=>audit.category==="DOMESTIC_PHARMA").length,
+    phase1InScopeCompanies:expected.companyAudits.filter(audit=>!isUserAuthorizedPhase1Exclusion(audit.companyId)).length,
+    authorizedExclusionCompanies:expected.companyAudits.filter(audit=>isUserAuthorizedPhase1Exclusion(audit.companyId)).length,
     requiredOfficialLinkSources:expectedSourceIds.length,plannedOfficialLinkSources:expected.plannedSourceIds.length,
     crawlEvidencedOfficialLinkSources:evidencedSourceIds.size,
     noPublicOfficialCareersLinkCompanies:expected.companyAudits.filter(audit=>audit.status==="NO_PUBLIC_OFFICIAL_CAREERS_LINK_AT_CAPTURE_TIME").length,

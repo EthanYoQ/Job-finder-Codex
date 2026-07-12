@@ -3,6 +3,7 @@ import { candidateCompanies } from "../../src/data/companyRegistry";
 import { getP0ReadinessReport } from "../../src/readiness/p0Readiness";
 import { confirmedCompanyRosterV3Members } from "../../src/data/confirmedCompanyRosterV3";
 import type { CandidateCompany, CandidateRecruitmentSource } from "../../src/data/companyRegistry";
+import { USER_AUTHORIZED_PHASE1_EXCLUSION } from "../../src/data/phase1ScopePolicy";
 
 const firstRosterMember = confirmedCompanyRosterV3Members[0]!;
 const secondRosterMember = confirmedCompanyRosterV3Members[1]!;
@@ -14,17 +15,19 @@ function exactRosterWithSources(entries: Readonly<Record<string, CandidateRecrui
   return confirmedCompanyRosterV3Members.map((member, index) => ({
     id: member.id, officialChineseName: `药企${index}`, officialWebsiteUrl: `https://company-${index}.example.com`,
     pinyinName: `company-${index}`, category: member.category,
-    targetStatus: entries[member.id] ? "ACTIVE" : "NO_PUBLIC_OFFICIAL_CAREERS_LINK_AT_CAPTURE_TIME",
+    targetStatus: member.id === "company-humanwell" || member.id === "company-north-china-pharma"
+      ? USER_AUTHORIZED_PHASE1_EXCLUSION
+      : entries[member.id] ? "ACTIVE" : "BLOCKED_EVIDENCE_GAP",
     sources: [...(entries[member.id] ?? [])]
   }));
 }
 
 describe("P0 readiness report", () => {
-  it("blocks an exact confirmed 30+30 caller roster whose no-link adjudications lack startup-v3 authority", () => {
+  it("blocks an exact confirmed 30+30 caller roster with ordinary in-scope evidence gaps", () => {
     const report = getP0ReadinessReport({ companies: exactRosterWithSources({}) });
 
     expect(report.canLaunchP0).toBe(false);
-    expect(report.blockers.map((blocker) => blocker.code)).toContain("NO_LINK_AUTHORITY_MISSING");
+    expect(report.blockers.map((blocker) => blocker.code)).toContain("BLOCKING_EVIDENCE_GAP");
   });
 
   it("reports the exact roster and dynamic official-link denominator", () => {
@@ -33,6 +36,11 @@ describe("P0 readiness report", () => {
     expect(report.totalCandidates).toBe(60);
     expect(report.foreignPharmaCompanies).toBe(30);
     expect(report.domesticPharmaCompanies).toBe(30);
+    expect(report.authorizedExclusionCompanies).toBe(2);
+    expect(report.phase1InScopeCompanies).toBe(
+      report.totalCandidates - report.authorizedExclusionCompanies
+    );
+    expect(report.noPublicOfficialCareersLinkCompanies).toBe(0);
     expect(report.requiredOfficialLinkSources).toBeGreaterThanOrEqual(report.plannedOfficialLinkSources);
     expect(report.crawlEvidencedOfficialLinkSources).toBeLessThanOrEqual(report.requiredOfficialLinkSources);
     expect(report).not.toHaveProperty("requiredVerifiedCompanies");
@@ -43,9 +51,9 @@ describe("P0 readiness report", () => {
   it("blocks every research-pending source from active planning", () => {
     const report = getP0ReadinessReport();
 
-    expect(report.requiredOfficialLinkSources).toBe(60);
+    expect(report.requiredOfficialLinkSources).toBe(report.phase1InScopeCompanies);
     expect(report.plannedOfficialLinkSources).toBe(0);
-    expect(report.sourcePlanOmissions).toHaveLength(60);
+    expect(report.sourcePlanOmissions).toHaveLength(report.phase1InScopeCompanies);
     expect(report.blockers.map((blocker) => blocker.code)).toContain(
       "VERIFIED_SOURCE_WITHOUT_CRAWL_PLAN"
     );
