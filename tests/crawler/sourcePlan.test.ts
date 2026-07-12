@@ -322,7 +322,7 @@ describe("source crawl planning", () => {
       adapterId: "official-json",
       source: {
         atsKind: "OFFICIAL_JSON",
-        officialEntryUrl: "https://careers.ucb.com/global/en/search-results?keywords=China"
+        officialEntryUrl: "https://careers.ucb.com/global/en/search-results?qcountry=China"
       },
       officialJsonFetch: {
         kind: "phenom",
@@ -330,6 +330,25 @@ describe("source crawl planning", () => {
         pageSize: 50
       }
     });
+
+    expect(getPlanBySourceId(plans, "source-hengrui-social")?.source).toMatchObject({
+      officialEntryUrl: "https://app.mokahr.com/social-recruitment/hengrui/145996#/jobs",
+      officialChainEvidenceUrl: "https://www.hengrui.com/development/joinUs.html"
+    });
+    expect(getPlanBySourceId(plans, "source-tianjin-pharma-social")?.source).toMatchObject({
+      officialEntryUrl: "https://tjph.zhiye.com/social",
+      officialChainEvidenceUrl: "https://www.pharm.com.cn/"
+    });
+
+    const plannedUrls = plans.flatMap((plan) => [
+      plan.source.officialEntryUrl,
+      plan.source.officialChainEvidenceUrl
+    ]);
+    expect(plannedUrls).not.toContain("https://careers.ucb.com/global/en/search-results?keywords=China");
+    expect(plannedUrls).not.toContain("https://www.hengrui.com/development/recruit.html");
+    expect(plannedUrls).not.toContain("https://tjph1.zhiye.com/social/jobs");
+    expect(plannedUrls).not.toContain("https://www.pharm.com.cn/career/join.html");
+    expect(plannedUrls).not.toContain("https://www.xhzy.com/XYZP/index.html");
     expect(getPlanBySourceId(plans, "source-qilu-social")).toMatchObject({
       adapterId: "official-json",
       source: {

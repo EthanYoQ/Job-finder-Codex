@@ -519,7 +519,7 @@ const CANDIDATE_SEEDS: CandidateSeed[] = [
     status: "VERIFIED_SCRAPABLE",
     atsKind: "OFFICIAL_JSON",
     officialWebsiteUrl: "https://www.ucb.com/",
-    socialEntryUrl: "https://careers.ucb.com/global/en/search-results?keywords=China",
+    socialEntryUrl: "https://careers.ucb.com/global/en/search-results?qcountry=China",
     officialChainEvidenceUrl: "https://careers.ucb.com/"
   },
   {
@@ -611,8 +611,8 @@ const CANDIDATE_SEEDS: CandidateSeed[] = [
     atsKind: "MOKA",
     officialWebsiteUrl: "https://www.hengrui.com/",
     socialEntryUrl: "https://app.mokahr.com/social-recruitment/hengrui/145996#/jobs",
-    officialChainEvidenceUrl: "https://www.hengrui.com/development/recruit.html",
-    campusEntryUrl: "https://www.hengrui.com/development/recruit.html"
+    officialChainEvidenceUrl: "https://www.hengrui.com/development/joinUs.html",
+    campusEntryUrl: "https://app.mokahr.com/m/campus-recruitment/hengrui/145997"
   },
   {
     id: "company-cttq",
@@ -835,8 +835,8 @@ const CANDIDATE_SEEDS: CandidateSeed[] = [
     status: "ENTRY_FOUND_PENDING_ADAPTER",
     atsKind: "OFFICIAL_HTML",
     officialWebsiteUrl: "https://www.xhzy.com/",
-    socialEntryUrl: "https://www.xhzy.com/XYZP/index.html",
-    officialChainEvidenceUrl: "https://www.xhzy.com/XYZP/index.html"
+    socialEntryUrl: "https://www.xhzy.com/SHZP/index.html",
+    officialChainEvidenceUrl: "https://www.xhzy.com/SHZP/index.html"
   },
   {
     id: "company-tianjin-pharma",
@@ -846,8 +846,8 @@ const CANDIDATE_SEEDS: CandidateSeed[] = [
     status: "VERIFIED_SCRAPABLE",
     atsKind: "BEISEN_ZHIYE",
     officialWebsiteUrl: "https://www.pharm.com.cn/",
-    socialEntryUrl: "https://tjph1.zhiye.com/social/jobs",
-    officialChainEvidenceUrl: "https://www.pharm.com.cn/career/join.html"
+    socialEntryUrl: "https://tjph.zhiye.com/social",
+    officialChainEvidenceUrl: "https://www.pharm.com.cn/"
   },
   {
     id: "company-dongyangguang",

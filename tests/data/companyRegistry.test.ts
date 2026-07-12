@@ -132,4 +132,32 @@ describe("60-company pharma registry", () => {
       category: "FOREIGN_PHARMA"
     });
   });
+
+  it("uses the fresh official source bindings and rejects the stale bindings", () => {
+    const byId = new Map(candidateCompanies.map((company) => [company.id, company]));
+
+    expect(byId.get("company-hengrui")?.sources[0]).toMatchObject({
+      officialEntryUrl: "https://app.mokahr.com/social-recruitment/hengrui/145996#/jobs",
+      officialChainEvidenceUrl: "https://www.hengrui.com/development/joinUs.html",
+      campusEntryUrl: "https://app.mokahr.com/m/campus-recruitment/hengrui/145997"
+    });
+    expect(byId.get("company-ucb-china")?.sources[0]?.officialEntryUrl).toBe(
+      "https://careers.ucb.com/global/en/search-results?qcountry=China"
+    );
+    expect(byId.get("company-tianjin-pharma")?.sources[0]).toMatchObject({
+      officialEntryUrl: "https://tjph.zhiye.com/social",
+      officialChainEvidenceUrl: "https://www.pharm.com.cn/"
+    });
+    expect(byId.get("company-xinhua-pharma")?.sources[0]).toMatchObject({
+      officialEntryUrl: "https://www.xhzy.com/SHZP/index.html",
+      officialChainEvidenceUrl: "https://www.xhzy.com/SHZP/index.html"
+    });
+
+    const urls = candidateCompanies.flatMap(collectCandidateUrls);
+    expect(urls).not.toContain("https://careers.ucb.com/global/en/search-results?keywords=China");
+    expect(urls).not.toContain("https://www.hengrui.com/development/recruit.html");
+    expect(urls).not.toContain("https://tjph1.zhiye.com/social/jobs");
+    expect(urls).not.toContain("https://www.pharm.com.cn/career/join.html");
+    expect(urls).not.toContain("https://www.xhzy.com/XYZP/index.html");
+  });
 });

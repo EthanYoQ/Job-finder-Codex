@@ -165,6 +165,47 @@ describe("official-link registry cardinality", () => {
     });
   });
 
+  it("projects the fresh source bindings into official recruitment surfaces", () => {
+    const socialSurfaceFor = (companyId: string) =>
+      registry.expectedOfficialSurfaces.find(
+        (surface) => surface.companyId === companyId && surface.kind === "SOCIAL"
+      );
+
+    expect(socialSurfaceFor("company-hengrui")).toMatchObject({
+      officialEntryUrl: "https://app.mokahr.com/social-recruitment/hengrui/145996#/jobs",
+      officialChainEvidenceUrls: ["https://www.hengrui.com/development/joinUs.html"]
+    });
+    expect(
+      registry.expectedOfficialSurfaces.find(
+        (surface) => surface.companyId === "company-hengrui" && surface.kind === "CAMPUS"
+      )
+    ).toMatchObject({
+      officialEntryUrl: "https://app.mokahr.com/m/campus-recruitment/hengrui/145997",
+      officialChainEvidenceUrls: ["https://www.hengrui.com/development/joinUs.html"]
+    });
+    expect(socialSurfaceFor("company-ucb-china")?.officialEntryUrl).toBe(
+      "https://careers.ucb.com/global/en/search-results?qcountry=China"
+    );
+    expect(socialSurfaceFor("company-tianjin-pharma")).toMatchObject({
+      officialEntryUrl: "https://tjph.zhiye.com/social",
+      officialChainEvidenceUrls: ["https://www.pharm.com.cn/"]
+    });
+    expect(socialSurfaceFor("company-xinhua-pharma")).toMatchObject({
+      officialEntryUrl: "https://www.xhzy.com/SHZP/index.html",
+      officialChainEvidenceUrls: ["https://www.xhzy.com/SHZP/index.html"]
+    });
+
+    const surfaceUrls = registry.expectedOfficialSurfaces.flatMap((surface) => [
+      surface.officialEntryUrl,
+      ...surface.officialChainEvidenceUrls
+    ]);
+    expect(surfaceUrls).not.toContain("https://careers.ucb.com/global/en/search-results?keywords=China");
+    expect(surfaceUrls).not.toContain("https://www.hengrui.com/development/recruit.html");
+    expect(surfaceUrls).not.toContain("https://tjph1.zhiye.com/social/jobs");
+    expect(surfaceUrls).not.toContain("https://www.pharm.com.cn/career/join.html");
+    expect(surfaceUrls).not.toContain("https://www.xhzy.com/XYZP/index.html");
+  });
+
   it("derives launchability from 58 audited linked sources while current unresolved registry remains blocked", () => {
     const built = requireRegistryBuilder()(makeSyntheticSeeds());
     const readySurfaces = built.surfaces.map(fullyResolveSurface);
