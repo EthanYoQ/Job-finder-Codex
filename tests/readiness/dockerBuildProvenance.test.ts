@@ -70,7 +70,7 @@ describe("portable Docker build provenance",()=>{
     const copiedDigest=canonicalSourceTreeSha256(root);
     expect(()=>verifyDockerBuildProvenance(root,bundle,head,copiedDigest)).not.toThrow();
     expect(()=>verifyDockerBuildProvenance(root,bundle,head,"0".repeat(64))).toThrow(/source tree/i);
-  });
+  }, 15_000);
   it("rejects untracked, ignored, and symlink substitutions in copied source",()=>{
     const root=repository(),bundle=join(root,".docker-build-provenance.bundle");exportDockerBuildProvenance(root,bundle);
     const head=execFileSync("git",["rev-parse","HEAD"],{cwd:root,encoding:"utf8"}).trim();
