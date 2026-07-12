@@ -246,8 +246,8 @@ describe("Phenom evidence instrumentation", () => {
     expect(requests.slice(1).map((request) => JSON.parse(request.body ?? "{}").selected_fields)).toEqual([
       {},
       { country: ["中国大陆"] },
-      { country: ["中国大陆"], category: ["销售 & 市场", "医学事务"] },
-      { country: ["中国大陆"], category: ["销售 & 市场", "医学事务"] }
+      { country: ["中国大陆"], category: ["医学事务", "销售 & 市场"] },
+      { country: ["中国大陆"], category: ["医学事务", "销售 & 市场"] }
     ]);
     if (!result.fetchEvidence) throw new Error("expected scoped evidence");
     const locators = result.fetchEvidence.artifacts.map((artifact) => artifact.extractorLocator);
@@ -451,6 +451,45 @@ describe("Phenom evidence instrumentation", () => {
 
     await expect(fetcher(scopedPlan)).resolves.toMatchObject({ ok: false });
   });
+
+  it.each([
+    ["country", { country: "瑞士", category: "销售 & 市场" }],
+    ["category", { country: "中国大陆", category: "实习 & 发展项目" }]
+  ])("fails the current formal page immediately on a structured %s record drift", async (_label, drift) => {
+    const scopedPlan = {
+      ...plan,
+      officialJsonFetch: {
+        ...plan.officialJsonFetch,
+        facetScope: {
+          countryIncludeDescriptor: "中国大陆",
+          categoryExcludeDescriptors: ["实习 & 发展项目"]
+        }
+      }
+    } satisfies SourceCrawlPlan;
+    const bodies = [
+      facetPageBody([], 2, 0, [{ field: "country", value: { 中国大陆: 1, 瑞士: 1 } }]),
+      facetPageBody([], 1, 0, [{
+        field: "category", value: { "销售 & 市场": 1, "实习 & 发展项目": 0 }
+      }]),
+      facetPageBody([job("DRIFT", drift)], 1, 0, [])
+    ];
+    const fetcher = createOfficialJsonSourceFetch({
+      now: () => new Date(capturedAt),
+      http: async (request) => request.method === "POST"
+        ? response(bodies.shift()!, widgetUrl, "application/json")
+        : response(entryHtml(), entryUrl, "text/html")
+    });
+
+    const result = await fetcher(scopedPlan);
+    expect(result).toMatchObject({
+      ok: false,
+      failureReason: "Phenom structured facet record drifted outside the requested scope",
+      fetchEvidence: {
+        artifacts: [{}, {}, {}, { kind: "PAGINATION_PAGE" }],
+        pages: [{ sequence: 0, termination: "FAILED", declaredTotal: 1 }]
+      }
+    });
+  });
   it("retains exact entry and page artifacts, strict offsets and total coordinates while staying manual", async () => {
     const requests: Array<{ method?: string; body?: string }> = [];
     const bodies = [pageBody([job("CN-1")], 2, 0), pageBody([job("CN-2")], 2, 1)];
@@ -649,6 +688,30 @@ describe("Phenom evidence instrumentation", () => {
       ok: false,
       failureReason: "Phenom required widget configuration was not found",
       fetchEvidence: { artifacts: [{ kind: "OFFICIAL_COMPANY_PAGE", body }] }
+    });
+    expect(requestCount).toBe(1);
+  });
+
+  it.each([
+    ["conditional", `if (enabled) { phApp.pageId = "page12"; }`],
+    ["window", `window.phApp.pageId = "page12";`],
+    ["globalThis", `globalThis.phApp.pageId = "page12";`],
+    ["Object.assign", `Object.assign(phApp, { pageId: "page12" });`]
+  ])("rejects a %s pageId mutation hidden after a valid bootstrap", async (_label, mutation) => {
+    const body = `<script>
+      var phApp = phApp || {"widgetApiEndpoint":"${widgetUrl}","country":"cn","deviceType":"desktop","locale":"zh_cn","refNum":"${refNum}","pageName":"search-results","pageId":"page11"};
+    </script><script>${mutation}</script>`;
+    let requestCount = 0;
+    const fetcher = createOfficialJsonSourceFetch({
+      now: () => new Date(capturedAt),
+      http: async () => {
+        requestCount += 1;
+        return response(body, entryUrl, "text/html");
+      }
+    });
+    await expect(fetcher(plan)).resolves.toMatchObject({
+      ok: false,
+      failureReason: "Phenom required widget configuration was not found"
     });
     expect(requestCount).toBe(1);
   });

@@ -2590,7 +2590,15 @@ async function fetchPhenomWidgets({
       if (facetScope && (stringValue(raw.country) !== facetScope.countryIncludeDescriptor ||
         !allowedCategoryDescriptors?.has(stringValue(raw.category) ?? ""))) {
         recordPhenomLoss(losses, counts, "VALIDATION", "OUT_OF_SCOPE", rawLocator, pageIndex, recordIndex);
-        continue;
+        pages.push(phenomPageTrace({
+          artifact, sequence: pageIndex, requestedOffset, returnedOffset,
+          rawJobIds: rawIds, validJobIds: validIds,
+          ...(pageTotal === undefined ? {} : { declaredTotal: pageTotal }),
+          termination: "FAILED"
+        }));
+        return phenomFailure(capturedAt,
+          "Phenom structured facet record drifted outside the requested scope",
+          artifacts, pages, counts, losses);
       }
       if (sourceScopedChinaRequest && !phenomRecordHasChinaScope(
         stringValue(raw.country), locationRaw!, city
@@ -4689,6 +4697,7 @@ function scanPhenomTopLevelPageIds(
   }
   const bootstrapPageIds: Array<string | undefined> = [];
   const mutations: string[] = [];
+  const allowedPageIdAssignments = new Set<object>();
   for (const statement of program.program.body) {
     if (statement.type === "VariableDeclaration") {
       for (const declaration of statement.declarations) {
@@ -4714,6 +4723,7 @@ function scanPhenomTopLevelPageIds(
         assignment.right.type !== "StringLiteral" || typeof assignment.right.value !== "string" ||
         !assignment.right.value.trim()) return { invalid: true, bootstrapPageIds, mutations };
       mutations.push(assignment.right.value);
+      allowedPageIdAssignments.add(assignment);
       continue;
     }
     if (!isTopLevelPhenomAssignmentTarget(assignment.left)) continue;
@@ -4724,7 +4734,58 @@ function scanPhenomTopLevelPageIds(
     if (!config) return { invalid: true, bootstrapPageIds, mutations };
     bootstrapPageIds.push(config.pageId);
   }
+  if (hasUnsafePhenomPageIdMutation(program.program, allowedPageIdAssignments)) {
+    return { invalid: true, bootstrapPageIds, mutations };
+  }
   return { invalid: false, bootstrapPageIds, mutations };
+}
+
+function hasUnsafePhenomPageIdMutation(root: unknown, allowedAssignments: ReadonlySet<object>): boolean {
+  const seen = new Set<object>();
+  const visit = (value: unknown): boolean => {
+    if (Array.isArray(value)) return value.some(visit);
+    if (!value || typeof value !== "object") return false;
+    if (seen.has(value)) return false;
+    seen.add(value);
+    const node = value as Record<string, unknown>;
+    if (node.type === "AssignmentExpression" && isDeepPhenomPageIdTarget(node.left) &&
+      !allowedAssignments.has(value)) return true;
+    if (node.type === "UpdateExpression" && isDeepPhenomPageIdTarget(node.argument)) return true;
+    if (node.type === "CallExpression" && isObjectAssignToPhenom(node)) return true;
+    return Object.entries(node).some(([key, child]) =>
+      !["loc", "start", "end", "leadingComments", "trailingComments", "innerComments"].includes(key) && visit(child)
+    );
+  };
+  return visit(root);
+}
+
+function isDeepPhenomPageIdTarget(value: unknown): boolean {
+  if (!isStrictRecord(value) || value.type !== "MemberExpression" || !isStrictRecord(value.property)) return false;
+  const propertyIsPageId = value.computed === true
+    ? value.property.type === "StringLiteral" && value.property.value === "pageId"
+    : value.property.type === "Identifier" && value.property.name === "pageId";
+  return propertyIsPageId && isDirectPhenomObject(value.object);
+}
+
+function isDirectPhenomObject(value: unknown): boolean {
+  if (!isStrictRecord(value)) return false;
+  if (value.type === "Identifier" && value.name === "phApp") return true;
+  if (value.type !== "MemberExpression" || !isStrictRecord(value.object) || !isStrictRecord(value.property)) return false;
+  const propertyIsPhApp = value.computed === true
+    ? value.property.type === "StringLiteral" && value.property.value === "phApp"
+    : value.property.type === "Identifier" && value.property.name === "phApp";
+  return propertyIsPhApp && value.object.type === "Identifier" &&
+    (value.object.name === "window" || value.object.name === "globalThis");
+}
+
+function isObjectAssignToPhenom(node: Record<string, unknown>): boolean {
+  if (!isStrictRecord(node.callee) || node.callee.type !== "MemberExpression" ||
+    !isStrictRecord(node.callee.object) || !isStrictRecord(node.callee.property) ||
+    node.callee.object.type !== "Identifier" || node.callee.object.name !== "Object") return false;
+  const isAssign = node.callee.computed === true
+    ? node.callee.property.type === "StringLiteral" && node.callee.property.value === "assign"
+    : node.callee.property.type === "Identifier" && node.callee.property.name === "assign";
+  return isAssign && Array.isArray(node.arguments) && isDirectPhenomObject(node.arguments[0]);
 }
 
 function isAnyTopLevelPhenomPageIdMutationTarget(value: unknown): boolean {
