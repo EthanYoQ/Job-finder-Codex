@@ -179,18 +179,25 @@ export function finalizeOfficialJsonEvidenceBundle(input: {
   fetchLosses: PersistentSourceFetchEvidence["fetchLosses"];
   declaredCompleteness?: PersistentSourceFetchEvidence["declaredCompleteness"];
   expectedChannelIds?: string[];
+  allowMissingReturnedPage?: boolean;
 }): { evidence: PersistentSourceFetchEvidence; evaluation: PaginationEvaluation } {
   if (input.pages.length === 0) throw new Error("successful Official JSON evidence requires at least one page");
   const raw = buildEvidenceBundle(input);
   const evidence = deriveCanonicalPaginationEvidence({
     evidence: raw,
     expectedChannelIds: input.expectedChannelIds ?? [],
-    filteredOutput: true
+    filteredOutput: true,
+    ...(input.allowMissingReturnedPage === undefined ? {} : {
+      allowMissingReturnedPage: input.allowMissingReturnedPage
+    })
   });
   const evaluation = evaluatePaginationEvidence({
     evidence,
     expectedChannelIds: input.expectedChannelIds ?? [],
-    filteredOutput: true
+    filteredOutput: true,
+    ...(input.allowMissingReturnedPage === undefined ? {} : {
+      allowMissingReturnedPage: input.allowMissingReturnedPage
+    })
   });
   return { evidence, evaluation };
 }

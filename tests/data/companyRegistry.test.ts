@@ -163,7 +163,7 @@ describe("60-company pharma registry", () => {
       "https://qilu-pharma.zhiye.com/social/jobs"
     );
     expect(byId.get("company-nhu")?.sources[0]?.officialEntryUrl).toBe(
-      "https://xinhecheng1.zhiye.com/Social/jobs"
+      "https://xinhecheng1.zhiye.com/social/jobs"
     );
     expect(byId.get("company-xinhua-pharma")?.sources[0]).toMatchObject({
       officialEntryUrl: "https://www.xhzy.com/SHZP/index.html",

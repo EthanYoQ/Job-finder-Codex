@@ -435,7 +435,7 @@ describe("source crawl planning", () => {
       adapterId: "official-json",
       source: {
         atsKind: "BEISEN_ZHIYE",
-        officialEntryUrl: "https://xinhecheng1.zhiye.com/Social/jobs",
+        officialEntryUrl: "https://xinhecheng1.zhiye.com/social/jobs",
         officialChainEvidenceUrl: "https://www.cnhu.com/careers/zh-cn"
       },
       officialJsonFetch: {
@@ -443,7 +443,7 @@ describe("source crawl planning", () => {
         category: "1",
         pageSize: 100,
         maxPages: 5,
-        detailPath: "Social/detail"
+        detailPath: "social/detail"
       }
     });
     expect(getPlanBySourceId(plans, "source-yangzijiang-social")).toMatchObject({

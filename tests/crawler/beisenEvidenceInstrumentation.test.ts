@@ -173,7 +173,7 @@ describe("Beisen Zhiye 2022 evidence instrumentation", () => {
   });
 
   it("allows the same key name in different JSON objects", async () => {
-    const exact = '{"Code":200,"Count":2,"PageIndex":0,"Data":[{"Id":"first","JobAdName":"职位一","LocNames":["上海市"],"Meta":{"region":"CN"}},{"Id":"second","JobAdName":"职位二","LocNames":["北京市"],"Meta":{"region":"CN"}}]}';
+    const exact = '{"Code":200,"Count":2,"PageIndex":0,"Data":[{"Id":"first","JobAdName":"职位一","LocNames":["上海市"],"Category":"社会招聘","CategoryId":"1","Kind":"全职","Meta":{"region":"CN"}},{"Id":"second","JobAdName":"职位二","LocNames":["北京市"],"Category":"社会招聘","CategoryId":"1","Kind":"全职","Meta":{"region":"CN"}}]}';
     const result = await createOfficialJsonSourceFetch({
       now: () => new Date(NOW), http: async () => response(exact)
     })(plan());
@@ -263,6 +263,12 @@ describe("Beisen Zhiye 2022 evidence instrumentation", () => {
     ["Hong Kong", "OUT_OF_SCOPE"],
     ["台湾省·台北市", "OUT_OF_SCOPE"],
     ["Macau", "OUT_OF_SCOPE"],
+    ["韩国·首尔市", "OUT_OF_SCOPE"],
+    ["台湾·高雄市", "OUT_OF_SCOPE"],
+    ["香港·九龙", "OUT_OF_SCOPE"],
+    ["港澳台", "OUT_OF_SCOPE"],
+    ["国外", "OUT_OF_SCOPE"],
+    ["市场中心", "AMBIGUOUS_SCOPE"],
     ["Remote", "AMBIGUOUS_SCOPE"],
     ["", "MISSING_REQUIRED_FIELD"]
   ])("rejects domestic-tenant foreign or ambiguous geography %s", async (location, code) => {
@@ -280,15 +286,35 @@ describe("Beisen Zhiye 2022 evidence instrumentation", () => {
     });
   });
 
+  it("accepts Remote only when a structured country field explicitly proves mainland China", async () => {
+    const result = await createOfficialJsonSourceFetch({
+      now: () => new Date(NOW),
+      http: async () => response({
+        Code: 200,
+        Count: 1,
+        Data: [{ ...job("remote-cn", ["Remote"]), Country: "中国" }]
+      })
+    })(plan({ geographyScope: "DOMESTIC_OFFICIAL_TENANT" }));
+    expect(result).toMatchObject({
+      ok: true,
+      fetchEvidence: { fetchCounts: { rawCount: 1, validCount: 1, validationDiscardCount: 0 } }
+    });
+  });
+
   it.each([
     [{ Category: "校园招聘", CategoryId: "2", Kind: "全职" }],
     [{ Category: "社会招聘", CategoryId: "2", Kind: "全职" }],
-    [{ Category: "社会招聘", CategoryId: "1", Kind: "实习招聘" }]
+    [{ Category: "社会招聘", CategoryId: "1", Kind: "实习招聘" }],
+    [{ Category: "社会招聘", CategoryId: "1", Kind: "实习" }],
+    [{ Category: "社会招聘", CategoryId: "1", Kind: "实习生" }],
+    [{ Category: "社会招聘", CategoryId: "1", Kind: "Intern" }],
+    [{ Category: "社会招聘", CategoryId: "1", Kind: "Internship" }],
+    [{ Category: "社会招聘", CategoryId: "1", Kind: "校园" }]
   ])("fails the whole source when a raw record leaks outside the requested social channel", async (override) => {
     const result = await createOfficialJsonSourceFetch({
       now: () => new Date(NOW),
       http: async () => response({ Code: 200, Count: 2, Data: [job("ok"), { ...job("leak"), ...override }] })
-    })(plan({ geographyScope: "DOMESTIC_OFFICIAL_TENANT" }));
+    })(plan());
     expect(result).toMatchObject({
       ok: false,
       fetchEvidence: {
@@ -301,14 +327,14 @@ describe("Beisen Zhiye 2022 evidence instrumentation", () => {
   it("accounts parse, required-field, duplicate, scope, unsafe-ID, sensitive, and fallback-location losses exactly", async () => {
     const rows: unknown[] = [
       "not-an-object",
-      { Id: "missing-title", LocNames: ["上海市"] },
+      { Id: "missing-title", LocNames: ["上海市"], Category: "社会招聘", CategoryId: "1", Kind: "全职" },
       job("ok"),
       job("ok"),
       job("foreign", ["Boston, United States"]),
       job("unknown", ["Remote"]),
       job("..", ["上海市"]),
       { ...job("secret", ["上海市"]), JobAdName: "token=super-secret" },
-      { Id: "fallback", JobAdName: "无地点" }
+      { Id: "fallback", JobAdName: "无地点", Category: "社会招聘", CategoryId: "1", Kind: "全职" }
     ];
     const result = await createOfficialJsonSourceFetch({
       now: () => new Date(NOW),
@@ -351,8 +377,8 @@ describe("Beisen Zhiye 2022 evidence instrumentation", () => {
 
   it("rejects a duplicate detail ID independently from distinct official record IDs", async () => {
     const rows = [
-      { Id: "official-a", JobAdId: "shared-detail", JobAdName: "职位 A", LocNames: ["上海市"] },
-      { Id: "official-b", JobAdId: "shared-detail", JobAdName: "职位 B", LocNames: ["北京市"] }
+      { ...job("official-a"), Id: "official-a", JobAdId: "shared-detail", JobAdName: "职位 A", LocNames: ["上海市"] },
+      { ...job("official-b"), Id: "official-b", JobAdId: "shared-detail", JobAdName: "职位 B", LocNames: ["北京市"] }
     ];
     const result = await createOfficialJsonSourceFetch({
       now: () => new Date(NOW),

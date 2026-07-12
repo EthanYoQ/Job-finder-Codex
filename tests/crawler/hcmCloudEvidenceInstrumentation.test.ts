@@ -153,7 +153,7 @@ describe("HCM Cloud direct evidence instrumentation", () => {
       paginationEvaluation: {
         safeCompleteness: false,
         verifiedEligible: false,
-        derivedAnomalyCodes: []
+        derivedAnomalyCodes: ["RETURNED_PAGE_MISMATCH"]
       }
     });
   });

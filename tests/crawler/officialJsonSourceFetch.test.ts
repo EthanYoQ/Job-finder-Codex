@@ -571,12 +571,18 @@ describe("createOfficialJsonSourceFetch", () => {
             {
               Id: "guid-0",
               JobAdName: "质量经理",
-              LocNames: ["上海市"]
+              LocNames: ["上海市"],
+              Category: "社会招聘",
+              CategoryId: "1",
+              Kind: "全职"
             },
             {
               Id: "guid-1",
               JobAdName: "注册经理",
-              LocNames: ["北京市"]
+              LocNames: ["北京市"],
+              Category: "社会招聘",
+              CategoryId: "1",
+              Kind: "全职"
             }
           ]
         })
@@ -619,7 +625,10 @@ describe("createOfficialJsonSourceFetch", () => {
             {
               Id: "guid-no-location",
               JobAdId: 230917983,
-              JobAdName: "产品经理（睡眠领域）"
+              JobAdName: "产品经理（睡眠领域）",
+              Category: "社会招聘",
+              CategoryId: "1",
+              Kind: "全职"
             }
           ]
         })

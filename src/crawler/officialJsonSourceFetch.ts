@@ -355,10 +355,21 @@ function attachOfficialJsonPageCapacity(
     const expectedChannelIds = config.kind === "redsea-zp-channel"
       ? [...new Set(evidence.pages.flatMap((page) => page.channelId ? [page.channelId] : []))]
       : [];
-    const canonical = deriveCanonicalPaginationEvidence({ evidence: enriched, expectedChannelIds, filteredOutput: true });
+    const allowMissingReturnedPage = config.kind === "beisen-zhiye-2022";
+    const canonical = deriveCanonicalPaginationEvidence({
+      evidence: enriched,
+      expectedChannelIds,
+      filteredOutput: true,
+      allowMissingReturnedPage
+    });
     return {
       evidence: canonical,
-      evaluation: evaluatePaginationEvidence({ evidence: canonical, expectedChannelIds, filteredOutput: true })
+      evaluation: evaluatePaginationEvidence({
+        evidence: canonical,
+        expectedChannelIds,
+        filteredOutput: true,
+        allowMissingReturnedPage
+      })
     };
   };
   const current = attachEvidence(result.fetchEvidence);
@@ -2097,9 +2108,7 @@ async function fetchBeisenZhiye2022({
         continue;
       }
       counts.parsedCount += 1;
-      const socialMismatch = config.geographyScope === "DOMESTIC_OFFICIAL_TENANT"
-        ? beisenSocialChannelMismatch(raw, category)
-        : undefined;
+      const socialMismatch = beisenSocialChannelMismatch(raw, category);
       if (socialMismatch) {
         recordBeisenLoss(losses, counts, "VALIDATION", "SOCIAL_CHANNEL_MISMATCH",
           rawLocator, pageIndex, recordIndex, socialMismatch);
@@ -2238,6 +2247,7 @@ async function fetchBeisenZhiye2022({
       pages,
       fetchCounts: counts,
       fetchLosses: losses,
+      allowMissingReturnedPage: true,
       ...(declaredCompleteness ? { declaredCompleteness } : {})
     });
   } catch (error) {
@@ -5396,11 +5406,9 @@ function beisenRecordScope(
   if ((countryChina || locationChina) && (countryForeign || locationForeign)) return "AMBIGUOUS";
   if (geographyScope === "DOMESTIC_OFFICIAL_TENANT") {
     if (countryForeign || locationForeign) return "OUT_OF_SCOPE";
+    if (countryChina) return "CHINA";
     if (country !== undefined && !countryChina) return "AMBIGUOUS";
-    if (/^(?:remote|unknown|n\/?a|tbd|全球|海外|不限|待定)$/iu.test(locationRaw.normalize("NFKC").trim())) {
-      return "AMBIGUOUS";
-    }
-    return /\p{Script=Han}/u.test(locationRaw) || locationChina ? "CHINA" : "AMBIGUOUS";
+    return cnstaffHasMainlandGeography(locationRaw) ? "CHINA" : "AMBIGUOUS";
   }
   if (country !== undefined) return countryChina ? "CHINA" : "OUT_OF_SCOPE";
   return locationChina ? "CHINA" : "OUT_OF_SCOPE";
@@ -5408,7 +5416,7 @@ function beisenRecordScope(
 
 function beisenHasForeignMarker(value: string): boolean {
   const normalized = value.normalize("NFKC").toLowerCase();
-  return /(?:香港|澳门|台湾|台北|美国|纽约|波士顿|新加坡|日本|东京|印度|德国|法国|加拿大|澳大利亚|英国|伦敦)|\b(?:hong kong|macao|macau|taiwan|taipei|united states|usa|u\.s\.|boston|new york|singapore|japan|tokyo|india|germany|france|canada|australia|united kingdom|london)\b/u.test(
+  return /(?:港澳台|香港|九龙|澳门|台湾|台北|高雄|国外|海外|韩国|首尔|美国|纽约|波士顿|新加坡|日本|东京|印度|德国|法国|加拿大|澳大利亚|英国|伦敦)|\b(?:hong kong|kowloon|macao|macau|taiwan|taipei|kaohsiung|south korea|seoul|overseas|abroad|united states|usa|u\.s\.|boston|new york|singapore|japan|tokyo|india|germany|france|canada|australia|united kingdom|london)\b/u.test(
     normalized
   );
 }
@@ -5420,7 +5428,7 @@ function beisenSocialChannelMismatch(
   if (stringValue(raw.Category) !== "社会招聘") return "Category";
   if (hasOwn(raw, "CategoryId") && String(raw.CategoryId).trim() !== requestedCategory) return "CategoryId";
   const kind = stringValue(raw.Kind);
-  if (kind && /(?:校园|校招|实习招聘|campus|internship)/iu.test(kind)) return "Kind";
+  if (kind && /(?:校园|校招|实习|campus|intern)/iu.test(kind)) return "Kind";
   return undefined;
 }
 

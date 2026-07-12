@@ -697,7 +697,7 @@ const CANDIDATE_SEEDS: CandidateSeed[] = [
     status: "VERIFIED_SCRAPABLE",
     atsKind: "BEISEN_ZHIYE",
     officialWebsiteUrl: "https://www.cnhu.com/",
-    socialEntryUrl: "https://xinhecheng1.zhiye.com/Social/jobs",
+    socialEntryUrl: "https://xinhecheng1.zhiye.com/social/jobs",
     officialChainEvidenceUrl: "https://www.cnhu.com/careers/zh-cn"
   },
   {

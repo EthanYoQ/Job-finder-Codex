@@ -290,10 +290,32 @@ describe("shared pagination evidence evaluator", () => {
     expect(() => evaluate(duplicate)).toThrow(/caller anomaly.*canonical/i);
   });
 
-  it("does not invent a returned-page mismatch when the response omits that coordinate", () => {
+  it("keeps missing returned-page coordinates fail-closed by default", () => {
     const input = evidence();
     input.pages[0]!.returnedPage = null;
+    input.pages[0]!.anomalyCodes = ["RETURNED_PAGE_MISMATCH"];
     expect(evaluate(input)).toMatchObject({
+      safeCompleteness: false,
+      derivedAnomalyCodes: ["RETURNED_PAGE_MISMATCH"],
+      pages: [{ requestedPage: 1, returnedPage: null, anomalyCodes: ["RETURNED_PAGE_MISMATCH"] }]
+    });
+  });
+
+  it("allows an explicit adapter contract to preserve an unknown returned page without weakening the default", () => {
+    const input = evidence();
+    input.pages[0]!.returnedPage = null;
+    const canonical = deriveCanonicalPaginationEvidence({
+      evidence: input,
+      expectedChannelIds: ["social"],
+      filteredOutput: true,
+      allowMissingReturnedPage: true
+    });
+    expect(evaluatePaginationEvidence({
+      evidence: canonical,
+      expectedChannelIds: ["social"],
+      filteredOutput: true,
+      allowMissingReturnedPage: true
+    })).toMatchObject({
       safeCompleteness: true,
       derivedAnomalyCodes: [],
       pages: [{ requestedPage: 1, returnedPage: null, anomalyCodes: [] }]
@@ -496,7 +518,8 @@ describe("shared pagination evidence evaluator", () => {
     const incompletePage = evidence();
     addPage(incompletePage, { body: '{"ids":["c"]}' });
     incompletePage.pages[0]!.returnedPage = null;
-    expect(evaluate(incompletePage).derivedAnomalyCodes).toEqual([]);
+    incompletePage.pages[0]!.anomalyCodes = ["RETURNED_PAGE_MISMATCH"];
+    expect(evaluate(incompletePage).derivedAnomalyCodes).toEqual(["RETURNED_PAGE_MISMATCH"]);
   });
 
   it("requires OFFICIAL_TOTAL_PAGES to be present on the referenced artifact page", () => {

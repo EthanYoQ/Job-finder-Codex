@@ -819,7 +819,7 @@ const REPRESENTATIVE_CONFIGS: Record<string, RepresentativeSourceConfig> = {
       category: "1",
       pageSize: 100,
       maxPages: 5,
-      detailPath: "Social/detail"
+      detailPath: "social/detail"
     }
   },
   "source-yangzijiang-social": {
