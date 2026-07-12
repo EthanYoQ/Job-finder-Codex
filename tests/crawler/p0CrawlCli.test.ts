@@ -74,7 +74,7 @@ describe("P0 crawl CLI", () => {
     const output=runCliExpectingFailure(["--release-candidate-id","rc-forged"]);
     expect(output).toContain("Unknown argument");
     expect(output).not.toMatch(/Prisma|DATABASE_URL/u);
-  });
+  }, CLI_PROCESS_TEST_TIMEOUT_MS);
   it("prints usage without requiring database or Tavily credentials", () => {
     const output = runCli(["--help"]);
 

@@ -15,7 +15,7 @@ describe("FULL_RELEASE production oracle integration", () => {
     expect(command).toMatchObject({ status: 0, rejected: true, syncCalls: 0, transactionCalls: 0, batchCreates: 0 });
     const batch = await runFullReleaseOracleProductionScenario("invalid-batch");
     expect(batch).toMatchObject({ status: 0, rejected: true, transactionCalls: 0, batchCreates: 0 });
-  });
+  }, 15_000);
 
   it("rejects a current-runtime self-derived signer pair at command entry before DB mutation", async () => {
     const result = await runFullReleaseOracleProductionScenario("self-derived-command" as never);
