@@ -98,10 +98,9 @@ describe("P0 crawl CLI", () => {
     expect(output).not.toMatch(/tvly-dev-[A-Za-z0-9_-]+/);
   }, CLI_PROCESS_TEST_TIMEOUT_MS);
 
-  it("derives identity and fails closed on a dirty build before loading database dependencies", () => {
+  it("fails closed when production release authority is unavailable before database dependencies", () => {
     const output = runCliExpectingFailure([]);
-
-    expect(output).toMatch(/dirty|release identity/i);
+    expect(output).toMatch(/Production release authority is unavailable/);
     expect(output).not.toContain("DATABASE_URL");
   }, CLI_PROCESS_TEST_TIMEOUT_MS);
 

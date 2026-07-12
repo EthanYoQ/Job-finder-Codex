@@ -193,8 +193,14 @@ describe("deployment configuration", () => {
     expect(monitor).toMatch(/target:\s*\/run\/release-authority\/oracle\.json[\s\S]*read_only:\s*true/u);
     expect(monitor).toContain("CRAWL_ATTEMPT_DIR");
     const monitorScript = readRequiredFile(monitoringCheckPath);
-    expect(monitorScript).toContain("loadCurrentReleaseIdentity");
+    expect(monitorScript).toContain("loadMonitoringReleaseIdentity");
+    expect(monitorScript.indexOf("const monitoringAuthorityEnv = { ...process.env }"))
+      .toBeLessThan(monitorScript.indexOf('import("../src/crawler/monitoringReleaseIdentity")'));
+    expect(monitorScript).toContain("loadMonitoringReleaseIdentity(monitoringAuthorityEnv, undefined, now)");
     expect(monitorScript).toContain("readLatestCrawlAttempt");
+    for (const pin of ["P0_RELEASE_CANDIDATE_ID", "P0_RELEASE_COMMIT_SHA", "P0_RELEASE_ROSTER_SHA256",
+      "P0_RELEASE_SOURCE_PLAN_SHA256", "P0_RELEASE_SOURCE_CONFIG_SHA256", "P0_RELEASE_ADAPTER_BUNDLE_SHA256",
+      "P0_RELEASE_PLANNED_SOURCE_SET_SHA256", "P0_RELEASE_PLANNED_SOURCE_COUNT"]) expect(monitor).toContain(`${pin}:`);
   });
 
   it("rejects a TCP listener that does not authenticate or speak the PostgreSQL protocol", async () => {

@@ -97,6 +97,29 @@ export function independentHopChainProvenanceRootSha256(audits: readonly Indepen
   ]);
 }
 
+export function validateIndependentSourceSurfaceOracleArtifactContent(
+  artifact:IndependentSourceSurfaceOracleArtifact,validationTime:Date
+):{audits:IndependentCompanyAudit[];members:IndependentSourceSurfaceOracleMember[]}{
+  if(artifact.schemaVersion!==3||artifact.kind!=="FULL_RELEASE")throw new Error("Unsupported independent oracle schema version");
+  const audits=canonicalIndependentCompanyAudits(artifact.companyAudits);
+  const members=canonicalIndependentOracleMembers(artifact.members);
+  assertIndependentCompanyAuditFreshness(audits,validationTime);
+  if(canonicalJson(audits)!==canonicalJson(artifact.companyAudits)||canonicalJson(members)!==canonicalJson(artifact.members))
+    throw new Error("Independent oracle records must use canonical representation and order");
+  if(!safeHexEqual(artifact.companyAuditSetSha256,canonicalIndependentCompanyAuditsSha256(audits))||
+      !safeHexEqual(artifact.memberSetSha256,canonicalIndependentOracleMembersSha256(members))||
+      !safeHexEqual(artifact.coverageSetSha256,independentCoverageSetSha256(audits,members)))
+    throw new Error("Independent oracle set hash mismatch");
+  const {contentSha256,...content}=artifact;
+  if(!safeHexEqual(contentSha256,independentOracleContentSha256(content)))throw new Error("Independent oracle content hash mismatch");
+  if(!safeHexEqual(artifact.reviewProvenanceRootSha256,independentReviewProvenanceRootSha256(audits,members))||
+      !safeHexEqual(artifact.hopChainProvenanceRootSha256,independentHopChainProvenanceRootSha256(audits,members)))
+    throw new Error("Independent oracle provenance root mismatch");
+  assertIndependentCompanyAuditMemberBindings(audits,members);
+  assertSignedReviewerBinding(artifact);
+  return {audits,members};
+}
+
 export function sourcePlanOracleConfigSha256(plan: SourceCrawlPlan): string { return digest(canonicalJson(plan)); }
 export function independentOracleValueSha256(value: string): string { return digest(value); }
 
@@ -134,37 +157,8 @@ export function validateIndependentSourceSurfaceOracle(
         signedProvenancePayloadSha256(artifact.hopChainProvenanceSignature.payload))) {
     throw new Error("Independent oracle is not pre-pinned by membership authority");
   }
-  const canonicalAudits = canonicalIndependentCompanyAudits(artifact.companyAudits);
-  assertIndependentCompanyAuditFreshness(canonicalAudits, validationTime);
-  const canonical = canonicalIndependentOracleMembers(artifact.members);
-  if (canonicalJson(canonicalAudits) !== canonicalJson(artifact.companyAudits)) {
-    throw new Error("Independent oracle company audits must use canonical representation and order");
-  }
-  if (canonicalJson(canonical) !== canonicalJson(artifact.members)) {
-    throw new Error("Independent oracle members must use canonical representation and order");
-  }
-  if (!safeHexEqual(artifact.companyAuditSetSha256,
-    canonicalIndependentCompanyAuditsSha256(canonicalAudits))) {
-    throw new Error("Independent oracle company-audit-set hash mismatch");
-  }
-  if (!safeHexEqual(artifact.memberSetSha256, canonicalIndependentOracleMembersSha256(canonical))) {
-    throw new Error("Independent oracle member-set hash mismatch");
-  }
-  if (!safeHexEqual(artifact.coverageSetSha256, independentCoverageSetSha256(canonicalAudits, canonical))) {
-    throw new Error("Independent oracle coverage-set hash mismatch");
-  }
-  const { contentSha256, ...content } = artifact;
-  if (!safeHexEqual(contentSha256, independentOracleContentSha256(content))) {
-    throw new Error("Independent oracle content hash mismatch");
-  }
-  if (!safeHexEqual(artifact.reviewProvenanceRootSha256,
-      independentReviewProvenanceRootSha256(canonicalAudits, canonical)) ||
-      !safeHexEqual(artifact.hopChainProvenanceRootSha256,
-      independentHopChainProvenanceRootSha256(canonicalAudits, canonical))) {
-    throw new Error("Independent oracle provenance root mismatch");
-  }
-  assertIndependentCompanyAuditMemberBindings(canonicalAudits, canonical);
-  assertSignedReviewerBinding(artifact);
+  const {audits:canonicalAudits,members:canonical}=
+    validateIndependentSourceSurfaceOracleArtifactContent(artifact,validationTime);
   const releaseDigest = canonicalReleaseMembersSha256(canonical.map(({ companyId, sourceId, surfaceId, channelId, category }) =>
     ({ companyId, sourceId, surfaceId, channelId, category })));
   const plannedDigest = canonicalReleaseMembersSha256(releaseMembersFromPlans(plans));

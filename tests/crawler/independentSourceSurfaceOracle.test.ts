@@ -13,6 +13,7 @@ import {
   independentHopChainProvenanceRootSha256,
   independentReviewProvenanceRootSha256,
   independentOracleContentSha256,
+  validateIndependentSourceSurfaceOracleArtifactContent,
   type IndependentSourceSurfaceOracleArtifact
 } from "../../src/crawler/independentSourceSurfaceOracle";
 import { canonicalReleaseMembersSha256, releaseMembershipContentSha256 } from "../../src/crawler/authoritativeReleaseMembership";
@@ -69,6 +70,12 @@ function child(script: string, env: NodeJS.ProcessEnv = {}) {
 }
 
 describe("independent source/surface oracle startup authority", () => {
+  it("exposes a pure full-content/root validator for monitoring",()=>{
+    expect(validateIndependentSourceSurfaceOracleArtifactContent(artifact(),new Date("2026-07-12T12:00:00Z"))).toMatchObject({members});
+    const tampered=structuredClone(artifact());tampered.members[0]!.expectedArtifacts[0]!.contentSha256="0".repeat(64);
+    expect(()=>validateIndependentSourceSurfaceOracleArtifactContent(tampered,new Date("2026-07-12T12:00:00Z")))
+      .toThrow(/set hash|content|provenance/i);
+  });
   it("rejects a trusted schema-v2 artifact at the runtime validator boundary", async () => {
     const dir = await mkdtemp(join(tmpdir(), "independent-oracle-v2-runtime-"));
     const current = artifact();

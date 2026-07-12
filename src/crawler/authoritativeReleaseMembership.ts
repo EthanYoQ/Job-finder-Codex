@@ -57,24 +57,31 @@ export function validateAuthoritativeReleaseMembership(
 ): ReleaseMember[] {
   assertStartupTrustedReleaseMembership(trusted);
   const artifact = trusted.artifact;
-  if (artifact.schemaVersion !== 6) throw new Error("Unsupported authoritative release membership schema version");
-  if(!/^[a-f0-9]{64}$/.test(artifact.sourceTreeSha256)||!/^[a-f0-9]{64}$/.test(artifact.runtimeTreeSha256))throw new Error("Authoritative release membership tree hash is invalid");
-  validateOracleAuthorityBinding(artifact.oracleAuthority);
-  if (artifact.kind !== "FULL_RELEASE") throw new Error("PARTIAL_DIAGNOSTIC can never become formal release evidence");
+  const canonicalArtifact=validateAuthoritativeReleaseMembershipArtifactContent(artifact);
   for (const field of bindingFields) {
     if (artifact[field] !== expectedBinding[field]) throw new Error(`Authoritative release membership identity mismatch: ${field}`);
   }
-  const canonicalArtifact = canonicalizeMembers(artifact.members);
-  if (!membersEqual(canonicalArtifact, artifact.members)) throw new Error("Authoritative release membership members must use canonical representation and order");
-  if (!safeHexEqual(artifact.memberSetSha256, canonicalReleaseMembersSha256(canonicalArtifact))) throw new Error("Authoritative release membership member-set hash mismatch");
-  const { contentSha256, ...content } = artifact;
-  if (!safeHexEqual(contentSha256, releaseMembershipContentSha256(content))) throw new Error("Authoritative release membership content hash mismatch");
   const canonicalActual = canonicalizeMembers(actualMembers);
   if (!membersEqual(canonicalActual, canonicalArtifact) ||
       !safeHexEqual(canonicalReleaseMembersSha256(canonicalActual), artifact.memberSetSha256)) {
     throw new Error("Production plan member set does not match authoritative release membership");
   }
   return canonicalActual;
+}
+
+export function validateAuthoritativeReleaseMembershipArtifactContent(
+  artifact:AuthoritativeReleaseMembershipArtifact
+):ReleaseMember[]{
+  if (artifact.schemaVersion !== 6) throw new Error("Unsupported authoritative release membership schema version");
+  if(!/^[a-f0-9]{64}$/.test(artifact.sourceTreeSha256)||!/^[a-f0-9]{64}$/.test(artifact.runtimeTreeSha256))throw new Error("Authoritative release membership tree hash is invalid");
+  validateOracleAuthorityBinding(artifact.oracleAuthority);
+  if (artifact.kind !== "FULL_RELEASE") throw new Error("PARTIAL_DIAGNOSTIC can never become formal release evidence");
+  const canonical=canonicalizeMembers(artifact.members);
+  if (!membersEqual(canonical, artifact.members)) throw new Error("Authoritative release membership members must use canonical representation and order");
+  if (!safeHexEqual(artifact.memberSetSha256, canonicalReleaseMembersSha256(canonical))) throw new Error("Authoritative release membership member-set hash mismatch");
+  const { contentSha256, ...content } = artifact;
+  if (!safeHexEqual(contentSha256, releaseMembershipContentSha256(content))) throw new Error("Authoritative release membership content hash mismatch");
+  return canonical;
 }
 
 function canonicalizeMembers(members: readonly ReleaseMember[]): ReleaseMember[] {

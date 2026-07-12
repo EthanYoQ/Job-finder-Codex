@@ -4,7 +4,7 @@ import { access, lstat, open, readFile, readdir, type FileHandle } from "node:fs
 import { basename, resolve } from "node:path";
 import { evaluateOpsAlerts, type OpsAlertInput } from "../src/server/opsMonitoring";
 import { checkPostgresReadiness, DEFAULT_POSTGRES_READINESS_TIMEOUT_MS } from "../src/server/postgresReadiness";
-import { crawlEvidenceIdentityFromRuntime, DEFAULT_CRAWL_SUMMARY_MAX_AGE_HOURS, readCrawlSummaryFile } from "../src/crawler/crawlSummary";
+import { DEFAULT_CRAWL_SUMMARY_MAX_AGE_HOURS, readCrawlSummaryFile, type CrawlEvidenceIdentity } from "../src/crawler/crawlSummary";
 import { readLatestCrawlAttempt } from "../src/crawler/crawlAttemptEvidence";
 
 interface JsonMap {
@@ -24,10 +24,11 @@ async function main(): Promise<void> {
   const certificateExpiresAt = process.env.CERTIFICATE_EXPIRES_AT;
   const now = process.env.MONITORING_NOW ? new Date(process.env.MONITORING_NOW) : new Date();
 
-  let expectedIdentity: ReturnType<typeof crawlEvidenceIdentityFromRuntime> | undefined;
+  let expectedIdentity: CrawlEvidenceIdentity | undefined;
   try {
-    const { loadCurrentReleaseIdentity } = await import("../src/readiness/currentReleaseIdentity");
-    expectedIdentity = crawlEvidenceIdentityFromRuntime(await loadCurrentReleaseIdentity(now));
+    const monitoringAuthorityEnv = { ...process.env };
+    const { loadMonitoringReleaseIdentity } = await import("../src/crawler/monitoringReleaseIdentity");
+    expectedIdentity = await loadMonitoringReleaseIdentity(monitoringAuthorityEnv, undefined, now);
   } catch {
     expectedIdentity = undefined;
   }

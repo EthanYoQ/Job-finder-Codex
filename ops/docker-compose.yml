@@ -264,6 +264,14 @@ services:
       P0_FULL_RELEASE_MEMBERSHIP_FILE_SHA256: ${P0_FULL_RELEASE_MEMBERSHIP_FILE_SHA256:?set membership pin}
       P0_FULL_RELEASE_ORACLE_FILE: /run/release-authority/oracle.json
       P0_FULL_RELEASE_ORACLE_FILE_SHA256: ${P0_FULL_RELEASE_ORACLE_FILE_SHA256:?set oracle pin}
+      P0_RELEASE_CANDIDATE_ID: ${P0_RELEASE_CANDIDATE_ID:?set release candidate pin}
+      P0_RELEASE_COMMIT_SHA: ${P0_RELEASE_COMMIT_SHA:?set release commit pin}
+      P0_RELEASE_ROSTER_SHA256: ${P0_RELEASE_ROSTER_SHA256:?set release roster pin}
+      P0_RELEASE_SOURCE_PLAN_SHA256: ${P0_RELEASE_SOURCE_PLAN_SHA256:?set source plan pin}
+      P0_RELEASE_SOURCE_CONFIG_SHA256: ${P0_RELEASE_SOURCE_CONFIG_SHA256:?set source config pin}
+      P0_RELEASE_ADAPTER_BUNDLE_SHA256: ${P0_RELEASE_ADAPTER_BUNDLE_SHA256:?set adapter bundle pin}
+      P0_RELEASE_PLANNED_SOURCE_SET_SHA256: ${P0_RELEASE_PLANNED_SOURCE_SET_SHA256:?set planned source set pin}
+      P0_RELEASE_PLANNED_SOURCE_COUNT: ${P0_RELEASE_PLANNED_SOURCE_COUNT:?set planned source count pin}
     depends_on:
       backup:
         condition: service_healthy

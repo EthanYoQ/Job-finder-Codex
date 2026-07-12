@@ -6,6 +6,7 @@ import { pathToFileURL } from "node:url";
 import { spawnSync } from "node:child_process";
 import { describe, expect, it } from "vitest";
 import { canonicalReleaseMembersSha256, releaseMembershipContentSha256,
+  validateAuthoritativeReleaseMembershipArtifactContent,
   type AuthoritativeReleaseMembershipArtifact, type ReleaseMember } from "../../src/crawler/authoritativeReleaseMembership";
 import { runMembershipAuthorityScenario } from "./helpers/membershipAuthorityScenario";
 
@@ -36,6 +37,11 @@ function child(script: string, env: NodeJS.ProcessEnv = {}) {
 }
 
 describe("authoritative release membership", () => {
+  it("exposes a pure full-content validator for monitoring",()=>{
+    expect(validateAuthoritativeReleaseMembershipArtifactContent(artifact())).toEqual(members);
+    const tampered=structuredClone(artifact());tampered.members[0]!.surfaceId="tampered";
+    expect(()=>validateAuthoritativeReleaseMembershipArtifactContent(tampered)).toThrow(/member-set|content/i);
+  });
   it("binds company category into the canonical member set", () => {
     const base = [{ companyId:"company-a", sourceId:"source-a", surfaceId:"surface-a", channelId:"channel-a", category:"FOREIGN_PHARMA" as const }];
     expect(canonicalReleaseMembersSha256(base)).not.toBe(canonicalReleaseMembersSha256([{...base[0]!,category:"DOMESTIC_PHARMA"}]));

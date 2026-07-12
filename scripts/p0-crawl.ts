@@ -57,12 +57,16 @@ let candidateCompanies: typeof import("../src/data/companyRegistry")["candidateC
 let plans: ReturnType<typeof import("../src/crawler/sourcePlan")["buildSourceCrawlPlans"]>;
 let identity: ReturnType<typeof requireP0RuntimeIdentity>;
 try {
+  if(options.sourceIds.length>0)throw new Error("Partial diagnostic selection cannot certify formal release evidence");
+  for(const name of ["P0_FULL_RELEASE_MEMBERSHIP_FILE","P0_FULL_RELEASE_MEMBERSHIP_FILE_SHA256",
+    "P0_FULL_RELEASE_ORACLE_FILE","P0_FULL_RELEASE_ORACLE_FILE_SHA256"]){
+    if(!process.env[name]?.trim())throw new Error(`Production release authority is unavailable: ${name}`);
+  }
   const [registry, sourcePlan] = await Promise.all([
     import("../src/data/companyRegistry"), import("../src/crawler/sourcePlan")
   ]);
   candidateCompanies=registry.candidateCompanies;
   plans=sourcePlan.buildSourceCrawlPlans(candidateCompanies);
-  if(options.sourceIds.length>0)throw new Error("Partial diagnostic selection cannot certify formal release evidence");
   const { loadCurrentReleaseIdentity }=await import("../src/readiness/currentReleaseIdentity");
   const current=await loadCurrentReleaseIdentity();
   identity=requireP0RuntimeIdentity({help:false,sourceIds:[],force:options.force,identity:{
