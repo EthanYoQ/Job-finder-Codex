@@ -106,10 +106,12 @@ export function validateIndependentSourceSurfaceOracleArtifactContent(
   assertIndependentCompanyAuditFreshness(audits,validationTime);
   if(canonicalJson(audits)!==canonicalJson(artifact.companyAudits)||canonicalJson(members)!==canonicalJson(artifact.members))
     throw new Error("Independent oracle records must use canonical representation and order");
-  if(!safeHexEqual(artifact.companyAuditSetSha256,canonicalIndependentCompanyAuditsSha256(audits))||
-      !safeHexEqual(artifact.memberSetSha256,canonicalIndependentOracleMembersSha256(members))||
-      !safeHexEqual(artifact.coverageSetSha256,independentCoverageSetSha256(audits,members)))
-    throw new Error("Independent oracle set hash mismatch");
+  if(!safeHexEqual(artifact.companyAuditSetSha256,canonicalIndependentCompanyAuditsSha256(audits)))
+    throw new Error("Independent oracle company-audit-set hash mismatch");
+  if(!safeHexEqual(artifact.memberSetSha256,canonicalIndependentOracleMembersSha256(members)))
+    throw new Error("Independent oracle member-set hash mismatch");
+  if(!safeHexEqual(artifact.coverageSetSha256,independentCoverageSetSha256(audits,members)))
+    throw new Error("Independent oracle coverage-set hash mismatch");
   const {contentSha256,...content}=artifact;
   if(!safeHexEqual(contentSha256,independentOracleContentSha256(content)))throw new Error("Independent oracle content hash mismatch");
   if(!safeHexEqual(artifact.reviewProvenanceRootSha256,independentReviewProvenanceRootSha256(audits,members))||
