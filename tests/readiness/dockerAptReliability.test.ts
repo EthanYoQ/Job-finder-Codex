@@ -17,7 +17,7 @@ describe("Docker apt transport reliability", () => {
     expect(dockerfile).not.toContain("Acquire::https::Verify-Peer=false");
   });
 
-  it("retries each complete apt transaction at most three times and fails closed", () => {
+  it("runs update once before retrying install at most three times and fails closed", () => {
     const dockerfile = readFileSync(resolve(process.cwd(), "Dockerfile"), "utf8");
     const aptRunLayers = dockerfile
       .split(/(?=^RUN )/mu)
@@ -25,8 +25,16 @@ describe("Docker apt transport reliability", () => {
 
     expect(aptRunLayers).toHaveLength(3);
     for (const layer of aptRunLayers) {
+      const updateCommands = layer.match(/apt-get[^\n]* update/gmu) ?? [];
+      const installCommands = layer.match(/apt-get[^\n]* install/gmu) ?? [];
+      const retryLoopIndex = layer.indexOf("for attempt in 1 2 3; do");
+
+      expect(updateCommands).toHaveLength(1);
+      expect(installCommands).toHaveLength(1);
+      expect(layer.indexOf(updateCommands[0]!)).toBeLessThan(retryLoopIndex);
       expect(layer).toContain("for attempt in 1 2 3; do");
-      expect(layer).toMatch(/if apt-get[^\n]* update \\\n\s+&& apt-get[^\n]* install[^\n]*; then/u);
+      expect(layer.slice(retryLoopIndex)).not.toMatch(/apt-get[^\n]* update/u);
+      expect(layer.slice(retryLoopIndex)).toMatch(/if apt-get[^\n]* install[^\n]*; then/u);
       expect(layer).toContain('if [ "$attempt" -eq 3 ]; then');
       expect(layer).toMatch(/\n\s+exit 1; \\\n\s+fi;/u);
       expect(layer).toContain("sleep 2;");

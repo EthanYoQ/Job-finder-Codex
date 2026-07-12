@@ -6,9 +6,9 @@ COPY package.json ./package.json
 COPY package-lock.json ./package-lock.json
 COPY prisma ./prisma
 RUN set -eu; \
+  apt-get -o Acquire::Retries=5 -o Acquire::http::Timeout=30 update; \
   for attempt in 1 2 3; do \
-    if apt-get -o Acquire::Retries=5 -o Acquire::http::Timeout=30 update \
-      && apt-get -o Acquire::Retries=5 -o Acquire::http::Timeout=30 install -y --no-install-recommends openssl; then \
+    if apt-get -o Acquire::Retries=5 -o Acquire::http::Timeout=30 install -y --no-install-recommends openssl; then \
       rm -rf /var/lib/apt/lists/*; \
       break; \
     fi; \
@@ -29,9 +29,9 @@ ARG BUILD_COMMIT_SHA
 ARG BUILD_SOURCE_CLEAN
 ARG BUILD_SOURCE_TREE_SHA256
 RUN set -eu; \
+  apt-get -o Acquire::Retries=5 -o Acquire::http::Timeout=30 update; \
   for attempt in 1 2 3; do \
-    if apt-get -o Acquire::Retries=5 -o Acquire::http::Timeout=30 update \
-      && apt-get -o Acquire::Retries=5 -o Acquire::http::Timeout=30 install -y --no-install-recommends git; then \
+    if apt-get -o Acquire::Retries=5 -o Acquire::http::Timeout=30 install -y --no-install-recommends git; then \
       rm -rf /var/lib/apt/lists/*; \
       break; \
     fi; \
@@ -67,9 +67,9 @@ ENV HOME=/tmp
 ENV XDG_CONFIG_HOME=/tmp/.config
 ENV XDG_CACHE_HOME=/tmp/.cache
 RUN set -eu; \
+  apt-get -o Acquire::Retries=5 -o Acquire::http::Timeout=30 update; \
   for attempt in 1 2 3; do \
-    if apt-get -o Acquire::Retries=5 -o Acquire::http::Timeout=30 update \
-      && apt-get -o Acquire::Retries=5 -o Acquire::http::Timeout=30 install -y --no-install-recommends chromium libpq5 libreadline8 util-linux; then \
+    if apt-get -o Acquire::Retries=5 -o Acquire::http::Timeout=30 install -y --no-install-recommends chromium libpq5 libreadline8 util-linux; then \
       rm -rf /var/lib/apt/lists/*; \
       break; \
     fi; \
