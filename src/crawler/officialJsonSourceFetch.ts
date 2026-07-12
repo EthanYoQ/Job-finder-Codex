@@ -45,6 +45,11 @@ export type OfficialJsonFetchConfig =
       kind: "phenom";
       detailBaseUrl: string;
       countryFilter?: string;
+      allowedApplyOrigins?: string[];
+      facetScope?: {
+        countryIncludeDescriptor: string;
+        categoryExcludeDescriptors: string[];
+      };
       pageSize?: number;
       maxPages?: number;
     }
@@ -2269,12 +2274,22 @@ async function fetchPhenomWidgets({
 }): Promise<SourceFetchResult> {
   let safeEntryUrl: string;
   let detailBaseUrl: string;
+  let allowedApplyOrigins: ReadonlySet<string>;
   try {
     safeEntryUrl = safeOfficialJsonEndpoint(entryUrl);
     detailBaseUrl = safeOfficialJsonEndpoint(config.detailBaseUrl);
     if (new URL(detailBaseUrl).origin !== new URL(safeEntryUrl).origin) {
       throw new Error("Phenom detail origin does not match the official entry");
     }
+    allowedApplyOrigins = new Set([
+      new URL(detailBaseUrl).origin,
+      ...(config.allowedApplyOrigins ?? []).map((value) => {
+        const safe = safeOfficialJsonEndpoint(value);
+        const parsed = new URL(safe);
+        if (safe !== parsed.origin && safe !== `${parsed.origin}/`) throw new Error("origin path is not allowed");
+        return parsed.origin;
+      })
+    ]);
   } catch {
     return failed(capturedAt, "Phenom official URL configuration is invalid");
   }
@@ -2352,11 +2367,72 @@ async function fetchPhenomWidgets({
   const pageSize = Math.max(1, Math.min(100, config.pageSize ?? 50));
   const maxPages = Math.max(1, config.maxPages ?? 20);
   const countryFilter = config.countryFilter ?? "China";
-  const sourceScopedChinaRequest = countryFilter === "China";
+  const facetScope = validPhenomFacetScope(config.facetScope);
+  if (config.facetScope && !facetScope) {
+    return phenomFailure(capturedAt, "Phenom structured facet scope configuration is invalid",
+      artifacts, pages, counts, losses);
+  }
+  const sourceScopedChinaRequest = !facetScope && countryFilter === "China";
+  let formalSelectedFields: Record<string, string[]> = { country: [countryFilter] };
+  let structuredExpectedTotal: number | undefined;
+  let allowedCategoryDescriptors: ReadonlySet<string> | undefined;
   let declaredTotal: number | undefined;
   let declaredArtifactKey: string | undefined;
   let declaredLocator: string | undefined;
   let cumulativeRaw = 0;
+
+  if (facetScope) {
+    const globalPreflight = await fetchPhenomFacetPreflight({
+      http, endpoint: widgetEndpoint, entryUrl: safeEntryUrl, pageConfig,
+      pageSize, selectedFields: {}, capturedAt, now,
+      id: "phenom-facet-global", locator: `${configLocator}|facet-preflight:global`
+    });
+    if (!globalPreflight.ok) {
+      return phenomFailure(capturedAt, globalPreflight.failureReason, artifacts, pages, counts, losses);
+    }
+    artifacts.push(globalPreflight.artifact);
+    const countryAggregation = exactPhenomAggregation(globalPreflight.envelope, "country");
+    const countryCount = countryAggregation?.get(facetScope.countryIncludeDescriptor);
+    if (countryCount === undefined) {
+      return phenomFailure(capturedAt, "Phenom global country descriptor is missing or ambiguous",
+        artifacts, pages, counts, losses);
+    }
+
+    const countryPreflight = await fetchPhenomFacetPreflight({
+      http, endpoint: widgetEndpoint, entryUrl: safeEntryUrl, pageConfig,
+      pageSize, selectedFields: { country: [facetScope.countryIncludeDescriptor] }, capturedAt, now,
+      id: "phenom-facet-country", locator: `${configLocator}|facet-preflight:country`
+    });
+    if (!countryPreflight.ok) {
+      return phenomFailure(capturedAt, countryPreflight.failureReason, artifacts, pages, counts, losses);
+    }
+    artifacts.push(countryPreflight.artifact);
+    if (countryPreflight.envelope.totalHits !== countryCount ||
+      countryPreflight.envelope.jobs.some((raw) =>
+        !isStrictRecord(raw) || stringValue(raw.country) !== facetScope.countryIncludeDescriptor)) {
+      return phenomFailure(capturedAt, "Phenom country facet preflight drifted or returned an out-of-scope sample",
+        artifacts, pages, counts, losses);
+    }
+    const categories = exactPhenomAggregation(countryPreflight.envelope, "category");
+    if (!categories || [...categories.values()].reduce((sum, value) => sum + value, 0) !== countryCount ||
+      facetScope.categoryExcludeDescriptors.some((descriptor) => !categories.has(descriptor))) {
+      return phenomFailure(capturedAt, "Phenom category aggregation is not a complete mutually exclusive partition",
+        artifacts, pages, counts, losses);
+    }
+    const allowed = [...categories.keys()].filter(
+      (descriptor) => !facetScope.categoryExcludeDescriptors.includes(descriptor)
+    );
+    if (allowed.length === 0) {
+      return phenomFailure(capturedAt, "Phenom structured facet scope excludes every category",
+        artifacts, pages, counts, losses);
+    }
+    structuredExpectedTotal = allowed.reduce((sum, descriptor) => sum + categories.get(descriptor)!, 0);
+    allowedCategoryDescriptors = new Set(allowed);
+    formalSelectedFields = {
+      country: [facetScope.countryIncludeDescriptor],
+      category: allowed
+    };
+  }
 
   for (let pageIndex = 0; pageIndex < maxPages; pageIndex += 1) {
     const requestedOffset = pageIndex * pageSize;
@@ -2370,18 +2446,7 @@ async function fetchPhenomWidgets({
           Origin: new URL(safeEntryUrl).origin, Referer: safeEntryUrl,
           "User-Agent": "job-search-crawler/0.1"
         },
-        body: JSON.stringify({
-          lang: pageConfig.locale, locale: pageConfig.locale,
-          deviceType: pageConfig.deviceType, country: pageConfig.country,
-          pageName: pageConfig.pageName, size: pageSize, from: requestedOffset,
-          jobs: true, counts: true,
-          all_fields: ["category", "country", "state", "city", "type", "jobLevelId"],
-          clearAll: false, jdsource: "facets", isSliderEnable: false,
-          pageId: pageConfig.pageId, siteType: "external", keywords: "", global: true,
-          selected_fields: { country: [countryFilter] },
-          sort: { order: "desc", field: "postedDate" }, locationData: {},
-          refNum: pageConfig.refNum, ddoKey: "refineSearch"
-        })
+        body: phenomWidgetRequestBody(pageConfig, pageSize, requestedOffset, formalSelectedFields)
       });
     } catch {
       return phenomFailure(capturedAt, "Phenom widgets TRANSPORT_FAILURE", artifacts, pages, counts, losses);
@@ -2421,6 +2486,11 @@ async function fetchPhenomWidgets({
       pages.push(phenomPageTrace({ artifact, sequence: pageIndex, requestedOffset, termination: "FAILED" }));
       return phenomFailure(capturedAt, "Phenom widgets response is not valid JSON", artifacts, pages, counts, losses);
     }
+    if (!hasUniqueJsonObjectKeys(response.body)) {
+      pages.push(phenomPageTrace({ artifact, sequence: pageIndex, requestedOffset, termination: "FAILED" }));
+      return phenomFailure(capturedAt, "Phenom widgets response contains ambiguous duplicate JSON keys",
+        artifacts, pages, counts, losses);
+    }
     if (!isStrictRecord(root) || !isStrictRecord(root.refineSearch) ||
       !isStrictRecord(root.refineSearch.data) || !Array.isArray(root.refineSearch.data.jobs)) {
       pages.push(phenomPageTrace({ artifact, sequence: pageIndex, requestedOffset, termination: "FAILED" }));
@@ -2437,6 +2507,11 @@ async function fetchPhenomWidgets({
           artifacts, pages, counts, losses);
       }
       pageTotal = refineSearch.totalHits;
+      if (structuredExpectedTotal !== undefined && pageTotal !== structuredExpectedTotal) {
+        pages.push(phenomPageTrace({ artifact, sequence: pageIndex, requestedOffset, termination: "FAILED" }));
+        return phenomFailure(capturedAt, "Phenom filtered total does not equal the allowed category partition",
+          artifacts, pages, counts, losses);
+      }
     }
     let returnedOffset: number | null = null;
     if (hasOwn(refineSearch, "from")) {
@@ -2493,6 +2568,11 @@ async function fetchPhenomWidgets({
         continue;
       }
       const city = stringValue(raw.city);
+      if (facetScope && (stringValue(raw.country) !== facetScope.countryIncludeDescriptor ||
+        !allowedCategoryDescriptors?.has(stringValue(raw.category) ?? ""))) {
+        recordPhenomLoss(losses, counts, "VALIDATION", "OUT_OF_SCOPE", rawLocator, pageIndex, recordIndex);
+        continue;
+      }
       if (sourceScopedChinaRequest && !phenomRecordHasChinaScope(
         stringValue(raw.country), locationRaw!, city
       )) {
@@ -2501,7 +2581,7 @@ async function fetchPhenomWidgets({
       }
       let officialUrl: string;
       try {
-        officialUrl = safePhenomJobUrl(applyUrlRaw!, detailBaseUrl);
+        officialUrl = safePhenomJobUrl(applyUrlRaw!, detailBaseUrl, allowedApplyOrigins);
       } catch {
         recordPhenomLoss(losses, counts, "VALIDATION", "UNSAFE_OFFICIAL_URL", rawLocator, pageIndex, recordIndex, "officialUrl");
         continue;
@@ -2542,7 +2622,7 @@ async function fetchPhenomWidgets({
     if (!hasNext || atMax) break;
   }
 
-  const declaredCompleteness = sourceScopedChinaRequest && declaredTotal !== undefined &&
+  const declaredCompleteness = (sourceScopedChinaRequest || facetScope !== undefined) && declaredTotal !== undefined &&
     declaredArtifactKey && declaredLocator
     ? {
         kind: "OFFICIAL_TOTAL_COUNT" as const, value: declaredTotal,
@@ -2575,8 +2655,8 @@ async function fetchPhenomWidgets({
     payload: { jobs },
     completeness: {
       completenessStatus: "NEEDS_MANUAL_COMPLETENESS_REVIEW",
-      ...(sourceScopedChinaRequest && declaredTotal !== undefined ? { expectedJobCount: declaredTotal } : {}),
-      completenessEvidenceKind: sourceScopedChinaRequest && declaredTotal !== undefined
+      ...((sourceScopedChinaRequest || facetScope) && declaredTotal !== undefined ? { expectedJobCount: declaredTotal } : {}),
+      completenessEvidenceKind: (sourceScopedChinaRequest || facetScope) && declaredTotal !== undefined
         ? "OFFICIAL_TOTAL_COUNT" : "WEAK_MANUAL_SAMPLE",
       completenessEvidenceUrl: safeOfficialJsonEvidenceUrl(safeEntryUrl),
       completenessBlockerReason: "Phenom evidence remains manual until downstream adapter accounting is complete",
@@ -2599,8 +2679,135 @@ type CompletePhenomPageConfig = {
   pageId: string;
 };
 
-function completePhenomPageConfig(value: ReturnType<typeof parsePhenomPageConfig>): value is CompletePhenomPageConfig {
-  return Object.values(value).every((item) => typeof item === "string" && item.length > 0);
+type PhenomFacetScope = NonNullable<Extract<OfficialJsonFetchConfig, { kind: "phenom" }>["facetScope"]>;
+
+type PhenomFacetEnvelope = {
+  totalHits: number;
+  jobs: unknown[];
+  aggregations: unknown[];
+};
+
+function validPhenomFacetScope(value: PhenomFacetScope | undefined): PhenomFacetScope | undefined {
+  if (!value || typeof value.countryIncludeDescriptor !== "string" ||
+    !value.countryIncludeDescriptor.trim() || !Array.isArray(value.categoryExcludeDescriptors) ||
+    value.categoryExcludeDescriptors.length === 0 ||
+    value.categoryExcludeDescriptors.some((item) => typeof item !== "string" || !item.trim()) ||
+    new Set(value.categoryExcludeDescriptors).size !== value.categoryExcludeDescriptors.length) return undefined;
+  return value;
+}
+
+function phenomWidgetRequestBody(
+  config: CompletePhenomPageConfig,
+  size: number,
+  from: number,
+  selectedFields: Record<string, string[]>
+): string {
+  return JSON.stringify({
+    lang: config.locale, locale: config.locale,
+    deviceType: config.deviceType, country: config.country,
+    pageName: config.pageName, size, from,
+    jobs: true, counts: true,
+    all_fields: ["category", "country", "state", "city", "type", "jobLevelId"],
+    clearAll: false, jdsource: "facets", isSliderEnable: false,
+    pageId: config.pageId, siteType: "external", keywords: "", global: true,
+    selected_fields: selectedFields,
+    sort: { order: "desc", field: "postedDate" }, locationData: {},
+    refNum: config.refNum, ddoKey: "refineSearch"
+  });
+}
+
+async function fetchPhenomFacetPreflight(input: {
+  http: OfficialJsonHttpClient;
+  endpoint: string;
+  entryUrl: string;
+  pageConfig: CompletePhenomPageConfig;
+  pageSize: number;
+  selectedFields: Record<string, string[]>;
+  capturedAt: string;
+  now: () => Date;
+  id: string;
+  locator: string;
+}): Promise<
+  | { ok: true; artifact: SourceFetchArtifactDraft; envelope: PhenomFacetEnvelope }
+  | { ok: false; failureReason: string }
+> {
+  let response: OfficialJsonHttpResponse;
+  try {
+    response = await input.http({
+      url: input.endpoint,
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json", Accept: "application/json",
+        Origin: new URL(input.entryUrl).origin, Referer: input.entryUrl,
+        "User-Agent": "job-search-crawler/0.1"
+      },
+      body: phenomWidgetRequestBody(input.pageConfig, input.pageSize, 0, input.selectedFields)
+    });
+  } catch {
+    return { ok: false, failureReason: "Phenom facet preflight TRANSPORT_FAILURE" };
+  }
+  try {
+    assertOfficialJsonEvidenceResponse(response, {
+      requestedUrl: input.endpoint,
+      crawlStartedAtMs: Date.parse(input.capturedAt),
+      observedNowMs: input.now().getTime()
+    });
+    if (response.status < 200 || response.status >= 300) throw new Error("HTTP status");
+    assertOfficialJsonMime(response);
+  } catch (error) {
+    return { ok: false, failureReason: safeOfficialJsonFailure(error, "Phenom facet preflight response is invalid") };
+  }
+  const artifact = phenomArtifact({
+    id: input.id,
+    kind: "ATS_API_RESPONSE",
+    requestedUrl: input.endpoint,
+    response,
+    extractorLocator: input.locator
+  });
+  if (!hasUniqueJsonObjectKeys(response.body)) {
+    return { ok: false, failureReason: "Phenom facet preflight contains ambiguous duplicate JSON keys" };
+  }
+  let root: unknown;
+  try { root = JSON.parse(response.body); } catch {
+    return { ok: false, failureReason: "Phenom facet preflight is not valid JSON" };
+  }
+  if (!isStrictRecord(root) || !isStrictRecord(root.refineSearch) ||
+    !isNonnegativeInteger(root.refineSearch.totalHits) || !isStrictRecord(root.refineSearch.data) ||
+    !Array.isArray(root.refineSearch.data.jobs) || !Array.isArray(root.refineSearch.data.aggregations)) {
+    return { ok: false, failureReason: "Phenom facet preflight envelope is invalid" };
+  }
+  return {
+    ok: true,
+    artifact,
+    envelope: {
+      totalHits: root.refineSearch.totalHits,
+      jobs: root.refineSearch.data.jobs,
+      aggregations: root.refineSearch.data.aggregations
+    }
+  };
+}
+
+function exactPhenomAggregation(envelope: PhenomFacetEnvelope, field: string): Map<string, number> | undefined {
+  const matches = envelope.aggregations.filter(
+    (item) => isStrictRecord(item) && stringValue(item.field) === field
+  );
+  const match = matches[0];
+  if (matches.length !== 1 || !isStrictRecord(match) || !isStrictRecord(match.value)) return undefined;
+  const values = new Map<string, number>();
+  for (const [descriptor, count] of Object.entries(match.value)) {
+    if (!descriptor.trim() || !isNonnegativeInteger(count) || values.has(descriptor)) return undefined;
+    values.set(descriptor, count);
+  }
+  return values;
+}
+
+function completePhenomPageConfig(
+  value: Partial<Record<keyof CompletePhenomPageConfig, string | undefined>>
+): value is CompletePhenomPageConfig {
+  return [
+    value.widgetApiEndpoint, value.refNum, value.locale, value.deviceType,
+    value.country, value.pageName, value.pageId
+  ].every((item) => typeof item === "string" && item.length > 0);
 }
 
 function phenomConfigLocator(config: CompletePhenomPageConfig, endpoint: string): string {
@@ -2629,7 +2836,7 @@ function phenomTotalLocator(configLocator: string, countryFilter: string, reques
 
 function phenomArtifact(input: {
   id: string;
-  kind: "OFFICIAL_COMPANY_PAGE" | "PAGINATION_PAGE";
+  kind: "OFFICIAL_COMPANY_PAGE" | "ATS_API_RESPONSE" | "PAGINATION_PAGE";
   requestedUrl: string;
   response: OfficialJsonHttpResponse;
   extractorLocator: string;
@@ -2752,9 +2959,13 @@ function phenomRecordHasChinaScope(
   return explicitlyChina(`${locationRaw} ${city ?? ""}`);
 }
 
-function safePhenomJobUrl(raw: string, detailBaseUrl: string): string {
+function safePhenomJobUrl(
+  raw: string,
+  detailBaseUrl: string,
+  allowedOrigins: ReadonlySet<string>
+): string {
   const url = safeOfficialJsonEndpoint(new URL(raw, detailBaseUrl).toString());
-  if (new URL(url).origin !== new URL(detailBaseUrl).origin) {
+  if (!allowedOrigins.has(new URL(url).origin)) {
     throw new Error("Phenom official job origin mismatch");
   }
   return url;
@@ -4349,14 +4560,27 @@ function phenomTopLevelJavaScriptConfigs(
   }
 
   const candidates: CompletePhenomPageConfig[] = [];
+  const fallbackCandidates: Array<Partial<CompletePhenomPageConfig>> = [];
+  const separatePageIds: string[] = [];
   for (const statement of program.program.body) {
     if (statement.type === "VariableDeclaration") {
       for (const declaration of statement.declarations) {
         if (declaration.id.type !== "Identifier" || declaration.id.name !== "phApp") continue;
-        if (declaration.init?.type !== "ObjectExpression") return null;
-        const candidate = phenomConfigFromObjectExpression(declaration.init);
-        if (!candidate) return null;
-        candidates.push(candidate);
+        if (declaration.init?.type === "ObjectExpression") {
+          const candidate = phenomConfigFromObjectExpression(declaration.init);
+          if (!candidate) return null;
+          candidates.push(candidate);
+          continue;
+        }
+        if (declaration.init?.type === "LogicalExpression" && declaration.init.operator === "||" &&
+          declaration.init.left.type === "Identifier" && declaration.init.left.name === "phApp" &&
+          declaration.init.right.type === "ObjectExpression") {
+          const candidate = phenomPartialConfigFromObjectExpression(declaration.init.right);
+          if (!candidate) return null;
+          fallbackCandidates.push(candidate);
+          continue;
+        }
+        return null;
       }
       continue;
     }
@@ -4364,13 +4588,43 @@ function phenomTopLevelJavaScriptConfigs(
       continue;
     }
     const assignment = statement.expression;
+    if (isTopLevelPhenomPageIdAssignmentTarget(assignment.left)) {
+      if (assignment.operator !== "=" || assignment.right.type !== "StringLiteral" ||
+        typeof assignment.right.value !== "string" || !assignment.right.value.trim()) return null;
+      separatePageIds.push(assignment.right.value);
+      continue;
+    }
     if (assignment.operator !== "=" || !isTopLevelPhenomAssignmentTarget(assignment.left)) continue;
     if (assignment.right.type !== "ObjectExpression") return null;
     const candidate = phenomConfigFromObjectExpression(assignment.right);
     if (!candidate) return null;
     candidates.push(candidate);
   }
+  if (fallbackCandidates.length > 0) {
+    if (fallbackCandidates.length !== 1 || separatePageIds.length > 1) return null;
+    const fallback = fallbackCandidates[0]!;
+    if (fallback.pageId && separatePageIds.length > 0) return null;
+    const pageId = fallback.pageId ?? separatePageIds[0];
+    if (!pageId) return null;
+    candidates.push({ ...fallback, pageId } as CompletePhenomPageConfig);
+  } else if (separatePageIds.length > 0) {
+    // A standalone runtime pageId mutation is not a bootstrap config and must
+    // neither override nor invalidate a complete static phApp object elsewhere.
+    return [];
+  }
   return candidates;
+}
+
+function isTopLevelPhenomPageIdAssignmentTarget(value: unknown): boolean {
+  if (!value || typeof value !== "object" || !("type" in value) || value.type !== "MemberExpression" ||
+    !("computed" in value) || value.computed || !("object" in value) || !("property" in value) ||
+    !value.object || typeof value.object !== "object" || !value.property || typeof value.property !== "object") {
+    return false;
+  }
+  return "type" in value.object && value.object.type === "Identifier" &&
+    "name" in value.object && value.object.name === "phApp" &&
+    "type" in value.property && value.property.type === "Identifier" &&
+    "name" in value.property && value.property.name === "pageId";
 }
 
 function isTopLevelPhenomAssignmentTarget(value: unknown): boolean {
@@ -4391,6 +4645,13 @@ function isTopLevelPhenomAssignmentTarget(value: unknown): boolean {
 function phenomConfigFromObjectExpression(
   expression: ObjectExpression
 ): CompletePhenomPageConfig | undefined {
+  const result = phenomPartialConfigFromObjectExpression(expression);
+  return result && completePhenomPageConfig(result) ? result : undefined;
+}
+
+function phenomPartialConfigFromObjectExpression(
+  expression: ObjectExpression
+): Partial<CompletePhenomPageConfig> | undefined {
   const values = new Map<string, string>();
   for (const property of expression.properties) {
     if (!property || typeof property !== "object" || !("type" in property) ||
@@ -4412,16 +4673,19 @@ function phenomConfigFromObjectExpression(
       values.set(key, "");
     }
   }
-  const required = [
-    "widgetApiEndpoint", "refNum", "locale", "deviceType", "country", "pageName", "pageId"
-  ] as const;
+  const required = ["widgetApiEndpoint", "refNum", "locale", "deviceType", "country", "pageName"] as const;
   const result: Partial<CompletePhenomPageConfig> = {};
   for (const key of required) {
     const value = values.get(key);
     if (!value?.trim()) return undefined;
     result[key] = value;
   }
-  return result as CompletePhenomPageConfig;
+  const pageId = values.get("pageId");
+  if (pageId !== undefined) {
+    if (!pageId.trim()) return undefined;
+    result.pageId = pageId;
+  }
+  return result;
 }
 
 function topLevelJsonProperties(json: string): Array<{ key: string; valueStart: number }> | undefined {

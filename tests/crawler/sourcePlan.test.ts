@@ -261,16 +261,24 @@ describe("source crawl planning", () => {
     });
     expect(getPlanBySourceId(plans, "source-roche-china-social")).toMatchObject({
       adapterId: "official-json",
-      source: { atsKind: "WORKDAY" },
-      workday: {
-        tenant: "roche",
-        site: "roche-ext",
-        facetDescriptorExclusions: [{
-          facetParameter: "jobFamilyGroup",
-          excludedDescriptors: ["Vocational & Development Programs"]
-        }]
+      source: {
+        atsKind: "OFFICIAL_JSON",
+        officialEntryUrl: "https://careers.roche.com/cn/zh/search-results",
+        officialChainEvidenceUrl: "https://careers.roche.com/cn/zh/china-mainland"
+      },
+      officialJsonFetch: {
+        kind: "phenom",
+        detailBaseUrl: "https://careers.roche.com/cn/zh/job",
+        allowedApplyOrigins: ["https://roche.wd3.myworkdayjobs.com"],
+        facetScope: {
+          countryIncludeDescriptor: "中国大陆",
+          categoryExcludeDescriptors: ["实习 & 发展项目"]
+        },
+        pageSize: 50,
+        maxPages: 10
       }
     });
+    expect(getPlanBySourceId(plans, "source-roche-china-social")).not.toHaveProperty("workday");
     expect(getPlanBySourceId(plans, "source-biogen-china-social")).toMatchObject({
       adapterId: "official-json",
       source: {

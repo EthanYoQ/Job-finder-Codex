@@ -239,9 +239,9 @@ const CANDIDATE_SEEDS: CandidateSeed[] = [
     pinyinName: "luoshi",
     category: "FOREIGN_PHARMA",
     status: "VERIFIED_SCRAPABLE",
-    atsKind: "WORKDAY",
+    atsKind: "OFFICIAL_JSON",
     officialWebsiteUrl: "https://www.roche.com.cn/",
-    socialEntryUrl: "https://roche.wd3.myworkdayjobs.com/roche-ext",
+    socialEntryUrl: "https://careers.roche.com/cn/zh/search-results",
     officialChainEvidenceUrl: "https://careers.roche.com/cn/zh/china-mainland"
   },
   {

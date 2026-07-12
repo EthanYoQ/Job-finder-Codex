@@ -342,17 +342,17 @@ const REPRESENTATIVE_CONFIGS: Record<string, RepresentativeSourceConfig> = {
   },
   "source-roche-china-social": {
     adapterId: "official-json",
-    json: WORKDAY_JSON_CONFIG,
-    workday: {
-      tenant: "roche",
-      site: "roche-ext",
-      searchText: "China",
-      facetDescriptorExclusions: [{
-        facetParameter: "jobFamilyGroup",
-        excludedDescriptors: ["Vocational & Development Programs"]
-      }],
-      pageSize: 20,
-      maxPages: 20
+    json: OFFICIAL_API_JSON_CONFIG,
+    officialJsonFetch: {
+      kind: "phenom",
+      detailBaseUrl: "https://careers.roche.com/cn/zh/job",
+      allowedApplyOrigins: ["https://roche.wd3.myworkdayjobs.com"],
+      facetScope: {
+        countryIncludeDescriptor: "中国大陆",
+        categoryExcludeDescriptors: ["实习 & 发展项目"]
+      },
+      pageSize: 50,
+      maxPages: 10
     }
   },
   "source-msd-china-social": {

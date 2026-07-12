@@ -77,6 +77,17 @@ function pageBody(jobs: unknown[], totalHits?: unknown, from?: unknown): string 
   });
 }
 
+function facetPageBody(
+  jobs: unknown[],
+  totalHits: number,
+  from: number,
+  aggregations: Array<{ field: string; value: Record<string, unknown> }>
+): string {
+  return JSON.stringify({
+    refineSearch: { totalHits, from, data: { jobs, aggregations } }
+  });
+}
+
 function withoutOpaqueBodies(value: unknown): string {
   const clone = structuredClone(value) as { fetchEvidence?: { artifacts?: Array<Record<string, unknown>> } };
   for (const artifact of clone.fetchEvidence?.artifacts ?? []) artifact.body = "[OPAQUE]";
@@ -84,6 +95,219 @@ function withoutOpaqueBodies(value: unknown): string {
 }
 
 describe("Phenom evidence instrumentation", () => {
+  it("safely accepts the Roche static phApp fallback object with one separate literal pageId assignment", async () => {
+    const body = `<script>
+      var phApp = phApp || {"widgetApiEndpoint":"${widgetUrl}","country":"cn","deviceType":"desktop","locale":"zh_cn","refNum":"${refNum}","pageName":"search-results"};
+      phApp.pageId = "page11";
+    </script>`;
+    const fetcher = createOfficialJsonSourceFetch({
+      now: () => new Date(capturedAt),
+      http: async (request) => request.method === "POST"
+        ? response(pageBody([job("CN-1")], 1, 0), widgetUrl, "application/json")
+        : response(body, entryUrl, "text/html")
+    });
+
+    await expect(fetcher(plan)).resolves.toMatchObject({ ok: true });
+  });
+
+  it("keeps the complete Roche bootstrap pageId authoritative over a later standalone runtime pageId", async () => {
+    const body = `<script>
+      var phApp = phApp || {"widgetApiEndpoint":"${widgetUrl}","country":"cn","deviceType":"desktop","locale":"zh_cn","refNum":"${refNum}","pageName":"search-results","pageId":"page11"};
+    </script><script>phApp.pageId = "page11-ds";</script>`;
+    const requests: Array<{ body?: string }> = [];
+    const fetcher = createOfficialJsonSourceFetch({
+      now: () => new Date(capturedAt),
+      http: async (request) => {
+        requests.push(request);
+        return request.method === "POST"
+          ? response(pageBody([job("CN-1")], 1, 0), widgetUrl, "application/json")
+          : response(body, entryUrl, "text/html");
+      }
+    });
+
+    await expect(fetcher(plan)).resolves.toMatchObject({ ok: true });
+    expect(JSON.parse(requests[1]?.body ?? "{}").pageId).toBe("page11");
+  });
+
+  it.each([
+    ["dynamic pageId", `phApp.pageId = makePageId();`],
+    ["conflicting pageIds", `phApp.pageId = "page11"; phApp.pageId = "page12";`],
+    ["computed pageId", `phApp["pageId"] = "page11";`]
+  ])("rejects Roche-style config with %s", async (_label, pageIdSource) => {
+    const body = `<script>
+      var phApp = phApp || {"widgetApiEndpoint":"${widgetUrl}","country":"cn","deviceType":"desktop","locale":"zh_cn","refNum":"${refNum}","pageName":"search-results"};
+      ${pageIdSource}
+    </script>`;
+    let requestCount = 0;
+    const fetcher = createOfficialJsonSourceFetch({
+      now: () => new Date(capturedAt),
+      http: async () => {
+        requestCount += 1;
+        return response(body, entryUrl, "text/html");
+      }
+    });
+
+    await expect(fetcher(plan)).resolves.toMatchObject({
+      ok: false,
+      failureReason: "Phenom required widget configuration was not found"
+    });
+    expect(requestCount).toBe(1);
+  });
+
+  it("proves a structured country/category facet scope before paginating the filtered jobs", async () => {
+    const scopedPlan = {
+      ...plan,
+      officialJsonFetch: {
+        ...plan.officialJsonFetch,
+        facetScope: {
+          countryIncludeDescriptor: "中国大陆",
+          categoryExcludeDescriptors: ["实习 & 发展项目"]
+        },
+        pageSize: 2
+      }
+    } satisfies SourceCrawlPlan;
+    const requests: Array<{ method?: string; body?: string }> = [];
+    const bodies = [
+      facetPageBody([], 10, 0, [{ field: "country", value: { 中国大陆: 4, 瑞士: 6 } }]),
+      facetPageBody([job("SAMPLE", { country: "中国大陆", category: "销售 & 市场" })], 4, 0, [
+        { field: "category", value: { "销售 & 市场": 2, "医学事务": 1, "实习 & 发展项目": 1 } }
+      ]),
+      facetPageBody([
+        job("CN-1", { country: "中国大陆", category: "销售 & 市场" }),
+        job("CN-2", { country: "中国大陆", category: "医学事务" })
+      ], 3, 0, []),
+      facetPageBody([
+        job("CN-3", { country: "中国大陆", category: "销售 & 市场" })
+      ], 3, 2, [])
+    ];
+    const fetcher = createOfficialJsonSourceFetch({
+      now: () => new Date(capturedAt),
+      http: async (request) => {
+        requests.push(request);
+        return request.method === "POST"
+          ? response(bodies.shift()!, widgetUrl, "application/json")
+          : response(entryHtml(), entryUrl, "text/html");
+      }
+    });
+
+    const result = await fetcher(scopedPlan);
+    expect(result).toMatchObject({
+      ok: true,
+      completeness: { expectedJobCount: 3, completenessStatus: "NEEDS_MANUAL_COMPLETENESS_REVIEW" },
+      fetchEvidence: {
+        artifacts: [
+          { kind: "OFFICIAL_COMPANY_PAGE" },
+          { kind: "ATS_API_RESPONSE" },
+          { kind: "ATS_API_RESPONSE" },
+          { kind: "PAGINATION_PAGE" },
+          { kind: "PAGINATION_PAGE" }
+        ],
+        declaredCompleteness: { value: 3, scope: "SOURCE" },
+        fetchCounts: { rawCount: 3, validCount: 3 }
+      }
+    });
+    expect(requests.slice(1).map((request) => JSON.parse(request.body ?? "{}").selected_fields)).toEqual([
+      {},
+      { country: ["中国大陆"] },
+      { country: ["中国大陆"], category: ["销售 & 市场", "医学事务"] },
+      { country: ["中国大陆"], category: ["销售 & 市场", "医学事务"] }
+    ]);
+  });
+
+  it("accepts only an explicitly configured HTTPS apply origin endorsed by the Phenom payload", async () => {
+    const externalApplyUrl = "https://ats.example.test/jobs/CN-1/apply";
+    const fetcher = createOfficialJsonSourceFetch({
+      now: () => new Date(capturedAt),
+      http: async (request) => request.method === "POST"
+        ? response(pageBody([job("CN-1", { applyUrl: externalApplyUrl })], 1, 0), widgetUrl, "application/json")
+        : response(entryHtml(), entryUrl, "text/html")
+    });
+
+    const result = await fetcher({
+      ...plan,
+      officialJsonFetch: {
+        ...plan.officialJsonFetch,
+        allowedApplyOrigins: ["https://ats.example.test"]
+      }
+    });
+    expect(result).toMatchObject({ ok: true, payload: { jobs: [{ officialUrl: externalApplyUrl }] } });
+  });
+
+  it.each([
+    [
+      "country total drift",
+      facetPageBody([job("S", { country: "中国大陆", category: "销售 & 市场" })], 3, 0, [
+        { field: "category", value: { "销售 & 市场": 2, "实习 & 发展项目": 1 } }
+      ])
+    ],
+    [
+      "out-of-country sample",
+      facetPageBody([job("S", { country: "瑞士", category: "销售 & 市场" })], 4, 0, [
+        { field: "category", value: { "销售 & 市场": 3, "实习 & 发展项目": 1 } }
+      ])
+    ],
+    [
+      "category partition drift",
+      facetPageBody([job("S", { country: "中国大陆", category: "销售 & 市场" })], 4, 0, [
+        { field: "category", value: { "销售 & 市场": 2, "实习 & 发展项目": 1 } }
+      ])
+    ]
+  ])("fails closed when the country preflight has %s", async (_label, countryBody) => {
+    const scopedPlan = {
+      ...plan,
+      officialJsonFetch: {
+        ...plan.officialJsonFetch,
+        facetScope: {
+          countryIncludeDescriptor: "中国大陆",
+          categoryExcludeDescriptors: ["实习 & 发展项目"]
+        }
+      }
+    } satisfies SourceCrawlPlan;
+    const bodies = [
+      facetPageBody([], 10, 0, [{ field: "country", value: { 中国大陆: 4, 瑞士: 6 } }]),
+      countryBody
+    ];
+    let postCount = 0;
+    const fetcher = createOfficialJsonSourceFetch({
+      now: () => new Date(capturedAt),
+      http: async (request) => {
+        if (request.method !== "POST") return response(entryHtml(), entryUrl, "text/html");
+        postCount += 1;
+        return response(bodies.shift()!, widgetUrl, "application/json");
+      }
+    });
+
+    await expect(fetcher(scopedPlan)).resolves.toMatchObject({ ok: false });
+    expect(postCount).toBe(2);
+  });
+
+  it("fails closed when filtered totals or records prove the server ignored the category scope", async () => {
+    const scopedPlan = {
+      ...plan,
+      officialJsonFetch: {
+        ...plan.officialJsonFetch,
+        facetScope: {
+          countryIncludeDescriptor: "中国大陆",
+          categoryExcludeDescriptors: ["实习 & 发展项目"]
+        }
+      }
+    } satisfies SourceCrawlPlan;
+    const bodies = [
+      facetPageBody([], 10, 0, [{ field: "country", value: { 中国大陆: 4, 瑞士: 6 } }]),
+      facetPageBody([], 4, 0, [{
+        field: "category", value: { "销售 & 市场": 3, "实习 & 发展项目": 1 }
+      }]),
+      facetPageBody([job("IGNORED", { country: "中国大陆", category: "实习 & 发展项目" })], 4, 0, [])
+    ];
+    const fetcher = createOfficialJsonSourceFetch({
+      now: () => new Date(capturedAt),
+      http: async (request) => request.method === "POST"
+        ? response(bodies.shift()!, widgetUrl, "application/json")
+        : response(entryHtml(), entryUrl, "text/html")
+    });
+
+    await expect(fetcher(scopedPlan)).resolves.toMatchObject({ ok: false });
+  });
   it("retains exact entry and page artifacts, strict offsets and total coordinates while staying manual", async () => {
     const requests: Array<{ method?: string; body?: string }> = [];
     const bodies = [pageBody([job("CN-1")], 2, 0), pageBody([job("CN-2")], 2, 1)];

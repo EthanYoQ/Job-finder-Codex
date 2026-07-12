@@ -144,6 +144,11 @@ describe("60-company pharma registry", () => {
     expect(byId.get("company-ucb-china")?.sources[0]?.officialEntryUrl).toBe(
       "https://careers.ucb.com/global/en/search-results?qcountry=China"
     );
+    expect(byId.get("company-roche-china")?.sources[0]).toMatchObject({
+      atsKind: "OFFICIAL_JSON",
+      officialEntryUrl: "https://careers.roche.com/cn/zh/search-results",
+      officialChainEvidenceUrl: "https://careers.roche.com/cn/zh/china-mainland"
+    });
     expect(byId.get("company-tianjin-pharma")?.sources[0]).toMatchObject({
       officialEntryUrl: "https://tjph.zhiye.com/social",
       officialChainEvidenceUrl: "https://www.pharm.com.cn/"
