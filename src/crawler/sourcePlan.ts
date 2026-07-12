@@ -347,6 +347,10 @@ const REPRESENTATIVE_CONFIGS: Record<string, RepresentativeSourceConfig> = {
       tenant: "roche",
       site: "roche-ext",
       searchText: "China",
+      facetDescriptorExclusions: [{
+        facetParameter: "jobFamilyGroup",
+        excludedDescriptors: ["Vocational & Development Programs"]
+      }],
       pageSize: 20,
       maxPages: 20
     }

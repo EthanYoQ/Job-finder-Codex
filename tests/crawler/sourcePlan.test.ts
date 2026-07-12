@@ -259,6 +259,18 @@ describe("source crawl planning", () => {
         site: "SearchJobs"
       }
     });
+    expect(getPlanBySourceId(plans, "source-roche-china-social")).toMatchObject({
+      adapterId: "official-json",
+      source: { atsKind: "WORKDAY" },
+      workday: {
+        tenant: "roche",
+        site: "roche-ext",
+        facetDescriptorExclusions: [{
+          facetParameter: "jobFamilyGroup",
+          excludedDescriptors: ["Vocational & Development Programs"]
+        }]
+      }
+    });
     expect(getPlanBySourceId(plans, "source-biogen-china-social")).toMatchObject({
       adapterId: "official-json",
       source: {
