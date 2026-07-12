@@ -6,6 +6,9 @@ const schema = readFileSync(resolve(process.cwd(), "prisma", "schema.prisma"), "
 const migration = readFileSync(resolve(
   process.cwd(), "prisma", "migrations", "20260713010000_manual_crawl_request_ownership", "migration.sql"
 ), "utf8");
+const previewIsolationMigration = readFileSync(resolve(
+  process.cwd(), "prisma", "migrations", "20260713030000_manual_crawl_preview_isolation", "migration.sql"
+), "utf8");
 
 function model(name: string): string {
   const match = schema.match(new RegExp(`model ${name}\\s+\\{([\\s\\S]*?)\\n\\}`));
@@ -51,5 +54,13 @@ describe("manual crawl persistence contract", () => {
     expect(migration.indexOf("ROW_NUMBER() OVER")).toBeLessThan(
       migration.indexOf('CREATE UNIQUE INDEX "ManualCrawlRequest_one_active_per_source"')
     );
+  });
+
+  it("isolates verified MANUAL_SOURCE preview hashes without relaxing the formal lifecycle projection", () => {
+    expect(previewIsolationMigration).toContain("MANUAL_SOURCE");
+    expect(previewIsolationMigration).toMatch(/parent_output\s+IS\s+DISTINCT\s+FROM\s+parent_current/i);
+    expect(previewIsolationMigration).toContain("4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945");
+    expect(previewIsolationMigration).toMatch(/IF\s+parent_kind\s*=\s*'MANUAL_SOURCE'[\s\S]+RETURN;[\s\S]+current_hash\s+IS\s+DISTINCT\s+FROM\s+parent_current/i);
+    expect(previewIsolationMigration).toContain("verified committed parent lifecycle projection mismatch");
   });
 });

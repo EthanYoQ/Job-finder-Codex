@@ -89,7 +89,8 @@ const MIGRATIONS = [
   "20260711240000_lifecycle_trigger_security_closure",
   "20260712020000_release_runtime_identity",
   "20260713010000_manual_crawl_request_ownership",
-  "20260713020000_privacy_request_retention"
+  "20260713020000_privacy_request_retention",
+  "20260713030000_manual_crawl_preview_isolation"
 ];
 
 const APP_TABLES = [
@@ -183,10 +184,10 @@ describe("empty database migration verification orchestration", () => {
       result("psql (PostgreSQL) 16.14 (Debian 16.14-1.pgdg12+1)\n"),
       result(JSON.stringify({ currentDatabase: DATABASE_NAME, serverVersion: "16.14", systemIdentifier: "7659954889866510370", isTemplate: false })),
       result(JSON.stringify({ publicSchemaObjectCount: 0, migrationTableExists: false, migrationRowCount: 0 })),
-      result("15 migrations found in prisma/migrations\nAll migrations have been successfully applied.\n"),
+      result("16 migrations found in prisma/migrations\nAll migrations have been successfully applied.\n"),
       result(JSON.stringify(migratedAudit())),
       result("-- PostgreSQL database dump\nCREATE TABLE public.\"Company\" ();\n"),
-      result("15 migrations found in prisma/migrations\nNo pending migrations to apply.\n"),
+      result("16 migrations found in prisma/migrations\nNo pending migrations to apply.\n"),
       result(JSON.stringify(migratedAudit())),
       result("-- PostgreSQL database dump\nCREATE TABLE public.\"Company\" ();\n")
     ];
@@ -215,7 +216,7 @@ describe("empty database migration verification orchestration", () => {
       databaseName: DATABASE_NAME,
       serverVersion: "16.14",
       systemIdentifier: "7659954889866510370",
-      migrationCount: 15,
+      migrationCount: 16,
       appTableCount: 21,
       allAppTableCountsZero: true,
       secondDeployNoop: true

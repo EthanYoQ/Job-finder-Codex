@@ -9,7 +9,12 @@ describe("manual crawl worker CLI", () => {
   });
 
   it("rejects unknown arguments instead of silently changing worker behavior", () => {
-    expect(() => parseManualCrawlWorkerArgs(["--source-id", "source-1"]))
-      .toThrow("Unknown manual crawl worker argument");
+    const secret = "--token=sk-live-secret-value";
+    expect(() => parseManualCrawlWorkerArgs([secret])).toThrow("Unknown manual crawl worker argument");
+    try {
+      parseManualCrawlWorkerArgs([secret]);
+    } catch (error) {
+      expect((error as Error).message).not.toContain(secret);
+    }
   });
 });

@@ -11,7 +11,7 @@ export function parseManualCrawlWorkerArgs(args: readonly string[]): ManualCrawl
       stopWhenIdle = true;
       continue;
     }
-    throw new Error(`Unknown manual crawl worker argument: ${argument}`);
+    throw new Error("Unknown manual crawl worker argument");
   }
   return { help: false, stopWhenIdle };
 }

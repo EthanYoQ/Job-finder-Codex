@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import {
+  manualCrawlWorkerExitCode,
   runManualCrawlWorker,
   type ManualCrawlWorkerRepository
 } from "../../src/crawler/manualCrawlWorker";
@@ -186,6 +187,22 @@ describe("manual crawl request worker", () => {
     expect(result.claimedCount).toBe(1);
     expect(repository.claimNext).toHaveBeenCalledTimes(1);
     expect(repository.finishSuccess).toHaveBeenCalledTimes(1);
+  });
+
+  it("reports a claim failure in --once mode as a nonzero worker outcome", async () => {
+    const repository = fakeRepository([]);
+    repository.claimNext.mockRejectedValueOnce(new Error("database unavailable"));
+
+    const result = await runManualCrawlWorker({
+      repository,
+      executeSource: vi.fn(),
+      ownerId: "worker-1",
+      now: () => NOW,
+      stopWhenIdle: true
+    });
+
+    expect(result.claimFailureCount).toBe(1);
+    expect(manualCrawlWorkerExitCode(result)).toBe(1);
   });
 });
 

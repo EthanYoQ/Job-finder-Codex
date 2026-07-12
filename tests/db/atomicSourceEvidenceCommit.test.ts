@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import {
   executeAtomicSourceEvidenceCommit,
+  executeManualSourceEvidenceCommit,
   createBatchWithPendingSourceResults,
   type AtomicSourceEvidenceCommit,
   type PrismaAtomicSourceEvidenceDb
@@ -238,12 +239,13 @@ function removeLifecycleCommands(input: AtomicSourceEvidenceCommit): void {
 
 type Group = "sourceResults" | "artifacts" | "pagination" | "loss" | "priorAttempts" | "priorAttemptArtifacts" | "observations" | "jobs" | "lifecycleMembers";
 
-function transactionalDb(failAt?: Group, sourceResultCount = 1): PrismaAtomicSourceEvidenceDb & {
-  calls: Record<Group, unknown[]> & { transactions: number; order: Group[] };
+function transactionalDb(failAt?: Group, sourceResultCount = 1, fenceRows: unknown[] = []): PrismaAtomicSourceEvidenceDb & {
+  calls: Record<Group, unknown[]> & { transactions: number; order: Group[]; fences: unknown[] };
 } {
   const calls = {
     transactions: 0,
     order: [] as Group[],
+    fences: [] as unknown[],
     sourceResults: [] as unknown[],
     artifacts: [] as unknown[],
     pagination: [] as unknown[],
@@ -269,6 +271,10 @@ function transactionalDb(failAt?: Group, sourceResultCount = 1): PrismaAtomicSou
         return args;
       });
       const result = await operation({
+        $queryRawUnsafe: vi.fn(async (sql: string, ...values: unknown[]) => {
+          calls.fences.push({ sql, values });
+          return fenceRows;
+        }),
         crawlBatchSourceResult: { updateMany: vi.fn(async (args: unknown) => {
           if (failAt === "sourceResults") throw new Error("injected sourceResults failure");
           pending.sourceResults.push(args);
@@ -738,6 +744,52 @@ describe("executeAtomicSourceEvidenceCommit", () => {
   ] as const) {
     rejectsBeforeTransaction(`rejects ${name}`, mutate, /COMMITTED|VERIFIED|blocker|terminal/i);
   }
+});
+
+describe("executeManualSourceEvidenceCommit", () => {
+  const fence = { requestId: "request-1", ownerId: "worker-new" };
+
+  it("rejects a reclaimed stale owner before any evidence, observation, lifecycle or job write", async () => {
+    const input = validCommit();
+    removeLifecycleCommands(input);
+    const db = transactionalDb(undefined, 1, []);
+
+    await expect(executeManualSourceEvidenceCommit(input, fence, db))
+      .rejects.toMatchObject({ code: "MANUAL_CRAWL_OWNERSHIP_LOST" });
+
+    expect(db.calls.fences).toHaveLength(1);
+    for (const group of ["sourceResults", "artifacts", "pagination", "loss", "priorAttempts",
+      "priorAttemptArtifacts", "observations", "jobs", "lifecycleMembers"] as Group[]) {
+      expect(db.calls[group]).toEqual([]);
+    }
+  });
+
+  it("lets only the reclaimed worker commit and keeps manual evidence free of Job/lifecycle mutation", async () => {
+    const stale = validCommit();
+    removeLifecycleCommands(stale);
+    const staleDb = transactionalDb(undefined, 1, []);
+    await expect(executeManualSourceEvidenceCommit(stale, { ...fence, ownerId: "worker-old" }, staleDb))
+      .rejects.toMatchObject({ code: "MANUAL_CRAWL_OWNERSHIP_LOST" });
+
+    const current = validCommit();
+    removeLifecycleCommands(current);
+    const currentDb = transactionalDb(undefined, 1, [{ id: fence.requestId }]);
+    await executeManualSourceEvidenceCommit(current, fence, currentDb);
+
+    expect(currentDb.calls.fences[0]).toMatchObject({ values: [fence.requestId, fence.ownerId] });
+    expect(currentDb.calls.observations).toHaveLength(1);
+    expect(currentDb.calls.artifacts).toHaveLength(1);
+    expect(currentDb.calls.jobs).toEqual([]);
+    expect(currentDb.calls.lifecycleMembers).toEqual([]);
+    expect(currentDb.calls.sourceResults).toHaveLength(1);
+  });
+
+  it("rejects a manual commit containing canonical Job commands before opening a transaction", async () => {
+    const db = transactionalDb(undefined, 1, [{ id: fence.requestId }]);
+    await expect(executeManualSourceEvidenceCommit(validCommit(), fence, db))
+      .rejects.toThrow(/manual.*job.*lifecycle/i);
+    expect(db.calls.transactions).toBe(0);
+  });
 });
 
 describe.runIf(Boolean(process.env.TASK3B_CLONE_DATABASE_URL))("Task3B real clone repository runtime",()=>{

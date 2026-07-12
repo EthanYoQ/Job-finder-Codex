@@ -15,7 +15,12 @@ export type ManualCrawlWorkerResult = {
   successCount: number;
   failedCount: number;
   ownershipLostCount: number;
+  claimFailureCount: number;
 };
+
+export function manualCrawlWorkerExitCode(result: ManualCrawlWorkerResult): 0 | 1 {
+  return result.claimFailureCount === 0 ? 0 : 1;
+}
 
 type HeartbeatCallback = () => Promise<void>;
 
@@ -57,7 +62,8 @@ export async function runManualCrawlWorker(input: ManualCrawlWorkerInput): Promi
     claimedCount: 0,
     successCount: 0,
     failedCount: 0,
-    ownershipLostCount: 0
+    ownershipLostCount: 0,
+    claimFailureCount: 0
   };
 
   while (!input.signal?.aborted) {
@@ -70,6 +76,7 @@ export async function runManualCrawlWorker(input: ManualCrawlWorkerInput): Promi
         leaseExpiresAt: futureLease(claimTime, leaseDurationMs)
       });
     } catch {
+      result.claimFailureCount += 1;
       input.onOperationalError?.({ code: "CLAIM_FAILED" });
       if (input.stopWhenIdle) break;
       await sleep(idlePollMs, input.signal);

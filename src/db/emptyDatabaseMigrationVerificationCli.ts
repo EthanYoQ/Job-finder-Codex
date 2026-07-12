@@ -25,7 +25,8 @@ export const REVIEWED_MIGRATION_NAMES = [
   "20260711240000_lifecycle_trigger_security_closure",
   "20260712020000_release_runtime_identity",
   "20260713010000_manual_crawl_request_ownership",
-  "20260713020000_privacy_request_retention"
+  "20260713020000_privacy_request_retention",
+  "20260713030000_manual_crawl_preview_isolation"
 ] as const;
 
 export const REVIEWED_APP_TABLE_NAMES = [

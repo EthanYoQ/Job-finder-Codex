@@ -55,6 +55,7 @@ describe("manual source batch executor", () => {
 
     expect(runP0CrawlBatch).toHaveBeenCalledWith([plan], expect.objectContaining({
       force: true,
+      manualRequestFence: { requestId: "request-1", ownerId: "manual-worker-1" },
       identity: expect.objectContaining({
         batchKind: "MANUAL_SOURCE",
         ownerId: "manual-worker-1",

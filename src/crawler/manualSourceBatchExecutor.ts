@@ -47,6 +47,7 @@ export function createManualSourceBatchExecutor(input: {
       now: input.now,
       identity,
       force: true,
+      manualRequestFence: { requestId: request.requestId, ownerId: request.ownerId },
       ...input.runtimeDeps
     });
     return { batchId: batch.batchId, status: batch.status };

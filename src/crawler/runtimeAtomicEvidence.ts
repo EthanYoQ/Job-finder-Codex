@@ -155,7 +155,8 @@ export function buildAtomicRuntimeCommit(input: {
   const completenessVerified = result.truth.completenessVerified && oracleVerified;
   const finishedAt = result.observation.crawledAt;
   // These decisions are transaction candidates only. They become true only if the enclosing atomic commit succeeds.
-  const lifecycle = completenessVerified ? applyCrawlObservation(input.previousJobs, result.jobs, {
+  const manualPreview = identity.batchKind === "MANUAL_SOURCE";
+  const lifecycle = completenessVerified && !manualPreview ? applyCrawlObservation(input.previousJobs, result.jobs, {
     observation: { disposition: "TRUSTED_COMPLETE", atomicCommitEligible: true },
     observedAt: finishedAt.toISOString(), baselineCompletedBeforeCrawl: input.baselineCompletedBeforeCrawl
   }) : [];

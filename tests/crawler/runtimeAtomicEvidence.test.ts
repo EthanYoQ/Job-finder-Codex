@@ -181,6 +181,14 @@ describe("runtime atomic evidence planning", () => {
       canonicalCurrentJobSetSha256: commit.observationProvenance.canonicalOutputSha256 });
     expect(commit.artifacts).toHaveLength(1);
     expect(commit.pagination).toHaveLength(1);
+    const manualIdentity = { ...identity, batchKind: "MANUAL_SOURCE" as const, ownerId: "manual-worker" };
+    const manualCommit = buildAtomicRuntimeCommit({ plan, pending, identity: manualIdentity, batchId: "batch-1", result,
+      previousJobs: [], baselineCompletedBeforeCrawl: true, artifacts: archived, oracle });
+    expect(manualCommit.commands.filter((command) => command.type === "UPSERT_JOB")).toEqual([]);
+    expect(manualCommit.sourceResult.canonicalGraceJobSetSha256).toBe(
+      (await import("../../src/crawler/sourceFetchEvidence")).canonicalStringSetSha256([]));
+    expect(manualCommit.sourceResult.canonicalVisibleJobSetSha256).toBe(
+      (await import("../../src/crawler/sourceFetchEvidence")).canonicalStringSetSha256([]));
     expect(commit.sourceResult.canonicalGraceJobSetSha256).toBe(
       (await import("../../src/crawler/sourceFetchEvidence")).canonicalStringSetSha256([]));
     const incompleteResult = structuredClone(result);

@@ -290,6 +290,7 @@ export interface AtomicSourceEvidenceCommit {
 interface ConditionalUpdateResult { count: number }
 
 interface AtomicSourceTransactionClient extends PrismaIngestionTransactionClient {
+  $queryRawUnsafe?<T>(query: string, ...values: unknown[]): Promise<T>;
   crawlBatchSourceResult: {
     updateMany(args: { where: Record<string, unknown>; data: Record<string, unknown> }): Promise<ConditionalUpdateResult>
   };
@@ -303,6 +304,16 @@ interface AtomicSourceTransactionClient extends PrismaIngestionTransactionClient
 
 export interface PrismaAtomicSourceEvidenceDb {
   $transaction<T>(operation: (transaction: AtomicSourceTransactionClient) => Promise<T>): Promise<T>;
+}
+
+export type ManualSourceCommitFence = { requestId: string; ownerId: string };
+
+export class ManualSourceCommitFenceError extends Error {
+  readonly code = "MANUAL_CRAWL_OWNERSHIP_LOST";
+  constructor() {
+    super("MANUAL_CRAWL_OWNERSHIP_LOST");
+    this.name = "ManualSourceCommitFenceError";
+  }
 }
 
 type PlannedBatchKind = "FULL_RELEASE" | "SCHEDULED" | "MANUAL_SOURCE" | "BASELINE";
@@ -578,11 +589,41 @@ export async function executeAtomicSourceEvidenceCommit(
   input: AtomicSourceEvidenceCommit,
   db: PrismaAtomicSourceEvidenceDb
 ): Promise<void> {
+  return executeAtomicSourceEvidenceCommitInternal(input, db);
+}
+
+export async function executeManualSourceEvidenceCommit(
+  input: AtomicSourceEvidenceCommit,
+  fence: ManualSourceCommitFence,
+  db: PrismaAtomicSourceEvidenceDb
+): Promise<void> {
+  if (fence.requestId.trim() === "" || fence.ownerId.trim() === "") {
+    throw new ManualSourceCommitFenceError();
+  }
+  if (input.commands.some((command) => command.type === "UPSERT_JOB")) {
+    throw new Error("Manual source preview cannot contain Job lifecycle commands");
+  }
+  return executeAtomicSourceEvidenceCommitInternal(input, db, fence);
+}
+
+async function executeAtomicSourceEvidenceCommitInternal(
+  input: AtomicSourceEvidenceCommit,
+  db: PrismaAtomicSourceEvidenceDb,
+  manualFence?: ManualSourceCommitFence
+): Promise<void> {
   const { verifyAtomicRuntimeCommitAttestation } = await import("../crawler/runtimeAtomicEvidence");
   verifyAtomicRuntimeCommitAttestation(input);
-  const validated = validateAtomicSourceEvidenceCommit(input);
+  const validated = validateAtomicSourceEvidenceCommit(input, manualFence !== undefined);
 
   await db.$transaction(async (transaction) => {
+    if (manualFence) {
+      if (!transaction.$queryRawUnsafe) throw new ManualSourceCommitFenceError();
+      const owned = await transaction.$queryRawUnsafe<Array<{ id: string }>>(MANUAL_SOURCE_COMMIT_FENCE_SQL,
+        manualFence.requestId, manualFence.ownerId);
+      if (owned.length !== 1 || owned[0]?.id !== manualFence.requestId) {
+        throw new ManualSourceCommitFenceError();
+      }
+    }
     for (const artifact of input.artifacts) {
       const { logicalKey: _logicalKey, ...data } = artifact;
       await transaction.evidenceArtifact.create({ data });
@@ -698,6 +739,16 @@ export async function executeAtomicSourceEvidenceCommit(
   });
 }
 
+const MANUAL_SOURCE_COMMIT_FENCE_SQL = `
+SELECT request."id"
+FROM "ManualCrawlRequest" AS request
+WHERE request."id" = $1
+  AND request."ownerId" = $2
+  AND request."status" = 'RUNNING'
+  AND request."leaseExpiresAt" > CURRENT_TIMESTAMP
+FOR UPDATE
+`;
+
 function validatePlannedBatchWithSources(input: PlannedBatchWithSourcesInput): PlannedPendingSourceInput[] {
   const batch = input.batch;
   for (const [name, value] of [
@@ -793,7 +844,7 @@ function sourceResultTerminalData(result: AtomicSourceResultInput): Record<strin
   return terminal;
 }
 
-function validateAtomicSourceEvidenceCommit(input: AtomicSourceEvidenceCommit): {
+function validateAtomicSourceEvidenceCommit(input: AtomicSourceEvidenceCommit, manualPreview = false): {
   observationCommand: Extract<IngestionCommand, { type: "UPSERT_CRAWL_OBSERVATION" }>;
   artifactIdsByLogicalKey: Map<string, string>;
   officialArtifactId: string;
@@ -885,8 +936,16 @@ function validateAtomicSourceEvidenceCommit(input: AtomicSourceEvidenceCommit): 
     );
   }
   const jobCommands=input.commands.filter((command):command is Extract<IngestionCommand,{type:"UPSERT_JOB"}>=>command.type==="UPSERT_JOB");
+  if (manualPreview) {
+    if (jobCommands.length !== 0) throw new Error("Manual source preview cannot contain Job lifecycle commands");
+    const emptySetHash = hashCanonicalStringSet([]);
+    if (result.canonicalGraceJobSetSha256 !== emptySetHash ||
+        result.canonicalVisibleJobSetSha256 !== emptySetHash) {
+      throw new Error("Manual source preview lifecycle sets must be empty");
+    }
+  }
   if(result.completenessState!=="VERIFIED" && jobCommands.length!==0) throw new Error("Incomplete source result cannot contain lifecycle job commands");
-  if(result.completenessState==="VERIFIED") {
+  if(result.completenessState==="VERIFIED" && !manualPreview) {
     if(new Set(jobCommands.map(command=>command.dedupeKey)).size!==jobCommands.length) throw new Error("Lifecycle job commands must be unique");
     for(const command of jobCommands) {
       const expectedStatus=command.missingSuccessfulCrawlCount<=1?"ACTIVE":command.missingSuccessfulCrawlCount===2?"SUSPECTED_OFFLINE":"OFFLINE";

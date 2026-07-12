@@ -7,7 +7,7 @@ import { createHotjobLegacySourceFetch } from "../src/crawler/hotjobLegacySource
 import { createHotjobWecruitSourceFetch } from "../src/crawler/hotjobWecruitSourceFetch";
 import { createHttpHtmlSourceFetch } from "../src/crawler/httpHtmlSourceFetch";
 import { createManualSourceBatchExecutor } from "../src/crawler/manualSourceBatchExecutor";
-import { runManualCrawlWorker } from "../src/crawler/manualCrawlWorker";
+import { manualCrawlWorkerExitCode, runManualCrawlWorker } from "../src/crawler/manualCrawlWorker";
 import { parseManualCrawlWorkerArgs } from "../src/crawler/manualCrawlWorkerCli";
 import { createMokaSourceFetch } from "../src/crawler/mokaSourceFetch";
 import { createOfficialJsonSourceFetch } from "../src/crawler/officialJsonSourceFetch";
@@ -74,6 +74,7 @@ try {
     onOperationalError: (event) => console.error(JSON.stringify({ component: "manual-crawl-worker", ...event }))
   });
   console.log(JSON.stringify({ component: "manual-crawl-worker", state: "STOPPED", ...result }));
+  process.exitCode = manualCrawlWorkerExitCode(result);
 } finally {
   await prisma.$disconnect();
 }

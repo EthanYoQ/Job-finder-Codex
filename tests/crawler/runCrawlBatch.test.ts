@@ -413,7 +413,7 @@ describe("runP0CrawlBatch", () => {
       await runP0CrawlBatch([plan], {
         db,
         now: NOW,
-        identity: identityForPlans([plan], "MANUAL_SOURCE"),
+        identity: identityForPlans([plan], "BASELINE"),
         force: true,
         fetch: async () => ({
           ok: true as const,

@@ -1,8 +1,10 @@
 import {
   createBatchWithPendingSourceResults,
   executeAtomicSourceEvidenceCommit,
+  executeManualSourceEvidenceCommit,
   terminatePendingSourceResult,
-  type PrismaIngestionDb
+  type PrismaIngestionDb,
+  type ManualSourceCommitFence
 } from "../db/ingestionRepository";
 import {
   toSourceScheduleState,
@@ -129,6 +131,8 @@ export interface RunP0CrawlBatchDeps {
   archiveEvidence?: typeof archiveSourceEvidence;
   verifyArchive?: typeof verifyArchivedSourceEvidence;
   executeAtomicCommit?: typeof executeAtomicSourceEvidenceCommit;
+  executeManualAtomicCommit?: typeof executeManualSourceEvidenceCommit;
+  manualRequestFence?: ManualSourceCommitFence;
   recordOrphanedArtifacts?: (artifacts: readonly ArchivedEvidenceArtifact[]) => Promise<void>;
   getPreviousJobs(sourceId: string): Promise<readonly JobSnapshot[]>;
   getRecentObservations(sourceId: string): Promise<readonly PersistedCrawlObservationRow[]>;
@@ -144,6 +148,12 @@ export async function runP0CrawlBatch(
     deps.identity,
     plans.map((plan) => plan.source.id)
   );
+  if (deps.identity.batchKind === "MANUAL_SOURCE" && !deps.manualRequestFence) {
+    throw new Error("MANUAL_SOURCE requires an owned request fence");
+  }
+  if (deps.identity.batchKind !== "MANUAL_SOURCE" && deps.manualRequestFence) {
+    throw new Error("Manual request fence is valid only for MANUAL_SOURCE");
+  }
   const batchStartedAt = resolveNow(deps.now);
   if (deps.identity.batchKind === "FULL_RELEASE") {
     const membership = await getStartupReleaseMembership();
@@ -249,7 +259,12 @@ export async function runP0CrawlBatch(
         const commit = buildAtomicRuntimeCommit({ plan, pending, identity: deps.identity, batchId: batch.id,
           result: crawlResult, previousJobs, baselineCompletedBeforeCrawl, artifacts: verifiedArtifacts,
           ...(trustedOracle ? { trustedOracle } : {}) });
-        await (deps.executeAtomicCommit ?? executeAtomicSourceEvidenceCommit)(commit, deps.db as never);
+        if (deps.identity.batchKind === "MANUAL_SOURCE") {
+          await (deps.executeManualAtomicCommit ?? executeManualSourceEvidenceCommit)(
+            commit, deps.manualRequestFence!, deps.db as never);
+        } else {
+          await (deps.executeAtomicCommit ?? executeAtomicSourceEvidenceCommit)(commit, deps.db as never);
+        }
         committedCompletenessVerified = commit.sourceResult.completenessState === "VERIFIED";
         terminalSourceIds.add(plan.source.id);
         transportSuccessfulSourceCount += 1;

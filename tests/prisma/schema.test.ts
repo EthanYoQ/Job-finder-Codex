@@ -111,6 +111,7 @@ describe("prisma schema", () => {
       ,"20260712020000_release_runtime_identity"
       ,"20260713010000_manual_crawl_request_ownership"
       ,"20260713020000_privacy_request_retention"
+      ,"20260713030000_manual_crawl_preview_isolation"
     ]);
     const statements = crawlStatusValuesMigration
       .split("\n")
