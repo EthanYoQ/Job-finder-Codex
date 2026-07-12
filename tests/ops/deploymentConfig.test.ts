@@ -155,6 +155,29 @@ describe("deployment configuration", () => {
     expect(nginx).toMatch(/default deny|deny-by-default|deny all except/i);
   });
 
+  it("rate-limits the exact public health endpoint without changing the internal web healthcheck", () => {
+    const nginx = readRequiredFile(nginxPath);
+    const compose = readRequiredFile(composePath);
+    const healthLocation = nginx.match(/location = \/healthz \{[\s\S]*?^    \}/mu)?.[0] ?? "";
+    const configuredRates = [...nginx.matchAll(/zone=([a-z_]+):\d+m rate=(\d+)r\/m;/gu)]
+      .map((match) => ({ zone: match[1], requestsPerMinute: Number(match[2]) }));
+    const healthRate = configuredRates.find((entry) => entry.zone === "health_limit");
+    const otherRates = configuredRates
+      .filter((entry) => entry.zone !== "health_limit")
+      .map((entry) => entry.requestsPerMinute);
+
+    expect(healthRate).toEqual({ zone: "health_limit", requestsPerMinute: 5 });
+    expect(otherRates.length).toBeGreaterThan(0);
+    expect(healthRate!.requestsPerMinute).toBeLessThan(Math.min(...otherRates));
+    expect(healthLocation).toMatch(/add_header X-Robots-Tag "noindex, nofollow" always;/u);
+    expect(healthLocation).toMatch(/limit_req zone=health_limit burst=2 nodelay;/u);
+    expect(healthLocation).toMatch(/limit_req_status 429;/u);
+    expect(healthLocation).toMatch(/proxy_pass http:\/\/jobfinder_web;/u);
+
+    const web = readComposeService(compose, "web");
+    expect(web).toMatch(/healthcheck:[\s\S]*http:\/\/127\.0\.0\.1:3000\/healthz/u);
+  });
+
   it("ships a monitoring check command that reads env-driven health, database, and backup artifact inputs", () => {
     const script = readRequiredFile(monitoringCheckPath);
 
