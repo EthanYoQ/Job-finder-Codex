@@ -2385,7 +2385,8 @@ async function fetchPhenomWidgets({
     const globalPreflight = await fetchPhenomFacetPreflight({
       http, endpoint: widgetEndpoint, entryUrl: safeEntryUrl, pageConfig,
       pageSize, selectedFields: {}, capturedAt, now,
-      id: "phenom-facet-global", locator: `${configLocator}|facet-preflight:global`
+      id: "phenom-facet-global",
+      locator: `${configLocator}|facet-preflight:global|${phenomSelectedFieldsLocator({})}`
     });
     if (!globalPreflight.ok) {
       return phenomFailure(capturedAt, globalPreflight.failureReason, artifacts, pages, counts, losses);
@@ -2401,7 +2402,10 @@ async function fetchPhenomWidgets({
     const countryPreflight = await fetchPhenomFacetPreflight({
       http, endpoint: widgetEndpoint, entryUrl: safeEntryUrl, pageConfig,
       pageSize, selectedFields: { country: [facetScope.countryIncludeDescriptor] }, capturedAt, now,
-      id: "phenom-facet-country", locator: `${configLocator}|facet-preflight:country`
+      id: "phenom-facet-country",
+      locator: `${configLocator}|facet-preflight:country|${phenomSelectedFieldsLocator({
+        country: [facetScope.countryIncludeDescriptor]
+      })}`
     });
     if (!countryPreflight.ok) {
       return phenomFailure(capturedAt, countryPreflight.failureReason, artifacts, pages, counts, losses);
@@ -2421,7 +2425,7 @@ async function fetchPhenomWidgets({
     }
     const allowed = [...categories.keys()].filter(
       (descriptor) => !facetScope.categoryExcludeDescriptors.includes(descriptor)
-    );
+    ).sort();
     if (allowed.length === 0) {
       return phenomFailure(capturedAt, "Phenom structured facet scope excludes every category",
         artifacts, pages, counts, losses);
@@ -2463,7 +2467,7 @@ async function fetchPhenomWidgets({
     }
 
     const artifactId = `phenom-page-${String(pageIndex).padStart(4, "0")}`;
-    const unavailableLocator = `phenom-page-v1|entry:phenom-entry-0000|config:${irreversibleOfficialJsonEvidenceId(configLocator)}|requestOffset:${requestedOffset}|json:unavailable`;
+    const unavailableLocator = `phenom-page-v1|entry:phenom-entry-0000|config:${irreversibleOfficialJsonEvidenceId(configLocator)}|${phenomSelectedFieldsLocator(formalSelectedFields)}|requestOffset:${requestedOffset}|json:unavailable`;
     const artifact = phenomArtifact({
       id: artifactId, kind: "PAGINATION_PAGE", requestedUrl: widgetEndpoint,
       response, extractorLocator: unavailableLocator
@@ -2500,6 +2504,11 @@ async function fetchPhenomWidgets({
     const refineSearch = root.refineSearch;
     const refineData = refineSearch.data as Record<string, unknown>;
     let pageTotal: number | undefined;
+    if (facetScope && !hasOwn(refineSearch, "totalHits")) {
+      pages.push(phenomPageTrace({ artifact, sequence: pageIndex, requestedOffset, termination: "FAILED" }));
+      return phenomFailure(capturedAt, "Phenom structured facet page requires own totalHits",
+        artifacts, pages, counts, losses);
+    }
     if (hasOwn(refineSearch, "totalHits")) {
       if (!isNonnegativeInteger(refineSearch.totalHits)) {
         pages.push(phenomPageTrace({ artifact, sequence: pageIndex, requestedOffset, termination: "FAILED" }));
@@ -2514,6 +2523,11 @@ async function fetchPhenomWidgets({
       }
     }
     let returnedOffset: number | null = null;
+    if (facetScope && !hasOwn(refineSearch, "from")) {
+      pages.push(phenomPageTrace({ artifact, sequence: pageIndex, requestedOffset, termination: "FAILED" }));
+      return phenomFailure(capturedAt, "Phenom structured facet page requires own from",
+        artifacts, pages, counts, losses);
+    }
     if (hasOwn(refineSearch, "from")) {
       if (!isNonnegativeInteger(refineSearch.from)) {
         pages.push(phenomPageTrace({ artifact, sequence: pageIndex, requestedOffset, termination: "FAILED" }));
@@ -2521,10 +2535,15 @@ async function fetchPhenomWidgets({
           artifacts, pages, counts, losses);
       }
       returnedOffset = refineSearch.from;
+      if (facetScope && returnedOffset !== requestedOffset) {
+        pages.push(phenomPageTrace({ artifact, sequence: pageIndex, requestedOffset, returnedOffset, termination: "FAILED" }));
+        return phenomFailure(capturedAt, "Phenom structured facet page offset drifted",
+          artifacts, pages, counts, losses);
+      }
     }
     const locator = pageTotal === undefined
       ? `${unavailableLocator.replace("json:unavailable", "json:$.refineSearch.data.jobs")}`
-      : phenomTotalLocator(configLocator, countryFilter, requestedOffset);
+      : phenomTotalLocator(configLocator, formalSelectedFields, requestedOffset);
     artifact.extractorLocator = locator;
     if (declaredTotal === undefined && pageTotal !== undefined) {
       declaredTotal = pageTotal;
@@ -2823,15 +2842,29 @@ function phenomConfigLocator(config: CompletePhenomPageConfig, endpoint: string)
   ].join("|");
 }
 
-function phenomTotalLocator(configLocator: string, countryFilter: string, requestedOffset: number): string {
+function phenomTotalLocator(
+  configLocator: string,
+  selectedFields: Record<string, string[]>,
+  requestedOffset: number
+): string {
   return [
     "phenom-page-v1",
     "entry:phenom-entry-0000",
     `config:${irreversibleOfficialJsonEvidenceId(configLocator)}`,
-    `requestCountry:${irreversibleOfficialJsonEvidenceId(countryFilter)}`,
+    phenomSelectedFieldsLocator(selectedFields),
     `requestOffset:${requestedOffset}`,
     "json:$.refineSearch.totalHits"
   ].join("|");
+}
+
+function phenomSelectedFieldsLocator(selectedFields: Record<string, string[]>): string {
+  const canonical = Object.fromEntries(
+    Object.keys(selectedFields).sort().map((field) => [
+      field,
+      [...(selectedFields[field] ?? [])].sort()
+    ])
+  );
+  return `selectedFields:${irreversibleOfficialJsonEvidenceId(JSON.stringify(canonical))}`;
 }
 
 function phenomArtifact(input: {
@@ -4475,9 +4508,31 @@ function parsePhenomPageConfig(
 } {
   const candidates: CompletePhenomPageConfig[] = [];
   const $ = loadHtml(html);
-  for (const script of $("script").toArray()) {
-    const content = $(script).html() ?? "";
-    const scriptKind = phenomScriptKind($(script).attr("type"));
+  const scripts = $("script").toArray().map((script) => ({
+    content: $(script).html() ?? "",
+    kind: phenomScriptKind($(script).attr("type"))
+  }));
+  const pageIdState = scripts.reduce<{
+    invalid: boolean;
+    bootstrapPageIds: Array<string | undefined>;
+    mutations: string[];
+  }>((state, script) => {
+    if (state.invalid || script.kind === "INERT" || script.kind === "JSON") return state;
+    const scan = scanPhenomTopLevelPageIds(script.content, script.kind === "MODULE" ? "module" : "script");
+    if (!scan) return { ...state, invalid: script.content.includes("phApp") };
+    return {
+      invalid: state.invalid || scan.invalid,
+      bootstrapPageIds: [...state.bootstrapPageIds, ...scan.bootstrapPageIds],
+      mutations: [...state.mutations, ...scan.mutations]
+    };
+  }, { invalid: false, bootstrapPageIds: [], mutations: [] });
+  if (pageIdState.invalid || pageIdState.mutations.length > 1) return emptyPhenomPageConfig();
+  const uniqueMutation = pageIdState.mutations[0];
+  if (uniqueMutation && pageIdState.bootstrapPageIds.some(
+    (pageId) => pageId !== undefined && pageId !== uniqueMutation
+  )) return emptyPhenomPageConfig();
+
+  for (const { content, kind: scriptKind } of scripts) {
     if (scriptKind === "INERT") continue;
     if (scriptKind === "JSON") {
       const candidate = phenomConfigFromJsonScript(content);
@@ -4487,7 +4542,8 @@ function parsePhenomPageConfig(
     }
     const assignments = phenomTopLevelJavaScriptConfigs(
       content,
-      scriptKind === "MODULE" ? "module" : "script"
+      scriptKind === "MODULE" ? "module" : "script",
+      uniqueMutation
     );
     if (assignments === null) return emptyPhenomPageConfig();
     candidates.push(...assignments);
@@ -4545,7 +4601,8 @@ function strictPhenomConfigJson(json: string): CompletePhenomPageConfig | undefi
 
 function phenomTopLevelJavaScriptConfigs(
   script: string,
-  sourceType: "script" | "module"
+  sourceType: "script" | "module",
+  externalPageId?: string
 ): CompletePhenomPageConfig[] | null {
   let program: ReturnType<typeof parseJavaScript>;
   try {
@@ -4604,7 +4661,7 @@ function phenomTopLevelJavaScriptConfigs(
     if (fallbackCandidates.length !== 1 || separatePageIds.length > 1) return null;
     const fallback = fallbackCandidates[0]!;
     if (fallback.pageId && separatePageIds.length > 0) return null;
-    const pageId = fallback.pageId ?? separatePageIds[0];
+    const pageId = fallback.pageId ?? separatePageIds[0] ?? externalPageId;
     if (!pageId) return null;
     candidates.push({ ...fallback, pageId } as CompletePhenomPageConfig);
   } else if (separatePageIds.length > 0) {
@@ -4613,6 +4670,74 @@ function phenomTopLevelJavaScriptConfigs(
     return [];
   }
   return candidates;
+}
+
+function scanPhenomTopLevelPageIds(
+  script: string,
+  sourceType: "script" | "module"
+): { invalid: boolean; bootstrapPageIds: Array<string | undefined>; mutations: string[] } | undefined {
+  let program: ReturnType<typeof parseJavaScript>;
+  try {
+    program = parseJavaScript(script, {
+      sourceType,
+      allowAwaitOutsideFunction: false,
+      allowReturnOutsideFunction: false,
+      errorRecovery: false
+    });
+  } catch {
+    return undefined;
+  }
+  const bootstrapPageIds: Array<string | undefined> = [];
+  const mutations: string[] = [];
+  for (const statement of program.program.body) {
+    if (statement.type === "VariableDeclaration") {
+      for (const declaration of statement.declarations) {
+        if (declaration.id.type !== "Identifier" || declaration.id.name !== "phApp") continue;
+        const object = declaration.init?.type === "ObjectExpression"
+          ? declaration.init
+          : declaration.init?.type === "LogicalExpression" && declaration.init.operator === "||" &&
+              declaration.init.left.type === "Identifier" && declaration.init.left.name === "phApp" &&
+              declaration.init.right.type === "ObjectExpression"
+            ? declaration.init.right
+            : undefined;
+        if (!object) return { invalid: true, bootstrapPageIds, mutations };
+        const config = phenomPartialConfigFromObjectExpression(object);
+        if (!config) return { invalid: true, bootstrapPageIds, mutations };
+        bootstrapPageIds.push(config.pageId);
+      }
+      continue;
+    }
+    if (statement.type !== "ExpressionStatement" || statement.expression.type !== "AssignmentExpression") continue;
+    const assignment = statement.expression;
+    if (isAnyTopLevelPhenomPageIdMutationTarget(assignment.left)) {
+      if (!isTopLevelPhenomPageIdAssignmentTarget(assignment.left) || assignment.operator !== "=" ||
+        assignment.right.type !== "StringLiteral" || typeof assignment.right.value !== "string" ||
+        !assignment.right.value.trim()) return { invalid: true, bootstrapPageIds, mutations };
+      mutations.push(assignment.right.value);
+      continue;
+    }
+    if (!isTopLevelPhenomAssignmentTarget(assignment.left)) continue;
+    if (assignment.operator !== "=" || assignment.right.type !== "ObjectExpression") {
+      return { invalid: true, bootstrapPageIds, mutations };
+    }
+    const config = phenomPartialConfigFromObjectExpression(assignment.right);
+    if (!config) return { invalid: true, bootstrapPageIds, mutations };
+    bootstrapPageIds.push(config.pageId);
+  }
+  return { invalid: false, bootstrapPageIds, mutations };
+}
+
+function isAnyTopLevelPhenomPageIdMutationTarget(value: unknown): boolean {
+  if (!value || typeof value !== "object" || !("type" in value) || value.type !== "MemberExpression" ||
+    !("object" in value) || !("property" in value) || !value.object || typeof value.object !== "object" ||
+    !value.property || typeof value.property !== "object" || !("type" in value.object) ||
+    value.object.type !== "Identifier" || !("name" in value.object) || value.object.name !== "phApp") return false;
+  if (!("computed" in value) || !value.computed) {
+    return "type" in value.property && value.property.type === "Identifier" &&
+      "name" in value.property && value.property.name === "pageId";
+  }
+  return "type" in value.property && value.property.type === "StringLiteral" &&
+    "value" in value.property && value.property.value === "pageId";
 }
 
 function isTopLevelPhenomPageIdAssignmentTarget(value: unknown): boolean {

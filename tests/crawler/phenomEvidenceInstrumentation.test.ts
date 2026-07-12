@@ -110,23 +110,60 @@ describe("Phenom evidence instrumentation", () => {
     await expect(fetcher(plan)).resolves.toMatchObject({ ok: true });
   });
 
-  it("keeps the complete Roche bootstrap pageId authoritative over a later standalone runtime pageId", async () => {
+  it("rejects a standalone runtime pageId that conflicts with the complete Roche bootstrap", async () => {
     const body = `<script>
       var phApp = phApp || {"widgetApiEndpoint":"${widgetUrl}","country":"cn","deviceType":"desktop","locale":"zh_cn","refNum":"${refNum}","pageName":"search-results","pageId":"page11"};
     </script><script>phApp.pageId = "page11-ds";</script>`;
-    const requests: Array<{ body?: string }> = [];
+    let requestCount = 0;
     const fetcher = createOfficialJsonSourceFetch({
       now: () => new Date(capturedAt),
-      http: async (request) => {
-        requests.push(request);
-        return request.method === "POST"
-          ? response(pageBody([job("CN-1")], 1, 0), widgetUrl, "application/json")
-          : response(body, entryUrl, "text/html");
+      http: async () => {
+        requestCount += 1;
+        return response(body, entryUrl, "text/html");
       }
     });
 
+    await expect(fetcher(plan)).resolves.toMatchObject({
+      ok: false,
+      failureReason: "Phenom required widget configuration was not found"
+    });
+    expect(requestCount).toBe(1);
+  });
+
+  it("accepts one standalone literal pageId only when it matches the complete bootstrap", async () => {
+    const body = `<script>
+      var phApp = phApp || {"widgetApiEndpoint":"${widgetUrl}","country":"cn","deviceType":"desktop","locale":"zh_cn","refNum":"${refNum}","pageName":"search-results","pageId":"page11"};
+    </script><script>phApp.pageId = "page11";</script>`;
+    const fetcher = createOfficialJsonSourceFetch({
+      now: () => new Date(capturedAt),
+      http: async (request) => request.method === "POST"
+        ? response(pageBody([job("CN-1")], 1, 0), widgetUrl, "application/json")
+        : response(body, entryUrl, "text/html")
+    });
     await expect(fetcher(plan)).resolves.toMatchObject({ ok: true });
-    expect(JSON.parse(requests[1]?.body ?? "{}").pageId).toBe("page11");
+  });
+
+  it.each([
+    ["computed", `phApp["pageId"] = "page11";`],
+    ["dynamic", `phApp.pageId = makePageId();`],
+    ["multiple", `phApp.pageId = "page11"; phApp.pageId = "page11";`]
+  ])("rejects a %s pageId mutation after a complete bootstrap", async (_label, mutation) => {
+    const body = `<script>
+      var phApp = phApp || {"widgetApiEndpoint":"${widgetUrl}","country":"cn","deviceType":"desktop","locale":"zh_cn","refNum":"${refNum}","pageName":"search-results","pageId":"page11"};
+    </script><script>${mutation}</script>`;
+    let requestCount = 0;
+    const fetcher = createOfficialJsonSourceFetch({
+      now: () => new Date(capturedAt),
+      http: async () => {
+        requestCount += 1;
+        return response(body, entryUrl, "text/html");
+      }
+    });
+    await expect(fetcher(plan)).resolves.toMatchObject({
+      ok: false,
+      failureReason: "Phenom required widget configuration was not found"
+    });
+    expect(requestCount).toBe(1);
   });
 
   it.each([
@@ -212,6 +249,83 @@ describe("Phenom evidence instrumentation", () => {
       { country: ["中国大陆"], category: ["销售 & 市场", "医学事务"] },
       { country: ["中国大陆"], category: ["销售 & 市场", "医学事务"] }
     ]);
+    if (!result.fetchEvidence) throw new Error("expected scoped evidence");
+    const locators = result.fetchEvidence.artifacts.map((artifact) => artifact.extractorLocator);
+    expect(locators.slice(1).every((locator) => locator.includes("selectedFields:sha256:"))).toBe(true);
+    expect(new Set(locators.slice(1)).size).toBe(locators.length - 1);
+    expect(locators.join("\n")).not.toContain("requestCountry");
+  });
+
+  it.each([
+    ["first page missing totalHits", 0, JSON.stringify({ refineSearch: { from: 0, data: { jobs: [] } } })],
+    ["first page missing from", 0, JSON.stringify({ refineSearch: { totalHits: 2, data: { jobs: [] } } })],
+    ["later page missing totalHits", 1, JSON.stringify({ refineSearch: { from: 1, data: { jobs: [] } } })],
+    ["later page missing from", 1, JSON.stringify({ refineSearch: { totalHits: 2, data: { jobs: [] } } })]
+  ])("fails structured scope immediately when %s", async (_label, failurePage, invalidBody) => {
+    const scopedPlan = {
+      ...plan,
+      officialJsonFetch: {
+        ...plan.officialJsonFetch,
+        facetScope: {
+          countryIncludeDescriptor: "中国大陆",
+          categoryExcludeDescriptors: ["实习 & 发展项目"]
+        },
+        pageSize: 1
+      }
+    } satisfies SourceCrawlPlan;
+    const bodies = [
+      facetPageBody([], 10, 0, [{ field: "country", value: { 中国大陆: 2, 瑞士: 8 } }]),
+      facetPageBody([], 2, 0, [{
+        field: "category", value: { "销售 & 市场": 2, "实习 & 发展项目": 0 }
+      }]),
+      ...(failurePage === 1
+        ? [facetPageBody([job("CN-1", { country: "中国大陆", category: "销售 & 市场" })], 2, 0, [])]
+        : []),
+      invalidBody
+    ];
+    let postCount = 0;
+    const fetcher = createOfficialJsonSourceFetch({
+      now: () => new Date(capturedAt),
+      http: async (request) => {
+        if (request.method !== "POST") return response(entryHtml(), entryUrl, "text/html");
+        postCount += 1;
+        return response(bodies.shift()!, widgetUrl, "application/json");
+      }
+    });
+    await expect(fetcher(scopedPlan)).resolves.toMatchObject({ ok: false });
+    expect(postCount).toBe(3 + failurePage);
+  });
+
+  it("changes the formal evidence locator when the dynamically allowed category descriptor changes", async () => {
+    const locatorFor = async (allowedCategory: string): Promise<string> => {
+      const bodies = [
+        facetPageBody([], 2, 0, [{ field: "country", value: { 中国大陆: 1, 瑞士: 1 } }]),
+        facetPageBody([], 1, 0, [{
+          field: "category", value: { [allowedCategory]: 1, "实习 & 发展项目": 0 }
+        }]),
+        facetPageBody([job("CN-1", { country: "中国大陆", category: allowedCategory })], 1, 0, [])
+      ];
+      const fetcher = createOfficialJsonSourceFetch({
+        now: () => new Date(capturedAt),
+        http: async (request) => request.method === "POST"
+          ? response(bodies.shift()!, widgetUrl, "application/json")
+          : response(entryHtml(), entryUrl, "text/html")
+      });
+      const result = await fetcher({
+        ...plan,
+        officialJsonFetch: {
+          ...plan.officialJsonFetch,
+          facetScope: {
+            countryIncludeDescriptor: "中国大陆",
+            categoryExcludeDescriptors: ["实习 & 发展项目"]
+          }
+        }
+      });
+      if (!result.ok || !result.fetchEvidence) throw new Error("expected scoped Phenom evidence");
+      return result.fetchEvidence.artifacts.at(-1)!.extractorLocator;
+    };
+
+    await expect(locatorFor("销售 & 市场")).resolves.not.toBe(await locatorFor("医学事务"));
   });
 
   it("accepts only an explicitly configured HTTPS apply origin endorsed by the Phenom payload", async () => {
@@ -231,6 +345,35 @@ describe("Phenom evidence instrumentation", () => {
       }
     });
     expect(result).toMatchObject({ ok: true, payload: { jobs: [{ officialUrl: externalApplyUrl }] } });
+  });
+
+  it.each([
+    ["HTTP origin", "http://ats.example.test", "http://ats.example.test/jobs/CN-1"],
+    ["evil subdomain", "https://ats.example.test", "https://evil.ats.example.test/jobs/CN-1"],
+    ["configured origin with path", "https://ats.example.test/jobs", "https://ats.example.test/jobs/CN-1"],
+    ["unconfigured external origin", undefined, "https://ats.example.test/jobs/CN-1"]
+  ])("rejects %s for Phenom apply URLs", async (_label, configuredOrigin, applyUrl) => {
+    let requestCount = 0;
+    const fetcher = createOfficialJsonSourceFetch({
+      now: () => new Date(capturedAt),
+      http: async (request) => {
+        requestCount += 1;
+        return request.method === "POST"
+          ? response(pageBody([job("CN-1", { applyUrl })], 1, 0), widgetUrl, "application/json")
+          : response(entryHtml(), entryUrl, "text/html");
+      }
+    });
+    const officialJsonFetch = configuredOrigin === undefined
+      ? plan.officialJsonFetch
+      : { ...plan.officialJsonFetch, allowedApplyOrigins: [configuredOrigin] };
+    const result = await fetcher({ ...plan, officialJsonFetch });
+    if (_label === "evil subdomain" || _label === "unconfigured external origin") {
+      expect(result).toMatchObject({ ok: true, payload: { jobs: [] } });
+      expect(result.fetchEvidence?.fetchLosses).toMatchObject([{ details: { code: "UNSAFE_OFFICIAL_URL" } }]);
+    } else {
+      expect(result).toMatchObject({ ok: false, failureReason: "Phenom official URL configuration is invalid" });
+      expect(requestCount).toBe(0);
+    }
   });
 
   it.each([
