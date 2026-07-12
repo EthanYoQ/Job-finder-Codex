@@ -6,41 +6,53 @@ import { pathToFileURL } from "node:url";
 import { spawnSync } from "node:child_process";
 import { canonicalReleaseMembersSha256, releaseMembershipContentSha256 } from "../../../src/crawler/authoritativeReleaseMembership";
 import { canonicalIndependentOracleMembersSha256, independentHopChainProvenanceRootSha256,
-  independentOracleContentSha256, independentOracleValueSha256, independentReviewProvenanceRootSha256,
+  canonicalIndependentCompanyAuditsSha256,independentCoverageSetSha256,independentOracleContentSha256, independentOracleValueSha256, independentReviewProvenanceRootSha256,
   sourcePlanOracleConfigSha256 } from "../../../src/crawler/independentSourceSurfaceOracle";
 import { expectedChannelSetHash, type SourceCrawlPlan } from "../../../src/crawler/sourcePlan";
 import { canonicalSignedProvenancePayload, signedProvenancePayloadSha256,
   type SignedProvenancePayload } from "../../../src/crawler/reviewerSignatureTrust";
 import { createReviewerTestKeyPair } from "../../support/reviewerSignatureTestKeys";
+import {confirmedCompanyRosterV3,confirmedCompanyRosterV3Members} from "../../../src/data/confirmedCompanyRosterV3";
 
 const sha = (value: string | Buffer) => createHash("sha256").update(value).digest("hex");
 const channelId = "source:source-1:default";
-export const plan = { adapterId: "official-json", company: { id: "company-1", officialChineseName: "公司",category:"FOREIGN_PHARMA" },
-  source: { id: "source-1", companyId: "company-1", kind: "SOCIAL", atsKind: "OFFICIAL_JSON",
+const first=confirmedCompanyRosterV3Members[0]!;
+export const plan = { adapterId: "official-json", company: { id: first.id, officialChineseName: "公司",category:first.category },
+  source: { id: "source-1", companyId: first.id, kind: "SOCIAL", atsKind: "OFFICIAL_JSON",
     status: "VERIFIED_SCRAPABLE", surfaceId: "surface-1", officialEntryUrl: "https://example.com/jobs",
     officialChainEvidenceUrl: "https://example.com/careers" },
   json: { jobsPath: "jobs", fields: { sourceJobId: "id", officialTitle: "title", officialUrl: "url", locationRaw: "location" } },
   expectedChannels: [{ channelId, kind: "SOCIAL" }],
   expectedChannelSetHash: expectedChannelSetHash([{ channelId, kind: "SOCIAL" }]) } satisfies SourceCrawlPlan;
 const expectedIds = [plan.source.id];
-export const identity = { releaseCandidateId: "rc-integration", commitSha: "1".repeat(40), rosterSha256: "2".repeat(64),
+export const identity = { releaseCandidateId: "rc-integration", commitSha: "1".repeat(40), rosterSha256: confirmedCompanyRosterV3.membersSha256,
   sourcePlanSha256: "3".repeat(64), sourceConfigSha256: "4".repeat(64), adapterBundleSha256: "5".repeat(64),
   batchKind: "FULL_RELEASE" as const, ownerId: "integration", expectedPlannedSourceIds: expectedIds,
   expectedPlannedSourceSetSha256: sha(JSON.stringify(expectedIds)), expectedPlannedSourceCount: 1 };
 
-export async function runFullReleaseOracleProductionScenario(mode: "invalid-command" | "invalid-batch" | "self-derived-command" | "known-test-key-command") {
-  const testReviewerPrivateKey = createReviewerTestKeyPair().privateKey;
-  const rogueReviewerPrivateKey = createReviewerTestKeyPair().privateKey;
+const emptyModes = ["empty-incomplete-audits-command", "empty-wrong-roster-command", "empty-untrusted-signature-command"] as const;
+const isEmptyMode = (mode: string) => (emptyModes as readonly string[]).includes(mode);
+const identityForMode = (mode: string) => isEmptyMode(mode) ? { ...identity,
+  rosterSha256: mode === "empty-wrong-roster-command" ? "f".repeat(64) : confirmedCompanyRosterV3.membersSha256,
+  expectedPlannedSourceIds: [], expectedPlannedSourceSetSha256: sha("[]"), expectedPlannedSourceCount: 0 } : identity;
+
+export async function runFullReleaseOracleProductionScenario(mode: "invalid-command" | "invalid-batch" | "self-derived-command" | "known-test-key-command" | "no-key-command" | "no-key-batch" |
+  "empty-incomplete-audits-command" | "empty-wrong-roster-command" | "empty-untrusted-signature-command") {
+  const needsGeneratedTestSignature=mode==="self-derived-command"||mode==="known-test-key-command";
+  const testReviewerPrivateKey = needsGeneratedTestSignature?createReviewerTestKeyPair().privateKey:undefined;
+  const rogueReviewerPrivateKey = mode==="self-derived-command"?createReviewerTestKeyPair().privateKey:undefined;
   const dir = await mkdtemp(join(tmpdir(), "full-release-oracle-integration-"));
   try {
     const body = JSON.stringify({ jobs: [{ id: "1", title: "Role", url: "https://example.com/jobs/1", location: "上海" }] });
-    const releaseMembers = [{ companyId: plan.company.id, sourceId: plan.source.id,
-      surfaceId: plan.source.surfaceId!, channelId,category:"FOREIGN_PHARMA" as const }];
+    const scenarioIdentity=identityForMode(mode);
+    const releaseMembers = isEmptyMode(mode) ? [] : [{ companyId: plan.company.id, sourceId: plan.source.id,
+      surfaceId: plan.source.surfaceId!, channelId,category:plan.company.category }];
     const membershipDigest = canonicalReleaseMembersSha256(releaseMembers);
-    const oracleMembers = [{ companyId: plan.company.id, sourceId: plan.source.id, surfaceId: plan.source.surfaceId!, channelId,
-      officialEntryId: "entry-1", reviewerId: "6".repeat(64), reviewArtifactSha256: "7".repeat(64),
-      producerIdentity: mode === "self-derived-command" ? sha(identity.commitSha) :
+    const reviewerId="6".repeat(64);
+    const producerIdentity=mode === "self-derived-command" ? sha(scenarioIdentity.commitSha) :
         mode === "known-test-key-command" ? sha('{"name":"integration","version":"1"}') : "8".repeat(64),
+    oracleMembers = isEmptyMode(mode) ? [] : [{ companyId: plan.company.id,category:plan.company.category, sourceId: plan.source.id, surfaceId: plan.source.surfaceId!, channelId,
+      officialEntryId: "entry-1", reviewerId, reviewArtifactSha256: "7".repeat(64), producerIdentity,
       reviewerDecision: "APPROVED" as const,
       reviewerStatus: "INDEPENDENT" as const, officialEntrySha256: independentOracleValueSha256(plan.source.officialEntryUrl),
       officialFinalSha256: independentOracleValueSha256(plan.source.officialChainEvidenceUrl), officialHopChainSha256: "9".repeat(64),
@@ -48,34 +60,47 @@ export async function runFullReleaseOracleProductionScenario(mode: "invalid-comm
       channelScope: "RESOLVED" as const, adapterId: plan.adapterId, adapterConfigSha256: sourcePlanOracleConfigSha256(plan),
       completenessEvidenceKind: "OFFICIAL_TOTAL_PAGES", completenessEvidenceLocatorSha256: independentOracleValueSha256("json:total"),
       completenessEvidenceContentSha256: sha(body), expectedArtifacts: [{ logicalKey: "page-0", contentSha256: sha(body) }] }];
-    const reviewRoot = independentReviewProvenanceRootSha256(oracleMembers);
-    const hopRoot = independentHopChainProvenanceRootSha256(oracleMembers);
+    const companyAudits=confirmedCompanyRosterV3Members.map(({id:companyId,category})=>({companyId,category,
+      status:(!isEmptyMode(mode)&&companyId===plan.company.id?"HAS_PUBLIC_OFFICIAL_CAREERS_LINK_AT_CAPTURE_TIME":"NO_PUBLIC_OFFICIAL_CAREERS_LINK_AT_CAPTURE_TIME") as "HAS_PUBLIC_OFFICIAL_CAREERS_LINK_AT_CAPTURE_TIME"|"NO_PUBLIC_OFFICIAL_CAREERS_LINK_AT_CAPTURE_TIME",
+      capturedAt:"2026-07-12T00:00:00.000Z",officialWebsiteUrl:`https://example.com/${companyId}`,
+      officialWebsiteSha256:sha(`website:${companyId}`),officialEntryIds:!isEmptyMode(mode)&&companyId===plan.company.id?["entry-1"]:[],
+      evidenceArtifacts:[{logicalKey:`website/${companyId}`,contentSha256:sha(`evidence:${companyId}`)}],
+      reviewerId,reviewArtifactSha256:sha(`review:${companyId}`),producerIdentity,
+      reviewerDecision:"APPROVED" as const,reviewerStatus:"INDEPENDENT" as const}));
+    const artifactCompanyAudits=mode==="empty-incomplete-audits-command"?companyAudits.slice(1):companyAudits;
+    const reviewRoot = independentReviewProvenanceRootSha256(companyAudits,oracleMembers);
+    const hopRoot = independentHopChainProvenanceRootSha256(companyAudits,oracleMembers);
     const memberSetSha256 = canonicalIndependentOracleMembersSha256(oracleMembers);
+    const companyAuditSetSha256=mode==="empty-incomplete-audits-command"?"0".repeat(64):canonicalIndependentCompanyAuditsSha256(companyAudits);
+    const coverageSetSha256=independentCoverageSetSha256(companyAudits,oracleMembers);
     const envelope = (purpose: "REVIEW" | "HOP_CHAIN", provenanceRootSha256: string) => {
       const payload: SignedProvenancePayload = { schemaVersion: 1, purpose,
-        reviewerIdentitySha256: oracleMembers[0]!.reviewerId, producerIdentitySha256: oracleMembers[0]!.producerIdentity,
-        provenanceRootSha256, authoritativeMembershipDigest: membershipDigest, oracleMemberSetSha256: memberSetSha256 };
+        reviewerIdentitySha256: reviewerId, producerIdentitySha256: producerIdentity,
+        provenanceRootSha256, authoritativeMembershipDigest: membershipDigest, oracleMemberSetSha256: coverageSetSha256 };
       const selfDerived = mode === "self-derived-command";
+      if(mode==="no-key-command"||mode==="no-key-batch"||mode==="invalid-command"||mode==="invalid-batch"||isEmptyMode(mode)){
+        return {keyId:"not-a-production-key",payload,signatureBase64:Buffer.alloc(64).toString("base64")};
+      }
       return { keyId: selfDerived ? "self-derived-key" : "p0-independent-reviewer-test-2026-01", payload,
-        signatureBase64: sign(null, canonicalSignedProvenancePayload(payload), selfDerived ? rogueReviewerPrivateKey : testReviewerPrivateKey).toString("base64") };
+        signatureBase64: sign(null, canonicalSignedProvenancePayload(payload), selfDerived ? rogueReviewerPrivateKey! : testReviewerPrivateKey!).toString("base64") };
     };
     const reviewProvenanceSignature = envelope("REVIEW", reviewRoot);
     const hopChainProvenanceSignature = envelope("HOP_CHAIN", hopRoot);
-    const oracleBase = { schemaVersion: 2 as const, kind: "FULL_RELEASE" as const,
-      releaseCandidateId: identity.releaseCandidateId, commitSha: identity.commitSha, rosterSha256: identity.rosterSha256,
-      sourcePlanSha256: identity.sourcePlanSha256, sourceConfigSha256: identity.sourceConfigSha256,
-      adapterBundleSha256: identity.adapterBundleSha256, authoritativeMembershipDigest: membershipDigest,
+    const oracleBase = { schemaVersion: 3 as const, kind: "FULL_RELEASE" as const,
+      releaseCandidateId: scenarioIdentity.releaseCandidateId, commitSha: scenarioIdentity.commitSha, rosterSha256: scenarioIdentity.rosterSha256,
+      sourcePlanSha256: scenarioIdentity.sourcePlanSha256, sourceConfigSha256: scenarioIdentity.sourceConfigSha256,
+      adapterBundleSha256: scenarioIdentity.adapterBundleSha256, authoritativeMembershipDigest: membershipDigest,
       reviewProvenanceRootSha256: reviewRoot, hopChainProvenanceRootSha256: hopRoot,
-      producerIdentity: oracleMembers[0]!.producerIdentity, reviewProvenanceSignature,
-      hopChainProvenanceSignature, members: oracleMembers, memberSetSha256 };
+      producerIdentity, reviewProvenanceSignature,
+      hopChainProvenanceSignature,companyAudits:artifactCompanyAudits,companyAuditSetSha256,members: oracleMembers,memberSetSha256,coverageSetSha256 };
     const oracle = { ...oracleBase, contentSha256: independentOracleContentSha256(oracleBase) };
     const oracleBytes = Buffer.from(JSON.stringify(oracle)); const oracleFile = join(dir, "oracle.json"); await writeFile(oracleFile, oracleBytes);
     const membershipBase = { schemaVersion: 6 as const, kind: "FULL_RELEASE" as const,sourceTreeSha256:"a".repeat(64),runtimeTreeSha256:"b".repeat(64),
-      releaseCandidateId: identity.releaseCandidateId, commitSha: identity.commitSha, rosterSha256: identity.rosterSha256,
-      sourcePlanSha256: identity.sourcePlanSha256, sourceConfigSha256: identity.sourceConfigSha256,
-      adapterBundleSha256: identity.adapterBundleSha256,
+      releaseCandidateId: scenarioIdentity.releaseCandidateId, commitSha: scenarioIdentity.commitSha, rosterSha256: scenarioIdentity.rosterSha256,
+      sourcePlanSha256: scenarioIdentity.sourcePlanSha256, sourceConfigSha256: scenarioIdentity.sourceConfigSha256,
+      adapterBundleSha256: scenarioIdentity.adapterBundleSha256,
       oracleAuthority: { oracleRawFileSha256: mode === "self-derived-command" ||
-        mode === "known-test-key-command" ? sha(oracleBytes) : "0".repeat(64),
+        mode === "known-test-key-command" || mode === "no-key-command" || mode === "no-key-batch" || isEmptyMode(mode) ? sha(oracleBytes) : "0".repeat(64),
         oracleContentSha256: oracle.contentSha256, reviewProvenanceRootSha256: oracle.reviewProvenanceRootSha256,
         hopChainProvenanceRootSha256: oracle.hopChainProvenanceRootSha256,
         reviewSignedPayloadSha256: signedProvenancePayloadSha256(reviewProvenanceSignature.payload),
@@ -127,10 +152,11 @@ export async function executeFullReleaseScenario(mode: string, workspaceRoot: st
   const runtime = { getPreviousJobs: async () => [], getRecentObservations: async () => [], isBaselineCompleted: async () => true,
     workspaceRoot };
   try {
-    if (mode === "invalid-batch") await runP0CrawlBatch([plan], { db: db as never, fetch, now: new Date(), identity,
+    const scenarioIdentity=identityForMode(mode),scenarioPlans=isEmptyMode(mode)?[]:[plan];
+    if (mode === "invalid-batch"||mode==="no-key-batch") await runP0CrawlBatch([plan], { db: db as never, fetch, now: new Date("2026-07-12T12:00:00.000Z"), identity,
       ...runtime } as never);
-    else await runP0CrawlCommand({ plans: [plan], companies: [] as never, options: { help: false, sourceIds: [] }, identity,
-      db: db as never, fetch, now: new Date(), syncPlannedSourcesToDb: async () => { calls.syncCalls += 1;
+    else await runP0CrawlCommand({ plans: scenarioPlans, companies: [] as never, options: { help: false, sourceIds: [] }, identity:scenarioIdentity,
+      db: db as never, fetch, now: new Date("2026-07-12T12:00:00.000Z"), syncPlannedSourcesToDb: async () => { calls.syncCalls += 1;
         return { companyCount: 0, sourceCount: 0, hiddenUnplannedVisibleJobCount: 0 }; },
       createRuntimeDeps: () => runtime, runP0CrawlBatch } as never);
     return { ...calls, rejected: false };

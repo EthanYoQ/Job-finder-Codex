@@ -10,6 +10,8 @@ const expected = { releaseCandidateId: "rc-1", commitSha: h, rosterSha256: h,
   sourceTreeSha256:h,runtimeTreeSha256:h,
   plannedSourceIds: ["source-1"], plannedSourceSetSha256: setHash,
   sourceConfigHashes: { "source-1": h }, adapterVersions: { "source-1": h },
+  companyAudits: [{ companyId: "company-1", category: "FOREIGN_PHARMA" as const,
+    status: "HAS_PUBLIC_OFFICIAL_CAREERS_LINK_AT_CAPTURE_TIME" as const }],
   releaseMembers: [{ companyId: "company-1", sourceId: "source-1", surfaceId: "surface-1", channelId: "channel-1", category:"FOREIGN_PHARMA" as const }],
   currentTime: new Date("2026-07-10T02:00:00Z"), freshnessMaximum: 10_800_001 };
 const observation = { id: "obs-1", releaseCandidateId: "rc-1", batchId: "batch-1",
@@ -93,6 +95,49 @@ describe("strict Prisma readiness", () => {
     expect(company.findMany).toHaveBeenCalled();
   });
 
+  it("uses company audits for the DB roster while a no-link company has zero sources and observations", async () => {
+    const second:any=structuredClone(batch);second.id="batch-2";second.finishedAt=new Date("2026-07-10T00:30:00Z");second.sourceResults[0].id="result-2";
+    second.sourceResults[0].observations[0].batchId="batch-2";second.sourceResults[0].observations[0].sourceResultId="result-2";
+    second.sourceResults[0].lifecycleSetMembers.forEach((x:any)=>{x.batchId="batch-2";x.sourceResultId="result-2"});
+    const noLinkExpected={...expected,companyAudits:[...expected.companyAudits,{companyId:"company-2",category:"DOMESTIC_PHARMA" as const,status:"NO_PUBLIC_OFFICIAL_CAREERS_LINK_AT_CAPTURE_TIME" as const}]};
+    const companies=[{id:"company-1",inclusionReason:"FOREIGN_PHARMA",sources:[{id:"source-1"}]},{id:"company-2",inclusionReason:"DOMESTIC_PHARMA",sources:[]}];
+    const report=await getStrictP0ReadinessReportFromDb({...dbWith([batch,second]),company:{findMany:async()=>companies}} as never,noLinkExpected);
+    expect(report.totalCandidates).toBe(2);
+    expect(report.noPublicOfficialCareersLinkCompanies).toBe(1);
+    expect(report.requiredOfficialLinkSources).toBe(1);
+    expect(report.crawlEvidencedOfficialLinkSources).toBe(1);
+    expect(report.canLaunchP0).toBe(true);
+  });
+
+  it("accepts an exact 30+30 DB roster with 58 planned sources and two zero-source no-link companies", async () => {
+    const audits=Array.from({length:60},(_,index)=>({companyId:`company-${index}`,category:index<30?"FOREIGN_PHARMA" as const:"DOMESTIC_PHARMA" as const,
+      status:index<58?"HAS_PUBLIC_OFFICIAL_CAREERS_LINK_AT_CAPTURE_TIME" as const:"NO_PUBLIC_OFFICIAL_CAREERS_LINK_AT_CAPTURE_TIME" as const}));
+    const plannedSourceIds=Array.from({length:58},(_,index)=>`source-${String(index).padStart(2,"0")}`);
+    const releaseMembers=plannedSourceIds.map((sourceId,index)=>({companyId:`company-${index}`,sourceId,surfaceId:`surface-${index}`,channelId:`channel-${index}`,category:audits[index]!.category}));
+    const plannedSourceSetSha256=createHash("sha256").update(JSON.stringify(plannedSourceIds)).digest("hex");
+    const largeExpected={...expected,plannedSourceIds,plannedSourceSetSha256,
+      sourceConfigHashes:Object.fromEntries(plannedSourceIds.map(sourceId=>[sourceId,h])),adapterVersions:Object.fromEntries(plannedSourceIds.map(sourceId=>[sourceId,h])),
+      companyAudits:audits,releaseMembers};
+    const makeBatch=(id:string,finishedAt:Date)=>({ ...batch,id,startedAt:new Date(finishedAt.getTime()-60_000),finishedAt,plannedSourceIds,plannedSourceSetSha256,plannedSourceCount:58,
+      sourceResults:plannedSourceIds.map((sourceId,index)=>{const sourceResultId=`result-${id}-${index}`,jobKey=`job-${index}`,jobKeySha256=createHash("sha256").update(jobKey).digest("hex"),setSha=createHash("sha256").update(JSON.stringify([jobKey])).digest("hex");
+        return {...batch.sourceResults[0]!,id:sourceResultId,sourceId,canonicalOutputSetSha256:setSha,canonicalCurrentJobSetSha256:setSha,canonicalVisibleJobSetSha256:setSha,
+          officialSurfaceIds:[`surface-${index}`],officialChannelIds:[`channel-${index}`],observations:[{...observation,id:`obs-${id}-${index}`,batchId:id,sourceId,sourceResultId,crawledAt:finishedAt,
+            canonicalOutputSha256:setSha,canonicalVisibleSha256:setSha}],lifecycleSetMembers:["CURRENT","VISIBLE"].map(setKind=>({releaseCandidateId:"rc-1",batchId:id,sourceId,sourceResultId,setKind,jobKey,jobKeySha256,lifecycleStatus:"ACTIVE",missingCount:0}))};})});
+    const companies=audits.map((audit,index)=>({id:audit.companyId,inclusionReason:audit.category,sources:index<58?[{id:`source-${String(index).padStart(2,"0")}`}]:[]}));
+    const rows=[makeBatch("batch-large-1",new Date("2026-07-10T00:00:00Z")),makeBatch("batch-large-2",new Date("2026-07-10T00:30:00Z"))];
+    const report=await getStrictP0ReadinessReportFromDb({...dbWith(rows),company:{findMany:async()=>companies}} as never,largeExpected);
+    expect(report).toMatchObject({totalCandidates:60,foreignPharmaCompanies:30,domesticPharmaCompanies:30,
+      requiredOfficialLinkSources:58,crawlEvidencedOfficialLinkSources:58,noPublicOfficialCareersLinkCompanies:2,canLaunchP0:true});
+  });
+
+  it("deduplicates multiple trusted channels for one DB source", async () => {
+    const first:any=structuredClone(batch),second:any=structuredClone(batch);
+    second.id="batch-2";second.finishedAt=new Date("2026-07-10T00:30:00Z");
+    for(const [row,id] of [[first,"result-1"],[second,"result-2"]] as const){row.sourceResults[0].id=id;row.sourceResults[0].officialSurfaceIds=["surface-1","surface-1"];row.sourceResults[0].officialChannelIds=["channel-1","channel-2"];row.sourceResults[0].observations[0].batchId=row.id;row.sourceResults[0].observations[0].sourceResultId=id;row.sourceResults[0].lifecycleSetMembers.forEach((x:any)=>{x.batchId=row.id;x.sourceResultId=id});}
+    const multiChannel={...expected,releaseMembers:[...expected.releaseMembers,{...expected.releaseMembers[0]!,channelId:"channel-2"}]};
+    await expect(getStrictP0ReadinessReportFromDb(dbWith([first,second]) as never,multiChannel)).resolves.toMatchObject({requiredOfficialLinkSources:1,canLaunchP0:true});
+  });
+
   it.each(["TRUST_FREEZE", "INVALIDATED", "BUILDING"])("rejects RC status %s", async (status) => {
     const db = { crawlBatch: { findMany: async () => [] }, releaseCandidate: { findUnique: async () => ({ status }) },
       company: { findMany: async () => [] } };
@@ -108,6 +153,20 @@ describe("strict Prisma readiness", () => {
   ])("rejects %s company/category roster",async(_name,companies)=>{
     const second:any=structuredClone(batch);second.id="batch-2";second.finishedAt=new Date("2026-07-10T00:30:00Z");second.sourceResults[0].id="result-2";second.sourceResults[0].observations[0].batchId="batch-2";second.sourceResults[0].observations[0].sourceResultId="result-2";second.sourceResults[0].lifecycleSetMembers.forEach((x:any)=>{x.batchId="batch-2";x.sourceResultId="result-2"});
     await expect(getStrictP0ReadinessReportFromDb({...dbWith([batch,second]),company:{findMany:async()=>companies}} as never,expected)).rejects.toThrow(/company|category|roster/i);
+  });
+
+  it.each([
+    ["missing", [{id:"company-1",inclusionReason:"FOREIGN_PHARMA",sources:[]}]],
+    ["extra", [{id:"company-1",inclusionReason:"FOREIGN_PHARMA",sources:[{id:"source-1"},{id:"source-extra"}]}]],
+    ["duplicate", [{id:"company-1",inclusionReason:"FOREIGN_PHARMA",sources:[{id:"source-1"},{id:"source-1"}]}]]
+  ])("rejects %s DB source set independently of the company roster",async(_name,companies)=>{
+    await expect(getStrictP0ReadinessReportFromDb({...dbWith([]),company:{findMany:async()=>companies}} as never,expected)).rejects.toThrow(/source|roster/i);
+  });
+
+  it("rejects a planned source reassociated to another audited company",async()=>{
+    const reassociatedExpected={...expected,companyAudits:[...expected.companyAudits,{companyId:"company-2",category:"DOMESTIC_PHARMA" as const,status:"NO_PUBLIC_OFFICIAL_CAREERS_LINK_AT_CAPTURE_TIME" as const}]};
+    const companies=[{id:"company-1",inclusionReason:"FOREIGN_PHARMA",sources:[]},{id:"company-2",inclusionReason:"DOMESTIC_PHARMA",sources:[{id:"source-1"}]}];
+    await expect(getStrictP0ReadinessReportFromDb({...dbWith([]),company:{findMany:async()=>companies}} as never,reassociatedExpected)).rejects.toThrow(/source|roster/i);
   });
 
   it.each([

@@ -9,7 +9,7 @@ export type P0DataQualityIssueCode =
   | "VISIBLE_JOB_COUNT_MISMATCH"
   | "EXPECTED_JOB_COUNT_MISMATCH"
   | "UNPLANNED_VISIBLE_JOBS"
-  | "HIGH_RISK_LOW_COUNT_WITHOUT_OFFICIAL_TOTAL"
+  | "HIGH_RISK_LOW_COUNT_WITHOUT_STRONG_COMPLETENESS_EVIDENCE"
   | "LEGACY_COUNT_ONLY_NOT_RELEASE_ELIGIBLE"
   | "OBSERVATION_TUPLE_MISMATCH"
   | "STRUCTURED_CURRENT_COUNT_MISMATCH"
@@ -27,6 +27,8 @@ export interface P0DataQualityObservation {
   completenessEvidenceKind?: CompletenessEvidenceKind | null;
   completenessEvidenceUrl: string | null;
   completenessBlockerReason: string | null;
+  totalPages?: number | null;
+  pagesVisited?: number | null;
   crawledAt: Date;
   failureReason: string | null;
 }
@@ -205,14 +207,14 @@ function issuesForSource({
   if (
     highRiskLowCount &&
     latestObservation.structuredJobCount < 10 &&
-    latestObservation.completenessEvidenceKind !== "OFFICIAL_TOTAL_COUNT"
+    !hasStrongCompletenessEvidence(latestObservation)
   ) {
     issues.push(
       observationIssue({
         sourceId,
-        code: "HIGH_RISK_LOW_COUNT_WITHOUT_OFFICIAL_TOTAL",
+        code: "HIGH_RISK_LOW_COUNT_WITHOUT_STRONG_COMPLETENESS_EVIDENCE",
         message:
-          "High-risk Top 30 pharma source has fewer than 10 structured jobs without official total-count evidence.",
+          "High-risk Top 30 pharma source has fewer than 10 structured jobs without strong completeness evidence.",
         latestObservation,
         activeVisibleJobCount
       })
@@ -220,6 +222,48 @@ function issuesForSource({
   }
 
   return issues;
+}
+
+function hasStrongCompletenessEvidence(observation: P0DataQualityObservation): boolean {
+  if (
+    observation.completenessStatus !== "VERIFIED" ||
+    !observation.completenessEvidenceUrl?.trim()
+  ) {
+    return false;
+  }
+
+  if (observation.completenessEvidenceKind === "OFFICIAL_TOTAL_COUNT") {
+    return (
+      observation.expectedJobCount !== null &&
+      observation.expectedJobCount === observation.structuredJobCount
+    );
+  }
+
+  const pagesVisited = observation.pagesVisited;
+  const hasPositivePagesVisited =
+    typeof pagesVisited === "number" && Number.isInteger(pagesVisited) && pagesVisited >= 1;
+
+  if (observation.completenessEvidenceKind === "COMPLETE_PAGE_TRAVERSAL") {
+    return (
+      hasPositivePagesVisited &&
+      (observation.totalPages === null ||
+        observation.totalPages === undefined ||
+        observation.totalPages === pagesVisited)
+    );
+  }
+
+  if (observation.completenessEvidenceKind === "OFFICIAL_TOTAL_PAGES") {
+    const totalPages = observation.totalPages;
+    return (
+      hasPositivePagesVisited &&
+      typeof totalPages === "number" &&
+      Number.isInteger(totalPages) &&
+      totalPages >= 1 &&
+      totalPages === pagesVisited
+    );
+  }
+
+  return false;
 }
 
 function observationIssue({

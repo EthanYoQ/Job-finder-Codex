@@ -143,13 +143,14 @@ export async function runP0CrawlBatch(
     deps.identity,
     plans.map((plan) => plan.source.id)
   );
+  const batchStartedAt = resolveNow(deps.now);
   if (deps.identity.batchKind === "FULL_RELEASE") {
     const membership = await getStartupReleaseMembership();
     validateAuthoritativeReleaseMembership(membership, deps.identity, releaseMembersFromPlans(plans));
-    validateIndependentSourceSurfaceOracle(await getStartupSourceSurfaceOracle(), membership, deps.identity, plans);
+    validateIndependentSourceSurfaceOracle(await getStartupSourceSurfaceOracle(), membership, deps.identity, plans,
+      batchStartedAt);
   }
   const trustedOracle = deps.identity.batchKind === "FULL_RELEASE" ? await getStartupSourceSurfaceOracle() : undefined;
-  const batchStartedAt = resolveNow(deps.now);
   const batch = { id: (deps.createBatchId ?? deps.db.createBatchId ?? randomUUID)() };
   const plannedBatch = buildPendingRuntimeBatch(batch.id, plans, deps.identity, batchStartedAt, undefined, trustedOracle);
   await createBatchWithPendingSourceResults(

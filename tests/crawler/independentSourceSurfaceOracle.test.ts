@@ -7,18 +7,24 @@ import { spawnSync } from "node:child_process";
 import { describe, expect, it } from "vitest";
 import {
   canonicalIndependentOracleMembersSha256,
+  canonicalIndependentCompanyAuditsSha256,
   assertSignedReviewerBinding,
+  independentCoverageSetSha256,
   independentHopChainProvenanceRootSha256,
   independentReviewProvenanceRootSha256,
   independentOracleContentSha256,
   type IndependentSourceSurfaceOracleArtifact
 } from "../../src/crawler/independentSourceSurfaceOracle";
+import { canonicalReleaseMembersSha256, releaseMembershipContentSha256 } from "../../src/crawler/authoritativeReleaseMembership";
+import { signedProvenancePayloadSha256 } from "../../src/crawler/reviewerSignatureTrust";
+import { confirmedCompanyRosterV3, confirmedCompanyRosterV3Members } from "../../src/data/confirmedCompanyRosterV3";
 
 const sha = (value: string) => createHash("sha256").update(value).digest("hex");
-const binding = { releaseCandidateId: "rc-1", commitSha: "1".repeat(40), rosterSha256: "2".repeat(64),
+const binding = { releaseCandidateId: "rc-1", commitSha: "1".repeat(40), rosterSha256: confirmedCompanyRosterV3.membersSha256,
   sourcePlanSha256: "3".repeat(64), sourceConfigSha256: "4".repeat(64), adapterBundleSha256: "5".repeat(64),
   authoritativeMembershipDigest: "6".repeat(64) };
-const members = [{ companyId: "company-1", sourceId: "source-1", surfaceId: "surface-1",
+const first=confirmedCompanyRosterV3Members[0]!;
+const members = [{ companyId: first.id, category:first.category, sourceId: "source-1", surfaceId: "surface-1",
   channelId: "channel-1", officialEntryId: "entry-1", reviewerId: "e".repeat(64),
   reviewArtifactSha256: "f".repeat(64), producerIdentity: "0".repeat(64),
   reviewerDecision: "APPROVED" as const, reviewerStatus: "INDEPENDENT" as const,
@@ -29,20 +35,30 @@ const members = [{ companyId: "company-1", sourceId: "source-1", surfaceId: "sur
   adapterConfigSha256: "a".repeat(64), completenessEvidenceKind: "OFFICIAL_TOTAL",
   completenessEvidenceLocatorSha256: "b".repeat(64), completenessEvidenceContentSha256: "c".repeat(64),
   expectedArtifacts: [{ logicalKey: "page-0", contentSha256: "d".repeat(64) }] }];
+const companyAudits=confirmedCompanyRosterV3Members.map(({id:companyId,category})=>({companyId,category,
+  status:(companyId===first.id?"HAS_PUBLIC_OFFICIAL_CAREERS_LINK_AT_CAPTURE_TIME":"NO_PUBLIC_OFFICIAL_CAREERS_LINK_AT_CAPTURE_TIME") as "HAS_PUBLIC_OFFICIAL_CAREERS_LINK_AT_CAPTURE_TIME"|"NO_PUBLIC_OFFICIAL_CAREERS_LINK_AT_CAPTURE_TIME",
+  capturedAt:"2026-07-12T00:00:00.000Z",officialWebsiteUrl:`https://example.com/${companyId}`,
+  officialWebsiteSha256:sha(`website:${companyId}`),officialEntryIds:companyId===first.id?["entry-1"]:[],
+  evidenceArtifacts:[{logicalKey:`website/${companyId}`,contentSha256:sha(`evidence:${companyId}`)}],
+  reviewerId:"e".repeat(64),reviewArtifactSha256:sha(`review:${companyId}`),producerIdentity:"0".repeat(64),
+  reviewerDecision:"APPROVED" as const,reviewerStatus:"INDEPENDENT" as const}));
 
 function artifact(): IndependentSourceSurfaceOracleArtifact {
-  const reviewProvenanceRootSha256 = independentReviewProvenanceRootSha256(members);
-  const hopChainProvenanceRootSha256 = independentHopChainProvenanceRootSha256(members);
+  const reviewProvenanceRootSha256 = independentReviewProvenanceRootSha256(companyAudits,members);
+  const hopChainProvenanceRootSha256 = independentHopChainProvenanceRootSha256(companyAudits,members);
   const memberSetSha256 = canonicalIndependentOracleMembersSha256(members);
+  const companyAuditSetSha256=canonicalIndependentCompanyAuditsSha256(companyAudits);
+  const coverageSetSha256=independentCoverageSetSha256(companyAudits,members);
   const envelope = (purpose: "REVIEW" | "HOP_CHAIN", provenanceRootSha256: string) => ({ keyId: "unused-authority-fixture",
     payload: { schemaVersion: 1 as const, purpose, reviewerIdentitySha256: members[0]!.reviewerId,
       producerIdentitySha256: members[0]!.producerIdentity, provenanceRootSha256,
-      authoritativeMembershipDigest: binding.authoritativeMembershipDigest, oracleMemberSetSha256: memberSetSha256 },
+      authoritativeMembershipDigest: binding.authoritativeMembershipDigest, oracleMemberSetSha256: coverageSetSha256 },
     signatureBase64: Buffer.alloc(64).toString("base64") });
-  const base = { schemaVersion: 2 as const, kind: "FULL_RELEASE" as const, ...binding,
+  const base = { schemaVersion: 3 as const, kind: "FULL_RELEASE" as const, ...binding,
     reviewProvenanceRootSha256, hopChainProvenanceRootSha256, producerIdentity: members[0]!.producerIdentity,
     reviewProvenanceSignature: envelope("REVIEW", reviewProvenanceRootSha256),
-    hopChainProvenanceSignature: envelope("HOP_CHAIN", hopChainProvenanceRootSha256), members, memberSetSha256 };
+    hopChainProvenanceSignature: envelope("HOP_CHAIN", hopChainProvenanceRootSha256),companyAudits,companyAuditSetSha256,
+    members,memberSetSha256,coverageSetSha256 };
   return { ...base, contentSha256: independentOracleContentSha256(base) };
 }
 
@@ -53,9 +69,48 @@ function child(script: string, env: NodeJS.ProcessEnv = {}) {
 }
 
 describe("independent source/surface oracle startup authority", () => {
+  it("rejects a trusted schema-v2 artifact at the runtime validator boundary", async () => {
+    const dir = await mkdtemp(join(tmpdir(), "independent-oracle-v2-runtime-"));
+    const current = artifact();
+    const {companyAudits:_companyAudits,companyAuditSetSha256:_auditSet,coverageSetSha256:_coverage,...v2}=current;
+    const oracle = { ...v2, schemaVersion: 2 } as unknown as IndependentSourceSurfaceOracleArtifact;
+    const oracleBytes = Buffer.from(JSON.stringify(oracle));
+    const oraclePath = join(dir, "oracle.json");
+    await writeFile(oraclePath, oracleBytes);
+    const releaseMembers = members.map(({ companyId, sourceId, surfaceId, channelId }) =>
+      ({ companyId, sourceId, surfaceId, channelId, category: "FOREIGN_PHARMA" as const }));
+    const memberSetSha256 = canonicalReleaseMembersSha256(releaseMembers);
+    const membershipBase = { schemaVersion: 6 as const, kind: "FULL_RELEASE" as const, ...binding,
+      sourceTreeSha256: "a".repeat(64), runtimeTreeSha256: "b".repeat(64),
+      oracleAuthority: { oracleRawFileSha256: sha(oracleBytes.toString("utf8")),
+        oracleContentSha256: oracle.contentSha256,
+        reviewProvenanceRootSha256: oracle.reviewProvenanceRootSha256,
+        hopChainProvenanceRootSha256: oracle.hopChainProvenanceRootSha256,
+        reviewSignedPayloadSha256: signedProvenancePayloadSha256(oracle.reviewProvenanceSignature.payload),
+        hopChainSignedPayloadSha256: signedProvenancePayloadSha256(oracle.hopChainProvenanceSignature.payload),
+        reviewKeyId: oracle.reviewProvenanceSignature.keyId,
+        hopChainKeyId: oracle.hopChainProvenanceSignature.keyId,
+        producerIdentity: oracle.producerIdentity }, members: releaseMembers, memberSetSha256 };
+    const membership = { ...membershipBase, contentSha256: releaseMembershipContentSha256(membershipBase) };
+    const membershipBytes = Buffer.from(JSON.stringify(membership));
+    const membershipPath = join(dir, "membership.json");
+    await writeFile(membershipPath, membershipBytes);
+    const oracleAuthorityUrl = pathToFileURL(resolve("src/crawler/sourceSurfaceOracleAuthority.ts")).href;
+    const membershipAuthorityUrl = pathToFileURL(resolve("src/crawler/releaseMembershipAuthority.ts")).href;
+    const validatorUrl = pathToFileURL(resolve("src/crawler/independentSourceSurfaceOracle.ts")).href;
+    const script = `Promise.all([import('${oracleAuthorityUrl}'),import('${membershipAuthorityUrl}'),import('${validatorUrl}')]).then(async([o,m,v])=>{try{v.validateIndependentSourceSurfaceOracle(await o.getStartupSourceSurfaceOracle(),await m.getStartupReleaseMembership(),${JSON.stringify({ ...binding, batchKind: "FULL_RELEASE", ownerId: "test", expectedPlannedSourceIds: ["source-1"], expectedPlannedSourceSetSha256: "0".repeat(64), expectedPlannedSourceCount: 1 })},[],new Date('2026-07-12T12:00:00.000Z'))}catch(e){console.log(e.message)}})`;
+    const result = child(script, { P0_FULL_RELEASE_ORACLE_FILE: oraclePath,
+      P0_FULL_RELEASE_ORACLE_FILE_SHA256: sha(oracleBytes.toString("utf8")),
+      P0_FULL_RELEASE_MEMBERSHIP_FILE: membershipPath,
+      P0_FULL_RELEASE_MEMBERSHIP_FILE_SHA256: sha(membershipBytes.toString("utf8")) });
+    await rm(dir, { recursive: true, force: true });
+    expect(result.status).toBe(0);
+    expect(result.stdout).toMatch(/Unsupported independent oracle schema version/);
+  });
   it("fails closed without startup authority and never accepts a plain or cloned artifact", () => {
     const url = pathToFileURL(resolve("src/crawler/sourceSurfaceOracleAuthority.ts")).href;
-    const script = `import('${url}').then(async m=>{try{await m.getStartupSourceSurfaceOracle()}catch(e){console.log(e.message)};for(const v of [${JSON.stringify({ artifact: artifact() })},structuredClone(${JSON.stringify({ artifact: artifact() })})]){try{m.assertStartupTrustedSourceSurfaceOracle(v)}catch(e){console.log(e.message)}}})`;
+    const untrusted={artifact:{schemaVersion:3}};
+    const script = `import('${url}').then(async m=>{try{await m.getStartupSourceSurfaceOracle()}catch(e){console.log(e.message)};for(const v of [${JSON.stringify(untrusted)},structuredClone(${JSON.stringify(untrusted)})]){try{m.assertStartupTrustedSourceSurfaceOracle(v)}catch(e){console.log(e.message)}}})`;
     const result = child(script);
     expect(result.status).toBe(0);
     expect(result.stdout).toContain("startup source/surface oracle authority is unavailable");

@@ -49,11 +49,12 @@ describe("60-company pharma registry", () => {
     }
   });
 
-  it("uses one social source per active company before campus expansion", () => {
+  it("keeps recorded social sources without imposing one source per company", () => {
     const socialSources = getSocialSources(candidateCompanies);
 
-    expect(socialSources).toHaveLength(60);
+    expect(socialSources.length).toBeGreaterThan(0);
     expect(socialSources.every((source) => source.kind === "SOCIAL")).toBe(true);
+    expect(new Set(socialSources.map((source) => source.id)).size).toBe(socialSources.length);
   });
 
   it("does not use placeholder .invalid URLs for candidate provenance", () => {
@@ -86,18 +87,18 @@ describe("60-company pharma registry", () => {
     expect(astellasSource?.status).toBe("VERIFIED_SCRAPABLE");
     expect(astellasSource?.atsKind).toBe("OFFICIAL_HTML");
     expect(astellasSource?.officialEntryUrl).toEqual(expect.any(String));
-    expect(byId.get("company-otsuka-china")?.targetStatus).toBe("BLOCKED_NO_PUBLIC_SOURCE");
-    expect(byId.get("company-sandoz-china")?.targetStatus).toBe("BLOCKED_NO_PUBLIC_SOURCE");
+    expect(byId.get("company-otsuka-china")?.targetStatus).toBe("BLOCKED_EVIDENCE_GAP");
+    expect(byId.get("company-sandoz-china")?.targetStatus).toBe("BLOCKED_EVIDENCE_GAP");
     expect(byId.has("company-beta-pharma")).toBe(false);
     expect(byId.has("company-sinocelltech")).toBe(false);
     expect(byId.has("company-jacobio")).toBe(false);
   });
 
-  it("reports registry-level launchability only after all 60 sources are configured", () => {
+  it("reports registry-level launchability from the audited official-link set", () => {
     const stats = getCandidatePoolStats(candidateCompanies);
 
     expect(stats.totalCandidates).toBe(60);
-    expect(stats.socialSources).toBeGreaterThanOrEqual(60);
+    expect(stats.socialSources).toBe(getSocialSources(candidateCompanies).length);
     expect(stats.verifiedScrapableCompanies).toBeLessThan(60);
     expect(stats.canLaunchP0).toBe(false);
   });

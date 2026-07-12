@@ -42,9 +42,6 @@ export function validateRuntimeBatchIdentity(
   }
 
   const canonicalIds = canonicalizePlannedSourceIds(identity.expectedPlannedSourceIds);
-  if (canonicalIds.length === 0) {
-    throw new Error("Runtime identity expected planned source set must be nonempty");
-  }
   if (JSON.stringify(canonicalIds) !== JSON.stringify(identity.expectedPlannedSourceIds)) {
     throw new Error("Runtime identity expected planned source ids must be canonical");
   }

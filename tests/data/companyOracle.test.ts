@@ -90,8 +90,8 @@ describe("strict 30+30 roster and expected official-surface oracle", () => {
 
   it("keeps blocked original targets and never substitutes an excluded company", () => {
     const byId = new Map(candidateCompanies.map((company) => [company.id, company]));
-    expect(byId.get("company-sandoz-china")?.targetStatus).toBe("BLOCKED_NO_PUBLIC_SOURCE");
-    expect(byId.get("company-otsuka-china")?.targetStatus).toBe("BLOCKED_NO_PUBLIC_SOURCE");
+    expect(byId.get("company-sandoz-china")?.targetStatus).toBe("BLOCKED_EVIDENCE_GAP");
+    expect(byId.get("company-otsuka-china")?.targetStatus).toBe("BLOCKED_EVIDENCE_GAP");
     expect(byId.has("company-beta-pharma")).toBe(false);
     expect(byId.has("company-jacobio")).toBe(false);
     expect(excludedCompanies.map((company) => company.companyId)).toEqual(

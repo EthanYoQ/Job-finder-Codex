@@ -95,12 +95,12 @@ describe("persisted readiness mapper", () => {
   it("does not let persisted observations bypass active independently verified plans", () => {
     const report = getP0ReadinessReport(toP0ReadinessInput([persistedBeigene]));
 
-    expect(report.crawlEvidencedVerifiedCompanies).toBe(0);
+    expect(report.crawlEvidencedOfficialLinkSources).toBe(0);
     expect(report.blockers.map((blocker) => blocker.code)).toContain(
       "CANDIDATE_POOL_OUT_OF_RANGE"
     );
     expect(report.blockers.map((blocker) => blocker.code)).toContain(
-      "VERIFIED_COMPANIES_BELOW_60"
+      "VERIFIED_SOURCE_WITHOUT_CRAWL_PLAN"
     );
   });
 
@@ -139,6 +139,21 @@ describe("persisted readiness mapper", () => {
 
     const report = getP0ReadinessReport(toP0ReadinessInput(rows));
 
-    expect(report.crawlEvidencedVerifiedCompanies).toBe(0);
+    expect(report.crawlEvidencedOfficialLinkSources).toBe(0);
+  });
+
+  it("does not let a handwritten partial audit legalize a zero-source no-link company", () => {
+    const noSource = { ...persistedBeigene, sources: [] };
+    expect(toP0ReadinessInput([noSource]).companies?.[0]?.targetStatus).toBe("BLOCKED_EVIDENCE_GAP");
+    const forged = (toP0ReadinessInput as unknown as (...args: unknown[]) => ReturnType<typeof toP0ReadinessInput>)([noSource], [{
+      companyId: noSource.id,
+      category: "FOREIGN_PHARMA",
+      status: "NO_PUBLIC_OFFICIAL_CAREERS_LINK_AT_CAPTURE_TIME"
+    }]);
+    expect(forged.companies?.[0]?.targetStatus).toBe("BLOCKED_EVIDENCE_GAP");
+  });
+
+  it("rejects unknown persisted categories instead of mapping them to foreign", () => {
+    expect(() => toP0ReadinessInput([{ ...persistedBeigene, inclusionReason: "OTHER" }])).toThrow(/category/i);
   });
 });

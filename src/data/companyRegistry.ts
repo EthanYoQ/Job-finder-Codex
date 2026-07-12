@@ -2,7 +2,10 @@ import { createHash } from "node:crypto";
 import type { ATSKind, SourceKind, VerificationStatus } from "../domain/company";
 
 export type CompanyCategory = "FOREIGN_PHARMA" | "DOMESTIC_PHARMA";
-export type TargetStatus = "ACTIVE" | "BLOCKED_NO_PUBLIC_SOURCE" | "BLOCKED_EVIDENCE_GAP";
+export type TargetStatus =
+  | "ACTIVE"
+  | "NO_PUBLIC_OFFICIAL_CAREERS_LINK_AT_CAPTURE_TIME"
+  | "BLOCKED_EVIDENCE_GAP";
 export type OfficialSurfaceStatus = "INCLUDED" | "BLOCKED_NO_STRUCTURED_PUBLIC_SOURCE" | "BLOCKED_UNVERIFIED";
 export type IndependentOracleStatus = "RESEARCH_PENDING_INDEPENDENT_VERIFICATION" | "INDEPENDENTLY_VERIFIED";
 export type RecruitmentScope =
@@ -49,7 +52,15 @@ export interface CandidatePoolStats {
   canLaunchP0: boolean;
 }
 
-interface CandidateSeed {
+export interface CandidateSocialSourceSeed {
+  status?: VerificationStatus;
+  atsKind?: ATSKind;
+  socialEntryUrl?: string;
+  officialChainEvidenceUrl?: string;
+  campusEntryUrl?: string;
+}
+
+export interface CandidateSeed {
   id: string;
   officialChineseName: string;
   pinyinName: string;
@@ -61,6 +72,7 @@ interface CandidateSeed {
   socialEntryUrl?: string;
   officialChainEvidenceUrl?: string;
   campusEntryUrl?: string;
+  socialSources?: readonly CandidateSocialSourceSeed[];
 }
 
 export interface ExpectedOfficialRecruitmentSurface {
@@ -89,38 +101,79 @@ export interface ExcludedCompany {
 }
 
 const P0_REQUIRED_CANDIDATES = 60;
-const P0_MIN_VERIFIED_SCRAPABLE = 60;
 
-function sourceIdFor(companyId: string, kind: "social" | "campus"): string {
-  return `source-${companyId.replace(/^company-/, "")}-${kind}`;
+function sourceIdFor(companyId: string, kind: "social" | "campus", index = 0): string {
+  return `source-${companyId.replace(/^company-/, "")}-${kind}${index === 0 ? "" : `-${index + 1}`}`;
 }
 
-function toRecruitmentSource(seed: CandidateSeed): CandidateRecruitmentSource {
-  return {
-    id: sourceIdFor(seed.id, "social"),
-    surfaceId: `surface-${seed.id.replace(/^company-/, "")}-social`,
-    companyId: seed.id,
-    kind: "SOCIAL",
-    atsKind: seed.atsKind ?? "UNKNOWN",
-    status: seed.status ?? "UNVERIFIED",
-    ...(seed.socialEntryUrl && seed.officialChainEvidenceUrl
-      ? { officialEntryUrl: seed.socialEntryUrl }
-      : {}),
+function surfaceIdFor(companyId: string, kind: "social" | "campus", index = 0): string {
+  return `surface-${companyId.replace(/^company-/, "")}-${kind}${index === 0 ? "" : `-${index + 1}`}`;
+}
+
+function socialSourceSeedsFor(seed: CandidateSeed): CandidateSocialSourceSeed[] {
+  if (seed.socialSources !== undefined) {
+    const hasLegacySourceFields = [
+      seed.status,
+      seed.atsKind,
+      seed.socialEntryUrl,
+      seed.officialChainEvidenceUrl,
+      seed.campusEntryUrl
+    ].some((value) => value !== undefined);
+    if (hasLegacySourceFields) {
+      throw new Error(`CONFLICTING_SOCIAL_SOURCE_FIELDS:${seed.id}`);
+    }
+    return [...seed.socialSources];
+  }
+  if (
+    seed.targetStatus === "NO_PUBLIC_OFFICIAL_CAREERS_LINK_AT_CAPTURE_TIME" &&
+    !seed.socialEntryUrl &&
+    !seed.officialChainEvidenceUrl &&
+    !seed.campusEntryUrl
+  ) return [];
+  return [{
+    ...(seed.status ? { status: seed.status } : {}),
+    ...(seed.atsKind ? { atsKind: seed.atsKind } : {}),
+    ...(seed.socialEntryUrl ? { socialEntryUrl: seed.socialEntryUrl } : {}),
     ...(seed.officialChainEvidenceUrl
       ? { officialChainEvidenceUrl: seed.officialChainEvidenceUrl }
       : {}),
     ...(seed.campusEntryUrl ? { campusEntryUrl: seed.campusEntryUrl } : {})
+  }];
+}
+
+function toRecruitmentSource(
+  seed: CandidateSeed,
+  sourceSeed: CandidateSocialSourceSeed,
+  index: number
+): CandidateRecruitmentSource {
+  return {
+    id: sourceIdFor(seed.id, "social", index),
+    surfaceId: surfaceIdFor(seed.id, "social", index),
+    companyId: seed.id,
+    kind: "SOCIAL",
+    atsKind: sourceSeed.atsKind ?? "UNKNOWN",
+    status: sourceSeed.status ?? "UNVERIFIED",
+    ...(sourceSeed.socialEntryUrl && sourceSeed.officialChainEvidenceUrl
+      ? { officialEntryUrl: sourceSeed.socialEntryUrl }
+      : {}),
+    ...(sourceSeed.officialChainEvidenceUrl
+      ? { officialChainEvidenceUrl: sourceSeed.officialChainEvidenceUrl }
+      : {}),
+    ...(sourceSeed.campusEntryUrl ? { campusEntryUrl: sourceSeed.campusEntryUrl } : {})
   };
 }
 
 function toCompany(seed: CandidateSeed): CandidateCompany {
+  const sources = socialSourceSeedsFor(seed).map((sourceSeed, index) =>
+    toRecruitmentSource(seed, sourceSeed, index)
+  );
   return {
     id: seed.id,
     officialChineseName: seed.officialChineseName,
     pinyinName: seed.pinyinName,
     category: seed.category,
     targetStatus: seed.targetStatus ?? "ACTIVE",
-    sources: [toRecruitmentSource(seed)],
+    sources,
     ...(seed.officialWebsiteUrl ? { officialWebsiteUrl: seed.officialWebsiteUrl } : {})
   };
 }
@@ -376,7 +429,7 @@ const CANDIDATE_SEEDS: CandidateSeed[] = [
     officialChineseName: "山德士中国",
     pinyinName: "shandeshi-zhongguo",
     category: "FOREIGN_PHARMA",
-    targetStatus: "BLOCKED_NO_PUBLIC_SOURCE",
+    targetStatus: "BLOCKED_EVIDENCE_GAP",
     status: "ENTRY_FOUND_PENDING_ADAPTER",
     atsKind: "OFFICIAL_JSON",
     officialWebsiteUrl: "https://www.sandoz.com/",
@@ -399,7 +452,7 @@ const CANDIDATE_SEEDS: CandidateSeed[] = [
     officialChineseName: "大冢中国",
     pinyinName: "dazhong-zhongguo",
     category: "FOREIGN_PHARMA",
-    targetStatus: "BLOCKED_NO_PUBLIC_SOURCE",
+    targetStatus: "BLOCKED_EVIDENCE_GAP",
     status: "ENTRY_FOUND_PENDING_ADAPTER",
     atsKind: "OFFICIAL_HTML",
     officialWebsiteUrl: "https://www.otsuka.com.cn/",
@@ -794,8 +847,6 @@ const CANDIDATE_SEEDS: CandidateSeed[] = [
   }
 ];
 
-export const candidateCompanies: CandidateCompany[] = CANDIDATE_SEEDS.map(toCompany);
-
 export const CONFIRMED_ROSTER_V3_PROVENANCE = {
   artifact: "docs/research/company-list-60-official-entry-status.md",
   userConfirmation: "名单已确认",
@@ -846,22 +897,25 @@ const OFFICIAL_JSON_ATS = new Set<ATSKind>([
   "REDSEA"
 ]);
 
-function implementedAdapterFor(seed: CandidateSeed): "official-json" | "html-table" | undefined {
+function implementedAdapterFor(
+  seed: CandidateSeed,
+  sourceSeed: CandidateSocialSourceSeed
+): "official-json" | "html-table" | undefined {
   if (seed.targetStatus && seed.targetStatus !== "ACTIVE") return undefined;
   if ([
     "company-fosun-pharma",
     "company-hansoh",
     "company-kelun"
   ].includes(seed.id)) return "html-table";
-  if (OFFICIAL_JSON_ATS.has(seed.atsKind ?? "UNKNOWN")) return "official-json";
-  if (seed.atsKind === "OFFICIAL_HTML" || seed.atsKind === "SUCCESSFACTORS") return "html-table";
+  if (OFFICIAL_JSON_ATS.has(sourceSeed.atsKind ?? "UNKNOWN")) return "official-json";
+  if (sourceSeed.atsKind === "OFFICIAL_HTML" || sourceSeed.atsKind === "SUCCESSFACTORS") return "html-table";
   return undefined;
 }
 
-export const expectedOfficialSurfaces: ExpectedOfficialRecruitmentSurface[] = CANDIDATE_SEEDS.flatMap(
-  (seed) => {
+function expectedSurfacesFor(seed: CandidateSeed): ExpectedOfficialRecruitmentSurface[] {
+  return socialSourceSeedsFor(seed).flatMap((sourceSeed, index) => {
     const social: ExpectedOfficialRecruitmentSurface = {
-      surfaceId: `surface-${seed.id.replace(/^company-/, "")}-social`,
+      surfaceId: surfaceIdFor(seed.id, "social", index),
       companyId: seed.id,
       kind: "SOCIAL",
       legalEntityScope: [{ status: "UNRESOLVED", reason: "Fresh official legal-entity scope evidence is pending." }],
@@ -873,40 +927,53 @@ export const expectedOfficialSurfaces: ExpectedOfficialRecruitmentSurface[] = CA
         status: "UNRESOLVED"
       }],
       chinaScope: { status: "UNRESOLVED", reason: "Fresh official Mainland-China geography evidence is pending." },
-      ...(seed.socialEntryUrl ? { officialEntryUrl: seed.socialEntryUrl } : {}),
-      officialChainEvidenceUrls: seed.officialChainEvidenceUrl ? [seed.officialChainEvidenceUrl] : [],
-      atsKind: seed.atsKind ?? "UNKNOWN",
+      ...(sourceSeed.socialEntryUrl ? { officialEntryUrl: sourceSeed.socialEntryUrl } : {}),
+      officialChainEvidenceUrls: sourceSeed.officialChainEvidenceUrl ? [sourceSeed.officialChainEvidenceUrl] : [],
+      atsKind: sourceSeed.atsKind ?? "UNKNOWN",
       ...(() => {
-        const adapterId = implementedAdapterFor(seed);
+        const adapterId = implementedAdapterFor(seed, sourceSeed);
         return adapterId ? { adapterId } : {};
       })(),
       status:
-        seed.targetStatus === "BLOCKED_NO_PUBLIC_SOURCE"
-          ? "BLOCKED_NO_STRUCTURED_PUBLIC_SOURCE"
-          : seed.socialEntryUrl && seed.officialChainEvidenceUrl
+        seed.targetStatus === "BLOCKED_EVIDENCE_GAP"
+          ? "BLOCKED_UNVERIFIED"
+          : sourceSeed.socialEntryUrl && sourceSeed.officialChainEvidenceUrl
             ? "INCLUDED"
             : "BLOCKED_UNVERIFIED",
       includeReason:
-        seed.targetStatus === "BLOCKED_NO_PUBLIC_SOURCE"
-          ? "Original confirmed target retained; no independently complete structured public source is established."
+        seed.targetStatus === "BLOCKED_EVIDENCE_GAP"
+          ? "Official-linked entry retained; required evidence or implementation remains incomplete."
           : "Recorded official recruitment chain; independent completeness remains pending.",
       oracleStatus: "RESEARCH_PENDING_INDEPENDENT_VERIFICATION"
     };
-    const campus: ExpectedOfficialRecruitmentSurface[] = seed.campusEntryUrl
+    const campus: ExpectedOfficialRecruitmentSurface[] = sourceSeed.campusEntryUrl
       ? [(() => {
           const { adapterId: _adapterId, ...campusSurface } = social;
           return {
           ...campusSurface,
-          surfaceId: `surface-${seed.id.replace(/^company-/, "")}-campus`,
+          surfaceId: surfaceIdFor(seed.id, "campus", index),
           kind: "CAMPUS",
-          officialEntryUrl: seed.campusEntryUrl,
+          officialEntryUrl: sourceSeed.campusEntryUrl,
           status: "BLOCKED_UNVERIFIED",
           includeReason: "Campus surface recorded separately; excluded from social ingestion until independently verified."
         }; })()]
       : [];
     return [social, ...campus];
-  }
-);
+  });
+}
+
+export function buildCandidateCompanyRegistry(
+  seeds: readonly CandidateSeed[]
+): { companies: CandidateCompany[]; surfaces: ExpectedOfficialRecruitmentSurface[] } {
+  return {
+    companies: seeds.map(toCompany),
+    surfaces: seeds.flatMap(expectedSurfacesFor)
+  };
+}
+
+const candidateRegistry = buildCandidateCompanyRegistry(CANDIDATE_SEEDS);
+export const candidateCompanies: CandidateCompany[] = candidateRegistry.companies;
+export const expectedOfficialSurfaces: ExpectedOfficialRecruitmentSurface[] = candidateRegistry.surfaces;
 
 export const excludedCompanies: ExcludedCompany[] = [
   { companyId: "company-edwards-china", officialChineseName: "爱德华生命科学中国", exclusionCategory: "DEVICE", reason: "Cardiovascular medical device company." },
@@ -975,6 +1042,17 @@ export function validateStrictCompanyRegistry(
   const targetIds = new Set(companies.map((company) => company.id));
   if (exclusions.some((company) => targetIds.has(company.companyId))) errors.push("EXCLUDED_COMPANY_IN_TARGET");
   if (surfaces.some((surface) => !targetIds.has(surface.companyId))) errors.push("SURFACE_WITHOUT_TARGET_COMPANY");
+  const noLinkCompanyIds = new Set(
+    companies
+      .filter((company) => company.targetStatus === "NO_PUBLIC_OFFICIAL_CAREERS_LINK_AT_CAPTURE_TIME")
+      .map((company) => company.id)
+  );
+  if (companies.some((company) => noLinkCompanyIds.has(company.id) && company.sources.length > 0)) {
+    errors.push("NO_LINK_COMPANY_HAS_SOURCE");
+  }
+  if (surfaces.some((surface) => noLinkCompanyIds.has(surface.companyId))) {
+    errors.push("NO_LINK_COMPANY_HAS_SURFACE");
+  }
   if (surfaces.some((surface) => surface.legalEntityScope.length === 0 || surface.businessUnitScope.length === 0 || surface.brandScope.length === 0)) errors.push("EMPTY_SURFACE_SCOPE");
   if (surfaces.some((surface) => surface.channels.length === 0)) errors.push("EMPTY_SURFACE_CHANNELS");
   if (surfaces.some((surface) => surface.oracleStatus === "INDEPENDENTLY_VERIFIED" && hasUnresolvedSurfaceScope(surface))) errors.push("VERIFIED_SURFACE_HAS_UNRESOLVED_SCOPE");
@@ -1037,21 +1115,37 @@ function compareUtf8(left: string, right: string): number {
   return Buffer.from(left, "utf8").compare(Buffer.from(right, "utf8"));
 }
 
+function isValidHttpUrl(value: unknown): value is string {
+  if (typeof value !== "string" || value.trim().length === 0) return false;
+  try {
+    const parsed = new URL(value);
+    return (parsed.protocol === "http:" || parsed.protocol === "https:") && parsed.hostname.length > 0;
+  } catch {
+    return false;
+  }
+}
+
 export function getSocialSources(
   companies: readonly CandidateCompany[]
 ): CandidateRecruitmentSource[] {
   return companies.flatMap((company) => company.sources).filter((source) => source.kind === "SOCIAL");
 }
 
-export function getCandidatePoolStats(companies: readonly CandidateCompany[]): CandidatePoolStats {
+export function getCandidatePoolStats(
+  companies: readonly CandidateCompany[],
+  officialSurfaces: readonly ExpectedOfficialRecruitmentSurface[] = expectedOfficialSurfaces
+): CandidatePoolStats {
   const sources = companies.flatMap((company) => company.sources);
   const activeSurfaceIds = new Set(
-    expectedOfficialSurfaces
+    officialSurfaces
       .filter((surface) =>
         surface.kind === "SOCIAL" &&
         surface.status === "INCLUDED" &&
         surface.oracleStatus === "INDEPENDENTLY_VERIFIED" &&
         !hasUnresolvedSurfaceScope(surface) &&
+        isValidHttpUrl(surface.officialEntryUrl) &&
+        surface.officialChainEvidenceUrls.length > 0 &&
+        surface.officialChainEvidenceUrls.every(isValidHttpUrl) &&
         Boolean(surface.adapterId)
       )
       .map((surface) => surface.surfaceId)
@@ -1061,18 +1155,55 @@ export function getCandidatePoolStats(companies: readonly CandidateCompany[]): C
       (source) =>
         source.kind === "SOCIAL" &&
         source.status === "VERIFIED_SCRAPABLE" &&
+        isValidHttpUrl(source.officialEntryUrl) &&
+        isValidHttpUrl(source.officialChainEvidenceUrl) &&
         Boolean(source.surfaceId) &&
         activeSurfaceIds.has(source.surfaceId!)
     )
   ).length;
+  const socialSources = sources.filter((source) => source.kind === "SOCIAL");
+  const expectedSocialSurfaces = officialSurfaces.filter((surface) => surface.kind === "SOCIAL");
+  const socialSourceSurfaceIds = new Set(
+    socialSources.flatMap((source) => source.surfaceId ? [source.surfaceId] : [])
+  );
+  const expectedSocialSurfaceIds = new Set(expectedSocialSurfaces.map((surface) => surface.surfaceId));
+  const noLinkCompaniesAreEmpty = companies
+    .filter((company) => company.targetStatus === "NO_PUBLIC_OFFICIAL_CAREERS_LINK_AT_CAPTURE_TIME")
+    .every((company) =>
+      company.sources.length === 0 &&
+      !officialSurfaces.some((surface) => surface.companyId === company.id)
+    );
+  const linkedCompaniesAreReady = companies
+    .filter((company) => company.targetStatus !== "NO_PUBLIC_OFFICIAL_CAREERS_LINK_AT_CAPTURE_TIME")
+    .every((company) =>
+      company.targetStatus !== "BLOCKED_EVIDENCE_GAP" &&
+      company.sources.some((source) => source.kind === "SOCIAL")
+    );
+  const allExpectedSocialSurfacesAreReady = expectedSocialSurfaces.every((surface) =>
+    activeSurfaceIds.has(surface.surfaceId)
+  );
+  const allSocialSourcesAreReady = socialSources.every((source) =>
+    source.status === "VERIFIED_SCRAPABLE" &&
+    isValidHttpUrl(source.officialEntryUrl) &&
+    isValidHttpUrl(source.officialChainEvidenceUrl) &&
+    Boolean(source.surfaceId) &&
+    activeSurfaceIds.has(source.surfaceId!)
+  );
+  const sourcesAndSurfacesMatch =
+    socialSourceSurfaceIds.size === expectedSocialSurfaceIds.size &&
+    [...socialSourceSurfaceIds].every((surfaceId) => expectedSocialSurfaceIds.has(surfaceId));
 
   return {
     totalCandidates: companies.length,
-    socialSources: sources.filter((source) => source.kind === "SOCIAL").length,
+    socialSources: socialSources.length,
     campusSources: sources.filter((source) => source.kind === "CAMPUS").length,
     verifiedScrapableCompanies,
     canLaunchP0:
       companies.length === P0_REQUIRED_CANDIDATES &&
-      verifiedScrapableCompanies >= P0_MIN_VERIFIED_SCRAPABLE
+      noLinkCompaniesAreEmpty &&
+      linkedCompaniesAreReady &&
+      allExpectedSocialSurfacesAreReady &&
+      allSocialSourcesAreReady &&
+      sourcesAndSurfacesMatch
   };
 }

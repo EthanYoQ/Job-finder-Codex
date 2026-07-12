@@ -275,7 +275,7 @@ describe("runP0CrawlBatch", () => {
     expect(db.calls.batchesCreated).toEqual([]);
   });
 
-  it("rejects an empty FULL_RELEASE denominator before database writes", async () => {
+  it("rejects an empty FULL_RELEASE without complete trusted oracle authority before database writes", async () => {
     const db = fakeDb();
 
     await expect(
@@ -288,7 +288,7 @@ describe("runP0CrawlBatch", () => {
         getRecentObservations: async () => [],
         isBaselineCompleted: async () => true
       } as never)
-    ).rejects.toThrow("expected planned source");
+    ).rejects.toThrow(/membership|oracle|trusted|authority/i);
 
     expect(db.calls.batchesCreated).toEqual([]);
   });

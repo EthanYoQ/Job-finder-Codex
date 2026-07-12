@@ -33,6 +33,13 @@ async function load(): Promise<StartupTrustedSourceSurfaceOracle> {
     throw new Error("Startup source/surface oracle raw-file digest mismatch");
   }
   const artifact = JSON.parse(bytes.toString("utf8")) as IndependentSourceSurfaceOracleArtifact;
+  for (const audit of artifact.companyAudits ?? []) {
+    Object.freeze(audit.officialEntryIds);
+    audit.evidenceArtifacts.forEach(Object.freeze);
+    Object.freeze(audit.evidenceArtifacts);
+    Object.freeze(audit);
+  }
+  if (artifact.companyAudits) Object.freeze(artifact.companyAudits);
   for (const member of artifact.members) { member.expectedArtifacts.forEach(Object.freeze);
     Object.freeze(member.expectedArtifacts); Object.freeze(member); }
   if (artifact.reviewProvenanceSignature) {

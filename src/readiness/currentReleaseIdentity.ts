@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 import { candidateCompanies } from "../data/companyRegistry";
-import { assertExactConfirmedCompanyRosterV3 } from "../data/confirmedCompanyRosterV3";
+import { assertExactConfirmedCompanyRosterV3, confirmedCompanyRosterV3 } from "../data/confirmedCompanyRosterV3";
 import { getStartupReleaseMembership } from "../crawler/releaseMembershipAuthority";
 import { getStartupSourceSurfaceOracle } from "../crawler/sourceSurfaceOracleAuthority";
 import { validateAuthoritativeReleaseMembership, releaseMembersFromPlans } from "../crawler/authoritativeReleaseMembership";
@@ -11,12 +11,13 @@ import { hashCanonicalStringSet } from "../crawler/runtimeBatchIdentity";
 import type { StrictReadinessExpectation } from "./strictPersistedReadiness";
 import {resolveCurrentBuildIdentity} from "./buildIdentity";
 
-export async function loadCurrentReleaseIdentity():Promise<StrictReadinessExpectation>{
+export async function loadCurrentReleaseIdentity(validationTime:Date=new Date()):Promise<StrictReadinessExpectation>{
   const buildIdentity=resolveCurrentBuildIdentity();
   const [membership,oracle]=await Promise.all([getStartupReleaseMembership(),getStartupSourceSurfaceOracle()]);
   const plans=buildSourceCrawlPlans(candidateCompanies);
   assertExactConfirmedCompanyRosterV3(candidateCompanies.map(company=>({id:company.id,category:company.category})));
   const artifact=membership.artifact;
+  assertCurrentReleaseRosterHash(artifact.rosterSha256,oracle.artifact.rosterSha256);
   const commitSha=buildIdentity.commitSha;
   if(commitSha!==artifact.commitSha)throw new Error("Running Git commit does not match trusted release identity");
   if(buildIdentity.sourceTreeSha256!==artifact.sourceTreeSha256)throw new Error("Executable source tree does not match trusted release identity");
@@ -28,13 +29,18 @@ export async function loadCurrentReleaseIdentity():Promise<StrictReadinessExpect
     adapterBundleSha256:artifact.adapterBundleSha256,batchKind:"FULL_RELEASE" as const,ownerId:"strict-readiness",
     expectedPlannedSourceIds:plannedSourceIds,expectedPlannedSourceSetSha256:hashCanonicalStringSet(plannedSourceIds),expectedPlannedSourceCount:plannedSourceIds.length};
   const releaseMembers=validateAuthoritativeReleaseMembership(membership,runtime,releaseMembersFromPlans(plans));
-  validateIndependentSourceSurfaceOracle(oracle,membership,runtime,plans);
+  const validatedOracle=validateIndependentSourceSurfaceOracle(oracle,membership,runtime,plans,validationTime);
   const pending=buildPendingRuntimeBatch("current-release-identity",plans,runtime,new Date(0),undefined,oracle);
   const sourceConfigHashes=Object.fromEntries(pending.sources.map(x=>[x.sourceId,x.sourceConfigHash]));
   const adapterVersions=Object.fromEntries(pending.sources.map(x=>[x.sourceId,x.adapterVersion]));
   if(mapSha(sourceConfigHashes)!==artifact.sourceConfigSha256||mapSha(adapterVersions)!==artifact.adapterBundleSha256)
     throw new Error("Current canonical config or adapter bundle does not match trusted release identity");
   return {...runtime,plannedSourceIds,plannedSourceSetSha256:runtime.expectedPlannedSourceSetSha256,
-    sourceConfigHashes,adapterVersions,releaseMembers,sourceTreeSha256:buildIdentity.sourceTreeSha256,runtimeTreeSha256:buildIdentity.runtimeTreeSha256,currentTime:new Date(),freshnessMaximum:86_400_000};
+    sourceConfigHashes,adapterVersions,companyAudits:validatedOracle.artifact.companyAudits,releaseMembers,sourceTreeSha256:buildIdentity.sourceTreeSha256,runtimeTreeSha256:buildIdentity.runtimeTreeSha256,currentTime:validationTime,freshnessMaximum:86_400_000};
+}
+export function assertCurrentReleaseRosterHash(membershipRosterSha256:string,oracleRosterSha256:string):void{
+  if(membershipRosterSha256!==confirmedCompanyRosterV3.membersSha256||oracleRosterSha256!==confirmedCompanyRosterV3.membersSha256){
+    throw new Error("Current release membership/oracle roster hash does not match confirmed V3 roster");
+  }
 }
 function mapSha(value:Readonly<Record<string,string>>){return createHash("sha256").update(JSON.stringify(Object.fromEntries(Object.entries(value).sort(([a],[b])=>Buffer.compare(Buffer.from(a),Buffer.from(b))))),"utf8").digest("hex");}

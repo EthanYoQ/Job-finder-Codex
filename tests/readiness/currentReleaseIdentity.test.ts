@@ -4,12 +4,18 @@ import {tmpdir} from "node:os";
 import {join,resolve} from "node:path";
 import {pathToFileURL} from "node:url";
 import {afterEach,describe,expect,it} from "vitest";
-import {loadCurrentReleaseIdentity} from "../../src/readiness/currentReleaseIdentity";
+import {assertCurrentReleaseRosterHash,loadCurrentReleaseIdentity} from "../../src/readiness/currentReleaseIdentity";
+import {confirmedCompanyRosterV3} from "../../src/data/confirmedCompanyRosterV3";
 import {createBuildIdentity} from "../../src/readiness/buildIdentity";
 const dirs:string[]=[];afterEach(()=>dirs.splice(0).forEach(x=>rmSync(x,{recursive:true,force:true})));
 function tree(){const root=mkdtempSync(join(tmpdir(),"build-id-"));dirs.push(root);for(const dir of ["src","scripts","prisma","ops","dist","node_modules"])mkdirSync(join(root,dir));for(const file of ["package.json","package-lock.json","tsconfig.json","Dockerfile",".dockerignore"])writeFileSync(join(root,file),"{}\n");writeFileSync(join(root,"src","main.ts"),"export {};\n");writeFileSync(join(root,"dist","app.js"),"built\n");writeFileSync(join(root,"node_modules","dependency.js"),"dependency\n");return root;}
 function child(root:string){const url=pathToFileURL(resolve("src/readiness/buildIdentity.ts")).href,loader=pathToFileURL(resolve("node_modules/tsx/dist/loader.mjs")).href;return spawnSync(process.execPath,["--import",loader,"--eval",`import('${url}').then(m=>console.log(JSON.stringify(m.resolveCurrentBuildIdentity()))).catch(e=>{console.error(e.message);process.exit(9)})`],{cwd:root,encoding:"utf8"});}
 describe("current release identity",()=>{
+  it("rejects membership or oracle roster hashes different from confirmed V3",()=>{
+    expect(()=>assertCurrentReleaseRosterHash("0".repeat(64),confirmedCompanyRosterV3.membersSha256)).toThrow(/roster/i);
+    expect(()=>assertCurrentReleaseRosterHash(confirmedCompanyRosterV3.membersSha256,"0".repeat(64))).toThrow(/roster/i);
+    expect(()=>assertCurrentReleaseRosterHash(confirmedCompanyRosterV3.membersSha256,confirmedCompanyRosterV3.membersSha256)).not.toThrow();
+  });
   it("exposes a zero-argument production loader",()=>{expect(loadCurrentReleaseIdentity.length).toBe(0);});
   it("rejects dirty and accepts clean real Git trees",()=>{const root=tree();execFileSync("git",["init"],{cwd:root});execFileSync("git",["config","user.email","test@example.com"],{cwd:root});execFileSync("git",["config","user.name","test"],{cwd:root});execFileSync("git",["add","."],{cwd:root});execFileSync("git",["commit","-m","base"],{cwd:root});expect(child(root).status).toBe(0);writeFileSync(join(root,"src","main.ts"),"dirty\n");expect(child(root).stderr).toMatch(/dirty/i);});
   it("accepts a valid baked no-git identity and rejects dist, dependency, missing-root, or absent evidence",()=>{const root=tree(),commit="1".repeat(40),artifact=JSON.stringify(createBuildIdentity(root,commit));writeFileSync(join(root,"build-identity.json"),artifact);expect(child(root).status).toBe(0);writeFileSync(join(root,"dist","app.js"),"tamper\n");expect(child(root).stderr).toMatch(/binding|digest/i);writeFileSync(join(root,"dist","app.js"),"built\n");writeFileSync(join(root,"node_modules","dependency.js"),"tamper\n");expect(child(root).stderr).toMatch(/binding|digest/i);writeFileSync(join(root,"node_modules","dependency.js"),"dependency\n");rmSync(join(root,"ops"),{recursive:true});expect(child(root).stderr).toMatch(/missing/i);rmSync(join(root,"build-identity.json"));expect(child(root).stderr).toMatch(/absent|invalid/i);});

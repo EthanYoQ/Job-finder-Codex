@@ -9,10 +9,21 @@ import { signedProvenancePayloadSha256, verifyProductionProvenanceSignature,
   type SignedProvenanceEnvelope } from "./reviewerSignatureTrust";
 import { assertStartupTrustedSourceSurfaceOracle,
   type StartupTrustedSourceSurfaceOracle } from "./sourceSurfaceOracleAuthority";
+import { assertExactConfirmedCompanyRosterV3, confirmedCompanyRosterV3,
+  type ConfirmedCompanyCategory } from "../data/confirmedCompanyRosterV3";
 
 export interface IndependentOracleExpectedArtifact { logicalKey: string; contentSha256: string }
+export type IndependentCompanyAuditStatus = "HAS_PUBLIC_OFFICIAL_CAREERS_LINK_AT_CAPTURE_TIME" |
+  "NO_PUBLIC_OFFICIAL_CAREERS_LINK_AT_CAPTURE_TIME";
+export interface IndependentCompanyAudit {
+  companyId: string; category: ConfirmedCompanyCategory; status: IndependentCompanyAuditStatus;
+  capturedAt: string; officialWebsiteUrl: string; officialWebsiteSha256: string;
+  officialEntryIds: string[]; evidenceArtifacts: IndependentOracleExpectedArtifact[];
+  reviewerId: string; reviewArtifactSha256: string; producerIdentity: string;
+  reviewerDecision: "APPROVED"; reviewerStatus: "INDEPENDENT";
+}
 export interface IndependentSourceSurfaceOracleMember {
-  companyId: string; sourceId: string; surfaceId: string; channelId: string; officialEntryId: string;
+  companyId: string; category: ConfirmedCompanyCategory; sourceId: string; surfaceId: string; channelId: string; officialEntryId: string;
   reviewerId: string; reviewArtifactSha256: string; producerIdentity: string;
   reviewerDecision: "APPROVED"; reviewerStatus: "INDEPENDENT";
   officialEntrySha256: string; officialFinalSha256: string; officialHopChainSha256: string;
@@ -22,38 +33,68 @@ export interface IndependentSourceSurfaceOracleMember {
   completenessEvidenceContentSha256: string; expectedArtifacts: IndependentOracleExpectedArtifact[];
 }
 export interface IndependentSourceSurfaceOracleArtifact {
-  schemaVersion: 2;
+  schemaVersion: 3;
   kind: "FULL_RELEASE";
   releaseCandidateId: string; commitSha: string; rosterSha256: string; sourcePlanSha256: string;
   sourceConfigSha256: string; adapterBundleSha256: string; authoritativeMembershipDigest: string;
   reviewProvenanceRootSha256: string; hopChainProvenanceRootSha256: string; producerIdentity: string;
   reviewProvenanceSignature: SignedProvenanceEnvelope; hopChainProvenanceSignature: SignedProvenanceEnvelope;
-  members: IndependentSourceSurfaceOracleMember[]; memberSetSha256: string; contentSha256: string;
+  companyAudits: IndependentCompanyAudit[]; companyAuditSetSha256: string;
+  members: IndependentSourceSurfaceOracleMember[]; memberSetSha256: string; coverageSetSha256: string;
+  contentSha256: string;
 }
 
 const bindingFields = ["releaseCandidateId", "commitSha", "rosterSha256", "sourcePlanSha256",
   "sourceConfigSha256", "adapterBundleSha256"] as const;
+export const INDEPENDENT_COMPANY_AUDIT_FRESHNESS_MAXIMUM_MS = 86_400_000;
 
 export function canonicalIndependentOracleMembersSha256(
   members: readonly IndependentSourceSurfaceOracleMember[]): string {
-  const canonical = canonicalMembers(members);
+  const canonical = canonicalIndependentOracleMembers(members);
   return digest(canonicalJson(canonical));
+}
+
+export function canonicalIndependentCompanyAuditsSha256(audits: readonly IndependentCompanyAudit[]): string {
+  return digest(canonicalJson(canonicalIndependentCompanyAudits(audits)));
+}
+
+export function independentCoverageSetSha256(audits: readonly IndependentCompanyAudit[],
+  members: readonly IndependentSourceSurfaceOracleMember[]): string {
+  const records = [
+    ...canonicalIndependentCompanyAudits(audits).map((record) => ({ recordType: "COMPANY_AUDIT" as const, record })),
+    ...canonicalIndependentOracleMembers(members).map((record) => ({ recordType: "SOURCE_MEMBER" as const, record }))
+  ].sort((a, b) => compare(canonicalJson(a), canonicalJson(b)));
+  return digest(canonicalJson(records));
 }
 
 export function independentOracleContentSha256(
   artifact: Omit<IndependentSourceSurfaceOracleArtifact, "contentSha256">): string {
-  return digest(canonicalJson({ ...artifact, members: canonicalMembers(artifact.members) }));
+  return digest(canonicalJson({ ...artifact, members: canonicalIndependentOracleMembers(artifact.members) }));
 }
 
-export function independentReviewProvenanceRootSha256(members: readonly IndependentSourceSurfaceOracleMember[]): string {
-  return framedRecordsSha256(canonicalMembers(members).map((member) => [member.companyId,
-    member.sourceId, member.surfaceId, member.channelId, member.reviewerId,
-    member.reviewArtifactSha256, member.producerIdentity]));
+export function independentReviewProvenanceRootSha256(audits: readonly IndependentCompanyAudit[],
+  members: readonly IndependentSourceSurfaceOracleMember[]): string {
+  return framedRecordsSha256([
+    ...canonicalIndependentCompanyAudits(audits).map((audit) => ["COMPANY_AUDIT", audit.companyId, audit.category,
+      audit.status, audit.capturedAt, audit.officialWebsiteUrl, audit.officialWebsiteSha256,
+      digest(canonicalJson(audit.officialEntryIds)), digest(canonicalJson(audit.evidenceArtifacts)),
+      audit.reviewerId, audit.reviewArtifactSha256, audit.producerIdentity]),
+    ...canonicalIndependentOracleMembers(members).map((member) => ["SOURCE_MEMBER", member.companyId, member.category,
+      member.sourceId, member.surfaceId, member.channelId, member.reviewerId,
+      member.reviewArtifactSha256, member.producerIdentity])
+  ]);
 }
-export function independentHopChainProvenanceRootSha256(members: readonly IndependentSourceSurfaceOracleMember[]): string {
-  return framedRecordsSha256(canonicalMembers(members).map((member) => [member.companyId,
-    member.sourceId, member.surfaceId, member.channelId, member.officialHopChainSha256,
-    member.producerIdentity]));
+export function independentHopChainProvenanceRootSha256(audits: readonly IndependentCompanyAudit[],
+  members: readonly IndependentSourceSurfaceOracleMember[]): string {
+  return framedRecordsSha256([
+    ...canonicalIndependentCompanyAudits(audits).map((audit) => ["COMPANY_AUDIT", audit.companyId, audit.category,
+      audit.status, audit.officialWebsiteUrl, audit.officialWebsiteSha256,
+      digest(canonicalJson(audit.officialEntryIds)), digest(canonicalJson(audit.evidenceArtifacts)),
+      audit.producerIdentity]),
+    ...canonicalIndependentOracleMembers(members).map((member) => ["SOURCE_MEMBER", member.companyId, member.category,
+      member.sourceId, member.surfaceId, member.channelId, member.officialHopChainSha256,
+      member.producerIdentity])
+  ]);
 }
 
 export function sourcePlanOracleConfigSha256(plan: SourceCrawlPlan): string { return digest(canonicalJson(plan)); }
@@ -63,14 +104,18 @@ export function validateIndependentSourceSurfaceOracle(
   trusted: StartupTrustedSourceSurfaceOracle | undefined,
   membership: StartupTrustedReleaseMembership | undefined,
   identity: RuntimeBatchIdentity,
-  plans: readonly SourceCrawlPlan[]
+  plans: readonly SourceCrawlPlan[],
+  validationTime: Date
 ): StartupTrustedSourceSurfaceOracle {
   assertStartupTrustedSourceSurfaceOracle(trusted);
   assertStartupTrustedReleaseMembership(membership);
   const artifact = trusted.artifact;
-  if (artifact.schemaVersion !== 2) throw new Error("Unsupported independent oracle schema version");
+  if (artifact.schemaVersion !== 3) throw new Error("Unsupported independent oracle schema version");
   for (const field of bindingFields) {
     if (artifact[field] !== identity[field]) throw new Error(`Independent oracle identity mismatch: ${field}`);
+  }
+  if (!safeHexEqual(artifact.rosterSha256, confirmedCompanyRosterV3.membersSha256)) {
+    throw new Error("Independent oracle roster hash does not match confirmed V3 roster");
   }
   if (!safeHexEqual(artifact.authoritativeMembershipDigest, membership.artifact.memberSetSha256)) {
     throw new Error("Independent oracle authoritative membership digest mismatch");
@@ -89,43 +134,49 @@ export function validateIndependentSourceSurfaceOracle(
         signedProvenancePayloadSha256(artifact.hopChainProvenanceSignature.payload))) {
     throw new Error("Independent oracle is not pre-pinned by membership authority");
   }
-  const canonical = canonicalMembers(artifact.members);
+  const canonicalAudits = canonicalIndependentCompanyAudits(artifact.companyAudits);
+  assertIndependentCompanyAuditFreshness(canonicalAudits, validationTime);
+  const canonical = canonicalIndependentOracleMembers(artifact.members);
+  if (canonicalJson(canonicalAudits) !== canonicalJson(artifact.companyAudits)) {
+    throw new Error("Independent oracle company audits must use canonical representation and order");
+  }
   if (canonicalJson(canonical) !== canonicalJson(artifact.members)) {
     throw new Error("Independent oracle members must use canonical representation and order");
   }
+  if (!safeHexEqual(artifact.companyAuditSetSha256,
+    canonicalIndependentCompanyAuditsSha256(canonicalAudits))) {
+    throw new Error("Independent oracle company-audit-set hash mismatch");
+  }
   if (!safeHexEqual(artifact.memberSetSha256, canonicalIndependentOracleMembersSha256(canonical))) {
     throw new Error("Independent oracle member-set hash mismatch");
+  }
+  if (!safeHexEqual(artifact.coverageSetSha256, independentCoverageSetSha256(canonicalAudits, canonical))) {
+    throw new Error("Independent oracle coverage-set hash mismatch");
   }
   const { contentSha256, ...content } = artifact;
   if (!safeHexEqual(contentSha256, independentOracleContentSha256(content))) {
     throw new Error("Independent oracle content hash mismatch");
   }
-  if (!safeHexEqual(artifact.reviewProvenanceRootSha256, independentReviewProvenanceRootSha256(canonical)) ||
-      !safeHexEqual(artifact.hopChainProvenanceRootSha256, independentHopChainProvenanceRootSha256(canonical))) {
+  if (!safeHexEqual(artifact.reviewProvenanceRootSha256,
+      independentReviewProvenanceRootSha256(canonicalAudits, canonical)) ||
+      !safeHexEqual(artifact.hopChainProvenanceRootSha256,
+      independentHopChainProvenanceRootSha256(canonicalAudits, canonical))) {
     throw new Error("Independent oracle provenance root mismatch");
   }
+  assertIndependentCompanyAuditMemberBindings(canonicalAudits, canonical);
   assertSignedReviewerBinding(artifact);
-  for (const [purpose, envelope, root] of [["REVIEW", artifact.reviewProvenanceSignature,
-    artifact.reviewProvenanceRootSha256], ["HOP_CHAIN", artifact.hopChainProvenanceSignature,
-    artifact.hopChainProvenanceRootSha256]] as const) {
-    if (envelope.payload.purpose !== purpose || envelope.payload.provenanceRootSha256 !== root ||
-        envelope.payload.authoritativeMembershipDigest !== artifact.authoritativeMembershipDigest ||
-        envelope.payload.oracleMemberSetSha256 !== artifact.memberSetSha256 ||
-        envelope.payload.producerIdentitySha256 !== artifact.producerIdentity) {
-      throw new Error("Signed provenance payload does not bind the exact oracle");
-    }
-    verifyProductionProvenanceSignature(envelope, { runtimeCommitSha: identity.commitSha,
-      adapterBundleSha256: identity.adapterBundleSha256 });
-  }
-  const categoryByCompany=new Map(plans.map(plan=>[plan.company.id,plan.company.category]));
-  const releaseDigest = canonicalReleaseMembersSha256(canonical.map(({ companyId, sourceId, surfaceId, channelId }) =>
-    ({ companyId, sourceId, surfaceId, channelId, category: categoryByCompany.get(companyId)! })));
+  const releaseDigest = canonicalReleaseMembersSha256(canonical.map(({ companyId, sourceId, surfaceId, channelId, category }) =>
+    ({ companyId, sourceId, surfaceId, channelId, category })));
   const plannedDigest = canonicalReleaseMembersSha256(releaseMembersFromPlans(plans));
-  if (!safeHexEqual(releaseDigest, plannedDigest)) throw new Error("Independent oracle member set does not match production plans");
+  if (!safeHexEqual(releaseDigest, plannedDigest) ||
+      !safeHexEqual(plannedDigest, artifact.authoritativeMembershipDigest)) {
+    throw new Error("Independent oracle member set does not match production plans and membership");
+  }
   const planBySource = new Map(plans.map((plan) => [plan.source.id, plan]));
   for (const member of canonical) {
     const plan = planBySource.get(member.sourceId);
-    if (!plan || member.companyId !== plan.company.id || member.surfaceId !== plan.source.surfaceId ||
+    if (!plan || member.companyId !== plan.company.id || member.category !== plan.company.category ||
+        member.surfaceId !== plan.source.surfaceId ||
         member.producerIdentity !== artifact.producerIdentity ||
         member.adapterId !== plan.adapterId ||
         member.adapterConfigSha256 !== sourcePlanOracleConfigSha256(plan)) {
@@ -139,17 +190,90 @@ export function validateIndependentSourceSurfaceOracle(
       throw new Error("Independent oracle channel is not in the production plan");
     }
   }
+  for (const [purpose, envelope, root] of [["REVIEW", artifact.reviewProvenanceSignature,
+    artifact.reviewProvenanceRootSha256], ["HOP_CHAIN", artifact.hopChainProvenanceSignature,
+    artifact.hopChainProvenanceRootSha256]] as const) {
+    if (envelope.payload.purpose !== purpose || envelope.payload.provenanceRootSha256 !== root ||
+        envelope.payload.authoritativeMembershipDigest !== artifact.authoritativeMembershipDigest ||
+        // Compatibility: the v1 payload field name is legacy; v3 binds the combined coverage digest.
+        envelope.payload.oracleMemberSetSha256 !== artifact.coverageSetSha256 ||
+        envelope.payload.producerIdentitySha256 !== artifact.producerIdentity) {
+      throw new Error("Signed provenance payload does not bind the exact oracle coverage set");
+    }
+    verifyProductionProvenanceSignature(envelope, { runtimeCommitSha: identity.commitSha,
+      adapterBundleSha256: identity.adapterBundleSha256 });
+  }
   return trusted;
 }
 
+export function assertIndependentCompanyAuditFreshness(
+  audits: readonly IndependentCompanyAudit[],
+  validationTime: Date
+): void {
+  const validationTimeMs = validationTime instanceof Date ? validationTime.getTime() : Number.NaN;
+  if (!Number.isFinite(validationTimeMs)) {
+    throw new Error("Independent oracle validation time must be a valid explicit instant");
+  }
+  for (const audit of audits) {
+    const capturedAtMs = Date.parse(audit.capturedAt);
+    if (!Number.isFinite(capturedAtMs)) {
+      throw new Error("Independent oracle company audit capturedAt must be a valid instant");
+    }
+    const ageMs = validationTimeMs - capturedAtMs;
+    if (ageMs < 0) throw new Error("Independent oracle company audit capturedAt is in the future");
+    if (ageMs >= INDEPENDENT_COMPANY_AUDIT_FRESHNESS_MAXIMUM_MS) {
+      throw new Error("Independent oracle company audit is stale at the strict 24-hour freshness boundary");
+    }
+  }
+}
+
 export function assertSignedReviewerBinding(artifact: IndependentSourceSurfaceOracleArtifact): void {
-  const reviewers = new Set(artifact.members.map((member) => normalize(member.reviewerId, "reviewerId")));
+  const reviewers = new Set([...artifact.companyAudits, ...artifact.members]
+    .map((record) => normalize(record.reviewerId, "reviewerId")));
+  const producers = new Set([...artifact.companyAudits, ...artifact.members]
+    .map((record) => normalize(record.producerIdentity, "producerIdentity")));
   const reviewPayloadReviewer = normalize(artifact.reviewProvenanceSignature.payload.reviewerIdentitySha256,
     "review signed reviewer identity");
   const hopPayloadReviewer = normalize(artifact.hopChainProvenanceSignature.payload.reviewerIdentitySha256,
     "hop signed reviewer identity");
-  if (reviewers.size !== 1 || !reviewers.has(reviewPayloadReviewer) || reviewPayloadReviewer !== hopPayloadReviewer) {
+  if (reviewers.size !== 1 || !reviewers.has(reviewPayloadReviewer) || reviewPayloadReviewer !== hopPayloadReviewer ||
+      producers.size !== 1 || !producers.has(artifact.producerIdentity) ||
+      artifact.reviewProvenanceSignature.payload.producerIdentitySha256 !== artifact.producerIdentity ||
+      artifact.hopChainProvenanceSignature.payload.producerIdentitySha256 !== artifact.producerIdentity) {
     throw new Error("Signed reviewer identity does not exactly bind the canonical member reviewerId set");
+  }
+}
+
+export function assertIndependentCompanyAuditMemberBindings(audits: readonly IndependentCompanyAudit[],
+  members: readonly IndependentSourceSurfaceOracleMember[]): void {
+  const auditByCompany = new Map(audits.map((audit) => [audit.companyId, audit]));
+  const membersByCompany = new Map<string, IndependentSourceSurfaceOracleMember[]>();
+  for (const member of members) {
+    const audit = auditByCompany.get(member.companyId);
+    if (!audit) throw new Error("Independent oracle member belongs to an unadjudicated company");
+    if (member.category !== audit.category) throw new Error("Independent oracle company/member category mismatch");
+    const companyMembers = membersByCompany.get(member.companyId) ?? [];
+    companyMembers.push(member); membersByCompany.set(member.companyId, companyMembers);
+  }
+  for (const audit of audits) {
+    const companyMembers = membersByCompany.get(audit.companyId) ?? [];
+    const memberEntryIds = new Set(companyMembers.map((member) => member.officialEntryId));
+    const auditedEntryIds = new Set(audit.officialEntryIds);
+    if (audit.status === "NO_PUBLIC_OFFICIAL_CAREERS_LINK_AT_CAPTURE_TIME") {
+      if (audit.officialEntryIds.length !== 0 || companyMembers.length !== 0) {
+        throw new Error("Independent oracle no-link company must have zero official entries and members");
+      }
+      continue;
+    }
+    if (audit.officialEntryIds.length === 0 || companyMembers.length === 0) {
+      throw new Error("Independent oracle has-link company requires official entries and members");
+    }
+    if (companyMembers.some((member) => !auditedEntryIds.has(member.officialEntryId))) {
+      throw new Error("Independent oracle member official entry is absent from company audit");
+    }
+    if (audit.officialEntryIds.some((entryId) => !memberEntryIds.has(entryId))) {
+      throw new Error("Independent oracle audited official entry is omitted from source members");
+    }
   }
 }
 
@@ -206,8 +330,10 @@ export function oracleHasExactSourceCoverage(trusted: StartupTrustedSourceSurfac
   try { assertExactObservedOracleArtifacts(trusted, sourceId, artifacts); return true; } catch { return false; }
 }
 
-function canonicalMembers(members: readonly IndependentSourceSurfaceOracleMember[]) {
+export function canonicalIndependentOracleMembers(members: readonly IndependentSourceSurfaceOracleMember[]) {
   const normalized = members.map((member) => ({ ...member,
+    category: member.category === "FOREIGN_PHARMA" || member.category === "DOMESTIC_PHARMA" ? member.category :
+      (() => { throw new Error("Independent oracle member category is invalid"); })(),
     officialEntryId: normalize(member.officialEntryId, "officialEntryId"),
     expectedArtifacts: [...member.expectedArtifacts].sort((a, b) => compare(canonicalJson(a), canonicalJson(b))) }))
     .sort((a, b) => compare(canonicalJson(a), canonicalJson(b)));
@@ -228,6 +354,55 @@ function canonicalMembers(members: readonly IndependentSourceSurfaceOracleMember
       if (!/^[a-f0-9]{64}$/.test(value)) throw new Error("Independent oracle hash is invalid");
     }
   }
+  return normalized;
+}
+export function canonicalIndependentCompanyAudits(audits: readonly IndependentCompanyAudit[]): IndependentCompanyAudit[] {
+  if (!Array.isArray(audits)) throw new Error("Independent oracle company audits must be an array");
+  assertExactConfirmedCompanyRosterV3(audits.map(({ companyId: id, category }) => ({ id, category })));
+  const normalized = audits.map((audit) => {
+    const companyId = normalize(audit.companyId, "company audit companyId");
+    if (audit.category !== "FOREIGN_PHARMA" && audit.category !== "DOMESTIC_PHARMA") {
+      throw new Error("Independent oracle company audit category is invalid");
+    }
+    if (audit.status !== "HAS_PUBLIC_OFFICIAL_CAREERS_LINK_AT_CAPTURE_TIME" &&
+        audit.status !== "NO_PUBLIC_OFFICIAL_CAREERS_LINK_AT_CAPTURE_TIME") {
+      throw new Error("Independent oracle company audit status is invalid");
+    }
+    if (typeof audit.capturedAt !== "string" || Number.isNaN(Date.parse(audit.capturedAt)) ||
+        new Date(audit.capturedAt).toISOString() !== audit.capturedAt) {
+      throw new Error("Independent oracle company audit capturedAt must be a canonical ISO-8601 UTC instant");
+    }
+    let officialWebsiteUrl: URL;
+    try { officialWebsiteUrl = new URL(audit.officialWebsiteUrl); } catch {
+      throw new Error("Independent oracle official website URL must be absolute HTTP(S)");
+    }
+    if (officialWebsiteUrl.protocol !== "http:" && officialWebsiteUrl.protocol !== "https:") {
+      throw new Error("Independent oracle official website URL must be absolute HTTP(S)");
+    }
+    const officialEntryIds = audit.officialEntryIds.map((entryId: string) => normalize(entryId, "officialEntryId"))
+      .sort(compare);
+    if (new Set(officialEntryIds).size !== officialEntryIds.length) {
+      throw new Error("Independent oracle company audit officialEntryIds must be unique");
+    }
+    if (!Array.isArray(audit.evidenceArtifacts) || audit.evidenceArtifacts.length === 0) {
+      throw new Error("Independent oracle company audit evidence artifacts are required");
+    }
+    const evidenceArtifacts = audit.evidenceArtifacts.map((artifact: IndependentOracleExpectedArtifact) => ({
+      logicalKey: normalize(artifact.logicalKey, "company audit evidence logicalKey"),
+      contentSha256: artifact.contentSha256
+    })).sort((a: IndependentOracleExpectedArtifact, b: IndependentOracleExpectedArtifact) => compare(canonicalJson(a), canonicalJson(b)));
+    if (new Set(evidenceArtifacts.map((artifact: IndependentOracleExpectedArtifact) => canonicalJson(artifact))).size !== evidenceArtifacts.length) {
+      throw new Error("Independent oracle company audit evidence artifacts must be unique");
+    }
+    for (const hash of [audit.officialWebsiteSha256, audit.reviewArtifactSha256, audit.reviewerId,
+      audit.producerIdentity, ...evidenceArtifacts.map((artifact: IndependentOracleExpectedArtifact) => artifact.contentSha256)]) {
+      if (!/^[a-f0-9]{64}$/.test(hash)) throw new Error("Independent oracle company audit hash is invalid");
+    }
+    if (audit.reviewerDecision !== "APPROVED" || audit.reviewerStatus !== "INDEPENDENT") {
+      throw new Error("Independent oracle company audit review is not approved and independent");
+    }
+    return { ...audit, companyId, officialEntryIds, evidenceArtifacts };
+  }).sort((a, b) => compare(a.companyId, b.companyId));
   return normalized;
 }
 function normalize(value: string, field: string): string {

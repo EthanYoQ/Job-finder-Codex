@@ -4,6 +4,7 @@ import type {
   RecruitmentSource,
   RequiredJobField
 } from "./company";
+import { assertExactConfirmedCompanyRosterV3 } from "../data/confirmedCompanyRosterV3";
 
 const REQUIRED_FIELDS: RequiredJobField[] = [
   "company",
@@ -14,7 +15,6 @@ const REQUIRED_FIELDS: RequiredJobField[] = [
 
 const REQUIRED_SUCCESSFUL_STABLE_CRAWLS = 2;
 export const P0_REQUIRED_COMPANIES = 60;
-export const P0_MIN_VERIFIED_SCRAPABLE_COMPANIES = 60;
 
 function isSuccessfulStableObservation(
   observation: CrawlObservation
@@ -74,11 +74,38 @@ export function countVerifiedCompanies(
 
 export function canLaunchP0(
   companies: Company[],
-  observationsBySource: Record<string, CrawlObservation[]>
+  observationsBySource: Record<string, CrawlObservation[]>,
+  configuredSourceIds: ReadonlySet<string>
 ): boolean {
-  return (
-    companies.length === P0_REQUIRED_COMPANIES &&
-    countVerifiedCompanies(companies, observationsBySource) >=
-      P0_MIN_VERIFIED_SCRAPABLE_COMPANIES
+  if (!hasExactP0Roster(companies)) return false;
+  if (!configuredSourceIds) return false;
+  const requiredSources = companies.flatMap((company) =>
+    company.sources.filter((source) => source.kind === "SOCIAL").map((source) => ({ company, source }))
   );
+  const requiredSourceIds = requiredSources.map(({ source }) => source.id);
+  if (new Set(requiredSourceIds).size !== requiredSourceIds.length ||
+      requiredSources.some(({ company, source }) => source.companyId !== company.id) ||
+      configuredSourceIds.size !== requiredSourceIds.length ||
+      requiredSourceIds.some((sourceId) => !configuredSourceIds.has(sourceId))) return false;
+
+  return companies.every((company) => {
+    if (company.targetStatus === "BLOCKED_EVIDENCE_GAP") return false;
+    if (company.targetStatus === "NO_PUBLIC_OFFICIAL_CAREERS_LINK_AT_CAPTURE_TIME") {
+      return false;
+    }
+
+    const socialSources = company.sources.filter((source) => source.kind === "SOCIAL");
+    return socialSources.length > 0 && socialSources.every((source) =>
+      isVerifiedScrapable(source, observationsBySource[source.id] ?? [])
+    );
+  });
+}
+
+export function hasExactP0Roster(companies: readonly Pick<Company, "id" | "category">[]): boolean {
+  try {
+    assertExactConfirmedCompanyRosterV3(companies.map(({ id, category }) => ({ id, category })));
+    return true;
+  } catch {
+    return false;
+  }
 }

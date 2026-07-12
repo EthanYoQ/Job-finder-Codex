@@ -219,72 +219,118 @@ describe("P0 data quality gate", () => {
     ]);
   });
 
-  it("blocks high-risk low-count foreign pharma sources without official total evidence", () => {
+  it("passes the low-count gate with verified complete traversal and exact positive pages", () => {
     const report = getP0DataQualityReport({
-      plannedSourceIds: ["source-merck-china-social"],
-      highRiskLowCountSourceIds: ["source-merck-china-social"],
+      plannedSourceIds: ["source-sandoz-china-social"],
+      highRiskLowCountSourceIds: ["source-sandoz-china-social"],
       latestObservationsBySource: {
-        "source-merck-china-social": {
+        "source-sandoz-china-social": {
           successful: true,
-          structuredJobCount: 1,
+          structuredJobCount: 2,
           expectedJobCount: null,
-          completenessStatus: "NEEDS_MANUAL_COMPLETENESS_REVIEW",
-          completenessEvidenceUrl: "https://careers.emdgroup.com/us/en/search-results?keywords=China",
-          completenessBlockerReason: "Official total unavailable",
+          completenessStatus: "VERIFIED",
+          completenessEvidenceKind: "COMPLETE_PAGE_TRAVERSAL",
+          completenessEvidenceUrl: "https://www.sandoz.com/careers/job-search/",
+          completenessBlockerReason: null,
+          pagesVisited: 2,
+          totalPages: 2,
           crawledAt: new Date("2026-07-08T08:00:00.000Z"),
           failureReason: null
         }
       },
       activeVisibleJobCountsBySource: {
-        "source-merck-china-social": 1
+        "source-sandoz-china-social": 2
       }
     });
 
-    expect(report.canPass).toBe(false);
-    expect(report.issues).toContainEqual(
-      expect.objectContaining({
-        sourceId: "source-merck-china-social",
-        code: "HIGH_RISK_LOW_COUNT_WITHOUT_OFFICIAL_TOTAL",
-        observedCount: 1,
-        expectedCount: null
-      })
-    );
+    expect(report.issues).toEqual([]);
   });
 
-  it("blocks high-risk low-count domestic pharma sources without official total evidence", () => {
+  it("passes the low-count gate with verified official total pages and exact positive pages", () => {
     const report = getP0DataQualityReport({
-      plannedSourceIds: ["source-cspc-social"],
-      highRiskLowCountSourceIds: ["source-cspc-social"],
+      plannedSourceIds: ["source-hotjob-social"],
+      highRiskLowCountSourceIds: ["source-hotjob-social"],
       latestObservationsBySource: {
-        "source-cspc-social": {
+        "source-hotjob-social": {
           successful: true,
-          structuredJobCount: 8,
+          structuredJobCount: 3,
           expectedJobCount: null,
-          completenessStatus: "NEEDS_MANUAL_COMPLETENESS_REVIEW",
-          completenessEvidenceKind: "WEAK_MANUAL_SAMPLE",
-          completenessEvidenceUrl: "https://www.cspc.cn/hr/index.html",
-          completenessBlockerReason: "Static page only; official total unavailable",
+          completenessStatus: "VERIFIED",
+          completenessEvidenceKind: "OFFICIAL_TOTAL_PAGES",
+          completenessEvidenceUrl: "https://example.com/official-jobs",
+          completenessBlockerReason: null,
+          pagesVisited: 3,
+          totalPages: 3,
           crawledAt: new Date("2026-07-08T08:00:00.000Z"),
           failureReason: null
         }
       },
       activeVisibleJobCountsBySource: {
-        "source-cspc-social": 8
+        "source-hotjob-social": 3
       }
     });
 
-    expect(report.canPass).toBe(false);
+    expect(report.issues).toEqual([]);
+  });
+
+  it("passes the low-count gate with a verified exact official total and evidence URL", () => {
+    const report = getP0DataQualityReport({
+      plannedSourceIds: ["source-official-total"],
+      highRiskLowCountSourceIds: ["source-official-total"],
+      latestObservationsBySource: {
+        "source-official-total": {
+          successful: true,
+          structuredJobCount: 3,
+          expectedJobCount: 3,
+          completenessStatus: "VERIFIED",
+          completenessEvidenceKind: "OFFICIAL_TOTAL_COUNT",
+          completenessEvidenceUrl: "https://example.com/official-total",
+          completenessBlockerReason: null,
+          crawledAt: new Date("2026-07-08T08:00:00.000Z"),
+          failureReason: null
+        }
+      },
+      activeVisibleJobCountsBySource: { "source-official-total": 3 }
+    });
+
+    expect(report.issues).toEqual([]);
+  });
+
+  it("blocks high-risk low-count sources when the evidence kind is absent", () => {
+    const report = getP0DataQualityReport({
+      plannedSourceIds: ["source-missing-kind"],
+      highRiskLowCountSourceIds: ["source-missing-kind"],
+      latestObservationsBySource: {
+        "source-missing-kind": {
+          successful: true,
+          structuredJobCount: 2,
+          expectedJobCount: 2,
+          completenessStatus: "VERIFIED",
+          completenessEvidenceUrl: "https://example.com/jobs",
+          completenessBlockerReason: null,
+          pagesVisited: 2,
+          totalPages: 2,
+          crawledAt: new Date("2026-07-08T08:00:00.000Z"),
+          failureReason: null
+        }
+      },
+      activeVisibleJobCountsBySource: { "source-missing-kind": 2 }
+    });
+
     expect(report.issues).toContainEqual(
       expect.objectContaining({
-        sourceId: "source-cspc-social",
-        code: "HIGH_RISK_LOW_COUNT_WITHOUT_OFFICIAL_TOTAL",
-        observedCount: 8,
-        expectedCount: null
+        code: "HIGH_RISK_LOW_COUNT_WITHOUT_STRONG_COMPLETENESS_EVIDENCE",
+        evidenceKind: null
       })
     );
   });
 
-  it("blocks high-risk low-count sources when expected count comes from traversal instead of official total", () => {
+  it.each([
+    ["missing URL", { completenessEvidenceUrl: null }],
+    ["zero pages", { pagesVisited: 0 }],
+    ["missing pages", { pagesVisited: null }],
+    ["page-count mismatch", { pagesVisited: 1, totalPages: 2 }]
+  ])("blocks low-count traversal with %s", (_name, evidencePatch) => {
     const report = getP0DataQualityReport({
       plannedSourceIds: ["source-sandoz-china-social"],
       highRiskLowCountSourceIds: ["source-sandoz-china-social"],
@@ -297,6 +343,9 @@ describe("P0 data quality gate", () => {
           completenessEvidenceKind: "COMPLETE_PAGE_TRAVERSAL",
           completenessEvidenceUrl: "https://www.sandoz.com/careers/job-search/",
           completenessBlockerReason: null,
+          pagesVisited: 2,
+          totalPages: 2,
+          ...evidencePatch,
           crawledAt: new Date("2026-07-08T08:00:00.000Z"),
           failureReason: null
         }
@@ -306,14 +355,76 @@ describe("P0 data quality gate", () => {
       }
     });
 
-    expect(report.canPass).toBe(false);
     expect(report.issues).toContainEqual(
       expect.objectContaining({
         sourceId: "source-sandoz-china-social",
-        code: "HIGH_RISK_LOW_COUNT_WITHOUT_OFFICIAL_TOTAL",
+        code: "HIGH_RISK_LOW_COUNT_WITHOUT_STRONG_COMPLETENESS_EVIDENCE",
         observedCount: 2,
         expectedCount: 2,
         evidenceKind: "COMPLETE_PAGE_TRAVERSAL"
+      })
+    );
+  });
+
+  it("keeps weak manual samples blocked for high-risk low-count sources", () => {
+    const report = getP0DataQualityReport({
+      plannedSourceIds: ["source-cspc-social"],
+      highRiskLowCountSourceIds: ["source-cspc-social"],
+      latestObservationsBySource: {
+        "source-cspc-social": {
+          successful: true,
+          structuredJobCount: 8,
+          expectedJobCount: 8,
+          completenessStatus: "VERIFIED",
+          completenessEvidenceKind: "WEAK_MANUAL_SAMPLE",
+          completenessEvidenceUrl: "https://www.cspc.cn/hr/index.html",
+          completenessBlockerReason: null,
+          pagesVisited: 1,
+          totalPages: 1,
+          crawledAt: new Date("2026-07-08T08:00:00.000Z"),
+          failureReason: null
+        }
+      },
+      activeVisibleJobCountsBySource: { "source-cspc-social": 8 }
+    });
+
+    expect(report.issues).toContainEqual(
+      expect.objectContaining({
+        code: "HIGH_RISK_LOW_COUNT_WITHOUT_STRONG_COMPLETENESS_EVIDENCE",
+        evidenceKind: "WEAK_MANUAL_SAMPLE"
+      })
+    );
+  });
+
+  it.each([
+    ["missing expected count", { expectedJobCount: null }],
+    ["non-equal expected count", { expectedJobCount: 4 }],
+    ["missing evidence URL", { completenessEvidenceUrl: null }]
+  ])("blocks low-count official totals with %s", (_name, evidencePatch) => {
+    const report = getP0DataQualityReport({
+      plannedSourceIds: ["source-official-total"],
+      highRiskLowCountSourceIds: ["source-official-total"],
+      latestObservationsBySource: {
+        "source-official-total": {
+          successful: true,
+          structuredJobCount: 3,
+          expectedJobCount: 3,
+          completenessStatus: "VERIFIED",
+          completenessEvidenceKind: "OFFICIAL_TOTAL_COUNT",
+          completenessEvidenceUrl: "https://example.com/official-total",
+          completenessBlockerReason: null,
+          ...evidencePatch,
+          crawledAt: new Date("2026-07-08T08:00:00.000Z"),
+          failureReason: null
+        }
+      },
+      activeVisibleJobCountsBySource: { "source-official-total": 3 }
+    });
+
+    expect(report.issues).toContainEqual(
+      expect.objectContaining({
+        code: "HIGH_RISK_LOW_COUNT_WITHOUT_STRONG_COMPLETENESS_EVIDENCE",
+        evidenceKind: "OFFICIAL_TOTAL_COUNT"
       })
     );
   });

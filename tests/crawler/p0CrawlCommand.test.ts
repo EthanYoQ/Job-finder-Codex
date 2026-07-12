@@ -234,9 +234,11 @@ describe("P0 crawl command", () => {
     const db = {
       $transaction: fakeTransaction(),
       company: {
+        findMany: vi.fn(),
         upsert: vi.fn()
       },
       recruitmentSource: {
+        findMany: vi.fn(),
         upsert: vi.fn()
       },
       job: {
@@ -359,8 +361,8 @@ describe("P0 crawl command", () => {
       identity: IDENTITY,
       db: {
         $transaction: fakeTransaction(),
-        company: { upsert: vi.fn() },
-        recruitmentSource: { upsert: vi.fn() },
+        company: { findMany: vi.fn(), upsert: vi.fn() },
+        recruitmentSource: { findMany: vi.fn(), upsert: vi.fn() },
         job: { findMany: vi.fn() },
         crawlObservation: { findMany: vi.fn(), findFirst: vi.fn() },
         crawlBatch: { create: vi.fn(), update: vi.fn() }
@@ -414,8 +416,8 @@ describe("P0 crawl command", () => {
       identity: { ...IDENTITY, batchKind: "MANUAL_SOURCE" },
       db: {
         $transaction: fakeTransaction(),
-        company: { upsert: vi.fn() },
-        recruitmentSource: { upsert: vi.fn() },
+        company: { findMany: vi.fn(), upsert: vi.fn() },
+        recruitmentSource: { findMany: vi.fn(), upsert: vi.fn() },
         job: { findMany: vi.fn() },
         crawlObservation: { findMany: vi.fn(), findFirst: vi.fn() },
         crawlBatch: { create: vi.fn(), update: vi.fn() }

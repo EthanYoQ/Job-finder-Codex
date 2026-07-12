@@ -8,6 +8,7 @@ const identity = { releaseCandidateId: "rc-1", commitSha: h, rosterSha256: h,
   sourcePlanSha256: h, sourceConfigSha256: h, adapterBundleSha256: h,
   sourceTreeSha256:h,runtimeTreeSha256:h,
   plannedSourceIds: ["source-1"], plannedSourceSetSha256: createHash("sha256").update('["source-1"]').digest("hex"),
+  companyAudits:[{companyId:"company-1",category:"FOREIGN_PHARMA" as const,status:"HAS_PUBLIC_OFFICIAL_CAREERS_LINK_AT_CAPTURE_TIME" as const}],
   releaseMembers:[{companyId:"company-1",sourceId:"source-1",surfaceId:"surface-1",channelId:"channel-1",category:"FOREIGN_PHARMA" as const}],
   currentTime: new Date("2026-07-10T02:00:00Z"), freshnessMaximum: 3_600_001 };
 const tuple={releaseCandidateId:"rc-1",batchId:"batch-1",sourceResultId:"result-1",sourceId:"source-1"};

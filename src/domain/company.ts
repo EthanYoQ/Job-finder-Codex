@@ -80,6 +80,9 @@ export interface Company {
   officialWebsiteUrl: string;
   pinyinName: string;
   category: "FOREIGN_PHARMA" | "DOMESTIC_PHARMA";
-  targetStatus: "ACTIVE" | "BLOCKED_NO_PUBLIC_SOURCE" | "BLOCKED_EVIDENCE_GAP";
+  targetStatus:
+    | "ACTIVE"
+    | "NO_PUBLIC_OFFICIAL_CAREERS_LINK_AT_CAPTURE_TIME"
+    | "BLOCKED_EVIDENCE_GAP";
   sources: RecruitmentSource[];
 }

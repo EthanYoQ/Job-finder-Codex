@@ -156,7 +156,9 @@ export async function runP0CrawlCommand({
   if (identity.batchKind === "FULL_RELEASE") {
     const membership = await getStartupReleaseMembership();
     validateAuthoritativeReleaseMembership(membership, identity, releaseMembersFromPlans(selectedPlans));
-    validateIndependentSourceSurfaceOracle(await getStartupSourceSurfaceOracle(), membership, identity, selectedPlans);
+    const validationTime = now instanceof Date ? now : now();
+    validateIndependentSourceSurfaceOracle(await getStartupSourceSurfaceOracle(), membership, identity, selectedPlans,
+      validationTime);
   }
   const syncResult = await syncPlannedSourcesToDb(plans, companies, db);
   const runtimeDeps = createRuntimeDeps(db);

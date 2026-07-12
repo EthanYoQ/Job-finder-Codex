@@ -6,6 +6,7 @@ import {
   countVerifiedCompanies,
   isVerifiedScrapable
 } from "../../src/domain/verification";
+import { confirmedCompanyRosterV3Members } from "../../src/data/confirmedCompanyRosterV3";
 
 const requiredFields = ["company", "title", "officialUrl", "location"] as const;
 
@@ -47,22 +48,27 @@ function createCompany(
   index: number,
   sourceOverrides: Partial<RecruitmentSource> = {}
 ): Company {
+  const rosterMember = confirmedCompanyRosterV3Members[index];
   return {
-    id: `company-${index}`,
+    id: rosterMember?.id ?? `company-extra-${index}`,
     officialChineseName: `测试药企${index}`,
     officialWebsiteUrl: `https://example-${index}.com`,
     pinyinName: `ce shi yao qi ${index}`,
-    category: "FOREIGN_PHARMA",
+    category: rosterMember?.category ?? "DOMESTIC_PHARMA",
       targetStatus: "ACTIVE",
     sources: [
       createSource({
         id: `source-${index}`,
-        companyId: `company-${index}`,
+        companyId: rosterMember?.id ?? `company-extra-${index}`,
         status: "VERIFIED_SCRAPABLE",
         ...sourceOverrides
       })
     ]
   };
+}
+
+function configuredSourceIds(companies: readonly Company[]): Set<string> {
+  return new Set(companies.flatMap((company) => company.sources.filter((source) => source.kind === "SOCIAL").map((source) => source.id)));
 }
 
 function createVerifiedObservationPair(sourceId: string): CrawlObservation[] {
@@ -246,36 +252,69 @@ describe("verified scrapable gate", () => {
     expect(isVerifiedScrapable(verifiedSource, observations)).toBe(true);
   });
 
-  it("blocks P0 launch until all 60 confirmed companies are verified scrapable", () => {
-    const companies: Company[] = Array.from({ length: 60 }, (_, index) =>
-      createCompany(index)
-    );
+  it("keeps static launch fail-closed for 58 evidenced sources plus two unsigned no-link companies", () => {
+    const companies: Company[] = Array.from({ length: 60 }, (_, index) => {
+      const company = createCompany(index, { status: "VERIFIED_SCRAPABLE" });
+      return index < 58 ? company : {
+        ...company,
+        targetStatus: "NO_PUBLIC_OFFICIAL_CAREERS_LINK_AT_CAPTURE_TIME",
+        sources: []
+      };
+    });
     const observationsBySource = Object.fromEntries(
-      companies.map((company, index) => {
+      companies.flatMap((company) => {
+        if (company.sources.length === 0) return [];
         const sourceId = company.sources[0]!.id;
-        return [sourceId, index < 59 ? createVerifiedObservationPair(sourceId) : []];
+        return [[sourceId, createVerifiedObservationPair(sourceId)]];
       })
     );
 
-    expect(countVerifiedCompanies(companies, observationsBySource)).toBe(59);
-    expect(canLaunchP0(companies, observationsBySource)).toBe(false);
+    expect(countVerifiedCompanies(companies, observationsBySource)).toBe(58);
+    expect(canLaunchP0(companies, observationsBySource, configuredSourceIds(companies))).toBe(false);
   });
 
-  it("allows launch only when all 60 confirmed companies have verified completeness evidence", () => {
-    const companies: Company[] = Array.from({ length: 60 }, (_, index) =>
-      createCompany(index, {
-        status: "VERIFIED_SCRAPABLE"
-      })
-    );
-    const observationsBySource = Object.fromEntries(
-      companies.map((company) => {
-        const sourceId = company.sources[0]!.id;
-        return [sourceId, createVerifiedObservationPair(sourceId)];
-      })
-    );
+  it("rejects an exact confirmed 30+30 caller roster when all no-link adjudications lack startup-v3 authority", () => {
+    const companies = Array.from({ length: 60 }, (_, index) => ({
+      ...createCompany(index),
+      targetStatus: "NO_PUBLIC_OFFICIAL_CAREERS_LINK_AT_CAPTURE_TIME" as const,
+      sources: []
+    }));
 
-    expect(countVerifiedCompanies(companies, observationsBySource)).toBe(60);
-    expect(canLaunchP0(companies, observationsBySource)).toBe(true);
+    expect(canLaunchP0(companies, {}, new Set())).toBe(false);
+  });
+
+  it("blocks when one company has two expected social sources and only one is complete", () => {
+    const companies = Array.from({ length: 60 }, (_, index) =>
+      createCompany(index, { status: "VERIFIED_SCRAPABLE" })
+    );
+    const second = createSource({
+      id: "source-0-secondary",
+      companyId: companies[0]!.id,
+      status: "VERIFIED_SCRAPABLE"
+    });
+    companies[0]!.sources.push(second);
+    const observationsBySource = Object.fromEntries(companies.flatMap((company) =>
+      company.sources.map((source) => [source.id, source.id === second.id ? [] : createVerifiedObservationPair(source.id)])));
+
+    expect(canLaunchP0(companies, observationsBySource, configuredSourceIds(companies))).toBe(false);
+  });
+
+  it.each([
+    ["evidence gap", (companies: Company[]) => { companies[0]!.targetStatus = "BLOCKED_EVIDENCE_GAP"; }],
+    ["no-link with source", (companies: Company[]) => { companies[0]!.targetStatus = "NO_PUBLIC_OFFICIAL_CAREERS_LINK_AT_CAPTURE_TIME"; }],
+    ["active with zero social sources", (companies: Company[]) => { companies[0]!.sources = []; }],
+    ["31/29 categories", (companies: Company[]) => { companies[30]!.category = "FOREIGN_PHARMA"; }],
+    ["duplicate id", (companies: Company[]) => { companies[59]!.id = companies[0]!.id; }],
+    ["missing roster member", (companies: Company[]) => { companies.pop(); }]
+  ])("blocks %s without weakening another complete source", (_label, mutate) => {
+    const companies = Array.from({ length: 60 }, (_, index) =>
+      createCompany(index, { status: "VERIFIED_SCRAPABLE" })
+    );
+    mutate(companies);
+    const observationsBySource = Object.fromEntries(companies.flatMap((company) =>
+      company.sources.map((source) => [source.id, createVerifiedObservationPair(source.id)])));
+
+    expect(canLaunchP0(companies, observationsBySource, configuredSourceIds(companies))).toBe(false);
   });
 
   it("blocks launch when the candidate pool is not exactly 60 companies", () => {
@@ -292,7 +331,24 @@ describe("verified scrapable gate", () => {
     );
 
     expect(countVerifiedCompanies(companies, observationsBySource)).toBe(61);
-    expect(canLaunchP0(companies, observationsBySource)).toBe(false);
+    expect(canLaunchP0(companies, observationsBySource, configuredSourceIds(companies))).toBe(false);
+  });
+
+  it("rejects a unique same-category replacement outside confirmed V3", () => {
+    const companies = Array.from({ length: 60 }, (_, index) => createCompany(index, { status: "VERIFIED_SCRAPABLE" }));
+    companies[0] = { ...companies[0]!, id: "company-foreign-replacement",
+      sources: companies[0]!.sources.map((source) => ({ ...source, companyId: "company-foreign-replacement" })) };
+    const observations = Object.fromEntries(companies.flatMap((company) => company.sources.map((source) => [source.id, createVerifiedObservationPair(source.id)])));
+    expect(canLaunchP0(companies, observations, configuredSourceIds(companies))).toBe(false);
+  });
+
+  it("requires an exact explicit configured source set with no omission or substitution", () => {
+    const companies = Array.from({ length: 60 }, (_, index) => createCompany(index, { status: "VERIFIED_SCRAPABLE" }));
+    const observations = Object.fromEntries(companies.flatMap((company) => company.sources.map((source) => [source.id, createVerifiedObservationPair(source.id)])));
+    const exact = configuredSourceIds(companies);
+    expect(canLaunchP0(companies, observations, exact)).toBe(true);
+    expect(canLaunchP0(companies, observations, new Set([...exact].slice(1)))).toBe(false);
+    expect(canLaunchP0(companies, observations, new Set([...exact, "source-substitute"]))).toBe(false);
   });
 
   it("excludes campus-only sources from the verified company count", () => {

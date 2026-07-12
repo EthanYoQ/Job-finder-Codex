@@ -2,6 +2,13 @@ import { hashCanonicalStringSet } from "../crawler/runtimeBatchIdentity";
 import type { ReleaseMember } from "../crawler/authoritativeReleaseMembership";
 import { reconcileLifecycleSets, type LifecycleSetEvidence } from "./lifecycleSetReconciliation";
 
+export interface StrictCompanyAudit {
+  companyId: string;
+  category: "FOREIGN_PHARMA" | "DOMESTIC_PHARMA";
+  status: "HAS_PUBLIC_OFFICIAL_CAREERS_LINK_AT_CAPTURE_TIME" |
+    "NO_PUBLIC_OFFICIAL_CAREERS_LINK_AT_CAPTURE_TIME";
+}
+
 type ShaMap = Readonly<Record<string, string>>;
 export interface StrictReadinessExpectation {
   releaseCandidateId: string; commitSha: string; rosterSha256: string;
@@ -9,6 +16,7 @@ export interface StrictReadinessExpectation {
   sourceTreeSha256:string;runtimeTreeSha256:string;
   plannedSourceIds: readonly string[]; plannedSourceSetSha256: string;
   sourceConfigHashes: ShaMap; adapterVersions: ShaMap;
+  companyAudits: readonly StrictCompanyAudit[];
   releaseMembers: readonly ReleaseMember[];
   currentTime: Date; freshnessMaximum: number;
 }

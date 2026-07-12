@@ -1,4 +1,5 @@
 import { execFileSync,spawnSync } from "node:child_process";
+import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 
 describe("P0 readiness CLI", () => {
@@ -36,4 +37,13 @@ describe("P0 readiness CLI", () => {
     const result=spawnSync(process.platform==="win32"?"cmd.exe":"npx",process.platform==="win32"?["/d","/s","/c","npx","tsx","scripts/p0-readiness-report.ts",flag]:["tsx","scripts/p0-readiness-report.ts",flag],{cwd:process.cwd(),encoding:"utf8"});
     expect(result.status).not.toBe(0);expect(result.stderr).toMatch(/forbidden|unknown/i);
   },15_000);
+
+  it("uses dynamic official-link terminology without an x/60 crawl-company denominator", () => {
+    const source = readFileSync("scripts/p0-readiness-report.ts", "utf8");
+    expect(source).toContain("Required official-link sources");
+    expect(source).toContain("Crawl-evidenced official-link sources");
+    expect(source).not.toContain("Crawl-evidenced verified companies");
+    expect(source).not.toContain("crawlEvidencedVerifiedCompanies");
+    expect(source).not.toContain("requiredVerifiedCompanies");
+  });
 });

@@ -1,24 +1,288 @@
 {
   "schemaVersion": "phase4-code-candidate-v1",
   "planId": "docs/superpowers/plans/2026-07-10-p0-recovery-and-release-evidence.md",
-  "baseHead": "5b2cc4b80c92590575015dfd4343757eee4056f2",
+  "baseHead": "28210fd6f99014011279f9690f6cb480c42efb7e",
   "entries": [
     {
-      "path": "scripts/generate-build-identity.ts",
-      "sha256": "84a653396106c81d61ff11976421d56f854950d2e8440f17253d35132500a5e7",
-      "bytes": 723,
+      "path": "docs/superpowers/plans/2026-07-10-p0-recovery-and-release-evidence.md",
+      "sha256": "6e75365ae7f8ad9438ca902e2d544929831a516025291ed2a1d065b23d5efa2a",
+      "bytes": 21632,
+      "role": "documentation"
+    },
+    {
+      "path": "scripts/generate-phase4-release-manifest.ts",
+      "sha256": "21d7164bb4a5f2a805bb44f276bb66f6d7fd05fa026496e090c0ce6f9a1ad120",
+      "bytes": 3269,
       "role": "tool"
     },
     {
-      "path": "src/readiness/dockerBuildProvenance.ts",
-      "sha256": "eefd327649ebdade49fd4edb9772c24b70eca4d4df1bff092e966e00e11a0ba1",
-      "bytes": 9404,
+      "path": "scripts/p0-readiness-report.ts",
+      "sha256": "399888e0e97d60cc8a4b626867ea7dbb9276df1a9faec32625d3f165e4bcf118",
+      "bytes": 2981,
+      "role": "tool"
+    },
+    {
+      "path": "scripts/systemic-completeness-audit.ts",
+      "sha256": "bd4f513baf1361cf92a0ee158666b2965295a2b00d3fc62a92742f74700e404a",
+      "bytes": 23082,
+      "role": "tool"
+    },
+    {
+      "path": "src/crawler/independentOracleMigration.ts",
+      "sha256": "9535bb70c5dc65761c0e15b4665f85d7811e7a96f8cf38eb16131bbf54b723f9",
+      "bytes": 14596,
       "role": "runtime"
     },
     {
-      "path": "tests/readiness/dockerBuildProvenance.test.ts",
-      "sha256": "a42f0a7eb3e145a70292902c1f07baf02fb71afe082710d67c6ea507a2a06609",
-      "bytes": 9201,
+      "path": "src/crawler/independentSourceSurfaceOracle.ts",
+      "sha256": "b85ea311b69e715c891715432970fced972fbc7ce146767b104cfd0232f5c8bc",
+      "bytes": 27250,
+      "role": "runtime"
+    },
+    {
+      "path": "src/crawler/p0CrawlCommand.ts",
+      "sha256": "d5c5062484c66f8fa36e15f6a85d3193f1cf2aa1130148186452f78cb85b215a",
+      "bytes": 8438,
+      "role": "runtime"
+    },
+    {
+      "path": "src/crawler/runCrawlBatch.ts",
+      "sha256": "fa22bb448775ad0b79b6833999bae16307aff336da44af0e41ba373858853f00",
+      "bytes": 18844,
+      "role": "runtime"
+    },
+    {
+      "path": "src/crawler/runtimeBatchIdentity.ts",
+      "sha256": "81485e7d021984da07d2fc78cfeb4733ce75d9affad88a376168fcf8c0201c6c",
+      "bytes": 4188,
+      "role": "runtime"
+    },
+    {
+      "path": "src/crawler/sourceSurfaceOracleAuthority.ts",
+      "sha256": "0d5643f987844809297a52de45e4c5d534a1b04fe46196177e4190e408fc8b7f",
+      "bytes": 2904,
+      "role": "runtime"
+    },
+    {
+      "path": "src/data/companyRegistry.ts",
+      "sha256": "abc642229366d7b8fce7c1676a6799ce674b1e16fca16914a0cafbb7c7157958",
+      "bytes": 51281,
+      "role": "runtime"
+    },
+    {
+      "path": "src/db/companyRegistrySync.ts",
+      "sha256": "0b0903e142eff072e75143cdd27f666a520aa506036b17f5361686d943148830",
+      "bytes": 8965,
+      "role": "runtime"
+    },
+    {
+      "path": "src/domain/company.ts",
+      "sha256": "19cd242b71c561a3bb50c011994ab95a5b2205b3d2cda3d90e20b587615b3444",
+      "bytes": 2125,
+      "role": "runtime"
+    },
+    {
+      "path": "src/domain/verification.ts",
+      "sha256": "0bc274587401cded7c6432465935d25ed320070a505885d7c6e5f4f19677bc8e",
+      "bytes": 3626,
+      "role": "runtime"
+    },
+    {
+      "path": "src/evidence/phase4ReleaseManifest.ts",
+      "sha256": "fcb37462511d3da1d259a835f5c2ba38eaa23eef4a2a853d33d96cb6b05e854b",
+      "bytes": 25395,
+      "role": "runtime"
+    },
+    {
+      "path": "src/readiness/currentReleaseIdentity.ts",
+      "sha256": "6ee0dc21665535a724094cef4801a2f41b69026d0b4ef875f81d1085daa31a1a",
+      "bytes": 4455,
+      "role": "runtime"
+    },
+    {
+      "path": "src/readiness/dataQuality.ts",
+      "sha256": "8d79e456b0e031aae3089996edce2465789518c1e229e556ba88dd94b8b9f455",
+      "bytes": 11095,
+      "role": "runtime"
+    },
+    {
+      "path": "src/readiness/p0Readiness.ts",
+      "sha256": "40c7bb0b010c34983f9f440e9e9c649b169522e5dadbdf110a12d28f58aec169",
+      "bytes": 9320,
+      "role": "runtime"
+    },
+    {
+      "path": "src/readiness/persistedReadiness.ts",
+      "sha256": "7ce21fc636005d795c70eeca2a9cb8c2bc0b2b52122884074c2363859bc62d88",
+      "bytes": 4531,
+      "role": "runtime"
+    },
+    {
+      "path": "src/readiness/strictPersistedReadiness.ts",
+      "sha256": "413a09dfbbaa7797a0b9cff26e3970f45e82242ea2c48fc1aabb976924b399e3",
+      "bytes": 7016,
+      "role": "runtime"
+    },
+    {
+      "path": "src/readiness/strictPrismaReadiness.ts",
+      "sha256": "b666dcc0179255390e591a7bd5011ffdd33b01c5004d7bb81325226091ef44c1",
+      "bytes": 14640,
+      "role": "runtime"
+    },
+    {
+      "path": "tests/crawler/fullReleaseOracleProductionIntegration.test.ts",
+      "sha256": "904327e7d15ebbc9590765758dbdae88d15c53fd811166e72b91b38035029648",
+      "bytes": 2672,
+      "role": "test"
+    },
+    {
+      "path": "tests/crawler/helpers/fullReleaseOracleProductionScenario.ts",
+      "sha256": "6d5dd26eb5bee7da5c51d82c2ed2f55d606578377306e3910069652f0a1f4bef",
+      "bytes": 15560,
+      "role": "test"
+    },
+    {
+      "path": "tests/crawler/helpers/independentOracleV3Scenario.ts",
+      "sha256": "0d2fbdea206687061d635f4034e2ba0cf310e5490e47b77924501e0a1a1403ef",
+      "bytes": 11715,
+      "role": "test"
+    },
+    {
+      "path": "tests/crawler/independentOracleMigration.test.ts",
+      "sha256": "89033a0508d864c2d17471403a8c4c20319383e0cb312e6607db004d00c7cbe5",
+      "bytes": 7918,
+      "role": "test"
+    },
+    {
+      "path": "tests/crawler/independentSourceSurfaceOracle.test.ts",
+      "sha256": "641fc991e61ea5e13708c3f0568df2668d1d866f4a9e641a97beb5a5912f3f72",
+      "bytes": 11715,
+      "role": "test"
+    },
+    {
+      "path": "tests/crawler/independentSourceSurfaceOracleV3.test.ts",
+      "sha256": "b2d7dd811039a8f3062b85bf0e0c00924801dfeb1461ef5a731cce1bb2387ea7",
+      "bytes": 6753,
+      "role": "test"
+    },
+    {
+      "path": "tests/crawler/p0CrawlCommand.test.ts",
+      "sha256": "487ca5a052f9b32fbc820e947a84232643c3819a797021fcb1f2fee37b031f70",
+      "bytes": 16605,
+      "role": "test"
+    },
+    {
+      "path": "tests/crawler/runCrawlBatch.test.ts",
+      "sha256": "709ba26bc779726727a8bbe0aa458ce3784e5a46aea295048fadd086278cd77a",
+      "bytes": 34395,
+      "role": "test"
+    },
+    {
+      "path": "tests/crawler/runtimeBatchIdentity.test.ts",
+      "sha256": "04c1af2b737c4aa861ac2523149716d3e5629f0fc6381360d437bc224839b40a",
+      "bytes": 1250,
+      "role": "test"
+    },
+    {
+      "path": "tests/data/companyOfficialLinks.test.ts",
+      "sha256": "99ff457d3bc5d49d4feb9928b4e5d9860bae449a2ca386f2de888efc8d7bae3a",
+      "bytes": 8827,
+      "role": "test"
+    },
+    {
+      "path": "tests/data/companyOracle.test.ts",
+      "sha256": "13ec78d915821f8a868d6f1699d9b33252ac76a90b278b623b9e43be774299d5",
+      "bytes": 11135,
+      "role": "test"
+    },
+    {
+      "path": "tests/data/companyRegistry.test.ts",
+      "sha256": "d68e714f3dc8ac40fcb3e2e26e58cbb69af4a25a0dd09f0b29d4c6bc4e8e38e0",
+      "bytes": 4828,
+      "role": "test"
+    },
+    {
+      "path": "tests/db/companyRegistrySync.test.ts",
+      "sha256": "87afb35003bb48a86d7a62702b924da5577a5e71b02db532d484e44e5ce3d68c",
+      "bytes": 12328,
+      "role": "test"
+    },
+    {
+      "path": "tests/domain/verification.test.ts",
+      "sha256": "3a2c649bc84f7d9415e1ba67043615bc40ddae288d2ad9bd13a6455954c95a0b",
+      "bytes": 14053,
+      "role": "test"
+    },
+    {
+      "path": "tests/evidence/generatePhase4ReleaseManifest.test.ts",
+      "sha256": "0ed2e1c49990f61a44630bafb449f85f9e9375633c7c47aaea819ed04ea78323",
+      "bytes": 1433,
+      "role": "test"
+    },
+    {
+      "path": "tests/evidence/helpers/phase4ManifestArtifacts.ts",
+      "sha256": "28b7e5602a2cb9a58e61772a1928aeb07168d6fd786838780feaeedf0da227dd",
+      "bytes": 13738,
+      "role": "test"
+    },
+    {
+      "path": "tests/evidence/phase4ReleaseManifest.test.ts",
+      "sha256": "b590005ede488095d4d9333610060c136db04274da8eb66f8a30b052dc7275b9",
+      "bytes": 15720,
+      "role": "test"
+    },
+    {
+      "path": "tests/readiness/currentReleaseIdentity.test.ts",
+      "sha256": "4862ff753056fa774a5c4957fbc157de08d71e7d7e637332ed7b7289bffb1f91",
+      "bytes": 5105,
+      "role": "test"
+    },
+    {
+      "path": "tests/readiness/dataQuality.test.ts",
+      "sha256": "df0ebc8892e07ea273d25a98af0c0458c3545e64f986b3001bb905505e00e02a",
+      "bytes": 16577,
+      "role": "test"
+    },
+    {
+      "path": "tests/readiness/p0Readiness.test.ts",
+      "sha256": "135af85c4552a8ea8750ce4a0d6fe51c177deee98070e0a3c20922b877119451",
+      "bytes": 8475,
+      "role": "test"
+    },
+    {
+      "path": "tests/readiness/p0ReadinessReportCli.test.ts",
+      "sha256": "194f94aea568ab372280ddb440167dd4e6cbfbf137508e88868d541f04a6f03d",
+      "bytes": 2395,
+      "role": "test"
+    },
+    {
+      "path": "tests/readiness/persistedReadiness.test.ts",
+      "sha256": "a33ba997f901ac28335f1a6584cc9a9efd924195a53feecd154fb8d912066a29",
+      "bytes": 5989,
+      "role": "test"
+    },
+    {
+      "path": "tests/readiness/prismaReadiness.test.ts",
+      "sha256": "2962e1e8ce275a6ba56b2376dec3ef9873bed186c32dbea7de9496002388eda5",
+      "bytes": 3664,
+      "role": "test"
+    },
+    {
+      "path": "tests/readiness/strictPersistedReadiness.test.ts",
+      "sha256": "51bb5c4e9f67dc5bef12ef3524bf79f2608dc6fbb58b40622d4212ae736e3ea0",
+      "bytes": 6185,
+      "role": "test"
+    },
+    {
+      "path": "tests/readiness/strictPrismaReadiness.test.ts",
+      "sha256": "dabc7a690aa74784ddbc41179a75d965818c739558c98a51792b019cd2504b41",
+      "bytes": 18053,
+      "role": "test"
+    },
+    {
+      "path": "tests/readiness/systemicCompletenessAudit.test.ts",
+      "sha256": "33e887bcb201e7ce6bfdd8d106cc06408498f0870f852aa573c819a90b296d13",
+      "bytes": 3462,
       "role": "test"
     }
   ]

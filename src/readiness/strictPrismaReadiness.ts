@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { getP0ReadinessReport, type P0ReadinessReport } from "./p0Readiness";
+import type { P0ReadinessReport } from "./p0Readiness";
 import {
   selectStrictFullReleaseReadiness,
   type StrictReadinessExpectation,
@@ -48,10 +48,19 @@ export async function getStrictP0ReadinessReportFromDb(db: StrictPrismaReadiness
     [rc.adapterBundleHash,expected.adapterBundleSha256],[rc.sourceTreeHash,expected.sourceTreeSha256],[rc.runtimeTreeHash,expected.runtimeTreeSha256]];
   if (bindings.some(([actual,wanted])=>actual!==wanted)) throw new Error("Release candidate exact identity mismatch");
   const companies = await db.company.findMany({ select: { id:true,inclusionReason:true, sources:{ select:{id:true} } } });
-  const expectedCompanies=canonical([...new Map(expected.releaseMembers.map(member=>[member.companyId,`${member.companyId}\0${member.category}`])).values()]);
+  const expectedCompanies=canonical(expected.companyAudits.map(audit=>`${audit.companyId}\0${audit.category}`));
   const actualCompanies=canonical(companies.map(company=>`${company.id}\0${category(company.inclusionReason)}`));
-  if(!equalExact(actualCompanies,expectedCompanies))throw new Error("DB company/category roster does not exactly match trusted membership");
-  const expectedCompanySources = canonical(expected.releaseMembers.map(x=>`${x.companyId}\0${x.category}\0${x.sourceId}`));
+  if(!equalExact(actualCompanies,expectedCompanies))throw new Error("DB company/category roster does not exactly match trusted company audits");
+  const sourceOwnership=new Map<string,string>();
+  for(const member of expected.releaseMembers){
+    const owner=`${member.companyId}\0${member.category}`;
+    const prior=sourceOwnership.get(member.sourceId);
+    if(prior&&prior!==owner)throw new Error("Trusted source membership has conflicting company ownership");
+    sourceOwnership.set(member.sourceId,owner);
+  }
+  const expectedSourceIds=canonical([...sourceOwnership.keys()]);
+  if(!equalExact(canonical(expected.plannedSourceIds),expectedSourceIds))throw new Error("Trusted planned source denominator does not match release membership");
+  const expectedCompanySources = canonical([...sourceOwnership].map(([sourceId,owner])=>`${owner}\0${sourceId}`));
   const actualCompanySources = canonical(companies.flatMap(company=>company.sources.map(source=>`${company.id}\0${category(company.inclusionReason)}\0${source.id}`)));
   if (!equalExact(actualCompanySources,expectedCompanySources)) throw new Error("DB company/source roster does not exactly match trusted membership");
   const rows = await db.crawlBatch.findMany({ where: {
@@ -120,15 +129,19 @@ export async function getStrictP0ReadinessReportFromDb(db: StrictPrismaReadiness
       ...(observation.pagesVisited === null ? {} : { pagesVisited: observation.pagesVisited }),
       stableRequiredFields: observation.stableRequiredFields as never }))];
   }));
-  const denominator=new Set(expected.releaseMembers.map(x=>x.companyId)).size;
   const requiredFields=["COMPANY","TITLE","OFFICIAL_URL","LOCATION"];
-  const evidencedCompanyIds=new Set<string>();
-  for(const member of expected.releaseMembers){const observations=observationsBySource[member.sourceId]??[];
-    if(observations.length===2&&observations.every(observation=>observation.successful&&observation.completenessStatus==="VERIFIED"&&requiredFields.every(field=>(observation.stableRequiredFields as readonly string[]).includes(field))))evidencedCompanyIds.add(member.companyId);}
-  const blockers=evidencedCompanyIds.size===denominator&&quality.canPass?[]:[{code:"VERIFIED_COMPANIES_BELOW_60" as const,message:`Strict readiness requires observation and data-quality evidence for every trusted company; evidenced ${evidencedCompanyIds.size} of ${denominator}; data-quality issues ${quality.issueCount}.`}];
-  return {totalCandidates:denominator,requiredVerifiedCompanies:denominator,
-    declaredVerifiedSocialSources:expected.plannedSourceIds.length,configuredVerifiedSocialSources:expected.plannedSourceIds.length,
-    crawlEvidencedVerifiedCompanies:evidencedCompanyIds.size,verifiedSourcesMissingCrawlPlan:[],blockers,canLaunchP0:blockers.length===0};
+  const evidencedSourceIds=new Set<string>();
+  for(const sourceId of expectedSourceIds){const observations=observationsBySource[sourceId]??[];
+    if(observations.length===2&&observations.every(observation=>observation.successful&&observation.completenessStatus==="VERIFIED"&&
+      ((observation.structuredJobCount===0&&observation.expectedJobCount===0)||requiredFields.every(field=>(observation.stableRequiredFields as readonly string[]).includes(field)))))evidencedSourceIds.add(sourceId);}
+  const blockers=evidencedSourceIds.size===expectedSourceIds.length&&quality.canPass?[]:[{code:"OFFICIAL_LINK_DENOMINATOR_INCOMPLETE" as const,message:`Strict readiness requires observation and data-quality evidence for every planned official-link source; evidenced ${evidencedSourceIds.size} of ${expectedSourceIds.length}; data-quality issues ${quality.issueCount}.`}];
+  return {totalCandidates:expected.companyAudits.length,
+    foreignPharmaCompanies:expected.companyAudits.filter(audit=>audit.category==="FOREIGN_PHARMA").length,
+    domesticPharmaCompanies:expected.companyAudits.filter(audit=>audit.category==="DOMESTIC_PHARMA").length,
+    requiredOfficialLinkSources:expectedSourceIds.length,plannedOfficialLinkSources:expected.plannedSourceIds.length,
+    crawlEvidencedOfficialLinkSources:evidencedSourceIds.size,
+    noPublicOfficialCareersLinkCompanies:expected.companyAudits.filter(audit=>audit.status==="NO_PUBLIC_OFFICIAL_CAREERS_LINK_AT_CAPTURE_TIME").length,
+    blockingEvidenceGapCompanies:0,sourcePlanOmissions:[],blockers,canLaunchP0:blockers.length===0};
 }
 
 const batchTuple=(batchId:string,sourceResultId:string,sourceId:string,releaseCandidateId:string)=>({releaseCandidateId,batchId,sourceResultId,sourceId});

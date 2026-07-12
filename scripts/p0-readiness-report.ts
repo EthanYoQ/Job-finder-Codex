@@ -41,16 +41,18 @@ function printReport(report: P0ReadinessReport): void {
   console.log("");
   console.log(`Can launch P0: ${report.canLaunchP0 ? "yes" : "no"}`);
   console.log(`Candidate companies: ${report.totalCandidates}`);
-  console.log(`Declared verified social sources: ${report.declaredVerifiedSocialSources}`);
-  console.log(`Configured verified social sources: ${report.configuredVerifiedSocialSources}`);
-  console.log(
-    `Crawl-evidenced verified companies: ${report.crawlEvidencedVerifiedCompanies}/${report.requiredVerifiedCompanies}`
-  );
+  console.log(`Foreign pharma companies: ${report.foreignPharmaCompanies}`);
+  console.log(`Domestic pharma companies: ${report.domesticPharmaCompanies}`);
+  console.log(`Required official-link sources: ${report.requiredOfficialLinkSources}`);
+  console.log(`Planned official-link sources: ${report.plannedOfficialLinkSources}`);
+  console.log(`Crawl-evidenced official-link sources: ${report.crawlEvidencedOfficialLinkSources}`);
+  console.log(`No-public-official-careers-link companies: ${report.noPublicOfficialCareersLinkCompanies}`);
+  console.log(`Blocking evidence-gap companies: ${report.blockingEvidenceGapCompanies}`);
 
-  if (report.verifiedSourcesMissingCrawlPlan.length > 0) {
+  if (report.sourcePlanOmissions.length > 0) {
     console.log("");
-    console.log("## Verified sources missing crawl plans");
-    for (const issue of report.verifiedSourcesMissingCrawlPlan) {
+    console.log("## Required official-link sources missing crawl plans");
+    for (const issue of report.sourcePlanOmissions) {
       console.log(`- ${issue.companyName} (${issue.companyId}, ${issue.sourceId})`);
     }
   }

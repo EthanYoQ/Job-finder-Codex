@@ -93,13 +93,16 @@ export function toP0ReadinessInput(
 }
 
 function toCandidateCompany(row: PersistedReadinessCompanyRow): CandidateCompany {
+  if (row.inclusionReason !== "FOREIGN_PHARMA" && row.inclusionReason !== "DOMESTIC_PHARMA") {
+    throw new Error(`Persisted company category is invalid: ${row.inclusionReason}`);
+  }
   return {
     id: row.id,
     officialChineseName: row.officialChineseName,
     officialWebsiteUrl: row.officialWebsiteUrl,
     pinyinName: row.pinyinName,
-    category: row.inclusionReason === "DOMESTIC_PHARMA" ? "DOMESTIC_PHARMA" : "FOREIGN_PHARMA",
-    targetStatus: "ACTIVE",
+    category: row.inclusionReason,
+    targetStatus: row.sources.length === 0 ? "BLOCKED_EVIDENCE_GAP" : "ACTIVE",
     sources: row.sources.map((source) => ({
       id: source.id,
       surfaceId: `surface-${source.id.replace(/^source-/, "").replace(/-social$/, "")}-social`,

@@ -9,6 +9,9 @@ const TRUST_FREEZE_STATUS = "UNTRUSTED_PENDING_COMPLETENESS_AUDIT";
 const OUTPUT_JSON = "docs/research/systemic-completeness-audit-2026-07-09.json";
 const OUTPUT_MARKDOWN = "docs/research/systemic-completeness-audit-2026-07-09.md";
 const LOW_COUNT_ANOMALIES = new Set([0, 1, 2, 3, 5, 8]);
+const HISTORICAL_ONLY_ACKNOWLEDGEMENT = "ACKNOWLEDGE_SUPERSEDED_NOT_RELEASE_ELIGIBLE";
+const CONTROLLING_PLAN_PATH =
+  "docs/superpowers/plans/2026-07-10-p0-recovery-and-release-evidence.md";
 
 type OfficialEntryAuditStatus =
   | "OFFICIAL_ENTRY_CONFIRMED"
@@ -17,7 +20,7 @@ type OfficialEntryAuditStatus =
   | "ONLY_OFFICIAL_WECHAT_OR_EMAIL"
   | "ATS_FOUND_BUT_NO_OFFICIAL_BACKLINK"
   | "NO_PUBLIC_ENTRY_AFTER_STANDARD_SEARCH"
-  | "OUT_OF_SCOPE_OR_REPLACE_CANDIDATE";
+  | "OUT_OF_SCOPE_HISTORICAL_OBSERVATION";
 
 type ExpectedEvidenceKind =
   | "OFFICIAL_TOTAL_COUNT"
@@ -92,6 +95,11 @@ interface SourceCompletenessAuditRow {
 
 interface SystemicCompletenessAuditReport {
   generatedAt: string;
+  historicalStatus: "SUPERSEDED_HISTORICAL_ONLY";
+  releaseGateEligible: false;
+  controllingPlanPath: typeof CONTROLLING_PLAN_PATH;
+  supersededOn: "2026-07-12";
+  supersededReason: string;
   trustFreezeStatus: typeof TRUST_FREEZE_STATUS;
   trustFreezeReason: string;
   persistedObservationAvailable: boolean;
@@ -101,13 +109,19 @@ interface SystemicCompletenessAuditReport {
 }
 
 async function main(): Promise<void> {
+  if (!process.argv.includes("--historical-only")) {
+    throw new Error(
+      "The 2026-07-09 systemic completeness audit is superseded and not release-eligible; rerun only with --historical-only."
+    );
+  }
   const prisma = new PrismaClient();
   try {
     const report = await buildSystemicCompletenessAuditReport({
       companies: candidateCompanies,
       plans: buildSourceCrawlPlans(candidateCompanies),
       db: prisma,
-      auditTimestamp: new Date().toISOString()
+      auditTimestamp: new Date().toISOString(),
+      historicalOnlyAcknowledgement: HISTORICAL_ONLY_ACKNOWLEDGEMENT
     });
     writeReportFiles(report);
     console.log(`# Systemic Completeness Audit`);
@@ -125,20 +139,33 @@ export async function buildSystemicCompletenessAuditReport({
   companies,
   plans,
   db,
-  auditTimestamp
+  auditTimestamp,
+  historicalOnlyAcknowledgement
 }: {
   companies: readonly CandidateCompany[];
   plans: readonly SourceCrawlPlan[];
   db: PrismaClient;
   auditTimestamp: string;
+  historicalOnlyAcknowledgement?: typeof HISTORICAL_ONLY_ACKNOWLEDGEMENT;
 }): Promise<SystemicCompletenessAuditReport> {
+  if (historicalOnlyAcknowledgement !== HISTORICAL_ONLY_ACKNOWLEDGEMENT) {
+    throw new Error(
+      "The 2026-07-09 systemic completeness audit is superseded and not release-eligible; explicit historical-only acknowledgement is required."
+    );
+  }
   const persisted = await persistedAuditInputs(db);
 
   return {
     generatedAt: auditTimestamp,
+    historicalStatus: "SUPERSEDED_HISTORICAL_ONLY",
+    releaseGateEligible: false,
+    controllingPlanPath: CONTROLLING_PLAN_PATH,
+    supersededOn: "2026-07-12",
+    supersededReason:
+      "Superseded by the 2026-07-12 judgment update: strong complete-traversal evidence may prove the reachable denominator, and no replacement inference is permitted.",
     trustFreezeStatus: TRUST_FREEZE_STATUS,
     trustFreezeReason:
-      "Current counts have official-link and observation evidence but are not trusted until source completeness, filters, pagination/channel traversal, dedupe behavior, and active-visible consistency are audited.",
+      "Historical 2026-07-09 trust-freeze observation only; it cannot drive current readiness or company replacement decisions.",
     persistedObservationAvailable: persisted.available,
     persistedObservationError: persisted.error,
     officialEntryAudit: buildOfficialEntryAuditRows({
@@ -349,7 +376,7 @@ function officialEntryStatus({
   atsKind: string;
 }): OfficialEntryAuditStatus {
   if (sourceStatus === "EXCLUDED") {
-    return "OUT_OF_SCOPE_OR_REPLACE_CANDIDATE";
+    return "OUT_OF_SCOPE_HISTORICAL_OBSERVATION";
   }
   if (sourcePlanned) {
     return "OFFICIAL_ENTRY_CONFIRMED";
@@ -394,8 +421,8 @@ function entryBlockerReason(status: OfficialEntryAuditStatus): string {
       return "ATS tenant was found, but official website backlink has not been proven.";
     case "NO_PUBLIC_ENTRY_AFTER_STANDARD_SEARCH":
       return "No public official entry is recorded after the current standard-search pass.";
-    case "OUT_OF_SCOPE_OR_REPLACE_CANDIDATE":
-      return "Company/source is out of strict pharma scope or should be replaced by ranked backfill.";
+    case "OUT_OF_SCOPE_HISTORICAL_OBSERVATION":
+      return "Historical audit observed the company/source outside its then-current scope; no replacement inference is permitted.";
   }
 }
 
@@ -568,6 +595,15 @@ function renderMarkdown(report: SystemicCompletenessAuditReport): string {
   return [
     "# Systemic Completeness Audit 2026-07-09",
     "",
+    "## Historical-only status",
+    "",
+    `Status: \`${report.historicalStatus}\``,
+    `Release gate eligible: \`${report.releaseGateEligible ? "yes" : "no"}\``,
+    `Controlling plan: \`${report.controllingPlanPath}\``,
+    `Superseded on: \`${report.supersededOn}\``,
+    "",
+    report.supersededReason,
+    "",
     "## Trust Freeze",
     "",
     `Status: \`${report.trustFreezeStatus}\``,
@@ -577,7 +613,7 @@ function renderMarkdown(report: SystemicCompletenessAuditReport): string {
     `Persisted observations available: \`${report.persistedObservationAvailable ? "yes" : "no"}\``,
     report.persistedObservationError ? `Persisted observation error: \`${report.persistedObservationError}\`` : "",
     "",
-    "Current source counts must not be delivered for manual review until the audit-fix-QA loop is complete.",
+    "This historical report is not release-gate evidence and must not drive current readiness decisions.",
     "",
     "## Official Entry Audit",
     "",
