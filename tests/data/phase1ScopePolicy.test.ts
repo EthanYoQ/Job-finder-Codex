@@ -5,6 +5,7 @@ import {
   USER_AUTHORIZED_PHASE1_EXCLUSION,
   derivePhase1Scope
 } from "../../src/data/phase1ScopePolicy";
+import * as phase1Policy from "../../src/data/phase1ScopePolicy";
 
 const authorizedIds = new Set<string>(AUTHORIZED_PHASE1_EXCLUSION_COMPANY_IDS);
 
@@ -18,6 +19,25 @@ function validRoster() {
 }
 
 describe("Phase 1 authorized-exclusion policy", () => {
+  it("exposes the canonical fixed roster and exact dynamically in-scope members", () => {
+    const api = phase1Policy as unknown as {
+      canonicalPhase1RosterPolicyRecords?: readonly { id: string; category: string; targetStatus: string }[];
+      canonicalPhase1InScopeRosterMembers?: readonly { id: string; category: string }[];
+      assertExactCanonicalPhase1InScopeRoster?: (actual: readonly { id: string; category: string }[]) => void;
+    };
+
+    expect(api.canonicalPhase1RosterPolicyRecords).toHaveLength(60);
+    expect(api.canonicalPhase1InScopeRosterMembers).toHaveLength(58);
+    expect(api.assertExactCanonicalPhase1InScopeRoster).toEqual(expect.any(Function));
+    expect(() => api.assertExactCanonicalPhase1InScopeRoster!(
+      api.canonicalPhase1InScopeRosterMembers!
+    )).not.toThrow();
+    expect(() => api.assertExactCanonicalPhase1InScopeRoster!([
+      ...api.canonicalPhase1InScopeRosterMembers!.slice(1),
+      { id: "company-replacement", category: "FOREIGN_PHARMA" }
+    ])).toThrow(/canonical|in-scope|roster/i);
+  });
+
   it("derives the effective denominator and exclusion count from validated canonical IDs and statuses", () => {
     const scope = derivePhase1Scope(validRoster());
 

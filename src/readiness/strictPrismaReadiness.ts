@@ -7,9 +7,11 @@ import {
 } from "./strictPersistedReadiness";
 import { getP0DataQualityReport } from "./dataQuality";
 import {
-  AUTHORIZED_PHASE1_EXCLUSION_COMPANY_IDS,
-  isUserAuthorizedPhase1Exclusion
+  assertExactCanonicalPhase1InScopeRoster,
+  canonicalPhase1RosterPolicyRecords,
+  derivePhase1Scope
 } from "../data/phase1ScopePolicy";
+import { assertExactConfirmedCompanyRosterV3 } from "../data/confirmedCompanyRosterV3";
 
 export interface StrictPrismaReadinessDb {
   crawlBatch: { findMany(args: Record<string, unknown>): Promise<StrictPrismaBatchRow[]> };
@@ -44,12 +46,10 @@ interface StrictPrismaBatchRow extends Omit<StrictReadinessBatch, "sourceResults
 
 export async function getStrictP0ReadinessReportFromDb(db: StrictPrismaReadinessDb,
   expected: StrictReadinessExpectation): Promise<P0ReadinessReport> {
-  const excludedAudit = expected.companyAudits.find((audit) =>
-    isUserAuthorizedPhase1Exclusion(audit.companyId)
-  );
-  if (excludedAudit) {
-    throw new Error(`Authorized Phase 1 exclusion must not appear in strict company audits: ${excludedAudit.companyId}`);
-  }
+  assertExactCanonicalPhase1InScopeRoster(expected.companyAudits.map(({ companyId, category }) => ({
+    id: companyId,
+    category
+  })));
   const rc = await db.releaseCandidate.findUnique({ where: { id: expected.releaseCandidateId }, select: {
     id:true,status:true,commitSha:true,rosterHash:true,sourcePlanHash:true,sourceConfigHash:true,adapterBundleHash:true,sourceTreeHash:true,runtimeTreeHash:true } });
   if (!rc || !["READY_FOR_QA", "RELEASED"].includes(rc.status)) throw new Error("Release candidate is not release eligible");
@@ -58,9 +58,14 @@ export async function getStrictP0ReadinessReportFromDb(db: StrictPrismaReadiness
     [rc.adapterBundleHash,expected.adapterBundleSha256],[rc.sourceTreeHash,expected.sourceTreeSha256],[rc.runtimeTreeHash,expected.runtimeTreeSha256]];
   if (bindings.some(([actual,wanted])=>actual!==wanted)) throw new Error("Release candidate exact identity mismatch");
   const companies = await db.company.findMany({ select: { id:true,inclusionReason:true, sources:{ select:{id:true} } } });
-  const expectedCompanies=canonical(expected.companyAudits.map(audit=>`${audit.companyId}\0${audit.category}`));
-  const actualCompanies=canonical(companies.map(company=>`${company.id}\0${category(company.inclusionReason)}`));
-  if(!equalExact(actualCompanies,expectedCompanies))throw new Error("DB company/category roster does not exactly match trusted company audits");
+  try {
+    assertExactConfirmedCompanyRosterV3(companies.map((company) => ({
+      id: company.id,
+      category: category(company.inclusionReason)
+    })));
+  } catch {
+    throw new Error("FULL_CONFIRMED_ROSTER_MISMATCH");
+  }
   const sourceOwnership=new Map<string,string>();
   for(const member of expected.releaseMembers){
     const owner=`${member.companyId}\0${member.category}`;
@@ -145,12 +150,12 @@ export async function getStrictP0ReadinessReportFromDb(db: StrictPrismaReadiness
     if(observations.length===2&&observations.every(observation=>observation.successful&&observation.completenessStatus==="VERIFIED"&&
       ((observation.structuredJobCount===0&&observation.expectedJobCount===0)||requiredFields.every(field=>(observation.stableRequiredFields as readonly string[]).includes(field)))))evidencedSourceIds.add(sourceId);}
   const blockers=evidencedSourceIds.size===expectedSourceIds.length&&quality.canPass?[]:[{code:"OFFICIAL_LINK_DENOMINATOR_INCOMPLETE" as const,message:`Strict readiness requires observation and data-quality evidence for every planned official-link source; evidenced ${evidencedSourceIds.size} of ${expectedSourceIds.length}; data-quality issues ${quality.issueCount}.`}];
-  const authorizedExclusionCompanies=AUTHORIZED_PHASE1_EXCLUSION_COMPANY_IDS.length;
-  return {totalCandidates:expected.companyAudits.length+authorizedExclusionCompanies,
-    foreignPharmaCompanies:expected.companyAudits.filter(audit=>audit.category==="FOREIGN_PHARMA").length,
-    domesticPharmaCompanies:expected.companyAudits.filter(audit=>audit.category==="DOMESTIC_PHARMA").length+authorizedExclusionCompanies,
-    phase1InScopeCompanies:expected.companyAudits.length,
-    authorizedExclusionCompanies,
+  const canonicalScope=derivePhase1Scope(canonicalPhase1RosterPolicyRecords);
+  return {totalCandidates:canonicalScope.rosterCount,
+    foreignPharmaCompanies:canonicalPhase1RosterPolicyRecords.filter(company=>company.category==="FOREIGN_PHARMA").length,
+    domesticPharmaCompanies:canonicalPhase1RosterPolicyRecords.filter(company=>company.category==="DOMESTIC_PHARMA").length,
+    phase1InScopeCompanies:canonicalScope.inScopeCompanies.length,
+    authorizedExclusionCompanies:canonicalScope.authorizedExclusionCount,
     requiredOfficialLinkSources:expectedSourceIds.length,plannedOfficialLinkSources:expected.plannedSourceIds.length,
     crawlEvidencedOfficialLinkSources:evidencedSourceIds.size,
     noPublicOfficialCareersLinkCompanies:expected.companyAudits.filter(audit=>audit.status==="NO_PUBLIC_OFFICIAL_CAREERS_LINK_AT_CAPTURE_TIME").length,

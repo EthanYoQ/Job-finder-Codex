@@ -1,3 +1,5 @@
+import { confirmedCompanyRosterV3Members } from "./confirmedCompanyRosterV3";
+
 export const USER_AUTHORIZED_PHASE1_EXCLUSION = "USER_AUTHORIZED_PHASE1_EXCLUSION" as const;
 
 export const AUTHORIZED_PHASE1_EXCLUSION_COMPANY_IDS = Object.freeze([
@@ -65,4 +67,32 @@ export function derivePhase1Scope<T extends Phase1ScopeRosterRecord>(roster: rea
 
 export function assertValidPhase1ScopePolicy(roster: readonly Phase1ScopeRosterRecord[]): void {
   derivePhase1Scope(roster);
+}
+
+export const canonicalPhase1RosterPolicyRecords = Object.freeze(
+  confirmedCompanyRosterV3Members.map((member) => Object.freeze({
+    ...member,
+    targetStatus: isUserAuthorizedPhase1Exclusion(member.id)
+      ? USER_AUTHORIZED_PHASE1_EXCLUSION
+      : "ACTIVE" as const
+  }))
+);
+
+const canonicalPhase1Scope = derivePhase1Scope(canonicalPhase1RosterPolicyRecords);
+
+export const canonicalPhase1InScopeRosterMembers = Object.freeze(
+  canonicalPhase1Scope.inScopeCompanies.map(({ id, category }) => Object.freeze({ id, category }))
+);
+
+export function assertExactCanonicalPhase1InScopeRoster(
+  actual: readonly { id: string; category: string }[]
+): void {
+  const canonical = (values: readonly { id: string; category: string }[]) => [...values]
+    .map(({ id, category }) => ({ id, category }))
+    .sort((left, right) => left.id.localeCompare(right.id) || left.category.localeCompare(right.category));
+  const normalized = canonical(actual);
+  if (new Set(normalized.map(({ id }) => id)).size !== normalized.length ||
+      JSON.stringify(normalized) !== JSON.stringify(canonicalPhase1InScopeRosterMembers)) {
+    throw new Error("CANONICAL_PHASE1_IN_SCOPE_ROSTER_MISMATCH");
+  }
 }
