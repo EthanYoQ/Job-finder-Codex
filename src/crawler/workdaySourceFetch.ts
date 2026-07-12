@@ -753,7 +753,7 @@ function assertCountryFacetScopeOwnership(
   nodes: readonly WorkdayFacetNode[]
 ): void {
   for (const node of nodes) {
-    if (isMainlandChinaCountryDescriptor(node.descriptor) || isNonMainlandChinaDescriptor(node.descriptor)) {
+    if (isMainlandChinaCountryDescriptor(node.descriptor) || isExactNonMainlandChinaCountryDescriptor(node.descriptor)) {
       continue;
     }
     assertExplicitForeignCountryBranch(facetParameter, node);
@@ -761,7 +761,7 @@ function assertCountryFacetScopeOwnership(
 }
 
 function assertExplicitForeignCountryBranch(facetParameter: string, node: WorkdayFacetNode): void {
-  if (isKnownForeignCountryDescriptor(node.descriptor) || isNonMainlandChinaDescriptor(node.descriptor)) {
+  if (isKnownForeignCountryDescriptor(node.descriptor) || isExactNonMainlandChinaCountryDescriptor(node.descriptor)) {
     return;
   }
   if (node.children.length > 0) {
@@ -1015,6 +1015,12 @@ const MAINLAND_CHINA_NAMES = new Set([
   "prc", "chn", "cn", "中国", "中国大陆", "中华人民共和国"
 ]);
 const NON_MAINLAND_CHINA_CODES = new Set(["hk", "hkg", "mo", "mac", "tw", "twn"]);
+const NON_MAINLAND_CHINA_COUNTRY_NAMES = new Set([
+  ...NON_MAINLAND_CHINA_CODES,
+  "hong kong", "hong kong sar china", "香港", "中国香港", "中國香港",
+  "macau", "macao", "macao sar china", "澳门", "澳門", "中国澳门", "中國澳門",
+  "taiwan", "taiwan province of china", "台湾", "台灣", "中国台湾", "中國台灣"
+]);
 
 // Exact ISO 3166-1 assignments are generated from Debian iso-codes through
 // pycountry 26.2.16 (https://github.com/pycountry/pycountry); display names
@@ -1038,11 +1044,15 @@ function buildKnownRegionNames(): ReadonlySet<string> {
 function isKnownForeignCountryDescriptor(descriptor: string): boolean {
   const normalized = normalizeFacetDescriptor(descriptor);
   const code = descriptor.trim().toUpperCase();
-  return !MAINLAND_CHINA_NAMES.has(normalized) && !isNonMainlandChinaDescriptor(descriptor) && (
+  return !MAINLAND_CHINA_NAMES.has(normalized) && !isExactNonMainlandChinaCountryDescriptor(descriptor) && (
     KNOWN_REGION_NAMES.has(normalized) ||
     (ISO_ALPHA_2_CODES.has(code) && code !== "CN") ||
     (ISO_ALPHA_3_CODES.has(code) && code !== "CHN")
   );
+}
+
+function isExactNonMainlandChinaCountryDescriptor(descriptor: string): boolean {
+  return NON_MAINLAND_CHINA_COUNTRY_NAMES.has(normalizeFacetDescriptor(descriptor));
 }
 
 function hasKnownForeignCountryPart(descriptor: string): boolean {

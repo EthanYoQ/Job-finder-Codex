@@ -923,6 +923,68 @@ describe("createWorkdaySourceFetch", () => {
     }
   );
 
+  it.each(["Region / Hong Kong", "Acme / Taiwan", "North America / Macau"])(
+    "rejects a non-mainland boundary embedded in a composite country descriptor: %s",
+    async (boundaryDescriptor) => {
+      const requests: Array<{ body: string }> = [];
+      const fetcher = createWorkdaySourceFetch({
+        http: async (request) => {
+          requests.push(request);
+          return response({
+            total: 2,
+            jobPostings: [],
+            facets: [{
+              facetParameter: "Location_Country",
+              descriptor: "Country",
+              values: [
+                { descriptor: "China", id: "china", count: 1 },
+                { descriptor: boundaryDescriptor, id: "boundary", count: 1 }
+              ]
+            }]
+          });
+        }
+      });
+
+      await expect(fetcher({ ...plan, workday: { tenant: "pfizer", site: "PfizerCareers", searchText: "China" } }))
+        .resolves.toMatchObject({ ok: false, failureReason: expect.stringContaining(`unscoped country descriptor ${boundaryDescriptor}`) });
+      expect(requests).toHaveLength(1);
+    }
+  );
+
+  it.each(["Hong Kong", "HKG", "澳门", "MAC", "Taiwan", "TW"])(
+    "accepts an exact non-mainland country boundary descriptor: %s",
+    async (boundaryDescriptor) => {
+      const requests: Array<{ body: string }> = [];
+      const fetcher = createWorkdaySourceFetch({
+        http: async (request) => {
+          requests.push(request);
+          const body = JSON.parse(request.body) as { appliedFacets: Record<string, string[]> };
+          return body.appliedFacets.Location_Country
+            ? response({
+                total: 1,
+                jobPostings: [{ title: "China Role", externalPath: "/job/China/Role_1", locationsText: "China", bulletFields: ["1"] }]
+              })
+            : response({
+                total: 2,
+                jobPostings: [],
+                facets: [{
+                  facetParameter: "Location_Country",
+                  descriptor: "Country",
+                  values: [
+                    { descriptor: "China", id: "china", count: 1 },
+                    { descriptor: boundaryDescriptor, id: "boundary", count: 1 }
+                  ]
+                }]
+              });
+        }
+      });
+
+      await expect(fetcher({ ...plan, workday: { tenant: "pfizer", site: "PfizerCareers", searchText: "China" } }))
+        .resolves.toMatchObject({ ok: true, completeness: { expectedJobCount: 1 } });
+      expect(requests).toHaveLength(2);
+    }
+  );
+
   it.each([
     { name: "exact CLDR names", foreignDescriptors: ["Georgia", "Jordan"] },
     { name: "exact ISO alpha-2 codes", foreignDescriptors: ["US", "DE"] },
