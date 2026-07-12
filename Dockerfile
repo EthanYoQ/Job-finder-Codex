@@ -34,6 +34,11 @@ RUN npm run build
 RUN npx tsx scripts/generate-build-identity.ts --commit=${BUILD_COMMIT_SHA} --clean-provenance=${BUILD_SOURCE_CLEAN} --source-tree-sha256=${BUILD_SOURCE_TREE_SHA256}
 
 FROM node:22-bookworm-slim@sha256:53ada149d435c38b14476cb57e4a7da73c15595aba79bd6971b547ceb6d018bf AS runtime
+ARG BUILD_COMMIT_SHA
+ARG BUILD_SOURCE_TREE_SHA256
+LABEL org.opencontainers.image.title="Job Finder" \
+  org.opencontainers.image.revision="${BUILD_COMMIT_SHA}" \
+  io.jobfinder.source-tree-sha256="${BUILD_SOURCE_TREE_SHA256}"
 WORKDIR /app
 ENV NODE_ENV=production
 ENV HOME=/tmp
