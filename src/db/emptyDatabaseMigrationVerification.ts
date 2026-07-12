@@ -359,7 +359,7 @@ function validateMigrationAudit(audit: MigrationAudit, expectedMigrations: reado
 }
 
 function sha256Lines(values: readonly string[]): string {
-  return createHash("sha256").update([...values].sort(compareUtf8).join("\n"), "utf8").digest("hex");
+  return createHash("sha256").update(values.join("\n"), "utf8").digest("hex");
 }
 
 function exactUniqueSorted(values: readonly string[], count: number, label: string): string[] {

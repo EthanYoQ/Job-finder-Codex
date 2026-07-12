@@ -115,9 +115,10 @@ const FUNCTIONS = [
   "reject_lifecycle_set_member_mutation", "require_transport_attempt_artifact_ref",
   "validate_lifecycle_set_member_projection", "validate_verified_parent_lifecycle_projection"
 ].sort();
-const INDEX_DEFINITIONS = [...REVIEWED_INDEX_NAMES];
+const INDEX_DEFINITIONS = [...REVIEWED_INDEX_NAMES]
+  .sort((left, right) => Buffer.from(left).compare(Buffer.from(right)));
 const INDEX_DEFINITION_SHA256 = createHash("sha256")
-  .update([...INDEX_DEFINITIONS].sort((left, right) => Buffer.from(left).compare(Buffer.from(right))).join("\n"), "utf8")
+  .update(INDEX_DEFINITIONS.join("\n"), "utf8")
   .digest("hex");
 
 function migratedAudit() {
@@ -236,6 +237,23 @@ describe("empty database migration verification orchestration", () => {
     expect(calls[4]!.args.join(" ")).not.toMatch(/table_name\s+IN\s*\(/u);
     expect(calls[4]!.args.join(" ")).toContain("pg_catalog.pg_get_indexdef");
     expect(calls[4]!.args.join(" ")).toContain("tbl.relname <> '_prisma_migrations'");
+  });
+
+  it("hashes index definitions in the canonical index-name order returned by SQL", async () => {
+    const audit = migratedAudit();
+    audit.indexDefinitions = audit.indexDefinitions.map((definition, index) =>
+      index === 0 ? `z:${definition}` : index === 1 ? `a:${definition}` : definition
+    );
+    const expectedDigest = createHash("sha256")
+      .update(audit.indexDefinitions.join("\n"), "utf8")
+      .digest("hex");
+    const verificationDeps = deps(successQueue(audit));
+    verificationDeps.expectedIndexDefinitionSha256 = expectedDigest;
+
+    await expect(runEmptyDatabaseMigrationVerification(
+      resolveEmptyDatabaseVerificationConfig(safeEnv()),
+      verificationDeps
+    )).resolves.toMatchObject({ secondDeployNoop: true });
   });
 
   it("refuses a non-empty target before invoking Prisma", async () => {
