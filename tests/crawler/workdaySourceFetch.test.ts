@@ -748,6 +748,244 @@ describe("createWorkdaySourceFetch", () => {
     });
   });
 
+  it("fails closed when Workday ignores the discovered location facet total", async () => {
+    const fetcher = createWorkdaySourceFetch({
+      now: () => new Date("2026-07-13T00:00:00.000Z"),
+      http: async (request) => {
+        const body = JSON.parse(request.body) as { appliedFacets: Record<string, string[]> };
+        return body.appliedFacets.Location_Country
+          ? response({ total: 2, jobPostings: [] })
+          : response({
+              total: 2,
+              jobPostings: [],
+              facets: [{
+                facetParameter: "Location_Country",
+                descriptor: "Country",
+                values: [
+                  { descriptor: "China", id: "china", count: 1 },
+                  { descriptor: "United States", id: "us", count: 1 }
+                ]
+              }]
+            });
+      }
+    });
+
+    await expect(fetcher({
+      ...plan,
+      workday: { tenant: "pfizer", site: "PfizerCareers", searchText: "China" }
+    })).resolves.toMatchObject({
+      ok: false,
+      failureReason: "Workday filtered total 2 did not match derived total 1",
+      fetchEvidence: {
+        artifacts: [
+          { logicalKey: "workday-preflight-0000" },
+          { logicalKey: "workday-filter-validation-0000" }
+        ]
+      }
+    });
+  });
+
+  it("selects every structurally explicit mainland city without a city allowlist", async () => {
+    const requests: Array<{ body: string }> = [];
+    const fetcher = createWorkdaySourceFetch({
+      now: () => new Date("2026-07-13T00:00:00.000Z"),
+      http: async (request) => {
+        requests.push(request);
+        const body = JSON.parse(request.body) as { appliedFacets: Record<string, string[]> };
+        return body.appliedFacets.locations
+          ? response({
+              total: 2,
+              jobPostings: [
+                { title: "Shanghai Role", externalPath: "/job/China/Shanghai_1", locationsText: "Shanghai, China", bulletFields: ["1"] },
+                { title: "Chongqing Role", externalPath: "/job/China/Chongqing_2", locationsText: "Chongqing, China", bulletFields: ["2"] }
+              ]
+            })
+          : response({
+              total: 3,
+              jobPostings: [],
+              facets: [{
+                facetParameter: "locations",
+                descriptor: "Locations",
+                values: [
+                  { descriptor: "Shanghai, China", id: "shanghai", count: 1 },
+                  { descriptor: "Chongqing, China", id: "chongqing", count: 1 },
+                  { descriptor: "Tokyo, Japan", id: "tokyo", count: 1 }
+                ]
+              }]
+            });
+      }
+    });
+
+    await expect(fetcher({
+      ...plan,
+      workday: { tenant: "pfizer", site: "PfizerCareers", searchText: "China", pageSize: 2 }
+    })).resolves.toMatchObject({ ok: true, completeness: { expectedJobCount: 2 } });
+    expect(JSON.parse(requests[1]!.body).appliedFacets).toEqual({ locations: ["shanghai", "chongqing"] });
+  });
+
+  it("fails closed when a flat city group contains an unscoped descriptor", async () => {
+    const fetcher = createWorkdaySourceFetch({
+      http: async () => response({
+        total: 3,
+        jobPostings: [],
+        facets: [{
+          facetParameter: "locations",
+          descriptor: "Locations",
+          values: [
+            { descriptor: "Shanghai, China", id: "shanghai", count: 1 },
+            { descriptor: "Chongqing", id: "chongqing", count: 1 },
+            { descriptor: "Tokyo, Japan", id: "tokyo", count: 1 }
+          ]
+        }]
+      })
+    });
+
+    await expect(fetcher({ ...plan, workday: { tenant: "pfizer", site: "PfizerCareers", searchText: "China" } }))
+      .resolves.toMatchObject({ ok: false, failureReason: expect.stringContaining("unscoped location descriptor Chongqing") });
+  });
+
+  it("fails closed when authoritative facet values share an id across China and foreign branches", async () => {
+    const fetcher = createWorkdaySourceFetch({
+      http: async () => response({
+        total: 2,
+        jobPostings: [],
+        facets: [{
+          facetParameter: "Location_Country",
+          descriptor: "Country",
+          values: [
+            { descriptor: "China", id: "shared", count: 1 },
+            { descriptor: "United States", id: "shared", count: 1 }
+          ]
+        }]
+      })
+    });
+
+    await expect(fetcher({ ...plan, workday: { tenant: "pfizer", site: "PfizerCareers", searchText: "China" } }))
+      .resolves.toMatchObject({ ok: false, failureReason: expect.stringContaining("duplicate descriptors or ids") });
+  });
+
+  it("selects requestable leaves from a nested locations to China hierarchy", async () => {
+    const requests: Array<{ body: string }> = [];
+    const fetcher = createWorkdaySourceFetch({
+      http: async (request) => {
+        requests.push(request);
+        const body = JSON.parse(request.body) as { appliedFacets: Record<string, string[]> };
+        return body.appliedFacets.locations
+          ? response({
+              total: 2,
+              jobPostings: [
+                { title: "Shanghai Role", externalPath: "/job/China/Shanghai_1", locationsText: "Shanghai, China", bulletFields: ["1"] },
+                { title: "Beijing Role", externalPath: "/job/China/Beijing_2", locationsText: "Beijing, China", bulletFields: ["2"] }
+              ]
+            })
+          : response({
+              total: 3,
+              jobPostings: [],
+              facets: [{
+                facetParameter: "locationMainGroup",
+                values: [{
+                  facetParameter: "locations",
+                  descriptor: "Locations",
+                  values: [
+                    {
+                      descriptor: "China",
+                      count: 2,
+                      values: [
+                        { descriptor: "Shanghai", id: "shanghai", count: 1 },
+                        { descriptor: "Beijing", id: "beijing", count: 1 }
+                      ]
+                    },
+                    {
+                      descriptor: "United States",
+                      count: 1,
+                      values: [{ descriptor: "New York", id: "new-york", count: 1 }]
+                    }
+                  ]
+                }]
+              }]
+            });
+      }
+    });
+
+    await expect(fetcher({
+      ...plan,
+      workday: { tenant: "pfizer", site: "PfizerCareers", searchText: "China", pageSize: 2 }
+    })).resolves.toMatchObject({ ok: true, completeness: { expectedJobCount: 2 } });
+    expect(JSON.parse(requests[1]!.body).appliedFacets).toEqual({ locations: ["shanghai", "beijing"] });
+  });
+
+  it("excludes Hong Kong, Macau and Taiwan leaves while proving the full facet partition", async () => {
+    const requests: Array<{ body: string }> = [];
+    const fetcher = createWorkdaySourceFetch({
+      http: async (request) => {
+        requests.push(request);
+        const body = JSON.parse(request.body) as { appliedFacets: Record<string, string[]> };
+        return body.appliedFacets.locations
+          ? response({
+              total: 1,
+              jobPostings: [{ title: "Shanghai", externalPath: "/job/China/Shanghai_1", locationsText: "Shanghai, China", bulletFields: ["1"] }]
+            })
+          : response({
+              total: 5,
+              jobPostings: [],
+              facets: [{
+                facetParameter: "locations",
+                descriptor: "Locations",
+                values: [
+                  { descriptor: "Shanghai, China", id: "shanghai", count: 1 },
+                  { descriptor: "Hong Kong, China", id: "hong-kong", count: 1 },
+                  { descriptor: "Macau, China", id: "macau", count: 1 },
+                  { descriptor: "Taiwan, China", id: "taiwan", count: 1 },
+                  { descriptor: "Tokyo, Japan", id: "tokyo", count: 1 }
+                ]
+              }]
+            });
+      }
+    });
+
+    await expect(fetcher({ ...plan, workday: { tenant: "pfizer", site: "PfizerCareers", searchText: "China" } }))
+      .resolves.toMatchObject({ ok: true, completeness: { expectedJobCount: 1 } });
+    expect(JSON.parse(requests[1]!.body).appliedFacets).toEqual({ locations: ["shanghai"] });
+  });
+
+  it.each([
+    {
+      name: "missing count",
+      values: [
+        { descriptor: "Shanghai, China", id: "shanghai" },
+        { descriptor: "Tokyo, Japan", id: "tokyo", count: 1 }
+      ]
+    },
+    {
+      name: "overlapping hierarchy counts",
+      values: [{
+        descriptor: "China",
+        count: 2,
+        values: [
+          { descriptor: "Shanghai", id: "shanghai", count: 2 },
+          { descriptor: "Beijing", id: "beijing", count: 2 }
+        ]
+      }]
+    },
+    {
+      name: "non-integer count",
+      values: [
+        { descriptor: "Shanghai, China", id: "shanghai", count: 0.5 },
+        { descriptor: "Tokyo, Japan", id: "tokyo", count: 1.5 }
+      ]
+    }
+  ])("fails closed when location facet counts cannot prove a partition: $name", async ({ values }) => {
+    const fetcher = createWorkdaySourceFetch({
+      http: async () => response({
+        total: 2,
+        jobPostings: [],
+        facets: [{ facetParameter: "locations", descriptor: "Locations", values }]
+      })
+    });
+    await expect(fetcher({ ...plan, workday: { tenant: "pfizer", site: "PfizerCareers", searchText: "China" } }))
+      .resolves.toMatchObject({ ok: false, failureReason: expect.stringContaining("counts do not prove a complete partition") });
+  });
+
   it("derives positive Workday facet ids from an archived preflight and uses the filtered official total", async () => {
     const requests: Array<{ body: string }> = [];
     const fetcher = createWorkdaySourceFetch({
@@ -1117,7 +1355,7 @@ describe("createWorkdaySourceFetch", () => {
         }
 
         return response({
-            total: 20,
+            total: 2,
             jobPostings: [],
             facets: [
               {

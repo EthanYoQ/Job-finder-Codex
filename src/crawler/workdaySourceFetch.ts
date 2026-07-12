@@ -148,9 +148,10 @@ export function createWorkdaySourceFetch(deps: WorkdaySourceFetchDeps = {}): Sou
         assertEvidenceResponse(preflight);
         artifacts.push(workdayArtifact("workday-preflight-0000", "ATS_API_RESPONSE", url, preflight, "$.facets"));
         latestEvidence = workdaySupportingArtifactEvidence(artifacts, "FACET_DERIVATION_FAILED");
-        const preflightFacets = parseWorkdayJobsResponse(preflight.body).facets;
-        const discoveredFacets = chinaLocationAppliedFacets(preflightFacets);
-        appliedFacets = { ...appliedFacets, ...discoveredFacets };
+        const parsedPreflight = parseWorkdayJobsResponse(preflight.body);
+        const discovery = chinaLocationAppliedFacets(parsedPreflight.facets, parsedPreflight.total);
+        appliedFacets = { ...appliedFacets, ...discovery.appliedFacets };
+        derivedFilteredTotal = discovery.expectedFilteredTotal;
         searchText = undefined;
       }
 
@@ -661,36 +662,48 @@ function parseWorkdayJobsResponse(body: string): {
   };
 }
 
-function chinaLocationAppliedFacets(facets: unknown): Record<string, readonly string[]> {
-  const groups = collectFacetValueGroups(facets)
+interface WorkdayFacetNode {
+  descriptor: string;
+  id?: string;
+  count: number;
+  children: WorkdayFacetNode[];
+}
+
+interface RawWorkdayFacetGroup {
+  facetParameter: string;
+  descriptor?: string;
+  values: unknown[];
+}
+
+function chinaLocationAppliedFacets(
+  facets: unknown,
+  officialTotal: number | undefined
+): { appliedFacets: Record<string, readonly string[]>; expectedFilteredTotal: number } {
+  const groups = collectFacetGroups(facets)
     .filter((group) => isLocationFacet(group.facetParameter, group.descriptor));
 
-  const countryGroups = groups
-    .filter((group) => isCountryLevelFacet(group.facetParameter, group.descriptor))
-    .map((group) => ({
-      ...group,
-      selectedValues: group.values.filter((value) =>
-        value.descriptor !== undefined && isMainlandChinaCountryDescriptor(value.descriptor)
-      )
-    }))
-    .filter((group) => group.selectedValues.length > 0);
+  const countryGroups = groups.filter((group) =>
+    isCountryLevelFacet(group.facetParameter, group.descriptor) &&
+    facetDescriptors(group.values).some(isMainlandChinaCountryDescriptor)
+  );
   if (countryGroups.length > 1) {
     throw new Error("Workday location facet discovery found ambiguous country-level China location facets");
   }
   if (countryGroups.length === 1) {
     const countryGroup = countryGroups[0]!;
-    return { [countryGroup.facetParameter]: verifiedMainlandFacetIds(countryGroup) };
+    const nodes = parseAndVerifyFacetGroup(countryGroup, officialTotal);
+    const selectedLeaves = nodes.flatMap((node) =>
+      isMainlandChinaCountryDescriptor(node.descriptor) ? selectableLeaves(node, true) : []
+    );
+    return facetSelection(countryGroup.facetParameter, selectedLeaves);
   }
 
-  const cityGroups = groups
-    .filter((group) => !isCountryLevelFacet(group.facetParameter, group.descriptor))
-    .map((group) => ({
-      ...group,
-      selectedValues: group.values.filter((value) =>
-        value.descriptor !== undefined && isMainlandChinaLocationDescriptor(value.descriptor)
-      )
-    }))
-    .filter((group) => group.selectedValues.length > 0);
+  const cityGroups = groups.filter((group) =>
+    !isCountryLevelFacet(group.facetParameter, group.descriptor) &&
+    facetDescriptors(group.values).some((descriptor) =>
+      isMainlandChinaLocationDescriptor(descriptor) || isMainlandChinaCountryDescriptor(descriptor)
+    )
+  );
   if (cityGroups.length > 1) {
     throw new Error("Workday location facet discovery found ambiguous city-level China location facets");
   }
@@ -699,22 +712,107 @@ function chinaLocationAppliedFacets(facets: unknown): Record<string, readonly st
   }
 
   const cityGroup = cityGroups[0]!;
-  return { [cityGroup.facetParameter]: verifiedMainlandFacetIds(cityGroup) };
+  const nodes = parseAndVerifyFacetGroup(cityGroup, officialTotal);
+  const selectedLeaves = selectMainlandCityLeaves(cityGroup.facetParameter, nodes);
+  return facetSelection(cityGroup.facetParameter, selectedLeaves);
 }
 
-function verifiedMainlandFacetIds(group: {
-  facetParameter: string;
-  selectedValues: ReadonlyArray<{ id?: string; descriptor?: string }>;
-}): string[] {
-  if (group.selectedValues.some((value) => !value.id)) {
-    throw new Error(`Workday location facet ${group.facetParameter} contains a mainland-China descriptor without an id`);
+function facetSelection(
+  facetParameter: string,
+  leaves: readonly WorkdayFacetNode[]
+): { appliedFacets: Record<string, readonly string[]>; expectedFilteredTotal: number } {
+  if (leaves.length === 0) {
+    throw new Error(`Workday location facet ${facetParameter} has no requestable mainland-China leaf ids`);
   }
-  const ids = group.selectedValues.map((value) => value.id as string);
-  const descriptors = group.selectedValues.map((value) => value.descriptor as string);
+  return {
+    appliedFacets: { [facetParameter]: leaves.map((leaf) => leaf.id!) },
+    expectedFilteredTotal: leaves.reduce((sum, leaf) => sum + leaf.count, 0)
+  };
+}
+
+function parseAndVerifyFacetGroup(
+  group: RawWorkdayFacetGroup,
+  officialTotal: number | undefined
+): WorkdayFacetNode[] {
+  const nodes = group.values.map((value) => parseFacetNode(value, group.facetParameter));
+  const allNodes = nodes.flatMap(flattenFacetNode);
+  const ids = allNodes.flatMap((node) => node.id ? [node.id] : []);
+  const descriptors = allNodes.map((node) => node.descriptor);
   if (new Set(ids).size !== ids.length || new Set(descriptors).size !== descriptors.length) {
-    throw new Error(`Workday location facet ${group.facetParameter} contains duplicate mainland-China descriptors or ids`);
+    throw new Error(`Workday location facet ${group.facetParameter} contains duplicate descriptors or ids`);
   }
-  return ids;
+  if (officialTotal === undefined || nodes.reduce((sum, node) => sum + node.count, 0) !== officialTotal) {
+    throw new Error(`Workday location facet ${group.facetParameter} counts do not prove a complete partition`);
+  }
+  return nodes;
+}
+
+function parseFacetNode(value: unknown, facetParameter: string): WorkdayFacetNode {
+  if (!isRecord(value)) {
+    throw new Error(`Workday location facet ${facetParameter} contains a malformed value`);
+  }
+  const descriptor = stringValue(value.descriptor);
+  if (!descriptor) {
+    throw new Error(`Workday location facet ${facetParameter} contains a value missing a descriptor`);
+  }
+  const count = value.count;
+  if (typeof count !== "number" || !Number.isSafeInteger(count) || count < 0) {
+    throw new Error(`Workday location facet ${facetParameter} counts do not prove a complete partition`);
+  }
+  const childValues = Array.isArray(value.values) ? value.values : [];
+  const children = childValues.map((child) => parseFacetNode(child, facetParameter));
+  const id = stringValue(value.id);
+  if (children.length === 0 && !id) {
+    throw new Error(`Workday location facet ${facetParameter} contains a mainland-China descriptor without an id`);
+  }
+  if (children.length > 0 && children.reduce((sum, child) => sum + child.count, 0) !== count) {
+    throw new Error(`Workday location facet ${facetParameter} counts do not prove a complete partition`);
+  }
+  return { descriptor, ...(id === undefined ? {} : { id }), count, children };
+}
+
+function flattenFacetNode(node: WorkdayFacetNode): WorkdayFacetNode[] {
+  return [node, ...node.children.flatMap(flattenFacetNode)];
+}
+
+function selectableLeaves(node: WorkdayFacetNode, mainlandAncestor: boolean): WorkdayFacetNode[] {
+  if (isNonMainlandChinaDescriptor(node.descriptor)) {
+    return [];
+  }
+  const inMainland = mainlandAncestor || isMainlandChinaCountryDescriptor(node.descriptor) ||
+    isMainlandChinaLocationDescriptor(node.descriptor);
+  if (node.children.length === 0) {
+    return inMainland ? [node] : [];
+  }
+  return node.children.flatMap((child) => selectableLeaves(child, inMainland));
+}
+
+function selectMainlandCityLeaves(facetParameter: string, nodes: readonly WorkdayFacetNode[]): WorkdayFacetNode[] {
+  const selected: WorkdayFacetNode[] = [];
+  for (const leaf of nodes.flatMap(flattenFacetNode).filter((node) => node.children.length === 0)) {
+    const path = facetPath(nodes, leaf);
+    if (path.some((node) => isNonMainlandChinaDescriptor(node.descriptor))) {
+      continue;
+    }
+    if (path.some((node) => isMainlandChinaCountryDescriptor(node.descriptor)) ||
+        isMainlandChinaLocationDescriptor(leaf.descriptor)) {
+      selected.push(leaf);
+      continue;
+    }
+    if (!path.some((node) => isKnownForeignCountryDescriptor(node.descriptor))) {
+      throw new Error(`Workday location facet ${facetParameter} contains unscoped location descriptor ${leaf.descriptor}`);
+    }
+  }
+  return selected;
+}
+
+function facetPath(roots: readonly WorkdayFacetNode[], target: WorkdayFacetNode): WorkdayFacetNode[] {
+  for (const root of roots) {
+    if (root === target) return [root];
+    const childPath = facetPath(root.children, target);
+    if (childPath.length > 0) return [root, ...childPath];
+  }
+  return [];
 }
 
 function deriveDescriptorExcludedAppliedFacets(
@@ -833,53 +931,36 @@ function hasConfiguredLocationFacet(appliedFacets: Record<string, readonly strin
   );
 }
 
-function collectFacetValueGroups(
-  value: unknown,
-  inheritedParameter?: string,
-  inheritedDescriptor?: string
-): Array<{
-  facetParameter: string;
-  descriptor?: string;
-  values: Array<{ id?: string; descriptor?: string }>;
-}> {
+function collectFacetGroups(value: unknown): RawWorkdayFacetGroup[] {
   if (Array.isArray(value)) {
-    return value.flatMap((item) => collectFacetValueGroups(item, inheritedParameter, inheritedDescriptor));
+    return value.flatMap(collectFacetGroups);
   }
-
   if (!isRecord(value)) {
     return [];
   }
-
-  const facetParameter = stringValue(value.facetParameter) ?? inheritedParameter;
-  const descriptor = stringValue(value.descriptor) ?? inheritedDescriptor;
+  const facetParameter = stringValue(value.facetParameter);
+  const descriptor = stringValue(value.descriptor);
   const values = Array.isArray(value.values) ? value.values : [];
-  const directValues = values.flatMap((item) => {
-    if (!isRecord(item)) {
-      return [];
-    }
-
-    const id = stringValue(item.id);
-    const itemDescriptor = stringValue(item.descriptor);
-    return id || itemDescriptor
-      ? [{ ...(id === undefined ? {} : { id }), ...(itemDescriptor === undefined ? {} : { descriptor: itemDescriptor }) }]
-      : [];
-  });
-  const nestedValues = values.flatMap((item) =>
-    collectFacetValueGroups(item, facetParameter, descriptor)
+  const embeddedGroups = values.filter((item) =>
+    isRecord(item) && stringValue(item.facetParameter) !== undefined && Array.isArray(item.values)
   );
-
+  const ownValues = values.filter((item) => !embeddedGroups.includes(item));
   return [
-    ...(facetParameter && directValues.length > 0
-      ? [
-          {
-            facetParameter,
-            ...(descriptor === undefined ? {} : { descriptor }),
-            values: directValues
-          }
-        ]
+    ...(facetParameter && ownValues.length > 0
+      ? [{ facetParameter, ...(descriptor === undefined ? {} : { descriptor }), values: ownValues }]
       : []),
-    ...nestedValues
+    ...embeddedGroups.flatMap(collectFacetGroups),
+    ...(!facetParameter ? ownValues.flatMap(collectFacetGroups) : [])
   ];
+}
+
+function facetDescriptors(values: readonly unknown[]): string[] {
+  return values.flatMap((value) => {
+    if (!isRecord(value)) return [];
+    const descriptor = stringValue(value.descriptor);
+    const children = Array.isArray(value.values) ? facetDescriptors(value.values) : [];
+    return [...(descriptor ? [descriptor] : []), ...children];
+  });
 }
 
 function isLocationFacet(parameter: string, descriptor: string | undefined): boolean {
@@ -890,68 +971,56 @@ function isCountryLevelFacet(parameter: string, descriptor: string | undefined):
   return /country|countries/i.test(parameter) || /country|countries/i.test(descriptor ?? "");
 }
 
-const CHINA_LOCATION_TERMS = [
-  "china",
-  "chn",
-  "cn",
-  "beijing",
-  "shanghai",
-  "chengdu",
-  "nanjing",
-  "nanning",
-  "shenzhen",
-  "urumqi",
-  "wenzhou",
-  "wuhan",
-  "zhuhai",
-  "xian",
-  "xi'an",
-  "shijiazhuang",
-  "dongying",
-  "suzhou",
-  "hangzhou",
-  "guangzhou",
-  "dongguan",
-  "huizhou",
-  "changsha",
-  "weifang",
-  "tianjin",
-  "zhengzhou",
-  "shenyang",
-  "sichuan",
-  "shaanxi",
-  "guangdong",
-  "zhejiang",
-  "jiangsu",
-  "hunan",
-  "henan",
-  "shandong",
-  "liaoning",
-  "hebei"
-] as const;
-
-function isChinaLocationDescriptor(descriptor: string): boolean {
-  const normalized = descriptor.toLowerCase();
-  return CHINA_LOCATION_TERMS.some((term) => new RegExp(`(^|[^a-z])${escapeRegExp(term)}([^a-z]|$)`, "u").test(normalized));
-}
-
 function isMainlandChinaLocationDescriptor(descriptor: string): boolean {
-  if (/hong\s*kong|macau|macao|taiwan|香港|澳门|澳門|台湾|台灣/iu.test(descriptor)) {
-    return false;
-  }
-  return isChinaLocationDescriptor(descriptor);
+  return !isNonMainlandChinaDescriptor(descriptor) &&
+    descriptorParts(descriptor).some((part) => MAINLAND_CHINA_NAMES.has(part));
 }
 
 function isMainlandChinaCountryDescriptor(descriptor: string): boolean {
-  if (/hong\s*kong|macau|macao|taiwan|香港|澳门|澳門|台湾|台灣/iu.test(descriptor)) {
-    return false;
-  }
-  const normalized = descriptor.trim().toLowerCase().replace(/[()_\-/]+/gu, " ").replace(/\s+/gu, " ");
-  return /^(china|china mainland|mainland china|people'?s republic of china|prc|chn|cn|中国|中国大陆|中华人民共和国)$/iu.test(normalized);
+  return !isNonMainlandChinaDescriptor(descriptor) && MAINLAND_CHINA_NAMES.has(normalizeFacetDescriptor(descriptor));
 }
 
-function escapeRegExp(value: string): string {
-  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+function isNonMainlandChinaDescriptor(descriptor: string): boolean {
+  return /hong\s*kong|macau|macao|taiwan|香港|澳门|澳門|台湾|台灣/iu.test(descriptor);
+}
+
+const MAINLAND_CHINA_NAMES = new Set([
+  "china", "china mainland", "mainland china", "people's republic of china", "peoples republic of china",
+  "prc", "chn", "cn", "中国", "中国大陆", "中华人民共和国"
+]);
+
+const KNOWN_REGION_NAMES = buildKnownRegionNames();
+
+function buildKnownRegionNames(): ReadonlySet<string> {
+  const names = new Set<string>();
+  for (const locale of ["en", "zh-CN"] as const) {
+    const displayNames = new Intl.DisplayNames([locale], { type: "region" });
+    for (let first = 65; first <= 90; first += 1) {
+      for (let second = 65; second <= 90; second += 1) {
+        const code = String.fromCharCode(first, second);
+        const name = displayNames.of(code);
+        if (name && name !== code) names.add(normalizeFacetDescriptor(name));
+      }
+    }
+  }
+  return names;
+}
+
+function isKnownForeignCountryDescriptor(descriptor: string): boolean {
+  return descriptorParts(descriptor).some((part) =>
+    KNOWN_REGION_NAMES.has(part) && !MAINLAND_CHINA_NAMES.has(part)
+  );
+}
+
+function descriptorParts(descriptor: string): string[] {
+  return descriptor
+    .split(/\s+-\s+|[,/|]/gu)
+    .map(normalizeFacetDescriptor)
+    .filter(Boolean);
+}
+
+function normalizeFacetDescriptor(descriptor: string): string {
+  return descriptor.trim().toLowerCase().replace(/[()_]+/gu, " ").replace(/\s+/gu, " ");
 }
 
 function enrichWorkdayJob(
