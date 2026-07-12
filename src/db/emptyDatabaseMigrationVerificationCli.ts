@@ -31,7 +31,7 @@ export const REVIEWED_MIGRATION_NAMES = [
 export const REVIEWED_APP_TABLE_NAMES = [
   "AccessEvent", "AdminAuditEvent", "AdminSession", "AdminUser", "Company", "CrawlBatch",
   "CrawlBatchSourceResult", "CrawlObservation", "EvidenceArtifact", "Feedback", "Job",
-  "LifecycleSetEvidenceMember", "LossLedgerEntry", "ManualCrawlRequest", "PaginationEvidence",
+  "LifecycleSetEvidenceMember", "LossLedgerEntry", "ManualCrawlRequest", "ManualCrawlRequestEvent", "PaginationEvidence",
   "RecommendedCompany", "RecruitmentSource", "ReleaseCandidate", "TransportAttemptArtifact",
   "TransportAttemptEvidence"
 ] as const;
@@ -40,14 +40,15 @@ export const REVIEWED_USER_TYPE_NAMES = [
   "AdapterState", "AdminRole", "AdminSessionStatus", "AtomicCommitState", "AtsKind",
   "CompletenessEvidenceKind", "CompletenessStatus", "CrawlBatchKind", "CrawlStatus",
   "EvidenceArtifactKind", "FeedbackStatus", "JobCategory", "JobLifecycleStatus", "LifecycleSetKind",
-  "LossStage", "ManualCrawlStatus", "PaginationAnomalyCode", "PaginationTermination", "ReleaseCandidateStatus",
+  "LossStage", "ManualCrawlEventActor", "ManualCrawlEventType", "ManualCrawlFailureCode", "ManualCrawlStatus",
+  "PaginationAnomalyCode", "PaginationTermination", "ReleaseCandidateStatus",
   "RequiredJobField", "SourceKind", "TransportAttemptCode", "TransportAttemptKind",
   "TransportAttemptOutcome", "TransportState", "VerificationStatus"
 ] as const;
 
 export const REVIEWED_FUNCTION_NAMES = [
   "assert_verified_parent_lifecycle_projection", "enforce_source_result_state_machine",
-  "prevent_immutable_evidence_mutation", "prevent_rc_observation_mutation",
+  "prevent_immutable_evidence_mutation", "prevent_manual_crawl_request_event_mutation", "prevent_rc_observation_mutation",
   "prevent_release_candidate_delete", "prevent_release_candidate_identity_mutation",
   "prevent_transport_attempt_artifact_mutation", "prevent_transport_attempt_mutation",
   "reject_lifecycle_set_member_mutation", "require_transport_attempt_artifact_ref",
@@ -77,7 +78,10 @@ export const REVIEWED_INDEX_NAMES = [
   "LifecycleSetEvidenceMember_jobKeySha256_idx", "LifecycleSetEvidenceMember_pkey",
   "LifecycleSetEvidenceMember_sourceResultId_setKind_idx", "LifecycleSetEvidenceMember_tuple_kind_jobKey_key",
   "LossLedgerEntry_candidateKey_idx", "LossLedgerEntry_pkey", "LossLedgerEntry_releaseCandidateId_batchId_sourceId_idx",
-  "LossLedgerEntry_sourceResultId_stage_idx", "LossLedgerEntry_winnerKey_idx", "ManualCrawlRequest_pkey",
+  "LossLedgerEntry_sourceResultId_stage_idx", "LossLedgerEntry_winnerKey_idx",
+  "ManualCrawlRequestEvent_adminUserId_createdAt_idx", "ManualCrawlRequestEvent_pkey",
+  "ManualCrawlRequestEvent_requestId_createdAt_idx", "ManualCrawlRequest_crawlBatchId_idx",
+  "ManualCrawlRequest_one_active_per_source", "ManualCrawlRequest_ownerId_leaseExpiresAt_idx", "ManualCrawlRequest_pkey",
   "ManualCrawlRequest_requestedById_createdAt_idx", "ManualCrawlRequest_sourceId_status_idx",
   "ManualCrawlRequest_status_createdAt_idx", "PaginationEvidence_artifactId_idx", "PaginationEvidence_pkey",
   "PaginationEvidence_releaseCandidateId_batchId_sourceId_idx",
@@ -91,7 +95,7 @@ export const REVIEWED_INDEX_NAMES = [
 ] as const;
 
 // Reviewed from pinned PG16 live output ordered by index name with C collation.
-export const REVIEWED_INDEX_DEFINITION_SHA256 = "28058e561062e7f46bc5bbc7094fe9b73898cbec0dd8ebec0bc153b12d0c73f3";
+export const REVIEWED_INDEX_DEFINITION_SHA256 = "3800aba02918d788d8a644c5cb0dee157e1f2b198889c0e90bab314a4238ab8f";
 
 interface SpawnResult {
   status: number | null;

@@ -144,11 +144,11 @@ export async function runEmptyDatabaseMigrationVerification(
   config: EmptyDatabaseVerificationConfig,
   deps: EmptyDatabaseMigrationVerificationDeps
 ): Promise<EmptyDatabaseMigrationVerificationReport> {
-  const expectedMigrations = exactUniqueSorted(deps.expectedMigrationNames, 13, "migration allowlist");
-  const expectedTables = exactUniqueSorted(deps.expectedAppTableNames, 20, "application-table allowlist");
-  const expectedUserTypes = exactUniqueSorted(deps.expectedUserTypeNames, 26, "user-type allowlist");
-  const expectedFunctions = exactUniqueSorted(deps.expectedFunctionNames, 12, "function allowlist");
-  const expectedIndexes = exactUniqueSorted(deps.expectedIndexNames, 81, "index allowlist");
+  const expectedMigrations = exactUniqueSorted(deps.expectedMigrationNames, 15, "migration allowlist");
+  const expectedTables = exactUniqueSorted(deps.expectedAppTableNames, 21, "application-table allowlist");
+  const expectedUserTypes = exactUniqueSorted(deps.expectedUserTypeNames, 29, "user-type allowlist");
+  const expectedFunctions = exactUniqueSorted(deps.expectedFunctionNames, 13, "function allowlist");
+  const expectedIndexes = exactUniqueSorted(deps.expectedIndexNames, 87, "index allowlist");
   if (!/^[a-f0-9]{64}$/u.test(deps.expectedIndexDefinitionSha256)) fail("index definition digest is invalid");
 
   const psqlVersion = await execute(deps, psqlCommand(config, deps, "psql-version", ["--version"]));

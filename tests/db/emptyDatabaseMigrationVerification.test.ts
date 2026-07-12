@@ -87,13 +87,15 @@ const MIGRATIONS = [
   "20260711220000_lifecycle_set_cryptographic_closure",
   "20260711230000_parent_lifecycle_projection_gate",
   "20260711240000_lifecycle_trigger_security_closure",
-  "20260712020000_release_runtime_identity"
+  "20260712020000_release_runtime_identity",
+  "20260713010000_manual_crawl_request_ownership",
+  "20260713020000_privacy_request_retention"
 ];
 
 const APP_TABLES = [
   "AccessEvent", "AdminAuditEvent", "AdminSession", "AdminUser", "Company", "CrawlBatch",
   "CrawlBatchSourceResult", "CrawlObservation", "EvidenceArtifact", "Feedback", "Job",
-  "LifecycleSetEvidenceMember", "LossLedgerEntry", "ManualCrawlRequest", "PaginationEvidence",
+  "LifecycleSetEvidenceMember", "LossLedgerEntry", "ManualCrawlRequest", "ManualCrawlRequestEvent", "PaginationEvidence",
   "RecommendedCompany", "RecruitmentSource", "ReleaseCandidate", "TransportAttemptArtifact",
   "TransportAttemptEvidence"
 ].sort();
@@ -102,14 +104,15 @@ const USER_TYPES = [
   "AdapterState", "AdminRole", "AdminSessionStatus", "AtomicCommitState", "AtsKind",
   "CompletenessEvidenceKind", "CompletenessStatus", "CrawlBatchKind", "CrawlStatus",
   "EvidenceArtifactKind", "FeedbackStatus", "JobCategory", "JobLifecycleStatus", "LifecycleSetKind",
-  "LossStage", "ManualCrawlStatus", "PaginationAnomalyCode", "PaginationTermination", "ReleaseCandidateStatus",
+  "LossStage", "ManualCrawlEventActor", "ManualCrawlEventType", "ManualCrawlFailureCode", "ManualCrawlStatus",
+  "PaginationAnomalyCode", "PaginationTermination", "ReleaseCandidateStatus",
   "RequiredJobField", "SourceKind", "TransportAttemptCode", "TransportAttemptKind",
   "TransportAttemptOutcome", "TransportState", "VerificationStatus"
 ].sort();
 
 const FUNCTIONS = [
   "assert_verified_parent_lifecycle_projection", "enforce_source_result_state_machine",
-  "prevent_immutable_evidence_mutation", "prevent_rc_observation_mutation",
+  "prevent_immutable_evidence_mutation", "prevent_manual_crawl_request_event_mutation", "prevent_rc_observation_mutation",
   "prevent_release_candidate_delete", "prevent_release_candidate_identity_mutation",
   "prevent_transport_attempt_artifact_mutation", "prevent_transport_attempt_mutation",
   "reject_lifecycle_set_member_mutation", "require_transport_attempt_artifact_ref",
@@ -180,10 +183,10 @@ describe("empty database migration verification orchestration", () => {
       result("psql (PostgreSQL) 16.14 (Debian 16.14-1.pgdg12+1)\n"),
       result(JSON.stringify({ currentDatabase: DATABASE_NAME, serverVersion: "16.14", systemIdentifier: "7659954889866510370", isTemplate: false })),
       result(JSON.stringify({ publicSchemaObjectCount: 0, migrationTableExists: false, migrationRowCount: 0 })),
-      result("13 migrations found in prisma/migrations\nAll migrations have been successfully applied.\n"),
+      result("15 migrations found in prisma/migrations\nAll migrations have been successfully applied.\n"),
       result(JSON.stringify(migratedAudit())),
       result("-- PostgreSQL database dump\nCREATE TABLE public.\"Company\" ();\n"),
-      result("13 migrations found in prisma/migrations\nNo pending migrations to apply.\n"),
+      result("15 migrations found in prisma/migrations\nNo pending migrations to apply.\n"),
       result(JSON.stringify(migratedAudit())),
       result("-- PostgreSQL database dump\nCREATE TABLE public.\"Company\" ();\n")
     ];
@@ -212,8 +215,8 @@ describe("empty database migration verification orchestration", () => {
       databaseName: DATABASE_NAME,
       serverVersion: "16.14",
       systemIdentifier: "7659954889866510370",
-      migrationCount: 13,
-      appTableCount: 20,
+      migrationCount: 15,
+      appTableCount: 21,
       allAppTableCountsZero: true,
       secondDeployNoop: true
     });
