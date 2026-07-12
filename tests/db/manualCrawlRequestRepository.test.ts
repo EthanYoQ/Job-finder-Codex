@@ -48,10 +48,32 @@ describe("manual crawl request repository", () => {
   });
 
   it("maps the active-source unique violation to a stable result", async () => {
-    const { db } = fakeDb({ createError: Object.assign(new Error("duplicate"), { code: "P2002" }) });
+    const { db } = fakeDb({ createError: Object.assign(new Error("duplicate"), {
+      code: "P2002", meta: { target: "ManualCrawlRequest_one_active_per_source" }
+    }) });
     const repository = createManualCrawlRequestRepository({ db, evaluateEligibility: eligible });
     await expect(repository.enqueue({ sourceId: "source-1", requestedById: "admin", ip: "ip", userAgent: "ua" }))
       .rejects.toMatchObject({ code: "ALREADY_ACTIVE" });
+  });
+
+  it("accepts the PostgreSQL constraint metadata shape for the named active-source index", async () => {
+    const { db } = fakeDb({ createError: Object.assign(new Error("duplicate"), {
+      code: "P2002", meta: { constraint: "ManualCrawlRequest_one_active_per_source" }
+    }) });
+    const repository = createManualCrawlRequestRepository({ db, evaluateEligibility: eligible });
+    await expect(repository.enqueue({ sourceId: "source-1", requestedById: "admin", ip: "ip", userAgent: "ua" }))
+      .rejects.toMatchObject({ code: "ALREADY_ACTIVE" });
+  });
+
+  it.each([
+    ["primary key", { target: "ManualCrawlRequest_pkey" }],
+    ["unknown unique", undefined]
+  ])("rethrows a %s P2002 instead of reporting ALREADY_ACTIVE", async (_label, meta) => {
+    const original = Object.assign(new Error("other unique violation"), { code: "P2002", meta });
+    const { db } = fakeDb({ createError: original });
+    const repository = createManualCrawlRequestRepository({ db, evaluateEligibility: eligible });
+    await expect(repository.enqueue({ sourceId: "source-1", requestedById: "admin", ip: "ip", userAgent: "ua" }))
+      .rejects.toBe(original);
   });
 
   it("claims through one parameterized SKIP LOCKED CTE and records a system transition", async () => {

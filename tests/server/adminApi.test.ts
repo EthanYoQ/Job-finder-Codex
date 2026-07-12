@@ -157,7 +157,9 @@ describe("admin API", () => {
   it("maps a duplicate active manual crawl from the default repository path to 409", async () => {
     const db = createDb() as ReturnType<typeof createDb> & { $transaction: Function };
     db.$transaction = async (callback: Function) => callback(manualCrawlTx({
-      createError: Object.assign(new Error("duplicate"), { code: "P2002" })
+      createError: Object.assign(new Error("duplicate"), {
+        code: "P2002", meta: { constraint: "ManualCrawlRequest_one_active_per_source" }
+      })
     }));
     const response = await handleAdminApi(request("/admin/api/manual-crawl", {
       method: "POST", body: { sourceId: "source-1", reason: "verify" }

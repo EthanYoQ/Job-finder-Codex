@@ -171,7 +171,9 @@ export function createManualCrawlRequestRepository(input: {
           return created;
         });
       } catch (error) {
-        if (isUniqueViolation(error)) throw new ManualCrawlRequestRepositoryError("ALREADY_ACTIVE");
+        if (isActiveRequestUniqueViolation(error)) {
+          throw new ManualCrawlRequestRepositoryError("ALREADY_ACTIVE");
+        }
         throw error;
       }
     },
@@ -334,8 +336,24 @@ async function createSystemEvent(
   });
 }
 
-function isUniqueViolation(error: unknown): boolean {
-  return typeof error === "object" && error !== null && "code" in error && error.code === "P2002";
+const ACTIVE_REQUEST_CONSTRAINT = "ManualCrawlRequest_one_active_per_source";
+
+function isActiveRequestUniqueViolation(error: unknown): boolean {
+  if (!isRecord(error) || error.code !== "P2002" || !isRecord(error.meta)) return false;
+  const { target, constraint } = error.meta;
+  if (target === ACTIVE_REQUEST_CONSTRAINT || constraint === ACTIVE_REQUEST_CONSTRAINT) return true;
+  if (Array.isArray(target) && target.length === 1 && target[0] === ACTIVE_REQUEST_CONSTRAINT) return true;
+  if (isRecord(constraint) && constraint.name === ACTIVE_REQUEST_CONSTRAINT) return true;
+
+  const adapter = error.meta.driverAdapterError;
+  if (!isRecord(adapter) || !isRecord(adapter.cause)) return false;
+  const adapterConstraint = adapter.cause.constraint;
+  return adapterConstraint === ACTIVE_REQUEST_CONSTRAINT ||
+    (isRecord(adapterConstraint) && adapterConstraint.name === ACTIVE_REQUEST_CONSTRAINT);
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null;
 }
 
 function assertValidLease(ownerId: string, now: Date, leaseExpiresAt: Date): void {
