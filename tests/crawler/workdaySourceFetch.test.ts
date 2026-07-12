@@ -577,6 +577,177 @@ describe("createWorkdaySourceFetch", () => {
     );
   });
 
+  it("selects the unique country-level China facet without intersecting a city facet group", async () => {
+    const requests: Array<{ body: string }> = [];
+    const fetcher = createWorkdaySourceFetch({
+      now: () => new Date("2026-07-13T00:00:00.000Z"),
+      http: async (request) => {
+        requests.push(request);
+        const body = JSON.parse(request.body) as { appliedFacets: Record<string, string[]> };
+        if (body.appliedFacets.Location_Country) {
+          return response({
+            total: 1,
+            jobPostings: [{
+              title: "China Country Role",
+              externalPath: "/job/China---Shanghai/China-Country-Role_1",
+              locationsText: "Shanghai, China",
+              bulletFields: ["1"]
+            }]
+          });
+        }
+        return response({
+          total: 3,
+          jobPostings: [],
+          facets: [
+            {
+              facetParameter: "Location_Country",
+              descriptor: "Country",
+              values: [
+                { descriptor: "China", id: "china-country", count: 1 },
+                { descriptor: "United States", id: "us-country", count: 2 }
+              ]
+            },
+            {
+              facetParameter: "locations",
+              descriptor: "Locations",
+              values: [
+                { descriptor: "Shanghai, China", id: "shanghai-city", count: 1 },
+                { descriptor: "New York, United States", id: "new-york-city", count: 2 }
+              ]
+            }
+          ]
+        });
+      }
+    });
+
+    const result = await fetcher({
+      ...plan,
+      workday: { tenant: "pfizer", site: "PfizerCareers", searchText: "China", pageSize: 2, maxPages: 2 }
+    });
+
+    expect(result).toMatchObject({ ok: true, completeness: { expectedJobCount: 1 } });
+    expect(requests).toHaveLength(2);
+    expect(JSON.parse(requests[1]!.body)).toEqual({
+      appliedFacets: { Location_Country: ["china-country"] },
+      limit: 2,
+      offset: 0
+    });
+  });
+
+  it("fails closed with the archived preflight when country-level China facets are ambiguous", async () => {
+    const fetcher = createWorkdaySourceFetch({
+      now: () => new Date("2026-07-13T00:00:00.000Z"),
+      http: async () => response({
+        total: 2,
+        jobPostings: [],
+        facets: [
+          {
+            facetParameter: "Location_Country",
+            descriptor: "Country",
+            values: [{ descriptor: "China", id: "china-country", count: 1 }]
+          },
+          {
+            facetParameter: "countryFacet",
+            descriptor: "Country/Region",
+            values: [{ descriptor: "China", id: "china-region", count: 1 }]
+          }
+        ]
+      })
+    });
+
+    await expect(fetcher({
+      ...plan,
+      workday: { tenant: "pfizer", site: "PfizerCareers", searchText: "China" }
+    })).resolves.toMatchObject({
+      ok: false,
+      failureReason: expect.stringContaining("ambiguous country-level China location facets"),
+      fetchEvidence: {
+        artifacts: [{ logicalKey: "workday-preflight-0000", extractorLocator: "$.facets" }]
+      }
+    });
+  });
+
+  it("fails closed instead of treating searchText as completeness evidence when no China facet is proven", async () => {
+    const fetcher = createWorkdaySourceFetch({
+      now: () => new Date("2026-07-13T00:00:00.000Z"),
+      http: async () => response({
+        total: 1,
+        jobPostings: [],
+        facets: [{
+          facetParameter: "jobFamilyGroup",
+          descriptor: "Job family",
+          values: [{ descriptor: "Medical", id: "medical", count: 1 }]
+        }]
+      })
+    });
+
+    await expect(fetcher({
+      ...plan,
+      workday: { tenant: "pfizer", site: "PfizerCareers", searchText: "China" }
+    })).resolves.toMatchObject({
+      ok: false,
+      failureReason: expect.stringContaining("no authoritative China location facet"),
+      fetchEvidence: { artifacts: [{ logicalKey: "workday-preflight-0000" }] }
+    });
+  });
+
+  it("fails closed when multiple city-level China facet groups have equal authority", async () => {
+    const fetcher = createWorkdaySourceFetch({
+      now: () => new Date("2026-07-13T00:00:00.000Z"),
+      http: async () => response({
+        total: 2,
+        jobPostings: [],
+        facets: [
+          {
+            facetParameter: "locations",
+            descriptor: "Locations",
+            values: [{ descriptor: "Shanghai, China", id: "shanghai", count: 1 }]
+          },
+          {
+            facetParameter: "locationHierarchy2",
+            descriptor: "Locations",
+            values: [{ descriptor: "Beijing, China", id: "beijing", count: 1 }]
+          }
+        ]
+      })
+    });
+
+    await expect(fetcher({
+      ...plan,
+      workday: { tenant: "pfizer", site: "PfizerCareers", searchText: "China" }
+    })).resolves.toMatchObject({
+      ok: false,
+      failureReason: expect.stringContaining("ambiguous city-level China location facets")
+    });
+  });
+
+  it("fails closed when an explicit mainland-China city facet value has no selectable id", async () => {
+    const fetcher = createWorkdaySourceFetch({
+      now: () => new Date("2026-07-13T00:00:00.000Z"),
+      http: async () => response({
+        total: 2,
+        jobPostings: [],
+        facets: [{
+          facetParameter: "locations",
+          descriptor: "Locations",
+          values: [
+            { descriptor: "Shanghai, China", id: "shanghai", count: 1 },
+            { descriptor: "Beijing, China", count: 1 }
+          ]
+        }]
+      })
+    });
+
+    await expect(fetcher({
+      ...plan,
+      workday: { tenant: "pfizer", site: "PfizerCareers", searchText: "China" }
+    })).resolves.toMatchObject({
+      ok: false,
+      failureReason: expect.stringContaining("contains a mainland-China descriptor without an id"),
+      fetchEvidence: { artifacts: [{ logicalKey: "workday-preflight-0000" }] }
+    });
+  });
+
   it("derives positive Workday facet ids from an archived preflight and uses the filtered official total", async () => {
     const requests: Array<{ body: string }> = [];
     const fetcher = createWorkdaySourceFetch({

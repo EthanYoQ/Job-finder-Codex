@@ -150,12 +150,8 @@ export function createWorkdaySourceFetch(deps: WorkdaySourceFetchDeps = {}): Sou
         latestEvidence = workdaySupportingArtifactEvidence(artifacts, "FACET_DERIVATION_FAILED");
         const preflightFacets = parseWorkdayJobsResponse(preflight.body).facets;
         const discoveredFacets = chinaLocationAppliedFacets(preflightFacets);
-        if (discoveredFacets) {
-          appliedFacets = { ...appliedFacets, ...discoveredFacets };
-          searchText = undefined;
-        } else if (facetDescriptorExclusions.length > 0) {
-          throw new Error("Workday location facet discovery failed before descriptor exclusion");
-        }
+        appliedFacets = { ...appliedFacets, ...discoveredFacets };
+        searchText = undefined;
       }
 
       if (facetDescriptorExclusions.length > 0) {
@@ -665,22 +661,60 @@ function parseWorkdayJobsResponse(body: string): {
   };
 }
 
-function chinaLocationAppliedFacets(facets: unknown): Record<string, readonly string[]> | undefined {
+function chinaLocationAppliedFacets(facets: unknown): Record<string, readonly string[]> {
   const groups = collectFacetValueGroups(facets)
-    .filter((group) => isLocationFacet(group.facetParameter, group.descriptor))
-    .map((group) => ({
-      facetParameter: group.facetParameter,
-      ids: group.values
-        .filter((value) => isChinaLocationDescriptor(value.descriptor))
-        .map((value) => value.id)
-    }))
-    .filter((group) => group.ids.length > 0);
+    .filter((group) => isLocationFacet(group.facetParameter, group.descriptor));
 
-  if (groups.length === 0) {
-    return undefined;
+  const countryGroups = groups
+    .filter((group) => isCountryLevelFacet(group.facetParameter, group.descriptor))
+    .map((group) => ({
+      ...group,
+      selectedValues: group.values.filter((value) =>
+        value.descriptor !== undefined && isMainlandChinaCountryDescriptor(value.descriptor)
+      )
+    }))
+    .filter((group) => group.selectedValues.length > 0);
+  if (countryGroups.length > 1) {
+    throw new Error("Workday location facet discovery found ambiguous country-level China location facets");
+  }
+  if (countryGroups.length === 1) {
+    const countryGroup = countryGroups[0]!;
+    return { [countryGroup.facetParameter]: verifiedMainlandFacetIds(countryGroup) };
   }
 
-  return Object.fromEntries(groups.map((group) => [group.facetParameter, group.ids]));
+  const cityGroups = groups
+    .filter((group) => !isCountryLevelFacet(group.facetParameter, group.descriptor))
+    .map((group) => ({
+      ...group,
+      selectedValues: group.values.filter((value) =>
+        value.descriptor !== undefined && isMainlandChinaLocationDescriptor(value.descriptor)
+      )
+    }))
+    .filter((group) => group.selectedValues.length > 0);
+  if (cityGroups.length > 1) {
+    throw new Error("Workday location facet discovery found ambiguous city-level China location facets");
+  }
+  if (cityGroups.length === 0) {
+    throw new Error("Workday location facet discovery found no authoritative China location facet");
+  }
+
+  const cityGroup = cityGroups[0]!;
+  return { [cityGroup.facetParameter]: verifiedMainlandFacetIds(cityGroup) };
+}
+
+function verifiedMainlandFacetIds(group: {
+  facetParameter: string;
+  selectedValues: ReadonlyArray<{ id?: string; descriptor?: string }>;
+}): string[] {
+  if (group.selectedValues.some((value) => !value.id)) {
+    throw new Error(`Workday location facet ${group.facetParameter} contains a mainland-China descriptor without an id`);
+  }
+  const ids = group.selectedValues.map((value) => value.id as string);
+  const descriptors = group.selectedValues.map((value) => value.descriptor as string);
+  if (new Set(ids).size !== ids.length || new Set(descriptors).size !== descriptors.length) {
+    throw new Error(`Workday location facet ${group.facetParameter} contains duplicate mainland-China descriptors or ids`);
+  }
+  return ids;
 }
 
 function deriveDescriptorExcludedAppliedFacets(
@@ -806,7 +840,7 @@ function collectFacetValueGroups(
 ): Array<{
   facetParameter: string;
   descriptor?: string;
-  values: Array<{ id: string; descriptor: string }>;
+  values: Array<{ id?: string; descriptor?: string }>;
 }> {
   if (Array.isArray(value)) {
     return value.flatMap((item) => collectFacetValueGroups(item, inheritedParameter, inheritedDescriptor));
@@ -826,7 +860,9 @@ function collectFacetValueGroups(
 
     const id = stringValue(item.id);
     const itemDescriptor = stringValue(item.descriptor);
-    return id && itemDescriptor ? [{ id, descriptor: itemDescriptor }] : [];
+    return id || itemDescriptor
+      ? [{ ...(id === undefined ? {} : { id }), ...(itemDescriptor === undefined ? {} : { descriptor: itemDescriptor }) }]
+      : [];
   });
   const nestedValues = values.flatMap((item) =>
     collectFacetValueGroups(item, facetParameter, descriptor)
@@ -847,7 +883,11 @@ function collectFacetValueGroups(
 }
 
 function isLocationFacet(parameter: string, descriptor: string | undefined): boolean {
-  return /location/i.test(parameter) || /location|state|province/i.test(descriptor ?? "");
+  return /location|country|countries/i.test(parameter) || /location|country|countries|state|province/i.test(descriptor ?? "");
+}
+
+function isCountryLevelFacet(parameter: string, descriptor: string | undefined): boolean {
+  return /country|countries/i.test(parameter) || /country|countries/i.test(descriptor ?? "");
 }
 
 const CHINA_LOCATION_TERMS = [
@@ -893,6 +933,21 @@ const CHINA_LOCATION_TERMS = [
 function isChinaLocationDescriptor(descriptor: string): boolean {
   const normalized = descriptor.toLowerCase();
   return CHINA_LOCATION_TERMS.some((term) => new RegExp(`(^|[^a-z])${escapeRegExp(term)}([^a-z]|$)`, "u").test(normalized));
+}
+
+function isMainlandChinaLocationDescriptor(descriptor: string): boolean {
+  if (/hong\s*kong|macau|macao|taiwan|香港|澳门|澳門|台湾|台灣/iu.test(descriptor)) {
+    return false;
+  }
+  return isChinaLocationDescriptor(descriptor);
+}
+
+function isMainlandChinaCountryDescriptor(descriptor: string): boolean {
+  if (/hong\s*kong|macau|macao|taiwan|香港|澳门|澳門|台湾|台灣/iu.test(descriptor)) {
+    return false;
+  }
+  const normalized = descriptor.trim().toLowerCase().replace(/[()_\-/]+/gu, " ").replace(/\s+/gu, " ");
+  return /^(china|china mainland|mainland china|people'?s republic of china|prc|chn|cn|中国|中国大陆|中华人民共和国)$/iu.test(normalized);
 }
 
 function escapeRegExp(value: string): string {
