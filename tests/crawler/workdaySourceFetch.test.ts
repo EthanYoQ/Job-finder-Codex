@@ -288,6 +288,46 @@ describe("createWorkdaySourceFetch", () => {
     });
   });
 
+  it("treats a non-first non-empty Workday page total of zero as an omitted sentinel", async () => {
+    const fetcher = createWorkdaySourceFetch({
+      now: () => new Date("2026-07-13T00:00:00.000Z"),
+      http: async (request) => {
+        const { offset } = JSON.parse(request.body) as { offset: number };
+        return response({
+          total: offset === 0 ? 2 : 0,
+          jobPostings: [{
+            title: offset === 0 ? "Role One" : "Role Two",
+            externalPath: `/job/China/${offset === 0 ? "one" : "two"}`,
+            locationsText: "Shanghai, China"
+          }]
+        });
+      }
+    });
+
+    const result = await fetcher({
+      ...plan,
+      workday: {
+        tenant: "pfizer",
+        site: "PfizerCareers",
+        appliedFacets: { Location_Country: ["china-id"] },
+        pageSize: 1,
+        maxPages: 2
+      }
+    });
+
+    expect(result).toMatchObject({
+      ok: true,
+      completeness: { expectedJobCount: 2 },
+      fetchEvidence: {
+        pages: [
+          { sequence: 0, declaredTotal: 2 },
+          { sequence: 1, declaredTotal: 2 }
+        ]
+      },
+      paginationEvaluation: { safeCompleteness: true }
+    });
+  });
+
   it("fails closed on a repeated final Workday response and on an intermediate empty page", async () => {
     const repeated = createWorkdaySourceFetch({
       now: () => new Date("2026-07-08T00:00:00.000Z"),
@@ -560,7 +600,6 @@ describe("createWorkdaySourceFetch", () => {
       expect.objectContaining({
         body: JSON.stringify({
           appliedFacets: {},
-          searchText: "China",
           limit: 2,
           offset: 0
         })
@@ -1171,6 +1210,174 @@ describe("createWorkdaySourceFetch", () => {
       .resolves.toMatchObject({ ok: false, failureReason: expect.stringContaining("counts do not prove a complete partition") });
   });
 
+  it("proves an exact allowed-descriptor Workday boundary before crawling", async () => {
+    const requests: Array<Record<string, unknown>> = [];
+    const fetcher = createWorkdaySourceFetch({
+      now: () => new Date("2026-07-13T00:00:00.000Z"),
+      http: async (request) => {
+        const body = JSON.parse(request.body) as Record<string, unknown>;
+        requests.push(body);
+        const appliedFacets = body.appliedFacets as Record<string, string[]>;
+        if (!appliedFacets.workerSubType) {
+          return response({
+            total: 3,
+            jobPostings: [],
+            facets: [{
+              facetParameter: "workerSubType",
+              descriptor: "Job Type",
+              values: [
+                { descriptor: "Regular", id: "regular-id", count: 2 },
+                { descriptor: "Fixed Term Employee (Non-Intern) (Fixed Term)", id: "fixed-id", count: 1 }
+              ]
+            }]
+          }, "2026-07-13T00:00:01.000Z");
+        }
+        return response({
+          total: 3,
+          jobPostings: [
+            { title: "Role One", externalPath: "/job/China/one", locationsText: "Shanghai, China" },
+            { title: "Role Two", externalPath: "/job/China/two", locationsText: "Beijing, China" },
+            { title: "Role Three", externalPath: "/job/China/three", locationsText: "Suzhou, China" }
+          ]
+        }, "2026-07-13T00:00:02.000Z");
+      }
+    });
+
+    const result = await fetcher({
+      ...plan,
+      workday: {
+        tenant: "pfizer",
+        site: "PfizerCareers",
+        appliedFacets: { Location_Country: ["china-id"] },
+        facetDescriptorBoundary: {
+          facetParameter: "workerSubType",
+          allowedDescriptors: ["Regular", "Fixed Term Employee (Non-Intern) (Fixed Term)"]
+        },
+        pageSize: 20,
+        maxPages: 1
+      }
+    });
+
+    expect(result).toMatchObject({ ok: true, completeness: { expectedJobCount: 3 } });
+    expect(requests).toEqual([
+      { appliedFacets: { Location_Country: ["china-id"] }, limit: 20, offset: 0 },
+      {
+        appliedFacets: {
+          Location_Country: ["china-id"],
+          workerSubType: ["regular-id", "fixed-id"]
+        },
+        limit: 20,
+        offset: 0
+      }
+    ]);
+  });
+
+  it.each([
+    {
+      name: "an unconfigured descriptor appears",
+      values: [
+        { descriptor: "Regular", id: "regular-id", count: 1 },
+        { descriptor: "Fixed Term Employee (Non-Intern) (Fixed Term)", id: "fixed-id", count: 1 },
+        { descriptor: "Intern (Fixed Term)", id: "intern-id", count: 1 }
+      ],
+      reason: "unexpected descriptor Intern (Fixed Term)"
+    },
+    {
+      name: "an allowed descriptor is missing",
+      values: [{ descriptor: "Regular", id: "regular-id", count: 3 }],
+      reason: "allowed descriptor Fixed Term Employee (Non-Intern) (Fixed Term) was missing"
+    },
+    {
+      name: "descriptor ids overlap",
+      values: [
+        { descriptor: "Regular", id: "same-id", count: 2 },
+        { descriptor: "Fixed Term Employee (Non-Intern) (Fixed Term)", id: "same-id", count: 1 }
+      ],
+      reason: "duplicate descriptors or ids"
+    }
+  ])("fails closed when an allowed-descriptor Workday boundary drifts: $name", async ({ values, reason }) => {
+    const fetcher = createWorkdaySourceFetch({
+      http: async () => response({
+        total: 3,
+        jobPostings: [],
+        facets: [{ facetParameter: "workerSubType", descriptor: "Job Type", values }]
+      })
+    });
+
+    await expect(fetcher({
+      ...plan,
+      workday: {
+        tenant: "pfizer",
+        site: "PfizerCareers",
+        appliedFacets: { Location_Country: ["china-id"] },
+        facetDescriptorBoundary: {
+          facetParameter: "workerSubType",
+          allowedDescriptors: ["Regular", "Fixed Term Employee (Non-Intern) (Fixed Term)"]
+        }
+      }
+    })).resolves.toMatchObject({
+      ok: false,
+      failureReason: expect.stringContaining(reason),
+      fetchEvidence: {
+        artifacts: [{ logicalKey: "workday-facet-preflight-0000", extractorLocator: "$.facets" }],
+        supportingArtifactOnlyFailure: { code: "FACET_DERIVATION_FAILED" }
+      }
+    });
+  });
+
+  it("fails closed when a Workday record exposes a job-type descriptor outside the proven facet boundary", async () => {
+    let requestNumber = 0;
+    const fetcher = createWorkdaySourceFetch({
+      http: async () => {
+        requestNumber += 1;
+        return requestNumber === 1
+          ? response({
+              total: 1,
+              jobPostings: [],
+              facets: [{
+                facetParameter: "workerSubType",
+                values: [{ descriptor: "Regular", id: "regular-id", count: 1 }]
+              }]
+            })
+          : response({
+              total: 1,
+              jobPostings: [{
+                title: "Role",
+                externalPath: "/job/China/role",
+                locationsText: "Shanghai, China",
+                workerSubType: "Intern (Fixed Term)"
+              }]
+            });
+      }
+    });
+
+    await expect(fetcher({
+      ...plan,
+      workday: {
+        tenant: "pfizer",
+        site: "PfizerCareers",
+        appliedFacets: { Location_Country: ["china-id"] },
+        facetDescriptorBoundary: {
+          facetParameter: "workerSubType",
+          allowedDescriptors: ["Regular"]
+        }
+      }
+    })).resolves.toMatchObject({
+      ok: false,
+      failureReason: expect.stringContaining("record workerSubType descriptor Intern (Fixed Term) is outside the proven boundary"),
+      fetchEvidence: {
+        artifacts: [
+          { logicalKey: "workday-facet-preflight-0000" },
+          {
+            logicalKey: "workday-record-boundary-validation-0000",
+            body: expect.stringContaining("Intern (Fixed Term)")
+          }
+        ],
+        supportingArtifactOnlyFailure: { code: "FACET_FILTER_VALIDATION_FAILED" }
+      }
+    });
+  });
+
   it("derives positive Workday facet ids from an archived preflight and uses the filtered official total", async () => {
     const requests: Array<{ body: string }> = [];
     const fetcher = createWorkdaySourceFetch({
@@ -1276,7 +1483,7 @@ describe("createWorkdaySourceFetch", () => {
         const body = JSON.parse(request.body) as Record<string, unknown>;
         bodies.push(body);
         const appliedFacets = body.appliedFacets as Record<string, string[]>;
-        if (body.searchText === "China") {
+        if (bodies.length === 1) {
           return response({
             total: 2,
             jobPostings: [],
@@ -1348,7 +1555,7 @@ describe("createWorkdaySourceFetch", () => {
       }
     });
     expect(bodies).toEqual([
-      { appliedFacets: {}, searchText: "China", limit: 20, offset: 0 },
+      { appliedFacets: {}, limit: 20, offset: 0 },
       { appliedFacets: { locations: ["shanghai-id"] }, limit: 20, offset: 0 },
       {
         appliedFacets: {
@@ -1594,7 +1801,6 @@ describe("createWorkdaySourceFetch", () => {
       expect.objectContaining({
         body: JSON.stringify({
           appliedFacets: { jobFamilyGroup: ["pharma-category"] },
-          searchText: "China",
           limit: 2,
           offset: 0
         })

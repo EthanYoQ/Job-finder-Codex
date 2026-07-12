@@ -313,6 +313,25 @@ describe("source crawl planning", () => {
         searchText: "China"
       }
     });
+    const workdaySocialBoundaries = new Map([
+      ["source-johnson-innovative-medicine-social", ["Fixed Term Employee (Non-Intern) (Fixed Term)", "Regular"]],
+      ["source-msd-china-social", ["Regular"]],
+      ["source-pfizer-china-social", ["Regular"]],
+      ["source-bms-china-social", ["Fixed Term (Fixed Term)", "Permanent"]],
+      ["source-amgen-china-social", ["Regular"]],
+      ["source-gilead-china-social", ["Regular"]],
+      ["source-biogen-china-social", ["Regular"]]
+    ] as const);
+    for (const [sourceId, allowedDescriptors] of workdaySocialBoundaries) {
+      expect(getPlanBySourceId(plans, sourceId)).toMatchObject({
+        workday: {
+          facetDescriptorBoundary: {
+            facetParameter: "workerSubType",
+            allowedDescriptors
+          }
+        }
+      });
+    }
     expect(getPlanBySourceId(plans, "source-merck-china-social")).toMatchObject({
       adapterId: "official-json",
       source: {

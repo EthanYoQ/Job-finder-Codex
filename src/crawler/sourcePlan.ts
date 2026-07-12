@@ -162,6 +162,10 @@ const REPRESENTATIVE_CONFIGS: Record<string, RepresentativeSourceConfig> = {
       appliedFacets: {
         jobFamilyGroup: JNJ_INNOVATIVE_MEDICINE_JOB_FAMILY_GROUPS
       },
+      facetDescriptorBoundary: {
+        facetParameter: "workerSubType",
+        allowedDescriptors: ["Fixed Term Employee (Non-Intern) (Fixed Term)", "Regular"]
+      },
       pageSize: 20,
       maxPages: 5
     }
@@ -318,6 +322,10 @@ const REPRESENTATIVE_CONFIGS: Record<string, RepresentativeSourceConfig> = {
       appliedFacets: {
         Location_Country: ["6cb77610a8a543aea2d6bc10457e35d4"]
       },
+      facetDescriptorBoundary: {
+        facetParameter: "workerSubType",
+        allowedDescriptors: ["Regular"]
+      },
       pageSize: 20,
       maxPages: 10
     }
@@ -378,8 +386,12 @@ const REPRESENTATIVE_CONFIGS: Record<string, RepresentativeSourceConfig> = {
       tenant: "msd",
       site: "SearchJobs",
       searchText: "China",
+      facetDescriptorBoundary: {
+        facetParameter: "workerSubType",
+        allowedDescriptors: ["Regular"]
+      },
       pageSize: 20,
-      maxPages: 5
+      maxPages: 10
     }
   },
   "source-bms-china-social": {
@@ -389,6 +401,10 @@ const REPRESENTATIVE_CONFIGS: Record<string, RepresentativeSourceConfig> = {
       tenant: "bristolmyerssquibb",
       site: "BMS",
       searchText: "China",
+      facetDescriptorBoundary: {
+        facetParameter: "workerSubType",
+        allowedDescriptors: ["Fixed Term (Fixed Term)", "Permanent"]
+      },
       pageSize: 20,
       maxPages: 5
     }
@@ -400,6 +416,10 @@ const REPRESENTATIVE_CONFIGS: Record<string, RepresentativeSourceConfig> = {
       tenant: "gilead",
       site: "gileadcareers",
       searchText: "China",
+      facetDescriptorBoundary: {
+        facetParameter: "workerSubType",
+        allowedDescriptors: ["Regular"]
+      },
       pageSize: 20,
       maxPages: 3
     }
@@ -492,6 +512,10 @@ const REPRESENTATIVE_CONFIGS: Record<string, RepresentativeSourceConfig> = {
       appliedFacets: {
         LocationCountry: ["6cb77610a8a543aea2d6bc10457e35d4"]
       },
+      facetDescriptorBoundary: {
+        facetParameter: "workerSubType",
+        allowedDescriptors: ["Regular"]
+      },
       pageSize: 20,
       maxPages: 3
     }
@@ -503,6 +527,10 @@ const REPRESENTATIVE_CONFIGS: Record<string, RepresentativeSourceConfig> = {
       tenant: "biibhr",
       site: "external",
       searchText: "China",
+      facetDescriptorBoundary: {
+        facetParameter: "workerSubType",
+        allowedDescriptors: ["Regular"]
+      },
       pageSize: 20,
       maxPages: 3
     }

@@ -15,6 +15,7 @@ export interface WorkdayFetchConfig {
   searchText?: string;
   appliedFacets?: Record<string, readonly string[]>;
   facetDescriptorExclusions?: readonly WorkdayFacetDescriptorExclusion[];
+  facetDescriptorBoundary?: WorkdayFacetDescriptorBoundary;
   pageSize?: number;
   maxPages?: number;
   cityHints?: Record<string, readonly string[]>;
@@ -23,6 +24,11 @@ export interface WorkdayFetchConfig {
 export interface WorkdayFacetDescriptorExclusion {
   facetParameter: string;
   excludedDescriptors: readonly string[];
+}
+
+export interface WorkdayFacetDescriptorBoundary {
+  facetParameter: string;
+  allowedDescriptors: readonly string[];
 }
 
 export interface WorkdayHttpRequest {
@@ -118,6 +124,7 @@ export function createWorkdaySourceFetch(deps: WorkdaySourceFetchDeps = {}): Sou
       const sitePath = normalizedSitePath(plan.source.officialEntryUrl);
       const configuredAppliedFacets = plan.workday.appliedFacets ?? {};
       const facetDescriptorExclusions = plan.workday.facetDescriptorExclusions ?? [];
+      const facetDescriptorBoundary = plan.workday.facetDescriptorBoundary;
       let appliedFacets = configuredAppliedFacets;
       let searchText = plan.workday.searchText;
       let expectedJobCount: number | undefined;
@@ -138,7 +145,7 @@ export function createWorkdaySourceFetch(deps: WorkdaySourceFetchDeps = {}): Sou
           origin,
           referer: plan.source.officialEntryUrl,
           appliedFacets,
-          searchText,
+          searchText: undefined,
           pageSize,
           offset: 0
         });
@@ -155,7 +162,10 @@ export function createWorkdaySourceFetch(deps: WorkdaySourceFetchDeps = {}): Sou
         searchText = undefined;
       }
 
-      if (facetDescriptorExclusions.length > 0) {
+      if (facetDescriptorExclusions.length > 0 || facetDescriptorBoundary) {
+        if (facetDescriptorExclusions.length > 0 && facetDescriptorBoundary) {
+          throw new Error("Workday facet boundary cannot combine allowlist and exclusion modes");
+        }
         const facetPreflight = await requestWorkdayJobs({
           http,
           url,
@@ -173,12 +183,19 @@ export function createWorkdaySourceFetch(deps: WorkdaySourceFetchDeps = {}): Sou
         artifacts.push(workdayArtifact("workday-facet-preflight-0000", "ATS_API_RESPONSE", url, facetPreflight, "$.facets"));
         latestEvidence = workdaySupportingArtifactEvidence(artifacts, "FACET_DERIVATION_FAILED");
         const parsedFacetPreflight = parseWorkdayJobsResponse(facetPreflight.body);
-        const derivation = deriveDescriptorExcludedAppliedFacets(
-          parsedFacetPreflight.facets,
-          facetDescriptorExclusions,
-          configuredAppliedFacets,
-          parsedFacetPreflight.total
-        );
+        const derivation = facetDescriptorBoundary
+          ? deriveAllowedDescriptorAppliedFacet(
+              parsedFacetPreflight.facets,
+              facetDescriptorBoundary,
+              appliedFacets,
+              parsedFacetPreflight.total
+            )
+          : deriveDescriptorExcludedAppliedFacets(
+              parsedFacetPreflight.facets,
+              facetDescriptorExclusions,
+              appliedFacets,
+              parsedFacetPreflight.total
+            );
         appliedFacets = { ...appliedFacets, ...derivation.appliedFacets };
         derivedFilteredTotal = derivation.expectedFilteredTotal;
         searchText = undefined;
@@ -204,6 +221,9 @@ export function createWorkdaySourceFetch(deps: WorkdaySourceFetchDeps = {}): Sou
         assertEvidenceResponse(response);
 
         const parsed = parseWorkdayJobsResponse(response.body);
+        const declaredPageTotal = pageIndex > 0 && parsed.total === 0 && parsed.jobPostings.length > 0
+          ? undefined
+          : parsed.total;
         if (pageIndex === 0 && derivedFilteredTotal !== undefined && parsed.total !== derivedFilteredTotal) {
           artifacts.push(workdayArtifact(
             "workday-filter-validation-0000",
@@ -221,7 +241,8 @@ export function createWorkdaySourceFetch(deps: WorkdaySourceFetchDeps = {}): Sou
         }
         const artifactLogicalKey = `workday-page-${String(pageIndex).padStart(4, "0")}`;
         artifacts.push(workdayArtifact(artifactLogicalKey, "PAGINATION_PAGE", url, response, "$.total"));
-        expectedJobCount = expectedJobCount ?? parsed.total;
+        expectedJobCount = expectedJobCount ?? declaredPageTotal;
+        const effectiveDeclaredPageTotal = declaredPageTotal ?? expectedJobCount;
         pagesVisited += 1;
         const pageJobs: ReturnType<typeof enrichWorkdayJob>[number][] = [];
         const rawJobIds: string[] = [];
@@ -243,6 +264,25 @@ export function createWorkdaySourceFetch(deps: WorkdaySourceFetchDeps = {}): Sou
             continue;
           }
           parsedCount += 1;
+          if (facetDescriptorBoundary && Object.prototype.hasOwnProperty.call(raw, facetDescriptorBoundary.facetParameter)) {
+            const recordDescriptor = stringValue(raw[facetDescriptorBoundary.facetParameter]);
+            if (!recordDescriptor || !facetDescriptorBoundary.allowedDescriptors.includes(recordDescriptor)) {
+              artifacts.pop();
+              artifacts.push(workdayArtifact(
+                "workday-record-boundary-validation-0000",
+                "ATS_API_RESPONSE",
+                url,
+                response,
+                `$.jobPostings[${recordIndex}].${facetDescriptorBoundary.facetParameter}`
+              ));
+              latestEvidence = workdaySupportingArtifactEvidence(artifacts, "FACET_FILTER_VALIDATION_FAILED");
+              return failed(
+                capturedAt,
+                `Workday record ${facetDescriptorBoundary.facetParameter} descriptor ${recordDescriptor ?? "<invalid>"} is outside the proven boundary`,
+                latestEvidence
+              );
+            }
+          }
           const missingField = missingWorkdayRequiredField(raw);
           if (missingField) {
             validationDiscardCount += 1;
@@ -312,7 +352,7 @@ export function createWorkdaySourceFetch(deps: WorkdaySourceFetchDeps = {}): Sou
           ? (isLastAllowedPage ? "MAX_PAGE_LIMIT" : "CONTINUE")
           : parsed.jobPostings.length === 0 && expectedJobCount === 0
             ? "EMPTY_PAGE"
-            : expectedJobCount !== undefined && parsed.total === expectedJobCount &&
+            : expectedJobCount !== undefined && effectiveDeclaredPageTotal === expectedJobCount &&
                 new Set([...pages.flatMap((page) => page.validJobIds), ...validJobIds]).size === expectedJobCount
               ? "DECLARED_TOTAL_REACHED"
               : "NEXT_ABSENT";
@@ -327,9 +367,9 @@ export function createWorkdaySourceFetch(deps: WorkdaySourceFetchDeps = {}): Sou
           returnedPageSize: null,
           rawJobIds: [...new Set(rawJobIds)],
           validJobIds: [...new Set(validJobIds)],
-          declaredTotal: parsed.total ?? null,
+          declaredTotal: effectiveDeclaredPageTotal ?? null,
           declaredCount: null,
-          declaredPages: parsed.total === undefined ? null : Math.ceil(parsed.total / pageSize),
+          declaredPages: effectiveDeclaredPageTotal === undefined ? null : Math.ceil(effectiveDeclaredPageTotal / pageSize),
           nextPageSignalBefore: pageIndex === 0 ? null : String(offset),
           nextPageSignalAfter: hasNext ? String(offset + pageSize) : null,
           responseFingerprintSha256: sha256Bytes(Buffer.from(response.body, "utf8")).sha256,
@@ -934,6 +974,85 @@ function deriveDescriptorExcludedAppliedFacets(
     throw new Error("Workday facet descriptor exclusion did not derive a complete partition");
   }
   return { appliedFacets: derived, expectedFilteredTotal };
+}
+
+function deriveAllowedDescriptorAppliedFacet(
+  facets: unknown,
+  boundary: WorkdayFacetDescriptorBoundary,
+  configuredAppliedFacets: Record<string, readonly string[]>,
+  officialTotal: number | undefined
+): {
+  appliedFacets: Record<string, readonly string[]>;
+  expectedFilteredTotal: number;
+} {
+  const facetParameter = stringValue(boundary.facetParameter);
+  if (!facetParameter || facetParameter !== boundary.facetParameter) {
+    throw new Error("Workday allowed-descriptor boundary has an invalid facet parameter");
+  }
+  if (configuredAppliedFacets[facetParameter] !== undefined) {
+    throw new Error(`Workday facet parameter ${facetParameter} is already configured`);
+  }
+  const allowedDescriptors = boundary.allowedDescriptors.map((descriptor) => stringValue(descriptor));
+  if (
+    allowedDescriptors.length === 0 ||
+    allowedDescriptors.some((descriptor) => descriptor === undefined) ||
+    new Set(allowedDescriptors).size !== allowedDescriptors.length
+  ) {
+    throw new Error(`Workday facet parameter ${facetParameter} has invalid allowed descriptors`);
+  }
+
+  const groups = findExactFacetGroups(facets, facetParameter);
+  if (groups.length !== 1) {
+    throw new Error(`Workday facet parameter ${facetParameter} was missing or ambiguous in preflight evidence`);
+  }
+  const values = groups[0]!.values;
+  if (!Array.isArray(values) || values.length === 0) {
+    throw new Error(`Workday facet parameter ${facetParameter} has no values in preflight evidence`);
+  }
+  const parsedValues = values.map((value) => {
+    if (!isRecord(value)) {
+      throw new Error(`Workday facet parameter ${facetParameter} contains a malformed value`);
+    }
+    const descriptor = stringValue(value.descriptor);
+    if (!descriptor) {
+      throw new Error(`Workday facet parameter ${facetParameter} contains a value missing a descriptor`);
+    }
+    const id = stringValue(value.id);
+    if (!id) {
+      throw new Error(`Workday facet parameter ${facetParameter} value ${descriptor} is missing an id`);
+    }
+    const count = value.count;
+    if (typeof count !== "number" || !Number.isSafeInteger(count) || count < 0) {
+      throw new Error(`Workday facet parameter ${facetParameter} counts do not prove a complete partition of the official total`);
+    }
+    return { descriptor, id, count };
+  });
+  if (
+    new Set(parsedValues.map((value) => value.descriptor)).size !== parsedValues.length ||
+    new Set(parsedValues.map((value) => value.id)).size !== parsedValues.length
+  ) {
+    throw new Error(`Workday facet parameter ${facetParameter} contains duplicate descriptors or ids`);
+  }
+  if (officialTotal === undefined || parsedValues.reduce((sum, value) => sum + value.count, 0) !== officialTotal) {
+    throw new Error(`Workday facet parameter ${facetParameter} counts do not prove a complete partition of the official total`);
+  }
+
+  const allowedSet = new Set(allowedDescriptors as string[]);
+  const availableSet = new Set(parsedValues.map((value) => value.descriptor));
+  for (const allowedDescriptor of allowedDescriptors as string[]) {
+    if (!availableSet.has(allowedDescriptor)) {
+      throw new Error(`Workday allowed descriptor ${allowedDescriptor} was missing from facet ${facetParameter}`);
+    }
+  }
+  const unexpected = parsedValues.find((value) => !allowedSet.has(value.descriptor));
+  if (unexpected) {
+    throw new Error(`Workday facet ${facetParameter} contains unexpected descriptor ${unexpected.descriptor}`);
+  }
+
+  return {
+    appliedFacets: { [facetParameter]: parsedValues.map((value) => value.id) },
+    expectedFilteredTotal: parsedValues.reduce((sum, value) => sum + value.count, 0)
+  };
 }
 
 function findExactFacetGroups(value: unknown, facetParameter: string): Record<string, unknown>[] {
