@@ -32,4 +32,15 @@ describe("browser-backed crawler runtime dependencies", () => {
     expect(dockerfile).toContain("/app/Dockerfile");
     expect(dockerfile).toContain("/app/.dockerignore");
   });
+
+  it("binds browser state directories to the writable tmpfs used by the hardened runtime", () => {
+    const dockerfile = readFileSync("Dockerfile", "utf8");
+    const runtimeStage = dockerfile.split(/^FROM node:22-bookworm-slim AS runtime$/mu)[1];
+
+    expect(runtimeStage).toBeDefined();
+    expect(runtimeStage).toMatch(/^ENV HOME=\/tmp$/mu);
+    expect(runtimeStage).toMatch(/^ENV XDG_CONFIG_HOME=\/tmp\/\.config$/mu);
+    expect(runtimeStage).toMatch(/^ENV XDG_CACHE_HOME=\/tmp\/\.cache$/mu);
+    expect(dockerfile).not.toContain("--no-sandbox");
+  });
 });

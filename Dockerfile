@@ -29,6 +29,9 @@ RUN npx tsx scripts/generate-build-identity.ts --commit=${BUILD_COMMIT_SHA} --cl
 FROM node:22-bookworm-slim AS runtime
 WORKDIR /app
 ENV NODE_ENV=production
+ENV HOME=/tmp
+ENV XDG_CONFIG_HOME=/tmp/.config
+ENV XDG_CACHE_HOME=/tmp/.cache
 RUN apt-get update && apt-get install -y --no-install-recommends postgresql-client chromium \
   && rm -rf /var/lib/apt/lists/*
 COPY package.json ./package.json

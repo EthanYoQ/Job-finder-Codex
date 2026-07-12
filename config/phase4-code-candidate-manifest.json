@@ -1,18 +1,18 @@
 {
   "schemaVersion": "phase4-code-candidate-v1",
   "planId": "docs/superpowers/plans/2026-07-10-p0-recovery-and-release-evidence.md",
-  "baseHead": "10c05d8e6971df42b70c858485ad4354772a7e84",
+  "baseHead": "8dbae12c33a0a31980013c4e4670a7c810fdbec2",
   "entries": [
     {
       "path": "Dockerfile",
-      "sha256": "fe403978de0074faf9ce8fb06bce5e7377ac8d308980c40493e7e5ca92f9420b",
-      "bytes": 2095,
+      "sha256": "022f30d86238f6f8b0cfb4460a2bcf2613443e0dc87ff69128cdf528acf3061b",
+      "bytes": 2173,
       "role": "runtime"
     },
     {
-      "path": "tests/readiness/prismaOfflineEngines.test.ts",
-      "sha256": "0aaed4056ba3f20f5c597ff059849b17f7f362ed387c669d5d3951530d244c9b",
-      "bytes": 1382,
+      "path": "tests/crawler/browserRuntimeDependency.test.ts",
+      "sha256": "46887b7eaaf504b467dc7b198b799108cc069f966897c50677c5194af63e2b51",
+      "bytes": 2465,
       "role": "test"
     }
   ]
