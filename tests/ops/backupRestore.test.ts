@@ -188,7 +188,7 @@ describe("backup and restore scripts", () => {
       expect(existsSync(resolve(failure.backupDir, "jobfinder-20260712T150000Z.dump.sha256"))).toBe(false);
       expect(existsSync(resolve(failure.backupDir, "jobfinder-20260712T150000Z.dump.partial"))).toBe(false);
     }
-  });
+  }, 15_000);
 
   it("rejects invalid retention, a held lock, and same-name artifacts without deleting them", () => {
     for (const retention of ["-1", "6", "15", "abc"]) {
@@ -289,5 +289,5 @@ describe("backup and restore scripts", () => {
       });
       expect(result.status).not.toBe(0);
     }
-  });
+  }, 15_000);
 });

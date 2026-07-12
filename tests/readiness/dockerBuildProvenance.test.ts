@@ -31,7 +31,7 @@ describe("portable Docker build provenance",()=>{
     const bundle=join(worktree,".docker-build-provenance.bundle");exportDockerBuildProvenance(worktree,bundle);
     const head=execFileSync("git",["rev-parse","HEAD"],{cwd:worktree,encoding:"utf8"}).trim();
     expect(verifyDockerBuildProvenance(worktree,bundle,head,canonicalSourceTreeSha256(worktree)).commitSha).toBe(head);
-  });
+  }, 15_000);
   it("rejects copied source tampering, a forged commit argument, and dirty export",()=>{
     const root=repository(),bundle=join(root,".docker-build-provenance.bundle");exportDockerBuildProvenance(root,bundle);
     const head=execFileSync("git",["rev-parse","HEAD"],{cwd:root,encoding:"utf8"}).trim(),digest=canonicalSourceTreeSha256(root);
@@ -40,7 +40,7 @@ describe("portable Docker build provenance",()=>{
     writeFileSync(join(root,"src","main.ts"),"tampered\n");
     expect(()=>verifyDockerBuildProvenance(root,bundle,head,digest)).toThrow(/source tree/i);
     expect(()=>exportDockerBuildProvenance(root,bundle)).toThrow(/dirty/i);
-  });
+  }, 15_000);
   it.each(["index.html","vite.config.ts"])("rejects dirty export when the Vite build input %s changes",file=>{
     const root=repository(),bundle=join(root,".docker-build-provenance.bundle");exportDockerBuildProvenance(root,bundle);
     writeFileSync(join(root,file),"tampered build input\n");

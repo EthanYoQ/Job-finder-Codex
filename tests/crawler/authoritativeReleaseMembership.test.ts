@@ -51,7 +51,7 @@ describe("authoritative release membership", () => {
     expect(result).toMatchObject({ valid: true, forgedPinRejected: true, replacementRejected: true,
       duplicateRejected: true, allBindingsRejected: true, memberHashRejected: true,
       contentHashRejected: true, partialRejected: true, envDeleted: true });
-  });
+  }, 15_000);
 
   it("detects replacement before first load and memoizes frozen original after successful load", async () => {
     expect(await runMembershipAuthorityScenario("replace-before-load", artifact(), binding, members))

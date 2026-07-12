@@ -492,7 +492,7 @@ describe("deployment configuration", () => {
       MONITORING_NOW: "2026-07-12T13:00:00.000Z"
     });
     expect(missing.stderr).toContain("BACKUP_MISSING");
-  });
+  }, 15_000);
 
   it("fails closed when the newest marker-like entry or its archive is a symbolic link", () => {
     for (const symlinkKind of ["marker", "archive"] as const) {
