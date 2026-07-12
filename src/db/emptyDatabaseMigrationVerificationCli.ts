@@ -45,9 +45,10 @@ export const REVIEWED_USER_TYPE_NAMES = [
 
 export const REVIEWED_FUNCTION_NAMES = [
   "assert_verified_parent_lifecycle_projection", "enforce_source_result_state_machine",
-  "prevent_committed_source_result_mutation", "prevent_immutable_evidence_mutation",
-  "prevent_rc_observation_mutation", "prevent_release_candidate_delete",
-  "prevent_release_candidate_identity_mutation", "reject_lifecycle_set_member_mutation",
+  "prevent_immutable_evidence_mutation", "prevent_rc_observation_mutation",
+  "prevent_release_candidate_delete", "prevent_release_candidate_identity_mutation",
+  "prevent_transport_attempt_artifact_mutation", "prevent_transport_attempt_mutation",
+  "reject_lifecycle_set_member_mutation", "require_transport_attempt_artifact_ref",
   "validate_lifecycle_set_member_projection", "validate_verified_parent_lifecycle_projection"
 ] as const;
 
@@ -59,13 +60,13 @@ export const REVIEWED_INDEX_NAMES = [
   "Company_officialChineseName_key", "Company_pinyinName_idx", "Company_pkey",
   "CrawlBatch_id_releaseCandidateId_key", "CrawlBatch_ownerId_heartbeatAt_idx", "CrawlBatch_pkey",
   "CrawlBatch_releaseCandidateId_startedAt_idx", "CrawlBatch_status_startedAt_idx",
-  "CrawlBatchSourceResult_batchId_sourceId_key", "CrawlBatchSourceResult_id_releaseCandidateId_batchId_sourceId_key",
+  "CrawlBatchSourceResult_batchId_sourceId_key", "CrawlBatchSourceResult_id_releaseCandidateId_batchId_sourceId_k",
   "CrawlBatchSourceResult_pkey", "CrawlBatchSourceResult_releaseCandidateId_sourceId_idx",
   "CrawlBatchSourceResult_sourceId_finishedAt_idx", "CrawlObservation_batchId_sourceId_idx",
   "CrawlObservation_officialEvidenceArtifactId_idx", "CrawlObservation_pkey",
   "CrawlObservation_releaseCandidateId_sourceId_idx", "CrawlObservation_sourceId_crawledAt_idx",
   "CrawlObservation_sourceResultId_idx", "CrawlObservation_successful_idx",
-  "EvidenceArtifact_id_releaseCandidateId_batchId_sourceId_sourceResultId_key", "EvidenceArtifact_path_key",
+  "EvidenceArtifact_id_releaseCandidateId_batchId_sourceId_sourceR", "EvidenceArtifact_path_key",
   "EvidenceArtifact_pkey", "EvidenceArtifact_releaseCandidateId_batchId_sourceId_idx",
   "EvidenceArtifact_sha256_idx", "EvidenceArtifact_sourceId_capturedAt_idx",
   "EvidenceArtifact_sourceResultId_channelId_idx", "Feedback_pkey", "Feedback_status_createdAt_idx",
@@ -83,11 +84,11 @@ export const REVIEWED_INDEX_NAMES = [
   "RecruitmentSource_pkey", "RecruitmentSource_status_idx", "ReleaseCandidate_commitSha_idx",
   "ReleaseCandidate_goalId_version_key", "ReleaseCandidate_pkey", "ReleaseCandidate_status_createdAt_idx",
   "TransportAttemptArtifact_artifactId_idx", "TransportAttemptArtifact_pkey", "TransportAttemptEvidence_pkey",
-  "TransportAttemptEvidence_releaseCandidateId_batchId_sourceId_idx",
+  "TransportAttemptEvidence_releaseCandidateId_batchId_sourceId_id",
   "TransportAttemptEvidence_sourceResultId_sequence_key", "TransportAttemptEvidence_tuple_key"
 ] as const;
 
-export const REVIEWED_INDEX_DEFINITION_SHA256 = "3cd314485e516feb24efa8b11fa6708167f6d86286946e40846bd09d68143102";
+export const REVIEWED_INDEX_DEFINITION_SHA256 = "22f0439dfce6c95968a146ab599890ac8192ffd301a088c93f7c4b030c19370e";
 
 interface SpawnResult {
   status: number | null;

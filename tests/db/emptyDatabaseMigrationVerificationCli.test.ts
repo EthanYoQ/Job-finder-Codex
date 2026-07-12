@@ -21,9 +21,21 @@ describe("empty database migration verification CLI contract", () => {
     expect(REVIEWED_APP_TABLE_NAMES).toHaveLength(20);
     expect(new Set(REVIEWED_APP_TABLE_NAMES).size).toBe(20);
     expect(REVIEWED_USER_TYPE_NAMES).toHaveLength(26);
-    expect(REVIEWED_FUNCTION_NAMES).toHaveLength(10);
+    expect(REVIEWED_FUNCTION_NAMES).toHaveLength(12);
+    expect(REVIEWED_FUNCTION_NAMES).toEqual(expect.arrayContaining([
+      "prevent_transport_attempt_artifact_mutation",
+      "prevent_transport_attempt_mutation",
+      "require_transport_attempt_artifact_ref"
+    ]));
+    expect(REVIEWED_FUNCTION_NAMES).not.toContain("prevent_committed_source_result_mutation");
     expect(REVIEWED_INDEX_NAMES).toHaveLength(81);
-    expect(REVIEWED_INDEX_DEFINITION_SHA256).toMatch(/^[a-f0-9]{64}$/u);
+    expect(REVIEWED_INDEX_NAMES).toEqual(expect.arrayContaining([
+      "CrawlBatchSourceResult_id_releaseCandidateId_batchId_sourceId_k",
+      "EvidenceArtifact_id_releaseCandidateId_batchId_sourceId_sourceR",
+      "TransportAttemptEvidence_releaseCandidateId_batchId_sourceId_id"
+    ]));
+    expect(REVIEWED_INDEX_DEFINITION_SHA256)
+      .toBe("22f0439dfce6c95968a146ab599890ac8192ffd301a088c93f7c4b030c19370e");
   });
 
   it("refuses local migration drift before any command can run", () => {
