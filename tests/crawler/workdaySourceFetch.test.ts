@@ -819,7 +819,7 @@ describe("createWorkdaySourceFetch", () => {
           { logicalKey: "workday-facet-preflight-0000", extractorLocator: "$.facets" },
           { logicalKey: "workday-filter-validation-0000", body: expect.stringContaining('"total":3') }
         ],
-        supportingArtifactOnlyFailure: { code: "FACET_DERIVATION_FAILED" }
+        supportingArtifactOnlyFailure: { code: "FACET_FILTER_VALIDATION_FAILED" }
       }
     });
   });
@@ -876,7 +876,8 @@ describe("createWorkdaySourceFetch", () => {
       ok: false,
       failureReason: expect.stringContaining("complete partition"),
       fetchEvidence: {
-        artifacts: [{ logicalKey: "workday-facet-preflight-0000", extractorLocator: "$.facets" }]
+        artifacts: [{ logicalKey: "workday-facet-preflight-0000", extractorLocator: "$.facets" }],
+        supportingArtifactOnlyFailure: { code: "FACET_DERIVATION_FAILED" }
       }
     });
   });

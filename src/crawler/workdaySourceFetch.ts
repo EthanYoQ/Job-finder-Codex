@@ -147,7 +147,7 @@ export function createWorkdaySourceFetch(deps: WorkdaySourceFetchDeps = {}): Sou
         }
         assertEvidenceResponse(preflight);
         artifacts.push(workdayArtifact("workday-preflight-0000", "ATS_API_RESPONSE", url, preflight, "$.facets"));
-        latestEvidence = workdaySupportingArtifactEvidence(artifacts);
+        latestEvidence = workdaySupportingArtifactEvidence(artifacts, "FACET_DERIVATION_FAILED");
         const preflightFacets = parseWorkdayJobsResponse(preflight.body).facets;
         const discoveredFacets = chinaLocationAppliedFacets(preflightFacets);
         if (discoveredFacets) {
@@ -174,7 +174,7 @@ export function createWorkdaySourceFetch(deps: WorkdaySourceFetchDeps = {}): Sou
         }
         assertEvidenceResponse(facetPreflight);
         artifacts.push(workdayArtifact("workday-facet-preflight-0000", "ATS_API_RESPONSE", url, facetPreflight, "$.facets"));
-        latestEvidence = workdaySupportingArtifactEvidence(artifacts);
+        latestEvidence = workdaySupportingArtifactEvidence(artifacts, "FACET_DERIVATION_FAILED");
         const parsedFacetPreflight = parseWorkdayJobsResponse(facetPreflight.body);
         const derivation = deriveDescriptorExcludedAppliedFacets(
           parsedFacetPreflight.facets,
@@ -215,7 +215,7 @@ export function createWorkdaySourceFetch(deps: WorkdaySourceFetchDeps = {}): Sou
             response,
             "$.total"
           ));
-          latestEvidence = workdaySupportingArtifactEvidence(artifacts);
+          latestEvidence = workdaySupportingArtifactEvidence(artifacts, "FACET_FILTER_VALIDATION_FAILED");
           return failed(
             capturedAt,
             `Workday filtered total ${String(parsed.total)} did not match derived total ${derivedFilteredTotal}`,
@@ -424,13 +424,14 @@ export function createWorkdaySourceFetch(deps: WorkdaySourceFetchDeps = {}): Sou
 }
 
 function workdaySupportingArtifactEvidence(
-  artifacts: readonly SourceFetchArtifactDraft[]
+  artifacts: readonly SourceFetchArtifactDraft[],
+  failureCode: "FACET_DERIVATION_FAILED" | "FACET_FILTER_VALIDATION_FAILED"
 ): PersistentSourceFetchEvidence {
   return parsePersistentSourceFetchEvidence({
     captureTool: { name: "job-search-workday-fetch", version: "1" },
     artifacts,
     pages: [],
-    supportingArtifactOnlyFailure: { code: "FACET_DERIVATION_FAILED" },
+    supportingArtifactOnlyFailure: { code: failureCode },
     fetchCounts: {
       rawCount: 0,
       parsedCount: 0,
