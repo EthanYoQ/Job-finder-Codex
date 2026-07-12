@@ -862,7 +862,15 @@ describe("Phenom evidence instrumentation", () => {
   it.each([
     ["slash-separated foreign city", "Shanghai / Singapore", "Shanghai"],
     ["foreign city beside China", "London, China", "London"],
-    ["non-mainland region beside Shanghai", "Shanghai, Hong Kong", "Shanghai"]
+    ["non-mainland region beside Shanghai", "Shanghai, Hong Kong", "Shanghai"],
+    ["non-mainland code", "HK", "Shanghai"],
+    ["foreign office suffix", "Singapore Office", "Shanghai"],
+    ["Chinese foreign office suffix", "新加坡办公室", "上海"],
+    ["ideographic comma boundary", "Shanghai、新加坡", "Shanghai"],
+    ["parenthesized foreign location", "Shanghai（Singapore Office）", "Shanghai"],
+    ["hyphenated foreign location", "Shanghai-Singapore", "Shanghai"],
+    ["SAR suffix", "Hong Kong SAR", "Shanghai"],
+    ["non-mainland airport-style code", "HKG", "Shanghai"]
   ])("rejects a China-tagged Phenom record with %s", async (_label, location, city) => {
     const fetcher = createOfficialJsonSourceFetch({
       now: () => new Date(capturedAt),
@@ -878,6 +886,22 @@ describe("Phenom evidence instrumentation", () => {
         fetchCounts: { rawCount: 1, validCount: 0, validationDiscardCount: 1 },
         fetchLosses: [{ details: { code: "OUT_OF_SCOPE" } }]
       }
+    });
+  });
+
+  it("fails closed on an unclassified segment in a multi-segment China location", async () => {
+    const fetcher = createOfficialJsonSourceFetch({
+      now: () => new Date(capturedAt),
+      http: async (request) => request.method === "POST"
+        ? response(pageBody([job("AMBIGUOUS", {
+            country: "China", location: "office,Shanghai", city: "Shanghai"
+          })], 1, 0), widgetUrl, "application/json")
+        : response(entryHtml(), entryUrl, "text/html")
+    });
+
+    await expect(fetcher(plan)).resolves.toMatchObject({
+      ok: false,
+      fetchEvidence: { fetchCounts: { rawCount: 1, validCount: 0, validationDiscardCount: 1 } }
     });
   });
 

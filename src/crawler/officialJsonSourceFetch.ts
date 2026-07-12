@@ -2648,9 +2648,11 @@ async function fetchPhenomWidgets({
         continue;
       }
       const city = stringValue(raw.city);
+      const locationScopeInvalid = explicitlyForeignOrNonMainlandLocation(locationRaw!) ||
+        (city !== undefined && explicitlyForeignOrNonMainlandLocation(city)) ||
+        phenomLocationHasAmbiguousSegments(locationRaw!);
       if ((facetScope || sourceScopedChinaRequest) && phenomCountryIsMainlandChina(stringValue(raw.country)) &&
-        (explicitlyForeignOrNonMainlandLocation(locationRaw!) ||
-          (city !== undefined && explicitlyForeignOrNonMainlandLocation(city)))) {
+        locationScopeInvalid) {
         recordPhenomLoss(losses, counts, "VALIDATION", "OUT_OF_SCOPE", rawLocator, pageIndex, recordIndex);
         pages.push(phenomPageTrace({
           artifact, sequence: pageIndex, requestedOffset, returnedOffset,
@@ -3085,11 +3087,28 @@ function phenomRecordHasChinaScope(
   city: string | undefined
 ): boolean {
   if (explicitlyForeignOrNonMainlandLocation(locationRaw) ||
-    (city !== undefined && explicitlyForeignOrNonMainlandLocation(city))) return false;
+    (city !== undefined && explicitlyForeignOrNonMainlandLocation(city)) ||
+    phenomLocationHasAmbiguousSegments(locationRaw)) return false;
   if (country !== undefined) {
     return phenomCountryIsMainlandChina(country);
   }
   return explicitlyChina(`${locationRaw} ${city ?? ""}`);
+}
+
+function phenomLocationHasAmbiguousSegments(locationRaw: string): boolean {
+  const normalized = locationRaw.normalize("NFKC");
+  const segments = normalized.split(/[,，/|;；\r\n>、()（）\-–—]+/u)
+    .map((segment) => segment.trim())
+    .filter(Boolean);
+  if (segments.length < 2) return false;
+  if (segments.some((segment) => /^(?:china|prc|chn|mainland china|china mainland|中国|中国大陆|中华人民共和国)$/iu.test(segment))) {
+    return false;
+  }
+  return segments.some((segment) =>
+    !explicitlyForeignOrNonMainlandLocation(segment) &&
+    !explicitlyChina(segment) &&
+    !/^(?:cn|chn|shanghai|beijing|guangzhou|shenzhen|chengdu|hangzhou|nanjing|suzhou|wuhan|tianjin|chongqing|xi'?an|jiangsu|zhejiang|guangdong|sichuan|hubei|hunan|henan|hebei|shandong|fujian|anhui|jiangxi|liaoning|jilin|heilongjiang|shanxi|shaanxi|yunnan|guizhou|gansu|qinghai|hainan|内蒙古|广西|宁夏|新疆|西藏)$/iu.test(segment)
+  );
 }
 
 function phenomCountryIsMainlandChina(country: string | undefined): boolean {

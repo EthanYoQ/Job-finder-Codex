@@ -307,13 +307,11 @@ export function explicitlyOutsideChina(value: string): boolean {
 
 export function explicitlyForeignOrNonMainlandLocation(value: string): boolean {
   const normalized = value.normalize("NFKC").toLowerCase();
-  const segments = normalized.split(/[,，/|;；\r\n>]+/u)
-    .map((segment) => segment.trim().replace(/^(?:country|region|location|国家|地区|地点)\s*[:：]\s*/u, ""))
-    .filter(Boolean);
-  return segments.some((segment) =>
-    /^(?:美国|纽约|波士顿|新加坡|日本|东京|印度|德国|法国|加拿大|澳大利亚|英国|伦敦|韩国|马来西亚|印度尼西亚|泰国|越南|菲律宾|荷兰|比利时|瑞士|瑞典|西班牙|意大利|波兰|墨西哥|巴西|阿根廷|奥地利|爱尔兰|以色列|土耳其|哥伦比亚|智利|秘鲁|南非|新西兰|阿联酋|沙特阿拉伯|俄罗斯|香港|香港特别行政区|澳门|澳门特别行政区|台湾)$/u.test(segment) ||
-    /^(?:united states|usa|u\.s\.|boston|new york|singapore|japan|tokyo|india|germany|france|canada|australia|united kingdom|u\.k\.|london|south korea|republic of korea|malaysia|indonesia|thailand|viet\s*nam|vietnam|philippines|netherlands|belgium|switzerland|sweden|spain|italy|poland|mexico|brazil|argentina|austria|ireland|israel|türkiye|turkey|colombia|chile|peru|south africa|new zealand|united arab emirates|saudi arabia|russia|hong kong|macau|macao|taiwan)$/u.test(segment)
-  );
+  const englishForeignToken = /\b(?:united states|usa|u\.s\.|boston|new york|singapore|japan|tokyo|india|germany|france|canada|australia|united kingdom|u\.k\.|london|south korea|republic of korea|malaysia|indonesia|thailand|viet\s*nam|vietnam|philippines|netherlands|belgium|switzerland|sweden|spain|italy|poland|mexico|brazil|argentina|austria|ireland|israel|türkiye|turkey|colombia|chile|peru|south africa|new zealand|united arab emirates|saudi arabia|russia|hong[\s-]+kong(?:\s+sar)?|macau|macao|taiwan|hk|hkg|sg|sgp|tw|twn|mo|mac)\b/u;
+  if (englishForeignToken.test(normalized)) return true;
+  const chineseBoundary = "(?:^|[,，/|;；\\r\\n>、(（)）\\-–—])\\s*";
+  const chineseForeignToken = "(?:美国|纽约|波士顿|新加坡|日本|东京|印度|德国|法国|加拿大|澳大利亚|英国|伦敦|韩国|马来西亚|印度尼西亚|泰国|越南|菲律宾|荷兰|比利时|瑞士|瑞典|西班牙|意大利|波兰|墨西哥|巴西|阿根廷|奥地利|爱尔兰|以色列|土耳其|哥伦比亚|智利|秘鲁|南非|新西兰|阿联酋|沙特阿拉伯|俄罗斯|香港(?:特别行政区)?|澳门(?:特别行政区)?|台湾)";
+  return new RegExp(`${chineseBoundary}${chineseForeignToken}`, "u").test(normalized);
 }
 
 export function safeOfficialJsonEndpoint(value: string): string {
