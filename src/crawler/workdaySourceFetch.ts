@@ -692,6 +692,7 @@ function chinaLocationAppliedFacets(
   if (countryGroups.length === 1) {
     const countryGroup = countryGroups[0]!;
     const nodes = parseAndVerifyFacetGroup(countryGroup, officialTotal);
+    assertCountryFacetScopeOwnership(countryGroup.facetParameter, nodes);
     const selectedLeaves = nodes.flatMap((node) =>
       isMainlandChinaCountryDescriptor(node.descriptor) ? selectableLeaves(node, true) : []
     );
@@ -745,6 +746,29 @@ function parseAndVerifyFacetGroup(
     throw new Error(`Workday location facet ${group.facetParameter} counts do not prove a complete partition`);
   }
   return nodes;
+}
+
+function assertCountryFacetScopeOwnership(
+  facetParameter: string,
+  nodes: readonly WorkdayFacetNode[]
+): void {
+  for (const node of nodes) {
+    if (isMainlandChinaCountryDescriptor(node.descriptor) || isNonMainlandChinaDescriptor(node.descriptor)) {
+      continue;
+    }
+    assertExplicitForeignCountryBranch(facetParameter, node);
+  }
+}
+
+function assertExplicitForeignCountryBranch(facetParameter: string, node: WorkdayFacetNode): void {
+  if (isKnownForeignCountryDescriptor(node.descriptor) || isNonMainlandChinaDescriptor(node.descriptor)) {
+    return;
+  }
+  if (node.children.length > 0) {
+    node.children.forEach((child) => assertExplicitForeignCountryBranch(facetParameter, child));
+    return;
+  }
+  throw new Error(`Workday location facet ${facetParameter} contains unscoped country descriptor ${node.descriptor}`);
 }
 
 function parseFacetNode(value: unknown, facetParameter: string): WorkdayFacetNode {

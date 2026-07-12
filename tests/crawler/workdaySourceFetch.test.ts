@@ -864,6 +864,37 @@ describe("createWorkdaySourceFetch", () => {
       .resolves.toMatchObject({ ok: false, failureReason: expect.stringContaining("duplicate descriptors or ids") });
   });
 
+  it("fails closed before pagination when a country facet has an unowned Global or Remote branch", async () => {
+    const requests: Array<{ body: string }> = [];
+    const fetcher = createWorkdaySourceFetch({
+      http: async (request) => {
+        requests.push(request);
+        return response({
+          total: 2,
+          jobPostings: [],
+          facets: [{
+            facetParameter: "Location_Country",
+            descriptor: "Country",
+            values: [
+              { descriptor: "China", id: "china", count: 1 },
+              { descriptor: "Global / Remote", id: "global-remote", count: 1 }
+            ]
+          }]
+        });
+      }
+    });
+
+    await expect(fetcher({
+      ...plan,
+      workday: { tenant: "pfizer", site: "PfizerCareers", searchText: "China" }
+    })).resolves.toMatchObject({
+      ok: false,
+      failureReason: expect.stringContaining("unscoped country descriptor Global / Remote"),
+      fetchEvidence: { artifacts: [{ logicalKey: "workday-preflight-0000" }] }
+    });
+    expect(requests).toHaveLength(1);
+  });
+
   it("selects requestable leaves from a nested locations to China hierarchy", async () => {
     const requests: Array<{ body: string }> = [];
     const fetcher = createWorkdaySourceFetch({
