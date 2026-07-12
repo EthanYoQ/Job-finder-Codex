@@ -674,6 +674,213 @@ describe("createWorkdaySourceFetch", () => {
     });
   });
 
+  it("discovers geography before a dedicated facet preflight and includes categories absent from the search subset", async () => {
+    const bodies: Array<Record<string, unknown>> = [];
+    const fetcher = createWorkdaySourceFetch({
+      now: () => new Date("2026-07-13T00:00:00.000Z"),
+      http: async (request) => {
+        const body = JSON.parse(request.body) as Record<string, unknown>;
+        bodies.push(body);
+        const appliedFacets = body.appliedFacets as Record<string, string[]>;
+        if (body.searchText === "China") {
+          return response({
+            total: 2,
+            jobPostings: [],
+            facets: [
+              {
+                facetParameter: "locations",
+                descriptor: "Locations",
+                values: [{ descriptor: "Shanghai, China", id: "shanghai-id", count: 2 }]
+              },
+              {
+                facetParameter: "jobFamilyGroup",
+                descriptor: "Job Family Group",
+                values: [{ descriptor: "Medical", id: "medical-id", count: 2 }]
+              }
+            ]
+          }, "2026-07-13T00:00:01.000Z");
+        }
+        if (!appliedFacets.jobFamilyGroup) {
+          return response({
+            total: 4,
+            jobPostings: [],
+            facets: [{
+              facetParameter: "jobFamilyGroup",
+              descriptor: "Job Family Group",
+              values: [
+                { descriptor: "Medical", id: "medical-id", count: 1 },
+                { descriptor: "Commercial", id: "commercial-id", count: 2 },
+                { descriptor: "Vocational & Development Programs", id: "development-id", count: 1 }
+              ]
+            }]
+          }, "2026-07-13T00:00:02.000Z");
+        }
+        expect(appliedFacets.jobFamilyGroup).toEqual(["medical-id", "commercial-id"]);
+        return response({
+          total: 3,
+          jobPostings: [
+            { title: "Medical", externalPath: "/job/China/medical", locationsText: "Shanghai, China" },
+            { title: "Commercial One", externalPath: "/job/China/commercial-1", locationsText: "Shanghai, China" },
+            { title: "Commercial Two", externalPath: "/job/China/commercial-2", locationsText: "Shanghai, China" }
+          ]
+        }, "2026-07-13T00:00:03.000Z");
+      }
+    });
+
+    const result = await fetcher({
+      ...plan,
+      workday: {
+        tenant: "roche",
+        site: "roche-ext",
+        searchText: "China",
+        facetDescriptorExclusions: [{
+          facetParameter: "jobFamilyGroup",
+          excludedDescriptors: ["Vocational & Development Programs"]
+        }],
+        pageSize: 20,
+        maxPages: 1
+      }
+    });
+
+    expect(result).toMatchObject({
+      ok: true,
+      completeness: { expectedJobCount: 3 },
+      fetchEvidence: {
+        artifacts: [
+          { logicalKey: "workday-preflight-0000", body: expect.stringContaining("shanghai-id") },
+          { logicalKey: "workday-facet-preflight-0000", body: expect.stringContaining("commercial-id") },
+          { logicalKey: "workday-page-0000", body: expect.stringContaining('"total":3') }
+        ]
+      }
+    });
+    expect(bodies).toEqual([
+      { appliedFacets: {}, searchText: "China", limit: 20, offset: 0 },
+      { appliedFacets: { locations: ["shanghai-id"] }, limit: 20, offset: 0 },
+      {
+        appliedFacets: {
+          locations: ["shanghai-id"],
+          jobFamilyGroup: ["medical-id", "commercial-id"]
+        },
+        limit: 20,
+        offset: 0
+      }
+    ]);
+  });
+
+  it("fails closed with evidence when Workday ignores the derived positive facet ids", async () => {
+    let requestNumber = 0;
+    const fetcher = createWorkdaySourceFetch({
+      now: () => new Date("2026-07-13T00:00:00.000Z"),
+      http: async () => {
+        requestNumber += 1;
+        if (requestNumber === 1) {
+          return response({
+            total: 3,
+            jobPostings: [],
+            facets: [{
+              facetParameter: "jobFamilyGroup",
+              values: [
+                { descriptor: "Medical", id: "medical-id", count: 2 },
+                { descriptor: "Vocational & Development Programs", id: "development-id", count: 1 }
+              ]
+            }]
+          }, "2026-07-13T00:00:01.000Z");
+        }
+        return response({
+          total: 3,
+          jobPostings: [
+            { title: "Medical", externalPath: "/job/China/medical", locationsText: "Shanghai, China" },
+            { title: "Development", externalPath: "/job/China/development", locationsText: "Shanghai, China" }
+          ]
+        }, "2026-07-13T00:00:02.000Z");
+      }
+    });
+
+    const result = await fetcher({
+      ...plan,
+      workday: {
+        tenant: "roche",
+        site: "roche-ext",
+        appliedFacets: { Location_Country: ["china-id"] },
+        facetDescriptorExclusions: [{
+          facetParameter: "jobFamilyGroup",
+          excludedDescriptors: ["Vocational & Development Programs"]
+        }],
+        pageSize: 20,
+        maxPages: 1
+      }
+    });
+
+    expect(result).toMatchObject({
+      ok: false,
+      failureReason: expect.stringContaining("filtered total 3 did not match derived total 2"),
+      fetchEvidence: {
+        artifacts: [
+          { logicalKey: "workday-facet-preflight-0000", extractorLocator: "$.facets" },
+          { logicalKey: "workday-filter-validation-0000", body: expect.stringContaining('"total":3') }
+        ],
+        supportingArtifactOnlyFailure: { code: "FACET_DERIVATION_FAILED" }
+      }
+    });
+  });
+
+  it.each([
+    {
+      name: "missing counts",
+      total: 2,
+      values: [
+        { descriptor: "Medical", id: "medical-id" },
+        { descriptor: "Vocational & Development Programs", id: "development-id", count: 1 }
+      ]
+    },
+    {
+      name: "malformed counts",
+      total: 2,
+      values: [
+        { descriptor: "Medical", id: "medical-id", count: 1.5 },
+        { descriptor: "Vocational & Development Programs", id: "development-id", count: 0.5 }
+      ]
+    },
+    {
+      name: "nonpartition counts",
+      total: 3,
+      values: [
+        { descriptor: "Medical", id: "medical-id", count: 1 },
+        { descriptor: "Vocational & Development Programs", id: "development-id", count: 1 }
+      ]
+    }
+  ])("fails closed when Workday facet $name cannot prove a complete partition", async ({ total, values }) => {
+    const fetcher = createWorkdaySourceFetch({
+      now: () => new Date("2026-07-13T00:00:00.000Z"),
+      http: async () => response({
+        total,
+        jobPostings: [],
+        facets: [{ facetParameter: "jobFamilyGroup", values }]
+      })
+    });
+
+    const result = await fetcher({
+      ...plan,
+      workday: {
+        tenant: "roche",
+        site: "roche-ext",
+        appliedFacets: { Location_Country: ["china-id"] },
+        facetDescriptorExclusions: [{
+          facetParameter: "jobFamilyGroup",
+          excludedDescriptors: ["Vocational & Development Programs"]
+        }]
+      }
+    });
+
+    expect(result).toMatchObject({
+      ok: false,
+      failureReason: expect.stringContaining("complete partition"),
+      fetchEvidence: {
+        artifacts: [{ logicalKey: "workday-facet-preflight-0000", extractorLocator: "$.facets" }]
+      }
+    });
+  });
+
   it.each([
     {
       name: "descriptor drift",

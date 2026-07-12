@@ -128,9 +128,10 @@ export function createWorkdaySourceFetch(deps: WorkdaySourceFetchDeps = {}): Sou
       let parseDiscardCount = 0;
       let validationDiscardCount = 0;
       let scopeRejectCount = 0;
+      let derivedFilteredTotal: number | undefined;
 
       const needsLocationFacetDiscovery = !hasConfiguredLocationFacet(configuredAppliedFacets) && Boolean(searchText);
-      if (needsLocationFacetDiscovery || facetDescriptorExclusions.length > 0) {
+      if (needsLocationFacetDiscovery) {
         const preflight = await requestWorkdayJobs({
           http,
           url,
@@ -145,29 +146,45 @@ export function createWorkdaySourceFetch(deps: WorkdaySourceFetchDeps = {}): Sou
           return failed(capturedAt, `Workday jobs API returned HTTP ${preflight.status}`);
         }
         assertEvidenceResponse(preflight);
-        const preflightLogicalKey = facetDescriptorExclusions.length > 0
-          ? "workday-facet-preflight-0000"
-          : "workday-preflight-0000";
-        artifacts.push(workdayArtifact(preflightLogicalKey, "ATS_API_RESPONSE", url, preflight, "$.facets"));
+        artifacts.push(workdayArtifact("workday-preflight-0000", "ATS_API_RESPONSE", url, preflight, "$.facets"));
         latestEvidence = workdaySupportingArtifactEvidence(artifacts);
         const preflightFacets = parseWorkdayJobsResponse(preflight.body).facets;
-        if (needsLocationFacetDiscovery) {
-          const discoveredFacets = chinaLocationAppliedFacets(preflightFacets);
-          if (discoveredFacets) {
-            appliedFacets = { ...appliedFacets, ...discoveredFacets };
-            searchText = undefined;
-          }
+        const discoveredFacets = chinaLocationAppliedFacets(preflightFacets);
+        if (discoveredFacets) {
+          appliedFacets = { ...appliedFacets, ...discoveredFacets };
+          searchText = undefined;
+        } else if (facetDescriptorExclusions.length > 0) {
+          throw new Error("Workday location facet discovery failed before descriptor exclusion");
         }
-        if (facetDescriptorExclusions.length > 0) {
-          appliedFacets = {
-            ...appliedFacets,
-            ...deriveDescriptorExcludedAppliedFacets(
-              preflightFacets,
-              facetDescriptorExclusions,
-              configuredAppliedFacets
-            )
-          };
+      }
+
+      if (facetDescriptorExclusions.length > 0) {
+        const facetPreflight = await requestWorkdayJobs({
+          http,
+          url,
+          origin,
+          referer: plan.source.officialEntryUrl,
+          appliedFacets,
+          searchText: undefined,
+          pageSize,
+          offset: 0
+        });
+        if (facetPreflight.status < 200 || facetPreflight.status >= 300) {
+          return failed(capturedAt, `Workday jobs API returned HTTP ${facetPreflight.status}`);
         }
+        assertEvidenceResponse(facetPreflight);
+        artifacts.push(workdayArtifact("workday-facet-preflight-0000", "ATS_API_RESPONSE", url, facetPreflight, "$.facets"));
+        latestEvidence = workdaySupportingArtifactEvidence(artifacts);
+        const parsedFacetPreflight = parseWorkdayJobsResponse(facetPreflight.body);
+        const derivation = deriveDescriptorExcludedAppliedFacets(
+          parsedFacetPreflight.facets,
+          facetDescriptorExclusions,
+          configuredAppliedFacets,
+          parsedFacetPreflight.total
+        );
+        appliedFacets = { ...appliedFacets, ...derivation.appliedFacets };
+        derivedFilteredTotal = derivation.expectedFilteredTotal;
+        searchText = undefined;
       }
 
       for (let pageIndex = 0; pageIndex < maxPages; pageIndex += 1) {
@@ -190,6 +207,21 @@ export function createWorkdaySourceFetch(deps: WorkdaySourceFetchDeps = {}): Sou
         assertEvidenceResponse(response);
 
         const parsed = parseWorkdayJobsResponse(response.body);
+        if (pageIndex === 0 && derivedFilteredTotal !== undefined && parsed.total !== derivedFilteredTotal) {
+          artifacts.push(workdayArtifact(
+            "workday-filter-validation-0000",
+            "ATS_API_RESPONSE",
+            url,
+            response,
+            "$.total"
+          ));
+          latestEvidence = workdaySupportingArtifactEvidence(artifacts);
+          return failed(
+            capturedAt,
+            `Workday filtered total ${String(parsed.total)} did not match derived total ${derivedFilteredTotal}`,
+            latestEvidence
+          );
+        }
         const artifactLogicalKey = `workday-page-${String(pageIndex).padStart(4, "0")}`;
         artifacts.push(workdayArtifact(artifactLogicalKey, "PAGINATION_PAGE", url, response, "$.total"));
         expectedJobCount = expectedJobCount ?? parsed.total;
@@ -653,10 +685,18 @@ function chinaLocationAppliedFacets(facets: unknown): Record<string, readonly st
 function deriveDescriptorExcludedAppliedFacets(
   facets: unknown,
   exclusions: readonly WorkdayFacetDescriptorExclusion[],
-  configuredAppliedFacets: Record<string, readonly string[]>
-): Record<string, readonly string[]> {
+  configuredAppliedFacets: Record<string, readonly string[]>,
+  officialTotal: number | undefined
+): {
+  appliedFacets: Record<string, readonly string[]>;
+  expectedFilteredTotal: number;
+} {
+  if (exclusions.length !== 1) {
+    throw new Error("Workday facet descriptor exclusion requires exactly one complete partition");
+  }
   const seenParameters = new Set<string>();
   const derived: Record<string, readonly string[]> = {};
+  let expectedFilteredTotal: number | undefined;
 
   for (const exclusion of exclusions) {
     const facetParameter = stringValue(exclusion.facetParameter);
@@ -698,7 +738,7 @@ function deriveDescriptorExcludedAppliedFacets(
       if (!id) {
         throw new Error(`Workday facet parameter ${facetParameter} value ${descriptor} is missing an id`);
       }
-      return { descriptor, id };
+      return { descriptor, id, count: value.count };
     });
     if (
       new Set(parsedValues.map((value) => value.descriptor)).size !== parsedValues.length ||
@@ -713,17 +753,30 @@ function deriveDescriptorExcludedAppliedFacets(
         throw new Error(`Workday excluded descriptor ${excludedDescriptor} was missing from facet ${facetParameter}`);
       }
     }
+    const counts = parsedValues.map((value) => {
+      const count = value.count;
+      if (typeof count !== "number" || !Number.isSafeInteger(count) || count < 0) {
+        throw new Error(`Workday facet parameter ${facetParameter} counts do not prove a complete partition of the official total`);
+      }
+      return count;
+    });
+    if (officialTotal === undefined || counts.reduce((sum, count) => sum + count, 0) !== officialTotal) {
+      throw new Error(`Workday facet parameter ${facetParameter} counts do not prove a complete partition of the official total`);
+    }
     const excludedSet = new Set(excludedDescriptors as string[]);
-    const allowedIds = parsedValues
-      .filter((value) => !excludedSet.has(value.descriptor))
-      .map((value) => value.id);
+    const allowedValues = parsedValues.filter((value) => !excludedSet.has(value.descriptor));
+    const allowedIds = allowedValues.map((value) => value.id);
     if (allowedIds.length === 0) {
       throw new Error(`Workday facet parameter ${facetParameter} exclusion left no allowed ids`);
     }
     derived[facetParameter] = allowedIds;
+    expectedFilteredTotal = allowedValues.reduce((sum, value) => sum + (value.count as number), 0);
   }
 
-  return derived;
+  if (expectedFilteredTotal === undefined) {
+    throw new Error("Workday facet descriptor exclusion did not derive a complete partition");
+  }
+  return { appliedFacets: derived, expectedFilteredTotal };
 }
 
 function findExactFacetGroups(value: unknown, facetParameter: string): Record<string, unknown>[] {
