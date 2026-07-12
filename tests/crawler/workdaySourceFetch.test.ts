@@ -288,13 +288,17 @@ describe("createWorkdaySourceFetch", () => {
     });
   });
 
-  it("treats a non-first non-empty Workday page total of zero as an omitted sentinel", async () => {
+  it.each([
+    { name: "bare zero", extra: {} },
+    { name: "zero in an error-shaped payload", extra: { error: "upstream partial response" } }
+  ])("fails closed on a non-first non-empty Workday $name total", async ({ extra }) => {
     const fetcher = createWorkdaySourceFetch({
       now: () => new Date("2026-07-13T00:00:00.000Z"),
       http: async (request) => {
         const { offset } = JSON.parse(request.body) as { offset: number };
         return response({
           total: offset === 0 ? 2 : 0,
+          ...extra,
           jobPostings: [{
             title: offset === 0 ? "Role One" : "Role Two",
             externalPath: `/job/China/${offset === 0 ? "one" : "two"}`,
@@ -316,15 +320,18 @@ describe("createWorkdaySourceFetch", () => {
     });
 
     expect(result).toMatchObject({
-      ok: true,
-      completeness: { expectedJobCount: 2 },
+      ok: false,
+      failureReason: expect.stringContaining("TOTAL_CHANGED"),
       fetchEvidence: {
         pages: [
           { sequence: 0, declaredTotal: 2 },
-          { sequence: 1, declaredTotal: 2 }
+          { sequence: 1, declaredTotal: 0 }
         ]
       },
-      paginationEvaluation: { safeCompleteness: true }
+      paginationEvaluation: {
+        safeCompleteness: false,
+        derivedAnomalyCodes: expect.arrayContaining(["TOTAL_CHANGED", "DECLARED_CAPACITY_CONTRADICTION"])
+      }
     });
   });
 
@@ -1485,13 +1492,13 @@ describe("createWorkdaySourceFetch", () => {
         const appliedFacets = body.appliedFacets as Record<string, string[]>;
         if (bodies.length === 1) {
           return response({
-            total: 2,
+            total: 4,
             jobPostings: [],
             facets: [
               {
                 facetParameter: "locations",
                 descriptor: "Locations",
-                values: [{ descriptor: "Shanghai, China", id: "shanghai-id", count: 2 }]
+                values: [{ descriptor: "Shanghai, China", id: "shanghai-id", count: 4 }]
               },
               {
                 facetParameter: "jobFamilyGroup",
@@ -1566,6 +1573,64 @@ describe("createWorkdaySourceFetch", () => {
         offset: 0
       }
     ]);
+  });
+
+  it("fails before worker-type derivation when its preflight total exceeds the location-derived baseline", async () => {
+    let requestNumber = 0;
+    const fetcher = createWorkdaySourceFetch({
+      http: async () => {
+        requestNumber += 1;
+        if (requestNumber === 1) {
+          return response({
+            total: 2,
+            jobPostings: [],
+            facets: [{
+              facetParameter: "locations",
+              descriptor: "Locations",
+              values: [
+                { descriptor: "Shanghai, China", id: "shanghai-id", count: 1 },
+                { descriptor: "Tokyo, Japan", id: "tokyo-id", count: 1 }
+              ]
+            }]
+          });
+        }
+        return response({
+          total: 2,
+          jobPostings: [],
+          facets: [{
+            facetParameter: "workerSubType",
+            descriptor: "Job Type",
+            values: [
+              { descriptor: "Regular", id: "regular-id", count: 1 },
+              { descriptor: "Intern (Fixed Term)", id: "intern-id", count: 1 }
+            ]
+          }]
+        });
+      }
+    });
+
+    await expect(fetcher({
+      ...plan,
+      workday: {
+        tenant: "pfizer",
+        site: "PfizerCareers",
+        searchText: "China",
+        facetDescriptorBoundary: {
+          facetParameter: "workerSubType",
+          allowedDescriptors: ["Regular"]
+        }
+      }
+    })).resolves.toMatchObject({
+      ok: false,
+      failureReason: expect.stringContaining("social facet preflight total 2 did not match location-derived total 1"),
+      fetchEvidence: {
+        artifacts: [
+          { logicalKey: "workday-preflight-0000" },
+          { logicalKey: "workday-facet-preflight-0000" }
+        ],
+        supportingArtifactOnlyFailure: { code: "FACET_FILTER_VALIDATION_FAILED" }
+      }
+    });
   });
 
   it("fails closed with evidence when Workday ignores the derived positive facet ids", async () => {

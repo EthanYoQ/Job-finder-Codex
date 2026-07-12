@@ -136,6 +136,7 @@ export function createWorkdaySourceFetch(deps: WorkdaySourceFetchDeps = {}): Sou
       let validationDiscardCount = 0;
       let scopeRejectCount = 0;
       let derivedFilteredTotal: number | undefined;
+      let locationDerivedTotal: number | undefined;
 
       const needsLocationFacetDiscovery = !hasConfiguredLocationFacet(configuredAppliedFacets) && Boolean(searchText);
       if (needsLocationFacetDiscovery) {
@@ -158,6 +159,7 @@ export function createWorkdaySourceFetch(deps: WorkdaySourceFetchDeps = {}): Sou
         const parsedPreflight = parseWorkdayJobsResponse(preflight.body);
         const discovery = chinaLocationAppliedFacets(parsedPreflight.facets, parsedPreflight.total);
         appliedFacets = { ...appliedFacets, ...discovery.appliedFacets };
+        locationDerivedTotal = discovery.expectedFilteredTotal;
         derivedFilteredTotal = discovery.expectedFilteredTotal;
         searchText = undefined;
       }
@@ -183,6 +185,14 @@ export function createWorkdaySourceFetch(deps: WorkdaySourceFetchDeps = {}): Sou
         artifacts.push(workdayArtifact("workday-facet-preflight-0000", "ATS_API_RESPONSE", url, facetPreflight, "$.facets"));
         latestEvidence = workdaySupportingArtifactEvidence(artifacts, "FACET_DERIVATION_FAILED");
         const parsedFacetPreflight = parseWorkdayJobsResponse(facetPreflight.body);
+        if (locationDerivedTotal !== undefined && parsedFacetPreflight.total !== locationDerivedTotal) {
+          latestEvidence = workdaySupportingArtifactEvidence(artifacts, "FACET_FILTER_VALIDATION_FAILED");
+          return failed(
+            capturedAt,
+            `Workday social facet preflight total ${String(parsedFacetPreflight.total)} did not match location-derived total ${locationDerivedTotal}`,
+            latestEvidence
+          );
+        }
         const derivation = facetDescriptorBoundary
           ? deriveAllowedDescriptorAppliedFacet(
               parsedFacetPreflight.facets,
@@ -221,9 +231,6 @@ export function createWorkdaySourceFetch(deps: WorkdaySourceFetchDeps = {}): Sou
         assertEvidenceResponse(response);
 
         const parsed = parseWorkdayJobsResponse(response.body);
-        const declaredPageTotal = pageIndex > 0 && parsed.total === 0 && parsed.jobPostings.length > 0
-          ? undefined
-          : parsed.total;
         if (pageIndex === 0 && derivedFilteredTotal !== undefined && parsed.total !== derivedFilteredTotal) {
           artifacts.push(workdayArtifact(
             "workday-filter-validation-0000",
@@ -241,8 +248,7 @@ export function createWorkdaySourceFetch(deps: WorkdaySourceFetchDeps = {}): Sou
         }
         const artifactLogicalKey = `workday-page-${String(pageIndex).padStart(4, "0")}`;
         artifacts.push(workdayArtifact(artifactLogicalKey, "PAGINATION_PAGE", url, response, "$.total"));
-        expectedJobCount = expectedJobCount ?? declaredPageTotal;
-        const effectiveDeclaredPageTotal = declaredPageTotal ?? expectedJobCount;
+        expectedJobCount = expectedJobCount ?? parsed.total;
         pagesVisited += 1;
         const pageJobs: ReturnType<typeof enrichWorkdayJob>[number][] = [];
         const rawJobIds: string[] = [];
@@ -352,7 +358,7 @@ export function createWorkdaySourceFetch(deps: WorkdaySourceFetchDeps = {}): Sou
           ? (isLastAllowedPage ? "MAX_PAGE_LIMIT" : "CONTINUE")
           : parsed.jobPostings.length === 0 && expectedJobCount === 0
             ? "EMPTY_PAGE"
-            : expectedJobCount !== undefined && effectiveDeclaredPageTotal === expectedJobCount &&
+            : expectedJobCount !== undefined && parsed.total === expectedJobCount &&
                 new Set([...pages.flatMap((page) => page.validJobIds), ...validJobIds]).size === expectedJobCount
               ? "DECLARED_TOTAL_REACHED"
               : "NEXT_ABSENT";
@@ -367,9 +373,9 @@ export function createWorkdaySourceFetch(deps: WorkdaySourceFetchDeps = {}): Sou
           returnedPageSize: null,
           rawJobIds: [...new Set(rawJobIds)],
           validJobIds: [...new Set(validJobIds)],
-          declaredTotal: effectiveDeclaredPageTotal ?? null,
+          declaredTotal: parsed.total ?? null,
           declaredCount: null,
-          declaredPages: effectiveDeclaredPageTotal === undefined ? null : Math.ceil(effectiveDeclaredPageTotal / pageSize),
+          declaredPages: parsed.total === undefined ? null : Math.ceil(parsed.total / pageSize),
           nextPageSignalBefore: pageIndex === 0 ? null : String(offset),
           nextPageSignalAfter: hasNext ? String(offset + pageSize) : null,
           responseFingerprintSha256: sha256Bytes(Buffer.from(response.body, "utf8")).sha256,
