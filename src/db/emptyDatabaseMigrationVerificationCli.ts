@@ -88,7 +88,8 @@ export const REVIEWED_INDEX_NAMES = [
   "TransportAttemptEvidence_sourceResultId_sequence_key", "TransportAttemptEvidence_tuple_key"
 ] as const;
 
-export const REVIEWED_INDEX_DEFINITION_SHA256 = "22f0439dfce6c95968a146ab599890ac8192ffd301a088c93f7c4b030c19370e";
+// Reviewed from pinned PG16 live output ordered by index name with C collation.
+export const REVIEWED_INDEX_DEFINITION_SHA256 = "28058e561062e7f46bc5bbc7094fe9b73898cbec0dd8ebec0bc153b12d0c73f3";
 
 interface SpawnResult {
   status: number | null;

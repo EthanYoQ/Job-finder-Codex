@@ -35,7 +35,7 @@ describe("empty database migration verification CLI contract", () => {
       "TransportAttemptEvidence_releaseCandidateId_batchId_sourceId_id"
     ]));
     expect(REVIEWED_INDEX_DEFINITION_SHA256)
-      .toBe("22f0439dfce6c95968a146ab599890ac8192ffd301a088c93f7c4b030c19370e");
+      .toBe("28058e561062e7f46bc5bbc7094fe9b73898cbec0dd8ebec0bc153b12d0c73f3");
   });
 
   it("refuses local migration drift before any command can run", () => {
