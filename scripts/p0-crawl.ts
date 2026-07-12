@@ -7,12 +7,15 @@ import {
 } from "../src/crawler/p0CrawlCommand";
 import {runFormalCleanup} from "../src/crawler/formalCleanup";
 import { resolve } from "node:path";
+import { randomUUID } from "node:crypto";
 import {
-  buildExceptionalCrawlSummary,
   collectConsecutiveFailuresByCompany,
+  crawlEvidenceIdentityFromRuntime,
   runAndPublishCrawlSummary,
   writeCrawlSummaryAtomic
 } from "../src/crawler/crawlSummary";
+import { buildCrawlAttemptEvent, writeCrawlAttemptEvent, type CrawlAttemptFailureCode } from "../src/crawler/crawlAttemptEvidence";
+import { classifyCrawlAttemptFailure } from "../src/crawler/crawlAttemptOrchestration";
 
 function printHelp(): void {
   console.log("Usage: npm run p0:crawl -- [--force]");
@@ -39,16 +42,26 @@ if (options.help) {
   process.exit(0);
 }
 
-const [{ candidateCompanies }, { buildSourceCrawlPlans }] = await Promise.all([
-  import("../src/data/companyRegistry"),
-  import("../src/crawler/sourcePlan")
-]);
-
-const plans = buildSourceCrawlPlans(candidateCompanies);
 const crawlSummaryPath = process.env.CRAWL_SUMMARY_PATH ?? resolve(process.cwd(), "outputs", "crawl-summary.json");
+const crawlAttemptDir = process.env.CRAWL_ATTEMPT_DIR ?? resolve(process.cwd(), "outputs", "crawl-attempts");
 const crawlCapturedAt = new Date();
+const attemptId = process.env.P0_CRAWL_ATTEMPT_ID ?? randomUUID();
+const attemptStartedAt = process.env.P0_CRAWL_ATTEMPT_STARTED_AT ? new Date(process.env.P0_CRAWL_ATTEMPT_STARTED_AT) : crawlCapturedAt;
+const schedulerOwnsAttempt = process.env.P0_CRAWL_ATTEMPT_OWNER === "scheduler";
+const attemptAuthority = { advisoryLockAcquired: false, fileLockAcquired: false };
+if (!schedulerOwnsAttempt) await writeCrawlAttemptEvent(crawlAttemptDir, buildCrawlAttemptEvent({
+  attemptId, state: "RUNNING", startedAt: attemptStartedAt, finishedAt: null, identity: null,
+  authority: attemptAuthority, canonicalSummaryBinding: null, failureCode: null
+}));
+let candidateCompanies: typeof import("../src/data/companyRegistry")["candidateCompanies"];
+let plans: ReturnType<typeof import("../src/crawler/sourcePlan")["buildSourceCrawlPlans"]>;
 let identity: ReturnType<typeof requireP0RuntimeIdentity>;
 try {
+  const [registry, sourcePlan] = await Promise.all([
+    import("../src/data/companyRegistry"), import("../src/crawler/sourcePlan")
+  ]);
+  candidateCompanies=registry.candidateCompanies;
+  plans=sourcePlan.buildSourceCrawlPlans(candidateCompanies);
   if(options.sourceIds.length>0)throw new Error("Partial diagnostic selection cannot certify formal release evidence");
   const { loadCurrentReleaseIdentity }=await import("../src/readiness/currentReleaseIdentity");
   const current=await loadCurrentReleaseIdentity();
@@ -60,21 +73,45 @@ try {
     expectedPlannedSourceCount:current.plannedSourceIds.length
   }});
 } catch (error) {
+  await writeCrawlAttemptEvent(crawlAttemptDir, buildCrawlAttemptEvent({
+    attemptId, state: "FAILED", startedAt: attemptStartedAt, finishedAt: new Date(), identity: null,
+    authority: attemptAuthority, canonicalSummaryBinding: null, failureCode: "PRE_IDENTITY_FAILED"
+  }));
   console.error(error instanceof Error ? error.message : String(error));
   process.exit(2);
 }
 
-const { assertFormalBrowserReady } = await import("../src/readiness/formalBrowserPreflight");
-const [{acquireFormalAdvisoryLock},{acquireFormalCrawlLock,FORMAL_CRAWL_LOCK_PATH},{unlink}]=await Promise.all([
-  import("../src/crawler/formalAdvisoryLock"),import("../src/crawler/formalCrawlLock"),import("node:fs/promises")]);
+let preflightModules:[
+  typeof import("../src/readiness/formalBrowserPreflight"),
+  typeof import("../src/crawler/formalAdvisoryLock"),
+  typeof import("../src/crawler/formalCrawlLock"),
+  typeof import("node:fs/promises")
+];
+try{preflightModules=await Promise.all([import("../src/readiness/formalBrowserPreflight"),
+  import("../src/crawler/formalAdvisoryLock"),import("../src/crawler/formalCrawlLock"),import("node:fs/promises")]);}
+catch(error){
+  await writeCrawlAttemptEvent(crawlAttemptDir,buildCrawlAttemptEvent({attemptId,state:"FAILED",
+    startedAt:attemptStartedAt,finishedAt:new Date(),identity:crawlEvidenceIdentityFromRuntime(identity),authority:attemptAuthority,
+    canonicalSummaryBinding:null,failureCode:"PREFLIGHT_FAILED"}));
+  throw error;
+}
+const [{assertFormalBrowserReady},{acquireFormalAdvisoryLock},{acquireFormalCrawlLock,FORMAL_CRAWL_LOCK_PATH},{unlink}]=preflightModules;
 let advisoryLock:Awaited<ReturnType<typeof acquireFormalAdvisoryLock>>|undefined;
 let fileLock:Awaited<ReturnType<typeof acquireFormalCrawlLock>>|undefined;
 let prisma:{ $disconnect():Promise<void> }|undefined;
 let loadPersistedFailures:(()=>Promise<Record<string,number>>)|undefined;
-let summaryPublished=false;
+let canonicalSummaryWriteAttempted=false;
+let summaryBinding:{batchId:string;summarySha256:string}|undefined;
+let commandResult:Awaited<ReturnType<typeof runP0CrawlCommand>>|undefined;
+let terminalError:unknown;
+let failureCode:CrawlAttemptFailureCode="CRAWL_EXECUTION_FAILED";
+let executionStarted=false;
+let operationStage:"EXECUTION"|"SOURCE_HEALTH"|"PUBLISH"|undefined;
 try{
 advisoryLock=await acquireFormalAdvisoryLock({databaseUrl:process.env.DATABASE_URL??""});
+attemptAuthority.advisoryLockAcquired=true;
 fileLock=await acquireFormalCrawlLock();
+attemptAuthority.fileLockAcquired=true;
 await assertFormalBrowserReady();
 
 const [
@@ -122,7 +159,8 @@ prisma = new PrismaClient();
     runtimeDeps.getRecentObservations
   );
 
-  const result = await runAndPublishCrawlSummary({
+  executionStarted=true;
+  commandResult = await runAndPublishCrawlSummary({
     identity,
     capturedAt:crawlCapturedAt,
     run:()=>runP0CrawlCommand({
@@ -138,30 +176,39 @@ prisma = new PrismaClient();
       runP0CrawlBatch
     }),
     loadConsecutiveFailuresByCompany:loadPersistedFailures,
+    onStage:stage=>{operationStage=stage;},
     publish:async summary=>{
-      await writeCrawlSummaryAtomic(crawlSummaryPath,summary);
-      summaryPublished=true;
+      if(!advisoryLock||!fileLock)throw new Error("Canonical crawl summary requires both formal locks");
+      if(canonicalSummaryWriteAttempted)throw new Error("Canonical crawl summary write already attempted");
+      canonicalSummaryWriteAttempted=true;
+      const published=await writeCrawlSummaryAtomic(crawlSummaryPath,summary);
+      if(summary.batchId)summaryBinding={batchId:summary.batchId,summarySha256:published.sha256};
     }
   });
-
-  console.log(formatP0CrawlResult(result));
-  process.exitCode = p0CrawlBatchExitCode(result.batch);
+  if(commandResult.batch.status!=="SUCCESS"){
+    terminalError=new Error(`Formal crawl ended ${commandResult.batch.status}`);
+    failureCode="CRAWL_EXECUTION_FAILED";
+  }
  }catch(error){
-   if(!summaryPublished){
-     let persistedFailures:Record<string,number>|null=null;
-     if(loadPersistedFailures){
-       try{persistedFailures=await loadPersistedFailures();}catch{persistedFailures=null;}
-     }
-     await writeCrawlSummaryAtomic(crawlSummaryPath,buildExceptionalCrawlSummary({
-       identity,capturedAt:crawlCapturedAt,finishedAt:new Date(),consecutiveFailuresByCompany:persistedFailures
-     }));
-     summaryPublished=true;
-   }
-   throw error;
+   terminalError=error;
+   failureCode=classifyCrawlAttemptFailure({advisoryLockAcquired:!!advisoryLock,fileLockAcquired:!!fileLock,
+     executionStarted,operationStage});
  }finally{
-  await runFormalCleanup([
+  try{await runFormalCleanup([
     ...(prisma?[{name:"Prisma disconnect",run:()=>prisma!.$disconnect()}]:[]),
     ...(fileLock?[{name:"filesystem lock close",run:()=>fileLock!.close()},{name:"filesystem lock unlink",run:()=>unlink(FORMAL_CRAWL_LOCK_PATH).catch(error=>{if((error as NodeJS.ErrnoException).code!=="ENOENT")throw error;})}]:[]),
     ...(advisoryLock?[{name:"PostgreSQL advisory lock release",run:()=>advisoryLock!.release()}]:[])
-  ]);
+  ]);}catch(error){terminalError=error;failureCode=classifyCrawlAttemptFailure({advisoryLockAcquired:!!advisoryLock,
+    fileLockAcquired:!!fileLock,executionStarted,operationStage,cleanupFailed:true});}
 }
+
+const succeeded=!terminalError&&commandResult?.batch.status==="SUCCESS"&&summaryBinding!==undefined;
+await writeCrawlAttemptEvent(crawlAttemptDir,buildCrawlAttemptEvent({
+  attemptId,state:succeeded?"SUCCESS":"FAILED",startedAt:attemptStartedAt,finishedAt:new Date(),
+  identity:crawlEvidenceIdentityFromRuntime(identity),authority:attemptAuthority,
+  canonicalSummaryBinding:succeeded?summaryBinding!:null,failureCode:succeeded?null:failureCode
+}));
+if(terminalError)throw terminalError;
+if(!commandResult)throw new Error("Formal crawl returned no command result");
+console.log(formatP0CrawlResult(commandResult));
+process.exitCode=p0CrawlBatchExitCode(commandResult.batch);

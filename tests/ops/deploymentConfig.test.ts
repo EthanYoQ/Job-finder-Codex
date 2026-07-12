@@ -174,9 +174,27 @@ describe("deployment configuration", () => {
     expect(script).toContain("collectConsecutiveFailuresByCompany");
     expect(script).toContain("writeCrawlSummaryAtomic");
     expect(script).toContain("CRAWL_SUMMARY_PATH");
+    expect(script).toContain("canonicalSummaryWriteAttempted");
+    expect(script.indexOf("canonicalSummaryWriteAttempted=true"))
+      .toBeLessThan(script.indexOf("writeCrawlSummaryAtomic(crawlSummaryPath"));
     const monitor = readRequiredFile(monitoringCheckPath);
     expect(monitor).not.toMatch(/readNumber\(readinessSummary,\s*["']globalSuccessRate["']\)/u);
     expect(monitor).not.toMatch(/readRecord\(readinessSummary,\s*["']consecutiveFailuresByCompany["']\)/u);
+  });
+
+  it("gives the monitor the same pinned release authority and attempt journal used by formal execution", () => {
+    const compose = readRequiredFile(composePath);
+    const monitor = readComposeService(compose, "monitor");
+    expect(monitor).toContain("P0_FULL_RELEASE_MEMBERSHIP_FILE: /run/release-authority/membership.json");
+    expect(monitor).toContain("P0_FULL_RELEASE_MEMBERSHIP_FILE_SHA256:");
+    expect(monitor).toContain("P0_FULL_RELEASE_ORACLE_FILE: /run/release-authority/oracle.json");
+    expect(monitor).toContain("P0_FULL_RELEASE_ORACLE_FILE_SHA256:");
+    expect(monitor).toMatch(/target:\s*\/run\/release-authority\/membership\.json[\s\S]*read_only:\s*true/u);
+    expect(monitor).toMatch(/target:\s*\/run\/release-authority\/oracle\.json[\s\S]*read_only:\s*true/u);
+    expect(monitor).toContain("CRAWL_ATTEMPT_DIR");
+    const monitorScript = readRequiredFile(monitoringCheckPath);
+    expect(monitorScript).toContain("loadCurrentReleaseIdentity");
+    expect(monitorScript).toContain("readLatestCrawlAttempt");
   });
 
   it("rejects a TCP listener that does not authenticate or speak the PostgreSQL protocol", async () => {
@@ -328,7 +346,7 @@ describe("deployment configuration", () => {
     expect(worker).toMatch(/target:\s*\/app\/outputs(?![\s\S]{0,40}read_only:\s*true)/u);
     expect(scheduler).toMatch(/target:\s*\/app\/outputs(?![\s\S]{0,40}read_only:\s*true)/u);
     expect(backup).toContain("- backup-data:/backups");
-    expect(monitor.match(/read_only:\s*true/gu)).toHaveLength(3);
+    expect(monitor.match(/read_only:\s*true/gu)).toHaveLength(5);
   });
 
   it("pins external postgres and nginx images by digest", () => {

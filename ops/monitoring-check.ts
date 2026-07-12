@@ -4,7 +4,8 @@ import { access, lstat, open, readFile, readdir, type FileHandle } from "node:fs
 import { basename, resolve } from "node:path";
 import { evaluateOpsAlerts, type OpsAlertInput } from "../src/server/opsMonitoring";
 import { checkPostgresReadiness, DEFAULT_POSTGRES_READINESS_TIMEOUT_MS } from "../src/server/postgresReadiness";
-import { DEFAULT_CRAWL_SUMMARY_MAX_AGE_HOURS, readCrawlSummaryFile } from "../src/crawler/crawlSummary";
+import { crawlEvidenceIdentityFromRuntime, DEFAULT_CRAWL_SUMMARY_MAX_AGE_HOURS, readCrawlSummaryFile } from "../src/crawler/crawlSummary";
+import { readLatestCrawlAttempt } from "../src/crawler/crawlAttemptEvidence";
 
 interface JsonMap {
   [key: string]: unknown;
@@ -19,27 +20,51 @@ async function main(): Promise<void> {
   const readinessSummaryPath =
     process.env.READINESS_SUMMARY_PATH ?? `${process.cwd()}/var/readiness-summary.json`;
   const crawlSummaryPath = process.env.CRAWL_SUMMARY_PATH ?? `${process.cwd()}/var/crawl-summary.json`;
+  const crawlAttemptDir = process.env.CRAWL_ATTEMPT_DIR ?? `${process.cwd()}/var/crawl-attempts`;
   const certificateExpiresAt = process.env.CERTIFICATE_EXPIRES_AT;
+  const now = process.env.MONITORING_NOW ? new Date(process.env.MONITORING_NOW) : new Date();
 
-  const [health, dbReachable, backupEvidence, readinessSummary, crawlEvidence] = await Promise.all([
+  let expectedIdentity: ReturnType<typeof crawlEvidenceIdentityFromRuntime> | undefined;
+  try {
+    const { loadCurrentReleaseIdentity } = await import("../src/readiness/currentReleaseIdentity");
+    expectedIdentity = crawlEvidenceIdentityFromRuntime(await loadCurrentReleaseIdentity(now));
+  } catch {
+    expectedIdentity = undefined;
+  }
+
+  const [health, dbReachable, backupEvidence, readinessSummary] = await Promise.all([
     checkHealth(healthUrl),
     checkPostgresReadiness(databaseUrl, {
       timeoutMs: Number(process.env.POSTGRES_READINESS_TIMEOUT_MS ?? DEFAULT_POSTGRES_READINESS_TIMEOUT_MS)
     }),
     readBackupEvidence(backupDir),
-    readOptionalJson(readinessSummaryPath),
-    readCrawlSummaryFile(crawlSummaryPath, {
-      now: process.env.MONITORING_NOW ? new Date(process.env.MONITORING_NOW) : new Date(),
-      maxAgeHours: Number(process.env.CRAWL_SUMMARY_MAX_AGE_HOURS ?? DEFAULT_CRAWL_SUMMARY_MAX_AGE_HOURS)
-    })
+    readOptionalJson(readinessSummaryPath)
   ]);
+  const crawlEvidence = expectedIdentity
+    ? await readCrawlSummaryFile(crawlSummaryPath, {
+        now,
+        maxAgeHours: Number(process.env.CRAWL_SUMMARY_MAX_AGE_HOURS ?? DEFAULT_CRAWL_SUMMARY_MAX_AGE_HOURS),
+        expectedIdentity
+      })
+    : { state: "INVALID" as const };
   const crawlSummary = crawlEvidence.state === "VALID" ? crawlEvidence.summary : undefined;
+  const attemptEvidence = expectedIdentity
+    ? await readLatestCrawlAttempt(crawlAttemptDir, {
+        now,
+        expectedIdentity,
+        expectedCanonicalSummary: crawlEvidence.state === "VALID" || crawlEvidence.state === "STALE"
+          ? { batchId: crawlEvidence.summary.batchId!, summarySha256: crawlEvidence.summarySha256 }
+          : undefined
+      })
+    : { state: "INVALID" as const };
 
   const alerts = evaluateOpsAlerts({
-    now: process.env.MONITORING_NOW ? new Date(process.env.MONITORING_NOW) : new Date(),
+    now,
     health,
     backup: backupEvidence,
     crawl: {
+      authorityState: expectedIdentity ? "VALID" : "INVALID",
+      attemptState: attemptEvidence.state,
       summaryState: crawlEvidence.state,
       globalSuccessRate: readNumber(crawlSummary, "globalSuccessRate"),
       consecutiveFailuresByCompany: toFailureMap(readRecord(crawlSummary, "consecutiveFailuresByCompany"))

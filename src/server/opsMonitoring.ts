@@ -7,6 +7,11 @@ export type OpsAlertCode =
   | "CRAWL_SUMMARY_MISSING"
   | "CRAWL_SUMMARY_INVALID"
   | "CRAWL_SUMMARY_STALE"
+  | "CRAWL_AUTHORITY_INVALID"
+  | "CRAWL_ATTEMPT_MISSING"
+  | "CRAWL_ATTEMPT_INVALID"
+  | "CRAWL_ATTEMPT_FAILED"
+  | "CRAWL_ATTEMPT_STALE"
   | "COMPANY_CONSECUTIVE_FAILURES"
   | "CERTIFICATE_EXPIRING"
   | "HIGH_DISK_USAGE"
@@ -33,6 +38,8 @@ export interface OpsAlertInput {
     latestBackupSucceeded?: boolean;
   };
   crawl: {
+    authorityState: "VALID" | "INVALID";
+    attemptState: "SUCCESS" | "RUNNING" | "MISSING" | "INVALID" | "FAILED" | "STALE";
     summaryState: "VALID" | "MISSING" | "INVALID" | "STALE";
     globalSuccessRate?: number;
     consecutiveFailuresByCompany: Record<string, number>;
@@ -59,6 +66,20 @@ const TRAFFIC_SPIKE_MULTIPLIER = 3;
 
 export function evaluateOpsAlerts(input: OpsAlertInput): OpsAlert[] {
   const alerts: OpsAlert[] = [];
+
+  if (input.crawl.authorityState !== "VALID") {
+    alerts.push({ code: "CRAWL_AUTHORITY_INVALID", severity: "critical", message: "Pinned crawl release authority is unavailable or invalid." });
+  }
+  const attemptAlert = {
+    MISSING: ["CRAWL_ATTEMPT_MISSING", "No crawl attempt evidence is available."],
+    INVALID: ["CRAWL_ATTEMPT_INVALID", "The latest crawl attempt evidence is invalid."],
+    FAILED: ["CRAWL_ATTEMPT_FAILED", "The latest crawl attempt failed."],
+    STALE: ["CRAWL_ATTEMPT_STALE", "The latest crawl attempt is stale."]
+  } as const;
+  if (!["SUCCESS", "RUNNING"].includes(input.crawl.attemptState)) {
+    const [code, message] = attemptAlert[input.crawl.attemptState as keyof typeof attemptAlert];
+    alerts.push({ code, severity: "critical", message });
+  }
 
   const summaryAlert = {
     MISSING: ["CRAWL_SUMMARY_MISSING", "No crawl summary is available."],

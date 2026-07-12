@@ -20,7 +20,7 @@ describe("ops monitoring alerts", () => {
       now,
       health: { ok: false, statusCode: 503 },
       backup: { latestBackupAt: "2026-07-08T10:00:00.000Z", latestBackupSucceeded: false },
-      crawl: { summaryState: "VALID", globalSuccessRate: 0.92, consecutiveFailuresByCompany: {} },
+      crawl: { authorityState: "VALID", attemptState: "SUCCESS", summaryState: "VALID", globalSuccessRate: 0.92, consecutiveFailuresByCompany: {} },
       certificate: { expiresAt: "2026-08-20T00:00:00.000Z" },
       resources: { diskUsedPercent: 93, memoryUsedPercent: 91 },
       traffic: { requestsLastHour: 1200, baselineRequestsPerHour: 1000 }
@@ -44,6 +44,8 @@ describe("ops monitoring alerts", () => {
       health: { ok: true, statusCode: 200 },
       backup: { latestBackupAt: "2026-07-08T10:00:00.000Z", latestBackupSucceeded: true },
       crawl: {
+        authorityState: "VALID",
+        attemptState: "SUCCESS",
         summaryState: "VALID",
         globalSuccessRate: 0.79,
         consecutiveFailuresByCompany: {
@@ -77,7 +79,7 @@ describe("ops monitoring alerts", () => {
         now,
         health: { ok: true, statusCode: 200 },
         backup: { latestBackupAt: "2026-07-08T10:00:00.000Z", latestBackupSucceeded: true },
-        crawl: { summaryState: "VALID", globalSuccessRate: 0.95, consecutiveFailuresByCompany: { "company-a": 2 } },
+        crawl: { authorityState: "VALID", attemptState: "SUCCESS", summaryState: "VALID", globalSuccessRate: 0.95, consecutiveFailuresByCompany: { "company-a": 2 } },
         certificate: { expiresAt: "2026-08-20T00:00:00.000Z" },
         resources: { diskUsedPercent: 62, memoryUsedPercent: 58 },
         traffic: { requestsLastHour: 1050, baselineRequestsPerHour: 1000 }
@@ -95,9 +97,27 @@ describe("ops monitoring alerts", () => {
       now,
       health: { ok: true, statusCode: 200 },
       backup: { latestBackupAt: "2026-07-08T10:00:00.000Z", latestBackupSucceeded: true },
-      crawl: { summaryState, consecutiveFailuresByCompany: {} }
+      crawl: { authorityState: "VALID", attemptState: "SUCCESS", summaryState, consecutiveFailuresByCompany: {} }
     }) as OpsAlert[];
 
+    expect(alerts).toContainEqual(expect.objectContaining({ code, severity: "critical" }));
+  });
+
+  it.each([
+    ["INVALID", "SUCCESS", "CRAWL_AUTHORITY_INVALID"],
+    ["VALID", "MISSING", "CRAWL_ATTEMPT_MISSING"],
+    ["VALID", "INVALID", "CRAWL_ATTEMPT_INVALID"],
+    ["VALID", "FAILED", "CRAWL_ATTEMPT_FAILED"],
+    ["VALID", "STALE", "CRAWL_ATTEMPT_STALE"]
+  ] as const)("fails closed for authority=%s attempt=%s", async (authorityState, attemptState, code) => {
+    const { evaluateOpsAlerts } = await loadOpsMonitoringModule();
+    const alerts = evaluateOpsAlerts({
+      now,
+      health: { ok: true, statusCode: 200 },
+      backup: { latestBackupAt: "2026-07-08T10:00:00.000Z", latestBackupSucceeded: true },
+      crawl: { authorityState, attemptState, summaryState: "VALID", globalSuccessRate: 1,
+        consecutiveFailuresByCompany: {} }
+    }) as OpsAlert[];
     expect(alerts).toContainEqual(expect.objectContaining({ code, severity: "critical" }));
   });
 });

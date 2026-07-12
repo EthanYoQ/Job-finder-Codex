@@ -1,5 +1,8 @@
 import { spawnSync } from "node:child_process";
 import { readFileSync } from "node:fs";
+import { mkdtempSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 
 const CLI_PROCESS_TEST_TIMEOUT_MS = 15_000;
@@ -30,7 +33,8 @@ function runCli(args: string[]): string {
       : ["tsx", "scripts/p0-crawl.ts", ...args],
     {
       cwd: process.cwd(),
-      encoding: "utf8"
+      encoding: "utf8",
+      env: { ...process.env, CRAWL_ATTEMPT_DIR: resolve(mkdtempSync(resolve(tmpdir(), "p0-crawl-cli-")), "attempts") }
     }
   );
 
@@ -50,7 +54,8 @@ function runCliExpectingFailure(args: string[]): string {
       : ["tsx", "scripts/p0-crawl.ts", ...args],
     {
       cwd: process.cwd(),
-      encoding: "utf8"
+      encoding: "utf8",
+      env: { ...process.env, CRAWL_ATTEMPT_DIR: resolve(mkdtempSync(resolve(tmpdir(), "p0-crawl-cli-")), "attempts") }
     }
   );
 
