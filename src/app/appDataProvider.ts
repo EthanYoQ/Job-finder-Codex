@@ -229,12 +229,12 @@ export function createHttpAppDataProvider(baseUrl = ""): AppDataProvider {
       return readJson<CoverageResult>(response);
     },
     async submitFeedback(request) {
+      const isPrivacyRequest = request.issueType === "PRIVACY_EXPORT" || request.issueType === "PRIVACY_DELETE";
       const response = await fetch(`${baseUrl}/api/feedback`, {
         method: "POST",
-        headers: {
-          "content-type": "application/json",
-          "x-job-search-consent": "accepted"
-        },
+        headers: isPrivacyRequest
+          ? { "content-type": "application/json" }
+          : { "content-type": "application/json", "x-job-search-consent": "accepted" },
         body: JSON.stringify(request)
       });
 

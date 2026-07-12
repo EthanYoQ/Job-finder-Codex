@@ -49,6 +49,18 @@ describe("createHttpAppDataProvider", () => {
 
     expect(fetchMock).toHaveBeenCalledWith("/privacy");
   });
+
+  it("omits consent only for privacy feedback and keeps it for ordinary feedback", async () => {
+    const fetchMock = vi.fn<typeof fetch>(async () => jsonResponse({ id: "receipt-1", status: "OPEN" }));
+    globalThis.fetch = fetchMock as typeof fetch;
+    const provider = createHttpAppDataProvider();
+    await provider.submitFeedback({ issueType: "PRIVACY_EXPORT", contact: "user@example.cn", description: "export" });
+    await provider.submitFeedback({ issueType: "链接不可用", description: "broken", companyId: "c1" });
+    expect(fetchMock.mock.calls[0]?.[1]?.headers).toEqual({ "content-type": "application/json" });
+    expect(fetchMock.mock.calls[1]?.[1]?.headers).toEqual({
+      "content-type": "application/json", "x-job-search-consent": "accepted"
+    });
+  });
 });
 
 describe("createDemoAppDataProvider", () => {

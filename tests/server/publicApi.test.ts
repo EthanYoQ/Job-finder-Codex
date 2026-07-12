@@ -33,6 +33,19 @@ describe("public API route policy", () => {
     expect(create).not.toHaveBeenCalled();
   });
 
+  it("rejects contact on non-privacy feedback even with consent", async () => {
+    const create = vi.fn();
+    const response = await handlePublicApi({
+      method: "POST", path: "/api/feedback", query: {}, headers: { "x-job-search-consent": "accepted" },
+      body: { issueType: "链接不可用", contact: "user@example.cn", description: "broken" }, ip: "1.2.3.4"
+    }, {
+      db: { feedback: { create }, recommendedCompany: { create: vi.fn() } } as never,
+      checkDatabaseReadiness: async () => true
+    });
+    expect(response.status).toBe(400);
+    expect(create).not.toHaveBeenCalled();
+  });
+
   it("serves privacy before consent without loading job or coverage data", async () => {
     const findJobs = vi.fn();
     const findCompanies = vi.fn();

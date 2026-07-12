@@ -63,6 +63,9 @@ const FeedbackInputSchema = z.object({
   if (privacy && (!value.contact || value.companyId !== undefined || value.jobId !== undefined)) {
     context.addIssue({ code: z.ZodIssueCode.custom, message: "invalid privacy request" });
   }
+  if (!privacy && value.contact !== undefined) {
+    context.addIssue({ code: z.ZodIssueCode.custom, message: "contact is reserved for privacy requests" });
+  }
 });
 
 const RecommendedCompanyInputSchema = z.object({
