@@ -22,6 +22,7 @@ interface JobRow {
   city: string;
   cities: string[];
   category: string;
+  humanCorrectedCategory: string | null;
   isNew: boolean;
   company: {
     id: string;
@@ -51,9 +52,6 @@ interface PrismaLikeJobWhereInput {
   lifecycleStatus: "ACTIVE";
   OR: Array<Record<string, unknown>>;
   AND?: Array<Record<string, unknown>>;
-  category?: {
-    in: PrismaJobCategoryName[];
-  };
   companyId?: {
     in: string[];
   };
@@ -148,8 +146,16 @@ function buildWhereClause(request: ReturnType<typeof SearchRequestSchema.parse>)
     ]
   };
 
+  const effectiveCategoryAndKeywordFilters: Array<Record<string, unknown>> = [];
+
   if (request.categories.length > 0) {
-    where.category = { in: request.categories.map(toPrismaJobCategory) };
+    const categories = request.categories.map(toPrismaJobCategory);
+    effectiveCategoryAndKeywordFilters.push({
+      OR: [
+        { humanCorrectedCategory: { in: categories } },
+        { humanCorrectedCategory: null, category: { in: categories } }
+      ]
+    });
   }
 
   if (request.companyIds.length > 0) {
@@ -157,16 +163,18 @@ function buildWhereClause(request: ReturnType<typeof SearchRequestSchema.parse>)
   }
 
   if (request.keyword && request.keyword.length > 0) {
-    where.AND = [
-      {
-        OR: [
-          { officialTitle: { contains: request.keyword } },
-          { auxiliaryChineseTitle: { contains: request.keyword } },
-          { company: { is: { officialChineseName: { contains: request.keyword } } } },
-          { company: { is: { pinyinName: { contains: request.keyword } } } }
-        ]
-      }
-    ];
+    effectiveCategoryAndKeywordFilters.push({
+      OR: [
+        { officialTitle: { contains: request.keyword } },
+        { auxiliaryChineseTitle: { contains: request.keyword } },
+        { company: { is: { officialChineseName: { contains: request.keyword } } } },
+        { company: { is: { pinyinName: { contains: request.keyword } } } }
+      ]
+    });
+  }
+
+  if (effectiveCategoryAndKeywordFilters.length > 0) {
+    where.AND = effectiveCategoryAndKeywordFilters;
   }
 
   if (request.newWithinDays === 7) {
@@ -198,7 +206,10 @@ function groupRowsByCompany(rows: JobRow[]): DatabaseSearchCompanyResult[] {
       officialTitle: row.officialTitle,
       officialPublishedAt: toIsoString(row.officialPublishedAt),
       city: row.city,
-      category: PRISMA_TO_JOB_CATEGORY[row.category as PrismaJobCategoryName],
+      category:
+        PRISMA_TO_JOB_CATEGORY[
+          (row.humanCorrectedCategory ?? row.category) as PrismaJobCategoryName
+        ],
       isNew: row.isNew,
       officialUrl: row.officialUrl
     });

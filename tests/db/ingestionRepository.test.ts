@@ -301,4 +301,13 @@ describe("executeIngestionCommands", () => {
       }
     });
   });
+
+  it("does not clear or overwrite a human category correction on later ingestion updates", async () => {
+    const db = fakeDb();
+
+    await executeIngestionCommands([jobCommand], { batchId: "batch-1" }, db);
+
+    const args = db.calls.jobs[0] as { update: Record<string, unknown> };
+    expect(args.update).not.toHaveProperty("humanCorrectedCategory");
+  });
 });

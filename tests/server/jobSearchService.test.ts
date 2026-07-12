@@ -26,6 +26,7 @@ const rows = [
     city: "北京",
     cities: ["北京"],
     category: "MEDICAL_AFFAIRS",
+    humanCorrectedCategory: null,
     isNew: true,
     company: { id: "company-b", officialChineseName: "百济神州", pinyinName: "bai ji shen zhou" }
   },
@@ -39,6 +40,7 @@ const rows = [
     city: "北京",
     cities: ["北京", "全国"],
     category: "SALES",
+    humanCorrectedCategory: null,
     isNew: false,
     company: { id: "company-a", officialChineseName: "阿斯利康", pinyinName: "a si li kang" }
   }
@@ -84,7 +86,6 @@ describe("searchJobsFromDatabase", () => {
             in: []
           },
           companyId: { in: ["company-a"] },
-          category: { in: ["SALES"] },
           isNew: true
         }),
         include: { company: true }
@@ -95,6 +96,44 @@ describe("searchJobsFromDatabase", () => {
       | { where: { sourceId: { in: string[] } } }
       | undefined;
     expect(call?.where.sourceId.in).toEqual([]);
+  });
+
+  it("filters by the human-corrected category before the model category", async () => {
+    const db = dbReturning([]);
+
+    await searchJobsFromDatabase(
+      { city: "北京", categories: ["销售", "医学事务"] },
+      db
+    );
+
+    const call = vi.mocked(db.job.findMany).mock.calls[0]?.[0] as
+      | { where: { AND?: Array<Record<string, unknown>> } }
+      | undefined;
+
+    expect(call?.where.AND).toContainEqual({
+      OR: [
+        { humanCorrectedCategory: { in: ["SALES", "MEDICAL_AFFAIRS"] } },
+        {
+          humanCorrectedCategory: null,
+          category: { in: ["SALES", "MEDICAL_AFFAIRS"] }
+        }
+      ]
+    });
+  });
+
+  it("returns the human-corrected category instead of the model category", async () => {
+    const result = await searchJobsFromDatabase(
+      { city: "北京", categories: [] },
+      dbReturning([
+        {
+          ...rows[1],
+          category: "SALES",
+          humanCorrectedCategory: "MEDICAL_AFFAIRS"
+        }
+      ])
+    );
+
+    expect(result.companies[0]?.jobs[0]?.category).toBe("医学事务");
   });
 
   it("sorts latest posted deterministically when some jobs have null publish dates", async () => {

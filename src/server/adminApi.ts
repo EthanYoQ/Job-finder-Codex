@@ -68,7 +68,12 @@ type AdminApiDb = AdminAuthDb &
     };
     job: AdminOperationsDb["job"] & {
       findMany(args: {
-        where: { lifecycleStatus: "ACTIVE"; visibleInFrontend: true; category: "OTHER" };
+        where: {
+          lifecycleStatus: "ACTIVE";
+          visibleInFrontend: true;
+          category: "OTHER";
+          humanCorrectedCategory: null;
+        };
         include: { company: { select: { officialChineseName: true } } };
         orderBy: { firstSeenAt: "desc" };
         take: 50;
@@ -303,7 +308,12 @@ async function listRecommendationQueue(db: AdminApiDb) {
 
 async function listCategoryCorrectionQueue(db: AdminApiDb) {
   const rows = await db.job.findMany({
-    where: { lifecycleStatus: "ACTIVE", visibleInFrontend: true, category: "OTHER" },
+    where: {
+      lifecycleStatus: "ACTIVE",
+      visibleInFrontend: true,
+      category: "OTHER",
+      humanCorrectedCategory: null
+    },
     include: { company: { select: { officialChineseName: true } } },
     orderBy: { firstSeenAt: "desc" },
     take: 50

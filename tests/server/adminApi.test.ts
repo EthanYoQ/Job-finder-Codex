@@ -61,6 +61,7 @@ function createDb() {
           officialTitle: "Unclassified Role",
           auxiliaryChineseTitle: "待分类职位",
           category: "OTHER",
+          humanCorrectedCategory: null,
           company: { officialChineseName: "辉瑞" }
         }
       ]),
@@ -119,6 +120,16 @@ describe("admin API", () => {
       recommendationQueue: [{ id: "recommendation-1" }],
       categoryCorrectionQueue: [{ jobId: "job-other", companyName: "辉瑞" }]
     });
+    expect(db.job.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: {
+          lifecycleStatus: "ACTIVE",
+          visibleInFrontend: true,
+          category: "OTHER",
+          humanCorrectedCategory: null
+        }
+      })
+    );
   });
 
   it("rejects invalid category corrections before admin operations run", async () => {
