@@ -881,6 +881,25 @@ describe("Phenom evidence instrumentation", () => {
     });
   });
 
+  it.each([
+    "上海市香港路100号",
+    "武汉香港路",
+    "北京美国大使馆附近",
+    "上海英国领事馆附近"
+  ])("does not treat a mainland address containing a foreign-name substring as foreign: %s", async (location) => {
+    const fetcher = createOfficialJsonSourceFetch({
+      now: () => new Date(capturedAt),
+      http: async (request) => request.method === "POST"
+        ? response(pageBody([job("MAINLAND", { country: "China", location, city: "上海" })], 1, 0), widgetUrl, "application/json")
+        : response(entryHtml(), entryUrl, "text/html")
+    });
+
+    await expect(fetcher(plan)).resolves.toMatchObject({
+      ok: true,
+      fetchEvidence: { fetchCounts: { rawCount: 1, validCount: 1, validationDiscardCount: 0 } }
+    });
+  });
+
   it("fails closed through D1 on unstable totals and retains both raw pages", async () => {
     const bodies = [pageBody([job("CN-1")], 3, 0), pageBody([job("CN-2")], 2, 1)];
     const fetcher = createOfficialJsonSourceFetch({

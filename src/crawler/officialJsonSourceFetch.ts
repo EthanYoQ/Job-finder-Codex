@@ -2649,7 +2649,8 @@ async function fetchPhenomWidgets({
       }
       const city = stringValue(raw.city);
       if ((facetScope || sourceScopedChinaRequest) && phenomCountryIsMainlandChina(stringValue(raw.country)) &&
-        explicitlyForeignOrNonMainlandLocation(`${locationRaw!} ${city ?? ""}`)) {
+        (explicitlyForeignOrNonMainlandLocation(locationRaw!) ||
+          (city !== undefined && explicitlyForeignOrNonMainlandLocation(city)))) {
         recordPhenomLoss(losses, counts, "VALIDATION", "OUT_OF_SCOPE", rawLocator, pageIndex, recordIndex);
         pages.push(phenomPageTrace({
           artifact, sequence: pageIndex, requestedOffset, returnedOffset,
@@ -3083,7 +3084,8 @@ function phenomRecordHasChinaScope(
   locationRaw: string,
   city: string | undefined
 ): boolean {
-  if (explicitlyForeignOrNonMainlandLocation(`${locationRaw} ${city ?? ""}`)) return false;
+  if (explicitlyForeignOrNonMainlandLocation(locationRaw) ||
+    (city !== undefined && explicitlyForeignOrNonMainlandLocation(city))) return false;
   if (country !== undefined) {
     return phenomCountryIsMainlandChina(country);
   }
