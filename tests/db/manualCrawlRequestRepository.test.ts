@@ -155,21 +155,18 @@ describe("manual crawl request repository", () => {
     const { db, calls } = fakeDb();
     const repository = createManualCrawlRequestRepository({ db, evaluateEligibility: eligible });
     await repository.finishSuccess({ requestId: "request-1", ownerId: "worker-1", crawlBatchId: "batch-1" });
-    expect(calls.requestFind[0]).toEqual({
-      where: { id: "request-1" }, select: { id: true, sourceId: true, ownerId: true, status: true }
-    });
-    expect(calls.batchFind[0]).toEqual({ where: { id: "batch-1" }, select: expect.objectContaining({
-      id: true, kind: true, status: true, ownerId: true, manualCrawlRequestId: true,
-      plannedSourceIds: true, sourceResults: expect.any(Object)
-    }) });
+    expect(calls.requestFind).toHaveLength(0);
+    expect(calls.batchFind).toHaveLength(0);
     expect(calls.raw.at(-1).sql).toMatch(/leaseExpiresAt"\s*>\s*clock_timestamp\(\)/);
     expect(calls.raw.at(-1).sql).toContain('"finishedAt" = clock_timestamp()');
     expect(calls.raw.at(-1).values).toEqual(["request-1", "worker-1", "batch-1"]);
-    expect(calls.raw.at(-1).sql).toContain("WITH verified_batch AS");
-    expect(calls.raw.at(-1).sql).toContain('batch."ownerId" = $2');
-    expect(calls.raw.at(-1).sql).toContain('batch."plannedSourceIds" = jsonb_build_array(request."sourceId")');
-    expect(calls.raw.at(-1).sql).toContain('result."atomicCommitState" = \'COMMITTED\'');
-    expect(calls.raw.at(-1).sql).toContain("FOR SHARE OF batch, result");
+    expect(calls.raw).toHaveLength(4);
+    expect(calls.raw[0].sql).toMatch(/FROM "ManualCrawlRequest"[\s\S]+FOR UPDATE/);
+    expect(calls.raw[1].sql).toMatch(/FROM "CrawlBatch"[\s\S]+FOR UPDATE/);
+    expect(calls.raw[1].sql).toContain('"ownerId" = $2');
+    expect(calls.raw[1].sql).toContain('"plannedSourceIds" = jsonb_build_array($4::text)');
+    expect(calls.raw[2].sql).toMatch(/FROM "CrawlBatchSourceResult"[\s\S]+FOR UPDATE/);
+    expect(calls.raw[3].sql).toMatch(/^\s*UPDATE "ManualCrawlRequest"/);
     expect(calls.eventCreate[0]).toEqual({ data: expect.objectContaining({
       eventType: "SUCCEEDED", actor: "SYSTEM", ownerId: "worker-1", fromStatus: "RUNNING", toStatus: "SUCCESS"
     }) });
@@ -190,7 +187,10 @@ describe("manual crawl request repository", () => {
     await expect(repository.finishSuccess({
       requestId: "request-1", ownerId: "worker-1", crawlBatchId: "batch-1"
     })).rejects.toMatchObject({ code: "INVALID_MANUAL_BATCH" });
-    expect(fixture.calls.raw).toHaveLength(0);
+    expect(fixture.calls.raw.length).toBeGreaterThanOrEqual(2);
+    expect(fixture.calls.raw.some((call: { sql: string }) => /^\s*UPDATE "ManualCrawlRequest" AS request/.test(call.sql)))
+      .toBe(false);
+    expect(fixture.calls.eventCreate).toHaveLength(0);
   });
 
   it("stores only an allow-listed safe error code and never a stack or secret", async () => {
@@ -215,7 +215,7 @@ describe("manual crawl request repository", () => {
   });
 
   it("does not let an expired old owner revive, succeed, or fail before reclaim", async () => {
-    const fixture = fakeDb({ mutationRows: [] });
+    const fixture = fakeDb({ mutationRows: [], requestLockRows: [] });
     const repository = createManualCrawlRequestRepository({ db: fixture.db, evaluateEligibility: eligible });
     await expect(repository.heartbeat({ requestId: "request-1", ownerId: "worker-old",
       leaseDurationMs: LEASE_DURATION_MS })).rejects.toMatchObject({ code: "OWNERSHIP_LOST" });
@@ -234,6 +234,7 @@ type FakeOptions = {
   claimRows?: unknown[];
   updateCount?: number;
   mutationRows?: unknown[];
+  requestLockRows?: unknown[];
   batch?: Record<string, unknown>;
 };
 
@@ -271,7 +272,27 @@ function fakeDb(options: FakeOptions = {}): { db: ManualCrawlRequestDb; calls: R
     adminAuditEvent: { async create(args: unknown) { calls.auditCreate.push(args); return { id: "audit-1" }; } },
     async $queryRawUnsafe(sql: string, ...values: unknown[]) {
       calls.raw.push({ sql, values });
-      return sql.includes("WITH candidate") ? (options.claimRows ?? []) : (options.mutationRows ?? [{ id: "request-1" }]);
+      if (sql.includes("WITH candidate")) return options.claimRows ?? [];
+      if (sql.includes('SELECT "id", "sourceId" FROM "ManualCrawlRequest"')) {
+        return options.requestLockRows ?? [{ id: "request-1", sourceId: "source-1" }];
+      }
+      const batch = {
+        id: "batch-1", kind: "MANUAL_SOURCE", status: "SUCCESS", ownerId: "worker-1",
+        manualCrawlRequestId: "request-1", plannedSourceIds: ["source-1"],
+        sourceResults: [{ sourceId: "source-1", transportState: "SUCCEEDED", adapterState: "SUCCEEDED",
+          completenessState: "VERIFIED", atomicCommitState: "COMMITTED" }],
+        ...options.batch
+      } as Record<string, any>;
+      if (sql.includes('SELECT "id" FROM "CrawlBatch"')) {
+        const [requestId, ownerId, batchId, sourceId] = values;
+        const valid = batch.id === batchId && batch.kind === "MANUAL_SOURCE" && batch.status === "SUCCESS" &&
+          batch.ownerId === ownerId && batch.manualCrawlRequestId === requestId &&
+          Array.isArray(batch.plannedSourceIds) && batch.plannedSourceIds.length === 1 &&
+          batch.plannedSourceIds[0] === sourceId;
+        return valid ? [{ id: batch.id }] : [];
+      }
+      if (sql.includes('FROM "CrawlBatchSourceResult"')) return batch.sourceResults;
+      return options.mutationRows ?? [{ id: "request-1" }];
     }
   };
   const db: any = { async $transaction<T>(callback: (client: any) => Promise<T>) {

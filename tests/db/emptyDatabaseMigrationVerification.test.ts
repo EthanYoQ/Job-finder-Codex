@@ -114,8 +114,10 @@ const USER_TYPES = [
 
 const FUNCTIONS = [
   "assert_verified_parent_lifecycle_projection", "enforce_source_result_state_machine",
+  "guard_crawl_batch_source_result_insert",
   "prevent_crawl_batch_kind_or_manual_binding_mutation",
-  "prevent_immutable_evidence_mutation", "prevent_manual_crawl_request_event_mutation", "prevent_rc_observation_mutation",
+  "prevent_immutable_evidence_mutation", "prevent_manual_crawl_request_event_mutation",
+  "prevent_manual_crawl_request_source_mutation", "prevent_rc_observation_mutation",
   "prevent_release_candidate_delete", "prevent_release_candidate_identity_mutation",
   "prevent_transport_attempt_artifact_mutation", "prevent_transport_attempt_mutation",
   "reject_lifecycle_set_member_mutation", "require_transport_attempt_artifact_ref",

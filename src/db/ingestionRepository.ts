@@ -636,9 +636,16 @@ async function executeAtomicSourceEvidenceCommitInternal(
   await db.$transaction(async (transaction) => {
     if (manualFence) {
       if (!transaction.$queryRawUnsafe) throw new ManualSourceCommitFenceError();
-      const owned = await transaction.$queryRawUnsafe<Array<{ id: string }>>(MANUAL_SOURCE_COMMIT_FENCE_SQL,
-        manualFence.requestId, manualFence.ownerId, input.sourceResult.batchId, input.sourceResult.sourceId);
-      if (owned.length !== 1 || owned[0]?.id !== manualFence.requestId) {
+      const ownedRequest = await transaction.$queryRawUnsafe<Array<{ id: string }>>(
+        LOCK_MANUAL_REQUEST_FOR_COMMIT_SQL,
+        manualFence.requestId, manualFence.ownerId, input.sourceResult.sourceId);
+      if (ownedRequest.length !== 1 || ownedRequest[0]?.id !== manualFence.requestId) {
+        throw new ManualSourceCommitFenceError();
+      }
+      const ownedBatch = await transaction.$queryRawUnsafe<Array<{ id: string }>>(
+        LOCK_MANUAL_BATCH_FOR_COMMIT_SQL,
+        input.sourceResult.batchId, manualFence.requestId, manualFence.ownerId);
+      if (ownedBatch.length !== 1 || ownedBatch[0]?.id !== input.sourceResult.batchId) {
         throw new ManualSourceCommitFenceError();
       }
     }
@@ -757,19 +764,18 @@ async function executeAtomicSourceEvidenceCommitInternal(
   });
 }
 
-const MANUAL_SOURCE_COMMIT_FENCE_SQL = `
-SELECT request."id"
-FROM "ManualCrawlRequest" AS request
-JOIN "CrawlBatch" AS batch ON batch."id" = $3
-  AND batch."kind" = 'MANUAL_SOURCE'
-  AND batch."manualCrawlRequestId" = request."id"
-  AND batch."ownerId" = $2
-WHERE request."id" = $1
-  AND request."ownerId" = $2
-  AND request."sourceId" = $4
-  AND request."status" = 'RUNNING'
-  AND request."leaseExpiresAt" > clock_timestamp()
-FOR UPDATE OF request
+const LOCK_MANUAL_REQUEST_FOR_COMMIT_SQL = `
+SELECT "id" FROM "ManualCrawlRequest"
+WHERE "id" = $1 AND "ownerId" = $2 AND "sourceId" = $3
+  AND "status" = 'RUNNING' AND "leaseExpiresAt" > clock_timestamp()
+FOR UPDATE
+`;
+
+const LOCK_MANUAL_BATCH_FOR_COMMIT_SQL = `
+SELECT "id" FROM "CrawlBatch"
+WHERE "id" = $1 AND "manualCrawlRequestId" = $2
+  AND "ownerId" = $3 AND "kind" = 'MANUAL_SOURCE'
+FOR UPDATE
 `;
 
 function validatePlannedBatchWithSources(input: PlannedBatchWithSourcesInput): PlannedPendingSourceInput[] {

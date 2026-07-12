@@ -273,6 +273,9 @@ function transactionalDb(failAt?: Group, sourceResultCount = 1, fenceRows: unkno
       const result = await operation({
         $queryRawUnsafe: vi.fn(async (sql: string, ...values: unknown[]) => {
           calls.fences.push({ sql, values });
+          if (sql.includes('FROM "CrawlBatch"')) {
+            return fenceRows.length === 0 ? [] : [{ id: values[0] }];
+          }
           return fenceRows;
         }),
         crawlBatchSourceResult: { updateMany: vi.fn(async (args: unknown) => {
@@ -776,12 +779,19 @@ describe("executeManualSourceEvidenceCommit", () => {
     const currentDb = transactionalDb(undefined, 1, [{ id: fence.requestId }]);
     await executeManualSourceEvidenceCommit(current, fence, currentDb);
 
+    expect(currentDb.calls.fences).toHaveLength(2);
     expect(currentDb.calls.fences[0]).toMatchObject({ values: [fence.requestId, fence.ownerId,
-      current.sourceResult.batchId, current.sourceResult.sourceId] });
-    expect(currentDb.calls.fences[0]).toMatchObject({ sql: expect.stringContaining('batch."manualCrawlRequestId" = request."id"') });
-    expect(currentDb.calls.fences[0]).toMatchObject({ sql: expect.stringContaining('batch."ownerId" = $2') });
-    expect(currentDb.calls.fences[0]).toMatchObject({ sql: expect.stringContaining('request."sourceId" = $4') });
+      current.sourceResult.sourceId] });
+    expect(currentDb.calls.fences[0]).toMatchObject({ sql: expect.stringContaining('FROM "ManualCrawlRequest"') });
+    expect(currentDb.calls.fences[0]).toMatchObject({ sql: expect.stringContaining('"sourceId" = $3') });
     expect(currentDb.calls.fences[0]).toMatchObject({ sql: expect.stringContaining("clock_timestamp()") });
+    expect(currentDb.calls.fences[0]).toMatchObject({ sql: expect.stringContaining("FOR UPDATE") });
+    expect(currentDb.calls.fences[1]).toMatchObject({ values: [current.sourceResult.batchId,
+      fence.requestId, fence.ownerId] });
+    expect(currentDb.calls.fences[1]).toMatchObject({ sql: expect.stringContaining('FROM "CrawlBatch"') });
+    expect(currentDb.calls.fences[1]).toMatchObject({ sql: expect.stringContaining('"manualCrawlRequestId" = $2') });
+    expect(currentDb.calls.fences[1]).toMatchObject({ sql: expect.stringContaining('"ownerId" = $3') });
+    expect(currentDb.calls.fences[1]).toMatchObject({ sql: expect.stringContaining("FOR UPDATE") });
     expect(currentDb.calls.observations).toHaveLength(1);
     expect(currentDb.calls.artifacts).toHaveLength(1);
     expect(currentDb.calls.jobs).toEqual([]);

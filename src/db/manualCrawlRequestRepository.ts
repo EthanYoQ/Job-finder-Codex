@@ -226,24 +226,17 @@ export function createManualCrawlRequestRepository(input: {
       crawlBatchId: string;
     }): Promise<void> {
       await input.db.$transaction(async (transaction) => {
-        const request = await transaction.manualCrawlRequest.findUnique({
-          where: { id: finish.requestId },
-          select: { id: true, sourceId: true, ownerId: true, status: true }
-        });
-        if (!request || request.ownerId !== finish.ownerId || request.status !== "RUNNING") {
-          throw new ManualCrawlRequestRepositoryError("OWNERSHIP_LOST");
-        }
-        const batch = await transaction.crawlBatch.findUnique({
-          where: { id: finish.crawlBatchId },
-          select: {
-            id: true, kind: true, status: true, ownerId: true, manualCrawlRequestId: true, plannedSourceIds: true,
-            sourceResults: { select: {
-              sourceId: true, transportState: true, adapterState: true,
-              completenessState: true, atomicCommitState: true
-            } }
-          }
-        });
-        if (!isSuccessfulManualSourceBatch(batch, finish.requestId, finish.ownerId, request.sourceId)) {
+        const requestRows = await transaction.$queryRawUnsafe<Array<{ id: string; sourceId: string }>>(
+          LOCK_MANUAL_REQUEST_FOR_SUCCESS_SQL, finish.requestId, finish.ownerId);
+        if (requestRows.length !== 1) throw new ManualCrawlRequestRepositoryError("OWNERSHIP_LOST");
+        const sourceId = requestRows[0]!.sourceId;
+        const batchRows = await transaction.$queryRawUnsafe<Array<{ id: string }>>(
+          LOCK_MANUAL_BATCH_FOR_SUCCESS_SQL, finish.requestId, finish.ownerId, finish.crawlBatchId, sourceId);
+        if (batchRows.length !== 1) throw new ManualCrawlRequestRepositoryError("INVALID_MANUAL_BATCH");
+        const resultRows = await transaction.$queryRawUnsafe<Array<{ sourceId: string; transportState: string;
+          adapterState: string; completenessState: string; atomicCommitState: string }>>(
+          LOCK_MANUAL_SOURCE_RESULTS_FOR_SUCCESS_SQL, finish.crawlBatchId);
+        if (!isExactSuccessfulManualSourceResult(resultRows, sourceId)) {
           throw new ManualCrawlRequestRepositoryError("INVALID_MANUAL_BATCH");
         }
         const rows = await transaction.$queryRawUnsafe<Array<{ id: string }>>(FINISH_SUCCESS_SQL,
@@ -310,29 +303,32 @@ WHERE "id" = $1 AND "ownerId" = $2 AND "status" = 'RUNNING'
 RETURNING "id"
 `;
 
+const LOCK_MANUAL_REQUEST_FOR_SUCCESS_SQL = `
+SELECT "id", "sourceId" FROM "ManualCrawlRequest"
+WHERE "id" = $1 AND "ownerId" = $2 AND "status" = 'RUNNING'
+  AND "leaseExpiresAt" > clock_timestamp()
+FOR UPDATE
+`;
+
+const LOCK_MANUAL_BATCH_FOR_SUCCESS_SQL = `
+SELECT "id" FROM "CrawlBatch"
+WHERE "id" = $3 AND "kind" = 'MANUAL_SOURCE' AND "status" = 'SUCCESS'
+  AND "manualCrawlRequestId" = $1 AND "ownerId" = $2
+  AND "plannedSourceCount" = 1 AND "plannedSourceIds" = jsonb_build_array($4::text)
+FOR UPDATE
+`;
+
+const LOCK_MANUAL_SOURCE_RESULTS_FOR_SUCCESS_SQL = `
+SELECT "sourceId", "transportState", "adapterState", "completenessState", "atomicCommitState"
+FROM "CrawlBatchSourceResult"
+WHERE "batchId" = $1
+FOR UPDATE
+`;
+
 const FINISH_SUCCESS_SQL = `
-WITH verified_batch AS (
-  SELECT batch."id"
-  FROM "CrawlBatch" AS batch
-  JOIN "ManualCrawlRequest" AS request ON request."id" = $1
-  JOIN "CrawlBatchSourceResult" AS result ON result."batchId" = batch."id"
-  WHERE batch."id" = $3 AND batch."kind" = 'MANUAL_SOURCE' AND batch."status" = 'SUCCESS'
-    AND batch."manualCrawlRequestId" = request."id" AND batch."ownerId" = $2
-    AND batch."plannedSourceCount" = 1
-    AND batch."plannedSourceIds" = jsonb_build_array(request."sourceId")
-    AND result."sourceId" = request."sourceId"
-    AND result."transportState" = 'SUCCEEDED' AND result."adapterState" = 'SUCCEEDED'
-    AND result."completenessState" = 'VERIFIED' AND result."atomicCommitState" = 'COMMITTED'
-    AND NOT EXISTS (
-      SELECT 1 FROM "CrawlBatchSourceResult" AS other
-      WHERE other."batchId" = batch."id" AND other."id" <> result."id"
-    )
-  FOR SHARE OF batch, result
-)
 UPDATE "ManualCrawlRequest" AS request
 SET "status" = 'SUCCESS', "crawlBatchId" = $3, "finishedAt" = clock_timestamp(),
     "heartbeatAt" = clock_timestamp(), "leaseExpiresAt" = NULL, "failureCode" = NULL
-FROM verified_batch
 WHERE request."id" = $1 AND request."ownerId" = $2 AND request."status" = 'RUNNING'
   AND request."leaseExpiresAt" > clock_timestamp()
 RETURNING request."id"
@@ -394,17 +390,18 @@ function assertValidLease(ownerId: string, leaseDurationMs: number): void {
   }
 }
 
-function isSuccessfulManualSourceBatch(
-  batch: Awaited<ReturnType<ManualCrawlTransaction["crawlBatch"]["findUnique"]>>,
-  requestId: string,
-  ownerId: string,
+function isExactSuccessfulManualSourceResult(
+  rows: readonly {
+    sourceId: string;
+    transportState: string;
+    adapterState: string;
+    completenessState: string;
+    atomicCommitState: string;
+  }[],
   sourceId: string
 ): boolean {
-  if (!batch || batch.kind !== "MANUAL_SOURCE" || batch.status !== "SUCCESS" ||
-      batch.ownerId !== ownerId || batch.manualCrawlRequestId !== requestId) return false;
-  if (!Array.isArray(batch.plannedSourceIds) || batch.plannedSourceIds.length !== 1 ||
-      batch.plannedSourceIds[0] !== sourceId || batch.sourceResults.length !== 1) return false;
-  const result = batch.sourceResults[0]!;
+  if (rows.length !== 1) return false;
+  const result = rows[0]!;
   return result.sourceId === sourceId && result.transportState === "SUCCEEDED" &&
     result.adapterState === "SUCCEEDED" && result.completenessState === "VERIFIED" &&
     result.atomicCommitState === "COMMITTED";

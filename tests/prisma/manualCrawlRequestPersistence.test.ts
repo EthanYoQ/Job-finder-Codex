@@ -91,5 +91,14 @@ describe("manual crawl persistence contract", () => {
     expect(bindingMigration).toMatch(/OLD\."kind"\s+IS\s+DISTINCT\s+FROM\s+NEW\."kind"/);
     expect(bindingMigration).toMatch(/OLD\."manualCrawlRequestId"\s+IS\s+DISTINCT\s+FROM\s+NEW\."manualCrawlRequestId"/);
     expect(bindingMigration).toContain("CrawlBatch_kind_and_manual_binding_immutable");
+    expect(bindingMigration).toMatch(/OLD\."kind" = 'MANUAL_SOURCE'[\s\S]+OLD\."ownerId" IS DISTINCT FROM NEW\."ownerId"/);
+    expect(bindingMigration).toContain("ManualCrawlRequest_source_immutable");
+    expect(bindingMigration).toMatch(/OLD\."sourceId" IS DISTINCT FROM NEW\."sourceId"/);
+    expect(bindingMigration).toContain("CrawlBatchSourceResult_parent_insert_guard");
+    expect(bindingMigration).toMatch(/SELECT[\s\S]+FROM "CrawlBatch"[\s\S]+FOR UPDATE/);
+    expect(bindingMigration).toMatch(/parent_status <> 'RUNNING'/);
+    expect(bindingMigration).toContain("source result source is outside the parent planned set");
+    expect(bindingMigration).not.toContain("invalid_batch_ids");
+    expect(bindingMigration).not.toContain("string_agg(candidate");
   });
 });

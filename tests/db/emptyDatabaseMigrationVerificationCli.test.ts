@@ -27,12 +27,14 @@ describe("empty database migration verification CLI contract", () => {
       "ManualCrawlEventType",
       "ManualCrawlFailureCode"
     ]));
-    expect(REVIEWED_FUNCTION_NAMES).toHaveLength(14);
+    expect(REVIEWED_FUNCTION_NAMES).toHaveLength(16);
     expect(REVIEWED_FUNCTION_NAMES).toEqual(expect.arrayContaining([
       "prevent_transport_attempt_artifact_mutation",
       "prevent_transport_attempt_mutation",
       "prevent_manual_crawl_request_event_mutation",
+      "prevent_manual_crawl_request_source_mutation",
       "prevent_crawl_batch_kind_or_manual_binding_mutation",
+      "guard_crawl_batch_source_result_insert",
       "require_transport_attempt_artifact_ref"
     ]));
     expect(REVIEWED_FUNCTION_NAMES).not.toContain("prevent_committed_source_result_mutation");
