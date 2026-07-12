@@ -87,6 +87,20 @@ export interface HtmlTableConfig {
     expectedJobCountPattern?: string;
     expectedJobCountValue?: number;
     ajaxMode?: "talentbrew" | "tupu360";
+    talentbrewScope?: {
+      requiredActiveFacet: {
+        id: string;
+        facetType: number;
+        descriptor: string;
+      };
+      allowedPartitions: Array<{
+        channelId: string;
+        id: string;
+        facetType: number;
+        fieldName: string;
+        descriptor: string;
+      }>;
+    };
   };
 }
 

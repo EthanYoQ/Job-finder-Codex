@@ -742,7 +742,7 @@ const REPRESENTATIVE_CONFIGS: Record<string, RepresentativeSourceConfig> = {
   "source-takeda-china-social": {
     adapterId: "html-table",
     table: {
-      rowSelector: "#search-results-list li",
+      rowSelector: "#search-results-list li:has(button.js-save-job-btn)",
       pagination: {
         totalPagesSelector: "#search-results",
         totalPagesAttribute: "data-total-pages",
@@ -750,7 +750,24 @@ const REPRESENTATIVE_CONFIGS: Record<string, RepresentativeSourceConfig> = {
         maxPages: 30,
         expectedJobCountSelector: "#search-results",
         expectedJobCountAttribute: "data-total-job-results",
-        ajaxMode: "talentbrew"
+        ajaxMode: "talentbrew",
+        talentbrewScope: {
+          requiredActiveFacet: { id: "1814991", facetType: 2, descriptor: "China" },
+          allowedPartitions: [
+            { channelId: "career-commercial", id: "Commercial", facetType: 5,
+              fieldName: "custom_fields.CategoryField", descriptor: "Commercial" },
+            { channelId: "career-corporate-functions", id: "Corporate Functions", facetType: 5,
+              fieldName: "custom_fields.CategoryField", descriptor: "Corporate Functions" },
+            { channelId: "career-data-digital-technology", id: "Data, Digital & Technology", facetType: 5,
+              fieldName: "custom_fields.CategoryField", descriptor: "Data, Digital & Technology" },
+            { channelId: "career-manufacturing-supply", id: "Manufacturing & Supply", facetType: 5,
+              fieldName: "custom_fields.CategoryField", descriptor: "Manufacturing & Supply" },
+            { channelId: "career-quality", id: "Quality", facetType: 5,
+              fieldName: "custom_fields.CategoryField", descriptor: "Quality" },
+            { channelId: "career-research-development", id: "Research & Development", facetType: 5,
+              fieldName: "custom_fields.CategoryField", descriptor: "Research & Development" }
+          ]
+        }
       },
       fields: {
         sourceJobId: { selector: "button.js-save-job-btn", attribute: "data-job-id" },
@@ -966,7 +983,7 @@ const REPRESENTATIVE_CONFIGS: Record<string, RepresentativeSourceConfig> = {
   "source-sanofi-china-social": {
     adapterId: "html-table",
     table: {
-      rowSelector: "#search-results-list li",
+      rowSelector: "#search-results-list li:has(button.js-save-job-btn)",
       pagination: {
         totalPagesSelector: "#search-results",
         totalPagesAttribute: "data-total-pages",
@@ -974,7 +991,17 @@ const REPRESENTATIVE_CONFIGS: Record<string, RepresentativeSourceConfig> = {
         pageUrlTemplate: "https://jobs.sanofi.com/en/location/china-jobs/2649/1814991/2/{page}",
         maxPages: 25,
         expectedJobCountSelector: "#search-results",
-        expectedJobCountAttribute: "data-total-job-results"
+        expectedJobCountAttribute: "data-total-job-results",
+        ajaxMode: "talentbrew",
+        talentbrewScope: {
+          requiredActiveFacet: { id: "1814991", facetType: 2, descriptor: "China" },
+          allowedPartitions: [
+            { channelId: "employment-fixed-term", id: "Fixed Term (Fixed Term)", facetType: 5,
+              fieldName: "job_type", descriptor: "Fixed Term (Fixed Term)" },
+            { channelId: "employment-regular", id: "Regular", facetType: 5,
+              fieldName: "job_type", descriptor: "Regular" }
+          ]
+        }
       },
       fields: {
         sourceJobId: { selector: "button.js-save-job-btn", attribute: "data-job-id" },

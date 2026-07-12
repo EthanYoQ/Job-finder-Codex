@@ -19,6 +19,7 @@ export interface HttpHtmlRequest {
   method?: "GET" | "POST";
   headers: Record<string, string>;
   body?: string;
+  evidenceChannelId?: string;
 }
 
 export interface HttpHtmlResponse {
@@ -76,7 +77,8 @@ export function createHttpHtmlSourceFetch(
           http,
           entryUrl: plan.source.officialEntryUrl,
           capturedAt,
-          maxPages: plan.table.pagination.maxPages
+          maxPages: plan.table.pagination.maxPages,
+          scope: plan.table.pagination.talentbrewScope
         });
         return attachHtmlEvidence(result, interactions, plan.table, capturedAt, "talentbrew");
       }
@@ -221,13 +223,15 @@ async function fetchTalentbrewAjaxPages({
   http,
   entryUrl,
   capturedAt,
-  maxPages
+  maxPages,
+  scope
 }: {
   html: string;
   http: HttpHtmlClient;
   entryUrl: string;
   capturedAt: string;
   maxPages: number;
+  scope: NonNullable<NonNullable<HtmlTableConfig["pagination"]>["talentbrewScope"]> | undefined;
 }): Promise<SourceFetchResult> {
   const $ = load(html);
   const searchResults = $("#search-results").first();
@@ -246,49 +250,81 @@ async function fetchTalentbrewAjaxPages({
     return failed(capturedAt, "TalentBrew search results did not expose total pages or total jobs");
   }
 
-  const pagesToVisit = Math.min(initialTotalPages ?? 1, Math.max(1, maxPages));
   const criteria = talentbrewCriteria($);
+  const partitions = scope
+    ? strictTalentbrewPartitions($, searchResults, scope)
+    : [{ channelId: undefined, filter: undefined, declaredCount: expectedJobCount }];
   const pages: string[] = [];
-  let latestTotalPages = initialTotalPages;
-  let latestExpectedJobCount = expectedJobCount;
-
-  for (let page = 1; page <= pagesToVisit; page += 1) {
-    const url = new URL(ajaxUrl, entryUrl);
-    url.search = bindQueryParams({
-      ...criteria,
-      CurrentPage: page
-    });
-    const pageResponse = await http({
-      url: url.toString(),
-      headers: {
-        Accept: "application/json, text/javascript, */*; q=0.01",
-        Referer: entryUrl,
-        "X-Requested-With": "XMLHttpRequest",
-        "User-Agent": "job-search-crawler/0.1"
+  let totalPages = 0;
+  let totalExpectedJobs = 0;
+  let hasAllDeclaredJobTotals = true;
+  let truncated = false;
+  for (const partition of partitions) {
+    let declaredPages: number | undefined;
+    let declaredJobs: number | undefined;
+    let declaredPageSize: number | undefined;
+    let page = 1;
+    do {
+      const url = new URL(ajaxUrl, entryUrl);
+      url.search = bindQueryParams({
+        ...criteria,
+        FacetFilters: [
+          ...talentbrewStaticFacetFilters($),
+          ...(partition.filter ? [partition.filter] : [])
+        ],
+        IsPagination: page > 1 ? "True" : "False",
+        CurrentPage: page
+      });
+      const pageResponse = await http({
+        url: url.toString(),
+        headers: {
+          Accept: "application/json, text/javascript, */*; q=0.01",
+          Referer: entryUrl,
+          "X-Requested-With": "XMLHttpRequest",
+          "User-Agent": "job-search-crawler/0.1"
+        },
+        ...(partition.channelId ? { evidenceChannelId: partition.channelId } : {})
+      });
+      const validation = validateResponse(pageResponse);
+      if (!validation.ok) return failed(capturedAt, `TalentBrew page ${page}: ${validation.failureReason}`);
+      const parsed = parseTalentbrewAjaxResponse(pageResponse.body);
+      if (!parsed.ok) return failed(capturedAt, parsed.failureReason);
+      const pageDom = load(parsed.results);
+      const returned = pageDom("#search-results").first();
+      if (hasInvalidTalentbrewDeclarations(returned)) return failed(capturedAt, "HTML_DECLARATION_INVALID");
+      const returnedPage = numberAttr(returned, "data-current-page");
+      const returnedPages = numberAttr(returned, "data-total-pages") ?? initialTotalPages;
+      const returnedJobs = numberAttr(returned, "data-total-job-results") ?? expectedJobCount;
+      const returnedPageSize = numberAttr(returned, "data-records-per-page") ?? recordsPerPage;
+      if (scope && (returnedPage !== page || returnedPages === undefined || returnedJobs === undefined || returnedPageSize === undefined)) {
+        return failed(capturedAt, "TALENTBREW_SCOPE_INVALID");
       }
-    });
-    const validation = validateResponse(pageResponse);
-    if (!validation.ok) {
-      return failed(capturedAt, `TalentBrew page ${page}: ${validation.failureReason}`);
-    }
-
-    const parsed = parseTalentbrewAjaxResponse(pageResponse.body);
-    if (!parsed.ok) {
-      return failed(capturedAt, parsed.failureReason);
-    }
-
-    const pageDom = load(parsed.results);
-    if (hasInvalidTalentbrewDeclarations(pageDom("#search-results").first())) {
-      return failed(capturedAt, "HTML_DECLARATION_INVALID");
-    }
-    latestTotalPages = numberAttr(pageDom("#search-results").first(), "data-total-pages") ?? latestTotalPages;
-    latestExpectedJobCount =
-      numberAttr(pageDom("#search-results").first(), "data-total-job-results") ??
-      latestExpectedJobCount;
-    pages.push(parsed.results);
+      if (partition.declaredCount !== undefined && returnedJobs !== partition.declaredCount) {
+        return failed(capturedAt, "TALENTBREW_SCOPE_INVALID");
+      }
+      if (scope && returnedJobs !== undefined && returnedPageSize !== undefined && returnedPages !== undefined &&
+          Math.ceil(returnedJobs / returnedPageSize) !== returnedPages && !(returnedJobs === 0 && returnedPages === 1)) {
+        return failed(capturedAt, "TALENTBREW_SCOPE_INVALID");
+      }
+      declaredPages ??= returnedPages;
+      declaredJobs ??= returnedJobs;
+      declaredPageSize ??= returnedPageSize;
+      if (scope && (returnedPages !== declaredPages || returnedJobs !== declaredJobs || returnedPageSize !== declaredPageSize)) {
+        return failed(capturedAt, "TALENTBREW_SCOPE_INVALID");
+      }
+      pages.push(parsed.results);
+      const effectiveDeclaredPages = declaredPages ?? initialTotalPages ?? 1;
+      const pagesToVisit = Math.min(effectiveDeclaredPages, Math.max(1, maxPages));
+      page += 1;
+      if (page > pagesToVisit) {
+        truncated ||= pagesToVisit < effectiveDeclaredPages;
+        break;
+      }
+    } while (true);
+    totalPages += declaredPages ?? 0;
+    if (declaredJobs === undefined) hasAllDeclaredJobTotals = false;
+    else totalExpectedJobs += declaredJobs;
   }
-
-  const truncated = latestTotalPages !== undefined && pages.length < latestTotalPages;
 
   return {
     ok: true,
@@ -296,18 +332,54 @@ async function fetchTalentbrewAjaxPages({
     html: pages.join("\n"),
     completeness: {
       completenessStatus: truncated ? "INCOMPLETE" : "NEEDS_MANUAL_COMPLETENESS_REVIEW",
-      ...(latestExpectedJobCount === undefined ? {} : { expectedJobCount: latestExpectedJobCount }),
-      completenessEvidenceKind:
-        latestExpectedJobCount === undefined ? "COMPLETE_PAGE_TRAVERSAL" : "OFFICIAL_TOTAL_COUNT",
+      ...(hasAllDeclaredJobTotals ? { expectedJobCount: totalExpectedJobs } : {}),
+      completenessEvidenceKind: hasAllDeclaredJobTotals ? "OFFICIAL_TOTAL_COUNT" : "COMPLETE_PAGE_TRAVERSAL",
       completenessEvidenceUrl: entryUrl,
       ...(truncated
-        ? { completenessBlockerReason: `Visited ${pages.length} of ${latestTotalPages} TalentBrew pages` }
+        ? { completenessBlockerReason: `Visited ${pages.length} of ${totalPages} TalentBrew pages` }
         : { completenessBlockerReason: "TalentBrew declarations require independent completeness review" }),
-      ...(latestTotalPages === undefined ? {} : { totalPages: latestTotalPages }),
+      totalPages,
       ...(recordsPerPage === undefined ? {} : { pageSize: recordsPerPage }),
       pagesVisited: pages.length
     }
   };
+}
+
+function strictTalentbrewPartitions(
+  $: ReturnType<typeof load>,
+  results: { attr(name: string): string | undefined },
+  scope: NonNullable<NonNullable<HtmlTableConfig["pagination"]>["talentbrewScope"]>
+): Array<{ channelId: string; declaredCount: number; filter: Record<string, TalentbrewCriteriaValue> }> {
+  const active = scope.requiredActiveFacet;
+  const activeMatches = $("#search-filters [data-enabled='false'] .filter-checkbox").filter((_index, element) => {
+    const checkbox = $(element);
+    return checkbox.attr("checked") !== undefined && checkbox.attr("data-id") === active.id &&
+      numberAttr(checkbox, "data-facet-type") === active.facetType && checkbox.attr("data-display") === active.descriptor;
+  });
+  if (activeMatches.length !== 1 || results.attr("data-facet-term") !== active.id ||
+      numberAttr(results, "data-facet-type") !== active.facetType || scope.allowedPartitions.length === 0 ||
+      new Set(scope.allowedPartitions.map((partition) => partition.channelId)).size !== scope.allowedPartitions.length) {
+    throw new Error("TALENTBREW_SCOPE_INVALID");
+  }
+  return scope.allowedPartitions.map((partition) => {
+    const matches = $("#search-filters [data-enabled='true'] .filter-checkbox:not(:checked)").filter((_index, element) => {
+      const checkbox = $(element);
+      return checkbox.attr("data-id") === partition.id && checkbox.attr("data-display") === partition.descriptor &&
+        checkbox.attr("data-field-name") === partition.fieldName && numberAttr(checkbox, "data-facet-type") === partition.facetType;
+    });
+    if (matches.length !== 1) throw new Error("TALENTBREW_SCOPE_INVALID");
+    const checkbox = matches.first();
+    const declaredCount = numberAttr(checkbox, "data-count");
+    if (declaredCount === undefined) throw new Error("TALENTBREW_SCOPE_INVALID");
+    return {
+      channelId: partition.channelId,
+      declaredCount,
+      filter: {
+        ID: partition.id, FacetType: partition.facetType, Count: declaredCount,
+        Display: partition.descriptor, IsApplied: true, FieldName: partition.fieldName
+      }
+    };
+  });
 }
 
 function parseTalentbrewAjaxResponse(
@@ -376,8 +448,9 @@ function talentbrewCriteria($: ReturnType<typeof load>): Record<string, Talentbr
 }
 
 function talentbrewStaticFacetFilters($: ReturnType<typeof load>): TalentbrewCriteriaValue[] {
-  return $("#search-filters [data-enabled='false'] .filter-checkbox:checked")
+  return $("#search-filters [data-enabled='false'] .filter-checkbox")
     .toArray()
+    .filter((element) => $(element).attr("checked") !== undefined)
     .map((element) => {
       const checkbox = $(element);
       return {
@@ -654,6 +727,7 @@ function attachHtmlEvidence(
     const artifactBody = bodyRepresentation === "REDACTED" ? "[REDACTED_CREDENTIAL_MATERIAL]" : response.body;
     artifacts.push({
       id: logicalKey, logicalKey, kind,
+      ...(request.evidenceChannelId ? { channelId: request.evidenceChannelId } : {}),
       requestedUrl: safeHtmlEvidenceUrl(request.url),
       finalUrl: safeHtmlEvidenceUrl(response.finalUrl!),
       httpStatus: response.status,
@@ -679,7 +753,7 @@ function attachHtmlEvidence(
     const ids = $(table.rowSelector).toArray().map((row, index) => {
       const raw = $.html(row);
       const rawHash = sha256Bytes(Buffer.from(raw, "utf8")).sha256;
-      const observationId = `html-row:sha256:${sha256Bytes(Buffer.from(`${index}\u0000${raw}`, "utf8")).sha256}`;
+      const observationId = `html-row:sha256:${rawHash}`;
       if (seenRawRows.has(rawHash)) {
         validationDiscardCount += 1;
         fetchLosses.push({
@@ -729,11 +803,12 @@ function attachHtmlEvidence(
         : null;
     pages.push({
       sequence: pages.length, artifactLogicalKey: logicalKey,
+      ...(request.evidenceChannelId ? { channelId: request.evidenceChannelId } : {}),
       requestedCursor: null, returnedCursor: null,
       requestedOffset, returnedOffset: null,
       requestedPage, returnedPage,
       requestedPageSize, returnedPageSize,
-      rawJobIds: ids, validJobIds: validIds,
+      rawJobIds: [...new Set(ids)], validJobIds: validIds,
       declaredTotal, declaredCount, declaredPages,
       nextPageSignalBefore: pages.length === 0 ? "initial" : `page-${requestedPage}`,
       nextPageSignalAfter: null,
@@ -753,11 +828,21 @@ function attachHtmlEvidence(
     }
     return result;
   }
+  const pageIndexesByScope = new Map<string, number[]>();
   pages.forEach((page, index) => {
-    const hasNext = index < pages.length - 1;
-    page.nextPageSignalAfter = hasNext ? `page-${index + 2}` : null;
-    page.termination = hasNext ? "CONTINUE" : (result.ok ? "NEXT_ABSENT" : "FAILED");
+    const key = page.channelId ?? "__SOURCE__";
+    const indexes = pageIndexesByScope.get(key) ?? [];
+    indexes.push(index);
+    pageIndexesByScope.set(key, indexes);
   });
+  for (const indexes of pageIndexesByScope.values()) {
+    indexes.forEach((pageIndex, scopeIndex) => {
+      const page = pages[pageIndex]!;
+      const hasNext = scopeIndex < indexes.length - 1;
+      page.nextPageSignalAfter = hasNext ? `page-${(page.requestedPage ?? scopeIndex + 1) + 1}` : null;
+      page.termination = hasNext ? "CONTINUE" : (result.ok ? "NEXT_ABSENT" : "FAILED");
+    });
+  }
   if (validationDiscardCount > 0) {
     pages.at(-1)!.termination = "ABORTED";
   }
@@ -771,13 +856,23 @@ function attachHtmlEvidence(
     fetchCounts: { rawCount, parsedCount: rawCount, validCount: rawCount - validationDiscardCount, parseDiscardCount: 0, validationDiscardCount },
     fetchLosses
   });
-  const evidence = deriveCanonicalPaginationEvidence({ evidence: evidence0, expectedChannelIds: [], filteredOutput: true });
-  const paginationEvaluation = evaluatePaginationEvidence({ evidence, expectedChannelIds: [], filteredOutput: true });
+  const expectedChannelIds = [...new Set(pages.flatMap((page) => page.channelId ? [page.channelId] : []))];
+  const evidence = deriveCanonicalPaginationEvidence({ evidence: evidence0, expectedChannelIds, filteredOutput: true });
+  const paginationEvaluation = evaluatePaginationEvidence({ evidence, expectedChannelIds, filteredOutput: true });
   const manual = {
     completenessStatus: "NEEDS_MANUAL_COMPLETENESS_REVIEW" as const,
     completenessEvidenceKind: "WEAK_MANUAL_SAMPLE" as const,
     completenessBlockerReason: "HTML fetch evidence requires independent completeness review",
-    pagesVisited: pages.length
+    pagesVisited: pages.length,
+    ...(mode === "talentbrew" && result.ok && result.completeness?.expectedJobCount !== undefined
+      ? { expectedJobCount: result.completeness.expectedJobCount }
+      : {}),
+    ...(mode === "talentbrew" && result.ok && result.completeness?.totalPages !== undefined
+      ? { totalPages: result.completeness.totalPages }
+      : {}),
+    ...(mode === "talentbrew" && result.ok && result.completeness?.pageSize !== undefined
+      ? { pageSize: result.completeness.pageSize }
+      : {})
   };
   if (invalidDeclaration) {
     return { ok: false, capturedAt, failureReason: "HTML_DECLARATION_INVALID", fetchEvidence: evidence, paginationEvaluation };
@@ -847,7 +942,7 @@ function assertTalentbrewJsonShape(value: unknown): asserts value is { results?:
   if (!value || typeof value !== "object" || Array.isArray(value) || Object.getPrototypeOf(value) !== Object.prototype) {
     throw new Error("TALENTBREW_JSON_SCHEMA_INVALID");
   }
-  const allowed = new Set(["results", "hasJobs", "filters"]);
+  const allowed = new Set(["results", "hasJobs", "hasContent", "filters"]);
   if (Object.keys(value).some((key) => !allowed.has(key))) {
     throw new Error("TALENTBREW_JSON_SCHEMA_INVALID");
   }
@@ -974,7 +1069,8 @@ const SAFE_HTML_FAILURE_CODES = new Set([
   "HTML_RESPONSE_MIME_INVALID", "HTML_RESPONSE_TIME_INVALID", "HTML_REQUEST_UNSAFE",
   "HTML_REQUEST_DUPLICATE_QUERY", "HTML_PAGE_RESPONSE_INVALID", "HTML_DECLARATION_INVALID",
   "HTML_PAGINATION_EVIDENCE_UNSAFE", "TALENTBREW_JSON_INVALID",
-  "TALENTBREW_JSON_DUPLICATE_KEY", "TALENTBREW_JSON_SCHEMA_INVALID", "TALENTBREW_RESULTS_INVALID"
+  "TALENTBREW_JSON_DUPLICATE_KEY", "TALENTBREW_JSON_SCHEMA_INVALID", "TALENTBREW_RESULTS_INVALID",
+  "TALENTBREW_SCOPE_INVALID"
 ]);
 
 function safeHtmlEvidenceUrl(value: string): string {

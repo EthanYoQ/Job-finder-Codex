@@ -112,6 +112,80 @@ describe("official HTML fetch evidence", () => {
     expect(result.html).not.toContain('"results"');
   });
 
+  it("does not synthesize an official zero when TalentBrew declares pages but no job total", async () => {
+    const plan = { ...base, table: { ...base.table, pagination: { totalPagesSelector: "#search-results", totalPagesAttribute: "data-total-pages",
+      pageSearchParam: "CurrentPage", maxPages: 1, ajaxMode: "talentbrew" } } } as SourceCrawlPlan;
+    const result = await createHttpHtmlSourceFetch({ now: () => new Date("2026-07-08T00:00:00.000Z"), http: async request =>
+      request.url.includes("/results")
+        ? at(request, JSON.stringify({ results: `<section id="search-results" data-current-page="1" data-total-pages="1" data-records-per-page="20"><table>${row("a")}</table></section>` }), "application/json")
+        : at(request, `<section id="search-results" data-ajax-url="/results" data-total-pages="1" data-records-per-page="20"></section>`) })(plan);
+    expect(result).toMatchObject({ ok: true, completeness: { completenessEvidenceKind: "WEAK_MANUAL_SAMPLE" } });
+    const completeness = "completeness" in result ? result.completeness : undefined;
+    expect(completeness).not.toHaveProperty("expectedJobCount");
+  });
+
+  it("crawls exact TalentBrew social facet partitions as independent evidence channels", async () => {
+    const plan = { ...base, table: { ...base.table,
+      fields: { ...base.table.fields, sourceJobId: { selector: "button", attribute: "data-job-id" } },
+      pagination: { totalPagesSelector: "#search-results", totalPagesAttribute: "data-total-pages",
+        pageSearchParam: "CurrentPage", maxPages: 3, ajaxMode: "talentbrew",
+        talentbrewScope: {
+          requiredActiveFacet: { id: "1814991", facetType: 2, descriptor: "China" },
+          allowedPartitions: [
+            { channelId: "employment-fixed", id: "Fixed Term", facetType: 5, fieldName: "job_type", descriptor: "Fixed Term" },
+            { channelId: "employment-regular", id: "Regular", facetType: 5, fieldName: "job_type", descriptor: "Regular" }
+          ]
+        }
+      }
+    } } as SourceCrawlPlan;
+    const entry = `<section id="search-results" data-ajax-url="/results" data-facet-term="1814991" data-facet-type="2"
+      data-total-pages="4" data-total-job-results="4" data-records-per-page="1"></section>
+      <div id="search-filters"><div data-enabled="false"><input class="filter-checkbox" checked data-id="1814991" data-facet-type="2" data-count="4" data-display="China" data-field-name="" /></div>
+      <div data-enabled="true"><input class="filter-checkbox" data-id="Fixed Term" data-facet-type="5" data-count="2" data-display="Fixed Term" data-field-name="job_type" /></div>
+      <div data-enabled="true"><input class="filter-checkbox" data-id="Regular" data-facet-type="5" data-count="1" data-display="Regular" data-field-name="job_type" /></div></div>`;
+    const paginationFlags: string[] = [];
+    const result = await createHttpHtmlSourceFetch({ now: () => new Date("2026-07-08T00:00:00.000Z"), http: async request => {
+      if (!request.url.includes("/results")) return at(request, entry);
+      const url = new URL(request.url);
+      paginationFlags.push(url.searchParams.get("IsPagination") ?? "");
+      const display = [...url.searchParams.entries()].find(([key]) => key.endsWith(".Display") && key.startsWith("FacetFilters[1]"))?.[1];
+      const page = Number(url.searchParams.get("CurrentPage"));
+      const total = display === "Fixed Term" ? 2 : 1;
+      const id = display === "Fixed Term" ? `fixed-${page}` : "regular-1";
+      return at(request, JSON.stringify({ results: `<section id="search-results" data-current-page="${page}" data-total-pages="${total}" data-total-job-results="${total}" data-records-per-page="1"><table><tr class="job"><td class="title">${id}</td><td class="location">上海</td><td><a href="/${id}">详情</a><button data-job-id="${id}"></button></td></tr></table></section>` }), "application/json");
+    }})(plan);
+    expect(result).toMatchObject({ ok: true,
+      completeness: { expectedJobCount: 3, pagesVisited: 3, completenessStatus: "NEEDS_MANUAL_COMPLETENESS_REVIEW" },
+      fetchEvidence: { fetchCounts: { rawCount: 3, validCount: 3 }, pages: [
+        { channelId: "employment-fixed", requestedPage: 1, returnedPage: 1 },
+        { channelId: "employment-fixed", requestedPage: 2, returnedPage: 2 },
+        { channelId: "employment-regular", requestedPage: 1, returnedPage: 1 }
+      ] },
+      paginationEvaluation: { safeCompleteness: true, visitedChannelIds: ["employment-fixed", "employment-regular"] }
+    });
+    if (!result.ok || !("html" in result)) throw new Error("expected scoped TalentBrew HTML");
+    expect(result.html).toContain("fixed-2");
+    expect(result.html).toContain("regular-1");
+    expect(paginationFlags).toEqual(["False", "True", "False"]);
+  });
+
+  it("fails closed before TalentBrew AJAX when the official active geography facet drifts", async () => {
+    const plan = { ...base, table: { ...base.table, pagination: {
+      totalPagesSelector: "#search-results", totalPagesAttribute: "data-total-pages", pageSearchParam: "CurrentPage",
+      maxPages: 3, ajaxMode: "talentbrew", talentbrewScope: {
+        requiredActiveFacet: { id: "1814991", facetType: 2, descriptor: "China" },
+        allowedPartitions: [{ channelId: "regular", id: "Regular", facetType: 5, fieldName: "job_type", descriptor: "Regular" }]
+      }
+    } } } as SourceCrawlPlan;
+    let calls = 0;
+    const result = await createHttpHtmlSourceFetch({ now: () => new Date("2026-07-08T00:00:00.000Z"), http: async request => {
+      calls += 1;
+      return at(request, `<section id="search-results" data-ajax-url="/results" data-facet-term="999" data-facet-type="2" data-total-pages="1"></section>`);
+    }})(plan);
+    expect(result).toMatchObject({ ok: false, failureReason: "TALENTBREW_SCOPE_INVALID" });
+    expect(calls).toBe(1);
+  });
+
   it("rejects recursive TalentBrew duplicate JSON keys and retains the response", async () => {
     const plan = { ...base, table: { ...base.table, pagination: { totalPagesSelector: "#search-results", totalPagesAttribute: "data-total-pages",
       pageSearchParam: "CurrentPage", maxPages: 1, ajaxMode: "talentbrew" } } } as SourceCrawlPlan;
@@ -143,6 +217,16 @@ describe("official HTML fetch evidence", () => {
     expect(result).toMatchObject({ ok: false, failureReason: "TALENTBREW_JSON_SCHEMA_INVALID", fetchEvidence: { artifacts: [{}, {}] } });
   });
 
+  it("accepts the public TalentBrew hasContent response member", async () => {
+    const plan = { ...base, table: { ...base.table, pagination: { totalPagesSelector: "#search-results", totalPagesAttribute: "data-total-pages",
+      pageSearchParam: "CurrentPage", maxPages: 1, ajaxMode: "talentbrew" } } } as SourceCrawlPlan;
+    const result = await createHttpHtmlSourceFetch({ now: () => new Date("2026-07-08T00:00:00.000Z"), http: async request =>
+      request.url.includes("/results")
+        ? at(request, JSON.stringify({ results: talentResults(), filters: "", hasJobs: true, hasContent: false }), "application/json")
+        : at(request, `<section id="search-results" data-ajax-url="/results" data-total-pages="1" data-total-job-results="1" data-records-per-page="20"></section>`) })(plan);
+    expect(result).toMatchObject({ ok: true, fetchEvidence: { fetchCounts: { rawCount: 1 } } });
+  });
+
   it("fails closed on repeated ordinary pages and declaration drift", async () => {
     const plan = { ...base, table: { ...base.table, pagination: { totalPagesSelector: "#r", totalPagesAttribute: "data-total-pages",
       pageSearchParam: "page", maxPages: 2 } } } as SourceCrawlPlan;
@@ -152,6 +236,18 @@ describe("official HTML fetch evidence", () => {
     }})(plan);
     expect(result).toMatchObject({ ok: false, failureReason: "HTML_PAGINATION_EVIDENCE_UNSAFE",
       paginationEvaluation: { safeCompleteness: false, derivedAnomalyCodes: expect.arrayContaining(["TOTAL_CHANGED", "REPEATED_JOB_ID_SET_WITH_NEXT"]) } });
+  });
+
+  it("detects a repeated stable raw row even when its position changes across pages", async () => {
+    const plan = { ...base, table: { ...base.table, pagination: { totalPagesSelector: "#r", totalPagesAttribute: "data-total-pages",
+      pageSearchParam: "page", maxPages: 2 } } } as SourceCrawlPlan;
+    const result = await createHttpHtmlSourceFetch({ now: () => new Date("2026-07-08T00:00:00.000Z"), http: async request => {
+      const second = new URL(request.url).searchParams.get("page") === "2";
+      return at(request, `<div id="r" data-total-pages="2"></div><table>${second
+        ? `${row("new")}${row("same")}` : `${row("same")}${row("other")}`}</table>`);
+    }})(plan);
+    expect(result).toMatchObject({ ok: false, failureReason: "HTML_PAGINATION_EVIDENCE_UNSAFE",
+      paginationEvaluation: { derivedAnomalyCodes: expect.arrayContaining(["RAW_ID_OVERLAP_ACROSS_PAGES"]) } });
   });
 
   it("rejects cross-origin TalentBrew AJAX before transport and rejects MIME/time regression", async () => {
