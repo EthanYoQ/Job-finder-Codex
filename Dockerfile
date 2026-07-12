@@ -5,9 +5,18 @@ WORKDIR /app
 COPY package.json ./package.json
 COPY package-lock.json ./package-lock.json
 COPY prisma ./prisma
-RUN apt-get -o Acquire::Retries=5 -o Acquire::http::Timeout=30 update \
-  && apt-get -o Acquire::Retries=5 -o Acquire::http::Timeout=30 install -y --no-install-recommends openssl \
-  && rm -rf /var/lib/apt/lists/*
+RUN set -eu; \
+  for attempt in 1 2 3; do \
+    if apt-get -o Acquire::Retries=5 -o Acquire::http::Timeout=30 update \
+      && apt-get -o Acquire::Retries=5 -o Acquire::http::Timeout=30 install -y --no-install-recommends openssl; then \
+      rm -rf /var/lib/apt/lists/*; \
+      break; \
+    fi; \
+    if [ "$attempt" -eq 3 ]; then \
+      exit 1; \
+    fi; \
+    sleep 2; \
+  done
 RUN PRISMA_CLI_BINARY_TARGETS=debian-openssl-3.0.x npm ci
 RUN npx prisma generate --schema=prisma/schema.prisma
 RUN test -s /app/node_modules/@prisma/engines/schema-engine-debian-openssl-3.0.x
@@ -19,9 +28,18 @@ FROM deps AS build
 ARG BUILD_COMMIT_SHA
 ARG BUILD_SOURCE_CLEAN
 ARG BUILD_SOURCE_TREE_SHA256
-RUN apt-get -o Acquire::Retries=5 -o Acquire::http::Timeout=30 update \
-  && apt-get -o Acquire::Retries=5 -o Acquire::http::Timeout=30 install -y --no-install-recommends git \
-  && rm -rf /var/lib/apt/lists/*
+RUN set -eu; \
+  for attempt in 1 2 3; do \
+    if apt-get -o Acquire::Retries=5 -o Acquire::http::Timeout=30 update \
+      && apt-get -o Acquire::Retries=5 -o Acquire::http::Timeout=30 install -y --no-install-recommends git; then \
+      rm -rf /var/lib/apt/lists/*; \
+      break; \
+    fi; \
+    if [ "$attempt" -eq 3 ]; then \
+      exit 1; \
+    fi; \
+    sleep 2; \
+  done
 COPY package.json ./package.json
 COPY package-lock.json ./package-lock.json
 COPY tsconfig.json ./tsconfig.json
@@ -48,9 +66,18 @@ ENV NODE_ENV=production
 ENV HOME=/tmp
 ENV XDG_CONFIG_HOME=/tmp/.config
 ENV XDG_CACHE_HOME=/tmp/.cache
-RUN apt-get -o Acquire::Retries=5 -o Acquire::http::Timeout=30 update \
-  && apt-get -o Acquire::Retries=5 -o Acquire::http::Timeout=30 install -y --no-install-recommends chromium libpq5 libreadline8 util-linux \
-  && rm -rf /var/lib/apt/lists/*
+RUN set -eu; \
+  for attempt in 1 2 3; do \
+    if apt-get -o Acquire::Retries=5 -o Acquire::http::Timeout=30 update \
+      && apt-get -o Acquire::Retries=5 -o Acquire::http::Timeout=30 install -y --no-install-recommends chromium libpq5 libreadline8 util-linux; then \
+      rm -rf /var/lib/apt/lists/*; \
+      break; \
+    fi; \
+    if [ "$attempt" -eq 3 ]; then \
+      exit 1; \
+    fi; \
+    sleep 2; \
+  done
 COPY --from=pg16-client /usr/lib/postgresql/16/bin/pg_dump /usr/local/bin/pg_dump
 COPY --from=pg16-client /usr/lib/postgresql/16/bin/pg_restore /usr/local/bin/pg_restore
 COPY --from=pg16-client /usr/lib/postgresql/16/bin/psql /usr/local/bin/psql
