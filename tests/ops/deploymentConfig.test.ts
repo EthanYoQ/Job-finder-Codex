@@ -3,7 +3,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { mkdtempSync, symlinkSync, utimesSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { resolve } from "node:path";
-import { execFileSync } from "node:child_process";
+import { execFileSync, spawn } from "node:child_process";
 import { describe, expect, it } from "vitest";
 
 const repoRoot = process.cwd();
@@ -41,6 +41,33 @@ function runMonitoringCheck(env: NodeJS.ProcessEnv): { status: number | null; st
     const result = error as { status?: number | null; stderr?: string };
     return { status: result.status ?? null, stderr: result.stderr ?? "" };
   }
+}
+
+async function startFakeTcpServer(): Promise<{ port: number; stop: () => Promise<void> }> {
+  const child = spawn(
+    process.execPath,
+    [
+      "-e",
+      "const net=require('node:net');const server=net.createServer(()=>{});server.listen(0,'127.0.0.1',()=>console.log(server.address().port));process.on('SIGTERM',()=>server.close(()=>process.exit(0)));"
+    ],
+    { stdio: ["ignore", "pipe", "pipe"] }
+  );
+  const port = await new Promise<number>((resolvePort, reject) => {
+    const timer = setTimeout(() => reject(new Error("fake TCP server did not start")), 2_000);
+    child.once("error", reject);
+    child.stdout.once("data", (chunk) => {
+      clearTimeout(timer);
+      resolvePort(Number(String(chunk).trim()));
+    });
+  });
+  return {
+    port,
+    stop: async () => {
+      if (child.exitCode !== null) return;
+      child.kill();
+      await new Promise<void>((resolveExit) => child.once("exit", () => resolveExit()));
+    }
+  };
 }
 
 describe("deployment configuration", () => {
@@ -133,8 +160,45 @@ describe("deployment configuration", () => {
     expect(script).toContain("/healthz");
     expect(script).toContain("DATABASE_URL");
     expect(script).toContain("BACKUP_DIR");
+    expect(script).toContain("checkPostgresReadiness");
+    expect(script).not.toMatch(/new Socket|checkPostgresSocket/u);
     expect(script).toMatch(/process\.env/);
     expect(script).toMatch(/process\.exitCode|process\.exit\(/);
+  });
+
+  it("rejects a TCP listener that does not authenticate or speak the PostgreSQL protocol", async () => {
+    const fake = await startFakeTcpServer();
+    try {
+      const tempDir = mkdtempSync(resolve(tmpdir(), "job-finder-monitoring-fake-postgres-"));
+      const result = runMonitoringCheck({
+        DATABASE_URL: `postgresql://user:placeholder@127.0.0.1:${fake.port}/database`,
+        POSTGRES_READINESS_TIMEOUT_MS: "150",
+        BACKUP_DIR: tempDir,
+        HEALTHCHECK_URL: "http://127.0.0.1:9/healthz",
+        READINESS_SUMMARY_PATH: resolve(tempDir, "absent-readiness.json"),
+        CRAWL_SUMMARY_PATH: resolve(tempDir, "absent-crawl.json")
+      });
+
+      expect(result.status).not.toBe(0);
+      expect(result.stderr).toContain("DATABASE_UNREACHABLE");
+      expect(result.stderr).not.toContain("postgresql://user:placeholder");
+    } finally {
+      await fake.stop();
+    }
+  });
+
+  it("fails closed when the monitor database URL is missing", () => {
+    const tempDir = mkdtempSync(resolve(tmpdir(), "job-finder-monitoring-missing-database-"));
+    const result = runMonitoringCheck({
+      DATABASE_URL: undefined,
+      BACKUP_DIR: tempDir,
+      HEALTHCHECK_URL: "http://127.0.0.1:9/healthz",
+      READINESS_SUMMARY_PATH: resolve(tempDir, "absent-readiness.json"),
+      CRAWL_SUMMARY_PATH: resolve(tempDir, "absent-crawl.json")
+    });
+
+    expect(result.status).not.toBe(0);
+    expect(result.stderr).toContain("DATABASE_UNREACHABLE");
   });
 
   it("uses a Windows-safe direct-run guard for the HTTP server entrypoint", () => {
@@ -194,6 +258,7 @@ describe("deployment configuration", () => {
     expect(monitor).toMatch(/restart:\s*["']on-failure:3["']/u);
     expect(monitor).toContain("set -eu; while true; do npx tsx ops/monitoring-check.ts; sleep");
     expect(monitor).toMatch(/BACKUP_DIR:\s*\/backups/u);
+    expect(monitor).toMatch(/DATABASE_URL:\s*\$\{DATABASE_URL:\?set DATABASE_URL\}/u);
     expect(monitor).toMatch(/READINESS_SUMMARY_PATH:\s*\$\{READINESS_SUMMARY_PATH:-\/app\/outputs\//u);
     expect(monitor).toMatch(/CRAWL_SUMMARY_PATH:\s*\$\{CRAWL_SUMMARY_PATH:-\/app\/outputs\//u);
     expect(monitor).toMatch(/source:\s*backup-data[\s\S]*target:\s*\/backups[\s\S]*read_only:\s*true/u);
@@ -210,6 +275,58 @@ describe("deployment configuration", () => {
     expect(monitor).toMatch(/web:\s*\n\s+condition:\s*service_healthy/u);
     expect(monitor).toContain("HEALTHCHECK_URL");
     expect(readRequiredFile(monitoringCheckPath)).toContain("checkHealth(healthUrl)");
+  });
+
+  it("runs the web service with a read-only root and a constrained temporary filesystem", () => {
+    const compose = readRequiredFile(composePath);
+    const web = readComposeService(compose, "web");
+
+    expect(web).toMatch(/^    read_only:\s*true$/mu);
+    expect(web).toMatch(/^    cap_drop:\s*\n      - ALL$/mu);
+    expect(web).toMatch(/^    security_opt:\s*\n      - no-new-privileges:true$/mu);
+    expect(web).toMatch(/^    tmpfs:\s*\n      - \/tmp:rw,nosuid,nodev,(?:noexec,)?size=(?:32|64|128)m(?:,mode=1777)?$/mu);
+  });
+
+  it("hardens every application runtime while preserving only its required writable volume", () => {
+    const compose = readRequiredFile(composePath);
+    const expectedTmpfsSize = new Map([
+      ["web", "(?:64|128)m"],
+      ["worker", "1g"],
+      ["scheduler", "1g"],
+      ["backup", "(?:64|128)m"],
+      ["monitor", "(?:64|128)m"]
+    ]);
+
+    for (const [serviceName, size] of expectedTmpfsSize) {
+      const service = readComposeService(compose, serviceName);
+      expect(service, serviceName).toMatch(/^    user:\s*node$/mu);
+      expect(service, serviceName).toMatch(/^    read_only:\s*true$/mu);
+      expect(service, serviceName).toMatch(/^    cap_drop:\s*\n      - ALL$/mu);
+      expect(service, serviceName).toMatch(/^    security_opt:\s*\n      - no-new-privileges:true$/mu);
+      expect(service, serviceName).toMatch(
+        new RegExp(`^    tmpfs:\\s*\\n      - /tmp:rw,nosuid,nodev,noexec,size=${size},mode=1777$`, "mu")
+      );
+    }
+
+    const worker = readComposeService(compose, "worker");
+    const scheduler = readComposeService(compose, "scheduler");
+    const backup = readComposeService(compose, "backup");
+    const monitor = readComposeService(compose, "monitor");
+    expect(worker).toMatch(/target:\s*\/app\/outputs(?![\s\S]{0,40}read_only:\s*true)/u);
+    expect(scheduler).toMatch(/target:\s*\/app\/outputs(?![\s\S]{0,40}read_only:\s*true)/u);
+    expect(backup).toContain("- backup-data:/backups");
+    expect(monitor.match(/read_only:\s*true/gu)).toHaveLength(3);
+  });
+
+  it("pins external postgres and nginx images by digest", () => {
+    const compose = readRequiredFile(composePath);
+
+    expect(compose).toContain(
+      "image: postgres:16-bookworm@sha256:da788743d2060767375896de4d646f7576f5911461444b372616f19ea61db2ec"
+    );
+    expect(compose).toContain(
+      "image: nginx:1.27-alpine@sha256:65645c7bb6a0661892a8b03b89d0743208a18dd2f3f17a54ef4b76fb8e2f2a10"
+    );
   });
 
   it("derives successful backup evidence from the newest canonical marker and archive", () => {

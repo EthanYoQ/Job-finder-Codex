@@ -2,6 +2,66 @@ import { describe, expect, it, vi } from "vitest";
 import { handlePublicApi } from "../../src/server/publicApi";
 
 describe("public API route policy", () => {
+  it.each([Number.NaN, -100])("normalizes invalid readiness timeout %s to the shared default", async (readinessTimeoutMs) => {
+    vi.useFakeTimers();
+    try {
+      let settled = false;
+      const responsePromise = handlePublicApi(
+        {
+          method: "GET",
+          path: "/healthz",
+          query: {},
+          headers: {},
+          body: undefined,
+          ip: "127.0.0.1"
+        },
+        {
+          db: {} as never,
+          checkDatabaseReadiness: () => new Promise<boolean>(() => undefined),
+          readinessTimeoutMs
+        }
+      ).then((response) => {
+        settled = true;
+        return response;
+      });
+
+      await vi.advanceTimersByTimeAsync(1);
+      expect(settled).toBe(false);
+      await vi.advanceTimersByTimeAsync(2_499);
+      await expect(responsePromise).resolves.toMatchObject({ status: 503, body: { ok: false } });
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it.each([
+    ["false", async () => false],
+    ["throw", async () => { throw new Error("secret database detail"); }],
+    ["timeout", () => new Promise<boolean>(() => undefined)]
+  ])("fails health closed without leaking database details when readiness returns %s", async (_name, checkDatabaseReadiness) => {
+    const startedAt = Date.now();
+    const response = await handlePublicApi(
+      {
+        method: "GET",
+        path: "/healthz",
+        query: {},
+        headers: {},
+        body: undefined,
+        ip: "127.0.0.1"
+      },
+      {
+        db: {} as never,
+        checkDatabaseReadiness,
+        readinessTimeoutMs: 25
+      }
+    );
+
+    expect(Date.now() - startedAt).toBeLessThan(500);
+    expect(response.status).toBe(503);
+    expect(response.body).toEqual({ ok: false });
+    expect(JSON.stringify(response.body)).not.toContain("secret database detail");
+  });
+
   it("does not load job search before consent and marks internal APIs noindex", async () => {
     const deps = {
       db: {
@@ -11,6 +71,7 @@ describe("public API route policy", () => {
         feedback: { create: vi.fn() },
         recommendedCompany: { create: vi.fn() }
       },
+      checkDatabaseReadiness: async () => true,
       now: () => new Date("2026-07-08T00:00:00.000Z")
     };
 
@@ -49,6 +110,7 @@ describe("public API route policy", () => {
         feedback: { create: vi.fn() },
         recommendedCompany: { create: vi.fn() }
       },
+      checkDatabaseReadiness: async () => true,
       now: () => new Date("2026-07-08T00:00:00.000Z")
     };
 
@@ -82,6 +144,7 @@ describe("public API route policy", () => {
         feedback: { create: vi.fn() },
         recommendedCompany: { create: vi.fn() }
       },
+      checkDatabaseReadiness: async () => true,
       now: () => new Date("2026-07-08T00:00:00.000Z")
     };
 
@@ -135,6 +198,7 @@ describe("public API route policy", () => {
         feedback: { create: vi.fn() },
         recommendedCompany: { create: vi.fn() }
       },
+      checkDatabaseReadiness: async () => true,
       now: () => new Date("2026-07-08T00:00:00.000Z")
     };
 
@@ -167,6 +231,7 @@ describe("public API route policy", () => {
         feedback: { create: vi.fn() },
         recommendedCompany: { create: vi.fn() }
       },
+      checkDatabaseReadiness: async () => true,
       now: () => new Date("2026-07-08T00:00:00.000Z")
     };
 

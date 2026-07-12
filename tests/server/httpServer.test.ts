@@ -58,6 +58,7 @@ describe("http server", () => {
         manualCrawlRequest: { create: async () => ({ id: "crawl-1" }) },
         recruitmentSource: { findMany: async () => [] }
       },
+      checkDatabaseReadiness: async () => true,
       rateLimitStore: createMemoryRateLimitStore()
     };
 

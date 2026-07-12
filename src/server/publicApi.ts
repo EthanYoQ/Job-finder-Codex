@@ -10,6 +10,7 @@ import {
 import { checkRateLimit, classifySuspiciousRequest, createMemoryRateLimitStore, type RateLimitStore } from "./rateLimit";
 import { listCompanyCoverage, type CoverageDb } from "./coverageService";
 import { getStaticDocument } from "./staticDocuments";
+import { normalizePostgresReadinessTimeout } from "./postgresReadiness";
 
 export interface PublicApiRequest {
   method: string;
@@ -31,6 +32,8 @@ type PublicApiDb = PrismaJobSearchDb & CoverageDb & FeedbackDb;
 
 export interface PublicApiDeps {
   db: PublicApiDb;
+  checkDatabaseReadiness: () => Promise<boolean>;
+  readinessTimeoutMs?: number;
   now?: () => Date;
   rateLimitStore?: RateLimitStore;
 }
@@ -82,10 +85,11 @@ export async function handlePublicApi(request: PublicApiRequest, deps: PublicApi
   }
 
   if (request.path === "/healthz") {
+    const ok = await getBoundedDatabaseReadiness(deps);
     return {
-      status: 200,
+      status: ok ? 200 : 503,
       headers: { ...headers, "content-type": "application/json; charset=utf-8" },
-      body: { ok: true }
+      body: { ok }
     };
   }
 
@@ -217,6 +221,23 @@ export async function handlePublicApi(request: PublicApiRequest, deps: PublicApi
     headers,
     body: { error: "NOT_FOUND" }
   };
+}
+
+async function getBoundedDatabaseReadiness(deps: PublicApiDeps): Promise<boolean> {
+  const timeoutMs = normalizePostgresReadinessTimeout(deps.readinessTimeoutMs);
+  let timeout: NodeJS.Timeout | undefined;
+  try {
+    return await Promise.race([
+      Promise.resolve().then(() => deps.checkDatabaseReadiness()),
+      new Promise<boolean>((resolve) => {
+        timeout = setTimeout(() => resolve(false), timeoutMs);
+      })
+    ]);
+  } catch {
+    return false;
+  } finally {
+    if (timeout) clearTimeout(timeout);
+  }
 }
 
 function createBaseHeaders(path: string): Record<string, string> {

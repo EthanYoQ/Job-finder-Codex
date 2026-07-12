@@ -1,10 +1,9 @@
 import { createHash } from "node:crypto";
 import { constants } from "node:fs";
 import { access, lstat, open, readFile, readdir, type FileHandle } from "node:fs/promises";
-import { Socket } from "node:net";
 import { basename, resolve } from "node:path";
-import { URL } from "node:url";
 import { evaluateOpsAlerts, type OpsAlertInput } from "../src/server/opsMonitoring";
+import { checkPostgresReadiness, DEFAULT_POSTGRES_READINESS_TIMEOUT_MS } from "../src/server/postgresReadiness";
 
 interface JsonMap {
   [key: string]: unknown;
@@ -23,7 +22,9 @@ async function main(): Promise<void> {
 
   const [health, dbReachable, backupEvidence, readinessSummary, crawlSummary] = await Promise.all([
     checkHealth(healthUrl),
-    databaseUrl ? checkPostgresSocket(databaseUrl) : Promise.resolve<null | boolean>(null),
+    checkPostgresReadiness(databaseUrl, {
+      timeoutMs: Number(process.env.POSTGRES_READINESS_TIMEOUT_MS ?? DEFAULT_POSTGRES_READINESS_TIMEOUT_MS)
+    }),
     readBackupEvidence(backupDir),
     readOptionalJson(readinessSummaryPath),
     readOptionalJson(crawlSummaryPath)
@@ -59,7 +60,7 @@ async function main(): Promise<void> {
   }
 
   if (dbReachable === false) {
-    console.error("[critical] DATABASE_UNREACHABLE: PostgreSQL socket check failed.");
+    console.error("[critical] DATABASE_UNREACHABLE: Authenticated PostgreSQL readiness check failed.");
     process.exitCode = 1;
     return;
   }
@@ -80,32 +81,6 @@ async function checkHealth(healthUrl: string): Promise<OpsAlertInput["health"]> 
   } catch {
     return { ok: false };
   }
-}
-
-async function checkPostgresSocket(databaseUrl: string): Promise<boolean> {
-  const url = new URL(databaseUrl);
-  const port = Number(url.port || "5432");
-  const host = url.hostname;
-
-  return new Promise((resolve) => {
-    const socket = new Socket();
-
-    socket.setTimeout(3000);
-    socket.once("connect", () => {
-      socket.destroy();
-      resolve(true);
-    });
-    socket.once("timeout", () => {
-      socket.destroy();
-      resolve(false);
-    });
-    socket.once("error", () => {
-      socket.destroy();
-      resolve(false);
-    });
-
-    socket.connect(port, host);
-  });
 }
 
 async function readBackupEvidence(backupDir: string): Promise<OpsAlertInput["backup"]> {
