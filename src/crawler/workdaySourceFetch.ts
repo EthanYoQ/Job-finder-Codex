@@ -823,7 +823,7 @@ function selectMainlandCityLeaves(facetParameter: string, nodes: readonly Workda
       selected.push(leaf);
       continue;
     }
-    if (!path.some((node) => isKnownForeignCountryDescriptor(node.descriptor))) {
+    if (!path.some((node) => hasKnownForeignCountryPart(node.descriptor))) {
       throw new Error(`Workday location facet ${facetParameter} contains unscoped location descriptor ${leaf.descriptor}`);
     }
   }
@@ -1005,35 +1005,55 @@ function isMainlandChinaCountryDescriptor(descriptor: string): boolean {
 }
 
 function isNonMainlandChinaDescriptor(descriptor: string): boolean {
-  return /hong\s*kong|macau|macao|taiwan|香港|澳门|澳門|台湾|台灣/iu.test(descriptor);
+  const normalized = normalizeFacetDescriptor(descriptor);
+  return /hong\s*kong|macau|macao|taiwan|香港|澳门|澳門|台湾|台灣/iu.test(descriptor) ||
+    NON_MAINLAND_CHINA_CODES.has(normalized);
 }
 
 const MAINLAND_CHINA_NAMES = new Set([
   "china", "china mainland", "mainland china", "people's republic of china", "peoples republic of china",
   "prc", "chn", "cn", "中国", "中国大陆", "中华人民共和国"
 ]);
+const NON_MAINLAND_CHINA_CODES = new Set(["hk", "hkg", "mo", "mac", "tw", "twn"]);
 
+// Exact ISO 3166-1 assignments are generated from Debian iso-codes through
+// pycountry 26.2.16 (https://github.com/pycountry/pycountry); display names
+// come from the runtime Unicode CLDR data exposed by Intl.DisplayNames.
+const ISO_ALPHA_2_CODES = new Set("AD AE AF AG AI AL AM AO AQ AR AS AT AU AW AX AZ BA BB BD BE BF BG BH BI BJ BL BM BN BO BQ BR BS BT BV BW BY BZ CA CC CD CF CG CH CI CK CL CM CN CO CR CU CV CW CX CY CZ DE DJ DK DM DO DZ EC EE EG EH ER ES ET FI FJ FK FM FO FR GA GB GD GE GF GG GH GI GL GM GN GP GQ GR GS GT GU GW GY HK HM HN HR HT HU ID IE IL IM IN IO IQ IR IS IT JE JM JO JP KE KG KH KI KM KN KP KR KW KY KZ LA LB LC LI LK LR LS LT LU LV LY MA MC MD ME MF MG MH MK ML MM MN MO MP MQ MR MS MT MU MV MW MX MY MZ NA NC NE NF NG NI NL NO NP NR NU NZ OM PA PE PF PG PH PK PL PM PN PR PS PT PW PY QA RE RO RS RU RW SA SB SC SD SE SG SH SI SJ SK SL SM SN SO SR SS ST SV SX SY SZ TC TD TF TG TH TJ TK TL TM TN TO TR TT TV TW TZ UA UG UM US UY UZ VA VC VE VG VI VN VU WF WS YE YT ZA ZM ZW".split(" "));
+const ISO_ALPHA_3_CODES = new Set("ABW AFG AGO AIA ALA ALB AND ARE ARG ARM ASM ATA ATF ATG AUS AUT AZE BDI BEL BEN BES BFA BGD BGR BHR BHS BIH BLM BLR BLZ BMU BOL BRA BRB BRN BTN BVT BWA CAF CAN CCK CHE CHL CHN CIV CMR COD COG COK COL COM CPV CRI CUB CUW CXR CYM CYP CZE DEU DJI DMA DNK DOM DZA ECU EGY ERI ESH ESP EST ETH FIN FJI FLK FRA FRO FSM GAB GBR GEO GGY GHA GIB GIN GLP GMB GNB GNQ GRC GRD GRL GTM GUF GUM GUY HKG HMD HND HRV HTI HUN IDN IMN IND IOT IRL IRN IRQ ISL ISR ITA JAM JEY JOR JPN KAZ KEN KGZ KHM KIR KNA KOR KWT LAO LBN LBR LBY LCA LIE LKA LSO LTU LUX LVA MAC MAF MAR MCO MDA MDG MDV MEX MHL MKD MLI MLT MMR MNE MNG MNP MOZ MRT MSR MTQ MUS MWI MYS MYT NAM NCL NER NFK NGA NIC NIU NLD NOR NPL NRU NZL OMN PAK PAN PCN PER PHL PLW PNG POL PRI PRK PRT PRY PSE PYF QAT REU ROU RUS RWA SAU SDN SEN SGP SGS SHN SJM SLB SLE SLV SMR SOM SPM SRB SSD STP SUR SVK SVN SWE SWZ SXM SYC SYR TCA TCD TGO THA TJK TKL TKM TLS TON TTO TUN TUR TUV TWN TZA UGA UKR UMI URY USA UZB VAT VCT VEN VGB VIR VNM VUT WLF WSM YEM ZAF ZMB ZWE".split(" "));
 const KNOWN_REGION_NAMES = buildKnownRegionNames();
 
 function buildKnownRegionNames(): ReadonlySet<string> {
   const names = new Set<string>();
   for (const locale of ["en", "zh-CN"] as const) {
     const displayNames = new Intl.DisplayNames([locale], { type: "region" });
-    for (let first = 65; first <= 90; first += 1) {
-      for (let second = 65; second <= 90; second += 1) {
-        const code = String.fromCharCode(first, second);
-        const name = displayNames.of(code);
-        if (name && name !== code) names.add(normalizeFacetDescriptor(name));
-      }
+    for (const code of ISO_ALPHA_2_CODES) {
+      const name = displayNames.of(code);
+      if (name && name !== code) names.add(normalizeFacetDescriptor(name));
     }
   }
   return names;
 }
 
 function isKnownForeignCountryDescriptor(descriptor: string): boolean {
-  return descriptorParts(descriptor).some((part) =>
-    KNOWN_REGION_NAMES.has(part) && !MAINLAND_CHINA_NAMES.has(part)
+  const normalized = normalizeFacetDescriptor(descriptor);
+  const code = descriptor.trim().toUpperCase();
+  return !MAINLAND_CHINA_NAMES.has(normalized) && !isNonMainlandChinaDescriptor(descriptor) && (
+    KNOWN_REGION_NAMES.has(normalized) ||
+    (ISO_ALPHA_2_CODES.has(code) && code !== "CN") ||
+    (ISO_ALPHA_3_CODES.has(code) && code !== "CHN")
   );
+}
+
+function hasKnownForeignCountryPart(descriptor: string): boolean {
+  return descriptorParts(descriptor).some((part) => {
+    const code = part.toUpperCase();
+    return !MAINLAND_CHINA_NAMES.has(part) && (
+      KNOWN_REGION_NAMES.has(part) ||
+      (ISO_ALPHA_2_CODES.has(code) && code !== "CN") ||
+      (ISO_ALPHA_3_CODES.has(code) && code !== "CHN")
+    );
+  });
 }
 
 function descriptorParts(descriptor: string): string[] {

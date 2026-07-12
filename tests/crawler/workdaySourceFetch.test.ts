@@ -895,6 +895,98 @@ describe("createWorkdaySourceFetch", () => {
     expect(requests).toHaveLength(1);
   });
 
+  it.each(["Acme / Georgia", "North America / Jordan", "Region / US"])(
+    "rejects a country name or code embedded in a composite descriptor: %s",
+    async (foreignDescriptor) => {
+      const requests: Array<{ body: string }> = [];
+      const fetcher = createWorkdaySourceFetch({
+        http: async (request) => {
+          requests.push(request);
+          return response({
+            total: 2,
+            jobPostings: [],
+            facets: [{
+              facetParameter: "Location_Country",
+              descriptor: "Country",
+              values: [
+                { descriptor: "China", id: "china", count: 1 },
+                { descriptor: foreignDescriptor, id: "foreign", count: 1 }
+              ]
+            }]
+          });
+        }
+      });
+
+      await expect(fetcher({ ...plan, workday: { tenant: "pfizer", site: "PfizerCareers", searchText: "China" } }))
+        .resolves.toMatchObject({ ok: false, failureReason: expect.stringContaining(`unscoped country descriptor ${foreignDescriptor}`) });
+      expect(requests).toHaveLength(1);
+    }
+  );
+
+  it.each([
+    { name: "exact CLDR names", foreignDescriptors: ["Georgia", "Jordan"] },
+    { name: "exact ISO alpha-2 codes", foreignDescriptors: ["US", "DE"] },
+    { name: "exact ISO alpha-3 codes", foreignDescriptors: ["USA", "DEU"] }
+  ])("accepts provable foreign country siblings from $name", async ({ foreignDescriptors }) => {
+    const requests: Array<{ body: string }> = [];
+    const fetcher = createWorkdaySourceFetch({
+      http: async (request) => {
+        requests.push(request);
+        const body = JSON.parse(request.body) as { appliedFacets: Record<string, string[]> };
+        return body.appliedFacets.Location_Country
+          ? response({
+              total: 1,
+              jobPostings: [{ title: "China Role", externalPath: "/job/China/Role_1", locationsText: "China", bulletFields: ["1"] }]
+            })
+          : response({
+              total: 3,
+              jobPostings: [],
+              facets: [{
+                facetParameter: "Location_Country",
+                descriptor: "Country",
+                values: [
+                  { descriptor: "China", id: "china", count: 1 },
+                  ...foreignDescriptors.map((descriptor, index) => ({ descriptor, id: `foreign-${index}`, count: 1 }))
+                ]
+              }]
+            });
+      }
+    });
+
+    await expect(fetcher({ ...plan, workday: { tenant: "pfizer", site: "PfizerCareers", searchText: "China" } }))
+      .resolves.toMatchObject({ ok: true, completeness: { expectedJobCount: 1 } });
+    expect(requests).toHaveLength(2);
+  });
+
+  it("rejects an unknown recursive country branch even when its counts partition", async () => {
+    const requests: Array<{ body: string }> = [];
+    const fetcher = createWorkdaySourceFetch({
+      http: async (request) => {
+        requests.push(request);
+        return response({
+          total: 2,
+          jobPostings: [],
+          facets: [{
+            facetParameter: "Location_Country",
+            descriptor: "Country",
+            values: [
+              { descriptor: "China", id: "china", count: 1 },
+              {
+                descriptor: "Worldwide",
+                count: 1,
+                values: [{ descriptor: "Remote", id: "remote", count: 1 }]
+              }
+            ]
+          }]
+        });
+      }
+    });
+
+    await expect(fetcher({ ...plan, workday: { tenant: "pfizer", site: "PfizerCareers", searchText: "China" } }))
+      .resolves.toMatchObject({ ok: false, failureReason: expect.stringContaining("unscoped country descriptor Remote") });
+    expect(requests).toHaveLength(1);
+  });
+
   it("selects requestable leaves from a nested locations to China hierarchy", async () => {
     const requests: Array<{ body: string }> = [];
     const fetcher = createWorkdaySourceFetch({
