@@ -776,7 +776,9 @@ describe("executeManualSourceEvidenceCommit", () => {
     const currentDb = transactionalDb(undefined, 1, [{ id: fence.requestId }]);
     await executeManualSourceEvidenceCommit(current, fence, currentDb);
 
-    expect(currentDb.calls.fences[0]).toMatchObject({ values: [fence.requestId, fence.ownerId] });
+    expect(currentDb.calls.fences[0]).toMatchObject({ values: [fence.requestId, fence.ownerId, current.sourceResult.batchId] });
+    expect(currentDb.calls.fences[0]).toMatchObject({ sql: expect.stringContaining('batch."manualCrawlRequestId" = request."id"') });
+    expect(currentDb.calls.fences[0]).toMatchObject({ sql: expect.stringContaining("clock_timestamp()") });
     expect(currentDb.calls.observations).toHaveLength(1);
     expect(currentDb.calls.artifacts).toHaveLength(1);
     expect(currentDb.calls.jobs).toEqual([]);

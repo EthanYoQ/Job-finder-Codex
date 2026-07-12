@@ -9,6 +9,9 @@ const migration = readFileSync(resolve(
 const previewIsolationMigration = readFileSync(resolve(
   process.cwd(), "prisma", "migrations", "20260713030000_manual_crawl_preview_isolation", "migration.sql"
 ), "utf8");
+const bindingMigration = readFileSync(resolve(
+  process.cwd(), "prisma", "migrations", "20260713040000_manual_batch_binding_and_kind_immutability", "migration.sql"
+), "utf8");
 
 function model(name: string): string {
   const match = schema.match(new RegExp(`model ${name}\\s+\\{([\\s\\S]*?)\\n\\}`));
@@ -74,5 +77,14 @@ describe("manual crawl persistence contract", () => {
     expect(memberFunction!.indexOf("manual source preview forbids lifecycle set members"))
       .toBeLessThan(memberFunction!.indexOf("array_agg"));
     expect(memberFunction).toContain("invalid lifecycle set member cross-set projection");
+  });
+
+  it("binds each manual batch to its exact request and makes kind and binding immutable", () => {
+    expect(model("CrawlBatch")).toMatch(/^\s*manualCrawlRequestId\s+String\?/m);
+    expect(bindingMigration).toContain("CrawlBatch_manualCrawlRequestId_fkey");
+    expect(bindingMigration).toContain("CrawlBatch_manual_binding_check");
+    expect(bindingMigration).toMatch(/OLD\."kind"\s+IS\s+DISTINCT\s+FROM\s+NEW\."kind"/);
+    expect(bindingMigration).toMatch(/OLD\."manualCrawlRequestId"\s+IS\s+DISTINCT\s+FROM\s+NEW\."manualCrawlRequestId"/);
+    expect(bindingMigration).toContain("CrawlBatch_kind_and_manual_binding_immutable");
   });
 });

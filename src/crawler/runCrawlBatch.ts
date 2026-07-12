@@ -163,7 +163,8 @@ export async function runP0CrawlBatch(
   }
   const trustedOracle = deps.identity.batchKind === "FULL_RELEASE" ? await getStartupSourceSurfaceOracle() : undefined;
   const batch = { id: (deps.createBatchId ?? deps.db.createBatchId ?? randomUUID)() };
-  const plannedBatch = buildPendingRuntimeBatch(batch.id, plans, deps.identity, batchStartedAt, undefined, trustedOracle);
+  const plannedBatch = buildPendingRuntimeBatch(batch.id, plans, deps.identity, batchStartedAt, undefined,
+    trustedOracle, deps.manualRequestFence?.requestId);
   await createBatchWithPendingSourceResults(
     plannedBatch,
     deps.db as never

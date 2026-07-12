@@ -26,7 +26,8 @@ export const REVIEWED_MIGRATION_NAMES = [
   "20260712020000_release_runtime_identity",
   "20260713010000_manual_crawl_request_ownership",
   "20260713020000_privacy_request_retention",
-  "20260713030000_manual_crawl_preview_isolation"
+  "20260713030000_manual_crawl_preview_isolation",
+  "20260713040000_manual_batch_binding_and_kind_immutability"
 ] as const;
 
 export const REVIEWED_APP_TABLE_NAMES = [
@@ -49,6 +50,7 @@ export const REVIEWED_USER_TYPE_NAMES = [
 
 export const REVIEWED_FUNCTION_NAMES = [
   "assert_verified_parent_lifecycle_projection", "enforce_source_result_state_machine",
+  "prevent_crawl_batch_kind_or_manual_binding_mutation",
   "prevent_immutable_evidence_mutation", "prevent_manual_crawl_request_event_mutation", "prevent_rc_observation_mutation",
   "prevent_release_candidate_delete", "prevent_release_candidate_identity_mutation",
   "prevent_transport_attempt_artifact_mutation", "prevent_transport_attempt_mutation",

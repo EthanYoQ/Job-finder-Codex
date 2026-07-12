@@ -13,10 +13,10 @@ import {
 } from "../../src/db/emptyDatabaseMigrationVerificationCli";
 
 describe("empty database migration verification CLI contract", () => {
-  it("uses explicit reviewed PG16 catalog allowlists matching all 16 migrations", () => {
+  it("uses explicit reviewed PG16 catalog allowlists matching all 17 migrations", () => {
     const actualMigrations = readdirSync(resolve(process.cwd(), "prisma", "migrations"), { withFileTypes: true })
       .filter((entry) => entry.isDirectory()).map((entry) => entry.name).sort();
-    expect(REVIEWED_MIGRATION_NAMES).toHaveLength(16);
+    expect(REVIEWED_MIGRATION_NAMES).toHaveLength(17);
     expect([...REVIEWED_MIGRATION_NAMES].sort()).toEqual(actualMigrations);
     expect(REVIEWED_APP_TABLE_NAMES).toHaveLength(21);
     expect(new Set(REVIEWED_APP_TABLE_NAMES).size).toBe(21);
@@ -27,11 +27,12 @@ describe("empty database migration verification CLI contract", () => {
       "ManualCrawlEventType",
       "ManualCrawlFailureCode"
     ]));
-    expect(REVIEWED_FUNCTION_NAMES).toHaveLength(13);
+    expect(REVIEWED_FUNCTION_NAMES).toHaveLength(14);
     expect(REVIEWED_FUNCTION_NAMES).toEqual(expect.arrayContaining([
       "prevent_transport_attempt_artifact_mutation",
       "prevent_transport_attempt_mutation",
       "prevent_manual_crawl_request_event_mutation",
+      "prevent_crawl_batch_kind_or_manual_binding_mutation",
       "require_transport_attempt_artifact_ref"
     ]));
     expect(REVIEWED_FUNCTION_NAMES).not.toContain("prevent_committed_source_result_mutation");

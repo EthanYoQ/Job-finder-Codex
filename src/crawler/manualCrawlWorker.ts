@@ -1,4 +1,9 @@
 import type { ManualCrawlRequestRepository } from "../db/manualCrawlRequestRepository";
+import {
+  MANUAL_CRAWL_DEFAULT_LEASE_DURATION_MS,
+  MANUAL_CRAWL_HEARTBEAT_INTERVAL_MS,
+  isValidManualCrawlLeaseDuration
+} from "../domain/manualCrawlLeasePolicy";
 
 export type ManualCrawlWorkerRepository = Pick<
   ManualCrawlRequestRepository,
@@ -45,16 +50,14 @@ export type ManualCrawlWorkerInput = {
   }) => void;
 };
 
-const DEFAULT_LEASE_DURATION_MS = 5 * 60_000;
-const DEFAULT_HEARTBEAT_INTERVAL_MS = 60_000;
 const DEFAULT_IDLE_POLL_MS = 2_000;
 
 export async function runManualCrawlWorker(input: ManualCrawlWorkerInput): Promise<ManualCrawlWorkerResult> {
   assertWorkerConfiguration(input);
   const sleep = input.sleep ?? waitForTimeoutOrAbort;
   const scheduleHeartbeat = input.scheduleHeartbeat ?? scheduleHeartbeatInterval;
-  const leaseDurationMs = input.leaseDurationMs ?? DEFAULT_LEASE_DURATION_MS;
-  const heartbeatIntervalMs = input.heartbeatIntervalMs ?? DEFAULT_HEARTBEAT_INTERVAL_MS;
+  const leaseDurationMs = input.leaseDurationMs ?? MANUAL_CRAWL_DEFAULT_LEASE_DURATION_MS;
+  const heartbeatIntervalMs = input.heartbeatIntervalMs ?? MANUAL_CRAWL_HEARTBEAT_INTERVAL_MS;
   const idlePollMs = input.idlePollMs ?? DEFAULT_IDLE_POLL_MS;
   const result: ManualCrawlWorkerResult = {
     claimedCount: 0,
@@ -217,11 +220,12 @@ function hasErrorCode(error: unknown, code: string): boolean {
 
 function assertWorkerConfiguration(input: ManualCrawlWorkerInput): void {
   const values = [
-    input.leaseDurationMs ?? DEFAULT_LEASE_DURATION_MS,
-    input.heartbeatIntervalMs ?? DEFAULT_HEARTBEAT_INTERVAL_MS,
+    input.leaseDurationMs ?? MANUAL_CRAWL_DEFAULT_LEASE_DURATION_MS,
+    input.heartbeatIntervalMs ?? MANUAL_CRAWL_HEARTBEAT_INTERVAL_MS,
     input.idlePollMs ?? DEFAULT_IDLE_POLL_MS
   ];
-  if (input.ownerId.trim() === "" || values.some((value) => !Number.isSafeInteger(value) || value <= 0)) {
+  if (input.ownerId.trim() === "" || !isValidManualCrawlLeaseDuration(values[0]!) ||
+      values.slice(1).some((value) => !Number.isSafeInteger(value) || value <= 0)) {
     throw new Error("Manual crawl worker configuration is invalid");
   }
   if (values[1]! >= values[0]!) {

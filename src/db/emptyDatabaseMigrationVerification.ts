@@ -144,10 +144,10 @@ export async function runEmptyDatabaseMigrationVerification(
   config: EmptyDatabaseVerificationConfig,
   deps: EmptyDatabaseMigrationVerificationDeps
 ): Promise<EmptyDatabaseMigrationVerificationReport> {
-  const expectedMigrations = exactUniqueSorted(deps.expectedMigrationNames, 16, "migration allowlist");
+  const expectedMigrations = exactUniqueSorted(deps.expectedMigrationNames, 17, "migration allowlist");
   const expectedTables = exactUniqueSorted(deps.expectedAppTableNames, 21, "application-table allowlist");
   const expectedUserTypes = exactUniqueSorted(deps.expectedUserTypeNames, 29, "user-type allowlist");
-  const expectedFunctions = exactUniqueSorted(deps.expectedFunctionNames, 13, "function allowlist");
+  const expectedFunctions = exactUniqueSorted(deps.expectedFunctionNames, 14, "function allowlist");
   const expectedIndexes = exactUniqueSorted(deps.expectedIndexNames, 87, "index allowlist");
   if (!/^[a-f0-9]{64}$/u.test(deps.expectedIndexDefinitionSha256)) fail("index definition digest is invalid");
 

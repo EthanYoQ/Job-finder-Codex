@@ -327,6 +327,7 @@ export interface PlannedBatchInput {
   sourceConfigSha256: string;
   adapterBundleSha256: string;
   kind: PlannedBatchKind;
+  manualCrawlRequestId?: string;
   plannedSourceIds: string[];
   plannedSourceSetSha256: string;
   plannedSourceCount: number;
@@ -352,6 +353,7 @@ export interface PlannedBatchWithSourcesInput {
 }
 
 interface PlannedBatchTransactionClient {
+  $queryRawUnsafe?<T>(query: string, ...values: unknown[]): Promise<T>;
   crawlBatch: { create(args: { data: Record<string, unknown> }): Promise<unknown> };
   crawlBatchSourceResult: { create(args: { data: Record<string, unknown> }): Promise<unknown> };
 }
@@ -393,6 +395,14 @@ export async function createBatchWithPendingSourceResults(
   const sources = validatePlannedBatchWithSources(input);
   const batch = input.batch;
   await db.$transaction(async (transaction) => {
+    if (batch.kind === "MANUAL_SOURCE") {
+      if (!transaction.$queryRawUnsafe) throw new ManualSourceCommitFenceError();
+      const owned = await transaction.$queryRawUnsafe<Array<{ id: string }>>(MANUAL_BATCH_CREATE_FENCE_SQL,
+        batch.manualCrawlRequestId, batch.ownerId, sources[0]!.sourceId);
+      if (owned.length !== 1 || owned[0]?.id !== batch.manualCrawlRequestId) {
+        throw new ManualSourceCommitFenceError();
+      }
+    }
     await transaction.crawlBatch.create({ data: {
       ...batch,
       plannedSourceIds: [...batch.plannedSourceIds],
@@ -457,6 +467,14 @@ export async function createBatchWithPendingSourceResults(
     }
   });
 }
+
+const MANUAL_BATCH_CREATE_FENCE_SQL = `
+SELECT request."id"
+FROM "ManualCrawlRequest" AS request
+WHERE request."id" = $1 AND request."ownerId" = $2 AND request."sourceId" = $3
+  AND request."status" = 'RUNNING' AND request."leaseExpiresAt" > clock_timestamp()
+FOR UPDATE
+`;
 
 export async function terminatePendingSourceResult(
   input: PendingSourceTerminalInput,
@@ -619,7 +637,7 @@ async function executeAtomicSourceEvidenceCommitInternal(
     if (manualFence) {
       if (!transaction.$queryRawUnsafe) throw new ManualSourceCommitFenceError();
       const owned = await transaction.$queryRawUnsafe<Array<{ id: string }>>(MANUAL_SOURCE_COMMIT_FENCE_SQL,
-        manualFence.requestId, manualFence.ownerId);
+        manualFence.requestId, manualFence.ownerId, input.sourceResult.batchId);
       if (owned.length !== 1 || owned[0]?.id !== manualFence.requestId) {
         throw new ManualSourceCommitFenceError();
       }
@@ -742,11 +760,14 @@ async function executeAtomicSourceEvidenceCommitInternal(
 const MANUAL_SOURCE_COMMIT_FENCE_SQL = `
 SELECT request."id"
 FROM "ManualCrawlRequest" AS request
+JOIN "CrawlBatch" AS batch ON batch."id" = $3
+  AND batch."kind" = 'MANUAL_SOURCE'
+  AND batch."manualCrawlRequestId" = request."id"
 WHERE request."id" = $1
   AND request."ownerId" = $2
   AND request."status" = 'RUNNING'
-  AND request."leaseExpiresAt" > CURRENT_TIMESTAMP
-FOR UPDATE
+  AND request."leaseExpiresAt" > clock_timestamp()
+FOR UPDATE OF request
 `;
 
 function validatePlannedBatchWithSources(input: PlannedBatchWithSourcesInput): PlannedPendingSourceInput[] {
@@ -762,6 +783,12 @@ function validatePlannedBatchWithSources(input: PlannedBatchWithSourcesInput): P
   ] as const) requireSha256(value, name);
   if (!(["FULL_RELEASE", "SCHEDULED", "MANUAL_SOURCE", "BASELINE"] as const).includes(batch.kind)) {
     throw new Error("Batch kind is invalid");
+  }
+  if (batch.kind === "MANUAL_SOURCE") {
+    requireNonblank(batch.manualCrawlRequestId ?? "", "manualCrawlRequestId");
+    if (batch.plannedSourceIds.length !== 1) throw new Error("MANUAL_SOURCE batch must plan exactly one source");
+  } else if (batch.manualCrawlRequestId !== undefined) {
+    throw new Error("Only MANUAL_SOURCE may bind a manual crawl request");
   }
   if (!isValidDate(batch.startedAt) || !isValidDate(batch.heartbeatAt)) throw new Error("Batch timestamps are invalid");
   const expectedIds = canonicalizePlannedSourceIds(batch.plannedSourceIds);

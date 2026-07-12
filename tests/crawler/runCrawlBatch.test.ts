@@ -135,6 +135,7 @@ function fakeDb() {
     $transaction: async <T>(
       operation: (transaction: PrismaIngestionTransactionClient) => Promise<T>
     ): Promise<T> => operation({
+      $queryRawUnsafe: async (_sql: string, ...values: unknown[]) => [{ id: values[0] }],
       crawlObservation,
       job,
       crawlBatch: {

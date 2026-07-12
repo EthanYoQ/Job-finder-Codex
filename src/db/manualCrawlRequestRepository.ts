@@ -2,6 +2,7 @@ import {
   canonicalPhase1InScopeRosterMembers,
   isUserAuthorizedPhase1Exclusion
 } from "../data/phase1ScopePolicy";
+import { isValidManualCrawlLeaseDuration } from "../domain/manualCrawlLeasePolicy";
 
 export type ManualCrawlRequestRepositoryErrorCode =
   | "SOURCE_NOT_FOUND"
@@ -58,14 +59,14 @@ type ManualCrawlTransaction = {
     findUnique(args: {
       where: { id: string };
       select: {
-        id: true; kind: true; status: true; plannedSourceIds: true;
+        id: true; kind: true; status: true; manualCrawlRequestId: true; plannedSourceIds: true;
         sourceResults: { select: {
           sourceId: true; transportState: true; adapterState: true;
           completenessState: true; atomicCommitState: true;
         } };
       };
     }): Promise<{
-      id: string; kind: string | null; status: string; plannedSourceIds: unknown;
+      id: string; kind: string | null; status: string; manualCrawlRequestId: string | null; plannedSourceIds: unknown;
       sourceResults: Array<{ sourceId: string; transportState: string; adapterState: string;
         completenessState: string; atomicCommitState: string }>;
     } | null>;
@@ -234,14 +235,14 @@ export function createManualCrawlRequestRepository(input: {
         const batch = await transaction.crawlBatch.findUnique({
           where: { id: finish.crawlBatchId },
           select: {
-            id: true, kind: true, status: true, plannedSourceIds: true,
+            id: true, kind: true, status: true, manualCrawlRequestId: true, plannedSourceIds: true,
             sourceResults: { select: {
               sourceId: true, transportState: true, adapterState: true,
               completenessState: true, atomicCommitState: true
             } }
           }
         });
-        if (!isSuccessfulManualSourceBatch(batch, request.sourceId)) {
+        if (!isSuccessfulManualSourceBatch(batch, finish.requestId, request.sourceId)) {
           throw new ManualCrawlRequestRepositoryError("INVALID_MANUAL_BATCH");
         }
         const rows = await transaction.$queryRawUnsafe<Array<{ id: string }>>(FINISH_SUCCESS_SQL,
@@ -276,7 +277,7 @@ WITH candidate AS (
   FROM "ManualCrawlRequest" AS request
   JOIN "RecruitmentSource" AS source ON source."id" = request."sourceId"
   WHERE (request."status" = 'QUEUED'
-     OR (request."status" = 'RUNNING' AND request."leaseExpiresAt" <= CURRENT_TIMESTAMP))
+     OR (request."status" = 'RUNNING' AND request."leaseExpiresAt" <= clock_timestamp()))
     AND source."companyId" = ANY($3::text[])
     AND source."status" = 'VERIFIED_SCRAPABLE'
     AND source."kind" = 'SOCIAL'
@@ -288,9 +289,9 @@ WITH candidate AS (
   UPDATE "ManualCrawlRequest" AS request
   SET "status" = 'RUNNING',
       "ownerId" = $1,
-      "heartbeatAt" = CURRENT_TIMESTAMP,
-      "leaseExpiresAt" = CURRENT_TIMESTAMP + ($2::bigint * INTERVAL '1 millisecond'),
-      "startedAt" = COALESCE(request."startedAt", CURRENT_TIMESTAMP),
+      "heartbeatAt" = clock_timestamp(),
+      "leaseExpiresAt" = clock_timestamp() + ($2::bigint * INTERVAL '1 millisecond'),
+      "startedAt" = COALESCE(request."startedAt", clock_timestamp()),
       "attemptCount" = request."attemptCount" + 1
   FROM candidate
   WHERE request."id" = candidate."id"
@@ -301,28 +302,28 @@ SELECT * FROM claimed
 
 const HEARTBEAT_SQL = `
 UPDATE "ManualCrawlRequest"
-SET "heartbeatAt" = CURRENT_TIMESTAMP,
-    "leaseExpiresAt" = CURRENT_TIMESTAMP + ($3::bigint * INTERVAL '1 millisecond')
+SET "heartbeatAt" = clock_timestamp(),
+    "leaseExpiresAt" = clock_timestamp() + ($3::bigint * INTERVAL '1 millisecond')
 WHERE "id" = $1 AND "ownerId" = $2 AND "status" = 'RUNNING'
-  AND "leaseExpiresAt" > CURRENT_TIMESTAMP
+  AND "leaseExpiresAt" > clock_timestamp()
 RETURNING "id"
 `;
 
 const FINISH_SUCCESS_SQL = `
 UPDATE "ManualCrawlRequest"
-SET "status" = 'SUCCESS', "crawlBatchId" = $3, "finishedAt" = CURRENT_TIMESTAMP,
-    "heartbeatAt" = CURRENT_TIMESTAMP, "leaseExpiresAt" = NULL, "failureCode" = NULL
+SET "status" = 'SUCCESS', "crawlBatchId" = $3, "finishedAt" = clock_timestamp(),
+    "heartbeatAt" = clock_timestamp(), "leaseExpiresAt" = NULL, "failureCode" = NULL
 WHERE "id" = $1 AND "ownerId" = $2 AND "status" = 'RUNNING'
-  AND "leaseExpiresAt" > CURRENT_TIMESTAMP
+  AND "leaseExpiresAt" > clock_timestamp()
 RETURNING "id"
 `;
 
 const FINISH_FAILED_SQL = `
 UPDATE "ManualCrawlRequest"
 SET "status" = 'FAILED', "failureCode" = $3::"ManualCrawlFailureCode",
-    "finishedAt" = CURRENT_TIMESTAMP, "heartbeatAt" = CURRENT_TIMESTAMP, "leaseExpiresAt" = NULL
+    "finishedAt" = clock_timestamp(), "heartbeatAt" = clock_timestamp(), "leaseExpiresAt" = NULL
 WHERE "id" = $1 AND "ownerId" = $2 AND "status" = 'RUNNING'
-  AND "leaseExpiresAt" > CURRENT_TIMESTAMP
+  AND "leaseExpiresAt" > clock_timestamp()
 RETURNING "id"
 `;
 
@@ -368,16 +369,18 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 }
 
 function assertValidLease(ownerId: string, leaseDurationMs: number): void {
-  if (ownerId.trim() === "" || !Number.isSafeInteger(leaseDurationMs) || leaseDurationMs <= 0) {
+  if (ownerId.trim() === "" || !isValidManualCrawlLeaseDuration(leaseDurationMs)) {
     throw new ManualCrawlRequestRepositoryError("INVALID_OWNER_OR_LEASE");
   }
 }
 
 function isSuccessfulManualSourceBatch(
   batch: Awaited<ReturnType<ManualCrawlTransaction["crawlBatch"]["findUnique"]>>,
+  requestId: string,
   sourceId: string
 ): boolean {
-  if (!batch || batch.kind !== "MANUAL_SOURCE" || batch.status !== "SUCCESS") return false;
+  if (!batch || batch.kind !== "MANUAL_SOURCE" || batch.status !== "SUCCESS" ||
+      batch.manualCrawlRequestId !== requestId) return false;
   if (!Array.isArray(batch.plannedSourceIds) || batch.plannedSourceIds.length !== 1 ||
       batch.plannedSourceIds[0] !== sourceId || batch.sourceResults.length !== 1) return false;
   const result = batch.sourceResults[0]!;

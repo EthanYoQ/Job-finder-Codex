@@ -31,14 +31,19 @@ function validPlan(): PlannedBatchWithSourcesInput {
   };
 }
 
-function plannedDb(failSource = false): PrismaPlannedBatchDb & { calls: { transactions: number; batches: unknown[]; sources: unknown[] } } {
-  const calls = { transactions: 0, batches: [] as unknown[], sources: [] as unknown[] };
+function plannedDb(failSource = false): PrismaPlannedBatchDb & {
+  calls: { transactions: number; batches: unknown[]; sources: unknown[]; fences: unknown[] }
+} {
+  const calls = { transactions: 0, batches: [] as unknown[], sources: [] as unknown[], fences: [] as unknown[] };
   return {
     calls,
     $transaction: vi.fn(async (operation) => {
       calls.transactions += 1;
       const pending = { batches: [] as unknown[], sources: [] as unknown[] };
       const result = await operation({
+        $queryRawUnsafe: vi.fn(async (sql: string, ...values: unknown[]) => {
+          calls.fences.push({ sql, values }); return [{ id: values[0] }];
+        }),
         crawlBatch: { create: vi.fn(async (args) => { pending.batches.push(args); return args; }) },
         crawlBatchSourceResult: { create: vi.fn(async (args) => {
           if (failSource) throw new Error("injected pending row failure");
@@ -80,6 +85,24 @@ describe("planned-source PENDING state machine", () => {
     await expect(createBatchWithPendingSourceResults(validPlan(), db)).rejects.toThrow(/pending row failure/i);
     expect(db.calls.batches).toEqual([]);
     expect(db.calls.sources).toEqual([]);
+  });
+
+  it("locks and binds the exact owned request before creating a MANUAL_SOURCE batch", async () => {
+    const input = validPlan();
+    input.batch.kind = "MANUAL_SOURCE";
+    input.batch.manualCrawlRequestId = "request-1";
+    input.batch.plannedSourceIds = ["source-1"];
+    input.batch.plannedSourceCount = 1;
+    input.batch.plannedSourceSetSha256 = hashCanonicalStringSet(["source-1"]);
+    input.sources = [input.sources[0]!];
+    const db = plannedDb();
+    await createBatchWithPendingSourceResults(input, db);
+    expect(db.calls.fences[0]).toMatchObject({
+      sql: expect.stringContaining("clock_timestamp()"),
+      values: ["request-1", "worker-1", "source-1"]
+    });
+    expect(db.calls.batches[0]).toMatchObject({ data: { kind: "MANUAL_SOURCE",
+      manualCrawlRequestId: "request-1" } });
   });
 
   const rejectsBeforeTransaction = (name: string, mutate: (input: PlannedBatchWithSourcesInput) => void) =>

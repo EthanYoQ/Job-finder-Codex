@@ -4,6 +4,7 @@ import {
   runManualCrawlWorker,
   type ManualCrawlWorkerRepository
 } from "../../src/crawler/manualCrawlWorker";
+import { MANUAL_CRAWL_MAX_LEASE_DURATION_MS } from "../../src/domain/manualCrawlLeasePolicy";
 
 describe("manual crawl request worker", () => {
   it("executes the claimed exact source and finishes only through repository success", async () => {
@@ -192,6 +193,16 @@ describe("manual crawl request worker", () => {
 
     expect(result.claimFailureCount).toBe(1);
     expect(manualCrawlWorkerExitCode(result)).toBe(1);
+  });
+
+  it("accepts the production lease maximum and rejects max+1 or huge values", async () => {
+    const idle = () => fakeRepository([null]);
+    await expect(runManualCrawlWorker({ repository: idle(), executeSource: vi.fn(), ownerId: "worker",
+      leaseDurationMs: MANUAL_CRAWL_MAX_LEASE_DURATION_MS, stopWhenIdle: true })).resolves.toBeDefined();
+    await expect(runManualCrawlWorker({ repository: idle(), executeSource: vi.fn(), ownerId: "worker",
+      leaseDurationMs: MANUAL_CRAWL_MAX_LEASE_DURATION_MS + 1, stopWhenIdle: true })).rejects.toThrow(/configuration/i);
+    await expect(runManualCrawlWorker({ repository: idle(), executeSource: vi.fn(), ownerId: "worker",
+      leaseDurationMs: Number.MAX_SAFE_INTEGER, stopWhenIdle: true })).rejects.toThrow(/configuration/i);
   });
 });
 

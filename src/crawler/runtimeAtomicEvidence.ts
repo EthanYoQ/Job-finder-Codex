@@ -31,8 +31,15 @@ export function buildPendingRuntimeBatch(
   identity: RuntimeBatchIdentity,
   startedAt: Date,
   oracle?: AuditedSourceSurfaceOracle,
-  trustedOracle?: StartupTrustedSourceSurfaceOracle
+  trustedOracle?: StartupTrustedSourceSurfaceOracle,
+  manualCrawlRequestId?: string
 ): PlannedBatchWithSourcesInput {
+  if (identity.batchKind === "MANUAL_SOURCE" && !manualCrawlRequestId?.trim()) {
+    throw new Error("MANUAL_SOURCE requires an exact manual crawl request binding");
+  }
+  if (identity.batchKind !== "MANUAL_SOURCE" && manualCrawlRequestId !== undefined) {
+    throw new Error("Only MANUAL_SOURCE may bind a manual crawl request");
+  }
   const sources: PlannedPendingSourceInput[] = plans.map((plan) => ({
     id: `${batchId}--${plan.source.id}`,
     sourceId: plan.source.id,
@@ -57,6 +64,7 @@ export function buildPendingRuntimeBatch(
       sourceConfigSha256: identity.sourceConfigSha256,
       adapterBundleSha256: identity.adapterBundleSha256,
       kind: identity.batchKind,
+      ...(manualCrawlRequestId === undefined ? {} : { manualCrawlRequestId }),
       plannedSourceIds: [...identity.expectedPlannedSourceIds],
       plannedSourceSetSha256: identity.expectedPlannedSourceSetSha256,
       plannedSourceCount: identity.expectedPlannedSourceCount,
