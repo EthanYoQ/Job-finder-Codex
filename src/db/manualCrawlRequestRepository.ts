@@ -180,13 +180,12 @@ export function createManualCrawlRequestRepository(input: {
 
     async claimNext(claim: {
       ownerId: string;
-      now: Date;
-      leaseExpiresAt: Date;
+      leaseDurationMs: number;
     }): Promise<ClaimedManualCrawlRequest | null> {
-      assertValidLease(claim.ownerId, claim.now, claim.leaseExpiresAt);
+      assertValidLease(claim.ownerId, claim.leaseDurationMs);
       return input.db.$transaction(async (transaction) => {
         const rows = await transaction.$queryRawUnsafe<ClaimedManualCrawlRequest[]>(CLAIM_NEXT_SQL,
-          claim.now, claim.ownerId, claim.leaseExpiresAt, canonicalInScopeCompanyIds);
+          claim.ownerId, claim.leaseDurationMs, canonicalInScopeCompanyIds);
         const claimed = rows[0] ?? null;
         if (!claimed) return null;
         const reclaimed = claimed.previousStatus === "RUNNING";
@@ -208,16 +207,13 @@ export function createManualCrawlRequestRepository(input: {
     async heartbeat(heartbeat: {
       requestId: string;
       ownerId: string;
-      now: Date;
-      leaseExpiresAt: Date;
+      leaseDurationMs: number;
     }): Promise<void> {
-      assertValidLease(heartbeat.ownerId, heartbeat.now, heartbeat.leaseExpiresAt);
+      assertValidLease(heartbeat.ownerId, heartbeat.leaseDurationMs);
       await input.db.$transaction(async (transaction) => {
-        const result = await transaction.manualCrawlRequest.updateMany({
-          where: { id: heartbeat.requestId, ownerId: heartbeat.ownerId, status: "RUNNING" },
-          data: { heartbeatAt: heartbeat.now, leaseExpiresAt: heartbeat.leaseExpiresAt }
-        });
-        assertOwnedUpdate(result);
+        const rows = await transaction.$queryRawUnsafe<Array<{ id: string }>>(HEARTBEAT_SQL,
+          heartbeat.requestId, heartbeat.ownerId, heartbeat.leaseDurationMs);
+        assertOwnedRows(rows);
         await createSystemEvent(transaction, heartbeat.requestId, heartbeat.ownerId, "HEARTBEAT", "RUNNING", "RUNNING");
       });
     },
@@ -226,7 +222,6 @@ export function createManualCrawlRequestRepository(input: {
       requestId: string;
       ownerId: string;
       crawlBatchId: string;
-      now: Date;
     }): Promise<void> {
       await input.db.$transaction(async (transaction) => {
         const request = await transaction.manualCrawlRequest.findUnique({
@@ -249,14 +244,9 @@ export function createManualCrawlRequestRepository(input: {
         if (!isSuccessfulManualSourceBatch(batch, request.sourceId)) {
           throw new ManualCrawlRequestRepositoryError("INVALID_MANUAL_BATCH");
         }
-        const result = await transaction.manualCrawlRequest.updateMany({
-          where: { id: finish.requestId, ownerId: finish.ownerId, status: "RUNNING" },
-          data: {
-            status: "SUCCESS", crawlBatchId: finish.crawlBatchId, finishedAt: finish.now,
-            heartbeatAt: finish.now, leaseExpiresAt: null, failureCode: null
-          }
-        });
-        assertOwnedUpdate(result);
+        const rows = await transaction.$queryRawUnsafe<Array<{ id: string }>>(FINISH_SUCCESS_SQL,
+          finish.requestId, finish.ownerId, finish.crawlBatchId);
+        assertOwnedRows(rows);
         await createSystemEvent(transaction, finish.requestId, finish.ownerId, "SUCCEEDED", "RUNNING", "SUCCESS");
       });
     },
@@ -265,20 +255,14 @@ export function createManualCrawlRequestRepository(input: {
       requestId: string;
       ownerId: string;
       failureCode: string;
-      now: Date;
     }): Promise<void> {
       if (!safeFailureCodeSet.has(finish.failureCode)) {
         throw new ManualCrawlRequestRepositoryError("UNSAFE_FAILURE_CODE");
       }
       await input.db.$transaction(async (transaction) => {
-        const result = await transaction.manualCrawlRequest.updateMany({
-          where: { id: finish.requestId, ownerId: finish.ownerId, status: "RUNNING" },
-          data: {
-            status: "FAILED", failureCode: finish.failureCode, finishedAt: finish.now,
-            heartbeatAt: finish.now, leaseExpiresAt: null
-          }
-        });
-        assertOwnedUpdate(result);
+        const rows = await transaction.$queryRawUnsafe<Array<{ id: string }>>(FINISH_FAILED_SQL,
+          finish.requestId, finish.ownerId, finish.failureCode);
+        assertOwnedRows(rows);
         await createSystemEvent(transaction, finish.requestId, finish.ownerId, "FAILED", "RUNNING", "FAILED",
           finish.failureCode as ManualCrawlFailureCode);
       });
@@ -292,8 +276,8 @@ WITH candidate AS (
   FROM "ManualCrawlRequest" AS request
   JOIN "RecruitmentSource" AS source ON source."id" = request."sourceId"
   WHERE (request."status" = 'QUEUED'
-     OR (request."status" = 'RUNNING' AND request."leaseExpiresAt" <= $1))
-    AND source."companyId" = ANY($4::text[])
+     OR (request."status" = 'RUNNING' AND request."leaseExpiresAt" <= CURRENT_TIMESTAMP))
+    AND source."companyId" = ANY($3::text[])
     AND source."status" = 'VERIFIED_SCRAPABLE'
     AND source."kind" = 'SOCIAL'
     AND source."atsKind" <> 'UNKNOWN'
@@ -303,10 +287,10 @@ WITH candidate AS (
 ), claimed AS (
   UPDATE "ManualCrawlRequest" AS request
   SET "status" = 'RUNNING',
-      "ownerId" = $2,
-      "heartbeatAt" = $1,
-      "leaseExpiresAt" = $3,
-      "startedAt" = COALESCE(request."startedAt", $1),
+      "ownerId" = $1,
+      "heartbeatAt" = CURRENT_TIMESTAMP,
+      "leaseExpiresAt" = CURRENT_TIMESTAMP + ($2::bigint * INTERVAL '1 millisecond'),
+      "startedAt" = COALESCE(request."startedAt", CURRENT_TIMESTAMP),
       "attemptCount" = request."attemptCount" + 1
   FROM candidate
   WHERE request."id" = candidate."id"
@@ -315,8 +299,35 @@ WITH candidate AS (
 SELECT * FROM claimed
 `;
 
-function assertOwnedUpdate(result: CountResult): void {
-  if (result.count !== 1) throw new ManualCrawlRequestRepositoryError("OWNERSHIP_LOST");
+const HEARTBEAT_SQL = `
+UPDATE "ManualCrawlRequest"
+SET "heartbeatAt" = CURRENT_TIMESTAMP,
+    "leaseExpiresAt" = CURRENT_TIMESTAMP + ($3::bigint * INTERVAL '1 millisecond')
+WHERE "id" = $1 AND "ownerId" = $2 AND "status" = 'RUNNING'
+  AND "leaseExpiresAt" > CURRENT_TIMESTAMP
+RETURNING "id"
+`;
+
+const FINISH_SUCCESS_SQL = `
+UPDATE "ManualCrawlRequest"
+SET "status" = 'SUCCESS', "crawlBatchId" = $3, "finishedAt" = CURRENT_TIMESTAMP,
+    "heartbeatAt" = CURRENT_TIMESTAMP, "leaseExpiresAt" = NULL, "failureCode" = NULL
+WHERE "id" = $1 AND "ownerId" = $2 AND "status" = 'RUNNING'
+  AND "leaseExpiresAt" > CURRENT_TIMESTAMP
+RETURNING "id"
+`;
+
+const FINISH_FAILED_SQL = `
+UPDATE "ManualCrawlRequest"
+SET "status" = 'FAILED', "failureCode" = $3::"ManualCrawlFailureCode",
+    "finishedAt" = CURRENT_TIMESTAMP, "heartbeatAt" = CURRENT_TIMESTAMP, "leaseExpiresAt" = NULL
+WHERE "id" = $1 AND "ownerId" = $2 AND "status" = 'RUNNING'
+  AND "leaseExpiresAt" > CURRENT_TIMESTAMP
+RETURNING "id"
+`;
+
+function assertOwnedRows(rows: readonly { id: string }[]): void {
+  if (rows.length !== 1) throw new ManualCrawlRequestRepositoryError("OWNERSHIP_LOST");
 }
 
 async function createSystemEvent(
@@ -356,8 +367,8 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;
 }
 
-function assertValidLease(ownerId: string, now: Date, leaseExpiresAt: Date): void {
-  if (ownerId.trim() === "" || leaseExpiresAt.getTime() <= now.getTime()) {
+function assertValidLease(ownerId: string, leaseDurationMs: number): void {
+  if (ownerId.trim() === "" || !Number.isSafeInteger(leaseDurationMs) || leaseDurationMs <= 0) {
     throw new ManualCrawlRequestRepositoryError("INVALID_OWNER_OR_LEASE");
   }
 }

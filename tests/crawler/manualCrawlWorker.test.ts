@@ -5,8 +5,6 @@ import {
   type ManualCrawlWorkerRepository
 } from "../../src/crawler/manualCrawlWorker";
 
-const NOW = new Date("2026-07-13T08:00:00.000Z");
-
 describe("manual crawl request worker", () => {
   it("executes the claimed exact source and finishes only through repository success", async () => {
     const repository = fakeRepository([
@@ -19,7 +17,6 @@ describe("manual crawl request worker", () => {
       repository,
       executeSource,
       ownerId: "worker-1",
-      now: () => NOW,
       stopWhenIdle: true
     });
 
@@ -27,7 +24,7 @@ describe("manual crawl request worker", () => {
       requestId: "request-1", sourceId: "source-1", ownerId: "worker-1"
     }));
     expect(repository.finishSuccess).toHaveBeenCalledWith({
-      requestId: "request-1", ownerId: "worker-1", crawlBatchId: "batch-1", now: NOW
+      requestId: "request-1", ownerId: "worker-1", crawlBatchId: "batch-1"
     });
     expect(repository.finishFailed).not.toHaveBeenCalled();
   });
@@ -47,7 +44,6 @@ describe("manual crawl request worker", () => {
       repository,
       executeSource: async () => execution,
       ownerId: "worker-1",
-      now: () => NOW,
       stopWhenIdle: true,
       scheduleHeartbeat: (callback) => {
         scheduled.push(callback);
@@ -59,8 +55,7 @@ describe("manual crawl request worker", () => {
     expect(repository.heartbeat).toHaveBeenCalledWith({
       requestId: "request-1",
       ownerId: "worker-1",
-      now: NOW,
-      leaseExpiresAt: new Date(NOW.getTime() + 5 * 60_000)
+      leaseDurationMs: 5 * 60_000
     });
     resolveExecution({ batchId: "batch-1", status: "SUCCESS" });
     await running;
@@ -82,7 +77,6 @@ describe("manual crawl request worker", () => {
       repository,
       executeSource: async () => execution,
       ownerId: "worker-2",
-      now: () => NOW,
       stopWhenIdle: true,
       scheduleHeartbeat: (callback) => {
         scheduled.push(callback);
@@ -113,12 +107,11 @@ describe("manual crawl request worker", () => {
       repository,
       executeSource,
       ownerId: "worker-1",
-      now: () => NOW,
       stopWhenIdle: true
     });
 
     expect(repository.finishFailed).toHaveBeenCalledWith({
-      requestId: "request-1", ownerId: "worker-1", failureCode: "SOURCE_CRAWL_FAILED", now: NOW
+      requestId: "request-1", ownerId: "worker-1", failureCode: "SOURCE_CRAWL_FAILED"
     });
     expect(repository.finishSuccess).toHaveBeenCalledWith(expect.objectContaining({ requestId: "request-2" }));
     expect(result).toMatchObject({ claimedCount: 2, successCount: 1, failedCount: 1 });
@@ -134,7 +127,6 @@ describe("manual crawl request worker", () => {
       repository,
       executeSource: async () => ({ batchId: "batch-1", status: "INCOMPLETE" }),
       ownerId: "worker-1",
-      now: () => NOW,
       stopWhenIdle: true
     });
 
@@ -157,12 +149,11 @@ describe("manual crawl request worker", () => {
       repository,
       executeSource: async () => ({ batchId: "batch-1", status: "SUCCESS" }),
       ownerId: "worker-1",
-      now: () => NOW,
       stopWhenIdle: true
     });
 
     expect(repository.finishFailed).toHaveBeenCalledWith({
-      requestId: "request-1", ownerId: "worker-1", failureCode: "MANUAL_CRAWL_FAILED", now: NOW
+      requestId: "request-1", ownerId: "worker-1", failureCode: "MANUAL_CRAWL_FAILED"
     });
   });
 
@@ -180,7 +171,6 @@ describe("manual crawl request worker", () => {
         return { batchId: "batch-1", status: "SUCCESS" };
       },
       ownerId: "worker-1",
-      now: () => NOW,
       signal: controller.signal
     });
 
@@ -197,7 +187,6 @@ describe("manual crawl request worker", () => {
       repository,
       executeSource: vi.fn(),
       ownerId: "worker-1",
-      now: () => NOW,
       stopWhenIdle: true
     });
 

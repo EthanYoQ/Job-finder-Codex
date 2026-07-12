@@ -33,7 +33,6 @@ export type ManualCrawlWorkerInput = {
   }): Promise<ManualSourceExecutionResult>;
   ownerId: string;
   signal?: AbortSignal;
-  now?: () => Date;
   leaseDurationMs?: number;
   heartbeatIntervalMs?: number;
   idlePollMs?: number;
@@ -52,7 +51,6 @@ const DEFAULT_IDLE_POLL_MS = 2_000;
 
 export async function runManualCrawlWorker(input: ManualCrawlWorkerInput): Promise<ManualCrawlWorkerResult> {
   assertWorkerConfiguration(input);
-  const now = input.now ?? (() => new Date());
   const sleep = input.sleep ?? waitForTimeoutOrAbort;
   const scheduleHeartbeat = input.scheduleHeartbeat ?? scheduleHeartbeatInterval;
   const leaseDurationMs = input.leaseDurationMs ?? DEFAULT_LEASE_DURATION_MS;
@@ -67,13 +65,11 @@ export async function runManualCrawlWorker(input: ManualCrawlWorkerInput): Promi
   };
 
   while (!input.signal?.aborted) {
-    const claimTime = now();
     let claimed: Awaited<ReturnType<ManualCrawlWorkerRepository["claimNext"]>>;
     try {
       claimed = await input.repository.claimNext({
         ownerId: input.ownerId,
-        now: claimTime,
-        leaseExpiresAt: futureLease(claimTime, leaseDurationMs)
+        leaseDurationMs
       });
     } catch {
       result.claimFailureCount += 1;
@@ -94,7 +90,6 @@ export async function runManualCrawlWorker(input: ManualCrawlWorkerInput): Promi
       input,
       claimed,
       result,
-      now,
       leaseDurationMs,
       heartbeatIntervalMs,
       scheduleHeartbeat
@@ -108,12 +103,11 @@ async function processClaimedRequest(context: {
   input: ManualCrawlWorkerInput;
   claimed: NonNullable<Awaited<ReturnType<ManualCrawlWorkerRepository["claimNext"]>>>;
   result: ManualCrawlWorkerResult;
-  now: () => Date;
   leaseDurationMs: number;
   heartbeatIntervalMs: number;
   scheduleHeartbeat: NonNullable<ManualCrawlWorkerInput["scheduleHeartbeat"]>;
 }): Promise<void> {
-  const { input, claimed, result, now, leaseDurationMs, heartbeatIntervalMs, scheduleHeartbeat } = context;
+  const { input, claimed, result, leaseDurationMs, heartbeatIntervalMs, scheduleHeartbeat } = context;
   let heartbeatAuthorityUncertain = false;
   let heartbeatOwnershipLost = false;
   let heartbeatInFlight: Promise<void> | undefined;
@@ -121,13 +115,11 @@ async function processClaimedRequest(context: {
   const heartbeat = async (): Promise<void> => {
     if (heartbeatAuthorityUncertain || heartbeatInFlight) return;
     heartbeatInFlight = (async () => {
-      const heartbeatTime = now();
       try {
         await input.repository.heartbeat({
           requestId: claimed.id,
           ownerId: input.ownerId,
-          now: heartbeatTime,
-          leaseExpiresAt: futureLease(heartbeatTime, leaseDurationMs)
+          leaseDurationMs
         });
       } catch (error) {
         heartbeatAuthorityUncertain = true;
@@ -165,14 +157,12 @@ async function processClaimedRequest(context: {
     return;
   }
 
-  const terminalTime = now();
   try {
     if (executionFailed || !execution) {
       await input.repository.finishFailed({
         requestId: claimed.id,
         ownerId: input.ownerId,
-        failureCode: "SOURCE_CRAWL_FAILED",
-        now: terminalTime
+        failureCode: "SOURCE_CRAWL_FAILED"
       });
       result.failedCount += 1;
       return;
@@ -180,8 +170,7 @@ async function processClaimedRequest(context: {
     await input.repository.finishSuccess({
       requestId: claimed.id,
       ownerId: input.ownerId,
-      crawlBatchId: execution.batchId,
-      now: terminalTime
+      crawlBatchId: execution.batchId
     });
     result.successCount += 1;
   } catch (error) {
@@ -195,8 +184,7 @@ async function processClaimedRequest(context: {
         await input.repository.finishFailed({
           requestId: claimed.id,
           ownerId: input.ownerId,
-          failureCode: "MANUAL_CRAWL_FAILED",
-          now: terminalTime
+          failureCode: "MANUAL_CRAWL_FAILED"
         });
         result.failedCount += 1;
       } catch (failureError) {
@@ -217,10 +205,6 @@ function scheduleHeartbeatInterval(callback: HeartbeatCallback, intervalMs: numb
   const timer = setInterval(() => void callback(), intervalMs);
   timer.unref?.();
   return () => clearInterval(timer);
-}
-
-function futureLease(now: Date, leaseDurationMs: number): Date {
-  return new Date(now.getTime() + leaseDurationMs);
 }
 
 function isOwnershipLost(error: unknown): boolean {

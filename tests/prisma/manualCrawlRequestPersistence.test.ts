@@ -63,4 +63,16 @@ describe("manual crawl persistence contract", () => {
     expect(previewIsolationMigration).toMatch(/IF\s+parent_kind\s*=\s*'MANUAL_SOURCE'[\s\S]+RETURN;[\s\S]+current_hash\s+IS\s+DISTINCT\s+FROM\s+parent_current/i);
     expect(previewIsolationMigration).toContain("verified committed parent lifecycle projection mismatch");
   });
+
+  it("rejects every direct lifecycle member insert for a MANUAL_SOURCE parent before projection", () => {
+    const memberFunction = previewIsolationMigration.match(
+      /CREATE OR REPLACE FUNCTION public\.validate_lifecycle_set_member_projection\(\)[\s\S]+?END \$\$;/
+    )?.[0];
+    expect(memberFunction).toBeDefined();
+    expect(memberFunction).toMatch(/JOIN public\."CrawlBatch"[\s\S]+parent_kind/i);
+    expect(memberFunction).toMatch(/IF parent_kind = 'MANUAL_SOURCE' THEN[\s\S]+RAISE EXCEPTION 'manual source preview forbids lifecycle set members'/i);
+    expect(memberFunction!.indexOf("manual source preview forbids lifecycle set members"))
+      .toBeLessThan(memberFunction!.indexOf("array_agg"));
+    expect(memberFunction).toContain("invalid lifecycle set member cross-set projection");
+  });
 });
