@@ -5,6 +5,7 @@ import {
 } from "../../src/readiness/prismaReadiness";
 import type { PersistedReadinessCompanyRow } from "../../src/readiness/persistedReadiness";
 import { candidateCompanies } from "../../src/data/companyRegistry";
+import { derivePhase1Scope } from "../../src/data/phase1ScopePolicy";
 
 describe("Prisma readiness report", () => {
   it("queries companies, sources, and latest crawl observations for the readiness gate", async () => {
@@ -87,7 +88,13 @@ describe("Prisma readiness report", () => {
       orderBy: { pinyinName: "asc" }
     });
     expect(report.totalCandidates).toBe(candidateCompanies.length);
-    expect(report.requiredOfficialLinkSources).toBe(60);
+    const requiredOfficialLinkSourceIds = new Set(
+      derivePhase1Scope(candidateCompanies).inScopeCompanies
+        .flatMap(({ sources }) => sources)
+        .filter(({ kind }) => kind === "SOCIAL")
+        .map(({ id }) => id)
+    );
+    expect(report.requiredOfficialLinkSources).toBe(requiredOfficialLinkSourceIds.size);
     expect(report.plannedOfficialLinkSources).toBe(0);
     expect(report.crawlEvidencedOfficialLinkSources).toBe(0);
     expect(report.canLaunchP0).toBe(false);

@@ -15,6 +15,7 @@ import {
   buildSourceCrawlPlans,
   getSourcePlanCoverage
 } from "../../src/crawler/sourcePlan";
+import { derivePhase1Scope } from "../../src/data/phase1ScopePolicy";
 
 describe("strict 30+30 roster and expected official-surface oracle", () => {
   it("rejects free-form China scope and independently-verified scope without evidence bindings", () => {
@@ -144,7 +145,15 @@ describe("strict 30+30 roster and expected official-surface oracle", () => {
     expect(plans).toEqual([]);
     expect(discoveryCandidates).toHaveLength(46);
     expect(coverage.unexpectedPlanSourceIds).toEqual([]);
-    expect(coverage.blockedExpectedSurfaceIds).toHaveLength(60);
+    const inScopeCompanyIds = new Set(
+      derivePhase1Scope(candidateCompanies).inScopeCompanies.map(({ id }) => id)
+    );
+    expect(coverage.blockedExpectedSurfaceIds).toEqual(
+      expectedOfficialSurfaces
+        .filter((surface) => surface.kind === "SOCIAL" && inScopeCompanyIds.has(surface.companyId))
+        .map(({ surfaceId }) => surfaceId)
+        .sort()
+    );
   });
 
   it("keeps resolved multi-social surfaces inactive when the adapter cannot prove channel coverage", () => {
