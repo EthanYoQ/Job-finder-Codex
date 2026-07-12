@@ -406,6 +406,118 @@ describe("Phenom evidence instrumentation", () => {
   });
 
   it.each([
+    ["missing", { Professional: 4 }],
+    ["renamed", { Professional: 3, "Internship Roles": 1 }]
+  ])("fails closed when a globally proved exclusion descriptor is %s", async (_label, globalCategories) => {
+    const scopedPlan = {
+      ...plan,
+      officialJsonFetch: {
+        ...plan.officialJsonFetch,
+        facetScope: {
+          countryIncludeDescriptor: "China",
+          exclusionFacet: { field: "category", descriptors: ["Internships"] }
+        }
+      }
+    } satisfies SourceCrawlPlan;
+    const bodies = [facetPageBody([], 4, 0, [
+      { field: "country", value: { China: 1, Belgium: 3 } },
+      { field: "category", value: globalCategories }
+    ])];
+    const fetcher = createOfficialJsonSourceFetch({
+      now: () => new Date(capturedAt),
+      http: async (request) => request.method === "POST"
+        ? response(bodies.shift()!, widgetUrl, "application/json")
+        : response(entryHtml(), entryUrl, "text/html")
+    });
+
+    await expect(fetcher(scopedPlan)).resolves.toMatchObject({
+      ok: false,
+      failureReason: "Phenom global exclusion facet is missing descriptors or is not a complete partition"
+    });
+  });
+
+  it("fails closed when a modern country exclusion aggregation overlaps or miscounts its country total", async () => {
+    const scopedPlan = {
+      ...plan,
+      officialJsonFetch: {
+        ...plan.officialJsonFetch,
+        facetScope: {
+          countryIncludeDescriptor: "China",
+          exclusionFacet: { field: "category", descriptors: ["Internships"] }
+        }
+      }
+    } satisfies SourceCrawlPlan;
+    const bodies = [
+      facetPageBody([], 4, 0, [
+        { field: "country", value: { China: 2, Belgium: 2 } },
+        { field: "category", value: { Professional: 3, Internships: 1 } }
+      ]),
+      facetPageBody([], 2, 0, [
+        { field: "category", value: { Professional: 2, Internships: 1 } }
+      ])
+    ];
+    const fetcher = createOfficialJsonSourceFetch({
+      now: () => new Date(capturedAt),
+      http: async (request) => request.method === "POST"
+        ? response(bodies.shift()!, widgetUrl, "application/json")
+        : response(entryHtml(), entryUrl, "text/html")
+    });
+
+    await expect(fetcher(scopedPlan)).resolves.toMatchObject({
+      ok: false,
+      failureReason: "Phenom exclusion facet is not a complete mutually exclusive partition"
+    });
+  });
+
+  it.each([
+    ["raw count differs from the declared total", 50, 1, 0, false],
+    ["declared total exceeds page size", 1, 2, 2, false],
+    ["a later page omits from", 1, 2, 1, true]
+  ])("does not apply the omitted-offset opt-in when %s", async (_label, pageSize, total, firstJobs, includeFirstPage) => {
+    const scopedPlan = {
+      ...plan,
+      officialJsonFetch: {
+        ...plan.officialJsonFetch,
+        facetScope: {
+          countryIncludeDescriptor: "China",
+          exclusionFacet: { field: "category", descriptors: ["Internships"] }
+        },
+        allowOmittedOffsetForSinglePage: true,
+        pageSize
+      }
+    } satisfies SourceCrawlPlan;
+    const allowedJobs = Array.from({ length: total }, (_, index) =>
+      job(`SAMPLE-${index}`, { category: "Professional" }));
+    const bodies = [
+      facetPageBody([], total + 1, 0, [
+        { field: "country", value: { China: total, Belgium: 1 } },
+        { field: "category", value: { Professional: total, Internships: 1 } }
+      ]),
+      facetPageBody(allowedJobs.slice(0, pageSize), total, 0, [
+        { field: "category", value: { Professional: total } }
+      ]),
+      ...(includeFirstPage
+        ? [facetPageBody(allowedJobs.slice(0, firstJobs), total, 0, [])]
+        : []),
+      JSON.stringify({ refineSearch: {
+        totalHits: total,
+        data: { jobs: allowedJobs.slice(includeFirstPage ? firstJobs : 0, includeFirstPage ? undefined : firstJobs) }
+      } })
+    ];
+    const fetcher = createOfficialJsonSourceFetch({
+      now: () => new Date(capturedAt),
+      http: async (request) => request.method === "POST"
+        ? response(bodies.shift()!, widgetUrl, "application/json")
+        : response(entryHtml(), entryUrl, "text/html")
+    });
+
+    await expect(fetcher(scopedPlan)).resolves.toMatchObject({
+      ok: false,
+      failureReason: "Phenom structured facet page requires own from"
+    });
+  });
+
+  it.each([
     ["first page missing totalHits", 0, JSON.stringify({ refineSearch: { from: 0, data: { jobs: [] } } })],
     ["first page missing from", 0, JSON.stringify({ refineSearch: { totalHits: 2, data: { jobs: [] } } })],
     ["later page missing totalHits", 1, JSON.stringify({ refineSearch: { from: 1, data: { jobs: [] } } })],
@@ -745,6 +857,28 @@ describe("Phenom evidence instrumentation", () => {
       }
     });
     expect(withoutOpaqueBodies(result)).not.toContain("raw-secret");
+  });
+
+  it.each([
+    ["slash-separated foreign city", "Shanghai / Singapore", "Shanghai"],
+    ["foreign city beside China", "London, China", "London"],
+    ["non-mainland region beside Shanghai", "Shanghai, Hong Kong", "Shanghai"]
+  ])("rejects a China-tagged Phenom record with %s", async (_label, location, city) => {
+    const fetcher = createOfficialJsonSourceFetch({
+      now: () => new Date(capturedAt),
+      http: async (request) => request.method === "POST"
+        ? response(pageBody([job("CONFLICT", { country: "China", location, city })], 1, 0), widgetUrl, "application/json")
+        : response(entryHtml(), entryUrl, "text/html")
+    });
+
+    const result = await fetcher(plan);
+    expect(result).toMatchObject({
+      ok: false,
+      fetchEvidence: {
+        fetchCounts: { rawCount: 1, validCount: 0, validationDiscardCount: 1 },
+        fetchLosses: [{ details: { code: "OUT_OF_SCOPE" } }]
+      }
+    });
   });
 
   it("fails closed through D1 on unstable totals and retains both raw pages", async () => {

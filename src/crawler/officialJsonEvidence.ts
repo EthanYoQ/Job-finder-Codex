@@ -301,8 +301,13 @@ export function sensitiveOfficialJsonField(fields: Record<string, string>): stri
 
 export function explicitlyOutsideChina(value: string): boolean {
   const normalized = value.normalize("NFKC").toLowerCase();
-  return /(?:美国|纽约|波士顿|新加坡|日本|东京|印度|德国|法国|加拿大|澳大利亚|英国|伦敦)|\b(?:united states|usa|u\.s\.|boston|new york|singapore|japan|tokyo|india|germany|france|canada|australia|united kingdom|london)\b/u.test(normalized) &&
+  return explicitlyForeignOrNonMainlandLocation(normalized) &&
     !/(?:中华人民共和国|中国大陆|中国|大陆|china|prc|people'?s republic of china|mainland china|上海|北京|广州|深圳|成都|杭州|南京|苏州|武汉|天津|重庆|西安|兰州)/iu.test(normalized);
+}
+
+export function explicitlyForeignOrNonMainlandLocation(value: string): boolean {
+  const normalized = value.normalize("NFKC").toLowerCase();
+  return /(?:美国|纽约|波士顿|新加坡|日本|东京|印度|德国|法国|加拿大|澳大利亚|英国|伦敦|韩国|马来西亚|印度尼西亚|泰国|越南|菲律宾|荷兰|比利时|瑞士|瑞典|西班牙|意大利|波兰|墨西哥|巴西|阿根廷|奥地利|爱尔兰|以色列|土耳其|哥伦比亚|智利|秘鲁|南非|新西兰|阿联酋|沙特|俄罗斯|香港|澳门|台湾)|\b(?:united states|usa|u\.s\.|boston|new york|singapore|japan|tokyo|india|germany|france|canada|australia|united kingdom|u\.k\.|london|south korea|republic of korea|malaysia|indonesia|thailand|viet\s*nam|vietnam|philippines|netherlands|belgium|switzerland|sweden|spain|italy|poland|mexico|brazil|argentina|austria|ireland|israel|türkiye|turkey|colombia|chile|peru|south africa|new zealand|united arab emirates|saudi arabia|russia|hong kong|macau|macao|taiwan)\b/u.test(normalized);
 }
 
 export function safeOfficialJsonEndpoint(value: string): string {

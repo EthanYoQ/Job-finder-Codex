@@ -6,6 +6,7 @@ import {
   assertOfficialHtmlMime,
   assertOfficialJsonEvidenceResponse,
   assertOfficialJsonMime,
+  explicitlyForeignOrNonMainlandLocation,
   explicitlyOutsideChina,
   finalizeOfficialJsonEvidence,
   finalizeOfficialJsonEvidenceBundle,
@@ -2479,7 +2480,7 @@ async function fetchPhenomWidgets({
       (descriptor) => !facetScope.exclusionDescriptors.includes(descriptor)
     ).sort();
     if (allowed.length === 0) {
-      return phenomFailure(capturedAt, "Phenom structured facet scope excludes every category",
+      return phenomFailure(capturedAt, "Phenom structured facet scope excludes every descriptor for the configured facet",
         artifacts, pages, counts, losses);
     }
     structuredExpectedTotal = allowed.reduce((sum, descriptor) => sum + exclusionAggregation.get(descriptor)!, 0);
@@ -2647,6 +2648,19 @@ async function fetchPhenomWidgets({
         continue;
       }
       const city = stringValue(raw.city);
+      if ((facetScope || sourceScopedChinaRequest) && phenomCountryIsMainlandChina(stringValue(raw.country)) &&
+        explicitlyForeignOrNonMainlandLocation(`${locationRaw!} ${city ?? ""}`)) {
+        recordPhenomLoss(losses, counts, "VALIDATION", "OUT_OF_SCOPE", rawLocator, pageIndex, recordIndex);
+        pages.push(phenomPageTrace({
+          artifact, sequence: pageIndex, requestedOffset, returnedOffset,
+          rawJobIds: rawIds, validJobIds: validIds,
+          ...(pageTotal === undefined ? {} : { declaredTotal: pageTotal }),
+          termination: "FAILED"
+        }));
+        return phenomFailure(capturedAt,
+          "Phenom record location conflicts with the requested mainland China scope",
+          artifacts, pages, counts, losses);
+      }
       if (facetScope && (stringValue(raw.country) !== facetScope.countryIncludeDescriptor ||
         !allowedExclusionFacetDescriptors?.has(stringValue(raw[facetScope.exclusionField]) ?? ""))) {
         recordPhenomLoss(losses, counts, "VALIDATION", "OUT_OF_SCOPE", rawLocator, pageIndex, recordIndex);
@@ -3069,13 +3083,19 @@ function phenomRecordHasChinaScope(
   locationRaw: string,
   city: string | undefined
 ): boolean {
+  if (explicitlyForeignOrNonMainlandLocation(`${locationRaw} ${city ?? ""}`)) return false;
   if (country !== undefined) {
-    const normalizedCountry = country.normalize("NFKC").trim().toLowerCase();
-    return /^(?:china|prc|mainland china|china mainland|people'?s republic of china|people'?s republic of china|中国|中国大陆|中华人民共和国)$/iu.test(
-      normalizedCountry
-    );
+    return phenomCountryIsMainlandChina(country);
   }
   return explicitlyChina(`${locationRaw} ${city ?? ""}`);
+}
+
+function phenomCountryIsMainlandChina(country: string | undefined): boolean {
+  if (country === undefined) return false;
+  const normalizedCountry = country.normalize("NFKC").trim().toLowerCase();
+  return /^(?:china|prc|mainland china|china mainland|people'?s republic of china|中国|中国大陆|中华人民共和国)$/iu.test(
+    normalizedCountry
+  );
 }
 
 function safePhenomJobUrl(
