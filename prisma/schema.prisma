@@ -244,6 +244,21 @@ enum ManualCrawlFailureCode {
   DUPLICATE_ACTIVE_REQUEST
 }
 
+enum AiEnrichmentStatus {
+  QUEUED
+  RUNNING
+  SUCCEEDED
+  FAILED
+}
+
+enum AiEnrichmentAttemptOutcome {
+  RUNNING
+  SUCCEEDED
+  RETRY_QUEUED
+  FAILED
+  STALE_REJECTED
+}
+
 model Company {
   id                  String              @id @default(cuid())
   officialChineseName  String              @unique
@@ -670,10 +685,18 @@ model Job {
   classificationRationale  String?
   classificationModelVersion String?
   classificationHardRuleHit String?
+  classificationHardRuleHits String[]          @default([])
+  classificationProvider    String?
+  classificationPromptVersion String?
+  classificationInputHash   String?
+  aiReviewRequired          Boolean             @default(false)
   humanCorrectedCategory   JobCategory?
   humanCorrectedSecondaryCategory JobCategory?
   humanCorrectionReason    String?
   humanCorrectedAt         DateTime?
+  humanCorrectedTitle      String?
+  humanTitleCorrectionReason String?
+  humanTitleCorrectedAt    DateTime?
   officialPublishedAt   DateTime?
   firstSeenAt           DateTime           @default(now())
   lastSeenAt            DateTime           @default(now())
@@ -683,12 +706,104 @@ model Job {
   isNew                 Boolean            @default(false)
   company               Company            @relation(fields: [companyId], references: [id], onDelete: Cascade)
   source                RecruitmentSource  @relation(fields: [sourceId], references: [id], onDelete: Cascade)
+  aiEnrichmentRequests  AiEnrichmentRequest[]
+  aiEnrichmentResults   AiEnrichmentResult[]
 
   @@unique([sourceId, dedupeKey])
   @@index([city, category])
   @@index([companyId, lifecycleStatus])
   @@index([visibleInFrontend, lifecycleStatus])
   @@index([firstSeenAt])
+}
+
+model AiEnrichmentRequest {
+  id                       String             @id @default(cuid())
+  jobId                    String
+  officialTitleSnapshot    String
+  normalizedOfficialTitle  String
+  inputHash                String
+  provider                 String
+  modelVersion             String
+  promptVersion            String
+  targetLanguage           String
+  status                   AiEnrichmentStatus @default(QUEUED)
+  ownerId                  String?
+  heartbeatAt              DateTime?
+  leaseExpiresAt           DateTime?
+  attemptCount             Int                @default(0)
+  maxAttempts              Int                @default(3)
+  failureCode              String?
+  createdAt                DateTime           @default(now())
+  updatedAt                DateTime           @default(now()) @updatedAt
+  startedAt                DateTime?
+  finishedAt               DateTime?
+  job                      Job                @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  attempts                 AiEnrichmentAttempt[]
+  result                   AiEnrichmentResult?
+
+  @@unique([jobId, inputHash])
+  @@unique([id, inputHash])
+  @@unique([id, inputHash, jobId])
+  @@index([status, createdAt])
+  @@index([ownerId, leaseExpiresAt])
+}
+
+model AiEnrichmentAttempt {
+  id           String                     @id @default(cuid())
+  requestId    String
+  sequence     Int
+  inputHash    String
+  ownerId      String
+  outcome      AiEnrichmentAttemptOutcome
+  failureCode  String?
+  startedAt    DateTime                   @default(now())
+  finishedAt   DateTime?
+  request      AiEnrichmentRequest        @relation(fields: [requestId, inputHash], references: [id, inputHash], onDelete: Restrict, map: "AiEnrichmentAttempt_request_input_tuple_fkey")
+
+  @@unique([requestId, sequence])
+  @@index([requestId, startedAt])
+}
+
+model AiTranslationCache {
+  cacheKey                String               @id
+  normalizedOfficialTitle String
+  provider                String
+  modelVersion            String
+  promptVersion           String
+  targetLanguage          String
+  auxiliaryChineseTitle   String
+  createdAt               DateTime             @default(now())
+  results                 AiEnrichmentResult[]
+
+  @@unique([normalizedOfficialTitle, provider, modelVersion, promptVersion, targetLanguage], map: "AiTranslationCache_identity_key")
+}
+
+model AiEnrichmentResult {
+  id                       String              @id @default(cuid())
+  requestId                String              @unique
+  jobId                    String
+  inputHash                String
+  primaryCategory          JobCategory
+  secondaryCategory        JobCategory?
+  confidence               Float
+  safeRationale            String
+  provider                 String
+  modelVersion             String
+  promptVersion            String
+  hardRuleHits             String[]            @default([])
+  officialTitleSnapshot    String
+  auxiliaryChineseTitle    String?
+  translationCacheKey      String?
+  requiresReview           Boolean             @default(false)
+  createdAt                DateTime            @default(now())
+  request                  AiEnrichmentRequest @relation(fields: [requestId, inputHash, jobId], references: [id, inputHash, jobId], onDelete: Restrict, map: "AiEnrichmentResult_request_input_job_tuple_fkey")
+  job                      Job                 @relation(fields: [jobId], references: [id], onDelete: Restrict)
+  translationCache         AiTranslationCache? @relation(fields: [translationCacheKey], references: [cacheKey], onDelete: Restrict)
+
+  @@unique([requestId, inputHash])
+  @@unique([requestId, inputHash, jobId])
+  @@index([jobId, createdAt])
+  @@index([requiresReview, createdAt])
 }
 
 model Feedback {

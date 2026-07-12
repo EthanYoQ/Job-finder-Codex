@@ -17,6 +17,7 @@ interface JobRow {
   companyId: string;
   officialTitle: string;
   auxiliaryChineseTitle: string | null;
+  humanCorrectedTitle: string | null;
   officialUrl: string;
   officialPublishedAt: Date | null;
   city: string;
@@ -165,6 +166,7 @@ function buildWhereClause(request: ReturnType<typeof SearchRequestSchema.parse>)
   if (request.keyword && request.keyword.length > 0) {
     effectiveCategoryAndKeywordFilters.push({
       OR: [
+        { humanCorrectedTitle: { contains: request.keyword } },
         { officialTitle: { contains: request.keyword } },
         { auxiliaryChineseTitle: { contains: request.keyword } },
         { company: { is: { officialChineseName: { contains: request.keyword } } } },
@@ -202,7 +204,7 @@ function groupRowsByCompany(rows: JobRow[]): DatabaseSearchCompanyResult[] {
 
     company.jobs.push({
       id: row.id,
-      title: row.auxiliaryChineseTitle || row.officialTitle,
+      title: row.humanCorrectedTitle || row.auxiliaryChineseTitle || row.officialTitle,
       officialTitle: row.officialTitle,
       officialPublishedAt: toIsoString(row.officialPublishedAt),
       city: row.city,

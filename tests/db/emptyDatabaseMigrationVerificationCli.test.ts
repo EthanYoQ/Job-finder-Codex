@@ -13,21 +13,24 @@ import {
 } from "../../src/db/emptyDatabaseMigrationVerificationCli";
 
 describe("empty database migration verification CLI contract", () => {
-  it("uses explicit reviewed PG16 catalog allowlists matching all 17 migrations", () => {
+  it("uses explicit reviewed PG16 catalog allowlists matching all 18 migrations", () => {
     const actualMigrations = readdirSync(resolve(process.cwd(), "prisma", "migrations"), { withFileTypes: true })
       .filter((entry) => entry.isDirectory()).map((entry) => entry.name).sort();
-    expect(REVIEWED_MIGRATION_NAMES).toHaveLength(17);
+    expect(REVIEWED_MIGRATION_NAMES).toHaveLength(18);
     expect([...REVIEWED_MIGRATION_NAMES].sort()).toEqual(actualMigrations);
-    expect(REVIEWED_APP_TABLE_NAMES).toHaveLength(21);
-    expect(new Set(REVIEWED_APP_TABLE_NAMES).size).toBe(21);
+    expect(REVIEWED_APP_TABLE_NAMES).toHaveLength(25);
+    expect(new Set(REVIEWED_APP_TABLE_NAMES).size).toBe(25);
+    expect(REVIEWED_APP_TABLE_NAMES).toEqual(expect.arrayContaining([
+      "AiEnrichmentRequest", "AiEnrichmentAttempt", "AiEnrichmentResult", "AiTranslationCache"
+    ]));
     expect(REVIEWED_APP_TABLE_NAMES).toContain("ManualCrawlRequestEvent");
-    expect(REVIEWED_USER_TYPE_NAMES).toHaveLength(29);
+    expect(REVIEWED_USER_TYPE_NAMES).toHaveLength(31);
     expect(REVIEWED_USER_TYPE_NAMES).toEqual(expect.arrayContaining([
       "ManualCrawlEventActor",
       "ManualCrawlEventType",
       "ManualCrawlFailureCode"
     ]));
-    expect(REVIEWED_FUNCTION_NAMES).toHaveLength(16);
+    expect(REVIEWED_FUNCTION_NAMES).toHaveLength(18);
     expect(REVIEWED_FUNCTION_NAMES).toEqual(expect.arrayContaining([
       "prevent_transport_attempt_artifact_mutation",
       "prevent_transport_attempt_mutation",
@@ -38,7 +41,7 @@ describe("empty database migration verification CLI contract", () => {
       "require_transport_attempt_artifact_ref"
     ]));
     expect(REVIEWED_FUNCTION_NAMES).not.toContain("prevent_committed_source_result_mutation");
-    expect(REVIEWED_INDEX_NAMES).toHaveLength(87);
+    expect(REVIEWED_INDEX_NAMES).toHaveLength(104);
     expect(REVIEWED_INDEX_NAMES).toEqual(expect.arrayContaining([
       "CrawlBatchSourceResult_id_releaseCandidateId_batchId_sourceId_k",
       "EvidenceArtifact_id_releaseCandidateId_batchId_sourceId_sourceR",
@@ -51,7 +54,7 @@ describe("empty database migration verification CLI contract", () => {
       "TransportAttemptEvidence_releaseCandidateId_batchId_sourceId_id"
     ]));
     expect(REVIEWED_INDEX_DEFINITION_SHA256)
-      .toBe("3800aba02918d788d8a644c5cb0dee157e1f2b198889c0e90bab314a4238ab8f");
+      .toBe("d83911447578a1174f081fac6b5f6f12d5aa9f22b76338327a2e321f4c581129");
   });
 
   it("refuses local migration drift before any command can run", () => {
@@ -101,6 +104,6 @@ describe("empty database migration verification CLI contract", () => {
     expect(docs).toContain("EMPTY_DB_VERIFICATION=1");
     expect(docs).toContain("EMPTY_DB_EXPECTED_SYSTEM_IDENTIFIER");
     expect(docs).toMatch(/No pending migrations to apply/u);
-    expect(docs).toMatch(/21.*application tables/iu);
+    expect(docs).toMatch(/25.*application tables/iu);
   });
 });

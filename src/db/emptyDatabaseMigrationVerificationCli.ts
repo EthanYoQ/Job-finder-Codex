@@ -27,11 +27,13 @@ export const REVIEWED_MIGRATION_NAMES = [
   "20260713010000_manual_crawl_request_ownership",
   "20260713020000_privacy_request_retention",
   "20260713030000_manual_crawl_preview_isolation",
-  "20260713040000_manual_batch_binding_and_kind_immutability"
+  "20260713040000_manual_batch_binding_and_kind_immutability",
+  "20260713050000_ai_enrichment_persistence"
 ] as const;
 
 export const REVIEWED_APP_TABLE_NAMES = [
-  "AccessEvent", "AdminAuditEvent", "AdminSession", "AdminUser", "Company", "CrawlBatch",
+  "AccessEvent", "AdminAuditEvent", "AdminSession", "AdminUser", "AiEnrichmentAttempt", "AiEnrichmentRequest",
+  "AiEnrichmentResult", "AiTranslationCache", "Company", "CrawlBatch",
   "CrawlBatchSourceResult", "CrawlObservation", "EvidenceArtifact", "Feedback", "Job",
   "LifecycleSetEvidenceMember", "LossLedgerEntry", "ManualCrawlRequest", "ManualCrawlRequestEvent", "PaginationEvidence",
   "RecommendedCompany", "RecruitmentSource", "ReleaseCandidate", "TransportAttemptArtifact",
@@ -39,7 +41,7 @@ export const REVIEWED_APP_TABLE_NAMES = [
 ] as const;
 
 export const REVIEWED_USER_TYPE_NAMES = [
-  "AdapterState", "AdminRole", "AdminSessionStatus", "AtomicCommitState", "AtsKind",
+  "AdapterState", "AdminRole", "AdminSessionStatus", "AiEnrichmentAttemptOutcome", "AiEnrichmentStatus", "AtomicCommitState", "AtsKind",
   "CompletenessEvidenceKind", "CompletenessStatus", "CrawlBatchKind", "CrawlStatus",
   "EvidenceArtifactKind", "FeedbackStatus", "JobCategory", "JobLifecycleStatus", "LifecycleSetKind",
   "LossStage", "ManualCrawlEventActor", "ManualCrawlEventType", "ManualCrawlFailureCode", "ManualCrawlStatus",
@@ -50,9 +52,10 @@ export const REVIEWED_USER_TYPE_NAMES = [
 
 export const REVIEWED_FUNCTION_NAMES = [
   "assert_verified_parent_lifecycle_projection", "enforce_source_result_state_machine",
+  "enforce_ai_enrichment_attempt_transition",
   "guard_crawl_batch_source_result_insert",
   "prevent_crawl_batch_kind_or_manual_binding_mutation",
-  "prevent_immutable_evidence_mutation", "prevent_manual_crawl_request_event_mutation",
+  "prevent_ai_enrichment_immutable_mutation", "prevent_immutable_evidence_mutation", "prevent_manual_crawl_request_event_mutation",
   "prevent_manual_crawl_request_source_mutation", "prevent_rc_observation_mutation",
   "prevent_release_candidate_delete", "prevent_release_candidate_identity_mutation",
   "prevent_transport_attempt_artifact_mutation", "prevent_transport_attempt_mutation",
@@ -65,6 +68,12 @@ export const REVIEWED_INDEX_NAMES = [
   "AdminAuditEvent_action_createdAt_idx", "AdminAuditEvent_adminUserId_createdAt_idx", "AdminAuditEvent_pkey",
   "AdminSession_adminUserId_status_idx", "AdminSession_expiresAt_idx", "AdminSession_pkey",
   "AdminSession_tokenHash_key", "AdminUser_email_key", "AdminUser_pkey", "AdminUser_role_idx",
+  "AiEnrichmentAttempt_pkey", "AiEnrichmentAttempt_requestId_sequence_key", "AiEnrichmentAttempt_requestId_startedAt_idx",
+  "AiEnrichmentRequest_id_inputHash_jobId_key", "AiEnrichmentRequest_id_inputHash_key", "AiEnrichmentRequest_jobId_inputHash_key", "AiEnrichmentRequest_ownerId_leaseExpiresAt_idx",
+  "AiEnrichmentRequest_pkey", "AiEnrichmentRequest_status_createdAt_idx",
+  "AiEnrichmentResult_jobId_createdAt_idx", "AiEnrichmentResult_pkey", "AiEnrichmentResult_requestId_inputHash_jobId_key", "AiEnrichmentResult_requestId_inputHash_key",
+  "AiEnrichmentResult_requestId_key", "AiEnrichmentResult_requiresReview_createdAt_idx",
+  "AiTranslationCache_identity_key", "AiTranslationCache_pkey",
   "Company_officialChineseName_key", "Company_pinyinName_idx", "Company_pkey",
   "CrawlBatch_id_releaseCandidateId_key", "CrawlBatch_ownerId_heartbeatAt_idx", "CrawlBatch_pkey",
   "CrawlBatch_releaseCandidateId_startedAt_idx", "CrawlBatch_status_startedAt_idx",
@@ -100,7 +109,7 @@ export const REVIEWED_INDEX_NAMES = [
 ] as const;
 
 // Reviewed from pinned PG16 live output ordered by index name with C collation.
-export const REVIEWED_INDEX_DEFINITION_SHA256 = "3800aba02918d788d8a644c5cb0dee157e1f2b198889c0e90bab314a4238ab8f";
+export const REVIEWED_INDEX_DEFINITION_SHA256 = "d83911447578a1174f081fac6b5f6f12d5aa9f22b76338327a2e321f4c581129";
 
 interface SpawnResult {
   status: number | null;

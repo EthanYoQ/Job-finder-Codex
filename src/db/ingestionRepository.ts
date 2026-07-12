@@ -58,13 +58,11 @@ interface JobUpsertData {
 interface JobUpdateData {
   sourceJobId: string | null;
   officialTitle: string;
-  auxiliaryChineseTitle: string | null;
   officialUrl: string;
   listUrl: string | null;
   locationRaw: string;
   city: string;
   cities: string[];
-  category: PrismaJobCategoryName;
   officialPublishedAt: Date | null;
   lastSeenAt: Date;
   missingSuccessCount: number;
@@ -586,13 +584,11 @@ async function upsertJobCommand(
       update: {
         sourceJobId: command.record.sourceJobId ?? null,
         officialTitle: command.record.officialTitle,
-        auxiliaryChineseTitle: command.record.auxiliaryChineseTitle ?? null,
         officialUrl: command.record.officialUrl,
         listUrl: command.record.listUrl ?? null,
         locationRaw: command.record.locationRaw,
         city: primaryCity,
         cities: [...command.record.cities],
-        category: toPrismaJobCategory(command.record.category),
         officialPublishedAt: toOptionalDate(command.record.officialPublishedAt),
         lastSeenAt: new Date(command.lastSeenAt),
         missingSuccessCount: command.missingSuccessfulCrawlCount,

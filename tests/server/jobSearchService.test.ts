@@ -144,6 +144,7 @@ describe("searchJobsFromDatabase", () => {
         },
         {
           OR: [
+            { humanCorrectedTitle: { contains: "肿瘤" } },
             { officialTitle: { contains: "肿瘤" } },
             { auxiliaryChineseTitle: { contains: "肿瘤" } },
             { company: { is: { officialChineseName: { contains: "肿瘤" } } } },
@@ -175,6 +176,7 @@ describe("searchJobsFromDatabase", () => {
     expect(withKeywordWhere.AND).toEqual([
       {
         OR: [
+          { humanCorrectedTitle: { contains: "肿瘤" } },
           { officialTitle: { contains: "肿瘤" } },
           { auxiliaryChineseTitle: { contains: "肿瘤" } },
           { company: { is: { officialChineseName: { contains: "肿瘤" } } } },
@@ -197,6 +199,15 @@ describe("searchJobsFromDatabase", () => {
     );
 
     expect(result.companies[0]?.jobs[0]?.category).toBe("医学事务");
+  });
+
+  it("uses a human-corrected title ahead of AI translation and includes it in keyword search", async () => {
+    const db = dbReturning([{ ...rows[1], officialTitle: "Medical Science Liaison",
+      auxiliaryChineseTitle: "医学科学联络官", humanCorrectedTitle: "资深医学科学联络官" }]);
+    const result = await searchJobsFromDatabase({ city: "北京", categories: [], keyword: "资深" }, db);
+    expect(result.companies[0]?.jobs[0]?.title).toBe("资深医学科学联络官");
+    const where = vi.mocked(db.job.findMany).mock.calls[0]?.[0].where as { AND?: Array<{ OR?: unknown[] }> };
+    expect(where.AND?.[0]?.OR).toContainEqual({ humanCorrectedTitle: { contains: "资深" } });
   });
 
   it("sorts latest posted deterministically when some jobs have null publish dates", async () => {

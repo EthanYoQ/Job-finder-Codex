@@ -309,5 +309,10 @@ describe("executeIngestionCommands", () => {
 
     const args = db.calls.jobs[0] as { update: Record<string, unknown> };
     expect(args.update).not.toHaveProperty("humanCorrectedCategory");
+    expect(args.update).not.toHaveProperty("humanCorrectedTitle");
+    expect(args.update).not.toHaveProperty("category");
+    expect(args.update).not.toHaveProperty("secondaryCategory");
+    expect(args.update).not.toHaveProperty("auxiliaryChineseTitle");
+    expect(args.update).not.toHaveProperty("classificationInputHash");
   });
 });
