@@ -620,11 +620,25 @@ const REPRESENTATIVE_CONFIGS: Record<string, RepresentativeSourceConfig> = {
   },
   "source-hengrui-social": {
     adapterId: "official-json",
-    json: MOKA_JSON_CONFIG
+    json: MOKA_JSON_CONFIG,
+    moka: {
+      expectedOrgId: "hengrui",
+      expectedSiteId: "145996",
+      expectedMode: "social",
+      campaignUrl: "https://app.mokahr.com/social-recruitment/hengrui/145996",
+      hydrateMissingLocationsFromDetail: true
+    }
   },
   "source-jimin-kexin-social": {
     adapterId: "official-json",
-    json: MOKA_JSON_CONFIG
+    json: MOKA_JSON_CONFIG,
+    moka: {
+      expectedOrgId: "jemincare",
+      expectedSiteId: "78315",
+      expectedMode: "social",
+      campaignUrl: "https://app.mokahr.com/social-recruitment/jemincare/78315",
+      hydrateMissingLocationsFromDetail: true
+    }
   },
   "source-united-lab-social": {
     adapterId: "official-json",

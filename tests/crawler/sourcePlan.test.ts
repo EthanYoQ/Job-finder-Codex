@@ -211,7 +211,16 @@ describe("source crawl planning", () => {
     expect(getPlanBySourceId(plans, "source-hengrui-social")).toMatchObject({
       adapterId: "official-json",
       source: {
-        atsKind: "MOKA"
+        atsKind: "MOKA",
+        officialEntryUrl: "https://app.mokahr.com/social-recruitment/hengrui/145996#/jobs",
+        officialChainEvidenceUrl: "https://www.hengrui.com/development/joinUs.html"
+      },
+      moka: {
+        expectedOrgId: "hengrui",
+        expectedSiteId: "145996",
+        expectedMode: "social",
+        campaignUrl: "https://app.mokahr.com/social-recruitment/hengrui/145996",
+        hydrateMissingLocationsFromDetail: true
       }
     });
     expect(getPlanBySourceId(plans, "source-jimin-kexin-social")).toMatchObject({
@@ -220,8 +229,21 @@ describe("source crawl planning", () => {
         atsKind: "MOKA",
         officialEntryUrl: "https://app.mokahr.com/social-recruitment/jemincare/78315#/jobs",
         officialChainEvidenceUrl: "https://www.jemincare.com/"
+      },
+      moka: {
+        expectedOrgId: "jemincare",
+        expectedSiteId: "78315",
+        expectedMode: "social",
+        campaignUrl: "https://app.mokahr.com/social-recruitment/jemincare/78315",
+        hydrateMissingLocationsFromDetail: true
       }
     });
+    const hengruiPlan = getPlanBySourceId(plans, "source-hengrui-social");
+    expect(hengruiPlan?.adapterId).toBe("official-json");
+    if (!hengruiPlan || hengruiPlan.adapterId !== "official-json") {
+      throw new Error("Expected Hengrui to use the official JSON Moka plan");
+    }
+    expect(hengruiPlan.moka?.campaignUrl).not.toContain("145997");
     expect(getPlanBySourceId(plans, "source-xiuzheng-social")).toMatchObject({
       adapterId: "official-json",
       source: {
