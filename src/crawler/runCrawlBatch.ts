@@ -37,6 +37,7 @@ import { getStartupSourceSurfaceOracle } from "./sourceSurfaceOracleAuthority";
 import { validateIndependentSourceSurfaceOracle } from "./independentSourceSurfaceOracle";
 
 export interface P0CrawlBatchResult {
+  status: Exclude<CrawlBatchStatus, "RUNNING">;
   batchId: string;
   plannedSourceCount: number;
   dueSourceCount: number;
@@ -58,7 +59,7 @@ interface CrawlBatchRecord {
   id: string;
 }
 
-type CrawlBatchStatus = "RUNNING" | "INCOMPLETE" | "FAILED" | "SUCCESS";
+export type CrawlBatchStatus = "RUNNING" | "INCOMPLETE" | "FAILED" | "SUCCESS";
 
 interface PrismaCrawlBatchDb {
   create(args: {
@@ -332,6 +333,7 @@ export async function runP0CrawlBatch(
       atomicFailedSourceCount === 0;
     status = failedSourceCount > 0 ? "FAILED" : hasExactSuccessfulDenominator ? "SUCCESS" : "INCOMPLETE";
     result = {
+      status,
       batchId: batch.id,
       plannedSourceCount: plans.length,
       dueSourceCount,

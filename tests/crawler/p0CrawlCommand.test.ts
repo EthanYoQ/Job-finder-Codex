@@ -5,6 +5,7 @@ import { expectedChannelSetHash, type SourceCrawlPlan } from "../../src/crawler/
 import {
   formatP0CrawlResult,
   parseP0CrawlArgs,
+  p0CrawlBatchExitCode,
   runP0CrawlCommand,
   selectP0CrawlPlans
 } from "../../src/crawler/p0CrawlCommand";
@@ -276,6 +277,7 @@ describe("P0 crawl command", () => {
       runP0CrawlBatch: vi.fn(async () => {
         calls.push("batch");
         return {
+          status: "SUCCESS" as const,
           batchId: "batch-1",
           plannedSourceCount: 1,
           dueSourceCount: 1,
@@ -337,6 +339,7 @@ describe("P0 crawl command", () => {
     });
 
     const runP0CrawlBatch = vi.fn(async () => ({
+      status: "SUCCESS" as const,
       batchId: "batch-1",
       plannedSourceCount: 1,
       dueSourceCount: 1,
@@ -392,6 +395,7 @@ describe("P0 crawl command", () => {
       hiddenUnplannedVisibleJobCount: 0
     }));
     const runP0CrawlBatch = vi.fn(async () => ({
+      status: "SUCCESS" as const,
       batchId: "batch-1",
       plannedSourceCount: 1,
       dueSourceCount: 1,
@@ -440,5 +444,75 @@ describe("P0 crawl command", () => {
     );
     expect(runP0CrawlBatch).toHaveBeenCalledWith([plan], expect.objectContaining({ force: true }));
     expect(result.syncedSourceCount).toBe(2);
+  });
+});
+
+describe("P0 crawl CLI exit code", () => {
+  const completeBatch = {
+    status: "SUCCESS" as const,
+    batchId: "batch-1",
+    plannedSourceCount: 1,
+    dueSourceCount: 1,
+    transportSuccessfulSourceCount: 1,
+    transportFailedSourceCount: 0,
+    adapterSuccessfulSourceCount: 1,
+    adapterFailedSourceCount: 0,
+    completenessVerifiedSourceCount: 1,
+    completenessIncompleteSourceCount: 0,
+    atomicCommittedSourceCount: 1,
+    atomicFailedSourceCount: 0,
+    successfulSourceCount: 1,
+    failedSourceCount: 0,
+    blockedSourceCount: 0,
+    skippedSourceCount: 0
+  };
+
+  it.each([
+    {
+      name: "strict SUCCESS",
+      batch: completeBatch,
+      expected: 0
+    },
+    {
+      name: "blocked completeness-incomplete batch with no failed sources",
+      batch: {
+        ...completeBatch,
+        status: "INCOMPLETE" as const,
+        completenessVerifiedSourceCount: 0,
+        completenessIncompleteSourceCount: 1,
+        successfulSourceCount: 0,
+        blockedSourceCount: 1
+      },
+      expected: 1
+    },
+    {
+      name: "skipped incomplete batch with no failed sources",
+      batch: {
+        ...completeBatch,
+        status: "INCOMPLETE" as const,
+        dueSourceCount: 0,
+        transportSuccessfulSourceCount: 0,
+        adapterSuccessfulSourceCount: 0,
+        completenessVerifiedSourceCount: 0,
+        atomicCommittedSourceCount: 0,
+        successfulSourceCount: 0,
+        skippedSourceCount: 1
+      },
+      expected: 1
+    },
+    {
+      name: "atomically failed batch",
+      batch: {
+        ...completeBatch,
+        status: "FAILED" as const,
+        atomicCommittedSourceCount: 0,
+        atomicFailedSourceCount: 1,
+        successfulSourceCount: 0,
+        failedSourceCount: 1
+      },
+      expected: 1
+    }
+  ])("returns $expected for $name", ({ batch, expected }) => {
+    expect(p0CrawlBatchExitCode(batch)).toBe(expected);
   });
 });

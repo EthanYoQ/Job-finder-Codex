@@ -32,6 +32,10 @@ export interface P0CrawlCommandResult {
   batch: P0CrawlBatchResult;
 }
 
+export function p0CrawlBatchExitCode(batch: P0CrawlBatchResult): 0 | 1 {
+  return batch.status === "SUCCESS" ? 0 : 1;
+}
+
 export interface RuntimeDeps {
   getPreviousJobs: RunP0CrawlBatchDeps["getPreviousJobs"];
   getRecentObservations: RunP0CrawlBatchDeps["getRecentObservations"];

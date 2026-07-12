@@ -1,6 +1,7 @@
 import {
   formatP0CrawlResult,
   parseP0CrawlArgs,
+  p0CrawlBatchExitCode,
   requireP0RuntimeIdentity,
   runP0CrawlCommand
 } from "../src/crawler/p0CrawlCommand";
@@ -118,7 +119,7 @@ prisma = new PrismaClient();
   });
 
   console.log(formatP0CrawlResult(result));
-  process.exitCode = result.batch.failedSourceCount > 0 ? 1 : 0;
+  process.exitCode = p0CrawlBatchExitCode(result.batch);
 }finally{
   await runFormalCleanup([
     ...(prisma?[{name:"Prisma disconnect",run:()=>prisma!.$disconnect()}]:[]),

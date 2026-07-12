@@ -483,6 +483,7 @@ describe("runP0CrawlBatch", () => {
     expect(db.calls.observations).toEqual([]);
     expect(db.calls.jobs).toEqual([]);
     expect(result).toMatchObject({
+      status: "INCOMPLETE",
       batchId: "batch-1",
       plannedSourceCount: 1,
       dueSourceCount: 0,

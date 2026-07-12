@@ -1,18 +1,36 @@
 {
   "schemaVersion": "phase4-code-candidate-v1",
   "planId": "docs/superpowers/plans/2026-07-10-p0-recovery-and-release-evidence.md",
-  "baseHead": "8dbae12c33a0a31980013c4e4670a7c810fdbec2",
+  "baseHead": "c9a90220ad00e468a49b8c4e671d9eeb84d4065d",
   "entries": [
     {
-      "path": "Dockerfile",
-      "sha256": "022f30d86238f6f8b0cfb4460a2bcf2613443e0dc87ff69128cdf528acf3061b",
-      "bytes": 2173,
+      "path": "scripts/p0-crawl.ts",
+      "sha256": "759d7bb3ed9cdd0fa8d3d2a0521d3f1c065bbbe5a5634ec9cb85da91bea78257",
+      "bytes": 5393,
+      "role": "tool"
+    },
+    {
+      "path": "src/crawler/p0CrawlCommand.ts",
+      "sha256": "264afea3864dd91fa78af2976a459eec098e55db7fa3d47b22ba431bdaeb4006",
+      "bytes": 8559,
       "role": "runtime"
     },
     {
-      "path": "tests/crawler/browserRuntimeDependency.test.ts",
-      "sha256": "46887b7eaaf504b467dc7b198b799108cc069f966897c50677c5194af63e2b51",
-      "bytes": 2465,
+      "path": "src/crawler/runCrawlBatch.ts",
+      "sha256": "92fac29f9ce25401111509e5d178ee960ad8949af8d50fadf3afa7c31984729a",
+      "bytes": 18913,
+      "role": "runtime"
+    },
+    {
+      "path": "tests/crawler/p0CrawlCommand.test.ts",
+      "sha256": "b66d79de6b6aa82e3a782f273d4003cc61be5a6694f9e03bf34daa7143e27130",
+      "bytes": 18632,
+      "role": "test"
+    },
+    {
+      "path": "tests/crawler/runCrawlBatch.test.ts",
+      "sha256": "044112ba31e131eb7bd408f1d097dce787dbe94acd041348a26cf66ade3f3ec5",
+      "bytes": 34423,
       "role": "test"
     }
   ]
