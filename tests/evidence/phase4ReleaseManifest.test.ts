@@ -41,7 +41,7 @@ describe("Phase4 release manifest v3", () => {
     });
     expect(result.manifest.controllingPlan).toEqual({
       path: "docs/superpowers/plans/2026-07-10-p0-recovery-and-release-evidence.md",
-      judgmentUpdatedOn: "2026-07-12", sha256: "2".repeat(64)
+      judgmentUpdatedOn: "2026-07-13", sha256: "2".repeat(64)
     });
     expect(result.manifest.coverage).toEqual({ targetCompanyCount: 58, foreignCompanyCount: 30,
       domesticCompanyCount: 28, hasPublicOfficialCareersLinkCompanyCount: 56,

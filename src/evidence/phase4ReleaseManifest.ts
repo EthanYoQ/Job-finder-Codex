@@ -95,7 +95,7 @@ export function serializeBlockedPhase4Manifest(input: Phase4ReleaseManifestInput
     coverageClaim: { boundary: PHASE4_COVERAGE_CLAIM_BOUNDARY,
       excludedPathClasses: [...PHASE4_EXCLUDED_PATH_CLASSES],
       noPublicOfficialCareersLinkCompaniesAreCrawlCompletenessBlockers: false as const },
-    controllingPlan: { path: PHASE4_CONTROLLING_PLAN_PATH, judgmentUpdatedOn: "2026-07-12" as const,
+    controllingPlan: { path: PHASE4_CONTROLLING_PLAN_PATH, judgmentUpdatedOn: "2026-07-13" as const,
       sha256: input.controllingPlanSha256 },
     hashes: input.hashes,
     trustedArtifacts: artifacts,
