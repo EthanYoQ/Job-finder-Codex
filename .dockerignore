@@ -2,6 +2,7 @@ node_modules
 .git
 dist
 outputs
+phase4-evidence
 .codegraph
 .playwright-cli
 .superpowers
