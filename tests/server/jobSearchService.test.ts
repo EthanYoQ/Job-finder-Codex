@@ -133,22 +133,25 @@ describe("searchJobsFromDatabase", () => {
       | { where: { AND?: Array<Record<string, unknown>> } }
       | undefined;
 
-    expect(call?.where.AND).toEqual([
-      {
-        OR: [
-          { humanCorrectedCategory: { in: ["SALES"] } },
-          { humanCorrectedCategory: null, category: { in: ["SALES"] } }
-        ]
-      },
-      {
-        OR: [
-          { officialTitle: { contains: "肿瘤" } },
-          { auxiliaryChineseTitle: { contains: "肿瘤" } },
-          { company: { is: { officialChineseName: { contains: "肿瘤" } } } },
-          { company: { is: { pinyinName: { contains: "肿瘤" } } } }
-        ]
-      }
-    ]);
+    expect(call?.where.AND).toHaveLength(2);
+    expect(call?.where.AND).toEqual(
+      expect.arrayContaining([
+        {
+          OR: [
+            { humanCorrectedCategory: { in: ["SALES"] } },
+            { humanCorrectedCategory: null, category: { in: ["SALES"] } }
+          ]
+        },
+        {
+          OR: [
+            { officialTitle: { contains: "肿瘤" } },
+            { auxiliaryChineseTitle: { contains: "肿瘤" } },
+            { company: { is: { officialChineseName: { contains: "肿瘤" } } } },
+            { company: { is: { pinyinName: { contains: "肿瘤" } } } }
+          ]
+        }
+      ])
+    );
   });
 
   it("does not add an effective-category filter when categories are empty", async () => {
