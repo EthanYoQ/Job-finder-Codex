@@ -255,28 +255,45 @@ export function createMokaSourceFetch(deps: MokaSourceFetchDeps = {}): SourceFet
                 locale: "zh-CN"
               }
             });
-            previousResponseCapturedAtMs = assertEvidenceResponse(detail, {
-              expected: "api",
-              requestedUrl: MOKA_JOB_DETAIL_ENDPOINT,
-              crawlStartedAtMs,
-              previousCapturedAtMs: previousResponseCapturedAtMs,
-              observedNowMs: now().getTime()
-            });
             const detailLogicalKey = `moka-detail-${String(pageIndex).padStart(4, "0")}-${String(recordIndex).padStart(4, "0")}`;
-            artifacts.push(mokaArtifact({
-              logicalKey: detailLogicalKey,
-              kind: "ATS_API_RESPONSE",
-              requestedUrl: MOKA_JOB_DETAIL_ENDPOINT,
-              response: detail,
-              extractorLocator: `moka-detail-v1|request:jobId=${irreversibleEvidenceId(rawOfficialId)}`
-            }));
-
-            const detailValidation = validateMokaDetailResponse({
-              response: detail,
-              expectedJobId: rawOfficialId,
-              expectedOrgId: initData.orgId,
-              expectedSiteId: initData.siteId
-            });
+            const detailExtractorLocator = `moka-detail-v1|request:jobId=${irreversibleEvidenceId(rawOfficialId)}`;
+            let detailEvidenceFailure: Error | undefined;
+            try {
+              previousResponseCapturedAtMs = assertEvidenceResponse(detail, {
+                expected: "api",
+                requestedUrl: MOKA_JOB_DETAIL_ENDPOINT,
+                crawlStartedAtMs,
+                previousCapturedAtMs: previousResponseCapturedAtMs,
+                observedNowMs: now().getTime()
+              });
+            } catch (error) {
+              detailEvidenceFailure = error instanceof Error ? error : new Error(String(error));
+            }
+            const detailValidation = detailEvidenceFailure
+              ? { ok: false as const, field: "finalUrl" }
+              : validateMokaDetailResponse({
+                  response: detail,
+                  expectedJobId: rawOfficialId,
+                  expectedOrgId: initData.orgId,
+                  expectedSiteId: initData.siteId
+                });
+            artifacts.push(detailValidation.ok
+              ? mokaArtifact({
+                  logicalKey: detailLogicalKey,
+                  kind: "ATS_API_RESPONSE",
+                  requestedUrl: MOKA_JOB_DETAIL_ENDPOINT,
+                  response: detail,
+                  extractorLocator: detailExtractorLocator
+                })
+              : mokaRedactedArtifact({
+                  logicalKey: detailLogicalKey,
+                  requestedUrl: MOKA_JOB_DETAIL_ENDPOINT,
+                  response: detail,
+                  extractorLocator: detailExtractorLocator,
+                  redactionKind: detailValidation.field === "detail"
+                    ? "CREDENTIAL_MATERIAL"
+                    : "UPSTREAM_ERROR_TEXT"
+                }));
             if (!detailValidation.ok) {
               validationDiscardCount += 1;
               fetchLosses.push({
@@ -297,7 +314,11 @@ export function createMokaSourceFetch(deps: MokaSourceFetchDeps = {}): SourceFet
                 pageIndex, offset, response: api, rawJobIds, validJobIds,
                 declaredTotal: pageTotal ?? null
               });
-              return failed(capturedAt, "Moka detail hydration failed closed", latestEvidence);
+              return failed(
+                capturedAt,
+                detailEvidenceFailure?.message ?? "Moka detail hydration failed closed",
+                latestEvidence
+              );
             }
             candidate = { ...raw, locations: detailValidation.locations };
           }
@@ -770,7 +791,11 @@ function containsCredentialMaterialDeep(value: unknown): boolean {
   if (typeof value === "string") return containsCredentialMaterial(value);
   if (Array.isArray(value)) return value.some(containsCredentialMaterialDeep);
   if (!isObject(value)) return false;
-  return Object.values(value).some(containsCredentialMaterialDeep);
+  return Object.entries(value).some(([key, candidate]) =>
+    WORKDAY_TASK5C_SENSITIVE_ASSIGNMENT_KEYS.has(
+      key.normalize("NFKC").toLowerCase().replace(/[^a-z0-9]/g, "")
+    ) || containsCredentialMaterialDeep(candidate)
+  );
 }
 
 function assertEvidenceResponse(
@@ -867,6 +892,31 @@ function mokaArtifact(input: {
     contentType: input.response.contentType!,
     capturedAt: input.response.capturedAt!,
     body: input.response.body,
+    extractorLocator: input.extractorLocator
+  };
+}
+
+function mokaRedactedArtifact(input: {
+  logicalKey: string;
+  requestedUrl: string;
+  response: MokaHttpResponse;
+  extractorLocator: string;
+  redactionKind: "CREDENTIAL_MATERIAL" | "UPSTREAM_ERROR_TEXT";
+}): SourceFetchArtifactDraft {
+  assertEvidenceResponseShape(input.response, "api");
+  return {
+    id: input.logicalKey,
+    logicalKey: input.logicalKey,
+    kind: "ATS_API_RESPONSE",
+    requestedUrl: sanitizeEvidenceHttpUrl(credentialSafeEntryUrl(input.requestedUrl)),
+    finalUrl: sanitizeEvidenceHttpUrl(credentialSafeEntryUrl(input.response.finalUrl!)),
+    httpStatus: input.response.status,
+    contentType: input.response.contentType!,
+    capturedAt: input.response.capturedAt!,
+    body: "[redacted]",
+    bodyRepresentation: "REDACTED",
+    rawBodySha256: sha256Bytes(Buffer.from(input.response.body, "utf8")).sha256,
+    redactionDescriptors: [{ kind: input.redactionKind, count: 1 }],
     extractorLocator: input.extractorLocator
   };
 }

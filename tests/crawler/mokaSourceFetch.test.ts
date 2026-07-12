@@ -249,7 +249,6 @@ describe("Moka source fetch", () => {
     ["org mismatch", 200, { id: "servier-1", orgId: "other", siteId: "47734", locations: [{ cityName: "北京市" }] }],
     ["site mismatch", 200, { id: "servier-1", orgId: "shiweiya", siteId: "70032", locations: [{ cityName: "北京市" }] }],
     ["missing location", 200, { id: "servier-1", orgId: "shiweiya", siteId: "47734", locations: [] }],
-    ["sensitive location", 200, { id: "servier-1", orgId: "shiweiya", siteId: "47734", locations: [{ cityName: "secret=leak" }] }],
     ["http failure", 503, { error: "unavailable" }]
   ])("fails closed and retains detail evidence on %s", async (_label, status, detail) => {
     const http: MokaHttpClient = async (request) => {
@@ -285,6 +284,118 @@ describe("Moka source fetch", () => {
         fetchCounts: { rawCount: 1, parsedCount: 1, validCount: 0, parseDiscardCount: 0, validationDiscardCount: 1 }
       }
     });
+  });
+
+  it.each([
+    [
+      "sensitive value",
+      { id: "servier-1", orgId: "shiweiya", siteId: "47734", locations: [{ cityName: "secret=leak" }] },
+      ["secret=leak"]
+    ],
+    [
+      "sensitive key with ordinary value",
+      {
+        id: "servier-1",
+        orgId: "shiweiya",
+        siteId: "47734",
+        token: "ordinary-value",
+        locations: [{ cityName: "北京市" }]
+      },
+      ["token", "ordinary-value"]
+    ]
+  ])("redacts raw detail evidence before rejecting a %s", async (_label, detail, forbiddenPlaintext) => {
+    const http: MokaHttpClient = async (request) => {
+      if (request.method === "GET") {
+        return {
+          ...evidenceResponse(htmlWithInitData({
+            aesIv, mode: "social", siteId: "47734", org: { id: "shiweiya", siteId: 47734 }
+          }), "entry"),
+          finalUrl: servierCampaignUrl
+        };
+      }
+      if (request.url.endsWith("/jobs/v2")) {
+        return evidenceResponse(JSON.stringify(encryptedResponse({
+          success: true,
+          data: { jobStats: { total: 1 }, jobs: [{ id: "servier-1", title: "医学信息沟通专员" }] }
+        })), "api");
+      }
+      return {
+        status: 200,
+        body: JSON.stringify(detail),
+        finalUrl: "https://app.mokahr.com/api/outer/ats-apply/website/job",
+        contentType: "application/json",
+        capturedAt
+      };
+    };
+
+    const result = await createMokaSourceFetch({ http, now: () => new Date(capturedAt) })(servierPlan);
+
+    expect(result).toMatchObject({
+      ok: false,
+      fetchEvidence: {
+        artifacts: expect.arrayContaining([expect.objectContaining({
+          logicalKey: "moka-detail-0000-0000",
+          bodyRepresentation: "REDACTED",
+          rawBodySha256: expect.stringMatching(/^[0-9a-f]{64}$/),
+          redactionDescriptors: [{ kind: "CREDENTIAL_MATERIAL", count: 1 }]
+        })])
+      }
+    });
+    const serializedEvidence = JSON.stringify(result.fetchEvidence);
+    for (const plaintext of forbiddenPlaintext) {
+      expect(serializedEvidence).not.toContain(plaintext);
+    }
+  });
+
+  it("retains a redacted auditable detail failure chain for an evil detail final URL", async () => {
+    const evilBody = "evil-detail-body";
+    const http: MokaHttpClient = async (request) => {
+      if (request.method === "GET") {
+        return {
+          ...evidenceResponse(htmlWithInitData({
+            aesIv, mode: "social", siteId: "47734", org: { id: "shiweiya", siteId: 47734 }
+          }), "entry"),
+          finalUrl: servierCampaignUrl
+        };
+      }
+      if (request.url.endsWith("/jobs/v2")) {
+        return evidenceResponse(JSON.stringify(encryptedResponse({
+          success: true,
+          data: { jobStats: { total: 1 }, jobs: [{ id: "servier-1", title: "医学信息沟通专员" }] }
+        })), "api");
+      }
+      return {
+        status: 200,
+        body: evilBody,
+        finalUrl: "https://evil.example/api/outer/ats-apply/website/job",
+        contentType: "application/json",
+        capturedAt
+      };
+    };
+
+    const result = await createMokaSourceFetch({ http, now: () => new Date(capturedAt) })(servierPlan);
+
+    expect(result).toMatchObject({
+      ok: false,
+      failureReason: expect.stringContaining("invalid final URL"),
+      fetchEvidence: {
+        artifacts: [
+          expect.objectContaining({ logicalKey: "moka-entry-0000" }),
+          expect.objectContaining({ logicalKey: "moka-page-0000" }),
+          expect.objectContaining({
+            logicalKey: "moka-detail-0000-0000",
+            finalUrl: "https://evil.example/api/outer/ats-apply/website/job",
+            bodyRepresentation: "REDACTED",
+            rawBodySha256: expect.stringMatching(/^[0-9a-f]{64}$/)
+          })
+        ],
+        fetchLosses: [expect.objectContaining({
+          stage: "VALIDATION",
+          details: { code: "DETAIL_HYDRATION_FAILED", field: "finalUrl", pageSequence: 0, recordIndex: 0 }
+        })]
+      }
+    });
+    expect(JSON.stringify(result.fetchEvidence)).not.toContain(evilBody);
   });
 
   it("fetches Moka jobs and enriches them for the official JSON adapter", async () => {
