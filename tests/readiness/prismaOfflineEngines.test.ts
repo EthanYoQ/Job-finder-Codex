@@ -28,10 +28,10 @@ describe("offline Prisma engine image contract",()=>{
     expect(depsStage).toBeDefined();
     expect(depsStage).toMatch(/^COPY prisma .\/prisma$/mu);
     expect(depsStage).toMatch(
-      /^RUN apt-get update && apt-get install -y --no-install-recommends openssl && rm -rf \/var\/lib\/apt\/lists\/\*$/mu,
+      /apt-get -o Acquire::Retries=5 -o Acquire::http::Timeout=30 install -y --no-install-recommends openssl/u,
     );
     expect(depsStage).toMatch(/^RUN npx prisma generate --schema=prisma\/schema\.prisma$/mu);
-    expect(depsStage!.indexOf("apt-get install -y --no-install-recommends openssl")).toBeLessThan(
+    expect(depsStage!.indexOf("install -y --no-install-recommends openssl")).toBeLessThan(
       depsStage!.indexOf("RUN npx prisma generate --schema=prisma/schema.prisma"),
     );
     expect(depsStage!.indexOf("COPY prisma ./prisma")).toBeLessThan(
