@@ -18,13 +18,14 @@ import {
 } from "../../src/crawler/independentSourceSurfaceOracle";
 import { canonicalReleaseMembersSha256, releaseMembershipContentSha256 } from "../../src/crawler/authoritativeReleaseMembership";
 import { signedProvenancePayloadSha256 } from "../../src/crawler/reviewerSignatureTrust";
-import { confirmedCompanyRosterV3, confirmedCompanyRosterV3Members } from "../../src/data/confirmedCompanyRosterV3";
+import { confirmedCompanyRosterV3 } from "../../src/data/confirmedCompanyRosterV3";
+import { canonicalPhase1InScopeRosterMembers } from "../../src/data/phase1ScopePolicy";
 
 const sha = (value: string) => createHash("sha256").update(value).digest("hex");
 const binding = { releaseCandidateId: "rc-1", commitSha: "1".repeat(40), rosterSha256: confirmedCompanyRosterV3.membersSha256,
   sourcePlanSha256: "3".repeat(64), sourceConfigSha256: "4".repeat(64), adapterBundleSha256: "5".repeat(64),
   authoritativeMembershipDigest: "6".repeat(64) };
-const first=confirmedCompanyRosterV3Members[0]!;
+const first=canonicalPhase1InScopeRosterMembers[0]!;
 const members = [{ companyId: first.id, category:first.category, sourceId: "source-1", surfaceId: "surface-1",
   channelId: "channel-1", officialEntryId: "entry-1", reviewerId: "e".repeat(64),
   reviewArtifactSha256: "f".repeat(64), producerIdentity: "0".repeat(64),
@@ -36,7 +37,7 @@ const members = [{ companyId: first.id, category:first.category, sourceId: "sour
   adapterConfigSha256: "a".repeat(64), completenessEvidenceKind: "OFFICIAL_TOTAL",
   completenessEvidenceLocatorSha256: "b".repeat(64), completenessEvidenceContentSha256: "c".repeat(64),
   expectedArtifacts: [{ logicalKey: "page-0", contentSha256: "d".repeat(64) }] }];
-const companyAudits=confirmedCompanyRosterV3Members.map(({id:companyId,category})=>({companyId,category,
+const companyAudits=canonicalPhase1InScopeRosterMembers.map(({id:companyId,category})=>({companyId,category,
   status:(companyId===first.id?"HAS_PUBLIC_OFFICIAL_CAREERS_LINK_AT_CAPTURE_TIME":"NO_PUBLIC_OFFICIAL_CAREERS_LINK_AT_CAPTURE_TIME") as "HAS_PUBLIC_OFFICIAL_CAREERS_LINK_AT_CAPTURE_TIME"|"NO_PUBLIC_OFFICIAL_CAREERS_LINK_AT_CAPTURE_TIME",
   capturedAt:"2026-07-12T00:00:00.000Z",officialWebsiteUrl:`https://example.com/${companyId}`,
   officialWebsiteSha256:sha(`website:${companyId}`),officialEntryIds:companyId===first.id?["entry-1"]:[],
@@ -76,6 +77,13 @@ describe("independent source/surface oracle startup authority", () => {
     expect(()=>validateIndependentSourceSurfaceOracleArtifactContent(tampered,new Date("2026-07-12T12:00:00Z")))
       .toThrow(/set hash|content|provenance/i);
   });
+  it.each(["company-humanwell", "company-north-china-pharma"])(
+    "rejects authorized Phase 1 exclusion %s from oracle members", (companyId) => {
+      const excluded = artifact();
+      excluded.members[0] = { ...excluded.members[0]!, companyId, category: "DOMESTIC_PHARMA" };
+      expect(() => validateIndependentSourceSurfaceOracleArtifactContent(excluded,
+        new Date("2026-07-12T12:00:00Z"))).toThrow(/canonical phase 1|out-of-scope/i);
+    });
   it("rejects a trusted schema-v2 artifact at the runtime validator boundary", async () => {
     const dir = await mkdtemp(join(tmpdir(), "independent-oracle-v2-runtime-"));
     const current = artifact();

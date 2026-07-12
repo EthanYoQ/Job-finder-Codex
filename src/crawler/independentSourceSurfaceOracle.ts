@@ -9,8 +9,10 @@ import { signedProvenancePayloadSha256, verifyProductionProvenanceSignature,
   type SignedProvenanceEnvelope } from "./reviewerSignatureTrust";
 import { assertStartupTrustedSourceSurfaceOracle,
   type StartupTrustedSourceSurfaceOracle } from "./sourceSurfaceOracleAuthority";
-import { assertExactConfirmedCompanyRosterV3, confirmedCompanyRosterV3,
+import { confirmedCompanyRosterV3,
   type ConfirmedCompanyCategory } from "../data/confirmedCompanyRosterV3";
+import { assertCanonicalPhase1InScopeCompany, assertExactCanonicalPhase1InScopeRoster }
+  from "../data/phase1ScopePolicy";
 
 export interface IndependentOracleExpectedArtifact { logicalKey: string; contentSha256: string }
 export type IndependentCompanyAuditStatus = "HAS_PUBLIC_OFFICIAL_CAREERS_LINK_AT_CAPTURE_TIME" |
@@ -103,6 +105,7 @@ export function validateIndependentSourceSurfaceOracleArtifactContent(
   if(artifact.schemaVersion!==3||artifact.kind!=="FULL_RELEASE")throw new Error("Unsupported independent oracle schema version");
   const audits=canonicalIndependentCompanyAudits(artifact.companyAudits);
   const members=canonicalIndependentOracleMembers(artifact.members);
+  for (const member of members) assertCanonicalPhase1InScopeCompany(member.companyId, member.category);
   assertIndependentCompanyAuditFreshness(audits,validationTime);
   if(canonicalJson(audits)!==canonicalJson(artifact.companyAudits)||canonicalJson(members)!==canonicalJson(artifact.members))
     throw new Error("Independent oracle records must use canonical representation and order");
@@ -354,7 +357,7 @@ export function canonicalIndependentOracleMembers(members: readonly IndependentS
 }
 export function canonicalIndependentCompanyAudits(audits: readonly IndependentCompanyAudit[]): IndependentCompanyAudit[] {
   if (!Array.isArray(audits)) throw new Error("Independent oracle company audits must be an array");
-  assertExactConfirmedCompanyRosterV3(audits.map(({ companyId: id, category }) => ({ id, category })));
+  assertExactCanonicalPhase1InScopeRoster(audits.map(({ companyId: id, category }) => ({ id, category })));
   const normalized = audits.map((audit) => {
     const companyId = normalize(audit.companyId, "company audit companyId");
     if (audit.category !== "FOREIGN_PHARMA" && audit.category !== "DOMESTIC_PHARMA") {

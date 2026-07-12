@@ -5,16 +5,17 @@ import { join, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import { spawnSync } from "node:child_process";
 import { describe, expect, it } from "vitest";
-import { canonicalReleaseMembersSha256, releaseMembershipContentSha256,
+import { canonicalReleaseMembersSha256, releaseMembersFromPlans, releaseMembershipContentSha256,
   validateAuthoritativeReleaseMembershipArtifactContent,
   type AuthoritativeReleaseMembershipArtifact, type ReleaseMember } from "../../src/crawler/authoritativeReleaseMembership";
 import { runMembershipAuthorityScenario } from "./helpers/membershipAuthorityScenario";
+import { canonicalPhase1InScopeRosterMembers } from "../../src/data/phase1ScopePolicy";
 
 const binding = { releaseCandidateId: "rc-1", commitSha: "1".repeat(40), rosterSha256: "2".repeat(64),
   sourcePlanSha256: "3".repeat(64), sourceConfigSha256: "4".repeat(64), adapterBundleSha256: "5".repeat(64) };
 const members: ReleaseMember[] = [
-  { companyId: "company-a", sourceId: "source-a", surfaceId: "surface-a", channelId: "channel-a", category:"FOREIGN_PHARMA" },
-  { companyId: "company-b", sourceId: "source-b", surfaceId: "surface-b", channelId: "channel-b", category:"DOMESTIC_PHARMA" }
+  { companyId: canonicalPhase1InScopeRosterMembers[0]!.id, sourceId: "source-a", surfaceId: "surface-a", channelId: "channel-a", category:canonicalPhase1InScopeRosterMembers[0]!.category },
+  { companyId: canonicalPhase1InScopeRosterMembers.at(-1)!.id, sourceId: "source-b", surfaceId: "surface-b", channelId: "channel-b", category:canonicalPhase1InScopeRosterMembers.at(-1)!.category }
 ];
 const oracleAuthority = { oracleRawFileSha256: "a".repeat(64), oracleContentSha256: "b".repeat(64),
   reviewProvenanceRootSha256: "c".repeat(64), hopChainProvenanceRootSha256: "d".repeat(64),
@@ -41,6 +42,16 @@ describe("authoritative release membership", () => {
     expect(validateAuthoritativeReleaseMembershipArtifactContent(artifact())).toEqual(members);
     const tampered=structuredClone(artifact());tampered.members[0]!.surfaceId="tampered";
     expect(()=>validateAuthoritativeReleaseMembershipArtifactContent(tampered)).toThrow(/member-set|content/i);
+  });
+  it.each(["company-humanwell", "company-north-china-pharma"])(
+    "rejects authorized Phase 1 exclusion %s from membership-v6", (companyId) => {
+      const excluded = artifact([{ ...members[1]!, companyId, category: "DOMESTIC_PHARMA" }]);
+      expect(() => validateAuthoritativeReleaseMembershipArtifactContent(excluded)).toThrow(/phase 1|scope|company/i);
+    });
+  it("rejects an authorized Phase 1 exclusion in production plans", () => {
+    expect(() => releaseMembersFromPlans([{ company: { id: "company-humanwell", category: "DOMESTIC_PHARMA" },
+      source: { id: "source-excluded", surfaceId: "surface-excluded" },
+      expectedChannels: [{ channelId: "channel-excluded" }] } as any])).toThrow(/phase 1|scope|company/i);
   });
   it("binds company category into the canonical member set", () => {
     const base = [{ companyId:"company-a", sourceId:"source-a", surfaceId:"surface-a", channelId:"channel-a", category:"FOREIGN_PHARMA" as const }];
@@ -79,7 +90,7 @@ describe("authoritative release membership", () => {
       P0_FULL_RELEASE_MEMBERSHIP_FILE_SHA256: createHash("sha256").update(original).digest("hex") });
     await rm(directory, { recursive: true, force: true });
     expect(result.status).toBe(0);
-    expect(result.stdout).toContain("company-a");
+    expect(result.stdout).toContain(members[0]!.companyId);
     expect(result.stdout).toContain("replacement.json");
   });
 

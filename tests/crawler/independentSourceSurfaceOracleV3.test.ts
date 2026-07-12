@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 import { describe, expect, it } from "vitest";
-import { confirmedCompanyRosterV3Members } from "../../src/data/confirmedCompanyRosterV3";
+import { canonicalPhase1InScopeRosterMembers } from "../../src/data/phase1ScopePolicy";
 import {
   canonicalIndependentCompanyAuditsSha256,
   canonicalIndependentOracleMembersSha256,
@@ -14,7 +14,7 @@ import { runIndependentOracleV3Scenario } from "./helpers/independentOracleV3Sce
 const sha = (value: string) => createHash("sha256").update(value).digest("hex");
 
 function audits(): IndependentCompanyAudit[] {
-  return confirmedCompanyRosterV3Members.map(({ id: companyId, category }) => ({
+  return canonicalPhase1InScopeRosterMembers.map(({ id: companyId, category }) => ({
     companyId,
     category,
     status: "NO_PUBLIC_OFFICIAL_CAREERS_LINK_AT_CAPTURE_TIME",
@@ -32,15 +32,20 @@ function audits(): IndependentCompanyAudit[] {
 }
 
 describe("independent source/surface oracle v3 company audits", () => {
-  it("requires exactly the confirmed V3 60-company ID/category set", () => {
+  it("requires exactly the dynamic canonical Phase 1 in-scope ID/category set", () => {
     const complete = audits();
     expect(canonicalIndependentCompanyAuditsSha256(complete)).toMatch(/^[a-f0-9]{64}$/);
-    expect(() => canonicalIndependentCompanyAuditsSha256(complete.slice(1))).toThrow(/60|roster|company/i);
+    expect(() => canonicalIndependentCompanyAuditsSha256(complete.slice(1))).toThrow(/scope|roster|company/i);
     expect(() => canonicalIndependentCompanyAuditsSha256([...complete,
       { ...complete[0]!, companyId: "company-extra" }])).toThrow(/60|roster|company/i);
     expect(() => canonicalIndependentCompanyAuditsSha256(complete.map((audit, index) => index === 0
       ? { ...audit, category: audit.category === "FOREIGN_PHARMA" ? "DOMESTIC_PHARMA" : "FOREIGN_PHARMA" } : audit)))
-      .toThrow(/category|roster/i);
+      .toThrow(/category|scope|roster/i);
+    expect(() => canonicalIndependentCompanyAuditsSha256([...complete.slice(1),
+      { ...complete[0]!, companyId: "company-humanwell", category: "DOMESTIC_PHARMA" }]))
+      .toThrow(/scope|roster|company/i);
+    expect(() => canonicalIndependentCompanyAuditsSha256([...complete, complete[0]!]))
+      .toThrow(/scope|roster|duplicate|company/i);
   });
 
   it("domain-separates and binds company audits and source members in coverage and provenance digests", () => {
@@ -68,7 +73,7 @@ describe("independent source/surface oracle v3 company audits", () => {
       .not.toBe(independentHopChainProvenanceRootSha256(complete, []));
   });
 
-  it("accepts all-60 no-link audits with an empty denominator up to real signature verification", async () => {
+  it("accepts the canonical in-scope no-link audits with an empty denominator up to real signature verification", async () => {
     const result = await runIndependentOracleV3Scenario("valid-empty");
     expect(result.status).toBe(0);
     expect(result.output).toMatch(/signing key.*production registry/i);
@@ -81,7 +86,7 @@ describe("independent source/surface oracle v3 company audits", () => {
 
   it("rejects an incomplete company-audit set before signature verification", async () => {
     const result = await runIndependentOracleV3Scenario("missing-audit");
-    expect(result.output).toMatch(/roster|60|company.*set/i);
+    expect(result.output).toMatch(/scope|roster|company.*set/i);
     expect(result.output).not.toMatch(/signing key.*production registry/i);
   });
 

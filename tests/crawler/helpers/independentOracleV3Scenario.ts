@@ -17,7 +17,8 @@ import {
   type IndependentCompanyAudit,
   type IndependentSourceSurfaceOracleMember
 } from "../../../src/crawler/independentSourceSurfaceOracle";
-import { confirmedCompanyRosterV3, confirmedCompanyRosterV3Members } from "../../../src/data/confirmedCompanyRosterV3";
+import { confirmedCompanyRosterV3 } from "../../../src/data/confirmedCompanyRosterV3";
+import { canonicalPhase1InScopeRosterMembers } from "../../../src/data/phase1ScopePolicy";
 import { expectedChannelSetHash, type SourceCrawlPlan } from "../../../src/crawler/sourcePlan";
 import { signedProvenancePayloadSha256, type SignedProvenanceEnvelope } from "../../../src/crawler/reviewerSignatureTrust";
 
@@ -30,7 +31,7 @@ export type V3ScenarioMode = "valid-empty" | "freeze" | "missing-audit" | "no-li
 const sha = (value: string | Buffer) => createHash("sha256").update(value).digest("hex");
 const reviewerId = "a".repeat(64);
 const producerIdentity = "b".repeat(64);
-const first = confirmedCompanyRosterV3Members[0]!;
+const first = canonicalPhase1InScopeRosterMembers[0]!;
 const channelId = "source:source-1:default";
 
 const plan = { adapterId: "official-json", company: { id: first.id, officialChineseName: "公司", category: first.category },
@@ -42,7 +43,7 @@ const plan = { adapterId: "official-json", company: { id: first.id, officialChin
   expectedChannelSetHash: expectedChannelSetHash([{ channelId, kind: "SOCIAL" }]) } satisfies SourceCrawlPlan;
 
 function companyAudits(): IndependentCompanyAudit[] {
-  return confirmedCompanyRosterV3Members.map(({ id: companyId, category }) => ({ companyId, category,
+  return canonicalPhase1InScopeRosterMembers.map(({ id: companyId, category }) => ({ companyId, category,
     status: "NO_PUBLIC_OFFICIAL_CAREERS_LINK_AT_CAPTURE_TIME", capturedAt: "2026-07-12T00:00:00.000Z",
     officialWebsiteUrl: `https://example.com/${companyId}`, officialWebsiteSha256: sha(`website:${companyId}`),
     officialEntryIds: [], evidenceArtifacts: [{ logicalKey: `official-website/${companyId}`,

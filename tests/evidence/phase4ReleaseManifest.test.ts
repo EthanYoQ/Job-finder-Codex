@@ -11,11 +11,25 @@ const roots: string[] = [];
 const temporaryRoot = () => { const root = mkdtempSync(join(tmpdir(), "phase4-manifest-")); roots.push(root); return root; };
 afterEach(() => { while (roots.length) rmSync(roots.pop()!, { recursive: true, force: true }); });
 
-describe("Phase4 release manifest v2", () => {
+describe("Phase4 release manifest v3", () => {
   it("emits fixed coverage boundary, exclusions, plan binding, and derived roster/source metrics", () => {
-    const result = serializeBlockedPhase4Manifest(manifestInput(temporaryRoot()));
+    const artifacts = buildStructuralArtifacts();
+    const result = serializeBlockedPhase4Manifest(manifestInput(temporaryRoot(), artifacts));
 
-    expect(result.manifest.schemaVersion).toBe("phase4-release-manifest-v2");
+    expect(result.manifest.schemaVersion).toBe("phase4-release-manifest-v3");
+    expect(result.manifest.phase1Scope).toEqual({ fixedRosterCompanyCount: 60,
+      fixedForeignCompanyCount: 30, fixedDomesticCompanyCount: 30, inScopeCompanyCount: 58,
+      authorizedExclusionCount: 2, authorizedExclusions: [
+        { companyId: "company-humanwell", officialChineseName: "人福医药集团股份公司",
+          status: "USER_AUTHORIZED_PHASE1_EXCLUSION", jobCompletenessClaimed: false },
+        { companyId: "company-north-china-pharma", officialChineseName: "华北制药集团有限责任公司",
+          status: "USER_AUTHORIZED_PHASE1_EXCLUSION", jobCompletenessClaimed: false }
+      ] });
+    expect(result.manifest.requiredReleaseDisclosures).toEqual([
+      "company-humanwell and company-north-china-pharma are user-authorized Phase 1 exclusions.",
+      "No job completeness claim is made for either authorized Phase 1 exclusion.",
+      "job.orz.md accessibility is not a Phase 1 deliverable."
+    ]);
     expect(result.manifest.coverageClaim).toEqual({
       boundary: "Completeness covers only social-recruitment jobs reachable at capture time from recruitment entries publicly linked or explicitly endorsed by the target company's official website.",
       excludedPathClasses: [
@@ -29,11 +43,20 @@ describe("Phase4 release manifest v2", () => {
       path: "docs/superpowers/plans/2026-07-10-p0-recovery-and-release-evidence.md",
       judgmentUpdatedOn: "2026-07-12", sha256: "2".repeat(64)
     });
-    expect(result.manifest.coverage).toEqual({ targetCompanyCount: 60, foreignCompanyCount: 30,
-      domesticCompanyCount: 30, hasPublicOfficialCareersLinkCompanyCount: 58,
-      noPublicOfficialCareersLinkCompanyCount: 2, auditedOfficialEntryCount: 58,
-      uniqueSourceCount: 58, uniqueSurfaceCount: 58, uniqueChannelCount: 58,
-      sourceSurfaceChannelMemberTupleCount: 58, blockedOrMissingAuditedOfficialLinkEntryCount: 0 });
+    expect(result.manifest.coverage).toEqual({ targetCompanyCount: 58, foreignCompanyCount: 30,
+      domesticCompanyCount: 28, hasPublicOfficialCareersLinkCompanyCount: 56,
+      noPublicOfficialCareersLinkCompanyCount: 2, auditedOfficialEntryCount: 56,
+      uniqueSourceCount: 56, uniqueSurfaceCount: 56, uniqueChannelCount: 56,
+      sourceSurfaceChannelMemberTupleCount: 56, blockedOrMissingAuditedOfficialLinkEntryCount: 0 });
+    expect(result.manifest.coverage.auditedOfficialEntryCount).toBe(56);
+    expect(result.manifest.independentQa).toEqual([]);
+    const serialized = JSON.stringify(result.manifest);
+    for (const id of ["company-humanwell", "company-north-china-pharma"]) {
+      expect(artifacts.oracle.companyAudits.some((audit) => audit.companyId === id)).toBe(false);
+      expect(artifacts.oracle.members.some((member) => member.companyId === id)).toBe(false);
+      expect(artifacts.membership.members.some((member) => member.companyId === id)).toBe(false);
+      expect(serialized).not.toMatch(new RegExp(`${id}.*NO_PUBLIC_OFFICIAL_CAREERS_LINK`, "s"));
+    }
     expect(result.manifest.release).toEqual({ status: "BLOCKED", releaseClaim: false,
       blockers: ["TWO_FORMAL_BATCHES_NOT_BOUND", "EXTERNAL_PRODUCTION_SIGNATURE_ACCEPTANCE_QA_NOT_BOUND", "TRUST_FREEZE_ACTIVE"] });
     expect(readFileSync(result.path, "utf8")).toContain('"releaseClaim": false');
@@ -51,6 +74,12 @@ describe("Phase4 release manifest v2", () => {
     const input = manifestInput(temporaryRoot()) as any;
     input.targetCompanyCount = 1;
     input.coverageClaimBoundary = "everything";
+    expect(() => serializeBlockedPhase4Manifest(input)).toThrow(/unsupported fields/i);
+  });
+
+  it("rejects caller-supplied exclusion records", () => {
+    const input = manifestInput(temporaryRoot()) as any;
+    input.authorizedExclusions = [{ companyId: "company-humanwell", status: "ACTIVE" }];
     expect(() => serializeBlockedPhase4Manifest(input)).toThrow(/unsupported fields/i);
   });
 

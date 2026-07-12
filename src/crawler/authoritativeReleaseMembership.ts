@@ -3,6 +3,7 @@ import type { RuntimeBatchIdentity } from "./runtimeBatchIdentity";
 import type { SourceCrawlPlan } from "./sourcePlan";
 import { assertStartupTrustedReleaseMembership,
   type StartupTrustedReleaseMembership } from "./releaseMembershipAuthority";
+import { assertCanonicalPhase1InScopeCompany } from "../data/phase1ScopePolicy";
 
 export type ReleaseCompanyCategory = "FOREIGN_PHARMA" | "DOMESTIC_PHARMA";
 export interface ReleaseMember { companyId: string; sourceId: string; surfaceId: string; channelId: string; category: ReleaseCompanyCategory }
@@ -27,11 +28,15 @@ const bindingFields: readonly (keyof MembershipBinding)[] = ["releaseCandidateId
   "rosterSha256", "sourcePlanSha256", "sourceConfigSha256", "adapterBundleSha256"];
 
 export function releaseMembersFromPlans(plans: readonly SourceCrawlPlan[]): ReleaseMember[] {
-  return plans.flatMap((plan) => (plan.expectedChannels ?? []).map((channel) => ({
-    companyId: plan.company.id, sourceId: plan.source.id,
-    surfaceId: normalize(plan.source.surfaceId as string, "surfaceId"), channelId: channel.channelId,
-    category: validCategory(plan.company.category)
-  })));
+  return plans.flatMap((plan) => {
+    const category = validCategory(plan.company.category);
+    assertCanonicalPhase1InScopeCompany(plan.company.id, category);
+    return (plan.expectedChannels ?? []).map((channel) => ({
+      companyId: plan.company.id, sourceId: plan.source.id,
+      surfaceId: normalize(plan.source.surfaceId as string, "surfaceId"), channelId: channel.channelId,
+      category
+    }));
+  });
 }
 
 export function canonicalReleaseMembersSha256(members: readonly ReleaseMember[]): string {
@@ -77,6 +82,7 @@ export function validateAuthoritativeReleaseMembershipArtifactContent(
   validateOracleAuthorityBinding(artifact.oracleAuthority);
   if (artifact.kind !== "FULL_RELEASE") throw new Error("PARTIAL_DIAGNOSTIC can never become formal release evidence");
   const canonical=canonicalizeMembers(artifact.members);
+  for (const member of canonical) assertCanonicalPhase1InScopeCompany(member.companyId, member.category);
   if (!membersEqual(canonical, artifact.members)) throw new Error("Authoritative release membership members must use canonical representation and order");
   if (!safeHexEqual(artifact.memberSetSha256, canonicalReleaseMembersSha256(canonical))) throw new Error("Authoritative release membership member-set hash mismatch");
   const { contentSha256, ...content } = artifact;

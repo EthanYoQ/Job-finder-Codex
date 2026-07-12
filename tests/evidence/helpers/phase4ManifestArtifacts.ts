@@ -18,7 +18,8 @@ import {
   type IndependentSourceSurfaceOracleArtifact,
   type IndependentSourceSurfaceOracleMember
 } from "../../../src/crawler/independentSourceSurfaceOracle";
-import { confirmedCompanyRosterV3, confirmedCompanyRosterV3Members } from "../../../src/data/confirmedCompanyRosterV3";
+import { confirmedCompanyRosterV3 } from "../../../src/data/confirmedCompanyRosterV3";
+import { canonicalPhase1InScopeRosterMembers } from "../../../src/data/phase1ScopePolicy";
 import type { Phase4ReleaseManifestInput } from "../../../src/evidence/phase4ReleaseManifest";
 import { signedProvenancePayloadSha256 } from "../../../src/crawler/reviewerSignatureTrust";
 
@@ -41,10 +42,10 @@ export interface StructuralArtifacts {
 }
 
 export function buildStructuralArtifacts(): StructuralArtifacts {
-  const noLinkCompanyIds = new Set(confirmedCompanyRosterV3Members.slice(0, 2).map(({ id }) => id));
+  const noLinkCompanyIds = new Set(canonicalPhase1InScopeRosterMembers.slice(0, 2).map(({ id }) => id));
   const audits: IndependentCompanyAudit[] = [];
   const members: IndependentSourceSurfaceOracleMember[] = [];
-  for (const { id: companyId, category } of confirmedCompanyRosterV3Members) {
+  for (const { id: companyId, category } of canonicalPhase1InScopeRosterMembers) {
     const noLink = noLinkCompanyIds.has(companyId);
     const officialEntryId = `entry-${companyId}`;
     audits.push({ companyId, category,

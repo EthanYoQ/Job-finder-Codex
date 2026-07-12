@@ -12,11 +12,12 @@ import { expectedChannelSetHash, type SourceCrawlPlan } from "../../../src/crawl
 import { canonicalSignedProvenancePayload, signedProvenancePayloadSha256,
   type SignedProvenancePayload } from "../../../src/crawler/reviewerSignatureTrust";
 import { createReviewerTestKeyPair } from "../../support/reviewerSignatureTestKeys";
-import {confirmedCompanyRosterV3,confirmedCompanyRosterV3Members} from "../../../src/data/confirmedCompanyRosterV3";
+import {confirmedCompanyRosterV3} from "../../../src/data/confirmedCompanyRosterV3";
+import { canonicalPhase1InScopeRosterMembers } from "../../../src/data/phase1ScopePolicy";
 
 const sha = (value: string | Buffer) => createHash("sha256").update(value).digest("hex");
 const channelId = "source:source-1:default";
-const first=confirmedCompanyRosterV3Members[0]!;
+const first=canonicalPhase1InScopeRosterMembers[0]!;
 export const plan = { adapterId: "official-json", company: { id: first.id, officialChineseName: "公司",category:first.category },
   source: { id: "source-1", companyId: first.id, kind: "SOCIAL", atsKind: "OFFICIAL_JSON",
     status: "VERIFIED_SCRAPABLE", surfaceId: "surface-1", officialEntryUrl: "https://example.com/jobs",
@@ -60,7 +61,7 @@ export async function runFullReleaseOracleProductionScenario(mode: "invalid-comm
       channelScope: "RESOLVED" as const, adapterId: plan.adapterId, adapterConfigSha256: sourcePlanOracleConfigSha256(plan),
       completenessEvidenceKind: "OFFICIAL_TOTAL_PAGES", completenessEvidenceLocatorSha256: independentOracleValueSha256("json:total"),
       completenessEvidenceContentSha256: sha(body), expectedArtifacts: [{ logicalKey: "page-0", contentSha256: sha(body) }] }];
-    const companyAudits=confirmedCompanyRosterV3Members.map(({id:companyId,category})=>({companyId,category,
+    const companyAudits=canonicalPhase1InScopeRosterMembers.map(({id:companyId,category})=>({companyId,category,
       status:(!isEmptyMode(mode)&&companyId===plan.company.id?"HAS_PUBLIC_OFFICIAL_CAREERS_LINK_AT_CAPTURE_TIME":"NO_PUBLIC_OFFICIAL_CAREERS_LINK_AT_CAPTURE_TIME") as "HAS_PUBLIC_OFFICIAL_CAREERS_LINK_AT_CAPTURE_TIME"|"NO_PUBLIC_OFFICIAL_CAREERS_LINK_AT_CAPTURE_TIME",
       capturedAt:"2026-07-12T00:00:00.000Z",officialWebsiteUrl:`https://example.com/${companyId}`,
       officialWebsiteSha256:sha(`website:${companyId}`),officialEntryIds:!isEmptyMode(mode)&&companyId===plan.company.id?["entry-1"]:[],

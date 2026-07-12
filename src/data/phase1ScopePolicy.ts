@@ -7,6 +7,13 @@ export const AUTHORIZED_PHASE1_EXCLUSION_COMPANY_IDS = Object.freeze([
   "company-north-china-pharma"
 ] as const);
 
+const authorizedExclusionChineseNames: Readonly<Record<
+  (typeof AUTHORIZED_PHASE1_EXCLUSION_COMPANY_IDS)[number], string
+>> = {
+  "company-humanwell": "人福医药集团股份公司",
+  "company-north-china-pharma": "华北制药集团有限责任公司"
+};
+
 const authorizedIds: ReadonlySet<string> = new Set(AUTHORIZED_PHASE1_EXCLUSION_COMPANY_IDS);
 const expectedCategories: Readonly<Record<(typeof AUTHORIZED_PHASE1_EXCLUSION_COMPANY_IDS)[number], "DOMESTIC_PHARMA">> = {
   "company-humanwell": "DOMESTIC_PHARMA",
@@ -84,6 +91,25 @@ export const canonicalPhase1InScopeRosterMembers = Object.freeze(
   canonicalPhase1Scope.inScopeCompanies.map(({ id, category }) => Object.freeze({ id, category }))
 );
 
+export const canonicalPhase1AuthorizedExclusionRecords = Object.freeze(
+  canonicalPhase1Scope.authorizedExclusionCompanies.map(({ id }) => Object.freeze({
+    companyId: id as (typeof AUTHORIZED_PHASE1_EXCLUSION_COMPANY_IDS)[number],
+    officialChineseName: authorizedExclusionChineseNames[id as (typeof AUTHORIZED_PHASE1_EXCLUSION_COMPANY_IDS)[number]],
+    status: USER_AUTHORIZED_PHASE1_EXCLUSION,
+    jobCompletenessClaimed: false as const
+  }))
+);
+
+export const canonicalPhase1ScopeCounts = Object.freeze({
+  fixedRosterCompanyCount: canonicalPhase1Scope.rosterCount,
+  fixedForeignCompanyCount: canonicalPhase1RosterPolicyRecords
+    .filter(({ category }) => category === "FOREIGN_PHARMA").length,
+  fixedDomesticCompanyCount: canonicalPhase1RosterPolicyRecords
+    .filter(({ category }) => category === "DOMESTIC_PHARMA").length,
+  inScopeCompanyCount: canonicalPhase1InScopeRosterMembers.length,
+  authorizedExclusionCount: canonicalPhase1AuthorizedExclusionRecords.length
+});
+
 export function assertExactCanonicalPhase1InScopeRoster(
   actual: readonly { id: string; category: string }[]
 ): void {
@@ -94,5 +120,12 @@ export function assertExactCanonicalPhase1InScopeRoster(
   if (new Set(normalized.map(({ id }) => id)).size !== normalized.length ||
       JSON.stringify(normalized) !== JSON.stringify(canonicalPhase1InScopeRosterMembers)) {
     throw new Error("CANONICAL_PHASE1_IN_SCOPE_ROSTER_MISMATCH");
+  }
+}
+
+export function assertCanonicalPhase1InScopeCompany(companyId: string, category: string): void {
+  const company = canonicalPhase1InScopeRosterMembers.find(({ id }) => id === companyId);
+  if (!company || company.category !== category) {
+    throw new Error(`Canonical Phase 1 company category mismatch or out-of-scope company: ${companyId}`);
   }
 }

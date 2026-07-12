@@ -23,7 +23,9 @@ import {
 } from "../crawler/independentSourceSurfaceOracle";
 import { signedProvenancePayloadSha256, type SignedProvenanceEnvelope }
   from "../crawler/reviewerSignatureTrust";
-import { assertExactConfirmedCompanyRosterV3, confirmedCompanyRosterV3 } from "../data/confirmedCompanyRosterV3";
+import { confirmedCompanyRosterV3 } from "../data/confirmedCompanyRosterV3";
+import { assertExactCanonicalPhase1InScopeRoster, canonicalPhase1AuthorizedExclusionRecords,
+  canonicalPhase1ScopeCounts } from "../data/phase1ScopePolicy";
 
 const SHA256 = /^[0-9a-f]{64}$/u;
 const GIT_COMMIT_SHA = /^[0-9a-f]{40}$/u;
@@ -86,7 +88,7 @@ export function serializeBlockedPhase4Manifest(input: Phase4ReleaseManifestInput
     rawSha256: parsed[kind].rawSha256, contentSha256: parsed[kind].contentSha256 }));
 
   const manifest = {
-    schemaVersion: "phase4-release-manifest-v2" as const,
+    schemaVersion: "phase4-release-manifest-v3" as const,
     releaseId: input.releaseId,
     capturedAt: input.capturedAt,
     git: { head: input.commitSha, commitBound: true as const },
@@ -97,6 +99,13 @@ export function serializeBlockedPhase4Manifest(input: Phase4ReleaseManifestInput
       sha256: input.controllingPlanSha256 },
     hashes: input.hashes,
     trustedArtifacts: artifacts,
+    phase1Scope: { ...canonicalPhase1ScopeCounts,
+      authorizedExclusions: canonicalPhase1AuthorizedExclusionRecords.map((record) => ({ ...record })) },
+    requiredReleaseDisclosures: [
+      `${canonicalPhase1AuthorizedExclusionRecords.map(({ companyId }) => companyId).join(" and ")} are user-authorized Phase 1 exclusions.`,
+      "No job completeness claim is made for either authorized Phase 1 exclusion.",
+      "job.orz.md accessibility is not a Phase 1 deliverable."
+    ],
     coverage,
     formalBatches: input.formalBatches,
     independentQa: input.independentQa,
@@ -192,7 +201,7 @@ function validateAndProjectCoverage(input: Phase4ReleaseManifestInput,
   assertEqualDigest(oracle.contentSha256, oracleTrusted.contentSha256, "oracle supplied content digest mismatch");
   assertEqualDigest(oracle.contentSha256, input.hashes.oracle, "oracle manifest hash mismatch");
   assertEqualDigest(oracle.rosterSha256, confirmedCompanyRosterV3.membersSha256, "oracle roster hash mismatch");
-  assertExactConfirmedCompanyRosterV3(canonicalAudits.map(({ companyId: id, category }) => ({ id, category })));
+  assertExactCanonicalPhase1InScopeRoster(canonicalAudits.map(({ companyId: id, category }) => ({ id, category })));
   assertIndependentCompanyAuditMemberBindings(canonicalAudits, canonicalMembers);
   assertUniqueSourceOwnership(canonicalMembers);
 
