@@ -1,21 +1,30 @@
 ALTER TABLE "CrawlBatch" ADD COLUMN "manualCrawlRequestId" TEXT;
 
+DO $$
+DECLARE invalid_batch_ids TEXT;
+BEGIN
+  SELECT string_agg(candidate."id", ',' ORDER BY candidate."id") INTO invalid_batch_ids
+  FROM (
+    SELECT batch."id"
+    FROM "CrawlBatch" AS batch
+    LEFT JOIN "ManualCrawlRequest" AS request ON request."crawlBatchId" = batch."id"
+    WHERE batch."kind" = 'MANUAL_SOURCE'
+    GROUP BY batch."id"
+    HAVING count(request."id") <> 1
+  ) AS candidate;
+  IF invalid_batch_ids IS NOT NULL THEN
+    RAISE EXCEPTION 'MANUAL_SOURCE batches require exactly one historical request link: %', invalid_batch_ids;
+  END IF;
+END $$;
+
 UPDATE "CrawlBatch" AS batch
 SET "manualCrawlRequestId" = request."id"
 FROM "ManualCrawlRequest" AS request
 WHERE batch."kind" = 'MANUAL_SOURCE' AND request."crawlBatchId" = batch."id";
 
-DO $$ BEGIN
-  IF EXISTS (
-    SELECT 1 FROM "CrawlBatch"
-    WHERE "kind" = 'MANUAL_SOURCE' AND "manualCrawlRequestId" IS NULL
-  ) THEN
-    RAISE EXCEPTION 'existing MANUAL_SOURCE batch lacks exact manual request binding';
-  END IF;
-END $$;
-
 ALTER TABLE "CrawlBatch" ADD CONSTRAINT "CrawlBatch_manual_binding_check" CHECK (
-  ("kind" = 'MANUAL_SOURCE') = ("manualCrawlRequestId" IS NOT NULL)
+  (("kind" = 'MANUAL_SOURCE' AND "manualCrawlRequestId" IS NOT NULL)
+    OR ("kind" IS DISTINCT FROM 'MANUAL_SOURCE' AND "manualCrawlRequestId" IS NULL))
 );
 ALTER TABLE "CrawlBatch" ADD CONSTRAINT "CrawlBatch_manualCrawlRequestId_fkey"
   FOREIGN KEY ("manualCrawlRequestId") REFERENCES "ManualCrawlRequest"("id")

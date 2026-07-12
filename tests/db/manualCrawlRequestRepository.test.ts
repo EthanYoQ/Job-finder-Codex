@@ -159,12 +159,17 @@ describe("manual crawl request repository", () => {
       where: { id: "request-1" }, select: { id: true, sourceId: true, ownerId: true, status: true }
     });
     expect(calls.batchFind[0]).toEqual({ where: { id: "batch-1" }, select: expect.objectContaining({
-      id: true, kind: true, status: true, manualCrawlRequestId: true,
+      id: true, kind: true, status: true, ownerId: true, manualCrawlRequestId: true,
       plannedSourceIds: true, sourceResults: expect.any(Object)
     }) });
     expect(calls.raw.at(-1).sql).toMatch(/leaseExpiresAt"\s*>\s*clock_timestamp\(\)/);
     expect(calls.raw.at(-1).sql).toContain('"finishedAt" = clock_timestamp()');
     expect(calls.raw.at(-1).values).toEqual(["request-1", "worker-1", "batch-1"]);
+    expect(calls.raw.at(-1).sql).toContain("WITH verified_batch AS");
+    expect(calls.raw.at(-1).sql).toContain('batch."ownerId" = $2');
+    expect(calls.raw.at(-1).sql).toContain('batch."plannedSourceIds" = jsonb_build_array(request."sourceId")');
+    expect(calls.raw.at(-1).sql).toContain('result."atomicCommitState" = \'COMMITTED\'');
+    expect(calls.raw.at(-1).sql).toContain("FOR SHARE OF batch, result");
     expect(calls.eventCreate[0]).toEqual({ data: expect.objectContaining({
       eventType: "SUCCEEDED", actor: "SYSTEM", ownerId: "worker-1", fromStatus: "RUNNING", toStatus: "SUCCESS"
     }) });
@@ -174,6 +179,7 @@ describe("manual crawl request repository", () => {
     ["different source", { plannedSourceIds: ["source-2"] }],
     ["failed batch", { status: "FAILED" }],
     ["batch bound to another request", { manualCrawlRequestId: "request-other" }],
+    ["batch owned by an old worker", { ownerId: "worker-old" }],
     ["incomplete source result", { sourceResults: [{
       sourceId: "source-1", transportState: "SUCCEEDED", adapterState: "SUCCEEDED",
       completenessState: "INCOMPLETE", atomicCommitState: "COMMITTED"
@@ -245,7 +251,8 @@ function fakeDb(options: FakeOptions = {}): { db: ManualCrawlRequestDb; calls: R
     crawlBatch: { async findUnique(args: unknown) {
       calls.batchFind.push(args);
       return {
-        id: "batch-1", kind: "MANUAL_SOURCE", status: "SUCCESS", manualCrawlRequestId: "request-1",
+        id: "batch-1", kind: "MANUAL_SOURCE", status: "SUCCESS", ownerId: "worker-1",
+        manualCrawlRequestId: "request-1",
         plannedSourceIds: ["source-1"],
         sourceResults: [{ sourceId: "source-1", transportState: "SUCCEEDED", adapterState: "SUCCEEDED",
           completenessState: "VERIFIED", atomicCommitState: "COMMITTED" }],

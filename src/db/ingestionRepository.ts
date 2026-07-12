@@ -637,7 +637,7 @@ async function executeAtomicSourceEvidenceCommitInternal(
     if (manualFence) {
       if (!transaction.$queryRawUnsafe) throw new ManualSourceCommitFenceError();
       const owned = await transaction.$queryRawUnsafe<Array<{ id: string }>>(MANUAL_SOURCE_COMMIT_FENCE_SQL,
-        manualFence.requestId, manualFence.ownerId, input.sourceResult.batchId);
+        manualFence.requestId, manualFence.ownerId, input.sourceResult.batchId, input.sourceResult.sourceId);
       if (owned.length !== 1 || owned[0]?.id !== manualFence.requestId) {
         throw new ManualSourceCommitFenceError();
       }
@@ -763,8 +763,10 @@ FROM "ManualCrawlRequest" AS request
 JOIN "CrawlBatch" AS batch ON batch."id" = $3
   AND batch."kind" = 'MANUAL_SOURCE'
   AND batch."manualCrawlRequestId" = request."id"
+  AND batch."ownerId" = $2
 WHERE request."id" = $1
   AND request."ownerId" = $2
+  AND request."sourceId" = $4
   AND request."status" = 'RUNNING'
   AND request."leaseExpiresAt" > clock_timestamp()
 FOR UPDATE OF request

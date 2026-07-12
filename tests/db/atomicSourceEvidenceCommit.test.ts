@@ -776,8 +776,11 @@ describe("executeManualSourceEvidenceCommit", () => {
     const currentDb = transactionalDb(undefined, 1, [{ id: fence.requestId }]);
     await executeManualSourceEvidenceCommit(current, fence, currentDb);
 
-    expect(currentDb.calls.fences[0]).toMatchObject({ values: [fence.requestId, fence.ownerId, current.sourceResult.batchId] });
+    expect(currentDb.calls.fences[0]).toMatchObject({ values: [fence.requestId, fence.ownerId,
+      current.sourceResult.batchId, current.sourceResult.sourceId] });
     expect(currentDb.calls.fences[0]).toMatchObject({ sql: expect.stringContaining('batch."manualCrawlRequestId" = request."id"') });
+    expect(currentDb.calls.fences[0]).toMatchObject({ sql: expect.stringContaining('batch."ownerId" = $2') });
+    expect(currentDb.calls.fences[0]).toMatchObject({ sql: expect.stringContaining('request."sourceId" = $4') });
     expect(currentDb.calls.fences[0]).toMatchObject({ sql: expect.stringContaining("clock_timestamp()") });
     expect(currentDb.calls.observations).toHaveLength(1);
     expect(currentDb.calls.artifacts).toHaveLength(1);
@@ -791,6 +794,17 @@ describe("executeManualSourceEvidenceCommit", () => {
     await expect(executeManualSourceEvidenceCommit(validCommit(), fence, db))
       .rejects.toThrow(/manual.*job.*lifecycle/i);
     expect(db.calls.transactions).toBe(0);
+  });
+
+  it("rejects old-owner or source-mismatched atomic fences before any evidence write", async () => {
+    for (const mismatch of ["OLD_OWNER", "SOURCE"] as const) {
+      const input = validCommit(); removeLifecycleCommands(input);
+      const db = transactionalDb(undefined, 1, []);
+      await expect(executeManualSourceEvidenceCommit(input, {
+        requestId: "request-1", ownerId: mismatch === "OLD_OWNER" ? "worker-old" : "worker-new"
+      }, db)).rejects.toMatchObject({ code: "MANUAL_CRAWL_OWNERSHIP_LOST" });
+      expect(db.calls.artifacts).toEqual([]);
+    }
   });
 });
 

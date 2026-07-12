@@ -83,6 +83,11 @@ describe("manual crawl persistence contract", () => {
     expect(model("CrawlBatch")).toMatch(/^\s*manualCrawlRequestId\s+String\?/m);
     expect(bindingMigration).toContain("CrawlBatch_manualCrawlRequestId_fkey");
     expect(bindingMigration).toContain("CrawlBatch_manual_binding_check");
+    expect(bindingMigration).toMatch(/"kind" = 'MANUAL_SOURCE' AND "manualCrawlRequestId" IS NOT NULL/);
+    expect(bindingMigration).toMatch(/"kind" IS DISTINCT FROM 'MANUAL_SOURCE' AND "manualCrawlRequestId" IS NULL/);
+    expect(bindingMigration).toMatch(/GROUP BY batch\."id"[\s\S]+HAVING count\(request\."id"\) <> 1/);
+    expect(bindingMigration.indexOf("HAVING count(request.\"id\") <> 1"))
+      .toBeLessThan(bindingMigration.indexOf('UPDATE "CrawlBatch" AS batch'));
     expect(bindingMigration).toMatch(/OLD\."kind"\s+IS\s+DISTINCT\s+FROM\s+NEW\."kind"/);
     expect(bindingMigration).toMatch(/OLD\."manualCrawlRequestId"\s+IS\s+DISTINCT\s+FROM\s+NEW\."manualCrawlRequestId"/);
     expect(bindingMigration).toContain("CrawlBatch_kind_and_manual_binding_immutable");
