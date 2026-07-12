@@ -121,6 +121,66 @@ describe("searchJobsFromDatabase", () => {
     });
   });
 
+  it("combines the effective-category filter and keyword filter in where.AND", async () => {
+    const db = dbReturning([]);
+
+    await searchJobsFromDatabase(
+      { city: "北京", categories: ["销售"], keyword: "肿瘤" },
+      db
+    );
+
+    const call = vi.mocked(db.job.findMany).mock.calls[0]?.[0] as
+      | { where: { AND?: Array<Record<string, unknown>> } }
+      | undefined;
+
+    expect(call?.where.AND).toEqual([
+      {
+        OR: [
+          { humanCorrectedCategory: { in: ["SALES"] } },
+          { humanCorrectedCategory: null, category: { in: ["SALES"] } }
+        ]
+      },
+      {
+        OR: [
+          { officialTitle: { contains: "肿瘤" } },
+          { auxiliaryChineseTitle: { contains: "肿瘤" } },
+          { company: { is: { officialChineseName: { contains: "肿瘤" } } } },
+          { company: { is: { pinyinName: { contains: "肿瘤" } } } }
+        ]
+      }
+    ]);
+  });
+
+  it("does not add an effective-category filter when categories are empty", async () => {
+    const withoutKeyword = dbReturning([]);
+    const withKeyword = dbReturning([]);
+
+    await searchJobsFromDatabase({ city: "北京", categories: [] }, withoutKeyword);
+    await searchJobsFromDatabase(
+      { city: "北京", categories: [], keyword: "肿瘤" },
+      withKeyword
+    );
+
+    const withoutKeywordWhere = vi.mocked(withoutKeyword.job.findMany).mock.calls[0]?.[0]
+      .where as unknown as Record<string, unknown>;
+    const withKeywordWhere = vi.mocked(withKeyword.job.findMany).mock.calls[0]?.[0]
+      .where as unknown as { AND?: Array<Record<string, unknown>> };
+
+    expect(withoutKeywordWhere).not.toHaveProperty("AND");
+    expect(withoutKeywordWhere).not.toHaveProperty("category");
+    expect(withoutKeywordWhere).not.toHaveProperty("humanCorrectedCategory");
+    expect(withKeywordWhere.AND).toEqual([
+      {
+        OR: [
+          { officialTitle: { contains: "肿瘤" } },
+          { auxiliaryChineseTitle: { contains: "肿瘤" } },
+          { company: { is: { officialChineseName: { contains: "肿瘤" } } } },
+          { company: { is: { pinyinName: { contains: "肿瘤" } } } }
+        ]
+      }
+    ]);
+  });
+
   it("returns the human-corrected category instead of the model category", async () => {
     const result = await searchJobsFromDatabase(
       { city: "北京", categories: [] },
