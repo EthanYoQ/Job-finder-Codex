@@ -528,10 +528,11 @@ const CANDIDATE_SEEDS: CandidateSeed[] = [
     pinyinName: "shiweiya",
     category: "FOREIGN_PHARMA",
     status: "VERIFIED_SCRAPABLE",
-    atsKind: "SUCCESSFACTORS",
+    atsKind: "MOKA",
     officialWebsiteUrl: "https://www.servier.com.cn/",
-    socialEntryUrl: "https://jobs.servier.com/search/?q=&locationsearch=China&locale=zh_CN",
-    officialChainEvidenceUrl: "https://www.servier.com.cn/china/"
+    socialEntryUrl: "https://www.servier.com.cn/social-recruitment/shiweiya/47734",
+    officialChainEvidenceUrl: "https://www.servier.com.cn/social-recruitment/shiweiya/47734",
+    campusEntryUrl: "https://www.servier.com.cn/campus-recruitment/shiweiya/70032"
   },
   {
     id: "company-sinopharm",

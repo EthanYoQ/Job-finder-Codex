@@ -141,6 +141,12 @@ describe("60-company pharma registry", () => {
       officialChainEvidenceUrl: "https://www.hengrui.com/development/joinUs.html",
       campusEntryUrl: "https://app.mokahr.com/m/campus-recruitment/hengrui/145997"
     });
+    expect(byId.get("company-servier-china")?.sources[0]).toMatchObject({
+      atsKind: "MOKA",
+      officialEntryUrl: "https://www.servier.com.cn/social-recruitment/shiweiya/47734",
+      officialChainEvidenceUrl: "https://www.servier.com.cn/social-recruitment/shiweiya/47734",
+      campusEntryUrl: "https://www.servier.com.cn/campus-recruitment/shiweiya/70032"
+    });
     expect(byId.get("company-ucb-china")?.sources[0]?.officialEntryUrl).toBe(
       "https://careers.ucb.com/global/en/search-results?qcountry=China"
     );

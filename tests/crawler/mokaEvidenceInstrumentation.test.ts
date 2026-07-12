@@ -294,7 +294,7 @@ describe("Moka strict fetch evidence", () => {
     });
   });
 
-  it("records parse and validation losses with irreversible raw locators", async () => {
+  it("records parse and validation losses and fails when declared total no longer matches valid IDs", async () => {
     const { http } = clientForPages([{
       success: true,
       data: {
@@ -305,8 +305,8 @@ describe("Moka strict fetch evidence", () => {
     const result = await createMokaSourceFetch({ http, now: () => new Date(capturedAt) })(plan);
 
     expect(result).toMatchObject({
-      ok: true,
-      completeness: { completenessStatus: "NEEDS_MANUAL_COMPLETENESS_REVIEW" },
+      ok: false,
+      failureReason: "Moka declared total does not match unique raw and hydrated valid job IDs",
       fetchEvidence: {
         fetchCounts: { rawCount: 4, parsedCount: 3, validCount: 1, parseDiscardCount: 1, validationDiscardCount: 2 },
         fetchLosses: [
@@ -316,11 +316,11 @@ describe("Moka strict fetch evidence", () => {
         ]
       }
     });
-    if (!result.ok || !result.fetchEvidence) throw new Error("Expected loss evidence");
+    if (!result.fetchEvidence) throw new Error("Expected loss evidence");
     expect(result.fetchEvidence.fetchLosses.every((loss) => /sha256:[0-9a-f]{64}$/.test(loss.rawLocator))).toBe(true);
   });
 
-  it("keeps output fields credential-safe without rejecting the ordinary title Token Engineer", async () => {
+  it("fails closed on credential losses without classifying the ordinary title Token Engineer as sensitive", async () => {
     const { http } = clientForPages([{
       success: true,
       data: {
@@ -351,16 +351,10 @@ describe("Moka strict fetch evidence", () => {
       }
     }]);
     const result = await createMokaSourceFetch({ http, now: () => new Date(capturedAt) })(plan);
-    expect(result.ok).toBe(true);
-    if (!result.ok || !result.fetchEvidence || !("payload" in result)) throw new Error("Expected sanitized output");
-    const payload = result.payload as { data: { jobs: Array<Record<string, unknown>> } };
-    expect(payload.data.jobs).toHaveLength(1);
-    expect(payload.data.jobs[0]).toMatchObject({
-      id: expect.stringMatching(/^sha256:[0-9a-f]{64}$/),
-      title: "Token Engineer"
-    });
-    expect(JSON.stringify(payload)).not.toMatch(/id-secret|title-secret|hunter2/i);
+    expect(result.ok).toBe(false);
+    if (!result.fetchEvidence) throw new Error("Expected sanitized failure evidence");
     expect(result.fetchEvidence.fetchCounts).toMatchObject({ rawCount: 21, parsedCount: 21, validCount: 1, validationDiscardCount: 20 });
+    expect(result.fetchEvidence.fetchLosses).toHaveLength(20);
   });
 
   it("rejects one- and two-layer percent-encoded fullwidth credential assignments", async () => {
@@ -381,11 +375,8 @@ describe("Moka strict fetch evidence", () => {
 
     const result = await createMokaSourceFetch({ http, now: () => new Date(capturedAt) })(plan);
 
-    expect(result.ok).toBe(true);
-    if (!result.ok || !result.fetchEvidence || !("payload" in result)) throw new Error("Expected sanitized output");
-    const payload = result.payload as { data: { jobs: Array<Record<string, unknown>> } };
-    expect(payload.data.jobs).toHaveLength(1);
-    expect(payload.data.jobs[0]).toMatchObject({ title: "Token Engineer" });
+    expect(result.ok).toBe(false);
+    if (!result.fetchEvidence) throw new Error("Expected sanitized failure evidence");
     expect(result.fetchEvidence.fetchCounts).toMatchObject({
       rawCount: 3,
       parsedCount: 3,
@@ -417,7 +408,8 @@ describe("Moka strict fetch evidence", () => {
     }]);
     const result = await createMokaSourceFetch({ http, now: () => new Date(capturedAt) })(plan);
     expect(result).toMatchObject({
-      ok: true,
+      ok: false,
+      failureReason: "Moka declared total does not match unique raw and hydrated valid job IDs",
       fetchEvidence: {
         artifacts: [{}, { logicalKey: "moka-page-0000" }],
         fetchCounts: { rawCount: 2, parsedCount: 2, validCount: 1, validationDiscardCount: 1 },
@@ -440,7 +432,8 @@ describe("Moka strict fetch evidence", () => {
     }]);
     const result = await createMokaSourceFetch({ http, now: () => new Date(capturedAt) })(plan);
     expect(result).toMatchObject({
-      ok: true,
+      ok: false,
+      failureReason: "Moka declared total does not match unique raw and hydrated valid job IDs",
       fetchEvidence: {
         fetchCounts: { rawCount: 5, parsedCount: 5, validCount: 4, validationDiscardCount: 1 },
         fetchLosses: [{ details: { code: "OUT_OF_SCOPE" } }]

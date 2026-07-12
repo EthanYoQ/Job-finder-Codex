@@ -481,15 +481,17 @@ describe("source crawl planning", () => {
       }
     });
     expect(getPlanBySourceId(plans, "source-servier-china-social")).toMatchObject({
-      adapterId: "html-table",
+      adapterId: "official-json",
       source: {
-        atsKind: "SUCCESSFACTORS",
-        officialEntryUrl: "https://jobs.servier.com/search/?q=&locationsearch=China&locale=zh_CN"
+        atsKind: "MOKA",
+        officialEntryUrl: "https://www.servier.com.cn/social-recruitment/shiweiya/47734"
       },
-      table: {
-        pagination: {
-          expectedJobCountSelector: "#noresults"
-        }
+      moka: {
+        expectedOrgId: "shiweiya",
+        expectedSiteId: "47734",
+        expectedMode: "social",
+        campaignUrl: "https://app.mokahr.com/social-recruitment/shiweiya/47734",
+        hydrateMissingLocationsFromDetail: true
       }
     });
     expect(getPlanBySourceId(plans, "source-takeda-china-social")).toMatchObject({

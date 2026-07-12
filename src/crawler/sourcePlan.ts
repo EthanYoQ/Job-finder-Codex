@@ -21,6 +21,18 @@ export type CrawlAdapterId = "official-json" | "html-table";
 
 export type ExecutableExpectedChannel = Pick<ExpectedRecruitmentChannel, "channelId" | "kind">;
 
+export interface MokaFetchConfig {
+  expectedOrgId: string;
+  expectedSiteId: string;
+  expectedMode: "social";
+  campaignUrl: string;
+  allowedEntryRedirect?: {
+    origin: string;
+    pathname: string;
+  };
+  hydrateMissingLocationsFromDetail?: boolean;
+}
+
 type PlannedCompany = Pick<CandidateCompany, "id" | "officialChineseName"> & { category?: CandidateCompany["category"] };
 type PlannedSource = Required<
   Pick<
@@ -45,6 +57,7 @@ export type SourceCrawlPlan = (
       workday?: WorkdayFetchConfig;
       hotjob?: HotjobWecruitFetchConfig;
       hotjobLegacy?: HotjobLegacyFetchConfig;
+      moka?: MokaFetchConfig;
     }
   | {
       adapterId: "html-table";
@@ -66,6 +79,7 @@ type RepresentativeSourceConfig = {
       workday?: WorkdayFetchConfig;
       hotjob?: HotjobWecruitFetchConfig;
       hotjobLegacy?: HotjobLegacyFetchConfig;
+      moka?: MokaFetchConfig;
     }
   | {
       adapterId: "html-table";
@@ -833,21 +847,18 @@ const REPRESENTATIVE_CONFIGS: Record<string, RepresentativeSourceConfig> = {
     }
   },
   "source-servier-china-social": {
-    adapterId: "html-table",
-    table: {
-      rowSelector: "#searchresults tbody tr",
-      pagination: {
-        totalPagesSelector: "#noresults",
-        totalPagesAttribute: "data-total-pages",
-        pageSearchParam: "page",
-        maxPages: 1,
-        expectedJobCountSelector: "#noresults"
+    adapterId: "official-json",
+    json: MOKA_JSON_CONFIG,
+    moka: {
+      expectedOrgId: "shiweiya",
+      expectedSiteId: "47734",
+      expectedMode: "social",
+      campaignUrl: "https://app.mokahr.com/social-recruitment/shiweiya/47734",
+      allowedEntryRedirect: {
+        origin: "https://app.mokahr.com",
+        pathname: "/social-recruitment/shiweiya/47734"
       },
-      fields: {
-        officialTitle: { selector: ".jobTitle-link" },
-        officialUrl: { selector: ".jobTitle-link", attribute: "href" },
-        locationRaw: { selector: ".colLocation" }
-      }
+      hydrateMissingLocationsFromDetail: true
     }
   },
   "source-kelun-biotech-social": {
@@ -1389,7 +1400,8 @@ function buildPlans(
               ...(config.officialJsonFetch ? { officialJsonFetch: config.officialJsonFetch } : {}),
               ...(config.workday ? { workday: config.workday } : {}),
               ...(config.hotjob ? { hotjob: config.hotjob } : {}),
-              ...(config.hotjobLegacy ? { hotjobLegacy: config.hotjobLegacy } : {})
+              ...(config.hotjobLegacy ? { hotjobLegacy: config.hotjobLegacy } : {}),
+              ...(config.moka ? { moka: config.moka } : {})
             }
           : {
               adapterId: "html-table",
