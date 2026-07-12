@@ -1,42 +1,18 @@
 {
   "schemaVersion": "phase4-code-candidate-v1",
   "planId": "docs/superpowers/plans/2026-07-10-p0-recovery-and-release-evidence.md",
-  "baseHead": "f03edca8f22035e0eff08a64ae59da797e081f17",
+  "baseHead": "10c05d8e6971df42b70c858485ad4354772a7e84",
   "entries": [
     {
-      "path": ".dockerignore",
-      "sha256": "4699f86d51cdef29d8efa71a397d8ac741f81097b19cd8af3f1a3b05a0344fde",
-      "bytes": 114,
-      "role": "runtime"
-    },
-    {
       "path": "Dockerfile",
-      "sha256": "b7a8ef056458b9a5d132f65c423fe53b2dec9bee61f10c14fadb6ecea7e8788a",
-      "bytes": 1876,
+      "sha256": "fe403978de0074faf9ce8fb06bce5e7377ac8d308980c40493e7e5ca92f9420b",
+      "bytes": 2095,
       "role": "runtime"
     },
     {
-      "path": "src/readiness/buildIdentity.ts",
-      "sha256": "a7df4228684abdd1aaa56b748c40fb3e88b757fa02312f327cf4c306cf209cb1",
-      "bytes": 4850,
-      "role": "runtime"
-    },
-    {
-      "path": "src/readiness/dockerBuildProvenance.ts",
-      "sha256": "d7655fb206d3e3374786affcd043854dde2d6dd3cf2595badbea3991d2123ab7",
-      "bytes": 9434,
-      "role": "runtime"
-    },
-    {
-      "path": "tests/readiness/currentReleaseIdentity.test.ts",
-      "sha256": "8698b031d4d575ffff32ca927b3a61cd109d99dc6a1657f2fd750816ead6b267",
-      "bytes": 5403,
-      "role": "test"
-    },
-    {
-      "path": "tests/readiness/dockerBuildProvenance.test.ts",
-      "sha256": "459e96cb3885ff641d2ea32eb63d34039bfa64733a63d4f6cd3f5264b1e34986",
-      "bytes": 11058,
+      "path": "tests/readiness/prismaOfflineEngines.test.ts",
+      "sha256": "0aaed4056ba3f20f5c597ff059849b17f7f362ed387c669d5d3951530d244c9b",
+      "bytes": 1382,
       "role": "test"
     }
   ]
