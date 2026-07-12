@@ -180,6 +180,11 @@ export function App({ dataProvider = createDemoAppDataProvider() }: AppProps) {
 
   const [document, setDocument] = useState<StaticDocumentResult | null>(null);
   const [documentLoading, setDocumentLoading] = useState<"privacy" | "terms" | null>(null);
+  const [privacyFormOpen, setPrivacyFormOpen] = useState(false);
+  const [privacyType, setPrivacyType] = useState<"PRIVACY_EXPORT" | "PRIVACY_DELETE">("PRIVACY_EXPORT");
+  const [privacyContact, setPrivacyContact] = useState("");
+  const [privacyDescription, setPrivacyDescription] = useState("");
+  const [privacyReceipt, setPrivacyReceipt] = useState("");
 
   const visibleCompanies = useMemo(() => {
     if (searchResult === null) {
@@ -218,10 +223,24 @@ export function App({ dataProvider = createDemoAppDataProvider() }: AppProps) {
   }, [activeView, consentState, coverageKeyword, dataProvider]);
 
   async function openDocument(slug: "privacy" | "terms") {
+    setPrivacyFormOpen(false);
+    setPrivacyReceipt("");
     setDocumentLoading(slug);
     const nextDocument = await dataProvider.getDocument(slug);
     setDocument(nextDocument);
     setDocumentLoading(null);
+  }
+
+  async function submitPrivacyRequest() {
+    if (privacyContact.trim() === "" || privacyDescription.trim() === "") return;
+    const receipt = await dataProvider.submitFeedback({
+      issueType: privacyType,
+      contact: privacyContact.trim(),
+      description: privacyDescription.trim()
+    });
+    setPrivacyReceipt(`隐私请求已提交，回执 ${receipt.id}`);
+    setPrivacyContact("");
+    setPrivacyDescription("");
   }
 
   function closeConsent() {
@@ -804,6 +823,34 @@ export function App({ dataProvider = createDemoAppDataProvider() }: AppProps) {
             <div className="document-body">
               {documentLoading !== null ? documentLoading : document?.body}
             </div>
+            {document?.slug === "privacy" ? (
+              <div className="recommendation-form">
+                <button className="secondary-button" onClick={() => setPrivacyFormOpen((value) => !value)} type="button">
+                  提交数据导出/删除请求
+                </button>
+                {privacyFormOpen ? (
+                  <>
+                    <label className="form-field">
+                      <span>请求类型</span>
+                      <select aria-label="隐私请求类型" value={privacyType} onChange={(event) => setPrivacyType(event.target.value as typeof privacyType)}>
+                        <option value="PRIVACY_EXPORT">导出</option>
+                        <option value="PRIVACY_DELETE">删除</option>
+                      </select>
+                    </label>
+                    <label className="form-field">
+                      <span>联系方式</span>
+                      <input aria-label="隐私请求联系方式" value={privacyContact} onChange={(event) => setPrivacyContact(event.target.value)} />
+                    </label>
+                    <label className="form-field">
+                      <span>说明</span>
+                      <textarea aria-label="隐私请求说明" value={privacyDescription} onChange={(event) => setPrivacyDescription(event.target.value)} />
+                    </label>
+                    <button className="primary-button" onClick={() => void submitPrivacyRequest()} type="button">提交隐私请求</button>
+                    {privacyReceipt ? <p>{privacyReceipt}</p> : null}
+                  </>
+                ) : null}
+              </div>
+            ) : null}
           </section>
         </div>
       ) : null}

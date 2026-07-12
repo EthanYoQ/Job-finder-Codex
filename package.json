@@ -31,6 +31,7 @@
     "phase4:scan-staged": "tsx scripts/scan-phase4-candidate.ts --staged",
     "phase4:audit-evidence": "tsx scripts/audit-phase4-curated-evidence.ts --filesystem",
     "phase4:audit-staged-evidence": "tsx scripts/audit-phase4-curated-evidence.ts --staged",
+    "privacy:retention": "tsx scripts/run-privacy-retention.ts",
     "verify:clean-no-outputs": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/verify-clean-no-outputs.ps1"
   },
   "dependencies": {

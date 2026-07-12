@@ -175,6 +175,28 @@ describe("admin API", () => {
     }), { db, now: () => new Date("2026-07-08T12:00:00.000Z") });
     expect(response).toMatchObject({ status: 422, body: { error: "NOT_EXECUTABLE" } });
   });
+
+  it("processes a verified privacy export through the authenticated admin API", async () => {
+    const db = createDb();
+    const tx = {
+      feedback: {
+        findUnique: vi.fn(async () => ({ id: "privacy-1", issueType: "PRIVACY_EXPORT", contact: "user@example.cn" })),
+        findMany: vi.fn(async () => [{
+          id: "privacy-1", issueType: "PRIVACY_EXPORT", description: "export", status: "OPEN",
+          createdAt: new Date("2026-07-08T00:00:00Z"), closedAt: null, companyId: null, jobId: null
+        }]),
+        updateMany: vi.fn()
+      },
+      adminAuditEvent: { create: vi.fn(async () => ({})) }
+    };
+    Object.assign(db, { $transaction: async (callback: (value: typeof tx) => unknown) => callback(tx) });
+    const response = await handleAdminApi(request("/admin/api/privacy-process", {
+      method: "POST",
+      body: { requestId: "privacy-1", action: "EXPORT", verifiedContact: "user@example.cn" }
+    }), { db: db as never, now: () => new Date("2026-07-08T12:00:00Z") });
+    expect(response).toMatchObject({ status: 200, body: { action: "EXPORT", requestId: "privacy-1" } });
+    expect(tx.adminAuditEvent.create).toHaveBeenCalled();
+  });
 });
 
 function manualCrawlTx(options: { createError?: unknown; sourceStatus?: string } = {}) {

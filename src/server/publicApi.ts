@@ -55,8 +55,14 @@ const ApiPaginationSchema = z
 const FeedbackInputSchema = z.object({
   issueType: z.string().trim().min(1),
   description: z.string().trim().min(1),
+  contact: z.string().trim().min(1).optional(),
   companyId: z.string().trim().min(1).optional(),
   jobId: z.string().trim().min(1).optional()
+}).superRefine((value, context) => {
+  const privacy = value.issueType === "PRIVACY_EXPORT" || value.issueType === "PRIVACY_DELETE";
+  if (privacy && (!value.contact || value.companyId !== undefined || value.jobId !== undefined)) {
+    context.addIssue({ code: z.ZodIssueCode.custom, message: "invalid privacy request" });
+  }
 });
 
 const RecommendedCompanyInputSchema = z.object({
@@ -95,8 +101,10 @@ export async function handlePublicApi(request: PublicApiRequest, deps: PublicApi
 
   if (request.path.startsWith("/api/")) {
     const consent = request.headers["x-job-search-consent"];
+    const isPrivacyFeedback = request.path === "/api/feedback" && request.method === "POST" &&
+      isPrivacyIssueType(request.body);
 
-    if (consent !== "accepted") {
+    if (consent !== "accepted" && !isPrivacyFeedback) {
       return {
         status: 403,
         headers,
@@ -299,9 +307,15 @@ function normalizeFeedbackInput(body: unknown) {
       issueType: parsed.data.issueType,
       description: parsed.data.description,
       ...(parsed.data.companyId === undefined ? {} : { companyId: parsed.data.companyId }),
-      ...(parsed.data.jobId === undefined ? {} : { jobId: parsed.data.jobId })
+      ...(parsed.data.jobId === undefined ? {} : { jobId: parsed.data.jobId }),
+      ...(parsed.data.contact === undefined ? {} : { contact: parsed.data.contact })
     }
   };
+}
+
+function isPrivacyIssueType(body: unknown): boolean {
+  if (typeof body !== "object" || body === null || !("issueType" in body)) return false;
+  return body.issueType === "PRIVACY_EXPORT" || body.issueType === "PRIVACY_DELETE";
 }
 
 function normalizeRecommendedCompanyInput(body: unknown) {

@@ -125,14 +125,14 @@ describe("admin operations", () => {
     const result = await reviewRecommendedCompany(
       { recommendationId: "recommendation-1", status: "CLOSED", note: "already tracked" },
       adminContext,
-      { db }
+      { db, now: () => new Date("2026-07-08T12:00:00.000Z") }
     );
 
     expect(result).toEqual({ id: "recommendation-1", status: "CLOSED" });
     expect(recommendedCompanyUpdates).toEqual([
       {
         where: { id: "recommendation-1" },
-        data: { status: "CLOSED" }
+        data: { status: "CLOSED", closedAt: new Date("2026-07-08T12:00:00.000Z") }
       }
     ]);
     expect(auditCreates).toEqual([

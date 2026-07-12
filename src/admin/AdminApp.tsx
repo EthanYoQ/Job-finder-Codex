@@ -158,6 +158,7 @@ export function AdminApp({
                   <div>{feedback.jobTitle}</div>
                   <div>{feedback.issueType}</div>
                   <div>{feedback.description}</div>
+                  {feedback.contact ? <div>{feedback.contact}</div> : null}
                   <button
                     onClick={() => void onReviewFeedback({ feedbackId: feedback.id, status: "REVIEWED" })}
                     type="button"

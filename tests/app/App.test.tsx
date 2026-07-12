@@ -195,6 +195,25 @@ describe("App product flows", () => {
     expect(recording.searchJobs).not.toHaveBeenCalled();
   });
 
+  it("submits a privacy request before consent without loading jobs", async () => {
+    const user = userEvent.setup();
+    const recording = createRecordingProvider();
+    render(<App dataProvider={recording.provider} />);
+
+    await user.click(screen.getByRole("link", { name: "隐私政策" }));
+    await user.click(await screen.findByRole("button", { name: "提交数据导出/删除请求" }));
+    await user.selectOptions(screen.getByLabelText("隐私请求类型"), "PRIVACY_EXPORT");
+    await user.type(screen.getByLabelText("隐私请求联系方式"), "user@example.cn");
+    await user.type(screen.getByLabelText("隐私请求说明"), "请导出我的反馈记录");
+    await user.click(screen.getByRole("button", { name: "提交隐私请求" }));
+
+    expect(recording.submitFeedback).toHaveBeenCalledWith({
+      issueType: "PRIVACY_EXPORT", contact: "user@example.cn", description: "请导出我的反馈记录"
+    });
+    expect(recording.searchJobs).not.toHaveBeenCalled();
+    expect(await screen.findByText(/回执/)).toBeInTheDocument();
+  });
+
   it("passes current UI filters to the provider when searching", async () => {
     const user = userEvent.setup();
     const recording = createRecordingProvider();

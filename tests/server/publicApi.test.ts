@@ -2,6 +2,37 @@ import { describe, expect, it, vi } from "vitest";
 import { handlePublicApi } from "../../src/server/publicApi";
 
 describe("public API route policy", () => {
+  it("accepts a valid privacy request without consent and persists its contact", async () => {
+    const create = vi.fn(async () => ({ id: "privacy-1" }));
+    const response = await handlePublicApi({
+      method: "POST", path: "/api/feedback", query: {}, headers: {},
+      body: { issueType: "PRIVACY_EXPORT", contact: "user@example.cn", description: "请导出我的反馈" },
+      ip: "1.2.3.4"
+    }, {
+      db: { feedback: { create }, recommendedCompany: { create: vi.fn() } } as never,
+      checkDatabaseReadiness: async () => true
+    });
+    expect(response).toMatchObject({ status: 201, body: { id: "privacy-1", status: "OPEN" } });
+    expect(create).toHaveBeenCalledWith({ data: expect.objectContaining({
+      issueType: "PRIVACY_EXPORT", contact: "user@example.cn"
+    }) });
+  });
+
+  it.each([
+    { issueType: "PRIVACY_EXPORT", description: "missing contact" },
+    { issueType: "PRIVACY_DELETE", contact: "user@example.cn", description: "x", companyId: "company-1" }
+  ])("rejects invalid privacy request input without loading jobs", async (body) => {
+    const create = vi.fn();
+    const response = await handlePublicApi({
+      method: "POST", path: "/api/feedback", query: {}, headers: {}, body, ip: "1.2.3.4"
+    }, {
+      db: { feedback: { create }, recommendedCompany: { create: vi.fn() } } as never,
+      checkDatabaseReadiness: async () => true
+    });
+    expect(response.status).toBe(400);
+    expect(create).not.toHaveBeenCalled();
+  });
+
   it("serves privacy before consent without loading job or coverage data", async () => {
     const findJobs = vi.fn();
     const findCompanies = vi.fn();

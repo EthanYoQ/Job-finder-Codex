@@ -119,4 +119,16 @@ describe("buildAdminDashboardModel", () => {
     expect("rawJobRows" in model).toBe(false);
     expect("bulkExport" in model).toBe(false);
   });
+
+  it("shows the contact and request type needed to process a privacy request", () => {
+    const model = buildAdminDashboardModel({
+      sourceHealth: [], recommendationQueue: [], categoryCorrectionQueue: [],
+      feedbackQueue: [{
+        id: "privacy-1", companyName: "未关联公司", jobTitle: "未关联职位",
+        issueType: "PRIVACY_DELETE", description: "delete", contact: "user@example.cn",
+        status: "OPEN", createdAt: new Date("2026-07-13T00:00:00Z")
+      }]
+    });
+    expect(model.feedbackQueue[0]).toMatchObject({ issueType: "PRIVACY_DELETE", contact: "user@example.cn" });
+  });
 });

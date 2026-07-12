@@ -17,6 +17,7 @@ import {
 import { buildAdminDashboardModel } from "../admin/adminViewModel";
 import { JOB_CATEGORIES, type JobCategory } from "../domain/search";
 import { ManualCrawlRequestRepositoryError } from "../db/manualCrawlRequestRepository";
+import { processPrivacyRequest, type PrivacyOperationsDb } from "../admin/privacyOperations";
 
 export interface AdminApiRequest {
   method: string;
@@ -51,6 +52,7 @@ type AdminApiDb = AdminAuthDb &
           createdAt: Date;
           companyId: string | null;
           jobId: string | null;
+          contact?: string | null;
         }>
       >;
     };
@@ -120,6 +122,12 @@ const CategoryCorrectionSchema = z.object({
   category: z.enum(JOB_CATEGORIES),
   secondaryCategory: z.enum(JOB_CATEGORIES).optional(),
   reason: z.string().trim().min(1)
+});
+
+const PrivacyProcessSchema = z.object({
+  requestId: z.string().trim().min(1),
+  action: z.enum(["EXPORT", "DELETE"]),
+  verifiedContact: z.string().min(1)
 });
 
 export async function handleAdminApi(request: AdminApiRequest, deps: AdminApiDeps): Promise<AdminApiResponse> {
@@ -212,7 +220,7 @@ export async function handleAdminApi(request: AdminApiRequest, deps: AdminApiDep
     return {
       status: 200,
       headers,
-      body: await reviewFeedback(parsed.data, operationContext, { db: deps.db })
+      body: await reviewFeedback(parsed.data, operationContext, { db: deps.db, ...(deps.now === undefined ? {} : { now: deps.now }) })
     };
   }
 
@@ -222,8 +230,24 @@ export async function handleAdminApi(request: AdminApiRequest, deps: AdminApiDep
     return {
       status: 200,
       headers,
-      body: await reviewRecommendedCompany(parsed.data, operationContext, { db: deps.db })
+      body: await reviewRecommendedCompany(parsed.data, operationContext, { db: deps.db, ...(deps.now === undefined ? {} : { now: deps.now }) })
     };
+  }
+
+  if (request.path === "/admin/api/privacy-process" && request.method === "POST") {
+    const parsed = PrivacyProcessSchema.safeParse(request.body);
+    if (!parsed.success) return badRequest(headers);
+    try {
+      return { status: 200, headers, body: await processPrivacyRequest(parsed.data, operationContext, {
+        db: deps.db as unknown as PrivacyOperationsDb,
+        ...(deps.now === undefined ? {} : { now: deps.now })
+      }) };
+    } catch (error) {
+      if (error instanceof Error && error.message === "PRIVACY_REQUEST_VERIFICATION_FAILED") {
+        return { status: 403, headers, body: { error: error.message } };
+      }
+      throw error;
+    }
   }
 
   if (request.path === "/admin/api/category-correction" && request.method === "POST") {
@@ -296,6 +320,7 @@ async function listFeedbackQueue(db: AdminApiDb) {
     jobTitle: row.jobId ?? "未关联职位",
     issueType: row.issueType,
     description: row.description,
+    contact: row.contact ?? null,
     status: row.status,
     createdAt: row.createdAt
   }));

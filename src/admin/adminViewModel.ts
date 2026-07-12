@@ -22,6 +22,7 @@ export type AdminDashboardInput = {
     jobTitle: string;
     issueType: string;
     description: string;
+    contact?: string | null;
     status: string;
     createdAt: Date;
   }>;
@@ -60,6 +61,7 @@ export type AdminDashboardModel = {
     jobTitle: string;
     issueType: string;
     description: string;
+    contact?: string | null;
     status: string;
     createdAt: string;
   }>;
@@ -117,6 +119,7 @@ export function buildAdminDashboardModel(input: AdminDashboardInput): AdminDashb
       jobTitle: item.jobTitle,
       issueType: item.issueType,
       description: item.description,
+      ...(item.contact === undefined ? {} : { contact: item.contact }),
       status: item.status,
       createdAt: item.createdAt.toISOString()
     })),

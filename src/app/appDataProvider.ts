@@ -56,6 +56,7 @@ export interface CoverageResult {
 export interface FeedbackRequest {
   issueType: string;
   description: string;
+  contact?: string;
   companyId?: string;
   jobId?: string;
 }

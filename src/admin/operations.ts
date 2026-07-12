@@ -86,13 +86,13 @@ export type AdminOperationsDb = {
   feedback: {
     update(args: {
       where: { id: string };
-      data: { status: FeedbackReviewStatus };
+      data: { status: FeedbackReviewStatus; closedAt?: Date };
     }): Promise<FeedbackRecord>;
   };
   recommendedCompany: {
     update(args: {
       where: { id: string };
-      data: { status: RecommendationReviewStatus };
+      data: { status: RecommendationReviewStatus; closedAt?: Date };
     }): Promise<RecommendedCompanyRecord>;
   };
   job: {
@@ -164,9 +164,10 @@ export async function reviewFeedback(
   deps: AdminOperationsDeps
 ): Promise<FeedbackRecord> {
   const status = assertReviewStatus(input.status, "feedback");
+  const closedAt = status === "CLOSED" ? (deps.now?.() ?? new Date()) : undefined;
   const feedback = await deps.db.feedback.update({
     where: { id: input.feedbackId },
-    data: { status }
+    data: { status, ...(closedAt === undefined ? {} : { closedAt }) }
   });
 
   await writeAuditEvent(context, deps.db, {
@@ -189,9 +190,10 @@ export async function reviewRecommendedCompany(
   deps: AdminOperationsDeps
 ): Promise<RecommendedCompanyRecord> {
   const status = assertReviewStatus(input.status, "recommended company");
+  const closedAt = status === "CLOSED" ? (deps.now?.() ?? new Date()) : undefined;
   const recommendation = await deps.db.recommendedCompany.update({
     where: { id: input.recommendationId },
-    data: { status }
+    data: { status, ...(closedAt === undefined ? {} : { closedAt }) }
   });
 
   await writeAuditEvent(context, deps.db, {

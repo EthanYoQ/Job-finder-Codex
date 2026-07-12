@@ -700,6 +700,7 @@ model Feedback {
   userAgent   String
   status      FeedbackStatus @default(OPEN)
   createdAt   DateTime       @default(now())
+  closedAt    DateTime?
 
   @@index([status, createdAt])
 }
@@ -714,6 +715,7 @@ model RecommendedCompany {
   userAgent           String
   status              FeedbackStatus @default(OPEN)
   createdAt           DateTime       @default(now())
+  closedAt            DateTime?
 
   @@index([status, createdAt])
 }

@@ -13,10 +13,10 @@ import {
 } from "../../src/db/emptyDatabaseMigrationVerificationCli";
 
 describe("empty database migration verification CLI contract", () => {
-  it("uses explicit reviewed 13-migration and 20-table allowlists matching the repository", () => {
+  it("uses explicit reviewed 15-migration and 20-table allowlists matching the repository", () => {
     const actualMigrations = readdirSync(resolve(process.cwd(), "prisma", "migrations"), { withFileTypes: true })
       .filter((entry) => entry.isDirectory()).map((entry) => entry.name).sort();
-    expect(REVIEWED_MIGRATION_NAMES).toHaveLength(13);
+    expect(REVIEWED_MIGRATION_NAMES).toHaveLength(15);
     expect([...REVIEWED_MIGRATION_NAMES].sort()).toEqual(actualMigrations);
     expect(REVIEWED_APP_TABLE_NAMES).toHaveLength(20);
     expect(new Set(REVIEWED_APP_TABLE_NAMES).size).toBe(20);
