@@ -183,12 +183,11 @@ function evaluatePaginationEvidenceInternal(
         (present(previousOffset) && present(page.requestedOffset) && page.requestedOffset <= previousOffset)
       )) anomalies[index]!.add("OFFSET_NOT_ADVANCING");
       const pageNumberActive = present(previous.requestedPage) || present(previous.returnedPage);
-      if (pageNumberActive && (!present(page.requestedPage) || !present(page.returnedPage))) {
+      if (pageNumberActive && !present(page.requestedPage)) {
         anomalies[index]!.add("RETURNED_PAGE_MISMATCH");
       }
     }
     if (
-      present(page.requestedPage) !== present(page.returnedPage) ||
       (page.requestedPage !== null && page.requestedPage !== undefined &&
         page.returnedPage !== null && page.returnedPage !== undefined &&
         page.requestedPage !== page.returnedPage) ||

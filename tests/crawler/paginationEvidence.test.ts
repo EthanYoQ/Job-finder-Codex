@@ -290,6 +290,16 @@ describe("shared pagination evidence evaluator", () => {
     expect(() => evaluate(duplicate)).toThrow(/caller anomaly.*canonical/i);
   });
 
+  it("does not invent a returned-page mismatch when the response omits that coordinate", () => {
+    const input = evidence();
+    input.pages[0]!.returnedPage = null;
+    expect(evaluate(input)).toMatchObject({
+      safeCompleteness: true,
+      derivedAnomalyCodes: [],
+      pages: [{ requestedPage: 1, returnedPage: null, anomalyCodes: [] }]
+    });
+  });
+
   it("hashes ID sets independent of order and page traces sensitive to sequence", () => {
     const first = evaluate(evidence());
     const reordered = evidence();
@@ -486,8 +496,7 @@ describe("shared pagination evidence evaluator", () => {
     const incompletePage = evidence();
     addPage(incompletePage, { body: '{"ids":["c"]}' });
     incompletePage.pages[0]!.returnedPage = null;
-    incompletePage.pages[0]!.anomalyCodes = ["RETURNED_PAGE_MISMATCH"];
-    expect(evaluate(incompletePage).derivedAnomalyCodes).toEqual(["RETURNED_PAGE_MISMATCH"]);
+    expect(evaluate(incompletePage).derivedAnomalyCodes).toEqual([]);
   });
 
   it("requires OFFICIAL_TOTAL_PAGES to be present on the referenced artifact page", () => {

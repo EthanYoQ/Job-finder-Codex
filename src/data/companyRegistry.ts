@@ -564,7 +564,7 @@ const CANDIDATE_SEEDS: CandidateSeed[] = [
     status: "VERIFIED_SCRAPABLE",
     atsKind: "BEISEN_ZHIYE",
     officialWebsiteUrl: "https://www.qilu-pharma.com/",
-    socialEntryUrl: "https://qilu-pharma.zhiye.com/social",
+    socialEntryUrl: "https://qilu-pharma.zhiye.com/social/jobs",
     officialChainEvidenceUrl: "https://www.qilu-pharma.com/JobPosting_list.html"
   },
   {
@@ -697,7 +697,7 @@ const CANDIDATE_SEEDS: CandidateSeed[] = [
     status: "VERIFIED_SCRAPABLE",
     atsKind: "BEISEN_ZHIYE",
     officialWebsiteUrl: "https://www.cnhu.com/",
-    socialEntryUrl: "https://xinhecheng1.zhiye.com/Social",
+    socialEntryUrl: "https://xinhecheng1.zhiye.com/Social/jobs",
     officialChainEvidenceUrl: "https://www.cnhu.com/careers/zh-cn"
   },
   {
@@ -847,7 +847,7 @@ const CANDIDATE_SEEDS: CandidateSeed[] = [
     status: "VERIFIED_SCRAPABLE",
     atsKind: "BEISEN_ZHIYE",
     officialWebsiteUrl: "https://www.pharm.com.cn/",
-    socialEntryUrl: "https://tjph.zhiye.com/social",
+    socialEntryUrl: "https://tjph.zhiye.com/social/jobs",
     officialChainEvidenceUrl: "https://www.pharm.com.cn/"
   },
   {

@@ -61,6 +61,7 @@ export type OfficialJsonFetchConfig =
       detailPath?: string;
       displayFields?: string[];
       defaultLocationRaw?: string;
+      geographyScope?: "DOMESTIC_OFFICIAL_TENANT";
     }
   | {
       kind: "cnstaff";
@@ -2080,22 +2081,44 @@ async function fetchBeisenZhiye2022({
     }
 
     const rawJobs = root.Data as unknown[];
-    const rawIds: string[] = [];
+    const rawIds: string[] = rawJobs.map((raw) => {
+      const rawOfficialId = isStrictRecord(raw)
+        ? stringValue(raw.Id) ?? stringValue(raw.JobAdId)
+        : undefined;
+      return irreversibleOfficialJsonEvidenceId(rawOfficialId ?? raw);
+    }).filter((id, index, ids) => ids.indexOf(id) === index);
     const validIds: string[] = [];
     for (let recordIndex = 0; recordIndex < rawJobs.length; recordIndex += 1) {
       const raw = rawJobs[recordIndex];
       counts.rawCount += 1;
-      const rawOfficialId = isStrictRecord(raw)
-        ? stringValue(raw.Id) ?? stringValue(raw.JobAdId)
-        : undefined;
-      const rawEvidenceId = irreversibleOfficialJsonEvidenceId(rawOfficialId ?? raw);
-      if (!rawIds.includes(rawEvidenceId)) rawIds.push(rawEvidenceId);
       const rawLocator = `${artifact.logicalKey}#record:${recordIndex}#${irreversibleOfficialJsonEvidenceId([recordIndex, raw])}`;
       if (!isStrictRecord(raw)) {
         recordBeisenLoss(losses, counts, "PARSE", "NON_OBJECT_RECORD", rawLocator, pageIndex, recordIndex);
         continue;
       }
       counts.parsedCount += 1;
+      const socialMismatch = config.geographyScope === "DOMESTIC_OFFICIAL_TENANT"
+        ? beisenSocialChannelMismatch(raw, category)
+        : undefined;
+      if (socialMismatch) {
+        recordBeisenLoss(losses, counts, "VALIDATION", "SOCIAL_CHANNEL_MISMATCH",
+          rawLocator, pageIndex, recordIndex, socialMismatch);
+        pages.push(beisenPageTrace({
+          artifact,
+          sequence: pageIndex,
+          requestedPage: pageIndex,
+          returnedPage,
+          rawJobIds: rawIds,
+          validJobIds: validIds,
+          ...(pageTotal === undefined ? {} : { declaredTotal: pageTotal }),
+          nextPageSignalBefore: pageIndex === 0 ? null : `page:${pageIndex}`,
+          nextPageSignalAfter: null,
+          termination: "FAILED"
+        }));
+        return beisenFailure(capturedAt, "Beisen Zhiye social channel binding failed",
+          artifacts, pages, counts, losses,
+          beisenDeclaredCompleteness(declaredTotal, declaredArtifactKey, declaredLocator));
+      }
       const officialId = stringValue(raw.Id) ?? stringValue(raw.JobAdId);
       const detailId = stringValue(raw.JobAdId) ?? officialId;
       const title = stringValue(raw.JobAdName);
@@ -2126,7 +2149,7 @@ async function fetchBeisenZhiye2022({
         continue;
       }
       const country = stringValue(raw.Country) ?? stringValue(raw.CountryName);
-      const scope = beisenRecordScope(country, locationRaw);
+      const scope = beisenRecordScope(country, locationRaw, config.geographyScope);
       if (scope !== "CHINA") {
         recordBeisenLoss(losses, counts, "VALIDATION",
           scope === "AMBIGUOUS" ? "AMBIGUOUS_SCOPE" : "OUT_OF_SCOPE",
@@ -2182,10 +2205,8 @@ async function fetchBeisenZhiye2022({
       declaredTotal !== pageTotal;
     const hasNext = !totalChanged && pageTotal !== undefined && cumulativeRaw < pageTotal;
     const atMax = pageIndex === maxPages - 1;
-    const coordinateUnproven = returnedPage === null;
     const intermediateEmpty = rawJobs.length === 0 && hasNext;
-    const termination: SourceFetchPageTrace["termination"] = pageTotal === undefined ||
-      coordinateUnproven || intermediateEmpty
+    const termination: SourceFetchPageTrace["termination"] = pageTotal === undefined || intermediateEmpty
       ? "ABORTED"
       : hasNext
         ? atMax ? "MAX_PAGE_LIMIT" : "CONTINUE"
@@ -2202,7 +2223,7 @@ async function fetchBeisenZhiye2022({
       nextPageSignalAfter: hasNext ? `page:${pageIndex + 1}` : null,
       termination
     }));
-    if (pageTotal === undefined || coordinateUnproven || intermediateEmpty || !hasNext || atMax) break;
+    if (pageTotal === undefined || intermediateEmpty || !hasNext || atMax) break;
   }
 
   const declaredCompleteness = beisenDeclaredCompleteness(
@@ -2226,11 +2247,7 @@ async function fetchBeisenZhiye2022({
   }
   const expectedNoncertifyingNoTotal = declaredTotal === undefined &&
     finalized.evaluation.derivedAnomalyCodes.length === 0;
-  const expectedNoncertifyingMissingReturnedPage = pages.length === 1 &&
-    pages[0]?.returnedPage === null && pages[0]?.termination === "ABORTED" &&
-    finalized.evaluation.derivedAnomalyCodes.every((code) => code === "RETURNED_PAGE_MISMATCH");
-  if (!finalized.evaluation.safeCompleteness && !expectedNoncertifyingNoTotal &&
-    !expectedNoncertifyingMissingReturnedPage) {
+  if (!finalized.evaluation.safeCompleteness && !expectedNoncertifyingNoTotal) {
     return {
       ok: false,
       capturedAt,
@@ -5346,7 +5363,7 @@ function recordBeisenLoss(
   stage: "PARSE" | "VALIDATION",
   code: "NON_OBJECT_RECORD" | "MISSING_REQUIRED_FIELD" | "DECLARED_LOCATION_FALLBACK" |
     "UNSAFE_OFFICIAL_ID" | "DUPLICATE_OFFICIAL_ID" | "DUPLICATE_DETAIL_ID" |
-    "OUT_OF_SCOPE" | "AMBIGUOUS_SCOPE" |
+    "OUT_OF_SCOPE" | "AMBIGUOUS_SCOPE" | "SOCIAL_CHANNEL_MISMATCH" |
     "UNSAFE_OFFICIAL_URL" | "SENSITIVE_OUTPUT",
   rawLocator: string,
   pageSequence: number,
@@ -5365,7 +5382,8 @@ function recordBeisenLoss(
 
 function beisenRecordScope(
   country: string | undefined,
-  locationRaw: string
+  locationRaw: string,
+  geographyScope?: "DOMESTIC_OFFICIAL_TENANT"
 ): "CHINA" | "OUT_OF_SCOPE" | "AMBIGUOUS" {
   const normalizedCountry = country?.normalize("NFKC").trim().toLowerCase();
   const countryChina = normalizedCountry !== undefined &&
@@ -5376,15 +5394,34 @@ function beisenRecordScope(
   const locationChina = explicitlyChina(locationRaw);
   const locationForeign = beisenHasForeignMarker(locationRaw);
   if ((countryChina || locationChina) && (countryForeign || locationForeign)) return "AMBIGUOUS";
+  if (geographyScope === "DOMESTIC_OFFICIAL_TENANT") {
+    if (countryForeign || locationForeign) return "OUT_OF_SCOPE";
+    if (country !== undefined && !countryChina) return "AMBIGUOUS";
+    if (/^(?:remote|unknown|n\/?a|tbd|全球|海外|不限|待定)$/iu.test(locationRaw.normalize("NFKC").trim())) {
+      return "AMBIGUOUS";
+    }
+    return /\p{Script=Han}/u.test(locationRaw) || locationChina ? "CHINA" : "AMBIGUOUS";
+  }
   if (country !== undefined) return countryChina ? "CHINA" : "OUT_OF_SCOPE";
   return locationChina ? "CHINA" : "OUT_OF_SCOPE";
 }
 
 function beisenHasForeignMarker(value: string): boolean {
   const normalized = value.normalize("NFKC").toLowerCase();
-  return /(?:美国|纽约|波士顿|新加坡|日本|东京|印度|德国|法国|加拿大|澳大利亚|英国|伦敦)|\b(?:united states|usa|u\.s\.|boston|new york|singapore|japan|tokyo|india|germany|france|canada|australia|united kingdom|london)\b/u.test(
+  return /(?:香港|澳门|台湾|台北|美国|纽约|波士顿|新加坡|日本|东京|印度|德国|法国|加拿大|澳大利亚|英国|伦敦)|\b(?:hong kong|macao|macau|taiwan|taipei|united states|usa|u\.s\.|boston|new york|singapore|japan|tokyo|india|germany|france|canada|australia|united kingdom|london)\b/u.test(
     normalized
   );
+}
+
+function beisenSocialChannelMismatch(
+  raw: Record<string, unknown>,
+  requestedCategory: string
+): "Category" | "CategoryId" | "Kind" | undefined {
+  if (stringValue(raw.Category) !== "社会招聘") return "Category";
+  if (hasOwn(raw, "CategoryId") && String(raw.CategoryId).trim() !== requestedCategory) return "CategoryId";
+  const kind = stringValue(raw.Kind);
+  if (kind && /(?:校园|校招|实习招聘|campus|internship)/iu.test(kind)) return "Kind";
+  return undefined;
 }
 
 function beisenZhiyeDetailUrl(

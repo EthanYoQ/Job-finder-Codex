@@ -156,9 +156,15 @@ describe("60-company pharma registry", () => {
       officialChainEvidenceUrl: "https://careers.roche.com/cn/zh/china-mainland"
     });
     expect(byId.get("company-tianjin-pharma")?.sources[0]).toMatchObject({
-      officialEntryUrl: "https://tjph.zhiye.com/social",
+      officialEntryUrl: "https://tjph.zhiye.com/social/jobs",
       officialChainEvidenceUrl: "https://www.pharm.com.cn/"
     });
+    expect(byId.get("company-qilu")?.sources[0]?.officialEntryUrl).toBe(
+      "https://qilu-pharma.zhiye.com/social/jobs"
+    );
+    expect(byId.get("company-nhu")?.sources[0]?.officialEntryUrl).toBe(
+      "https://xinhecheng1.zhiye.com/Social/jobs"
+    );
     expect(byId.get("company-xinhua-pharma")?.sources[0]).toMatchObject({
       officialEntryUrl: "https://www.xhzy.com/SHZP/index.html",
       officialChainEvidenceUrl: "https://www.xhzy.com/SHZP/index.html"

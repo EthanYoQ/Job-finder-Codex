@@ -356,7 +356,7 @@ describe("source crawl planning", () => {
       officialChainEvidenceUrl: "https://www.hengrui.com/development/joinUs.html"
     });
     expect(getPlanBySourceId(plans, "source-tianjin-pharma-social")?.source).toMatchObject({
-      officialEntryUrl: "https://tjph.zhiye.com/social",
+      officialEntryUrl: "https://tjph.zhiye.com/social/jobs",
       officialChainEvidenceUrl: "https://www.pharm.com.cn/"
     });
 
@@ -373,7 +373,7 @@ describe("source crawl planning", () => {
       adapterId: "official-json",
       source: {
         atsKind: "BEISEN_ZHIYE",
-        officialEntryUrl: "https://qilu-pharma.zhiye.com/social",
+        officialEntryUrl: "https://qilu-pharma.zhiye.com/social/jobs",
         officialChainEvidenceUrl: "https://www.qilu-pharma.com/JobPosting_list.html"
       },
       officialJsonFetch: {
@@ -435,7 +435,7 @@ describe("source crawl planning", () => {
       adapterId: "official-json",
       source: {
         atsKind: "BEISEN_ZHIYE",
-        officialEntryUrl: "https://xinhecheng1.zhiye.com/Social",
+        officialEntryUrl: "https://xinhecheng1.zhiye.com/Social/jobs",
         officialChainEvidenceUrl: "https://www.cnhu.com/careers/zh-cn"
       },
       officialJsonFetch: {
@@ -587,6 +587,16 @@ describe("source crawl planning", () => {
         detailPath: "Social/detail"
       }
     });
+    for (const candidatePlan of plans) {
+      const config = candidatePlan.adapterId === "official-json"
+        ? candidatePlan.officialJsonFetch
+        : undefined;
+      if (config?.kind === "beisen-zhiye-2022") {
+        expect(config).toMatchObject({
+          geographyScope: "DOMESTIC_OFFICIAL_TENANT"
+        });
+      }
+    }
     expect(getPlanBySourceId(plans, "source-daiichi-sankyo-china-social")).toMatchObject({
       adapterId: "official-json",
       source: {

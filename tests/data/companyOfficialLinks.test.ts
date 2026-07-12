@@ -187,7 +187,7 @@ describe("official-link registry cardinality", () => {
       "https://careers.ucb.com/global/en/search-results?qcountry=China"
     );
     expect(socialSurfaceFor("company-tianjin-pharma")).toMatchObject({
-      officialEntryUrl: "https://tjph.zhiye.com/social",
+      officialEntryUrl: "https://tjph.zhiye.com/social/jobs",
       officialChainEvidenceUrls: ["https://www.pharm.com.cn/"]
     });
     expect(socialSurfaceFor("company-xinhua-pharma")).toMatchObject({

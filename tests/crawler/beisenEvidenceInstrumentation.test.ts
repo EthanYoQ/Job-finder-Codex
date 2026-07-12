@@ -59,7 +59,15 @@ function response(body: unknown, overrides: Partial<OfficialJsonHttpResponse> = 
 }
 
 function job(id: string, location: unknown = ["上海市"]): Record<string, unknown> {
-  return { Id: `guid-${id}`, JobAdId: id, JobAdName: `职位 ${id}`, LocNames: location };
+  return {
+    Id: `guid-${id}`,
+    JobAdId: id,
+    JobAdName: `职位 ${id}`,
+    LocNames: location,
+    Category: "社会招聘",
+    CategoryId: "1",
+    Kind: "全职"
+  };
 }
 
 describe("Beisen Zhiye 2022 evidence instrumentation", () => {
@@ -204,19 +212,88 @@ describe("Beisen Zhiye 2022 evidence instrumentation", () => {
     });
   });
 
-  it("keeps an absent returned-page coordinate ABORTED, manual, and noncertifying", async () => {
+  it("traverses every requested page when modern Beisen omits response PageIndex", async () => {
+    const rows = Array.from({ length: 205 }, (_, index) =>
+      job(String(index + 1), [index % 2 === 0 ? "山东省·临沂市" : "江苏省·连云港市"]));
+    const requests: Array<{ PageIndex: number; PageSize: number; Category: string[] }> = [];
     const result = await createOfficialJsonSourceFetch({
       now: () => new Date(NOW),
-      http: async () => response({ Code: 200, Count: 1, Data: [job("1")] })
-    })(plan());
+      http: async (request) => {
+        const body = JSON.parse(request.body ?? "{}") as { PageIndex: number; PageSize: number; Category: string[] };
+        requests.push(body);
+        const start = body.PageIndex * body.PageSize;
+        return response({ Code: 200, Count: rows.length, Total: rows.length, Data: rows.slice(start, start + body.PageSize) });
+      }
+    })(plan({ pageSize: 100, geographyScope: "DOMESTIC_OFFICIAL_TENANT" }));
+
+    expect(requests).toEqual([
+      expect.objectContaining({ PageIndex: 0, PageSize: 100, Category: ["1"] }),
+      expect.objectContaining({ PageIndex: 1, PageSize: 100, Category: ["1"] }),
+      expect.objectContaining({ PageIndex: 2, PageSize: 100, Category: ["1"] })
+    ]);
     expect(result).toMatchObject({
       ok: true,
-      completeness: { completenessStatus: "NEEDS_MANUAL_COMPLETENESS_REVIEW" },
-      fetchEvidence: { pages: [{ requestedPage: 0, returnedPage: null, termination: "ABORTED" }] },
-      paginationEvaluation: {
-        safeCompleteness: false,
-        verifiedEligible: false,
-        derivedAnomalyCodes: ["RETURNED_PAGE_MISMATCH"]
+      payload: { jobs: expect.arrayContaining([expect.objectContaining({ title: "职位 205" })]) },
+      completeness: { completenessStatus: "NEEDS_MANUAL_COMPLETENESS_REVIEW", expectedJobCount: 205, pagesVisited: 3 },
+      fetchEvidence: {
+        fetchCounts: { rawCount: 205, parsedCount: 205, validCount: 205 },
+        pages: [
+          { requestedPage: 0, returnedPage: null, requestedPageSize: 100, termination: "CONTINUE" },
+          { requestedPage: 1, returnedPage: null, requestedPageSize: 100, termination: "CONTINUE" },
+          { requestedPage: 2, returnedPage: null, requestedPageSize: 100, termination: "NEXT_ABSENT" }
+        ]
+      },
+      paginationEvaluation: { safeCompleteness: true, derivedAnomalyCodes: [] }
+    });
+  });
+
+  it("fails closed when modern Beisen explicitly returns the wrong PageIndex", async () => {
+    const result = await createOfficialJsonSourceFetch({
+      now: () => new Date(NOW),
+      http: async () => response({ Code: 200, Count: 1, PageIndex: 9, Data: [job("1")] })
+    })(plan({ geographyScope: "DOMESTIC_OFFICIAL_TENANT" }));
+    expect(result).toMatchObject({
+      ok: false,
+      fetchEvidence: { pages: [{ requestedPage: 0, returnedPage: 9 }] },
+      paginationEvaluation: { safeCompleteness: false, derivedAnomalyCodes: ["RETURNED_PAGE_MISMATCH"] }
+    });
+  });
+
+  it.each([
+    ["Hong Kong", "OUT_OF_SCOPE"],
+    ["台湾省·台北市", "OUT_OF_SCOPE"],
+    ["Macau", "OUT_OF_SCOPE"],
+    ["Remote", "AMBIGUOUS_SCOPE"],
+    ["", "MISSING_REQUIRED_FIELD"]
+  ])("rejects domestic-tenant foreign or ambiguous geography %s", async (location, code) => {
+    const result = await createOfficialJsonSourceFetch({
+      now: () => new Date(NOW),
+      http: async () => response({ Code: 200, Count: 1, Data: [{ ...job("scope"), LocNames: location ? [location] : [] }] })
+    })(plan({ geographyScope: "DOMESTIC_OFFICIAL_TENANT" }));
+    expect(result).toMatchObject({
+      ok: true,
+      payload: { jobs: [] },
+      fetchEvidence: {
+        fetchCounts: { rawCount: 1, parsedCount: 1, validCount: 0, validationDiscardCount: 1 },
+        fetchLosses: [{ details: { code } }]
+      }
+    });
+  });
+
+  it.each([
+    [{ Category: "校园招聘", CategoryId: "2", Kind: "全职" }],
+    [{ Category: "社会招聘", CategoryId: "2", Kind: "全职" }],
+    [{ Category: "社会招聘", CategoryId: "1", Kind: "实习招聘" }]
+  ])("fails the whole source when a raw record leaks outside the requested social channel", async (override) => {
+    const result = await createOfficialJsonSourceFetch({
+      now: () => new Date(NOW),
+      http: async () => response({ Code: 200, Count: 2, Data: [job("ok"), { ...job("leak"), ...override }] })
+    })(plan({ geographyScope: "DOMESTIC_OFFICIAL_TENANT" }));
+    expect(result).toMatchObject({
+      ok: false,
+      fetchEvidence: {
+        pages: [{ termination: "FAILED" }],
+        fetchLosses: [{ details: { code: "SOCIAL_CHANNEL_MISMATCH", pageSequence: 0, recordIndex: 1 } }]
       }
     });
   });

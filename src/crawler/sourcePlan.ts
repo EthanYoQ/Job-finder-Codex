@@ -286,6 +286,7 @@ const REPRESENTATIVE_CONFIGS: Record<string, RepresentativeSourceConfig> = {
     json: OFFICIAL_API_JSON_CONFIG,
     officialJsonFetch: {
       kind: "beisen-zhiye-2022",
+      geographyScope: "DOMESTIC_OFFICIAL_TENANT",
       category: "1",
       pageSize: 100,
       maxPages: 5,
@@ -537,6 +538,7 @@ const REPRESENTATIVE_CONFIGS: Record<string, RepresentativeSourceConfig> = {
     json: OFFICIAL_API_JSON_CONFIG,
     officialJsonFetch: {
       kind: "beisen-zhiye-2022",
+      geographyScope: "DOMESTIC_OFFICIAL_TENANT",
       category: "1",
       pageSize: 100,
       maxPages: 5,
@@ -548,6 +550,7 @@ const REPRESENTATIVE_CONFIGS: Record<string, RepresentativeSourceConfig> = {
     json: OFFICIAL_API_JSON_CONFIG,
     officialJsonFetch: {
       kind: "beisen-zhiye-2022",
+      geographyScope: "DOMESTIC_OFFICIAL_TENANT",
       category: "1",
       pageSize: 100,
       maxPages: 5,
@@ -560,6 +563,7 @@ const REPRESENTATIVE_CONFIGS: Record<string, RepresentativeSourceConfig> = {
     json: OFFICIAL_API_JSON_CONFIG,
     officialJsonFetch: {
       kind: "beisen-zhiye-2022",
+      geographyScope: "DOMESTIC_OFFICIAL_TENANT",
       category: "1",
       pageSize: 100,
       maxPages: 5,
@@ -571,6 +575,7 @@ const REPRESENTATIVE_CONFIGS: Record<string, RepresentativeSourceConfig> = {
     json: OFFICIAL_API_JSON_CONFIG,
     officialJsonFetch: {
       kind: "beisen-zhiye-2022",
+      geographyScope: "DOMESTIC_OFFICIAL_TENANT",
       category: "1",
       pageSize: 100,
       maxPages: 5,
@@ -582,6 +587,7 @@ const REPRESENTATIVE_CONFIGS: Record<string, RepresentativeSourceConfig> = {
     json: OFFICIAL_API_JSON_CONFIG,
     officialJsonFetch: {
       kind: "beisen-zhiye-2022",
+      geographyScope: "DOMESTIC_OFFICIAL_TENANT",
       category: "1",
       pageSize: 100,
       maxPages: 5,
@@ -593,6 +599,7 @@ const REPRESENTATIVE_CONFIGS: Record<string, RepresentativeSourceConfig> = {
     json: OFFICIAL_API_JSON_CONFIG,
     officialJsonFetch: {
       kind: "beisen-zhiye-2022",
+      geographyScope: "DOMESTIC_OFFICIAL_TENANT",
       category: "1",
       pageSize: 100,
       maxPages: 5,
@@ -604,6 +611,7 @@ const REPRESENTATIVE_CONFIGS: Record<string, RepresentativeSourceConfig> = {
     json: OFFICIAL_API_JSON_CONFIG,
     officialJsonFetch: {
       kind: "beisen-zhiye-2022",
+      geographyScope: "DOMESTIC_OFFICIAL_TENANT",
       category: "1",
       pageSize: 100,
       maxPages: 5,
@@ -623,6 +631,7 @@ const REPRESENTATIVE_CONFIGS: Record<string, RepresentativeSourceConfig> = {
     json: OFFICIAL_API_JSON_CONFIG,
     officialJsonFetch: {
       kind: "beisen-zhiye-2022",
+      geographyScope: "DOMESTIC_OFFICIAL_TENANT",
       category: "1",
       pageSize: 100,
       maxPages: 5,
@@ -634,6 +643,7 @@ const REPRESENTATIVE_CONFIGS: Record<string, RepresentativeSourceConfig> = {
     json: OFFICIAL_API_JSON_CONFIG,
     officialJsonFetch: {
       kind: "beisen-zhiye-2022",
+      geographyScope: "DOMESTIC_OFFICIAL_TENANT",
       category: "1",
       pageSize: 100,
       maxPages: 5,
@@ -645,6 +655,7 @@ const REPRESENTATIVE_CONFIGS: Record<string, RepresentativeSourceConfig> = {
     json: OFFICIAL_API_JSON_CONFIG,
     officialJsonFetch: {
       kind: "beisen-zhiye-2022",
+      geographyScope: "DOMESTIC_OFFICIAL_TENANT",
       category: "1",
       pageSize: 100,
       maxPages: 5,
@@ -656,6 +667,7 @@ const REPRESENTATIVE_CONFIGS: Record<string, RepresentativeSourceConfig> = {
     json: OFFICIAL_API_JSON_CONFIG,
     officialJsonFetch: {
       kind: "beisen-zhiye-2022",
+      geographyScope: "DOMESTIC_OFFICIAL_TENANT",
       category: "1",
       pageSize: 100,
       maxPages: 10,
@@ -803,6 +815,7 @@ const REPRESENTATIVE_CONFIGS: Record<string, RepresentativeSourceConfig> = {
     json: OFFICIAL_API_JSON_CONFIG,
     officialJsonFetch: {
       kind: "beisen-zhiye-2022",
+      geographyScope: "DOMESTIC_OFFICIAL_TENANT",
       category: "1",
       pageSize: 100,
       maxPages: 5,
@@ -814,6 +827,7 @@ const REPRESENTATIVE_CONFIGS: Record<string, RepresentativeSourceConfig> = {
     json: OFFICIAL_API_JSON_CONFIG,
     officialJsonFetch: {
       kind: "beisen-zhiye-2022",
+      geographyScope: "DOMESTIC_OFFICIAL_TENANT",
       category: "1",
       pageSize: 100,
       maxPages: 5,
@@ -888,6 +902,7 @@ const REPRESENTATIVE_CONFIGS: Record<string, RepresentativeSourceConfig> = {
     json: OFFICIAL_API_JSON_CONFIG,
     officialJsonFetch: {
       kind: "beisen-zhiye-2022",
+      geographyScope: "DOMESTIC_OFFICIAL_TENANT",
       category: "1",
       pageSize: 100,
       maxPages: 5,
@@ -1270,6 +1285,7 @@ const REPRESENTATIVE_CONFIGS: Record<string, RepresentativeSourceConfig> = {
     json: OFFICIAL_API_JSON_CONFIG,
     officialJsonFetch: {
       kind: "beisen-zhiye-2022",
+      geographyScope: "DOMESTIC_OFFICIAL_TENANT",
       category: "1",
       pageSize: 100,
       maxPages: 5,
@@ -1293,6 +1309,7 @@ const REPRESENTATIVE_CONFIGS: Record<string, RepresentativeSourceConfig> = {
     json: OFFICIAL_API_JSON_CONFIG,
     officialJsonFetch: {
       kind: "beisen-zhiye-2022",
+      geographyScope: "DOMESTIC_OFFICIAL_TENANT",
       category: "1",
       pageSize: 100,
       maxPages: 5,
