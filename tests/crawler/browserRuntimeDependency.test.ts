@@ -35,7 +35,7 @@ describe("browser-backed crawler runtime dependencies", () => {
 
   it("binds browser state directories to the writable tmpfs used by the hardened runtime", () => {
     const dockerfile = readFileSync("Dockerfile", "utf8");
-    const runtimeStage = dockerfile.split(/^FROM node:22-bookworm-slim AS runtime$/mu)[1];
+    const runtimeStage = dockerfile.split(/^FROM node:22-bookworm-slim(?:@sha256:[a-f0-9]{64})? AS runtime$/mu)[1];
 
     expect(runtimeStage).toBeDefined();
     expect(runtimeStage).toMatch(/^ENV HOME=\/tmp$/mu);

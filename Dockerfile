@@ -1,4 +1,6 @@
-FROM node:22-bookworm-slim AS deps
+FROM postgres:16-bookworm@sha256:da788743d2060767375896de4d646f7576f5911461444b372616f19ea61db2ec AS pg16-client
+
+FROM node:22-bookworm-slim@sha256:53ada149d435c38b14476cb57e4a7da73c15595aba79bd6971b547ceb6d018bf AS deps
 WORKDIR /app
 COPY package.json ./package.json
 COPY package-lock.json ./package-lock.json
@@ -26,14 +28,32 @@ COPY ops ./ops
 RUN npm run build
 RUN npx tsx scripts/generate-build-identity.ts --commit=${BUILD_COMMIT_SHA} --clean-provenance=${BUILD_SOURCE_CLEAN} --source-tree-sha256=${BUILD_SOURCE_TREE_SHA256}
 
-FROM node:22-bookworm-slim AS runtime
+FROM node:22-bookworm-slim@sha256:53ada149d435c38b14476cb57e4a7da73c15595aba79bd6971b547ceb6d018bf AS runtime
 WORKDIR /app
 ENV NODE_ENV=production
 ENV HOME=/tmp
 ENV XDG_CONFIG_HOME=/tmp/.config
 ENV XDG_CACHE_HOME=/tmp/.cache
-RUN apt-get update && apt-get install -y --no-install-recommends postgresql-client chromium \
+ENV PATH=/usr/local/lib/postgresql/16/bin:${PATH}
+RUN apt-get update && apt-get install -y --no-install-recommends chromium libpq5 libreadline8 util-linux \
   && rm -rf /var/lib/apt/lists/*
+COPY --from=pg16-client /usr/lib/postgresql/16/bin/pg_dump /usr/local/lib/postgresql/16/bin/pg_dump
+COPY --from=pg16-client /usr/lib/postgresql/16/bin/pg_restore /usr/local/lib/postgresql/16/bin/pg_restore
+COPY --from=pg16-client /usr/lib/postgresql/16/bin/psql /usr/local/lib/postgresql/16/bin/psql
+RUN test "$(command -v pg_dump)" = "/usr/local/lib/postgresql/16/bin/pg_dump" \
+  && test "$(command -v pg_restore)" = "/usr/local/lib/postgresql/16/bin/pg_restore" \
+  && test "$(command -v psql)" = "/usr/local/lib/postgresql/16/bin/psql" \
+  && test "$(command -v flock)" = "/usr/bin/flock" \
+  && pg_dump --version | grep -E '^pg_dump \(PostgreSQL\) 16\.14([ .]|$)' \
+  && pg_restore --version | grep -E '^pg_restore \(PostgreSQL\) 16\.14([ .]|$)' \
+  && psql --version | grep -E '^psql \(PostgreSQL\) 16\.14([ .]|$)' \
+  && flock --version | grep -E '^flock from util-linux [0-9]' \
+  && flock -n /tmp/flock-build-probe true \
+  && ldd -r /usr/local/lib/postgresql/16/bin/pg_dump > /tmp/pg_dump.ldd 2>&1 \
+  && ldd -r /usr/local/lib/postgresql/16/bin/pg_restore > /tmp/pg_restore.ldd 2>&1 \
+  && ldd -r /usr/local/lib/postgresql/16/bin/psql > /tmp/psql.ldd 2>&1 \
+  && ! grep -E 'not found|undefined symbol' /tmp/pg_dump.ldd /tmp/pg_restore.ldd /tmp/psql.ldd \
+  && rm -f /tmp/flock-build-probe /tmp/pg_dump.ldd /tmp/pg_restore.ldd /tmp/psql.ldd
 COPY package.json ./package.json
 COPY package-lock.json ./package-lock.json
 COPY --from=deps /app/node_modules ./node_modules
