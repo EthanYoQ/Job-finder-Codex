@@ -6,7 +6,10 @@ import {
   type StrictReadinessBatch
 } from "./strictPersistedReadiness";
 import { getP0DataQualityReport } from "./dataQuality";
-import { isUserAuthorizedPhase1Exclusion } from "../data/phase1ScopePolicy";
+import {
+  AUTHORIZED_PHASE1_EXCLUSION_COMPANY_IDS,
+  isUserAuthorizedPhase1Exclusion
+} from "../data/phase1ScopePolicy";
 
 export interface StrictPrismaReadinessDb {
   crawlBatch: { findMany(args: Record<string, unknown>): Promise<StrictPrismaBatchRow[]> };
@@ -41,6 +44,12 @@ interface StrictPrismaBatchRow extends Omit<StrictReadinessBatch, "sourceResults
 
 export async function getStrictP0ReadinessReportFromDb(db: StrictPrismaReadinessDb,
   expected: StrictReadinessExpectation): Promise<P0ReadinessReport> {
+  const excludedAudit = expected.companyAudits.find((audit) =>
+    isUserAuthorizedPhase1Exclusion(audit.companyId)
+  );
+  if (excludedAudit) {
+    throw new Error(`Authorized Phase 1 exclusion must not appear in strict company audits: ${excludedAudit.companyId}`);
+  }
   const rc = await db.releaseCandidate.findUnique({ where: { id: expected.releaseCandidateId }, select: {
     id:true,status:true,commitSha:true,rosterHash:true,sourcePlanHash:true,sourceConfigHash:true,adapterBundleHash:true,sourceTreeHash:true,runtimeTreeHash:true } });
   if (!rc || !["READY_FOR_QA", "RELEASED"].includes(rc.status)) throw new Error("Release candidate is not release eligible");
@@ -136,11 +145,12 @@ export async function getStrictP0ReadinessReportFromDb(db: StrictPrismaReadiness
     if(observations.length===2&&observations.every(observation=>observation.successful&&observation.completenessStatus==="VERIFIED"&&
       ((observation.structuredJobCount===0&&observation.expectedJobCount===0)||requiredFields.every(field=>(observation.stableRequiredFields as readonly string[]).includes(field)))))evidencedSourceIds.add(sourceId);}
   const blockers=evidencedSourceIds.size===expectedSourceIds.length&&quality.canPass?[]:[{code:"OFFICIAL_LINK_DENOMINATOR_INCOMPLETE" as const,message:`Strict readiness requires observation and data-quality evidence for every planned official-link source; evidenced ${evidencedSourceIds.size} of ${expectedSourceIds.length}; data-quality issues ${quality.issueCount}.`}];
-  return {totalCandidates:expected.companyAudits.length,
+  const authorizedExclusionCompanies=AUTHORIZED_PHASE1_EXCLUSION_COMPANY_IDS.length;
+  return {totalCandidates:expected.companyAudits.length+authorizedExclusionCompanies,
     foreignPharmaCompanies:expected.companyAudits.filter(audit=>audit.category==="FOREIGN_PHARMA").length,
-    domesticPharmaCompanies:expected.companyAudits.filter(audit=>audit.category==="DOMESTIC_PHARMA").length,
-    phase1InScopeCompanies:expected.companyAudits.filter(audit=>!isUserAuthorizedPhase1Exclusion(audit.companyId)).length,
-    authorizedExclusionCompanies:expected.companyAudits.filter(audit=>isUserAuthorizedPhase1Exclusion(audit.companyId)).length,
+    domesticPharmaCompanies:expected.companyAudits.filter(audit=>audit.category==="DOMESTIC_PHARMA").length+authorizedExclusionCompanies,
+    phase1InScopeCompanies:expected.companyAudits.length,
+    authorizedExclusionCompanies,
     requiredOfficialLinkSources:expectedSourceIds.length,plannedOfficialLinkSources:expected.plannedSourceIds.length,
     crawlEvidencedOfficialLinkSources:evidencedSourceIds.size,
     noPublicOfficialCareersLinkCompanies:expected.companyAudits.filter(audit=>audit.status==="NO_PUBLIC_OFFICIAL_CAREERS_LINK_AT_CAPTURE_TIME").length,

@@ -5,10 +5,7 @@ import type {
   RequiredJobField
 } from "./company";
 import { assertExactConfirmedCompanyRosterV3 } from "../data/confirmedCompanyRosterV3";
-import {
-  derivePhase1Scope,
-  USER_AUTHORIZED_PHASE1_EXCLUSION
-} from "../data/phase1ScopePolicy";
+import { derivePhase1Scope } from "../data/phase1ScopePolicy";
 
 const REQUIRED_FIELDS: RequiredJobField[] = [
   "company",
@@ -69,8 +66,8 @@ export function countVerifiedCompanies(
   companies: Company[],
   observationsBySource: Record<string, CrawlObservation[]>
 ): number {
-  return companies.filter((company) =>
-    company.targetStatus !== USER_AUTHORIZED_PHASE1_EXCLUSION &&
+  const inScopeCompanies = derivePhase1Scope(companies).inScopeCompanies;
+  return inScopeCompanies.filter((company) =>
     company.sources.some((source) =>
       isVerifiedScrapable(source, observationsBySource[source.id] ?? [])
     )

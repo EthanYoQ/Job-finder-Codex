@@ -270,6 +270,24 @@ describe("verified scrapable gate", () => {
     expect(canLaunchP0(companies, observationsBySource, configuredSourceIds(companies))).toBe(true);
   });
 
+  it("fails closed when an authorized exclusion status drifts before verified counting", () => {
+    const companies = Array.from({ length: 60 }, (_, index) =>
+      createCompany(index, { status: "VERIFIED_SCRAPABLE" })
+    );
+    const excluded = companies.find(({ id }) => id === "company-humanwell")!;
+    excluded.targetStatus = "ACTIVE";
+    excluded.sources = [createSource({
+      id: "source-humanwell-forged",
+      companyId: excluded.id,
+      status: "VERIFIED_SCRAPABLE"
+    })];
+    const observations = {
+      "source-humanwell-forged": createVerifiedObservationPair("source-humanwell-forged")
+    };
+
+    expect(() => countVerifiedCompanies(companies, observations)).toThrow(/humanwell|authorized/i);
+  });
+
   it("rejects an exact confirmed 30+30 caller roster when all no-link adjudications lack startup-v3 authority", () => {
     const companies = Array.from({ length: 60 }, (_, index) => ({
       ...createCompany(index),
@@ -350,10 +368,12 @@ describe("verified scrapable gate", () => {
   });
 
   it("excludes campus-only sources from the verified company count", () => {
+    const companies = Array.from({ length: 60 }, (_, index) => createCompany(index));
+    companies.forEach((company) => { company.sources = []; });
     const socialCompany = createCompany(1);
-    const campusCompany = createCompany(2, {
-      kind: "CAMPUS"
-    });
+    const campusCompany = createCompany(2, { kind: "CAMPUS" });
+    companies[1] = socialCompany;
+    companies[2] = campusCompany;
     const observationsBySource = {
       [socialCompany.sources[0]!.id]: createVerifiedObservationPair(
         socialCompany.sources[0]!.id
@@ -363,6 +383,6 @@ describe("verified scrapable gate", () => {
       )
     };
 
-    expect(countVerifiedCompanies([socialCompany, campusCompany], observationsBySource)).toBe(1);
+    expect(countVerifiedCompanies(companies, observationsBySource)).toBe(1);
   });
 });

@@ -217,4 +217,40 @@ describe("official-link registry cardinality", () => {
       "CONFLICTING_SOCIAL_SOURCE_FIELDS:company-yangzijiang"
     );
   });
+
+  it.each(["socialSources", "legacy source fields"] as const)(
+    "fails closed when an authorized exclusion supplies %s",
+    (kind) => {
+      const seeds = makeSyntheticSeeds();
+      const index = seeds.findIndex(({ id }) => id === "company-humanwell");
+      const source = {
+        status: "VERIFIED_SCRAPABLE" as const,
+        atsKind: "OFFICIAL_JSON" as const,
+        socialEntryUrl: "https://careers.example.com/humanwell/jobs",
+        officialChainEvidenceUrl: "https://careers.example.com/humanwell"
+      };
+      seeds[index] = kind === "socialSources"
+        ? { ...seeds[index]!, socialSources: [source] }
+        : { ...seeds[index]!, ...source };
+
+      expect(() => requireRegistryBuilder()(seeds)).toThrow(/humanwell|source/i);
+    }
+  );
+
+  it.each([
+    ["unauthorized third exclusion", (seeds: SyntheticCandidateSeed[]) => {
+      seeds[0] = { ...seeds[0]!, targetStatus: USER_AUTHORIZED_PHASE1_EXCLUSION, socialSources: [] };
+    }],
+    ["missing authorized ID", (seeds: SyntheticCandidateSeed[]) => {
+      seeds.splice(seeds.findIndex(({ id }) => id === "company-humanwell"), 1);
+    }],
+    ["unmarked authorized ID", (seeds: SyntheticCandidateSeed[]) => {
+      const index = seeds.findIndex(({ id }) => id === "company-humanwell");
+      seeds[index] = { ...seeds[index]!, targetStatus: "ACTIVE", socialSources: [] };
+    }]
+  ] as const)("public registry builder rejects %s", (_label, mutate) => {
+    const seeds = makeSyntheticSeeds();
+    mutate(seeds);
+    expect(() => requireRegistryBuilder()(seeds)).toThrow(/authorized|humanwell/i);
+  });
 });

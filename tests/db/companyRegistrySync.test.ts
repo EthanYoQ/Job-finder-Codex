@@ -187,24 +187,30 @@ describe("syncPlannedSourcesToDb", () => {
     expect(db.recruitmentSource.upsert).not.toHaveBeenCalled();
   });
 
-  it.each(["source", "plan"] as const)("rejects an authorized exclusion carrying a %s before writes", async (kind) => {
+  it("rejects an authorized exclusion carrying a source before writes", async () => {
     const excluded = rosterCompanies.find((company) => company.id === "company-humanwell")!;
     const excludedSource = { ...plannedCompany.sources[0]!, id: "source-humanwell-social", companyId: excluded.id };
     const companies = rosterCompanies.map((company) => company.id === excluded.id
       ? { ...company, sources: [excludedSource] }
       : company);
+    const db = fakeDb();
+
+    await expect(syncPlannedSourcesToDb([plan], companies, db as never))
+      .rejects.toThrow(/authorized exclusion|phase 1 exclusion|humanwell/i);
+    expect(db.$transaction).not.toHaveBeenCalled();
+  });
+
+  it("rejects a crawl plan owned by a zero-source authorized exclusion at the plan guard", async () => {
+    const excluded = rosterCompanies.find((company) => company.id === "company-humanwell")!;
     const excludedPlan = {
       ...plan,
       company: { ...plan.company, id: excluded.id, officialChineseName: excluded.officialChineseName, category: excluded.category },
-      source: { ...plan.source, id: excludedSource.id, companyId: excluded.id }
+      source: { ...plan.source, id: "source-humanwell-plan-only", companyId: excluded.id }
     };
     const db = fakeDb();
 
-    await expect(syncPlannedSourcesToDb(
-      kind === "plan" ? [plan, excludedPlan] : [plan],
-      companies,
-      db as never
-    )).rejects.toThrow(/authorized exclusion|phase 1 exclusion|humanwell/i);
+    await expect(syncPlannedSourcesToDb([plan, excludedPlan], rosterCompanies, db as never))
+      .rejects.toThrow(/AUTHORIZED_PHASE1_EXCLUSION_HAS_PLAN:company-humanwell/);
     expect(db.$transaction).not.toHaveBeenCalled();
   });
 

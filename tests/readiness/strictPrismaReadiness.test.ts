@@ -102,16 +102,29 @@ describe("strict Prisma readiness", () => {
     const noLinkExpected={...expected,companyAudits:[...expected.companyAudits,{companyId:"company-2",category:"DOMESTIC_PHARMA" as const,status:"NO_PUBLIC_OFFICIAL_CAREERS_LINK_AT_CAPTURE_TIME" as const}]};
     const companies=[{id:"company-1",inclusionReason:"FOREIGN_PHARMA",sources:[{id:"source-1"}]},{id:"company-2",inclusionReason:"DOMESTIC_PHARMA",sources:[]}];
     const report=await getStrictP0ReadinessReportFromDb({...dbWith([batch,second]),company:{findMany:async()=>companies}} as never,noLinkExpected);
-    expect(report.totalCandidates).toBe(2);
+    expect(report.totalCandidates).toBe(4);
+    expect(report.phase1InScopeCompanies).toBe(2);
+    expect(report.authorizedExclusionCompanies).toBe(2);
     expect(report.noPublicOfficialCareersLinkCompanies).toBe(1);
     expect(report.requiredOfficialLinkSources).toBe(1);
     expect(report.crawlEvidencedOfficialLinkSources).toBe(1);
     expect(report.canLaunchP0).toBe(true);
   });
 
-  it("accepts an exact 30+30 DB roster with 58 planned sources and two zero-source no-link companies", async () => {
-    const audits=Array.from({length:60},(_,index)=>({companyId:`company-${index}`,category:index<30?"FOREIGN_PHARMA" as const:"DOMESTIC_PHARMA" as const,
-      status:index<58?"HAS_PUBLIC_OFFICIAL_CAREERS_LINK_AT_CAPTURE_TIME" as const:"NO_PUBLIC_OFFICIAL_CAREERS_LINK_AT_CAPTURE_TIME" as const}));
+  it("fails closed when an authorized exclusion is classified as no-link in strict audits", async () => {
+    const second:any=structuredClone(batch);second.id="batch-2";second.finishedAt=new Date("2026-07-10T00:30:00Z");second.sourceResults[0].id="result-2";
+    second.sourceResults[0].observations[0].batchId="batch-2";second.sourceResults[0].observations[0].sourceResultId="result-2";
+    second.sourceResults[0].lifecycleSetMembers.forEach((x:any)=>{x.batchId="batch-2";x.sourceResultId="result-2"});
+    const drifted={...expected,companyAudits:[...expected.companyAudits,{companyId:"company-humanwell",category:"DOMESTIC_PHARMA" as const,status:"NO_PUBLIC_OFFICIAL_CAREERS_LINK_AT_CAPTURE_TIME" as const}]};
+    const companies=[{id:"company-1",inclusionReason:"FOREIGN_PHARMA",sources:[{id:"source-1"}]},{id:"company-humanwell",inclusionReason:"DOMESTIC_PHARMA",sources:[]}];
+
+    await expect(getStrictP0ReadinessReportFromDb({...dbWith([batch,second]),company:{findMany:async()=>companies}} as never,drifted))
+      .rejects.toThrow(/authorized|humanwell|phase 1/i);
+  });
+
+  it("reports a 30+30 roster from 58 dynamically in-scope audits plus two authorized exclusions", async () => {
+    const audits=Array.from({length:58},(_,index)=>({companyId:`company-${index}`,category:index<30?"FOREIGN_PHARMA" as const:"DOMESTIC_PHARMA" as const,
+      status:"HAS_PUBLIC_OFFICIAL_CAREERS_LINK_AT_CAPTURE_TIME" as const}));
     const plannedSourceIds=Array.from({length:58},(_,index)=>`source-${String(index).padStart(2,"0")}`);
     const releaseMembers=plannedSourceIds.map((sourceId,index)=>({companyId:`company-${index}`,sourceId,surfaceId:`surface-${index}`,channelId:`channel-${index}`,category:audits[index]!.category}));
     const plannedSourceSetSha256=createHash("sha256").update(JSON.stringify(plannedSourceIds)).digest("hex");
@@ -126,8 +139,9 @@ describe("strict Prisma readiness", () => {
     const companies=audits.map((audit,index)=>({id:audit.companyId,inclusionReason:audit.category,sources:index<58?[{id:`source-${String(index).padStart(2,"0")}`}]:[]}));
     const rows=[makeBatch("batch-large-1",new Date("2026-07-10T00:00:00Z")),makeBatch("batch-large-2",new Date("2026-07-10T00:30:00Z"))];
     const report=await getStrictP0ReadinessReportFromDb({...dbWith(rows),company:{findMany:async()=>companies}} as never,largeExpected);
-    expect(report).toMatchObject({totalCandidates:60,foreignPharmaCompanies:30,domesticPharmaCompanies:30,
-      requiredOfficialLinkSources:58,crawlEvidencedOfficialLinkSources:58,noPublicOfficialCareersLinkCompanies:2,canLaunchP0:true});
+    expect(report).toMatchObject({totalCandidates:60,phase1InScopeCompanies:58,authorizedExclusionCompanies:2,
+      foreignPharmaCompanies:30,domesticPharmaCompanies:30,
+      requiredOfficialLinkSources:58,crawlEvidencedOfficialLinkSources:58,noPublicOfficialCareersLinkCompanies:0,canLaunchP0:true});
   });
 
   it("deduplicates multiple trusted channels for one DB source", async () => {

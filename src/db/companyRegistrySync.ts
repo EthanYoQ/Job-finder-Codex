@@ -93,7 +93,7 @@ export async function syncPlannedSourcesToDb(
     const company = companyById.get(plan.company.id);
     if (!company) throw new Error(`${plan.company.id} is missing from candidateCompanies`);
     if (isUserAuthorizedPhase1Exclusion(company.id)) {
-      throw new Error(`${company.id} is an authorized Phase 1 exclusion and cannot own a crawl plan`);
+      throw new Error(`AUTHORIZED_PHASE1_EXCLUSION_HAS_PLAN:${company.id}`);
     }
     if (plan.company.category !== company.category) {
       throw new Error(`${plan.company.id} has mismatched plan category`);

@@ -119,7 +119,17 @@ function surfaceIdFor(companyId: string, kind: "social" | "campus", index = 0): 
 }
 
 function socialSourceSeedsFor(seed: CandidateSeed): CandidateSocialSourceSeed[] {
-  if (seed.targetStatus === USER_AUTHORIZED_PHASE1_EXCLUSION) return [];
+  if (seed.targetStatus === USER_AUTHORIZED_PHASE1_EXCLUSION) {
+    const hasSourceFields = seed.socialSources !== undefined || [
+      seed.status,
+      seed.atsKind,
+      seed.socialEntryUrl,
+      seed.officialChainEvidenceUrl,
+      seed.campusEntryUrl
+    ].some((value) => value !== undefined);
+    if (hasSourceFields) throw new Error(`AUTHORIZED_PHASE1_EXCLUSION_HAS_SOURCE_FIELDS:${seed.id}`);
+    return [];
+  }
   if (seed.socialSources !== undefined) {
     const hasLegacySourceFields = [
       seed.status,
@@ -970,8 +980,10 @@ function expectedSurfacesFor(seed: CandidateSeed): ExpectedOfficialRecruitmentSu
 export function buildCandidateCompanyRegistry(
   seeds: readonly CandidateSeed[]
 ): { companies: CandidateCompany[]; surfaces: ExpectedOfficialRecruitmentSurface[] } {
+  const companies = seeds.map(toCompany);
+  derivePhase1Scope(companies);
   return {
-    companies: seeds.map(toCompany),
+    companies,
     surfaces: seeds.flatMap(expectedSurfacesFor)
   };
 }
