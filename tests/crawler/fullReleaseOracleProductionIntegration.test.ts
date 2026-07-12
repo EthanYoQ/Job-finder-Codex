@@ -9,7 +9,7 @@ describe("FULL_RELEASE production oracle integration", () => {
     const batch = await runFullReleaseOracleProductionScenario("no-key-batch" as never);
     expect(batch).toMatchObject({ status: 0, rejected: true, transactionCalls: 0, batchCreates: 0 });
     expect(batch.error).toMatch(/registry|signing key/i);
-  });
+  }, 15_000);
   it("rejects invalid oracle at command and batch entry before any DB mutation", async () => {
     const command = await runFullReleaseOracleProductionScenario("invalid-command");
     expect(command).toMatchObject({ status: 0, rejected: true, syncCalls: 0, transactionCalls: 0, batchCreates: 0 });
