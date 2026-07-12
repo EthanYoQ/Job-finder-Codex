@@ -17,6 +17,7 @@
     "prisma:validate": "node ./scripts/prisma-validate.mjs",
     "db:verify-empty-migrations": "tsx scripts/verify-empty-db-migrations.ts",
     "p0:crawl": "tsx scripts/p0-crawl.ts",
+    "p0:manual-crawl-worker": "tsx scripts/p0-manual-crawl-worker.ts",
     "p0:formal-crawl-once": "tsx scripts/p0-formal-crawl-once.ts",
     "p0:scheduler": "tsx scripts/p0-scheduler.ts",
     "p0:recover-formal-crawl-lock": "tsx scripts/p0-recover-formal-crawl-lock.ts",
