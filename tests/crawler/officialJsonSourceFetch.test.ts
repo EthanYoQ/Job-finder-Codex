@@ -1221,14 +1221,14 @@ describe("createOfficialJsonSourceFetch", () => {
             title: "福建永春制药有限公司招聘",
             officialUrl: "https://www.xiuzheng.com/#/recruitDetail?id=16&type=job&scene=2",
             locationRaw: "未披露",
-            cities: []
+            cities: ["未披露"]
           },
           {
             sourceJobId: "5",
             title: "化药制剂研究员",
             officialUrl: "https://www.xiuzheng.com/#/recruitDetail?id=5&type=job&scene=2",
             locationRaw: "未披露",
-            cities: []
+            cities: ["未披露"]
           }
         ]
       },

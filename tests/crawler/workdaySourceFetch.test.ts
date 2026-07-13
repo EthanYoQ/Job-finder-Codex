@@ -288,6 +288,61 @@ describe("createWorkdaySourceFetch", () => {
     });
   });
 
+  it("fails closed on later raw zero totals without the exact audited source policy", async () => {
+    const fetcher = createWorkdaySourceFetch({
+      now: () => new Date("2026-07-13T00:00:00.000Z"),
+      http: async (request) => {
+        const { offset } = JSON.parse(request.body) as { offset: number };
+        return response({
+          total: offset === 0 ? 2 : 0,
+          jobPostings: [{
+            title: offset === 0 ? "Role One" : "Role Two",
+            externalPath: `/job/China/${offset === 0 ? "one" : "two"}`,
+            locationsText: "Shanghai, China"
+          }]
+        });
+      }
+    });
+
+    await expect(fetcher({
+      ...plan,
+      workday: {
+        tenant: "pfizer",
+        site: "PfizerCareers",
+        appliedFacets: { Location_Country: ["china-id"] },
+        pageSize: 1,
+        maxPages: 2
+      }
+    })).resolves.toMatchObject({
+      ok: false,
+      failureReason: expect.stringContaining("TOTAL_CHANGED")
+    });
+  });
+
+  it("rejects the audited later-zero policy on any other source before transport", async () => {
+    const http = vi.fn(async () => response({ total: 0, jobPostings: [] }));
+    const fetcher = createWorkdaySourceFetch({
+      now: () => new Date("2026-07-13T00:00:00.000Z"),
+      http
+    });
+
+    await expect(fetcher({
+      ...plan,
+      source: {
+        ...plan.source,
+        id: "source-non-audited-workday"
+      },
+      workday: {
+        ...plan.workday,
+        laterZeroTotalPolicy: "PFIZER_AUDITED_EXACT_RECONCILIATION"
+      }
+    })).resolves.toMatchObject({
+      ok: false,
+      failureReason: expect.stringContaining("not allowed for source")
+    });
+    expect(http).not.toHaveBeenCalled();
+  });
+
   it("accepts later raw zero totals only after exact lossless reconciliation and preserves the zero evidence", async () => {
     const fetcher = createWorkdaySourceFetch({
       now: () => new Date("2026-07-13T00:00:00.000Z"),
@@ -309,6 +364,7 @@ describe("createWorkdaySourceFetch", () => {
       workday: {
         tenant: "pfizer",
         site: "PfizerCareers",
+        laterZeroTotalPolicy: "PFIZER_AUDITED_EXACT_RECONCILIATION",
         appliedFacets: { Location_Country: ["china-id"] },
         pageSize: 1,
         maxPages: 3
@@ -345,6 +401,43 @@ describe("createWorkdaySourceFetch", () => {
         verifiedEligible: false,
         derivedAnomalyCodes: []
       }
+    });
+  });
+
+  it("rejects duplicate Workday total keys before applying the audited later-zero policy", async () => {
+    const fetcher = createWorkdaySourceFetch({
+      now: () => new Date("2026-07-13T00:00:00.000Z"),
+      http: async (request) => {
+        const { offset } = JSON.parse(request.body) as { offset: number };
+        if (offset === 0) {
+          return response({
+            total: 2,
+            jobPostings: [{
+              title: "Role One",
+              externalPath: "/job/China/one",
+              locationsText: "Shanghai, China"
+            }]
+          });
+        }
+        return response(
+          '{"total":2,"total":0,"jobPostings":[{"title":"Role Two","externalPath":"/job/China/two","locationsText":"Shanghai, China"}]}'
+        );
+      }
+    });
+
+    await expect(fetcher({
+      ...plan,
+      workday: {
+        tenant: "pfizer",
+        site: "PfizerCareers",
+        laterZeroTotalPolicy: "PFIZER_AUDITED_EXACT_RECONCILIATION",
+        appliedFacets: { Location_Country: ["china-id"] },
+        pageSize: 1,
+        maxPages: 2
+      }
+    })).resolves.toMatchObject({
+      ok: false,
+      failureReason: expect.stringContaining("duplicate JSON object keys")
     });
   });
 

@@ -4,6 +4,7 @@ import {
   buildSourceCrawlPlans,
   buildStagedSourceCrawlPlans,
   getPlanBySourceId,
+  sourcePlanConfigSha256,
   validateExecutablePlanChannelBinding
 } from "../../src/crawler/sourcePlan";
 import {
@@ -506,6 +507,18 @@ describe("source crawl planning", () => {
         }
       });
     }
+    const pfizerPlan = getPlanBySourceId(plans, "source-pfizer-china-social");
+    if (pfizerPlan?.adapterId !== "official-json" || !pfizerPlan.workday) {
+      throw new Error("Expected Pfizer Workday plan");
+    }
+    expect(pfizerPlan.workday.laterZeroTotalPolicy).toBe("PFIZER_AUDITED_EXACT_RECONCILIATION");
+    expect(plans.flatMap((candidate) =>
+      candidate.adapterId === "official-json" && candidate.workday?.laterZeroTotalPolicy !== undefined
+        ? [candidate.source.id]
+        : [])).toEqual(["source-pfizer-china-social"]);
+    const { laterZeroTotalPolicy: _removedPolicy, ...workdayWithoutPolicy } = pfizerPlan.workday;
+    expect(sourcePlanConfigSha256({ ...pfizerPlan, workday: workdayWithoutPolicy }))
+      .not.toBe(sourcePlanConfigSha256(pfizerPlan));
     expect(getPlanBySourceId(plans, "source-merck-china-social")).toMatchObject({
       adapterId: "official-json",
       source: {
@@ -886,7 +899,8 @@ describe("source crawl planning", () => {
         maxPages: 10
       }
     });
-    expect(getPlanBySourceId(plans, "source-teva-china-social")).toMatchObject({
+    const tevaPlan = getPlanBySourceId(plans, "source-teva-china-social");
+    expect(tevaPlan).toMatchObject({
       adapterId: "html-table",
       source: {
         atsKind: "OFFICIAL_HTML",
@@ -894,12 +908,11 @@ describe("source crawl planning", () => {
         officialChainEvidenceUrl: "https://www.careers.teva/careers?location=China"
       },
       table: {
-        pagination: {
-          expectedJobCountSelector: "body",
-          expectedJobCountPattern: "\"count\"\\s*:\\s*(\\d+)"
-        }
+        strictEmbeddedJsonZero: { kind: "TEVA_SMARTAPPLY_CHINA" }
       }
     });
+    if (tevaPlan?.adapterId !== "html-table") throw new Error("Expected Teva HTML plan");
+    expect(tevaPlan.table).not.toHaveProperty("pagination");
     expect(getPlanBySourceId(plans, "source-grifols-china-social")).toMatchObject({
       adapterId: "official-json",
       source: {

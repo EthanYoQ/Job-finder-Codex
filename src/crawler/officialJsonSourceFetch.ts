@@ -1,6 +1,6 @@
 import type { SourceFetchFunction, SourceFetchResult, SourceTransportAttempt } from "./runSourceCrawl";
 import { load as loadHtml } from "cheerio";
-import { parse as parseJavaScript, parseExpression } from "@babel/parser";
+import { parse as parseJavaScript } from "@babel/parser";
 import type { ObjectExpression } from "@babel/types";
 import {
   assertOfficialHtmlMime,
@@ -32,6 +32,7 @@ import {
   type SourceFetchPageTrace
 } from "./sourceFetchEvidence";
 import { deriveCanonicalPaginationEvidence, evaluatePaginationEvidence } from "./paginationEvidence";
+import { hasUniqueJsonObjectKeys } from "./strictJsonObjectKeys";
 
 export type OfficialJsonFetchConfig =
   | {
@@ -4464,7 +4465,7 @@ function normalizeXiuzhengJob(
   if (detailUrl.origin !== "https://www.xiuzheng.com" || detailUrl.pathname !== "/" || detailUrl.search || detailUrl.hash !== expectedHash) {
     return { ok: false, code: "UNSAFE_OFFICIAL_URL" };
   }
-  return { ok: true, sourceJobId, job: { sourceJobId, title, officialUrl: detailUrl.toString(), locationRaw, cities: citiesFromLocation(locationRaw) } };
+  return { ok: true, sourceJobId, job: { sourceJobId, title, officialUrl: detailUrl.toString(), locationRaw, cities: citiesWithFallback(locationRaw, locationRaw) } };
 }
 
 function xiuzhengOfficialId(value: unknown): string | undefined {
@@ -5434,46 +5435,6 @@ function emptyPhenomPageConfig(): ReturnType<typeof parsePhenomPageConfig> {
     pageName: undefined,
     pageId: undefined
   };
-}
-
-function hasUniqueJsonObjectKeys(json: string): boolean {
-  let expression: unknown;
-  try {
-    expression = parseExpression(json, {
-      sourceType: "script",
-      errorRecovery: false
-    });
-  } catch {
-    return false;
-  }
-  return uniqueJsonObjectKeysInExpression(expression);
-}
-
-function uniqueJsonObjectKeysInExpression(node: unknown): boolean {
-  if (!isStrictRecord(node) || typeof node.type !== "string") return false;
-  if (["StringLiteral", "NumericLiteral", "BooleanLiteral", "NullLiteral"].includes(node.type)) {
-    return true;
-  }
-  if (node.type === "UnaryExpression") {
-    return node.operator === "-" && uniqueJsonObjectKeysInExpression(node.argument);
-  }
-  if (node.type === "ArrayExpression") {
-    return Array.isArray(node.elements) && node.elements.every((element) =>
-      element !== null && uniqueJsonObjectKeysInExpression(element));
-  }
-  if (node.type !== "ObjectExpression" || !Array.isArray(node.properties)) return false;
-  const keys = new Set<string>();
-  for (const property of node.properties) {
-    if (!isStrictRecord(property) || property.type !== "ObjectProperty" ||
-      property.computed !== false || property.method === true || property.shorthand === true ||
-      !isStrictRecord(property.key) || property.key.type !== "StringLiteral" ||
-      typeof property.key.value !== "string") return false;
-    const key = property.key.value;
-    if (keys.has(key)) return false;
-    keys.add(key);
-    if (!uniqueJsonObjectKeysInExpression(property.value)) return false;
-  }
-  return true;
 }
 
 function beisenLocator(input: {

@@ -333,6 +333,7 @@ const REPRESENTATIVE_CONFIGS: Record<string, RepresentativeSourceConfig> = {
     workday: {
       tenant: "pfizer",
       site: "PfizerCareers",
+      laterZeroTotalPolicy: "PFIZER_AUDITED_EXACT_RECONCILIATION",
       appliedFacets: {
         Location_Country: ["6cb77610a8a543aea2d6bc10457e35d4"]
       },
@@ -1067,14 +1068,7 @@ const REPRESENTATIVE_CONFIGS: Record<string, RepresentativeSourceConfig> = {
     adapterId: "html-table",
     table: {
       rowSelector: ".position, .job-card, [data-testid='job-card']",
-      pagination: {
-        totalPagesSelector: "body",
-        totalPagesAttribute: "data-total-pages",
-        pageSearchParam: "location",
-        maxPages: 1,
-        expectedJobCountSelector: "body",
-        expectedJobCountPattern: "\"count\"\\s*:\\s*(\\d+)"
-      },
+      strictEmbeddedJsonZero: { kind: "TEVA_SMARTAPPLY_CHINA" },
       fields: {
         sourceJobId: { selector: "a", attribute: "href" },
         officialTitle: { selector: "a" },

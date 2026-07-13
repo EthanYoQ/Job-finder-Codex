@@ -37,6 +37,10 @@ export interface HttpHtmlSourceFetchDeps {
   now?: () => Date;
 }
 
+const TEVA_CHINA_CAREERS_URL = "https://www.careers.teva/careers?location=China";
+const TEVA_EMBEDDED_ZERO_LOCATOR =
+  "#smartApplyData:strict-json:count,positions,location_used,query.location,all_applicable_locations";
+
 export function createHttpHtmlSourceFetch(
   deps: HttpHtmlSourceFetchDeps = {}
 ): SourceFetchFunction {
@@ -716,12 +720,22 @@ function attachHtmlEvidence(
   const staticAssessment = table.staticPublicList
     ? assessStaticPublicList(interactions, table, mode)
     : undefined;
+  const tevaEmbeddedZeroAssessment = table.strictEmbeddedJsonZero?.kind === "TEVA_SMARTAPPLY_CHINA"
+    ? assessTevaEmbeddedJsonZero(interactions, table, mode)
+    : undefined;
   const acceptsRedactedPositivePartial =
     table.staticPublicList?.allowRedactedPositivePartial === true &&
     staticAssessment?.redactedPositivePartialEligible === true;
   if (result.ok && staticAssessment && !staticAssessment.valid && !acceptsRedactedPositivePartial) {
     result = failed(capturedAt, "HTML_STATIC_PUBLIC_LIST_INVALID");
   }
+  if (result.ok && tevaEmbeddedZeroAssessment && !tevaEmbeddedZeroAssessment.valid) {
+    result = failed(capturedAt, "HTML_TEVA_EMBEDDED_JSON_ZERO_INVALID");
+  }
+  const tevaEmbeddedZero = tevaEmbeddedZeroAssessment?.valid === true;
+  const strictExtractorLocator = tevaEmbeddedZeroAssessment === undefined
+    ? undefined
+    : TEVA_EMBEDDED_ZERO_LOCATOR;
   const artifacts: SourceFetchArtifactDraft[] = [];
   const pages: SourceFetchPageTrace[] = [];
   const fetchLosses: PersistentSourceFetchEvidence["fetchLosses"] = [];
@@ -736,7 +750,9 @@ function attachHtmlEvidence(
     const logicalKey = `official-html-page-${String(sequence).padStart(4, "0")}`;
     const isTalentEntry = mode === "talentbrew" && sequence === 0;
     const kind = isTalentEntry ? "OFFICIAL_COMPANY_PAGE" : "PAGINATION_PAGE";
-    const bodyRepresentation = sensitiveHtmlBody(response.body) ? "REDACTED" as const : "EXACT" as const;
+    const bodyRepresentation = tevaEmbeddedZeroAssessment !== undefined || sensitiveHtmlBody(response.body)
+      ? "REDACTED" as const
+      : "EXACT" as const;
     const artifactBody = bodyRepresentation === "REDACTED" ? "[REDACTED_CREDENTIAL_MATERIAL]" : response.body;
     artifacts.push({
       id: logicalKey, logicalKey, kind,
@@ -750,7 +766,9 @@ function attachHtmlEvidence(
         rawBodySha256: sha256Bytes(Buffer.from(response.body, "utf8")).sha256,
         redactionDescriptors: [{ kind: "CREDENTIAL_MATERIAL" as const, count: 1 }]
       } : {}),
-      extractorLocator: isTalentEntry ? "#search-results[data-ajax-url]" : table.rowSelector
+      extractorLocator: isTalentEntry
+        ? "#search-results[data-ajax-url]"
+        : strictExtractorLocator ?? table.rowSelector
     });
     if (isTalentEntry) return;
     let html = response.body;
@@ -872,7 +890,10 @@ function attachHtmlEvidence(
   if (validationDiscardCount > 0) {
     pages.at(-1)!.termination = "ABORTED";
   }
-  if (result.ok && staticAssessment?.valid && staticAssessment.zero && pages.length === 1) {
+  if (
+    result.ok && pages.length === 1 &&
+    (tevaEmbeddedZero || (staticAssessment?.valid === true && staticAssessment.zero))
+  ) {
     pages[0]!.declaredTotal = 0;
     pages[0]!.termination = "EMPTY_PAGE";
   }
@@ -881,13 +902,14 @@ function attachHtmlEvidence(
     last.nextPageSignalAfter = "declared-next";
     last.termination = "MAX_PAGE_LIMIT";
   }
-  const staticDeclaration = result.ok && staticAssessment?.valid && validationDiscardCount === 0
-    ? staticAssessment.zero
+  const staticDeclaration = result.ok && validationDiscardCount === 0 &&
+    (tevaEmbeddedZero || staticAssessment?.valid === true)
+    ? tevaEmbeddedZero || staticAssessment!.zero
       ? {
           kind: "OFFICIAL_TOTAL_COUNT" as const,
           value: 0,
           artifactLogicalKey: "official-html-page-0000",
-          extractorLocator: table.rowSelector,
+          extractorLocator: strictExtractorLocator ?? table.rowSelector,
           scope: "SOURCE" as const
         }
       : {
@@ -1125,6 +1147,7 @@ const SAFE_HTML_FAILURE_CODES = new Set([
   "HTML_RESPONSE_MIME_INVALID", "HTML_RESPONSE_TIME_INVALID", "HTML_REQUEST_UNSAFE",
   "HTML_REQUEST_DUPLICATE_QUERY", "HTML_PAGE_RESPONSE_INVALID", "HTML_DECLARATION_INVALID",
   "HTML_PAGINATION_EVIDENCE_UNSAFE", "HTML_STATIC_PUBLIC_LIST_INVALID", "TALENTBREW_JSON_INVALID",
+  "HTML_TEVA_EMBEDDED_JSON_ZERO_INVALID",
   "TALENTBREW_JSON_DUPLICATE_KEY", "TALENTBREW_JSON_SCHEMA_INVALID", "TALENTBREW_RESULTS_INVALID",
   "TALENTBREW_SCOPE_INVALID"
 ]);
@@ -1180,6 +1203,66 @@ function assessStaticPublicList(
   } catch {
     return { valid: false, zero: false, redactedPositivePartialEligible: false };
   }
+}
+
+function assessTevaEmbeddedJsonZero(
+  interactions: Array<{ request: HttpHtmlRequest; response: HttpHtmlResponse }>,
+  table: HtmlTableConfig,
+  mode: "ordinary" | "talentbrew" | "tupu360"
+): { valid: boolean } {
+  if (
+    table.strictEmbeddedJsonZero?.kind !== "TEVA_SMARTAPPLY_CHINA" ||
+    mode !== "ordinary" ||
+    table.pagination !== undefined ||
+    interactions.length !== 1
+  ) {
+    return { valid: false };
+  }
+
+  const { request, response } = interactions[0]!;
+  const mime = response.contentType?.split(";", 1)[0]?.trim().toLowerCase();
+  const hasCookie = Object.keys(request.headers).some((name) => name.trim().toLowerCase() === "cookie");
+  if (
+    request.url !== TEVA_CHINA_CAREERS_URL ||
+    response.finalUrl !== TEVA_CHINA_CAREERS_URL ||
+    (request.method ?? "GET") !== "GET" ||
+    request.body !== undefined ||
+    hasCookie ||
+    response.status !== 200 ||
+    mime !== "text/html"
+  ) {
+    return { valid: false };
+  }
+
+  try {
+    const $ = load(response.body);
+    const elements = $("#smartApplyData");
+    const element = elements.get(0);
+    if (elements.length !== 1 || element?.type !== "tag" || element.name !== "code") {
+      return { valid: false };
+    }
+    const encodedJson = elements.first().text().trim();
+    if (!encodedJson) return { valid: false };
+    assertNoDuplicateJsonKeys(encodedJson);
+    const parsed = JSON.parse(encodedJson) as unknown;
+    if (!isPlainRecord(parsed)) return { valid: false };
+    const query = parsed.query;
+    return {
+      valid:
+        parsed.count === 0 &&
+        Array.isArray(parsed.positions) && parsed.positions.length === 0 &&
+        parsed.location_used === "China" &&
+        isPlainRecord(query) && query.location === "China" &&
+        Array.isArray(parsed.all_applicable_locations) && parsed.all_applicable_locations.length === 0
+    };
+  } catch {
+    return { valid: false };
+  }
+}
+
+function isPlainRecord(value: unknown): value is Record<string, unknown> {
+  return value !== null && typeof value === "object" && !Array.isArray(value) &&
+    Object.getPrototypeOf(value) === Object.prototype;
 }
 
 function safeHtmlEvidenceUrl(value: string): string {

@@ -70,6 +70,9 @@ export interface HtmlTableFieldMap {
 export interface HtmlTableConfig {
   rowSelector: string;
   fields: HtmlTableFieldMap;
+  strictEmbeddedJsonZero?: {
+    kind: "TEVA_SMARTAPPLY_CHINA";
+  };
   staticPublicList?: {
     containerSelector: string;
     nextControlSelector: string;

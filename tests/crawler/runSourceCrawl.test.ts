@@ -2,6 +2,7 @@ import { readFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
+import { createOfficialJsonSourceFetch } from "../../src/crawler/officialJsonSourceFetch";
 import { runSourceCrawl, type SourceFetchFunction } from "../../src/crawler/runSourceCrawl";
 import { buildDiscoverySourcePlanCandidates, getPlanBySourceId, type SourceCrawlPlan } from "../../src/crawler/sourcePlan";
 import { candidateCompanies } from "../../src/data/companyRegistry";
@@ -200,6 +201,40 @@ describe("runSourceCrawl", () => {
     expect(result.jobs[0]?.evidence.officialEntryUrl).toBe(expectedListUrl.toString());
     expect(result.observation.completenessEvidenceUrl).toBeUndefined();
     expect(result.jobs[0]?.listUrl).not.toBe(result.observation.completenessEvidenceUrl);
+  });
+
+  it("ingests Xiuzheng jobs whose official list does not disclose a location", async () => {
+    const plan = planFor("source-xiuzheng-social");
+    const result = await runSourceCrawl(plan, {
+      fetch: createOfficialJsonSourceFetch({
+        now: () => new Date(capturedAt),
+        http: async (request) => ({
+          status: 200,
+          body: JSON.stringify({
+            code: 0,
+            data: {
+              current_page: 1,
+              last_page: 1,
+              per_page: 10,
+              total: 1,
+              data: [{ id: 16, name: "福建永春制药有限公司招聘" }]
+            }
+          }),
+          finalUrl: request.url,
+          contentType: "application/json",
+          capturedAt
+        })
+      })
+    });
+
+    expect(result.status).toBe("SUCCESS");
+    if (result.status !== "SUCCESS") throw new Error(result.failureReason);
+    expect(result.jobs).toHaveLength(1);
+    expect(result.jobs[0]).toMatchObject({
+      sourceId: "source-xiuzheng-social",
+      locationRaw: "未披露",
+      cities: ["未披露"]
+    });
   });
 
   it("omits evidence URL and fails closed when the official entry URL is malformed", async () => {

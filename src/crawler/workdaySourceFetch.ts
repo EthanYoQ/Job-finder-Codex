@@ -8,6 +8,7 @@ import {
   type SourceFetchArtifactDraft,
   type SourceFetchPageTrace
 } from "./sourceFetchEvidence";
+import { hasUniqueJsonObjectKeys } from "./strictJsonObjectKeys";
 
 export interface WorkdayFetchConfig {
   tenant: string;
@@ -16,6 +17,7 @@ export interface WorkdayFetchConfig {
   appliedFacets?: Record<string, readonly string[]>;
   facetDescriptorExclusions?: readonly WorkdayFacetDescriptorExclusion[];
   facetDescriptorBoundary?: WorkdayFacetDescriptorBoundary;
+  laterZeroTotalPolicy?: "PFIZER_AUDITED_EXACT_RECONCILIATION";
   pageSize?: number;
   maxPages?: number;
   cityHints?: Record<string, readonly string[]>;
@@ -68,6 +70,7 @@ interface WorkdayJobsResponse {
 
 const DEFAULT_PAGE_SIZE = 20;
 const DEFAULT_MAX_PAGES = 20;
+const PFIZER_LATER_ZERO_TOTAL_POLICY = "PFIZER_AUDITED_EXACT_RECONCILIATION";
 
 const CITY_MATCHES: ReadonlyArray<readonly [string, string]> = [
   ["Shanghai", "上海"],
@@ -109,6 +112,15 @@ export function createWorkdaySourceFetch(deps: WorkdaySourceFetchDeps = {}): Sou
 
     if (plan.adapterId !== "official-json" || !plan.workday) {
       return failed(capturedAt, `Workday source ${plan.source.id} is missing Workday config`);
+    }
+
+    const allowsAuditedLaterZeroTotal =
+      plan.workday.laterZeroTotalPolicy === PFIZER_LATER_ZERO_TOTAL_POLICY &&
+      plan.source.id === "source-pfizer-china-social" &&
+      plan.workday.tenant === "pfizer" &&
+      plan.workday.site === "PfizerCareers";
+    if (plan.workday.laterZeroTotalPolicy !== undefined && !allowsAuditedLaterZeroTotal) {
+      return failed(capturedAt, `Workday later-zero total policy is not allowed for source ${plan.source.id}`);
     }
 
     try {
@@ -416,7 +428,7 @@ export function createWorkdaySourceFetch(deps: WorkdaySourceFetchDeps = {}): Sou
         fetchLosses
       });
       latestEvidence = rawEvidence;
-      const allowLaterZeroDeclaredTotalAfterExactReconciliation = sawLaterZeroTotal &&
+      const allowLaterZeroDeclaredTotalAfterExactReconciliation = allowsAuditedLaterZeroTotal && sawLaterZeroTotal &&
         strictLaterZeroPageEnvelopes && expectedJobCount !== undefined && expectedJobCount > 0;
       const evidence = deriveCanonicalPaginationEvidence({
         evidence: rawEvidence,
@@ -710,6 +722,9 @@ function parseWorkdayJobsResponse(body: string): {
   facets?: unknown;
   strictPaginationEnvelope: boolean;
 } {
+  if (!hasUniqueJsonObjectKeys(body)) {
+    throw new Error("Workday response contains duplicate JSON object keys or non-strict JSON syntax");
+  }
   const parsed = JSON.parse(body) as WorkdayJobsResponse;
   if (!Array.isArray(parsed.jobPostings)) {
     throw new Error("Workday response is missing the required jobPostings array");

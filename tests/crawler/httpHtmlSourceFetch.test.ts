@@ -14,6 +14,35 @@ const at = (request: HttpHtmlRequest, body: string, contentType = "text/html", s
   status, body, finalUrl: request.url, contentType, capturedAt: "2026-07-08T00:00:01.000Z"
 });
 const row = (id: string) => `<tr class="job"><td class="title">${id}</td><td class="location">上海</td><td><a href="/${id}">详情</a></td></tr>`;
+const TEVA_CHINA_CAREERS_URL = "https://www.careers.teva/careers?location=China";
+const TEVA_ZERO_PAYLOAD = {
+  positions: [],
+  count: 0,
+  location_used: "China",
+  query: { query: "", location: "China", department: [], skill: [], seniority: [], pid: "" },
+  all_applicable_locations: []
+};
+const htmlEncodedJson = (value: unknown): string => JSON.stringify(value).replace(/"/g, "&#34;");
+const tevaHtml = (payload: unknown = TEVA_ZERO_PAYLOAD, token = "csrf-live-token"): string =>
+  `<!doctype html><html><head><meta name="_csrf" content="${token}"></head><body>` +
+  `<code id="smartApplyData" style="display:none">${htmlEncodedJson(payload)}</code></body></html>`;
+const tevaPlan = (entryUrl = TEVA_CHINA_CAREERS_URL, requestHeaders?: Record<string, string>): SourceCrawlPlan => ({
+  ...base,
+  company: { id: "company-teva-china", officialChineseName: "梯瓦中国" },
+  source: {
+    ...base.source,
+    id: "source-teva-china-social",
+    companyId: "company-teva-china",
+    atsKind: "OFFICIAL_HTML",
+    officialEntryUrl: entryUrl,
+    officialChainEvidenceUrl: TEVA_CHINA_CAREERS_URL
+  },
+  table: {
+    ...base.table,
+    ...(requestHeaders ? { requestHeaders } : {}),
+    strictEmbeddedJsonZero: { kind: "TEVA_SMARTAPPLY_CHINA" }
+  }
+} as SourceCrawlPlan);
 const talentResults = (overrides: Record<string, string> = {}) => {
   const attrs = { "data-current-page": "1", "data-total-pages": "1", "data-total-job-results": "1", "data-records-per-page": "20", ...overrides };
   return `<section id="search-results" ${Object.entries(attrs).map(([key, value]) => `${key}="${value}"`).join(" ")}><table>${row("a")}</table></section>`;
@@ -681,5 +710,85 @@ describe("official HTML fetch evidence", () => {
       truth: { transportSuccess: true, adapterSuccess: true, completenessVerified: true },
       observation: { completenessStatus: "VERIFIED", expectedJobCount: 0 }
     });
+  });
+
+  it("certifies Teva China zero only from its strict embedded JSON and redacts the complete HTML", async () => {
+    let sentHeaders: Record<string, string> | undefined;
+    const result = await createHttpHtmlSourceFetch({
+      now: () => new Date("2026-07-08T00:00:00.000Z"),
+      http: async request => {
+        sentHeaders = request.headers;
+        return at(request, tevaHtml());
+      }
+    })(tevaPlan());
+
+    expect(sentHeaders).toEqual({ "User-Agent": "job-search-crawler/0.1" });
+    expect(result).toMatchObject({
+      ok: true,
+      fetchEvidence: {
+        artifacts: [{
+          requestedUrl: expect.stringMatching(/^https:\/\/www\.careers\.teva\/careers\?location=sha256%3A[0-9a-f]{64}$/),
+          finalUrl: expect.stringMatching(/^https:\/\/www\.careers\.teva\/careers\?location=sha256%3A[0-9a-f]{64}$/),
+          body: "[REDACTED_CREDENTIAL_MATERIAL]",
+          bodyRepresentation: "REDACTED",
+          rawBodySha256: expect.stringMatching(/^[0-9a-f]{64}$/),
+          redactionDescriptors: [{ kind: "CREDENTIAL_MATERIAL", count: 1 }],
+          extractorLocator: "#smartApplyData:strict-json:count,positions,location_used,query.location,all_applicable_locations"
+        }],
+        declaredCompleteness: {
+          kind: "OFFICIAL_TOTAL_COUNT",
+          value: 0,
+          artifactLogicalKey: "official-html-page-0000",
+          extractorLocator: "#smartApplyData:strict-json:count,positions,location_used,query.location,all_applicable_locations",
+          scope: "SOURCE"
+        },
+        pages: [{ declaredTotal: 0, termination: "EMPTY_PAGE", rawJobIds: [], validJobIds: [] }]
+      },
+      paginationEvaluation: { safeCompleteness: true, verifiedEligible: true }
+    });
+    expect(JSON.stringify(result.fetchEvidence)).not.toContain("csrf-live-token");
+
+    const crawled = await runSourceCrawl(tevaPlan(), { fetch: async () => result });
+    expect(crawled).toMatchObject({
+      status: "SUCCESS",
+      jobs: [],
+      truth: { transportSuccess: true, adapterSuccess: true, completenessVerified: true },
+      observation: { completenessStatus: "VERIFIED", expectedJobCount: 0 }
+    });
+  });
+
+  it.each([
+    ["wrong official URL", tevaPlan("https://www.careers.teva/careers?location=china"), tevaHtml()],
+    ["multiple embedded-data elements", tevaPlan(), tevaHtml().replace("</body>", `<code id="smartApplyData">${htmlEncodedJson(TEVA_ZERO_PAYLOAD)}</code></body>`)],
+    ["invalid JSON", tevaPlan(), `<code id="smartApplyData">{not-json}</code>`],
+    ["nonzero count", tevaPlan(), tevaHtml({ ...TEVA_ZERO_PAYLOAD, count: 1 })],
+    ["string count", tevaPlan(), tevaHtml({ ...TEVA_ZERO_PAYLOAD, count: "0" })],
+    ["nonempty positions", tevaPlan(), tevaHtml({ ...TEVA_ZERO_PAYLOAD, positions: [{ id: "job" }] })],
+    ["wrong resolved location", tevaPlan(), tevaHtml({ ...TEVA_ZERO_PAYLOAD, location_used: "Remote" })],
+    ["wrong query location", tevaPlan(), tevaHtml({ ...TEVA_ZERO_PAYLOAD, query: { ...TEVA_ZERO_PAYLOAD.query, location: "Remote" } })],
+    ["nonempty applicable locations", tevaPlan(), tevaHtml({ ...TEVA_ZERO_PAYLOAD, all_applicable_locations: ["China"] })],
+    ["cookie-bearing request", tevaPlan(TEVA_CHINA_CAREERS_URL, { Cookie: "session=unsafe" }), tevaHtml()]
+  ])("rejects Teva embedded zero when %s", async (_label, plan, body) => {
+    const result = await createHttpHtmlSourceFetch({
+      now: () => new Date("2026-07-08T00:00:00.000Z"),
+      http: async request => at(request, body)
+    })(plan);
+
+    expect(result).toMatchObject({ ok: false, failureReason: "HTML_TEVA_EMBEDDED_JSON_ZERO_INVALID" });
+    expect(result.fetchEvidence).not.toHaveProperty("declaredCompleteness");
+  });
+
+  it("rejects duplicate keys in Teva embedded JSON", async () => {
+    const duplicateKeyBody = `<code id="smartApplyData">{` +
+      `&#34;positions&#34;:[],&#34;count&#34;:0,&#34;count&#34;:0,` +
+      `&#34;location_used&#34;:&#34;China&#34;,&#34;query&#34;:{&#34;location&#34;:&#34;China&#34;},` +
+      `&#34;all_applicable_locations&#34;:[]}</code>`;
+    const result = await createHttpHtmlSourceFetch({
+      now: () => new Date("2026-07-08T00:00:00.000Z"),
+      http: async request => at(request, duplicateKeyBody)
+    })(tevaPlan());
+
+    expect(result).toMatchObject({ ok: false, failureReason: "HTML_TEVA_EMBEDDED_JSON_ZERO_INVALID" });
+    expect(result.fetchEvidence).not.toHaveProperty("declaredCompleteness");
   });
 });
