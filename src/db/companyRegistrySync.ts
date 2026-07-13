@@ -11,7 +11,14 @@ export interface CompanyRegistrySyncResult {
 
 export interface CompanyRegistrySyncWriteDb {
   company: {
-    findMany(args: { select: { id: true } }): Promise<Array<{ id: string }>>;
+    findMany(args: { select: { id: true; officialChineseName: true } }): Promise<Array<{
+      id: string;
+      officialChineseName: string;
+    }>>;
+    update(args: {
+      where: { id: string };
+      data: { id: string };
+    }): Promise<unknown>;
     upsert(args: {
       where: { id: string };
       create: {
@@ -129,10 +136,11 @@ export async function syncPlannedSourcesToDb(
   ) => Promise<T>;
   return runTransaction(async (tx) => {
     const [existingCompanies, existingSources] = await Promise.all([
-      tx.company.findMany({ select: { id: true } }),
+      tx.company.findMany({ select: { id: true, officialChineseName: true } }),
       tx.recruitmentSource.findMany({ select: { id: true, companyId: true } })
     ]);
     assertCompatibleExistingRows(existingCompanies, existingSources, orderedPlans);
+    await canonicalizeLegacyCompanyIds(tx, existingCompanies, orderedCompanies);
 
     let companyCount = 0;
     for (const company of orderedCompanies) {
@@ -189,7 +197,7 @@ export async function syncPlannedSourcesToDb(
 }
 
 function assertCompatibleExistingRows(
-  existingCompanies: readonly { id: string }[],
+  existingCompanies: readonly { id: string; officialChineseName?: string }[],
   existingSources: readonly { id: string; companyId: string }[],
   plans: readonly SourceCrawlPlan[]
 ): void {
@@ -208,6 +216,35 @@ function assertCompatibleExistingRows(
     if (source.companyId !== expectedOwner) {
       throw new Error("Existing recruitment source ownership is reassociated");
     }
+  }
+}
+
+async function canonicalizeLegacyCompanyIds(
+  tx: CompanyRegistrySyncWriteDb,
+  existingCompanies: readonly { id: string; officialChineseName?: string }[],
+  companies: readonly CandidateCompany[]
+): Promise<void> {
+  const existingIds = new Set(existingCompanies.map(({ id }) => id));
+  const existingByOfficialName = new Map(
+    existingCompanies.flatMap((company) => company.officialChineseName
+      ? [[company.officialChineseName, company] as const]
+      : [])
+  );
+  const canonicalIds = new Set(companies.map(({ id }) => id));
+
+  for (const company of companies) {
+    if (existingIds.has(company.id)) continue;
+    const legacyAlias = existingByOfficialName.get(company.officialChineseName);
+    if (!legacyAlias) continue;
+    if (canonicalIds.has(legacyAlias.id)) {
+      throw new Error(`Canonical company id is already assigned to another roster member: ${legacyAlias.id}`);
+    }
+    await tx.company.update({
+      where: { id: legacyAlias.id },
+      data: { id: company.id }
+    });
+    existingIds.delete(legacyAlias.id);
+    existingIds.add(company.id);
   }
 }
 

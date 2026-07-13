@@ -67,6 +67,7 @@ function fakeDb() {
   const db = {
     company: {
       findMany: vi.fn(async () => []),
+      update: vi.fn(async (args: unknown) => args),
       upsert: vi.fn(async (args: unknown) => args)
     },
     recruitmentSource: {
@@ -82,11 +83,12 @@ function fakeDb() {
 }
 
 function transactionalFakeDb(existing: {
-  companies?: Array<{ id: string }>;
+  companies?: Array<{ id: string; officialChineseName?: string }>;
   sources?: Array<{ id: string; companyId: string }>;
 } = {}) {
   const committed: unknown[] = [];
   const companyUpsert = vi.fn(async (args: unknown) => { committed.push({ kind: "company", args }); });
+  const companyUpdate = vi.fn(async (args: unknown) => { committed.push({ kind: "companyUpdate", args }); });
   const sourceUpsert = vi.fn(async (args: unknown) => { committed.push({ kind: "source", args }); });
   const companyFindMany = vi.fn(async () => structuredClone(existing.companies ?? []));
   const sourceFindMany = vi.fn(async () => structuredClone(existing.sources ?? []));
@@ -95,6 +97,7 @@ function transactionalFakeDb(existing: {
     const tx = {
       company: {
         findMany: companyFindMany,
+        update: vi.fn(async (args: unknown) => { staged.push({ kind: "companyUpdate", args }); }),
         upsert: vi.fn(async (args: unknown) => { staged.push({ kind: "company", args }); })
       },
       recruitmentSource: {
@@ -105,12 +108,13 @@ function transactionalFakeDb(existing: {
     const result = await operation(tx);
     for (const write of staged) {
       if ((write as { kind: string }).kind === "company") await companyUpsert((write as { args: unknown }).args);
+      else if ((write as { kind: string }).kind === "companyUpdate") await companyUpdate((write as { args: unknown }).args);
       else await sourceUpsert((write as { args: unknown }).args);
     }
     return result;
   });
   return { db: { $transaction: transaction }, committed, transaction, companyFindMany, sourceFindMany,
-    companyUpsert, sourceUpsert };
+    companyUpsert, companyUpdate, sourceUpsert };
 }
 
 function rosterWithFirst(first: CandidateCompany): CandidateCompany[] {
@@ -223,6 +227,20 @@ describe("syncPlannedSourcesToDb", () => {
     });
     expect(fake.companyUpsert).toHaveBeenCalledTimes(60);
     expect(fake.sourceUpsert).toHaveBeenCalledTimes(1);
+  });
+
+  it("canonicalizes a legacy company id that already owns the canonical official name", async () => {
+    const fake = transactionalFakeDb({
+      companies: [{ id: "company-legacy-alias", officialChineseName: plannedCompany.officialChineseName }]
+    });
+
+    await syncPlannedSourcesToDb([plan], rosterCompanies, fake.db as never);
+
+    expect(fake.companyUpdate).toHaveBeenCalledWith({
+      where: { id: "company-legacy-alias" },
+      data: { id: plannedCompany.id }
+    });
+    expect(fake.companyUpsert).toHaveBeenCalledTimes(60);
   });
 
   it("rejects an authorized exclusion carrying a source before writes", async () => {
