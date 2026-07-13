@@ -1,5 +1,9 @@
 # 医药招聘聚合网页应用 PRD
 
+## Product Goal
+
+上线 Job Finder 一期：完整展示固定 30 家外资药企和 30 家国内药企的官方招聘入口；只展示来源可验证的官方职位，每天更新两次；先上线可用版本，再达到至少 50 家稳定自动更新。
+
 ## Problem Statement
 
 国内医药行业职位信息分散在各公司官网和官方招聘系统中。求职者想找某个城市的医药岗位时，需要逐家公司打开官网、定位招聘入口、区分社会招聘和校园招聘、筛选城市和岗位方向，流程低效且容易遗漏。
@@ -14,13 +18,15 @@
 
 用户进入网站前必须勾选同意《个人隐私政策》和《服务条款》。弹窗必须极简，只放一句说明、勾选框、政策/条款链接和进入按钮。进入后，用户必须选择城市，可选职位类别、关键词、公司筛选。搜索结果默认按公司聚合，并按公司中文名拼音 A-Z 排序。每家公司卡片显示匹配岗位数量；展开公司后直接展示极简岗位列表。岗位点击后跳转到官方岗位详情页；如果无法稳定拿到岗位详情页，则跳转到官方社招列表页或官方招聘入口页。
 
-P0 公司范围为外资药企中国区、国内 Top 30 药企、国内知名 Biotech、可从官方主页追溯到标准 ATS 的药企。P0 候选池目标 80-120 家，其中至少 50 家达到“已验证可抓取”。医美、器械、区域型中小药企不进入 P0 前台范围。当前研究文档中只有少数代表性公司完成实测，多数公司仍待官网链路核验；因此当前状态不是 P0 可正式上线状态，必须在已验证可抓取公司数达到至少 50 家后才能进入正式发布。
+P0 公司范围固定为恰好 30 家外资药企和 30 家国内药企，不允许因抓取困难替换名单成员。60 家公司必须全部出现在公司目录中；职位发布按公司独立判定，单家公司的验证失败或待处理状态不阻断其他已验证公司的职位发布，也不阻断整个公开测试版。`company-humanwell` 与 `company-north-china-pharma` 仍是名单成员，并标记为用户授权的一期排除项；不得声称这两家公司的职位完整。
 
-“已验证可抓取”不能只表示能打开招聘页。P0 判定标准是：公司官方主页或官方招聘页能追溯到社招入口；抓取器能从该入口返回结构化岗位记录；至少连续两次成功抓取返回稳定字段；字段至少包含公司、岗位标题、官方来源链接、城市或地点信息；如果来源只提供列表页链接，也必须能保存官方入口和岗位标题作为可审计证据。
+“稳定自动更新”不能只表示能打开招聘页。公司只有在其公开可访问、由官网可追溯或明确背书的官方社招范围连续两次成功稳定抓取后，才有资格自动发布职位；字段至少包含公司、岗位标题、官方来源链接、城市或地点信息。如果来源只提供列表页链接，也必须能保存官方入口和岗位标题作为可审计证据。资格数量、完成阈值和状态必须从当前记录动态计算，不得硬编码为通过结果。
 
-数据获取必须从公司官方主页或官方招聘页出发。允许跟随官方链路进入 Moka、北森/Zhiye、Workday、SuccessFactors、Redsea 等第三方 ATS。非官方招聘站只能作为辅助线索，不能作为主数据源。
+已发布职位只能来自公司官方网站、官方招聘页面，或由上述网站明确背书的招聘系统。允许跟随官方链路进入 Moka、北森/Zhiye、Workday、SuccessFactors、Redsea 等 ATS。非官方招聘站只能作为发现线索，不能向前台供应职位。
 
-抓取策略为确定性抓取优先，AI 只做分类、翻译、异常判断和辅助清洗。不开公开 API，不提供全量导出。
+抓取策略为确定性抓取优先。AI 分类、英文标题中文辅助翻译、异常判断和辅助清洗属于可选增强；增强不可用时回退到官方原始标题和基础类别，不得阻断已验证职位发布或公开测试版。不开公开 API，不提供全量导出。
+
+公开测试版可先使用当前已验证子集上线，同时让未达到发布资格的公司继续以“验证中”“仅官方入口”“采集时未发现公开官方招聘入口”或“用户授权一期排除”等真实状态留在目录中。正式完成一期需要至少 50 家公司达到稳定自动更新；其余公司不阻断一期完成，并作为上线后持续工作。
 
 ## User Stories
 
@@ -35,8 +41,8 @@ P0 公司范围为外资药企中国区、国内 Top 30 药企、国内知名 Bi
 9. As a 医药行业求职者, I want company cards to expand into a simple job list, so that I can inspect openings without navigating away.
 10. As a 医药行业求职者, I want job rows to stay minimal, so that the page remains easy to scan on mobile.
 11. As a 医药行业求职者, I want job rows to show only job title, company, city/location, main category, posting/new marker, and official link, so that I can go to the official source for details.
-12. As a 医药行业求职者, I want English job titles to have Chinese auxiliary titles, so that I can understand foreign-company roles more easily.
-13. As a 医药行业求职者, I want the official English title preserved below the Chinese title, so that I can verify the original wording.
+12. As a 医药行业求职者, I want English job titles to use a Chinese auxiliary title when available, so that I can understand foreign-company roles more easily without hiding the official wording.
+13. As a 医药行业求职者, I want the official title preserved and used as the fallback, so that unavailable translation never hides a verified job.
 14. As a 医药行业求职者, I want company names shown in official Chinese names, so that I do not need to interpret English parent-company names.
 15. As a 医药行业求职者, I want official links only, so that I can apply or verify on the company’s official recruitment page.
 16. As a 医药行业求职者, I want multi-city jobs that include my city to appear, so that I do not miss regional or national roles.
@@ -47,23 +53,23 @@ P0 公司范围为外资药企中国区、国内 Top 30 药企、国内知名 Bi
 21. As a 医药行业求职者, I want the first baseline crawl not to mark everything as new, so that historical jobs are not mislabeled.
 22. As a 医药行业求职者, I want the page to show one global last update time, so that I understand freshness without parsing multiple timestamps.
 23. As a 医药行业求职者, I want a simple company coverage page, so that I can see which companies are covered.
-24. As a 医药行业求职者, I want the company coverage page to list company names and official websites only, so that the page stays simple.
+24. As a 医药行业求职者, I want the company coverage page to list all fixed 60 companies, their official links, and a truthful publishing state, so that pending companies remain visible without implying job completeness.
 25. As a 医药行业求职者, I want company search on the coverage page, so that I can quickly find 信达、诺华、辉瑞.
 26. As a 医药行业求职者, I want to submit feedback anonymously, so that I can report wrong links, missing companies, category errors, or stale jobs.
 27. As a 医药行业求职者, I want to recommend a company, so that the coverage list can improve over time.
 28. As a site operator, I want a company source table with official chain evidence, so that every source can be audited.
 29. As a site operator, I want social recruitment and campus recruitment separated, so that P0 only shows social jobs while still recording campus entry points.
-30. As a site operator, I want every candidate company to have an inclusion reason and evidence source, so that the list is maintainable.
-31. As a site operator, I want at least 50 verified-scrapable companies for P0, so that the launch has enough real coverage.
+30. As a site operator, I want every fixed-roster company to have an inclusion reason and evidence source, so that the list is maintainable.
+31. As a site operator, I want public beta to launch with the verified subset and Phase 1 to complete after at least 50 companies are stably auto-updating, so that one pending company cannot hold back usable verified coverage.
 32. As a site operator, I want crawl status per company, so that I can identify sources that need adaptation.
 33. As a site operator, I want manual re-crawl per company, so that I can recover from source changes.
 34. As a site operator, I want crawl failures grouped by reason, so that debugging is actionable.
 35. As a site operator, I want jobs missing from two consecutive successful crawls hidden from the front end, so that users do not waste time on stale openings.
 36. As a site operator, I want missing-count logic to ignore failed crawls, so that transient source failures do not incorrectly remove jobs.
-37. As a site operator, I want AI classification confidence and rationale saved, so that low-confidence cases can be reviewed.
-38. As a site operator, I want low-confidence jobs to appear under 其他, so that jobs are not hidden but are not misclassified.
+37. As a site operator, I want AI classification confidence and rationale saved when AI enrichment runs, so that low-confidence cases can be reviewed without making AI a publishing dependency.
+38. As a site operator, I want low-confidence or unavailable enrichment to fall back to a basic category such as 其他, so that verified jobs are not hidden.
 39. As a site operator, I want human corrections stored, so that category quality improves over time.
-40. As a site operator, I want translation results cached and editable, so that the front end does not translate at request time.
+40. As a site operator, I want available translation results cached and editable, so that the front end does not translate at request time and can fall back safely when translation is unavailable.
 41. As a site operator, I want an admin login, so that source data and manual corrections are protected.
 42. As a site operator, I want user feedback stored with abuse signals, so that feedback remains useful without inviting spam.
 43. As a site operator, I want privacy consent required before use, so that data collection is explicit.
@@ -83,6 +89,9 @@ P0 公司范围为外资药企中国区、国内 Top 30 药企、国内知名 Bi
 ## Implementation Decisions
 
 - P0 is a public web application, mobile-first and desktop-compatible.
+- The company roster is immutable and contains exactly 30 foreign pharmaceutical companies plus exactly 30 domestic pharmaceutical companies; no company may be substituted to make readiness pass.
+- Every roster company appears in the directory. Automatic job publishing eligibility is evaluated per company, so a failed or pending company does not block already verified companies or the public beta.
+- `company-humanwell` and `company-north-china-pharma` remain roster members with `USER_AUTHORIZED_PHASE1_EXCLUSION`; no job-completeness claim is made for either company.
 - Homepage is the job aggregation search page.
 - Homepage is a city-required job discovery workspace. Before city selection, the page must not show an empty result list.
 - Mobile information priority is: city selection, result summary, company-grouped results, optional filters.
@@ -102,11 +111,10 @@ P0 公司范围为外资药企中国区、国内 Top 30 药企、国内知名 Bi
 - CRA, CRC, CTA, Clinical Trial, Study Manager, Clinical Project Manager are 临床运营.
 - Registration, RA, Regulatory Affairs, 注册申报, CMC 注册 are 注册.
 - Product/Brand/Marketing Manager/Director roles are 市场 unless they are technical/data product roles.
-- Category classification is AI-first, not Python keyword enumeration. Only a small set of high-risk hard rules is allowed.
-- AI classification output stores main category, optional secondary category, confidence, rationale, model version, hard-rule hit, and human correction fields.
-- Low-confidence classification appears under 其他 and enters admin review.
-- English job titles use cached Chinese auxiliary translation as primary display when confidence is acceptable; original official title remains as secondary display.
-- Front end does not mark “machine translation” per row. Terms clarify that auxiliary Chinese titles are for reference and official source prevails.
+- AI classification is optional enrichment, not a launch or publishing dependency. When it runs, only a small set of high-risk hard rules is allowed and its output stores main category, optional secondary category, confidence, rationale, model version, hard-rule hit, and human correction fields.
+- Low-confidence or unavailable classification falls back to a basic category such as 其他; it must not hide an otherwise verified official job.
+- Cached Chinese auxiliary translation may be shown when available and sufficiently reliable. The official title is always preserved and becomes the primary fallback when translation is unavailable.
+- Terms clarify that auxiliary Chinese titles are for reference and the official source prevails.
 - Front end displays official Chinese company name only.
 - Company aggregation is by official Chinese company name, not by parent company, brand, or business unit.
 - Company cards default sort by pinyin A-Z. Optional sort modes are latest posting and job count.
@@ -118,16 +126,17 @@ P0 公司范围为外资药企中国区、国内 Top 30 药企、国内知名 Bi
 - Company expansion directly lists jobs. P0 does not do company-internal search or complex second-level grouping.
 - P0 does not show salary, education, experience, job summary, raw department, source category, confidence, or source technical details on job rows.
 - Official link priority: official job detail page, then official social recruitment list with instruction to search title, then official recruitment entry page.
-- Company coverage page shows only company names and official website links, sorted by pinyin A-Z, with simple company-name search.
+- Company coverage page shows all fixed 60 company names, official website or official recruitment links, and a truthful company state, sorted by pinyin A-Z, with simple company-name search. Allowed states include verifying, official-link-only, no public official careers link at capture time, and user-authorized exclusion.
 - Company coverage page, feedback entry, privacy policy, service terms, and company recommendation are supporting flows. They must not interrupt the main city-to-company-to-job discovery flow.
 - Coverage page entry belongs in global navigation or footer, not in the primary search controls.
 - Feedback is primarily contextual: report a problem from a company card or job row, automatically carrying company and job context when available. Global feedback remains secondary and belongs in footer or auxiliary navigation.
-- Company recommendation does not enter the homepage main path and submitted companies stay in admin review until approved.
+- Company recommendation does not enter the homepage main path and submitted companies stay in admin review; recommendations cannot alter the fixed P0 roster without separate scope authorization.
 - P0 does not show company type labels on the front end.
 - P0 does not provide saved jobs, subscriptions, email alerts, maps, multilingual UI, or public APIs.
 - Baseline crawl is not considered “new.” New-job labels start after the baseline.
 - Jobs missing from two consecutive successful source crawls are hidden from front end and marked suspected offline in admin. Three consecutive successful misses mark them offline. Failed crawls do not increment missing count.
 - Crawl schedule is twice daily, with manual per-company crawl from admin.
+- A company becomes eligible for automatic job publishing only after two consecutive successful, stable crawls of its publicly reachable official social-recruitment scope. Eligibility, stable-company counts, and the at-least-50 threshold are calculated from records rather than hard-coded pass totals.
 - Deployment target is portable Docker Compose: web app, PostgreSQL, worker, reverse proxy.
 - P0 server sizing target is stable operation on 4 vCPU / 8 GB RAM. Current 2 vCPU / 2 GB server is suitable only for prototype validation.
 - Database is PostgreSQL. Search uses PostgreSQL indexes and full-text search for P0.
@@ -150,9 +159,11 @@ P0 公司范围为外资药企中国区、国内 Top 30 药企、国内知名 Bi
 - Data collection is split into necessary security data and operational analytics data.
 - The product records IP, User-Agent, request path, timestamps, throttling/anti-scraping events, search city, category, keyword, company expansion, official link clicks, sorting mode, and referral page subject to policy disclosure.
 - The Korean-server cross-border compliance question remains unverified and must be reviewed separately before public launch.
-- Formal P0 launch is blocked until the company verification gate is met: candidate company pool 80-120, with at least 50 companies marked “已验证可抓取” under the full definition above.
+- Public beta may launch with the currently verified subset after deployment and operational requirements pass. Formal Phase 1 completion requires at least 50 companies to be stably auto-updating; companies still verifying or limited to an official link remain visible and do not block that completion.
+- Twice-daily scheduling, last-success timestamps, failed-crawl non-deletion, search, official outbound links, basic security/privacy, backup/restore, monitoring, deployment, and final independent read-only QA remain release requirements.
+- `job.orz.md`, AI classification, auxiliary translation, advanced manual operations, cryptographic oracle/signature work, independent QA after every stage, and rebuilding all evidence after every change are not public-beta or Phase 1 launch blockers. Existing implementations may remain, and change impact determines which evidence must be refreshed.
 
-The implementation must use `npm run p0:readiness` as the local launch-gate check. A company source status label alone is not enough for P0 readiness; the check must also confirm a configured crawl plan and two latest successful stable crawl observations. If the report exits non-zero, the project remains internal/prototype only.
+The implementation must use `npm run p0:readiness` as local evidence for per-company eligibility and the formal Phase 1 threshold. A company source status label alone is not enough: the report must derive the fixed-roster denominator, authorized exclusions, configured crawl scope, and two latest consecutive successful stable observations from records. A company that fails this check remains in a truthful non-publishing state; its failure does not by itself make the verified-subset public beta internal-only.
 
 ## Testing Decisions
 
@@ -161,13 +172,14 @@ The implementation must use `npm run p0:readiness` as the local launch-gate chec
 - Tests should not assert parser implementation details.
 - Source adapters are grouped by type: static HTML/table, official JSON/API, Moka, 北森/Zhiye, Workday, SuccessFactors, Redsea, and browser fallback.
 - Browser-backed smoke tests are slower and should be used only where HTTP/API extraction is insufficient.
-- Classification tests use real pharma examples, especially high-risk cases: 医学信息沟通 vs 医学事务, PV vs EHS, Product Manager as market vs technical product, KA vs sales, channel vs business.
-- Translation tests verify English title preservation and cached Chinese auxiliary title behavior.
+- When AI classification is available, classification tests use real pharma examples, especially high-risk cases: 医学信息沟通 vs 医学事务, PV vs EHS, Product Manager as market vs technical product, KA vs sales, channel vs business. Fallback tests verify unavailable or low-confidence enrichment does not hide verified jobs.
+- Translation tests verify official-title preservation, cached Chinese auxiliary title behavior, and original-title fallback when translation is unavailable.
 - Search tests verify city-required behavior, multi-category filtering, keyword all-match behavior, company filtering, pinyin company sorting, latest/job-count sorting, new-job filtering, and no-results relaxation prompts.
 - Frontend tests verify mobile flows: consent modal, city selection, category filter, company-grouped results, company expansion, official link click, coverage page search, feedback submission.
 - Frontend accessibility tests verify mobile touch target size, focus management in filter panels, keyboard dismissal for modal/drawer flows, and screen-reader-readable expanded/collapsed states.
 - No-results tests verify that the page offers only concise relaxation actions: clear job category, clear keyword, or view all companies for the selected city.
 - Offline lifecycle tests verify baseline behavior, new labels after baseline, two-successful-miss hiding, failed-crawl no-op, three-successful-miss offline, and reappearance recovery.
+- Publishing-state tests verify all 60 companies remain visible, the two authorized exclusions are disclosed without completeness claims, and one company's failure cannot suppress another eligible company's jobs or block public beta.
 - Security tests verify no public API exposure, controlled company expansion limits, pagination limits, rate limits, robots rules, challenge triggers for suspicious request patterns, and admin authentication.
 - Backup tests verify scheduled backup creation and restore command on a test database.
 - Monitoring tests verify alert triggers for website down, backup failure, global crawl success below threshold, and per-company repeated failures.
@@ -193,7 +205,7 @@ The implementation must use `npm run p0:readiness` as the local launch-gate chec
 
 ## Further Notes
 
-Research input is captured in `docs/research/p0-company-and-reuse-research.md`.
+Research input is captured in `docs/research/p0-company-and-reuse-research.md`. These research notes and prior RC artifacts remain historical evidence only; they do not prove current deployment or current job data.
 
 Initial GitHub research found useful reusable modules for Crawlee/Playwright-style crawling, Workday-specific scraping, generic job scraping, rate limiting, and server protection. It did not find mature open-source adapters specifically for Moka, 北森/Zhiye, or Redsea official recruitment systems. The current candidate conclusion is that those ATS adapters likely need to be built, while queueing, Playwright crawling, rate limiting, and server security should reuse mature libraries or infrastructure.
 
