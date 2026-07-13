@@ -471,12 +471,21 @@ const CANDIDATE_SEEDS: CandidateSeed[] = [
     officialChineseName: "大冢中国",
     pinyinName: "dazhong-zhongguo",
     category: "FOREIGN_PHARMA",
-    targetStatus: "BLOCKED_EVIDENCE_GAP",
-    status: "ENTRY_FOUND_PENDING_ADAPTER",
-    atsKind: "OFFICIAL_HTML",
     officialWebsiteUrl: "https://www.otsuka.com.cn/",
-    socialEntryUrl: "https://chinaotsuka.com.cn/class/26",
-    officialChainEvidenceUrl: "https://chinaotsuka.com.cn/class/26"
+    socialSources: [
+      {
+        status: "ENTRY_FOUND_PENDING_ADAPTER",
+        atsKind: "OFFICIAL_HTML",
+        socialEntryUrl: "https://chinaotsuka.com.cn/class/26",
+        officialChainEvidenceUrl: "https://www.otsuka.com.cn/otsuka-in-china/index.html"
+      },
+      {
+        status: "VERIFIED_SCRAPABLE",
+        atsKind: "OFFICIAL_HTML",
+        socialEntryUrl: "https://www.otsuka.com.cn/join-us/index.html",
+        officialChainEvidenceUrl: "https://www.otsuka.com.cn/join-us/index.html"
+      }
+    ]
   },
   {
     id: "company-biogen-china",
@@ -572,11 +581,12 @@ const CANDIDATE_SEEDS: CandidateSeed[] = [
     officialChineseName: "远大医药集团有限公司",
     pinyinName: "yuanda-yiyao",
     category: "DOMESTIC_PHARMA",
-    status: "ENTRY_FOUND_PENDING_ADAPTER",
-    atsKind: "UNKNOWN",
+    status: "VERIFIED_SCRAPABLE",
+    atsKind: "OFFICIAL_HTML",
     officialWebsiteUrl: "https://www.grandpharma.cn/",
-    socialEntryUrl: "https://job.grandpharma.cn/schooldetail.html",
-    officialChainEvidenceUrl: "https://job.grandpharma.cn/schooldetail.html"
+    socialEntryUrl: "https://job.grandpharma.cn/",
+    officialChainEvidenceUrl: "https://job.grandpharma.cn/",
+    campusEntryUrl: "https://job.grandpharma.cn/schooldetail.html"
   },
   {
     id: "company-fosun-pharma",
@@ -792,7 +802,7 @@ const CANDIDATE_SEEDS: CandidateSeed[] = [
     officialChineseName: "浙江华海药业股份有限公司",
     pinyinName: "huahai-yaoye",
     category: "DOMESTIC_PHARMA",
-    status: "ENTRY_FOUND_PENDING_ADAPTER",
+    status: "VERIFIED_SCRAPABLE",
     atsKind: "OFFICIAL_HTML",
     officialWebsiteUrl: "https://www.huahaipharm.com/",
     socialEntryUrl: "https://www.huahaipharm.com/zpgw.html",
@@ -822,11 +832,12 @@ const CANDIDATE_SEEDS: CandidateSeed[] = [
     officialChineseName: "普洛药业股份有限公司",
     pinyinName: "puluo-yaoye",
     category: "DOMESTIC_PHARMA",
-    status: "ENTRY_FOUND_PENDING_ADAPTER",
+    status: "VERIFIED_SCRAPABLE",
     atsKind: "OFFICIAL_HTML",
     officialWebsiteUrl: "https://www.apeloa.com/",
     socialEntryUrl: "https://www.apeloa.com/join.html",
-    officialChainEvidenceUrl: "https://www.apeloa.com/join.html"
+    officialChainEvidenceUrl: "https://www.apeloa.com/join.html",
+    campusEntryUrl: "https://www.apeloa.com/join.html"
   },
   {
     id: "company-xinhua-pharma",

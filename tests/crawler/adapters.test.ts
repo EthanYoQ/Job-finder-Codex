@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -776,6 +777,116 @@ describe("crawler source adapters", () => {
       structuredJobCount: 0,
       completenessStatus: "NEEDS_MANUAL_COMPLETENESS_REVIEW",
       stableRequiredFields: []
+    });
+  });
+
+  it("builds deterministic composite HTML source ids without merging equal titles in different locations", () => {
+    const extract = (html: string) => htmlTableAdapter.extract({
+      ...NOVARTIS_METADATA,
+      capturedAt,
+      html,
+      table: {
+        rowSelector: ".job",
+        fields: {
+          sourceJobIdParts: [
+            { selector: ".title" },
+            { selector: ".location" },
+            { selector: ".contact" }
+          ],
+          officialTitle: { selector: ".title" },
+          officialUrl: { value: "https://example.test/jobs" },
+          locationRaw: { selector: ".location" }
+        }
+      }
+    });
+    const result = extract(`
+      <article class="job"><h2 class="title">医学负责人</h2><p class="location">上海</p><p class="contact">team@example.invalid</p></article>
+      <article class="job"><h2 class="title">医学负责人</h2><p class="location">北京</p><p class="contact">team@example.invalid</p></article>
+    `);
+    const whitespaceVariant = extract(`
+      <article class="job"><h2 class="title">  医学负责人  </h2><p class="location">  上海  </p><p class="contact">  team@example.invalid  </p></article>
+    `);
+
+    const jobs = expectSuccessfulJobs(result);
+    const whitespaceJobs = expectSuccessfulJobs(whitespaceVariant);
+    const expectedShanghai = `html:sha256:${createHash("sha256")
+      .update(["医学负责人", "上海", "team@example.invalid"].join("\u001f"), "utf8")
+      .digest("hex")}`;
+    expect(jobs.map((job) => job.sourceJobId)).toEqual([
+      expectedShanghai,
+      expect.stringMatching(/^html:sha256:[0-9a-f]{64}$/)
+    ]);
+    expect(new Set(jobs.map((job) => job.sourceJobId))).toHaveLength(2);
+    expect(whitespaceJobs[0]?.sourceJobId).toBe(expectedShanghai);
+  });
+
+  it("fails an HTML row when any configured composite source-id part is missing", () => {
+    const result = htmlTableAdapter.extract({
+      ...NOVARTIS_METADATA,
+      capturedAt,
+      html: `<article class="job"><h2 class="title">医学负责人</h2><p class="location">上海</p></article>`,
+      table: {
+        rowSelector: ".job",
+        fields: {
+          sourceJobIdParts: [{ selector: ".title" }, { selector: ".location" }, { selector: ".contact" }],
+          officialTitle: { selector: ".title" },
+          officialUrl: { value: "https://example.test/jobs" },
+          locationRaw: { selector: ".location" }
+        }
+      }
+    });
+
+    expectFailedResult(result, "No normalized jobs found in HTML table");
+    expect(result.reconciliation?.adapterLosses).toEqual([
+      { stage: "VALIDATION", reason: "NORMALIZED_SCHEMA_INVALID", rawIndex: 0 }
+    ]);
+  });
+
+  it("rejects ambiguous single-part and composite HTML source-id configuration", () => {
+    const result = htmlTableAdapter.extract({
+      ...NOVARTIS_METADATA,
+      capturedAt,
+      html: `<article class="job"><h2 class="title">医学负责人</h2><p class="location">上海</p></article>`,
+      table: {
+        rowSelector: ".job",
+        fields: {
+          sourceJobId: { selector: ".title" },
+          sourceJobIdParts: [{ selector: ".title" }, { selector: ".location" }],
+          officialTitle: { selector: ".title" },
+          officialUrl: { value: "https://example.test/jobs" },
+          locationRaw: { selector: ".location" }
+        }
+      }
+    });
+
+    expectFailedResult(result, "HTML source job ID config is invalid");
+  });
+
+  it("accepts a sanitized static-list zero only when its configured official empty marker matches", () => {
+    const result = htmlTableAdapter.extract({
+      ...NOVARTIS_METADATA,
+      capturedAt,
+      html: `<section id="jobs"><p id="empty">No public positions</p></section>`,
+      table: {
+        rowSelector: ".job",
+        staticPublicList: {
+          containerSelector: "#jobs",
+          nextControlSelector: "#jobs .next",
+          explicitEmptyState: { selector: "#empty", pattern: "^No public positions$" }
+        },
+        fields: {
+          officialTitle: { selector: ".title" },
+          officialUrl: { value: "https://example.test/jobs" },
+          locationRaw: { selector: ".location" }
+        }
+      }
+    });
+
+    expect(result).toMatchObject({
+      status: "SUCCESS",
+      jobs: [],
+      observation: { successful: true, structuredJobCount: 0, stableRequiredFields: [] },
+      reconciliation: { rawInputCount: 0, dedupeOutputCount: 0 }
     });
   });
 });

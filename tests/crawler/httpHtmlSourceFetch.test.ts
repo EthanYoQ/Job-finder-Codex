@@ -438,4 +438,146 @@ describe("official HTML fetch evidence", () => {
       fetchLosses: [{ stage: "VALIDATION", details: { code: "DUPLICATE_RAW_ROW", pageSequence: 0, recordIndex: 1 } }]
     } });
   });
+
+  it("certifies one exact static official list page and preserves the declaration through the crawl", async () => {
+    const plan = {
+      ...base,
+      table: {
+        ...base.table,
+        staticPublicList: {
+          containerSelector: "#jobs",
+          nextControlSelector: "#jobs .next",
+          excludedPartitionSelectors: ["#jobs .campus"]
+        }
+      }
+    } as SourceCrawlPlan;
+    const fetch = createHttpHtmlSourceFetch({
+      now: () => new Date("2026-07-08T00:00:00.000Z"),
+      http: async request => at(request, `<section id="jobs"><table>${row("one")}</table></section>`)
+    });
+    const result = await fetch(plan);
+
+    expect(result).toMatchObject({
+      ok: true,
+      fetchEvidence: {
+        declaredCompleteness: {
+          kind: "COMPLETE_PAGE_TRAVERSAL",
+          value: 1,
+          artifactLogicalKey: "official-html-page-0000",
+          extractorLocator: "tr.job",
+          scope: "SOURCE"
+        },
+        pages: [{ termination: "NEXT_ABSENT" }]
+      },
+      paginationEvaluation: { safeCompleteness: true, verifiedEligible: true }
+    });
+    const crawled = await runSourceCrawl(plan, { fetch: async () => result });
+    expect(crawled).toMatchObject({
+      status: "SUCCESS",
+      truth: { transportSuccess: true, adapterSuccess: true, completenessVerified: true },
+      observation: { completenessStatus: "VERIFIED", completenessEvidenceKind: "COMPLETE_PAGE_TRAVERSAL" }
+    });
+  });
+
+  it.each([
+    ["missing container", `<table>${row("one")}</table>`],
+    ["multiple containers", `<section id="jobs"></section><section id="jobs"><table>${row("one")}</table></section>`],
+    ["row outside container", `<section id="jobs"></section><table>${row("one")}</table>`],
+    ["row overlapping an excluded partition", `<section id="jobs"><div class="campus"><table>${row("one")}</table></div></section>`],
+    ["next-page control present", `<section id="jobs"><table>${row("one")}</table><a class="next" href="?page=2">next</a></section>`],
+    ["redacted response body", `<section id="jobs"><p>password=secret</p><table>${row("one")}</table></section>`]
+  ])("fails static official list evidence when %s", async (_label, body) => {
+    const plan = {
+      ...base,
+      table: {
+        ...base.table,
+        staticPublicList: {
+          containerSelector: "#jobs",
+          nextControlSelector: "#jobs .next",
+          excludedPartitionSelectors: ["#jobs .campus"]
+        }
+      }
+    } as SourceCrawlPlan;
+    const result = await createHttpHtmlSourceFetch({
+      now: () => new Date("2026-07-08T00:00:00.000Z"),
+      http: async request => at(request, body)
+    })(plan);
+
+    expect(result).toMatchObject({ ok: false, failureReason: "HTML_STATIC_PUBLIC_LIST_INVALID" });
+    expect(result).not.toHaveProperty("fetchEvidence.declaredCompleteness");
+  });
+
+  it("fails a static official list when exact duplicate rows are present", async () => {
+    const duplicate = row("same");
+    const plan = {
+      ...base,
+      table: {
+        ...base.table,
+        staticPublicList: { containerSelector: "#jobs", nextControlSelector: "#jobs .next" }
+      }
+    } as SourceCrawlPlan;
+    const result = await createHttpHtmlSourceFetch({
+      now: () => new Date("2026-07-08T00:00:00.000Z"),
+      http: async request => at(request, `<section id="jobs"><table>${duplicate}${duplicate}</table></section>`)
+    })(plan);
+
+    expect(result).toMatchObject({
+      ok: false,
+      failureReason: "HTML_PAGINATION_EVIDENCE_UNSAFE",
+      fetchEvidence: { fetchCounts: { rawCount: 2, validCount: 1, validationDiscardCount: 1 } }
+    });
+    expect(result).not.toHaveProperty("fetchEvidence.declaredCompleteness");
+  });
+
+  it("requires an exact official empty marker before certifying a static-list zero", async () => {
+    const withoutMarker = {
+      ...base,
+      table: {
+        ...base.table,
+        staticPublicList: { containerSelector: "#jobs", nextControlSelector: "#jobs .next" }
+      }
+    } as SourceCrawlPlan;
+    const withMarker = {
+      ...base,
+      table: {
+        ...base.table,
+        staticPublicList: {
+          containerSelector: "#jobs",
+          nextControlSelector: "#jobs .next",
+          explicitEmptyState: { selector: "#jobs .empty", pattern: "^No public positions$" }
+        }
+      }
+    } as SourceCrawlPlan;
+    const fetchBody = (body: string) => createHttpHtmlSourceFetch({
+      now: () => new Date("2026-07-08T00:00:00.000Z"),
+      http: async request => at(request, body)
+    });
+
+    const unlabeled = await fetchBody(`<section id="jobs"></section>`)(withoutMarker);
+    const wrongMarker = await fetchBody(`<section id="jobs"><p class="empty">Temporarily unavailable</p></section>`)(withMarker);
+    const exactZero = await fetchBody(`<section id="jobs"><p class="empty">No public positions</p></section>`)(withMarker);
+
+    expect(unlabeled).toMatchObject({ ok: false, failureReason: "HTML_STATIC_PUBLIC_LIST_INVALID" });
+    expect(wrongMarker).toMatchObject({ ok: false, failureReason: "HTML_STATIC_PUBLIC_LIST_INVALID" });
+    expect(exactZero).toMatchObject({
+      ok: true,
+      fetchEvidence: {
+        declaredCompleteness: {
+          kind: "OFFICIAL_TOTAL_COUNT",
+          value: 0,
+          extractorLocator: "tr.job",
+          scope: "SOURCE"
+        },
+        pages: [{ declaredTotal: 0, termination: "EMPTY_PAGE", rawJobIds: [], validJobIds: [] }]
+      },
+      paginationEvaluation: { safeCompleteness: true, verifiedEligible: true }
+    });
+    const crawled = await runSourceCrawl(withMarker, { fetch: async () => exactZero });
+    expect(crawled).toMatchObject({
+      status: "SUCCESS",
+      jobs: [],
+      truth: { transportSuccess: true, adapterSuccess: true, completenessVerified: true },
+      observation: { completenessStatus: "VERIFIED", expectedJobCount: 0 }
+    });
+  });
 });

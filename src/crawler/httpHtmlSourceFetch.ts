@@ -713,6 +713,12 @@ function attachHtmlEvidence(
   mode: "ordinary" | "talentbrew" | "tupu360"
 ): SourceFetchResult {
   if (interactions.length === 0) return result;
+  const staticAssessment = table.staticPublicList
+    ? assessStaticPublicList(interactions, table, mode)
+    : undefined;
+  if (result.ok && staticAssessment && !staticAssessment.valid) {
+    result = failed(capturedAt, "HTML_STATIC_PUBLIC_LIST_INVALID");
+  }
   const artifacts: SourceFetchArtifactDraft[] = [];
   const pages: SourceFetchPageTrace[] = [];
   const fetchLosses: PersistentSourceFetchEvidence["fetchLosses"] = [];
@@ -846,13 +852,35 @@ function attachHtmlEvidence(
   if (validationDiscardCount > 0) {
     pages.at(-1)!.termination = "ABORTED";
   }
+  if (result.ok && staticAssessment?.valid && staticAssessment.zero && pages.length === 1) {
+    pages[0]!.declaredTotal = 0;
+    pages[0]!.termination = "EMPTY_PAGE";
+  }
   if (result.ok && result.completeness?.completenessStatus === "INCOMPLETE") {
     const last = pages.at(-1)!;
     last.nextPageSignalAfter = "declared-next";
     last.termination = "MAX_PAGE_LIMIT";
   }
+  const staticDeclaration = result.ok && staticAssessment?.valid && validationDiscardCount === 0
+    ? staticAssessment.zero
+      ? {
+          kind: "OFFICIAL_TOTAL_COUNT" as const,
+          value: 0,
+          artifactLogicalKey: "official-html-page-0000",
+          extractorLocator: table.rowSelector,
+          scope: "SOURCE" as const
+        }
+      : {
+          kind: "COMPLETE_PAGE_TRAVERSAL" as const,
+          value: 1,
+          artifactLogicalKey: "official-html-page-0000",
+          extractorLocator: table.rowSelector,
+          scope: "SOURCE" as const
+        }
+    : undefined;
   const evidence0 = parsePersistentSourceFetchEvidence({
     captureTool: { name: "official-html-http", version: "1" }, artifacts, pages,
+    ...(staticDeclaration ? { declaredCompleteness: staticDeclaration } : {}),
     fetchCounts: { rawCount, parsedCount: rawCount, validCount: rawCount - validationDiscardCount, parseDiscardCount: 0, validationDiscardCount },
     fetchLosses
   });
@@ -1068,10 +1096,56 @@ const SAFE_HTML_FAILURE_CODES = new Set([
   "HTML_RESPONSE_METADATA_INVALID",
   "HTML_RESPONSE_MIME_INVALID", "HTML_RESPONSE_TIME_INVALID", "HTML_REQUEST_UNSAFE",
   "HTML_REQUEST_DUPLICATE_QUERY", "HTML_PAGE_RESPONSE_INVALID", "HTML_DECLARATION_INVALID",
-  "HTML_PAGINATION_EVIDENCE_UNSAFE", "TALENTBREW_JSON_INVALID",
+  "HTML_PAGINATION_EVIDENCE_UNSAFE", "HTML_STATIC_PUBLIC_LIST_INVALID", "TALENTBREW_JSON_INVALID",
   "TALENTBREW_JSON_DUPLICATE_KEY", "TALENTBREW_JSON_SCHEMA_INVALID", "TALENTBREW_RESULTS_INVALID",
   "TALENTBREW_SCOPE_INVALID"
 ]);
+
+function assessStaticPublicList(
+  interactions: Array<{ request: HttpHtmlRequest; response: HttpHtmlResponse }>,
+  table: HtmlTableConfig,
+  mode: "ordinary" | "talentbrew" | "tupu360"
+): { valid: boolean; zero: boolean } {
+  const config = table.staticPublicList;
+  if (!config || mode !== "ordinary" || interactions.length !== 1) {
+    return { valid: false, zero: false };
+  }
+  const body = interactions[0]!.response.body;
+  if (sensitiveHtmlBody(body)) return { valid: false, zero: false };
+  try {
+    const $ = load(body);
+    const containers = $(config.containerSelector);
+    const rows = $(table.rowSelector).toArray();
+    if (containers.length !== 1 || $(config.nextControlSelector).length !== 0) {
+      return { valid: false, zero: false };
+    }
+    const container = containers.get(0)!;
+    if (rows.some((row) => !$.contains(container, row))) {
+      return { valid: false, zero: false };
+    }
+    for (const selector of config.excludedPartitionSelectors ?? []) {
+      const excluded = $(selector).toArray();
+      if (rows.some((row) => excluded.some((partition) =>
+        row === partition || $.contains(partition, row) || $.contains(row, partition)))) {
+        return { valid: false, zero: false };
+      }
+    }
+    if (rows.length > 0) return { valid: true, zero: false };
+    const empty = config.explicitEmptyState;
+    if (!empty) return { valid: false, zero: false };
+    const markers = $(empty.selector);
+    if (markers.length !== 1) return { valid: false, zero: false };
+    const marker = markers.get(0)!;
+    const normalized = markers.first().text().replace(/\s+/gu, " ").trim();
+    return {
+      valid: (marker === container || $.contains(container, marker)) &&
+        normalized.length > 0 && new RegExp(empty.pattern, "u").test(normalized),
+      zero: true
+    };
+  } catch {
+    return { valid: false, zero: false };
+  }
+}
 
 function safeHtmlEvidenceUrl(value: string): string {
   const url = new URL(value);

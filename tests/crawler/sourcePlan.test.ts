@@ -15,6 +15,7 @@ import { AUTHORIZED_PHASE1_EXCLUSION_COMPANY_IDS } from "../../src/data/phase1Sc
 
 const plannedMainListSourceIds = new Set([
   "source-3sbio-social",
+  "source-apeloa-social",
   "source-amgen-china-social",
   "source-abbvie-china-social",
   "source-astellas-china-social",
@@ -32,9 +33,11 @@ const plannedMainListSourceIds = new Set([
   "source-fosun-pharma-social",
   "source-gilead-china-social",
   "source-grifols-china-social",
+  "source-grand-pharma-social",
   "source-gsk-china-social",
   "source-hansoh-social",
   "source-hengrui-social",
+  "source-huahai-social",
   "source-jimin-kexin-social",
   "source-johnson-innovative-medicine-social",
   "source-kelun-social",
@@ -46,6 +49,7 @@ const plannedMainListSourceIds = new Set([
   "source-novartis-social",
   "source-novo-nordisk-china-social",
   "source-organon-china-social",
+  "source-otsuka-china-social-2",
   "source-pfizer-china-social",
   "source-qilu-social",
   "source-roche-china-social",
@@ -86,6 +90,47 @@ describe("source crawl planning", () => {
       expect(() => validateExecutablePlanChannelBinding(plan)).not.toThrow();
     }
     for (const plan of discovery) expect(() => validateExecutablePlanChannelBinding(plan)).toThrow();
+  });
+
+  it("plans four static official sources while leaving the Otsuka subsidiary source pending", () => {
+    const plans = buildDiscoverySourcePlanCandidates(candidateCompanies);
+    const newSourceIds = [
+      "source-apeloa-social",
+      "source-grand-pharma-social",
+      "source-huahai-social",
+      "source-otsuka-china-social-2"
+    ];
+
+    expect(plans.filter((plan) => newSourceIds.includes(plan.source.id)).map((plan) => plan.source.id).sort())
+      .toEqual([...newSourceIds].sort());
+    expect(getPlanBySourceId(plans, "source-otsuka-china-social")).toBeUndefined();
+    for (const sourceId of newSourceIds) {
+      expect(getPlanBySourceId(plans, sourceId)).toMatchObject({
+        adapterId: "html-table",
+        table: {
+          fields: { sourceJobIdParts: expect.any(Array) },
+          staticPublicList: {
+            containerSelector: expect.any(String),
+            nextControlSelector: expect.any(String)
+          }
+        }
+      });
+    }
+    expect(getPlanBySourceId(plans, "source-apeloa-social")).toMatchObject({
+      table: {
+        rowSelector: ".join2 .tab-content > .main:first-child > .ev",
+        staticPublicList: {
+          excludedPartitionSelectors: [".join2 .tab-content > .main:nth-child(2)"]
+        }
+      }
+    });
+    expect(getPlanBySourceId(plans, "source-grand-pharma-social")).toMatchObject({
+      source: { officialEntryUrl: "https://job.grandpharma.cn/" },
+      table: {
+        rowSelector: ".job-card:has(a[href='#login'])",
+        staticPublicList: { excludedPartitionSelectors: [".job-card:has(a[href='schooldetail.html'])"] }
+      }
+    });
   });
 
   it("fails staged planning closed for source-owner drift and both authorized exclusions", () => {

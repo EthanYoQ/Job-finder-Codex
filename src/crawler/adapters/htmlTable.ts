@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { load } from "cheerio";
 import type { AnyNode } from "domhandler";
 import { JOB_CATEGORIES, type JobCategory } from "../../domain/search";
@@ -25,6 +26,9 @@ export const htmlTableAdapter: SourceAdapter<HtmlTableAdapterInput> = {
     if (input.source.kind !== "SOCIAL") {
       return failed(input, "Only SOCIAL sources are supported for P0 ingestion");
     }
+    if (!validSourceJobIdConfig(input)) {
+      return failed(input, "HTML source job ID config is invalid");
+    }
 
     const $ = load(input.html);
     const rows = $(input.table.rowSelector).toArray();
@@ -39,6 +43,15 @@ export const htmlTableAdapter: SourceAdapter<HtmlTableAdapterInput> = {
       if ("job" in normalized) valid.push(normalized.job);
       else adapterLosses.push({ stage: normalized.stage, reason: normalized.reason, rawIndex }); });
     const { jobs, reconciliation } = reconcileAdapterRows(rows.length, rows.length, valid, adapterLosses);
+
+    if (jobs.length === 0 && rows.length === 0 && matchesExplicitStaticZero(input)) {
+      return {
+        status: "SUCCESS",
+        jobs: [],
+        observation: observation(input, true, 0),
+        reconciliation
+      };
+    }
 
     if (jobs.length === 0) {
       return failed(input, "No normalized jobs found in HTML table", reconciliation);
@@ -78,7 +91,18 @@ function normalizeTableRow(input: HtmlTableAdapterInput, row: AnyNode):
   const categoryValue = fields.category ? readField($, row, fields.category) : undefined;
   if (categoryValue !== undefined && !isJobCategory(categoryValue)) return { stage: "VALIDATION", reason: "CATEGORY_INVALID" };
   const category = categoryValue ?? input.table.defaultCategory ?? DEFAULT_CATEGORY;
-  const sourceJobId = fields.sourceJobId ? readField($, row, fields.sourceJobId) : undefined;
+  const sourceJobIdParts = fields.sourceJobIdParts?.map((field) => readField($, row, field));
+  if (sourceJobIdParts?.some((part) => part === undefined)) {
+    return { stage: "VALIDATION", reason: "NORMALIZED_SCHEMA_INVALID" };
+  }
+  if (sourceJobIdParts?.some((part) => containsSensitiveAdapterValue(part!))) {
+    return { stage: "VALIDATION", reason: "SENSITIVE_OUTPUT" };
+  }
+  const sourceJobId = sourceJobIdParts
+    ? `html:sha256:${createHash("sha256").update(sourceJobIdParts.join("\u001f"), "utf8").digest("hex")}`
+    : fields.sourceJobId
+      ? readField($, row, fields.sourceJobId)
+      : undefined;
   const auxiliaryTitle = fields.auxiliaryChineseTitle ? readField($, row, fields.auxiliaryChineseTitle) : undefined;
   if ([sourceJobId, officialTitle, locationRaw, rawOfficialUrl, auxiliaryTitle].some((value) => value !== undefined && containsSensitiveAdapterValue(value)))
     return { stage: "VALIDATION", reason: "SENSITIVE_OUTPUT" };
@@ -137,6 +161,33 @@ function cleanString(value: unknown): string | undefined {
 
   const normalized = value.replace(/\s+/g, " ").trim();
   return normalized || undefined;
+}
+
+function validSourceJobIdConfig(input: HtmlTableAdapterInput): boolean {
+  const { sourceJobId, sourceJobIdParts } = input.table.fields;
+  return !(sourceJobId && sourceJobIdParts) &&
+    (sourceJobIdParts === undefined || sourceJobIdParts.length > 0);
+}
+
+function matchesExplicitStaticZero(input: HtmlTableAdapterInput): boolean {
+  const config = input.table.staticPublicList;
+  const empty = config?.explicitEmptyState;
+  if (!config || !empty) return false;
+  try {
+    const $ = load(input.html);
+    const containers = $(config.containerSelector);
+    const markers = $(empty.selector);
+    if (containers.length !== 1 || markers.length !== 1 || $(config.nextControlSelector).length !== 0) {
+      return false;
+    }
+    const container = containers.get(0)!;
+    const marker = markers.get(0)!;
+    if (marker !== container && !$.contains(container, marker)) return false;
+    const markerText = cleanString(markers.first().text());
+    return markerText !== undefined && new RegExp(empty.pattern, "u").test(markerText);
+  } catch {
+    return false;
+  }
 }
 
 function applyPattern(value: unknown, pattern: string | undefined): unknown {

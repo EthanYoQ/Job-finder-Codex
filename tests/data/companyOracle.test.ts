@@ -91,10 +91,18 @@ describe("strict 30+30 roster and expected official-surface oracle", () => {
     expect(validateStrictCompanyRegistry(candidateCompanies, expectedOfficialSurfaces, excludedCompanies)).toEqual([]);
   });
 
-  it("keeps blocked original targets and never substitutes an excluded company", () => {
+  it("keeps the blocked Sandoz target, activates only the verified Otsuka group source, and never substitutes companies", () => {
     const byId = new Map(candidateCompanies.map((company) => [company.id, company]));
     expect(byId.get("company-sandoz-china")?.targetStatus).toBe("BLOCKED_EVIDENCE_GAP");
-    expect(byId.get("company-otsuka-china")?.targetStatus).toBe("BLOCKED_EVIDENCE_GAP");
+    expect(byId.get("company-otsuka-china")).toMatchObject({
+      targetStatus: "ACTIVE",
+      sources: [
+        { id: "source-otsuka-china-social", status: "ENTRY_FOUND_PENDING_ADAPTER" },
+        { id: "source-otsuka-china-social-2", status: "VERIFIED_SCRAPABLE" }
+      ]
+    });
+    expect(expectedOfficialSurfaces.filter((surface) => surface.companyId === "company-otsuka-china" && surface.kind === "SOCIAL"))
+      .toHaveLength(2);
     expect(byId.has("company-beta-pharma")).toBe(false);
     expect(byId.has("company-jacobio")).toBe(false);
     expect(excludedCompanies.map((company) => company.companyId)).toEqual(

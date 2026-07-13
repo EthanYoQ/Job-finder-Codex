@@ -86,6 +86,25 @@ describe("executable source plan channel binding", () => {
     expect(buildSourceCrawlPlans([company], [surface])).toEqual([]);
   });
 
+  it("binds each new static official source to its canonical default social channel", () => {
+    const sourceIds = [
+      "source-apeloa-social",
+      "source-grand-pharma-social",
+      "source-huahai-social",
+      "source-otsuka-china-social-2"
+    ];
+    const staged = buildStagedSourceCrawlPlans(candidateCompanies);
+
+    for (const sourceId of sourceIds) {
+      const plan = getPlanBySourceId(staged, sourceId);
+      expect(plan?.expectedChannels).toEqual([
+        { channelId: `source:${sourceId}:default`, kind: "SOCIAL" }
+      ]);
+      expect(() => validateExecutablePlanChannelBinding(plan!)).not.toThrow();
+    }
+    expect(getPlanBySourceId(staged, "source-otsuka-china-social")).toBeUndefined();
+  });
+
   it.each([
     ["missing", (ids: string[]) => ids.slice(1)],
     ["replacement", (ids: string[]) => ["not-a-configured-partition", ...ids.slice(1)]],

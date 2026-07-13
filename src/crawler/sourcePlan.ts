@@ -198,6 +198,25 @@ const REPRESENTATIVE_CONFIGS: Record<string, RepresentativeSourceConfig> = {
       requestHeaders: CHROME_LIKE_HTML_REQUEST_HEADERS
     }
   },
+  "source-otsuka-china-social-2": {
+    adapterId: "html-table",
+    table: {
+      rowSelector: ".join-list > .join-item",
+      staticPublicList: {
+        containerSelector: ".join-list",
+        nextControlSelector: ".join-list .pagination, .join-list a[rel='next'], .join-list [data-page]"
+      },
+      fields: {
+        sourceJobIdParts: [
+          { selector: ".table-td .career-title" },
+          { selector: ".table-td .col2" }
+        ],
+        officialTitle: { selector: ".table-td .career-title" },
+        officialUrl: { value: "https://www.otsuka.com.cn/join-us/index.html" },
+        locationRaw: { selector: ".table-td .col2" }
+      }
+    }
+  },
   "source-astrazeneca-social": {
     adapterId: "html-table",
     table: {
@@ -1254,12 +1273,20 @@ const REPRESENTATIVE_CONFIGS: Record<string, RepresentativeSourceConfig> = {
       requestHeaders: CHROME_LIKE_HTML_REQUEST_HEADERS
     }
   },
-  "source-grand-pharma-china-social": {
+  "source-grand-pharma-social": {
     adapterId: "html-table",
     table: {
-      rowSelector: ".job-card",
+      rowSelector: ".job-card:has(a[href='#login'])",
+      staticPublicList: {
+        containerSelector: ".job-list",
+        nextControlSelector: ".job-list .pagination, .job-list a[rel='next'], .job-list [data-page]",
+        excludedPartitionSelectors: [".job-card:has(a[href='schooldetail.html'])"]
+      },
       fields: {
-        sourceJobId: { selector: ".job-title" },
+        sourceJobIdParts: [
+          { selector: ".job-title" },
+          { selector: ".job-meta span:nth-child(1)" }
+        ],
         officialTitle: { selector: ".job-title" },
         officialUrl: { value: "https://job.grandpharma.cn/" },
         locationRaw: { selector: ".job-meta span:nth-child(1)" }
@@ -1289,15 +1316,24 @@ const REPRESENTATIVE_CONFIGS: Record<string, RepresentativeSourceConfig> = {
       }
     }
   },
-  "source-puluo-social": {
+  "source-apeloa-social": {
     adapterId: "html-table",
     table: {
-      rowSelector: ".join2 .table99.name",
+      rowSelector: ".join2 .tab-content > .main:first-child > .ev",
+      staticPublicList: {
+        containerSelector: ".join2 .tab-content > .main:first-child",
+        nextControlSelector: ".join2 .pagination, .join2 a[rel='next'], .join2 [data-page]",
+        excludedPartitionSelectors: [".join2 .tab-content > .main:nth-child(2)"]
+      },
       fields: {
-        sourceJobId: { selector: "> div:nth-child(1) p" },
-        officialTitle: { selector: "> div:nth-child(1) p" },
+        sourceJobIdParts: [
+          { selector: ".table99.name > div:nth-child(1) > p" },
+          { selector: ".table99.name > div:nth-child(4) > p" },
+          { selector: ".down .mailto:first-of-type p" }
+        ],
+        officialTitle: { selector: ".table99.name > div:nth-child(1) > p" },
         officialUrl: { value: "https://www.apeloa.com/join.html" },
-        locationRaw: { selector: "> div:nth-child(4) p" }
+        locationRaw: { selector: ".table99.name > div:nth-child(4) > p" }
       }
     }
   },
@@ -1317,8 +1353,16 @@ const REPRESENTATIVE_CONFIGS: Record<string, RepresentativeSourceConfig> = {
     adapterId: "html-table",
     table: {
       rowSelector: "tr.tr_title",
+      staticPublicList: {
+        containerSelector: "table:has(tr.tr_title)",
+        nextControlSelector: "table:has(tr.tr_title) .pagination, table:has(tr.tr_title) a[rel='next'], table:has(tr.tr_title) [data-page]"
+      },
       fields: {
-        sourceJobId: { selector: "td:nth-child(1)" },
+        sourceJobIdParts: [
+          { selector: "td:nth-child(1)" },
+          { selector: "td:nth-child(2)" },
+          { selector: "td:nth-child(5)" }
+        ],
         officialTitle: { selector: "td:nth-child(1)" },
         officialUrl: { value: "https://www.huahaipharm.com/zpgw.html" },
         locationRaw: { selector: "td:nth-child(2)" }

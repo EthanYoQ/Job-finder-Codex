@@ -59,6 +59,7 @@ export type HtmlFieldSelector =
 
 export interface HtmlTableFieldMap {
   sourceJobId?: HtmlFieldSelector;
+  sourceJobIdParts?: readonly HtmlFieldSelector[];
   officialTitle: HtmlFieldSelector;
   auxiliaryChineseTitle?: HtmlFieldSelector;
   officialUrl: HtmlFieldSelector;
@@ -69,6 +70,15 @@ export interface HtmlTableFieldMap {
 export interface HtmlTableConfig {
   rowSelector: string;
   fields: HtmlTableFieldMap;
+  staticPublicList?: {
+    containerSelector: string;
+    nextControlSelector: string;
+    excludedPartitionSelectors?: readonly string[];
+    explicitEmptyState?: {
+      selector: string;
+      pattern: string;
+    };
+  };
   defaultCategory?: JobCategory;
   requestHeaders?: Record<string, string>;
   pagination?: {

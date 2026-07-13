@@ -152,14 +152,20 @@ describe("60-company pharma registry", () => {
     }
   });
 
-  it("keeps unresolved foreign targets in the roster without replacement", () => {
+  it("keeps unresolved foreign targets in the roster without replacement and separates Otsuka sources", () => {
     const byId = new Map(candidateCompanies.map((company) => [company.id, company]));
     const astellasSource = byId.get("company-astellas-china")?.sources[0];
 
     expect(astellasSource?.status).toBe("VERIFIED_SCRAPABLE");
     expect(astellasSource?.atsKind).toBe("OFFICIAL_HTML");
     expect(astellasSource?.officialEntryUrl).toEqual(expect.any(String));
-    expect(byId.get("company-otsuka-china")?.targetStatus).toBe("BLOCKED_EVIDENCE_GAP");
+    expect(byId.get("company-otsuka-china")).toMatchObject({
+      targetStatus: "ACTIVE",
+      sources: [
+        { id: "source-otsuka-china-social", status: "ENTRY_FOUND_PENDING_ADAPTER" },
+        { id: "source-otsuka-china-social-2", status: "VERIFIED_SCRAPABLE" }
+      ]
+    });
     expect(byId.get("company-sandoz-china")?.targetStatus).toBe("BLOCKED_EVIDENCE_GAP");
     expect(byId.has("company-beta-pharma")).toBe(false);
     expect(byId.has("company-sinocelltech")).toBe(false);
@@ -231,6 +237,21 @@ describe("60-company pharma registry", () => {
     expect(byId.get("company-xinhua-pharma")?.sources[0]).toMatchObject({
       officialEntryUrl: "https://www.xhzy.com/SHZP/index.html",
       officialChainEvidenceUrl: "https://www.xhzy.com/SHZP/index.html"
+    });
+    expect(byId.get("company-apeloa")?.sources[0]).toMatchObject({
+      status: "VERIFIED_SCRAPABLE",
+      campusEntryUrl: "https://www.apeloa.com/join.html"
+    });
+    expect(byId.get("company-huahai")?.sources[0]).toMatchObject({
+      status: "VERIFIED_SCRAPABLE",
+      atsKind: "OFFICIAL_HTML"
+    });
+    expect(byId.get("company-grand-pharma")?.sources[0]).toMatchObject({
+      status: "VERIFIED_SCRAPABLE",
+      atsKind: "OFFICIAL_HTML",
+      officialEntryUrl: "https://job.grandpharma.cn/",
+      officialChainEvidenceUrl: "https://job.grandpharma.cn/",
+      campusEntryUrl: "https://job.grandpharma.cn/schooldetail.html"
     });
 
     const urls = candidateCompanies.flatMap(collectCandidateUrls);

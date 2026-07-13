@@ -146,7 +146,7 @@ describe("official-link registry cardinality", () => {
     expect(registry.validateStrictCompanyRegistry(built.companies, built.surfaces, [])).toEqual([]);
   });
 
-  it("keeps Sandoz and Otsuka as blocking evidence gaps with their public URLs", () => {
+  it("keeps Sandoz blocked while preserving separate pending and verified Otsuka official sources", () => {
     const byId = new Map(registry.candidateCompanies.map((company) => [company.id, company]));
 
     expect(byId.get("company-sandoz-china")).toMatchObject({
@@ -157,11 +157,21 @@ describe("official-link registry cardinality", () => {
       }]
     });
     expect(byId.get("company-otsuka-china")).toMatchObject({
-      targetStatus: "BLOCKED_EVIDENCE_GAP",
-      sources: [{
-        officialEntryUrl: "https://chinaotsuka.com.cn/class/26",
-        officialChainEvidenceUrl: "https://chinaotsuka.com.cn/class/26"
-      }]
+      targetStatus: "ACTIVE",
+      sources: [
+        {
+          id: "source-otsuka-china-social",
+          status: "ENTRY_FOUND_PENDING_ADAPTER",
+          officialEntryUrl: "https://chinaotsuka.com.cn/class/26",
+          officialChainEvidenceUrl: "https://www.otsuka.com.cn/otsuka-in-china/index.html"
+        },
+        {
+          id: "source-otsuka-china-social-2",
+          status: "VERIFIED_SCRAPABLE",
+          officialEntryUrl: "https://www.otsuka.com.cn/join-us/index.html",
+          officialChainEvidenceUrl: "https://www.otsuka.com.cn/join-us/index.html"
+        }
+      ]
     });
   });
 
@@ -194,6 +204,20 @@ describe("official-link registry cardinality", () => {
       officialEntryUrl: "https://www.xhzy.com/SHZP/index.html",
       officialChainEvidenceUrls: ["https://www.xhzy.com/SHZP/index.html"]
     });
+    expect(
+      registry.expectedOfficialSurfaces.find(
+        (surface) => surface.companyId === "company-apeloa" && surface.kind === "CAMPUS"
+      )
+    ).toMatchObject({ officialEntryUrl: "https://www.apeloa.com/join.html" });
+    expect(socialSurfaceFor("company-grand-pharma")).toMatchObject({
+      officialEntryUrl: "https://job.grandpharma.cn/",
+      officialChainEvidenceUrls: ["https://job.grandpharma.cn/"]
+    });
+    expect(
+      registry.expectedOfficialSurfaces.find(
+        (surface) => surface.companyId === "company-grand-pharma" && surface.kind === "CAMPUS"
+      )
+    ).toMatchObject({ officialEntryUrl: "https://job.grandpharma.cn/schooldetail.html" });
 
     const surfaceUrls = registry.expectedOfficialSurfaces.flatMap((surface) => [
       surface.officialEntryUrl,
