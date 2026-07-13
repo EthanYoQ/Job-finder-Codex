@@ -343,7 +343,10 @@ export function buildAtomicRuntimeCommit(input: {
         paginationEvaluationSha256: sha256(canonicalJson(attempt.paginationEvaluation ?? null)),
         details: { code: attempt.code } };
     }),
-    commands: buildIngestionCommands(result, lifecycle)
+    commands: buildIngestionCommands({
+      ...result,
+      observation: { ...result.observation, pagesVisited: evidence.pages.length }
+    }, lifecycle)
   };
   runtimeCommitAttestations.set(commit,attestationSignature(commit));
   return commit;

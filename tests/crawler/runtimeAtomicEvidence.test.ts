@@ -337,6 +337,30 @@ describe("runtime atomic evidence planning", () => {
     })).resolves.toBeUndefined();
     expect(partialJobUpsert).toHaveBeenCalledTimes(1);
     expect(partialLifecycleMember).not.toHaveBeenCalled();
+    const declarationlessResult = structuredClone(incompleteResult);
+    delete declarationlessResult.fetchEvidence!.declaredCompleteness;
+    delete declarationlessResult.observation.completenessEvidenceKind;
+    delete declarationlessResult.observation.completenessEvidenceUrl;
+    delete declarationlessResult.observation.expectedJobCount;
+    delete declarationlessResult.observation.totalPages;
+    delete declarationlessResult.observation.pageSize;
+    delete declarationlessResult.observation.pagesVisited;
+    const declarationlessCommit = buildAtomicRuntimeCommit({
+      plan,
+      pending,
+      identity,
+      batchId: "batch-1",
+      result: declarationlessResult,
+      previousJobs: [],
+      baselineCompletedBeforeCrawl: true,
+      artifacts: archived,
+      oracle
+    });
+    expect(declarationlessCommit.commands.find((command) => command.type === "UPSERT_CRAWL_OBSERVATION"))
+      .toMatchObject({ observation: { pagesVisited: declarationlessCommit.pagination.length } });
+    await expect(executeAtomicSourceEvidenceCommit(declarationlessCommit, {
+      $transaction: async <T>(operation: (value: typeof partialTx) => Promise<T>) => operation(partialTx)
+    })).resolves.toBeUndefined();
     const tampered = buildAtomicRuntimeCommit({ plan, pending, identity, batchId: "batch-1", result,
       previousJobs: [], baselineCompletedBeforeCrawl: true, artifacts: archived, oracle });
     const job = tampered.commands.find((command) => command.type === "UPSERT_JOB");
