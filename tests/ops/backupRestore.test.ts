@@ -50,7 +50,9 @@ function createShHarness() {
     `if [ "\${1:-}" = "--version" ]; then echo "pg_dump (PostgreSQL) 16.14"; exit 0; fi
 [ "\${FAKE_PG_DUMP_FAIL:-0}" != "1" ] || exit 12
 file=""
-for arg in "$@"; do case "$arg" in --file=*) file="\${arg#--file=}" ;; esac; done
+database_url=""
+for arg in "$@"; do case "$arg" in --file=*) file="\${arg#--file=}" ;; --dbname=*) database_url="\${arg#--dbname=}" ;; esac; done
+[ -z "\${EXPECTED_LIBPQ_DATABASE_URL:-}" ] || [ "$database_url" = "$EXPECTED_LIBPQ_DATABASE_URL" ] || exit 16
 [ -n "$file" ] || exit 13
 printf 'custom-archive' > "$file"
 printf 'pg_dump\\n' >> "$EVENT_LOG"`
@@ -60,6 +62,9 @@ printf 'pg_dump\\n' >> "$EVENT_LOG"`
     "pg_restore",
     `if [ "\${1:-}" = "--version" ]; then echo "pg_restore (PostgreSQL) 16.14"; exit 0; fi
 if [ "\${1:-}" = "--list" ]; then [ "\${FAKE_PG_RESTORE_LIST_FAIL:-0}" != "1" ] || exit 14; printf 'list\\n' >> "$EVENT_LOG"; exit 0; fi
+database_url=""
+for arg in "$@"; do case "$arg" in --dbname=*) database_url="\${arg#--dbname=}" ;; esac; done
+[ -z "\${EXPECTED_LIBPQ_DATABASE_URL:-}" ] || [ "$database_url" = "$EXPECTED_LIBPQ_DATABASE_URL" ] || exit 16
 printf 'restore\\n' >> "$EVENT_LOG"`
   );
   writeFakeTool(
@@ -78,6 +83,9 @@ printf 'mv:%s\\n' "\${2:-}" >> "$EVENT_LOG"
     binDir,
     "psql",
     `if [ "\${1:-}" = "--version" ]; then echo "psql (PostgreSQL) 16.14"; exit 0; fi
+database_url=""
+for arg in "$@"; do case "$arg" in --dbname=*) database_url="\${arg#--dbname=}" ;; esac; done
+[ -z "\${EXPECTED_LIBPQ_DATABASE_URL:-}" ] || [ "$database_url" = "$EXPECTED_LIBPQ_DATABASE_URL" ] || exit 16
 case "$*" in *to_regclass*) printf '%s\\n' "\${FAKE_MIGRATIONS_PRESENT:-0}" ;; *) printf '%s\\n' "\${FAKE_TARGET_NONEMPTY:-0}" ;; esac
 printf 'psql-check\\n' >> "$EVENT_LOG"`
   );
@@ -189,6 +197,23 @@ describe("backup and restore scripts", () => {
       expect(existsSync(resolve(failure.backupDir, "jobfinder-20260712T150000Z.dump.partial"))).toBe(false);
     }
   }, 15_000);
+
+  it("removes Prisma-only schema parameters before invoking PostgreSQL command-line tools", () => {
+    const harness = createShHarness();
+    const backupResult = harness.run(backupShPath, [], {
+      DATABASE_URL: "postgresql://db:5432/jobfinder?schema=public&sslmode=require",
+      EXPECTED_LIBPQ_DATABASE_URL: "postgresql://db:5432/jobfinder?sslmode=require"
+    });
+    expect(backupResult.status, backupResult.stderr).toBe(0);
+
+    const archive = resolve(harness.backupDir, "jobfinder-20260712T150000Z.dump");
+    const restoreResult = harness.run(restoreShPath, [toPosixPath(archive)], {
+      DATABASE_URL: "",
+      TARGET_DATABASE_URL: "postgresql://db:5432/rc_restore?sslmode=require&schema=public",
+      EXPECTED_LIBPQ_DATABASE_URL: "postgresql://db:5432/rc_restore?sslmode=require"
+    });
+    expect(restoreResult.status, restoreResult.stderr).toBe(0);
+  });
 
   it("rejects invalid retention, a held lock, and same-name artifacts without deleting them", () => {
     for (const retention of ["-1", "6", "15", "abc"]) {

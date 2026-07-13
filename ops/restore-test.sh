@@ -1,6 +1,9 @@
 #!/usr/bin/env sh
 set -eu
 
+SCRIPT_DIR="$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)"
+. "$SCRIPT_DIR/libpq-url.sh"
+
 BACKUP_FILE="${1:-${BACKUP_FILE:-}}"
 TARGET_DATABASE_URL="${TARGET_DATABASE_URL:-}"
 
@@ -8,6 +11,7 @@ if [ -z "$BACKUP_FILE" ] || [ -z "$TARGET_DATABASE_URL" ]; then
   echo "Usage: TARGET_DATABASE_URL=postgres://... $0 <backup-file.dump>" >&2
   exit 1
 fi
+LIBPQ_TARGET_DATABASE_URL="$(normalize_libpq_database_url "$TARGET_DATABASE_URL")"
 
 TARGET_URL_WITHOUT_QUERY="${TARGET_DATABASE_URL%%\?*}"
 TARGET_DB_NAME="${TARGET_URL_WITHOUT_QUERY##*/}"
@@ -69,17 +73,17 @@ case "$PG_RESTORE_VERSION" in
     ;;
 esac
 
-TARGET_TABLE_COUNT="$(psql --dbname="$TARGET_DATABASE_URL" --no-psqlrc --set=ON_ERROR_STOP=1 --tuples-only --no-align --command="SELECT count(*) FROM information_schema.tables WHERE table_type = 'BASE TABLE' AND table_schema NOT IN ('pg_catalog', 'information_schema') AND table_schema NOT LIKE 'pg_%';")"
+TARGET_TABLE_COUNT="$(psql --dbname="$LIBPQ_TARGET_DATABASE_URL" --no-psqlrc --set=ON_ERROR_STOP=1 --tuples-only --no-align --command="SELECT count(*) FROM information_schema.tables WHERE table_type = 'BASE TABLE' AND table_schema NOT IN ('pg_catalog', 'information_schema') AND table_schema NOT LIKE 'pg_%';")"
 if [ "$TARGET_TABLE_COUNT" != "0" ]; then
   echo "Refusing restore into a target with application tables" >&2
   exit 1
 fi
 
-MIGRATION_TABLE_PRESENT="$(psql --dbname="$TARGET_DATABASE_URL" --no-psqlrc --set=ON_ERROR_STOP=1 --tuples-only --no-align --command="SELECT CASE WHEN to_regclass('public.\"_prisma_migrations\"') IS NULL THEN 0 ELSE 1 END;")"
+MIGRATION_TABLE_PRESENT="$(psql --dbname="$LIBPQ_TARGET_DATABASE_URL" --no-psqlrc --set=ON_ERROR_STOP=1 --tuples-only --no-align --command="SELECT CASE WHEN to_regclass('public.\"_prisma_migrations\"') IS NULL THEN 0 ELSE 1 END;")"
 if [ "$MIGRATION_TABLE_PRESENT" != "0" ]; then
   echo "Refusing restore into a target containing _prisma_migrations" >&2
   exit 1
 fi
 
 pg_restore --list "$BACKUP_FILE" >/dev/null
-pg_restore --exit-on-error --single-transaction --no-owner --no-privileges --dbname="$TARGET_DATABASE_URL" "$BACKUP_FILE"
+pg_restore --exit-on-error --single-transaction --no-owner --no-privileges --dbname="$LIBPQ_TARGET_DATABASE_URL" "$BACKUP_FILE"

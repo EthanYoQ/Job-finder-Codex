@@ -1,6 +1,9 @@
 #!/usr/bin/env sh
 set -eu
 
+SCRIPT_DIR="$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)"
+. "$SCRIPT_DIR/libpq-url.sh"
+
 DATABASE_URL="${DATABASE_URL:-${BACKUP_DATABASE_URL:-}}"
 BACKUP_DIR="${BACKUP_DIR:-./backups}"
 BACKUP_RETENTION_DAYS="${BACKUP_RETENTION_DAYS:-14}"
@@ -9,6 +12,7 @@ if [ -z "$DATABASE_URL" ]; then
   echo "DATABASE_URL or BACKUP_DATABASE_URL is required" >&2
   exit 1
 fi
+LIBPQ_DATABASE_URL="$(normalize_libpq_database_url "$DATABASE_URL")"
 
 case "$BACKUP_RETENTION_DAYS" in
   ""|*[!0-9]*)
@@ -73,7 +77,7 @@ cleanup() {
 trap cleanup EXIT
 
 OWNS_PARTIAL_ARCHIVE=1
-pg_dump --dbname="$DATABASE_URL" --format=custom --no-owner --no-privileges --file="$PARTIAL_ARCHIVE_PATH"
+pg_dump --dbname="$LIBPQ_DATABASE_URL" --format=custom --no-owner --no-privileges --file="$PARTIAL_ARCHIVE_PATH"
 pg_restore --list "$PARTIAL_ARCHIVE_PATH" >/dev/null
 
 ARCHIVE_SHA256="$(sha256sum "$PARTIAL_ARCHIVE_PATH" | awk '{print $1}')"
