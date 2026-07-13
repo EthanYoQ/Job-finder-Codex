@@ -3,6 +3,10 @@ import {
   sourcePlanConfigSha256,
   validateExecutablePlanChannelBinding
 } from "../crawler/sourcePlan";
+import {
+  resolveCurrentStagedScheduleAuthority,
+  type StagedScheduleAuthorityDb
+} from "../crawler/stagedScheduleAuthority";
 import { candidateCompanies } from "../data/companyRegistry";
 import { assertExactConfirmedCompanyRosterV3 } from "../data/confirmedCompanyRosterV3";
 import { derivePhase1Scope } from "../data/phase1ScopePolicy";
@@ -29,6 +33,8 @@ type PublicationAtomicCommitState = "PENDING" | "COMMITTED" | "ROLLED_BACK" | "N
 
 export interface PublicationEligibilityObservationRow {
   id: string;
+  releaseCandidateId: string | null;
+  batchId: string | null;
   sourceResultId: string | null;
   sourceId: string;
   sourceConfigSha256: string | null;
@@ -46,6 +52,7 @@ export interface PublicationEligibilityObservationRow {
 
 export interface PublicationEligibilitySourceResultRow {
   id: string;
+  releaseCandidateId: string;
   batchId: string;
   sourceId: string;
   sourceConfigHash: string;
@@ -62,6 +69,7 @@ export interface PublicationEligibilitySourceResultRow {
   officialChannelIds: string[];
   batch: {
     id: string;
+    releaseCandidateId: string | null;
     kind: PersistedPublicationBatchKind;
     status: PublicationBatchStatus;
     startedAt: Date;
@@ -78,11 +86,13 @@ export interface PublicationEligibilityDb {
 
 export interface PublicationEligibilityQuery {
   where: {
+    releaseCandidateId: string;
     sourceId: { in: string[] };
-    batch: { is: { kind: { in: PublicationBatchKind[] } } };
+    batch: { is: { releaseCandidateId: string; kind: { in: PublicationBatchKind[] } } };
   };
   select: {
     id: true;
+    releaseCandidateId: true;
     batchId: true;
     sourceId: true;
     sourceConfigHash: true;
@@ -98,11 +108,14 @@ export interface PublicationEligibilityQuery {
     officialSurfaceIds: true;
     officialChannelIds: true;
     batch: {
-      select: { id: true; kind: true; status: true; startedAt: true; finishedAt: true };
+      select: { id: true; releaseCandidateId: true; kind: true; status: true; startedAt: true; finishedAt: true };
     };
     observations: {
+      where: { releaseCandidateId: string };
       select: {
         id: true;
+        releaseCandidateId: true;
+        batchId: true;
         sourceResultId: true;
         sourceId: true;
         sourceConfigSha256: true;
@@ -172,14 +185,19 @@ function deriveCurrentStagedSources(): CurrentStagedPublicationSource[] {
   }).sort((left, right) => compareUtf8(left.sourceId, right.sourceId));
 }
 
-function publicationEligibilityQuery(stagedSourceIds: string[]): PublicationEligibilityQuery {
+function publicationEligibilityQuery(
+  stagedSourceIds: string[],
+  releaseCandidateId: string
+): PublicationEligibilityQuery {
   return {
     where: {
+      releaseCandidateId,
       sourceId: { in: stagedSourceIds },
-      batch: { is: { kind: { in: [...PARTICIPATING_BATCH_KINDS] } } }
+      batch: { is: { releaseCandidateId, kind: { in: [...PARTICIPATING_BATCH_KINDS] } } }
     },
     select: {
       id: true,
+      releaseCandidateId: true,
       batchId: true,
       sourceId: true,
       sourceConfigHash: true,
@@ -195,11 +213,14 @@ function publicationEligibilityQuery(stagedSourceIds: string[]): PublicationElig
       officialSurfaceIds: true,
       officialChannelIds: true,
       batch: {
-        select: { id: true, kind: true, status: true, startedAt: true, finishedAt: true }
+        select: { id: true, releaseCandidateId: true, kind: true, status: true, startedAt: true, finishedAt: true }
       },
       observations: {
+        where: { releaseCandidateId },
         select: {
           id: true,
+          releaseCandidateId: true,
+          batchId: true,
           sourceResultId: true,
           sourceId: true,
           sourceConfigSha256: true,
@@ -227,7 +248,18 @@ function publicationEligibilityQuery(stagedSourceIds: string[]): PublicationElig
   };
 }
 
-function mapObservation(row: PublicationEligibilityObservationRow): PublicationAttemptObservation {
+function mapObservation(
+  row: PublicationEligibilityObservationRow,
+  expected: { releaseCandidateId: string; batchId: string; sourceResultId: string; sourceId: string }
+): PublicationAttemptObservation {
+  if (
+    row.releaseCandidateId !== expected.releaseCandidateId ||
+    row.batchId !== expected.batchId ||
+    row.sourceResultId !== expected.sourceResultId ||
+    row.sourceId !== expected.sourceId
+  ) {
+    throw new Error(`PUBLICATION_OBSERVATION_RELATION_TUPLE_DRIFT:${row.id}`);
+  }
   return {
     id: row.id,
     sourceResultId: row.sourceResultId,
@@ -246,8 +278,12 @@ function mapObservation(row: PublicationEligibilityObservationRow): PublicationA
   };
 }
 
-function mapAttempt(row: PublicationEligibilitySourceResultRow): PublicationAttempt {
-  if (row.batch.id !== row.batchId) {
+function mapAttempt(row: PublicationEligibilitySourceResultRow, releaseCandidateId: string): PublicationAttempt {
+  if (
+    row.releaseCandidateId !== releaseCandidateId ||
+    row.batch.id !== row.batchId ||
+    row.batch.releaseCandidateId !== releaseCandidateId
+  ) {
     throw new Error(`PUBLICATION_BATCH_RELATION_TUPLE_DRIFT:${row.id}`);
   }
   if (!participatingBatchKindSet.has(String(row.batch.kind))) {
@@ -273,22 +309,40 @@ function mapAttempt(row: PublicationEligibilitySourceResultRow): PublicationAtte
     officialEntryId: row.officialEntryId,
     officialSurfaceIds: [...row.officialSurfaceIds].sort(compareUtf8),
     officialChannelIds: [...row.officialChannelIds].sort(compareUtf8),
-    observations: row.observations.map(mapObservation)
+    observations: row.observations.map((observation) => mapObservation(observation, {
+      releaseCandidateId,
+      batchId: row.batchId,
+      sourceResultId: row.id,
+      sourceId: row.sourceId
+    }))
   };
 }
 
-export async function getCompanyPublicationSnapshotFromDb(
+export type PublicationAuthorityResolver = (
   db: PublicationEligibilityDb
+) => Promise<{ identity: { releaseCandidateId: string } }>;
+
+const resolveDefaultPublicationAuthority: PublicationAuthorityResolver = (db) =>
+  resolveCurrentStagedScheduleAuthority(db as unknown as StagedScheduleAuthorityDb);
+
+export async function getCompanyPublicationSnapshotFromDb(
+  db: PublicationEligibilityDb,
+  resolveAuthority: PublicationAuthorityResolver = resolveDefaultPublicationAuthority
 ): Promise<CompanyPublicationSnapshot> {
+  const authority = await resolveAuthority(db);
+  const releaseCandidateId = authority.identity.releaseCandidateId;
+  if (!releaseCandidateId.trim()) throw new Error("INVALID_PUBLICATION_RELEASE_CANDIDATE_ID");
   const currentSources = deriveCurrentStagedSources();
   const stagedSourceIds = currentSources.map(({ sourceId }) => sourceId);
   const stagedSourceIdSet = new Set(stagedSourceIds);
-  const result = await db.crawlBatchSourceResult.findMany(publicationEligibilityQuery(stagedSourceIds));
+  const result = await db.crawlBatchSourceResult.findMany(
+    publicationEligibilityQuery(stagedSourceIds, releaseCandidateId)
+  );
   if (!Array.isArray(result)) throw new Error("INVALID_PUBLICATION_SOURCE_RESULT_ROWS");
   const rows = result as PublicationEligibilitySourceResultRow[];
   const attempts = rows
     .filter((row) => stagedSourceIdSet.has(row.sourceId))
     .filter((row) => participatingBatchKindSet.has(String(row.batch.kind)))
-    .map(mapAttempt);
+    .map((row) => mapAttempt(row, releaseCandidateId));
   return buildCompanyPublicationSnapshot(candidateCompanies, currentSources, attempts);
 }

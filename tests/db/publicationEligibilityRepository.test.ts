@@ -15,6 +15,7 @@ const companyWithOnePlan = candidateCompanies.find((company) =>
 )!;
 const plan = plans.find(({ company }) => company.id === companyWithOnePlan.id)!;
 const configHash = sourcePlanConfigSha256(plan);
+const RELEASE_CANDIDATE_ID = "phase1-current-release";
 
 declare const prismaClientTypeProbe: PrismaClient;
 if (false) {
@@ -36,6 +37,7 @@ function row(
   const batchId = overrides.batchId ?? `batch-${index}`;
   const base: PublicationEligibilitySourceResultRow = {
     id,
+    releaseCandidateId: RELEASE_CANDIDATE_ID,
     batchId,
     sourceId,
     sourceConfigHash,
@@ -52,6 +54,7 @@ function row(
     officialChannelIds: [],
     batch: {
       id: batchId,
+      releaseCandidateId: RELEASE_CANDIDATE_ID,
       kind: "SCHEDULED",
       status: "SUCCESS",
       startedAt: new Date(`2026-07-14T01:${String(index).padStart(2, "0")}:00.000Z`),
@@ -59,6 +62,8 @@ function row(
     },
     observations: [{
       id: `observation-${index}`,
+      releaseCandidateId: RELEASE_CANDIDATE_ID,
+      batchId,
       sourceResultId: id,
       sourceId,
       sourceConfigSha256: sourceConfigHash,
@@ -88,21 +93,35 @@ function fakeDb(rows: PublicationEligibilitySourceResultRow[]) {
   return { db, findMany };
 }
 
+function getSnapshot(db: PublicationEligibilityDb) {
+  return getCompanyPublicationSnapshotFromDb(
+    db,
+    async () => ({ identity: { releaseCandidateId: RELEASE_CANDIDATE_ID } })
+  );
+}
+
 describe("getCompanyPublicationSnapshotFromDb", () => {
   it("uses one batched source-result query and keeps the canonical 30+30 directory without rows", async () => {
     const { db, findMany } = fakeDb([]);
-    const snapshot = await getCompanyPublicationSnapshotFromDb(db);
+    const snapshot = await getSnapshot(db);
 
     expect(findMany).toHaveBeenCalledTimes(1);
     const query = findMany.mock.calls[0]![0];
     expect(query.where).toEqual({
+      releaseCandidateId: RELEASE_CANDIDATE_ID,
       sourceId: { in: expect.arrayContaining(plans.map(({ source }) => source.id)) },
-      batch: { is: { kind: { in: ["FULL_RELEASE", "SCHEDULED", "BASELINE"] } } }
+      batch: { is: {
+        releaseCandidateId: RELEASE_CANDIDATE_ID,
+        kind: { in: ["FULL_RELEASE", "SCHEDULED", "BASELINE"] }
+      } }
     });
+    expect(query.select).toMatchObject({ releaseCandidateId: true });
     expect(query.select.batch).toEqual({
-      select: { id: true, kind: true, status: true, startedAt: true, finishedAt: true }
+      select: { id: true, releaseCandidateId: true, kind: true, status: true, startedAt: true, finishedAt: true }
     });
     expect(query.select.observations).toMatchObject({
+      where: { releaseCandidateId: RELEASE_CANDIDATE_ID },
+      select: { releaseCandidateId: true, batchId: true },
       orderBy: [{ crawledAt: "asc" }, { id: "asc" }],
       take: 2
     });
@@ -133,7 +152,7 @@ describe("getCompanyPublicationSnapshotFromDb", () => {
 
   it("derives current plan hashes internally and qualifies an empty strict tuple after two successes", async () => {
     const { db } = fakeDb([row(1), row(2)]);
-    const snapshot = await getCompanyPublicationSnapshotFromDb(db);
+    const snapshot = await getSnapshot(db);
     expect(snapshot.companies.find(({ companyId }) => companyId === companyWithOnePlan.id)).toMatchObject({
       state: "PUBLISHING",
       health: "HEALTHY",
@@ -151,7 +170,7 @@ describe("getCompanyPublicationSnapshotFromDb", () => {
       observations: []
     });
     const { db } = fakeDb([row(1), failure, row(3)]);
-    const snapshot = await getCompanyPublicationSnapshotFromDb(db);
+    const snapshot = await getSnapshot(db);
     expect(snapshot.companies.find(({ companyId }) => companyId === companyWithOnePlan.id)).toMatchObject({
       state: "VERIFYING",
       eligibleSourceIds: []
@@ -163,12 +182,12 @@ describe("getCompanyPublicationSnapshotFromDb", () => {
     runningOne.batch = { ...runningOne.batch, status: "RUNNING", finishedAt: null };
     const runningTwo = row(2);
     runningTwo.batch = { ...runningTwo.batch, status: "RUNNING", finishedAt: null };
-    const runningSnapshot = await getCompanyPublicationSnapshotFromDb(fakeDb([runningOne, runningTwo]).db);
+    const runningSnapshot = await getSnapshot(fakeDb([runningOne, runningTwo]).db);
     expect(runningSnapshot.companies.find(({ companyId }) => companyId === companyWithOnePlan.id)?.state).toBe("VERIFYING");
 
     const missingBatchFinish = row(2);
     missingBatchFinish.batch = { ...missingBatchFinish.batch, status: "SUCCESS", finishedAt: null };
-    const terminalSnapshot = await getCompanyPublicationSnapshotFromDb(fakeDb([
+    const terminalSnapshot = await getSnapshot(fakeDb([
       row(1),
       missingBatchFinish,
       row(3)
@@ -183,7 +202,7 @@ describe("getCompanyPublicationSnapshotFromDb", () => {
       sourceId: "source-not-planned"
     }));
     const { db } = fakeDb([extra]);
-    const snapshot = await getCompanyPublicationSnapshotFromDb(db);
+    const snapshot = await getSnapshot(db);
     expect(snapshot.companies).toHaveLength(candidateCompanies.length);
     expect(snapshot.eligibleSourceIds).not.toContain("source-not-planned");
   });
@@ -197,7 +216,7 @@ describe("getCompanyPublicationSnapshotFromDb", () => {
     const two = row(2);
     two.observations = [two.observations[0]!, { ...two.observations[0]!, id: "observation-extra" }];
     const { db } = fakeDb([mismatch, two]);
-    const snapshot = await getCompanyPublicationSnapshotFromDb(db);
+    const snapshot = await getSnapshot(db);
     expect(snapshot.companies.find(({ companyId }) => companyId === companyWithOnePlan.id)?.state).toBe("VERIFYING");
   });
 
@@ -205,6 +224,22 @@ describe("getCompanyPublicationSnapshotFromDb", () => {
     const drift = row(1);
     drift.batch = { ...drift.batch, id: "different-batch" };
     const { db } = fakeDb([drift]);
-    await expect(getCompanyPublicationSnapshotFromDb(db)).rejects.toThrow(/PUBLICATION_BATCH_RELATION_TUPLE_DRIFT/);
+    await expect(getSnapshot(db)).rejects.toThrow(/PUBLICATION_BATCH_RELATION_TUPLE_DRIFT/);
+  });
+
+  it("rejects source-result and observation rows from another release candidate", async () => {
+    const resultDrift = row(1, { releaseCandidateId: "old-release" });
+    await expect(getSnapshot(fakeDb([resultDrift]).db)).rejects.toThrow(
+      /PUBLICATION_BATCH_RELATION_TUPLE_DRIFT/
+    );
+
+    const observationDrift = row(2);
+    observationDrift.observations = observationDrift.observations.map((observation) => ({
+      ...observation,
+      releaseCandidateId: "old-release"
+    }));
+    await expect(getSnapshot(fakeDb([observationDrift]).db)).rejects.toThrow(
+      /PUBLICATION_OBSERVATION_RELATION_TUPLE_DRIFT/
+    );
   });
 });

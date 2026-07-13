@@ -4,7 +4,13 @@ import {
   AUTHORIZED_PHASE1_EXCLUSION_COMPANY_IDS,
   canonicalPhase1ScopeCounts
 } from "../../src/data/phase1ScopePolicy";
+import { getCompanyPublicationSnapshotFromDb } from "../../src/db/publicationEligibilityRepository";
 import { listCompanyCoverage, type CoverageDb } from "../../src/server/coverageService";
+
+const readTestSnapshot = (db: CoverageDb) => getCompanyPublicationSnapshotFromDb(
+  db,
+  async () => ({ identity: { releaseCandidateId: "phase1-current-release" } })
+);
 
 function emptyAttemptDb() {
   const findMany = vi.fn(async () => []);
@@ -21,7 +27,7 @@ describe("company coverage service", () => {
       keyword: "",
       offset: 0,
       limit: canonicalPhase1ScopeCounts.fixedRosterCompanyCount
-    }, db);
+    }, db, readTestSnapshot);
 
     expect(findMany).toHaveBeenCalledTimes(1);
     expect(result.companies).toHaveLength(canonicalPhase1ScopeCounts.fixedRosterCompanyCount);
@@ -67,7 +73,7 @@ describe("company coverage service", () => {
       keyword: "renfu",
       offset: 0,
       limit: canonicalPhase1ScopeCounts.fixedRosterCompanyCount
-    }, db);
+    }, db, readTestSnapshot);
 
     expect(findMany).toHaveBeenCalledTimes(1);
     expect(result).toEqual({
