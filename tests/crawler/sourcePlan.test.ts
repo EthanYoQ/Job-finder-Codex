@@ -342,12 +342,12 @@ describe("source crawl planning", () => {
           officialTitle: { selector: ":scope" },
           officialUrl: { selector: ":scope", attribute: "href" },
           locationRaw: { value: "中国" }
-        },
-        pagination: {
-          expectedJobCountSelector: "a[href$='.pdf'][href*='/global/zh/']"
         }
       }
     });
+    const astellas = getPlanBySourceId(plans, "source-astellas-china-social");
+    if (astellas?.adapterId !== "html-table") throw new Error("expected Astellas HTML plan");
+    expect(astellas.table.pagination).not.toHaveProperty("expectedJobCountSelector");
     expect(getPlanBySourceId(plans, "source-johnson-innovative-medicine-social")).toMatchObject({
       adapterId: "official-json",
       source: {
@@ -769,9 +769,9 @@ describe("source crawl planning", () => {
       adapterId: "html-table",
       table: {
         pagination: {
-          totalPagesSelector: "a[href*='PageIndex=']",
+          totalPagesSelector: "a[href*='PageIndex=']:not([href*='PageIndex=0'])",
           totalPagesAttribute: "href",
-          totalPagesPattern: "PageIndex=(\\d+)",
+          totalPagesPattern: "PageIndex=(\\d+)(?:&|$)",
           totalPagesMode: "max",
           pageSearchParam: "PageIndex",
           maxPages: 20
@@ -782,6 +782,8 @@ describe("source crawl planning", () => {
       adapterId: "html-table",
       table: {
         pagination: {
+          totalPagesSelector: "a[href*='PageIndex=']:not([href*='PageIndex=0'])",
+          totalPagesPattern: "PageIndex=(\\d+)(?:&|$)",
           totalPagesMode: "max",
           pageSearchParam: "PageIndex",
           maxPages: 20
@@ -809,6 +811,8 @@ describe("source crawl planning", () => {
       },
       table: {
         pagination: {
+          totalPagesSelector: "a[href*='PageIndex=']:not([href*='PageIndex=0'])",
+          totalPagesPattern: "PageIndex=(\\d+)(?:&|$)",
           totalPagesMode: "max",
           pageSearchParam: "PageIndex",
           expectedJobCountPattern: "共\\s*(\\d+)\\s*条记录"

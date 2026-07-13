@@ -181,8 +181,7 @@ const REPRESENTATIVE_CONFIGS: Record<string, RepresentativeSourceConfig> = {
         totalPagesSelector: "body",
         totalPagesAttribute: "data-total-pages",
         pageSearchParam: "page",
-        maxPages: 1,
-        expectedJobCountSelector: "a[href$='.pdf'][href*='/global/zh/']"
+        maxPages: 1
       },
       fields: {
         sourceJobId: {
@@ -293,9 +292,9 @@ const REPRESENTATIVE_CONFIGS: Record<string, RepresentativeSourceConfig> = {
     table: {
       rowSelector: "table tr",
       pagination: {
-        totalPagesSelector: "a[href*='PageIndex=']",
+        totalPagesSelector: "a[href*='PageIndex=']:not([href*='PageIndex=0'])",
         totalPagesAttribute: "href",
-        totalPagesPattern: "PageIndex=(\\d+)",
+        totalPagesPattern: "PageIndex=(\\d+)(?:&|$)",
         totalPagesMode: "max",
         pageSearchParam: "PageIndex",
         maxPages: 20
@@ -824,9 +823,9 @@ const REPRESENTATIVE_CONFIGS: Record<string, RepresentativeSourceConfig> = {
     table: {
       rowSelector: ".jobsTable tr:not(.title)",
       pagination: {
-        totalPagesSelector: "a[href*='PageIndex=']",
+        totalPagesSelector: "a[href*='PageIndex=']:not([href*='PageIndex=0'])",
         totalPagesAttribute: "href",
-        totalPagesPattern: "PageIndex=(\\d+)",
+        totalPagesPattern: "PageIndex=(\\d+)(?:&|$)",
         totalPagesMode: "max",
         pageSearchParam: "PageIndex",
         maxPages: 20
@@ -876,9 +875,9 @@ const REPRESENTATIVE_CONFIGS: Record<string, RepresentativeSourceConfig> = {
     table: {
       rowSelector: ".jobsTable tr:not(.title)",
       pagination: {
-        totalPagesSelector: "a[href*='PageIndex=']",
+        totalPagesSelector: "a[href*='PageIndex=']:not([href*='PageIndex=0'])",
         totalPagesAttribute: "href",
-        totalPagesPattern: "PageIndex=(\\d+)",
+        totalPagesPattern: "PageIndex=(\\d+)(?:&|$)",
         totalPagesMode: "max",
         pageSearchParam: "PageIndex",
         maxPages: 60,

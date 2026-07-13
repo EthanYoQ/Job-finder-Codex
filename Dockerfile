@@ -69,7 +69,7 @@ ENV XDG_CACHE_HOME=/tmp/.cache
 RUN set -eu; \
   apt-get -o Acquire::Retries=5 -o Acquire::http::Timeout=30 update; \
   for attempt in 1 2 3; do \
-    if apt-get -o Acquire::Retries=5 -o Acquire::http::Timeout=30 install -y --no-install-recommends chromium libpq5 libreadline8 util-linux; then \
+    if apt-get -o Acquire::Retries=5 -o Acquire::http::Timeout=30 install -y --no-install-recommends ca-certificates chromium libpq5 libreadline8 util-linux; then \
       rm -rf /var/lib/apt/lists/*; \
       break; \
     fi; \

@@ -255,6 +255,28 @@ describe("official HTML fetch evidence", () => {
     });
   });
 
+  it("treats a missing configured total-pages attribute as absent instead of parsing unrelated text", async () => {
+    const plan = { ...base, table: { ...base.table, pagination: {
+      totalPagesSelector: "#r", totalPagesAttribute: "data-total-pages",
+      pageSearchParam: "page", pageSize: 1, maxPages: 2,
+      expectedJobCountSelector: "#r", expectedJobCountPattern: "of\\s+(\\d+)\\s+Jobs"
+    } } } as SourceCrawlPlan;
+    const result = await createHttpHtmlSourceFetch({
+      now: () => new Date("2026-07-08T00:00:00.000Z"),
+      http: async request => {
+        const page = new URL(request.url).searchParams.get("page") ?? "1";
+        return at(request, `<div id="r">Showing 1 to 1 of 2 Jobs</div><table>${row(page)}</table>`);
+      }
+    })(plan);
+
+    expect(result).toMatchObject({
+      ok: true,
+      completeness: { pagesVisited: 2 },
+      paginationEvaluation: { safeCompleteness: true },
+      fetchEvidence: { pages: [{ declaredPages: 2 }, { declaredPages: 2 }] }
+    });
+  });
+
   it("detects a repeated stable raw row even when its position changes across pages", async () => {
     const plan = { ...base, table: { ...base.table, pagination: { totalPagesSelector: "#r", totalPagesAttribute: "data-total-pages",
       pageSearchParam: "page", maxPages: 2 } } } as SourceCrawlPlan;
@@ -357,14 +379,20 @@ describe("official HTML fetch evidence", () => {
     expect(result).toMatchObject({ ok: false, failureReason: "HTML_DECLARATION_INVALID", fetchEvidence: { artifacts: [{}, {}] } });
   });
 
-  it("records actual ordinary offset request coordinates and never fabricates returned coordinates", async () => {
+  it("accepts unique ordinary offset pages without fabricating returned coordinates", async () => {
     const plan = { ...base, table: { ...base.table, pagination: { totalPagesSelector: "#r", totalPagesAttribute: "data-total-pages",
       pageSearchParam: "start", pageSearchParamMode: "offset", pageSize: 25, pageNumberOffset: 7, maxPages: 2 } } } as SourceCrawlPlan;
-    const result = await createHttpHtmlSourceFetch({ now: () => new Date("2026-07-08T00:00:00.000Z"), http: async request =>
-      at(request, `<div id="r" data-total-pages="2"></div><table>${row(request.url)}</table>`) })(plan);
-    expect(result).toMatchObject({ ok: false, failureReason: "HTML_PAGINATION_EVIDENCE_UNSAFE", fetchEvidence: { pages: [
-      { requestedPage: null, requestedOffset: null, returnedPage: null, returnedOffset: null, requestedPageSize: 25 },
-      { requestedPage: null, requestedOffset: 25, returnedPage: null, returnedOffset: null, requestedPageSize: 25 }
+    const result = await createHttpHtmlSourceFetch({ now: () => new Date("2026-07-08T00:00:00.000Z"), http: async request => {
+      const offset = new URL(request.url).searchParams.get("start");
+      const count = offset === "25" ? 10 : 25;
+      const rows = Array.from({ length: count }, (_, index) => row(`${offset ?? "first"}-${index}`)).join("");
+      return at(request, `<div id="r" data-total-pages="2"></div><table>${rows}</table>`);
+    }})(plan);
+    expect(result).toMatchObject({ ok: true, paginationEvaluation: { safeCompleteness: true }, fetchEvidence: { pages: [
+      { requestedPage: null, requestedOffset: null, returnedPage: null, returnedOffset: null,
+        requestedPageSize: 25, nextPageSignalBefore: "initial", nextPageSignalAfter: "offset-25" },
+      { requestedPage: null, requestedOffset: 25, returnedPage: null, returnedOffset: null,
+        requestedPageSize: 25, nextPageSignalBefore: "offset-25", nextPageSignalAfter: null }
     ] } });
   });
 

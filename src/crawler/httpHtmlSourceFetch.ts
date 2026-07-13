@@ -816,7 +816,11 @@ function attachHtmlEvidence(
       requestedPageSize, returnedPageSize,
       rawJobIds: [...new Set(ids)], validJobIds: validIds,
       declaredTotal, declaredCount, declaredPages,
-      nextPageSignalBefore: pages.length === 0 ? "initial" : `page-${requestedPage}`,
+      nextPageSignalBefore: pages.length === 0
+        ? "initial"
+        : mode === "ordinary" && requestedOffset !== null
+          ? `offset-${requestedOffset}`
+          : `page-${requestedPage}`,
       nextPageSignalAfter: null,
       responseFingerprintSha256: sha256Bytes(Buffer.from(artifactBody, "utf8")).sha256,
       termination: "ABORTED", anomalyCodes: [], capturedAt: response.capturedAt!
@@ -845,7 +849,12 @@ function attachHtmlEvidence(
     indexes.forEach((pageIndex, scopeIndex) => {
       const page = pages[pageIndex]!;
       const hasNext = scopeIndex < indexes.length - 1;
-      page.nextPageSignalAfter = hasNext ? `page-${(page.requestedPage ?? scopeIndex + 1) + 1}` : null;
+      const nextPage = hasNext ? pages[indexes[scopeIndex + 1]!]! : undefined;
+      page.nextPageSignalAfter = nextPage && mode === "ordinary" && nextPage.requestedOffset !== null
+        ? `offset-${nextPage.requestedOffset}`
+        : hasNext
+          ? `page-${(page.requestedPage ?? scopeIndex + 1) + 1}`
+          : null;
       page.termination = hasNext ? "CONTINUE" : (result.ok ? "NEXT_ABSENT" : "FAILED");
     });
   }
@@ -1057,7 +1066,10 @@ function hasInvalidOrdinaryDeclaration(
   if (!pagination) return false;
   for (const element of $(pagination.totalPagesSelector).toArray()) {
     const selected = $(element);
-    const raw = selected.attr(pagination.totalPagesAttribute) ?? selected.text();
+    const raw = pagination.totalPagesPattern
+      ? selected.attr(pagination.totalPagesAttribute) ?? selected.text()
+      : selected.attr(pagination.totalPagesAttribute);
+    if (raw === undefined) continue;
     const extracted = pagination.totalPagesPattern ? matchFirstNumber(raw, pagination.totalPagesPattern) : raw;
     if (extracted !== undefined && strictOptionalPositiveInt(extracted.trim()) === undefined) return true;
     if (pagination.totalPagesPattern && extracted === undefined && raw.trim()) return true;
