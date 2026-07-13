@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { isAbsolute, relative, resolve } from "node:path";
+import { isAbsolute, relative, resolve, sep } from "node:path";
 import {
   buildCrawlAttemptEvent,
   writeCrawlAttemptEvent,
@@ -359,7 +359,10 @@ function pathsOverlap(left: string, right: string): boolean {
   if (normalizedLeft === normalizedRight) return true;
   const isDescendant = (parent: string, child: string) => {
     const pathFromParent = relative(parent, child);
-    return pathFromParent !== "" && !pathFromParent.startsWith("..") && !isAbsolute(pathFromParent);
+    return pathFromParent !== "" &&
+      pathFromParent !== ".." &&
+      !pathFromParent.startsWith(`..${sep}`) &&
+      !isAbsolute(pathFromParent);
   };
   return isDescendant(normalizedLeft, normalizedRight) || isDescendant(normalizedRight, normalizedLeft);
 }

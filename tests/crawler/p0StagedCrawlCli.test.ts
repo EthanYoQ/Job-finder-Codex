@@ -124,6 +124,10 @@ describe("staged crawl operational CLI", () => {
       STAGED_CRAWL_ATTEMPT_DIR: resolve(cwd, "custom", "strict-attempts", "staged")
     }, cwd)).toThrow(/separate from strict evidence/i);
     expect(() => resolveStagedCrawlEvidencePaths({
+      CRAWL_ATTEMPT_DIR: resolve(cwd, "custom", "strict-attempts"),
+      STAGED_CRAWL_ATTEMPT_DIR: resolve(cwd, "custom", "strict-attempts", "..staged")
+    }, cwd)).toThrow(/separate from strict evidence/i);
+    expect(() => resolveStagedCrawlEvidencePaths({
       CRAWL_SUMMARY_PATH: resolve(cwd, "custom", "strict-summary.json"),
       STAGED_CRAWL_SUMMARY_PATH: resolve(cwd, "custom", "strict-summary.json")
     }, cwd)).toThrow(/separate from strict evidence/i);

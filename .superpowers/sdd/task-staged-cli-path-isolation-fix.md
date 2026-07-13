@@ -30,6 +30,10 @@ The staged CLI used separate defaults but accepted `STAGED_CRAWL_ATTEMPT_DIR` an
 - `git diff --check` for the two implementation/test files passed.
 - Whole-project typecheck was attempted while an independent parallel publication-evaluator task had uncommitted RED tests; it was temporarily blocked only by that task's three test typing errors. The staged CLI source and tests compiled and executed in the focused matrices. A clean whole-project typecheck remains required after the parallel task finishes and before independent rereview PASS.
 
+## Rereview correction
+
+The first independent rereview found that a real child directory named `..staged` was not detected because the descendant check treated every string beginning with `..` as a parent traversal. A new RED test reproduced the accepted strict-journal child path. The check now rejects only the exact `..` path segment or `..` followed by the platform separator, so `..staged` is correctly recognized as a nested child. Focused GREEN returned 11/11.
+
 ## Files
 
 - `src/crawler/stagedCrawlCli.ts`
