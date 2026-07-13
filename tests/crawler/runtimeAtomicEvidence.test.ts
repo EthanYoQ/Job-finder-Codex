@@ -277,7 +277,11 @@ describe("runtime atomic evidence planning", () => {
     for (const fault of ["archive", "orphan", "orphan-ledger", "verify", "atomic"] as const) {
       const terminalUpdates: unknown[] = [];
       const batchUpdates: unknown[] = [];
+      const jobUpsert = vi.fn();
+      const observationCreate = vi.fn();
       const runtimeTx = { ...tx,
+        job: { upsert: jobUpsert },
+        crawlObservation: { create: observationCreate },
         crawlBatch: { create: async () => undefined },
         crawlBatchSourceResult: {
           create: async () => undefined,
@@ -287,9 +291,15 @@ describe("runtime atomic evidence planning", () => {
       const runtimeDb = {
         createBatchId: () => `batch-fault-${fault}`,
         $transaction: async <T>(operation: (value: typeof runtimeTx) => Promise<T>) => operation(runtimeTx),
-        crawlBatch: { update: async (args: unknown) => { batchUpdates.push(args); } }
+        crawlBatch: { update: async (args: unknown) => {
+          batchUpdates.push(args);
+          if (fault === "orphan-ledger") throw new Error("batch finalization injected");
+        } }
       };
       const fail = async () => { throw new Error(`${fault} injected`); };
+      const atomicCommit = vi.fn(async () => {
+        if (fault === "atomic") throw new Error("atomic injected");
+      });
       const orphanLedger: unknown[] = [];
       const archiveFailure = async () => {
         if (fault === "orphan" || fault === "orphan-ledger") {
@@ -305,7 +315,7 @@ describe("runtime atomic evidence planning", () => {
         archiveEvidence: fault === "archive" || fault === "orphan" || fault === "orphan-ledger"
           ? archiveFailure as never : async () => ({ artifacts: archived, orphanedFinalArtifacts: [] }),
         verifyArchive: fault === "verify" ? fail as never : async () => archived,
-        executeAtomicCommit: fault === "atomic" ? fail as never : async () => undefined,
+        executeAtomicCommit: atomicCommit as never,
         recordOrphanedArtifacts: async (artifacts) => {
           orphanLedger.push(...artifacts);
           if (fault === "orphan-ledger") throw new Error("authorization: Bearer example-placeholder");
@@ -315,7 +325,11 @@ describe("runtime atomic evidence planning", () => {
         let rejection: unknown;
         try { await invocation; } catch (error) { rejection = error; }
         expect(rejection).toBeInstanceOf(AggregateError);
-        const errors = (rejection as AggregateError).errors;
+        const outerErrors = (rejection as AggregateError).errors;
+        expect(outerErrors).toHaveLength(2);
+        expect(outerErrors[0]).toBeInstanceOf(AggregateError);
+        expect((outerErrors[1] as Error).message).toBe("batch finalization injected");
+        const errors = (outerErrors[0] as AggregateError).errors;
         expect(errors).toHaveLength(2);
         expect(errors[0]).toBeInstanceOf(ArtifactArchiveError);
         expect((errors[0] as ArtifactArchiveError).orphanedFinalArtifacts).toEqual([archived[0]]);
@@ -325,16 +339,54 @@ describe("runtime atomic evidence planning", () => {
         expect(Reflect.ownKeys(errors[1] as object)).toEqual(["stack", "message"]);
         expect((errors[1] as Error).message).not.toMatch(/password|authorization|cookie|bearer|topsecret/i);
       } else {
-        await expect(invocation).rejects.toThrow(fault === "orphan" ? "orphan injected" : `${fault} injected`);
+        await expect(invocation).resolves.toEqual({
+          status: "FAILED",
+          batchId: `batch-fault-${fault}`,
+          plannedSourceCount: 1,
+          dueSourceCount: 1,
+          transportSuccessfulSourceCount: 1,
+          transportFailedSourceCount: 0,
+          adapterSuccessfulSourceCount: 1,
+          adapterFailedSourceCount: 0,
+          completenessVerifiedSourceCount: 0,
+          completenessIncompleteSourceCount: 0,
+          atomicCommittedSourceCount: 0,
+          atomicFailedSourceCount: 1,
+          successfulSourceCount: 0,
+          failedSourceCount: 1,
+          blockedSourceCount: 0,
+          skippedSourceCount: 0
+        });
+      }
+      if (fault === "archive") {
+        expect(atomicCommit).not.toHaveBeenCalled();
+        expect(jobUpsert).not.toHaveBeenCalled();
+        expect(observationCreate).not.toHaveBeenCalled();
       }
       if (fault === "orphan") expect(orphanLedger).toEqual([archived[0]]);
       if (fault === "orphan-ledger") expect(orphanLedger).toEqual([archived[0]]);
       expect(terminalUpdates.at(-1)).toEqual(expect.objectContaining({
-        data: expect.objectContaining({ atomicCommitState: "ROLLED_BACK", failureCode: "ATOMIC_EVIDENCE_COMMIT_FAILED" })
+        data: expect.objectContaining({
+          transportState: "SUCCEEDED",
+          adapterState: "SUCCEEDED",
+          completenessState: "FAILED",
+          atomicCommitState: "ROLLED_BACK",
+          failureCode: "ATOMIC_EVIDENCE_COMMIT_FAILED"
+        })
       }));
       expect(batchUpdates.at(-1)).toEqual(expect.objectContaining({
-        data: expect.objectContaining({ atomicCommittedCount: 0, atomicFailedCount: 1,
-          completenessVerifiedCount: 0, aggregateJobSetSha256: "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945" })
+        data: expect.objectContaining({
+          status: "FAILED",
+          transportSucceededCount: 1,
+          transportFailedCount: 0,
+          adapterSucceededCount: 1,
+          adapterFailedCount: 0,
+          atomicCommittedCount: 0,
+          atomicFailedCount: 1,
+          failedSourceCount: 1,
+          completenessVerifiedCount: 0,
+          aggregateJobSetSha256: "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+        })
       }));
     }
     await rm(workspaceRoot, { recursive: true, force: true });
