@@ -17,7 +17,7 @@ export async function runCurrentStagedScheduledCrawl(
   deps: RunCurrentStagedScheduledCrawlDeps
 ) {
   const authority = await resolveCurrentStagedScheduleAuthority(deps.db);
-  return runP0CrawlCommand({
+  const result = await runP0CrawlCommand({
     plans: authority.plans,
     companies: authority.companies,
     options: { help: false, sourceIds: [], force: false },
@@ -29,4 +29,8 @@ export async function runCurrentStagedScheduledCrawl(
     createRuntimeDeps: deps.createRuntimeDeps,
     runP0CrawlBatch: deps.runP0CrawlBatch
   });
+  const identity = structuredClone(authority.identity);
+  Object.freeze(identity.expectedPlannedSourceIds);
+  Object.freeze(identity);
+  return { ...result, identity };
 }

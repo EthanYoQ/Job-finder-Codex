@@ -175,5 +175,12 @@ describe("current staged scheduled crawl", () => {
     });
     expect(result.batch).toEqual(failedMixedBatch(canonicalPlans.length));
     expect(result.batch.status).toBe("FAILED");
+    expect(result.identity).toMatchObject({
+      releaseCandidateId: "rc-staged-1",
+      batchKind: "SCHEDULED",
+      ownerId: "staged-scheduler"
+    });
+    expect(Object.isFrozen(result.identity)).toBe(true);
+    expect(Object.isFrozen(result.identity.expectedPlannedSourceIds)).toBe(true);
   });
 });
