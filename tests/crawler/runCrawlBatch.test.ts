@@ -9,10 +9,13 @@ import {
   type RunP0CrawlBatchDeps
 } from "../../src/crawler/runCrawlBatch";
 import { buildJobDedupeKey, type NormalizedJobRecord } from "../../src/crawler/normalizedJob";
-import { buildDiscoverySourcePlanCandidates, expectedChannelSetHash, getPlanBySourceId, type SourceCrawlPlan } from "../../src/crawler/sourcePlan";
+import { buildDiscoverySourcePlanCandidates, buildStagedSourceCrawlPlans, expectedChannelSetHash, getPlanBySourceId, type SourceCrawlPlan } from "../../src/crawler/sourcePlan";
 import type { JobSnapshot } from "../../src/crawler/lifecycle";
 import { candidateCompanies } from "../../src/data/companyRegistry";
-import type { PrismaIngestionTransactionClient } from "../../src/db/ingestionRepository";
+import {
+  executeAtomicSourceEvidenceCommit,
+  type PrismaIngestionTransactionClient
+} from "../../src/db/ingestionRepository";
 import { canonicalReleaseMembersSha256, releaseMembersFromPlans,
   type AuthoritativeReleaseMembershipArtifact } from "../../src/crawler/authoritativeReleaseMembership";
 import { evaluatePaginationEvidence } from "../../src/crawler/paginationEvidence";
@@ -1420,5 +1423,207 @@ describe("runP0CrawlBatch", () => {
       where: { id: "batch-1" },
       data: expect.objectContaining({ finishedAt: NOW, status: "FAILED" })
     });
+  });
+
+  it("uses globally unique deterministic artifact ids across sources, batches, and release candidates", async () => {
+    const stagedPlans = buildStagedSourceCrawlPlans(candidateCompanies);
+    const firstPlan = getPlanBySourceId(stagedPlans, "source-qilu-social")!;
+    const secondPlan = getPlanBySourceId(stagedPlans, "source-roche-china-social")!;
+    const archivedRows: Array<{
+      id: string;
+      logicalKey: string;
+      releaseCandidateId: string;
+      batchId: string;
+      sourceId: string;
+      sourceResultId: string;
+      path: string;
+    }> = [];
+    const artifactRows: Array<Record<string, unknown>> = [];
+    const paginationRows: Array<Record<string, unknown>> = [];
+    const transportArtifactRows: Array<Record<string, unknown>> = [];
+    const observationRows: Array<Record<string, unknown>> = [];
+    const atomicErrors: string[] = [];
+    const persistedArtifactIds = new Set<string>();
+    const commits: Array<Parameters<AtomicCommitExecutor>[0]> = [];
+    const archiveDeps = inMemoryArchiveDeps();
+
+    const archiveEvidence: NonNullable<RunP0CrawlBatchDeps["archiveEvidence"]> = async (request) => {
+      const archived = await archiveDeps.archiveEvidence!(request);
+      archivedRows.push(...archived.artifacts);
+      return archived;
+    };
+    const atomicTransaction = {
+      evidenceArtifact: { create: async ({ data }: { data: Record<string, unknown> }) => {
+        const id = String(data.id);
+        if (persistedArtifactIds.has(id)) throw new Error(`EvidenceArtifact_pkey duplicate: ${id}`);
+        persistedArtifactIds.add(id);
+        artifactRows.push(data);
+      } },
+      paginationEvidence: { create: async ({ data }: { data: Record<string, unknown> }) => {
+        paginationRows.push(data);
+      } },
+      lossLedgerEntry: { create: async () => undefined },
+      transportAttemptEvidence: { create: async () => undefined },
+      transportAttemptArtifact: { create: async ({ data }: { data: Record<string, unknown> }) => {
+        transportArtifactRows.push(data);
+      } },
+      crawlObservation: { create: async ({ data }: { data: Record<string, unknown> }) => {
+        observationRows.push(data);
+      } },
+      job: { upsert: async () => undefined },
+      lifecycleSetEvidenceMember: { create: async () => undefined },
+      crawlBatchSourceResult: { updateMany: async () => ({ count: 1 }) }
+    };
+    const executeAtomicCommit = vi.fn<AtomicCommitExecutor>(async (commit) => {
+      commits.push(commit);
+      try {
+        await executeAtomicSourceEvidenceCommit(commit, {
+          $transaction: async <T>(operation: (value: typeof atomicTransaction) => Promise<T>) =>
+            operation(atomicTransaction)
+        });
+      } catch (error) {
+        atomicErrors.push(error instanceof Error ? error.message : String(error));
+        throw error;
+      }
+    });
+    const fetchWithSharedLogicalKeys = (plan: SourceCrawlPlan) => {
+      const fetched = strictSuccessfulFetch(plan, `${plan.source.id}-job`);
+      const channelId = plan.expectedChannels![0]!.channelId;
+      const mainLogicalKey = "official-html-page-0000";
+      fetched.fetchEvidence.artifacts[0]!.id = mainLogicalKey;
+      fetched.fetchEvidence.artifacts[0]!.logicalKey = mainLogicalKey;
+      fetched.fetchEvidence.pages[0]!.artifactLogicalKey = mainLogicalKey;
+      fetched.fetchEvidence.declaredCompleteness!.artifactLogicalKey = mainLogicalKey;
+      fetched.fetchEvidence.declaredCompleteness!.kind = "OFFICIAL_TOTAL_PAGES";
+      const priorBody = JSON.stringify({ sourceId: plan.source.id, failed: true });
+      const priorFetchEvidence: PersistentSourceFetchEvidence = {
+        captureTool: { name: "source-isolation-test", version: "1" },
+        artifacts: [{
+          id: "phenom-entry-0000",
+          logicalKey: "phenom-entry-0000",
+          kind: "OFFICIAL_COMPANY_PAGE",
+          requestedUrl: "https://jobs.example.cn/careers",
+          finalUrl: "https://jobs.example.cn/careers",
+          httpStatus: 200,
+          contentType: "application/json",
+          capturedAt: CAPTURED_AT,
+          body: priorBody,
+          bodyRepresentation: "EXACT",
+          extractorLocator: "json:entry"
+        }],
+        pages: [],
+        supportingArtifactOnlyFailure: { code: "HCM_DIRECT_FAILED" },
+        fetchCounts: {
+          rawCount: 0,
+          parsedCount: 0,
+          validCount: 0,
+          parseDiscardCount: 0,
+          validationDiscardCount: 0
+        },
+        fetchLosses: []
+      };
+      return {
+        ...fetched,
+        paginationEvaluation: evaluatePaginationEvidence({
+          evidence: fetched.fetchEvidence,
+          expectedChannelIds: [channelId],
+          filteredOutput: true
+        }),
+        priorTransportAttempts: [{
+          transport: "DIRECT_HTTP" as const,
+          outcome: "FAILED" as const,
+          code: "HCM_DIRECT_FAILED" as const,
+          capturedAt: CAPTURED_AT,
+          fetchEvidence: priorFetchEvidence
+        }]
+      };
+    };
+    const runs = [
+      { plans: [firstPlan, secondPlan], batchId: "batch-shared-1", releaseCandidateId: "p0-rc-shared-1" },
+      { plans: [firstPlan], batchId: "batch-shared-2", releaseCandidateId: "p0-rc-shared-1" },
+      { plans: [firstPlan], batchId: "batch-shared-3", releaseCandidateId: "p0-rc-shared-2" }
+    ];
+
+    for (const run of runs) {
+      const result = await runP0CrawlBatch(run.plans, {
+        db: fakeDb(),
+        fetch: async (plan) => fetchWithSharedLogicalKeys(plan),
+        now: NOW,
+        force: true,
+        createBatchId: () => run.batchId,
+        identity: { ...identityForPlans(run.plans), releaseCandidateId: run.releaseCandidateId },
+        archiveEvidence,
+        verifyArchive: archiveDeps.verifyArchive!,
+        executeAtomicCommit,
+        getPreviousJobs: async () => [],
+        getRecentObservations: async () => [],
+        isBaselineCompleted: async () => true
+      });
+      expect(atomicErrors).toEqual([]);
+      expect(result.atomicCommittedSourceCount).toBe(run.plans.length);
+      expect(result.atomicFailedSourceCount).toBe(0);
+    }
+
+    expect(commits).toHaveLength(4);
+    expect(archivedRows).toHaveLength(8);
+    expect(artifactRows).toHaveLength(8);
+    expect(paginationRows).toHaveLength(4);
+    expect(transportArtifactRows).toHaveLength(4);
+    expect(observationRows).toHaveLength(4);
+    expect(new Set(archivedRows.map((artifact) => artifact.id)).size).toBe(8);
+    expect(new Set(archivedRows.map((artifact) => artifact.logicalKey))).toEqual(
+      new Set(["official-html-page-0000", "phenom-entry-0000"])
+    );
+    for (const archived of archivedRows) {
+      const expectedId = createHash("sha256").update(JSON.stringify([
+        "runtime-evidence-artifact-v1",
+        archived.releaseCandidateId,
+        archived.batchId,
+        archived.sourceId,
+        archived.sourceResultId,
+        archived.logicalKey
+      ]), "utf8").digest("hex");
+      expect(archived.id).toBe(expectedId);
+      expect(archived.id).toMatch(/^[0-9a-f]{64}$/);
+      expect(archived.path).toContain(archived.id);
+      const commit = commits.find((candidate) =>
+        candidate.sourceResult.releaseCandidateId === archived.releaseCandidateId &&
+        candidate.sourceResult.batchId === archived.batchId &&
+        candidate.sourceResult.sourceId === archived.sourceId &&
+        candidate.sourceResult.id === archived.sourceResultId
+      )!;
+      expect(commit.artifacts.find((artifact) => artifact.logicalKey === archived.logicalKey)?.id)
+        .toBe(archived.id);
+    }
+    for (const row of paginationRows) {
+      const artifact = artifactRows.find((candidate) =>
+        candidate.releaseCandidateId === row.releaseCandidateId &&
+        candidate.batchId === row.batchId &&
+        candidate.sourceId === row.sourceId &&
+        candidate.sourceResultId === row.sourceResultId &&
+        archivedRows.find((archived) => archived.id === candidate.id)?.logicalKey === "official-html-page-0000"
+      );
+      expect(row.artifactId).toBe(artifact?.id);
+    }
+    for (const row of transportArtifactRows) {
+      const artifact = archivedRows.find((candidate) =>
+        candidate.releaseCandidateId === row.releaseCandidateId &&
+        candidate.batchId === row.batchId &&
+        candidate.sourceId === row.sourceId &&
+        candidate.sourceResultId === row.sourceResultId &&
+        candidate.logicalKey === "phenom-entry-0000"
+      );
+      expect(row.artifactId).toBe(artifact?.id);
+    }
+    for (const row of observationRows) {
+      const artifact = archivedRows.find((candidate) =>
+        candidate.releaseCandidateId === row.releaseCandidateId &&
+        candidate.batchId === row.batchId &&
+        candidate.sourceId === row.sourceId &&
+        candidate.sourceResultId === row.sourceResultId &&
+        candidate.logicalKey === "official-html-page-0000"
+      );
+      expect(row.officialEvidenceArtifactId).toBe(artifact?.id);
+    }
   });
 });

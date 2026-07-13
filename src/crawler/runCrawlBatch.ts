@@ -25,8 +25,11 @@ import {
 } from "./runtimeBatchIdentity";
 import { isSourceDueForScheduledRun } from "./schedule";
 import { validateExecutablePlanChannelBinding, type SourceCrawlPlan } from "./sourcePlan";
-import { buildPendingRuntimeBatch } from "./runtimeAtomicEvidence";
-import { buildAtomicRuntimeCommit } from "./runtimeAtomicEvidence";
+import {
+  bindRuntimeEvidenceArtifactIds,
+  buildAtomicRuntimeCommit,
+  buildPendingRuntimeBatch
+} from "./runtimeAtomicEvidence";
 import { randomUUID } from "node:crypto";
 import { archiveSourceEvidence, verifyArchivedSourceEvidence, ArtifactArchiveError,
   type ArchivedEvidenceArtifact } from "./artifactArchive";
@@ -255,15 +258,22 @@ export async function runP0CrawlBatch(
       let retainedArtifacts: readonly ArchivedEvidenceArtifact[] = [];
       try {
         if (!crawlResult.fetchEvidence) throw new Error("strict fetch evidence is required for atomic runtime commit");
+        const artifacts = bindRuntimeEvidenceArtifactIds({
+          releaseCandidateId: deps.identity.releaseCandidateId,
+          batchId: batch.id,
+          sourceId: plan.source.id,
+          sourceResultId: pending.id,
+          artifacts: [
+            ...crawlResult.fetchEvidence.artifacts,
+            ...(crawlResult.priorTransportAttempts ?? []).flatMap((attempt) => attempt.fetchEvidence?.artifacts ?? [])
+          ]
+        });
         const archived = await (deps.archiveEvidence ?? archiveSourceEvidence)({ workspaceRoot: deps.workspaceRoot ?? process.cwd(),
           releaseCandidateId: deps.identity.releaseCandidateId, batchId: batch.id, sourceId: plan.source.id,
           sourceResultId: pending.id, evidenceSubdirectory: deps.evidenceSubdirectory ?? "phase-1/runtime-evidence",
           captureTool: crawlResult.fetchEvidence.captureTool,
           formalRelease:deps.identity.batchKind==="FULL_RELEASE",
-          artifacts: [
-            ...crawlResult.fetchEvidence.artifacts,
-            ...(crawlResult.priorTransportAttempts ?? []).flatMap((attempt) => attempt.fetchEvidence?.artifacts ?? [])
-          ] });
+          artifacts });
         retainedArtifacts = archived.artifacts;
         const verifiedArtifacts = await (deps.verifyArchive ?? verifyArchivedSourceEvidence)({ workspaceRoot: deps.workspaceRoot ?? process.cwd(),
           releaseCandidateId: deps.identity.releaseCandidateId, batchId: batch.id, sourceId: plan.source.id,

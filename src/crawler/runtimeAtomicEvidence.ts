@@ -13,7 +13,8 @@ import { assertAdapterReconciliation } from "./adapters/reconciliation";
 import {
   canonicalPageTraceSha256,
   canonicalStringSetSha256,
-  type PersistentSourceFetchEvidence
+  type PersistentSourceFetchEvidence,
+  type SourceFetchArtifactDraft
 } from "./sourceFetchEvidence";
 import type { ArchivedEvidenceArtifact } from "./artifactArchive";
 import type { AtomicSourceEvidenceCommit } from "../db/ingestionRepository";
@@ -156,6 +157,26 @@ function canonicalJson(value: unknown): string {
     .sort(([left], [right]) => Buffer.compare(Buffer.from(left), Buffer.from(right)))
     .map(([key, child]) => `${JSON.stringify(key)}:${canonicalJson(child)}`)
     .join(",")}}`;
+}
+
+export function bindRuntimeEvidenceArtifactIds(input: {
+  releaseCandidateId: string;
+  batchId: string;
+  sourceId: string;
+  sourceResultId: string;
+  artifacts: readonly SourceFetchArtifactDraft[];
+}): SourceFetchArtifactDraft[] {
+  return input.artifacts.map((artifact) => ({
+    ...artifact,
+    id: sha256(canonicalJson([
+      "runtime-evidence-artifact-v1",
+      input.releaseCandidateId,
+      input.batchId,
+      input.sourceId,
+      input.sourceResultId,
+      artifact.logicalKey
+    ]))
+  }));
 }
 
 export function buildAtomicRuntimeCommit(input: {
