@@ -8,6 +8,7 @@ import { DEFAULT_CRAWL_SUMMARY_MAX_AGE_HOURS, readCrawlSummaryFile, type CrawlEv
 import { readLatestCrawlAttempt } from "../src/crawler/crawlAttemptEvidence";
 import { loadProductionStagedMonitoringIdentity } from "../src/crawler/stagedMonitoringIdentity";
 import { resolveStagedCrawlEvidencePaths } from "../src/crawler/stagedCrawlEvidencePaths";
+import { deliverOpsAlerts } from "../src/server/alertDelivery";
 
 interface JsonMap {
   [key: string]: unknown;
@@ -82,12 +83,25 @@ async function main(): Promise<void> {
     }
   } satisfies OpsAlertInput);
 
+  if (dbReachable === false) {
+    alerts.push({
+      code: "DATABASE_UNREACHABLE",
+      severity: "critical",
+      message: "Authenticated PostgreSQL readiness check failed."
+    });
+  }
+
   for (const alert of alerts) {
     console.error(`[${alert.severity}] ${alert.code}: ${alert.message}`);
   }
 
-  if (dbReachable === false) {
-    console.error("[critical] DATABASE_UNREACHABLE: Authenticated PostgreSQL readiness check failed.");
+  try {
+    await deliverOpsAlerts(alerts, {
+      endpoint: process.env.ALERT_WEBHOOK_URL,
+      allowInsecureHttp: process.env.ALERT_WEBHOOK_ALLOW_HTTP === "1"
+    });
+  } catch {
+    console.error("[critical] ALERT_DELIVERY_FAILED: Operations alerts could not be delivered.");
     process.exitCode = 1;
     return;
   }

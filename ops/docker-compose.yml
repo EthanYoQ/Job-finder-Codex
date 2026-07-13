@@ -248,6 +248,8 @@ services:
       BACKUP_DIR: /backups
       MONITOR_INTERVAL_SECONDS: ${MONITOR_INTERVAL_SECONDS:-300}
       READINESS_SUMMARY_PATH: ${READINESS_SUMMARY_PATH:-/app/outputs/readiness-summary.json}
+      ALERT_WEBHOOK_URL: ${ALERT_WEBHOOK_URL:?set ALERT_WEBHOOK_URL}
+      ALERT_WEBHOOK_ALLOW_HTTP: ${ALERT_WEBHOOK_ALLOW_HTTP:-0}
       STAGED_CRAWL_SUMMARY_PATH: /app/outputs/staged-crawl-summary.json
       STAGED_CRAWL_ATTEMPT_DIR: /app/outputs/staged-crawl-attempts
     depends_on:

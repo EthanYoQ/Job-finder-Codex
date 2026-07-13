@@ -1,5 +1,6 @@
 export type OpsAlertCode =
   | "WEBSITE_DOWN"
+  | "DATABASE_UNREACHABLE"
   | "BACKUP_MISSING"
   | "BACKUP_FAILED"
   | "BACKUP_STALE"

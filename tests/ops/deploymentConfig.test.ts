@@ -58,6 +58,7 @@ function renderCompose(env: NodeJS.ProcessEnv = {}): string {
       BUILD_COMMIT_SHA: "1".repeat(40),
       BUILD_SOURCE_CLEAN: "true",
       BUILD_SOURCE_TREE_SHA256: "2".repeat(64),
+      ALERT_WEBHOOK_URL: "https://alerts.example.invalid/job-finder",
       DATABASE_URL: "postgresql://jobfinder:secret@postgres:5432/jobfinder",
       P0_FULL_RELEASE_MEMBERSHIP_FILE: "/evidence/membership.json",
       P0_FULL_RELEASE_MEMBERSHIP_FILE_SHA256: "3".repeat(64),
@@ -151,6 +152,10 @@ describe("deployment configuration", () => {
     expect(compose).toMatch(/"p0:scheduler"/);
     expect(readRequiredFile(resolve(repoRoot, "scripts", "p0-formal-crawl-once.ts"))).toMatch(/npm.*p0:crawl/s);
     expect(compose).toMatch(/npx tsx ops\/monitoring-check\.ts/);
+    const monitor = readComposeService(compose, "monitor");
+    expect(monitor).toMatch(/ALERT_WEBHOOK_URL:\s*\$\{ALERT_WEBHOOK_URL:\?set ALERT_WEBHOOK_URL\}/u);
+    expect(monitor).toMatch(/ALERT_WEBHOOK_ALLOW_HTTP:\s*\$\{ALERT_WEBHOOK_ALLOW_HTTP:-0\}/u);
+    expect(readRequiredFile(monitoringCheckPath)).toContain("deliverOpsAlerts");
     expect(compose).toMatch(/node dist\/server\/httpServer\.js|"npm",\s*"run",\s*"start"|npm run start/);
     expect(compose).toContain("TRUSTED_PROXY_CIDRS");
     expect(dockerfile).toMatch(/COPY --from=build \/app\/scripts \.\/scripts/);
