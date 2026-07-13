@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { resolve } from "node:path";
+import { isAbsolute, relative, resolve } from "node:path";
 import {
   buildCrawlAttemptEvent,
   writeCrawlAttemptEvent,
@@ -60,6 +60,45 @@ export interface StagedCrawlOperationResult {
   exitCode: 0 | 1;
   commandResult: StagedScheduledCrawlResult;
   summaryBinding: { batchId: string; summarySha256: string };
+}
+
+export function resolveStagedCrawlEvidencePaths(
+  env: NodeJS.ProcessEnv = process.env,
+  cwd: string = process.cwd()
+): { attemptDir: string; summaryPath: string } {
+  const configured = (name: string, fallback: string): string => {
+    const value = env[name];
+    if (value !== undefined && value.trim() === "") {
+      throw new Error(`${name} must be a nonblank path`);
+    }
+    return resolve(cwd, value ?? fallback);
+  };
+  const attemptDir = configured(
+    "STAGED_CRAWL_ATTEMPT_DIR",
+    resolve(cwd, "outputs", "staged-crawl-attempts")
+  );
+  const summaryPath = configured(
+    "STAGED_CRAWL_SUMMARY_PATH",
+    resolve(cwd, "outputs", "staged-crawl-summary.json")
+  );
+  const strictAttemptDir = configured(
+    "CRAWL_ATTEMPT_DIR",
+    resolve(cwd, "outputs", "crawl-attempts")
+  );
+  const strictSummaryPath = configured(
+    "CRAWL_SUMMARY_PATH",
+    resolve(cwd, "outputs", "crawl-summary.json")
+  );
+
+  if (
+    [attemptDir, summaryPath].some((stagedPath) =>
+      [strictAttemptDir, strictSummaryPath].some((strictPath) => pathsOverlap(stagedPath, strictPath))) ||
+    pathsOverlap(attemptDir, summaryPath)
+  ) {
+    throw new Error("Staged crawl evidence paths must remain separate from strict evidence paths and each other");
+  }
+
+  return { attemptDir, summaryPath };
 }
 
 export async function runStagedCrawlOperation(
@@ -177,8 +216,7 @@ export async function runProductionStagedCrawlCli(
   env: NodeJS.ProcessEnv = process.env
 ): Promise<0 | 1> {
   const capturedAt = new Date();
-  const attemptDir = env.STAGED_CRAWL_ATTEMPT_DIR ?? resolve(process.cwd(), "outputs", "staged-crawl-attempts");
-  const summaryPath = env.STAGED_CRAWL_SUMMARY_PATH ?? resolve(process.cwd(), "outputs", "staged-crawl-summary.json");
+  const { attemptDir, summaryPath } = resolveStagedCrawlEvidencePaths(env);
   const result = await runStagedCrawlOperation({
     attemptId: env.P0_CRAWL_ATTEMPT_ID ?? randomUUID(),
     startedAt: env.P0_CRAWL_ATTEMPT_STARTED_AT ? new Date(env.P0_CRAWL_ATTEMPT_STARTED_AT) : capturedAt,
@@ -312,4 +350,16 @@ async function createProductionRuntime(): Promise<StagedCrawlRuntime> {
 
 function compareUtf8(left: string, right: string): number {
   return Buffer.compare(Buffer.from(left), Buffer.from(right));
+}
+
+function pathsOverlap(left: string, right: string): boolean {
+  const normalize = (value: string) => process.platform === "win32" ? value.toLocaleLowerCase("en-US") : value;
+  const normalizedLeft = normalize(left);
+  const normalizedRight = normalize(right);
+  if (normalizedLeft === normalizedRight) return true;
+  const isDescendant = (parent: string, child: string) => {
+    const pathFromParent = relative(parent, child);
+    return pathFromParent !== "" && !pathFromParent.startsWith("..") && !isAbsolute(pathFromParent);
+  };
+  return isDescendant(normalizedLeft, normalizedRight) || isDescendant(normalizedRight, normalizedLeft);
 }

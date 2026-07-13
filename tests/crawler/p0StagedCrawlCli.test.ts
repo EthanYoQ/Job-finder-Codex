@@ -9,6 +9,7 @@ import { hashCanonicalStringSet } from "../../src/crawler/runtimeBatchIdentity";
 import type { CrawlAttemptEvent } from "../../src/crawler/crawlAttemptEvidence";
 import type { CrawlSummary } from "../../src/crawler/crawlSummary";
 import {
+  resolveStagedCrawlEvidencePaths,
   runStagedCrawlOperation,
   type StagedCrawlRuntime
 } from "../../src/crawler/stagedCrawlCli";
@@ -107,6 +108,33 @@ function operationInput(deps: ReturnType<typeof harness>["deps"]) {
 }
 
 describe("staged crawl operational CLI", () => {
+  it("fails closed when staged evidence paths overlap strict evidence paths", () => {
+    const cwd = resolve("C:/repo");
+    const strictAttemptDir = resolve(cwd, "outputs", "crawl-attempts");
+    const strictSummaryPath = resolve(cwd, "outputs", "crawl-summary.json");
+
+    expect(() => resolveStagedCrawlEvidencePaths({
+      STAGED_CRAWL_ATTEMPT_DIR: resolve(cwd, "outputs", "nested", "..", "crawl-attempts")
+    }, cwd)).toThrow(/separate from strict evidence/i);
+    expect(() => resolveStagedCrawlEvidencePaths({
+      STAGED_CRAWL_SUMMARY_PATH: strictSummaryPath
+    }, cwd)).toThrow(/separate from strict evidence/i);
+    expect(() => resolveStagedCrawlEvidencePaths({
+      CRAWL_ATTEMPT_DIR: resolve(cwd, "custom", "strict-attempts"),
+      STAGED_CRAWL_ATTEMPT_DIR: resolve(cwd, "custom", "strict-attempts", "staged")
+    }, cwd)).toThrow(/separate from strict evidence/i);
+    expect(() => resolveStagedCrawlEvidencePaths({
+      CRAWL_SUMMARY_PATH: resolve(cwd, "custom", "strict-summary.json"),
+      STAGED_CRAWL_SUMMARY_PATH: resolve(cwd, "custom", "strict-summary.json")
+    }, cwd)).toThrow(/separate from strict evidence/i);
+
+    expect(resolveStagedCrawlEvidencePaths({}, cwd)).toEqual({
+      attemptDir: resolve(cwd, "outputs", "staged-crawl-attempts"),
+      summaryPath: resolve(cwd, "outputs", "staged-crawl-summary.json")
+    });
+    expect(strictAttemptDir).not.toBe(resolve(cwd, "outputs", "staged-crawl-attempts"));
+  });
+
   it.each(["--help", "--force", "--source-id", "--release-candidate-id", "unexpected"]) (
     "rejects %s before loading runtime or database modules",
     (argument) => {
