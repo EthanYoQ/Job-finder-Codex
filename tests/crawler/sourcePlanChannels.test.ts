@@ -52,11 +52,35 @@ describe("executable source plan channel binding", () => {
     };
   }
 
+  function resolvedStrictFixture(
+    sourceId: string,
+    ids: readonly string[],
+    kind: "SOCIAL" | "CAMPUS" = "SOCIAL"
+  ) {
+    const company = candidateCompanies.find((item) => item.sources.some((source) => source.id === sourceId))!;
+    const source = company.sources.find((item) => item.id === sourceId)!;
+    const surface = expectedOfficialSurfaces.find((item) => item.surfaceId === source.surfaceId)!;
+    const evidenceArtifactSha256 = "b".repeat(64);
+    return {
+      company,
+      surface: {
+        ...surface,
+        oracleStatus: "INDEPENDENTLY_VERIFIED" as const,
+        legalEntityScope: [{ status: "RESOLVED" as const, value: "Canonical legal entity", evidenceArtifactSha256 }],
+        businessUnitScope: [{ status: "RESOLVED" as const, value: "Canonical business unit", evidenceArtifactSha256 }],
+        brandScope: [{ status: "RESOLVED" as const, value: "Canonical brand", evidenceArtifactSha256 }],
+        chinaScope: { status: "RESOLVED" as const, geography: "MAINLAND_CHINA" as const, evidenceArtifactSha256 },
+        channels: ids.map((channelId) => ({ channelId, kind, status: "EXPECTED" as const }))
+      }
+    };
+  }
+
   it("binds every configured TalentBrew partition for staged execution while strict remains gated", () => {
     const { company, configuredIds, surface } = talentbrewFixture("source-takeda-china-social");
     const [plan] = buildStagedSourceCrawlPlans([company], [surface]);
 
     expect(plan?.expectedChannels?.map(({ channelId }) => channelId)).toEqual([...configuredIds].sort());
+    expect(plan).toHaveProperty("executionAuthority", "STAGED");
     expect(plan?.expectedChannelSetHash).toBe(expectedChannelSetHash(plan!.expectedChannels!));
     expect(() => validateExecutablePlanChannelBinding(plan!)).not.toThrow();
     expect(buildSourceCrawlPlans([company], [surface])).toEqual([]);
@@ -85,6 +109,44 @@ describe("executable source plan channel binding", () => {
       )
     };
     expect(buildStagedSourceCrawlPlans([company], [mutated])).toEqual([]);
+  });
+
+  it("preserves strict TalentBrew default-channel behavior and unmarked plan shape", () => {
+    const sourceId = "source-takeda-china-social";
+    const legacyDefaultId = `source:${sourceId}:default`;
+    const legacy = resolvedStrictFixture(sourceId, [legacyDefaultId]);
+    const [plan] = buildSourceCrawlPlans([legacy.company], [legacy.surface]);
+
+    expect(plan?.expectedChannels).toEqual([{ channelId: legacyDefaultId, kind: "SOCIAL" }]);
+    expect(plan).not.toHaveProperty("executionAuthority");
+    expect(() => validateExecutablePlanChannelBinding(plan!)).not.toThrow();
+
+    const { configuredIds } = talentbrewFixture(sourceId);
+    const stagedOnlyChannels = resolvedStrictFixture(sourceId, configuredIds);
+    expect(buildSourceCrawlPlans([stagedOnlyChannels.company], [stagedOnlyChannels.surface])).toEqual([]);
+  });
+
+  it("preserves strict ID-only channel comparison for a non-social expected kind", () => {
+    const sourceId = "source-astrazeneca-social";
+    const fixture = resolvedStrictFixture(sourceId, [`source:${sourceId}:default`], "CAMPUS");
+    const [plan] = buildSourceCrawlPlans([fixture.company], [fixture.surface]);
+
+    expect(plan?.expectedChannels).toEqual([{ channelId: `source:${sourceId}:default`, kind: "CAMPUS" }]);
+    expect(plan).not.toHaveProperty("executionAuthority");
+    expect(() => validateExecutablePlanChannelBinding(plan!)).not.toThrow();
+  });
+
+  it("preserves strict BEISEN HTML plan emission and legacy validator rejection", () => {
+    const sourceId = "source-hansoh-social";
+    const fixture = resolvedStrictFixture(sourceId, [`source:${sourceId}:default`]);
+    const [strictPlan] = buildSourceCrawlPlans([fixture.company], [fixture.surface]);
+    const [stagedPlan] = buildStagedSourceCrawlPlans([fixture.company], [fixture.surface]);
+
+    expect(strictPlan?.adapterId).toBe("html-table");
+    expect(strictPlan).not.toHaveProperty("executionAuthority");
+    expect(() => validateExecutablePlanChannelBinding(strictPlan!)).toThrow(/adapter does not match ATS kind/);
+    expect(stagedPlan).toHaveProperty("executionAuthority", "STAGED");
+    expect(() => validateExecutablePlanChannelBinding(stagedPlan!)).not.toThrow();
   });
 
   it("does not promote a well-formed unresolved scope entry", () => {

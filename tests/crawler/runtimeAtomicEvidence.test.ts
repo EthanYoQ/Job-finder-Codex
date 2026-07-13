@@ -50,7 +50,9 @@ describe("runtime atomic evidence planning", () => {
     });
     expect(planned.sources[0]?.sourceConfigHash).toMatch(/^[0-9a-f]{64}$/);
     expect(planned.sources[0]?.sourceConfigHash).toBe(sourcePlanConfigSha256(plan));
-    expect(sourcePlanOracleConfigSha256(plan)).toBe(sourcePlanConfigSha256(plan));
+    const preSharedHelperDigest = "535403b6dca2f9f0b445ca1b7dcaa618f144c7f0d1aef9b8dd1027f3e284026e";
+    expect(sourcePlanConfigSha256(plan)).toBe(preSharedHelperDigest);
+    expect(sourcePlanOracleConfigSha256(plan)).toBe(preSharedHelperDigest);
     expect(planned.sources[0]?.adapterVersion).toMatch(/^[0-9a-f]{64}$/);
     expect(planned.sources[0]?.officialEntryId).toBeNull();
     expect(planned.sources[0]?.officialSurfaceIds).toEqual([]);

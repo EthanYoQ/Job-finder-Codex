@@ -81,7 +81,10 @@ describe("source crawl planning", () => {
 
     expect(staged.map((plan) => plan.source.id)).toEqual(discovery.map((plan) => plan.source.id));
     expect(buildSourceCrawlPlans(candidateCompanies)).toEqual([]);
-    for (const plan of staged) expect(() => validateExecutablePlanChannelBinding(plan)).not.toThrow();
+    for (const plan of staged) {
+      expect(plan).toHaveProperty("executionAuthority", "STAGED");
+      expect(() => validateExecutablePlanChannelBinding(plan)).not.toThrow();
+    }
     for (const plan of discovery) expect(() => validateExecutablePlanChannelBinding(plan)).toThrow();
   });
 
@@ -119,6 +122,51 @@ describe("source crawl planning", () => {
       expect(buildStagedSourceCrawlPlans([excludedCompany], [excludedSurface])).toEqual([]);
       expect(buildSourceCrawlPlans([excludedCompany], [excludedSurface])).toEqual([]);
     }
+  });
+
+  it("rejects a configured source transplanted consistently to another canonical company", () => {
+    const sourceCompany = candidateCompanies.find((item) => item.id === "company-astrazeneca")!;
+    const targetCompany = candidateCompanies.find((item) => item.id === "company-abbvie-china")!;
+    const source = sourceCompany.sources[0]!;
+    const canonicalSurface = expectedOfficialSurfaces.find((surface) => surface.surfaceId === source.surfaceId)!;
+    const transplantedCompany = {
+      ...targetCompany,
+      sources: [{ ...source, companyId: targetCompany.id }]
+    };
+    const transplantedSurface = { ...canonicalSurface, companyId: targetCompany.id };
+
+    expect(buildStagedSourceCrawlPlans([transplantedCompany], [transplantedSurface])).toEqual([]);
+  });
+
+  it("binds staged company, source, and surface authority fields to the canonical registry", () => {
+    const company = candidateCompanies.find((item) => item.id === "company-astrazeneca")!;
+    const source = company.sources[0]!;
+    const surface = expectedOfficialSurfaces.find((item) => item.surfaceId === source.surfaceId)!;
+
+    expect(buildStagedSourceCrawlPlans([{ ...company, officialChineseName: "caller supplied name" }])).toEqual([]);
+
+    const changedSurfaceId = `${source.surfaceId}-caller`;
+    expect(buildStagedSourceCrawlPlans(
+      [{ ...company, sources: [{ ...source, surfaceId: changedSurfaceId }] }],
+      [{ ...surface, surfaceId: changedSurfaceId }]
+    )).toEqual([]);
+
+    const changedEntry = "https://example.com/caller-entry";
+    expect(buildStagedSourceCrawlPlans(
+      [{ ...company, sources: [{ ...source, officialEntryUrl: changedEntry }] }],
+      [{ ...surface, officialEntryUrl: changedEntry }]
+    )).toEqual([]);
+
+    const changedChain = "https://example.com/caller-chain";
+    expect(buildStagedSourceCrawlPlans(
+      [{ ...company, sources: [{ ...source, officialChainEvidenceUrl: changedChain }] }],
+      [{ ...surface, officialChainEvidenceUrls: [changedChain] }]
+    )).toEqual([]);
+
+    expect(buildStagedSourceCrawlPlans(
+      [{ ...company, sources: [{ ...source, atsKind: "SUCCESSFACTORS" as const }] }],
+      [{ ...surface, atsKind: "SUCCESSFACTORS" as const }]
+    )).toEqual([]);
   });
 
   it("quarantines J&J from formal plans even when a caller labels searchText and six facets independently verified", () => {

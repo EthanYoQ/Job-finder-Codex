@@ -1,5 +1,6 @@
 import { createHash } from "node:crypto";
 import {
+  candidateCompanies,
   expectedOfficialSurfaces,
   hasUnresolvedSurfaceScope,
   type CandidateCompany,
@@ -8,7 +9,6 @@ import {
   type ExpectedRecruitmentChannel
 } from "../data/companyRegistry";
 import {
-  canonicalPhase1InScopeRosterMembers,
   isUserAuthorizedPhase1Exclusion,
   USER_AUTHORIZED_PHASE1_EXCLUSION
 } from "../data/phase1ScopePolicy";
@@ -67,6 +67,7 @@ export type SourceCrawlPlan = (
       source: PlannedSource;
       table: HtmlTableConfig;
     }) & {
+      executionAuthority?: "STAGED";
       expectedChannels?: readonly ExecutableExpectedChannel[];
       expectedChannelSetHash?: string;
     };
@@ -1435,7 +1436,6 @@ function buildPlans(
   policy: SourcePlanPolicy
 ): SourceCrawlPlan[] {
   const fullRelease = policy === "FULL_RELEASE";
-  const executable = policy !== "DISCOVERY";
   const oracleBySurfaceId = new Map(surfaces.map((surface) => [surface.surfaceId, surface]));
   return companies.flatMap((company) =>
     isUserAuthorizedPhase1Exclusion(company.id) || company.targetStatus === USER_AUTHORIZED_PHASE1_EXCLUSION
@@ -1443,7 +1443,6 @@ function buildPlans(
       :
     company.sources.flatMap((source): SourceCrawlPlan[] => {
       if (
-        (policy === "STAGED" && !isCanonicalSourceOwner(company, source)) ||
         source.kind !== "SOCIAL" ||
         source.status !== "VERIFIED_SCRAPABLE" ||
         !source.officialEntryUrl ||
@@ -1456,6 +1455,7 @@ function buildPlans(
       const surface = source.surfaceId ? oracleBySurfaceId.get(source.surfaceId) : undefined;
       if (
         !config ||
+        (policy === "STAGED" && !hasCanonicalStagedAuthority(company, source, surface)) ||
         (fullRelease && config.formalEligibility === "QUARANTINED_PENDING_TRUSTED_ORACLE") ||
         !surface ||
         surface.companyId !== company.id ||
@@ -1498,18 +1498,28 @@ function buildPlans(
       }
       if (policy === "STAGED" && expectedChannels.length === 0) {
         try {
-          expectedChannels = configuredExpectedChannels(config, source.id);
+          expectedChannels = stagedConfiguredExpectedChannels(config, source.id);
         } catch {
           return [];
         }
       }
-      if (executable &&
+      if (fullRelease &&
           (!hasExactAdapterChannelCoverage(config, source.id, expectedChannels) || expectedChannels.length === 0)) {
         return [];
       }
-      const channelBinding = executable
-        ? { expectedChannels, expectedChannelSetHash: expectedChannelSetHash(expectedChannels) }
-        : {};
+      if (policy === "STAGED" &&
+          (!hasExactStagedAdapterChannelCoverage(config, source.id, expectedChannels) || expectedChannels.length === 0)) {
+        return [];
+      }
+      const channelBinding = policy === "STAGED"
+        ? {
+            executionAuthority: "STAGED" as const,
+            expectedChannels,
+            expectedChannelSetHash: expectedChannelSetHash(expectedChannels)
+          }
+        : fullRelease
+          ? { expectedChannels, expectedChannelSetHash: expectedChannelSetHash(expectedChannels) }
+          : {};
 
       const plan: SourceCrawlPlan =
         config.adapterId === "official-json"
@@ -1533,7 +1543,7 @@ function buildPlans(
               table: config.table
             };
 
-      if (executable) {
+      if (policy === "STAGED") {
         try {
           validateExecutablePlanChannelBinding(plan);
         } catch {
@@ -1571,18 +1581,22 @@ function configuredChannelIds(config: RepresentativeSourceConfig, sourceId: stri
   ) {
     return [...config.officialJsonFetch.channelQrIds];
   }
-  if (config.adapterId === "html-table" && config.table.pagination?.talentbrewScope) {
-    return config.table.pagination.talentbrewScope.allowedPartitions.map(({ channelId }) => channelId);
-  }
   return [`source:${sourceId}:default`];
 }
 
-function configuredExpectedChannels(
+function stagedConfiguredChannelIds(config: RepresentativeSourceConfig, sourceId: string): string[] {
+  if (config.adapterId === "html-table" && config.table.pagination?.talentbrewScope) {
+    return config.table.pagination.talentbrewScope.allowedPartitions.map(({ channelId }) => channelId);
+  }
+  return configuredChannelIds(config, sourceId);
+}
+
+function stagedConfiguredExpectedChannels(
   config: RepresentativeSourceConfig,
   sourceId: string
 ): ExecutableExpectedChannel[] {
   return canonicalExpectedChannels(
-    configuredChannelIds(config, sourceId).map((channelId) => ({ channelId, kind: "SOCIAL" }))
+    stagedConfiguredChannelIds(config, sourceId).map((channelId) => ({ channelId, kind: "SOCIAL" }))
   );
 }
 
@@ -1592,9 +1606,24 @@ function hasExactAdapterChannelCoverage(
   channels: readonly ExecutableExpectedChannel[]
 ): boolean {
   try {
-    if (channels.some((channel) => channel.kind !== "SOCIAL")) return false;
     const expectedIds = canonicalExpectedChannels(channels).map((channel) => channel.channelId);
     const configuredIds = configuredChannelIds(config, sourceId).sort(compareUtf8);
+    return new Set(configuredIds).size === configuredIds.length &&
+      JSON.stringify(expectedIds) === JSON.stringify(configuredIds);
+  } catch {
+    return false;
+  }
+}
+
+function hasExactStagedAdapterChannelCoverage(
+  config: RepresentativeSourceConfig,
+  sourceId: string,
+  channels: readonly ExecutableExpectedChannel[]
+): boolean {
+  try {
+    if (channels.some((channel) => channel.kind !== "SOCIAL")) return false;
+    const expectedIds = canonicalExpectedChannels(channels).map((channel) => channel.channelId);
+    const configuredIds = stagedConfiguredChannelIds(config, sourceId).sort(compareUtf8);
     return new Set(configuredIds).size === configuredIds.length &&
       JSON.stringify(expectedIds) === JSON.stringify(configuredIds);
   } catch {
@@ -1613,14 +1642,18 @@ export function validateExecutablePlanChannelBinding(plan: SourceCrawlPlan): voi
   if (expectedChannelSetHash(canonical) !== plan.expectedChannelSetHash) {
     throw new Error("Executable source plan channel hash mismatch");
   }
-  const adapterCompatible = plan.source.atsKind === "BEISEN_ZHIYE"
-    ? plan.adapterId === "official-json" || plan.adapterId === "html-table"
+  const staged = plan.executionAuthority === "STAGED";
+  if (staged && !hasCanonicalStagedPlanAuthority(plan)) {
+    throw new Error("Staged source plan does not match canonical registry authority");
+  }
+  const expectedAdapter = staged && plan.source.atsKind === "BEISEN_ZHIYE"
+    ? plan.adapterId
     : plan.source.atsKind === "OFFICIAL_HTML" || plan.source.atsKind === "SUCCESSFACTORS"
-      ? plan.adapterId === "html-table"
+      ? "html-table"
       : plan.source.atsKind === "UNKNOWN" || plan.source.atsKind === "BROWSER_FALLBACK"
-        ? false
-        : plan.adapterId === "official-json";
-  if (!adapterCompatible) {
+        ? undefined
+        : "official-json";
+  if (!expectedAdapter || expectedAdapter !== plan.adapterId) {
     throw new Error("Executable source plan adapter does not match ATS kind");
   }
   const config: RepresentativeSourceConfig = plan.adapterId === "official-json"
@@ -1632,7 +1665,10 @@ export function validateExecutablePlanChannelBinding(plan: SourceCrawlPlan): voi
         ...(plan.hotjobLegacy ? { hotjobLegacy: plan.hotjobLegacy } : {})
       }
     : { adapterId: "html-table", table: plan.table };
-  if (!hasExactAdapterChannelCoverage(config, plan.source.id, canonical)) {
+  const exactCoverage = staged
+    ? hasExactStagedAdapterChannelCoverage(config, plan.source.id, canonical)
+    : hasExactAdapterChannelCoverage(config, plan.source.id, canonical);
+  if (!exactCoverage) {
     throw new Error("Executable source plan channels are not fully covered by adapter config");
   }
 }
@@ -1707,10 +1743,73 @@ function compareUtf8(left: string, right: string): number {
   return Buffer.from(left, "utf8").compare(Buffer.from(right, "utf8"));
 }
 
-function isCanonicalSourceOwner(company: CandidateCompany, source: CandidateRecruitmentSource): boolean {
-  return source.companyId === company.id && canonicalPhase1InScopeRosterMembers.some(
-    (member) => member.id === company.id && member.category === company.category
+function hasCanonicalStagedAuthority(
+  company: CandidateCompany,
+  source: CandidateRecruitmentSource,
+  surface: ExpectedOfficialRecruitmentSurface | undefined
+): boolean {
+  const canonicalCompany = candidateCompanies.find((candidate) => candidate.id === company.id);
+  const canonicalSource = canonicalCompany?.sources.find((candidate) => candidate.id === source.id);
+  const canonicalSurface = canonicalSource?.surfaceId
+    ? expectedOfficialSurfaces.find((candidate) => candidate.surfaceId === canonicalSource.surfaceId)
+    : undefined;
+  return Boolean(
+    canonicalCompany && canonicalSource && canonicalSurface && surface &&
+    company.officialChineseName === canonicalCompany.officialChineseName &&
+    company.pinyinName === canonicalCompany.pinyinName &&
+    company.category === canonicalCompany.category &&
+    company.targetStatus === canonicalCompany.targetStatus &&
+    company.officialWebsiteUrl === canonicalCompany.officialWebsiteUrl &&
+    hasCanonicalSourceAuthority(source, canonicalSource) &&
+    surface.surfaceId === canonicalSurface.surfaceId &&
+    surface.companyId === canonicalSurface.companyId &&
+    surface.kind === canonicalSurface.kind &&
+    surface.officialEntryUrl === canonicalSurface.officialEntryUrl &&
+    JSON.stringify(surface.officialChainEvidenceUrls) === JSON.stringify(canonicalSurface.officialChainEvidenceUrls) &&
+    surface.atsKind === canonicalSurface.atsKind &&
+    surface.adapterId === canonicalSurface.adapterId &&
+    surface.status === canonicalSurface.status
   );
+}
+
+function hasCanonicalStagedPlanAuthority(plan: SourceCrawlPlan): boolean {
+  const canonicalCompany = candidateCompanies.find((candidate) => candidate.id === plan.company.id);
+  const canonicalSource = canonicalCompany?.sources.find((candidate) => candidate.id === plan.source.id);
+  return Boolean(
+    canonicalCompany && canonicalSource &&
+    plan.company.officialChineseName === canonicalCompany.officialChineseName &&
+    plan.company.category === canonicalCompany.category &&
+    hasCanonicalPlannedSourceAuthority(plan.source, canonicalSource)
+  );
+}
+
+function hasCanonicalPlannedSourceAuthority(
+  source: PlannedSource,
+  canonicalSource: CandidateRecruitmentSource
+): boolean {
+  return source.id === canonicalSource.id &&
+    source.surfaceId === canonicalSource.surfaceId &&
+    source.companyId === canonicalSource.companyId &&
+    source.kind === canonicalSource.kind &&
+    source.atsKind === canonicalSource.atsKind &&
+    source.status === canonicalSource.status &&
+    source.officialEntryUrl === canonicalSource.officialEntryUrl &&
+    source.officialChainEvidenceUrl === canonicalSource.officialChainEvidenceUrl;
+}
+
+function hasCanonicalSourceAuthority(
+  source: CandidateRecruitmentSource,
+  canonicalSource: CandidateRecruitmentSource
+): boolean {
+  return source.id === canonicalSource.id &&
+    source.surfaceId === canonicalSource.surfaceId &&
+    source.companyId === canonicalSource.companyId &&
+    source.kind === canonicalSource.kind &&
+    source.atsKind === canonicalSource.atsKind &&
+    source.status === canonicalSource.status &&
+    source.officialEntryUrl === canonicalSource.officialEntryUrl &&
+    source.officialChainEvidenceUrl === canonicalSource.officialChainEvidenceUrl &&
+    source.campusEntryUrl === canonicalSource.campusEntryUrl;
 }
 
 export function getPlanBySourceId(
