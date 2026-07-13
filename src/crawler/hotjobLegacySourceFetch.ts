@@ -418,7 +418,12 @@ function buildListUrl(listUrl: string, mode: HotjobLegacyFetchConfig["pagination
 }
 
 function withoutEmptyHotjobQueryValues(listUrl: string): string {
-  const url = new URL(listUrl);
+  let url: URL;
+  try {
+    url = new URL(listUrl);
+  } catch {
+    throw new Error("Hotjob request URL is invalid");
+  }
   const retained = new URLSearchParams();
   for (const [key, value] of url.searchParams) {
     if (value !== "") retained.append(key, value);
