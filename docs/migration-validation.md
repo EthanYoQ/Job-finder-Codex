@@ -8,6 +8,17 @@ Record row counts and checksums before migration, back up the database, then run
 
 Apply pending migrations and compare the post-migration row counts and checksums with the recorded baseline.
 
+For `20260713035000_quarantine_legacy_unbound_manual_batches`, record every pre-existing
+`MANUAL_SOURCE` batch before deployment. The migration preserves the row and its legacy
+observations, and clears only `kind` and `releaseCandidateId` when the batch is terminal,
+has no matching manual request, and has no strict evidence children. A running or otherwise
+unsafe unbound batch must stop the migration with
+`LEGACY_MANUAL_BATCH_QUARANTINE_UNSAFE_COUNT` before any quarantine update. Do not fabricate
+a request or delete the legacy row. If a target already records either
+`20260713040000_manual_batch_binding_and_kind_immutability` or
+`20260713050000_ai_enrichment_persistence` without recording `20260713035000`, stop for
+operator review instead of resolving the new migration as already applied.
+
 ## Empty-database procedure
 
 Use only a new PostgreSQL 16 database in an externally isolated container network. The database name must match
@@ -34,7 +45,7 @@ identity, non-template status, empty public schema, and absence of `_prisma_migr
 The expected and forbidden system identifiers, internal-network marker, and no-host-port marker must come from and
 be bound to the RC's external Docker provision/inspect evidence; the verifier does not self-certify Docker isolation.
 
-Success requires the explicit reviewed set of 15 finished migrations with zero rollbacks; exactly the explicit
+Success requires the explicit reviewed set of 19 finished migrations with zero rollbacks; exactly the explicit
 reviewed 25 application tables, no extra public application tables, and zero rows in every application table; a
 reviewed exact index-name set and canonical `pg_get_indexdef` digest; the reviewed user-type/function contract with
 no unexpected view, materialized view, sequence, composite, foreign relation, or standalone base type; a reproducible
