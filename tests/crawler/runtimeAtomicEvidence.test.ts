@@ -10,7 +10,12 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { RuntimeBatchIdentity } from "../../src/crawler/runtimeBatchIdentity";
-import { expectedChannelSetHash, type SourceCrawlPlan } from "../../src/crawler/sourcePlan";
+import {
+  expectedChannelSetHash,
+  sourcePlanConfigSha256,
+  type SourceCrawlPlan
+} from "../../src/crawler/sourcePlan";
+import { sourcePlanOracleConfigSha256 } from "../../src/crawler/independentSourceSurfaceOracle";
 
 const sha = "a".repeat(64);
 
@@ -44,10 +49,45 @@ describe("runtime atomic evidence planning", () => {
       id: "batch-1--source-1", sourceId: "source-1", startedAt: new Date("2026-07-10T00:00:00Z")
     });
     expect(planned.sources[0]?.sourceConfigHash).toMatch(/^[0-9a-f]{64}$/);
+    expect(planned.sources[0]?.sourceConfigHash).toBe(sourcePlanConfigSha256(plan));
+    expect(sourcePlanOracleConfigSha256(plan)).toBe(sourcePlanConfigSha256(plan));
     expect(planned.sources[0]?.adapterVersion).toMatch(/^[0-9a-f]{64}$/);
     expect(planned.sources[0]?.officialEntryId).toBeNull();
     expect(planned.sources[0]?.officialSurfaceIds).toEqual([]);
     expect(planned.sources[0]?.officialChannelIds).toEqual([]);
+  });
+
+  it("hashes the complete source plan canonically and changes for config or channel changes", () => {
+    const plan = channelBound({
+      adapterId: "official-json", company: { id: "company-1", officialChineseName: "公司" },
+      source: { id: "source-1", companyId: "company-1", kind: "SOCIAL", atsKind: "OFFICIAL_JSON",
+        status: "VERIFIED_SCRAPABLE", officialEntryUrl: "https://example.com/jobs",
+        officialChainEvidenceUrl: "https://example.com/jobs" },
+      json: { jobsPath: "jobs", fields: { officialTitle: "title", officialUrl: "url", locationRaw: "location" } }
+    } as SourceCrawlPlan);
+    if (plan.adapterId !== "official-json") throw new Error("Expected official JSON plan");
+    const reordered = {
+      expectedChannelSetHash: plan.expectedChannelSetHash,
+      expectedChannels: plan.expectedChannels,
+      json: plan.json,
+      source: { ...plan.source },
+      company: { ...plan.company },
+      adapterId: plan.adapterId
+    } as SourceCrawlPlan;
+
+    expect(sourcePlanConfigSha256(reordered)).toBe(sourcePlanConfigSha256(plan));
+    expect(sourcePlanConfigSha256({
+      ...plan,
+      json: { ...plan.json, defaultCategory: "销售" }
+    } as SourceCrawlPlan)).not.toBe(sourcePlanConfigSha256(plan));
+    expect(sourcePlanConfigSha256({
+      ...plan,
+      source: { ...plan.source, officialEntryUrl: "https://example.com/changed" }
+    })).not.toBe(sourcePlanConfigSha256(plan));
+    expect(sourcePlanConfigSha256({
+      ...plan,
+      expectedChannels: [{ ...plan.expectedChannels![0]!, channelId: "changed-channel" }]
+    })).not.toBe(sourcePlanConfigSha256(plan));
   });
 
   it("persists every PENDING source result before the first fetch", async () => {

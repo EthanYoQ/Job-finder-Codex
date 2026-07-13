@@ -13,7 +13,9 @@ import {
   activeSourcePlanSha256,
   buildDiscoverySourcePlanCandidates,
   buildSourceCrawlPlans,
-  getSourcePlanCoverage
+  buildStagedSourceCrawlPlans,
+  getSourcePlanCoverage,
+  validateExecutablePlanChannelBinding
 } from "../../src/crawler/sourcePlan";
 import { derivePhase1Scope } from "../../src/data/phase1ScopePolicy";
 
@@ -141,9 +143,14 @@ describe("strict 30+30 roster and expected official-surface oracle", () => {
   it("keeps research-pending surfaces as discovery candidates but emits zero active plans", () => {
     const plans = buildSourceCrawlPlans(candidateCompanies);
     const discoveryCandidates = buildDiscoverySourcePlanCandidates(candidateCompanies);
+    const stagedPlans = buildStagedSourceCrawlPlans(candidateCompanies);
     const coverage = getSourcePlanCoverage(candidateCompanies, plans);
     expect(plans).toEqual([]);
-    expect(discoveryCandidates).toHaveLength(46);
+    expect(stagedPlans.map((plan) => plan.source.id)).toEqual(
+      discoveryCandidates.map((plan) => plan.source.id)
+    );
+    for (const plan of stagedPlans) expect(() => validateExecutablePlanChannelBinding(plan)).not.toThrow();
+    for (const plan of discoveryCandidates) expect(() => validateExecutablePlanChannelBinding(plan)).toThrow();
     expect(coverage.unexpectedPlanSourceIds).toEqual([]);
     const inScopeCompanyIds = new Set(
       derivePhase1Scope(candidateCompanies).inScopeCompanies.map(({ id }) => id)

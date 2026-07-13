@@ -4,7 +4,7 @@ import type {
   PlannedPendingSourceInput
 } from "../db/ingestionRepository";
 import type { RuntimeBatchIdentity } from "./runtimeBatchIdentity";
-import type { SourceCrawlPlan } from "./sourcePlan";
+import { sourcePlanConfigSha256, type SourceCrawlPlan } from "./sourcePlan";
 import type { SourceCrawlResult } from "./runSourceCrawl";
 import { applyCrawlObservation, type JobSnapshot } from "./lifecycle";
 import { buildIngestionCommands } from "./ingestion";
@@ -43,7 +43,7 @@ export function buildPendingRuntimeBatch(
   const sources: PlannedPendingSourceInput[] = plans.map((plan) => ({
     id: `${batchId}--${plan.source.id}`,
     sourceId: plan.source.id,
-    sourceConfigHash: sha256(canonicalJson(plan)),
+    sourceConfigHash: sourcePlanConfigSha256(plan),
     adapterVersion: sha256(canonicalJson({
       adapterId: plan.adapterId,
       adapterBundleSha256: identity.adapterBundleSha256

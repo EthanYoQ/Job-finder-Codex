@@ -1,6 +1,6 @@
 import { createHash, timingSafeEqual } from "node:crypto";
 import type { RuntimeBatchIdentity } from "./runtimeBatchIdentity";
-import type { SourceCrawlPlan } from "./sourcePlan";
+import { sourcePlanConfigSha256, type SourceCrawlPlan } from "./sourcePlan";
 import type { ArchivedEvidenceArtifact } from "./artifactArchive";
 import type { PersistentSourceFetchEvidence } from "./sourceFetchEvidence";
 import { canonicalReleaseMembersSha256, releaseMembersFromPlans } from "./authoritativeReleaseMembership";
@@ -125,7 +125,9 @@ export function validateIndependentSourceSurfaceOracleArtifactContent(
   return {audits,members};
 }
 
-export function sourcePlanOracleConfigSha256(plan: SourceCrawlPlan): string { return digest(canonicalJson(plan)); }
+export function sourcePlanOracleConfigSha256(plan: SourceCrawlPlan): string {
+  return sourcePlanConfigSha256(plan);
+}
 export function independentOracleValueSha256(value: string): string { return digest(value); }
 
 export function validateIndependentSourceSurfaceOracle(

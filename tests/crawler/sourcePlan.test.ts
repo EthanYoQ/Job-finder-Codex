@@ -1,6 +1,17 @@
 import { describe, expect, it } from "vitest";
-import { buildDiscoverySourcePlanCandidates, buildSourceCrawlPlans, getPlanBySourceId } from "../../src/crawler/sourcePlan";
-import { candidateCompanies, type CandidateCompany } from "../../src/data/companyRegistry";
+import {
+  buildDiscoverySourcePlanCandidates,
+  buildSourceCrawlPlans,
+  buildStagedSourceCrawlPlans,
+  getPlanBySourceId,
+  validateExecutablePlanChannelBinding
+} from "../../src/crawler/sourcePlan";
+import {
+  candidateCompanies,
+  expectedOfficialSurfaces,
+  type CandidateCompany
+} from "../../src/data/companyRegistry";
+import { AUTHORIZED_PHASE1_EXCLUSION_COMPANY_IDS } from "../../src/data/phase1ScopePolicy";
 
 const plannedMainListSourceIds = new Set([
   "source-3sbio-social",
@@ -64,6 +75,52 @@ const excludedSourceIds = [
 ];
 
 describe("source crawl planning", () => {
+  it("promotes the current research candidates into channel-bound staged plans without weakening strict plans", () => {
+    const discovery = buildDiscoverySourcePlanCandidates(candidateCompanies);
+    const staged = buildStagedSourceCrawlPlans(candidateCompanies);
+
+    expect(staged.map((plan) => plan.source.id)).toEqual(discovery.map((plan) => plan.source.id));
+    expect(buildSourceCrawlPlans(candidateCompanies)).toEqual([]);
+    for (const plan of staged) expect(() => validateExecutablePlanChannelBinding(plan)).not.toThrow();
+    for (const plan of discovery) expect(() => validateExecutablePlanChannelBinding(plan)).toThrow();
+  });
+
+  it("fails staged planning closed for source-owner drift and both authorized exclusions", () => {
+    const company = candidateCompanies.find((item) => item.id === "company-astrazeneca")!;
+    const source = company.sources[0]!;
+    const wrongOwner = {
+      ...company,
+      sources: [{ ...source, companyId: "company-abbvie-china" }]
+    };
+    expect(buildStagedSourceCrawlPlans([wrongOwner])).toEqual([]);
+
+    const outOfRosterCompany = {
+      ...company,
+      id: "company-not-in-confirmed-roster",
+      sources: [{ ...source, companyId: "company-not-in-confirmed-roster" }]
+    };
+    const outOfRosterSurface = {
+      ...expectedOfficialSurfaces.find((surface) => surface.surfaceId === source.surfaceId)!,
+      companyId: outOfRosterCompany.id
+    };
+    expect(buildStagedSourceCrawlPlans([outOfRosterCompany], [outOfRosterSurface])).toEqual([]);
+
+    for (const excludedCompanyId of AUTHORIZED_PHASE1_EXCLUSION_COMPANY_IDS) {
+      const excludedCompany = {
+        ...company,
+        id: excludedCompanyId,
+        targetStatus: "USER_AUTHORIZED_PHASE1_EXCLUSION" as const,
+        sources: [{ ...source, companyId: excludedCompanyId }]
+      };
+      const excludedSurface = {
+        ...expectedOfficialSurfaces.find((surface) => surface.surfaceId === source.surfaceId)!,
+        companyId: excludedCompanyId
+      };
+      expect(buildStagedSourceCrawlPlans([excludedCompany], [excludedSurface])).toEqual([]);
+      expect(buildSourceCrawlPlans([excludedCompany], [excludedSurface])).toEqual([]);
+    }
+  });
+
   it("quarantines J&J from formal plans even when a caller labels searchText and six facets independently verified", () => {
     const company = candidateCompanies.find((item) => item.id === "company-johnson-innovative-medicine")!;
     const source = company.sources[0]!;

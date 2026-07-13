@@ -1,8 +1,11 @@
 import { describe, expect, it } from "vitest";
 import { candidateCompanies, expectedOfficialSurfaces } from "../../src/data/companyRegistry";
 import {
+  buildDiscoverySourcePlanCandidates,
   buildSourceCrawlPlans,
+  buildStagedSourceCrawlPlans,
   expectedChannelSetHash,
+  getPlanBySourceId,
   validateExecutablePlanChannelBinding
 } from "../../src/crawler/sourcePlan";
 
@@ -26,6 +29,64 @@ function resolvedCspcSurface(ids = channelIds) {
 }
 
 describe("executable source plan channel binding", () => {
+  function talentbrewFixture(sourceId: "source-sanofi-china-social" | "source-takeda-china-social") {
+    const company = candidateCompanies.find((item) => item.sources.some((source) => source.id === sourceId))!;
+    const discovery = getPlanBySourceId(buildDiscoverySourcePlanCandidates([company]), sourceId)!;
+    if (discovery.adapterId !== "html-table") throw new Error("Expected a TalentBrew HTML adapter");
+    const configuredIds = discovery.table.pagination?.talentbrewScope?.allowedPartitions.map(
+      ({ channelId }) => channelId
+    );
+    if (!configuredIds?.length) throw new Error("Expected configured TalentBrew partitions");
+    const surface = expectedOfficialSurfaces.find((item) => item.surfaceId === discovery.source.surfaceId)!;
+    return {
+      company,
+      configuredIds,
+      surface: {
+        ...surface,
+        channels: configuredIds.map((channelId) => ({
+          channelId,
+          kind: "SOCIAL" as const,
+          status: "EXPECTED" as const
+        }))
+      }
+    };
+  }
+
+  it("binds every configured TalentBrew partition for staged execution while strict remains gated", () => {
+    const { company, configuredIds, surface } = talentbrewFixture("source-takeda-china-social");
+    const [plan] = buildStagedSourceCrawlPlans([company], [surface]);
+
+    expect(plan?.expectedChannels?.map(({ channelId }) => channelId)).toEqual([...configuredIds].sort());
+    expect(plan?.expectedChannelSetHash).toBe(expectedChannelSetHash(plan!.expectedChannels!));
+    expect(() => validateExecutablePlanChannelBinding(plan!)).not.toThrow();
+    expect(buildSourceCrawlPlans([company], [surface])).toEqual([]);
+  });
+
+  it.each([
+    ["missing", (ids: string[]) => ids.slice(1)],
+    ["replacement", (ids: string[]) => ["not-a-configured-partition", ...ids.slice(1)]],
+    ["duplicate", (ids: string[]) => [ids[0]!, ids[0]!, ...ids.slice(2)]]
+  ])("fails staged planning closed for %s TalentBrew partition coverage", (_label, mutate) => {
+    const { company, configuredIds, surface } = talentbrewFixture("source-takeda-china-social");
+    const channelIds = mutate(configuredIds);
+    const mutated = {
+      ...surface,
+      channels: channelIds.map((channelId) => ({ channelId, kind: "SOCIAL" as const, status: "EXPECTED" as const }))
+    };
+    expect(buildStagedSourceCrawlPlans([company], [mutated])).toEqual([]);
+  });
+
+  it("fails staged planning closed when a configured channel is not social", () => {
+    const { company, surface } = talentbrewFixture("source-sanofi-china-social");
+    const mutated = {
+      ...surface,
+      channels: surface.channels.map((channel, index) =>
+        index === 0 ? { ...channel, kind: "CAMPUS" as const } : channel
+      )
+    };
+    expect(buildStagedSourceCrawlPlans([company], [mutated])).toEqual([]);
+  });
+
   it("does not promote a well-formed unresolved scope entry", () => {
     const company = candidateCompanies.find((item) => item.id === "company-cspc")!;
     const unresolved = {

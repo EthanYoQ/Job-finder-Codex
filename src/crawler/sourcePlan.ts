@@ -8,6 +8,7 @@ import {
   type ExpectedRecruitmentChannel
 } from "../data/companyRegistry";
 import {
+  canonicalPhase1InScopeRosterMembers,
   isUserAuthorizedPhase1Exclusion,
   USER_AUTHORIZED_PHASE1_EXCLUSION
 } from "../data/phase1ScopePolicy";
@@ -20,6 +21,7 @@ import type { WorkdayFetchConfig } from "./workdaySourceFetch";
 export type CrawlAdapterId = "official-json" | "html-table";
 
 export type ExecutableExpectedChannel = Pick<ExpectedRecruitmentChannel, "channelId" | "kind">;
+type SourcePlanPolicy = "DISCOVERY" | "STAGED" | "FULL_RELEASE";
 
 export interface MokaFetchConfig {
   expectedOrgId: string;
@@ -1410,21 +1412,30 @@ export function buildSourceCrawlPlans(
   companies: readonly CandidateCompany[],
   surfaces: readonly ExpectedOfficialRecruitmentSurface[] = expectedOfficialSurfaces
 ): SourceCrawlPlan[] {
-  return buildPlans(companies, surfaces, true);
+  return buildPlans(companies, surfaces, "FULL_RELEASE");
+}
+
+export function buildStagedSourceCrawlPlans(
+  companies: readonly CandidateCompany[],
+  surfaces: readonly ExpectedOfficialRecruitmentSurface[] = expectedOfficialSurfaces
+): SourceCrawlPlan[] {
+  return buildPlans(companies, surfaces, "STAGED");
 }
 
 export function buildDiscoverySourcePlanCandidates(
   companies: readonly CandidateCompany[],
   surfaces: readonly ExpectedOfficialRecruitmentSurface[] = expectedOfficialSurfaces
 ): SourceCrawlPlan[] {
-  return buildPlans(companies, surfaces, false);
+  return buildPlans(companies, surfaces, "DISCOVERY");
 }
 
 function buildPlans(
   companies: readonly CandidateCompany[],
   surfaces: readonly ExpectedOfficialRecruitmentSurface[],
-  requireIndependentOracle: boolean
+  policy: SourcePlanPolicy
 ): SourceCrawlPlan[] {
+  const fullRelease = policy === "FULL_RELEASE";
+  const executable = policy !== "DISCOVERY";
   const oracleBySurfaceId = new Map(surfaces.map((surface) => [surface.surfaceId, surface]));
   return companies.flatMap((company) =>
     isUserAuthorizedPhase1Exclusion(company.id) || company.targetStatus === USER_AUTHORIZED_PHASE1_EXCLUSION
@@ -1432,6 +1443,7 @@ function buildPlans(
       :
     company.sources.flatMap((source): SourceCrawlPlan[] => {
       if (
+        (policy === "STAGED" && !isCanonicalSourceOwner(company, source)) ||
         source.kind !== "SOCIAL" ||
         source.status !== "VERIFIED_SCRAPABLE" ||
         !source.officialEntryUrl ||
@@ -1444,13 +1456,13 @@ function buildPlans(
       const surface = source.surfaceId ? oracleBySurfaceId.get(source.surfaceId) : undefined;
       if (
         !config ||
-        (requireIndependentOracle && config.formalEligibility === "QUARANTINED_PENDING_TRUSTED_ORACLE") ||
+        (fullRelease && config.formalEligibility === "QUARANTINED_PENDING_TRUSTED_ORACLE") ||
         !surface ||
         surface.companyId !== company.id ||
         surface.kind !== "SOCIAL" ||
         surface.status !== "INCLUDED" ||
-        (requireIndependentOracle && surface.oracleStatus !== "INDEPENDENTLY_VERIFIED") ||
-        (requireIndependentOracle && hasUnresolvedSurfaceScope(surface)) ||
+        (fullRelease && surface.oracleStatus !== "INDEPENDENTLY_VERIFIED") ||
+        (fullRelease && hasUnresolvedSurfaceScope(surface)) ||
         surface.officialEntryUrl !== source.officialEntryUrl ||
         !surface.officialChainEvidenceUrls.includes(source.officialChainEvidenceUrl) ||
         surface.adapterId !== config.adapterId
@@ -1484,13 +1496,18 @@ function buildPlans(
       } catch {
         return [];
       }
-      if (
-        requireIndependentOracle &&
-        (!hasExactAdapterChannelCoverage(config, source.id, expectedChannels) || expectedChannels.length === 0)
-      ) {
+      if (policy === "STAGED" && expectedChannels.length === 0) {
+        try {
+          expectedChannels = configuredExpectedChannels(config, source.id);
+        } catch {
+          return [];
+        }
+      }
+      if (executable &&
+          (!hasExactAdapterChannelCoverage(config, source.id, expectedChannels) || expectedChannels.length === 0)) {
         return [];
       }
-      const channelBinding = requireIndependentOracle
+      const channelBinding = executable
         ? { expectedChannels, expectedChannelSetHash: expectedChannelSetHash(expectedChannels) }
         : {};
 
@@ -1516,6 +1533,13 @@ function buildPlans(
               table: config.table
             };
 
+      if (executable) {
+        try {
+          validateExecutablePlanChannelBinding(plan);
+        } catch {
+          return [];
+        }
+      }
       return [plan];
     })
   );
@@ -1547,7 +1571,19 @@ function configuredChannelIds(config: RepresentativeSourceConfig, sourceId: stri
   ) {
     return [...config.officialJsonFetch.channelQrIds];
   }
+  if (config.adapterId === "html-table" && config.table.pagination?.talentbrewScope) {
+    return config.table.pagination.talentbrewScope.allowedPartitions.map(({ channelId }) => channelId);
+  }
   return [`source:${sourceId}:default`];
+}
+
+function configuredExpectedChannels(
+  config: RepresentativeSourceConfig,
+  sourceId: string
+): ExecutableExpectedChannel[] {
+  return canonicalExpectedChannels(
+    configuredChannelIds(config, sourceId).map((channelId) => ({ channelId, kind: "SOCIAL" }))
+  );
 }
 
 function hasExactAdapterChannelCoverage(
@@ -1556,6 +1592,7 @@ function hasExactAdapterChannelCoverage(
   channels: readonly ExecutableExpectedChannel[]
 ): boolean {
   try {
+    if (channels.some((channel) => channel.kind !== "SOCIAL")) return false;
     const expectedIds = canonicalExpectedChannels(channels).map((channel) => channel.channelId);
     const configuredIds = configuredChannelIds(config, sourceId).sort(compareUtf8);
     return new Set(configuredIds).size === configuredIds.length &&
@@ -1576,13 +1613,14 @@ export function validateExecutablePlanChannelBinding(plan: SourceCrawlPlan): voi
   if (expectedChannelSetHash(canonical) !== plan.expectedChannelSetHash) {
     throw new Error("Executable source plan channel hash mismatch");
   }
-  const expectedAdapter =
-    plan.source.atsKind === "OFFICIAL_HTML" || plan.source.atsKind === "SUCCESSFACTORS"
-      ? "html-table"
+  const adapterCompatible = plan.source.atsKind === "BEISEN_ZHIYE"
+    ? plan.adapterId === "official-json" || plan.adapterId === "html-table"
+    : plan.source.atsKind === "OFFICIAL_HTML" || plan.source.atsKind === "SUCCESSFACTORS"
+      ? plan.adapterId === "html-table"
       : plan.source.atsKind === "UNKNOWN" || plan.source.atsKind === "BROWSER_FALLBACK"
-        ? undefined
-        : "official-json";
-  if (!expectedAdapter || expectedAdapter !== plan.adapterId) {
+        ? false
+        : plan.adapterId === "official-json";
+  if (!adapterCompatible) {
     throw new Error("Executable source plan adapter does not match ATS kind");
   }
   const config: RepresentativeSourceConfig = plan.adapterId === "official-json"
@@ -1652,6 +1690,12 @@ function canonicalPlanValue(value: unknown): unknown {
   return value;
 }
 
+export function sourcePlanConfigSha256(plan: SourceCrawlPlan): string {
+  return createHash("sha256")
+    .update(JSON.stringify(canonicalPlanValue(plan)), "utf8")
+    .digest("hex");
+}
+
 export function activeSourcePlanSha256(plans: readonly SourceCrawlPlan[]): string {
   const ordered = [...plans].sort((left, right) => compareUtf8(left.source.id, right.source.id));
   return createHash("sha256")
@@ -1661,6 +1705,12 @@ export function activeSourcePlanSha256(plans: readonly SourceCrawlPlan[]): strin
 
 function compareUtf8(left: string, right: string): number {
   return Buffer.from(left, "utf8").compare(Buffer.from(right, "utf8"));
+}
+
+function isCanonicalSourceOwner(company: CandidateCompany, source: CandidateRecruitmentSource): boolean {
+  return source.companyId === company.id && canonicalPhase1InScopeRosterMembers.some(
+    (member) => member.id === company.id && member.category === company.category
+  );
 }
 
 export function getPlanBySourceId(
