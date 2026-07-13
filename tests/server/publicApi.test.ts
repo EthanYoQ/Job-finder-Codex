@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import type { CompanyPublicationSnapshot } from "../../src/domain/publicationEligibility";
+import { getCompanyPublicationSnapshotFromDb } from "../../src/db/publicationEligibilityRepository";
 import { handlePublicApi } from "../../src/server/publicApi";
 
 function fakePublishingSnapshot(companyCount: number): CompanyPublicationSnapshot {
@@ -199,6 +200,11 @@ describe("public API route policy", () => {
 
   it("returns the full canonical 60-company publication directory in one request", async () => {
     const publicationFindMany = vi.fn(async () => []);
+    const readPublicationSnapshot = vi.fn((db: Parameters<typeof getCompanyPublicationSnapshotFromDb>[0]) =>
+      getCompanyPublicationSnapshotFromDb(
+        db,
+        async () => ({ identity: { releaseCandidateId: "phase1-current-release" } })
+      ));
     const deps = {
       db: {
         job: { findMany: vi.fn() },
@@ -209,7 +215,8 @@ describe("public API route policy", () => {
         recommendedCompany: { create: vi.fn() }
       },
       checkDatabaseReadiness: async () => true,
-      now: () => new Date("2026-07-08T00:00:00.000Z")
+      now: () => new Date("2026-07-08T00:00:00.000Z"),
+      readPublicationSnapshot
     };
 
     const response = await handlePublicApi(
@@ -231,6 +238,7 @@ describe("public API route policy", () => {
       hasMore: false
     });
     expect((response.body as { companies: unknown[] }).companies).toHaveLength(60);
+    expect(readPublicationSnapshot).toHaveBeenCalledTimes(1);
     expect(publicationFindMany).toHaveBeenCalledTimes(1);
     expect(deps.db.company.findMany).not.toHaveBeenCalled();
   });
