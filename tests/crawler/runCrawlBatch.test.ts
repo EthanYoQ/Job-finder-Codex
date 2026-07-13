@@ -226,6 +226,15 @@ function inMemoryArchiveDeps(): Pick<RunP0CrawlBatchDeps, "archiveEvidence" | "v
   return { archiveEvidence, verifyArchive };
 }
 
+async function captureRejection(operation: () => Promise<unknown>): Promise<unknown> {
+  try {
+    await operation();
+  } catch (error) {
+    return error;
+  }
+  throw new Error("Expected operation to reject");
+}
+
 function fakeDb() {
   const calls = {
     batchesCreated: [] as unknown[],
@@ -1084,21 +1093,21 @@ describe("runP0CrawlBatch", () => {
     }
   );
 
-  it("aborts later sources when a failed source cannot be terminalized", async () => {
+  it("retains the source and terminalization errors when source-stage terminalization fails", async () => {
     const failedPlan = planFor("source-astrazeneca-social");
     const laterPlan = planFor("source-roche-china-social");
     const batchPlans = [failedPlan, laterPlan];
     const db = fakeDb();
+    const sourceError = new Error("source fetch failed");
     const terminalError = new Error("terminal source write failed");
-    db.terminalUpdateMany.mockRejectedValue(terminalError);
+    db.terminalUpdateMany.mockRejectedValueOnce(terminalError);
     const fetch = vi.fn(async (plan: SourceCrawlPlan) => {
-      if (plan.source.id === failedPlan.source.id) throw new Error("source fetch failed");
+      if (plan.source.id === failedPlan.source.id) throw sourceError;
       return strictSuccessfulFetch(laterPlan);
     });
-    let rejection: unknown;
 
-    try {
-      await runP0CrawlBatch(batchPlans, {
+    const rejection = await captureRejection(() =>
+      runP0CrawlBatch(batchPlans, {
         db,
         fetch,
         now: NOW,
@@ -1109,13 +1118,84 @@ describe("runP0CrawlBatch", () => {
         getPreviousJobs: async () => [],
         getRecentObservations: async () => [],
         isBaselineCompleted: async () => true
-      });
-    } catch (error) {
-      rejection = error;
-    }
+      })
+    );
 
     expect(rejection).toBeInstanceOf(AggregateError);
-    expect((rejection as AggregateError).errors[0]).toBe(terminalError);
+    expect((rejection as AggregateError).errors).toEqual([sourceError, terminalError]);
+    expect(fetch).toHaveBeenCalledTimes(1);
+  });
+
+  it("retains the atomic and terminalization errors when post-crawl terminalization fails", async () => {
+    const failedPlan = planFor("source-qilu-social");
+    const laterPlan = planFor("source-roche-china-social");
+    const batchPlans = [failedPlan, laterPlan];
+    const db = fakeDb();
+    const atomicError = new Error("source atomic commit failed");
+    const terminalError = new Error("terminal source write failed");
+    db.terminalUpdateMany.mockRejectedValueOnce(terminalError);
+    const fetch = vi.fn(async (plan: SourceCrawlPlan) => strictSuccessfulFetch(plan));
+    const executeAtomicCommit = vi.fn<AtomicCommitExecutor>(async (commit) => {
+      if (commit.sourceResult.sourceId === failedPlan.source.id) throw atomicError;
+    });
+
+    const rejection = await captureRejection(() =>
+      runP0CrawlBatch(batchPlans, {
+        db,
+        fetch,
+        now: NOW,
+        force: true,
+        identity: identityForPlans(batchPlans),
+        executeAtomicCommit,
+        ...inMemoryArchiveDeps(),
+        getPreviousJobs: async () => [],
+        getRecentObservations: async () => [],
+        isBaselineCompleted: async () => true
+      })
+    );
+
+    expect(rejection).toBeInstanceOf(AggregateError);
+    expect((rejection as AggregateError).errors).toEqual([atomicError, terminalError]);
+    expect(fetch).toHaveBeenCalledTimes(1);
+    expect(executeAtomicCommit).toHaveBeenCalledTimes(1);
+  });
+
+  it("retains source, terminalization, and batch-finalization errors together", async () => {
+    const failedPlan = planFor("source-astrazeneca-social");
+    const laterPlan = planFor("source-roche-china-social");
+    const batchPlans = [failedPlan, laterPlan];
+    const db = fakeDb();
+    const sourceError = new Error("source fetch failed");
+    const terminalError = new Error("terminal source write failed");
+    const finalizationError = new Error("batch finalization failed");
+    db.terminalUpdateMany.mockRejectedValueOnce(terminalError);
+    db.crawlBatch.update = vi.fn(async () => { throw finalizationError; });
+    const fetch = vi.fn(async (plan: SourceCrawlPlan) => {
+      if (plan.source.id === failedPlan.source.id) throw sourceError;
+      return strictSuccessfulFetch(laterPlan);
+    });
+
+    const rejection = await captureRejection(() =>
+      runP0CrawlBatch(batchPlans, {
+        db,
+        fetch,
+        now: NOW,
+        force: true,
+        identity: identityForPlans(batchPlans),
+        executeAtomicCommit: vi.fn(async () => undefined),
+        ...inMemoryArchiveDeps(),
+        getPreviousJobs: async () => [],
+        getRecentObservations: async () => [],
+        isBaselineCompleted: async () => true
+      })
+    );
+
+    expect(rejection).toBeInstanceOf(AggregateError);
+    expect((rejection as AggregateError).errors).toEqual([
+      sourceError,
+      terminalError,
+      finalizationError
+    ]);
     expect(fetch).toHaveBeenCalledTimes(1);
   });
 

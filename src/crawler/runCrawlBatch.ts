@@ -230,6 +230,7 @@ export async function runP0CrawlBatch(
           adapterFailedSourceCount += 1;
         }
         const sourceError = error instanceof SourceCrawlStageError ? error.cause : error;
+        sourceErrors.push(sourceError);
         await terminatePendingSourceResult({ id: pending.id, releaseCandidateId: deps.identity.releaseCandidateId,
           batchId: batch.id, sourceId: plan.source.id,
           transportState: error instanceof SourceCrawlStageError && error.stage === "ADAPTER" ? "SUCCEEDED" : "FAILED",
@@ -239,7 +240,6 @@ export async function runP0CrawlBatch(
           failureReason: "Source execution failed before atomic evidence commit" }, deps.db as never);
         terminalSourceIds.add(plan.source.id);
         failedSourceCount += 1;
-        sourceErrors.push(sourceError);
         continue;
       }
 
@@ -298,6 +298,7 @@ export async function runP0CrawlBatch(
             );
           }
         }
+        sourceErrors.push(propagatedError);
         await terminatePendingSourceResult({ id: pending.id, releaseCandidateId: deps.identity.releaseCandidateId,
           batchId: batch.id, sourceId: plan.source.id, transportState: crawlResult.truth.transportSuccess ? "SUCCEEDED" : "FAILED",
           adapterState: crawlResult.truth.transportSuccess
@@ -309,7 +310,6 @@ export async function runP0CrawlBatch(
         terminalSourceIds.add(plan.source.id);
         atomicFailedSourceCount += 1;
         failedSourceCount += 1;
-        sourceErrors.push(propagatedError);
         continue;
       }
 
@@ -434,6 +434,12 @@ export async function runP0CrawlBatch(
   }
 
   if (sourceThrew) {
+    if (sourceErrors.length > 0) {
+      throw new AggregateError(
+        [...sourceErrors, thrownError],
+        "Source failures and batch execution both failed"
+      );
+    }
     throw thrownError;
   }
 
