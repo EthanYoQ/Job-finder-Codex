@@ -87,6 +87,25 @@ describe("ops monitoring alerts", () => {
     ).toEqual([]);
   });
 
+  it("warns without stopping the site when a partial crawl remains above the service level", async () => {
+    const { evaluateOpsAlerts } = await loadOpsMonitoringModule();
+    const alerts = evaluateOpsAlerts({
+      now,
+      health: { ok: true, statusCode: 200 },
+      backup: { latestBackupAt: "2026-07-08T10:00:00.000Z", latestBackupSucceeded: true },
+      crawl: {
+        authorityState: "VALID",
+        attemptState: "FAILED",
+        summaryState: "VALID",
+        globalSuccessRate: 0.98,
+        consecutiveFailuresByCompany: { "company-a": 1 }
+      }
+    }) as OpsAlert[];
+
+    expect(alerts).toContainEqual(expect.objectContaining({ code: "CRAWL_ATTEMPT_FAILED", severity: "warning" }));
+    expect(alerts).not.toContainEqual(expect.objectContaining({ severity: "critical" }));
+  });
+
   it.each([
     ["MISSING", "CRAWL_SUMMARY_MISSING"],
     ["INVALID", "CRAWL_SUMMARY_INVALID"],
@@ -107,7 +126,6 @@ describe("ops monitoring alerts", () => {
     ["INVALID", "SUCCESS", "CRAWL_AUTHORITY_INVALID"],
     ["VALID", "MISSING", "CRAWL_ATTEMPT_MISSING"],
     ["VALID", "INVALID", "CRAWL_ATTEMPT_INVALID"],
-    ["VALID", "FAILED", "CRAWL_ATTEMPT_FAILED"],
     ["VALID", "STALE", "CRAWL_ATTEMPT_STALE"]
   ] as const)("fails closed for authority=%s attempt=%s", async (authorityState, attemptState, code) => {
     const { evaluateOpsAlerts } = await loadOpsMonitoringModule();

@@ -12,6 +12,7 @@ const composePath = resolve(repoRoot, "ops/docker-compose.yml");
 const nginxPath = resolve(repoRoot, "ops/nginx.conf");
 const backupPath = resolve(repoRoot, "ops/backup.sh");
 const monitoringCheckPath = resolve(repoRoot, "ops/monitoring-check.ts");
+const envExamplePath = resolve(repoRoot, ".env.example");
 const httpServerPath = resolve(repoRoot, "src/server/httpServer.ts");
 const p0CrawlPath = resolve(repoRoot, "scripts/p0-crawl.ts");
 
@@ -71,6 +72,30 @@ function renderCompose(env: NodeJS.ProcessEnv = {}): string {
   });
 }
 
+function renderBaseComposeWithoutManualAuthority(): string {
+  const env: NodeJS.ProcessEnv = {
+    ...process.env,
+    BUILD_COMMIT_SHA: "1".repeat(40),
+    BUILD_SOURCE_CLEAN: "true",
+    BUILD_SOURCE_TREE_SHA256: "2".repeat(64),
+    ALERT_WEBHOOK_URL: "https://alerts.example.invalid/job-finder",
+    DATABASE_URL: "postgresql://jobfinder:secret@postgres:5432/jobfinder?schema=public",
+    POSTGRES_PASSWORD: "secret"
+  };
+  for (const name of [
+    "P0_FULL_RELEASE_MEMBERSHIP_FILE",
+    "P0_FULL_RELEASE_MEMBERSHIP_FILE_SHA256",
+    "P0_FULL_RELEASE_ORACLE_FILE",
+    "P0_FULL_RELEASE_ORACLE_FILE_SHA256"
+  ]) delete env[name];
+  return execFileSync("docker", ["compose", "-f", composePath, "config"], {
+    cwd: repoRoot,
+    encoding: "utf8",
+    env,
+    stdio: ["ignore", "pipe", "pipe"]
+  });
+}
+
 async function startRecordingHttpServer(markerPath: string): Promise<{ port: number; stop: () => Promise<void> }> {
   const child = spawn(
     process.execPath,
@@ -126,6 +151,14 @@ async function startFakeTcpServer(): Promise<{ port: number; stop: () => Promise
 }
 
 describe("deployment configuration", () => {
+  it("renders the base stack without historical manual-worker authority inputs", () => {
+    const rendered = renderBaseComposeWithoutManualAuthority();
+    expect(readComposeService(rendered, "web")).toContain("DATABASE_URL");
+    expect(readRequiredFile(envExamplePath)).toContain(
+      "postgresql://jobfinder:replace-with-a-long-random-database-password@postgres:5432/jobfinder?schema=public"
+    );
+  });
+
   it("defines the production container stack without publicly exposing postgres", () => {
     const dockerfile = readRequiredFile(dockerfilePath);
     const compose = readRequiredFile(composePath);

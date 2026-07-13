@@ -79,7 +79,7 @@ export function evaluateOpsAlerts(input: OpsAlertInput): OpsAlert[] {
   } as const;
   if (!["SUCCESS", "RUNNING"].includes(input.crawl.attemptState)) {
     const [code, message] = attemptAlert[input.crawl.attemptState as keyof typeof attemptAlert];
-    alerts.push({ code, severity: "critical", message });
+    alerts.push({ code, severity: input.crawl.attemptState === "FAILED" ? "warning" : "critical", message });
   }
 
   const summaryAlert = {
