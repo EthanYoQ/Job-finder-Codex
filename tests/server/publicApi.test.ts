@@ -1,5 +1,38 @@
 import { describe, expect, it, vi } from "vitest";
+import type { CompanyPublicationSnapshot } from "../../src/domain/publicationEligibility";
 import { handlePublicApi } from "../../src/server/publicApi";
+
+function fakePublishingSnapshot(companyCount: number): CompanyPublicationSnapshot {
+  const companies = Array.from({ length: companyCount }, (_, index) => ({
+    companyId: `company-${index + 1}`,
+    companyName: `药企 ${index + 1}`,
+    pinyinName: `company ${String(index + 1).padStart(2, "0")}`,
+    category: "FOREIGN_PHARMA" as const,
+    officialWebsiteUrl: `https://official.example/${index + 1}`,
+    officialCareersUrl: `https://official.example/${index + 1}/careers`,
+    state: "PUBLISHING" as const,
+    health: "HEALTHY" as const,
+    stagedSourceIds: ["source-eligible"],
+    eligibleSourceIds: ["source-eligible"],
+    qualifiedAt: new Date("2026-07-08T00:00:00.000Z"),
+    lastAttemptAt: new Date("2026-07-08T00:00:00.000Z"),
+    lastSuccessAt: new Date("2026-07-08T00:00:00.000Z"),
+    reasonCode: "ALL_CURRENT_STAGED_SOURCES_QUALIFIED" as const
+  }));
+  return {
+    companies,
+    eligibleCompanyIds: companies.map(({ companyId }) => companyId),
+    eligibleSourceIds: ["source-eligible"],
+    countsByState: {
+      PUBLISHING: companyCount,
+      VERIFYING: 0,
+      OFFICIAL_LINK_ONLY: 0,
+      NO_PUBLIC_OFFICIAL_CAREERS_LINK_AT_CAPTURE_TIME: 0,
+      USER_AUTHORIZED_PHASE1_EXCLUSION: 0
+    },
+    countsByHealth: { HEALTHY: companyCount, DEGRADED: 0, NOT_APPLICABLE: 0 }
+  };
+}
 
 describe("public API route policy", () => {
   it("accepts a valid privacy request without consent and persists its contact", async () => {
@@ -138,6 +171,7 @@ describe("public API route policy", () => {
       db: {
         job: { findMany: vi.fn() },
         crawlObservation: { findFirst: vi.fn() },
+        crawlBatchSourceResult: { findMany: vi.fn(async () => []) },
         company: { findMany: vi.fn(async () => []) },
         feedback: { create: vi.fn() },
         recommendedCompany: { create: vi.fn() }
@@ -163,21 +197,14 @@ describe("public API route policy", () => {
     expect(deps.db.job.findMany).not.toHaveBeenCalled();
   });
 
-  it("returns paginated coverage results with a hard cap", async () => {
+  it("returns the full canonical 60-company publication directory in one request", async () => {
+    const publicationFindMany = vi.fn(async () => []);
     const deps = {
       db: {
         job: { findMany: vi.fn() },
         crawlObservation: { findFirst: vi.fn() },
-        company: {
-          findMany: vi.fn(async () =>
-            Array.from({ length: 80 }, (_, index) => ({
-              id: `company-${index + 1}`,
-              officialChineseName: `药企 ${index + 1}`,
-              officialWebsiteUrl: `https://example.com/${index + 1}`,
-              pinyinName: `company ${String(index + 1).padStart(2, "0")}`
-            }))
-          )
-        },
+        crawlBatchSourceResult: { findMany: publicationFindMany },
+        company: { findMany: vi.fn(async () => []) },
         feedback: { create: vi.fn() },
         recommendedCompany: { create: vi.fn() }
       },
@@ -189,7 +216,7 @@ describe("public API route policy", () => {
       {
         method: "GET",
         path: "/api/coverage",
-        query: { keyword: "", offset: "5", limit: "50" },
+        query: { keyword: "", offset: "0", limit: "60" },
         headers: { "x-job-search-consent": "accepted" },
         body: undefined,
         ip: "1.2.3.4"
@@ -199,11 +226,38 @@ describe("public API route policy", () => {
 
     expect(response.status).toBe(200);
     expect(response.body).toMatchObject({
-      offset: 5,
-      limit: 50,
-      hasMore: true
+      offset: 0,
+      limit: 60,
+      hasMore: false
     });
-    expect((response.body as { companies: unknown[] }).companies).toHaveLength(50);
+    expect((response.body as { companies: unknown[] }).companies).toHaveLength(60);
+    expect(publicationFindMany).toHaveBeenCalledTimes(1);
+    expect(deps.db.company.findMany).not.toHaveBeenCalled();
+  });
+
+  it("rejects a coverage page size above the canonical roster boundary", async () => {
+    const publicationFindMany = vi.fn(async () => []);
+    const response = await handlePublicApi({
+      method: "GET",
+      path: "/api/coverage",
+      query: { keyword: "", offset: "0", limit: "61" },
+      headers: { "x-job-search-consent": "accepted" },
+      body: undefined,
+      ip: "1.2.3.5"
+    }, {
+      db: {
+        job: { findMany: vi.fn() },
+        crawlObservation: { findFirst: vi.fn() },
+        crawlBatchSourceResult: { findMany: publicationFindMany },
+        feedback: { create: vi.fn() },
+        recommendedCompany: { create: vi.fn() }
+      },
+      checkDatabaseReadiness: async () => true
+    });
+
+    expect(response.status).toBe(400);
+    expect(response.body).toMatchObject({ error: "INVALID_REQUEST" });
+    expect(publicationFindMany).not.toHaveBeenCalled();
   });
 
   it("returns 400 for invalid bulk pagination before suspicious request challenge", async () => {
@@ -211,6 +265,7 @@ describe("public API route policy", () => {
       db: {
         job: { findMany: vi.fn() },
         crawlObservation: { findFirst: vi.fn() },
+        crawlBatchSourceResult: { findMany: vi.fn(async () => []) },
         company: { findMany: vi.fn(async () => []) },
         feedback: { create: vi.fn() },
         recommendedCompany: { create: vi.fn() }
@@ -244,6 +299,7 @@ describe("public API route policy", () => {
             Array.from({ length: 60 }, (_, companyIndex) =>
               Array.from({ length: 12 }, (_, jobIndex) => ({
                 id: `job-${companyIndex + 1}-${jobIndex + 1}`,
+                sourceId: "source-eligible",
                 companyId: `company-${companyIndex + 1}`,
                 officialTitle: `Role ${jobIndex + 1}`,
                 auxiliaryChineseTitle: null,
@@ -265,12 +321,14 @@ describe("public API route policy", () => {
         crawlObservation: {
           findFirst: vi.fn(async () => ({ crawledAt: new Date("2026-07-08T00:00:00.000Z") }))
         },
+        crawlBatchSourceResult: { findMany: vi.fn(async () => []) },
         company: { findMany: vi.fn(async () => []) },
         feedback: { create: vi.fn() },
         recommendedCompany: { create: vi.fn() }
       },
       checkDatabaseReadiness: async () => true,
-      now: () => new Date("2026-07-08T00:00:00.000Z")
+      now: () => new Date("2026-07-08T00:00:00.000Z"),
+      readPublicationSnapshot: vi.fn(async () => fakePublishingSnapshot(60))
     };
 
     const response = await handlePublicApi(
@@ -291,6 +349,9 @@ describe("public API route policy", () => {
     expect(
       (response.body as { companies: Array<{ id: string }> }).companies.map((company) => company.id).slice(0, 3)
     ).toEqual(["company-6", "company-7", "company-8"]);
+    expect(deps.db.job.findMany).toHaveBeenCalledWith(expect.objectContaining({
+      where: expect.objectContaining({ sourceId: { in: ["source-eligible"] } })
+    }));
   });
 
   it("returns 400 for malformed feedback and recommend-company bodies", async () => {
@@ -298,6 +359,7 @@ describe("public API route policy", () => {
       db: {
         job: { findMany: vi.fn() },
         crawlObservation: { findFirst: vi.fn() },
+        crawlBatchSourceResult: { findMany: vi.fn(async () => []) },
         company: { findMany: vi.fn(async () => []) },
         feedback: { create: vi.fn() },
         recommendedCompany: { create: vi.fn() }

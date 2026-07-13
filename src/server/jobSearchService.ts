@@ -1,9 +1,12 @@
 import { SearchRequestSchema, type JobCategory } from "../domain/search";
 import { toPrismaJobCategory, type PrismaJobCategoryName } from "../db/prismaMappers";
-import { buildSourceCrawlPlans } from "../crawler/sourcePlan";
-import { candidateCompanies } from "../data/companyRegistry";
+import {
+  getCompanyPublicationSnapshotFromDb,
+  type PublicationEligibilityDb
+} from "../db/publicationEligibilityRepository";
+import type { CompanyPublicationSnapshot } from "../domain/publicationEligibility";
 
-export interface PrismaJobSearchDb {
+export interface PrismaJobSearchDb extends PublicationEligibilityDb {
   job: {
     findMany(args: PrismaLikeJobFindManyArgs): Promise<unknown[]>;
   };
@@ -14,6 +17,7 @@ export interface PrismaJobSearchDb {
 
 interface JobRow {
   id: string;
+  sourceId: string;
   companyId: string;
   officialTitle: string;
   auxiliaryChineseTitle: string | null;
@@ -106,37 +110,50 @@ const PRISMA_TO_JOB_CATEGORY: Record<PrismaJobCategoryName, JobCategory> = {
   OTHER: "其他"
 };
 
-const CURRENT_P0_SOURCE_IDS = buildSourceCrawlPlans(candidateCompanies).map((plan) => plan.source.id);
+export type PublicationSnapshotReader = (
+  db: PublicationEligibilityDb
+) => Promise<CompanyPublicationSnapshot>;
 
 export async function searchJobsFromDatabase(
   request: unknown,
-  db: PrismaJobSearchDb
+  db: PrismaJobSearchDb,
+  readPublicationSnapshot: PublicationSnapshotReader = getCompanyPublicationSnapshotFromDb
 ): Promise<DatabaseSearchResult> {
   const parsed = SearchRequestSchema.parse(request);
+  const snapshot = await readPublicationSnapshot(db);
+  const eligibleSourceIds = [...new Set(snapshot.eligibleSourceIds)];
 
-  const jobRows = (await db.job.findMany({
-    where: buildWhereClause(parsed),
+  if (eligibleSourceIds.length === 0) {
+    return { companies: [], totalJobs: 0, lastUpdatedAt: null };
+  }
+
+  const rawJobRows = (await db.job.findMany({
+    where: buildWhereClause(parsed, eligibleSourceIds),
     include: { company: true }
   })) as JobRow[];
+  const eligibleSourceIdSet = new Set(eligibleSourceIds);
+  const eligibleCompanyIdSet = new Set(snapshot.eligibleCompanyIds);
+  const jobRows = rawJobRows.filter((row) =>
+    eligibleSourceIdSet.has(row.sourceId) && eligibleCompanyIdSet.has(row.companyId)
+  );
 
   const companies = sortCompanies(groupRowsByCompany(jobRows), parsed.sort);
-  const latestObservation = await db.crawlObservation.findFirst({
-    select: { crawledAt: true },
-    orderBy: { crawledAt: "desc" }
-  });
 
   return {
     companies,
     totalJobs: jobRows.length,
-    lastUpdatedAt: latestObservation?.crawledAt.toISOString() ?? null
+    lastUpdatedAt: latestEligiblePublicationAt(snapshot)
   };
 }
 
-function buildWhereClause(request: ReturnType<typeof SearchRequestSchema.parse>): PrismaLikeJobWhereInput {
+function buildWhereClause(
+  request: ReturnType<typeof SearchRequestSchema.parse>,
+  eligibleSourceIds: string[]
+): PrismaLikeJobWhereInput {
   const where: PrismaLikeJobWhereInput = {
     visibleInFrontend: true,
     lifecycleStatus: "ACTIVE",
-    sourceId: { in: CURRENT_P0_SOURCE_IDS },
+    sourceId: { in: eligibleSourceIds },
     OR: [
       { cities: { has: request.city } },
       { city: request.city },
@@ -184,6 +201,18 @@ function buildWhereClause(request: ReturnType<typeof SearchRequestSchema.parse>)
   }
 
   return where;
+}
+
+function latestEligiblePublicationAt(snapshot: CompanyPublicationSnapshot): string | null {
+  const eligibleCompanyIds = new Set(snapshot.eligibleCompanyIds);
+  let latest: Date | null = null;
+  for (const company of snapshot.companies) {
+    if (!eligibleCompanyIds.has(company.companyId) || company.state !== "PUBLISHING") continue;
+    if (company.lastSuccessAt !== null && (latest === null || company.lastSuccessAt > latest)) {
+      latest = company.lastSuccessAt;
+    }
+  }
+  return latest?.toISOString() ?? null;
 }
 
 function groupRowsByCompany(rows: JobRow[]): DatabaseSearchCompanyResult[] {

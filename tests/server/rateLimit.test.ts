@@ -32,4 +32,17 @@ describe("rate limit and suspicious request policy", () => {
       }).action
     ).toBe("CHALLENGE");
   });
+
+  it("allows the canonical directory page while challenging requests above its route cap", () => {
+    const request = {
+      path: "/api/coverage",
+      userAgent: "Mozilla/5.0",
+      maxLimit: 60
+    };
+
+    expect(classifySuspiciousRequest({ ...request, query: { limit: "60", offset: "0" } }).action)
+      .toBe("ALLOW");
+    expect(classifySuspiciousRequest({ ...request, query: { limit: "61", offset: "0" } }).action)
+      .toBe("CHALLENGE");
+  });
 });

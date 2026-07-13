@@ -1,3 +1,15 @@
+import { assertExactConfirmedCompanyRosterV3 } from "../data/confirmedCompanyRosterV3";
+import { canonicalPhase1ScopeCounts } from "../data/phase1ScopePolicy";
+import {
+  getCompanyPublicationSnapshotFromDb,
+  type PublicationEligibilityDb
+} from "../db/publicationEligibilityRepository";
+import type {
+  CompanyPublicationSnapshot,
+  PublicationHealth,
+  PublicationState
+} from "../domain/publicationEligibility";
+
 export interface CoverageRequest {
   keyword: string;
   offset?: number;
@@ -7,7 +19,12 @@ export interface CoverageRequest {
 export interface CoverageCompany {
   id: string;
   companyName: string;
-  officialWebsiteUrl: string;
+  officialWebsiteUrl: string | null;
+  officialCareersUrl: string | null;
+  category: "FOREIGN_PHARMA" | "DOMESTIC_PHARMA";
+  state: PublicationState;
+  health: PublicationHealth;
+  lastSuccessAt: string | null;
 }
 
 export interface CoverageResult {
@@ -17,62 +34,48 @@ export interface CoverageResult {
   hasMore: boolean;
 }
 
-type CoverageRow = {
-  id: string;
-  officialChineseName: string;
-  officialWebsiteUrl: string | null;
-  pinyinName: string;
-};
+export type CoverageDb = PublicationEligibilityDb;
+export type CoveragePublicationSnapshotReader = (
+  db: PublicationEligibilityDb
+) => Promise<CompanyPublicationSnapshot>;
 
-export interface CoverageDb {
-  company: {
-    findMany(args?: {
-      select?: {
-        id: true;
-        officialChineseName: true;
-        officialWebsiteUrl: true;
-        pinyinName: true;
-      };
-    }): Promise<CoverageRow[]>;
-  };
-}
-
-export async function listCompanyCoverage(request: CoverageRequest, db: CoverageDb): Promise<CoverageResult> {
+export async function listCompanyCoverage(
+  request: CoverageRequest,
+  db: CoverageDb,
+  readPublicationSnapshot: CoveragePublicationSnapshotReader = getCompanyPublicationSnapshotFromDb
+): Promise<CoverageResult> {
   const keyword = request.keyword.trim().toLocaleLowerCase("zh-CN");
   const offset = request.offset ?? 0;
-  const limit = request.limit ?? 50;
-  const rows = await db.company.findMany({
-    select: {
-      id: true,
-      officialChineseName: true,
-      officialWebsiteUrl: true,
-      pinyinName: true
-    }
-  });
+  const limit = request.limit ?? canonicalPhase1ScopeCounts.fixedRosterCompanyCount;
+  const snapshot = await readPublicationSnapshot(db);
 
-  const companies = rows
-    .filter((row) => row.officialWebsiteUrl !== null && row.officialWebsiteUrl.trim() !== "")
-    .filter((row) => {
-      if (keyword === "") {
-        return true;
-      }
+  assertExactConfirmedCompanyRosterV3(snapshot.companies.map(({ companyId, category }) => ({
+    id: companyId,
+    category
+  })));
 
-      return (
-        row.officialChineseName.toLocaleLowerCase("zh-CN").includes(keyword) ||
-        row.pinyinName.toLocaleLowerCase("zh-CN").includes(keyword)
-      );
+  const companies = snapshot.companies
+    .filter((company) => {
+      if (keyword === "") return true;
+      return company.companyName.toLocaleLowerCase("zh-CN").includes(keyword) ||
+        company.pinyinName.toLocaleLowerCase("zh-CN").includes(keyword);
     })
-    .sort((left, right) => left.pinyinName.localeCompare(right.pinyinName, "zh-CN"))
-    .map((row) => ({
-      id: row.id,
-      companyName: row.officialChineseName,
-      officialWebsiteUrl: row.officialWebsiteUrl as string
+    .sort((left, right) =>
+      left.pinyinName.localeCompare(right.pinyinName, "zh-CN") || left.companyId.localeCompare(right.companyId)
+    )
+    .map((company): CoverageCompany => ({
+      id: company.companyId,
+      companyName: company.companyName,
+      officialWebsiteUrl: company.officialWebsiteUrl,
+      officialCareersUrl: company.officialCareersUrl,
+      category: company.category,
+      state: company.state,
+      health: company.health,
+      lastSuccessAt: company.lastSuccessAt?.toISOString() ?? null
     }));
 
-  const pagedCompanies = companies.slice(offset, offset + limit);
-
   return {
-    companies: pagedCompanies,
+    companies: companies.slice(offset, offset + limit),
     offset,
     limit,
     hasMore: offset + limit < companies.length

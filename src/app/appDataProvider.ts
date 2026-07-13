@@ -1,5 +1,7 @@
 import { companies as demoCompanies } from "./jobData";
 import { filterJobs, sortCompanies, type SortMode } from "./jobSearch";
+import { confirmedCompanyRosterV3Members } from "../data/confirmedCompanyRosterV3Members";
+import type { PublicationHealth, PublicationState } from "../domain/publicationEligibility";
 import { getStaticDocument } from "../server/staticDocuments";
 
 export interface SearchRequest {
@@ -43,7 +45,12 @@ export interface CoverageRequest {
 export interface CoverageCompany {
   id: string;
   companyName: string;
-  officialWebsiteUrl: string;
+  officialWebsiteUrl: string | null;
+  officialCareersUrl: string | null;
+  category: "FOREIGN_PHARMA" | "DOMESTIC_PHARMA";
+  state: PublicationState;
+  health: PublicationHealth;
+  lastSuccessAt: string | null;
 }
 
 export interface CoverageResult {
@@ -86,6 +93,8 @@ export interface AppDataProvider {
 }
 
 type ServerSortMode = "COMPANY_PINYIN_ASC" | "LATEST_POSTED" | "MATCHING_JOB_COUNT_DESC";
+
+export const COMPANY_DIRECTORY_PAGE_SIZE = confirmedCompanyRosterV3Members.length;
 
 const DEMO_WEBSITES: Record<string, string> = {
   astrazeneca: "https://www.astrazeneca.com.cn/",
@@ -147,14 +156,18 @@ export function createDemoAppDataProvider(): AppDataProvider {
     async listCoverage(request) {
       const keyword = normalize(request.keyword);
       const offset = request.offset ?? 0;
-      const limit = request.limit ?? 50;
+      const limit = request.limit ?? COMPANY_DIRECTORY_PAGE_SIZE;
       const companies = demoCompanies
         .map((company) => ({
           id: company.id,
           companyName: company.companyName,
-          officialWebsiteUrl: DEMO_WEBSITES[company.id] ?? company.jobs[0]?.officialUrl ?? ""
+          officialWebsiteUrl: DEMO_WEBSITES[company.id] ?? null,
+          officialCareersUrl: null,
+          category: company.id === "innovent" ? "DOMESTIC_PHARMA" as const : "FOREIGN_PHARMA" as const,
+          state: "OFFICIAL_LINK_ONLY" as const,
+          health: "NOT_APPLICABLE" as const,
+          lastSuccessAt: null
         }))
-        .filter((company) => company.officialWebsiteUrl !== "")
         .filter((company) => {
           if (keyword === "") {
             return true;
@@ -220,7 +233,7 @@ export function createHttpAppDataProvider(baseUrl = ""): AppDataProvider {
       const params = new URLSearchParams({
         keyword: request.keyword,
         offset: String(request.offset ?? 0),
-        limit: String(request.limit ?? 50)
+        limit: String(request.limit ?? COMPANY_DIRECTORY_PAGE_SIZE)
       });
       const response = await fetch(`${baseUrl}/api/coverage?${params.toString()}`, {
         headers: { "x-job-search-consent": "accepted" }

@@ -104,16 +104,56 @@ function createRecordingProvider() {
       {
         id: "astrazeneca",
         companyName: "阿斯利康",
-        officialWebsiteUrl: "https://www.astrazeneca.com.cn/"
+        officialWebsiteUrl: "https://www.astrazeneca.com.cn/",
+        officialCareersUrl: "https://careers.astrazeneca.com.cn/",
+        category: "FOREIGN_PHARMA",
+        state: "PUBLISHING",
+        health: "DEGRADED",
+        lastSuccessAt: "2026-07-13T08:00:00.000Z"
       },
       {
         id: "pfizer",
         companyName: "辉瑞",
-        officialWebsiteUrl: "https://www.pfizer.com.cn/"
+        officialWebsiteUrl: "https://www.pfizer.com.cn/",
+        officialCareersUrl: "https://www.pfizer.com/about/careers",
+        category: "FOREIGN_PHARMA",
+        state: "VERIFYING",
+        health: "NOT_APPLICABLE",
+        lastSuccessAt: null
+      },
+      {
+        id: "lilly",
+        companyName: "礼来",
+        officialWebsiteUrl: "https://www.lilly.com/cn/",
+        officialCareersUrl: "https://careers.lilly.com/zh-cn/",
+        category: "FOREIGN_PHARMA",
+        state: "OFFICIAL_LINK_ONLY",
+        health: "NOT_APPLICABLE",
+        lastSuccessAt: null
+      },
+      {
+        id: "no-public-entry",
+        companyName: "无公开入口药企",
+        officialWebsiteUrl: "https://official.example/no-entry",
+        officialCareersUrl: null,
+        category: "DOMESTIC_PHARMA",
+        state: "NO_PUBLIC_OFFICIAL_CAREERS_LINK_AT_CAPTURE_TIME",
+        health: "NOT_APPLICABLE",
+        lastSuccessAt: null
+      },
+      {
+        id: "humanwell",
+        companyName: "人福医药集团股份公司",
+        officialWebsiteUrl: "http://www.humanwell.com.cn/",
+        officialCareersUrl: null,
+        category: "DOMESTIC_PHARMA",
+        state: "USER_AUTHORIZED_PHASE1_EXCLUSION",
+        health: "NOT_APPLICABLE",
+        lastSuccessAt: null
       }
     ],
     offset: 0,
-    limit: 50,
+    limit: 60,
     hasMore: false
   };
 
@@ -133,7 +173,12 @@ function createRecordingProvider() {
   };
 
   const searchJobs = vi.fn(async (request) => request && searchResult);
-  const listCoverage = vi.fn(async (request) => request && coverageResult);
+  const listCoverage = vi.fn(async (request) => ({
+    ...coverageResult,
+    companies: coverageResult.companies.filter(({ companyName }) =>
+      request.keyword === "" || companyName.includes(request.keyword)
+    )
+  }));
   const submitFeedback = vi.fn(async (request) => request && receipt);
   const recommendCompany = vi.fn(async (request) => request && receipt);
   const getDocument = vi.fn(async (slug: "privacy" | "terms") => documents[slug]);
@@ -283,23 +328,43 @@ describe("App product flows", () => {
     expect(within(companyCard).getByText("医学顾问")).toBeInTheDocument();
   });
 
-  it("shows coverage search with company names and official website links only", async () => {
+  it("shows publication-aware coverage states and prefers official careers before website fallback", async () => {
     const user = userEvent.setup();
     const recording = createRecordingProvider();
     render(<App dataProvider={recording.provider} />);
 
     await acceptConsent(user);
     await user.click(screen.getByRole("button", { name: "查看覆盖公司" }));
+
+    await waitFor(() => {
+      expect(recording.listCoverage).toHaveBeenLastCalledWith({ keyword: "", offset: 0, limit: 60 });
+    });
+    expect(await screen.findByText("自动更新中")).toBeInTheDocument();
+    expect(screen.getByText("核验中")).toBeInTheDocument();
+    expect(screen.getByText("仅官方入口")).toBeInTheDocument();
+    expect(screen.getByText("暂无公开官方招聘入口")).toBeInTheDocument();
+    expect(screen.getByText("用户授权一期排除")).toBeInTheDocument();
+    expect(screen.getByText("近期更新异常")).toBeInTheDocument();
+    expect(screen.getByText("本期不对该公司职位完整性作声明。")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "查看阿斯利康官方招聘入口" })).toHaveAttribute(
+      "href",
+      "https://careers.astrazeneca.com.cn/"
+    );
+    expect(screen.getByRole("link", { name: "访问无公开入口药企公司官网" })).toHaveAttribute(
+      "href",
+      "https://official.example/no-entry"
+    );
+
     await user.type(screen.getByPlaceholderText("搜索已覆盖公司"), "辉");
 
     await waitFor(() => {
-      expect(recording.listCoverage).toHaveBeenLastCalledWith({ keyword: "辉", offset: 0, limit: 50 });
+      expect(recording.listCoverage).toHaveBeenLastCalledWith({ keyword: "辉", offset: 0, limit: 60 });
     });
 
     expect(await screen.findByText("辉瑞")).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "https://www.pfizer.com.cn/" })).toHaveAttribute(
+    expect(screen.getByRole("link", { name: "查看辉瑞官方招聘入口" })).toHaveAttribute(
       "href",
-      "https://www.pfizer.com.cn/"
+      "https://www.pfizer.com/about/careers"
     );
     expect(screen.queryByText("医学科学联络官")).not.toBeInTheDocument();
   });

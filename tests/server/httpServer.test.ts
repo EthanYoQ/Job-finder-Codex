@@ -38,6 +38,7 @@ describe("http server", () => {
           update: async () => ({ id: "job-1" })
         },
         crawlObservation: { findFirst: async () => null },
+        crawlBatchSourceResult: { findMany: async () => [] },
         company: { findMany: async () => [] },
         feedback: {
           create: async () => ({ id: "feedback-1" }),

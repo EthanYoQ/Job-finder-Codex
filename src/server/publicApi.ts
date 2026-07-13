@@ -1,6 +1,11 @@
 import { z, ZodError } from "zod";
 import { COMPANY_EXPANSION_PAGE_SIZE, SearchRequestSchema } from "../domain/search";
-import { searchJobsFromDatabase, type PrismaJobSearchDb } from "./jobSearchService";
+import { canonicalPhase1ScopeCounts } from "../data/phase1ScopePolicy";
+import {
+  searchJobsFromDatabase,
+  type PrismaJobSearchDb,
+  type PublicationSnapshotReader
+} from "./jobSearchService";
 import {
   createFeedback,
   createRecommendedCompany,
@@ -36,21 +41,27 @@ export interface PublicApiDeps {
   readinessTimeoutMs?: number;
   now?: () => Date;
   rateLimitStore?: RateLimitStore;
+  readPublicationSnapshot?: PublicationSnapshotReader;
 }
 
 const DEFAULT_RATE_LIMIT_STORE = createMemoryRateLimitStore();
-const API_DEFAULT_LIMIT = 50;
-const API_MAX_LIMIT = 50;
+const SEARCH_API_LIMIT = 50;
+const COVERAGE_API_LIMIT = canonicalPhase1ScopeCounts.fixedRosterCompanyCount;
 const API_MAX_WINDOW = 500;
 
-const ApiPaginationSchema = z
+function apiPaginationSchema(defaultLimit: number, maxLimit: number) {
+  return z
   .object({
     offset: z.coerce.number().int().min(0).default(0),
-    limit: z.coerce.number().int().min(1).max(API_MAX_LIMIT).default(API_DEFAULT_LIMIT)
+    limit: z.coerce.number().int().min(1).max(maxLimit).default(defaultLimit)
   })
   .refine((value) => value.offset + value.limit <= API_MAX_WINDOW, {
     message: "Pagination exceeds the controlled loading cap"
   });
+}
+
+const SearchApiPaginationSchema = apiPaginationSchema(SEARCH_API_LIMIT, SEARCH_API_LIMIT);
+const CoverageApiPaginationSchema = apiPaginationSchema(COVERAGE_API_LIMIT, COVERAGE_API_LIMIT);
 
 const FeedbackInputSchema = z.object({
   issueType: z.string().trim().min(1),
@@ -125,7 +136,8 @@ export async function handlePublicApi(request: PublicApiRequest, deps: PublicApi
     const suspicious = classifySuspiciousRequest({
       path: request.path,
       query: normalizeStringQuery(request.query),
-      userAgent: context.userAgent
+      userAgent: context.userAgent,
+      maxLimit: request.path === "/api/coverage" ? COVERAGE_API_LIMIT : SEARCH_API_LIMIT
     });
 
     if (suspicious.action === "CHALLENGE") {
@@ -161,7 +173,7 @@ export async function handlePublicApi(request: PublicApiRequest, deps: PublicApi
         return invalidRequest(headers, parsed.error);
       }
 
-      const result = await searchJobsFromDatabase(parsed.data, deps.db);
+      const result = await searchJobsFromDatabase(parsed.data, deps.db, deps.readPublicationSnapshot);
       const pagedCompanies = result.companies.slice(
         paginationValidation.data.offset,
         paginationValidation.data.offset + paginationValidation.data.limit
@@ -187,7 +199,8 @@ export async function handlePublicApi(request: PublicApiRequest, deps: PublicApi
           offset: paginationValidation.data.offset,
           limit: paginationValidation.data.limit
         },
-        deps.db
+        deps.db,
+        deps.readPublicationSnapshot
       );
       return {
         status: 200,
@@ -288,13 +301,16 @@ function validateApiPagination(request: PublicApiRequest) {
     request.method === "GET" &&
     (request.path === "/api/search" || request.path === "/api/coverage")
   ) {
-    return ApiPaginationSchema.safeParse({
+    const schema = request.path === "/api/coverage"
+      ? CoverageApiPaginationSchema
+      : SearchApiPaginationSchema;
+    return schema.safeParse({
       offset: getSingleValue(request.query.offset),
       limit: getSingleValue(request.query.limit)
     });
   }
 
-  return ApiPaginationSchema.safeParse({});
+  return SearchApiPaginationSchema.safeParse({});
 }
 
 function normalizeFeedbackInput(body: unknown) {

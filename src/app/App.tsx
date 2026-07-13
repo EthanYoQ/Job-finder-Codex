@@ -16,6 +16,7 @@ import {
 } from "lucide-react";
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import {
+  COMPANY_DIRECTORY_PAGE_SIZE,
   createDemoAppDataProvider,
   type AppDataProvider,
   type CoverageCompany,
@@ -56,6 +57,34 @@ function formatTimestamp(value: string | null): string {
   }
 
   return value.slice(0, 16).replace("T", " ");
+}
+
+const PUBLICATION_STATE_LABELS: Record<CoverageCompany["state"], string> = {
+  PUBLISHING: "自动更新中",
+  VERIFYING: "核验中",
+  OFFICIAL_LINK_ONLY: "仅官方入口",
+  NO_PUBLIC_OFFICIAL_CAREERS_LINK_AT_CAPTURE_TIME: "暂无公开官方招聘入口",
+  USER_AUTHORIZED_PHASE1_EXCLUSION: "用户授权一期排除"
+};
+
+const COMPANY_CATEGORY_LABELS: Record<CoverageCompany["category"], string> = {
+  FOREIGN_PHARMA: "外资药企",
+  DOMESTIC_PHARMA: "国内药企"
+};
+
+function publicationNote(company: CoverageCompany): string {
+  switch (company.state) {
+    case "PUBLISHING":
+      return "仅展示已通过发布核验的官方职位。";
+    case "VERIFYING":
+      return "官方入口与职位仍在核验，不作抓全声明。";
+    case "OFFICIAL_LINK_ONLY":
+      return "提供官方入口，职位暂未自动汇总。";
+    case "NO_PUBLIC_OFFICIAL_CAREERS_LINK_AT_CAPTURE_TIME":
+      return "抓取时未发现公开官方招聘入口，可访问公司官网。";
+    case "USER_AUTHORIZED_PHASE1_EXCLUSION":
+      return "本期不对该公司职位完整性作声明。";
+  }
 }
 
 function sortCompanies(companies: SearchCompany[], sort: SortMode): SearchCompany[] {
@@ -205,7 +234,7 @@ export function App({ dataProvider = createDemoAppDataProvider() }: AppProps) {
     setCoverageLoading(true);
 
     dataProvider
-      .listCoverage({ keyword: coverageKeyword, offset: 0, limit: 50 })
+      .listCoverage({ keyword: coverageKeyword, offset: 0, limit: COMPANY_DIRECTORY_PAGE_SIZE })
       .then((result) => {
         if (!cancelled) {
           setCoverageResults(result.companies);
@@ -469,10 +498,10 @@ export function App({ dataProvider = createDemoAppDataProvider() }: AppProps) {
 
             <section aria-label="职位概览" className="panel summary-card">
               <div>
-                <strong>{visibleJobCount} 个职位</strong>
-                <p>{visibleCompanies.length} 家公司</p>
+                <strong className="tabular-numerals">{visibleJobCount} 个职位</strong>
+                <p className="tabular-numerals">{visibleCompanies.length} 家公司</p>
               </div>
-              <span>最后更新 {formatTimestamp(searchResult?.lastUpdatedAt ?? null)}</span>
+              <span className="tabular-numerals">最后更新 {formatTimestamp(searchResult?.lastUpdatedAt ?? null)}</span>
             </section>
 
             <section aria-label="公司职位列表" className="company-list">
@@ -643,12 +672,12 @@ export function App({ dataProvider = createDemoAppDataProvider() }: AppProps) {
         ) : null}
 
         {activeView === "coverage" ? (
-          <section className="panel stacked-panel" aria-label="公司覆盖">
+          <section className="panel stacked-panel" aria-label="公司目录">
             <div className="panel-heading">
               <Building2 aria-hidden="true" size={18} />
               <div>
-                <strong>已覆盖公司</strong>
-                <p>仅展示公司名称与官网入口。</p>
+                <strong><span className="tabular-numerals">{COMPANY_DIRECTORY_PAGE_SIZE}</span> 家官方招聘目录</strong>
+                <p>全部目标公司均在目录中；状态会明确区分自动更新、核验中与仅提供官方入口。</p>
               </div>
             </div>
             <label className="keyword-field">
@@ -664,15 +693,54 @@ export function App({ dataProvider = createDemoAppDataProvider() }: AppProps) {
             <div className="coverage-list">
               {coverageLoading ? (
                 <p className="muted-copy">加载中...</p>
+              ) : coverageResults.length === 0 ? (
+                <p className="muted-copy">没有符合当前关键词的公司。</p>
               ) : (
-                coverageResults.map((company) => (
-                  <article className="coverage-row" key={company.id}>
-                    <strong>{company.companyName}</strong>
-                    <a href={company.officialWebsiteUrl} rel="noreferrer" target="_blank">
-                      {company.officialWebsiteUrl}
-                    </a>
-                  </article>
-                ))
+                coverageResults.map((company) => {
+                  const primaryUrl = company.officialCareersUrl ?? company.officialWebsiteUrl;
+                  const hasCareersUrl = company.officialCareersUrl !== null;
+
+                  return (
+                    <article className="coverage-row" key={company.id}>
+                      <div className="coverage-row-heading">
+                        <div className="coverage-company-copy">
+                          <strong>{company.companyName}</strong>
+                          <span className="coverage-category">{COMPANY_CATEGORY_LABELS[company.category]}</span>
+                        </div>
+                        <div className="coverage-statuses">
+                          <span className="coverage-status" data-state={company.state}>
+                            {PUBLICATION_STATE_LABELS[company.state]}
+                          </span>
+                          {company.health === "DEGRADED" ? (
+                            <span className="coverage-health">近期更新异常</span>
+                          ) : null}
+                        </div>
+                      </div>
+                      <p className="coverage-note">{publicationNote(company)}</p>
+                      {company.lastSuccessAt !== null ? (
+                        <p className="coverage-updated tabular-numerals">
+                          最近成功更新 {formatTimestamp(company.lastSuccessAt)}
+                        </p>
+                      ) : null}
+                      {primaryUrl !== null ? (
+                        <a
+                          aria-label={hasCareersUrl
+                            ? `查看${company.companyName}官方招聘入口`
+                            : `访问${company.companyName}公司官网`}
+                          className="official-link coverage-link"
+                          href={primaryUrl}
+                          rel="noreferrer"
+                          target="_blank"
+                        >
+                          {hasCareersUrl ? "查看官方招聘入口" : "访问公司官网"}
+                          <ExternalLink aria-hidden="true" size={14} />
+                        </a>
+                      ) : (
+                        <p className="muted-copy">暂无可用公开链接。</p>
+                      )}
+                    </article>
+                  );
+                })
               )}
             </div>
           </section>

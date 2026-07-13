@@ -1,5 +1,10 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { createDemoAppDataProvider, createHttpAppDataProvider } from "../../src/app/appDataProvider";
+import {
+  COMPANY_DIRECTORY_PAGE_SIZE,
+  createDemoAppDataProvider,
+  createHttpAppDataProvider
+} from "../../src/app/appDataProvider";
+import { confirmedCompanyRosterV3Members } from "../../src/data/confirmedCompanyRosterV3Members";
 import { getStaticDocument } from "../../src/server/staticDocuments";
 
 const originalFetch = globalThis.fetch;
@@ -35,6 +40,23 @@ describe("createHttpAppDataProvider", () => {
     expect(init).toMatchObject({
       headers: { "x-job-search-consent": "accepted" }
     });
+  });
+
+  it("requests the complete canonical 60-company directory in one production call", async () => {
+    const fetchMock = vi.fn<typeof fetch>(async () =>
+      jsonResponse({ companies: [], offset: 0, limit: 60, hasMore: false })
+    );
+    globalThis.fetch = fetchMock as typeof fetch;
+
+    await createHttpAppDataProvider().listCoverage({ keyword: "" });
+
+    const [url, init] = fetchMock.mock.calls[0] ?? [];
+    const parsedUrl = new URL(String(url), "https://example.test");
+    expect(COMPANY_DIRECTORY_PAGE_SIZE).toBe(confirmedCompanyRosterV3Members.length);
+    expect(parsedUrl.pathname).toBe("/api/coverage");
+    expect(parsedUrl.searchParams.get("offset")).toBe("0");
+    expect(parsedUrl.searchParams.get("limit")).toBe("60");
+    expect(init).toMatchObject({ headers: { "x-job-search-consent": "accepted" } });
   });
 
   it("reads privacy and terms as document text from public routes", async () => {
