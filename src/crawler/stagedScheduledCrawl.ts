@@ -1,0 +1,32 @@
+import { runP0CrawlCommand, type RunP0CrawlCommandDeps } from "./p0CrawlCommand";
+import {
+  resolveCurrentStagedScheduleAuthority,
+  type StagedScheduleAuthorityDb
+} from "./stagedScheduleAuthority";
+
+export interface RunCurrentStagedScheduledCrawlDeps {
+  db: RunP0CrawlCommandDeps["db"] & StagedScheduleAuthorityDb;
+  fetch: RunP0CrawlCommandDeps["fetch"];
+  now: RunP0CrawlCommandDeps["now"];
+  syncPlannedSourcesToDb: RunP0CrawlCommandDeps["syncPlannedSourcesToDb"];
+  createRuntimeDeps: RunP0CrawlCommandDeps["createRuntimeDeps"];
+  runP0CrawlBatch: RunP0CrawlCommandDeps["runP0CrawlBatch"];
+}
+
+export async function runCurrentStagedScheduledCrawl(
+  deps: RunCurrentStagedScheduledCrawlDeps
+) {
+  const authority = await resolveCurrentStagedScheduleAuthority(deps.db);
+  return runP0CrawlCommand({
+    plans: authority.plans,
+    companies: authority.companies,
+    options: { help: false, sourceIds: [], force: false },
+    identity: authority.identity,
+    db: deps.db,
+    fetch: deps.fetch,
+    now: deps.now,
+    syncPlannedSourcesToDb: deps.syncPlannedSourcesToDb,
+    createRuntimeDeps: deps.createRuntimeDeps,
+    runP0CrawlBatch: deps.runP0CrawlBatch
+  });
+}

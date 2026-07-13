@@ -1,0 +1,288 @@
+import { createHash } from "node:crypto";
+import { candidateCompanies, type CandidateCompany } from "../data/companyRegistry";
+import {
+  assertExactConfirmedCompanyRosterV3,
+  confirmedCompanyRosterV3
+} from "../data/confirmedCompanyRosterV3";
+import { resolveCurrentBuildIdentity, type BuildIdentityArtifact } from "../readiness/buildIdentity";
+import {
+  activeSourcePlanSha256,
+  buildStagedSourceCrawlPlans,
+  sourcePlanConfigSha256,
+  validateExecutablePlanChannelBinding,
+  type SourceCrawlPlan
+} from "./sourcePlan";
+import {
+  canonicalizePlannedSourceIds,
+  hashCanonicalStringSet,
+  type RuntimeBatchIdentity
+} from "./runtimeBatchIdentity";
+
+export const STAGED_SCHEDULE_ORACLE_VERSION = "staged-official-source-v1" as const;
+
+const STAGED_SCHEDULE_ALLOWED_STATUSES = ["BUILDING", "READY_FOR_QA", "RELEASED"] as const;
+const STAGED_SCHEDULE_OWNER_ID = "staged-scheduler" as const;
+const STAGED_ADAPTER_BUNDLE_SCHEMA_VERSION = "staged-adapter-bundle-v1" as const;
+
+export interface StagedScheduleExpectation {
+  companies: readonly CandidateCompany[];
+  plans: readonly SourceCrawlPlan[];
+  commitSha: string;
+  rosterSha256: string;
+  sourcePlanSha256: string;
+  sourceConfigSha256: string;
+  adapterBundleSha256: string;
+  sourceTreeSha256: string;
+  runtimeTreeSha256: string;
+  plannedSourceIds: string[];
+  plannedSourceSetSha256: string;
+  plannedSourceCount: number;
+}
+
+export interface CurrentStagedScheduleAuthority {
+  companies: readonly CandidateCompany[];
+  plans: readonly SourceCrawlPlan[];
+  identity: RuntimeBatchIdentity;
+}
+
+interface StagedReleaseCandidateRow {
+  id: string;
+  status: string;
+  commitSha: string;
+  rosterHash: string;
+  sourcePlanHash: string;
+  sourceConfigHash: string;
+  adapterBundleHash: string;
+  sourceTreeHash: string;
+  runtimeTreeHash: string;
+  oracleVersion: string;
+}
+
+interface StagedReleaseCandidateFindManyArgs {
+  where: {
+    commitSha: string;
+    rosterHash: string;
+    sourcePlanHash: string;
+    sourceConfigHash: string;
+    adapterBundleHash: string;
+    sourceTreeHash: string;
+    runtimeTreeHash: string;
+    oracleVersion: typeof STAGED_SCHEDULE_ORACLE_VERSION;
+    status: { in: readonly (typeof STAGED_SCHEDULE_ALLOWED_STATUSES)[number][] };
+  };
+  select: Record<keyof StagedReleaseCandidateRow, true>;
+  take: 2;
+}
+
+export interface StagedScheduleAuthorityDb {
+  releaseCandidate: {
+    findMany(args: StagedReleaseCandidateFindManyArgs): Promise<readonly StagedReleaseCandidateRow[]>;
+  };
+}
+
+export function deriveCurrentStagedScheduleExpectation(
+  buildIdentity: BuildIdentityArtifact
+): StagedScheduleExpectation {
+  return __testOnlyDeriveStagedScheduleExpectation(
+    buildIdentity,
+    candidateCompanies,
+    buildStagedSourceCrawlPlans(candidateCompanies)
+  );
+}
+
+/** @internal Pure fixture seam; never used as a runnable crawl authority. */
+export function __testOnlyDeriveStagedScheduleExpectation(
+  buildIdentity: BuildIdentityArtifact,
+  companies: readonly CandidateCompany[],
+  plans: readonly SourceCrawlPlan[]
+): StagedScheduleExpectation {
+  validateBuildIdentity(buildIdentity);
+  assertExactConfirmedCompanyRosterV3(companies.map(({ id, category }) => ({ id, category })));
+  assertCanonicalCompanyRegistry(companies);
+
+  const canonicalPlans = canonicalizePlans(buildStagedSourceCrawlPlans(candidateCompanies));
+  const orderedPlans = canonicalizePlans(plans);
+  if (
+    orderedPlans.length !== canonicalPlans.length ||
+    activeSourcePlanSha256(orderedPlans) !== activeSourcePlanSha256(canonicalPlans)
+  ) {
+    throw new Error("Staged source plans do not exactly match canonical staged authority");
+  }
+  for (const plan of orderedPlans) {
+    if (plan.executionAuthority !== "STAGED") {
+      throw new Error(`Staged source plan lacks STAGED authority: ${plan.source.id}`);
+    }
+    validateExecutablePlanChannelBinding(plan);
+  }
+
+  const plannedSourceIds = canonicalizePlannedSourceIds(orderedPlans.map((plan) => plan.source.id));
+  return {
+    companies: canonicalizeCompanies(companies),
+    plans: orderedPlans,
+    commitSha: buildIdentity.commitSha,
+    rosterSha256: confirmedCompanyRosterV3.membersSha256,
+    sourcePlanSha256: activeSourcePlanSha256(orderedPlans),
+    sourceConfigSha256: deriveStagedSourceConfigSha256(orderedPlans),
+    adapterBundleSha256: deriveStagedAdapterBundleSha256(buildIdentity.runtimeTreeSha256, orderedPlans),
+    sourceTreeSha256: buildIdentity.sourceTreeSha256,
+    runtimeTreeSha256: buildIdentity.runtimeTreeSha256,
+    plannedSourceIds,
+    plannedSourceSetSha256: hashCanonicalStringSet(plannedSourceIds),
+    plannedSourceCount: plannedSourceIds.length
+  };
+}
+
+export function deriveStagedSourceConfigSha256(plans: readonly SourceCrawlPlan[]): string {
+  const entries = plans.map((plan) => [plan.source.id, sourcePlanConfigSha256(plan)] as const)
+    .sort(([left], [right]) => compareUtf8(left, right));
+  if (entries.some(([sourceId]) => !sourceId.trim()) || new Set(entries.map(([sourceId]) => sourceId)).size !== entries.length) {
+    throw new Error("Staged source config map requires unique nonblank source ids");
+  }
+  return sha256(JSON.stringify(Object.fromEntries(entries)));
+}
+
+export function deriveStagedAdapterBundleSha256(
+  runtimeTreeSha256: string,
+  plans: readonly SourceCrawlPlan[]
+): string {
+  requireSha256(runtimeTreeSha256, "runtime tree");
+  const adapterIds = [...new Set(plans.map((plan) => plan.adapterId))].sort(compareUtf8);
+  if (adapterIds.some((adapterId) => !adapterId.trim())) {
+    throw new Error("Staged adapter ids must be nonblank");
+  }
+  return sha256(JSON.stringify({
+    schemaVersion: STAGED_ADAPTER_BUNDLE_SCHEMA_VERSION,
+    runtimeTreeSha256,
+    adapterIds
+  }));
+}
+
+export async function resolveCurrentStagedScheduleAuthority(
+  db: StagedScheduleAuthorityDb
+): Promise<CurrentStagedScheduleAuthority> {
+  const expectation = deriveCurrentStagedScheduleExpectation(resolveCurrentBuildIdentity());
+  const rows = await db.releaseCandidate.findMany({
+    where: {
+      commitSha: expectation.commitSha,
+      rosterHash: expectation.rosterSha256,
+      sourcePlanHash: expectation.sourcePlanSha256,
+      sourceConfigHash: expectation.sourceConfigSha256,
+      adapterBundleHash: expectation.adapterBundleSha256,
+      sourceTreeHash: expectation.sourceTreeSha256,
+      runtimeTreeHash: expectation.runtimeTreeSha256,
+      oracleVersion: STAGED_SCHEDULE_ORACLE_VERSION,
+      status: { in: [...STAGED_SCHEDULE_ALLOWED_STATUSES] }
+    },
+    select: {
+      id: true,
+      status: true,
+      commitSha: true,
+      rosterHash: true,
+      sourcePlanHash: true,
+      sourceConfigHash: true,
+      adapterBundleHash: true,
+      sourceTreeHash: true,
+      runtimeTreeHash: true,
+      oracleVersion: true
+    },
+    take: 2
+  });
+  if (rows.length !== 1) {
+    throw new Error(`Staged schedule authority requires exactly one matching release candidate; found ${rows.length}`);
+  }
+
+  const row = rows[0]!;
+  if (!row.id.trim()) throw new Error("Staged schedule release candidate id must be nonblank");
+  if (!(STAGED_SCHEDULE_ALLOWED_STATUSES as readonly string[]).includes(row.status)) {
+    throw new Error(`Staged schedule release candidate status is not allowed: ${row.status}`);
+  }
+  assertReleaseCandidateField("commitSha", row.commitSha, expectation.commitSha);
+  assertReleaseCandidateField("rosterHash", row.rosterHash, expectation.rosterSha256);
+  assertReleaseCandidateField("sourcePlanHash", row.sourcePlanHash, expectation.sourcePlanSha256);
+  assertReleaseCandidateField("sourceConfigHash", row.sourceConfigHash, expectation.sourceConfigSha256);
+  assertReleaseCandidateField("adapterBundleHash", row.adapterBundleHash, expectation.adapterBundleSha256);
+  assertReleaseCandidateField("sourceTreeHash", row.sourceTreeHash, expectation.sourceTreeSha256);
+  assertReleaseCandidateField("runtimeTreeHash", row.runtimeTreeHash, expectation.runtimeTreeSha256);
+  assertReleaseCandidateField("oracleVersion", row.oracleVersion, STAGED_SCHEDULE_ORACLE_VERSION);
+
+  return deepFrozenCopy({
+    companies: expectation.companies,
+    plans: expectation.plans,
+    identity: {
+      releaseCandidateId: row.id,
+      commitSha: expectation.commitSha,
+      rosterSha256: expectation.rosterSha256,
+      sourcePlanSha256: expectation.sourcePlanSha256,
+      sourceConfigSha256: expectation.sourceConfigSha256,
+      adapterBundleSha256: expectation.adapterBundleSha256,
+      batchKind: "SCHEDULED",
+      ownerId: STAGED_SCHEDULE_OWNER_ID,
+      expectedPlannedSourceIds: expectation.plannedSourceIds,
+      expectedPlannedSourceSetSha256: expectation.plannedSourceSetSha256,
+      expectedPlannedSourceCount: expectation.plannedSourceCount
+    }
+  });
+}
+
+function assertCanonicalCompanyRegistry(companies: readonly CandidateCompany[]): void {
+  if (stableJson(canonicalizeCompanies(companies)) !== stableJson(canonicalizeCompanies(candidateCompanies))) {
+    throw new Error("Staged schedule company roster does not match canonical company registry");
+  }
+}
+
+function canonicalizeCompanies(companies: readonly CandidateCompany[]): CandidateCompany[] {
+  return [...companies].sort((left, right) => compareUtf8(left.id, right.id));
+}
+
+function canonicalizePlans(plans: readonly SourceCrawlPlan[]): SourceCrawlPlan[] {
+  return [...plans].sort((left, right) => compareUtf8(left.source.id, right.source.id));
+}
+
+function stableJson(value: unknown): string {
+  return JSON.stringify(canonicalJsonValue(value));
+}
+
+function canonicalJsonValue(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map(canonicalJsonValue);
+  if (value && typeof value === "object") {
+    return Object.fromEntries(Object.entries(value as Record<string, unknown>)
+      .filter(([, item]) => item !== undefined)
+      .sort(([left], [right]) => compareUtf8(left, right))
+      .map(([key, item]) => [key, canonicalJsonValue(item)]));
+  }
+  return value;
+}
+
+function validateBuildIdentity(buildIdentity: BuildIdentityArtifact): void {
+  if (!/^[0-9a-f]{40}$/.test(buildIdentity.commitSha)) throw new Error("Staged build commit SHA is invalid");
+  requireSha256(buildIdentity.sourceTreeSha256, "source tree");
+  requireSha256(buildIdentity.runtimeTreeSha256, "runtime tree");
+}
+
+function requireSha256(value: string, label: string): void {
+  if (!/^[0-9a-f]{64}$/.test(value)) throw new Error(`Staged ${label} SHA-256 is invalid`);
+}
+
+function assertReleaseCandidateField(field: string, actual: string, expected: string): void {
+  if (actual !== expected) throw new Error(`Staged schedule release candidate ${field} mismatch`);
+}
+
+function deepFrozenCopy<T>(value: T): T {
+  return deepFreeze(structuredClone(value));
+}
+
+function deepFreeze<T>(value: T): T {
+  if (value && typeof value === "object" && !Object.isFrozen(value)) {
+    for (const child of Object.values(value as Record<string, unknown>)) deepFreeze(child);
+    Object.freeze(value);
+  }
+  return value;
+}
+
+function compareUtf8(left: string, right: string): number {
+  return Buffer.from(left, "utf8").compare(Buffer.from(right, "utf8"));
+}
+
+function sha256(value: string): string {
+  return createHash("sha256").update(value, "utf8").digest("hex");
+}
