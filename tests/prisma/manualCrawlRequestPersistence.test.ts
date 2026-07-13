@@ -9,6 +9,9 @@ const migration = readFileSync(resolve(
 const previewIsolationMigration = readFileSync(resolve(
   process.cwd(), "prisma", "migrations", "20260713030000_manual_crawl_preview_isolation", "migration.sql"
 ), "utf8");
+const legacyManualQuarantineMigration = readFileSync(resolve(
+  process.cwd(), "prisma", "migrations", "20260713035000_quarantine_legacy_unbound_manual_batches", "migration.sql"
+), "utf8");
 const bindingMigration = readFileSync(resolve(
   process.cwd(), "prisma", "migrations", "20260713040000_manual_batch_binding_and_kind_immutability", "migration.sql"
 ), "utf8");
@@ -100,5 +103,24 @@ describe("manual crawl persistence contract", () => {
     expect(bindingMigration).toContain("source result source is outside the parent planned set");
     expect(bindingMigration).not.toContain("invalid_batch_ids");
     expect(bindingMigration).not.toContain("string_agg(candidate");
+  });
+
+  it("quarantines only terminal unbound legacy manual batches before enforcing exact request binding", () => {
+    expect(legacyManualQuarantineMigration).toMatch(/UPDATE\s+"CrawlBatch"\s+AS\s+batch[\s\S]+SET\s+"kind"\s*=\s*NULL/i);
+    expect(legacyManualQuarantineMigration).toMatch(/SET[\s\S]+"releaseCandidateId"\s*=\s*NULL/i);
+    expect(legacyManualQuarantineMigration).toMatch(/batch\."kind"\s*=\s*'MANUAL_SOURCE'/i);
+    expect(legacyManualQuarantineMigration).toMatch(/batch\."finishedAt"\s+IS\s+NOT\s+NULL/i);
+    expect(legacyManualQuarantineMigration).toMatch(/batch\."status"\s+IN\s*\('INCOMPLETE',\s*'ABORTED',\s*'SUCCESS',\s*'FAILED'\)/i);
+    expect(legacyManualQuarantineMigration).toMatch(/NOT\s+EXISTS[\s\S]+FROM\s+"ManualCrawlRequest"/i);
+    for (const table of [
+      "CrawlBatchSourceResult", "EvidenceArtifact", "PaginationEvidence", "LossLedgerEntry",
+      "TransportAttemptEvidence", "LifecycleSetEvidenceMember", "CrawlObservation"
+    ]) {
+      expect(legacyManualQuarantineMigration).toContain(`FROM "${table}"`);
+    }
+    expect(legacyManualQuarantineMigration).toMatch(/"CrawlObservation"[\s\S]+"releaseCandidateId"\s+IS\s+NOT\s+NULL/i);
+    expect(legacyManualQuarantineMigration).toContain("LEGACY_MANUAL_BATCH_QUARANTINE_UNSAFE_COUNT");
+    expect(legacyManualQuarantineMigration).not.toMatch(/INSERT\s+INTO\s+"ManualCrawlRequest"/i);
+    expect(legacyManualQuarantineMigration).not.toMatch(/DELETE\s+FROM/i);
   });
 });

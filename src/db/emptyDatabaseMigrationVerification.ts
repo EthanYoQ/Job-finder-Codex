@@ -144,7 +144,7 @@ export async function runEmptyDatabaseMigrationVerification(
   config: EmptyDatabaseVerificationConfig,
   deps: EmptyDatabaseMigrationVerificationDeps
 ): Promise<EmptyDatabaseMigrationVerificationReport> {
-  const expectedMigrations = exactUniqueSorted(deps.expectedMigrationNames, 18, "migration allowlist");
+  const expectedMigrations = exactUniqueSorted(deps.expectedMigrationNames, 19, "migration allowlist");
   const expectedTables = exactUniqueSorted(deps.expectedAppTableNames, 25, "application-table allowlist");
   const expectedUserTypes = exactUniqueSorted(deps.expectedUserTypeNames, 31, "user-type allowlist");
   const expectedFunctions = exactUniqueSorted(deps.expectedFunctionNames, 18, "function allowlist");
