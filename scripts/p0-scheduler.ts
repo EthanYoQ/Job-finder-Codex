@@ -1,11 +1,11 @@
 import { randomUUID } from "node:crypto";
-import { resolve } from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
 import { spawnSync } from "node:child_process";
 import { nextP0CrawlWindow } from "../src/crawler/schedule";
 import { runScheduledCrawlWindow } from "../src/crawler/crawlAttemptOrchestration";
+import { resolveStagedCrawlEvidencePaths } from "../src/crawler/stagedCrawlEvidencePaths";
 
-const attemptDir=process.env.STAGED_CRAWL_ATTEMPT_DIR??resolve(process.cwd(),"outputs","staged-crawl-attempts");
+const {attemptDir,summaryPath}=resolveStagedCrawlEvidencePaths();
 
 for(;;){
   const window=nextP0CrawlWindow(new Date());
@@ -15,7 +15,7 @@ for(;;){
   const attemptId=randomUUID();
   const startedAt=new Date();
   const result=await runScheduledCrawlWindow({attemptId,startedAt,attemptDir,
-    baseEnv:{...process.env,STAGED_CRAWL_ATTEMPT_DIR:attemptDir},
+    baseEnv:{...process.env,STAGED_CRAWL_ATTEMPT_DIR:attemptDir,STAGED_CRAWL_SUMMARY_PATH:summaryPath},
     spawnChild:env=>spawnSync("npm",["run","p0:staged-crawl"],{stdio:"inherit",env})});
   if(result.error||result.status!==0){
     console.error(result.error??`Staged window ${window.label} blocked with status ${String(result.status)}; no immediate retry`);

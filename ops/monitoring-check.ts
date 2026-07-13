@@ -7,6 +7,7 @@ import { checkPostgresReadiness, DEFAULT_POSTGRES_READINESS_TIMEOUT_MS } from ".
 import { DEFAULT_CRAWL_SUMMARY_MAX_AGE_HOURS, readCrawlSummaryFile, type CrawlEvidenceIdentity } from "../src/crawler/crawlSummary";
 import { readLatestCrawlAttempt } from "../src/crawler/crawlAttemptEvidence";
 import { loadProductionStagedMonitoringIdentity } from "../src/crawler/stagedMonitoringIdentity";
+import { resolveStagedCrawlEvidencePaths } from "../src/crawler/stagedCrawlEvidencePaths";
 
 interface JsonMap {
   [key: string]: unknown;
@@ -15,15 +16,12 @@ interface JsonMap {
 void main();
 
 async function main(): Promise<void> {
+  const { attemptDir: crawlAttemptDir, summaryPath: crawlSummaryPath } = resolveStagedCrawlEvidencePaths();
   const healthUrl = process.env.HEALTHCHECK_URL ?? "http://127.0.0.1:3000/healthz";
   const databaseUrl = process.env.DATABASE_URL;
   const backupDir = process.env.BACKUP_DIR ?? `${process.cwd()}/backups`;
   const readinessSummaryPath =
     process.env.READINESS_SUMMARY_PATH ?? `${process.cwd()}/var/readiness-summary.json`;
-  const crawlSummaryPath = process.env.STAGED_CRAWL_SUMMARY_PATH ??
-    process.env.CRAWL_SUMMARY_PATH ?? "/app/outputs/staged-crawl-summary.json";
-  const crawlAttemptDir = process.env.STAGED_CRAWL_ATTEMPT_DIR ??
-    process.env.CRAWL_ATTEMPT_DIR ?? "/app/outputs/staged-crawl-attempts";
   const certificateExpiresAt = process.env.CERTIFICATE_EXPIRES_AT;
   const now = process.env.MONITORING_NOW ? new Date(process.env.MONITORING_NOW) : new Date();
 

@@ -126,8 +126,8 @@ services:
     command: ["npm", "run", "p0:scheduler"]
     environment:
       DATABASE_URL: ${DATABASE_URL:?set DATABASE_URL}
-      STAGED_CRAWL_SUMMARY_PATH: ${STAGED_CRAWL_SUMMARY_PATH:-/app/outputs/staged-crawl-summary.json}
-      STAGED_CRAWL_ATTEMPT_DIR: ${STAGED_CRAWL_ATTEMPT_DIR:-/app/outputs/staged-crawl-attempts}
+      STAGED_CRAWL_SUMMARY_PATH: /app/outputs/staged-crawl-summary.json
+      STAGED_CRAWL_ATTEMPT_DIR: /app/outputs/staged-crawl-attempts
     volumes:
       - type: volume
         source: formal-artifacts
@@ -248,8 +248,8 @@ services:
       BACKUP_DIR: /backups
       MONITOR_INTERVAL_SECONDS: ${MONITOR_INTERVAL_SECONDS:-300}
       READINESS_SUMMARY_PATH: ${READINESS_SUMMARY_PATH:-/app/outputs/readiness-summary.json}
-      STAGED_CRAWL_SUMMARY_PATH: ${STAGED_CRAWL_SUMMARY_PATH:-/app/outputs/staged-crawl-summary.json}
-      STAGED_CRAWL_ATTEMPT_DIR: ${STAGED_CRAWL_ATTEMPT_DIR:-/app/outputs/staged-crawl-attempts}
+      STAGED_CRAWL_SUMMARY_PATH: /app/outputs/staged-crawl-summary.json
+      STAGED_CRAWL_ATTEMPT_DIR: /app/outputs/staged-crawl-attempts
     depends_on:
       backup:
         condition: service_healthy

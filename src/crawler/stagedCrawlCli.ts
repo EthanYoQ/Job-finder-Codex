@@ -1,5 +1,4 @@
 import { randomUUID } from "node:crypto";
-import { isAbsolute, relative, resolve, sep } from "node:path";
 import {
   buildCrawlAttemptEvent,
   writeCrawlAttemptEvent,
@@ -18,6 +17,9 @@ import { runFormalCleanup } from "./formalCleanup";
 import { formatP0CrawlResult, type P0CrawlCommandResult } from "./p0CrawlCommand";
 import type { RuntimeBatchIdentity } from "./runtimeBatchIdentity";
 import type { runCurrentStagedScheduledCrawl } from "./stagedScheduledCrawl";
+import { resolveStagedCrawlEvidencePaths } from "./stagedCrawlEvidencePaths";
+
+export { resolveStagedCrawlEvidencePaths } from "./stagedCrawlEvidencePaths";
 
 type StagedScheduledCrawlResult = Awaited<ReturnType<typeof runCurrentStagedScheduledCrawl>>;
 
@@ -60,45 +62,6 @@ export interface StagedCrawlOperationResult {
   exitCode: 0 | 1;
   commandResult: StagedScheduledCrawlResult;
   summaryBinding: { batchId: string; summarySha256: string };
-}
-
-export function resolveStagedCrawlEvidencePaths(
-  env: NodeJS.ProcessEnv = process.env,
-  cwd: string = process.cwd()
-): { attemptDir: string; summaryPath: string } {
-  const configured = (name: string, fallback: string): string => {
-    const value = env[name];
-    if (value !== undefined && value.trim() === "") {
-      throw new Error(`${name} must be a nonblank path`);
-    }
-    return resolve(cwd, value ?? fallback);
-  };
-  const attemptDir = configured(
-    "STAGED_CRAWL_ATTEMPT_DIR",
-    resolve(cwd, "outputs", "staged-crawl-attempts")
-  );
-  const summaryPath = configured(
-    "STAGED_CRAWL_SUMMARY_PATH",
-    resolve(cwd, "outputs", "staged-crawl-summary.json")
-  );
-  const strictAttemptDir = configured(
-    "CRAWL_ATTEMPT_DIR",
-    resolve(cwd, "outputs", "crawl-attempts")
-  );
-  const strictSummaryPath = configured(
-    "CRAWL_SUMMARY_PATH",
-    resolve(cwd, "outputs", "crawl-summary.json")
-  );
-
-  if (
-    [attemptDir, summaryPath].some((stagedPath) =>
-      [strictAttemptDir, strictSummaryPath].some((strictPath) => pathsOverlap(stagedPath, strictPath))) ||
-    pathsOverlap(attemptDir, summaryPath)
-  ) {
-    throw new Error("Staged crawl evidence paths must remain separate from strict evidence paths and each other");
-  }
-
-  return { attemptDir, summaryPath };
 }
 
 export async function runStagedCrawlOperation(
@@ -350,19 +313,4 @@ async function createProductionRuntime(): Promise<StagedCrawlRuntime> {
 
 function compareUtf8(left: string, right: string): number {
   return Buffer.compare(Buffer.from(left), Buffer.from(right));
-}
-
-function pathsOverlap(left: string, right: string): boolean {
-  const normalize = (value: string) => process.platform === "win32" ? value.toLocaleLowerCase("en-US") : value;
-  const normalizedLeft = normalize(left);
-  const normalizedRight = normalize(right);
-  if (normalizedLeft === normalizedRight) return true;
-  const isDescendant = (parent: string, child: string) => {
-    const pathFromParent = relative(parent, child);
-    return pathFromParent !== "" &&
-      pathFromParent !== ".." &&
-      !pathFromParent.startsWith(`..${sep}`) &&
-      !isAbsolute(pathFromParent);
-  };
-  return isDescendant(normalizedLeft, normalizedRight) || isDescendant(normalizedRight, normalizedLeft);
 }

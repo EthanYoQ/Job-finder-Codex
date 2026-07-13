@@ -33,7 +33,12 @@ function runMonitoringCheck(env: NodeJS.ProcessEnv): { status: number | null; st
   try {
     execFileSync(process.execPath, ["node_modules/tsx/dist/cli.mjs", "ops/monitoring-check.ts"], {
       cwd: repoRoot,
-      env: { ...process.env, ...env },
+      env: {
+        ...process.env,
+        STAGED_CRAWL_SUMMARY_PATH: resolve(repoRoot, "outputs", "monitoring-test-summary.json"),
+        STAGED_CRAWL_ATTEMPT_DIR: resolve(repoRoot, "outputs", "monitoring-test-attempts"),
+        ...env
+      },
       encoding: "utf8",
       stdio: ["ignore", "pipe", "pipe"]
     });
@@ -42,6 +47,54 @@ function runMonitoringCheck(env: NodeJS.ProcessEnv): { status: number | null; st
     const result = error as { status?: number | null; stderr?: string };
     return { status: result.status ?? null, stderr: result.stderr ?? "" };
   }
+}
+
+function renderCompose(env: NodeJS.ProcessEnv = {}): string {
+  return execFileSync("docker", ["compose", "-f", composePath, "config"], {
+    cwd: repoRoot,
+    encoding: "utf8",
+    env: {
+      ...process.env,
+      BUILD_COMMIT_SHA: "1".repeat(40),
+      BUILD_SOURCE_CLEAN: "true",
+      BUILD_SOURCE_TREE_SHA256: "2".repeat(64),
+      DATABASE_URL: "postgresql://jobfinder:secret@postgres:5432/jobfinder",
+      P0_FULL_RELEASE_MEMBERSHIP_FILE: "/evidence/membership.json",
+      P0_FULL_RELEASE_MEMBERSHIP_FILE_SHA256: "3".repeat(64),
+      P0_FULL_RELEASE_ORACLE_FILE: "/evidence/oracle.json",
+      P0_FULL_RELEASE_ORACLE_FILE_SHA256: "4".repeat(64),
+      POSTGRES_PASSWORD: "secret",
+      ...env
+    },
+    stdio: ["ignore", "pipe", "pipe"]
+  });
+}
+
+async function startRecordingHttpServer(markerPath: string): Promise<{ port: number; stop: () => Promise<void> }> {
+  const child = spawn(
+    process.execPath,
+    [
+      "-e",
+      "const fs=require('node:fs'),http=require('node:http');const server=http.createServer((_q,r)=>{fs.writeFileSync(process.env.MARKER_PATH,'hit');r.setHeader('content-type','application/json');r.end('{\"ok\":true}')});server.listen(0,'127.0.0.1',()=>console.log(server.address().port));process.on('SIGTERM',()=>server.close(()=>process.exit(0)));"
+    ],
+    { env: { ...process.env, MARKER_PATH: markerPath }, stdio: ["ignore", "pipe", "pipe"] }
+  );
+  const port = await new Promise<number>((resolvePort, reject) => {
+    const timer = setTimeout(() => reject(new Error("recording HTTP server did not start")), 2_000);
+    child.once("error", reject);
+    child.stdout.once("data", (chunk) => {
+      clearTimeout(timer);
+      resolvePort(Number(String(chunk).trim()));
+    });
+  });
+  return {
+    port,
+    stop: async () => {
+      if (child.exitCode !== null) return;
+      child.kill();
+      await new Promise<void>((resolveExit) => child.once("exit", () => resolveExit()));
+    }
+  };
 }
 
 async function startFakeTcpServer(): Promise<{ port: number; stop: () => Promise<void> }> {
@@ -214,8 +267,9 @@ describe("deployment configuration", () => {
       expect(service).not.toMatch(/P0_(?:FULL_RELEASE|RELEASE_)/u);
       expect(service).not.toContain("/run/release-authority/");
       expect(service).toMatch(/source:\s*formal-artifacts[\s\S]*target:\s*\/app\/outputs/u);
-      expect(service).toContain("STAGED_CRAWL_SUMMARY_PATH: ${STAGED_CRAWL_SUMMARY_PATH:-/app/outputs/staged-crawl-summary.json}");
-      expect(service).toContain("STAGED_CRAWL_ATTEMPT_DIR: ${STAGED_CRAWL_ATTEMPT_DIR:-/app/outputs/staged-crawl-attempts}");
+      expect(service).toContain("STAGED_CRAWL_SUMMARY_PATH: /app/outputs/staged-crawl-summary.json");
+      expect(service).toContain("STAGED_CRAWL_ATTEMPT_DIR: /app/outputs/staged-crawl-attempts");
+      expect(service).not.toMatch(/STAGED_CRAWL_(?:SUMMARY_PATH|ATTEMPT_DIR):\s*\$\{/u);
     }
     expect(worker).toContain("P0_FULL_RELEASE_MEMBERSHIP_FILE: /run/release-authority/membership.json");
     expect(worker).toContain("P0_FULL_RELEASE_ORACLE_FILE: /run/release-authority/oracle.json");
@@ -225,10 +279,47 @@ describe("deployment configuration", () => {
     expect(monitorScript).toContain("loadProductionStagedMonitoringIdentity");
     expect(monitorScript).toContain("loadProductionStagedMonitoringIdentity(databaseUrl)");
     expect(monitorScript).not.toContain("loadMonitoringReleaseIdentity");
-    expect(monitorScript).toContain('/app/outputs/staged-crawl-summary.json');
-    expect(monitorScript).toContain('/app/outputs/staged-crawl-attempts');
+    expect(monitorScript).toContain("resolveStagedCrawlEvidencePaths");
+    expect(monitorScript).not.toContain("process.env.CRAWL_SUMMARY_PATH");
+    expect(monitorScript).not.toContain("process.env.CRAWL_ATTEMPT_DIR");
+    expect(monitorScript.indexOf("resolveStagedCrawlEvidencePaths"))
+      .toBeLessThan(monitorScript.indexOf("loadProductionStagedMonitoringIdentity(databaseUrl)"));
     expect(monitorScript).toContain("readLatestCrawlAttempt");
   });
+
+  it("keeps rendered scheduler and monitor evidence on the shared volume despite caller overrides", () => {
+    const rendered = renderCompose({
+      STAGED_CRAWL_SUMMARY_PATH: "/tmp/rogue-summary.json",
+      STAGED_CRAWL_ATTEMPT_DIR: "/tmp/rogue-attempts"
+    });
+    for (const serviceName of ["scheduler", "monitor"]) {
+      const service = readComposeService(rendered, serviceName);
+      expect(service).toContain("STAGED_CRAWL_SUMMARY_PATH: /app/outputs/staged-crawl-summary.json");
+      expect(service).toContain("STAGED_CRAWL_ATTEMPT_DIR: /app/outputs/staged-crawl-attempts");
+      expect(service).not.toContain("/tmp/rogue-");
+      expect(service).toMatch(/source:\s*formal-artifacts[\s\S]*target:\s*\/app\/outputs/u);
+    }
+  });
+
+  it("rejects an unconfined monitor path before database, health, or evidence I/O", async () => {
+    const tempDir = mkdtempSync(resolve(tmpdir(), "job-finder-monitor-path-boundary-"));
+    const healthMarker = resolve(tempDir, "health-requested");
+    const server = await startRecordingHttpServer(healthMarker);
+    try {
+      const result = runMonitoringCheck({
+        DATABASE_URL: "not-a-database-url",
+        HEALTHCHECK_URL: `http://127.0.0.1:${server.port}/healthz`,
+        BACKUP_DIR: resolve(tempDir, "missing-backups"),
+        STAGED_CRAWL_SUMMARY_PATH: resolve(repoRoot, "outputs", "monitor-boundary-summary.json"),
+        STAGED_CRAWL_ATTEMPT_DIR: resolve(tempDir, "rogue-attempts")
+      });
+      expect(result.status).not.toBe(0);
+      expect(result.stderr).toMatch(/canonical outputs root/i);
+      expect(existsSync(healthMarker)).toBe(false);
+    } finally {
+      await server.stop();
+    }
+  }, 15_000);
 
   it("rejects a TCP listener that does not authenticate or speak the PostgreSQL protocol", async () => {
     const fake = await startFakeTcpServer();
@@ -324,8 +415,8 @@ describe("deployment configuration", () => {
     expect(monitor).toMatch(/BACKUP_DIR:\s*\/backups/u);
     expect(monitor).toMatch(/DATABASE_URL:\s*\$\{DATABASE_URL:\?set DATABASE_URL\}/u);
     expect(monitor).toMatch(/READINESS_SUMMARY_PATH:\s*\$\{READINESS_SUMMARY_PATH:-\/app\/outputs\//u);
-    expect(monitor).toContain("STAGED_CRAWL_SUMMARY_PATH: ${STAGED_CRAWL_SUMMARY_PATH:-/app/outputs/staged-crawl-summary.json}");
-    expect(monitor).toContain("STAGED_CRAWL_ATTEMPT_DIR: ${STAGED_CRAWL_ATTEMPT_DIR:-/app/outputs/staged-crawl-attempts}");
+    expect(monitor).toContain("STAGED_CRAWL_SUMMARY_PATH: /app/outputs/staged-crawl-summary.json");
+    expect(monitor).toContain("STAGED_CRAWL_ATTEMPT_DIR: /app/outputs/staged-crawl-attempts");
     expect(monitor).toMatch(/source:\s*backup-data[\s\S]*target:\s*\/backups[\s\S]*read_only:\s*true/u);
     expect(monitor).toMatch(/backup:\s*\n\s+condition:\s*service_healthy/u);
     expect(monitor).toMatch(/postgres:\s*\n\s+condition:\s*service_healthy/u);

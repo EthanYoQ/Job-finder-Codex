@@ -25,6 +25,8 @@ describe("formal compose release authority",()=>{
     for(const value of ["/app/outputs/staged-crawl-summary.json","/app/outputs/staged-crawl-attempts"]){
       expect(scheduler).toContain(value);expect(monitor).toContain(value);
     }
+    expect(scheduler).not.toMatch(/STAGED_CRAWL_(?:SUMMARY_PATH|ATTEMPT_DIR):\s*\$\{/u);
+    expect(monitor).not.toMatch(/STAGED_CRAWL_(?:SUMMARY_PATH|ATTEMPT_DIR):\s*\$\{/u);
     expect(scheduler).not.toMatch(/P0_RELEASE_/u);expect(monitor).not.toMatch(/P0_RELEASE_/u);
   });
   it("uses the zero-input formal CLI contract",()=>{

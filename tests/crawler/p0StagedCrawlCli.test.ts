@@ -1,5 +1,5 @@
 import { execFileSync, spawnSync } from "node:child_process";
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync, rmSync } from "node:fs";
 import { mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { resolve } from "node:path";
@@ -108,33 +108,84 @@ function operationInput(deps: ReturnType<typeof harness>["deps"]) {
 }
 
 describe("staged crawl operational CLI", () => {
-  it("fails closed when staged evidence paths overlap strict evidence paths", () => {
+  it("confines distinct staged evidence paths to the canonical outputs root", () => {
     const cwd = resolve("C:/repo");
+    const outputsRoot = resolve(cwd, "outputs");
     const strictAttemptDir = resolve(cwd, "outputs", "crawl-attempts");
     const strictSummaryPath = resolve(cwd, "outputs", "crawl-summary.json");
 
-    expect(() => resolveStagedCrawlEvidencePaths({
-      STAGED_CRAWL_ATTEMPT_DIR: resolve(cwd, "outputs", "nested", "..", "crawl-attempts")
-    }, cwd)).toThrow(/separate from strict evidence/i);
-    expect(() => resolveStagedCrawlEvidencePaths({
-      STAGED_CRAWL_SUMMARY_PATH: strictSummaryPath
-    }, cwd)).toThrow(/separate from strict evidence/i);
-    expect(() => resolveStagedCrawlEvidencePaths({
-      CRAWL_ATTEMPT_DIR: resolve(cwd, "custom", "strict-attempts"),
-      STAGED_CRAWL_ATTEMPT_DIR: resolve(cwd, "custom", "strict-attempts", "staged")
-    }, cwd)).toThrow(/separate from strict evidence/i);
-    expect(() => resolveStagedCrawlEvidencePaths({
-      CRAWL_ATTEMPT_DIR: resolve(cwd, "custom", "strict-attempts"),
-      STAGED_CRAWL_ATTEMPT_DIR: resolve(cwd, "custom", "strict-attempts", "..staged")
-    }, cwd)).toThrow(/separate from strict evidence/i);
-    expect(() => resolveStagedCrawlEvidencePaths({
-      CRAWL_SUMMARY_PATH: resolve(cwd, "custom", "strict-summary.json"),
-      STAGED_CRAWL_SUMMARY_PATH: resolve(cwd, "custom", "strict-summary.json")
-    }, cwd)).toThrow(/separate from strict evidence/i);
+    const invalid: Array<{ name: string; env: NodeJS.ProcessEnv }> = [
+      {
+        name: "absolute attempt path outside outputs",
+        env: { STAGED_CRAWL_ATTEMPT_DIR: resolve(cwd, "outside", "attempts") }
+      },
+      {
+        name: "absolute summary path outside outputs",
+        env: { STAGED_CRAWL_SUMMARY_PATH: resolve(cwd, "outside", "summary.json") }
+      },
+      {
+        name: "outputs sibling-prefix path",
+        env: { STAGED_CRAWL_ATTEMPT_DIR: resolve(cwd, "outputs-evil", "attempts") }
+      },
+      {
+        name: "dot-dot traversal alias",
+        env: { STAGED_CRAWL_SUMMARY_PATH: "outputs/nested/../staged-crawl-summary.json" }
+      },
+      {
+        name: "strict attempt alias",
+        env: { STAGED_CRAWL_ATTEMPT_DIR: strictAttemptDir }
+      },
+      {
+        name: "strict summary alias",
+        env: { STAGED_CRAWL_SUMMARY_PATH: strictSummaryPath }
+      },
+      {
+        name: "same staged path",
+        env: {
+          STAGED_CRAWL_ATTEMPT_DIR: resolve(outputsRoot, "same"),
+          STAGED_CRAWL_SUMMARY_PATH: resolve(outputsRoot, "same")
+        }
+      },
+      {
+        name: "summary nested inside attempt directory",
+        env: {
+          STAGED_CRAWL_ATTEMPT_DIR: resolve(outputsRoot, "staged"),
+          STAGED_CRAWL_SUMMARY_PATH: resolve(outputsRoot, "staged", "summary.json")
+        }
+      },
+      {
+        name: "attempt directory nested inside summary path",
+        env: {
+          STAGED_CRAWL_ATTEMPT_DIR: resolve(outputsRoot, "staged", "attempts"),
+          STAGED_CRAWL_SUMMARY_PATH: resolve(outputsRoot, "staged")
+        }
+      }
+    ];
+
+    for (const scenario of invalid) {
+      expect(
+        () => resolveStagedCrawlEvidencePaths(scenario.env, cwd),
+        scenario.name
+      ).toThrow(/canonical outputs root|canonical path|separate from strict evidence|overlap/i);
+    }
 
     expect(resolveStagedCrawlEvidencePaths({}, cwd)).toEqual({
       attemptDir: resolve(cwd, "outputs", "staged-crawl-attempts"),
       summaryPath: resolve(cwd, "outputs", "staged-crawl-summary.json")
+    });
+    expect(resolveStagedCrawlEvidencePaths({
+      STAGED_CRAWL_ATTEMPT_DIR: resolve(outputsRoot, "scheduled", "attempts"),
+      STAGED_CRAWL_SUMMARY_PATH: resolve(outputsRoot, "scheduled", "summary.json")
+    }, cwd)).toEqual({
+      attemptDir: resolve(outputsRoot, "scheduled", "attempts"),
+      summaryPath: resolve(outputsRoot, "scheduled", "summary.json")
+    });
+    expect(resolveStagedCrawlEvidencePaths({
+      CRAWL_ATTEMPT_DIR: resolve(cwd, "legacy", "attempts"),
+      CRAWL_SUMMARY_PATH: resolve(cwd, "legacy", "summary.json")
+    }, cwd)).toEqual({
+      attemptDir: resolve(outputsRoot, "staged-crawl-attempts"),
+      summaryPath: resolve(outputsRoot, "staged-crawl-summary.json")
     });
     expect(strictAttemptDir).not.toBe(resolve(cwd, "outputs", "staged-crawl-attempts"));
   });
@@ -161,6 +212,37 @@ describe("staged crawl operational CLI", () => {
     },
     15_000
   );
+
+  it("rejects an unconfined production path before attempt files, locks, or database access", () => {
+    const tempDir = mkdtempSync(resolve(tmpdir(), "p0-staged-path-boundary-"));
+    const rogueAttemptDir = resolve(tempDir, "rogue-attempts");
+    const safeSummaryPath = resolve(process.cwd(), "outputs", "staged-boundary-summary.json");
+    try {
+      const result = spawnSync(
+        process.execPath,
+        [resolve("node_modules/tsx/dist/cli.mjs"), "scripts/p0-staged-crawl.ts"],
+        {
+          cwd: process.cwd(),
+          encoding: "utf8",
+          timeout: 10_000,
+          env: {
+            ...process.env,
+            DATABASE_URL: "postgresql://invalid:invalid@127.0.0.1:1/invalid",
+            P0_CRAWL_ATTEMPT_OWNER: "",
+            STAGED_CRAWL_ATTEMPT_DIR: rogueAttemptDir,
+            STAGED_CRAWL_SUMMARY_PATH: safeSummaryPath
+          }
+        }
+      );
+      const output = `${result.stdout}${result.stderr}`;
+      expect(result.status).toBe(1);
+      expect(output).toMatch(/canonical outputs root/i);
+      expect(output).not.toMatch(/Prisma|advisory lock|DATABASE_URL/iu);
+      expect(existsSync(rogueAttemptDir)).toBe(false);
+    } finally {
+      rmSync(tempDir, { recursive: true, force: true });
+    }
+  }, 15_000);
 
   it.each(["SUCCESS", "FAILED"] as const)(
     "publishes a staged summary and one truthful terminal event for %s",
@@ -258,6 +340,7 @@ describe("staged crawl operational CLI", () => {
     const script = readFileSync("scripts/p0-staged-crawl.ts", "utf8");
     const operational = readFileSync("src/crawler/stagedCrawlCli.ts", "utf8");
     const scheduler = readFileSync("scripts/p0-scheduler.ts", "utf8");
+    const pathResolver = readFileSync("src/crawler/stagedCrawlEvidencePaths.ts", "utf8");
     const packageJson = JSON.parse(readFileSync("package.json", "utf8")) as { scripts: Record<string, string> };
     const compose = readFileSync("ops/docker-compose.yml", "utf8");
 
@@ -265,7 +348,11 @@ describe("staged crawl operational CLI", () => {
     expect(`${script}\n${operational}`).not.toMatch(/buildDiscoverySourcePlanCandidates|buildSourceCrawlPlans|buildStagedSourceCrawlPlans/u);
     expect(`${script}\n${operational}`).not.toMatch(/--force|--source-id|--release-candidate-id|--commit-sha|--batch-kind/u);
     expect(scheduler).toContain('"p0:staged-crawl"');
-    expect(scheduler).toContain("staged-crawl-attempts");
+    expect(scheduler).toContain("resolveStagedCrawlEvidencePaths");
+    expect(scheduler.indexOf("resolveStagedCrawlEvidencePaths"))
+      .toBeLessThan(scheduler.indexOf("for(;;)"));
+    expect(`${scheduler}\n${pathResolver}`).toContain("staged-crawl-attempts");
+    expect(`${scheduler}\n${pathResolver}`).toContain("staged-crawl-summary.json");
     expect(scheduler).toMatch(/nextP0CrawlWindow/);
     expect(scheduler).toMatch(/no immediate retry/i);
     expect(scheduler).toContain("60_000");
