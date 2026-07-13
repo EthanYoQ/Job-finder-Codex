@@ -736,6 +736,7 @@ async function executeAtomicSourceEvidenceCommitInternal(
     }
 
     for (const command of input.commands) {
+      if (sourceResult.completenessState !== "VERIFIED") break;
       if(command.type!=="UPSERT_JOB"||command.lifecycleStatus!=="ACTIVE")continue;
       const kinds=command.missingSuccessfulCrawlCount===0?["CURRENT","VISIBLE"] as const:["GRACE","VISIBLE"] as const;
       for(const setKind of kinds)await transaction.lifecycleSetEvidenceMember.create({data:{
@@ -975,9 +976,10 @@ function validateAtomicSourceEvidenceCommit(input: AtomicSourceEvidenceCommit, m
       throw new Error("Manual source preview lifecycle sets must be empty");
     }
   }
-  if(result.completenessState!=="VERIFIED" && jobCommands.length!==0) throw new Error("Incomplete source result cannot contain lifecycle job commands");
+  if(new Set(jobCommands.map(command=>command.dedupeKey)).size!==jobCommands.length) {
+    throw new Error("Job commands must be unique");
+  }
   if(result.completenessState==="VERIFIED" && !manualPreview) {
-    if(new Set(jobCommands.map(command=>command.dedupeKey)).size!==jobCommands.length) throw new Error("Lifecycle job commands must be unique");
     for(const command of jobCommands) {
       const expectedStatus=command.missingSuccessfulCrawlCount<=1?"ACTIVE":command.missingSuccessfulCrawlCount===2?"SUSPECTED_OFFLINE":"OFFLINE";
       if(command.lifecycleStatus!==expectedStatus||command.visibleInFrontend!==(command.lifecycleStatus==="ACTIVE")) throw new Error("Lifecycle command status/count/visibility mismatch");
@@ -990,6 +992,22 @@ function validateAtomicSourceEvidenceCommit(input: AtomicSourceEvidenceCommit, m
         hashCanonicalStringSet(graceKeys)!==result.canonicalGraceJobSetSha256 ||
         hashCanonicalStringSet(visibleKeys)!==result.canonicalVisibleJobSetSha256) {
       throw new Error("Lifecycle current/grace/visible sets do not match committed hashes");
+    }
+  } else if (!manualPreview) {
+    const emptySetHash = hashCanonicalStringSet([]);
+    for (const command of jobCommands) {
+      if (command.missingSuccessfulCrawlCount !== 0 || command.lifecycleStatus !== "ACTIVE" ||
+          command.visibleInFrontend !== true) {
+        throw new Error("Partial source result may only refresh currently observed active jobs");
+      }
+    }
+    const currentKeys = jobCommands.map((command) => command.dedupeKey);
+    if (currentKeys.length !== result.dedupeOutputCount ||
+        hashCanonicalStringSet(currentKeys) !== result.canonicalCurrentJobSetSha256 ||
+        result.canonicalOutputSetSha256 !== result.canonicalCurrentJobSetSha256 ||
+        result.canonicalGraceJobSetSha256 !== emptySetHash ||
+        result.canonicalVisibleJobSetSha256 !== result.canonicalCurrentJobSetSha256) {
+      throw new Error("Partial current job set does not match committed hashes");
     }
   }
   if (observation.observation.structuredJobCount !== result.dedupeOutputCount) {

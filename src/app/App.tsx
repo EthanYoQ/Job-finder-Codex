@@ -75,7 +75,7 @@ const COMPANY_CATEGORY_LABELS: Record<CoverageCompany["category"], string> = {
 function publicationNote(company: CoverageCompany): string {
   switch (company.state) {
     case "PUBLISHING":
-      return "仅展示已通过发布核验的官方职位。";
+      return "仅展示来源可核验的官方职位，不作抓全声明。";
     case "VERIFYING":
       return "官方入口与职位仍在核验，不作抓全声明。";
     case "OFFICIAL_LINK_ONLY":

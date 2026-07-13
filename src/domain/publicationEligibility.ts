@@ -154,7 +154,6 @@ export function isQualifyingPublicationAttempt(
     attempt.finishedAt === null ||
     attempt.transportState !== "SUCCEEDED" ||
     attempt.adapterState !== "SUCCEEDED" ||
-    attempt.completenessState !== "VERIFIED" ||
     attempt.atomicCommitState !== "COMMITTED" ||
     !isNonnegativeInteger(attempt.dedupeOutputCount) ||
     (attempt.expectedJobCount !== null && !isNonnegativeInteger(attempt.expectedJobCount)) ||
@@ -172,9 +171,7 @@ export function isQualifyingPublicationAttempt(
     observation.successful !== true ||
     observation.transportSucceeded !== true ||
     observation.adapterSucceeded !== true ||
-    observation.completenessVerified !== true ||
     observation.atomicCommitSucceeded !== true ||
-    observation.completenessStatus !== "VERIFIED" ||
     !isNonnegativeInteger(observation.structuredJobCount) ||
     (observation.expectedJobCount !== null && !isNonnegativeInteger(observation.expectedJobCount)) ||
     observation.structuredJobCount !== attempt.dedupeOutputCount ||
@@ -184,8 +181,22 @@ export function isQualifyingPublicationAttempt(
   }
 
   const outputCount = attempt.dedupeOutputCount;
-  if (attempt.expectedJobCount !== null && outputCount !== attempt.expectedJobCount) return false;
-  if (outputCount === 0) return attempt.expectedJobCount === 0;
+  const complete = attempt.completenessState === "VERIFIED" &&
+    observation.completenessVerified === true && observation.completenessStatus === "VERIFIED";
+  const partial = (attempt.completenessState === "INCOMPLETE" ||
+      attempt.completenessState === "NEEDS_MANUAL_COMPLETENESS_REVIEW") &&
+    observation.completenessVerified === false &&
+    observation.completenessStatus === attempt.completenessState &&
+    attempt.officialSurfaceIds.length > 0 && attempt.officialChannelIds.length > 0 &&
+    attempt.officialSurfaceIds.every((value) => value.trim() !== "") &&
+    attempt.officialChannelIds.every((value) => value.trim() !== "") &&
+    new Set(attempt.officialSurfaceIds).size === attempt.officialSurfaceIds.length &&
+    new Set(attempt.officialChannelIds).size === attempt.officialChannelIds.length;
+  if (!complete && !partial) return false;
+  if (complete && attempt.expectedJobCount !== null && outputCount !== attempt.expectedJobCount) return false;
+  if (partial && (outputCount === 0 ||
+      (attempt.expectedJobCount !== null && attempt.expectedJobCount < outputCount))) return false;
+  if (outputCount === 0) return complete && attempt.expectedJobCount === 0;
 
   const stableFields = new Set(observation.stableRequiredFields);
   return REQUIRED_POSITIVE_FIELDS.every((field) => stableFields.has(field));

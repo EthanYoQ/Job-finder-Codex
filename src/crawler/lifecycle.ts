@@ -27,6 +27,7 @@ export interface ApplyCrawlObservationOptions {
 
 export type LifecycleObservationTruth =
   | { disposition: "TRUSTED_COMPLETE"; atomicCommitEligible: true }
+  | { disposition: "TRUSTED_PARTIAL"; atomicCommitEligible: true }
   | { disposition: "CRAWL_FAILED" | "INCOMPLETE" | "BLOCKED" | "SKIPPED" | "UNAUDITED" | "NON_ATOMIC"; atomicCommitEligible: false };
 
 export function applyCrawlObservation(
@@ -41,7 +42,8 @@ export function applyCrawlObservation(
   }
   const previousByKey = new Map(previousJobs.map((snapshot) => [snapshot.dedupeKey, snapshot]));
   const explicitTruth=options.observation;
-  if ((explicitTruth && (explicitTruth.disposition !== "TRUSTED_COMPLETE" || explicitTruth.atomicCommitEligible !== true)) ||
+  if ((explicitTruth && (!(["TRUSTED_COMPLETE", "TRUSTED_PARTIAL"] as string[]).includes(explicitTruth.disposition) ||
+      explicitTruth.atomicCommitEligible !== true)) ||
       (!explicitTruth && options.crawlSucceeded !== true)) {
     return [...previousJobs].sort(compareSnapshots).map((snapshot) => ({
       ...snapshot,

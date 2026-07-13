@@ -216,11 +216,21 @@ export function buildAtomicRuntimeCommit(input: {
   const finishedAt = result.observation.crawledAt;
   // These decisions are transaction candidates only. They become true only if the enclosing atomic commit succeeds.
   const manualPreview = identity.batchKind === "MANUAL_SOURCE";
-  const lifecycle = completenessVerified && !manualPreview ? applyCrawlObservation(input.previousJobs, result.jobs, {
-    observation: { disposition: "TRUSTED_COMPLETE", atomicCommitEligible: true },
-    observedAt: finishedAt.toISOString(), baselineCompletedBeforeCrawl: input.baselineCompletedBeforeCrawl
-  }) : [];
   const currentKeySet=new Set(currentKeys);
+  const reducedLifecycle = sourceBindingVerified && !manualPreview ? applyCrawlObservation(
+    input.previousJobs,
+    result.jobs,
+    {
+      observation: completenessVerified
+        ? { disposition: "TRUSTED_COMPLETE", atomicCommitEligible: true }
+        : { disposition: "TRUSTED_PARTIAL", atomicCommitEligible: true },
+      observedAt: finishedAt.toISOString(),
+      baselineCompletedBeforeCrawl: input.baselineCompletedBeforeCrawl
+    }
+  ) : [];
+  const lifecycle = completenessVerified
+    ? reducedLifecycle
+    : reducedLifecycle.filter(({ dedupeKey }) => currentKeySet.has(dedupeKey));
   const graceKeys = lifecycle.filter((x) => !currentKeySet.has(x.dedupeKey) && x.lifecycleStatus === "ACTIVE" &&
     x.missingSuccessfulCrawlCount === 1).map((x) => x.dedupeKey);
   const visibleKeys = lifecycle.filter((x) => x.lifecycleStatus === "ACTIVE").map((x) => x.dedupeKey);
@@ -255,7 +265,11 @@ export function buildAtomicRuntimeCommit(input: {
   const commit: AtomicSourceEvidenceCommit = {
     sourceResult: { id: pending.id, releaseCandidateId: identity.releaseCandidateId, batchId,
       sourceId: plan.source.id, transportState: "SUCCEEDED", adapterState: "SUCCEEDED",
-      completenessState: completenessVerified ? "VERIFIED" : "INCOMPLETE",
+      completenessState: completenessVerified
+        ? "VERIFIED"
+        : result.observation.completenessStatus === "NEEDS_MANUAL_COMPLETENESS_REVIEW"
+          ? "NEEDS_MANUAL_COMPLETENESS_REVIEW"
+          : "INCOMPLETE",
       atomicCommitState: "COMMITTED", sourceConfigHash: pending.sourceConfigHash,
       adapterVersion: pending.adapterVersion, officialEntryId: pending.officialEntryId,
       officialSurfaceIds: pending.officialSurfaceIds, officialChannelIds: pending.officialChannelIds,
@@ -284,7 +298,7 @@ export function buildAtomicRuntimeCommit(input: {
           ? "COMPLETENESS_NOT_VERIFIED"
           : "SOURCE_SURFACE_ORACLE_MISSING",
         blockerReason: oracleAudited || stagedBindingMatchesPending
-          ? "Strict completeness gate was not satisfied"
+          ? result.observation.completenessBlockerReason ?? "Strict completeness gate was not satisfied"
           : "Audited source-surface oracle is missing"
       }) },
     observationProvenance: { ...tuple, commitSha: identity.commitSha, rosterSha256: identity.rosterSha256,

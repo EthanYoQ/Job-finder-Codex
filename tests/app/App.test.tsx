@@ -340,6 +340,7 @@ describe("App product flows", () => {
       expect(recording.listCoverage).toHaveBeenLastCalledWith({ keyword: "", offset: 0, limit: 60 });
     });
     expect(await screen.findByText("自动更新中")).toBeInTheDocument();
+    expect(screen.getByText("仅展示来源可核验的官方职位，不作抓全声明。")).toBeInTheDocument();
     expect(screen.getByText("核验中")).toBeInTheDocument();
     expect(screen.getByText("仅官方入口")).toBeInTheDocument();
     expect(screen.getByText("暂无公开官方招聘入口")).toBeInTheDocument();

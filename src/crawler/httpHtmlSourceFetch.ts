@@ -885,8 +885,13 @@ function attachHtmlEvidence(
     fetchLosses
   });
   const expectedChannelIds = [...new Set(pages.flatMap((page) => page.channelId ? [page.channelId] : []))];
-  const evidence = deriveCanonicalPaginationEvidence({ evidence: evidence0, expectedChannelIds, filteredOutput: true });
-  const paginationEvaluation = evaluatePaginationEvidence({ evidence, expectedChannelIds, filteredOutput: true });
+  const paginationOptions = {
+    expectedChannelIds,
+    filteredOutput: true,
+    ...(mode === "ordinary" ? { allowMissingReturnedPage: true } : {})
+  };
+  const evidence = deriveCanonicalPaginationEvidence({ evidence: evidence0, ...paginationOptions });
+  const paginationEvaluation = evaluatePaginationEvidence({ evidence, ...paginationOptions });
   const manual = {
     completenessStatus: "NEEDS_MANUAL_COMPLETENESS_REVIEW" as const,
     completenessEvidenceKind: "WEAK_MANUAL_SAMPLE" as const,

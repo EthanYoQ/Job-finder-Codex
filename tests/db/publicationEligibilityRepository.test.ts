@@ -161,6 +161,31 @@ describe("getCompanyPublicationSnapshotFromDb", () => {
     });
   });
 
+  it("qualifies two current-release official partial refreshes without claiming completeness", async () => {
+    const partialRows = [1, 2].map((index) => {
+      const value = row(index, {
+        completenessState: "NEEDS_MANUAL_COMPLETENESS_REVIEW",
+        expectedJobCount: null,
+        officialSurfaceIds: [plan.source.surfaceId!],
+        officialChannelIds: plan.expectedChannels!.map(({ channelId }) => channelId)
+      });
+      value.observations = value.observations.map((observation) => ({
+        ...observation,
+        completenessVerified: false,
+        completenessStatus: "NEEDS_MANUAL_COMPLETENESS_REVIEW",
+        expectedJobCount: null
+      }));
+      return value;
+    });
+    const { db } = fakeDb(partialRows);
+    const snapshot = await getSnapshot(db);
+    expect(snapshot.companies.find(({ companyId }) => companyId === companyWithOnePlan.id)).toMatchObject({
+      state: "PUBLISHING",
+      health: "HEALTHY",
+      eligibleSourceIds: [plan.source.id]
+    });
+  });
+
   it("does not erase a terminal failure with zero observations from adjacency", async () => {
     const failure = row(2, {
       transportState: "FAILED",

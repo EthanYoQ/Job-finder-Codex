@@ -237,6 +237,19 @@ function removeLifecycleCommands(input: AtomicSourceEvidenceCommit): void {
   input.observationProvenance.canonicalVisibleSha256=EMPTY_SET;
 }
 
+function markIncomplete(input: AtomicSourceEvidenceCommit): void {
+  input.sourceResult.completenessState = "INCOMPLETE";
+  input.sourceResult.expectedJobCount = 2;
+  input.sourceResult.blockerCode = "OFFICIAL_TOTAL_NOT_REACHED";
+  input.sourceResult.blockerReason = "Fetched 1 of official total 2";
+  input.observationProvenance.completenessVerified = false;
+  const observation = input.commands.find((command) => command.type === "UPSERT_CRAWL_OBSERVATION");
+  if (observation?.type !== "UPSERT_CRAWL_OBSERVATION") throw new Error("Expected observation fixture");
+  observation.observation.expectedJobCount = 2;
+  observation.observation.completenessStatus = "INCOMPLETE";
+  observation.observation.completenessBlockerReason = "Fetched 1 of official total 2";
+}
+
 type Group = "sourceResults" | "artifacts" | "pagination" | "loss" | "priorAttempts" | "priorAttemptArtifacts" | "observations" | "jobs" | "lifecycleMembers";
 
 function transactionalDb(failAt?: Group, sourceResultCount = 1, fenceRows: unknown[] = []): PrismaAtomicSourceEvidenceDb & {
@@ -452,9 +465,20 @@ describe("executeAtomicSourceEvidenceCommit", () => {
   rejectsBeforeTransaction("rejects caller-tampered lifecycle set hash", (x) => {
     x.sourceResult.canonicalVisibleJobSetSha256=H;
   }, /lifecycle.*sets.*hashes/i);
-  rejectsBeforeTransaction("rejects lifecycle job commands for incomplete evidence", (x) => {
-    x.sourceResult.completenessState="INCOMPLETE";x.sourceResult.blockerCode="INCOMPLETE";x.sourceResult.blockerReason="not audited";x.observationProvenance.completenessVerified=false;
-  }, /incomplete.*lifecycle/i);
+  rejectsBeforeTransaction("rejects a partial refresh that advances a missing count", (x) => {
+    markIncomplete(x);
+    const job=x.commands.find(command=>command.type==="UPSERT_JOB");
+    if(job?.type==="UPSERT_JOB")job.missingSuccessfulCrawlCount=1;
+  }, /partial.*currently observed active jobs/i);
+  rejectsBeforeTransaction("rejects a partial refresh that hides an observed job", (x) => {
+    markIncomplete(x);
+    const job=x.commands.find(command=>command.type==="UPSERT_JOB");
+    if(job?.type==="UPSERT_JOB")job.visibleInFrontend=false;
+  }, /partial.*currently observed active jobs/i);
+  rejectsBeforeTransaction("rejects a partial refresh with a mismatched current set hash", (x) => {
+    markIncomplete(x);
+    x.sourceResult.canonicalVisibleJobSetSha256=H;
+  }, /partial current job set.*hashes/i);
 
   rejectsBeforeTransaction("rejects a missing designated official artifact", (x) => {
     x.observationProvenance.officialEvidenceArtifactLogicalKey = "missing";
@@ -664,26 +688,14 @@ describe("executeAtomicSourceEvidenceCommit", () => {
 
   it("commits truthful INCOMPLETE official-total evidence when expected exceeds output", async () => {
     const input = validCommit();
-    input.sourceResult.completenessState = "INCOMPLETE";
-    input.sourceResult.expectedJobCount = 2;
-    input.sourceResult.blockerCode = "OFFICIAL_TOTAL_NOT_REACHED";
-    input.sourceResult.blockerReason = "Fetched 1 of official total 2";
-    input.observationProvenance.completenessVerified = false;
-    removeLifecycleCommands(input);
-    const observation = input.commands.find(
-      (command) => command.type === "UPSERT_CRAWL_OBSERVATION"
-    );
-    if (observation?.type !== "UPSERT_CRAWL_OBSERVATION") {
-      throw new Error("Expected observation fixture");
-    }
-    observation.observation.expectedJobCount = 2;
-    observation.observation.completenessStatus = "INCOMPLETE";
-    observation.observation.completenessBlockerReason = "Fetched 1 of official total 2";
+    markIncomplete(input);
 
     const db = transactionalDb();
     await executeAtomicSourceEvidenceCommit(input, db);
 
     expect(db.calls.transactions).toBe(1);
+    expect(db.calls.jobs).toHaveLength(1);
+    expect(db.calls.lifecycleMembers).toEqual([]);
     expect(db.calls.sourceResults).toHaveLength(1);
     expect(db.calls.observations[0]).toMatchObject({ data: {
       completenessStatus: "INCOMPLETE",
@@ -703,7 +715,6 @@ describe("executeAtomicSourceEvidenceCommit", () => {
     input.sourceResult.expectedJobCount = null;
     input.sourceResult.expectedEvidenceKind = "COMPLETE_PAGE_TRAVERSAL";
     input.observationProvenance.completenessVerified = false;
-    removeLifecycleCommands(input);
     const observation = input.commands.find((command) => command.type === "UPSERT_CRAWL_OBSERVATION");
     if (observation?.type !== "UPSERT_CRAWL_OBSERVATION") throw new Error("Expected observation fixture");
     delete observation.observation.expectedJobCount;
@@ -713,6 +724,8 @@ describe("executeAtomicSourceEvidenceCommit", () => {
 
     const db = transactionalDb();
     await executeAtomicSourceEvidenceCommit(input, db);
+    expect(db.calls.jobs).toHaveLength(1);
+    expect(db.calls.lifecycleMembers).toEqual([]);
     expect(db.calls.sourceResults[0]).toMatchObject({ data: {
       completenessState: "NEEDS_MANUAL_COMPLETENESS_REVIEW",
       blockerCode: "MANUAL_ORACLE_REQUIRED"

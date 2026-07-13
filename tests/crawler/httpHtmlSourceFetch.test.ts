@@ -238,6 +238,23 @@ describe("official HTML fetch evidence", () => {
       paginationEvaluation: { safeCompleteness: false, derivedAnomalyCodes: expect.arrayContaining(["TOTAL_CHANGED", "REPEATED_JOB_ID_SET_WITH_NEXT"]) } });
   });
 
+  it("accepts unique ordinary pages when the official response has no returned-page field", async () => {
+    const plan = { ...base, table: { ...base.table, pagination: { totalPagesSelector: "#r", totalPagesAttribute: "data-total-pages",
+      pageSearchParam: "page", maxPages: 2 } } } as SourceCrawlPlan;
+    const result = await createHttpHtmlSourceFetch({ now: () => new Date("2026-07-08T00:00:00.000Z"), http: async request => {
+      const page = new URL(request.url).searchParams.get("page") ?? "1";
+      return at(request, `<div id="r" data-total-pages="2"></div><table>${row(page)}</table>`);
+    }})(plan);
+    expect(result).toMatchObject({ ok: true,
+      completeness: { completenessStatus: "NEEDS_MANUAL_COMPLETENESS_REVIEW" },
+      paginationEvaluation: { safeCompleteness: true },
+      fetchEvidence: { pages: [
+        { requestedPage: null, returnedPage: null },
+        { requestedPage: 2, returnedPage: null }
+      ] }
+    });
+  });
+
   it("detects a repeated stable raw row even when its position changes across pages", async () => {
     const plan = { ...base, table: { ...base.table, pagination: { totalPagesSelector: "#r", totalPagesAttribute: "data-total-pages",
       pageSearchParam: "page", maxPages: 2 } } } as SourceCrawlPlan;

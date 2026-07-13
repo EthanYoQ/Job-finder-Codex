@@ -4898,8 +4898,13 @@ function parsePhenomPageConfig(
   }, { invalid: false, bootstrapPageIds: [], mutations: [] });
   if (pageIdState.invalid || pageIdState.mutations.length > 1) return emptyPhenomPageConfig();
   const uniqueMutation = pageIdState.mutations[0];
-  if (uniqueMutation && pageIdState.bootstrapPageIds.some(
-    (pageId) => pageId !== undefined && pageId !== uniqueMutation
+  if (uniqueMutation && (
+    pageIdState.bootstrapPageIds.length === 0 ||
+    pageIdState.bootstrapPageIds.some((pageId) =>
+      pageId !== undefined &&
+      pageId !== uniqueMutation &&
+      `${pageId}-ds` !== uniqueMutation
+    )
   )) return emptyPhenomPageConfig();
 
   for (const { content, kind: scriptKind } of scripts) {
@@ -4996,7 +5001,7 @@ function phenomTopLevelJavaScriptConfigs(
         if (declaration.init?.type === "ObjectExpression") {
           const candidate = phenomConfigFromObjectExpression(declaration.init);
           if (!candidate) return null;
-          candidates.push(candidate);
+          candidates.push(externalPageId ? { ...candidate, pageId: externalPageId } : candidate);
           continue;
         }
         if (declaration.init?.type === "LogicalExpression" && declaration.init.operator === "||" &&
@@ -5025,13 +5030,13 @@ function phenomTopLevelJavaScriptConfigs(
     if (assignment.right.type !== "ObjectExpression") return null;
     const candidate = phenomConfigFromObjectExpression(assignment.right);
     if (!candidate) return null;
-    candidates.push(candidate);
+    candidates.push(externalPageId ? { ...candidate, pageId: externalPageId } : candidate);
   }
   if (fallbackCandidates.length > 0) {
     if (fallbackCandidates.length !== 1 || separatePageIds.length > 1) return null;
     const fallback = fallbackCandidates[0]!;
     if (fallback.pageId && separatePageIds.length > 0) return null;
-    const pageId = fallback.pageId ?? separatePageIds[0] ?? externalPageId;
+    const pageId = externalPageId ?? fallback.pageId ?? separatePageIds[0];
     if (!pageId) return null;
     candidates.push({ ...fallback, pageId } as CompletePhenomPageConfig);
   } else if (separatePageIds.length > 0) {

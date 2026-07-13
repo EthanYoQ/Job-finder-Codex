@@ -177,6 +177,32 @@ describe("crawl lifecycle reducer", () => {
     });
   });
 
+  it("refreshes only observed jobs for a trusted partial crawl and preserves unobserved jobs", () => {
+    const observed = makeJob({ sourceJobId: "observed" });
+    const missing = makeJob({ sourceJobId: "missing" });
+    const refreshed = makeJob({ sourceJobId: "observed", officialTitle: "Updated official title" });
+    const decisions = applyCrawlObservation([
+      makeSnapshot(observed),
+      makeSnapshot(missing, { missingSuccessfulCrawlCount: 1 })
+    ], [refreshed], {
+      observation: { disposition: "TRUSTED_PARTIAL", atomicCommitEligible: true },
+      observedAt: OBSERVED_AT,
+      baselineCompletedBeforeCrawl: true
+    });
+
+    expect(decisionFor(decisions, refreshed)).toMatchObject({
+      record: refreshed,
+      lifecycleStatus: "ACTIVE",
+      missingSuccessfulCrawlCount: 0,
+      firstSeenAt: FIRST_SEEN_AT,
+      lastSeenAt: OBSERVED_AT
+    });
+    expect(decisionFor(decisions, missing)).toEqual({
+      ...makeSnapshot(missing, { missingSuccessfulCrawlCount: 1 }),
+      isNew: false
+    });
+  });
+
   it("recovers reappearing jobs as active and resets missing count", () => {
     const job = makeJob();
     const previousJobs = [

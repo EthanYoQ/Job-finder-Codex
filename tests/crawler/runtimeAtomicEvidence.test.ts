@@ -310,10 +310,33 @@ describe("runtime atomic evidence planning", () => {
       (await import("../../src/crawler/sourceFetchEvidence")).canonicalStringSetSha256([]));
     const incompleteResult = structuredClone(result);
     incompleteResult.truth.completenessVerified = false;
+    incompleteResult.observation.completenessStatus = "NEEDS_MANUAL_COMPLETENESS_REVIEW";
+    incompleteResult.observation.completenessBlockerReason = "Official pages parsed; full traversal is not proven";
     const incompleteCommit = buildAtomicRuntimeCommit({ plan, pending, identity, batchId: "batch-1",
       result: incompleteResult, previousJobs: [], baselineCompletedBeforeCrawl: true, artifacts: archived, oracle });
-    expect(incompleteCommit.sourceResult.completenessState).toBe("INCOMPLETE");
-    expect(incompleteCommit.commands.filter((command) => command.type === "UPSERT_JOB")).toEqual([]);
+    expect(incompleteCommit.sourceResult).toMatchObject({
+      completenessState: "NEEDS_MANUAL_COMPLETENESS_REVIEW",
+      blockerReason: "Official pages parsed; full traversal is not proven"
+    });
+    expect(incompleteCommit.commands.filter((command) => command.type === "UPSERT_JOB")).toHaveLength(1);
+    const partialJobUpsert = vi.fn(async () => undefined);
+    const partialLifecycleMember = vi.fn(async () => undefined);
+    const partialTx = {
+      evidenceArtifact: { create: async () => undefined },
+      paginationEvidence: { create: async () => undefined },
+      lossLedgerEntry: { create: async () => undefined },
+      transportAttemptEvidence: { create: async () => undefined },
+      transportAttemptArtifact: { create: async () => undefined },
+      crawlObservation: { create: async () => undefined },
+      job: { upsert: partialJobUpsert },
+      lifecycleSetEvidenceMember: { create: partialLifecycleMember },
+      crawlBatchSourceResult: { updateMany: async () => ({ count: 1 }) }
+    };
+    await expect(executeAtomicSourceEvidenceCommit(incompleteCommit, {
+      $transaction: async <T>(operation: (value: typeof partialTx) => Promise<T>) => operation(partialTx)
+    })).resolves.toBeUndefined();
+    expect(partialJobUpsert).toHaveBeenCalledTimes(1);
+    expect(partialLifecycleMember).not.toHaveBeenCalled();
     const tampered = buildAtomicRuntimeCommit({ plan, pending, identity, batchId: "batch-1", result,
       previousJobs: [], baselineCompletedBeforeCrawl: true, artifacts: archived, oracle });
     const job = tampered.commands.find((command) => command.type === "UPSERT_JOB");

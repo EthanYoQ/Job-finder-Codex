@@ -110,24 +110,20 @@ describe("Phenom evidence instrumentation", () => {
     await expect(fetcher(plan)).resolves.toMatchObject({ ok: true });
   });
 
-  it("rejects a standalone runtime pageId that conflicts with the complete Roche bootstrap", async () => {
+  it("accepts the single audited -ds pageId refinement and uses it in the widget request", async () => {
     const body = `<script>
       var phApp = phApp || {"widgetApiEndpoint":"${widgetUrl}","country":"cn","deviceType":"desktop","locale":"zh_cn","refNum":"${refNum}","pageName":"search-results","pageId":"page11"};
     </script><script>phApp.pageId = "page11-ds";</script>`;
-    let requestCount = 0;
+    const requestBodies: string[] = [];
     const fetcher = createOfficialJsonSourceFetch({
       now: () => new Date(capturedAt),
-      http: async () => {
-        requestCount += 1;
-        return response(body, entryUrl, "text/html");
-      }
+      http: async (request) => request.method === "POST"
+        ? (requestBodies.push(request.body ?? ""), response(pageBody([job("CN-1")], 1, 0), widgetUrl, "application/json"))
+        : response(body, entryUrl, "text/html")
     });
 
-    await expect(fetcher(plan)).resolves.toMatchObject({
-      ok: false,
-      failureReason: "Phenom required widget configuration was not found"
-    });
-    expect(requestCount).toBe(1);
+    await expect(fetcher(plan)).resolves.toMatchObject({ ok: true });
+    expect(JSON.parse(requestBodies[0] ?? "{}")).toMatchObject({ pageId: "page11-ds" });
   });
 
   it("accepts one standalone literal pageId only when it matches the complete bootstrap", async () => {
@@ -146,7 +142,10 @@ describe("Phenom evidence instrumentation", () => {
   it.each([
     ["computed", `phApp["pageId"] = "page11";`],
     ["dynamic", `phApp.pageId = makePageId();`],
-    ["multiple", `phApp.pageId = "page11"; phApp.pageId = "page11";`]
+    ["multiple", `phApp.pageId = "page11"; phApp.pageId = "page11";`],
+    ["arbitrary suffix", `phApp.pageId = "page11-extra";`],
+    ["different base", `phApp.pageId = "page12-ds";`],
+    ["repeated refinement", `phApp.pageId = "page11-ds-ds";`]
   ])("rejects a %s pageId mutation after a complete bootstrap", async (_label, mutation) => {
     const body = `<script>
       var phApp = phApp || {"widgetApiEndpoint":"${widgetUrl}","country":"cn","deviceType":"desktop","locale":"zh_cn","refNum":"${refNum}","pageName":"search-results","pageId":"page11"};

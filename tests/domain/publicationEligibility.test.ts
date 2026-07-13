@@ -86,6 +86,21 @@ function failedAttempt(index: number, overrides: AttemptOverrides = {}): Publica
   });
 }
 
+function partialAttempt(index: number, overrides: AttemptOverrides = {}): PublicationAttempt {
+  return attempt(index, {
+    completenessState: "INCOMPLETE",
+    expectedJobCount: 3,
+    officialSurfaceIds: ["surface-official"],
+    officialChannelIds: ["channel-social"],
+    observation: {
+      completenessVerified: false,
+      completenessStatus: "INCOMPLETE",
+      expectedJobCount: 3
+    },
+    ...overrides
+  });
+}
+
 function company(overrides: Partial<CandidateCompany> = {}): CandidateCompany {
   return {
     id: "company-test",
@@ -186,6 +201,21 @@ describe("publication attempt qualification", () => {
       observation: { structuredJobCount: 0, expectedJobCount: 1, stableRequiredFields: [] }
     }), currentSource())).toBe(false);
   });
+
+  it("accepts a positive official partial result without making a completeness claim", () => {
+    expect(isQualifyingPublicationAttempt(partialAttempt(1), currentSource())).toBe(true);
+    expect(isQualifyingPublicationAttempt(partialAttempt(1, {
+      dedupeOutputCount: 0,
+      expectedJobCount: null,
+      observation: { structuredJobCount: 0, expectedJobCount: null }
+    }), currentSource())).toBe(false);
+    expect(isQualifyingPublicationAttempt(partialAttempt(1, {
+      officialSurfaceIds: []
+    }), currentSource())).toBe(false);
+    expect(isQualifyingPublicationAttempt(partialAttempt(1, {
+      officialChannelIds: []
+    }), currentSource())).toBe(false);
+  });
 });
 
 describe("source publication sequence", () => {
@@ -203,6 +233,17 @@ describe("source publication sequence", () => {
       currentSource(),
       [attempt(1), failedAttempt(2), attempt(3)]
     ).hasQualifiedCurrentConfig).toBe(false);
+  });
+
+  it("qualifies two adjacent positive official partial refreshes", () => {
+    expect(evaluateSourcePublicationEligibility(
+      currentSource(),
+      [partialAttempt(1), partialAttempt(2)]
+    )).toMatchObject({
+      hasQualifiedCurrentConfig: true,
+      latestWindowHealthy: true,
+      reasonCode: "ALL_CURRENT_STAGED_SOURCES_QUALIFIED"
+    });
   });
 
   it("keeps qualification sticky while health needs two recovery successes", () => {
