@@ -172,7 +172,7 @@ describe("syncPlannedSourcesToDb", () => {
     expect(db.job.updateMany).not.toHaveBeenCalled();
   });
 
-  it("requires plans to exactly cover the roster official-link social source-ID set", async () => {
+  it("requires plans to exactly cover the roster executable social source-ID set", async () => {
     const secondSource = {
       ...plannedCompany.sources[0]!,
       id: "source-test-secondary"
@@ -185,6 +185,44 @@ describe("syncPlannedSourcesToDb", () => {
     expect(db.$transaction).not.toHaveBeenCalled();
     expect(db.company.upsert).not.toHaveBeenCalled();
     expect(db.recruitmentSource.upsert).not.toHaveBeenCalled();
+  });
+
+  it("allows an official-link-only pending source to remain outside the executable plan", async () => {
+    const pendingSource = {
+      ...plannedCompany.sources[0]!,
+      id: "source-test-pending",
+      atsKind: "OFFICIAL_HTML" as const,
+      status: "ENTRY_FOUND_PENDING_ADAPTER" as const,
+      officialEntryUrl: "https://example.com/careers"
+    };
+    const companies = rosterWithFirst({
+      ...plannedCompany,
+      sources: [...plannedCompany.sources, pendingSource]
+    });
+    const db = fakeDb();
+
+    await expect(syncPlannedSourcesToDb([plan], companies, db as never)).resolves.toMatchObject({
+      companyCount: 60,
+      sourceCount: 1
+    });
+    expect(db.recruitmentSource.upsert).toHaveBeenCalledTimes(1);
+    expect(db.recruitmentSource.upsert).not.toHaveBeenCalledWith(
+      expect.objectContaining({ where: { id: pendingSource.id } })
+    );
+  });
+
+  it("retains legacy outside-roster rows while syncing the canonical roster", async () => {
+    const fake = transactionalFakeDb({
+      companies: [{ id: "company-legacy-outside-directory" }],
+      sources: [{ id: "source-legacy-outside-directory", companyId: "company-legacy-outside-directory" }]
+    });
+
+    await expect(syncPlannedSourcesToDb([plan], rosterCompanies, fake.db as never)).resolves.toMatchObject({
+      companyCount: 60,
+      sourceCount: 1
+    });
+    expect(fake.companyUpsert).toHaveBeenCalledTimes(60);
+    expect(fake.sourceUpsert).toHaveBeenCalledTimes(1);
   });
 
   it("rejects an authorized exclusion carrying a source before writes", async () => {
@@ -215,9 +253,7 @@ describe("syncPlannedSourcesToDb", () => {
   });
 
   it.each([
-    ["extra/replacement company", { companies: [{ id: "company-replacement" }] }],
     ["duplicate company rows", { companies: [{ id: plannedCompany.id }, { id: plannedCompany.id }] }],
-    ["extra source", { sources: [{ id: "source-extra", companyId: plannedCompany.id }] }],
     ["duplicate source rows", { sources: [{ id: plan.source.id, companyId: plannedCompany.id },
       { id: plan.source.id, companyId: plannedCompany.id }] }],
     ["reassociated source ownership", { sources: [{ id: plan.source.id, companyId: rosterCompanies[1]!.id }] }]

@@ -111,12 +111,17 @@ export async function syncPlannedSourcesToDb(
       throw new Error(`${plan.source.id} does not exactly match the supplied roster source binding`);
     }
   }
-  const rosterSocialSourceIds = [...rosterSourceById.values()]
-    .filter((source) => source.kind === "SOCIAL")
+  const rosterExecutableSocialSourceIds = [...rosterSourceById.values()]
+    .filter((source) =>
+      source.kind === "SOCIAL" &&
+      source.status === "VERIFIED_SCRAPABLE" &&
+      Boolean(source.officialEntryUrl) &&
+      Boolean(source.officialChainEvidenceUrl)
+    )
     .map((source) => source.id);
-  if (sourceIds.size !== rosterSocialSourceIds.length ||
-      rosterSocialSourceIds.some((sourceId) => !sourceIds.has(sourceId))) {
-    throw new Error("Planned source-ID set must exactly match the supplied roster official-link social source-ID set");
+  if (sourceIds.size !== rosterExecutableSocialSourceIds.length ||
+      rosterExecutableSocialSourceIds.some((sourceId) => !sourceIds.has(sourceId))) {
+    throw new Error("Planned source-ID set must exactly match the supplied roster executable social source-ID set");
   }
   const orderedPlans = [...plans].sort((left, right) => compareUtf8(left.source.id, right.source.id));
   const runTransaction = db.$transaction.bind(db) as unknown as <T>(
@@ -127,7 +132,7 @@ export async function syncPlannedSourcesToDb(
       tx.company.findMany({ select: { id: true } }),
       tx.recruitmentSource.findMany({ select: { id: true, companyId: true } })
     ]);
-    assertExactExistingRows(existingCompanies, existingSources, companyById, orderedPlans);
+    assertCompatibleExistingRows(existingCompanies, existingSources, orderedPlans);
 
     let companyCount = 0;
     for (const company of orderedCompanies) {
@@ -183,20 +188,15 @@ export async function syncPlannedSourcesToDb(
   });
 }
 
-function assertExactExistingRows(
+function assertCompatibleExistingRows(
   existingCompanies: readonly { id: string }[],
   existingSources: readonly { id: string; companyId: string }[],
-  companyById: ReadonlyMap<string, CandidateCompany>,
   plans: readonly SourceCrawlPlan[]
 ): void {
   const existingCompanyIds = existingCompanies.map(({ id }) => id);
   if (new Set(existingCompanyIds).size !== existingCompanyIds.length) {
     throw new Error("Existing company rows contain duplicate IDs");
   }
-  if (existingCompanyIds.some((companyId) => !companyById.has(companyId))) {
-    throw new Error("Existing company rows contain an extra or replacement company");
-  }
-
   const expectedOwnerBySourceId = new Map(plans.map((plan) => [plan.source.id, plan.company.id]));
   const existingSourceIds = existingSources.map(({ id }) => id);
   if (new Set(existingSourceIds).size !== existingSourceIds.length) {
@@ -204,7 +204,7 @@ function assertExactExistingRows(
   }
   for (const source of existingSources) {
     const expectedOwner = expectedOwnerBySourceId.get(source.id);
-    if (!expectedOwner) throw new Error("Existing recruitment source rows contain an extra source");
+    if (!expectedOwner) continue;
     if (source.companyId !== expectedOwner) {
       throw new Error("Existing recruitment source ownership is reassociated");
     }
