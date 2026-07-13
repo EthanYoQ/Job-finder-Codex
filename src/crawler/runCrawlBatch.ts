@@ -187,6 +187,7 @@ export async function runP0CrawlBatch(
   const terminalSourceIds = new Set<string>();
   let status: Exclude<CrawlBatchStatus, "RUNNING"> = "INCOMPLETE";
   let result: P0CrawlBatchResult | undefined;
+  const sourceErrors: unknown[] = [];
   let sourceThrew = false;
   let thrownError: unknown;
 
@@ -228,7 +229,7 @@ export async function runP0CrawlBatch(
           transportSuccessfulSourceCount += 1;
           adapterFailedSourceCount += 1;
         }
-        failedSourceCount += 1;
+        const sourceError = error instanceof SourceCrawlStageError ? error.cause : error;
         await terminatePendingSourceResult({ id: pending.id, releaseCandidateId: deps.identity.releaseCandidateId,
           batchId: batch.id, sourceId: plan.source.id,
           transportState: error instanceof SourceCrawlStageError && error.stage === "ADAPTER" ? "SUCCEEDED" : "FAILED",
@@ -237,7 +238,17 @@ export async function runP0CrawlBatch(
           finishedAt: batchStartedAt, failureCode: "SOURCE_STAGE_FAILED",
           failureReason: "Source execution failed before atomic evidence commit" }, deps.db as never);
         terminalSourceIds.add(plan.source.id);
-        throw error instanceof SourceCrawlStageError ? error.cause : error;
+        failedSourceCount += 1;
+        sourceErrors.push(sourceError);
+        continue;
+      }
+
+      if (crawlResult.truth.transportSuccess) {
+        transportSuccessfulSourceCount += 1;
+        if (crawlResult.truth.adapterSuccess) adapterSuccessfulSourceCount += 1;
+        else adapterFailedSourceCount += 1;
+      } else {
+        transportFailedSourceCount += 1;
       }
 
       let committedCompletenessVerified = false;
@@ -268,8 +279,6 @@ export async function runP0CrawlBatch(
         }
         committedCompletenessVerified = commit.sourceResult.completenessState === "VERIFIED";
         terminalSourceIds.add(plan.source.id);
-        transportSuccessfulSourceCount += 1;
-        adapterSuccessfulSourceCount += 1;
         if (committedCompletenessVerified) completenessVerifiedSourceCount += 1;
         else completenessIncompleteSourceCount += 1;
         atomicCommittedSourceCount += 1;
@@ -300,15 +309,8 @@ export async function runP0CrawlBatch(
         terminalSourceIds.add(plan.source.id);
         atomicFailedSourceCount += 1;
         failedSourceCount += 1;
-        if (!crawlResult.fetchEvidence || !crawlResult.truth.transportSuccess || !crawlResult.truth.adapterSuccess) {
-          if (!crawlResult.truth.transportSuccess) transportFailedSourceCount += 1;
-          else if (!crawlResult.truth.adapterSuccess) {
-            transportSuccessfulSourceCount += 1;
-            adapterFailedSourceCount += 1;
-          }
-          continue;
-        }
-        throw propagatedError;
+        sourceErrors.push(propagatedError);
+        continue;
       }
 
       for (const job of crawlResult.jobs) {
@@ -321,10 +323,7 @@ export async function runP0CrawlBatch(
       if (crawlResult.truth.adapterSuccess) {
         if (committedCompletenessVerified) {
           successfulSourceCount += 1;
-        } else if (
-          crawlResult.observation.completenessStatus === "INCOMPLETE" ||
-          crawlResult.observation.completenessStatus === "NEEDS_MANUAL_COMPLETENESS_REVIEW"
-        ) {
+        } else {
           blockedSourceCount += 1;
         }
 
@@ -421,9 +420,13 @@ export async function runP0CrawlBatch(
       }
     });
   } catch (finalizationError) {
-    if (sourceThrew) {
+    const executionErrors = [
+      ...sourceErrors,
+      ...(sourceThrew ? [thrownError] : [])
+    ];
+    if (executionErrors.length > 0) {
       throw new AggregateError(
-        [thrownError, finalizationError],
+        [...executionErrors, finalizationError],
         "Source execution and batch finalization both failed"
       );
     }

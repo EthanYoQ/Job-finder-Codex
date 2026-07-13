@@ -5,7 +5,8 @@ import { fileURLToPath } from "node:url";
 import { describe, expect, expectTypeOf, it, vi } from "vitest";
 import {
   runP0CrawlBatch,
-  type P0CrawlBatchResult
+  type P0CrawlBatchResult,
+  type RunP0CrawlBatchDeps
 } from "../../src/crawler/runCrawlBatch";
 import { buildJobDedupeKey, type NormalizedJobRecord } from "../../src/crawler/normalizedJob";
 import { buildDiscoverySourcePlanCandidates, expectedChannelSetHash, getPlanBySourceId, type SourceCrawlPlan } from "../../src/crawler/sourcePlan";
@@ -14,6 +15,9 @@ import { candidateCompanies } from "../../src/data/companyRegistry";
 import type { PrismaIngestionTransactionClient } from "../../src/db/ingestionRepository";
 import { canonicalReleaseMembersSha256, releaseMembersFromPlans,
   type AuthoritativeReleaseMembershipArtifact } from "../../src/crawler/authoritativeReleaseMembership";
+import { evaluatePaginationEvidence } from "../../src/crawler/paginationEvidence";
+import type { PersistentSourceFetchEvidence } from "../../src/crawler/sourceFetchEvidence";
+import { hashCanonicalJobKeySet } from "../../src/crawler/runtimeBatchIdentity";
 
 const IDENTITY_BASE = {
   releaseCandidateId: "p0-rc-20260710-001",
@@ -44,6 +48,7 @@ function identityForPlans(
 
 const NOW = new Date("2026-07-08T01:00:00.000Z");
 const CAPTURED_AT = "2026-07-08T01:05:00.000Z";
+type AtomicCommitExecutor = NonNullable<RunP0CrawlBatchDeps["executeAtomicCommit"]>;
 const fixtureDirectory = resolve(
   dirname(fileURLToPath(import.meta.url)),
   "../../src/crawler/fixtures"
@@ -107,13 +112,128 @@ function makeSnapshot(
   };
 }
 
+function strictSuccessfulFetch(plan: SourceCrawlPlan, sourceJobId = "later-job") {
+  if (plan.adapterId !== "official-json" || plan.json?.jobsPath !== "jobs") {
+    throw new Error(`Test helper requires a jobs-root official-json plan: ${plan.source.id}`);
+  }
+  const channelId = plan.expectedChannels?.[0]?.channelId;
+  if (!channelId) throw new Error(`Test helper requires a bound channel: ${plan.source.id}`);
+  const payload = {
+    jobs: [{
+      sourceJobId,
+      title: `Role ${sourceJobId}`,
+      officialUrl: `https://jobs.example.cn/${plan.source.id}/${sourceJobId}`,
+      locationRaw: "上海",
+      cities: ["上海"]
+    }]
+  };
+  const body = JSON.stringify(payload);
+  const logicalKey = `${plan.source.id}-page-0`;
+  const fetchEvidence: PersistentSourceFetchEvidence = {
+    captureTool: { name: "source-isolation-test", version: "1" },
+    artifacts: [{
+      id: logicalKey,
+      logicalKey,
+      kind: "PAGINATION_PAGE",
+      channelId,
+      requestedUrl: "https://jobs.example.cn/api/jobs",
+      finalUrl: "https://jobs.example.cn/api/jobs",
+      httpStatus: 200,
+      contentType: "application/json",
+      capturedAt: CAPTURED_AT,
+      body,
+      bodyRepresentation: "EXACT",
+      extractorLocator: "json:total"
+    }],
+    pages: [{
+      sequence: 0,
+      artifactLogicalKey: logicalKey,
+      channelId,
+      requestedPage: 1,
+      returnedPage: 1,
+      requestedPageSize: 1,
+      returnedPageSize: 1,
+      rawJobIds: [sourceJobId],
+      validJobIds: [sourceJobId],
+      declaredTotal: 1,
+      declaredCount: 1,
+      declaredPages: 1,
+      responseFingerprintSha256: createHash("sha256").update(body).digest("hex"),
+      termination: "DECLARED_TOTAL_REACHED",
+      anomalyCodes: [],
+      capturedAt: CAPTURED_AT
+    }],
+    declaredCompleteness: {
+      kind: "OFFICIAL_TOTAL_COUNT",
+      value: 1,
+      artifactLogicalKey: logicalKey,
+      extractorLocator: "json:total",
+      scope: "CHANNEL",
+      channelId
+    },
+    fetchCounts: {
+      rawCount: 1,
+      parsedCount: 1,
+      validCount: 1,
+      parseDiscardCount: 0,
+      validationDiscardCount: 0
+    },
+    fetchLosses: []
+  };
+  const paginationEvaluation = evaluatePaginationEvidence({
+    evidence: fetchEvidence,
+    expectedChannelIds: [channelId],
+    filteredOutput: true
+  });
+  return {
+    ok: true as const,
+    capturedAt: CAPTURED_AT,
+    payload,
+    fetchEvidence,
+    paginationEvaluation
+  };
+}
+
+function inMemoryArchiveDeps(): Pick<RunP0CrawlBatchDeps, "archiveEvidence" | "verifyArchive"> {
+  const archiveEvidence: NonNullable<RunP0CrawlBatchDeps["archiveEvidence"]> = async (request) => ({
+    artifacts: request.artifacts.map((draft) => {
+      const bytes = typeof draft.body === "string" ? Buffer.from(draft.body) : Buffer.from(draft.body);
+      return {
+        id: draft.id,
+        logicalKey: draft.logicalKey,
+        releaseCandidateId: request.releaseCandidateId,
+        batchId: request.batchId,
+        sourceId: request.sourceId,
+        sourceResultId: request.sourceResultId,
+        ...(draft.channelId ? { channelId: draft.channelId } : {}),
+        kind: draft.kind,
+        ...(draft.requestedUrl ? { requestedUrl: draft.requestedUrl } : {}),
+        ...(draft.finalUrl ? { finalUrl: draft.finalUrl } : {}),
+        ...(draft.httpStatus ? { httpStatus: draft.httpStatus } : {}),
+        ...(draft.contentType ? { contentType: draft.contentType } : {}),
+        capturedAt: new Date(draft.capturedAt),
+        sha256: createHash("sha256").update(bytes).digest("hex"),
+        byteCount: bytes.byteLength,
+        path: `test/${request.sourceId}/${draft.id}`,
+        extractorLocator: draft.extractorLocator,
+        captureToolName: request.captureTool.name,
+        captureToolVersion: request.captureTool.version
+      };
+    }),
+    orphanedFinalArtifacts: []
+  });
+  const verifyArchive: NonNullable<RunP0CrawlBatchDeps["verifyArchive"]> = async (request) => request.artifacts;
+  return { archiveEvidence, verifyArchive };
+}
+
 function fakeDb() {
   const calls = {
     batchesCreated: [] as unknown[],
     batchesUpdated: [] as unknown[],
     observations: [] as unknown[],
     jobs: [] as unknown[],
-    pendingSourceResults: [] as unknown[]
+    pendingSourceResults: [] as unknown[],
+    terminalSourceResults: [] as unknown[]
   };
 
   const crawlObservation = {
@@ -128,6 +248,10 @@ function fakeDb() {
       return Promise.resolve(args);
     })
   };
+  const terminalUpdateMany = vi.fn(async (args: unknown) => {
+    calls.terminalSourceResults.push(args);
+    return { count: 1 };
+  });
 
   return {
     calls,
@@ -149,7 +273,7 @@ function fakeDb() {
           calls.pendingSourceResults.push(args);
           return args;
         },
-        updateMany: async () => ({ count: 1 })
+        updateMany: terminalUpdateMany
       }
     } as never),
     crawlBatch: {
@@ -163,7 +287,8 @@ function fakeDb() {
       })
     },
     crawlObservation,
-    job
+    job,
+    terminalUpdateMany
   };
 }
 
@@ -553,7 +678,7 @@ describe("runP0CrawlBatch", () => {
     expect(result).toMatchObject({
       plannedSourceCount: 1,
       dueSourceCount: 1,
-      adapterSuccessfulSourceCount: 0,
+      adapterSuccessfulSourceCount: 1,
       successfulSourceCount: 0,
       failedSourceCount: 1,
       skippedSourceCount: 0
@@ -603,7 +728,7 @@ describe("runP0CrawlBatch", () => {
       batchId: "batch-1",
       plannedSourceCount: 1,
       dueSourceCount: 1,
-      adapterSuccessfulSourceCount: 0,
+      adapterSuccessfulSourceCount: 1,
       successfulSourceCount: 0,
       failedSourceCount: 1,
       skippedSourceCount: 0
@@ -670,7 +795,7 @@ describe("runP0CrawlBatch", () => {
       batchId: "batch-1",
       plannedSourceCount: 2,
       dueSourceCount: 1,
-      adapterSuccessfulSourceCount: 0,
+      adapterSuccessfulSourceCount: 1,
       successfulSourceCount: 0,
       failedSourceCount: 1,
       skippedSourceCount: 1
@@ -725,7 +850,7 @@ describe("runP0CrawlBatch", () => {
       batchId: "batch-1",
       plannedSourceCount: 1,
       dueSourceCount: 1,
-      adapterSuccessfulSourceCount: 0,
+      adapterSuccessfulSourceCount: 1,
       successfulSourceCount: 0,
       failedSourceCount: 1,
       skippedSourceCount: 0
@@ -783,7 +908,218 @@ describe("runP0CrawlBatch", () => {
     });
   });
 
-  it("finalizes the batch as failed when a due source throws during fetch and rethrows the error", async () => {
+  it("isolates a thrown fetch failure and atomically commits the later due source", async () => {
+    const failedPlan = planFor("source-astrazeneca-social");
+    const successfulPlan = planFor("source-roche-china-social");
+    const batchPlans = [failedPlan, successfulPlan];
+    const db = fakeDb();
+    const fetchError = new Error("first source network timeout");
+    const previousFailedJob = makeJob({
+      sourceId: failedPlan.source.id,
+      atsKind: failedPlan.source.atsKind,
+      officialChineseCompanyName: failedPlan.company.officialChineseName,
+      sourceJobId: "failed-source-existing-job",
+      officialUrl: "https://careers.example.cn/failed-source-existing-job"
+    });
+    const executeAtomicCommit = vi.fn<AtomicCommitExecutor>(async () => undefined);
+    const fetch = vi.fn(async (plan: SourceCrawlPlan) => {
+      if (plan.source.id === failedPlan.source.id) throw fetchError;
+      return strictSuccessfulFetch(successfulPlan);
+    });
+
+    const result = await runP0CrawlBatch(batchPlans, {
+      db,
+      fetch,
+      now: NOW,
+      force: true,
+      identity: identityForPlans(batchPlans),
+      executeAtomicCommit,
+      ...inMemoryArchiveDeps(),
+      getPreviousJobs: async (sourceId) =>
+        sourceId === failedPlan.source.id ? [makeSnapshot(previousFailedJob)] : [],
+      getRecentObservations: async () => [],
+      isBaselineCompleted: async () => true
+    });
+
+    expect(fetch).toHaveBeenCalledTimes(2);
+    expect(executeAtomicCommit).toHaveBeenCalledTimes(1);
+    expect(executeAtomicCommit.mock.calls[0]![0].sourceResult.sourceId).toBe(successfulPlan.source.id);
+    expect(executeAtomicCommit.mock.calls[0]![0].commands.every((command) =>
+      command.type !== "UPSERT_JOB" || command.record.sourceId !== failedPlan.source.id)).toBe(true);
+    expect(result).toEqual({
+      status: "FAILED",
+      batchId: "batch-1",
+      plannedSourceCount: 2,
+      dueSourceCount: 2,
+      transportSuccessfulSourceCount: 1,
+      transportFailedSourceCount: 1,
+      adapterSuccessfulSourceCount: 1,
+      adapterFailedSourceCount: 0,
+      completenessVerifiedSourceCount: 0,
+      completenessIncompleteSourceCount: 1,
+      atomicCommittedSourceCount: 1,
+      atomicFailedSourceCount: 0,
+      successfulSourceCount: 0,
+      failedSourceCount: 1,
+      blockedSourceCount: 1,
+      skippedSourceCount: 0
+    });
+    expect(db.calls.jobs).toEqual([]);
+    expect((db.calls.batchesUpdated[0] as { data: { aggregateJobSetSha256: string } }).data
+      .aggregateJobSetSha256).toBe(hashCanonicalJobKeySet([{
+        sourceId: successfulPlan.source.id,
+        jobKey: `${successfulPlan.source.id}:later-job`
+      }]));
+  });
+
+  it("isolates an adapter execution throw and commits the later due source", async () => {
+    const failedPlan = planFor("source-qilu-social");
+    const successfulPlan = planFor("source-roche-china-social");
+    const batchPlans = [failedPlan, successfulPlan];
+    const db = fakeDb();
+    const adapterError = new Error("first source adapter exploded");
+    const poisonedPayload = {};
+    Object.defineProperty(poisonedPayload, "jobs", {
+      enumerable: true,
+      get: () => { throw adapterError; }
+    });
+    const executeAtomicCommit = vi.fn<AtomicCommitExecutor>(async () => undefined);
+
+    const result = await runP0CrawlBatch(batchPlans, {
+      db,
+      fetch: async (plan) => plan.source.id === failedPlan.source.id
+        ? { ok: true as const, capturedAt: CAPTURED_AT, payload: poisonedPayload }
+        : strictSuccessfulFetch(successfulPlan),
+      now: NOW,
+      force: true,
+      identity: identityForPlans(batchPlans),
+      executeAtomicCommit,
+      ...inMemoryArchiveDeps(),
+      getPreviousJobs: async () => [],
+      getRecentObservations: async () => [],
+      isBaselineCompleted: async () => true
+    });
+
+    expect(executeAtomicCommit).toHaveBeenCalledTimes(1);
+    expect(executeAtomicCommit.mock.calls[0]![0].sourceResult.sourceId).toBe(successfulPlan.source.id);
+    expect(result).toMatchObject({
+      status: "FAILED",
+      plannedSourceCount: 2,
+      dueSourceCount: 2,
+      transportSuccessfulSourceCount: 2,
+      transportFailedSourceCount: 0,
+      adapterSuccessfulSourceCount: 1,
+      adapterFailedSourceCount: 1,
+      atomicCommittedSourceCount: 1,
+      atomicFailedSourceCount: 0,
+      failedSourceCount: 1,
+      blockedSourceCount: 1
+    });
+  });
+
+  it.each(["archive", "verification", "atomic commit"] as const)(
+    "isolates a source-local %s failure and commits the later due source",
+    async (failureStage) => {
+      const failedPlan = planFor("source-qilu-social");
+      const successfulPlan = planFor("source-roche-china-social");
+      const batchPlans = [failedPlan, successfulPlan];
+      const db = fakeDb();
+      const sourceError = new Error(`first source ${failureStage} failed`);
+      const archiveDeps = inMemoryArchiveDeps();
+      const archiveEvidence: NonNullable<RunP0CrawlBatchDeps["archiveEvidence"]> = vi.fn(
+        async (request) => {
+          if (failureStage === "archive" && request.sourceId === failedPlan.source.id) throw sourceError;
+          return archiveDeps.archiveEvidence!(request);
+        }
+      );
+      const verifyArchive: NonNullable<RunP0CrawlBatchDeps["verifyArchive"]> = vi.fn(
+        async (request) => {
+          if (failureStage === "verification" && request.sourceId === failedPlan.source.id) throw sourceError;
+          return archiveDeps.verifyArchive!(request);
+        }
+      );
+      const executeAtomicCommit = vi.fn<AtomicCommitExecutor>(async (commit) => {
+        if (failureStage === "atomic commit" && commit.sourceResult.sourceId === failedPlan.source.id) {
+          throw sourceError;
+        }
+      });
+
+      const result = await runP0CrawlBatch(batchPlans, {
+        db,
+        fetch: async (plan) => strictSuccessfulFetch(plan),
+        now: NOW,
+        force: true,
+        identity: identityForPlans(batchPlans),
+        archiveEvidence,
+        verifyArchive,
+        executeAtomicCommit,
+        getPreviousJobs: async () => [],
+        getRecentObservations: async () => [],
+        isBaselineCompleted: async () => true
+      });
+
+      expect(executeAtomicCommit.mock.calls.at(-1)![0].sourceResult.sourceId).toBe(successfulPlan.source.id);
+      expect(result).toMatchObject({
+        status: "FAILED",
+        plannedSourceCount: 2,
+        dueSourceCount: 2,
+        transportSuccessfulSourceCount: 2,
+        transportFailedSourceCount: 0,
+        adapterSuccessfulSourceCount: 2,
+        adapterFailedSourceCount: 0,
+        completenessVerifiedSourceCount: 0,
+        completenessIncompleteSourceCount: 1,
+        atomicCommittedSourceCount: 1,
+        atomicFailedSourceCount: 1,
+        successfulSourceCount: 0,
+        failedSourceCount: 1,
+        blockedSourceCount: 1,
+        skippedSourceCount: 0
+      });
+      expect((db.calls.batchesUpdated[0] as { data: { aggregateJobSetSha256: string } }).data
+        .aggregateJobSetSha256).toBe(hashCanonicalJobKeySet([{
+          sourceId: successfulPlan.source.id,
+          jobKey: `${successfulPlan.source.id}:later-job`
+        }]));
+    }
+  );
+
+  it("aborts later sources when a failed source cannot be terminalized", async () => {
+    const failedPlan = planFor("source-astrazeneca-social");
+    const laterPlan = planFor("source-roche-china-social");
+    const batchPlans = [failedPlan, laterPlan];
+    const db = fakeDb();
+    const terminalError = new Error("terminal source write failed");
+    db.terminalUpdateMany.mockRejectedValue(terminalError);
+    const fetch = vi.fn(async (plan: SourceCrawlPlan) => {
+      if (plan.source.id === failedPlan.source.id) throw new Error("source fetch failed");
+      return strictSuccessfulFetch(laterPlan);
+    });
+    let rejection: unknown;
+
+    try {
+      await runP0CrawlBatch(batchPlans, {
+        db,
+        fetch,
+        now: NOW,
+        force: true,
+        identity: identityForPlans(batchPlans),
+        executeAtomicCommit: vi.fn(async () => undefined),
+        ...inMemoryArchiveDeps(),
+        getPreviousJobs: async () => [],
+        getRecentObservations: async () => [],
+        isBaselineCompleted: async () => true
+      });
+    } catch (error) {
+      rejection = error;
+    }
+
+    expect(rejection).toBeInstanceOf(AggregateError);
+    expect((rejection as AggregateError).errors[0]).toBe(terminalError);
+    expect(fetch).toHaveBeenCalledTimes(1);
+  });
+
+  it("returns a failed batch when a thrown fetch failure is terminalized", async () => {
     const plan = planFor("source-astrazeneca-social");
     const db = fakeDb();
     const fetchError = new Error("network timeout");
@@ -791,19 +1127,18 @@ describe("runP0CrawlBatch", () => {
       throw fetchError;
     });
 
-    await expect(
-      runP0CrawlBatch([plan], {
-        db,
-        fetch,
-        now: NOW,
-        identity: identityForPlans([plan]),
-        getPreviousJobs: async () => [],
-        getRecentObservations: async () => [],
-        isBaselineCompleted: async () => true
-      })
-    ).rejects.toThrow(fetchError);
+    const result = await runP0CrawlBatch([plan], {
+      db,
+      fetch,
+      now: NOW,
+      identity: identityForPlans([plan]),
+      getPreviousJobs: async () => [],
+      getRecentObservations: async () => [],
+      isBaselineCompleted: async () => true
+    });
 
     expect(fetch).toHaveBeenCalledTimes(1);
+    expect(result).toMatchObject({ status: "FAILED", failedSourceCount: 1 });
     expect(db.calls.batchesCreated[0]).toEqual({
       data: expect.objectContaining({ startedAt: NOW, status: "RUNNING" })
     });
@@ -984,32 +1319,23 @@ describe("runP0CrawlBatch", () => {
     expect(db.calls.batchesUpdated).toEqual([]);
   });
 
-  it("finalizes the batch as failed and rethrows an undefined source failure", async () => {
+  it("finalizes the batch as failed for an undefined thrown source failure", async () => {
     const plan = planFor("source-astrazeneca-social");
     const db = fakeDb();
     const fetch = vi.fn(async () => {
       throw undefined;
     });
-    let rejected = false;
-    let rejection: unknown = Symbol("not rejected");
+    const result = await runP0CrawlBatch([plan], {
+      db,
+      fetch,
+      now: NOW,
+      identity: identityForPlans([plan]),
+      getPreviousJobs: async () => [],
+      getRecentObservations: async () => [],
+      isBaselineCompleted: async () => true
+    });
 
-    try {
-      await runP0CrawlBatch([plan], {
-        db,
-        fetch,
-        now: NOW,
-        identity: identityForPlans([plan]),
-        getPreviousJobs: async () => [],
-        getRecentObservations: async () => [],
-        isBaselineCompleted: async () => true
-      });
-    } catch (error) {
-      rejected = true;
-      rejection = error;
-    }
-
-    expect(rejected).toBe(true);
-    expect(rejection).toBeUndefined();
+    expect(result).toMatchObject({ status: "FAILED", failedSourceCount: 1 });
     expect(db.calls.batchesUpdated[0]).toEqual({
       where: { id: "batch-1" },
       data: expect.objectContaining({ finishedAt: NOW, status: "FAILED" })
