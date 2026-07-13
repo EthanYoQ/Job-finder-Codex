@@ -8,6 +8,7 @@ export interface RunCurrentStagedScheduledCrawlDeps {
   db: RunP0CrawlCommandDeps["db"] & StagedScheduleAuthorityDb;
   fetch: RunP0CrawlCommandDeps["fetch"];
   now: RunP0CrawlCommandDeps["now"];
+  force?: boolean;
   syncPlannedSourcesToDb: RunP0CrawlCommandDeps["syncPlannedSourcesToDb"];
   createRuntimeDeps: RunP0CrawlCommandDeps["createRuntimeDeps"];
   runP0CrawlBatch: RunP0CrawlCommandDeps["runP0CrawlBatch"];
@@ -20,7 +21,7 @@ export async function runCurrentStagedScheduledCrawl(
   const result = await runP0CrawlCommand({
     plans: authority.plans,
     companies: authority.companies,
-    options: { help: false, sourceIds: [], force: false },
+    options: { help: false, sourceIds: [], force: deps.force === true },
     identity: authority.identity,
     db: deps.db,
     fetch: deps.fetch,

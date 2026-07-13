@@ -183,4 +183,41 @@ describe("current staged scheduled crawl", () => {
     expect(Object.isFrozen(result.identity)).toBe(true);
     expect(Object.isFrozen(result.identity.expectedPlannedSourceIds)).toBe(true);
   });
+
+  it("allows an operator-forced run only through the same exact staged authority and full plan", async () => {
+    const canonicalPlans = buildStagedSourceCrawlPlans(candidateCompanies);
+    const runP0CrawlBatch = vi.fn(async (
+      _plans: readonly SourceCrawlPlan[],
+      deps: RunP0CrawlBatchDeps
+    ) => failedMixedBatch(deps.identity.expectedPlannedSourceCount));
+
+    await runCurrentStagedScheduledCrawl({
+      db: { releaseCandidate: { findMany: vi.fn(async () => [matchingRow()]) } } as never,
+      fetch: vi.fn(),
+      now: new Date("2026-07-14T00:00:00.000Z"),
+      force: true,
+      syncPlannedSourcesToDb: vi.fn(async () => ({
+        companyCount: 60,
+        sourceCount: canonicalPlans.length,
+        hiddenUnplannedVisibleJobCount: 0
+      })),
+      createRuntimeDeps: vi.fn(() => ({
+        getPreviousJobs: async () => [],
+        getRecentObservations: async () => [],
+        isBaselineCompleted: async () => false
+      })),
+      runP0CrawlBatch
+    });
+
+    const [plans, deps] = vi.mocked(runP0CrawlBatch).mock.calls[0]!;
+    expect(plans.map((plan) => plan.source.id)).toEqual(canonicalPlans.map((plan) => plan.source.id).sort());
+    expect(deps).toMatchObject({
+      force: true,
+      identity: {
+        releaseCandidateId: "rc-staged-1",
+        batchKind: "SCHEDULED",
+        expectedPlannedSourceCount: canonicalPlans.length
+      }
+    });
+  });
 });

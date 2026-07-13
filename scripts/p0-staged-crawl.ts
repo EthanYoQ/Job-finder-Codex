@@ -1,12 +1,15 @@
 const args = process.argv.slice(2);
-if (args.length > 0) {
-  console.error("p0:staged-crawl accepts no arguments");
+const { parseStagedCrawlArgs, runProductionStagedCrawlCli } = await import("../src/crawler/stagedCrawlCli");
+let options: ReturnType<typeof parseStagedCrawlArgs>;
+try {
+  options = parseStagedCrawlArgs(args);
+} catch (error) {
+  console.error(error instanceof Error ? error.message : String(error));
   process.exit(2);
 }
 
 try {
-  const { runProductionStagedCrawlCli } = await import("../src/crawler/stagedCrawlCli");
-  process.exitCode = await runProductionStagedCrawlCli();
+  process.exitCode = await runProductionStagedCrawlCli(process.env, options);
 } catch (error) {
   console.error(error instanceof Error ? error.message : String(error));
   process.exitCode = 1;

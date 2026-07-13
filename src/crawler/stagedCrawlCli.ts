@@ -21,6 +21,12 @@ import { resolveStagedCrawlEvidencePaths } from "./stagedCrawlEvidencePaths";
 
 export { resolveStagedCrawlEvidencePaths } from "./stagedCrawlEvidencePaths";
 
+export function parseStagedCrawlArgs(args: readonly string[]): { force: boolean } {
+  if (args.length === 0) return { force: false };
+  if (args.length === 1 && args[0] === "--force") return { force: true };
+  throw new Error("p0:staged-crawl accepts only --force as an optional full-plan operator flag");
+}
+
 type StagedScheduledCrawlResult = Awaited<ReturnType<typeof runCurrentStagedScheduledCrawl>>;
 
 export interface StagedCrawlRuntime {
@@ -176,7 +182,8 @@ export async function runStagedCrawlOperation(
 }
 
 export async function runProductionStagedCrawlCli(
-  env: NodeJS.ProcessEnv = process.env
+  env: NodeJS.ProcessEnv = process.env,
+  options: { force?: boolean } = {}
 ): Promise<0 | 1> {
   const capturedAt = new Date();
   const { attemptDir, summaryPath } = resolveStagedCrawlEvidencePaths(env);
@@ -209,7 +216,7 @@ export async function runProductionStagedCrawlCli(
         const { assertFormalBrowserReady } = await import("../readiness/formalBrowserPreflight");
         await assertFormalBrowserReady();
       },
-      createRuntime: createProductionRuntime,
+      createRuntime: () => createProductionRuntime(options.force === true),
       writeAttemptEvent: writeCrawlAttemptEvent,
       writeSummary: writeCrawlSummaryAtomic,
       now: () => new Date()
@@ -235,7 +242,7 @@ async function publishSummary(
   return { batchId: commandResult.batch.batchId, summarySha256: published.sha256 };
 }
 
-async function createProductionRuntime(): Promise<StagedCrawlRuntime> {
+async function createProductionRuntime(force = false): Promise<StagedCrawlRuntime> {
   const [
     { PrismaClient },
     { syncPlannedSourcesToDb },
@@ -284,6 +291,7 @@ async function createProductionRuntime(): Promise<StagedCrawlRuntime> {
         db: commandDb,
         fetch,
         now: () => new Date(),
+        force,
         syncPlannedSourcesToDb,
         createRuntimeDeps: () => runtimeDeps,
         runP0CrawlBatch

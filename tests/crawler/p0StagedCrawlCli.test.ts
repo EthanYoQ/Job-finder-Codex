@@ -9,6 +9,7 @@ import { hashCanonicalStringSet } from "../../src/crawler/runtimeBatchIdentity";
 import type { CrawlAttemptEvent } from "../../src/crawler/crawlAttemptEvidence";
 import type { CrawlSummary } from "../../src/crawler/crawlSummary";
 import {
+  parseStagedCrawlArgs,
   resolveStagedCrawlEvidencePaths,
   runStagedCrawlOperation,
   type StagedCrawlRuntime
@@ -108,6 +109,15 @@ function operationInput(deps: ReturnType<typeof harness>["deps"]) {
 }
 
 describe("staged crawl operational CLI", () => {
+  it("accepts only an optional full-plan operator force flag", () => {
+    expect(parseStagedCrawlArgs([])).toEqual({ force: false });
+    expect(parseStagedCrawlArgs(["--force"])).toEqual({ force: true });
+    for (const invalid of ["--help", "--source-id", "--release-candidate-id", "unexpected"]) {
+      expect(() => parseStagedCrawlArgs([invalid])).toThrow(/only --force/i);
+    }
+    expect(() => parseStagedCrawlArgs(["--force", "--force"])).toThrow(/only --force/i);
+  });
+
   it("confines distinct staged evidence paths to the canonical outputs root", () => {
     const cwd = resolve("C:/repo");
     const outputsRoot = resolve(cwd, "outputs");
@@ -190,7 +200,7 @@ describe("staged crawl operational CLI", () => {
     expect(strictAttemptDir).not.toBe(resolve(cwd, "outputs", "staged-crawl-attempts"));
   });
 
-  it.each(["--help", "--force", "--source-id", "--release-candidate-id", "unexpected"]) (
+  it.each(["--help", "--source-id", "--release-candidate-id", "unexpected"]) (
     "rejects %s before loading runtime or database modules",
     (argument) => {
       const result = spawnSync(
@@ -207,7 +217,7 @@ describe("staged crawl operational CLI", () => {
       );
       const output = `${result.stdout}${result.stderr}`;
       expect(result.status).toBe(2);
-      expect(output).toContain("accepts no arguments");
+      expect(output).toContain("accepts only --force");
       expect(output).not.toMatch(/Prisma|DATABASE_URL|advisory lock|crawl attempt/iu);
     },
     15_000
@@ -346,7 +356,8 @@ describe("staged crawl operational CLI", () => {
 
     expect(`${script}\n${operational}`).toContain("runCurrentStagedScheduledCrawl");
     expect(`${script}\n${operational}`).not.toMatch(/buildDiscoverySourcePlanCandidates|buildSourceCrawlPlans|buildStagedSourceCrawlPlans/u);
-    expect(`${script}\n${operational}`).not.toMatch(/--force|--source-id|--release-candidate-id|--commit-sha|--batch-kind/u);
+    expect(`${script}\n${operational}`).not.toMatch(/--source-id|--release-candidate-id|--commit-sha|--batch-kind/u);
+    expect(`${script}\n${operational}`).toContain('"--force"');
     expect(scheduler).toContain('"p0:staged-crawl"');
     expect(scheduler).toContain("resolveStagedCrawlEvidencePaths");
     expect(scheduler.indexOf("resolveStagedCrawlEvidencePaths"))
