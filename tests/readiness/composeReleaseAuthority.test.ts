@@ -3,16 +3,29 @@ import {describe,expect,it} from "vitest";
 
 describe("formal compose release authority",()=>{
   const compose=readFileSync("ops/docker-compose.yml","utf8");
+  const service=(name:string)=>compose.match(new RegExp(`^  ${name}:\\n[\\s\\S]*?(?=^  [a-z][a-z0-9-]*:\\n|^volumes:\\n)`,"mu"))?.[0]??"";
   it("requires build provenance for every application image",()=>{
     expect(compose).toMatch(/BUILD_COMMIT_SHA:\s*\$\{BUILD_COMMIT_SHA:\?[^}]+\}/u);
     expect(compose).toMatch(/BUILD_SOURCE_CLEAN:\s*\$\{BUILD_SOURCE_CLEAN:\?[^}]+\}/u);
     expect(compose).toMatch(/BUILD_SOURCE_TREE_SHA256:\s*\$\{BUILD_SOURCE_TREE_SHA256:\?[^}]+\}/u);
   });
-  it.each(["membership.json","oracle.json"])("mounts %s at a fixed read-only path with a required hash pin",name=>{
-    expect(compose).toContain(`target: /run/release-authority/${name}`);
-    expect(compose).toContain("read_only: true");
+  it.each(["membership.json","oracle.json"])("keeps %s only on the historical strict worker",name=>{
+    const worker=service("worker"),scheduler=service("scheduler"),monitor=service("monitor");
+    expect(worker).toContain(`target: /run/release-authority/${name}`);
+    expect(worker).toContain("read_only: true");
     const authority=name.startsWith("membership")?"MEMBERSHIP":"ORACLE";
-    expect(compose).toContain(`P0_FULL_RELEASE_${authority}_FILE_SHA256:`);
+    expect(worker).toContain(`P0_FULL_RELEASE_${authority}_FILE_SHA256:`);
+    expect(scheduler).not.toContain(`P0_FULL_RELEASE_${authority}`);
+    expect(monitor).not.toContain(`P0_FULL_RELEASE_${authority}`);
+    expect(scheduler).not.toContain(`/run/release-authority/${name}`);
+    expect(monitor).not.toContain(`/run/release-authority/${name}`);
+  });
+  it("uses one shared staged summary and attempt path for scheduler and monitor",()=>{
+    const scheduler=service("scheduler"),monitor=service("monitor");
+    for(const value of ["/app/outputs/staged-crawl-summary.json","/app/outputs/staged-crawl-attempts"]){
+      expect(scheduler).toContain(value);expect(monitor).toContain(value);
+    }
+    expect(scheduler).not.toMatch(/P0_RELEASE_/u);expect(monitor).not.toMatch(/P0_RELEASE_/u);
   });
   it("uses the zero-input formal CLI contract",()=>{
     expect(compose).not.toMatch(/--release-candidate-id|--commit-sha|--roster-sha256|--batch-kind/u);

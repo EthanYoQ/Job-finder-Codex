@@ -205,25 +205,29 @@ describe("deployment configuration", () => {
     expect(monitor).not.toMatch(/readRecord\(readinessSummary,\s*["']consecutiveFailuresByCompany["']\)/u);
   });
 
-  it("gives the monitor the same pinned release authority and attempt journal used by formal execution", () => {
+  it("binds scheduler and monitor to the same staged paths and database-backed identity", () => {
     const compose = readRequiredFile(composePath);
+    const scheduler = readComposeService(compose, "scheduler");
     const monitor = readComposeService(compose, "monitor");
-    expect(monitor).toContain("P0_FULL_RELEASE_MEMBERSHIP_FILE: /run/release-authority/membership.json");
-    expect(monitor).toContain("P0_FULL_RELEASE_MEMBERSHIP_FILE_SHA256:");
-    expect(monitor).toContain("P0_FULL_RELEASE_ORACLE_FILE: /run/release-authority/oracle.json");
-    expect(monitor).toContain("P0_FULL_RELEASE_ORACLE_FILE_SHA256:");
-    expect(monitor).toMatch(/target:\s*\/run\/release-authority\/membership\.json[\s\S]*read_only:\s*true/u);
-    expect(monitor).toMatch(/target:\s*\/run\/release-authority\/oracle\.json[\s\S]*read_only:\s*true/u);
-    expect(monitor).toContain("CRAWL_ATTEMPT_DIR");
+    const worker = readComposeService(compose, "worker");
+    for (const service of [scheduler, monitor]) {
+      expect(service).not.toMatch(/P0_(?:FULL_RELEASE|RELEASE_)/u);
+      expect(service).not.toContain("/run/release-authority/");
+      expect(service).toMatch(/source:\s*formal-artifacts[\s\S]*target:\s*\/app\/outputs/u);
+      expect(service).toContain("STAGED_CRAWL_SUMMARY_PATH: ${STAGED_CRAWL_SUMMARY_PATH:-/app/outputs/staged-crawl-summary.json}");
+      expect(service).toContain("STAGED_CRAWL_ATTEMPT_DIR: ${STAGED_CRAWL_ATTEMPT_DIR:-/app/outputs/staged-crawl-attempts}");
+    }
+    expect(worker).toContain("P0_FULL_RELEASE_MEMBERSHIP_FILE: /run/release-authority/membership.json");
+    expect(worker).toContain("P0_FULL_RELEASE_ORACLE_FILE: /run/release-authority/oracle.json");
+    expect(worker).toContain("target: /run/release-authority/membership.json");
+    expect(worker).toContain("target: /run/release-authority/oracle.json");
     const monitorScript = readRequiredFile(monitoringCheckPath);
-    expect(monitorScript).toContain("loadMonitoringReleaseIdentity");
-    expect(monitorScript.indexOf("const monitoringAuthorityEnv = { ...process.env }"))
-      .toBeLessThan(monitorScript.indexOf('import("../src/crawler/monitoringReleaseIdentity")'));
-    expect(monitorScript).toContain("loadMonitoringReleaseIdentity(monitoringAuthorityEnv, undefined, now)");
+    expect(monitorScript).toContain("loadProductionStagedMonitoringIdentity");
+    expect(monitorScript).toContain("loadProductionStagedMonitoringIdentity(databaseUrl)");
+    expect(monitorScript).not.toContain("loadMonitoringReleaseIdentity");
+    expect(monitorScript).toContain('/app/outputs/staged-crawl-summary.json');
+    expect(monitorScript).toContain('/app/outputs/staged-crawl-attempts');
     expect(monitorScript).toContain("readLatestCrawlAttempt");
-    for (const pin of ["P0_RELEASE_CANDIDATE_ID", "P0_RELEASE_COMMIT_SHA", "P0_RELEASE_ROSTER_SHA256",
-      "P0_RELEASE_SOURCE_PLAN_SHA256", "P0_RELEASE_SOURCE_CONFIG_SHA256", "P0_RELEASE_ADAPTER_BUNDLE_SHA256",
-      "P0_RELEASE_PLANNED_SOURCE_SET_SHA256", "P0_RELEASE_PLANNED_SOURCE_COUNT"]) expect(monitor).toContain(`${pin}:`);
   });
 
   it("rejects a TCP listener that does not authenticate or speak the PostgreSQL protocol", async () => {
@@ -320,7 +324,8 @@ describe("deployment configuration", () => {
     expect(monitor).toMatch(/BACKUP_DIR:\s*\/backups/u);
     expect(monitor).toMatch(/DATABASE_URL:\s*\$\{DATABASE_URL:\?set DATABASE_URL\}/u);
     expect(monitor).toMatch(/READINESS_SUMMARY_PATH:\s*\$\{READINESS_SUMMARY_PATH:-\/app\/outputs\//u);
-    expect(monitor).toMatch(/CRAWL_SUMMARY_PATH:\s*\$\{CRAWL_SUMMARY_PATH:-\/app\/outputs\//u);
+    expect(monitor).toContain("STAGED_CRAWL_SUMMARY_PATH: ${STAGED_CRAWL_SUMMARY_PATH:-/app/outputs/staged-crawl-summary.json}");
+    expect(monitor).toContain("STAGED_CRAWL_ATTEMPT_DIR: ${STAGED_CRAWL_ATTEMPT_DIR:-/app/outputs/staged-crawl-attempts}");
     expect(monitor).toMatch(/source:\s*backup-data[\s\S]*target:\s*\/backups[\s\S]*read_only:\s*true/u);
     expect(monitor).toMatch(/backup:\s*\n\s+condition:\s*service_healthy/u);
     expect(monitor).toMatch(/postgres:\s*\n\s+condition:\s*service_healthy/u);
@@ -375,7 +380,7 @@ describe("deployment configuration", () => {
     expect(worker).toMatch(/target:\s*\/app\/outputs(?![\s\S]{0,40}read_only:\s*true)/u);
     expect(scheduler).toMatch(/target:\s*\/app\/outputs(?![\s\S]{0,40}read_only:\s*true)/u);
     expect(backup).toContain("- backup-data:/backups");
-    expect(monitor.match(/read_only:\s*true/gu)).toHaveLength(5);
+    expect(monitor.match(/read_only:\s*true/gu)).toHaveLength(3);
   });
 
   it("pins external postgres and nginx images by digest", () => {
