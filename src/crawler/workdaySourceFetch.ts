@@ -137,6 +137,8 @@ export function createWorkdaySourceFetch(deps: WorkdaySourceFetchDeps = {}): Sou
       let scopeRejectCount = 0;
       let derivedFilteredTotal: number | undefined;
       let locationDerivedTotal: number | undefined;
+      let sawLaterZeroTotal = false;
+      let strictLaterZeroPageEnvelopes = true;
 
       const needsLocationFacetDiscovery = !hasConfiguredLocationFacet(configuredAppliedFacets) && Boolean(searchText);
       if (needsLocationFacetDiscovery) {
@@ -231,6 +233,11 @@ export function createWorkdaySourceFetch(deps: WorkdaySourceFetchDeps = {}): Sou
         assertEvidenceResponse(response);
 
         const parsed = parseWorkdayJobsResponse(response.body);
+        if (pageIndex > 0 && parsed.total === 0) {
+          sawLaterZeroTotal = true;
+          strictLaterZeroPageEnvelopes = strictLaterZeroPageEnvelopes &&
+            parsed.strictPaginationEnvelope && parsed.jobPostings.length > 0;
+        }
         if (pageIndex === 0 && derivedFilteredTotal !== undefined && parsed.total !== derivedFilteredTotal) {
           artifacts.push(workdayArtifact(
             "workday-filter-validation-0000",
@@ -409,16 +416,24 @@ export function createWorkdaySourceFetch(deps: WorkdaySourceFetchDeps = {}): Sou
         fetchLosses
       });
       latestEvidence = rawEvidence;
+      const allowLaterZeroDeclaredTotalAfterExactReconciliation = sawLaterZeroTotal &&
+        strictLaterZeroPageEnvelopes && expectedJobCount !== undefined && expectedJobCount > 0;
       const evidence = deriveCanonicalPaginationEvidence({
         evidence: rawEvidence,
         expectedChannelIds: [],
-        filteredOutput: Object.keys(appliedFacets).length > 0 || Boolean(searchText)
+        filteredOutput: Object.keys(appliedFacets).length > 0 || Boolean(searchText),
+        ...(allowLaterZeroDeclaredTotalAfterExactReconciliation
+          ? { allowLaterZeroDeclaredTotalAfterExactReconciliation: true }
+          : {})
       });
       latestEvidence = evidence;
       const paginationEvaluation = evaluatePaginationEvidence({
         evidence,
         expectedChannelIds: [],
-        filteredOutput: Object.keys(appliedFacets).length > 0 || Boolean(searchText)
+        filteredOutput: Object.keys(appliedFacets).length > 0 || Boolean(searchText),
+        ...(allowLaterZeroDeclaredTotalAfterExactReconciliation
+          ? { allowLaterZeroDeclaredTotalAfterExactReconciliation: true }
+          : {})
       });
       latestEvaluation = paginationEvaluation;
       if (!paginationEvaluation.safeCompleteness) {
@@ -693,6 +708,7 @@ function parseWorkdayJobsResponse(body: string): {
   total?: number;
   jobPostings: unknown[];
   facets?: unknown;
+  strictPaginationEnvelope: boolean;
 } {
   const parsed = JSON.parse(body) as WorkdayJobsResponse;
   if (!Array.isArray(parsed.jobPostings)) {
@@ -704,7 +720,8 @@ function parseWorkdayJobsResponse(body: string): {
   return {
     ...(total === undefined ? {} : { total }),
     jobPostings,
-    ...(parsed.facets === undefined ? {} : { facets: parsed.facets })
+    ...(parsed.facets === undefined ? {} : { facets: parsed.facets }),
+    strictPaginationEnvelope: Object.keys(parsed).every((key) => key === "total" || key === "jobPostings")
   };
 }
 
@@ -724,7 +741,7 @@ interface RawWorkdayFacetGroup {
 function chinaLocationAppliedFacets(
   facets: unknown,
   officialTotal: number | undefined
-): { appliedFacets: Record<string, readonly string[]>; expectedFilteredTotal: number } {
+): { appliedFacets: Record<string, readonly string[]>; expectedFilteredTotal?: number } {
   const groups = collectFacetGroups(facets)
     .filter((group) => isLocationFacet(group.facetParameter, group.descriptor));
 
@@ -737,11 +754,25 @@ function chinaLocationAppliedFacets(
   }
   if (countryGroups.length === 1) {
     const countryGroup = countryGroups[0]!;
-    const nodes = parseAndVerifyFacetGroup(countryGroup, officialTotal);
+    const inspection = parseFacetGroup(countryGroup, officialTotal);
+    const nodes = inspection.nodes;
     assertCountryFacetScopeOwnership(countryGroup.facetParameter, nodes);
     const selectedLeaves = nodes.flatMap((node) =>
       isMainlandChinaCountryDescriptor(node.descriptor) ? selectableLeaves(node, true) : []
     );
+    if (!inspection.completePartition) {
+      if (!inspection.overlappingCounts) {
+        throw new Error(`Workday location facet ${countryGroup.facetParameter} counts do not prove a complete partition`);
+      }
+      const exactRequestableMainlandIds = nodes.filter((node) =>
+        node.children.length === 0 && node.id !== undefined && isMainlandChinaCountryDescriptor(node.descriptor));
+      if (exactRequestableMainlandIds.length !== 1) {
+        throw new Error(`Workday location facet ${countryGroup.facetParameter} lacks a unique exact mainland-China request id`);
+      }
+      return {
+        appliedFacets: { [countryGroup.facetParameter]: [exactRequestableMainlandIds[0]!.id!] }
+      };
+    }
     return facetSelection(countryGroup.facetParameter, selectedLeaves);
   }
 
@@ -781,6 +812,17 @@ function parseAndVerifyFacetGroup(
   group: RawWorkdayFacetGroup,
   officialTotal: number | undefined
 ): WorkdayFacetNode[] {
+  const inspection = parseFacetGroup(group, officialTotal);
+  if (!inspection.completePartition) {
+    throw new Error(`Workday location facet ${group.facetParameter} counts do not prove a complete partition`);
+  }
+  return inspection.nodes;
+}
+
+function parseFacetGroup(
+  group: RawWorkdayFacetGroup,
+  officialTotal: number | undefined
+): { nodes: WorkdayFacetNode[]; completePartition: boolean; overlappingCounts: boolean } {
   const nodes = group.values.map((value) => parseFacetNode(value, group.facetParameter));
   const allNodes = nodes.flatMap(flattenFacetNode);
   const ids = allNodes.flatMap((node) => node.id ? [node.id] : []);
@@ -788,10 +830,12 @@ function parseAndVerifyFacetGroup(
   if (new Set(ids).size !== ids.length || new Set(descriptors).size !== descriptors.length) {
     throw new Error(`Workday location facet ${group.facetParameter} contains duplicate descriptors or ids`);
   }
-  if (officialTotal === undefined || nodes.reduce((sum, node) => sum + node.count, 0) !== officialTotal) {
-    throw new Error(`Workday location facet ${group.facetParameter} counts do not prove a complete partition`);
-  }
-  return nodes;
+  const rootCountTotal = nodes.reduce((sum, node) => sum + node.count, 0);
+  return {
+    nodes,
+    completePartition: officialTotal !== undefined && rootCountTotal === officialTotal,
+    overlappingCounts: officialTotal !== undefined && rootCountTotal > officialTotal
+  };
 }
 
 function assertCountryFacetScopeOwnership(
@@ -1146,6 +1190,7 @@ const NON_MAINLAND_CHINA_COUNTRY_NAMES = new Set([
   "macau", "macao", "macao sar china", "澳门", "澳門", "中国澳门", "中國澳門",
   "taiwan", "taiwan province of china", "台湾", "台灣", "中国台湾", "中國台灣"
 ]);
+const EXACT_FOREIGN_COUNTRY_ALIASES = new Set(["united states of america"]);
 
 // Exact ISO 3166-1 assignments are generated from Debian iso-codes through
 // pycountry 26.2.16 (https://github.com/pycountry/pycountry); display names
@@ -1170,6 +1215,7 @@ function isKnownForeignCountryDescriptor(descriptor: string): boolean {
   const normalized = normalizeFacetDescriptor(descriptor);
   const code = descriptor.trim().toUpperCase();
   return !MAINLAND_CHINA_NAMES.has(normalized) && !isExactNonMainlandChinaCountryDescriptor(descriptor) && (
+    EXACT_FOREIGN_COUNTRY_ALIASES.has(normalized) ||
     KNOWN_REGION_NAMES.has(normalized) ||
     (ISO_ALPHA_2_CODES.has(code) && code !== "CN") ||
     (ISO_ALPHA_3_CODES.has(code) && code !== "CHN")

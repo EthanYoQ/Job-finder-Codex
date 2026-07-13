@@ -63,6 +63,7 @@ interface PaginationEvidenceInput {
   expectedChannelIds: readonly string[];
   filteredOutput: boolean;
   allowMissingReturnedPage?: boolean;
+  allowLaterZeroDeclaredTotalAfterExactReconciliation?: boolean;
   allowPositiveOfficialTotalCountAfterAdapterReconciliation?: boolean;
 }
 
@@ -104,6 +105,9 @@ function evaluatePaginationEvidenceInternal(
   const pageOrdinalByScope = new Map<string, number>();
   const previousByScope = new Map<string, SourceFetchPageTrace>();
   const declaredByScope = new Map<string, { total: number | null; count: number | null; pages: number | null }>();
+  const reconciledZeroDeclarations = input.allowLaterZeroDeclaredTotalAfterExactReconciliation
+    ? exactReconciledLaterZeroDeclarations(evidence)
+    : new Map<string, { total: number; count: number | null; pages: number | null }>();
   const visited = new Set<string>();
 
   const derived = evidence.pages.map((page, index) => {
@@ -117,6 +121,13 @@ function evaluatePaginationEvidenceInternal(
     const validJobIdSetSha256 = canonicalStringSetSha256(page.validJobIds);
     const hasNext = page.nextPageSignalAfter !== null && page.nextPageSignalAfter !== undefined;
     const scope = page.channelId ?? "__SOURCE__";
+    const reconciledZeroDeclaration = reconciledZeroDeclarations.get(scope);
+    const effectiveDeclaredTotal = reconciledZeroDeclaration && page.declaredTotal === 0
+      ? reconciledZeroDeclaration.total
+      : page.declaredTotal;
+    const effectiveDeclaredPages = reconciledZeroDeclaration && page.declaredTotal === 0
+      ? reconciledZeroDeclaration.pages
+      : page.declaredPages;
     const pageOrdinal = (pageOrdinalByScope.get(scope) ?? 0) + 1;
     pageOrdinalByScope.set(scope, pageOrdinal);
 
@@ -152,7 +163,7 @@ function evaluatePaginationEvidenceInternal(
     const observedPageRawCount = Math.max(page.rawJobIds.length, page.validJobIds.length + rowLossRecordCount);
     const cumulativeRawObservationCount = (rawObservationCountByScope.get(scope) ?? 0) + observedPageRawCount;
     rawObservationCountByScope.set(scope, cumulativeRawObservationCount);
-    if (present(page.declaredTotal) && observedRawIds.size > page.declaredTotal) {
+    if (present(effectiveDeclaredTotal) && observedRawIds.size > effectiveDeclaredTotal) {
       anomalies[index]!.add("DECLARED_CAPACITY_CONTRADICTION");
     }
     if (present(page.requestedPageSize) && present(page.returnedPageSize) &&
@@ -160,8 +171,8 @@ function evaluatePaginationEvidenceInternal(
       anomalies[index]!.add("RETURNED_PAGE_SIZE_MISMATCH");
     }
     const provenCapacity = page.returnedPageSize ?? page.requestedPageSize;
-    const declaredRemainder = present(page.declaredTotal) && cumulativeRawObservationCount < page.declaredTotal;
-    const declaredLaterPage = present(page.declaredPages) && pageOrdinal < page.declaredPages;
+    const declaredRemainder = present(effectiveDeclaredTotal) && cumulativeRawObservationCount < effectiveDeclaredTotal;
+    const declaredLaterPage = present(effectiveDeclaredPages) && pageOrdinal < effectiveDeclaredPages;
     if (observedPageRawCount > 0 && present(provenCapacity) && observedPageRawCount < provenCapacity &&
       (hasNext || declaredRemainder || declaredLaterPage)) {
       anomalies[index]!.add("INTERMEDIATE_SHORT_PAGE");
@@ -217,9 +228,9 @@ function evaluatePaginationEvidenceInternal(
 
     if (page.channelId) visited.add(page.channelId);
     const declaration = {
-      total: page.declaredTotal ?? null,
+      total: effectiveDeclaredTotal ?? null,
       count: page.declaredCount ?? null,
-      pages: page.declaredPages ?? null
+      pages: effectiveDeclaredPages ?? null
     };
     const baseline = declaredByScope.get(scope);
     if (baseline && declarationChanged(baseline, declaration)) anomalies[index]!.add("TOTAL_CHANGED");
@@ -295,6 +306,48 @@ function evaluatePaginationEvidenceInternal(
     safeCompleteness,
     verifiedEligible
   };
+}
+
+function exactReconciledLaterZeroDeclarations(
+  evidence: PersistentSourceFetchEvidence
+): Map<string, { total: number; count: number | null; pages: number | null }> {
+  const pagesByScope = new Map<string, SourceFetchPageTrace[]>();
+  for (const page of evidence.pages) {
+    const scope = page.channelId ?? "__SOURCE__";
+    const pages = pagesByScope.get(scope) ?? [];
+    pages.push(page);
+    pagesByScope.set(scope, pages);
+  }
+
+  // Fetch counts are source-wide. Refuse to infer a per-channel reconciliation.
+  if (pagesByScope.size !== 1) return new Map();
+  const [scope, pages] = [...pagesByScope.entries()][0]!;
+  if (pages.length < 2) return new Map();
+  const first = pages[0]!;
+  const officialTotal = first.declaredTotal;
+  if (!present(officialTotal) || officialTotal <= 0) return new Map();
+  if (!pages.slice(1).some((page) => page.declaredTotal === 0)) return new Map();
+  if (pages.slice(1).some((page) =>
+    page.rawJobIds.length === 0 || page.validJobIds.length === 0 ||
+    (page.declaredTotal !== officialTotal && page.declaredTotal !== 0))) return new Map();
+
+  const uniqueRawIds = new Set(pages.flatMap((page) => page.rawJobIds));
+  const uniqueValidIds = new Set(pages.flatMap((page) => page.validJobIds));
+  const declared = evidence.declaredCompleteness;
+  const counts = evidence.fetchCounts;
+  const losslessExactReconciliation = uniqueRawIds.size === officialTotal &&
+    uniqueValidIds.size === officialTotal &&
+    counts.rawCount === officialTotal && counts.parsedCount === officialTotal && counts.validCount === officialTotal &&
+    counts.parseDiscardCount === 0 && counts.validationDiscardCount === 0 && evidence.fetchLosses.length === 0 &&
+    declared?.kind === "OFFICIAL_TOTAL_COUNT" && declared.scope === "SOURCE" &&
+    declared.value === officialTotal && declared.artifactLogicalKey === first.artifactLogicalKey;
+  if (!losslessExactReconciliation) return new Map();
+
+  return new Map([[scope, {
+    total: officialTotal,
+    count: first.declaredCount ?? null,
+    pages: first.declaredPages ?? null
+  }]]);
 }
 
 function validateTerminalEvents(evidence: PersistentSourceFetchEvidence): void {

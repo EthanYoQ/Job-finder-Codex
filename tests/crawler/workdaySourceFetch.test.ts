@@ -288,10 +288,71 @@ describe("createWorkdaySourceFetch", () => {
     });
   });
 
+  it("accepts later raw zero totals only after exact lossless reconciliation and preserves the zero evidence", async () => {
+    const fetcher = createWorkdaySourceFetch({
+      now: () => new Date("2026-07-13T00:00:00.000Z"),
+      http: async (request) => {
+        const { offset } = JSON.parse(request.body) as { offset: number };
+        return response({
+          total: offset === 0 ? 3 : 0,
+          jobPostings: [{
+            title: `Role ${offset + 1}`,
+            externalPath: `/job/China/role-${offset + 1}`,
+            locationsText: "Shanghai, China"
+          }]
+        });
+      }
+    });
+
+    const result = await fetcher({
+      ...plan,
+      workday: {
+        tenant: "pfizer",
+        site: "PfizerCareers",
+        appliedFacets: { Location_Country: ["china-id"] },
+        pageSize: 1,
+        maxPages: 3
+      }
+    });
+
+    expect(result).toMatchObject({
+      ok: true,
+      completeness: {
+        completenessStatus: "NEEDS_MANUAL_COMPLETENESS_REVIEW",
+        expectedJobCount: 3
+      },
+      fetchEvidence: {
+        artifacts: [
+          { body: expect.stringContaining('"total":3') },
+          { body: expect.stringContaining('"total":0') },
+          { body: expect.stringContaining('"total":0') }
+        ],
+        pages: [
+          { sequence: 0, declaredTotal: 3 },
+          { sequence: 1, declaredTotal: 0 },
+          { sequence: 2, declaredTotal: 0 }
+        ],
+        fetchCounts: {
+          rawCount: 3,
+          parsedCount: 3,
+          validCount: 3,
+          parseDiscardCount: 0,
+          validationDiscardCount: 0
+        }
+      },
+      paginationEvaluation: {
+        safeCompleteness: true,
+        verifiedEligible: false,
+        derivedAnomalyCodes: []
+      }
+    });
+  });
+
   it.each([
-    { name: "bare zero", extra: {} },
-    { name: "zero in an error-shaped payload", extra: { error: "upstream partial response" } }
-  ])("fails closed on a non-first non-empty Workday $name total", async ({ extra }) => {
+    { name: "error-shaped", extra: { error: "upstream partial response" } },
+    { name: "facet-shaped", extra: { facets: [] } },
+    { name: "authentication-shaped", extra: { userAuthenticated: false } }
+  ])("fails closed on a non-first non-empty Workday zero total in a $name payload", async ({ extra }) => {
     const fetcher = createWorkdaySourceFetch({
       now: () => new Date("2026-07-13T00:00:00.000Z"),
       http: async (request) => {
@@ -680,6 +741,109 @@ describe("createWorkdaySourceFetch", () => {
     });
   });
 
+  it("uses a unique exact China country id when sibling facet counts overlap without deriving a denominator", async () => {
+    const requests: Array<{ body: string }> = [];
+    const fetcher = createWorkdaySourceFetch({
+      now: () => new Date("2026-07-13T00:00:00.000Z"),
+      http: async (request) => {
+        requests.push(request);
+        const body = JSON.parse(request.body) as { appliedFacets: Record<string, string[]> };
+        if (body.appliedFacets.Location_Country) {
+          return response({
+            total: 2,
+            jobPostings: [
+              { title: "China Role One", externalPath: "/job/China/one", locationsText: "Shanghai, China" },
+              { title: "China Role Two", externalPath: "/job/China/two", locationsText: "Beijing, China" }
+            ]
+          });
+        }
+        return response({
+          total: 3,
+          jobPostings: [],
+          facets: [{
+            facetParameter: "Location_Country",
+            descriptor: "Country",
+            values: [
+              { descriptor: "China", id: "china-country", count: 2 },
+              { descriptor: "United States", id: "us-country", count: 2 }
+            ]
+          }]
+        });
+      }
+    });
+
+    const result = await fetcher({
+      ...plan,
+      workday: { tenant: "pfizer", site: "PfizerCareers", searchText: "China", pageSize: 20 }
+    });
+
+    expect(result).toMatchObject({
+      ok: true,
+      completeness: {
+        completenessStatus: "NEEDS_MANUAL_COMPLETENESS_REVIEW",
+        expectedJobCount: 2
+      }
+    });
+    expect(requests).toHaveLength(2);
+    expect(JSON.parse(requests[1]!.body).appliedFacets).toEqual({ Location_Country: ["china-country"] });
+  });
+
+  it("rejects overlapping country facets with more than one exact mainland-China request id", async () => {
+    const fetcher = createWorkdaySourceFetch({
+      http: async () => response({
+        total: 2,
+        jobPostings: [],
+        facets: [{
+          facetParameter: "Location_Country",
+          descriptor: "Country",
+          values: [
+            { descriptor: "China", id: "china-country", count: 2 },
+            { descriptor: "CN", id: "cn-country", count: 1 },
+            { descriptor: "United States", id: "us-country", count: 1 }
+          ]
+        }]
+      })
+    });
+
+    await expect(fetcher({
+      ...plan,
+      workday: { tenant: "pfizer", site: "PfizerCareers", searchText: "China" }
+    })).resolves.toMatchObject({
+      ok: false,
+      failureReason: expect.stringContaining("unique exact mainland-China request id")
+    });
+  });
+
+  it("does not relax an under-counted country facet that may omit official jobs", async () => {
+    const requests: Array<{ body: string }> = [];
+    const fetcher = createWorkdaySourceFetch({
+      http: async (request) => {
+        requests.push(request);
+        return response({
+          total: 3,
+          jobPostings: [],
+          facets: [{
+            facetParameter: "Location_Country",
+            descriptor: "Country",
+            values: [
+              { descriptor: "China", id: "china-country", count: 1 },
+              { descriptor: "United States", id: "us-country", count: 1 }
+            ]
+          }]
+        });
+      }
+    });
+
+    await expect(fetcher({
+      ...plan,
+      workday: { tenant: "pfizer", site: "PfizerCareers", searchText: "China", maxPages: 1 }
+    })).resolves.toMatchObject({
+      ok: false,
+      failureReason: expect.stringContaining("counts do not prove a complete partition")
+    });
+    expect(requests).toHaveLength(1);
+  });
+
   it("fails closed with the archived preflight when country-level China facets are ambiguous", async () => {
     const fetcher = createWorkdaySourceFetch({
       now: () => new Date("2026-07-13T00:00:00.000Z"),
@@ -1063,6 +1227,39 @@ describe("createWorkdaySourceFetch", () => {
 
     await expect(fetcher({ ...plan, workday: { tenant: "pfizer", site: "PfizerCareers", searchText: "China" } }))
       .resolves.toMatchObject({ ok: true, completeness: { expectedJobCount: 1 } });
+    expect(requests).toHaveLength(2);
+  });
+
+  it("accepts the exact official country descriptor United States of America", async () => {
+    const requests: Array<{ body: string }> = [];
+    const fetcher = createWorkdaySourceFetch({
+      http: async (request) => {
+        requests.push(request);
+        const body = JSON.parse(request.body) as { appliedFacets: Record<string, string[]> };
+        return body.appliedFacets.Location_Country
+          ? response({
+              total: 1,
+              jobPostings: [{ title: "China Role", externalPath: "/job/China/Role_1", locationsText: "China" }]
+            })
+          : response({
+              total: 2,
+              jobPostings: [],
+              facets: [{
+                facetParameter: "Location_Country",
+                descriptor: "Country",
+                values: [
+                  { descriptor: "China", id: "china", count: 1 },
+                  { descriptor: "United States of America", id: "usa", count: 1 }
+                ]
+              }]
+            });
+      }
+    });
+
+    await expect(fetcher({
+      ...plan,
+      workday: { tenant: "biogen", site: "External", searchText: "China" }
+    })).resolves.toMatchObject({ ok: true, completeness: { expectedJobCount: 1 } });
     expect(requests).toHaveLength(2);
   });
 
