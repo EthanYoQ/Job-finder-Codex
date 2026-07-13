@@ -47,6 +47,10 @@ export type OfficialJsonFetchConfig =
       detailBaseUrl: string;
       countryFilter?: string;
       allowedApplyOrigins?: string[];
+      allowedEntryRedirect?: {
+        origin: string;
+        pathname: string;
+      };
       facetScope?: {
         countryIncludeDescriptor: string;
         categoryExcludeDescriptors: string[];
@@ -87,6 +91,7 @@ export type OfficialJsonFetchConfig =
       maxPages?: number;
       detailPath?: string;
       defaultLocationRaw?: string;
+      countCoordinatePolicy?: "LUNAN_AGGREGATE_ROW";
     }
   | {
       kind: "jobsyn-solr";
@@ -118,6 +123,7 @@ export type OfficialJsonFetchConfig =
       kind: "xiuzheng-job-list";
       endpointUrl: string;
       detailBaseUrl: string;
+      defaultLocationRaw?: "未披露";
       pageSize?: number;
       maxPages?: number;
     };
@@ -945,6 +951,7 @@ async function fetchXiuzhengJobList({
     if (entryUrl !== "https://www.xiuzheng.com/#/recruit" ||
         config.endpointUrl !== "https://www.xiuzheng.com/front/human-resource/job-list" ||
         config.detailBaseUrl !== "https://www.xiuzheng.com/#/recruitDetail" ||
+        (config.defaultLocationRaw !== undefined && config.defaultLocationRaw !== "未披露") ||
         !Number.isSafeInteger(pageSize) || pageSize <= 0 ||
         !Number.isSafeInteger(maxPages) || maxPages <= 0) throw new Error("invalid Xiuzheng config");
   } catch {
@@ -1046,6 +1053,45 @@ async function fetchXiuzhengJobList({
   };
 }
 
+function assertCnstaffMime(
+  response: OfficialJsonHttpResponse,
+  requestedUrl: string,
+  entryUrl: string
+): void {
+  try {
+    assertOfficialJsonMime(response);
+    return;
+  } catch (error) {
+    const contentType = response.contentType?.split(";", 1)[0]?.trim().toLowerCase();
+    const exactEntryUrl = "https://daiichisankyo.cnstaff.com/recruit";
+    let requested: URL;
+    try {
+      requested = new URL(requestedUrl);
+    } catch {
+      throw error;
+    }
+    const page = requested.searchParams.get("p");
+    const expected = new URL(exactEntryUrl);
+    if (page && /^[1-9]\d*$/u.test(page)) {
+      expected.searchParams.set("n", "1");
+      expected.searchParams.set("p", page);
+    }
+    let root: unknown;
+    try {
+      root = JSON.parse(response.body);
+    } catch {
+      throw error;
+    }
+    if (
+      contentType !== "text/html" || entryUrl !== exactEntryUrl ||
+      requested.href !== expected.href || !hasUniqueJsonObjectKeys(response.body) ||
+      !isStrictRecord(root) || !Array.isArray(root.list) || !isStrictRecord(root.page)
+    ) {
+      throw error;
+    }
+  }
+}
+
 async function fetchHcmCloud({
   http,
   config,
@@ -1066,6 +1112,10 @@ async function fetchHcmCloud({
   try {
     safeEntryUrl = safeOfficialJsonEndpoint(entryUrl);
     entryEvidenceUrl = safeOfficialJsonEvidenceUrl(safeEntryUrl);
+    if (config.countCoordinatePolicy === "LUNAN_AGGREGATE_ROW" &&
+        safeEntryUrl !== "https://hcm.lunan.com.cn/recruit") {
+      throw new Error("Lunan count policy requires the exact official entry");
+    }
   } catch {
     return failed(capturedAt, "HCMCloud official entry URL is invalid");
   }
@@ -1802,7 +1852,7 @@ async function fetchCnstaff({
         cnstaffDeclaredCompleteness(declaredTotal, declaredArtifactKey, declaredLocator));
     }
     try {
-      assertOfficialJsonMime(response);
+      assertCnstaffMime(response, requestedUrl, safeEntryUrl);
     } catch (error) {
       pages.push(cnstaffPageTrace({ artifact, sequence: page - 1, requestedPage: page, termination: "FAILED" }));
       return cnstaffFailure(capturedAt,
@@ -2431,6 +2481,7 @@ async function fetchPhenomWidgets({
   let safeEntryUrl: string;
   let detailBaseUrl: string;
   let allowedApplyOrigins: ReadonlySet<string>;
+  let allowedEntryRedirect: { origin: string; pathname: string } | undefined;
   try {
     safeEntryUrl = safeOfficialJsonEndpoint(entryUrl);
     detailBaseUrl = safeOfficialJsonEndpoint(config.detailBaseUrl);
@@ -2446,6 +2497,7 @@ async function fetchPhenomWidgets({
         return parsed.origin;
       })
     ]);
+    allowedEntryRedirect = validatedPhenomEntryRedirect(config.allowedEntryRedirect, safeEntryUrl);
   } catch {
     return failed(capturedAt, "Phenom official URL configuration is invalid");
   }
@@ -2461,11 +2513,11 @@ async function fetchPhenomWidgets({
     return failed(capturedAt, "Phenom entry TRANSPORT_FAILURE");
   }
   try {
-    assertOfficialJsonEvidenceResponse(entry, {
+    assertPhenomEntryEvidenceResponse(entry, {
       requestedUrl: safeEntryUrl,
       crawlStartedAtMs: Date.parse(capturedAt),
       observedNowMs: now().getTime()
-    });
+    }, allowedEntryRedirect);
   } catch (error) {
     return failed(capturedAt, safeOfficialJsonFailure(error, "Phenom entry response metadata is invalid"));
   }
@@ -2892,6 +2944,52 @@ async function fetchPhenomWidgets({
     fetchEvidence: finalized.evidence,
     paginationEvaluation: finalized.evaluation
   };
+}
+
+function validatedPhenomEntryRedirect(
+  candidate: Extract<OfficialJsonFetchConfig, { kind: "phenom" }>["allowedEntryRedirect"],
+  entryUrl: string
+): { origin: string; pathname: string } | undefined {
+  if (candidate === undefined) return undefined;
+  if (!isStrictRecord(candidate) || Object.keys(candidate).sort().join(",") !== "origin,pathname" ||
+      typeof candidate.origin !== "string" || typeof candidate.pathname !== "string") {
+    throw new Error("Phenom entry redirect configuration is invalid");
+  }
+  const safeOrigin = safeOfficialJsonEndpoint(candidate.origin);
+  const origin = new URL(safeOrigin);
+  if ((safeOrigin !== origin.origin && safeOrigin !== `${origin.origin}/`) ||
+      origin.origin !== new URL(entryUrl).origin || !candidate.pathname.startsWith("/")) {
+    throw new Error("Phenom entry redirect configuration is invalid");
+  }
+  const redirect = new URL(candidate.pathname, origin.origin);
+  if (redirect.origin !== origin.origin || redirect.pathname !== candidate.pathname || redirect.search || redirect.hash) {
+    throw new Error("Phenom entry redirect configuration is invalid");
+  }
+  return { origin: origin.origin, pathname: redirect.pathname };
+}
+
+function assertPhenomEntryEvidenceResponse(
+  response: OfficialJsonHttpResponse,
+  input: { requestedUrl: string; crawlStartedAtMs: number; observedNowMs: number },
+  allowedRedirect: { origin: string; pathname: string } | undefined
+): void {
+  try {
+    assertOfficialJsonEvidenceResponse(response, input);
+    return;
+  } catch (error) {
+    if (!allowedRedirect || typeof response.finalUrl !== "string") throw error;
+    let final: URL;
+    try {
+      final = new URL(safeOfficialJsonEndpoint(response.finalUrl));
+    } catch {
+      throw error;
+    }
+    if (final.origin !== allowedRedirect.origin || final.pathname !== allowedRedirect.pathname ||
+        final.search || final.hash) {
+      throw error;
+    }
+    assertOfficialJsonEvidenceResponse({ ...response, finalUrl: input.requestedUrl }, input);
+  }
 }
 
 type CompletePhenomPageConfig = {
@@ -3350,7 +3448,7 @@ async function fetchHcmCloudWithPost({
   }
   let countSelection: { value?: number; path?: string };
   try {
-    countSelection = selectHcmCloudCount(countDecoded.value);
+    countSelection = selectHcmCloudCount(countDecoded.value, config.countCoordinatePolicy);
   } catch (error) {
     return hcmCloudFailure(capturedAt, safeOfficialJsonFailure(error, "HCMCloud count is invalid"),
       artifacts, pages, counts, losses);
@@ -3636,8 +3734,26 @@ function decodeHcmCloudResponseStrict(body: string): HcmCloudDecoded {
   return { value: JSON.parse(decoded), algorithm: "hb5-base64-v1" };
 }
 
-function selectHcmCloudCount(decoded: unknown): { value?: number; path?: string } {
+function selectHcmCloudCount(
+  decoded: unknown,
+  policy?: "LUNAN_AGGREGATE_ROW"
+): { value?: number; path?: string } {
   if (!isStrictRecord(decoded)) throw new Error("HCMCloud count root must be an object");
+  if (policy === "LUNAN_AGGREGATE_ROW") {
+    if (hasOwn(decoded, "count") || !hasOwn(decoded, "result") || !isStrictRecord(decoded.result) ||
+        Object.keys(decoded.result).sort().join(",") !== "count,list" ||
+        !isNonnegativeInteger(decoded.result.count) || !Array.isArray(decoded.result.list) ||
+        decoded.result.count !== decoded.result.list.length || decoded.result.list.length !== 1) {
+      throw new Error("HCMCloud Lunan aggregate count envelope is invalid");
+    }
+    const aggregate = decoded.result.list[0];
+    if (!isStrictRecord(aggregate) || Object.keys(aggregate).sort().join(",") !== "count__id,id" ||
+        !isNonnegativeInteger(aggregate.count__id) || !isNonnegativeInteger(aggregate.id) ||
+        aggregate.count__id !== aggregate.id) {
+      throw new Error("HCMCloud Lunan aggregate count row is invalid");
+    }
+    return { value: aggregate.count__id, path: "$.result.list[0].count__id" };
+  }
   const candidates: Array<{ value: unknown; path: string }> = [];
   if (hasOwn(decoded, "count")) candidates.push({ value: decoded.count, path: "$.count" });
   if (hasOwn(decoded, "result")) {
@@ -4332,11 +4448,15 @@ function normalizeXiuzhengJob(
   if (!title) return { ok: false, code: "MISSING_REQUIRED_FIELD", field: "name" };
   if (title === "用人理念") return { ok: false, code: "NON_RECRUITMENT_CONTENT", field: "name" };
   if (sensitiveOfficialJsonField({ id: sourceJobId, name: title })) return { ok: false, code: "SENSITIVE_OUTPUT" };
-  const locationRaw = xiuzhengText(job.location) ?? xiuzhengText(job.work_place) ?? xiuzhengText(job.address);
+  const explicitLocation = xiuzhengText(job.location) ?? xiuzhengText(job.work_place) ?? xiuzhengText(job.address);
+  const usesLockedDefaultLocation = explicitLocation === undefined && config.defaultLocationRaw === "未披露";
+  const locationRaw = explicitLocation ?? (usesLockedDefaultLocation ? "未披露" : undefined);
   if (!locationRaw) return { ok: false, code: "AMBIGUOUS_SCOPE", field: "location" };
   if (xiuzhengSensitiveOutput({ sourceJobId, title, locationRaw })) return { ok: false, code: "SENSITIVE_OUTPUT" };
-  const scope = cnstaffGeographyScope(locationRaw);
-  if (scope !== "CHINA") return { ok: false, code: scope === "FOREIGN" ? "OUT_OF_SCOPE" : "AMBIGUOUS_SCOPE", field: "location" };
+  if (!usesLockedDefaultLocation) {
+    const scope = cnstaffGeographyScope(locationRaw);
+    if (scope !== "CHINA") return { ok: false, code: scope === "FOREIGN" ? "OUT_OF_SCOPE" : "AMBIGUOUS_SCOPE", field: "location" };
+  }
   const detail = `${config.detailBaseUrl}?id=${encodeURIComponent(sourceJobId)}&type=job&scene=2`;
   const expectedHash = `#/recruitDetail?id=${encodeURIComponent(sourceJobId)}&type=job&scene=2`;
   let detailUrl: URL;

@@ -1181,9 +1181,9 @@ describe("createOfficialJsonSourceFetch", () => {
                 page === 1
                   ? [
                       { id: 17, name: "用人理念", operate_time: "2023-12-12" },
-                      { id: 16, name: "福建永春制药有限公司招聘", location: "上海", operate_time: "2022-12-29" }
+                      { id: 16, name: "福建永春制药有限公司招聘", operate_time: "2022-12-29" }
                     ]
-                  : [{ id: 5, name: "化药制剂研究员", location: "北京", operate_time: "2022-11-24" }]
+                  : [{ id: 5, name: "化药制剂研究员", operate_time: "2022-11-24" }]
             }
           }),
           finalUrl: request.url,
@@ -1206,6 +1206,7 @@ describe("createOfficialJsonSourceFetch", () => {
         kind: "xiuzheng-job-list",
         endpointUrl: "https://www.xiuzheng.com/front/human-resource/job-list",
         detailBaseUrl: "https://www.xiuzheng.com/#/recruitDetail",
+        defaultLocationRaw: "未披露",
         pageSize: 2,
         maxPages: 5
       }
@@ -1219,15 +1220,15 @@ describe("createOfficialJsonSourceFetch", () => {
             sourceJobId: "16",
             title: "福建永春制药有限公司招聘",
             officialUrl: "https://www.xiuzheng.com/#/recruitDetail?id=16&type=job&scene=2",
-            locationRaw: "上海",
-            cities: ["上海"]
+            locationRaw: "未披露",
+            cities: []
           },
           {
             sourceJobId: "5",
             title: "化药制剂研究员",
             officialUrl: "https://www.xiuzheng.com/#/recruitDetail?id=5&type=job&scene=2",
-            locationRaw: "北京",
-            cities: ["北京"]
+            locationRaw: "未披露",
+            cities: []
           }
         ]
       },
@@ -1244,6 +1245,16 @@ describe("createOfficialJsonSourceFetch", () => {
     expect(requestBodies).toEqual([
       { page: 1, pageSize: 2 },
       { page: 2, pageSize: 2 }
+    ]);
+    expect(result.fetchEvidence?.fetchCounts).toEqual({
+      rawCount: 3,
+      parsedCount: 3,
+      validCount: 2,
+      parseDiscardCount: 0,
+      validationDiscardCount: 1
+    });
+    expect(result.fetchEvidence?.fetchLosses).toMatchObject([
+      { details: { code: "NON_RECRUITMENT_CONTENT" } }
     ]);
   });
 

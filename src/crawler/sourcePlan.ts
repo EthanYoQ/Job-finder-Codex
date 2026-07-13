@@ -269,14 +269,6 @@ const REPRESENTATIVE_CONFIGS: Record<string, RepresentativeSourceConfig> = {
     adapterId: "html-table",
     table: {
       rowSelector: "table.views-table tbody tr",
-      pagination: {
-        totalPagesSelector: ".pagination a[title*='out of']",
-        totalPagesAttribute: "title",
-        totalPagesPattern: "out of\\s+(\\d+)\\s+pages",
-        pageSearchParam: "page",
-        pageNumberOffset: -1,
-        maxPages: 10
-      },
       fields: {
         officialTitle: { selector: "td.views-field-field-job-title a" },
         officialUrl: {
@@ -290,12 +282,13 @@ const REPRESENTATIVE_CONFIGS: Record<string, RepresentativeSourceConfig> = {
   "source-fosun-pharma-social": {
     adapterId: "html-table",
     table: {
-      rowSelector: "table tr",
+      rowSelector: "table tr:has(td:nth-child(1) a[href*='/socialxq?jobId='])",
       pagination: {
-        totalPagesSelector: "a[href*='PageIndex=']:not([href*='PageIndex=0'])",
+        totalPagesSelector: ".page a[href*='/social/?PageIndex=']",
         totalPagesAttribute: "href",
-        totalPagesPattern: "PageIndex=(\\d+)(?:&|$)",
+        totalPagesPattern: "PageIndex=([1-9]\\d*)(?:&|$)",
         totalPagesMode: "max",
+        totalPagesDeclaredOnEntryOnly: true,
         pageSearchParam: "PageIndex",
         maxPages: 20
       },
@@ -381,6 +374,10 @@ const REPRESENTATIVE_CONFIGS: Record<string, RepresentativeSourceConfig> = {
       detailBaseUrl: "https://jobs.gsk.com/cn/zh/job",
       countryFilter: "China",
       allowedApplyOrigins: ["https://gsk.wd5.myworkdayjobs.com"],
+      allowedEntryRedirect: {
+        origin: "https://jobs.gsk.com",
+        pathname: "/gb/en"
+      },
       pageSize: 50,
       maxPages: 3
     }
@@ -396,6 +393,7 @@ const REPRESENTATIVE_CONFIGS: Record<string, RepresentativeSourceConfig> = {
         countryIncludeDescriptor: "中国大陆",
         categoryExcludeDescriptors: ["实习 & 发展项目"]
       },
+      allowOmittedOffsetForSinglePage: true,
       pageSize: 50,
       maxPages: 10
     }
@@ -1207,6 +1205,7 @@ const REPRESENTATIVE_CONFIGS: Record<string, RepresentativeSourceConfig> = {
           ]
         }
       },
+      allowOmittedOffsetForSinglePage: true,
       pageSize: 50,
       maxPages: 10
     }
@@ -1302,6 +1301,7 @@ const REPRESENTATIVE_CONFIGS: Record<string, RepresentativeSourceConfig> = {
       kind: "xiuzheng-job-list",
       endpointUrl: "https://www.xiuzheng.com/front/human-resource/job-list",
       detailBaseUrl: "https://www.xiuzheng.com/#/recruitDetail",
+      defaultLocationRaw: "未披露",
       pageSize: 10,
       maxPages: 5
     }
@@ -1325,7 +1325,8 @@ const REPRESENTATIVE_CONFIGS: Record<string, RepresentativeSourceConfig> = {
       staticPublicList: {
         containerSelector: ".join2 .tab-content > .main:first-child",
         nextControlSelector: ".join2 .pagination, .join2 a[rel='next'], .join2 [data-page]",
-        excludedPartitionSelectors: [".join2 .tab-content > .main:nth-child(2)"]
+        excludedPartitionSelectors: [".join2 .tab-content > .main:nth-child(2)"],
+        allowRedactedPositivePartial: true
       },
       fields: {
         sourceJobIdParts: [
@@ -1402,6 +1403,7 @@ const REPRESENTATIVE_CONFIGS: Record<string, RepresentativeSourceConfig> = {
       kind: "hcm-cloud",
       pageSize: 20,
       maxPages: 5,
+      countCoordinatePolicy: "LUNAN_AGGREGATE_ROW",
       defaultLocationRaw: "未披露"
     }
   },

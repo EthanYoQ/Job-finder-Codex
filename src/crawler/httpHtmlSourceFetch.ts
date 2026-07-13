@@ -716,7 +716,10 @@ function attachHtmlEvidence(
   const staticAssessment = table.staticPublicList
     ? assessStaticPublicList(interactions, table, mode)
     : undefined;
-  if (result.ok && staticAssessment && !staticAssessment.valid) {
+  const acceptsRedactedPositivePartial =
+    table.staticPublicList?.allowRedactedPositivePartial === true &&
+    staticAssessment?.redactedPositivePartialEligible === true;
+  if (result.ok && staticAssessment && !staticAssessment.valid && !acceptsRedactedPositivePartial) {
     result = failed(capturedAt, "HTML_STATIC_PUBLIC_LIST_INVALID");
   }
   const artifacts: SourceFetchArtifactDraft[] = [];
@@ -725,6 +728,10 @@ function attachHtmlEvidence(
   let rawCount = 0;
   let validationDiscardCount = 0;
   let invalidDeclaration = false;
+  const entryOnlyOrdinaryDeclaration =
+    mode === "ordinary" && table.pagination?.totalPagesDeclaredOnEntryOnly === true
+      ? readPaginationEvidence(interactions[0]!.response.body, table.pagination)
+      : undefined;
   interactions.forEach(({ request, response }, sequence) => {
     const logicalKey = `official-html-page-${String(sequence).padStart(4, "0")}`;
     const isTalentEntry = mode === "talentbrew" && sequence === 0;
@@ -751,7 +758,11 @@ function attachHtmlEvidence(
       try { html = strictTalentbrewResults(response.body); } catch { html = ""; }
     }
     const $ = load(html);
-    if (mode === "ordinary" && hasInvalidOrdinaryDeclaration($, table.pagination)) {
+    if (
+      mode === "ordinary" &&
+      (table.pagination?.totalPagesDeclaredOnEntryOnly !== true || sequence === 0) &&
+      hasInvalidOrdinaryDeclaration($, table.pagination)
+    ) {
       invalidDeclaration = true;
     }
     const seenRawRows = new Set<string>();
@@ -798,7 +809,7 @@ function attachHtmlEvidence(
       ? strictOptionalNonnegativeInt($("#search-results").first().attr("data-total-pages") ?? null) ?? null
       : mode === "tupu360"
         ? parseTupuTotalPages($("#pageTurnUl li:first-child").first().text()) ?? null
-        : ordinaryDeclaration?.declaredTotalPages ?? null;
+        : entryOnlyOrdinaryDeclaration?.declaredTotalPages ?? ordinaryDeclaration?.declaredTotalPages ?? null;
     const returnedPageSize = mode === "talentbrew"
       ? strictOptionalPositiveInt($("#search-results").first().attr("data-records-per-page") ?? null) ?? null
       : null;
@@ -818,7 +829,7 @@ function attachHtmlEvidence(
       declaredTotal, declaredCount, declaredPages,
       nextPageSignalBefore: pages.length === 0
         ? "initial"
-        : mode === "ordinary" && requestedOffset !== null
+        : requestedOffset !== null
           ? `offset-${requestedOffset}`
           : `page-${requestedPage}`,
       nextPageSignalAfter: null,
@@ -850,7 +861,7 @@ function attachHtmlEvidence(
       const page = pages[pageIndex]!;
       const hasNext = scopeIndex < indexes.length - 1;
       const nextPage = hasNext ? pages[indexes[scopeIndex + 1]!]! : undefined;
-      page.nextPageSignalAfter = nextPage && mode === "ordinary" && nextPage.requestedOffset !== null
+      page.nextPageSignalAfter = nextPage && nextPage.requestedOffset !== null
         ? `offset-${nextPage.requestedOffset}`
         : hasNext
           ? `page-${(page.requestedPage ?? scopeIndex + 1) + 1}`
@@ -1122,45 +1133,52 @@ function assessStaticPublicList(
   interactions: Array<{ request: HttpHtmlRequest; response: HttpHtmlResponse }>,
   table: HtmlTableConfig,
   mode: "ordinary" | "talentbrew" | "tupu360"
-): { valid: boolean; zero: boolean } {
+): { valid: boolean; zero: boolean; redactedPositivePartialEligible: boolean } {
   const config = table.staticPublicList;
   if (!config || mode !== "ordinary" || interactions.length !== 1) {
-    return { valid: false, zero: false };
+    return { valid: false, zero: false, redactedPositivePartialEligible: false };
   }
   const body = interactions[0]!.response.body;
-  if (sensitiveHtmlBody(body)) return { valid: false, zero: false };
+  const redacted = sensitiveHtmlBody(body);
   try {
     const $ = load(body);
     const containers = $(config.containerSelector);
     const rows = $(table.rowSelector).toArray();
     if (containers.length !== 1 || $(config.nextControlSelector).length !== 0) {
-      return { valid: false, zero: false };
+      return { valid: false, zero: false, redactedPositivePartialEligible: false };
     }
     const container = containers.get(0)!;
     if (rows.some((row) => !$.contains(container, row))) {
-      return { valid: false, zero: false };
+      return { valid: false, zero: false, redactedPositivePartialEligible: false };
     }
     for (const selector of config.excludedPartitionSelectors ?? []) {
       const excluded = $(selector).toArray();
       if (rows.some((row) => excluded.some((partition) =>
         row === partition || $.contains(partition, row) || $.contains(row, partition)))) {
-        return { valid: false, zero: false };
+        return { valid: false, zero: false, redactedPositivePartialEligible: false };
       }
     }
-    if (rows.length > 0) return { valid: true, zero: false };
+    if (rows.length > 0) {
+      return {
+        valid: !redacted,
+        zero: false,
+        redactedPositivePartialEligible: redacted
+      };
+    }
     const empty = config.explicitEmptyState;
-    if (!empty) return { valid: false, zero: false };
+    if (!empty || redacted) return { valid: false, zero: false, redactedPositivePartialEligible: false };
     const markers = $(empty.selector);
-    if (markers.length !== 1) return { valid: false, zero: false };
+    if (markers.length !== 1) return { valid: false, zero: false, redactedPositivePartialEligible: false };
     const marker = markers.get(0)!;
     const normalized = markers.first().text().replace(/\s+/gu, " ").trim();
     return {
       valid: (marker === container || $.contains(container, marker)) &&
         normalized.length > 0 && new RegExp(empty.pattern, "u").test(normalized),
-      zero: true
+      zero: true,
+      redactedPositivePartialEligible: false
     };
   } catch {
-    return { valid: false, zero: false };
+    return { valid: false, zero: false, redactedPositivePartialEligible: false };
   }
 }
 

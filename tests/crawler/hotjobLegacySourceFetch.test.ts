@@ -141,7 +141,8 @@ describe("createHotjobLegacySourceFetch", () => {
       },
       hotjobLegacy: {
         ...plan.hotjobLegacy,
-        listUrl: "https://crc.wintalent.cn/wt/crpharma/web/json/position/list?recruitType=2",
+        listUrl:
+          "https://crc.wintalent.cn/wt/crpharma/web/json/position/list?recruitType=2&keyWord=&positionName=&site=",
         paginationMode: "query-page",
         pageSize: 2,
         maxPages: 2

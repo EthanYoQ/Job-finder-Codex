@@ -74,6 +74,7 @@ export interface HtmlTableConfig {
     containerSelector: string;
     nextControlSelector: string;
     excludedPartitionSelectors?: readonly string[];
+    allowRedactedPositivePartial?: boolean;
     explicitEmptyState?: {
       selector: string;
       pattern: string;
@@ -86,6 +87,7 @@ export interface HtmlTableConfig {
     totalPagesAttribute: string;
     totalPagesPattern?: string;
     totalPagesMode?: "first" | "max";
+    totalPagesDeclaredOnEntryOnly?: boolean;
     pageSearchParam: string;
     pageSearchParamMode?: "page" | "offset";
     pageUrlTemplate?: string;

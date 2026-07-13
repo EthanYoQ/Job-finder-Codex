@@ -121,6 +121,7 @@ describe("source crawl planning", () => {
       table: {
         rowSelector: ".join2 .tab-content > .main:first-child > .ev",
         staticPublicList: {
+          allowRedactedPositivePartial: true,
           excludedPartitionSelectors: [".join2 .tab-content > .main:nth-child(2)"]
         }
       }
@@ -424,7 +425,8 @@ describe("source crawl planning", () => {
       },
       officialJsonFetch: {
         kind: "xiuzheng-job-list",
-        endpointUrl: "https://www.xiuzheng.com/front/human-resource/job-list"
+        endpointUrl: "https://www.xiuzheng.com/front/human-resource/job-list",
+        defaultLocationRaw: "未披露"
       }
     });
     expect(getPlanBySourceId(plans, "source-tongrentang-social")).toMatchObject({
@@ -467,6 +469,7 @@ describe("source crawl planning", () => {
           countryIncludeDescriptor: "中国大陆",
           categoryExcludeDescriptors: ["实习 & 发展项目"]
         },
+        allowOmittedOffsetForSinglePage: true,
         pageSize: 50,
         maxPages: 10
       }
@@ -516,7 +519,8 @@ describe("source crawl planning", () => {
             field: "jobLevelId",
             descriptors: ["A - Current Student", "B - Recent University Graduate(<1 year of experience)"]
           }
-        }
+        },
+        allowOmittedOffsetForSinglePage: true
       }
     });
     expect(getPlanBySourceId(plans, "source-gsk-china-social")).toMatchObject({
@@ -528,6 +532,10 @@ describe("source crawl planning", () => {
       officialJsonFetch: {
         kind: "phenom",
         countryFilter: "China",
+        allowedEntryRedirect: {
+          origin: "https://jobs.gsk.com",
+          pathname: "/gb/en"
+        },
         pageSize: 50,
         allowedApplyOrigins: ["https://gsk.wd5.myworkdayjobs.com"]
       }
@@ -768,16 +776,21 @@ describe("source crawl planning", () => {
     expect(getPlanBySourceId(plans, "source-fosun-pharma-social")).toMatchObject({
       adapterId: "html-table",
       table: {
+        rowSelector: "table tr:has(td:nth-child(1) a[href*='/socialxq?jobId='])",
         pagination: {
-          totalPagesSelector: "a[href*='PageIndex=']:not([href*='PageIndex=0'])",
+          totalPagesSelector: ".page a[href*='/social/?PageIndex=']",
           totalPagesAttribute: "href",
-          totalPagesPattern: "PageIndex=(\\d+)(?:&|$)",
+          totalPagesPattern: "PageIndex=([1-9]\\d*)(?:&|$)",
           totalPagesMode: "max",
+          totalPagesDeclaredOnEntryOnly: true,
           pageSearchParam: "PageIndex",
           maxPages: 20
         }
       }
     });
+    const novartis = getPlanBySourceId(plans, "source-novartis-social");
+    if (novartis?.adapterId !== "html-table") throw new Error("expected Novartis HTML plan");
+    expect(novartis.table).not.toHaveProperty("pagination");
     expect(getPlanBySourceId(plans, "source-kelun-social")).toMatchObject({
       adapterId: "html-table",
       table: {
@@ -931,6 +944,7 @@ describe("source crawl planning", () => {
         kind: "hcm-cloud",
         pageSize: 20,
         maxPages: 5,
+        countCoordinatePolicy: "LUNAN_AGGREGATE_ROW",
         defaultLocationRaw: "未披露"
       }
     });

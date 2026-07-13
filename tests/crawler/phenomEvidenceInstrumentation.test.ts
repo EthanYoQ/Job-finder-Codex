@@ -404,6 +404,51 @@ describe("Phenom evidence instrumentation", () => {
     });
   });
 
+  it("accepts only an exact configured same-origin entry redirect and archives the observed final URL", async () => {
+    const gskWidgetUrl = "https://jobs.gsk.com/widgets";
+    const redirectedPlan = {
+      ...plan,
+      source: {
+        ...plan.source,
+        officialEntryUrl: "https://jobs.gsk.com/cn/zh/search-results?keywords=China"
+      },
+      officialJsonFetch: {
+        ...plan.officialJsonFetch,
+        detailBaseUrl: "https://jobs.gsk.com/cn/zh/job",
+        countryFilter: "China",
+        allowedEntryRedirect: { origin: "https://jobs.gsk.com", pathname: "/gb/en" }
+      }
+    } satisfies SourceCrawlPlan;
+    const fetcher = createOfficialJsonSourceFetch({
+      now: () => new Date(capturedAt),
+      http: async (request) => request.method === "POST"
+        ? response(facetPageBody([], 0, 0, []), gskWidgetUrl, "application/json")
+        : response(entryHtml().replaceAll(widgetUrl, gskWidgetUrl), "https://jobs.gsk.com/gb/en", "text/html")
+    });
+
+    const result = await fetcher(redirectedPlan);
+
+    expect(result).toMatchObject({
+      ok: true,
+      fetchEvidence: {
+        artifacts: expect.arrayContaining([expect.objectContaining({
+          logicalKey: "phenom-entry-0000",
+          requestedUrl: expect.stringContaining("jobs.gsk.com/cn/zh/search-results"),
+          finalUrl: "https://jobs.gsk.com/gb/en"
+        })])
+      }
+    });
+
+    const drifted = await createOfficialJsonSourceFetch({
+      now: () => new Date(capturedAt),
+      http: async () => response(entryHtml().replaceAll(widgetUrl, gskWidgetUrl), "https://jobs.gsk.com/gb/en/search", "text/html")
+    })(redirectedPlan);
+    expect(drifted).toMatchObject({
+      ok: false,
+      failureReason: expect.stringContaining("final URL does not match")
+    });
+  });
+
   it.each([
     ["missing", { Professional: 4 }],
     ["renamed", { Professional: 3, "Internship Roles": 1 }]

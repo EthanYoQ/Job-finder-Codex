@@ -275,7 +275,8 @@ export function createMokaSourceFetch(deps: MokaSourceFetchDeps = {}): SourceFet
                   response: detail,
                   expectedJobId: rawOfficialId,
                   expectedOrgId: initData.orgId,
-                  expectedSiteId: initData.siteId
+                  expectedSiteId: initData.siteId,
+                  aesIv: initData.aesIv
                 });
             artifacts.push(detailValidation.ok
               ? mokaArtifact({
@@ -768,11 +769,22 @@ function validateMokaDetailResponse(input: {
   expectedJobId: string;
   expectedOrgId: string;
   expectedSiteId: string;
+  aesIv: string;
 }): { ok: true; locations: unknown[] } | { ok: false; field: string } {
   if (input.response.status < 200 || input.response.status >= 300) return { ok: false, field: "httpStatus" };
   let detail: unknown;
   try {
-    detail = JSON.parse(input.response.body);
+    const parsed = JSON.parse(input.response.body) as unknown;
+    const encrypted = parseEncryptedResponse(input.response.body);
+    if (encrypted) {
+      const decrypted = decryptMokaResponse(encrypted, input.aesIv);
+      if (!isObject(decrypted) || decrypted.success !== true || !isObject(decrypted.data) || Array.isArray(decrypted.data)) {
+        return { ok: false, field: "body" };
+      }
+      detail = decrypted.data;
+    } else {
+      detail = parsed;
+    }
   } catch {
     return { ok: false, field: "body" };
   }

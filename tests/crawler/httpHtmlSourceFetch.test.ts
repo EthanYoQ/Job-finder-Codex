@@ -195,16 +195,18 @@ describe("official HTML fetch evidence", () => {
     expect(result).toMatchObject({ ok: false, failureReason: "TALENTBREW_JSON_DUPLICATE_KEY", fetchEvidence: { artifacts: [{}, {}] } });
   });
 
-  it("records Tupu360 offset and requested capacity without inventing returned capacity", async () => {
+  it("accepts unique Tupu360 offset pages without inventing returned coordinates or capacity", async () => {
     const plan = { ...base, source: { ...base.source, officialEntryUrl: "https://example.test/site/position/index?recruitmentType=SOCIAL" },
       table: { ...base.table, pagination: { totalPagesSelector: "#pageTurnUl li:first-child", totalPagesAttribute: "data-x", pageSearchParam: "offset",
         pageSearchParamMode: "offset", pageSize: 2, maxPages: 2, ajaxMode: "tupu360" } } } as SourceCrawlPlan;
     const page = (body: string) => `<table>${body}</table><ul id="pageTurnUl"><li>共2页</li><li onclick="pageTurn(2,2.0)">2</li></ul>`;
     const result = await createHttpHtmlSourceFetch({ now: () => new Date("2026-07-08T00:00:00.000Z"), http: async request => at(request,
       request.method === "POST" ? page(row("c")) : page(`${row("a")}${row("b")}`)) })(plan);
-    expect(result).toMatchObject({ ok: false, failureReason: "HTML_PAGINATION_EVIDENCE_UNSAFE", fetchEvidence: { pages: [
-      { requestedOffset: null, returnedOffset: null, returnedPageSize: null },
-      { requestedOffset: 2, requestedPageSize: 2, returnedPageSize: null }
+    expect(result).toMatchObject({ ok: true, paginationEvaluation: { safeCompleteness: true }, fetchEvidence: { pages: [
+      { requestedOffset: null, returnedOffset: null, returnedPageSize: null,
+        nextPageSignalBefore: "initial", nextPageSignalAfter: "offset-2" },
+      { requestedOffset: 2, returnedOffset: null, requestedPageSize: 2, returnedPageSize: null,
+        nextPageSignalBefore: "offset-2", nextPageSignalAfter: null }
     ] } });
   });
 
@@ -274,6 +276,32 @@ describe("official HTML fetch evidence", () => {
       completeness: { pagesVisited: 2 },
       paginationEvaluation: { safeCompleteness: true },
       fetchEvidence: { pages: [{ declaredPages: 2 }, { declaredPages: 2 }] }
+    });
+  });
+
+  it("binds an entry-only total-page declaration across later controls that omit the active last page", async () => {
+    const plan = { ...base, table: { ...base.table, pagination: {
+      totalPagesSelector: ".page a[href*='PageIndex=']", totalPagesAttribute: "href",
+      totalPagesPattern: "PageIndex=([1-9]\\d*)(?:&|$)", totalPagesMode: "max",
+      totalPagesDeclaredOnEntryOnly: true, pageSearchParam: "PageIndex", maxPages: 3
+    } } } as SourceCrawlPlan;
+    const result = await createHttpHtmlSourceFetch({
+      now: () => new Date("2026-07-08T00:00:00.000Z"),
+      http: async request => {
+        const page = Number(new URL(request.url).searchParams.get("PageIndex") ?? "1");
+        const links = page === 1
+          ? `<a href="?PageIndex=2">2</a><a href="?PageIndex=3">3</a>`
+          : page === 2
+            ? `<a href="?PageIndex=1">1</a><a href="?PageIndex=3">3</a>`
+            : `<a href="?PageIndex=1">1</a><a href="?PageIndex=2">2</a>`;
+        return at(request, `<div class="page">${links}<a class="now">${page}</a></div><table>${row(String(page))}</table>`);
+      }
+    })(plan);
+
+    expect(result).toMatchObject({
+      ok: true,
+      fetchEvidence: { pages: [{ declaredPages: 3 }, { declaredPages: 3 }, { declaredPages: 3 }] },
+      paginationEvaluation: { safeCompleteness: true, derivedAnomalyCodes: [] }
     });
   });
 
@@ -456,7 +484,7 @@ describe("official HTML fetch evidence", () => {
       calls += 1; return at(request, `<table>${row(`${calls}a`)}${row(`${calls}b`)}</table><ul id="pageTurnUl"><li> 共 2 页 </li><li onclick="${onclick}">2</li></ul>`);
     }})(plan);
     expect(calls).toBe(2);
-    expect(result).toMatchObject({ ok: false, failureReason: "HTML_PAGINATION_EVIDENCE_UNSAFE" });
+    expect(result).toMatchObject({ ok: true, paginationEvaluation: { safeCompleteness: true } });
   });
 
   it.each([
@@ -522,6 +550,35 @@ describe("official HTML fetch evidence", () => {
       truth: { transportSuccess: true, adapterSuccess: true, completenessVerified: true },
       observation: { completenessStatus: "VERIFIED", completenessEvidenceKind: "COMPLETE_PAGE_TRAVERSAL" }
     });
+  });
+
+  it("allows an explicitly scoped redacted static page to publish positive rows only as a manual partial", async () => {
+    const plan = {
+      ...base,
+      table: {
+        ...base.table,
+        staticPublicList: {
+          containerSelector: "#jobs",
+          nextControlSelector: "#jobs .next",
+          allowRedactedPositivePartial: true
+        }
+      }
+    } as SourceCrawlPlan;
+    const result = await createHttpHtmlSourceFetch({
+      now: () => new Date("2026-07-08T00:00:00.000Z"),
+      http: async request => at(request, `<section id="jobs"><script>document.cookie = "preferences";</script><table>${row("one")}</table></section>`)
+    })(plan);
+
+    expect(result).toMatchObject({
+      ok: true,
+      completeness: { completenessStatus: "NEEDS_MANUAL_COMPLETENESS_REVIEW" },
+      fetchEvidence: {
+        artifacts: [{ bodyRepresentation: "REDACTED" }],
+        fetchCounts: { rawCount: 1, validCount: 1 }
+      },
+      paginationEvaluation: { safeCompleteness: true, verifiedEligible: false }
+    });
+    expect(result.fetchEvidence).not.toHaveProperty("declaredCompleteness");
   });
 
   it.each([

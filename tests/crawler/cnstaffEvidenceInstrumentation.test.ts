@@ -133,13 +133,30 @@ describe("CNStaff evidence instrumentation", () => {
     expect(result.fetchEvidence?.pages[0]).toMatchObject({ requestedPage: 1, termination: "FAILED" });
   });
 
-  it("rejects missing metadata before artifact creation and retains wrong MIME artifacts", async () => {
+  it("accepts the exact Daiichi CNStaff HTML-labelled JSON variant and rejects other wrong MIME responses", async () => {
     const exact = JSON.stringify(body([], 1, 0, 0));
     const missing = await createOfficialJsonSourceFetch({ now: () => new Date(NOW), http: async () => ({ status: 200, body: exact }) })(plan());
     expect(missing).toMatchObject({ ok: false });
     expect(missing.fetchEvidence).toBeUndefined();
-    const wrongMime = await createOfficialJsonSourceFetch({ now: () => new Date(NOW), http: async () => response(exact, 1, { contentType: "text/html" }) })(plan());
+
+    const htmlLabelledJson = await createOfficialJsonSourceFetch({
+      now: () => new Date(NOW),
+      http: async () => response(exact, 1, { contentType: "text/html; charset=UTF-8" })
+    })(plan());
+    expect(htmlLabelledJson).toMatchObject({
+      ok: true,
+      fetchEvidence: { artifacts: [{ contentType: "text/html; charset=UTF-8", body: exact }] }
+    });
+
+    const wrongMime = await createOfficialJsonSourceFetch({ now: () => new Date(NOW), http: async () => response(exact, 1, { contentType: "text/plain" }) })(plan());
     expect(wrongMime).toMatchObject({ ok: false, fetchEvidence: { artifacts: [{ body: exact }] } });
+
+    const wrongHtmlShape = JSON.stringify({ list: [], page: [] });
+    const htmlWithoutCnstaffShape = await createOfficialJsonSourceFetch({
+      now: () => new Date(NOW),
+      http: async () => response(wrongHtmlShape, 1, { contentType: "text/html" })
+    })(plan());
+    expect(htmlWithoutCnstaffShape).toMatchObject({ ok: false, fetchEvidence: { artifacts: [{ body: wrongHtmlShape }] } });
   });
 
   it.each([

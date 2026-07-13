@@ -319,6 +319,39 @@ describe("HCM Cloud direct evidence instrumentation", () => {
     expect(result.fetchEvidence?.artifacts).toHaveLength(1);
   });
 
+  it("selects the exact Lunan aggregate-row count only when the envelope count proves one aggregate row", async () => {
+    const lunanPlan = {
+      ...plan,
+      officialJsonFetch: {
+        ...plan.officialJsonFetch,
+        countCoordinatePolicy: "LUNAN_AGGREGATE_ROW"
+      }
+    } satisfies SourceCrawlPlan;
+    const result = await fetcherWith([
+      response(COUNT, { result: { count: 1, list: [{ count__id: 2, id: 2 }] } }),
+      response(LIST, { result: { page_index: 1, list: [row("1"), row("2")] } })
+    ])(lunanPlan);
+
+    expect(result).toMatchObject({
+      ok: true,
+      completeness: { expectedJobCount: 2 },
+      fetchEvidence: { fetchCounts: { rawCount: 2, validCount: 2 } }
+    });
+    expect(result.fetchEvidence?.artifacts[0]?.extractorLocator).toContain("$.result.list[0].count__id");
+  });
+
+  it.each([
+    { result: { count: 2, list: [{ count__id: 2, id: 2 }] } },
+    { result: { count: 1, list: [{ count__id: 2, id: 3 }] } },
+    { result: { count: 1, list: [{ count__id: 2, id: 2 }, { count__id: 0, id: 0 }] } }
+  ])("rejects a drifted Lunan aggregate-row count envelope", async (payload) => {
+    const result = await fetcherWith([response(COUNT, payload)])({
+      ...plan,
+      officialJsonFetch: { ...plan.officialJsonFetch, countCoordinatePolicy: "LUNAN_AGGREGATE_ROW" }
+    });
+    expect(result).toMatchObject({ ok: false, failureReason: "HCMCloud count is invalid" });
+  });
+
   it("keeps a missing count noncertifying and aborts after one truthful list page", async () => {
     const result = await fetcherWith([
       response(COUNT, { result: { list: [] } }),

@@ -82,7 +82,7 @@ export function createHotjobLegacySourceFetch(deps: HotjobLegacySourceFetchDeps 
     try {
       const http = deps.http ?? defaultHttpClient(now);
       const evidenceEntryUrl = safeEntryUrl(plan.source.officialEntryUrl);
-      const safeListUrl = assertSafeHotjobRequestUrl(plan.hotjobLegacy.listUrl);
+      const safeListUrl = assertSafeHotjobRequestUrl(withoutEmptyHotjobQueryValues(plan.hotjobLegacy.listUrl));
       const jobs: Array<{ sourceJobId: string; title: string; officialUrl: string; locationRaw: string }> = [];
       const seenOfficialIds = new Set<string>();
       const pageSize = normalizePageSize(plan.hotjobLegacy.pageSize);
@@ -415,6 +415,16 @@ function legacyHeaders(entryUrl: string): Record<string, string> {
 function buildListUrl(listUrl: string, mode: HotjobLegacyFetchConfig["paginationMode"], page: number): string {
   if (mode !== "query-page") return listUrl;
   const url = new URL(listUrl); url.searchParams.set("page", String(page)); return url.toString();
+}
+
+function withoutEmptyHotjobQueryValues(listUrl: string): string {
+  const url = new URL(listUrl);
+  const retained = new URLSearchParams();
+  for (const [key, value] of url.searchParams) {
+    if (value !== "") retained.append(key, value);
+  }
+  url.search = retained.toString();
+  return url.toString();
 }
 
 function defaultHttpClient(now: () => Date): HotjobLegacyHttpClient {

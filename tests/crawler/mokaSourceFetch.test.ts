@@ -190,7 +190,7 @@ describe("Moka source fetch", () => {
     expect(result).toMatchObject({ ok: false, failureReason: expect.stringContaining("invalid final URL") });
   });
 
-  it("hydrates a missing list location from a campaign-bound official detail response", async () => {
+  it("hydrates a missing list location from a campaign-bound encrypted official detail response", async () => {
     const requests: Parameters<MokaHttpClient>[0][] = [];
     const http: MokaHttpClient = async (request) => {
       requests.push(request);
@@ -210,12 +210,16 @@ describe("Moka source fetch", () => {
       }
       return {
         status: 200,
-        body: JSON.stringify({
-          id: "servier-1",
-          orgId: "shiweiya",
-          siteId: "47734",
-          locations: [{ cityName: "北京市", provinceName: "北京市", country: "中国" }]
-        }),
+        body: JSON.stringify(encryptedResponse({
+          code: 0,
+          success: true,
+          data: {
+            id: "servier-1",
+            orgId: "shiweiya",
+            siteId: "47734",
+            locations: [{ cityName: "北京市", provinceName: "北京市", country: "中国" }]
+          }
+        })),
         finalUrl: "https://app.mokahr.com/api/outer/ats-apply/website/job",
         contentType: "application/json",
         capturedAt
