@@ -51,9 +51,12 @@ describe("P0 readiness report", () => {
   it("blocks every research-pending source from active planning", () => {
     const report = getP0ReadinessReport();
 
-    expect(report.requiredOfficialLinkSources).toBe(report.phase1InScopeCompanies);
+    expect(report.requiredOfficialLinkSources).toBeGreaterThanOrEqual(report.phase1InScopeCompanies);
     expect(report.plannedOfficialLinkSources).toBe(0);
-    expect(report.sourcePlanOmissions).toHaveLength(report.phase1InScopeCompanies);
+    expect(report.sourcePlanOmissions).toHaveLength(report.requiredOfficialLinkSources);
+    expect(report.sourcePlanOmissions.map(({ sourceId }) => sourceId)).toContain(
+      "source-sandoz-china-social"
+    );
     expect(report.blockers.map((blocker) => blocker.code)).toContain(
       "VERIFIED_SOURCE_WITHOUT_CRAWL_PLAN"
     );

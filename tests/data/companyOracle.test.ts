@@ -91,9 +91,12 @@ describe("strict 30+30 roster and expected official-surface oracle", () => {
     expect(validateStrictCompanyRegistry(candidateCompanies, expectedOfficialSurfaces, excludedCompanies)).toEqual([]);
   });
 
-  it("keeps the blocked Sandoz target, activates only the verified Otsuka group source, and never substitutes companies", () => {
+  it("activates the canonical Sandoz source and only the verified Otsuka group source without substitutions", () => {
     const byId = new Map(candidateCompanies.map((company) => [company.id, company]));
-    expect(byId.get("company-sandoz-china")?.targetStatus).toBe("BLOCKED_EVIDENCE_GAP");
+    expect(byId.get("company-sandoz-china")).toMatchObject({
+      targetStatus: "ACTIVE",
+      sources: [{ id: "source-sandoz-china-social", status: "VERIFIED_SCRAPABLE" }]
+    });
     expect(byId.get("company-otsuka-china")).toMatchObject({
       targetStatus: "ACTIVE",
       sources: [

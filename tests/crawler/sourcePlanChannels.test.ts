@@ -86,12 +86,13 @@ describe("executable source plan channel binding", () => {
     expect(buildSourceCrawlPlans([company], [surface])).toEqual([]);
   });
 
-  it("binds each new static official source to its canonical default social channel", () => {
+  it("binds each new official source to its canonical default social channel", () => {
     const sourceIds = [
       "source-apeloa-social",
       "source-grand-pharma-social",
       "source-huahai-social",
-      "source-otsuka-china-social-2"
+      "source-otsuka-china-social-2",
+      "source-sandoz-china-social"
     ];
     const staged = buildStagedSourceCrawlPlans(candidateCompanies);
 

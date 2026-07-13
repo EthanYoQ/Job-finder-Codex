@@ -1129,7 +1129,10 @@ const REPRESENTATIVE_CONFIGS: Record<string, RepresentativeSourceConfig> = {
     officialJsonFetch: {
       kind: "sandoz-jsonapi",
       endpointUrl: "https://sandoz-com.cms.sandoz.com/jsonapi/views/job_search/job_search",
+      taxonomyEndpointUrl: "https://sandoz-com.cms.sandoz.com/jsonapi/taxonomy_term/job_location",
       countryTermName: "LOC_CN",
+      countryTermTargetId: 806,
+      countryTermUuid: "2f829192-01a9-4909-b729-baab0b0bad0c",
       pageSize: 10,
       maxPages: 50,
       detailBaseUrl: "https://www.sandoz.com"

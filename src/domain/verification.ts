@@ -22,6 +22,13 @@ function isSuccessfulStableObservation(
 ): boolean {
   if (!observation.successful) return false;
   if (
+    observation.completenessEvidenceKind !== "OFFICIAL_TOTAL_COUNT" &&
+    observation.completenessEvidenceKind !== "OFFICIAL_TOTAL_PAGES" &&
+    observation.completenessEvidenceKind !== "COMPLETE_PAGE_TRAVERSAL"
+  ) {
+    return false;
+  }
+  if (
     observation.structuredJobCount === 0 &&
     observation.expectedJobCount === 0 &&
     observation.completenessStatus === "VERIFIED"

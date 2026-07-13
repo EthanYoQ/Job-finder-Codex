@@ -254,6 +254,44 @@ describe("verified scrapable gate", () => {
     expect(isVerifiedScrapable(verifiedSource, observations)).toBe(true);
   });
 
+  it("accepts a lossless explicit transition from a positive official total to an official zero", () => {
+    const verifiedSource = createSource({
+      status: "VERIFIED_SCRAPABLE"
+    });
+    const observations = [
+      createObservation(verifiedSource.id, "2026-07-07T08:00:00Z", {
+        id: "crawl-positive",
+        structuredJobCount: 2,
+        expectedJobCount: 2
+      }),
+      createObservation(verifiedSource.id, "2026-07-07T20:00:00Z", {
+        id: "crawl-zero",
+        structuredJobCount: 0,
+        expectedJobCount: 0,
+        stableRequiredFields: []
+      })
+    ];
+
+    expect(isVerifiedScrapable(verifiedSource, observations)).toBe(true);
+  });
+
+  it("rejects a latest pair containing a weak manual observation even when it claims verified status", () => {
+    const verifiedSource = createSource({
+      status: "VERIFIED_SCRAPABLE"
+    });
+    const observations = [
+      createObservation(verifiedSource.id, "2026-07-07T08:00:00Z", {
+        id: "crawl-official"
+      }),
+      createObservation(verifiedSource.id, "2026-07-07T20:00:00Z", {
+        id: "crawl-weak-manual",
+        completenessEvidenceKind: "WEAK_MANUAL_SAMPLE"
+      })
+    ];
+
+    expect(isVerifiedScrapable(verifiedSource, observations)).toBe(false);
+  });
+
   it("keeps two authorized exclusions outside verified completeness and launch blocking", () => {
     const companies: Company[] = Array.from({ length: 60 }, (_, index) => {
       return createCompany(index, { status: "VERIFIED_SCRAPABLE" });

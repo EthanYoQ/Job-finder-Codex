@@ -100,7 +100,10 @@ export type OfficialJsonFetchConfig =
   | {
       kind: "sandoz-jsonapi";
       endpointUrl: string;
+      taxonomyEndpointUrl: string;
       countryTermName: string;
+      countryTermTargetId: number;
+      countryTermUuid: string;
       pageSize?: number;
       maxPages?: number;
       detailBaseUrl: string;
@@ -366,11 +369,13 @@ function attachOfficialJsonPageCapacity(
       ? [...new Set(evidence.pages.flatMap((page) => page.channelId ? [page.channelId] : []))]
       : [];
     const allowMissingReturnedPage = config.kind === "beisen-zhiye-2022";
+    const allowPositiveOfficialTotalCountAfterAdapterReconciliation = config.kind === "sandoz-jsonapi";
     const canonical = deriveCanonicalPaginationEvidence({
       evidence: enriched,
       expectedChannelIds,
       filteredOutput: true,
-      allowMissingReturnedPage
+      allowMissingReturnedPage,
+      allowPositiveOfficialTotalCountAfterAdapterReconciliation
     });
     return {
       evidence: canonical,
@@ -378,7 +383,8 @@ function attachOfficialJsonPageCapacity(
         evidence: canonical,
         expectedChannelIds,
         filteredOutput: true,
-        allowMissingReturnedPage
+        allowMissingReturnedPage,
+        allowPositiveOfficialTotalCountAfterAdapterReconciliation
       })
     };
   };
@@ -1155,14 +1161,19 @@ async function fetchSandozJsonApi({
   const pageSize = config.pageSize ?? 10;
   const maxPages = config.maxPages ?? 50;
   let endpoint: URL;
+  let taxonomyEndpoint: URL;
   let safeEntryUrl: string;
   let detailBase: URL;
   try {
-    if (!Number.isSafeInteger(pageSize) || pageSize <= 0 ||
+    if (pageSize !== 10 ||
         !Number.isSafeInteger(maxPages) || maxPages <= 0 ||
-        config.countryTermName !== "LOC_CN") throw new Error("invalid limits or country term");
+        config.countryTermName !== "LOC_CN" || config.countryTermTargetId !== 806 ||
+        config.countryTermUuid !== "2f829192-01a9-4909-b729-baab0b0bad0c") {
+      throw new Error("invalid limits or country term");
+    }
     safeEntryUrl = safeOfficialJsonEndpoint(entryUrl);
     endpoint = sandozEndpoint(config.endpointUrl);
+    taxonomyEndpoint = sandozTaxonomyEndpoint(config.taxonomyEndpointUrl);
     detailBase = sandozDetailBase(config.detailBaseUrl);
     const officialEntry = new URL(safeEntryUrl);
     if (officialEntry.href !== "https://www.sandoz.com/careers/job-search/" || entryUrl !== officialEntry.href ||
@@ -1179,13 +1190,13 @@ async function fetchSandozJsonApi({
   const counts: PersistentSourceFetchEvidence["fetchCounts"] = {
     rawCount: 0, parsedCount: 0, validCount: 0, parseDiscardCount: 0, validationDiscardCount: 0
   };
-  const seen = new Map<string, string>();
-  const seenResourceIds = new Map<string, string>();
+  const seen = new Map<string, { resourceId: string; signature: string }>();
+  const seenResourceIds = new Map<string, { officialId: string; signature: string }>();
   let declaredTotal: number | undefined;
   let declaredArtifactKey: string | undefined;
   let previousNext: string | null = null;
   let previousCapturedAtMs = Date.parse(capturedAt);
-  let bearerToken: string | undefined;
+  let bearerToken: string;
   try {
     const entry = await http({ url: safeEntryUrl, method: "GET", headers: { Accept: "text/html", "User-Agent": "job-search-crawler/0.1" } });
     assertOfficialJsonEvidenceResponse(entry, { requestedUrl: safeEntryUrl, crawlStartedAtMs: Date.parse(capturedAt), observedNowMs: now().getTime() });
@@ -1209,13 +1220,53 @@ async function fetchSandozJsonApi({
     return sandozFailure(capturedAt, safeOfficialJsonFailure(error, "Sandoz entry/token evidence is invalid"), artifacts, pages, counts, losses);
   }
 
+  const authorizationHeaders = {
+    Accept: "application/vnd.api+json,application/json",
+    Referer: safeEntryUrl,
+    Authorization: ["Bearer", bearerToken].join(" "),
+    "User-Agent": "job-search-crawler/0.1"
+  };
+  const taxonomyUrl = sandozTaxonomyUrl(taxonomyEndpoint, config.countryTermTargetId);
+  try {
+    const response = await http({ url: taxonomyUrl, method: "GET", headers: authorizationHeaders });
+    assertOfficialJsonEvidenceResponse(response, {
+      requestedUrl: taxonomyUrl,
+      crawlStartedAtMs: Date.parse(capturedAt),
+      observedNowMs: now().getTime()
+    });
+    const redaction = redactSandozSensitiveBody(response.body, response.setCookie);
+    const artifact = officialJsonNetworkArtifact({
+      id: "sandoz-taxonomy",
+      logicalKey: "sandoz-taxonomy",
+      kind: "ATS_API_RESPONSE",
+      requestedUrl: taxonomyUrl,
+      response: { ...response, body: redaction.body },
+      extractorLocator: sandozTaxonomyLocator(config),
+      bodyRepresentation: redaction.redacted ? "REDACTED" : "EXACT",
+      ...(redaction.redacted ? {
+        rawBodySha256: sha256Bytes(Buffer.from(response.body, "utf8")).sha256,
+        redactionDescriptors: [{ kind: "CREDENTIAL_MATERIAL" as const, count: redaction.count }]
+      } : {})
+    });
+    artifacts.push(artifact);
+    const artifactCapturedAtMs = Date.parse(artifact.capturedAt);
+    if (artifactCapturedAtMs < previousCapturedAtMs) throw new Error("capture time moved backwards");
+    previousCapturedAtMs = artifactCapturedAtMs;
+    if (redaction.redacted || response.status < 200 || response.status >= 300) {
+      return sandozFailure(capturedAt, "Sandoz China taxonomy validation failed", artifacts, pages, counts, losses);
+    }
+    assertOfficialJsonMime(response);
+    if (!validateSandozTaxonomy(response.body, config)) {
+      return sandozFailure(capturedAt, "Sandoz China taxonomy validation failed", artifacts, pages, counts, losses);
+    }
+  } catch {
+    return sandozFailure(capturedAt, "Sandoz China taxonomy validation failed", artifacts, pages, counts, losses);
+  }
+
   for (let page = 0; page < maxPages; page += 1) {
-    const url = sandozJsonApiUrl(endpoint.toString(), page);
+    const url = sandozProbeUrl(endpoint, config, "primary", page);
     let response: OfficialJsonHttpResponse;
-    try { response = await http({ url, method: "GET", headers: {
-      Accept: "application/vnd.api+json,application/json", Referer: safeEntryUrl,
-      ...(bearerToken ? { Authorization: ["Bearer", bearerToken].join(" ") } : {}), "User-Agent": "job-search-crawler/0.1"
-    }}); } catch {
+    try { response = await http({ url, method: "GET", headers: authorizationHeaders }); } catch {
       return sandozFailure(capturedAt, "Sandoz JSONAPI transport failed", artifacts, pages, counts, losses,
         sandozDeclaredCompleteness(declaredTotal, declaredArtifactKey));
     }
@@ -1223,9 +1274,9 @@ async function fetchSandozJsonApi({
     catch { return sandozFailure(capturedAt, "Sandoz JSONAPI response metadata is invalid", artifacts, pages, counts, losses,
       sandozDeclaredCompleteness(declaredTotal, declaredArtifactKey)); }
     const apiRedaction = redactSandozSensitiveBody(response.body, response.setCookie);
-    const artifactId = `sandoz-page-${String(page).padStart(4, "0")}`;
+    const artifactId = `sandoz-primary-page-${String(page).padStart(4, "0")}`;
     const artifact = officialJsonNetworkArtifact({ id: artifactId, logicalKey: artifactId, kind: "PAGINATION_PAGE",
-      requestedUrl: url, response: { ...response, body: apiRedaction.body }, extractorLocator: sandozLocator(page, pageSize, false),
+      requestedUrl: url, response: { ...response, body: apiRedaction.body }, extractorLocator: sandozLocator("primary", page, pageSize, false),
       bodyRepresentation: apiRedaction.redacted ? "REDACTED" : "EXACT",
       ...(apiRedaction.redacted ? {
         rawBodySha256: sha256Bytes(Buffer.from(response.body, "utf8")).sha256,
@@ -1254,89 +1305,157 @@ async function fetchSandozJsonApi({
       return sandozFailure(capturedAt, "Sandoz JSONAPI response has an invalid Content-Type", artifacts, pages, counts, losses,
         sandozDeclaredCompleteness(declaredTotal, declaredArtifactKey));
     }
-    let root: unknown;
-    try { root = JSON.parse(response.body); } catch {
+    let envelope: SandozPageEnvelope;
+    try { envelope = parseSandozPageEnvelope(response.body, url, endpoint, config, "primary", page); } catch (error) {
       pages.push(sandozPageTrace({ artifact, sequence: page, requestedPage: page, termination: "FAILED" }));
-      return sandozFailure(capturedAt, "Sandoz JSONAPI response is not valid JSON", artifacts, pages, counts, losses,
+      return sandozFailure(capturedAt, sandozEnvelopeFailureReason(error, false), artifacts, pages, counts, losses,
         sandozDeclaredCompleteness(declaredTotal, declaredArtifactKey));
     }
-    if (!hasUniqueJsonObjectKeys(response.body) || !isStrictRecord(root) || !Array.isArray(root.data)) {
-      pages.push(sandozPageTrace({ artifact, sequence: page, requestedPage: page, termination: "FAILED" }));
-      return sandozFailure(capturedAt, "Sandoz JSONAPI response schema is invalid", artifacts, pages, counts, losses,
-        sandozDeclaredCompleteness(declaredTotal, declaredArtifactKey));
-    }
-    const meta = hasOwn(root, "meta") ? root.meta : undefined;
-    const links = hasOwn(root, "links") ? root.links : undefined;
-    if ((meta !== undefined && !isStrictRecord(meta)) || (links !== undefined && !isStrictRecord(links))) {
-      pages.push(sandozPageTrace({ artifact, sequence: page, requestedPage: page, termination: "FAILED" }));
-      return sandozFailure(capturedAt, "Sandoz JSONAPI response schema is invalid", artifacts, pages, counts, losses,
-        sandozDeclaredCompleteness(declaredTotal, declaredArtifactKey));
-    }
-    const pageTotal = meta && hasOwn(meta, "count") ? meta.count : undefined;
-    if (pageTotal !== undefined && !isNonnegativeInteger(pageTotal)) {
-      pages.push(sandozPageTrace({ artifact, sequence: page, requestedPage: page, termination: "FAILED" }));
-      return sandozFailure(capturedAt, "Sandoz JSONAPI count declaration is invalid", artifacts, pages, counts, losses,
-        sandozDeclaredCompleteness(declaredTotal, declaredArtifactKey));
-    }
-    artifact.extractorLocator = sandozLocator(page, pageSize, true);
+    const pageTotal = envelope.count;
+    artifact.extractorLocator = sandozLocator("primary", page, pageSize, true);
     const rawIds: string[] = [];
     const validIds: string[] = [];
-    for (let index = 0; index < root.data.length; index += 1) {
-      const raw = root.data[index]; counts.rawCount += 1;
+    for (let index = 0; index < envelope.data.length; index += 1) {
+      const raw = envelope.data[index]; counts.rawCount += 1;
       const rawId = isStrictRecord(raw) ? stringValue(raw.id) ?? (isStrictRecord(raw.attributes) ? stringValue(raw.attributes.field_job_id) : undefined) : undefined;
       const evidenceId = irreversibleOfficialJsonEvidenceId(rawId ?? raw);
       if (!rawIds.includes(evidenceId)) rawIds.push(evidenceId);
       const locator = `${artifact.logicalKey}#record:${index}#${irreversibleOfficialJsonEvidenceId([index, raw])}`;
-      if (!isStrictRecord(raw)) { recordSandozLoss(losses, counts, "PARSE", "NON_OBJECT_RECORD", locator, page, index); continue; }
+      if (!isStrictRecord(raw)) {
+        recordSandozLoss(losses, counts, "PARSE", "NON_OBJECT_RECORD", locator, page, index);
+        pages.push(sandozPageTrace({ artifact, sequence: page, requestedPage: page, returnedPage: page,
+          requestedPageSize: pageSize, returnedPageSize: envelope.pageSize, rawJobIds: rawIds, validJobIds: validIds,
+          declaredTotal: pageTotal, termination: "FAILED" }));
+        return sandozFailure(capturedAt, "Sandoz JSONAPI resource validation failed", artifacts, pages, counts, losses,
+          sandozDeclaredCompleteness(declaredTotal, declaredArtifactKey));
+      }
       counts.parsedCount += 1;
       const parsed = parseSandozResource(config, detailBase, raw);
-      if (!parsed.ok) { recordSandozLoss(losses, counts, "VALIDATION", parsed.code, locator, page, index, parsed.field); continue; }
+      if (!parsed.ok) {
+        recordSandozLoss(losses, counts, "VALIDATION", parsed.code, locator, page, index, parsed.field);
+        pages.push(sandozPageTrace({ artifact, sequence: page, requestedPage: page, returnedPage: page,
+          requestedPageSize: pageSize, returnedPageSize: envelope.pageSize, rawJobIds: rawIds, validJobIds: validIds,
+          declaredTotal: pageTotal, termination: "FAILED" }));
+        return sandozFailure(capturedAt, parsed.code === "CAMPUS_BOUNDARY_DRIFT"
+          ? "Sandoz social/campus boundary drift detected" : "Sandoz JSONAPI resource validation failed",
+        artifacts, pages, counts, losses, sandozDeclaredCompleteness(declaredTotal, declaredArtifactKey));
+      }
       const signature = irreversibleOfficialJsonEvidenceId(parsed.job);
-      const prior = seen.get(parsed.officialId) ?? seenResourceIds.get(parsed.resourceId);
-      if (prior !== undefined) { recordSandozLoss(losses, counts, "VALIDATION", prior === signature ? "DUPLICATE_OFFICIAL_ID" : "CONFLICTING_OFFICIAL_ID", locator, page, index, "id"); continue; }
-      seen.set(parsed.officialId, signature); seenResourceIds.set(parsed.resourceId, signature);
+      const priorOfficial = seen.get(parsed.officialId);
+      const priorResource = seenResourceIds.get(parsed.resourceId);
+      if (priorOfficial !== undefined || priorResource !== undefined) {
+        const duplicate = priorOfficial?.resourceId === parsed.resourceId && priorOfficial.signature === signature &&
+          priorResource?.officialId === parsed.officialId && priorResource.signature === signature;
+        recordSandozLoss(losses, counts, "VALIDATION", duplicate ? "DUPLICATE_OFFICIAL_ID" : "CONFLICTING_OFFICIAL_ID", locator, page, index, "id");
+        pages.push(sandozPageTrace({ artifact, sequence: page, requestedPage: page, returnedPage: page,
+          requestedPageSize: pageSize, returnedPageSize: envelope.pageSize, rawJobIds: rawIds, validJobIds: validIds,
+          declaredTotal: pageTotal, termination: "FAILED" }));
+        return sandozFailure(capturedAt, "Sandoz JSONAPI duplicate or collision detected", artifacts, pages, counts, losses,
+          sandozDeclaredCompleteness(declaredTotal, declaredArtifactKey));
+      }
+      seen.set(parsed.officialId, { resourceId: parsed.resourceId, signature });
+      seenResourceIds.set(parsed.resourceId, { officialId: parsed.officialId, signature });
       jobs.push(parsed.job); validIds.push(persistentOfficialJsonJobId(parsed.officialId)); counts.validCount += 1;
     }
-    if (declaredTotal !== undefined && pageTotal !== undefined && pageTotal !== declaredTotal) {
+    if (declaredTotal !== undefined && pageTotal !== declaredTotal) {
       pages.push(sandozPageTrace({ artifact, sequence: page, requestedPage: page, returnedPage: page, rawJobIds: rawIds,
-        validJobIds: validIds, declaredTotal: pageTotal, termination: "FAILED" }));
+        validJobIds: validIds, declaredTotal: pageTotal, requestedPageSize: pageSize,
+        returnedPageSize: envelope.pageSize, termination: "FAILED" }));
       return sandozFailure(capturedAt, "Sandoz JSONAPI count declaration changed", artifacts, pages, counts, losses,
         sandozDeclaredCompleteness(declaredTotal, declaredArtifactKey));
     }
-    if (declaredTotal === undefined && pageTotal !== undefined) { declaredTotal = pageTotal; declaredArtifactKey = artifact.logicalKey; }
-    const rawNext = links && hasOwn(links, "next") ? links.next : undefined;
-    let next: string | null;
-    try { next = sandozCanonicalNext(rawNext, endpoint, page, pageSize); }
-    catch {
-      pages.push(sandozPageTrace({ artifact, sequence: page, requestedPage: page, returnedPage: page, rawJobIds: rawIds,
-        validJobIds: validIds, ...(pageTotal === undefined ? {} : { declaredTotal: pageTotal }), termination: "FAILED" }));
-      return sandozFailure(capturedAt, "Sandoz JSONAPI next-page declaration is invalid", artifacts, pages, counts, losses,
-        sandozDeclaredCompleteness(declaredTotal, declaredArtifactKey));
-    }
-    const contradiction = root.data.length > pageSize ||
-      (declaredTotal !== undefined && counts.rawCount > declaredTotal) ||
-      (declaredTotal === 0 && root.data.length > 0) ||
-      (next === null && declaredTotal !== undefined && counts.rawCount !== declaredTotal) ||
-      (next !== null && declaredTotal !== undefined && counts.rawCount >= declaredTotal);
+    if (declaredTotal === undefined) { declaredTotal = pageTotal; declaredArtifactKey = artifact.logicalKey; }
+    const next = envelope.next;
+    const contradiction = envelope.data.length > pageSize || counts.rawCount > declaredTotal ||
+      (declaredTotal === 0 && envelope.data.length > 0) ||
+      (next === null && counts.rawCount !== declaredTotal) || (next !== null && counts.rawCount >= declaredTotal);
     if (contradiction) {
       pages.push(sandozPageTrace({ artifact, sequence: page, requestedPage: page, returnedPage: page, rawJobIds: rawIds,
-        validJobIds: validIds, ...(declaredTotal === undefined ? {} : { declaredTotal }), termination: "FAILED" }));
+        validJobIds: validIds, declaredTotal, requestedPageSize: pageSize,
+        returnedPageSize: envelope.pageSize, termination: "FAILED" }));
       return sandozFailure(capturedAt, "Sandoz JSONAPI declarations contradict observed resources", artifacts, pages, counts, losses,
         sandozDeclaredCompleteness(declaredTotal, declaredArtifactKey));
     }
     const atMax = page + 1 === maxPages;
     const termination: SourceFetchPageTrace["termination"] =
-      root.data.length === 0 && page === 0 && declaredTotal === 0 && next === null ? "EMPTY_PAGE" :
+      envelope.data.length === 0 && page === 0 && declaredTotal === 0 && next === null ? "EMPTY_PAGE" :
       next !== null ? atMax ? "MAX_PAGE_LIMIT" : "CONTINUE" :
-      declaredTotal === undefined && root.data.length >= pageSize ? "ABORTED" : "NEXT_ABSENT";
+      "NEXT_ABSENT";
     pages.push(sandozPageTrace({ artifact, sequence: page, requestedPage: page, returnedPage: page, rawJobIds: rawIds,
-      validJobIds: validIds, ...(declaredTotal === undefined ? {} : { declaredTotal }),
+      validJobIds: validIds, declaredTotal, requestedPageSize: pageSize, returnedPageSize: envelope.pageSize,
       nextPageSignalBefore: previousNext, nextPageSignalAfter: next, termination }));
+    if (atMax && next !== null) {
+      return sandozFailure(capturedAt, "Sandoz JSONAPI pagination reached max pages with next", artifacts, pages, counts, losses,
+        sandozDeclaredCompleteness(declaredTotal, declaredArtifactKey));
+    }
     previousNext = next;
     if (next === null || atMax) break;
   }
+
+  for (const probe of ["alt1", "alt2", "alt3"] as const) {
+    const url = sandozProbeUrl(endpoint, config, probe, 0);
+    let response: OfficialJsonHttpResponse;
+    try { response = await http({ url, method: "GET", headers: authorizationHeaders }); }
+    catch {
+      return sandozFailure(capturedAt, "Sandoz alternate-country probe transport failed", artifacts, pages, counts, losses,
+        sandozDeclaredCompleteness(declaredTotal, declaredArtifactKey));
+    }
+    try {
+      assertOfficialJsonEvidenceResponse(response, {
+        requestedUrl: url,
+        crawlStartedAtMs: Date.parse(capturedAt),
+        observedNowMs: now().getTime()
+      });
+    } catch {
+      return sandozFailure(capturedAt, "Sandoz alternate-country probe metadata is invalid", artifacts, pages, counts, losses,
+        sandozDeclaredCompleteness(declaredTotal, declaredArtifactKey));
+    }
+    const redaction = redactSandozSensitiveBody(response.body, response.setCookie);
+    const artifactId = `sandoz-${probe}-zero`;
+    const artifact = officialJsonNetworkArtifact({
+      id: artifactId,
+      logicalKey: artifactId,
+      kind: "ATS_API_RESPONSE",
+      requestedUrl: url,
+      response: { ...response, body: redaction.body },
+      extractorLocator: sandozLocator(probe, 0, pageSize, true),
+      bodyRepresentation: redaction.redacted ? "REDACTED" : "EXACT",
+      ...(redaction.redacted ? {
+        rawBodySha256: sha256Bytes(Buffer.from(response.body, "utf8")).sha256,
+        redactionDescriptors: [{ kind: "CREDENTIAL_MATERIAL" as const, count: redaction.count }]
+      } : {})
+    });
+    artifacts.push(artifact);
+    const artifactCapturedAtMs = Date.parse(artifact.capturedAt);
+    if (artifactCapturedAtMs < previousCapturedAtMs || redaction.redacted) {
+      return sandozFailure(capturedAt, "Sandoz alternate-country probe metadata is invalid", artifacts, pages, counts, losses,
+        sandozDeclaredCompleteness(declaredTotal, declaredArtifactKey));
+    }
+    previousCapturedAtMs = artifactCapturedAtMs;
+    if (response.status < 200 || response.status >= 300) {
+      return sandozFailure(capturedAt, `Sandoz JSONAPI returned HTTP ${response.status}`, artifacts, pages, counts, losses,
+        sandozDeclaredCompleteness(declaredTotal, declaredArtifactKey));
+    }
+    try { assertOfficialJsonMime(response); }
+    catch {
+      return sandozFailure(capturedAt, "Sandoz alternate-country probe metadata is invalid", artifacts, pages, counts, losses,
+        sandozDeclaredCompleteness(declaredTotal, declaredArtifactKey));
+    }
+    let envelope: SandozPageEnvelope;
+    try { envelope = parseSandozPageEnvelope(response.body, url, endpoint, config, probe, 0); }
+    catch (error) {
+      return sandozFailure(capturedAt, sandozEnvelopeFailureReason(error, true), artifacts, pages, counts, losses,
+        sandozDeclaredCompleteness(declaredTotal, declaredArtifactKey));
+    }
+    if (envelope.count !== 0 || envelope.data.length !== 0 || envelope.next !== null) {
+      return sandozFailure(capturedAt, "Sandoz alternate-country boundary drift detected", artifacts, pages, counts, losses,
+        sandozDeclaredCompleteness(declaredTotal, declaredArtifactKey));
+    }
+  }
+
   let finalized: ReturnType<typeof finalizeOfficialJsonEvidenceBundle>;
   try { finalized = finalizeOfficialJsonEvidenceBundle({ artifacts, pages, fetchCounts: counts, fetchLosses: losses,
+    allowPositiveOfficialTotalCountAfterAdapterReconciliation: true,
     ...(sandozDeclaredCompleteness(declaredTotal, declaredArtifactKey)
       ? { declaredCompleteness: sandozDeclaredCompleteness(declaredTotal, declaredArtifactKey)! } : {}) }); }
   catch (error) { return sandozFailure(capturedAt, safeOfficialJsonFailure(error, "Sandoz JSONAPI pagination evidence is invalid"),
@@ -1348,7 +1467,7 @@ async function fetchSandozJsonApi({
       ...(declaredTotal === undefined ? {} : { expectedJobCount: declaredTotal }),
       completenessEvidenceKind: declaredTotal === undefined ? "WEAK_MANUAL_SAMPLE" : "OFFICIAL_TOTAL_COUNT",
       completenessEvidenceUrl: safeOfficialJsonEvidenceUrl(safeEntryUrl),
-      completenessBlockerReason: "Sandoz JSON:API evidence remains manual until downstream adapter loss accounting is complete",
+      completenessBlockerReason: "Sandoz completeness awaits downstream adapter reconciliation",
       totalPages: pages.length, pageSize, pagesVisited: pages.length },
     fetchEvidence: finalized.evidence,
     paginationEvaluation: finalized.evaluation
@@ -3857,14 +3976,58 @@ function readHcmCloudJobs(decoded: unknown): unknown[] {
   return Array.isArray(result?.list) ? result.list : [];
 }
 
-function sandozJsonApiUrl(endpointUrl: string, page: number): string {
-  const url = new URL(endpointUrl);
+const SANDOZ_JSONAPI_FIELDS = [
+  "title", "field_job_title", "field_job_employment_type", "field_job_type", "field_job_id",
+  "field_job_business_unit", "field_job_work_location", "field_job_posted_date", "path",
+  "drupal_internal__tid", "field_date", "field_job_country", "field_job_alt_country_1",
+  "field_job_alt_country_2", "field_job_alt_country_3"
+].join(",");
+
+type SandozProbe = "primary" | "alt1" | "alt2" | "alt3";
+
+interface SandozPageEnvelope {
+  data: unknown[];
+  count: number;
+  pageSize: number;
+  next: string | null;
+}
+
+type SandozEnvelopeErrorCode = "SCHEMA" | "COUNT" | "PAGE_SIZE" | "SELF" | "NEXT";
+
+class SandozEnvelopeError extends Error {
+  constructor(readonly code: SandozEnvelopeErrorCode) {
+    super(code);
+    this.name = "SandozEnvelopeError";
+  }
+}
+
+function sandozProbeUrl(
+  endpoint: URL,
+  config: Extract<OfficialJsonFetchConfig, { kind: "sandoz-jsonapi" }>,
+  probe: SandozProbe,
+  page: number
+): string {
+  const url = new URL(endpoint.toString());
+  url.searchParams.set("fields[node--jobs]", SANDOZ_JSONAPI_FIELDS);
   url.searchParams.set("page", String(page));
   url.searchParams.set("views-filter[field_job_functional_area]", "All");
-  url.searchParams.set("views-filter[field_job_country]", "All");
-  url.searchParams.set("views-filter[field_job_alt_country_1]", "");
   url.searchParams.set("views-filter[field_job_posted_date][min]", "");
   url.searchParams.set("views-filter[field_job_posted_date][max]", "");
+  if (probe === "primary") {
+    url.searchParams.set("views-filter[field_job_country]", String(config.countryTermTargetId));
+    url.searchParams.set("views-filter[field_job_alt_country_1]", "");
+  } else if (probe === "alt1") {
+    url.searchParams.set("views-filter[field_job_country]", "All");
+    url.searchParams.set("views-filter[field_job_alt_country_1]", String(config.countryTermTargetId));
+  } else if (probe === "alt2") {
+    url.searchParams.set("views-filter[field_job_country]", "All");
+    url.searchParams.set("views-filter[field_job_alt_country_1]", "");
+    url.searchParams.set("views-filter[field_job_alt_country_2]", String(config.countryTermTargetId));
+  } else {
+    url.searchParams.set("views-filter[field_job_country]", "All");
+    url.searchParams.set("views-filter[field_job_alt_country_1]", "");
+    url.searchParams.set("views-filter[field_job_alt_country_3]", String(config.countryTermTargetId));
+  }
   return url.toString();
 }
 
@@ -3876,6 +4039,43 @@ function sandozEndpoint(value: string): URL {
   return url;
 }
 
+function sandozTaxonomyEndpoint(value: string): URL {
+  const url = new URL(value);
+  if (url.protocol !== "https:" || url.hostname !== "sandoz-com.cms.sandoz.com" || url.port ||
+      url.username || url.password || url.search || url.hash ||
+      url.pathname !== "/jsonapi/taxonomy_term/job_location") {
+    throw new Error("invalid Sandoz taxonomy endpoint");
+  }
+  return url;
+}
+
+function sandozTaxonomyUrl(endpoint: URL, targetId: number): string {
+  const url = new URL(endpoint.toString());
+  url.searchParams.set("filter[drupal_internal__tid]", String(targetId));
+  return url.toString();
+}
+
+function sandozTaxonomyLocator(config: Extract<OfficialJsonFetchConfig, { kind: "sandoz-jsonapi" }>): string {
+  return `sandoz-taxonomy-v1|target:${config.countryTermTargetId}|json:$.data[0].type,$.data[0].id,` +
+    `$.data[0].attributes.drupal_internal__tid,$.data[0].attributes.name`;
+}
+
+function validateSandozTaxonomy(
+  body: string,
+  config: Extract<OfficialJsonFetchConfig, { kind: "sandoz-jsonapi" }>
+): boolean {
+  let root: unknown;
+  try { root = JSON.parse(body); } catch { return false; }
+  if (!hasUniqueJsonObjectKeys(body) || !isStrictRecord(root) || !Array.isArray(root.data) || root.data.length !== 1) {
+    return false;
+  }
+  const term = root.data[0];
+  return isStrictRecord(term) && term.type === "taxonomy_term--job_location" &&
+    term.id === config.countryTermUuid && isStrictRecord(term.attributes) &&
+    term.attributes.drupal_internal__tid === config.countryTermTargetId &&
+    term.attributes.name === config.countryTermName;
+}
+
 function sandozDetailBase(value: string): URL {
   const url = new URL(value);
   if (url.protocol !== "https:" || url.hostname !== "www.sandoz.com" || url.port || url.username || url.password ||
@@ -3883,9 +4083,8 @@ function sandozDetailBase(value: string): URL {
   return url;
 }
 
-function extractSandozBearerToken(body: string): string | undefined {
+function extractSandozBearerToken(body: string): string {
   const matches = [...body.matchAll(/"token"\s*:\s*"([^"\\]*(?:\\.[^"\\]*)*)"/gu)];
-  if (matches.length === 0) return undefined;
   if (matches.length !== 1) throw new Error("Sandoz token discovery is ambiguous");
   let token: unknown;
   try { token = JSON.parse(`"${matches[0]![1]}"`); } catch { throw new Error("Sandoz token discovery is invalid"); }
@@ -3960,19 +4159,58 @@ function sandozAuthSchemeValue(value: string): boolean {
   return /\b(?:bearer|basic)\s+[A-Za-z0-9._~+\/-]{8,}={0,2}\b/iu.test(value);
 }
 
-function sandozCanonicalNext(raw: unknown, endpoint: URL, page: number, pageSize: number): string | null {
-  if (raw === undefined || raw === null) return null;
-  if (typeof raw !== "string" || raw.trim() !== raw || !raw) throw new Error("invalid next");
-  const expected = sandozJsonApiUrl(endpoint.toString(), page + 1);
-  const candidate = new URL(raw);
-  if (candidate.href !== expected || candidate.origin !== endpoint.origin || candidate.pathname !== endpoint.pathname ||
-      candidate.username || candidate.password || candidate.hash || pageSize <= 0) throw new Error("invalid next");
-  return `page:${page + 1}`;
+function parseSandozPageEnvelope(
+  body: string,
+  requestedUrl: string,
+  endpoint: URL,
+  config: Extract<OfficialJsonFetchConfig, { kind: "sandoz-jsonapi" }>,
+  probe: SandozProbe,
+  page: number
+): SandozPageEnvelope {
+  let root: unknown;
+  try { root = JSON.parse(body); } catch { throw new SandozEnvelopeError("SCHEMA"); }
+  if (!hasUniqueJsonObjectKeys(body) || !isStrictRecord(root) || !Array.isArray(root.data) ||
+      !isStrictRecord(root.meta) || !isStrictRecord(root.links)) {
+    throw new SandozEnvelopeError("SCHEMA");
+  }
+  if (!hasOwn(root.meta, "count") || !isNonnegativeInteger(root.meta.count)) {
+    throw new SandozEnvelopeError("COUNT");
+  }
+  if (root.number_of_items_per_page !== config.pageSize || root.number_of_items_per_page !== 10) {
+    throw new SandozEnvelopeError("PAGE_SIZE");
+  }
+  const self = root.links.self;
+  if (!isStrictRecord(self) || Object.keys(self).length !== 1 || self.href !== requestedUrl) {
+    throw new SandozEnvelopeError("SELF");
+  }
+  const rawNext = hasOwn(root.links, "next") ? root.links.next : undefined;
+  let next: string | null = null;
+  if (rawNext !== undefined && rawNext !== null) {
+    if (!isStrictRecord(rawNext) || Object.keys(rawNext).length !== 1 || typeof rawNext.href !== "string" ||
+        rawNext.href !== sandozProbeUrl(endpoint, config, probe, page + 1)) {
+      throw new SandozEnvelopeError("NEXT");
+    }
+    next = `page:${page + 1}`;
+  }
+  return { data: root.data, count: root.meta.count, pageSize: root.number_of_items_per_page, next };
+}
+
+function sandozEnvelopeFailureReason(error: unknown, alternate: boolean): string {
+  if (error instanceof SandozEnvelopeError) {
+    if (error.code === "SELF") return alternate
+      ? "Sandoz alternate-country probe scope is invalid"
+      : "Sandoz JSONAPI self scope is invalid";
+    if (error.code === "NEXT") return "Sandoz JSONAPI next-page declaration is invalid";
+    if (error.code === "COUNT") return "Sandoz JSONAPI count declaration is invalid";
+    if (error.code === "PAGE_SIZE") return "Sandoz JSONAPI page-size declaration is invalid";
+  }
+  return alternate ? "Sandoz alternate-country probe schema is invalid" : "Sandoz JSONAPI response schema is invalid";
 }
 
 type SandozLossCode = "NON_OBJECT_RECORD" | "MISSING_REQUIRED_FIELD" | "UNSAFE_OFFICIAL_ID" |
   "UNSAFE_OFFICIAL_URL" | "OUT_OF_SCOPE" | "AMBIGUOUS_SCOPE" | "DUPLICATE_OFFICIAL_ID" |
-  "CONFLICTING_OFFICIAL_ID" | "SENSITIVE_OUTPUT" | "INVALID_JSONAPI_RESOURCE";
+  "CONFLICTING_OFFICIAL_ID" | "SENSITIVE_OUTPUT" | "INVALID_JSONAPI_RESOURCE" |
+  "CAMPUS_BOUNDARY_DRIFT";
 
 function parseSandozResource(
   config: Extract<OfficialJsonFetchConfig, { kind: "sandoz-jsonapi" }>, detailBase: URL,
@@ -3981,51 +4219,72 @@ function parseSandozResource(
   { ok: false; code: SandozLossCode; field?: string } {
   const id = stringValue(raw.id);
   const type = stringValue(raw.type);
-  if (!id || !safeOfficialJsonId(id)) return { ok: false, code: id ? "UNSAFE_OFFICIAL_ID" : "MISSING_REQUIRED_FIELD", field: "id" };
-  if (!type || type !== "node--job" || !isStrictRecord(raw.attributes) || !isStrictRecord(raw.relationships)) {
+  if (!id || !safeOfficialJsonId(id) || !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/iu.test(id)) {
+    return { ok: false, code: id ? "UNSAFE_OFFICIAL_ID" : "MISSING_REQUIRED_FIELD", field: "id" };
+  }
+  if (!type || type !== "node--jobs" || !isStrictRecord(raw.attributes) || !isStrictRecord(raw.relationships)) {
     return { ok: false, code: "INVALID_JSONAPI_RESOURCE" };
   }
   const attributes = raw.attributes;
-  const sourceJobId = stringValue(attributes.field_job_id) ?? id;
-  const title = stringValue(attributes.field_job_title) ?? stringValue(attributes.title);
-  const locationRaw = stringValue(attributes.field_job_work_location);
+  const sourceJobId = typeof attributes.field_job_id === "string" && attributes.field_job_id.trim()
+    ? attributes.field_job_id.trim() : undefined;
+  const title = typeof attributes.field_job_title === "string" && attributes.field_job_title.trim()
+    ? attributes.field_job_title.trim() : undefined;
+  const locationRaw = typeof attributes.field_job_work_location === "string" && attributes.field_job_work_location.trim()
+    ? attributes.field_job_work_location.trim() : undefined;
   const path = isStrictRecord(attributes.path) ? stringValue(attributes.path.alias) : undefined;
   if (!sourceJobId || !title || !locationRaw || !path) return { ok: false, code: "MISSING_REQUIRED_FIELD" };
   if (!safeOfficialJsonId(sourceJobId)) return { ok: false, code: "UNSAFE_OFFICIAL_ID", field: "field_job_id" };
-  const scope = sandozCountryScope(raw.relationships, config.countryTermName);
+  if (sandozCampusBoundaryDrift(attributes, title)) {
+    return { ok: false, code: "CAMPUS_BOUNDARY_DRIFT" };
+  }
+  const scope = sandozCountryScope(raw.relationships, config);
   if (scope !== "CHINA") return { ok: false, code: scope === "OUTSIDE" ? "OUT_OF_SCOPE" : "AMBIGUOUS_SCOPE" };
   let officialUrl: string;
   try {
-    if (!path.startsWith("/") || path.startsWith("//") || path.includes("\\") || path.includes("..") || path.includes("?") || path.includes("#")) throw new Error("unsafe path");
-    const url = new URL(path, detailBase);
-    if (url.origin !== detailBase.origin || url.username || url.password || url.search || url.hash) throw new Error("unsafe path");
+    if (!/^\/[A-Za-z0-9][A-Za-z0-9/_-]*$/u.test(path) || path.startsWith("//") || path.includes("//") ||
+        path.includes("..") || /%(?:2e|2f|5c)/iu.test(path)) throw new Error("unsafe path");
+    const canonicalPath = path.endsWith("/") ? path : `${path}/`;
+    const url = new URL(canonicalPath, detailBase);
+    if (url.origin !== detailBase.origin || url.username || url.password || url.search || url.hash ||
+        url.pathname !== canonicalPath) throw new Error("unsafe path");
     officialUrl = url.toString();
   } catch { return { ok: false, code: "UNSAFE_OFFICIAL_URL", field: "path.alias" }; }
   const job = { sourceJobId, title, officialUrl, locationRaw, cities: citiesFromLocation(locationRaw) };
-  if (sensitiveOfficialJsonField({ sourceJobId, officialUrl, locationRaw })) {
+  if (sensitiveOfficialJsonField({ sourceJobId, title, officialUrl, locationRaw })) {
     return { ok: false, code: "SENSITIVE_OUTPUT" };
   }
   return { ok: true, officialId: sourceJobId, resourceId: id, job };
 }
 
-function sandozCountryScope(relationships: Record<string, unknown>, countryTermName: string): "CHINA" | "OUTSIDE" | "AMBIGUOUS" {
-  const names = ["field_job_country", "field_job_alt_country_1", "field_job_alt_country_2", "field_job_alt_country_3"] as const;
-  const terms: string[] = [];
-  for (const name of names) {
-    if (!hasOwn(relationships, name) || !isStrictRecord(relationships[name])) return "AMBIGUOUS";
-    const data = relationships[name].data;
-    if (!(data === null || Array.isArray(data) || isStrictRecord(data))) return "AMBIGUOUS";
-    const items = data === null ? [] : Array.isArray(data) ? data : [data];
-    for (const item of items) {
-      if (!isStrictRecord(item) || stringValue(item.type) !== "taxonomy_term--job_location" ||
-          !stringValue(item.id) || !isStrictRecord(item.meta) || !stringValue(item.meta.term_name)) return "AMBIGUOUS";
-      terms.push(stringValue(item.meta.term_name)!);
-    }
+function sandozCountryScope(
+  relationships: Record<string, unknown>,
+  config: Extract<OfficialJsonFetchConfig, { kind: "sandoz-jsonapi" }>
+): "CHINA" | "OUTSIDE" | "AMBIGUOUS" {
+  if (!isStrictRecord(relationships.field_job_country) ||
+      !Array.isArray(relationships.field_job_country.data) || relationships.field_job_country.data.length !== 1) {
+    return "AMBIGUOUS";
   }
-  if (terms.length === 0) return "AMBIGUOUS";
-  const positives = terms.filter((term) => term === countryTermName).length;
-  if (positives === terms.length) return "CHINA";
-  return positives > 0 ? "AMBIGUOUS" : "OUTSIDE";
+  const term = relationships.field_job_country.data[0];
+  if (!isStrictRecord(term) || term.type !== "taxonomy_term--job_location" || term.id !== config.countryTermUuid ||
+      !isStrictRecord(term.meta) || term.meta.drupal_internal__target_id !== config.countryTermTargetId ||
+      term.meta.term_name !== config.countryTermName) {
+    return "OUTSIDE";
+  }
+  for (const name of ["field_job_alt_country_1", "field_job_alt_country_2", "field_job_alt_country_3"] as const) {
+    if (!hasOwn(relationships, name)) continue;
+    const relationship = relationships[name];
+    if (!isStrictRecord(relationship) || !(relationship.data === null ||
+        (Array.isArray(relationship.data) && relationship.data.length === 0))) return "AMBIGUOUS";
+  }
+  return "CHINA";
+}
+
+function sandozCampusBoundaryDrift(attributes: Record<string, unknown>, title: string): boolean {
+  const values = [title, attributes.field_job_employment_type, attributes.field_job_type]
+    .filter((value): value is string => typeof value === "string");
+  return values.some((value) => /(?:\b(?:intern(?:ship)?|apprentice|trainee|graduate\s+program|student)\b|实习|校招|应届|管培生)/iu
+    .test(value.normalize("NFKC")));
 }
 
 interface ParsedXiuzhengPage {
@@ -4210,33 +4469,6 @@ function recordXiuzhengLoss(losses: PersistentSourceFetchEvidence["fetchLosses"]
     details: { code, ...(field ? { field } : {}), pageSequence, recordIndex } });
 }
 
-function sandozJobMatchesCountry(
-  relationships: Record<string, unknown>,
-  countryTermName: string
-): boolean {
-  return [
-    relationships.field_job_country,
-    relationships.field_job_alt_country_1,
-    relationships.field_job_alt_country_2,
-    relationships.field_job_alt_country_3
-  ].some((relationship) => sandozRelationshipHasTerm(relationship, countryTermName));
-}
-
-function sandozRelationshipHasTerm(relationship: unknown, countryTermName: string): boolean {
-  if (!isObject(relationship)) {
-    return false;
-  }
-
-  const data = relationship.data;
-  const items = Array.isArray(data) ? data : [data];
-  return items.some((item) => {
-    if (!isObject(item) || !isObject(item.meta)) {
-      return false;
-    }
-    return stringValue(item.meta.term_name) === countryTermName;
-  });
-}
-
 function jobsynEndpoint(value: string): URL {
   const url = new URL(value);
   if (url.protocol !== "https:" || url.hostname !== "prod-search-api.jobsyn.org" ||
@@ -4260,15 +4492,15 @@ function jobsynDetailBase(value: string): URL {
   return url;
 }
 
-function sandozLocator(page: number, pageSize: number, declarations: boolean): string {
-  void pageSize;
-  return `sandoz-jsonapi-v1|page:${page}|filters:all|json:$.data[*]` +
-    (declarations ? ",$.meta.count,$.links.next" : "");
+function sandozLocator(probe: SandozProbe, page: number, pageSize: number, declarations: boolean): string {
+  return `sandoz-jsonapi-v2|probe:${probe}|page:${page}|page-size:${pageSize}|fields:node--jobs-v1|json:$.data[*]` +
+    (declarations ? ",$.meta.count,$.number_of_items_per_page,$.links.self.href,$.links.next.href" : "");
 }
 
 function sandozPageTrace(input: {
   artifact: SourceFetchArtifactDraft; sequence: number; requestedPage: number; returnedPage?: number | null;
   rawJobIds?: string[]; validJobIds?: string[]; declaredTotal?: number;
+  requestedPageSize?: number | null; returnedPageSize?: number | null;
   nextPageSignalBefore?: string | null; nextPageSignalAfter?: string | null;
   termination: SourceFetchPageTrace["termination"];
 }): SourceFetchPageTrace {
@@ -4276,6 +4508,7 @@ function sandozPageTrace(input: {
     sequence: input.sequence, artifactLogicalKey: input.artifact.logicalKey,
     requestedCursor: null, returnedCursor: null, requestedOffset: null, returnedOffset: null,
     requestedPage: input.requestedPage, returnedPage: input.returnedPage ?? null,
+    requestedPageSize: input.requestedPageSize ?? null, returnedPageSize: input.returnedPageSize ?? null,
     rawJobIds: input.rawJobIds ?? [], validJobIds: input.validJobIds ?? [],
     declaredTotal: input.declaredTotal ?? null, declaredCount: null, declaredPages: null,
     nextPageSignalBefore: input.nextPageSignalBefore ?? null, nextPageSignalAfter: input.nextPageSignalAfter ?? null,
@@ -4288,7 +4521,7 @@ function sandozDeclaredCompleteness(total: number | undefined, artifactLogicalKe
   PersistentSourceFetchEvidence["declaredCompleteness"] | undefined {
   return total !== undefined && artifactLogicalKey
     ? { kind: "OFFICIAL_TOTAL_COUNT", value: total, artifactLogicalKey,
-        extractorLocator: sandozLocator(Number(artifactLogicalKey.slice("sandoz-page-".length)), 1, true), scope: "SOURCE" }
+        extractorLocator: sandozLocator("primary", Number(artifactLogicalKey.slice("sandoz-primary-page-".length)), 10, true), scope: "SOURCE" }
     : undefined;
 }
 

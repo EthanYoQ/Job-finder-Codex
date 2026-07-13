@@ -1,237 +1,490 @@
 import { describe, expect, it } from "vitest";
-import { createOfficialJsonSourceFetch, type OfficialJsonHttpResponse } from "../../src/crawler/officialJsonSourceFetch";
+import {
+  createOfficialJsonSourceFetch,
+  type OfficialJsonHttpRequest,
+  type OfficialJsonHttpResponse
+} from "../../src/crawler/officialJsonSourceFetch";
 import { runSourceCrawl } from "../../src/crawler/runSourceCrawl";
 import type { SourceCrawlPlan } from "../../src/crawler/sourcePlan";
-import { parseArtifactArchiveDrafts } from "../../src/crawler/sourceFetchEvidence";
 
-const NOW = "2026-07-11T00:00:00.000Z";
+const NOW = "2026-07-13T18:11:17.000Z";
 const ENTRY = "https://www.sandoz.com/careers/job-search/";
 const ENDPOINT = "https://sandoz-com.cms.sandoz.com/jsonapi/views/job_search/job_search";
+const TAXONOMY_ENDPOINT = "https://sandoz-com.cms.sandoz.com/jsonapi/taxonomy_term/job_location";
+const TAXONOMY_URL = `${TAXONOMY_ENDPOINT}?filter%5Bdrupal_internal__tid%5D=806`;
+const COUNTRY_UUID = "2f829192-01a9-4909-b729-baab0b0bad0c";
+const TOKEN = "test-only-public-token.value";
+const FIELDS = [
+  "title",
+  "field_job_title",
+  "field_job_employment_type",
+  "field_job_type",
+  "field_job_id",
+  "field_job_business_unit",
+  "field_job_work_location",
+  "field_job_posted_date",
+  "path",
+  "drupal_internal__tid",
+  "field_date",
+  "field_job_country",
+  "field_job_alt_country_1",
+  "field_job_alt_country_2",
+  "field_job_alt_country_3"
+].join(",");
+
+type Probe = "primary" | "alt1" | "alt2" | "alt3";
 
 function plan(overrides: Record<string, unknown> = {}): SourceCrawlPlan {
   return {
     adapterId: "official-json",
-    company: { id: "sandoz", officialChineseName: "山德士" },
-    source: { id: "sandoz-official", companyId: "sandoz", kind: "SOCIAL", atsKind: "OFFICIAL_JSON", status: "VERIFIED_SCRAPABLE", officialEntryUrl: ENTRY, officialChainEvidenceUrl: ENTRY },
-    json: { jobsPath: "jobs", fields: { sourceJobId: "sourceJobId", officialTitle: "title", officialUrl: "officialUrl", locationRaw: "locationRaw", cities: "cities" } },
-    officialJsonFetch: { kind: "sandoz-jsonapi", endpointUrl: ENDPOINT, countryTermName: "LOC_CN", pageSize: 2, maxPages: 5, detailBaseUrl: "https://www.sandoz.com", ...overrides }
+    company: { id: "company-sandoz-china", officialChineseName: "山德士中国" },
+    source: {
+      id: "source-sandoz-china-social",
+      companyId: "company-sandoz-china",
+      kind: "SOCIAL",
+      atsKind: "OFFICIAL_JSON",
+      status: "VERIFIED_SCRAPABLE",
+      officialEntryUrl: ENTRY,
+      officialChainEvidenceUrl: ENTRY
+    },
+    json: {
+      jobsPath: "jobs",
+      fields: {
+        sourceJobId: "sourceJobId",
+        officialTitle: "title",
+        officialUrl: "officialUrl",
+        locationRaw: "locationRaw",
+        cities: "cities"
+      }
+    },
+    officialJsonFetch: {
+      kind: "sandoz-jsonapi",
+      endpointUrl: ENDPOINT,
+      taxonomyEndpointUrl: TAXONOMY_ENDPOINT,
+      countryTermName: "LOC_CN",
+      countryTermTargetId: 806,
+      countryTermUuid: COUNTRY_UUID,
+      pageSize: 10,
+      maxPages: 50,
+      detailBaseUrl: "https://www.sandoz.com",
+      ...overrides
+    }
+  } as SourceCrawlPlan;
+}
+
+function response(body: string, url: string, contentType = "application/vnd.api+json", status = 200): OfficialJsonHttpResponse {
+  return { status, body, finalUrl: url, contentType, capturedAt: NOW };
+}
+
+function entryResponse(body = `<script id="__NEXT_DATA__" type="application/json">{"props":{"token":"${TOKEN}"}}</script>`): OfficialJsonHttpResponse {
+  return response(body, ENTRY, "text/html");
+}
+
+function taxonomy(overrides: Record<string, unknown> = {}): string {
+  return JSON.stringify({
+    data: [{
+      type: "taxonomy_term--job_location",
+      id: COUNTRY_UUID,
+      attributes: { drupal_internal__tid: 806, name: "LOC_CN" },
+      ...overrides
+    }]
+  });
+}
+
+function chinaRelationship(overrides: Record<string, unknown> = {}) {
+  return {
+    data: [{
+      type: "taxonomy_term--job_location",
+      id: COUNTRY_UUID,
+      meta: { drupal_internal__target_id: 806, term_name: "LOC_CN" },
+      ...overrides
+    }]
   };
 }
 
-function response(body: string, url: string, contentType = "application/vnd.api+json"): OfficialJsonHttpResponse {
-  return { status: 200, body, finalUrl: url, contentType, capturedAt: NOW };
-}
-
-function relation(...terms: string[]) {
-  return { data: terms.map((term_name, index) => ({ type: "taxonomy_term--job_location", id: `loc-${index}`, meta: { term_name } })) };
-}
-
-function row(id: string, terms = ["LOC_CN"], overrides: Record<string, unknown> = {}) {
-  return { type: "node--job", id, attributes: { field_job_id: id, field_job_title: `Role ${id}`, field_job_work_location: "Shanghai, China", path: { alias: `/jobs/${id}` } }, relationships: { field_job_country: relation(...terms), field_job_alt_country_1: { data: [] }, field_job_alt_country_2: { data: [] }, field_job_alt_country_3: { data: [] } }, ...overrides };
-}
-
-function api(data: unknown[], count: unknown = data.length, next: unknown = null): string {
-  return JSON.stringify({ data, meta: { count }, links: { next } });
-}
-
-function client(apiBodies: string[]) {
-  let page = 0;
-  return async (request: { url: string }): Promise<OfficialJsonHttpResponse> => {
-    if (request.url === ENTRY) return response('<script id="__NEXT_DATA__" type="application/json">{"props":{"token":"top-secret-token"}}</script>', ENTRY, "text/html");
-    return response(apiBodies[page++]!, request.url);
+function row(
+  officialId: string,
+  resourceId = `00000000-0000-4000-8000-${officialId.replace(/[^0-9]/gu, "").padStart(12, "0").slice(-12)}`,
+  overrides: Record<string, unknown> = {}
+) {
+  return {
+    type: "node--jobs",
+    id: resourceId,
+    attributes: {
+      field_job_id: officialId,
+      field_job_title: `Role ${officialId}`,
+      field_job_work_location: "Shanghai (Shanghai) (Sandoz)",
+      field_job_employment_type: "Regular",
+      field_job_type: "Full time",
+      path: { alias: `/role-${officialId.toLowerCase()}` }
+    },
+    relationships: { field_job_country: chinaRelationship() },
+    ...overrides
   };
 }
 
-describe("Sandoz JSON:API evidence instrumentation", () => {
-  it("retains safe entry provenance plus exact pages and remains manual through shared D1", async () => {
-    const secondUrl = `${ENDPOINT}?page=1&views-filter%5Bfield_job_functional_area%5D=All&views-filter%5Bfield_job_country%5D=All&views-filter%5Bfield_job_alt_country_1%5D=&views-filter%5Bfield_job_posted_date%5D%5Bmin%5D=&views-filter%5Bfield_job_posted_date%5D%5Bmax%5D=`;
-    const bodies = [api([row("a"), row("b")], 3, secondUrl), api([row("c")], 3, null)];
-    const result = await createOfficialJsonSourceFetch({ now: () => new Date(NOW), http: client(bodies) })(plan());
-    expect(result).toMatchObject({ ok: true, completeness: { completenessStatus: "NEEDS_MANUAL_COMPLETENESS_REVIEW", expectedJobCount: 3, pagesVisited: 2 }, fetchEvidence: { artifacts: [{ kind: "OFFICIAL_COMPANY_PAGE" }, { kind: "PAGINATION_PAGE", body: bodies[0] }, { kind: "PAGINATION_PAGE", body: bodies[1] }], fetchCounts: { rawCount: 3, parsedCount: 3, validCount: 3, parseDiscardCount: 0, validationDiscardCount: 0 }, pages: [{ requestedPage: 0, returnedPage: 0, termination: "CONTINUE" }, { requestedPage: 1, returnedPage: 1, termination: "NEXT_ABSENT" }] }, paginationEvaluation: { verifiedEligible: false } });
-    expect(JSON.stringify(result)).not.toContain("top-secret-token");
-  });
-
-  it("accounts malformed, mixed-scope, duplicate and conflicting resources", async () => {
-    const rows = [row("a"), null, row("mixed", ["LOC_CN", "LOC_AT"]), row("a"), row("a", ["LOC_CN"], { attributes: { field_job_id: "a", field_job_title: "Changed", field_job_work_location: "Shanghai", path: { alias: "/jobs/a" } } })];
-    const result = await createOfficialJsonSourceFetch({ now: () => new Date(NOW), http: client([api(rows, 5)]) })(plan({ pageSize: 5 }));
-    expect(result).toMatchObject({ ok: true, fetchEvidence: { fetchCounts: { rawCount: 5, parsedCount: 4, validCount: 1, parseDiscardCount: 1, validationDiscardCount: 3 } } });
-    if (!result.fetchEvidence) throw new Error("missing evidence");
-    expect(result.fetchEvidence.fetchLosses.map((loss) => loss.details.code)).toEqual(["NON_OBJECT_RECORD", "AMBIGUOUS_SCOPE", "DUPLICATE_OFFICIAL_ID", "CONFLICTING_OFFICIAL_ID"]);
-  });
-
-  it.each([
-    ["duplicate JSON keys", '{"data":[],"meta":{"count":0,"count":1},"links":{"next":null}}'],
-    ["invalid count", api([], 1.5, null)],
-    ["truthy object next", api([], 0, { href: "next" })],
-    ["skip next", api([row("a"), row("b")], 4, `${ENDPOINT}?page=2`)]
-  ])("fails closed with retained entry and current page for %s", async (_label, body) => {
-    const result = await createOfficialJsonSourceFetch({ now: () => new Date(NOW), http: client([body]) })(plan());
-    expect(result).toMatchObject({ ok: false, fetchEvidence: { artifacts: [{ kind: "OFFICIAL_COMPANY_PAGE" }, { kind: "PAGINATION_PAGE", body }] } });
-  });
-
-  it("retains prior and current exact evidence on a later HTTP failure", async () => {
-    let page = 0;
-    const first = api([row("a"), row("b")], 3, null);
-    const result = await createOfficialJsonSourceFetch({ now: () => new Date(NOW), http: async (request) => {
-      if (request.url === ENTRY) return response('{"token":"long-safe-value"}', ENTRY, "text/html");
-      page += 1;
-      return page === 1 ? response(first.replace('"next":null', `"next":${JSON.stringify(request.url.replace("page=0", "page=1"))}`), request.url) : { ...response("private-response", request.url), status: 503 };
-    } })(plan());
-    expect(result).toMatchObject({ ok: false, failureReason: "Sandoz JSONAPI returned HTTP 503", fetchEvidence: { artifacts: [{}, { body: expect.any(String) }, { body: "private-response" }], pages: [{ termination: "CONTINUE" }, { termination: "FAILED" }] } });
-  });
-
-  it.each([
-    ["duplicate", '{"token":"first-safe-token","token":"second-safe-token"}'],
-    ["encoded", '{"token":"unsafe%2Ftoken"}'],
-    ["whitespace", '{"token":"unsafe token"}']
-  ])("fails token discovery safely without persisting the credential: %s", async (_label, entryBody) => {
-    const result = await createOfficialJsonSourceFetch({ now: () => new Date(NOW), http: async (request) =>
-      request.url === ENTRY ? response(entryBody, ENTRY, "text/html") : response(api([], 0), request.url)
-    })(plan());
-    expect(result).toMatchObject({ ok: false, failureReason: "Sandoz entry/token evidence is invalid", fetchEvidence: { artifacts: [{ kind: "OFFICIAL_COMPANY_PAGE" }], pages: [] } });
-    expect(JSON.stringify(result)).not.toContain(entryBody.includes("first") ? "first-safe-token" : entryBody.includes("%") ? "unsafe%2Ftoken" : "unsafe token");
-  });
-
-  it("permits a demonstrably anonymous API while retaining token-absent provenance", async () => {
-    const result = await createOfficialJsonSourceFetch({ now: () => new Date(NOW), http: async (request) =>
-      request.url === ENTRY ? response("<html>no credential</html>", ENTRY, "text/html") : response(api([], 0), request.url)
-    })(plan());
-    expect(result).toMatchObject({ ok: true, completeness: { completenessStatus: "NEEDS_MANUAL_COMPLETENESS_REVIEW" }, fetchEvidence: { artifacts: [{ kind: "OFFICIAL_COMPANY_PAGE" }, { kind: "PAGINATION_PAGE" }] } });
-  });
-
-  it.each([
-    ["backward", 1, sandozPageUrl(0)],
-    ["skip", 0, sandozPageUrl(2)],
-    ["cross origin", 0, "https://evil.example/jsonapi/views/job_search/job_search?page=1"],
-    ["filter drift", 0, sandozPageUrl(1).replace("=All", "=Medical")]
-  ])("rejects noncanonical next coordinate: %s", async (_label, page, next) => {
-    let calls = 0;
-    const result = await createOfficialJsonSourceFetch({ now: () => new Date(NOW), http: async (request) => {
-      if (request.url === ENTRY) return response('{"token":"long-safe-value"}', ENTRY, "text/html");
-      calls += 1;
-      return response(api([row(`id-${calls}`)], 2, next), request.url);
-    } })(plan({ pageSize: 1 }));
-    void page;
-    expect(result).toMatchObject({ ok: false, failureReason: "Sandoz JSONAPI next-page declaration is invalid", fetchEvidence: { pages: [{ termination: "FAILED" }] } });
-  });
-
-  it.each([
-    ["foreign", ["LOC_AT"], "OUT_OF_SCOPE"],
-    ["HMT", ["LOC_HK"], "OUT_OF_SCOPE"],
-    ["mixed", ["LOC_CN", "LOC_HK"], "AMBIGUOUS_SCOPE"],
-    ["encoded", ["LOC%5FCN"], "OUT_OF_SCOPE"]
-  ])("accounts bounded country relationship scope: %s", async (_label, terms, code) => {
-    const result = await createOfficialJsonSourceFetch({ now: () => new Date(NOW), http: client([api([row("scope", terms)], 1)]) })(plan());
-    expect(result).toMatchObject({ ok: true, fetchEvidence: { fetchCounts: { rawCount: 1, parsedCount: 1, validCount: 0, validationDiscardCount: 1 }, fetchLosses: [{ details: { code } }] } });
-  });
-
-  it.each([
-    ["fractional page size", { pageSize: 1.5 }], ["zero max pages", { maxPages: 0 }],
-    ["endpoint query", { endpointUrl: `${ENDPOINT}?page=0` }], ["wrong API origin", { endpointUrl: "https://evil.example/jsonapi/views/job_search/job_search" }],
-    ["wrong detail origin", { detailBaseUrl: "https://evil.example" }]
-  ])("rejects unsafe config before transport: %s", async (_label, overrides) => {
-    let calls = 0;
-    const result = await createOfficialJsonSourceFetch({ now: () => new Date(NOW), http: async () => { calls += 1; throw new Error("must not call"); } })(plan(overrides));
-    expect(result).toMatchObject({ ok: false, failureReason: "Sandoz JSONAPI configuration is invalid" });
-    expect(calls).toBe(0);
-  });
-
-  it.each([
-    ["non-China configured term", { countryTermName: "LOC_AT" }, undefined],
-    ["non-careers entry", {}, "https://www.sandoz.com/about/"],
-    ["entry query", {}, `${ENTRY}?from=other`],
-    ["missing canonical slash", {}, "https://www.sandoz.com/careers/job-search"]
-  ])("pins the official mainland term and exact careers entry before transport: %s", async (_label, overrides, officialEntryUrl) => {
-    let calls = 0;
-    const current = plan(overrides);
-    if (officialEntryUrl) current.source.officialEntryUrl = officialEntryUrl;
-    const result = await createOfficialJsonSourceFetch({ now: () => new Date(NOW), http: async () => { calls += 1; throw new Error("must not call"); } })(current);
-    expect(result).toMatchObject({ ok: false, failureReason: "Sandoz JSONAPI configuration is invalid" });
-    expect(calls).toBe(0);
-  });
-
-  it.each([
-    ["authorization", '{"authorization":"opaque-value"}'],
-    ["cookie", '<meta name="cookie" content="opaque-value">'],
-    ["header", '{"header":"opaque-value"}'],
-    ["bearer", '<script>Bearer example-placeholder</script>'],
-    ["JWT-shaped", '<script>eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJvcGFxdWUtdmFsdWUifQ.signature</script>'],
-    ["multilayer", '<script>%2562%2565%2561%2572%2565%2572%253Dopaque-value</script>']
-  ])("redacts all bounded entry credential material with structured provenance: %s", async (_label, entryBody) => {
-    const result = await createOfficialJsonSourceFetch({ now: () => new Date(NOW), http: async (request) =>
-      request.url === ENTRY ? response(entryBody, ENTRY, "text/html") : response(api([], 0), request.url)
-    })(plan());
-    expect(JSON.stringify(result)).not.toContain("opaque-value");
-    if (!result.fetchEvidence) throw new Error("missing evidence");
-    expect(result.fetchEvidence.artifacts[0]).toMatchObject({ bodyRepresentation: "REDACTED", rawBodySha256: expect.stringMatching(/^[0-9a-f]{64}$/), redactionDescriptors: [{ kind: "CREDENTIAL_MATERIAL", count: expect.any(Number) }] });
-  });
-
-  it("treats Set-Cookie response metadata as credential material", async () => {
-    const result = await createOfficialJsonSourceFetch({ now: () => new Date(NOW), http: async (request) =>
-      request.url === ENTRY
-        ? { ...response("<html>safe</html>", ENTRY, "text/html"), setCookie: ["session=opaque-value; Secure"] }
-        : response(api([], 0), request.url)
-    })(plan());
-    expect(JSON.stringify(result)).not.toContain("opaque-value");
-    expect(result.fetchEvidence?.artifacts[0]).toMatchObject({ bodyRepresentation: "REDACTED", redactionDescriptors: [{ kind: "CREDENTIAL_MATERIAL" }] });
-  });
-
-  it.each([
-    "Basic Scientist", "Session Manager", "Secret Shopper", "Password Researcher", "Token Economy Lead", "Header Operations"
-  ])("does not classify an ordinary job title as credential material: %s", async (title) => {
-    const exact = api([row("benign", ["LOC_CN"], {
-      attributes: { field_job_id: "benign", field_job_title: title, field_job_work_location: "Shanghai, China", path: { alias: "/jobs/benign" } }
-    })], 1);
-    const result = await createOfficialJsonSourceFetch({ now: () => new Date(NOW), http: async (request) =>
-      request.url === ENTRY ? response(`<html><p>${title}</p></html>`, ENTRY, "text/html") : response(exact, request.url)
-    })(plan());
-    expect(result).toMatchObject({ ok: true, completeness: { completenessStatus: "NEEDS_MANUAL_COMPLETENESS_REVIEW" }, payload: { jobs: [{ title }] }, fetchEvidence: { artifacts: [{ bodyRepresentation: "EXACT" }, { bodyRepresentation: "EXACT", body: exact }] } });
-  });
-
-  it.each([
-    ["JSON Bearer alpha", '{"debug":"Bearer example-placeholder"}'],
-    ["JSON Basic alpha", '{"debug":"Basic abcdefgh"}'],
-    ["JSON credential key", '{"basic":"opaque-value"}'],
-    ["HTML reversed attributes", '<meta content="opaque-value" name="token">']
-  ])("detects structured credential bypass and never persists it: %s", async (_label, entryBody) => {
-    const result = await createOfficialJsonSourceFetch({ now: () => new Date(NOW), http: async (request) =>
-      request.url === ENTRY ? response(entryBody, ENTRY, "text/html") : response(api([], 0), request.url)
-    })(plan());
-    expect(JSON.stringify(result)).not.toContain("opaque-value");
-    expect(JSON.stringify(result)).not.toContain("abcdefgh");
-    expect(result.fetchEvidence?.artifacts[0]).toMatchObject({ bodyRepresentation: "REDACTED" });
-  });
-
-  it("fails a sensitive API page closed without persisting the exact sensitive body", async () => {
-    const sensitive = '{"data":[],"meta":{"count":0},"links":{"next":null},"debug":"Bearer example-placeholder"}';
-    const result = await createOfficialJsonSourceFetch({ now: () => new Date(NOW), http: client([sensitive]) })(plan());
-    expect(result).toMatchObject({ ok: false, failureReason: "Sandoz JSONAPI response contains sensitive material", fetchEvidence: { artifacts: [{ bodyRepresentation: "REDACTED" }, { kind: "PAGINATION_PAGE", bodyRepresentation: "REDACTED", rawBodySha256: expect.stringMatching(/^[0-9a-f]{64}$/) }] } });
-    expect(JSON.stringify(result)).not.toContain("opaque-value");
-  });
-
-  it("enforces structured exact/redacted artifact provenance consistency", () => {
-    const base = { id: "a", logicalKey: "a", kind: "OFFICIAL_COMPANY_PAGE", requestedUrl: ENTRY, finalUrl: ENTRY,
-      httpStatus: 200, contentType: "text/html", capturedAt: NOW, body: "safe", extractorLocator: "x" };
-    expect(() => parseArtifactArchiveDrafts({ captureTool: { name: "test", version: "1" }, artifacts: [{ ...base, bodyRepresentation: "REDACTED" }] })).toThrow();
-    expect(() => parseArtifactArchiveDrafts({ captureTool: { name: "test", version: "1" }, artifacts: [{ ...base, bodyRepresentation: "EXACT", rawBodySha256: "0".repeat(64), redactionDescriptors: [{ kind: "CREDENTIAL_MATERIAL", count: 1 }] }] })).toThrow();
-    expect(parseArtifactArchiveDrafts({ captureTool: { name: "test", version: "1" }, artifacts: [{ ...base, bodyRepresentation: "REDACTED", rawBodySha256: "0".repeat(64), redactionDescriptors: [{ kind: "CREDENTIAL_MATERIAL", count: 1 }] }] }).artifacts[0]).toMatchObject({ bodyRepresentation: "REDACTED" });
-  });
-
-  it("preserves exact evidence references through runSourceCrawl", async () => {
-    const fetched = await createOfficialJsonSourceFetch({ now: () => new Date(NOW), http: client([api([row("a")], 1)]) })(plan());
-    const result = await runSourceCrawl(plan(), { fetch: async () => fetched });
-    expect(result.fetchEvidence).toBe(fetched.fetchEvidence);
-    expect(result.paginationEvaluation).toBe(fetched.paginationEvaluation);
-  });
-});
-
-function sandozPageUrl(page: number): string {
+function probeUrl(probe: Probe, page = 0): string {
   const url = new URL(ENDPOINT);
+  url.searchParams.set("fields[node--jobs]", FIELDS);
   url.searchParams.set("page", String(page));
   url.searchParams.set("views-filter[field_job_functional_area]", "All");
-  url.searchParams.set("views-filter[field_job_country]", "All");
-  url.searchParams.set("views-filter[field_job_alt_country_1]", "");
   url.searchParams.set("views-filter[field_job_posted_date][min]", "");
   url.searchParams.set("views-filter[field_job_posted_date][max]", "");
+  if (probe === "primary") {
+    url.searchParams.set("views-filter[field_job_country]", "806");
+    url.searchParams.set("views-filter[field_job_alt_country_1]", "");
+  } else if (probe === "alt1") {
+    url.searchParams.set("views-filter[field_job_country]", "All");
+    url.searchParams.set("views-filter[field_job_alt_country_1]", "806");
+  } else if (probe === "alt2") {
+    url.searchParams.set("views-filter[field_job_country]", "All");
+    url.searchParams.set("views-filter[field_job_alt_country_1]", "");
+    url.searchParams.set("views-filter[field_job_alt_country_2]", "806");
+  } else {
+    url.searchParams.set("views-filter[field_job_country]", "All");
+    url.searchParams.set("views-filter[field_job_alt_country_1]", "");
+    url.searchParams.set("views-filter[field_job_alt_country_3]", "806");
+  }
   return url.toString();
 }
+
+function pageBody(input: {
+  probe: Probe;
+  page?: number;
+  data?: unknown[];
+  count?: unknown;
+  pageSize?: unknown;
+  self?: unknown;
+  next?: unknown;
+  includeCount?: boolean;
+}): string {
+  const page = input.page ?? 0;
+  const data = input.data ?? [];
+  const links: Record<string, unknown> = {
+    self: input.self ?? { href: probeUrl(input.probe, page) }
+  };
+  if (input.next !== undefined) links.next = input.next;
+  return JSON.stringify({
+    data,
+    meta: input.includeCount === false ? {} : { count: input.count ?? data.length },
+    links,
+    number_of_items_per_page: input.pageSize ?? 10
+  });
+}
+
+interface ClientOptions {
+  entry?: OfficialJsonHttpResponse;
+  taxonomy?: OfficialJsonHttpResponse;
+  primary?: string[];
+  alt1?: string;
+  alt2?: string;
+  alt3?: string;
+  statusByUrl?: Record<string, number>;
+}
+
+function client(options: ClientOptions = {}) {
+  const requests: OfficialJsonHttpRequest[] = [];
+  let primaryPage = 0;
+  const exactZero = (probe: Probe) => pageBody({ probe });
+  const http = async (request: OfficialJsonHttpRequest): Promise<OfficialJsonHttpResponse> => {
+    requests.push(request);
+    if (request.url === ENTRY) return options.entry ?? entryResponse();
+    if (request.url === TAXONOMY_URL) return options.taxonomy ?? response(taxonomy(), request.url);
+    const status = options.statusByUrl?.[request.url];
+    if (status !== undefined) return response("access denied", request.url, "text/plain", status);
+    if (request.url === probeUrl("alt1")) return response(options.alt1 ?? exactZero("alt1"), request.url);
+    if (request.url === probeUrl("alt2")) return response(options.alt2 ?? exactZero("alt2"), request.url);
+    if (request.url === probeUrl("alt3")) return response(options.alt3 ?? exactZero("alt3"), request.url);
+    const body = options.primary?.[primaryPage++] ?? exactZero("primary");
+    return response(body, request.url);
+  };
+  return { http, requests };
+}
+
+async function fetchWith(options: ClientOptions = {}, config: Record<string, unknown> = {}) {
+  const fixture = client(options);
+  const result = await createOfficialJsonSourceFetch({ now: () => new Date(NOW), http: fixture.http })(plan(config));
+  return { result, requests: fixture.requests };
+}
+
+describe("Sandoz fresh official JSON:API contract", () => {
+  it("validates taxonomy before China requests and returns the exact current-shape rows losslessly", async () => {
+    const first = row("REQ-10029354", "4816e692-7bed-4a07-80a9-cd6dd2823fa7", {
+      attributes: {
+        field_job_id: "REQ-10029354",
+        field_job_title: "AS&T (Analytical Science & Technology) Manager",
+        field_job_work_location: "Shanghai (Shanghai) (Sandoz)",
+        field_job_employment_type: "Regular",
+        field_job_type: "Full time",
+        path: { alias: "/ast-analytical-science-technology-manager" }
+      }
+    });
+    const second = row("REQ-10029352", "857d95c7-7847-4904-bb50-648068a190b1", {
+      attributes: {
+        field_job_id: "REQ-10029352",
+        field_job_title: "Senior Quality Assurance Manager",
+        field_job_work_location: "Shanghai (Shanghai) (Sandoz)",
+        field_job_employment_type: "Regular",
+        field_job_type: "Full time",
+        path: { alias: "/senior-quality-assurance-manager" }
+      }
+    });
+    const { result, requests } = await fetchWith({
+      primary: [pageBody({ probe: "primary", data: [first, second], count: 2 })]
+    });
+
+    expect(result).toMatchObject({
+      ok: true,
+      payload: {
+        jobs: [
+          {
+            sourceJobId: "REQ-10029354",
+            title: "AS&T (Analytical Science & Technology) Manager",
+            officialUrl: "https://www.sandoz.com/ast-analytical-science-technology-manager/",
+            locationRaw: "Shanghai (Shanghai) (Sandoz)",
+            cities: ["上海"]
+          },
+          {
+            sourceJobId: "REQ-10029352",
+            title: "Senior Quality Assurance Manager",
+            officialUrl: "https://www.sandoz.com/senior-quality-assurance-manager/"
+          }
+        ]
+      },
+      completeness: { expectedJobCount: 2, pageSize: 10, pagesVisited: 1 },
+      fetchEvidence: {
+        artifacts: [
+          { logicalKey: "sandoz-entry", bodyRepresentation: "REDACTED" },
+          { logicalKey: "sandoz-taxonomy" },
+          { logicalKey: "sandoz-primary-page-0000" },
+          { logicalKey: "sandoz-alt1-zero" },
+          { logicalKey: "sandoz-alt2-zero" },
+          { logicalKey: "sandoz-alt3-zero" }
+        ],
+        fetchCounts: { rawCount: 2, parsedCount: 2, validCount: 2, parseDiscardCount: 0, validationDiscardCount: 0 },
+        declaredCompleteness: { kind: "OFFICIAL_TOTAL_COUNT", value: 2, scope: "SOURCE" }
+      },
+      paginationEvaluation: { safeCompleteness: true, verifiedEligible: true }
+    });
+    expect(requests.map(({ url }) => url)).toEqual([
+      ENTRY,
+      TAXONOMY_URL,
+      probeUrl("primary"),
+      probeUrl("alt1"),
+      probeUrl("alt2"),
+      probeUrl("alt3")
+    ]);
+    expect(requests[2]!.url).toContain("field_job_country%5D=806");
+    expect(requests[2]!.url).not.toContain("field_job_country%5D=All");
+    expect(new URL(requests[2]!.url).searchParams.get("fields[node--jobs]")).toBe(FIELDS);
+    expect(requests.slice(1).every(({ headers }) => headers.Authorization === `Bearer ${TOKEN}`)).toBe(true);
+    expect(JSON.stringify(result)).not.toContain(TOKEN);
+  });
+
+  it.each([
+    ["missing", JSON.stringify({ data: [] })],
+    ["duplicate", JSON.stringify({ data: [JSON.parse(taxonomy()).data[0], JSON.parse(taxonomy()).data[0]] })],
+    ["wrong name", taxonomy({ attributes: { drupal_internal__tid: 806, name: "LOC_AT" } })],
+    ["stale numeric id", taxonomy({ attributes: { drupal_internal__tid: 999, name: "LOC_CN" } })],
+    ["wrong UUID", taxonomy({ id: "00000000-0000-4000-8000-000000000999" })]
+  ])("fails closed before list requests for %s taxonomy authority", async (_label, body) => {
+    const { result, requests } = await fetchWith({ taxonomy: response(body, TAXONOMY_URL) });
+    expect(result).toMatchObject({ ok: false, failureReason: "Sandoz China taxonomy validation failed" });
+    expect(requests.map(({ url }) => url)).toEqual([ENTRY, TAXONOMY_URL]);
+  });
+
+  it("rejects the stale singular node--job schema", async () => {
+    const stale = { ...row("REQ-OLD"), type: "node--job" };
+    const { result } = await fetchWith({ primary: [pageBody({ probe: "primary", data: [stale], count: 1 })] });
+    expect(result).toMatchObject({ ok: false, failureReason: "Sandoz JSONAPI resource validation failed" });
+  });
+
+  it.each([
+    ["missing country relationship", {}],
+    ["wrong country UUID", { field_job_country: chinaRelationship({ id: "00000000-0000-4000-8000-000000000999" }) }],
+    ["wrong country target id", { field_job_country: chinaRelationship({ meta: { drupal_internal__target_id: 999, term_name: "LOC_CN" } }) }],
+    ["wrong country term name", { field_job_country: chinaRelationship({ meta: { drupal_internal__target_id: 806, term_name: "LOC_AT" } }) }],
+    ["non-empty alternate country", { field_job_country: chinaRelationship(), field_job_alt_country_1: chinaRelationship() }]
+  ])("rejects a primary row with %s", async (_label, relationships) => {
+    const invalid = row("REQ-SCOPE", undefined, { relationships });
+    const { result } = await fetchWith({ primary: [pageBody({ probe: "primary", data: [invalid], count: 1 })] });
+    expect(result).toMatchObject({ ok: false, failureReason: "Sandoz JSONAPI resource validation failed" });
+  });
+
+  it.each([
+    "//evil.example/role",
+    "/../role",
+    "/%2e%2e/role",
+    "/role?campaign=secret",
+    "/role#fragment",
+    "https://evil.example/role"
+  ])("rejects an unsafe detail path: %s", async (path) => {
+    const invalid = row("REQ-PATH");
+    invalid.attributes.path = { alias: path };
+    const { result } = await fetchWith({ primary: [pageBody({ probe: "primary", data: [invalid], count: 1 })] });
+    expect(result).toMatchObject({ ok: false, failureReason: "Sandoz JSONAPI resource validation failed" });
+  });
+
+  it("accepts canonical object next links and exhausts every primary page", async () => {
+    const firstTen = Array.from({ length: 10 }, (_, index) => row(`REQ-${100 + index}`));
+    const last = row("REQ-110");
+    const firstBody = pageBody({ probe: "primary", data: firstTen, count: 11, next: { href: probeUrl("primary", 1) } });
+    const secondBody = pageBody({ probe: "primary", page: 1, data: [last], count: 11 });
+    const { result } = await fetchWith({ primary: [firstBody, secondBody] });
+    expect(result).toMatchObject({
+      ok: true,
+      fetchEvidence: { fetchCounts: { validCount: 11 }, pages: [{ termination: "CONTINUE" }, { termination: "NEXT_ABSENT" }] },
+      paginationEvaluation: { safeCompleteness: true, verifiedEligible: true }
+    });
+    const payload = result.ok && "payload" in result ? result.payload as { jobs: Array<{ sourceJobId: string }> } : undefined;
+    expect(payload?.jobs.map(({ sourceJobId }) => sourceJobId)).toContain("REQ-110");
+  });
+
+  it.each([
+    ["string next", probeUrl("primary", 1)],
+    ["skipped page", { href: probeUrl("primary", 2) }],
+    ["backward page", { href: probeUrl("primary", 0) }],
+    ["host drift", { href: probeUrl("primary", 1).replace("sandoz-com.cms.sandoz.com", "evil.example") }],
+    ["path drift", { href: probeUrl("primary", 1).replace("/job_search/job_search", "/job_search/other") }],
+    ["field drift", { href: probeUrl("primary", 1).replace("field_job_title", "field_secret") }],
+    ["filter drift", { href: probeUrl("primary", 1).replace("field_job_country%5D=806", "field_job_country%5D=All") }]
+  ])("rejects %s", async (_label, next) => {
+    const ten = Array.from({ length: 10 }, (_, index) => row(`REQ-${200 + index}`));
+    const { result } = await fetchWith({ primary: [pageBody({ probe: "primary", data: ten, count: 11, next })] });
+    expect(result).toMatchObject({ ok: false, failureReason: "Sandoz JSONAPI next-page declaration is invalid" });
+  });
+
+  it.each([
+    ["changed count", [
+      pageBody({ probe: "primary", data: Array.from({ length: 10 }, (_, index) => row(`REQ-${300 + index}`)), count: 11, next: { href: probeUrl("primary", 1) } }),
+      pageBody({ probe: "primary", page: 1, data: [row("REQ-310")], count: 12 })
+    ]],
+    ["changed page size", [pageBody({ probe: "primary", data: [row("REQ-320")], count: 1, pageSize: 20 })]],
+    ["missing count", [pageBody({ probe: "primary", data: [row("REQ-330")], includeCount: false })]],
+    ["data/count contradiction", [pageBody({ probe: "primary", data: [row("REQ-340")], count: 0 })]]
+  ])("fails noncertifying evidence for %s", async (_label, primary) => {
+    const { result } = await fetchWith({ primary });
+    expect(result.ok).toBe(false);
+  });
+
+  it("fails when max pages is reached with a remaining next link", async () => {
+    const ten = Array.from({ length: 10 }, (_, index) => row(`REQ-${400 + index}`));
+    const { result } = await fetchWith({ primary: [pageBody({ probe: "primary", data: ten, count: 11, next: { href: probeUrl("primary", 1) } })] }, { maxPages: 1 });
+    expect(result).toMatchObject({ ok: false, failureReason: "Sandoz JSONAPI pagination reached max pages with next" });
+  });
+
+  it.each([
+    ["duplicate official ID", [row("REQ-500"), row("REQ-500", "00000000-0000-4000-8000-000000000501")]],
+    ["duplicate resource UUID", [row("REQ-510", "00000000-0000-4000-8000-000000000510"), row("REQ-511", "00000000-0000-4000-8000-000000000510")]],
+    ["conflicting pair", [row("REQ-520", "00000000-0000-4000-8000-000000000520"), row("REQ-520", "00000000-0000-4000-8000-000000000520", {
+      attributes: { field_job_id: "REQ-520", field_job_title: "Changed", field_job_work_location: "Shanghai", path: { alias: "/changed" } }
+    })]]
+  ])("fails closed for %s", async (_label, data) => {
+    const { result } = await fetchWith({ primary: [pageBody({ probe: "primary", data, count: data.length })] });
+    expect(result).toMatchObject({ ok: false, failureReason: "Sandoz JSONAPI duplicate or collision detected" });
+  });
+
+  it.each(["alt1", "alt2", "alt3"] as const)("holds certification when %s becomes positive", async (probe) => {
+    const positive = pageBody({ probe, data: [row(`REQ-${probe}`)], count: 1 });
+    const { result } = await fetchWith({
+      primary: [pageBody({ probe: "primary", data: [row("REQ-600")], count: 1 })],
+      [probe]: positive
+    });
+    expect(result).toMatchObject({ ok: false, failureReason: "Sandoz alternate-country boundary drift detected" });
+  });
+
+  it("rejects an alternate probe whose self link does not echo its exact filter", async () => {
+    const drifted = pageBody({ probe: "alt2", self: { href: probeUrl("alt1") } });
+    const { result } = await fetchWith({ primary: [pageBody({ probe: "primary" })], alt2: drifted });
+    expect(result).toMatchObject({ ok: false, failureReason: "Sandoz alternate-country probe scope is invalid" });
+  });
+
+  it("certifies an official zero only after taxonomy plus all four exact zero probes", async () => {
+    const { result, requests } = await fetchWith();
+    expect(result).toMatchObject({
+      ok: true,
+      payload: { jobs: [] },
+      completeness: { expectedJobCount: 0 },
+      fetchEvidence: { fetchCounts: { rawCount: 0, validCount: 0 }, pages: [{ termination: "EMPTY_PAGE", declaredTotal: 0 }] },
+      paginationEvaluation: { safeCompleteness: true, verifiedEligible: true }
+    });
+    expect(requests.map(({ url }) => url)).toEqual([ENTRY, TAXONOMY_URL, probeUrl("primary"), probeUrl("alt1"), probeUrl("alt2"), probeUrl("alt3")]);
+  });
+
+  it.each([
+    ["missing token", entryResponse("<html>no token</html>")],
+    ["duplicate token", entryResponse(`{"token":"${TOKEN}","token":"other-test-token"}`)]
+  ])("does not call the API for %s", async (_label, entry) => {
+    const { result, requests } = await fetchWith({ entry });
+    expect(result).toMatchObject({ ok: false, failureReason: "Sandoz entry/token evidence is invalid" });
+    expect(requests).toHaveLength(1);
+    expect(JSON.stringify(result)).not.toContain(TOKEN);
+  });
+
+  it.each([401, 403, 404])("never treats HTTP %s as official zero", async (status) => {
+    const { result } = await fetchWith({ statusByUrl: { [probeUrl("primary")]: status } });
+    expect(result).toMatchObject({ ok: false, failureReason: `Sandoz JSONAPI returned HTTP ${status}` });
+  });
+
+  it("does not treat a remaining next signal as official zero", async () => {
+    const { result } = await fetchWith({ primary: [pageBody({ probe: "primary", count: 0, next: { href: probeUrl("primary", 1) } })] });
+    expect(result.ok).toBe(false);
+  });
+
+  it.each(["Intern", "Internship", "Apprentice", "Trainee", "Graduate Program", "Student", "实习", "校招", "应届", "管培生"])(
+    "holds certification instead of silently dropping a campus marker: %s",
+    async (marker) => {
+      const campus = row("REQ-700", undefined, {
+        attributes: {
+          field_job_id: "REQ-700",
+          field_job_title: `${marker} Quality Role`,
+          field_job_work_location: "Shanghai",
+          field_job_employment_type: "Regular",
+          field_job_type: "Full time",
+          path: { alias: "/campus-drift" }
+        }
+      });
+      const { result } = await fetchWith({ primary: [pageBody({ probe: "primary", data: [campus], count: 1 })] });
+      expect(result).toMatchObject({ ok: false, failureReason: "Sandoz social/campus boundary drift detected" });
+    }
+  );
+
+  it("redacts the entry credential while retaining a raw SHA and never leaks it downstream", async () => {
+    const { result } = await fetchWith({ primary: [pageBody({ probe: "primary", data: [row("REQ-800")], count: 1 })] });
+    expect(result.fetchEvidence?.artifacts[0]).toMatchObject({
+      bodyRepresentation: "REDACTED",
+      rawBodySha256: expect.stringMatching(/^[0-9a-f]{64}$/),
+      redactionDescriptors: [{ kind: "CREDENTIAL_MATERIAL", count: expect.any(Number) }]
+    });
+    expect(JSON.stringify(result)).not.toContain(TOKEN);
+    expect(JSON.stringify(result)).not.toMatch(/authorization\s*[:=].*bearer/iu);
+  });
+
+  it("promotes a lossless positive official count only after the downstream adapter reconciles", async () => {
+    const fixture = client({ primary: [pageBody({ probe: "primary", data: [row("REQ-900")], count: 1 })] });
+    const crawlPlan = plan();
+    const result = await runSourceCrawl(crawlPlan, {
+      fetch: createOfficialJsonSourceFetch({ now: () => new Date(NOW), http: fixture.http })
+    });
+    expect(result).toMatchObject({
+      status: "SUCCESS",
+      truth: { transportSuccess: true, adapterSuccess: true, completenessVerified: true },
+      observation: { completenessStatus: "VERIFIED", expectedJobCount: 1, structuredJobCount: 1 },
+      reconciliation: { rawInputCount: 1, dedupeOutputCount: 1, adapterLosses: [] }
+    });
+  });
+
+  it("does not extend the Sandoz positive-count opt-in to another source identity", async () => {
+    const fixture = client({ primary: [pageBody({ probe: "primary", data: [row("REQ-901")], count: 1 })] });
+    const crawlPlan = plan();
+    crawlPlan.source = { ...crawlPlan.source, id: "source-not-sandoz-social" };
+    const result = await runSourceCrawl(crawlPlan, {
+      fetch: createOfficialJsonSourceFetch({ now: () => new Date(NOW), http: fixture.http })
+    });
+    expect(result).toMatchObject({
+      status: "SUCCESS",
+      truth: { transportSuccess: true, adapterSuccess: true, completenessVerified: false },
+      observation: { completenessStatus: "NEEDS_MANUAL_COMPLETENESS_REVIEW", structuredJobCount: 1 }
+    });
+  });
+});

@@ -180,6 +180,7 @@ export function finalizeOfficialJsonEvidenceBundle(input: {
   declaredCompleteness?: PersistentSourceFetchEvidence["declaredCompleteness"];
   expectedChannelIds?: string[];
   allowMissingReturnedPage?: boolean;
+  allowPositiveOfficialTotalCountAfterAdapterReconciliation?: boolean;
 }): { evidence: PersistentSourceFetchEvidence; evaluation: PaginationEvaluation } {
   if (input.pages.length === 0) throw new Error("successful Official JSON evidence requires at least one page");
   const raw = buildEvidenceBundle(input);
@@ -189,6 +190,10 @@ export function finalizeOfficialJsonEvidenceBundle(input: {
     filteredOutput: true,
     ...(input.allowMissingReturnedPage === undefined ? {} : {
       allowMissingReturnedPage: input.allowMissingReturnedPage
+    }),
+    ...(input.allowPositiveOfficialTotalCountAfterAdapterReconciliation === undefined ? {} : {
+      allowPositiveOfficialTotalCountAfterAdapterReconciliation:
+        input.allowPositiveOfficialTotalCountAfterAdapterReconciliation
     })
   });
   const evaluation = evaluatePaginationEvidence({
@@ -197,6 +202,10 @@ export function finalizeOfficialJsonEvidenceBundle(input: {
     filteredOutput: true,
     ...(input.allowMissingReturnedPage === undefined ? {} : {
       allowMissingReturnedPage: input.allowMissingReturnedPage
+    }),
+    ...(input.allowPositiveOfficialTotalCountAfterAdapterReconciliation === undefined ? {} : {
+      allowPositiveOfficialTotalCountAfterAdapterReconciliation:
+        input.allowPositiveOfficialTotalCountAfterAdapterReconciliation
     })
   });
   return { evidence, evaluation };

@@ -205,7 +205,11 @@ function finalizeTruth(
     }
   }
 
-  const completenessVerified = adapterSuccess && strictCompletenessGate(fetchResult, ledger!);
+  const completenessVerified = adapterSuccess && strictCompletenessGate(
+    fetchResult,
+    ledger!,
+    result.observation.sourceId
+  );
   const observation = rebuildObservationEvidenceFields(result.observation, fetchResult);
   if (completenessVerified) {
     const strictEvidence = parsePersistentSourceFetchEvidence(fetchResult.fetchEvidence);
@@ -284,7 +288,8 @@ function rebuildObservationEvidenceFields(
 
 function strictCompletenessGate(
   fetchResult: SourceFetchResult,
-  ledger: ReturnType<typeof assertAdapterReconciliation>
+  ledger: ReturnType<typeof assertAdapterReconciliation>,
+  sourceId: string
 ): boolean {
   if (!fetchResult.ok || !fetchResult.fetchEvidence || !fetchResult.paginationEvaluation ||
     fetchResult.paginationEvaluation.safeCompleteness !== true ||
@@ -294,7 +299,10 @@ function strictCompletenessGate(
     const independentlyEvaluated = evaluatePaginationEvidence({
       evidence,
       expectedChannelIds: fetchResult.paginationEvaluation.visitedChannelIds,
-      filteredOutput: true
+      filteredOutput: true,
+      ...(sourceId === "source-sandoz-china-social" ? {
+        allowPositiveOfficialTotalCountAfterAdapterReconciliation: true
+      } : {})
     });
     if (independentlyEvaluated.safeCompleteness !== true || independentlyEvaluated.verifiedEligible !== true ||
       independentlyEvaluated.paginationTraceSha256 !== fetchResult.paginationEvaluation.paginationTraceSha256 ||

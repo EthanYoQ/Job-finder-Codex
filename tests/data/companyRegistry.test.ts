@@ -152,7 +152,7 @@ describe("60-company pharma registry", () => {
     }
   });
 
-  it("keeps unresolved foreign targets in the roster without replacement and separates Otsuka sources", () => {
+  it("activates the verified Sandoz source without replacement and separates Otsuka sources", () => {
     const byId = new Map(candidateCompanies.map((company) => [company.id, company]));
     const astellasSource = byId.get("company-astellas-china")?.sources[0];
 
@@ -166,7 +166,10 @@ describe("60-company pharma registry", () => {
         { id: "source-otsuka-china-social-2", status: "VERIFIED_SCRAPABLE" }
       ]
     });
-    expect(byId.get("company-sandoz-china")?.targetStatus).toBe("BLOCKED_EVIDENCE_GAP");
+    expect(byId.get("company-sandoz-china")).toMatchObject({
+      targetStatus: "ACTIVE",
+      sources: [{ id: "source-sandoz-china-social", status: "VERIFIED_SCRAPABLE" }]
+    });
     expect(byId.has("company-beta-pharma")).toBe(false);
     expect(byId.has("company-sinocelltech")).toBe(false);
     expect(byId.has("company-jacobio")).toBe(false);

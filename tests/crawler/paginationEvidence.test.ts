@@ -192,6 +192,34 @@ describe("shared pagination evidence evaluator", () => {
     expect(evaluate(input).derivedAnomalyCodes).toEqual(["TOTAL_CHANGED"]);
   });
 
+  it("makes a lossless positive official count eligible for independent downstream reconciliation", () => {
+    const lossless = evidence();
+    expect(evaluate(lossless)).toMatchObject({ safeCompleteness: true, verifiedEligible: false });
+    expect(evaluatePaginationEvidence({
+      evidence: lossless,
+      expectedChannelIds: ["social"],
+      filteredOutput: true,
+      allowPositiveOfficialTotalCountAfterAdapterReconciliation: true
+    })).toMatchObject({ safeCompleteness: true, verifiedEligible: true });
+
+    const lossy = evidence();
+    lossy.pages[0]!.validJobIds = ["a"];
+    lossy.pages[0]!.termination = "NEXT_ABSENT";
+    lossy.fetchCounts = { rawCount: 2, parsedCount: 2, validCount: 1, parseDiscardCount: 0, validationDiscardCount: 1 };
+    lossy.fetchLosses = [{
+      stage: "VALIDATION",
+      reason: "record rejected",
+      rawLocator: "page-1#record:1",
+      details: { code: "REJECTED", pageSequence: 0, recordIndex: 1 }
+    }];
+    expect(evaluatePaginationEvidence({
+      evidence: lossy,
+      expectedChannelIds: ["social"],
+      filteredOutput: true,
+      allowPositiveOfficialTotalCountAfterAdapterReconciliation: true
+    })).toMatchObject({ safeCompleteness: true, verifiedEligible: false });
+  });
+
   it("allows explicit official zero only on the first page and rejects an intermediate empty page", () => {
     const zero = evidence('{"total":0,"ids":[]}');
     zero.pages[0]!.rawJobIds = [];

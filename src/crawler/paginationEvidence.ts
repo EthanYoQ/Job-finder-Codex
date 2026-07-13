@@ -63,6 +63,7 @@ interface PaginationEvidenceInput {
   expectedChannelIds: readonly string[];
   filteredOutput: boolean;
   allowMissingReturnedPage?: boolean;
+  allowPositiveOfficialTotalCountAfterAdapterReconciliation?: boolean;
 }
 
 export function deriveCanonicalPaginationEvidence(
@@ -277,13 +278,14 @@ function evaluatePaginationEvidenceInternal(
   ]));
   const safeCompleteness = derivedAnomalyCodes.length === 0 && safeTerminationsByScope(evidence);
   const declared = evidence.declaredCompleteness;
-  // A declared zero has no positive rows to lose in a later adapter stage; the
-  // pipeline still requires an exact zero reconciliation before verification.
-  const needsLaterAdapterAccounting = declared?.kind === "OFFICIAL_TOTAL_COUNT" && declared.value !== 0;
   const globalCannotCertifyFiltered = input.filteredOutput && declared?.scope === "GLOBAL_UNFILTERED";
-  const declaredPageCountMatches = declarationCoversActualPages(evidence, expectedChannelIds);
+  const declaredPageCountMatches = declarationCoversActualPages(
+    evidence,
+    expectedChannelIds,
+    input.allowPositiveOfficialTotalCountAfterAdapterReconciliation === true
+  );
   const verifiedEligible = safeCompleteness && declared !== undefined &&
-    !needsLaterAdapterAccounting && !globalCannotCertifyFiltered && declaredPageCountMatches;
+    !globalCannotCertifyFiltered && declaredPageCountMatches;
 
   return {
     pages: derived,
@@ -354,12 +356,21 @@ function safeTerminationsByScope(evidence: PersistentSourceFetchEvidence): boole
 
 function declarationCoversActualPages(
   evidence: PersistentSourceFetchEvidence,
-  expectedChannelIds: readonly string[]
+  expectedChannelIds: readonly string[],
+  allowPositiveOfficialTotalCountAfterAdapterReconciliation: boolean
 ): boolean {
   const declared = evidence.declaredCompleteness;
   if (!declared) return false;
   if (declared.kind === "OFFICIAL_TOTAL_COUNT") {
-    return declared.value === 0 && evidence.fetchCounts.validCount === 0;
+    if (declared.value === 0) return evidence.fetchCounts.validCount === 0;
+    if (!allowPositiveOfficialTotalCountAfterAdapterReconciliation) return false;
+    // This opt-in only exposes a lossless positive declaration to a later,
+    // independent adapter reconciliation gate. It does not certify the fetch.
+    return declared.value === evidence.fetchCounts.rawCount &&
+      declared.value === evidence.fetchCounts.parsedCount &&
+      declared.value === evidence.fetchCounts.validCount &&
+      evidence.fetchCounts.parseDiscardCount === 0 && evidence.fetchCounts.validationDiscardCount === 0 &&
+      evidence.fetchLosses.length === 0;
   }
   let actualPages: number;
   if (declared.scope === "CHANNEL") {

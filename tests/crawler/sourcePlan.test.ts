@@ -53,6 +53,7 @@ const plannedMainListSourceIds = new Set([
   "source-pfizer-china-social",
   "source-qilu-social",
   "source-roche-china-social",
+  "source-sandoz-china-social",
   "source-sanofi-china-social",
   "source-servier-china-social",
   "source-takeda-china-social",
@@ -131,6 +132,26 @@ describe("source crawl planning", () => {
         staticPublicList: { excludedPartitionSelectors: [".job-card:has(a[href='schooldetail.html'])"] }
       }
     });
+  });
+
+  it("promotes the canonical Sandoz social source with its bound China taxonomy and no hard-coded job count", () => {
+    const plan = getPlanBySourceId(buildDiscoverySourcePlanCandidates(candidateCompanies), "source-sandoz-china-social");
+    expect(plan).toMatchObject({
+      adapterId: "official-json",
+      source: { id: "source-sandoz-china-social", kind: "SOCIAL", status: "VERIFIED_SCRAPABLE" },
+      officialJsonFetch: {
+        kind: "sandoz-jsonapi",
+        endpointUrl: "https://sandoz-com.cms.sandoz.com/jsonapi/views/job_search/job_search",
+        taxonomyEndpointUrl: "https://sandoz-com.cms.sandoz.com/jsonapi/taxonomy_term/job_location",
+        countryTermName: "LOC_CN",
+        countryTermTargetId: 806,
+        countryTermUuid: "2f829192-01a9-4909-b729-baab0b0bad0c",
+        pageSize: 10,
+        maxPages: 50,
+        detailBaseUrl: "https://www.sandoz.com"
+      }
+    });
+    expect(JSON.stringify(plan)).not.toMatch(/expectedJobCount|stableCompanyCount|currentJobTotal/iu);
   });
 
   it("fails staged planning closed for source-owner drift and both authorized exclusions", () => {

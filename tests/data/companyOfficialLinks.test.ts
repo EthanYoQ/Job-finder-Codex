@@ -146,12 +146,14 @@ describe("official-link registry cardinality", () => {
     expect(registry.validateStrictCompanyRegistry(built.companies, built.surfaces, [])).toEqual([]);
   });
 
-  it("keeps Sandoz blocked while preserving separate pending and verified Otsuka official sources", () => {
+  it("activates the canonical Sandoz source while preserving separate pending and verified Otsuka official sources", () => {
     const byId = new Map(registry.candidateCompanies.map((company) => [company.id, company]));
 
     expect(byId.get("company-sandoz-china")).toMatchObject({
-      targetStatus: "BLOCKED_EVIDENCE_GAP",
+      targetStatus: "ACTIVE",
       sources: [{
+        id: "source-sandoz-china-social",
+        status: "VERIFIED_SCRAPABLE",
         officialEntryUrl: "https://www.sandoz.com/careers/job-search/",
         officialChainEvidenceUrl: "https://www.sandoz.com/careers/job-search/"
       }]

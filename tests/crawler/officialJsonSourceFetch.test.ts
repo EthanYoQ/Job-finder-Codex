@@ -1015,8 +1015,37 @@ describe("createOfficialJsonSourceFetch", () => {
     });
   });
 
-  it("fetches Sandoz JSONAPI pages with the official page token and filters China jobs after complete traversal", async () => {
+  it("fetches the official Sandoz China partition after taxonomy validation and exact alternate-zero probes", async () => {
     const requests: Array<{ url: string; method?: string; headers?: Record<string, string> }> = [];
+    const endpoint = "https://sandoz-com.cms.sandoz.com/jsonapi/views/job_search/job_search";
+    const taxonomyEndpoint = "https://sandoz-com.cms.sandoz.com/jsonapi/taxonomy_term/job_location";
+    const taxonomyUrl = `${taxonomyEndpoint}?filter%5Bdrupal_internal__tid%5D=806`;
+    const countryUuid = "2f829192-01a9-4909-b729-baab0b0bad0c";
+    const fields = "title,field_job_title,field_job_employment_type,field_job_type,field_job_id,field_job_business_unit,field_job_work_location,field_job_posted_date,path,drupal_internal__tid,field_date,field_job_country,field_job_alt_country_1,field_job_alt_country_2,field_job_alt_country_3";
+    const listUrl = (probe: "primary" | "alt1" | "alt2" | "alt3") => {
+      const url = new URL(endpoint);
+      url.searchParams.set("fields[node--jobs]", fields);
+      url.searchParams.set("page", "0");
+      url.searchParams.set("views-filter[field_job_functional_area]", "All");
+      url.searchParams.set("views-filter[field_job_posted_date][min]", "");
+      url.searchParams.set("views-filter[field_job_posted_date][max]", "");
+      if (probe === "primary") {
+        url.searchParams.set("views-filter[field_job_country]", "806");
+        url.searchParams.set("views-filter[field_job_alt_country_1]", "");
+      } else if (probe === "alt1") {
+        url.searchParams.set("views-filter[field_job_country]", "All");
+        url.searchParams.set("views-filter[field_job_alt_country_1]", "806");
+      } else if (probe === "alt2") {
+        url.searchParams.set("views-filter[field_job_country]", "All");
+        url.searchParams.set("views-filter[field_job_alt_country_1]", "");
+        url.searchParams.set("views-filter[field_job_alt_country_2]", "806");
+      } else {
+        url.searchParams.set("views-filter[field_job_country]", "All");
+        url.searchParams.set("views-filter[field_job_alt_country_1]", "");
+        url.searchParams.set("views-filter[field_job_alt_country_3]", "806");
+      }
+      return url.toString();
+    };
     const fetcher = createOfficialJsonSourceFetch({
       now: () => new Date("2026-07-08T00:00:00.000Z"),
       http: async (request) => {
@@ -1030,66 +1059,55 @@ describe("createOfficialJsonSourceFetch", () => {
             capturedAt: "2026-07-08T00:00:00.000Z"
           };
         }
-
-        const page = Number(new URL(request.url).searchParams.get("page") ?? "0");
-        const jobs = [
+        if (request.url === taxonomyUrl) {
+          return {
+            status: 200,
+            body: JSON.stringify({ data: [{
+              type: "taxonomy_term--job_location",
+              id: countryUuid,
+              attributes: { drupal_internal__tid: 806, name: "LOC_CN" }
+            }] }),
+            finalUrl: request.url,
+            contentType: "application/vnd.api+json",
+            capturedAt: "2026-07-08T00:00:00.000Z"
+          };
+        }
+        const jobs = request.url === listUrl("primary") ? [
           {
-            type: "node--job",
-            id: "REQ-10029354",
+            type: "node--jobs",
+            id: "4816e692-7bed-4a07-80a9-cd6dd2823fa7",
             attributes: {
               field_job_id: "REQ-10029354",
               field_job_title: "AS&T (Analytical Science & Technology) Manager",
               field_job_work_location: "Shanghai (Shanghai) (Sandoz)",
               path: { alias: "/ast-analytical-science-technology-manager" }
             },
-            relationships: {
-              field_job_country: {
-                data: [
-                  {
-                    type: "taxonomy_term--job_location",
-                    id: "2f829192-01a9-4909-b729-baab0b0bad0c",
-                    meta: { term_name: "LOC_CN" }
-                  }
-                ]
-              },
-              field_job_alt_country_1: { data: [] },
-              field_job_alt_country_2: { data: [] },
-              field_job_alt_country_3: { data: [] }
-            }
+            relationships: { field_job_country: { data: [{
+              type: "taxonomy_term--job_location",
+              id: countryUuid,
+              meta: { drupal_internal__target_id: 806, term_name: "LOC_CN" }
+            }] } }
           },
           {
-            type: "node--job",
-            id: "REQ-10020000",
+            type: "node--jobs",
+            id: "857d95c7-7847-4904-bb50-648068a190b1",
             attributes: {
-              field_job_id: "REQ-10020000",
-              field_job_title: "Global Quality Lead",
-              field_job_work_location: "Kundl (Sandoz)",
-              path: { alias: "/global-quality-lead" }
+              field_job_id: "REQ-10029352",
+              field_job_title: "Senior Quality Assurance Manager",
+              field_job_work_location: "Shanghai (Shanghai) (Sandoz)",
+              path: { alias: "/senior-quality-assurance-manager" }
             },
-            relationships: {
-              field_job_country: {
-                data: [
-                  {
-                    type: "taxonomy_term--job_location",
-                    id: "loc-at",
-                    meta: { term_name: "LOC_AT" }
-                  }
-                ]
-              },
-              field_job_alt_country_1: { data: [] },
-              field_job_alt_country_2: { data: [] },
-              field_job_alt_country_3: { data: [] }
-            }
+            relationships: { field_job_country: { data: [{
+              type: "taxonomy_term--job_location",
+              id: countryUuid,
+              meta: { drupal_internal__target_id: 806, term_name: "LOC_CN" }
+            }] } }
           }
-        ];
-
+        ] : [];
         return {
           status: 200,
-          body: JSON.stringify({
-            data: page === 0 ? jobs : [],
-            meta: { count: 2 },
-            links: {}
-          }),
+          body: JSON.stringify({ data: jobs, meta: { count: jobs.length },
+            links: { self: { href: request.url } }, number_of_items_per_page: 10 }),
           finalUrl: request.url,
           contentType: "application/vnd.api+json",
           capturedAt: "2026-07-08T00:00:00.000Z"
@@ -1099,51 +1117,46 @@ describe("createOfficialJsonSourceFetch", () => {
 
     const result = await fetcher({
       ...basePlan,
-      source: {
-        ...basePlan.source,
-        officialEntryUrl: "https://www.sandoz.com/careers/job-search/"
-      },
+      source: { ...basePlan.source, officialEntryUrl: "https://www.sandoz.com/careers/job-search/" },
       officialJsonFetch: {
         kind: "sandoz-jsonapi",
-        endpointUrl: "https://sandoz-com.cms.sandoz.com/jsonapi/views/job_search/job_search",
+        endpointUrl: endpoint,
+        taxonomyEndpointUrl: taxonomyEndpoint,
         countryTermName: "LOC_CN",
+        countryTermTargetId: 806,
+        countryTermUuid: countryUuid,
         pageSize: 10,
         maxPages: 5,
         detailBaseUrl: "https://www.sandoz.com"
       }
     });
 
-    expect(result).toMatchObject({
-      ok: true,
-      completeness: {
-        completenessStatus: "NEEDS_MANUAL_COMPLETENESS_REVIEW",
-        expectedJobCount: 2,
-        completenessEvidenceKind: "OFFICIAL_TOTAL_COUNT",
-        completenessEvidenceUrl: "https://www.sandoz.com/careers/job-search/",
-        totalPages: 1,
-        pageSize: 10,
-        pagesVisited: 1
-      }
-    });
-    if (!result.ok || !("payload" in result)) {
-      throw new Error("Expected Sandoz payload");
-    }
-
+    expect(result).toMatchObject({ ok: true, completeness: {
+      completenessStatus: "NEEDS_MANUAL_COMPLETENESS_REVIEW",
+      expectedJobCount: 2,
+      completenessEvidenceKind: "OFFICIAL_TOTAL_COUNT",
+      completenessEvidenceUrl: "https://www.sandoz.com/careers/job-search/",
+      totalPages: 1,
+      pageSize: 10,
+      pagesVisited: 1
+    }, paginationEvaluation: { safeCompleteness: true, verifiedEligible: true } });
+    if (!result.ok || !("payload" in result)) throw new Error("Expected Sandoz payload");
     const payload = result.payload as { jobs: unknown[] };
     expect(payload.jobs).toEqual([
-      {
-        sourceJobId: "REQ-10029354",
-        title: "AS&T (Analytical Science & Technology) Manager",
-        officialUrl: "https://www.sandoz.com/ast-analytical-science-technology-manager",
-        locationRaw: "Shanghai (Shanghai) (Sandoz)",
-        cities: ["上海"]
-      }
+      { sourceJobId: "REQ-10029354", title: "AS&T (Analytical Science & Technology) Manager",
+        officialUrl: "https://www.sandoz.com/ast-analytical-science-technology-manager/",
+        locationRaw: "Shanghai (Shanghai) (Sandoz)", cities: ["上海"] },
+      { sourceJobId: "REQ-10029352", title: "Senior Quality Assurance Manager",
+        officialUrl: "https://www.sandoz.com/senior-quality-assurance-manager/",
+        locationRaw: "Shanghai (Shanghai) (Sandoz)", cities: ["上海"] }
     ]);
-    expect(requests).toHaveLength(2);
-    expect(requests[0]?.url).toBe("https://www.sandoz.com/careers/job-search/");
-    expect(requests[1]?.url).toContain("page=0");
-    expect(requests[1]?.url).toContain("field_job_country%5D=All");
-    expect(requests[1]?.headers?.Authorization).toBe(`Bearer ${makeExampleCredential("sandoz")}`);
+    expect(requests.map(({ url }) => url)).toEqual([
+      "https://www.sandoz.com/careers/job-search/", taxonomyUrl,
+      listUrl("primary"), listUrl("alt1"), listUrl("alt2"), listUrl("alt3")
+    ]);
+    expect(requests[2]?.url).toContain("field_job_country%5D=806");
+    expect(requests[2]?.url).not.toContain("field_job_country%5D=All");
+    expect(requests.slice(1).every((request) => request.headers?.Authorization === `Bearer ${makeExampleCredential("sandoz")}`)).toBe(true);
   });
 
   it("fetches Xiuzheng official job-list pages with page parameter traversal", async () => {
