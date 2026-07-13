@@ -510,6 +510,42 @@ describe("RC-bound artifact archive", () => {
     ))).rejects.toThrow();
   });
 
+  it("archives validated exact and redacted body provenance without opening the metadata boundary", async () => {
+    const exact = request(await workspace());
+    Object.assign(exact.artifacts[0]!, { bodyRepresentation: "EXACT" as const });
+    await expect(archiveSourceEvidence(exact)).resolves.toMatchObject({
+      artifacts: [{ byteCount: Buffer.byteLength(String(exact.artifacts[0]!.body), "utf8") }]
+    });
+
+    const redacted = request(await workspace());
+    Object.assign(redacted.artifacts[0]!, {
+      body: "[REDACTED_CREDENTIAL_MATERIAL]",
+      bodyRepresentation: "REDACTED" as const,
+      rawBodySha256: "a".repeat(64),
+      redactionDescriptors: [{ kind: "CREDENTIAL_MATERIAL" as const, count: 1 }]
+    });
+    const redactedArchived = await archiveSourceEvidence(redacted);
+    expect(redactedArchived).toMatchObject({ artifacts: [{
+      byteCount: Buffer.byteLength(String(redacted.artifacts[0]!.body), "utf8"),
+      bodyRepresentation: "REDACTED",
+      rawBodySha256: "a".repeat(64),
+      redactionDescriptors: [{ kind: "CREDENTIAL_MATERIAL", count: 1 }]
+    }] });
+    await expect(verifyArchivedSourceEvidence({
+      workspaceRoot: redacted.workspaceRoot,
+      releaseCandidateId: redacted.releaseCandidateId,
+      batchId: redacted.batchId,
+      sourceId: redacted.sourceId,
+      sourceResultId: redacted.sourceResultId,
+      evidenceSubdirectory: redacted.evidenceSubdirectory,
+      artifacts: redactedArchived.artifacts
+    })).resolves.toEqual(redactedArchived.artifacts);
+
+    const attacked = request(await workspace());
+    attacked.artifacts = [{ ...attacked.artifacts[0]!, headers: { authorization: "forbidden" } } as never];
+    await expect(archiveSourceEvidence(attacked)).rejects.toThrow(/unknown own property/i);
+  });
+
   it("rejects traversal, duplicate IDs, logical keys, and final paths before writes", async () => {
     const root = await workspace();
     const base = request(root);

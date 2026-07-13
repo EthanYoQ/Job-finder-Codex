@@ -59,6 +59,38 @@ describe("runtime atomic evidence planning", () => {
     expect(planned.sources[0]?.officialChannelIds).toEqual([]);
   });
 
+  it("binds scheduled staged sources to the canonical official surface and channels", () => {
+    const expectedChannels = [{ channelId: "channel-1", kind: "SOCIAL" as const }];
+    const plan = {
+      adapterId: "official-json" as const,
+      executionAuthority: "STAGED" as const,
+      company: { id: "company-1", officialChineseName: "公司" },
+      source: { id: "source-1", companyId: "company-1", kind: "SOCIAL" as const,
+        atsKind: "OFFICIAL_JSON" as const, status: "VERIFIED_SCRAPABLE" as const,
+        officialEntryUrl: "https://example.com/jobs", officialChainEvidenceUrl: "https://example.com/jobs",
+        surfaceId: "surface-1" },
+      expectedChannels,
+      expectedChannelSetHash: expectedChannelSetHash(expectedChannels),
+      json: { jobsPath: "jobs", fields: { officialTitle: "title", officialUrl: "url", locationRaw: "location" } }
+    } satisfies SourceCrawlPlan;
+    const identity: RuntimeBatchIdentity = {
+      releaseCandidateId: "p0-rc-20260710-001", commitSha: sha, rosterSha256: sha,
+      sourcePlanSha256: sha, sourceConfigSha256: sha, adapterBundleSha256: sha,
+      batchKind: "SCHEDULED", ownerId: "owner-1", expectedPlannedSourceIds: ["source-1"],
+      expectedPlannedSourceSetSha256: sha, expectedPlannedSourceCount: 1
+    };
+
+    const pending = buildPendingRuntimeBatch(
+      "batch-1", [plan], identity, new Date("2026-07-10T00:00:00Z")
+    ).sources[0]!;
+
+    expect(pending).toMatchObject({
+      officialEntryId: null,
+      officialSurfaceIds: ["surface-1"],
+      officialChannelIds: ["channel-1"]
+    });
+  });
+
   it("hashes the complete source plan canonically and changes for config or channel changes", () => {
     const plan = channelBound({
       adapterId: "official-json", company: { id: "company-1", officialChineseName: "公司" },
@@ -223,6 +255,49 @@ describe("runtime atomic evidence planning", () => {
       canonicalCurrentJobSetSha256: commit.observationProvenance.canonicalOutputSha256 });
     expect(commit.artifacts).toHaveLength(1);
     expect(commit.pagination).toHaveLength(1);
+
+    const expectedChannels = [{ channelId: "channel-1", kind: "SOCIAL" as const }];
+    const scheduledPlan = { ...plan, executionAuthority: "STAGED" as const,
+      source: { ...plan.source, surfaceId: "surface-1" }, expectedChannels,
+      expectedChannelSetHash: expectedChannelSetHash(expectedChannels) } satisfies SourceCrawlPlan;
+    const scheduledPending = buildPendingRuntimeBatch("scheduled-batch", [scheduledPlan], identity,
+      new Date("2026-07-10T00:00:00Z")).sources[0]!;
+    const scheduledCommit = buildAtomicRuntimeCommit({ plan: scheduledPlan, pending: scheduledPending,
+      identity, batchId: "scheduled-batch", result, previousJobs: [],
+      baselineCompletedBeforeCrawl: true, artifacts: archived });
+    expect(scheduledCommit.sourceResult).toMatchObject({
+      completenessState: "VERIFIED",
+      officialSurfaceIds: ["surface-1"],
+      officialChannelIds: ["channel-1"]
+    });
+    expect(scheduledCommit.commands.some((command) => command.type === "UPSERT_JOB")).toBe(true);
+
+    const sourceScopedResult = structuredClone(result);
+    delete sourceScopedResult.fetchEvidence!.artifacts[0]!.channelId;
+    delete sourceScopedResult.fetchEvidence!.pages[0]!.channelId;
+    sourceScopedResult.fetchEvidence!.declaredCompleteness = {
+      ...sourceScopedResult.fetchEvidence!.declaredCompleteness!,
+      scope: "SOURCE"
+    };
+    delete sourceScopedResult.fetchEvidence!.declaredCompleteness!.channelId;
+    const sourceScopedArtifacts = archived.map(({ channelId: _channelId, ...artifact }) => artifact);
+    const sourceScopedCommit = buildAtomicRuntimeCommit({ plan: scheduledPlan, pending: scheduledPending,
+      identity, batchId: "scheduled-batch", result: sourceScopedResult, previousJobs: [],
+      baselineCompletedBeforeCrawl: true, artifacts: sourceScopedArtifacts });
+    expect(sourceScopedCommit.sourceResult.completenessState).toBe("VERIFIED");
+
+    const rawBodySha256 = "b".repeat(64);
+    const redactedCommit = buildAtomicRuntimeCommit({ plan: scheduledPlan, pending: scheduledPending,
+      identity, batchId: "scheduled-batch", result, previousJobs: [], baselineCompletedBeforeCrawl: true,
+      artifacts: archived.map((artifact) => ({ ...artifact, bodyRepresentation: "REDACTED" as const,
+        rawBodySha256, redactionDescriptors: [{ kind: "CREDENTIAL_MATERIAL" as const, count: 1 }] })) });
+    expect(redactedCommit.artifacts[0]?.redactionCommitmentSha256).toBe(rawBodySha256);
+    expect(() => buildAtomicRuntimeCommit({ plan: scheduledPlan, pending: scheduledPending,
+      identity, batchId: "scheduled-batch", result, previousJobs: [], baselineCompletedBeforeCrawl: true,
+      artifacts: archived.map((artifact) => ({ ...artifact, bodyRepresentation: "REDACTED" as const,
+        redactionDescriptors: [{ kind: "CREDENTIAL_MATERIAL" as const, count: 1 }] })) }))
+      .toThrow(/redacted.*raw/i);
+
     const manualIdentity = { ...identity, batchKind: "MANUAL_SOURCE" as const, ownerId: "manual-worker" };
     const manualCommit = buildAtomicRuntimeCommit({ plan, pending, identity: manualIdentity, batchId: "batch-1", result,
       previousJobs: [], baselineCompletedBeforeCrawl: true, artifacts: archived, oracle });
@@ -363,8 +438,11 @@ describe("runtime atomic evidence planning", () => {
         expect(jobUpsert).not.toHaveBeenCalled();
         expect(observationCreate).not.toHaveBeenCalled();
       }
-      if (fault === "orphan") expect(orphanLedger).toEqual([archived[0]]);
-      if (fault === "orphan-ledger") expect(orphanLedger).toEqual([archived[0]]);
+      if (["orphan", "orphan-ledger", "verify", "atomic"].includes(fault)) {
+        expect(orphanLedger).toEqual([archived[0]]);
+      } else {
+        expect(orphanLedger).toEqual([]);
+      }
       expect(terminalUpdates.at(-1)).toEqual(expect.objectContaining({
         data: expect.objectContaining({
           transportState: "SUCCEEDED",

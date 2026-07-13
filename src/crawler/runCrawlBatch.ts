@@ -252,6 +252,7 @@ export async function runP0CrawlBatch(
       }
 
       let committedCompletenessVerified = false;
+      let retainedArtifacts: readonly ArchivedEvidenceArtifact[] = [];
       try {
         if (!crawlResult.fetchEvidence) throw new Error("strict fetch evidence is required for atomic runtime commit");
         const archived = await (deps.archiveEvidence ?? archiveSourceEvidence)({ workspaceRoot: deps.workspaceRoot ?? process.cwd(),
@@ -263,11 +264,13 @@ export async function runP0CrawlBatch(
             ...crawlResult.fetchEvidence.artifacts,
             ...(crawlResult.priorTransportAttempts ?? []).flatMap((attempt) => attempt.fetchEvidence?.artifacts ?? [])
           ] });
+        retainedArtifacts = archived.artifacts;
         const verifiedArtifacts = await (deps.verifyArchive ?? verifyArchivedSourceEvidence)({ workspaceRoot: deps.workspaceRoot ?? process.cwd(),
           releaseCandidateId: deps.identity.releaseCandidateId, batchId: batch.id, sourceId: plan.source.id,
           sourceResultId: pending.id, evidenceSubdirectory: deps.evidenceSubdirectory ?? "phase-1/runtime-evidence",
           formalRelease:deps.identity.batchKind==="FULL_RELEASE",
           artifacts: archived.artifacts });
+        retainedArtifacts = verifiedArtifacts;
         const commit = buildAtomicRuntimeCommit({ plan, pending, identity: deps.identity, batchId: batch.id,
           result: crawlResult, previousJobs, baselineCompletedBeforeCrawl, artifacts: verifiedArtifacts,
           ...(trustedOracle ? { trustedOracle } : {}) });
@@ -284,17 +287,20 @@ export async function runP0CrawlBatch(
         atomicCommittedSourceCount += 1;
       } catch (error) {
         let propagatedError: unknown = error;
-        if (error instanceof ArtifactArchiveError && error.orphanedFinalArtifacts.length > 0) {
+        const orphanedArtifacts = error instanceof ArtifactArchiveError && error.orphanedFinalArtifacts.length > 0
+          ? error.orphanedFinalArtifacts
+          : retainedArtifacts;
+        if (orphanedArtifacts.length > 0) {
           try {
             await (deps.recordOrphanedArtifacts ?? ((artifacts) => appendRuntimeOrphanLedger(
               deps.workspaceRoot ?? process.cwd(), deps.identity.releaseCandidateId,
               deps.evidenceSubdirectory ?? "phase-1/runtime-evidence", artifacts
-            )))(error.orphanedFinalArtifacts);
+            )))(orphanedArtifacts);
           } catch {
             const safeLedgerError = new Error("ORPHAN_LEDGER_RECORDING_FAILED");
             propagatedError = new AggregateError(
               [error, safeLedgerError],
-              "Artifact archive and orphan-ledger recording both failed"
+              "Artifact retention and orphan-ledger recording both failed"
             );
           }
         }

@@ -25,6 +25,35 @@ const sha256 = (value: string): string =>
 const attestationKey=randomBytes(32);
 const runtimeCommitAttestations=new WeakMap<AtomicSourceEvidenceCommit,Buffer>();
 
+function stagedPlanOfficialProjection(plan: SourceCrawlPlan): {
+  officialEntryId: null;
+  officialSurfaceIds: string[];
+  officialChannelIds: string[];
+} | undefined {
+  if (plan.executionAuthority !== "STAGED" || plan.source.status !== "VERIFIED_SCRAPABLE" ||
+      !plan.source.officialEntryUrl.trim() || !plan.source.officialChainEvidenceUrl.trim() ||
+      !plan.source.surfaceId?.trim() || !plan.expectedChannels?.length) return undefined;
+  return {
+    officialEntryId: null,
+    officialSurfaceIds: [plan.source.surfaceId],
+    officialChannelIds: plan.expectedChannels.map(({ channelId }) => channelId)
+  };
+}
+
+function archivedRedactionCommitment(artifact: ArchivedEvidenceArtifact): string {
+  if (artifact.bodyRepresentation === "REDACTED") {
+    if (!artifact.rawBodySha256 || !/^[0-9a-f]{64}$/.test(artifact.rawBodySha256) ||
+        !Array.isArray(artifact.redactionDescriptors) || artifact.redactionDescriptors.length === 0) {
+      throw new Error("redacted archived artifact requires raw hash and descriptors");
+    }
+    return artifact.rawBodySha256;
+  }
+  if (artifact.rawBodySha256 !== undefined || artifact.redactionDescriptors !== undefined) {
+    throw new Error("non-redacted archived artifact cannot carry redaction provenance");
+  }
+  return artifact.sha256;
+}
+
 export function buildPendingRuntimeBatch(
   batchId: string,
   plans: readonly SourceCrawlPlan[],
@@ -41,6 +70,18 @@ export function buildPendingRuntimeBatch(
     throw new Error("Only MANUAL_SOURCE may bind a manual crawl request");
   }
   const sources: PlannedPendingSourceInput[] = plans.map((plan) => ({
+    ...(() => {
+      const oracleProjection = trustedOracle
+        ? sourceOracleProjection(trustedOracle, plan.source.id)
+        : oracle?.sources[plan.source.id];
+      const projection = oracleProjection ??
+        (identity.batchKind === "FULL_RELEASE" ? undefined : stagedPlanOfficialProjection(plan));
+      return {
+        officialEntryId: projection?.officialEntryId ?? null,
+        officialSurfaceIds: [...(projection?.officialSurfaceIds ?? [])],
+        officialChannelIds: [...(projection?.officialChannelIds ?? [])]
+      };
+    })(),
     id: `${batchId}--${plan.source.id}`,
     sourceId: plan.source.id,
     sourceConfigHash: sourcePlanConfigSha256(plan),
@@ -48,9 +89,6 @@ export function buildPendingRuntimeBatch(
       adapterId: plan.adapterId,
       adapterBundleSha256: identity.adapterBundleSha256
     })),
-    officialEntryId: (trustedOracle ? sourceOracleProjection(trustedOracle, plan.source.id)?.officialEntryId : oracle?.sources[plan.source.id]?.officialEntryId) ?? null,
-    officialSurfaceIds: [...((trustedOracle ? sourceOracleProjection(trustedOracle, plan.source.id)?.officialSurfaceIds : oracle?.sources[plan.source.id]?.officialSurfaceIds) ?? [])],
-    officialChannelIds: [...((trustedOracle ? sourceOracleProjection(trustedOracle, plan.source.id)?.officialChannelIds : oracle?.sources[plan.source.id]?.officialChannelIds) ?? [])],
     startedAt: new Date(startedAt)
   }));
 
@@ -147,20 +185,34 @@ export function buildAtomicRuntimeCommit(input: {
     plan.source.id, evidence, input.artifacts, identity);
   const projection = input.trustedOracle ? sourceOracleProjection(input.trustedOracle, plan.source.id) : undefined;
   const trustedMembers = input.trustedOracle?.artifact.members.filter((member) => member.sourceId === plan.source.id) ?? [];
-  const audited = projection ? { ...projection,
+  const oracleAudited = projection ? { ...projection,
     artifactLogicalKeyToSurfaceId: Object.fromEntries(trustedMembers.flatMap((member) => member.expectedArtifacts.map((a) => [a.logicalKey, member.surfaceId]))),
     artifactLogicalKeyToChannelId: Object.fromEntries(trustedMembers.flatMap((member) => member.expectedArtifacts.map((a) => [a.logicalKey, member.channelId])))
   } : input.oracle?.sources[plan.source.id];
-  const expectedSurface = audited ? canonicalStringSetSha256(audited.officialSurfaceIds) : null;
-  const visitedSurfaces = audited ? evidence.artifacts.flatMap((artifact) =>
-    audited.artifactLogicalKeyToSurfaceId[artifact.logicalKey] ?? []) : [];
-  const visitedSurface = audited ? canonicalStringSetSha256(visitedSurfaces) : null;
-  const expectedChannel = audited ? canonicalStringSetSha256(audited.officialChannelIds) : null;
-  const visitedChannels = audited ? evidence.artifacts.flatMap((artifact) =>
-    audited.artifactLogicalKeyToChannelId[artifact.logicalKey] ?? []) : [];
-  const visitedChannel = audited ? canonicalStringSetSha256(visitedChannels) : null;
-  const oracleVerified = input.trustedOracle ? true : hasCompleteAuditedSourceCoverage(plan.source.id, evidence, input.oracle);
-  const completenessVerified = result.truth.completenessVerified && oracleVerified;
+  const stagedProjection = identity.batchKind === "FULL_RELEASE" ? undefined : stagedPlanOfficialProjection(plan);
+  const stagedBindingMatchesPending = stagedProjection !== undefined &&
+    canonicalStringSetSha256(stagedProjection.officialSurfaceIds) === canonicalStringSetSha256(pending.officialSurfaceIds) &&
+    canonicalStringSetSha256(stagedProjection.officialChannelIds) === canonicalStringSetSha256(pending.officialChannelIds);
+  const expectedSurfaceIds = oracleAudited?.officialSurfaceIds ??
+    (stagedBindingMatchesPending ? pending.officialSurfaceIds : []);
+  const expectedChannelIds = oracleAudited?.officialChannelIds ??
+    (stagedBindingMatchesPending ? pending.officialChannelIds : []);
+  const visitedSurfaces = oracleAudited ? evidence.artifacts.flatMap((artifact) =>
+    oracleAudited.artifactLogicalKeyToSurfaceId[artifact.logicalKey] ?? []) :
+    stagedBindingMatchesPending && evidence.artifacts.length > 0 ? pending.officialSurfaceIds : [];
+  const visitedChannels = oracleAudited ? evidence.artifacts.flatMap((artifact) =>
+    oracleAudited.artifactLogicalKeyToChannelId[artifact.logicalKey] ?? []) :
+    stagedBindingMatchesPending && result.truth.completenessVerified ? pending.officialChannelIds :
+      evidence.pages.flatMap((page) => page.channelId ?? []);
+  const expectedSurface = expectedSurfaceIds.length > 0 ? canonicalStringSetSha256(expectedSurfaceIds) : null;
+  const visitedSurface = expectedSurface !== null ? canonicalStringSetSha256(visitedSurfaces) : null;
+  const expectedChannel = expectedChannelIds.length > 0 ? canonicalStringSetSha256(expectedChannelIds) : null;
+  const visitedChannel = expectedChannel !== null ? canonicalStringSetSha256(visitedChannels) : null;
+  const sourceBindingVerified = input.trustedOracle ? true : oracleAudited
+    ? canonicalStringSetSha256(oracleAudited.officialSurfaceIds) === canonicalStringSetSha256(visitedSurfaces) &&
+      canonicalStringSetSha256(oracleAudited.officialChannelIds) === canonicalStringSetSha256(visitedChannels)
+    : stagedBindingMatchesPending;
+  const completenessVerified = result.truth.completenessVerified && sourceBindingVerified;
   const finishedAt = result.observation.crawledAt;
   // These decisions are transaction candidates only. They become true only if the enclosing atomic commit succeeds.
   const manualPreview = identity.batchKind === "MANUAL_SOURCE";
@@ -184,7 +236,7 @@ export function buildAtomicRuntimeCommit(input: {
       capturedAt: archived.capturedAt, sha256: archived.sha256, byteCount: archived.byteCount,
       path: archived.path, extractorLocator: archived.extractorLocator,
       captureToolName: archived.captureToolName, captureToolVersion: archived.captureToolVersion,
-      redactionCommitmentSha256: archived.sha256 };
+      redactionCommitmentSha256: archivedRedactionCommitment(archived) };
   });
   const lossLedger = [
     ...evidence.fetchLosses.map((loss) => ({ ...tuple, stage: loss.stage, reason: loss.reason,
@@ -227,8 +279,14 @@ export function buildAtomicRuntimeCommit(input: {
       adapterLossCount: ledger.adapterLosses.length + (ledger.dedupeInputCount-ledger.dedupeOutputCount),
       adapterCollisionGroupCount: ledger.collisionGroups.length,
       adapterReconciliationSha256: ledger.ledgerSha256, collisionLedgerSha256: sha256(canonicalJson(ledger.collisionGroups)),
-      ...(completenessVerified ? {} : { blockerCode: audited ? "COMPLETENESS_NOT_VERIFIED" : "SOURCE_SURFACE_ORACLE_MISSING",
-        blockerReason: audited ? "Strict completeness gate was not satisfied" : "Audited source-surface oracle is missing" }) },
+      ...(completenessVerified ? {} : {
+        blockerCode: oracleAudited || stagedBindingMatchesPending
+          ? "COMPLETENESS_NOT_VERIFIED"
+          : "SOURCE_SURFACE_ORACLE_MISSING",
+        blockerReason: oracleAudited || stagedBindingMatchesPending
+          ? "Strict completeness gate was not satisfied"
+          : "Audited source-surface oracle is missing"
+      }) },
     observationProvenance: { ...tuple, commitSha: identity.commitSha, rosterSha256: identity.rosterSha256,
       sourcePlanSha256: identity.sourcePlanSha256, sourceConfigSha256: pending.sourceConfigHash,
       adapterVersion: pending.adapterVersion, observedFrom: pending.startedAt, observedTo: finishedAt,

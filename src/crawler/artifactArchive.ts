@@ -36,6 +36,12 @@ export interface ArchivedEvidenceArtifact {
   finalUrl?: string;
   httpStatus?: number;
   contentType?: string;
+  bodyRepresentation?: "EXACT" | "REDACTED";
+  rawBodySha256?: string;
+  redactionDescriptors?: Array<{
+    kind: "CREDENTIAL_MATERIAL" | "UPSTREAM_ERROR_TEXT";
+    count: number;
+  }>;
   capturedAt: Date;
   sha256: string;
   byteCount: number;
@@ -312,8 +318,8 @@ async function validatePrivateArchiveRoot(workspaceRoot:string,rcRoot:string):Pr
 const ARCHIVED_METADATA_KEYS = new Set([
   "id", "logicalKey", "releaseCandidateId", "batchId", "sourceId", "sourceResultId",
   "channelId", "kind", "requestedUrl", "finalUrl", "httpStatus", "contentType",
-  "capturedAt", "sha256", "byteCount", "path", "extractorLocator", "captureToolName",
-  "captureToolVersion"
+  "bodyRepresentation", "rawBodySha256", "redactionDescriptors", "capturedAt", "sha256",
+  "byteCount", "path", "extractorLocator", "captureToolName", "captureToolVersion"
 ]);
 const ARCHIVED_REQUIRED_KEYS = [
   "id", "logicalKey", "releaseCandidateId", "batchId", "sourceId", "sourceResultId",
@@ -329,8 +335,11 @@ const NETWORK_KINDS = new Set([
 ]);
 const ARTIFACT_DRAFT_KEYS = new Set([
   "id", "logicalKey", "kind", "channelId", "requestedUrl", "finalUrl", "httpStatus",
-  "contentType", "capturedAt", "body", "extractorLocator"
+  "contentType", "capturedAt", "body", "bodyRepresentation", "rawBodySha256",
+  "redactionDescriptors", "extractorLocator"
 ]);
+const REDACTION_DESCRIPTOR_KEYS = new Set(["kind", "count"]);
+const REDACTION_DESCRIPTOR_KINDS = new Set(["CREDENTIAL_MATERIAL", "UPSTREAM_ERROR_TEXT"]);
 
 function assertStrictDenseArray(value: unknown, label: string): asserts value is unknown[] {
   if (!Array.isArray(value)) throw new Error(`${label} must be an array`);
@@ -433,6 +442,7 @@ function validateArchivedArtifacts(input: unknown): ArchivedEvidenceArtifact[] {
     )) {
       throw new Error("archived metadata has invalid contentType");
     }
+    validateArchivedRedactionMetadata(metadata);
     if (NETWORK_KINDS.has(metadata.kind as string)) {
       for (const key of ["requestedUrl", "finalUrl", "httpStatus", "contentType"]) {
         if (metadata[key] === undefined) throw new Error(`archived network metadata missing ${key}`);
@@ -444,6 +454,45 @@ function validateArchivedArtifacts(input: unknown): ArchivedEvidenceArtifact[] {
     });
   }
   return artifacts;
+}
+
+function validateArchivedRedactionMetadata(metadata: Record<string, unknown>): void {
+  const representation = metadata.bodyRepresentation;
+  if (representation !== undefined && representation !== "EXACT" && representation !== "REDACTED") {
+    throw new Error("archived metadata has invalid bodyRepresentation");
+  }
+  if (metadata.rawBodySha256 !== undefined && (
+    typeof metadata.rawBodySha256 !== "string" || !/^[0-9a-f]{64}$/.test(metadata.rawBodySha256)
+  )) {
+    throw new Error("archived metadata has invalid rawBodySha256");
+  }
+  if (metadata.redactionDescriptors !== undefined) {
+    assertStrictDenseArray(metadata.redactionDescriptors, "archived redaction descriptors");
+    if (metadata.redactionDescriptors.length < 1 || metadata.redactionDescriptors.length > 16) {
+      throw new Error("archived metadata has invalid redactionDescriptors");
+    }
+    metadata.redactionDescriptors = metadata.redactionDescriptors.map((value, index) => {
+      const descriptor = strictOwnDataRecord(value, REDACTION_DESCRIPTOR_KEYS,
+        `archived redaction descriptor at index ${index}`);
+      if (typeof descriptor.kind !== "string" || !REDACTION_DESCRIPTOR_KINDS.has(descriptor.kind) ||
+          typeof descriptor.count !== "number" || !Number.isInteger(descriptor.count) ||
+          descriptor.count < 1 || descriptor.count > 10_000) {
+        throw new Error("archived metadata has invalid redaction descriptor");
+      }
+      return { kind: descriptor.kind, count: descriptor.count };
+    });
+  }
+  if (representation === "REDACTED") {
+    if (metadata.rawBodySha256 === undefined || metadata.redactionDescriptors === undefined) {
+      throw new Error("archived redacted metadata requires raw hash and descriptors");
+    }
+  } else if (representation === "EXACT") {
+    if (metadata.rawBodySha256 !== undefined || metadata.redactionDescriptors !== undefined) {
+      throw new Error("archived exact metadata forbids redaction provenance");
+    }
+  } else if (metadata.rawBodySha256 !== undefined || metadata.redactionDescriptors !== undefined) {
+    throw new Error("archived redaction provenance requires bodyRepresentation");
+  }
 }
 
 function validateHttpUrlMetadata(value: unknown, field: string): string {
@@ -582,6 +631,11 @@ function toMetadata(
     ...(draft.finalUrl === undefined ? {} : { finalUrl: draft.finalUrl }),
     ...(draft.httpStatus === undefined ? {} : { httpStatus: draft.httpStatus }),
     ...(draft.contentType === undefined ? {} : { contentType: draft.contentType }),
+    ...(draft.bodyRepresentation === undefined ? {} : { bodyRepresentation: draft.bodyRepresentation }),
+    ...(draft.rawBodySha256 === undefined ? {} : { rawBodySha256: draft.rawBodySha256 }),
+    ...(draft.redactionDescriptors === undefined ? {} : {
+      redactionDescriptors: draft.redactionDescriptors.map((descriptor) => ({ ...descriptor }))
+    }),
     capturedAt: new Date(draft.capturedAt),
     ...digest,
     path: path.relative(path.resolve(request.workspaceRoot), finalPath).split(path.sep).join("/"),
