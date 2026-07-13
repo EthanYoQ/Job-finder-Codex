@@ -62,7 +62,7 @@ npm run typecheck
 exit 0
 
 confirmed roster + Phase 1 scope + source-plan authority integration
-4 test files passed; 37 tests passed
+4 test files passed; 35 tests passed in the `fe4bcf9` commit tree
 ```
 
 ## Adaptive quality gate
@@ -75,7 +75,7 @@ Decision: RELEASE.
 | --- | --- | --- | --- | --- |
 | Correct behavior | Hard | Corrected brief scenarios pass | Focused Vitest: 36/36 | PASS |
 | Type safety | Hard | New implementation/tests and real Prisma client contract typecheck | Scoped `tsc` plus `PrismaClient` assignability probe | PASS |
-| Repository-wide compatibility | Hard | `npm run typecheck` exits 0 and authority integration remains green | Typecheck exit 0; related integration 37/37 | PASS |
+| Repository-wide compatibility | Hard | `npm run typecheck` exits 0 and authority integration remains green | Typecheck exit 0; commit-tree authority integration 35/35 | PASS |
 | Scope containment | Hard | Only the six authorized task files enter this commit | Exact staged-path comparison | PASS |
 | Patch hygiene | Hard | `git diff --check` exits 0 on the staged patch | `git diff --cached --check`, exit 0 | PASS |
 | Side-effect safety | Hard | No prohibited runtime or data mutation | Commands and status review | PASS |
