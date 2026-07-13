@@ -64,6 +64,40 @@ function failedMixedBatch(plannedSourceCount: number) {
 }
 
 describe("current staged scheduled crawl", () => {
+  it("rejects a production-registry mutation before RC read, sync, or fetch", async () => {
+    const company = candidateCompanies.find((item) => item.officialWebsiteUrl)!;
+    const originalWebsite = company.officialWebsiteUrl!;
+    const findMany = vi.fn(async () => [matchingRow()]);
+    const syncPlannedSourcesToDb = vi.fn(async () => {
+      throw new Error("registry sync was reached");
+    });
+    const fetch = vi.fn();
+    let mutated = false;
+
+    const operation = async () => {
+      try {
+        company.officialWebsiteUrl = "https://attacker.invalid/company";
+        mutated = true;
+        return await runCurrentStagedScheduledCrawl({
+          db: { releaseCandidate: { findMany } } as never,
+          fetch,
+          now: new Date("2026-07-14T00:00:00.000Z"),
+          syncPlannedSourcesToDb,
+          createRuntimeDeps: vi.fn(),
+          runP0CrawlBatch: vi.fn()
+        });
+      } finally {
+        if (mutated) company.officialWebsiteUrl = originalWebsite;
+      }
+    };
+
+    await expect(operation()).rejects.toThrow(/read only|assign|frozen/i);
+    expect(findMany).not.toHaveBeenCalled();
+    expect(syncPlannedSourcesToDb).not.toHaveBeenCalled();
+    expect(fetch).not.toHaveBeenCalled();
+    expect(company.officialWebsiteUrl).toBe(originalWebsite);
+  });
+
   it.each([
     ["missing", () => []],
     ["duplicate", () => [matchingRow(), { ...matchingRow(), id: "rc-staged-2" }]],

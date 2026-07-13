@@ -42,3 +42,23 @@ Initial result: exit 1; both suites failed because `src/crawler/stagedScheduleAu
 ## Concern
 
 The prior source-failure-isolation commit left one regression assertion inconsistent with the new batch behavior. It is outside this task's allowed files and should be reconciled by that task owner; this implementation must not claim the full specified matrix is green until that baseline assertion is resolved.
+
+## Independent review fix: immutable build-bound registry authority
+
+The independent review correctly found that the staged derivation compared the mutable exported `candidateCompanies` singleton with itself. A process-local mutation could therefore reach registry synchronization without changing the derived RC hashes.
+
+The fix recursively freezes the actual exported `candidateCompanies` and `expectedOfficialSurfaces` graphs immediately after their canonical seed build. This covers company fields, nested sources, surface scope objects and arrays, channel objects, and official-chain arrays. Values returned by `buildCandidateCompanyRegistry` remain mutable for isolated callers and tests. The existing build source-tree hash binds the code-derived canonical values; no self-comparison snapshot or hardcoded pass count was added.
+
+Review-fix RED evidence:
+
+- Exported arrays reported unfrozen.
+- Company operational-field mutation did not throw.
+- A mutated official website URL passed authority derivation and reached the registry-sync seam.
+
+Review-fix GREEN evidence:
+
+- Registry + staged authority/wrapper focus: 3 files, 40 tests passed.
+- Company registry + source-plan/channel tests: 3 files, 35 tests passed.
+- Original six-file 79-test regression command now contains the new mutation case and passed 80/80 tests.
+- The stale runtime atomic assertion was separately reconciled in commit `93e4be0`, so the previously disclosed regression concern is closed.
+- No live database, crawl, migration, seed, registry sync, deployment, or RC mutation was run.

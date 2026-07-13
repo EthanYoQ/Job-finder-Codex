@@ -990,8 +990,20 @@ export function buildCandidateCompanyRegistry(
 }
 
 const candidateRegistry = buildCandidateCompanyRegistry(CANDIDATE_SEEDS);
-export const candidateCompanies: CandidateCompany[] = candidateRegistry.companies;
-export const expectedOfficialSurfaces: ExpectedOfficialRecruitmentSurface[] = candidateRegistry.surfaces;
+export const candidateCompanies: CandidateCompany[] = deepFreezeRegistryAuthority(candidateRegistry.companies);
+export const expectedOfficialSurfaces: ExpectedOfficialRecruitmentSurface[] = deepFreezeRegistryAuthority(
+  candidateRegistry.surfaces
+);
+
+function deepFreezeRegistryAuthority<T>(value: T): T {
+  if (value && typeof value === "object" && !Object.isFrozen(value)) {
+    for (const child of Object.values(value as Record<string, unknown>)) {
+      deepFreezeRegistryAuthority(child);
+    }
+    Object.freeze(value);
+  }
+  return value;
+}
 
 export const excludedCompanies: ExcludedCompany[] = [
   { companyId: "company-edwards-china", officialChineseName: "爱德华生命科学中国", exclusionCategory: "DEVICE", reason: "Cardiovascular medical device company." },

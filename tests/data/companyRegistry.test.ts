@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
+  buildCandidateCompanyRegistry,
   candidateCompanies,
+  expectedOfficialSurfaces,
   getCandidatePoolStats,
   getSocialSources
 } from "../../src/data/companyRegistry";
@@ -29,6 +31,67 @@ function collectCandidateUrls(candidate: (typeof candidateCompanies)[number]): s
 }
 
 describe("60-company pharma registry", () => {
+  it("deeply freezes only the canonical exported registry authority", () => {
+    const company = candidateCompanies.find((item) => item.officialWebsiteUrl && item.sources.length > 0)!;
+    const source = company.sources.find((item) => item.officialEntryUrl)!;
+    const surface = expectedOfficialSurfaces.find((item) => item.companyId === company.id)!;
+    const rebuilt = buildCandidateCompanyRegistry(structuredClone(candidateCompanies));
+
+    expect(Object.isFrozen(candidateCompanies)).toBe(true);
+    expect(Object.isFrozen(company)).toBe(true);
+    expect(Object.isFrozen(company.sources)).toBe(true);
+    expect(Object.isFrozen(source)).toBe(true);
+    expect(Object.isFrozen(expectedOfficialSurfaces)).toBe(true);
+    expect(Object.isFrozen(surface)).toBe(true);
+    expect(Object.isFrozen(surface.legalEntityScope)).toBe(true);
+    expect(Object.isFrozen(surface.legalEntityScope[0])).toBe(true);
+    expect(Object.isFrozen(surface.businessUnitScope)).toBe(true);
+    expect(Object.isFrozen(surface.brandScope)).toBe(true);
+    expect(Object.isFrozen(surface.channels)).toBe(true);
+    expect(Object.isFrozen(surface.channels[0])).toBe(true);
+    expect(Object.isFrozen(surface.chinaScope)).toBe(true);
+    expect(Object.isFrozen(surface.officialChainEvidenceUrls)).toBe(true);
+    expect(Object.isFrozen(rebuilt.companies)).toBe(false);
+    expect(Object.isFrozen(rebuilt.companies[0])).toBe(false);
+    expect(Object.isFrozen(rebuilt.surfaces)).toBe(false);
+  });
+
+  it("rejects operational-field mutation without changing canonical authority inputs", () => {
+    const company = candidateCompanies.find((item) => item.officialWebsiteUrl && item.sources.length > 0)!;
+    const source = company.sources.find((item) => item.officialEntryUrl)!;
+    const surface = expectedOfficialSurfaces.find((item) => item.companyId === company.id)!;
+    const channel = surface.channels[0]!;
+    const originalWebsite = company.officialWebsiteUrl!;
+    const originalEntry = source.officialEntryUrl!;
+    const originalChannelId = channel.channelId;
+    let websiteMutated = false;
+    let entryMutated = false;
+    let channelMutated = false;
+
+    try {
+      expect(() => {
+        company.officialWebsiteUrl = "https://attacker.invalid/company";
+        websiteMutated = true;
+      }).toThrow();
+      expect(() => {
+        source.officialEntryUrl = "https://attacker.invalid/jobs";
+        entryMutated = true;
+      }).toThrow();
+      expect(() => {
+        channel.channelId = "attacker-channel";
+        channelMutated = true;
+      }).toThrow();
+    } finally {
+      if (websiteMutated) company.officialWebsiteUrl = originalWebsite;
+      if (entryMutated) source.officialEntryUrl = originalEntry;
+      if (channelMutated) channel.channelId = originalChannelId;
+    }
+
+    expect(company.officialWebsiteUrl).toBe(originalWebsite);
+    expect(source.officialEntryUrl).toBe(originalEntry);
+    expect(channel.channelId).toBe(originalChannelId);
+  });
+
   it("contains exactly 30 foreign and 30 domestic target companies", () => {
     const foreignCompanies = candidateCompanies.filter(
       (company) => company.category === "FOREIGN_PHARMA"
