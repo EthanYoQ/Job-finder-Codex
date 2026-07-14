@@ -101,6 +101,11 @@ COPY package-lock.json ./package-lock.json
 COPY --from=deps /app/node_modules ./node_modules
 COPY --from=build /app/dist ./dist
 COPY --from=build /app/ops ./ops
+# CSL's leaf certificate names this intermediate at http://cacerts.geotrust.com/GeoTrustTLSRSACAG1.crt.
+ENV NODE_EXTRA_CA_CERTS=/app/ops/certificates/geotrust-tls-rsa-ca-g1.pem
+RUN set -eu; \
+  certificate_sha256="$(openssl x509 -in /app/ops/certificates/geotrust-tls-rsa-ca-g1.pem -outform DER | sha256sum | cut -d ' ' -f 1)"; \
+  test "$certificate_sha256" = "c06e307f7cfc1d32fa72a4c033c87b90019af216f0775d64978a2eca6c8a230e"
 COPY --from=build /app/scripts ./scripts
 COPY --from=build /app/src ./src
 COPY --from=build /app/prisma ./prisma
