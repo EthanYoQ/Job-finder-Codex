@@ -115,6 +115,7 @@ describe("prisma schema", () => {
       ,"20260713035000_quarantine_legacy_unbound_manual_batches"
       ,"20260713040000_manual_batch_binding_and_kind_immutability"
       ,"20260713050000_ai_enrichment_persistence"
+      ,"20260714053000_repair_legacy_offline_count_two"
     ]);
     const statements = crawlStatusValuesMigration
       .split("\n")

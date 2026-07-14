@@ -907,13 +907,23 @@ describe("runP0CrawlBatch", () => {
       batchId: "batch-1",
       plannedSourceCount: 1,
       dueSourceCount: 1,
+      transportFailedSourceCount: 1,
       adapterSuccessfulSourceCount: 0,
+      atomicFailedSourceCount: 0,
       successfulSourceCount: 0,
       failedSourceCount: 1,
       skippedSourceCount: 0
     });
     expect(db.calls.observations).toEqual([]);
     expect(db.calls.jobs).toEqual([]);
+    expect(db.calls.terminalSourceResults).toContainEqual(expect.objectContaining({
+      data: expect.objectContaining({
+        transportState: "FAILED",
+        adapterState: "SKIPPED",
+        atomicCommitState: "NOT_ATTEMPTED",
+        failureCode: "SOURCE_TRANSPORT_FAILED"
+      })
+    }));
     expect(db.calls.batchesUpdated[0]).toEqual({
       where: { id: "batch-1" },
       data: expect.objectContaining({ finishedAt: NOW, status: "FAILED" })
@@ -1302,9 +1312,18 @@ describe("runP0CrawlBatch", () => {
       transportFailedSourceCount: 0,
       adapterSuccessfulSourceCount: 0,
       adapterFailedSourceCount: 1,
+      atomicFailedSourceCount: 0,
       failedSourceCount: 1
     });
     expect(db.calls.observations).toEqual([]);
+    expect(db.calls.terminalSourceResults).toContainEqual(expect.objectContaining({
+      data: expect.objectContaining({
+        transportState: "SUCCEEDED",
+        adapterState: "FAILED",
+        atomicCommitState: "NOT_ATTEMPTED",
+        failureCode: "SOURCE_ADAPTER_FAILED"
+      })
+    }));
   });
 
   it("counts pre-read exceptions once without inventing stage failures", async () => {

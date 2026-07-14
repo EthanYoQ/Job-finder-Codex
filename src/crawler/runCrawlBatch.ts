@@ -254,6 +254,26 @@ export async function runP0CrawlBatch(
         transportFailedSourceCount += 1;
       }
 
+      if (!crawlResult.truth.transportSuccess || !crawlResult.truth.adapterSuccess) {
+        const transportFailed = !crawlResult.truth.transportSuccess;
+        await terminatePendingSourceResult({
+          id: pending.id,
+          releaseCandidateId: deps.identity.releaseCandidateId,
+          batchId: batch.id,
+          sourceId: plan.source.id,
+          transportState: transportFailed ? "FAILED" : "SUCCEEDED",
+          adapterState: transportFailed ? "SKIPPED" : "FAILED",
+          completenessState: "FAILED",
+          atomicCommitState: "NOT_ATTEMPTED",
+          finishedAt: crawlResult.observation.crawledAt,
+          failureCode: transportFailed ? "SOURCE_TRANSPORT_FAILED" : "SOURCE_ADAPTER_FAILED",
+          failureReason: transportFailed ? "Source transport failed" : "Source adapter failed"
+        }, deps.db as never);
+        terminalSourceIds.add(plan.source.id);
+        failedSourceCount += 1;
+        continue;
+      }
+
       let committedCompletenessVerified = false;
       let retainedArtifacts: readonly ArchivedEvidenceArtifact[] = [];
       let atomicFailureCode:
