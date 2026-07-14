@@ -162,6 +162,10 @@ const REPRESENTATIVE_CONFIGS: Record<string, RepresentativeSourceConfig> = {
       tenant: "jj",
       site: "JJ",
       searchText: "China",
+      locationFacetPolicy: {
+        kind: "JNJ_AUDITED_LOCATIONS_OVERLAP",
+        facetParameter: "locations"
+      },
       appliedFacets: {
         jobFamilyGroup: JNJ_INNOVATIVE_MEDICINE_JOB_FAMILY_GROUPS
       },
@@ -407,6 +411,11 @@ const REPRESENTATIVE_CONFIGS: Record<string, RepresentativeSourceConfig> = {
       tenant: "msd",
       site: "SearchJobs",
       searchText: "China",
+      locationFacetPolicy: {
+        kind: "MSD_AUDITED_NON_CHINA_DUPLICATE_DESCRIPTORS",
+        facetParameter: "locations",
+        allowedDuplicateDescriptors: ["IND - Telangana - Hyderabad"]
+      },
       facetDescriptorBoundary: {
         facetParameter: "workerSubType",
         allowedDescriptors: ["Regular"]
@@ -422,6 +431,11 @@ const REPRESENTATIVE_CONFIGS: Record<string, RepresentativeSourceConfig> = {
       tenant: "bristolmyerssquibb",
       site: "BMS",
       searchText: "China",
+      locationFacetPolicy: {
+        kind: "BMS_AUDITED_FOREIGN_DESCRIPTOR_ALLOWLIST",
+        facetParameter: "locationHierarchy2",
+        allowedForeignDescriptors: ["AZ01 PSA Celgene - Phoenix - AZ"]
+      },
       facetDescriptorBoundary: {
         facetParameter: "workerSubType",
         allowedDescriptors: ["Fixed Term (Fixed Term)", "Permanent"]
@@ -437,6 +451,10 @@ const REPRESENTATIVE_CONFIGS: Record<string, RepresentativeSourceConfig> = {
       tenant: "gilead",
       site: "gileadcareers",
       searchText: "China",
+      locationFacetPolicy: {
+        kind: "GILEAD_AUDITED_LOCATIONS_OVERLAP",
+        facetParameter: "locations"
+      },
       facetDescriptorBoundary: {
         facetParameter: "workerSubType",
         allowedDescriptors: ["Regular"]
@@ -530,6 +548,7 @@ const REPRESENTATIVE_CONFIGS: Record<string, RepresentativeSourceConfig> = {
     workday: {
       tenant: "amgen",
       site: "Careers",
+      laterZeroTotalPolicy: "AMGEN_AUDITED_EXACT_RECONCILIATION",
       appliedFacets: {
         LocationCountry: ["6cb77610a8a543aea2d6bc10457e35d4"]
       },
@@ -1399,6 +1418,8 @@ const REPRESENTATIVE_CONFIGS: Record<string, RepresentativeSourceConfig> = {
       pageSize: 20,
       maxPages: 5,
       countCoordinatePolicy: "LUNAN_AGGREGATE_ROW",
+      responsePrefixPolicy: "LUNAN_RANDOM_ALNUM3",
+      listPaginationPolicy: "LUNAN_REQUEST_BOUND_PAGE_V1",
       defaultLocationRaw: "未披露"
     }
   },

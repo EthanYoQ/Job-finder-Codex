@@ -29,11 +29,11 @@ const basePlan = {
 } satisfies SourceCrawlPlan;
 
 describe("createOfficialJsonSourceFetch", () => {
-  function hcmCloudResponse(payload: unknown): string {
+  function hcmCloudResponse(payload: unknown, prefix = "rsp"): string {
     const base64 = Buffer.from(JSON.stringify(payload), "utf8").toString("base64");
     return JSON.stringify({
       hcm_transfer_strategy: "hb5",
-      hcm_param: `rsp${base64.replace(/[5a]/gu, (value) => value === "5" ? "a" : "!")}`
+      hcm_param: `${prefix}${base64.replace(/[5a]/gu, (value) => value === "5" ? "a" : "!")}`
     });
   }
 
@@ -892,6 +892,191 @@ describe("createOfficialJsonSourceFetch", () => {
       page_index: 2,
       page_size: 20
     });
+  });
+
+  it("accepts the audited Lunan three-character alphanumeric response nonce without weakening hb5 decoding", async () => {
+    for (const prefix of ["JHf", "KPm", "NOY", "lsu"]) {
+      const fetcher = createOfficialJsonSourceFetch({
+        now: () => new Date("2026-07-08T00:00:00.000Z"),
+        http: async (request) => ({
+          status: 200,
+          finalUrl: request.url,
+          contentType: "application/json",
+          capturedAt: "2026-07-08T00:00:00.000Z",
+          body: request.url.includes("hcm.model.count")
+            ? hcmCloudResponse({ result: { count: 1, list: [{ count__id: 1, id: 1 }] } }, prefix)
+            : hcmCloudResponse({ result: {
+                count: 1,
+                page_index: 1,
+                list: [{ id: 1, name: "医学专员", work_city: "上海市" }]
+              } }, prefix)
+        })
+      });
+
+      await expect(fetcher({
+        ...basePlan,
+        source: { ...basePlan.source, officialEntryUrl: "https://hcm.lunan.com.cn/recruit" },
+        officialJsonFetch: {
+          kind: "hcm-cloud",
+          pageSize: 20,
+          maxPages: 1,
+          countCoordinatePolicy: "LUNAN_AGGREGATE_ROW",
+          responsePrefixPolicy: "LUNAN_RANDOM_ALNUM3",
+          defaultLocationRaw: "未披露"
+        }
+      })).resolves.toMatchObject({
+        ok: true,
+        fetchEvidence: { fetchCounts: { rawCount: 1, validCount: 1 } },
+        payload: { jobs: [{ title: "医学专员", locationRaw: "上海市" }] }
+      });
+    }
+  });
+
+  it("rejects non-alphanumeric Lunan response prefixes and binds the policy to the exact official entry", async () => {
+    const fetcher = createOfficialJsonSourceFetch({
+      now: () => new Date("2026-07-08T00:00:00.000Z"),
+      http: async (request) => ({
+        status: 200,
+        finalUrl: request.url,
+        contentType: "application/json",
+        capturedAt: "2026-07-08T00:00:00.000Z",
+        body: hcmCloudResponse({ result: { count: 1, list: [{ count__id: 1, id: 1 }] } }, "$12")
+      })
+    });
+    const config = {
+      kind: "hcm-cloud" as const,
+      pageSize: 20,
+      maxPages: 1,
+      countCoordinatePolicy: "LUNAN_AGGREGATE_ROW" as const,
+      responsePrefixPolicy: "LUNAN_RANDOM_ALNUM3" as const,
+      defaultLocationRaw: "未披露"
+    };
+
+    await expect(fetcher({
+      ...basePlan,
+      source: { ...basePlan.source, officialEntryUrl: "https://hcm.lunan.com.cn/recruit" },
+      officialJsonFetch: config
+    })).resolves.toMatchObject({ ok: false, failureReason: "HCMCloud count response decode failed" });
+    await expect(fetcher({
+      ...basePlan,
+      source: { ...basePlan.source, officialEntryUrl: "https://hcm.example.test/recruit" },
+      officialJsonFetch: config
+    })).resolves.toMatchObject({ ok: false, failureReason: "HCMCloud official entry URL is invalid" });
+  });
+
+  it("completes audited Lunan pagination when the official response binds pages only through the request", async () => {
+    const jobs = Array.from({ length: 33 }, (_, index) => ({
+      id: index + 1,
+      name: `职位 ${index + 1}`,
+      work_city: "临沂市"
+    }));
+    let listPage = 0;
+    const fetcher = createOfficialJsonSourceFetch({
+      now: () => new Date("2026-07-13T00:00:00.000Z"),
+      http: async (request) => {
+        if (request.url.includes("hcm.model.count")) {
+          return {
+            status: 200,
+            finalUrl: request.url,
+            contentType: "application/json",
+            capturedAt: "2026-07-13T00:00:00.000Z",
+            body: hcmCloudResponse({
+              srv_begin: 1,
+              result: { list: [{ count__id: 33, id: 33 }], count: 1 },
+              srv_end: 2,
+              srv_all: 3
+            }, "JHf")
+          };
+        }
+        listPage += 1;
+        const list = listPage === 1 ? jobs.slice(0, 20) : jobs.slice(20);
+        return {
+          status: 200,
+          finalUrl: request.url,
+          contentType: "application/json",
+          capturedAt: "2026-07-13T00:00:00.000Z",
+          body: hcmCloudResponse({
+            srv_begin: listPage * 10,
+            result: { list, count: 0 },
+            srv_end: listPage * 10 + 1,
+            srv_all: listPage * 10 + 2
+          }, listPage === 1 ? "KPm" : "NOY")
+        };
+      }
+    });
+
+    await expect(fetcher({
+      ...basePlan,
+      source: { ...basePlan.source, officialEntryUrl: "https://hcm.lunan.com.cn/recruit" },
+      officialJsonFetch: {
+        kind: "hcm-cloud",
+        pageSize: 20,
+        maxPages: 2,
+        countCoordinatePolicy: "LUNAN_AGGREGATE_ROW",
+        responsePrefixPolicy: "LUNAN_RANDOM_ALNUM3",
+        listPaginationPolicy: "LUNAN_REQUEST_BOUND_PAGE_V1",
+        defaultLocationRaw: "未披露"
+      }
+    })).resolves.toMatchObject({
+      ok: true,
+      fetchEvidence: {
+        fetchCounts: { rawCount: 33, validCount: 33 },
+        artifacts: expect.arrayContaining([
+          expect.objectContaining({
+            logicalKey: "hcm-list-0001",
+            extractorLocator: expect.stringContaining("|returned-page:request-bound:lunan-v1")
+          })
+        ]),
+        pages: [
+          { requestedPage: 1, returnedPage: 1, termination: "CONTINUE" },
+          { requestedPage: 2, returnedPage: 2, termination: "DECLARED_TOTAL_REACHED" }
+        ]
+      },
+      payload: {
+        jobs: expect.arrayContaining([
+          expect.objectContaining({ title: "职位 33", locationRaw: "临沂市" })
+        ])
+      }
+    });
+  });
+
+  it("rejects a changed Lunan request-bound list envelope", async () => {
+    const fetcher = createOfficialJsonSourceFetch({
+      now: () => new Date("2026-07-13T00:00:00.000Z"),
+      http: async (request) => ({
+        status: 200,
+        finalUrl: request.url,
+        contentType: "application/json",
+        capturedAt: "2026-07-13T00:00:00.000Z",
+        body: request.url.includes("hcm.model.count")
+          ? hcmCloudResponse({
+              srv_begin: 1,
+              result: { list: [{ count__id: 1, id: 1 }], count: 1 },
+              srv_end: 2,
+              srv_all: 3
+            }, "JHf")
+          : hcmCloudResponse({
+              srv_begin: 4,
+              result: { list: [{ id: 1, name: "医学专员", work_city: "临沂市" }], count: 1 },
+              srv_end: 5,
+              srv_all: 6
+            }, "KPm")
+      })
+    });
+
+    await expect(fetcher({
+      ...basePlan,
+      source: { ...basePlan.source, officialEntryUrl: "https://hcm.lunan.com.cn/recruit" },
+      officialJsonFetch: {
+        kind: "hcm-cloud",
+        pageSize: 20,
+        maxPages: 1,
+        countCoordinatePolicy: "LUNAN_AGGREGATE_ROW",
+        responsePrefixPolicy: "LUNAN_RANDOM_ALNUM3",
+        listPaginationPolicy: "LUNAN_REQUEST_BOUND_PAGE_V1",
+        defaultLocationRaw: "未披露"
+      }
+    })).resolves.toMatchObject({ ok: false, failureReason: "HCMCloud list shape is invalid" });
   });
 
   it("marks HCMCloud incomplete when maxPages stops before the official total", async () => {

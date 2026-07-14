@@ -365,7 +365,7 @@ describe("createWorkdaySourceFetch", () => {
         tenant: "pfizer",
         site: "PfizerCareers",
         laterZeroTotalPolicy: "PFIZER_AUDITED_EXACT_RECONCILIATION",
-        appliedFacets: { Location_Country: ["china-id"] },
+        appliedFacets: { Location_Country: ["6cb77610a8a543aea2d6bc10457e35d4"] },
         pageSize: 1,
         maxPages: 3
       }
@@ -404,6 +404,288 @@ describe("createWorkdaySourceFetch", () => {
     });
   });
 
+  it.each([
+    {
+      sourceId: "source-pfizer-china-social",
+      tenant: "pfizer",
+      site: "PfizerCareers",
+      facetParameter: "Location_Country",
+      facetDescriptor: "Location Country",
+      policy: "PFIZER_AUDITED_EXACT_RECONCILIATION"
+    },
+    {
+      sourceId: "source-amgen-china-social",
+      tenant: "amgen",
+      site: "Careers",
+      facetParameter: "LocationCountry",
+      facetDescriptor: "Country/Territory",
+      policy: "AMGEN_AUDITED_EXACT_RECONCILIATION"
+    }
+  ])("accepts fixed audited Workday metadata during exact later-zero reconciliation for $sourceId", async ({
+    sourceId,
+    tenant,
+    site,
+    facetParameter,
+    facetDescriptor,
+    policy
+  }) => {
+    const fixedFacets = [{
+      facetParameter,
+      descriptor: facetDescriptor,
+      values: [{ descriptor: "China", id: "6cb77610a8a543aea2d6bc10457e35d4", count: 2 }]
+    }];
+    const fetcher = createWorkdaySourceFetch({
+      now: () => new Date("2026-07-13T00:00:00.000Z"),
+      http: async (request) => {
+        const { offset } = JSON.parse(request.body) as { offset: number };
+        return response({
+          total: offset === 0 ? 2 : 0,
+          jobPostings: [{
+            title: offset === 0 ? "Role One" : "Role Two",
+            externalPath: `/job/China/${offset === 0 ? "one" : "two"}`,
+            locationsText: "Shanghai, China"
+          }],
+          facets: offset === 0 ? fixedFacets : [],
+          userAuthenticated: false
+        });
+      }
+    });
+
+    const result = await fetcher({
+      ...plan,
+      source: { ...plan.source, id: sourceId },
+      workday: {
+        tenant,
+        site,
+        laterZeroTotalPolicy: policy,
+        appliedFacets: { [facetParameter]: ["6cb77610a8a543aea2d6bc10457e35d4"] },
+        pageSize: 1,
+        maxPages: 2
+      }
+    } as SourceCrawlPlan);
+
+    expect(result).toMatchObject({
+      ok: true,
+      completeness: {
+        completenessStatus: "NEEDS_MANUAL_COMPLETENESS_REVIEW",
+        expectedJobCount: 2
+      },
+      paginationEvaluation: {
+        safeCompleteness: true,
+        verifiedEligible: false,
+        derivedAnomalyCodes: []
+      }
+    });
+  });
+
+  it("rejects an identical but unaudited static facet envelope during later-zero reconciliation", async () => {
+    const unauditedFacets = [{
+      facetParameter: "unexpectedMetadata",
+      descriptor: "Unexpected",
+      values: [{ descriptor: "Static", id: "static-id", count: 2 }]
+    }];
+    const fetcher = createWorkdaySourceFetch({
+      now: () => new Date("2026-07-13T00:00:00.000Z"),
+      http: async (request) => {
+        const { offset } = JSON.parse(request.body) as { offset: number };
+        return response({
+          total: offset === 0 ? 2 : 0,
+          jobPostings: [{
+            title: offset === 0 ? "Role One" : "Role Two",
+            externalPath: `/job/China/${offset === 0 ? "one" : "two"}`,
+            locationsText: "Shanghai, China"
+          }],
+          facets: unauditedFacets,
+          userAuthenticated: false
+        });
+      }
+    });
+
+    await expect(fetcher({
+      ...plan,
+      workday: {
+        tenant: "pfizer",
+        site: "PfizerCareers",
+        laterZeroTotalPolicy: "PFIZER_AUDITED_EXACT_RECONCILIATION",
+        appliedFacets: { Location_Country: ["6cb77610a8a543aea2d6bc10457e35d4"] },
+        pageSize: 1,
+        maxPages: 2
+      }
+    })).resolves.toMatchObject({
+      ok: false,
+      failureReason: expect.stringMatching(/TOTAL_CHANGED|DECLARED_CAPACITY_CONTRADICTION/)
+    });
+  });
+
+  it.each([
+    {
+      name: "unknown top-level key",
+      mutate: (body: Record<string, unknown>) => ({ ...body, error: "upstream partial response" })
+    },
+    {
+      name: "changed facets",
+      mutate: (body: Record<string, unknown>) => ({
+        ...body,
+        facets: [{ facetParameter: "Location_Country", descriptor: "Country", values: [] }]
+      })
+    },
+    {
+      name: "changed authentication state",
+      mutate: (body: Record<string, unknown>) => ({ ...body, userAuthenticated: true })
+    },
+    {
+      name: "partial audited metadata envelope",
+      mutate: ({ userAuthenticated: _removed, ...body }: Record<string, unknown>) => body
+    }
+  ])("rejects $name during audited later-zero reconciliation", async ({ mutate }) => {
+    const fixedFacets = [{
+      facetParameter: "Location_Country",
+      descriptor: "Location Country",
+      values: [{ descriptor: "China", id: "6cb77610a8a543aea2d6bc10457e35d4", count: 2 }]
+    }];
+    const fetcher = createWorkdaySourceFetch({
+      now: () => new Date("2026-07-13T00:00:00.000Z"),
+      http: async (request) => {
+        const { offset } = JSON.parse(request.body) as { offset: number };
+        const body: Record<string, unknown> = {
+          total: offset === 0 ? 2 : 0,
+          jobPostings: [{
+            title: offset === 0 ? "Role One" : "Role Two",
+            externalPath: `/job/China/${offset === 0 ? "one" : "two"}`,
+            locationsText: "Shanghai, China"
+          }],
+          facets: offset === 0 ? fixedFacets : [],
+          userAuthenticated: false
+        };
+        return response(offset === 0 ? body : mutate(body));
+      }
+    });
+
+    await expect(fetcher({
+      ...plan,
+      workday: {
+        tenant: "pfizer",
+        site: "PfizerCareers",
+        laterZeroTotalPolicy: "PFIZER_AUDITED_EXACT_RECONCILIATION",
+        appliedFacets: { Location_Country: ["6cb77610a8a543aea2d6bc10457e35d4"] },
+        pageSize: 1,
+        maxPages: 2
+      }
+    })).resolves.toMatchObject({
+      ok: false,
+      failureReason: expect.stringMatching(/TOTAL_CHANGED|DECLARED_CAPACITY_CONTRADICTION/)
+    });
+  });
+
+  it.each([
+    {
+      name: "a facet object claims pagination authority",
+      facets: [{
+        facetParameter: "Location_Country",
+        descriptor: "Location Country",
+        total: 2,
+        values: [{ descriptor: "China", id: "6cb77610a8a543aea2d6bc10457e35d4", count: 2 }]
+      }],
+      userAuthenticated: false
+    },
+    {
+      name: "the response claims an authenticated session",
+      facets: [],
+      userAuthenticated: true
+    }
+  ])("rejects fixed audited metadata when $name", async ({ facets, userAuthenticated }) => {
+    const fetcher = createWorkdaySourceFetch({
+      http: async (request) => {
+        const { offset } = JSON.parse(request.body) as { offset: number };
+        const firstFacets = [{
+          facetParameter: "Location_Country",
+          descriptor: "Location Country",
+          values: [{ descriptor: "China", id: "6cb77610a8a543aea2d6bc10457e35d4", count: 2 }]
+        }];
+        return response({
+          total: offset === 0 ? 2 : 0,
+          jobPostings: [{
+            title: offset === 0 ? "Role One" : "Role Two",
+            externalPath: `/job/China/${offset === 0 ? "one" : "two"}`,
+            locationsText: "Shanghai, China"
+          }],
+          facets: offset === 0 ? firstFacets : facets,
+          userAuthenticated: offset === 0 ? false : userAuthenticated
+        });
+      }
+    });
+
+    await expect(fetcher({
+      ...plan,
+      workday: {
+        tenant: "pfizer",
+        site: "PfizerCareers",
+        laterZeroTotalPolicy: "PFIZER_AUDITED_EXACT_RECONCILIATION",
+        appliedFacets: { Location_Country: ["6cb77610a8a543aea2d6bc10457e35d4"] },
+        pageSize: 1,
+        maxPages: 2
+      }
+    })).resolves.toMatchObject({
+      ok: false,
+      failureReason: expect.stringMatching(/TOTAL_CHANGED|DECLARED_CAPACITY_CONTRADICTION/)
+    });
+  });
+
+  it.each([
+    {
+      sourceId: "source-wrong-pfizer",
+      tenant: "pfizer",
+      site: "PfizerCareers",
+      facetParameter: "Location_Country",
+      policy: "PFIZER_AUDITED_EXACT_RECONCILIATION"
+    },
+    {
+      sourceId: "source-amgen-china-social",
+      tenant: "amgen",
+      site: "wrong-site",
+      facetParameter: "LocationCountry",
+      policy: "AMGEN_AUDITED_EXACT_RECONCILIATION"
+    },
+    {
+      sourceId: "source-pfizer-china-social",
+      tenant: "wrong-tenant",
+      site: "PfizerCareers",
+      facetParameter: "Location_Country",
+      policy: "PFIZER_AUDITED_EXACT_RECONCILIATION"
+    },
+    {
+      sourceId: "source-amgen-china-social",
+      tenant: "amgen",
+      site: "Careers",
+      facetParameter: "wrongFacet",
+      policy: "AMGEN_AUDITED_EXACT_RECONCILIATION"
+    }
+  ])("rejects a later-zero policy outside its exact audited source/facet scope", async ({
+    sourceId,
+    tenant,
+    site,
+    facetParameter,
+    policy
+  }) => {
+    const http = vi.fn(async () => response({ total: 0, jobPostings: [] }));
+    const fetcher = createWorkdaySourceFetch({ http });
+
+    await expect(fetcher({
+      ...plan,
+      source: { ...plan.source, id: sourceId },
+      workday: {
+        tenant,
+        site,
+        laterZeroTotalPolicy: policy,
+        appliedFacets: { [facetParameter]: ["6cb77610a8a543aea2d6bc10457e35d4"] }
+      }
+    } as SourceCrawlPlan)).resolves.toMatchObject({
+      ok: false,
+      failureReason: expect.stringContaining("not allowed for source")
+    });
+    expect(http).not.toHaveBeenCalled();
+  });
+
   it("rejects duplicate Workday total keys before applying the audited later-zero policy", async () => {
     const fetcher = createWorkdaySourceFetch({
       now: () => new Date("2026-07-13T00:00:00.000Z"),
@@ -431,7 +713,7 @@ describe("createWorkdaySourceFetch", () => {
         tenant: "pfizer",
         site: "PfizerCareers",
         laterZeroTotalPolicy: "PFIZER_AUDITED_EXACT_RECONCILIATION",
-        appliedFacets: { Location_Country: ["china-id"] },
+        appliedFacets: { Location_Country: ["6cb77610a8a543aea2d6bc10457e35d4"] },
         pageSize: 1,
         maxPages: 2
       }
@@ -888,7 +1170,7 @@ describe("createWorkdaySourceFetch", () => {
         jobPostings: [],
         facets: [{
           facetParameter: "Location_Country",
-          descriptor: "Country",
+          descriptor: "Location Country",
           values: [
             { descriptor: "China", id: "china-country", count: 2 },
             { descriptor: "CN", id: "cn-country", count: 1 },
@@ -935,6 +1217,399 @@ describe("createWorkdaySourceFetch", () => {
       failureReason: expect.stringContaining("counts do not prove a complete partition")
     });
     expect(requests).toHaveLength(1);
+  });
+
+  it.each([
+    {
+      sourceId: "source-johnson-innovative-medicine-social",
+      tenant: "jj",
+      site: "JJ",
+      policy: { kind: "JNJ_AUDITED_LOCATIONS_OVERLAP", facetParameter: "locations" }
+    },
+    {
+      sourceId: "source-gilead-china-social",
+      tenant: "gilead",
+      site: "gileadcareers",
+      policy: { kind: "GILEAD_AUDITED_LOCATIONS_OVERLAP", facetParameter: "locations" }
+    }
+  ])("allows only the audited multi-location overlap for $sourceId without deriving a facet denominator", async ({
+    sourceId,
+    tenant,
+    site,
+    policy
+  }) => {
+    const requests: Array<{ body: string }> = [];
+    const fetcher = createWorkdaySourceFetch({
+      http: async (request) => {
+        requests.push(request);
+        const body = JSON.parse(request.body) as { appliedFacets: Record<string, string[]> };
+        return body.appliedFacets.locations
+          ? response({
+              total: 2,
+              jobPostings: [
+                { title: "Shanghai Role", externalPath: "/job/China/shanghai", locationsText: "Shanghai, China" },
+                { title: "Beijing Role", externalPath: "/job/China/beijing", locationsText: "Beijing, China" }
+              ]
+            })
+          : response({
+              total: 2,
+              jobPostings: [],
+              facets: [{
+                facetParameter: "locations",
+                descriptor: "Locations",
+                values: [
+                  { descriptor: "Shanghai, China", id: "shanghai", count: 1 },
+                  { descriptor: "Beijing, China", id: "beijing", count: 1 },
+                  { descriptor: "Tokyo, Japan", id: "tokyo", count: 1 }
+                ]
+              }]
+            });
+      }
+    });
+
+    const result = await fetcher({
+      ...plan,
+      source: { ...plan.source, id: sourceId },
+      workday: {
+        tenant,
+        site,
+        searchText: "China",
+        locationFacetPolicy: policy,
+        pageSize: 20,
+        maxPages: 1
+      }
+    } as SourceCrawlPlan);
+
+    expect(result).toMatchObject({
+      ok: true,
+      completeness: {
+        completenessStatus: "NEEDS_MANUAL_COMPLETENESS_REVIEW",
+        expectedJobCount: 2
+      },
+      paginationEvaluation: { safeCompleteness: true, verifiedEligible: false }
+    });
+    expect(requests).toHaveLength(2);
+    expect(JSON.parse(requests[1]!.body).appliedFacets).toEqual({ locations: ["shanghai", "beijing"] });
+  });
+
+  it.each([
+    {
+      sourceId: "source-johnson-innovative-medicine-social",
+      tenant: "jj",
+      site: "JJ",
+      policy: { kind: "JNJ_AUDITED_LOCATIONS_OVERLAP", facetParameter: "locations" }
+    },
+    {
+      sourceId: "source-gilead-china-social",
+      tenant: "gilead",
+      site: "gileadcareers",
+      policy: { kind: "GILEAD_AUDITED_LOCATIONS_OVERLAP", facetParameter: "locations" }
+    }
+  ])("keeps under-counted location facets fail-closed for $sourceId", async ({ sourceId, tenant, site, policy }) => {
+    const requests: Array<{ body: string }> = [];
+    const fetcher = createWorkdaySourceFetch({
+      http: async (request) => {
+        requests.push(request);
+        return response({
+          total: 3,
+          jobPostings: [],
+          facets: [{
+            facetParameter: "locations",
+            descriptor: "Locations",
+            values: [
+              { descriptor: "Shanghai, China", id: "shanghai", count: 1 },
+              { descriptor: "Tokyo, Japan", id: "tokyo", count: 1 }
+            ]
+          }]
+        });
+      }
+    });
+
+    await expect(fetcher({
+      ...plan,
+      source: { ...plan.source, id: sourceId },
+      workday: { tenant, site, searchText: "China", locationFacetPolicy: policy }
+    } as SourceCrawlPlan)).resolves.toMatchObject({
+      ok: false,
+      failureReason: expect.stringContaining("counts do not prove a complete partition")
+    });
+    expect(requests).toHaveLength(1);
+  });
+
+  it("allows only MSD's audited duplicate foreign descriptor while keeping request ids unique", async () => {
+    const requests: Array<{ body: string }> = [];
+    const fetcher = createWorkdaySourceFetch({
+      http: async (request) => {
+        requests.push(request);
+        const body = JSON.parse(request.body) as { appliedFacets: Record<string, string[]> };
+        return body.appliedFacets.locations
+          ? response({
+              total: 1,
+              jobPostings: [{ title: "China Role", externalPath: "/job/China/role", locationsText: "Shanghai, China" }]
+            })
+          : response({
+              total: 3,
+              jobPostings: [],
+              facets: [{
+                facetParameter: "locations",
+                descriptor: "Locations",
+                values: [
+                  { descriptor: "Shanghai, China", id: "shanghai", count: 1 },
+                  { descriptor: "IND - Telangana - Hyderabad", id: "india-a", count: 1 },
+                  { descriptor: "IND - Telangana - Hyderabad", id: "india-b", count: 1 }
+                ]
+              }]
+            });
+      }
+    });
+
+    const result = await fetcher({
+      ...plan,
+      source: { ...plan.source, id: "source-msd-china-social" },
+      workday: {
+        tenant: "msd",
+        site: "SearchJobs",
+        searchText: "China",
+        locationFacetPolicy: {
+          kind: "MSD_AUDITED_NON_CHINA_DUPLICATE_DESCRIPTORS",
+          facetParameter: "locations",
+          allowedDuplicateDescriptors: ["IND - Telangana - Hyderabad"]
+        }
+      }
+    } as SourceCrawlPlan);
+
+    expect(result).toMatchObject({
+      ok: true,
+      completeness: { completenessStatus: "NEEDS_MANUAL_COMPLETENESS_REVIEW", expectedJobCount: 1 }
+    });
+    expect(requests).toHaveLength(2);
+    expect(JSON.parse(requests[1]!.body).appliedFacets).toEqual({ locations: ["shanghai"] });
+  });
+
+  it.each([
+    {
+      name: "duplicate mainland-China descriptor",
+      values: [
+        { descriptor: "Shanghai, China", id: "china-a", count: 1 },
+        { descriptor: "Shanghai, China", id: "china-b", count: 1 },
+        { descriptor: "IND - Telangana - Hyderabad", id: "india", count: 1 }
+      ]
+    },
+    {
+      name: "unlisted duplicate foreign descriptor",
+      values: [
+        { descriptor: "Shanghai, China", id: "china", count: 1 },
+        { descriptor: "USA - California", id: "usa-a", count: 1 },
+        { descriptor: "USA - California", id: "usa-b", count: 1 }
+      ]
+    },
+    {
+      name: "duplicate id despite audited descriptor",
+      values: [
+        { descriptor: "Shanghai, China", id: "shared", count: 1 },
+        { descriptor: "IND - Telangana - Hyderabad", id: "shared", count: 1 },
+        { descriptor: "IND - Telangana - Hyderabad", id: "india-b", count: 1 }
+      ]
+    },
+    {
+      name: "audited foreign duplicate nested beneath mainland China",
+      values: [
+        {
+          descriptor: "China",
+          count: 2,
+          values: [
+            { descriptor: "IND - Telangana - Hyderabad", id: "india-a", count: 1 },
+            { descriptor: "IND - Telangana - Hyderabad", id: "india-b", count: 1 }
+          ]
+        },
+        { descriptor: "USA - California", id: "usa", count: 1 }
+      ]
+    }
+  ])("keeps MSD $name fail-closed", async ({ values }) => {
+    const fetcher = createWorkdaySourceFetch({
+      http: async () => response({
+        total: 3,
+        jobPostings: [],
+        facets: [{ facetParameter: "locations", descriptor: "Locations", values }]
+      })
+    });
+
+    await expect(fetcher({
+      ...plan,
+      source: { ...plan.source, id: "source-msd-china-social" },
+      workday: {
+        tenant: "msd",
+        site: "SearchJobs",
+        searchText: "China",
+        locationFacetPolicy: {
+          kind: "MSD_AUDITED_NON_CHINA_DUPLICATE_DESCRIPTORS",
+          facetParameter: "locations",
+          allowedDuplicateDescriptors: ["IND - Telangana - Hyderabad"]
+        }
+      }
+    } as SourceCrawlPlan)).resolves.toMatchObject({
+      ok: false,
+      failureReason: expect.stringContaining("duplicate descriptors or ids")
+    });
+  });
+
+  it("allows BMS's one audited foreign site descriptor and no other unknown country descriptor", async () => {
+    const requests: Array<{ body: string }> = [];
+    const fetcher = createWorkdaySourceFetch({
+      http: async (request) => {
+        requests.push(request);
+        const body = JSON.parse(request.body) as { appliedFacets: Record<string, string[]> };
+        return body.appliedFacets.locationHierarchy2
+          ? response({
+              total: 1,
+              jobPostings: [{ title: "China Role", externalPath: "/job/China/role", locationsText: "Shanghai, China" }]
+            })
+          : response({
+              total: 1,
+              jobPostings: [],
+              facets: [{
+                facetParameter: "locationHierarchy2",
+                descriptor: "Country",
+                values: [
+                  { descriptor: "China", id: "china", count: 1 },
+                  { descriptor: "AZ01 PSA Celgene - Phoenix - AZ", id: "phoenix", count: 1 }
+                ]
+              }]
+            });
+      }
+    });
+
+    const result = await fetcher({
+      ...plan,
+      source: { ...plan.source, id: "source-bms-china-social" },
+      workday: {
+        tenant: "bristolmyerssquibb",
+        site: "BMS",
+        searchText: "China",
+        locationFacetPolicy: {
+          kind: "BMS_AUDITED_FOREIGN_DESCRIPTOR_ALLOWLIST",
+          facetParameter: "locationHierarchy2",
+          allowedForeignDescriptors: ["AZ01 PSA Celgene - Phoenix - AZ"]
+        }
+      }
+    } as SourceCrawlPlan);
+
+    expect(result).toMatchObject({
+      ok: true,
+      completeness: { completenessStatus: "NEEDS_MANUAL_COMPLETENESS_REVIEW", expectedJobCount: 1 }
+    });
+    expect(requests).toHaveLength(2);
+    expect(JSON.parse(requests[1]!.body).appliedFacets).toEqual({ locationHierarchy2: ["china"] });
+  });
+
+  it("rejects a BMS country descriptor outside the exact audited allowlist", async () => {
+    const fetcher = createWorkdaySourceFetch({
+      http: async () => response({
+        total: 2,
+        jobPostings: [],
+        facets: [{
+          facetParameter: "locationHierarchy2",
+          descriptor: "Country",
+          values: [
+            { descriptor: "China", id: "china", count: 1 },
+            { descriptor: "AZ02 Unknown Site - Phoenix - AZ", id: "unknown", count: 1 }
+          ]
+        }]
+      })
+    });
+
+    await expect(fetcher({
+      ...plan,
+      source: { ...plan.source, id: "source-bms-china-social" },
+      workday: {
+        tenant: "bristolmyerssquibb",
+        site: "BMS",
+        searchText: "China",
+        locationFacetPolicy: {
+          kind: "BMS_AUDITED_FOREIGN_DESCRIPTOR_ALLOWLIST",
+          facetParameter: "locationHierarchy2",
+          allowedForeignDescriptors: ["AZ01 PSA Celgene - Phoenix - AZ"]
+        }
+      }
+    } as SourceCrawlPlan)).resolves.toMatchObject({
+      ok: false,
+      failureReason: expect.stringContaining("unscoped country descriptor AZ02 Unknown Site - Phoenix - AZ")
+    });
+  });
+
+  it.each([
+    {
+      name: "JNJ wrong source",
+      sourceId: "source-wrong-johnson",
+      tenant: "jj",
+      site: "JJ",
+      policy: { kind: "JNJ_AUDITED_LOCATIONS_OVERLAP", facetParameter: "locations" }
+    },
+    {
+      name: "Gilead wrong facet",
+      sourceId: "source-gilead-china-social",
+      tenant: "gilead",
+      site: "gileadcareers",
+      policy: { kind: "GILEAD_AUDITED_LOCATIONS_OVERLAP", facetParameter: "wrongFacet" }
+    },
+    {
+      name: "JNJ wrong tenant",
+      sourceId: "source-johnson-innovative-medicine-social",
+      tenant: "wrong-tenant",
+      site: "JJ",
+      policy: { kind: "JNJ_AUDITED_LOCATIONS_OVERLAP", facetParameter: "locations" }
+    },
+    {
+      name: "MSD wrong source",
+      sourceId: "source-wrong-msd",
+      tenant: "msd",
+      site: "SearchJobs",
+      policy: {
+        kind: "MSD_AUDITED_NON_CHINA_DUPLICATE_DESCRIPTORS",
+        facetParameter: "locations",
+        allowedDuplicateDescriptors: ["IND - Telangana - Hyderabad"]
+      }
+    },
+    {
+      name: "BMS wrong facet",
+      sourceId: "source-bms-china-social",
+      tenant: "bristolmyerssquibb",
+      site: "BMS",
+      policy: {
+        kind: "BMS_AUDITED_FOREIGN_DESCRIPTOR_ALLOWLIST",
+        facetParameter: "wrongFacet",
+        allowedForeignDescriptors: ["AZ01 PSA Celgene - Phoenix - AZ"]
+      }
+    },
+    {
+      name: "BMS wrong site",
+      sourceId: "source-bms-china-social",
+      tenant: "bristolmyerssquibb",
+      site: "wrong-site",
+      policy: {
+        kind: "BMS_AUDITED_FOREIGN_DESCRIPTOR_ALLOWLIST",
+        facetParameter: "locationHierarchy2",
+        allowedForeignDescriptors: ["AZ01 PSA Celgene - Phoenix - AZ"]
+      }
+    }
+  ])("rejects a location facet policy outside its exact audited scope: $name", async ({
+    sourceId,
+    tenant,
+    site,
+    policy
+  }) => {
+    const http = vi.fn(async () => response({ total: 0, jobPostings: [], facets: [] }));
+    const fetcher = createWorkdaySourceFetch({ http });
+
+    await expect(fetcher({
+      ...plan,
+      source: { ...plan.source, id: sourceId },
+      workday: { tenant, site, searchText: "China", locationFacetPolicy: policy }
+    } as SourceCrawlPlan)).resolves.toMatchObject({
+      ok: false,
+      failureReason: expect.stringContaining("location facet policy is not allowed")
+    });
+    expect(http).not.toHaveBeenCalled();
   });
 
   it("fails closed with the archived preflight when country-level China facets are ambiguous", async () => {

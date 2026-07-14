@@ -100,6 +100,48 @@ describe("HCM Cloud direct evidence instrumentation", () => {
     expect(JSON.stringify(result)).not.toContain("�");
   });
 
+  it("recognizes a chained mainland province and prefecture location from the official Lunan list", async () => {
+    const result = await fetcherWith([
+      response(COUNT, { result: { list: [{ count__id: 1 }] } }),
+      response(LIST, {
+        result: {
+          page_index: 1,
+          list: [row("lunan-mainland", { work_city: "山东省临沂市兰山区" })]
+        }
+      })
+    ])(plan);
+
+    expect(result).toMatchObject({
+      ok: true,
+      fetchEvidence: {
+        fetchCounts: { rawCount: 1, validCount: 1 },
+        fetchLosses: []
+      },
+      payload: {
+        jobs: [expect.objectContaining({ locationRaw: "山东省临沂市兰山区" })]
+      }
+    });
+  });
+
+  it.each(["山东海外", "海南国际", "临沂海外", "临沂市海外", "山东省临沂市海外"])(
+    "does not treat an unrecognized province-prefixed label as a mainland location: %s",
+    async (workCity) => {
+      const result = await fetcherWith([
+        response(COUNT, { result: { list: [{ count__id: 1 }] } }),
+        response(LIST, { result: { page_index: 1, list: [row("not-a-location", { work_city: workCity })] } })
+      ])(plan);
+
+      expect(result).toMatchObject({
+        ok: true,
+        fetchEvidence: {
+          fetchCounts: { rawCount: 1, validCount: 0, validationDiscardCount: 1 },
+          fetchLosses: [{ details: { code: "OUT_OF_SCOPE" } }]
+        },
+        payload: { jobs: [] }
+      });
+    }
+  );
+
   it("retains the current raw artifact and fails on invalid decoded UTF-8 bytes", async () => {
     const body = encodedBytes(Uint8Array.from([0xc3, 0x28]));
     const result = await fetcherWith([response(COUNT, {}, { body })])(plan);

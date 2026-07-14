@@ -507,15 +507,64 @@ describe("source crawl planning", () => {
         }
       });
     }
+    const workdayLocationFacetPolicies = new Map<string, unknown>([
+      ["source-johnson-innovative-medicine-social", {
+        kind: "JNJ_AUDITED_LOCATIONS_OVERLAP",
+        facetParameter: "locations"
+      }],
+      ["source-gilead-china-social", {
+        kind: "GILEAD_AUDITED_LOCATIONS_OVERLAP",
+        facetParameter: "locations"
+      }],
+      ["source-msd-china-social", {
+        kind: "MSD_AUDITED_NON_CHINA_DUPLICATE_DESCRIPTORS",
+        facetParameter: "locations",
+        allowedDuplicateDescriptors: ["IND - Telangana - Hyderabad"]
+      }],
+      ["source-bms-china-social", {
+        kind: "BMS_AUDITED_FOREIGN_DESCRIPTOR_ALLOWLIST",
+        facetParameter: "locationHierarchy2",
+        allowedForeignDescriptors: ["AZ01 PSA Celgene - Phoenix - AZ"]
+      }]
+    ]);
+    for (const [sourceId, expectedPolicy] of workdayLocationFacetPolicies) {
+      const candidate = getPlanBySourceId(plans, sourceId);
+      if (candidate?.adapterId !== "official-json" || !candidate.workday) {
+        throw new Error(`Expected Workday plan for ${sourceId}`);
+      }
+      expect((candidate.workday as { locationFacetPolicy?: unknown }).locationFacetPolicy).toEqual(expectedPolicy);
+    }
+    expect(plans.flatMap((candidate) =>
+      candidate.adapterId === "official-json" &&
+      (candidate.workday as { locationFacetPolicy?: unknown } | undefined)?.locationFacetPolicy !== undefined
+        ? [candidate.source.id]
+        : [])).toEqual([
+      "source-johnson-innovative-medicine-social",
+      "source-msd-china-social",
+      "source-bms-china-social",
+      "source-gilead-china-social"
+    ]);
+    const jnjPlan = getPlanBySourceId(plans, "source-johnson-innovative-medicine-social");
+    if (jnjPlan?.adapterId !== "official-json" || !jnjPlan.workday) {
+      throw new Error("Expected JNJ Workday plan");
+    }
+    const { locationFacetPolicy: _removedLocationFacetPolicy, ...workdayWithoutLocationFacetPolicy } = jnjPlan.workday;
+    expect(sourcePlanConfigSha256({ ...jnjPlan, workday: workdayWithoutLocationFacetPolicy }))
+      .not.toBe(sourcePlanConfigSha256(jnjPlan));
     const pfizerPlan = getPlanBySourceId(plans, "source-pfizer-china-social");
     if (pfizerPlan?.adapterId !== "official-json" || !pfizerPlan.workday) {
       throw new Error("Expected Pfizer Workday plan");
     }
     expect(pfizerPlan.workday.laterZeroTotalPolicy).toBe("PFIZER_AUDITED_EXACT_RECONCILIATION");
+    const amgenPlan = getPlanBySourceId(plans, "source-amgen-china-social");
+    if (amgenPlan?.adapterId !== "official-json" || !amgenPlan.workday) {
+      throw new Error("Expected Amgen Workday plan");
+    }
+    expect(amgenPlan.workday.laterZeroTotalPolicy).toBe("AMGEN_AUDITED_EXACT_RECONCILIATION");
     expect(plans.flatMap((candidate) =>
       candidate.adapterId === "official-json" && candidate.workday?.laterZeroTotalPolicy !== undefined
         ? [candidate.source.id]
-        : [])).toEqual(["source-pfizer-china-social"]);
+        : [])).toEqual(["source-pfizer-china-social", "source-amgen-china-social"]);
     const { laterZeroTotalPolicy: _removedPolicy, ...workdayWithoutPolicy } = pfizerPlan.workday;
     expect(sourcePlanConfigSha256({ ...pfizerPlan, workday: workdayWithoutPolicy }))
       .not.toBe(sourcePlanConfigSha256(pfizerPlan));
@@ -959,6 +1008,8 @@ describe("source crawl planning", () => {
         pageSize: 20,
         maxPages: 5,
         countCoordinatePolicy: "LUNAN_AGGREGATE_ROW",
+        responsePrefixPolicy: "LUNAN_RANDOM_ALNUM3",
+        listPaginationPolicy: "LUNAN_REQUEST_BOUND_PAGE_V1",
         defaultLocationRaw: "未披露"
       }
     });

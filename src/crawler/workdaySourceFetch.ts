@@ -17,11 +17,36 @@ export interface WorkdayFetchConfig {
   appliedFacets?: Record<string, readonly string[]>;
   facetDescriptorExclusions?: readonly WorkdayFacetDescriptorExclusion[];
   facetDescriptorBoundary?: WorkdayFacetDescriptorBoundary;
-  laterZeroTotalPolicy?: "PFIZER_AUDITED_EXACT_RECONCILIATION";
+  laterZeroTotalPolicy?: WorkdayLaterZeroTotalPolicy;
+  locationFacetPolicy?: WorkdayLocationFacetPolicy;
   pageSize?: number;
   maxPages?: number;
   cityHints?: Record<string, readonly string[]>;
 }
+
+export type WorkdayLaterZeroTotalPolicy =
+  | "PFIZER_AUDITED_EXACT_RECONCILIATION"
+  | "AMGEN_AUDITED_EXACT_RECONCILIATION";
+
+export type WorkdayLocationFacetPolicy =
+  | {
+      kind: "JNJ_AUDITED_LOCATIONS_OVERLAP";
+      facetParameter: "locations";
+    }
+  | {
+      kind: "GILEAD_AUDITED_LOCATIONS_OVERLAP";
+      facetParameter: "locations";
+    }
+  | {
+      kind: "MSD_AUDITED_NON_CHINA_DUPLICATE_DESCRIPTORS";
+      facetParameter: "locations";
+      allowedDuplicateDescriptors: readonly string[];
+    }
+  | {
+      kind: "BMS_AUDITED_FOREIGN_DESCRIPTOR_ALLOWLIST";
+      facetParameter: "locationHierarchy2";
+      allowedForeignDescriptors: readonly string[];
+    };
 
 export interface WorkdayFacetDescriptorExclusion {
   facetParameter: string;
@@ -66,11 +91,37 @@ interface WorkdayJobsResponse {
   total?: unknown;
   jobPostings?: unknown;
   facets?: unknown;
+  userAuthenticated?: unknown;
 }
 
 const DEFAULT_PAGE_SIZE = 20;
 const DEFAULT_MAX_PAGES = 20;
 const PFIZER_LATER_ZERO_TOTAL_POLICY = "PFIZER_AUDITED_EXACT_RECONCILIATION";
+const AMGEN_LATER_ZERO_TOTAL_POLICY = "AMGEN_AUDITED_EXACT_RECONCILIATION";
+const AUDITED_CHINA_LOCATION_ID = "6cb77610a8a543aea2d6bc10457e35d4";
+const MSD_AUDITED_DUPLICATE_DESCRIPTOR = "IND - Telangana - Hyderabad";
+const BMS_AUDITED_FOREIGN_DESCRIPTOR = "AZ01 PSA Celgene - Phoenix - AZ";
+const WORKDAY_PAGINATION_AUTHORITY_KEYS = new Set([
+  "total",
+  "totalcount",
+  "jobpostings",
+  "offset",
+  "limit",
+  "page",
+  "pagenumber",
+  "pagesize",
+  "totalpages",
+  "next",
+  "nextpage",
+  "hasnext"
+]);
+
+interface ResolvedWorkdayLocationFacetPolicy {
+  facetParameter: string;
+  allowOverlappingCounts: boolean;
+  allowedDuplicateDescriptors: readonly string[];
+  allowedForeignDescriptors: readonly string[];
+}
 
 const CITY_MATCHES: ReadonlyArray<readonly [string, string]> = [
   ["Shanghai", "上海"],
@@ -100,6 +151,111 @@ const CITY_MATCHES: ReadonlyArray<readonly [string, string]> = [
 ];
 const WORKDAY_REGION_FALLBACKS = new Set(["广东", "浙江", "江苏", "湖南", "河南", "山东"]);
 
+function allowsAuditedLaterZeroTotalPolicy(sourceId: string, config: WorkdayFetchConfig): boolean {
+  if (config.laterZeroTotalPolicy === PFIZER_LATER_ZERO_TOTAL_POLICY) {
+    return sourceId === "source-pfizer-china-social" &&
+      config.tenant === "pfizer" &&
+      config.site === "PfizerCareers" &&
+      hasExactSingleAppliedFacet(config.appliedFacets, "Location_Country", AUDITED_CHINA_LOCATION_ID);
+  }
+  if (config.laterZeroTotalPolicy === AMGEN_LATER_ZERO_TOTAL_POLICY) {
+    return sourceId === "source-amgen-china-social" &&
+      config.tenant === "amgen" &&
+      config.site === "Careers" &&
+      hasExactSingleAppliedFacet(config.appliedFacets, "LocationCountry", AUDITED_CHINA_LOCATION_ID);
+  }
+  return false;
+}
+
+function resolveAuditedLocationFacetPolicy(
+  sourceId: string,
+  config: WorkdayFetchConfig
+): ResolvedWorkdayLocationFacetPolicy | undefined {
+  const policy = config.locationFacetPolicy;
+  if (!policy || config.searchText !== "China" || hasConfiguredLocationFacet(config.appliedFacets ?? {})) {
+    return undefined;
+  }
+
+  if (
+    policy.kind === "JNJ_AUDITED_LOCATIONS_OVERLAP" &&
+    policy.facetParameter === "locations" &&
+    sourceId === "source-johnson-innovative-medicine-social" &&
+    config.tenant === "jj" &&
+    config.site === "JJ"
+  ) {
+    return {
+      facetParameter: "locations",
+      allowOverlappingCounts: true,
+      allowedDuplicateDescriptors: [],
+      allowedForeignDescriptors: []
+    };
+  }
+  if (
+    policy.kind === "GILEAD_AUDITED_LOCATIONS_OVERLAP" &&
+    policy.facetParameter === "locations" &&
+    sourceId === "source-gilead-china-social" &&
+    config.tenant === "gilead" &&
+    config.site === "gileadcareers"
+  ) {
+    return {
+      facetParameter: "locations",
+      allowOverlappingCounts: true,
+      allowedDuplicateDescriptors: [],
+      allowedForeignDescriptors: []
+    };
+  }
+  if (
+    policy.kind === "MSD_AUDITED_NON_CHINA_DUPLICATE_DESCRIPTORS" &&
+    policy.facetParameter === "locations" &&
+    exactStringArray(policy.allowedDuplicateDescriptors, [MSD_AUDITED_DUPLICATE_DESCRIPTOR]) &&
+    sourceId === "source-msd-china-social" &&
+    config.tenant === "msd" &&
+    config.site === "SearchJobs"
+  ) {
+    return {
+      facetParameter: "locations",
+      allowOverlappingCounts: false,
+      allowedDuplicateDescriptors: [MSD_AUDITED_DUPLICATE_DESCRIPTOR],
+      allowedForeignDescriptors: []
+    };
+  }
+  if (
+    policy.kind === "BMS_AUDITED_FOREIGN_DESCRIPTOR_ALLOWLIST" &&
+    policy.facetParameter === "locationHierarchy2" &&
+    exactStringArray(policy.allowedForeignDescriptors, [BMS_AUDITED_FOREIGN_DESCRIPTOR]) &&
+    sourceId === "source-bms-china-social" &&
+    config.tenant === "bristolmyerssquibb" &&
+    config.site === "BMS"
+  ) {
+    return {
+      facetParameter: "locationHierarchy2",
+      allowOverlappingCounts: false,
+      allowedDuplicateDescriptors: [],
+      allowedForeignDescriptors: [BMS_AUDITED_FOREIGN_DESCRIPTOR]
+    };
+  }
+  return undefined;
+}
+
+function hasExactSingleAppliedFacet(
+  appliedFacets: Record<string, readonly string[]> | undefined,
+  facetParameter: string,
+  expectedId: string
+): boolean {
+  const entries = Object.entries(appliedFacets ?? {});
+  return entries.length === 1 && entries[0]![0] === facetParameter &&
+    exactStringArray(entries[0]![1], [expectedId]);
+}
+
+function exactStringArray(actual: readonly string[] | undefined, expected: readonly string[]): boolean {
+  return Array.isArray(actual) && actual.length === expected.length &&
+    actual.every((value, index) => value === expected[index]);
+}
+
+function compareUtf8(left: string, right: string): number {
+  return Buffer.from(left, "utf8").compare(Buffer.from(right, "utf8"));
+}
+
 export function createWorkdaySourceFetch(deps: WorkdaySourceFetchDeps = {}): SourceFetchFunction {
   return async (plan) => {
     const capturedAt = (deps.now ?? (() => new Date()))().toISOString();
@@ -114,13 +270,13 @@ export function createWorkdaySourceFetch(deps: WorkdaySourceFetchDeps = {}): Sou
       return failed(capturedAt, `Workday source ${plan.source.id} is missing Workday config`);
     }
 
-    const allowsAuditedLaterZeroTotal =
-      plan.workday.laterZeroTotalPolicy === PFIZER_LATER_ZERO_TOTAL_POLICY &&
-      plan.source.id === "source-pfizer-china-social" &&
-      plan.workday.tenant === "pfizer" &&
-      plan.workday.site === "PfizerCareers";
+    const allowsAuditedLaterZeroTotal = allowsAuditedLaterZeroTotalPolicy(plan.source.id, plan.workday);
     if (plan.workday.laterZeroTotalPolicy !== undefined && !allowsAuditedLaterZeroTotal) {
       return failed(capturedAt, `Workday later-zero total policy is not allowed for source ${plan.source.id}`);
+    }
+    const auditedLocationFacetPolicy = resolveAuditedLocationFacetPolicy(plan.source.id, plan.workday);
+    if (plan.workday.locationFacetPolicy !== undefined && !auditedLocationFacetPolicy) {
+      return failed(capturedAt, `Workday location facet policy is not allowed for source ${plan.source.id}`);
     }
 
     try {
@@ -151,6 +307,7 @@ export function createWorkdaySourceFetch(deps: WorkdaySourceFetchDeps = {}): Sou
       let locationDerivedTotal: number | undefined;
       let sawLaterZeroTotal = false;
       let strictLaterZeroPageEnvelopes = true;
+      let firstPaginationEnvelopeFingerprint: string | undefined;
 
       const needsLocationFacetDiscovery = !hasConfiguredLocationFacet(configuredAppliedFacets) && Boolean(searchText);
       if (needsLocationFacetDiscovery) {
@@ -171,7 +328,11 @@ export function createWorkdaySourceFetch(deps: WorkdaySourceFetchDeps = {}): Sou
         artifacts.push(workdayArtifact("workday-preflight-0000", "ATS_API_RESPONSE", url, preflight, "$.facets"));
         latestEvidence = workdaySupportingArtifactEvidence(artifacts, "FACET_DERIVATION_FAILED");
         const parsedPreflight = parseWorkdayJobsResponse(preflight.body);
-        const discovery = chinaLocationAppliedFacets(parsedPreflight.facets, parsedPreflight.total);
+        const discovery = chinaLocationAppliedFacets(
+          parsedPreflight.facets,
+          parsedPreflight.total,
+          auditedLocationFacetPolicy
+        );
         appliedFacets = { ...appliedFacets, ...discovery.appliedFacets };
         locationDerivedTotal = discovery.expectedFilteredTotal;
         derivedFilteredTotal = discovery.expectedFilteredTotal;
@@ -244,11 +405,23 @@ export function createWorkdaySourceFetch(deps: WorkdaySourceFetchDeps = {}): Sou
 
         assertEvidenceResponse(response);
 
-        const parsed = parseWorkdayJobsResponse(response.body);
+        const parsed = parseWorkdayJobsResponse(response.body, {
+          pageIndex,
+          ...(allowsAuditedLaterZeroTotal && plan.workday.laterZeroTotalPolicy !== undefined
+            ? { auditedLaterZeroPolicy: plan.workday.laterZeroTotalPolicy }
+            : {})
+        });
+        if (pageIndex === 0) {
+          firstPaginationEnvelopeFingerprint = parsed.paginationEnvelopeFingerprint;
+        } else {
+          strictLaterZeroPageEnvelopes = strictLaterZeroPageEnvelopes &&
+            firstPaginationEnvelopeFingerprint !== undefined &&
+            parsed.paginationEnvelopeFingerprint === firstPaginationEnvelopeFingerprint;
+        }
         if (pageIndex > 0 && parsed.total === 0) {
           sawLaterZeroTotal = true;
           strictLaterZeroPageEnvelopes = strictLaterZeroPageEnvelopes &&
-            parsed.strictPaginationEnvelope && parsed.jobPostings.length > 0;
+            parsed.jobPostings.length > 0;
         }
         if (pageIndex === 0 && derivedFilteredTotal !== undefined && parsed.total !== derivedFilteredTotal) {
           artifacts.push(workdayArtifact(
@@ -716,11 +889,17 @@ function normalizePageSize(pageSize: number | undefined): number {
   return Math.min(20, Math.max(1, Math.floor(pageSize)));
 }
 
-function parseWorkdayJobsResponse(body: string): {
+function parseWorkdayJobsResponse(
+  body: string,
+  paginationContext?: {
+    pageIndex: number;
+    auditedLaterZeroPolicy?: WorkdayLaterZeroTotalPolicy;
+  }
+): {
   total?: number;
   jobPostings: unknown[];
   facets?: unknown;
-  strictPaginationEnvelope: boolean;
+  paginationEnvelopeFingerprint?: string;
 } {
   if (!hasUniqueJsonObjectKeys(body)) {
     throw new Error("Workday response contains duplicate JSON object keys or non-strict JSON syntax");
@@ -731,13 +910,86 @@ function parseWorkdayJobsResponse(body: string): {
   }
   const total = typeof parsed.total === "number" && parsed.total >= 0 ? parsed.total : undefined;
   const jobPostings = parsed.jobPostings;
+  const paginationEnvelopeFingerprint = workdayPaginationEnvelopeFingerprint(parsed, paginationContext);
 
   return {
     ...(total === undefined ? {} : { total }),
     jobPostings,
     ...(parsed.facets === undefined ? {} : { facets: parsed.facets }),
-    strictPaginationEnvelope: Object.keys(parsed).every((key) => key === "total" || key === "jobPostings")
+    ...(paginationEnvelopeFingerprint === undefined ? {} : { paginationEnvelopeFingerprint })
   };
+}
+
+function workdayPaginationEnvelopeFingerprint(
+  parsed: WorkdayJobsResponse,
+  context?: {
+    pageIndex: number;
+    auditedLaterZeroPolicy?: WorkdayLaterZeroTotalPolicy;
+  }
+): string | undefined {
+  const keys = Object.keys(parsed).sort(compareUtf8);
+  if (exactStringArray(keys, ["jobPostings", "total"])) {
+    return "WORKDAY_BASE_ENVELOPE_V1";
+  }
+  if (
+    exactStringArray(keys, ["facets", "jobPostings", "total", "userAuthenticated"]) &&
+    Array.isArray(parsed.facets) &&
+    parsed.userAuthenticated === false &&
+    !containsPaginationAuthority(parsed.facets) &&
+    context?.auditedLaterZeroPolicy !== undefined
+  ) {
+    const expectedShape = context.pageIndex === 0
+      ? workdayAuditedFirstPageFacetsProveChinaTotal(
+          parsed.facets,
+          parsed.total,
+          context.auditedLaterZeroPolicy
+        )
+      : parsed.facets.length === 0;
+    return expectedShape ? `WORKDAY_AUDITED_METADATA_V2:${context.auditedLaterZeroPolicy}` : undefined;
+  }
+  return undefined;
+}
+
+function workdayAuditedFirstPageFacetsProveChinaTotal(
+  facets: unknown[],
+  total: unknown,
+  policy: WorkdayLaterZeroTotalPolicy
+): boolean {
+  if (!Number.isInteger(total) || (total as number) < 0) return false;
+  const expected = policy === PFIZER_LATER_ZERO_TOTAL_POLICY
+    ? { facetParameter: "Location_Country", descriptor: "Location Country" }
+    : { facetParameter: "LocationCountry", descriptor: "Country/Territory" };
+  const candidates = facets.filter((facet): facet is Record<string, unknown> =>
+    isRecord(facet) && !Array.isArray(facet) && facet.facetParameter === expected.facetParameter);
+  if (candidates.length !== 1) return false;
+  const facet = candidates[0]!;
+  if (Object.keys(facet).sort(compareUtf8).join(",") !== "descriptor,facetParameter,values" ||
+      facet.descriptor !== expected.descriptor || !Array.isArray(facet.values)) return false;
+
+  const ids = new Set<string>();
+  const descriptors = new Set<string>();
+  let chinaCount: number | undefined;
+  for (const value of facet.values) {
+    if (!isRecord(value) || Array.isArray(value) ||
+        Object.keys(value).sort(compareUtf8).join(",") !== "count,descriptor,id" ||
+        typeof value.descriptor !== "string" || typeof value.id !== "string" ||
+        !Number.isInteger(value.count) || (value.count as number) < 0 ||
+        ids.has(value.id) || descriptors.has(value.descriptor)) return false;
+    ids.add(value.id);
+    descriptors.add(value.descriptor);
+    if (value.id === AUDITED_CHINA_LOCATION_ID) {
+      if (value.descriptor !== "China" || chinaCount !== undefined) return false;
+      chinaCount = value.count as number;
+    }
+  }
+  return chinaCount === total;
+}
+
+function containsPaginationAuthority(value: unknown): boolean {
+  if (Array.isArray(value)) return value.some(containsPaginationAuthority);
+  if (!isRecord(value)) return false;
+  return Object.entries(value).some(([key, item]) =>
+    WORKDAY_PAGINATION_AUTHORITY_KEYS.has(key.toLowerCase()) || containsPaginationAuthority(item));
 }
 
 interface WorkdayFacetNode {
@@ -755,7 +1007,8 @@ interface RawWorkdayFacetGroup {
 
 function chinaLocationAppliedFacets(
   facets: unknown,
-  officialTotal: number | undefined
+  officialTotal: number | undefined,
+  auditedPolicy?: ResolvedWorkdayLocationFacetPolicy
 ): { appliedFacets: Record<string, readonly string[]>; expectedFilteredTotal?: number } {
   const groups = collectFacetGroups(facets)
     .filter((group) => isLocationFacet(group.facetParameter, group.descriptor));
@@ -769,11 +1022,26 @@ function chinaLocationAppliedFacets(
   }
   if (countryGroups.length === 1) {
     const countryGroup = countryGroups[0]!;
-    const inspection = parseFacetGroup(countryGroup, officialTotal);
+    assertAuditedLocationFacetParameter(countryGroup.facetParameter, auditedPolicy);
+    const inspection = parseFacetGroup(
+      countryGroup,
+      officialTotal,
+      auditedPolicy?.allowedDuplicateDescriptors ?? []
+    );
     const nodes = inspection.nodes;
-    assertCountryFacetScopeOwnership(countryGroup.facetParameter, nodes);
+    assertCountryFacetScopeOwnership(
+      countryGroup.facetParameter,
+      nodes,
+      auditedPolicy?.allowedForeignDescriptors ?? []
+    );
     const selectedLeaves = nodes.flatMap((node) =>
       isMainlandChinaCountryDescriptor(node.descriptor) ? selectableLeaves(node, true) : []
+    );
+    assertAuditedDuplicateDescriptorsRemainForeign(
+      countryGroup.facetParameter,
+      nodes,
+      selectedLeaves,
+      auditedPolicy?.allowedDuplicateDescriptors ?? []
     );
     if (!inspection.completePartition) {
       if (!inspection.overlappingCounts) {
@@ -805,9 +1073,72 @@ function chinaLocationAppliedFacets(
   }
 
   const cityGroup = cityGroups[0]!;
-  const nodes = parseAndVerifyFacetGroup(cityGroup, officialTotal);
-  const selectedLeaves = selectMainlandCityLeaves(cityGroup.facetParameter, nodes);
+  assertAuditedLocationFacetParameter(cityGroup.facetParameter, auditedPolicy);
+  const inspection = parseFacetGroup(
+    cityGroup,
+    officialTotal,
+    auditedPolicy?.allowedDuplicateDescriptors ?? []
+  );
+  const selectedLeaves = selectMainlandCityLeaves(cityGroup.facetParameter, inspection.nodes);
+  assertAuditedDuplicateDescriptorsRemainForeign(
+    cityGroup.facetParameter,
+    inspection.nodes,
+    selectedLeaves,
+    auditedPolicy?.allowedDuplicateDescriptors ?? []
+  );
+  if (!inspection.completePartition) {
+    if (!inspection.overlappingCounts || !auditedPolicy?.allowOverlappingCounts) {
+      throw new Error(`Workday location facet ${cityGroup.facetParameter} counts do not prove a complete partition`);
+    }
+    return facetSelectionWithoutExpectedTotal(cityGroup.facetParameter, selectedLeaves);
+  }
   return facetSelection(cityGroup.facetParameter, selectedLeaves);
+}
+
+function assertAuditedDuplicateDescriptorsRemainForeign(
+  facetParameter: string,
+  nodes: readonly WorkdayFacetNode[],
+  selectedLeaves: readonly WorkdayFacetNode[],
+  allowedDuplicateDescriptors: readonly string[]
+): void {
+  const selectedSet = new Set(selectedLeaves);
+  const allNodes = nodes.flatMap(flattenFacetNode);
+  for (const descriptor of allowedDuplicateDescriptors) {
+    const matchingNodes = allNodes.filter((node) => node.descriptor === descriptor);
+    if (matchingNodes.length < 2) continue;
+    const unsafe = matchingNodes.some((node) => {
+      const path = facetPath(nodes, node);
+      const hasNonMainlandBoundary = path.some((candidate) => isNonMainlandChinaDescriptor(candidate.descriptor));
+      const hasMainlandScope = path.some((candidate) =>
+        isMainlandChinaCountryDescriptor(candidate.descriptor) ||
+        isMainlandChinaLocationDescriptor(candidate.descriptor));
+      return node.children.length > 0 || selectedSet.has(node) || (hasMainlandScope && !hasNonMainlandBoundary);
+    });
+    if (unsafe) {
+      throw new Error(`Workday location facet ${facetParameter} contains duplicate descriptors or ids`);
+    }
+  }
+}
+
+function assertAuditedLocationFacetParameter(
+  actualFacetParameter: string,
+  auditedPolicy: ResolvedWorkdayLocationFacetPolicy | undefined
+): void {
+  if (auditedPolicy && actualFacetParameter !== auditedPolicy.facetParameter) {
+    throw new Error(
+      `Workday audited location facet policy expected ${auditedPolicy.facetParameter} but received ${actualFacetParameter}`
+    );
+  }
+}
+
+function facetSelectionWithoutExpectedTotal(
+  facetParameter: string,
+  leaves: readonly WorkdayFacetNode[]
+): { appliedFacets: Record<string, readonly string[]> } {
+  if (leaves.length === 0) {
+    throw new Error(`Workday location facet ${facetParameter} has no requestable mainland-China leaf ids`);
+  }
+  return { appliedFacets: { [facetParameter]: leaves.map((leaf) => leaf.id!) } };
 }
 
 function facetSelection(
@@ -823,26 +1154,24 @@ function facetSelection(
   };
 }
 
-function parseAndVerifyFacetGroup(
-  group: RawWorkdayFacetGroup,
-  officialTotal: number | undefined
-): WorkdayFacetNode[] {
-  const inspection = parseFacetGroup(group, officialTotal);
-  if (!inspection.completePartition) {
-    throw new Error(`Workday location facet ${group.facetParameter} counts do not prove a complete partition`);
-  }
-  return inspection.nodes;
-}
-
 function parseFacetGroup(
   group: RawWorkdayFacetGroup,
-  officialTotal: number | undefined
+  officialTotal: number | undefined,
+  allowedDuplicateDescriptors: readonly string[] = []
 ): { nodes: WorkdayFacetNode[]; completePartition: boolean; overlappingCounts: boolean } {
   const nodes = group.values.map((value) => parseFacetNode(value, group.facetParameter));
   const allNodes = nodes.flatMap(flattenFacetNode);
   const ids = allNodes.flatMap((node) => node.id ? [node.id] : []);
   const descriptors = allNodes.map((node) => node.descriptor);
-  if (new Set(ids).size !== ids.length || new Set(descriptors).size !== descriptors.length) {
+  const duplicateDescriptors = descriptors.filter((descriptor, index) => descriptors.indexOf(descriptor) !== index);
+  const uniqueDuplicateDescriptors = [...new Set(duplicateDescriptors)];
+  const allowedDuplicateSet = new Set(allowedDuplicateDescriptors);
+  const hasUnsafeDuplicateDescriptor = uniqueDuplicateDescriptors.some((descriptor) =>
+    !allowedDuplicateSet.has(descriptor) ||
+    isMainlandChinaCountryDescriptor(descriptor) ||
+    isMainlandChinaLocationDescriptor(descriptor) ||
+    !hasKnownForeignCountryPart(descriptor));
+  if (new Set(ids).size !== ids.length || hasUnsafeDuplicateDescriptor) {
     throw new Error(`Workday location facet ${group.facetParameter} contains duplicate descriptors or ids`);
   }
   const rootCountTotal = nodes.reduce((sum, node) => sum + node.count, 0);
@@ -855,22 +1184,31 @@ function parseFacetGroup(
 
 function assertCountryFacetScopeOwnership(
   facetParameter: string,
-  nodes: readonly WorkdayFacetNode[]
+  nodes: readonly WorkdayFacetNode[],
+  allowedForeignDescriptors: readonly string[] = []
 ): void {
   for (const node of nodes) {
     if (isMainlandChinaCountryDescriptor(node.descriptor) || isExactNonMainlandChinaCountryDescriptor(node.descriptor)) {
       continue;
     }
-    assertExplicitForeignCountryBranch(facetParameter, node);
+    assertExplicitForeignCountryBranch(facetParameter, node, allowedForeignDescriptors);
   }
 }
 
-function assertExplicitForeignCountryBranch(facetParameter: string, node: WorkdayFacetNode): void {
+function assertExplicitForeignCountryBranch(
+  facetParameter: string,
+  node: WorkdayFacetNode,
+  allowedForeignDescriptors: readonly string[]
+): void {
   if (isKnownForeignCountryDescriptor(node.descriptor) || isExactNonMainlandChinaCountryDescriptor(node.descriptor)) {
     return;
   }
+  if (node.children.length === 0 && allowedForeignDescriptors.includes(node.descriptor)) {
+    return;
+  }
   if (node.children.length > 0) {
-    node.children.forEach((child) => assertExplicitForeignCountryBranch(facetParameter, child));
+    node.children.forEach((child) =>
+      assertExplicitForeignCountryBranch(facetParameter, child, allowedForeignDescriptors));
     return;
   }
   throw new Error(`Workday location facet ${facetParameter} contains unscoped country descriptor ${node.descriptor}`);

@@ -93,6 +93,8 @@ export type OfficialJsonFetchConfig =
       detailPath?: string;
       defaultLocationRaw?: string;
       countCoordinatePolicy?: "LUNAN_AGGREGATE_ROW";
+      responsePrefixPolicy?: "LUNAN_RANDOM_ALNUM3";
+      listPaginationPolicy?: "LUNAN_REQUEST_BOUND_PAGE_V1";
     }
   | {
       kind: "jobsyn-solr";
@@ -1113,9 +1115,20 @@ async function fetchHcmCloud({
   try {
     safeEntryUrl = safeOfficialJsonEndpoint(entryUrl);
     entryEvidenceUrl = safeOfficialJsonEvidenceUrl(safeEntryUrl);
-    if (config.countCoordinatePolicy === "LUNAN_AGGREGATE_ROW" &&
+    if ((config.countCoordinatePolicy === "LUNAN_AGGREGATE_ROW" ||
+        config.responsePrefixPolicy === "LUNAN_RANDOM_ALNUM3" ||
+        config.listPaginationPolicy === "LUNAN_REQUEST_BOUND_PAGE_V1") &&
         safeEntryUrl !== "https://hcm.lunan.com.cn/recruit") {
       throw new Error("Lunan count policy requires the exact official entry");
+    }
+    if (config.responsePrefixPolicy === "LUNAN_RANDOM_ALNUM3" &&
+        config.countCoordinatePolicy !== "LUNAN_AGGREGATE_ROW") {
+      throw new Error("Lunan response prefix policy requires the aggregate count policy");
+    }
+    if (config.listPaginationPolicy === "LUNAN_REQUEST_BOUND_PAGE_V1" &&
+        (config.countCoordinatePolicy !== "LUNAN_AGGREGATE_ROW" ||
+          config.responsePrefixPolicy !== "LUNAN_RANDOM_ALNUM3")) {
+      throw new Error("Lunan request-bound pagination requires the audited count and prefix policies");
     }
   } catch {
     return failed(capturedAt, "HCMCloud official entry URL is invalid");
@@ -3443,7 +3456,7 @@ async function fetchHcmCloudWithPost({
   }
   let countDecoded: HcmCloudDecoded;
   try {
-    countDecoded = decodeHcmCloudResponseStrict(countResponse.body);
+    countDecoded = decodeHcmCloudResponseStrict(countResponse.body, config.responsePrefixPolicy);
   } catch {
     return hcmCloudFailure(capturedAt, "HCMCloud count response decode failed", artifacts, pages, counts, losses);
   }
@@ -3509,7 +3522,7 @@ async function fetchHcmCloudWithPost({
         artifacts, pages, counts, losses, hcmCloudDeclared(expectedJobCount, countArtifact));
     }
     let decoded: HcmCloudDecoded;
-    try { decoded = decodeHcmCloudResponseStrict(response.body); } catch {
+    try { decoded = decodeHcmCloudResponseStrict(response.body, config.responsePrefixPolicy); } catch {
       pages.push(hcmCloudPageTrace({ artifact, sequence: pages.length, requestedPage: page,
         ...(expectedJobCount !== undefined ? { declaredTotal: expectedJobCount } : {}), termination: "FAILED" }));
       return hcmCloudFailure(capturedAt, "HCMCloud list response decode failed", artifacts, pages, counts, losses,
@@ -3518,7 +3531,7 @@ async function fetchHcmCloudWithPost({
     let list: unknown[];
     let returnedPage: number | undefined;
     try {
-      const parsed = parseHcmCloudList(decoded.value);
+      const parsed = parseHcmCloudList(decoded.value, config.listPaginationPolicy, page);
       list = parsed.list;
       returnedPage = parsed.returnedPage;
       if (parsed.count !== undefined && expectedJobCount !== undefined && parsed.count !== expectedJobCount) {
@@ -3531,7 +3544,8 @@ async function fetchHcmCloudWithPost({
         artifacts, pages, counts, losses, hcmCloudDeclared(expectedJobCount, countArtifact));
     }
     artifact.extractorLocator = hcmCloudListLocator(countFilterHash, page, pageSize, decoded.algorithm,
-      returnedPage !== undefined);
+      config.listPaginationPolicy === "LUNAN_REQUEST_BOUND_PAGE_V1" ? "request-bound:lunan-v1" :
+        returnedPage !== undefined ? "$.result.page_index" : undefined);
     const rawIds: string[] = [];
     const validIds: string[] = [];
     for (let recordIndex = 0; recordIndex < list.length; recordIndex += 1) {
@@ -3718,11 +3732,21 @@ function hcmCloudBrowserEntryArtifact(
   });
 }
 
-function decodeHcmCloudResponseStrict(body: string): HcmCloudDecoded {
+function decodeHcmCloudResponseStrict(
+  body: string,
+  prefixPolicy?: "LUNAN_RANDOM_ALNUM3"
+): HcmCloudDecoded {
   if (!hasUniqueJsonObjectKeys(body)) throw new Error("ambiguous HCMCloud envelope");
   const envelope: unknown = JSON.parse(body);
+  const encodedParameter = isStrictRecord(envelope) && typeof envelope.hcm_param === "string"
+    ? envelope.hcm_param
+    : undefined;
+  const prefix = encodedParameter?.slice(0, 3);
+  const prefixValid = prefixPolicy === "LUNAN_RANDOM_ALNUM3"
+    ? /^[A-Za-z0-9]{3}$/u.test(prefix ?? "")
+    : prefix === "rsp";
   if (!isStrictRecord(envelope) || envelope.hcm_transfer_strategy !== "hb5" ||
-    typeof envelope.hcm_param !== "string" || !envelope.hcm_param.startsWith("rsp") ||
+    typeof envelope.hcm_param !== "string" || !prefixValid ||
     envelope.hcm_param.length <= 3) throw new Error("invalid HCMCloud envelope");
   const encoded = envelope.hcm_param.slice(3).replaceAll("a", "5").replaceAll("!", "a");
   if (!/^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/u.test(encoded)) {
@@ -3777,10 +3801,25 @@ function selectHcmCloudCount(
   return { value: selected.value, path: selected.path };
 }
 
-function parseHcmCloudList(decoded: unknown): { list: unknown[]; returnedPage?: number; count?: number } {
+function parseHcmCloudList(
+  decoded: unknown,
+  policy?: "LUNAN_REQUEST_BOUND_PAGE_V1",
+  requestedPage?: number
+): { list: unknown[]; returnedPage?: number; count?: number } {
   if (!isStrictRecord(decoded) || !hasOwn(decoded, "result") || !isStrictRecord(decoded.result) ||
     !hasOwn(decoded.result, "list") || !Array.isArray(decoded.result.list)) {
     throw new Error("HCMCloud list collection is invalid");
+  }
+  if (policy === "LUNAN_REQUEST_BOUND_PAGE_V1") {
+    if (!isNonnegativeInteger(requestedPage) || requestedPage === 0 ||
+        Object.keys(decoded).sort().join(",") !== "result,srv_all,srv_begin,srv_end" ||
+        Object.keys(decoded.result).sort().join(",") !== "count,list" || decoded.result.count !== 0 ||
+        !isNonnegativeInteger(decoded.srv_begin) || !isNonnegativeInteger(decoded.srv_end) ||
+        !isNonnegativeInteger(decoded.srv_all) || decoded.srv_begin > decoded.srv_end ||
+        decoded.srv_end > decoded.srv_all) {
+      throw new Error("HCMCloud Lunan request-bound list envelope is invalid");
+    }
+    return { list: decoded.result.list, returnedPage: requestedPage };
   }
   let returnedPage: number | undefined;
   if (hasOwn(decoded.result, "page_index")) {
@@ -3829,11 +3868,11 @@ function hcmCloudListLocator(
   page: number,
   pageSize: number,
   algorithm = "hb5-base64-v1",
-  hasReturnedPage = false
+  returnedPageEvidence?: "$.result.page_index" | "request-bound:lunan-v1"
 ): string {
   return `hcm-list-v1|decode:${algorithm}|filter-fields:model,job_class,status,delivery,contract_unit,state,recruit_type` +
     `|filter-sha256:${filterHash}|request-page:${page}|page-size:${pageSize}` +
-    `|records:$.result.list${hasReturnedPage ? "|returned-page:$.result.page_index" : ""}`;
+    `|records:$.result.list${returnedPageEvidence ? `|returned-page:${returnedPageEvidence}` : ""}`;
 }
 
 function hcmCloudPageTrace(input: {
@@ -5595,14 +5634,50 @@ function cnstaffHasMainlandGeography(value: string): boolean {
     const stripped = segment.replace(/(?:壮族自治区|回族自治区|维吾尔自治区|自治区|自治州|地区|盟|省|市)$/u, "");
     if (CNSTAFF_MAINLAND_PROVINCES.has(segment) || CNSTAFF_MAINLAND_PROVINCES.has(stripped) ||
         CNSTAFF_MAINLAND_PREFECTURES.has(segment) || CNSTAFF_MAINLAND_PREFECTURES.has(stripped)) return true;
-    if ([...CNSTAFF_MAINLAND_PREFECTURES].some((name) => name.length >= 2 && segment.startsWith(name))) return true;
+    if (cnstaffHasChainedMainlandGeography(segment)) return true;
+    if (cnstaffHasPrefectureAdministrativeGeography(segment)) return true;
   }
   return false;
 }
 
+function cnstaffHasChainedMainlandGeography(segment: string): boolean {
+  const provinceNames = [...CNSTAFF_MAINLAND_PROVINCES]
+    .filter((name) => name.length >= 2)
+    .sort((left, right) => right.length - left.length);
+  const prefectureNames = [...CNSTAFF_MAINLAND_PREFECTURES]
+    .filter((name) => name.length >= 2)
+    .sort((left, right) => right.length - left.length);
+
+  for (const province of provinceNames) {
+    if (!segment.startsWith(province) || segment.length === province.length) continue;
+    const remainder = segment.slice(province.length);
+    for (const prefecture of prefectureNames) {
+      if (!remainder.startsWith(prefecture)) continue;
+      const administrativeSuffix = remainder.slice(prefecture.length);
+      if (cnstaffHasCompleteAdministrativeSuffix(administrativeSuffix)) return true;
+    }
+  }
+  return false;
+}
+
+function cnstaffHasPrefectureAdministrativeGeography(segment: string): boolean {
+  return [...CNSTAFF_MAINLAND_PREFECTURES].some((prefecture) => {
+    if (prefecture.length < 2 || !segment.startsWith(prefecture)) return false;
+    const administrativeSuffix = segment.slice(prefecture.length);
+    return cnstaffHasCompleteAdministrativeSuffix(administrativeSuffix);
+  });
+}
+
+function cnstaffHasCompleteAdministrativeSuffix(suffix: string): boolean {
+  if (suffix === "") return true;
+  const topLevelSuffix = /^(?:市|自治州|地区|盟)/u.exec(suffix)?.[0];
+  const countyLevel = topLevelSuffix === undefined ? suffix : suffix.slice(topLevelSuffix.length);
+  return countyLevel === "" || /^[\p{Script=Han}]{1,12}(?:区|县|市|旗)$/u.test(countyLevel);
+}
+
 function cnstaffHasForeignGeography(value: string): boolean {
   const normalized = value.normalize("NFKC").toLowerCase();
-  return /(?:香港|澳门|台湾|台北|欧洲大陆|美国|纽约|波士顿|旧金山|洛杉矶|西雅图|日本|东京|大阪|京都|新加坡|印度|德国|法国|加拿大|澳大利亚|英国|伦敦|韩国|首尔)|\b(?:hong kong|macao|macau|taiwan|taipei|european mainland|continental europe|united states|usa|u\.s\.|boston|new york|san francisco|los angeles|seattle|japan|tokyo|osaka|kyoto|singapore|india|germany|france|canada|australia|united kingdom|london|south korea|seoul)\b/u.test(normalized);
+  return /(?:香港|澳门|台湾|台北|海外|国外|欧洲大陆|美国|纽约|波士顿|旧金山|洛杉矶|西雅图|日本|东京|大阪|京都|新加坡|印度|德国|法国|加拿大|澳大利亚|英国|伦敦|韩国|首尔)|\b(?:hong kong|macao|macau|taiwan|taipei|overseas|abroad|european mainland|continental europe|united states|usa|u\.s\.|boston|new york|san francisco|los angeles|seattle|japan|tokyo|osaka|kyoto|singapore|india|germany|france|canada|australia|united kingdom|london|south korea|seoul)\b/u.test(normalized);
 }
 
 function cnstaffPageTrace(input: {
