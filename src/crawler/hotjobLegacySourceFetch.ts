@@ -23,11 +23,13 @@ import {
   type SourceFetchPageTrace
 } from "./sourceFetchEvidence";
 import type { PaginationEvaluation } from "./paginationEvidence";
+import { hasUniqueJsonObjectKeys } from "./strictJsonObjectKeys";
 
 export interface HotjobLegacyFetchConfig {
   listUrl: string;
   suitePath: string;
   paginationMode?: "body-current-page" | "query-page";
+  mimeCompatibilityPolicy?: "CRPHARMA_WINTALENT_TEXT_HTML_JSON_V1";
   pageSize?: number;
   maxPages?: number;
 }
@@ -128,15 +130,27 @@ export function createHotjobLegacySourceFetch(deps: HotjobLegacySourceFetchDeps 
         try {
           assertHotjobJsonContentType(response);
         } catch (error) {
-          state.artifacts.push(hotjobArtifact({
-            logicalKey, requestedUrl, response,
-            extractorLocator: `hotjob-legacy-v1|raw:${logicalKey}|request:page=${page},pageSize=${pageSize}|json:unavailable`
-          }));
-          return failedWithExistingArtifact({
-            capturedAt, state, response, logicalKey, pageIndex, requestedPage: page, requestedPageSize: pageSize,
-            failureReason: error instanceof Error ? error.message : "Hotjob response has an invalid Content-Type",
-            code: "INVALID_CONTENT_TYPE"
-          });
+          if (allowsAuditedCrPharmaTextHtmlJson({
+            config: plan.hotjobLegacy,
+            sourceId: plan.source.id,
+            sourceCompanyId: plan.source.companyId,
+            companyId: plan.company.id,
+            officialEntryUrl: plan.source.officialEntryUrl,
+            safeListUrl,
+            response
+          })) {
+            // The exact CR Pharma endpoint serves a strict JSON envelope with an incorrect text/html MIME.
+          } else {
+            state.artifacts.push(hotjobArtifact({
+              logicalKey, requestedUrl, response,
+              extractorLocator: `hotjob-legacy-v1|raw:${logicalKey}|request:page=${page},pageSize=${pageSize}|json:unavailable`
+            }));
+            return failedWithExistingArtifact({
+              capturedAt, state, response, logicalKey, pageIndex, requestedPage: page, requestedPageSize: pageSize,
+              failureReason: error instanceof Error ? error.message : "Hotjob response has an invalid Content-Type",
+              code: "INVALID_CONTENT_TYPE"
+            });
+          }
         }
         let parsed: ParsedLegacyPage;
         try {
@@ -279,6 +293,40 @@ export function createHotjobLegacySourceFetch(deps: HotjobLegacySourceFetchDeps 
       );
     }
   };
+}
+
+function allowsAuditedCrPharmaTextHtmlJson(input: {
+  config: HotjobLegacyFetchConfig;
+  sourceId: string;
+  sourceCompanyId: string;
+  companyId: string;
+  officialEntryUrl: string;
+  safeListUrl: string;
+  response: HotjobLegacyHttpResponse;
+}): boolean {
+  if (
+    input.config.mimeCompatibilityPolicy !== "CRPHARMA_WINTALENT_TEXT_HTML_JSON_V1" ||
+    input.sourceId !== "source-cr-pharma-social" ||
+    input.sourceCompanyId !== "company-cr-pharma" ||
+    input.companyId !== "company-cr-pharma" ||
+    input.officialEntryUrl !== "https://crc.wintalent.cn/wt/crpharma/web/index/social" ||
+    input.config.suitePath !== "wt/crpharma" ||
+    input.config.paginationMode !== "query-page" ||
+    !isExactTextHtmlUtf8(input.response.contentType) ||
+    !hasUniqueJsonObjectKeys(input.response.body)
+  ) {
+    return false;
+  }
+  const list = new URL(input.safeListUrl);
+  return list.origin === "https://crc.wintalent.cn" &&
+    list.pathname === "/wt/crpharma/web/json/position/list" &&
+    list.searchParams.get("recruitType") === "2";
+}
+
+function isExactTextHtmlUtf8(value: string | undefined): boolean {
+  if (!value) return false;
+  const parts = value.split(";").map((part) => part.trim().toLowerCase());
+  return parts.length === 2 && parts[0] === "text/html" && parts[1] === "charset=utf-8";
 }
 
 function parseResponse(body: string): ParsedLegacyPage {

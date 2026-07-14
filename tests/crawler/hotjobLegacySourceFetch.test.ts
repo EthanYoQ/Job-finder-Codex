@@ -209,4 +209,119 @@ describe("createHotjobLegacySourceFetch", () => {
       "https://crc.wintalent.cn/wt/crpharma/web/json/position/list?recruitType=2&page=2"
     ]);
   });
+
+  it("accepts the audited CR Pharma JSON body with its exact upstream text/html MIME drift", async () => {
+    const crPlan = {
+      ...plan,
+      company: { id: "company-cr-pharma", officialChineseName: "华润医药控股有限公司" },
+      source: {
+        ...plan.source,
+        id: "source-cr-pharma-social",
+        companyId: "company-cr-pharma",
+        officialEntryUrl: "https://crc.wintalent.cn/wt/crpharma/web/index/social",
+        officialChainEvidenceUrl: "https://www.crpharm.com/"
+      },
+      hotjobLegacy: {
+        listUrl: "https://crc.wintalent.cn/wt/crpharma/web/json/position/list?recruitType=2",
+        suitePath: "wt/crpharma",
+        paginationMode: "query-page",
+        pageSize: 10,
+        maxPages: 1,
+        mimeCompatibilityPolicy: "CRPHARMA_WINTALENT_TEXT_HTML_JSON_V1"
+      }
+    } satisfies SourceCrawlPlan;
+    const fetcher = createHotjobLegacySourceFetch({
+      now: () => new Date("2026-07-08T00:00:00.000Z"),
+      http: async (request) => ({
+        ...response(request, {
+          pageCount: 1,
+          page: 1,
+          rowCount: 1,
+          rowSize: 10,
+          postList: [{ postId: 1127, postName: "自动化生产管理岗", workPlace: "成都市" }]
+        }),
+        contentType: "text/html;charset=utf-8"
+      })
+    });
+
+    await expect(fetcher(crPlan)).resolves.toMatchObject({
+      ok: true,
+      payload: { jobs: [{ title: "自动化生产管理岗", locationRaw: "成都市" }] },
+      fetchEvidence: {
+        artifacts: [{ contentType: "text/html;charset=utf-8" }],
+        fetchCounts: { rawCount: 1, validCount: 1 }
+      }
+    });
+  });
+
+  it("keeps the CR Pharma MIME compatibility policy bound to the exact source authority", async () => {
+    const crLikePlan = {
+      ...plan,
+      source: {
+        ...plan.source,
+        id: "source-unrelated-social",
+        officialEntryUrl: "https://crc.wintalent.cn/wt/crpharma/web/index/social"
+      },
+      hotjobLegacy: {
+        listUrl: "https://crc.wintalent.cn/wt/crpharma/web/json/position/list?recruitType=2",
+        suitePath: "wt/crpharma",
+        paginationMode: "query-page",
+        pageSize: 10,
+        maxPages: 1,
+        mimeCompatibilityPolicy: "CRPHARMA_WINTALENT_TEXT_HTML_JSON_V1"
+      }
+    } satisfies SourceCrawlPlan;
+    const fetcher = createHotjobLegacySourceFetch({
+      now: () => new Date("2026-07-08T00:00:00.000Z"),
+      http: async (request) => ({
+        ...response(request, { pageCount: 1, page: 1, postList: [] }),
+        contentType: "text/html;charset=utf-8"
+      })
+    });
+
+    await expect(fetcher(crLikePlan)).resolves.toMatchObject({
+      ok: false,
+      failureReason: "Hotjob response has an invalid Content-Type"
+    });
+  });
+
+  it("rejects non-JSON and ambiguous JSON under the CR Pharma MIME compatibility policy", async () => {
+    const crPlan = {
+      ...plan,
+      company: { id: "company-cr-pharma", officialChineseName: "华润医药控股有限公司" },
+      source: {
+        ...plan.source,
+        id: "source-cr-pharma-social",
+        companyId: "company-cr-pharma",
+        officialEntryUrl: "https://crc.wintalent.cn/wt/crpharma/web/index/social",
+        officialChainEvidenceUrl: "https://www.crpharm.com/"
+      },
+      hotjobLegacy: {
+        listUrl: "https://crc.wintalent.cn/wt/crpharma/web/json/position/list?recruitType=2",
+        suitePath: "wt/crpharma",
+        paginationMode: "query-page",
+        pageSize: 10,
+        maxPages: 1,
+        mimeCompatibilityPolicy: "CRPHARMA_WINTALENT_TEXT_HTML_JSON_V1"
+      }
+    } satisfies SourceCrawlPlan;
+    const bodies = [
+      "<html><title>not json</title></html>",
+      '{"pageCount":1,"pageCount":2,"page":1,"postList":[]}'
+    ];
+
+    for (const body of bodies) {
+      const fetcher = createHotjobLegacySourceFetch({
+        now: () => new Date("2026-07-08T00:00:00.000Z"),
+        http: async (request) => ({
+          ...response(request, body),
+          contentType: "text/html;charset=utf-8"
+        })
+      });
+      await expect(fetcher(crPlan)).resolves.toMatchObject({
+        ok: false,
+        failureReason: "Hotjob response has an invalid Content-Type"
+      });
+    }
+  });
 });
