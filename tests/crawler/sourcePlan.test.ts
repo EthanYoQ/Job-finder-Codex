@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { createHash } from "node:crypto";
 import {
   buildDiscoverySourcePlanCandidates,
   buildSourceCrawlPlans,
@@ -237,7 +238,7 @@ describe("source crawl planning", () => {
     )).toEqual([]);
   });
 
-  it("quarantines J&J from formal plans even when a caller labels searchText and six facets independently verified", () => {
+  it("quarantines J&J from formal plans even when a caller labels its scope independently verified", () => {
     const company = candidateCompanies.find((item) => item.id === "company-johnson-innovative-medicine")!;
     const source = company.sources[0]!;
     const fakeHash = "a".repeat(64);
@@ -350,7 +351,8 @@ describe("source crawl planning", () => {
     const astellas = getPlanBySourceId(plans, "source-astellas-china-social");
     if (astellas?.adapterId !== "html-table") throw new Error("expected Astellas HTML plan");
     expect(astellas.table.pagination).not.toHaveProperty("expectedJobCountSelector");
-    expect(getPlanBySourceId(plans, "source-johnson-innovative-medicine-social")).toMatchObject({
+    const jnjDiscoveryPlan = getPlanBySourceId(plans, "source-johnson-innovative-medicine-social");
+    expect(jnjDiscoveryPlan).toMatchObject({
       adapterId: "official-json",
       source: {
         atsKind: "WORKDAY",
@@ -359,15 +361,11 @@ describe("source crawl planning", () => {
       workday: {
         tenant: "jj",
         site: "JJ",
-        searchText: "China",
-        appliedFacets: {
-          jobFamilyGroup: expect.arrayContaining([
-            "604dc786859810010c32535ce4950000",
-            "604dc786859810010c3230da4ca90000"
-          ])
-        }
+        searchText: "China"
       }
     });
+    if (jnjDiscoveryPlan?.adapterId !== "official-json" || !jnjDiscoveryPlan.workday) throw new Error("expected JNJ Workday plan");
+    expect(jnjDiscoveryPlan.workday).not.toHaveProperty("appliedFacets");
     expect(getPlanBySourceId(plans, "source-abbvie-china-social")).toMatchObject({
       adapterId: "html-table",
       table: {
@@ -507,14 +505,31 @@ describe("source crawl planning", () => {
         }
       });
     }
+    expect(getPlanBySourceId(plans, "source-johnson-innovative-medicine-social")).toMatchObject({
+      workday: {
+        opaqueMultiLocationDetailPolicy: "JNJ_AUDITED_CHINA_DETAIL_V1",
+        facetDescriptorBoundary: {
+          facetParameter: "workerSubType",
+          allowedDescriptors: ["Fixed Term Employee (Non-Intern) (Fixed Term)", "Regular"],
+          excludedDescriptors: ["College Recruit", "Intern (Fixed Term)", "Temporary Agency Worker"]
+        },
+        maxPages: 20
+      }
+    });
+    expect(getPlanBySourceId(plans, "source-msd-china-social")).toMatchObject({
+      workday: { opaqueMultiLocationDetailPolicy: "MSD_AUDITED_CHINA_DETAIL_V1" }
+    });
     const workdayLocationFacetPolicies = new Map<string, unknown>([
       ["source-johnson-innovative-medicine-social", {
         kind: "JNJ_AUDITED_LOCATIONS_OVERLAP",
-        facetParameter: "locations"
+        facetParameter: "locations",
+        mainlandDescriptorAliases: expect.any(Array),
+        foreignDescriptorAliases: expect.any(Array)
       }],
       ["source-gilead-china-social", {
         kind: "GILEAD_AUDITED_LOCATIONS_OVERLAP",
-        facetParameter: "locations"
+        facetParameter: "locations",
+        foreignDescriptorAliases: expect.any(Array)
       }],
       ["source-msd-china-social", {
         kind: "MSD_AUDITED_NON_CHINA_DUPLICATE_DESCRIPTORS",
@@ -524,7 +539,8 @@ describe("source crawl planning", () => {
       ["source-bms-china-social", {
         kind: "BMS_AUDITED_FOREIGN_DESCRIPTOR_ALLOWLIST",
         facetParameter: "locationHierarchy2",
-        allowedForeignDescriptors: ["AZ01 PSA Celgene - Phoenix - AZ"]
+        foreignSiteDescriptorAliases: expect.any(Array),
+        foreignCountryDescriptorAliases: expect.any(Array)
       }]
     ]);
     for (const [sourceId, expectedPolicy] of workdayLocationFacetPolicies) {
@@ -534,6 +550,41 @@ describe("source crawl planning", () => {
       }
       expect((candidate.workday as { locationFacetPolicy?: unknown }).locationFacetPolicy).toEqual(expectedPolicy);
     }
+    const jnjLocationCandidate = getPlanBySourceId(plans, "source-johnson-innovative-medicine-social");
+    const gileadLocationCandidate = getPlanBySourceId(plans, "source-gilead-china-social");
+    const bmsLocationCandidate = getPlanBySourceId(plans, "source-bms-china-social");
+    if (jnjLocationCandidate?.adapterId !== "official-json" ||
+        jnjLocationCandidate.workday?.locationFacetPolicy?.kind !== "JNJ_AUDITED_LOCATIONS_OVERLAP") {
+      throw new Error("Expected exact JNJ audited location policy");
+    }
+    if (gileadLocationCandidate?.adapterId !== "official-json" ||
+        gileadLocationCandidate.workday?.locationFacetPolicy?.kind !== "GILEAD_AUDITED_LOCATIONS_OVERLAP") {
+      throw new Error("Expected exact Gilead audited location policy");
+    }
+    if (bmsLocationCandidate?.adapterId !== "official-json" ||
+        bmsLocationCandidate.workday?.locationFacetPolicy?.kind !== "BMS_AUDITED_FOREIGN_DESCRIPTOR_ALLOWLIST") {
+      throw new Error("Expected exact BMS audited location policy");
+    }
+    const jnjLocationPolicy = jnjLocationCandidate.workday.locationFacetPolicy;
+    const gileadLocationPolicy = gileadLocationCandidate.workday.locationFacetPolicy;
+    const bmsLocationPolicy = bmsLocationCandidate.workday.locationFacetPolicy;
+    const descriptorAliasesSha256 = (aliases: readonly string[]) => createHash("sha256")
+      .update(JSON.stringify(aliases), "utf8")
+      .digest("hex");
+    expect(jnjLocationPolicy.mainlandDescriptorAliases).toHaveLength(9);
+    expect(jnjLocationPolicy.foreignDescriptorAliases).toHaveLength(137);
+    expect(descriptorAliasesSha256(jnjLocationPolicy.mainlandDescriptorAliases))
+      .toBe("e7820d1245ada112373ffbb699b44a330ab3023b1388729927866efd5ea8aa98");
+    expect(descriptorAliasesSha256(jnjLocationPolicy.foreignDescriptorAliases))
+      .toBe("a916bc1e00cb6b3a6b644c286c658cd2d1d5a91b65c9f630b91db6dec8df549f");
+    expect(descriptorAliasesSha256(gileadLocationPolicy.foreignDescriptorAliases))
+      .toBe("aa7db564434c890f9ab9f2a37b7e12502fb41e9be03055d03242cc169361d7fa");
+    expect(bmsLocationPolicy.foreignSiteDescriptorAliases).toHaveLength(14);
+    expect(bmsLocationPolicy.foreignCountryDescriptorAliases).toHaveLength(2);
+    expect(descriptorAliasesSha256(bmsLocationPolicy.foreignSiteDescriptorAliases))
+      .toBe("acbe0901293662048209b3aab537c825e5cc7bb88071c89655b33e4ed9d61370");
+    expect(descriptorAliasesSha256(bmsLocationPolicy.foreignCountryDescriptorAliases))
+      .toBe("136822242c07ee3916d870b6a2888c1e92eb43b3e13f74dcfe35a2e2e3e5b7cf");
     expect(plans.flatMap((candidate) =>
       candidate.adapterId === "official-json" &&
       (candidate.workday as { locationFacetPolicy?: unknown } | undefined)?.locationFacetPolicy !== undefined
@@ -561,10 +612,15 @@ describe("source crawl planning", () => {
       throw new Error("Expected Amgen Workday plan");
     }
     expect(amgenPlan.workday.laterZeroTotalPolicy).toBe("AMGEN_AUDITED_EXACT_RECONCILIATION");
+    const bmsLaterZeroPlan = getPlanBySourceId(plans, "source-bms-china-social");
+    if (bmsLaterZeroPlan?.adapterId !== "official-json" || !bmsLaterZeroPlan.workday) {
+      throw new Error("Expected BMS Workday plan");
+    }
+    expect(bmsLaterZeroPlan.workday.laterZeroTotalPolicy).toBe("BMS_AUDITED_EXACT_RECONCILIATION");
     expect(plans.flatMap((candidate) =>
       candidate.adapterId === "official-json" && candidate.workday?.laterZeroTotalPolicy !== undefined
         ? [candidate.source.id]
-        : [])).toEqual(["source-pfizer-china-social", "source-amgen-china-social"]);
+        : [])).toEqual(["source-pfizer-china-social", "source-bms-china-social", "source-amgen-china-social"]);
     const { laterZeroTotalPolicy: _removedPolicy, ...workdayWithoutPolicy } = pfizerPlan.workday;
     expect(sourcePlanConfigSha256({ ...pfizerPlan, workday: workdayWithoutPolicy }))
       .not.toBe(sourcePlanConfigSha256(pfizerPlan));

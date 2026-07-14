@@ -19,23 +19,32 @@ export interface WorkdayFetchConfig {
   facetDescriptorBoundary?: WorkdayFacetDescriptorBoundary;
   laterZeroTotalPolicy?: WorkdayLaterZeroTotalPolicy;
   locationFacetPolicy?: WorkdayLocationFacetPolicy;
+  opaqueMultiLocationDetailPolicy?: WorkdayOpaqueMultiLocationDetailPolicy;
   pageSize?: number;
   maxPages?: number;
   cityHints?: Record<string, readonly string[]>;
 }
 
+export type WorkdayOpaqueMultiLocationDetailPolicy =
+  | "JNJ_AUDITED_CHINA_DETAIL_V1"
+  | "MSD_AUDITED_CHINA_DETAIL_V1";
+
 export type WorkdayLaterZeroTotalPolicy =
   | "PFIZER_AUDITED_EXACT_RECONCILIATION"
-  | "AMGEN_AUDITED_EXACT_RECONCILIATION";
+  | "AMGEN_AUDITED_EXACT_RECONCILIATION"
+  | "BMS_AUDITED_EXACT_RECONCILIATION";
 
 export type WorkdayLocationFacetPolicy =
   | {
       kind: "JNJ_AUDITED_LOCATIONS_OVERLAP";
       facetParameter: "locations";
+      mainlandDescriptorAliases: readonly string[];
+      foreignDescriptorAliases: readonly string[];
     }
   | {
       kind: "GILEAD_AUDITED_LOCATIONS_OVERLAP";
       facetParameter: "locations";
+      foreignDescriptorAliases: readonly string[];
     }
   | {
       kind: "MSD_AUDITED_NON_CHINA_DUPLICATE_DESCRIPTORS";
@@ -45,7 +54,8 @@ export type WorkdayLocationFacetPolicy =
   | {
       kind: "BMS_AUDITED_FOREIGN_DESCRIPTOR_ALLOWLIST";
       facetParameter: "locationHierarchy2";
-      allowedForeignDescriptors: readonly string[];
+      foreignSiteDescriptorAliases: readonly string[];
+      foreignCountryDescriptorAliases: readonly string[];
     };
 
 export interface WorkdayFacetDescriptorExclusion {
@@ -56,6 +66,7 @@ export interface WorkdayFacetDescriptorExclusion {
 export interface WorkdayFacetDescriptorBoundary {
   facetParameter: string;
   allowedDescriptors: readonly string[];
+  excludedDescriptors?: readonly string[];
 }
 
 export interface WorkdayHttpRequest {
@@ -75,8 +86,17 @@ export interface WorkdayHttpResponse {
 
 export type WorkdayHttpClient = (request: WorkdayHttpRequest) => Promise<WorkdayHttpResponse>;
 
+export interface WorkdayDetailHttpRequest {
+  url: string;
+  method: "GET";
+  headers: Record<string, string>;
+}
+
+export type WorkdayDetailHttpClient = (request: WorkdayDetailHttpRequest) => Promise<WorkdayHttpResponse>;
+
 export interface WorkdaySourceFetchDeps {
   http?: WorkdayHttpClient;
+  detailHttp?: WorkdayDetailHttpClient;
   now?: () => Date;
 }
 
@@ -98,9 +118,184 @@ const DEFAULT_PAGE_SIZE = 20;
 const DEFAULT_MAX_PAGES = 20;
 const PFIZER_LATER_ZERO_TOTAL_POLICY = "PFIZER_AUDITED_EXACT_RECONCILIATION";
 const AMGEN_LATER_ZERO_TOTAL_POLICY = "AMGEN_AUDITED_EXACT_RECONCILIATION";
+const BMS_LATER_ZERO_TOTAL_POLICY = "BMS_AUDITED_EXACT_RECONCILIATION";
 const AUDITED_CHINA_LOCATION_ID = "6cb77610a8a543aea2d6bc10457e35d4";
 const MSD_AUDITED_DUPLICATE_DESCRIPTOR = "IND - Telangana - Hyderabad";
-const BMS_AUDITED_FOREIGN_DESCRIPTOR = "AZ01 PSA Celgene - Phoenix - AZ";
+export const BMS_AUDITED_FOREIGN_SITE_DESCRIPTOR_ALIASES = [
+  "AZ01 PSA Celgene - Phoenix - AZ",
+  "CA06 PSA Celgene - San Diego Science Park - CA",
+  "CA09 PSA Celgene - Los Angeles - CA",
+  "CA10 PSA - Brisbane - CA",
+  "CA14 San Diego Morehouse",
+  "IN05 Indianapolis 80th Street",
+  "MA01 PSA Cambridge Crossing - MA",
+  "MD01 PSA Bethesda - FL",
+  "NJ05 PSA New Brunswick - NJ",
+  "NJ06 PSA Princeton LVL - NJ",
+  "NJ09 PSA Princeton Pike - NJ",
+  "NJ13 PSA Plainsboro - NJ",
+  "NJ16 PSA Madison - Giralda Farms - NJ",
+  "US99 PSA Field - United States"
+] as const;
+export const BMS_AUDITED_FOREIGN_COUNTRY_DESCRIPTOR_ALIASES = [
+  "Korea, Republic Of",
+  "United Kingdom (GB)"
+] as const;
+export const JNJ_AUDITED_MAINLAND_DESCRIPTOR_ALIASES = [
+  "CN002 Beijing Jianguo Road",
+  "CN008 Chengdu Zong Fu Rd",
+  "CN009 Chongqing Zourong Rd",
+  "CN016 Harbin",
+  "CN019 Jinan Shanda Rd",
+  "CN027 Shanghai Gui Qing Rd",
+  "CN038 Suzhou Changyang Rd",
+  "CN043 Wuhan TaiHe Plaza",
+  "CN046 Zhengzhou"
+] as const;
+export const JNJ_AUDITED_FOREIGN_DESCRIPTOR_ALIASES = [
+  "Alaska (Any City)",
+  "Arizona (Any City)",
+  "California (Any City)",
+  "Colorado (Any City)",
+  "Connecticut (Any City)",
+  "Delaware (Any City)",
+  "Florida (Any City)",
+  "Georgia (Any City)",
+  "Idaho (Any City)",
+  "Indiana (Any City)",
+  "Kentucky (Any City)",
+  "Louisiana (Any City)",
+  "Maine (Any City)",
+  "Maryland (Any City)",
+  "Massachusetts (Any City)",
+  "Michigan (Any City)",
+  "Mississippi (Any City)",
+  "Montana (Any City)",
+  "Nevada (Any City)",
+  "New Hampshire (Any City)",
+  "New Jersey (Any City)",
+  "New Mexico (Any City)",
+  "New York (Any City)",
+  "North Carolina (Any City)",
+  "North Dakota (Any City)",
+  "Ohio (Any City)",
+  "Oregon (Any City)",
+  "Pennsylvania (Any City)",
+  "Rhode Island (Any City)",
+  "South Carolina (Any City)",
+  "South Dakota (Any City)",
+  "Utah (Any City)",
+  "Vermont (Any City)",
+  "Virginia (Any City)",
+  "Washington (Any City)",
+  "West Virginia (Any City)",
+  "Wisconsin (Any City)",
+  "Wyoming (Any City)",
+  "Albany, New York, United States of America",
+  "Boston, Massachusetts, United States of America",
+  "Cambridge, Massachusetts, United States of America",
+  "Cincinnati, Ohio, United States of America",
+  "Colorado Springs, Colorado, United States of America",
+  "Danvers, Massachusetts, United States of America",
+  "El Paso, Texas, United States of America",
+  "Gurabo, Puerto Rico, United States of America",
+  "Horsham, Pennsylvania, United States of America",
+  "Houston, Texas, United States of America",
+  "Irvine, California, United States of America",
+  "Irving, Texas, United States of America",
+  "Jacksonville, Florida, United States of America",
+  "La Jolla, California, United States of America",
+  "Los Angeles, California, United States of America",
+  "Malvern, Pennsylvania, United States of America",
+  "Miami, Florida, United States of America",
+  "Minneapolis, Minnesota, United States of America",
+  "New Brighton, Minnesota, United States of America",
+  "Orlando, Florida, United States of America",
+  "Palm Beach Gardens, Florida, United States of America",
+  "Providence, Rhode Island, United States of America",
+  "Raritan, New Jersey, United States of America",
+  "Raynham, Massachusetts, United States of America",
+  "Richmond, Virginia, United States of America",
+  "Sacramento, California, United States of America",
+  "Salt Lake City, Utah, United States of America",
+  "SAN ANTONIO, Texas, United States of America",
+  "San Diego, California, United States of America",
+  "San Francisco, California, United States of America",
+  "San Jose, California, United States of America",
+  "Santa Clara, California, United States of America",
+  "Seattle, Washington, United States of America",
+  "South San Francisco, California, United States of America",
+  "Spring House, Pennsylvania, United States of America",
+  "Tampa, Florida, United States of America",
+  "Titusville, New Jersey, United States of America",
+  "Warsaw, Indiana, United States of America",
+  "Washington, District of Columbia, United States of America",
+  "West Chester, Pennsylvania, United States of America",
+  "CZ005 Walterovo Namesti",
+  "DK005 Copenhagen",
+  "FI001 Espoo",
+  "FR015 Rungis",
+  "GB019 Bessemer",
+  "GB025 ACT London, UK",
+  "IE006 Airton",
+  "IE009 Janssen Cilag Ltd",
+  "IT002 Milano",
+  "IT004 Pratica di Mare   Pomezia",
+  "NL017 Roden",
+  "NO001 Oslo",
+  "SE007 Stockholm",
+  "Ankara, Turkey",
+  "Istanbul, Turkey",
+  "Remote (US)",
+  "Seoul, Korea, Republic of",
+  "Alabama (Any City)",
+  "Albuquerque, New Mexico, United States of America",
+  "Arkansas (Any City)",
+  "Bridgewater, Massachusetts, United States of America",
+  "Copenhagen",
+  "Hawaii (Any City)",
+  "Horseheads, New York, United States of America",
+  "Huntington Beach, California, United States of America",
+  "Illinois (Any City)",
+  "IN004 Bangalore",
+  "IN014 Mumbai Mahim",
+  "IN018 Gurgaon",
+  "Incheon, Korea, Republic of",
+  "Iowa (Any City)",
+  "JP007 Tokyo J&J Headquarter",
+  "JP162 Osaka Osaka",
+  "Kansas (Any City)",
+  "Los Gatos, California, United States of America",
+  "Madrid - Lafinca",
+  "Memphis, Tennessee, United States of America",
+  "Milpitas, California, United States of America",
+  "Minnesota (Any City)",
+  "Missouri (Any City)",
+  "Mooresville, Indiana, United States of America",
+  "Mountain View, California, United States of America",
+  "MX301 – Circuito Interior Norte - BWI",
+  "Nebraska (Any City)",
+  "New Brunswick, New Jersey, United States of America",
+  "Oklahoma (Any City)",
+  "Redwood City, California, United States of America",
+  "Roanoke, Virginia, United States of America",
+  "San Angelo, Texas, United States of America",
+  "Santa Ana, California, United States of America",
+  "Shepherdsville, Kentucky, United States of America",
+  "Somerset, New Jersey, United States of America",
+  "Somerville, New Jersey, United States of America",
+  "Tamaulipas (Any City)",
+  "Tennessee (Any City)",
+  "Texas (Any City)",
+  "US345  MA Danvers - 22 Cherry Hill Dr",
+  "US356 CA Santa Clara - 5303 Betsy Ross Drive",
+  "Wilson, North Carolina, United States of America"
+] as const;
+export const GILEAD_AUDITED_FOREIGN_DESCRIPTOR_ALIASES = [
+  "Czech Republic - Prague",
+  "UAE - Dubai",
+  "United States – Remote"
+] as const;
 const WORKDAY_PAGINATION_AUTHORITY_KEYS = new Set([
   "total",
   "totalcount",
@@ -120,7 +315,20 @@ interface ResolvedWorkdayLocationFacetPolicy {
   facetParameter: string;
   allowOverlappingCounts: boolean;
   allowedDuplicateDescriptors: readonly string[];
+  mainlandDescriptorAliases: readonly string[];
   allowedForeignDescriptors: readonly string[];
+  allowedForeignSiteDescriptors: readonly string[];
+  allowedForeignCountryDescriptors: readonly string[];
+  requireUniqueMainlandCountryLeaf: boolean;
+}
+
+interface WorkdaySelectedLocation {
+  id: string;
+  descriptor: string;
+}
+
+interface ResolvedWorkdayOpaqueMultiLocationDetailPolicy {
+  kind: WorkdayOpaqueMultiLocationDetailPolicy;
 }
 
 const CITY_MATCHES: ReadonlyArray<readonly [string, string]> = [
@@ -164,6 +372,22 @@ function allowsAuditedLaterZeroTotalPolicy(sourceId: string, config: WorkdayFetc
       config.site === "Careers" &&
       hasExactSingleAppliedFacet(config.appliedFacets, "LocationCountry", AUDITED_CHINA_LOCATION_ID);
   }
+  if (config.laterZeroTotalPolicy === BMS_LATER_ZERO_TOTAL_POLICY) {
+    const locationPolicy = config.locationFacetPolicy;
+    const workerBoundary = config.facetDescriptorBoundary;
+    return sourceId === "source-bms-china-social" &&
+      config.tenant === "bristolmyerssquibb" &&
+      config.site === "BMS" &&
+      config.searchText === "China" &&
+      Object.keys(config.appliedFacets ?? {}).length === 0 &&
+      locationPolicy?.kind === "BMS_AUDITED_FOREIGN_DESCRIPTOR_ALLOWLIST" &&
+      locationPolicy.facetParameter === "locationHierarchy2" &&
+      exactStringArray(locationPolicy.foreignSiteDescriptorAliases, BMS_AUDITED_FOREIGN_SITE_DESCRIPTOR_ALIASES) &&
+      exactStringArray(locationPolicy.foreignCountryDescriptorAliases, BMS_AUDITED_FOREIGN_COUNTRY_DESCRIPTOR_ALIASES) &&
+      workerBoundary?.facetParameter === "workerSubType" &&
+      exactStringArray(workerBoundary.allowedDescriptors, ["Fixed Term (Fixed Term)", "Permanent"]) &&
+      workerBoundary.excludedDescriptors === undefined;
+  }
   return false;
 }
 
@@ -179,6 +403,8 @@ function resolveAuditedLocationFacetPolicy(
   if (
     policy.kind === "JNJ_AUDITED_LOCATIONS_OVERLAP" &&
     policy.facetParameter === "locations" &&
+    exactStringArray(policy.mainlandDescriptorAliases, JNJ_AUDITED_MAINLAND_DESCRIPTOR_ALIASES) &&
+    exactStringArray(policy.foreignDescriptorAliases, JNJ_AUDITED_FOREIGN_DESCRIPTOR_ALIASES) &&
     sourceId === "source-johnson-innovative-medicine-social" &&
     config.tenant === "jj" &&
     config.site === "JJ"
@@ -187,12 +413,17 @@ function resolveAuditedLocationFacetPolicy(
       facetParameter: "locations",
       allowOverlappingCounts: true,
       allowedDuplicateDescriptors: [],
-      allowedForeignDescriptors: []
+      mainlandDescriptorAliases: JNJ_AUDITED_MAINLAND_DESCRIPTOR_ALIASES,
+      allowedForeignDescriptors: JNJ_AUDITED_FOREIGN_DESCRIPTOR_ALIASES,
+      allowedForeignSiteDescriptors: [],
+      allowedForeignCountryDescriptors: [],
+      requireUniqueMainlandCountryLeaf: false
     };
   }
   if (
     policy.kind === "GILEAD_AUDITED_LOCATIONS_OVERLAP" &&
     policy.facetParameter === "locations" &&
+    exactStringArray(policy.foreignDescriptorAliases, GILEAD_AUDITED_FOREIGN_DESCRIPTOR_ALIASES) &&
     sourceId === "source-gilead-china-social" &&
     config.tenant === "gilead" &&
     config.site === "gileadcareers"
@@ -201,7 +432,11 @@ function resolveAuditedLocationFacetPolicy(
       facetParameter: "locations",
       allowOverlappingCounts: true,
       allowedDuplicateDescriptors: [],
-      allowedForeignDescriptors: []
+      mainlandDescriptorAliases: [],
+      allowedForeignDescriptors: GILEAD_AUDITED_FOREIGN_DESCRIPTOR_ALIASES,
+      allowedForeignSiteDescriptors: [],
+      allowedForeignCountryDescriptors: [],
+      requireUniqueMainlandCountryLeaf: false
     };
   }
   if (
@@ -214,25 +449,65 @@ function resolveAuditedLocationFacetPolicy(
   ) {
     return {
       facetParameter: "locations",
-      allowOverlappingCounts: false,
+      allowOverlappingCounts: true,
       allowedDuplicateDescriptors: [MSD_AUDITED_DUPLICATE_DESCRIPTOR],
-      allowedForeignDescriptors: []
+      mainlandDescriptorAliases: [],
+      allowedForeignDescriptors: [],
+      allowedForeignSiteDescriptors: [],
+      allowedForeignCountryDescriptors: [],
+      requireUniqueMainlandCountryLeaf: false
     };
   }
   if (
     policy.kind === "BMS_AUDITED_FOREIGN_DESCRIPTOR_ALLOWLIST" &&
     policy.facetParameter === "locationHierarchy2" &&
-    exactStringArray(policy.allowedForeignDescriptors, [BMS_AUDITED_FOREIGN_DESCRIPTOR]) &&
+    exactStringArray(policy.foreignSiteDescriptorAliases, BMS_AUDITED_FOREIGN_SITE_DESCRIPTOR_ALIASES) &&
+    exactStringArray(policy.foreignCountryDescriptorAliases, BMS_AUDITED_FOREIGN_COUNTRY_DESCRIPTOR_ALIASES) &&
     sourceId === "source-bms-china-social" &&
     config.tenant === "bristolmyerssquibb" &&
     config.site === "BMS"
   ) {
     return {
       facetParameter: "locationHierarchy2",
-      allowOverlappingCounts: false,
+      allowOverlappingCounts: true,
       allowedDuplicateDescriptors: [],
-      allowedForeignDescriptors: [BMS_AUDITED_FOREIGN_DESCRIPTOR]
+      mainlandDescriptorAliases: [],
+      allowedForeignDescriptors: [],
+      allowedForeignSiteDescriptors: BMS_AUDITED_FOREIGN_SITE_DESCRIPTOR_ALIASES,
+      allowedForeignCountryDescriptors: BMS_AUDITED_FOREIGN_COUNTRY_DESCRIPTOR_ALIASES,
+      requireUniqueMainlandCountryLeaf: true
     };
+  }
+  return undefined;
+}
+
+function resolveOpaqueMultiLocationDetailPolicy(
+  sourceId: string,
+  config: WorkdayFetchConfig,
+  auditedLocationFacetPolicy: ResolvedWorkdayLocationFacetPolicy | undefined
+): ResolvedWorkdayOpaqueMultiLocationDetailPolicy | undefined {
+  const kind = config.opaqueMultiLocationDetailPolicy;
+  if (!kind || !auditedLocationFacetPolicy || config.searchText !== "China" || hasConfiguredLocationFacet(config.appliedFacets ?? {})) {
+    return undefined;
+  }
+  if (
+    kind === "JNJ_AUDITED_CHINA_DETAIL_V1" &&
+    sourceId === "source-johnson-innovative-medicine-social" &&
+    config.tenant === "jj" &&
+    config.site === "JJ" &&
+    auditedLocationFacetPolicy.facetParameter === "locations"
+  ) {
+    return { kind };
+  }
+  if (
+    kind === "MSD_AUDITED_CHINA_DETAIL_V1" &&
+    sourceId === "source-msd-china-social" &&
+    config.tenant === "msd" &&
+    config.site === "SearchJobs" &&
+    auditedLocationFacetPolicy.facetParameter === "locations" &&
+    exactStringArray(auditedLocationFacetPolicy.allowedDuplicateDescriptors, [MSD_AUDITED_DUPLICATE_DESCRIPTOR])
+  ) {
+    return { kind };
   }
   return undefined;
 }
@@ -278,9 +553,18 @@ export function createWorkdaySourceFetch(deps: WorkdaySourceFetchDeps = {}): Sou
     if (plan.workday.locationFacetPolicy !== undefined && !auditedLocationFacetPolicy) {
       return failed(capturedAt, `Workday location facet policy is not allowed for source ${plan.source.id}`);
     }
+    const opaqueMultiLocationDetailPolicy = resolveOpaqueMultiLocationDetailPolicy(
+      plan.source.id,
+      plan.workday,
+      auditedLocationFacetPolicy
+    );
+    if (plan.workday.opaqueMultiLocationDetailPolicy !== undefined && !opaqueMultiLocationDetailPolicy) {
+      return failed(capturedAt, `Workday opaque multi-location detail policy is not allowed for source ${plan.source.id}`);
+    }
 
     try {
       const http = deps.http ?? defaultWorkdayHttpClient;
+      const detailHttp = deps.detailHttp ?? (deps.http ? undefined : defaultWorkdayDetailHttpClient);
       const jobs: ReturnType<typeof enrichWorkdayJob>[number][] = [];
       const artifacts: SourceFetchArtifactDraft[] = [];
       const pages: SourceFetchPageTrace[] = [];
@@ -308,6 +592,7 @@ export function createWorkdaySourceFetch(deps: WorkdaySourceFetchDeps = {}): Sou
       let sawLaterZeroTotal = false;
       let strictLaterZeroPageEnvelopes = true;
       let firstPaginationEnvelopeFingerprint: string | undefined;
+      let selectedMainlandLocations: readonly WorkdaySelectedLocation[] = [];
 
       const needsLocationFacetDiscovery = !hasConfiguredLocationFacet(configuredAppliedFacets) && Boolean(searchText);
       if (needsLocationFacetDiscovery) {
@@ -334,6 +619,7 @@ export function createWorkdaySourceFetch(deps: WorkdaySourceFetchDeps = {}): Sou
           auditedLocationFacetPolicy
         );
         appliedFacets = { ...appliedFacets, ...discovery.appliedFacets };
+        selectedMainlandLocations = discovery.selectedMainlandLocations;
         locationDerivedTotal = discovery.expectedFilteredTotal;
         derivedFilteredTotal = discovery.expectedFilteredTotal;
         searchText = undefined;
@@ -408,7 +694,10 @@ export function createWorkdaySourceFetch(deps: WorkdaySourceFetchDeps = {}): Sou
         const parsed = parseWorkdayJobsResponse(response.body, {
           pageIndex,
           ...(allowsAuditedLaterZeroTotal && plan.workday.laterZeroTotalPolicy !== undefined
-            ? { auditedLaterZeroPolicy: plan.workday.laterZeroTotalPolicy }
+            ? {
+                auditedLaterZeroPolicy: plan.workday.laterZeroTotalPolicy,
+                auditedAppliedFacets: appliedFacets
+              }
             : {})
         });
         if (pageIndex === 0) {
@@ -505,24 +794,100 @@ export function createWorkdaySourceFetch(deps: WorkdaySourceFetchDeps = {}): Sou
             });
             continue;
           }
+          let normalized: ReturnType<typeof enrichWorkdayJob>;
           if (!hasRecordLevelChinaEvidence(raw, plan.workday.cityHints)) {
-            validationDiscardCount += 1;
-            scopeRejectCount += 1;
-            fetchLosses.push({
-              stage: "VALIDATION",
-              reason: "Workday record has no record-level China scope evidence",
-              rawLocator,
-              details: { code: "OUT_OF_SCOPE", pageSequence: pageIndex, recordIndex },
-              recordedAt: response.capturedAt
+            const opaqueLocationCount = exactOpaqueMultiLocationCount(raw.locationsText);
+            if (opaqueMultiLocationDetailPolicy && opaqueLocationCount !== undefined) {
+              const failOpaqueDetail = (reason: string, recordedAt = response.capturedAt) => {
+                validationDiscardCount += 1;
+                fetchLosses.push({
+                  stage: "VALIDATION" as const,
+                  reason: "Workday opaque multi-location detail validation failed",
+                  rawLocator,
+                  details: { code: "DETAIL_VALIDATION_FAILED", pageSequence: pageIndex, recordIndex },
+                  recordedAt
+                });
+                latestEvidence = workdayInPageFailureEvidence({
+                  artifacts,
+                  pages,
+                  artifactLogicalKey,
+                  pageIndex,
+                  offset,
+                  pageSize,
+                  rawJobIds,
+                  validJobIds,
+                  declaredTotal: parsed.total,
+                  response,
+                  rawCount,
+                  parsedCount,
+                  validCount,
+                  parseDiscardCount,
+                  validationDiscardCount,
+                  fetchLosses
+                });
+                return failed(capturedAt, `Workday opaque multi-location detail validation failed: ${reason}`, latestEvidence);
+              };
+              if (!detailHttp) {
+                return failOpaqueDetail("an injected Workday POST transport requires an explicit detail client");
+              }
+              const detailUrl = `${origin}/wday/cxs/${plan.workday.tenant}/${plan.workday.site}${safeExternalPath}`;
+              let detailResponse: WorkdayHttpResponse | undefined;
+              try {
+                detailResponse = await requestWorkdayDetail({
+                  http: detailHttp,
+                  url: detailUrl,
+                  referer: plan.source.officialEntryUrl
+                });
+                artifacts.push(workdayArtifact(
+                  `workday-detail-${String(pageIndex).padStart(4, "0")}-${String(recordIndex).padStart(4, "0")}`,
+                  "ATS_API_RESPONSE",
+                  detailUrl,
+                  detailResponse,
+                  "$.jobPostingInfo"
+                ));
+                const detail = validateOpaqueMultiLocationDetail({
+                  response: detailResponse,
+                  detailUrl,
+                  raw,
+                  externalPath: safeExternalPath,
+                  origin,
+                  sitePath,
+                  site: plan.workday.site,
+                  expectedLocationCount: opaqueLocationCount,
+                  selectedMainlandLocations,
+                  cityHints: plan.workday.cityHints
+                });
+                normalized = enrichWorkdayJob(raw, {
+                  origin,
+                  sitePath,
+                  ...(plan.workday.cityHints ? { cityHints: plan.workday.cityHints } : {})
+                }).map((job) => ({ ...job, locationRaw: detail.locationRaw, cities: detail.cities }));
+              } catch (error) {
+                return failOpaqueDetail(
+                  error instanceof Error ? error.message : String(error),
+                  detailResponse?.capturedAt ?? response.capturedAt
+                );
+              }
+            } else {
+              validationDiscardCount += 1;
+              scopeRejectCount += 1;
+              fetchLosses.push({
+                stage: "VALIDATION",
+                reason: "Workday record has no record-level China scope evidence",
+                rawLocator,
+                details: { code: "OUT_OF_SCOPE", pageSequence: pageIndex, recordIndex },
+                recordedAt: response.capturedAt
+              });
+              continue;
+            }
+          } else {
+            normalized = enrichWorkdayJob(raw, {
+              origin,
+              sitePath,
+              ...(plan.workday?.cityHints ? { cityHints: plan.workday.cityHints } : {}),
+              defaultCities: ["中国"]
             });
-            continue;
           }
-          const normalized = enrichWorkdayJob(raw, {
-            origin,
-            sitePath,
-            ...(plan.workday?.cityHints ? { cityHints: plan.workday.cityHints } : {}),
-            defaultCities: ["中国"]
-          });
           const credentialField = normalized[0] ? emittedCredentialField(normalized[0]) : undefined;
           if (credentialField) {
             validationDiscardCount += 1;
@@ -621,6 +986,30 @@ export function createWorkdaySourceFetch(deps: WorkdaySourceFetchDeps = {}): Sou
           : {})
       });
       latestEvaluation = paginationEvaluation;
+      if (
+        plan.workday.laterZeroTotalPolicy === BMS_LATER_ZERO_TOTAL_POLICY &&
+        !bmsExactLaterZeroReconciliationProven({
+          expectedJobCount,
+          rawCount,
+          parsedCount,
+          validCount,
+          parseDiscardCount,
+          validationDiscardCount,
+          fetchLossCount: fetchLosses.length,
+          jobs,
+          pages,
+          sawLaterZeroTotal,
+          strictLaterZeroPageEnvelopes,
+          paginationEvaluation
+        })
+      ) {
+        return failed(
+          capturedAt,
+          "BMS exact later-zero reconciliation did not prove a lossless unique official total",
+          evidence,
+          paginationEvaluation
+        );
+      }
       if (!paginationEvaluation.safeCompleteness) {
         return failed(capturedAt, `Workday pagination evidence failed: ${paginationEvaluation.derivedAnomalyCodes.join(",")}`, evidence, paginationEvaluation);
       }
@@ -683,6 +1072,70 @@ function workdaySupportingArtifactEvidence(
       validationDiscardCount: 0
     },
     fetchLosses: []
+  });
+}
+
+function workdayInPageFailureEvidence({
+  artifacts,
+  pages,
+  artifactLogicalKey,
+  pageIndex,
+  offset,
+  pageSize,
+  rawJobIds,
+  validJobIds,
+  declaredTotal,
+  response,
+  rawCount,
+  parsedCount,
+  validCount,
+  parseDiscardCount,
+  validationDiscardCount,
+  fetchLosses
+}: {
+  artifacts: readonly SourceFetchArtifactDraft[];
+  pages: readonly SourceFetchPageTrace[];
+  artifactLogicalKey: string;
+  pageIndex: number;
+  offset: number;
+  pageSize: number;
+  rawJobIds: readonly string[];
+  validJobIds: readonly string[];
+  declaredTotal: number | undefined;
+  response: WorkdayHttpResponse;
+  rawCount: number;
+  parsedCount: number;
+  validCount: number;
+  parseDiscardCount: number;
+  validationDiscardCount: number;
+  fetchLosses: PersistentSourceFetchEvidence["fetchLosses"];
+}): PersistentSourceFetchEvidence {
+  return parsePersistentSourceFetchEvidence({
+    captureTool: { name: "job-search-workday-fetch", version: "1" },
+    artifacts,
+    pages: [...pages, {
+      sequence: pageIndex,
+      artifactLogicalKey,
+      requestedOffset: offset,
+      returnedOffset: offset,
+      requestedPage: pageIndex,
+      returnedPage: pageIndex,
+      requestedPageSize: pageSize,
+      returnedPageSize: null,
+      rawJobIds: [...new Set(rawJobIds)],
+      validJobIds: [...new Set(validJobIds)],
+      declaredTotal: declaredTotal ?? null,
+      declaredCount: null,
+      declaredPages: declaredTotal === undefined ? null : Math.ceil(declaredTotal / pageSize),
+      nextPageSignalBefore: pageIndex === 0 ? null : String(offset),
+      nextPageSignalAfter: null,
+      responseFingerprintSha256: sha256Bytes(Buffer.from(response.body, "utf8")).sha256,
+      termination: "FAILED",
+      anomalyCodes: [],
+      capturedAt: response.capturedAt!
+    }],
+    fetchCounts: { rawCount, parsedCount, validCount, parseDiscardCount, validationDiscardCount },
+    fetchLosses
   });
 }
 
@@ -798,6 +1251,112 @@ function hasRecordLevelChinaEvidence(
     cities.length > 0 && normalized.includes(hint.toLowerCase()));
 }
 
+function exactOpaqueMultiLocationCount(value: unknown): number | undefined {
+  if (typeof value !== "string") return undefined;
+  const match = /^([2-9][0-9]*) Locations$/u.exec(value);
+  if (!match) return undefined;
+  const count = Number(match[1]);
+  return Number.isSafeInteger(count) ? count : undefined;
+}
+
+function validateOpaqueMultiLocationDetail({
+  response,
+  detailUrl,
+  raw,
+  externalPath,
+  origin,
+  sitePath,
+  site,
+  expectedLocationCount,
+  selectedMainlandLocations,
+  cityHints
+}: {
+  response: WorkdayHttpResponse;
+  detailUrl: string;
+  raw: Record<string, unknown>;
+  externalPath: string;
+  origin: string;
+  sitePath: string;
+  site: string;
+  expectedLocationCount: number;
+  selectedMainlandLocations: readonly WorkdaySelectedLocation[];
+  cityHints: Record<string, readonly string[]> | undefined;
+}): { locationRaw: string; cities: string[] } {
+  if (response.finalUrl !== detailUrl) {
+    throw new Error("detail final URL did not exactly match the requested official endpoint");
+  }
+  if (response.status !== 200) {
+    throw new Error(`detail endpoint returned HTTP ${response.status}`);
+  }
+  if (typeof response.contentType !== "string" || !/^application\/json(?:\s*;|$)/iu.test(response.contentType)) {
+    throw new Error("detail endpoint did not return JSON content type");
+  }
+  if (!hasUniqueJsonObjectKeys(response.body)) {
+    throw new Error("detail response contains duplicate JSON object keys or non-strict JSON syntax");
+  }
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(response.body);
+  } catch {
+    throw new Error("detail response is not valid JSON");
+  }
+  if (!isRecord(parsed) || Array.isArray(parsed) || !isRecord(parsed.jobPostingInfo) || Array.isArray(parsed.jobPostingInfo)) {
+    throw new Error("detail response is missing jobPostingInfo");
+  }
+  const info = parsed.jobPostingInfo;
+  const rawTitle = exactNonEmptyString(raw.title);
+  const rawReqId = Array.isArray(raw.bulletFields) && raw.bulletFields.length === 1
+    ? exactNonEmptyString(raw.bulletFields[0])
+    : undefined;
+  const expectedPostingId = externalPath.split("/").at(-1);
+  if (!rawTitle || exactNonEmptyString(info.title) !== rawTitle) {
+    throw new Error("detail title did not exactly match the listing record");
+  }
+  if (exactNonEmptyString(info.jobPostingSiteId) !== site) {
+    throw new Error("detail site identity did not exactly match the configured site");
+  }
+  if (!expectedPostingId || exactNonEmptyString(info.jobPostingId) !== expectedPostingId) {
+    throw new Error("detail posting identity did not exactly match the listing path");
+  }
+  if (!rawReqId || exactNonEmptyString(info.jobReqId) !== rawReqId) {
+    throw new Error("detail requisition identity did not exactly match the listing record");
+  }
+  if (exactNonEmptyString(info.externalUrl) !== `${origin}${sitePath}${externalPath}`) {
+    throw new Error("detail external URL did not exactly match the official listing URL");
+  }
+  if (info.posted !== true || info.canApply !== true) {
+    throw new Error("detail posting is not currently posted and applyable");
+  }
+  const location = exactNonEmptyString(info.location);
+  if (!location || !Array.isArray(info.additionalLocations)) {
+    throw new Error("detail response is missing exact public locations");
+  }
+  const additionalLocations = info.additionalLocations.map(exactNonEmptyString);
+  if (additionalLocations.some((value) => value === undefined)) {
+    throw new Error("detail additional locations contain an invalid descriptor");
+  }
+  const publicLocations = [location, ...(additionalLocations as string[])];
+  if (publicLocations.length !== expectedLocationCount) {
+    throw new Error("detail public location count did not match the opaque listing count");
+  }
+  if (new Set(publicLocations).size !== publicLocations.length) {
+    throw new Error("detail public locations contain duplicate descriptors");
+  }
+  const selectedDescriptors = new Set(selectedMainlandLocations.map((item) => item.descriptor));
+  const matchedMainlandDescriptors = publicLocations.filter((descriptor) => selectedDescriptors.has(descriptor));
+  if (matchedMainlandDescriptors.length === 0) {
+    throw new Error("detail public locations did not exactly match a selected dynamic China descriptor");
+  }
+  return {
+    locationRaw: publicLocations.join(" | "),
+    cities: citiesFromWorkdayLocation(matchedMainlandDescriptors.join(" | "), cityHints)
+  };
+}
+
+function exactNonEmptyString(value: unknown): string | undefined {
+  return typeof value === "string" && value.length > 0 && value === value.trim() ? value : undefined;
+}
+
 function requestWorkdayJobs({
   http,
   url,
@@ -836,6 +1395,26 @@ function requestWorkdayJobs({
   });
 }
 
+function requestWorkdayDetail({
+  http,
+  url,
+  referer
+}: {
+  http: WorkdayDetailHttpClient;
+  url: string;
+  referer: string;
+}): Promise<WorkdayHttpResponse> {
+  return http({
+    url,
+    method: "GET",
+    headers: {
+      Accept: "application/json",
+      Referer: referer,
+      "User-Agent": "job-search-crawler/0.1"
+    }
+  });
+}
+
 function failed(
   capturedAt: string,
   failureReason: string,
@@ -871,6 +1450,24 @@ async function defaultWorkdayHttpClient(
   };
 }
 
+async function defaultWorkdayDetailHttpClient(
+  request: WorkdayDetailHttpRequest
+): Promise<WorkdayHttpResponse> {
+  const response = await fetch(request.url, {
+    method: request.method,
+    headers: request.headers
+  });
+  return {
+    status: response.status,
+    body: await response.text(),
+    finalUrl: response.url,
+    ...(response.headers.get("content-type")
+      ? { contentType: response.headers.get("content-type")! }
+      : {}),
+    capturedAt: new Date().toISOString()
+  };
+}
+
 function workdayJobsUrl(entryUrl: string, config: WorkdayFetchConfig): string {
   const origin = new URL(entryUrl).origin;
   return `${origin}/wday/cxs/${config.tenant}/${config.site}/jobs`;
@@ -894,6 +1491,7 @@ function parseWorkdayJobsResponse(
   paginationContext?: {
     pageIndex: number;
     auditedLaterZeroPolicy?: WorkdayLaterZeroTotalPolicy;
+    auditedAppliedFacets?: Record<string, readonly string[]>;
   }
 ): {
   total?: number;
@@ -925,6 +1523,7 @@ function workdayPaginationEnvelopeFingerprint(
   context?: {
     pageIndex: number;
     auditedLaterZeroPolicy?: WorkdayLaterZeroTotalPolicy;
+    auditedAppliedFacets?: Record<string, readonly string[]>;
   }
 ): string | undefined {
   const keys = Object.keys(parsed).sort(compareUtf8);
@@ -942,7 +1541,8 @@ function workdayPaginationEnvelopeFingerprint(
       ? workdayAuditedFirstPageFacetsProveChinaTotal(
           parsed.facets,
           parsed.total,
-          context.auditedLaterZeroPolicy
+          context.auditedLaterZeroPolicy,
+          context.auditedAppliedFacets
         )
       : parsed.facets.length === 0;
     return expectedShape ? `WORKDAY_AUDITED_METADATA_V2:${context.auditedLaterZeroPolicy}` : undefined;
@@ -953,9 +1553,13 @@ function workdayPaginationEnvelopeFingerprint(
 function workdayAuditedFirstPageFacetsProveChinaTotal(
   facets: unknown[],
   total: unknown,
-  policy: WorkdayLaterZeroTotalPolicy
+  policy: WorkdayLaterZeroTotalPolicy,
+  appliedFacets?: Record<string, readonly string[]>
 ): boolean {
   if (!Number.isInteger(total) || (total as number) < 0) return false;
+  if (policy === BMS_LATER_ZERO_TOTAL_POLICY) {
+    return workdayBmsFirstPageFacetsProveExactTotal(facets, total as number, appliedFacets);
+  }
   const expected = policy === PFIZER_LATER_ZERO_TOTAL_POLICY
     ? { facetParameter: "Location_Country", descriptor: "Location Country" }
     : { facetParameter: "LocationCountry", descriptor: "Country/Territory" };
@@ -985,6 +1589,83 @@ function workdayAuditedFirstPageFacetsProveChinaTotal(
   return chinaCount === total;
 }
 
+function workdayBmsFirstPageFacetsProveExactTotal(
+  facets: unknown[],
+  total: number,
+  appliedFacets: Record<string, readonly string[]> | undefined
+): boolean {
+  if (total <= 0) return false;
+  const appliedEntries = Object.keys(appliedFacets ?? {}).sort(compareUtf8);
+  if (!exactStringArray(appliedEntries, ["locationHierarchy2", "workerSubType"])) return false;
+  const locationIds = appliedFacets!.locationHierarchy2;
+  const workerIds = appliedFacets!.workerSubType;
+  if (!locationIds || locationIds.length !== 1 || !workerIds || workerIds.length !== 2) return false;
+
+  const locationGroups = findExactFacetGroups(facets, "locationHierarchy2");
+  const workerGroups = findExactFacetGroups(facets, "workerSubType");
+  if (locationGroups.length !== 1 || workerGroups.length !== 1) return false;
+  const locationGroup = locationGroups[0]!;
+  const workerGroup = workerGroups[0]!;
+  if (
+    Object.keys(locationGroup).sort(compareUtf8).join(",") !== "descriptor,facetParameter,values" ||
+    locationGroup.descriptor !== "Country" ||
+    !Array.isArray(locationGroup.values) ||
+    Object.keys(workerGroup).sort(compareUtf8).join(",") !== "descriptor,facetParameter,values" ||
+    workerGroup.descriptor !== "Job Type" ||
+    !Array.isArray(workerGroup.values)
+  ) return false;
+
+  const parseExactValues = (values: unknown[]): Array<{ descriptor: string; id: string; count: number }> | undefined => {
+    const parsed: Array<{ descriptor: string; id: string; count: number }> = [];
+    for (const value of values) {
+      if (!isRecord(value) || Array.isArray(value) ||
+          Object.keys(value).sort(compareUtf8).join(",") !== "count,descriptor,id" ||
+          typeof value.descriptor !== "string" || typeof value.id !== "string" ||
+          !Number.isInteger(value.count) || (value.count as number) < 0) return undefined;
+      parsed.push({ descriptor: value.descriptor, id: value.id, count: value.count as number });
+    }
+    if (new Set(parsed.map((value) => value.descriptor)).size !== parsed.length ||
+        new Set(parsed.map((value) => value.id)).size !== parsed.length) return undefined;
+    return parsed;
+  };
+  const locations = parseExactValues(locationGroup.values);
+  const workers = parseExactValues(workerGroup.values);
+  if (!locations || !workers) return false;
+  const mainlandLocations = locations.filter((value) => isMainlandChinaCountryDescriptor(value.descriptor));
+  if (mainlandLocations.length !== 1 || mainlandLocations[0]!.descriptor !== "China" ||
+      mainlandLocations[0]!.id !== locationIds[0] || mainlandLocations[0]!.count !== total) return false;
+  return exactStringArray(workers.map((value) => value.descriptor), ["Fixed Term (Fixed Term)", "Permanent"]) &&
+    exactStringArray(workers.map((value) => value.id), workerIds) &&
+    workers.reduce((sum, value) => sum + value.count, 0) === total;
+}
+
+function bmsExactLaterZeroReconciliationProven(input: {
+  expectedJobCount: number | undefined;
+  rawCount: number;
+  parsedCount: number;
+  validCount: number;
+  parseDiscardCount: number;
+  validationDiscardCount: number;
+  fetchLossCount: number;
+  jobs: readonly { sourceJobId: string }[];
+  pages: readonly SourceFetchPageTrace[];
+  sawLaterZeroTotal: boolean;
+  strictLaterZeroPageEnvelopes: boolean;
+  paginationEvaluation: ReturnType<typeof evaluatePaginationEvidence>;
+}): boolean {
+  const expected = input.expectedJobCount;
+  if (expected === undefined || expected <= 0 || !input.sawLaterZeroTotal || !input.strictLaterZeroPageEnvelopes) return false;
+  const rawIds = input.pages.flatMap((page) => page.rawJobIds);
+  const validIds = input.pages.flatMap((page) => page.validJobIds);
+  return input.rawCount === expected && input.parsedCount === expected && input.validCount === expected &&
+    input.parseDiscardCount === 0 && input.validationDiscardCount === 0 && input.fetchLossCount === 0 &&
+    input.jobs.length === expected && new Set(input.jobs.map((job) => job.sourceJobId)).size === expected &&
+    rawIds.length === expected && new Set(rawIds).size === expected &&
+    validIds.length === expected && new Set(validIds).size === expected &&
+    input.pages.every((page) => page.termination !== "MAX_PAGE_LIMIT" && page.termination !== "EMPTY_PAGE") &&
+    input.paginationEvaluation.safeCompleteness && input.paginationEvaluation.derivedAnomalyCodes.length === 0;
+}
+
 function containsPaginationAuthority(value: unknown): boolean {
   if (Array.isArray(value)) return value.some(containsPaginationAuthority);
   if (!isRecord(value)) return false;
@@ -1009,7 +1690,11 @@ function chinaLocationAppliedFacets(
   facets: unknown,
   officialTotal: number | undefined,
   auditedPolicy?: ResolvedWorkdayLocationFacetPolicy
-): { appliedFacets: Record<string, readonly string[]>; expectedFilteredTotal?: number } {
+): {
+  appliedFacets: Record<string, readonly string[]>;
+  expectedFilteredTotal?: number;
+  selectedMainlandLocations: readonly WorkdaySelectedLocation[];
+} {
   const groups = collectFacetGroups(facets)
     .filter((group) => isLocationFacet(group.facetParameter, group.descriptor));
 
@@ -1032,8 +1717,14 @@ function chinaLocationAppliedFacets(
     assertCountryFacetScopeOwnership(
       countryGroup.facetParameter,
       nodes,
-      auditedPolicy?.allowedForeignDescriptors ?? []
+      auditedPolicy?.allowedForeignSiteDescriptors ?? [],
+      auditedPolicy?.allowedForeignCountryDescriptors ?? []
     );
+    const exactRequestableMainlandIds = nodes.filter((node) =>
+      node.children.length === 0 && node.id !== undefined && isMainlandChinaCountryDescriptor(node.descriptor));
+    if (auditedPolicy?.requireUniqueMainlandCountryLeaf && exactRequestableMainlandIds.length !== 1) {
+      throw new Error(`Workday location facet ${countryGroup.facetParameter} lacks a unique exact mainland-China request id`);
+    }
     const selectedLeaves = nodes.flatMap((node) =>
       isMainlandChinaCountryDescriptor(node.descriptor) ? selectableLeaves(node, true) : []
     );
@@ -1047,13 +1738,12 @@ function chinaLocationAppliedFacets(
       if (!inspection.overlappingCounts) {
         throw new Error(`Workday location facet ${countryGroup.facetParameter} counts do not prove a complete partition`);
       }
-      const exactRequestableMainlandIds = nodes.filter((node) =>
-        node.children.length === 0 && node.id !== undefined && isMainlandChinaCountryDescriptor(node.descriptor));
       if (exactRequestableMainlandIds.length !== 1) {
         throw new Error(`Workday location facet ${countryGroup.facetParameter} lacks a unique exact mainland-China request id`);
       }
       return {
-        appliedFacets: { [countryGroup.facetParameter]: [exactRequestableMainlandIds[0]!.id!] }
+        appliedFacets: { [countryGroup.facetParameter]: [exactRequestableMainlandIds[0]!.id!] },
+        selectedMainlandLocations: exactRequestableMainlandIds.map(selectedWorkdayLocation)
       };
     }
     return facetSelection(countryGroup.facetParameter, selectedLeaves);
@@ -1062,7 +1752,9 @@ function chinaLocationAppliedFacets(
   const cityGroups = groups.filter((group) =>
     !isCountryLevelFacet(group.facetParameter, group.descriptor) &&
     facetDescriptors(group.values).some((descriptor) =>
-      isMainlandChinaLocationDescriptor(descriptor) || isMainlandChinaCountryDescriptor(descriptor)
+      isMainlandChinaLocationDescriptor(descriptor) ||
+      isMainlandChinaCountryDescriptor(descriptor) ||
+      (auditedPolicy?.mainlandDescriptorAliases.includes(descriptor) ?? false)
     )
   );
   if (cityGroups.length > 1) {
@@ -1079,7 +1771,13 @@ function chinaLocationAppliedFacets(
     officialTotal,
     auditedPolicy?.allowedDuplicateDescriptors ?? []
   );
-  const selectedLeaves = selectMainlandCityLeaves(cityGroup.facetParameter, inspection.nodes);
+  const selectedLeaves = selectMainlandCityLeaves(
+    cityGroup.facetParameter,
+    inspection.nodes,
+    auditedPolicy?.mainlandDescriptorAliases ?? [],
+    auditedPolicy?.allowedForeignDescriptors ?? [],
+    auditedPolicy?.allowedDuplicateDescriptors ?? []
+  );
   assertAuditedDuplicateDescriptorsRemainForeign(
     cityGroup.facetParameter,
     inspection.nodes,
@@ -1134,24 +1832,36 @@ function assertAuditedLocationFacetParameter(
 function facetSelectionWithoutExpectedTotal(
   facetParameter: string,
   leaves: readonly WorkdayFacetNode[]
-): { appliedFacets: Record<string, readonly string[]> } {
-  if (leaves.length === 0) {
-    throw new Error(`Workday location facet ${facetParameter} has no requestable mainland-China leaf ids`);
-  }
-  return { appliedFacets: { [facetParameter]: leaves.map((leaf) => leaf.id!) } };
-}
-
-function facetSelection(
-  facetParameter: string,
-  leaves: readonly WorkdayFacetNode[]
-): { appliedFacets: Record<string, readonly string[]>; expectedFilteredTotal: number } {
+): { appliedFacets: Record<string, readonly string[]>; selectedMainlandLocations: readonly WorkdaySelectedLocation[] } {
   if (leaves.length === 0) {
     throw new Error(`Workday location facet ${facetParameter} has no requestable mainland-China leaf ids`);
   }
   return {
     appliedFacets: { [facetParameter]: leaves.map((leaf) => leaf.id!) },
-    expectedFilteredTotal: leaves.reduce((sum, leaf) => sum + leaf.count, 0)
+    selectedMainlandLocations: leaves.map(selectedWorkdayLocation)
   };
+}
+
+function facetSelection(
+  facetParameter: string,
+  leaves: readonly WorkdayFacetNode[]
+): {
+  appliedFacets: Record<string, readonly string[]>;
+  expectedFilteredTotal: number;
+  selectedMainlandLocations: readonly WorkdaySelectedLocation[];
+} {
+  if (leaves.length === 0) {
+    throw new Error(`Workday location facet ${facetParameter} has no requestable mainland-China leaf ids`);
+  }
+  return {
+    appliedFacets: { [facetParameter]: leaves.map((leaf) => leaf.id!) },
+    expectedFilteredTotal: leaves.reduce((sum, leaf) => sum + leaf.count, 0),
+    selectedMainlandLocations: leaves.map(selectedWorkdayLocation)
+  };
+}
+
+function selectedWorkdayLocation(leaf: WorkdayFacetNode): WorkdaySelectedLocation {
+  return { id: leaf.id!, descriptor: leaf.descriptor };
 }
 
 function parseFacetGroup(
@@ -1185,30 +1895,51 @@ function parseFacetGroup(
 function assertCountryFacetScopeOwnership(
   facetParameter: string,
   nodes: readonly WorkdayFacetNode[],
-  allowedForeignDescriptors: readonly string[] = []
+  allowedForeignSiteDescriptors: readonly string[] = [],
+  allowedForeignCountryDescriptors: readonly string[] = []
 ): void {
   for (const node of nodes) {
     if (isMainlandChinaCountryDescriptor(node.descriptor) || isExactNonMainlandChinaCountryDescriptor(node.descriptor)) {
       continue;
     }
-    assertExplicitForeignCountryBranch(facetParameter, node, allowedForeignDescriptors);
+    assertExplicitForeignCountryBranch(
+      facetParameter,
+      node,
+      allowedForeignSiteDescriptors,
+      allowedForeignCountryDescriptors
+    );
   }
 }
 
 function assertExplicitForeignCountryBranch(
   facetParameter: string,
   node: WorkdayFacetNode,
-  allowedForeignDescriptors: readonly string[]
+  allowedForeignSiteDescriptors: readonly string[],
+  allowedForeignCountryDescriptors: readonly string[]
 ): void {
-  if (isKnownForeignCountryDescriptor(node.descriptor) || isExactNonMainlandChinaCountryDescriptor(node.descriptor)) {
+  if (allowedForeignSiteDescriptors.includes(node.descriptor)) {
+    if (node.children.length > 0) {
+      throw new Error(
+        `Workday location facet ${facetParameter} audited foreign site descriptor must remain a leaf: ${node.descriptor}`
+      );
+    }
     return;
   }
-  if (node.children.length === 0 && allowedForeignDescriptors.includes(node.descriptor)) {
+  if (
+    allowedForeignCountryDescriptors.includes(node.descriptor) ||
+    isKnownForeignCountryDescriptor(node.descriptor) ||
+    isExactNonMainlandChinaCountryDescriptor(node.descriptor)
+  ) {
     return;
   }
   if (node.children.length > 0) {
     node.children.forEach((child) =>
-      assertExplicitForeignCountryBranch(facetParameter, child, allowedForeignDescriptors));
+      assertExplicitForeignCountryBranch(
+        facetParameter,
+        child,
+        allowedForeignSiteDescriptors,
+        allowedForeignCountryDescriptors
+      ));
     return;
   }
   throw new Error(`Workday location facet ${facetParameter} contains unscoped country descriptor ${node.descriptor}`);
@@ -1254,15 +1985,37 @@ function selectableLeaves(node: WorkdayFacetNode, mainlandAncestor: boolean): Wo
   return node.children.flatMap((child) => selectableLeaves(child, inMainland));
 }
 
-function selectMainlandCityLeaves(facetParameter: string, nodes: readonly WorkdayFacetNode[]): WorkdayFacetNode[] {
+function selectMainlandCityLeaves(
+  facetParameter: string,
+  nodes: readonly WorkdayFacetNode[],
+  mainlandDescriptorAliases: readonly string[] = [],
+  allowedForeignDescriptors: readonly string[] = [],
+  deferredDuplicateDescriptors: readonly string[] = []
+): WorkdayFacetNode[] {
   const selected: WorkdayFacetNode[] = [];
   for (const leaf of nodes.flatMap(flattenFacetNode).filter((node) => node.children.length === 0)) {
     const path = facetPath(nodes, leaf);
+    const hasMainlandBoundary = path.some((node) =>
+      isMainlandChinaCountryDescriptor(node.descriptor) ||
+      isMainlandChinaLocationDescriptor(node.descriptor) ||
+      mainlandDescriptorAliases.includes(node.descriptor));
+    const hasForeignBoundary = path.some((node) =>
+      isNonMainlandChinaDescriptor(node.descriptor) ||
+      isKnownForeignCountryDescriptor(node.descriptor) ||
+      allowedForeignDescriptors.includes(node.descriptor) ||
+      hasKnownForeignCountryPart(node.descriptor));
+    if (hasMainlandBoundary && hasForeignBoundary && !deferredDuplicateDescriptors.includes(leaf.descriptor)) {
+      throw new Error(
+        `Workday location facet ${facetParameter} contains conflicting mainland and foreign location boundaries for ${leaf.descriptor}`
+      );
+    }
     if (path.some((node) => isNonMainlandChinaDescriptor(node.descriptor))) {
       continue;
     }
-    if (path.some((node) => isMainlandChinaCountryDescriptor(node.descriptor)) ||
-        isMainlandChinaLocationDescriptor(leaf.descriptor)) {
+    if (allowedForeignDescriptors.includes(leaf.descriptor)) {
+      continue;
+    }
+    if (hasMainlandBoundary) {
       selected.push(leaf);
       continue;
     }
@@ -1396,12 +2149,20 @@ function deriveAllowedDescriptorAppliedFacet(
     throw new Error(`Workday facet parameter ${facetParameter} is already configured`);
   }
   const allowedDescriptors = boundary.allowedDescriptors.map((descriptor) => stringValue(descriptor));
+  const excludedDescriptors = (boundary.excludedDescriptors ?? []).map((descriptor) => stringValue(descriptor));
   if (
     allowedDescriptors.length === 0 ||
     allowedDescriptors.some((descriptor) => descriptor === undefined) ||
     new Set(allowedDescriptors).size !== allowedDescriptors.length
   ) {
     throw new Error(`Workday facet parameter ${facetParameter} has invalid allowed descriptors`);
+  }
+  if (
+    excludedDescriptors.some((descriptor) => descriptor === undefined) ||
+    new Set(excludedDescriptors).size !== excludedDescriptors.length ||
+    excludedDescriptors.some((descriptor) => allowedDescriptors.includes(descriptor))
+  ) {
+    throw new Error(`Workday facet parameter ${facetParameter} has invalid excluded descriptors`);
   }
 
   const groups = findExactFacetGroups(facets, facetParameter);
@@ -1447,14 +2208,21 @@ function deriveAllowedDescriptorAppliedFacet(
       throw new Error(`Workday allowed descriptor ${allowedDescriptor} was missing from facet ${facetParameter}`);
     }
   }
-  const unexpected = parsedValues.find((value) => !allowedSet.has(value.descriptor));
+  for (const excludedDescriptor of excludedDescriptors as string[]) {
+    if (!availableSet.has(excludedDescriptor)) {
+      throw new Error(`Workday excluded descriptor ${excludedDescriptor} was missing from facet ${facetParameter}`);
+    }
+  }
+  const declaredSet = new Set([...allowedDescriptors, ...excludedDescriptors] as string[]);
+  const unexpected = parsedValues.find((value) => !declaredSet.has(value.descriptor));
   if (unexpected) {
     throw new Error(`Workday facet ${facetParameter} contains unexpected descriptor ${unexpected.descriptor}`);
   }
+  const allowedValues = parsedValues.filter((value) => allowedSet.has(value.descriptor));
 
   return {
-    appliedFacets: { [facetParameter]: parsedValues.map((value) => value.id) },
-    expectedFilteredTotal: parsedValues.reduce((sum, value) => sum + value.count, 0)
+    appliedFacets: { [facetParameter]: allowedValues.map((value) => value.id) },
+    expectedFilteredTotal: allowedValues.reduce((sum, value) => sum + value.count, 0)
   };
 }
 

@@ -16,7 +16,14 @@ import type { HtmlTableConfig, OfficialJsonConfig } from "./adapters/types";
 import type { HotjobWecruitFetchConfig } from "./hotjobWecruitSourceFetch";
 import type { HotjobLegacyFetchConfig } from "./hotjobLegacySourceFetch";
 import type { OfficialJsonFetchConfig } from "./officialJsonSourceFetch";
-import type { WorkdayFetchConfig } from "./workdaySourceFetch";
+import {
+  BMS_AUDITED_FOREIGN_COUNTRY_DESCRIPTOR_ALIASES,
+  BMS_AUDITED_FOREIGN_SITE_DESCRIPTOR_ALIASES,
+  GILEAD_AUDITED_FOREIGN_DESCRIPTOR_ALIASES,
+  JNJ_AUDITED_FOREIGN_DESCRIPTOR_ALIASES,
+  JNJ_AUDITED_MAINLAND_DESCRIPTOR_ALIASES,
+  type WorkdayFetchConfig
+} from "./workdaySourceFetch";
 
 export type CrawlAdapterId = "official-json" | "html-table";
 
@@ -144,15 +151,6 @@ const CHROME_LIKE_HTML_REQUEST_HEADERS = {
   "Accept-Language": "zh-CN,zh;q=0.9,en;q=0.8"
 } satisfies Record<string, string>;
 
-const JNJ_INNOVATIVE_MEDICINE_JOB_FAMILY_GROUPS = [
-  "604dc786859810010c32535ce4950000", // Pharmaceutical Sales
-  "604dc786859810010c3230da4ca90000", // Market Access
-  "604dc786859810010c3241cd1fbe0000", // Medical Affairs Group
-  "604dc786859810010c31feafcd920000", // Discovery & Pre-Clinical/Clinical Development
-  "604dc786859810010c3277a8e7e80000", // R&D Operations
-  "604dc786859810010c3292e41b5d0000" // Regulatory Affairs Group
-] as const;
-
 const REPRESENTATIVE_CONFIGS: Record<string, RepresentativeSourceConfig> = {
   "source-johnson-innovative-medicine-social": {
     formalEligibility: "QUARANTINED_PENDING_TRUSTED_ORACLE",
@@ -162,19 +160,20 @@ const REPRESENTATIVE_CONFIGS: Record<string, RepresentativeSourceConfig> = {
       tenant: "jj",
       site: "JJ",
       searchText: "China",
+      opaqueMultiLocationDetailPolicy: "JNJ_AUDITED_CHINA_DETAIL_V1",
       locationFacetPolicy: {
         kind: "JNJ_AUDITED_LOCATIONS_OVERLAP",
-        facetParameter: "locations"
-      },
-      appliedFacets: {
-        jobFamilyGroup: JNJ_INNOVATIVE_MEDICINE_JOB_FAMILY_GROUPS
+        facetParameter: "locations",
+        mainlandDescriptorAliases: JNJ_AUDITED_MAINLAND_DESCRIPTOR_ALIASES,
+        foreignDescriptorAliases: JNJ_AUDITED_FOREIGN_DESCRIPTOR_ALIASES
       },
       facetDescriptorBoundary: {
         facetParameter: "workerSubType",
-        allowedDescriptors: ["Fixed Term Employee (Non-Intern) (Fixed Term)", "Regular"]
+        allowedDescriptors: ["Fixed Term Employee (Non-Intern) (Fixed Term)", "Regular"],
+        excludedDescriptors: ["College Recruit", "Intern (Fixed Term)", "Temporary Agency Worker"]
       },
       pageSize: 20,
-      maxPages: 5
+      maxPages: 20
     }
   },
   "source-astellas-china-social": {
@@ -411,6 +410,7 @@ const REPRESENTATIVE_CONFIGS: Record<string, RepresentativeSourceConfig> = {
       tenant: "msd",
       site: "SearchJobs",
       searchText: "China",
+      opaqueMultiLocationDetailPolicy: "MSD_AUDITED_CHINA_DETAIL_V1",
       locationFacetPolicy: {
         kind: "MSD_AUDITED_NON_CHINA_DUPLICATE_DESCRIPTORS",
         facetParameter: "locations",
@@ -431,10 +431,12 @@ const REPRESENTATIVE_CONFIGS: Record<string, RepresentativeSourceConfig> = {
       tenant: "bristolmyerssquibb",
       site: "BMS",
       searchText: "China",
+      laterZeroTotalPolicy: "BMS_AUDITED_EXACT_RECONCILIATION",
       locationFacetPolicy: {
         kind: "BMS_AUDITED_FOREIGN_DESCRIPTOR_ALLOWLIST",
         facetParameter: "locationHierarchy2",
-        allowedForeignDescriptors: ["AZ01 PSA Celgene - Phoenix - AZ"]
+        foreignSiteDescriptorAliases: BMS_AUDITED_FOREIGN_SITE_DESCRIPTOR_ALIASES,
+        foreignCountryDescriptorAliases: BMS_AUDITED_FOREIGN_COUNTRY_DESCRIPTOR_ALIASES
       },
       facetDescriptorBoundary: {
         facetParameter: "workerSubType",
@@ -453,7 +455,8 @@ const REPRESENTATIVE_CONFIGS: Record<string, RepresentativeSourceConfig> = {
       searchText: "China",
       locationFacetPolicy: {
         kind: "GILEAD_AUDITED_LOCATIONS_OVERLAP",
-        facetParameter: "locations"
+        facetParameter: "locations",
+        foreignDescriptorAliases: GILEAD_AUDITED_FOREIGN_DESCRIPTOR_ALIASES
       },
       facetDescriptorBoundary: {
         facetParameter: "workerSubType",
