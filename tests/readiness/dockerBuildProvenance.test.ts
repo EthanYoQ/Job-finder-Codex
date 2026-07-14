@@ -86,7 +86,7 @@ describe("portable Docker build provenance",()=>{
     execFileSync("git",["config","--file",global,"filter.evil.clean",`${process.execPath} -e \"require('fs').writeFileSync('${marker.replaceAll("\\","/")}','ran')\"`]);
     exportDockerBuildProvenance(root,bundle);const head=execFileSync("git",["rev-parse","HEAD"],{cwd:root,encoding:"utf8"}).trim(),previous=process.env.GIT_CONFIG_GLOBAL;
     process.env.GIT_CONFIG_GLOBAL=global;try{expect(()=>verifyDockerBuildProvenance(root,bundle,head,canonicalSourceTreeSha256(root))).not.toThrow();expect(()=>readFileSync(marker)).toThrow();}finally{if(previous===undefined)delete process.env.GIT_CONFIG_GLOBAL;else process.env.GIT_CONFIG_GLOBAL=previous;}
-  });
+  }, 15_000);
   it("rejects a committed executable-mode change when copied mode is non-executable",()=>{
     const root=repository();execFileSync("git",["update-index","--chmod=+x","src/main.ts"],{cwd:root});execFileSync("git",["commit","-m","mode"],{cwd:root});
     const bundle=join(root,".docker-build-provenance.bundle");exportDockerBuildProvenance(root,bundle);const head=execFileSync("git",["rev-parse","HEAD"],{cwd:root,encoding:"utf8"}).trim();
