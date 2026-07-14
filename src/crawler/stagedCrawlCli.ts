@@ -8,7 +8,7 @@ import {
 import { classifyCrawlAttemptFailure } from "./crawlAttemptOrchestration";
 import {
   buildTerminalCrawlSummary,
-  collectConsecutiveFailuresByCompany,
+  collectConsecutiveSourceResultFailuresByCompany,
   crawlEvidenceIdentityFromRuntime,
   writeCrawlSummaryAtomic,
   type CrawlSummary
@@ -123,7 +123,7 @@ export async function runStagedCrawlOperation(
 
     operationStage = "PUBLISH";
     summaryBinding = await publishSummary(input, commandResult, consecutiveFailures);
-    if (commandResult.batch.status !== "SUCCESS") {
+    if (!isOperationallySuccessfulScheduledBatch(commandResult.batch)) {
       terminalError = new Error(`Staged crawl ended ${commandResult.batch.status}`);
       completedNonSuccess = true;
       failureCode = "CRAWL_EXECUTION_FAILED";
@@ -160,7 +160,8 @@ export async function runStagedCrawlOperation(
     }
   }
 
-  const succeeded = terminalError === undefined && commandResult?.batch.status === "SUCCESS" && summaryBinding !== undefined;
+  const succeeded = terminalError === undefined && commandResult !== undefined &&
+    isOperationallySuccessfulScheduledBatch(commandResult.batch) && summaryBinding !== undefined;
   await input.deps.writeAttemptEvent(input.attemptDir, buildCrawlAttemptEvent({
     attemptId: input.attemptId,
     state: succeeded ? "SUCCESS" : "FAILED",
@@ -175,10 +176,15 @@ export async function runStagedCrawlOperation(
   if (terminalError !== undefined && !completedNonSuccess) throw terminalError;
   if (!commandResult || !summaryBinding) throw new Error("Staged crawl returned no publishable command result");
   return {
-    exitCode: commandResult.batch.status === "SUCCESS" ? 0 : 1,
+    exitCode: isOperationallySuccessfulScheduledBatch(commandResult.batch) ? 0 : 1,
     commandResult,
     summaryBinding
   };
+}
+
+function isOperationallySuccessfulScheduledBatch(batch: StagedScheduledCrawlResult["batch"]): boolean {
+  return batch.status === "SUCCESS" ||
+    (batch.status === "INCOMPLETE" && batch.atomicFailedSourceCount === 0);
 }
 
 export async function runProductionStagedCrawlCli(
@@ -306,9 +312,28 @@ async function createProductionRuntime(force = false): Promise<StagedCrawlRuntim
         if (JSON.stringify(actualIds) !== JSON.stringify(expectedIds)) {
           throw new Error("Persisted staged sources do not match the resolved schedule authority");
         }
-        return collectConsecutiveFailuresByCompany(
+        const sourceResults = await prisma.crawlBatchSourceResult.findMany({
+          where: {
+            releaseCandidateId: identity.releaseCandidateId,
+            sourceId: { in: expectedIds },
+            finishedAt: { not: null },
+            batch: { kind: "SCHEDULED" }
+          },
+          select: {
+            id: true,
+            sourceId: true,
+            finishedAt: true,
+            transportState: true,
+            adapterState: true,
+            completenessState: true,
+            atomicCommitState: true,
+            failureCode: true
+          },
+          orderBy: [{ finishedAt: "desc" }, { id: "desc" }]
+        });
+        return collectConsecutiveSourceResultFailuresByCompany(
           rows.map((row) => ({ companyId: row.companyId, sourceId: row.id })),
-          runtimeDeps.getRecentObservations
+          sourceResults.filter((row): row is typeof row & { finishedAt: Date } => row.finishedAt !== null)
         );
       },
       disconnect: () => prisma.$disconnect()

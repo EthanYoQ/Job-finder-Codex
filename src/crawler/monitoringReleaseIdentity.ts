@@ -30,9 +30,9 @@ export async function loadMonitoringReleaseIdentity(env:NodeJS.ProcessEnv,deps:P
   const membershipFileSha=shaPin(env,"P0_FULL_RELEASE_MEMBERSHIP_FILE_SHA256");
   const oraclePath=required(env,"P0_FULL_RELEASE_ORACLE_FILE");
   const oracleFileSha=shaPin(env,"P0_FULL_RELEASE_ORACLE_FILE_SHA256");
-  const expected=Object.fromEntries(Object.entries(PIN_NAMES).map(([field,name])=>[field,
+  const expected={...Object.fromEntries(Object.entries(PIN_NAMES).map(([field,name])=>[field,
     field==="plannedSourceCount"?positiveInteger(env,name):field==="releaseCandidateId"?required(env,name):
-      field==="commitSha"?commitPin(env,name):shaPin(env,name)])) as unknown as CrawlEvidenceIdentity;
+      field==="commitSha"?commitPin(env,name):shaPin(env,name)])),batchKind:"FULL_RELEASE" as const} as unknown as CrawlEvidenceIdentity;
   const buildPath=env.P0_BUILD_IDENTITY_FILE??resolve(process.cwd(),"build-identity.json");
   const [membershipBytes,oracleBytes,buildBytes]=await Promise.all([readFile(membershipPath),readFile(oraclePath),readFile(buildPath)]);
   assertDigest(membershipBytes,membershipFileSha,"membership");

@@ -5,6 +5,7 @@ import { fileURLToPath } from "node:url";
 import { describe, expect, expectTypeOf, it, vi } from "vitest";
 import {
   runP0CrawlBatch,
+  resolveP0CrawlBatchTerminalStatus,
   type P0CrawlBatchResult,
   type RunP0CrawlBatchDeps
 } from "../../src/crawler/runCrawlBatch";
@@ -761,6 +762,27 @@ describe("runP0CrawlBatch", () => {
     });
   });
 
+  it("keeps source failures fatal outside scheduled batches and keeps atomic failures fatal everywhere", () => {
+    expect(resolveP0CrawlBatchTerminalStatus({
+      batchKind: "FULL_RELEASE",
+      failedSourceCount: 1,
+      atomicFailedSourceCount: 0,
+      hasExactSuccessfulDenominator: false
+    })).toBe("FAILED");
+    expect(resolveP0CrawlBatchTerminalStatus({
+      batchKind: "SCHEDULED",
+      failedSourceCount: 1,
+      atomicFailedSourceCount: 0,
+      hasExactSuccessfulDenominator: false
+    })).toBe("INCOMPLETE");
+    expect(resolveP0CrawlBatchTerminalStatus({
+      batchKind: "SCHEDULED",
+      failedSourceCount: 1,
+      atomicFailedSourceCount: 1,
+      hasExactSuccessfulDenominator: false
+    })).toBe("FAILED");
+  });
+
   it("does not succeed when one planned source is verified and another is skipped", async () => {
     const verifiedPlan = planFor("source-hengrui-social");
     const skippedPlan = planFor("source-astrazeneca-social");
@@ -936,7 +958,7 @@ describe("runP0CrawlBatch", () => {
     }));
     expect(db.calls.batchesUpdated[0]).toEqual({
       where: { id: "batch-1" },
-      data: expect.objectContaining({ finishedAt: NOW, status: "FAILED" })
+      data: expect.objectContaining({ finishedAt: NOW, status: "INCOMPLETE" })
     });
   });
 
@@ -979,7 +1001,7 @@ describe("runP0CrawlBatch", () => {
     expect(executeAtomicCommit.mock.calls[0]![0].commands.every((command) =>
       command.type !== "UPSERT_JOB" || command.record.sourceId !== failedPlan.source.id)).toBe(true);
     expect(result).toEqual({
-      status: "FAILED",
+      status: "INCOMPLETE",
       batchId: "batch-1",
       plannedSourceCount: 2,
       dueSourceCount: 2,
@@ -1035,7 +1057,7 @@ describe("runP0CrawlBatch", () => {
     expect(executeAtomicCommit).toHaveBeenCalledTimes(1);
     expect(executeAtomicCommit.mock.calls[0]![0].sourceResult.sourceId).toBe(successfulPlan.source.id);
     expect(result).toMatchObject({
-      status: "FAILED",
+      status: "INCOMPLETE",
       plannedSourceCount: 2,
       dueSourceCount: 2,
       transportSuccessfulSourceCount: 2,
@@ -1242,7 +1264,7 @@ describe("runP0CrawlBatch", () => {
     expect(fetch).toHaveBeenCalledTimes(1);
   });
 
-  it("returns a failed batch when a thrown fetch failure is terminalized", async () => {
+  it("returns an incomplete scheduled batch when a thrown fetch failure is terminalized", async () => {
     const plan = planFor("source-astrazeneca-social");
     const db = fakeDb();
     const fetchError = new Error("network timeout");
@@ -1261,7 +1283,7 @@ describe("runP0CrawlBatch", () => {
     });
 
     expect(fetch).toHaveBeenCalledTimes(1);
-    expect(result).toMatchObject({ status: "FAILED", failedSourceCount: 1 });
+    expect(result).toMatchObject({ status: "INCOMPLETE", failedSourceCount: 1 });
     expect(db.calls.batchesCreated[0]).toEqual({
       data: expect.objectContaining({ startedAt: NOW, status: "RUNNING" })
     });
@@ -1276,7 +1298,7 @@ describe("runP0CrawlBatch", () => {
         adapterFailedCount: 0,
         failedSourceCount: 1,
         finishedAt: NOW,
-        status: "FAILED"
+        status: "INCOMPLETE"
       })
     });
   });
@@ -1318,6 +1340,7 @@ describe("runP0CrawlBatch", () => {
     });
 
     expect(result).toMatchObject({
+      status: "INCOMPLETE",
       transportSuccessfulSourceCount: 1,
       transportFailedSourceCount: 0,
       adapterSuccessfulSourceCount: 0,
@@ -1451,7 +1474,7 @@ describe("runP0CrawlBatch", () => {
     expect(db.calls.batchesUpdated).toEqual([]);
   });
 
-  it("finalizes the batch as failed for an undefined thrown source failure", async () => {
+  it("finalizes the scheduled batch as incomplete for an undefined thrown source failure", async () => {
     const plan = planFor("source-astrazeneca-social");
     const db = fakeDb();
     const fetch = vi.fn(async () => {
@@ -1467,10 +1490,10 @@ describe("runP0CrawlBatch", () => {
       isBaselineCompleted: async () => true
     });
 
-    expect(result).toMatchObject({ status: "FAILED", failedSourceCount: 1 });
+    expect(result).toMatchObject({ status: "INCOMPLETE", failedSourceCount: 1 });
     expect(db.calls.batchesUpdated[0]).toEqual({
       where: { id: "batch-1" },
-      data: expect.objectContaining({ finishedAt: NOW, status: "FAILED" })
+      data: expect.objectContaining({ finishedAt: NOW, status: "INCOMPLETE" })
     });
   });
 

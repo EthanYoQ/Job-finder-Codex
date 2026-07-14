@@ -9,9 +9,12 @@ import {
 } from "../crawler/stagedScheduleAuthority";
 import { candidateCompanies } from "../data/companyRegistry";
 import { assertExactConfirmedCompanyRosterV3 } from "../data/confirmedCompanyRosterV3";
-import { derivePhase1Scope } from "../data/phase1ScopePolicy";
+import {
+  derivePhase1Scope
+} from "../data/phase1ScopePolicy";
 import {
   buildCompanyPublicationSnapshot,
+  DAILY_PUBLICATION_FRESHNESS_MAXIMUM_MS,
   type CompanyPublicationSnapshot,
   type CurrentStagedPublicationSource,
   type PublicationAttempt,
@@ -60,6 +63,7 @@ export interface PublicationEligibilitySourceResultRow {
   adapterState: PublicationTransportState;
   completenessState: PublicationCompletenessStatus;
   atomicCommitState: PublicationAtomicCommitState;
+  failureCode: string | null;
   startedAt: Date;
   finishedAt: Date | null;
   dedupeOutputCount: number;
@@ -100,6 +104,7 @@ export interface PublicationEligibilityQuery {
     adapterState: true;
     completenessState: true;
     atomicCommitState: true;
+    failureCode: true;
     startedAt: true;
     finishedAt: true;
     dedupeOutputCount: true;
@@ -142,7 +147,7 @@ export interface PublicationEligibilityQuery {
   ];
 }
 
-const PARTICIPATING_BATCH_KINDS: PublicationBatchKind[] = ["FULL_RELEASE", "SCHEDULED", "BASELINE"];
+const PARTICIPATING_BATCH_KINDS: PublicationBatchKind[] = ["SCHEDULED"];
 const participatingBatchKindSet: ReadonlySet<string> = new Set(PARTICIPATING_BATCH_KINDS);
 
 function compareUtf8(left: string, right: string): number {
@@ -205,6 +210,7 @@ function publicationEligibilityQuery(
       adapterState: true,
       completenessState: true,
       atomicCommitState: true,
+      failureCode: true,
       startedAt: true,
       finishedAt: true,
       dedupeOutputCount: true,
@@ -304,6 +310,7 @@ function mapAttempt(row: PublicationEligibilitySourceResultRow, releaseCandidate
     adapterState: row.adapterState,
     completenessState: row.completenessState,
     atomicCommitState: row.atomicCommitState,
+    failureCode: row.failureCode,
     dedupeOutputCount: row.dedupeOutputCount,
     expectedJobCount: row.expectedJobCount,
     officialEntryId: row.officialEntryId,
@@ -325,9 +332,15 @@ export type PublicationAuthorityResolver = (
 const resolveDefaultPublicationAuthority: PublicationAuthorityResolver = (db) =>
   resolveCurrentStagedScheduleAuthority(db as unknown as StagedScheduleAuthorityDb);
 
+export interface PublicationSnapshotReadOptions {
+  currentTime?: Date;
+  freshnessMaximumMs?: number;
+}
+
 export async function getCompanyPublicationSnapshotFromDb(
   db: PublicationEligibilityDb,
-  resolveAuthority: PublicationAuthorityResolver = resolveDefaultPublicationAuthority
+  resolveAuthority: PublicationAuthorityResolver = resolveDefaultPublicationAuthority,
+  options: PublicationSnapshotReadOptions = {}
 ): Promise<CompanyPublicationSnapshot> {
   const authority = await resolveAuthority(db);
   const releaseCandidateId = authority.identity.releaseCandidateId;
@@ -344,5 +357,8 @@ export async function getCompanyPublicationSnapshotFromDb(
     .filter((row) => stagedSourceIdSet.has(row.sourceId))
     .filter((row) => participatingBatchKindSet.has(String(row.batch.kind)))
     .map((row) => mapAttempt(row, releaseCandidateId));
-  return buildCompanyPublicationSnapshot(candidateCompanies, currentSources, attempts);
+  return buildCompanyPublicationSnapshot(candidateCompanies, currentSources, attempts, {
+    currentTime: options.currentTime ?? new Date(),
+    freshnessMaximumMs: options.freshnessMaximumMs ?? DAILY_PUBLICATION_FRESHNESS_MAXIMUM_MS
+  });
 }

@@ -3,6 +3,13 @@ import type { CompanyPublicationSnapshot } from "../../src/domain/publicationEli
 import { getCompanyPublicationSnapshotFromDb } from "../../src/db/publicationEligibilityRepository";
 import { handlePublicApi } from "../../src/server/publicApi";
 
+function withRepeatableReadTransaction<T extends object>(transactionClient: T) {
+  return {
+    ...transactionClient,
+    $transaction: async <R>(operation: (transaction: T) => Promise<R>): Promise<R> => operation(transactionClient)
+  };
+}
+
 function fakePublishingSnapshot(companyCount: number): CompanyPublicationSnapshot {
   const companies = Array.from({ length: companyCount }, (_, index) => ({
     companyId: `company-${index + 1}`,
@@ -169,14 +176,14 @@ describe("public API route policy", () => {
 
   it("does not load job search before consent and marks internal APIs noindex", async () => {
     const deps = {
-      db: {
+      db: withRepeatableReadTransaction({
         job: { findMany: vi.fn() },
         crawlObservation: { findFirst: vi.fn() },
         crawlBatchSourceResult: { findMany: vi.fn(async () => []) },
         company: { findMany: vi.fn(async () => []) },
         feedback: { create: vi.fn() },
         recommendedCompany: { create: vi.fn() }
-      },
+      }),
       checkDatabaseReadiness: async () => true,
       now: () => new Date("2026-07-08T00:00:00.000Z")
     };
@@ -301,7 +308,7 @@ describe("public API route policy", () => {
 
   it("caps search companies and per-company jobs at the API layer", async () => {
     const deps = {
-      db: {
+      db: withRepeatableReadTransaction({
         job: {
           findMany: vi.fn(async () =>
             Array.from({ length: 60 }, (_, companyIndex) =>
@@ -333,7 +340,7 @@ describe("public API route policy", () => {
         company: { findMany: vi.fn(async () => []) },
         feedback: { create: vi.fn() },
         recommendedCompany: { create: vi.fn() }
-      },
+      }),
       checkDatabaseReadiness: async () => true,
       now: () => new Date("2026-07-08T00:00:00.000Z"),
       readPublicationSnapshot: vi.fn(async () => fakePublishingSnapshot(60))

@@ -16,6 +16,7 @@ const companyWithOnePlan = candidateCompanies.find((company) =>
 const plan = plans.find(({ company }) => company.id === companyWithOnePlan.id)!;
 const configHash = sourcePlanConfigSha256(plan);
 const RELEASE_CANDIDATE_ID = "phase1-current-release";
+const SNAPSHOT_TIME = new Date("2026-07-14T02:00:00.000Z");
 
 declare const prismaClientTypeProbe: PrismaClient;
 if (false) {
@@ -45,6 +46,7 @@ function row(
     adapterState: "SUCCEEDED",
     completenessState: "VERIFIED",
     atomicCommitState: "COMMITTED",
+    failureCode: null,
     startedAt,
     finishedAt,
     dedupeOutputCount: 1,
@@ -96,7 +98,8 @@ function fakeDb(rows: PublicationEligibilitySourceResultRow[]) {
 function getSnapshot(db: PublicationEligibilityDb) {
   return getCompanyPublicationSnapshotFromDb(
     db,
-    async () => ({ identity: { releaseCandidateId: RELEASE_CANDIDATE_ID } })
+    async () => ({ identity: { releaseCandidateId: RELEASE_CANDIDATE_ID } }),
+    { currentTime: SNAPSHOT_TIME }
   );
 }
 
@@ -112,7 +115,7 @@ describe("getCompanyPublicationSnapshotFromDb", () => {
       sourceId: { in: expect.arrayContaining(plans.map(({ source }) => source.id)) },
       batch: { is: {
         releaseCandidateId: RELEASE_CANDIDATE_ID,
-        kind: { in: ["FULL_RELEASE", "SCHEDULED", "BASELINE"] }
+        kind: { in: ["SCHEDULED"] }
       } }
     });
     expect(query.select).toMatchObject({ releaseCandidateId: true });
@@ -159,9 +162,23 @@ describe("getCompanyPublicationSnapshotFromDb", () => {
       stagedSourceIds: [plan.source.id],
       eligibleSourceIds: [plan.source.id]
     });
+    expect(snapshot.eligibleCompanyIds).toEqual([companyWithOnePlan.id]);
+    expect(snapshot.eligibleSourceIds).toEqual([plan.source.id]);
   });
 
-  it("qualifies two current-release official partial refreshes without claiming completeness", async () => {
+  it("does not use baseline or full-release rows to prove scheduled auto-updating", async () => {
+    const baseline = row(1);
+    baseline.batch = { ...baseline.batch, kind: "BASELINE" };
+    const fullRelease = row(2);
+    fullRelease.batch = { ...fullRelease.batch, kind: "FULL_RELEASE" };
+    const snapshot = await getSnapshot(fakeDb([baseline, fullRelease]).db);
+    expect(snapshot.companies.find(({ companyId }) => companyId === companyWithOnePlan.id)).toMatchObject({
+      state: "VERIFYING",
+      eligibleSourceIds: []
+    });
+  });
+
+  it("keeps two current-release official partial refreshes out of publication", async () => {
     const partialRows = [1, 2].map((index) => {
       const value = row(index, {
         completenessState: "NEEDS_MANUAL_COMPLETENESS_REVIEW",
@@ -179,6 +196,46 @@ describe("getCompanyPublicationSnapshotFromDb", () => {
     });
     const { db } = fakeDb(partialRows);
     const snapshot = await getSnapshot(db);
+    expect(snapshot.companies.find(({ companyId }) => companyId === companyWithOnePlan.id)).toMatchObject({
+      state: "VERIFYING",
+      health: "NOT_APPLICABLE",
+      eligibleSourceIds: []
+    });
+  });
+
+  it("suspends a previously qualified company after its latest terminal failure", async () => {
+    const failure = row(3, {
+      transportState: "FAILED",
+      adapterState: "SKIPPED",
+      completenessState: "FAILED",
+      atomicCommitState: "NOT_ATTEMPTED",
+      observations: []
+    });
+    const { db } = fakeDb([row(1), row(2), failure]);
+    const snapshot = await getSnapshot(db);
+    expect(snapshot.companies.find(({ companyId }) => companyId === companyWithOnePlan.id)).toMatchObject({
+      state: "VERIFYING",
+      health: "DEGRADED",
+      eligibleSourceIds: [],
+      reasonCode: "QUALIFIED_BUT_LATEST_WINDOW_UNHEALTHY"
+    });
+    expect(snapshot.eligibleCompanyIds).not.toContain(companyWithOnePlan.id);
+    expect(snapshot.eligibleSourceIds).not.toContain(plan.source.id);
+  });
+
+  it("keeps a qualified company publishing when a same-day source is canonically not due", async () => {
+    const notDue = row(3, {
+      transportState: "SKIPPED",
+      adapterState: "SKIPPED",
+      completenessState: "FAILED",
+      atomicCommitState: "NOT_ATTEMPTED",
+      failureCode: "SOURCE_NOT_DUE",
+      dedupeOutputCount: 0,
+      expectedJobCount: null,
+      observations: []
+    });
+    notDue.batch = { ...notDue.batch, status: "INCOMPLETE" };
+    const snapshot = await getSnapshot(fakeDb([row(1), row(2), notDue]).db);
     expect(snapshot.companies.find(({ companyId }) => companyId === companyWithOnePlan.id)).toMatchObject({
       state: "PUBLISHING",
       health: "HEALTHY",

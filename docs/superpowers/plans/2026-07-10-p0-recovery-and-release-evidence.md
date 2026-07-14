@@ -4,11 +4,11 @@
 >
 > **Controlling PRD scope:** Exactly 30 foreign pharmaceutical companies plus exactly 30 domestic pharmaceutical companies, with no substitutions. All 60 remain visible in the company directory. Job publication is decided per company and covers only publicly reachable social-recruitment scope supplied by an official website, official careers page, or recruitment system explicitly endorsed by one of those sites.
 >
-> **Per-company publishing rule:** A failed, incomplete, or pending company cannot publish automatic jobs, but it does not block already eligible companies, the whole public beta, or formal Phase 1 completion after the at-least-50 threshold is met. A company without a public official careers link remains visible as `NO_PUBLIC_OFFICIAL_CAREERS_LINK_AT_CAPTURE_TIME`. The two exact `USER_AUTHORIZED_PHASE1_EXCLUSION` records remain roster members and never imply complete job coverage.
+> **Per-company publishing rule:** A failed, incomplete, or pending company cannot publish automatic jobs, but it does not block another eligible company's publication. Before first external launch, a below-45 verified subset is a restricted internal candidate preview. Once the initial at-least-45 release gate has passed, routine daily publication has no global company-count switch: each currently eligible company continues updating independently. A company without a public official careers link remains visible as `NO_PUBLIC_OFFICIAL_CAREERS_LINK_AT_CAPTURE_TIME`. The two exact `USER_AUTHORIZED_PHASE1_EXCLUSION` records remain roster members and never imply complete job coverage.
 >
 > **Evidence state:** Prior `TRUST_FREEZE`, Phase 0-3, and RC008 artifacts remain historical evidence for unchanged behavior only. They do not prove current deployment or current job data. Current claims require the fresh, proportionate evidence defined by the active stages below.
 
-**Goal:** 上线 Job Finder 一期：完整展示固定 30 家外资药企和 30 家国内药企的官方招聘入口；只展示来源可验证的官方职位，每天更新两次；先上线可用版本，再达到至少 50 家稳定自动更新。
+**Goal:** 上线 Job Finder 一期：完整展示固定 30 家外资药企和 30 家国内药企的官方招聘入口；只展示来源可验证的官方职位；每天北京时间 00:01 更新一次；至少 45 家稳定自动更新并通过上线门禁后对外开放。
 
 **Active Goal:** `019f4b10-36e1-75e0-8586-1e4beec344ee`
 
@@ -19,8 +19,10 @@
 - The roster is immutable: exactly 30 foreign plus 30 domestic pharmaceutical companies. `company-humanwell` and `company-north-china-pharma` stay in the roster as user-authorized Phase 1 exclusions, and their job completeness is not claimed.
 - Every company appears in the directory. Allowed truthful states include verifying, official-link-only, no public official careers link at capture time, and user-authorized exclusion.
 - A company becomes eligible for automatic job publishing only after two consecutive successful, stable crawls of its publicly reachable official social-recruitment scope. Eligibility and threshold counts are calculated from records; no hard-coded pass count is valid.
-- Public beta may launch with the currently verified subset once the operational release requirements pass. Formal Phase 1 completion requires at least 50 companies to be stably auto-updating; remaining companies continue after launch and do not block completion.
-- Twice-daily scheduling, last-success timestamps, failed-crawl non-deletion, search, official outbound links, basic security/privacy, backup/restore, monitoring, deployment, and final independent read-only QA remain release requirements.
+- Before first external launch, a below-45 stable subset may be used only as a restricted internal candidate preview. Initial external launch and formal Phase 1 completion require at least 45 companies to be stably auto-updating. After release, daily publication remains per-company even when the current total later falls below 45.
+- One scheduled crawl runs daily at 00:01 China time. A complete success expires after 30 hours; explicit source failure hides that company's jobs immediately while preserving stored records.
+- Last-success timestamps, failed-crawl non-deletion, search, official outbound links, basic security/privacy, backup/restore, monitoring, deployment, and final independent read-only QA remain release requirements.
+- After the rule and company configuration are frozen, run exactly two fresh scheduled-scope rounds. If the second round still leaves fewer than 45 stable companies, pause the task and notify the user; do not start a third round or lower the threshold.
 - `job.orz.md`, AI classification, auxiliary translation, advanced manual operations, cryptographic oracle/signature work, independent QA after every stage, and rebuilding all evidence after every change are explicitly non-blocking. Existing implementations may remain; unavailable enrichment falls back to official original titles and basic categories.
 
 **Official-source boundary:** Published jobs may come only from official websites, official careers pages, or recruitment systems explicitly endorsed by those sites. Search engines, ATS discovery, and third-party job boards may provide leads but never published job records. The completeness claim is limited to publicly reachable social-recruitment scope linked or endorsed by the official site at capture time; it does not cover hidden ATS tenants, WeChat-only postings, or unendorsed third-party channels.
@@ -35,12 +37,12 @@ This index is the controlling execution order. At most one stage may be `IN_PROG
 
 | Phase | Scope | Status | Exit evidence |
 | --- | --- | --- | --- |
-| 1 | Goal and document sync | IN_PROGRESS | PRD and this controlling plan carry the exact staged Goal and contain no active all-or-nothing release rule |
-| 2 | Fresh code/test/data/deployment baseline | PENDING | Current Git, test, data, deployment, and operational facts recorded without treating historical artifacts as current proof |
-| 3 | Per-company publishing eligibility and truthful directory states | PENDING | All 60 companies visible; official-source-only publishing; two-crawl eligibility derived from records; exclusions disclosed |
-| 4 | Two fresh crawl runs and a 60-company status table | PENDING | Two fresh run records plus one table covering every roster company, its evidence-derived state, and last-success timestamp |
-| 5 | Public-beta deployment and operational checks | PENDING | Verified subset deployed with twice-daily schedule, search, official links, security/privacy, backup/restore, monitoring, and failure-safe lifecycle checks |
-| 6 | Expand to at least 50 stable auto-updating companies | PENDING | Record-derived eligible-company count is at least 50; remaining companies retain truthful states and continue post-launch |
+| 1 | Goal and document sync | COMPLETED | PRD and this controlling plan carry the exact staged Goal and contain no active all-or-nothing release rule |
+| 2 | Fresh code/test/data/deployment baseline | COMPLETED | Current Git, test, data, deployment, and operational facts recorded without treating historical artifacts as current proof |
+| 3 | Per-company publishing eligibility and truthful directory states | COMPLETED | All 60 companies visible; official-source-only publishing; two-crawl eligibility derived from records; exclusions disclosed |
+| 4 | Two fresh crawl runs and a 60-company status table | IN_PROGRESS | Two fresh run records plus one table covering every roster company, its evidence-derived state, and last-success timestamp |
+| 5 | Internal candidate preview and operational rehearsal | PENDING | Restricted internal verified-subset preview with daily 00:01 schedule, search, official links, security/privacy, backup/restore, monitoring, and failure-safe lifecycle checks |
+| 6 | At least 45 stable companies and initial external release candidate | PENDING | Record-derived eligible-company count is at least 45; after two fresh rounds a lower count pauses the task and notifies the user without initial external launch |
 | 7 | Final independent read-only QA and Goal completion | PENDING | Independent QA validates staged rules, operational evidence, official-source-only jobs, and the final 60-company table |
 
 Only one stage may be `IN_PROGRESS`. A stage advances only after its own exit evidence exists; unchanged historical evidence may be reused when its applicability is explicitly verified.
@@ -61,7 +63,7 @@ The table below preserves the prior all-or-nothing RC assessment as historical e
 | G8 production/security/compliance | PARTIAL_RC008_EVIDENCE | RC008 image, empty-DB, backup/restore, edge, and bounded runtime evidence is preserved. Remaining deployment, notifier, scheduler, privacy, and compliance gates exclude only `job.orz.md`-specific DNS/certificate/external-access checks; equivalent checks for any other deployed endpoint remain required. |
 | G9 engineering/independent QA | PARTIAL_RC008_EVIDENCE | RC008 engineering and independent QA evidence remains reusable, but final changed code and formal crawls require fresh exact-RC-bound independent QA for every dynamically in-scope company plus global exclusion-policy/disclosure verification. The excluded companies receive no company-level source/completeness QA. |
 
-The superseded rule that every row had to become `PASS` before any launch is not active. Current public-beta and Phase 1 decisions follow the per-company eligibility, at-least-50, operational, and final-QA gates in this plan.
+The superseded rule that every row had to become `PASS` before any launch is not active. Current initial-release and Phase 1 decisions follow the per-company eligibility, at-least-45, operational, and final-QA gates in this plan.
 
 ---
 
@@ -72,12 +74,12 @@ The superseded rule that every row had to become `PASS` before any launch is not
 3. The immutable roster remains exactly 30 foreign plus 30 domestic pharmaceutical companies with no substitutions. All 60 appear in the directory.
 4. `company-humanwell` and `company-north-china-pharma` remain roster members marked `USER_AUTHORIZED_PHASE1_EXCLUSION`; no job-completeness claim is made for either.
 5. A company is eligible for automatic job publishing only after two consecutive successful, stable crawls cover its publicly reachable official social-recruitment scope. Eligibility and all thresholds are calculated from records, never hard-coded as pass results.
-6. A blocked or pending company blocks only its own automatic job publication. It does not block other eligible companies, public beta, or formal Phase 1 completion once at least 50 companies are stably auto-updating.
+6. A blocked or pending company blocks only its own automatic job publication. Before first launch, the release candidate remains internal-only below 45. After the initial release gate passes, routine publication has no global minimum: a later drop below 45 triggers repair and alerting but does not hide other eligible companies.
 7. Companies not yet eligible stay visible with a truthful state such as verifying, official-link-only, no public official careers link at capture time, or user-authorized exclusion.
 8. No failed, incomplete, blocked, skipped, stale, or non-atomic crawl may drive lifecycle removal. Preserve the last successful timestamp and previously verified jobs according to lifecycle rules.
 9. A change invalidates only evidence materially affected by that change. Preserve traceability and rerun impacted checks; do not require a new full evidence rebuild for unchanged gates.
 10. AI classification, auxiliary translation, advanced manual operations, cryptographic oracle/signature work, every-stage independent QA, and `job.orz.md` work are non-blocking. Original titles and basic categories are the required fallback.
-11. Twice-daily scheduling, search, official outbound links, basic security/privacy, backup/restore, monitoring, deployment, and final independent read-only QA remain mandatory release requirements.
+11. Daily 00:01 China-time scheduling, 30-hour freshness enforcement, search, official outbound links, basic security/privacy, backup/restore, monitoring, deployment, and final independent read-only QA remain mandatory release requirements.
 12. No PRD business rule may be weakened to make a technical gate pass.
 
 ## Preserved Phase 0-3 historical evidence
@@ -203,8 +205,8 @@ All behavior changes follow RED-GREEN-REFACTOR.
 
 - Put the exact staged Goal in the PRD and this controlling plan.
 - Remove active all-or-nothing rules while preserving historical Phase 0-3 and RC008 evidence for unchanged behavior.
-- Verify both documents for fixed 30+30 scope, the two authorized exclusions, per-company publication, public beta, at least 50 stable companies, twice-daily updates, official-source-only jobs, and explicit non-blocking enrichment/`job.orz.md` language.
-- Exit with a documentation-only commit and a report that records commands and concerns. This is the sole `IN_PROGRESS` stage for the current task.
+- Verify both documents for fixed 30+30 scope, the two authorized exclusions, per-company publication, internal-only preview below 45, external launch at least 45 stable companies, daily 00:01 updates, 30-hour freshness, the two-round stop condition, official-source-only jobs, and explicit non-blocking enrichment/`job.orz.md` language.
+- Exit with a documentation-only commit and a report that records commands and concerns. This stage is complete once the controlling index marks it `COMPLETED`.
 
 ## Active Stage 2 - Fresh code/test/data/deployment baseline
 
@@ -224,58 +226,61 @@ All behavior changes follow RED-GREEN-REFACTOR.
 
 ## Active Stage 4 - Two fresh crawl runs and a 60-company status table
 
+- Keep the perpetual production scheduler stopped during first-launch qualification. Invoke `npm run p0:staged-crawl -- --force` exactly twice against the isolated release-candidate database, then evaluate readiness. Enable the daily scheduler only after the initial release gate passes.
 - Run two fresh scheduled-scope crawl rounds and retain run identity, company/source scope, start/finish time, outcome, counters, evidence location, and last-success timestamp.
 - For each company being considered for automatic publication, prove that its two most recent qualifying observations are consecutive, successful, stable, and cover its publicly reachable official social-recruitment scope.
 - A failed, incomplete, blocked, or skipped observation cannot qualify the company and cannot delete previously verified jobs. Preserve passing evidence for other companies.
 - Produce one 60-company table containing roster group, company ID/name, official website/recruitment entry, publishing state, exclusion/no-link disclosure, qualifying run IDs, last success, job count where applicable, and evidence path.
-- Calculate roster totals, exclusions, eligible-company count, and the at-least-50 threshold from records. Do not hard-code a passing count.
+- Calculate roster totals, exclusions, eligible-company count, and the at-least-45 threshold from records. Do not hard-code a passing count.
+- After the changed rules and company configuration are frozen, execute exactly two fresh rounds. If the second round still produces fewer than 45 stable companies, pause and notify the user without starting a third round.
 
-## Active Stage 5 - Public-beta deployment and operational checks
+## Active Stage 5 - Internal candidate preview and operational rehearsal
 
-- Public beta may deploy with the currently eligible subset; it does not wait for every company or the at-least-50 formal completion threshold.
+- The currently eligible subset may be deployed only to a restricted internal candidate environment. It does not wait for every company, but it is not externally accessible below the at-least-45 threshold.
 - Show all 60 companies and their truthful state. Expose jobs only for companies that pass per-company publishing eligibility, and make every job link traceable to an allowed official source.
-- Run and verify two Beijing-time updates per day with one scheduling owner and overlap protection. Show a truthful last-success timestamp, and do not advance it on failure.
+- Run and verify one update each day at 00:01 Beijing time with one scheduling owner and overlap protection. Show a truthful last-success timestamp, expire it from publication at 30 hours, and do not advance it on failure.
 - Verify city/search behavior, official outbound links, failed-crawl non-deletion, lifecycle behavior, deployment, basic application security, privacy/terms, backup creation and restore-to-test, monitoring, and real alert delivery.
 - AI classification, auxiliary translation, advanced manual operations, cryptographic oracle/signature work, every-stage independent QA, and `job.orz.md` DNS/certificate/external-access work remain non-blocking. Preserve existing implementations but use official-title/basic-category fallback when enrichment is unavailable.
 - Record the deployed revision, data snapshot/run IDs, endpoint, operational check evidence, known company-level gaps, and rollback/containment path without treating historical RC008 as current deployment proof.
 
-## Active Stage 6 - Expand to at least 50 stable auto-updating companies
+## Active Stage 6 - At least 45 stable companies and initial external release candidate
 
-- Continue company-by-company source adaptation, verification, and twice-daily operation after public beta without replacing roster members or lowering the two-consecutive-crawl rule.
-- Compute the eligible stable auto-updating count from current company, source, and observation records. Formal Phase 1 completion requires this count to be at least 50.
+- Continue company-by-company source adaptation, verification, and daily 00:01 operation after the internal candidate preview without replacing roster members or lowering the two-consecutive-crawl rule.
+- Compute the eligible stable auto-updating count from current company, source, and observation records. Formal Phase 1 completion requires this count to be at least 45.
 - Keep every remaining company in the directory with a truthful state and a next investigation or maintenance action. Those companies continue as post-launch work and do not block formal completion after the threshold is reached.
+- After the initial release is approved, keep daily publication strictly per-company. A later total below 45 is an operational incident to alert and repair, not a switch that clears successful companies from search.
 - Preserve company-level failure evidence and previously passing companies; do not reset the entire program or rebuild unrelated evidence for a local source change.
 
 ## Active Stage 7 - Final independent read-only QA and Goal completion
 
 - Use an independent read-only reviewer that did not implement the final changes and cannot modify code, database, deployment, or evidence.
 - Verify the exact 30+30 roster with no substitutions; all 60 directory states; explicit `USER_AUTHORIZED_PHASE1_EXCLUSION` disclosure for `company-humanwell` and `company-north-china-pharma`; and no completeness claim for either exclusion.
-- Recalculate from records that at least 50 companies have two consecutive successful, stable qualifying crawls and are auto-updating. Sample published jobs and trace each to an allowed official source; investigate all known incident, low-count, no-total, or changed-adapter cases that can affect the completion claim.
-- Verify the two fresh crawl runs, final 60-company status table, twice-daily scheduler, truthful last-success behavior, failed-crawl non-deletion, search, official outbound links, deployment, security/privacy, backup/restore, monitoring, and alert evidence.
+- Recalculate from records that at least 45 companies have two consecutive successful, stable qualifying crawls and are auto-updating. Sample published jobs and trace each to an allowed official source; investigate all known incident, low-count, no-total, or changed-adapter cases that can affect the completion claim.
+- Verify the two fresh crawl runs, final 60-company status table, daily 00:01 scheduler, 30-hour freshness and truthful last-success behavior, failed-crawl non-deletion, search, official outbound links, deployment, security/privacy, backup/restore, monitoring, and alert evidence.
 - Record reviewer identity, revision, database/data snapshot, run IDs, evidence paths, findings, and disposition. Confirmed material findings repair only the affected behavior/evidence and trigger proportionate retesting; they do not automatically require every unchanged stage to be rebuilt.
 
 ## Final staged-release gate
 
-The exact phrase `PRD Phase 1 complete` is prohibited unless current evidence proves all of the following:
+The exact phrase `PRD Phase 1 complete` and the first external release are prohibited unless current evidence proves all of the following:
 
 - The roster is exactly 30 foreign plus 30 domestic pharmaceutical companies with no substitutions, and all 60 appear in the directory with truthful states.
 - `company-humanwell` and `company-north-china-pharma` are disclosed as user-authorized Phase 1 exclusions, with no job-completeness claim.
-- At least 50 companies, counted dynamically from records, have two consecutive successful stable crawls of their publicly reachable official social-recruitment scope and are auto-updating.
+- At least 45 companies, counted dynamically from records, have two consecutive successful stable crawls of their publicly reachable official social-recruitment scope and are auto-updating.
 - Every published job sampled or checked traces to an official website, official careers page, or recruitment system explicitly endorsed by one of those sites.
 - Two fresh crawl runs and the final 60-company table support the current state; pending companies remain visible and do not block completion.
-- Twice-daily scheduling, last-success timestamps, failed-crawl non-deletion, search, official outbound links, deployment, basic security/privacy, backup/restore, monitoring, real alerts, and final independent read-only QA pass.
+- Daily 00:01 China-time scheduling, 30-hour freshness, last-success timestamps, failed-crawl non-deletion, search, official outbound links, deployment, basic security/privacy, backup/restore, monitoring, real alerts, and final independent read-only QA pass.
 - AI classification, auxiliary translation, advanced manual operations, cryptographic oracle/signature work, every-stage independent QA, `job.orz.md`, and full evidence reconstruction after every change are not required to pass. Official-title/basic-category fallback works where enrichment is unavailable.
 
 ## RC008 historical evidence preservation after the staged-launch authorization
 
 - RC008's already-passed code, image, database, empty-database, backup/restore, edge/security, and independent-QA artifacts remain immutable historical, reusable evidence for unchanged gates.
 - This controlling-plan update by itself does not create a new RC and does not require rerunning an unchanged passed gate.
-- Historical RC008 evidence may support unchanged behavior only after applicability is checked. It may not self-certify current deployment, current data, staged per-company publishing eligibility, the at-least-50 count, or the two fresh crawl runs.
+- Historical RC008 evidence may support unchanged behavior only after applicability is checked. It may not self-certify current deployment, current data, staged per-company publishing eligibility, the at-least-45 count, or the two fresh crawl runs.
 - Future changes invalidate and refresh only materially affected evidence. Preserve revision/data/run traceability, but do not rebuild unrelated historical evidence solely because one component or company changed.
 
 ## Current baseline and immediate next action
 
-- Active Stage 1, Goal and document sync, is the sole `IN_PROGRESS` stage. Active Stages 2-7 are `PENDING`.
+- Active Stage 4, two fresh crawl runs and a 60-company status table, is the sole `IN_PROGRESS` stage. Active Stages 1-3 are complete and Active Stages 5-7 are `PENDING`.
 - Historical Phase 0-3 and RC008 evidence remains preserved for unchanged behavior but is not current deployment/data proof.
 - The immutable roster remains exactly 30 foreign plus 30 domestic companies. 人福医药 (`company-humanwell`) and 华北制药 (`company-north-china-pharma`) remain roster members as exact `USER_AUTHORIZED_PHASE1_EXCLUSION` records without job-completeness claims.
-- Immediate next action after document sync: capture the fresh code/test/data/deployment baseline, then implement or verify per-company eligibility and truthful directory states before the two fresh crawl runs.
+- Immediate next action: freeze the verified Stage 3 revision, create its isolated release-candidate database from the verified backup, and execute exactly two fresh Stage 4 crawl rounds before evaluating the 45-company first-launch threshold.

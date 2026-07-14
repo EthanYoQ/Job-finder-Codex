@@ -45,6 +45,7 @@ async function main(): Promise<void> {
     ? await readCrawlSummaryFile(crawlSummaryPath, {
         now,
         maxAgeHours: Number(process.env.CRAWL_SUMMARY_MAX_AGE_HOURS ?? DEFAULT_CRAWL_SUMMARY_MAX_AGE_HOURS),
+        allowIncompleteScheduled: true,
         expectedIdentity
       })
     : { state: "INVALID" as const };

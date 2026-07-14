@@ -6,13 +6,26 @@ import {
 } from "../db/publicationEligibilityRepository";
 import type { CompanyPublicationSnapshot } from "../domain/publicationEligibility";
 
-export interface PrismaJobSearchDb extends PublicationEligibilityDb {
+export interface PrismaJobSearchTransactionDb extends PublicationEligibilityDb {
   job: {
     findMany(args: PrismaLikeJobFindManyArgs): Promise<unknown[]>;
   };
   crawlObservation: {
     findFirst(args: PrismaLikeCrawlObservationFindFirstArgs): Promise<{ crawledAt: Date } | null>;
   };
+}
+
+interface RepeatableReadJobSearchTransactionOptions {
+  isolationLevel: "RepeatableRead";
+  maxWait: number;
+  timeout: number;
+}
+
+export interface PrismaJobSearchDb extends PrismaJobSearchTransactionDb {
+  $transaction?<T>(
+    operation: (transaction: PrismaJobSearchTransactionDb) => Promise<T>,
+    options: RepeatableReadJobSearchTransactionOptions
+  ): Promise<T>;
 }
 
 interface JobRow {
@@ -120,7 +133,22 @@ export async function searchJobsFromDatabase(
   readPublicationSnapshot: PublicationSnapshotReader = getCompanyPublicationSnapshotFromDb
 ): Promise<DatabaseSearchResult> {
   const parsed = SearchRequestSchema.parse(request);
+  if (typeof db.$transaction !== "function") {
+    throw new Error("REPEATABLE_READ_JOB_SEARCH_TRANSACTION_REQUIRED");
+  }
+  return db.$transaction(
+    (transaction) => searchJobsWithinTransaction(parsed, transaction, readPublicationSnapshot),
+    { isolationLevel: "RepeatableRead", maxWait: 5_000, timeout: 10_000 }
+  );
+}
+
+async function searchJobsWithinTransaction(
+  parsed: ReturnType<typeof SearchRequestSchema.parse>,
+  db: PrismaJobSearchTransactionDb,
+  readPublicationSnapshot: PublicationSnapshotReader
+): Promise<DatabaseSearchResult> {
   const snapshot = await readPublicationSnapshot(db);
+  const eligibleCompanyIds = [...new Set(snapshot.eligibleCompanyIds)];
   const eligibleSourceIds = [...new Set(snapshot.eligibleSourceIds)];
 
   if (eligibleSourceIds.length === 0) {
@@ -132,7 +160,7 @@ export async function searchJobsFromDatabase(
     include: { company: true }
   })) as JobRow[];
   const eligibleSourceIdSet = new Set(eligibleSourceIds);
-  const eligibleCompanyIdSet = new Set(snapshot.eligibleCompanyIds);
+  const eligibleCompanyIdSet = new Set(eligibleCompanyIds);
   const jobRows = rawJobRows.filter((row) =>
     eligibleSourceIdSet.has(row.sourceId) && eligibleCompanyIdSet.has(row.companyId)
   );

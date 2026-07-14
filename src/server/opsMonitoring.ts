@@ -5,6 +5,7 @@ export type OpsAlertCode =
   | "BACKUP_FAILED"
   | "BACKUP_STALE"
   | "CRAWL_SUCCESS_BELOW_SLO"
+  | "CRAWL_PARTIAL_COMPANY_RESULTS"
   | "CRAWL_SUMMARY_MISSING"
   | "CRAWL_SUMMARY_INVALID"
   | "CRAWL_SUMMARY_STALE"
@@ -133,6 +134,13 @@ export function evaluateOpsAlerts(input: OpsAlertInput): OpsAlert[] {
       code: "CRAWL_SUCCESS_BELOW_SLO",
       severity: "critical",
       message: `Global crawl success rate fell to ${(globalSuccessRate * 100).toFixed(1)}%.`,
+      metadata: { globalSuccessRate }
+    });
+  } else if (globalSuccessRate !== undefined && globalSuccessRate < 1) {
+    alerts.push({
+      code: "CRAWL_PARTIAL_COMPANY_RESULTS",
+      severity: "warning",
+      message: `Some company sources were unavailable; global crawl success was ${(globalSuccessRate * 100).toFixed(1)}%.`,
       metadata: { globalSuccessRate }
     });
   }

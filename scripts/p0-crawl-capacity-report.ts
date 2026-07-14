@@ -14,7 +14,7 @@ export interface CrawlCapacityInput {
 export interface CrawlCapacityEstimate {
   sourceCount: number;
   estimatedOnePassSeconds: number;
-  estimatedTwiceDailySeconds: number;
+  estimatedDailySeconds: number;
   notes: string[];
 }
 
@@ -27,7 +27,7 @@ export function estimateCrawlCapacity(input: CrawlCapacityInput): CrawlCapacityE
   return {
     sourceCount: input.sourceCount,
     estimatedOnePassSeconds,
-    estimatedTwiceDailySeconds: estimatedOnePassSeconds * 2,
+    estimatedDailySeconds: estimatedOnePassSeconds,
     notes: [
       `HTTP/API sources are estimated in ${httpBatches} batches at concurrency ${input.httpConcurrency}.`,
       `Browser fallback sources are estimated in ${browserBatches} batches at concurrency ${input.browserConcurrency}.`

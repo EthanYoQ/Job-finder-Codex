@@ -29,6 +29,7 @@ const runtimeIdentity = Object.freeze({
 
 const evidenceIdentity = Object.freeze({
   releaseCandidateId: runtimeIdentity.releaseCandidateId,
+  batchKind: runtimeIdentity.batchKind,
   commitSha: runtimeIdentity.commitSha,
   rosterSha256: runtimeIdentity.rosterSha256,
   sourcePlanSha256: runtimeIdentity.sourcePlanSha256,

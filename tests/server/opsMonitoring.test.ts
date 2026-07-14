@@ -79,7 +79,7 @@ describe("ops monitoring alerts", () => {
         now,
         health: { ok: true, statusCode: 200 },
         backup: { latestBackupAt: "2026-07-08T10:00:00.000Z", latestBackupSucceeded: true },
-        crawl: { authorityState: "VALID", attemptState: "SUCCESS", summaryState: "VALID", globalSuccessRate: 0.95, consecutiveFailuresByCompany: { "company-a": 2 } },
+        crawl: { authorityState: "VALID", attemptState: "SUCCESS", summaryState: "VALID", globalSuccessRate: 1, consecutiveFailuresByCompany: { "company-a": 2 } },
         certificate: { expiresAt: "2026-08-20T00:00:00.000Z" },
         resources: { diskUsedPercent: 62, memoryUsedPercent: 58 },
         traffic: { requestsLastHour: 1050, baselineRequestsPerHour: 1000 }
@@ -95,15 +95,34 @@ describe("ops monitoring alerts", () => {
       backup: { latestBackupAt: "2026-07-08T10:00:00.000Z", latestBackupSucceeded: true },
       crawl: {
         authorityState: "VALID",
-        attemptState: "FAILED",
+        attemptState: "SUCCESS",
         summaryState: "VALID",
         globalSuccessRate: 0.98,
         consecutiveFailuresByCompany: { "company-a": 1 }
       }
     }) as OpsAlert[];
 
-    expect(alerts).toContainEqual(expect.objectContaining({ code: "CRAWL_ATTEMPT_FAILED", severity: "warning" }));
+    expect(alerts).toContainEqual(expect.objectContaining({ code: "CRAWL_PARTIAL_COMPANY_RESULTS", severity: "warning" }));
     expect(alerts).not.toContainEqual(expect.objectContaining({ severity: "critical" }));
+  });
+
+  it("keeps a real crawl execution failure distinct from partial company results", async () => {
+    const { evaluateOpsAlerts } = await loadOpsMonitoringModule();
+    const alerts = evaluateOpsAlerts({
+      now,
+      health: { ok: true, statusCode: 200 },
+      backup: { latestBackupAt: "2026-07-08T10:00:00.000Z", latestBackupSucceeded: true },
+      crawl: {
+        authorityState: "VALID",
+        attemptState: "FAILED",
+        summaryState: "VALID",
+        globalSuccessRate: 1,
+        consecutiveFailuresByCompany: {}
+      }
+    }) as OpsAlert[];
+
+    expect(alerts).toContainEqual(expect.objectContaining({ code: "CRAWL_ATTEMPT_FAILED", severity: "warning" }));
+    expect(alerts).not.toContainEqual(expect.objectContaining({ code: "CRAWL_PARTIAL_COMPANY_RESULTS" }));
   });
 
   it.each([

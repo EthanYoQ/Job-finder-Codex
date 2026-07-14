@@ -1,8 +1,9 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import {
   getLaunchReadinessGates,
   redactValue,
   resolveCommandInvocation,
+  runLaunchReadinessCommand,
   runLaunchReadiness
 } from "../../scripts/p0-launch-readiness";
 
@@ -21,9 +22,41 @@ describe("P0 launch readiness aggregator", () => {
       "npm run typecheck",
       "npm run build",
       "npm run prisma:validate",
-      "npm run p0:readiness -- --db",
-      "npm run p0:data-quality -- --db"
+      "npm run p0:staged-readiness -- --mode phase1",
+      "npm run p0:staged-data-quality"
     ]);
+    expect(gateCommands.join("\n")).not.toMatch(/public-beta|p0:readiness|p0:data-quality/);
+  });
+
+  it("rejects launch-readiness arguments instead of accepting a mode or threshold override", async () => {
+    const runCommand = vi.fn();
+    const writes: string[] = [];
+    const result = await runLaunchReadinessCommand(["--mode", "public-beta"], {
+      runCommand,
+      writeLine: (line) => writes.push(line)
+    });
+    expect(result).toEqual({ exitCode: 2 });
+    expect(runCommand).not.toHaveBeenCalled();
+    expect(writes).toEqual(["Usage: npm run p0:launch-readiness"]);
+  });
+
+  it("surfaces the 45-company failure instead of only printing the first command line", async () => {
+    const writes: string[] = [];
+    const result = await runLaunchReadiness({
+      gates: [{
+        name: "Phase 1 staged readiness",
+        command: ["npm", "run", "p0:staged-readiness", "--", "--mode", "phase1"]
+      }],
+      runCommand: async () => ({
+        ok: false,
+        exitCode: 1,
+        stdout: "Mode: PHASE1\nStable companies: 44 / 45\n[FAIL] MINIMUM_STABLE_COMPANIES_NOT_MET: only 44",
+        stderr: ""
+      }),
+      writeLine: (line) => writes.push(line)
+    });
+    expect(result).toEqual({ exitCode: 1 });
+    expect(writes).toContain("stderr: [FAIL] MINIMUM_STABLE_COMPANIES_NOT_MET: only 44");
   });
 
   it("stops on the first failed gate and reports a concise summary", async () => {

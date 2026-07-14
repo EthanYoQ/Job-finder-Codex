@@ -1,15 +1,18 @@
 import { randomUUID } from "node:crypto";
 import { setTimeout as delay } from "node:timers/promises";
 import { spawnSync } from "node:child_process";
-import { nextP0CrawlWindow } from "../src/crawler/schedule";
+import { nextP0SchedulerWindow } from "../src/crawler/schedule";
+import { readLatestCrawlAttemptStartedAt } from "../src/crawler/crawlAttemptEvidence";
 import { runScheduledCrawlWindow } from "../src/crawler/crawlAttemptOrchestration";
 import { resolveStagedCrawlEvidencePaths } from "../src/crawler/stagedCrawlEvidencePaths";
 
 const {attemptDir,summaryPath}=resolveStagedCrawlEvidencePaths();
 
 for(;;){
-  const window=nextP0CrawlWindow(new Date());
-  const wait=Math.max(0,new Date(window.startsAt).getTime()-Date.now());
+  const now=new Date();
+  const latestAttemptStartedAt=await readLatestCrawlAttemptStartedAt(attemptDir);
+  const window=nextP0SchedulerWindow(now,latestAttemptStartedAt);
+  const wait=Math.max(0,new Date(window.startsAt).getTime()-now.getTime());
   console.log(`Next staged crawl window ${window.label} at ${window.startsAt}`);
   await delay(wait);
   const attemptId=randomUUID();

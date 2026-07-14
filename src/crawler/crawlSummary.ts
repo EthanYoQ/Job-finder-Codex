@@ -3,10 +3,10 @@ import { mkdir, open, readFile, rename, unlink } from "node:fs/promises";
 import { basename, dirname, resolve } from "node:path";
 import { toSourceScheduleState, type PersistedCrawlObservationRow } from "../db/crawlStateRepository";
 import type { P0CrawlBatchResult } from "./runCrawlBatch";
-import { validateRuntimeBatchIdentity, type RuntimeBatchIdentity } from "./runtimeBatchIdentity";
+import { validateRuntimeBatchIdentity, type CrawlBatchKind, type RuntimeBatchIdentity } from "./runtimeBatchIdentity";
 
-export const CRAWL_SUMMARY_SCHEMA_VERSION = "p0-crawl-summary-v1" as const;
-export const DEFAULT_CRAWL_SUMMARY_MAX_AGE_HOURS = 14;
+export const CRAWL_SUMMARY_SCHEMA_VERSION = "p0-crawl-summary-v2" as const;
+export const DEFAULT_CRAWL_SUMMARY_MAX_AGE_HOURS = 30;
 
 type SummaryState = "MISSING" | "INVALID" | "STALE" | "VALID";
 type TerminalStatus = P0CrawlBatchResult["status"];
@@ -14,6 +14,7 @@ type TerminalStatus = P0CrawlBatchResult["status"];
 export interface CrawlSummary {
   schemaVersion: typeof CRAWL_SUMMARY_SCHEMA_VERSION;
   releaseCandidateId: string;
+  batchKind: CrawlBatchKind;
   batchId: string | null;
   commitSha: string;
   rosterSha256: string;
@@ -38,6 +39,7 @@ export type CrawlSummaryReadResult =
 
 export interface CrawlEvidenceIdentity {
   releaseCandidateId: string;
+  batchKind: CrawlBatchKind;
   commitSha: string;
   rosterSha256: string;
   sourcePlanSha256: string;
@@ -117,9 +119,61 @@ export async function collectConsecutiveFailuresByCompany(
   return Object.fromEntries([...failures].sort(([left], [right]) => Buffer.compare(Buffer.from(left), Buffer.from(right))));
 }
 
+export interface PersistedTerminalSourceResultRow {
+  id: string;
+  sourceId: string;
+  finishedAt: Date;
+  transportState: "PENDING" | "SUCCEEDED" | "FAILED" | "BLOCKED" | "SKIPPED";
+  adapterState: "PENDING" | "SUCCEEDED" | "FAILED" | "BLOCKED" | "SKIPPED";
+  completenessState: "PENDING" | "VERIFIED" | "NEEDS_MANUAL_COMPLETENESS_REVIEW" | "INCOMPLETE" | "FAILED";
+  atomicCommitState: "PENDING" | "COMMITTED" | "ROLLED_BACK" | "NOT_ATTEMPTED" | "FAILED";
+  failureCode: string | null;
+}
+
+export function collectConsecutiveSourceResultFailuresByCompany(
+  sources: readonly { companyId: string; sourceId: string }[],
+  rows: readonly PersistedTerminalSourceResultRow[]
+): Record<string, number> {
+  const rowsBySource = new Map<string, PersistedTerminalSourceResultRow[]>();
+  for (const row of rows) {
+    if (!sources.some((source) => source.sourceId === row.sourceId)) continue;
+    const existing = rowsBySource.get(row.sourceId) ?? [];
+    existing.push(row);
+    rowsBySource.set(row.sourceId, existing);
+  }
+
+  const failures = new Map<string, number>();
+  for (const source of sources) {
+    const sourceRows = [...(rowsBySource.get(source.sourceId) ?? [])].sort((left, right) =>
+      right.finishedAt.getTime() - left.finishedAt.getTime() || compareUtf8(right.id, left.id));
+    let count = 0;
+    for (const row of sourceRows) {
+      if (row.failureCode === "SOURCE_NOT_DUE") continue;
+      if (isSuccessfulTerminalSourceResult(row)) break;
+      count += 1;
+    }
+    failures.set(source.companyId, Math.max(failures.get(source.companyId) ?? 0, count));
+  }
+  return Object.fromEntries([...failures].sort(([left], [right]) => compareUtf8(left, right)));
+}
+
+function isSuccessfulTerminalSourceResult(row: PersistedTerminalSourceResultRow): boolean {
+  return row.transportState === "SUCCEEDED" && row.adapterState === "SUCCEEDED" &&
+    row.completenessState === "VERIFIED" && row.atomicCommitState === "COMMITTED";
+}
+
+function compareUtf8(left: string, right: string): number {
+  return Buffer.compare(Buffer.from(left), Buffer.from(right));
+}
+
 export async function readCrawlSummaryFile(
   path: string,
-  options: { now: Date; maxAgeHours?: number; expectedIdentity: CrawlEvidenceIdentity }
+  options: {
+    now: Date;
+    maxAgeHours?: number;
+    expectedIdentity: CrawlEvidenceIdentity;
+    allowIncompleteScheduled?: boolean;
+  }
 ): Promise<CrawlSummaryReadResult> {
   let raw: string;
   try {
@@ -140,13 +194,17 @@ export async function readCrawlSummaryFile(
   }
   const summary = parsed as CrawlSummary;
   if (!identitiesEqual(summary, options.expectedIdentity)) return { state: "INVALID" };
-  if (summary.sourceHealthStatus !== "PERSISTED" || summary.terminalStatus !== "SUCCESS" || summary.counters === null) {
+  const safeScheduledIncomplete = options.allowIncompleteScheduled === true &&
+    summary.batchKind === "SCHEDULED" && summary.terminalStatus === "INCOMPLETE" &&
+    summary.counters !== null && summary.counters.atomicFailedSourceCount === 0;
+  if (summary.sourceHealthStatus !== "PERSISTED" ||
+      (summary.terminalStatus !== "SUCCESS" && !safeScheduledIncomplete) || summary.counters === null) {
     return { state: "INVALID" };
   }
   const ageHours = (options.now.getTime() - new Date(summary.finishedAt).getTime()) / 3_600_000;
   if (ageHours < -5 / 60) return { state: "INVALID" };
   const summarySha256 = createHash("sha256").update(raw, "utf8").digest("hex");
-  return ageHours > maxAgeHours ? { state: "STALE", summary, summarySha256 } : { state: "VALID", summary, summarySha256 };
+  return ageHours >= maxAgeHours ? { state: "STALE", summary, summarySha256 } : { state: "VALID", summary, summarySha256 };
 }
 
 interface AtomicHandle {
@@ -270,6 +328,7 @@ export async function runAndPublishCrawlSummary<T extends { batch: P0CrawlBatchR
 function summaryIdentity(identity: RuntimeBatchIdentity) {
   return {
     releaseCandidateId: identity.releaseCandidateId,
+    batchKind: identity.batchKind,
     commitSha: identity.commitSha,
     rosterSha256: identity.rosterSha256,
     sourcePlanSha256: identity.sourcePlanSha256,
@@ -314,6 +373,7 @@ function assertCrawlSummary(value: unknown): asserts value is CrawlSummary {
   if (!hasExactKeys(summary, SUMMARY_KEYS)) throw new Error("Crawl summary root keys are invalid");
   if (summary.schemaVersion !== CRAWL_SUMMARY_SCHEMA_VERSION ||
       typeof summary.releaseCandidateId !== "string" || !summary.releaseCandidateId.trim() ||
+      !["FULL_RELEASE", "SCHEDULED", "MANUAL_SOURCE", "BASELINE"].includes(summary.batchKind ?? "") ||
       typeof summary.commitSha !== "string" || !/^[0-9a-f]{40}$/u.test(summary.commitSha) ||
       ![summary.rosterSha256, summary.sourcePlanSha256, summary.sourceConfigSha256, summary.adapterBundleSha256, summary.plannedSourceSetSha256]
         .every((digest) => typeof digest === "string" && /^[0-9a-f]{64}$/u.test(digest)) ||
@@ -382,7 +442,7 @@ function validateCounters(counters: P0CrawlBatchResult): void {
 }
 
 const SUMMARY_KEYS = [
-  "schemaVersion", "releaseCandidateId", "batchId", "commitSha", "rosterSha256", "sourcePlanSha256",
+  "schemaVersion", "releaseCandidateId", "batchKind", "batchId", "commitSha", "rosterSha256", "sourcePlanSha256",
   "sourceConfigSha256", "adapterBundleSha256", "plannedSourceSetSha256", "plannedSourceCount", "capturedAt",
   "finishedAt", "terminalStatus", "counters", "globalSuccessRate", "sourceHealthStatus",
   "consecutiveFailuresByCompany", "failureCode"
@@ -401,7 +461,7 @@ function isSensitiveKey(key: string): boolean {
 }
 
 function identitiesEqual(actual: CrawlEvidenceIdentity, expected: CrawlEvidenceIdentity): boolean {
-  return (["releaseCandidateId", "commitSha", "rosterSha256", "sourcePlanSha256", "sourceConfigSha256",
+  return (["releaseCandidateId", "batchKind", "commitSha", "rosterSha256", "sourcePlanSha256", "sourceConfigSha256",
     "adapterBundleSha256", "plannedSourceSetSha256", "plannedSourceCount"] as const)
     .every((key) => actual[key] === expected[key]);
 }

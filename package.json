@@ -24,6 +24,8 @@
     "p0:recover-formal-crawl-lock": "tsx scripts/p0-recover-formal-crawl-lock.ts",
     "p0:readiness": "tsx scripts/p0-readiness-report.ts",
     "p0:data-quality": "tsx scripts/p0-data-quality.ts",
+    "p0:staged-readiness": "tsx scripts/p0-staged-readiness.ts",
+    "p0:staged-data-quality": "tsx scripts/p0-staged-data-quality.ts",
     "p0:launch-readiness": "tsx scripts/p0-launch-readiness.ts",
     "browser:smoke": "node scripts/browser-runtime-smoke.mjs",
     "docker:export-provenance": "tsx scripts/export-docker-build-provenance.ts",

@@ -41,8 +41,8 @@ describe("formal compose release authority",()=>{
     expect(compose).toMatch(/scheduler:[\s\S]*command:\s*\["npm",\s*"run",\s*"p0:scheduler"\]/u);
     expect(compose).not.toMatch(/while true; do npm run p0:crawl/u);
     const scheduler=readFileSync("scripts/p0-scheduler.ts","utf8");
-    expect(scheduler).toContain("nextP0CrawlWindow");
-    expect(readFileSync("src/crawler/schedule.ts","utf8")).toContain('["08:00", "20:00"]');
+    expect(scheduler).toContain("nextP0SchedulerWindow");
+    expect(readFileSync("src/crawler/schedule.ts","utf8")).toContain('["00:01"]');
     expect(scheduler).toMatch(/no immediate retry/i);
     expect(readFileSync("src/crawler/formalCrawlLock.ts","utf8")).toContain('open(lockPath,"wx",0o600)');
     expect(readFileSync("scripts/p0-formal-crawl-once.ts","utf8")).toContain('"p0:crawl"');

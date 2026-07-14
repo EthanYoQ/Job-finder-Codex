@@ -1,4 +1,4 @@
-export const P0_CRAWL_WINDOWS = ["08:00", "20:00"] as const;
+export const P0_CRAWL_WINDOWS = ["00:01"] as const;
 
 export type P0CrawlWindowLabel = (typeof P0_CRAWL_WINDOWS)[number];
 
@@ -15,22 +15,32 @@ export interface SourceScheduleState {
 
 const CHINA_UTC_OFFSET_HOURS = 8;
 const CHINA_UTC_OFFSET_MS = CHINA_UTC_OFFSET_HOURS * 60 * 60 * 1000;
-const MORNING_WINDOW_MINUTE = 8 * 60;
-const EVENING_WINDOW_MINUTE = 20 * 60;
+const DAILY_WINDOW_MINUTE = 1;
 const EXPLICIT_TIMEZONE_PATTERN = /(Z|[+-]\d{2}:\d{2})$/i;
 
 export function nextP0CrawlWindow(now: Date): P0CrawlWindow {
   const chinaDate = chinaDateParts(now);
 
-  if (chinaDate.minuteOfDay < MORNING_WINDOW_MINUTE) {
-    return p0WindowForChinaDate(chinaDate, "08:00");
+  if (chinaDate.minuteOfDay < DAILY_WINDOW_MINUTE) {
+    return p0WindowForChinaDate(chinaDate, "00:01");
   }
+  return p0WindowForChinaDate(chinaDate, "00:01", 1);
+}
 
-  if (chinaDate.minuteOfDay < EVENING_WINDOW_MINUTE) {
-    return p0WindowForChinaDate(chinaDate, "20:00");
-  }
+export function nextP0SchedulerWindow(
+  now: Date,
+  latestAttemptStartedAt?: Date
+): P0CrawlWindow {
+  const chinaDate = chinaDateParts(now);
+  const nextWindow = nextP0CrawlWindow(now);
+  if (chinaDate.minuteOfDay < DAILY_WINDOW_MINUTE) return nextWindow;
 
-  return p0WindowForChinaDate(chinaDate, "08:00", 1);
+  const currentWindow = currentP0CrawlWindow(now);
+  const currentWindowStart = timestamp(currentWindow.startsAt);
+  const latestAttemptStart = latestAttemptStartedAt?.getTime() ?? Number.NaN;
+  return Number.isFinite(latestAttemptStart) && latestAttemptStart >= currentWindowStart
+    ? nextWindow
+    : currentWindow;
 }
 
 export function isSourceDueForScheduledRun(
@@ -64,15 +74,10 @@ export function isSourceDueForScheduledRun(
 function currentP0CrawlWindow(now: Date): P0CrawlWindow {
   const chinaDate = chinaDateParts(now);
 
-  if (chinaDate.minuteOfDay >= EVENING_WINDOW_MINUTE) {
-    return p0WindowForChinaDate(chinaDate, "20:00");
+  if (chinaDate.minuteOfDay >= DAILY_WINDOW_MINUTE) {
+    return p0WindowForChinaDate(chinaDate, "00:01");
   }
-
-  if (chinaDate.minuteOfDay >= MORNING_WINDOW_MINUTE) {
-    return p0WindowForChinaDate(chinaDate, "08:00");
-  }
-
-  return p0WindowForChinaDate(chinaDate, "20:00", -1);
+  return p0WindowForChinaDate(chinaDate, "00:01", -1);
 }
 
 function chinaDateParts(date: Date): {
@@ -96,13 +101,12 @@ function p0WindowForChinaDate(
   label: P0CrawlWindowLabel,
   dayOffset = 0
 ): P0CrawlWindow {
-  const chinaHour = label === "08:00" ? 8 : 20;
   const utcTime = Date.UTC(
     chinaDate.year,
     chinaDate.monthIndex,
     chinaDate.day + dayOffset,
-    chinaHour - CHINA_UTC_OFFSET_HOURS,
-    0,
+    -CHINA_UTC_OFFSET_HOURS,
+    1,
     0,
     0
   );

@@ -10,9 +10,12 @@ export type PublicationState =
 
 export type PublicationHealth = "HEALTHY" | "DEGRADED" | "NOT_APPLICABLE";
 
+export const DAILY_PUBLICATION_FRESHNESS_MAXIMUM_MS = 30 * 60 * 60 * 1_000;
+
 export type PublicationReasonCode =
   | "ALL_CURRENT_STAGED_SOURCES_QUALIFIED"
   | "QUALIFIED_BUT_LATEST_WINDOW_UNHEALTHY"
+  | "QUALIFIED_BUT_STALE"
   | "AWAITING_TWO_ADJACENT_SUCCESSES"
   | "CURRENT_CONFIG_HAS_NO_ATTEMPT"
   | "CURRENT_CONFIG_MISMATCH"
@@ -68,12 +71,39 @@ export interface PublicationAttempt {
   adapterState: "PENDING" | "SUCCEEDED" | "FAILED" | "BLOCKED" | "SKIPPED";
   completenessState: "PENDING" | "VERIFIED" | "NEEDS_MANUAL_COMPLETENESS_REVIEW" | "INCOMPLETE" | "FAILED";
   atomicCommitState: "PENDING" | "COMMITTED" | "ROLLED_BACK" | "NOT_ATTEMPTED" | "FAILED";
+  failureCode: string | null;
   dedupeOutputCount: number;
   expectedJobCount: number | null;
   officialEntryId: string | null;
   officialSurfaceIds: readonly string[];
   officialChannelIds: readonly string[];
   observations: readonly PublicationAttemptObservation[];
+}
+
+export interface ScheduledSourceNotDueFacts {
+  batchKind: string | null;
+  finishedAt: Date | null;
+  transportState: string;
+  adapterState: string;
+  completenessState: string;
+  atomicCommitState: string;
+  failureCode: string | null;
+  dedupeOutputCount: number;
+  expectedJobCount: number | null;
+  observations: readonly unknown[];
+}
+
+export function isNeutralScheduledSourceNotDueResult(input: ScheduledSourceNotDueFacts): boolean {
+  return input.batchKind === "SCHEDULED" &&
+    input.finishedAt instanceof Date && Number.isFinite(input.finishedAt.getTime()) &&
+    input.transportState === "SKIPPED" &&
+    input.adapterState === "SKIPPED" &&
+    input.completenessState === "FAILED" &&
+    input.atomicCommitState === "NOT_ATTEMPTED" &&
+    input.failureCode === "SOURCE_NOT_DUE" &&
+    input.dedupeOutputCount === 0 &&
+    input.expectedJobCount === null &&
+    input.observations.length === 0;
 }
 
 export interface SourcePublicationEvaluation {
@@ -112,6 +142,11 @@ export interface CompanyPublicationSnapshot {
   countsByHealth: Record<PublicationHealth, number>;
 }
 
+export interface PublicationFreshnessOptions {
+  currentTime: Date;
+  freshnessMaximumMs: number;
+}
+
 const ALLOWED_BATCH_KINDS = new Set(["FULL_RELEASE", "SCHEDULED", "BASELINE"]);
 const ALLOWED_BATCH_STATUSES = new Set(["RUNNING", "INCOMPLETE", "ABORTED", "SUCCESS", "FAILED"]);
 const REQUIRED_POSITIVE_FIELDS = ["COMPANY", "TITLE", "OFFICIAL_URL", "LOCATION"] as const;
@@ -132,8 +167,17 @@ function assertSupportedBatchStatus(attempt: PublicationAttempt): void {
   }
 }
 
-function isInFlightAttempt(attempt: PublicationAttempt): boolean {
-  return attempt.batchStatus === "RUNNING";
+function isInFlightAttempt(
+  attempt: PublicationAttempt,
+  currentSource: CurrentStagedPublicationSource
+): boolean {
+  if (attempt.batchStatus !== "RUNNING") return false;
+  if (attempt.finishedAt === null) return true;
+  return isQualifyingPublicationAttempt({
+    ...attempt,
+    batchStatus: "SUCCESS",
+    batchFinishedAt: attempt.finishedAt
+  }, currentSource);
 }
 
 function isNonnegativeInteger(value: number): boolean {
@@ -147,6 +191,7 @@ export function isQualifyingPublicationAttempt(
   assertSupportedBatchKind(attempt);
   assertSupportedBatchStatus(attempt);
   if (
+    attempt.batchKind !== "SCHEDULED" ||
     attempt.sourceId !== currentSource.sourceId ||
     attempt.sourceConfigHash !== currentSource.currentConfigSha256 ||
     attempt.batchStatus === "RUNNING" ||
@@ -155,6 +200,7 @@ export function isQualifyingPublicationAttempt(
     attempt.transportState !== "SUCCEEDED" ||
     attempt.adapterState !== "SUCCEEDED" ||
     attempt.atomicCommitState !== "COMMITTED" ||
+    attempt.failureCode !== null ||
     !isNonnegativeInteger(attempt.dedupeOutputCount) ||
     (attempt.expectedJobCount !== null && !isNonnegativeInteger(attempt.expectedJobCount)) ||
     attempt.observations.length !== 1
@@ -183,19 +229,8 @@ export function isQualifyingPublicationAttempt(
   const outputCount = attempt.dedupeOutputCount;
   const complete = attempt.completenessState === "VERIFIED" &&
     observation.completenessVerified === true && observation.completenessStatus === "VERIFIED";
-  const partial = (attempt.completenessState === "INCOMPLETE" ||
-      attempt.completenessState === "NEEDS_MANUAL_COMPLETENESS_REVIEW") &&
-    observation.completenessVerified === false &&
-    observation.completenessStatus === attempt.completenessState &&
-    attempt.officialSurfaceIds.length > 0 && attempt.officialChannelIds.length > 0 &&
-    attempt.officialSurfaceIds.every((value) => value.trim() !== "") &&
-    attempt.officialChannelIds.every((value) => value.trim() !== "") &&
-    new Set(attempt.officialSurfaceIds).size === attempt.officialSurfaceIds.length &&
-    new Set(attempt.officialChannelIds).size === attempt.officialChannelIds.length;
-  if (!complete && !partial) return false;
-  if (complete && attempt.expectedJobCount !== null && outputCount !== attempt.expectedJobCount) return false;
-  if (partial && (outputCount === 0 ||
-      (attempt.expectedJobCount !== null && attempt.expectedJobCount < outputCount))) return false;
+  if (!complete) return false;
+  if (attempt.expectedJobCount !== null && outputCount !== attempt.expectedJobCount) return false;
   if (outputCount === 0) return complete && attempt.expectedJobCount === 0;
 
   const stableFields = new Set(observation.stableRequiredFields);
@@ -217,6 +252,19 @@ function maxDate(values: readonly (Date | null)[]): Date | null {
   return latest;
 }
 
+function isFreshSuccess(lastSuccessAt: Date | null, options: PublicationFreshnessOptions): boolean {
+  if (lastSuccessAt === null) return false;
+  const ageMs = options.currentTime.getTime() - lastSuccessAt.getTime();
+  return ageMs >= 0 && ageMs < options.freshnessMaximumMs;
+}
+
+function assertFreshnessOptions(options: PublicationFreshnessOptions): void {
+  if (!Number.isFinite(options.currentTime.getTime())) throw new Error("INVALID_PUBLICATION_CURRENT_TIME");
+  if (!Number.isSafeInteger(options.freshnessMaximumMs) || options.freshnessMaximumMs <= 0) {
+    throw new Error("INVALID_PUBLICATION_FRESHNESS_MAXIMUM");
+  }
+}
+
 export function evaluateSourcePublicationEligibility(
   currentSource: CurrentStagedPublicationSource,
   attempts: readonly PublicationAttempt[]
@@ -235,7 +283,8 @@ export function evaluateSourcePublicationEligibility(
 
   const completedAttempts = [...attempts]
     .sort(compareAttempts)
-    .filter((attempt) => !isInFlightAttempt(attempt));
+    .filter((attempt) => !isNeutralScheduledSourceNotDueResult(attempt))
+    .filter((attempt) => !isInFlightAttempt(attempt, currentSource));
   const qualifying = completedAttempts.map((attempt) =>
     isQualifyingPublicationAttempt(attempt, currentSource)
   );
@@ -328,8 +377,10 @@ function aggregateVerifyingReason(evaluations: readonly SourcePublicationEvaluat
 export function evaluateCompanyPublicationState(
   company: CandidateCompany,
   currentSources: readonly CurrentStagedPublicationSource[],
-  sourceEvaluations: readonly SourcePublicationEvaluation[]
+  sourceEvaluations: readonly SourcePublicationEvaluation[],
+  freshness?: PublicationFreshnessOptions
 ): CompanyPublicationRecord {
+  if (freshness) assertFreshnessOptions(freshness);
   const orderedSources = [...currentSources].sort((left, right) => compareUtf8(left.sourceId, right.sourceId));
   if (orderedSources.some(({ companyId }) => companyId !== company.id)) {
     throw new Error(`PUBLICATION_SOURCE_COMPANY_TUPLE_DRIFT:${company.id}`);
@@ -379,18 +430,26 @@ export function evaluateCompanyPublicationState(
     const allQualified = allOfficialSourcesStaged && orderedEvaluations.every((evaluation) =>
       evaluation.hasQualifiedCurrentConfig && evaluation.qualifiedAt !== null
     );
+    const allHealthy = allQualified && orderedEvaluations.every(({ latestWindowHealthy }) => latestWindowHealthy);
+    const allFresh = allQualified && (!freshness || orderedEvaluations.every(({ lastSuccessAt: sourceLastSuccessAt }) =>
+      isFreshSuccess(sourceLastSuccessAt, freshness)
+    ));
     if (!allOfficialSourcesStaged) {
       state = "VERIFYING";
       reasonCode = "OFFICIAL_ENTRY_NOT_AUTOMATED";
-    } else if (allQualified) {
+    } else if (allHealthy && allFresh) {
       state = "PUBLISHING";
       eligibleSourceIds = [...stagedSourceIds];
       qualifiedAt = maxDate(orderedEvaluations.map(({ qualifiedAt: sourceQualifiedAt }) => sourceQualifiedAt));
-      const allHealthy = orderedEvaluations.every(({ latestWindowHealthy }) => latestWindowHealthy);
-      health = allHealthy ? "HEALTHY" : "DEGRADED";
-      reasonCode = allHealthy
-        ? "ALL_CURRENT_STAGED_SOURCES_QUALIFIED"
-        : "QUALIFIED_BUT_LATEST_WINDOW_UNHEALTHY";
+      health = "HEALTHY";
+      reasonCode = "ALL_CURRENT_STAGED_SOURCES_QUALIFIED";
+    } else if (allQualified) {
+      state = "VERIFYING";
+      health = "DEGRADED";
+      qualifiedAt = maxDate(orderedEvaluations.map(({ qualifiedAt: sourceQualifiedAt }) => sourceQualifiedAt));
+      reasonCode = !allHealthy
+        ? "QUALIFIED_BUT_LATEST_WINDOW_UNHEALTHY"
+        : "QUALIFIED_BUT_STALE";
     } else {
       state = "VERIFYING";
       reasonCode = aggregateVerifyingReason(orderedEvaluations);
@@ -424,8 +483,10 @@ export function evaluateCompanyPublicationState(
 export function buildCompanyPublicationSnapshot(
   companies: readonly CandidateCompany[],
   currentSources: readonly CurrentStagedPublicationSource[],
-  attempts: readonly PublicationAttempt[]
+  attempts: readonly PublicationAttempt[],
+  freshness?: PublicationFreshnessOptions
 ): CompanyPublicationSnapshot {
+  if (freshness) assertFreshnessOptions(freshness);
   const companyIds = new Set<string>();
   for (const company of companies) {
     if (companyIds.has(company.id)) throw new Error(`DUPLICATE_PUBLICATION_COMPANY:${company.id}`);
@@ -451,7 +512,7 @@ export function buildCompanyPublicationSnapshot(
   const records = companies.map((company) => {
     const sources = currentSources.filter(({ companyId }) => companyId === company.id);
     const evaluations = sources.map(({ sourceId }) => evaluationsBySourceId.get(sourceId)!);
-    return evaluateCompanyPublicationState(company, sources, evaluations);
+    return evaluateCompanyPublicationState(company, sources, evaluations, freshness);
   }).sort((left, right) =>
     compareUtf8(left.pinyinName, right.pinyinName) || compareUtf8(left.companyId, right.companyId)
   );
@@ -476,7 +537,7 @@ export function buildCompanyPublicationSnapshot(
   return {
     companies: records,
     eligibleCompanyIds: records
-      .filter(({ state }) => state === "PUBLISHING")
+      .filter(({ state, health }) => state === "PUBLISHING" && health === "HEALTHY")
       .map(({ companyId }) => companyId)
       .sort(compareUtf8),
     eligibleSourceIds: [...new Set(records.flatMap(({ eligibleSourceIds }) => eligibleSourceIds))].sort(compareUtf8),

@@ -4,12 +4,14 @@ import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 import {
   buildCrawlAttemptEvent,
+  readLatestCrawlAttemptStartedAt,
   readLatestCrawlAttempt,
   writeCrawlAttemptEvent
 } from "../../src/crawler/crawlAttemptEvidence";
 
 const expectedIdentity = {
   releaseCandidateId: "rc-attempt",
+  batchKind: "SCHEDULED" as const,
   commitSha: "1".repeat(40),
   rosterSha256: "2".repeat(64),
   sourcePlanSha256: "3".repeat(64),
@@ -83,6 +85,7 @@ describe("crawl attempt execution evidence", () => {
       now: new Date("2026-07-12T09:01:00Z"), expectedIdentity: { ...expectedIdentity, plannedSourceCount: 3 },
       expectedCanonicalSummary: { batchId: "batch-1", summarySha256: "a".repeat(64) }
     })).resolves.toEqual({ state: "INVALID" });
+    await expect(readLatestCrawlAttemptStartedAt(root)).resolves.toEqual(new Date("2026-07-12T08:00:00.000Z"));
   });
 
   it("selects the newest attempt deterministically so a concurrent loser cannot overwrite canonical truth", async () => {

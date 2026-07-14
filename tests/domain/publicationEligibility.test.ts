@@ -45,6 +45,7 @@ function attempt(index: number, overrides: AttemptOverrides = {}): PublicationAt
     adapterState: "SUCCEEDED",
     completenessState: "VERIFIED",
     atomicCommitState: "COMMITTED",
+    failureCode: null,
     dedupeOutputCount: 2,
     expectedJobCount: 2,
     officialEntryId: null,
@@ -132,6 +133,12 @@ describe("publication attempt qualification", () => {
     expect(isQualifyingPublicationAttempt(attempt(1, { batchStatus: "INCOMPLETE" }), currentSource())).toBe(true);
   });
 
+  it("uses scheduled refreshes rather than baseline or manual full-release runs for auto-publication", () => {
+    expect(isQualifyingPublicationAttempt(attempt(1, { batchKind: "SCHEDULED" }), currentSource())).toBe(true);
+    expect(isQualifyingPublicationAttempt(attempt(1, { batchKind: "BASELINE" }), currentSource())).toBe(false);
+    expect(isQualifyingPublicationAttempt(attempt(1, { batchKind: "FULL_RELEASE" }), currentSource())).toBe(false);
+  });
+
   it.each([
     ["transport", { transportState: "FAILED" }],
     ["adapter", { adapterState: "FAILED" }],
@@ -202,18 +209,14 @@ describe("publication attempt qualification", () => {
     }), currentSource())).toBe(false);
   });
 
-  it("accepts a positive official partial result without making a completeness claim", () => {
-    expect(isQualifyingPublicationAttempt(partialAttempt(1), currentSource())).toBe(true);
+  it("rejects incomplete or manual-review results even when they contain official jobs", () => {
+    expect(isQualifyingPublicationAttempt(partialAttempt(1), currentSource())).toBe(false);
     expect(isQualifyingPublicationAttempt(partialAttempt(1, {
-      dedupeOutputCount: 0,
-      expectedJobCount: null,
-      observation: { structuredJobCount: 0, expectedJobCount: null }
-    }), currentSource())).toBe(false);
-    expect(isQualifyingPublicationAttempt(partialAttempt(1, {
-      officialSurfaceIds: []
-    }), currentSource())).toBe(false);
-    expect(isQualifyingPublicationAttempt(partialAttempt(1, {
-      officialChannelIds: []
+      completenessState: "NEEDS_MANUAL_COMPLETENESS_REVIEW",
+      observation: {
+        completenessVerified: false,
+        completenessStatus: "NEEDS_MANUAL_COMPLETENESS_REVIEW"
+      }
     }), currentSource())).toBe(false);
   });
 });
@@ -235,14 +238,14 @@ describe("source publication sequence", () => {
     ).hasQualifiedCurrentConfig).toBe(false);
   });
 
-  it("qualifies two adjacent positive official partial refreshes", () => {
+  it("does not qualify two adjacent incomplete official refreshes", () => {
     expect(evaluateSourcePublicationEligibility(
       currentSource(),
       [partialAttempt(1), partialAttempt(2)]
     )).toMatchObject({
-      hasQualifiedCurrentConfig: true,
-      latestWindowHealthy: true,
-      reasonCode: "ALL_CURRENT_STAGED_SOURCES_QUALIFIED"
+      hasQualifiedCurrentConfig: false,
+      latestWindowHealthy: false,
+      reasonCode: "LATEST_ATTEMPT_FAILED"
     });
   });
 
@@ -300,13 +303,38 @@ describe("source publication sequence", () => {
     }]).latestWindowHealthy).toBe(true);
   });
 
-  it("ignores every RUNNING batch even when a source result has already become terminal", () => {
-    const runningSuccess = attempt(1, { batchStatus: "RUNNING", batchFinishedAt: null });
+  it("keeps a terminal success in a RUNNING batch in-flight but applies a terminal failure immediately", () => {
+    const runningSuccess = attempt(3, { batchStatus: "RUNNING", batchFinishedAt: null });
     const runningFailure = failedAttempt(3, { batchStatus: "RUNNING", batchFinishedAt: null });
-    expect(evaluateSourcePublicationEligibility(currentSource(), [runningSuccess, attempt(3)]))
-      .toMatchObject({ hasQualifiedCurrentConfig: false, latestWindowHealthy: false });
-    expect(evaluateSourcePublicationEligibility(currentSource(), [attempt(1), attempt(2), runningFailure]))
+    expect(evaluateSourcePublicationEligibility(currentSource(), [attempt(1), attempt(2), runningSuccess]))
       .toMatchObject({ hasQualifiedCurrentConfig: true, latestWindowHealthy: true });
+    expect(evaluateSourcePublicationEligibility(currentSource(), [attempt(1), attempt(2), runningFailure]))
+      .toMatchObject({ hasQualifiedCurrentConfig: true, latestWindowHealthy: false });
+  });
+
+  it("ignores a canonical SOURCE_NOT_DUE row instead of revoking an independently healthy company", () => {
+    const notDue = attempt(3, {
+      batchStatus: "INCOMPLETE",
+      transportState: "SKIPPED",
+      adapterState: "SKIPPED",
+      completenessState: "FAILED",
+      atomicCommitState: "NOT_ATTEMPTED",
+      dedupeOutputCount: 0,
+      expectedJobCount: null,
+      observation: null,
+      failureCode: "SOURCE_NOT_DUE"
+    } as unknown as AttemptOverrides);
+    expect(evaluateSourcePublicationEligibility(currentSource(), [attempt(1), attempt(2), notDue]))
+      .toMatchObject({
+        hasQualifiedCurrentConfig: true,
+        latestWindowHealthy: true,
+        lastAttemptAt: attempt(2).finishedAt,
+        lastSuccessAt: attempt(2).finishedAt
+      });
+
+    const malformedNotDue = { ...notDue, transportState: "FAILED" as const };
+    expect(evaluateSourcePublicationEligibility(currentSource(), [attempt(1), attempt(2), malformedNotDue]))
+      .toMatchObject({ hasQualifiedCurrentConfig: true, latestWindowHealthy: false });
   });
 
   it("keeps a terminal batch with missing finish or pending source result as a breaking failure", () => {
@@ -403,7 +431,7 @@ describe("company publication state", () => {
     });
   });
 
-  it("uses an all-sources rule and retains all eligible ids when health degrades", () => {
+  it("uses an all-sources rule and suspends every eligible id when health degrades", () => {
     const sources = [currentSource("source-a"), currentSource("source-b")];
     const onlyA = [attempt(1, { sourceId: "source-a" }), attempt(2, { sourceId: "source-a" })];
     expect(buildCompanyPublicationSnapshot([company()], sources, onlyA).companies[0]).toMatchObject({
@@ -423,16 +451,69 @@ describe("company publication state", () => {
       stagedSourceIds: ["source-a", "source-b"],
       eligibleSourceIds: ["source-a", "source-b"]
     });
-    const degraded = buildCompanyPublicationSnapshot(
+    const degradedSnapshot = buildCompanyPublicationSnapshot(
       [company()],
       sources,
       [...both, failedAttempt(5, { sourceId: "source-a" })]
-    ).companies[0]!;
+    );
+    const degraded = degradedSnapshot.companies[0]!;
     expect(degraded).toMatchObject({
-      state: "PUBLISHING",
+      state: "VERIFYING",
       health: "DEGRADED",
+      eligibleSourceIds: [],
+      reasonCode: "QUALIFIED_BUT_LATEST_WINDOW_UNHEALTHY"
+    });
+    expect(degradedSnapshot.eligibleCompanyIds).toEqual([]);
+    expect(degradedSnapshot.eligibleSourceIds).toEqual([]);
+
+    const oneRecovery = buildCompanyPublicationSnapshot(
+      [company()],
+      sources,
+      [...both, failedAttempt(5, { sourceId: "source-a" }), attempt(6, { sourceId: "source-a" })]
+    ).companies[0]!;
+    expect(oneRecovery).toMatchObject({ state: "VERIFYING", health: "DEGRADED", eligibleSourceIds: [] });
+
+    const recovered = buildCompanyPublicationSnapshot(
+      [company()],
+      sources,
+      [
+        ...both,
+        failedAttempt(5, { sourceId: "source-a" }),
+        attempt(6, { sourceId: "source-a" }),
+        attempt(7, { sourceId: "source-a" })
+      ]
+    ).companies[0]!;
+    expect(recovered).toMatchObject({
+      state: "PUBLISHING",
+      health: "HEALTHY",
       eligibleSourceIds: ["source-a", "source-b"]
     });
+  });
+
+  it("suspends public jobs at the 30-hour daily freshness boundary", () => {
+    const source = currentSource();
+    const attempts = [attempt(1), attempt(2)];
+    const latestSuccess = attempt(2).finishedAt!;
+    const freshnessMaximumMs = 30 * 60 * 60 * 1_000;
+
+    const fresh = buildCompanyPublicationSnapshot([company()], [source], attempts, {
+      currentTime: new Date(latestSuccess.getTime() + freshnessMaximumMs - 1),
+      freshnessMaximumMs
+    });
+    expect(fresh.companies[0]).toMatchObject({ state: "PUBLISHING", health: "HEALTHY" });
+
+    const stale = buildCompanyPublicationSnapshot([company()], [source], attempts, {
+      currentTime: new Date(latestSuccess.getTime() + freshnessMaximumMs),
+      freshnessMaximumMs
+    });
+    expect(stale.companies[0]).toMatchObject({
+      state: "VERIFYING",
+      health: "DEGRADED",
+      eligibleSourceIds: [],
+      reasonCode: "QUALIFIED_BUT_STALE"
+    });
+    expect(stale.eligibleCompanyIds).toEqual([]);
+    expect(stale.eligibleSourceIds).toEqual([]);
   });
 
   it("applies exclusion, no-link, official-link-only, then verifying priority", () => {

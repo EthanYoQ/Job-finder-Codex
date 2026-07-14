@@ -5,9 +5,11 @@ import { posix, resolve } from "node:path";
 import { describe, expect, it, vi } from "vitest";
 import {
   CRAWL_SUMMARY_SCHEMA_VERSION,
+  DEFAULT_CRAWL_SUMMARY_MAX_AGE_HOURS,
   buildExceptionalCrawlSummary,
   buildTerminalCrawlSummary,
   collectConsecutiveFailuresByCompany,
+  collectConsecutiveSourceResultFailuresByCompany,
   crawlSummaryTemporaryPath,
   readCrawlSummaryFile,
   runAndPublishCrawlSummary,
@@ -22,7 +24,7 @@ const identity = {
   sourcePlanSha256: "3".repeat(64),
   sourceConfigSha256: "4".repeat(64),
   adapterBundleSha256: "5".repeat(64),
-  batchKind: "FULL_RELEASE" as const,
+  batchKind: "SCHEDULED" as const,
   ownerId: "formal-crawler",
   expectedPlannedSourceIds: ["source-a", "source-b"],
   expectedPlannedSourceSetSha256: createHash("sha256")
@@ -59,6 +61,7 @@ const successBatch: P0CrawlBatchResult = {
 };
 const expectedIdentity = {
   releaseCandidateId: identity.releaseCandidateId,
+  batchKind: identity.batchKind,
   commitSha: identity.commitSha,
   rosterSha256: identity.rosterSha256,
   sourcePlanSha256: identity.sourcePlanSha256,
@@ -69,6 +72,26 @@ const expectedIdentity = {
 };
 
 describe("versioned crawl summary", () => {
+  it("uses a 30-hour daily freshness window and expires at the exact boundary", async () => {
+    expect(DEFAULT_CRAWL_SUMMARY_MAX_AGE_HOURS).toBe(30);
+    const root = mkdtempSync(resolve(tmpdir(), "job-finder-crawl-summary-daily-freshness-"));
+    const path = resolve(root, "crawl-summary.json");
+    const now = new Date("2026-07-15T12:00:00.000Z");
+    const atBoundary = buildTerminalCrawlSummary({
+      identity,
+      batch: successBatch,
+      capturedAt: new Date(now.getTime() - 30 * 60 * 60 * 1_000 - 60_000),
+      finishedAt: new Date(now.getTime() - 30 * 60 * 60 * 1_000),
+      consecutiveFailuresByCompany: {}
+    });
+    writeFileSync(path, JSON.stringify(atBoundary), "utf8");
+    await expect(readCrawlSummaryFile(path, { now, expectedIdentity })).resolves.toMatchObject({ state: "STALE" });
+
+    const justFresh = { ...atBoundary, finishedAt: new Date(now.getTime() - 30 * 60 * 60 * 1_000 + 1).toISOString() };
+    writeFileSync(path, JSON.stringify(justFresh), "utf8");
+    await expect(readCrawlSummaryFile(path, { now, expectedIdentity })).resolves.toMatchObject({ state: "VALID" });
+  });
+
   it("builds identity-bound metrics only from a real batch result and persisted source observations", async () => {
     const failures = await collectConsecutiveFailuresByCompany(
       [
@@ -112,7 +135,35 @@ describe("versioned crawl summary", () => {
     });
   });
 
-  it("classifies missing, malformed, unsupported, incomplete, and stale files fail closed", async () => {
+  it("counts pre-observation transport and adapter failures from terminal source results", () => {
+    const failures = collectConsecutiveSourceResultFailuresByCompany(
+      [
+        { companyId: "company-a", sourceId: "source-a" },
+        { companyId: "company-b", sourceId: "source-b" }
+      ],
+      [
+        { id: "a-3", sourceId: "source-a", finishedAt: new Date("2026-07-15T00:03:00Z"),
+          transportState: "FAILED", adapterState: "SKIPPED", completenessState: "FAILED",
+          atomicCommitState: "NOT_ATTEMPTED", failureCode: "SOURCE_TRANSPORT_FAILED" },
+        { id: "a-skip", sourceId: "source-a", finishedAt: new Date("2026-07-15T00:02:00Z"),
+          transportState: "SKIPPED", adapterState: "SKIPPED", completenessState: "FAILED",
+          atomicCommitState: "NOT_ATTEMPTED", failureCode: "SOURCE_NOT_DUE" },
+        { id: "a-2", sourceId: "source-a", finishedAt: new Date("2026-07-14T00:03:00Z"),
+          transportState: "SUCCEEDED", adapterState: "FAILED", completenessState: "FAILED",
+          atomicCommitState: "NOT_ATTEMPTED", failureCode: "SOURCE_ADAPTER_FAILED" },
+        { id: "a-1", sourceId: "source-a", finishedAt: new Date("2026-07-13T00:03:00Z"),
+          transportState: "SUCCEEDED", adapterState: "SUCCEEDED", completenessState: "VERIFIED",
+          atomicCommitState: "COMMITTED", failureCode: null },
+        { id: "b-1", sourceId: "source-b", finishedAt: new Date("2026-07-15T00:03:00Z"),
+          transportState: "SUCCEEDED", adapterState: "SUCCEEDED", completenessState: "VERIFIED",
+          atomicCommitState: "COMMITTED", failureCode: null }
+      ]
+    );
+
+    expect(failures).toEqual({ "company-a": 2, "company-b": 0 });
+  });
+
+  it("classifies missing, malformed, unsupported, unsafe incomplete, and stale files fail closed", async () => {
     const root = mkdtempSync(resolve(tmpdir(), "job-finder-crawl-summary-"));
     const path = resolve(root, "crawl-summary.json");
     const now = new Date("2026-07-13T00:00:00Z");
@@ -157,6 +208,37 @@ describe("versioned crawl summary", () => {
     });
     writeFileSync(path, JSON.stringify(incomplete), "utf8");
     await expect(readCrawlSummaryFile(path, options)).resolves.toEqual({ state: "INVALID" });
+    await expect(readCrawlSummaryFile(path, { ...options, allowIncompleteScheduled: true }))
+      .resolves.toMatchObject({ state: "VALID", summary: { terminalStatus: "INCOMPLETE" } });
+
+    const unsafeIncomplete = {
+      ...incomplete,
+      counters: {
+        ...incomplete.counters!,
+        atomicCommittedSourceCount: 1,
+        atomicFailedSourceCount: 1,
+        failedSourceCount: 1,
+        blockedSourceCount: 0
+      }
+    };
+    writeFileSync(path, JSON.stringify(unsafeIncomplete), "utf8");
+    await expect(readCrawlSummaryFile(path, { ...options, allowIncompleteScheduled: true }))
+      .resolves.toEqual({ state: "INVALID" });
+
+    const strictIdentity = { ...identity, batchKind: "FULL_RELEASE" as const };
+    const strictIncomplete = buildTerminalCrawlSummary({
+      identity: strictIdentity,
+      batch,
+      capturedAt: new Date("2026-07-12T23:00:00Z"),
+      finishedAt: new Date("2026-07-12T23:30:00Z"),
+      consecutiveFailuresByCompany: {}
+    });
+    writeFileSync(path, JSON.stringify(strictIncomplete), "utf8");
+    await expect(readCrawlSummaryFile(path, {
+      ...options,
+      expectedIdentity: { ...expectedIdentity, batchKind: "FULL_RELEASE" },
+      allowIncompleteScheduled: true
+    })).resolves.toEqual({ state: "INVALID" });
 
     const exceptional = buildExceptionalCrawlSummary({
       identity,

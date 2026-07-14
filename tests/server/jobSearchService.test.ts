@@ -9,7 +9,7 @@ function dbReturning(
   rows: unknown[],
   lastUpdatedAt = new Date("2026-07-08T00:00:00.000Z")
 ): PrismaJobSearchDb {
-  return {
+  const transactionClient = {
     job: {
       findMany: vi.fn(() => Promise.resolve(rows))
     },
@@ -19,6 +19,10 @@ function dbReturning(
     crawlBatchSourceResult: {
       findMany: vi.fn(async () => [])
     }
+  };
+  return {
+    ...transactionClient,
+    $transaction: vi.fn(async (operation, _options) => operation(transactionClient))
   };
 }
 
@@ -436,7 +440,7 @@ describe("searchJobsFromDatabase", () => {
     expect(result.companies.map((company) => company.companyName)).toEqual(["阿斯利康", "百济神州", "泽塔制药"]);
   });
 
-  it("queries and returns only the current publication snapshot's eligible sources", async () => {
+  it("updates one independently eligible company without a runtime global company-count gate", async () => {
     const eligible = publicationRecord({
       companyId: "company-a",
       sourceId: "source-eligible",
@@ -462,7 +466,13 @@ describe("searchJobsFromDatabase", () => {
     );
 
     expect(readSnapshot).toHaveBeenCalledTimes(1);
-    expect(readSnapshot).toHaveBeenCalledWith(db);
+    expect(readSnapshot).toHaveBeenCalledWith(expect.not.objectContaining({ $transaction: expect.any(Function) }));
+    expect(db.$transaction).toHaveBeenCalledTimes(1);
+    expect(db.$transaction).toHaveBeenCalledWith(expect.any(Function), {
+      isolationLevel: "RepeatableRead",
+      maxWait: 5_000,
+      timeout: 10_000
+    });
     expect(db.job.findMany).toHaveBeenCalledWith(expect.objectContaining({
       where: expect.objectContaining({ sourceId: { in: ["source-eligible"] } })
     }));
@@ -479,5 +489,15 @@ describe("searchJobsFromDatabase", () => {
 
     expect(db.job.findMany).not.toHaveBeenCalled();
     expect(result).toEqual({ companies: [], totalJobs: 0, lastUpdatedAt: null });
+  });
+
+  it("fails closed when the database cannot provide a repeatable-read transaction", async () => {
+    const db = dbReturning(rows);
+    delete db.$transaction;
+
+    await expect(searchWithSnapshot({ city: "北京", categories: [] }, db)).rejects.toThrow(
+      "REPEATABLE_READ_JOB_SEARCH_TRANSACTION_REQUIRED"
+    );
+    expect(db.job.findMany).not.toHaveBeenCalled();
   });
 });

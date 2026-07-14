@@ -2,12 +2,14 @@ import { randomUUID } from "node:crypto";
 import { constants } from "node:fs";
 import { link, lstat, mkdir, open, readdir, unlink } from "node:fs/promises";
 import { resolve } from "node:path";
+import type { CrawlBatchKind } from "./runtimeBatchIdentity";
 
-export const CRAWL_ATTEMPT_SCHEMA_VERSION = "p0-crawl-attempt-v1" as const;
+export const CRAWL_ATTEMPT_SCHEMA_VERSION = "p0-crawl-attempt-v2" as const;
 export const DEFAULT_CRAWL_ATTEMPT_MAX_RUNNING_AGE_HOURS = 2;
 
 export interface CrawlEvidenceIdentity {
   releaseCandidateId: string;
+  batchKind: CrawlBatchKind;
   commitSha: string;
   rosterSha256: string;
   sourcePlanSha256: string;
@@ -56,7 +58,7 @@ const ROOT_KEYS = [
   "identity", "schemaVersion", "startedAt", "state"
 ].sort();
 const IDENTITY_KEYS = [
-  "adapterBundleSha256", "commitSha", "plannedSourceCount", "plannedSourceSetSha256",
+  "adapterBundleSha256", "batchKind", "commitSha", "plannedSourceCount", "plannedSourceSetSha256",
   "releaseCandidateId", "rosterSha256", "sourceConfigSha256", "sourcePlanSha256"
 ].sort();
 const AUTHORITY_KEYS = ["advisoryLockAcquired", "fileLockAcquired"].sort();
@@ -202,6 +204,28 @@ export async function readLatestCrawlAttempt(directory: string, options: {
   return { state: ageHours > maxAge ? "STALE" : "RUNNING" };
 }
 
+export async function readLatestCrawlAttemptStartedAt(directory: string): Promise<Date | undefined> {
+  let names: string[];
+  try {
+    names = await readdir(resolve(directory));
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") return undefined;
+    throw error;
+  }
+
+  let latestTimestamp: number | undefined;
+  for (const name of names) {
+    const match = /^(\d+)__[A-Za-z0-9._-]{1,128}__(?:RUNNING|SUCCESS|FAILED)\.json$/u.exec(name);
+    if (!match) throw new Error("Unexpected crawl attempt directory entry");
+    const timestamp = Number(match[1]);
+    if (!Number.isSafeInteger(timestamp) || timestamp < 0 || Number.isNaN(new Date(timestamp).getTime())) {
+      throw new Error("Crawl attempt filename timestamp is invalid");
+    }
+    latestTimestamp = latestTimestamp === undefined ? timestamp : Math.max(latestTimestamp, timestamp);
+  }
+  return latestTimestamp === undefined ? undefined : new Date(latestTimestamp);
+}
+
 function eventFileName(event: CrawlAttemptEvent): string {
   return `${Date.parse(event.startedAt)}__${event.attemptId}__${event.state}.json`;
 }
@@ -234,6 +258,7 @@ function isIdentity(value: unknown): value is CrawlEvidenceIdentity {
   if (!isPlainObject(value) || !sameKeys(value, IDENTITY_KEYS)) return false;
   const identity = value as unknown as CrawlEvidenceIdentity;
   return typeof identity.releaseCandidateId === "string" && identity.releaseCandidateId.trim().length > 0 &&
+    ["FULL_RELEASE", "SCHEDULED", "MANUAL_SOURCE", "BASELINE"].includes(identity.batchKind) &&
     /^[0-9a-f]{40}$/u.test(identity.commitSha) &&
     [identity.rosterSha256, identity.sourcePlanSha256, identity.sourceConfigSha256,
       identity.adapterBundleSha256, identity.plannedSourceSetSha256].every((digest) => /^[0-9a-f]{64}$/u.test(digest)) &&

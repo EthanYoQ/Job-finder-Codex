@@ -39,7 +39,7 @@ const IDENTITY = Object.freeze({
   expectedPlannedSourceCount: 2
 });
 
-function batch(status: "SUCCESS" | "FAILED" = "SUCCESS") {
+function batch(status: "SUCCESS" | "INCOMPLETE" | "FAILED" = "SUCCESS") {
   const successful = status === "SUCCESS" ? 2 : 1;
   const failed = status === "SUCCESS" ? 0 : 1;
   return {
@@ -54,7 +54,7 @@ function batch(status: "SUCCESS" | "FAILED" = "SUCCESS") {
     completenessVerifiedSourceCount: successful,
     completenessIncompleteSourceCount: 0,
     atomicCommittedSourceCount: successful,
-    atomicFailedSourceCount: failed,
+    atomicFailedSourceCount: status === "FAILED" ? 1 : 0,
     successfulSourceCount: successful,
     failedSourceCount: failed,
     blockedSourceCount: 0,
@@ -62,7 +62,7 @@ function batch(status: "SUCCESS" | "FAILED" = "SUCCESS") {
   } as const;
 }
 
-function commandResult(status: "SUCCESS" | "FAILED" = "SUCCESS") {
+function commandResult(status: "SUCCESS" | "INCOMPLETE" | "FAILED" = "SUCCESS") {
   return {
     syncedCompanyCount: 60,
     syncedSourceCount: 2,
@@ -254,7 +254,7 @@ describe("staged crawl operational CLI", () => {
     }
   }, 15_000);
 
-  it.each(["SUCCESS", "FAILED"] as const)(
+  it.each(["SUCCESS", "INCOMPLETE", "FAILED"] as const)(
     "publishes a staged summary and one truthful terminal event for %s",
     async (status) => {
       const runtime: StagedCrawlRuntime = {
@@ -266,7 +266,8 @@ describe("staged crawl operational CLI", () => {
 
       const result = await runStagedCrawlOperation(operationInput(fixture.deps));
 
-      expect(result.exitCode).toBe(status === "SUCCESS" ? 0 : 1);
+      const operationalSuccess = status !== "FAILED";
+      expect(result.exitCode).toBe(operationalSuccess ? 0 : 1);
       expect(result.commandResult.batch).toEqual(batch(status));
       expect(fixture.summaries).toHaveLength(1);
       expect(fixture.summaries[0]).toMatchObject({
@@ -279,19 +280,21 @@ describe("staged crawl operational CLI", () => {
       });
       expect(fixture.events.map((event) => event.state)).toEqual([
         "RUNNING",
-        status === "SUCCESS" ? "SUCCESS" : "FAILED"
+        operationalSuccess ? "SUCCESS" : "FAILED"
       ]);
       expect(fixture.events[1]).toMatchObject({
         identity: {
           releaseCandidateId: IDENTITY.releaseCandidateId,
           plannedSourceCount: 2
         },
-        failureCode: status === "SUCCESS" ? null : "CRAWL_EXECUTION_FAILED"
+        failureCode: operationalSuccess ? null : "CRAWL_EXECUTION_FAILED"
       });
-      if (status === "SUCCESS") {
+      if (operationalSuccess) {
         expect(fixture.events[1]).toMatchObject({
-          canonicalSummaryBinding: { batchId: "batch-success", summarySha256: "a".repeat(64) }
+          canonicalSummaryBinding: { batchId: `batch-${status.toLowerCase()}`, summarySha256: "a".repeat(64) }
         });
+      } else {
+        expect(fixture.events[1]?.canonicalSummaryBinding).toBeNull();
       }
       expect(runtime.disconnect).toHaveBeenCalledOnce();
       expect(fixture.fileClose).toHaveBeenCalledOnce();
@@ -299,6 +302,32 @@ describe("staged crawl operational CLI", () => {
       expect(fixture.advisoryRelease).toHaveBeenCalledOnce();
     }
   );
+
+  it("fails closed when an incomplete batch contains an atomic evidence failure", async () => {
+    const unsafe = commandResult("INCOMPLETE");
+    const runtime: StagedCrawlRuntime = {
+      run: vi.fn(async () => ({
+        ...unsafe,
+        batch: {
+          ...unsafe.batch,
+          atomicCommittedSourceCount: 0,
+          atomicFailedSourceCount: 1
+        }
+      })),
+      loadConsecutiveFailuresByCompany: vi.fn(async () => ({ "company-a": 1 })),
+      disconnect: vi.fn(async () => undefined)
+    };
+    const fixture = harness(runtime);
+
+    const result = await runStagedCrawlOperation(operationInput(fixture.deps));
+
+    expect(result.exitCode).toBe(1);
+    expect(fixture.events.at(-1)).toMatchObject({
+      state: "FAILED",
+      canonicalSummaryBinding: null,
+      failureCode: "CRAWL_EXECUTION_FAILED"
+    });
+  });
 
   it("records authority failure and leaves registry, batch, and fetch seams untouched", async () => {
     const sync = vi.fn();
@@ -355,6 +384,8 @@ describe("staged crawl operational CLI", () => {
     const compose = readFileSync("ops/docker-compose.yml", "utf8");
 
     expect(`${script}\n${operational}`).toContain("runCurrentStagedScheduledCrawl");
+    expect(operational).toContain("collectConsecutiveSourceResultFailuresByCompany");
+    expect(operational).toContain("crawlBatchSourceResult.findMany");
     expect(`${script}\n${operational}`).not.toMatch(/buildDiscoverySourcePlanCandidates|buildSourceCrawlPlans|buildStagedSourceCrawlPlans/u);
     expect(`${script}\n${operational}`).not.toMatch(/--source-id|--release-candidate-id|--commit-sha|--batch-kind/u);
     expect(`${script}\n${operational}`).toContain('"--force"');
@@ -364,7 +395,8 @@ describe("staged crawl operational CLI", () => {
       .toBeLessThan(scheduler.indexOf("for(;;)"));
     expect(`${scheduler}\n${pathResolver}`).toContain("staged-crawl-attempts");
     expect(`${scheduler}\n${pathResolver}`).toContain("staged-crawl-summary.json");
-    expect(scheduler).toMatch(/nextP0CrawlWindow/);
+    expect(scheduler).toMatch(/nextP0SchedulerWindow/);
+    expect(scheduler).toMatch(/readLatestCrawlAttemptStartedAt/);
     expect(scheduler).toMatch(/no immediate retry/i);
     expect(scheduler).toContain("60_000");
     expect(packageJson.scripts["p0:staged-crawl"]).toBe("tsx scripts/p0-staged-crawl.ts");

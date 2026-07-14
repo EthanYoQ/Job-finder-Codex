@@ -66,6 +66,18 @@ interface CrawlBatchRecord {
 
 export type CrawlBatchStatus = "RUNNING" | "INCOMPLETE" | "FAILED" | "SUCCESS";
 
+export function resolveP0CrawlBatchTerminalStatus(input: {
+  batchKind: CrawlBatchKind;
+  failedSourceCount: number;
+  atomicFailedSourceCount: number;
+  hasExactSuccessfulDenominator: boolean;
+}): Exclude<CrawlBatchStatus, "RUNNING"> {
+  if (input.atomicFailedSourceCount > 0) return "FAILED";
+  if (input.hasExactSuccessfulDenominator) return "SUCCESS";
+  if (input.batchKind === "SCHEDULED") return "INCOMPLETE";
+  return input.failedSourceCount > 0 ? "FAILED" : "INCOMPLETE";
+}
+
 interface PrismaCrawlBatchDb {
   create(args: {
     data: {
@@ -391,7 +403,12 @@ export async function runP0CrawlBatch(
       completenessIncompleteSourceCount === 0 &&
       atomicCommittedSourceCount === plans.length &&
       atomicFailedSourceCount === 0;
-    status = failedSourceCount > 0 ? "FAILED" : hasExactSuccessfulDenominator ? "SUCCESS" : "INCOMPLETE";
+    status = resolveP0CrawlBatchTerminalStatus({
+      batchKind: deps.identity.batchKind,
+      failedSourceCount,
+      atomicFailedSourceCount,
+      hasExactSuccessfulDenominator
+    });
     result = {
       status,
       batchId: batch.id,
