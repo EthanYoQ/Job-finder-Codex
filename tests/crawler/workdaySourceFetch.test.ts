@@ -3,9 +3,14 @@ import { createHash } from "node:crypto";
 import { createWorkdaySourceFetch } from "../../src/crawler/workdaySourceFetch";
 import type { WorkdayHttpResponse } from "../../src/crawler/workdaySourceFetch";
 import { runSourceCrawl } from "../../src/crawler/runSourceCrawl";
-import type { SourceCrawlPlan } from "../../src/crawler/sourcePlan";
+import { expectedChannelSetHash, type SourceCrawlPlan } from "../../src/crawler/sourcePlan";
 
 type OfficialJsonSourceCrawlPlan = Extract<SourceCrawlPlan, { adapterId: "official-json" }>;
+
+const EXPECTED_CHANNELS = [{
+  channelId: "source:source-pfizer-china-social:default",
+  kind: "SOCIAL" as const
+}];
 
 const plan = {
   adapterId: "official-json",
@@ -19,6 +24,8 @@ const plan = {
     officialEntryUrl: "https://pfizer.wd1.myworkdayjobs.com/PfizerCareers",
     officialChainEvidenceUrl: "https://www.pfizer.com/about/careers"
   },
+  expectedChannels: EXPECTED_CHANNELS,
+  expectedChannelSetHash: expectedChannelSetHash(EXPECTED_CHANNELS),
   json: {
     jobsPath: "jobPostings",
     fields: {
@@ -56,6 +63,11 @@ function response(
 
 function workdayId(externalPath: string): string {
   return `workday:sha256:${createHash("sha256").update(Buffer.from(externalPath, "utf8")).digest("hex")}`;
+}
+
+function requestContractLocatorPattern(baseLocator: "$.total" | "$.facets"): RegExp {
+  const escaped = baseLocator.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&");
+  return new RegExp(`^${escaped}\\|request-contract-v2\\|sha256:[0-9a-f]{64}$`, "u");
 }
 
 const JNJ_AUDITED_MAINLAND_DESCRIPTOR_ALIASES = [
@@ -281,7 +293,7 @@ describe("createWorkdaySourceFetch", () => {
           kind: "OFFICIAL_TOTAL_COUNT",
           value: 2,
           artifactLogicalKey: "workday-page-0000",
-          extractorLocator: "$.total",
+          extractorLocator: expect.stringMatching(requestContractLocatorPattern("$.total")),
           scope: "SOURCE"
         },
         fetchCounts: { rawCount: 2, parsedCount: 2, validCount: 2, parseDiscardCount: 0, validationDiscardCount: 0 }
@@ -981,7 +993,7 @@ describe("createWorkdaySourceFetch", () => {
     });
   });
 
-  it("carries Workday fetch evidence unchanged through runSourceCrawl", async () => {
+  it("carries Workday fetch evidence unchanged and fails closed without STAGED authority", async () => {
     const fetcher = createWorkdaySourceFetch({
       now: () => new Date("2026-07-08T00:00:00.000Z"),
       http: async () => response({ total: 1, jobPostings: [{
@@ -991,12 +1003,25 @@ describe("createWorkdaySourceFetch", () => {
     const fetched = await fetcher(plan);
     expect(fetched.ok).toBe(true);
     if (!fetched.ok) throw new Error(fetched.failureReason);
+    expect(fetched.paginationEvaluation).toMatchObject({
+      safeCompleteness: true,
+      verifiedEligible: false
+    });
 
     const result = await runSourceCrawl(plan, { fetch: async () => fetched });
     expect(result.status).toBe("SUCCESS");
     expect(result.fetchEvidence).toBe(fetched.fetchEvidence);
     expect(result.paginationEvaluation).toBe(fetched.paginationEvaluation);
-    expect(result.observation.completenessStatus).toBe("NEEDS_MANUAL_COMPLETENESS_REVIEW");
+    expect(result.truth).toEqual({
+      transportSuccess: true,
+      adapterSuccess: true,
+      completenessVerified: false
+    });
+    expect(result.observation).toMatchObject({
+      completenessStatus: "NEEDS_MANUAL_COMPLETENESS_REVIEW",
+      expectedJobCount: 1,
+      structuredJobCount: 1
+    });
   });
   it("fetches paginated Workday jobs and enriches official urls and Chinese cities", async () => {
     const requests: unknown[] = [];
@@ -2976,7 +3001,8 @@ describe("createWorkdaySourceFetch", () => {
       ok: false,
       failureReason: expect.stringContaining("ambiguous country-level China location facets"),
       fetchEvidence: {
-        artifacts: [{ logicalKey: "workday-preflight-0000", extractorLocator: "$.facets" }]
+        artifacts: [{ logicalKey: "workday-preflight-0000",
+          extractorLocator: expect.stringMatching(requestContractLocatorPattern("$.facets")) }]
       }
     });
   });
@@ -3627,7 +3653,8 @@ describe("createWorkdaySourceFetch", () => {
       ok: false,
       failureReason: expect.stringContaining(reason),
       fetchEvidence: {
-        artifacts: [{ logicalKey: "workday-facet-preflight-0000", extractorLocator: "$.facets" }],
+        artifacts: [{ logicalKey: "workday-facet-preflight-0000",
+          extractorLocator: expect.stringMatching(requestContractLocatorPattern("$.facets")) }],
         supportingArtifactOnlyFailure: { code: "FACET_DERIVATION_FAILED" }
       }
     });
@@ -3794,7 +3821,7 @@ describe("createWorkdaySourceFetch", () => {
           {
             logicalKey: "workday-facet-preflight-0000",
             kind: "ATS_API_RESPONSE",
-            extractorLocator: "$.facets",
+            extractorLocator: expect.stringMatching(requestContractLocatorPattern("$.facets")),
             body: expect.stringContaining("Vocational & Development Programs")
           },
           { logicalKey: "workday-page-0000", body: expect.stringContaining('"total":2') }
@@ -4018,7 +4045,8 @@ describe("createWorkdaySourceFetch", () => {
       failureReason: expect.stringContaining("filtered total 3 did not match derived total 2"),
       fetchEvidence: {
         artifacts: [
-          { logicalKey: "workday-facet-preflight-0000", extractorLocator: "$.facets" },
+          { logicalKey: "workday-facet-preflight-0000",
+            extractorLocator: expect.stringMatching(requestContractLocatorPattern("$.facets")) },
           { logicalKey: "workday-filter-validation-0000", body: expect.stringContaining('"total":3') }
         ],
         supportingArtifactOnlyFailure: { code: "FACET_FILTER_VALIDATION_FAILED" }
@@ -4078,7 +4106,8 @@ describe("createWorkdaySourceFetch", () => {
       ok: false,
       failureReason: expect.stringContaining("complete partition"),
       fetchEvidence: {
-        artifacts: [{ logicalKey: "workday-facet-preflight-0000", extractorLocator: "$.facets" }],
+        artifacts: [{ logicalKey: "workday-facet-preflight-0000",
+          extractorLocator: expect.stringMatching(requestContractLocatorPattern("$.facets")) }],
         supportingArtifactOnlyFailure: { code: "FACET_DERIVATION_FAILED" }
       }
     });
@@ -4121,7 +4150,8 @@ describe("createWorkdaySourceFetch", () => {
       ok: false,
       failureReason: expect.stringContaining(reason),
       fetchEvidence: {
-        artifacts: [{ logicalKey: "workday-facet-preflight-0000", extractorLocator: "$.facets" }]
+        artifacts: [{ logicalKey: "workday-facet-preflight-0000",
+          extractorLocator: expect.stringMatching(requestContractLocatorPattern("$.facets")) }]
       }
     });
   });

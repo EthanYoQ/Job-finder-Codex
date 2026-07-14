@@ -9,6 +9,7 @@ import {
   type SourceFetchPageTrace
 } from "./sourceFetchEvidence";
 import { hasUniqueJsonObjectKeys } from "./strictJsonObjectKeys";
+import { requestContractV2Locator } from "./strictPageRequestContract";
 
 export interface WorkdayFetchConfig {
   tenant: string;
@@ -596,8 +597,7 @@ export function createWorkdaySourceFetch(deps: WorkdaySourceFetchDeps = {}): Sou
 
       const needsLocationFacetDiscovery = !hasConfiguredLocationFacet(configuredAppliedFacets) && Boolean(searchText);
       if (needsLocationFacetDiscovery) {
-        const preflight = await requestWorkdayJobs({
-          http,
+        const preflightRequest = workdayJobsRequest({
           url,
           origin,
           referer: plan.source.officialEntryUrl,
@@ -606,11 +606,17 @@ export function createWorkdaySourceFetch(deps: WorkdaySourceFetchDeps = {}): Sou
           pageSize,
           offset: 0
         });
+        const preflight = await http(preflightRequest);
         if (preflight.status < 200 || preflight.status >= 300) {
           return failed(capturedAt, `Workday jobs API returned HTTP ${preflight.status}`);
         }
         assertEvidenceResponse(preflight);
-        artifacts.push(workdayArtifact("workday-preflight-0000", "ATS_API_RESPONSE", url, preflight, "$.facets"));
+        artifacts.push(workdayArtifact("workday-preflight-0000", "ATS_API_RESPONSE", url, preflight,
+          requestContractV2Locator("$.facets", {
+            family: "workday", role: "location-preflight", method: preflightRequest.method,
+            url: preflightRequest.url, body: JSON.parse(preflightRequest.body),
+            coordinate: { sequence: null, requestedOffset: 0, requestedPageSize: pageSize }
+          })));
         latestEvidence = workdaySupportingArtifactEvidence(artifacts, "FACET_DERIVATION_FAILED");
         const parsedPreflight = parseWorkdayJobsResponse(preflight.body);
         const discovery = chinaLocationAppliedFacets(
@@ -629,8 +635,7 @@ export function createWorkdaySourceFetch(deps: WorkdaySourceFetchDeps = {}): Sou
         if (facetDescriptorExclusions.length > 0 && facetDescriptorBoundary) {
           throw new Error("Workday facet boundary cannot combine allowlist and exclusion modes");
         }
-        const facetPreflight = await requestWorkdayJobs({
-          http,
+        const facetPreflightRequest = workdayJobsRequest({
           url,
           origin,
           referer: plan.source.officialEntryUrl,
@@ -639,11 +644,17 @@ export function createWorkdaySourceFetch(deps: WorkdaySourceFetchDeps = {}): Sou
           pageSize,
           offset: 0
         });
+        const facetPreflight = await http(facetPreflightRequest);
         if (facetPreflight.status < 200 || facetPreflight.status >= 300) {
           return failed(capturedAt, `Workday jobs API returned HTTP ${facetPreflight.status}`);
         }
         assertEvidenceResponse(facetPreflight);
-        artifacts.push(workdayArtifact("workday-facet-preflight-0000", "ATS_API_RESPONSE", url, facetPreflight, "$.facets"));
+        artifacts.push(workdayArtifact("workday-facet-preflight-0000", "ATS_API_RESPONSE", url, facetPreflight,
+          requestContractV2Locator("$.facets", {
+            family: "workday", role: "facet-preflight", method: facetPreflightRequest.method,
+            url: facetPreflightRequest.url, body: JSON.parse(facetPreflightRequest.body),
+            coordinate: { sequence: null, requestedOffset: 0, requestedPageSize: pageSize }
+          })));
         latestEvidence = workdaySupportingArtifactEvidence(artifacts, "FACET_DERIVATION_FAILED");
         const parsedFacetPreflight = parseWorkdayJobsResponse(facetPreflight.body);
         if (locationDerivedTotal !== undefined && parsedFacetPreflight.total !== locationDerivedTotal) {
@@ -674,8 +685,7 @@ export function createWorkdaySourceFetch(deps: WorkdaySourceFetchDeps = {}): Sou
 
       for (let pageIndex = 0; pageIndex < maxPages; pageIndex += 1) {
         const offset = pageIndex * pageSize;
-        const response = await requestWorkdayJobs({
-          http,
+        const pageRequest = workdayJobsRequest({
           url,
           origin,
           referer: plan.source.officialEntryUrl,
@@ -684,6 +694,7 @@ export function createWorkdaySourceFetch(deps: WorkdaySourceFetchDeps = {}): Sou
           pageSize,
           offset
         });
+        const response = await http(pageRequest);
 
         if (response.status < 200 || response.status >= 300) {
           return failed(capturedAt, `Workday jobs API returned HTTP ${response.status}`);
@@ -728,7 +739,18 @@ export function createWorkdaySourceFetch(deps: WorkdaySourceFetchDeps = {}): Sou
           );
         }
         const artifactLogicalKey = `workday-page-${String(pageIndex).padStart(4, "0")}`;
-        artifacts.push(workdayArtifact(artifactLogicalKey, "PAGINATION_PAGE", url, response, "$.total"));
+        artifacts.push(workdayArtifact(
+          artifactLogicalKey,
+          "PAGINATION_PAGE",
+          url,
+          response,
+          requestContractV2Locator("$.total", {
+            family: "workday", role: "page", method: pageRequest.method, url: pageRequest.url,
+            body: JSON.parse(pageRequest.body),
+            coordinate: { sequence: pageIndex, requestedOffset: offset,
+              requestedPage: pageIndex, requestedPageSize: pageSize }
+          })
+        ));
         expectedJobCount = expectedJobCount ?? parsed.total;
         pagesVisited += 1;
         const pageJobs: ReturnType<typeof enrichWorkdayJob>[number][] = [];
@@ -957,7 +979,9 @@ export function createWorkdaySourceFetch(deps: WorkdaySourceFetchDeps = {}): Sou
                 kind: "OFFICIAL_TOTAL_COUNT",
                 value: expectedJobCount,
                 artifactLogicalKey: firstOfficialTotalPage.artifactLogicalKey,
-                extractorLocator: "$.total",
+                extractorLocator: artifacts.find(
+                  (artifact) => artifact.logicalKey === firstOfficialTotalPage.artifactLogicalKey
+                )!.extractorLocator,
                 scope: "SOURCE"
               }
             }
@@ -1357,8 +1381,7 @@ function exactNonEmptyString(value: unknown): string | undefined {
   return typeof value === "string" && value.length > 0 && value === value.trim() ? value : undefined;
 }
 
-function requestWorkdayJobs({
-  http,
+function workdayJobsRequest({
   url,
   origin,
   referer,
@@ -1367,7 +1390,6 @@ function requestWorkdayJobs({
   pageSize,
   offset
 }: {
-  http: WorkdayHttpClient;
   url: string;
   origin: string;
   referer: string;
@@ -1375,8 +1397,8 @@ function requestWorkdayJobs({
   searchText: string | undefined;
   pageSize: number;
   offset: number;
-}): Promise<WorkdayHttpResponse> {
-  return http({
+}): WorkdayHttpRequest {
+  return {
     url,
     method: "POST",
     headers: {
@@ -1392,7 +1414,7 @@ function requestWorkdayJobs({
       limit: pageSize,
       offset
     })
-  });
+  };
 }
 
 function requestWorkdayDetail({

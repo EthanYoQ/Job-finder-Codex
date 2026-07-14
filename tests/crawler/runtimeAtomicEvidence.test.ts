@@ -11,11 +11,13 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { RuntimeBatchIdentity } from "../../src/crawler/runtimeBatchIdentity";
 import {
+  buildStagedSourceCrawlPlans,
   expectedChannelSetHash,
   sourcePlanConfigSha256,
   type SourceCrawlPlan
 } from "../../src/crawler/sourcePlan";
 import { sourcePlanOracleConfigSha256 } from "../../src/crawler/independentSourceSurfaceOracle";
+import { candidateCompanies } from "../../src/data/companyRegistry";
 
 const sha = "a".repeat(64);
 
@@ -196,33 +198,86 @@ describe("runtime atomic evidence planning", () => {
   });
 
   it("builds a validated full atomic bundle from strict crawl, lifecycle and archive truth", async () => {
-    const plan = channelBound({
-      adapterId: "official-json", company: { id: "company-1", officialChineseName: "公司" },
-      source: { id: "source-1", companyId: "company-1", kind: "SOCIAL", atsKind: "OFFICIAL_JSON",
-        status: "VERIFIED_SCRAPABLE", officialEntryUrl: "https://example.com/jobs",
-        officialChainEvidenceUrl: "https://example.com/jobs" },
-      json: { jobsPath: "jobs", fields: { sourceJobId: "id", officialTitle: "title", officialUrl: "url", locationRaw: "location" } }
-    } as SourceCrawlPlan);
+    const plan = buildStagedSourceCrawlPlans(candidateCompanies).find(
+      (candidate) => candidate.source.id === "source-sandoz-china-social"
+    );
+    if (!plan || plan.adapterId !== "official-json" || plan.officialJsonFetch?.kind !== "sandoz-jsonapi" ||
+      !plan.source.surfaceId || !plan.expectedChannels?.[0]) {
+      throw new Error("Missing canonical staged Sandoz atomic-evidence plan");
+    }
+    const sourceId = plan.source.id;
+    const surfaceId = plan.source.surfaceId;
+    const channelId = plan.expectedChannels[0].channelId;
     const identity = { releaseCandidateId: "p0-rc-20260710-001", commitSha: sha,
       rosterSha256: sha, sourcePlanSha256: sha, sourceConfigSha256: sha,
       adapterBundleSha256: sha, batchKind: "SCHEDULED" as const, ownerId: "owner-1",
-      expectedPlannedSourceIds: ["source-1"],
-      expectedPlannedSourceSetSha256: (await import("node:crypto")).createHash("sha256").update('["source-1"]').digest("hex"),
+      expectedPlannedSourceIds: [sourceId],
+      expectedPlannedSourceSetSha256: (await import("node:crypto")).createHash("sha256")
+        .update(JSON.stringify([sourceId])).digest("hex"),
       expectedPlannedSourceCount: 1 };
-    const oracle = { auditId: "phase2-audit-fixture", sources: { "source-1": {
-      officialEntryId: "entry-1", officialSurfaceIds: ["surface-1"], officialChannelIds: ["channel-1"],
-      artifactLogicalKeyToSurfaceId: { "page-0": "surface-1" },
-      artifactLogicalKeyToChannelId: { "page-0": "channel-1" }
+    const sandozScopeKeys = ["sandoz-taxonomy", "sandoz-alt1-zero", "sandoz-alt2-zero", "sandoz-alt3-zero"];
+    const oracle = { auditId: "phase2-audit-fixture", sources: { [sourceId]: {
+      officialEntryId: "entry-1", officialSurfaceIds: [surfaceId],
+      officialChannelIds: [channelId],
+      artifactLogicalKeyToSurfaceId: Object.fromEntries(["page-0", ...sandozScopeKeys].map((key) => [key, surfaceId])),
+      artifactLogicalKeyToChannelId: Object.fromEntries(["page-0", ...sandozScopeKeys].map((key) => [key, channelId]))
     } } };
     const pending = buildPendingRuntimeBatch("batch-1", [plan], identity,
       new Date("2026-07-10T00:00:00Z"), oracle).sources[0]!;
-    const body = JSON.stringify({ jobs: [{ id: "1", title: "Role", url: "https://example.com/jobs/1", location: "上海" }] });
-    const channelId = pending.officialChannelIds[0]!;
-    const evidence = { captureTool: { name: "test", version: "1" }, artifacts: [{ id: "page-0", logicalKey: "page-0",
-      kind: "PAGINATION_PAGE" as const, channelId, requestedUrl: "https://example.com/api/jobs", finalUrl: "https://example.com/api/jobs",
+    const body = JSON.stringify({ jobs: [{ sourceJobId: "1", title: "Role",
+      officialUrl: "https://www.sandoz.com/jobs/1", locationRaw: "上海", cities: ["上海"] }] });
+    const fields = [
+      "title", "field_job_title", "field_job_employment_type", "field_job_type", "field_job_id",
+      "field_job_business_unit", "field_job_work_location", "field_job_posted_date", "path",
+      "drupal_internal__tid", "field_date", "field_job_country", "field_job_alt_country_1",
+      "field_job_alt_country_2", "field_job_alt_country_3"
+    ].join(",");
+    const evidenceUrl = new URL(plan.officialJsonFetch.endpointUrl);
+    evidenceUrl.searchParams.set("fields[node--jobs]", fields);
+    evidenceUrl.searchParams.set("page", "0");
+    evidenceUrl.searchParams.set("views-filter[field_job_functional_area]", "All");
+    evidenceUrl.searchParams.set("views-filter[field_job_posted_date][min]", "");
+    evidenceUrl.searchParams.set("views-filter[field_job_posted_date][max]", "");
+    evidenceUrl.searchParams.set("views-filter[field_job_country]", String(plan.officialJsonFetch.countryTermTargetId));
+    evidenceUrl.searchParams.set("views-filter[field_job_alt_country_1]", "");
+    const taxonomyUrl = new URL(plan.officialJsonFetch.taxonomyEndpointUrl);
+    taxonomyUrl.searchParams.set("filter[drupal_internal__tid]", String(plan.officialJsonFetch.countryTermTargetId));
+    const networkArtifact = (logicalKey: string, url: string, artifactBody: string, extractorLocator: string) => ({
+      id: logicalKey, logicalKey, kind: "ATS_API_RESPONSE" as const, channelId,
+      requestedUrl: url, finalUrl: url, httpStatus: 200, contentType: "application/vnd.api+json",
+      capturedAt: "2026-07-10T00:00:01Z", body: artifactBody, bodyRepresentation: "EXACT" as const,
+      extractorLocator
+    });
+    const scopeArtifacts = [networkArtifact("sandoz-taxonomy", taxonomyUrl.toString(), JSON.stringify({ data: [{
+      type: "taxonomy_term--job_location", id: plan.officialJsonFetch.countryTermUuid,
+      attributes: { drupal_internal__tid: plan.officialJsonFetch.countryTermTargetId,
+        name: plan.officialJsonFetch.countryTermName }
+    }] }), `sandoz-taxonomy-v1|target:${plan.officialJsonFetch.countryTermTargetId}|json:` +
+      "$.data[0].type,$.data[0].id,$.data[0].attributes.drupal_internal__tid,$.data[0].attributes.name")];
+    for (const probe of ["alt1", "alt2", "alt3"] as const) {
+      const url = new URL(plan.officialJsonFetch.endpointUrl);
+      url.searchParams.set("fields[node--jobs]", fields);
+      url.searchParams.set("page", "0");
+      url.searchParams.set("views-filter[field_job_functional_area]", "All");
+      url.searchParams.set("views-filter[field_job_posted_date][min]", "");
+      url.searchParams.set("views-filter[field_job_posted_date][max]", "");
+      url.searchParams.set("views-filter[field_job_country]", "All");
+      if (probe !== "alt1") url.searchParams.set("views-filter[field_job_alt_country_1]", "");
+      url.searchParams.set(`views-filter[field_job_alt_country_${probe.at(-1)}]`,
+        String(plan.officialJsonFetch.countryTermTargetId));
+      scopeArtifacts.push(networkArtifact(`sandoz-${probe}-zero`, url.toString(), JSON.stringify({
+        data: [], meta: { count: 0 }, number_of_items_per_page: plan.officialJsonFetch.pageSize,
+        links: { self: { href: url.toString() } }
+      }), `sandoz-jsonapi-v2|probe:${probe}|page:0|page-size:${plan.officialJsonFetch.pageSize}` +
+        "|fields:node--jobs-v1|json:$.data[*],$.meta.count,$.number_of_items_per_page," +
+        "$.links.self.href,$.links.next.href"));
+    }
+    const evidence = { captureTool: { name: "test", version: "1" }, artifacts: [...scopeArtifacts, { id: "page-0", logicalKey: "page-0",
+      kind: "PAGINATION_PAGE" as const, channelId, requestedUrl: evidenceUrl.toString(), finalUrl: evidenceUrl.toString(),
       httpStatus: 200, contentType: "application/json", capturedAt: "2026-07-10T00:00:01Z", body,
       extractorLocator: "json:total" }], pages: [{ sequence: 0, artifactLogicalKey: "page-0", channelId,
-      requestedPage: 1, returnedPage: 1, requestedPageSize: 1, returnedPageSize: 1, rawJobIds: ["1"], validJobIds: ["1"],
+      requestedPage: 0, returnedPage: 0, requestedPageSize: 10, returnedPageSize: 10,
+      rawJobIds: ["1"], validJobIds: ["1"],
       declaredTotal: 1, declaredCount: 1, declaredPages: 1,
       responseFingerprintSha256: (await import("node:crypto")).createHash("sha256").update(body).digest("hex"),
       termination: "DECLARED_TOTAL_REACHED" as const, anomalyCodes: [], capturedAt: "2026-07-10T00:00:01Z" }],
@@ -236,11 +291,11 @@ describe("runtime atomic evidence planning", () => {
     expect(result.truth).toEqual({ transportSuccess: true, adapterSuccess: true, completenessVerified: true });
     const workspaceRoot = await mkdtemp(join(tmpdir(), "task5h-runtime-archive-"));
     const archiveResult = await archiveSourceEvidence({ workspaceRoot,
-      releaseCandidateId: identity.releaseCandidateId, batchId: "batch-1", sourceId: "source-1",
+      releaseCandidateId: identity.releaseCandidateId, batchId: "batch-1", sourceId,
       sourceResultId: pending.id, evidenceSubdirectory: "phase-1/runtime-evidence",
       captureTool: evidence.captureTool, artifacts: evidence.artifacts });
     const archived = await verifyArchivedSourceEvidence({ workspaceRoot,
-      releaseCandidateId: identity.releaseCandidateId, batchId: "batch-1", sourceId: "source-1",
+      releaseCandidateId: identity.releaseCandidateId, batchId: "batch-1", sourceId,
       sourceResultId: pending.id, evidenceSubdirectory: "phase-1/runtime-evidence",
       artifacts: archiveResult.artifacts });
 
@@ -253,13 +308,10 @@ describe("runtime atomic evidence planning", () => {
     expect(transaction).not.toHaveBeenCalled();
     expect(commit.sourceResult).toMatchObject({ atomicCommitState: "COMMITTED", completenessState: "VERIFIED",
       canonicalCurrentJobSetSha256: commit.observationProvenance.canonicalOutputSha256 });
-    expect(commit.artifacts).toHaveLength(1);
+    expect(commit.artifacts).toHaveLength(5);
     expect(commit.pagination).toHaveLength(1);
 
-    const expectedChannels = [{ channelId: "channel-1", kind: "SOCIAL" as const }];
-    const scheduledPlan = { ...plan, executionAuthority: "STAGED" as const,
-      source: { ...plan.source, surfaceId: "surface-1" }, expectedChannels,
-      expectedChannelSetHash: expectedChannelSetHash(expectedChannels) } satisfies SourceCrawlPlan;
+    const scheduledPlan = plan;
     const scheduledPending = buildPendingRuntimeBatch("scheduled-batch", [scheduledPlan], identity,
       new Date("2026-07-10T00:00:00Z")).sources[0]!;
     const scheduledCommit = buildAtomicRuntimeCommit({ plan: scheduledPlan, pending: scheduledPending,
@@ -267,8 +319,8 @@ describe("runtime atomic evidence planning", () => {
       baselineCompletedBeforeCrawl: true, artifacts: archived });
     expect(scheduledCommit.sourceResult).toMatchObject({
       completenessState: "VERIFIED",
-      officialSurfaceIds: ["surface-1"],
-      officialChannelIds: ["channel-1"]
+      officialSurfaceIds: [surfaceId],
+      officialChannelIds: [channelId]
     });
     expect(scheduledCommit.commands.some((command) => command.type === "UPSERT_JOB")).toBe(true);
 
@@ -505,8 +557,10 @@ describe("runtime atomic evidence planning", () => {
         expect(jobUpsert).not.toHaveBeenCalled();
         expect(observationCreate).not.toHaveBeenCalled();
       }
-      if (["orphan", "orphan-ledger", "verify", "atomic"].includes(fault)) {
+      if (["orphan", "orphan-ledger"].includes(fault)) {
         expect(orphanLedger).toEqual([archived[0]]);
+      } else if (["verify", "atomic"].includes(fault)) {
+        expect(orphanLedger).toEqual(archived);
       } else {
         expect(orphanLedger).toEqual([]);
       }
@@ -541,5 +595,5 @@ describe("runtime atomic evidence planning", () => {
       }));
     }
     await rm(workspaceRoot, { recursive: true, force: true });
-  });
+  }, 15_000);
 });

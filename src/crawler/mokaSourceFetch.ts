@@ -11,6 +11,7 @@ import {
   type SourceFetchArtifactDraft,
   type SourceFetchPageTrace
 } from "./sourceFetchEvidence";
+import { requestContractV2Locator } from "./strictPageRequestContract";
 
 export interface MokaInitData {
   aesIv: string;
@@ -118,7 +119,7 @@ export function createMokaSourceFetch(deps: MokaSourceFetchDeps = {}): SourceFet
 
       for (let pageIndex = 0; pageIndex < MOKA_MAX_PAGES; pageIndex += 1) {
         const offset = pageIndex * MOKA_PAGE_SIZE;
-        const api = await http({
+        const listRequest: MokaHttpRequest = {
           url: MOKA_JOBS_ENDPOINT,
           method: "POST",
           headers: {
@@ -137,7 +138,8 @@ export function createMokaSourceFetch(deps: MokaSourceFetchDeps = {}): SourceFet
             site: initData.mode,
             locale: "zh-CN"
           }
-        });
+        };
+        const api = await http(listRequest);
         if (api.status < 200 || api.status >= 300) {
           return failed(capturedAt, `Moka jobs API returned HTTP ${api.status}`);
         }
@@ -150,12 +152,18 @@ export function createMokaSourceFetch(deps: MokaSourceFetchDeps = {}): SourceFet
         });
 
         const artifactLogicalKey = `moka-page-${String(pageIndex).padStart(4, "0")}`;
+        const pageRequestLocator = (baseLocator: string) => requestContractV2Locator(baseLocator, {
+          family: "moka", role: "page", method: listRequest.method, url: listRequest.url,
+          body: listRequest.body,
+          coordinate: { sequence: pageIndex, requestedOffset: offset,
+            requestedPage: null, requestedPageSize: MOKA_PAGE_SIZE }
+        });
         artifacts.push(mokaArtifact({
           logicalKey: artifactLogicalKey,
           kind: "PAGINATION_PAGE",
           requestedUrl: MOKA_JOBS_ENDPOINT,
           response: api,
-          extractorLocator: mokaTotalLocator(artifactLogicalKey, offset)
+          extractorLocator: pageRequestLocator(mokaTotalLocator(artifactLogicalKey, offset))
         }));
 
         const encrypted = parseEncryptedResponse(api.body);
@@ -206,7 +214,7 @@ export function createMokaSourceFetch(deps: MokaSourceFetchDeps = {}): SourceFet
         const pageTotal = totalEvidence?.value;
         artifacts[artifacts.length - 1] = {
           ...artifacts[artifacts.length - 1]!,
-          extractorLocator: mokaTotalLocator(artifactLogicalKey, offset, totalEvidence?.jsonPath)
+          extractorLocator: pageRequestLocator(mokaTotalLocator(artifactLogicalKey, offset, totalEvidence?.jsonPath))
         };
         expectedJobCount = expectedJobCount ?? pageTotal;
         const pageJobs: Record<string, unknown>[] = [];
@@ -239,7 +247,7 @@ export function createMokaSourceFetch(deps: MokaSourceFetchDeps = {}): SourceFet
             citiesFromMokaLocations(raw.locations).length === 0 &&
             configuredMoka?.hydrateMissingLocationsFromDetail
           ) {
-            const detail = await http({
+            const detailRequest: MokaHttpRequest = {
               url: MOKA_JOB_DETAIL_ENDPOINT,
               method: "POST",
               headers: {
@@ -254,9 +262,14 @@ export function createMokaSourceFetch(deps: MokaSourceFetchDeps = {}): SourceFet
                 jobId: rawOfficialId,
                 locale: "zh-CN"
               }
-            });
+            };
+            const detail = await http(detailRequest);
             const detailLogicalKey = `moka-detail-${String(pageIndex).padStart(4, "0")}-${String(recordIndex).padStart(4, "0")}`;
-            const detailExtractorLocator = `moka-detail-v1|request:jobId=${irreversibleEvidenceId(rawOfficialId)}`;
+            const detailExtractorLocator = requestContractV2Locator(
+              `moka-detail-v2|request:jobId64=${Buffer.from(rawOfficialId, "utf8").toString("base64url")}`,
+              { family: "moka", role: "detail", method: detailRequest.method, url: detailRequest.url,
+                body: detailRequest.body, coordinate: { sequence: pageIndex, recordIndex } }
+            );
             let detailEvidenceFailure: Error | undefined;
             try {
               previousResponseCapturedAtMs = assertEvidenceResponse(detail, {

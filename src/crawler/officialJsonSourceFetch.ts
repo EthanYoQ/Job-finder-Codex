@@ -33,6 +33,7 @@ import {
 } from "./sourceFetchEvidence";
 import { deriveCanonicalPaginationEvidence, evaluatePaginationEvidence } from "./paginationEvidence";
 import { hasUniqueJsonObjectKeys } from "./strictJsonObjectKeys";
+import { requestContractV2Locator } from "./strictPageRequestContract";
 
 export type OfficialJsonFetchConfig =
   | {
@@ -2136,6 +2137,19 @@ async function fetchBeisenZhiye2022({
   let cumulativeRaw = 0;
 
   for (let pageIndex = 0; pageIndex < maxPages; pageIndex += 1) {
+    const requestBody = {
+      PageIndex: pageIndex,
+      PageSize: pageSize,
+      Category: [category],
+      KeyWords: "",
+      SpecialType: 0,
+      PortalId: "",
+      DisplayFields: displayFields
+    };
+    const pageRequestLocator = (baseLocator: string) => requestContractV2Locator(baseLocator, {
+      family: "beisen", role: "page", method: "POST", url: endpointUrl, body: requestBody,
+      coordinate: { sequence: pageIndex, requestedPage: pageIndex, requestedPageSize: pageSize }
+    });
     let response: OfficialJsonHttpResponse;
     try {
       response = await http({
@@ -2149,15 +2163,7 @@ async function fetchBeisenZhiye2022({
           langType: "zh_CN",
           "User-Agent": "job-search-crawler/0.1"
         },
-        body: JSON.stringify({
-          PageIndex: pageIndex,
-          PageSize: pageSize,
-          Category: [category],
-          KeyWords: "",
-          SpecialType: 0,
-          PortalId: "",
-          DisplayFields: displayFields
-        })
+        body: JSON.stringify(requestBody)
       });
     } catch {
       return beisenFailure(
@@ -2189,7 +2195,9 @@ async function fetchBeisenZhiye2022({
     }
 
     const artifactId = `beisen-page-${String(pageIndex).padStart(4, "0")}`;
-    const unavailableLocator = beisenLocator({ pageIndex, pageSize, category, hasCount: false, hasData: false });
+    const unavailableLocator = pageRequestLocator(
+      beisenLocator({ pageIndex, pageSize, category, hasCount: false, hasData: false })
+    );
     const artifact = officialJsonNetworkArtifact({
       id: artifactId,
       logicalKey: artifactId,
@@ -2276,7 +2284,9 @@ async function fetchBeisenZhiye2022({
       }
       returnedPage = root.PageIndex;
     }
-    const locator = beisenLocator({ pageIndex, pageSize, category, hasCount: pageTotal !== undefined, hasData: true });
+    const locator = pageRequestLocator(
+      beisenLocator({ pageIndex, pageSize, category, hasCount: pageTotal !== undefined, hasData: true })
+    );
     artifact.extractorLocator = locator;
     if (declaredTotal === undefined && pageTotal !== undefined) {
       declaredTotal = pageTotal;
@@ -2417,6 +2427,7 @@ async function fetchBeisenZhiye2022({
       artifact,
       sequence: pageIndex,
       requestedPage: pageIndex,
+      requestedPageSize: pageSize,
       returnedPage,
       rawJobIds: rawIds,
       validJobIds: validIds,
@@ -2678,6 +2689,12 @@ async function fetchPhenomWidgets({
 
   for (let pageIndex = 0; pageIndex < maxPages; pageIndex += 1) {
     const requestedOffset = pageIndex * pageSize;
+    const pageRequestBody = phenomWidgetRequestBody(pageConfig, pageSize, requestedOffset, formalSelectedFields);
+    const pageRequestLocator = (baseLocator: string) => requestContractV2Locator(baseLocator, {
+      family: "phenom", role: "page", method: "POST", url: widgetEndpoint,
+      body: JSON.parse(pageRequestBody),
+      coordinate: { sequence: pageIndex, requestedOffset, requestedPage: null, requestedPageSize: pageSize }
+    });
     let response: OfficialJsonHttpResponse;
     try {
       response = await http({
@@ -2688,7 +2705,7 @@ async function fetchPhenomWidgets({
           Origin: new URL(safeEntryUrl).origin, Referer: safeEntryUrl,
           "User-Agent": "job-search-crawler/0.1"
         },
-        body: phenomWidgetRequestBody(pageConfig, pageSize, requestedOffset, formalSelectedFields)
+        body: pageRequestBody
       });
     } catch {
       return phenomFailure(capturedAt, "Phenom widgets TRANSPORT_FAILURE", artifacts, pages, counts, losses);
@@ -2705,7 +2722,8 @@ async function fetchPhenomWidgets({
     }
 
     const artifactId = `phenom-page-${String(pageIndex).padStart(4, "0")}`;
-    const unavailableLocator = `phenom-page-v1|entry:phenom-entry-0000|config:${irreversibleOfficialJsonEvidenceId(configLocator)}|${phenomSelectedFieldsLocator(formalSelectedFields)}|requestOffset:${requestedOffset}|json:unavailable`;
+    const unavailableBaseLocator = `phenom-page-v1|entry:phenom-entry-0000|config:${irreversibleOfficialJsonEvidenceId(configLocator)}|${phenomSelectedFieldsLocator(formalSelectedFields)}|requestOffset:${requestedOffset}|json:unavailable`;
+    const unavailableLocator = pageRequestLocator(unavailableBaseLocator);
     const artifact = phenomArtifact({
       id: artifactId, kind: "PAGINATION_PAGE", requestedUrl: widgetEndpoint,
       response, extractorLocator: unavailableLocator
@@ -2785,9 +2803,9 @@ async function fetchPhenomWidgets({
           artifacts, pages, counts, losses);
       }
     }
-    const locator = pageTotal === undefined
-      ? `${unavailableLocator.replace("json:unavailable", "json:$.refineSearch.data.jobs")}`
-      : phenomTotalLocator(configLocator, formalSelectedFields, requestedOffset);
+    const locator = pageRequestLocator(pageTotal === undefined
+      ? unavailableBaseLocator.replace("json:unavailable", "json:$.refineSearch.data.jobs")
+      : phenomTotalLocator(configLocator, formalSelectedFields, requestedOffset));
     artifact.extractorLocator = locator;
     if (declaredTotal === undefined && pageTotal !== undefined) {
       declaredTotal = pageTotal;
@@ -2904,7 +2922,7 @@ async function fetchPhenomWidgets({
         ? atMax ? "MAX_PAGE_LIMIT" : "CONTINUE"
         : rawJobs.length === 0 && pageIndex === 0 && pageTotal === 0 ? "EMPTY_PAGE" : "NEXT_ABSENT";
     pages.push(phenomPageTrace({
-      artifact, sequence: pageIndex, requestedOffset, returnedOffset,
+      artifact, sequence: pageIndex, requestedOffset, returnedOffset, requestedPageSize: pageSize,
       rawJobIds: rawIds, validJobIds: validIds,
       ...(pageTotal === undefined ? {} : { declaredTotal: pageTotal }),
       nextPageSignalBefore: pageIndex === 0 ? null : `offset:${requestedOffset}`,
@@ -3084,6 +3102,7 @@ async function fetchPhenomFacetPreflight(input: {
   | { ok: true; artifact: SourceFetchArtifactDraft; envelope: PhenomFacetEnvelope }
   | { ok: false; failureReason: string }
 > {
+  const requestBody = phenomWidgetRequestBody(input.pageConfig, input.pageSize, 0, input.selectedFields);
   let response: OfficialJsonHttpResponse;
   try {
     response = await input.http({
@@ -3094,7 +3113,7 @@ async function fetchPhenomFacetPreflight(input: {
         Origin: new URL(input.entryUrl).origin, Referer: input.entryUrl,
         "User-Agent": "job-search-crawler/0.1"
       },
-      body: phenomWidgetRequestBody(input.pageConfig, input.pageSize, 0, input.selectedFields)
+      body: requestBody
     });
   } catch {
     return { ok: false, failureReason: "Phenom facet preflight TRANSPORT_FAILURE" };
@@ -3115,7 +3134,14 @@ async function fetchPhenomFacetPreflight(input: {
     kind: "ATS_API_RESPONSE",
     requestedUrl: input.endpoint,
     response,
-    extractorLocator: input.locator
+    extractorLocator: requestContractV2Locator(input.locator, {
+      family: "phenom",
+      role: input.id === "phenom-facet-global" ? "facet-preflight-global" : "facet-preflight-country",
+      method: "POST",
+      url: input.endpoint,
+      body: JSON.parse(requestBody),
+      coordinate: { sequence: null, requestedOffset: 0, requestedPageSize: input.pageSize }
+    })
   });
   if (!hasUniqueJsonObjectKeys(response.body)) {
     return { ok: false, failureReason: "Phenom facet preflight contains ambiguous duplicate JSON keys" };
@@ -3222,6 +3248,7 @@ function phenomPageTrace(input: {
   artifact: SourceFetchArtifactDraft;
   sequence: number;
   requestedOffset: number | null;
+  requestedPageSize?: number | null;
   returnedOffset?: number | null;
   rawJobIds?: string[];
   validJobIds?: string[];
@@ -3239,6 +3266,8 @@ function phenomPageTrace(input: {
     returnedOffset: input.returnedOffset ?? null,
     requestedPage: null,
     returnedPage: null,
+    requestedPageSize: input.requestedPageSize ?? null,
+    returnedPageSize: null,
     rawJobIds: input.rawJobIds ?? [],
     validJobIds: input.validJobIds ?? [],
     declaredTotal: input.declaredTotal ?? null,
@@ -3421,6 +3450,10 @@ async function fetchHcmCloudWithPost({
   if (countFilterHash !== hcmCloudTupleHash(listFilter)) {
     return failed(capturedAt, "HCMCloud count/list semantic filter tuple mismatch");
   }
+  const countRequestLocator = (baseLocator: string) => requestContractV2Locator(baseLocator, {
+    family: "hcm", role: "count", method: "POST", url: countUrl, body: countPayload,
+    coordinate: { sequence: null, requestedPage: null, requestedPageSize: null }
+  });
   let countResponse: OfficialJsonHttpResponse;
   try {
     countResponse = await post("count", encodeHcmCloudRequest(countPayload));
@@ -3430,7 +3463,7 @@ async function fetchHcmCloudWithPost({
   const countArtifact = hcmCloudArtifact({
     id: `${artifactPrefix}hcm-count-0000`, kind: "ATS_API_RESPONSE", requestedUrl: countUrl,
     response: countResponse,
-    locator: hcmCloudCountLocator(countFilterHash)
+    locator: countRequestLocator(hcmCloudCountLocator(countFilterHash))
   });
   try {
     assertOfficialJsonEvidenceResponse(countResponse, {
@@ -3468,7 +3501,9 @@ async function fetchHcmCloudWithPost({
       artifacts, pages, counts, losses);
   }
   const expectedJobCount = countSelection.value;
-  const countLocator = hcmCloudCountLocator(countFilterHash, countDecoded.algorithm, countSelection.path);
+  const countLocator = countRequestLocator(
+    hcmCloudCountLocator(countFilterHash, countDecoded.algorithm, countSelection.path)
+  );
   countArtifact!.extractorLocator = countLocator;
   const jobs: NormalizedOfficialJsonJob[] = [];
   const seenOfficialIds = new Set<string>();
@@ -3476,7 +3511,12 @@ async function fetchHcmCloudWithPost({
   let cumulativeRaw = 0;
 
   for (let page = 1; page <= maxPages; page += 1) {
+    const pageSequence = pages.length;
     const requestPayload = hcmCloudListPayload(config, page, pageSize);
+    const pageRequestLocator = (baseLocator: string) => requestContractV2Locator(baseLocator, {
+      family: "hcm", role: "page", method: "POST", url: listUrl, body: requestPayload,
+      coordinate: { sequence: pageSequence, requestedPage: page, requestedPageSize: pageSize }
+    });
     if (hcmCloudTupleHash(hcmCloudSemanticFilterTuple(requestPayload)) !== countFilterHash) {
       return hcmCloudFailure(capturedAt, "HCMCloud count/list semantic filter tuple mismatch",
         artifacts, pages, counts, losses, hcmCloudDeclared(expectedJobCount, countArtifact));
@@ -3500,7 +3540,7 @@ async function fetchHcmCloudWithPost({
       artifact = hcmCloudArtifact({
         id: `${artifactPrefix}hcm-list-${String(page).padStart(4, "0")}`, kind: "PAGINATION_PAGE",
         requestedUrl: listUrl, response,
-        locator: hcmCloudListLocator(countFilterHash, page, pageSize)
+        locator: pageRequestLocator(hcmCloudListLocator(countFilterHash, page, pageSize))
       });
       artifacts.push(artifact);
       previousCapturedAtMs = Date.parse(response.capturedAt!);
@@ -3543,9 +3583,9 @@ async function fetchHcmCloudWithPost({
       return hcmCloudFailure(capturedAt, safeOfficialJsonFailure(error, "HCMCloud list shape is invalid"),
         artifacts, pages, counts, losses, hcmCloudDeclared(expectedJobCount, countArtifact));
     }
-    artifact.extractorLocator = hcmCloudListLocator(countFilterHash, page, pageSize, decoded.algorithm,
+    artifact.extractorLocator = pageRequestLocator(hcmCloudListLocator(countFilterHash, page, pageSize, decoded.algorithm,
       config.listPaginationPolicy === "LUNAN_REQUEST_BOUND_PAGE_V1" ? "request-bound:lunan-v1" :
-        returnedPage !== undefined ? "$.result.page_index" : undefined);
+        returnedPage !== undefined ? "$.result.page_index" : undefined));
     const rawIds: string[] = [];
     const validIds: string[] = [];
     for (let recordIndex = 0; recordIndex < list.length; recordIndex += 1) {
@@ -3627,6 +3667,7 @@ async function fetchHcmCloudWithPost({
       maxed ? "MAX_PAGE_LIMIT" : canContinue ? "CONTINUE" : "ABORTED";
     const next = canContinue ? `page:${page + 1}` : null;
     pages.push(hcmCloudPageTrace({ artifact, sequence: pages.length, requestedPage: page,
+      requestedPageSize: pageSize,
       ...(returnedPage !== undefined ? { returnedPage } : {}), rawJobIds: rawIds, validJobIds: validIds,
       ...(expectedJobCount !== undefined ? { declaredTotal: expectedJobCount } : {}),
       nextPageSignalBefore: page > 1 ? `page:${page}` : null, nextPageSignalAfter: next, termination }));
@@ -3879,6 +3920,7 @@ function hcmCloudPageTrace(input: {
   artifact: SourceFetchArtifactDraft;
   sequence: number;
   requestedPage: number;
+  requestedPageSize?: number | null;
   returnedPage?: number;
   rawJobIds?: string[];
   validJobIds?: string[];
@@ -3891,6 +3933,7 @@ function hcmCloudPageTrace(input: {
     sequence: input.sequence, artifactLogicalKey: input.artifact.logicalKey,
     requestedCursor: null, returnedCursor: null, requestedOffset: null, returnedOffset: null,
     requestedPage: input.requestedPage, returnedPage: input.returnedPage ?? null,
+    requestedPageSize: input.requestedPageSize ?? null, returnedPageSize: null,
     rawJobIds: [...new Set(input.rawJobIds ?? [])], validJobIds: [...new Set(input.validJobIds ?? [])],
     declaredTotal: input.declaredTotal ?? null, declaredCount: null, declaredPages: null,
     nextPageSignalBefore: input.nextPageSignalBefore ?? null,
@@ -5787,6 +5830,7 @@ function beisenPageTrace(input: {
   artifact: SourceFetchArtifactDraft;
   sequence: number;
   requestedPage: number;
+  requestedPageSize?: number | null;
   returnedPage?: number | null;
   rawJobIds?: string[];
   validJobIds?: string[];
@@ -5804,6 +5848,8 @@ function beisenPageTrace(input: {
     returnedOffset: null,
     requestedPage: input.requestedPage,
     returnedPage: input.returnedPage ?? null,
+    requestedPageSize: input.requestedPageSize ?? null,
+    returnedPageSize: null,
     rawJobIds: input.rawJobIds ?? [],
     validJobIds: input.validJobIds ?? [],
     declaredTotal: input.declaredTotal ?? null,

@@ -5,7 +5,12 @@ import {
   type OfficialJsonHttpResponse
 } from "../../src/crawler/officialJsonSourceFetch";
 import { runSourceCrawl } from "../../src/crawler/runSourceCrawl";
-import type { SourceCrawlPlan } from "../../src/crawler/sourcePlan";
+import {
+  buildStagedSourceCrawlPlans,
+  expectedChannelSetHash,
+  type SourceCrawlPlan
+} from "../../src/crawler/sourcePlan";
+import { candidateCompanies } from "../../src/data/companyRegistry";
 
 const NOW = "2026-07-13T18:11:17.000Z";
 const ENTRY = "https://www.sandoz.com/careers/job-search/";
@@ -35,6 +40,7 @@ const FIELDS = [
 type Probe = "primary" | "alt1" | "alt2" | "alt3";
 
 function plan(overrides: Record<string, unknown> = {}): SourceCrawlPlan {
+  const expectedChannels = [{ channelId: "source:source-sandoz-china-social:default", kind: "SOCIAL" as const }];
   return {
     adapterId: "official-json",
     company: { id: "company-sandoz-china", officialChineseName: "山德士中国" },
@@ -47,6 +53,8 @@ function plan(overrides: Record<string, unknown> = {}): SourceCrawlPlan {
       officialEntryUrl: ENTRY,
       officialChainEvidenceUrl: ENTRY
     },
+    expectedChannels,
+    expectedChannelSetHash: expectedChannelSetHash(expectedChannels),
     json: {
       jobsPath: "jobs",
       fields: {
@@ -70,6 +78,14 @@ function plan(overrides: Record<string, unknown> = {}): SourceCrawlPlan {
       ...overrides
     }
   } as SourceCrawlPlan;
+}
+
+function stagedPlan(): SourceCrawlPlan {
+  const staged = buildStagedSourceCrawlPlans(candidateCompanies).find(
+    (candidate) => candidate.source.id === "source-sandoz-china-social"
+  );
+  if (!staged) throw new Error("Missing canonical staged Sandoz plan");
+  return structuredClone(staged);
 }
 
 function response(body: string, url: string, contentType = "application/vnd.api+json", status = 200): OfficialJsonHttpResponse {
@@ -462,7 +478,7 @@ describe("Sandoz fresh official JSON:API contract", () => {
 
   it("promotes a lossless positive official count only after the downstream adapter reconciles", async () => {
     const fixture = client({ primary: [pageBody({ probe: "primary", data: [row("REQ-900")], count: 1 })] });
-    const crawlPlan = plan();
+    const crawlPlan = stagedPlan();
     const result = await runSourceCrawl(crawlPlan, {
       fetch: createOfficialJsonSourceFetch({ now: () => new Date(NOW), http: fixture.http })
     });
@@ -474,17 +490,25 @@ describe("Sandoz fresh official JSON:API contract", () => {
     });
   });
 
-  it("does not extend the Sandoz positive-count opt-in to another source identity", async () => {
+  it("rejects a renamed staged source even when its channel hash is internally consistent", async () => {
     const fixture = client({ primary: [pageBody({ probe: "primary", data: [row("REQ-901")], count: 1 })] });
-    const crawlPlan = plan();
-    crawlPlan.source = { ...crawlPlan.source, id: "source-not-sandoz-social" };
+    const crawlPlan = stagedPlan();
+    const renamedSourceId = "source-not-sandoz-social";
+    const renamedChannels = [{ channelId: `source:${renamedSourceId}:default`, kind: "SOCIAL" as const }];
+    crawlPlan.source = { ...crawlPlan.source, id: renamedSourceId };
+    crawlPlan.expectedChannels = renamedChannels;
+    crawlPlan.expectedChannelSetHash = expectedChannelSetHash(renamedChannels);
     const result = await runSourceCrawl(crawlPlan, {
       fetch: createOfficialJsonSourceFetch({ now: () => new Date(NOW), http: fixture.http })
     });
     expect(result).toMatchObject({
       status: "SUCCESS",
       truth: { transportSuccess: true, adapterSuccess: true, completenessVerified: false },
-      observation: { completenessStatus: "NEEDS_MANUAL_COMPLETENESS_REVIEW", structuredJobCount: 1 }
+      observation: {
+        completenessStatus: "NEEDS_MANUAL_COMPLETENESS_REVIEW",
+        expectedJobCount: 1,
+        structuredJobCount: 1
+      }
     });
   });
 });

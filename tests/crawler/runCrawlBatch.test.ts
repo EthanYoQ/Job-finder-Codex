@@ -197,6 +197,16 @@ function strictSuccessfulFetch(plan: SourceCrawlPlan, sourceJobId = "later-job")
   };
 }
 
+function strategyDeclaredArtifactUrl(plan: SourceCrawlPlan): string {
+  if (plan.adapterId !== "official-json") throw new Error("Expected official-json strategy plan");
+  const entry = new URL(plan.source.officialEntryUrl);
+  if (plan.officialJsonFetch?.kind === "phenom") return new URL("/widgets", entry.origin).toString();
+  if (plan.officialJsonFetch?.kind === "beisen-zhiye-2022") {
+    return new URL("/api/Jobad/GetJobAdPageList", entry.origin).toString();
+  }
+  throw new Error(`No declared-artifact URL fixture for ${plan.officialJsonFetch?.kind ?? "none"}`);
+}
+
 function inMemoryArchiveDeps(): Pick<RunP0CrawlBatchDeps, "archiveEvidence" | "verifyArchive"> {
   const archiveEvidence: NonNullable<RunP0CrawlBatchDeps["archiveEvidence"]> = async (request) => ({
     artifacts: request.artifacts.map((draft) => {
@@ -1531,6 +1541,9 @@ describe("runP0CrawlBatch", () => {
       const mainLogicalKey = "official-html-page-0000";
       fetched.fetchEvidence.artifacts[0]!.id = mainLogicalKey;
       fetched.fetchEvidence.artifacts[0]!.logicalKey = mainLogicalKey;
+      const declaredArtifactUrl = strategyDeclaredArtifactUrl(plan);
+      fetched.fetchEvidence.artifacts[0]!.requestedUrl = declaredArtifactUrl;
+      fetched.fetchEvidence.artifacts[0]!.finalUrl = declaredArtifactUrl;
       fetched.fetchEvidence.pages[0]!.artifactLogicalKey = mainLogicalKey;
       fetched.fetchEvidence.declaredCompleteness!.artifactLogicalKey = mainLogicalKey;
       fetched.fetchEvidence.declaredCompleteness!.kind = "OFFICIAL_TOTAL_PAGES";
@@ -1563,6 +1576,7 @@ describe("runP0CrawlBatch", () => {
       };
       return {
         ...fetched,
+        completeness: { completenessStatus: "NEEDS_MANUAL_COMPLETENESS_REVIEW" as const },
         paginationEvaluation: evaluatePaginationEvidence({
           evidence: fetched.fetchEvidence,
           expectedChannelIds: [channelId],

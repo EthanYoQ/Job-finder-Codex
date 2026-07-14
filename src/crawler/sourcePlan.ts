@@ -1476,6 +1476,15 @@ const REPRESENTATIVE_CONFIGS: Record<string, RepresentativeSourceConfig> = {
   }
 };
 
+const CANONICAL_EXECUTION_CONFIG_JSON_BY_SOURCE_ID: Readonly<Record<string, string>> = Object.freeze(
+  Object.fromEntries(
+    Object.entries(REPRESENTATIVE_CONFIGS).map(([sourceId, config]) => [
+      sourceId,
+      representativeExecutionConfigJson(config)
+    ])
+  )
+);
+
 export function buildSourceCrawlPlans(
   companies: readonly CandidateCompany[],
   surfaces: readonly ExpectedOfficialRecruitmentSurface[] = expectedOfficialSurfaces
@@ -1518,7 +1527,8 @@ function buildPlans(
         return [];
       }
 
-      const config = REPRESENTATIVE_CONFIGS[source.id];
+      const representativeConfig = REPRESENTATIVE_CONFIGS[source.id];
+      const config = representativeConfig ? structuredClone(representativeConfig) : undefined;
       const surface = source.surfaceId ? oracleBySurfaceId.get(source.surfaceId) : undefined;
       if (
         !config ||
@@ -1713,6 +1723,9 @@ export function validateExecutablePlanChannelBinding(plan: SourceCrawlPlan): voi
   if (staged && !hasCanonicalStagedPlanAuthority(plan)) {
     throw new Error("Staged source plan does not match canonical registry authority");
   }
+  if (staged && !hasCanonicalStagedExecutionConfig(plan)) {
+    throw new Error("Staged source plan execution config does not match canonical registry configuration");
+  }
   const expectedAdapter = staged && plan.source.atsKind === "BEISEN_ZHIYE"
     ? plan.adapterId
     : plan.source.atsKind === "OFFICIAL_HTML" || plan.source.atsKind === "SUCCESSFACTORS"
@@ -1729,7 +1742,8 @@ export function validateExecutablePlanChannelBinding(plan: SourceCrawlPlan): voi
         ...(plan.officialJsonFetch ? { officialJsonFetch: plan.officialJsonFetch } : {}),
         ...(plan.workday ? { workday: plan.workday } : {}),
         ...(plan.hotjob ? { hotjob: plan.hotjob } : {}),
-        ...(plan.hotjobLegacy ? { hotjobLegacy: plan.hotjobLegacy } : {})
+        ...(plan.hotjobLegacy ? { hotjobLegacy: plan.hotjobLegacy } : {}),
+        ...(plan.moka ? { moka: plan.moka } : {})
       }
     : { adapterId: "html-table", table: plan.table };
   const exactCoverage = staged
@@ -1848,6 +1862,28 @@ function hasCanonicalStagedPlanAuthority(plan: SourceCrawlPlan): boolean {
     plan.company.category === canonicalCompany.category &&
     hasCanonicalPlannedSourceAuthority(plan.source, canonicalSource)
   );
+}
+
+function hasCanonicalStagedExecutionConfig(plan: SourceCrawlPlan): boolean {
+  const canonicalExecutionConfigJson = CANONICAL_EXECUTION_CONFIG_JSON_BY_SOURCE_ID[plan.source.id];
+  if (!canonicalExecutionConfigJson) return false;
+  const planExecutionConfig: RepresentativeSourceConfig = plan.adapterId === "official-json"
+    ? {
+        adapterId: "official-json",
+        json: plan.json,
+        ...(plan.officialJsonFetch ? { officialJsonFetch: plan.officialJsonFetch } : {}),
+        ...(plan.workday ? { workday: plan.workday } : {}),
+        ...(plan.hotjob ? { hotjob: plan.hotjob } : {}),
+        ...(plan.hotjobLegacy ? { hotjobLegacy: plan.hotjobLegacy } : {}),
+        ...(plan.moka ? { moka: plan.moka } : {})
+      }
+    : { adapterId: "html-table", table: plan.table };
+  return representativeExecutionConfigJson(planExecutionConfig) === canonicalExecutionConfigJson;
+}
+
+function representativeExecutionConfigJson(config: RepresentativeSourceConfig): string {
+  const { formalEligibility: _formalEligibility, ...executionConfig } = config;
+  return JSON.stringify(canonicalPlanValue(executionConfig));
 }
 
 function hasCanonicalPlannedSourceAuthority(

@@ -576,8 +576,11 @@ describe("official HTML fetch evidence", () => {
     const crawled = await runSourceCrawl(plan, { fetch: async () => result });
     expect(crawled).toMatchObject({
       status: "SUCCESS",
-      truth: { transportSuccess: true, adapterSuccess: true, completenessVerified: true },
-      observation: { completenessStatus: "VERIFIED", completenessEvidenceKind: "COMPLETE_PAGE_TRAVERSAL" }
+      truth: { transportSuccess: true, adapterSuccess: true, completenessVerified: false },
+      observation: {
+        completenessStatus: "NEEDS_MANUAL_COMPLETENESS_REVIEW",
+        completenessEvidenceKind: "COMPLETE_PAGE_TRAVERSAL"
+      }
     });
   });
 
@@ -707,8 +710,8 @@ describe("official HTML fetch evidence", () => {
     expect(crawled).toMatchObject({
       status: "SUCCESS",
       jobs: [],
-      truth: { transportSuccess: true, adapterSuccess: true, completenessVerified: true },
-      observation: { completenessStatus: "VERIFIED", expectedJobCount: 0 }
+      truth: { transportSuccess: true, adapterSuccess: true, completenessVerified: false },
+      observation: { completenessStatus: "NEEDS_MANUAL_COMPLETENESS_REVIEW", expectedJobCount: 0 }
     });
   });
 
@@ -752,8 +755,8 @@ describe("official HTML fetch evidence", () => {
     expect(crawled).toMatchObject({
       status: "SUCCESS",
       jobs: [],
-      truth: { transportSuccess: true, adapterSuccess: true, completenessVerified: true },
-      observation: { completenessStatus: "VERIFIED", expectedJobCount: 0 }
+      truth: { transportSuccess: true, adapterSuccess: true, completenessVerified: false },
+      observation: { completenessStatus: "NEEDS_MANUAL_COMPLETENESS_REVIEW", expectedJobCount: 0 }
     });
   });
 
