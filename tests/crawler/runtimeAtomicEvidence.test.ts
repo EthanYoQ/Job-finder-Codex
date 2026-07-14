@@ -337,6 +337,26 @@ describe("runtime atomic evidence planning", () => {
     })).resolves.toBeUndefined();
     expect(partialJobUpsert).toHaveBeenCalledTimes(1);
     expect(partialLifecycleMember).not.toHaveBeenCalled();
+    const incompleteWithoutReason = structuredClone(incompleteResult);
+    delete incompleteWithoutReason.observation.completenessBlockerReason;
+    const incompleteWithoutReasonCommit = buildAtomicRuntimeCommit({
+      plan,
+      pending,
+      identity,
+      batchId: "batch-1",
+      result: incompleteWithoutReason,
+      previousJobs: [],
+      baselineCompletedBeforeCrawl: true,
+      artifacts: archived,
+      oracle
+    });
+    expect(incompleteWithoutReasonCommit.sourceResult.blockerReason)
+      .toBe("Strict completeness gate was not satisfied");
+    expect(incompleteWithoutReasonCommit.commands.find((command) => command.type === "UPSERT_CRAWL_OBSERVATION"))
+      .toMatchObject({ observation: { completenessBlockerReason: "Strict completeness gate was not satisfied" } });
+    await expect(executeAtomicSourceEvidenceCommit(incompleteWithoutReasonCommit, {
+      $transaction: async <T>(operation: (value: typeof partialTx) => Promise<T>) => operation(partialTx)
+    })).resolves.toBeUndefined();
     const declarationlessResult = structuredClone(incompleteResult);
     delete declarationlessResult.fetchEvidence!.declaredCompleteness;
     delete declarationlessResult.observation.completenessEvidenceKind;
@@ -490,13 +510,19 @@ describe("runtime atomic evidence planning", () => {
       } else {
         expect(orphanLedger).toEqual([]);
       }
+      const expectedFailureCode = fault === "verify"
+        ? "EVIDENCE_VERIFICATION_FAILED"
+        : fault === "atomic"
+          ? "ATOMIC_EVIDENCE_COMMIT_FAILED"
+          : "EVIDENCE_ARCHIVE_FAILED";
       expect(terminalUpdates.at(-1)).toEqual(expect.objectContaining({
         data: expect.objectContaining({
           transportState: "SUCCEEDED",
           adapterState: "SUCCEEDED",
           completenessState: "FAILED",
           atomicCommitState: "ROLLED_BACK",
-          failureCode: "ATOMIC_EVIDENCE_COMMIT_FAILED"
+          failureCode: expectedFailureCode,
+          failureReason: "Atomic evidence processing failed"
         })
       }));
       expect(batchUpdates.at(-1)).toEqual(expect.objectContaining({

@@ -1029,7 +1029,7 @@ describe("runP0CrawlBatch", () => {
     });
   });
 
-  it.each(["archive", "verification", "atomic commit"] as const)(
+  it.each(["archive", "verification", "build", "atomic commit"] as const)(
     "isolates a source-local %s failure and commits the later due source",
     async (failureStage) => {
       const failedPlan = planFor("source-qilu-social");
@@ -1047,6 +1047,12 @@ describe("runP0CrawlBatch", () => {
       const verifyArchive: NonNullable<RunP0CrawlBatchDeps["verifyArchive"]> = vi.fn(
         async (request) => {
           if (failureStage === "verification" && request.sourceId === failedPlan.source.id) throw sourceError;
+          if (failureStage === "build" && request.sourceId === failedPlan.source.id) {
+            return request.artifacts.map((artifact: (typeof request.artifacts)[number]) => ({
+              ...artifact,
+              bodyRepresentation: "REDACTED"
+            })) as never;
+          }
           return archiveDeps.verifyArchive!(request);
         }
       );
@@ -1065,6 +1071,7 @@ describe("runP0CrawlBatch", () => {
         archiveEvidence,
         verifyArchive,
         executeAtomicCommit,
+        recordOrphanedArtifacts: async () => undefined,
         getPreviousJobs: async () => [],
         getRecentObservations: async () => [],
         isBaselineCompleted: async () => true
@@ -1093,6 +1100,19 @@ describe("runP0CrawlBatch", () => {
           sourceId: successfulPlan.source.id,
           jobKey: `${successfulPlan.source.id}:later-job`
         }]));
+      const expectedFailureCode = {
+        archive: "EVIDENCE_ARCHIVE_FAILED",
+        verification: "EVIDENCE_VERIFICATION_FAILED",
+        build: "ATOMIC_COMMIT_BUILD_FAILED",
+        "atomic commit": "ATOMIC_EVIDENCE_COMMIT_FAILED"
+      }[failureStage];
+      expect(db.calls.terminalSourceResults).toContainEqual(expect.objectContaining({
+        where: expect.objectContaining({ sourceId: failedPlan.source.id }),
+        data: expect.objectContaining({
+          failureCode: expectedFailureCode,
+          failureReason: "Atomic evidence processing failed"
+        })
+      }));
     }
   );
 

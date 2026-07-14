@@ -256,6 +256,11 @@ export async function runP0CrawlBatch(
 
       let committedCompletenessVerified = false;
       let retainedArtifacts: readonly ArchivedEvidenceArtifact[] = [];
+      let atomicFailureCode:
+        | "EVIDENCE_ARCHIVE_FAILED"
+        | "EVIDENCE_VERIFICATION_FAILED"
+        | "ATOMIC_COMMIT_BUILD_FAILED"
+        | "ATOMIC_EVIDENCE_COMMIT_FAILED" = "ATOMIC_COMMIT_BUILD_FAILED";
       try {
         if (!crawlResult.fetchEvidence) throw new Error("strict fetch evidence is required for atomic runtime commit");
         const artifacts = bindRuntimeEvidenceArtifactIds({
@@ -268,6 +273,7 @@ export async function runP0CrawlBatch(
             ...(crawlResult.priorTransportAttempts ?? []).flatMap((attempt) => attempt.fetchEvidence?.artifacts ?? [])
           ]
         });
+        atomicFailureCode = "EVIDENCE_ARCHIVE_FAILED";
         const archived = await (deps.archiveEvidence ?? archiveSourceEvidence)({ workspaceRoot: deps.workspaceRoot ?? process.cwd(),
           releaseCandidateId: deps.identity.releaseCandidateId, batchId: batch.id, sourceId: plan.source.id,
           sourceResultId: pending.id, evidenceSubdirectory: deps.evidenceSubdirectory ?? "phase-1/runtime-evidence",
@@ -275,15 +281,18 @@ export async function runP0CrawlBatch(
           formalRelease:deps.identity.batchKind==="FULL_RELEASE",
           artifacts });
         retainedArtifacts = archived.artifacts;
+        atomicFailureCode = "EVIDENCE_VERIFICATION_FAILED";
         const verifiedArtifacts = await (deps.verifyArchive ?? verifyArchivedSourceEvidence)({ workspaceRoot: deps.workspaceRoot ?? process.cwd(),
           releaseCandidateId: deps.identity.releaseCandidateId, batchId: batch.id, sourceId: plan.source.id,
           sourceResultId: pending.id, evidenceSubdirectory: deps.evidenceSubdirectory ?? "phase-1/runtime-evidence",
           formalRelease:deps.identity.batchKind==="FULL_RELEASE",
           artifacts: archived.artifacts });
         retainedArtifacts = verifiedArtifacts;
+        atomicFailureCode = "ATOMIC_COMMIT_BUILD_FAILED";
         const commit = buildAtomicRuntimeCommit({ plan, pending, identity: deps.identity, batchId: batch.id,
           result: crawlResult, previousJobs, baselineCompletedBeforeCrawl, artifacts: verifiedArtifacts,
           ...(trustedOracle ? { trustedOracle } : {}) });
+        atomicFailureCode = "ATOMIC_EVIDENCE_COMMIT_FAILED";
         if (deps.identity.batchKind === "MANUAL_SOURCE") {
           await (deps.executeManualAtomicCommit ?? executeManualSourceEvidenceCommit)(
             commit, deps.manualRequestFence!, deps.db as never);
@@ -322,7 +331,7 @@ export async function runP0CrawlBatch(
           completenessState: "FAILED",
           atomicCommitState: crawlResult.truth.transportSuccess && crawlResult.truth.adapterSuccess ? "ROLLED_BACK" : "NOT_ATTEMPTED",
           finishedAt: crawlResult.observation.crawledAt,
-          failureCode: "ATOMIC_EVIDENCE_COMMIT_FAILED", failureReason: "Atomic evidence commit failed" }, deps.db as never);
+          failureCode: atomicFailureCode, failureReason: "Atomic evidence processing failed" }, deps.db as never);
         terminalSourceIds.add(plan.source.id);
         atomicFailedSourceCount += 1;
         failedSourceCount += 1;

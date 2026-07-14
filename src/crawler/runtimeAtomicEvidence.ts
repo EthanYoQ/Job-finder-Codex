@@ -234,6 +234,14 @@ export function buildAtomicRuntimeCommit(input: {
       canonicalStringSetSha256(oracleAudited.officialChannelIds) === canonicalStringSetSha256(visitedChannels)
     : stagedBindingMatchesPending;
   const completenessVerified = result.truth.completenessVerified && sourceBindingVerified;
+  const incompleteBlocker = completenessVerified ? undefined : {
+    blockerCode: oracleAudited || stagedBindingMatchesPending
+      ? "COMPLETENESS_NOT_VERIFIED"
+      : "SOURCE_SURFACE_ORACLE_MISSING",
+    blockerReason: oracleAudited || stagedBindingMatchesPending
+      ? result.observation.completenessBlockerReason ?? "Strict completeness gate was not satisfied"
+      : "Audited source-surface oracle is missing"
+  };
   const finishedAt = result.observation.crawledAt;
   // These decisions are transaction candidates only. They become true only if the enclosing atomic commit succeeds.
   const manualPreview = identity.batchKind === "MANUAL_SOURCE";
@@ -314,14 +322,7 @@ export function buildAtomicRuntimeCommit(input: {
       adapterLossCount: ledger.adapterLosses.length + (ledger.dedupeInputCount-ledger.dedupeOutputCount),
       adapterCollisionGroupCount: ledger.collisionGroups.length,
       adapterReconciliationSha256: ledger.ledgerSha256, collisionLedgerSha256: sha256(canonicalJson(ledger.collisionGroups)),
-      ...(completenessVerified ? {} : {
-        blockerCode: oracleAudited || stagedBindingMatchesPending
-          ? "COMPLETENESS_NOT_VERIFIED"
-          : "SOURCE_SURFACE_ORACLE_MISSING",
-        blockerReason: oracleAudited || stagedBindingMatchesPending
-          ? result.observation.completenessBlockerReason ?? "Strict completeness gate was not satisfied"
-          : "Audited source-surface oracle is missing"
-      }) },
+      ...(incompleteBlocker ?? {}) },
     observationProvenance: { ...tuple, commitSha: identity.commitSha, rosterSha256: identity.rosterSha256,
       sourcePlanSha256: identity.sourcePlanSha256, sourceConfigSha256: pending.sourceConfigHash,
       adapterVersion: pending.adapterVersion, observedFrom: pending.startedAt, observedTo: finishedAt,
@@ -366,7 +367,8 @@ export function buildAtomicRuntimeCommit(input: {
     }),
     commands: buildIngestionCommands({
       ...result,
-      observation: { ...result.observation, pagesVisited: evidence.pages.length }
+      observation: { ...result.observation, pagesVisited: evidence.pages.length,
+        ...(incompleteBlocker ? { completenessBlockerReason: incompleteBlocker.blockerReason } : {}) }
     }, lifecycle)
   };
   runtimeCommitAttestations.set(commit,attestationSignature(commit));
