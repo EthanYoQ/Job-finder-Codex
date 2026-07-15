@@ -1,11 +1,11 @@
 import { runP0CrawlCommand, type RunP0CrawlCommandDeps } from "./p0CrawlCommand";
 import {
-  resolveCurrentStagedScheduleAuthority,
-  type StagedScheduleAuthorityDb
+  resolveCurrentStagedScheduledCrawlAuthority,
+  type StagedScheduledCrawlAuthorityDb
 } from "./stagedScheduleAuthority";
 
 export interface RunCurrentStagedScheduledCrawlDeps {
-  db: RunP0CrawlCommandDeps["db"] & StagedScheduleAuthorityDb;
+  db: RunP0CrawlCommandDeps["db"] & StagedScheduledCrawlAuthorityDb;
   fetch: RunP0CrawlCommandDeps["fetch"];
   now: RunP0CrawlCommandDeps["now"];
   force?: boolean;
@@ -17,7 +17,7 @@ export interface RunCurrentStagedScheduledCrawlDeps {
 export async function runCurrentStagedScheduledCrawl(
   deps: RunCurrentStagedScheduledCrawlDeps
 ) {
-  const authority = await resolveCurrentStagedScheduleAuthority(deps.db);
+  const authority = await resolveCurrentStagedScheduledCrawlAuthority(deps.db);
   const result = await runP0CrawlCommand({
     plans: authority.plans,
     companies: authority.companies,

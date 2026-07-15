@@ -74,9 +74,39 @@ interface StagedReleaseCandidateFindManyArgs {
   take: 2;
 }
 
+interface StagedScheduledBatchRow {
+  id: string;
+  releaseCandidateId: string | null;
+  commitSha: string | null;
+  rosterSha256: string | null;
+  sourcePlanSha256: string | null;
+  sourceConfigSha256: string | null;
+  adapterBundleSha256: string | null;
+  kind: string | null;
+  plannedSourceIds: unknown;
+  plannedSourceSetSha256: string | null;
+  plannedSourceCount: number | null;
+  ownerId: string | null;
+}
+
+interface StagedScheduledBatchFindManyArgs {
+  where: {
+    releaseCandidateId: string;
+    kind: "SCHEDULED";
+  };
+  select: Record<keyof StagedScheduledBatchRow, true>;
+  orderBy: { id: "asc" };
+}
+
 export interface StagedScheduleAuthorityDb {
   releaseCandidate: {
     findMany(args: StagedReleaseCandidateFindManyArgs): Promise<readonly StagedReleaseCandidateRow[]>;
+  };
+}
+
+export interface StagedScheduledCrawlAuthorityDb extends StagedScheduleAuthorityDb {
+  crawlBatch: {
+    findMany(args: StagedScheduledBatchFindManyArgs): Promise<readonly StagedScheduledBatchRow[]>;
   };
 }
 
@@ -160,6 +190,51 @@ export function deriveStagedAdapterBundleSha256(
 export async function resolveCurrentStagedScheduleAuthority(
   db: StagedScheduleAuthorityDb
 ): Promise<CurrentStagedScheduleAuthority> {
+  return (await resolveCurrentStagedScheduleAuthorityWithStatus(db)).authority;
+}
+
+export async function resolveCurrentStagedScheduledCrawlAuthority(
+  db: StagedScheduledCrawlAuthorityDb
+): Promise<CurrentStagedScheduleAuthority> {
+  const resolved = await resolveCurrentStagedScheduleAuthorityWithStatus(db);
+  const identity = resolved.authority.identity;
+  const batches = await db.crawlBatch.findMany({
+    where: {
+      releaseCandidateId: identity.releaseCandidateId,
+      kind: "SCHEDULED"
+    },
+    select: {
+      id: true,
+      releaseCandidateId: true,
+      commitSha: true,
+      rosterSha256: true,
+      sourcePlanSha256: true,
+      sourceConfigSha256: true,
+      adapterBundleSha256: true,
+      kind: true,
+      plannedSourceIds: true,
+      plannedSourceSetSha256: true,
+      plannedSourceCount: true,
+      ownerId: true
+    },
+    orderBy: { id: "asc" }
+  });
+
+  for (const batch of batches) assertExistingScheduledBatchIdentity(batch, identity);
+  if (resolved.status === "BUILDING" && batches.length >= 2) {
+    throw new Error(
+      `STAGED_INITIAL_QUALIFICATION_ROUND_LIMIT_REACHED:${identity.releaseCandidateId}:${batches.length}`
+    );
+  }
+  return resolved.authority;
+}
+
+async function resolveCurrentStagedScheduleAuthorityWithStatus(
+  db: StagedScheduleAuthorityDb
+): Promise<{
+  authority: CurrentStagedScheduleAuthority;
+  status: (typeof STAGED_SCHEDULE_ALLOWED_STATUSES)[number];
+}> {
   const expectation = deriveCurrentStagedScheduleExpectation(resolveCurrentBuildIdentity());
   const rows = await db.releaseCandidate.findMany({
     where: {
@@ -205,7 +280,7 @@ export async function resolveCurrentStagedScheduleAuthority(
   assertReleaseCandidateField("runtimeTreeHash", row.runtimeTreeHash, expectation.runtimeTreeSha256);
   assertReleaseCandidateField("oracleVersion", row.oracleVersion, STAGED_SCHEDULE_ORACLE_VERSION);
 
-  return deepFrozenCopy({
+  const authority: CurrentStagedScheduleAuthority = deepFrozenCopy({
     companies: expectation.companies,
     plans: expectation.plans,
     identity: {
@@ -222,6 +297,37 @@ export async function resolveCurrentStagedScheduleAuthority(
       expectedPlannedSourceCount: expectation.plannedSourceCount
     }
   });
+  return {
+    authority,
+    status: row.status as (typeof STAGED_SCHEDULE_ALLOWED_STATUSES)[number]
+  };
+}
+
+function assertExistingScheduledBatchIdentity(
+  batch: StagedScheduledBatchRow,
+  identity: RuntimeBatchIdentity
+): void {
+  const plannedSourceIds = Array.isArray(batch.plannedSourceIds) &&
+    batch.plannedSourceIds.every((sourceId): sourceId is string => typeof sourceId === "string")
+    ? batch.plannedSourceIds
+    : null;
+  if (
+    !batch.id.trim() ||
+    batch.releaseCandidateId !== identity.releaseCandidateId ||
+    batch.commitSha !== identity.commitSha ||
+    batch.rosterSha256 !== identity.rosterSha256 ||
+    batch.sourcePlanSha256 !== identity.sourcePlanSha256 ||
+    batch.sourceConfigSha256 !== identity.sourceConfigSha256 ||
+    batch.adapterBundleSha256 !== identity.adapterBundleSha256 ||
+    batch.kind !== identity.batchKind ||
+    batch.ownerId !== identity.ownerId ||
+    batch.plannedSourceSetSha256 !== identity.expectedPlannedSourceSetSha256 ||
+    batch.plannedSourceCount !== identity.expectedPlannedSourceCount ||
+    plannedSourceIds === null ||
+    JSON.stringify(plannedSourceIds) !== JSON.stringify(identity.expectedPlannedSourceIds)
+  ) {
+    throw new Error(`STAGED_SCHEDULED_BATCH_IDENTITY_DRIFT:${batch.id || "blank-id"}`);
+  }
 }
 
 function assertCanonicalCompanyRegistry(companies: readonly CandidateCompany[]): void {

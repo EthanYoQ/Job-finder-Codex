@@ -227,6 +227,7 @@ All behavior changes follow RED-GREEN-REFACTOR.
 ## Active Stage 4 - Two fresh crawl runs and a 60-company status table
 
 - Keep the perpetual production scheduler stopped during first-launch qualification. Invoke `npm run p0:staged-crawl -- --force` exactly twice against the isolated release-candidate database, then evaluate readiness. Enable the daily scheduler only after the initial release gate passes.
+- Create the immutable `BUILDING` release-candidate row only through the current-image bootstrap command after exact migration/checksum validation. While that row remains `BUILDING`, the crawl entry point must reject a third `SCHEDULED` batch and any prior batch whose identity drifts from the current candidate.
 - Run two fresh scheduled-scope crawl rounds and retain run identity, company/source scope, start/finish time, outcome, counters, evidence location, and last-success timestamp.
 - For each company being considered for automatic publication, prove that its two most recent qualifying observations are consecutive, successful, stable, and cover its publicly reachable official social-recruitment scope.
 - A failed, incomplete, blocked, or skipped observation cannot qualify the company and cannot delete previously verified jobs. Preserve passing evidence for other companies.
