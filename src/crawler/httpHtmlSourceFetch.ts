@@ -4,6 +4,7 @@ import { getCACertificates, setDefaultCACertificates } from "node:tls";
 import type { CompletenessEvidence } from "../domain/company";
 import type { HtmlTableConfig } from "./adapters/types";
 import type { SourceFetchFunction, SourceFetchResult } from "./runSourceCrawl";
+import { fetchWithOfficialTimeout } from "./officialHttpRuntimeLimits";
 import {
   parsePersistentSourceFetchEvidence,
   sanitizeEvidenceHttpUrl,
@@ -356,25 +357,52 @@ function strictTalentbrewPartitions(
   scope: NonNullable<NonNullable<HtmlTableConfig["pagination"]>["talentbrewScope"]>
 ): Array<{ channelId: string; declaredCount: number; filter: Record<string, TalentbrewCriteriaValue> }> {
   const active = scope.requiredActiveFacet;
+  const configuredFacets = [...scope.allowedPartitions, ...(scope.excludedPartitions ?? [])];
+  const partitionDimension = scope.allowedPartitions[0];
   const activeMatches = $("#search-filters [data-enabled='false'] .filter-checkbox").filter((_index, element) => {
     const checkbox = $(element);
     return checkbox.attr("checked") !== undefined && checkbox.attr("data-id") === active.id &&
       numberAttr(checkbox, "data-facet-type") === active.facetType && checkbox.attr("data-display") === active.descriptor;
   });
+  const sourceTotal = numberAttr(results, "data-total-job-results");
+  const activeCount = activeMatches.length === 1 ? numberAttr(activeMatches.first(), "data-count") : undefined;
+  const configuredFacetKeys = configuredFacets.map((partition) =>
+    JSON.stringify([partition.id, partition.facetType, partition.fieldName, partition.descriptor]));
+  const visiblePartitionFacets = partitionDimension
+    ? $("#search-filters [data-enabled='true'] .filter-checkbox:not(:checked)").filter((_index, element) => {
+        const checkbox = $(element);
+        return numberAttr(checkbox, "data-facet-type") === partitionDimension.facetType &&
+          checkbox.attr("data-field-name") === partitionDimension.fieldName;
+      })
+    : $([]);
   if (activeMatches.length !== 1 || results.attr("data-facet-term") !== active.id ||
-      numberAttr(results, "data-facet-type") !== active.facetType || scope.allowedPartitions.length === 0 ||
-      new Set(scope.allowedPartitions.map((partition) => partition.channelId)).size !== scope.allowedPartitions.length) {
+      numberAttr(results, "data-facet-type") !== active.facetType || sourceTotal === undefined || activeCount !== sourceTotal ||
+      !partitionDimension || configuredFacets.some((partition) =>
+        partition.facetType !== partitionDimension.facetType || partition.fieldName !== partitionDimension.fieldName) ||
+      new Set(scope.allowedPartitions.map((partition) => partition.channelId)).size !== scope.allowedPartitions.length ||
+      new Set(configuredFacetKeys).size !== configuredFacets.length ||
+      visiblePartitionFacets.length !== configuredFacets.length) {
     throw new Error("TALENTBREW_SCOPE_INVALID");
   }
-  return scope.allowedPartitions.map((partition) => {
+  const declaredCounts = new Map<string, number>();
+  for (const partition of configuredFacets) {
     const matches = $("#search-filters [data-enabled='true'] .filter-checkbox:not(:checked)").filter((_index, element) => {
       const checkbox = $(element);
       return checkbox.attr("data-id") === partition.id && checkbox.attr("data-display") === partition.descriptor &&
         checkbox.attr("data-field-name") === partition.fieldName && numberAttr(checkbox, "data-facet-type") === partition.facetType;
     });
     if (matches.length !== 1) throw new Error("TALENTBREW_SCOPE_INVALID");
-    const checkbox = matches.first();
-    const declaredCount = numberAttr(checkbox, "data-count");
+    const declaredCount = numberAttr(matches.first(), "data-count");
+    if (declaredCount === undefined) throw new Error("TALENTBREW_SCOPE_INVALID");
+    declaredCounts.set(JSON.stringify([partition.id, partition.facetType, partition.fieldName, partition.descriptor]), declaredCount);
+  }
+  if ([...declaredCounts.values()].reduce((sum, count) => sum + count, 0) !== sourceTotal) {
+    throw new Error("TALENTBREW_SCOPE_INVALID");
+  }
+  return scope.allowedPartitions.map((partition) => {
+    const declaredCount = declaredCounts.get(
+      JSON.stringify([partition.id, partition.facetType, partition.fieldName, partition.descriptor])
+    );
     if (declaredCount === undefined) throw new Error("TALENTBREW_SCOPE_INVALID");
     return {
       channelId: partition.channelId,
@@ -585,7 +613,7 @@ function readPaginationEvidence(
   const declaredTotalPages =
     explicitTotalPages ??
     (parsedExpectedJobCount !== undefined && configuredPageSize !== undefined
-      ? Math.ceil(parsedExpectedJobCount / configuredPageSize)
+      ? Math.max(1, Math.ceil(parsedExpectedJobCount / configuredPageSize))
       : undefined);
 
   if (declaredTotalPages === undefined) {
@@ -693,7 +721,7 @@ async function defaultHttpHtmlClient(request: HttpHtmlRequest): Promise<HttpHtml
 }
 
 async function fetchHtml(request: HttpHtmlRequest): Promise<HttpHtmlResponse> {
-  const response = await fetch(request.url, {
+  const response = await fetchWithOfficialTimeout(request.url, {
     method: request.method ?? "GET",
     headers: request.headers,
     ...(request.body === undefined ? {} : { body: request.body }),
@@ -827,6 +855,9 @@ function attachHtmlEvidence(
         : null;
     const declaredTotal = mode === "talentbrew"
       ? strictOptionalNonnegativeInt($("#search-results").first().attr("data-total-job-results") ?? null) ?? null
+      : mode === "ordinary" && table.completenessProof?.kind === "OFFICIAL_TOTAL_PAGES" &&
+          ordinaryDeclaration?.expectedJobCount === 0
+        ? 0
       : null;
     const declaredPages = mode === "talentbrew"
       ? strictOptionalNonnegativeInt($("#search-results").first().attr("data-total-pages") ?? null) ?? null
@@ -897,7 +928,8 @@ function attachHtmlEvidence(
   }
   if (
     result.ok && pages.length === 1 &&
-    (tevaEmbeddedZero || (staticAssessment?.valid === true && staticAssessment.zero))
+    (tevaEmbeddedZero || (staticAssessment?.valid === true && staticAssessment.zero) ||
+      (mode === "ordinary" && pages[0]!.declaredTotal === 0 && pages[0]!.rawJobIds.length === 0))
   ) {
     pages[0]!.declaredTotal = 0;
     pages[0]!.termination = "EMPTY_PAGE";
@@ -987,6 +1019,20 @@ function configuredHtmlCompletenessDeclaration(
 
   if (policy.kind === "OFFICIAL_TOTAL_PAGES") {
     if (mode !== "ordinary" || !table.pagination) return undefined;
+    const zeroPage = pages.length === 1 ? pages[0] : undefined;
+    if (zeroPage?.declaredTotal === 0 && zeroPage.declaredPages === 1 &&
+      zeroPage.termination === "EMPTY_PAGE" && zeroPage.nextPageSignalAfter == null &&
+      zeroPage.rawJobIds.length === 0 && zeroPage.validJobIds.length === 0) {
+      const artifact = artifacts.find((candidate) => candidate.logicalKey === zeroPage.artifactLogicalKey);
+      if (!artifact) return undefined;
+      return {
+        kind: "OFFICIAL_TOTAL_COUNT",
+        value: 0,
+        artifactLogicalKey: artifact.logicalKey,
+        extractorLocator: artifact.extractorLocator,
+        scope: "SOURCE"
+      };
+    }
     const declaredPages = pages[0]?.declaredPages;
     if (typeof declaredPages !== "number" || !Number.isSafeInteger(declaredPages) || declaredPages <= 0 ||
       declaredPages !== pages.length || pages.some((page) => page.declaredPages !== declaredPages)) return undefined;

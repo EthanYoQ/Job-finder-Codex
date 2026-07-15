@@ -244,8 +244,8 @@ describe("official HTML fetch evidence", () => {
       }
     } } as SourceCrawlPlan;
     const entry = `<section id="search-results" data-ajax-url="/results" data-facet-term="1814991" data-facet-type="2"
-      data-total-pages="4" data-total-job-results="4" data-records-per-page="1"></section>
-      <div id="search-filters"><div data-enabled="false"><input class="filter-checkbox" checked data-id="1814991" data-facet-type="2" data-count="4" data-display="China" data-field-name="" /></div>
+      data-total-pages="3" data-total-job-results="3" data-records-per-page="1"></section>
+      <div id="search-filters"><div data-enabled="false"><input class="filter-checkbox" checked data-id="1814991" data-facet-type="2" data-count="3" data-display="China" data-field-name="" /></div>
       <div data-enabled="true"><input class="filter-checkbox" data-id="Fixed Term" data-facet-type="5" data-count="2" data-display="Fixed Term" data-field-name="job_type" /></div>
       <div data-enabled="true"><input class="filter-checkbox" data-id="Regular" data-facet-type="5" data-count="1" data-display="Regular" data-field-name="job_type" /></div></div>`;
     const paginationFlags: string[] = [];

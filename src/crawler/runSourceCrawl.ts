@@ -20,7 +20,10 @@ import {
 import { validateStrictSourceScopeExclusionProof } from "./strictSourceScopeExclusionProof";
 import {
   explicitlyForeignOrNonMainlandLocation,
-  explicitlyGenericOrAmbiguousLocation
+  explicitlyGenericOrAmbiguousLocation,
+  irreversibleOfficialJsonEvidenceId,
+  persistentOfficialJsonJobId,
+  safeOfficialJsonId
 } from "./officialJsonEvidence";
 import type { NormalizedJobRecord } from "./normalizedJob";
 import {
@@ -388,12 +391,17 @@ function hasConfiguredScopeExclusionProof(plan: SourceCrawlPlan): boolean {
 
 function strictHtmlPaginationReplayPolicy(
   plan: SourceCrawlPlan
-): { allowRawIdOverlapAcrossPages: true } | undefined {
-  return plan.adapterId === "html-table" && plan.source.id === "source-novartis-social" &&
+): { allowRawIdOverlapAcrossPages: true } | { allowMissingReturnedPage: true } | undefined {
+  if (plan.adapterId !== "html-table") return undefined;
+  if (plan.source.id === "source-novartis-social" &&
     plan.table.completenessProof?.kind === "OFFICIAL_TOTAL_PAGES" &&
     plan.table.completenessProof.sourcePolicy === "NOVARTIS_CHINA_SLIDING_WINDOW_V1" &&
-    plan.table.pagination?.officialWindowMode === "NOVARTIS_PAGE_WINDOW_V1"
-    ? { allowRawIdOverlapAcrossPages: true }
+    plan.table.pagination?.officialWindowMode === "NOVARTIS_PAGE_WINDOW_V1") {
+    return { allowRawIdOverlapAcrossPages: true };
+  }
+  return plan.table.completenessProof?.kind === "OFFICIAL_TOTAL_PAGES" &&
+    plan.table.pagination !== undefined && plan.table.pagination.ajaxMode === undefined
+    ? { allowMissingReturnedPage: true }
     : undefined;
 }
 
@@ -1285,6 +1293,8 @@ function strictPhenomRequestContracts(
   try { parsedEndpoint = new URL(endpoint); } catch { return false; }
   if (parsedEndpoint.protocol !== "https:" || parsedEndpoint.origin !== new URL(plan.source.officialEntryUrl).origin ||
     parsedEndpoint.pathname !== "/widgets" || parsedEndpoint.search || parsedEndpoint.hash) return false;
+  const exactRocheRequestBoundOmittedOffset = strictExactRochePhenomPlan(plan, pageConfig, endpoint);
+  if (config.requestBoundOmittedOffsetPolicy !== undefined && !exactRocheRequestBoundOmittedOffset) return false;
   const pageSize = Math.max(1, Math.min(100, config.pageSize ?? 50));
   const artifacts = new Map(evidence.artifacts.map((artifact) => [artifact.logicalKey, artifact]));
   if (artifacts.size !== evidence.artifacts.length) return false;
@@ -1350,8 +1360,17 @@ function strictPhenomRequestContracts(
     if (facetArtifacts.length !== 0 || config.countryFilter !== "China") return false;
     selectedFields = { country: ["China"] };
   }
+  const rocheExpectedTotal = exactRocheRequestBoundOmittedOffset ? structuredExpectedTotal : undefined;
+  const rocheExpectedPageCount = rocheExpectedTotal === undefined
+    ? undefined
+    : rocheExpectedTotal === 0 ? 1 : Math.ceil(rocheExpectedTotal / pageSize);
+  if (exactRocheRequestBoundOmittedOffset && (rocheExpectedPageCount === undefined ||
+    evidence.pages.length !== rocheExpectedPageCount ||
+    evidence.artifacts.length !== evidence.pages.length + 3)) return false;
+  const rocheExpectedOutputIds = new Set<string>();
   let pageRawCount = 0;
-  for (const page of evidence.pages) {
+  for (let pageIndex = 0; pageIndex < evidence.pages.length; pageIndex += 1) {
+    const page = evidence.pages[pageIndex]!;
     const offset = page.sequence * pageSize;
     const expected = { sequence: page.sequence, requestedCursor: null, requestedOffset: offset,
       requestedPage: null, requestedPageSize: pageSize };
@@ -1370,6 +1389,40 @@ function strictPhenomRequestContracts(
       createHash("sha256").update(typeof artifact.body === "string"
         ? Buffer.from(artifact.body, "utf8") : Buffer.from(artifact.body)).digest("hex") !==
         page.responseFingerprintSha256) return false;
+    if (exactRocheRequestBoundOmittedOffset) {
+      if (page.sequence !== pageIndex || page.artifactLogicalKey !==
+        `phenom-page-${String(pageIndex).padStart(4, "0")}` || rocheExpectedTotal === undefined ||
+        offset > rocheExpectedTotal ||
+        envelope.jobs.length !== Math.min(pageSize, rocheExpectedTotal - offset)) return false;
+      if (envelope.hasOwnFrom) {
+        if (envelope.from !== offset || page.returnedOffset !== offset) return false;
+      } else if (page.returnedOffset !== null) return false;
+      const expectedRawIds: string[] = [];
+      const expectedValidIds: string[] = [];
+      for (const raw of envelope.jobs) {
+        const record = strictRecord(raw);
+        const rawId = record ? strictPhenomOfficialId(record.jobSeqNo) ??
+          strictPhenomOfficialId(record.reqId) ?? strictPhenomOfficialId(record.jobId) : undefined;
+        const rawEvidenceId = irreversibleOfficialJsonEvidenceId(rawId ?? raw);
+        if (!expectedRawIds.includes(rawEvidenceId)) expectedRawIds.push(rawEvidenceId);
+        if (!record || !rawId || !safeOfficialJsonId(rawId)) return false;
+        const sourceJobId = persistentOfficialJsonJobId(rawId);
+        const validEvidenceId = irreversibleOfficialJsonEvidenceId(sourceJobId);
+        if (expectedValidIds.includes(validEvidenceId) || rocheExpectedOutputIds.has(sourceJobId)) return false;
+        expectedValidIds.push(validEvidenceId);
+        rocheExpectedOutputIds.add(sourceJobId);
+      }
+      if (JSON.stringify(page.rawJobIds) !== JSON.stringify(expectedRawIds) ||
+        JSON.stringify(page.validJobIds) !== JSON.stringify(expectedValidIds)) return false;
+      const lastPage = pageIndex === evidence.pages.length - 1;
+      const expectedNextBefore = pageIndex === 0 ? null : `offset:${offset}`;
+      const expectedNextAfter = lastPage ? null : `offset:${offset + pageSize}`;
+      const expectedTermination = rocheExpectedTotal === 0
+        ? "EMPTY_PAGE"
+        : lastPage ? "NEXT_ABSENT" : "CONTINUE";
+      if (page.nextPageSignalBefore !== expectedNextBefore ||
+        page.nextPageSignalAfter !== expectedNextAfter || page.termination !== expectedTermination) return false;
+    }
     const expectedCountry = facetScope?.countryIncludeDescriptor ?? "China";
     for (const job of envelope.jobs) {
       const record = strictRecord(job);
@@ -1394,9 +1447,26 @@ function strictPhenomRequestContracts(
     }
     pageRawCount += envelope.jobs.length;
   }
+  const rocheReplayMatches = !exactRocheRequestBoundOmittedOffset ||
+    (rocheExpectedTotal !== undefined && pageRawCount === rocheExpectedTotal &&
+      rocheExpectedOutputIds.size === rocheExpectedTotal &&
+      evidence.fetchCounts.rawCount === rocheExpectedTotal &&
+      evidence.fetchCounts.parsedCount === rocheExpectedTotal &&
+      evidence.fetchCounts.validCount === rocheExpectedTotal &&
+      evidence.fetchCounts.parseDiscardCount === 0 && evidence.fetchCounts.validationDiscardCount === 0 &&
+      evidence.fetchLosses.length === 0 && outputJobs.length === rocheExpectedOutputIds.size &&
+      outputJobs.every((job) => job.companyId === plan.company.id && job.sourceId === plan.source.id &&
+        typeof job.sourceJobId === "string" && rocheExpectedOutputIds.has(job.sourceJobId)) &&
+      new Set(outputJobs.map((job) => job.sourceJobId)).size === outputJobs.length);
   return evidence.declaredCompleteness?.kind === "OFFICIAL_TOTAL_COUNT" &&
     evidence.declaredCompleteness.value === pageRawCount &&
+    rocheReplayMatches &&
     (!exactGskPlan || strictGskAlternativeOutputMatches(plan, gskAlternativeOutputs, outputJobs));
+}
+
+function strictPhenomOfficialId(value: unknown): string | undefined {
+  if (typeof value === "number" || typeof value === "boolean") return String(value);
+  return strictNonblankText(value);
 }
 
 function strictPhenomRecordHasGenericLocation(record: Record<string, unknown>): boolean {
@@ -1435,7 +1505,7 @@ const STRICT_GSK_FOREIGN_SEGMENTS = new Set([
   "singapore", "新加坡", "basel", "switzerland", "巴塞尔", "瑞士", "hong kong", "hong kong sar",
   "香港", "macau", "macao", "澳门", "taiwan", "台湾", "london", "united kingdom", "uk", "英国",
   "united states", "united states of america", "usa", "us", "美国", "germany", "德国", "france", "法国",
-  "japan", "日本", "south korea", "korea", "韩国", "india", "印度", "canada", "加拿大",
+  "japan", "日本", "south korea", "korea", "韩国", "india", "印度", "bengaluru", "canada", "加拿大",
   "australia", "澳大利亚"
 ]);
 
@@ -1456,9 +1526,45 @@ function strictExactGskPhenomPlan(
     config.detailBaseUrl === "https://jobs.gsk.com/cn/zh/job" && config.countryFilter === "China" &&
     config.pageSize === 50 && config.maxPages === 3 && config.facetScope === undefined &&
     config.allowOmittedOffsetForSinglePage === undefined &&
+    config.requestBoundOmittedOffsetPolicy === undefined &&
     JSON.stringify(config.allowedApplyOrigins) === JSON.stringify(["https://gsk.wd5.myworkdayjobs.com"]) &&
     config.allowedEntryRedirect?.origin === "https://jobs.gsk.com" &&
     config.allowedEntryRedirect.pathname === "/gb/en";
+}
+
+function strictExactRochePhenomPlan(
+  plan: Extract<SourceCrawlPlan, { adapterId: "official-json" }>,
+  pageConfig: StrictGatePhenomConfig,
+  endpoint: string
+): boolean {
+  const config = plan.officialJsonFetch;
+  if (config?.kind !== "phenom" || !config.facetScope) return false;
+  const facet = config.facetScope;
+  if ("exclusionFacet" in facet && facet.exclusionFacet !== undefined) return false;
+  const fields = plan.json.fields;
+  return plan.company.id === "company-roche-china" && plan.company.officialChineseName === "罗氏制药中国" &&
+    plan.company.category === "FOREIGN_PHARMA" &&
+    plan.source.id === "source-roche-china-social" && plan.source.companyId === "company-roche-china" &&
+    plan.source.kind === "SOCIAL" && plan.source.status === "VERIFIED_SCRAPABLE" &&
+    plan.source.atsKind === "OFFICIAL_JSON" &&
+    plan.source.officialEntryUrl === "https://careers.roche.com/cn/zh/search-results" &&
+    plan.source.officialChainEvidenceUrl === "https://careers.roche.com/cn/zh/china-mainland" &&
+    plan.json.jobsPath === "jobs" && plan.json.defaultCategory === "其他" &&
+    fields.sourceJobId === "sourceJobId" && fields.officialTitle === "title" &&
+    fields.officialUrl === "officialUrl" && fields.locationRaw === "locationRaw" && fields.cities === "cities" &&
+    config.detailBaseUrl === "https://careers.roche.com/cn/zh/job" &&
+    JSON.stringify(config.allowedApplyOrigins) === JSON.stringify(["https://roche.wd3.myworkdayjobs.com"]) &&
+    facet.countryIncludeDescriptor === "中国大陆" &&
+    JSON.stringify(facet.categoryExcludeDescriptors) === JSON.stringify(["实习 & 发展项目"]) &&
+    config.countryFilter === undefined && config.allowedEntryRedirect === undefined &&
+    config.allowOmittedOffsetForSinglePage === undefined &&
+    config.requestBoundOmittedOffsetPolicy === "ROCHE_REQUEST_BOUND_OMITTED_OFFSET_V1" &&
+    config.pageSize === 100 && config.maxPages === 10 &&
+    endpoint === "https://careers.roche.com/widgets" &&
+    pageConfig.widgetApiEndpoint === "https://careers.roche.com/widgets" &&
+    pageConfig.country === "cn" && pageConfig.deviceType === "desktop" &&
+    pageConfig.locale === "zh_cn" && pageConfig.refNum === "ROCHGLOBAL" &&
+    pageConfig.pageName === "search-results" && pageConfig.pageId === "page11-ds";
 }
 
 function strictGskPrimaryLocation(record: Record<string, unknown>): string | undefined {
@@ -1578,6 +1684,8 @@ type StrictGatePhenomFacetEnvelope = {
   totalHits: number;
   jobs: unknown[];
   aggregations: unknown[];
+  hasOwnFrom: boolean;
+  from?: number;
 };
 
 function strictGatePhenomFacetScope(
@@ -1605,10 +1713,17 @@ function strictGatePhenomFacetEnvelope(
   const root = strictUniqueJsonRecord(body);
   const refineSearch = strictRecord(root?.refineSearch);
   const data = strictRecord(refineSearch?.data);
-  return refineSearch && data && strictNonnegativeInteger(refineSearch.totalHits) &&
-    Array.isArray(data.jobs) && Array.isArray(data.aggregations)
-    ? { totalHits: refineSearch.totalHits, jobs: data.jobs, aggregations: data.aggregations }
-    : undefined;
+  if (!refineSearch || !data || !strictNonnegativeInteger(refineSearch.totalHits) ||
+    !Array.isArray(data.jobs) || !Array.isArray(data.aggregations)) return undefined;
+  const hasOwnFrom = Object.prototype.hasOwnProperty.call(refineSearch, "from");
+  if (hasOwnFrom && !strictNonnegativeInteger(refineSearch.from)) return undefined;
+  return {
+    totalHits: refineSearch.totalHits,
+    jobs: data.jobs,
+    aggregations: data.aggregations,
+    hasOwnFrom,
+    ...(hasOwnFrom ? { from: refineSearch.from as number } : {})
+  };
 }
 
 function strictGatePhenomAggregation(
@@ -1630,6 +1745,7 @@ function strictGatePhenomAggregation(
 function strictGatePhenomPageConfig(body: string | Uint8Array): StrictGatePhenomConfig | undefined {
   const html = typeof body === "string" ? body : Buffer.from(body).toString("utf8");
   const candidates: StrictGatePhenomConfig[] = [];
+  const pageIdAssignments: string[] = [];
   const $ = load(html);
   for (const script of $("script").toArray()) {
     const content = $(script).html() ?? "";
@@ -1650,16 +1766,27 @@ function strictGatePhenomPageConfig(body: string | Uint8Array): StrictGatePhenom
     if (rawType && !["module", "text/javascript", "application/javascript"].includes(essence)) continue;
     const parsed = strictGatePhenomJavaScriptConfigs(content, rawType === "module" ? "module" : "script");
     if (!parsed) return undefined;
-    candidates.push(...parsed);
+    candidates.push(...parsed.configs);
+    pageIdAssignments.push(...parsed.pageIdAssignments);
   }
   if (candidates.length !== 1) return undefined;
-  return candidates[0];
+  const candidate = candidates[0]!;
+  if (pageIdAssignments.length > 1) return undefined;
+  if (pageIdAssignments.length === 1) {
+    const assigned = pageIdAssignments[0]!;
+    if (assigned !== candidate.pageId &&
+      (!assigned.endsWith("-ds") || assigned.slice(0, -3) !== candidate.pageId || candidate.pageId.endsWith("-ds"))) {
+      return undefined;
+    }
+    return { ...candidate, pageId: assigned };
+  }
+  return candidate;
 }
 
 function strictGatePhenomJavaScriptConfigs(
   script: string,
   sourceType: "script" | "module"
-): StrictGatePhenomConfig[] | undefined {
+): { configs: StrictGatePhenomConfig[]; pageIdAssignments: string[] } | undefined {
   let program: ReturnType<typeof parseJavaScript>;
   try {
     program = parseJavaScript(script, {
@@ -1669,9 +1796,10 @@ function strictGatePhenomJavaScriptConfigs(
       errorRecovery: false
     });
   } catch {
-    return /\bphApp\b/u.test(script) ? undefined : [];
+    return /\bphApp\b/u.test(script) ? undefined : { configs: [], pageIdAssignments: [] };
   }
   const candidates: StrictGatePhenomConfig[] = [];
+  const pageIdAssignments: string[] = [];
   const allowedBindings = new Set<object>();
   for (const statement of program.program.body) {
     if (statement.type === "VariableDeclaration") {
@@ -1697,7 +1825,13 @@ function strictGatePhenomJavaScriptConfigs(
     if (statement.type !== "ExpressionStatement" ||
       statement.expression.type !== "AssignmentExpression") continue;
     const assignment = statement.expression;
-    if (strictGatePhenomPageIdTarget(assignment.left)) return undefined;
+    if (strictGatePhenomStandalonePageIdTarget(assignment.left)) {
+      if (assignment.operator !== "=" || assignment.right.type !== "StringLiteral" ||
+        !assignment.right.value || assignment.right.value.trim() !== assignment.right.value) return undefined;
+      pageIdAssignments.push(assignment.right.value);
+      allowedBindings.add(assignment);
+      continue;
+    }
     if (!strictGatePhenomRootTarget(assignment.left)) continue;
     if (assignment.operator !== "=" || assignment.right.type !== "ObjectExpression") return undefined;
     const config = strictGatePhenomConfigObject(assignment.right);
@@ -1706,7 +1840,7 @@ function strictGatePhenomJavaScriptConfigs(
     allowedBindings.add(assignment);
   }
   if (strictGatePhenomHasUnsafeBinding(program.program, allowedBindings)) return undefined;
-  return candidates;
+  return { configs: candidates, pageIdAssignments };
 }
 
 function strictGatePhenomConfigObject(object: ObjectExpression): StrictGatePhenomConfig | undefined {
@@ -1761,6 +1895,15 @@ function strictGatePhenomPageIdTarget(value: unknown): boolean {
     strictGatePhenomRootTarget(target.object);
 }
 
+function strictGatePhenomStandalonePageIdTarget(value: unknown): boolean {
+  const target = strictRecord(value);
+  if (target?.type !== "MemberExpression" || target.computed === true) return false;
+  const object = strictRecord(target.object);
+  const property = strictRecord(target.property);
+  return object?.type === "Identifier" && object.name === "phApp" &&
+    property?.type === "Identifier" && property.name === "pageId";
+}
+
 function strictGatePhenomHasUnsafeBinding(
   value: unknown,
   allowedBindings: ReadonlySet<object>
@@ -1774,7 +1917,7 @@ function strictGatePhenomHasUnsafeBinding(
     if (id?.type === "Identifier" && id.name === "phApp" && !allowedBindings.has(record)) return true;
   }
   if (record.type === "AssignmentExpression") {
-    if (strictGatePhenomPageIdTarget(record.left)) return true;
+    if (strictGatePhenomPageIdTarget(record.left) && !allowedBindings.has(record)) return true;
     if (strictGatePhenomRootTarget(record.left) && !allowedBindings.has(record)) return true;
   }
   return Object.entries(record).some(([key, child]) =>
@@ -1970,11 +2113,13 @@ function strictJobsynRequestContracts(
       artifact.requestedUrl !== expectedUrl || artifact.finalUrl !== expectedUrl) return false;
     const root = strictUniqueJsonRecord(artifact.body);
     const pagination = strictRecord(root?.pagination);
-    if (!root || !strictGateExactObjectKeys(root, ["jobs", "pagination"]) ||
+    if (!root || !strictGateExactObjectKeys(root, ["featured_jobs", "filters", "jobs", "meta", "pagination"]) ||
       !Array.isArray(root.jobs) || !pagination ||
-      !strictGateExactObjectKeys(pagination, ["has_more_pages", "page", "page_size", "total", "total_pages"]) ||
+      !strictJobsynSupplementalMetadata(root, config) ||
+      !strictGateExactObjectKeys(pagination, ["has_more_pages", "offset", "page", "page_size", "total", "total_pages"]) ||
       !strictNonnegativeInteger(pagination.total) ||
       !strictNonnegativeInteger(pagination.total_pages) ||
+      pagination.offset !== (requestedPage - 1) * config.pageSize! ||
       pagination.page !== requestedPage || pagination.page_size !== config.pageSize ||
       pagination.has_more_pages !== (requestedPage < pagination.total_pages)) return false;
     const total = pagination.total;
@@ -2015,6 +2160,33 @@ function strictJobsynRequestContracts(
     strictGateOfficialTotalDeclaration(evidence, officialTotal, evidence.pages[0]!.artifactLogicalKey, declarationLocator!);
 }
 
+function strictJobsynSupplementalMetadata(root: Record<string, unknown>, config: StrictJobsynConfig): boolean {
+  if (!Array.isArray(root.featured_jobs) || root.featured_jobs.length !== 0) return false;
+  const filters = strictRecord(root.filters);
+  const meta = strictRecord(root.meta);
+  const sort = strictRecord(meta?.sort);
+  if (!filters || !strictGateExactObjectKeys(filters, ["city", "country", "jobcategory", "militarybases", "state", "title"]) ||
+    !Object.values(filters).every((value) => Array.isArray(value) && value.every(strictJobsynFilterValue)) ||
+    !meta || !strictGateExactObjectKeys(meta, ["canonical", "filters", "request_country", "request_id", "rss", "sort", "source"]) ||
+    meta.canonical !== `/locations/${config.location}/jobs/` ||
+    meta.rss !== `/locations/${config.location}/jobs/feeds/rss` ||
+    meta.request_country !== "US" || meta.request_id !== null || meta.source !== "solr" ||
+    !Array.isArray(meta.filters) || meta.filters.length !== 1 ||
+    !sort || !strictGateExactObjectKeys(sort, ["active", "options"]) ||
+    sort.active !== "date" || !Array.isArray(sort.options) || sort.options.length !== 0) return false;
+  const active = strictRecord(meta.filters[0]);
+  return Boolean(active && strictGateExactObjectKeys(active, ["display", "key", "link", "name"]) &&
+    active.display === config.location.toUpperCase() && active.key === "locations" &&
+    active.link === "/jobs" && active.name === "locations");
+}
+
+function strictJobsynFilterValue(value: unknown): boolean {
+  const record = strictRecord(value);
+  return Boolean(record && strictGateExactObjectKeys(record, ["display", "link", "value"]) &&
+    strictGateString(record.display) && strictGateString(record.link)?.startsWith("/") &&
+    strictNonnegativeInteger(record.value));
+}
+
 function strictCnstaffRequestContracts(
   plan: Extract<SourceCrawlPlan, { adapterId: "official-json" }>,
   evidence: PersistentSourceFetchEvidence
@@ -2048,9 +2220,12 @@ function strictCnstaffRequestContracts(
     const pageDeclaration = strictRecord(root?.page);
     if (!root || !strictGateExactObjectKeys(root, ["list", "page", "total"]) ||
       !Array.isArray(root.list) || !pageDeclaration ||
-      !strictGateExactObjectKeys(pageDeclaration, ["now", "total"]) ||
+      !strictGateExactObjectKeys(pageDeclaration, ["code", "limit", "now", "pageSize", "total"]) ||
       !strictNonnegativeInteger(root.total) ||
       !strictNonnegativeInteger(pageDeclaration.total) ||
+      typeof pageDeclaration.code !== "string" || pageDeclaration.code.length > 1_000_000 ||
+      pageDeclaration.limit !== `${(requestedPage - 1) * config.pageSize!},${config.pageSize!}` ||
+      pageDeclaration.pageSize !== config.pageSize ||
       pageDeclaration.now !== requestedPage) return false;
     const total = root.total;
     const totalPages = pageDeclaration.total;
@@ -2210,7 +2385,7 @@ function strictGateExactMainlandCountry(value: string): boolean {
 const STRICT_GATE_FOREIGN_LOCATION =
   /(?:香港|澳门|台湾|台北|海外|国外|美国|纽约|波士顿|西雅图|日本|东京|大阪|新加坡|印度|德国|法国|加拿大|澳大利亚|英国|伦敦|韩国|首尔)|\b(?:hong kong|macao|macau|taiwan|taipei|overseas|abroad|united states|usa|u\.s\.|boston|new york|seattle|japan|tokyo|osaka|singapore|india|germany|france|canada|australia|united kingdom|london|south korea|seoul)\b/iu;
 const STRICT_GATE_MAINLAND_LOCATION =
-  /(?:中华人民共和国|中国大陆|大陆地区|中国|全国|北京|天津|上海|重庆|河北|山西|辽宁|吉林|黑龙江|江苏|浙江|安徽|福建|江西|山东|河南|湖北|湖南|广东|海南|四川|贵州|云南|陕西|甘肃|青海|内蒙古|广西|西藏|宁夏|新疆|石家庄|太原|沈阳|大连|长春|哈尔滨|南京|无锡|苏州|杭州|宁波|合肥|福州|厦门|南昌|济南|青岛|郑州|武汉|长沙|广州|深圳|珠海|南宁|海口|成都|贵阳|昆明|拉萨|西安|兰州|西宁|银川|乌鲁木齐)|\b(?:china|prc|mainland china|china mainland|people'?s republic of china)\b/iu;
+  /(?:中华人民共和国|中国大陆|大陆地区|中国|全国|北京|天津|上海|重庆|河北|山西|辽宁|吉林|黑龙江|江苏|浙江|安徽|福建|江西|山东|河南|湖北|湖南|广东|海南|四川|贵州|云南|陕西|甘肃|青海|内蒙古|广西|西藏|宁夏|新疆|石家庄|太原|沈阳|大连|长春|哈尔滨|南京|无锡|苏州|扬州|杭州|宁波|温州|台州|合肥|福州|厦门|南昌|济南|青岛|烟台|潍坊|郑州|开封|武汉|长沙|广州|深圳|珠海|中山|茂名|南宁|海口|成都|贵阳|昆明|拉萨|西安|兰州|西宁|银川|乌鲁木齐)|\b(?:china|prc|mainland china|china mainland|people'?s republic of china)\b/iu;
 
 function strictArtifactUrlBinding(
   rules: readonly StrictUrlRule[],

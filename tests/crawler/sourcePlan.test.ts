@@ -106,7 +106,6 @@ describe("source crawl planning", () => {
 
     expect(plans.filter((plan) => newSourceIds.includes(plan.source.id)).map((plan) => plan.source.id).sort())
       .toEqual([...newSourceIds].sort());
-    expect(getPlanBySourceId(plans, "source-otsuka-china-social")).toBeUndefined();
     for (const sourceId of newSourceIds) {
       expect(getPlanBySourceId(plans, sourceId)).toMatchObject({
         adapterId: "html-table",
@@ -138,6 +137,7 @@ describe("source crawl planning", () => {
         staticPublicList: { excludedPartitionSelectors: [".job-card:has(a[href='schooldetail.html'])"] }
       }
     });
+    expect(getPlanBySourceId(plans, "source-otsuka-china-social")).toBeUndefined();
   });
 
   it("promotes the canonical Sandoz social source with its bound China taxonomy and no hard-coded job count", () => {
@@ -478,8 +478,8 @@ describe("source crawl planning", () => {
           countryIncludeDescriptor: "中国大陆",
           categoryExcludeDescriptors: ["实习 & 发展项目"]
         },
-        allowOmittedOffsetForSinglePage: true,
-        pageSize: 50,
+        requestBoundOmittedOffsetPolicy: "ROCHE_REQUEST_BOUND_OMITTED_OFFSET_V1",
+        pageSize: 100,
         maxPages: 10
       }
     });
@@ -902,6 +902,10 @@ describe("source crawl planning", () => {
                 fieldName: "custom_fields.CategoryField", descriptor: "Quality" },
               { channelId: "career-research-development", id: "Research & Development", facetType: 5,
                 fieldName: "custom_fields.CategoryField", descriptor: "Research & Development" }
+            ],
+            excludedPartitions: [
+              { id: "Early Career", facetType: 5,
+                fieldName: "custom_fields.CategoryField", descriptor: "Early Career" }
             ]
           }
         }
@@ -916,6 +920,13 @@ describe("source crawl planning", () => {
             fieldName: "job_type", descriptor: "Fixed Term (Fixed Term)" },
           { channelId: "employment-regular", id: "Regular", facetType: 5,
             fieldName: "job_type", descriptor: "Regular" }
+        ],
+        excludedPartitions: [
+          { id: "Apprentice/Intern", facetType: 5, fieldName: "job_type", descriptor: "Apprentice/Intern" },
+          { id: "Apprentice/Intern (Fixed Term)", facetType: 5,
+            fieldName: "job_type", descriptor: "Apprentice/Intern (Fixed Term)" },
+          { id: "Student (Fixed Term)", facetType: 5,
+            fieldName: "job_type", descriptor: "Student (Fixed Term)" }
         ]
       } } }
     });

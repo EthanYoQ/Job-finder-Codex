@@ -1,4 +1,5 @@
 import type { SourceFetchFunction, SourceFetchResult } from "./runSourceCrawl";
+import { fetchWithOfficialTimeout } from "./officialHttpRuntimeLimits";
 import {
   assertHotjobEvidenceResponse,
   assertHotjobJsonContentType,
@@ -482,7 +483,9 @@ function withoutEmptyHotjobQueryValues(listUrl: string): string {
 
 function defaultHttpClient(now: () => Date): HotjobLegacyHttpClient {
   return async (request) => {
-    const response = await fetch(request.url, { method: request.method, headers: request.headers, body: request.body, redirect: "follow" });
+    const response = await fetchWithOfficialTimeout(request.url, {
+      method: request.method, headers: request.headers, body: request.body, redirect: "follow"
+    });
     const contentType = response.headers.get("content-type");
     return { status: response.status, body: await response.text(), finalUrl: response.url,
       ...(contentType ? { contentType } : {}), capturedAt: now().toISOString() };

@@ -2,6 +2,7 @@ import { createDecipheriv } from "node:crypto";
 import { load } from "cheerio";
 import type { SourceFetchFunction, SourceFetchResult } from "./runSourceCrawl";
 import type { MokaFetchConfig } from "./sourcePlan";
+import { fetchWithOfficialTimeout } from "./officialHttpRuntimeLimits";
 import { deriveCanonicalPaginationEvidence, evaluatePaginationEvidence } from "./paginationEvidence";
 import {
   parsePersistentSourceFetchEvidence,
@@ -585,7 +586,7 @@ async function defaultMokaHttpClient(
   let currentUrl = request.url;
 
   for (let redirectCount = 0; redirectCount <= MOKA_MAX_REDIRECTS; redirectCount += 1) {
-    const response = await fetch(currentUrl, buildFetchInit(request, cookies));
+    const response = await fetchWithOfficialTimeout(currentUrl, buildFetchInit(request, cookies));
     storeResponseCookies(response.headers, cookies);
 
     if (!isRedirect(response.status)) {

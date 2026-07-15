@@ -44,6 +44,11 @@ import { releaseMembersFromPlans, validateAuthoritativeReleaseMembership,
 import { getStartupReleaseMembership } from "./releaseMembershipAuthority";
 import { getStartupSourceSurfaceOracle } from "./sourceSurfaceOracleAuthority";
 import { validateIndependentSourceSurfaceOracle } from "./independentSourceSurfaceOracle";
+import {
+  isOfficialSourceAttemptTimeout,
+  runWithOfficialSourceAttemptTimeout,
+  sourceAttemptTimeoutMs
+} from "./officialHttpRuntimeLimits";
 
 export interface P0CrawlBatchResult {
   status: Exclude<CrawlBatchStatus, "RUNNING">;
@@ -205,6 +210,7 @@ export interface RunP0CrawlBatchDeps {
   now: Date | (() => Date);
   identity: RuntimeBatchIdentity;
   force?: boolean;
+  sourceAttemptTimeoutMs?: number;
   createBatchId?: () => string;
   workspaceRoot?: string;
   evidenceSubdirectory?: string;
@@ -225,6 +231,10 @@ export async function runP0CrawlBatch(
   plans: readonly SourceCrawlPlan[],
   deps: RunP0CrawlBatchDeps
 ): Promise<P0CrawlBatchResult> {
+  const sourceTimeoutMs = deps.sourceAttemptTimeoutMs ?? sourceAttemptTimeoutMs();
+  if (!Number.isSafeInteger(sourceTimeoutMs) || sourceTimeoutMs <= 0 || sourceTimeoutMs > 30 * 60 * 1_000) {
+    throw new Error("Official source attempt timeout must be an integer from 1 through 1800000 milliseconds");
+  }
   for (const plan of plans) validateExecutablePlanChannelBinding(plan);
   validatePlannedSourceContract(
     deps.identity,
@@ -300,12 +310,16 @@ export async function runP0CrawlBatch(
       const pending = plannedBatch.sources.find((source) => source.sourceId === plan.source.id)!;
       let crawlResult: Awaited<ReturnType<typeof runSourceCrawl>>;
       try {
-        crawlResult = await runSourceCrawl(plan, {
-          fetch: deps.fetch,
-          isBaseline: !baselineCompletedBeforeCrawl
-        });
+        crawlResult = await runWithOfficialSourceAttemptTimeout(
+          () => runSourceCrawl(plan, {
+            fetch: deps.fetch,
+            isBaseline: !baselineCompletedBeforeCrawl
+          }),
+          sourceTimeoutMs
+        );
       } catch (error) {
-        if (error instanceof SourceCrawlStageError && error.stage === "FETCH") {
+        const sourceTimedOut = isOfficialSourceAttemptTimeout(error);
+        if (sourceTimedOut || error instanceof SourceCrawlStageError && error.stage === "FETCH") {
           transportFailedSourceCount += 1;
         } else if (error instanceof SourceCrawlStageError && error.stage === "ADAPTER") {
           transportSuccessfulSourceCount += 1;
@@ -319,7 +333,9 @@ export async function runP0CrawlBatch(
           adapterState: error instanceof SourceCrawlStageError && error.stage === "ADAPTER" ? "FAILED" : "SKIPPED",
           completenessState: "FAILED", atomicCommitState: "NOT_ATTEMPTED",
           finishedAt: batchStartedAt, failureCode: "SOURCE_STAGE_FAILED",
-          failureReason: "Source execution failed before atomic evidence commit" }, deps.db as never);
+          failureReason: sourceTimedOut
+            ? "Source execution exceeded the per-source time limit before atomic evidence commit"
+            : "Source execution failed before atomic evidence commit" }, deps.db as never);
         terminalSourceIds.add(plan.source.id);
         failedSourceCount += 1;
         continue;

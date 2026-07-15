@@ -418,8 +418,8 @@ const REPRESENTATIVE_CONFIGS: Record<string, RepresentativeSourceConfig> = {
         countryIncludeDescriptor: "中国大陆",
         categoryExcludeDescriptors: ["实习 & 发展项目"]
       },
-      allowOmittedOffsetForSinglePage: true,
-      pageSize: 50,
+      requestBoundOmittedOffsetPolicy: "ROCHE_REQUEST_BOUND_OMITTED_OFFSET_V1",
+      pageSize: 100,
       maxPages: 10
     }
   },
@@ -838,6 +838,10 @@ const REPRESENTATIVE_CONFIGS: Record<string, RepresentativeSourceConfig> = {
               fieldName: "custom_fields.CategoryField", descriptor: "Quality" },
             { channelId: "career-research-development", id: "Research & Development", facetType: 5,
               fieldName: "custom_fields.CategoryField", descriptor: "Research & Development" }
+          ],
+          excludedPartitions: [
+            { id: "Early Career", facetType: 5,
+              fieldName: "custom_fields.CategoryField", descriptor: "Early Career" }
           ]
         }
       },
@@ -954,7 +958,8 @@ const REPRESENTATIVE_CONFIGS: Record<string, RepresentativeSourceConfig> = {
       category: "1",
       pageSize: 100,
       maxPages: 5,
-      detailPath: "social/detail"
+      detailPath: "social/detail",
+      scopeExclusionProof: "NHU_EXPLICIT_JAPAN_ONLY_V1"
     }
   },
   "source-yangzijiang-social": {
@@ -1077,6 +1082,14 @@ const REPRESENTATIVE_CONFIGS: Record<string, RepresentativeSourceConfig> = {
               fieldName: "job_type", descriptor: "Fixed Term (Fixed Term)" },
             { channelId: "employment-regular", id: "Regular", facetType: 5,
               fieldName: "job_type", descriptor: "Regular" }
+          ],
+          excludedPartitions: [
+            { id: "Apprentice/Intern", facetType: 5,
+              fieldName: "job_type", descriptor: "Apprentice/Intern" },
+            { id: "Apprentice/Intern (Fixed Term)", facetType: 5,
+              fieldName: "job_type", descriptor: "Apprentice/Intern (Fixed Term)" },
+            { id: "Student (Fixed Term)", facetType: 5,
+              fieldName: "job_type", descriptor: "Student (Fixed Term)" }
           ]
         }
       },

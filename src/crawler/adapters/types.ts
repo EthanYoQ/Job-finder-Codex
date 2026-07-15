@@ -135,6 +135,12 @@ export interface HtmlTableConfig {
         fieldName: string;
         descriptor: string;
       }>;
+      excludedPartitions?: Array<{
+        id: string;
+        facetType: number;
+        fieldName: string;
+        descriptor: string;
+      }>;
     };
   };
 }

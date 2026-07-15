@@ -330,8 +330,8 @@ describe("four audited official HTML sources", () => {
       b: "Shanghai, China",
       c: "北京，中国",
       d: "China",
-      e: "Guangzhou, Guangdong, China",
-      f: "中国大陆"
+      e: "Yichang, Hubei, China",
+      f: "Xi an, Shaanxi, China"
     };
     const bodies = [
       novartisPage(1, ["a", "b", "c"], { locations }),
@@ -353,6 +353,8 @@ describe("four audited official HTML sources", () => {
   it.each([
     ["foreign-only", "Basel, Switzerland"],
     ["mixed mainland and foreign", "Shanghai, China / Basel, Switzerland"],
+    ["unknown foreign locality with a mainland province suffix", "Zurich, Zhejiang"],
+    ["unknown foreign locality with a mainland province suffix", "Paris, Hubei"],
     ["unknown", "Remote"],
     ["empty", "   "]
   ])("fails closed for Novartis %s location rows", async (_name, location) => {

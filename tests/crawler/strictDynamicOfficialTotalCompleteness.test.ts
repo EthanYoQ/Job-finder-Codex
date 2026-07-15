@@ -16,6 +16,10 @@ import {
   type PaginationEvaluation
 } from "../../src/crawler/paginationEvidence";
 import type { PersistentSourceFetchEvidence } from "../../src/crawler/sourceFetchEvidence";
+import {
+  irreversibleOfficialJsonEvidenceId,
+  persistentOfficialJsonJobId
+} from "../../src/crawler/officialJsonEvidence";
 
 const CAPTURED_AT = "2026-07-15T00:01:00.000Z";
 const PLANS = buildStagedSourceCrawlPlans(candidateCompanies);
@@ -298,6 +302,19 @@ function dynamicWorkdayEvidence(plan: SourceCrawlPlan): {
 }
 
 function phenomConfig(plan: SourceCrawlPlan) {
+  if (plan.source.id === "source-roche-china-social") {
+    return {
+      widgetApiEndpoint: "https://careers.roche.com/widgets",
+      country: "cn",
+      deviceType: "desktop",
+      locale: "zh_cn",
+      absUrl: true,
+      refNum: "ROCHGLOBAL",
+      pageName: "search-results",
+      siteType: "external",
+      pageId: "page11-ds"
+    };
+  }
   return {
     widgetApiEndpoint: new URL("/widgets", plan.source.officialEntryUrl).toString(),
     country: "cn",
@@ -352,6 +369,7 @@ function phenomEvidence(
     throw new Error("Phenom plan expected");
   }
   const strategy = plan.officialJsonFetch;
+  const exactRoche = plan.source.id === "source-roche-china-social";
   const config = phenomConfig(plan);
   const endpoint = config.widgetApiEndpoint;
   const pageSize = Math.max(1, Math.min(100, strategy.pageSize ?? 50));
@@ -452,7 +470,11 @@ function phenomEvidence(
   });
 
   const pageBody = JSON.stringify({
-    refineSearch: { totalHits: 1, from: 0, data: { jobs: [fixtureJob], aggregations: [] } }
+    refineSearch: {
+      totalHits: 1,
+      ...(exactRoche ? {} : { from: 0 }),
+      data: { jobs: [fixtureJob], aggregations: [] }
+    }
   });
   const pageLocator = requestLocator("json:$.refineSearch.totalHits", {
     family: "phenom", role: "page", method: "POST", url: endpoint,
@@ -470,13 +492,15 @@ function phenomEvidence(
       sequence: 0,
       artifactLogicalKey: "phenom-page-0000",
       requestedOffset: 0,
-      returnedOffset: 0,
+      returnedOffset: exactRoche ? null : 0,
       requestedPage: null,
       returnedPage: null,
       requestedPageSize: pageSize,
       returnedPageSize: null,
-      rawJobIds: ["raw-1"],
-      validJobIds: ["valid-1"],
+      rawJobIds: exactRoche ? [irreversibleOfficialJsonEvidenceId("1")] : ["raw-1"],
+      validJobIds: exactRoche
+        ? [irreversibleOfficialJsonEvidenceId(persistentOfficialJsonJobId("1"))]
+        : ["valid-1"],
       declaredTotal: 1,
       declaredCount: null,
       declaredPages: 1,
@@ -508,12 +532,15 @@ async function crawlWith(
   plan: SourceCrawlPlan,
   evidence: PersistentSourceFetchEvidence,
   evaluation: PaginationEvaluation,
-  payload: unknown = payloadFor(plan)
+  payload?: unknown
 ) {
+  const effectivePayload = payload ?? payloadFor(plan, plan.source.id === "source-roche-china-social"
+    ? [persistentOfficialJsonJobId("1")]
+    : ["job-1"]);
   return runSourceCrawl(plan, { fetch: async () => ({
     ok: true,
     capturedAt: CAPTURED_AT,
-    payload,
+    payload: effectivePayload,
     fetchEvidence: evidence,
     paginationEvaluation: evaluation,
     completeness: {

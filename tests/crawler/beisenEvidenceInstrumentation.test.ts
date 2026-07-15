@@ -317,6 +317,7 @@ describe("Beisen Zhiye 2022 evidence instrumentation", () => {
     ["台湾省·台北市", "OUT_OF_SCOPE"],
     ["Macau", "OUT_OF_SCOPE"],
     ["韩国·首尔市", "OUT_OF_SCOPE"],
+    ["山东省·潍坊市·高密市/Hong Kong", "OUT_OF_SCOPE"],
     ["台湾·高雄市", "OUT_OF_SCOPE"],
     ["香港·九龙", "OUT_OF_SCOPE"],
     ["港澳台", "OUT_OF_SCOPE"],
@@ -388,6 +389,13 @@ describe("Beisen Zhiye 2022 evidence instrumentation", () => {
     "浙江省",
     "山东省·临沂市",
     "上海市·浦东新区",
+    "广东省·东莞市·长安镇",
+    "山东省·潍坊市·高密市",
+    "山东省·潍坊市·高密市/诸城市",
+    "甘肃省·临夏回族自治州",
+    "云南省·红河哈尼族彝族自治州",
+    "青海省·黄南藏族自治州·同仁市",
+    "新疆维吾尔自治区·伊犁哈萨克自治州",
     "Shanghai, China"
   ])("keeps a common unambiguous mainland location: %s", async (location) => {
     const result = await createOfficialJsonSourceFetch({

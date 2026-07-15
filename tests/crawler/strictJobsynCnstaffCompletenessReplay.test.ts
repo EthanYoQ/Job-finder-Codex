@@ -36,6 +36,11 @@ async function jobsynFixture(): Promise<{ plan: OfficialJsonPlan; fetched: Succe
   const fetcher = createOfficialJsonSourceFetch({
     now: () => new Date(CAPTURED_AT),
     http: async (request) => response(request.url, {
+      featured_jobs: [],
+      filters: {
+        city: [{ display: "Shanghai, CHN", link: "/locations/shanghai-chn/jobs", value: 1 }],
+        country: [], jobcategory: [], militarybases: [], state: [], title: []
+      },
       jobs: [{
         guid: "grifols-china-1",
         title_exact: "Field Service Engineer",
@@ -44,7 +49,13 @@ async function jobsynFixture(): Promise<{ plan: OfficialJsonPlan; fetched: Succe
         city_exact: "Shanghai",
         country_exact: "China"
       }],
-      pagination: { page: 1, page_size: 9, total: 1, total_pages: 1, has_more_pages: false }
+      meta: {
+        canonical: "/locations/chn/jobs/",
+        filters: [{ display: "CHN", key: "locations", link: "/jobs", name: "locations" }],
+        request_country: "US", request_id: null, rss: "/locations/chn/jobs/feeds/rss",
+        sort: { active: "date", options: [] }, source: "solr"
+      },
+      pagination: { page: 1, page_size: 9, total: 1, total_pages: 1, has_more_pages: false, offset: 0 }
     })
   });
   const fetched = await fetcher(plan);
@@ -52,18 +63,18 @@ async function jobsynFixture(): Promise<{ plan: OfficialJsonPlan; fetched: Succe
   return { plan, fetched };
 }
 
-async function cnstaffFixture(): Promise<{ plan: OfficialJsonPlan; fetched: SuccessfulFetch }> {
+async function cnstaffFixture(location = "上海市"): Promise<{ plan: OfficialJsonPlan; fetched: SuccessfulFetch }> {
   const plan = stagedPlan("source-daiichi-sankyo-china-social");
   const fetcher = createOfficialJsonSourceFetch({
     now: () => new Date(CAPTURED_AT),
     http: async (request) => response(request.url, {
       total: 1,
-      page: { total: 1, now: 1 },
+      page: { code: "<div class=\"pageBar2\"></div>", limit: "0,15", now: 1, pageSize: 15, total: 1 },
       list: [{
         job_id: "daiichi-detail-1",
         job_publish_id: "daiichi-publish-1",
         job_name_show: "医学信息沟通岗位",
-        job_address_name: "上海市"
+        job_address_name: location
       }]
     })
   });
@@ -194,5 +205,24 @@ describe("Jobsyn and CNStaff strict source-bound completeness replay", () => {
       .toBe(false);
     expect((await runSourceCrawl(plan, { fetch: async () => foreign })).truth.completenessVerified)
       .toBe(false);
+  });
+
+  it.each(["中山", "台州", "开封", "扬州", "温州", "潍坊", "烟台", "茂名"])(
+    "independently accepts the official CNStaff mainland city %s",
+    async (location) => {
+      const { plan, fetched } = await cnstaffFixture(location);
+      expect((await runSourceCrawl(plan, { fetch: async () => fetched })).truth.completenessVerified).toBe(true);
+    }
+  );
+
+  it("rejects unreviewed Jobsyn supplemental response drift", async () => {
+    const { plan, fetched } = await jobsynFixture();
+    for (const attack of [
+      mutateFirstBody(fetched, (body) => { body.unexpected = true; }),
+      mutateFirstBody(fetched, (body) => { body.featured_jobs = [{ guid: "hidden" }]; }),
+      mutateFirstBody(fetched, (body) => { (body.pagination as Record<string, unknown>).offset = 9; })
+    ]) {
+      expect((await runSourceCrawl(plan, { fetch: async () => attack })).truth.completenessVerified).toBe(false);
+    }
   });
 });

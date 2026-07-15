@@ -1,9 +1,15 @@
+import { createHash } from "node:crypto";
 import { describe, expect, it } from "vitest";
 import {
   createOfficialJsonSourceFetch,
   type OfficialJsonHttpResponse
 } from "../../src/crawler/officialJsonSourceFetch";
-import { runSourceCrawl } from "../../src/crawler/runSourceCrawl";
+import { runSourceCrawl, type SourceFetchResult } from "../../src/crawler/runSourceCrawl";
+import {
+  deriveCanonicalPaginationEvidence,
+  evaluatePaginationEvidence
+} from "../../src/crawler/paginationEvidence";
+import type { PersistentSourceFetchEvidence } from "../../src/crawler/sourceFetchEvidence";
 import {
   buildStagedSourceCrawlPlans,
   getPlanBySourceId,
@@ -120,6 +126,118 @@ function exactPhenomPlan(sourceId: string): Extract<SourceCrawlPlan, { adapterId
   return value;
 }
 
+function rochePlan(): Extract<SourceCrawlPlan, { adapterId: "official-json" }> {
+  return exactPhenomPlan("source-roche-china-social");
+}
+
+function rocheEntryHtml(): string {
+  return `<script>var phApp={"widgetApiEndpoint":"https://careers.roche.com/widgets","country":"cn","deviceType":"desktop","locale":"zh_cn","refNum":"ROCHGLOBAL","pageName":"search-results","pageId":"page11"};</script><script>phApp.pageId = "page11-ds";</script>`;
+}
+
+function rocheJob(id: string): Record<string, unknown> {
+  return {
+    jobSeqNo: id,
+    reqId: id,
+    title: `Roche role ${id}`,
+    location: "Shanghai, 中国大陆",
+    city: "Shanghai",
+    country: "中国大陆",
+    category: "销售 & 市场",
+    applyUrl: `https://careers.roche.com/cn/zh/job/${id}`
+  };
+}
+
+function facetPageBodyWithoutFrom(
+  jobs: unknown[],
+  totalHits: number,
+  aggregations: Array<{ field: string; value: Record<string, unknown> }> = []
+): string {
+  return JSON.stringify({ refineSearch: { totalHits, data: { jobs, aggregations } } });
+}
+
+type RocheFixtureAttack =
+  | "NONE"
+  | "REPEATED_PAGE"
+  | "SHORT_INTERMEDIATE_PAGE"
+  | "TOTAL_DRIFT"
+  | "WRONG_FROM"
+  | "MISSING_LAST_PAGE";
+
+async function fetchLiveShapedRoche(attack: RocheFixtureAttack = "NONE") {
+  const stagedPlan = rochePlan();
+  if (stagedPlan.officialJsonFetch?.kind !== "phenom") throw new Error("Expected Roche Phenom plan");
+  const pageSize = stagedPlan.officialJsonFetch.pageSize ?? 50;
+  const eligibleJobs = Array.from({ length: 228 }, (_, index) => rocheJob(`ROCHE-${index + 1}`));
+  const pages = Array.from({ length: Math.ceil(eligibleJobs.length / pageSize) }, (_, index) =>
+    eligibleJobs.slice(index * pageSize, (index + 1) * pageSize));
+  if (attack === "REPEATED_PAGE") pages[1] = [...pages[0]!];
+  if (attack === "SHORT_INTERMEDIATE_PAGE") pages[0] = pages[0]!.slice(0, -1);
+  const bodies = [
+    facetPageBody([], 300, 0, [{ field: "country", value: { 中国大陆: 229, 瑞士: 71 } }]),
+    facetPageBody([rocheJob("SAMPLE")], 229, 0, [{
+      field: "category", value: { "销售 & 市场": 228, "实习 & 发展项目": 1 }
+    }]),
+    ...pages.map((jobs, index) => attack === "WRONG_FROM" && index === 1
+      ? facetPageBody(jobs, 228, 999, [])
+      : facetPageBodyWithoutFrom(
+          jobs,
+          attack === "TOTAL_DRIFT" && index === 1 ? 227 : 228
+        ))
+  ];
+  if (attack === "MISSING_LAST_PAGE") bodies.pop();
+  const requests: Array<{ method?: string; body?: string }> = [];
+  const fetcher = createOfficialJsonSourceFetch({
+    now: () => new Date(capturedAt),
+    http: async (request) => {
+      requests.push(request);
+      if (request.method !== "POST") {
+        return response(rocheEntryHtml(), stagedPlan.source.officialEntryUrl, "text/html");
+      }
+      const body = bodies.shift();
+      if (body === undefined) throw new Error("fixture omitted the final official page");
+      return response(body, "https://careers.roche.com/widgets", "application/json");
+    }
+  });
+  return { stagedPlan, fetched: await fetcher(stagedPlan), requests };
+}
+
+function recanonicalizeSuccessfulRocheFetch(
+  fetched: SourceFetchResult,
+  mutate: (evidence: PersistentSourceFetchEvidence) => void
+): Extract<SourceFetchResult, { ok: true }> {
+  if (!fetched.ok || !fetched.fetchEvidence || !fetched.paginationEvaluation) {
+    throw new Error("Expected successful Roche evidence");
+  }
+  const draft = structuredClone(fetched.fetchEvidence);
+  mutate(draft);
+  const fetchEvidence = deriveCanonicalPaginationEvidence({
+    evidence: draft,
+    expectedChannelIds: [],
+    filteredOutput: true
+  });
+  const paginationEvaluation = evaluatePaginationEvidence({
+    evidence: fetchEvidence,
+    expectedChannelIds: [],
+    filteredOutput: true
+  });
+  return { ...fetched, fetchEvidence, paginationEvaluation };
+}
+
+function rewriteRocheArtifactBody(
+  evidence: PersistentSourceFetchEvidence,
+  logicalKey: string,
+  mutate: (root: Record<string, unknown>) => void
+): void {
+  const artifact = evidence.artifacts.find((candidate) => candidate.logicalKey === logicalKey);
+  const page = evidence.pages.find((candidate) => candidate.artifactLogicalKey === logicalKey);
+  if (!artifact || !page || typeof artifact.body !== "string") throw new Error(`Missing ${logicalKey}`);
+  const root = JSON.parse(artifact.body) as Record<string, unknown>;
+  mutate(root);
+  const body = JSON.stringify(root);
+  artifact.body = body;
+  page.responseFingerprintSha256 = createHash("sha256").update(body, "utf8").digest("hex");
+}
+
 function exactPhenomEntryHtml(widgetEndpoint: string): string {
   return `<script type="application/json">${JSON.stringify({
     phApp: {
@@ -183,7 +301,8 @@ async function fetchExactPhenomLocation(sourceId: string, location: string) {
     now: () => new Date(capturedAt),
     http: async (request) => request.method === "POST"
       ? response(bodies.shift()!, widgetEndpoint, "application/json")
-      : response(exactPhenomEntryHtml(widgetEndpoint), stagedPlan.source.officialEntryUrl, "text/html")
+      : response(sourceId === "source-roche-china-social" ? rocheEntryHtml() : exactPhenomEntryHtml(widgetEndpoint),
+        stagedPlan.source.officialEntryUrl, "text/html")
   });
   return { stagedPlan, fetched: await fetcher(stagedPlan) };
 }
@@ -544,6 +663,125 @@ describe("Phenom evidence instrumentation", () => {
       completeness: { expectedJobCount: 1, pagesVisited: 1 },
       fetchEvidence: { pages: [{ requestedOffset: 0, returnedOffset: 0, termination: "NEXT_ABSENT" }] }
     });
+  });
+
+  it("closes Roche's live-shaped 228-row scope with request-bound omitted offsets at page size 100", async () => {
+    const { stagedPlan, fetched, requests } = await fetchLiveShapedRoche();
+    expect(stagedPlan.officialJsonFetch).toMatchObject({
+      kind: "phenom",
+      requestBoundOmittedOffsetPolicy: "ROCHE_REQUEST_BOUND_OMITTED_OFFSET_V1",
+      pageSize: 100
+    });
+    expect(fetched).toMatchObject({
+      ok: true,
+      completeness: { expectedJobCount: 228, pageSize: 100, pagesVisited: 3 },
+      fetchEvidence: {
+        fetchCounts: {
+          rawCount: 228,
+          parsedCount: 228,
+          validCount: 228,
+          parseDiscardCount: 0,
+          validationDiscardCount: 0
+        },
+        fetchLosses: [],
+        pages: [
+          { sequence: 0, requestedOffset: 0, returnedOffset: null, rawJobIds: expect.any(Array) },
+          { sequence: 1, requestedOffset: 100, returnedOffset: null, rawJobIds: expect.any(Array) },
+          { sequence: 2, requestedOffset: 200, returnedOffset: null, rawJobIds: expect.any(Array), termination: "NEXT_ABSENT" }
+        ]
+      },
+      paginationEvaluation: { safeCompleteness: true, verifiedEligible: false, derivedAnomalyCodes: [] }
+    });
+    expect(requests.filter((request) => request.method === "POST").slice(2)
+      .map((request) => JSON.parse(request.body ?? "{}").from)).toEqual([0, 100, 200]);
+    const crawled = await runSourceCrawl(stagedPlan, { fetch: async () => fetched });
+    expect(crawled).toMatchObject({
+      status: "SUCCESS",
+      truth: { transportSuccess: true, adapterSuccess: true, completenessVerified: true },
+      observation: { completenessStatus: "VERIFIED", expectedJobCount: 228, structuredJobCount: 228 },
+      reconciliation: {
+        rawInputCount: 228,
+        parsedCount: 228,
+        validBeforeDedupeCount: 228,
+        dedupeOutputCount: 228,
+        adapterLosses: [],
+        collisionGroups: []
+      }
+    });
+  });
+
+  it.each([
+    ["a repeated page / cross-page ID overlap", "REPEATED_PAGE"],
+    ["a short intermediate page", "SHORT_INTERMEDIATE_PAGE"],
+    ["dynamic total drift", "TOTAL_DRIFT"],
+    ["an explicit wrong returned offset", "WRONG_FROM"],
+    ["a missing terminal page", "MISSING_LAST_PAGE"]
+  ] as const)("rejects Roche request-bound omitted offsets with %s", async (_label, attack) => {
+    const { stagedPlan, fetched } = await fetchLiveShapedRoche(attack);
+    expect(fetched).toMatchObject({ ok: false });
+    const crawled = await runSourceCrawl(stagedPlan, { fetch: async () => fetched });
+    expect(crawled.truth.completenessVerified).toBe(false);
+  });
+
+  it("does not grant Roche request-bound omitted offsets to another Phenom source", async () => {
+    const lilly = exactPhenomPlan("source-lilly-china-social");
+    if (lilly.officialJsonFetch?.kind !== "phenom") throw new Error("Expected Lilly Phenom plan");
+    const forged = {
+      ...lilly,
+      officialJsonFetch: {
+        ...lilly.officialJsonFetch,
+        requestBoundOmittedOffsetPolicy: "ROCHE_REQUEST_BOUND_OMITTED_OFFSET_V1",
+        pageSize: 100
+      }
+    } as SourceCrawlPlan;
+    const bodies = [facetPageBodyWithoutFrom([job("CN-1")], 1)];
+    const fetched = await createOfficialJsonSourceFetch({
+      now: () => new Date(capturedAt),
+      http: async (request) => request.method === "POST"
+        ? response(bodies.shift()!, new URL("/widgets", forged.source.officialEntryUrl).toString(), "application/json")
+        : response(entryHtml().replaceAll(widgetUrl, new URL("/widgets", forged.source.officialEntryUrl).toString()),
+          forged.source.officialEntryUrl, "text/html")
+    })(forged);
+    expect(fetched).toMatchObject({ ok: false });
+  });
+
+  it("strict replay rejects raw Roche IDs changed in the archived body while trace hashes remain self-consistent", async () => {
+    const { stagedPlan, fetched } = await fetchLiveShapedRoche();
+    const forged = recanonicalizeSuccessfulRocheFetch(fetched, (evidence) => {
+      rewriteRocheArtifactBody(evidence, "phenom-page-0001", (root) => {
+        const jobs = ((root.refineSearch as Record<string, unknown>).data as Record<string, unknown>).jobs as
+          Array<Record<string, unknown>>;
+        jobs[0] = { ...jobs[0], jobSeqNo: "ROCHE-1", reqId: "ROCHE-1" };
+      });
+    });
+    expect(forged.paginationEvaluation).toMatchObject({ safeCompleteness: true, derivedAnomalyCodes: [] });
+    const crawled = await runSourceCrawl(stagedPlan, { fetch: async () => forged });
+    expect(crawled.truth.completenessVerified).toBe(false);
+  });
+
+  it("strict replay rejects a returned offset invented by evidence when Roche omitted it", async () => {
+    const { stagedPlan, fetched } = await fetchLiveShapedRoche();
+    const forged = recanonicalizeSuccessfulRocheFetch(fetched, (evidence) => {
+      evidence.pages[0]!.returnedOffset = 0;
+    });
+    expect(forged.paginationEvaluation).toMatchObject({ safeCompleteness: true, derivedAnomalyCodes: [] });
+    const crawled = await runSourceCrawl(stagedPlan, { fetch: async () => forged });
+    expect(crawled.truth.completenessVerified).toBe(false);
+  });
+
+  it("strict replay rejects a skipped middle Roche page even when an older green evaluation is replayed", async () => {
+    const { stagedPlan, fetched } = await fetchLiveShapedRoche();
+    if (!fetched.ok || !fetched.fetchEvidence) throw new Error("Expected successful Roche evidence");
+    const forged = {
+      ...fetched,
+      fetchEvidence: {
+        ...fetched.fetchEvidence,
+        pages: fetched.fetchEvidence.pages.filter((page) => page.sequence !== 1),
+        artifacts: fetched.fetchEvidence.artifacts.filter((artifact) => artifact.logicalKey !== "phenom-page-0001")
+      }
+    };
+    const crawled = await runSourceCrawl(stagedPlan, { fetch: async () => forged });
+    expect(crawled.truth.completenessVerified).toBe(false);
   });
 
   it("accepts only an exact configured same-origin entry redirect and archives the observed final URL", async () => {
@@ -1079,6 +1317,62 @@ describe("Phenom evidence instrumentation", () => {
       truth: { transportSuccess: true, adapterSuccess: true, completenessVerified: true },
       observation: { structuredJobCount: 1, completenessStatus: "VERIFIED" },
       jobs: [{ locationRaw: "Shanghai, China", cities: ["上海"] }]
+    });
+  });
+
+  it("publishes exact staged GSK when the official multi_location includes Bengaluru and one mainland alternative", async () => {
+    const { stagedPlan, fetched } = await fetchExactGsk(gskJob({
+      location: "Singapore, Singapore",
+      multi_location: ["Singapore, Singapore", "Bengaluru, India", "Shanghai, Shanghai, China"]
+    }));
+    expect(fetched).toMatchObject({
+      ok: true,
+      payload: { jobs: [{ locationRaw: "Shanghai, Shanghai, China", cities: ["上海"] }] }
+    });
+    const crawled = await runSourceCrawl(stagedPlan, { fetch: async () => fetched });
+    expect(crawled).toMatchObject({
+      status: "SUCCESS",
+      truth: { transportSuccess: true, adapterSuccess: true, completenessVerified: true },
+      observation: { structuredJobCount: 1, completenessStatus: "VERIFIED" },
+      jobs: [{ locationRaw: "Shanghai, Shanghai, China", cities: ["上海"] }]
+    });
+  });
+
+  it("independently accepts one audited literal pageId refinement used by an exact staged Phenom source", async () => {
+    const stagedPlan = exactPhenomPlan("source-lilly-china-social");
+    const config = stagedPlan.officialJsonFetch;
+    if (config?.kind !== "phenom") throw new Error("Expected exact Phenom config");
+    const widgetEndpoint = new URL("/widgets", stagedPlan.source.officialEntryUrl).toString();
+    const rawJob = {
+      jobSeqNo: "LILLY-SAFE-PAGE-ID",
+      title: "Medical role",
+      location: "Shanghai, China",
+      city: "Shanghai",
+      country: config.facetScope?.countryIncludeDescriptor ?? config.countryFilter ?? "China",
+      applyUrl: `${config.detailBaseUrl.replace(/\/$/u, "")}/lilly-safe-page-id`
+    };
+    const bodies = exactPhenomBodies(stagedPlan, rawJob);
+    const entry = `<script>var phApp = phApp || ${JSON.stringify({
+      widgetApiEndpoint: widgetEndpoint,
+      country: "cn",
+      deviceType: "desktop",
+      locale: "zh_cn",
+      refNum,
+      pageName: "search-results",
+      pageId: "page11"
+    })};</script><script>phApp.pageId = "page11-ds";</script>`;
+    const fetcher = createOfficialJsonSourceFetch({
+      now: () => new Date(capturedAt),
+      http: async request => request.method === "POST"
+        ? response(bodies.shift()!, widgetEndpoint, "application/json")
+        : response(entry, stagedPlan.source.officialEntryUrl, "text/html")
+    });
+    const fetched = await fetcher(stagedPlan);
+    expect(fetched.ok).toBe(true);
+    const crawled = await runSourceCrawl(stagedPlan, { fetch: async () => fetched });
+    expect(crawled).toMatchObject({
+      truth: { transportSuccess: true, adapterSuccess: true, completenessVerified: true },
+      observation: { completenessStatus: "VERIFIED" }
     });
   });
 

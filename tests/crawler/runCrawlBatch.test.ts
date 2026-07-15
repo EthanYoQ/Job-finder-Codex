@@ -1343,6 +1343,51 @@ describe("runP0CrawlBatch", () => {
       }]));
   });
 
+  it("times out one source attempt and still commits the later due source", async () => {
+    const timedOutPlan = planFor("source-astrazeneca-social");
+    const successfulPlan = planFor("source-roche-china-social");
+    const batchPlans = [timedOutPlan, successfulPlan];
+    const db = fakeDb();
+    const executeAtomicCommit = vi.fn<AtomicCommitExecutor>(async (commit) => {
+      db.persistAtomicSourceResult(commit.sourceResult);
+    });
+    const fetch = vi.fn(async (plan: SourceCrawlPlan) => {
+      if (plan.source.id === timedOutPlan.source.id) {
+        return await new Promise<never>(() => undefined);
+      }
+      return strictSuccessfulFetch(successfulPlan);
+    });
+
+    const result = await runP0CrawlBatch(batchPlans, {
+      db,
+      fetch,
+      now: NOW,
+      force: true,
+      sourceAttemptTimeoutMs: 25,
+      identity: identityForPlans(batchPlans),
+      executeAtomicCommit,
+      ...inMemoryArchiveDeps(),
+      getPreviousJobs: async () => [],
+      getRecentObservations: async () => [],
+      isBaselineCompleted: async () => true
+    });
+
+    expect(fetch).toHaveBeenCalledTimes(2);
+    expect(executeAtomicCommit).toHaveBeenCalledTimes(1);
+    expect(executeAtomicCommit.mock.calls[0]![0].sourceResult.sourceId).toBe(successfulPlan.source.id);
+    expect(result).toMatchObject({
+      plannedSourceCount: 2,
+      dueSourceCount: 2,
+      transportFailedSourceCount: 1,
+      atomicCommittedSourceCount: 1,
+      failedSourceCount: 1
+    });
+    expect(db.calls.terminalSourceResults).toContainEqual(expect.objectContaining({
+      where: expect.objectContaining({ sourceId: timedOutPlan.source.id }),
+      data: expect.objectContaining({ transportState: "FAILED" })
+    }));
+  });
+
   it("isolates an adapter execution throw and commits the later due source", async () => {
     const failedPlan = planFor("source-qilu-social");
     const successfulPlan = planFor("source-roche-china-social");

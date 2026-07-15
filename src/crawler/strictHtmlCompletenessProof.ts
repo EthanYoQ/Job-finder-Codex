@@ -88,8 +88,11 @@ function validateOrdinaryTotalPages(
 ): boolean {
   const pagination = plan.table.pagination;
   const declaration = evidence.declaredCompleteness!;
-  if (!pagination || pagination.ajaxMode || declaration.kind !== "OFFICIAL_TOTAL_PAGES" ||
-    declaration.value !== evidence.pages.length || artifacts.length !== evidence.pages.length) return false;
+  const officialZeroDeclaration = declaration.kind === "OFFICIAL_TOTAL_COUNT" && declaration.value === 0;
+  if (!pagination || pagination.ajaxMode || artifacts.length !== evidence.pages.length ||
+    (officialZeroDeclaration
+      ? evidence.pages.length !== 1
+      : declaration.kind !== "OFFICIAL_TOTAL_PAGES" || declaration.value !== evidence.pages.length)) return false;
 
   if (plan.table.completenessProof?.kind === "OFFICIAL_TOTAL_PAGES" &&
     plan.table.completenessProof.sourcePolicy === "NOVARTIS_CHINA_SLIDING_WINDOW_V1") {
@@ -97,6 +100,7 @@ function validateOrdinaryTotalPages(
   }
 
   const seen = new Set<string>();
+  let repeatedOfficialJobTotal: number | undefined;
   for (let index = 0; index < evidence.pages.length; index += 1) {
     const page = evidence.pages[index]!;
     const artifact = artifactForPage(page, artifacts);
@@ -106,21 +110,46 @@ function validateOrdinaryTotalPages(
       : configuredUrl(buildOrdinaryPageUrl(plan.source.officialEntryUrl, pagination, pageNumber));
     const expectedUrl = evidenceUrl(rawExpectedUrl);
     const expectedCoordinate = ordinaryCoordinate(rawExpectedUrl, pagination);
+    const explicitPageTotal = officialTotalPages(artifact?.body ?? "", pagination);
+    const officialJobTotal = explicitPageTotal === undefined
+      ? officialExpectedJobCount(artifact?.body ?? "", pagination)
+      : undefined;
+    const declaredPageTotal = explicitPageTotal ?? (
+      officialJobTotal !== undefined && pagination.pageSize !== undefined
+        ? Math.max(1, Math.ceil(officialJobTotal / pagination.pageSize))
+        : undefined
+    );
+    if (officialJobTotal !== undefined && (
+      repeatedOfficialJobTotal !== undefined && repeatedOfficialJobTotal !== officialJobTotal
+    )) return false;
+    if (officialJobTotal !== undefined) repeatedOfficialJobTotal = officialJobTotal;
+    const totalDeclarationValid = index === 0 || pagination.totalPagesDeclaredOnEntryOnly !== true
+      ? declaredPageTotal === evidence.pages.length
+      : declaredPageTotal === undefined || declaredPageTotal <= evidence.pages.length;
+    const terminationValid = officialJobTotal === 0 && evidence.pages.length === 1
+      ? page.termination === "EMPTY_PAGE" && page.nextPageSignalAfter == null &&
+        page.declaredTotal === 0 && page.rawJobIds.length === 0 && page.validJobIds.length === 0
+      : validTermination(page, index, evidence.pages.length);
     if (!artifact || !sameUrl(artifact, expectedUrl) || artifact.channelId !== undefined ||
       page.channelId !== undefined || !equalOptional(page.requestedPage, expectedCoordinate.requestedPage) ||
       !equalOptional(page.requestedOffset, expectedCoordinate.requestedOffset) ||
       page.requestedCursor != null || page.returnedCursor != null || page.returnedPage != null ||
       page.declaredPages !== evidence.pages.length ||
-      !validTermination(page, index, evidence.pages.length) ||
+      !terminationValid ||
       !matchesRequestContract(artifact, plan.table.rowSelector, index === 0 ? "entry" : "ordinary-page", index, "GET", expectedUrl, null, {
         sequence: index, ...expectedCoordinate
-      }) || officialTotalPages(artifact.body, pagination) !== evidence.pages.length ||
+      }) || !totalDeclarationValid ||
       !replayRows(artifact.body, plan.table.rowSelector, page, seen)) return false;
   }
   const genericValid = declaration.artifactLogicalKey === evidence.pages[0]!.artifactLogicalKey &&
     declaration.extractorLocator === artifacts[0]!.extractorLocator &&
-    evidence.fetchCounts.rawCount === seen.size;
+    evidence.fetchCounts.rawCount === seen.size &&
+    (repeatedOfficialJobTotal === undefined || evidence.fetchCounts.rawCount === repeatedOfficialJobTotal);
   if (!genericValid) return false;
+  if (officialZeroDeclaration && (repeatedOfficialJobTotal !== 0 || evidence.fetchCounts.rawCount !== 0 ||
+    evidence.fetchCounts.parsedCount !== 0 || evidence.fetchCounts.validCount !== 0 ||
+    evidence.fetchCounts.parseDiscardCount !== 0 || evidence.fetchCounts.validationDiscardCount !== 0 ||
+    evidence.fetchLosses.length !== 0)) return false;
   return plan.table.completenessProof?.kind === "OFFICIAL_TOTAL_PAGES" &&
     plan.table.completenessProof.sourcePolicy === "BAYER_CHINA_SUCCESSFACTORS_V1"
     ? validateBayerChinaPages(plan, evidence, artifacts)
@@ -317,8 +346,31 @@ function strictNovartisMainlandChinaLocation(value: string): boolean {
     .split(/\s*[,，;；/／|｜、]\s*|\s+[—–-]\s+/u)
     .map((segment) => segment.trim())
     .filter(Boolean);
-  return segments.length > 0 && segments.every(strictNovartisMainlandLocationSegment);
+  if (segments.length === 0 || NOVARTIS_NON_MAINLAND_LOCATION.test(normalized)) return false;
+  if (segments.every(strictNovartisMainlandLocationSegment)) return true;
+
+  const administrativeCores = segments.map((segment) => segment.toLocaleLowerCase("en-US")
+    .replace(/[.]$/u, "")
+    .replace(/\s+(?:city|province|municipality|prefecture|autonomous region)$/u, "")
+    .trim());
+  const hasMainlandProvinceAnchor = administrativeCores.some((segment) =>
+    NOVARTIS_MAINLAND_ENGLISH_PROVINCES.has(segment));
+  const hasMainlandCountryAnchor = administrativeCores.some((segment) =>
+    NOVARTIS_MAINLAND_COUNTRY_NAMES.has(segment));
+  const unknownLocalities = segments.filter((segment) => !strictNovartisMainlandLocationSegment(segment));
+  return hasMainlandProvinceAnchor && hasMainlandCountryAnchor && unknownLocalities.length === 1 &&
+    /^[A-Za-z][A-Za-z .'-]{1,48}$/u.test(unknownLocalities[0]!);
 }
+
+const NOVARTIS_MAINLAND_ENGLISH_PROVINCES = new Set([
+  "anhui", "beijing", "chongqing", "fujian", "gansu", "guangdong", "guangxi", "guizhou",
+  "hainan", "hebei", "heilongjiang", "henan", "hubei", "hunan", "inner mongolia", "jiangsu",
+  "jiangxi", "jilin", "liaoning", "ningxia", "qinghai", "shaanxi", "shandong", "shanghai",
+  "shanxi", "sichuan", "tianjin", "xinjiang", "xizang", "yunnan", "zhejiang"
+]);
+
+const NOVARTIS_NON_MAINLAND_LOCATION =
+  /(?:香港|澳门|台湾|海外|国外|美国|日本|新加坡|印度|德国|法国|加拿大|澳大利亚|英国|韩国)|\b(?:hong kong|macao|macau|taiwan|overseas|abroad|united states|usa|u\.s\.|switzerland|basel|japan|tokyo|singapore|india|germany|france|canada|australia|united kingdom|london|south korea|seoul)\b/iu;
 
 function strictNovartisMainlandLocationSegment(segment: string): boolean {
   const lower = segment.toLocaleLowerCase("en-US").replace(/[.]$/u, "").trim();
@@ -517,7 +569,7 @@ function validateTalentbrewTraversal(
           sequence: globalIndex + 1, channelId: partition.channelId,
           requestedPage: null, requestedPageSize: null
         }) || !validChannelTermination(page, channelIndex, channelPages.length)) return false;
-      const html = strictTalentbrewResults(artifact.body);
+      const html = strictTalentbrewResults(artifact.body, plan.table.rowSelector);
       const pageDom = load(html);
       const returned = pageDom("#search-results");
       if (returned.length !== 1) return false;
@@ -813,6 +865,25 @@ function officialTotalPages(html: string, pagination: NonNullable<HtmlTableConfi
   return pagination.totalPagesMode === "max" ? Math.max(...values) : values[0];
 }
 
+function officialExpectedJobCount(
+  html: string,
+  pagination: NonNullable<HtmlTableConfig["pagination"]>
+): number | undefined {
+  if (!pagination.expectedJobCountSelector || pagination.pageSize === undefined ||
+    !Number.isSafeInteger(pagination.pageSize) || pagination.pageSize <= 0) return undefined;
+  const $ = load(html);
+  const selected = $(pagination.expectedJobCountSelector).first();
+  if (selected.length !== 1) return undefined;
+  const raw = pagination.expectedJobCountAttribute
+    ? selected.attr(pagination.expectedJobCountAttribute)
+    : selected.text();
+  if (raw === undefined) return undefined;
+  const captured = pagination.expectedJobCountPattern
+    ? new RegExp(pagination.expectedJobCountPattern, "u").exec(raw)?.[1]
+    : raw;
+  return strictInt(captured?.trim(), false);
+}
+
 type TalentbrewPartition = {
   channelId: string;
   id: string;
@@ -835,12 +906,27 @@ function talentbrewPartitions(
       strictInt(item.attr("data-facet-type"), false) === active.facetType &&
       item.attr("data-display") === active.descriptor;
   });
-  if (activeMatches.length !== 1 || results.attr("data-facet-term") !== active.id ||
+  const sourceTotal = strictInt(results.attr("data-total-job-results"), false);
+  const activeCount = activeMatches.length === 1
+    ? strictInt($(activeMatches[0]!).attr("data-count"), false)
+    : undefined;
+  const partitionDimension = scope.allowedPartitions[0];
+  const configuredFacets = [...scope.allowedPartitions, ...(scope.excludedPartitions ?? [])];
+  if (activeMatches.length !== 1 || sourceTotal === undefined || activeCount !== sourceTotal ||
+    results.attr("data-facet-term") !== active.id ||
     strictInt(results.attr("data-facet-type"), false) !== active.facetType ||
-    scope.allowedPartitions.length === 0 ||
+    !partitionDimension || configuredFacets.some((partition) =>
+      partition.facetType !== partitionDimension.facetType || partition.fieldName !== partitionDimension.fieldName) ||
     new Set(scope.allowedPartitions.map((partition) => partition.channelId)).size !== scope.allowedPartitions.length) return undefined;
-  const partitions: TalentbrewPartition[] = [];
-  for (const configured of scope.allowedPartitions) {
+  const visiblePartitionFacets = $("#search-filters [data-enabled='true'] .filter-checkbox:not(:checked)")
+    .filter((_index, element) => {
+      const item = $(element);
+      return strictInt(item.attr("data-facet-type"), false) === partitionDimension.facetType &&
+        item.attr("data-field-name") === partitionDimension.fieldName;
+    });
+  if (visiblePartitionFacets.length !== configuredFacets.length) return undefined;
+  const declaredCounts = new Map<string, number>();
+  for (const configured of configuredFacets) {
     const matches = $("#search-filters [data-enabled='true'] .filter-checkbox:not(:checked)").filter((_index, element) => {
       const item = $(element);
       return item.attr("data-id") === configured.id &&
@@ -849,9 +935,31 @@ function talentbrewPartitions(
     });
     const count = matches.length === 1 ? strictInt($(matches[0]!).attr("data-count"), false) : undefined;
     if (count === undefined) return undefined;
-    partitions.push({ ...configured, declaredCount: count });
+    declaredCounts.set(JSON.stringify([configured.id, configured.facetType, configured.fieldName, configured.descriptor]), count);
   }
-  return partitions;
+  const configuredFacetKeys = new Set(configuredFacets.map((partition) =>
+    JSON.stringify([partition.id, partition.facetType, partition.fieldName, partition.descriptor])));
+  const visibleFacetKeys = new Set(visiblePartitionFacets.toArray().map((element) => {
+    const item = $(element);
+    return JSON.stringify([
+      item.attr("data-id") ?? "",
+      strictInt(item.attr("data-facet-type"), false),
+      item.attr("data-field-name") ?? "",
+      item.attr("data-display") ?? ""
+    ]);
+  }));
+  const partitions = scope.allowedPartitions.flatMap((partition) => {
+    const declaredCount = declaredCounts.get(
+      JSON.stringify([partition.id, partition.facetType, partition.fieldName, partition.descriptor])
+    );
+    return declaredCount === undefined ? [] : [{ ...partition, declaredCount }];
+  });
+  return configuredFacetKeys.size === configuredFacets.length && visibleFacetKeys.size === configuredFacets.length &&
+    [...configuredFacetKeys].every((key) => visibleFacetKeys.has(key)) &&
+    partitions.length === scope.allowedPartitions.length &&
+    [...declaredCounts.values()].reduce((sum, count) => sum + count, 0) === sourceTotal
+    ? partitions
+    : undefined;
 }
 
 function talentbrewStaticFilters($: ReturnType<typeof load>): TalentValue[] | undefined {
@@ -941,14 +1049,24 @@ function plainObject(value: TalentValue): value is { [key: string]: TalentValue 
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
-function strictTalentbrewResults(body: string): string {
+function strictTalentbrewResults(body: string, rowSelector: string): string {
   assertNoDuplicateJsonKeys(body);
   const parsed = JSON.parse(body) as unknown;
   if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) throw new Error("invalid response");
   const record = parsed as Record<string, unknown>;
-  if (Object.keys(record).some((key) => key !== "results" && key !== "hasContent") ||
-    typeof record.results !== "string" ||
-    (record.hasContent !== undefined && typeof record.hasContent !== "boolean")) throw new Error("invalid response");
+  const keys = Object.keys(record).sort();
+  if (JSON.stringify(keys) !== JSON.stringify(["filters", "hasContent", "hasJobs", "results"]) ||
+    typeof record.results !== "string" || !record.results.trim() ||
+    typeof record.filters !== "string" || !record.filters.trim() ||
+    typeof record.hasJobs !== "boolean" || typeof record.hasContent !== "boolean") throw new Error("invalid response");
+  const filterDom = load(record.filters);
+  const filterRoots = filterDom("body").children();
+  const filterRoot = filterRoots.first();
+  if (filterRoots.length !== 1 || !filterRoot.is("section, div") || filterRoot.attr("id") !== "search-filters" ||
+    filterRoot.find(".filter-checkbox").length === 0 ||
+    filterRoot.find("script, iframe, form, object, embed").length > 0) throw new Error("invalid response");
+  const resultDom = load(record.results);
+  if (record.hasJobs !== (resultDom(rowSelector).length > 0)) throw new Error("invalid response");
   return record.results;
 }
 

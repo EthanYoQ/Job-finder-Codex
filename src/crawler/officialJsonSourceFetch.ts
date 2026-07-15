@@ -1,4 +1,12 @@
 import type { SourceFetchFunction, SourceFetchResult, SourceTransportAttempt } from "./runSourceCrawl";
+import {
+  createAbortableClose,
+  currentOfficialSourceAttemptSignal,
+  fetchWithOfficialTimeout,
+  hcmCloudBrowserSettleMs,
+  officialBrowserTimeoutMs,
+  officialHttpTimeoutMs
+} from "./officialHttpRuntimeLimits";
 import { load as loadHtml } from "cheerio";
 import { parse as parseJavaScript } from "@babel/parser";
 import type { ObjectExpression } from "@babel/types";
@@ -35,6 +43,7 @@ import {
 import { deriveCanonicalPaginationEvidence, evaluatePaginationEvidence } from "./paginationEvidence";
 import { hasUniqueJsonObjectKeys } from "./strictJsonObjectKeys";
 import { requestContractV2Locator } from "./strictPageRequestContract";
+import type { SourceCrawlPlan } from "./sourcePlan";
 
 export type OfficialJsonFetchConfig =
   | {
@@ -68,6 +77,7 @@ export type OfficialJsonFetchConfig =
         };
       };
       allowOmittedOffsetForSinglePage?: boolean;
+      requestBoundOmittedOffsetPolicy?: "ROCHE_REQUEST_BOUND_OMITTED_OFFSET_V1";
       pageSize?: number;
       maxPages?: number;
     }
@@ -83,6 +93,7 @@ export type OfficialJsonFetchConfig =
       mixedLocationPolicy?: "INCLUDE_MAINLAND_JAPAN_ALTERNATIVES";
       scopeExclusionProof?:
         | "DONGYANGGUANG_EXPLICIT_FOREIGN_ONLY_V1"
+        | "NHU_EXPLICIT_JAPAN_ONLY_V1"
         | "QILU_EXPLICIT_US_ONLY_V1"
         | "THREESBIO_XIANYANG_HOMOGRAPH_V1";
     }
@@ -165,6 +176,7 @@ export interface HcmCloudBrowserFetchInput {
   config: Extract<OfficialJsonFetchConfig, { kind: "hcm-cloud" }>;
   entryUrl: string;
   capturedAt: string;
+  signal?: AbortSignal;
 }
 
 export interface HcmCloudBrowserSession {
@@ -272,6 +284,7 @@ export function createOfficialJsonSourceFetch(
       if (plan.officialJsonFetch.kind === "phenom") {
         return finish(await fetchPhenomWidgets({
           http,
+          plan,
           config: plan.officialJsonFetch,
           entryUrl: plan.source.officialEntryUrl,
           capturedAt,
@@ -1261,7 +1274,8 @@ async function fetchHcmCloud({
   }];
   let session: HcmCloudBrowserSession | undefined;
   try {
-    session = await browserFetch({ config, entryUrl: safeEntryUrl, capturedAt });
+    const signal = currentOfficialSourceAttemptSignal();
+    session = await browserFetch({ config, entryUrl: safeEntryUrl, capturedAt, ...(signal ? { signal } : {}) });
     assertHcmCloudBrowserSession(session);
   } catch {
     return { ok: false, capturedAt, failureReason: "HCMCloud browser session failed", priorTransportAttempts };
@@ -2622,12 +2636,14 @@ async function fetchBeisenZhiye2022({
 
 async function fetchPhenomWidgets({
   http,
+  plan,
   config,
   entryUrl,
   capturedAt,
   now
 }: {
   http: OfficialJsonHttpClient;
+  plan: Extract<SourceCrawlPlan, { adapterId: "official-json" }>;
   config: Extract<OfficialJsonFetchConfig, { kind: "phenom" }>;
   entryUrl: string;
   capturedAt: string;
@@ -2708,6 +2724,17 @@ async function fetchPhenomWidgets({
     }
   } catch {
     return failedWithEvidence(capturedAt, "Phenom widget endpoint is invalid",
+      phenomEntryFailureEvidence(unavailableEntryArtifact));
+  }
+
+  const exactRocheRequestBoundOmittedOffset = exactRocheRequestBoundOmittedOffsetPlan(
+    plan,
+    pageConfig,
+    widgetEndpoint
+  );
+  if (config.requestBoundOmittedOffsetPolicy !== undefined && !exactRocheRequestBoundOmittedOffset) {
+    return failedWithEvidence(capturedAt,
+      "Phenom request-bound omitted offset policy is not bound to the exact Roche source",
       phenomEntryFailureEvidence(unavailableEntryArtifact));
   }
 
@@ -2909,11 +2936,20 @@ async function fetchPhenomWidgets({
       }
     }
     let returnedOffset: number | null = null;
+    const requestBoundOmittedOffset = exactRocheRequestBoundOmittedOffset && !hasOwn(refineSearch, "from");
     const safelyOmittedSinglePageOffset = facetScope && config.allowOmittedOffsetForSinglePage === true &&
       !hasOwn(refineSearch, "from") && pageIndex === 0 && requestedOffset === 0 &&
       pageTotal !== undefined && pageTotal <= pageSize &&
       (refineData.jobs as unknown[]).length === pageTotal;
-    if (facetScope && !hasOwn(refineSearch, "from") && !safelyOmittedSinglePageOffset) {
+    if (requestBoundOmittedOffset && (pageTotal === undefined || requestedOffset > pageTotal ||
+      (refineData.jobs as unknown[]).length !== Math.min(pageSize, pageTotal - requestedOffset))) {
+      pages.push(phenomPageTrace({ artifact, sequence: pageIndex, requestedOffset, termination: "FAILED" }));
+      return phenomFailure(capturedAt,
+        "Phenom Roche request-bound page cardinality does not close the requested offset",
+        artifacts, pages, counts, losses);
+    }
+    if (facetScope && !hasOwn(refineSearch, "from") &&
+      !safelyOmittedSinglePageOffset && !requestBoundOmittedOffset) {
       pages.push(phenomPageTrace({ artifact, sequence: pageIndex, requestedOffset, termination: "FAILED" }));
       return phenomFailure(capturedAt, "Phenom structured facet page requires own from",
         artifacts, pages, counts, losses);
@@ -3109,6 +3145,41 @@ async function fetchPhenomWidgets({
     fetchEvidence: finalized.evidence,
     paginationEvaluation: finalized.evaluation
   };
+}
+
+function exactRocheRequestBoundOmittedOffsetPlan(
+  plan: Extract<SourceCrawlPlan, { adapterId: "official-json" }>,
+  pageConfig: CompletePhenomPageConfig,
+  widgetEndpoint: string
+): boolean {
+  const config = plan.officialJsonFetch;
+  const fields = plan.json.fields;
+  const facet = config?.kind === "phenom" ? config.facetScope : undefined;
+  return config?.kind === "phenom" &&
+    plan.company.id === "company-roche-china" && plan.company.officialChineseName === "罗氏制药中国" &&
+    plan.company.category === "FOREIGN_PHARMA" &&
+    plan.source.id === "source-roche-china-social" && plan.source.companyId === "company-roche-china" &&
+    plan.source.kind === "SOCIAL" && plan.source.status === "VERIFIED_SCRAPABLE" &&
+    plan.source.atsKind === "OFFICIAL_JSON" &&
+    plan.source.officialEntryUrl === "https://careers.roche.com/cn/zh/search-results" &&
+    plan.source.officialChainEvidenceUrl === "https://careers.roche.com/cn/zh/china-mainland" &&
+    plan.json.jobsPath === "jobs" && plan.json.defaultCategory === "其他" &&
+    fields.sourceJobId === "sourceJobId" && fields.officialTitle === "title" &&
+    fields.officialUrl === "officialUrl" && fields.locationRaw === "locationRaw" && fields.cities === "cities" &&
+    config.detailBaseUrl === "https://careers.roche.com/cn/zh/job" &&
+    JSON.stringify(config.allowedApplyOrigins) === JSON.stringify(["https://roche.wd3.myworkdayjobs.com"]) &&
+    facet !== undefined && !("exclusionFacet" in facet) &&
+    facet.countryIncludeDescriptor === "中国大陆" &&
+    JSON.stringify(facet.categoryExcludeDescriptors) === JSON.stringify(["实习 & 发展项目"]) &&
+    config.countryFilter === undefined && config.allowedEntryRedirect === undefined &&
+    config.allowOmittedOffsetForSinglePage === undefined &&
+    config.requestBoundOmittedOffsetPolicy === "ROCHE_REQUEST_BOUND_OMITTED_OFFSET_V1" &&
+    config.pageSize === 100 && config.maxPages === 10 &&
+    widgetEndpoint === "https://careers.roche.com/widgets" &&
+    pageConfig.widgetApiEndpoint === "https://careers.roche.com/widgets" &&
+    pageConfig.country === "cn" && pageConfig.deviceType === "desktop" &&
+    pageConfig.locale === "zh_cn" && pageConfig.refNum === "ROCHGLOBAL" &&
+    pageConfig.pageName === "search-results" && pageConfig.pageId === "page11-ds";
 }
 
 function validatedPhenomEntryRedirect(
@@ -4173,22 +4244,31 @@ function hcmCloudDetailUrl(origin: string, detailPath: string | undefined, detai
   return result;
 }
 
-const HCM_CLOUD_BROWSER_TIMEOUT_MS = 60_000;
-
-async function defaultHcmCloudBrowserFetch({
+export async function defaultHcmCloudBrowserFetch({
   entryUrl,
+  signal
 }: HcmCloudBrowserFetchInput): Promise<HcmCloudBrowserSession> {
+  if (signal?.aborted) throw signal.reason;
   const { chromium } = await import("playwright-core");
   const { FORMAL_CHROMIUM_ARGS, FORMAL_CHROMIUM_PATH } = await import("../readiness/formalBrowserPreflight");
+  const browserTimeoutMs = officialBrowserTimeoutMs();
+  if (signal?.aborted) throw signal.reason;
   const browser = await chromium.launch({
     ...(process.platform === "linux" ? { executablePath: FORMAL_CHROMIUM_PATH, args:[...FORMAL_CHROMIUM_ARGS] } : { channel: "chrome" }),
-    headless: true
+    headless: true,
+    timeout: browserTimeoutMs
   });
+  const browserLifecycle = createAbortableClose(signal, () => browser.close());
+  if (signal?.aborted) {
+    try { await browserLifecycle.close(); } catch { /* the source timeout remains authoritative */ }
+    browserLifecycle.dispose();
+    throw signal.reason;
+  }
   try {
     const page = await browser.newPage();
     const navigation = await page.goto(entryUrl, {
       waitUntil: "domcontentloaded",
-      timeout: Number(process.env.P0_BROWSER_TIMEOUT_MS ?? HCM_CLOUD_BROWSER_TIMEOUT_MS)
+      timeout: browserTimeoutMs
     });
     if (!navigation) throw new Error("missing browser navigation response");
     const entryBody = await navigation.text();
@@ -4199,7 +4279,7 @@ async function defaultHcmCloudBrowserFetch({
       ...(navigation.headers()["content-type"] ? { contentType: navigation.headers()["content-type"] } : {}),
       capturedAt: new Date().toISOString()
     };
-    await page.waitForTimeout(Number(process.env.P0_HCM_CLOUD_BROWSER_SETTLE_MS ?? 3000));
+    await page.waitForTimeout(hcmCloudBrowserSettleMs());
     return {
       entryResponse,
       post: async (endpoint, body) => {
@@ -4207,25 +4287,37 @@ async function defaultHcmCloudBrowserFetch({
           ? "/api/hcm.model.count?model=ReleaseJobMgr"
           : "/api/hcm.model.list?model=ReleaseJobMgr";
         return page.evaluate(
-          async ({ path: requestPath, requestBody }: { path: string; requestBody: string }) => {
-            const response = await fetch(requestPath, {
-              method: "POST",
-              headers: { Accept: "application/json, text/plain, */*",
-                "Content-Type": "application/json;charset=UTF-8" },
-              body: requestBody
-            });
-            const responseBody = await response.text();
-            const contentType = response.headers.get("content-type");
-            return { status: response.status, body: responseBody, finalUrl: response.url,
-              ...(contentType ? { contentType } : {}), capturedAt: new Date().toISOString() };
+          async ({ path: requestPath, requestBody, timeoutMs }:
+            { path: string; requestBody: string; timeoutMs: number }) => {
+            const controller = new AbortController();
+            const timer = setTimeout(() => controller.abort(), timeoutMs);
+            try {
+              const response = await fetch(requestPath, {
+                method: "POST",
+                headers: { Accept: "application/json, text/plain, */*",
+                  "Content-Type": "application/json;charset=UTF-8" },
+                body: requestBody,
+                signal: controller.signal
+              });
+              const responseBody = await response.text();
+              const contentType = response.headers.get("content-type");
+              return { status: response.status, body: responseBody, finalUrl: response.url,
+                ...(contentType ? { contentType } : {}), capturedAt: new Date().toISOString() };
+            } finally {
+              clearTimeout(timer);
+            }
           },
-          { path, requestBody: body }
+          { path, requestBody: body, timeoutMs: officialHttpTimeoutMs() }
         );
       },
-      close: async () => { await browser.close(); }
+      close: async () => {
+        browserLifecycle.dispose();
+        await browserLifecycle.close();
+      }
     };
   } catch (error) {
-    await browser.close();
+    browserLifecycle.dispose();
+    try { await browserLifecycle.close(); } catch { /* cleanup must not replace the crawl failure */ }
     throw error;
   }
 }
@@ -5803,7 +5895,7 @@ const CNSTAFF_MAINLAND_PREFECTURES = new Set(`
 南昌 景德镇 萍乡 九江 新余 鹰潭 赣州 吉安 宜春 抚州 上饶
 济南 青岛 淄博 枣庄 东营 烟台 潍坊 济宁 泰安 威海 日照 临沂 德州 聊城 滨州 菏泽
 郑州 开封 洛阳 平顶山 安阳 鹤壁 新乡 焦作 濮阳 许昌 漯河 三门峡 南阳 商丘 信阳 周口 驻马店 济源
-武汉 黄石 十堰 宜昌 襄阳 鄂州 荆门 孝感 荆州 黄冈 咸宁 随州 恩施 神农架
+武汉 黄石 十堰 宜昌 襄阳 鄂州 荆门 孝感 荆州 黄冈 咸宁 随州 恩施 神农架 潜江 仙桃 天门
 长沙 株洲 湘潭 衡阳 邵阳 岳阳 常德 张家界 益阳 郴州 永州 怀化 娄底 湘西
 广州 韶关 深圳 珠海 汕头 佛山 江门 湛江 茂名 肇庆 惠州 梅州 汕尾 河源 阳江 清远 东莞 中山 潮州 揭阳 云浮
 南宁 柳州 桂林 梧州 北海 防城港 钦州 贵港 玉林 百色 贺州 河池 来宾 崇左
@@ -5940,9 +6032,12 @@ function cnstaffHasPrefectureAdministrativeGeography(segment: string): boolean {
 
 function cnstaffHasCompleteAdministrativeSuffix(suffix: string): boolean {
   if (suffix === "") return true;
+  if (/^[\p{Script=Han}]{1,16}族自治州(?:[\p{Script=Han}]{1,12}(?:区|县|市|旗|镇|乡))?$/u.test(suffix)) {
+    return true;
+  }
   const topLevelSuffix = /^(?:市|自治州|地区|盟)/u.exec(suffix)?.[0];
   const countyLevel = topLevelSuffix === undefined ? suffix : suffix.slice(topLevelSuffix.length);
-  return countyLevel === "" || /^[\p{Script=Han}]{1,12}(?:区|县|市|旗)$/u.test(countyLevel);
+  return countyLevel === "" || /^[\p{Script=Han}]{1,12}(?:区|县|市|旗|镇|乡|街道|新区|开发区|高新区|工业园|园区|湖)$/u.test(countyLevel);
 }
 
 function cnstaffHasForeignGeography(value: string): boolean {
@@ -6281,6 +6376,8 @@ const BEISEN_EXPLICIT_JAPAN_LOCATIONS = new Set([
   "japan", "tokyo", "osaka", "kyoto", "yokohama", "nagoya", "kobe", "fukuoka"
 ]);
 
+const BEISEN_MAINLAND_COUNTY_LEVEL_CITIES = new Set(["诸城"]);
+
 function beisenLocationSegments(locationParts: readonly string[]): string[] {
   return locationParts.flatMap((part) => part.normalize("NFKC")
     .split(/[,，;；/／|｜、()（）\r\n]+/u)
@@ -6297,6 +6394,7 @@ function beisenIsMainlandCountrySegment(value: string): boolean {
 
 function beisenIsMainlandLocationSegment(value: string): boolean {
   const normalized = value.normalize("NFKC").trim();
+  if (beisenHasForeignMarker(normalized)) return false;
   const lower = normalized.toLowerCase();
   if (BEISEN_DOMESTIC_SCOPE_WORDS.has(lower) || BEISEN_DOMESTIC_SCOPE_WORDS.has(normalized)) return true;
   const englishCore = lower.replace(/\s+(?:city|province|municipality|autonomous region)$/u, "").trim();
@@ -6304,10 +6402,22 @@ function beisenIsMainlandLocationSegment(value: string): boolean {
 
   const compact = normalized.replace(/[·・]/gu, "");
   const stripped = compact.replace(/(?:壮族自治区|回族自治区|维吾尔自治区|自治区|自治州|地区|盟|省|市)$/u, "");
-  return CNSTAFF_MAINLAND_PROVINCES.has(compact) || CNSTAFF_MAINLAND_PROVINCES.has(stripped) ||
+  return beisenHasExplicitMainlandHierarchy(normalized) ||
+    CNSTAFF_MAINLAND_PROVINCES.has(compact) || CNSTAFF_MAINLAND_PROVINCES.has(stripped) ||
     CNSTAFF_MAINLAND_PREFECTURES.has(compact) || CNSTAFF_MAINLAND_PREFECTURES.has(stripped) ||
+    BEISEN_MAINLAND_COUNTY_LEVEL_CITIES.has(stripped) ||
     cnstaffHasMunicipalityAdministrativeGeography(compact) || cnstaffHasChainedMainlandGeography(compact) ||
     cnstaffHasPrefectureAdministrativeGeography(compact);
+}
+
+function beisenHasExplicitMainlandHierarchy(value: string): boolean {
+  const parts = value.split(/[·・]/u).map((part) => part.trim()).filter(Boolean);
+  if (parts.length < 2 || parts.some(beisenHasForeignMarker)) return false;
+  const province = parts[0]!;
+  const strippedProvince = province.replace(/(?:壮族自治区|回族自治区|维吾尔自治区|自治区|省|市)$/u, "");
+  if (!CNSTAFF_MAINLAND_PROVINCES.has(province) && !CNSTAFF_MAINLAND_PROVINCES.has(strippedProvince)) return false;
+  return parts.slice(1).every((part) =>
+    /^[\p{Script=Han}]{1,24}(?:自治州|地区|盟|市|区|县|旗|镇|乡|街道|新区|开发区|高新区|工业园|园区|湖)$/u.test(part));
 }
 
 function beisenIsExplicitJapanLocationSegment(value: string): boolean {
@@ -6524,7 +6634,7 @@ function balancedJsonObject(input: string, start: number): string | undefined {
 
 function createDefaultHttpClient(now: () => Date): OfficialJsonHttpClient {
   return async (request) => {
-    const response = await fetch(request.url, {
+    const response = await fetchWithOfficialTimeout(request.url, {
       headers: request.headers,
       method: request.method ?? "GET",
       ...(request.body === undefined ? {} : { body: request.body }),

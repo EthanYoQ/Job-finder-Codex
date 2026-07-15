@@ -40,7 +40,7 @@ function beisenJob(id: string, location: string): Record<string, unknown> {
 }
 
 async function runBeisen(
-  sourceId: "source-dongyangguang-social" | "source-qilu-social" | "source-3sbio-social",
+  sourceId: "source-dongyangguang-social" | "source-qilu-social" | "source-3sbio-social" | "source-nhu-social",
   jobs: unknown[]
 ) {
   const plan = stagedPlan(sourceId);
@@ -159,6 +159,17 @@ describe("source-bound exact scope exclusion proof", () => {
       beisenJob("2", "上海市")
     ]);
     expect(result.truth.completenessVerified).toBe(true);
+    expect(validateStrictSourceScopeExclusionProof(plan, result.fetchEvidence!, result.jobs)).toBe(true);
+  });
+
+  it("verifies NHU only after independently replaying the exact Japan-only exclusion", async () => {
+    const { plan, result } = await runBeisen("source-nhu-social", [
+      beisenJob("1", "浙江省·绍兴市"),
+      beisenJob("2", "浙江省、日本"),
+      beisenJob("3", "日本·东京")
+    ]);
+    expect(result.truth.completenessVerified).toBe(true);
+    expect(result.jobs).toHaveLength(2);
     expect(validateStrictSourceScopeExclusionProof(plan, result.fetchEvidence!, result.jobs)).toBe(true);
   });
 

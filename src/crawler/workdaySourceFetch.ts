@@ -1,4 +1,5 @@
 import type { SourceFetchFunction, SourceFetchResult } from "./runSourceCrawl";
+import { fetchWithOfficialTimeout } from "./officialHttpRuntimeLimits";
 import { deriveCanonicalPaginationEvidence, evaluatePaginationEvidence } from "./paginationEvidence";
 import {
   parsePersistentSourceFetchEvidence,
@@ -1456,7 +1457,7 @@ function failed(
 async function defaultWorkdayHttpClient(
   request: WorkdayHttpRequest
 ): Promise<WorkdayHttpResponse> {
-  const response = await fetch(request.url, {
+  const response = await fetchWithOfficialTimeout(request.url, {
     method: request.method,
     headers: request.headers,
     body: request.body
@@ -1476,7 +1477,7 @@ async function defaultWorkdayHttpClient(
 async function defaultWorkdayDetailHttpClient(
   request: WorkdayDetailHttpRequest
 ): Promise<WorkdayHttpResponse> {
-  const response = await fetch(request.url, {
+  const response = await fetchWithOfficialTimeout(request.url, {
     method: request.method,
     headers: request.headers
   });

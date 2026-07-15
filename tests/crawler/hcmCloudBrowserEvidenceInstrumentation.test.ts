@@ -1,10 +1,12 @@
 import { describe, expect, it } from "vitest";
 import {
   createOfficialJsonSourceFetch,
+  defaultHcmCloudBrowserFetch,
   type HcmCloudBrowserSession,
   type OfficialJsonHttpResponse
 } from "../../src/crawler/officialJsonSourceFetch";
 import { runSourceCrawl } from "../../src/crawler/runSourceCrawl";
+import { runWithOfficialSourceAttemptTimeout } from "../../src/crawler/officialHttpRuntimeLimits";
 import type { SourceCrawlPlan } from "../../src/crawler/sourcePlan";
 
 const START = "2026-07-08T00:00:00.000Z";
@@ -55,6 +57,45 @@ function clock(): () => Date {
 }
 
 describe("HCM Cloud browser transport evidence instrumentation", () => {
+  it("does not import or launch a browser when the company attempt already expired", async () => {
+    if (plan.adapterId !== "official-json" || plan.officialJsonFetch?.kind !== "hcm-cloud") {
+      throw new Error("HCM Cloud plan expected");
+    }
+    const controller = new AbortController();
+    const reason = new Error("company attempt already expired");
+    controller.abort(reason);
+    await expect(defaultHcmCloudBrowserFetch({
+      config: plan.officialJsonFetch,
+      entryUrl: ENTRY,
+      capturedAt: START,
+      signal: controller.signal
+    })).rejects.toBe(reason);
+  });
+
+  it("passes the company abort signal into browser transport and closes an active session", async () => {
+    let closed = 0;
+    let receivedSignal: AbortSignal | undefined;
+    const fetcher = createOfficialJsonSourceFetch({
+      now: clock(),
+      http: async () => ({ status: 500, body: "{}", finalUrl: COUNT,
+        contentType: "application/json", capturedAt: START }),
+      hcmCloudBrowserFetch: async ({ signal }) => {
+        receivedSignal = signal;
+        return browserSession({
+          post: async () => new Promise<OfficialJsonHttpResponse>((_resolve, reject) => {
+            signal?.addEventListener("abort", () => reject(signal.reason), { once: true });
+          }),
+          close: async () => { closed += 1; }
+        });
+      }
+    });
+    await expect(runWithOfficialSourceAttemptTimeout(() => Promise.resolve(fetcher(plan)), 25))
+      .rejects.toMatchObject({ code: "OFFICIAL_SOURCE_ATTEMPT_TIMEOUT" });
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(receivedSignal?.aborted).toBe(true);
+    expect(closed).toBe(1);
+  });
+
   it("routes constrained browser responses through the shared manual builder and preserves direct evidence", async () => {
     const directBody = JSON.stringify({ errcode: 17003 });
     let directEvidence: unknown;
