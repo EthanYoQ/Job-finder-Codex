@@ -15,6 +15,7 @@ export interface MokaFetchConfig {
     pathname: string;
   };
   hydrateMissingLocationsFromDetail?: boolean;
+  allowDetailSiteIdOmission?: boolean;
 }
 
 export type CompanyRecruitmentExecutionConfig = {

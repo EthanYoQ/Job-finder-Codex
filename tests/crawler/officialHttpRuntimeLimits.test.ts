@@ -12,6 +12,7 @@ import {
   officialBrowserTimeoutMs,
   officialHttpTimeoutMs,
   runWithOfficialSourceAttemptTimeout,
+  scheduledAttemptMaxRunningAgeHours,
   scheduledAttemptTimeoutMs
 } from "../../src/crawler/officialHttpRuntimeLimits";
 
@@ -47,6 +48,8 @@ describe("official crawl runtime limits", () => {
     expect(hcmCloudBrowserSettleMs({ P0_HCM_CLOUD_BROWSER_SETTLE_MS: "0" })).toBe(3_000);
     expect(scheduledAttemptTimeoutMs({ P0_SCHEDULED_ATTEMPT_TIMEOUT_MS: "14400000" })).toBe(14_400_000);
     expect(scheduledAttemptTimeoutMs({ P0_SCHEDULED_ATTEMPT_TIMEOUT_MS: "86400001" })).toBe(21_600_000);
+    expect(scheduledAttemptMaxRunningAgeHours({})).toBe(6.25);
+    expect(scheduledAttemptMaxRunningAgeHours({ P0_SCHEDULED_ATTEMPT_TIMEOUT_MS: "14400000" })).toBe(4.25);
   });
 
   it("wires every default official HTTP family through the shared abortable request limit", () => {

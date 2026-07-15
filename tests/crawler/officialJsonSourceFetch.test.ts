@@ -1609,18 +1609,22 @@ describe("createOfficialJsonSourceFetch", () => {
       officialJsonFetch: {
         kind: "redsea-zp-channel",
         rootId: "cspc",
-        channelQrIds: ["ch-social", "ch-campus"]
+        channels: [
+          { channelQrId: "ch-social", purpose: "SOCIAL" },
+          { channelQrId: "ch-campus", purpose: "CAMPUS" }
+        ],
+        paginationPolicy: "SINGLE_UNPAGINATED_RESPONSE_V1"
       }
     });
 
     expect(result).toMatchObject({
       ok: true,
       completeness: {
-        completenessStatus: "NEEDS_MANUAL_COMPLETENESS_REVIEW",
+        completenessStatus: "VERIFIED",
         completenessEvidenceKind: "COMPLETE_PAGE_TRAVERSAL",
         completenessEvidenceUrl:
           "https://ehr.e-cspc.com:8081/RedseaPlatform/zhaopin/zpChannelQrCode/ch-social/officeWebsite.mob",
-        pagesVisited: 2
+        pagesVisited: 1
       }
     });
     if (!result.ok || !("payload" in result)) {
@@ -1643,25 +1647,14 @@ describe("createOfficialJsonSourceFetch", () => {
           "https://ehr.e-cspc.com:8081/RedseaPlatform/zhaopin/zpChannelQrCode/ch-social/officeWebsite.mob?jumpPageId=detail&detailRequestId=social-2&rootId=cspc",
         locationRaw: "上海市",
         cities: ["上海"]
-      },
-      {
-        sourceJobId: "ch-campus:campus-1",
-        title: "医学专员",
-        officialUrl:
-          "https://ehr.e-cspc.com:8081/RedseaPlatform/zhaopin/zpChannelQrCode/ch-campus/officeWebsite.mob?jumpPageId=detail&detailRequestId=campus-1&rootId=cspc",
-        locationRaw: "河北省石家庄市",
-        cities: ["河北省石家庄市"]
       }
     ]);
     expect(requests.map((request) => new URL(request.url).pathname)).toEqual([
       "/RedseaPlatform/zhaopin/zpChannelQrCode/ch-social/officeWebsite.mob",
       "/RedseaPlatform/zhaopin/zpChannelQrCode/officePage.mob",
-      "/RedseaPlatform/zhaopin/zpChannelQrCode/queryPostList.mob",
-      "/RedseaPlatform/zhaopin/zpChannelQrCode/ch-campus/officeWebsite.mob",
-      "/RedseaPlatform/zhaopin/zpChannelQrCode/officePage.mob",
       "/RedseaPlatform/zhaopin/zpChannelQrCode/queryPostList.mob"
     ]);
     expect(requests[1]?.cookie).toBe("routeEhr02=route-social; JSESSIONID=session-social");
-    expect(requests[4]?.cookie).toBe("routeEhr02=route-campus; JSESSIONID=session-campus");
+    expect(requests.some((request) => request.url.includes("ch-campus"))).toBe(false);
   });
 });

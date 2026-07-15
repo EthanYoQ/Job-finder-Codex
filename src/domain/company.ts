@@ -7,6 +7,27 @@ export type VerificationStatus =
 
 export type SourceKind = "SOCIAL" | "CAMPUS";
 
+export type RecruitmentPageCapability =
+  | "JOB_LISTING"
+  | "RECRUITMENT_INFORMATION_OR_CONTACT"
+  | "UNKNOWN";
+
+export interface RecruitmentPageCapabilityVerification {
+  checkedAt: string;
+  reason: string;
+}
+
+export function isVerifiedNonJobRecruitmentPage(input: {
+  recruitmentPageCapability?: RecruitmentPageCapability;
+  capabilityVerification?: RecruitmentPageCapabilityVerification;
+}): boolean {
+  const verification = input.capabilityVerification;
+  return input.recruitmentPageCapability === "RECRUITMENT_INFORMATION_OR_CONTACT" &&
+    verification !== undefined &&
+    /^\d{4}-\d{2}-\d{2}$/.test(verification.checkedAt) &&
+    verification.reason.trim().length > 0;
+}
+
 export type ATSKind =
   | "OFFICIAL_HTML"
   | "OFFICIAL_JSON"
@@ -72,6 +93,8 @@ export interface RecruitmentSource {
   officialChainEvidenceUrl: string;
   campusEntryUrl?: string;
   status: VerificationStatus;
+  recruitmentPageCapability?: RecruitmentPageCapability;
+  capabilityVerification?: RecruitmentPageCapabilityVerification;
 }
 
 export interface Company {

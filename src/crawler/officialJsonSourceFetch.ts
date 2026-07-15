@@ -138,9 +138,13 @@ export type OfficialJsonFetchConfig =
     }
   | {
       kind: "redsea-zp-channel";
-      channelQrIds: string[];
+      channels: Array<{
+        channelQrId: string;
+        purpose: "SOCIAL" | "CAMPUS";
+      }>;
       rootId: string;
       sortName?: string;
+      paginationPolicy: "SINGLE_UNPAGINATED_RESPONSE_V1";
     }
   | {
       kind: "xiuzheng-job-list";
@@ -888,9 +892,20 @@ async function fetchRedseaZpChannel({
   try {
     safeEntryUrl = safeOfficialJsonEndpoint(entryUrl);
     const parsedEntry = new URL(safeEntryUrl);
-    channels = [...config.channelQrIds];
-    if (channels.length === 0 || new Set(channels).size !== channels.length ||
-      channels.some((id) => !safeOfficialJsonId(id)) || !safeOfficialJsonId(config.rootId) ||
+    if (!Array.isArray(config.channels) || config.channels.some((binding) =>
+      !isStrictRecord(binding) ||
+      JSON.stringify(Object.keys(binding).sort()) !== JSON.stringify(["channelQrId", "purpose"]) ||
+      !safeOfficialJsonId(stringValue(binding.channelQrId) ?? "") ||
+      (binding.purpose !== "SOCIAL" && binding.purpose !== "CAMPUS"))) {
+      throw new Error("invalid Redsea channel bindings");
+    }
+    const configuredIds = config.channels.map(({ channelQrId }) => channelQrId);
+    channels = config.channels
+      .filter(({ purpose }) => purpose === "SOCIAL")
+      .map(({ channelQrId }) => channelQrId);
+    if (channels.length !== 1 || new Set(configuredIds).size !== configuredIds.length ||
+      !safeOfficialJsonId(config.rootId) ||
+      config.paginationPolicy !== "SINGLE_UNPAGINATED_RESPONSE_V1" ||
       sortName !== "zri.ext_rankNum" || parsedEntry.search || parsedEntry.hash ||
       parsedEntry.pathname !== `/RedseaPlatform/zhaopin/zpChannelQrCode/${channels[0]}/officeWebsite.mob`) {
       throw new Error("invalid Redsea config");
@@ -949,6 +964,17 @@ async function fetchRedseaZpChannel({
     absorbCookies(cookieJar, officePageResponse.setCookie);
 
     const apiUrl = new URL("/RedseaPlatform/zhaopin/zpChannelQrCode/queryPostList.mob", origin).toString();
+    const requestForm = {
+      channelQrId,
+      sortName,
+      peopleId: "",
+      root_id: config.rootId,
+      shareStaff: "",
+      push_request_id: "",
+      keyword: "",
+      ftl_list_stru_id: ""
+    };
+    const requestBody = new URLSearchParams(requestForm).toString();
     let listResponse: OfficialJsonHttpResponse;
     try { listResponse = await http({
       url: apiUrl,
@@ -961,22 +987,23 @@ async function fetchRedseaZpChannel({
         Cookie: cookieHeader(cookieJar),
         Referer: channelEntryUrl
       },
-      body: new URLSearchParams({
-        channelQrId,
-        sortName,
-        peopleId: "",
-        root_id: config.rootId,
-        shareStaff: "",
-        push_request_id: "",
-        keyword: "",
-        ftl_list_stru_id: ""
-      }).toString()
+      body: requestBody
     }); } catch { return redseaFailure(capturedAt, "Redsea API transport failed", artifacts, pages, counts, losses); }
     let apiArtifactResult: ReturnType<typeof redseaArtifact>;
-    try { apiArtifactResult = redseaArtifact(channelQrId, "api", "PAGINATION_PAGE", apiUrl, listResponse); }
+    try { apiArtifactResult = redseaArtifact(channelQrId, "api", "PAGINATION_PAGE", apiUrl, listResponse,
+      requestContractV2Locator(
+        `redsea-channel-v2|channel:${irreversibleOfficialJsonEvidenceId(channelQrId)}|json:$.state,$.total,$.jsonList[*]`,
+        {
+          family: "redsea",
+          role: "single-unpaginated-response",
+          method: "POST",
+          url: apiUrl,
+          body: requestForm,
+          coordinate: { sequence: channelIndex, channelQrId, paginationPolicy: config.paginationPolicy }
+        }
+      )); }
     catch { return redseaFailure(capturedAt, "Redsea API response is invalid", artifacts, pages, counts, losses); }
     artifacts.push(apiArtifactResult.artifact);
-    let terminal: SourceFetchPageTrace["termination"] = "ABORTED";
     try { previousCapturedAtMs = assertRedseaResponse(listResponse, apiUrl, "json", capturedAt, now, previousCapturedAtMs); }
     catch {
       pages.push(redseaPageTrace(apiArtifactResult.artifact, channelIndex, channelQrId, [], [], "FAILED"));
@@ -1014,15 +1041,38 @@ async function fetchRedseaZpChannel({
       seen.set(normalized.requestId, signature); jobs.push(normalized.job); counts.validCount += 1;
       validIds.push(persistentOfficialJsonJobId(normalized.requestId));
     }
+    const terminal: SourceFetchPageTrace["termination"] = parsed.jobs.length === 0 ? "ABORTED" : "NEXT_ABSENT";
     pages.push(redseaPageTrace(apiArtifactResult.artifact, channelIndex, channelQrId, rawIds, validIds, terminal, repeatedResponse));
   }
-  const finalized = finalizeOfficialJsonEvidenceBundle({ artifacts, pages, fetchCounts: counts, fetchLosses: losses, expectedChannelIds: channels });
+  const declarationPage = pages.length === 1 && pages[0]!.termination === "NEXT_ABSENT" ? pages[0] : undefined;
+  const declarationArtifact = declarationPage
+    ? artifacts.find((artifact) => artifact.logicalKey === declarationPage.artifactLogicalKey)
+    : undefined;
+  const declaredCompleteness = declarationPage && declarationArtifact
+    ? {
+        kind: "COMPLETE_PAGE_TRAVERSAL" as const,
+        value: 1,
+        artifactLogicalKey: declarationArtifact.logicalKey,
+        extractorLocator: declarationArtifact.extractorLocator,
+        scope: "CHANNEL" as const,
+        channelId: declarationPage.channelId!
+      }
+    : undefined;
+  const finalized = finalizeOfficialJsonEvidenceBundle({
+    artifacts,
+    pages,
+    fetchCounts: counts,
+    fetchLosses: losses,
+    expectedChannelIds: channels,
+    ...(declaredCompleteness ? { declaredCompleteness } : {})
+  });
+  const verified = finalized.evaluation.verifiedEligible && losses.length === 0;
   return {
     ok: true,
     capturedAt,
     payload: { jobs },
     completeness: {
-      completenessStatus: "NEEDS_MANUAL_COMPLETENESS_REVIEW",
+      completenessStatus: verified ? "VERIFIED" : "NEEDS_MANUAL_COMPLETENESS_REVIEW",
       completenessEvidenceKind: "COMPLETE_PAGE_TRAVERSAL",
       completenessEvidenceUrl: safeEntryUrl,
       pagesVisited: pages.length
@@ -5133,7 +5183,7 @@ type RedseaLossCode = "NON_OBJECT_RECORD" | "MISSING_REQUIRED_FIELD" | "UNSAFE_O
 
 function redseaArtifact(channel: string, suffix: "entry" | "list" | "api",
   kind: "OFFICIAL_COMPANY_PAGE" | "PAGINATION_PAGE", requestedUrl: string,
-  response: OfficialJsonHttpResponse): { artifact: SourceFetchArtifactDraft; redacted: boolean } {
+  response: OfficialJsonHttpResponse, apiExtractorLocator?: string): { artifact: SourceFetchArtifactDraft; redacted: boolean } {
   const credentialRedaction = redactSandozSensitiveBody(response.body);
   let upstreamError = false;
   if (suffix === "api" && !credentialRedaction.redacted) {
@@ -5149,7 +5199,7 @@ function redseaArtifact(channel: string, suffix: "entry" | "list" | "api",
   const artifact = officialJsonNetworkArtifact({
     id: logicalKey, logicalKey, kind, requestedUrl, response: { ...response, body: redaction.body },
     extractorLocator: suffix === "api"
-      ? `redsea-channel-v1|channel:${irreversibleOfficialJsonEvidenceId(channel)}|json:$.state,$.jsonList[*]`
+      ? apiExtractorLocator ?? `redsea-channel-v1|channel:${irreversibleOfficialJsonEvidenceId(channel)}|json:$.state,$.jsonList[*]`
       : `redsea-channel-v1|channel:${irreversibleOfficialJsonEvidenceId(channel)}|${suffix}`,
     bodyRepresentation: redaction.redacted ? "REDACTED" : "EXACT",
     ...(redaction.redacted ? { rawBodySha256: sha256Bytes(Buffer.from(response.body, "utf8")).sha256,
@@ -5210,7 +5260,49 @@ function parseRedseaQueryPostList(
     return { ok: false, failureReason: stringValue(isStrictRecord(parsed) ? parsed.state : undefined) === "0"
       ? "Redsea API state is unsuccessful" : "Redsea API response schema is invalid" };
   }
+  if (redseaHasUnsafePaginationSignal(parsed, parsed.jsonList.length)) {
+    return { ok: false, failureReason: "Redsea API pagination signal is unsafe" };
+  }
   return { ok: true, jobs: parsed.jsonList };
+}
+
+function redseaHasUnsafePaginationSignal(root: Record<string, unknown>, rowCount: number): boolean {
+  const falseLike = (value: unknown) => value === undefined || value === null || value === false || value === 0 ||
+    value === "" || (typeof value === "string" && /^(?:false|0|null)$/iu.test(value.trim()));
+  for (const key of ["hasNext", "hasMore", "more", "next", "nextPage", "next_page", "nextCursor", "next_cursor"] as const) {
+    if (hasOwn(root, key) && !falseLike(root[key])) return true;
+  }
+  if (hasOwn(root, "page") && isStrictRecord(root.page)) return true;
+
+  const safeInteger = (value: unknown): number | undefined => {
+    if (typeof value === "number" && Number.isSafeInteger(value) && value >= 0) return value;
+    if (typeof value === "string" && /^(?:0|[1-9][0-9]*)$/u.test(value.trim())) return Number(value.trim());
+    return undefined;
+  };
+  if (hasOwn(root, "total") && root.total !== "" && root.total !== null && root.total !== undefined &&
+    safeInteger(root.total) !== rowCount) return true;
+  for (const key of ["totalPages", "totalPage", "pageCount"] as const) {
+    if (hasOwn(root, key) && !falseLike(root[key])) {
+      const value = safeInteger(root[key]);
+      if (value !== 1) return true;
+    }
+  }
+  for (const key of ["currentPage", "pageNo", "pageNum", "pageIndex"] as const) {
+    if (hasOwn(root, key) && !falseLike(root[key])) {
+      const value = safeInteger(root[key]);
+      if (value !== 0 && value !== 1) return true;
+    }
+  }
+  for (const key of ["offset", "start"] as const) {
+    if (hasOwn(root, key) && !falseLike(root[key]) && safeInteger(root[key]) !== 0) return true;
+  }
+  for (const key of ["pageSize", "limit"] as const) {
+    if (hasOwn(root, key) && !falseLike(root[key])) {
+      const value = safeInteger(root[key]);
+      if (value === undefined || value < rowCount) return true;
+    }
+  }
+  return false;
 }
 
 function normalizeRedseaJob({
@@ -5241,10 +5333,11 @@ function normalizeRedseaJob({
   if (!safeOfficialJsonId(requestId)) return { ok: false, code: "UNSAFE_OFFICIAL_ID", field: "REQUEST_ID" };
   if (sensitiveOfficialJsonField({ requestId, title, locationRaw })) return { ok: false, code: "SENSITIVE_OUTPUT" };
   const normalizedLocation = locationRaw.normalize("NFKC");
-  if (explicitlyOutsideChina(normalizedLocation) || /(?:香港|澳门|台湾|hong\s*kong|macau|macao|taiwan)/iu.test(normalizedLocation)) {
+  const locationScope = cnstaffGeographyScope(normalizedLocation);
+  if (locationScope === "FOREIGN") {
     return { ok: false, code: "OUT_OF_SCOPE", field: "location" };
   }
-  if (!/(?:中国|大陆|上海|北京|广州|深圳|成都|杭州|南京|苏州|武汉|天津|重庆|西安|兰州|河北|石家庄|china|prc|mainland)/iu.test(normalizedLocation)) {
+  if (locationScope !== "CHINA") {
     return { ok: false, code: "AMBIGUOUS_SCOPE", field: "location" };
   }
 

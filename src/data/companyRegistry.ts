@@ -1,5 +1,12 @@
 import { createHash } from "node:crypto";
-import type { ATSKind, SourceKind, VerificationStatus } from "../domain/company";
+import type {
+  ATSKind,
+  RecruitmentPageCapability,
+  RecruitmentPageCapabilityVerification,
+  SourceKind,
+  VerificationStatus
+} from "../domain/company";
+import { isVerifiedNonJobRecruitmentPage } from "../domain/company";
 import {
   derivePhase1Scope,
   isUserAuthorizedPhase1Exclusion,
@@ -12,7 +19,11 @@ export type TargetStatus =
   | "NO_PUBLIC_OFFICIAL_CAREERS_LINK_AT_CAPTURE_TIME"
   | "BLOCKED_EVIDENCE_GAP"
   | typeof USER_AUTHORIZED_PHASE1_EXCLUSION;
-export type OfficialSurfaceStatus = "INCLUDED" | "BLOCKED_NO_STRUCTURED_PUBLIC_SOURCE" | "BLOCKED_UNVERIFIED";
+export type OfficialSurfaceStatus =
+  | "INCLUDED"
+  | "VERIFIED_NON_JOB_RECRUITMENT_INFORMATION"
+  | "BLOCKED_NO_STRUCTURED_PUBLIC_SOURCE"
+  | "BLOCKED_UNVERIFIED";
 export type IndependentOracleStatus = "RESEARCH_PENDING_INDEPENDENT_VERIFICATION" | "INDEPENDENTLY_VERIFIED";
 export type RecruitmentScope =
   | { status: "RESOLVED"; value: string; evidenceArtifactSha256: string }
@@ -38,6 +49,8 @@ export interface CandidateRecruitmentSource {
   officialEntryUrl?: string;
   officialChainEvidenceUrl?: string;
   campusEntryUrl?: string;
+  recruitmentPageCapability?: RecruitmentPageCapability;
+  capabilityVerification?: RecruitmentPageCapabilityVerification;
 }
 
 export interface CandidateCompany {
@@ -66,6 +79,8 @@ export interface CandidateSocialSourceSeed {
   socialEntryUrl?: string;
   officialChainEvidenceUrl?: string;
   campusEntryUrl?: string;
+  recruitmentPageCapability?: RecruitmentPageCapability;
+  capabilityVerification?: RecruitmentPageCapabilityVerification;
 }
 
 export interface CandidateSeed {
@@ -99,6 +114,8 @@ export interface ExpectedOfficialRecruitmentSurface {
   status: OfficialSurfaceStatus;
   includeReason: string;
   oracleStatus: IndependentOracleStatus;
+  recruitmentPageCapability?: RecruitmentPageCapability;
+  capabilityVerification?: RecruitmentPageCapabilityVerification;
 }
 
 export interface ExcludedCompany {
@@ -178,7 +195,13 @@ function toRecruitmentSource(
     ...(sourceSeed.officialChainEvidenceUrl
       ? { officialChainEvidenceUrl: sourceSeed.officialChainEvidenceUrl }
       : {}),
-    ...(sourceSeed.campusEntryUrl ? { campusEntryUrl: sourceSeed.campusEntryUrl } : {})
+    ...(sourceSeed.campusEntryUrl ? { campusEntryUrl: sourceSeed.campusEntryUrl } : {}),
+    ...(sourceSeed.recruitmentPageCapability
+      ? { recruitmentPageCapability: sourceSeed.recruitmentPageCapability }
+      : {}),
+    ...(sourceSeed.capabilityVerification
+      ? { capabilityVerification: sourceSeed.capabilityVerification }
+      : {})
   };
 }
 
@@ -476,13 +499,19 @@ const CANDIDATE_SEEDS: CandidateSeed[] = [
         status: "ENTRY_FOUND_PENDING_ADAPTER",
         atsKind: "OFFICIAL_HTML",
         socialEntryUrl: "https://chinaotsuka.com.cn/class/26",
-        officialChainEvidenceUrl: "https://www.otsuka.com.cn/otsuka-in-china/index.html"
+        officialChainEvidenceUrl: "https://www.otsuka.com.cn/otsuka-in-china/index.html",
+        recruitmentPageCapability: "RECRUITMENT_INFORMATION_OR_CONTACT",
+        capabilityVerification: {
+          checkedAt: "2026-07-16",
+          reason: "The official page contains recruitment contact information but no job rows, job links, or ATS link."
+        }
       },
       {
         status: "VERIFIED_SCRAPABLE",
         atsKind: "OFFICIAL_HTML",
         socialEntryUrl: "https://www.otsuka.com.cn/join-us/index.html",
-        officialChainEvidenceUrl: "https://www.otsuka.com.cn/join-us/index.html"
+        officialChainEvidenceUrl: "https://www.otsuka.com.cn/join-us/index.html",
+        recruitmentPageCapability: "JOB_LISTING"
       }
     ]
   },
@@ -758,21 +787,22 @@ const CANDIDATE_SEEDS: CandidateSeed[] = [
     officialChineseName: "丽珠医药集团股份有限公司",
     pinyinName: "lizhu-yiyao",
     category: "DOMESTIC_PHARMA",
-    status: "ENTRY_FOUND_PENDING_ADAPTER",
+    status: "VERIFIED_SCRAPABLE",
     atsKind: "OFFICIAL_HTML",
     officialWebsiteUrl: "https://www.livzon.com.cn/",
-    socialEntryUrl: "https://www.livzon.com.cn/Social_list/p-42-6.html",
-    officialChainEvidenceUrl: "https://www.livzon.com.cn/Social_list/p-42-6.html"
+    socialEntryUrl: "https://www.livzon.com.cn/Social_list/p-0-6.html",
+    officialChainEvidenceUrl: "https://www.livzon.com.cn/Social_list/p-0-6.html"
   },
   {
     id: "company-buchang",
     officialChineseName: "山东步长制药股份有限公司",
     pinyinName: "buchang-zhiyao",
     category: "DOMESTIC_PHARMA",
-    status: "UNVERIFIED",
-    atsKind: "UNKNOWN",
+    status: "VERIFIED_SCRAPABLE",
+    atsKind: "OFFICIAL_HTML",
     officialWebsiteUrl: "https://www.buchang.com/",
-    officialChainEvidenceUrl: "https://www.buchang.com/"
+    socialEntryUrl: "https://www.buchang.com/FormMy/Joinus/ZhaoXianNaShi",
+    officialChainEvidenceUrl: "https://www.buchang.com/FormMy/Joinus/ZhaoXianNaShi"
   },
   {
     id: "company-hansoh",
@@ -928,6 +958,7 @@ function implementedAdapterFor(
   sourceSeed: CandidateSocialSourceSeed
 ): "official-json" | "html-table" | undefined {
   if (seed.targetStatus && seed.targetStatus !== "ACTIVE") return undefined;
+  if (isVerifiedNonJobRecruitmentPage(sourceSeed)) return undefined;
   if ([
     "company-fosun-pharma",
     "company-hansoh",
@@ -956,6 +987,12 @@ function expectedSurfacesFor(seed: CandidateSeed): ExpectedOfficialRecruitmentSu
       ...(sourceSeed.socialEntryUrl ? { officialEntryUrl: sourceSeed.socialEntryUrl } : {}),
       officialChainEvidenceUrls: sourceSeed.officialChainEvidenceUrl ? [sourceSeed.officialChainEvidenceUrl] : [],
       atsKind: sourceSeed.atsKind ?? "UNKNOWN",
+      ...(sourceSeed.recruitmentPageCapability
+        ? { recruitmentPageCapability: sourceSeed.recruitmentPageCapability }
+        : {}),
+      ...(sourceSeed.capabilityVerification
+        ? { capabilityVerification: sourceSeed.capabilityVerification }
+        : {}),
       ...(() => {
         const adapterId = implementedAdapterFor(seed, sourceSeed);
         return adapterId ? { adapterId } : {};
@@ -963,12 +1000,16 @@ function expectedSurfacesFor(seed: CandidateSeed): ExpectedOfficialRecruitmentSu
       status:
         seed.targetStatus === "BLOCKED_EVIDENCE_GAP"
           ? "BLOCKED_UNVERIFIED"
+          : isVerifiedNonJobRecruitmentPage(sourceSeed)
+            ? "VERIFIED_NON_JOB_RECRUITMENT_INFORMATION"
           : sourceSeed.socialEntryUrl && sourceSeed.officialChainEvidenceUrl
             ? "INCLUDED"
             : "BLOCKED_UNVERIFIED",
       includeReason:
         seed.targetStatus === "BLOCKED_EVIDENCE_GAP"
           ? "Official-linked entry retained; required evidence or implementation remains incomplete."
+          : isVerifiedNonJobRecruitmentPage(sourceSeed)
+            ? "Official recruitment information or contact page verified as not containing a job listing at capture time."
           : "Recorded official recruitment chain; independent completeness remains pending.",
       oracleStatus: "RESEARCH_PENDING_INDEPENDENT_VERIFICATION"
     };
@@ -1105,6 +1146,14 @@ export function validateStrictCompanyRegistry(
   if (surfaces.some((surface) => surface.legalEntityScope.length === 0 || surface.businessUnitScope.length === 0 || surface.brandScope.length === 0)) errors.push("EMPTY_SURFACE_SCOPE");
   if (surfaces.some((surface) => surface.channels.length === 0)) errors.push("EMPTY_SURFACE_CHANNELS");
   if (surfaces.some((surface) => surface.oracleStatus === "INDEPENDENTLY_VERIFIED" && hasUnresolvedSurfaceScope(surface))) errors.push("VERIFIED_SURFACE_HAS_UNRESOLVED_SCOPE");
+  if (surfaces.some((surface) =>
+    surface.status === "VERIFIED_NON_JOB_RECRUITMENT_INFORMATION" &&
+    (!isVerifiedNonJobRecruitmentPage(surface) || surface.adapterId !== undefined)
+  )) errors.push("INVALID_NON_JOB_RECRUITMENT_INFORMATION_SURFACE");
+  if (surfaces.some((surface) =>
+    isVerifiedNonJobRecruitmentPage(surface) &&
+    surface.status !== "VERIFIED_NON_JOB_RECRUITMENT_INFORMATION"
+  )) errors.push("NON_JOB_RECRUITMENT_INFORMATION_SURFACE_STATUS_DRIFT");
   return errors;
 }
 

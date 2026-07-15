@@ -1,5 +1,6 @@
 import type { CandidateCompany } from "../data/companyRegistry";
 import { isUserAuthorizedPhase1Exclusion } from "../data/phase1ScopePolicy";
+import { isVerifiedNonJobRecruitmentPage } from "./company";
 
 export type PublicationState =
   | "PUBLISHING"
@@ -339,6 +340,8 @@ function deterministicOfficialCareersUrl(company: CandidateCompany): string | nu
   const source = [...company.sources]
     .filter(({ kind, officialEntryUrl }) => kind === "SOCIAL" && Boolean(officialEntryUrl?.trim()))
     .sort((left, right) =>
+      Number(left.recruitmentPageCapability !== "JOB_LISTING") -
+        Number(right.recruitmentPageCapability !== "JOB_LISTING") ||
       compareUtf8(left.id, right.id) || compareUtf8(left.officialEntryUrl ?? "", right.officialEntryUrl ?? "")
     )[0];
   return source?.officialEntryUrl ?? null;
@@ -357,7 +360,8 @@ function canonicalOfficialSocialSourceIds(company: CandidateCompany): string[] {
     .filter((source) =>
       source.kind === "SOCIAL" &&
       Boolean(source.officialEntryUrl?.trim()) &&
-      Boolean(source.officialChainEvidenceUrl?.trim())
+      Boolean(source.officialChainEvidenceUrl?.trim()) &&
+      !isVerifiedNonJobRecruitmentPage(source)
     )
     .map(({ id }) => id))]
     .sort(compareUtf8);

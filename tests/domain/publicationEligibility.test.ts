@@ -390,6 +390,64 @@ describe("source publication sequence", () => {
 });
 
 describe("company publication state", () => {
+  it("excludes only explicitly verified recruitment-information pages from the job-list completeness set", () => {
+    const jobsSource = {
+      id: "source-jobs",
+      companyId: "company-test",
+      kind: "SOCIAL" as const,
+      atsKind: "OFFICIAL_HTML" as const,
+      status: "VERIFIED_SCRAPABLE" as const,
+      officialEntryUrl: "https://jobs.example.test/list",
+      officialChainEvidenceUrl: "https://example.test/careers",
+      recruitmentPageCapability: "JOB_LISTING" as const
+    };
+    const informationSource = {
+      id: "source-information",
+      companyId: "company-test",
+      kind: "SOCIAL" as const,
+      atsKind: "OFFICIAL_HTML" as const,
+      status: "ENTRY_FOUND_PENDING_ADAPTER" as const,
+      officialEntryUrl: "https://jobs.example.test/contact",
+      officialChainEvidenceUrl: "https://example.test/careers",
+      recruitmentPageCapability: "RECRUITMENT_INFORMATION_OR_CONTACT" as const,
+      capabilityVerification: {
+        checkedAt: "2026-07-16",
+        reason: "The official page contains recruitment contact information but no job rows, job links, or ATS link."
+      }
+    };
+    const staged = currentSource("source-jobs");
+    const { capabilityVerification: _capabilityVerification, ...unverifiedInformationSource } =
+      informationSource;
+    const attempts = [
+      attempt(1, { sourceId: "source-jobs" }),
+      attempt(2, { sourceId: "source-jobs" })
+    ];
+
+    expect(buildCompanyPublicationSnapshot(
+      [company({ sources: [jobsSource, informationSource] })],
+      [staged],
+      attempts
+    ).companies[0]).toMatchObject({
+      state: "PUBLISHING",
+      eligibleSourceIds: ["source-jobs"],
+      officialCareersUrl: "https://jobs.example.test/list"
+    });
+
+    expect(buildCompanyPublicationSnapshot(
+      [company({
+        sources: [jobsSource, {
+          ...unverifiedInformationSource,
+          recruitmentPageCapability: "UNKNOWN"
+        }]
+      })],
+      [staged],
+      attempts
+    ).companies[0]).toMatchObject({
+      state: "VERIFYING",
+      reasonCode: "OFFICIAL_ENTRY_NOT_AUTOMATED"
+    });
+  });
+
   it("keeps a company verifying until every canonical official social source is staged", () => {
     const multiOfficialCompany = company({
       sources: ["source-a", "source-b"].map((sourceId) => ({

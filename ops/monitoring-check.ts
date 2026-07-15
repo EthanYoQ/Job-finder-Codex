@@ -8,6 +8,7 @@ import { DEFAULT_CRAWL_SUMMARY_MAX_AGE_HOURS, readCrawlSummaryFile, type CrawlEv
 import { readLatestCrawlAttempt } from "../src/crawler/crawlAttemptEvidence";
 import { loadProductionStagedMonitoringIdentity } from "../src/crawler/stagedMonitoringIdentity";
 import { resolveStagedCrawlEvidencePaths } from "../src/crawler/stagedCrawlEvidencePaths";
+import { scheduledAttemptMaxRunningAgeHours } from "../src/crawler/officialHttpRuntimeLimits";
 import { deliverOpsAlerts } from "../src/server/alertDelivery";
 import { readInitialQualificationPauseBundle } from "../src/crawler/initialQualificationPauseBundle";
 import { loadProductionInitialQualificationPauseCandidateStatus } from "../src/crawler/initialQualificationPauseCandidate";
@@ -85,6 +86,7 @@ async function main(): Promise<void> {
     ? await readLatestCrawlAttempt(crawlAttemptDir, {
         now,
         expectedIdentity: monitoringIdentity,
+        maxRunningAgeHours: scheduledAttemptMaxRunningAgeHours(process.env),
         expectedCanonicalSummary: crawlEvidence.state === "VALID" || crawlEvidence.state === "STALE"
           ? { batchId: crawlEvidence.summary.batchId!, summarySha256: crawlEvidence.summarySha256 }
           : undefined

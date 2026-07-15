@@ -105,7 +105,24 @@ describe("strict 30+30 roster and expected official-surface oracle", () => {
       ]
     });
     expect(expectedOfficialSurfaces.filter((surface) => surface.companyId === "company-otsuka-china" && surface.kind === "SOCIAL"))
-      .toHaveLength(2);
+      .toEqual([
+        expect.objectContaining({
+          surfaceId: "surface-otsuka-china-social",
+          status: "VERIFIED_NON_JOB_RECRUITMENT_INFORMATION",
+          recruitmentPageCapability: "RECRUITMENT_INFORMATION_OR_CONTACT",
+          capabilityVerification: {
+            checkedAt: "2026-07-16",
+            reason: expect.any(String)
+          }
+        }),
+        expect.objectContaining({
+          surfaceId: "surface-otsuka-china-social-2",
+          status: "INCLUDED",
+          recruitmentPageCapability: "JOB_LISTING"
+        })
+      ]);
+    expect(expectedOfficialSurfaces.find(({ surfaceId }) => surfaceId === "surface-otsuka-china-social"))
+      .not.toHaveProperty("adapterId");
     expect(byId.has("company-beta-pharma")).toBe(false);
     expect(byId.has("company-jacobio")).toBe(false);
     expect(excludedCompanies.map((company) => company.companyId)).toEqual(
@@ -168,7 +185,11 @@ describe("strict 30+30 roster and expected official-surface oracle", () => {
     );
     expect(coverage.blockedExpectedSurfaceIds).toEqual(
       expectedOfficialSurfaces
-        .filter((surface) => surface.kind === "SOCIAL" && inScopeCompanyIds.has(surface.companyId))
+        .filter((surface) =>
+          surface.kind === "SOCIAL" &&
+          surface.status !== "VERIFIED_NON_JOB_RECRUITMENT_INFORMATION" &&
+          inScopeCompanyIds.has(surface.companyId)
+        )
         .map(({ surfaceId }) => surfaceId)
         .sort()
     );

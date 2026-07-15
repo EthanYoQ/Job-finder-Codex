@@ -25,6 +25,7 @@ const plannedMainListSourceIds = new Set([
   "source-bayer-healthcare-social",
   "source-biogen-china-social",
   "source-boehringer-ingelheim-china-social",
+  "source-buchang-social",
   "source-bms-china-social",
   "source-cr-pharma-social",
   "source-cspc-social",
@@ -44,6 +45,7 @@ const plannedMainListSourceIds = new Set([
   "source-johnson-innovative-medicine-social",
   "source-kelun-social",
   "source-lilly-china-social",
+  "source-livzon-social",
   "source-lunan-social",
   "source-merck-china-social",
   "source-msd-china-social",
@@ -807,10 +809,11 @@ describe("source crawl planning", () => {
       officialJsonFetch: {
         kind: "redsea-zp-channel",
         rootId: "cspc",
-        channelQrIds: [
-          "0beb3022-3214-4333-a2e7-20786c4916d5",
-          "623d3b53-0d75-4649-8d4c-df366532fb58"
-        ]
+        channels: [
+          { channelQrId: "0beb3022-3214-4333-a2e7-20786c4916d5", purpose: "SOCIAL" },
+          { channelQrId: "623d3b53-0d75-4649-8d4c-df366532fb58", purpose: "CAMPUS" }
+        ],
+        paginationPolicy: "SINGLE_UNPAGINATED_RESPONSE_V1"
       }
     });
     expect(getPlanBySourceId(plans, "source-nhu-social")).toMatchObject({

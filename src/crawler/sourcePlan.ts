@@ -243,7 +243,9 @@ function configuredChannelIds(config: CompanyRecruitmentExecutionConfig, sourceI
     config.adapterId === "official-json" &&
     config.officialJsonFetch?.kind === "redsea-zp-channel"
   ) {
-    return [...config.officialJsonFetch.channelQrIds];
+    return config.officialJsonFetch.channels
+      .filter(({ purpose }) => purpose === "SOCIAL")
+      .map(({ channelQrId }) => channelQrId);
   }
   return [`source:${sourceId}:default`];
 }
@@ -353,7 +355,10 @@ export function getSourcePlanCoverage(
 ): SourcePlanCoverage {
   const companyIds = new Set(companies.map((company) => company.id));
   const surfaces = expectedOfficialSurfaces.filter((surface) => companyIds.has(surface.companyId));
-  const eligible = surfaces.filter(
+  const jobSurfaces = surfaces.filter((surface) =>
+    surface.status !== "VERIFIED_NON_JOB_RECRUITMENT_INFORMATION"
+  );
+  const eligible = jobSurfaces.filter(
     (surface) =>
       surface.kind === "SOCIAL" &&
       surface.status === "INCLUDED" &&
@@ -374,7 +379,7 @@ export function getSourcePlanCoverage(
       .filter((surface) => !plannedSurfaceIds.has(surface.surfaceId))
       .map((surface) => surface.surfaceId)
       .sort(compareUtf8),
-    blockedExpectedSurfaceIds: surfaces
+    blockedExpectedSurfaceIds: jobSurfaces
       .filter((surface) => surface.kind === "SOCIAL" && !eligibleIds.has(surface.surfaceId))
       .map((surface) => surface.surfaceId)
       .sort(compareUtf8)

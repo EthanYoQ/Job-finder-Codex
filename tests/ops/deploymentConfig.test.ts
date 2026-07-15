@@ -325,6 +325,8 @@ describe("deployment configuration", () => {
     expect(monitorScript.indexOf("resolveStagedCrawlEvidencePaths"))
       .toBeLessThan(monitorScript.indexOf("loadProductionStagedMonitoringIdentity(databaseUrl)"));
     expect(monitorScript).toContain("readLatestCrawlAttempt");
+    expect(monitorScript).toContain("scheduledAttemptMaxRunningAgeHours");
+    expect(monitorScript).toMatch(/readLatestCrawlAttempt\([\s\S]*maxRunningAgeHours:\s*scheduledAttemptMaxRunningAgeHours/u);
   });
 
   it("keeps rendered scheduler and monitor evidence on the shared volume despite caller overrides", () => {

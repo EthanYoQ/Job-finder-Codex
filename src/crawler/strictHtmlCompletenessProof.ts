@@ -11,6 +11,10 @@ import {
   type SourceFetchPageTrace
 } from "./sourceFetchEvidence";
 import { requestContractV2Locator } from "./strictPageRequestContract";
+import {
+  htmlTableRowFilterCoversCompletenessUniverse,
+  selectHtmlTableRows
+} from "./htmlTableRows";
 
 type HtmlPlan = Extract<SourceCrawlPlan, { adapterId: "html-table" }>;
 type ExactArtifact = SourceFetchArtifactDraft & { body: string; requestedUrl: string; finalUrl: string };
@@ -111,9 +115,7 @@ function validateOrdinaryTotalPages(
     const expectedUrl = evidenceUrl(rawExpectedUrl);
     const expectedCoordinate = ordinaryCoordinate(rawExpectedUrl, pagination);
     const explicitPageTotal = officialTotalPages(artifact?.body ?? "", pagination);
-    const officialJobTotal = explicitPageTotal === undefined
-      ? officialExpectedJobCount(artifact?.body ?? "", pagination)
-      : undefined;
+    const officialJobTotal = officialExpectedJobCount(artifact?.body ?? "", pagination);
     const declaredPageTotal = explicitPageTotal ?? (
       officialJobTotal !== undefined && pagination.pageSize !== undefined
         ? Math.max(1, Math.ceil(officialJobTotal / pagination.pageSize))
@@ -139,7 +141,9 @@ function validateOrdinaryTotalPages(
       !matchesRequestContract(artifact, plan.table.rowSelector, index === 0 ? "entry" : "ordinary-page", index, "GET", expectedUrl, null, {
         sequence: index, ...expectedCoordinate
       }) || !totalDeclarationValid ||
-      !replayRows(artifact.body, plan.table.rowSelector, page, seen)) return false;
+      !validateStrictOrdinaryPageControls(plan, artifact.body, pageNumber, evidence.pages.length) ||
+      !htmlTableRowFilterCoversCompletenessUniverse(load(artifact.body), plan.table) ||
+      !replayRows(artifact.body, plan.table, page, seen)) return false;
   }
   const genericValid = declaration.artifactLogicalKey === evidence.pages[0]!.artifactLogicalKey &&
     declaration.extractorLocator === artifacts[0]!.extractorLocator &&
@@ -154,6 +158,69 @@ function validateOrdinaryTotalPages(
     plan.table.completenessProof.sourcePolicy === "BAYER_CHINA_SUCCESSFACTORS_V1"
     ? validateBayerChinaPages(plan, evidence, artifacts)
     : true;
+}
+
+function validateStrictOrdinaryPageControls(
+  plan: HtmlPlan,
+  html: string,
+  page: number,
+  totalPages: number
+): boolean {
+  const pagination = plan.table.pagination;
+  const controls = pagination?.strictPageControls;
+  if (!controls) return true;
+  if (!pagination || page < 1 || page > totalPages) return false;
+
+  const $ = load(html);
+  const container = $(controls.containerSelector);
+  if (container.length !== 1) return false;
+  const numbered = container.find(controls.pageNumberSelector).toArray();
+  const current = container.find(controls.currentPageSelector);
+  const previous = container.find(controls.previousPageSelector);
+  const next = container.find(controls.nextPageSelector);
+  if (numbered.length === 0 || current.length !== 1 || previous.length !== 1 || next.length !== 1 ||
+    !numbered.includes(current.get(0)!)) return false;
+
+  const numberedPages = numbered.map((element) => strictInt(normalizedText($(element).text()), true));
+  if (numberedPages.some((value) => value === undefined)) return false;
+  const exactPages = numberedPages as number[];
+  if (new Set(exactPages).size !== exactPages.length || !exactPages.includes(1) ||
+    !exactPages.includes(totalPages) || !exactPages.includes(page)) return false;
+
+  const expectedUrl = (targetPage: number): string => configuredUrl(
+    targetPage === 1
+      ? plan.source.officialEntryUrl
+      : buildOrdinaryPageUrl(plan.source.officialEntryUrl, pagination, targetPage)
+  );
+  for (let index = 0; index < numbered.length; index += 1) {
+    const element = $(numbered[index]!);
+    const targetPage = exactPages[index]!;
+    const rawHref = element.attr("href");
+    if (targetPage === page) {
+      if (numbered[index] !== current.get(0) || rawHref !== controls.currentHref) return false;
+    } else if (!sameControlHref(rawHref, expectedUrl(targetPage), plan.source.officialEntryUrl)) {
+      return false;
+    }
+  }
+
+  const disabled = (element: typeof previous): boolean => new Set(
+    (element.attr("class") ?? "").split(/\s+/u).filter(Boolean)
+  ).has(controls.disabledClass);
+  const previousPage = page === 1 ? 1 : page - 1;
+  const nextPage = page === totalPages ? totalPages : page + 1;
+  return sameControlHref(previous.attr("href"), expectedUrl(previousPage), plan.source.officialEntryUrl) &&
+    disabled(previous) === (page === 1) &&
+    sameControlHref(next.attr("href"), expectedUrl(nextPage), plan.source.officialEntryUrl) &&
+    disabled(next) === (page === totalPages);
+}
+
+function sameControlHref(raw: string | undefined, expected: string, base: string): boolean {
+  if (!raw) return false;
+  try {
+    return configuredUrl(new URL(raw, base).toString()) === expected;
+  } catch {
+    return false;
+  }
 }
 
 function validateBayerChinaPages(
@@ -257,7 +324,7 @@ function validateNovartisSlidingWindow(
     })) return false;
 
     const rows = strictNovartisRows(plan, artifact.body);
-    if (!rows || rows.length === 0 || !replayPageRowsAllowingOverlap(artifact.body, plan.table.rowSelector, page)) return false;
+    if (!rows || rows.length === 0 || !replayPageRowsAllowingOverlap(artifact.body, plan.table, page)) return false;
     observedRows += rows.length;
     let novel = 0;
     const pageUrls = new Set<string>();
@@ -294,14 +361,14 @@ function strictNovartisRows(
 ): Array<{ url: string; signature: string }> | undefined {
   const $ = load(html);
   const rows: Array<{ url: string; signature: string }> = [];
-  for (const row of $(plan.table.rowSelector).toArray()) {
+  for (const row of selectHtmlTableRows($, plan.table)) {
     const titleLink = $(row).find("td.views-field-field-job-title a");
     const rawUrl = titleLink.attr("href");
     const url = rawUrl ? strictSameOriginUrl(rawUrl, plan.source.officialEntryUrl) : undefined;
     const title = normalizedText(titleLink.text());
     const location = normalizedText($(row).find("td.views-field-field-job-work-location").text());
     if (titleLink.length !== 1 || !url || !title || !location ||
-      !strictNovartisMainlandChinaLocation(location) ||
+      !strictNovartisMainlandChinaLocation(location, plan.table.strictLocationScope) ||
       !url.pathname.startsWith("/careers/career-search/job/details/") || url.search || url.hash) return undefined;
     rows.push({ url: url.toString(), signature: JSON.stringify({ title, location }) });
   }
@@ -334,9 +401,15 @@ const NOVARTIS_MAINLAND_CHINESE_LOCATIONS = [
   "武汉", "无锡", "厦门", "西安", "烟台", "郑州", "珠海"
 ] as const;
 
-function strictNovartisMainlandChinaLocation(value: string): boolean {
+function strictNovartisMainlandChinaLocation(
+  value: string,
+  scope: HtmlTableConfig["strictLocationScope"]
+): boolean {
   const normalized = value.normalize("NFKC").replace(/\s+/gu, " ").trim();
   if (!normalized) return false;
+  if (NOVARTIS_NON_MAINLAND_LOCATION.test(normalized)) return false;
+  if (scope?.allowUnknownEnglishLocalityWithParenthesizedMainlandProvince === true &&
+    strictParenthesizedMainlandProvinceLocation(normalized)) return true;
   const withoutAdministrativeAnnotations = normalized.replace(
     /\(\s*(?:city|province|municipality|prefecture|autonomous region)\s*\)/giu,
     ""
@@ -346,7 +419,7 @@ function strictNovartisMainlandChinaLocation(value: string): boolean {
     .split(/\s*[,，;；/／|｜、]\s*|\s+[—–-]\s+/u)
     .map((segment) => segment.trim())
     .filter(Boolean);
-  if (segments.length === 0 || NOVARTIS_NON_MAINLAND_LOCATION.test(normalized)) return false;
+  if (segments.length === 0) return false;
   if (segments.every(strictNovartisMainlandLocationSegment)) return true;
 
   const administrativeCores = segments.map((segment) => segment.toLocaleLowerCase("en-US")
@@ -370,7 +443,16 @@ const NOVARTIS_MAINLAND_ENGLISH_PROVINCES = new Set([
 ]);
 
 const NOVARTIS_NON_MAINLAND_LOCATION =
-  /(?:香港|澳门|台湾|海外|国外|美国|日本|新加坡|印度|德国|法国|加拿大|澳大利亚|英国|韩国)|\b(?:hong kong|macao|macau|taiwan|overseas|abroad|united states|usa|u\.s\.|switzerland|basel|japan|tokyo|singapore|india|germany|france|canada|australia|united kingdom|london|south korea|seoul)\b/iu;
+  /(?:香港|澳门|台湾|海外|国外|美国|日本|新加坡|印度|德国|法国|加拿大|澳大利亚|英国|韩国)|\b(?:hong kong|macao|macau|taiwan|overseas|abroad|united states|usa|u\.s\.|switzerland|basel|zurich|paris|japan|tokyo|singapore|india|germany|france|canada|australia|united kingdom|london|south korea|seoul)\b/iu;
+
+function strictParenthesizedMainlandProvinceLocation(value: string): boolean {
+  const match = /^([A-Za-z][A-Za-z .'-]{1,48})\s*\(\s*([A-Za-z][A-Za-z ]{1,30}?)(?:\s+Province)?\s*\)$/iu.exec(value);
+  if (!match) return false;
+  const locality = match[1]!.toLocaleLowerCase("en-US").trim();
+  const province = match[2]!.toLocaleLowerCase("en-US").trim();
+  return !NOVARTIS_NON_MAINLAND_LOCATION.test(locality) &&
+    NOVARTIS_MAINLAND_ENGLISH_PROVINCES.has(province);
+}
 
 function strictNovartisMainlandLocationSegment(segment: string): boolean {
   const lower = segment.toLocaleLowerCase("en-US").replace(/[.]$/u, "").trim();
@@ -418,11 +500,11 @@ function strictNovartisMainlandChineseLocation(segment: string): boolean {
 
 function replayPageRowsAllowingOverlap(
   html: string,
-  selector: string,
+  table: HtmlTableConfig,
   page: SourceFetchPageTrace
 ): boolean {
   const $ = load(html);
-  const ids = $(selector).toArray().map((row) =>
+  const ids = selectHtmlTableRows($, table).map((row) =>
     `html-row:sha256:${sha256Bytes(Buffer.from($.html(row), "utf8")).sha256}`
   );
   return new Set(ids).size === ids.length &&
@@ -486,6 +568,7 @@ function exactNovartisPlan(plan: HtmlPlan): boolean {
     plan.table.fields.officialUrl.selector === "td.views-field-field-job-title a" &&
     plan.table.fields.officialUrl.attribute === "href" &&
     plan.table.fields.locationRaw.selector === "td.views-field-field-job-work-location" &&
+    plan.table.strictLocationScope?.allowUnknownEnglishLocalityWithParenthesizedMainlandProvince === true &&
     pagination?.totalPagesSelector === ".pagination .page-link[title*='out of'][title*='pages']" &&
     pagination.totalPagesAttribute === "title" &&
     pagination.totalPagesPattern === "out of\\s+([1-9]\\d*)\\s+pages" &&
@@ -584,7 +667,7 @@ function validateTalentbrewTraversal(
       declaredTotal ??= total;
       pageSize ??= size;
       if (declaredPages !== totalPages || declaredTotal !== total || pageSize !== size ||
-        !replayRows(html, plan.table.rowSelector, page, seen)) return false;
+        !replayRows(html, plan.table, page, seen)) return false;
       returnedRows += page.rawJobIds.length;
       globalIndex += 1;
     }
@@ -630,7 +713,7 @@ function validateTupuTraversal(
       !matchesRequestContract(artifact, base, index === 0 ? "entry" : "tupu360-page", index,
         index === 0 ? "GET" : "POST", expectedUrl, body, {
           sequence: index, requestedOffset: offset, requestedPageSize: index === 0 ? null : pageSize
-        }) || !replayRows(artifact.body, plan.table.rowSelector, page, seen)) return false;
+        }) || !replayRows(artifact.body, plan.table, page, seen)) return false;
   }
   return evidence.fetchCounts.rawCount === seen.size;
 }
@@ -657,7 +740,7 @@ function validateStaticPublicList(
   if (rows.some((row) => $(row).closest(config.containerSelector).get(0) !== container.get(0) ||
     (config.excludedPartitionSelectors ?? []).some((selector) => $(row).closest(selector).length > 0))) return false;
   const seen = new Set<string>();
-  const genericValid = replayRows(artifact.body, plan.table.rowSelector, evidence.pages[0]!, seen) &&
+  const genericValid = replayRows(artifact.body, plan.table, evidence.pages[0]!, seen) &&
     evidence.fetchCounts.rawCount === seen.size &&
     ((declaration.kind === "COMPLETE_PAGE_TRAVERSAL" && declaration.value === 1) ||
       (declaration.kind === "OFFICIAL_TOTAL_COUNT" && declaration.value === 0 && rows.length === 0));
@@ -745,12 +828,12 @@ function artifactForPage(page: SourceFetchPageTrace, artifacts: readonly ExactAr
 
 function replayRows(
   html: string,
-  selector: string,
+  table: HtmlTableConfig,
   page: SourceFetchPageTrace,
   globalSeen: Set<string>
 ): boolean {
   const $ = load(html);
-  const ids = $(selector).toArray().map((row) => {
+  const ids = selectHtmlTableRows($, table).map((row) => {
     const raw = $.html(row);
     return `html-row:sha256:${sha256Bytes(Buffer.from(raw, "utf8")).sha256}`;
   });
@@ -869,8 +952,7 @@ function officialExpectedJobCount(
   html: string,
   pagination: NonNullable<HtmlTableConfig["pagination"]>
 ): number | undefined {
-  if (!pagination.expectedJobCountSelector || pagination.pageSize === undefined ||
-    !Number.isSafeInteger(pagination.pageSize) || pagination.pageSize <= 0) return undefined;
+  if (!pagination.expectedJobCountSelector) return undefined;
   const $ = load(html);
   const selected = $(pagination.expectedJobCountSelector).first();
   if (selected.length !== 1) return undefined;

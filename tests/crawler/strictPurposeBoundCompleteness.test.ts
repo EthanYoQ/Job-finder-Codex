@@ -711,7 +711,7 @@ function mokaResponse(body: string, finalUrl: string, contentType = "application
 }
 
 describe("strict Moka hydration evidence", () => {
-  it("rejects a hydrated Moka payload after all required detail artifacts are removed", async () => {
+  it("accepts a profile-authorized request-bound omitted detail siteId and rejects removal of its evidence", async () => {
     const plan = planFor("source-servier-china-social");
     if (plan.adapterId !== "official-json" || !plan.moka) throw new Error("Expected Moka plan");
     const listUrl = "https://app.mokahr.com/api/outer/ats-apply/website/jobs/v2";
@@ -732,7 +732,6 @@ describe("strict Moka hydration evidence", () => {
         data: {
           id: "servier-1",
           orgId: plan.moka!.expectedOrgId,
-          siteId: plan.moka!.expectedSiteId,
           locations: [{ cityName: "北京市", provinceName: "北京市", country: "中国" }]
         }
       })), detailUrl);

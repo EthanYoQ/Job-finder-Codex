@@ -290,6 +290,8 @@ export function createMokaSourceFetch(deps: MokaSourceFetchDeps = {}): SourceFet
                   expectedJobId: rawOfficialId,
                   expectedOrgId: initData.orgId,
                   expectedSiteId: initData.siteId,
+                  requestBody: detailRequest.body,
+                  allowSiteIdOmission: configuredMoka?.allowDetailSiteIdOmission === true,
                   aesIv: initData.aesIv
                 });
             artifacts.push(detailValidation.ok
@@ -783,14 +785,18 @@ function validateMokaDetailResponse(input: {
   expectedJobId: string;
   expectedOrgId: string;
   expectedSiteId: string;
+  requestBody: unknown;
+  allowSiteIdOmission: boolean;
   aesIv: string;
 }): { ok: true; locations: unknown[] } | { ok: false; field: string } {
   if (input.response.status < 200 || input.response.status >= 300) return { ok: false, field: "httpStatus" };
   let detail: unknown;
+  let encryptedDetail = false;
   try {
     const parsed = JSON.parse(input.response.body) as unknown;
     const encrypted = parseEncryptedResponse(input.response.body);
     if (encrypted) {
+      encryptedDetail = true;
       const decrypted = decryptMokaResponse(encrypted, input.aesIv);
       if (!isObject(decrypted) || decrypted.success !== true || !isObject(decrypted.data) || Array.isArray(decrypted.data)) {
         return { ok: false, field: "body" };
@@ -803,14 +809,52 @@ function validateMokaDetailResponse(input: {
     return { ok: false, field: "body" };
   }
   if (!isObject(detail) || Array.isArray(detail)) return { ok: false, field: "body" };
-  if (containsCredentialMaterialDeep(detail)) return { ok: false, field: "detail" };
+  // Plain JSON is archived as-is, so every field must remain credential-free. Encrypted
+  // detail bodies are archived only as ciphertext; inspect just the identity/location
+  // fields used for binding or output and ignore unrelated prose that is never persisted.
+  if (
+    (!encryptedDetail && containsCredentialMaterialDeep(detail)) ||
+    containsMokaDetailCredentialMaterial(detail)
+  ) return { ok: false, field: "detail" };
   if (mokaJobId(detail) !== input.expectedJobId) return { ok: false, field: "id" };
   if (stringValue(detail.orgId) !== input.expectedOrgId) return { ok: false, field: "orgId" };
-  if (stringValue(detail.siteId) !== input.expectedSiteId) return { ok: false, field: "siteId" };
+  const returnedSiteId = stringValue(detail.siteId);
+  if (returnedSiteId !== undefined && returnedSiteId !== input.expectedSiteId) {
+    return { ok: false, field: "siteId" };
+  }
+  if (
+    returnedSiteId === undefined &&
+    (!input.allowSiteIdOmission || !isExactMokaDetailRequestBinding(input.requestBody, input))
+  ) return { ok: false, field: "siteId" };
   if (!Array.isArray(detail.locations) || citiesFromMokaLocations(detail.locations).length === 0) {
     return { ok: false, field: "locations" };
   }
   return { ok: true, locations: detail.locations };
+}
+
+function isExactMokaDetailRequestBinding(
+  value: unknown,
+  expected: Pick<Parameters<typeof validateMokaDetailResponse>[0], "expectedJobId" | "expectedOrgId" | "expectedSiteId">
+): boolean {
+  return isObject(value) && !Array.isArray(value) &&
+    stringValue(value.jobId) === expected.expectedJobId &&
+    stringValue(value.orgId) === expected.expectedOrgId &&
+    stringValue(value.siteId) === expected.expectedSiteId;
+}
+
+function containsMokaDetailCredentialMaterial(detail: Record<string, unknown>): boolean {
+  for (const value of [detail.id, detail.orgId, detail.siteId, detail.title]) {
+    const text = stringValue(value);
+    if (text && containsCredentialMaterial(text)) return true;
+  }
+  if (!Array.isArray(detail.locations)) return false;
+  return detail.locations.some((location) => {
+    if (!isObject(location) || Array.isArray(location)) return false;
+    return [location.cityName, location.provinceName, location.country].some((value) => {
+      const text = stringValue(value);
+      return text ? containsCredentialMaterial(text) : false;
+    });
+  });
 }
 
 function containsCredentialMaterialDeep(value: unknown): boolean {

@@ -3,6 +3,7 @@ import { AsyncLocalStorage } from "node:async_hooks";
 export const DEFAULT_OFFICIAL_HTTP_TIMEOUT_MS = 45_000;
 export const DEFAULT_SOURCE_ATTEMPT_TIMEOUT_MS = 5 * 60 * 1_000;
 export const DEFAULT_SCHEDULED_ATTEMPT_TIMEOUT_MS = 6 * 60 * 60 * 1_000;
+export const SCHEDULED_ATTEMPT_MONITOR_GRACE_MS = 15 * 60 * 1_000;
 export const DEFAULT_OFFICIAL_BROWSER_TIMEOUT_MS = 60_000;
 export const DEFAULT_HCM_CLOUD_BROWSER_SETTLE_MS = 3_000;
 
@@ -34,6 +35,10 @@ export function scheduledAttemptTimeoutMs(env: RuntimeEnv = process.env): number
     60 * 60 * 1_000,
     24 * 60 * 60 * 1_000
   );
+}
+
+export function scheduledAttemptMaxRunningAgeHours(env: RuntimeEnv = process.env): number {
+  return (scheduledAttemptTimeoutMs(env) + SCHEDULED_ATTEMPT_MONITOR_GRACE_MS) / (60 * 60 * 1_000);
 }
 
 export function sourceAttemptTimeoutMs(env: RuntimeEnv = process.env): number {

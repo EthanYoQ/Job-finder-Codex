@@ -535,6 +535,7 @@ function strictPageRequestContracts(
   if (strategy?.kind === "jobsyn-solr") return strictJobsynRequestContracts(plan, evidence);
   if (strategy?.kind === "cnstaff") return strictCnstaffRequestContracts(plan, evidence);
   if (strategy?.kind === "sandoz-jsonapi") return strictSandozScopeArtifacts(plan, evidence);
+  if (strategy?.kind === "redsea-zp-channel") return strictRedseaRequestContracts(plan, evidence);
   return true;
 }
 
@@ -607,7 +608,7 @@ function strictPageCoordinatesEqual(
 }
 
 type GateRequestContract = {
-  family: "workday" | "moka" | "phenom" | "beisen" | "hcm";
+  family: "workday" | "moka" | "phenom" | "beisen" | "hcm" | "redsea";
   role: string;
   method: "GET" | "POST";
   url: string;
@@ -640,6 +641,126 @@ function strictGateCanonicalValue(value: unknown): unknown {
       .map(([key, child]) => [key, strictGateCanonicalValue(child)]));
   }
   return value;
+}
+
+function strictRedseaRequestContracts(
+  plan: Extract<SourceCrawlPlan, { adapterId: "official-json" }>,
+  evidence: PersistentSourceFetchEvidence
+): boolean {
+  const config = plan.officialJsonFetch;
+  if (config?.kind !== "redsea-zp-channel" ||
+    config.paginationPolicy !== "SINGLE_UNPAGINATED_RESPONSE_V1" ||
+    !Array.isArray(config.channels)) return false;
+  const bindings = config.channels;
+  if (bindings.some((binding) =>
+    !strictGateExactObjectKeys(binding, ["channelQrId", "purpose"]) ||
+    !safeOfficialJsonId(binding.channelQrId) ||
+    (binding.purpose !== "SOCIAL" && binding.purpose !== "CAMPUS")) ||
+    new Set(bindings.map(({ channelQrId }) => channelQrId)).size !== bindings.length) return false;
+  const socialIds = bindings.filter(({ purpose }) => purpose === "SOCIAL").map(({ channelQrId }) => channelQrId);
+  if (socialIds.length !== 1 || plan.expectedChannels?.length !== 1 ||
+    plan.expectedChannels[0]?.kind !== "SOCIAL" || plan.expectedChannels[0].channelId !== socialIds[0] ||
+    evidence.pages.length !== 1 || evidence.artifacts.length !== 3) return false;
+
+  const channelQrId = socialIds[0]!;
+  const origin = new URL(plan.source.officialEntryUrl).origin;
+  const entryUrl = new URL(
+    `/RedseaPlatform/zhaopin/zpChannelQrCode/${channelQrId}/officeWebsite.mob`, origin
+  ).toString();
+  if (plan.source.officialEntryUrl !== entryUrl) return false;
+  const listUrl = new URL("/RedseaPlatform/zhaopin/zpChannelQrCode/officePage.mob", origin);
+  listUrl.searchParams.set("noHead", "1");
+  listUrl.searchParams.set("pageId", "list");
+  listUrl.searchParams.set("configId", channelQrId);
+  listUrl.searchParams.set("lectureId", "");
+  const listEvidenceUrl = sanitizeEvidenceHttpUrl(listUrl.toString());
+  const apiUrl = new URL("/RedseaPlatform/zhaopin/zpChannelQrCode/queryPostList.mob", origin).toString();
+  const artifacts = new Map(evidence.artifacts.map((artifact) => [artifact.logicalKey, artifact]));
+  if (artifacts.size !== 3) return false;
+  const entryArtifact = artifacts.get(`redsea-${channelQrId}-entry`);
+  const listArtifact = artifacts.get(`redsea-${channelQrId}-list`);
+  const apiArtifact = artifacts.get(`redsea-${channelQrId}-api`);
+  if (!entryArtifact || !listArtifact || !apiArtifact ||
+    evidence.artifacts.some((artifact) => artifact.channelId !== channelQrId) ||
+    entryArtifact.requestedUrl !== entryUrl || entryArtifact.finalUrl !== entryUrl ||
+    listArtifact.requestedUrl !== listEvidenceUrl || listArtifact.finalUrl !== listEvidenceUrl ||
+    apiArtifact.requestedUrl !== apiUrl || apiArtifact.finalUrl !== apiUrl ||
+    apiArtifact.bodyRepresentation === "REDACTED") return false;
+
+  const page = evidence.pages[0]!;
+  if (!strictPageCoordinatesEqual(page, {
+    sequence: 0,
+    requestedCursor: channelQrId,
+    requestedOffset: null,
+    requestedPage: null,
+    requestedPageSize: null
+  }) || page.returnedCursor !== channelQrId || page.channelId !== channelQrId ||
+    page.artifactLogicalKey !== apiArtifact.logicalKey || page.termination !== "NEXT_ABSENT" ||
+    page.nextPageSignalBefore !== null || page.nextPageSignalAfter !== null) return false;
+
+  const root = strictUniqueJsonRecord(apiArtifact.body);
+  if (!root || root.state !== "1" || !Array.isArray(root.jsonList) ||
+    strictRedseaHasUnsafePaginationSignal(root, root.jsonList.length) ||
+    page.rawJobIds.length !== root.jsonList.length) return false;
+  const sortName = config.sortName ?? "zri.ext_rankNum";
+  const requestForm = {
+    channelQrId,
+    sortName,
+    peopleId: "",
+    root_id: config.rootId,
+    shareStaff: "",
+    push_request_id: "",
+    keyword: "",
+    ftl_list_stru_id: ""
+  };
+  if (!strictRequestContractMatches(apiArtifact.extractorLocator, {
+    family: "redsea",
+    role: "single-unpaginated-response",
+    method: "POST",
+    url: apiUrl,
+    body: requestForm,
+    coordinate: { sequence: 0, channelQrId, paginationPolicy: config.paginationPolicy }
+  })) return false;
+  const declaration = evidence.declaredCompleteness;
+  return declaration?.kind === "COMPLETE_PAGE_TRAVERSAL" && declaration.value === 1 &&
+    declaration.scope === "CHANNEL" && declaration.channelId === channelQrId &&
+    declaration.artifactLogicalKey === apiArtifact.logicalKey &&
+    declaration.extractorLocator === apiArtifact.extractorLocator;
+}
+
+function strictRedseaHasUnsafePaginationSignal(root: Record<string, unknown>, rowCount: number): boolean {
+  const falseLike = (value: unknown) => value === undefined || value === null || value === false ||
+    value === "" || (typeof value === "string" && /^(?:false|0|null)$/iu.test(value.trim()));
+  for (const key of ["hasNext", "hasMore", "more", "next", "nextPage", "next_page", "nextCursor", "next_cursor"] as const) {
+    if (Object.prototype.hasOwnProperty.call(root, key) && !falseLike(root[key])) return true;
+  }
+  if (Object.prototype.hasOwnProperty.call(root, "page") && strictRecord(root.page)) return true;
+  const safeInteger = (value: unknown): number | undefined => {
+    if (typeof value === "number" && Number.isSafeInteger(value) && value >= 0) return value;
+    if (typeof value === "string" && /^(?:0|[1-9][0-9]*)$/u.test(value.trim())) return Number(value.trim());
+    return undefined;
+  };
+  if (Object.prototype.hasOwnProperty.call(root, "total") && root.total !== "" && root.total !== null &&
+    root.total !== undefined && safeInteger(root.total) !== rowCount) return true;
+  for (const key of ["totalPages", "totalPage", "pageCount"] as const) {
+    if (Object.prototype.hasOwnProperty.call(root, key) && !falseLike(root[key]) && safeInteger(root[key]) !== 1) return true;
+  }
+  for (const key of ["currentPage", "pageNo", "pageNum", "pageIndex"] as const) {
+    if (Object.prototype.hasOwnProperty.call(root, key) && !falseLike(root[key])) {
+      const value = safeInteger(root[key]);
+      if (value !== 0 && value !== 1) return true;
+    }
+  }
+  for (const key of ["offset", "start"] as const) {
+    if (Object.prototype.hasOwnProperty.call(root, key) && !falseLike(root[key]) && safeInteger(root[key]) !== 0) return true;
+  }
+  for (const key of ["pageSize", "limit"] as const) {
+    if (Object.prototype.hasOwnProperty.call(root, key) && !falseLike(root[key])) {
+      const value = safeInteger(root[key]);
+      if (value === undefined || value < rowCount) return true;
+    }
+  }
+  return false;
 }
 
 function strictWorkdayRequestContracts(plan: Extract<SourceCrawlPlan, { adapterId: "official-json" }>, evidence: PersistentSourceFetchEvidence): boolean {
@@ -1190,9 +1311,11 @@ function strictMokaRequestContracts(plan: Extract<SourceCrawlPlan, { adapterId: 
       coordinate: { sequence, recordIndex }
     })) return false;
     const detail = strictMokaDetailRecord(artifact.body, aesIv);
+    const detailSiteId = strictMokaStringValue(detail?.siteId);
     if (!detail || strictMokaJobId(detail) !== expectedJobId ||
       strictMokaStringValue(detail.orgId) !== config.expectedOrgId ||
-      strictMokaStringValue(detail.siteId) !== config.expectedSiteId ||
+      (detailSiteId !== config.expectedSiteId &&
+        !(detailSiteId === undefined && config.allowDetailSiteIdOmission === true)) ||
       strictMokaCities(detail.locations).length === 0) return false;
   }
   return true;
@@ -2581,6 +2704,33 @@ function strictPlanUrlRules(plan: SourceCrawlPlan): StrictUrlRule[] | undefined 
       rules.push(exactEndpointRule(
         "xiuzheng-job-list",
         exactConfiguredEndpoint(strategy.endpointUrl),
+        { allowsPagination: true, allowsDeclaration: true }
+      ));
+      return rules;
+    }
+    if (strategy?.kind === "redsea-zp-channel") {
+      if (strategy.paginationPolicy !== "SINGLE_UNPAGINATED_RESPONSE_V1" ||
+        !Array.isArray(strategy.channels) ||
+        new Set(strategy.channels.map(({ channelQrId }) => channelQrId)).size !== strategy.channels.length) {
+        return undefined;
+      }
+      const social = strategy.channels.filter(({ purpose }) => purpose === "SOCIAL");
+      if (social.length !== 1 || strategy.channels.some(({ channelQrId, purpose }) =>
+        !safeOfficialJsonId(channelQrId) || (purpose !== "SOCIAL" && purpose !== "CAMPUS"))) return undefined;
+      const channelQrId = social[0]!.channelQrId;
+      const expectedEntry = new URL(
+        `/RedseaPlatform/zhaopin/zpChannelQrCode/${channelQrId}/officeWebsite.mob`, entry.origin
+      );
+      if (expectedEntry.toString() !== plan.source.officialEntryUrl) return undefined;
+      const list = new URL("/RedseaPlatform/zhaopin/zpChannelQrCode/officePage.mob", entry.origin);
+      list.searchParams.set("noHead", "1");
+      list.searchParams.set("pageId", "list");
+      list.searchParams.set("configId", channelQrId);
+      list.searchParams.set("lectureId", "");
+      rules.push(exactEndpointRule(`redsea-list-${channelQrId}`, list));
+      rules.push(exactEndpointRule(
+        `redsea-api-${channelQrId}`,
+        new URL("/RedseaPlatform/zhaopin/zpChannelQrCode/queryPostList.mob", entry.origin),
         { allowsPagination: true, allowsDeclaration: true }
       ));
       return rules;

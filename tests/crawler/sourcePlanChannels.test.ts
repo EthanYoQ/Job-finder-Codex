@@ -10,9 +10,9 @@ import {
 } from "../../src/crawler/sourcePlan";
 
 const channelIds = [
-  "0beb3022-3214-4333-a2e7-20786c4916d5",
-  "623d3b53-0d75-4649-8d4c-df366532fb58"
+  "0beb3022-3214-4333-a2e7-20786c4916d5"
 ];
+const campusChannelId = "623d3b53-0d75-4649-8d4c-df366532fb58";
 
 function resolvedCspcSurface(ids = channelIds) {
   const surface = expectedOfficialSurfaces.find((item) => item.surfaceId === "surface-cspc-social")!;
@@ -178,7 +178,7 @@ describe("executable source plan channel binding", () => {
     expect(buildSourceCrawlPlans([company], [unresolved])).toEqual([]);
   });
 
-  it("promotes a two-channel surface only when adapter config covers the exact set", () => {
+  it("promotes the social surface only when it contains the configured social channel", () => {
     const company = candidateCompanies.find((item) => item.id === "company-cspc")!;
     const [plan] = buildSourceCrawlPlans([company], [resolvedCspcSurface()]);
     expect(plan?.expectedChannels?.map((channel) => channel.channelId)).toEqual(channelIds);
@@ -187,8 +187,9 @@ describe("executable source plan channel binding", () => {
   });
 
   it.each([
-    ["missing", [channelIds[0]!]],
-    ["replacement", [channelIds[0]!, "replacement"]],
+    ["missing", []],
+    ["replacement", ["replacement"]],
+    ["campus", [campusChannelId]],
     ["duplicate", [channelIds[0]!, channelIds[0]!]]
   ])("fails closed for %s channel oracle input", (_label, ids) => {
     const company = candidateCompanies.find((item) => item.id === "company-cspc")!;
@@ -196,7 +197,10 @@ describe("executable source plan channel binding", () => {
   });
 
   it("hashes channel sets independently of order and changes on replacement", () => {
-    const channels = resolvedCspcSurface().channels;
+    const channels = [
+      ...resolvedCspcSurface().channels,
+      { channelId: "another-social-channel", kind: "SOCIAL" as const, status: "EXPECTED" as const }
+    ];
     expect(expectedChannelSetHash(channels)).toBe(expectedChannelSetHash([...channels].reverse()));
     expect(expectedChannelSetHash(channels)).not.toBe(
       expectedChannelSetHash([{ ...channels[0]!, channelId: "replacement" }, channels[1]!])
@@ -206,7 +210,7 @@ describe("executable source plan channel binding", () => {
   it("rejects caller mutation, omitted binding, extras, duplicates and hash substitution", () => {
     const company = candidateCompanies.find((item) => item.id === "company-cspc")!;
     const [plan] = buildSourceCrawlPlans([company], [resolvedCspcSurface()]);
-    expect(() => validateExecutablePlanChannelBinding({ ...plan!, expectedChannels: plan!.expectedChannels!.slice(0, 1) })).toThrow();
+    expect(() => validateExecutablePlanChannelBinding({ ...plan!, expectedChannels: [] })).toThrow();
     expect(() => validateExecutablePlanChannelBinding({ ...plan!, expectedChannels: [...plan!.expectedChannels!, { ...plan!.expectedChannels![0]!, channelId: "extra" }] })).toThrow();
     expect(() => validateExecutablePlanChannelBinding({ ...plan!, expectedChannels: [plan!.expectedChannels![0]!, plan!.expectedChannels![0]!] })).toThrow();
     expect(() => validateExecutablePlanChannelBinding({ ...plan!, expectedChannelSetHash: "0".repeat(64) })).toThrow();

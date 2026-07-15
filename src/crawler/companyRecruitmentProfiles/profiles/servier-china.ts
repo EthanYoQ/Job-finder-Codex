@@ -18,7 +18,8 @@ export const profile_servier_china = {
                   origin: "https://app.mokahr.com",
                   pathname: "/social-recruitment/shiweiya/47734"
               },
-              hydrateMissingLocationsFromDetail: true
+              hydrateMissingLocationsFromDetail: true,
+              allowDetailSiteIdOmission: true
           }
       }
     },

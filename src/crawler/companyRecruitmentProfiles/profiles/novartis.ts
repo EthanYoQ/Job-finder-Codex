@@ -9,6 +9,9 @@ export const profile_novartis = {
           adapterId: "html-table",
           table: {
               rowSelector: "table.views-table tbody tr",
+              strictLocationScope: {
+                  allowUnknownEnglishLocalityWithParenthesizedMainlandProvince: true
+              },
               completenessProof: {
                   kind: "OFFICIAL_TOTAL_PAGES",
                   sourcePolicy: "NOVARTIS_CHINA_SLIDING_WINDOW_V1"

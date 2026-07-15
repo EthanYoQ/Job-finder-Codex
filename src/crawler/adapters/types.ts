@@ -69,7 +69,21 @@ export interface HtmlTableFieldMap {
 
 export interface HtmlTableConfig {
   rowSelector: string;
+  /**
+   * Optional content-based refinement for a structurally shared list. The
+   * selector remains the candidate-row universe; this filter decides which
+   * candidates are recruitment rows without embedding company literals in
+   * the shared adapter.
+   */
+  rowFilter?: {
+    selector: string;
+    pattern: string;
+    requireAllCandidatesForCompleteness?: boolean;
+  };
   fields: HtmlTableFieldMap;
+  strictLocationScope?: {
+    allowUnknownEnglishLocalityWithParenthesizedMainlandProvince: boolean;
+  };
   /**
    * A source-bound proof recipe. Its presence never certifies a crawl by itself;
    * the independent gate must replay the archived page bodies, URLs and page
@@ -121,6 +135,15 @@ export interface HtmlTableConfig {
     expectedJobCountPattern?: string;
     expectedJobCountValue?: number;
     officialWindowMode?: "NOVARTIS_PAGE_WINDOW_V1";
+    strictPageControls?: {
+      containerSelector: string;
+      pageNumberSelector: string;
+      currentPageSelector: string;
+      previousPageSelector: string;
+      nextPageSelector: string;
+      disabledClass: string;
+      currentHref: string;
+    };
     ajaxMode?: "talentbrew" | "tupu360";
     talentbrewScope?: {
       requiredActiveFacet: {

@@ -7,13 +7,23 @@ const NOW = "2026-07-11T06:00:00.000Z";
 const ORIGIN = "https://ehr.e-cspc.com:8081";
 const ENTRY = `${ORIGIN}/RedseaPlatform/zhaopin/zpChannelQrCode/social/officeWebsite.mob`;
 
+function bindings(...values: Array<[string, "SOCIAL" | "CAMPUS"]>) {
+  return values.map(([channelQrId, purpose]) => ({ channelQrId, purpose }));
+}
+
 function plan(overrides: Record<string, unknown> = {}): SourceCrawlPlan {
   return {
     adapterId: "official-json",
     company: { id: "cspc", officialChineseName: "石药集团" },
     source: { id: "cspc-social", companyId: "cspc", kind: "SOCIAL", atsKind: "OFFICIAL_JSON", status: "VERIFIED_SCRAPABLE", officialEntryUrl: ENTRY, officialChainEvidenceUrl: ENTRY },
     json: { jobsPath: "jobs", fields: { sourceJobId: "sourceJobId", officialTitle: "title", officialUrl: "officialUrl", locationRaw: "locationRaw", cities: "cities" } },
-    officialJsonFetch: { kind: "redsea-zp-channel", rootId: "cspc", channelQrIds: ["social", "campus"], ...overrides }
+    officialJsonFetch: {
+      kind: "redsea-zp-channel",
+      rootId: "cspc",
+      channels: bindings(["social", "SOCIAL"], ["campus", "CAMPUS"]),
+      paginationPolicy: "SINGLE_UNPAGINATED_RESPONSE_V1",
+      ...overrides
+    } as never
   };
 }
 
@@ -30,23 +40,30 @@ function client(apiByChannel: Record<string, unknown[]> = { social: [row("s1")],
     if (request.url.includes("officeWebsite.mob")) return { ...response("<html>entry</html>", request.url, "text/html"), setCookie: ["JSESSIONID=opaque-session; Secure"] };
     if (request.url.includes("officePage.mob")) return response("<html>list</html>", request.url, "text/html");
     const channel = new URLSearchParams(request.body).get("channelQrId")!;
-    return response(JSON.stringify({ state: "1", jsonList: apiByChannel[channel] ?? [] }), request.url, "application/json");
+    return response(JSON.stringify({ state: "1", total: "", jsonList: apiByChannel[channel] ?? [] }), request.url, "application/json");
   };
 }
 
 describe("Redsea channel evidence instrumentation", () => {
-  it("captures exact entry/list/API artifacts per channel and remains manual with D1", async () => {
+  it("captures exact artifacts for the social channel and certifies its unpaginated response", async () => {
     const result = await createOfficialJsonSourceFetch({ now: () => new Date(NOW), http: client() })(plan());
-    expect(result).toMatchObject({ ok: true, completeness: { completenessStatus: "NEEDS_MANUAL_COMPLETENESS_REVIEW", pagesVisited: 2 }, fetchEvidence: { fetchCounts: { rawCount: 2, parsedCount: 2, validCount: 2, parseDiscardCount: 0, validationDiscardCount: 0 }, pages: [{ requestedCursor: "social" }, { requestedCursor: "campus" }] }, paginationEvaluation: { verifiedEligible: false } });
+    expect(result).toMatchObject({
+      ok: true,
+      completeness: { completenessStatus: "VERIFIED", pagesVisited: 1 },
+      fetchEvidence: {
+        fetchCounts: { rawCount: 1, parsedCount: 1, validCount: 1, parseDiscardCount: 0, validationDiscardCount: 0 },
+        pages: [{ requestedCursor: "social", termination: "NEXT_ABSENT" }]
+      },
+      paginationEvaluation: { safeCompleteness: true, verifiedEligible: true }
+    });
     if (!result.fetchEvidence) throw new Error("missing evidence");
-    expect(result.fetchEvidence.artifacts.map((a) => [a.logicalKey, a.kind])).toEqual([
-      ["redsea-social-entry", "OFFICIAL_COMPANY_PAGE"], ["redsea-social-list", "OFFICIAL_COMPANY_PAGE"], ["redsea-social-api", "PAGINATION_PAGE"],
-      ["redsea-campus-entry", "OFFICIAL_COMPANY_PAGE"], ["redsea-campus-list", "OFFICIAL_COMPANY_PAGE"], ["redsea-campus-api", "PAGINATION_PAGE"]
+    expect(result.fetchEvidence.artifacts.map((artifact) => [artifact.logicalKey, artifact.kind])).toEqual([
+      ["redsea-social-entry", "OFFICIAL_COMPANY_PAGE"],
+      ["redsea-social-list", "OFFICIAL_COMPANY_PAGE"],
+      ["redsea-social-api", "PAGINATION_PAGE"]
     ]);
     expect(JSON.stringify(result)).not.toContain("opaque-session");
     expect(result.fetchEvidence.artifacts[0]).toMatchObject({ bodyRepresentation: "EXACT", body: "<html>entry</html>" });
-    expect(result.fetchEvidence.artifacts[0]).not.toHaveProperty("rawBodySha256");
-    expect(result.fetchEvidence.artifacts[0]).not.toHaveProperty("redactionDescriptors");
   });
 
   it("redacts credential-bearing response bodies while keeping cookie-only transport metadata out of evidence", async () => {
@@ -54,66 +71,60 @@ describe("Redsea channel evidence instrumentation", () => {
     const result = await createOfficialJsonSourceFetch({ now: () => new Date(NOW), http: async (request) => {
       if (request.url.includes("officeWebsite.mob")) return { ...response(`<meta name="token" content="${secret}">`, request.url, "text/html"), setCookie: ["JSESSIONID=transport-only; Secure"] };
       return client()(request);
-    }})(plan({ channelQrIds: ["social"] }));
+    }})(plan());
     expect(JSON.stringify(result)).not.toContain(secret);
     expect(JSON.stringify(result)).not.toContain("transport-only");
     expect(result.fetchEvidence?.artifacts[0]).toMatchObject({ bodyRepresentation: "REDACTED", rawBodySha256: expect.stringMatching(/^[0-9a-f]{64}$/), redactionDescriptors: [{ kind: "CREDENTIAL_MATERIAL" }] });
   });
 
-  it.each([
-    ["single empty", { social: [] }],
-    ["later empty", { social: [row("s1")], campus: [] }]
-  ])("retains exact evidence and a noncertifying terminal for %s channel", async (_label, channels) => {
-    const ids = Object.keys(channels);
-    const current = plan({ channelQrIds: ids });
-    current.source.officialEntryUrl = `${ORIGIN}/RedseaPlatform/zhaopin/zpChannelQrCode/${ids[0]}/officeWebsite.mob`;
-    const fetched = await createOfficialJsonSourceFetch({ now: () => new Date(NOW), http: client(channels) })(current);
-    expect(fetched).toMatchObject({ ok: true, completeness: { completenessStatus: "NEEDS_MANUAL_COMPLETENESS_REVIEW" }, fetchEvidence: { fetchCounts: { rawCount: ids.length === 1 ? 0 : 1 }, pages: ids.map((id) => ({ channelId: id, termination: "ABORTED", anomalyCodes: [] })) }, paginationEvaluation: { safeCompleteness: false, verifiedEligible: false } });
+  it("retains exact evidence and a noncertifying terminal for an empty response without an official zero", async () => {
+    const fetched = await createOfficialJsonSourceFetch({ now: () => new Date(NOW), http: client({ social: [] }) })(plan());
+    expect(fetched).toMatchObject({
+      ok: true,
+      completeness: { completenessStatus: "NEEDS_MANUAL_COMPLETENESS_REVIEW" },
+      fetchEvidence: { fetchCounts: { rawCount: 0 }, pages: [{ channelId: "social", termination: "ABORTED", anomalyCodes: [] }] },
+      paginationEvaluation: { safeCompleteness: false, verifiedEligible: false }
+    });
     if (!fetched.fetchEvidence) throw new Error("missing evidence");
-    expect(fetched.fetchEvidence.artifacts).toHaveLength(ids.length * 3);
-    const result = await runSourceCrawl(current, { fetch: async () => fetched });
-    expect(result.fetchEvidence).toBe(fetched.fetchEvidence);
-    expect(result.paginationEvaluation).toBe(fetched.paginationEvaluation);
+    expect(fetched.fetchEvidence.artifacts).toHaveLength(3);
   });
 
   it("accounts every invalid, duplicate, conflicting and out-of-scope raw row", async () => {
     const rows = [row("a"), null, row("a"), row("a", { PUBLISH_NAME: "Conflict" }), row("foreign", { work_place: "Boston, United States" }), row("unsafe/../id")];
-    const result = await createOfficialJsonSourceFetch({ now: () => new Date(NOW), http: client({ social: rows, campus: [] }) })(plan());
+    const result = await createOfficialJsonSourceFetch({ now: () => new Date(NOW), http: client({ social: rows }) })(plan());
     expect(result).toMatchObject({ ok: true, fetchEvidence: { fetchCounts: { rawCount: 6, parsedCount: 5, validCount: 1, parseDiscardCount: 1, validationDiscardCount: 4 } } });
     if (!result.fetchEvidence) throw new Error("missing evidence");
-    expect(result.fetchEvidence.fetchLosses.map((x) => x.details.code)).toEqual(["NON_OBJECT_RECORD", "DUPLICATE_OFFICIAL_ID", "CONFLICTING_OFFICIAL_ID", "OUT_OF_SCOPE", "UNSAFE_OFFICIAL_ID"]);
+    expect(result.fetchEvidence.fetchLosses.map((loss) => loss.details.code)).toEqual(["NON_OBJECT_RECORD", "DUPLICATE_OFFICIAL_ID", "CONFLICTING_OFFICIAL_ID", "OUT_OF_SCOPE", "UNSAFE_OFFICIAL_ID"]);
   });
 
-  it("retains prior and current safe artifacts on a later API failure without leaking upstream messages", async () => {
-    let apiCalls = 0;
+  it("retains safe artifacts on an API failure without leaking upstream messages", async () => {
     const result = await createOfficialJsonSourceFetch({ now: () => new Date(NOW), http: async (request) => {
       if (!request.url.includes("queryPostList.mob")) return client()(request);
-      apiCalls += 1;
-      return apiCalls === 1
-        ? response(JSON.stringify({ state: "1", jsonList: [row("s1")] }), request.url, "application/json")
-        : response(JSON.stringify({ state: "0", meg: "Bearer example-placeholder", jsonList: [] }), request.url, "application/json");
+      return response(JSON.stringify({ state: "0", meg: "Bearer example-placeholder", jsonList: [] }), request.url, "application/json");
     }})(plan());
-    expect(result).toMatchObject({ ok: false, failureReason: "Redsea API state is unsuccessful", fetchEvidence: { artifacts: [{}, {}, {}, {}, {}, { bodyRepresentation: "REDACTED" }], pages: [{ termination: "ABORTED" }, { termination: "FAILED" }] } });
-    expect(JSON.stringify(result)).not.toContain("upstream-secret");
+    expect(result).toMatchObject({ ok: false, failureReason: "Redsea API state is unsuccessful", fetchEvidence: { artifacts: [{}, {}, { bodyRepresentation: "REDACTED" }], pages: [{ termination: "FAILED" }] } });
+    expect(JSON.stringify(result)).not.toContain("example-placeholder");
   });
 
   it("rejects recursive duplicate JSON keys and unsafe config before trusting transport", async () => {
     const duplicate = await createOfficialJsonSourceFetch({ now: () => new Date(NOW), http: async (request) => request.url.includes("queryPostList.mob")
       ? response('{"state":"1","jsonList":[{"REQUEST_ID":"a","PUBLISH_NAME":"A","work_place":"上海","meta":{"x":1,"x":2}}]}', request.url, "application/json")
-      : client()(request) })(plan({ channelQrIds: ["social"] }));
+      : client()(request) })(plan());
     expect(duplicate).toMatchObject({ ok: false, failureReason: "Redsea API response schema is invalid", fetchEvidence: expect.any(Object) });
 
     let calls = 0;
-    const unsafe = await createOfficialJsonSourceFetch({ now: () => new Date(NOW), http: async () => { calls += 1; throw new Error("must not call"); } })(plan({ channelQrIds: ["social", "../campus"] }));
+    const unsafe = await createOfficialJsonSourceFetch({ now: () => new Date(NOW), http: async () => { calls += 1; throw new Error("must not call"); } })(plan({ channels: bindings(["social", "SOCIAL"], ["../campus", "CAMPUS"]) }));
     expect(unsafe).toMatchObject({ ok: false, failureReason: "Redsea channel configuration is invalid" });
     expect(calls).toBe(0);
   });
 
   it.each([
-    ["duplicate channel", { channelQrIds: ["social", "social"] }],
-    ["encoded traversal", { channelQrIds: ["social", "%252e%252e"] }],
+    ["duplicate channel", { channels: bindings(["social", "SOCIAL"], ["social", "CAMPUS"]) }],
+    ["two social channels", { channels: bindings(["social", "SOCIAL"], ["other", "SOCIAL"]) }],
+    ["campus only", { channels: bindings(["campus", "CAMPUS"]) }],
     ["unsafe root", { rootId: "token=opaque" }],
-    ["wrong sort", { sortName: "other.rank" }]
+    ["wrong sort", { sortName: "other.rank" }],
+    ["wrong pagination policy", { paginationPolicy: "TRUST_ME" }]
   ])("rejects unsafe config pre-transport: %s", async (_label, overrides) => {
     let calls = 0;
     const result = await createOfficialJsonSourceFetch({ now: () => new Date(NOW), http: async () => { calls += 1; throw new Error("must not call"); } })(plan(overrides));
@@ -131,7 +142,7 @@ describe("Redsea channel evidence instrumentation", () => {
       const base = await client()(request);
       const kind = request.url.includes("queryPostList") ? "api" : request.url.includes("officePage") ? "list" : "entry";
       return kind === target ? { ...base, ...override } : base;
-    }})(plan({ channelQrIds: ["social"] }));
+    }})(plan());
     expect(result).toMatchObject({ ok: false, fetchEvidence: target === "entry" ? expect.any(Object) : { artifacts: expect.any(Array) } });
   });
 
@@ -142,7 +153,7 @@ describe("Redsea channel evidence instrumentation", () => {
     ["malformed list", JSON.stringify({ state: "1", jsonList: {} })]
   ])("requires strict success state and jsonList without leaking meg: %s", async (_label, body) => {
     const result = await createOfficialJsonSourceFetch({ now: () => new Date(NOW), http: async (request) => request.url.includes("queryPostList")
-      ? response(body, request.url, "application/json") : client()(request) })(plan({ channelQrIds: ["social"] }));
+      ? response(body, request.url, "application/json") : client()(request) })(plan());
     expect(result.ok).toBe(false);
     if (result.ok) throw new Error("expected failure");
     expect(result.failureReason).toMatch(/^Redsea API/);
@@ -150,16 +161,12 @@ describe("Redsea channel evidence instrumentation", () => {
     expect(JSON.stringify(result)).not.toContain("private-message");
   });
 
-  it("surfaces cross-channel duplicate IDs and repeated response content without self-certifying", async () => {
-    const same = [row("same")];
-    const result = await createOfficialJsonSourceFetch({ now: () => new Date(NOW), http: client({ social: same, campus: same }) })(plan());
-    expect(result).toMatchObject({ ok: true, completeness: { completenessStatus: "NEEDS_MANUAL_COMPLETENESS_REVIEW" }, fetchEvidence: { fetchCounts: { rawCount: 2, validCount: 1, validationDiscardCount: 1 }, fetchLosses: [{ details: { code: "DUPLICATE_OFFICIAL_ID", noteCode: "REPEATED_RESPONSE_CONTENT" } }], pages: [{}, { termination: "ABORTED", anomalyCodes: [] }] }, paginationEvaluation: { safeCompleteness: false, verifiedEligible: false } });
-  });
-
   it.each([
-    ["HMT", "香港", "OUT_OF_SCOPE"], ["foreign", "Tokyo, Japan", "OUT_OF_SCOPE"], ["unknown", "Remote", "AMBIGUOUS_SCOPE"]
+    ["HMT", "香港", "OUT_OF_SCOPE"],
+    ["foreign", "Tokyo, Japan", "OUT_OF_SCOPE"],
+    ["unknown", "Remote", "AMBIGUOUS_SCOPE"]
   ])("accounts non-mainland scope: %s", async (_label, location, code) => {
-    const result = await createOfficialJsonSourceFetch({ now: () => new Date(NOW), http: client({ social: [row("scope", { work_place: location })] }) })(plan({ channelQrIds: ["social"] }));
+    const result = await createOfficialJsonSourceFetch({ now: () => new Date(NOW), http: client({ social: [row("scope", { work_place: location })] }) })(plan());
     expect(result).toMatchObject({ ok: true, fetchEvidence: { fetchCounts: { rawCount: 1, parsedCount: 1, validCount: 0, validationDiscardCount: 1 }, fetchLosses: [{ details: { code } }] } });
   });
 

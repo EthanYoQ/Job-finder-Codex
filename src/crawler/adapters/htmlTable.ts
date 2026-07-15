@@ -6,6 +6,7 @@ import {
   NormalizedJobRecordSchema,
   type NormalizedJobRecord
 } from "../normalizedJob";
+import { selectHtmlTableRows } from "../htmlTableRows";
 import type {
   CrawlAdapterResult,
   HtmlTableAdapterInput,
@@ -31,7 +32,7 @@ export const htmlTableAdapter: SourceAdapter<HtmlTableAdapterInput> = {
     }
 
     const $ = load(input.html);
-    const rows = $(input.table.rowSelector).toArray();
+    const rows = selectHtmlTableRows($, input.table);
     if (unsafeAdapterMetadata(input)) {
       const losses: AdapterLoss[] = rows.map((_row, rawIndex) => ({ stage: "VALIDATION", reason: "SENSITIVE_OUTPUT", rawIndex }));
       const reconciliation = reconcileAdapterRows(rows.length, rows.length, [], losses).reconciliation;

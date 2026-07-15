@@ -15,6 +15,7 @@ import {
 } from "./sourceFetchEvidence";
 import { deriveCanonicalPaginationEvidence, evaluatePaginationEvidence } from "./paginationEvidence";
 import { requestContractV2Locator } from "./strictPageRequestContract";
+import { selectHtmlTableRows } from "./htmlTableRows";
 
 export interface HttpHtmlRequest {
   url: string;
@@ -814,7 +815,7 @@ function attachHtmlEvidence(
     }
     const seenRawRows = new Set<string>();
     const validIds: string[] = [];
-    const ids = $(table.rowSelector).toArray().map((row, index) => {
+    const ids = selectHtmlTableRows($, table).map((row, index) => {
       const raw = $.html(row);
       const rawHash = sha256Bytes(Buffer.from(raw, "utf8")).sha256;
       const observationId = `html-row:sha256:${rawHash}`;

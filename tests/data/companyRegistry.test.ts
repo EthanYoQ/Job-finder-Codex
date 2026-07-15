@@ -162,8 +162,20 @@ describe("60-company pharma registry", () => {
     expect(byId.get("company-otsuka-china")).toMatchObject({
       targetStatus: "ACTIVE",
       sources: [
-        { id: "source-otsuka-china-social", status: "ENTRY_FOUND_PENDING_ADAPTER" },
-        { id: "source-otsuka-china-social-2", status: "VERIFIED_SCRAPABLE" }
+        {
+          id: "source-otsuka-china-social",
+          status: "ENTRY_FOUND_PENDING_ADAPTER",
+          recruitmentPageCapability: "RECRUITMENT_INFORMATION_OR_CONTACT",
+          capabilityVerification: {
+            checkedAt: "2026-07-16",
+            reason: expect.any(String)
+          }
+        },
+        {
+          id: "source-otsuka-china-social-2",
+          status: "VERIFIED_SCRAPABLE",
+          recruitmentPageCapability: "JOB_LISTING"
+        }
       ]
     });
     expect(byId.get("company-sandoz-china")).toMatchObject({

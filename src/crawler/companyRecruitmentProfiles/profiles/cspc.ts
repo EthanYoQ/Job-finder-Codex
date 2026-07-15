@@ -12,10 +12,11 @@ export const profile_cspc = {
           officialJsonFetch: {
               kind: "redsea-zp-channel",
               rootId: "cspc",
-              channelQrIds: [
-                  "0beb3022-3214-4333-a2e7-20786c4916d5",
-                  "623d3b53-0d75-4649-8d4c-df366532fb58"
-              ]
+              channels: [
+                  { channelQrId: "0beb3022-3214-4333-a2e7-20786c4916d5", purpose: "SOCIAL" },
+                  { channelQrId: "623d3b53-0d75-4649-8d4c-df366532fb58", purpose: "CAMPUS" }
+              ],
+              paginationPolicy: "SINGLE_UNPAGINATED_RESPONSE_V1"
           }
       }
     },

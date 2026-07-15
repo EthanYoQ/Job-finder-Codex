@@ -69,6 +69,14 @@ const servierPlan: SourceCrawlPlan = {
   }
 };
 
+const servierPlanWithBoundDetailSiteIdOmission: SourceCrawlPlan = {
+  ...servierPlan,
+  moka: {
+    ...servierPlan.moka!,
+    allowDetailSiteIdOmission: true
+  }
+};
+
 function htmlWithInitData(initData: object): string {
   return `<input id="init-data" value="${escapeHtml(JSON.stringify(initData))}">`;
 }
@@ -190,6 +198,31 @@ describe("Moka source fetch", () => {
     expect(result).toMatchObject({ ok: false, failureReason: expect.stringContaining("invalid final URL") });
   });
 
+  it("rejects a non-social Moka init mode before requesting any job list", async () => {
+    const requests: Parameters<MokaHttpClient>[0][] = [];
+    const result = await createMokaSourceFetch({
+      http: async (request) => {
+        requests.push(request);
+        return {
+          ...evidenceResponse(htmlWithInitData({
+            aesIv,
+            mode: "campus",
+            siteId: "47734",
+            org: { id: "shiweiya", siteId: 47734 }
+          }), "entry"),
+          finalUrl: servierCampaignUrl
+        };
+      },
+      now: () => new Date(capturedAt)
+    })(servierPlanWithBoundDetailSiteIdOmission);
+
+    expect(result).toMatchObject({
+      ok: false,
+      failureReason: "Moka init data does not match the bound social campaign"
+    });
+    expect(requests).toHaveLength(1);
+  });
+
   it("hydrates a missing list location from a campaign-bound encrypted official detail response", async () => {
     const requests: Parameters<MokaHttpClient>[0][] = [];
     const http: MokaHttpClient = async (request) => {
@@ -248,10 +281,151 @@ describe("Moka source fetch", () => {
     });
   });
 
+  it("hydrates two campaign-bound Servier jobs when encrypted details omit siteId and ignores unused prose", async () => {
+    const requests: Parameters<MokaHttpClient>[0][] = [];
+    const http: MokaHttpClient = async (request) => {
+      requests.push(request);
+      if (request.method === "GET") {
+        return {
+          ...evidenceResponse(htmlWithInitData({
+            aesIv, mode: "social", siteId: "47734", org: { id: "shiweiya", siteId: 47734 }
+          }), "entry"),
+          finalUrl: servierCampaignUrl
+        };
+      }
+      if (request.url.endsWith("/jobs/v2")) {
+        return evidenceResponse(JSON.stringify(encryptedResponse({
+          success: true,
+          data: {
+            jobStats: { total: 2 },
+            jobs: [
+              { id: "servier-1", title: "医学信息沟通专员" },
+              { id: "servier-2", title: "临床项目经理" }
+            ]
+          }
+        })), "api");
+      }
+      const requestedJobId = (request.body as { jobId?: string } | undefined)?.jobId;
+      const cityName = requestedJobId === "servier-1" ? "北京市" : "上海市";
+      return {
+        status: 200,
+        body: JSON.stringify(encryptedResponse({
+          success: true,
+          data: {
+            id: requestedJobId,
+            orgId: "shiweiya",
+            jobDescription: requestedJobId === "servier-1"
+              ? "负责 basic science 能力建设和跨团队协作"
+              : "负责项目计划和团队协作",
+            locations: [{ cityName, country: "中国" }]
+          }
+        })),
+        finalUrl: "https://app.mokahr.com/api/outer/ats-apply/website/job",
+        contentType: "application/json",
+        capturedAt
+      };
+    };
+
+    const result = await createMokaSourceFetch({ http, now: () => new Date(capturedAt) })(
+      servierPlanWithBoundDetailSiteIdOmission
+    );
+
+    expect(result).toMatchObject({
+      ok: true,
+      fetchEvidence: {
+        fetchCounts: {
+          rawCount: 2,
+          parsedCount: 2,
+          validCount: 2,
+          parseDiscardCount: 0,
+          validationDiscardCount: 0
+        }
+      }
+    });
+    if (!result.ok || !("payload" in result)) throw new Error("Expected complete two-job Servier payload");
+    expect(result.payload).toMatchObject({
+      data: {
+        jobs: [
+          { locationRaw: "北京市", cities: ["北京市"] },
+          { locationRaw: "上海市", cities: ["上海市"] }
+        ]
+      }
+    });
+    expect(requests.filter((request) => request.url.endsWith("/job"))).toHaveLength(2);
+    expect(requests.filter((request) => request.url.endsWith("/job"))).toEqual([
+      expect.objectContaining({ body: { orgId: "shiweiya", siteId: "47734", jobId: "servier-1", locale: "zh-CN" } }),
+      expect.objectContaining({ body: { orgId: "shiweiya", siteId: "47734", jobId: "servier-2", locale: "zh-CN" } })
+    ]);
+  });
+
+  it.each([
+    [
+      "a returned mismatched siteId",
+      { id: "servier-2", orgId: "shiweiya", siteId: "70032", locations: [{ cityName: "上海市", country: "中国" }] },
+      "siteId"
+    ],
+    [
+      "credential material in a consumed location",
+      { id: "servier-2", orgId: "shiweiya", locations: [{ cityName: "Authorization: Bearer fixture-secret", country: "中国" }] },
+      "detail"
+    ]
+  ])("fails the whole two-job Servier fetch on %s", async (_label, secondDetail, expectedField) => {
+    const http: MokaHttpClient = async (request) => {
+      if (request.method === "GET") {
+        return {
+          ...evidenceResponse(htmlWithInitData({
+            aesIv, mode: "social", siteId: "47734", org: { id: "shiweiya", siteId: 47734 }
+          }), "entry"),
+          finalUrl: servierCampaignUrl
+        };
+      }
+      if (request.url.endsWith("/jobs/v2")) {
+        return evidenceResponse(JSON.stringify(encryptedResponse({
+          success: true,
+          data: {
+            jobStats: { total: 2 },
+            jobs: [
+              { id: "servier-1", title: "医学信息沟通专员" },
+              { id: "servier-2", title: "临床项目经理" }
+            ]
+          }
+        })), "api");
+      }
+      const requestedJobId = (request.body as { jobId?: string } | undefined)?.jobId;
+      const detail = requestedJobId === "servier-1"
+        ? { id: "servier-1", orgId: "shiweiya", locations: [{ cityName: "北京市", country: "中国" }] }
+        : secondDetail;
+      return {
+        status: 200,
+        body: JSON.stringify(encryptedResponse({ success: true, data: detail })),
+        finalUrl: "https://app.mokahr.com/api/outer/ats-apply/website/job",
+        contentType: "application/json",
+        capturedAt
+      };
+    };
+
+    const result = await createMokaSourceFetch({ http, now: () => new Date(capturedAt) })(
+      servierPlanWithBoundDetailSiteIdOmission
+    );
+
+    expect(result).toMatchObject({
+      ok: false,
+      failureReason: "Moka detail hydration failed closed",
+      fetchEvidence: {
+        fetchCounts: { rawCount: 2, parsedCount: 2, validCount: 1, validationDiscardCount: 1 },
+        fetchLosses: [expect.objectContaining({
+          details: { code: "DETAIL_HYDRATION_FAILED", field: expectedField, pageSequence: 0, recordIndex: 1 }
+        })]
+      }
+    });
+    expect(result).not.toHaveProperty("payload");
+  });
+
   it.each([
     ["job id mismatch", 200, { id: "other", orgId: "shiweiya", siteId: "47734", locations: [{ cityName: "北京市" }] }],
     ["org mismatch", 200, { id: "servier-1", orgId: "other", siteId: "47734", locations: [{ cityName: "北京市" }] }],
     ["site mismatch", 200, { id: "servier-1", orgId: "shiweiya", siteId: "70032", locations: [{ cityName: "北京市" }] }],
+    ["site missing without profile authorization", 200, { id: "servier-1", orgId: "shiweiya", locations: [{ cityName: "北京市" }] }],
     ["missing location", 200, { id: "servier-1", orgId: "shiweiya", siteId: "47734", locations: [] }],
     ["http failure", 503, { error: "unavailable" }]
   ])("fails closed and retains detail evidence on %s", async (_label, status, detail) => {

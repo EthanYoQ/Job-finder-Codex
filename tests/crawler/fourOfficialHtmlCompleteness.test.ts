@@ -148,6 +148,9 @@ describe("four audited official HTML sources", () => {
 
     expect(planFor("source-novartis-social").table).toMatchObject({
       completenessProof: { kind: "OFFICIAL_TOTAL_PAGES", sourcePolicy: "NOVARTIS_CHINA_SLIDING_WINDOW_V1" },
+      strictLocationScope: {
+        allowUnknownEnglishLocalityWithParenthesizedMainlandProvince: true
+      },
       pagination: {
         totalPagesSelector: ".pagination .page-link[title*='out of'][title*='pages']",
         totalPagesAttribute: "title",
@@ -330,8 +333,8 @@ describe("four audited official HTML sources", () => {
       b: "Shanghai, China",
       c: "北京，中国",
       d: "China",
-      e: "Yichang, Hubei, China",
-      f: "Xi an, Shaanxi, China"
+      e: "Yichang (Hubei Province)",
+      f: "Changping County (Beijing)"
     };
     const bodies = [
       novartisPage(1, ["a", "b", "c"], { locations }),
@@ -355,6 +358,9 @@ describe("four audited official HTML sources", () => {
     ["mixed mainland and foreign", "Shanghai, China / Basel, Switzerland"],
     ["unknown foreign locality with a mainland province suffix", "Zurich, Zhejiang"],
     ["unknown foreign locality with a mainland province suffix", "Paris, Hubei"],
+    ["known foreign locality with a parenthesized mainland province", "Zurich (Zhejiang Province)"],
+    ["known foreign locality with a parenthesized mainland province", "Paris (Hubei Province)"],
+    ["non-mainland region with a mainland province annotation", "Hong Kong (Hubei Province)"],
     ["unknown", "Remote"],
     ["empty", "   "]
   ])("fails closed for Novartis %s location rows", async (_name, location) => {
