@@ -405,6 +405,64 @@ describe("staged crawl operational CLI", () => {
     });
   });
 
+  it("persists and notifies the second-round pause even when the batch has atomic failures", async () => {
+    const decision = {
+      state: "PAUSED_BELOW_MINIMUM" as const,
+      completedRoundCount: 2 as const,
+      stableCompanyCount: 44,
+      minimumStableCompanyCount: 45
+    };
+    const failed = commandResult("FAILED");
+    const runtime: StagedCrawlRuntime = {
+      run: vi.fn(async () => failed),
+      loadConsecutiveFailuresByCompany: vi.fn(async () => ({ "company-a": 2 })),
+      finalizeInitialQualification: vi.fn(async () => decision),
+      disconnect: vi.fn(async () => undefined)
+    };
+    const fixture = harness(runtime);
+
+    const result = await runStagedCrawlOperation(operationInput(fixture.deps));
+
+    expect(result.exitCode).toBe(1);
+    expect(result.commandResult.batch).toMatchObject({
+      status: "FAILED",
+      atomicFailedSourceCount: 1,
+      failedSourceCount: 1
+    });
+    expect(fixture.summaries).toHaveLength(1);
+    expect(fixture.summaries[0]?.summary).toMatchObject({
+      terminalStatus: "FAILED",
+      counters: {
+        atomicFailedSourceCount: 1,
+        failedSourceCount: 1
+      }
+    });
+    expect(fixture.qualificationPauses).toHaveLength(1);
+    expect(fixture.qualificationPauses[0]?.evidence).toMatchObject({
+      state: "PAUSED_BELOW_MINIMUM",
+      releaseCandidateId: IDENTITY.releaseCandidateId,
+      batchId: "batch-failed",
+      canonicalSummarySha256: "a".repeat(64),
+      stableCompanyCount: 44,
+      minimumStableCompanyCount: 45
+    });
+    expect(fixture.events.map((event) => event.state)).toEqual(["RUNNING", "PAUSED"]);
+    expect(fixture.events.at(-1)).toMatchObject({
+      canonicalSummaryBinding: { batchId: "batch-failed", summarySha256: "a".repeat(64) },
+      failureCode: null,
+      initialQualificationPause: {
+        reasonCode: "INITIAL_QUALIFICATION_BELOW_MINIMUM_AFTER_TWO_COMPLETED_ROUNDS",
+        stableCompanyCount: 44,
+        minimumStableCompanyCount: 45
+      }
+    });
+    expect(fixture.deps.notifyInitialQualificationPause).toHaveBeenCalledOnce();
+    expect(fixture.deps.notifyInitialQualificationPause).toHaveBeenCalledWith(
+      expect.stringMatching(/PAUSED_BELOW_MINIMUM.*44\/45/i),
+      decision
+    );
+  });
+
   it("records authority failure and leaves registry, batch, and fetch seams untouched", async () => {
     const sync = vi.fn();
     const runBatch = vi.fn();

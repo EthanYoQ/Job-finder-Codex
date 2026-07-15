@@ -287,10 +287,7 @@ export async function runStagedCrawlOperation(
 
     operationStage = "PUBLISH";
     summaryBinding = await publishSummary(input, commandResult, consecutiveFailures);
-    if (
-      initialQualificationDecision?.state === "PAUSED_BELOW_MINIMUM" &&
-      isOperationallySuccessfulScheduledBatch(commandResult.batch)
-    ) {
+    if (initialQualificationDecision?.state === "PAUSED_BELOW_MINIMUM") {
       operationStage = "QUALIFICATION_PAUSE";
       initialQualificationPauseEvidence = buildInitialQualificationPauseEvidence({
         attemptId: input.attemptId,
@@ -349,7 +346,9 @@ export async function runStagedCrawlOperation(
   const pauseDecision = initialQualificationDecision?.state === "PAUSED_BELOW_MINIMUM"
     ? initialQualificationDecision
     : null;
-  const completedPauseEvidence = completedOperationally && pauseDecision && initialQualificationPauseEvidence
+  const completedPauseEvidence =
+    pauseDecision && initialQualificationPauseEvidence && summaryBinding &&
+    (completedOperationally || completedNonSuccess)
     ? initialQualificationPauseEvidence
     : null;
   const paused = completedPauseEvidence !== null;
@@ -360,8 +359,8 @@ export async function runStagedCrawlOperation(
     finishedAt: input.deps.now(),
     identity: commandResult ? crawlEvidenceIdentityFromRuntime(commandResult.identity) : null,
     authority,
-    canonicalSummaryBinding: completedOperationally ? summaryBinding! : null,
-    failureCode: completedOperationally ? null : failureCode,
+    canonicalSummaryBinding: paused || completedOperationally ? summaryBinding! : null,
+    failureCode: paused || completedOperationally ? null : failureCode,
     initialQualificationPause: completedPauseEvidence ? {
       reasonCode: completedPauseEvidence.reasonCode,
       notificationKey: completedPauseEvidence.notificationKey,
