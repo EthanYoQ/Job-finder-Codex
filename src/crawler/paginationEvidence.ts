@@ -65,6 +65,7 @@ interface PaginationEvidenceInput {
   allowMissingReturnedPage?: boolean;
   allowLaterZeroDeclaredTotalAfterExactReconciliation?: boolean;
   allowPositiveOfficialTotalCountAfterAdapterReconciliation?: boolean;
+  allowRawIdOverlapAcrossPages?: boolean;
 }
 
 export function deriveCanonicalPaginationEvidence(
@@ -151,7 +152,8 @@ function evaluatePaginationEvidenceInternal(
     fingerprints.add(responseFingerprintSha256);
     rawHashes.add(rawJobIdSetSha256);
     validHashes.add(validJobIdSetSha256);
-    if (page.rawJobIds.some((rawJobId) => observedRawIds.has(rawJobId))) {
+    if (!input.allowRawIdOverlapAcrossPages &&
+      page.rawJobIds.some((rawJobId) => observedRawIds.has(rawJobId))) {
       anomalies[index]!.add("RAW_ID_OVERLAP_ACROSS_PAGES");
     }
     for (const rawJobId of page.rawJobIds) observedRawIds.add(rawJobId);

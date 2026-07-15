@@ -15,9 +15,19 @@ import {
 } from "./crawlSummary";
 import { runFormalCleanup } from "./formalCleanup";
 import { formatP0CrawlResult, type P0CrawlCommandResult } from "./p0CrawlCommand";
-import type { RuntimeBatchIdentity } from "./runtimeBatchIdentity";
+import { validateRuntimeBatchIdentity, type RuntimeBatchIdentity } from "./runtimeBatchIdentity";
 import type { runCurrentStagedScheduledCrawl } from "./stagedScheduledCrawl";
 import { resolveStagedCrawlEvidencePaths } from "./stagedCrawlEvidencePaths";
+import { PHASE1_MINIMUM_STABLE_COMPANIES } from "../data/phase1ScopePolicy";
+import {
+  buildInitialQualificationPauseEvidence,
+  writeInitialQualificationPauseEvidence,
+  type InitialQualificationPauseEvidence
+} from "./initialQualificationPauseEvidence";
+import {
+  countCompletedStagedQualificationRounds,
+  resolveCurrentStagedScheduleAuthority
+} from "./stagedScheduleAuthority";
 
 export { resolveStagedCrawlEvidencePaths } from "./stagedCrawlEvidencePaths";
 
@@ -29,9 +39,148 @@ export function parseStagedCrawlArgs(args: readonly string[]): { force: boolean 
 
 type StagedScheduledCrawlResult = Awaited<ReturnType<typeof runCurrentStagedScheduledCrawl>>;
 
+export type StagedInitialQualificationDecision =
+  | {
+    state: "CONTINUE_INITIAL_QUALIFICATION";
+    completedRoundCount: number;
+    stableCompanyCount: null;
+    minimumStableCompanyCount: number;
+  }
+  | {
+    state: "PAUSED_BELOW_MINIMUM";
+    completedRoundCount: 2;
+    stableCompanyCount: number;
+    minimumStableCompanyCount: number;
+  }
+  | {
+    state: "READY_FOR_QA";
+    completedRoundCount: 2;
+    stableCompanyCount: number;
+    minimumStableCompanyCount: number;
+  }
+  | {
+    state: "AWAITING_QA";
+    completedRoundCount: null;
+    stableCompanyCount: null;
+    minimumStableCompanyCount: number;
+  }
+  | {
+    state: "PER_COMPANY_PUBLICATION";
+    completedRoundCount: null;
+    stableCompanyCount: null;
+    minimumStableCompanyCount: number;
+  };
+
+export interface StagedInitialQualificationReadiness {
+  canRelease: boolean;
+  stableCompanyCount: number;
+  minimumStableCompanyCount: number;
+  issues: readonly { code: string }[];
+}
+
+export interface StagedInitialQualificationDeps {
+  loadReleaseCandidateStatus(identity: RuntimeBatchIdentity): Promise<string>;
+  countCompletedQualificationRounds(identity: RuntimeBatchIdentity): Promise<number>;
+  loadProspectiveReadiness(identity: RuntimeBatchIdentity): Promise<StagedInitialQualificationReadiness>;
+  transitionReleaseCandidate(
+    identity: RuntimeBatchIdentity,
+    expectedStatus: "BUILDING",
+    nextStatus: "INVALIDATED" | "READY_FOR_QA"
+  ): Promise<number>;
+}
+
+export async function finalizeStagedInitialQualification(
+  identity: RuntimeBatchIdentity,
+  deps: StagedInitialQualificationDeps
+): Promise<StagedInitialQualificationDecision> {
+  validateRuntimeBatchIdentity(identity);
+  if (identity.batchKind !== "SCHEDULED" || identity.ownerId !== "staged-scheduler") {
+    throw new Error("STAGED_INITIAL_QUALIFICATION_IDENTITY_INVALID");
+  }
+  const minimumStableCompanyCount = PHASE1_MINIMUM_STABLE_COMPANIES;
+  const status = await deps.loadReleaseCandidateStatus(identity);
+  if (status === "READY_FOR_QA") {
+    return Object.freeze({
+      state: "AWAITING_QA",
+      completedRoundCount: null,
+      stableCompanyCount: null,
+      minimumStableCompanyCount
+    });
+  }
+  if (status === "RELEASED") {
+    return Object.freeze({
+      state: "PER_COMPANY_PUBLICATION",
+      completedRoundCount: null,
+      stableCompanyCount: null,
+      minimumStableCompanyCount
+    });
+  }
+  if (status !== "BUILDING") {
+    throw new Error(`STAGED_INITIAL_QUALIFICATION_STATUS_INVALID:${status || "MISSING"}`);
+  }
+
+  const completedRoundCount = await deps.countCompletedQualificationRounds(identity);
+  if (!Number.isSafeInteger(completedRoundCount) || completedRoundCount < 0) {
+    throw new Error("STAGED_INITIAL_QUALIFICATION_ROUND_COUNT_INVALID");
+  }
+  if (completedRoundCount > 2) {
+    throw new Error(`STAGED_INITIAL_QUALIFICATION_ROUND_LIMIT_REACHED:${completedRoundCount}`);
+  }
+  if (completedRoundCount < 2) {
+    return Object.freeze({
+      state: "CONTINUE_INITIAL_QUALIFICATION",
+      completedRoundCount,
+      stableCompanyCount: null,
+      minimumStableCompanyCount
+    });
+  }
+
+  const readiness = await deps.loadProspectiveReadiness(identity);
+  if (
+    !Number.isSafeInteger(readiness.stableCompanyCount) ||
+    readiness.stableCompanyCount < 0 ||
+    readiness.minimumStableCompanyCount !== minimumStableCompanyCount
+  ) {
+    throw new Error("STAGED_INITIAL_QUALIFICATION_READINESS_INVALID");
+  }
+  const belowMinimum = readiness.stableCompanyCount < minimumStableCompanyCount;
+  if (!belowMinimum && !readiness.canRelease) {
+    const codes = readiness.issues.map(({ code }) => code).join(",") || "UNKNOWN";
+    throw new Error(`STAGED_INITIAL_QUALIFICATION_READINESS_FAILED:${codes}`);
+  }
+  const nextStatus = belowMinimum ? "INVALIDATED" : "READY_FOR_QA";
+  const updatedCount = await deps.transitionReleaseCandidate(identity, "BUILDING", nextStatus);
+  if (updatedCount !== 1) {
+    throw new Error(`Staged initial qualification transition must update exactly one identity-bound candidate; updated ${updatedCount}`);
+  }
+  if (belowMinimum) {
+    return Object.freeze({
+      state: "PAUSED_BELOW_MINIMUM",
+      completedRoundCount: 2,
+      stableCompanyCount: readiness.stableCompanyCount,
+      minimumStableCompanyCount
+    });
+  }
+  return Object.freeze({
+    state: "READY_FOR_QA",
+    completedRoundCount: 2,
+    stableCompanyCount: readiness.stableCompanyCount,
+    minimumStableCompanyCount
+  });
+}
+
+export function formatInitialQualificationPauseNotification(
+  decision: Extract<StagedInitialQualificationDecision, { state: "PAUSED_BELOW_MINIMUM" }>
+): string {
+  return `PAUSED_BELOW_MINIMUM: ${decision.stableCompanyCount}/${decision.minimumStableCompanyCount} stable companies after exactly two completed qualification rounds; no third round is allowed.`;
+}
+
 export interface StagedCrawlRuntime {
   run(): Promise<StagedScheduledCrawlResult>;
   loadConsecutiveFailuresByCompany(identity: RuntimeBatchIdentity): Promise<Record<string, number>>;
+  finalizeInitialQualification?(
+    identity: RuntimeBatchIdentity
+  ): Promise<StagedInitialQualificationDecision>;
   disconnect(): Promise<void>;
 }
 
@@ -51,6 +200,14 @@ export interface StagedCrawlOperationDeps {
   createRuntime(): Promise<StagedCrawlRuntime>;
   writeAttemptEvent(directory: string, event: CrawlAttemptEvent): Promise<void>;
   writeSummary(path: string, summary: CrawlSummary): Promise<{ sha256: string }>;
+  writeInitialQualificationPauseEvidence(
+    path: string,
+    evidence: InitialQualificationPauseEvidence
+  ): Promise<void>;
+  notifyInitialQualificationPause?(
+    message: string,
+    decision: Extract<StagedInitialQualificationDecision, { state: "PAUSED_BELOW_MINIMUM" }>
+  ): void;
   now(): Date;
 }
 
@@ -60,6 +217,7 @@ export interface StagedCrawlOperationInput {
   capturedAt: Date;
   attemptDir: string;
   summaryPath: string;
+  initialQualificationPausePath: string;
   schedulerOwnsAttempt: boolean;
   deps: StagedCrawlOperationDeps;
 }
@@ -68,6 +226,7 @@ export interface StagedCrawlOperationResult {
   exitCode: 0 | 1;
   commandResult: StagedScheduledCrawlResult;
   summaryBinding: { batchId: string; summarySha256: string };
+  initialQualificationDecision: StagedInitialQualificationDecision | null;
 }
 
 export async function runStagedCrawlOperation(
@@ -92,11 +251,13 @@ export async function runStagedCrawlOperation(
   let runtime: StagedCrawlRuntime | undefined;
   let commandResult: StagedScheduledCrawlResult | undefined;
   let summaryBinding: { batchId: string; summarySha256: string } | undefined;
+  let initialQualificationDecision: StagedInitialQualificationDecision | null = null;
+  let initialQualificationPauseEvidence: InitialQualificationPauseEvidence | null = null;
   let terminalError: unknown;
   let completedNonSuccess = false;
   let failureCode: CrawlAttemptFailureCode = "CRAWL_EXECUTION_FAILED";
   let executionStarted = false;
-  let operationStage: "EXECUTION" | "SOURCE_HEALTH" | "PUBLISH" | undefined;
+  let operationStage: "EXECUTION" | "QUALIFICATION_PAUSE" | "SOURCE_HEALTH" | "PUBLISH" | undefined;
 
   try {
     advisoryLock = await input.deps.acquireAdvisoryLock();
@@ -109,6 +270,9 @@ export async function runStagedCrawlOperation(
     executionStarted = true;
     operationStage = "EXECUTION";
     commandResult = await runtime.run();
+    initialQualificationDecision = runtime.finalizeInitialQualification
+      ? await runtime.finalizeInitialQualification(commandResult.identity)
+      : null;
 
     let consecutiveFailures: Record<string, number>;
     try {
@@ -123,6 +287,26 @@ export async function runStagedCrawlOperation(
 
     operationStage = "PUBLISH";
     summaryBinding = await publishSummary(input, commandResult, consecutiveFailures);
+    if (
+      initialQualificationDecision?.state === "PAUSED_BELOW_MINIMUM" &&
+      isOperationallySuccessfulScheduledBatch(commandResult.batch)
+    ) {
+      operationStage = "QUALIFICATION_PAUSE";
+      initialQualificationPauseEvidence = buildInitialQualificationPauseEvidence({
+        attemptId: input.attemptId,
+        identity: commandResult.identity,
+        batchId: commandResult.batch.batchId,
+        canonicalSummarySha256: summaryBinding.summarySha256,
+        completedRoundCount: initialQualificationDecision.completedRoundCount,
+        stableCompanyCount: initialQualificationDecision.stableCompanyCount,
+        minimumStableCompanyCount: initialQualificationDecision.minimumStableCompanyCount,
+        recordedAt: input.deps.now()
+      });
+      await input.deps.writeInitialQualificationPauseEvidence(
+        input.initialQualificationPausePath,
+        initialQualificationPauseEvidence
+      );
+    }
     if (!isOperationallySuccessfulScheduledBatch(commandResult.batch)) {
       terminalError = new Error(`Staged crawl ended ${commandResult.batch.status}`);
       completedNonSuccess = true;
@@ -160,25 +344,47 @@ export async function runStagedCrawlOperation(
     }
   }
 
-  const succeeded = terminalError === undefined && commandResult !== undefined &&
+  const completedOperationally = terminalError === undefined && commandResult !== undefined &&
     isOperationallySuccessfulScheduledBatch(commandResult.batch) && summaryBinding !== undefined;
+  const pauseDecision = initialQualificationDecision?.state === "PAUSED_BELOW_MINIMUM"
+    ? initialQualificationDecision
+    : null;
+  const completedPauseEvidence = completedOperationally && pauseDecision && initialQualificationPauseEvidence
+    ? initialQualificationPauseEvidence
+    : null;
+  const paused = completedPauseEvidence !== null;
   await input.deps.writeAttemptEvent(input.attemptDir, buildCrawlAttemptEvent({
     attemptId: input.attemptId,
-    state: succeeded ? "SUCCESS" : "FAILED",
+    state: paused ? "PAUSED" : completedOperationally ? "SUCCESS" : "FAILED",
     startedAt: input.startedAt,
     finishedAt: input.deps.now(),
     identity: commandResult ? crawlEvidenceIdentityFromRuntime(commandResult.identity) : null,
     authority,
-    canonicalSummaryBinding: succeeded ? summaryBinding! : null,
-    failureCode: succeeded ? null : failureCode
+    canonicalSummaryBinding: completedOperationally ? summaryBinding! : null,
+    failureCode: completedOperationally ? null : failureCode,
+    initialQualificationPause: completedPauseEvidence ? {
+      reasonCode: completedPauseEvidence.reasonCode,
+      notificationKey: completedPauseEvidence.notificationKey,
+      completedRoundCount: completedPauseEvidence.completedRoundCount,
+      stableCompanyCount: completedPauseEvidence.stableCompanyCount,
+      minimumStableCompanyCount: completedPauseEvidence.minimumStableCompanyCount
+    } : null
   }));
+
+  if (pauseDecision && completedPauseEvidence) {
+    input.deps.notifyInitialQualificationPause?.(
+      formatInitialQualificationPauseNotification(pauseDecision),
+      pauseDecision
+    );
+  }
 
   if (terminalError !== undefined && !completedNonSuccess) throw terminalError;
   if (!commandResult || !summaryBinding) throw new Error("Staged crawl returned no publishable command result");
   return {
-    exitCode: isOperationallySuccessfulScheduledBatch(commandResult.batch) ? 0 : 1,
+    exitCode: paused || !isOperationallySuccessfulScheduledBatch(commandResult.batch) ? 1 : 0,
     commandResult,
-    summaryBinding
+    summaryBinding,
+    initialQualificationDecision
   };
 }
 
@@ -192,13 +398,14 @@ export async function runProductionStagedCrawlCli(
   options: { force?: boolean } = {}
 ): Promise<0 | 1> {
   const capturedAt = new Date();
-  const { attemptDir, summaryPath } = resolveStagedCrawlEvidencePaths(env);
+  const { attemptDir, summaryPath, initialQualificationPausePath } = resolveStagedCrawlEvidencePaths(env);
   const result = await runStagedCrawlOperation({
     attemptId: env.P0_CRAWL_ATTEMPT_ID ?? randomUUID(),
     startedAt: env.P0_CRAWL_ATTEMPT_STARTED_AT ? new Date(env.P0_CRAWL_ATTEMPT_STARTED_AT) : capturedAt,
     capturedAt,
     attemptDir,
     summaryPath,
+    initialQualificationPausePath,
     schedulerOwnsAttempt: env.P0_CRAWL_ATTEMPT_OWNER === "scheduler",
     deps: {
       acquireAdvisoryLock: async () => {
@@ -225,6 +432,8 @@ export async function runProductionStagedCrawlCli(
       createRuntime: () => createProductionRuntime(options.force === true),
       writeAttemptEvent: writeCrawlAttemptEvent,
       writeSummary: writeCrawlSummaryAtomic,
+      writeInitialQualificationPauseEvidence,
+      notifyInitialQualificationPause: (message) => console.error(message),
       now: () => new Date()
     }
   });
@@ -302,6 +511,58 @@ async function createProductionRuntime(force = false): Promise<StagedCrawlRuntim
         createRuntimeDeps: () => runtimeDeps,
         runP0CrawlBatch
       }),
+      finalizeInitialQualification: (identity) => finalizeStagedInitialQualification(identity, {
+        loadReleaseCandidateStatus: async (candidateIdentity) => {
+          const authority = await resolveCurrentStagedScheduleAuthority(prisma as never);
+          assertExactQualificationIdentity(authority.identity, candidateIdentity);
+          const row = await prisma.releaseCandidate.findUnique({
+            where: { id: candidateIdentity.releaseCandidateId },
+            select: { status: true }
+          });
+          if (!row) throw new Error("STAGED_INITIAL_QUALIFICATION_CANDIDATE_MISSING");
+          return row.status;
+        },
+        countCompletedQualificationRounds: (candidateIdentity) =>
+          countCompletedStagedQualificationRounds(prisma as never, candidateIdentity),
+        loadProspectiveReadiness: async (candidateIdentity) => {
+          const [
+            { getCompanyPublicationSnapshotFromDb },
+            { evaluateStagedReleaseReadiness }
+          ] = await Promise.all([
+            import("../db/publicationEligibilityRepository"),
+            import("../readiness/stagedReleaseReadiness")
+          ]);
+          const authority = await resolveCurrentStagedScheduleAuthority(prisma as never);
+          assertExactQualificationIdentity(authority.identity, candidateIdentity);
+          const currentTime = new Date();
+          const snapshot = await getCompanyPublicationSnapshotFromDb(
+            prisma,
+            async () => authority,
+            { currentTime }
+          );
+          return evaluateStagedReleaseReadiness({
+            snapshot,
+            mode: "PHASE1",
+            currentTime,
+            releaseCandidateStatus: "READY_FOR_QA"
+          });
+        },
+        transitionReleaseCandidate: async (candidateIdentity, expectedStatus, nextStatus) => {
+          const result = await prisma.releaseCandidate.updateMany({
+            where: {
+              id: candidateIdentity.releaseCandidateId,
+              status: expectedStatus,
+              commitSha: candidateIdentity.commitSha,
+              rosterHash: candidateIdentity.rosterSha256,
+              sourcePlanHash: candidateIdentity.sourcePlanSha256,
+              sourceConfigHash: candidateIdentity.sourceConfigSha256,
+              adapterBundleHash: candidateIdentity.adapterBundleSha256
+            },
+            data: { status: nextStatus }
+          });
+          return result.count;
+        }
+      }),
       loadConsecutiveFailuresByCompany: async (identity) => {
         const rows = await prisma.recruitmentSource.findMany({
           where: { id: { in: [...identity.expectedPlannedSourceIds] } },
@@ -346,4 +607,27 @@ async function createProductionRuntime(force = false): Promise<StagedCrawlRuntim
 
 function compareUtf8(left: string, right: string): number {
   return Buffer.compare(Buffer.from(left), Buffer.from(right));
+}
+
+function assertExactQualificationIdentity(
+  actual: RuntimeBatchIdentity,
+  expected: RuntimeBatchIdentity
+): void {
+  validateRuntimeBatchIdentity(actual);
+  validateRuntimeBatchIdentity(expected);
+  if (
+    actual.releaseCandidateId !== expected.releaseCandidateId ||
+    actual.commitSha !== expected.commitSha ||
+    actual.rosterSha256 !== expected.rosterSha256 ||
+    actual.sourcePlanSha256 !== expected.sourcePlanSha256 ||
+    actual.sourceConfigSha256 !== expected.sourceConfigSha256 ||
+    actual.adapterBundleSha256 !== expected.adapterBundleSha256 ||
+    actual.batchKind !== expected.batchKind ||
+    actual.ownerId !== expected.ownerId ||
+    actual.expectedPlannedSourceSetSha256 !== expected.expectedPlannedSourceSetSha256 ||
+    actual.expectedPlannedSourceCount !== expected.expectedPlannedSourceCount ||
+    JSON.stringify(actual.expectedPlannedSourceIds) !== JSON.stringify(expected.expectedPlannedSourceIds)
+  ) {
+    throw new Error("STAGED_INITIAL_QUALIFICATION_IDENTITY_DRIFT");
+  }
 }

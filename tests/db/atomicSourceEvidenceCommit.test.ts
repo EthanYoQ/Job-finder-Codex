@@ -3,6 +3,7 @@ import {
   executeAtomicSourceEvidenceCommit,
   executeManualSourceEvidenceCommit,
   createBatchWithPendingSourceResults,
+  inspectPersistedAtomicCommitOutcome,
   type AtomicSourceEvidenceCommit,
   type PrismaAtomicSourceEvidenceDb
 } from "../../src/db/ingestionRepository";
@@ -313,12 +314,57 @@ function transactionalDb(failAt?: Group, sourceResultCount = 1, fenceRows: unkno
 }
 
 describe("executeAtomicSourceEvidenceCommit", () => {
+  it("recognizes only an exactly matching persisted COMMITTED source result", async () => {
+    const input = validCommit();
+    const persisted: Record<string, unknown> = {
+      ...input.sourceResult,
+      blockerCode: null,
+      blockerReason: null,
+      failureCode: null,
+      failureReason: null
+    };
+    const db = { crawlBatchSourceResult: { findUnique: vi.fn(async () => persisted) } };
+
+    await expect(inspectPersistedAtomicCommitOutcome(input, db as never)).resolves.toEqual({
+      state: "COMMITTED_EXACT"
+    });
+
+    persisted.canonicalOutputSetSha256 = H2;
+    await expect(inspectPersistedAtomicCommitOutcome(input, db as never)).resolves.toEqual({
+      state: "CONFLICT"
+    });
+    delete persisted.canonicalOutputSetSha256;
+    await expect(inspectPersistedAtomicCommitOutcome(input, db as never)).resolves.toEqual({
+      state: "CONFLICT"
+    });
+  });
+
+  it("recognizes PENDING only when the immutable planned tuple matches", async () => {
+    const input = validCommit();
+    const persisted: Record<string, unknown> = {
+      ...input.sourceResult,
+      transportState: "PENDING",
+      adapterState: "PENDING",
+      completenessState: "PENDING",
+      atomicCommitState: "PENDING"
+    };
+    const db = { crawlBatchSourceResult: { findUnique: vi.fn(async () => persisted) } };
+
+    await expect(inspectPersistedAtomicCommitOutcome(input, db as never)).resolves.toEqual({ state: "PENDING" });
+    persisted.sourceConfigHash = H2;
+    await expect(inspectPersistedAtomicCommitOutcome(input, db as never)).resolves.toEqual({ state: "CONFLICT" });
+  });
+
   it("commits all six write groups once in one transaction with exact direct provenance", async () => {
     const db = transactionalDb();
     const input = validCommit();
     await executeAtomicSourceEvidenceCommit(input, db);
 
     expect(db.calls.transactions).toBe(1);
+    expect(db.$transaction).toHaveBeenCalledWith(
+      expect.any(Function),
+      { maxWait: 10_000, timeout: 120_000 }
+    );
     expect(db.calls.priorAttempts).toHaveLength(1);
     expect(db.calls.sourceResults).toHaveLength(1);
     expect(db.calls.artifacts).toHaveLength(1);
@@ -832,9 +878,18 @@ describe("executeManualSourceEvidenceCommit", () => {
 });
 
 describe.runIf(Boolean(process.env.TASK3B_CLONE_DATABASE_URL))("Task3B real clone repository runtime",()=>{
-  it("commits member rows and rolls back every real write when member insertion is injected to fail",async()=>{
+  it("keeps per-job checks lean while the final deferred source trigger rolls back a wrong full-set hash",async()=>{
     const {PrismaClient}=await import("@prisma/client");const prisma=new PrismaClient({datasourceUrl:process.env.TASK3B_CLONE_DATABASE_URL!});
     try{
+      const [memberValidator]=await prisma.$queryRawUnsafe<Array<{definition:string}>>(
+        `SELECT pg_get_functiondef('public.validate_lifecycle_set_member_projection()'::regprocedure) AS definition`);
+      expect(memberValidator?.definition).toContain("invalid lifecycle set member cross-set projection");
+      expect(memberValidator?.definition).not.toContain("assert_verified_parent_lifecycle_projection");
+      const [sourceTrigger]=await prisma.$queryRawUnsafe<Array<{definition:string;deferrable:boolean;initiallyDeferred:boolean}>>(
+        `SELECT pg_get_triggerdef(oid) AS definition, tgdeferrable AS deferrable, tginitdeferred AS "initiallyDeferred"
+         FROM pg_trigger WHERE tgname='CrawlBatchSourceResult_verified_lifecycle_projection' AND NOT tgisinternal`);
+      expect(sourceTrigger).toMatchObject({deferrable:true,initiallyDeferred:true});
+      expect(sourceTrigger?.definition).toMatch(/DEFERRABLE INITIALLY DEFERRED/);
       const source=await prisma.recruitmentSource.findFirstOrThrow({include:{company:true}});const rc="task3b-runtime-rc";
       await prisma.releaseCandidate.create({data:{id:rc,goalId:"task3b-runtime",version:1,commitSha:"1".repeat(40),sourceTreeHash:H,runtimeTreeHash:H,dbSnapshotHash:H,schemaHash:H,migrationVersion:"task3b",rosterHash:H,sourcePlanHash:H,sourceConfigHash:H,adapterBundleHash:H,oracleVersion:"task3b",status:"BUILDING"}});
       const prepare=async(batchId:string,resultId:string)=>createBatchWithPendingSourceResults({batch:{id:batchId,releaseCandidateId:rc,commitSha:"1".repeat(40),rosterSha256:H,sourcePlanSha256:H,sourceConfigSha256:H,adapterBundleSha256:H,kind:"FULL_RELEASE",plannedSourceIds:[source.id],plannedSourceSetSha256:canonicalStringSetSha256([source.id]),plannedSourceCount:1,ownerId:"task3b",heartbeatAt:FROM,startedAt:FROM},sources:[{id:resultId,sourceId:source.id,sourceConfigHash:H,adapterVersion:"adapter@1",officialEntryId:"entry-1",officialSurfaceIds:["surface-1"],officialChannelIds:["channel-1"],startedAt:FROM}]},prisma as never);
@@ -846,6 +901,20 @@ describe.runIf(Boolean(process.env.TASK3B_CLONE_DATABASE_URL))("Task3B real clon
       await expect(executeAtomicSourceEvidenceCommit(adapt("task3b-runtime-fail","task3b-runtime-result-fail","fail"),injected as never)).rejects.toThrow(/injected lifecycle/);
       expect(await prisma.crawlObservation.count({where:{sourceResultId:"task3b-runtime-result-fail"}})).toBe(before);expect(await prisma.evidenceArtifact.count({where:{sourceResultId:"task3b-runtime-result-fail"}})).toBe(0);expect(await prisma.lifecycleSetEvidenceMember.count({where:{sourceResultId:"task3b-runtime-result-fail"}})).toBe(0);
       expect((await prisma.crawlBatchSourceResult.findUniqueOrThrow({where:{id:"task3b-runtime-result-fail"}})).atomicCommitState).toBe("PENDING");
+      await prepare("task3b-runtime-wrong-hash","task3b-runtime-result-wrong-hash");
+      const tamperedDb={$transaction:<T>(op:(tx:any)=>Promise<T>,options?:{maxWait?:number;timeout?:number})=>
+        prisma.$transaction(tx=>op({...tx,crawlBatchSourceResult:{...tx.crawlBatchSourceResult,
+          updateMany:(args:any)=>tx.crawlBatchSourceResult.updateMany({...args,data:{...args.data,
+            canonicalCurrentJobSetSha256:H2,canonicalOutputSetSha256:H2}})},
+          crawlObservation:{...tx.crawlObservation,create:(args:any)=>tx.crawlObservation.create({data:{...args.data,
+            canonicalOutputSha256:H2}})}}),options)};
+      await expect(executeAtomicSourceEvidenceCommit(
+        adapt("task3b-runtime-wrong-hash","task3b-runtime-result-wrong-hash","wrong-hash"),tamperedDb as never
+      )).rejects.toThrow(/verified committed parent lifecycle projection mismatch/);
+      expect(await prisma.crawlObservation.count({where:{sourceResultId:"task3b-runtime-result-wrong-hash"}})).toBe(0);
+      expect(await prisma.evidenceArtifact.count({where:{sourceResultId:"task3b-runtime-result-wrong-hash"}})).toBe(0);
+      expect(await prisma.lifecycleSetEvidenceMember.count({where:{sourceResultId:"task3b-runtime-result-wrong-hash"}})).toBe(0);
+      expect((await prisma.crawlBatchSourceResult.findUniqueOrThrow({where:{id:"task3b-runtime-result-wrong-hash"}})).atomicCommitState).toBe("PENDING");
     }finally{await prisma.$disconnect()}
   });
 });

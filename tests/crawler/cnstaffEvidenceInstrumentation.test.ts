@@ -224,7 +224,8 @@ describe("CNStaff evidence instrumentation", () => {
   it.each([
     "全国", "中国大陆", "河北省", "山东", "石家庄市", "济南", "沈阳", "郑州", "合肥",
     "长沙", "福州", "厦门", "昆明", "宁波", "温州", "珠海", "南宁", "贵阳", "海口",
-    "哈尔滨", "长春", "乌鲁木齐市", "呼和浩特", "拉萨", "银川", "西宁"
+    "哈尔滨", "长春", "乌鲁木齐市", "呼和浩特", "拉萨", "银川", "西宁",
+    "上海市浦东新区", "北京市朝阳区", "天津市滨海新区", "重庆市渝中区"
   ])("accepts auditable mainland China geography: %s", async (location) => {
     const result = await createOfficialJsonSourceFetch({
       now: () => new Date(NOW),

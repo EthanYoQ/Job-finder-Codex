@@ -13,6 +13,7 @@ import {
   type SourceFetchPageTrace
 } from "./sourceFetchEvidence";
 import { deriveCanonicalPaginationEvidence, evaluatePaginationEvidence } from "./paginationEvidence";
+import { requestContractV2Locator } from "./strictPageRequestContract";
 
 export interface HttpHtmlRequest {
   url: string;
@@ -766,9 +767,9 @@ function attachHtmlEvidence(
         rawBodySha256: sha256Bytes(Buffer.from(response.body, "utf8")).sha256,
         redactionDescriptors: [{ kind: "CREDENTIAL_MATERIAL" as const, count: 1 }]
       } : {}),
-      extractorLocator: isTalentEntry
+      extractorLocator: htmlRequestContractLocator(isTalentEntry
         ? "#search-results[data-ajax-url]"
-        : strictExtractorLocator ?? table.rowSelector
+        : strictExtractorLocator ?? table.rowSelector, mode, request, sequence, table.pagination)
     });
     if (isTalentEntry) return;
     let html = response.body;
@@ -804,7 +805,9 @@ function attachHtmlEvidence(
     });
     rawCount += ids.length;
     const url = new URL(request.url);
-    const ordinaryCoordinate = mode === "ordinary" ? ordinaryRequestCoordinate(request.url, table.pagination) : {};
+    const ordinaryCoordinate = mode === "ordinary"
+      ? ordinaryRequestCoordinate(request.url, table.pagination, sequence)
+      : {};
     const requestedPage = mode === "talentbrew"
       ? strictOptionalPositiveInt(url.searchParams.get("CurrentPage")) ?? null
       : ordinaryCoordinate.requestedPage ?? null;
@@ -819,7 +822,9 @@ function attachHtmlEvidence(
     const ordinaryDeclaration = mode === "ordinary" ? readPaginationEvidence(html, table.pagination) : undefined;
     const returnedPage = mode === "talentbrew"
       ? strictOptionalNonnegativeInt($("#search-results").first().attr("data-current-page") ?? null) ?? null
-      : null;
+      : mode === "ordinary" && isNovartisOfficialWindow(table)
+        ? novartisActivePage($) ?? null
+        : null;
     const declaredTotal = mode === "talentbrew"
       ? strictOptionalNonnegativeInt($("#search-results").first().attr("data-total-job-results") ?? null) ?? null
       : null;
@@ -902,27 +907,34 @@ function attachHtmlEvidence(
     last.nextPageSignalAfter = "declared-next";
     last.termination = "MAX_PAGE_LIMIT";
   }
-  const staticDeclaration = result.ok && validationDiscardCount === 0 &&
+  const staticArtifact = artifacts.find((artifact) => artifact.logicalKey === "official-html-page-0000");
+  const staticDeclaration = result.ok && validationDiscardCount === 0 && staticArtifact &&
     (tevaEmbeddedZero || staticAssessment?.valid === true)
     ? tevaEmbeddedZero || staticAssessment!.zero
       ? {
           kind: "OFFICIAL_TOTAL_COUNT" as const,
           value: 0,
           artifactLogicalKey: "official-html-page-0000",
-          extractorLocator: strictExtractorLocator ?? table.rowSelector,
+          extractorLocator: staticArtifact.extractorLocator,
           scope: "SOURCE" as const
         }
       : {
           kind: "COMPLETE_PAGE_TRAVERSAL" as const,
           value: 1,
           artifactLogicalKey: "official-html-page-0000",
-          extractorLocator: table.rowSelector,
+          extractorLocator: staticArtifact.extractorLocator,
           scope: "SOURCE" as const
         }
     : undefined;
+  const configuredDeclaration = result.ok && validationDiscardCount === 0 &&
+    fetchLosses.length === 0 && artifacts.every((artifact) => artifact.bodyRepresentation === "EXACT")
+    ? configuredHtmlCompletenessDeclaration(table, mode, artifacts, pages)
+    : undefined;
   const evidence0 = parsePersistentSourceFetchEvidence({
     captureTool: { name: "official-html-http", version: "1" }, artifacts, pages,
-    ...(staticDeclaration ? { declaredCompleteness: staticDeclaration } : {}),
+    ...(staticDeclaration ?? configuredDeclaration
+      ? { declaredCompleteness: staticDeclaration ?? configuredDeclaration }
+      : {}),
     fetchCounts: { rawCount, parsedCount: rawCount, validCount: rawCount - validationDiscardCount, parseDiscardCount: 0, validationDiscardCount },
     fetchLosses
   });
@@ -930,7 +942,12 @@ function attachHtmlEvidence(
   const paginationOptions = {
     expectedChannelIds,
     filteredOutput: true,
-    ...(mode === "ordinary" ? { allowMissingReturnedPage: true } : {})
+    ...(mode === "ordinary" && !isNovartisOfficialWindow(table)
+      ? { allowMissingReturnedPage: true }
+      : {}),
+    ...(mode === "ordinary" && isNovartisOfficialWindow(table)
+      ? { allowRawIdOverlapAcrossPages: true }
+      : {})
   };
   const evidence = deriveCanonicalPaginationEvidence({ evidence: evidence0, ...paginationOptions });
   const paginationEvaluation = evaluatePaginationEvidence({ evidence, ...paginationOptions });
@@ -957,6 +974,57 @@ function attachHtmlEvidence(
       ? { ...result, completeness: manual, fetchEvidence: evidence, paginationEvaluation }
       : { ok: false, capturedAt, failureReason: "HTML_PAGINATION_EVIDENCE_UNSAFE", fetchEvidence: evidence, paginationEvaluation }
     : { ...result, failureReason: safeHtmlFailureCode(new Error(result.failureReason)), fetchEvidence: evidence, paginationEvaluation };
+}
+
+function configuredHtmlCompletenessDeclaration(
+  table: HtmlTableConfig,
+  mode: "ordinary" | "talentbrew" | "tupu360",
+  artifacts: readonly SourceFetchArtifactDraft[],
+  pages: readonly SourceFetchPageTrace[]
+): PersistentSourceFetchEvidence["declaredCompleteness"] | undefined {
+  const policy = table.completenessProof;
+  if (!policy || pages.length === 0) return undefined;
+
+  if (policy.kind === "OFFICIAL_TOTAL_PAGES") {
+    if (mode !== "ordinary" || !table.pagination) return undefined;
+    const declaredPages = pages[0]?.declaredPages;
+    if (typeof declaredPages !== "number" || !Number.isSafeInteger(declaredPages) || declaredPages <= 0 ||
+      declaredPages !== pages.length || pages.some((page) => page.declaredPages !== declaredPages)) return undefined;
+    const artifact = artifacts.find((candidate) => candidate.logicalKey === pages[0]!.artifactLogicalKey);
+    if (!artifact) return undefined;
+    return {
+      kind: "OFFICIAL_TOTAL_PAGES",
+      value: declaredPages,
+      artifactLogicalKey: artifact.logicalKey,
+      extractorLocator: artifact.extractorLocator,
+      scope: "SOURCE"
+    };
+  }
+
+  if (policy.kind === "CONFIGURED_CHANNEL_TRAVERSAL") {
+    if (mode === "ordinary") return undefined;
+    if (mode === "talentbrew") {
+      const expected = table.pagination?.talentbrewScope?.allowedPartitions.map((partition) => partition.channelId);
+      const visited = [...new Set(pages.flatMap((page) => page.channelId ? [page.channelId] : []))];
+      if (!expected || expected.length === 0 || expected.length !== visited.length ||
+        expected.some((channelId) => !visited.includes(channelId))) return undefined;
+    } else if (pages.some((page) => page.channelId !== undefined)) {
+      return undefined;
+    }
+    const artifact = mode === "talentbrew"
+      ? artifacts.find((candidate) => candidate.logicalKey === "official-html-page-0000")
+      : artifacts.find((candidate) => candidate.logicalKey === pages[0]!.artifactLogicalKey);
+    if (!artifact) return undefined;
+    return {
+      kind: "COMPLETE_PAGE_TRAVERSAL",
+      value: pages.length,
+      artifactLogicalKey: artifact.logicalKey,
+      extractorLocator: artifact.extractorLocator,
+      scope: "SOURCE"
+    };
+  }
+
+  return undefined;
 }
 
 function assertStrictHtmlResponse(request: HttpHtmlRequest, response: HttpHtmlResponse, crawlStartedAt: string, previousResponseAt: number): number {
@@ -1060,7 +1128,8 @@ function strictOptionalPositiveInt(value: string | null): number | undefined {
 }
 function ordinaryRequestCoordinate(
   requestUrl: string,
-  pagination: HtmlTableConfig["pagination"]
+  pagination: HtmlTableConfig["pagination"],
+  sequence?: number
 ): { requestedPage?: number; requestedOffset?: number } {
   if (!pagination) return {};
   const url = new URL(requestUrl);
@@ -1072,10 +1141,61 @@ function ordinaryRequestCoordinate(
     }
   }
   const value = strictOptionalNonnegativeInt(raw);
+  if (pagination.officialWindowMode === "NOVARTIS_PAGE_WINDOW_V1") {
+    if (raw === null) return sequence === 0 ? { requestedPage: 1 } : {};
+    return value === undefined ? {} : { requestedPage: value - (pagination.pageNumberOffset ?? 0) };
+  }
   if (value === undefined) return {};
   return pagination.pageSearchParamMode === "offset"
     ? { requestedOffset: value }
     : { requestedPage: value };
+}
+
+function htmlRequestContractLocator(
+  baseLocator: string,
+  mode: "ordinary" | "talentbrew" | "tupu360",
+  request: HttpHtmlRequest,
+  sequence: number,
+  pagination: HtmlTableConfig["pagination"]
+): string {
+  const url = safeHtmlEvidenceUrl(request.url);
+  const ordinary = mode === "ordinary" ? ordinaryRequestCoordinate(request.url, pagination, sequence) : {};
+  const query = new URL(url).searchParams;
+  const form = new URLSearchParams(request.body ?? "");
+  const coordinate = mode === "ordinary"
+    ? { sequence, ...ordinary }
+    : mode === "talentbrew"
+      ? {
+          sequence,
+          channelId: request.evidenceChannelId ?? null,
+          requestedPage: strictOptionalPositiveInt(query.get("CurrentPage")) ?? null,
+          requestedPageSize: strictOptionalPositiveInt(query.get("RecordsPerPage")) ?? null
+        }
+      : {
+          sequence,
+          requestedOffset: strictOptionalNonnegativeInt(form.get("offset")) ?? null,
+          requestedPageSize: strictOptionalPositiveInt(form.get("max")) ?? null
+        };
+  return requestContractV2Locator(baseLocator, {
+    family: "html",
+    role: sequence === 0 ? "entry" : `${mode}-page`,
+    method: request.method ?? "GET",
+    url,
+    body: request.body ?? null,
+    coordinate
+  });
+}
+function isNovartisOfficialWindow(table: HtmlTableConfig): boolean {
+  return table.completenessProof?.kind === "OFFICIAL_TOTAL_PAGES" &&
+    table.completenessProof.sourcePolicy === "NOVARTIS_CHINA_SLIDING_WINDOW_V1" &&
+    table.pagination?.officialWindowMode === "NOVARTIS_PAGE_WINDOW_V1";
+}
+function novartisActivePage($: ReturnType<typeof load>): number | undefined {
+  const active = $(".pagination .page-link[title*='active'][title*='out of'][title*='pages']");
+  if (active.length !== 1) return undefined;
+  const title = active.first().attr("title")?.replace(/\s+/gu, " ").trim();
+  const match = title ? /^page\s+([1-9]\d*)\s+active\s+out of\s+([1-9]\d*)\s+pages$/iu.exec(title) : null;
+  return match ? strictOptionalPositiveInt(match[1]!) : undefined;
 }
 function tupuDeclaredPageSize($: ReturnType<typeof load>): number | null {
   const onclick = $("#pageTurnUl li[onclick]").toArray()
@@ -1134,7 +1254,12 @@ function hasInvalidTalentbrewDeclarations(element: { attr(name: string): string 
   });
 }
 function sensitiveHtmlBody(body: string): boolean {
-  return /(?:authorization|cookie|password|access[_-]?token|client[_-]?secret)\s*[:=]/iu.test(body.normalize("NFKC"));
+  const normalized = body.normalize("NFKC");
+  if (/(?:authorization|password|access[_-]?token|client[_-]?secret)\s*[:=]/iu.test(normalized)) {
+    return true;
+  }
+  return /(?:document\.)?cookie\s*=\s*(["'`])[^"'`]*(?:session|auth|token|jwt|secret|password)[^"'`]*\1/iu
+    .test(normalized);
 }
 function safeHtmlFailureCode(error: unknown): string {
   const message = error instanceof Error ? error.message : "HTML_FETCH_FAILED";

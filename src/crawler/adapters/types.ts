@@ -70,6 +70,25 @@ export interface HtmlTableFieldMap {
 export interface HtmlTableConfig {
   rowSelector: string;
   fields: HtmlTableFieldMap;
+  /**
+   * A source-bound proof recipe. Its presence never certifies a crawl by itself;
+   * the independent gate must replay the archived page bodies, URLs and page
+   * coordinates against this exact configuration.
+   */
+  completenessProof?:
+    | {
+        kind: "OFFICIAL_TOTAL_PAGES";
+        sourcePolicy?:
+          | "BAYER_CHINA_SUCCESSFACTORS_V1"
+          | "NOVARTIS_CHINA_SLIDING_WINDOW_V1";
+      }
+    | { kind: "CONFIGURED_CHANNEL_TRAVERSAL" }
+    | {
+        kind: "STATIC_PUBLIC_LIST";
+        sourcePolicy?:
+          | "APELOA_SOCIAL_TABS_V1"
+          | "ASTELLAS_CHINA_PDF_ACCORDION_V1";
+      };
   strictEmbeddedJsonZero?: {
     kind: "TEVA_SMARTAPPLY_CHINA";
   };
@@ -101,6 +120,7 @@ export interface HtmlTableConfig {
     expectedJobCountAttribute?: string;
     expectedJobCountPattern?: string;
     expectedJobCountValue?: number;
+    officialWindowMode?: "NOVARTIS_PAGE_WINDOW_V1";
     ajaxMode?: "talentbrew" | "tupu360";
     talentbrewScope?: {
       requiredActiveFacet: {

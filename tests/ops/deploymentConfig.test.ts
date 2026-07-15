@@ -307,6 +307,7 @@ describe("deployment configuration", () => {
       expect(service).toMatch(/source:\s*formal-artifacts[\s\S]*target:\s*\/app\/outputs/u);
       expect(service).toContain("STAGED_CRAWL_SUMMARY_PATH: /app/outputs/staged-crawl-summary.json");
       expect(service).toContain("STAGED_CRAWL_ATTEMPT_DIR: /app/outputs/staged-crawl-attempts");
+      expect(service).toContain("STAGED_INITIAL_QUALIFICATION_PAUSE_PATH: /app/outputs/staged-initial-qualification-pause.json");
       expect(service).not.toMatch(/STAGED_CRAWL_(?:SUMMARY_PATH|ATTEMPT_DIR):\s*\$\{/u);
     }
     expect(worker).toContain("P0_FULL_RELEASE_MEMBERSHIP_FILE: /run/release-authority/membership.json");
@@ -328,12 +329,14 @@ describe("deployment configuration", () => {
   it("keeps rendered scheduler and monitor evidence on the shared volume despite caller overrides", () => {
     const rendered = renderCompose({
       STAGED_CRAWL_SUMMARY_PATH: "/tmp/rogue-summary.json",
-      STAGED_CRAWL_ATTEMPT_DIR: "/tmp/rogue-attempts"
+      STAGED_CRAWL_ATTEMPT_DIR: "/tmp/rogue-attempts",
+      STAGED_INITIAL_QUALIFICATION_PAUSE_PATH: "/tmp/rogue-pause.json"
     });
     for (const serviceName of ["scheduler", "monitor"]) {
       const service = readComposeService(rendered, serviceName);
       expect(service).toContain("STAGED_CRAWL_SUMMARY_PATH: /app/outputs/staged-crawl-summary.json");
       expect(service).toContain("STAGED_CRAWL_ATTEMPT_DIR: /app/outputs/staged-crawl-attempts");
+      expect(service).toContain("STAGED_INITIAL_QUALIFICATION_PAUSE_PATH: /app/outputs/staged-initial-qualification-pause.json");
       expect(service).not.toContain("/tmp/rogue-");
       expect(service).toMatch(/source:\s*formal-artifacts[\s\S]*target:\s*\/app\/outputs/u);
     }
@@ -433,6 +436,22 @@ describe("deployment configuration", () => {
     expect(backup).toMatch(/postgres:\s*\n\s+condition:\s*service_healthy/u);
   });
 
+  it("initializes a least-privilege persistent monitor state volume for one-shot alert acknowledgements", () => {
+    const compose = readRequiredFile(composePath);
+    const init = readComposeService(compose, "monitor-state-init");
+    const monitor = readComposeService(compose, "monitor");
+
+    expect(init).toMatch(/user:\s*["']0:0["']/u);
+    expect(init).toContain('command: ["install", "-d", "-o", "node", "-g", "node", "-m", "0700", "/app/monitor-state"]');
+    expect(init).toMatch(/network_mode:\s*none/u);
+    expect(init).toMatch(/read_only:\s*true/u);
+    expect(init).toMatch(/cap_drop:\s*\n\s+- ALL/u);
+    expect(init).toMatch(/cap_add:\s*\n\s+- CHOWN\s*\n\s+- FOWNER/u);
+    expect(init).toMatch(/source:\s*monitor-state[\s\S]*target:\s*\/app\/monitor-state/u);
+    expect(monitor).toMatch(/monitor-state-init:\s*\n\s+condition:\s*service_completed_successfully/u);
+    expect(monitor).toMatch(/source:\s*monitor-state[\s\S]*target:\s*\/app\/monitor-state/u);
+  });
+
   it("fails fast on backup errors and healthchecks only recent checksum markers", () => {
     const compose = readRequiredFile(composePath);
     const backup = readComposeService(compose, "backup");
@@ -455,7 +474,10 @@ describe("deployment configuration", () => {
     expect(monitor).toMatch(/READINESS_SUMMARY_PATH:\s*\$\{READINESS_SUMMARY_PATH:-\/app\/outputs\//u);
     expect(monitor).toContain("STAGED_CRAWL_SUMMARY_PATH: /app/outputs/staged-crawl-summary.json");
     expect(monitor).toContain("STAGED_CRAWL_ATTEMPT_DIR: /app/outputs/staged-crawl-attempts");
+    expect(monitor).toContain("STAGED_INITIAL_QUALIFICATION_PAUSE_PATH: /app/outputs/staged-initial-qualification-pause.json");
+    expect(monitor).toContain("MONITOR_STATE_DIR: /app/monitor-state");
     expect(monitor).toMatch(/source:\s*backup-data[\s\S]*target:\s*\/backups[\s\S]*read_only:\s*true/u);
+    expect(monitor).toMatch(/source:\s*monitor-state[\s\S]*target:\s*\/app\/monitor-state(?![\s\S]{0,40}read_only:\s*true)/u);
     expect(monitor).toMatch(/backup:\s*\n\s+condition:\s*service_healthy/u);
     expect(monitor).toMatch(/postgres:\s*\n\s+condition:\s*service_healthy/u);
   });

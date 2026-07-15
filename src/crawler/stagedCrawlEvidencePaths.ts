@@ -3,6 +3,7 @@ import { isAbsolute, relative, resolve, sep } from "node:path";
 export interface StagedCrawlEvidencePaths {
   attemptDir: string;
   summaryPath: string;
+  initialQualificationPausePath: string;
 }
 
 export function resolveStagedCrawlEvidencePaths(
@@ -22,26 +23,42 @@ export function resolveStagedCrawlEvidencePaths(
     resolve(outputsRoot, "staged-crawl-summary.json"),
     cwd
   );
+  const initialQualificationPausePath = configuredPath(
+    env,
+    "STAGED_INITIAL_QUALIFICATION_PAUSE_PATH",
+    resolve(outputsRoot, "staged-initial-qualification-pause.json"),
+    cwd
+  );
 
   assertStrictDescendant(outputsRoot, attemptDir, "STAGED_CRAWL_ATTEMPT_DIR");
   assertStrictDescendant(outputsRoot, summaryPath, "STAGED_CRAWL_SUMMARY_PATH");
+  assertStrictDescendant(
+    outputsRoot,
+    initialQualificationPausePath,
+    "STAGED_INITIAL_QUALIFICATION_PAUSE_PATH"
+  );
 
   const strictAttemptDir = resolve(outputsRoot, "crawl-attempts");
   const strictSummaryPath = resolve(outputsRoot, "crawl-summary.json");
-  if ([attemptDir, summaryPath].some((stagedPath) =>
+  if ([attemptDir, summaryPath, initialQualificationPausePath].some((stagedPath) =>
     [strictAttemptDir, strictSummaryPath].some((strictPath) => pathsOverlap(stagedPath, strictPath)))) {
     throw new Error("Staged crawl evidence paths must remain separate from strict evidence paths");
   }
-  if (pathsOverlap(attemptDir, summaryPath)) {
+  if (
+    pathsOverlap(attemptDir, summaryPath) ||
+    pathsOverlap(attemptDir, initialQualificationPausePath) ||
+    pathsOverlap(summaryPath, initialQualificationPausePath)
+  ) {
     throw new Error("Staged crawl evidence paths must not overlap");
   }
 
-  return { attemptDir, summaryPath };
+  return { attemptDir, summaryPath, initialQualificationPausePath };
 }
 
 function configuredPath(
   env: NodeJS.ProcessEnv,
-  name: "STAGED_CRAWL_ATTEMPT_DIR" | "STAGED_CRAWL_SUMMARY_PATH",
+  name: "STAGED_CRAWL_ATTEMPT_DIR" | "STAGED_CRAWL_SUMMARY_PATH" |
+    "STAGED_INITIAL_QUALIFICATION_PAUSE_PATH",
   fallback: string,
   cwd: string
 ): string {

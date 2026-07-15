@@ -323,6 +323,29 @@ export function explicitlyForeignOrNonMainlandLocation(value: string): boolean {
   return new RegExp(`${chineseBoundary}${chineseForeignToken}`, "u").test(normalized);
 }
 
+const GENERIC_OR_AMBIGUOUS_LOCATION_SEGMENTS = new Set([
+  "remote",
+  "multiple location",
+  "multiple locations",
+  "various location",
+  "various locations",
+  "global",
+  "hybrid",
+  "远程",
+  "多个地点",
+  "多地",
+  "全球",
+  "混合办公"
+]);
+
+export function explicitlyGenericOrAmbiguousLocation(value: string): boolean {
+  return value.normalize("NFKC").toLowerCase()
+    .split(/[,，/|;；:\r\n>、()（）–—]+|\s+-\s+/u)
+    .map((segment) => segment.replace(/[_-]+/gu, " ").replace(/\s+/gu, " ").trim())
+    .filter(Boolean)
+    .some((segment) => GENERIC_OR_AMBIGUOUS_LOCATION_SEGMENTS.has(segment));
+}
+
 export function safeOfficialJsonEndpoint(value: string): string {
   const url = parseUrl(value, "Official JSON request URL is invalid");
   assertCredentialSafeUrl(url);

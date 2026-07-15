@@ -224,6 +224,79 @@ async function fetchWith(options: ClientOptions = {}, config: Record<string, unk
 }
 
 describe("Sandoz fresh official JSON:API contract", () => {
+  it("uses the exact staged China taxonomy proof to keep an unmapped Shenyang city end to end", async () => {
+    const canonical = stagedPlan();
+    const shenyang = row("REQ-10030001", "00000000-0000-4000-8000-000000030001", {
+      attributes: {
+        field_job_id: "REQ-10030001",
+        field_job_title: "Quality Manager",
+        field_job_work_location: "Shenyang (Liaoning) (Sandoz)",
+        field_job_employment_type: "Regular",
+        field_job_type: "Full time",
+        path: { alias: "/quality-manager-shenyang" }
+      }
+    });
+    const fixture = client({ primary: [pageBody({ probe: "primary", data: [shenyang], count: 1 })] });
+    const fetched = await createOfficialJsonSourceFetch({
+      now: () => new Date(NOW),
+      http: fixture.http
+    })(canonical);
+
+    expect(fetched).toMatchObject({
+      ok: true,
+      payload: { jobs: [{ locationRaw: "Shenyang (Liaoning) (Sandoz)", cities: ["Shenyang"] }] },
+      completeness: { expectedJobCount: 1 },
+      fetchEvidence: { fetchCounts: { rawCount: 1, validCount: 1, validationDiscardCount: 0 } }
+    });
+    const crawled = await runSourceCrawl(canonical, { fetch: async () => fetched });
+    expect(crawled).toMatchObject({
+      status: "SUCCESS",
+      truth: { transportSuccess: true, adapterSuccess: true, completenessVerified: true },
+      observation: { completenessStatus: "VERIFIED", expectedJobCount: 1 },
+      jobs: [{ cities: ["Shenyang"] }]
+    });
+  });
+
+  it.each([
+    ["foreign work location", {
+      attributes: {
+        field_job_id: "REQ-10030002",
+        field_job_title: "Quality Manager",
+        field_job_work_location: "Boston (United States) (Sandoz)",
+        field_job_employment_type: "Regular",
+        field_job_type: "Full time",
+        path: { alias: "/quality-manager-boston" }
+      }
+    }],
+    ["unknown country taxonomy", {
+      relationships: {
+        field_job_country: chinaRelationship({
+          id: "00000000-0000-4000-8000-000000099999",
+          meta: { drupal_internal__target_id: 999, term_name: "LOC_UNKNOWN" }
+        })
+      }
+    }]
+  ])("rejects a staged Sandoz row with %s", async (_label, override) => {
+    const canonical = stagedPlan();
+    const invalid = row("REQ-10030002", "00000000-0000-4000-8000-000000030002", override);
+    const fixture = client({ primary: [pageBody({ probe: "primary", data: [invalid], count: 1 })] });
+    const fetched = await createOfficialJsonSourceFetch({
+      now: () => new Date(NOW),
+      http: fixture.http
+    })(canonical);
+
+    expect(fetched).toMatchObject({
+      ok: false,
+      fetchEvidence: {
+        fetchCounts: { rawCount: 1, validCount: 0, validationDiscardCount: 1 },
+        fetchLosses: [{ details: { code: "OUT_OF_SCOPE" } }]
+      }
+    });
+    const crawled = await runSourceCrawl(canonical, { fetch: async () => fetched });
+    expect(crawled.truth.completenessVerified).toBe(false);
+    expect(crawled.truth.adapterSuccess).toBe(false);
+  });
+
   it("validates taxonomy before China requests and returns the exact current-shape rows losslessly", async () => {
     const first = row("REQ-10029354", "4816e692-7bed-4a07-80a9-cd6dd2823fa7", {
       attributes: {

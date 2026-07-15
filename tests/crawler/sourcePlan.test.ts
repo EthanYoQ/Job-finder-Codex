@@ -122,8 +122,11 @@ describe("source crawl planning", () => {
     expect(getPlanBySourceId(plans, "source-apeloa-social")).toMatchObject({
       table: {
         rowSelector: ".join2 .tab-content > .main:first-child > .ev",
+        completenessProof: {
+          kind: "STATIC_PUBLIC_LIST",
+          sourcePolicy: "APELOA_SOCIAL_TABS_V1"
+        },
         staticPublicList: {
-          allowRedactedPositivePartial: true,
           excludedPartitionSelectors: [".join2 .tab-content > .main:nth-child(2)"]
         }
       }
@@ -341,8 +344,15 @@ describe("source crawl planning", () => {
       },
       table: {
         rowSelector: "a[href$='.pdf'][href*='/global/zh/']",
+        completenessProof: {
+          kind: "STATIC_PUBLIC_LIST",
+          sourcePolicy: "ASTELLAS_CHINA_PDF_ACCORDION_V1"
+        },
+        staticPublicList: {
+          containerSelector: ".cmp-accordion[data-cmp-is='accordion']"
+        },
         fields: {
-          officialTitle: { selector: ":scope" },
+          officialTitle: { selector: "span:first-child" },
           officialUrl: { selector: ":scope", attribute: "href" },
           locationRaw: { value: "中国" }
         }
@@ -350,7 +360,7 @@ describe("source crawl planning", () => {
     });
     const astellas = getPlanBySourceId(plans, "source-astellas-china-social");
     if (astellas?.adapterId !== "html-table") throw new Error("expected Astellas HTML plan");
-    expect(astellas.table.pagination).not.toHaveProperty("expectedJobCountSelector");
+    expect(astellas.table).not.toHaveProperty("pagination");
     const jnjDiscoveryPlan = getPlanBySourceId(plans, "source-johnson-innovative-medicine-social");
     expect(jnjDiscoveryPlan).toMatchObject({
       adapterId: "official-json",
@@ -579,12 +589,28 @@ describe("source crawl planning", () => {
       .toBe("a916bc1e00cb6b3a6b644c286c658cd2d1d5a91b65c9f630b91db6dec8df549f");
     expect(descriptorAliasesSha256(gileadLocationPolicy.foreignDescriptorAliases))
       .toBe("aa7db564434c890f9ab9f2a37b7e12502fb41e9be03055d03242cc169361d7fa");
-    expect(bmsLocationPolicy.foreignSiteDescriptorAliases).toHaveLength(14);
+    expect(bmsLocationPolicy.foreignSiteDescriptorAliases).toHaveLength(15);
     expect(bmsLocationPolicy.foreignCountryDescriptorAliases).toHaveLength(2);
+    expect(bmsLocationPolicy.foreignSiteDescriptorAliases)
+      .toContain("WA04 PSA Celgene - Seattle Dexter Avenue - WA");
     expect(descriptorAliasesSha256(bmsLocationPolicy.foreignSiteDescriptorAliases))
-      .toBe("acbe0901293662048209b3aab537c825e5cc7bb88071c89655b33e4ed9d61370");
+      .toBe("b8c65d7a8ee7fbc0dc9de88428ad06318519cb6f2ec065d06d96616c7e3af474");
     expect(descriptorAliasesSha256(bmsLocationPolicy.foreignCountryDescriptorAliases))
       .toBe("136822242c07ee3916d870b6a2888c1e92eb43b3e13f74dcfe35a2e2e3e5b7cf");
+    const bmsWithoutSeattleAlias = {
+      ...bmsLocationCandidate,
+      workday: {
+        ...bmsLocationCandidate.workday,
+        locationFacetPolicy: {
+          ...bmsLocationPolicy,
+          foreignSiteDescriptorAliases: bmsLocationPolicy.foreignSiteDescriptorAliases.filter(
+            (descriptor) => descriptor !== "WA04 PSA Celgene - Seattle Dexter Avenue - WA"
+          )
+        }
+      }
+    };
+    expect(sourcePlanConfigSha256(bmsWithoutSeattleAlias))
+      .not.toBe(sourcePlanConfigSha256(bmsLocationCandidate));
     expect(plans.flatMap((candidate) =>
       candidate.adapterId === "official-json" &&
       (candidate.workday as { locationFacetPolicy?: unknown } | undefined)?.locationFacetPolicy !== undefined
@@ -796,6 +822,7 @@ describe("source crawl planning", () => {
       },
       officialJsonFetch: {
         kind: "beisen-zhiye-2022",
+        mixedLocationPolicy: "INCLUDE_MAINLAND_JAPAN_ALTERNATIVES",
         category: "1",
         pageSize: 100,
         maxPages: 5,
@@ -909,7 +936,21 @@ describe("source crawl planning", () => {
     });
     const novartis = getPlanBySourceId(plans, "source-novartis-social");
     if (novartis?.adapterId !== "html-table") throw new Error("expected Novartis HTML plan");
-    expect(novartis.table).not.toHaveProperty("pagination");
+    expect(novartis.table).toMatchObject({
+      completenessProof: {
+        kind: "OFFICIAL_TOTAL_PAGES",
+        sourcePolicy: "NOVARTIS_CHINA_SLIDING_WINDOW_V1"
+      },
+      pagination: {
+        totalPagesSelector: ".pagination .page-link[title*='out of'][title*='pages']",
+        totalPagesPattern: "out of\\s+([1-9]\\d*)\\s+pages",
+        totalPagesMode: "max",
+        pageSearchParam: "page",
+        pageNumberOffset: -1,
+        maxPages: 20,
+        officialWindowMode: "NOVARTIS_PAGE_WINDOW_V1"
+      }
+    });
     expect(getPlanBySourceId(plans, "source-kelun-social")).toMatchObject({
       adapterId: "html-table",
       table: {

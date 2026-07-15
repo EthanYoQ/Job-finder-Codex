@@ -102,6 +102,20 @@ describe("staged release readiness", () => {
     });
   });
 
+  it("uses 45 only for first launch and keeps verified companies publishable after RELEASED", () => {
+    const report = evaluateStagedReleaseReadiness({
+      snapshot: snapshotWithStableCompanies(1),
+      mode: "PHASE1",
+      currentTime: NOW,
+      releaseCandidateStatus: "RELEASED",
+      freshnessMaximumMs: FRESHNESS_MAXIMUM_MS
+    });
+
+    expect(report.stableCompanyCount).toBe(1);
+    expect(report.issues.map(({ code }) => code)).not.toContain("MINIMUM_STABLE_COMPANIES_NOT_MET");
+    expect(report.canRelease).toBe(true);
+  });
+
   it("does not treat a build-in-progress crawl authority as release authority", () => {
     const report = evaluateStagedReleaseReadiness({
       snapshot: snapshotWithStableCompanies(45),

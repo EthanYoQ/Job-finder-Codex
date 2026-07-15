@@ -242,7 +242,8 @@ const BMS_AUDITED_FOREIGN_SITE_DESCRIPTOR_ALIASES = [
   "NJ09 PSA Princeton Pike - NJ",
   "NJ13 PSA Plainsboro - NJ",
   "NJ16 PSA Madison - Giralda Farms - NJ",
-  "US99 PSA Field - United States"
+  "US99 PSA Field - United States",
+  "WA04 PSA Celgene - Seattle Dexter Avenue - WA"
 ] as const;
 
 const BMS_AUDITED_FOREIGN_COUNTRY_DESCRIPTOR_ALIASES = [

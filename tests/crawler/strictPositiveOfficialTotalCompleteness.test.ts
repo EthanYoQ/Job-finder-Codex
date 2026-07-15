@@ -511,17 +511,33 @@ function positiveCountEvidence(plan: SourceCrawlPlan, options: {
     ? ids.map((id) => [id])
     : Array.from({ length: Math.ceil(ids.length / pageSize) }, (_, index) =>
         ids.slice(index * pageSize, (index + 1) * pageSize));
-  const bodies = groups.map((group, index) => plan.adapterId === "official-json" && plan.moka
-    ? fixtureMokaEncryptedBody({
+  const bodies = groups.map((group, index) => {
+    const total = options.laterZero && index > 0 ? 0 : ids.length;
+    if (plan.adapterId === "official-json" && plan.moka) {
+      return fixtureMokaEncryptedBody({
         success: true,
         data: {
           offset: index * pageSize,
-          jobStats: { total: options.laterZero && index > 0 ? 0 : ids.length },
+          jobStats: { total },
           jobs: group.map((id) => ({ id, title: `Official role ${id}`,
             locations: [{ cityName: "上海", country: "中国" }] }))
         }
-      })
-    : JSON.stringify({ total: options.laterZero && index > 0 ? 0 : ids.length, ids: group }));
+      });
+    }
+    if (plan.adapterId === "official-json" && plan.workday) {
+      return JSON.stringify({ total, jobPostings: group.map((id) => ({
+        title: `Official role ${id}`, externalPath: `/job/China/${id}`,
+        locationsText: "Shanghai, China", bulletFields: [id]
+      })) });
+    }
+    if (plan.adapterId === "official-json" && plan.officialJsonFetch?.kind === "phenom") {
+      return JSON.stringify({ refineSearch: { totalHits: total, data: {
+        jobs: group.map((id) => ({ jobId: id, title: `Official role ${id}`, country: "China" })),
+        aggregations: []
+      } } });
+    }
+    return JSON.stringify({ total, ids: group });
+  });
   const workdayScope = plan.adapterId === "official-json" && plan.workday
     ? fixtureWorkdayScope(plan, ids.length)
     : undefined;

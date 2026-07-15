@@ -125,6 +125,82 @@ describe("official HTML fetch evidence", () => {
       fetchEvidence: { artifacts: [{}, {}, {}], pages: [{}, {}, { termination: "FAILED" }] } });
   });
 
+  it("emits a source-bound OFFICIAL_TOTAL_PAGES declaration only for an opted-in lossless ordinary plan", async () => {
+    const plan = { ...base, table: { ...base.table,
+      completenessProof: { kind: "OFFICIAL_TOTAL_PAGES" as const },
+      pagination: { totalPagesSelector: "#r", totalPagesAttribute: "data-total-pages",
+        pageSearchParam: "page", maxPages: 3 }
+    } } as SourceCrawlPlan;
+    const result = await createHttpHtmlSourceFetch({
+      now: () => new Date("2026-07-08T00:00:00.000Z"),
+      http: async request => {
+        const page = new URL(request.url).searchParams.get("page") ?? "1";
+        return at(request, `<div id="r" data-total-pages="3"></div><table>${row(page)}</table>`);
+      }
+    })(plan);
+
+    expect(result).toMatchObject({
+      ok: true,
+      fetchEvidence: {
+        declaredCompleteness: {
+          kind: "OFFICIAL_TOTAL_PAGES",
+          value: 3,
+          artifactLogicalKey: "official-html-page-0000",
+          extractorLocator: expect.stringMatching(/\|request-contract-v2\|sha256:[0-9a-f]{64}$/),
+          scope: "SOURCE"
+        }
+      },
+      paginationEvaluation: { safeCompleteness: true, verifiedEligible: true }
+    });
+  });
+
+  it("emits configured-channel traversal only after every declared TalentBrew channel closes losslessly", async () => {
+    const plan = { ...base, table: { ...base.table,
+      completenessProof: { kind: "CONFIGURED_CHANNEL_TRAVERSAL" as const },
+      fields: { ...base.table.fields, sourceJobId: { selector: "button", attribute: "data-job-id" } },
+      pagination: { totalPagesSelector: "#search-results", totalPagesAttribute: "data-total-pages",
+        pageSearchParam: "CurrentPage", maxPages: 2, ajaxMode: "talentbrew" as const,
+        talentbrewScope: {
+          requiredActiveFacet: { id: "1814991", facetType: 2, descriptor: "China" },
+          allowedPartitions: [
+            { channelId: "fixed", id: "Fixed", facetType: 5, fieldName: "job_type", descriptor: "Fixed" },
+            { channelId: "regular", id: "Regular", facetType: 5, fieldName: "job_type", descriptor: "Regular" }
+          ]
+        }
+      }
+    } } as SourceCrawlPlan;
+    const entry = `<section id="search-results" data-ajax-url="/results" data-facet-term="1814991" data-facet-type="2"
+      data-total-pages="2" data-total-job-results="2" data-records-per-page="1"></section>
+      <div id="search-filters"><div data-enabled="false"><input class="filter-checkbox" checked data-id="1814991" data-facet-type="2" data-count="2" data-display="China" data-field-name="" /></div>
+      <div data-enabled="true"><input class="filter-checkbox" data-id="Fixed" data-facet-type="5" data-count="1" data-display="Fixed" data-field-name="job_type" /></div>
+      <div data-enabled="true"><input class="filter-checkbox" data-id="Regular" data-facet-type="5" data-count="1" data-display="Regular" data-field-name="job_type" /></div></div>`;
+    const result = await createHttpHtmlSourceFetch({
+      now: () => new Date("2026-07-08T00:00:00.000Z"),
+      http: async request => {
+        if (!request.url.includes("/results")) return at(request, entry);
+        const url = new URL(request.url);
+        const channel = [...url.searchParams.entries()].find(([key]) => key.endsWith(".Display") && key.startsWith("FacetFilters[1]"))?.[1] ?? "missing";
+        const id = channel.toLowerCase();
+        return at(request, JSON.stringify({ results: `<section id="search-results" data-current-page="1" data-total-pages="1" data-total-job-results="1" data-records-per-page="1"><table><tr class="job"><td class="title">${id}</td><td class="location">上海</td><td><a href="/${id}">详情</a><button data-job-id="${id}"></button></td></tr></table></section>` }), "application/json");
+      }
+    })(plan);
+
+    expect(result).toMatchObject({
+      ok: true,
+      fetchEvidence: { declaredCompleteness: {
+        kind: "COMPLETE_PAGE_TRAVERSAL", value: 2,
+        artifactLogicalKey: "official-html-page-0000",
+        extractorLocator: expect.stringMatching(/\|request-contract-v2\|sha256:[0-9a-f]{64}$/),
+        scope: "SOURCE"
+      } },
+      paginationEvaluation: {
+        safeCompleteness: true,
+        verifiedEligible: true,
+        visitedChannelIds: ["fixed", "regular"]
+      }
+    });
+  });
+
   it("archives TalentBrew entry HTML and exact JSON pages while returning derived HTML only", async () => {
     const plan = { ...base, table: { ...base.table, pagination: { totalPagesSelector: "#search-results", totalPagesAttribute: "data-total-pages",
       pageSearchParam: "CurrentPage", maxPages: 2, ajaxMode: "talentbrew" } } } as SourceCrawlPlan;
@@ -369,6 +445,15 @@ describe("official HTML fetch evidence", () => {
       at(request, `<p>Reset your password safely.</p><table>${row("a")}</table>`) })(base);
     if (!benign.ok || !benign.fetchEvidence) throw new Error("expected exact evidence");
     expect(benign.fetchEvidence.artifacts[0]?.bodyRepresentation).toBe("EXACT");
+    for (const publicCookieText of [
+      `<script>document.cookie = name + '=' + escape(value) + ';expires=' + expires;</script>`,
+      `<p>These session cookie: route and JSESSIONID are required for the careers site.</p>`
+    ]) {
+      const publicPage = await createHttpHtmlSourceFetch({ now: () => new Date("2026-07-08T00:00:00.000Z"), http: async request =>
+        at(request, `${publicCookieText}<table>${row("a")}</table>`) })(base);
+      if (!publicPage.ok || !publicPage.fetchEvidence) throw new Error("expected public cookie prose to remain exact");
+      expect(publicPage.fetchEvidence.artifacts[0]?.bodyRepresentation).toBe("EXACT");
+    }
   });
 
   it("fails closed on TalentBrew records-per-page drift", async () => {
@@ -566,7 +651,7 @@ describe("official HTML fetch evidence", () => {
           kind: "COMPLETE_PAGE_TRAVERSAL",
           value: 1,
           artifactLogicalKey: "official-html-page-0000",
-          extractorLocator: "tr.job",
+          extractorLocator: expect.stringMatching(/^tr\.job\|request-contract-v2\|sha256:[0-9a-f]{64}$/),
           scope: "SOURCE"
         },
         pages: [{ termination: "NEXT_ABSENT" }]
@@ -598,7 +683,7 @@ describe("official HTML fetch evidence", () => {
     } as SourceCrawlPlan;
     const result = await createHttpHtmlSourceFetch({
       now: () => new Date("2026-07-08T00:00:00.000Z"),
-      http: async request => at(request, `<section id="jobs"><script>document.cookie = "preferences";</script><table>${row("one")}</table></section>`)
+      http: async request => at(request, `<section id="jobs"><script>document.cookie = "session_token=secret";</script><table>${row("one")}</table></section>`)
     })(plan);
 
     expect(result).toMatchObject({
@@ -699,7 +784,7 @@ describe("official HTML fetch evidence", () => {
         declaredCompleteness: {
           kind: "OFFICIAL_TOTAL_COUNT",
           value: 0,
-          extractorLocator: "tr.job",
+          extractorLocator: expect.stringMatching(/^tr\.job\|request-contract-v2\|sha256:[0-9a-f]{64}$/),
           scope: "SOURCE"
         },
         pages: [{ declaredTotal: 0, termination: "EMPTY_PAGE", rawJobIds: [], validJobIds: [] }]
@@ -736,13 +821,13 @@ describe("official HTML fetch evidence", () => {
           bodyRepresentation: "REDACTED",
           rawBodySha256: expect.stringMatching(/^[0-9a-f]{64}$/),
           redactionDescriptors: [{ kind: "CREDENTIAL_MATERIAL", count: 1 }],
-          extractorLocator: "#smartApplyData:strict-json:count,positions,location_used,query.location,all_applicable_locations"
+          extractorLocator: expect.stringMatching(/^#smartApplyData:strict-json:count,positions,location_used,query\.location,all_applicable_locations\|request-contract-v2\|sha256:[0-9a-f]{64}$/)
         }],
         declaredCompleteness: {
           kind: "OFFICIAL_TOTAL_COUNT",
           value: 0,
           artifactLogicalKey: "official-html-page-0000",
-          extractorLocator: "#smartApplyData:strict-json:count,positions,location_used,query.location,all_applicable_locations",
+          extractorLocator: expect.stringMatching(/^#smartApplyData:strict-json:count,positions,location_used,query\.location,all_applicable_locations\|request-contract-v2\|sha256:[0-9a-f]{64}$/),
           scope: "SOURCE"
         },
         pages: [{ declaredTotal: 0, termination: "EMPTY_PAGE", rawJobIds: [], validJobIds: [] }]

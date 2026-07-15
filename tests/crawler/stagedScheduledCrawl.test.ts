@@ -58,6 +58,8 @@ function matchingScheduledBatch(overrides: Record<string, unknown> = {}) {
     plannedSourceSetSha256: expected.plannedSourceSetSha256,
     plannedSourceCount: expected.plannedSourceCount,
     ownerId: "staged-scheduler",
+    status: "SUCCESS",
+    finishedAt: new Date("2026-07-14T00:05:00.000Z"),
     ...overrides
   };
 }
@@ -144,6 +146,58 @@ describe("current staged scheduled crawl", () => {
     expect(create).not.toHaveBeenCalled();
     expect(runP0CrawlBatch).not.toHaveBeenCalled();
     expect(fetch).not.toHaveBeenCalled();
+  });
+
+  it("does not count running or aborted identity-matching rows as completed qualification rounds", async () => {
+    const canonicalPlans = buildStagedSourceCrawlPlans(candidateCompanies);
+    const runP0CrawlBatch = vi.fn(async (
+      _plans: readonly SourceCrawlPlan[],
+      deps: RunP0CrawlBatchDeps
+    ) => failedMixedBatch(deps.identity.expectedPlannedSourceCount));
+
+    await runCurrentStagedScheduledCrawl({
+      db: {
+        releaseCandidate: { findMany: vi.fn(async () => [matchingRow({ status: "BUILDING" })]) },
+        crawlBatch: { findMany: vi.fn(async () => [
+          matchingScheduledBatch({ id: "batch-running", status: "RUNNING", finishedAt: null }),
+          matchingScheduledBatch({ id: "batch-aborted", status: "ABORTED" })
+        ]) }
+      } as never,
+      fetch: vi.fn(),
+      now: new Date("2026-07-14T00:00:00.000Z"),
+      force: true,
+      syncPlannedSourcesToDb: vi.fn(async () => ({
+        companyCount: 60,
+        sourceCount: canonicalPlans.length,
+        hiddenUnplannedVisibleJobCount: 0
+      })),
+      createRuntimeDeps: vi.fn(() => ({
+        getPreviousJobs: async () => [],
+        getRecentObservations: async () => [],
+        isBaselineCompleted: async () => false
+      })),
+      runP0CrawlBatch
+    });
+
+    expect(runP0CrawlBatch).toHaveBeenCalledTimes(1);
+  });
+
+  it.each([
+    ["terminal without finishedAt", { status: "SUCCESS", finishedAt: null }],
+    ["active with finishedAt", { status: "RUNNING", finishedAt: new Date("2026-07-14T00:05:00.000Z") }]
+  ])("fails closed for an inconsistent %s qualification row", async (_label, overrides) => {
+    await expect(runCurrentStagedScheduledCrawl({
+      db: {
+        releaseCandidate: { findMany: vi.fn(async () => [matchingRow({ status: "BUILDING" })]) },
+        crawlBatch: { findMany: vi.fn(async () => [matchingScheduledBatch(overrides)]) }
+      } as never,
+      fetch: vi.fn(),
+      now: new Date("2026-07-14T00:00:00.000Z"),
+      force: true,
+      syncPlannedSourcesToDb: vi.fn(),
+      createRuntimeDeps: vi.fn(),
+      runP0CrawlBatch: vi.fn()
+    })).rejects.toThrow(/TERMINAL_STATE_DRIFT/i);
   });
 
   it.each([

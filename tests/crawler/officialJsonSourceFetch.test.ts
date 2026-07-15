@@ -1,8 +1,11 @@
 import { describe, expect, it } from "vitest";
+import { createHash } from "node:crypto";
 import { createOfficialJsonSourceFetch } from "../../src/crawler/officialJsonSourceFetch";
 import type { SourceCrawlPlan } from "../../src/crawler/sourcePlan";
 
 const makeExampleCredential = (purpose: string) => `example-placeholder-${purpose}`;
+const beisenUuid = (seed: string) =>
+  `00000000-0000-4000-8000-${createHash("sha256").update(seed, "utf8").digest("hex").slice(0, 12)}`;
 
 const basePlan = {
   adapterId: "official-json",
@@ -463,7 +466,7 @@ describe("createOfficialJsonSourceFetch", () => {
     });
   });
 
-  it("fetches Beisen Zhiye 2022 pages using official Count and JobAdId detail URLs", async () => {
+  it("fetches Beisen Zhiye 2022 pages using official Count and UUID detail URLs", async () => {
     const requests: Array<{ url: string; method?: string; body?: string }> = [];
     const fetcher = createOfficialJsonSourceFetch({
       now: () => new Date("2026-07-08T00:00:00.000Z"),
@@ -471,7 +474,7 @@ describe("createOfficialJsonSourceFetch", () => {
         requests.push(request);
         const body = JSON.parse(request.body ?? "{}") as { PageIndex: number; PageSize: number };
         const jobs = Array.from({ length: body.PageIndex === 0 ? 2 : 1 }, (_, index) => ({
-          Id: `guid-${body.PageIndex}-${index}`,
+          Id: beisenUuid(`${body.PageIndex}-${index}`),
           JobAdId: 1000 + body.PageIndex * body.PageSize + index,
           JobAdName: `验证主任助理 ${body.PageIndex}-${index}`,
           LocNames: body.PageIndex === 0 ? ["江苏省·连云港市"] : ["上海市"],
@@ -530,21 +533,21 @@ describe("createOfficialJsonSourceFetch", () => {
       {
         sourceJobId: expect.stringMatching(/^official-json:sha256:[0-9a-f]{64}$/),
         title: "验证主任助理 0-0",
-        officialUrl: "https://cttq.zhiye.com/social/detail?jobAdId=1000",
+        officialUrl: `https://cttq.zhiye.com/social/detail?jobAdId=${beisenUuid("0-0")}`,
         locationRaw: "江苏省·连云港市",
         cities: ["连云港市"]
       },
       {
         sourceJobId: expect.stringMatching(/^official-json:sha256:[0-9a-f]{64}$/),
         title: "验证主任助理 0-1",
-        officialUrl: "https://cttq.zhiye.com/social/detail?jobAdId=1001",
+        officialUrl: `https://cttq.zhiye.com/social/detail?jobAdId=${beisenUuid("0-1")}`,
         locationRaw: "江苏省·连云港市",
         cities: ["连云港市"]
       },
       {
         sourceJobId: expect.stringMatching(/^official-json:sha256:[0-9a-f]{64}$/),
         title: "验证主任助理 1-0",
-        officialUrl: "https://cttq.zhiye.com/social/detail?jobAdId=1002",
+        officialUrl: `https://cttq.zhiye.com/social/detail?jobAdId=${beisenUuid("1-0")}`,
         locationRaw: "上海市",
         cities: ["上海市"]
       }
@@ -569,7 +572,7 @@ describe("createOfficialJsonSourceFetch", () => {
           PageIndex: 0,
           Data: [
             {
-              Id: "guid-0",
+              Id: beisenUuid("max-page-0"),
               JobAdName: "质量经理",
               LocNames: ["上海市"],
               Category: "社会招聘",
@@ -577,7 +580,7 @@ describe("createOfficialJsonSourceFetch", () => {
               Kind: "全职"
             },
             {
-              Id: "guid-1",
+              Id: beisenUuid("max-page-1"),
               JobAdName: "注册经理",
               LocNames: ["北京市"],
               Category: "社会招聘",
@@ -623,7 +626,7 @@ describe("createOfficialJsonSourceFetch", () => {
           PageIndex: 0,
           Data: [
             {
-              Id: "guid-no-location",
+              Id: beisenUuid("no-location"),
               JobAdId: 230917983,
               JobAdName: "产品经理（睡眠领域）",
               Category: "社会招聘",

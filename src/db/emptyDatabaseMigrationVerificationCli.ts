@@ -30,7 +30,8 @@ export const REVIEWED_MIGRATION_NAMES = [
   "20260713035000_quarantine_legacy_unbound_manual_batches",
   "20260713040000_manual_batch_binding_and_kind_immutability",
   "20260713050000_ai_enrichment_persistence",
-  "20260714053000_repair_legacy_offline_count_two"
+  "20260714053000_repair_legacy_offline_count_two",
+  "20260715090000_atomic_evidence_commit_scaling"
 ] as const;
 
 export const REVIEWED_APP_TABLE_NAMES = [

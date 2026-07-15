@@ -38,7 +38,7 @@ function client(bodies: string[], pageSize = 2) {
 }
 
 describe("Xiuzheng job-list evidence instrumentation", () => {
-  it("captures exact POST pages, accounts non-jobs and unknown scope, and remains manual through D1", async () => {
+  it("proves the declared page traversal while remaining manual without the source-bound exclusion proof", async () => {
     const exact = [
       body(1, [row(17, "用人理念"), row(16, "研究员")], 3, 2),
       body(2, [row(5, "生产经理", { location: "上海" })], 3, 2)
@@ -54,16 +54,22 @@ describe("Xiuzheng job-list evidence instrumentation", () => {
         pages: [
           { requestedPage: 1, returnedPage: 1, requestedPageSize: 2, returnedPageSize: 2,
             declaredTotal: 3, declaredPages: 2, termination: "CONTINUE" },
-          { requestedPage: 2, returnedPage: 2, requestedPageSize: 2, returnedPageSize: 2, termination: "ABORTED" }
+          { requestedPage: 2, returnedPage: 2, requestedPageSize: 2, returnedPageSize: 2, termination: "NEXT_ABSENT" }
         ]
       },
-      paginationEvaluation: { verifiedEligible: false, safeCompleteness: false }
+      paginationEvaluation: { verifiedEligible: false, safeCompleteness: true }
     });
     if (!fetched.fetchEvidence || !fetched.paginationEvaluation) throw new Error("missing evidence");
     expect(fetched.fetchEvidence.artifacts.map((artifact) => artifact.bodyRepresentation)).toEqual(["EXACT", "EXACT"]);
     const result = await runSourceCrawl(plan(), { fetch: async () => fetched });
     expect(result.fetchEvidence).toBe(fetched.fetchEvidence);
     expect(result.paginationEvaluation).toBe(fetched.paginationEvaluation);
+    expect(result.truth).toEqual({
+      transportSuccess: true,
+      adapterSuccess: true,
+      completenessVerified: false
+    });
+    expect(result.observation.completenessStatus).toBe("INCOMPLETE");
   });
 
   it("retains current and prior accounting when a later declaration drifts", async () => {

@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
 
 export interface RequestContractV2Input {
-  family: "workday" | "moka" | "phenom" | "beisen" | "hcm";
+  family: "workday" | "moka" | "phenom" | "beisen" | "hcm" | "html" | "xiuzheng";
   role: string;
   method: "GET" | "POST";
   url: string;

@@ -180,11 +180,13 @@ const REPRESENTATIVE_CONFIGS: Record<string, RepresentativeSourceConfig> = {
     adapterId: "html-table",
     table: {
       rowSelector: "a[href$='.pdf'][href*='/global/zh/']",
-      pagination: {
-        totalPagesSelector: "body",
-        totalPagesAttribute: "data-total-pages",
-        pageSearchParam: "page",
-        maxPages: 1
+      completenessProof: {
+        kind: "STATIC_PUBLIC_LIST",
+        sourcePolicy: "ASTELLAS_CHINA_PDF_ACCORDION_V1"
+      },
+      staticPublicList: {
+        containerSelector: ".cmp-accordion[data-cmp-is='accordion']",
+        nextControlSelector: ".pagination, a[rel='next'], [data-page]"
       },
       fields: {
         sourceJobId: {
@@ -192,7 +194,7 @@ const REPRESENTATIVE_CONFIGS: Record<string, RepresentativeSourceConfig> = {
           attribute: "href",
           pattern: "/([^/]+)\\.pdf$"
         },
-        officialTitle: { selector: ":scope" },
+        officialTitle: { selector: "span:first-child" },
         officialUrl: { selector: ":scope", attribute: "href" },
         locationRaw: { value: "中国" }
       },
@@ -223,6 +225,7 @@ const REPRESENTATIVE_CONFIGS: Record<string, RepresentativeSourceConfig> = {
     adapterId: "html-table",
     table: {
       rowSelector: "#search-results-list li",
+      completenessProof: { kind: "OFFICIAL_TOTAL_PAGES" },
       pagination: {
         totalPagesSelector: "#search-results",
         totalPagesAttribute: "data-total-pages",
@@ -242,6 +245,7 @@ const REPRESENTATIVE_CONFIGS: Record<string, RepresentativeSourceConfig> = {
     adapterId: "html-table",
     table: {
       rowSelector: ".attrax-vacancy-tile",
+      completenessProof: { kind: "OFFICIAL_TOTAL_PAGES" },
       pagination: {
         totalPagesSelector: ".attrax-pagination__results-of--2",
         totalPagesAttribute: "data-total-pages",
@@ -272,6 +276,20 @@ const REPRESENTATIVE_CONFIGS: Record<string, RepresentativeSourceConfig> = {
     adapterId: "html-table",
     table: {
       rowSelector: "table.views-table tbody tr",
+      completenessProof: {
+        kind: "OFFICIAL_TOTAL_PAGES",
+        sourcePolicy: "NOVARTIS_CHINA_SLIDING_WINDOW_V1"
+      },
+      pagination: {
+        totalPagesSelector: ".pagination .page-link[title*='out of'][title*='pages']",
+        totalPagesAttribute: "title",
+        totalPagesPattern: "out of\\s+([1-9]\\d*)\\s+pages",
+        totalPagesMode: "max",
+        pageSearchParam: "page",
+        pageNumberOffset: -1,
+        maxPages: 20,
+        officialWindowMode: "NOVARTIS_PAGE_WINDOW_V1"
+      },
       fields: {
         officialTitle: { selector: "td.views-field-field-job-title a" },
         officialUrl: {
@@ -286,6 +304,7 @@ const REPRESENTATIVE_CONFIGS: Record<string, RepresentativeSourceConfig> = {
     adapterId: "html-table",
     table: {
       rowSelector: "table tr:has(td:nth-child(1) a[href*='/socialxq?jobId='])",
+      completenessProof: { kind: "OFFICIAL_TOTAL_PAGES" },
       pagination: {
         totalPagesSelector: ".page a[href*='/social/?PageIndex=']",
         totalPagesAttribute: "href",
@@ -311,7 +330,8 @@ const REPRESENTATIVE_CONFIGS: Record<string, RepresentativeSourceConfig> = {
       category: "1",
       pageSize: 100,
       maxPages: 5,
-      detailPath: "social/detail"
+      detailPath: "social/detail",
+      scopeExclusionProof: "QILU_EXPLICIT_US_ONLY_V1"
     }
   },
   "source-cr-pharma-social": {
@@ -733,7 +753,8 @@ const REPRESENTATIVE_CONFIGS: Record<string, RepresentativeSourceConfig> = {
       category: "1",
       pageSize: 100,
       maxPages: 5,
-      detailPath: "social/detail"
+      detailPath: "social/detail",
+      scopeExclusionProof: "THREESBIO_XIANYANG_HOMOGRAPH_V1"
     }
   },
   "source-tianjin-pharma-social": {
@@ -764,13 +785,20 @@ const REPRESENTATIVE_CONFIGS: Record<string, RepresentativeSourceConfig> = {
     adapterId: "html-table",
     table: {
       rowSelector: "#searchresults tbody tr",
+      completenessProof: {
+        kind: "OFFICIAL_TOTAL_PAGES",
+        sourcePolicy: "BAYER_CHINA_SUCCESSFACTORS_V1"
+      },
       pagination: {
-        totalPagesSelector: ".pagination-current",
-        totalPagesAttribute: "max",
-        pageSearchParam: "page",
-        maxPages: 1,
+        totalPagesSelector: "#searchresults[aria-label]",
+        totalPagesAttribute: "aria-label",
+        totalPagesPattern: "共\\s*([1-9]\\d*)\\s*页",
+        pageSearchParam: "startrow",
+        pageSearchParamMode: "offset",
+        pageSize: 10,
+        maxPages: 100,
         expectedJobCountSelector: ".paginationLabel",
-        expectedJobCountPattern: "\\/\\s*(\\d+)"
+        expectedJobCountPattern: "\\s*(\\d+)\\s*$"
       },
       fields: {
         officialTitle: { selector: ".jobTitle.hidden-phone a.jobTitle-link" },
@@ -786,6 +814,7 @@ const REPRESENTATIVE_CONFIGS: Record<string, RepresentativeSourceConfig> = {
     adapterId: "html-table",
     table: {
       rowSelector: "#search-results-list li:has(button.js-save-job-btn)",
+      completenessProof: { kind: "CONFIGURED_CHANNEL_TRAVERSAL" },
       pagination: {
         totalPagesSelector: "#search-results",
         totalPagesAttribute: "data-total-pages",
@@ -844,6 +873,7 @@ const REPRESENTATIVE_CONFIGS: Record<string, RepresentativeSourceConfig> = {
     adapterId: "html-table",
     table: {
       rowSelector: ".jobsTable tr:not(.title)",
+      completenessProof: { kind: "OFFICIAL_TOTAL_PAGES" },
       pagination: {
         totalPagesSelector: "a[href*='PageIndex=']:not([href*='PageIndex=0'])",
         totalPagesAttribute: "href",
@@ -896,6 +926,7 @@ const REPRESENTATIVE_CONFIGS: Record<string, RepresentativeSourceConfig> = {
     adapterId: "html-table",
     table: {
       rowSelector: ".jobsTable tr:not(.title)",
+      completenessProof: { kind: "OFFICIAL_TOTAL_PAGES" },
       pagination: {
         totalPagesSelector: "a[href*='PageIndex=']:not([href*='PageIndex=0'])",
         totalPagesAttribute: "href",
@@ -919,6 +950,7 @@ const REPRESENTATIVE_CONFIGS: Record<string, RepresentativeSourceConfig> = {
     officialJsonFetch: {
       kind: "beisen-zhiye-2022",
       geographyScope: "DOMESTIC_OFFICIAL_TENANT",
+      mixedLocationPolicy: "INCLUDE_MAINLAND_JAPAN_ALTERNATIVES",
       category: "1",
       pageSize: 100,
       maxPages: 5,
@@ -942,6 +974,7 @@ const REPRESENTATIVE_CONFIGS: Record<string, RepresentativeSourceConfig> = {
     adapterId: "html-table",
     table: {
       rowSelector: ".position-list-body .position-item",
+      completenessProof: { kind: "CONFIGURED_CHANNEL_TRAVERSAL" },
       pagination: {
         totalPagesSelector: "#pageTurnUl li:first-child",
         totalPagesAttribute: "data-total-pages",
@@ -1027,6 +1060,7 @@ const REPRESENTATIVE_CONFIGS: Record<string, RepresentativeSourceConfig> = {
     adapterId: "html-table",
     table: {
       rowSelector: "#search-results-list li:has(button.js-save-job-btn)",
+      completenessProof: { kind: "CONFIGURED_CHANNEL_TRAVERSAL" },
       pagination: {
         totalPagesSelector: "#search-results",
         totalPagesAttribute: "data-total-pages",
@@ -1117,6 +1151,7 @@ const REPRESENTATIVE_CONFIGS: Record<string, RepresentativeSourceConfig> = {
     adapterId: "html-table",
     table: {
       rowSelector: "a[href^='https://jobs.csl.com/en/jobs/']",
+      completenessProof: { kind: "OFFICIAL_TOTAL_PAGES" },
       pagination: {
         totalPagesSelector: "body",
         totalPagesAttribute: "data-total-pages",
@@ -1149,7 +1184,8 @@ const REPRESENTATIVE_CONFIGS: Record<string, RepresentativeSourceConfig> = {
       countryTermUuid: "2f829192-01a9-4909-b729-baab0b0bad0c",
       pageSize: 10,
       maxPages: 50,
-      detailBaseUrl: "https://www.sandoz.com"
+      detailBaseUrl: "https://www.sandoz.com",
+      cityScopePolicy: "SANDOZ_CHINA_TAXONOMY_LOCATION_V1"
     }
   },
   "source-lilly-china-social": {
@@ -1182,13 +1218,15 @@ const REPRESENTATIVE_CONFIGS: Record<string, RepresentativeSourceConfig> = {
     officialJsonFetch: {
       kind: "novo-nordisk",
       endpointUrl:
-        "https://www.novonordisk.com/bin/nncorp/careersearch?keyword=&country=China%20Mainland&category=&locale=en"
+        "https://www.novonordisk.com/bin/nncorp/careersearch?keyword=&country=China%20Mainland&category=&locale=en",
+      cityScopePolicy: "NOVO_CHINA_MAINLAND_JOB_CITY_V1"
     }
   },
   "source-boehringer-ingelheim-china-social": {
     adapterId: "html-table",
     table: {
       rowSelector: "#job-tile-list li.job-tile",
+      completenessProof: { kind: "OFFICIAL_TOTAL_PAGES" },
       pagination: {
         totalPagesSelector: "#tile-search-results-label",
         totalPagesAttribute: "data-total-pages",
@@ -1320,7 +1358,8 @@ const REPRESENTATIVE_CONFIGS: Record<string, RepresentativeSourceConfig> = {
       detailBaseUrl: "https://www.xiuzheng.com/#/recruitDetail",
       defaultLocationRaw: "未披露",
       pageSize: 10,
-      maxPages: 5
+      maxPages: 5,
+      scopeExclusionProof: "XIUZHENG_NON_RECRUITMENT_TITLE_V1"
     }
   },
   "source-joincare-social": {
@@ -1339,11 +1378,14 @@ const REPRESENTATIVE_CONFIGS: Record<string, RepresentativeSourceConfig> = {
     adapterId: "html-table",
     table: {
       rowSelector: ".join2 .tab-content > .main:first-child > .ev",
+      completenessProof: {
+        kind: "STATIC_PUBLIC_LIST",
+        sourcePolicy: "APELOA_SOCIAL_TABS_V1"
+      },
       staticPublicList: {
         containerSelector: ".join2 .tab-content > .main:first-child",
         nextControlSelector: ".join2 .pagination, .join2 a[rel='next'], .join2 [data-page]",
-        excludedPartitionSelectors: [".join2 .tab-content > .main:nth-child(2)"],
-        allowRedactedPositivePartial: true
+        excludedPartitionSelectors: [".join2 .tab-content > .main:nth-child(2)"]
       },
       fields: {
         sourceJobIdParts: [
@@ -1393,6 +1435,7 @@ const REPRESENTATIVE_CONFIGS: Record<string, RepresentativeSourceConfig> = {
     adapterId: "html-table",
     table: {
       rowSelector: "a[href*='/menu54/newsDetail/']:contains('招聘')",
+      completenessProof: { kind: "OFFICIAL_TOTAL_PAGES" },
       pagination: {
         totalPagesSelector: "body",
         totalPagesAttribute: "data-total-pages",
@@ -1471,7 +1514,8 @@ const REPRESENTATIVE_CONFIGS: Record<string, RepresentativeSourceConfig> = {
       category: "1",
       pageSize: 100,
       maxPages: 5,
-      detailPath: "Social/detail"
+      detailPath: "Social/detail",
+      scopeExclusionProof: "DONGYANGGUANG_EXPLICIT_FOREIGN_ONLY_V1"
     }
   }
 };

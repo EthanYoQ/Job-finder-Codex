@@ -405,20 +405,35 @@ function evidenceFor(plan: SourceCrawlPlan, pageCount: 1 | 2): {
   }
   for (let sequence = 0; sequence < groups.length; sequence += 1) {
     const pageIds = groups[sequence]!;
-    const body = plan.adapterId === "official-json" && plan.moka
-      ? JSON.stringify(mokaEncryptedResponse({
-          success: true,
-          data: {
-            offset: sequence * size,
-            jobStats: { total: ids.length },
-            jobs: pageIds.map((id) => ({
-              id,
-              title: `Official role ${id}`,
-              locations: [{ cityName: "上海", country: "中国" }]
-            }))
-          }
-        }))
-      : JSON.stringify({ total: ids.length, ids: pageIds });
+    const officialStrategy = plan.adapterId === "official-json" ? plan.officialJsonFetch : undefined;
+    let body: string;
+    if (plan.adapterId === "official-json" && plan.moka) {
+      body = JSON.stringify(mokaEncryptedResponse({
+        success: true,
+        data: {
+          offset: sequence * size,
+          jobStats: { total: ids.length },
+          jobs: pageIds.map((id) => ({
+            id,
+            title: `Official role ${id}`,
+            locations: [{ cityName: "上海", country: "中国" }]
+          }))
+        }
+      }));
+    } else if (plan.adapterId === "official-json" && plan.workday) {
+      body = JSON.stringify({ total: ids.length, jobPostings: pageIds.map((id) => ({
+        title: `Official role ${id}`, externalPath: `/job/China/${id}`,
+        locationsText: "Shanghai, China", bulletFields: [id]
+      })) });
+    } else if (officialStrategy?.kind === "phenom") {
+      body = JSON.stringify({ refineSearch: { totalHits: ids.length, data: {
+        jobs: pageIds.map((id) => ({ jobId: id, title: `Official role ${id}`,
+          country: officialStrategy.countryFilter ?? "China" })),
+        aggregations: []
+      } } });
+    } else {
+      body = JSON.stringify({ total: ids.length, ids: pageIds });
+    }
     const logicalKey = `page-${sequence + 1}`;
     const coordinates = pageCoordinates(plan, sequence);
     const locator = requestContractLocator(plan, coordinates, "json:total");

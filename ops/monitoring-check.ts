@@ -9,6 +9,12 @@ import { readLatestCrawlAttempt } from "../src/crawler/crawlAttemptEvidence";
 import { loadProductionStagedMonitoringIdentity } from "../src/crawler/stagedMonitoringIdentity";
 import { resolveStagedCrawlEvidencePaths } from "../src/crawler/stagedCrawlEvidencePaths";
 import { deliverOpsAlerts } from "../src/server/alertDelivery";
+import { readInitialQualificationPauseBundle } from "../src/crawler/initialQualificationPauseBundle";
+import { loadProductionInitialQualificationPauseCandidateStatus } from "../src/crawler/initialQualificationPauseCandidate";
+import {
+  acknowledgeDeliveredOneShotAlerts,
+  filterAcknowledgedOneShotAlerts
+} from "../src/server/oneShotAlertDelivery";
 
 interface JsonMap {
   [key: string]: unknown;
@@ -17,7 +23,11 @@ interface JsonMap {
 void main();
 
 async function main(): Promise<void> {
-  const { attemptDir: crawlAttemptDir, summaryPath: crawlSummaryPath } = resolveStagedCrawlEvidencePaths();
+  const {
+    attemptDir: crawlAttemptDir,
+    summaryPath: crawlSummaryPath,
+    initialQualificationPausePath
+  } = resolveStagedCrawlEvidencePaths();
   const healthUrl = process.env.HEALTHCHECK_URL ?? "http://127.0.0.1:3000/healthz";
   const databaseUrl = process.env.DATABASE_URL;
   const backupDir = process.env.BACKUP_DIR ?? `${process.cwd()}/backups`;
@@ -25,6 +35,7 @@ async function main(): Promise<void> {
     process.env.READINESS_SUMMARY_PATH ?? `${process.cwd()}/var/readiness-summary.json`;
   const certificateExpiresAt = process.env.CERTIFICATE_EXPIRES_AT;
   const now = process.env.MONITORING_NOW ? new Date(process.env.MONITORING_NOW) : new Date();
+  const monitorStateDir = process.env.MONITOR_STATE_DIR ?? `${process.cwd()}/var/monitor-state`;
 
   let expectedIdentity: CrawlEvidenceIdentity | undefined;
   try {
@@ -41,35 +52,59 @@ async function main(): Promise<void> {
     readBackupEvidence(backupDir),
     readOptionalJson(readinessSummaryPath)
   ]);
-  const crawlEvidence = expectedIdentity
+  const pauseBundle = await readInitialQualificationPauseBundle({
+    pausePath: initialQualificationPausePath,
+    summaryPath: crawlSummaryPath,
+    attemptDir: crawlAttemptDir,
+    now,
+    ...(expectedIdentity ? { activeIdentity: expectedIdentity } : {}),
+    loadCandidateStatus: (evidence) =>
+      loadProductionInitialQualificationPauseCandidateStatus(databaseUrl, evidence)
+  });
+  const monitoringIdentity = pauseBundle.state === "PAUSED"
+    ? pauseBundle.identity
+    : expectedIdentity;
+  const crawlEvidence = monitoringIdentity
     ? await readCrawlSummaryFile(crawlSummaryPath, {
         now,
         maxAgeHours: Number(process.env.CRAWL_SUMMARY_MAX_AGE_HOURS ?? DEFAULT_CRAWL_SUMMARY_MAX_AGE_HOURS),
         allowIncompleteScheduled: true,
-        expectedIdentity
+        expectedIdentity: monitoringIdentity
       })
     : { state: "INVALID" as const };
   const crawlSummary = crawlEvidence.state === "VALID" ? crawlEvidence.summary : undefined;
-  const attemptEvidence = expectedIdentity
+  const attemptEvidence = monitoringIdentity
     ? await readLatestCrawlAttempt(crawlAttemptDir, {
         now,
-        expectedIdentity,
+        expectedIdentity: monitoringIdentity,
         expectedCanonicalSummary: crawlEvidence.state === "VALID" || crawlEvidence.state === "STALE"
           ? { batchId: crawlEvidence.summary.batchId!, summarySha256: crawlEvidence.summarySha256 }
           : undefined
       })
     : { state: "INVALID" as const };
 
-  const alerts = evaluateOpsAlerts({
+  const candidateAlerts = evaluateOpsAlerts({
     now,
     health,
     backup: backupEvidence,
     crawl: {
-      authorityState: expectedIdentity ? "VALID" : "INVALID",
+      authorityState: pauseBundle.state === "PAUSED"
+        ? "PAUSED"
+        : expectedIdentity && (pauseBundle.state === "MISSING" || pauseBundle.state === "STALE_FOR_ACTIVE_IDENTITY")
+          ? "VALID"
+          : "INVALID",
       attemptState: attemptEvidence.state,
       summaryState: crawlEvidence.state,
       globalSuccessRate: readNumber(crawlSummary, "globalSuccessRate"),
-      consecutiveFailuresByCompany: toFailureMap(readRecord(crawlSummary, "consecutiveFailuresByCompany"))
+      consecutiveFailuresByCompany: toFailureMap(readRecord(crawlSummary, "consecutiveFailuresByCompany")),
+      initialQualificationPause: pauseBundle.state === "PAUSED" ? {
+        notificationKey: pauseBundle.evidence.notificationKey,
+        releaseCandidateId: pauseBundle.evidence.releaseCandidateId,
+        batchId: pauseBundle.evidence.batchId,
+        completedRoundCount: pauseBundle.evidence.completedRoundCount,
+        stableCompanyCount: pauseBundle.evidence.stableCompanyCount,
+        minimumStableCompanyCount: pauseBundle.evidence.minimumStableCompanyCount
+      } : undefined
     },
     certificate: {
       expiresAt: certificateExpiresAt ?? readString(readinessSummary, "certificateExpiresAt")
@@ -85,11 +120,20 @@ async function main(): Promise<void> {
   } satisfies OpsAlertInput);
 
   if (dbReachable === false) {
-    alerts.push({
+    candidateAlerts.push({
       code: "DATABASE_UNREACHABLE",
       severity: "critical",
       message: "Authenticated PostgreSQL readiness check failed."
     });
+  }
+
+  let alerts: typeof candidateAlerts;
+  try {
+    alerts = await filterAcknowledgedOneShotAlerts(candidateAlerts, monitorStateDir);
+  } catch {
+    console.error("[critical] ALERT_DEDUPLICATION_STATE_INVALID: Operations alert state could not be verified.");
+    process.exitCode = 1;
+    return;
   }
 
   for (const alert of alerts) {
@@ -101,6 +145,7 @@ async function main(): Promise<void> {
       endpoint: process.env.ALERT_WEBHOOK_URL,
       allowInsecureHttp: process.env.ALERT_WEBHOOK_ALLOW_HTTP === "1"
     });
+    await acknowledgeDeliveredOneShotAlerts(alerts, monitorStateDir, now);
   } catch {
     console.error("[critical] ALERT_DELIVERY_FAILED: Operations alerts could not be delivered.");
     process.exitCode = 1;

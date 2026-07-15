@@ -4,12 +4,32 @@ import {
   type OfficialJsonHttpResponse
 } from "../../src/crawler/officialJsonSourceFetch";
 import { runSourceCrawl } from "../../src/crawler/runSourceCrawl";
-import type { SourceCrawlPlan } from "../../src/crawler/sourcePlan";
+import {
+  buildStagedSourceCrawlPlans,
+  getPlanBySourceId,
+  type SourceCrawlPlan
+} from "../../src/crawler/sourcePlan";
+import { candidateCompanies } from "../../src/data/companyRegistry";
 
 const capturedAt = "2026-07-11T00:00:00.000Z";
 const entryUrl = "https://careers.example.test/cn/zh/search-results?keywords=China";
 const widgetUrl = "https://careers.example.test/widgets";
 const refNum = "REFNUM-SHOULD-STAY-OPAQUE";
+const gskWidgetUrl = "https://jobs.gsk.com/widgets";
+const GENERIC_LOCATION_PHENOM_SOURCES = [
+  "source-lilly-china-social",
+  "source-organon-china-social",
+  "source-ucb-china-social",
+  "source-roche-china-social",
+  "source-merck-china-social"
+] as const;
+const GENERIC_LOCATION_VALUES = [
+  "Remote",
+  "Multiple Locations",
+  "Various Locations",
+  "Global",
+  "Hybrid"
+] as const;
 
 const plan = {
   adapterId: "official-json",
@@ -44,6 +64,128 @@ const plan = {
 
 function entryHtml(overrides = ""): string {
   return `<script>var phApp={"widgetApiEndpoint":"${widgetUrl}","country":"cn","deviceType":"desktop","locale":"zh_cn","refNum":"${refNum}","pageName":"search-results","pageId":"page18"${overrides}};</script>`;
+}
+
+function gskPlan(): Extract<SourceCrawlPlan, { adapterId: "official-json" }> {
+  const staged = buildStagedSourceCrawlPlans(candidateCompanies);
+  const value = getPlanBySourceId(staged, "source-gsk-china-social");
+  if (value?.adapterId !== "official-json" || value.officialJsonFetch?.kind !== "phenom") {
+    throw new Error("Expected exact staged GSK Phenom plan");
+  }
+  return value;
+}
+
+function gskEntryHtml(): string {
+  return `<script type="application/json">${JSON.stringify({
+    phApp: {
+      widgetApiEndpoint: gskWidgetUrl,
+      country: "cn",
+      deviceType: "desktop",
+      locale: "zh_cn",
+      refNum,
+      pageName: "search-results",
+      pageId: "page18"
+    }
+  })}</script>`;
+}
+
+function gskJob(overrides: Record<string, unknown> = {}): Record<string, unknown> {
+  return job("GSK-MULTI-CN", {
+    country: "Singapore",
+    location: "Singapore",
+    city: "Singapore",
+    multi_location: ["Singapore", "Shanghai, China"],
+    applyUrl: "https://jobs.gsk.com/cn/zh/job/GSK-MULTI-CN",
+    ...overrides
+  });
+}
+
+async function fetchExactGsk(rawJob: Record<string, unknown>) {
+  const stagedPlan = gskPlan();
+  const fetcher = createOfficialJsonSourceFetch({
+    now: () => new Date(capturedAt),
+    http: async (request) => request.method === "POST"
+      ? response(facetPageBody([rawJob], 1, 0, []), gskWidgetUrl, "application/json")
+      : response(gskEntryHtml(), stagedPlan.source.officialEntryUrl, "text/html")
+  });
+  return { stagedPlan, fetched: await fetcher(stagedPlan) };
+}
+
+function exactPhenomPlan(sourceId: string): Extract<SourceCrawlPlan, { adapterId: "official-json" }> {
+  const staged = buildStagedSourceCrawlPlans(candidateCompanies);
+  const value = getPlanBySourceId(staged, sourceId);
+  if (value?.adapterId !== "official-json" || value.officialJsonFetch?.kind !== "phenom") {
+    throw new Error(`Expected exact staged Phenom plan ${sourceId}`);
+  }
+  return value;
+}
+
+function exactPhenomEntryHtml(widgetEndpoint: string): string {
+  return `<script type="application/json">${JSON.stringify({
+    phApp: {
+      widgetApiEndpoint: widgetEndpoint,
+      country: "cn",
+      deviceType: "desktop",
+      locale: "zh_cn",
+      refNum,
+      pageName: "search-results",
+      pageId: "page18"
+    }
+  })}</script>`;
+}
+
+function exactPhenomBodies(
+  stagedPlan: Extract<SourceCrawlPlan, { adapterId: "official-json" }>,
+  rawJob: Record<string, unknown>
+): string[] {
+  const config = stagedPlan.officialJsonFetch;
+  if (config?.kind !== "phenom") throw new Error("Expected exact Phenom config");
+  if (!config.facetScope) return [facetPageBody([rawJob], 1, 0, [])];
+
+  const facet = config.facetScope;
+  const modern = "exclusionFacet" in facet && facet.exclusionFacet !== undefined;
+  const exclusionField = modern ? facet.exclusionFacet.field : "category";
+  const excluded = modern ? facet.exclusionFacet.descriptors : facet.categoryExcludeDescriptors;
+  const allowed = "Professional";
+  const excludedCounts = Object.fromEntries(excluded.map((descriptor) => [descriptor, 1]));
+  const excludedZeroes = Object.fromEntries(excluded.map((descriptor) => [descriptor, 0]));
+  const globalTotal = 1 + excluded.length;
+  const country = facet.countryIncludeDescriptor;
+  const formalJob = { ...rawJob, [exclusionField]: allowed };
+  return [
+    facetPageBody([], globalTotal, 0, [
+      { field: "country", value: { [country]: 1, Belgium: excluded.length } },
+      ...(modern ? [{ field: exclusionField, value: { [allowed]: 1, ...excludedCounts } }] : [])
+    ]),
+    facetPageBody([], 1, 0, [
+      { field: exclusionField, value: { [allowed]: 1, ...excludedZeroes } }
+    ]),
+    facetPageBody([formalJob], 1, 0, [])
+  ];
+}
+
+async function fetchExactPhenomLocation(sourceId: string, location: string) {
+  const stagedPlan = exactPhenomPlan(sourceId);
+  const config = stagedPlan.officialJsonFetch;
+  if (config?.kind !== "phenom") throw new Error("Expected exact Phenom config");
+  const country = config.facetScope?.countryIncludeDescriptor ?? config.countryFilter ?? "China";
+  const widgetEndpoint = new URL("/widgets", stagedPlan.source.officialEntryUrl).toString();
+  const rawJob = {
+    jobSeqNo: `GENERIC-${sourceId}-${location.replace(/[^A-Za-z0-9._-]+/gu, "-")}`,
+    title: `Medical role ${location}`,
+    location,
+    city: location,
+    country,
+    applyUrl: `${config.detailBaseUrl.replace(/\/$/u, "")}/generic-location`
+  };
+  const bodies = exactPhenomBodies(stagedPlan, rawJob);
+  const fetcher = createOfficialJsonSourceFetch({
+    now: () => new Date(capturedAt),
+    http: async (request) => request.method === "POST"
+      ? response(bodies.shift()!, widgetEndpoint, "application/json")
+      : response(exactPhenomEntryHtml(widgetEndpoint), stagedPlan.source.officialEntryUrl, "text/html")
+  });
+  return { stagedPlan, fetched: await fetcher(stagedPlan) };
 }
 
 function response(
@@ -901,6 +1043,176 @@ describe("Phenom evidence instrumentation", () => {
       }
     });
     expect(withoutOpaqueBodies(result)).not.toContain("raw-secret");
+  });
+
+  it("selects an explicit mainland alternative from official multi_location values", async () => {
+    const fetcher = createOfficialJsonSourceFetch({
+      now: () => new Date(capturedAt),
+      http: async (request) => request.method === "POST"
+        ? response(pageBody([job("MULTI-CN", {
+            country: "Singapore",
+            location: "Singapore",
+            city: "Singapore",
+            multi_location: ["Singapore", "Shanghai, China"]
+          })], 1, 0), widgetUrl, "application/json")
+        : response(entryHtml(), entryUrl, "text/html")
+    });
+
+    await expect(fetcher(plan)).resolves.toMatchObject({
+      ok: true,
+      payload: { jobs: [{ sourceJobId: expect.any(String), locationRaw: "Shanghai, China" }] },
+      fetchEvidence: {
+        fetchCounts: { rawCount: 1, parsedCount: 1, validCount: 1, validationDiscardCount: 0 }
+      }
+    });
+  });
+
+  it("publishes the exact staged GSK source when its raw multi_location has one explicit mainland alternative", async () => {
+    const { stagedPlan, fetched } = await fetchExactGsk(gskJob());
+    expect(fetched).toMatchObject({
+      ok: true,
+      payload: { jobs: [{ locationRaw: "Shanghai, China", cities: ["上海"] }] }
+    });
+    const crawled = await runSourceCrawl(stagedPlan, { fetch: async () => fetched });
+    expect(crawled).toMatchObject({
+      status: "SUCCESS",
+      truth: { transportSuccess: true, adapterSuccess: true, completenessVerified: true },
+      observation: { structuredJobCount: 1, completenessStatus: "VERIFIED" },
+      jobs: [{ locationRaw: "Shanghai, China", cities: ["上海"] }]
+    });
+  });
+
+  it.each(GENERIC_LOCATION_PHENOM_SOURCES.flatMap((sourceId) =>
+    GENERIC_LOCATION_VALUES.map((location) => [sourceId, location] as const)
+  ))("rejects exact staged %s when the China record uses generic location %s", async (sourceId, location) => {
+    const { stagedPlan, fetched } = await fetchExactPhenomLocation(sourceId, location);
+    expect(fetched).toMatchObject({
+      ok: false,
+      fetchEvidence: {
+        fetchCounts: { rawCount: 1, validCount: 0, validationDiscardCount: 1 },
+        fetchLosses: [{ details: { code: "OUT_OF_SCOPE" } }]
+      }
+    });
+    const crawled = await runSourceCrawl(stagedPlan, { fetch: async () => fetched });
+    expect(crawled.truth.completenessVerified).toBe(false);
+    expect(crawled.observation.completenessStatus).not.toBe("VERIFIED");
+  });
+
+  it.each(GENERIC_LOCATION_PHENOM_SOURCES.flatMap((sourceId) =>
+    ["Wuxi", "Shenyang", "Qingdao"].map((city) => [sourceId, city] as const)
+  ))("keeps exact staged %s complete for explicit unknown China city %s", async (sourceId, city) => {
+    const stagedPlan = exactPhenomPlan(sourceId);
+    const config = stagedPlan.officialJsonFetch;
+    if (config?.kind !== "phenom") throw new Error("Expected exact Phenom config");
+    const country = config.facetScope?.countryIncludeDescriptor ?? config.countryFilter ?? "China";
+    const location = `${city}, ${country}`;
+    const { fetched } = await fetchExactPhenomLocation(sourceId, location);
+    expect(fetched).toMatchObject({ ok: true, payload: { jobs: [{ locationRaw: location, cities: [city] }] } });
+    const crawled = await runSourceCrawl(stagedPlan, { fetch: async () => fetched });
+    expect(crawled).toMatchObject({
+      status: "SUCCESS",
+      truth: { adapterSuccess: true, completenessVerified: true },
+      observation: { completenessStatus: "VERIFIED" },
+      jobs: [{ locationRaw: location, cities: [city] }]
+    });
+  });
+
+  it.each(GENERIC_LOCATION_PHENOM_SOURCES)(
+    "strict replay rejects generic location evidence for exact staged %s",
+    async (sourceId) => {
+      const stagedPlan = exactPhenomPlan(sourceId);
+      const config = stagedPlan.officialJsonFetch;
+      if (config?.kind !== "phenom") throw new Error("Expected exact Phenom config");
+      const country = config.facetScope?.countryIncludeDescriptor ?? config.countryFilter ?? "China";
+      const { fetched } = await fetchExactPhenomLocation(sourceId, `Wuxi, ${country}`);
+      if (!fetched.ok || !fetched.fetchEvidence) throw new Error("Expected successful Phenom evidence");
+      const forged = {
+        ...fetched,
+        fetchEvidence: {
+          ...fetched.fetchEvidence,
+          artifacts: fetched.fetchEvidence.artifacts.map((artifact) => {
+            if (artifact.logicalKey !== "phenom-page-0000" || typeof artifact.body !== "string") return artifact;
+            const root = JSON.parse(artifact.body) as {
+              refineSearch: { data: { jobs: Array<Record<string, unknown>> } };
+            };
+            root.refineSearch.data.jobs[0] = {
+              ...root.refineSearch.data.jobs[0],
+              location: "Remote",
+              city: "Remote"
+            };
+            return { ...artifact, body: JSON.stringify(root) };
+          })
+        }
+      };
+      const crawled = await runSourceCrawl(stagedPlan, { fetch: async () => forged });
+      expect(crawled.truth.completenessVerified).toBe(false);
+      expect(crawled.observation.completenessStatus).not.toBe("VERIFIED");
+    }
+  );
+
+  it.each(["Wuxi", "Shenyang", "Qingdao"])(
+    "publishes exact staged GSK with a safe official China city fallback for %s",
+    async (city) => {
+      const { stagedPlan, fetched } = await fetchExactGsk(gskJob({
+        multi_location: ["Singapore", `${city}, China`]
+      }));
+      expect(fetched).toMatchObject({
+        ok: true,
+        payload: { jobs: [{ locationRaw: `${city}, China`, cities: [city] }] }
+      });
+      const crawled = await runSourceCrawl(stagedPlan, { fetch: async () => fetched });
+      expect(crawled).toMatchObject({
+        status: "SUCCESS",
+        truth: { transportSuccess: true, adapterSuccess: true, completenessVerified: true },
+        observation: { structuredJobCount: 1, completenessStatus: "VERIFIED" },
+        jobs: [{ locationRaw: `${city}, China`, cities: [city] }]
+      });
+    }
+  );
+
+  it.each([
+    ["foreign-only alternatives", ["Singapore", "Basel, Switzerland"]],
+    ["a mixed ambiguous alternative", ["Singapore", "Shanghai / Singapore"]],
+    ["an unknown alternative", ["Singapore", "Remote"]]
+  ])("does not publish exact staged GSK with %s", async (_label, multiLocation) => {
+    const { stagedPlan, fetched } = await fetchExactGsk(gskJob({ multi_location: multiLocation }));
+    const crawled = await runSourceCrawl(stagedPlan, { fetch: async () => fetched });
+    expect(crawled.truth.completenessVerified).toBe(false);
+    expect(crawled.observation.completenessStatus).not.toBe("VERIFIED");
+  });
+
+  it.each([
+    ["location", { locationRaw: "Beijing, China" }],
+    ["cities", { cities: ["北京"] }]
+  ])("rejects exact staged GSK when final output %s disagrees with raw multi_location", async (_label, override) => {
+    const { stagedPlan, fetched } = await fetchExactGsk(gskJob());
+    if (!fetched.ok || !("payload" in fetched)) throw new Error("Expected exact GSK fetch evidence");
+    const payload = structuredClone(fetched.payload) as { jobs: Array<Record<string, unknown>> };
+    payload.jobs[0] = { ...payload.jobs[0], ...override };
+    const crawled = await runSourceCrawl(stagedPlan, {
+      fetch: async () => ({ ...fetched, payload })
+    });
+    expect(crawled.truth.completenessVerified).toBe(false);
+    expect(crawled.observation.completenessStatus).not.toBe("VERIFIED");
+  });
+
+  it.each([
+    ["company", (value: ReturnType<typeof gskPlan>) => ({
+      ...value,
+      company: { ...value.company, id: "company-transplanted" },
+      source: { ...value.source, companyId: "company-transplanted" }
+    })],
+    ["configuration", (value: ReturnType<typeof gskPlan>) => ({
+      ...value,
+      officialJsonFetch: { ...value.officialJsonFetch!, maxPages: 4 }
+    })]
+  ])("rejects GSK multi_location proof transplanted to another %s", async (_label, transplant) => {
+    const { stagedPlan, fetched } = await fetchExactGsk(gskJob());
+    const crawled = await runSourceCrawl(transplant(stagedPlan) as SourceCrawlPlan, {
+      fetch: async () => fetched
+    });
+    expect(crawled.truth.completenessVerified).toBe(false);
+    expect(crawled.observation.completenessStatus).not.toBe("VERIFIED");
   });
 
   it.each([

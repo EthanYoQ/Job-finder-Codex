@@ -132,6 +132,7 @@ services:
       DATABASE_URL: ${DATABASE_URL:?set DATABASE_URL}
       STAGED_CRAWL_SUMMARY_PATH: /app/outputs/staged-crawl-summary.json
       STAGED_CRAWL_ATTEMPT_DIR: /app/outputs/staged-crawl-attempts
+      STAGED_INITIAL_QUALIFICATION_PAUSE_PATH: /app/outputs/staged-initial-qualification-pause.json
     volumes:
       - type: volume
         source: formal-artifacts
@@ -225,6 +226,28 @@ services:
     networks:
       - internal
 
+  monitor-state-init:
+    build:
+      context: ..
+      dockerfile: Dockerfile
+      args: *release-build-args
+    user: "0:0"
+    restart: "no"
+    network_mode: none
+    read_only: true
+    cap_drop:
+      - ALL
+    cap_add:
+      - CHOWN
+      - FOWNER
+    security_opt:
+      - no-new-privileges:true
+    command: ["install", "-d", "-o", "node", "-g", "node", "-m", "0700", "/app/monitor-state"]
+    volumes:
+      - type: volume
+        source: monitor-state
+        target: /app/monitor-state
+
   monitor:
     build:
       context: ..
@@ -256,11 +279,15 @@ services:
       ALERT_WEBHOOK_ALLOW_HTTP: ${ALERT_WEBHOOK_ALLOW_HTTP:-0}
       STAGED_CRAWL_SUMMARY_PATH: /app/outputs/staged-crawl-summary.json
       STAGED_CRAWL_ATTEMPT_DIR: /app/outputs/staged-crawl-attempts
+      STAGED_INITIAL_QUALIFICATION_PAUSE_PATH: /app/outputs/staged-initial-qualification-pause.json
+      MONITOR_STATE_DIR: /app/monitor-state
     depends_on:
       backup:
         condition: service_healthy
       postgres:
         condition: service_healthy
+      monitor-state-init:
+        condition: service_completed_successfully
       web:
         condition: service_healthy
     volumes:
@@ -272,6 +299,9 @@ services:
         source: backup-data
         target: /backups
         read_only: true
+      - type: volume
+        source: monitor-state
+        target: /app/monitor-state
     networks:
       - internal
 
@@ -279,6 +309,7 @@ volumes:
   postgres-data:
   backup-data:
   formal-artifacts:
+  monitor-state:
 
 networks:
   internal:

@@ -132,6 +132,29 @@ describe("Jobsyn Solr evidence instrumentation", () => {
     expect(result).toMatchObject({ ok: true, fetchEvidence: { fetchCounts: { rawCount: 1, parsedCount: 1, validCount: 0, validationDiscardCount: 1 }, fetchLosses: [{ details: { code: "UNSAFE_OFFICIAL_URL" } }] } });
   });
 
+  it("preserves an official Unicode title slug as one encoded path segment", async () => {
+    const result = await createOfficialJsonSourceFetch({
+      now: () => new Date(NOW),
+      http: async (request) => response(body(1, [row("unicode", {
+        title_exact: "產品專員",
+        title_slug: "產品專員"
+      })], 1, 1), request.url)
+    })(plan());
+
+    expect(result).toMatchObject({
+      ok: true,
+      payload: {
+        jobs: [{
+          title: "產品專員",
+          officialUrl: "https://grifols.jobs/shanghai-china/%E7%94%A2%E5%93%81%E5%B0%88%E5%93%A1/unicode/job/"
+        }]
+      },
+      fetchEvidence: {
+        fetchCounts: { rawCount: 1, parsedCount: 1, validCount: 1, validationDiscardCount: 0 }
+      }
+    });
+  });
+
   it.each([
     ["total below raw and valid", body(1, [row("a"), row("b")], 1, 1)],
     ["zero total with a nonempty page", body(1, [row("a")], 0, 1)],

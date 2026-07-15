@@ -6,6 +6,7 @@ import { describe, expect, expectTypeOf, it, vi } from "vitest";
 import {
   runP0CrawlBatch,
   resolveP0CrawlBatchTerminalStatus,
+  summarizePersistedBatchSourceResults,
   type P0CrawlBatchResult,
   type RunP0CrawlBatchDeps
 } from "../../src/crawler/runCrawlBatch";
@@ -15,6 +16,7 @@ import type { JobSnapshot } from "../../src/crawler/lifecycle";
 import { candidateCompanies } from "../../src/data/companyRegistry";
 import {
   executeAtomicSourceEvidenceCommit,
+  type AtomicSourceEvidenceCommit,
   type PrismaIngestionTransactionClient
 } from "../../src/db/ingestionRepository";
 import { canonicalReleaseMembersSha256, releaseMembersFromPlans,
@@ -258,6 +260,7 @@ function fakeDb() {
     pendingSourceResults: [] as unknown[],
     terminalSourceResults: [] as unknown[]
   };
+  const sourceResults = new Map<string, Record<string, unknown>>();
 
   const crawlObservation = {
     create: vi.fn((args: unknown) => {
@@ -273,14 +276,30 @@ function fakeDb() {
   };
   const terminalUpdateMany = vi.fn(async (args: unknown) => {
     calls.terminalSourceResults.push(args);
+    const update = args as { where: Record<string, unknown>; data: Record<string, unknown> };
+    const id = String(update.where.id ?? "");
+    const row = sourceResults.get(id);
+    if (!row || Object.entries(update.where).some(([key, value]) => row[key] !== value)) {
+      return { count: 0 };
+    }
+    Object.assign(row, update.data);
     return { count: 1 };
   });
+
+  const persistAtomicSourceResult = (result: AtomicSourceEvidenceCommit["sourceResult"]): void => {
+    const row = sourceResults.get(result.id);
+    if (!row || row.atomicCommitState !== "PENDING") {
+      throw new Error("Expected matching fake PENDING source result");
+    }
+    Object.assign(row, result);
+  };
 
   return {
     calls,
     createBatchId: () => "batch-1",
     $transaction: async <T>(
-      operation: (transaction: PrismaIngestionTransactionClient) => Promise<T>
+      operation: (transaction: PrismaIngestionTransactionClient) => Promise<T>,
+      _options?: { maxWait?: number; timeout?: number }
     ): Promise<T> => operation({
       $queryRawUnsafe: async (_sql: string, ...values: unknown[]) => [{ id: values[0] }],
       crawlObservation,
@@ -294,10 +313,18 @@ function fakeDb() {
       crawlBatchSourceResult: {
         create: async (args: unknown) => {
           calls.pendingSourceResults.push(args);
+          const data = { ...(args as { data: Record<string, unknown> }).data };
+          sourceResults.set(String(data.id), data);
           return args;
         },
         updateMany: terminalUpdateMany
-      }
+      },
+      evidenceArtifact: { create: async (args: unknown) => args },
+      paginationEvidence: { create: async (args: unknown) => args },
+      lossLedgerEntry: { create: async (args: unknown) => args },
+      transportAttemptEvidence: { create: async (args: unknown) => args },
+      transportAttemptArtifact: { create: async (args: unknown) => args },
+      lifecycleSetEvidenceMember: { create: async (args: unknown) => args }
     } as never),
     crawlBatch: {
       create: vi.fn((args: unknown) => {
@@ -309,13 +336,301 @@ function fakeDb() {
         return Promise.resolve(args);
       })
     },
+    crawlBatchSourceResult: {
+      findUnique: vi.fn(async (args: { where: { id: string } }) => {
+        const row = sourceResults.get(args.where.id);
+        return row ? { ...row } : null;
+      }),
+      findMany: vi.fn(async (args: { where: { releaseCandidateId: string; batchId: string } }) =>
+        [...sourceResults.values()]
+          .filter((row) => row.releaseCandidateId === args.where.releaseCandidateId &&
+            row.batchId === args.where.batchId)
+          .sort((left, right) => String(left.sourceId).localeCompare(String(right.sourceId)))
+          .map((row) => ({
+            sourceId: row.sourceId,
+            transportState: row.transportState,
+            adapterState: row.adapterState,
+            completenessState: row.completenessState,
+            atomicCommitState: row.atomicCommitState,
+            failureCode: row.failureCode
+          }))
+      )
+    },
     crawlObservation,
     job,
-    terminalUpdateMany
+    terminalUpdateMany,
+    persistAtomicSourceResult
   };
 }
 
 describe("runP0CrawlBatch", () => {
+  it("derives terminal counters from persisted source rows instead of stale process counters", () => {
+    const rows = [
+      ...Array.from({ length: 13 }, (_, index) => ({
+        sourceId: `verified-${index}`,
+        transportState: "SUCCEEDED" as const,
+        adapterState: "SUCCEEDED" as const,
+        completenessState: "VERIFIED" as const,
+        atomicCommitState: "COMMITTED" as const,
+        failureCode: null
+      })),
+      ...Array.from({ length: 31 }, (_, index) => ({
+        sourceId: `blocked-${index}`,
+        transportState: "SUCCEEDED" as const,
+        adapterState: "SUCCEEDED" as const,
+        completenessState: "INCOMPLETE" as const,
+        atomicCommitState: "COMMITTED" as const,
+        failureCode: null
+      })),
+      ...Array.from({ length: 5 }, (_, index) => ({
+        sourceId: `transport-${index}`,
+        transportState: "FAILED" as const,
+        adapterState: "SKIPPED" as const,
+        completenessState: "FAILED" as const,
+        atomicCommitState: "NOT_ATTEMPTED" as const,
+        failureCode: "SOURCE_TRANSPORT_FAILED"
+      })),
+      ...Array.from({ length: 2 }, (_, index) => ({
+        sourceId: `atomic-${index}`,
+        transportState: "SUCCEEDED" as const,
+        adapterState: "SUCCEEDED" as const,
+        completenessState: "FAILED" as const,
+        atomicCommitState: "ROLLED_BACK" as const,
+        failureCode: "ATOMIC_EVIDENCE_TRANSACTION_TIMEOUT"
+      }))
+    ];
+
+    expect(summarizePersistedBatchSourceResults(rows.map((row) => row.sourceId), rows)).toMatchObject({
+      dueSourceCount: 51,
+      transportSuccessfulSourceCount: 46,
+      transportFailedSourceCount: 5,
+      adapterSuccessfulSourceCount: 46,
+      adapterFailedSourceCount: 0,
+      completenessVerifiedSourceCount: 13,
+      completenessIncompleteSourceCount: 31,
+      atomicCommittedSourceCount: 44,
+      atomicFailedSourceCount: 2,
+      successfulSourceCount: 13,
+      failedSourceCount: 7,
+      blockedSourceCount: 31,
+      skippedSourceCount: 0
+    });
+  });
+
+  it("recovers a commit-boundary timeout only when the persisted COMMITTED result matches exactly", async () => {
+    const plan = planFor("source-roche-china-social");
+    const db = fakeDb();
+    const p2028 = Object.assign(new Error("must not be persisted"), { code: "P2028" });
+    const orphanLedger = vi.fn(async () => undefined);
+    const inspectAtomicCommitOutcome = vi.fn(async () => ({ state: "COMMITTED_EXACT" as const }));
+    const executeAtomicCommit = vi.fn(async () => { throw p2028; });
+    const readPersistedBatchSourceResults = vi.fn(async () => [{
+      sourceId: plan.source.id,
+      transportState: "SUCCEEDED" as const,
+      adapterState: "SUCCEEDED" as const,
+      completenessState: "VERIFIED" as const,
+      atomicCommitState: "COMMITTED" as const,
+      failureCode: null
+    }]);
+
+    const result = await runP0CrawlBatch([plan], {
+      db,
+      fetch: async () => strictSuccessfulFetch(plan),
+      now: NOW,
+      force: true,
+      identity: identityForPlans([plan]),
+      ...inMemoryArchiveDeps(),
+      executeAtomicCommit,
+      inspectAtomicCommitOutcome,
+      readPersistedBatchSourceResults,
+      recordOrphanedArtifacts: orphanLedger,
+      getPreviousJobs: async () => [],
+      getRecentObservations: async () => [],
+      isBaselineCompleted: async () => true
+    });
+
+    expect(result).toMatchObject({
+      status: "SUCCESS",
+      completenessVerifiedSourceCount: 1,
+      atomicCommittedSourceCount: 1,
+      failedSourceCount: 0
+    });
+    expect(executeAtomicCommit).toHaveBeenCalledOnce();
+    expect(inspectAtomicCommitOutcome).toHaveBeenCalledOnce();
+    expect(orphanLedger).not.toHaveBeenCalled();
+    expect(db.calls.terminalSourceResults).toEqual([]);
+  });
+
+  it("classifies a confirmed PENDING timeout safely before orphaning and rollback", async () => {
+    const plan = planFor("source-roche-china-social");
+    const db = fakeDb();
+    const p2028 = Object.assign(new Error("authorization: Bearer must-not-leak"), { code: "P2028" });
+    const orphanLedger = vi.fn(async () => undefined);
+
+    const result = await runP0CrawlBatch([plan], {
+      db,
+      fetch: async () => strictSuccessfulFetch(plan),
+      now: NOW,
+      force: true,
+      identity: identityForPlans([plan]),
+      ...inMemoryArchiveDeps(),
+      executeAtomicCommit: vi.fn(async () => { throw p2028; }),
+      inspectAtomicCommitOutcome: async () => ({ state: "PENDING" }),
+      readPersistedBatchSourceResults: async () => [{
+        sourceId: plan.source.id,
+        transportState: "SUCCEEDED",
+        adapterState: "SUCCEEDED",
+        completenessState: "FAILED",
+        atomicCommitState: "ROLLED_BACK",
+        failureCode: "ATOMIC_EVIDENCE_TRANSACTION_TIMEOUT"
+      }],
+      recordOrphanedArtifacts: orphanLedger,
+      getPreviousJobs: async () => [],
+      getRecentObservations: async () => [],
+      isBaselineCompleted: async () => true
+    });
+
+    expect(result).toMatchObject({ status: "FAILED", atomicFailedSourceCount: 1, failedSourceCount: 1 });
+    expect(orphanLedger).toHaveBeenCalledOnce();
+    expect(db.calls.terminalSourceResults).toContainEqual(expect.objectContaining({
+      data: expect.objectContaining({
+        failureCode: "ATOMIC_EVIDENCE_TRANSACTION_TIMEOUT",
+        failureReason: "Atomic evidence processing failed"
+      })
+    }));
+    expect(JSON.stringify(db.calls)).not.toContain("must-not-leak");
+  });
+
+  it.each(["CONFLICT", "INSPECTION_THROW"] as const)(
+    "fails closed without orphaning when commit outcome inspection returns %s",
+    async (inspectionCase) => {
+      const plan = planFor("source-roche-china-social");
+      const db = fakeDb();
+      const orphanLedger = vi.fn(async () => undefined);
+      const rejection = await captureRejection(() => runP0CrawlBatch([plan], {
+        db,
+        fetch: async () => strictSuccessfulFetch(plan),
+        now: NOW,
+        force: true,
+        identity: identityForPlans([plan]),
+        ...inMemoryArchiveDeps(),
+        executeAtomicCommit: async () => { throw Object.assign(new Error("private commit detail"), { code: "P2028" }); },
+        inspectAtomicCommitOutcome: async () => {
+          if (inspectionCase === "INSPECTION_THROW") throw new Error("private inspection detail");
+          return { state: "CONFLICT" };
+        },
+        readPersistedBatchSourceResults: async () => [{ sourceId: plan.source.id,
+          transportState: "SUCCEEDED", adapterState: "SUCCEEDED", completenessState: "VERIFIED",
+          atomicCommitState: "COMMITTED", failureCode: null }],
+        recordOrphanedArtifacts: orphanLedger,
+        getPreviousJobs: async () => [],
+        getRecentObservations: async () => [],
+        isBaselineCompleted: async () => true
+      }));
+
+      expect(rejection).toMatchObject({ code: "ATOMIC_COMMIT_OUTCOME_UNVERIFIED" });
+      expect(orphanLedger).not.toHaveBeenCalled();
+      expect(db.calls.terminalSourceResults).toEqual([]);
+      expect(db.calls.batchesUpdated).toContainEqual(expect.objectContaining({
+        data: expect.objectContaining({ status: "FAILED" })
+      }));
+      expect(JSON.stringify(db.calls)).not.toMatch(/private commit detail|private inspection detail/);
+    }
+  );
+
+  it("does not orphan artifacts when a PENDING result concurrently becomes COMMITTED before rollback", async () => {
+    const plan = planFor("source-roche-china-social");
+    const db = fakeDb();
+    const orphanLedger = vi.fn(async () => undefined);
+    let attemptedCommit: AtomicSourceEvidenceCommit | undefined;
+    db.terminalUpdateMany.mockImplementationOnce(async () => {
+      if (!attemptedCommit) throw new Error("Expected attempted commit");
+      db.persistAtomicSourceResult(attemptedCommit.sourceResult);
+      return { count: 0 };
+    });
+
+    const rejection = await captureRejection(() => runP0CrawlBatch([plan], {
+      db,
+      fetch: async () => strictSuccessfulFetch(plan),
+      now: NOW,
+      force: true,
+      identity: identityForPlans([plan]),
+      ...inMemoryArchiveDeps(),
+      executeAtomicCommit: async (commit) => {
+        attemptedCommit = commit;
+        throw Object.assign(new Error("commit boundary timeout"), { code: "P2028" });
+      },
+      inspectAtomicCommitOutcome: async () => ({ state: "PENDING" }),
+      recordOrphanedArtifacts: orphanLedger,
+      getPreviousJobs: async () => [],
+      getRecentObservations: async () => [],
+      isBaselineCompleted: async () => true
+    }));
+
+    expect(rejection).toMatchObject({ code: "ATOMIC_COMMIT_OUTCOME_UNVERIFIED" });
+    expect(orphanLedger).not.toHaveBeenCalled();
+    expect(db.calls.batchesUpdated).toContainEqual(expect.objectContaining({
+      data: expect.objectContaining({ status: "FAILED" })
+    }));
+  });
+
+  it("uses contradictory persisted source rows instead of successful in-process counters", async () => {
+    const plan = planFor("source-roche-china-social");
+    const db = fakeDb();
+    const result = await runP0CrawlBatch([plan], {
+      db,
+      fetch: async () => strictSuccessfulFetch(plan),
+      now: NOW,
+      force: true,
+      identity: identityForPlans([plan]),
+      ...inMemoryArchiveDeps(),
+      executeAtomicCommit: async (commit) => db.persistAtomicSourceResult(commit.sourceResult),
+      readPersistedBatchSourceResults: async () => [{ sourceId: plan.source.id,
+        transportState: "FAILED", adapterState: "SKIPPED", completenessState: "FAILED",
+        atomicCommitState: "NOT_ATTEMPTED", failureCode: "SOURCE_TRANSPORT_FAILED" }],
+      getPreviousJobs: async () => [],
+      getRecentObservations: async () => [],
+      isBaselineCompleted: async () => true
+    });
+
+    expect(result).toMatchObject({ status: "INCOMPLETE", transportSuccessfulSourceCount: 0,
+      transportFailedSourceCount: 1, atomicCommittedSourceCount: 0, failedSourceCount: 1 });
+    expect(db.calls.batchesUpdated).toContainEqual(expect.objectContaining({ data: expect.objectContaining({
+      transportSucceededCount: 0, transportFailedCount: 1, atomicCommittedCount: 0,
+      failedSourceCount: 1
+    }) }));
+  });
+
+  it.each(["MISSING", "EXTRA", "DUPLICATE", "PENDING"] as const)(
+    "fails closed before batch finalization for %s persisted source rows",
+    async (rowCase) => {
+      const plan = planFor("source-roche-china-social");
+      const db = fakeDb();
+      const verified = { sourceId: plan.source.id, transportState: "SUCCEEDED" as const,
+        adapterState: "SUCCEEDED" as const, completenessState: "VERIFIED" as const,
+        atomicCommitState: "COMMITTED" as const, failureCode: null };
+      const rows = rowCase === "MISSING" ? [] : rowCase === "EXTRA" ? [verified, { ...verified, sourceId: "unexpected-source" }]
+        : rowCase === "DUPLICATE" ? [verified, { ...verified }]
+          : [{ ...verified, transportState: "PENDING" as const, adapterState: "PENDING" as const,
+            completenessState: "PENDING" as const, atomicCommitState: "PENDING" as const }];
+
+      await expect(runP0CrawlBatch([plan], {
+        db,
+        fetch: async () => strictSuccessfulFetch(plan),
+        now: NOW,
+        force: true,
+        identity: identityForPlans([plan]),
+        ...inMemoryArchiveDeps(),
+        executeAtomicCommit: async (commit) => db.persistAtomicSourceResult(commit.sourceResult),
+        readPersistedBatchSourceResults: async () => rows,
+        getPreviousJobs: async () => [],
+        getRecentObservations: async () => [],
+        isBaselineCompleted: async () => true
+      })).rejects.toThrow("PERSISTED_BATCH_SUMMARY_UNAVAILABLE");
+      expect(db.calls.batchesUpdated).toEqual([]);
+    }
+  );
+
   it("rejects a caller-forged one-source artifact with matching identity before fetch", async () => {
     const plan = planFor("source-hengrui-social");
     const identity = identityForPlans([plan], "FULL_RELEASE");
@@ -975,7 +1290,9 @@ describe("runP0CrawlBatch", () => {
       sourceJobId: "failed-source-existing-job",
       officialUrl: "https://careers.example.cn/failed-source-existing-job"
     });
-    const executeAtomicCommit = vi.fn<AtomicCommitExecutor>(async () => undefined);
+    const executeAtomicCommit = vi.fn<AtomicCommitExecutor>(async (commit) => {
+      db.persistAtomicSourceResult(commit.sourceResult);
+    });
     const fetch = vi.fn(async (plan: SourceCrawlPlan) => {
       if (plan.source.id === failedPlan.source.id) throw fetchError;
       return strictSuccessfulFetch(successfulPlan);
@@ -1037,7 +1354,9 @@ describe("runP0CrawlBatch", () => {
       enumerable: true,
       get: () => { throw adapterError; }
     });
-    const executeAtomicCommit = vi.fn<AtomicCommitExecutor>(async () => undefined);
+    const executeAtomicCommit = vi.fn<AtomicCommitExecutor>(async (commit) => {
+      db.persistAtomicSourceResult(commit.sourceResult);
+    });
 
     const result = await runP0CrawlBatch(batchPlans, {
       db,
@@ -1102,6 +1421,7 @@ describe("runP0CrawlBatch", () => {
         if (failureStage === "atomic commit" && commit.sourceResult.sourceId === failedPlan.source.id) {
           throw sourceError;
         }
+        db.persistAtomicSourceResult(commit.sourceResult);
       });
 
       const result = await runP0CrawlBatch(batchPlans, {
@@ -1191,13 +1511,14 @@ describe("runP0CrawlBatch", () => {
     expect(fetch).toHaveBeenCalledTimes(1);
   });
 
-  it("retains the atomic and terminalization errors when post-crawl terminalization fails", async () => {
+  it("fails closed when post-commit rollback terminalization cannot be confirmed", async () => {
     const failedPlan = planFor("source-qilu-social");
     const laterPlan = planFor("source-roche-china-social");
     const batchPlans = [failedPlan, laterPlan];
     const db = fakeDb();
     const atomicError = new Error("source atomic commit failed");
     const terminalError = new Error("terminal source write failed");
+    const orphanLedger = vi.fn(async () => undefined);
     db.terminalUpdateMany.mockRejectedValueOnce(terminalError);
     const fetch = vi.fn(async (plan: SourceCrawlPlan) => strictSuccessfulFetch(plan));
     const executeAtomicCommit = vi.fn<AtomicCommitExecutor>(async (commit) => {
@@ -1212,6 +1533,7 @@ describe("runP0CrawlBatch", () => {
         force: true,
         identity: identityForPlans(batchPlans),
         executeAtomicCommit,
+        recordOrphanedArtifacts: orphanLedger,
         ...inMemoryArchiveDeps(),
         getPreviousJobs: async () => [],
         getRecentObservations: async () => [],
@@ -1220,7 +1542,13 @@ describe("runP0CrawlBatch", () => {
     );
 
     expect(rejection).toBeInstanceOf(AggregateError);
-    expect((rejection as AggregateError).errors).toEqual([atomicError, terminalError]);
+    expect((rejection as AggregateError).errors).toEqual([
+      expect.objectContaining({ code: "ATOMIC_COMMIT_OUTCOME_UNVERIFIED" }),
+      new Error("PERSISTED_BATCH_SUMMARY_UNAVAILABLE")
+    ]);
+    expect(JSON.stringify(rejection)).not.toContain(terminalError.message);
+    expect(orphanLedger).not.toHaveBeenCalled();
+    expect(db.calls.batchesUpdated).toEqual([]);
     expect(fetch).toHaveBeenCalledTimes(1);
     expect(executeAtomicCommit).toHaveBeenCalledTimes(1);
   });
@@ -1621,8 +1949,9 @@ describe("runP0CrawlBatch", () => {
     ];
 
     for (const run of runs) {
+      const db = fakeDb();
       const result = await runP0CrawlBatch(run.plans, {
-        db: fakeDb(),
+        db,
         fetch: async (plan) => fetchWithSharedLogicalKeys(plan),
         now: NOW,
         force: true,
@@ -1630,7 +1959,10 @@ describe("runP0CrawlBatch", () => {
         identity: { ...identityForPlans(run.plans), releaseCandidateId: run.releaseCandidateId },
         archiveEvidence,
         verifyArchive: archiveDeps.verifyArchive!,
-        executeAtomicCommit,
+        executeAtomicCommit: async (commit) => {
+          await executeAtomicCommit(commit, db as never);
+          db.persistAtomicSourceResult(commit.sourceResult);
+        },
         getPreviousJobs: async () => [],
         getRecentObservations: async () => [],
         isBaselineCompleted: async () => true

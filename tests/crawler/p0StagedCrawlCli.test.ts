@@ -8,6 +8,7 @@ import { runCurrentStagedScheduledCrawl } from "../../src/crawler/stagedSchedule
 import { hashCanonicalStringSet } from "../../src/crawler/runtimeBatchIdentity";
 import type { CrawlAttemptEvent } from "../../src/crawler/crawlAttemptEvidence";
 import type { CrawlSummary } from "../../src/crawler/crawlSummary";
+import type { InitialQualificationPauseEvidence } from "../../src/crawler/initialQualificationPauseEvidence";
 import {
   parseStagedCrawlArgs,
   resolveStagedCrawlEvidencePaths,
@@ -75,6 +76,7 @@ function commandResult(status: "SUCCESS" | "INCOMPLETE" | "FAILED" = "SUCCESS") 
 function harness(runtime: StagedCrawlRuntime) {
   const events: CrawlAttemptEvent[] = [];
   const summaries: Array<{ path: string; summary: CrawlSummary }> = [];
+  const qualificationPauses: Array<{ path: string; evidence: InitialQualificationPauseEvidence }> = [];
   const advisoryRelease = vi.fn(async () => undefined);
   const fileClose = vi.fn(async () => undefined);
   const fileUnlink = vi.fn(async () => undefined);
@@ -91,9 +93,16 @@ function harness(runtime: StagedCrawlRuntime) {
       summaries.push({ path, summary });
       return { sha256: "a".repeat(64) };
     }),
+    writeInitialQualificationPauseEvidence: vi.fn(async (
+      path: string,
+      evidence: InitialQualificationPauseEvidence
+    ) => {
+      qualificationPauses.push({ path, evidence });
+    }),
+    notifyInitialQualificationPause: vi.fn(),
     now: vi.fn(() => new Date("2026-07-14T00:05:00.000Z"))
   };
-  return { deps, events, summaries, advisoryRelease, fileClose, fileUnlink };
+  return { deps, events, summaries, qualificationPauses, advisoryRelease, fileClose, fileUnlink };
 }
 
 function operationInput(deps: ReturnType<typeof harness>["deps"]) {
@@ -103,6 +112,7 @@ function operationInput(deps: ReturnType<typeof harness>["deps"]) {
     capturedAt: new Date("2026-07-14T00:00:00.000Z"),
     attemptDir: "C:/tmp/staged-crawl-attempts",
     summaryPath: "C:/tmp/staged-crawl-summary.json",
+    initialQualificationPausePath: "C:/tmp/staged-initial-qualification-pause.json",
     schedulerOwnsAttempt: false,
     deps
   };
@@ -134,6 +144,10 @@ describe("staged crawl operational CLI", () => {
         env: { STAGED_CRAWL_SUMMARY_PATH: resolve(cwd, "outside", "summary.json") }
       },
       {
+        name: "absolute qualification pause path outside outputs",
+        env: { STAGED_INITIAL_QUALIFICATION_PAUSE_PATH: resolve(cwd, "outside", "pause.json") }
+      },
+      {
         name: "outputs sibling-prefix path",
         env: { STAGED_CRAWL_ATTEMPT_DIR: resolve(cwd, "outputs-evil", "attempts") }
       },
@@ -154,6 +168,13 @@ describe("staged crawl operational CLI", () => {
         env: {
           STAGED_CRAWL_ATTEMPT_DIR: resolve(outputsRoot, "same"),
           STAGED_CRAWL_SUMMARY_PATH: resolve(outputsRoot, "same")
+        }
+      },
+      {
+        name: "pause path aliases summary",
+        env: {
+          STAGED_CRAWL_SUMMARY_PATH: resolve(outputsRoot, "same-pause.json"),
+          STAGED_INITIAL_QUALIFICATION_PAUSE_PATH: resolve(outputsRoot, "same-pause.json")
         }
       },
       {
@@ -181,21 +202,24 @@ describe("staged crawl operational CLI", () => {
 
     expect(resolveStagedCrawlEvidencePaths({}, cwd)).toEqual({
       attemptDir: resolve(cwd, "outputs", "staged-crawl-attempts"),
-      summaryPath: resolve(cwd, "outputs", "staged-crawl-summary.json")
+      summaryPath: resolve(cwd, "outputs", "staged-crawl-summary.json"),
+      initialQualificationPausePath: resolve(cwd, "outputs", "staged-initial-qualification-pause.json")
     });
     expect(resolveStagedCrawlEvidencePaths({
       STAGED_CRAWL_ATTEMPT_DIR: resolve(outputsRoot, "scheduled", "attempts"),
       STAGED_CRAWL_SUMMARY_PATH: resolve(outputsRoot, "scheduled", "summary.json")
     }, cwd)).toEqual({
       attemptDir: resolve(outputsRoot, "scheduled", "attempts"),
-      summaryPath: resolve(outputsRoot, "scheduled", "summary.json")
+      summaryPath: resolve(outputsRoot, "scheduled", "summary.json"),
+      initialQualificationPausePath: resolve(outputsRoot, "staged-initial-qualification-pause.json")
     });
     expect(resolveStagedCrawlEvidencePaths({
       CRAWL_ATTEMPT_DIR: resolve(cwd, "legacy", "attempts"),
       CRAWL_SUMMARY_PATH: resolve(cwd, "legacy", "summary.json")
     }, cwd)).toEqual({
       attemptDir: resolve(outputsRoot, "staged-crawl-attempts"),
-      summaryPath: resolve(outputsRoot, "staged-crawl-summary.json")
+      summaryPath: resolve(outputsRoot, "staged-crawl-summary.json"),
+      initialQualificationPausePath: resolve(outputsRoot, "staged-initial-qualification-pause.json")
     });
     expect(strictAttemptDir).not.toBe(resolve(cwd, "outputs", "staged-crawl-attempts"));
   });
@@ -329,6 +353,58 @@ describe("staged crawl operational CLI", () => {
     });
   });
 
+  it("emits the below-minimum notification exactly once after the persisted pause decision", async () => {
+    const decision = {
+      state: "PAUSED_BELOW_MINIMUM" as const,
+      completedRoundCount: 2 as const,
+      stableCompanyCount: 44,
+      minimumStableCompanyCount: 45
+    };
+    const finalizeInitialQualification = vi.fn(async () => decision);
+    const runtime: StagedCrawlRuntime = {
+      run: vi.fn(async () => commandResult("SUCCESS")),
+      loadConsecutiveFailuresByCompany: vi.fn(async () => ({})),
+      finalizeInitialQualification,
+      disconnect: vi.fn(async () => undefined)
+    };
+    const fixture = harness(runtime);
+
+    const result = await runStagedCrawlOperation(operationInput(fixture.deps));
+
+    expect(result.initialQualificationDecision).toEqual(decision);
+    expect(result.exitCode).toBe(1);
+    expect(finalizeInitialQualification).toHaveBeenCalledOnce();
+    expect(fixture.deps.notifyInitialQualificationPause).toHaveBeenCalledOnce();
+    expect(fixture.deps.notifyInitialQualificationPause).toHaveBeenCalledWith(
+      expect.stringMatching(/PAUSED_BELOW_MINIMUM.*44\/45/i),
+      decision
+    );
+    expect(fixture.qualificationPauses).toHaveLength(1);
+    expect(fixture.qualificationPauses[0]).toMatchObject({
+      path: "C:/tmp/staged-initial-qualification-pause.json",
+      evidence: {
+        state: "PAUSED_BELOW_MINIMUM",
+        reasonCode: "INITIAL_QUALIFICATION_BELOW_MINIMUM_AFTER_TWO_COMPLETED_ROUNDS",
+        releaseCandidateId: IDENTITY.releaseCandidateId,
+        batchId: "batch-success",
+        canonicalSummarySha256: "a".repeat(64),
+        stableCompanyCount: 44,
+        minimumStableCompanyCount: 45
+      }
+    });
+    expect(fixture.events.map((event) => event.state)).toEqual(["RUNNING", "PAUSED"]);
+    expect(fixture.events.at(-1)).toMatchObject({
+      identity: { releaseCandidateId: IDENTITY.releaseCandidateId },
+      canonicalSummaryBinding: { batchId: "batch-success", summarySha256: "a".repeat(64) },
+      failureCode: null,
+      initialQualificationPause: {
+        reasonCode: "INITIAL_QUALIFICATION_BELOW_MINIMUM_AFTER_TWO_COMPLETED_ROUNDS",
+        stableCompanyCount: 44,
+        minimumStableCompanyCount: 45
+      }
+    });
+  });
+
   it("records authority failure and leaves registry, batch, and fetch seams untouched", async () => {
     const sync = vi.fn();
     const runBatch = vi.fn();
@@ -397,6 +473,11 @@ describe("staged crawl operational CLI", () => {
     expect(`${scheduler}\n${pathResolver}`).toContain("staged-crawl-summary.json");
     expect(scheduler).toMatch(/nextP0SchedulerWindow/);
     expect(scheduler).toMatch(/readLatestCrawlAttemptStartedAt/);
+    expect(scheduler).toContain("readInitialQualificationPauseBundle");
+    expect(scheduler).toContain("loadProductionStagedMonitoringIdentity");
+    expect(scheduler).toContain("loadProductionInitialQualificationPauseCandidateStatus");
+    expect(scheduler).toMatch(/if\(qualificationPaused\)\{[\s\S]*await delay\(3_600_000\);[\s\S]*qualificationPaused=await loadQualificationPause\(\);[\s\S]*if\(qualificationPaused\)continue;/u);
+    expect(scheduler).toMatch(/terminalState==="PAUSED"/u);
     expect(scheduler).toMatch(/no immediate retry/i);
     expect(scheduler).toContain("60_000");
     expect(packageJson.scripts["p0:staged-crawl"]).toBe("tsx scripts/p0-staged-crawl.ts");
@@ -404,6 +485,7 @@ describe("staged crawl operational CLI", () => {
     expect(packageJson.scripts["p0:formal-crawl-once"]).toBe("tsx scripts/p0-formal-crawl-once.ts");
     expect(compose.match(/^  scheduler:/gmu)).toHaveLength(1);
     expect(compose).toMatch(/scheduler:[\s\S]*command:\s*\["npm",\s*"run",\s*"p0:scheduler"\]/u);
+    expect(compose).toContain("STAGED_INITIAL_QUALIFICATION_PAUSE_PATH: /app/outputs/staged-initial-qualification-pause.json");
 
     for (const path of ["scripts/p0-crawl.ts", "scripts/p0-formal-crawl-once.ts"]) {
       const head = execFileSync("git", ["show", `HEAD:${path}`]);

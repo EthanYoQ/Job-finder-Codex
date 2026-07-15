@@ -4,7 +4,7 @@ import { link, lstat, mkdir, open, readdir, unlink } from "node:fs/promises";
 import { resolve } from "node:path";
 import type { CrawlBatchKind } from "./runtimeBatchIdentity";
 
-export const CRAWL_ATTEMPT_SCHEMA_VERSION = "p0-crawl-attempt-v2" as const;
+export const CRAWL_ATTEMPT_SCHEMA_VERSION = "p0-crawl-attempt-v3" as const;
 export const DEFAULT_CRAWL_ATTEMPT_MAX_RUNNING_AGE_HOURS = 2;
 
 export interface CrawlEvidenceIdentity {
@@ -28,13 +28,14 @@ export type CrawlAttemptFailureCode =
   | "CRAWL_EXECUTION_FAILED"
   | "SOURCE_HEALTH_FAILED"
   | "CANONICAL_SUMMARY_WRITE_FAILED"
+  | "QUALIFICATION_PAUSE_EVIDENCE_FAILED"
   | "CLEANUP_FAILED"
   | "SCHEDULER_CHILD_FAILED";
 
 export interface CrawlAttemptEvent {
   schemaVersion: typeof CRAWL_ATTEMPT_SCHEMA_VERSION;
   attemptId: string;
-  state: "RUNNING" | "SUCCESS" | "FAILED";
+  state: "RUNNING" | "SUCCESS" | "FAILED" | "PAUSED";
   startedAt: string;
   finishedAt: string | null;
   identity: CrawlEvidenceIdentity | null;
@@ -47,14 +48,26 @@ export interface CrawlAttemptEvent {
     summarySha256: string;
   } | null;
   failureCode: CrawlAttemptFailureCode | null;
+  initialQualificationPause: {
+    reasonCode: "INITIAL_QUALIFICATION_BELOW_MINIMUM_AFTER_TWO_COMPLETED_ROUNDS";
+    notificationKey: string;
+    completedRoundCount: 2;
+    stableCompanyCount: number;
+    minimumStableCompanyCount: number;
+  } | null;
 }
 
 export type CrawlAttemptReadResult = {
   state: "MISSING" | "INVALID" | "RUNNING" | "STALE" | "FAILED" | "SUCCESS";
+} | {
+  state: "PAUSED";
+  attemptId: string;
+  canonicalSummaryBinding: NonNullable<CrawlAttemptEvent["canonicalSummaryBinding"]>;
+  initialQualificationPause: NonNullable<CrawlAttemptEvent["initialQualificationPause"]>;
 };
 
 const ROOT_KEYS = [
-  "attemptId", "authority", "canonicalSummaryBinding", "failureCode", "finishedAt",
+  "attemptId", "authority", "canonicalSummaryBinding", "failureCode", "finishedAt", "initialQualificationPause",
   "identity", "schemaVersion", "startedAt", "state"
 ].sort();
 const IDENTITY_KEYS = [
@@ -63,10 +76,13 @@ const IDENTITY_KEYS = [
 ].sort();
 const AUTHORITY_KEYS = ["advisoryLockAcquired", "fileLockAcquired"].sort();
 const BINDING_KEYS = ["batchId", "summarySha256"].sort();
+const PAUSE_KEYS = [
+  "completedRoundCount", "minimumStableCompanyCount", "notificationKey", "reasonCode", "stableCompanyCount"
+].sort();
 const FAILURE_CODES = new Set<CrawlAttemptFailureCode>([
   "PRE_IDENTITY_FAILED", "ADVISORY_LOCK_FAILED", "FILE_LOCK_FAILED", "PREFLIGHT_FAILED",
   "CHILD_PROCESS_FAILED", "CRAWL_EXECUTION_FAILED", "SOURCE_HEALTH_FAILED",
-  "CANONICAL_SUMMARY_WRITE_FAILED", "CLEANUP_FAILED", "SCHEDULER_CHILD_FAILED"
+  "CANONICAL_SUMMARY_WRITE_FAILED", "QUALIFICATION_PAUSE_EVIDENCE_FAILED", "CLEANUP_FAILED", "SCHEDULER_CHILD_FAILED"
 ]);
 
 export function buildCrawlAttemptEvent(input: {
@@ -78,6 +94,7 @@ export function buildCrawlAttemptEvent(input: {
   authority: CrawlAttemptEvent["authority"];
   canonicalSummaryBinding: CrawlAttemptEvent["canonicalSummaryBinding"];
   failureCode: CrawlAttemptFailureCode | null;
+  initialQualificationPause?: CrawlAttemptEvent["initialQualificationPause"];
 }): CrawlAttemptEvent {
   const event: CrawlAttemptEvent = {
     schemaVersion: CRAWL_ATTEMPT_SCHEMA_VERSION,
@@ -90,7 +107,8 @@ export function buildCrawlAttemptEvent(input: {
     canonicalSummaryBinding: input.canonicalSummaryBinding === null
       ? null
       : { ...input.canonicalSummaryBinding },
-    failureCode: input.failureCode
+    failureCode: input.failureCode,
+    initialQualificationPause: input.initialQualificationPause ?? null
   };
   assertCrawlAttemptEvent(event);
   return event;
@@ -193,6 +211,18 @@ export async function readLatestCrawlAttempt(directory: string, options: {
   if (!event) return { state: "INVALID" };
   if (event.identity !== null && !identitiesEqual(event.identity, options.expectedIdentity)) return { state: "INVALID" };
   if (event.state === "FAILED") return { state: "FAILED" };
+  if (event.state === "PAUSED") {
+    if (!event.authority.advisoryLockAcquired || !event.authority.fileLockAcquired || event.identity === null ||
+        options.expectedCanonicalSummary === undefined ||
+        !bindingsEqual(event.canonicalSummaryBinding, options.expectedCanonicalSummary) ||
+        event.initialQualificationPause === null) return { state: "INVALID" };
+    return {
+      state: "PAUSED",
+      attemptId: event.attemptId,
+      canonicalSummaryBinding: { ...event.canonicalSummaryBinding! },
+      initialQualificationPause: { ...event.initialQualificationPause }
+    };
+  }
   if (event.state === "SUCCESS") {
     if (!event.authority.advisoryLockAcquired || !event.authority.fileLockAcquired || event.identity === null ||
         options.expectedCanonicalSummary === undefined ||
@@ -215,7 +245,7 @@ export async function readLatestCrawlAttemptStartedAt(directory: string): Promis
 
   let latestTimestamp: number | undefined;
   for (const name of names) {
-    const match = /^(\d+)__[A-Za-z0-9._-]{1,128}__(?:RUNNING|SUCCESS|FAILED)\.json$/u.exec(name);
+    const match = /^(\d+)__[A-Za-z0-9._-]{1,128}__(?:RUNNING|SUCCESS|FAILED|PAUSED)\.json$/u.exec(name);
     if (!match) throw new Error("Unexpected crawl attempt directory entry");
     const timestamp = Number(match[1]);
     if (!Number.isSafeInteger(timestamp) || timestamp < 0 || Number.isNaN(new Date(timestamp).getTime())) {
@@ -234,24 +264,43 @@ function assertCrawlAttemptEvent(value: unknown): asserts value is CrawlAttemptE
   if (!isPlainObject(value) || !sameKeys(value, ROOT_KEYS)) throw new Error("Crawl attempt root is invalid");
   const event = value as unknown as CrawlAttemptEvent;
   if (event.schemaVersion !== CRAWL_ATTEMPT_SCHEMA_VERSION || !/^[A-Za-z0-9._-]{1,128}$/u.test(event.attemptId) ||
-      !["RUNNING", "SUCCESS", "FAILED"].includes(event.state) || !isIsoInstant(event.startedAt) ||
+      !["RUNNING", "SUCCESS", "FAILED", "PAUSED"].includes(event.state) || !isIsoInstant(event.startedAt) ||
       (event.finishedAt !== null && !isIsoInstant(event.finishedAt)) ||
       !isPlainObject(event.authority) || !sameKeys(event.authority, AUTHORITY_KEYS) ||
       typeof event.authority.advisoryLockAcquired !== "boolean" || typeof event.authority.fileLockAcquired !== "boolean" ||
       (event.identity !== null && !isIdentity(event.identity)) ||
-      (event.canonicalSummaryBinding !== null && !isBinding(event.canonicalSummaryBinding))) {
+      (event.canonicalSummaryBinding !== null && !isBinding(event.canonicalSummaryBinding)) ||
+      (event.initialQualificationPause !== null && !isQualificationPause(event.initialQualificationPause))) {
     throw new Error("Crawl attempt fields are invalid");
   }
   if (event.finishedAt !== null && Date.parse(event.finishedAt) < Date.parse(event.startedAt)) throw new Error("Crawl attempt time is invalid");
   if (event.state === "RUNNING") {
-    if (event.finishedAt !== null || event.canonicalSummaryBinding !== null || event.failureCode !== null) throw new Error("RUNNING attempt is invalid");
+    if (event.finishedAt !== null || event.canonicalSummaryBinding !== null || event.failureCode !== null ||
+        event.initialQualificationPause !== null) throw new Error("RUNNING attempt is invalid");
   } else if (event.state === "SUCCESS") {
     if (event.finishedAt === null || event.identity === null || !event.authority.advisoryLockAcquired ||
-        !event.authority.fileLockAcquired || event.canonicalSummaryBinding === null || event.failureCode !== null) throw new Error("SUCCESS attempt is invalid");
+        !event.authority.fileLockAcquired || event.canonicalSummaryBinding === null || event.failureCode !== null ||
+        event.initialQualificationPause !== null) throw new Error("SUCCESS attempt is invalid");
+  } else if (event.state === "PAUSED") {
+    if (event.finishedAt === null || event.identity === null || !event.authority.advisoryLockAcquired ||
+        !event.authority.fileLockAcquired || event.canonicalSummaryBinding === null || event.failureCode !== null ||
+        event.initialQualificationPause === null) throw new Error("PAUSED attempt is invalid");
   } else if (event.finishedAt === null || event.canonicalSummaryBinding !== null ||
-      event.failureCode === null || !FAILURE_CODES.has(event.failureCode)) {
+      event.failureCode === null || !FAILURE_CODES.has(event.failureCode) || event.initialQualificationPause !== null) {
     throw new Error("FAILED attempt is invalid");
   }
+}
+
+function isQualificationPause(
+  value: unknown
+): value is NonNullable<CrawlAttemptEvent["initialQualificationPause"]> {
+  if (!isPlainObject(value) || !sameKeys(value, PAUSE_KEYS)) return false;
+  const pause = value as unknown as NonNullable<CrawlAttemptEvent["initialQualificationPause"]>;
+  return pause.reasonCode === "INITIAL_QUALIFICATION_BELOW_MINIMUM_AFTER_TWO_COMPLETED_ROUNDS" &&
+    /^[0-9a-f]{64}$/u.test(pause.notificationKey) && pause.completedRoundCount === 2 &&
+    Number.isSafeInteger(pause.stableCompanyCount) && pause.stableCompanyCount >= 0 &&
+    Number.isSafeInteger(pause.minimumStableCompanyCount) && pause.minimumStableCompanyCount > 0 &&
+    pause.stableCompanyCount < pause.minimumStableCompanyCount;
 }
 
 function isIdentity(value: unknown): value is CrawlEvidenceIdentity {

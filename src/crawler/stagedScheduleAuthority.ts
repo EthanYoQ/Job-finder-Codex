@@ -87,6 +87,8 @@ interface StagedScheduledBatchRow {
   plannedSourceSetSha256: string | null;
   plannedSourceCount: number | null;
   ownerId: string | null;
+  status: string;
+  finishedAt: Date | null;
 }
 
 interface StagedScheduledBatchFindManyArgs {
@@ -108,6 +110,10 @@ export interface StagedScheduledCrawlAuthorityDb extends StagedScheduleAuthority
   crawlBatch: {
     findMany(args: StagedScheduledBatchFindManyArgs): Promise<readonly StagedScheduledBatchRow[]>;
   };
+}
+
+export interface StagedQualificationRoundDb {
+  crawlBatch: StagedScheduledCrawlAuthorityDb["crawlBatch"];
 }
 
 export function deriveCurrentStagedScheduleExpectation(
@@ -198,7 +204,29 @@ export async function resolveCurrentStagedScheduledCrawlAuthority(
 ): Promise<CurrentStagedScheduleAuthority> {
   const resolved = await resolveCurrentStagedScheduleAuthorityWithStatus(db);
   const identity = resolved.authority.identity;
-  const batches = await db.crawlBatch.findMany({
+  const batches = await loadScheduledBatches(db, identity);
+  const completedRoundCount = countCompletedQualificationRows(batches, identity);
+  if (resolved.status === "BUILDING" && completedRoundCount >= 2) {
+    throw new Error(
+      `STAGED_INITIAL_QUALIFICATION_ROUND_LIMIT_REACHED:${identity.releaseCandidateId}:${completedRoundCount}`
+    );
+  }
+  return resolved.authority;
+}
+
+export async function countCompletedStagedQualificationRounds(
+  db: StagedQualificationRoundDb,
+  identity: RuntimeBatchIdentity
+): Promise<number> {
+  const batches = await loadScheduledBatches(db, identity);
+  return countCompletedQualificationRows(batches, identity);
+}
+
+async function loadScheduledBatches(
+  db: StagedQualificationRoundDb,
+  identity: RuntimeBatchIdentity
+): Promise<readonly StagedScheduledBatchRow[]> {
+  return db.crawlBatch.findMany({
     where: {
       releaseCandidateId: identity.releaseCandidateId,
       kind: "SCHEDULED"
@@ -215,18 +243,44 @@ export async function resolveCurrentStagedScheduledCrawlAuthority(
       plannedSourceIds: true,
       plannedSourceSetSha256: true,
       plannedSourceCount: true,
-      ownerId: true
+      ownerId: true,
+      status: true,
+      finishedAt: true
     },
     orderBy: { id: "asc" }
   });
+}
 
-  for (const batch of batches) assertExistingScheduledBatchIdentity(batch, identity);
-  if (resolved.status === "BUILDING" && batches.length >= 2) {
-    throw new Error(
-      `STAGED_INITIAL_QUALIFICATION_ROUND_LIMIT_REACHED:${identity.releaseCandidateId}:${batches.length}`
-    );
+function countCompletedQualificationRows(
+  batches: readonly StagedScheduledBatchRow[],
+  identity: RuntimeBatchIdentity
+): number {
+  let completedRoundCount = 0;
+  for (const batch of batches) {
+    assertExistingScheduledBatchIdentity(batch, identity);
+    const hasFinishedAt = batch.finishedAt instanceof Date && Number.isFinite(batch.finishedAt.getTime());
+    if (["SUCCESS", "INCOMPLETE", "FAILED"].includes(batch.status)) {
+      if (!hasFinishedAt) {
+        throw new Error(`STAGED_SCHEDULED_BATCH_TERMINAL_STATE_DRIFT:${batch.id}`);
+      }
+      completedRoundCount += 1;
+      continue;
+    }
+    if (batch.status === "ABORTED") {
+      if (!hasFinishedAt) {
+        throw new Error(`STAGED_SCHEDULED_BATCH_TERMINAL_STATE_DRIFT:${batch.id}`);
+      }
+      continue;
+    }
+    if (batch.status === "RUNNING") {
+      if (batch.finishedAt !== null) {
+        throw new Error(`STAGED_SCHEDULED_BATCH_TERMINAL_STATE_DRIFT:${batch.id}`);
+      }
+      continue;
+    }
+    throw new Error(`STAGED_SCHEDULED_BATCH_TERMINAL_STATE_DRIFT:${batch.id}`);
   }
-  return resolved.authority;
+  return completedRoundCount;
 }
 
 async function resolveCurrentStagedScheduleAuthorityWithStatus(

@@ -1,11 +1,17 @@
 import { describe, expect, it } from "vitest";
+import { createHash } from "node:crypto";
 import {
   createOfficialJsonSourceFetch,
   type OfficialJsonFetchConfig,
   type OfficialJsonHttpResponse
 } from "../../src/crawler/officialJsonSourceFetch";
 import { runSourceCrawl } from "../../src/crawler/runSourceCrawl";
-import type { SourceCrawlPlan } from "../../src/crawler/sourcePlan";
+import {
+  buildStagedSourceCrawlPlans,
+  getPlanBySourceId,
+  type SourceCrawlPlan
+} from "../../src/crawler/sourcePlan";
+import { candidateCompanies } from "../../src/data/companyRegistry";
 
 const NOW = "2026-07-11T00:00:00.000Z";
 const ENTRY = "https://cttq.zhiye.com/social/jobs";
@@ -60,7 +66,7 @@ function response(body: unknown, overrides: Partial<OfficialJsonHttpResponse> = 
 
 function job(id: string, location: unknown = ["上海市"]): Record<string, unknown> {
   return {
-    Id: `guid-${id}`,
+    Id: beisenUuid(id),
     JobAdId: id,
     JobAdName: `职位 ${id}`,
     LocNames: location,
@@ -68,6 +74,50 @@ function job(id: string, location: unknown = ["上海市"]): Record<string, unkn
     CategoryId: "1",
     Kind: "全职"
   };
+}
+
+function beisenUuid(seed: string): string {
+  const suffix = createHash("sha256").update(seed, "utf8").digest("hex").slice(0, 12);
+  return `00000000-0000-4000-8000-${suffix}`;
+}
+
+type BeisenPlan = Extract<SourceCrawlPlan, { adapterId: "official-json" }>;
+
+const AUDITED_DOMESTIC_BEISEN_SOURCES = [
+  "source-nhu-social",
+  "source-dongyangguang-social",
+  "source-qilu-social",
+  "source-3sbio-social"
+] as const;
+
+function exactBeisenPlan(sourceId: string): BeisenPlan {
+  const plans = buildStagedSourceCrawlPlans(candidateCompanies);
+  const value = getPlanBySourceId(plans, sourceId);
+  if (value?.adapterId !== "official-json" || value.officialJsonFetch?.kind !== "beisen-zhiye-2022" ||
+    value.officialJsonFetch.geographyScope !== "DOMESTIC_OFFICIAL_TENANT") {
+    throw new Error(`Expected exact domestic Beisen plan ${sourceId}`);
+  }
+  return value;
+}
+
+async function fetchExactBeisen(
+  sourceId: string,
+  locations: readonly string[]
+) {
+  const exactPlan = exactBeisenPlan(sourceId);
+  const endpoint = new URL("/api/Jobad/GetJobAdPageList", exactPlan.source.officialEntryUrl).toString();
+  const rawJob = {
+    ...job(sourceId, [...locations]),
+    JobAdName: `职位 ${sourceId}`
+  };
+  const fetcher = createOfficialJsonSourceFetch({
+    now: () => new Date(NOW),
+    http: async () => ({
+      ...response({ Code: 200, Count: 1, PageIndex: 0, Data: [rawJob] }),
+      finalUrl: endpoint
+    })
+  });
+  return { exactPlan, fetched: await fetcher(exactPlan) };
 }
 
 describe("Beisen Zhiye 2022 evidence instrumentation", () => {
@@ -173,7 +223,10 @@ describe("Beisen Zhiye 2022 evidence instrumentation", () => {
   });
 
   it("allows the same key name in different JSON objects", async () => {
-    const exact = '{"Code":200,"Count":2,"PageIndex":0,"Data":[{"Id":"first","JobAdName":"职位一","LocNames":["上海市"],"Category":"社会招聘","CategoryId":"1","Kind":"全职","Meta":{"region":"CN"}},{"Id":"second","JobAdName":"职位二","LocNames":["北京市"],"Category":"社会招聘","CategoryId":"1","Kind":"全职","Meta":{"region":"CN"}}]}';
+    const exact = JSON.stringify({ Code: 200, Count: 2, PageIndex: 0, Data: [
+      { ...job("first"), JobAdName: "职位一", Meta: { region: "CN" } },
+      { ...job("second", ["北京市"]), JobAdName: "职位二", Meta: { region: "CN" } }
+    ] });
     const result = await createOfficialJsonSourceFetch({
       now: () => new Date(NOW), http: async () => response(exact)
     })(plan());
@@ -286,7 +339,7 @@ describe("Beisen Zhiye 2022 evidence instrumentation", () => {
     });
   });
 
-  it("accepts Remote only when a structured country field explicitly proves mainland China", async () => {
+  it("rejects an unknown location even when a structured country field says mainland China", async () => {
     const result = await createOfficialJsonSourceFetch({
       now: () => new Date(NOW),
       http: async () => response({
@@ -297,6 +350,53 @@ describe("Beisen Zhiye 2022 evidence instrumentation", () => {
     })(plan({ geographyScope: "DOMESTIC_OFFICIAL_TENANT" }));
     expect(result).toMatchObject({
       ok: true,
+      payload: { jobs: [] },
+      fetchEvidence: {
+        fetchCounts: { rawCount: 1, validCount: 0, validationDiscardCount: 1 },
+        fetchLosses: [{ details: { code: "AMBIGUOUS_SCOPE" } }]
+      }
+    });
+  });
+
+  it.each(AUDITED_DOMESTIC_BEISEN_SOURCES)(
+    "keeps the production fetcher for exact staged %s only when every location segment is mainland",
+    async (sourceId) => {
+      const positive = await fetchExactBeisen(sourceId, ["浙江省·杭州市"]);
+      expect(positive.fetched).toMatchObject({
+        ok: true,
+        payload: { jobs: [{ locationRaw: "浙江省·杭州市" }] },
+        fetchEvidence: { fetchCounts: { rawCount: 1, validCount: 1, validationDiscardCount: 0 } }
+      });
+
+      const mixed = await fetchExactBeisen(sourceId, ["浙江", "苏黎世"]);
+      expect(mixed.fetched).toMatchObject({
+        ok: true,
+        payload: { jobs: [] },
+        fetchEvidence: { fetchCounts: { rawCount: 1, validCount: 0, validationDiscardCount: 1 } }
+      });
+      const crawled = await runSourceCrawl(mixed.exactPlan, { fetch: async () => mixed.fetched });
+      expect(crawled.truth.completenessVerified).toBe(false);
+      expect(crawled.observation.completenessStatus).not.toBe("VERIFIED");
+    }
+  );
+
+  it.each([
+    "全国",
+    "全国各地",
+    "北京",
+    "上海市",
+    "浙江省",
+    "山东省·临沂市",
+    "上海市·浦东新区",
+    "Shanghai, China"
+  ])("keeps a common unambiguous mainland location: %s", async (location) => {
+    const result = await createOfficialJsonSourceFetch({
+      now: () => new Date(NOW),
+      http: async () => response({ Code: 200, Count: 1, Data: [job(`mainland-${location}`, [location])] })
+    })(plan({ geographyScope: "DOMESTIC_OFFICIAL_TENANT" }));
+    expect(result).toMatchObject({
+      ok: true,
+      payload: { jobs: [{ locationRaw: location }] },
       fetchEvidence: { fetchCounts: { rawCount: 1, validCount: 1, validationDiscardCount: 0 } }
     });
   });
@@ -327,14 +427,14 @@ describe("Beisen Zhiye 2022 evidence instrumentation", () => {
   it("accounts parse, required-field, duplicate, scope, unsafe-ID, sensitive, and fallback-location losses exactly", async () => {
     const rows: unknown[] = [
       "not-an-object",
-      { Id: "missing-title", LocNames: ["上海市"], Category: "社会招聘", CategoryId: "1", Kind: "全职" },
+      { Id: beisenUuid("missing-title"), LocNames: ["上海市"], Category: "社会招聘", CategoryId: "1", Kind: "全职" },
       job("ok"),
       job("ok"),
       job("foreign", ["Boston, United States"]),
       job("unknown", ["Remote"]),
-      job("..", ["上海市"]),
+      { ...job("unsafe", ["上海市"]), Id: "../unsafe" },
       { ...job("secret", ["上海市"]), JobAdName: "token=super-secret" },
-      { Id: "fallback", JobAdName: "无地点", Category: "社会招聘", CategoryId: "1", Kind: "全职" }
+      { Id: beisenUuid("fallback"), JobAdName: "无地点", Category: "社会招聘", CategoryId: "1", Kind: "全职" }
     ];
     const result = await createOfficialJsonSourceFetch({
       now: () => new Date(NOW),
@@ -375,10 +475,146 @@ describe("Beisen Zhiye 2022 evidence instrumentation", () => {
     });
   });
 
-  it("rejects a duplicate detail ID independently from distinct official record IDs", async () => {
+  it("accepts the NHU source-bound Zhejiang and Japan multi-location policy without publishing Japan", async () => {
+    const result = await createOfficialJsonSourceFetch({
+      now: () => new Date(NOW),
+      http: async () => response({
+        Code: 200,
+        Count: 1,
+        PageIndex: 0,
+        Data: [{
+          ...job("mixed-nhu", ["浙江、日本"]),
+          Id: "c9b0fcab-f326-4991-a9a9-f89d55abf4a4"
+        }]
+      })
+    })(plan({
+      geographyScope: "DOMESTIC_OFFICIAL_TENANT",
+      mixedLocationPolicy: "INCLUDE_MAINLAND_JAPAN_ALTERNATIVES"
+    }));
+
+    expect(result).toMatchObject({
+      ok: true,
+      payload: {
+        jobs: [{
+          officialUrl: `${ENTRY.replace("/jobs", "/detail")}?jobAdId=c9b0fcab-f326-4991-a9a9-f89d55abf4a4`,
+          locationRaw: "浙江、日本",
+          cities: ["浙江"]
+        }]
+      },
+      fetchEvidence: {
+        fetchCounts: { rawCount: 1, parsedCount: 1, validCount: 1, validationDiscardCount: 0 }
+      }
+    });
+  });
+
+  it.each(["日本", "东京", "大阪", "京都", "Japan", "Tokyo", "Osaka", "Kyoto"])(
+    "keeps only Zhejiang when the NHU alternative is explicit Japan geography: %s",
+    async (japanLocation) => {
+      const result = await createOfficialJsonSourceFetch({
+        now: () => new Date(NOW),
+        http: async () => response({
+          Code: 200,
+          Count: 1,
+          PageIndex: 0,
+          Data: [job(`nhu-${japanLocation}`, ["浙江", japanLocation])]
+        })
+      })(plan({
+        geographyScope: "DOMESTIC_OFFICIAL_TENANT",
+        mixedLocationPolicy: "INCLUDE_MAINLAND_JAPAN_ALTERNATIVES"
+      }));
+      expect(result).toMatchObject({
+        ok: true,
+        payload: { jobs: [{ locationRaw: `浙江 / ${japanLocation}`, cities: ["浙江"] }] },
+        fetchEvidence: { fetchCounts: { rawCount: 1, validCount: 1, validationDiscardCount: 0 } }
+      });
+    }
+  );
+
+  it.each([
+    ["Japan-only", ["大阪"]],
+    ["Swiss alternative", ["浙江", "巴塞尔"]],
+    ["Thailand alternative", ["浙江", "曼谷"]],
+    ["unknown alternative", ["浙江", "Remote"]],
+    ["mixed ambiguous segment", ["浙江苏黎世"]]
+  ])("rejects the NHU policy when it contains %s", async (_label, locations) => {
+    const result = await createOfficialJsonSourceFetch({
+      now: () => new Date(NOW),
+      http: async () => response({ Code: 200, Count: 1, PageIndex: 0, Data: [job(`nhu-${_label}`, locations)] })
+    })(plan({
+      geographyScope: "DOMESTIC_OFFICIAL_TENANT",
+      mixedLocationPolicy: "INCLUDE_MAINLAND_JAPAN_ALTERNATIVES"
+    }));
+    expect(result).toMatchObject({
+      ok: true,
+      payload: { jobs: [] },
+      fetchEvidence: { fetchCounts: { rawCount: 1, validCount: 0, validationDiscardCount: 1 } }
+    });
+  });
+
+  it("does not extend the NHU Japan alternative to another domestic Beisen source", async () => {
+    const { fetched } = await fetchExactBeisen("source-qilu-social", ["浙江", "大阪"]);
+    expect(fetched).toMatchObject({
+      ok: true,
+      payload: { jobs: [] },
+      fetchEvidence: { fetchCounts: { rawCount: 1, validCount: 0, validationDiscardCount: 1 } }
+    });
+  });
+
+  it("does not extend the NHU Japan policy to a different foreign country", async () => {
+    const result = await createOfficialJsonSourceFetch({
+      now: () => new Date(NOW),
+      http: async () => response({
+        Code: 200,
+        Count: 1,
+        PageIndex: 0,
+        Data: [job("mixed-korea", ["浙江、韩国"])]
+      })
+    })(plan({
+      geographyScope: "DOMESTIC_OFFICIAL_TENANT",
+      mixedLocationPolicy: "INCLUDE_MAINLAND_JAPAN_ALTERNATIVES"
+    }));
+
+    expect(result).toMatchObject({
+      ok: true,
+      payload: { jobs: [] },
+      fetchEvidence: {
+        fetchCounts: { rawCount: 1, validCount: 0, validationDiscardCount: 1 },
+        fetchLosses: [{ details: { code: "OUT_OF_SCOPE" } }]
+      }
+    });
+  });
+
+  it.each([
+    ["numeric Id", 230917983],
+    ["numeric-string Id", "230917983"],
+    ["arbitrary safe string Id", "official-a"]
+  ])("rejects a Beisen %s because the original Id must be a canonical UUID string", async (_label, Id) => {
+    const result = await createOfficialJsonSourceFetch({
+      now: () => new Date(NOW),
+      http: async () => response({
+        Code: 200,
+        Count: 1,
+        PageIndex: 0,
+        Data: [{ ...job("invalid-id"), Id, JobAdId: "fallback-detail" }]
+      })
+    })(plan());
+
+    expect(result).toMatchObject({
+      ok: true,
+      payload: { jobs: [] },
+      fetchEvidence: {
+        fetchCounts: { rawCount: 1, parsedCount: 1, validCount: 0, validationDiscardCount: 1 },
+        fetchLosses: [{ details: { code: "UNSAFE_OFFICIAL_ID", field: "id" } }]
+      }
+    });
+  });
+
+  it("uses each official UUID for detail URLs even when numeric JobAdId values collide", async () => {
+    const officialA = "8d2b8c8a-190c-4e6d-a521-79fbf7ab1663";
+    const officialB = "c78ed37c-24b3-4be0-b0c4-f2538c263aa4";
     const rows = [
-      { ...job("official-a"), Id: "official-a", JobAdId: "shared-detail", JobAdName: "职位 A", LocNames: ["上海市"] },
-      { ...job("official-b"), Id: "official-b", JobAdId: "shared-detail", JobAdName: "职位 B", LocNames: ["北京市"] }
+      { ...job("official-a"), Id: officialA, JobAdId: "shared-detail", JobAdName: "职位 A", LocNames: ["上海市"] },
+      { ...job("official-b"), Id: officialB, JobAdId: "shared-detail", JobAdName: "职位 B", LocNames: ["北京市"] }
     ];
     const result = await createOfficialJsonSourceFetch({
       now: () => new Date(NOW),
@@ -386,10 +622,34 @@ describe("Beisen Zhiye 2022 evidence instrumentation", () => {
     })(plan());
     expect(result).toMatchObject({
       ok: true,
-      payload: { jobs: [{ title: "职位 A", officialUrl: `${ENTRY.replace("/jobs", "/detail")}?jobAdId=shared-detail` }] },
+      payload: { jobs: [
+        { title: "职位 A", officialUrl: `${ENTRY.replace("/jobs", "/detail")}?jobAdId=${officialA}` },
+        { title: "职位 B", officialUrl: `${ENTRY.replace("/jobs", "/detail")}?jobAdId=${officialB}` }
+      ] },
       fetchEvidence: {
-        fetchCounts: { rawCount: 2, parsedCount: 2, validCount: 1, validationDiscardCount: 1 },
-        fetchLosses: [{ details: { code: "DUPLICATE_DETAIL_ID", field: "detailId" } }]
+        fetchCounts: { rawCount: 2, parsedCount: 2, validCount: 2, validationDiscardCount: 0 },
+        fetchLosses: []
+      }
+    });
+  });
+
+  it("does not fall back to a numeric JobAdId when the official detail UUID is absent", async () => {
+    const result = await createOfficialJsonSourceFetch({
+      now: () => new Date(NOW),
+      http: async () => response({
+        Code: 200,
+        Count: 1,
+        PageIndex: 0,
+        Data: [{ ...job("numeric-only"), Id: undefined }]
+      })
+    })(plan());
+
+    expect(result).toMatchObject({
+      ok: true,
+      payload: { jobs: [] },
+      fetchEvidence: {
+        fetchCounts: { rawCount: 1, parsedCount: 1, validCount: 0, validationDiscardCount: 1 },
+        fetchLosses: [{ details: { code: "MISSING_REQUIRED_FIELD", field: "id" } }]
       }
     });
   });

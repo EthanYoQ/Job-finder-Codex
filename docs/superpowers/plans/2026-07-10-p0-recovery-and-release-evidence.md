@@ -12,6 +12,8 @@
 
 **Active Goal:** `019f4b10-36e1-75e0-8586-1e4beec344ee`
 
+**Runtime Goal text override (2026-07-15):** The Goal service still exposes the original immutable objective text. Where that text conflicts with this controlling plan, the latest user-authorized Goal and staged-launch contract in this document control: the at-least-45 rule is an initial external-release completion gate only. After that gate first passes, daily publication is evaluated independently per company; one currently verified company can update without waiting for the other companies. `job.orz.md`, AI classification, and auxiliary translation are not release blockers.
+
 **Resumed from Goal:** `019f4295-1a92-7202-8e38-1bdd8cec8351`
 
 **Staged-launch contract (2026-07-13 user-authorized override):**
@@ -24,6 +26,7 @@
 - Last-success timestamps, failed-crawl non-deletion, search, official outbound links, basic security/privacy, backup/restore, monitoring, deployment, and final independent read-only QA remain release requirements.
 - After the rule and company configuration are frozen, run exactly two fresh scheduled-scope rounds. If the second round still leaves fewer than 45 stable companies, pause the task and notify the user; do not start a third round or lower the threshold.
 - `job.orz.md`, AI classification, auxiliary translation, advanced manual operations, cryptographic oracle/signature work, independent QA after every stage, and rebuilding all evidence after every change are explicitly non-blocking. Existing implementations may remain; unavailable enrichment falls back to official original titles and basic categories.
+- A second, independently implemented field-by-field parser that defeats synthetic in-process payload/evidence substitution is post-launch hardening, not an initial-release gate. The actual sealed production fetch path must still bind every published job to an allowed official source, and final QA must sample fresh-round titles, locations, and outbound URLs against the archived official response; release notes must not claim adversarial per-field replay coverage that was not implemented.
 
 **Official-source boundary:** Published jobs may come only from official websites, official careers pages, or recruitment systems explicitly endorsed by those sites. Search engines, ATS discovery, and third-party job boards may provide leads but never published job records. The completeness claim is limited to publicly reachable social-recruitment scope linked or endorsed by the official site at capture time; it does not cover hidden ATS tenants, WeChat-only postings, or unendorsed third-party channels.
 
@@ -284,4 +287,5 @@ The exact phrase `PRD Phase 1 complete` and the first external release are prohi
 - Active Stage 4, two fresh crawl runs and a 60-company status table, is the sole `IN_PROGRESS` stage. Active Stages 1-3 are complete and Active Stages 5-7 are `PENDING`.
 - Historical Phase 0-3 and RC008 evidence remains preserved for unchanged behavior but is not current deployment/data proof.
 - The immutable roster remains exactly 30 foreign plus 30 domestic companies. 人福医药 (`company-humanwell`) and 华北制药 (`company-north-china-pharma`) remain roster members as exact `USER_AUTHORIZED_PHASE1_EXCLUSION` records without job-completeness claims.
-- Immediate next action: freeze the verified Stage 3 revision, create its isolated release-candidate database from the verified backup, and execute exactly two fresh Stage 4 crawl rounds before evaluating the 45-company first-launch threshold.
+- The frozen `p0-rc-20260715-010` candidate already completed its exact two permitted Stage 4 rounds and produced 12 record-derived stable companies against the 45-company first-launch threshold. It remains historical failed-candidate evidence; no third crawl may run against it, and it is not an external release.
+- The user's 2026-07-15 continuation authorizes a new repair cycle. Preserve the prior candidate, image, backup/restore, isolated-database, and independent-review evidence; diagnose and repair only the affected company/source and summary behavior using tests first. After the fixes and configuration are frozen, create a new candidate and run exactly two new rounds. If that new candidate remains below 45 after its second round, pause and notify the user without a third round.

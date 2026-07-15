@@ -88,6 +88,50 @@ describe("crawl attempt execution evidence", () => {
     await expect(readLatestCrawlAttemptStartedAt(root)).resolves.toEqual(new Date("2026-07-12T08:00:00.000Z"));
   });
 
+  it("records a dedicated PAUSED terminal without misclassifying the completed crawl as failed", async () => {
+    const root = mkdtempSync(resolve(tmpdir(), "job-finder-attempt-paused-"));
+    const running = buildCrawlAttemptEvent({
+      attemptId: "attempt-paused",
+      state: "RUNNING",
+      startedAt: new Date("2026-07-15T00:01:00Z"),
+      finishedAt: null,
+      identity: null,
+      authority: { advisoryLockAcquired: false, fileLockAcquired: false },
+      canonicalSummaryBinding: null,
+      failureCode: null
+    });
+    await writeCrawlAttemptEvent(root, running);
+    const initialQualificationPause = {
+      reasonCode: "INITIAL_QUALIFICATION_BELOW_MINIMUM_AFTER_TWO_COMPLETED_ROUNDS" as const,
+      notificationKey: "a".repeat(64),
+      completedRoundCount: 2 as const,
+      stableCompanyCount: 44,
+      minimumStableCompanyCount: 45
+    };
+    await writeCrawlAttemptEvent(root, buildCrawlAttemptEvent({
+      ...running,
+      state: "PAUSED",
+      finishedAt: new Date("2026-07-15T00:05:00Z"),
+      identity: expectedIdentity,
+      authority: { advisoryLockAcquired: true, fileLockAcquired: true },
+      canonicalSummaryBinding: { batchId: "batch-second", summarySha256: "b".repeat(64) },
+      failureCode: null,
+      initialQualificationPause
+    }));
+
+    await expect(readLatestCrawlAttempt(root, {
+      now: new Date("2026-07-15T00:06:00Z"),
+      expectedIdentity,
+      expectedCanonicalSummary: { batchId: "batch-second", summarySha256: "b".repeat(64) }
+    })).resolves.toEqual({
+      state: "PAUSED",
+      attemptId: "attempt-paused",
+      canonicalSummaryBinding: { batchId: "batch-second", summarySha256: "b".repeat(64) },
+      initialQualificationPause
+    });
+    await expect(readLatestCrawlAttemptStartedAt(root)).resolves.toEqual(new Date("2026-07-15T00:01:00.000Z"));
+  });
+
   it("selects the newest attempt deterministically so a concurrent loser cannot overwrite canonical truth", async () => {
     const root = mkdtempSync(resolve(tmpdir(), "job-finder-attempt-concurrent-"));
     for (const input of [

@@ -210,7 +210,7 @@ export function evaluateStagedReleaseReadiness(
     addIssue(issues, "SNAPSHOT_HEALTH_COUNT_DRIFT", "Snapshot health totals do not match company records.");
   }
 
-  if (stableCompanyIds.length < minimumStableCompanyCount) {
+  if (input.releaseCandidateStatus !== "RELEASED" && stableCompanyIds.length < minimumStableCompanyCount) {
     addIssue(
       issues,
       "MINIMUM_STABLE_COMPANIES_NOT_MET",

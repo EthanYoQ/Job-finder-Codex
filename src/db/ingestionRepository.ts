@@ -301,7 +301,49 @@ interface AtomicSourceTransactionClient extends PrismaIngestionTransactionClient
 }
 
 export interface PrismaAtomicSourceEvidenceDb {
-  $transaction<T>(operation: (transaction: AtomicSourceTransactionClient) => Promise<T>): Promise<T>;
+  $transaction<T>(
+    operation: (transaction: AtomicSourceTransactionClient) => Promise<T>,
+    options?: { maxWait?: number; timeout?: number }
+  ): Promise<T>;
+}
+
+export const ATOMIC_EVIDENCE_TRANSACTION_OPTIONS = {
+  maxWait: 10_000,
+  timeout: 120_000
+} as const;
+
+export type PersistedAtomicCommitOutcome =
+  | { state: "COMMITTED_EXACT" }
+  | { state: "PENDING" }
+  | { state: "CONFLICT" };
+
+export interface PersistedBatchSourceResultRow {
+  sourceId: string;
+  transportState: TransportState;
+  adapterState: AdapterState;
+  completenessState: PrismaCompletenessStatusName | "PENDING";
+  atomicCommitState: AtomicCommitState;
+  failureCode: string | null;
+}
+
+export interface PrismaSourceResultReadDb {
+  crawlBatchSourceResult: {
+    findUnique(args: {
+      where: { id: string };
+    }): Promise<Record<string, unknown> | null>;
+    findMany(args: {
+      where: { releaseCandidateId: string; batchId: string };
+      select: {
+        sourceId: true;
+        transportState: true;
+        adapterState: true;
+        completenessState: true;
+        atomicCommitState: true;
+        failureCode: true;
+      };
+      orderBy: { sourceId: "asc" };
+    }): Promise<PersistedBatchSourceResultRow[]>;
+  };
 }
 
 export type ManualSourceCommitFence = { requestId: string; ownerId: string };
@@ -606,6 +648,44 @@ export async function executeAtomicSourceEvidenceCommit(
   return executeAtomicSourceEvidenceCommitInternal(input, db);
 }
 
+export async function inspectPersistedAtomicCommitOutcome(
+  input: AtomicSourceEvidenceCommit,
+  db: PrismaSourceResultReadDb
+): Promise<PersistedAtomicCommitOutcome> {
+  const persisted = await db.crawlBatchSourceResult.findUnique({
+    where: { id: input.sourceResult.id }
+  });
+  if (!persisted) return { state: "CONFLICT" };
+  if (isExactPersistedSourceResult(persisted, input.sourceResult)) {
+    return { state: "COMMITTED_EXACT" };
+  }
+  if (isExpectedPendingSourceResult(persisted, input.sourceResult)) {
+    return { state: "PENDING" };
+  }
+  return { state: "CONFLICT" };
+}
+
+export async function readPersistedBatchSourceResults(
+  input: { releaseCandidateId: string; batchId: string },
+  db: PrismaSourceResultReadDb
+): Promise<PersistedBatchSourceResultRow[]> {
+  return db.crawlBatchSourceResult.findMany({
+    where: {
+      releaseCandidateId: input.releaseCandidateId,
+      batchId: input.batchId
+    },
+    select: {
+      sourceId: true,
+      transportState: true,
+      adapterState: true,
+      completenessState: true,
+      atomicCommitState: true,
+      failureCode: true
+    },
+    orderBy: { sourceId: "asc" }
+  });
+}
+
 export async function executeManualSourceEvidenceCommit(
   input: AtomicSourceEvidenceCommit,
   fence: ManualSourceCommitFence,
@@ -758,7 +838,7 @@ async function executeAtomicSourceEvidenceCommitInternal(
       data: terminal
     });
     requireExactlyOnePendingResult(updateResult);
-  });
+  }, ATOMIC_EVIDENCE_TRANSACTION_OPTIONS);
 }
 
 const LOCK_MANUAL_REQUEST_FOR_COMMIT_SQL = `
@@ -874,6 +954,60 @@ function sourceResultTerminalData(result: AtomicSourceResultInput): Record<strin
     officialSurfaceIds: _officialSurfaceIds, officialChannelIds: _officialChannelIds, startedAt: _startedAt,
     ...terminal } = result;
   return terminal;
+}
+
+const ATOMIC_SOURCE_RESULT_FIELDS = [
+  "id", "releaseCandidateId", "batchId", "sourceId", "transportState", "adapterState",
+  "completenessState", "atomicCommitState", "sourceConfigHash", "adapterVersion", "officialEntryId",
+  "officialSurfaceIds", "officialChannelIds", "startedAt", "finishedAt", "rawCount", "parsedCount",
+  "validCount", "normalizedCount", "dedupeInputCount", "dedupeOutputCount", "parseDiscardCount",
+  "validationDiscardCount", "normalizationDiscardCount", "dedupeDiscardCount", "collisionCount",
+  "discardCount", "expectedJobCount", "expectedEvidenceKind", "expectedSurfaceSha256",
+  "visitedSurfaceSha256", "expectedChannelSha256", "visitedChannelSha256",
+  "canonicalCurrentJobSetSha256", "canonicalGraceJobSetSha256", "canonicalVisibleJobSetSha256",
+  "canonicalOutputSetSha256", "adapterInputCount", "adapterOutputCount", "adapterLossCount",
+  "adapterCollisionGroupCount", "adapterReconciliationSha256", "collisionLedgerSha256", "blockerCode",
+  "blockerReason", "failureCode", "failureReason"
+] as const satisfies readonly (keyof AtomicSourceResultInput)[];
+
+const PENDING_SOURCE_IMMUTABLE_FIELDS = [
+  "id", "releaseCandidateId", "batchId", "sourceId", "sourceConfigHash", "adapterVersion",
+  "officialEntryId", "officialSurfaceIds", "officialChannelIds", "startedAt"
+] as const satisfies readonly (keyof AtomicSourceResultInput)[];
+
+function isExactPersistedSourceResult(
+  persisted: Record<string, unknown>,
+  expected: AtomicSourceResultInput
+): boolean {
+  return ATOMIC_SOURCE_RESULT_FIELDS.every((field) =>
+    Object.prototype.hasOwnProperty.call(persisted, field) &&
+    persistedSourceValueEquals(persisted[field], expected[field] ?? null));
+}
+
+function isExpectedPendingSourceResult(
+  persisted: Record<string, unknown>,
+  expected: AtomicSourceResultInput
+): boolean {
+  if (persisted.transportState !== "PENDING" || persisted.adapterState !== "PENDING" ||
+      persisted.completenessState !== "PENDING" || persisted.atomicCommitState !== "PENDING") {
+    return false;
+  }
+  return PENDING_SOURCE_IMMUTABLE_FIELDS.every((field) =>
+    Object.prototype.hasOwnProperty.call(persisted, field) &&
+    persistedSourceValueEquals(persisted[field], expected[field] ?? null));
+}
+
+function persistedSourceValueEquals(actual: unknown, expected: unknown): boolean {
+  if (actual == null || expected == null) return actual == null && expected == null;
+  if (expected instanceof Date) {
+    const actualDate = actual instanceof Date ? actual : new Date(String(actual));
+    return !Number.isNaN(actualDate.getTime()) && actualDate.getTime() === expected.getTime();
+  }
+  if (Array.isArray(expected)) {
+    return Array.isArray(actual) && actual.length === expected.length &&
+      expected.every((value, index) => actual[index] === value);
+  }
+  return actual === expected;
 }
 
 function validateAtomicSourceEvidenceCommit(input: AtomicSourceEvidenceCommit, manualPreview = false): {

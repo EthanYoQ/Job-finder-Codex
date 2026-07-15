@@ -13,6 +13,46 @@ async function loadOpsMonitoringModule() {
 }
 
 describe("ops monitoring alerts", () => {
+  it("emits an exact identity-bound one-shot alert for the two-round initial qualification pause", async () => {
+    const { evaluateOpsAlerts } = await loadOpsMonitoringModule();
+    const notificationKey = "a".repeat(64);
+    const alerts = evaluateOpsAlerts({
+      now,
+      health: { ok: true, statusCode: 200 },
+      backup: { latestBackupAt: "2026-07-08T10:00:00.000Z", latestBackupSucceeded: true },
+      crawl: {
+        authorityState: "PAUSED",
+        attemptState: "PAUSED",
+        summaryState: "VALID",
+        globalSuccessRate: 1,
+        consecutiveFailuresByCompany: {},
+        initialQualificationPause: {
+          notificationKey,
+          releaseCandidateId: "rc-pause",
+          batchId: "batch-second-round",
+          completedRoundCount: 2,
+          stableCompanyCount: 44,
+          minimumStableCompanyCount: 45
+        }
+      }
+    }) as OpsAlert[];
+
+    expect(alerts).toContainEqual({
+      code: "INITIAL_QUALIFICATION_PAUSED_BELOW_MINIMUM",
+      severity: "critical",
+      message: "Initial qualification paused after exactly two completed rounds: 44/45 stable companies. No third qualification round is allowed.",
+      dedupeKey: `initial-qualification-pause:${notificationKey}`,
+      metadata: {
+        releaseCandidateId: "rc-pause",
+        batchId: "batch-second-round",
+        completedRoundCount: 2,
+        stableCompanyCount: 44,
+        minimumStableCompanyCount: 45
+      }
+    });
+    expect(alerts).not.toContainEqual(expect.objectContaining({ code: "CRAWL_ATTEMPT_FAILED" }));
+  });
+
   it("raises immediate alerts for website downtime, backup failure, and database resource exhaustion", async () => {
     const { evaluateOpsAlerts } = await loadOpsMonitoringModule();
 
@@ -103,6 +143,25 @@ describe("ops monitoring alerts", () => {
     }) as OpsAlert[];
 
     expect(alerts).toContainEqual(expect.objectContaining({ code: "CRAWL_PARTIAL_COMPANY_RESULTS", severity: "warning" }));
+    expect(alerts).not.toContainEqual(expect.objectContaining({ severity: "critical" }));
+  });
+
+  it("keeps a low post-launch partial result advisory because healthy companies publish independently", async () => {
+    const { evaluateOpsAlerts } = await loadOpsMonitoringModule();
+    const alerts = evaluateOpsAlerts({
+      now,
+      health: { ok: true, statusCode: 200 },
+      backup: { latestBackupAt: "2026-07-08T10:00:00.000Z", latestBackupSucceeded: true },
+      crawl: {
+        authorityState: "VALID",
+        attemptState: "SUCCESS",
+        summaryState: "VALID",
+        globalSuccessRate: 0.5,
+        consecutiveFailuresByCompany: { "company-a": 1 }
+      }
+    }) as OpsAlert[];
+
+    expect(alerts).toContainEqual(expect.objectContaining({ code: "CRAWL_SUCCESS_BELOW_SLO", severity: "warning" }));
     expect(alerts).not.toContainEqual(expect.objectContaining({ severity: "critical" }));
   });
 

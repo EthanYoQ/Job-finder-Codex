@@ -14,6 +14,7 @@ export type OpsAlertCode =
   | "CRAWL_ATTEMPT_INVALID"
   | "CRAWL_ATTEMPT_FAILED"
   | "CRAWL_ATTEMPT_STALE"
+  | "INITIAL_QUALIFICATION_PAUSED_BELOW_MINIMUM"
   | "COMPANY_CONSECUTIVE_FAILURES"
   | "CERTIFICATE_EXPIRING"
   | "HIGH_DISK_USAGE"
@@ -26,6 +27,7 @@ export interface OpsAlert {
   code: OpsAlertCode;
   severity: OpsAlertSeverity;
   message: string;
+  dedupeKey?: string;
   metadata?: Record<string, unknown>;
 }
 
@@ -40,11 +42,19 @@ export interface OpsAlertInput {
     latestBackupSucceeded?: boolean;
   };
   crawl: {
-    authorityState: "VALID" | "INVALID";
-    attemptState: "SUCCESS" | "RUNNING" | "MISSING" | "INVALID" | "FAILED" | "STALE";
+    authorityState: "VALID" | "PAUSED" | "INVALID";
+    attemptState: "SUCCESS" | "RUNNING" | "PAUSED" | "MISSING" | "INVALID" | "FAILED" | "STALE";
     summaryState: "VALID" | "MISSING" | "INVALID" | "STALE";
     globalSuccessRate?: number;
     consecutiveFailuresByCompany: Record<string, number>;
+    initialQualificationPause?: {
+      notificationKey: string;
+      releaseCandidateId: string;
+      batchId: string;
+      completedRoundCount: 2;
+      stableCompanyCount: number;
+      minimumStableCompanyCount: number;
+    };
   };
   certificate?: {
     expiresAt?: string;
@@ -69,7 +79,7 @@ const TRAFFIC_SPIKE_MULTIPLIER = 3;
 export function evaluateOpsAlerts(input: OpsAlertInput): OpsAlert[] {
   const alerts: OpsAlert[] = [];
 
-  if (input.crawl.authorityState !== "VALID") {
+  if (input.crawl.authorityState === "INVALID") {
     alerts.push({ code: "CRAWL_AUTHORITY_INVALID", severity: "critical", message: "Pinned crawl release authority is unavailable or invalid." });
   }
   const attemptAlert = {
@@ -78,9 +88,33 @@ export function evaluateOpsAlerts(input: OpsAlertInput): OpsAlert[] {
     FAILED: ["CRAWL_ATTEMPT_FAILED", "The latest crawl attempt failed."],
     STALE: ["CRAWL_ATTEMPT_STALE", "The latest crawl attempt is stale."]
   } as const;
-  if (!["SUCCESS", "RUNNING"].includes(input.crawl.attemptState)) {
+  if (!["SUCCESS", "RUNNING", "PAUSED"].includes(input.crawl.attemptState)) {
     const [code, message] = attemptAlert[input.crawl.attemptState as keyof typeof attemptAlert];
     alerts.push({ code, severity: input.crawl.attemptState === "FAILED" ? "warning" : "critical", message });
+  }
+
+  const pause = input.crawl.initialQualificationPause;
+  if (pause) {
+    if (
+      !/^[0-9a-f]{64}$/u.test(pause.notificationKey) || !pause.releaseCandidateId.trim() ||
+      !pause.batchId.trim() || pause.completedRoundCount !== 2 ||
+      !Number.isSafeInteger(pause.stableCompanyCount) || pause.stableCompanyCount < 0 ||
+      !Number.isSafeInteger(pause.minimumStableCompanyCount) || pause.minimumStableCompanyCount < 1 ||
+      pause.stableCompanyCount >= pause.minimumStableCompanyCount
+    ) throw new Error("Initial qualification pause monitoring input is invalid");
+    alerts.push({
+      code: "INITIAL_QUALIFICATION_PAUSED_BELOW_MINIMUM",
+      severity: "critical",
+      message: `Initial qualification paused after exactly two completed rounds: ${pause.stableCompanyCount}/${pause.minimumStableCompanyCount} stable companies. No third qualification round is allowed.`,
+      dedupeKey: `initial-qualification-pause:${pause.notificationKey}`,
+      metadata: {
+        releaseCandidateId: pause.releaseCandidateId,
+        batchId: pause.batchId,
+        completedRoundCount: pause.completedRoundCount,
+        stableCompanyCount: pause.stableCompanyCount,
+        minimumStableCompanyCount: pause.minimumStableCompanyCount
+      }
+    });
   }
 
   const summaryAlert = {
@@ -132,7 +166,7 @@ export function evaluateOpsAlerts(input: OpsAlertInput): OpsAlert[] {
   if (globalSuccessRate !== undefined && globalSuccessRate < CRAWL_SUCCESS_SLO) {
     alerts.push({
       code: "CRAWL_SUCCESS_BELOW_SLO",
-      severity: "critical",
+      severity: "warning",
       message: `Global crawl success rate fell to ${(globalSuccessRate * 100).toFixed(1)}%.`,
       metadata: { globalSuccessRate }
     });

@@ -163,6 +163,9 @@ describe("runtime atomic evidence planning", () => {
       db: db as never, identity, now: new Date("2026-07-10T00:00:00Z"),
       createBatchId: () => "batch-atomic-1",
       fetch: async () => { events.push("fetch"); return { ok: false, capturedAt: "2026-07-10T00:00:01Z", failureReason: "UPSTREAM_FAILED" }; },
+      readPersistedBatchSourceResults: async () => [{ sourceId: plan.source.id,
+        transportState: "FAILED", adapterState: "SKIPPED", completenessState: "FAILED",
+        atomicCommitState: "NOT_ATTEMPTED", failureCode: "SOURCE_TRANSPORT_FAILED" }],
       getPreviousJobs: async () => [], getRecentObservations: async () => [], isBaselineCompleted: async () => true
     });
 
@@ -192,7 +195,11 @@ describe("runtime atomic evidence planning", () => {
         sourceConfigSha256: sha, adapterBundleSha256: sha, batchKind: "SCHEDULED", ownerId: "owner",
         expectedPlannedSourceIds: ids, expectedPlannedSourceSetSha256: hash, expectedPlannedSourceCount: 2 },
       fetch: async () => { throw new Error("must not fetch"); }, getPreviousJobs: async () => [],
-      getRecentObservations: async () => { throw new Error("pre-read failed"); }, isBaselineCompleted: async () => true
+      getRecentObservations: async () => { throw new Error("pre-read failed"); }, isBaselineCompleted: async () => true,
+      readPersistedBatchSourceResults: async () => ids.map((sourceId) => ({ sourceId,
+        transportState: "FAILED" as const, adapterState: "SKIPPED" as const,
+        completenessState: "FAILED" as const, atomicCommitState: "NOT_ATTEMPTED" as const,
+        failureCode: "BATCH_ABORTED_BEFORE_SOURCE_TERMINAL" }))
     })).rejects.toThrow("pre-read failed");
     expect(terminal.map((row) => row.sourceId)).toEqual(ids);
   });
@@ -510,6 +517,14 @@ describe("runtime atomic evidence planning", () => {
           ? archiveFailure as never : async () => ({ artifacts: archived, orphanedFinalArtifacts: [] }),
         verifyArchive: fault === "verify" ? fail as never : async () => archived,
         executeAtomicCommit: atomicCommit as never,
+        inspectAtomicCommitOutcome: async () => ({ state: "PENDING" }),
+        readPersistedBatchSourceResults: async () => [{ sourceId,
+          transportState: "SUCCEEDED", adapterState: "SUCCEEDED", completenessState: "FAILED",
+          atomicCommitState: "ROLLED_BACK", failureCode: fault === "atomic"
+            ? "ATOMIC_EVIDENCE_COMMIT_FAILED"
+            : fault === "verify" ? "EVIDENCE_VERIFICATION_FAILED"
+              : fault === "archive" || fault === "orphan" || fault === "orphan-ledger"
+                ? "EVIDENCE_ARCHIVE_FAILED" : "ATOMIC_COMMIT_BUILD_FAILED" }],
         recordOrphanedArtifacts: async (artifacts) => {
           orphanLedger.push(...artifacts);
           if (fault === "orphan-ledger") throw new Error("authorization: Bearer example-placeholder");

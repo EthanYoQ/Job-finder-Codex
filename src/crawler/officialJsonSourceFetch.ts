@@ -7,6 +7,7 @@ import {
   assertOfficialJsonEvidenceResponse,
   assertOfficialJsonMime,
   explicitlyForeignOrNonMainlandLocation,
+  explicitlyGenericOrAmbiguousLocation,
   explicitlyOutsideChina,
   finalizeOfficialJsonEvidence,
   finalizeOfficialJsonEvidenceBundle,
@@ -43,6 +44,7 @@ export type OfficialJsonFetchConfig =
   | {
       kind: "novo-nordisk";
       endpointUrl: string;
+      cityScopePolicy?: "NOVO_CHINA_MAINLAND_JOB_CITY_V1";
     }
   | {
       kind: "phenom";
@@ -78,6 +80,11 @@ export type OfficialJsonFetchConfig =
       displayFields?: string[];
       defaultLocationRaw?: string;
       geographyScope?: "DOMESTIC_OFFICIAL_TENANT";
+      mixedLocationPolicy?: "INCLUDE_MAINLAND_JAPAN_ALTERNATIVES";
+      scopeExclusionProof?:
+        | "DONGYANGGUANG_EXPLICIT_FOREIGN_ONLY_V1"
+        | "QILU_EXPLICIT_US_ONLY_V1"
+        | "THREESBIO_XIANYANG_HOMOGRAPH_V1";
     }
   | {
       kind: "cnstaff";
@@ -116,6 +123,7 @@ export type OfficialJsonFetchConfig =
       pageSize?: number;
       maxPages?: number;
       detailBaseUrl: string;
+      cityScopePolicy?: "SANDOZ_CHINA_TAXONOMY_LOCATION_V1";
     }
   | {
       kind: "redsea-zp-channel";
@@ -130,6 +138,7 @@ export type OfficialJsonFetchConfig =
       defaultLocationRaw?: "未披露";
       pageSize?: number;
       maxPages?: number;
+      scopeExclusionProof?: "XIUZHENG_NON_RECRUITMENT_TITLE_V1";
     };
 
 export interface OfficialJsonHttpRequest {
@@ -318,6 +327,7 @@ export function createOfficialJsonSourceFetch(
           http,
           config: plan.officialJsonFetch,
           entryUrl: plan.source.officialEntryUrl,
+          sourceIdentity: { id: plan.source.id, companyId: plan.source.companyId },
           capturedAt,
           now
         }));
@@ -347,6 +357,7 @@ export function createOfficialJsonSourceFetch(
         http,
         config: plan.officialJsonFetch,
         entryUrl: plan.source.officialEntryUrl,
+        sourceIdentity: { id: plan.source.id, companyId: plan.source.companyId },
         capturedAt,
         now
       }));
@@ -447,12 +458,14 @@ async function fetchSingleResponseOfficialJson({
   http,
   config,
   entryUrl,
+  sourceIdentity,
   capturedAt,
   now
 }: {
   http: OfficialJsonHttpClient;
   config: Extract<OfficialJsonFetchConfig, { kind: "innovent" | "novo-nordisk" }>;
   entryUrl: string;
+  sourceIdentity: { id: string; companyId: string };
   capturedAt: string;
   now: () => Date;
 }): Promise<SourceFetchResult> {
@@ -594,6 +607,7 @@ async function fetchSingleResponseOfficialJson({
   });
   const jobs: NormalizedOfficialJsonJob[] = [];
   const seenOfficialIds = new Set<string>();
+  const usesNovoChinaCityPolicy = isExactNovoChinaCityPolicy({ config, entryUrl, sourceIdentity, endpoint });
   for (let recordIndex = 0; recordIndex < rawJobs.length; recordIndex += 1) {
     const raw = rawJobs[recordIndex];
     state.rawCount += 1;
@@ -630,6 +644,13 @@ async function fetchSingleResponseOfficialJson({
       recordOfficialJsonLoss(state, "VALIDATION", "OUT_OF_SCOPE", rawLocator, recordIndex);
       continue;
     }
+    const novoCityReview = usesNovoChinaCityPolicy
+      ? reviewNovoChinaMainlandCity(officialLocation, city)
+      : undefined;
+    if (novoCityReview && novoCityReview.scope !== "CHINA") {
+      recordOfficialJsonLoss(state, "VALIDATION", "OUT_OF_SCOPE", rawLocator, recordIndex);
+      continue;
+    }
     const officialUrl = officialJsonJobUrl(config.kind, officialId);
     const sensitiveField = sensitiveOfficialJsonField({
       id: officialId,
@@ -649,7 +670,7 @@ async function fetchSingleResponseOfficialJson({
       title: officialTitle,
       officialUrl,
       locationRaw: officialLocation,
-      cities: citiesFromLocation(city ?? officialLocation)
+      cities: novoCityReview?.cities ?? citiesFromLocation(city ?? officialLocation)
     });
     state.validCount += 1;
     state.page.validJobIds.push(irreversibleOfficialJsonEvidenceId(sourceJobId));
@@ -662,6 +683,12 @@ async function fetchSingleResponseOfficialJson({
       "Official JSON empty response lacks explicit official zero evidence",
       finalizeOfficialJsonFailureEvidence(state)
     );
+  }
+  if (config.kind === "novo-nordisk" && officialTotalHasSourceScope && declaredTotal !== undefined &&
+    rawJobs.length === declaredTotal && state.fetchLosses.length === 0 &&
+    state.validCount === declaredTotal && state.parseDiscardCount === 0 &&
+    state.validationDiscardCount === 0) {
+    state.page.termination = declaredTotal === 0 ? "EMPTY_PAGE" : "DECLARED_TOTAL_REACHED";
   }
 
   const declaredCompleteness = declaredTotal === undefined || !totalPath || !officialTotalHasSourceScope
@@ -730,6 +757,65 @@ function isNovoChinaMainlandRequest(endpoint: string): boolean {
   );
   return countryEntries.length === 1 && countryEntries[0]![0] === "country" &&
     countryEntries[0]![1] === "China Mainland";
+}
+
+const EXACT_NOVO_CHINA_SOURCE_ID = "source-novo-nordisk-china-social";
+const EXACT_NOVO_CHINA_COMPANY_ID = "company-novo-nordisk-china";
+const EXACT_NOVO_CHINA_ENTRY_URL =
+  "https://www.novonordisk.com/careers/find-a-job/career-search-results.html";
+const EXACT_NOVO_CHINA_ENDPOINT =
+  "https://www.novonordisk.com/bin/nncorp/careersearch?keyword=&country=China%20Mainland&category=&locale=en";
+
+function isExactNovoChinaCityPolicy(input: {
+  config: Extract<OfficialJsonFetchConfig, { kind: "innovent" | "novo-nordisk" }>;
+  entryUrl: string;
+  sourceIdentity: { id: string; companyId: string };
+  endpoint: string;
+}): boolean {
+  return input.config.kind === "novo-nordisk" &&
+    input.config.cityScopePolicy === "NOVO_CHINA_MAINLAND_JOB_CITY_V1" &&
+    input.sourceIdentity.id === EXACT_NOVO_CHINA_SOURCE_ID &&
+    input.sourceIdentity.companyId === EXACT_NOVO_CHINA_COMPANY_ID &&
+    input.entryUrl === EXACT_NOVO_CHINA_ENTRY_URL &&
+    input.config.endpointUrl === EXACT_NOVO_CHINA_ENDPOINT &&
+    input.endpoint === EXACT_NOVO_CHINA_ENDPOINT &&
+    isNovoChinaMainlandRequest(input.endpoint);
+}
+
+function reviewNovoChinaMainlandCity(
+  locationRaw: string,
+  city: string | undefined
+): { scope: "CHINA" | "OUT_OF_SCOPE" | "AMBIGUOUS"; cities: string[] } {
+  const combined = `${locationRaw} ${city ?? ""}`.normalize("NFKC");
+  if (explicitlyForeignOrNonMainlandLocation(combined)) {
+    return { scope: "OUT_OF_SCOPE", cities: [] };
+  }
+
+  const locationSegments = locationRaw.normalize("NFKC")
+    .split(/[,，;；、/|()（）\r\n]+/u)
+    .map((segment) => segment.trim())
+    .filter(Boolean);
+  if (!locationSegments.some(isNovoChinaMainlandCountrySegment)) {
+    return { scope: "AMBIGUOUS", cities: [] };
+  }
+
+  const cityCandidate = city?.normalize("NFKC").trim() ||
+    locationSegments.find((segment) => !isNovoChinaMainlandCountrySegment(segment));
+  if (!cityCandidate || isNovoChinaMainlandCountrySegment(cityCandidate) ||
+    explicitlyForeignOrNonMainlandLocation(cityCandidate)) {
+    return { scope: "AMBIGUOUS", cities: [] };
+  }
+
+  return {
+    scope: "CHINA",
+    cities: citiesWithFallback(`${cityCandidate} ${locationRaw}`, cityCandidate)
+  };
+}
+
+function isNovoChinaMainlandCountrySegment(value: string): boolean {
+  return /^(?:china(?:\s+mainland)?|mainland\s+china|prc|people['’]?s republic of china|中国|中国大陆|中华人民共和国)$/iu.test(
+    value.normalize("NFKC").trim()
+  );
 }
 
 function officialJsonJobUrl(kind: "innovent" | "novo-nordisk", officialId: string): string {
@@ -972,11 +1058,12 @@ async function fetchXiuzhengJobList({
   let previousCapturedAtMs = Date.parse(capturedAt);
 
   for (let page = 1; page <= maxPages; page += 1) {
+    const requestBody = { page, pageSize };
     let response: OfficialJsonHttpResponse;
     try { response = await http({ url: config.endpointUrl, method: "POST", headers: {
       Accept: "application/json", "Content-Type": "application/json", Referer: safeEntryUrl,
       "User-Agent": "job-search-crawler/0.1"
-    }, body: JSON.stringify({ page, pageSize }) }); }
+    }, body: JSON.stringify(requestBody) }); }
     catch { return xiuzhengFailure(capturedAt, "Xiuzheng job-list transport failed", artifacts, pages, counts, losses, xiuzhengDeclaredCompleteness(declarations?.total, declaredArtifact)); }
     const redaction = redactXiuzhengSensitiveBody(response.body, response.setCookie);
     const safeResponse = { ...response, body: redaction.body };
@@ -985,7 +1072,10 @@ async function fetchXiuzhengJobList({
     try {
       artifact = officialJsonNetworkArtifact({ id: logicalKey, logicalKey, kind: "PAGINATION_PAGE",
         requestedUrl: config.endpointUrl, response: safeResponse,
-        extractorLocator: xiuzhengLocator(page, pageSize),
+        extractorLocator: requestContractV2Locator(xiuzhengLocator(page, pageSize), {
+          family: "xiuzheng", role: "page", method: "POST", url: config.endpointUrl, body: requestBody,
+          coordinate: { sequence: page - 1, requestedPage: page, requestedPageSize: pageSize }
+        }),
         bodyRepresentation: redaction.redacted ? "REDACTED" : "EXACT",
         ...(redaction.redacted ? { rawBodySha256: sha256Bytes(Buffer.from(response.body, "utf8")).sha256,
           redactionDescriptors: [{ kind: "CREDENTIAL_MATERIAL" as const, count: redaction.count }] } : {}) });
@@ -1029,9 +1119,11 @@ async function fetchXiuzhengJobList({
       ...(declarations ? { prior: declarations } : {}) });
     const terminal: SourceFetchPageTrace["termination"] = declarationFailure ? "FAILED" :
       parsed.total === 0 && page === 1 ? "EMPTY_PAGE" :
-      parsed.rawJobs.length < pageSize ? "ABORTED" :
-      page < (parsed.lastPage ?? Number.POSITIVE_INFINITY) ? "CONTINUE" : "ABORTED";
-    pages.push(xiuzhengPageTrace({ artifact, sequence: page - 1, requestedPage: page, parsed, rawIds, validIds, termination: terminal }));
+      parsed.lastPage !== undefined && page < parsed.lastPage ? "CONTINUE" :
+      parsed.lastPage !== undefined && page === parsed.lastPage &&
+        parsed.total !== undefined && counts.rawCount === parsed.total ? "NEXT_ABSENT" : "ABORTED";
+    pages.push(xiuzhengPageTrace({ artifact, sequence: page - 1, requestedPage: page,
+      requestedPageSize: pageSize, parsed, rawIds, validIds, termination: terminal }));
     if (declarationFailure) return xiuzhengFailure(capturedAt, "Xiuzheng pagination declaration is inconsistent", artifacts, pages, counts, losses, xiuzhengDeclaredCompleteness(declarations?.total, declaredArtifact));
     declarations = { ...(parsed.total === undefined ? {} : { total: parsed.total }),
       ...(parsed.lastPage === undefined ? {} : { lastPage: parsed.lastPage }),
@@ -1043,13 +1135,18 @@ async function fetchXiuzhengJobList({
     pages[pages.length - 1] = { ...pages[pages.length - 1]!, termination: "MAX_PAGE_LIMIT",
       anomalyCodes: [...pages[pages.length - 1]!.anomalyCodes, "MAX_PAGES_WITH_NEXT"] };
   }
+  const declaredCompleteness = config.scopeExclusionProof === "XIUZHENG_NON_RECRUITMENT_TITLE_V1"
+    ? sourceTraversalCompleteness(pages, artifacts)
+    : xiuzhengDeclaredCompleteness(declarations?.total, declaredArtifact);
   const finalized = finalizeOfficialJsonEvidenceBundle({ artifacts, pages, fetchCounts: counts, fetchLosses: losses,
-    ...(xiuzhengDeclaredCompleteness(declarations?.total, declaredArtifact) ? { declaredCompleteness: xiuzhengDeclaredCompleteness(declarations?.total, declaredArtifact)! } : {}) });
+    ...(declaredCompleteness ? { declaredCompleteness } : {}) });
   return {
     ok: true, capturedAt, payload: { jobs }, completeness: {
       completenessStatus: "NEEDS_MANUAL_COMPLETENESS_REVIEW",
-      ...(declarations?.total === undefined ? {} : { expectedJobCount: declarations.total }),
-      completenessEvidenceKind: declarations?.total === undefined ? "WEAK_MANUAL_SAMPLE" : "OFFICIAL_TOTAL_COUNT",
+      ...(config.scopeExclusionProof || declarations?.total === undefined ? {} : { expectedJobCount: declarations.total }),
+      completenessEvidenceKind: config.scopeExclusionProof
+        ? "COMPLETE_PAGE_TRAVERSAL"
+        : declarations?.total === undefined ? "WEAK_MANUAL_SAMPLE" : "OFFICIAL_TOTAL_COUNT",
       completenessEvidenceUrl: safeEntryUrl,
       completenessBlockerReason: "Xiuzheng pagination and China scope require independent manual review",
       ...(declarations?.lastPage === undefined ? {} : { totalPages: declarations.lastPage }), pageSize, pagesVisited: pages.length
@@ -1214,12 +1311,14 @@ async function fetchSandozJsonApi({
   http,
   config,
   entryUrl,
+  sourceIdentity,
   capturedAt,
   now
 }: {
   http: OfficialJsonHttpClient;
   config: Extract<OfficialJsonFetchConfig, { kind: "sandoz-jsonapi" }>;
   entryUrl: string;
+  sourceIdentity: { id: string; companyId: string };
   capturedAt: string;
   now: () => Date;
 }): Promise<SourceFetchResult> {
@@ -1395,7 +1494,12 @@ async function fetchSandozJsonApi({
           sandozDeclaredCompleteness(declaredTotal, declaredArtifactKey));
       }
       counts.parsedCount += 1;
-      const parsed = parseSandozResource(config, detailBase, raw);
+      const parsed = parseSandozResource(
+        config,
+        detailBase,
+        raw,
+        isExactSandozChinaCityPolicy({ config, entryUrl, sourceIdentity })
+      );
       if (!parsed.ok) {
         recordSandozLoss(losses, counts, "VALIDATION", parsed.code, locator, page, index, parsed.field);
         pages.push(sandozPageTrace({ artifact, sequence: page, requestedPage: page, returnedPage: page,
@@ -1673,7 +1777,10 @@ async function fetchJobsynSolr({
       const location = stringValue(raw.location_exact) ?? [stringValue(raw.city_exact), stringValue(raw.country_short_exact) ?? stringValue(raw.country_exact)].filter(Boolean).join(", ");
       if (!title || !location) { recordJobsynLoss(losses, counts, "VALIDATION", "MISSING_REQUIRED_FIELD", locator, page - 1, index); continue; }
       if (normalized.length !== 1) { recordJobsynLoss(losses, counts, "VALIDATION", "UNSAFE_OFFICIAL_URL", locator, page - 1, index, "officialUrl"); continue; }
-      const scope = beisenRecordScope(stringValue(raw.country_exact) ?? stringValue(raw.country_short_exact), location);
+      const scope = officialJsonChinaRecordScope(
+        stringValue(raw.country_exact) ?? stringValue(raw.country_short_exact),
+        location
+      );
       if (scope !== "CHINA") { recordJobsynLoss(losses, counts, "VALIDATION", scope === "AMBIGUOUS" ? "AMBIGUOUS_SCOPE" : "OUT_OF_SCOPE", locator, page - 1, index); continue; }
       if (sensitiveOfficialJsonField({ sourceJobId: rawId, title, locationRaw: location,
         officialUrl: normalized[0]!.officialUrl })) {
@@ -2204,7 +2311,8 @@ async function fetchBeisenZhiye2022({
       kind: "PAGINATION_PAGE",
       requestedUrl: endpointUrl,
       response,
-      extractorLocator: unavailableLocator
+      extractorLocator: unavailableLocator,
+      ...(config.scopeExclusionProof ? { bodyRepresentation: "EXACT" as const } : {})
     });
     artifacts.push(artifact);
     if (response.status < 200 || response.status >= 300) {
@@ -2296,8 +2404,8 @@ async function fetchBeisenZhiye2022({
 
     const rawJobs = root.Data as unknown[];
     const rawIds: string[] = rawJobs.map((raw) => {
-      const rawOfficialId = isStrictRecord(raw)
-        ? stringValue(raw.Id) ?? stringValue(raw.JobAdId)
+      const rawOfficialId = isStrictRecord(raw) && typeof raw.Id === "string"
+        ? raw.Id
         : undefined;
       return irreversibleOfficialJsonEvidenceId(rawOfficialId ?? raw);
     }).filter((id, index, ids) => ids.indexOf(id) === index);
@@ -2331,14 +2439,28 @@ async function fetchBeisenZhiye2022({
           artifacts, pages, counts, losses,
           beisenDeclaredCompleteness(declaredTotal, declaredArtifactKey, declaredLocator));
       }
-      const officialId = stringValue(raw.Id) ?? stringValue(raw.JobAdId);
-      const detailId = stringValue(raw.JobAdId) ?? officialId;
+      const officialId = beisenCanonicalOriginalUuid(raw.Id);
+      const detailId = officialId;
       const title = stringValue(raw.JobAdName);
-      const locationParts = stringsValue(raw.LocNames);
-      const locationRaw = locationParts.join(" / ") || stringValue(raw.LocName) ||
+      const upstreamLocationParts = stringsValue(raw.LocNames);
+      const upstreamLocationRaw = upstreamLocationParts.join(" / ") || stringValue(raw.LocName) ||
         stringValue(raw.LocationName) || stringValue(raw.City);
-      if (!officialId || !detailId || !title) {
-        const missing = !officialId ? "id" : !detailId ? "detailId" : "title";
+      const correctedLocation = beisenSourceBoundLocationCorrection(
+        config, raw, officialId, title, upstreamLocationParts, upstreamLocationRaw
+      );
+      const locationParts = correctedLocation.locationParts;
+      const locationRaw = correctedLocation.locationRaw;
+      if (!hasOwn(raw, "Id") || raw.Id === undefined || raw.Id === null ||
+        (typeof raw.Id === "string" && raw.Id.trim() === "")) {
+        recordBeisenLoss(losses, counts, "VALIDATION", "MISSING_REQUIRED_FIELD", rawLocator, pageIndex, recordIndex, "id");
+        continue;
+      }
+      if (!officialId || !detailId || !safeOfficialJsonId(officialId)) {
+        recordBeisenLoss(losses, counts, "VALIDATION", "UNSAFE_OFFICIAL_ID", rawLocator, pageIndex, recordIndex, "id");
+        continue;
+      }
+      if (!title) {
+        const missing = "title";
         recordBeisenLoss(losses, counts, "VALIDATION", "MISSING_REQUIRED_FIELD", rawLocator, pageIndex, recordIndex, missing);
         continue;
       }
@@ -2346,10 +2468,6 @@ async function fetchBeisenZhiye2022({
         recordBeisenLoss(losses, counts, "VALIDATION",
           config.defaultLocationRaw ? "DECLARED_LOCATION_FALLBACK" : "MISSING_REQUIRED_FIELD",
           rawLocator, pageIndex, recordIndex, "locationRaw");
-        continue;
-      }
-      if (!safeOfficialJsonId(officialId) || !safeOfficialJsonId(detailId)) {
-        recordBeisenLoss(losses, counts, "VALIDATION", "UNSAFE_OFFICIAL_ID", rawLocator, pageIndex, recordIndex, "id");
         continue;
       }
       if (seenOfficialIds.has(officialId)) {
@@ -2361,7 +2479,14 @@ async function fetchBeisenZhiye2022({
         continue;
       }
       const country = stringValue(raw.Country) ?? stringValue(raw.CountryName);
-      const scope = beisenRecordScope(country, locationRaw, config.geographyScope);
+      const scopeReview = beisenDomesticRecordScopeReview(
+        country,
+        locationParts.length > 0 ? locationParts : [locationRaw],
+        locationRaw,
+        config.geographyScope,
+        config.mixedLocationPolicy
+      );
+      const scope = scopeReview.scope;
       if (scope !== "CHINA") {
         recordBeisenLoss(losses, counts, "VALIDATION",
           scope === "AMBIGUOUS" ? "AMBIGUOUS_SCOPE" : "OUT_OF_SCOPE",
@@ -2383,12 +2508,17 @@ async function fetchBeisenZhiye2022({
       seenOfficialIds.add(officialId);
       seenDetailIds.add(detailId);
       const sourceJobId = persistentOfficialJsonJobId(officialId);
+      const observedCities = citiesFromBeisenLocation(
+        config.mixedLocationPolicy === "INCLUDE_MAINLAND_JAPAN_ALTERNATIVES"
+          ? scopeReview.mainlandLocationParts
+          : locationParts.length > 0 ? locationParts : [locationRaw]
+      );
       jobs.push({
         sourceJobId,
         title,
         officialUrl,
         locationRaw,
-        cities: citiesFromBeisenLocation(locationParts.length > 0 ? locationParts : [locationRaw])
+        cities: observedCities
       });
       counts.validCount += 1;
       validIds.push(irreversibleOfficialJsonEvidenceId(sourceJobId));
@@ -2439,11 +2569,9 @@ async function fetchBeisenZhiye2022({
     if (pageTotal === undefined || intermediateEmpty || !hasNext || atMax) break;
   }
 
-  const declaredCompleteness = beisenDeclaredCompleteness(
-    declaredTotal,
-    declaredArtifactKey,
-    declaredLocator
-  );
+  const declaredCompleteness = config.scopeExclusionProof
+    ? sourceTraversalCompleteness(pages, artifacts)
+    : beisenDeclaredCompleteness(declaredTotal, declaredArtifactKey, declaredLocator);
   let finalized: ReturnType<typeof finalizeOfficialJsonEvidenceBundle>;
   try {
     finalized = finalizeOfficialJsonEvidenceBundle({
@@ -2476,8 +2604,10 @@ async function fetchBeisenZhiye2022({
     payload: { jobs },
     completeness: {
       completenessStatus: "NEEDS_MANUAL_COMPLETENESS_REVIEW",
-      ...(declaredTotal === undefined ? {} : { expectedJobCount: declaredTotal }),
-      completenessEvidenceKind: declaredTotal === undefined ? "WEAK_MANUAL_SAMPLE" : "OFFICIAL_TOTAL_COUNT",
+      ...(config.scopeExclusionProof || declaredTotal === undefined ? {} : { expectedJobCount: declaredTotal }),
+      completenessEvidenceKind: config.scopeExclusionProof
+        ? "COMPLETE_PAGE_TRAVERSAL"
+        : declaredTotal === undefined ? "WEAK_MANUAL_SAMPLE" : "OFFICIAL_TOTAL_COUNT",
       completenessEvidenceUrl: safeOfficialJsonEvidenceUrl(safeEntryUrl),
       completenessBlockerReason:
         "Beisen Zhiye evidence remains manual until downstream adapter accounting is complete",
@@ -2832,8 +2962,8 @@ async function fetchPhenomWidgets({
       counts.parsedCount += 1;
       const id = stringValue(raw.jobSeqNo) ?? stringValue(raw.reqId) ?? stringValue(raw.jobId);
       const title = stringValue(raw.title);
-      const locationRaw = stringValue(raw.location) ?? stringValue(raw.cityStateCountry) ??
-        firstString(raw.multi_location) ?? stringValue(raw.city);
+      const locationSelection = selectPhenomLocation(raw);
+      const locationRaw = locationSelection.locationRaw;
       const applyUrlRaw = stringValue(raw.applyUrl);
       const reqId = stringValue(raw.reqId);
       const missing = !id ? "id" : !title ? "title" : !locationRaw ? "locationRaw" :
@@ -2850,11 +2980,14 @@ async function fetchPhenomWidgets({
         recordPhenomLoss(losses, counts, "VALIDATION", "DUPLICATE_OFFICIAL_ID", rawLocator, pageIndex, recordIndex, "id");
         continue;
       }
-      const city = stringValue(raw.city);
+      const city = locationSelection.city;
       const locationScopeInvalid = explicitlyForeignOrNonMainlandLocation(locationRaw!) ||
         (city !== undefined && explicitlyForeignOrNonMainlandLocation(city)) ||
+        explicitlyGenericOrAmbiguousLocation(locationRaw!) ||
+        (city !== undefined && explicitlyGenericOrAmbiguousLocation(city)) ||
+        stringsValue(raw.multi_location).some(explicitlyGenericOrAmbiguousLocation) ||
         phenomLocationHasAmbiguousSegments(locationRaw!);
-      if ((facetScope || sourceScopedChinaRequest) && phenomCountryIsMainlandChina(stringValue(raw.country)) &&
+      if ((facetScope || sourceScopedChinaRequest) && phenomCountryIsMainlandChina(locationSelection.country) &&
         locationScopeInvalid) {
         recordPhenomLoss(losses, counts, "VALIDATION", "OUT_OF_SCOPE", rawLocator, pageIndex, recordIndex);
         pages.push(phenomPageTrace({
@@ -2881,7 +3014,7 @@ async function fetchPhenomWidgets({
           artifacts, pages, counts, losses);
       }
       if (sourceScopedChinaRequest && !phenomRecordHasChinaScope(
-        stringValue(raw.country), locationRaw!, city
+        locationSelection.country, locationRaw!, city
       )) {
         recordPhenomLoss(losses, counts, "VALIDATION", "OUT_OF_SCOPE", rawLocator, pageIndex, recordIndex);
         continue;
@@ -3348,6 +3481,8 @@ function phenomRecordHasChinaScope(
 ): boolean {
   if (explicitlyForeignOrNonMainlandLocation(locationRaw) ||
     (city !== undefined && explicitlyForeignOrNonMainlandLocation(city)) ||
+    explicitlyGenericOrAmbiguousLocation(locationRaw) ||
+    (city !== undefined && explicitlyGenericOrAmbiguousLocation(city)) ||
     phenomLocationHasAmbiguousSegments(locationRaw)) return false;
   if (country !== undefined) {
     return phenomCountryIsMainlandChina(country);
@@ -3377,6 +3512,32 @@ function phenomCountryIsMainlandChina(country: string | undefined): boolean {
   return /^(?:china|prc|mainland china|china mainland|people'?s republic of china|中国|中国大陆|中华人民共和国)$/iu.test(
     normalizedCountry
   );
+}
+
+function selectPhenomLocation(record: Record<string, unknown>): {
+  locationRaw: string | undefined;
+  city: string | undefined;
+  country: string | undefined;
+} {
+  const country = stringValue(record.country);
+  const city = stringValue(record.city);
+  const primary = stringValue(record.location) ?? stringValue(record.cityStateCountry) ?? city;
+  const mainlandAlternative = stringsValue(record.multi_location).find((candidate) =>
+    !explicitlyForeignOrNonMainlandLocation(candidate) &&
+    !phenomLocationHasAmbiguousSegments(candidate) &&
+    phenomRecordHasChinaScope(undefined, candidate, undefined)
+  );
+
+  if (mainlandAlternative !== undefined &&
+      (primary === undefined || explicitlyForeignOrNonMainlandLocation(primary))) {
+    return { locationRaw: mainlandAlternative, city: undefined, country: undefined };
+  }
+
+  return {
+    locationRaw: primary ?? firstString(record.multi_location),
+    city,
+    country
+  };
 }
 
 function safePhenomJobUrl(
@@ -4411,9 +4572,37 @@ type SandozLossCode = "NON_OBJECT_RECORD" | "MISSING_REQUIRED_FIELD" | "UNSAFE_O
   "CONFLICTING_OFFICIAL_ID" | "SENSITIVE_OUTPUT" | "INVALID_JSONAPI_RESOURCE" |
   "CAMPUS_BOUNDARY_DRIFT";
 
+function isExactSandozChinaCityPolicy(input: {
+  config: Extract<OfficialJsonFetchConfig, { kind: "sandoz-jsonapi" }>;
+  entryUrl: string;
+  sourceIdentity: { id: string; companyId: string };
+}): boolean {
+  const { config, entryUrl, sourceIdentity } = input;
+  return config.cityScopePolicy === "SANDOZ_CHINA_TAXONOMY_LOCATION_V1" &&
+    sourceIdentity.id === "source-sandoz-china-social" &&
+    sourceIdentity.companyId === "company-sandoz-china" &&
+    entryUrl === "https://www.sandoz.com/careers/job-search/" &&
+    config.endpointUrl === "https://sandoz-com.cms.sandoz.com/jsonapi/views/job_search/job_search" &&
+    config.taxonomyEndpointUrl === "https://sandoz-com.cms.sandoz.com/jsonapi/taxonomy_term/job_location" &&
+    config.countryTermName === "LOC_CN" && config.countryTermTargetId === 806 &&
+    config.countryTermUuid === "2f829192-01a9-4909-b729-baab0b0bad0c" &&
+    config.pageSize === 10 && config.maxPages === 50 && config.detailBaseUrl === "https://www.sandoz.com";
+}
+
+function sandozChinaLocationFallback(locationRaw: string): string[] {
+  const candidate = locationRaw.normalize("NFKC")
+    .split(/[,，;；、/|()（）\r\n]+/u)
+    .map((segment) => segment.trim())
+    .find((segment) => segment.length > 0 &&
+      !/^(?:sandoz|china|china mainland|mainland china|中国|中国大陆|中华人民共和国)$/iu.test(segment));
+  if (!candidate || /^(?:remote|multiple locations?|various locations?|未披露|未知)$/iu.test(candidate)) return [];
+  return citiesWithFallback(locationRaw, candidate);
+}
+
 function parseSandozResource(
   config: Extract<OfficialJsonFetchConfig, { kind: "sandoz-jsonapi" }>, detailBase: URL,
-  raw: Record<string, unknown>
+  raw: Record<string, unknown>,
+  usesChinaCityPolicy = false
 ): { ok: true; officialId: string; resourceId: string; job: NormalizedOfficialJsonJob } |
   { ok: false; code: SandozLossCode; field?: string } {
   const id = stringValue(raw.id);
@@ -4439,6 +4628,9 @@ function parseSandozResource(
   }
   const scope = sandozCountryScope(raw.relationships, config);
   if (scope !== "CHINA") return { ok: false, code: scope === "OUTSIDE" ? "OUT_OF_SCOPE" : "AMBIGUOUS_SCOPE" };
+  if (usesChinaCityPolicy && explicitlyForeignOrNonMainlandLocation(locationRaw)) {
+    return { ok: false, code: "OUT_OF_SCOPE", field: "field_job_work_location" };
+  }
   let officialUrl: string;
   try {
     if (!/^\/[A-Za-z0-9][A-Za-z0-9/_-]*$/u.test(path) || path.startsWith("//") || path.includes("//") ||
@@ -4449,7 +4641,14 @@ function parseSandozResource(
         url.pathname !== canonicalPath) throw new Error("unsafe path");
     officialUrl = url.toString();
   } catch { return { ok: false, code: "UNSAFE_OFFICIAL_URL", field: "path.alias" }; }
-  const job = { sourceJobId, title, officialUrl, locationRaw, cities: citiesFromLocation(locationRaw) };
+  const mappedCities = citiesFromLocation(locationRaw);
+  const cities = mappedCities.length > 0 || !usesChinaCityPolicy
+    ? mappedCities
+    : sandozChinaLocationFallback(locationRaw);
+  if (usesChinaCityPolicy && cities.length === 0) {
+    return { ok: false, code: "AMBIGUOUS_SCOPE", field: "field_job_work_location" };
+  }
+  const job = { sourceJobId, title, officialUrl, locationRaw, cities };
   if (sensitiveOfficialJsonField({ sourceJobId, title, officialUrl, locationRaw })) {
     return { ok: false, code: "SENSITIVE_OUTPUT" };
   }
@@ -4602,10 +4801,12 @@ function xiuzhengLocator(page: number, pageSize: number): string {
 }
 
 function xiuzhengPageTrace(input: { artifact: SourceFetchArtifactDraft; sequence: number; requestedPage: number;
+  requestedPageSize?: number;
   parsed: ParsedXiuzhengPage; rawIds: string[]; validIds: string[]; termination: SourceFetchPageTrace["termination"] }): SourceFetchPageTrace {
   return { sequence: input.sequence, artifactLogicalKey: input.artifact.logicalKey,
     requestedCursor: null, returnedCursor: null, requestedOffset: null, returnedOffset: null,
     requestedPage: input.requestedPage, returnedPage: input.parsed.currentPage ?? null,
+    requestedPageSize: input.requestedPageSize ?? null, returnedPageSize: null,
     rawJobIds: input.rawIds, validJobIds: input.validIds,
     declaredTotal: input.parsed.total ?? null, declaredCount: null, declaredPages: input.parsed.lastPage ?? null,
     nextPageSignalBefore: input.requestedPage === 1 ? null : String(input.requestedPage),
@@ -4613,6 +4814,24 @@ function xiuzhengPageTrace(input: { artifact: SourceFetchArtifactDraft; sequence
     responseFingerprintSha256: sha256Bytes(Buffer.from(String(input.artifact.body), "utf8")).sha256,
     termination: input.termination, anomalyCodes: input.parsed.currentPage !== undefined && input.parsed.currentPage !== input.requestedPage ? ["RETURNED_PAGE_MISMATCH"] : [],
     capturedAt: input.artifact.capturedAt };
+}
+
+function sourceTraversalCompleteness(
+  pages: readonly SourceFetchPageTrace[],
+  artifacts: readonly SourceFetchArtifactDraft[]
+): PersistentSourceFetchEvidence["declaredCompleteness"] | undefined {
+  const firstPage = pages[0];
+  if (!firstPage) return undefined;
+  const artifact = artifacts.find((candidate) => candidate.logicalKey === firstPage.artifactLogicalKey);
+  return artifact
+    ? {
+        kind: "COMPLETE_PAGE_TRAVERSAL",
+        value: pages.length,
+        artifactLogicalKey: artifact.logicalKey,
+        extractorLocator: artifact.extractorLocator,
+        scope: "SOURCE"
+      }
+    : undefined;
 }
 
 function xiuzhengDeclaredCompleteness(total: number | undefined, artifact: SourceFetchArtifactDraft | undefined):
@@ -4971,12 +5190,12 @@ function normalizeJobsynSolrJob(
       .filter(Boolean)
       .join(", ");
   if (!sourceJobId || !safeOfficialJsonId(sourceJobId) || !title || !titleSlug || !locationRaw ||
-      !/^[a-z0-9]+(?:-[a-z0-9]+)*$/u.test(titleSlug)) {
+      !/^[\p{L}\p{N}]+(?:-[\p{L}\p{N}]+)*$/u.test(titleSlug)) {
     return [];
   }
 
   const locationSlug = jobsynSlug(locationRaw);
-  const expectedPath = `/${locationSlug}/${titleSlug}/${sourceJobId}/job/`;
+  const expectedPath = `/${locationSlug}/${encodeURIComponent(titleSlug)}/${sourceJobId}/job/`;
   const base = jobsynDetailBase(config.detailBaseUrl);
   const officialUrl = new URL(expectedPath, base);
   if (officialUrl.origin !== base.origin || officialUrl.pathname !== expectedPath || officialUrl.search || officialUrl.hash) {
@@ -5672,15 +5891,23 @@ function cnstaffHasMainlandGeography(value: string): boolean {
       /\b(?:china|prc|mainland china|china mainland|people'?s republic of china)\b/iu.test(normalized)) {
     return true;
   }
-  const segments = normalized.split(/[\s,，;；/|()（）·]+/u).filter(Boolean);
+  const segments = normalized.split(/[\s,，;；/|()（）·、]+/u).filter(Boolean);
   for (const segment of segments) {
     const stripped = segment.replace(/(?:壮族自治区|回族自治区|维吾尔自治区|自治区|自治州|地区|盟|省|市)$/u, "");
     if (CNSTAFF_MAINLAND_PROVINCES.has(segment) || CNSTAFF_MAINLAND_PROVINCES.has(stripped) ||
         CNSTAFF_MAINLAND_PREFECTURES.has(segment) || CNSTAFF_MAINLAND_PREFECTURES.has(stripped)) return true;
+    if (cnstaffHasMunicipalityAdministrativeGeography(segment)) return true;
     if (cnstaffHasChainedMainlandGeography(segment)) return true;
     if (cnstaffHasPrefectureAdministrativeGeography(segment)) return true;
   }
   return false;
+}
+
+function cnstaffHasMunicipalityAdministrativeGeography(segment: string): boolean {
+  return ["北京", "上海", "天津", "重庆"].some((municipality) => {
+    if (!segment.startsWith(municipality) || segment.length === municipality.length) return false;
+    return cnstaffHasCompleteAdministrativeSuffix(segment.slice(municipality.length));
+  });
 }
 
 function cnstaffHasChainedMainlandGeography(segment: string): boolean {
@@ -5932,7 +6159,19 @@ function recordBeisenLoss(
   });
 }
 
-function beisenRecordScope(
+const BEISEN_CANONICAL_UUID =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/u;
+
+function beisenCanonicalOriginalUuid(value: unknown): string | undefined {
+  return typeof value === "string" && BEISEN_CANONICAL_UUID.test(value) ? value : undefined;
+}
+
+type BeisenRecordScopeReview = {
+  scope: "CHINA" | "OUT_OF_SCOPE" | "AMBIGUOUS";
+  mainlandLocationParts: string[];
+};
+
+function officialJsonChinaRecordScope(
   country: string | undefined,
   locationRaw: string,
   geographyScope?: "DOMESTIC_OFFICIAL_TENANT"
@@ -5954,6 +6193,151 @@ function beisenRecordScope(
   }
   if (country !== undefined) return countryChina ? "CHINA" : "OUT_OF_SCOPE";
   return locationChina ? "CHINA" : "OUT_OF_SCOPE";
+}
+
+function beisenDomesticRecordScopeReview(
+  country: string | undefined,
+  locationParts: readonly string[],
+  locationRaw: string,
+  geographyScope?: "DOMESTIC_OFFICIAL_TENANT",
+  mixedLocationPolicy?: "INCLUDE_MAINLAND_JAPAN_ALTERNATIVES"
+): BeisenRecordScopeReview {
+  const normalizedCountry = country?.normalize("NFKC").trim().toLowerCase();
+  const countryChina = normalizedCountry !== undefined &&
+    /^(?:china|prc|mainland china|china mainland|people'?s republic of china|中国|中国大陆|中华人民共和国)$/iu.test(
+      normalizedCountry
+    );
+  const segments = beisenLocationSegments(locationParts);
+  const mainlandSegments = segments.filter(beisenIsMainlandLocationSegment);
+  const mainlandPlaces = mainlandSegments.filter((segment) => !beisenIsMainlandCountrySegment(segment));
+  const mainlandLocationParts = mainlandPlaces.length > 0 ? mainlandPlaces : mainlandSegments;
+
+  if (geographyScope === "DOMESTIC_OFFICIAL_TENANT") {
+    if (normalizedCountry !== undefined && !countryChina) {
+      return {
+        scope: beisenHasForeignMarker(normalizedCountry) ? "OUT_OF_SCOPE" : "AMBIGUOUS",
+        mainlandLocationParts
+      };
+    }
+    if (segments.length === 0) return { scope: "AMBIGUOUS", mainlandLocationParts };
+
+    const japanSegments = segments.filter(beisenIsExplicitJapanLocationSegment);
+    const invalidSegments = segments.filter((segment) =>
+      !beisenIsMainlandLocationSegment(segment) && !beisenIsExplicitJapanLocationSegment(segment)
+    );
+    if (invalidSegments.length > 0) {
+      const knownForeign = invalidSegments.some(beisenHasForeignMarker);
+      return {
+        scope: countryChina && mainlandSegments.length > 0
+          ? "AMBIGUOUS"
+          : knownForeign ? "OUT_OF_SCOPE" : "AMBIGUOUS",
+        mainlandLocationParts
+      };
+    }
+    if (japanSegments.length > 0) {
+      const allowJapanAlternative = mixedLocationPolicy === "INCLUDE_MAINLAND_JAPAN_ALTERNATIVES" &&
+        mainlandPlaces.length > 0 && mainlandSegments.length + japanSegments.length === segments.length;
+      return {
+        scope: allowJapanAlternative ? "CHINA" : "OUT_OF_SCOPE",
+        mainlandLocationParts
+      };
+    }
+    return {
+      scope: mainlandSegments.length === segments.length && mainlandSegments.length > 0 ? "CHINA" : "AMBIGUOUS",
+      mainlandLocationParts
+    };
+  }
+
+  const countryForeign = normalizedCountry !== undefined && beisenHasForeignMarker(normalizedCountry);
+  const locationChina = explicitlyChina(locationRaw);
+  const locationForeign = beisenHasForeignMarker(locationRaw);
+  const scope = (countryChina || locationChina) && (countryForeign || locationForeign)
+    ? "AMBIGUOUS"
+    : country !== undefined
+      ? countryChina ? "CHINA" : "OUT_OF_SCOPE"
+      : locationChina ? "CHINA" : "OUT_OF_SCOPE";
+  return { scope, mainlandLocationParts };
+}
+
+const BEISEN_DOMESTIC_SCOPE_WORDS = new Set([
+  "中华人民共和国", "中国大陆", "大陆地区", "中国境内", "全国各地", "全国", "国内", "境内",
+  "china", "prc", "mainland china", "china mainland", "people's republic of china", "people’s republic of china"
+]);
+
+const BEISEN_MAINLAND_ENGLISH_LOCATIONS = new Set([
+  "anhui", "beijing", "changchun", "changsha", "chengdu", "chongqing", "dalian", "dongguan",
+  "foshan", "fujian", "fuzhou", "gansu", "guangdong", "guangxi", "guangzhou", "guizhou",
+  "haikou", "hainan", "hangzhou", "harbin", "hebei", "hefei", "heilongjiang", "henan",
+  "hohhot", "hubei", "hunan", "inner mongolia", "jiangsu", "jiangxi", "jinan", "jilin",
+  "kunming", "lanzhou", "liaoning", "nanchang", "nanjing", "nanning", "nantong", "ningbo",
+  "ningxia", "qingdao", "qinghai", "shaanxi", "shandong", "shanghai", "shanxi", "shenyang",
+  "shenzhen", "shijiazhuang", "sichuan", "suzhou", "taiyuan", "tianjin", "urumqi", "wenzhou",
+  "wuhan", "wuxi", "xiamen", "xi'an", "xian", "xinjiang", "xizang", "yunnan", "zhengzhou",
+  "zhejiang", "zhuhai"
+]);
+
+const BEISEN_EXPLICIT_JAPAN_LOCATIONS = new Set([
+  "日本", "东京", "東京", "大阪", "京都", "横滨", "横浜", "名古屋", "神户", "神戸", "福冈", "福岡",
+  "japan", "tokyo", "osaka", "kyoto", "yokohama", "nagoya", "kobe", "fukuoka"
+]);
+
+function beisenLocationSegments(locationParts: readonly string[]): string[] {
+  return locationParts.flatMap((part) => part.normalize("NFKC")
+    .split(/[,，;；/／|｜、()（）\r\n]+/u)
+    .map((segment) => segment.trim())
+    .filter(Boolean));
+}
+
+function beisenIsMainlandCountrySegment(value: string): boolean {
+  const normalized = value.normalize("NFKC").trim().toLowerCase();
+  return /^(?:中华人民共和国|中国大陆|中国境内|中国|china|prc|mainland china|china mainland|people['’]?s republic of china)$/iu.test(
+    normalized
+  );
+}
+
+function beisenIsMainlandLocationSegment(value: string): boolean {
+  const normalized = value.normalize("NFKC").trim();
+  const lower = normalized.toLowerCase();
+  if (BEISEN_DOMESTIC_SCOPE_WORDS.has(lower) || BEISEN_DOMESTIC_SCOPE_WORDS.has(normalized)) return true;
+  const englishCore = lower.replace(/\s+(?:city|province|municipality|autonomous region)$/u, "").trim();
+  if (BEISEN_MAINLAND_ENGLISH_LOCATIONS.has(englishCore)) return true;
+
+  const compact = normalized.replace(/[·・]/gu, "");
+  const stripped = compact.replace(/(?:壮族自治区|回族自治区|维吾尔自治区|自治区|自治州|地区|盟|省|市)$/u, "");
+  return CNSTAFF_MAINLAND_PROVINCES.has(compact) || CNSTAFF_MAINLAND_PROVINCES.has(stripped) ||
+    CNSTAFF_MAINLAND_PREFECTURES.has(compact) || CNSTAFF_MAINLAND_PREFECTURES.has(stripped) ||
+    cnstaffHasMunicipalityAdministrativeGeography(compact) || cnstaffHasChainedMainlandGeography(compact) ||
+    cnstaffHasPrefectureAdministrativeGeography(compact);
+}
+
+function beisenIsExplicitJapanLocationSegment(value: string): boolean {
+  const pieces = value.normalize("NFKC").split(/[·・]/u).map((part) => part.trim()).filter(Boolean);
+  return pieces.length > 0 && pieces.every((piece) => {
+    const normalized = piece.toLowerCase();
+    const withoutAdministrativeSuffix = normalized.replace(/(?:都|道|府|県|县|市)$/u, "");
+    return BEISEN_EXPLICIT_JAPAN_LOCATIONS.has(normalized) ||
+      BEISEN_EXPLICIT_JAPAN_LOCATIONS.has(withoutAdministrativeSuffix);
+  });
+}
+
+function beisenSourceBoundLocationCorrection(
+  config: Extract<OfficialJsonFetchConfig, { kind: "beisen-zhiye-2022" }>,
+  raw: Record<string, unknown>,
+  officialId: string | undefined,
+  title: string | undefined,
+  locationParts: string[],
+  locationRaw: string | undefined
+): { locationParts: string[]; locationRaw: string | undefined } {
+  const exactHomograph = config.scopeExclusionProof === "THREESBIO_XIANYANG_HOMOGRAPH_V1" &&
+    officialId === "3074600c-a1bb-4f66-80e4-93f08a71bf44" &&
+    title === "(高级)医学信息沟通专员-TBU专岗-(咸阳)(J16744)" &&
+    Array.isArray(raw.LocNames) && raw.LocNames.length === 1 &&
+    raw.LocNames[0] === "韩国·庆尚南道·咸阳郡" &&
+    locationParts.length === 1 && locationRaw === "韩国·庆尚南道·咸阳郡" &&
+    stringValue(raw.Country) === undefined && stringValue(raw.CountryName) === undefined;
+  return exactHomograph
+    ? { locationParts: ["咸阳"], locationRaw: "咸阳" }
+    : { locationParts, locationRaw };
 }
 
 function beisenHasForeignMarker(value: string): boolean {

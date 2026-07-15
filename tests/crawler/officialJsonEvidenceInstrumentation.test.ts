@@ -166,7 +166,7 @@ describe("Official JSON Innovent/Novo evidence instrumentation", () => {
   it.each([
     ["totalMatches", { totalMatches: 1 }],
     ["total", { total: 1 }]
-  ] as const)("binds Novo official total to the actual $.data.%s path but stays manual", async (path, total) => {
+  ] as const)("binds Novo official total to the actual $.data.%s path and closes a zero-loss response", async (path, total) => {
     const body = JSON.stringify({ data: { ...total, jobs: [novoJob("343573.en_GB")] } });
     const fetcher = createOfficialJsonSourceFetch({
       now: () => new Date(capturedAt),
@@ -187,9 +187,9 @@ describe("Official JSON Innovent/Novo evidence instrumentation", () => {
           value: 1,
           scope: "SOURCE"
         },
-        pages: [{ declaredTotal: 1, termination: "ABORTED" }]
+        pages: [{ declaredTotal: 1, termination: "DECLARED_TOTAL_REACHED" }]
       },
-      paginationEvaluation: { safeCompleteness: false, verifiedEligible: false }
+      paginationEvaluation: { safeCompleteness: true, verifiedEligible: false }
     });
     if (!result.ok || !result.fetchEvidence) throw new Error("Expected evidence");
     expect(result.fetchEvidence.declaredCompleteness?.extractorLocator).toContain(`json:$.data.${path}`);
