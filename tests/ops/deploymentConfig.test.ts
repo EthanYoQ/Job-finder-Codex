@@ -30,7 +30,8 @@ function readComposeService(compose: string, serviceName: string): string {
   return match?.[0] ?? "";
 }
 
-function runMonitoringCheck(env: NodeJS.ProcessEnv): { status: number | null; stderr: string } {
+function runMonitoringCheck(env: NodeJS.ProcessEnv): { status: number | null; stderr: string; elapsedMs: number } {
+  const startedAt = Date.now();
   try {
     execFileSync(process.execPath, ["node_modules/tsx/dist/cli.mjs", "ops/monitoring-check.ts"], {
       cwd: repoRoot,
@@ -43,10 +44,10 @@ function runMonitoringCheck(env: NodeJS.ProcessEnv): { status: number | null; st
       encoding: "utf8",
       stdio: ["ignore", "pipe", "pipe"]
     });
-    return { status: 0, stderr: "" };
+    return { status: 0, stderr: "", elapsedMs: Date.now() - startedAt };
   } catch (error) {
     const result = error as { status?: number | null; stderr?: string };
-    return { status: result.status ?? null, stderr: result.stderr ?? "" };
+    return { status: result.status ?? null, stderr: result.stderr ?? "", elapsedMs: Date.now() - startedAt };
   }
 }
 
@@ -376,6 +377,7 @@ describe("deployment configuration", () => {
       });
 
       expect(result.status).not.toBe(0);
+      expect(result.elapsedMs).toBeLessThan(2_500);
       expect(result.stderr).toContain("DATABASE_UNREACHABLE");
       expect(result.stderr).not.toContain("postgresql://user:placeholder");
     } finally {

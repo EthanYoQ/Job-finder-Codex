@@ -36,30 +36,38 @@ async function main(): Promise<void> {
   const certificateExpiresAt = process.env.CERTIFICATE_EXPIRES_AT;
   const now = process.env.MONITORING_NOW ? new Date(process.env.MONITORING_NOW) : new Date();
   const monitorStateDir = process.env.MONITOR_STATE_DIR ?? `${process.cwd()}/var/monitor-state`;
-
-  let expectedIdentity: CrawlEvidenceIdentity | undefined;
-  try {
-    expectedIdentity = await loadProductionStagedMonitoringIdentity(databaseUrl);
-  } catch {
-    expectedIdentity = undefined;
-  }
+  const postgresReadinessTimeoutMs = Number(
+    process.env.POSTGRES_READINESS_TIMEOUT_MS ?? DEFAULT_POSTGRES_READINESS_TIMEOUT_MS
+  );
 
   const [health, dbReachable, backupEvidence, readinessSummary] = await Promise.all([
     checkHealth(healthUrl),
     checkPostgresReadiness(databaseUrl, {
-      timeoutMs: Number(process.env.POSTGRES_READINESS_TIMEOUT_MS ?? DEFAULT_POSTGRES_READINESS_TIMEOUT_MS)
+      timeoutMs: postgresReadinessTimeoutMs
     }),
     readBackupEvidence(backupDir),
     readOptionalJson(readinessSummaryPath)
   ]);
+
+  let expectedIdentity: CrawlEvidenceIdentity | undefined;
+  if (dbReachable) {
+    try {
+      expectedIdentity = await loadProductionStagedMonitoringIdentity(databaseUrl);
+    } catch {
+      expectedIdentity = undefined;
+    }
+  }
+
   const pauseBundle = await readInitialQualificationPauseBundle({
     pausePath: initialQualificationPausePath,
     summaryPath: crawlSummaryPath,
     attemptDir: crawlAttemptDir,
     now,
     ...(expectedIdentity ? { activeIdentity: expectedIdentity } : {}),
-    loadCandidateStatus: (evidence) =>
-      loadProductionInitialQualificationPauseCandidateStatus(databaseUrl, evidence)
+    loadCandidateStatus: (evidence) => {
+      if (!dbReachable) throw new Error("PostgreSQL readiness failed before pause candidate validation");
+      return loadProductionInitialQualificationPauseCandidateStatus(databaseUrl, evidence);
+    }
   });
   const monitoringIdentity = pauseBundle.state === "PAUSED"
     ? pauseBundle.identity
