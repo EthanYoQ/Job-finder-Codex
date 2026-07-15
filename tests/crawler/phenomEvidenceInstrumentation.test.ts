@@ -107,14 +107,56 @@ function gskJob(overrides: Record<string, unknown> = {}): Record<string, unknown
 }
 
 async function fetchExactGsk(rawJob: Record<string, unknown>) {
+  return fetchExactGskJobs([rawJob]);
+}
+
+async function fetchExactGskJobs(rawJobs: Array<Record<string, unknown>>) {
   const stagedPlan = gskPlan();
   const fetcher = createOfficialJsonSourceFetch({
     now: () => new Date(capturedAt),
     http: async (request) => request.method === "POST"
-      ? response(facetPageBody([rawJob], 1, 0, []), gskWidgetUrl, "application/json")
+      ? response(facetPageBody(rawJobs, rawJobs.length, 0, []), gskWidgetUrl, "application/json")
       : response(gskEntryHtml(), stagedPlan.source.officialEntryUrl, "text/html")
   });
   return { stagedPlan, fetched: await fetcher(stagedPlan) };
+}
+
+function liveShapedGskJobs(): Array<Record<string, unknown>> {
+  return [
+    gskJob({
+      jobSeqNo: "GHVGPAGB444750EXTERNALENGB",
+      jobId: "444750",
+      reqId: "Job Code: J003698",
+      location: "Collegeville, Pennsylvania, United States of America",
+      city: "Collegeville",
+      country: "United States of America",
+      multi_location: [
+        "Collegeville, Pennsylvania, United States of America",
+        "PuDong New District, Shanghai, China",
+        "Philadelphia, Pennsylvania, United States of America",
+        "Singapore"
+      ],
+      applyUrl: ""
+    }),
+    gskJob({
+      jobSeqNo: "GSK-SINGAPORE-WITH-SHANGHAI",
+      reqId: "Job Code: GSK-SG-1",
+      location: "Singapore",
+      city: "Singapore",
+      country: "Singapore",
+      multi_location: ["Singapore", "Shanghai, China"],
+      applyUrl: "https://gsk.wd5.myworkdayjobs.com/en-US/GSKCareers/job/GSK-SG-1"
+    }),
+    gskJob({
+      jobSeqNo: "GSK-SHANGHAI-PRIMARY",
+      reqId: "Job Code: GSK-CN-1",
+      location: "Shanghai, China",
+      city: "Shanghai",
+      country: "China",
+      multi_location: ["Shanghai, China"],
+      applyUrl: "https://gsk.wd5.myworkdayjobs.com/en-US/GSKCareers/job/GSK-CN-1"
+    })
+  ];
 }
 
 function exactPhenomPlan(sourceId: string): Extract<SourceCrawlPlan, { adapterId: "official-json" }> {
@@ -584,6 +626,44 @@ describe("Phenom evidence instrumentation", () => {
       ok: true,
       payload: { jobs: [{ officialUrl: "https://careers.example.test/cn/zh/job/301040" }] },
       fetchEvidence: { fetchCounts: { rawCount: 1, validCount: 1 } }
+    });
+  });
+
+  it("uses jobSeqNo for a derived Phenom detail URL only when the source profile opts in", async () => {
+    const rawJob = job("GHVGPAGB444750EXTERNALENGB", {
+      reqId: "Job Code: J003698",
+      applyUrl: ""
+    });
+    const fetcher = createOfficialJsonSourceFetch({
+      now: () => new Date(capturedAt),
+      http: async (request) => request.method === "POST"
+        ? response(pageBody([rawJob], 1, 0), widgetUrl, "application/json")
+        : response(entryHtml(), entryUrl, "text/html")
+    });
+    const selectedJobSeqNoPlan = {
+      ...plan,
+      officialJsonFetch: {
+        ...plan.officialJsonFetch,
+        derivedDetailIdField: "jobSeqNo"
+      }
+    } satisfies SourceCrawlPlan;
+
+    await expect(fetcher(plan)).resolves.toMatchObject({
+      ok: true,
+      payload: { jobs: [] },
+      fetchEvidence: {
+        fetchCounts: { rawCount: 1, validCount: 0, validationDiscardCount: 1 },
+        fetchLosses: [{ stage: "VALIDATION", details: { code: "UNSAFE_OFFICIAL_URL" } }]
+      }
+    });
+    await expect(fetcher(selectedJobSeqNoPlan)).resolves.toMatchObject({
+      ok: true,
+      payload: {
+        jobs: [{
+          officialUrl: "https://careers.example.test/cn/zh/job/GHVGPAGB444750EXTERNALENGB"
+        }]
+      },
+      fetchEvidence: { fetchCounts: { rawCount: 1, validCount: 1, validationDiscardCount: 0 } }
     });
   });
 
@@ -1320,6 +1400,49 @@ describe("Phenom evidence instrumentation", () => {
     });
   });
 
+  it("publishes all three live-shaped GSK records including a derived public detail URL", async () => {
+    const { stagedPlan, fetched } = await fetchExactGskJobs(liveShapedGskJobs());
+    expect(fetched).toMatchObject({
+      ok: true,
+      payload: {
+        jobs: [
+          {
+            officialUrl: "https://jobs.gsk.com/gb/en/job/GHVGPAGB444750EXTERNALENGB",
+            locationRaw: "PuDong New District, Shanghai, China",
+            cities: ["上海"]
+          },
+          { locationRaw: "Shanghai, China", cities: ["上海"] },
+          { locationRaw: "Shanghai, China", cities: ["上海"] }
+        ]
+      },
+      fetchEvidence: {
+        fetchCounts: { rawCount: 3, parsedCount: 3, validCount: 3, validationDiscardCount: 0 },
+        fetchLosses: []
+      }
+    });
+    const crawled = await runSourceCrawl(stagedPlan, { fetch: async () => fetched });
+    expect(crawled).toMatchObject({
+      status: "SUCCESS",
+      truth: { transportSuccess: true, adapterSuccess: true, completenessVerified: true },
+      observation: { structuredJobCount: 3, completenessStatus: "VERIFIED" }
+    });
+  });
+
+  it("rejects an unsafe jobSeqNo even when the exact source selects it for a derived URL", async () => {
+    const { fetched } = await fetchExactGsk(gskJob({
+      jobSeqNo: "GHVGPAGB444750EXTERNALENGB/../../unsafe",
+      reqId: "Job Code: J003698",
+      applyUrl: ""
+    }));
+    expect(fetched).toMatchObject({
+      ok: true,
+      payload: { jobs: [] },
+      fetchEvidence: {
+        fetchCounts: { rawCount: 1, validCount: 0, validationDiscardCount: 1 }
+      }
+    });
+  });
+
   it("publishes exact staged GSK when the official multi_location includes Bengaluru and one mainland alternative", async () => {
     const { stagedPlan, fetched } = await fetchExactGsk(gskJob({
       location: "Singapore, Singapore",
@@ -1467,7 +1590,10 @@ describe("Phenom evidence instrumentation", () => {
   it.each([
     ["foreign-only alternatives", ["Singapore", "Basel, Switzerland"]],
     ["a mixed ambiguous alternative", ["Singapore", "Shanghai / Singapore"]],
-    ["an unknown alternative", ["Singapore", "Remote"]]
+    ["two mainland alternatives", ["Singapore", "Shanghai, China", "Beijing, China"]],
+    ["a mainland and foreign location mixed in one value", ["Singapore", "Shanghai, China / Singapore"]],
+    ["an unknown alternative", ["Singapore", "Remote"]],
+    ["an ambiguous alternative", ["Singapore", "Multiple Locations"]]
   ])("does not publish exact staged GSK with %s", async (_label, multiLocation) => {
     const { stagedPlan, fetched } = await fetchExactGsk(gskJob({ multi_location: multiLocation }));
     const crawled = await runSourceCrawl(stagedPlan, { fetch: async () => fetched });
@@ -1499,6 +1625,20 @@ describe("Phenom evidence instrumentation", () => {
     ["configuration", (value: ReturnType<typeof gskPlan>) => ({
       ...value,
       officialJsonFetch: { ...value.officialJsonFetch!, maxPages: 4 }
+    })],
+    ["detail base", (value: ReturnType<typeof gskPlan>) => ({
+      ...value,
+      officialJsonFetch: {
+        ...value.officialJsonFetch!,
+        detailBaseUrl: "https://jobs.gsk.com/cn/zh/job"
+      }
+    })],
+    ["mixed-location policy", (value: ReturnType<typeof gskPlan>) => ({
+      ...value,
+      officialJsonFetch: {
+        ...value.officialJsonFetch!,
+        mixedLocationScopePolicy: undefined
+      }
     })]
   ])("rejects GSK multi_location proof transplanted to another %s", async (_label, transplant) => {
     const { stagedPlan, fetched } = await fetchExactGsk(gskJob());

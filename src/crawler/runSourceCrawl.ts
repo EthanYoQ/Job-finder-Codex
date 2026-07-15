@@ -1403,8 +1403,11 @@ function strictPhenomRequestContracts(
 ): boolean {
   const config = plan.officialJsonFetch;
   if (config?.kind !== "phenom") return false;
-  const exactGskPlan = strictExactGskPhenomPlan(plan);
-  const gskAlternativeOutputs = new Map<string, StrictGskAlternativeOutput>();
+  if (config.mixedLocationScopePolicy !== undefined &&
+    config.mixedLocationScopePolicy !== "EXACTLY_ONE_MAINLAND_ALTERNATIVE_V1") return false;
+  const allowsMainlandAlternative =
+    config.mixedLocationScopePolicy === "EXACTLY_ONE_MAINLAND_ALTERNATIVE_V1";
+  const mainlandAlternativeOutputs = new Map<string, StrictPhenomMainlandAlternativeOutput>();
   const entryArtifacts = evidence.artifacts.filter((artifact) => artifact.logicalKey === "phenom-entry-0000");
   const entry = entryArtifacts.length === 1 ? entryArtifacts[0] : undefined;
   const pageConfig = entry && entry.bodyRepresentation !== "REDACTED"
@@ -1551,16 +1554,16 @@ function strictPhenomRequestContracts(
       const record = strictRecord(job);
       if (!record) return false;
       if (strictPhenomRecordHasGenericLocation(record)) return false;
-      if (exactGskPlan && !facetScope) {
-        const primary = strictGskPrimaryLocation(record);
-        if (record.country === expectedCountry && primary && strictGskMainlandLocationCities(primary)) continue;
-        const alternative = strictGskMainlandAlternative(record);
+      if (allowsMainlandAlternative && !facetScope) {
+        const primary = strictPhenomPrimaryLocation(record);
+        if (record.country === expectedCountry && primary && strictPhenomMainlandLocationCities(primary)) continue;
+        const alternative = strictPhenomMainlandAlternative(record);
         const rawId = strictNonblankText(record.jobSeqNo) ?? strictNonblankText(record.reqId) ??
           strictNonblankText(record.jobId);
         if (!alternative || !rawId) return false;
-        const sourceJobId = strictGskPersistentSourceJobId(rawId);
-        if (gskAlternativeOutputs.has(sourceJobId)) return false;
-        gskAlternativeOutputs.set(sourceJobId, { sourceJobId, ...alternative });
+        const sourceJobId = strictPhenomPersistentSourceJobId(rawId);
+        if (mainlandAlternativeOutputs.has(sourceJobId)) return false;
+        mainlandAlternativeOutputs.set(sourceJobId, { sourceJobId, ...alternative });
         continue;
       }
       if (record.country !== expectedCountry ||
@@ -1584,7 +1587,11 @@ function strictPhenomRequestContracts(
   return evidence.declaredCompleteness?.kind === "OFFICIAL_TOTAL_COUNT" &&
     evidence.declaredCompleteness.value === pageRawCount &&
     rocheReplayMatches &&
-    (!exactGskPlan || strictGskAlternativeOutputMatches(plan, gskAlternativeOutputs, outputJobs));
+    (!allowsMainlandAlternative || strictPhenomMainlandAlternativeOutputMatches(
+      plan,
+      mainlandAlternativeOutputs,
+      outputJobs
+    ));
 }
 
 function strictPhenomOfficialId(value: unknown): string | undefined {
@@ -1601,13 +1608,13 @@ function strictPhenomRecordHasGenericLocation(record: Record<string, unknown>): 
   });
 }
 
-type StrictGskAlternativeOutput = {
+type StrictPhenomMainlandAlternativeOutput = {
   sourceJobId: string;
   locationRaw: string;
   cities: string[];
 };
 
-const STRICT_GSK_MAINLAND_LOCATIONS: ReadonlyArray<readonly [string, string]> = [
+const STRICT_PHENOM_MAINLAND_LOCATIONS: ReadonlyArray<readonly [string, string]> = [
   ["shanghai", "上海"], ["beijing", "北京"], ["changchun", "长春"], ["chongqing", "重庆"],
   ["suzhou", "苏州"], ["dongguan", "东莞"], ["shenzhen", "深圳"], ["guangzhou", "广州"],
   ["hangzhou", "杭州"], ["nanjing", "南京"], ["nanning", "南宁"], ["nantong", "南通"],
@@ -1620,40 +1627,17 @@ const STRICT_GSK_MAINLAND_LOCATIONS: ReadonlyArray<readonly [string, string]> = 
   ["江苏", "江苏"], ["浙江", "浙江"], ["广东", "广东"]
 ];
 
-const STRICT_GSK_MAINLAND_COUNTRY_SEGMENTS = new Set([
+const STRICT_PHENOM_MAINLAND_COUNTRY_SEGMENTS = new Set([
   "china", "mainland china", "china mainland", "prc", "cn", "chn", "中国", "中国大陆", "中华人民共和国"
 ]);
 
-const STRICT_GSK_FOREIGN_SEGMENTS = new Set([
-  "singapore", "新加坡", "basel", "switzerland", "巴塞尔", "瑞士", "hong kong", "hong kong sar",
-  "香港", "macau", "macao", "澳门", "taiwan", "台湾", "london", "united kingdom", "uk", "英国",
+const STRICT_PHENOM_EXPLICIT_FOREIGN_COUNTRY_SEGMENTS = new Set([
+  "singapore", "新加坡", "switzerland", "瑞士", "hong kong", "hong kong sar",
+  "香港", "macau", "macao", "澳门", "taiwan", "台湾", "united kingdom", "uk", "英国",
   "united states", "united states of america", "usa", "us", "美国", "germany", "德国", "france", "法国",
-  "japan", "日本", "south korea", "korea", "韩国", "india", "印度", "bengaluru", "canada", "加拿大",
+  "japan", "日本", "south korea", "korea", "韩国", "india", "印度", "canada", "加拿大",
   "australia", "澳大利亚"
 ]);
-
-function strictExactGskPhenomPlan(
-  plan: Extract<SourceCrawlPlan, { adapterId: "official-json" }>
-): boolean {
-  const config = plan.officialJsonFetch;
-  const fields = plan.json.fields;
-  return config?.kind === "phenom" &&
-    plan.company.id === "company-gsk-china" && plan.company.officialChineseName === "葛兰素史克中国" &&
-    plan.source.id === "source-gsk-china-social" && plan.source.companyId === "company-gsk-china" &&
-    plan.source.officialEntryUrl === "https://jobs.gsk.com/cn/zh/search-results?keywords=China" &&
-    plan.source.officialChainEvidenceUrl === "https://www.gsk-china.com/zh-cn/careers/" &&
-    plan.source.atsKind === "OFFICIAL_JSON" && plan.json.jobsPath === "jobs" &&
-    plan.json.defaultCategory === "其他" && fields.sourceJobId === "sourceJobId" &&
-    fields.officialTitle === "title" && fields.officialUrl === "officialUrl" &&
-    fields.locationRaw === "locationRaw" && fields.cities === "cities" &&
-    config.detailBaseUrl === "https://jobs.gsk.com/cn/zh/job" && config.countryFilter === "China" &&
-    config.pageSize === 50 && config.maxPages === 3 && config.facetScope === undefined &&
-    config.allowOmittedOffsetForSinglePage === undefined &&
-    config.requestBoundOmittedOffsetPolicy === undefined &&
-    JSON.stringify(config.allowedApplyOrigins) === JSON.stringify(["https://gsk.wd5.myworkdayjobs.com"]) &&
-    config.allowedEntryRedirect?.origin === "https://jobs.gsk.com" &&
-    config.allowedEntryRedirect.pathname === "/gb/en";
-}
 
 function strictExactRochePhenomPlan(
   plan: Extract<SourceCrawlPlan, { adapterId: "official-json" }>,
@@ -1690,39 +1674,40 @@ function strictExactRochePhenomPlan(
     pageConfig.pageName === "search-results" && pageConfig.pageId === "page11-ds";
 }
 
-function strictGskPrimaryLocation(record: Record<string, unknown>): string | undefined {
+function strictPhenomPrimaryLocation(record: Record<string, unknown>): string | undefined {
   return strictNonblankText(record.location) ?? strictNonblankText(record.cityStateCountry) ??
     strictNonblankText(record.city);
 }
 
-function strictGskMainlandAlternative(
+function strictPhenomMainlandAlternative(
   record: Record<string, unknown>
-): Omit<StrictGskAlternativeOutput, "sourceJobId"> | undefined {
-  const primary = strictGskPrimaryLocation(record);
+): Omit<StrictPhenomMainlandAlternativeOutput, "sourceJobId"> | undefined {
+  const primary = strictPhenomPrimaryLocation(record);
   const country = strictNonblankText(record.country);
   const city = strictNonblankText(record.city);
-  if (!primary || !country || !strictGskForeignOnlyLocation(primary) ||
-    !strictGskForeignOnlyLocation(country) || (city !== undefined && !strictGskForeignOnlyLocation(city)) ||
+  if (!primary || !country || !strictPhenomExplicitForeignLocation(primary) ||
+    !strictPhenomExplicitForeignLocation(country) ||
+    (city !== undefined && !strictPhenomForeignLocality(city)) ||
     !Array.isArray(record.multi_location) || record.multi_location.length < 2) return undefined;
 
   const candidates = record.multi_location.map(strictNonblankText);
   if (candidates.some((candidate) => candidate === undefined)) return undefined;
   const exact = candidates as string[];
-  if (new Set(exact.map(strictGskLocationKey)).size !== exact.length ||
-    !exact.some((candidate) => strictGskLocationKey(candidate) === strictGskLocationKey(primary))) return undefined;
+  if (new Set(exact.map(strictPhenomLocationKey)).size !== exact.length ||
+    !exact.some((candidate) => strictPhenomLocationKey(candidate) === strictPhenomLocationKey(primary))) return undefined;
 
   const mainland: Array<{ locationRaw: string; cities: string[] }> = [];
   for (const candidate of exact) {
-    const cities = strictGskMainlandLocationCities(candidate);
+    const cities = strictPhenomMainlandLocationCities(candidate);
     if (cities) mainland.push({ locationRaw: candidate, cities });
-    else if (!strictGskForeignOnlyLocation(candidate)) return undefined;
+    else if (!strictPhenomExplicitForeignLocation(candidate)) return undefined;
   }
   return mainland.length === 1 ? mainland[0] : undefined;
 }
 
-function strictGskMainlandLocationCities(value: string): string[] | undefined {
+function strictPhenomMainlandLocationCities(value: string): string[] | undefined {
   if (explicitlyForeignOrNonMainlandLocation(value)) return undefined;
-  const rawSegments = strictGskRawLocationSegments(value);
+  const rawSegments = strictPhenomRawLocationSegments(value);
   const segments = rawSegments.map((segment) => segment.toLocaleLowerCase("en-US"));
   if (segments.length === 0) return undefined;
   const cities: string[] = [];
@@ -1730,8 +1715,8 @@ function strictGskMainlandLocationCities(value: string): string[] | undefined {
   let countrySegmentCount = 0;
   for (let index = 0; index < segments.length; index += 1) {
     const segment = segments[index]!;
-    if (STRICT_GSK_MAINLAND_COUNTRY_SEGMENTS.has(segment)) continue;
-    const city = STRICT_GSK_MAINLAND_LOCATIONS.find(([candidate]) => candidate === segment)?.[1];
+    if (STRICT_PHENOM_MAINLAND_COUNTRY_SEGMENTS.has(segment)) continue;
+    const city = STRICT_PHENOM_MAINLAND_LOCATIONS.find(([candidate]) => candidate === segment)?.[1];
     if (city) {
       if (!cities.includes(city)) cities.push(city);
     } else {
@@ -1739,44 +1724,65 @@ function strictGskMainlandLocationCities(value: string): string[] | undefined {
     }
   }
   for (const segment of segments) {
-    if (STRICT_GSK_MAINLAND_COUNTRY_SEGMENTS.has(segment)) countrySegmentCount += 1;
+    if (STRICT_PHENOM_MAINLAND_COUNTRY_SEGMENTS.has(segment)) countrySegmentCount += 1;
   }
   if (unknown.length === 0) return cities.length > 0 ? cities : undefined;
+  if (countrySegmentCount === 1 && cities.length === 1 && unknown.length === 1 &&
+    strictPhenomMainlandSubCitySegment(unknown[0]!)) return cities;
   const nonCountryCount = segments.length - countrySegmentCount;
   return countrySegmentCount === 1 && nonCountryCount === 1 && cities.length === 0 && unknown.length === 1
     ? [unknown[0]!]
     : undefined;
 }
 
-function strictGskForeignOnlyLocation(value: string): boolean {
-  const segments = strictGskLocationSegments(value);
-  return segments.length > 0 && segments.every((segment) => STRICT_GSK_FOREIGN_SEGMENTS.has(segment));
+function strictPhenomMainlandSubCitySegment(value: string): boolean {
+  const normalized = value.normalize("NFKC").trim();
+  return /^(?=.{1,80}$)[\p{L}\p{M}.'’ -]+\s(?:district|new district)$/iu.test(normalized) ||
+    /^(?=.{2,20}$)[\p{Script=Han}]+(?:区|新区)$/u.test(normalized);
 }
 
-function strictGskLocationSegments(value: string): string[] {
-  return strictGskRawLocationSegments(value)
+function strictPhenomExplicitForeignLocation(value: string): boolean {
+  if (explicitlyGenericOrAmbiguousLocation(value)) return false;
+  const segments = strictPhenomLocationSegments(value);
+  if (segments.length === 0 || segments.some(strictPhenomMainlandSegment)) return false;
+  return segments.some((segment) => STRICT_PHENOM_EXPLICIT_FOREIGN_COUNTRY_SEGMENTS.has(segment));
+}
+
+function strictPhenomForeignLocality(value: string): boolean {
+  if (explicitlyGenericOrAmbiguousLocation(value)) return false;
+  const segments = strictPhenomLocationSegments(value);
+  return segments.length > 0 && !segments.some(strictPhenomMainlandSegment);
+}
+
+function strictPhenomMainlandSegment(segment: string): boolean {
+  return STRICT_PHENOM_MAINLAND_COUNTRY_SEGMENTS.has(segment) ||
+    STRICT_PHENOM_MAINLAND_LOCATIONS.some(([candidate]) => candidate === segment);
+}
+
+function strictPhenomLocationSegments(value: string): string[] {
+  return strictPhenomRawLocationSegments(value)
     .map((segment) => segment.toLocaleLowerCase("en-US"));
 }
 
-function strictGskRawLocationSegments(value: string): string[] {
+function strictPhenomRawLocationSegments(value: string): string[] {
   return value.normalize("NFKC").trim()
     .split(/\s*[,，/／|｜;；、()（）\-–—]\s*/u)
     .map((segment) => segment.trim())
     .filter(Boolean);
 }
 
-function strictGskLocationKey(value: string): string {
+function strictPhenomLocationKey(value: string): string {
   return value.normalize("NFKC").replace(/\s+/gu, " ").trim().toLocaleLowerCase("en-US");
 }
 
-function strictGskPersistentSourceJobId(rawId: string): string {
+function strictPhenomPersistentSourceJobId(rawId: string): string {
   const sha256 = createHash("sha256").update(JSON.stringify(rawId), "utf8").digest("hex");
   return `official-json:sha256:${sha256}`;
 }
 
-function strictGskAlternativeOutputMatches(
+function strictPhenomMainlandAlternativeOutputMatches(
   plan: Extract<SourceCrawlPlan, { adapterId: "official-json" }>,
-  expected: ReadonlyMap<string, StrictGskAlternativeOutput>,
+  expected: ReadonlyMap<string, StrictPhenomMainlandAlternativeOutput>,
   outputJobs: readonly NormalizedJobRecord[]
 ): boolean {
   for (const value of expected.values()) {

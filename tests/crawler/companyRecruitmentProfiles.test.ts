@@ -22,8 +22,8 @@ import { AUTHORIZED_PHASE1_EXCLUSION_COMPANY_IDS } from "../../src/data/phase1Sc
 const BASELINE = {
   rosterSha256: "9beffa39c6ebb748097621039b8ad4a0047da0e83c7c87d51e36b5c0809d44c0",
   surfaceOracleSha256: "0840c77e8930b0d158c348745bb819aaebd3e70f852ad7b2307df4e1af7ccaec",
-  stagedPlanSha256: "0079df6a46ac6c335920db28c47dca03c46388835a3e1fc4f91aae69c488db50",
-  stagedConfigSetSha256: "95b4caa317dd967ecdfeeaee6161e41b95dbc3b65be2c8453ae31e5adc1be982"
+  stagedPlanSha256: "4a0e326b7ef73ecf3dddde40e0a9077f8e036bc8bae07921a31dbc12047ea1d7",
+  stagedConfigSetSha256: "d6365a333e6e4bfef3cfc38ca92bb6e40365cedf4715a44b6f93a66f272e8473"
 } as const;
 
 const SHARED_CORE_SOURCE_ALLOWLIST: Readonly<Record<string, readonly string[]>> = {
@@ -44,7 +44,6 @@ const SHARED_CORE_SOURCE_ALLOWLIST: Readonly<Record<string, readonly string[]>> 
     "source-bms-china-social",
     "source-daiichi-sankyo-china-social",
     "source-grifols-china-social",
-    "source-gsk-china-social",
     "source-novartis-social",
     "source-roche-china-social"
   ]
@@ -61,7 +60,6 @@ const SHARED_CORE_COMPANY_ALLOWLIST: Readonly<Record<string, readonly string[]>>
     "company-bms-china",
     "company-daiichi-sankyo-china",
     "company-grifols-china",
-    "company-gsk-china",
     "company-roche-china"
   ]
 };

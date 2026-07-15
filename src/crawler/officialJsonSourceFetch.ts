@@ -58,6 +58,8 @@ export type OfficialJsonFetchConfig =
   | {
       kind: "phenom";
       detailBaseUrl: string;
+      derivedDetailIdField?: "reqId" | "jobSeqNo";
+      mixedLocationScopePolicy?: "EXACTLY_ONE_MAINLAND_ALTERNATIVE_V1";
       countryFilter?: string;
       allowedApplyOrigins?: string[];
       allowedEntryRedirect?: {
@@ -2706,6 +2708,14 @@ async function fetchPhenomWidgets({
   try {
     safeEntryUrl = safeOfficialJsonEndpoint(entryUrl);
     detailBaseUrl = safeOfficialJsonEndpoint(config.detailBaseUrl);
+    if (config.derivedDetailIdField !== undefined &&
+      config.derivedDetailIdField !== "reqId" && config.derivedDetailIdField !== "jobSeqNo") {
+      throw new Error("Phenom derived detail ID field is invalid");
+    }
+    if (config.mixedLocationScopePolicy !== undefined &&
+      config.mixedLocationScopePolicy !== "EXACTLY_ONE_MAINLAND_ALTERNATIVE_V1") {
+      throw new Error("Phenom mixed-location scope policy is invalid");
+    }
     if (new URL(detailBaseUrl).origin !== new URL(safeEntryUrl).origin) {
       throw new Error("Phenom detail origin does not match the official entry");
     }
@@ -3052,8 +3062,11 @@ async function fetchPhenomWidgets({
       const locationRaw = locationSelection.locationRaw;
       const applyUrlRaw = stringValue(raw.applyUrl);
       const reqId = stringValue(raw.reqId);
+      const derivedDetailId = config.derivedDetailIdField === "jobSeqNo"
+        ? stringValue(raw.jobSeqNo)
+        : reqId;
       const missing = !id ? "id" : !title ? "title" : !locationRaw ? "locationRaw" :
-        !applyUrlRaw && !reqId ? "officialUrl" : undefined;
+        !applyUrlRaw && !derivedDetailId ? "officialUrl" : undefined;
       if (missing) {
         recordPhenomLoss(losses, counts, "VALIDATION", "MISSING_REQUIRED_FIELD", rawLocator, pageIndex, recordIndex, missing);
         continue;
@@ -3109,7 +3122,7 @@ async function fetchPhenomWidgets({
       try {
         officialUrl = applyUrlRaw
           ? safePhenomJobUrl(applyUrlRaw, detailBaseUrl, allowedApplyOrigins)
-          : safePhenomDerivedDetailUrl(reqId!, detailBaseUrl);
+          : safePhenomDerivedDetailUrl(derivedDetailId!, detailBaseUrl);
       } catch {
         recordPhenomLoss(losses, counts, "VALIDATION", "UNSAFE_OFFICIAL_URL", rawLocator, pageIndex, recordIndex, "officialUrl");
         continue;
@@ -3673,10 +3686,10 @@ function safePhenomJobUrl(
   return url;
 }
 
-function safePhenomDerivedDetailUrl(reqId: string, detailBaseUrl: string): string {
-  if (!safeOfficialJsonId(reqId)) throw new Error("Phenom reqId is invalid");
+function safePhenomDerivedDetailUrl(detailId: string, detailBaseUrl: string): string {
+  if (!safeOfficialJsonId(detailId)) throw new Error("Phenom derived detail ID is invalid");
   const base = safeOfficialJsonEndpoint(detailBaseUrl);
-  const url = safeOfficialJsonEndpoint(`${base.replace(/\/+$/u, "")}/${encodeURIComponent(reqId)}`);
+  const url = safeOfficialJsonEndpoint(`${base.replace(/\/+$/u, "")}/${encodeURIComponent(detailId)}`);
   if (new URL(url).origin !== new URL(base).origin) {
     throw new Error("Phenom derived detail origin mismatch");
   }

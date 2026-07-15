@@ -677,6 +677,9 @@ describe("source crawl planning", () => {
       },
       officialJsonFetch: {
         kind: "phenom",
+        detailBaseUrl: "https://jobs.gsk.com/gb/en/job",
+        derivedDetailIdField: "jobSeqNo",
+        mixedLocationScopePolicy: "EXACTLY_ONE_MAINLAND_ALTERNATIVE_V1",
         countryFilter: "China",
         allowedEntryRedirect: {
           origin: "https://jobs.gsk.com",

@@ -11,7 +11,9 @@ export const profile_gsk_china = {
           json: OFFICIAL_API_JSON_CONFIG,
           officialJsonFetch: {
               kind: "phenom",
-              detailBaseUrl: "https://jobs.gsk.com/cn/zh/job",
+              detailBaseUrl: "https://jobs.gsk.com/gb/en/job",
+              derivedDetailIdField: "jobSeqNo",
+              mixedLocationScopePolicy: "EXACTLY_ONE_MAINLAND_ALTERNATIVE_V1",
               countryFilter: "China",
               allowedApplyOrigins: ["https://gsk.wd5.myworkdayjobs.com"],
               allowedEntryRedirect: {
