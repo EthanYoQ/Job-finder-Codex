@@ -173,6 +173,10 @@ export async function readCrawlSummaryFile(
     maxAgeHours?: number;
     expectedIdentity: CrawlEvidenceIdentity;
     allowIncompleteScheduled?: boolean;
+    expectedPausedScheduledFailure?: {
+      batchId: string;
+      summarySha256: string;
+    };
   }
 ): Promise<CrawlSummaryReadResult> {
   let raw: string;
@@ -194,16 +198,21 @@ export async function readCrawlSummaryFile(
   }
   const summary = parsed as CrawlSummary;
   if (!identitiesEqual(summary, options.expectedIdentity)) return { state: "INVALID" };
+  const summarySha256 = createHash("sha256").update(raw, "utf8").digest("hex");
   const safeScheduledIncomplete = options.allowIncompleteScheduled === true &&
     summary.batchKind === "SCHEDULED" && summary.terminalStatus === "INCOMPLETE" &&
     summary.counters !== null && summary.counters.atomicFailedSourceCount === 0;
+  const safePausedScheduledFailure = options.expectedPausedScheduledFailure !== undefined &&
+    summary.batchKind === "SCHEDULED" && summary.terminalStatus === "FAILED" &&
+    summary.counters !== null && summary.batchId === options.expectedPausedScheduledFailure.batchId &&
+    summarySha256 === options.expectedPausedScheduledFailure.summarySha256;
   if (summary.sourceHealthStatus !== "PERSISTED" ||
-      (summary.terminalStatus !== "SUCCESS" && !safeScheduledIncomplete) || summary.counters === null) {
+      (summary.terminalStatus !== "SUCCESS" && !safeScheduledIncomplete && !safePausedScheduledFailure) ||
+      summary.counters === null) {
     return { state: "INVALID" };
   }
   const ageHours = (options.now.getTime() - new Date(summary.finishedAt).getTime()) / 3_600_000;
   if (ageHours < -5 / 60) return { state: "INVALID" };
-  const summarySha256 = createHash("sha256").update(raw, "utf8").digest("hex");
   return ageHours >= maxAgeHours ? { state: "STALE", summary, summarySha256 } : { state: "VALID", summary, summarySha256 };
 }
 

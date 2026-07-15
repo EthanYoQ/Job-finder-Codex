@@ -1,19 +1,28 @@
 // @vitest-environment node
-import { createHash } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import { createServer } from "node:http";
 import { once } from "node:events";
-import { mkdtempSync, readdirSync, rmSync, writeFileSync } from "node:fs";
+import { mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
+import { mkdir, open, rename, unlink } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { resolve } from "node:path";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { buildCrawlAttemptEvent, writeCrawlAttemptEvent } from "../../src/crawler/crawlAttemptEvidence";
 import { readInitialQualificationPauseBundle } from "../../src/crawler/initialQualificationPauseBundle";
-import { buildTerminalCrawlSummary } from "../../src/crawler/crawlSummary";
+import {
+  buildTerminalCrawlSummary,
+  readCrawlSummaryFile,
+  writeCrawlSummaryAtomic
+} from "../../src/crawler/crawlSummary";
 import {
   buildInitialQualificationPauseEvidence,
   writeInitialQualificationPauseEvidence
 } from "../../src/crawler/initialQualificationPauseEvidence";
 import { hashCanonicalStringSet } from "../../src/crawler/runtimeBatchIdentity";
+import {
+  runStagedCrawlOperation,
+  type StagedCrawlRuntime
+} from "../../src/crawler/stagedCrawlCli";
 import { deliverOpsAlerts } from "../../src/server/alertDelivery";
 import {
   acknowledgeDeliveredOneShotAlerts,
@@ -28,6 +37,164 @@ afterEach(() => {
 });
 
 describe("qualification pause operations alert integration", () => {
+  it("recovers a failed second-round pause bundle and exposes its one-shot alert after restart", async () => {
+    const outputRoot = mkdtempSync(resolve(tmpdir(), "job-finder-failed-pause-"));
+    const stateDir = mkdtempSync(resolve(tmpdir(), "job-finder-failed-pause-state-"));
+    const attemptDir = resolve(outputRoot, "attempts");
+    const summaryPath = resolve(outputRoot, "summary.json");
+    const pausePath = resolve(outputRoot, "pause.json");
+    cleanupPaths.push(outputRoot, stateDir);
+
+    const plannedSourceIds = ["source-a", "source-b"];
+    const identity = {
+      releaseCandidateId: "rc-failed-pause-integration",
+      commitSha: "1".repeat(40),
+      rosterSha256: "2".repeat(64),
+      sourcePlanSha256: "3".repeat(64),
+      sourceConfigSha256: "4".repeat(64),
+      adapterBundleSha256: "5".repeat(64),
+      batchKind: "SCHEDULED" as const,
+      ownerId: "staged-scheduler",
+      expectedPlannedSourceIds: plannedSourceIds,
+      expectedPlannedSourceSetSha256: hashCanonicalStringSet(plannedSourceIds),
+      expectedPlannedSourceCount: plannedSourceIds.length
+    };
+    const evidenceIdentity = {
+      releaseCandidateId: identity.releaseCandidateId,
+      batchKind: identity.batchKind,
+      commitSha: identity.commitSha,
+      rosterSha256: identity.rosterSha256,
+      sourcePlanSha256: identity.sourcePlanSha256,
+      sourceConfigSha256: identity.sourceConfigSha256,
+      adapterBundleSha256: identity.adapterBundleSha256,
+      plannedSourceSetSha256: identity.expectedPlannedSourceSetSha256,
+      plannedSourceCount: identity.expectedPlannedSourceCount
+    };
+    const batch = {
+      status: "FAILED" as const,
+      batchId: "batch-failed-second-round",
+      plannedSourceCount: 2,
+      dueSourceCount: 2,
+      transportSuccessfulSourceCount: 1,
+      transportFailedSourceCount: 1,
+      adapterSuccessfulSourceCount: 1,
+      adapterFailedSourceCount: 0,
+      completenessVerifiedSourceCount: 1,
+      completenessIncompleteSourceCount: 0,
+      atomicCommittedSourceCount: 1,
+      atomicFailedSourceCount: 1,
+      successfulSourceCount: 1,
+      failedSourceCount: 1,
+      blockedSourceCount: 0,
+      skippedSourceCount: 0
+    };
+    const startedAt = new Date("2026-07-15T00:01:00.000Z");
+    const finishedAt = new Date("2026-07-15T00:05:00.000Z");
+    const now = new Date("2026-07-15T00:06:00.000Z");
+    const runtime: StagedCrawlRuntime = {
+      run: vi.fn(async () => ({
+        syncedCompanyCount: 60,
+        syncedSourceCount: 2,
+        hiddenUnplannedVisibleJobCount: 0,
+        batch,
+        identity
+      })),
+      loadConsecutiveFailuresByCompany: vi.fn(async () => ({ "company-a": 2 })),
+      finalizeInitialQualification: vi.fn(async () => ({
+        state: "PAUSED_BELOW_MINIMUM" as const,
+        completedRoundCount: 2 as const,
+        stableCompanyCount: 44,
+        minimumStableCompanyCount: 45
+      })),
+      disconnect: vi.fn(async () => undefined)
+    };
+    const notify = vi.fn();
+
+    const operation = await runStagedCrawlOperation({
+      attemptId: "attempt-failed-second-round",
+      startedAt,
+      capturedAt: startedAt,
+      attemptDir,
+      summaryPath,
+      initialQualificationPausePath: pausePath,
+      schedulerOwnsAttempt: false,
+      deps: {
+        acquireAdvisoryLock: async () => ({ release: async () => undefined }),
+        acquireFileLock: async () => ({ close: async () => undefined }),
+        unlinkFileLock: async () => undefined,
+        assertBrowserReady: async () => undefined,
+        createRuntime: async () => runtime,
+        writeAttemptEvent: writeCrawlAttemptEvent,
+        writeSummary: (path, summary) => writeCrawlSummaryAtomic(path, summary, {
+          mkdir,
+          open: (target, flags, mode) => open(target, flags, mode),
+          rename,
+          unlink,
+          randomId: randomUUID
+        }),
+        writeInitialQualificationPauseEvidence,
+        notifyInitialQualificationPause: notify,
+        now: () => finishedAt
+      }
+    });
+
+    expect(operation.exitCode).toBe(1);
+    expect(notify).toHaveBeenCalledOnce();
+    const persistedSummary = JSON.parse(readFileSync(summaryPath, "utf8")) as {
+      terminalStatus: string;
+      counters: { atomicFailedSourceCount: number; failedSourceCount: number };
+    };
+    expect(persistedSummary).toMatchObject({
+      terminalStatus: "FAILED",
+      counters: { atomicFailedSourceCount: 1, failedSourceCount: 1 }
+    });
+    await expect(readCrawlSummaryFile(summaryPath, {
+      now,
+      expectedIdentity: evidenceIdentity,
+      allowIncompleteScheduled: true
+    })).resolves.toEqual({ state: "INVALID" });
+
+    const bundle = await readInitialQualificationPauseBundle({
+      pausePath,
+      summaryPath,
+      attemptDir,
+      now,
+      loadCandidateStatus: async () => "INVALIDATED"
+    });
+    expect(bundle).toMatchObject({ state: "PAUSED" });
+    if (bundle.state !== "PAUSED") throw new Error(`Expected PAUSED bundle, received ${bundle.state}`);
+
+    const alerts = evaluateOpsAlerts({
+      now,
+      health: { ok: true, statusCode: 200 },
+      backup: { latestBackupAt: finishedAt.toISOString(), latestBackupSucceeded: true },
+      crawl: {
+        authorityState: "PAUSED",
+        attemptState: "PAUSED",
+        summaryState: "VALID",
+        globalSuccessRate: batch.successfulSourceCount / batch.plannedSourceCount,
+        consecutiveFailuresByCompany: { "company-a": 2 },
+        initialQualificationPause: {
+          notificationKey: bundle.evidence.notificationKey,
+          releaseCandidateId: bundle.evidence.releaseCandidateId,
+          batchId: bundle.evidence.batchId,
+          completedRoundCount: bundle.evidence.completedRoundCount,
+          stableCompanyCount: bundle.evidence.stableCompanyCount,
+          minimumStableCompanyCount: bundle.evidence.minimumStableCompanyCount
+        }
+      }
+    });
+    const first = await filterAcknowledgedOneShotAlerts(alerts, stateDir);
+    expect(first).toContainEqual(expect.objectContaining({
+      code: "INITIAL_QUALIFICATION_PAUSED_BELOW_MINIMUM",
+      dedupeKey: `initial-qualification-pause:${bundle.evidence.notificationKey}`
+    }));
+    await acknowledgeDeliveredOneShotAlerts(first, stateDir, now);
+    await expect(filterAcknowledgedOneShotAlerts(alerts, stateDir)).resolves.not.toContainEqual(
+      expect.objectContaining({ code: "INITIAL_QUALIFICATION_PAUSED_BELOW_MINIMUM" })
+    );
+  });
+
   it("cross-validates the pause bundle, delivers it once, and persists acknowledgement", async () => {
     const outputRoot = mkdtempSync(resolve(tmpdir(), "job-finder-monitor-pause-"));
     const attemptDir = resolve(outputRoot, "attempts");

@@ -28,17 +28,6 @@ export async function readInitialQualificationPauseBundle(input: {
   const activeMatches = input.activeIdentity !== undefined && identitiesEqual(input.activeIdentity, identity);
   if (input.activeIdentity && !activeMatches) return { state: "STALE_FOR_ACTIVE_IDENTITY" };
 
-  const summary = await readCrawlSummaryFile(input.summaryPath, {
-    now: input.now,
-    expectedIdentity: identity,
-    allowIncompleteScheduled: true
-  });
-  if (summary.state !== "VALID" && summary.state !== "STALE") return { state: "INVALID" };
-  if (
-    summary.summary.batchId !== marker.evidence.batchId ||
-    summary.summarySha256 !== marker.evidence.canonicalSummarySha256
-  ) return { state: "INVALID" };
-
   const attempt = await readLatestCrawlAttempt(input.attemptDir, {
     now: input.now,
     expectedIdentity: identity,
@@ -60,12 +49,30 @@ export async function readInitialQualificationPauseBundle(input: {
     pause.minimumStableCompanyCount !== marker.evidence.minimumStableCompanyCount
   ) return { state: "INVALID" };
 
-  if (input.activeIdentity) return { state: "STALE_FOR_ACTIVE_IDENTITY" };
-  try {
-    if (await input.loadCandidateStatus(marker.evidence) !== "INVALIDATED") return { state: "INVALID" };
-  } catch {
-    return { state: "INVALID" };
+  if (!input.activeIdentity) {
+    try {
+      if (await input.loadCandidateStatus(marker.evidence) !== "INVALIDATED") return { state: "INVALID" };
+    } catch {
+      return { state: "INVALID" };
+    }
   }
+
+  const summary = await readCrawlSummaryFile(input.summaryPath, {
+    now: input.now,
+    expectedIdentity: identity,
+    allowIncompleteScheduled: true,
+    expectedPausedScheduledFailure: {
+      batchId: marker.evidence.batchId,
+      summarySha256: marker.evidence.canonicalSummarySha256
+    }
+  });
+  if (summary.state !== "VALID" && summary.state !== "STALE") return { state: "INVALID" };
+  if (
+    summary.summary.batchId !== marker.evidence.batchId ||
+    summary.summarySha256 !== marker.evidence.canonicalSummarySha256
+  ) return { state: "INVALID" };
+
+  if (input.activeIdentity) return { state: "STALE_FOR_ACTIVE_IDENTITY" };
   return { state: "PAUSED", evidence: marker.evidence, identity };
 }
 
