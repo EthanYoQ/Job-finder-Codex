@@ -16,7 +16,9 @@ describe("browser-backed crawler runtime dependencies", () => {
     const dockerfile = readFileSync("Dockerfile", "utf8");
     expect(dockerfile).toContain("chromium");
     const runtimeStage = dockerfile.split(/^FROM node:22-bookworm-slim(?:@sha256:[a-f0-9]{64})? AS runtime$/mu)[1];
-    expect(runtimeStage).toMatch(/install -y --no-install-recommends[^\n]*ca-certificates/u);
+    expect(runtimeStage).toMatch(
+      /sh \/usr\/local\/bin\/install-apt-packages\.sh[^\n]*ca-certificates[^\n]*chromium/u,
+    );
     expect(readFileSync("scripts/browser-runtime-smoke.mjs", "utf8")).toContain('"/usr/bin/chromium"');
     const runtime = readFileSync("src/crawler/officialJsonSourceFetch.ts", "utf8");
     expect(runtime).toContain("executablePath: FORMAL_CHROMIUM_PATH");

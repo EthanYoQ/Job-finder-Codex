@@ -2,21 +2,13 @@ FROM postgres:16-bookworm@sha256:da788743d2060767375896de4d646f7576f5911461444b3
 
 FROM node:22-bookworm-slim@sha256:53ada149d435c38b14476cb57e4a7da73c15595aba79bd6971b547ceb6d018bf AS deps
 WORKDIR /app
+COPY ops/install-apt-packages.sh /usr/local/bin/install-apt-packages.sh
 COPY package.json ./package.json
 COPY package-lock.json ./package-lock.json
 COPY prisma ./prisma
-RUN set -eu; \
-  for attempt in 1 2 3; do \
-    if apt-get -o Acquire::Retries=5 -o Acquire::http::Timeout=30 update && \
-       apt-get -o Acquire::Retries=5 -o Acquire::http::Timeout=30 install -y --no-install-recommends openssl; then \
-      rm -rf /var/lib/apt/lists/*; \
-      break; \
-    fi; \
-    if [ "$attempt" -eq 3 ]; then \
-      exit 1; \
-    fi; \
-    sleep 2; \
-  done
+RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
+    --mount=type=cache,target=/var/lib/apt,sharing=locked \
+    sh /usr/local/bin/install-apt-packages.sh openssl
 RUN PRISMA_CLI_BINARY_TARGETS=debian-openssl-3.0.x npm ci
 RUN npx prisma generate --schema=prisma/schema.prisma
 RUN test -s /app/node_modules/@prisma/engines/schema-engine-debian-openssl-3.0.x
@@ -25,21 +17,12 @@ RUN test -s /app/node_modules/.prisma/client/default.js
 RUN test -s /app/node_modules/.prisma/client/libquery_engine-debian-openssl-3.0.x.so.node
 
 FROM deps AS build
+RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
+    --mount=type=cache,target=/var/lib/apt,sharing=locked \
+    sh /usr/local/bin/install-apt-packages.sh git
 ARG BUILD_COMMIT_SHA
 ARG BUILD_SOURCE_CLEAN
 ARG BUILD_SOURCE_TREE_SHA256
-RUN set -eu; \
-  for attempt in 1 2 3; do \
-    if apt-get -o Acquire::Retries=5 -o Acquire::http::Timeout=30 update && \
-       apt-get -o Acquire::Retries=5 -o Acquire::http::Timeout=30 install -y --no-install-recommends git; then \
-      rm -rf /var/lib/apt/lists/*; \
-      break; \
-    fi; \
-    if [ "$attempt" -eq 3 ]; then \
-      exit 1; \
-    fi; \
-    sleep 2; \
-  done
 COPY package.json ./package.json
 COPY package-lock.json ./package-lock.json
 COPY tsconfig.json ./tsconfig.json
@@ -56,28 +39,15 @@ RUN npm run build
 RUN npx tsx scripts/generate-build-identity.ts --commit=${BUILD_COMMIT_SHA} --clean-provenance=${BUILD_SOURCE_CLEAN} --source-tree-sha256=${BUILD_SOURCE_TREE_SHA256}
 
 FROM node:22-bookworm-slim@sha256:53ada149d435c38b14476cb57e4a7da73c15595aba79bd6971b547ceb6d018bf AS runtime
-ARG BUILD_COMMIT_SHA
-ARG BUILD_SOURCE_TREE_SHA256
-LABEL org.opencontainers.image.title="Job Finder" \
-  org.opencontainers.image.revision="${BUILD_COMMIT_SHA}" \
-  io.jobfinder.source-tree-sha256="${BUILD_SOURCE_TREE_SHA256}"
 WORKDIR /app
 ENV NODE_ENV=production
 ENV HOME=/tmp
 ENV XDG_CONFIG_HOME=/tmp/.config
 ENV XDG_CACHE_HOME=/tmp/.cache
-RUN set -eu; \
-  for attempt in 1 2 3; do \
-    if apt-get -o Acquire::Retries=5 -o Acquire::http::Timeout=30 update && \
-       apt-get -o Acquire::Retries=5 -o Acquire::http::Timeout=30 install -y --no-install-recommends ca-certificates chromium libpq5 libreadline8 util-linux; then \
-      rm -rf /var/lib/apt/lists/*; \
-      break; \
-    fi; \
-    if [ "$attempt" -eq 3 ]; then \
-      exit 1; \
-    fi; \
-    sleep 2; \
-  done
+COPY ops/install-apt-packages.sh /usr/local/bin/install-apt-packages.sh
+RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
+    --mount=type=cache,target=/var/lib/apt,sharing=locked \
+    sh /usr/local/bin/install-apt-packages.sh ca-certificates chromium libpq5 libreadline8 util-linux
 COPY --from=pg16-client /usr/lib/postgresql/16/bin/pg_dump /usr/local/bin/pg_dump
 COPY --from=pg16-client /usr/lib/postgresql/16/bin/pg_restore /usr/local/bin/pg_restore
 COPY --from=pg16-client /usr/lib/postgresql/16/bin/psql /usr/local/bin/psql
@@ -96,6 +66,11 @@ RUN test "$(command -v pg_dump)" = "/usr/local/bin/pg_dump" \
   && ldd -r /usr/local/bin/psql > /tmp/psql.ldd 2>&1 \
   && ! grep -E 'not found|undefined symbol' /tmp/pg_dump.ldd /tmp/pg_restore.ldd /tmp/psql.ldd \
   && rm -f /tmp/flock-build-probe /tmp/pg_dump.ldd /tmp/pg_restore.ldd /tmp/psql.ldd
+ARG BUILD_COMMIT_SHA
+ARG BUILD_SOURCE_TREE_SHA256
+LABEL org.opencontainers.image.title="Job Finder" \
+  org.opencontainers.image.revision="${BUILD_COMMIT_SHA}" \
+  io.jobfinder.source-tree-sha256="${BUILD_SOURCE_TREE_SHA256}"
 COPY package.json ./package.json
 COPY package-lock.json ./package-lock.json
 COPY --from=deps /app/node_modules ./node_modules

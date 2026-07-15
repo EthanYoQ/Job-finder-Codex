@@ -1,47 +1,61 @@
-import { readFileSync } from "node:fs";
-import { resolve } from "node:path";
-import { describe, expect, it } from "vitest";
+import {readFileSync} from "node:fs";
+import {resolve} from "node:path";
+import {describe,expect,it} from "vitest";
 
-describe("Docker apt transport reliability", () => {
-  it("uses bounded retries and timeouts for every apt update and install layer", () => {
-    const dockerfile = readFileSync(resolve(process.cwd(), "Dockerfile"), "utf8");
-    const retryOptions = "-o Acquire::Retries=5 -o Acquire::http::Timeout=30";
-    const updateCommands = dockerfile.match(/apt-get[^\n]* update/gmu) ?? [];
-    const installCommands = dockerfile.match(/apt-get[^\n]* install/gmu) ?? [];
+const read=(path:string)=>readFileSync(resolve(process.cwd(),path),"utf8");
 
-    expect(updateCommands).toHaveLength(3);
-    expect(installCommands).toHaveLength(3);
-    for (const command of [...updateCommands, ...installCommands]) {
-      expect(command).toContain(retryOptions);
+describe("Docker apt transport reliability",()=>{
+  it("uses one bounded installer with locked download and index caches in every apt layer",()=>{
+    const dockerfile=read("Dockerfile");
+    const layers=dockerfile.match(
+      /^RUN --mount=type=cache,target=\/var\/cache\/apt,sharing=locked \\\r?\n\s+--mount=type=cache,target=\/var\/lib\/apt,sharing=locked \\\r?\n\s+sh \/usr\/local\/bin\/install-apt-packages\.sh [^\r\n]+$/gmu,
+    )??[];
+
+    expect(layers).toHaveLength(3);
+    for(const layer of layers){
+      expect(layer).toContain("--mount=type=cache,target=/var/cache/apt,sharing=locked");
+      expect(layer).toContain("--mount=type=cache,target=/var/lib/apt,sharing=locked");
+      expect(layer).toMatch(/sh \/usr\/local\/bin\/install-apt-packages\.sh [^\n]+/u);
     }
-    expect(dockerfile).not.toContain("Acquire::https::Verify-Peer=false");
+    expect(dockerfile).not.toMatch(/apt-get[^\n]*(?:update|install)/u);
   });
 
-  it("retries update and install together at most three times and fails closed", () => {
-    const dockerfile = readFileSync(resolve(process.cwd(), "Dockerfile"), "utf8");
-    const aptRunLayers = dockerfile
-      .split(/(?=^RUN )/mu)
-      .filter((section) => section.startsWith("RUN ") && section.includes("apt-get"));
+  it("keeps release-specific build arguments after reusable system dependency layers",()=>{
+    const dockerfile=read("Dockerfile");
+    const buildStage=dockerfile.split(/^FROM deps AS build$/mu)[1]!.split(/^FROM .* AS runtime$/mu)[0]!;
+    const runtimeStage=dockerfile.split(/^FROM .* AS runtime$/mu)[1]!;
 
-    expect(aptRunLayers).toHaveLength(3);
-    for (const layer of aptRunLayers) {
-      const updateCommands = layer.match(/apt-get[^\n]* update/gmu) ?? [];
-      const installCommands = layer.match(/apt-get[^\n]* install/gmu) ?? [];
-      const retryLoopIndex = layer.indexOf("for attempt in 1 2 3; do");
-
-      expect(updateCommands).toHaveLength(1);
-      expect(installCommands).toHaveLength(1);
-      expect(layer).toContain("for attempt in 1 2 3; do");
-      expect(layer.indexOf(updateCommands[0]!)).toBeGreaterThan(retryLoopIndex);
-      expect(layer.indexOf(installCommands[0]!)).toBeGreaterThan(layer.indexOf(updateCommands[0]!));
-      expect(layer.slice(retryLoopIndex)).toMatch(
-        /if apt-get[^\n]* update && \\\n\s+apt-get[^\n]* install[^\n]*; then/u
-      );
-      expect(layer).toContain('if [ "$attempt" -eq 3 ]; then');
-      expect(layer).toMatch(/\n\s+exit 1; \\\n\s+fi;/u);
-      expect(layer).toContain("sleep 2;");
-      expect(layer).toContain("done");
-      expect(layer).not.toMatch(/while\s+true|\|\|\s*true|--fix-missing|--allow-unauthenticated/u);
+    for(const stage of [buildStage,runtimeStage]){
+      const aptRunIndex=stage.indexOf("sh /usr/local/bin/install-apt-packages.sh");
+      expect(aptRunIndex).toBeGreaterThan(-1);
+      expect(stage.indexOf("ARG BUILD_COMMIT_SHA")).toBeGreaterThan(aptRunIndex);
+      expect(stage.indexOf("ARG BUILD_SOURCE_TREE_SHA256")).toBeGreaterThan(aptRunIndex);
     }
+  });
+
+  it("separates update and install retries, preserves downloads, and fails within fifteen minutes",()=>{
+    const dockerfile=read("Dockerfile");
+    const installer=read("ops/install-apt-packages.sh");
+    const updateIndex=installer.indexOf("update --error-on=any");
+    const installIndex=installer.indexOf("install -y --no-install-recommends");
+
+    expect(installer).toContain('APT_TOTAL_TIMEOUT_SECONDS="${APT_TOTAL_TIMEOUT_SECONDS:-900}"');
+    expect(installer).toContain('timeout --signal=TERM --kill-after=10s "${APT_TOTAL_TIMEOUT_SECONDS}s"');
+    expect(installer).toContain("Acquire::Retries=2");
+    expect(installer).toContain("Acquire::http::Timeout=30");
+    expect(installer).toContain("Acquire::https::Timeout=30");
+    expect(installer).toContain("update --error-on=any");
+    expect(installer).toContain("DEBIAN_FRONTEND=noninteractive");
+    expect(installer).toContain("install -y --no-install-recommends");
+    expect(installer).toContain('rm -f "$APT_CONFIG_DIR/docker-clean"');
+    expect(installer).toContain('Binary::apt::APT::Keep-Downloaded-Packages "true";');
+    expect(installer.match(/for attempt in 1 2 3; do/gmu)).toHaveLength(2);
+    expect(updateIndex).toBeGreaterThan(-1);
+    expect(installIndex).toBeGreaterThan(updateIndex);
+    expect(installer.slice(updateIndex,installIndex)).toContain("done");
+    expect(installer).not.toMatch(/while\s+true|\|\|\s*true/u);
+    expect(`${dockerfile}\n${installer}`).not.toMatch(
+      /--fix-missing|--force-yes|--allow-unauthenticated|--allow-insecure-repositories|--allow-downgrades-to-insecure-repositories|Acquire::https::Verify-(?:Peer|Host)\s*=\s*false/iu,
+    );
   });
 });

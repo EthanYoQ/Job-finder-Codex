@@ -55,7 +55,7 @@ describe("portable Docker build provenance",()=>{
   it("copies only explicitly attested inputs into the Docker build stage",()=>{
     const dockerfile=readFileSync("Dockerfile","utf8");
     expect(dockerfile).not.toMatch(/^COPY\s+\.\s+\.$/mu);
-    const allowed=["src","scripts","prisma","ops","package.json","package-lock.json","tsconfig.json","Dockerfile",".dockerignore","index.html","vite.config.ts",".docker-build-provenance.bundle"];
+    const allowed=["src","scripts","prisma","ops","ops/install-apt-packages.sh","package.json","package-lock.json","tsconfig.json","Dockerfile",".dockerignore","index.html","vite.config.ts",".docker-build-provenance.bundle"];
     for(const path of allowed){
       const escaped=path.replace(/[.*+?^${}()|[\]\\]/gu,"\\$&");
       expect(dockerfile).toMatch(new RegExp(`^COPY\\s+${escaped}(?:\\s+|/\\s+)`,"mu"));

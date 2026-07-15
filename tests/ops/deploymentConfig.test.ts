@@ -222,7 +222,7 @@ describe("deployment configuration", () => {
     expect(dockerfile).toMatch(/ldd -r \/usr\/local\/bin\/pg_restore/u);
     expect(dockerfile).toMatch(/ldd -r \/usr\/local\/bin\/psql/u);
     expect(dockerfile).toMatch(/not found\|undefined symbol/u);
-    expect(dockerfile).toContain("install -y --no-install-recommends ca-certificates chromium libpq5 libreadline8 util-linux");
+    expect(dockerfile).toContain("sh /usr/local/bin/install-apt-packages.sh ca-certificates chromium libpq5 libreadline8 util-linux");
     expect(dockerfile).toMatch(/command -v flock[^\n]*\/usr\/bin\/flock/u);
     expect(dockerfile).toMatch(/flock --version[^\n]*util-linux/u);
     expect(dockerfile).toContain("flock -n /tmp/flock-build-probe true");
