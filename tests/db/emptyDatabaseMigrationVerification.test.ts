@@ -193,10 +193,10 @@ describe("empty database migration verification orchestration", () => {
       result("psql (PostgreSQL) 16.14 (Debian 16.14-1.pgdg12+1)\n"),
       result(JSON.stringify({ currentDatabase: DATABASE_NAME, serverVersion: "16.14", systemIdentifier: "7659954889866510370", isTemplate: false })),
       result(JSON.stringify({ publicSchemaObjectCount: 0, migrationTableExists: false, migrationRowCount: 0 })),
-      result("21 migrations found in prisma/migrations\nAll migrations have been successfully applied.\n"),
+      result("23 migrations found in prisma/migrations\nAll migrations have been successfully applied.\n"),
       result(JSON.stringify(migratedAudit())),
       result("-- PostgreSQL database dump\nCREATE TABLE public.\"Company\" ();\n"),
-      result("21 migrations found in prisma/migrations\nNo pending migrations to apply.\n"),
+      result("23 migrations found in prisma/migrations\nNo pending migrations to apply.\n"),
       result(JSON.stringify(migratedAudit())),
       result("-- PostgreSQL database dump\nCREATE TABLE public.\"Company\" ();\n")
     ];

@@ -45,8 +45,8 @@ identity, non-template status, empty public schema, and absence of `_prisma_migr
 The expected and forbidden system identifiers, internal-network marker, and no-host-port marker must come from and
 be bound to the RC's external Docker provision/inspect evidence; the verifier does not self-certify Docker isolation.
 
-Success requires the explicit reviewed set of 20 finished migrations through
-`20260714053000_repair_legacy_offline_count_two`, with zero rollbacks; exactly the explicit
+Success requires the explicit reviewed set of 23 finished migrations through
+`20260716210000_release_candidate_promotion_gate`, with zero rollbacks; exactly the explicit
 reviewed 25 application tables, no extra public application tables, and zero rows in every application table; a
 reviewed exact index-name set and canonical `pg_get_indexdef` digest; the reviewed user-type/function contract with
 no unexpected view, materialized view, sequence, composite, foreign relation, or standalone base type; a reproducible
