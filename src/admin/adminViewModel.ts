@@ -1,5 +1,10 @@
 import type { VerificationStatus } from "../domain/company";
 import type { JobCategory } from "../domain/search";
+import {
+  sourceFailureCategoryLabel,
+  type SourceFailureCategory,
+  type SourceFailureDiagnosticCode
+} from "../crawler/sourceFailureDiagnostics";
 
 export type AdminDashboardInput = {
   sourceHealth: Array<{
@@ -14,6 +19,14 @@ export type AdminDashboardInput = {
       successful: boolean;
       structuredJobCount: number;
       failureReason: string | null;
+    } | null;
+    latestFailure?: {
+      finishedAt: Date;
+      reason: string;
+      category: SourceFailureCategory;
+      diagnosticCode: SourceFailureDiagnosticCode;
+      fetchAttemptCount: number;
+      retryCount: number;
     } | null;
   }>;
   feedbackQueue: Array<{
@@ -53,6 +66,9 @@ export type AdminDashboardModel = {
     latestCrawledAt: string | null;
     latestOutcomeLabel: "成功" | "失败" | "未抓取";
     latestFailureReason: string | null;
+    latestFailureCategoryLabel: string | null;
+    latestFetchAttemptCount: number | null;
+    latestRetryCount: number | null;
     canQueueManualCrawl: boolean;
   }>;
   feedbackQueue: Array<{
@@ -92,27 +108,51 @@ export function buildAdminDashboardModel(input: AdminDashboardInput): AdminDashb
           return failureGap;
         }
 
-        const rightTime = right.latestObservation?.crawledAt.getTime() ?? 0;
-        const leftTime = left.latestObservation?.crawledAt.getTime() ?? 0;
+        const rightTime = Math.max(
+          right.latestObservation?.crawledAt.getTime() ?? 0,
+          right.latestFailure?.finishedAt.getTime() ?? 0
+        );
+        const leftTime = Math.max(
+          left.latestObservation?.crawledAt.getTime() ?? 0,
+          left.latestFailure?.finishedAt.getTime() ?? 0
+        );
 
         return rightTime - leftTime;
       })
-      .map((source) => ({
-        sourceId: source.sourceId,
-        companyName: source.companyName,
-        verificationStatus: source.verificationStatus,
-        structuredJobCount: source.structuredJobCount,
-        consecutiveFailureCount: source.consecutiveFailureCount,
-        latestCrawledAt: source.latestObservation?.crawledAt.toISOString() ?? null,
-        latestOutcomeLabel:
-          source.latestObservation === null
-            ? "未抓取"
-            : source.latestObservation.successful
-              ? "成功"
-              : "失败",
-        latestFailureReason: source.latestObservation?.failureReason ?? null,
-        canQueueManualCrawl: true
-      })),
+      .map((source) => {
+        const latestFailure = source.latestFailure ?? null;
+        const failureIsLatest = latestFailure !== null && (
+          source.latestObservation === null ||
+          latestFailure.finishedAt.getTime() >= source.latestObservation.crawledAt.getTime()
+        );
+        const latestAt = failureIsLatest
+          ? latestFailure.finishedAt
+          : source.latestObservation?.crawledAt ?? null;
+        return {
+          sourceId: source.sourceId,
+          companyName: source.companyName,
+          verificationStatus: source.verificationStatus,
+          structuredJobCount: source.structuredJobCount,
+          consecutiveFailureCount: source.consecutiveFailureCount,
+          latestCrawledAt: latestAt?.toISOString() ?? null,
+          latestOutcomeLabel: failureIsLatest
+            ? "失败" as const
+            : source.latestObservation === null
+              ? "未抓取" as const
+              : source.latestObservation.successful
+                ? "成功" as const
+                : "失败" as const,
+          latestFailureReason: failureIsLatest
+            ? latestFailure.reason
+            : source.latestObservation?.failureReason ?? null,
+          latestFailureCategoryLabel: failureIsLatest
+            ? sourceFailureCategoryLabel(latestFailure.category)
+            : null,
+          latestFetchAttemptCount: failureIsLatest ? latestFailure.fetchAttemptCount : null,
+          latestRetryCount: failureIsLatest ? latestFailure.retryCount : null,
+          canQueueManualCrawl: true
+        };
+      }),
     feedbackQueue: input.feedbackQueue.map((item) => ({
       id: item.id,
       companyName: item.companyName,

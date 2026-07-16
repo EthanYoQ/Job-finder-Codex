@@ -31,6 +31,14 @@ describe("buildAdminDashboardModel", () => {
             successful: false,
             structuredJobCount: 0,
             failureReason: "timeout"
+          },
+          latestFailure: {
+            finishedAt: new Date("2026-07-08T11:00:00.000Z"),
+            reason: "Official recruitment endpoint was temporarily unavailable (HTTP 503)",
+            category: "TEMPORARY_OFFICIAL_SOURCE_FAILURE",
+            diagnosticCode: "OFFICIAL_HTTP_503",
+            fetchAttemptCount: 2,
+            retryCount: 1
           }
         }
       ],
@@ -50,7 +58,10 @@ describe("buildAdminDashboardModel", () => {
       consecutiveFailureCount: 3,
       latestCrawledAt: "2026-07-08T11:00:00.000Z",
       latestOutcomeLabel: "失败",
-      latestFailureReason: "timeout",
+      latestFailureReason: "Official recruitment endpoint was temporarily unavailable (HTTP 503)",
+      latestFailureCategoryLabel: "官网招聘入口暂时不可用",
+      latestFetchAttemptCount: 2,
+      latestRetryCount: 1,
       canQueueManualCrawl: true
     });
     expect(firstSource).toBeDefined();

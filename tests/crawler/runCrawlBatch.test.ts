@@ -24,6 +24,7 @@ import { canonicalReleaseMembersSha256, releaseMembersFromPlans,
 import { evaluatePaginationEvidence } from "../../src/crawler/paginationEvidence";
 import type { PersistentSourceFetchEvidence } from "../../src/crawler/sourceFetchEvidence";
 import { hashCanonicalJobKeySet } from "../../src/crawler/runtimeBatchIdentity";
+import { createSourceFetchRouter } from "../../src/crawler/sourceFetchRouter";
 
 const IDENTITY_BASE = {
   releaseCandidateId: "p0-rc-20260710-001",
@@ -1223,7 +1224,7 @@ describe("runP0CrawlBatch", () => {
   });
 
   it("records failed observations without upserting lifecycle job changes", async () => {
-    const plan = planFor("source-astrazeneca-social");
+    const plan = planFor("source-pfizer-china-social");
     const db = fakeDb();
     const previousJob = makeJob({
       sourceId: plan.source.id,
@@ -1233,12 +1234,18 @@ describe("runP0CrawlBatch", () => {
       officialUrl: "https://careers.example.com/jobs/previous-job"
     });
     const fetchFailure = "temporary upstream 503 secret=must-not-persist";
-    const fetch = vi.fn(async () => ({
+    const delegate = vi.fn(async () => ({
       ok: false as const,
       capturedAt: CAPTURED_AT,
       failureReason: fetchFailure,
       transportFailure: { code: "OFFICIAL_HTTP_503" as const, retryable: true as const }
     }));
+    const fetch = createSourceFetchRouter({
+      moka: delegate,
+      workday: delegate,
+      fallback: delegate,
+      delay: async () => undefined
+    });
 
     const result = await runP0CrawlBatch([plan], {
       db,
@@ -1250,7 +1257,7 @@ describe("runP0CrawlBatch", () => {
       isBaselineCompleted: async () => true
     });
 
-    expect(fetch).toHaveBeenCalledTimes(1);
+    expect(delegate).toHaveBeenCalledTimes(2);
     expect(result).toMatchObject({
       batchId: "batch-1",
       plannedSourceCount: 1,
@@ -1270,13 +1277,67 @@ describe("runP0CrawlBatch", () => {
         adapterState: "SKIPPED",
         atomicCommitState: "NOT_ATTEMPTED",
         failureCode: "SOURCE_TRANSPORT_FAILED",
-        failureReason: "Official recruitment endpoint was temporarily unavailable (HTTP 503)"
+        failureReason: "Official recruitment endpoint was temporarily unavailable (HTTP 503)",
+        failureCategory: "TEMPORARY_OFFICIAL_SOURCE_FAILURE",
+        failureDiagnosticCode: "OFFICIAL_HTTP_503",
+        fetchAttemptCount: 2,
+        retryCount: 1
       })
     }));
     expect(JSON.stringify(db.calls.terminalSourceResults)).not.toContain(fetchFailure);
     expect(db.calls.batchesUpdated[0]).toEqual({
       where: { id: "batch-1" },
       data: expect.objectContaining({ finishedAt: NOW, status: "INCOMPLETE" })
+    });
+  });
+
+  it("persists successful fetch attempt counts when a closed-code retry recovers", async () => {
+    const basePlan = planFor("source-roche-china-social");
+    const plan = {
+      ...basePlan,
+      transientRetryPolicy: { maxRetries: 1 as const, backoffMs: 1_000 }
+    };
+    const db = fakeDb();
+    let fetchCall = 0;
+    const delegate = vi.fn(async () => {
+      fetchCall += 1;
+      return fetchCall === 1
+        ? {
+            ok: false as const,
+            capturedAt: CAPTURED_AT,
+            failureReason: "safe transient failure",
+            transportFailure: { code: "OFFICIAL_HTTP_503" as const, retryable: true as const }
+          }
+        : strictSuccessfulFetch(plan);
+    });
+    const fetch = createSourceFetchRouter({
+      moka: delegate,
+      fallback: delegate,
+      delay: async () => undefined
+    });
+    const executeAtomicCommit = vi.fn<AtomicCommitExecutor>(async (commit) => {
+      db.persistAtomicSourceResult(commit.sourceResult);
+    });
+
+    await runP0CrawlBatch([plan], {
+      db,
+      fetch,
+      now: NOW,
+      force: true,
+      identity: identityForPlans([plan]),
+      executeAtomicCommit,
+      ...inMemoryArchiveDeps(),
+      getPreviousJobs: async () => [],
+      getRecentObservations: async () => [],
+      isBaselineCompleted: async () => true
+    });
+
+    expect(delegate).toHaveBeenCalledTimes(2);
+    expect(executeAtomicCommit.mock.calls[0]![0].sourceResult).toMatchObject({
+      failureCategory: null,
+      failureDiagnosticCode: null,
+      fetchAttemptCount: 2,
+      retryCount: 1
     });
   });
 
@@ -1387,7 +1448,13 @@ describe("runP0CrawlBatch", () => {
     });
     expect(db.calls.terminalSourceResults).toContainEqual(expect.objectContaining({
       where: expect.objectContaining({ sourceId: timedOutPlan.source.id }),
-      data: expect.objectContaining({ transportState: "FAILED" })
+      data: expect.objectContaining({
+        transportState: "FAILED",
+        failureCategory: "SOURCE_TIME_LIMIT_REACHED",
+        failureDiagnosticCode: "SOURCE_ATTEMPT_TIMEOUT",
+        fetchAttemptCount: 1,
+        retryCount: 0
+      })
     }));
   });
 
@@ -1436,6 +1503,15 @@ describe("runP0CrawlBatch", () => {
       failedSourceCount: 1,
       blockedSourceCount: 1
     });
+    expect(db.calls.terminalSourceResults).toContainEqual(expect.objectContaining({
+      where: expect.objectContaining({ sourceId: failedPlan.source.id }),
+      data: expect.objectContaining({
+        failureCategory: "OFFICIAL_SOURCE_REVIEW_REQUIRED",
+        failureDiagnosticCode: "ADAPTER_EXECUTION_FAILED",
+        fetchAttemptCount: 1,
+        retryCount: 0
+      })
+    }));
   });
 
   it.each(["archive", "verification", "build", "atomic commit"] as const)(
@@ -1557,6 +1633,134 @@ describe("runP0CrawlBatch", () => {
     expect(rejection).toBeInstanceOf(AggregateError);
     expect((rejection as AggregateError).errors).toEqual([sourceError, terminalError]);
     expect(fetch).toHaveBeenCalledTimes(1);
+  });
+
+  it("preserves 1/0 attempt evidence when fallback terminalization closes a started source", async () => {
+    const plan = planFor("source-astrazeneca-social");
+    const db = fakeDb();
+    const sourceError = new Error("source fetch failed");
+    db.terminalUpdateMany.mockRejectedValueOnce(new Error("terminal source write failed"));
+
+    await captureRejection(() =>
+      runP0CrawlBatch([plan], {
+        db,
+        fetch: async () => { throw sourceError; },
+        now: NOW,
+        force: true,
+        identity: identityForPlans([plan]),
+        executeAtomicCommit: vi.fn(async () => undefined),
+        ...inMemoryArchiveDeps(),
+        getPreviousJobs: async () => [],
+        getRecentObservations: async () => [],
+        isBaselineCompleted: async () => true
+      })
+    );
+
+    const terminalCalls = db.calls.terminalSourceResults.filter((call) =>
+      (call as { where: { sourceId: string } }).where.sourceId === plan.source.id
+    ) as Array<{ data: Record<string, unknown> }>;
+    expect(terminalCalls).toHaveLength(1);
+    expect(terminalCalls.at(-1)!.data).toMatchObject({
+      failureCode: "BATCH_ABORTED_BEFORE_SOURCE_TERMINAL",
+      failureReason: "Source execution started but did not reach a persisted terminal result",
+      failureCategory: "UNCLASSIFIED_SOURCE_FAILURE",
+      failureDiagnosticCode: "FETCH_EXECUTION_FAILED",
+      fetchAttemptCount: 1,
+      retryCount: 0
+    });
+  });
+
+  it("preserves 2/1 attempt evidence when fallback terminalization closes a retried source", async () => {
+    const basePlan = planFor("source-roche-china-social");
+    const plan = {
+      ...basePlan,
+      transientRetryPolicy: { maxRetries: 1 as const, backoffMs: 1_000 }
+    };
+    const db = fakeDb();
+    db.terminalUpdateMany.mockRejectedValueOnce(new Error("terminal source write failed"));
+    const delegate = vi.fn(async () => ({
+      ok: false as const,
+      capturedAt: CAPTURED_AT,
+      failureReason: "upstream details must not be parsed",
+      transportFailure: { code: "OFFICIAL_HTTP_503" as const, retryable: true as const }
+    }));
+    const fetch = createSourceFetchRouter({
+      moka: delegate,
+      workday: delegate,
+      fallback: delegate,
+      delay: async () => undefined
+    });
+
+    await captureRejection(() =>
+      runP0CrawlBatch([plan], {
+        db,
+        fetch,
+        now: NOW,
+        force: true,
+        identity: identityForPlans([plan]),
+        executeAtomicCommit: vi.fn(async () => undefined),
+        ...inMemoryArchiveDeps(),
+        getPreviousJobs: async () => [],
+        getRecentObservations: async () => [],
+        isBaselineCompleted: async () => true
+      })
+    );
+
+    expect(delegate).toHaveBeenCalledTimes(2);
+    const terminalCalls = db.calls.terminalSourceResults.filter((call) =>
+      (call as { where: { sourceId: string } }).where.sourceId === plan.source.id
+    ) as Array<{ data: Record<string, unknown> }>;
+    expect(terminalCalls).toHaveLength(1);
+    expect(terminalCalls.at(-1)!.data).toMatchObject({
+      failureCode: "BATCH_ABORTED_BEFORE_SOURCE_TERMINAL",
+      failureReason: "Source execution started but did not reach a persisted terminal result",
+      failureCategory: "UNCLASSIFIED_SOURCE_FAILURE",
+      failureDiagnosticCode: "FETCH_EXECUTION_FAILED",
+      fetchAttemptCount: 2,
+      retryCount: 1
+    });
+    expect(JSON.stringify(terminalCalls.at(-1))).not.toContain("upstream details must not be parsed");
+  });
+
+  it("uses 0/0 only when fallback terminalization closes a source that never started", async () => {
+    const failedPlan = planFor("source-astrazeneca-social");
+    const neverStartedPlan = planFor("source-roche-china-social");
+    const batchPlans = [failedPlan, neverStartedPlan];
+    const db = fakeDb();
+    db.terminalUpdateMany.mockRejectedValueOnce(new Error("terminal source write failed"));
+    const fetch = vi.fn(async (plan: SourceCrawlPlan) => {
+      if (plan.source.id === failedPlan.source.id) throw new Error("source fetch failed");
+      return strictSuccessfulFetch(plan);
+    });
+
+    await captureRejection(() =>
+      runP0CrawlBatch(batchPlans, {
+        db,
+        fetch,
+        now: NOW,
+        force: true,
+        identity: identityForPlans(batchPlans),
+        executeAtomicCommit: vi.fn(async () => undefined),
+        ...inMemoryArchiveDeps(),
+        getPreviousJobs: async () => [],
+        getRecentObservations: async () => [],
+        isBaselineCompleted: async () => true
+      })
+    );
+
+    expect(fetch).toHaveBeenCalledTimes(1);
+    const terminalCalls = db.calls.terminalSourceResults.filter((call) =>
+      (call as { where: { sourceId: string } }).where.sourceId === neverStartedPlan.source.id
+    ) as Array<{ data: Record<string, unknown> }>;
+    expect(terminalCalls).toHaveLength(1);
+    expect(terminalCalls[0]!.data).toMatchObject({
+      failureCode: "BATCH_ABORTED_BEFORE_SOURCE_TERMINAL",
+      failureReason: "Batch aborted before this source reached a terminal state",
+      failureCategory: "UNCLASSIFIED_SOURCE_FAILURE",
+      failureDiagnosticCode: "BATCH_ABORTED_BEFORE_SOURCE_TERMINAL",
+      fetchAttemptCount: 0,
+      retryCount: 0
+    });
   });
 
   it("fails closed when post-commit rollback terminalization cannot be confirmed", async () => {

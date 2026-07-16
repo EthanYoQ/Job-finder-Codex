@@ -3,6 +3,10 @@ import { toSourceScheduleState } from "../db/crawlStateRepository";
 import { toPrismaJobCategory, type PrismaJobCategoryName } from "../db/prismaMappers";
 import type { VerificationStatus } from "../domain/company";
 import type { JobCategory } from "../domain/search";
+import type {
+  SourceFailureCategory,
+  SourceFailureDiagnosticCode
+} from "../crawler/sourceFailureDiagnostics";
 import {
   createManualCrawlRequestRepository,
   type ManualCrawlRequestDb,
@@ -56,6 +60,15 @@ type SourceHealthObservationRow = {
   failureReason: string | null;
 };
 
+type SourceHealthBatchResultRow = {
+  finishedAt: Date | null;
+  failureReason: string | null;
+  failureCategory: SourceFailureCategory | null;
+  failureDiagnosticCode: SourceFailureDiagnosticCode | null;
+  fetchAttemptCount: number | null;
+  retryCount: number | null;
+};
+
 type SourceHealthRow = {
   id: string;
   companyId: string;
@@ -64,6 +77,7 @@ type SourceHealthRow = {
     officialChineseName: string;
   };
   crawlObservations: SourceHealthObservationRow[];
+  batchResults?: SourceHealthBatchResultRow[];
   _count: {
     jobs: number;
   };
@@ -123,6 +137,25 @@ export type AdminOperationsDb = {
             successful: true;
             structuredJobCount: true;
             failureReason: true;
+          };
+        };
+        batchResults: {
+          where: {
+            failureCategory: {
+              not: null;
+            };
+          };
+          orderBy: {
+            finishedAt: "desc";
+          };
+          take: 1;
+          select: {
+            finishedAt: true;
+            failureReason: true;
+            failureCategory: true;
+            failureDiagnosticCode: true;
+            fetchAttemptCount: true;
+            retryCount: true;
           };
         };
         _count: {
@@ -263,6 +296,14 @@ export async function listSourceHealth(
       structuredJobCount: number;
       failureReason: string | null;
     } | null;
+    latestFailure: {
+      finishedAt: Date;
+      reason: string;
+      category: SourceFailureCategory;
+      diagnosticCode: SourceFailureDiagnosticCode;
+      fetchAttemptCount: number;
+      retryCount: number;
+    } | null;
   }>
 > {
   const sources = await deps.db.recruitmentSource.findMany({
@@ -283,6 +324,25 @@ export async function listSourceHealth(
           failureReason: true
         }
       },
+      batchResults: {
+        where: {
+          failureCategory: {
+            not: null
+          }
+        },
+        orderBy: {
+          finishedAt: "desc"
+        },
+        take: 1,
+        select: {
+          finishedAt: true,
+          failureReason: true,
+          failureCategory: true,
+          failureDiagnosticCode: true,
+          fetchAttemptCount: true,
+          retryCount: true
+        }
+      },
       _count: {
         select: {
           jobs: true
@@ -296,6 +356,19 @@ export async function listSourceHealth(
       (left, right) => right.crawledAt.getTime() - left.crawledAt.getTime()
     );
     const latestObservation = sortedObservations[0] ?? null;
+    const latestBatchFailure = source.batchResults?.[0] ?? null;
+    const latestFailure = latestBatchFailure?.finishedAt && latestBatchFailure.failureReason &&
+      latestBatchFailure.failureCategory && latestBatchFailure.failureDiagnosticCode &&
+      latestBatchFailure.fetchAttemptCount !== null && latestBatchFailure.retryCount !== null
+      ? {
+          finishedAt: latestBatchFailure.finishedAt,
+          reason: latestBatchFailure.failureReason,
+          category: latestBatchFailure.failureCategory,
+          diagnosticCode: latestBatchFailure.failureDiagnosticCode,
+          fetchAttemptCount: latestBatchFailure.fetchAttemptCount,
+          retryCount: latestBatchFailure.retryCount
+        }
+      : null;
     const sourceScheduleState = toSourceScheduleState(source.id, sortedObservations);
 
     return {
@@ -313,7 +386,8 @@ export async function listSourceHealth(
               successful: latestObservation.successful,
               structuredJobCount: latestObservation.structuredJobCount,
               failureReason: latestObservation.failureReason
-            }
+            },
+      latestFailure
     };
   });
 }

@@ -1,4 +1,4 @@
-import { SearchRequestSchema, type JobCategory } from "../domain/search";
+import { ALL_LOCATIONS, SearchRequestSchema, type JobCategory } from "../domain/search";
 import { toPrismaJobCategory, type PrismaJobCategoryName } from "../db/prismaMappers";
 import {
   getCompanyPublicationSnapshotFromDb,
@@ -39,6 +39,7 @@ interface JobRow {
   officialPublishedAt: Date | null;
   city: string;
   cities: string[];
+  locationRaw: string;
   category: string;
   humanCorrectedCategory: string | null;
   isNew: boolean;
@@ -68,7 +69,7 @@ interface PrismaLikeCrawlObservationFindFirstArgs {
 interface PrismaLikeJobWhereInput {
   visibleInFrontend: true;
   lifecycleStatus: "ACTIVE";
-  OR: Array<Record<string, unknown>>;
+  OR?: Array<Record<string, unknown>>;
   AND?: Array<Record<string, unknown>>;
   companyId?: {
     in: string[];
@@ -85,6 +86,7 @@ export interface DatabaseSearchJobResult {
   officialTitle: string;
   officialPublishedAt: string | null;
   city: string;
+  locationRaw: string;
   category: JobCategory;
   isNew: boolean;
   officialUrl: string;
@@ -181,16 +183,19 @@ function buildWhereClause(
   const where: PrismaLikeJobWhereInput = {
     visibleInFrontend: true,
     lifecycleStatus: "ACTIVE",
-    sourceId: { in: eligibleSourceIds },
-    OR: [
+    sourceId: { in: eligibleSourceIds }
+  };
+
+  if (request.city !== ALL_LOCATIONS) {
+    where.OR = [
       { cities: { has: request.city } },
       { city: request.city },
       { cities: { has: "全国" } },
       { city: "全国" },
       { cities: { has: "中国" } },
       { city: "中国" }
-    ]
-  };
+    ];
+  }
 
   const effectiveCategoryAndKeywordFilters: Array<Record<string, unknown>> = [];
 
@@ -265,6 +270,7 @@ function groupRowsByCompany(rows: JobRow[]): DatabaseSearchCompanyResult[] {
       officialTitle: row.officialTitle,
       officialPublishedAt: toIsoString(row.officialPublishedAt),
       city: row.city,
+      locationRaw: row.locationRaw,
       category:
         PRISMA_TO_JOB_CATEGORY[
           (row.humanCorrectedCategory ?? row.category) as PrismaJobCategoryName

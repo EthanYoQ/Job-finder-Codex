@@ -320,6 +320,10 @@ describe("executeAtomicSourceEvidenceCommit", () => {
       ...input.sourceResult,
       blockerCode: null,
       blockerReason: null,
+      failureCategory: null,
+      failureDiagnosticCode: null,
+      fetchAttemptCount: null,
+      retryCount: null,
       failureCode: null,
       failureReason: null
     };

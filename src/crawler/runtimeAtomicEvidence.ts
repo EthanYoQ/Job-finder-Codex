@@ -5,7 +5,7 @@ import type {
 } from "../db/ingestionRepository";
 import type { RuntimeBatchIdentity } from "./runtimeBatchIdentity";
 import { sourcePlanConfigSha256, type SourceCrawlPlan } from "./sourcePlan";
-import type { SourceCrawlResult } from "./runSourceCrawl";
+import type { SourceCrawlResult, SourceFetchAttemptTracker } from "./runSourceCrawl";
 import { applyCrawlObservation, type JobSnapshot } from "./lifecycle";
 import { buildIngestionCommands } from "./ingestion";
 import { buildJobDedupeKey } from "./normalizedJob";
@@ -188,12 +188,19 @@ export function buildAtomicRuntimeCommit(input: {
   previousJobs: readonly JobSnapshot[];
   baselineCompletedBeforeCrawl: boolean;
   artifacts: readonly ArchivedEvidenceArtifact[];
+  attemptTracker?: Pick<SourceFetchAttemptTracker, "fetchAttemptCount" | "retryCount">;
   oracle?: AuditedSourceSurfaceOracle;
   trustedOracle?: StartupTrustedSourceSurfaceOracle;
 }): AtomicSourceEvidenceCommit {
   const { plan, pending, identity, batchId, result } = input;
   if (!result.truth.transportSuccess || !result.truth.adapterSuccess || !result.fetchEvidence) {
     throw new Error("atomic runtime commit requires successful transport, adapter and strict fetch evidence");
+  }
+  const attemptTracker = input.attemptTracker ?? { fetchAttemptCount: 1, retryCount: 0 };
+  if (!Number.isSafeInteger(attemptTracker.fetchAttemptCount) || attemptTracker.fetchAttemptCount < 1 ||
+      !Number.isSafeInteger(attemptTracker.retryCount) || attemptTracker.retryCount < 0 ||
+      attemptTracker.retryCount >= attemptTracker.fetchAttemptCount) {
+    throw new Error("successful atomic source result requires consistent fetch attempt counters");
   }
   const ledger = assertAdapterReconciliation(result);
   const evidence = result.fetchEvidence;
@@ -322,6 +329,8 @@ export function buildAtomicRuntimeCommit(input: {
       adapterLossCount: ledger.adapterLosses.length + (ledger.dedupeInputCount-ledger.dedupeOutputCount),
       adapterCollisionGroupCount: ledger.collisionGroups.length,
       adapterReconciliationSha256: ledger.ledgerSha256, collisionLedgerSha256: sha256(canonicalJson(ledger.collisionGroups)),
+      failureCategory: null, failureDiagnosticCode: null,
+      fetchAttemptCount: attemptTracker.fetchAttemptCount, retryCount: attemptTracker.retryCount,
       ...(incompleteBlocker ?? {}) },
     observationProvenance: { ...tuple, commitSha: identity.commitSha, rosterSha256: identity.rosterSha256,
       sourcePlanSha256: identity.sourcePlanSha256, sourceConfigSha256: pending.sourceConfigHash,

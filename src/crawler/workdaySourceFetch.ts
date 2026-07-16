@@ -35,7 +35,8 @@ export interface WorkdayFetchConfig {
 
 export type WorkdayOpaqueMultiLocationDetailPolicy =
   | "JNJ_AUDITED_CHINA_DETAIL_V1"
-  | "MSD_AUDITED_CHINA_DETAIL_V1";
+  | "MSD_AUDITED_CHINA_DETAIL_V1"
+  | "PFIZER_AUDITED_APAC_DETAIL_V1";
 
 export type WorkdayLaterZeroTotalPolicy =
   | "PFIZER_AUDITED_EXACT_RECONCILIATION"
@@ -298,7 +299,14 @@ export const JNJ_AUDITED_FOREIGN_DESCRIPTOR_ALIASES = [
   "Texas (Any City)",
   "US345  MA Danvers - 22 Cherry Hill Dr",
   "US356 CA Santa Clara - 5303 Betsy Ross Drive",
-  "Wilson, North Carolina, United States of America"
+  "Wilson, North Carolina, United States of America",
+  "Alberta (Any City)",
+  "Bridgewater, New Jersey, United States of America",
+  "Busan, Korea, Republic of",
+  "GIMPO-SI, Korea, Republic of",
+  "Pittsburgh, Pennsylvania, United States of America",
+  "Trenton, New Jersey, United States of America",
+  "Uşak"
 ] as const;
 export const GILEAD_AUDITED_FOREIGN_DESCRIPTOR_ALIASES = [
   "Czech Republic - Prague",
@@ -496,7 +504,29 @@ function resolveOpaqueMultiLocationDetailPolicy(
   auditedLocationFacetPolicy: ResolvedWorkdayLocationFacetPolicy | undefined
 ): ResolvedWorkdayOpaqueMultiLocationDetailPolicy | undefined {
   const kind = config.opaqueMultiLocationDetailPolicy;
-  if (!kind || !auditedLocationFacetPolicy || config.searchText !== "China" || hasConfiguredLocationFacet(config.appliedFacets ?? {})) {
+  if (!kind) {
+    return undefined;
+  }
+  if (kind === "PFIZER_AUDITED_APAC_DETAIL_V1") {
+    const workerBoundary = config.facetDescriptorBoundary;
+    if (
+      sourceId === "source-pfizer-china-social" &&
+      config.tenant === "pfizer" &&
+      config.site === "PfizerCareers" &&
+      config.searchText === undefined &&
+      config.locationFacetPolicy === undefined &&
+      (config.facetDescriptorExclusions?.length ?? 0) === 0 &&
+      config.laterZeroTotalPolicy === PFIZER_LATER_ZERO_TOTAL_POLICY &&
+      hasExactSingleAppliedFacet(config.appliedFacets, "Location_Country", AUDITED_CHINA_LOCATION_ID) &&
+      workerBoundary?.facetParameter === "workerSubType" &&
+      exactStringArray(workerBoundary.allowedDescriptors, ["Regular"]) &&
+      workerBoundary.excludedDescriptors === undefined
+    ) {
+      return { kind };
+    }
+    return undefined;
+  }
+  if (!auditedLocationFacetPolicy || config.searchText !== "China" || hasConfiguredLocationFacet(config.appliedFacets ?? {})) {
     return undefined;
   }
   if (
@@ -893,6 +923,7 @@ export function createWorkdaySourceFetch(deps: WorkdaySourceFetchDeps = {}): Sou
                   sitePath,
                   site: plan.workday.site,
                   expectedLocationCount: opaqueLocationCount,
+                  policy: opaqueMultiLocationDetailPolicy,
                   selectedMainlandLocations,
                   cityHints: plan.workday.cityHints
                 });
@@ -1313,6 +1344,7 @@ function validateOpaqueMultiLocationDetail({
   sitePath,
   site,
   expectedLocationCount,
+  policy,
   selectedMainlandLocations,
   cityHints
 }: {
@@ -1324,6 +1356,7 @@ function validateOpaqueMultiLocationDetail({
   sitePath: string;
   site: string;
   expectedLocationCount: number;
+  policy: ResolvedWorkdayOpaqueMultiLocationDetailPolicy;
   selectedMainlandLocations: readonly WorkdaySelectedLocation[];
   cityHints: Record<string, readonly string[]> | undefined;
 }): { locationRaw: string; cities: string[] } {
@@ -1388,13 +1421,25 @@ function validateOpaqueMultiLocationDetail({
     throw new Error("detail public locations contain duplicate descriptors");
   }
   const selectedDescriptors = new Set(selectedMainlandLocations.map((item) => item.descriptor));
-  const matchedMainlandDescriptors = publicLocations.filter((descriptor) => selectedDescriptors.has(descriptor));
-  if (matchedMainlandDescriptors.length === 0) {
+  const matchedMainlandDescriptors = policy.kind === "PFIZER_AUDITED_APAC_DETAIL_V1"
+    ? publicLocations.filter(isMainlandChinaLocationDescriptor)
+    : publicLocations.filter((descriptor) => selectedDescriptors.has(descriptor));
+  if (policy.kind === "PFIZER_AUDITED_APAC_DETAIL_V1") {
+    const exactApacDescriptor = "APAC - Any Pfizer Site";
+    if (publicLocations.some((descriptor) => /\bAPAC\b/iu.test(descriptor) && descriptor !== exactApacDescriptor)) {
+      throw new Error("detail public locations contain an unaudited APAC descriptor");
+    }
+    if (matchedMainlandDescriptors.length === 0 && !publicLocations.includes(exactApacDescriptor)) {
+      throw new Error("detail public locations did not contain explicit mainland China or the exact audited Pfizer APAC site");
+    }
+  } else if (matchedMainlandDescriptors.length === 0) {
     throw new Error("detail public locations did not exactly match a selected dynamic China descriptor");
   }
   return {
     locationRaw: publicLocations.join(" | "),
-    cities: citiesFromWorkdayLocation(matchedMainlandDescriptors.join(" | "), cityHints)
+    cities: matchedMainlandDescriptors.length === 0
+      ? ["APAC - Any Pfizer Site"]
+      : citiesFromWorkdayLocation(matchedMainlandDescriptors.join(" | "), cityHints)
   };
 }
 

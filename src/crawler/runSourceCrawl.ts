@@ -66,12 +66,45 @@ export interface SourceCrawlTruth {
 }
 
 export type SourceFetchFunction = (
-  plan: SourceCrawlPlan
+  plan: SourceCrawlPlan,
+  attemptTracker?: SourceFetchAttemptTracker
 ) => SourceFetchResult | Promise<SourceFetchResult>;
+
+export interface SourceFetchAttemptTracker {
+  fetchAttemptCount: number;
+  retryCount: number;
+}
+
+export function createSourceFetchAttemptTracker(): SourceFetchAttemptTracker {
+  return { fetchAttemptCount: 0, retryCount: 0 };
+}
+
+export function markInitialSourceFetchAttempt(tracker: SourceFetchAttemptTracker): void {
+  if (tracker.fetchAttemptCount === 0 && tracker.retryCount === 0) {
+    tracker.fetchAttemptCount = 1;
+    return;
+  }
+  validateSourceFetchAttemptTracker(tracker);
+}
+
+export function markSourceFetchRetry(tracker: SourceFetchAttemptTracker): void {
+  validateSourceFetchAttemptTracker(tracker);
+  tracker.fetchAttemptCount += 1;
+  tracker.retryCount += 1;
+}
+
+function validateSourceFetchAttemptTracker(tracker: SourceFetchAttemptTracker): void {
+  if (!Number.isSafeInteger(tracker.fetchAttemptCount) || tracker.fetchAttemptCount < 1 ||
+      !Number.isSafeInteger(tracker.retryCount) || tracker.retryCount < 0 ||
+      tracker.retryCount >= tracker.fetchAttemptCount) {
+    throw new Error("Source fetch attempt tracker is inconsistent");
+  }
+}
 
 export interface RunSourceCrawlDeps {
   fetch: SourceFetchFunction;
   isBaseline?: boolean;
+  attemptTracker?: SourceFetchAttemptTracker;
 }
 
 export class SourceCrawlStageError extends Error {
@@ -89,8 +122,10 @@ export async function runSourceCrawl(
   deps: RunSourceCrawlDeps
 ): Promise<SourceCrawlResult> {
   let fetchResult: SourceFetchResult;
+  const attemptTracker = deps.attemptTracker ?? createSourceFetchAttemptTracker();
   try {
-    fetchResult = await deps.fetch(plan);
+    markInitialSourceFetchAttempt(attemptTracker);
+    fetchResult = await deps.fetch(plan, attemptTracker);
   } catch (error) {
     throw new SourceCrawlStageError("FETCH", error);
   }
@@ -542,7 +577,7 @@ function strictPageRequestContracts(
   profileBoundEvidenceValidated: boolean
 ): boolean {
   if (plan.adapterId !== "official-json") return true;
-  if (plan.workday) return strictWorkdayRequestContracts(plan, evidence);
+  if (plan.workday) return strictWorkdayRequestContracts(plan, evidence, outputJobs);
   if (plan.moka) return strictMokaRequestContracts(plan, evidence);
   if (plan.profileBoundSource) return profileBoundEvidenceValidated;
   const strategy = plan.officialJsonFetch;
@@ -781,7 +816,11 @@ function strictRedseaHasUnsafePaginationSignal(root: Record<string, unknown>, ro
   return false;
 }
 
-function strictWorkdayRequestContracts(plan: Extract<SourceCrawlPlan, { adapterId: "official-json" }>, evidence: PersistentSourceFetchEvidence): boolean {
+function strictWorkdayRequestContracts(
+  plan: Extract<SourceCrawlPlan, { adapterId: "official-json" }>,
+  evidence: PersistentSourceFetchEvidence,
+  outputJobs: readonly NormalizedJobRecord[]
+): boolean {
   const config = plan.workday!;
   const pageSize = !config.pageSize || !Number.isFinite(config.pageSize)
     ? 20 : Math.min(20, Math.max(1, Math.floor(config.pageSize)));
@@ -858,7 +897,132 @@ function strictWorkdayRequestContracts(plan: Extract<SourceCrawlPlan, { adapterI
         ? Buffer.from(artifact.body, "utf8") : Buffer.from(artifact.body)).digest("hex") !==
         page.responseFingerprintSha256) return false;
   }
+  return strictPfizerOpaqueDetailReplay(plan, evidence, artifacts, outputJobs);
+}
+
+function strictPfizerOpaqueDetailReplay(
+  plan: Extract<SourceCrawlPlan, { adapterId: "official-json" }>,
+  evidence: PersistentSourceFetchEvidence,
+  artifacts: ReadonlyMap<string, PersistentSourceFetchEvidence["artifacts"][number]>,
+  outputJobs: readonly NormalizedJobRecord[]
+): boolean {
+  const config = plan.workday!;
+  if (config.opaqueMultiLocationDetailPolicy !== "PFIZER_AUDITED_APAC_DETAIL_V1") return true;
+  const workerBoundary = config.facetDescriptorBoundary;
+  if (
+    plan.source.id !== "source-pfizer-china-social" ||
+    config.tenant !== "pfizer" || config.site !== "PfizerCareers" ||
+    config.searchText !== undefined || config.locationFacetPolicy !== undefined ||
+    (config.facetDescriptorExclusions?.length ?? 0) !== 0 ||
+    config.laterZeroTotalPolicy !== "PFIZER_AUDITED_EXACT_RECONCILIATION" ||
+    JSON.stringify(config.appliedFacets) !== JSON.stringify({
+      Location_Country: ["6cb77610a8a543aea2d6bc10457e35d4"]
+    }) ||
+    workerBoundary?.facetParameter !== "workerSubType" ||
+    !strictExactStringArray(workerBoundary.allowedDescriptors, ["Regular"]) ||
+    workerBoundary.excludedDescriptors !== undefined
+  ) return false;
+
+  const origin = new URL(plan.source.officialEntryUrl).origin;
+  const sitePath = new URL(plan.source.officialEntryUrl).pathname.replace(/\/+$/u, "");
+  const expectedDetailKeys = new Set<string>();
+  const expectedOutputById = new Map<string, {
+    title: string;
+    officialUrl: string;
+    locationRaw: string;
+    exactApacOnly: boolean;
+  }>();
+  for (const page of evidence.pages) {
+    const pageArtifact = artifacts.get(page.artifactLogicalKey);
+    if (!pageArtifact) return false;
+    const pageRoot = strictUniqueJsonRecord(pageArtifact.body);
+    if (!pageRoot || !Array.isArray(pageRoot.jobPostings)) return false;
+    for (const [recordIndex, candidate] of pageRoot.jobPostings.entries()) {
+      const raw = strictRecord(candidate);
+      if (!raw) return false;
+      const locationsText = strictGateString(raw.locationsText);
+      const opaqueMatch = locationsText ? /^([2-9][0-9]*) Locations$/u.exec(locationsText) : null;
+      if (!opaqueMatch) continue;
+      const externalPath = strictGateString(raw.externalPath);
+      if (!externalPath || strictWorkdayRecordHasMainlandEvidence(`${locationsText} ${externalPath}`)) continue;
+      const expectedLocationCount = Number(opaqueMatch[1]);
+      if (!Number.isSafeInteger(expectedLocationCount)) return false;
+      const title = strictGateString(raw.title);
+      const reqId = Array.isArray(raw.bulletFields) && raw.bulletFields.length === 1
+        ? strictGateString(raw.bulletFields[0])
+        : undefined;
+      let listingUrl: URL;
+      try { listingUrl = new URL(externalPath, `${origin}${sitePath}`); }
+      catch { return false; }
+      if (!title || !reqId || !externalPath.startsWith("/job/") || listingUrl.origin !== origin ||
+        `${listingUrl.pathname}${listingUrl.search}${listingUrl.hash}` !== externalPath) return false;
+
+      const detailKey = `workday-detail-${String(page.sequence).padStart(4, "0")}-${String(recordIndex).padStart(4, "0")}`;
+      expectedDetailKeys.add(detailKey);
+      const detailArtifact = artifacts.get(detailKey);
+      const detailUrl = `${origin}/wday/cxs/${config.tenant}/${config.site}${externalPath}`;
+      if (!detailArtifact || detailArtifact.kind !== "ATS_API_RESPONSE" ||
+        detailArtifact.bodyRepresentation === "REDACTED" || detailArtifact.requestedUrl !== detailUrl ||
+        detailArtifact.finalUrl !== detailUrl || detailArtifact.httpStatus !== 200 ||
+        typeof detailArtifact.contentType !== "string" ||
+        !/^application\/json(?:\s*;|$)/iu.test(detailArtifact.contentType) ||
+        detailArtifact.extractorLocator !== "$.jobPostingInfo") return false;
+      const detailRoot = strictUniqueJsonRecord(detailArtifact.body);
+      const info = strictRecord(detailRoot?.jobPostingInfo);
+      const postingId = externalPath.split("/").at(-1);
+      if (!info || !postingId || strictGateString(info.title) !== title ||
+        strictGateString(info.jobPostingSiteId) !== config.site ||
+        strictGateString(info.jobPostingId) !== postingId ||
+        strictGateString(info.jobReqId) !== reqId ||
+        strictGateString(info.externalUrl) !== `${origin}${sitePath}${externalPath}` ||
+        info.posted !== true || info.canApply !== true) return false;
+      const location = strictGateString(info.location);
+      if (!location || !Array.isArray(info.additionalLocations)) return false;
+      const additionalLocations = info.additionalLocations.map(strictGateString);
+      if (additionalLocations.some((value) => value === undefined)) return false;
+      const publicLocations = [location, ...(additionalLocations as string[])];
+      if (publicLocations.length !== expectedLocationCount ||
+        new Set(publicLocations).size !== publicLocations.length ||
+        publicLocations.some((descriptor) => /\bAPAC\b/iu.test(descriptor) &&
+          descriptor !== "APAC - Any Pfizer Site")) return false;
+      const hasMainland = publicLocations.some(strictWorkdayMainlandLocation);
+      const hasExactApac = publicLocations.includes("APAC - Any Pfizer Site");
+      if (!hasMainland && !hasExactApac) return false;
+      const sourceJobId = `workday:sha256:${createHash("sha256").update(Buffer.from(externalPath, "utf8")).digest("hex")}`;
+      if (expectedOutputById.has(sourceJobId)) return false;
+      expectedOutputById.set(sourceJobId, {
+        title,
+        officialUrl: `${origin}${sitePath}${externalPath}`,
+        locationRaw: publicLocations.join(" | "),
+        exactApacOnly: hasExactApac && !hasMainland
+      });
+    }
+  }
+  const actualDetailKeys = evidence.artifacts
+    .filter((artifact) => artifact.logicalKey.startsWith("workday-detail-"))
+    .map((artifact) => artifact.logicalKey);
+  if (actualDetailKeys.length !== expectedDetailKeys.size ||
+    actualDetailKeys.some((key) => !expectedDetailKeys.has(key))) return false;
+  for (const [sourceJobId, expected] of expectedOutputById) {
+    const matches = outputJobs.filter((job) => job.sourceJobId === sourceJobId);
+    if (matches.length !== 1) return false;
+    const output = matches[0]!;
+    if (output.sourceId !== plan.source.id || output.companyId !== plan.company.id ||
+      output.officialTitle !== expected.title || output.officialUrl !== expected.officialUrl ||
+      output.locationRaw !== expected.locationRaw ||
+      (expected.exactApacOnly && !strictExactStringArray(output.cities, ["APAC - Any Pfizer Site"]))) return false;
+  }
   return true;
+}
+
+function strictWorkdayRecordHasMainlandEvidence(scopeText: string): boolean {
+  const normalized = scopeText.toLowerCase();
+  return /(?:^|[^a-z])(?:china|chn|cn)(?:[^a-z]|$)/u.test(normalized) ||
+    scopeText.includes("中国") ||
+    ["Beijing", "Shanghai", "Guangzhou", "Shenzhen", "Chengdu", "Hangzhou", "Nanjing", "Suzhou",
+      "Wuhan", "Tianjin", "Xi'an", "Xian", "Changsha", "Kunming", "Qingdao", "Jinan", "Dalian",
+      "Xiamen", "Fuzhou", "Hefei", "Ningbo", "Zhengzhou", "Shenyang", "Hohhot", "Huhehaote"]
+      .some((descriptor) => normalized.includes(descriptor.toLowerCase()));
 }
 
 function strictWorkdayFacetDerivation(

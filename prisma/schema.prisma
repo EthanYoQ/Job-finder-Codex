@@ -81,6 +81,29 @@ enum AtomicCommitState {
   FAILED
 }
 
+enum SourceFailureCategory {
+  TEMPORARY_OFFICIAL_SOURCE_FAILURE
+  SOURCE_TIME_LIMIT_REACHED
+  OFFICIAL_SOURCE_REVIEW_REQUIRED
+  EVIDENCE_PERSISTENCE_FAILURE
+  UNCLASSIFIED_SOURCE_FAILURE
+}
+
+enum SourceFailureDiagnosticCode {
+  OFFICIAL_HTTP_TIMEOUT
+  OFFICIAL_HTTP_429
+  OFFICIAL_HTTP_502
+  OFFICIAL_HTTP_503
+  OFFICIAL_HTTP_504
+  SOURCE_ATTEMPT_TIMEOUT
+  FETCH_EXECUTION_FAILED
+  FETCH_FAILED_CLOSED
+  ADAPTER_EXECUTION_FAILED
+  ADAPTER_FAILED_CLOSED
+  EVIDENCE_PROCESSING_FAILED
+  BATCH_ABORTED_BEFORE_SOURCE_TERMINAL
+}
+
 enum EvidenceArtifactKind {
   OFFICIAL_COMPANY_PAGE
   REDIRECT_TRACE
@@ -416,6 +439,10 @@ model CrawlBatchSourceResult {
   canonicalVisibleJobSetSha256 String?
   blockerCode                  String?
   blockerReason                String?
+  failureCategory              SourceFailureCategory?
+  failureDiagnosticCode        SourceFailureDiagnosticCode?
+  fetchAttemptCount            Int?
+  retryCount                   Int?
   failureCode                  String?
   failureReason                String?
   createdAt                    DateTime            @default(now())

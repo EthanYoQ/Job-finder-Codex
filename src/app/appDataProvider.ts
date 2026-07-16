@@ -18,6 +18,7 @@ export interface SearchJob {
   officialTitle: string;
   officialPublishedAt: string | null;
   city: string;
+  locationRaw: string;
   category: string;
   isNew: boolean;
   officialUrl: string;
@@ -141,6 +142,7 @@ export function createDemoAppDataProvider(): AppDataProvider {
           officialTitle: job.officialTitle ?? job.title,
           officialPublishedAt: job.officialPublishedAt,
           city: job.city,
+          locationRaw: job.city,
           category: job.category,
           isNew: job.isNew,
           officialUrl: job.officialUrl

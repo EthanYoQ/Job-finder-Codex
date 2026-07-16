@@ -17,8 +17,10 @@ import {
 import type { JobSnapshot } from "./lifecycle";
 import { buildJobDedupeKey } from "./normalizedJob";
 import {
+  createSourceFetchAttemptTracker,
   runSourceCrawl,
   SourceCrawlStageError,
+  type SourceFetchAttemptTracker,
   type SourceFetchFunction
 } from "./runSourceCrawl";
 import {
@@ -30,6 +32,10 @@ import {
 import { isSourceDueForScheduledRun } from "./schedule";
 import { validateExecutablePlanChannelBinding, type SourceCrawlPlan } from "./sourcePlan";
 import { safeSourceTransportFailureReason } from "./sourceFetchFailure";
+import {
+  sourceFailureDiagnosticBundle,
+  transportFailureDiagnosticBundle
+} from "./sourceFailureDiagnostics";
 import {
   bindRuntimeEvidenceArtifactIds,
   buildAtomicRuntimeCommit,
@@ -278,6 +284,7 @@ export async function runP0CrawlBatch(
   let skippedSourceCount = 0;
   const processedJobKeys: { sourceId: string; jobKey: string }[] = [];
   const terminalSourceIds = new Set<string>();
+  const sourceAttemptTrackers = new Map<string, SourceFetchAttemptTracker>();
   let status: Exclude<CrawlBatchStatus, "RUNNING"> = "INCOMPLETE";
   let result: P0CrawlBatchResult | undefined;
   const sourceErrors: unknown[] = [];
@@ -309,12 +316,15 @@ export async function runP0CrawlBatch(
       const baselineCompletedBeforeCrawl = await deps.isBaselineCompleted(plan.source.id);
       const previousJobs = await deps.getPreviousJobs(plan.source.id);
       const pending = plannedBatch.sources.find((source) => source.sourceId === plan.source.id)!;
+      const attemptTracker = createSourceFetchAttemptTracker();
+      sourceAttemptTrackers.set(plan.source.id, attemptTracker);
       let crawlResult: Awaited<ReturnType<typeof runSourceCrawl>>;
       try {
         crawlResult = await runWithOfficialSourceAttemptTimeout(
           () => runSourceCrawl(plan, {
             fetch: deps.fetch,
-            isBaseline: !baselineCompletedBeforeCrawl
+            isBaseline: !baselineCompletedBeforeCrawl,
+            attemptTracker
           }),
           sourceTimeoutMs
         );
@@ -336,7 +346,25 @@ export async function runP0CrawlBatch(
           finishedAt: batchStartedAt, failureCode: "SOURCE_STAGE_FAILED",
           failureReason: sourceTimedOut
             ? "Source execution exceeded the per-source time limit before atomic evidence commit"
-            : "Source execution failed before atomic evidence commit" }, deps.db as never);
+            : "Source execution failed before atomic evidence commit",
+          ...(sourceTimedOut
+            ? sourceFailureDiagnosticBundle(
+                "SOURCE_TIME_LIMIT_REACHED",
+                "SOURCE_ATTEMPT_TIMEOUT",
+                attemptTracker
+              )
+            : error instanceof SourceCrawlStageError && error.stage === "ADAPTER"
+              ? sourceFailureDiagnosticBundle(
+                  "OFFICIAL_SOURCE_REVIEW_REQUIRED",
+                  "ADAPTER_EXECUTION_FAILED",
+                  attemptTracker
+                )
+              : sourceFailureDiagnosticBundle(
+                  "UNCLASSIFIED_SOURCE_FAILURE",
+                  "FETCH_EXECUTION_FAILED",
+                  attemptTracker
+                ))
+        }, deps.db as never);
         terminalSourceIds.add(plan.source.id);
         failedSourceCount += 1;
         continue;
@@ -367,7 +395,14 @@ export async function runP0CrawlBatch(
             ? crawlResult.transportFailure
               ? safeSourceTransportFailureReason(crawlResult.transportFailure)
               : "Source transport failed"
-            : "Source adapter failed"
+            : "Source adapter failed",
+          ...(transportFailed
+            ? transportFailureDiagnosticBundle(crawlResult.transportFailure, attemptTracker)
+            : sourceFailureDiagnosticBundle(
+                "OFFICIAL_SOURCE_REVIEW_REQUIRED",
+                "ADAPTER_FAILED_CLOSED",
+                attemptTracker
+              ))
         }, deps.db as never);
         terminalSourceIds.add(plan.source.id);
         failedSourceCount += 1;
@@ -413,6 +448,7 @@ export async function runP0CrawlBatch(
         atomicFailureCode = "ATOMIC_COMMIT_BUILD_FAILED";
         commit = buildAtomicRuntimeCommit({ plan, pending, identity: deps.identity, batchId: batch.id,
           result: crawlResult, previousJobs, baselineCompletedBeforeCrawl, artifacts: verifiedArtifacts,
+          attemptTracker,
           ...(trustedOracle ? { trustedOracle } : {}) });
         atomicFailureCode = "ATOMIC_EVIDENCE_COMMIT_FAILED";
         if (deps.identity.batchKind === "MANUAL_SOURCE") {
@@ -456,7 +492,12 @@ export async function runP0CrawlBatch(
                 sourceId: plan.source.id, transportState: "SUCCEEDED", adapterState: "SUCCEEDED",
                 completenessState: "FAILED", atomicCommitState: "ROLLED_BACK",
                 finishedAt: crawlResult.observation.crawledAt,
-                failureCode: atomicFailureCode, failureReason: "Atomic evidence processing failed"
+                failureCode: atomicFailureCode, failureReason: "Atomic evidence processing failed",
+                ...sourceFailureDiagnosticBundle(
+                  "EVIDENCE_PERSISTENCE_FAILURE",
+                  "EVIDENCE_PROCESSING_FAILED",
+                  attemptTracker
+                )
               }, deps.db as never);
               terminalSourceIds.add(plan.source.id);
             } catch {
@@ -509,7 +550,13 @@ export async function runP0CrawlBatch(
             completenessState: "FAILED",
             atomicCommitState: crawlResult.truth.transportSuccess && crawlResult.truth.adapterSuccess ? "ROLLED_BACK" : "NOT_ATTEMPTED",
             finishedAt: crawlResult.observation.crawledAt,
-            failureCode: atomicFailureCode, failureReason: "Atomic evidence processing failed" }, deps.db as never);
+            failureCode: atomicFailureCode, failureReason: "Atomic evidence processing failed",
+            ...sourceFailureDiagnosticBundle(
+              "EVIDENCE_PERSISTENCE_FAILURE",
+              "EVIDENCE_PROCESSING_FAILED",
+              attemptTracker
+            )
+          }, deps.db as never);
           terminalSourceIds.add(plan.source.id);
           atomicFailedSourceCount += 1;
           failedSourceCount += 1;
@@ -548,12 +595,27 @@ export async function runP0CrawlBatch(
     const closureErrors: unknown[] = [];
     for (const pending of unterminated) {
       try {
+        const attemptTracker = sourceAttemptTrackers.get(pending.sourceId) ?? {
+          fetchAttemptCount: 0,
+          retryCount: 0
+        };
+        const sourceExecutionStarted = attemptTracker.fetchAttemptCount > 0;
         await terminatePendingSourceResult({ id: pending.id,
           releaseCandidateId: deps.identity.releaseCandidateId, batchId: batch.id,
           sourceId: pending.sourceId, transportState: "FAILED", adapterState: "SKIPPED",
           completenessState: "FAILED", atomicCommitState: "NOT_ATTEMPTED",
           finishedAt: batchStartedAt, failureCode: "BATCH_ABORTED_BEFORE_SOURCE_TERMINAL",
-          failureReason: "Batch aborted before this source reached a terminal state" }, deps.db as never);
+          failureReason: sourceExecutionStarted
+            ? "Source execution started but did not reach a persisted terminal result"
+            : "Batch aborted before this source reached a terminal state",
+          ...sourceFailureDiagnosticBundle(
+            "UNCLASSIFIED_SOURCE_FAILURE",
+            sourceExecutionStarted
+              ? "FETCH_EXECUTION_FAILED"
+              : "BATCH_ABORTED_BEFORE_SOURCE_TERMINAL",
+            attemptTracker
+          )
+        }, deps.db as never);
         terminalSourceIds.add(pending.sourceId);
       } catch (closureError) {
         closureErrors.push(closureError);

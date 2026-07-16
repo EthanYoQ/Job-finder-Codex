@@ -1,4 +1,5 @@
 import { companies, type CompanyResult, type JobResult } from "./jobData";
+import { ALL_LOCATIONS } from "../domain/search";
 
 export { companies, type CompanyResult, type JobResult } from "./jobData";
 
@@ -52,7 +53,7 @@ export function filterJobs(filters: SearchFilters): CompanyResult[] {
     .map((company) => ({
       ...company,
       jobs: company.jobs.filter((job) => {
-        const cityMatches = job.city === city || job.city === "全国" || job.city === "中国";
+        const cityMatches = city === ALL_LOCATIONS || job.city === city || job.city === "全国" || job.city === "中国";
         const categoryMatches = categories.size === 0 || categories.has(job.category);
         const newMatches = !filters.onlyNew || job.isNew;
 

@@ -33,7 +33,8 @@ export const REVIEWED_MIGRATION_NAMES = [
   "20260714053000_repair_legacy_offline_count_two",
   "20260715090000_atomic_evidence_commit_scaling",
   "20260716190000_release_candidate_qualification_threshold",
-  "20260716210000_release_candidate_promotion_gate"
+  "20260716210000_release_candidate_promotion_gate",
+  "20260717090000_source_failure_diagnostics"
 ] as const;
 
 export const REVIEWED_APP_TABLE_NAMES = [
@@ -52,7 +53,8 @@ export const REVIEWED_USER_TYPE_NAMES = [
   "LossStage", "ManualCrawlEventActor", "ManualCrawlEventType", "ManualCrawlFailureCode", "ManualCrawlStatus",
   "PaginationAnomalyCode", "PaginationTermination", "ReleaseCandidateStatus",
   "RequiredJobField", "SourceKind", "TransportAttemptCode", "TransportAttemptKind",
-  "TransportAttemptOutcome", "TransportState", "VerificationStatus"
+  "TransportAttemptOutcome", "TransportState", "VerificationStatus",
+  "SourceFailureCategory", "SourceFailureDiagnosticCode"
 ] as const;
 
 export const REVIEWED_FUNCTION_NAMES = [

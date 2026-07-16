@@ -11,6 +11,7 @@ const lifecycleParentMigration=readFileSync(resolve(process.cwd(),"prisma","migr
 const lifecycleSecurityMigration=readFileSync(resolve(process.cwd(),"prisma","migrations","20260711240000_lifecycle_trigger_security_closure","migration.sql"),"utf8");
 const qualificationThresholdMigration=readFileSync(resolve(process.cwd(),"prisma","migrations","20260716190000_release_candidate_qualification_threshold","migration.sql"),"utf8");
 const releasePromotionMigration=readFileSync(resolve(process.cwd(),"prisma","migrations","20260716210000_release_candidate_promotion_gate","migration.sql"),"utf8");
+const sourceFailureDiagnosticsMigration=readFileSync(resolve(process.cwd(),"prisma","migrations","20260717090000_source_failure_diagnostics","migration.sql"),"utf8");
 const baselineMigration = readFileSync(
   resolve(process.cwd(), "prisma", "migrations", "20260710000000_baseline", "migration.sql"),
   "utf8"
@@ -121,6 +122,7 @@ describe("prisma schema", () => {
       ,"20260715090000_atomic_evidence_commit_scaling"
       ,"20260716190000_release_candidate_qualification_threshold"
       ,"20260716210000_release_candidate_promotion_gate"
+      ,"20260717090000_source_failure_diagnostics"
     ]);
     const statements = crawlStatusValuesMigration
       .split("\n")
@@ -393,6 +395,40 @@ describe("prisma schema", () => {
     expect(result).toMatch(/^\s*finishedAt\s+DateTime\?\s*$/m);
     expect(result).not.toMatch(/^\s*dedupeCount\s+/m);
     expect(enumMembers("LossStage")).toEqual(["PARSE", "VALIDATION", "NORMALIZATION", "DEDUPE"]);
+  });
+
+  it("stores nullable closed failure diagnostics without rewriting historical rows", () => {
+    expect(enumMembers("SourceFailureCategory")).toEqual([
+      "TEMPORARY_OFFICIAL_SOURCE_FAILURE",
+      "SOURCE_TIME_LIMIT_REACHED",
+      "OFFICIAL_SOURCE_REVIEW_REQUIRED",
+      "EVIDENCE_PERSISTENCE_FAILURE",
+      "UNCLASSIFIED_SOURCE_FAILURE"
+    ]);
+    expect(enumMembers("SourceFailureDiagnosticCode")).toEqual([
+      "OFFICIAL_HTTP_TIMEOUT",
+      "OFFICIAL_HTTP_429",
+      "OFFICIAL_HTTP_502",
+      "OFFICIAL_HTTP_503",
+      "OFFICIAL_HTTP_504",
+      "SOURCE_ATTEMPT_TIMEOUT",
+      "FETCH_EXECUTION_FAILED",
+      "FETCH_FAILED_CLOSED",
+      "ADAPTER_EXECUTION_FAILED",
+      "ADAPTER_FAILED_CLOSED",
+      "EVIDENCE_PROCESSING_FAILED",
+      "BATCH_ABORTED_BEFORE_SOURCE_TERMINAL"
+    ]);
+    const result = block("model", "CrawlBatchSourceResult");
+    expect(result).toMatch(/^\s*failureCategory\s+SourceFailureCategory\?\s*$/m);
+    expect(result).toMatch(/^\s*failureDiagnosticCode\s+SourceFailureDiagnosticCode\?\s*$/m);
+    expect(result).toMatch(/^\s*fetchAttemptCount\s+Int\?\s*$/m);
+    expect(result).toMatch(/^\s*retryCount\s+Int\?\s*$/m);
+    expect(sourceFailureDiagnosticsMigration).toContain('ADD COLUMN "failureCategory" "SourceFailureCategory"');
+    expect(sourceFailureDiagnosticsMigration).toContain('ADD COLUMN "failureDiagnosticCode" "SourceFailureDiagnosticCode"');
+    expect(sourceFailureDiagnosticsMigration).toContain('CrawlBatchSourceResult_failure_diagnostic_bundle_check');
+    expect(sourceFailureDiagnosticsMigration).toContain('"failureCategory" IS NULL AND\n      "failureDiagnosticCode" IS NULL AND\n      "fetchAttemptCount" IS NOT NULL');
+    expect(sourceFailureDiagnosticsMigration).not.toContain('UPDATE "CrawlBatchSourceResult"');
   });
 
   it("stores direct nullable observation provenance and exact reconciliation counters", () => {

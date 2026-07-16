@@ -3,6 +3,12 @@ import { createHash } from "node:crypto";
 import { containsCredentialMaterial } from "../security/credentialMaterial";
 import { canonicalizePlannedSourceIds, hashCanonicalStringSet } from "../crawler/runtimeBatchIdentity";
 import {
+  isSourceFailureCategory,
+  isSourceFailureDiagnosticCode,
+  type SourceFailureCategory,
+  type SourceFailureDiagnosticCode
+} from "../crawler/sourceFailureDiagnostics";
+import {
   toPrismaJobCategory,
   toPrismaLifecycleStatus,
   toPrismaRequiredJobField,
@@ -177,6 +183,10 @@ export interface AtomicSourceResultInput {
   collisionLedgerSha256: string;
   blockerCode?: string | null;
   blockerReason?: string | null;
+  failureCategory?: SourceFailureCategory | null;
+  failureDiagnosticCode?: SourceFailureDiagnosticCode | null;
+  fetchAttemptCount?: number | null;
+  retryCount?: number | null;
   failureCode?: string | null;
   failureReason?: string | null;
 }
@@ -416,6 +426,10 @@ export interface PendingSourceTerminalInput {
   failureReason: string;
   blockerCode?: string | null;
   blockerReason?: string | null;
+  failureCategory?: SourceFailureCategory | null;
+  failureDiagnosticCode?: SourceFailureDiagnosticCode | null;
+  fetchAttemptCount?: number | null;
+  retryCount?: number | null;
 }
 
 interface PendingSourceTerminalTransactionClient {
@@ -501,6 +515,10 @@ export async function createBatchWithPendingSourceResults(
         collisionLedgerSha256: null,
         blockerCode: null,
         blockerReason: null,
+        failureCategory: null,
+        failureDiagnosticCode: null,
+        fetchAttemptCount: null,
+        retryCount: null,
         failureCode: null,
         failureReason: null
       } });
@@ -533,7 +551,11 @@ export async function terminatePendingSourceResult(
         failureCode: input.failureCode,
         failureReason: input.failureReason,
         blockerCode: input.blockerCode ?? null,
-        blockerReason: input.blockerReason ?? null
+        blockerReason: input.blockerReason ?? null,
+        failureCategory: input.failureCategory ?? null,
+        failureDiagnosticCode: input.failureDiagnosticCode ?? null,
+        fetchAttemptCount: input.fetchAttemptCount ?? null,
+        retryCount: input.retryCount ?? null
       }
     });
     requireExactlyOnePendingResult(result);
@@ -918,6 +940,39 @@ function validatePendingSourceTerminal(input: PendingSourceTerminalInput): void 
   if (input.completenessState !== "FAILED" || (!notAttempted && !attemptedFailure)) {
     throw new Error("Terminal failure state is inconsistent");
   }
+  const diagnosticValues = [
+    input.failureCategory,
+    input.failureDiagnosticCode,
+    input.fetchAttemptCount,
+    input.retryCount
+  ];
+  const suppliedDiagnosticCount = diagnosticValues.filter(
+    (value) => value !== undefined && value !== null
+  ).length;
+  if (suppliedDiagnosticCount === 0) return;
+  if (suppliedDiagnosticCount !== diagnosticValues.length) {
+    throw new Error("Source failure diagnostic bundle must be supplied together");
+  }
+  if (!isSourceFailureCategory(input.failureCategory)) {
+    throw new Error("Source failure category must be a closed value");
+  }
+  if (!isSourceFailureDiagnosticCode(input.failureDiagnosticCode)) {
+    throw new Error("Source failure diagnostic code must be a closed value");
+  }
+  const fetchAttemptCount = input.fetchAttemptCount;
+  const retryCount = input.retryCount;
+  if (typeof fetchAttemptCount !== "number" || !Number.isSafeInteger(fetchAttemptCount) ||
+      fetchAttemptCount < 0 || typeof retryCount !== "number" ||
+      !Number.isSafeInteger(retryCount) || retryCount < 0) {
+    throw new Error("Source fetch attempt and retry counts must be nonnegative safe integers");
+  }
+  if (fetchAttemptCount === 0) {
+    if (retryCount !== 0 || input.failureDiagnosticCode !== "BATCH_ABORTED_BEFORE_SOURCE_TERMINAL") {
+      throw new Error("zero fetch attempts are valid only when the batch aborts before source execution");
+    }
+  } else if (retryCount >= fetchAttemptCount) {
+    throw new Error("retry count must be less than fetch attempt count");
+  }
 }
 
 function validateCommittedSourceResultTruthTable(result: AtomicSourceResultInput): void {
@@ -929,6 +984,21 @@ function validateCommittedSourceResultTruthTable(result: AtomicSourceResultInput
   }
   if (nonblank(result.failureCode) || nonblank(result.failureReason)) {
     throw new Error("COMMITTED source result failure code and reason must be null");
+  }
+  if (result.failureCategory !== undefined && result.failureCategory !== null ||
+      result.failureDiagnosticCode !== undefined && result.failureDiagnosticCode !== null) {
+    throw new Error("COMMITTED source result failure category and diagnostic code must be null");
+  }
+  const attemptCount = result.fetchAttemptCount;
+  const retryCount = result.retryCount;
+  if ((attemptCount === undefined || attemptCount === null) !==
+      (retryCount === undefined || retryCount === null)) {
+    throw new Error("COMMITTED source result fetch attempt counters must be supplied together");
+  }
+  if (attemptCount !== undefined && attemptCount !== null && retryCount !== undefined && retryCount !== null &&
+      (!Number.isSafeInteger(attemptCount) || attemptCount < 1 || !Number.isSafeInteger(retryCount) ||
+        retryCount < 0 || retryCount >= attemptCount)) {
+    throw new Error("COMMITTED source result fetch attempt counters are inconsistent");
   }
   if (result.completenessState === "VERIFIED") {
     if (nonblank(result.blockerCode) || nonblank(result.blockerReason)) {
@@ -967,7 +1037,8 @@ const ATOMIC_SOURCE_RESULT_FIELDS = [
   "canonicalCurrentJobSetSha256", "canonicalGraceJobSetSha256", "canonicalVisibleJobSetSha256",
   "canonicalOutputSetSha256", "adapterInputCount", "adapterOutputCount", "adapterLossCount",
   "adapterCollisionGroupCount", "adapterReconciliationSha256", "collisionLedgerSha256", "blockerCode",
-  "blockerReason", "failureCode", "failureReason"
+  "blockerReason", "failureCategory", "failureDiagnosticCode", "fetchAttemptCount", "retryCount",
+  "failureCode", "failureReason"
 ] as const satisfies readonly (keyof AtomicSourceResultInput)[];
 
 const PENDING_SOURCE_IMMUTABLE_FIELDS = [

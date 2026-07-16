@@ -1,5 +1,11 @@
-import type { SourceFetchFunction } from "./runSourceCrawl";
+import {
+  createSourceFetchAttemptTracker,
+  markInitialSourceFetchAttempt,
+  markSourceFetchRetry,
+  type SourceFetchFunction
+} from "./runSourceCrawl";
 import { currentOfficialSourceAttemptSignal } from "./officialHttpRuntimeLimits";
+import { isRetryableSourceTransportFailure } from "./sourceFetchFailure";
 
 export interface SourceFetchRouterDeps {
   moka: SourceFetchFunction;
@@ -24,7 +30,9 @@ export function createSourceFetchRouter({
   fallback,
   delay = defaultDelay
 }: SourceFetchRouterDeps): SourceFetchFunction {
-  return async (plan) => {
+  return async (plan, suppliedAttemptTracker) => {
+    const attemptTracker = suppliedAttemptTracker ?? createSourceFetchAttemptTracker();
+    markInitialSourceFetchAttempt(attemptTracker);
     const delegate = routeSourceFetcher(plan, {
       moka,
       ...(html ? { html } : {}),
@@ -43,11 +51,12 @@ export function createSourceFetchRouter({
       throw new Error("Transient retry policy must allow exactly one retry after 1000 through 60000 milliseconds");
     }
     for (let retry = 0; retry < policy.maxRetries; retry += 1) {
-      if (result.ok || result.transportFailure?.retryable !== true) return result;
+      if (result.ok || !isRetryableSourceTransportFailure(result.transportFailure)) return result;
       const signal = currentOfficialSourceAttemptSignal();
       if (signal?.aborted) return result;
       await delay(policy.backoffMs);
       if (signal?.aborted) return result;
+      markSourceFetchRetry(attemptTracker);
       result = await delegate(plan);
     }
     return result;

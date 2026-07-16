@@ -13,10 +13,10 @@ import {
 } from "../../src/db/emptyDatabaseMigrationVerificationCli";
 
 describe("empty database migration verification CLI contract", () => {
-  it("uses explicit reviewed PG16 catalog allowlists matching all 23 migrations", () => {
+  it("uses explicit reviewed PG16 catalog allowlists matching all 24 migrations", () => {
     const actualMigrations = readdirSync(resolve(process.cwd(), "prisma", "migrations"), { withFileTypes: true })
       .filter((entry) => entry.isDirectory()).map((entry) => entry.name).sort();
-    expect(REVIEWED_MIGRATION_NAMES).toHaveLength(23);
+    expect(REVIEWED_MIGRATION_NAMES).toHaveLength(24);
     expect([...REVIEWED_MIGRATION_NAMES].sort()).toEqual(actualMigrations);
     expect(REVIEWED_APP_TABLE_NAMES).toHaveLength(25);
     expect(new Set(REVIEWED_APP_TABLE_NAMES).size).toBe(25);
@@ -24,11 +24,13 @@ describe("empty database migration verification CLI contract", () => {
       "AiEnrichmentRequest", "AiEnrichmentAttempt", "AiEnrichmentResult", "AiTranslationCache"
     ]));
     expect(REVIEWED_APP_TABLE_NAMES).toContain("ManualCrawlRequestEvent");
-    expect(REVIEWED_USER_TYPE_NAMES).toHaveLength(31);
+    expect(REVIEWED_USER_TYPE_NAMES).toHaveLength(33);
     expect(REVIEWED_USER_TYPE_NAMES).toEqual(expect.arrayContaining([
       "ManualCrawlEventActor",
       "ManualCrawlEventType",
-      "ManualCrawlFailureCode"
+      "ManualCrawlFailureCode",
+      "SourceFailureCategory",
+      "SourceFailureDiagnosticCode"
     ]));
     expect(REVIEWED_FUNCTION_NAMES).toHaveLength(18);
     expect(REVIEWED_FUNCTION_NAMES).toEqual(expect.arrayContaining([

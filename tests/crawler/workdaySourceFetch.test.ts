@@ -220,7 +220,14 @@ const JNJ_AUDITED_FOREIGN_DESCRIPTOR_ALIASES = [
   "Texas (Any City)",
   "US345  MA Danvers - 22 Cherry Hill Dr",
   "US356 CA Santa Clara - 5303 Betsy Ross Drive",
-  "Wilson, North Carolina, United States of America"
+  "Wilson, North Carolina, United States of America",
+  "Alberta (Any City)",
+  "Bridgewater, New Jersey, United States of America",
+  "Busan, Korea, Republic of",
+  "GIMPO-SI, Korea, Republic of",
+  "Pittsburgh, Pennsylvania, United States of America",
+  "Trenton, New Jersey, United States of America",
+  "Uşak"
 ] as const;
 
 const GILEAD_AUDITED_FOREIGN_DESCRIPTOR_ALIASES = [
@@ -1531,6 +1538,74 @@ describe("createWorkdaySourceFetch", () => {
     expect(JSON.parse(requests[1]!.body).appliedFacets).toEqual({ locations: ["shanghai", "beijing"] });
   });
 
+  it("excludes the exact 2026-07-17 audited JNJ foreign descriptor drift from the China facet", async () => {
+    const auditedForeignDrift = [
+      ["Alberta (Any City)", "alberta"],
+      ["Bridgewater, New Jersey, United States of America", "bridgewater-new-jersey"],
+      ["Busan, Korea, Republic of", "busan"],
+      ["GIMPO-SI, Korea, Republic of", "gimpo-si"],
+      ["Pittsburgh, Pennsylvania, United States of America", "pittsburgh"],
+      ["Trenton, New Jersey, United States of America", "trenton"],
+      ["Uşak", "usak"]
+    ] as const;
+    const requests: Array<{ body: string }> = [];
+    const fetcher = createWorkdaySourceFetch({
+      http: async (request) => {
+        requests.push(request);
+        const body = JSON.parse(request.body) as { appliedFacets: Record<string, string[]> };
+        return body.appliedFacets.locations
+          ? response({
+              total: 1,
+              jobPostings: [{
+                title: "Shanghai Role",
+                externalPath: "/job/China/shanghai",
+                locationsText: "Shanghai, China"
+              }]
+            })
+          : response({
+              total: 1,
+              jobPostings: [],
+              facets: [{
+                facetParameter: "locations",
+                descriptor: "Locations",
+                values: [
+                  { descriptor: "Shanghai, China", id: "shanghai", count: 1 },
+                  ...auditedForeignDrift.map(([descriptor, id]) => ({ descriptor, id, count: 1 }))
+                ]
+              }]
+            });
+      }
+    });
+
+    const result = await fetcher({
+      ...plan,
+      source: { ...plan.source, id: "source-johnson-innovative-medicine-social" },
+      workday: {
+        tenant: "jj",
+        site: "JJ",
+        searchText: "China",
+        locationFacetPolicy: {
+          kind: "JNJ_AUDITED_LOCATIONS_OVERLAP",
+          facetParameter: "locations",
+          mainlandDescriptorAliases: JNJ_AUDITED_MAINLAND_DESCRIPTOR_ALIASES,
+          foreignDescriptorAliases: JNJ_AUDITED_FOREIGN_DESCRIPTOR_ALIASES
+        },
+        pageSize: 20,
+        maxPages: 1
+      }
+    } as SourceCrawlPlan);
+
+    expect(result).toMatchObject({
+      ok: true,
+      completeness: { expectedJobCount: 1 },
+      paginationEvaluation: { safeCompleteness: true, verifiedEligible: false }
+    });
+    expect(requests).toHaveLength(2);
+    const appliedFacets = JSON.parse(requests[1]!.body).appliedFacets as Record<string, string[]>;
+    expect(appliedFacets).toEqual({ locations: ["shanghai"] });
+    expect(auditedForeignDrift.some(([, id]) => appliedFacets.locations?.includes(id))).toBe(false);
+  });
+
   it.each([
     {
       sourceId: "source-johnson-innovative-medicine-social",
@@ -2024,6 +2099,187 @@ describe("createWorkdaySourceFetch", () => {
       failureReason: expect.stringContaining("conflicting mainland and foreign location boundaries")
     });
     expect(requests).toHaveLength(1);
+  });
+
+  it("keeps Pfizer opaque records returned by the exact China and Regular facets only when strict details name the audited APAC site", async () => {
+    const details = new Map([
+      ["/job/India---Vizag/Associate-Manager---BQ-QMS---Compliance_4960738", {
+        title: "Associate Manager - BQ QMS & Compliance",
+        reqId: "4960738",
+        location: "India - Vizag",
+        additionalLocations: ["APAC - Any Pfizer Site", "India - Chennai"]
+      }],
+      ["/job/India---Vizag/Associate-Manager---Quality-Assurance_4958270-1", {
+        title: "Associate Manager - Quality Assurance",
+        reqId: "4958270",
+        location: "India - Vizag",
+        additionalLocations: ["APAC - Any Pfizer Site"]
+      }]
+    ]);
+    const rawJobs = [...details.entries()].map(([externalPath, detail]) => ({
+      title: detail.title,
+      externalPath,
+      locationsText: `${detail.additionalLocations.length + 1} Locations`,
+      bulletFields: [detail.reqId]
+    }));
+    const detailRequests: string[] = [];
+    const fetcher = createWorkdaySourceFetch({
+      http: async (request) => {
+        const body = JSON.parse(request.body) as { appliedFacets: Record<string, string[]> };
+        return body.appliedFacets.workerSubType
+          ? response({ total: 2, jobPostings: rawJobs }, undefined, { finalUrl: request.url })
+          : response({
+              total: 2,
+              jobPostings: [],
+              facets: [{
+                facetParameter: "workerSubType",
+                descriptor: "Job Type",
+                values: [{ descriptor: "Regular", id: "regular-dynamic", count: 2 }]
+              }]
+            }, undefined, { finalUrl: request.url });
+      },
+      detailHttp: async (request) => {
+        detailRequests.push(request.url);
+        const externalPath = new URL(request.url).pathname.replace("/wday/cxs/pfizer/PfizerCareers", "");
+        const detail = details.get(externalPath)!;
+        return response({
+          jobPostingInfo: {
+            title: detail.title,
+            jobPostingSiteId: "PfizerCareers",
+            jobPostingId: externalPath.split("/").at(-1),
+            jobReqId: detail.reqId,
+            externalUrl: `https://pfizer.wd1.myworkdayjobs.com/PfizerCareers${externalPath}`,
+            posted: true,
+            canApply: true,
+            location: detail.location,
+            additionalLocations: detail.additionalLocations
+          }
+        }, "2026-07-17T00:01:02.000Z", { finalUrl: request.url });
+      }
+    });
+
+    const result = await fetcher({
+      ...plan,
+      workday: {
+        tenant: "pfizer",
+        site: "PfizerCareers",
+        laterZeroTotalPolicy: "PFIZER_AUDITED_EXACT_RECONCILIATION",
+        opaqueMultiLocationDetailPolicy: "PFIZER_AUDITED_APAC_DETAIL_V1",
+        appliedFacets: { Location_Country: ["6cb77610a8a543aea2d6bc10457e35d4"] },
+        facetDescriptorBoundary: {
+          facetParameter: "workerSubType",
+          allowedDescriptors: ["Regular"]
+        },
+        pageSize: 20,
+        maxPages: 10
+      }
+    } as unknown as SourceCrawlPlan);
+
+    expect(result).toMatchObject({
+      ok: true,
+      fetchEvidence: {
+        fetchCounts: { rawCount: 2, parsedCount: 2, validCount: 2, validationDiscardCount: 0 },
+        fetchLosses: []
+      }
+    });
+    if (!result.ok || !("payload" in result)) throw new Error("Expected hydrated Pfizer payload");
+    expect(result.payload).toEqual({ jobPostings: rawJobs.map((raw) => ({
+      sourceJobId: workdayId(raw.externalPath),
+      title: raw.title,
+      officialUrl: `https://pfizer.wd1.myworkdayjobs.com/PfizerCareers${raw.externalPath}`,
+      locationRaw: details.get(raw.externalPath)!
+        ? [details.get(raw.externalPath)!.location, ...details.get(raw.externalPath)!.additionalLocations].join(" | ")
+        : "",
+      cities: ["APAC - Any Pfizer Site"]
+    })) });
+    expect(detailRequests).toHaveLength(2);
+  });
+
+  it.each([
+    ["a broad APAC region", "APAC"],
+    ["foreign-only locations", "Singapore"],
+    ["an unknown location", "Unknown Global Site"]
+  ])("keeps Pfizer opaque details fail-closed for %s", async (_caseName, additionalLocation) => {
+    const externalPath = "/job/India---Vizag/Unscoped-Pfizer-Role_4000000";
+    const fetcher = createWorkdaySourceFetch({
+      http: async (request) => {
+        const body = JSON.parse(request.body) as { appliedFacets: Record<string, string[]> };
+        return body.appliedFacets.workerSubType
+          ? response({ total: 1, jobPostings: [{
+              title: "Unscoped Pfizer Role",
+              externalPath,
+              locationsText: "2 Locations",
+              bulletFields: ["4000000"]
+            }] }, undefined, { finalUrl: request.url })
+          : response({
+              total: 1,
+              jobPostings: [],
+              facets: [{
+                facetParameter: "workerSubType",
+                descriptor: "Job Type",
+                values: [{ descriptor: "Regular", id: "regular-dynamic", count: 1 }]
+              }]
+            }, undefined, { finalUrl: request.url });
+      },
+      detailHttp: async (request) => response({
+        jobPostingInfo: {
+          title: "Unscoped Pfizer Role",
+          jobPostingSiteId: "PfizerCareers",
+          jobPostingId: "Unscoped-Pfizer-Role_4000000",
+          jobReqId: "4000000",
+          externalUrl: `https://pfizer.wd1.myworkdayjobs.com/PfizerCareers${externalPath}`,
+          posted: true,
+          canApply: true,
+          location: "India - Vizag",
+          additionalLocations: [additionalLocation]
+        }
+      }, "2026-07-17T00:01:02.000Z", { finalUrl: request.url })
+    });
+
+    await expect(fetcher({
+      ...plan,
+      workday: {
+        tenant: "pfizer",
+        site: "PfizerCareers",
+        laterZeroTotalPolicy: "PFIZER_AUDITED_EXACT_RECONCILIATION",
+        opaqueMultiLocationDetailPolicy: "PFIZER_AUDITED_APAC_DETAIL_V1",
+        appliedFacets: { Location_Country: ["6cb77610a8a543aea2d6bc10457e35d4"] },
+        facetDescriptorBoundary: { facetParameter: "workerSubType", allowedDescriptors: ["Regular"] },
+        pageSize: 20,
+        maxPages: 10
+      }
+    } as unknown as SourceCrawlPlan)).resolves.toMatchObject({
+      ok: false,
+      failureReason: expect.stringContaining("opaque multi-location detail validation failed")
+    });
+  });
+
+  it.each([
+    ["source", { sourceId: "source-wrong-pfizer", tenant: "pfizer", site: "PfizerCareers", countryId: "6cb77610a8a543aea2d6bc10457e35d4", worker: "Regular", laterZero: undefined }],
+    ["tenant", { sourceId: "source-pfizer-china-social", tenant: "wrong", site: "PfizerCareers", countryId: "6cb77610a8a543aea2d6bc10457e35d4", worker: "Regular", laterZero: undefined }],
+    ["site", { sourceId: "source-pfizer-china-social", tenant: "pfizer", site: "wrong", countryId: "6cb77610a8a543aea2d6bc10457e35d4", worker: "Regular", laterZero: undefined }],
+    ["China country facet", { sourceId: "source-pfizer-china-social", tenant: "pfizer", site: "PfizerCareers", countryId: "wrong", worker: "Regular", laterZero: undefined }],
+    ["Regular worker boundary", { sourceId: "source-pfizer-china-social", tenant: "pfizer", site: "PfizerCareers", countryId: "6cb77610a8a543aea2d6bc10457e35d4", worker: "Intern", laterZero: "PFIZER_AUDITED_EXACT_RECONCILIATION" }],
+    ["later-zero policy", { sourceId: "source-pfizer-china-social", tenant: "pfizer", site: "PfizerCareers", countryId: "6cb77610a8a543aea2d6bc10457e35d4", worker: "Regular", laterZero: undefined }]
+  ])("rejects Pfizer opaque detail policy binding drift before transport: %s", async (_caseName, binding) => {
+    const http = vi.fn();
+    const fetcher = createWorkdaySourceFetch({ http });
+    await expect(fetcher({
+      ...plan,
+      source: { ...plan.source, id: binding.sourceId },
+      workday: {
+        tenant: binding.tenant,
+        site: binding.site,
+        ...(binding.laterZero ? { laterZeroTotalPolicy: binding.laterZero } : {}),
+        opaqueMultiLocationDetailPolicy: "PFIZER_AUDITED_APAC_DETAIL_V1",
+        appliedFacets: { Location_Country: [binding.countryId] },
+        facetDescriptorBoundary: { facetParameter: "workerSubType", allowedDescriptors: [binding.worker] }
+      }
+    } as unknown as SourceCrawlPlan)).resolves.toMatchObject({
+      ok: false,
+      failureReason: expect.stringContaining("opaque multi-location detail policy is not allowed")
+    });
+    expect(http).not.toHaveBeenCalled();
   });
 
   it("hydrates JNJ's two opaque multi-location records from strict archived official details", async () => {

@@ -107,6 +107,7 @@ const rows = [
     officialUrl: "https://example.com/b/2",
     officialPublishedAt: new Date("2026-07-08T00:00:00.000Z"),
     city: "北京",
+    locationRaw: "北京",
     cities: ["北京"],
     category: "MEDICAL_AFFAIRS",
     humanCorrectedCategory: null,
@@ -122,6 +123,7 @@ const rows = [
     officialUrl: "https://example.com/a/1",
     officialPublishedAt: new Date("2026-07-07T00:00:00.000Z"),
     city: "北京",
+    locationRaw: "北京",
     cities: ["北京", "全国"],
     category: "SALES",
     humanCorrectedCategory: null,
@@ -144,6 +146,31 @@ describe("searchJobsFromDatabase", () => {
     expect(result.totalJobs).toBe(2);
     expect(result.lastUpdatedAt).toBe("2026-07-08T00:00:00.000Z");
     expect(result.companies.map((company) => company.companyName)).toEqual(["阿斯利康", "百济神州"]);
+  });
+
+  it("returns truthful raw locations without a city predicate for the all-locations search", async () => {
+    const apacRow = {
+      ...rows[0]!,
+      id: "job-pfizer-apac",
+      sourceId: "source-b",
+      companyId: "company-b",
+      officialTitle: "Associate Manager - Quality Assurance",
+      locationRaw: "India - Vizag | APAC - Any Pfizer Site",
+      city: "APAC - Any Pfizer Site",
+      cities: ["APAC - Any Pfizer Site"]
+    };
+    const db = dbReturning([apacRow]);
+
+    const result = await searchWithSnapshot({ city: "全部地点", categories: [] }, db);
+    const call = vi.mocked(db.job.findMany).mock.calls[0]?.[0] as
+      | { where: Record<string, unknown> }
+      | undefined;
+
+    expect(call?.where).not.toHaveProperty("OR");
+    expect(result.companies[0]?.jobs[0]).toMatchObject({
+      city: "APAC - Any Pfizer Site",
+      locationRaw: "India - Vizag | APAC - Any Pfizer Site"
+    });
   });
 
   it("passes city, category, keyword, company, active visibility, and new filters into the DB query", async () => {

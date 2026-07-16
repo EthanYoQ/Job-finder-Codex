@@ -133,6 +133,29 @@ describe("source crawl planning", () => {
       .toThrow("Staged source plan execution config does not match canonical registry configuration");
   });
 
+  it("binds Pfizer's audited opaque detail policy into canonical staged plan authority", () => {
+    const plan = getPlanBySourceId(
+      buildStagedSourceCrawlPlans(candidateCompanies),
+      "source-pfizer-china-social"
+    );
+    if (plan?.adapterId !== "official-json" || !plan.workday) {
+      throw new Error("Expected canonical Pfizer Workday plan");
+    }
+    expect(plan.workday).toMatchObject({
+      tenant: "pfizer",
+      site: "PfizerCareers",
+      laterZeroTotalPolicy: "PFIZER_AUDITED_EXACT_RECONCILIATION",
+      opaqueMultiLocationDetailPolicy: "PFIZER_AUDITED_APAC_DETAIL_V1",
+      appliedFacets: { Location_Country: ["6cb77610a8a543aea2d6bc10457e35d4"] },
+      facetDescriptorBoundary: { facetParameter: "workerSubType", allowedDescriptors: ["Regular"] }
+    });
+    const { opaqueMultiLocationDetailPolicy: _removedPolicy, ...withoutPolicy } = plan.workday;
+    const tampered = { ...plan, workday: withoutPolicy };
+    expect(sourcePlanConfigSha256(tampered)).not.toBe(sourcePlanConfigSha256(plan));
+    expect(() => validateExecutablePlanChannelBinding(tampered))
+      .toThrow("Staged source plan execution config does not match canonical registry configuration");
+  });
+
   it("plans four static official sources while leaving the Otsuka subsidiary source pending", () => {
     const plans = buildDiscoverySourcePlanCandidates(candidateCompanies);
     const newSourceIds = [
@@ -620,11 +643,11 @@ describe("source crawl planning", () => {
       .update(JSON.stringify(aliases), "utf8")
       .digest("hex");
     expect(jnjLocationPolicy.mainlandDescriptorAliases).toHaveLength(9);
-    expect(jnjLocationPolicy.foreignDescriptorAliases).toHaveLength(137);
+    expect(jnjLocationPolicy.foreignDescriptorAliases).toHaveLength(144);
     expect(descriptorAliasesSha256(jnjLocationPolicy.mainlandDescriptorAliases))
       .toBe("e7820d1245ada112373ffbb699b44a330ab3023b1388729927866efd5ea8aa98");
     expect(descriptorAliasesSha256(jnjLocationPolicy.foreignDescriptorAliases))
-      .toBe("a916bc1e00cb6b3a6b644c286c658cd2d1d5a91b65c9f630b91db6dec8df549f");
+      .toBe("c1b9575a862ef6913e9618fd3b668765fd4f9b30d27c819f80e1e75f19137a49");
     expect(descriptorAliasesSha256(gileadLocationPolicy.foreignDescriptorAliases))
       .toBe("aa7db564434c890f9ab9f2a37b7e12502fb41e9be03055d03242cc169361d7fa");
     expect(bmsLocationPolicy.foreignSiteDescriptorAliases).toHaveLength(15);

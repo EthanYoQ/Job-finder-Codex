@@ -16,6 +16,22 @@ export interface SourceTransportFailure {
 }
 
 const RETRYABLE_HTTP_STATUSES = new Set([429, 502, 503, 504]);
+const RETRYABLE_FAILURE_CODES = new Set<RetryableSourceTransportFailureCode>([
+  "OFFICIAL_HTTP_TIMEOUT",
+  "OFFICIAL_HTTP_429",
+  "OFFICIAL_HTTP_502",
+  "OFFICIAL_HTTP_503",
+  "OFFICIAL_HTTP_504"
+]);
+
+export function isRetryableSourceTransportFailure(
+  failure: unknown
+): failure is SourceTransportFailure {
+  if (typeof failure !== "object" || failure === null || !("code" in failure)) return false;
+  return RETRYABLE_FAILURE_CODES.has(
+    (failure as { code: RetryableSourceTransportFailureCode }).code
+  );
+}
 
 export function retryableHttpTransportFailure(status: number): SourceTransportFailure | undefined {
   return RETRYABLE_HTTP_STATUSES.has(status)
@@ -31,6 +47,7 @@ export function retryableTransportFailureFromError(error: unknown): SourceTransp
 }
 
 export function safeSourceTransportFailureReason(failure: SourceTransportFailure): string {
+  if (!isRetryableSourceTransportFailure(failure)) return "Source transport failed";
   switch (failure.code) {
     case "OFFICIAL_HTTP_TIMEOUT":
       return "Official recruitment request timed out";

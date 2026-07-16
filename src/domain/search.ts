@@ -22,6 +22,8 @@ export const JOB_CATEGORIES = [
 
 export type JobCategory = (typeof JOB_CATEGORIES)[number];
 
+export const ALL_LOCATIONS = "全部地点" as const;
+
 const JobCategorySchema = z.enum(JOB_CATEGORIES);
 
 export const SearchSortSchema = z.enum([

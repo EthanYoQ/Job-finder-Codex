@@ -22,8 +22,8 @@ import { AUTHORIZED_PHASE1_EXCLUSION_COMPANY_IDS } from "../../src/data/phase1Sc
 const BASELINE = {
   rosterSha256: "f59773dae31ab14e1e06c77cc07110ee2657089ae223abdae42112f2bbd2826a",
   surfaceOracleSha256: "dee887449cbde77fc39c13863ea532a8fd69dc6607cc932e6cd12a3098ccfe71",
-  stagedPlanSha256: "4c8508398b26489f6320199212ac746e8159ad643e5a6ee51e22926a7413fc2e",
-  stagedConfigSetSha256: "a1ee19c4f4ff7115971e7f878db7bbcbb59dc08510ed5a7b2a8126deedc7b3c5"
+  stagedPlanSha256: "ad7a43196562a8cb050aa6a9462d9245458aafec0f3c8a056ce4e3b6378eb012",
+  stagedConfigSetSha256: "eedac8a959a33afde6071ef2c5dcfa6a720c4c9c7035440bd5166b01d96a1c99"
 } as const;
 
 const SHARED_CORE_SOURCE_ALLOWLIST: Readonly<Record<string, readonly string[]>> = {
@@ -45,6 +45,7 @@ const SHARED_CORE_SOURCE_ALLOWLIST: Readonly<Record<string, readonly string[]>> 
     "source-daiichi-sankyo-china-social",
     "source-grifols-china-social",
     "source-novartis-social",
+    "source-pfizer-china-social",
     "source-roche-china-social"
   ]
 };
@@ -182,5 +183,29 @@ describe("company recruitment profiles", () => {
       expect(companyRecruitmentExecutionConfigsBySourceId[sourceId]?.transientRetryPolicy)
         .toEqual({ maxRetries: 1, backoffMs: 10_000 });
     }
+  });
+
+  it("binds Pfizer's opaque multi-location detail rule only inside its exact company profile", () => {
+    expect(companyRecruitmentExecutionConfigsBySourceId["source-pfizer-china-social"]).toMatchObject({
+      adapterId: "official-json",
+      workday: {
+        tenant: "pfizer",
+        site: "PfizerCareers",
+        laterZeroTotalPolicy: "PFIZER_AUDITED_EXACT_RECONCILIATION",
+        opaqueMultiLocationDetailPolicy: "PFIZER_AUDITED_APAC_DETAIL_V1",
+        appliedFacets: { Location_Country: ["6cb77610a8a543aea2d6bc10457e35d4"] },
+        facetDescriptorBoundary: {
+          facetParameter: "workerSubType",
+          allowedDescriptors: ["Regular"]
+        }
+      }
+    });
+    expect(Object.entries(companyRecruitmentExecutionConfigsBySourceId).flatMap(([sourceId, config]) =>
+      config.adapterId === "official-json" &&
+      (config.workday as { opaqueMultiLocationDetailPolicy?: string } | undefined)
+        ?.opaqueMultiLocationDetailPolicy === "PFIZER_AUDITED_APAC_DETAIL_V1"
+        ? [sourceId]
+        : []
+    )).toEqual(["source-pfizer-china-social"]);
   });
 });

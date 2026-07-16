@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
 import { createSourceFetchRouter } from "../../src/crawler/sourceFetchRouter";
-import type { SourceFetchFunction } from "../../src/crawler/runSourceCrawl";
+import {
+  createSourceFetchAttemptTracker,
+  type SourceFetchFunction,
+  type SourceFetchResult
+} from "../../src/crawler/runSourceCrawl";
 import type { SourceCrawlPlan } from "../../src/crawler/sourcePlan";
 
 const capturedAt = "2026-07-08T08:00:00.000Z";
@@ -58,6 +62,7 @@ describe("source fetch router", () => {
   it("retries one profile-bound transient timeout after the configured delay", async () => {
     const calls: number[] = [];
     const delays: number[] = [];
+    const attemptTracker = createSourceFetchAttemptTracker();
     const plan = {
       ...planWithAtsKind("WORKDAY"),
       transientRetryPolicy: { maxRetries: 1, backoffMs: 10_000 }
@@ -79,9 +84,38 @@ describe("source fetch router", () => {
       delay: async (milliseconds) => { delays.push(milliseconds); }
     });
 
-    await expect(router(plan)).resolves.toMatchObject({ ok: true });
+    await expect(router(plan, attemptTracker)).resolves.toMatchObject({ ok: true });
     expect(calls).toEqual([1, 2]);
     expect(delays).toEqual([10_000]);
+    expect(attemptTracker).toMatchObject({ fetchAttemptCount: 2, retryCount: 1 });
+  });
+
+  it("does not retry a non-whitelisted diagnostic even when a caller marks it retryable", async () => {
+    const calls: string[] = [];
+    const plan = {
+      ...planWithAtsKind("WORKDAY"),
+      transientRetryPolicy: { maxRetries: 1, backoffMs: 10_000 }
+    } as SourceCrawlPlan;
+    const delegate: SourceFetchFunction = async () => {
+      calls.push("call");
+      return {
+        ok: false,
+        capturedAt,
+        failureReason: "timeout secret=https://private.example/token",
+        transportFailure: { code: "UNDECLARED_TIMEOUT", retryable: true }
+      } as unknown as SourceFetchResult;
+    };
+    const router = createSourceFetchRouter({
+      moka: delegate,
+      workday: delegate,
+      fallback: delegate,
+      delay: async () => { throw new Error("delay must not run"); }
+    });
+    const attemptTracker = createSourceFetchAttemptTracker();
+
+    await expect(router(plan, attemptTracker)).resolves.toMatchObject({ ok: false });
+    expect(calls).toEqual(["call"]);
+    expect(attemptTracker).toMatchObject({ fetchAttemptCount: 1, retryCount: 0 });
   });
 
   it("never retries without a profile policy or for unstructured failures", async () => {

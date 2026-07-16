@@ -1,6 +1,8 @@
 import { describe, expect, it, vi } from "vitest";
 import {
   executeIngestionCommands,
+  terminatePendingSourceResult,
+  type PrismaPendingSourceTerminalDb,
   type PrismaIngestionDb
 } from "../../src/db/ingestionRepository";
 import type { IngestionCommand } from "../../src/crawler/ingestion";
@@ -314,5 +316,80 @@ describe("executeIngestionCommands", () => {
     expect(args.update).not.toHaveProperty("secondaryCategory");
     expect(args.update).not.toHaveProperty("auxiliaryChineseTitle");
     expect(args.update).not.toHaveProperty("classificationInputHash");
+  });
+});
+
+describe("terminatePendingSourceResult failure diagnostics", () => {
+  const baseInput = {
+    id: "source-result-1",
+    releaseCandidateId: "rc-1",
+    batchId: "batch-1",
+    sourceId: "source-1",
+    transportState: "FAILED" as const,
+    adapterState: "SKIPPED" as const,
+    completenessState: "FAILED" as const,
+    atomicCommitState: "NOT_ATTEMPTED" as const,
+    finishedAt: new Date("2026-07-17T00:01:00.000Z"),
+    failureCode: "SOURCE_TRANSPORT_FAILED",
+    failureReason: "Official recruitment endpoint was temporarily unavailable (HTTP 503)",
+    failureCategory: "TEMPORARY_OFFICIAL_SOURCE_FAILURE" as const,
+    failureDiagnosticCode: "OFFICIAL_HTTP_503" as const,
+    fetchAttemptCount: 2,
+    retryCount: 1
+  };
+
+  it("persists only the closed diagnostic bundle and exact attempt counters", async () => {
+    const updates: unknown[] = [];
+    const db: PrismaPendingSourceTerminalDb = {
+      $transaction: async (operation) => operation({
+        crawlBatchSourceResult: {
+          updateMany: async (args) => {
+            updates.push(args);
+            return { count: 1 };
+          }
+        }
+      })
+    };
+
+    await terminatePendingSourceResult(baseInput, db);
+
+    expect(updates).toEqual([{
+      where: {
+        id: "source-result-1",
+        releaseCandidateId: "rc-1",
+        batchId: "batch-1",
+        sourceId: "source-1",
+        atomicCommitState: "PENDING"
+      },
+      data: expect.objectContaining({
+        failureCategory: "TEMPORARY_OFFICIAL_SOURCE_FAILURE",
+        failureDiagnosticCode: "OFFICIAL_HTTP_503",
+        fetchAttemptCount: 2,
+        retryCount: 1
+      })
+    }]);
+  });
+
+  it("rejects an impossible retry count before opening a transaction", async () => {
+    const transaction = vi.fn();
+    const db = { $transaction: transaction } as unknown as PrismaPendingSourceTerminalDb;
+
+    await expect(terminatePendingSourceResult({
+      ...baseInput,
+      fetchAttemptCount: 1,
+      retryCount: 1
+    }, db)).rejects.toThrow("retry count must be less than fetch attempt count");
+    expect(transaction).not.toHaveBeenCalled();
+  });
+
+  it("rejects diagnostic values outside the closed code list before opening a transaction", async () => {
+    const transaction = vi.fn();
+    const db = { $transaction: transaction } as unknown as PrismaPendingSourceTerminalDb;
+
+    await expect(terminatePendingSourceResult({
+      ...baseInput,
+      failureDiagnosticCode: "URL_OR_RESPONSE_TEXT" as never
+    }, db)).rejects.toThrow("diagnostic code must be a closed value");
+    expect(transaction).not.toHaveBeenCalled();
   });
 });

@@ -31,6 +31,7 @@ function createRecordingProvider() {
             officialTitle: "Medical Science Liaison",
             officialPublishedAt: "2026-07-08T08:00:00.000Z",
             city: "北京",
+            locationRaw: "北京",
             category: "医学事务",
             isNew: true,
             officialUrl: "https://careers.astrazeneca.com.cn/msl"
@@ -41,6 +42,7 @@ function createRecordingProvider() {
             officialTitle: "Regional Sales Manager",
             officialPublishedAt: "2026-07-07T08:00:00.000Z",
             city: "北京",
+            locationRaw: "北京",
             category: "销售",
             isNew: true,
             officialUrl: "https://careers.astrazeneca.com.cn/sales"
@@ -51,6 +53,7 @@ function createRecordingProvider() {
             officialTitle: "Market Access Manager",
             officialPublishedAt: "2026-07-06T08:00:00.000Z",
             city: "北京",
+            locationRaw: "北京",
             category: "市场准入",
             isNew: false,
             officialUrl: "https://careers.astrazeneca.com.cn/access"
@@ -61,6 +64,7 @@ function createRecordingProvider() {
             officialTitle: "Medical Advisor",
             officialPublishedAt: "2026-07-05T08:00:00.000Z",
             city: "北京",
+            locationRaw: "北京",
             category: "医学事务",
             isNew: false,
             officialUrl: "https://careers.astrazeneca.com.cn/advisor"
@@ -78,6 +82,7 @@ function createRecordingProvider() {
             officialTitle: "Oncology MSL",
             officialPublishedAt: "2026-07-09T07:00:00.000Z",
             city: "北京",
+            locationRaw: "India - Vizag | APAC - Any Pfizer Site",
             category: "医学事务",
             isNew: true,
             officialUrl: "https://www.pfizer.com.cn/careers/msl"
@@ -88,6 +93,7 @@ function createRecordingProvider() {
             officialTitle: "Area Sales Lead",
             officialPublishedAt: "2026-07-04T08:00:00.000Z",
             city: "北京",
+            locationRaw: "北京",
             category: "销售",
             isNew: false,
             officialUrl: "https://www.pfizer.com.cn/careers/sales"
@@ -279,6 +285,20 @@ describe("App product flows", () => {
       sort: "LATEST",
       onlyNew: true
     });
+  });
+
+  it("offers all locations and displays the official raw multi-location value", async () => {
+    const user = userEvent.setup();
+    const recording = createRecordingProvider();
+    render(<App dataProvider={recording.provider} />);
+
+    await acceptConsent(user);
+    await user.click(screen.getByRole("radio", { name: "全部地点" }));
+    await user.click(screen.getByRole("button", { name: "搜索职位" }));
+    await user.click(await screen.findByRole("button", { name: /辉瑞/ }));
+
+    expect(recording.searchJobs).toHaveBeenLastCalledWith(expect.objectContaining({ city: "全部地点" }));
+    expect(screen.getByText("India - Vizag | APAC - Any Pfizer Site")).toBeInTheDocument();
   });
 
   it("loads grouped Beijing results after consent and updates by category and keyword", async () => {

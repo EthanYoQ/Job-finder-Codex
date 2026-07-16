@@ -24,6 +24,7 @@ import {
   type StaticDocumentResult
 } from "./appDataProvider";
 import type { SortMode } from "./jobSearch";
+import { ALL_LOCATIONS } from "../domain/search";
 import "./App.css";
 
 type ConsentState = "pending" | "closed" | "accepted";
@@ -44,7 +45,7 @@ interface FeedbackDraft {
 
 const DEFAULT_CITY = "北京";
 const DEFAULT_COMPANY_ROW_CAP = 3;
-const CITY_OPTIONS = ["北京", "上海", "广州"];
+const CITY_OPTIONS = ["北京", "上海", "广州", ALL_LOCATIONS];
 const CATEGORY_OPTIONS = ["销售", "医学事务", "市场准入/政府事务", "临床运营"];
 
 function normalize(value: string): string {
@@ -557,7 +558,7 @@ export function App({ dataProvider = createDemoAppDataProvider() }: AppProps) {
                                 <div className="job-meta">
                                   <span>
                                     <MapPin aria-hidden="true" size={14} />
-                                    {job.city}
+                                    {job.locationRaw}
                                   </span>
                                   <span>
                                     <BriefcaseBusiness aria-hidden="true" size={14} />

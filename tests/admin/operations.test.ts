@@ -322,6 +322,16 @@ describe("admin operations", () => {
                   failureReason: null
                 }
               ],
+              batchResults: [
+                {
+                  finishedAt: new Date("2026-07-08T10:05:00.000Z"),
+                  failureReason: "Official recruitment endpoint was temporarily unavailable (HTTP 503)",
+                  failureCategory: "TEMPORARY_OFFICIAL_SOURCE_FAILURE",
+                  failureDiagnosticCode: "OFFICIAL_HTTP_503",
+                  fetchAttemptCount: 2,
+                  retryCount: 1
+                }
+              ],
               _count: {
                 jobs: 11
               }
@@ -352,6 +362,25 @@ describe("admin operations", () => {
               failureReason: true
             }
           },
+          batchResults: {
+            where: {
+              failureCategory: {
+                not: null
+              }
+            },
+            orderBy: {
+              finishedAt: "desc"
+            },
+            take: 1,
+            select: {
+              finishedAt: true,
+              failureReason: true,
+              failureCategory: true,
+              failureDiagnosticCode: true,
+              fetchAttemptCount: true,
+              retryCount: true
+            }
+          },
           _count: {
             select: {
               jobs: true
@@ -373,6 +402,14 @@ describe("admin operations", () => {
           successful: false,
           structuredJobCount: 3,
           failureReason: "timeout"
+        },
+        latestFailure: {
+          finishedAt: new Date("2026-07-08T10:05:00.000Z"),
+          reason: "Official recruitment endpoint was temporarily unavailable (HTTP 503)",
+          category: "TEMPORARY_OFFICIAL_SOURCE_FAILURE",
+          diagnosticCode: "OFFICIAL_HTTP_503",
+          fetchAttemptCount: 2,
+          retryCount: 1
         }
       }
     ]);
