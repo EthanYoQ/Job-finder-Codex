@@ -306,7 +306,8 @@ export const JNJ_AUDITED_FOREIGN_DESCRIPTOR_ALIASES = [
   "GIMPO-SI, Korea, Republic of",
   "Pittsburgh, Pennsylvania, United States of America",
   "Trenton, New Jersey, United States of America",
-  "Uşak"
+  "Uşak",
+  "Lancaster, Pennsylvania, United States of America"
 ] as const;
 export const GILEAD_AUDITED_FOREIGN_DESCRIPTOR_ALIASES = [
   "Czech Republic - Prague",

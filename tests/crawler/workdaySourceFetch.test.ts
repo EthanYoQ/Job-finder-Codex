@@ -227,7 +227,8 @@ const JNJ_AUDITED_FOREIGN_DESCRIPTOR_ALIASES = [
   "GIMPO-SI, Korea, Republic of",
   "Pittsburgh, Pennsylvania, United States of America",
   "Trenton, New Jersey, United States of America",
-  "Uşak"
+  "Uşak",
+  "Lancaster, Pennsylvania, United States of America"
 ] as const;
 
 const GILEAD_AUDITED_FOREIGN_DESCRIPTOR_ALIASES = [
@@ -1996,6 +1997,67 @@ describe("createWorkdaySourceFetch", () => {
       ok: false,
       failureReason: expect.stringContaining(`unscoped location descriptor ${driftedDescriptor}`)
     });
+  });
+
+  it("excludes JNJ's exact audited Lancaster foreign descriptor from the China facet", async () => {
+    const requests: Array<{ body: string }> = [];
+    const fetcher = createWorkdaySourceFetch({
+      http: async (request) => {
+        requests.push(request);
+        const body = JSON.parse(request.body) as { appliedFacets: Record<string, string[]> };
+        return body.appliedFacets.locations
+          ? response({
+              total: 1,
+              jobPostings: [{
+                title: "Shanghai Role",
+                externalPath: "/job/China/shanghai-role",
+                locationsText: "Shanghai, China"
+              }]
+            })
+          : response({
+              total: 2,
+              jobPostings: [],
+              facets: [{
+                facetParameter: "locations",
+                descriptor: "Locations",
+                values: [
+                  { descriptor: "Shanghai, China", id: "china", count: 1 },
+                  {
+                    descriptor: "Lancaster, Pennsylvania, United States of America",
+                    id: "lancaster-us",
+                    count: 1
+                  }
+                ]
+              }]
+            });
+      }
+    });
+
+    const result = await fetcher({
+      ...plan,
+      source: { ...plan.source, id: "source-johnson-innovative-medicine-social" },
+      workday: {
+        tenant: "jj",
+        site: "JJ",
+        searchText: "China",
+        locationFacetPolicy: {
+          kind: "JNJ_AUDITED_LOCATIONS_OVERLAP",
+          facetParameter: "locations",
+          mainlandDescriptorAliases: JNJ_AUDITED_MAINLAND_DESCRIPTOR_ALIASES,
+          foreignDescriptorAliases: JNJ_AUDITED_FOREIGN_DESCRIPTOR_ALIASES
+        },
+        pageSize: 20,
+        maxPages: 1
+      }
+    } as SourceCrawlPlan);
+
+    expect(result).toMatchObject({
+      ok: true,
+      completeness: { expectedJobCount: 1 },
+      paginationEvaluation: { safeCompleteness: true }
+    });
+    expect(requests).toHaveLength(2);
+    expect(JSON.parse(requests[1]!.body).appliedFacets.locations).toEqual(["china"]);
   });
 
   it("rejects Gilead's audited foreign alias when it appears beneath a mainland-China ancestor", async () => {

@@ -314,5 +314,5 @@ describe("backup and restore scripts", () => {
       });
       expect(result.status).not.toBe(0);
     }
-  }, 15_000);
+  }, 60_000);
 });

@@ -22,8 +22,8 @@ import { AUTHORIZED_PHASE1_EXCLUSION_COMPANY_IDS } from "../../src/data/phase1Sc
 const BASELINE = {
   rosterSha256: "f59773dae31ab14e1e06c77cc07110ee2657089ae223abdae42112f2bbd2826a",
   surfaceOracleSha256: "dee887449cbde77fc39c13863ea532a8fd69dc6607cc932e6cd12a3098ccfe71",
-  stagedPlanSha256: "ad7a43196562a8cb050aa6a9462d9245458aafec0f3c8a056ce4e3b6378eb012",
-  stagedConfigSetSha256: "eedac8a959a33afde6071ef2c5dcfa6a720c4c9c7035440bd5166b01d96a1c99"
+  stagedPlanSha256: "21fa4f45a7a42594edb657df0f478c97daaaf3034315fecddfaefdeda570d7dd",
+  stagedConfigSetSha256: "a189a1b888238a772f496aa6010c6f55d8d8107416f661e121ad943c87705c54"
 } as const;
 
 const SHARED_CORE_SOURCE_ALLOWLIST: Readonly<Record<string, readonly string[]>> = {
@@ -169,12 +169,13 @@ describe("company recruitment profiles", () => {
     }
   });
 
-  it("limits one transient retry to the three explicitly reviewed company profiles", () => {
+  it("limits one transient retry to the four explicitly reviewed company profiles", () => {
     const retrySourceIds = Object.entries(companyRecruitmentExecutionConfigsBySourceId)
       .filter(([, config]) => config.transientRetryPolicy !== undefined)
       .map(([sourceId]) => sourceId)
       .sort();
     expect(retrySourceIds).toEqual([
+      "source-bms-china-social",
       "source-pfizer-china-social",
       "source-sinopharm-social",
       "source-united-lab-social"

@@ -643,11 +643,11 @@ describe("source crawl planning", () => {
       .update(JSON.stringify(aliases), "utf8")
       .digest("hex");
     expect(jnjLocationPolicy.mainlandDescriptorAliases).toHaveLength(9);
-    expect(jnjLocationPolicy.foreignDescriptorAliases).toHaveLength(144);
+    expect(jnjLocationPolicy.foreignDescriptorAliases).toHaveLength(145);
     expect(descriptorAliasesSha256(jnjLocationPolicy.mainlandDescriptorAliases))
       .toBe("e7820d1245ada112373ffbb699b44a330ab3023b1388729927866efd5ea8aa98");
     expect(descriptorAliasesSha256(jnjLocationPolicy.foreignDescriptorAliases))
-      .toBe("c1b9575a862ef6913e9618fd3b668765fd4f9b30d27c819f80e1e75f19137a49");
+      .toBe("1c1f010003a93af55f093583da0749a58e5eae18fe2035ab17368aa973521a23");
     expect(descriptorAliasesSha256(gileadLocationPolicy.foreignDescriptorAliases))
       .toBe("aa7db564434c890f9ab9f2a37b7e12502fb41e9be03055d03242cc169361d7fa");
     expect(bmsLocationPolicy.foreignSiteDescriptorAliases).toHaveLength(15);
