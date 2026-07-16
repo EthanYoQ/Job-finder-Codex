@@ -114,7 +114,8 @@ const USER_TYPES = [
   "LossStage", "ManualCrawlEventActor", "ManualCrawlEventType", "ManualCrawlFailureCode", "ManualCrawlStatus",
   "PaginationAnomalyCode", "PaginationTermination", "ReleaseCandidateStatus",
   "RequiredJobField", "SourceKind", "TransportAttemptCode", "TransportAttemptKind",
-  "TransportAttemptOutcome", "TransportState", "VerificationStatus"
+  "TransportAttemptOutcome", "TransportState", "VerificationStatus",
+  "SourceFailureCategory", "SourceFailureDiagnosticCode"
 ].sort();
 
 const FUNCTIONS = [
