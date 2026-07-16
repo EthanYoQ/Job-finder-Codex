@@ -471,8 +471,10 @@ describe("deployment configuration", () => {
     const compose = readRequiredFile(composePath);
     const monitor = readComposeService(compose, "monitor");
 
-    expect(monitor).toMatch(/restart:\s*["']on-failure:3["']/u);
-    expect(monitor).toContain("set -eu; while true; do npx tsx ops/monitoring-check.ts; sleep");
+    expect(monitor).toMatch(/restart:\s*["']unless-stopped["']/u);
+    expect(monitor).toContain("set -u; while true; do npx tsx ops/monitoring-check.ts; status=$$?");
+    expect(monitor).toContain("[monitor-loop] check exited with status $$status; continuing after interval.");
+    expect(monitor).not.toContain("set -eu; while true; do npx tsx ops/monitoring-check.ts");
     expect(monitor).toMatch(/BACKUP_DIR:\s*\/backups/u);
     expect(monitor).toMatch(/DATABASE_URL:\s*\$\{DATABASE_URL:\?set DATABASE_URL\}/u);
     expect(monitor).toMatch(/READINESS_SUMMARY_PATH:\s*\$\{READINESS_SUMMARY_PATH:-\/app\/outputs\//u);

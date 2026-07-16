@@ -253,7 +253,7 @@ services:
       context: ..
       dockerfile: Dockerfile
       args: *release-build-args
-    restart: "on-failure:3"
+    restart: "unless-stopped"
     user: node
     read_only: true
     cap_drop:
@@ -266,7 +266,7 @@ services:
       [
         "sh",
         "-lc",
-        "set -eu; while true; do npx tsx ops/monitoring-check.ts; sleep ${MONITOR_INTERVAL_SECONDS:-300}; done"
+        "set -u; while true; do npx tsx ops/monitoring-check.ts; status=$$?; if [ \"$$status\" -ne 0 ]; then echo \"[monitor-loop] check exited with status $$status; continuing after interval.\" >&2; fi; sleep \"$${MONITOR_INTERVAL_SECONDS:-300}\"; done"
       ]
     environment:
       HEALTHCHECK_URL: ${HEALTHCHECK_URL:-http://web:3000/healthz}
