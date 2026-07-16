@@ -128,6 +128,7 @@ const [
   { createWorkdaySourceFetch },
   { createHotjobWecruitSourceFetch },
   { createHotjobLegacySourceFetch },
+  { createProfileBoundSourceFetch },
   { createOfficialJsonSourceFetch },
   { createUnsupportedSourceFetch },
   { createSourceFetchRouter }
@@ -141,6 +142,7 @@ const [
   import("../src/crawler/workdaySourceFetch"),
   import("../src/crawler/hotjobWecruitSourceFetch"),
   import("../src/crawler/hotjobLegacySourceFetch"),
+  import("../src/crawler/profileBoundSourceFetch"),
   import("../src/crawler/officialJsonSourceFetch"),
   import("../src/crawler/unsupportedSourceFetch"),
   import("../src/crawler/sourceFetchRouter")
@@ -153,6 +155,7 @@ const fetch = createSourceFetchRouter({
   workday: createWorkdaySourceFetch(),
   hotjob: createHotjobWecruitSourceFetch(),
   hotjobLegacy: createHotjobLegacySourceFetch(),
+  profileBoundSource: createProfileBoundSourceFetch(),
   fallback: createUnsupportedSourceFetch()
 });
 

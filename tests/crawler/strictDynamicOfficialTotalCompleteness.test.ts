@@ -37,8 +37,7 @@ const GENERIC_LOCATION_PHENOM_SOURCES = [
   "source-lilly-china-social",
   "source-organon-china-social",
   "source-ucb-china-social",
-  "source-roche-china-social",
-  "source-merck-china-social"
+  "source-roche-china-social"
 ] as const;
 const GENERIC_LOCATION_VALUES = [
   "Remote",

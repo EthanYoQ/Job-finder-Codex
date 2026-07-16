@@ -90,6 +90,9 @@ const AUDITED_DOMESTIC_BEISEN_SOURCES = [
   "source-3sbio-social"
 ] as const;
 
+const SHANGHAI_PHARMA_SOURCE_ID = "source-shanghai-pharma-social";
+const SHANGHAI_PHARMA_ENTRY = "https://sph.zhiye.com/social/jobs";
+
 function exactBeisenPlan(sourceId: string): BeisenPlan {
   const plans = buildStagedSourceCrawlPlans(candidateCompanies);
   const value = getPlanBySourceId(plans, sourceId);
@@ -380,6 +383,126 @@ describe("Beisen Zhiye 2022 evidence instrumentation", () => {
       expect(crawled.observation.completenessStatus).not.toBe("VERIFIED");
     }
   );
+
+  it("retains all 102 official Shanghai Pharma social jobs across two pages and inherits the Shanghai parent for sibling districts", async () => {
+    const exactPlan = exactBeisenPlan(SHANGHAI_PHARMA_SOURCE_ID);
+    const endpoint = new URL("/api/Jobad/GetJobAdPageList", SHANGHAI_PHARMA_ENTRY).toString();
+    const location = "上海市·青浦区/闵行区/嘉定区";
+    const rows = Array.from({ length: 102 }, (_, index) =>
+      job(`shanghai-pharma-${index + 1}`, [location]));
+    const requests: Array<{ PageIndex: number; PageSize: number; Category: string[] }> = [];
+    const fetched = await createOfficialJsonSourceFetch({
+      now: () => new Date(NOW),
+      http: async (request) => {
+        const body = JSON.parse(request.body ?? "{}") as {
+          PageIndex: number;
+          PageSize: number;
+          Category: string[];
+        };
+        requests.push(body);
+        const start = body.PageIndex * body.PageSize;
+        return response({
+          Code: 200,
+          Count: rows.length,
+          Total: rows.length,
+          PageIndex: body.PageIndex,
+          Data: rows.slice(start, start + body.PageSize)
+        }, { finalUrl: endpoint });
+      }
+    })(exactPlan);
+
+    expect(exactPlan).toMatchObject({
+      adapterId: "official-json",
+      company: { id: "company-shanghai-pharma" },
+      source: {
+        id: SHANGHAI_PHARMA_SOURCE_ID,
+        atsKind: "BEISEN_ZHIYE",
+        officialEntryUrl: SHANGHAI_PHARMA_ENTRY
+      },
+      officialJsonFetch: {
+        kind: "beisen-zhiye-2022",
+        geographyScope: "DOMESTIC_OFFICIAL_TENANT",
+        mixedLocationPolicy: "INHERIT_MAINLAND_PARENT_FOR_SIBLING_LOCATIONS",
+        category: "1",
+        pageSize: 100
+      }
+    });
+    expect(requests).toEqual([
+      expect.objectContaining({ PageIndex: 0, PageSize: 100, Category: ["1"] }),
+      expect.objectContaining({ PageIndex: 1, PageSize: 100, Category: ["1"] })
+    ]);
+    expect(fetched).toMatchObject({
+      ok: true,
+      completeness: {
+        expectedJobCount: rows.length,
+        completenessEvidenceKind: "OFFICIAL_TOTAL_COUNT",
+        pagesVisited: 2
+      },
+      fetchEvidence: {
+        fetchCounts: {
+          rawCount: rows.length,
+          parsedCount: rows.length,
+          validCount: rows.length,
+          parseDiscardCount: 0,
+          validationDiscardCount: 0
+        },
+        fetchLosses: []
+      },
+      paginationEvaluation: { safeCompleteness: true, derivedAnomalyCodes: [] }
+    });
+    if (!fetched.ok || !("payload" in fetched)) throw new Error("expected Shanghai Pharma jobs");
+    const normalizedJobs = (fetched.payload as { jobs: Array<{ locationRaw: string }> }).jobs;
+    expect(normalizedJobs).toHaveLength(rows.length);
+    expect(normalizedJobs.every((item) => item.locationRaw === location)).toBe(true);
+
+    const crawled = await runSourceCrawl(exactPlan, { fetch: async () => fetched });
+    expect(crawled).toMatchObject({
+      status: "SUCCESS",
+      reconciliation: {
+        rawInputCount: rows.length,
+        parsedCount: rows.length,
+        validBeforeDedupeCount: rows.length,
+        dedupeOutputCount: rows.length,
+        adapterLosses: []
+      }
+    });
+    expect(crawled.jobs).toHaveLength(rows.length);
+  });
+
+  it("fails closed for a Shanghai Pharma sibling location that mixes a Shanghai district with Zurich", async () => {
+    const exactPlan = exactBeisenPlan(SHANGHAI_PHARMA_SOURCE_ID);
+    const endpoint = new URL("/api/Jobad/GetJobAdPageList", SHANGHAI_PHARMA_ENTRY).toString();
+    const fetched = await createOfficialJsonSourceFetch({
+      now: () => new Date(NOW),
+      http: async () => response({
+        Code: 200,
+        Count: 1,
+        PageIndex: 0,
+        Data: [job("shanghai-pharma-mixed-foreign", ["上海市·青浦区/苏黎世"])]
+      }, { finalUrl: endpoint })
+    })(exactPlan);
+
+    expect(fetched).toMatchObject({
+      ok: true,
+      payload: { jobs: [] },
+      fetchEvidence: {
+        fetchCounts: {
+          rawCount: 1,
+          parsedCount: 1,
+          validCount: 0,
+          parseDiscardCount: 0,
+          validationDiscardCount: 1
+        }
+      }
+    });
+    const lossCode = fetched.fetchEvidence?.fetchLosses[0]?.details?.code;
+    expect(["AMBIGUOUS_SCOPE", "OUT_OF_SCOPE"]).toContain(lossCode);
+
+    const crawled = await runSourceCrawl(exactPlan, { fetch: async () => fetched });
+    expect(crawled.jobs).toEqual([]);
+    expect(crawled.truth.completenessVerified).toBe(false);
+    expect(crawled.observation.completenessStatus).not.toBe("VERIFIED");
+  });
 
   it.each([
     "全国",

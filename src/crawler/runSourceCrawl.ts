@@ -27,6 +27,10 @@ import {
 } from "./officialJsonEvidence";
 import type { NormalizedJobRecord } from "./normalizedJob";
 import {
+  getStrictProfileBoundSourcePolicy,
+  validateStrictProfileBoundSourceEvidence
+} from "./profileBoundSourceEvidence";
+import {
   BMS_AUDITED_FOREIGN_COUNTRY_DESCRIPTOR_ALIASES,
   BMS_AUDITED_FOREIGN_SITE_DESCRIPTOR_ALIASES
 } from "./workdaySourceFetch";
@@ -326,6 +330,12 @@ function strictCompletenessGate(
     if (expectedChannelIds === undefined) return false;
     const configuredHtmlProof = plan.adapterId === "html-table" &&
       plan.table.completenessProof !== undefined;
+    const profileBoundEvidenceValidated = plan.adapterId === "official-json" && plan.profileBoundSource
+      ? validateStrictProfileBoundSourceEvidence(plan, evidence, outputJobs)
+      : false;
+    if (plan.adapterId === "official-json" && plan.profileBoundSource && !profileBoundEvidenceValidated) {
+      return false;
+    }
     let artifactUrlBindings: Map<string, StrictUrlRule[]> | undefined;
     if (configuredHtmlProof) {
       if (!validateStrictHtmlCompletenessProof(plan, evidence)) return false;
@@ -335,10 +345,10 @@ function strictCompletenessGate(
       artifactUrlBindings = strictNetworkArtifactUrlBindings(evidence, urlRules);
       if (!artifactUrlBindings ||
         !strictEvidenceArtifactPurposes(plan, evidence, artifactUrlBindings) ||
-        !strictPageRequestContracts(plan, evidence, outputJobs)) return false;
+        !strictPageRequestContracts(plan, evidence, outputJobs, profileBoundEvidenceValidated)) return false;
     }
     const hasScopeExclusionProof = hasConfiguredScopeExclusionProof(plan);
-    if (evidence.fetchLosses.length > 0 && !hasScopeExclusionProof) return false;
+    if (evidence.fetchLosses.length > 0 && !hasScopeExclusionProof && !profileBoundEvidenceValidated) return false;
     if (hasScopeExclusionProof && !validateStrictSourceScopeExclusionProof(plan, evidence, outputJobs)) return false;
     const replayPolicy = strictPositiveOfficialTotalReplayPolicy(plan);
     const htmlReplayPolicy = strictHtmlPaginationReplayPolicy(plan);
@@ -522,11 +532,13 @@ function strictEvidenceArtifactPurposes(
 function strictPageRequestContracts(
   plan: SourceCrawlPlan,
   evidence: PersistentSourceFetchEvidence,
-  outputJobs: readonly NormalizedJobRecord[]
+  outputJobs: readonly NormalizedJobRecord[],
+  profileBoundEvidenceValidated: boolean
 ): boolean {
   if (plan.adapterId !== "official-json") return true;
   if (plan.workday) return strictWorkdayRequestContracts(plan, evidence);
   if (plan.moka) return strictMokaRequestContracts(plan, evidence);
+  if (plan.profileBoundSource) return profileBoundEvidenceValidated;
   const strategy = plan.officialJsonFetch;
   if (strategy?.kind === "novo-nordisk") return strictNovoRequestContracts(plan, evidence);
   if (strategy?.kind === "phenom") return strictPhenomRequestContracts(plan, evidence, outputJobs);
@@ -608,7 +620,7 @@ function strictPageCoordinatesEqual(
 }
 
 type GateRequestContract = {
-  family: "workday" | "moka" | "phenom" | "beisen" | "hcm" | "redsea";
+  family: "workday" | "moka" | "phenom" | "beisen" | "hcm" | "redsea" | "livzon-cecc";
   role: string;
   method: "GET" | "POST";
   url: string;
@@ -1421,6 +1433,9 @@ function strictPhenomRequestContracts(
     parsedEndpoint.pathname !== "/widgets" || parsedEndpoint.search || parsedEndpoint.hash) return false;
   const exactRocheRequestBoundOmittedOffset = strictExactRochePhenomPlan(plan, pageConfig, endpoint);
   if (config.requestBoundOmittedOffsetPolicy !== undefined && !exactRocheRequestBoundOmittedOffset) return false;
+  const exactMerckHealthcarePartition = strictExactMerckHealthcarePhenomPlan(plan, pageConfig, endpoint);
+  if (config.facetScope && "partitionProofPolicy" in config.facetScope &&
+    config.facetScope.partitionProofPolicy !== undefined && !exactMerckHealthcarePartition) return false;
   const pageSize = Math.max(1, Math.min(100, config.pageSize ?? 50));
   const artifacts = new Map(evidence.artifacts.map((artifact) => [artifact.logicalKey, artifact]));
   if (artifacts.size !== evidence.artifacts.length) return false;
@@ -1430,7 +1445,24 @@ function strictPhenomRequestContracts(
   let selectedFields: Record<string, string[]>;
   let structuredExpectedTotal: number | undefined;
   let allowedExclusionDescriptors: ReadonlySet<string> | undefined;
+  let merckPartitionReplay: StrictMerckPartitionReplay | undefined;
   if (facetScope) {
+    if (exactMerckHealthcarePartition) {
+      merckPartitionReplay = strictReplayMerckHealthcarePartitions({
+        artifacts,
+        facetArtifacts,
+        endpoint,
+        pageConfig,
+        pageSize,
+        maxPages: Math.max(1, config.maxPages ?? 20),
+        allowOmittedOffsetForSinglePage: config.allowOmittedOffsetForSinglePage === true,
+        facetScope
+      });
+      if (!merckPartitionReplay) return false;
+      selectedFields = merckPartitionReplay.selectedFields;
+      structuredExpectedTotal = merckPartitionReplay.expectedTotal;
+      allowedExclusionDescriptors = merckPartitionReplay.allowedJobLevels;
+    } else {
     if (facetArtifacts.length !== 2) return false;
     const global = artifacts.get("phenom-facet-global");
     const country = artifacts.get("phenom-facet-country");
@@ -1482,6 +1514,7 @@ function strictPhenomRequestContracts(
       country: [facetScope.countryIncludeDescriptor],
       [facetScope.exclusionField]: allowed
     };
+    }
   } else {
     if (facetArtifacts.length !== 0 || config.countryFilter !== "China") return false;
     selectedFields = { country: ["China"] };
@@ -1494,6 +1527,12 @@ function strictPhenomRequestContracts(
     evidence.pages.length !== rocheExpectedPageCount ||
     evidence.artifacts.length !== evidence.pages.length + 3)) return false;
   const rocheExpectedOutputIds = new Set<string>();
+  const merckExpectedPageCount = merckPartitionReplay
+    ? Math.max(1, Math.ceil(merckPartitionReplay.expectedTotal / pageSize))
+    : undefined;
+  if (merckPartitionReplay && (evidence.pages.length !== merckExpectedPageCount ||
+    evidence.artifacts.length !== 1 + facetArtifacts.length + evidence.pages.length)) return false;
+  const merckReturnedRawIds = new Set<string>();
   let pageRawCount = 0;
   for (let pageIndex = 0; pageIndex < evidence.pages.length; pageIndex += 1) {
     const page = evidence.pages[pageIndex]!;
@@ -1505,16 +1544,55 @@ function strictPhenomRequestContracts(
     if (!artifact || artifact.bodyRepresentation === "REDACTED" ||
       !strictRequestContractMatches(artifact.extractorLocator, {
       family: "phenom", role: "page", method: "POST", url: endpoint,
-      body: strictGatePhenomRequestBody(pageConfig, pageSize, offset, selectedFields),
+      body: strictGatePhenomRequestBody(
+        pageConfig,
+        pageSize,
+        offset,
+        selectedFields,
+        exactMerckHealthcarePartition
+      ),
       coordinate: { sequence: page.sequence, requestedOffset: offset, requestedPage: null, requestedPageSize: pageSize }
     })) return false;
-    const envelope = strictGatePhenomFacetEnvelope(artifact.body);
+    const envelope = strictGatePhenomFacetEnvelope(
+      artifact.body,
+      exactMerckHealthcarePartition ? selectedFields : undefined
+    );
     if (!envelope || page.declaredTotal !== envelope.totalHits ||
       (structuredExpectedTotal !== undefined && envelope.totalHits !== structuredExpectedTotal) ||
       envelope.jobs.length !== page.rawJobIds.length ||
       createHash("sha256").update(typeof artifact.body === "string"
         ? Buffer.from(artifact.body, "utf8") : Buffer.from(artifact.body)).digest("hex") !==
         page.responseFingerprintSha256) return false;
+    if (merckPartitionReplay) {
+      const safelyOmittedMerckSinglePageOffset = config.allowOmittedOffsetForSinglePage === true &&
+        !envelope.hasOwnFrom && pageIndex === 0 && offset === 0 &&
+        merckPartitionReplay.expectedTotal <= pageSize;
+      if (page.sequence !== pageIndex || page.artifactLogicalKey !==
+        `phenom-page-${String(pageIndex).padStart(4, "0")}` ||
+        (!safelyOmittedMerckSinglePageOffset && (!envelope.hasOwnFrom || envelope.from !== offset)) ||
+        page.returnedOffset !== offset ||
+        envelope.jobs.length !== Math.min(pageSize, merckPartitionReplay.expectedTotal - offset)) return false;
+      const expectedRawIds: string[] = [];
+      const expectedValidIds: string[] = [];
+      for (const raw of envelope.jobs) {
+        const record = strictRecord(raw);
+        const rawId = record ? strictPhenomOfficialId(record.jobSeqNo) ??
+          strictPhenomOfficialId(record.reqId) ?? strictPhenomOfficialId(record.jobId) : undefined;
+        const rawEvidenceId = irreversibleOfficialJsonEvidenceId(rawId ?? raw);
+        if (!expectedRawIds.includes(rawEvidenceId)) expectedRawIds.push(rawEvidenceId);
+        if (!record || !rawId || !safeOfficialJsonId(rawId) ||
+          !merckPartitionReplay.expectedRawIds.has(rawId) || merckReturnedRawIds.has(rawId)) return false;
+        merckReturnedRawIds.add(rawId);
+        expectedValidIds.push(irreversibleOfficialJsonEvidenceId(persistentOfficialJsonJobId(rawId)));
+      }
+      if (JSON.stringify(page.rawJobIds) !== JSON.stringify(expectedRawIds) ||
+        JSON.stringify(page.validJobIds) !== JSON.stringify(expectedValidIds)) return false;
+      const lastPage = pageIndex === evidence.pages.length - 1;
+      if (page.nextPageSignalBefore !== (pageIndex === 0 ? null : `offset:${offset}`) ||
+        page.nextPageSignalAfter !== (lastPage ? null : `offset:${offset + pageSize}`) ||
+        page.termination !== (merckPartitionReplay.expectedTotal === 0
+          ? "EMPTY_PAGE" : lastPage ? "NEXT_ABSENT" : "CONTINUE")) return false;
+    }
     if (exactRocheRequestBoundOmittedOffset) {
       if (page.sequence !== pageIndex || page.artifactLogicalKey !==
         `phenom-page-${String(pageIndex).padStart(4, "0")}` || rocheExpectedTotal === undefined ||
@@ -1566,8 +1644,17 @@ function strictPhenomRequestContracts(
         mainlandAlternativeOutputs.set(sourceJobId, { sourceJobId, ...alternative });
         continue;
       }
+      const presentInclude = facetScope?.includeField
+        ? strictNonblankText(record[facetScope.includeField])
+        : undefined;
+      const presentExclusion = facetScope
+        ? strictNonblankText(record[facetScope.exclusionField])
+        : undefined;
       if (record.country !== expectedCountry ||
-        (facetScope && !allowedExclusionDescriptors?.has(String(record[facetScope.exclusionField] ?? "")))) {
+        (merckPartitionReplay
+          ? (presentInclude !== undefined && presentInclude !== facetScope?.includeDescriptor) ||
+            (presentExclusion !== undefined && !allowedExclusionDescriptors?.has(presentExclusion))
+          : facetScope && !allowedExclusionDescriptors?.has(presentExclusion ?? ""))) {
         return false;
       }
     }
@@ -1584,9 +1671,22 @@ function strictPhenomRequestContracts(
       outputJobs.every((job) => job.companyId === plan.company.id && job.sourceId === plan.source.id &&
         typeof job.sourceJobId === "string" && rocheExpectedOutputIds.has(job.sourceJobId)) &&
       new Set(outputJobs.map((job) => job.sourceJobId)).size === outputJobs.length);
+  const merckReplayMatches = !merckPartitionReplay ||
+    (pageRawCount === merckPartitionReplay.expectedTotal &&
+      merckReturnedRawIds.size === merckPartitionReplay.expectedRawIds.size &&
+      [...merckPartitionReplay.expectedRawIds].every((id) => merckReturnedRawIds.has(id)) &&
+      evidence.fetchCounts.rawCount === merckPartitionReplay.expectedTotal &&
+      evidence.fetchCounts.parsedCount === merckPartitionReplay.expectedTotal &&
+      evidence.fetchCounts.validCount === merckPartitionReplay.expectedTotal &&
+      evidence.fetchCounts.parseDiscardCount === 0 && evidence.fetchCounts.validationDiscardCount === 0 &&
+      evidence.fetchLosses.length === 0 && outputJobs.length === merckPartitionReplay.expectedTotal &&
+      outputJobs.every((job) => job.companyId === plan.company.id && job.sourceId === plan.source.id &&
+        [...merckPartitionReplay.expectedRawIds].some((id) => job.sourceJobId === persistentOfficialJsonJobId(id))) &&
+      new Set(outputJobs.map((job) => job.sourceJobId)).size === outputJobs.length);
   return evidence.declaredCompleteness?.kind === "OFFICIAL_TOTAL_COUNT" &&
     evidence.declaredCompleteness.value === pageRawCount &&
     rocheReplayMatches &&
+    merckReplayMatches &&
     (!allowsMainlandAlternative || strictPhenomMainlandAlternativeOutputMatches(
       plan,
       mainlandAlternativeOutputs,
@@ -1672,6 +1772,43 @@ function strictExactRochePhenomPlan(
     pageConfig.country === "cn" && pageConfig.deviceType === "desktop" &&
     pageConfig.locale === "zh_cn" && pageConfig.refNum === "ROCHGLOBAL" &&
     pageConfig.pageName === "search-results" && pageConfig.pageId === "page11-ds";
+}
+
+function strictExactMerckHealthcarePhenomPlan(
+  plan: Extract<SourceCrawlPlan, { adapterId: "official-json" }>,
+  pageConfig: StrictGatePhenomConfig,
+  endpoint: string
+): boolean {
+  const config = plan.officialJsonFetch;
+  if (config?.kind !== "phenom" || !config.facetScope) return false;
+  const facet = config.facetScope;
+  const fields = plan.json.fields;
+  return "partitionProofPolicy" in facet && facet.partitionProofPolicy === "MERCK_HEALTHCARE_PARTITION_V1" &&
+    "includeFacet" in facet && facet.includeFacet?.field === "businessSector" &&
+    facet.includeFacet.descriptor === "Healthcare" &&
+    "exclusionFacet" in facet && facet.exclusionFacet?.field === "jobLevelId" &&
+    JSON.stringify(facet.exclusionFacet.descriptors) === JSON.stringify([
+      "A - Current Student",
+      "B - Recent University Graduate(<1 year of experience)"
+    ]) && facet.countryIncludeDescriptor === "China" &&
+    plan.company.category === "FOREIGN_PHARMA" && plan.source.companyId === plan.company.id &&
+    plan.source.kind === "SOCIAL" && plan.source.status === "VERIFIED_SCRAPABLE" &&
+    plan.source.atsKind === "OFFICIAL_JSON" &&
+    plan.source.officialEntryUrl === "https://careers.emdgroup.com/us/en/search-results?keywords=China" &&
+    plan.source.officialChainEvidenceUrl === "https://careers.merckgroup.com/cn/zh/search-results" &&
+    plan.json.jobsPath === "jobs" && plan.json.defaultCategory === "其他" &&
+    fields.sourceJobId === "sourceJobId" && fields.officialTitle === "title" &&
+    fields.officialUrl === "officialUrl" && fields.locationRaw === "locationRaw" && fields.cities === "cities" &&
+    config.detailBaseUrl === "https://careers.emdgroup.com/us/en/job" &&
+    config.countryFilter === undefined && config.allowedApplyOrigins === undefined &&
+    config.allowedEntryRedirect === undefined && config.derivedDetailIdField === undefined &&
+    config.mixedLocationScopePolicy === undefined && config.requestBoundOmittedOffsetPolicy === undefined &&
+    config.allowOmittedOffsetForSinglePage === true && config.pageSize === 50 && config.maxPages === 10 &&
+    endpoint === "https://careers.emdgroup.com/widgets" &&
+    pageConfig.widgetApiEndpoint === "https://careers.emdgroup.com/widgets" &&
+    pageConfig.country === "us" && pageConfig.deviceType === "desktop" &&
+    pageConfig.locale === "en_us" && pageConfig.refNum === "MQAEGZUS" &&
+    pageConfig.pageName === "search-results" && pageConfig.pageId === "page18-ds";
 }
 
 function strictPhenomPrimaryLocation(record: Record<string, unknown>): string | undefined {
@@ -1807,6 +1944,9 @@ type StrictGatePhenomFacetScope = {
   exclusionField: "category" | "jobLevelId" | "type";
   exclusionDescriptors: string[];
   requireGlobalDescriptorProof: boolean;
+  includeField?: "businessSector";
+  includeDescriptor?: string;
+  partitionProofPolicy?: "MERCK_HEALTHCARE_PARTITION_V1";
 };
 
 type StrictGatePhenomFacetEnvelope = {
@@ -1828,22 +1968,37 @@ function strictGatePhenomFacetScope(
   const descriptors = modern ? value.exclusionFacet.descriptors : value.categoryExcludeDescriptors;
   if (!["category", "jobLevelId", "type"].includes(field) || !Array.isArray(descriptors) ||
     descriptors.length === 0 || !strictUniqueNonblankStrings(descriptors)) return undefined;
+  const partitioned = "partitionProofPolicy" in value &&
+    value.partitionProofPolicy === "MERCK_HEALTHCARE_PARTITION_V1";
+  const includeFacet = "includeFacet" in value ? value.includeFacet : undefined;
+  if (partitioned && (includeFacet?.field !== "businessSector" ||
+    typeof includeFacet.descriptor !== "string" || !includeFacet.descriptor.trim() ||
+    includeFacet.descriptor.trim() !== includeFacet.descriptor)) return undefined;
+  if (!partitioned && includeFacet !== undefined) return undefined;
   return {
     countryIncludeDescriptor: value.countryIncludeDescriptor,
     exclusionField: field,
     exclusionDescriptors: [...descriptors],
-    requireGlobalDescriptorProof: modern
+    requireGlobalDescriptorProof: modern && !partitioned,
+    ...(partitioned ? {
+      includeField: "businessSector" as const,
+      includeDescriptor: includeFacet!.descriptor,
+      partitionProofPolicy: "MERCK_HEALTHCARE_PARTITION_V1" as const
+    } : {})
   };
 }
 
 function strictGatePhenomFacetEnvelope(
-  body: string | Uint8Array
+  body: string | Uint8Array,
+  expectedUiSelections?: Record<string, string[]>
 ): StrictGatePhenomFacetEnvelope | undefined {
   const root = strictUniqueJsonRecord(body);
   const refineSearch = strictRecord(root?.refineSearch);
   const data = strictRecord(refineSearch?.data);
   if (!refineSearch || !data || !strictNonnegativeInteger(refineSearch.totalHits) ||
     !Array.isArray(data.jobs) || !Array.isArray(data.aggregations)) return undefined;
+  if (expectedUiSelections !== undefined &&
+    !strictGateExactPhenomUiSelections(data, expectedUiSelections)) return undefined;
   const hasOwnFrom = Object.prototype.hasOwnProperty.call(refineSearch, "from");
   if (hasOwnFrom && !strictNonnegativeInteger(refineSearch.from)) return undefined;
   return {
@@ -1869,6 +2024,200 @@ function strictGatePhenomAggregation(
     parsed.set(descriptor, count);
   }
   return parsed;
+}
+
+function strictGateExactPhenomUiSelections(
+  data: Record<string, unknown>,
+  selectedFields: Record<string, string[]>
+): boolean {
+  const expectedKeys = Object.keys(selectedFields);
+  const hasUiSelections = Object.prototype.hasOwnProperty.call(data, "ui_selections");
+  if (expectedKeys.length === 0) {
+    if (!hasUiSelections) return true;
+    const empty = strictRecord(data.ui_selections);
+    return Boolean(empty) && Object.keys(empty!).length === 0;
+  }
+  const uiSelections = hasUiSelections ? strictRecord(data.ui_selections) : undefined;
+  if (!uiSelections) return false;
+  const actualKeys = Object.keys(uiSelections);
+  if (actualKeys.length !== expectedKeys.length || actualKeys.some((key) =>
+    !Object.prototype.hasOwnProperty.call(selectedFields, key))) return false;
+  for (const key of expectedKeys) {
+    const expected = selectedFields[key];
+    const actual = uiSelections[key];
+    if (!Array.isArray(expected) || !Array.isArray(actual) ||
+      expected.some((value) => typeof value !== "string") ||
+      actual.some((value) => typeof value !== "string") ||
+      new Set(expected).size !== expected.length || new Set(actual).size !== actual.length ||
+      actual.length !== expected.length || expected.some((value) => !actual.includes(value))) return false;
+  }
+  return true;
+}
+
+type StrictMerckPartitionReplay = {
+  selectedFields: Record<string, string[]>;
+  expectedRawIds: Set<string>;
+  allowedJobLevels: Set<string>;
+  expectedTotal: number;
+};
+
+function strictReplayMerckHealthcarePartitions(input: {
+  artifacts: Map<string, PersistentSourceFetchEvidence["artifacts"][number]>;
+  facetArtifacts: PersistentSourceFetchEvidence["artifacts"];
+  endpoint: string;
+  pageConfig: StrictGatePhenomConfig;
+  pageSize: number;
+  maxPages: number;
+  allowOmittedOffsetForSinglePage: boolean;
+  facetScope: StrictGatePhenomFacetScope;
+}): StrictMerckPartitionReplay | undefined {
+  const { artifacts, endpoint, pageConfig, pageSize, maxPages, facetScope,
+    allowOmittedOffsetForSinglePage } = input;
+  if (facetScope.partitionProofPolicy !== "MERCK_HEALTHCARE_PARTITION_V1" ||
+    facetScope.includeField !== "businessSector" || !facetScope.includeDescriptor ||
+    facetScope.exclusionField !== "jobLevelId") return undefined;
+  const used = new Set<string>();
+  const global = artifacts.get("phenom-facet-global");
+  const country = artifacts.get("phenom-facet-country");
+  if (!global || !country || global.bodyRepresentation === "REDACTED" ||
+    country.bodyRepresentation === "REDACTED" ||
+    !strictRequestContractMatches(global.extractorLocator, {
+      family: "phenom", role: "facet-preflight-global", method: "POST", url: endpoint,
+      body: strictGatePhenomRequestBody(pageConfig, pageSize, 0, {}, true),
+      coordinate: { sequence: null, requestedOffset: 0, requestedPageSize: pageSize }
+    }) || !strictRequestContractMatches(country.extractorLocator, {
+      family: "phenom", role: "facet-preflight-country", method: "POST", url: endpoint,
+      body: strictGatePhenomRequestBody(pageConfig, pageSize, 0, {
+        country: [facetScope.countryIncludeDescriptor]
+      }, true),
+      coordinate: { sequence: null, requestedOffset: 0, requestedPageSize: pageSize }
+    })) return undefined;
+  used.add(global.logicalKey);
+  used.add(country.logicalKey);
+  const globalEnvelope = strictGatePhenomFacetEnvelope(global.body, {});
+  const countryEnvelope = strictGatePhenomFacetEnvelope(country.body, {
+    country: [facetScope.countryIncludeDescriptor]
+  });
+  if (!globalEnvelope || !countryEnvelope) return undefined;
+  const countries = strictGatePhenomAggregation(globalEnvelope.aggregations, "country");
+  const countryTotal = countries?.get(facetScope.countryIncludeDescriptor);
+  if (countryTotal === undefined || countryEnvelope.totalHits !== countryTotal ||
+    countryEnvelope.jobs.some((job) => strictRecord(job)?.country !== facetScope.countryIncludeDescriptor)) {
+    return undefined;
+  }
+  const sectors = strictGatePhenomAggregation(countryEnvelope.aggregations, facetScope.includeField);
+  if (!sectors || !sectors.has(facetScope.includeDescriptor) ||
+    [...sectors.values()].reduce((sum, count) => sum + count, 0) !== countryTotal) return undefined;
+
+  const replayPartition = (
+    family: "business-sector" | "job-level",
+    partitionIndex: number,
+    selectedFields: Record<string, string[]>,
+    expectedTotal: number,
+    optionalExactFields: Array<{ field: string; descriptor: string }>
+  ): { ids: Set<string>; firstEnvelope: StrictGatePhenomFacetEnvelope } | undefined => {
+    const ids = new Set<string>();
+    let firstEnvelope: StrictGatePhenomFacetEnvelope | undefined;
+    const expectedPages = Math.max(1, Math.ceil(expectedTotal / pageSize));
+    if (expectedPages > maxPages) return undefined;
+    for (let pageIndex = 0; pageIndex < expectedPages; pageIndex += 1) {
+      const key = `phenom-facet-proof-${family}-${String(partitionIndex).padStart(4, "0")}-${String(pageIndex).padStart(4, "0")}`;
+      const artifact = artifacts.get(key);
+      const from = pageIndex * pageSize;
+      if (!artifact || artifact.bodyRepresentation === "REDACTED" ||
+        !strictRequestContractMatches(artifact.extractorLocator, {
+          family: "phenom", role: `facet-partition-${family}`, method: "POST", url: endpoint,
+          body: strictGatePhenomRequestBody(pageConfig, pageSize, from, selectedFields, true),
+          coordinate: {
+            sequence: pageIndex,
+            requestedOffset: from,
+            requestedPage: null,
+            requestedPageSize: pageSize
+          }
+        })) return undefined;
+      used.add(key);
+      const envelope = strictGatePhenomFacetEnvelope(artifact.body, selectedFields);
+      const safelyOmittedSinglePageOffset = allowOmittedOffsetForSinglePage && !envelope?.hasOwnFrom &&
+        pageIndex === 0 && from === 0 && expectedTotal <= pageSize;
+      if (!envelope || envelope.totalHits !== expectedTotal ||
+        (!safelyOmittedSinglePageOffset && (!envelope.hasOwnFrom || envelope.from !== from)) ||
+        envelope.jobs.length !== Math.min(pageSize, expectedTotal - from)) return undefined;
+      firstEnvelope ??= envelope;
+      for (const raw of envelope.jobs) {
+        const record = strictRecord(raw);
+        const id = strictNonblankText(record?.jobSeqNo) ?? strictNonblankText(record?.reqId) ??
+          strictNonblankText(record?.jobId);
+        if (!record || record.country !== facetScope.countryIncludeDescriptor || !id ||
+          !safeOfficialJsonId(id) || ids.has(id)) return undefined;
+        for (const exact of optionalExactFields) {
+          const present = strictNonblankText(record[exact.field]);
+          if (present !== undefined && present !== exact.descriptor) return undefined;
+        }
+        ids.add(id);
+      }
+    }
+    return firstEnvelope && ids.size === expectedTotal ? { ids, firstEnvelope } : undefined;
+  };
+
+  const allSectorIds = new Set<string>();
+  let healthcare: { ids: Set<string>; firstEnvelope: StrictGatePhenomFacetEnvelope } | undefined;
+  const sortedSectors = [...sectors.keys()].sort();
+  for (let index = 0; index < sortedSectors.length; index += 1) {
+    const descriptor = sortedSectors[index]!;
+    const replayed = replayPartition("business-sector", index, {
+      country: [facetScope.countryIncludeDescriptor],
+      [facetScope.includeField]: [descriptor]
+    }, sectors.get(descriptor)!, [{ field: facetScope.includeField, descriptor }]);
+    if (!replayed) return undefined;
+    for (const id of replayed.ids) {
+      if (allSectorIds.has(id)) return undefined;
+      allSectorIds.add(id);
+    }
+    if (descriptor === facetScope.includeDescriptor) healthcare = replayed;
+  }
+  if (!healthcare || allSectorIds.size !== countryTotal) return undefined;
+  const jobLevels = strictGatePhenomAggregation(healthcare.firstEnvelope.aggregations, facetScope.exclusionField);
+  if (!jobLevels || [...jobLevels.values()].reduce((sum, count) => sum + count, 0) !== healthcare.ids.size) {
+    return undefined;
+  }
+  const allHealthcareIds = new Set<string>();
+  const expectedRawIds = new Set<string>();
+  const allowedJobLevels = new Set<string>();
+  const sortedJobLevels = [...jobLevels.keys()].sort();
+  for (let index = 0; index < sortedJobLevels.length; index += 1) {
+    const descriptor = sortedJobLevels[index]!;
+    const replayed = replayPartition("job-level", index, {
+      country: [facetScope.countryIncludeDescriptor],
+      [facetScope.includeField]: [facetScope.includeDescriptor],
+      [facetScope.exclusionField]: [descriptor]
+    }, jobLevels.get(descriptor)!, [
+      { field: facetScope.includeField, descriptor: facetScope.includeDescriptor },
+      { field: facetScope.exclusionField, descriptor }
+    ]);
+    if (!replayed) return undefined;
+    const allowed = !facetScope.exclusionDescriptors.includes(descriptor);
+    if (allowed) allowedJobLevels.add(descriptor);
+    for (const id of replayed.ids) {
+      if (allHealthcareIds.has(id)) return undefined;
+      allHealthcareIds.add(id);
+      if (allowed) expectedRawIds.add(id);
+    }
+  }
+  if (allowedJobLevels.size === 0 || allHealthcareIds.size !== healthcare.ids.size ||
+    [...healthcare.ids].some((id) => !allHealthcareIds.has(id)) ||
+    input.facetArtifacts.length !== used.size || input.facetArtifacts.some((artifact) => !used.has(artifact.logicalKey))) {
+    return undefined;
+  }
+  return {
+    selectedFields: {
+      country: [facetScope.countryIncludeDescriptor],
+      [facetScope.includeField]: [facetScope.includeDescriptor],
+      [facetScope.exclusionField]: [...allowedJobLevels].sort()
+    },
+    expectedRawIds,
+    allowedJobLevels,
+    expectedTotal: expectedRawIds.size
+  };
 }
 
 function strictGatePhenomPageConfig(body: string | Uint8Array): StrictGatePhenomConfig | undefined {
@@ -2058,12 +2407,16 @@ function strictGatePhenomRequestBody(
   config: StrictGatePhenomConfig,
   size: number,
   from: number,
-  selectedFields: Record<string, string[]>
+  selectedFields: Record<string, string[]>,
+  includeBusinessSector = false
 ): Record<string, unknown> {
   return {
     lang: config.locale, locale: config.locale, deviceType: config.deviceType, country: config.country,
     pageName: config.pageName, size, from, jobs: true, counts: true,
-    all_fields: ["category", "country", "state", "city", "type", "jobLevelId"],
+    all_fields: [
+      "category", "country", "state", "city", "type", "jobLevelId",
+      ...(includeBusinessSector ? ["businessSector"] : [])
+    ],
     clearAll: false, jdsource: "facets", isSliderEnable: false, pageId: config.pageId,
     siteType: "external", keywords: "", global: true, selected_fields: selectedFields,
     sort: { order: "desc", field: "postedDate" }, locationData: {}, refNum: config.refNum, ddoKey: "refineSearch"
@@ -2077,6 +2430,9 @@ const STRICT_GATE_BEISEN_DISPLAY_FIELDS = [
 function strictBeisenRequestContracts(plan: Extract<SourceCrawlPlan, { adapterId: "official-json" }>, evidence: PersistentSourceFetchEvidence): boolean {
   const config = plan.officialJsonFetch;
   if (config?.kind !== "beisen-zhiye-2022") return false;
+  const exactShanghaiSiblingPolicy = strictExactShanghaiPharmaBeisenPlan(plan);
+  if (config.mixedLocationPolicy === "INHERIT_MAINLAND_PARENT_FOR_SIBLING_LOCATIONS" &&
+    !exactShanghaiSiblingPolicy) return false;
   const pageSize = Math.max(1, Math.min(100, config.pageSize ?? 100));
   const endpoint = new URL("/api/Jobad/GetJobAdPageList", plan.source.officialEntryUrl).toString();
   const artifacts = new Map(evidence.artifacts.map((artifact) => [artifact.logicalKey, artifact]));
@@ -2085,6 +2441,7 @@ function strictBeisenRequestContracts(plan: Extract<SourceCrawlPlan, { adapterId
       requestedPage: page.sequence, requestedPageSize: pageSize };
     if (!Number.isSafeInteger(page.sequence) || page.sequence < 0 || !strictPageCoordinatesEqual(page, expected)) return false;
     const artifact = artifacts.get(page.artifactLogicalKey);
+    if (exactShanghaiSiblingPolicy && artifact?.bodyRepresentation !== "EXACT") return false;
     if (!artifact || !strictRequestContractMatches(artifact.extractorLocator, {
       family: "beisen", role: "page", method: "POST", url: endpoint,
       body: { PageIndex: page.sequence, PageSize: pageSize, Category: [config.category ?? "1"], KeyWords: "",
@@ -2093,6 +2450,27 @@ function strictBeisenRequestContracts(plan: Extract<SourceCrawlPlan, { adapterId
     })) return false;
   }
   return true;
+}
+
+function strictExactShanghaiPharmaBeisenPlan(
+  plan: Extract<SourceCrawlPlan, { adapterId: "official-json" }>
+): boolean {
+  const config = plan.officialJsonFetch;
+  if (config?.kind !== "beisen-zhiye-2022") return false;
+  const fields = plan.json.fields;
+  return plan.company.category === "DOMESTIC_PHARMA" && plan.source.companyId === plan.company.id &&
+    plan.source.kind === "SOCIAL" &&
+    plan.source.status === "VERIFIED_SCRAPABLE" && plan.source.atsKind === "BEISEN_ZHIYE" &&
+    plan.source.officialEntryUrl === "https://sph.zhiye.com/social/jobs" &&
+    plan.source.officialChainEvidenceUrl === "https://www.sphchina.com/html/footer.html" &&
+    plan.json.jobsPath === "jobs" && plan.json.defaultCategory === "其他" &&
+    fields.sourceJobId === "sourceJobId" && fields.officialTitle === "title" &&
+    fields.officialUrl === "officialUrl" && fields.locationRaw === "locationRaw" && fields.cities === "cities" &&
+    config.category === "1" && config.pageSize === 100 && config.maxPages === undefined &&
+    config.detailPath === "social/detail" && config.displayFields === undefined &&
+    config.defaultLocationRaw === undefined && config.geographyScope === "DOMESTIC_OFFICIAL_TENANT" &&
+    config.mixedLocationPolicy === "INHERIT_MAINLAND_PARENT_FOR_SIBLING_LOCATIONS" &&
+    config.scopeExclusionProof === undefined;
 }
 
 function strictHcmRequestContracts(plan: Extract<SourceCrawlPlan, { adapterId: "official-json" }>, evidence: PersistentSourceFetchEvidence): boolean {
@@ -2599,6 +2977,24 @@ function strictPlanUrlRules(plan: SourceCrawlPlan): StrictUrlRule[] | undefined 
       return rules;
     }
 
+    if (plan.profileBoundSource) {
+      const policy = getStrictProfileBoundSourcePolicy(plan);
+      if (!policy) return undefined;
+      for (const rule of policy.urlRules) {
+        const options = {
+          ...(rule.allowsPagination ? { allowsPagination: true as const } : {}),
+          ...(rule.allowsDeclaration ? { allowsDeclaration: true as const } : {}),
+          ...(rule.allowsPositiveTotalDeclaration
+            ? { allowsPositiveTotalDeclaration: true as const }
+            : {})
+        };
+        rules.push(rule.match === "EXACT"
+          ? exactEndpointRule(rule.id, new URL(rule.url), options)
+          : { ...prefixEndpointRule(rule.id, new URL(rule.url)), ...options });
+      }
+      return rules;
+    }
+
     const strategy = plan.officialJsonFetch;
     if (strategy?.kind === "novo-nordisk") {
       const endpoints = strictNovoConfiguredEndpoints(strategy.endpointUrl);
@@ -2975,7 +3371,8 @@ function strictPositiveOfficialTotalReplayPolicy(
     plan.workday,
     plan.moka,
     plan.hotjob,
-    plan.hotjobLegacy
+    plan.hotjobLegacy,
+    plan.profileBoundSource
   ].filter((strategy) => strategy !== undefined);
   if (configuredStrategies.length !== 1) return undefined;
 
@@ -3011,6 +3408,13 @@ function strictPositiveOfficialTotalReplayPolicy(
     try { strictHotjobLegacyPageUrl(plan.hotjobLegacy.listUrl, plan.hotjobLegacy.paginationMode, 1); }
     catch { return undefined; }
     return { allowPositiveOfficialTotalCountAfterAdapterReconciliation: true };
+  }
+
+  if (plan.profileBoundSource) {
+    const policy = getStrictProfileBoundSourcePolicy(plan);
+    return policy?.allowPositiveOfficialTotalCountAfterAdapterReconciliation
+      ? { allowPositiveOfficialTotalCountAfterAdapterReconciliation: true }
+      : undefined;
   }
 
   const strategy = plan.officialJsonFetch;

@@ -14,13 +14,18 @@ export const profile_merck_china = {
               detailBaseUrl: "https://careers.emdgroup.com/us/en/job",
               facetScope: {
                   countryIncludeDescriptor: "China",
+                  includeFacet: {
+                      field: "businessSector",
+                      descriptor: "Healthcare"
+                  },
                   exclusionFacet: {
                       field: "jobLevelId",
                       descriptors: [
                           "A - Current Student",
                           "B - Recent University Graduate(<1 year of experience)"
                       ]
-                  }
+                  },
+                  partitionProofPolicy: "MERCK_HEALTHCARE_PARTITION_V1"
               },
               allowOmittedOffsetForSinglePage: true,
               pageSize: 50,

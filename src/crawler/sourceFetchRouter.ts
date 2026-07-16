@@ -7,6 +7,7 @@ export interface SourceFetchRouterDeps {
   workday?: SourceFetchFunction;
   hotjob?: SourceFetchFunction;
   hotjobLegacy?: SourceFetchFunction;
+  profileBoundSource?: SourceFetchFunction;
   fallback: SourceFetchFunction;
 }
 
@@ -17,6 +18,7 @@ export function createSourceFetchRouter({
   workday,
   hotjob,
   hotjobLegacy,
+  profileBoundSource,
   fallback
 }: SourceFetchRouterDeps): SourceFetchFunction {
   return (plan) => {
@@ -30,6 +32,10 @@ export function createSourceFetchRouter({
 
     if ("hotjobLegacy" in plan && plan.hotjobLegacy && hotjobLegacy) {
       return hotjobLegacy(plan);
+    }
+
+    if ("profileBoundSource" in plan && plan.profileBoundSource && profileBoundSource) {
+      return profileBoundSource(plan);
     }
 
     if (plan.source.atsKind === "HOTJOB_WECRUIT" && hotjob) {

@@ -20,10 +20,10 @@ import {
 import { AUTHORIZED_PHASE1_EXCLUSION_COMPANY_IDS } from "../../src/data/phase1ScopePolicy";
 
 const BASELINE = {
-  rosterSha256: "9beffa39c6ebb748097621039b8ad4a0047da0e83c7c87d51e36b5c0809d44c0",
-  surfaceOracleSha256: "0840c77e8930b0d158c348745bb819aaebd3e70f852ad7b2307df4e1af7ccaec",
-  stagedPlanSha256: "4a0e326b7ef73ecf3dddde40e0a9077f8e036bc8bae07921a31dbc12047ea1d7",
-  stagedConfigSetSha256: "d6365a333e6e4bfef3cfc38ca92bb6e40365cedf4715a44b6f93a66f272e8473"
+  rosterSha256: "f59773dae31ab14e1e06c77cc07110ee2657089ae223abdae42112f2bbd2826a",
+  surfaceOracleSha256: "dee887449cbde77fc39c13863ea532a8fd69dc6607cc932e6cd12a3098ccfe71",
+  stagedPlanSha256: "787320251c04f548769757722cec83a2456db1172be18a5b6a9d06de73c86ed2",
+  stagedConfigSetSha256: "bfffa7709b4de83fdd4cba3f4355ba2e28a1a18d9672eba72ddb8a7b497eb3a7"
 } as const;
 
 const SHARED_CORE_SOURCE_ALLOWLIST: Readonly<Record<string, readonly string[]>> = {
@@ -144,6 +144,27 @@ describe("company recruitment profiles", () => {
         .toEqual([...SHARED_CORE_SOURCE_ALLOWLIST[fileName]!].sort());
       expect(uniqueMatches(text, /company-(?!page\b)[a-z0-9-]+/gu))
         .toEqual([...SHARED_CORE_COMPANY_ALLOWLIST[fileName]!].sort());
+    }
+  });
+
+  it("keeps dedicated source behavior profile-bound instead of scattering company adapters through shared cores", () => {
+    const expectedProfileKinds = new Map([
+      ["source-livzon-social", "livzon-cecc"],
+      ["source-sinopharm-social", "sinopharm-iguopin"],
+      ["source-xinhua-pharma-social", "xinhua-official-announcements"]
+    ]);
+    for (const [sourceId, expectedKind] of expectedProfileKinds) {
+      const config = companyRecruitmentExecutionConfigsBySourceId[sourceId] as {
+        profileBoundSource?: { kind?: string };
+      } | undefined;
+      expect(config?.profileBoundSource?.kind).toBe(expectedKind);
+    }
+
+    const crawlerRoot = join(process.cwd(), "src", "crawler");
+    for (const fileName of ["sourcePlan.ts", "sourceFetchRouter.ts", "runSourceCrawl.ts"]) {
+      const text = readFileSync(join(crawlerRoot, fileName), "utf8");
+      expect(text).toContain("profileBoundSource");
+      expect(text).not.toMatch(/\b(?:livzonCecc|sinopharmIguopin|xinhuaOfficialAnnouncement)\b/u);
     }
   });
 });

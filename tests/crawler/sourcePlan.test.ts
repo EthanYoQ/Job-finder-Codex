@@ -60,6 +60,8 @@ const plannedMainListSourceIds = new Set([
   "source-sandoz-china-social",
   "source-sanofi-china-social",
   "source-servier-china-social",
+  "source-shanghai-pharma-social",
+  "source-sinopharm-social",
   "source-takeda-china-social",
   "source-teva-china-social",
   "source-tianjin-pharma-social",
@@ -67,6 +69,7 @@ const plannedMainListSourceIds = new Set([
   "source-ucb-china-social",
   "source-united-lab-social",
   "source-viatris-social",
+  "source-xinhua-pharma-social",
   "source-xiuzheng-social",
   "source-yangzijiang-social"
 ]);
@@ -95,6 +98,23 @@ describe("source crawl planning", () => {
       expect(() => validateExecutablePlanChannelBinding(plan)).not.toThrow();
     }
     for (const plan of discovery) expect(() => validateExecutablePlanChannelBinding(plan)).toThrow();
+  });
+
+  it("rejects a profile-bound source combined with another fetch strategy", () => {
+    const plans = buildStagedSourceCrawlPlans(candidateCompanies);
+    const profilePlan = getPlanBySourceId(plans, "source-sinopharm-social");
+    const genericPlan = getPlanBySourceId(plans, "source-merck-china-social");
+    if (profilePlan?.adapterId !== "official-json" || !profilePlan.profileBoundSource ||
+      genericPlan?.adapterId !== "official-json" || !genericPlan.officialJsonFetch) {
+      throw new Error("Expected canonical profile-bound and generic plans");
+    }
+    const conflicted = {
+      ...profilePlan,
+      officialJsonFetch: genericPlan.officialJsonFetch
+    } as typeof profilePlan;
+
+    expect(() => validateExecutablePlanChannelBinding(conflicted))
+      .toThrow("Profile-bound source strategy must be exclusive");
   });
 
   it("plans four static official sources while leaving the Otsuka subsidiary source pending", () => {

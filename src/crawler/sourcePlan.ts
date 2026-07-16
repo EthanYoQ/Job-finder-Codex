@@ -18,7 +18,11 @@ import type { HotjobLegacyFetchConfig } from "./hotjobLegacySourceFetch";
 import type { OfficialJsonFetchConfig } from "./officialJsonSourceFetch";
 import type { WorkdayFetchConfig } from "./workdaySourceFetch";
 import { companyRecruitmentExecutionConfigsBySourceId } from "./companyRecruitmentProfiles";
-import type { CompanyRecruitmentExecutionConfig, MokaFetchConfig } from "./companyRecruitmentProfiles/types";
+import type {
+  CompanyRecruitmentExecutionConfig,
+  MokaFetchConfig,
+  ProfileBoundSourceConfig
+} from "./companyRecruitmentProfiles/types";
 export type { MokaFetchConfig } from "./companyRecruitmentProfiles/types";
 
 export type CrawlAdapterId = "official-json" | "html-table";
@@ -50,6 +54,7 @@ export type SourceCrawlPlan = (
       workday?: WorkdayFetchConfig;
       hotjob?: HotjobWecruitFetchConfig;
       hotjobLegacy?: HotjobLegacyFetchConfig;
+      profileBoundSource?: ProfileBoundSourceConfig;
       moka?: MokaFetchConfig;
     }
   | {
@@ -197,6 +202,7 @@ function buildPlans(
               ...(config.workday ? { workday: config.workday } : {}),
               ...(config.hotjob ? { hotjob: config.hotjob } : {}),
               ...(config.hotjobLegacy ? { hotjobLegacy: config.hotjobLegacy } : {}),
+              ...(config.profileBoundSource ? { profileBoundSource: config.profileBoundSource } : {}),
               ...(config.moka ? { moka: config.moka } : {})
             }
           : {
@@ -239,6 +245,9 @@ export function expectedChannelSetHash(channels: readonly ExecutableExpectedChan
 }
 
 function configuredChannelIds(config: CompanyRecruitmentExecutionConfig, sourceId: string): string[] {
+  if (config.adapterId === "official-json" && config.profileBoundSource?.expectedChannelIds) {
+    return [...config.profileBoundSource.expectedChannelIds];
+  }
   if (
     config.adapterId === "official-json" &&
     config.officialJsonFetch?.kind === "redsea-zp-channel"
@@ -308,6 +317,15 @@ export function validateExecutablePlanChannelBinding(plan: SourceCrawlPlan): voi
   if (expectedChannelSetHash(canonical) !== plan.expectedChannelSetHash) {
     throw new Error("Executable source plan channel hash mismatch");
   }
+  if (plan.adapterId === "official-json" && plan.profileBoundSource && [
+    plan.officialJsonFetch,
+    plan.workday,
+    plan.hotjob,
+    plan.hotjobLegacy,
+    plan.moka
+  ].some((strategy) => strategy !== undefined)) {
+    throw new Error("Profile-bound source strategy must be exclusive");
+  }
   const staged = plan.executionAuthority === "STAGED";
   if (staged && !hasCanonicalStagedPlanAuthority(plan)) {
     throw new Error("Staged source plan does not match canonical registry authority");
@@ -332,6 +350,7 @@ export function validateExecutablePlanChannelBinding(plan: SourceCrawlPlan): voi
         ...(plan.workday ? { workday: plan.workday } : {}),
         ...(plan.hotjob ? { hotjob: plan.hotjob } : {}),
         ...(plan.hotjobLegacy ? { hotjobLegacy: plan.hotjobLegacy } : {}),
+        ...(plan.profileBoundSource ? { profileBoundSource: plan.profileBoundSource } : {}),
         ...(plan.moka ? { moka: plan.moka } : {})
       }
     : { adapterId: "html-table", table: plan.table };
@@ -467,6 +486,7 @@ function hasCanonicalStagedExecutionConfig(plan: SourceCrawlPlan): boolean {
         ...(plan.workday ? { workday: plan.workday } : {}),
         ...(plan.hotjob ? { hotjob: plan.hotjob } : {}),
         ...(plan.hotjobLegacy ? { hotjobLegacy: plan.hotjobLegacy } : {}),
+        ...(plan.profileBoundSource ? { profileBoundSource: plan.profileBoundSource } : {}),
         ...(plan.moka ? { moka: plan.moka } : {})
       }
     : { adapterId: "html-table", table: plan.table };

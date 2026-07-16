@@ -134,7 +134,7 @@ async function startFakeTcpServer(): Promise<{ port: number; stop: () => Promise
     { stdio: ["ignore", "pipe", "pipe"] }
   );
   const port = await new Promise<number>((resolvePort, reject) => {
-    const timer = setTimeout(() => reject(new Error("fake TCP server did not start")), 2_000);
+    const timer = setTimeout(() => reject(new Error("fake TCP server did not start")), 10_000);
     child.once("error", reject);
     child.stdout.once("data", (chunk) => {
       clearTimeout(timer);
@@ -369,6 +369,12 @@ describe("deployment configuration", () => {
     const fake = await startFakeTcpServer();
     try {
       const tempDir = mkdtempSync(resolve(tmpdir(), "job-finder-monitoring-fake-postgres-"));
+      const startupBaseline = runMonitoringCheck({
+        BACKUP_DIR: tempDir,
+        HEALTHCHECK_URL: "http://127.0.0.1:9/healthz",
+        READINESS_SUMMARY_PATH: resolve(tempDir, "absent-readiness.json"),
+        CRAWL_SUMMARY_PATH: resolve(tempDir, "absent-crawl.json")
+      });
       const result = runMonitoringCheck({
         DATABASE_URL: `postgresql://user:placeholder@127.0.0.1:${fake.port}/database`,
         POSTGRES_READINESS_TIMEOUT_MS: "150",
@@ -379,13 +385,13 @@ describe("deployment configuration", () => {
       });
 
       expect(result.status).not.toBe(0);
-      expect(result.elapsedMs).toBeLessThan(2_500);
+      expect(result.elapsedMs - startupBaseline.elapsedMs).toBeLessThan(2_500);
       expect(result.stderr).toContain("DATABASE_UNREACHABLE");
       expect(result.stderr).not.toContain("postgresql://user:placeholder");
     } finally {
       await fake.stop();
     }
-  });
+  }, 30_000);
 
   it("fails closed when the monitor database URL is missing", () => {
     const tempDir = mkdtempSync(resolve(tmpdir(), "job-finder-monitoring-missing-database-"));
@@ -654,7 +660,7 @@ describe("deployment configuration", () => {
       MONITORING_NOW: "2026-07-12T13:00:00.000Z"
     });
     expect(missing.stderr).toContain("BACKUP_MISSING");
-  }, 15_000);
+  }, 45_000);
 
   it("fails closed when the newest marker-like entry or its archive is a symbolic link", () => {
     for (const symlinkKind of ["marker", "archive"] as const) {

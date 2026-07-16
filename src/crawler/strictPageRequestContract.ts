@@ -1,7 +1,8 @@
 import { createHash } from "node:crypto";
 
 export interface RequestContractV2Input {
-  family: "workday" | "moka" | "phenom" | "beisen" | "hcm" | "html" | "xiuzheng" | "redsea";
+  family: "workday" | "moka" | "phenom" | "beisen" | "hcm" | "html" | "xiuzheng" | "redsea" |
+    "livzon-cecc" | "sinopharm-iguopin" | "xinhua-official-announcements";
   role: string;
   method: "GET" | "POST";
   url: string;
@@ -21,6 +22,13 @@ export function requestContractV2Locator(baseLocator: string, input: RequestCont
   }));
   const hash = createHash("sha256").update(serialized, "utf8").digest("hex");
   return `${baseLocator}|request-contract-v2|sha256:${hash}`;
+}
+
+export function requestContractV2Matches(locator: string, input: RequestContractV2Input): boolean {
+  const marker = "|request-contract-v2|sha256:";
+  const markerIndex = locator.lastIndexOf(marker);
+  if (markerIndex <= 0 || locator.indexOf(marker) !== markerIndex) return false;
+  return requestContractV2Locator(locator.slice(0, markerIndex), input) === locator;
 }
 
 function canonicalRequestValue(value: unknown): unknown {

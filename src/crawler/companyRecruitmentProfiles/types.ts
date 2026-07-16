@@ -2,8 +2,11 @@ import type { ATSKind } from "../../domain/company";
 import type { HtmlTableConfig, OfficialJsonConfig } from "../adapters/types";
 import type { HotjobLegacyFetchConfig } from "../hotjobLegacySourceFetch";
 import type { HotjobWecruitFetchConfig } from "../hotjobWecruitSourceFetch";
+import type { LivzonCeccFetchConfig } from "../livzonCeccSourceFetch";
 import type { OfficialJsonFetchConfig } from "../officialJsonSourceFetch";
+import type { SinopharmIguopinFetchConfig } from "../sinopharmIguopinSourceFetch";
 import type { WorkdayFetchConfig } from "../workdaySourceFetch";
+import type { XinhuaOfficialAnnouncementFetchConfig } from "../xinhuaOfficialAnnouncementSourceFetch";
 
 export interface MokaFetchConfig {
   expectedOrgId: string;
@@ -18,6 +21,23 @@ export interface MokaFetchConfig {
   allowDetailSiteIdOmission?: boolean;
 }
 
+export type ProfileBoundSourceConfig =
+  | {
+      kind: "livzon-cecc";
+      config: LivzonCeccFetchConfig;
+      expectedChannelIds?: readonly string[];
+    }
+  | {
+      kind: "sinopharm-iguopin";
+      config: SinopharmIguopinFetchConfig;
+      expectedChannelIds?: readonly string[];
+    }
+  | {
+      kind: "xinhua-official-announcements";
+      config: XinhuaOfficialAnnouncementFetchConfig;
+      expectedChannelIds: readonly ["desktop", "mobile"];
+    };
+
 export type CompanyRecruitmentExecutionConfig = {
   formalEligibility?: "QUARANTINED_PENDING_TRUSTED_ORACLE";
 } & (
@@ -28,6 +48,7 @@ export type CompanyRecruitmentExecutionConfig = {
       workday?: WorkdayFetchConfig;
       hotjob?: HotjobWecruitFetchConfig;
       hotjobLegacy?: HotjobLegacyFetchConfig;
+      profileBoundSource?: ProfileBoundSourceConfig;
       moka?: MokaFetchConfig;
     }
   | {

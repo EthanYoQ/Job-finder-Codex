@@ -467,6 +467,7 @@ async function createProductionRuntime(force = false): Promise<StagedCrawlRuntim
     { createWorkdaySourceFetch },
     { createHotjobWecruitSourceFetch },
     { createHotjobLegacySourceFetch },
+    { createProfileBoundSourceFetch },
     { createOfficialJsonSourceFetch },
     { createUnsupportedSourceFetch },
     { createSourceFetchRouter },
@@ -481,6 +482,7 @@ async function createProductionRuntime(force = false): Promise<StagedCrawlRuntim
     import("./workdaySourceFetch"),
     import("./hotjobWecruitSourceFetch"),
     import("./hotjobLegacySourceFetch"),
+    import("./profileBoundSourceFetch"),
     import("./officialJsonSourceFetch"),
     import("./unsupportedSourceFetch"),
     import("./sourceFetchRouter"),
@@ -493,6 +495,7 @@ async function createProductionRuntime(force = false): Promise<StagedCrawlRuntim
     workday: createWorkdaySourceFetch(),
     hotjob: createHotjobWecruitSourceFetch(),
     hotjobLegacy: createHotjobLegacySourceFetch(),
+    profileBoundSource: createProfileBoundSourceFetch(),
     fallback: createUnsupportedSourceFetch()
   });
   const prisma = new PrismaClient();

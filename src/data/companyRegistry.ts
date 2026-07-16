@@ -576,11 +576,11 @@ const CANDIDATE_SEEDS: CandidateSeed[] = [
     officialChineseName: "中国医药集团有限公司",
     pinyinName: "zhongguo-yiyao-jituan",
     category: "DOMESTIC_PHARMA",
-    status: "ENTRY_FOUND_PENDING_ADAPTER",
-    atsKind: "UNKNOWN",
+    status: "VERIFIED_SCRAPABLE",
+    atsKind: "OFFICIAL_JSON",
     officialWebsiteUrl: "https://www.sinopharm.com/",
-    socialEntryUrl: "https://www.sinopharm.com/talents.html",
-    officialChainEvidenceUrl: "https://www.sinopharm.com/talents.html"
+    socialEntryUrl: "https://sinopharm-global.iguopin.com/job",
+    officialChainEvidenceUrl: "https://www.sinopharm.com/recruitment.html"
   },
   {
     id: "company-cr-pharma",
@@ -669,10 +669,11 @@ const CANDIDATE_SEEDS: CandidateSeed[] = [
     officialChineseName: "上海医药集团股份有限公司",
     pinyinName: "shanghai-yiyao",
     category: "DOMESTIC_PHARMA",
-    status: "UNVERIFIED",
-    atsKind: "UNKNOWN",
+    status: "VERIFIED_SCRAPABLE",
+    atsKind: "BEISEN_ZHIYE",
     officialWebsiteUrl: "https://www.sphchina.com/",
-    officialChainEvidenceUrl: "https://www.sphchina.com/index/contact_us.html"
+    socialEntryUrl: "https://sph.zhiye.com/social/jobs",
+    officialChainEvidenceUrl: "https://www.sphchina.com/html/footer.html"
   },
   {
     id: "company-kelun",
@@ -788,10 +789,10 @@ const CANDIDATE_SEEDS: CandidateSeed[] = [
     pinyinName: "lizhu-yiyao",
     category: "DOMESTIC_PHARMA",
     status: "VERIFIED_SCRAPABLE",
-    atsKind: "OFFICIAL_HTML",
+    atsKind: "OFFICIAL_JSON",
     officialWebsiteUrl: "https://www.livzon.com.cn/",
-    socialEntryUrl: "https://www.livzon.com.cn/Social_list/p-0-6.html",
-    officialChainEvidenceUrl: "https://www.livzon.com.cn/Social_list/p-0-6.html"
+    socialEntryUrl: "https://www.livzon.com.cn/Social.html",
+    officialChainEvidenceUrl: "https://www.livzon.com.cn/Social.html"
   },
   {
     id: "company-buchang",
@@ -873,8 +874,8 @@ const CANDIDATE_SEEDS: CandidateSeed[] = [
     officialChineseName: "山东新华制药股份有限公司",
     pinyinName: "xinhua-zhiyao",
     category: "DOMESTIC_PHARMA",
-    status: "ENTRY_FOUND_PENDING_ADAPTER",
-    atsKind: "OFFICIAL_HTML",
+    status: "VERIFIED_SCRAPABLE",
+    atsKind: "OFFICIAL_JSON",
     officialWebsiteUrl: "https://www.xhzy.com/",
     socialEntryUrl: "https://www.xhzy.com/SHZP/index.html",
     officialChainEvidenceUrl: "https://www.xhzy.com/SHZP/index.html"

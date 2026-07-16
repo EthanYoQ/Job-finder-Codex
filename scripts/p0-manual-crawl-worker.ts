@@ -10,6 +10,7 @@ import { createManualSourceBatchExecutor } from "../src/crawler/manualSourceBatc
 import { manualCrawlWorkerExitCode, runManualCrawlWorker } from "../src/crawler/manualCrawlWorker";
 import { parseManualCrawlWorkerArgs } from "../src/crawler/manualCrawlWorkerCli";
 import { createMokaSourceFetch } from "../src/crawler/mokaSourceFetch";
+import { createProfileBoundSourceFetch } from "../src/crawler/profileBoundSourceFetch";
 import { createOfficialJsonSourceFetch } from "../src/crawler/officialJsonSourceFetch";
 import { runP0CrawlBatch } from "../src/crawler/runCrawlBatch";
 import { createSourceFetchRouter } from "../src/crawler/sourceFetchRouter";
@@ -53,6 +54,7 @@ try {
     workday: createWorkdaySourceFetch(),
     hotjob: createHotjobWecruitSourceFetch(),
     hotjobLegacy: createHotjobLegacySourceFetch(),
+    profileBoundSource: createProfileBoundSourceFetch(),
     fallback: createUnsupportedSourceFetch()
   });
   const repository = createManualCrawlRequestRepository({ db: prisma });

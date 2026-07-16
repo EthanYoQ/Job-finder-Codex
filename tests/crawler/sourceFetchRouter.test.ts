@@ -91,6 +91,31 @@ describe("source fetch router", () => {
     expect(calls).toEqual(["fallback"]);
   });
 
+  it("routes every dedicated company parser through the single profile-bound hook", async () => {
+    const calls: string[] = [];
+    const plan = {
+      ...planWithAtsKind("OFFICIAL_JSON"),
+      profileBoundSource: {
+        kind: "livzon-cecc",
+        config: {}
+      }
+    } as unknown as SourceCrawlPlan;
+    const router = createSourceFetchRouter({
+      moka: async () => ({ ok: false, capturedAt, failureReason: "wrong" }),
+      profileBoundSource: async () => {
+        calls.push("profile-bound");
+        return { ok: true, capturedAt, payload: { jobs: [] } };
+      },
+      fallback: async () => {
+        calls.push("fallback");
+        return { ok: false, capturedAt, failureReason: "wrong" };
+      }
+    });
+
+    await expect(router(plan)).resolves.toMatchObject({ ok: true });
+    expect(calls).toEqual(["profile-bound"]);
+  });
+
   it("routes html-table plans to the direct HTML fetcher when provided", async () => {
     const calls: string[] = [];
     const plan = {

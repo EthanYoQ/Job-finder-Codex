@@ -70,6 +70,8 @@ export type OfficialJsonFetchConfig =
         countryIncludeDescriptor: string;
         categoryExcludeDescriptors: string[];
         exclusionFacet?: never;
+        includeFacet?: never;
+        partitionProofPolicy?: never;
       } | {
         countryIncludeDescriptor: string;
         categoryExcludeDescriptors?: never;
@@ -77,6 +79,20 @@ export type OfficialJsonFetchConfig =
           field: "category" | "jobLevelId" | "type";
           descriptors: string[];
         };
+        includeFacet?: never;
+        partitionProofPolicy?: never;
+      } | {
+        countryIncludeDescriptor: string;
+        categoryExcludeDescriptors?: never;
+        includeFacet: {
+          field: "businessSector";
+          descriptor: string;
+        };
+        exclusionFacet: {
+          field: "jobLevelId";
+          descriptors: string[];
+        };
+        partitionProofPolicy: "MERCK_HEALTHCARE_PARTITION_V1";
       };
       allowOmittedOffsetForSinglePage?: boolean;
       requestBoundOmittedOffsetPolicy?: "ROCHE_REQUEST_BOUND_OMITTED_OFFSET_V1";
@@ -92,7 +108,9 @@ export type OfficialJsonFetchConfig =
       displayFields?: string[];
       defaultLocationRaw?: string;
       geographyScope?: "DOMESTIC_OFFICIAL_TENANT";
-      mixedLocationPolicy?: "INCLUDE_MAINLAND_JAPAN_ALTERNATIVES";
+      mixedLocationPolicy?:
+        | "INCLUDE_MAINLAND_JAPAN_ALTERNATIVES"
+        | "INHERIT_MAINLAND_PARENT_FOR_SIBLING_LOCATIONS";
       scopeExclusionProof?:
         | "DONGYANGGUANG_EXPLICIT_FOREIGN_ONLY_V1"
         | "NHU_EXPLICIT_JAPAN_ONLY_V1"
@@ -2291,6 +2309,12 @@ async function fetchBeisenZhiye2022({
   const maxPages = Math.max(1, config.maxPages ?? 50);
   const category = config.category ?? "1";
   const displayFields = config.displayFields ?? [...DEFAULT_BEISEN_ZHIYE_DISPLAY_FIELDS];
+  if (config.mixedLocationPolicy === "INHERIT_MAINLAND_PARENT_FOR_SIBLING_LOCATIONS" &&
+    (safeEntryUrl !== "https://sph.zhiye.com/social/jobs" || category !== "1" ||
+      pageSize !== 100 || config.detailPath !== "social/detail" ||
+      config.geographyScope !== "DOMESTIC_OFFICIAL_TENANT")) {
+    return failed(capturedAt, "Beisen sibling-location inheritance is not bound to the exact Shanghai Pharma source");
+  }
   const artifacts: SourceFetchArtifactDraft[] = [];
   const pages: SourceFetchPageTrace[] = [];
   const counts: PersistentSourceFetchEvidence["fetchCounts"] = {
@@ -2378,7 +2402,9 @@ async function fetchBeisenZhiye2022({
       requestedUrl: endpointUrl,
       response,
       extractorLocator: unavailableLocator,
-      ...(config.scopeExclusionProof ? { bodyRepresentation: "EXACT" as const } : {})
+      ...(config.scopeExclusionProof ||
+        config.mixedLocationPolicy === "INHERIT_MAINLAND_PARENT_FOR_SIBLING_LOCATIONS"
+        ? { bodyRepresentation: "EXACT" as const } : {})
     });
     artifacts.push(artifact);
     if (response.status < 200 || response.status >= 300) {
@@ -2797,6 +2823,17 @@ async function fetchPhenomWidgets({
       "Phenom request-bound omitted offset policy is not bound to the exact Roche source",
       phenomEntryFailureEvidence(unavailableEntryArtifact));
   }
+  const exactMerckHealthcarePartition = exactMerckHealthcarePartitionPlan(
+    plan,
+    pageConfig,
+    widgetEndpoint
+  );
+  if (config.facetScope && "partitionProofPolicy" in config.facetScope &&
+    config.facetScope.partitionProofPolicy !== undefined && !exactMerckHealthcarePartition) {
+    return failedWithEvidence(capturedAt,
+      "Phenom partition proof policy is not bound to the exact Merck Healthcare source",
+      phenomEntryFailureEvidence(unavailableEntryArtifact));
+  }
 
   const configLocator = phenomConfigLocator(pageConfig, widgetEndpoint);
   const entryArtifact = phenomArtifact({
@@ -2826,6 +2863,7 @@ async function fetchPhenomWidgets({
   let formalSelectedFields: Record<string, string[]> = { country: [countryFilter] };
   let structuredExpectedTotal: number | undefined;
   let allowedExclusionFacetDescriptors: ReadonlySet<string> | undefined;
+  let partitionExpectedOfficialIds: ReadonlySet<string> | undefined;
   let declaredTotal: number | undefined;
   let declaredArtifactKey: string | undefined;
   let declaredLocator: string | undefined;
@@ -2835,6 +2873,7 @@ async function fetchPhenomWidgets({
     const globalPreflight = await fetchPhenomFacetPreflight({
       http, endpoint: widgetEndpoint, entryUrl: safeEntryUrl, pageConfig,
       pageSize, selectedFields: {}, capturedAt, now,
+      enforceExactUiSelections: exactMerckHealthcarePartition,
       id: "phenom-facet-global",
       locator: `${configLocator}|facet-preflight:global|${phenomSelectedFieldsLocator({})}`
     });
@@ -2866,6 +2905,7 @@ async function fetchPhenomWidgets({
     const countryPreflight = await fetchPhenomFacetPreflight({
       http, endpoint: widgetEndpoint, entryUrl: safeEntryUrl, pageConfig,
       pageSize, selectedFields: { country: [facetScope.countryIncludeDescriptor] }, capturedAt, now,
+      enforceExactUiSelections: exactMerckHealthcarePartition,
       id: "phenom-facet-country",
       locator: `${configLocator}|facet-preflight:country|${phenomSelectedFieldsLocator({
         country: [facetScope.countryIncludeDescriptor]
@@ -2881,32 +2921,148 @@ async function fetchPhenomWidgets({
       return phenomFailure(capturedAt, "Phenom country facet preflight drifted or returned an out-of-scope sample",
         artifacts, pages, counts, losses);
     }
-    const exclusionAggregation = exactPhenomAggregation(countryPreflight.envelope, facetScope.exclusionField);
-    if (!exclusionAggregation ||
-      [...exclusionAggregation.values()].reduce((sum, value) => sum + value, 0) !== countryCount ||
-      (!facetScope.requireGlobalDescriptorProof &&
-        facetScope.exclusionDescriptors.some((descriptor) => !exclusionAggregation.has(descriptor)))) {
-      return phenomFailure(capturedAt, "Phenom exclusion facet is not a complete mutually exclusive partition",
-        artifacts, pages, counts, losses);
+    if (facetScope.partitionProofPolicy === "MERCK_HEALTHCARE_PARTITION_V1" &&
+      facetScope.includeField && facetScope.includeDescriptor && exactMerckHealthcarePartition) {
+      const sectorAggregation = exactPhenomAggregation(countryPreflight.envelope, facetScope.includeField);
+      if (!sectorAggregation || !sectorAggregation.has(facetScope.includeDescriptor) ||
+        [...sectorAggregation.values()].reduce((sum, value) => sum + value, 0) !== countryCount) {
+        return phenomFailure(capturedAt, "Phenom business-sector facet is not a complete dynamic partition",
+          artifacts, pages, counts, losses);
+      }
+      const allSectorIds = new Set<string>();
+      let includedSectorProof: PhenomPartitionProof | undefined;
+      const sectors = [...sectorAggregation.keys()].sort();
+      for (let partitionIndex = 0; partitionIndex < sectors.length; partitionIndex += 1) {
+        const descriptor = sectors[partitionIndex]!;
+        const proof = await fetchPhenomPartitionProof({
+          http, endpoint: widgetEndpoint, entryUrl: safeEntryUrl, pageConfig, pageSize, maxPages,
+          selectedFields: {
+            country: [facetScope.countryIncludeDescriptor],
+            [facetScope.includeField]: [descriptor]
+          },
+          expectedTotal: sectorAggregation.get(descriptor)!, capturedAt, now,
+          family: "business-sector", partitionIndex,
+          requiredCountry: facetScope.countryIncludeDescriptor,
+          optionalExactFields: [{ field: facetScope.includeField, descriptor }],
+          allowOmittedOffsetForSinglePage: config.allowOmittedOffsetForSinglePage === true,
+          configLocator
+        });
+        if (!proof.ok) {
+          return phenomFailure(capturedAt, proof.failureReason, artifacts, pages, counts, losses);
+        }
+        artifacts.push(...proof.proof.artifacts);
+        for (const id of proof.proof.ids) {
+          if (allSectorIds.has(id)) {
+            return phenomFailure(capturedAt, "Phenom business-sector partitions overlap by job ID",
+              artifacts, pages, counts, losses);
+          }
+          allSectorIds.add(id);
+        }
+        if (descriptor === facetScope.includeDescriptor) includedSectorProof = proof.proof;
+      }
+      if (allSectorIds.size !== countryCount || !includedSectorProof) {
+        return phenomFailure(capturedAt, "Phenom business-sector job IDs do not close the country total",
+          artifacts, pages, counts, losses);
+      }
+      const jobLevelAggregation = exactPhenomAggregation(
+        includedSectorProof.firstEnvelope,
+        facetScope.exclusionField
+      );
+      if (!jobLevelAggregation ||
+        [...jobLevelAggregation.values()].reduce((sum, value) => sum + value, 0) !==
+          includedSectorProof.ids.size) {
+        return phenomFailure(capturedAt, "Phenom Healthcare job-level facet is not a complete dynamic partition",
+          artifacts, pages, counts, losses);
+      }
+      const allJobLevelIds = new Set<string>();
+      const allowedJobIds = new Set<string>();
+      const allowed: string[] = [];
+      const jobLevels = [...jobLevelAggregation.keys()].sort();
+      for (let partitionIndex = 0; partitionIndex < jobLevels.length; partitionIndex += 1) {
+        const descriptor = jobLevels[partitionIndex]!;
+        const proof = await fetchPhenomPartitionProof({
+          http, endpoint: widgetEndpoint, entryUrl: safeEntryUrl, pageConfig, pageSize, maxPages,
+          selectedFields: {
+            country: [facetScope.countryIncludeDescriptor],
+            [facetScope.includeField]: [facetScope.includeDescriptor],
+            [facetScope.exclusionField]: [descriptor]
+          },
+          expectedTotal: jobLevelAggregation.get(descriptor)!, capturedAt, now,
+          family: "job-level", partitionIndex,
+          requiredCountry: facetScope.countryIncludeDescriptor,
+          optionalExactFields: [
+            { field: facetScope.includeField, descriptor: facetScope.includeDescriptor },
+            { field: facetScope.exclusionField, descriptor }
+          ],
+          allowOmittedOffsetForSinglePage: config.allowOmittedOffsetForSinglePage === true,
+          configLocator
+        });
+        if (!proof.ok) {
+          return phenomFailure(capturedAt, proof.failureReason, artifacts, pages, counts, losses);
+        }
+        artifacts.push(...proof.proof.artifacts);
+        const isAllowed = !facetScope.exclusionDescriptors.includes(descriptor);
+        if (isAllowed) allowed.push(descriptor);
+        for (const id of proof.proof.ids) {
+          if (allJobLevelIds.has(id)) {
+            return phenomFailure(capturedAt, "Phenom Healthcare job-level partitions overlap by job ID",
+              artifacts, pages, counts, losses);
+          }
+          allJobLevelIds.add(id);
+          if (isAllowed) allowedJobIds.add(id);
+        }
+      }
+      if (allJobLevelIds.size !== includedSectorProof.ids.size ||
+        [...includedSectorProof.ids].some((id) => !allJobLevelIds.has(id))) {
+        return phenomFailure(capturedAt, "Phenom Healthcare job-level job IDs do not close the sector partition",
+          artifacts, pages, counts, losses);
+      }
+      if (allowed.length === 0) {
+        return phenomFailure(capturedAt, "Phenom structured facet scope excludes every descriptor for the configured facet",
+          artifacts, pages, counts, losses);
+      }
+      structuredExpectedTotal = allowedJobIds.size;
+      partitionExpectedOfficialIds = allowedJobIds;
+      allowedExclusionFacetDescriptors = new Set(allowed);
+      formalSelectedFields = {
+        country: [facetScope.countryIncludeDescriptor],
+        [facetScope.includeField]: [facetScope.includeDescriptor],
+        [facetScope.exclusionField]: allowed
+      };
+    } else {
+      const exclusionAggregation = exactPhenomAggregation(countryPreflight.envelope, facetScope.exclusionField);
+      if (!exclusionAggregation ||
+        [...exclusionAggregation.values()].reduce((sum, value) => sum + value, 0) !== countryCount ||
+        (!facetScope.requireGlobalDescriptorProof &&
+          facetScope.exclusionDescriptors.some((descriptor) => !exclusionAggregation.has(descriptor)))) {
+        return phenomFailure(capturedAt, "Phenom exclusion facet is not a complete mutually exclusive partition",
+          artifacts, pages, counts, losses);
+      }
+      const allowed = [...exclusionAggregation.keys()].filter(
+        (descriptor) => !facetScope.exclusionDescriptors.includes(descriptor)
+      ).sort();
+      if (allowed.length === 0) {
+        return phenomFailure(capturedAt, "Phenom structured facet scope excludes every descriptor for the configured facet",
+          artifacts, pages, counts, losses);
+      }
+      structuredExpectedTotal = allowed.reduce((sum, descriptor) => sum + exclusionAggregation.get(descriptor)!, 0);
+      allowedExclusionFacetDescriptors = new Set(allowed);
+      formalSelectedFields = {
+        country: [facetScope.countryIncludeDescriptor],
+        [facetScope.exclusionField]: allowed
+      };
     }
-    const allowed = [...exclusionAggregation.keys()].filter(
-      (descriptor) => !facetScope.exclusionDescriptors.includes(descriptor)
-    ).sort();
-    if (allowed.length === 0) {
-      return phenomFailure(capturedAt, "Phenom structured facet scope excludes every descriptor for the configured facet",
-        artifacts, pages, counts, losses);
-    }
-    structuredExpectedTotal = allowed.reduce((sum, descriptor) => sum + exclusionAggregation.get(descriptor)!, 0);
-    allowedExclusionFacetDescriptors = new Set(allowed);
-    formalSelectedFields = {
-      country: [facetScope.countryIncludeDescriptor],
-      [facetScope.exclusionField]: allowed
-    };
   }
 
   for (let pageIndex = 0; pageIndex < maxPages; pageIndex += 1) {
     const requestedOffset = pageIndex * pageSize;
-    const pageRequestBody = phenomWidgetRequestBody(pageConfig, pageSize, requestedOffset, formalSelectedFields);
+    const pageRequestBody = phenomWidgetRequestBody(
+      pageConfig,
+      pageSize,
+      requestedOffset,
+      formalSelectedFields,
+      exactMerckHealthcarePartition
+    );
     const pageRequestLocator = (baseLocator: string) => requestContractV2Locator(baseLocator, {
       family: "phenom", role: "page", method: "POST", url: widgetEndpoint,
       body: JSON.parse(pageRequestBody),
@@ -2976,6 +3132,13 @@ async function fetchPhenomWidgets({
     }
     const refineSearch = root.refineSearch;
     const refineData = refineSearch.data as Record<string, unknown>;
+    if (exactMerckHealthcarePartition &&
+      !exactPhenomResponseUiSelections(refineData, formalSelectedFields)) {
+      pages.push(phenomPageTrace({ artifact, sequence: pageIndex, requestedOffset, termination: "FAILED" }));
+      return phenomFailure(capturedAt,
+        "Phenom Merck formal response ui_selections does not equal the requested selected_fields",
+        artifacts, pages, counts, losses);
+    }
     let pageTotal: number | undefined;
     if (facetScope && !hasOwn(refineSearch, "totalHits")) {
       pages.push(phenomPageTrace({ artifact, sequence: pageIndex, requestedOffset, termination: "FAILED" }));
@@ -3099,8 +3262,23 @@ async function fetchPhenomWidgets({
           "Phenom record location conflicts with the requested mainland China scope",
           artifacts, pages, counts, losses);
       }
-      if (facetScope && (stringValue(raw.country) !== facetScope.countryIncludeDescriptor ||
-        !allowedExclusionFacetDescriptors?.has(stringValue(raw[facetScope.exclusionField]) ?? ""))) {
+      const partitionScoped = facetScope?.partitionProofPolicy === "MERCK_HEALTHCARE_PARTITION_V1";
+      const presentIncludeDescriptor = facetScope?.includeField
+        ? stringValue(raw[facetScope.includeField])
+        : undefined;
+      const presentExclusionDescriptor = facetScope
+        ? stringValue(raw[facetScope.exclusionField])
+        : undefined;
+      const structuredScopeDrift = facetScope && (
+        stringValue(raw.country) !== facetScope.countryIncludeDescriptor ||
+        (partitionScoped
+          ? !partitionExpectedOfficialIds?.has(id!) ||
+            (presentIncludeDescriptor !== undefined && presentIncludeDescriptor !== facetScope.includeDescriptor) ||
+            (presentExclusionDescriptor !== undefined &&
+              !allowedExclusionFacetDescriptors?.has(presentExclusionDescriptor))
+          : !allowedExclusionFacetDescriptors?.has(presentExclusionDescriptor ?? ""))
+      );
+      if (structuredScopeDrift) {
         recordPhenomLoss(losses, counts, "VALIDATION", "OUT_OF_SCOPE", rawLocator, pageIndex, recordIndex);
         pages.push(phenomPageTrace({
           artifact, sequence: pageIndex, requestedOffset, returnedOffset,
@@ -3161,6 +3339,14 @@ async function fetchPhenomWidgets({
       nextPageSignalAfter: nextSignal, termination
     }));
     if (!hasNext || atMax) break;
+  }
+
+  if (partitionExpectedOfficialIds &&
+    (seenOfficialIds.size !== partitionExpectedOfficialIds.size ||
+      [...partitionExpectedOfficialIds].some((id) => !seenOfficialIds.has(id)))) {
+    return phenomFailure(capturedAt,
+      "Phenom final Healthcare result does not equal the dynamically proven allowed job IDs",
+      artifacts, pages, counts, losses);
   }
 
   const declaredCompleteness = (sourceScopedChinaRequest || facetScope !== undefined) && declaredTotal !== undefined &&
@@ -3245,6 +3431,43 @@ function exactRocheRequestBoundOmittedOffsetPlan(
     pageConfig.pageName === "search-results" && pageConfig.pageId === "page11-ds";
 }
 
+function exactMerckHealthcarePartitionPlan(
+  plan: Extract<SourceCrawlPlan, { adapterId: "official-json" }>,
+  pageConfig: CompletePhenomPageConfig,
+  widgetEndpoint: string
+): boolean {
+  const config = plan.officialJsonFetch;
+  const fields = plan.json.fields;
+  const facet = config?.kind === "phenom" ? config.facetScope : undefined;
+  return config?.kind === "phenom" && facet !== undefined &&
+    "partitionProofPolicy" in facet && facet.partitionProofPolicy === "MERCK_HEALTHCARE_PARTITION_V1" &&
+    "includeFacet" in facet && facet.includeFacet?.field === "businessSector" &&
+    facet.includeFacet.descriptor === "Healthcare" &&
+    "exclusionFacet" in facet && facet.exclusionFacet?.field === "jobLevelId" &&
+    JSON.stringify(facet.exclusionFacet.descriptors) === JSON.stringify([
+      "A - Current Student",
+      "B - Recent University Graduate(<1 year of experience)"
+    ]) && facet.countryIncludeDescriptor === "China" &&
+    plan.company.category === "FOREIGN_PHARMA" && plan.source.companyId === plan.company.id &&
+    plan.source.kind === "SOCIAL" && plan.source.status === "VERIFIED_SCRAPABLE" &&
+    plan.source.atsKind === "OFFICIAL_JSON" &&
+    plan.source.officialEntryUrl === "https://careers.emdgroup.com/us/en/search-results?keywords=China" &&
+    plan.source.officialChainEvidenceUrl === "https://careers.merckgroup.com/cn/zh/search-results" &&
+    plan.json.jobsPath === "jobs" && plan.json.defaultCategory === "其他" &&
+    fields.sourceJobId === "sourceJobId" && fields.officialTitle === "title" &&
+    fields.officialUrl === "officialUrl" && fields.locationRaw === "locationRaw" && fields.cities === "cities" &&
+    config.detailBaseUrl === "https://careers.emdgroup.com/us/en/job" &&
+    config.countryFilter === undefined && config.allowedApplyOrigins === undefined &&
+    config.allowedEntryRedirect === undefined && config.derivedDetailIdField === undefined &&
+    config.mixedLocationScopePolicy === undefined && config.requestBoundOmittedOffsetPolicy === undefined &&
+    config.allowOmittedOffsetForSinglePage === true && config.pageSize === 50 && config.maxPages === 10 &&
+    widgetEndpoint === "https://careers.emdgroup.com/widgets" &&
+    pageConfig.widgetApiEndpoint === "https://careers.emdgroup.com/widgets" &&
+    pageConfig.country === "us" && pageConfig.deviceType === "desktop" &&
+    pageConfig.locale === "en_us" && pageConfig.refNum === "MQAEGZUS" &&
+    pageConfig.pageName === "search-results" && pageConfig.pageId === "page18-ds";
+}
+
 function validatedPhenomEntryRedirect(
   candidate: Extract<OfficialJsonFetchConfig, { kind: "phenom" }>["allowedEntryRedirect"],
   entryUrl: string
@@ -3308,6 +3531,9 @@ type ValidPhenomFacetScope = {
   exclusionField: "category" | "jobLevelId" | "type";
   exclusionDescriptors: string[];
   requireGlobalDescriptorProof: boolean;
+  includeField?: "businessSector";
+  includeDescriptor?: string;
+  partitionProofPolicy?: "MERCK_HEALTHCARE_PARTITION_V1";
 };
 
 type PhenomFacetEnvelope = {
@@ -3326,11 +3552,21 @@ function validPhenomFacetScope(value: PhenomFacetScope | undefined): ValidPhenom
     descriptors.length === 0 ||
     descriptors.some((item) => typeof item !== "string" || !item.trim()) ||
     new Set(descriptors).size !== descriptors.length) return undefined;
+  const partitioned = "partitionProofPolicy" in value &&
+    value.partitionProofPolicy === "MERCK_HEALTHCARE_PARTITION_V1";
+  if (partitioned && (!("includeFacet" in value) || value.includeFacet?.field !== "businessSector" ||
+    typeof value.includeFacet.descriptor !== "string" || !value.includeFacet.descriptor.trim())) return undefined;
+  if (!partitioned && ("includeFacet" in value && value.includeFacet !== undefined)) return undefined;
   return {
     countryIncludeDescriptor: value.countryIncludeDescriptor,
     exclusionField: field,
     exclusionDescriptors: descriptors,
-    requireGlobalDescriptorProof: modern
+    requireGlobalDescriptorProof: modern && !partitioned,
+    ...(partitioned ? {
+      includeField: "businessSector" as const,
+      includeDescriptor: value.includeFacet.descriptor,
+      partitionProofPolicy: value.partitionProofPolicy
+    } : {})
   };
 }
 
@@ -3338,14 +3574,18 @@ function phenomWidgetRequestBody(
   config: CompletePhenomPageConfig,
   size: number,
   from: number,
-  selectedFields: Record<string, string[]>
+  selectedFields: Record<string, string[]>,
+  includeBusinessSector = false
 ): string {
   return JSON.stringify({
     lang: config.locale, locale: config.locale,
     deviceType: config.deviceType, country: config.country,
     pageName: config.pageName, size, from,
     jobs: true, counts: true,
-    all_fields: ["category", "country", "state", "city", "type", "jobLevelId"],
+    all_fields: [
+      "category", "country", "state", "city", "type", "jobLevelId",
+      ...(includeBusinessSector ? ["businessSector"] : [])
+    ],
     clearAll: false, jdsource: "facets", isSliderEnable: false,
     pageId: config.pageId, siteType: "external", keywords: "", global: true,
     selected_fields: selectedFields,
@@ -3361,6 +3601,7 @@ async function fetchPhenomFacetPreflight(input: {
   pageConfig: CompletePhenomPageConfig;
   pageSize: number;
   selectedFields: Record<string, string[]>;
+  enforceExactUiSelections: boolean;
   capturedAt: string;
   now: () => Date;
   id: string;
@@ -3369,7 +3610,13 @@ async function fetchPhenomFacetPreflight(input: {
   | { ok: true; artifact: SourceFetchArtifactDraft; envelope: PhenomFacetEnvelope }
   | { ok: false; failureReason: string }
 > {
-  const requestBody = phenomWidgetRequestBody(input.pageConfig, input.pageSize, 0, input.selectedFields);
+  const requestBody = phenomWidgetRequestBody(
+    input.pageConfig,
+    input.pageSize,
+    0,
+    input.selectedFields,
+    input.enforceExactUiSelections
+  );
   let response: OfficialJsonHttpResponse;
   try {
     response = await input.http({
@@ -3422,6 +3669,10 @@ async function fetchPhenomFacetPreflight(input: {
     !Array.isArray(root.refineSearch.data.jobs) || !Array.isArray(root.refineSearch.data.aggregations)) {
     return { ok: false, failureReason: "Phenom facet preflight envelope is invalid" };
   }
+  if (input.enforceExactUiSelections &&
+    !exactPhenomResponseUiSelections(root.refineSearch.data, input.selectedFields)) {
+    return { ok: false, failureReason: "Phenom facet preflight ui_selections does not equal selected_fields" };
+  }
   return {
     ok: true,
     artifact,
@@ -3431,6 +3682,151 @@ async function fetchPhenomFacetPreflight(input: {
       aggregations: root.refineSearch.data.aggregations
     }
   };
+}
+
+type PhenomPartitionProof = {
+  artifacts: SourceFetchArtifactDraft[];
+  ids: Set<string>;
+  firstEnvelope: PhenomFacetEnvelope;
+};
+
+async function fetchPhenomPartitionProof(input: {
+  http: OfficialJsonHttpClient;
+  endpoint: string;
+  entryUrl: string;
+  pageConfig: CompletePhenomPageConfig;
+  pageSize: number;
+  maxPages: number;
+  selectedFields: Record<string, string[]>;
+  expectedTotal: number;
+  capturedAt: string;
+  now: () => Date;
+  family: "business-sector" | "job-level";
+  partitionIndex: number;
+  requiredCountry: string;
+  optionalExactFields: Array<{ field: string; descriptor: string }>;
+  allowOmittedOffsetForSinglePage: boolean;
+  configLocator: string;
+}): Promise<{ ok: true; proof: PhenomPartitionProof } | { ok: false; failureReason: string }> {
+  const artifacts: SourceFetchArtifactDraft[] = [];
+  const ids = new Set<string>();
+  let firstEnvelope: PhenomFacetEnvelope | undefined;
+  for (let pageIndex = 0; pageIndex < input.maxPages; pageIndex += 1) {
+    const from = pageIndex * input.pageSize;
+    if (from > input.expectedTotal || (from === input.expectedTotal && input.expectedTotal > 0)) break;
+    const requestBody = phenomWidgetRequestBody(
+      input.pageConfig,
+      input.pageSize,
+      from,
+      input.selectedFields,
+      true
+    );
+    let response: OfficialJsonHttpResponse;
+    try {
+      response = await input.http({
+        url: input.endpoint,
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json", Accept: "application/json",
+          Origin: new URL(input.entryUrl).origin, Referer: input.entryUrl,
+          "User-Agent": "job-search-crawler/0.1"
+        },
+        body: requestBody
+      });
+    } catch {
+      return { ok: false, failureReason: "Phenom partition proof TRANSPORT_FAILURE" };
+    }
+    try {
+      assertOfficialJsonEvidenceResponse(response, {
+        requestedUrl: input.endpoint,
+        crawlStartedAtMs: Date.parse(input.capturedAt),
+        observedNowMs: input.now().getTime()
+      });
+      if (response.status < 200 || response.status >= 300) throw new Error("HTTP status");
+      assertOfficialJsonMime(response);
+    } catch (error) {
+      return { ok: false, failureReason: safeOfficialJsonFailure(error, "Phenom partition proof response is invalid") };
+    }
+    const logicalKey = `phenom-facet-proof-${input.family}-${String(input.partitionIndex).padStart(4, "0")}-${String(pageIndex).padStart(4, "0")}`;
+    artifacts.push(phenomArtifact({
+      id: logicalKey,
+      kind: "ATS_API_RESPONSE",
+      requestedUrl: input.endpoint,
+      response,
+      extractorLocator: requestContractV2Locator([
+        input.configLocator,
+        `facet-partition:${input.family}`,
+        phenomSelectedFieldsLocator(input.selectedFields),
+        `requestOffset:${from}`
+      ].join("|"), {
+        family: "phenom",
+        role: `facet-partition-${input.family}`,
+        method: "POST",
+        url: input.endpoint,
+        body: JSON.parse(requestBody),
+        coordinate: {
+          sequence: pageIndex,
+          requestedOffset: from,
+          requestedPage: null,
+          requestedPageSize: input.pageSize
+        }
+      })
+    }));
+    if (!hasUniqueJsonObjectKeys(response.body)) {
+      return { ok: false, failureReason: "Phenom partition proof contains ambiguous duplicate JSON keys" };
+    }
+    let root: unknown;
+    try { root = JSON.parse(response.body); } catch {
+      return { ok: false, failureReason: "Phenom partition proof is not valid JSON" };
+    }
+    if (!isStrictRecord(root) || !isStrictRecord(root.refineSearch)) {
+      return { ok: false, failureReason: "Phenom partition proof envelope drifted" };
+    }
+    const hasReturnedOffset = hasOwn(root.refineSearch, "from");
+    const safelyOmittedSinglePageOffset = input.allowOmittedOffsetForSinglePage && !hasReturnedOffset &&
+      pageIndex === 0 && from === 0 && input.expectedTotal <= input.pageSize;
+    if (root.refineSearch.totalHits !== input.expectedTotal ||
+      (!safelyOmittedSinglePageOffset && (!hasReturnedOffset || root.refineSearch.from !== from)) ||
+      !isStrictRecord(root.refineSearch.data) || !Array.isArray(root.refineSearch.data.jobs) ||
+      !Array.isArray(root.refineSearch.data.aggregations)) {
+      return { ok: false, failureReason: "Phenom partition proof envelope drifted" };
+    }
+    if (!exactPhenomResponseUiSelections(root.refineSearch.data, input.selectedFields)) {
+      return { ok: false, failureReason: "Phenom partition proof ui_selections does not equal selected_fields" };
+    }
+    const rawJobs = root.refineSearch.data.jobs;
+    const expectedPageCount = Math.min(input.pageSize, input.expectedTotal - from);
+    if (rawJobs.length !== expectedPageCount) {
+      return { ok: false, failureReason: "Phenom partition proof page cardinality drifted" };
+    }
+    const envelope: PhenomFacetEnvelope = {
+      totalHits: input.expectedTotal,
+      jobs: rawJobs,
+      aggregations: root.refineSearch.data.aggregations
+    };
+    firstEnvelope ??= envelope;
+    for (const raw of rawJobs) {
+      if (!isStrictRecord(raw) || stringValue(raw.country) !== input.requiredCountry) {
+        return { ok: false, failureReason: "Phenom partition proof returned an out-of-country record" };
+      }
+      for (const exact of input.optionalExactFields) {
+        const present = stringValue(raw[exact.field]);
+        if (present !== undefined && present !== exact.descriptor) {
+          return { ok: false, failureReason: "Phenom partition proof record contradicted its requested facet" };
+        }
+      }
+      const id = stringValue(raw.jobSeqNo) ?? stringValue(raw.reqId) ?? stringValue(raw.jobId);
+      if (!id || !safeOfficialJsonId(id) || ids.has(id)) {
+        return { ok: false, failureReason: "Phenom partition proof returned a missing, unsafe, or repeated job ID" };
+      }
+      ids.add(id);
+    }
+    if (ids.size === input.expectedTotal) break;
+  }
+  if (!firstEnvelope || ids.size !== input.expectedTotal) {
+    return { ok: false, failureReason: "Phenom partition proof did not close its dynamic total" };
+  }
+  return { ok: true, proof: { artifacts, ids, firstEnvelope } };
 }
 
 function exactPhenomAggregation(envelope: PhenomFacetEnvelope, field: string): Map<string, number> | undefined {
@@ -3445,6 +3841,33 @@ function exactPhenomAggregation(envelope: PhenomFacetEnvelope, field: string): M
     values.set(descriptor, count);
   }
   return values;
+}
+
+function exactPhenomResponseUiSelections(
+  data: Record<string, unknown>,
+  selectedFields: Record<string, string[]>
+): boolean {
+  const expectedKeys = Object.keys(selectedFields);
+  const hasUiSelections = hasOwn(data, "ui_selections");
+  if (expectedKeys.length === 0) {
+    if (!hasUiSelections) return true;
+    return isStrictRecord(data.ui_selections) && Object.keys(data.ui_selections).length === 0;
+  }
+  if (!hasUiSelections || !isStrictRecord(data.ui_selections)) return false;
+  const uiSelections = data.ui_selections;
+  const actualKeys = Object.keys(uiSelections);
+  if (actualKeys.length !== expectedKeys.length ||
+    actualKeys.some((key) => !hasOwn(selectedFields, key))) return false;
+  for (const key of expectedKeys) {
+    const expected = selectedFields[key];
+    const actual = uiSelections[key];
+    if (!Array.isArray(expected) || !Array.isArray(actual) ||
+      expected.some((value) => typeof value !== "string") ||
+      actual.some((value) => typeof value !== "string") ||
+      new Set(expected).size !== expected.length || new Set(actual).size !== actual.length ||
+      actual.length !== expected.length || expected.some((value) => !actual.includes(value))) return false;
+  }
+  return true;
 }
 
 function completePhenomPageConfig(
@@ -6401,14 +6824,20 @@ function beisenDomesticRecordScopeReview(
   locationParts: readonly string[],
   locationRaw: string,
   geographyScope?: "DOMESTIC_OFFICIAL_TENANT",
-  mixedLocationPolicy?: "INCLUDE_MAINLAND_JAPAN_ALTERNATIVES"
+  mixedLocationPolicy?:
+    | "INCLUDE_MAINLAND_JAPAN_ALTERNATIVES"
+    | "INHERIT_MAINLAND_PARENT_FOR_SIBLING_LOCATIONS"
 ): BeisenRecordScopeReview {
   const normalizedCountry = country?.normalize("NFKC").trim().toLowerCase();
   const countryChina = normalizedCountry !== undefined &&
     /^(?:china|prc|mainland china|china mainland|people'?s republic of china|中国|中国大陆|中华人民共和国)$/iu.test(
       normalizedCountry
     );
-  const segments = beisenLocationSegments(locationParts);
+  const rawSegments = beisenLocationSegments(locationParts);
+  const inheritedSegments = mixedLocationPolicy === "INHERIT_MAINLAND_PARENT_FOR_SIBLING_LOCATIONS"
+    ? beisenInheritMainlandParentForSiblingLocations(rawSegments)
+    : undefined;
+  const segments = inheritedSegments ?? rawSegments;
   const mainlandSegments = segments.filter(beisenIsMainlandLocationSegment);
   const mainlandPlaces = mainlandSegments.filter((segment) => !beisenIsMainlandCountrySegment(segment));
   const mainlandLocationParts = mainlandPlaces.length > 0 ? mainlandPlaces : mainlandSegments;
@@ -6458,6 +6887,26 @@ function beisenDomesticRecordScopeReview(
       ? countryChina ? "CHINA" : "OUT_OF_SCOPE"
       : locationChina ? "CHINA" : "OUT_OF_SCOPE";
   return { scope, mainlandLocationParts };
+}
+
+function beisenInheritMainlandParentForSiblingLocations(
+  segments: readonly string[]
+): string[] | undefined {
+  if (segments.length < 2 || segments.some(beisenHasForeignMarker)) return undefined;
+  const firstParts = segments[0]!.split(/[·・]/u).map((part) => part.trim()).filter(Boolean);
+  if (firstParts.length !== 2 || !beisenHasExplicitMainlandHierarchy(segments[0]!)) return undefined;
+  const parent = firstParts[0]!;
+  const inherited = [segments[0]!];
+  for (const segment of segments.slice(1)) {
+    if (segment.includes("·") || segment.includes("・") ||
+      !/^[\p{Script=Han}]{1,24}(?:区|县|旗|市|镇|乡|街道|新区|开发区|高新区|工业园|园区)$/u.test(segment)) {
+      return undefined;
+    }
+    const expanded = `${parent}·${segment}`;
+    if (!beisenHasExplicitMainlandHierarchy(expanded)) return undefined;
+    inherited.push(expanded);
+  }
+  return inherited;
 }
 
 const BEISEN_DOMESTIC_SCOPE_WORDS = new Set([

@@ -15,7 +15,8 @@ export type {
   CompanyRecruitmentExecutionConfig,
   CompanyRecruitmentProfile,
   CompanyRecruitmentSourceProfile,
-  MokaFetchConfig
+  MokaFetchConfig,
+  ProfileBoundSourceConfig
 } from "./types";
 
 const CHINA_SOCIAL_SCOPE = Object.freeze({

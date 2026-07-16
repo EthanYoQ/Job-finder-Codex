@@ -172,6 +172,160 @@ function rochePlan(): Extract<SourceCrawlPlan, { adapterId: "official-json" }> {
   return exactPhenomPlan("source-roche-china-social");
 }
 
+function merckPlan(): Extract<SourceCrawlPlan, { adapterId: "official-json" }> {
+  return exactPhenomPlan("source-merck-china-social");
+}
+
+function merckEntryHtml(): string {
+  return `<script>var phApp={"widgetApiEndpoint":"https://careers.emdgroup.com/widgets","country":"us","deviceType":"desktop","locale":"en_us","refNum":"MQAEGZUS","pageName":"search-results","pageId":"page18"};</script><script>phApp.pageId = "page18-ds";</script>`;
+}
+
+function merckJob(id: string, overrides: Record<string, unknown> = {}): Record<string, unknown> {
+  return {
+    jobSeqNo: id,
+    reqId: id,
+    title: `Merck role ${id}`,
+    location: "Shanghai, China",
+    city: "Shanghai",
+    country: "China",
+    applyUrl: `https://careers.emdgroup.com/us/en/job/${id}`,
+    ...overrides
+  };
+}
+
+type MerckFixtureAttack =
+  | "NONE"
+  | "OVERLAPPING_SECTOR_IDS"
+  | "WRONG_PRESENT_SECTOR"
+  | "OMITTED_SINGLE_PAGE_PARTITION_OFFSET"
+  | "GLOBAL_EMPTY_UI_SELECTIONS"
+  | "GLOBAL_NONEMPTY_UI_SELECTIONS"
+  | "MISSING_COUNTRY_UI_SELECTIONS"
+  | "MISSING_SECTOR_UI_SELECTIONS"
+  | "MISSING_JOB_LEVEL_UI_SELECTIONS"
+  | "MISSING_FORMAL_UI_SELECTIONS"
+  | "DUPLICATE_FORMAL_UI_SELECTION_VALUE"
+  | "EXTRA_FORMAL_UI_SELECTION_KEY"
+  | "MISSING_FORMAL_UI_SELECTION_KEY"
+  | "WRONG_FORMAL_UI_SELECTION_VALUE";
+
+type MerckResponseStage = "GLOBAL" | "COUNTRY" | "SECTOR" | "JOB_LEVEL" | "FORMAL";
+
+function merckResponseStage(selected: Record<string, string[]>): MerckResponseStage {
+  if (Object.keys(selected).length === 0) return "GLOBAL";
+  if (!selected.businessSector) return "COUNTRY";
+  if (!selected.jobLevelId) return "SECTOR";
+  return selected.jobLevelId.length > 1 ? "FORMAL" : "JOB_LEVEL";
+}
+
+function bindMerckUiSelections(
+  body: string,
+  selected: Record<string, string[]>,
+  attack: MerckFixtureAttack
+): string {
+  const root = JSON.parse(body) as {
+    refineSearch: { data: Record<string, unknown> };
+  };
+  const stage = merckResponseStage(selected);
+  const exact = Object.fromEntries(
+    Object.entries(selected).reverse().map(([key, values]) => [key, [...values].reverse()])
+  ) as Record<string, string[]>;
+
+  if (stage === "GLOBAL") {
+    if (attack === "GLOBAL_EMPTY_UI_SELECTIONS") root.refineSearch.data.ui_selections = {};
+    if (attack === "GLOBAL_NONEMPTY_UI_SELECTIONS") {
+      root.refineSearch.data.ui_selections = { country: ["China"] };
+    }
+    return JSON.stringify(root);
+  }
+
+  root.refineSearch.data.ui_selections = exact;
+  if ((attack === "MISSING_COUNTRY_UI_SELECTIONS" && stage === "COUNTRY") ||
+    (attack === "MISSING_SECTOR_UI_SELECTIONS" && stage === "SECTOR") ||
+    (attack === "MISSING_JOB_LEVEL_UI_SELECTIONS" && stage === "JOB_LEVEL") ||
+    (attack === "MISSING_FORMAL_UI_SELECTIONS" && stage === "FORMAL")) {
+    delete root.refineSearch.data.ui_selections;
+  }
+  if (stage === "FORMAL") {
+    const formal = root.refineSearch.data.ui_selections as Record<string, string[]> | undefined;
+    if (formal && attack === "DUPLICATE_FORMAL_UI_SELECTION_VALUE") {
+      formal.jobLevelId = [...formal.jobLevelId!, formal.jobLevelId![0]!];
+    }
+    if (formal && attack === "EXTRA_FORMAL_UI_SELECTION_KEY") formal.type = ["Regular"];
+    if (formal && attack === "MISSING_FORMAL_UI_SELECTION_KEY") delete formal.businessSector;
+    if (formal && attack === "WRONG_FORMAL_UI_SELECTION_VALUE") formal.country = ["Germany"];
+  }
+  return JSON.stringify(root);
+}
+
+async function fetchLiveShapedMerck(attack: MerckFixtureAttack = "NONE") {
+  const stagedPlan = merckPlan();
+  const requests: Array<{ method?: string; body?: string }> = [];
+  const professional = [
+    merckJob("MERCK-H-1", { businessSector: "Healthcare", jobLevelId: "C - Professional" }),
+    merckJob("MERCK-H-2", { businessSector: "Healthcare", jobLevelId: "C - Professional" })
+  ];
+  const manager = merckJob("MERCK-H-MANAGER", {
+    businessSector: "Healthcare", jobLevelId: "D - Manager"
+  });
+  const student = merckJob("MERCK-H-STUDENT", {
+    businessSector: "Healthcare", jobLevelId: "A - Current Student"
+  });
+  const healthcare = [...professional, manager, student];
+  const electronics = [merckJob("MERCK-E-1", { businessSector: "Electronics" })];
+  const lifeScience = [merckJob(
+    attack === "OVERLAPPING_SECTOR_IDS" ? "MERCK-E-1" : "MERCK-L-1",
+    { businessSector: "Life Science" }
+  )];
+  const fetcher = createOfficialJsonSourceFetch({
+    now: () => new Date(capturedAt),
+    http: async (request) => {
+      requests.push(request);
+      if (request.method !== "POST") {
+        return response(merckEntryHtml(), stagedPlan.source.officialEntryUrl, "text/html");
+      }
+      const parsed = JSON.parse(request.body ?? "{}") as {
+        from?: number;
+        selected_fields?: Record<string, string[]>;
+      };
+      const selected = parsed.selected_fields ?? {};
+      const sector = selected.businessSector?.[0];
+      const levels = selected.jobLevelId;
+      let body: string;
+      if (Object.keys(selected).length === 0) {
+        body = facetPageBody([], 8, 0, [
+          { field: "country", value: { China: 6, Germany: 2 } }
+        ]);
+      } else if (!sector) {
+        body = facetPageBody([], 6, 0, [
+          { field: "businessSector", value: { Electronics: 1, Healthcare: 4, "Life Science": 1 } }
+        ]);
+      } else if (!levels) {
+        const jobs = sector === "Healthcare" ? healthcare : sector === "Electronics" ? electronics : lifeScience;
+        body = facetPageBody(jobs, jobs.length, parsed.from ?? 0, sector === "Healthcare" ? [{
+          field: "jobLevelId",
+          value: { "A - Current Student": 1, "C - Professional": 2, "D - Manager": 1 }
+        }] : []);
+      } else {
+        const jobs = levels.flatMap((level) => level === "A - Current Student" ? [student] :
+          level === "C - Professional" ? professional : level === "D - Manager" ? [manager] : []);
+        const returnedJobs = attack === "WRONG_PRESENT_SECTOR" && levels.length > 1
+          ? jobs.map((job) => ({ ...job, businessSector: "Life Science" }))
+          : jobs;
+        body = facetPageBody(returnedJobs, returnedJobs.length, parsed.from ?? 0, []);
+      }
+      body = bindMerckUiSelections(body, selected, attack);
+      if (attack === "OMITTED_SINGLE_PAGE_PARTITION_OFFSET" && sector) {
+        const envelope = JSON.parse(body) as { refineSearch: Record<string, unknown> };
+        delete envelope.refineSearch.from;
+        body = JSON.stringify(envelope);
+      }
+      return response(body, "https://careers.emdgroup.com/widgets", "application/json");
+    }
+  });
+  return { stagedPlan, fetched: await fetcher(stagedPlan), requests };
+}
+
 function rocheEntryHtml(): string {
   return `<script>var phApp={"widgetApiEndpoint":"https://careers.roche.com/widgets","country":"cn","deviceType":"desktop","locale":"zh_cn","refNum":"ROCHGLOBAL","pageName":"search-results","pageId":"page11"};</script><script>phApp.pageId = "page11-ds";</script>`;
 }
@@ -280,6 +434,23 @@ function rewriteRocheArtifactBody(
   page.responseFingerprintSha256 = createHash("sha256").update(body, "utf8").digest("hex");
 }
 
+function rewriteMerckArtifactBody(
+  evidence: PersistentSourceFetchEvidence,
+  logicalKey: string,
+  mutate: (data: Record<string, unknown>) => void
+): void {
+  const artifact = evidence.artifacts.find((candidate) => candidate.logicalKey === logicalKey);
+  if (!artifact || typeof artifact.body !== "string") throw new Error(`Missing ${logicalKey}`);
+  const root = JSON.parse(artifact.body) as {
+    refineSearch: { data: Record<string, unknown> };
+  };
+  mutate(root.refineSearch.data);
+  const body = JSON.stringify(root);
+  artifact.body = body;
+  const page = evidence.pages.find((candidate) => candidate.artifactLogicalKey === logicalKey);
+  if (page) page.responseFingerprintSha256 = createHash("sha256").update(body, "utf8").digest("hex");
+}
+
 function exactPhenomEntryHtml(widgetEndpoint: string): string {
   return `<script type="application/json">${JSON.stringify({
     phApp: {
@@ -301,6 +472,17 @@ function exactPhenomBodies(
   const config = stagedPlan.officialJsonFetch;
   if (config?.kind !== "phenom") throw new Error("Expected exact Phenom config");
   if (!config.facetScope) return [facetPageBody([rawJob], 1, 0, [])];
+
+  if (stagedPlan.source.id === "source-merck-china-social") {
+    const formalJob = { ...rawJob };
+    return [
+      facetPageBody([], 1, 0, [{ field: "country", value: { China: 1 } }]),
+      facetPageBody([], 1, 0, [{ field: "businessSector", value: { Healthcare: 1 } }]),
+      facetPageBody([formalJob], 1, 0, [{ field: "jobLevelId", value: { Professional: 1 } }]),
+      facetPageBody([formalJob], 1, 0, []),
+      facetPageBody([formalJob], 1, 0, [])
+    ];
+  }
 
   const facet = config.facetScope;
   const modern = "exclusionFacet" in facet && facet.exclusionFacet !== undefined;
@@ -341,10 +523,21 @@ async function fetchExactPhenomLocation(sourceId: string, location: string) {
   const bodies = exactPhenomBodies(stagedPlan, rawJob);
   const fetcher = createOfficialJsonSourceFetch({
     now: () => new Date(capturedAt),
-    http: async (request) => request.method === "POST"
-      ? response(bodies.shift()!, widgetEndpoint, "application/json")
-      : response(sourceId === "source-roche-china-social" ? rocheEntryHtml() : exactPhenomEntryHtml(widgetEndpoint),
-        stagedPlan.source.officialEntryUrl, "text/html")
+    http: async (request) => {
+      if (request.method === "POST") {
+        let body = bodies.shift()!;
+        if (sourceId === "source-merck-china-social") {
+          const selected = (JSON.parse(request.body ?? "{}") as {
+            selected_fields?: Record<string, string[]>;
+          }).selected_fields ?? {};
+          body = bindMerckUiSelections(body, selected, "NONE");
+        }
+        return response(body, widgetEndpoint, "application/json");
+      }
+      return response(sourceId === "source-roche-china-social" ? rocheEntryHtml() :
+        sourceId === "source-merck-china-social" ? merckEntryHtml() : exactPhenomEntryHtml(widgetEndpoint),
+        stagedPlan.source.officialEntryUrl, "text/html");
+    }
   });
   return { stagedPlan, fetched: await fetcher(stagedPlan) };
 }
@@ -612,6 +805,135 @@ describe("Phenom evidence instrumentation", () => {
       { country: ["China"] },
       { country: ["China"], jobLevelId: ["C - Professional"] }
     ]);
+  });
+
+  it("dynamically proves Merck Healthcare through complete sector and job-level ID partitions", async () => {
+    const { stagedPlan, fetched, requests } = await fetchLiveShapedMerck();
+    expect(stagedPlan.officialJsonFetch).toMatchObject({
+      kind: "phenom",
+      facetScope: {
+        countryIncludeDescriptor: "China",
+        includeFacet: { field: "businessSector", descriptor: "Healthcare" },
+        exclusionFacet: {
+          field: "jobLevelId",
+          descriptors: [
+            "A - Current Student",
+            "B - Recent University Graduate(<1 year of experience)"
+          ]
+        },
+        partitionProofPolicy: "MERCK_HEALTHCARE_PARTITION_V1"
+      }
+    });
+    expect(fetched).toMatchObject({
+      ok: true,
+      completeness: { expectedJobCount: 3 },
+      payload: { jobs: [
+        { title: "Merck role MERCK-H-1" },
+        { title: "Merck role MERCK-H-2" },
+        { title: "Merck role MERCK-H-MANAGER" }
+      ] },
+      fetchEvidence: {
+        fetchCounts: {
+          rawCount: 3,
+          parsedCount: 3,
+          validCount: 3,
+          parseDiscardCount: 0,
+          validationDiscardCount: 0
+        },
+        fetchLosses: []
+      }
+    });
+    const postBodies = requests.slice(1).map((request) => JSON.parse(request.body ?? "{}"));
+    expect(postBodies.every((body) => body.all_fields.includes("businessSector"))).toBe(true);
+    expect(postBodies.some((body) =>
+      JSON.stringify(body.selected_fields) === JSON.stringify({
+        country: ["China"], businessSector: ["Healthcare"],
+        jobLevelId: ["C - Professional", "D - Manager"]
+      })
+    )).toBe(true);
+    const crawled = await runSourceCrawl(stagedPlan, { fetch: async () => fetched });
+    expect(crawled).toMatchObject({
+      status: "SUCCESS",
+      truth: { transportSuccess: true, adapterSuccess: true, completenessVerified: true },
+      observation: { structuredJobCount: 3, completenessStatus: "VERIFIED" }
+    });
+  });
+
+  it("accepts a strict empty global ui_selections object", async () => {
+    const { stagedPlan, fetched } = await fetchLiveShapedMerck("GLOBAL_EMPTY_UI_SELECTIONS");
+    expect(fetched).toMatchObject({ ok: true, completeness: { expectedJobCount: 3 } });
+    const crawled = await runSourceCrawl(stagedPlan, { fetch: async () => fetched });
+    expect(crawled).toMatchObject({
+      status: "SUCCESS",
+      truth: { transportSuccess: true, adapterSuccess: true, completenessVerified: true }
+    });
+  });
+
+  it("accepts the audited Phenom omission of offset only on complete one-page Merck partitions", async () => {
+    const { stagedPlan, fetched } = await fetchLiveShapedMerck("OMITTED_SINGLE_PAGE_PARTITION_OFFSET");
+    expect(fetched).toMatchObject({ ok: true, completeness: { expectedJobCount: 3 } });
+    const crawled = await runSourceCrawl(stagedPlan, { fetch: async () => fetched });
+    expect(crawled).toMatchObject({
+      status: "SUCCESS",
+      truth: { transportSuccess: true, adapterSuccess: true, completenessVerified: true }
+    });
+  });
+
+  it.each([
+    ["overlapping sector IDs", "OVERLAPPING_SECTOR_IDS"],
+    ["a final record carrying the wrong sector", "WRONG_PRESENT_SECTOR"]
+  ] as const)("fails closed when Merck partition proof has %s", async (_label, attack) => {
+    const { fetched } = await fetchLiveShapedMerck(attack);
+    expect(fetched).toMatchObject({ ok: false });
+  });
+
+  it.each([
+    ["a nonempty global selection", "GLOBAL_NONEMPTY_UI_SELECTIONS"],
+    ["missing China selections", "MISSING_COUNTRY_UI_SELECTIONS"],
+    ["missing sector selections", "MISSING_SECTOR_UI_SELECTIONS"],
+    ["missing job-level selections", "MISSING_JOB_LEVEL_UI_SELECTIONS"],
+    ["missing formal selections", "MISSING_FORMAL_UI_SELECTIONS"],
+    ["a duplicate formal selection value", "DUPLICATE_FORMAL_UI_SELECTION_VALUE"],
+    ["an extra formal selection key", "EXTRA_FORMAL_UI_SELECTION_KEY"],
+    ["a missing formal selection key", "MISSING_FORMAL_UI_SELECTION_KEY"],
+    ["a wrong formal selection value", "WRONG_FORMAL_UI_SELECTION_VALUE"]
+  ] as const)("fails closed when Merck response ui_selections has %s", async (_label, attack) => {
+    const { fetched } = await fetchLiveShapedMerck(attack);
+    expect(fetched).toMatchObject({ ok: false });
+  });
+
+  it.each([
+    ["global", "phenom-facet-global", (data: Record<string, unknown>) => {
+      data.ui_selections = { country: ["China"] };
+    }],
+    ["China", "phenom-facet-country", (data: Record<string, unknown>) => {
+      delete data.ui_selections;
+    }],
+    ["sector", "phenom-facet-proof-business-sector-0001-0000", (data: Record<string, unknown>) => {
+      data.ui_selections = { country: ["China"], businessSector: ["Life Science"] };
+    }],
+    ["job-level", "phenom-facet-proof-job-level-0001-0000", (data: Record<string, unknown>) => {
+      data.ui_selections = {
+        country: ["China"], businessSector: ["Healthcare"],
+        jobLevelId: ["C - Professional", "C - Professional"]
+      };
+    }],
+    ["formal", "phenom-page-0000", (data: Record<string, unknown>) => {
+      data.ui_selections = {
+        country: ["China"], businessSector: ["Healthcare"],
+        jobLevelId: ["C - Professional", "D - Manager"], type: ["Regular"]
+      };
+    }]
+  ] as const)("independent replay rejects forged %s ui_selections", async (_label, logicalKey, mutate) => {
+    const { stagedPlan, fetched } = await fetchLiveShapedMerck("GLOBAL_EMPTY_UI_SELECTIONS");
+    if (!fetched.ok || !fetched.fetchEvidence) throw new Error("Expected successful Merck evidence");
+    const fetchEvidence = structuredClone(fetched.fetchEvidence);
+    rewriteMerckArtifactBody(fetchEvidence, logicalKey, mutate);
+    const crawled = await runSourceCrawl(stagedPlan, {
+      fetch: async () => ({ ...fetched, fetchEvidence })
+    });
+    expect(crawled.truth.completenessVerified).toBe(false);
+    expect(crawled.observation.completenessStatus).not.toBe("VERIFIED");
   });
 
   it("derives a same-origin public detail URL from reqId when Phenom omits applyUrl", async () => {
