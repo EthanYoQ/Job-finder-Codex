@@ -144,7 +144,11 @@ export async function runEmptyDatabaseMigrationVerification(
   config: EmptyDatabaseVerificationConfig,
   deps: EmptyDatabaseMigrationVerificationDeps
 ): Promise<EmptyDatabaseMigrationVerificationReport> {
-  const expectedMigrations = exactUniqueSorted(deps.expectedMigrationNames, 20, "migration allowlist");
+  const expectedMigrations = exactUniqueSorted(
+    deps.expectedMigrationNames,
+    deps.expectedMigrationNames.length,
+    "migration allowlist"
+  );
   const expectedTables = exactUniqueSorted(deps.expectedAppTableNames, 25, "application-table allowlist");
   const expectedUserTypes = exactUniqueSorted(deps.expectedUserTypeNames, 31, "user-type allowlist");
   const expectedFunctions = exactUniqueSorted(deps.expectedFunctionNames, 18, "function allowlist");
@@ -364,7 +368,8 @@ function sha256Lines(values: readonly string[]): string {
 
 function exactUniqueSorted(values: readonly string[], count: number, label: string): string[] {
   const sorted = [...values].sort(compareUtf8);
-  if (sorted.length !== count || new Set(sorted).size !== count || sorted.some((value) => !value.trim())) {
+  if (count < 1 || sorted.length !== count || new Set(sorted).size !== count ||
+      sorted.some((value) => !value.trim())) {
     fail(`${label} is invalid`);
   }
   return sorted;
