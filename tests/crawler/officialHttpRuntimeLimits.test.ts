@@ -81,7 +81,7 @@ describe("official crawl runtime limits", () => {
     }));
     const started = Date.now();
     await expect(fetchWithOfficialTimeout("https://jobs.example.test", {}, { fetchImpl, timeoutMs: 25 }))
-      .rejects.toBeInstanceOf(DOMException);
+      .rejects.toMatchObject({ code: "OFFICIAL_HTTP_TIMEOUT" });
     expect(Date.now() - started).toBeLessThan(500);
     expect(fetchImpl).toHaveBeenCalledOnce();
   });

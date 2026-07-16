@@ -51,6 +51,7 @@ function row(
     finishedAt,
     dedupeOutputCount: 1,
     expectedJobCount: 1,
+    expectedEvidenceKind: "OFFICIAL_TOTAL_COUNT",
     officialEntryId: null,
     officialSurfaceIds: [],
     officialChannelIds: [],
@@ -77,6 +78,7 @@ function row(
       atomicCommitSucceeded: true,
       structuredJobCount: 1,
       expectedJobCount: 1,
+      completenessEvidenceKind: "OFFICIAL_TOTAL_COUNT",
       completenessStatus: "VERIFIED",
       stableRequiredFields: ["COMPANY", "TITLE", "OFFICIAL_URL", "LOCATION"]
     }]

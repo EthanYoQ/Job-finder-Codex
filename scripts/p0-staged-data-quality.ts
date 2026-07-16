@@ -135,7 +135,7 @@ export async function loadStagedDataQualityGateFromDatabase(
     const releaseCandidateId = authority.identity.releaseCandidateId;
     const releaseCandidate = await transaction.releaseCandidate.findUnique({
       where: { id: releaseCandidateId },
-      select: { status: true }
+      select: { status: true, minimumStableCompanyCount: true }
     });
     const snapshot = await getCompanyPublicationSnapshotFromDb(
       transaction as never,
@@ -146,7 +146,8 @@ export async function loadStagedDataQualityGateFromDatabase(
       snapshot,
       mode: "PHASE1",
       currentTime,
-      releaseCandidateStatus: releaseCandidate?.status ?? "MISSING"
+      releaseCandidateStatus: releaseCandidate?.status ?? "MISSING",
+      minimumStableCompanyCount: releaseCandidate?.minimumStableCompanyCount ?? 0
     });
     const eligibleSources = deriveEligibleSources(authority.plans, snapshot.eligibleSourceIds);
     const sourceRows = await transaction.crawlBatchSourceResult.findMany({

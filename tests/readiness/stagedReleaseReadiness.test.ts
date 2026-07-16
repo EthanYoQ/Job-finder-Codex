@@ -81,33 +81,35 @@ function evaluate(snapshot: CompanyPublicationSnapshot) {
     mode: "PHASE1",
     currentTime: NOW,
     releaseCandidateStatus: "READY_FOR_QA",
+    minimumStableCompanyCount: 55,
     freshnessMaximumMs: FRESHNESS_MAXIMUM_MS
   });
 }
 
 describe("staged release readiness", () => {
-  it("derives the user-authorized 45-company Phase 1 threshold from current records", () => {
-    expect(PHASE1_MINIMUM_STABLE_COMPANIES).toBe(45);
-    expect(evaluate(snapshotWithStableCompanies(44))).toMatchObject({
+  it("requires the candidate-bound 55-company Phase 1 threshold from current records", () => {
+    expect(PHASE1_MINIMUM_STABLE_COMPANIES).toBe(55);
+    expect(evaluate(snapshotWithStableCompanies(54))).toMatchObject({
       canRelease: false,
-      stableCompanyCount: 44,
-      minimumStableCompanyCount: 45
+      stableCompanyCount: 54,
+      minimumStableCompanyCount: 55
     });
-    expect(evaluate(snapshotWithStableCompanies(44)).issues.map(({ code }) => code))
+    expect(evaluate(snapshotWithStableCompanies(54)).issues.map(({ code }) => code))
       .toContain("MINIMUM_STABLE_COMPANIES_NOT_MET");
-    expect(evaluate(snapshotWithStableCompanies(45))).toMatchObject({
+    expect(evaluate(snapshotWithStableCompanies(55))).toMatchObject({
       canRelease: true,
-      stableCompanyCount: 45,
-      minimumStableCompanyCount: 45
+      stableCompanyCount: 55,
+      minimumStableCompanyCount: 55
     });
   });
 
-  it("uses 45 only for first launch and keeps verified companies publishable after RELEASED", () => {
+  it("uses the candidate threshold only for first launch and keeps verified companies publishable after RELEASED", () => {
     const report = evaluateStagedReleaseReadiness({
       snapshot: snapshotWithStableCompanies(1),
       mode: "PHASE1",
       currentTime: NOW,
       releaseCandidateStatus: "RELEASED",
+      minimumStableCompanyCount: 55,
       freshnessMaximumMs: FRESHNESS_MAXIMUM_MS
     });
 
@@ -118,10 +120,11 @@ describe("staged release readiness", () => {
 
   it("does not treat a build-in-progress crawl authority as release authority", () => {
     const report = evaluateStagedReleaseReadiness({
-      snapshot: snapshotWithStableCompanies(45),
+      snapshot: snapshotWithStableCompanies(55),
       mode: "PHASE1",
       currentTime: NOW,
-      releaseCandidateStatus: "BUILDING"
+      releaseCandidateStatus: "BUILDING",
+      minimumStableCompanyCount: 55
     });
     expect(report.canRelease).toBe(false);
     expect(report.issues).toContainEqual(expect.objectContaining({
@@ -130,32 +133,32 @@ describe("staged release readiness", () => {
   });
 
   it("excludes a stale publishing company from the dynamic stable count", () => {
-    const snapshot = snapshotWithStableCompanies(45);
+    const snapshot = snapshotWithStableCompanies(55);
     const stale = snapshot.companies.find(({ state }) => state === "PUBLISHING")!;
     stale.lastSuccessAt = new Date(NOW.getTime() - FRESHNESS_MAXIMUM_MS);
     const report = evaluate(snapshot);
-    expect(report.stableCompanyCount).toBe(44);
+    expect(report.stableCompanyCount).toBe(54);
     expect(report.canRelease).toBe(false);
     expect(report.issues).toContainEqual(expect.objectContaining({
       code: "STALE_LAST_SUCCESS",
       companyId: stale.companyId
     }));
 
-    const stillFresh = snapshotWithStableCompanies(45);
+    const stillFresh = snapshotWithStableCompanies(55);
     stillFresh.companies.find(({ state }) => state === "PUBLISHING")!.lastSuccessAt =
       new Date(NOW.getTime() - FRESHNESS_MAXIMUM_MS + 1);
-    expect(evaluate(stillFresh).stableCompanyCount).toBe(45);
+    expect(evaluate(stillFresh).stableCompanyCount).toBe(55);
   });
 
   it("does not count a recently failed company and rejects stale snapshot eligibility ids", () => {
-    const snapshot = snapshotWithStableCompanies(45);
+    const snapshot = snapshotWithStableCompanies(55);
     const failed = snapshot.companies.find(({ state }) => state === "PUBLISHING")!;
     failed.state = "VERIFYING";
     failed.health = "DEGRADED";
     failed.eligibleSourceIds = [];
     failed.reasonCode = "QUALIFIED_BUT_LATEST_WINDOW_UNHEALTHY";
     const report = evaluate(snapshot);
-    expect(report.stableCompanyCount).toBe(44);
+    expect(report.stableCompanyCount).toBe(54);
     expect(report.canRelease).toBe(false);
     expect(report.issues).toContainEqual(expect.objectContaining({
       code: "SNAPSHOT_ELIGIBLE_COMPANY_DRIFT",
@@ -164,17 +167,17 @@ describe("staged release readiness", () => {
   });
 
   it("fails closed for roster, category, or authorized-exclusion drift", () => {
-    const missing = snapshotWithStableCompanies(45);
+    const missing = snapshotWithStableCompanies(55);
     missing.companies = missing.companies.slice(1);
     expect(evaluate(missing).issues.map(({ code }) => code)).toContain("CANONICAL_ROSTER_MISMATCH");
 
-    const category = snapshotWithStableCompanies(45);
+    const category = snapshotWithStableCompanies(55);
     category.companies[0]!.category = category.companies[0]!.category === "FOREIGN_PHARMA"
       ? "DOMESTIC_PHARMA"
       : "FOREIGN_PHARMA";
     expect(evaluate(category).issues.map(({ code }) => code)).toContain("CANONICAL_ROSTER_MISMATCH");
 
-    const exclusion = snapshotWithStableCompanies(45);
+    const exclusion = snapshotWithStableCompanies(55);
     exclusion.companies.find(({ companyId }) => companyId === "company-humanwell")!.state = "VERIFYING";
     expect(evaluate(exclusion).issues).toContainEqual(expect.objectContaining({
       code: "AUTHORIZED_EXCLUSION_MISMATCH",
@@ -183,16 +186,16 @@ describe("staged release readiness", () => {
   });
 
   it("rejects duplicate company records and forged eligible counts", () => {
-    const duplicate = snapshotWithStableCompanies(45);
+    const duplicate = snapshotWithStableCompanies(55);
     duplicate.companies.push({ ...duplicate.companies[0]! });
     expect(evaluate(duplicate).issues.map(({ code }) => code)).toContain("DUPLICATE_COMPANY");
 
-    const forged = snapshotWithStableCompanies(44);
+    const forged = snapshotWithStableCompanies(54);
     const extra = forged.companies.find(({ state, companyId }) =>
       state === "VERIFYING" && !isUserAuthorizedPhase1Exclusion(companyId)
     )!;
     forged.eligibleCompanyIds.push(extra.companyId);
     expect(evaluate(forged).issues.map(({ code }) => code)).toContain("SNAPSHOT_ELIGIBLE_COMPANY_DRIFT");
-    expect(evaluate(forged).stableCompanyCount).toBe(44);
+    expect(evaluate(forged).stableCompanyCount).toBe(54);
   });
 });

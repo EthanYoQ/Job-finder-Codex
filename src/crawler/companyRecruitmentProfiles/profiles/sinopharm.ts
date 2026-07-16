@@ -18,6 +18,7 @@ type SinopharmExecutionConfig = Extract<
 const executionConfig: SinopharmExecutionConfig = {
   adapterId: "official-json",
   json: OFFICIAL_API_JSON_CONFIG,
+  transientRetryPolicy: { maxRetries: 1, backoffMs: 10_000 },
   profileBoundSource: {
     kind: "sinopharm-iguopin",
     config: {

@@ -1,7 +1,7 @@
 import { confirmedCompanyRosterV3Members } from "./confirmedCompanyRosterV3";
 
 export const USER_AUTHORIZED_PHASE1_EXCLUSION = "USER_AUTHORIZED_PHASE1_EXCLUSION" as const;
-export const PHASE1_MINIMUM_STABLE_COMPANIES = 45;
+export const PHASE1_MINIMUM_STABLE_COMPANIES = 55;
 
 export const AUTHORIZED_PHASE1_EXCLUSION_COMPANY_IDS = Object.freeze([
   "company-humanwell",

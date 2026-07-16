@@ -45,7 +45,8 @@ function report(): StagedReleaseCandidateBootstrapReport {
     adapterBundleSha256: "1".repeat(64),
     sourceTreeSha256: "2".repeat(64),
     runtimeTreeSha256: "3".repeat(64),
-    oracleVersion: "staged-official-source-v1"
+    oracleVersion: "staged-official-source-v1",
+    minimumStableCompanyCount: 55
   };
 }
 
@@ -152,7 +153,8 @@ describe("staged ReleaseCandidate prepare CLI", () => {
           adapterBundleHash: "4".repeat(64),
           sourceTreeHash: "5".repeat(64),
           runtimeTreeHash: "6".repeat(64),
-          oracleVersion: "staged-official-source-v1"
+          oracleVersion: "staged-official-source-v1",
+          minimumStableCompanyCount: 55
         }
       });
     });
@@ -178,7 +180,8 @@ describe("staged ReleaseCandidate prepare CLI", () => {
             adapterBundleHash: "4".repeat(64),
             sourceTreeHash: "5".repeat(64),
             runtimeTreeHash: "6".repeat(64),
-            oracleVersion: "staged-official-source-v1"
+            oracleVersion: "staged-official-source-v1",
+            minimumStableCompanyCount: 55
           }
         ]
       },

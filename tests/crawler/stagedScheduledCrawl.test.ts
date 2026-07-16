@@ -30,7 +30,7 @@ function matchingRow(overrides: Record<string, unknown> = {}) {
   const expected = deriveCurrentStagedScheduleExpectation(BUILD);
   return {
     id: "rc-staged-1",
-    status: "READY_FOR_QA",
+    status: "BUILDING",
     commitSha: expected.commitSha,
     rosterHash: expected.rosterSha256,
     sourcePlanHash: expected.sourcePlanSha256,
@@ -39,6 +39,7 @@ function matchingRow(overrides: Record<string, unknown> = {}) {
     sourceTreeHash: expected.sourceTreeSha256,
     runtimeTreeHash: expected.runtimeTreeSha256,
     oracleVersion: STAGED_SCHEDULE_ORACLE_VERSION,
+    minimumStableCompanyCount: expected.minimumStableCompanyCount,
     ...overrides
   };
 }
@@ -235,7 +236,31 @@ describe("current staged scheduled crawl", () => {
     expect(fetch).not.toHaveBeenCalled();
   });
 
-  it.each(["READY_FOR_QA", "RELEASED"])("does not apply the initial two-round limit to %s", async (status) => {
+  it("rejects READY_FOR_QA before sync, batch creation, or fetch", async () => {
+    const syncPlannedSourcesToDb = vi.fn();
+    const runP0CrawlBatch = vi.fn();
+    const fetch = vi.fn();
+    const create = vi.fn();
+
+    await expect(runCurrentStagedScheduledCrawl({
+      db: {
+        releaseCandidate: { findMany: vi.fn(async () => [matchingRow({ status: "READY_FOR_QA" })]) },
+        crawlBatch: { findMany: vi.fn(), create }
+      } as never,
+      fetch,
+      now: new Date("2026-07-14T00:00:00.000Z"),
+      syncPlannedSourcesToDb,
+      createRuntimeDeps: vi.fn(),
+      runP0CrawlBatch
+    })).rejects.toThrow(/READY_FOR_QA.*cannot run|AWAITING_QA/i);
+
+    expect(syncPlannedSourcesToDb).not.toHaveBeenCalled();
+    expect(create).not.toHaveBeenCalled();
+    expect(runP0CrawlBatch).not.toHaveBeenCalled();
+    expect(fetch).not.toHaveBeenCalled();
+  });
+
+  it("does not apply the initial two-round limit after RELEASED", async () => {
     const canonicalPlans = buildStagedSourceCrawlPlans(candidateCompanies);
     const runP0CrawlBatch = vi.fn(async (
       _plans: readonly SourceCrawlPlan[],
@@ -244,7 +269,7 @@ describe("current staged scheduled crawl", () => {
 
     await runCurrentStagedScheduledCrawl({
       db: {
-        releaseCandidate: { findMany: vi.fn(async () => [matchingRow({ status })]) },
+        releaseCandidate: { findMany: vi.fn(async () => [matchingRow({ status: "RELEASED" })]) },
         crawlBatch: { findMany: vi.fn(async () => Array.from({ length: 3 }, (_, index) =>
           matchingScheduledBatch({ id: `batch-staged-${index + 1}` }))) }
       } as never,

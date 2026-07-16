@@ -54,7 +54,7 @@ async function loadReportFromCurrentDatabase(mode: StagedReleaseMode): Promise<S
     const authority = await resolveCurrentStagedScheduleAuthority(prisma as never);
     const releaseCandidate = await prisma.releaseCandidate.findUnique({
       where: { id: authority.identity.releaseCandidateId },
-      select: { status: true }
+      select: { status: true, minimumStableCompanyCount: true }
     });
     const snapshot = await getCompanyPublicationSnapshotFromDb(
       prisma,
@@ -65,7 +65,8 @@ async function loadReportFromCurrentDatabase(mode: StagedReleaseMode): Promise<S
       snapshot,
       mode,
       currentTime,
-      releaseCandidateStatus: releaseCandidate?.status ?? "MISSING"
+      releaseCandidateStatus: releaseCandidate?.status ?? "MISSING",
+      minimumStableCompanyCount: releaseCandidate?.minimumStableCompanyCount ?? 0
     });
   } finally {
     await prisma.$disconnect();

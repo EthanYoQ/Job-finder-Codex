@@ -27,6 +27,7 @@
     "p0:data-quality": "tsx scripts/p0-data-quality.ts",
     "p0:staged-readiness": "tsx scripts/p0-staged-readiness.ts",
     "p0:staged-data-quality": "tsx scripts/p0-staged-data-quality.ts",
+    "p0:staged-release-promotion": "tsx scripts/p0-staged-release-promotion.ts",
     "p0:launch-readiness": "tsx scripts/p0-launch-readiness.ts",
     "browser:smoke": "node scripts/browser-runtime-smoke.mjs",
     "docker:export-provenance": "tsx scripts/export-docker-build-provenance.ts",

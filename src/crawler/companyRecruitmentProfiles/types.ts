@@ -40,6 +40,10 @@ export type ProfileBoundSourceConfig =
 
 export type CompanyRecruitmentExecutionConfig = {
   formalEligibility?: "QUARANTINED_PENDING_TRUSTED_ORACLE";
+  transientRetryPolicy?: {
+    maxRetries: 1;
+    backoffMs: number;
+  };
 } & (
   | {
       adapterId: "official-json";

@@ -9,6 +9,7 @@ export const profile_pfizer_china = {
       executionConfig: {
           adapterId: "official-json",
           json: WORKDAY_JSON_CONFIG,
+          transientRetryPolicy: { maxRetries: 1, backoffMs: 10_000 },
           workday: {
               tenant: "pfizer",
               site: "PfizerCareers",

@@ -117,6 +117,22 @@ describe("source crawl planning", () => {
       .toThrow("Profile-bound source strategy must be exclusive");
   });
 
+  it("binds the transient retry policy into the canonical source plan identity", () => {
+    const plans = buildStagedSourceCrawlPlans(candidateCompanies);
+    const pfizer = getPlanBySourceId(plans, "source-pfizer-china-social");
+    if (pfizer?.adapterId !== "official-json" || !pfizer.transientRetryPolicy) {
+      throw new Error("Expected canonical Pfizer retry policy");
+    }
+    const tampered = {
+      ...pfizer,
+      transientRetryPolicy: { ...pfizer.transientRetryPolicy, backoffMs: 1_001 }
+    } as typeof pfizer;
+
+    expect(sourcePlanConfigSha256(tampered)).not.toBe(sourcePlanConfigSha256(pfizer));
+    expect(() => validateExecutablePlanChannelBinding(tampered))
+      .toThrow("Staged source plan execution config does not match canonical registry configuration");
+  });
+
   it("plans four static official sources while leaving the Otsuka subsidiary source pending", () => {
     const plans = buildDiscoverySourcePlanCandidates(candidateCompanies);
     const newSourceIds = [

@@ -1232,11 +1232,12 @@ describe("runP0CrawlBatch", () => {
       sourceJobId: "previous-job",
       officialUrl: "https://careers.example.com/jobs/previous-job"
     });
-    const fetchFailure = "temporary upstream 503";
+    const fetchFailure = "temporary upstream 503 secret=must-not-persist";
     const fetch = vi.fn(async () => ({
       ok: false as const,
       capturedAt: CAPTURED_AT,
-      failureReason: fetchFailure
+      failureReason: fetchFailure,
+      transportFailure: { code: "OFFICIAL_HTTP_503" as const, retryable: true as const }
     }));
 
     const result = await runP0CrawlBatch([plan], {
@@ -1268,9 +1269,11 @@ describe("runP0CrawlBatch", () => {
         transportState: "FAILED",
         adapterState: "SKIPPED",
         atomicCommitState: "NOT_ATTEMPTED",
-        failureCode: "SOURCE_TRANSPORT_FAILED"
+        failureCode: "SOURCE_TRANSPORT_FAILED",
+        failureReason: "Official recruitment endpoint was temporarily unavailable (HTTP 503)"
       })
     }));
+    expect(JSON.stringify(db.calls.terminalSourceResults)).not.toContain(fetchFailure);
     expect(db.calls.batchesUpdated[0]).toEqual({
       where: { id: "batch-1" },
       data: expect.objectContaining({ finishedAt: NOW, status: "INCOMPLETE" })

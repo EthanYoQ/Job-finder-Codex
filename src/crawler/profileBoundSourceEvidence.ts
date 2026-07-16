@@ -17,6 +17,7 @@ export interface ProfileBoundSourceUrlRuleSpec {
 export interface StrictProfileBoundSourcePolicy {
   urlRules: readonly ProfileBoundSourceUrlRuleSpec[];
   allowPositiveOfficialTotalCountAfterAdapterReconciliation?: true;
+  allowCompleteTraversalOfEmptyFirstPage?: true;
 }
 
 /**
@@ -93,6 +94,7 @@ export function getStrictProfileBoundSourcePolicy(
     case "xinhua-official-announcements": {
       const config = plan.profileBoundSource.config;
       return {
+        allowCompleteTraversalOfEmptyFirstPage: true,
         urlRules: [{
           id: "profile-official-announcements",
           url: new URL("/SHZP/", config.officialOrigin).toString(),

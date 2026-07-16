@@ -22,8 +22,8 @@ import { AUTHORIZED_PHASE1_EXCLUSION_COMPANY_IDS } from "../../src/data/phase1Sc
 const BASELINE = {
   rosterSha256: "f59773dae31ab14e1e06c77cc07110ee2657089ae223abdae42112f2bbd2826a",
   surfaceOracleSha256: "dee887449cbde77fc39c13863ea532a8fd69dc6607cc932e6cd12a3098ccfe71",
-  stagedPlanSha256: "787320251c04f548769757722cec83a2456db1172be18a5b6a9d06de73c86ed2",
-  stagedConfigSetSha256: "bfffa7709b4de83fdd4cba3f4355ba2e28a1a18d9672eba72ddb8a7b497eb3a7"
+  stagedPlanSha256: "4c8508398b26489f6320199212ac746e8159ad643e5a6ee51e22926a7413fc2e",
+  stagedConfigSetSha256: "a1ee19c4f4ff7115971e7f878db7bbcbb59dc08510ed5a7b2a8126deedc7b3c5"
 } as const;
 
 const SHARED_CORE_SOURCE_ALLOWLIST: Readonly<Record<string, readonly string[]>> = {
@@ -165,6 +165,22 @@ describe("company recruitment profiles", () => {
       const text = readFileSync(join(crawlerRoot, fileName), "utf8");
       expect(text).toContain("profileBoundSource");
       expect(text).not.toMatch(/\b(?:livzonCecc|sinopharmIguopin|xinhuaOfficialAnnouncement)\b/u);
+    }
+  });
+
+  it("limits one transient retry to the three explicitly reviewed company profiles", () => {
+    const retrySourceIds = Object.entries(companyRecruitmentExecutionConfigsBySourceId)
+      .filter(([, config]) => config.transientRetryPolicy !== undefined)
+      .map(([sourceId]) => sourceId)
+      .sort();
+    expect(retrySourceIds).toEqual([
+      "source-pfizer-china-social",
+      "source-sinopharm-social",
+      "source-united-lab-social"
+    ]);
+    for (const sourceId of retrySourceIds) {
+      expect(companyRecruitmentExecutionConfigsBySourceId[sourceId]?.transientRetryPolicy)
+        .toEqual({ maxRetries: 1, backoffMs: 10_000 });
     }
   });
 });

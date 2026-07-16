@@ -51,6 +51,7 @@ function releaseCandidateRow(
     sourceTreeHash: expectation.sourceTreeSha256,
     runtimeTreeHash: expectation.runtimeTreeSha256,
     oracleVersion: STAGED_SCHEDULE_ORACLE_VERSION,
+    minimumStableCompanyCount: expectation.minimumStableCompanyCount,
     ...overrides
   };
 }
@@ -70,6 +71,7 @@ describe("current staged schedule expectation", () => {
     expect(expectation.plans.every((plan) => plan.executionAuthority === "STAGED")).toBe(true);
     expect(expectation.plans.some((plan) => exclusions.has(plan.company.id))).toBe(false);
     expect(expectation.companies.filter(({ id }) => exclusions.has(id))).toHaveLength(2);
+    expect(expectation.minimumStableCompanyCount).toBe(55);
   });
 
   it("keeps canonical hash results stable when source input order changes", () => {
@@ -154,6 +156,7 @@ describe("current staged schedule release-candidate lookup", () => {
         sourceTreeHash: expected.sourceTreeSha256,
         runtimeTreeHash: expected.runtimeTreeSha256,
         oracleVersion: STAGED_SCHEDULE_ORACLE_VERSION,
+        minimumStableCompanyCount: expected.minimumStableCompanyCount,
         status: { in: ["BUILDING", "READY_FOR_QA", "RELEASED"] }
       },
       select: {
@@ -166,7 +169,8 @@ describe("current staged schedule release-candidate lookup", () => {
         adapterBundleHash: true,
         sourceTreeHash: true,
         runtimeTreeHash: true,
-        oracleVersion: true
+        oracleVersion: true,
+        minimumStableCompanyCount: true
       },
       take: 2
     });
@@ -207,10 +211,13 @@ describe("current staged schedule release-candidate lookup", () => {
     "adapterBundleHash",
     "sourceTreeHash",
     "runtimeTreeHash",
-    "oracleVersion"
+    "oracleVersion",
+    "minimumStableCompanyCount"
   ])("recompares and rejects mismatched %s returned by the DB", async (field) => {
     const expected = deriveCurrentStagedScheduleExpectation(BUILD);
-    const row = releaseCandidateRow(expected, { [field]: field === "commitSha" ? "9".repeat(40) : "9".repeat(64) });
+    const row = releaseCandidateRow(expected, {
+      [field]: field === "minimumStableCompanyCount" ? 54 : field === "commitSha" ? "9".repeat(40) : "9".repeat(64)
+    });
     await expect(resolveCurrentStagedScheduleAuthority({
       releaseCandidate: { findMany: vi.fn(async () => [row] as never) }
     })).rejects.toThrow(/mismatch/i);

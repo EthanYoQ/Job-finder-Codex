@@ -9,6 +9,7 @@ export const profile_united_lab = {
       executionConfig: {
           adapterId: "official-json",
           json: OFFICIAL_API_JSON_CONFIG,
+          transientRetryPolicy: { maxRetries: 1, backoffMs: 10_000 },
           officialJsonFetch: {
               kind: "beisen-zhiye-2022",
               geographyScope: "DOMESTIC_OFFICIAL_TENANT",

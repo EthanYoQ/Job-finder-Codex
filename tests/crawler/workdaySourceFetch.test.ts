@@ -4,6 +4,7 @@ import { createWorkdaySourceFetch } from "../../src/crawler/workdaySourceFetch";
 import type { WorkdayHttpResponse } from "../../src/crawler/workdaySourceFetch";
 import { runSourceCrawl } from "../../src/crawler/runSourceCrawl";
 import { expectedChannelSetHash, type SourceCrawlPlan } from "../../src/crawler/sourcePlan";
+import { OfficialHttpTimeoutError } from "../../src/crawler/officialHttpRuntimeLimits";
 
 type OfficialJsonSourceCrawlPlan = Extract<SourceCrawlPlan, { adapterId: "official-json" }>;
 
@@ -1170,6 +1171,27 @@ describe("createWorkdaySourceFetch", () => {
     await expect(fetcher(plan)).resolves.toMatchObject({
       ok: false,
       failureReason: "Workday jobs API returned HTTP 500"
+    });
+  });
+
+  it("exposes only reviewed transient Workday failures as structured retry signals", async () => {
+    const unavailable = createWorkdaySourceFetch({
+      now: () => new Date("2026-07-08T00:00:00.000Z"),
+      http: async () => ({ status: 503, body: "temporarily unavailable" })
+    });
+    await expect(unavailable(plan)).resolves.toMatchObject({
+      ok: false,
+      transportFailure: { code: "OFFICIAL_HTTP_503", retryable: true }
+    });
+
+    const timedOut = createWorkdaySourceFetch({
+      now: () => new Date("2026-07-08T00:00:00.000Z"),
+      http: async () => { throw new OfficialHttpTimeoutError(); }
+    });
+    await expect(timedOut(plan)).resolves.toMatchObject({
+      ok: false,
+      failureReason: "Official recruitment request timed out",
+      transportFailure: { code: "OFFICIAL_HTTP_TIMEOUT", retryable: true }
     });
   });
 

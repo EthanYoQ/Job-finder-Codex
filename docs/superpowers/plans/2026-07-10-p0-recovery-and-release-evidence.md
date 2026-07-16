@@ -77,7 +77,7 @@ The superseded rule that every row had to become `PASS` before any launch is not
 3. The immutable roster remains exactly 30 foreign plus 30 domestic pharmaceutical companies with no substitutions. All 60 appear in the directory.
 4. `company-humanwell` and `company-north-china-pharma` remain roster members marked `USER_AUTHORIZED_PHASE1_EXCLUSION`; no job-completeness claim is made for either.
 5. A company is eligible for automatic job publishing only after two consecutive successful, stable crawls cover its publicly reachable official social-recruitment scope. Eligibility and all thresholds are calculated from records, never hard-coded as pass results.
-6. A blocked or pending company blocks only its own automatic job publication. Before first launch, the release candidate remains internal-only below 45. After the initial release gate passes, routine publication has no global minimum: a later drop below 45 triggers repair and alerting but does not hide other eligible companies.
+6. A blocked or pending company blocks only its own automatic job publication. Before first launch, the release candidate remains internal-only below 55. After the initial release gate passes, routine publication has no global minimum: a later drop below 55 triggers repair and alerting but does not hide other eligible companies.
 7. Companies not yet eligible stay visible with a truthful state such as verifying, official-link-only, no public official careers link at capture time, or user-authorized exclusion.
 8. No failed, incomplete, blocked, skipped, stale, or non-atomic crawl may drive lifecycle removal. Preserve the last successful timestamp and previously verified jobs according to lifecycle rules.
 9. A change invalidates only evidence materially affected by that change. Preserve traceability and rerun impacted checks; do not require a new full evidence rebuild for unchanged gates.
@@ -279,7 +279,7 @@ The exact phrase `PRD Phase 1 complete` and the first external release are prohi
 
 - RC008's already-passed code, image, database, empty-database, backup/restore, edge/security, and independent-QA artifacts remain immutable historical, reusable evidence for unchanged gates.
 - This controlling-plan update by itself does not create a new RC and does not require rerunning an unchanged passed gate.
-- Historical RC008 evidence may support unchanged behavior only after applicability is checked. It may not self-certify current deployment, current data, staged per-company publishing eligibility, the at-least-45 count, or the two fresh crawl runs.
+- Historical RC008 evidence may support unchanged behavior only after applicability is checked. It may not self-certify current deployment, current data, staged per-company publishing eligibility, the active at-least-55 count, or the two fresh crawl runs.
 - Future changes invalidate and refresh only materially affected evidence. Preserve revision/data/run traceability, but do not rebuild unrelated historical evidence solely because one component or company changed.
 
 ## Current baseline and immediate next action
@@ -305,3 +305,10 @@ The exact phrase `PRD Phase 1 complete` and the first external release are prohi
 - RC015 repairs or adds at least five independently profile-bound official sources. Company-specific source, scope, pagination, failure, and completeness rules live in that company's recruitment profile or dedicated adapter/verifier; shared crawl code must not acquire company identifiers or scattered company exceptions.
 - After RC015 code and source configuration are frozen and its isolated database passes a fresh PostgreSQL 16 backup/restore comparison, run exactly two new full scheduled-scope qualification rounds.
 - Goal completion requires at least 55 record-derived eligible companies in both RC015 rounds. Fewer than 55 after round two pauses the candidate without a third round. Successful companies continue publishing independently after release.
+
+## RC016 authorization and narrow recovery scope (2026-07-16)
+
+- The user explicitly authorized RC016 after RC015 completed its exact two rounds below the 55-company threshold. RC015 remains immutable failed-candidate evidence and never receives a third round.
+- RC016 starts from the frozen RC015 revision and preserves the deployed RC014 service until RC016 passes. Its narrow repair scope is: bind the 55-company threshold to the candidate identity; accept a zero-job result only when result and observation both prove either an exact official total of zero or a strictly replayed complete traversal; and allow one profile-bound retry for Pfizer, Sinopharm, and United Lab only on a single-request timeout or HTTP 429/502/503/504.
+- RC016 adds an identity-bound `READY_FOR_QA -> RELEASED` promotion that requires fresh record-derived readiness, staged data quality, and a separately authored independent read-only QA document. A `READY_FOR_QA` candidate cannot execute another qualification crawl; a released candidate resumes daily per-company scheduling.
+- After the code, migrations, image, and isolated database are frozen, RC016 receives exactly two fresh scheduled-scope qualification rounds. Both rounds must support at least 55 stable companies. Fewer than 55 after round two pauses RC016 without a third round and leaves RC014 untouched.

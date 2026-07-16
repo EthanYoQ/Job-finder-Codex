@@ -29,6 +29,7 @@ import {
 } from "./runtimeBatchIdentity";
 import { isSourceDueForScheduledRun } from "./schedule";
 import { validateExecutablePlanChannelBinding, type SourceCrawlPlan } from "./sourcePlan";
+import { safeSourceTransportFailureReason } from "./sourceFetchFailure";
 import {
   bindRuntimeEvidenceArtifactIds,
   buildAtomicRuntimeCommit,
@@ -362,7 +363,11 @@ export async function runP0CrawlBatch(
           atomicCommitState: "NOT_ATTEMPTED",
           finishedAt: crawlResult.observation.crawledAt,
           failureCode: transportFailed ? "SOURCE_TRANSPORT_FAILED" : "SOURCE_ADAPTER_FAILED",
-          failureReason: transportFailed ? "Source transport failed" : "Source adapter failed"
+          failureReason: transportFailed
+            ? crawlResult.transportFailure
+              ? safeSourceTransportFailureReason(crawlResult.transportFailure)
+              : "Source transport failed"
+            : "Source adapter failed"
         }, deps.db as never);
         terminalSourceIds.add(plan.source.id);
         failedSourceCount += 1;

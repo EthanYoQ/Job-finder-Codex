@@ -285,6 +285,25 @@ function postBodies(requests: readonly SinopharmIguopinHttpRequest[]) {
 }
 
 describe("createSinopharmIguopinSourceFetch", () => {
+  it("exposes a temporary official HTTP status without making structural failures retryable", async () => {
+    const stagedPlan = stagedSinopharmPlan();
+    const transient = await createSinopharmIguopinSourceFetch({
+      now: () => new Date(capturedAt),
+      http: async (request) => ({
+        ...htmlResponse(request, "temporarily unavailable"),
+        status: 503
+      })
+    })(stagedPlan);
+    expect(transient).toMatchObject({
+      ok: false,
+      transportFailure: { code: "OFFICIAL_HTTP_503", retryable: true }
+    });
+
+    const structural = await run({ talentHubHtml: "<html><body>no official recruitment link</body></html>" });
+    expect(structural.result).toMatchObject({ ok: false });
+    expect(structural.result).not.toHaveProperty("transportFailure");
+  });
+
   it("passes the shared runSourceCrawl strict gate with the canonical staged profile", async () => {
     const { stagedPlan, result } = await runStagedSinopharm();
     const crawled = await runSourceCrawl(stagedPlan, { fetch: async () => result });

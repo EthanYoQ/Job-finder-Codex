@@ -7,6 +7,12 @@ import {
   officialBrowserTimeoutMs,
   officialHttpTimeoutMs
 } from "./officialHttpRuntimeLimits";
+import {
+  retryableHttpTransportFailure,
+  retryableTransportFailureFromError,
+  safeSourceTransportFailureReason,
+  type SourceTransportFailure
+} from "./sourceFetchFailure";
 import { load as loadHtml } from "cheerio";
 import { parse as parseJavaScript } from "@babel/parser";
 import type { ObjectExpression } from "@babel/types";
@@ -888,7 +894,7 @@ function failedWithEvidence(
   capturedAt: string,
   failureReason: string,
   fetchEvidence: NonNullable<Extract<SourceFetchResult, { ok: false }>["fetchEvidence"]>
-): SourceFetchResult {
+): Extract<SourceFetchResult, { ok: false }> {
   return { ok: false, capturedAt, failureReason, fetchEvidence };
 }
 
@@ -2362,15 +2368,19 @@ async function fetchBeisenZhiye2022({
         },
         body: JSON.stringify(requestBody)
       });
-    } catch {
+    } catch (error) {
+      const transportFailure = retryableTransportFailureFromError(error);
       return beisenFailure(
         capturedAt,
-        "Beisen Zhiye API TRANSPORT_FAILURE",
+        transportFailure
+          ? safeSourceTransportFailureReason(transportFailure)
+          : "Beisen Zhiye API TRANSPORT_FAILURE",
         artifacts,
         pages,
         counts,
         losses,
-        beisenDeclaredCompleteness(declaredTotal, declaredArtifactKey, declaredLocator)
+        beisenDeclaredCompleteness(declaredTotal, declaredArtifactKey, declaredLocator),
+        transportFailure
       );
     }
     try {
@@ -2408,10 +2418,13 @@ async function fetchBeisenZhiye2022({
     });
     artifacts.push(artifact);
     if (response.status < 200 || response.status >= 300) {
+      const transportFailure = retryableHttpTransportFailure(response.status);
       pages.push(beisenPageTrace({ artifact, sequence: pageIndex, requestedPage: pageIndex, termination: "FAILED" }));
-      return beisenFailure(capturedAt, `Beisen Zhiye API returned HTTP ${response.status}`,
+      return beisenFailure(capturedAt, transportFailure
+        ? safeSourceTransportFailureReason(transportFailure)
+        : `Beisen Zhiye API returned HTTP ${response.status}`,
         artifacts, pages, counts, losses,
-        beisenDeclaredCompleteness(declaredTotal, declaredArtifactKey, declaredLocator));
+        beisenDeclaredCompleteness(declaredTotal, declaredArtifactKey, declaredLocator), transportFailure);
     }
     try {
       assertOfficialJsonMime(response);
@@ -6738,9 +6751,13 @@ function beisenFailure(
   pages: SourceFetchPageTrace[],
   fetchCounts: PersistentSourceFetchEvidence["fetchCounts"],
   fetchLosses: PersistentSourceFetchEvidence["fetchLosses"],
-  declaredCompleteness?: PersistentSourceFetchEvidence["declaredCompleteness"]
+  declaredCompleteness?: PersistentSourceFetchEvidence["declaredCompleteness"],
+  transportFailure?: SourceTransportFailure
 ): SourceFetchResult {
-  if (artifacts.length === 0) return failed(capturedAt, failureReason);
+  if (artifacts.length === 0) {
+    const result = failed(capturedAt, failureReason);
+    return transportFailure ? { ...result, transportFailure } : result;
+  }
   const evidencePages = pages.length > 0
     ? pages.map((page, index) => index === pages.length - 1 && page.termination === "CONTINUE"
       ? { ...page, termination: "ABORTED" as const }
@@ -6751,13 +6768,14 @@ function beisenFailure(
         requestedPage: 0,
         termination: "FAILED"
       })];
-  return failedWithEvidence(capturedAt, failureReason, finalizeOfficialJsonFailureEvidenceBundle({
+  const result = failedWithEvidence(capturedAt, failureReason, finalizeOfficialJsonFailureEvidenceBundle({
     artifacts,
     pages: evidencePages,
     fetchCounts,
     fetchLosses,
     ...(declaredCompleteness ? { declaredCompleteness } : {})
   }));
+  return transportFailure ? { ...result, transportFailure } : result;
 }
 
 function recordBeisenLoss(
@@ -7271,7 +7289,7 @@ function firstLocationSegment(locationRaw: string): string | undefined {
     .find((segment) => segment.length > 0 && segment.toLowerCase() !== "china");
 }
 
-function failed(capturedAt: string, failureReason: string): SourceFetchResult {
+function failed(capturedAt: string, failureReason: string): Extract<SourceFetchResult, { ok: false }> {
   return {
     ok: false,
     capturedAt,

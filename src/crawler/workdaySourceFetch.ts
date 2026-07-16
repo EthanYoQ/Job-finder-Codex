@@ -11,6 +11,12 @@ import {
 } from "./sourceFetchEvidence";
 import { hasUniqueJsonObjectKeys } from "./strictJsonObjectKeys";
 import { requestContractV2Locator } from "./strictPageRequestContract";
+import {
+  retryableHttpTransportFailure,
+  retryableTransportFailureFromError,
+  safeSourceTransportFailureReason,
+  type SourceTransportFailure
+} from "./sourceFetchFailure";
 
 export interface WorkdayFetchConfig {
   tenant: string;
@@ -610,7 +616,10 @@ export function createWorkdaySourceFetch(deps: WorkdaySourceFetchDeps = {}): Sou
         });
         const preflight = await http(preflightRequest);
         if (preflight.status < 200 || preflight.status >= 300) {
-          return failed(capturedAt, `Workday jobs API returned HTTP ${preflight.status}`);
+          const transportFailure = retryableHttpTransportFailure(preflight.status);
+          return failed(capturedAt, transportFailure
+            ? safeSourceTransportFailureReason(transportFailure)
+            : `Workday jobs API returned HTTP ${preflight.status}`, undefined, undefined, transportFailure);
         }
         assertEvidenceResponse(preflight);
         artifacts.push(workdayArtifact("workday-preflight-0000", "ATS_API_RESPONSE", url, preflight,
@@ -648,7 +657,10 @@ export function createWorkdaySourceFetch(deps: WorkdaySourceFetchDeps = {}): Sou
         });
         const facetPreflight = await http(facetPreflightRequest);
         if (facetPreflight.status < 200 || facetPreflight.status >= 300) {
-          return failed(capturedAt, `Workday jobs API returned HTTP ${facetPreflight.status}`);
+          const transportFailure = retryableHttpTransportFailure(facetPreflight.status);
+          return failed(capturedAt, transportFailure
+            ? safeSourceTransportFailureReason(transportFailure)
+            : `Workday jobs API returned HTTP ${facetPreflight.status}`, undefined, undefined, transportFailure);
         }
         assertEvidenceResponse(facetPreflight);
         artifacts.push(workdayArtifact("workday-facet-preflight-0000", "ATS_API_RESPONSE", url, facetPreflight,
@@ -699,7 +711,10 @@ export function createWorkdaySourceFetch(deps: WorkdaySourceFetchDeps = {}): Sou
         const response = await http(pageRequest);
 
         if (response.status < 200 || response.status >= 300) {
-          return failed(capturedAt, `Workday jobs API returned HTTP ${response.status}`);
+          const transportFailure = retryableHttpTransportFailure(response.status);
+          return failed(capturedAt, transportFailure
+            ? safeSourceTransportFailureReason(transportFailure)
+            : `Workday jobs API returned HTTP ${response.status}`, undefined, undefined, transportFailure);
         }
 
         assertEvidenceResponse(response);
@@ -1071,11 +1086,15 @@ export function createWorkdaySourceFetch(deps: WorkdaySourceFetchDeps = {}): Sou
         paginationEvaluation
       };
     } catch (error) {
+      const transportFailure = retryableTransportFailureFromError(error);
       return failed(
         capturedAt,
-        error instanceof Error ? error.message : String(error),
+        transportFailure
+          ? safeSourceTransportFailureReason(transportFailure)
+          : error instanceof Error ? error.message : String(error),
         latestEvidence,
-        latestEvaluation
+        latestEvaluation,
+        transportFailure
       );
     }
   };
@@ -1443,12 +1462,14 @@ function failed(
   capturedAt: string,
   failureReason: string,
   fetchEvidence?: PersistentSourceFetchEvidence,
-  paginationEvaluation?: ReturnType<typeof evaluatePaginationEvidence>
+  paginationEvaluation?: ReturnType<typeof evaluatePaginationEvidence>,
+  transportFailure?: SourceTransportFailure
 ): SourceFetchResult {
   return {
     ok: false,
     capturedAt,
     failureReason,
+    ...(transportFailure ? { transportFailure } : {}),
     ...(fetchEvidence ? { fetchEvidence } : {}),
     ...(paginationEvaluation ? { paginationEvaluation } : {})
   };

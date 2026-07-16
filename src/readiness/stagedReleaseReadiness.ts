@@ -43,6 +43,7 @@ export interface StagedReleaseReadinessInput {
   mode: StagedReleaseMode;
   currentTime: Date;
   releaseCandidateStatus: string;
+  minimumStableCompanyCount: number;
   freshnessMaximumMs?: number;
 }
 
@@ -139,8 +140,12 @@ export function evaluateStagedReleaseReadiness(
   input: StagedReleaseReadinessInput
 ): StagedReleaseReadinessReport {
   const freshnessMaximumMs = input.freshnessMaximumMs ?? DAILY_PUBLICATION_FRESHNESS_MAXIMUM_MS;
-  const minimumStableCompanyCount = PHASE1_MINIMUM_STABLE_COMPANIES;
+  const minimumStableCompanyCount = input.minimumStableCompanyCount;
   if (!Number.isFinite(input.currentTime.getTime())) throw new Error("INVALID_STAGED_READINESS_CURRENT_TIME");
+  if (!Number.isSafeInteger(minimumStableCompanyCount) ||
+      minimumStableCompanyCount < 1 || minimumStableCompanyCount > 60) {
+    throw new Error("INVALID_STAGED_READINESS_MINIMUM_STABLE_COMPANIES");
+  }
   if (!Number.isSafeInteger(freshnessMaximumMs) || freshnessMaximumMs <= 0) {
     throw new Error("INVALID_STAGED_READINESS_FRESHNESS_MAXIMUM");
   }

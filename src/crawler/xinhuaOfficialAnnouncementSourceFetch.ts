@@ -438,10 +438,6 @@ function buildEvidence(input: {
     extractorLocator: DETAIL_EXTRACTOR_LOCATOR
   }));
 
-  const officialListsAreEmpty = input.assessments.length === 0 &&
-    input.listPages.length === 2 &&
-    input.listPages.every((page) => page.announcementIds.length === 0 && !page.nextPageUrl) &&
-    new Set(input.listPages.map((page) => page.channelId)).size === 2;
   const pages: SourceFetchPageTrace[] = input.listPages.map((page, sequence) => ({
     sequence,
     artifactLogicalKey: page.logicalKey,
@@ -458,13 +454,13 @@ function buildEvidence(input: {
     // These are valid announcement identifiers for traversal replay. Job-level
     // validity remains zero in fetchCounts after the deadline/structure gate.
     validJobIds: page.announcementIds,
-    declaredTotal: officialListsAreEmpty ? 0 : null,
+    declaredTotal: null,
     declaredCount: null,
     declaredPages: null,
     nextPageSignalBefore: page.requestPageSignal ?? null,
     nextPageSignalAfter: page.nextPageUrl ?? null,
     responseFingerprintSha256: sha256Bytes(Buffer.from(page.response.body, "utf8")).sha256,
-    termination: page.nextPageUrl ? "CONTINUE" : officialListsAreEmpty ? "EMPTY_PAGE" : "NEXT_ABSENT",
+    termination: page.nextPageUrl ? "CONTINUE" : page.announcementIds.length === 0 ? "EMPTY_PAGE" : "NEXT_ABSENT",
     anomalyCodes: [],
     capturedAt: page.response.capturedAt
   }));
@@ -480,8 +476,8 @@ function buildEvidence(input: {
     artifacts: [declarationArtifact, ...listArtifacts, ...detailArtifacts],
     pages,
     declaredCompleteness: {
-      kind: officialListsAreEmpty ? "OFFICIAL_TOTAL_COUNT" : "COMPLETE_PAGE_TRAVERSAL",
-      value: officialListsAreEmpty ? 0 : pages.length,
+      kind: "COMPLETE_PAGE_TRAVERSAL",
+      value: pages.length,
       artifactLogicalKey: declarationArtifact.logicalKey,
       extractorLocator: declarationArtifact.extractorLocator,
       scope: "SOURCE"
@@ -507,12 +503,14 @@ function buildEvidence(input: {
   const evidence = deriveCanonicalPaginationEvidence({
     evidence: rawEvidence,
     expectedChannelIds: ["desktop", "mobile"],
-    filteredOutput: true
+    filteredOutput: true,
+    allowCompleteTraversalOfEmptyFirstPage: true
   });
   const evaluation = evaluatePaginationEvidence({
     evidence,
     expectedChannelIds: ["desktop", "mobile"],
-    filteredOutput: true
+    filteredOutput: true,
+    allowCompleteTraversalOfEmptyFirstPage: true
   });
   return { evidence, evaluation };
 }
@@ -542,12 +540,8 @@ export function validateStrictXinhuaOfficialAnnouncementReplay(
     const declaration = evidence.declaredCompleteness;
     const traversalDeclaration = declaration?.kind === "COMPLETE_PAGE_TRAVERSAL" &&
       declaration.value === evidence.pages.length;
-    const emptyDeclaration = declaration?.kind === "OFFICIAL_TOTAL_COUNT" && declaration.value === 0 &&
-      evidence.pages.length === 2 && evidence.pages.every((page) =>
-        page.rawJobIds.length === 0 && page.validJobIds.length === 0 &&
-        page.declaredTotal === 0 && page.termination === "EMPTY_PAGE");
     if (
-      (!traversalDeclaration && !emptyDeclaration) ||
+      !traversalDeclaration ||
       declaration.scope !== "SOURCE" ||
       declaration.channelId !== undefined ||
       declaration.artifactLogicalKey !== "xinhua-source-declaration" ||
@@ -611,7 +605,7 @@ export function validateStrictXinhuaOfficialAnnouncementReplay(
         ? replayedPages[sequence + 1]
         : undefined;
       const ids = replayed.announcements.map((announcement) => announcement.id);
-      const emptyOfficialPage = emptyDeclaration && ids.length === 0 && !nextInChannel;
+      const emptyOfficialPage = ids.length === 0 && !nextInChannel;
       if (
         !trace || trace.sequence !== sequence ||
         trace.artifactLogicalKey !== replayed.artifact.logicalKey ||
@@ -621,7 +615,7 @@ export function validateStrictXinhuaOfficialAnnouncementReplay(
         trace.requestedCursor != null || trace.returnedCursor != null ||
         trace.requestedOffset != null || trace.returnedOffset != null ||
         trace.requestedPageSize != null || trace.returnedPageSize != null ||
-        trace.declaredTotal !== (emptyOfficialPage ? 0 : null) ||
+        trace.declaredTotal !== null ||
         trace.declaredCount != null || trace.declaredPages != null ||
         JSON.stringify(trace.rawJobIds) !== JSON.stringify(ids) ||
         JSON.stringify(trace.validJobIds) !== JSON.stringify(ids) ||
@@ -671,7 +665,8 @@ export function validateStrictXinhuaOfficialAnnouncementReplay(
     const independentEvaluation = evaluatePaginationEvidence({
       evidence,
       expectedChannelIds: ["desktop", "mobile"],
-      filteredOutput: true
+      filteredOutput: true,
+      allowCompleteTraversalOfEmptyFirstPage: true
     });
     return independentEvaluation.safeCompleteness === true &&
       independentEvaluation.verifiedEligible === true &&

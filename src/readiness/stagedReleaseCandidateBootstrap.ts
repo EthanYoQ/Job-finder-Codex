@@ -52,6 +52,7 @@ export interface StagedReleaseIdentityConflictKey {
     sourceTreeHash: string;
     runtimeTreeHash: string;
     oracleVersion: typeof STAGED_SCHEDULE_ORACLE_VERSION;
+    minimumStableCompanyCount: number;
   };
 }
 
@@ -76,6 +77,7 @@ export interface StagedReleaseCandidateCreateData {
   sourceTreeHash: string;
   runtimeTreeHash: string;
   oracleVersion: typeof STAGED_SCHEDULE_ORACLE_VERSION;
+  minimumStableCompanyCount: number;
   status: "BUILDING";
 }
 
@@ -84,6 +86,7 @@ export interface PreparedReleaseCandidateRow {
   goalId: string;
   version: number;
   status: string;
+  minimumStableCompanyCount: number;
 }
 
 export interface StagedReleaseCandidateBootstrapTransaction {
@@ -122,6 +125,7 @@ export interface StagedReleaseCandidateBootstrapReport {
   sourceTreeSha256: string;
   runtimeTreeSha256: string;
   oracleVersion: typeof STAGED_SCHEDULE_ORACLE_VERSION;
+  minimumStableCompanyCount: number;
 }
 
 export async function prepareStagedReleaseCandidate(
@@ -145,7 +149,8 @@ export async function prepareStagedReleaseCandidate(
     adapterBundleHash: expectation.adapterBundleSha256,
     sourceTreeHash: expectation.sourceTreeSha256,
     runtimeTreeHash: expectation.runtimeTreeSha256,
-    oracleVersion: STAGED_SCHEDULE_ORACLE_VERSION
+    oracleVersion: STAGED_SCHEDULE_ORACLE_VERSION,
+    minimumStableCompanyCount: expectation.minimumStableCompanyCount
   };
   const createData: StagedReleaseCandidateCreateData = {
     id: input.id,
@@ -162,6 +167,7 @@ export async function prepareStagedReleaseCandidate(
     sourceTreeHash: stagedIdentity.sourceTreeHash,
     runtimeTreeHash: stagedIdentity.runtimeTreeHash,
     oracleVersion: stagedIdentity.oracleVersion,
+    minimumStableCompanyCount: stagedIdentity.minimumStableCompanyCount,
     status: "BUILDING"
   };
 
@@ -187,7 +193,8 @@ export async function prepareStagedReleaseCandidate(
       created.id !== input.id ||
       created.goalId !== input.goalId ||
       created.version !== input.version ||
-      created.status !== "BUILDING"
+      created.status !== "BUILDING" ||
+      created.minimumStableCompanyCount !== stagedIdentity.minimumStableCompanyCount
     ) {
       throw new Error("Created row does not match the requested BUILDING release candidate");
     }
@@ -210,7 +217,8 @@ export async function prepareStagedReleaseCandidate(
       adapterBundleSha256: expectation.adapterBundleSha256,
       sourceTreeSha256: expectation.sourceTreeSha256,
       runtimeTreeSha256: expectation.runtimeTreeSha256,
-      oracleVersion: STAGED_SCHEDULE_ORACLE_VERSION
+      oracleVersion: STAGED_SCHEDULE_ORACLE_VERSION,
+      minimumStableCompanyCount: expectation.minimumStableCompanyCount
     });
   });
 }
@@ -261,6 +269,10 @@ function validateExpectationBinding(
   requireSha256(expectation.sourcePlanSha256, "staged source plan");
   requireSha256(expectation.sourceConfigSha256, "staged source config");
   requireSha256(expectation.adapterBundleSha256, "staged adapter bundle");
+  if (!Number.isSafeInteger(expectation.minimumStableCompanyCount) ||
+      expectation.minimumStableCompanyCount < 1 || expectation.minimumStableCompanyCount > 60) {
+    throw new Error("Staged schedule expectation minimum stable company count is invalid");
+  }
 }
 
 function validateLocalMigrations(artifacts: readonly LocalMigrationArtifact[]): LocalMigrationArtifact[] {

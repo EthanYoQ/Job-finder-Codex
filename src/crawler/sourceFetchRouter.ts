@@ -1,4 +1,5 @@
 import type { SourceFetchFunction } from "./runSourceCrawl";
+import { currentOfficialSourceAttemptSignal } from "./officialHttpRuntimeLimits";
 
 export interface SourceFetchRouterDeps {
   moka: SourceFetchFunction;
@@ -9,6 +10,7 @@ export interface SourceFetchRouterDeps {
   hotjobLegacy?: SourceFetchFunction;
   profileBoundSource?: SourceFetchFunction;
   fallback: SourceFetchFunction;
+  delay?: (milliseconds: number) => Promise<void>;
 }
 
 export function createSourceFetchRouter({
@@ -19,27 +21,70 @@ export function createSourceFetchRouter({
   hotjob,
   hotjobLegacy,
   profileBoundSource,
-  fallback
+  fallback,
+  delay = defaultDelay
 }: SourceFetchRouterDeps): SourceFetchFunction {
-  return (plan) => {
+  return async (plan) => {
+    const delegate = routeSourceFetcher(plan, {
+      moka,
+      ...(html ? { html } : {}),
+      ...(officialJson ? { officialJson } : {}),
+      ...(workday ? { workday } : {}),
+      ...(hotjob ? { hotjob } : {}),
+      ...(hotjobLegacy ? { hotjobLegacy } : {}),
+      ...(profileBoundSource ? { profileBoundSource } : {}),
+      fallback
+    });
+    let result = await delegate(plan);
+    const policy = plan.transientRetryPolicy;
+    if (!policy) return result;
+    if (policy.maxRetries !== 1 || !Number.isSafeInteger(policy.backoffMs) ||
+      policy.backoffMs < 1_000 || policy.backoffMs > 60_000) {
+      throw new Error("Transient retry policy must allow exactly one retry after 1000 through 60000 milliseconds");
+    }
+    for (let retry = 0; retry < policy.maxRetries; retry += 1) {
+      if (result.ok || result.transportFailure?.retryable !== true) return result;
+      const signal = currentOfficialSourceAttemptSignal();
+      if (signal?.aborted) return result;
+      await delay(policy.backoffMs);
+      if (signal?.aborted) return result;
+      result = await delegate(plan);
+    }
+    return result;
+  };
+}
+
+function routeSourceFetcher(
+  plan: Parameters<SourceFetchFunction>[0],
+  {
+    moka,
+    html,
+    officialJson,
+    workday,
+    hotjob,
+    hotjobLegacy,
+    profileBoundSource,
+    fallback
+  }: Omit<SourceFetchRouterDeps, "delay">
+): SourceFetchFunction {
     if (plan.source.atsKind === "MOKA") {
-      return moka(plan);
+      return moka;
     }
 
     if (plan.source.atsKind === "WORKDAY" && workday) {
-      return workday(plan);
+      return workday;
     }
 
     if ("hotjobLegacy" in plan && plan.hotjobLegacy && hotjobLegacy) {
-      return hotjobLegacy(plan);
+      return hotjobLegacy;
     }
 
     if ("profileBoundSource" in plan && plan.profileBoundSource && profileBoundSource) {
-      return profileBoundSource(plan);
+      return profileBoundSource;
     }
 
     if (plan.source.atsKind === "HOTJOB_WECRUIT" && hotjob) {
-      return hotjob(plan);
+      return hotjob;
     }
 
     if (
@@ -48,13 +93,16 @@ export function createSourceFetchRouter({
       plan.officialJsonFetch &&
       officialJson
     ) {
-      return officialJson(plan);
+      return officialJson;
     }
 
     if (plan.adapterId === "html-table" && html) {
-      return html(plan);
+      return html;
     }
 
-    return fallback(plan);
-  };
+    return fallback;
+}
+
+function defaultDelay(milliseconds: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, milliseconds));
 }

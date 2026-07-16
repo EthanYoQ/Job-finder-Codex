@@ -66,6 +66,10 @@ export type SourceCrawlPlan = (
       executionAuthority?: "STAGED";
       expectedChannels?: readonly ExecutableExpectedChannel[];
       expectedChannelSetHash?: string;
+      transientRetryPolicy?: {
+        maxRetries: 1;
+        backoffMs: number;
+      };
     };
 
 const CANONICAL_EXECUTION_CONFIG_JSON_BY_SOURCE_ID: Readonly<Record<string, string>> = Object.freeze(
@@ -203,7 +207,8 @@ function buildPlans(
               ...(config.hotjob ? { hotjob: config.hotjob } : {}),
               ...(config.hotjobLegacy ? { hotjobLegacy: config.hotjobLegacy } : {}),
               ...(config.profileBoundSource ? { profileBoundSource: config.profileBoundSource } : {}),
-              ...(config.moka ? { moka: config.moka } : {})
+              ...(config.moka ? { moka: config.moka } : {}),
+              ...(config.transientRetryPolicy ? { transientRetryPolicy: config.transientRetryPolicy } : {})
             }
           : {
               adapterId: "html-table",
@@ -351,7 +356,8 @@ export function validateExecutablePlanChannelBinding(plan: SourceCrawlPlan): voi
         ...(plan.hotjob ? { hotjob: plan.hotjob } : {}),
         ...(plan.hotjobLegacy ? { hotjobLegacy: plan.hotjobLegacy } : {}),
         ...(plan.profileBoundSource ? { profileBoundSource: plan.profileBoundSource } : {}),
-        ...(plan.moka ? { moka: plan.moka } : {})
+        ...(plan.moka ? { moka: plan.moka } : {}),
+        ...(plan.transientRetryPolicy ? { transientRetryPolicy: plan.transientRetryPolicy } : {})
       }
     : { adapterId: "html-table", table: plan.table };
   const exactCoverage = staged
@@ -487,7 +493,8 @@ function hasCanonicalStagedExecutionConfig(plan: SourceCrawlPlan): boolean {
         ...(plan.hotjob ? { hotjob: plan.hotjob } : {}),
         ...(plan.hotjobLegacy ? { hotjobLegacy: plan.hotjobLegacy } : {}),
         ...(plan.profileBoundSource ? { profileBoundSource: plan.profileBoundSource } : {}),
-        ...(plan.moka ? { moka: plan.moka } : {})
+        ...(plan.moka ? { moka: plan.moka } : {}),
+        ...(plan.transientRetryPolicy ? { transientRetryPolicy: plan.transientRetryPolicy } : {})
       }
     : { adapterId: "html-table", table: plan.table };
   return representativeExecutionConfigJson(planExecutionConfig) === canonicalExecutionConfigJson;

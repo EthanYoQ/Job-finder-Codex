@@ -203,7 +203,7 @@ describe("Xinhua official social announcement source", () => {
     ]);
   });
 
-  it("keeps an actually empty pair of official lists as an exact independently replayable zero", async () => {
+  it("keeps an actually empty pair of official lists as complete traversal without inventing an official total", async () => {
     const source = fixture({
       pages: {
         [desktopEntryUrl]: listHtml([]),
@@ -216,8 +216,8 @@ describe("Xinhua official social announcement source", () => {
     if (!result.ok) throw new Error(result.failureReason);
     const evidence = parsePersistentSourceFetchEvidence(result.fetchEvidence);
     expect(evidence.declaredCompleteness).toMatchObject({
-      kind: "OFFICIAL_TOTAL_COUNT",
-      value: 0
+      kind: "COMPLETE_PAGE_TRAVERSAL",
+      value: 2
     });
     expect(evidence.pages.map((page) => page.termination)).toEqual(["EMPTY_PAGE", "EMPTY_PAGE"]);
     expect(validateStrictXinhuaOfficialAnnouncementReplay(plan, evidence, [])).toBe(true);

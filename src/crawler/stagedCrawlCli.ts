@@ -18,7 +18,6 @@ import { formatP0CrawlResult, type P0CrawlCommandResult } from "./p0CrawlCommand
 import { validateRuntimeBatchIdentity, type RuntimeBatchIdentity } from "./runtimeBatchIdentity";
 import type { runCurrentStagedScheduledCrawl } from "./stagedScheduledCrawl";
 import { resolveStagedCrawlEvidencePaths } from "./stagedCrawlEvidencePaths";
-import { PHASE1_MINIMUM_STABLE_COMPANIES } from "../data/phase1ScopePolicy";
 import {
   buildInitialQualificationPauseEvidence,
   writeInitialQualificationPauseEvidence,
@@ -79,9 +78,15 @@ export interface StagedInitialQualificationReadiness {
 }
 
 export interface StagedInitialQualificationDeps {
-  loadReleaseCandidateStatus(identity: RuntimeBatchIdentity): Promise<string>;
+  loadReleaseCandidateState(identity: RuntimeBatchIdentity): Promise<{
+    status: string;
+    minimumStableCompanyCount: number;
+  }>;
   countCompletedQualificationRounds(identity: RuntimeBatchIdentity): Promise<number>;
-  loadProspectiveReadiness(identity: RuntimeBatchIdentity): Promise<StagedInitialQualificationReadiness>;
+  loadProspectiveReadiness(
+    identity: RuntimeBatchIdentity,
+    minimumStableCompanyCount: number
+  ): Promise<StagedInitialQualificationReadiness>;
   transitionReleaseCandidate(
     identity: RuntimeBatchIdentity,
     expectedStatus: "BUILDING",
@@ -97,8 +102,12 @@ export async function finalizeStagedInitialQualification(
   if (identity.batchKind !== "SCHEDULED" || identity.ownerId !== "staged-scheduler") {
     throw new Error("STAGED_INITIAL_QUALIFICATION_IDENTITY_INVALID");
   }
-  const minimumStableCompanyCount = PHASE1_MINIMUM_STABLE_COMPANIES;
-  const status = await deps.loadReleaseCandidateStatus(identity);
+  const candidate = await deps.loadReleaseCandidateState(identity);
+  const { status, minimumStableCompanyCount } = candidate;
+  if (!Number.isSafeInteger(minimumStableCompanyCount) ||
+      minimumStableCompanyCount < 1 || minimumStableCompanyCount > 60) {
+    throw new Error("STAGED_INITIAL_QUALIFICATION_MINIMUM_INVALID");
+  }
   if (status === "READY_FOR_QA") {
     return Object.freeze({
       state: "AWAITING_QA",
@@ -135,7 +144,7 @@ export async function finalizeStagedInitialQualification(
     });
   }
 
-  const readiness = await deps.loadProspectiveReadiness(identity);
+  const readiness = await deps.loadProspectiveReadiness(identity, minimumStableCompanyCount);
   if (
     !Number.isSafeInteger(readiness.stableCompanyCount) ||
     readiness.stableCompanyCount < 0 ||
@@ -514,19 +523,19 @@ async function createProductionRuntime(force = false): Promise<StagedCrawlRuntim
         runP0CrawlBatch
       }),
       finalizeInitialQualification: (identity) => finalizeStagedInitialQualification(identity, {
-        loadReleaseCandidateStatus: async (candidateIdentity) => {
+        loadReleaseCandidateState: async (candidateIdentity) => {
           const authority = await resolveCurrentStagedScheduleAuthority(prisma as never);
           assertExactQualificationIdentity(authority.identity, candidateIdentity);
           const row = await prisma.releaseCandidate.findUnique({
             where: { id: candidateIdentity.releaseCandidateId },
-            select: { status: true }
+            select: { status: true, minimumStableCompanyCount: true }
           });
           if (!row) throw new Error("STAGED_INITIAL_QUALIFICATION_CANDIDATE_MISSING");
-          return row.status;
+          return row;
         },
         countCompletedQualificationRounds: (candidateIdentity) =>
           countCompletedStagedQualificationRounds(prisma as never, candidateIdentity),
-        loadProspectiveReadiness: async (candidateIdentity) => {
+        loadProspectiveReadiness: async (candidateIdentity, minimumStableCompanyCount) => {
           const [
             { getCompanyPublicationSnapshotFromDb },
             { evaluateStagedReleaseReadiness }
@@ -546,7 +555,8 @@ async function createProductionRuntime(force = false): Promise<StagedCrawlRuntim
             snapshot,
             mode: "PHASE1",
             currentTime,
-            releaseCandidateStatus: "READY_FOR_QA"
+            releaseCandidateStatus: "READY_FOR_QA",
+            minimumStableCompanyCount
           });
         },
         transitionReleaseCandidate: async (candidateIdentity, expectedStatus, nextStatus) => {

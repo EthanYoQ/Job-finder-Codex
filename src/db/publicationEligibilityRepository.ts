@@ -12,6 +12,7 @@ import { assertExactConfirmedCompanyRosterV3 } from "../data/confirmedCompanyRos
 import {
   derivePhase1Scope
 } from "../data/phase1ScopePolicy";
+import type { CompletenessEvidenceKind } from "../domain/company";
 import {
   buildCompanyPublicationSnapshot,
   DAILY_PUBLICATION_FRESHNESS_MAXIMUM_MS,
@@ -49,6 +50,7 @@ export interface PublicationEligibilityObservationRow {
   atomicCommitSucceeded: boolean | null;
   structuredJobCount: number;
   expectedJobCount: number | null;
+  completenessEvidenceKind: CompletenessEvidenceKind | null;
   completenessStatus: PublicationCompletenessStatus | null;
   stableRequiredFields: PublicationStableRequiredField[];
 }
@@ -68,6 +70,7 @@ export interface PublicationEligibilitySourceResultRow {
   finishedAt: Date | null;
   dedupeOutputCount: number;
   expectedJobCount: number | null;
+  expectedEvidenceKind: CompletenessEvidenceKind | null;
   officialEntryId: string | null;
   officialSurfaceIds: string[];
   officialChannelIds: string[];
@@ -109,6 +112,7 @@ export interface PublicationEligibilityQuery {
     finishedAt: true;
     dedupeOutputCount: true;
     expectedJobCount: true;
+    expectedEvidenceKind: true;
     officialEntryId: true;
     officialSurfaceIds: true;
     officialChannelIds: true;
@@ -132,6 +136,7 @@ export interface PublicationEligibilityQuery {
         atomicCommitSucceeded: true;
         structuredJobCount: true;
         expectedJobCount: true;
+        completenessEvidenceKind: true;
         completenessStatus: true;
         stableRequiredFields: true;
       };
@@ -215,6 +220,7 @@ function publicationEligibilityQuery(
       finishedAt: true,
       dedupeOutputCount: true,
       expectedJobCount: true,
+      expectedEvidenceKind: true,
       officialEntryId: true,
       officialSurfaceIds: true,
       officialChannelIds: true,
@@ -238,6 +244,7 @@ function publicationEligibilityQuery(
           atomicCommitSucceeded: true,
           structuredJobCount: true,
           expectedJobCount: true,
+          completenessEvidenceKind: true,
           completenessStatus: true,
           stableRequiredFields: true
         },
@@ -279,6 +286,7 @@ function mapObservation(
     atomicCommitSucceeded: row.atomicCommitSucceeded,
     structuredJobCount: row.structuredJobCount,
     expectedJobCount: row.expectedJobCount,
+    completenessEvidenceKind: row.completenessEvidenceKind,
     completenessStatus: row.completenessStatus,
     stableRequiredFields: [...row.stableRequiredFields].sort(compareUtf8)
   };
@@ -313,6 +321,7 @@ function mapAttempt(row: PublicationEligibilitySourceResultRow, releaseCandidate
     failureCode: row.failureCode,
     dedupeOutputCount: row.dedupeOutputCount,
     expectedJobCount: row.expectedJobCount,
+    expectedEvidenceKind: row.expectedEvidenceKind,
     officialEntryId: row.officialEntryId,
     officialSurfaceIds: [...row.officialSurfaceIds].sort(compareUtf8),
     officialChannelIds: [...row.officialChannelIds].sort(compareUtf8),

@@ -313,6 +313,8 @@ model ReleaseCandidate {
   sourceTreeHash           String
   runtimeTreeHash          String
   oracleVersion            String
+  minimumStableCompanyCount Int                    @default(45)
+  releaseQaEvidenceSha256  String?
   status                   ReleaseCandidateStatus @default(TRUST_FREEZE)
   createdAt                DateTime               @default(now())
   finalizedAt              DateTime?

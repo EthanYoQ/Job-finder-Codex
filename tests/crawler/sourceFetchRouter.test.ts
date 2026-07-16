@@ -55,6 +55,85 @@ const beisenPlan: SourceCrawlPlan = {
 };
 
 describe("source fetch router", () => {
+  it("retries one profile-bound transient timeout after the configured delay", async () => {
+    const calls: number[] = [];
+    const delays: number[] = [];
+    const plan = {
+      ...planWithAtsKind("WORKDAY"),
+      transientRetryPolicy: { maxRetries: 1, backoffMs: 10_000 }
+    } as SourceCrawlPlan;
+    const router = createSourceFetchRouter({
+      moka: async () => ({ ok: false, capturedAt, failureReason: "wrong" }),
+      workday: async () => {
+        calls.push(calls.length + 1);
+        return calls.length === 1
+          ? {
+              ok: false,
+              capturedAt,
+              failureReason: "OFFICIAL_HTTP_TIMEOUT",
+              transportFailure: { code: "OFFICIAL_HTTP_TIMEOUT", retryable: true }
+            }
+          : { ok: true, capturedAt, payload: { jobPostings: [] } };
+      },
+      fallback: async () => ({ ok: false, capturedAt, failureReason: "wrong" }),
+      delay: async (milliseconds) => { delays.push(milliseconds); }
+    });
+
+    await expect(router(plan)).resolves.toMatchObject({ ok: true });
+    expect(calls).toEqual([1, 2]);
+    expect(delays).toEqual([10_000]);
+  });
+
+  it("never retries without a profile policy or for unstructured failures", async () => {
+    const calls: string[] = [];
+    const delegate: SourceFetchFunction = async () => {
+      calls.push("call");
+      return { ok: false, capturedAt, failureReason: "text mentions HTTP 503 but is not structured" };
+    };
+    const router = createSourceFetchRouter({
+      moka: delegate,
+      workday: delegate,
+      fallback: delegate,
+      delay: async () => { throw new Error("delay must not run"); }
+    });
+
+    await expect(router(planWithAtsKind("WORKDAY"))).resolves.toMatchObject({ ok: false });
+    expect(calls).toEqual(["call"]);
+
+    calls.length = 0;
+    const policyPlan = {
+      ...planWithAtsKind("WORKDAY"),
+      transientRetryPolicy: { maxRetries: 1, backoffMs: 10_000 }
+    } as SourceCrawlPlan;
+    await expect(router(policyPlan)).resolves.toMatchObject({ ok: false });
+    expect(calls).toEqual(["call"]);
+  });
+
+  it("stops after one retry when a transient failure continues", async () => {
+    let calls = 0;
+    const plan = {
+      ...planWithAtsKind("WORKDAY"),
+      transientRetryPolicy: { maxRetries: 1, backoffMs: 10_000 }
+    } as SourceCrawlPlan;
+    const router = createSourceFetchRouter({
+      moka: async () => ({ ok: false, capturedAt, failureReason: "wrong" }),
+      workday: async () => {
+        calls += 1;
+        return {
+          ok: false,
+          capturedAt,
+          failureReason: "OFFICIAL_HTTP_503",
+          transportFailure: { code: "OFFICIAL_HTTP_503", retryable: true }
+        };
+      },
+      fallback: async () => ({ ok: false, capturedAt, failureReason: "wrong" }),
+      delay: async () => undefined
+    });
+
+    await expect(router(plan)).resolves.toMatchObject({ ok: false });
+    expect(calls).toBe(2);
+  });
+
   it("routes Moka sources to the Moka fetcher", async () => {
     const calls: string[] = [];
     const moka: SourceFetchFunction = async () => {

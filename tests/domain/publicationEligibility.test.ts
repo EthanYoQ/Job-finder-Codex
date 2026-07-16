@@ -48,6 +48,7 @@ function attempt(index: number, overrides: AttemptOverrides = {}): PublicationAt
     failureCode: null,
     dedupeOutputCount: 2,
     expectedJobCount: 2,
+    expectedEvidenceKind: "OFFICIAL_TOTAL_COUNT",
     officialEntryId: null,
     officialSurfaceIds: [],
     officialChannelIds: []
@@ -66,6 +67,7 @@ function attempt(index: number, overrides: AttemptOverrides = {}): PublicationAt
     atomicCommitSucceeded: true,
     structuredJobCount: merged.dedupeOutputCount,
     expectedJobCount: merged.expectedJobCount,
+    completenessEvidenceKind: merged.expectedEvidenceKind,
     completenessStatus: "VERIFIED",
     stableRequiredFields: REQUIRED_FIELDS
   };
@@ -191,21 +193,50 @@ describe("publication attempt qualification", () => {
     }
   });
 
-  it("accepts only exact 0/0/0 for an official zero-job result", () => {
+  it("accepts zero jobs only from an exact official total or verified complete traversal", () => {
     expect(isQualifyingPublicationAttempt(attempt(1, {
       dedupeOutputCount: 0,
       expectedJobCount: 0,
-      observation: { structuredJobCount: 0, expectedJobCount: 0, stableRequiredFields: [] }
+      expectedEvidenceKind: "OFFICIAL_TOTAL_COUNT",
+      observation: {
+        structuredJobCount: 0,
+        expectedJobCount: 0,
+        completenessEvidenceKind: "OFFICIAL_TOTAL_COUNT",
+        stableRequiredFields: []
+      }
     }), currentSource())).toBe(true);
     expect(isQualifyingPublicationAttempt(attempt(1, {
       dedupeOutputCount: 0,
       expectedJobCount: null,
-      observation: { structuredJobCount: 0, expectedJobCount: null, stableRequiredFields: [] }
+      expectedEvidenceKind: "COMPLETE_PAGE_TRAVERSAL",
+      observation: {
+        structuredJobCount: 0,
+        expectedJobCount: null,
+        completenessEvidenceKind: "COMPLETE_PAGE_TRAVERSAL",
+        stableRequiredFields: []
+      }
+    }), currentSource())).toBe(true);
+    expect(isQualifyingPublicationAttempt(attempt(1, {
+      dedupeOutputCount: 0, expectedJobCount: null, expectedEvidenceKind: null,
+      observation: { structuredJobCount: 0, expectedJobCount: null, completenessEvidenceKind: null, stableRequiredFields: [] }
     }), currentSource())).toBe(false);
     expect(isQualifyingPublicationAttempt(attempt(1, {
-      dedupeOutputCount: 0,
-      expectedJobCount: 1,
-      observation: { structuredJobCount: 0, expectedJobCount: 1, stableRequiredFields: [] }
+      dedupeOutputCount: 0, expectedJobCount: null, expectedEvidenceKind: "WEAK_MANUAL_SAMPLE",
+      observation: {
+        structuredJobCount: 0,
+        expectedJobCount: null,
+        completenessEvidenceKind: "WEAK_MANUAL_SAMPLE",
+        stableRequiredFields: []
+      }
+    }), currentSource())).toBe(false);
+    expect(isQualifyingPublicationAttempt(attempt(1, {
+      dedupeOutputCount: 0, expectedJobCount: null, expectedEvidenceKind: "COMPLETE_PAGE_TRAVERSAL",
+      observation: {
+        structuredJobCount: 0,
+        expectedJobCount: null,
+        completenessEvidenceKind: "OFFICIAL_TOTAL_COUNT",
+        stableRequiredFields: []
+      }
     }), currentSource())).toBe(false);
   });
 

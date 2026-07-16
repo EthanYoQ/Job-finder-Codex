@@ -138,7 +138,13 @@ function prismaTransactionAdapter(
     }),
     createReleaseCandidate: (data) => transaction.releaseCandidate.create({
       data,
-      select: { id: true, goalId: true, version: true, status: true }
+      select: {
+        id: true,
+        goalId: true,
+        version: true,
+        status: true,
+        minimumStableCompanyCount: true
+      }
     })
   };
 }

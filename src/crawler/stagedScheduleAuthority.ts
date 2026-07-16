@@ -1,5 +1,6 @@
 import { createHash } from "node:crypto";
 import { candidateCompanies, type CandidateCompany } from "../data/companyRegistry";
+import { PHASE1_MINIMUM_STABLE_COMPANIES } from "../data/phase1ScopePolicy";
 import {
   assertExactConfirmedCompanyRosterV3,
   confirmedCompanyRosterV3
@@ -34,6 +35,7 @@ export interface StagedScheduleExpectation {
   adapterBundleSha256: string;
   sourceTreeSha256: string;
   runtimeTreeSha256: string;
+  minimumStableCompanyCount: number;
   plannedSourceIds: string[];
   plannedSourceSetSha256: string;
   plannedSourceCount: number;
@@ -56,6 +58,7 @@ interface StagedReleaseCandidateRow {
   sourceTreeHash: string;
   runtimeTreeHash: string;
   oracleVersion: string;
+  minimumStableCompanyCount: number;
 }
 
 interface StagedReleaseCandidateFindManyArgs {
@@ -68,6 +71,7 @@ interface StagedReleaseCandidateFindManyArgs {
     sourceTreeHash: string;
     runtimeTreeHash: string;
     oracleVersion: typeof STAGED_SCHEDULE_ORACLE_VERSION;
+    minimumStableCompanyCount: number;
     status: { in: readonly (typeof STAGED_SCHEDULE_ALLOWED_STATUSES)[number][] };
   };
   select: Record<keyof StagedReleaseCandidateRow, true>;
@@ -162,6 +166,7 @@ export function __testOnlyDeriveStagedScheduleExpectation(
     adapterBundleSha256: deriveStagedAdapterBundleSha256(buildIdentity.runtimeTreeSha256, orderedPlans),
     sourceTreeSha256: buildIdentity.sourceTreeSha256,
     runtimeTreeSha256: buildIdentity.runtimeTreeSha256,
+    minimumStableCompanyCount: PHASE1_MINIMUM_STABLE_COMPANIES,
     plannedSourceIds,
     plannedSourceSetSha256: hashCanonicalStringSet(plannedSourceIds),
     plannedSourceCount: plannedSourceIds.length
@@ -203,6 +208,9 @@ export async function resolveCurrentStagedScheduledCrawlAuthority(
   db: StagedScheduledCrawlAuthorityDb
 ): Promise<CurrentStagedScheduleAuthority> {
   const resolved = await resolveCurrentStagedScheduleAuthorityWithStatus(db);
+  if (resolved.status === "READY_FOR_QA") {
+    throw new Error(`STAGED_READY_FOR_QA_CANNOT_RUN_AWAITING_QA:${resolved.authority.identity.releaseCandidateId}`);
+  }
   const identity = resolved.authority.identity;
   const batches = await loadScheduledBatches(db, identity);
   const completedRoundCount = countCompletedQualificationRows(batches, identity);
@@ -300,6 +308,7 @@ async function resolveCurrentStagedScheduleAuthorityWithStatus(
       sourceTreeHash: expectation.sourceTreeSha256,
       runtimeTreeHash: expectation.runtimeTreeSha256,
       oracleVersion: STAGED_SCHEDULE_ORACLE_VERSION,
+      minimumStableCompanyCount: expectation.minimumStableCompanyCount,
       status: { in: [...STAGED_SCHEDULE_ALLOWED_STATUSES] }
     },
     select: {
@@ -312,7 +321,8 @@ async function resolveCurrentStagedScheduleAuthorityWithStatus(
       adapterBundleHash: true,
       sourceTreeHash: true,
       runtimeTreeHash: true,
-      oracleVersion: true
+      oracleVersion: true,
+      minimumStableCompanyCount: true
     },
     take: 2
   });
@@ -333,6 +343,11 @@ async function resolveCurrentStagedScheduleAuthorityWithStatus(
   assertReleaseCandidateField("sourceTreeHash", row.sourceTreeHash, expectation.sourceTreeSha256);
   assertReleaseCandidateField("runtimeTreeHash", row.runtimeTreeHash, expectation.runtimeTreeSha256);
   assertReleaseCandidateField("oracleVersion", row.oracleVersion, STAGED_SCHEDULE_ORACLE_VERSION);
+  if (row.minimumStableCompanyCount !== expectation.minimumStableCompanyCount) {
+    throw new Error(
+      `Staged release candidate minimumStableCompanyCount mismatch: expected ${expectation.minimumStableCompanyCount}`
+    );
+  }
 
   const authority: CurrentStagedScheduleAuthority = deepFrozenCopy({
     companies: expectation.companies,

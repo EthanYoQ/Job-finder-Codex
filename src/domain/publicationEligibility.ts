@@ -1,6 +1,9 @@
 import type { CandidateCompany } from "../data/companyRegistry";
 import { isUserAuthorizedPhase1Exclusion } from "../data/phase1ScopePolicy";
-import { isVerifiedNonJobRecruitmentPage } from "./company";
+import {
+  isVerifiedNonJobRecruitmentPage,
+  type CompletenessEvidenceKind
+} from "./company";
 
 export type PublicationState =
   | "PUBLISHING"
@@ -47,6 +50,7 @@ export interface PublicationAttemptObservation {
   atomicCommitSucceeded: boolean | null;
   structuredJobCount: number;
   expectedJobCount: number | null;
+  completenessEvidenceKind: CompletenessEvidenceKind | null;
   completenessStatus:
     | "PENDING"
     | "VERIFIED"
@@ -75,6 +79,7 @@ export interface PublicationAttempt {
   failureCode: string | null;
   dedupeOutputCount: number;
   expectedJobCount: number | null;
+  expectedEvidenceKind: CompletenessEvidenceKind | null;
   officialEntryId: string | null;
   officialSurfaceIds: readonly string[];
   officialChannelIds: readonly string[];
@@ -204,6 +209,7 @@ export function isQualifyingPublicationAttempt(
     attempt.failureCode !== null ||
     !isNonnegativeInteger(attempt.dedupeOutputCount) ||
     (attempt.expectedJobCount !== null && !isNonnegativeInteger(attempt.expectedJobCount)) ||
+    attempt.expectedEvidenceKind === null ||
     attempt.observations.length !== 1
   ) {
     return false;
@@ -222,7 +228,8 @@ export function isQualifyingPublicationAttempt(
     !isNonnegativeInteger(observation.structuredJobCount) ||
     (observation.expectedJobCount !== null && !isNonnegativeInteger(observation.expectedJobCount)) ||
     observation.structuredJobCount !== attempt.dedupeOutputCount ||
-    observation.expectedJobCount !== attempt.expectedJobCount
+    observation.expectedJobCount !== attempt.expectedJobCount ||
+    observation.completenessEvidenceKind !== attempt.expectedEvidenceKind
   ) {
     return false;
   }
@@ -232,7 +239,13 @@ export function isQualifyingPublicationAttempt(
     observation.completenessVerified === true && observation.completenessStatus === "VERIFIED";
   if (!complete) return false;
   if (attempt.expectedJobCount !== null && outputCount !== attempt.expectedJobCount) return false;
-  if (outputCount === 0) return complete && attempt.expectedJobCount === 0;
+  if (outputCount === 0) {
+    return (
+      attempt.expectedEvidenceKind === "OFFICIAL_TOTAL_COUNT" && attempt.expectedJobCount === 0
+    ) || (
+      attempt.expectedEvidenceKind === "COMPLETE_PAGE_TRAVERSAL" && attempt.expectedJobCount === null
+    );
+  }
 
   const stableFields = new Set(observation.stableRequiredFields);
   return REQUIRED_POSITIVE_FIELDS.every((field) => stableFields.has(field));

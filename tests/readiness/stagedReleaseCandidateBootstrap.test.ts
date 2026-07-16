@@ -43,6 +43,7 @@ const EXPECTATION: StagedScheduleExpectation = {
   adapterBundleSha256: ADAPTER_BUNDLE,
   sourceTreeSha256: SOURCE_TREE,
   runtimeTreeSha256: RUNTIME_TREE,
+  minimumStableCompanyCount: 55,
   plannedSourceIds: ["source-1"],
   plannedSourceSetSha256: "b".repeat(64),
   plannedSourceCount: 1
@@ -79,7 +80,13 @@ function fixture(overrides: Partial<StagedReleaseCandidateBootstrapTransaction> 
   const events: string[] = [];
   const create = vi.fn(async (data) => {
     events.push("create");
-    return { id: data.id, goalId: data.goalId, version: data.version, status: data.status };
+    return {
+      id: data.id,
+      goalId: data.goalId,
+      version: data.version,
+      status: data.status,
+      minimumStableCompanyCount: data.minimumStableCompanyCount
+    };
   });
   const transaction: StagedReleaseCandidateBootstrapTransaction = {
     listAppliedMigrations: vi.fn(async () => {
@@ -146,6 +153,7 @@ describe("staged ReleaseCandidate bootstrap", () => {
       sourceTreeHash: SOURCE_TREE,
       runtimeTreeHash: RUNTIME_TREE,
       oracleVersion: "staged-official-source-v1",
+      minimumStableCompanyCount: 55,
       status: "BUILDING"
     });
     expect(result).toEqual({
@@ -166,7 +174,8 @@ describe("staged ReleaseCandidate bootstrap", () => {
       adapterBundleSha256: ADAPTER_BUNDLE,
       sourceTreeSha256: SOURCE_TREE,
       runtimeTreeSha256: RUNTIME_TREE,
-      oracleVersion: "staged-official-source-v1"
+      oracleVersion: "staged-official-source-v1",
+      minimumStableCompanyCount: 55
     });
   });
 
@@ -193,7 +202,13 @@ describe("staged ReleaseCandidate bootstrap", () => {
     const findConflictingReleaseCandidates = vi.fn(async () => stored);
     const createReleaseCandidate = vi.fn(async (data) => {
       stored.push({ id: data.id, goalId: data.goalId, version: data.version });
-      return { id: data.id, goalId: data.goalId, version: data.version, status: data.status };
+      return {
+        id: data.id,
+        goalId: data.goalId,
+        version: data.version,
+        status: data.status,
+        minimumStableCompanyCount: data.minimumStableCompanyCount
+      };
     });
     const { deps } = fixture({ findConflictingReleaseCandidates, createReleaseCandidate });
 
@@ -226,7 +241,8 @@ describe("staged ReleaseCandidate bootstrap", () => {
         adapterBundleHash: ADAPTER_BUNDLE,
         sourceTreeHash: SOURCE_TREE,
         runtimeTreeHash: RUNTIME_TREE,
-        oracleVersion: "staged-official-source-v1"
+        oracleVersion: "staged-official-source-v1",
+        minimumStableCompanyCount: 55
       }
     });
     expect(create).not.toHaveBeenCalled();
@@ -270,7 +286,8 @@ describe("staged ReleaseCandidate bootstrap", () => {
         id: "wrong-id",
         goalId: input().goalId,
         version: input().version,
-        status: "BUILDING"
+        status: "BUILDING",
+        minimumStableCompanyCount: 55
       }))
     });
 

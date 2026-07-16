@@ -2,7 +2,7 @@
 
 ## Product Goal
 
-上线 Job Finder 一期：完整展示固定 30 家外资药企和 30 家国内药企的官方招聘入口；只展示来源可验证的官方职位；每天北京时间 00:01 更新一次；首次对外上线前至少 45 家达到稳定自动更新并通过上线门禁。不足 45 家时只允许受限的内部候选预览。
+上线 Job Finder 一期：完整展示固定 30 家外资药企和 30 家国内药企的官方招聘入口；只展示来源可验证的官方职位；每天北京时间 00:01 更新一次；首次对外上线前至少 55 家达到稳定自动更新并通过上线门禁。不足 55 家时只允许受限的内部候选预览。
 
 ## Problem Statement
 
@@ -18,15 +18,15 @@
 
 用户进入网站前必须勾选同意《个人隐私政策》和《服务条款》。弹窗必须极简，只放一句说明、勾选框、政策/条款链接和进入按钮。进入后，用户必须选择城市，可选职位类别、关键词、公司筛选。搜索结果默认按公司聚合，并按公司中文名拼音 A-Z 排序。每家公司卡片显示匹配岗位数量；展开公司后直接展示极简岗位列表。岗位点击后跳转到官方岗位详情页；如果无法稳定拿到岗位详情页，则跳转到官方社招列表页或官方招聘入口页。
 
-P0 公司范围固定为恰好 30 家外资药企和 30 家国内药企，不允许因抓取困难替换名单成员。60 家公司必须全部出现在公司目录中；职位发布始终按公司独立判定，单家公司的验证失败或待处理状态不阻断其他已验证公司的职位。首次对外上线仍须满足至少 45 家总门槛；首次上线完成后，日常更新不再设置全站最低公司数，确认抓全一家就更新一家。`company-humanwell` 与 `company-north-china-pharma` 仍是名单成员，并标记为用户授权的一期排除项；不得声称这两家公司的职位完整。
+P0 公司范围固定为恰好 30 家外资药企和 30 家国内药企，不允许因抓取困难替换名单成员。60 家公司必须全部出现在公司目录中；职位发布始终按公司独立判定，单家公司的验证失败或待处理状态不阻断其他已验证公司的职位。首次对外上线仍须满足至少 55 家总门槛；首次上线完成后，日常更新不再设置全站最低公司数，确认抓全一家就更新一家。`company-humanwell` 与 `company-north-china-pharma` 仍是名单成员，并标记为用户授权的一期排除项；不得声称这两家公司的职位完整。
 
 “稳定自动更新”不能只表示能打开招聘页。公司只有在其公开可访问、由官网可追溯或明确背书的官方社招范围连续两次成功稳定抓取后，才有资格自动发布职位；字段至少包含公司、岗位标题、官方来源链接、城市或地点信息。如果来源只提供列表页链接，也必须能保存官方入口和岗位标题作为可审计证据。资格数量、完成阈值和状态必须从当前记录动态计算，不得硬编码为通过结果。
 
 已发布职位只能来自公司官方网站、官方招聘页面，或由上述网站明确背书的招聘系统。允许跟随官方链路进入 Moka、北森/Zhiye、Workday、SuccessFactors、Redsea 等 ATS。非官方招聘站只能作为发现线索，不能向前台供应职位。
 
-抓取策略为确定性抓取优先。AI 分类、英文标题中文辅助翻译、异常判断和辅助清洗属于可选增强；增强不可用时回退到官方原始标题和基础类别，不得阻断已验证职位的资格计算或达到 45 家后的对外上线。不开公开 API，不提供全量导出。
+抓取策略为确定性抓取优先。AI 分类、英文标题中文辅助翻译、异常判断和辅助清洗属于可选增强；增强不可用时回退到官方原始标题和基础类别，不得阻断已验证职位的资格计算或达到 55 家后的对外上线。不开公开 API，不提供全量导出。
 
-首次上线前不足 45 家时，可用当前已验证子集做受限的内部候选预览，同时让未达到发布资格的公司继续以“验证中”“仅官方入口”“采集时未发现公开官方招聘入口”或“用户授权一期排除”等真实状态留在目录中。首次对外上线和正式完成一期需要至少 45 家公司达到稳定自动更新；其余公司不阻断达到门槛后的完成，并作为上线后持续工作。规则与公司配置冻结后只运行两轮最新验证；第二轮结束仍不足 45 家时暂停任务并通知用户，不启动第三轮，也不得降低首次上线门槛。首次上线后，即使某次日更的合格公司数降到 45 以下，仍继续发布本次成功且合格的公司；失败只影响对应公司，并触发运营告警和修复。
+首次上线前不足 55 家时，可用当前已验证子集做受限的内部候选预览，同时让未达到发布资格的公司继续以“验证中”“仅官方入口”“采集时未发现公开官方招聘入口”或“用户授权一期排除”等真实状态留在目录中。首次对外上线和正式完成一期需要至少 55 家公司达到稳定自动更新；其余公司不阻断达到门槛后的完成，并作为上线后持续工作。规则与公司配置冻结后只运行两轮最新验证；第二轮结束仍不足 55 家时暂停任务并通知用户，不启动第三轮，也不得降低首次上线门槛。首次上线后，即使某次日更的合格公司数降到 55 以下，仍继续发布本次成功且合格的公司；失败只影响对应公司，并触发运营告警和修复。
 
 ## User Stories
 
@@ -136,7 +136,7 @@ P0 公司范围固定为恰好 30 家外资药企和 30 家国内药企，不允
 - Baseline crawl is not considered “new.” New-job labels start after the baseline.
 - Jobs missing from two consecutive successful source crawls are hidden from front end and marked suspected offline in admin. Three consecutive successful misses mark them offline. Failed crawls do not increment missing count.
 - Crawl schedule is once daily at 00:01 China time, with manual per-company crawl from admin.
-- A company becomes eligible for automatic job publishing only after two consecutive successful, stable crawls of its publicly reachable official social-recruitment scope. Eligibility, stable-company counts, and the at-least-45 threshold are calculated from records rather than hard-coded pass totals.
+- A company becomes eligible for automatic job publishing only after two consecutive successful, stable crawls of its publicly reachable official social-recruitment scope. Eligibility, stable-company counts, and the at-least-55 threshold are calculated from records rather than hard-coded pass totals.
 - A published company becomes stale 30 hours after its last complete successful scheduled crawl. Explicit failure hides its jobs immediately; staleness or failure preserves the stored records but returns the company to a verifying state.
 - Deployment target is portable Docker Compose: web app, PostgreSQL, worker, reverse proxy.
 - P0 server sizing target is stable operation on 4 vCPU / 8 GB RAM. Current 2 vCPU / 2 GB server is suitable only for prototype validation.
@@ -164,7 +164,7 @@ P0 公司范围固定为恰好 30 家外资药企和 30 家国内药企，不允
 - Daily 00:01 China-time scheduling, last-success timestamps, failed-crawl non-deletion, search, official outbound links, basic security/privacy, backup/restore, monitoring, deployment, and final independent read-only QA remain release requirements.
 - `job.orz.md`, AI classification, auxiliary translation, advanced manual operations, cryptographic oracle/signature work, independent QA after every stage, and rebuilding all evidence after every change are not internal-preview or Phase 1 launch blockers. Existing implementations may remain, and change impact determines which evidence must be refreshed.
 
-The implementation must use record-derived staged readiness in `phase1` mode plus staged public-data quality as local evidence for per-company eligibility and the formal Phase 1 threshold. A company source status label alone is not enough: the checks must derive the fixed-roster denominator, authorized exclusions, configured crawl scope, two latest consecutive successful stable observations, and actual public job projection from current records. A company that fails remains in a truthful non-publishing state. The below-45 internal-only rule applies to first-launch qualification, not to routine per-company publication after release.
+The implementation must use record-derived staged readiness in `phase1` mode plus staged public-data quality as local evidence for per-company eligibility and the formal Phase 1 threshold. A company source status label alone is not enough: the checks must derive the fixed-roster denominator, authorized exclusions, configured crawl scope, two latest consecutive successful stable observations, and actual public job projection from current records. A company that fails remains in a truthful non-publishing state. The below-55 internal-only rule applies to first-launch qualification, not to routine per-company publication after release.
 
 ## Testing Decisions
 

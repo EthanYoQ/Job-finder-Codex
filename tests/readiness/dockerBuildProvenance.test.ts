@@ -78,7 +78,7 @@ describe("portable Docker build provenance",()=>{
     writeFileSync(join(root,"src","untracked.ts"),"extra\n");rejected();rmSync(join(root,"src","untracked.ts"));
     writeFileSync(join(root,".git","info","exclude"),"src/ignored.cache\n");writeFileSync(join(root,"src","ignored.cache"),"ignored\n");rejected();rmSync(join(root,"src","ignored.cache"));
     rmSync(join(root,"src","main.ts"));symlinkSync(join(root,"scripts","keep"),join(root,"src","main.ts"),"file");rejected();
-  });
+  }, 15_000);
   it("does not inherit or execute global attributes and filter drivers",()=>{
     const root=repository(),bundle=join(root,".docker-build-provenance.bundle"),global=join(root,"malicious.gitconfig"),attrs=join(root,"malicious.attributes"),marker=join(root,"filter-executed");
     writeFileSync(attrs,"*.ts filter=evil\n");

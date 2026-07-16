@@ -66,6 +66,7 @@ interface PaginationEvidenceInput {
   allowLaterZeroDeclaredTotalAfterExactReconciliation?: boolean;
   allowPositiveOfficialTotalCountAfterAdapterReconciliation?: boolean;
   allowRawIdOverlapAcrossPages?: boolean;
+  allowCompleteTraversalOfEmptyFirstPage?: boolean;
 }
 
 export function deriveCanonicalPaginationEvidence(
@@ -272,7 +273,7 @@ function evaluatePaginationEvidenceInternal(
   }
   if (missingChannels.length > 0) globalAnomalies.add("EXPECTED_CHANNEL_NOT_VISITED");
 
-  validateTerminalEvents(evidence);
+  validateTerminalEvents(evidence, input.allowCompleteTraversalOfEmptyFirstPage === true);
   for (let index = 0; index < evidence.pages.length; index += 1) {
     const canonical = sortAnomalies(anomalies[index]!);
     if (enforceCallerLabels && new Set(evidence.pages[index]!.anomalyCodes).size !== evidence.pages[index]!.anomalyCodes.length) {
@@ -289,7 +290,10 @@ function evaluatePaginationEvidenceInternal(
     ...derived.flatMap((page) => page.anomalyCodes),
     ...globalAnomalies
   ]));
-  const safeCompleteness = derivedAnomalyCodes.length === 0 && safeTerminationsByScope(evidence);
+  const safeCompleteness = derivedAnomalyCodes.length === 0 && safeTerminationsByScope(
+    evidence,
+    input.allowCompleteTraversalOfEmptyFirstPage === true
+  );
   const declared = evidence.declaredCompleteness;
   const globalCannotCertifyFiltered = input.filteredOutput && declared?.scope === "GLOBAL_UNFILTERED";
   const declaredPageCountMatches = declarationCoversActualPages(
@@ -352,7 +356,10 @@ function exactReconciledLaterZeroDeclarations(
   }]]);
 }
 
-function validateTerminalEvents(evidence: PersistentSourceFetchEvidence): void {
+function validateTerminalEvents(
+  evidence: PersistentSourceFetchEvidence,
+  allowCompleteTraversalOfEmptyFirstPage: boolean
+): void {
   const pagesByScope = new Map<string, Array<{ page: SourceFetchPageTrace; index: number }>>();
   for (let index = 0; index < evidence.pages.length; index += 1) {
     const scope = evidence.pages[index]!.channelId ?? "__SOURCE__";
@@ -378,8 +385,12 @@ function validateTerminalEvents(evidence: PersistentSourceFetchEvidence): void {
       const officialZero = page.termination === "EMPTY_PAGE" && !hasNext && page.declaredTotal === 0 &&
         evidence.declaredCompleteness?.kind === "OFFICIAL_TOTAL_COUNT" &&
         evidence.declaredCompleteness.value === 0;
+      const independentlyBoundTraversalZero = allowCompleteTraversalOfEmptyFirstPage &&
+        page.termination === "EMPTY_PAGE" && !hasNext && page.declaredTotal == null &&
+        evidence.declaredCompleteness?.kind === "COMPLETE_PAGE_TRAVERSAL" &&
+        evidence.declaredCompleteness.value === evidence.pages.length;
       const nonCertifyingFailure = page.termination === "ABORTED" || page.termination === "FAILED";
-      if (!officialZero && !nonCertifyingFailure) {
+      if (!officialZero && !independentlyBoundTraversalZero && !nonCertifyingFailure) {
         throw new Error("empty first page requires explicit official zero EMPTY_PAGE evidence or a non-certifying terminal");
       }
     }
@@ -396,17 +407,32 @@ function validateTerminalEvents(evidence: PersistentSourceFetchEvidence): void {
     if (page.termination === "EMPTY_PAGE") {
       const explicitZero = comparable.length === 1 && page.declaredTotal === 0 &&
         page.rawJobIds.length === 0 && page.validJobIds.length === 0 && !hasNext;
-      if (!explicitZero) throw new Error("EMPTY_PAGE is safe only for an explicit official zero first page");
+      const independentlyBoundTraversalZero = allowCompleteTraversalOfEmptyFirstPage &&
+        comparable.length === 1 && page.declaredTotal == null &&
+        page.rawJobIds.length === 0 && page.validJobIds.length === 0 && !hasNext &&
+        evidence.declaredCompleteness?.kind === "COMPLETE_PAGE_TRAVERSAL" &&
+        evidence.declaredCompleteness.value === evidence.pages.length;
+      if (!explicitZero && !independentlyBoundTraversalZero) {
+        throw new Error("EMPTY_PAGE is safe only for an explicit official zero or an independently bound complete traversal");
+      }
     }
   }
 }
 
-function safeTerminationsByScope(evidence: PersistentSourceFetchEvidence): boolean {
+function safeTerminationsByScope(
+  evidence: PersistentSourceFetchEvidence,
+  allowCompleteTraversalOfEmptyFirstPage: boolean
+): boolean {
   const lastByScope = new Map<string, SourceFetchPageTrace>();
   for (const page of evidence.pages) lastByScope.set(page.channelId ?? "__SOURCE__", page);
   return [...lastByScope.values()].every((page) =>
     page.termination === "NEXT_ABSENT" || page.termination === "DECLARED_TOTAL_REACHED" ||
-    (page.termination === "EMPTY_PAGE" && page.declaredTotal === 0));
+    (page.termination === "EMPTY_PAGE" && (
+      page.declaredTotal === 0 ||
+      (allowCompleteTraversalOfEmptyFirstPage && page.declaredTotal == null &&
+        evidence.declaredCompleteness?.kind === "COMPLETE_PAGE_TRAVERSAL" &&
+        evidence.declaredCompleteness.value === evidence.pages.length)
+    )));
 }
 
 function declarationCoversActualPages(

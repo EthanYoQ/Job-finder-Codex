@@ -124,6 +124,18 @@ async function fetchExactBeisen(
 }
 
 describe("Beisen Zhiye 2022 evidence instrumentation", () => {
+  it("exposes a temporary Beisen HTTP status as a structured retry signal", async () => {
+    const fetcher = createOfficialJsonSourceFetch({
+      now: () => new Date(NOW),
+      http: async () => response("temporarily unavailable", { status: 503 })
+    });
+
+    await expect(fetcher(plan())).resolves.toMatchObject({
+      ok: false,
+      transportFailure: { code: "OFFICIAL_HTTP_503", retryable: true }
+    });
+  });
+
   it("retains exact 0-based page artifacts, Count coordinates, and manual D1 evidence", async () => {
     const bodies = [
       JSON.stringify({ Code: 200, Count: 3, PageIndex: 0, Data: [job("1000"), job("1001")] }),

@@ -19,6 +19,15 @@ export class OfficialSourceAttemptTimeoutError extends Error {
   }
 }
 
+export class OfficialHttpTimeoutError extends Error {
+  readonly code = "OFFICIAL_HTTP_TIMEOUT";
+
+  constructor() {
+    super("Official HTTP request timed out");
+    this.name = "OfficialHttpTimeoutError";
+  }
+}
+
 export function officialHttpTimeoutMs(env: RuntimeEnv = process.env): number {
   return boundedEnvironmentInteger(
     env.P0_SOURCE_HTTP_TIMEOUT_MS,
@@ -91,6 +100,12 @@ export function isOfficialSourceAttemptTimeout(error: unknown): error is Officia
       (error as { code?: unknown }).code === "OFFICIAL_SOURCE_ATTEMPT_TIMEOUT");
 }
 
+export function isOfficialHttpTimeout(error: unknown): error is OfficialHttpTimeoutError {
+  return error instanceof OfficialHttpTimeoutError ||
+    (typeof error === "object" && error !== null && "code" in error &&
+      (error as { code?: unknown }).code === "OFFICIAL_HTTP_TIMEOUT");
+}
+
 export async function runWithOfficialSourceAttemptTimeout<T>(
   operation: () => Promise<T>,
   timeoutMs = sourceAttemptTimeoutMs()
@@ -128,6 +143,13 @@ export async function fetchWithOfficialTimeout(
   const combined = combineAbortSignals(signals);
   try {
     return await (deps.fetchImpl ?? fetch)(input, { ...init, signal: combined.signal });
+  } catch (error) {
+    const callerAborted = init.signal?.aborted === true;
+    const sourceAttemptAborted = sourceSignal?.aborted === true;
+    if (deadline.aborted && !callerAborted && !sourceAttemptAborted) {
+      throw new OfficialHttpTimeoutError();
+    }
+    throw error;
   } finally {
     combined.dispose();
   }

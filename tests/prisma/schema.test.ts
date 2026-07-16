@@ -9,6 +9,8 @@ const lifecycleMemberMigration=readFileSync(resolve(process.cwd(),"prisma","migr
 const lifecycleCryptoMigration=readFileSync(resolve(process.cwd(),"prisma","migrations","20260711220000_lifecycle_set_cryptographic_closure","migration.sql"),"utf8");
 const lifecycleParentMigration=readFileSync(resolve(process.cwd(),"prisma","migrations","20260711230000_parent_lifecycle_projection_gate","migration.sql"),"utf8");
 const lifecycleSecurityMigration=readFileSync(resolve(process.cwd(),"prisma","migrations","20260711240000_lifecycle_trigger_security_closure","migration.sql"),"utf8");
+const qualificationThresholdMigration=readFileSync(resolve(process.cwd(),"prisma","migrations","20260716190000_release_candidate_qualification_threshold","migration.sql"),"utf8");
+const releasePromotionMigration=readFileSync(resolve(process.cwd(),"prisma","migrations","20260716210000_release_candidate_promotion_gate","migration.sql"),"utf8");
 const baselineMigration = readFileSync(
   resolve(process.cwd(), "prisma", "migrations", "20260710000000_baseline", "migration.sql"),
   "utf8"
@@ -117,6 +119,8 @@ describe("prisma schema", () => {
       ,"20260713050000_ai_enrichment_persistence"
       ,"20260714053000_repair_legacy_offline_count_two"
       ,"20260715090000_atomic_evidence_commit_scaling"
+      ,"20260716190000_release_candidate_qualification_threshold"
+      ,"20260716210000_release_candidate_promotion_gate"
     ]);
     const statements = crawlStatusValuesMigration
       .split("\n")
@@ -140,6 +144,24 @@ describe("prisma schema", () => {
     expect(sql).toMatch(/CREATE OR REPLACE FUNCTION "prevent_release_candidate_identity_mutation"/);expect(sql).toMatch(/SECURITY DEFINER SET search_path = pg_catalog, public/);
     expect(sql).toMatch(/OLD\."status" = 'INVALIDATED' AND NEW\."status" IS DISTINCT FROM OLD\."status"/);
     for(const attempted of ["BUILDING","QA_FAILED","TRUST_FREEZE","READY_FOR_QA","RELEASED"])expect(attempted).not.toBe("INVALIDATED");
+  });
+
+  it("binds an immutable per-candidate qualification threshold while preserving historical 45-company rows",()=>{
+    expect(qualificationThresholdMigration).toContain('ADD COLUMN "minimumStableCompanyCount" INTEGER NOT NULL DEFAULT 45');
+    expect(qualificationThresholdMigration).toContain('"minimumStableCompanyCount" BETWEEN 1 AND 60');
+    expect(qualificationThresholdMigration).toContain('OLD."minimumStableCompanyCount" IS DISTINCT FROM NEW."minimumStableCompanyCount"');
+    expect(qualificationThresholdMigration).toMatch(/CREATE OR REPLACE FUNCTION "prevent_release_candidate_identity_mutation"/);
+    expect(qualificationThresholdMigration).toMatch(/SECURITY DEFINER SET search_path = pg_catalog, public/);
+  });
+
+  it("allows release only from READY_FOR_QA with immutable independent QA evidence",()=>{
+    expect(releasePromotionMigration).toContain('ADD COLUMN "releaseQaEvidenceSha256" TEXT');
+    expect(releasePromotionMigration).toContain('ReleaseCandidate_release_qa_evidence_hash_format_check');
+    expect(releasePromotionMigration).toMatch(/OLD\."status" = 'READY_FOR_QA' AND NEW\."status" = 'RELEASED'/);
+    expect(releasePromotionMigration).toContain("ReleaseCandidate status transition is not allowed");
+    expect(releasePromotionMigration).toContain("Released ReleaseCandidate requires bound QA evidence and finalization time");
+    expect(releasePromotionMigration).toContain("QA evidence and finalization time are immutable outside release promotion");
+    expect(releasePromotionMigration).toMatch(/SECURITY DEFINER SET search_path = pg_catalog, public/);
   });
 
   it("security-hardens lifecycle triggers and rejects members for non-verified parents",()=>{
@@ -340,7 +362,8 @@ describe("prisma schema", () => {
     const rc = block("model", "ReleaseCandidate");
     for (const field of [
       "goalId", "commitSha", "dbSnapshotHash", "schemaHash", "migrationVersion", "rosterHash",
-      "sourcePlanHash", "sourceConfigHash", "adapterBundleHash", "oracleVersion", "status", "createdAt", "finalizedAt"
+      "sourcePlanHash", "sourceConfigHash", "adapterBundleHash", "oracleVersion", "minimumStableCompanyCount",
+      "releaseQaEvidenceSha256", "status", "createdAt", "finalizedAt"
     ]) {
       expect(rc, field).toMatch(new RegExp(`^\\s*${field}\\s+`, "m"));
     }

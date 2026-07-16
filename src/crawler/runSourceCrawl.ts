@@ -34,11 +34,12 @@ import {
   BMS_AUDITED_FOREIGN_COUNTRY_DESCRIPTOR_ALIASES,
   BMS_AUDITED_FOREIGN_SITE_DESCRIPTOR_ALIASES
 } from "./workdaySourceFetch";
+import type { SourceTransportFailure } from "./sourceFetchFailure";
 
 export type SourceFetchResult =
   | { ok: true; capturedAt: string; payload: unknown; completeness?: CompletenessEvidence; fetchEvidence?: PersistentSourceFetchEvidence; paginationEvaluation?: PaginationEvaluation; priorTransportAttempts?: readonly SourceTransportAttempt[] }
   | { ok: true; capturedAt: string; html: string; completeness?: CompletenessEvidence; fetchEvidence?: PersistentSourceFetchEvidence; paginationEvaluation?: PaginationEvaluation; priorTransportAttempts?: readonly SourceTransportAttempt[] }
-  | { ok: false; capturedAt: string; failureReason: string; fetchEvidence?: PersistentSourceFetchEvidence; paginationEvaluation?: PaginationEvaluation; priorTransportAttempts?: readonly SourceTransportAttempt[] };
+  | { ok: false; capturedAt: string; failureReason: string; transportFailure?: SourceTransportFailure; fetchEvidence?: PersistentSourceFetchEvidence; paginationEvaluation?: PaginationEvaluation; priorTransportAttempts?: readonly SourceTransportAttempt[] };
 
 export interface SourceTransportAttempt {
   transport: "DIRECT_HTTP" | "BROWSER_SESSION";
@@ -55,6 +56,7 @@ export type SourceCrawlResult = CrawlAdapterResult & {
   fetchEvidence?: PersistentSourceFetchEvidence;
   paginationEvaluation?: PaginationEvaluation;
   priorTransportAttempts?: readonly SourceTransportAttempt[];
+  transportFailure?: SourceTransportFailure;
 };
 
 export interface SourceCrawlTruth {
@@ -108,7 +110,8 @@ export async function runSourceCrawl(
         : {}),
       ...(fetchResult.priorTransportAttempts
         ? { priorTransportAttempts: fetchResult.priorTransportAttempts }
-        : {})
+        : {}),
+      ...(fetchResult.transportFailure ? { transportFailure: fetchResult.transportFailure } : {})
     }, fetchResult, plan);
   }
 
@@ -210,6 +213,9 @@ function withFetchEvidence(
       : {}),
     ...(fetchResult.priorTransportAttempts
       ? { priorTransportAttempts: fetchResult.priorTransportAttempts }
+      : {}),
+    ...(!fetchResult.ok && fetchResult.transportFailure
+      ? { transportFailure: fetchResult.transportFailure }
       : {})
   };
 }
@@ -3359,7 +3365,8 @@ function sandozTaxonomyUrl(endpoint: URL, targetId: number): URL {
 interface StrictPositiveOfficialTotalReplayPolicy {
   allowMissingReturnedPage?: true;
   allowLaterZeroDeclaredTotalAfterExactReconciliation?: true;
-  allowPositiveOfficialTotalCountAfterAdapterReconciliation: true;
+  allowPositiveOfficialTotalCountAfterAdapterReconciliation?: true;
+  allowCompleteTraversalOfEmptyFirstPage?: true;
 }
 
 function strictPositiveOfficialTotalReplayPolicy(
@@ -3412,9 +3419,16 @@ function strictPositiveOfficialTotalReplayPolicy(
 
   if (plan.profileBoundSource) {
     const policy = getStrictProfileBoundSourcePolicy(plan);
-    return policy?.allowPositiveOfficialTotalCountAfterAdapterReconciliation
-      ? { allowPositiveOfficialTotalCountAfterAdapterReconciliation: true }
-      : undefined;
+    if (!policy) return undefined;
+    const replayPolicy: StrictPositiveOfficialTotalReplayPolicy = {
+      ...(policy.allowPositiveOfficialTotalCountAfterAdapterReconciliation
+        ? { allowPositiveOfficialTotalCountAfterAdapterReconciliation: true as const }
+        : {}),
+      ...(policy.allowCompleteTraversalOfEmptyFirstPage
+        ? { allowCompleteTraversalOfEmptyFirstPage: true as const }
+        : {})
+    };
+    return Object.keys(replayPolicy).length > 0 ? replayPolicy : undefined;
   }
 
   const strategy = plan.officialJsonFetch;

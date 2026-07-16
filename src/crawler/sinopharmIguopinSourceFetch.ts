@@ -9,6 +9,12 @@ import {
 import type { SourceFetchFunction, SourceFetchResult } from "./runSourceCrawl";
 import type { SourceCrawlPlan } from "./sourcePlan";
 import {
+  retryableHttpTransportFailure,
+  retryableTransportFailureFromError,
+  safeSourceTransportFailureReason,
+  type SourceTransportFailure
+} from "./sourceFetchFailure";
+import {
   parsePersistentSourceFetchEvidence,
   sanitizeEvidenceHttpUrl,
   sha256Bytes,
@@ -398,13 +404,19 @@ export function createSinopharmIguopinSourceFetch(
         paginationEvaluation
       } satisfies SourceFetchResult;
     } catch (error) {
+      const transportFailure = error instanceof SinopharmIguopinError
+        ? error.transportFailure
+        : retryableTransportFailureFromError(error);
       return failed(
         capturedAt,
-        error instanceof SinopharmIguopinError
+        transportFailure
+          ? safeSourceTransportFailureReason(transportFailure)
+          : error instanceof SinopharmIguopinError
           ? error.code
           : error instanceof Error
             ? `SINOPHARM_IGUOPIN_FETCH_FAILED:${error.message}`
-            : "SINOPHARM_IGUOPIN_FETCH_FAILED"
+            : "SINOPHARM_IGUOPIN_FETCH_FAILED",
+        transportFailure
       );
     }
   };
@@ -840,7 +852,10 @@ function assertResponse(
   mime: "text/html" | "application/json"
 ): void {
   if (response.status < 200 || response.status >= 300) {
-    throw new SinopharmIguopinError("SINOPHARM_IGUOPIN_HTTP_FAILURE");
+    throw new SinopharmIguopinError(
+      "SINOPHARM_IGUOPIN_HTTP_FAILURE",
+      retryableHttpTransportFailure(response.status)
+    );
   }
   if (!response.contentType?.toLowerCase().startsWith(mime)) {
     throw new SinopharmIguopinError("SINOPHARM_IGUOPIN_CONTENT_TYPE_DRIFT");
@@ -930,12 +945,16 @@ function compareUtf8(left: string, right: string): number {
   return Buffer.from(left, "utf8").compare(Buffer.from(right, "utf8"));
 }
 
-function failed(capturedAt: string, failureReason: string): SourceFetchResult {
-  return { ok: false, capturedAt, failureReason };
+function failed(
+  capturedAt: string,
+  failureReason: string,
+  transportFailure?: SourceTransportFailure
+): SourceFetchResult {
+  return { ok: false, capturedAt, failureReason, ...(transportFailure ? { transportFailure } : {}) };
 }
 
 class SinopharmIguopinError extends Error {
-  constructor(readonly code: string) {
+  constructor(readonly code: string, readonly transportFailure?: SourceTransportFailure) {
     super(code);
     this.name = "SinopharmIguopinError";
   }
