@@ -36,6 +36,7 @@ import {
   sourceFailureDiagnosticBundle,
   transportFailureDiagnosticBundle
 } from "./sourceFailureDiagnostics";
+import { safeProfileBoundSourceFailureReason } from "./profileBoundSourceEvidence";
 import {
   bindRuntimeEvidenceArtifactIds,
   buildAtomicRuntimeCommit,
@@ -380,6 +381,9 @@ export async function runP0CrawlBatch(
 
       if (!crawlResult.truth.transportSuccess || !crawlResult.truth.adapterSuccess) {
         const transportFailed = !crawlResult.truth.transportSuccess;
+        const profileBoundFailureReason = crawlResult.status === "FAILED"
+          ? safeProfileBoundSourceFailureReason(plan, crawlResult.failureReason)
+          : undefined;
         await terminatePendingSourceResult({
           id: pending.id,
           releaseCandidateId: deps.identity.releaseCandidateId,
@@ -394,7 +398,7 @@ export async function runP0CrawlBatch(
           failureReason: transportFailed
             ? crawlResult.transportFailure
               ? safeSourceTransportFailureReason(crawlResult.transportFailure)
-              : "Source transport failed"
+              : profileBoundFailureReason ?? "Source transport failed"
             : "Source adapter failed",
           ...(transportFailed
             ? transportFailureDiagnosticBundle(crawlResult.transportFailure, attemptTracker)

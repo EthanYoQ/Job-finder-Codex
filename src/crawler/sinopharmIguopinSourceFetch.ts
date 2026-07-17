@@ -413,9 +413,7 @@ export function createSinopharmIguopinSourceFetch(
           ? safeSourceTransportFailureReason(transportFailure)
           : error instanceof SinopharmIguopinError
           ? error.code
-          : error instanceof Error
-            ? `SINOPHARM_IGUOPIN_FETCH_FAILED:${error.message}`
-            : "SINOPHARM_IGUOPIN_FETCH_FAILED",
+          : safeNonRetryableFailureCode(error),
         transportFailure
       );
     }
@@ -852,9 +850,10 @@ function assertResponse(
   mime: "text/html" | "application/json"
 ): void {
   if (response.status < 200 || response.status >= 300) {
+    const retryable = retryableHttpTransportFailure(response.status);
     throw new SinopharmIguopinError(
-      "SINOPHARM_IGUOPIN_HTTP_FAILURE",
-      retryableHttpTransportFailure(response.status)
+      retryable ? "SINOPHARM_IGUOPIN_HTTP_FAILURE" : `SINOPHARM_IGUOPIN_HTTP_STATUS_${response.status}`,
+      retryable
     );
   }
   if (!response.contentType?.toLowerCase().startsWith(mime)) {
@@ -958,4 +957,64 @@ class SinopharmIguopinError extends Error {
     super(code);
     this.name = "SinopharmIguopinError";
   }
+}
+
+const SAFE_SINOPHARM_FAILURE_CODES = new Set([
+  "SINOPHARM_IGUOPIN_CONFIG_INVALID",
+  "SINOPHARM_IGUOPIN_CONFIG_MISSING",
+  "SINOPHARM_IGUOPIN_CONTENT_TYPE_DRIFT",
+  "SINOPHARM_IGUOPIN_DUPLICATE_JOB",
+  "SINOPHARM_IGUOPIN_EVIDENCE_MISSING",
+  "SINOPHARM_IGUOPIN_EVIDENCE_REPLAY_FAILED",
+  "SINOPHARM_IGUOPIN_FETCH_FAILED_CLOSED",
+  "SINOPHARM_IGUOPIN_HTTP_FAILURE",
+  "SINOPHARM_IGUOPIN_INVALID_JOB",
+  "SINOPHARM_IGUOPIN_INVALID_PAGE",
+  "SINOPHARM_IGUOPIN_MAX_PAGES_EXCEEDED",
+  "SINOPHARM_IGUOPIN_OFFICIAL_CHAIN_DRIFT",
+  "SINOPHARM_IGUOPIN_PLAN_BINDING_DRIFT",
+  "SINOPHARM_IGUOPIN_PROJECT_BINDING_DRIFT",
+  "SINOPHARM_IGUOPIN_REDIRECT_DRIFT",
+  "SINOPHARM_IGUOPIN_REQUEST_ABORTED",
+  "SINOPHARM_IGUOPIN_SHORT_PAGE",
+  "SINOPHARM_IGUOPIN_SOCIAL_BOUNDARY_DRIFT",
+  "SINOPHARM_IGUOPIN_TENANT_BINDING_DRIFT",
+  "SINOPHARM_IGUOPIN_TLS_FAILURE",
+  "SINOPHARM_IGUOPIN_TOTAL_COUNT_DRIFT",
+  "SINOPHARM_IGUOPIN_URL_OUT_OF_SCOPE"
+]);
+
+const TLS_ERROR_CODES = new Set([
+  "CERT_HAS_EXPIRED",
+  "DEPTH_ZERO_SELF_SIGNED_CERT",
+  "ERR_TLS_CERT_ALTNAME_INVALID",
+  "SELF_SIGNED_CERT_IN_CHAIN",
+  "UNABLE_TO_GET_ISSUER_CERT_LOCALLY",
+  "UNABLE_TO_VERIFY_LEAF_SIGNATURE"
+]);
+
+export function isSafeSinopharmIguopinFailureCode(value: unknown): value is string {
+  return typeof value === "string" && (
+    SAFE_SINOPHARM_FAILURE_CODES.has(value) ||
+    /^SINOPHARM_IGUOPIN_HTTP_STATUS_[1-5][0-9]{2}$/u.test(value)
+  );
+}
+
+function safeNonRetryableFailureCode(error: unknown): string {
+  const record = typeof error === "object" && error !== null
+    ? error as { name?: unknown; code?: unknown; cause?: unknown }
+    : undefined;
+  const cause = typeof record?.cause === "object" && record.cause !== null
+    ? record.cause as { code?: unknown }
+    : undefined;
+  const code = typeof record?.code === "string"
+    ? record.code
+    : typeof cause?.code === "string"
+      ? cause.code
+      : undefined;
+  if (code && TLS_ERROR_CODES.has(code)) return "SINOPHARM_IGUOPIN_TLS_FAILURE";
+  if (record?.name === "AbortError" || code === "ABORT_ERR") {
+    return "SINOPHARM_IGUOPIN_REQUEST_ABORTED";
+  }
+  return "SINOPHARM_IGUOPIN_FETCH_FAILED_CLOSED";
 }

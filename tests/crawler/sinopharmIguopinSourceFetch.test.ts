@@ -304,6 +304,52 @@ describe("createSinopharmIguopinSourceFetch", () => {
     expect(structural.result).not.toHaveProperty("transportFailure");
   });
 
+  it("emits only bounded non-retryable failure codes without leaking raw network errors", async () => {
+    const stagedPlan = stagedSinopharmPlan();
+    const forbidden = "authorization=Bearer must-not-persist";
+    const cases = [
+      {
+        label: "HTTP 403",
+        http: async (request: SinopharmIguopinHttpRequest) => ({
+          ...htmlResponse(request, "forbidden"),
+          status: 403
+        }),
+        code: "SINOPHARM_IGUOPIN_HTTP_STATUS_403"
+      },
+      {
+        label: "certificate failure",
+        http: async () => {
+          throw Object.assign(new Error(forbidden), { code: "UNABLE_TO_VERIFY_LEAF_SIGNATURE" });
+        },
+        code: "SINOPHARM_IGUOPIN_TLS_FAILURE"
+      },
+      {
+        label: "abort",
+        http: async () => {
+          throw Object.assign(new Error(forbidden), { name: "AbortError" });
+        },
+        code: "SINOPHARM_IGUOPIN_REQUEST_ABORTED"
+      },
+      {
+        label: "unknown failure",
+        http: async () => {
+          throw new Error(forbidden);
+        },
+        code: "SINOPHARM_IGUOPIN_FETCH_FAILED_CLOSED"
+      }
+    ] as const;
+
+    for (const fixture of cases) {
+      const result = await createSinopharmIguopinSourceFetch({
+        now: () => new Date(capturedAt),
+        http: fixture.http
+      })(stagedPlan);
+      expect(result, fixture.label).toMatchObject({ ok: false, failureReason: fixture.code });
+      expect(result, fixture.label).not.toHaveProperty("transportFailure");
+      expect(JSON.stringify(result), fixture.label).not.toContain(forbidden);
+    }
+  });
+
   it("passes the shared runSourceCrawl strict gate with the canonical staged profile", async () => {
     const { stagedPlan, result } = await runStagedSinopharm();
     const crawled = await runSourceCrawl(stagedPlan, { fetch: async () => result });
