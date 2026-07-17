@@ -52,6 +52,33 @@ export function validateStrictProfileBoundSourceEvidence(
 }
 
 /**
+ * Converts a raw official total into the persistable displayable total only
+ * after the company-specific replay has independently proved every exclusion.
+ * The archived declaration and loss ledger retain the original raw total.
+ */
+export function profileBoundPersistedExpectedJobCount(
+  plan: SourceCrawlPlan,
+  evidence: PersistentSourceFetchEvidence,
+  outputJobs: readonly NormalizedJobRecord[]
+): number | undefined {
+  if (plan.adapterId !== "official-json" || plan.profileBoundSource?.kind !== "msd-dual-official" ||
+      !validateStrictMsdDualOfficialEvidence(plan, evidence, outputJobs)) return undefined;
+  const declaration = evidence.declaredCompleteness;
+  if (
+    declaration?.kind !== "OFFICIAL_TOTAL_COUNT" ||
+    declaration.value !== evidence.fetchCounts.rawCount ||
+    evidence.fetchCounts.parsedCount !== evidence.fetchCounts.rawCount ||
+    evidence.fetchCounts.validCount !== outputJobs.length ||
+    evidence.fetchCounts.validCount + evidence.fetchCounts.validationDiscardCount !== declaration.value ||
+    evidence.fetchCounts.parseDiscardCount !== 0 ||
+    evidence.fetchCounts.validationDiscardCount !== evidence.fetchLosses.length ||
+    evidence.fetchLosses.some((loss) =>
+      loss.stage !== "VALIDATION" || loss.reason !== "VERIFIED_OFFICIAL_TEST_PLACEHOLDER")
+  ) return undefined;
+  return evidence.fetchCounts.validCount;
+}
+
+/**
  * Returns only network allow-list metadata. Exact company/source binding is
  * still enforced by the independent replay above, so changing a profile cannot
  * manufacture a passing archive around a different tenant or endpoint.

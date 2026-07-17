@@ -28,6 +28,7 @@ import {
 import type { NormalizedJobRecord } from "./normalizedJob";
 import {
   getStrictProfileBoundSourcePolicy,
+  profileBoundPersistedExpectedJobCount,
   validateStrictProfileBoundSourceEvidence
 } from "./profileBoundSourceEvidence";
 import {
@@ -290,7 +291,11 @@ function finalizeTruth(
     observation.completenessEvidenceKind = declaration.kind;
     observation.completenessEvidenceUrl = declarationArtifact.finalUrl ?? declarationArtifact.requestedUrl!;
     if (declaration.kind === "OFFICIAL_TOTAL_COUNT") {
-      observation.expectedJobCount = declaration.value;
+      observation.expectedJobCount = profileBoundPersistedExpectedJobCount(
+        plan,
+        strictEvidence,
+        result.jobs
+      ) ?? declaration.value;
     }
     delete observation.completenessBlockerReason;
   } else if (observation.completenessStatus === "VERIFIED") {

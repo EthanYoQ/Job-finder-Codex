@@ -326,6 +326,7 @@ describe("MSD dual-official-source pagination", () => {
       adapterSuccess: true,
       completenessVerified: true
     });
+    expect(crawled.observation.expectedJobCount).toBe(crawled.jobs.length);
     expect(validateStrictMsdDualOfficialEvidence(
       plan!,
       crawled.fetchEvidence,
