@@ -3,6 +3,7 @@ import type { HtmlTableConfig, OfficialJsonConfig } from "../adapters/types";
 import type { HotjobLegacyFetchConfig } from "../hotjobLegacySourceFetch";
 import type { HotjobWecruitFetchConfig } from "../hotjobWecruitSourceFetch";
 import type { LivzonCeccFetchConfig } from "../livzonCeccSourceFetch";
+import type { MsdDualOfficialFetchConfig } from "../msdDualOfficialSourceFetch";
 import type { OfficialJsonFetchConfig } from "../officialJsonSourceFetch";
 import type { SinopharmIguopinFetchConfig } from "../sinopharmIguopinSourceFetch";
 import type { WorkdayFetchConfig } from "../workdaySourceFetch";
@@ -22,6 +23,11 @@ export interface MokaFetchConfig {
 }
 
 export type ProfileBoundSourceConfig =
+  | {
+      kind: "msd-dual-official";
+      config: MsdDualOfficialFetchConfig;
+      expectedChannelIds?: readonly string[];
+    }
   | {
       kind: "livzon-cecc";
       config: LivzonCeccFetchConfig;

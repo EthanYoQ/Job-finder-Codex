@@ -1,4 +1,8 @@
 import { getStrictLivzonCeccNetworkPolicy, validateStrictLivzonCeccEvidence } from "./livzonCeccEvidenceVerifier";
+import {
+  getStrictMsdDualOfficialNetworkPolicy,
+  validateStrictMsdDualOfficialEvidence
+} from "./msdDualOfficialSourceFetch";
 import type { NormalizedJobRecord } from "./normalizedJob";
 import {
   isSafeSinopharmIguopinFailureCode,
@@ -20,6 +24,7 @@ export interface ProfileBoundSourceUrlRuleSpec {
 export interface StrictProfileBoundSourcePolicy {
   urlRules: readonly ProfileBoundSourceUrlRuleSpec[];
   allowPositiveOfficialTotalCountAfterAdapterReconciliation?: true;
+  allowIndependentlyVerifiedProfileBoundExclusions?: true;
   allowCompleteTraversalOfEmptyFirstPage?: true;
 }
 
@@ -35,6 +40,8 @@ export function validateStrictProfileBoundSourceEvidence(
 ): boolean {
   if (plan.adapterId !== "official-json" || !plan.profileBoundSource) return false;
   switch (plan.profileBoundSource.kind) {
+    case "msd-dual-official":
+      return validateStrictMsdDualOfficialEvidence(plan, evidence, outputJobs);
     case "livzon-cecc":
       return validateStrictLivzonCeccEvidence(plan, evidence, outputJobs);
     case "sinopharm-iguopin":
@@ -54,6 +61,8 @@ export function getStrictProfileBoundSourcePolicy(
 ): StrictProfileBoundSourcePolicy | undefined {
   if (plan.adapterId !== "official-json" || !plan.profileBoundSource) return undefined;
   switch (plan.profileBoundSource.kind) {
+    case "msd-dual-official":
+      return getStrictMsdDualOfficialNetworkPolicy(plan);
     case "livzon-cecc": {
       const policy = getStrictLivzonCeccNetworkPolicy(plan);
       if (!policy) return undefined;

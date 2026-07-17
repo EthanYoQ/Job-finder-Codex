@@ -1,4 +1,5 @@
 import { createLivzonCeccSourceFetch } from "./livzonCeccSourceFetch";
+import { createMsdDualOfficialSourceFetch } from "./msdDualOfficialSourceFetch";
 import type { SourceFetchFunction } from "./runSourceCrawl";
 import { createSinopharmIguopinSourceFetch } from "./sinopharmIguopinSourceFetch";
 import { createXinhuaOfficialAnnouncementSourceFetch } from "./xinhuaOfficialAnnouncementSourceFetch";
@@ -10,6 +11,7 @@ import { createXinhuaOfficialAnnouncementSourceFetch } from "./xinhuaOfficialAnn
  */
 export function createProfileBoundSourceFetch(): SourceFetchFunction {
   const delegates = {
+    "msd-dual-official": createMsdDualOfficialSourceFetch(),
     "livzon-cecc": createLivzonCeccSourceFetch(),
     "sinopharm-iguopin": createSinopharmIguopinSourceFetch(),
     "xinhua-official-announcements": createXinhuaOfficialAnnouncementSourceFetch()

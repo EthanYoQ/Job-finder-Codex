@@ -65,6 +65,7 @@ interface PaginationEvidenceInput {
   allowMissingReturnedPage?: boolean;
   allowLaterZeroDeclaredTotalAfterExactReconciliation?: boolean;
   allowPositiveOfficialTotalCountAfterAdapterReconciliation?: boolean;
+  allowIndependentlyVerifiedProfileBoundExclusions?: boolean;
   allowRawIdOverlapAcrossPages?: boolean;
   allowCompleteTraversalOfEmptyFirstPage?: boolean;
 }
@@ -299,7 +300,8 @@ function evaluatePaginationEvidenceInternal(
   const declaredPageCountMatches = declarationCoversActualPages(
     evidence,
     expectedChannelIds,
-    input.allowPositiveOfficialTotalCountAfterAdapterReconciliation === true
+    input.allowPositiveOfficialTotalCountAfterAdapterReconciliation === true,
+    input.allowIndependentlyVerifiedProfileBoundExclusions === true
   );
   const verifiedEligible = safeCompleteness && declared !== undefined &&
     !globalCannotCertifyFiltered && declaredPageCountMatches;
@@ -438,7 +440,8 @@ function safeTerminationsByScope(
 function declarationCoversActualPages(
   evidence: PersistentSourceFetchEvidence,
   expectedChannelIds: readonly string[],
-  allowPositiveOfficialTotalCountAfterAdapterReconciliation: boolean
+  allowPositiveOfficialTotalCountAfterAdapterReconciliation: boolean,
+  allowIndependentlyVerifiedProfileBoundExclusions: boolean
 ): boolean {
   const declared = evidence.declaredCompleteness;
   if (!declared) return false;
@@ -447,11 +450,21 @@ function declarationCoversActualPages(
     if (!allowPositiveOfficialTotalCountAfterAdapterReconciliation) return false;
     // This opt-in only exposes a lossless positive declaration to a later,
     // independent adapter reconciliation gate. It does not certify the fetch.
-    return declared.value === evidence.fetchCounts.rawCount &&
+    const lossless = declared.value === evidence.fetchCounts.rawCount &&
       declared.value === evidence.fetchCounts.parsedCount &&
       declared.value === evidence.fetchCounts.validCount &&
       evidence.fetchCounts.parseDiscardCount === 0 && evidence.fetchCounts.validationDiscardCount === 0 &&
       evidence.fetchLosses.length === 0;
+    if (lossless) return true;
+    return allowIndependentlyVerifiedProfileBoundExclusions &&
+      declared.value === evidence.fetchCounts.rawCount &&
+      evidence.fetchCounts.parsedCount === evidence.fetchCounts.rawCount &&
+      evidence.fetchCounts.parseDiscardCount === 0 &&
+      evidence.fetchCounts.validCount + evidence.fetchCounts.validationDiscardCount ===
+        evidence.fetchCounts.parsedCount &&
+      evidence.fetchCounts.validationDiscardCount > 0 &&
+      evidence.fetchLosses.length === evidence.fetchCounts.validationDiscardCount &&
+      evidence.fetchLosses.every((loss) => loss.stage === "VALIDATION");
   }
   let actualPages: number;
   if (declared.scope === "CHANNEL") {

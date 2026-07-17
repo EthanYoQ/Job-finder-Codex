@@ -25,8 +25,7 @@ const CAPTURED_AT = "2026-07-15T00:01:00.000Z";
 const PLANS = buildStagedSourceCrawlPlans(candidateCompanies);
 const WORKDAY_SOURCES = [
   "source-biogen-china-social",
-  "source-gilead-china-social",
-  "source-msd-china-social"
+  "source-gilead-china-social"
 ] as const;
 const PHENOM_SOURCES = [
   "source-lilly-china-social",
@@ -163,17 +162,6 @@ function workdayLocationFixture(plan: SourceCrawlPlan): {
           { descriptor: "Czech Republic - Prague", id: "foreign-cz", count: 1 },
           { descriptor: "UAE - Dubai", id: "foreign-uae", count: 1 },
           { descriptor: "United States – Remote", id: "foreign-us", count: 1 }
-        ],
-        selectedIds: ["china-shanghai"]
-      };
-    case "MSD_AUDITED_NON_CHINA_DUPLICATE_DESCRIPTORS":
-      return {
-        total: 2,
-        facetParameter: "locations",
-        values: [
-          { descriptor: "CHN - Shanghai - Shanghai", id: "china-shanghai", count: 1 },
-          { descriptor: "IND - Telangana - Hyderabad", id: "foreign-ind-1", count: 1 },
-          { descriptor: "IND - Telangana - Hyderabad", id: "foreign-ind-2", count: 1 }
         ],
         selectedIds: ["china-shanghai"]
       };

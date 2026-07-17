@@ -29,7 +29,6 @@ const AUDITED_POSITIVE_TOTAL_SOURCES = [
   "source-biogen-china-social",
   "source-bms-china-social",
   "source-gilead-china-social",
-  "source-msd-china-social",
   "source-pfizer-china-social",
   "source-hengrui-social",
   "source-jimin-kexin-social",

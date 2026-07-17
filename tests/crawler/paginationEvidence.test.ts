@@ -220,6 +220,33 @@ describe("shared pagination evidence evaluator", () => {
     })).toMatchObject({ safeCompleteness: true, verifiedEligible: false });
   });
 
+  it("permits an exact profile-bound exclusion only when independent replay explicitly owns it", () => {
+    const input = evidence();
+    input.pages[0]!.validJobIds = ["a"];
+    input.pages[0]!.termination = "NEXT_ABSENT";
+    input.fetchCounts = {
+      rawCount: 2,
+      parsedCount: 2,
+      validCount: 1,
+      parseDiscardCount: 0,
+      validationDiscardCount: 1
+    };
+    input.fetchLosses = [{
+      stage: "VALIDATION",
+      reason: "verified profile-bound exclusion",
+      rawLocator: "page-1#record:1",
+      details: { code: "PROFILE_BOUND_EXCLUSION", pageSequence: 0, recordIndex: 1 }
+    }];
+
+    expect(evaluatePaginationEvidence({
+      evidence: input,
+      expectedChannelIds: ["social"],
+      filteredOutput: true,
+      allowPositiveOfficialTotalCountAfterAdapterReconciliation: true,
+      allowIndependentlyVerifiedProfileBoundExclusions: true
+    })).toMatchObject({ safeCompleteness: true, verifiedEligible: true });
+  });
+
   it("allows explicit official zero only on the first page and rejects an intermediate empty page", () => {
     const zero = evidence('{"total":0,"ids":[]}');
     zero.pages[0]!.rawJobIds = [];

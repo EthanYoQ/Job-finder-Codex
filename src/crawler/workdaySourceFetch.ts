@@ -35,7 +35,6 @@ export interface WorkdayFetchConfig {
 
 export type WorkdayOpaqueMultiLocationDetailPolicy =
   | "JNJ_AUDITED_CHINA_DETAIL_V1"
-  | "MSD_AUDITED_CHINA_DETAIL_V1"
   | "PFIZER_AUDITED_APAC_DETAIL_V1";
 
 export type WorkdayLaterZeroTotalPolicy =
@@ -54,11 +53,6 @@ export type WorkdayLocationFacetPolicy =
       kind: "GILEAD_AUDITED_LOCATIONS_OVERLAP";
       facetParameter: "locations";
       foreignDescriptorAliases: readonly string[];
-    }
-  | {
-      kind: "MSD_AUDITED_NON_CHINA_DUPLICATE_DESCRIPTORS";
-      facetParameter: "locations";
-      allowedDuplicateDescriptors: readonly string[];
     }
   | {
       kind: "BMS_AUDITED_FOREIGN_DESCRIPTOR_ALLOWLIST";
@@ -129,7 +123,6 @@ const PFIZER_LATER_ZERO_TOTAL_POLICY = "PFIZER_AUDITED_EXACT_RECONCILIATION";
 const AMGEN_LATER_ZERO_TOTAL_POLICY = "AMGEN_AUDITED_EXACT_RECONCILIATION";
 const BMS_LATER_ZERO_TOTAL_POLICY = "BMS_AUDITED_EXACT_RECONCILIATION";
 const AUDITED_CHINA_LOCATION_ID = "6cb77610a8a543aea2d6bc10457e35d4";
-const MSD_AUDITED_DUPLICATE_DESCRIPTOR = "IND - Telangana - Hyderabad";
 export const BMS_AUDITED_FOREIGN_SITE_DESCRIPTOR_ALIASES = [
   "AZ01 PSA Celgene - Phoenix - AZ",
   "CA06 PSA Celgene - San Diego Science Park - CA",
@@ -458,25 +451,6 @@ function resolveAuditedLocationFacetPolicy(
     };
   }
   if (
-    policy.kind === "MSD_AUDITED_NON_CHINA_DUPLICATE_DESCRIPTORS" &&
-    policy.facetParameter === "locations" &&
-    exactStringArray(policy.allowedDuplicateDescriptors, [MSD_AUDITED_DUPLICATE_DESCRIPTOR]) &&
-    sourceId === "source-msd-china-social" &&
-    config.tenant === "msd" &&
-    config.site === "SearchJobs"
-  ) {
-    return {
-      facetParameter: "locations",
-      allowOverlappingCounts: true,
-      allowedDuplicateDescriptors: [MSD_AUDITED_DUPLICATE_DESCRIPTOR],
-      mainlandDescriptorAliases: [],
-      allowedForeignDescriptors: [],
-      allowedForeignSiteDescriptors: [],
-      allowedForeignCountryDescriptors: [],
-      requireUniqueMainlandCountryLeaf: false
-    };
-  }
-  if (
     policy.kind === "BMS_AUDITED_FOREIGN_DESCRIPTOR_ALLOWLIST" &&
     policy.facetParameter === "locationHierarchy2" &&
     exactStringArray(policy.foreignSiteDescriptorAliases, BMS_AUDITED_FOREIGN_SITE_DESCRIPTOR_ALIASES) &&
@@ -536,16 +510,6 @@ function resolveOpaqueMultiLocationDetailPolicy(
     config.tenant === "jj" &&
     config.site === "JJ" &&
     auditedLocationFacetPolicy.facetParameter === "locations"
-  ) {
-    return { kind };
-  }
-  if (
-    kind === "MSD_AUDITED_CHINA_DETAIL_V1" &&
-    sourceId === "source-msd-china-social" &&
-    config.tenant === "msd" &&
-    config.site === "SearchJobs" &&
-    auditedLocationFacetPolicy.facetParameter === "locations" &&
-    exactStringArray(auditedLocationFacetPolicy.allowedDuplicateDescriptors, [MSD_AUDITED_DUPLICATE_DESCRIPTOR])
   ) {
     return { kind };
   }

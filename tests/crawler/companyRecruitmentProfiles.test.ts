@@ -20,10 +20,10 @@ import {
 import { AUTHORIZED_PHASE1_EXCLUSION_COMPANY_IDS } from "../../src/data/phase1ScopePolicy";
 
 const BASELINE = {
-  rosterSha256: "49151a9441292593df741a6f8765efcaa5cf3cf8dda711738a9e7753b0ba2fd8",
-  surfaceOracleSha256: "a5a75eb595da823db3413fb38c87a67e9517ed79109b6da8ca6c894f4e186934",
-  stagedPlanSha256: "e8cfcd9ef51b7416acbcacc5cfc984a00a13329237ea49e44d923d2dd160257f",
-  stagedConfigSetSha256: "a4308fa7e2e4f6894e9d0211a6d94a102a7c21b8ba8d521289654e99246e0a83"
+  rosterSha256: "a3b9c49bb25cc9212f9bfcce3ade6f828f9ef100111cba532111acfcc9ad5618",
+  surfaceOracleSha256: "ddaff84ff9ca8bc8e1aa7b0a5213786e058806f7cc4223acfc0634493e4f26ce",
+  stagedPlanSha256: "3a08745e3c7e46c316cf041dfcdc74fb2c8ea4c860920f748c379c0067829035",
+  stagedConfigSetSha256: "a4a64b52420a4c2ca5159839638e4d28e18d62cc5c91828730dc4c94357b16ff"
 } as const;
 
 const SHARED_CORE_SOURCE_ALLOWLIST: Readonly<Record<string, readonly string[]>> = {
@@ -37,7 +37,6 @@ const SHARED_CORE_SOURCE_ALLOWLIST: Readonly<Record<string, readonly string[]>> 
     "source-bms-china-social",
     "source-gilead-china-social",
     "source-johnson-innovative-medicine-social",
-    "source-msd-china-social",
     "source-pfizer-china-social"
   ],
   "runSourceCrawl.ts": [
@@ -150,6 +149,7 @@ describe("company recruitment profiles", () => {
 
   it("keeps dedicated source behavior profile-bound instead of scattering company adapters through shared cores", () => {
     const expectedProfileKinds = new Map([
+      ["source-msd-china-social", "msd-dual-official"],
       ["source-livzon-social", "livzon-cecc"],
       ["source-sinopharm-social", "sinopharm-iguopin"],
       ["source-xinhua-pharma-social", "xinhua-official-announcements"]
@@ -176,6 +176,7 @@ describe("company recruitment profiles", () => {
       .sort();
     expect(retrySourceIds).toEqual([
       "source-bms-china-social",
+      "source-msd-china-social",
       "source-pfizer-china-social",
       "source-roche-china-social",
       "source-sinopharm-social",

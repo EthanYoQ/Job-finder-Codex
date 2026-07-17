@@ -251,10 +251,10 @@ const CANDIDATE_SEEDS: CandidateSeed[] = [
     pinyinName: "moshadong",
     category: "FOREIGN_PHARMA",
     status: "VERIFIED_SCRAPABLE",
-    atsKind: "WORKDAY",
+    atsKind: "OFFICIAL_JSON",
     officialWebsiteUrl: "https://www.msdchina.com.cn/",
-    socialEntryUrl: "https://msd.wd5.myworkdayjobs.com/SearchJobs",
-    officialChainEvidenceUrl: "https://jobs.msd.com/cn/zh"
+    socialEntryUrl: "https://jobs.msd.com/cn/zh/search-results",
+    officialChainEvidenceUrl: "https://jobs.msd.com/cn/zh/search-results"
   },
   {
     id: "company-roche-china",

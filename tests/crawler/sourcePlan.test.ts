@@ -517,13 +517,22 @@ describe("source crawl planning", () => {
     expect(getPlanBySourceId(plans, "source-msd-china-social")).toMatchObject({
       adapterId: "official-json",
       source: {
-        atsKind: "WORKDAY"
+        atsKind: "OFFICIAL_JSON",
+        officialEntryUrl: "https://jobs.msd.com/cn/zh/search-results",
+        officialChainEvidenceUrl: "https://jobs.msd.com/cn/zh/search-results"
       },
-      workday: {
-        tenant: "msd",
-        site: "SearchJobs"
-      }
+      profileBoundSource: {
+        kind: "msd-dual-official",
+        config: {
+          officialSearchUrl: "https://jobs.msd.com/cn/zh/search-results",
+          phenomWidgetUrl: "https://jobs.msd.com/widgets",
+          workdayJobsUrl: "https://msd.wd5.myworkdayjobs.com/wday/cxs/msd/SearchJobs/jobs",
+          countryDescriptor: "China"
+        }
+      },
+      transientRetryPolicy: { maxRetries: 1, backoffMs: 10_000 }
     });
+    expect(getPlanBySourceId(plans, "source-msd-china-social")).not.toHaveProperty("workday");
     expect(getPlanBySourceId(plans, "source-roche-china-social")).toMatchObject({
       adapterId: "official-json",
       source: {
@@ -560,7 +569,6 @@ describe("source crawl planning", () => {
     });
     const workdaySocialBoundaries = new Map([
       ["source-johnson-innovative-medicine-social", ["Fixed Term Employee (Non-Intern) (Fixed Term)", "Regular"]],
-      ["source-msd-china-social", ["Regular"]],
       ["source-pfizer-china-social", ["Regular"]],
       ["source-bms-china-social", ["Fixed Term (Fixed Term)", "Permanent"]],
       ["source-amgen-china-social", ["Regular"]],
@@ -588,9 +596,6 @@ describe("source crawl planning", () => {
         maxPages: 20
       }
     });
-    expect(getPlanBySourceId(plans, "source-msd-china-social")).toMatchObject({
-      workday: { opaqueMultiLocationDetailPolicy: "MSD_AUDITED_CHINA_DETAIL_V1" }
-    });
     const workdayLocationFacetPolicies = new Map<string, unknown>([
       ["source-johnson-innovative-medicine-social", {
         kind: "JNJ_AUDITED_LOCATIONS_OVERLAP",
@@ -602,11 +607,6 @@ describe("source crawl planning", () => {
         kind: "GILEAD_AUDITED_LOCATIONS_OVERLAP",
         facetParameter: "locations",
         foreignDescriptorAliases: expect.any(Array)
-      }],
-      ["source-msd-china-social", {
-        kind: "MSD_AUDITED_NON_CHINA_DUPLICATE_DESCRIPTORS",
-        facetParameter: "locations",
-        allowedDuplicateDescriptors: ["IND - Telangana - Hyderabad"]
       }],
       ["source-bms-china-social", {
         kind: "BMS_AUDITED_FOREIGN_DESCRIPTOR_ALLOWLIST",
@@ -679,7 +679,6 @@ describe("source crawl planning", () => {
         ? [candidate.source.id]
         : [])).toEqual([
       "source-johnson-innovative-medicine-social",
-      "source-msd-china-social",
       "source-bms-china-social",
       "source-gilead-china-social"
     ]);

@@ -423,7 +423,11 @@ function strictCompletenessGate(
       : artifactUrlBindings?.get(artifact.logicalKey);
     if (!declaredArtifactRules) return false;
     if (declared.kind === "OFFICIAL_TOTAL_COUNT") {
-      if (declared.value !== ledger.rawInputCount) return false;
+      const profileBoundExclusionReconciled = profileBoundEvidenceValidated &&
+        replayPolicy?.allowIndependentlyVerifiedProfileBoundExclusions === true &&
+        declared.value === evidence.fetchCounts.rawCount &&
+        ledger.rawInputCount === evidence.fetchCounts.validCount;
+      if (declared.value !== ledger.rawInputCount && !profileBoundExclusionReconciled) return false;
       if (declared.value > 0 && !declaredArtifactRules.some((rule) =>
         rule.role === "ENDPOINT" && rule.allowsPositiveTotalDeclaration === true)) return false;
     }
@@ -1249,10 +1253,7 @@ function strictWorkdayLocationFacetDerivation(
   }
 
   const policy = config.locationFacetPolicy;
-  if (!policy || ![
-    "GILEAD_AUDITED_LOCATIONS_OVERLAP",
-    "MSD_AUDITED_NON_CHINA_DUPLICATE_DESCRIPTORS"
-  ].includes(policy.kind)) return undefined;
+  if (policy?.kind !== "GILEAD_AUDITED_LOCATIONS_OVERLAP") return undefined;
   const candidateGroups = groups.filter((group) =>
     group.facetParameter === policy.facetParameter &&
     group.values.some((value) => {
@@ -1262,17 +1263,13 @@ function strictWorkdayLocationFacetDerivation(
     })
   );
   if (candidateGroups.length !== 1) return undefined;
-  const allowedDuplicates = policy.kind === "MSD_AUDITED_NON_CHINA_DUPLICATE_DESCRIPTORS"
-    ? policy.allowedDuplicateDescriptors
-    : [];
+  const allowedDuplicates: string[] = [];
   if (!strictUniqueNonblankStrings(allowedDuplicates)) return undefined;
   const values = strictWorkdayFlatFacetValues(candidateGroups[0]!.values, allowedDuplicates);
   if (!values) return undefined;
   const selected = values.filter((value) => strictWorkdayMainlandLocation(value.descriptor));
   if (selected.length === 0 || selected.some((value) => strictWorkdayNonMainland(value.descriptor))) return undefined;
-  const foreignAliases = policy.kind === "GILEAD_AUDITED_LOCATIONS_OVERLAP"
-    ? policy.foreignDescriptorAliases
-    : [];
+  const foreignAliases = policy.foreignDescriptorAliases;
   if (!strictUniqueNonblankStrings(foreignAliases) ||
     values.filter((value) => !selected.includes(value)).some((value) =>
       !strictWorkdayForeignLocation(value.descriptor, foreignAliases))) return undefined;
@@ -3747,6 +3744,7 @@ interface StrictPositiveOfficialTotalReplayPolicy {
   allowMissingReturnedPage?: true;
   allowLaterZeroDeclaredTotalAfterExactReconciliation?: true;
   allowPositiveOfficialTotalCountAfterAdapterReconciliation?: true;
+  allowIndependentlyVerifiedProfileBoundExclusions?: true;
   allowCompleteTraversalOfEmptyFirstPage?: true;
 }
 
@@ -3807,6 +3805,9 @@ function strictPositiveOfficialTotalReplayPolicy(
         : {}),
       ...(policy.allowCompleteTraversalOfEmptyFirstPage
         ? { allowCompleteTraversalOfEmptyFirstPage: true as const }
+        : {}),
+      ...(policy.allowIndependentlyVerifiedProfileBoundExclusions
+        ? { allowIndependentlyVerifiedProfileBoundExclusions: true as const }
         : {})
     };
     return Object.keys(replayPolicy).length > 0 ? replayPolicy : undefined;
