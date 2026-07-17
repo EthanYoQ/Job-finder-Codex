@@ -118,6 +118,34 @@ describe("source fetch router", () => {
     expect(attemptTracker).toMatchObject({ fetchAttemptCount: 1, retryCount: 0 });
   });
 
+  it("does not retry a whitelisted code when the structured retry flag is not exactly true", async () => {
+    const calls: string[] = [];
+    const delegate: SourceFetchFunction = async () => {
+      calls.push("call");
+      return {
+        ok: false,
+        capturedAt,
+        failureReason: "malformed retry signal",
+        transportFailure: { code: "OFFICIAL_HTTP_503", retryable: false }
+      } as unknown as SourceFetchResult;
+    };
+    const router = createSourceFetchRouter({
+      moka: delegate,
+      workday: delegate,
+      fallback: delegate,
+      delay: async () => { throw new Error("delay must not run"); }
+    });
+    const attemptTracker = createSourceFetchAttemptTracker();
+    const plan = {
+      ...planWithAtsKind("WORKDAY"),
+      transientRetryPolicy: { maxRetries: 1, backoffMs: 10_000 }
+    } as SourceCrawlPlan;
+
+    await expect(router(plan, attemptTracker)).resolves.toMatchObject({ ok: false });
+    expect(calls).toEqual(["call"]);
+    expect(attemptTracker).toMatchObject({ fetchAttemptCount: 1, retryCount: 0 });
+  });
+
   it("never retries without a profile policy or for unstructured failures", async () => {
     const calls: string[] = [];
     const delegate: SourceFetchFunction = async () => {

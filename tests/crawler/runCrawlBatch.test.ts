@@ -1223,8 +1223,8 @@ describe("runP0CrawlBatch", () => {
     });
   });
 
-  it("records failed observations without upserting lifecycle job changes", async () => {
-    const plan = planFor("source-pfizer-china-social");
+  it("records an exhausted Roche retry without upserting lifecycle job changes", async () => {
+    const plan = planFor("source-roche-china-social");
     const db = fakeDb();
     const previousJob = makeJob({
       sourceId: plan.source.id,
@@ -1242,7 +1242,7 @@ describe("runP0CrawlBatch", () => {
     }));
     const fetch = createSourceFetchRouter({
       moka: delegate,
-      workday: delegate,
+      officialJson: delegate,
       fallback: delegate,
       delay: async () => undefined
     });
@@ -1332,11 +1332,7 @@ describe("runP0CrawlBatch", () => {
   });
 
   it("persists successful fetch attempt counts when a closed-code retry recovers", async () => {
-    const basePlan = planFor("source-roche-china-social");
-    const plan = {
-      ...basePlan,
-      transientRetryPolicy: { maxRetries: 1 as const, backoffMs: 1_000 }
-    };
+    const plan = planFor("source-roche-china-social");
     const db = fakeDb();
     let fetchCall = 0;
     const delegate = vi.fn(async () => {
@@ -1352,6 +1348,7 @@ describe("runP0CrawlBatch", () => {
     });
     const fetch = createSourceFetchRouter({
       moka: delegate,
+      officialJson: delegate,
       fallback: delegate,
       delay: async () => undefined
     });

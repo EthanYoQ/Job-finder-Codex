@@ -9,6 +9,10 @@ export const profile_roche_china = {
       executionConfig: {
           adapterId: "official-json",
           json: OFFICIAL_API_JSON_CONFIG,
+          transientRetryPolicy: {
+              maxRetries: 1,
+              backoffMs: 10_000
+          },
           officialJsonFetch: {
               kind: "phenom",
               detailBaseUrl: "https://careers.roche.com/cn/zh/job",

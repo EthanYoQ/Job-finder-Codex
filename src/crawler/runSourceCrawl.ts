@@ -2142,7 +2142,7 @@ function strictExactRochePhenomPlan(
     plan.source.kind === "SOCIAL" && plan.source.status === "VERIFIED_SCRAPABLE" &&
     plan.source.atsKind === "OFFICIAL_JSON" &&
     plan.source.officialEntryUrl === "https://careers.roche.com/cn/zh/search-results" &&
-    plan.source.officialChainEvidenceUrl === "https://careers.roche.com/cn/zh/china-mainland" &&
+    plan.source.officialChainEvidenceUrl === "https://careers.roche.com/cn/zh/mainland-china-jobs" &&
     plan.json.jobsPath === "jobs" && plan.json.defaultCategory === "其他" &&
     fields.sourceJobId === "sourceJobId" && fields.officialTitle === "title" &&
     fields.officialUrl === "officialUrl" && fields.locationRaw === "locationRaw" && fields.cities === "cities" &&

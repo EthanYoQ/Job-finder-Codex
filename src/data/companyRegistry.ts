@@ -265,7 +265,7 @@ const CANDIDATE_SEEDS: CandidateSeed[] = [
     atsKind: "OFFICIAL_JSON",
     officialWebsiteUrl: "https://www.roche.com.cn/",
     socialEntryUrl: "https://careers.roche.com/cn/zh/search-results",
-    officialChainEvidenceUrl: "https://careers.roche.com/cn/zh/china-mainland"
+    officialChainEvidenceUrl: "https://careers.roche.com/cn/zh/mainland-china-jobs"
   },
   {
     id: "company-pfizer-china",

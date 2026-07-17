@@ -893,9 +893,16 @@ function safeOfficialJsonFailure(error: unknown, fallback: string): string {
 function failedWithEvidence(
   capturedAt: string,
   failureReason: string,
-  fetchEvidence: NonNullable<Extract<SourceFetchResult, { ok: false }>["fetchEvidence"]>
+  fetchEvidence: NonNullable<Extract<SourceFetchResult, { ok: false }>["fetchEvidence"]>,
+  transportFailure?: SourceTransportFailure
 ): Extract<SourceFetchResult, { ok: false }> {
-  return { ok: false, capturedAt, failureReason, fetchEvidence };
+  return {
+    ok: false,
+    capturedAt,
+    failureReason,
+    fetchEvidence,
+    ...(transportFailure ? { transportFailure } : {})
+  };
 }
 
 async function fetchRedseaZpChannel({
@@ -2779,8 +2786,16 @@ async function fetchPhenomWidgets({
       method: "GET",
       headers: { Accept: "text/html", "User-Agent": "job-search-crawler/0.1" }
     });
-  } catch {
-    return failed(capturedAt, "Phenom entry TRANSPORT_FAILURE");
+  } catch (error) {
+    const transportFailure = withPhenomTransportStage(
+      retryableTransportFailureFromError(error),
+      "ENTRY"
+    );
+    return failed(
+      capturedAt,
+      transportFailure ? safeSourceTransportFailureReason(transportFailure) : "Phenom entry TRANSPORT_FAILURE",
+      transportFailure
+    );
   }
   try {
     assertPhenomEntryEvidenceResponse(entry, {
@@ -2800,8 +2815,18 @@ async function fetchPhenomWidgets({
     extractorLocator: "phenom-entry-config-v1|config:unavailable"
   });
   if (entry.status < 200 || entry.status >= 300) {
-    return failedWithEvidence(capturedAt, `Phenom entry page returned HTTP ${entry.status}`,
-      phenomEntryFailureEvidence(unavailableEntryArtifact));
+    const transportFailure = withPhenomTransportStage(
+      retryableHttpTransportFailure(entry.status),
+      "ENTRY"
+    );
+    return failedWithEvidence(
+      capturedAt,
+      transportFailure
+        ? safeSourceTransportFailureReason(transportFailure)
+        : `Phenom entry page returned HTTP ${entry.status}`,
+      phenomEntryFailureEvidence(unavailableEntryArtifact),
+      transportFailure
+    );
   }
   try {
     assertOfficialHtmlMime(entry);
@@ -2891,7 +2916,18 @@ async function fetchPhenomWidgets({
       locator: `${configLocator}|facet-preflight:global|${phenomSelectedFieldsLocator({})}`
     });
     if (!globalPreflight.ok) {
-      return phenomFailure(capturedAt, globalPreflight.failureReason, artifacts, pages, counts, losses);
+      if (globalPreflight.failureArtifact) artifacts.push(globalPreflight.failureArtifact);
+      return phenomFailure(
+        capturedAt,
+        globalPreflight.failureReason,
+        artifacts,
+        pages,
+        counts,
+        losses,
+        undefined,
+        globalPreflight.transportFailure,
+        "FACET_GLOBAL"
+      );
     }
     artifacts.push(globalPreflight.artifact);
     const countryAggregation = exactPhenomAggregation(globalPreflight.envelope, "country");
@@ -2925,7 +2961,18 @@ async function fetchPhenomWidgets({
       })}`
     });
     if (!countryPreflight.ok) {
-      return phenomFailure(capturedAt, countryPreflight.failureReason, artifacts, pages, counts, losses);
+      if (countryPreflight.failureArtifact) artifacts.push(countryPreflight.failureArtifact);
+      return phenomFailure(
+        capturedAt,
+        countryPreflight.failureReason,
+        artifacts,
+        pages,
+        counts,
+        losses,
+        undefined,
+        countryPreflight.transportFailure,
+        "FACET_COUNTRY"
+      );
     }
     artifacts.push(countryPreflight.artifact);
     if (countryPreflight.envelope.totalHits !== countryCount ||
@@ -3093,8 +3140,21 @@ async function fetchPhenomWidgets({
         },
         body: pageRequestBody
       });
-    } catch {
-      return phenomFailure(capturedAt, "Phenom widgets TRANSPORT_FAILURE", artifacts, pages, counts, losses);
+    } catch (error) {
+      const transportFailure = withPhenomTransportStage(
+        retryableTransportFailureFromError(error),
+        "PAGE"
+      );
+      return phenomFailure(
+        capturedAt,
+        transportFailure ? safeSourceTransportFailureReason(transportFailure) : "Phenom widgets TRANSPORT_FAILURE",
+        artifacts,
+        pages,
+        counts,
+        losses,
+        undefined,
+        transportFailure
+      );
     }
     try {
       assertOfficialJsonEvidenceResponse(response, {
@@ -3116,8 +3176,23 @@ async function fetchPhenomWidgets({
     });
     artifacts.push(artifact);
     if (response.status < 200 || response.status >= 300) {
+      const transportFailure = withPhenomTransportStage(
+        retryableHttpTransportFailure(response.status),
+        "PAGE"
+      );
       pages.push(phenomPageTrace({ artifact, sequence: pageIndex, requestedOffset, termination: "FAILED" }));
-      return phenomFailure(capturedAt, `Phenom widgets API returned HTTP ${response.status}`, artifacts, pages, counts, losses);
+      return phenomFailure(
+        capturedAt,
+        transportFailure
+          ? safeSourceTransportFailureReason(transportFailure)
+          : `Phenom widgets API returned HTTP ${response.status}`,
+        artifacts,
+        pages,
+        counts,
+        losses,
+        undefined,
+        transportFailure
+      );
     }
     try {
       assertOfficialJsonMime(response);
@@ -3424,7 +3499,7 @@ function exactRocheRequestBoundOmittedOffsetPlan(
     plan.source.kind === "SOCIAL" && plan.source.status === "VERIFIED_SCRAPABLE" &&
     plan.source.atsKind === "OFFICIAL_JSON" &&
     plan.source.officialEntryUrl === "https://careers.roche.com/cn/zh/search-results" &&
-    plan.source.officialChainEvidenceUrl === "https://careers.roche.com/cn/zh/china-mainland" &&
+    plan.source.officialChainEvidenceUrl === "https://careers.roche.com/cn/zh/mainland-china-jobs" &&
     plan.json.jobsPath === "jobs" && plan.json.defaultCategory === "其他" &&
     fields.sourceJobId === "sourceJobId" && fields.officialTitle === "title" &&
     fields.officialUrl === "officialUrl" && fields.locationRaw === "locationRaw" && fields.cities === "cities" &&
@@ -3621,8 +3696,15 @@ async function fetchPhenomFacetPreflight(input: {
   locator: string;
 }): Promise<
   | { ok: true; artifact: SourceFetchArtifactDraft; envelope: PhenomFacetEnvelope }
-  | { ok: false; failureReason: string }
+  | {
+      ok: false;
+      failureReason: string;
+      transportFailure?: SourceTransportFailure;
+      failureArtifact?: SourceFetchArtifactDraft;
+    }
 > {
+  const failureStage: NonNullable<SourceTransportFailure["stage"]> =
+    input.id === "phenom-facet-global" ? "FACET_GLOBAL" : "FACET_COUNTRY";
   const requestBody = phenomWidgetRequestBody(
     input.pageConfig,
     input.pageSize,
@@ -3642,8 +3724,18 @@ async function fetchPhenomFacetPreflight(input: {
       },
       body: requestBody
     });
-  } catch {
-    return { ok: false, failureReason: "Phenom facet preflight TRANSPORT_FAILURE" };
+  } catch (error) {
+    const transportFailure = withPhenomTransportStage(
+      retryableTransportFailureFromError(error),
+      failureStage
+    );
+    return {
+      ok: false,
+      failureReason: transportFailure
+        ? safeSourceTransportFailureReason(transportFailure)
+        : "Phenom facet preflight TRANSPORT_FAILURE",
+      ...(transportFailure ? { transportFailure } : {})
+    };
   }
   try {
     assertOfficialJsonEvidenceResponse(response, {
@@ -3651,10 +3743,11 @@ async function fetchPhenomFacetPreflight(input: {
       crawlStartedAtMs: Date.parse(input.capturedAt),
       observedNowMs: input.now().getTime()
     });
-    if (response.status < 200 || response.status >= 300) throw new Error("HTTP status");
-    assertOfficialJsonMime(response);
   } catch (error) {
-    return { ok: false, failureReason: safeOfficialJsonFailure(error, "Phenom facet preflight response is invalid") };
+    return {
+      ok: false,
+      failureReason: safeOfficialJsonFailure(error, "Phenom facet preflight response metadata is invalid")
+    };
   }
   const artifact = phenomArtifact({
     id: input.id,
@@ -3670,6 +3763,29 @@ async function fetchPhenomFacetPreflight(input: {
       coordinate: { sequence: null, requestedOffset: 0, requestedPageSize: input.pageSize }
     })
   });
+  if (response.status < 200 || response.status >= 300) {
+    const transportFailure = withPhenomTransportStage(
+      retryableHttpTransportFailure(response.status),
+      failureStage
+    );
+    return {
+      ok: false,
+      failureReason: transportFailure
+        ? safeSourceTransportFailureReason(transportFailure)
+        : `Phenom facet preflight returned HTTP ${response.status}`,
+      failureArtifact: artifact,
+      ...(transportFailure ? { transportFailure } : {})
+    };
+  }
+  try {
+    assertOfficialJsonMime(response);
+  } catch (error) {
+    return {
+      ok: false,
+      failureReason: safeOfficialJsonFailure(error, "Phenom facet preflight response has an invalid Content-Type"),
+      failureArtifact: artifact
+    };
+  }
   if (!hasUniqueJsonObjectKeys(response.body)) {
     return { ok: false, failureReason: "Phenom facet preflight contains ambiguous duplicate JSON keys" };
   }
@@ -3994,6 +4110,13 @@ function phenomEntryFailureEvidence(artifact: SourceFetchArtifactDraft): Persist
   });
 }
 
+function withPhenomTransportStage(
+  failure: SourceTransportFailure | undefined,
+  stage: NonNullable<SourceTransportFailure["stage"]>
+): SourceTransportFailure | undefined {
+  return failure ? { ...failure, stage } : undefined;
+}
+
 function phenomFailure(
   capturedAt: string,
   failureReason: string,
@@ -4001,20 +4124,39 @@ function phenomFailure(
   pages: SourceFetchPageTrace[],
   fetchCounts: PersistentSourceFetchEvidence["fetchCounts"],
   fetchLosses: PersistentSourceFetchEvidence["fetchLosses"],
-  declaredCompleteness?: PersistentSourceFetchEvidence["declaredCompleteness"]
+  declaredCompleteness?: PersistentSourceFetchEvidence["declaredCompleteness"],
+  transportFailure?: SourceTransportFailure,
+  failureStage?: NonNullable<SourceTransportFailure["stage"]>
 ): SourceFetchResult {
+  const supportingFailureStage = failureStage ?? transportFailure?.stage;
+  if (pages.length === 0 && supportingFailureStage) {
+    return failedWithEvidence(
+      capturedAt,
+      failureReason,
+      finalizeOfficialJsonSupportingFailureEvidence({
+        artifacts,
+        code: `PHENOM_${supportingFailureStage}_FAILED`
+      }),
+      transportFailure
+    );
+  }
   const evidencePages = pages.length > 0
     ? pages.map((page, index) => index === pages.length - 1 && page.termination === "CONTINUE"
       ? { ...page, termination: "ABORTED" as const }
       : page)
     : [phenomPageTrace({ artifact: artifacts[0]!, sequence: 0, requestedOffset: null, termination: "FAILED" })];
-  return failedWithEvidence(capturedAt, failureReason, finalizeOfficialJsonFailureEvidenceBundle({
-    artifacts,
-    pages: evidencePages,
-    fetchCounts,
-    fetchLosses,
-    ...(declaredCompleteness ? { declaredCompleteness } : {})
-  }));
+  return failedWithEvidence(
+    capturedAt,
+    failureReason,
+    finalizeOfficialJsonFailureEvidenceBundle({
+      artifacts,
+      pages: evidencePages,
+      fetchCounts,
+      fetchLosses,
+      ...(declaredCompleteness ? { declaredCompleteness } : {})
+    }),
+    transportFailure
+  );
 }
 
 function recordPhenomLoss(
@@ -7289,11 +7431,16 @@ function firstLocationSegment(locationRaw: string): string | undefined {
     .find((segment) => segment.length > 0 && segment.toLowerCase() !== "china");
 }
 
-function failed(capturedAt: string, failureReason: string): Extract<SourceFetchResult, { ok: false }> {
+function failed(
+  capturedAt: string,
+  failureReason: string,
+  transportFailure?: SourceTransportFailure
+): Extract<SourceFetchResult, { ok: false }> {
   return {
     ok: false,
     capturedAt,
-    failureReason
+    failureReason,
+    ...(transportFailure ? { transportFailure } : {})
   };
 }
 

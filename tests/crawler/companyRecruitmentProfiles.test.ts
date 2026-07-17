@@ -20,10 +20,10 @@ import {
 import { AUTHORIZED_PHASE1_EXCLUSION_COMPANY_IDS } from "../../src/data/phase1ScopePolicy";
 
 const BASELINE = {
-  rosterSha256: "f59773dae31ab14e1e06c77cc07110ee2657089ae223abdae42112f2bbd2826a",
-  surfaceOracleSha256: "dee887449cbde77fc39c13863ea532a8fd69dc6607cc932e6cd12a3098ccfe71",
-  stagedPlanSha256: "21fa4f45a7a42594edb657df0f478c97daaaf3034315fecddfaefdeda570d7dd",
-  stagedConfigSetSha256: "a189a1b888238a772f496aa6010c6f55d8d8107416f661e121ad943c87705c54"
+  rosterSha256: "49151a9441292593df741a6f8765efcaa5cf3cf8dda711738a9e7753b0ba2fd8",
+  surfaceOracleSha256: "a5a75eb595da823db3413fb38c87a67e9517ed79109b6da8ca6c894f4e186934",
+  stagedPlanSha256: "e8cfcd9ef51b7416acbcacc5cfc984a00a13329237ea49e44d923d2dd160257f",
+  stagedConfigSetSha256: "a4308fa7e2e4f6894e9d0211a6d94a102a7c21b8ba8d521289654e99246e0a83"
 } as const;
 
 const SHARED_CORE_SOURCE_ALLOWLIST: Readonly<Record<string, readonly string[]>> = {
@@ -169,7 +169,7 @@ describe("company recruitment profiles", () => {
     }
   });
 
-  it("limits one transient retry to the four explicitly reviewed company profiles", () => {
+  it("limits one transient retry to the explicitly reviewed company profiles", () => {
     const retrySourceIds = Object.entries(companyRecruitmentExecutionConfigsBySourceId)
       .filter(([, config]) => config.transientRetryPolicy !== undefined)
       .map(([sourceId]) => sourceId)
@@ -177,6 +177,7 @@ describe("company recruitment profiles", () => {
     expect(retrySourceIds).toEqual([
       "source-bms-china-social",
       "source-pfizer-china-social",
+      "source-roche-china-social",
       "source-sinopharm-social",
       "source-united-lab-social"
     ]);

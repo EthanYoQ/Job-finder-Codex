@@ -4,7 +4,13 @@ import {
   createOfficialJsonSourceFetch,
   type OfficialJsonHttpResponse
 } from "../../src/crawler/officialJsonSourceFetch";
-import { runSourceCrawl, type SourceFetchResult } from "../../src/crawler/runSourceCrawl";
+import { OfficialHttpTimeoutError } from "../../src/crawler/officialHttpRuntimeLimits";
+import {
+  createSourceFetchAttemptTracker,
+  runSourceCrawl,
+  type SourceFetchResult
+} from "../../src/crawler/runSourceCrawl";
+import { createSourceFetchRouter } from "../../src/crawler/sourceFetchRouter";
 import {
   deriveCanonicalPaginationEvidence,
   evaluatePaginationEvidence
@@ -395,6 +401,49 @@ async function fetchLiveShapedRoche(attack: RocheFixtureAttack = "NONE") {
     }
   });
   return { stagedPlan, fetched: await fetcher(stagedPlan), requests };
+}
+
+type RocheNetworkFailureStage = "ENTRY" | "FACET_GLOBAL" | "FACET_COUNTRY" | "PAGE";
+type RocheNetworkFailureMode = "TIMEOUT" | "HTTP_503" | "HTTP_403";
+
+async function fetchRocheWithNetworkFailure(
+  failureStage: RocheNetworkFailureStage,
+  failureMode: RocheNetworkFailureMode
+) {
+  const stagedPlan = rochePlan();
+  const professional = rocheJob("ROCHE-PROFESSIONAL");
+  const internship = rocheJob("ROCHE-INTERNSHIP");
+  internship.category = "实习 & 发展项目";
+  const bodies = [
+    facetPageBody([], 3, 0, [{ field: "country", value: { 中国大陆: 2, 瑞士: 1 } }]),
+    facetPageBody([professional, internship], 2, 0, [{
+      field: "category",
+      value: { "销售 & 市场": 1, "实习 & 发展项目": 1 }
+    }]),
+    facetPageBodyWithoutFrom([professional], 1)
+  ];
+  const postStages: RocheNetworkFailureStage[] = ["FACET_GLOBAL", "FACET_COUNTRY", "PAGE"];
+  let postIndex = 0;
+  const fetcher = createOfficialJsonSourceFetch({
+    now: () => new Date(capturedAt),
+    http: async (request) => {
+      const stage = request.method === "POST" ? postStages[postIndex]! : "ENTRY";
+      if (stage === failureStage) {
+        if (failureMode === "TIMEOUT") throw new OfficialHttpTimeoutError();
+        return response("{}", request.url, request.method === "POST" ? "application/json" : "text/html", {
+          status: failureMode === "HTTP_503" ? 503 : 403
+        });
+      }
+      if (request.method !== "POST") {
+        return response(rocheEntryHtml(), stagedPlan.source.officialEntryUrl, "text/html");
+      }
+      const body = bodies[postIndex];
+      postIndex += 1;
+      if (body === undefined) throw new Error("fixture omitted a Roche response");
+      return response(body, "https://careers.roche.com/widgets", "application/json");
+    }
+  });
+  return fetcher(stagedPlan);
 }
 
 function recanonicalizeSuccessfulRocheFetch(
@@ -1111,6 +1160,114 @@ describe("Phenom evidence instrumentation", () => {
       }
     });
   });
+
+  it.each(["ENTRY", "FACET_GLOBAL", "FACET_COUNTRY", "PAGE"] as const)(
+    "exposes a bounded retry signal when Roche %s times out",
+    async (stage) => {
+      const fetched = await fetchRocheWithNetworkFailure(stage, "TIMEOUT");
+      expect(fetched).toMatchObject({
+        ok: false,
+        failureReason: "Official recruitment request timed out",
+        transportFailure: { code: "OFFICIAL_HTTP_TIMEOUT", retryable: true, stage }
+      });
+      if (stage !== "ENTRY") {
+        expect(fetched.fetchEvidence).toMatchObject({
+          pages: [],
+          supportingArtifactOnlyFailure: { code: `PHENOM_${stage}_FAILED` }
+        });
+      }
+    }
+  );
+
+  it.each(["ENTRY", "FACET_GLOBAL", "FACET_COUNTRY", "PAGE"] as const)(
+    "exposes a bounded retry signal when Roche %s returns HTTP 503",
+    async (stage) => {
+      const fetched = await fetchRocheWithNetworkFailure(stage, "HTTP_503");
+      expect(fetched).toMatchObject({
+        ok: false,
+        failureReason: "Official recruitment endpoint was temporarily unavailable (HTTP 503)",
+        transportFailure: { code: "OFFICIAL_HTTP_503", retryable: true, stage },
+        fetchEvidence: { artifacts: expect.arrayContaining([expect.objectContaining({ httpStatus: 503 })]) }
+      });
+      if (stage === "FACET_GLOBAL" || stage === "FACET_COUNTRY") {
+        expect(fetched.fetchEvidence).toMatchObject({
+          pages: [],
+          supportingArtifactOnlyFailure: { code: `PHENOM_${stage}_FAILED` }
+        });
+      }
+    }
+  );
+
+  it.each(["ENTRY", "FACET_GLOBAL", "FACET_COUNTRY", "PAGE"] as const)(
+    "does not retry a non-temporary Roche %s HTTP 403",
+    async (stage) => {
+      const fetched = await fetchRocheWithNetworkFailure(stage, "HTTP_403");
+      expect(fetched).toMatchObject({ ok: false });
+      expect(fetched).not.toHaveProperty("transportFailure");
+      if (stage === "FACET_GLOBAL" || stage === "FACET_COUNTRY") {
+        expect(fetched.fetchEvidence).toMatchObject({
+          pages: [],
+          supportingArtifactOnlyFailure: { code: `PHENOM_${stage}_FAILED` },
+          artifacts: expect.arrayContaining([expect.objectContaining({ httpStatus: 403 })])
+        });
+      }
+    }
+  );
+
+  it.each(["TIMEOUT", "HTTP_503"] as const)(
+    "runs the exact Roche plan through the real Phenom fetcher and recovers once after %s",
+    async (failureMode) => {
+      const stagedPlan = rochePlan();
+      expect(stagedPlan.transientRetryPolicy).toEqual({ maxRetries: 1, backoffMs: 10_000 });
+      const professional = rocheJob("ROCHE-PROFESSIONAL");
+      const internship = rocheJob("ROCHE-INTERNSHIP");
+      internship.category = "实习 & 发展项目";
+      const bodies = [
+        facetPageBody([], 3, 0, [{ field: "country", value: { 中国大陆: 2, 瑞士: 1 } }]),
+        facetPageBody([professional, internship], 2, 0, [{
+          field: "category",
+          value: { "销售 & 市场": 1, "实习 & 发展项目": 1 }
+        }]),
+        facetPageBodyWithoutFrom([professional], 1)
+      ];
+      let entryAttempts = 0;
+      let postIndex = 0;
+      const actualFetcher = createOfficialJsonSourceFetch({
+        now: () => new Date(capturedAt),
+        http: async (request) => {
+          if (request.method !== "POST") {
+            entryAttempts += 1;
+            if (entryAttempts === 1) {
+              if (failureMode === "TIMEOUT") throw new OfficialHttpTimeoutError();
+              return response("{}", request.url, "text/html", { status: 503 });
+            }
+            return response(rocheEntryHtml(), stagedPlan.source.officialEntryUrl, "text/html");
+          }
+          const body = bodies[postIndex];
+          postIndex += 1;
+          if (body === undefined) throw new Error("fixture omitted a Roche response");
+          return response(body, "https://careers.roche.com/widgets", "application/json");
+        }
+      });
+      const delays: number[] = [];
+      const attemptTracker = createSourceFetchAttemptTracker();
+      const router = createSourceFetchRouter({
+        moka: async () => ({ ok: false, capturedAt, failureReason: "wrong route" }),
+        officialJson: actualFetcher,
+        fallback: async () => ({ ok: false, capturedAt, failureReason: "wrong route" }),
+        delay: async (milliseconds) => { delays.push(milliseconds); }
+      });
+
+      await expect(router(stagedPlan, attemptTracker)).resolves.toMatchObject({
+        ok: true,
+        completeness: { expectedJobCount: 1 }
+      });
+      expect(entryAttempts).toBe(2);
+      expect(postIndex).toBe(3);
+      expect(delays).toEqual([10_000]);
+      expect(attemptTracker).toMatchObject({ fetchAttemptCount: 2, retryCount: 1 });
+    }
+  );
 
   it.each([
     ["a repeated page / cross-page ID overlap", "REPEATED_PAGE"],

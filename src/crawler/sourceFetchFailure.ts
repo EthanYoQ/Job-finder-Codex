@@ -10,9 +10,16 @@ export type RetryableSourceTransportFailureCode =
   | "OFFICIAL_HTTP_503"
   | "OFFICIAL_HTTP_504";
 
+export type SourceTransportFailureStage =
+  | "ENTRY"
+  | "FACET_GLOBAL"
+  | "FACET_COUNTRY"
+  | "PAGE";
+
 export interface SourceTransportFailure {
   code: RetryableSourceTransportFailureCode;
   retryable: true;
+  stage?: SourceTransportFailureStage;
 }
 
 const RETRYABLE_HTTP_STATUSES = new Set([429, 502, 503, 504]);
@@ -27,7 +34,8 @@ const RETRYABLE_FAILURE_CODES = new Set<RetryableSourceTransportFailureCode>([
 export function isRetryableSourceTransportFailure(
   failure: unknown
 ): failure is SourceTransportFailure {
-  if (typeof failure !== "object" || failure === null || !("code" in failure)) return false;
+  if (typeof failure !== "object" || failure === null || !("code" in failure) ||
+    !("retryable" in failure) || failure.retryable !== true) return false;
   return RETRYABLE_FAILURE_CODES.has(
     (failure as { code: RetryableSourceTransportFailureCode }).code
   );

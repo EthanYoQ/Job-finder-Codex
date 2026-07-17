@@ -237,7 +237,7 @@ describe("60-company pharma registry", () => {
     expect(byId.get("company-roche-china")?.sources[0]).toMatchObject({
       atsKind: "OFFICIAL_JSON",
       officialEntryUrl: "https://careers.roche.com/cn/zh/search-results",
-      officialChainEvidenceUrl: "https://careers.roche.com/cn/zh/china-mainland"
+      officialChainEvidenceUrl: "https://careers.roche.com/cn/zh/mainland-china-jobs"
     });
     expect(byId.get("company-tianjin-pharma")?.sources[0]).toMatchObject({
       officialEntryUrl: "https://tjph.zhiye.com/social/jobs",

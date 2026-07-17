@@ -529,7 +529,7 @@ describe("source crawl planning", () => {
       source: {
         atsKind: "OFFICIAL_JSON",
         officialEntryUrl: "https://careers.roche.com/cn/zh/search-results",
-        officialChainEvidenceUrl: "https://careers.roche.com/cn/zh/china-mainland"
+        officialChainEvidenceUrl: "https://careers.roche.com/cn/zh/mainland-china-jobs"
       },
       officialJsonFetch: {
         kind: "phenom",
@@ -542,7 +542,8 @@ describe("source crawl planning", () => {
         requestBoundOmittedOffsetPolicy: "ROCHE_REQUEST_BOUND_OMITTED_OFFSET_V1",
         pageSize: 100,
         maxPages: 10
-      }
+      },
+      transientRetryPolicy: { maxRetries: 1, backoffMs: 10_000 }
     });
     expect(getPlanBySourceId(plans, "source-roche-china-social")).not.toHaveProperty("workday");
     expect(getPlanBySourceId(plans, "source-biogen-china-social")).toMatchObject({
