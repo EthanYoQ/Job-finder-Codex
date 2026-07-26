@@ -4,14 +4,17 @@ Review fixed point: `3d26a3ab89abb15503614ba4873dfe5cfb7e51ab`
 
 Core repair reviewed staged tree: `e1c94656444c59638f7fe93d62f7ed153eab90c6`
 
+Cloud remediation reviewed staged trees: `097ba3251bb20ab5272a25f088ff652db2d604e7`, `2831d657cf2e3b2e2e1135385af58ef083a294eb`
+
 ## Verdict
 
-**HOLD_FOR_PRIVATE_CLOUD_RERUN**
+**APPROVED_FOR_PRIVATE_CLOUD_ACCEPTANCE**
 
 - Core-repair Standards review: `NO_ACTIONABLE_FINDINGS`
 - Core-repair Specification review: `NO_ACTIONABLE_FINDINGS`
-- Cloud-remediation review: pending after the portable hosted-runner test-harness and synthetic Git mode corrections
-- Unresolved findings in the core repair diff: none; cloud acceptance remains open
+- Hosted-runner remediation Standards and Specification reviews: `NO_ACTIONABLE_FINDINGS`
+- Synthetic Git mode remediation Standards and Specification reviews: `NO_ACTIONABLE_FINDINGS`
+- Unresolved P0/P1/P2/P3 findings in the reviewed implementation diffs: none
 
 ## Closed review findings
 
@@ -30,6 +33,7 @@ Core repair reviewed staged tree: `e1c94656444c59638f7fe93d62f7ed153eab90c6`
 - `git diff --check`: passed.
 - CodeGraph: initialized, synchronized, and up to date; only `.codegraph/.gitignore` is tracked.
 - Staged source scan: no high-confidence credential or database artifact match.
+- Private GitHub Actions run `30184101771` succeeded for implementation commit `739165ce62adc3a1e8a55d3b1745142d401cafe3`; locked install, Prisma generation/validation, typecheck, full Ubuntu test suite, production build, and baseline diff all passed.
 
 ## Boundary
 

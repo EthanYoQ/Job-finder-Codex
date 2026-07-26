@@ -1,6 +1,6 @@
 # RC022 Review Repair Specification
 
-**Status:** ready-for-agent
+**Status:** implemented; private-cloud accepted
 
 ## Problem Statement
 
@@ -77,3 +77,4 @@ RC022 的职位发现与官方来源资格判断存在两个相互放大的范�
 - Initial review produced four Standards findings and three Spec findings. The two P1 Spec findings were reproduced deterministically three times each before this spec was written.
 - The locked dependency install reports one existing high-severity advisory; no automatic lockfile mutation is authorized by this specification.
 - The cloud build proves buildability of the repaired private repository. It does not claim production deployment, current crawl success, or satisfaction of the 55-company release gate.
+- Acceptance evidence: private GitHub Actions run `30184101771` succeeded for implementation commit `739165ce62adc3a1e8a55d3b1745142d401cafe3`.
