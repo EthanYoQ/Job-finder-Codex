@@ -1975,7 +1975,8 @@ describe("createWorkdaySourceFetch", () => {
 
   it.each([
     "Albany, NY, United States of America",
-    "CN999 Future Site"
+    "CN999 Future Site",
+    "Shanghai"
   ])("keeps JNJ's unaudited descriptor drift fail-closed: %s", async (driftedDescriptor) => {
     const fetcher = createWorkdaySourceFetch({
       http: async () => response({

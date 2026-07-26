@@ -24,7 +24,7 @@ import {
   type StaticDocumentResult
 } from "./appDataProvider";
 import type { SortMode } from "./jobSearch";
-import { ALL_LOCATIONS } from "../domain/search";
+import { SEARCH_CITIES } from "../domain/search";
 import "./App.css";
 
 type ConsentState = "pending" | "closed" | "accepted";
@@ -43,9 +43,9 @@ interface FeedbackDraft {
   jobTitle?: string;
 }
 
-const DEFAULT_CITY = "北京";
+const DEFAULT_CITY = SEARCH_CITIES[0];
 const DEFAULT_COMPANY_ROW_CAP = 3;
-const CITY_OPTIONS = ["北京", "上海", "广州", ALL_LOCATIONS];
+const CITY_OPTIONS = SEARCH_CITIES;
 const CATEGORY_OPTIONS = ["销售", "医学事务", "市场准入/政府事务", "临床运营"];
 
 function normalize(value: string): string {

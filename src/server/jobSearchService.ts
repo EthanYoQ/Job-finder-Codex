@@ -1,4 +1,4 @@
-import { ALL_LOCATIONS, SearchRequestSchema, type JobCategory } from "../domain/search";
+import { SearchRequestSchema, type JobCategory } from "../domain/search";
 import { toPrismaJobCategory, type PrismaJobCategoryName } from "../db/prismaMappers";
 import {
   getCompanyPublicationSnapshotFromDb,
@@ -186,16 +186,14 @@ function buildWhereClause(
     sourceId: { in: eligibleSourceIds }
   };
 
-  if (request.city !== ALL_LOCATIONS) {
-    where.OR = [
-      { cities: { has: request.city } },
-      { city: request.city },
-      { cities: { has: "全国" } },
-      { city: "全国" },
-      { cities: { has: "中国" } },
-      { city: "中国" }
-    ];
-  }
+  where.OR = [
+    { cities: { has: request.city } },
+    { city: request.city },
+    { cities: { has: "全国" } },
+    { city: "全国" },
+    { cities: { has: "中国" } },
+    { city: "中国" }
+  ];
 
   const effectiveCategoryAndKeywordFilters: Array<Record<string, unknown>> = [];
 

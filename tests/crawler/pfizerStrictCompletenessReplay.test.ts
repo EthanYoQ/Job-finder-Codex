@@ -103,18 +103,14 @@ function mutateDetail(
 }
 
 describe("Pfizer strict source-bound completeness replay", () => {
-  it("independently accepts the exact archived Pfizer listing and detail contract", async () => {
+  it("rejects an archived Pfizer listing without an explicit mainland China location", async () => {
     const plan = exactPfizerPlan();
     const fetched = await exactPfizerFetch(plan);
 
     expect(await runSourceCrawl(plan, { fetch: async () => fetched })).toMatchObject({
-      status: "SUCCESS",
-      truth: { completenessVerified: true },
-      observation: { completenessStatus: "VERIFIED", expectedJobCount: 1, structuredJobCount: 1 },
-      jobs: [{
-        locationRaw: "India - Vizag | APAC - Any Pfizer Site",
-        cities: ["APAC - Any Pfizer Site"]
-      }]
+      status: "FAILED",
+      truth: { completenessVerified: false },
+      jobs: []
     });
   });
 
@@ -128,6 +124,26 @@ describe("Pfizer strict source-bound completeness replay", () => {
       jobs: [{ locationRaw: "India - Vizag | Shanghai, China", cities: ["上海"] }]
     });
   });
+
+  it("accepts an explicit audited mainland city without a country suffix", async () => {
+    const plan = exactPfizerPlan();
+    const fetched = await exactPfizerFetch(plan, "Shanghai");
+
+    expect(await runSourceCrawl(plan, { fetch: async () => fetched })).toMatchObject({
+      status: "SUCCESS",
+      truth: { completenessVerified: true },
+      jobs: [{ locationRaw: "India - Vizag | Shanghai", cities: ["上海"] }]
+    });
+  });
+
+  it.each(["Shanghai, India", "Shanghai, United States of America"])(
+    "rejects a mainland-city descriptor with explicit foreign-country conflict %s",
+    async (additionalLocation) => {
+      await expect(exactPfizerFetch(exactPfizerPlan(), additionalLocation)).rejects.toThrow(
+        /did not contain explicit mainland China/iu
+      );
+    }
+  );
 
   it("rejects an archived Pfizer detail that replaces the exact audited APAC site with a broad region", async () => {
     const plan = exactPfizerPlan();

@@ -1387,7 +1387,7 @@ function validateOpaqueMultiLocationDetail({
   }
   const selectedDescriptors = new Set(selectedMainlandLocations.map((item) => item.descriptor));
   const matchedMainlandDescriptors = policy.kind === "PFIZER_AUDITED_APAC_DETAIL_V1"
-    ? publicLocations.filter(isMainlandChinaLocationDescriptor)
+    ? publicLocations.filter(isPfizerWorkdayMainlandChinaLocationDescriptor)
     : publicLocations.filter((descriptor) => selectedDescriptors.has(descriptor));
   if (policy.kind === "PFIZER_AUDITED_APAC_DETAIL_V1") {
     const exactApacDescriptor = "APAC - Any Pfizer Site";
@@ -2345,6 +2345,18 @@ function isMainlandChinaLocationDescriptor(descriptor: string): boolean {
     descriptorParts(descriptor).some((part) => MAINLAND_CHINA_NAMES.has(part));
 }
 
+export function isPfizerWorkdayMainlandChinaLocationDescriptor(descriptor: string): boolean {
+  const parts = descriptorParts(descriptor);
+  if (isNonMainlandChinaDescriptor(descriptor) || hasKnownForeignCountryPart(descriptor) ||
+    parts.some((part) => EXACT_FOREIGN_COUNTRY_ALIASES.has(part))) return false;
+  return parts.some((part) => {
+    const administrativeCore = part
+      .replace(/\s+(?:city|province|municipality)$/u, "")
+      .replace(/[省市]$/u, "");
+    return MAINLAND_CHINA_NAMES.has(part) || MAINLAND_CHINA_LOCATION_NAMES.has(administrativeCore);
+  });
+}
+
 function isMainlandChinaCountryDescriptor(descriptor: string): boolean {
   return !isNonMainlandChinaDescriptor(descriptor) && MAINLAND_CHINA_NAMES.has(normalizeFacetDescriptor(descriptor));
 }
@@ -2359,6 +2371,9 @@ const MAINLAND_CHINA_NAMES = new Set([
   "china", "china mainland", "mainland china", "people's republic of china", "peoples republic of china",
   "prc", "chn", "cn", "中国", "中国大陆", "中华人民共和国"
 ]);
+const MAINLAND_CHINA_LOCATION_NAMES = new Set(
+  CITY_MATCHES.flatMap(([english, chinese]) => [normalizeFacetDescriptor(english), normalizeFacetDescriptor(chinese)])
+);
 const NON_MAINLAND_CHINA_CODES = new Set(["hk", "hkg", "mo", "mac", "tw", "twn"]);
 const NON_MAINLAND_CHINA_COUNTRY_NAMES = new Set([
   ...NON_MAINLAND_CHINA_CODES,

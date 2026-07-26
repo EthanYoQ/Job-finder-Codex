@@ -91,6 +91,21 @@ describe("createDemoAppDataProvider", () => {
       getStaticDocument("privacy")
     );
   });
+
+  it("rejects the legacy all-locations sentinel while retaining a concrete-city search", async () => {
+    const provider = createDemoAppDataProvider();
+    const request = {
+      keyword: "",
+      categories: [],
+      onlyNew: false,
+      sort: "PINYIN_ASC" as const
+    };
+
+    await expect(provider.searchJobs({ ...request, city: "全部地点" })).rejects.toThrow();
+    await expect(provider.searchJobs({ ...request, city: "北京" })).resolves.toMatchObject({
+      totalJobs: expect.any(Number)
+    });
+  });
 });
 
 function jsonResponse(body: unknown): Response {

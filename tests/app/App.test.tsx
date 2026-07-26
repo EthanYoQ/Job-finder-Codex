@@ -287,18 +287,21 @@ describe("App product flows", () => {
     });
   });
 
-  it("offers all locations and displays the official raw multi-location value", async () => {
+  it("offers only concrete city choices and sends the selected city to the provider", async () => {
     const user = userEvent.setup();
     const recording = createRecordingProvider();
     render(<App dataProvider={recording.provider} />);
 
     await acceptConsent(user);
-    await user.click(screen.getByRole("radio", { name: "全部地点" }));
-    await user.click(screen.getByRole("button", { name: "搜索职位" }));
-    await user.click(await screen.findByRole("button", { name: /辉瑞/ }));
+    expect(screen.getByRole("radio", { name: "北京" })).toBeInTheDocument();
+    expect(screen.getByRole("radio", { name: "上海" })).toBeInTheDocument();
+    expect(screen.getByRole("radio", { name: "广州" })).toBeInTheDocument();
+    expect(screen.queryByRole("radio", { name: "全部地点" })).not.toBeInTheDocument();
 
-    expect(recording.searchJobs).toHaveBeenLastCalledWith(expect.objectContaining({ city: "全部地点" }));
-    expect(screen.getByText("India - Vizag | APAC - Any Pfizer Site")).toBeInTheDocument();
+    await user.click(screen.getByRole("radio", { name: "上海" }));
+    await user.click(screen.getByRole("button", { name: "搜索职位" }));
+
+    expect(recording.searchJobs).toHaveBeenLastCalledWith(expect.objectContaining({ city: "上海" }));
   });
 
   it("loads grouped Beijing results after consent and updates by category and keyword", async () => {

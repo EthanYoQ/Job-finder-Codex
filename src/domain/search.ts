@@ -22,9 +22,11 @@ export const JOB_CATEGORIES = [
 
 export type JobCategory = (typeof JOB_CATEGORIES)[number];
 
-export const ALL_LOCATIONS = "全部地点" as const;
-
 const JobCategorySchema = z.enum(JOB_CATEGORIES);
+
+export const SEARCH_CITIES = ["北京", "上海", "广州"] as const;
+
+const SearchCitySchema = z.string().trim().pipe(z.enum(SEARCH_CITIES));
 
 export const SearchSortSchema = z.enum([
   "COMPANY_PINYIN_ASC",
@@ -33,7 +35,7 @@ export const SearchSortSchema = z.enum([
 ]);
 
 export const SearchRequestSchema = z.object({
-  city: z.string().trim().min(1),
+  city: SearchCitySchema,
   categories: z.array(JobCategorySchema).default([]),
   keyword: z.string().trim().max(120).optional(),
   companyIds: z.array(z.string().trim().min(1)).default([]),

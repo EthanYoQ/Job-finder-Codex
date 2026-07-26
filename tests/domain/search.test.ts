@@ -26,6 +26,13 @@ describe("search request contract", () => {
     expect(() => SearchRequestSchema.parse({ city: "" })).toThrow();
   });
 
+  it.each(["全部地点", "全国", "中国", "APAC", "India", "杭州"])(
+    "rejects unsupported or non-concrete city %s",
+    (city) => {
+      expect(() => SearchRequestSchema.parse({ city })).toThrow();
+    }
+  );
+
   it("keeps all 17 P0 job categories", () => {
     expect(JOB_CATEGORIES).toEqual([
       "销售",

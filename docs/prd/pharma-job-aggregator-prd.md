@@ -60,7 +60,7 @@ P0 公司范围固定为恰好 30 家外资药企和 30 家国内药企，不允
 28. As a site operator, I want a company source table with official chain evidence, so that every source can be audited.
 29. As a site operator, I want social recruitment and campus recruitment separated, so that P0 only shows social jobs while still recording campus entry points.
 30. As a site operator, I want every fixed-roster company to have an inclusion reason and evidence source, so that the list is maintainable.
-31. As a site operator, I want an internal candidate preview of the verified subset while Phase 1 remains closed until at least 45 companies are stably auto-updating, so that individual failures are isolated without weakening the external launch threshold.
+31. As a site operator, I want an internal candidate preview of the verified subset while Phase 1 remains closed until at least 55 companies are stably auto-updating, so that individual failures are isolated without weakening the external launch threshold.
 32. As a site operator, I want crawl status per company, so that I can identify sources that need adaptation.
 33. As a site operator, I want manual re-crawl per company, so that I can recover from source changes.
 34. As a site operator, I want crawl failures grouped by reason, so that debugging is actionable.
@@ -90,7 +90,7 @@ P0 公司范围固定为恰好 30 家外资药企和 30 家国内药企，不允
 
 - P0 is a public web application, mobile-first and desktop-compatible.
 - The company roster is immutable and contains exactly 30 foreign pharmaceutical companies plus exactly 30 domestic pharmaceutical companies; no company may be substituted to make readiness pass.
-- Every roster company appears in the directory. Automatic job publishing eligibility is evaluated per company, so a failed or pending company does not suppress another company's verified jobs or internal preview; external launch still requires at least 45 stable companies.
+- Every roster company appears in the directory. Automatic job publishing eligibility is evaluated per company, so a failed or pending company does not suppress another company's verified jobs or internal preview; external launch still requires at least 55 stable companies.
 - `company-humanwell` and `company-north-china-pharma` remain roster members with `USER_AUTHORIZED_PHASE1_EXCLUSION`; no job-completeness claim is made for either company.
 - Homepage is the job aggregation search page.
 - Homepage is a city-required job discovery workspace. Before city selection, the page must not show an empty result list.
@@ -160,7 +160,7 @@ P0 公司范围固定为恰好 30 家外资药企和 30 家国内药企，不允
 - Data collection is split into necessary security data and operational analytics data.
 - The product records IP, User-Agent, request path, timestamps, throttling/anti-scraping events, search city, category, keyword, company expansion, official link clicks, sorting mode, and referral page subject to policy disclosure.
 - The Korean-server cross-border compliance question remains unverified and must be reviewed separately before public launch.
-- Before the first external launch, a verified subset below 45 companies may be used only for a restricted internal candidate preview. Initial external launch and formal Phase 1 completion require at least 45 companies to be stably auto-updating. After initial release, daily publication remains per-company and does not shut down successful companies when the current total drops below 45.
+- Before the first external launch, a verified subset below 55 companies may be used only for a restricted internal candidate preview. Initial external launch and formal Phase 1 completion require at least 55 companies to be stably auto-updating. After initial release, daily publication remains per-company and does not shut down successful companies when the current total drops below 55.
 - Daily 00:01 China-time scheduling, last-success timestamps, failed-crawl non-deletion, search, official outbound links, basic security/privacy, backup/restore, monitoring, deployment, and final independent read-only QA remain release requirements.
 - `job.orz.md`, AI classification, auxiliary translation, advanced manual operations, cryptographic oracle/signature work, independent QA after every stage, and rebuilding all evidence after every change are not internal-preview or Phase 1 launch blockers. Existing implementations may remain, and change impact determines which evidence must be refreshed.
 
@@ -180,7 +180,7 @@ The implementation must use record-derived staged readiness in `phase1` mode plu
 - Frontend accessibility tests verify mobile touch target size, focus management in filter panels, keyboard dismissal for modal/drawer flows, and screen-reader-readable expanded/collapsed states.
 - No-results tests verify that the page offers only concise relaxation actions: clear job category, clear keyword, or view all companies for the selected city.
 - Offline lifecycle tests verify baseline behavior, new labels after baseline, two-successful-miss hiding, failed-crawl no-op, three-successful-miss offline, and reappearance recovery.
-- Publishing-state tests verify all 60 companies remain visible, the two authorized exclusions are disclosed without completeness claims, and one company's failure cannot suppress another eligible company's jobs or qualification; external launch remains blocked below 45 stable companies.
+- Publishing-state tests verify all 60 companies remain visible, the two authorized exclusions are disclosed without completeness claims, and one company's failure cannot suppress another eligible company's jobs or qualification; external launch remains blocked below 55 stable companies.
 - Security tests verify no public API exposure, controlled company expansion limits, pagination limits, rate limits, robots rules, challenge triggers for suspicious request patterns, and admin authentication.
 - Backup tests verify scheduled backup creation and restore command on a test database.
 - Monitoring tests verify alert triggers for website down, backup failure, global crawl success below threshold, and per-company repeated failures.

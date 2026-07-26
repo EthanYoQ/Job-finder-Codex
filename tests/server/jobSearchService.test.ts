@@ -148,7 +148,7 @@ describe("searchJobsFromDatabase", () => {
     expect(result.companies.map((company) => company.companyName)).toEqual(["阿斯利康", "百济神州"]);
   });
 
-  it("returns truthful raw locations without a city predicate for the all-locations search", async () => {
+  it("rejects the all-locations sentinel before reading jobs", async () => {
     const apacRow = {
       ...rows[0]!,
       id: "job-pfizer-apac",
@@ -161,16 +161,8 @@ describe("searchJobsFromDatabase", () => {
     };
     const db = dbReturning([apacRow]);
 
-    const result = await searchWithSnapshot({ city: "全部地点", categories: [] }, db);
-    const call = vi.mocked(db.job.findMany).mock.calls[0]?.[0] as
-      | { where: Record<string, unknown> }
-      | undefined;
-
-    expect(call?.where).not.toHaveProperty("OR");
-    expect(result.companies[0]?.jobs[0]).toMatchObject({
-      city: "APAC - Any Pfizer Site",
-      locationRaw: "India - Vizag | APAC - Any Pfizer Site"
-    });
+    await expect(searchWithSnapshot({ city: "全部地点", categories: [] }, db)).rejects.toThrow();
+    expect(db.job.findMany).not.toHaveBeenCalled();
   });
 
   it("passes city, category, keyword, company, active visibility, and new filters into the DB query", async () => {
@@ -195,7 +187,15 @@ describe("searchJobsFromDatabase", () => {
           lifecycleStatus: "ACTIVE",
           sourceId: { in: ["source-a", "source-b", "source-c"] },
           companyId: { in: ["company-a"] },
-          isNew: true
+          isNew: true,
+          OR: [
+            { cities: { has: "北京" } },
+            { city: "北京" },
+            { cities: { has: "全国" } },
+            { city: "全国" },
+            { cities: { has: "中国" } },
+            { city: "中国" }
+          ]
         }),
         include: { company: true }
       })

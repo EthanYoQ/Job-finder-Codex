@@ -205,6 +205,31 @@ describe("public API route policy", () => {
     expect(deps.db.job.findMany).not.toHaveBeenCalled();
   });
 
+  it.each(["全部地点", "全国", "中国", "APAC", "India", "杭州"])(
+    "rejects unsupported or non-concrete city %s before reading jobs",
+    async (city) => {
+    const findMany = vi.fn();
+
+    const response = await handlePublicApi(
+      {
+        method: "GET",
+        path: "/api/search",
+        query: { city },
+        headers: { "x-job-search-consent": "accepted" },
+        body: undefined,
+        ip: "1.2.3.5"
+      },
+      {
+        db: { job: { findMany } } as never,
+        checkDatabaseReadiness: async () => true
+      }
+    );
+
+    expect(response).toMatchObject({ status: 400, body: { error: "INVALID_REQUEST" } });
+    expect(findMany).not.toHaveBeenCalled();
+    }
+  );
+
   it("returns the full canonical 60-company publication directory in one request", async () => {
     const publicationFindMany = vi.fn(async () => []);
     const readPublicationSnapshot = vi.fn((db: Parameters<typeof getCompanyPublicationSnapshotFromDb>[0]) =>

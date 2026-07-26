@@ -33,7 +33,8 @@ import {
 } from "./profileBoundSourceEvidence";
 import {
   BMS_AUDITED_FOREIGN_COUNTRY_DESCRIPTOR_ALIASES,
-  BMS_AUDITED_FOREIGN_SITE_DESCRIPTOR_ALIASES
+  BMS_AUDITED_FOREIGN_SITE_DESCRIPTOR_ALIASES,
+  isPfizerWorkdayMainlandChinaLocationDescriptor
 } from "./workdaySourceFetch";
 import type { SourceTransportFailure } from "./sourceFetchFailure";
 
@@ -181,11 +182,15 @@ export async function runSourceCrawl(
         ), fetchResult), fetchResult, plan);
       }
 
-      return finalizeTruth(withFetchEvidence(reconcileResult(officialJsonAdapter.extract({
+      const adapterResult = reconcileResult(officialJsonAdapter.extract({
         ...baseInput,
         payload: fetchResult.payload,
         json: plan.json
-      }), fetchResult), fetchResult), fetchResult, plan);
+      }), fetchResult);
+      return finalizeTruth(withFetchEvidence(
+        enforceStrictPfizerMainlandEvidence(adapterResult, fetchResult, plan),
+        fetchResult
+      ), fetchResult, plan);
     }
 
     if (!("html" in fetchResult)) {
@@ -227,6 +232,25 @@ function reconcileResult(result: CrawlAdapterResult, fetchResult: Extract<Source
   }
   if (boundaryValid) return result;
   return failedReconciliation(result);
+}
+
+function enforceStrictPfizerMainlandEvidence(
+  result: CrawlAdapterResult,
+  fetchResult: Extract<SourceFetchResult, { ok: true }>,
+  plan: SourceCrawlPlan
+): CrawlAdapterResult {
+  if (plan.adapterId !== "official-json" ||
+    plan.workday?.opaqueMultiLocationDetailPolicy !== "PFIZER_AUDITED_APAC_DETAIL_V1") return result;
+  try {
+    if (!fetchResult.fetchEvidence) return failedReconciliation(result);
+    const evidence = parsePersistentSourceFetchEvidence(fetchResult.fetchEvidence);
+    const artifacts = new Map(evidence.artifacts.map((artifact) => [artifact.logicalKey, artifact]));
+    return strictPfizerOpaqueDetailReplay(plan, evidence, artifacts, result.jobs)
+      ? result
+      : failedReconciliation(result);
+  } catch {
+    return failedReconciliation(result);
+  }
 }
 
 function failedReconciliation(result: CrawlAdapterResult): CrawlAdapterResult {
@@ -1054,7 +1078,6 @@ function strictPfizerOpaqueDetailReplay(
     title: string;
     officialUrl: string;
     locationRaw: string;
-    exactApacOnly: boolean;
   }>();
   for (const page of evidence.pages) {
     const pageArtifact = artifacts.get(page.artifactLogicalKey);
@@ -1109,16 +1132,14 @@ function strictPfizerOpaqueDetailReplay(
         new Set(publicLocations).size !== publicLocations.length ||
         publicLocations.some((descriptor) => /\bAPAC\b/iu.test(descriptor) &&
           descriptor !== "APAC - Any Pfizer Site")) return false;
-      const hasMainland = publicLocations.some(strictWorkdayMainlandLocation);
-      const hasExactApac = publicLocations.includes("APAC - Any Pfizer Site");
-      if (!hasMainland && !hasExactApac) return false;
+      const hasMainland = publicLocations.some(isPfizerWorkdayMainlandChinaLocationDescriptor);
+      if (!hasMainland) return false;
       const sourceJobId = `workday:sha256:${createHash("sha256").update(Buffer.from(externalPath, "utf8")).digest("hex")}`;
       if (expectedOutputById.has(sourceJobId)) return false;
       expectedOutputById.set(sourceJobId, {
         title,
         officialUrl: `${origin}${sitePath}${externalPath}`,
-        locationRaw: publicLocations.join(" | "),
-        exactApacOnly: hasExactApac && !hasMainland
+        locationRaw: publicLocations.join(" | ")
       });
     }
   }
@@ -1133,8 +1154,7 @@ function strictPfizerOpaqueDetailReplay(
     const output = matches[0]!;
     if (output.sourceId !== plan.source.id || output.companyId !== plan.company.id ||
       output.officialTitle !== expected.title || output.officialUrl !== expected.officialUrl ||
-      output.locationRaw !== expected.locationRaw ||
-      (expected.exactApacOnly && !strictExactStringArray(output.cities, ["APAC - Any Pfizer Site"]))) return false;
+      output.locationRaw !== expected.locationRaw) return false;
   }
   return true;
 }

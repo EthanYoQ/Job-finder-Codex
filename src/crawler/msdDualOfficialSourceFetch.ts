@@ -976,7 +976,7 @@ export function getStrictMsdDualOfficialNetworkPolicy(
     allowsPagination?: true;
     allowsDeclaration?: true;
     allowsPositiveTotalDeclaration?: true;
-  }>; 
+  }>;
   allowPositiveOfficialTotalCountAfterAdapterReconciliation: true;
   allowIndependentlyVerifiedProfileBoundExclusions: true;
 } | undefined {
