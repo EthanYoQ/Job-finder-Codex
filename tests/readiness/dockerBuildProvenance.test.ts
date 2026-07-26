@@ -14,7 +14,7 @@ function repository(){
   for(const file of ["package.json","package-lock.json","tsconfig.json","Dockerfile",".dockerignore","vite.config.ts"])writeFileSync(join(root,file),"{}\n");
   writeFileSync(join(root,"index.html"),"<div id=\"root\"></div>\n");
   writeFileSync(join(root,"src","main.ts"),"export {};\n");for(const dir of ["scripts","prisma","ops"])writeFileSync(join(root,dir,"keep"),"tracked\n");writeFileSync(join(root,"dist","app.js"),"built\n");writeFileSync(join(root,"node_modules","dependency.js"),"dependency\n");
-  execFileSync("git",["init"],{cwd:root});execFileSync("git",["config","user.email","test@example.com"],{cwd:root});execFileSync("git",["config","user.name","test"],{cwd:root});execFileSync("git",["add","."],{cwd:root});execFileSync("git",["commit","-m","base"],{cwd:root});
+  execFileSync("git",["init"],{cwd:root});execFileSync("git",["config","core.fileMode","false"],{cwd:root});execFileSync("git",["config","user.email","test@example.com"],{cwd:root});execFileSync("git",["config","user.name","test"],{cwd:root});execFileSync("git",["add","."],{cwd:root});execFileSync("git",["commit","-m","base"],{cwd:root});
   return root;
 }
 describe("portable Docker build provenance",()=>{

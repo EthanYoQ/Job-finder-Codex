@@ -10,7 +10,7 @@ Core repair reviewed staged tree: `e1c94656444c59638f7fe93d62f7ed153eab90c6`
 
 - Core-repair Standards review: `NO_ACTIONABLE_FINDINGS`
 - Core-repair Specification review: `NO_ACTIONABLE_FINDINGS`
-- Cloud-remediation review: pending after the portable hosted-runner test-harness correction
+- Cloud-remediation review: pending after the portable hosted-runner test-harness and synthetic Git mode corrections
 - Unresolved findings in the core repair diff: none; cloud acceptance remains open
 
 ## Closed review findings

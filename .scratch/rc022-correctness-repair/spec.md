@@ -55,6 +55,7 @@ RC022 的职位发现与官方来源资格判断存在两个相互放大的范�
 - The two confirmed regression tests begin red and must turn green one vertical slice at a time.
 - Targeted tests and typechecking run during each slice. The full test suite, production build, Prisma validation/generation path, and Git whitespace check run at completion.
 - The cloud workflow uses commit-pinned actions, the explicit `ubuntu-24.04` hosted-runner family, exact Node 22.23.1, no persisted checkout credential, and verifies the Docker Compose/PowerShell toolchain required by the full suite before repeating locked installation, Prisma Client generation, typechecking, tests, and production build. Shell-script test harnesses use portable POSIX argument forwarding and resolve `sh`/`pwsh` from the hosted runner while retaining the audited Windows paths locally.
+- Synthetic Git repositories used to test Docker provenance disable Git's platform-dependent worktree mode comparison; committed mode mismatches are still checked by the unchanged production provenance verifier.
 - Cloud acceptance requires verified private visibility, a successful run tied to the candidate commit, and no secret-bearing artifact in the pushed tree.
 
 ## Out of Scope
