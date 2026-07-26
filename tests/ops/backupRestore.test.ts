@@ -9,8 +9,11 @@ const backupPs1Path = resolve(repoRoot, "ops/backup.ps1");
 const backupShPath = resolve(repoRoot, "ops/backup.sh");
 const restorePs1Path = resolve(repoRoot, "ops/restore-test.ps1");
 const restoreShPath = resolve(repoRoot, "ops/restore-test.sh");
-const gitShPath = "C:\\Program Files\\Git\\bin\\sh.exe";
-const portablePwshPath = "C:\\Users\\Public\\Tools\\PowerShell\\7.6.3\\pwsh.exe";
+const isWindows = process.platform === "win32";
+const gitShPath = isWindows ? "C:\\Program Files\\Git\\bin\\sh.exe" : "sh";
+const portablePwshPath = isWindows
+  ? "C:\\Users\\Public\\Tools\\PowerShell\\7.6.3\\pwsh.exe"
+  : "pwsh";
 
 function readRequiredFile(path: string): string {
   expect(existsSync(path), `${path} should exist`).toBe(true);
@@ -92,7 +95,7 @@ printf 'psql-check\\n' >> "$EVENT_LOG"`
 
   const baseEnv = {
     ...process.env,
-    FAKE_BIN: binDir,
+    FAKE_BIN: toPosixPath(binDir),
     EVENT_LOG: toPosixPath(eventLog),
     BACKUP_DIR: toPosixPath(backupDir),
     BACKUP_RETENTION_DAYS: "14",
@@ -102,7 +105,7 @@ printf 'psql-check\\n' >> "$EVENT_LOG"`
   function run(scriptPath: string, args: string[] = [], env: NodeJS.ProcessEnv = {}) {
     return spawnSync(
       gitShPath,
-      ["-c", 'PATH="$(cygpath -u "$FAKE_BIN"):$PATH"; export PATH; exec sh "$1" "${@:2}"', "harness", toPosixPath(scriptPath), ...args],
+      ["-c", 'PATH="$FAKE_BIN:$PATH"; export PATH; exec sh "$@"', "harness", toPosixPath(scriptPath), ...args],
       { env: { ...baseEnv, ...env }, encoding: "utf8" }
     );
   }

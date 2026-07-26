@@ -2,15 +2,16 @@
 
 Review fixed point: `3d26a3ab89abb15503614ba4873dfe5cfb7e51ab`
 
-Reviewed staged tree: `e1c94656444c59638f7fe93d62f7ed153eab90c6`
+Core repair reviewed staged tree: `e1c94656444c59638f7fe93d62f7ed153eab90c6`
 
 ## Verdict
 
-**APPROVED_FOR_PRIVATE_CLOUD_ACCEPTANCE**
+**HOLD_FOR_PRIVATE_CLOUD_RERUN**
 
-- Standards review: `NO_ACTIONABLE_FINDINGS`
-- Specification review: `NO_ACTIONABLE_FINDINGS`
-- Unresolved P0/P1/P2/P3 findings in the repair diff: none
+- Core-repair Standards review: `NO_ACTIONABLE_FINDINGS`
+- Core-repair Specification review: `NO_ACTIONABLE_FINDINGS`
+- Cloud-remediation review: pending after the portable hosted-runner test-harness correction
+- Unresolved findings in the core repair diff: none; cloud acceptance remains open
 
 ## Closed review findings
 
@@ -18,7 +19,7 @@ Reviewed staged tree: `e1c94656444c59638f7fe93d62f7ed153eab90c6`
 - Required explicit mainland evidence for Pfizer and rejected APAC-only or foreign-conflicted descriptors. A Pfizer-specific shared fetch/replay parser accepts audited bare mainland cities without widening JNJ/Gilead boundaries.
 - Aligned active First-launch Gate language to 55 and preserved the two-round/no-third-round rule.
 - Removed the baseline whitespace defect.
-- Pinned cloud actions, Node/container image, runner label, and disabled checkout credential persistence.
+- The cloud remediation pins actions and the exact Node runtime, uses an explicit runner label, disables checkout credential persistence, verifies the runner tools required by the full suite, and keeps shell-test launch paths portable across Windows and Ubuntu.
 
 ## Verification evidence
 

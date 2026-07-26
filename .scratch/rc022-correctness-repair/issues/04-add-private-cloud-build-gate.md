@@ -4,7 +4,7 @@
 
 **Blocked by:** 01 — Enforce City-scoped Search end to end; 02 — Require mainland evidence for Pfizer China jobs; 03 — Align the 55-company gate and restore clean diff.
 
-**Status:** resolved
+**Status:** implementation complete; cloud acceptance pending
 
 - [x] The workflow uses locked dependency installation
 - [x] Database client generation runs before typechecking
@@ -15,6 +15,8 @@
 ## Answer
 
 - Added `.github/workflows/private-cloud-build-gate.yml`, triggered by private-repository pushes and `workflow_dispatch`, with only `contents: read` permission.
-- It runs on the explicit `ubuntu-24.04` label inside the digest-pinned official Node `22.23.1-bookworm` container, pins checkout/setup-node actions to full commit SHAs, disables checkout credential persistence, and retains only read-only contents permission.
+- It runs on the explicit `ubuntu-24.04` GitHub-hosted runner, pins checkout/setup-node actions to full commit SHAs, selects exact Node 22.23.1, disables checkout credential persistence, retains only read-only contents permission, and verifies Docker Compose plus PowerShell before the test suite.
 - It checks out full history, uses exact Node 22.23.1 with the npm cache, then runs locked installation, Prisma Client generation, project Prisma validation, typechecking, the full test suite, the production build, and the baseline-to-`HEAD` whitespace check in that order.
 - The workflow contains no credential, production-data, artifact-upload, or machine-path configuration. GitHub Actions records the triggering candidate commit for each run, so a later successful cloud acceptance run can be attributed to that exact commit.
+- Cloud diagnostic run `30183305170` proved the digest-pinned Node-only job container was too narrow for the repository's full suite because it omitted the hosted runner's Docker Compose, PowerShell, and Git ownership setup. The workflow now uses the explicit hosted runner directly; the failed diagnostic is not acceptance evidence.
+- The backup/restore shell-test harness resolves `sh` and `pwsh` from the hosted runner on non-Windows systems and uses POSIX argument forwarding without Git-for-Windows-only `cygpath`; Windows keeps its audited fixed executable paths.

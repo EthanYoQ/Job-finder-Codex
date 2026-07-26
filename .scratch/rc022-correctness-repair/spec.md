@@ -54,7 +54,7 @@ RC022 的职位发现与官方来源资格判断存在两个相互放大的范�
 - Tests verify observable outcomes and do not assert private helper call order.
 - The two confirmed regression tests begin red and must turn green one vertical slice at a time.
 - Targeted tests and typechecking run during each slice. The full test suite, production build, Prisma validation/generation path, and Git whitespace check run at completion.
-- The cloud workflow uses commit-pinned actions, an exact Node/container image, no persisted checkout credential, and repeats locked dependency installation, Prisma Client generation, typechecking, the full test suite, and production build from the committed candidate.
+- The cloud workflow uses commit-pinned actions, the explicit `ubuntu-24.04` hosted-runner family, exact Node 22.23.1, no persisted checkout credential, and verifies the Docker Compose/PowerShell toolchain required by the full suite before repeating locked installation, Prisma Client generation, typechecking, tests, and production build. Shell-script test harnesses use portable POSIX argument forwarding and resolve `sh`/`pwsh` from the hosted runner while retaining the audited Windows paths locally.
 - Cloud acceptance requires verified private visibility, a successful run tied to the candidate commit, and no secret-bearing artifact in the pushed tree.
 
 ## Out of Scope
