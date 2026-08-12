@@ -1199,6 +1199,10 @@ describe("createOfficialJsonSourceFetch", () => {
       priorTransportAttempts: [{
         code: "HCM_DIRECT_FAILED",
         fetchEvidence: { artifacts: [{ kind: "ATS_API_RESPONSE" }] }
+      }, {
+        transport: "BROWSER_SESSION",
+        outcome: "FAILED",
+        code: "HCM_BROWSER_SESSION_FAILED"
       }]
     });
   });

@@ -1191,7 +1191,8 @@ describe("createWorkdaySourceFetch", () => {
 
     await expect(fetcher(plan)).resolves.toMatchObject({
       ok: false,
-      failureReason: "Workday jobs API returned HTTP 500"
+      failureReason: "Official recruitment endpoint was temporarily unavailable (HTTP 500)",
+      transportFailure: { code: "OFFICIAL_HTTP_500", retryable: true }
     });
   });
 

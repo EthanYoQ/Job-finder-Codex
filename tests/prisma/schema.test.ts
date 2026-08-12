@@ -13,6 +13,7 @@ const qualificationThresholdMigration=readFileSync(resolve(process.cwd(),"prisma
 const releasePromotionMigration=readFileSync(resolve(process.cwd(),"prisma","migrations","20260716210000_release_candidate_promotion_gate","migration.sql"),"utf8");
 const sourceFailureDiagnosticsMigration=readFileSync(resolve(process.cwd(),"prisma","migrations","20260717090000_source_failure_diagnostics","migration.sql"),"utf8");
 const trustedBaselineMigration=readFileSync(resolve(process.cwd(),"prisma","migrations","20260813002000_trusted_completeness_baseline","migration.sql"),"utf8");
+const transportPolicyMigration=readFileSync(resolve(process.cwd(),"prisma","migrations","20260813013000_transport_policy_retry_diagnostics","migration.sql"),"utf8");
 const baselineMigration = readFileSync(
   resolve(process.cwd(), "prisma", "migrations", "20260710000000_baseline", "migration.sql"),
   "utf8"
@@ -126,6 +127,7 @@ describe("prisma schema", () => {
       ,"20260717090000_source_failure_diagnostics"
       ,"20260812231000_a_grade_completeness_certificate"
       ,"20260813002000_trusted_completeness_baseline"
+      ,"20260813013000_transport_policy_retry_diagnostics"
     ]);
     const statements = crawlStatusValuesMigration
       .split("\n")
@@ -414,6 +416,7 @@ describe("prisma schema", () => {
       "OFFICIAL_HTTP_502",
       "OFFICIAL_HTTP_503",
       "OFFICIAL_HTTP_504",
+      "OFFICIAL_HTTP_5XX",
       "SOURCE_ATTEMPT_TIMEOUT",
       "FETCH_EXECUTION_FAILED",
       "FETCH_FAILED_CLOSED",
@@ -454,6 +457,25 @@ describe("prisma schema", () => {
     expect(trustedBaselineMigration).toContain('"completenessCertificate"->>\'grade\' = \'B\'');
     expect(trustedBaselineMigration).toContain('"baselinePreviousSourceResultId" <> "id"');
     expect(trustedBaselineMigration).not.toMatch(/UPDATE\s+"CrawlBatchSourceResult"/iu);
+  });
+
+  it("stores bounded transient retry reasons for recovered and failed source attempts", () => {
+    const sourceResult = block("model", "CrawlBatchSourceResult");
+    expect(sourceResult).toMatch(/^\s*retryReasonCodes\s+String\[\]\s+@default\(\[\]\)$/mu);
+    expect(schema).toContain("OFFICIAL_HTTP_5XX");
+    expect(transportPolicyMigration).toContain("ADD VALUE 'OFFICIAL_HTTP_5XX'");
+    expect(transportPolicyMigration).toContain("ADD VALUE 'HCM_BROWSER_SUCCEEDED'");
+    expect(transportPolicyMigration).toContain("TransportAttemptEvidence_code_outcome_check");
+    expect(transportPolicyMigration).toContain('"transport" = \'BROWSER_SESSION\'');
+    expect(transportPolicyMigration).toContain('"transport" = \'DIRECT_HTTP\'');
+    expect(transportPolicyMigration).toContain('ADD COLUMN "retryReasonCodes" TEXT[] NOT NULL');
+    expect(transportPolicyMigration).toContain('cardinality("retryReasonCodes") = COALESCE("retryCount", 0)');
+    expect(transportPolicyMigration).toContain("OFFICIAL_HTTP_5[0-9][0-9]");
+    expect(transportPolicyMigration).toContain("LEGACY_RETRY_REASON_UNKNOWN");
+    expect(transportPolicyMigration.indexOf('UPDATE "CrawlBatchSourceResult"')).toBeLessThan(
+      transportPolicyMigration.indexOf('ADD CONSTRAINT "CrawlBatchSourceResult_retry_reason_codes_check"')
+    );
+    expect(transportPolicyMigration).not.toMatch(/SET\s+"retryReasonCodes"\s*=\s*ARRAY\['OFFICIAL_HTTP_/u);
   });
 
   it("stores direct nullable observation provenance and exact reconciliation counters", () => {

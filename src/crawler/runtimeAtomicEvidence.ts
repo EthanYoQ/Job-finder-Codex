@@ -203,7 +203,7 @@ export function buildAtomicRuntimeCommit(input: {
   previousJobs: readonly JobSnapshot[];
   baselineCompletedBeforeCrawl: boolean;
   artifacts: readonly ArchivedEvidenceArtifact[];
-  attemptTracker?: Pick<SourceFetchAttemptTracker, "fetchAttemptCount" | "retryCount">;
+  attemptTracker?: Pick<SourceFetchAttemptTracker, "fetchAttemptCount" | "retryCount" | "retryReasonCodes">;
   oracle?: AuditedSourceSurfaceOracle;
   trustedOracle?: StartupTrustedSourceSurfaceOracle;
   independentTraversalValidation?: ViatrisBrowserTraversalValidation;
@@ -217,10 +217,11 @@ export function buildAtomicRuntimeCommit(input: {
   if (!result.truth.transportSuccess || !result.truth.adapterSuccess || !result.fetchEvidence) {
     throw new Error("atomic runtime commit requires successful transport, adapter and strict fetch evidence");
   }
-  const attemptTracker = input.attemptTracker ?? { fetchAttemptCount: 1, retryCount: 0 };
+  const attemptTracker = input.attemptTracker ?? { fetchAttemptCount: 1, retryCount: 0, retryReasonCodes: [] };
   if (!Number.isSafeInteger(attemptTracker.fetchAttemptCount) || attemptTracker.fetchAttemptCount < 1 ||
       !Number.isSafeInteger(attemptTracker.retryCount) || attemptTracker.retryCount < 0 ||
-      attemptTracker.retryCount >= attemptTracker.fetchAttemptCount) {
+      attemptTracker.retryCount >= attemptTracker.fetchAttemptCount ||
+      attemptTracker.retryReasonCodes.length !== attemptTracker.retryCount) {
     throw new Error("successful atomic source result requires consistent fetch attempt counters");
   }
   const ledger = assertAdapterReconciliation(result);
@@ -444,6 +445,7 @@ export function buildAtomicRuntimeCommit(input: {
       } : {}),
       failureCategory: null, failureDiagnosticCode: null,
       fetchAttemptCount: attemptTracker.fetchAttemptCount, retryCount: attemptTracker.retryCount,
+      retryReasonCodes: [...attemptTracker.retryReasonCodes],
       ...(incompleteBlocker ?? {}) },
     observationProvenance: { ...tuple, commitSha: identity.commitSha, rosterSha256: identity.rosterSha256,
       sourcePlanSha256: identity.sourcePlanSha256, sourceConfigSha256: pending.sourceConfigHash,
@@ -471,7 +473,10 @@ export function buildAtomicRuntimeCommit(input: {
       anomalyCodes: page.anomalyCodes, capturedAt: new Date(page.capturedAt) })),
     lossLedger,
     priorTransportAttempts: (result.priorTransportAttempts ?? []).map((attempt, sequence) => {
-      const artifactIds = attempt.fetchEvidence?.artifacts.map((draft) => {
+      const attemptEvidence = attempt.code === "HCM_BROWSER_SUCCEEDED"
+        ? result.fetchEvidence
+        : attempt.fetchEvidence;
+      const artifactIds = attemptEvidence?.artifacts.map((draft) => {
         const archived = input.artifacts.find((item) => item.logicalKey === draft.logicalKey);
         if (!archived) throw new Error(`missing archived prior-attempt artifact ${draft.logicalKey}`);
         return archived.id;
@@ -481,9 +486,9 @@ export function buildAtomicRuntimeCommit(input: {
         capturedAt: new Date(attempt.capturedAt), artifactIds,
         evidenceCommitmentSha256: canonicalStringSetSha256(artifactIds.map((id) =>
           input.artifacts.find((artifact) => artifact.id === id)!.sha256)),
-        pageTraceSha256: attempt.fetchEvidence
-          ? canonicalPageTraceSha256(attempt.fetchEvidence.pages) : sha256(canonicalJson(null)),
-        lossLedgerSha256: sha256(canonicalJson(attempt.fetchEvidence?.fetchLosses ?? [])),
+        pageTraceSha256: attemptEvidence
+          ? canonicalPageTraceSha256(attemptEvidence.pages) : sha256(canonicalJson(null)),
+        lossLedgerSha256: sha256(canonicalJson(attemptEvidence?.fetchLosses ?? [])),
         paginationEvaluationSha256: sha256(canonicalJson(attempt.paginationEvaluation ?? null)),
         details: { code: attempt.code } };
     }),

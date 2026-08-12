@@ -20,6 +20,7 @@ export const SOURCE_FAILURE_DIAGNOSTIC_CODES = [
   "OFFICIAL_HTTP_502",
   "OFFICIAL_HTTP_503",
   "OFFICIAL_HTTP_504",
+  "OFFICIAL_HTTP_5XX",
   "SOURCE_ATTEMPT_TIMEOUT",
   "FETCH_EXECUTION_FAILED",
   "FETCH_FAILED_CLOSED",
@@ -36,6 +37,7 @@ export interface SourceFailureDiagnosticBundle {
   failureDiagnosticCode: SourceFailureDiagnosticCode;
   fetchAttemptCount: number;
   retryCount: number;
+  retryReasonCodes: SourceFetchAttemptTracker["retryReasonCodes"];
 }
 
 const CATEGORY_SET = new Set<string>(SOURCE_FAILURE_CATEGORIES);
@@ -52,24 +54,25 @@ export function isSourceFailureDiagnosticCode(value: unknown): value is SourceFa
 export function sourceFailureDiagnosticBundle(
   failureCategory: SourceFailureCategory,
   failureDiagnosticCode: SourceFailureDiagnosticCode,
-  tracker: Pick<SourceFetchAttemptTracker, "fetchAttemptCount" | "retryCount">
+  tracker: Pick<SourceFetchAttemptTracker, "fetchAttemptCount" | "retryCount" | "retryReasonCodes">
 ): SourceFailureDiagnosticBundle {
   return {
     failureCategory,
     failureDiagnosticCode,
     fetchAttemptCount: tracker.fetchAttemptCount,
-    retryCount: tracker.retryCount
+    retryCount: tracker.retryCount,
+    retryReasonCodes: [...tracker.retryReasonCodes]
   };
 }
 
 export function transportFailureDiagnosticBundle(
   failure: SourceTransportFailure | undefined,
-  tracker: Pick<SourceFetchAttemptTracker, "fetchAttemptCount" | "retryCount">
+  tracker: Pick<SourceFetchAttemptTracker, "fetchAttemptCount" | "retryCount" | "retryReasonCodes">
 ): SourceFailureDiagnosticBundle {
   return isRetryableSourceTransportFailure(failure)
     ? sourceFailureDiagnosticBundle(
         "TEMPORARY_OFFICIAL_SOURCE_FAILURE",
-        failure.code,
+        isSourceFailureDiagnosticCode(failure.code) ? failure.code : "OFFICIAL_HTTP_5XX",
         tracker
       )
     : sourceFailureDiagnosticBundle(

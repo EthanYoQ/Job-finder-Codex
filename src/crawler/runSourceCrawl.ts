@@ -37,6 +37,7 @@ import {
   isPfizerWorkdayMainlandChinaLocationDescriptor
 } from "./workdaySourceFetch";
 import type { SourceTransportFailure } from "./sourceFetchFailure";
+import type { RetryableSourceTransportFailureCode } from "./sourceFetchFailure";
 
 export type SourceFetchResult =
   | { ok: true; capturedAt: string; payload: unknown; completeness?: CompletenessEvidence; fetchEvidence?: PersistentSourceFetchEvidence; paginationEvaluation?: PaginationEvaluation; priorTransportAttempts?: readonly SourceTransportAttempt[] }
@@ -47,7 +48,7 @@ export interface SourceTransportAttempt {
   transport: "DIRECT_HTTP" | "BROWSER_SESSION";
   outcome: "FAILED" | "SUCCEEDED";
   code: "HCM_DIRECT_FAILED" | "HCM_BROWSER_SESSION_FAILED" | "HCM_BROWSER_ENTRY_FAILED" |
-    "HCM_BROWSER_COUNT_FAILED" | "HCM_BROWSER_LIST_FAILED";
+    "HCM_BROWSER_COUNT_FAILED" | "HCM_BROWSER_LIST_FAILED" | "HCM_BROWSER_SUCCEEDED";
   capturedAt: string;
   fetchEvidence?: PersistentSourceFetchEvidence;
   paginationEvaluation?: PaginationEvaluation;
@@ -75,10 +76,11 @@ export type SourceFetchFunction = (
 export interface SourceFetchAttemptTracker {
   fetchAttemptCount: number;
   retryCount: number;
+  retryReasonCodes: RetryableSourceTransportFailureCode[];
 }
 
 export function createSourceFetchAttemptTracker(): SourceFetchAttemptTracker {
-  return { fetchAttemptCount: 0, retryCount: 0 };
+  return { fetchAttemptCount: 0, retryCount: 0, retryReasonCodes: [] };
 }
 
 export function markInitialSourceFetchAttempt(tracker: SourceFetchAttemptTracker): void {
@@ -89,16 +91,21 @@ export function markInitialSourceFetchAttempt(tracker: SourceFetchAttemptTracker
   validateSourceFetchAttemptTracker(tracker);
 }
 
-export function markSourceFetchRetry(tracker: SourceFetchAttemptTracker): void {
+export function markSourceFetchRetry(
+  tracker: SourceFetchAttemptTracker,
+  reason: RetryableSourceTransportFailureCode
+): void {
   validateSourceFetchAttemptTracker(tracker);
   tracker.fetchAttemptCount += 1;
   tracker.retryCount += 1;
+  tracker.retryReasonCodes.push(reason);
 }
 
 function validateSourceFetchAttemptTracker(tracker: SourceFetchAttemptTracker): void {
   if (!Number.isSafeInteger(tracker.fetchAttemptCount) || tracker.fetchAttemptCount < 1 ||
       !Number.isSafeInteger(tracker.retryCount) || tracker.retryCount < 0 ||
-      tracker.retryCount >= tracker.fetchAttemptCount) {
+      tracker.retryCount >= tracker.fetchAttemptCount || !Array.isArray(tracker.retryReasonCodes) ||
+      tracker.retryReasonCodes.length !== tracker.retryCount) {
     throw new Error("Source fetch attempt tracker is inconsistent");
   }
 }

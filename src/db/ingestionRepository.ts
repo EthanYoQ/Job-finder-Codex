@@ -30,6 +30,7 @@ import {
   assertTrustedBaselineTransition,
   type TrustedBaselineChangeReason
 } from "../crawler/completenessAnomalyPolicy";
+import { isRetryableSourceTransportFailureCode } from "../crawler/sourceFetchFailure";
 
 interface CrawlObservationCreateArgs {
   data: {
@@ -140,7 +141,8 @@ type PaginationAnomalyCode =
 type TransportAttemptKind = "DIRECT_HTTP" | "BROWSER_SESSION";
 type TransportAttemptOutcome = "FAILED" | "SUCCEEDED";
 type TransportAttemptCode = "HCM_DIRECT_FAILED" | "HCM_BROWSER_SESSION_FAILED" |
-  "HCM_BROWSER_ENTRY_FAILED" | "HCM_BROWSER_COUNT_FAILED" | "HCM_BROWSER_LIST_FAILED";
+  "HCM_BROWSER_ENTRY_FAILED" | "HCM_BROWSER_COUNT_FAILED" | "HCM_BROWSER_LIST_FAILED" |
+  "HCM_BROWSER_SUCCEEDED";
 
 interface EvidenceTuple {
   releaseCandidateId: string;
@@ -204,6 +206,7 @@ export interface AtomicSourceResultInput {
   failureDiagnosticCode?: SourceFailureDiagnosticCode | null;
   fetchAttemptCount?: number | null;
   retryCount?: number | null;
+  retryReasonCodes?: string[];
   failureCode?: string | null;
   failureReason?: string | null;
 }
@@ -447,6 +450,7 @@ export interface PendingSourceTerminalInput {
   failureDiagnosticCode?: SourceFailureDiagnosticCode | null;
   fetchAttemptCount?: number | null;
   retryCount?: number | null;
+  retryReasonCodes?: string[];
 }
 
 interface PendingSourceTerminalTransactionClient {
@@ -538,6 +542,7 @@ export async function createBatchWithPendingSourceResults(
         failureDiagnosticCode: null,
         fetchAttemptCount: null,
         retryCount: null,
+        retryReasonCodes: [],
         failureCode: null,
         failureReason: null
       } });
@@ -574,7 +579,8 @@ export async function terminatePendingSourceResult(
         failureCategory: input.failureCategory ?? null,
         failureDiagnosticCode: input.failureDiagnosticCode ?? null,
         fetchAttemptCount: input.fetchAttemptCount ?? null,
-        retryCount: input.retryCount ?? null
+        retryCount: input.retryCount ?? null,
+        retryReasonCodes: input.retryReasonCodes ?? []
       }
     });
     requireExactlyOnePendingResult(result);
@@ -968,7 +974,10 @@ function validatePendingSourceTerminal(input: PendingSourceTerminalInput): void 
   const suppliedDiagnosticCount = diagnosticValues.filter(
     (value) => value !== undefined && value !== null
   ).length;
-  if (suppliedDiagnosticCount === 0) return;
+  if (suppliedDiagnosticCount === 0) {
+    if ((input.retryReasonCodes ?? []).length > 0) throw new Error("Retry reasons require source diagnostics");
+    return;
+  }
   if (suppliedDiagnosticCount !== diagnosticValues.length) {
     throw new Error("Source failure diagnostic bundle must be supplied together");
   }
@@ -992,6 +1001,14 @@ function validatePendingSourceTerminal(input: PendingSourceTerminalInput): void 
   } else if (retryCount >= fetchAttemptCount) {
     throw new Error("retry count must be less than fetch attempt count");
   }
+  validateRetryReasonCodes(input.retryReasonCodes ?? [], retryCount);
+}
+
+function validateRetryReasonCodes(values: readonly string[], retryCount: number): void {
+  if (!Array.isArray(values) || values.length !== retryCount || retryCount > 2 ||
+      values.some((value) => !isRetryableSourceTransportFailureCode(value))) {
+    throw new Error("Retry reasons must match the bounded transient retry count and closed transport codes");
+  }
 }
 
 function validateCommittedSourceResultTruthTable(result: AtomicSourceResultInput): void {
@@ -1010,6 +1027,7 @@ function validateCommittedSourceResultTruthTable(result: AtomicSourceResultInput
   }
   const attemptCount = result.fetchAttemptCount;
   const retryCount = result.retryCount;
+  const retryReasonCodes = result.retryReasonCodes ?? [];
   if ((attemptCount === undefined || attemptCount === null) !==
       (retryCount === undefined || retryCount === null)) {
     throw new Error("COMMITTED source result fetch attempt counters must be supplied together");
@@ -1019,6 +1037,7 @@ function validateCommittedSourceResultTruthTable(result: AtomicSourceResultInput
         retryCount < 0 || retryCount >= attemptCount)) {
     throw new Error("COMMITTED source result fetch attempt counters are inconsistent");
   }
+  if (retryCount !== undefined && retryCount !== null) validateRetryReasonCodes(retryReasonCodes, retryCount);
   if (result.completenessState === "VERIFIED") {
     if (nonblank(result.blockerCode) || nonblank(result.blockerReason)) {
       throw new Error("VERIFIED COMMITTED source result blocker must be null");
@@ -1136,7 +1155,7 @@ const ATOMIC_SOURCE_RESULT_FIELDS = [
   "adapterCollisionGroupCount", "adapterReconciliationSha256", "collisionLedgerSha256", "blockerCode",
   "completenessCertificate", "completenessCertificateSha256",
   "baselinePreviousSourceResultId", "baselinePreviousJobCount", "baselineChangeReason",
-  "blockerReason", "failureCategory", "failureDiagnosticCode", "fetchAttemptCount", "retryCount",
+  "blockerReason", "failureCategory", "failureDiagnosticCode", "fetchAttemptCount", "retryCount", "retryReasonCodes",
   "failureCode", "failureReason"
 ] as const satisfies readonly (keyof AtomicSourceResultInput)[];
 
@@ -1473,6 +1492,11 @@ function validateAtomicSourceEvidenceCommit(input: AtomicSourceEvidenceCommit, m
     requireNonblank(attempt.id, "transport attempt id");
     requireNonblank(attempt.code, "transport attempt code");
     if (!TRANSPORT_ATTEMPT_CODES.has(attempt.code)) throw new Error("Transport attempt code is invalid");
+    const expectedTransport = attempt.code === "HCM_DIRECT_FAILED" ? "DIRECT_HTTP" : "BROWSER_SESSION";
+    const expectedOutcome = attempt.code === "HCM_BROWSER_SUCCEEDED" ? "SUCCEEDED" : "FAILED";
+    if (attempt.transport !== expectedTransport || attempt.outcome !== expectedOutcome) {
+      throw new Error("Transport attempt code, transport and outcome are inconsistent");
+    }
     if (attempt.sequence !== index || seenAttemptIds.has(attempt.id)) {
       throw new Error("Transport-attempt sequences and IDs must be unique and contiguous");
     }
@@ -1588,7 +1612,7 @@ function validateSafeJson(value: unknown, label: string, depth = 0): void {
 
 const TRANSPORT_ATTEMPT_CODES = new Set<TransportAttemptCode>([
   "HCM_DIRECT_FAILED", "HCM_BROWSER_SESSION_FAILED", "HCM_BROWSER_ENTRY_FAILED",
-  "HCM_BROWSER_COUNT_FAILED", "HCM_BROWSER_LIST_FAILED"
+  "HCM_BROWSER_COUNT_FAILED", "HCM_BROWSER_LIST_FAILED", "HCM_BROWSER_SUCCEEDED"
 ]);
 
 function assertTuple(value: EvidenceTuple, expected: EvidenceTuple, label: string): void {

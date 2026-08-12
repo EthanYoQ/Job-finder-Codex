@@ -1184,7 +1184,28 @@ describe("source crawl planning", () => {
         responsePrefixPolicy: "LUNAN_RANDOM_ALNUM3",
         listPaginationPolicy: "LUNAN_REQUEST_BOUND_PAGE_V1",
         defaultLocationRaw: "未披露"
+      },
+      transportPolicy: {
+        primary: "DIRECT_HTTP",
+        fallback: "BROWSER_SESSION",
+        browserConcurrency: 1
       }
     });
+    expect(plans.every((plan) => plan.transportPolicy?.primary === "DIRECT_HTTP")).toBe(true);
+    expect(plans.filter((plan) => plan.transportPolicy?.fallback === "BROWSER_SESSION")
+      .map((plan) => plan.source.id)).toEqual(["source-lunan-social"]);
+    expect(JSON.stringify(plans)).not.toContain("TAVILY");
+  });
+
+  it("rejects an executable plan whose transport policy is missing or tampered", () => {
+    const plan = buildStagedSourceCrawlPlans(candidateCompanies, expectedOfficialSurfaces)[0]!;
+    const { transportPolicy: _transportPolicy, ...withoutTransportPolicy } = plan;
+
+    expect(() => validateExecutablePlanChannelBinding(withoutTransportPolicy as typeof plan))
+      .toThrow(/transport policy/);
+    expect(() => validateExecutablePlanChannelBinding({
+      ...plan,
+      transportPolicy: { primary: "DIRECT_HTTP", fallback: "BROWSER_SESSION", browserConcurrency: 1 }
+    })).toThrow(/transport policy/);
   });
 });

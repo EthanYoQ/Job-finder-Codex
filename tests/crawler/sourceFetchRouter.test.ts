@@ -171,11 +171,11 @@ describe("source fetch router", () => {
     expect(calls).toEqual(["call"]);
   });
 
-  it("stops after one retry when a transient failure continues", async () => {
+  it("records retry reasons and stops after the configured maximum of two retries", async () => {
     let calls = 0;
     const plan = {
       ...planWithAtsKind("WORKDAY"),
-      transientRetryPolicy: { maxRetries: 1, backoffMs: 10_000 }
+      transientRetryPolicy: { maxRetries: 2, backoffMs: 10_000 }
     } as SourceCrawlPlan;
     const router = createSourceFetchRouter({
       moka: async () => ({ ok: false, capturedAt, failureReason: "wrong" }),
@@ -192,8 +192,14 @@ describe("source fetch router", () => {
       delay: async () => undefined
     });
 
-    await expect(router(plan)).resolves.toMatchObject({ ok: false });
-    expect(calls).toBe(2);
+    const attemptTracker = createSourceFetchAttemptTracker();
+    await expect(router(plan, attemptTracker)).resolves.toMatchObject({ ok: false });
+    expect(calls).toBe(3);
+    expect(attemptTracker).toEqual({
+      fetchAttemptCount: 3,
+      retryCount: 2,
+      retryReasonCodes: ["OFFICIAL_HTTP_503", "OFFICIAL_HTTP_503"]
+    });
   });
 
   it("routes Moka sources to the Moka fetcher", async () => {

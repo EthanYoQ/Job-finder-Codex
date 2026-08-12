@@ -24,7 +24,8 @@ const sha = "a".repeat(64);
 function channelBound(plan: SourceCrawlPlan): SourceCrawlPlan {
   const expectedChannels = [{ channelId: `source:${plan.source.id}:default`, kind: "SOCIAL" as const }];
   return { ...plan, source: { ...plan.source, surfaceId: plan.source.surfaceId ?? `surface:${plan.source.id}` },
-    expectedChannels, expectedChannelSetHash: expectedChannelSetHash(expectedChannels) };
+    expectedChannels, expectedChannelSetHash: expectedChannelSetHash(expectedChannels),
+    transportPolicy: plan.transportPolicy ?? { primary: "DIRECT_HTTP" } };
 }
 
 describe("runtime atomic evidence planning", () => {
@@ -52,7 +53,7 @@ describe("runtime atomic evidence planning", () => {
     });
     expect(planned.sources[0]?.sourceConfigHash).toMatch(/^[0-9a-f]{64}$/);
     expect(planned.sources[0]?.sourceConfigHash).toBe(sourcePlanConfigSha256(plan));
-    const preSharedHelperDigest = "535403b6dca2f9f0b445ca1b7dcaa618f144c7f0d1aef9b8dd1027f3e284026e";
+    const preSharedHelperDigest = "5215aa58bd349fe36a276470433b667d8fc82e57980da04f5ecebb5817b88979";
     expect(sourcePlanConfigSha256(plan)).toBe(preSharedHelperDigest);
     expect(sourcePlanOracleConfigSha256(plan)).toBe(preSharedHelperDigest);
     expect(planned.sources[0]?.adapterVersion).toMatch(/^[0-9a-f]{64}$/);
@@ -108,7 +109,8 @@ describe("runtime atomic evidence planning", () => {
       json: plan.json,
       source: { ...plan.source },
       company: { ...plan.company },
-      adapterId: plan.adapterId
+      adapterId: plan.adapterId,
+      transportPolicy: plan.transportPolicy
     } as SourceCrawlPlan;
 
     expect(sourcePlanConfigSha256(reordered)).toBe(sourcePlanConfigSha256(plan));
@@ -317,6 +319,25 @@ describe("runtime atomic evidence planning", () => {
       canonicalCurrentJobSetSha256: commit.observationProvenance.canonicalOutputSha256 });
     expect(commit.artifacts).toHaveLength(5);
     expect(commit.pagination).toHaveLength(1);
+
+    const browserSuccessResult = structuredClone(result);
+    browserSuccessResult.priorTransportAttempts = [{
+      transport: "BROWSER_SESSION",
+      outcome: "SUCCEEDED",
+      code: "HCM_BROWSER_SUCCEEDED",
+      capturedAt: "2026-07-10T00:00:01Z"
+    }];
+    const browserSuccessCommit = buildAtomicRuntimeCommit({
+      plan, pending, identity, batchId: "batch-1", result: browserSuccessResult,
+      previousJobs: [], baselineCompletedBeforeCrawl: true, artifacts: archived, oracle
+    });
+    expect(browserSuccessCommit.artifacts).toHaveLength(5);
+    expect(browserSuccessCommit.priorTransportAttempts[0]).toMatchObject({
+      transport: "BROWSER_SESSION",
+      outcome: "SUCCEEDED",
+      code: "HCM_BROWSER_SUCCEEDED",
+      artifactIds: browserSuccessCommit.artifacts.map(({ id }) => id)
+    });
 
     const scheduledPlan = plan;
     const scheduledPending = buildPendingRuntimeBatch("scheduled-batch", [scheduledPlan], identity,

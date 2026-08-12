@@ -11,6 +11,7 @@ import {
   parsePersistentSourceFetchEvidence,
   type PersistentSourceFetchEvidence
 } from "./sourceFetchEvidence";
+import { acquireBrowserSourcePermit } from "./browserSourceConcurrency";
 
 export const B_GRADE_TRAVERSAL_CERTIFICATE_SCHEMA_VERSION =
   "b-grade-independent-traversal-v1" as const;
@@ -310,6 +311,8 @@ async function defaultViatrisRenderedUiCapture(input: {
   signal?: AbortSignal;
 }): Promise<{ observedAt: string; pages: ViatrisRenderedUiPageCapture[] }> {
   if (input.signal?.aborted) throw input.signal.reason;
+  const releaseBrowserPermit = await acquireBrowserSourcePermit(input.signal);
+  try {
   const { chromium } = await import("playwright-core");
   const { FORMAL_CHROMIUM_ARGS, FORMAL_CHROMIUM_PATH } = await import("../readiness/formalBrowserPreflight");
   const browser = await chromium.launch({
@@ -372,6 +375,9 @@ async function defaultViatrisRenderedUiCapture(input: {
   } finally {
     input.signal?.removeEventListener("abort", abort);
     await browser.close();
+  }
+  } finally {
+    releaseBrowserPermit();
   }
 }
 

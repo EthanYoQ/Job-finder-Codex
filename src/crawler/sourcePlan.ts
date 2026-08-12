@@ -26,6 +26,11 @@ import type {
 export type { MokaFetchConfig } from "./companyRecruitmentProfiles/types";
 
 export type CrawlAdapterId = "official-json" | "html-table";
+export type SourceTransportPolicy = Readonly<{
+  primary: "DIRECT_HTTP";
+  fallback?: "BROWSER_SESSION";
+  browserConcurrency?: 1;
+}>;
 
 export type ExecutableExpectedChannel = Pick<ExpectedRecruitmentChannel, "channelId" | "kind">;
 type SourcePlanPolicy = "DISCOVERY" | "STAGED" | "FULL_RELEASE";
@@ -67,9 +72,10 @@ export type SourceCrawlPlan = (
       expectedChannels?: readonly ExecutableExpectedChannel[];
       expectedChannelSetHash?: string;
       transientRetryPolicy?: {
-        maxRetries: 1;
+        maxRetries: 1 | 2;
         backoffMs: number;
       };
+      transportPolicy?: SourceTransportPolicy;
     };
 
 const CANONICAL_EXECUTION_CONFIG_JSON_BY_SOURCE_ID: Readonly<Record<string, string>> = Object.freeze(
@@ -208,14 +214,16 @@ function buildPlans(
               ...(config.hotjobLegacy ? { hotjobLegacy: config.hotjobLegacy } : {}),
               ...(config.profileBoundSource ? { profileBoundSource: config.profileBoundSource } : {}),
               ...(config.moka ? { moka: config.moka } : {}),
-              ...(config.transientRetryPolicy ? { transientRetryPolicy: config.transientRetryPolicy } : {})
+              ...(config.transientRetryPolicy ? { transientRetryPolicy: config.transientRetryPolicy } : {}),
+              transportPolicy: sourceTransportPolicy(config)
             }
           : {
               adapterId: "html-table",
               company: plannedCompany,
               source: plannedSource,
               ...channelBinding,
-              table: config.table
+              table: config.table,
+              transportPolicy: sourceTransportPolicy(config)
             };
 
       if (policy === "STAGED") {
@@ -228,6 +236,21 @@ function buildPlans(
       return [plan];
     })
   );
+}
+
+function sourceTransportPolicy(config: CompanyRecruitmentExecutionConfig): SourceTransportPolicy {
+  return config.adapterId === "official-json" && config.officialJsonFetch?.kind === "hcm-cloud"
+    ? { primary: "DIRECT_HTTP", fallback: "BROWSER_SESSION", browserConcurrency: 1 }
+    : { primary: "DIRECT_HTTP" };
+}
+
+function hasDeclaredTransportPolicy(
+  actual: SourceTransportPolicy | undefined,
+  expected: SourceTransportPolicy
+): boolean {
+  return actual?.primary === expected.primary &&
+    actual.fallback === expected.fallback &&
+    actual.browserConcurrency === expected.browserConcurrency;
 }
 
 export function canonicalExpectedChannels(
@@ -360,6 +383,9 @@ export function validateExecutablePlanChannelBinding(plan: SourceCrawlPlan): voi
         ...(plan.transientRetryPolicy ? { transientRetryPolicy: plan.transientRetryPolicy } : {})
       }
     : { adapterId: "html-table", table: plan.table };
+  if (!hasDeclaredTransportPolicy(plan.transportPolicy, sourceTransportPolicy(config))) {
+    throw new Error("Executable source plan transport policy does not match its adapter configuration");
+  }
   const exactCoverage = staged
     ? hasExactStagedAdapterChannelCoverage(config, plan.source.id, canonical)
     : hasExactAdapterChannelCoverage(config, plan.source.id, canonical);

@@ -697,7 +697,8 @@ export async function runP0CrawlBatch(
       try {
         const attemptTracker = sourceAttemptTrackers.get(pending.sourceId) ?? {
           fetchAttemptCount: 0,
-          retryCount: 0
+          retryCount: 0,
+          retryReasonCodes: []
         };
         const sourceExecutionStarted = attemptTracker.fetchAttemptCount > 0;
         await terminatePendingSourceResult({ id: pending.id,

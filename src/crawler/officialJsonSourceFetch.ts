@@ -8,11 +8,13 @@ import {
   officialHttpTimeoutMs
 } from "./officialHttpRuntimeLimits";
 import {
+  isRetryableSourceTransportFailure,
   retryableHttpTransportFailure,
   retryableTransportFailureFromError,
   safeSourceTransportFailureReason,
   type SourceTransportFailure
 } from "./sourceFetchFailure";
+import { acquireBrowserSourcePermit } from "./browserSourceConcurrency";
 import { load as loadHtml } from "cheerio";
 import { parse as parseJavaScript } from "@babel/parser";
 import type { ObjectExpression } from "@babel/types";
@@ -1345,9 +1347,10 @@ async function fetchHcmCloud({
         body
       })
   });
-  if (directResult.ok || !browserFetch) return directResult;
+  if (directResult.ok || !browserFetch ||
+      !isRetryableSourceTransportFailure(directResult.transportFailure)) return directResult;
 
-  const priorTransportAttempts: readonly SourceTransportAttempt[] = [{
+  const transportAttempts: SourceTransportAttempt[] = [{
     transport: "DIRECT_HTTP",
     outcome: "FAILED",
     code: "HCM_DIRECT_FAILED",
@@ -1361,7 +1364,14 @@ async function fetchHcmCloud({
     session = await browserFetch({ config, entryUrl: safeEntryUrl, capturedAt, ...(signal ? { signal } : {}) });
     assertHcmCloudBrowserSession(session);
   } catch {
-    return { ok: false, capturedAt, failureReason: "HCMCloud browser session failed", priorTransportAttempts };
+    const close = (session as unknown as { close?: unknown } | undefined)?.close;
+    if (typeof close === "function") {
+      try { await close.call(session); } catch { /* invalid-session cleanup must not replace failure */ }
+    }
+    return { ok: false, capturedAt, failureReason: "HCMCloud browser session failed", priorTransportAttempts: [
+      ...transportAttempts,
+      { transport: "BROWSER_SESSION", outcome: "FAILED", code: "HCM_BROWSER_SESSION_FAILED", capturedAt }
+    ] };
   }
 
   let entryArtifact: SourceFetchArtifactDraft | undefined;
@@ -1375,7 +1385,10 @@ async function fetchHcmCloud({
     if (session.entryResponse.status < 200 || session.entryResponse.status >= 300 ||
       !/^text\/html(?:\s*;|$)/iu.test(session.entryResponse.contentType ?? "")) {
       const failure = hcmCloudBrowserEntryFailure(capturedAt, entryArtifact);
-      return { ...failure, priorTransportAttempts };
+      return { ...failure, priorTransportAttempts: [...transportAttempts, {
+        transport: "BROWSER_SESSION", outcome: "FAILED", code: "HCM_BROWSER_ENTRY_FAILED", capturedAt,
+        ...(failure.fetchEvidence ? { fetchEvidence: failure.fetchEvidence } : {})
+      }] };
     }
     const browserResult = await fetchHcmCloudWithPost({
       config, entryUrl: safeEntryUrl, entryEvidenceUrl, origin: entry.origin, capturedAt, now,
@@ -1384,21 +1397,33 @@ async function fetchHcmCloud({
       initialCapturedAtMs: Date.parse(session.entryResponse.capturedAt!),
       artifactPrefix: "browser-"
     });
-    if (browserResult.ok) return { ...browserResult, priorTransportAttempts };
+    if (browserResult.ok) return { ...browserResult, priorTransportAttempts: [
+      ...transportAttempts,
+      { transport: "BROWSER_SESSION", outcome: "SUCCEEDED", code: "HCM_BROWSER_SUCCEEDED", capturedAt,
+        ...(browserResult.paginationEvaluation ? { paginationEvaluation: browserResult.paginationEvaluation } : {}) }
+    ] };
     const code = browserResult.fetchEvidence?.pages.length ||
       browserResult.fetchEvidence?.supportingArtifactOnlyFailure?.code === "HCM_LIST_RESPONSE_FAILED"
       ? "HCM_BROWSER_LIST_FAILED" as const
       : "HCM_BROWSER_COUNT_FAILED" as const;
+    const { transportFailure: _browserTransportFailure, ...boundedBrowserFailure } = browserResult;
     return {
-      ...browserResult,
+      ...boundedBrowserFailure,
       failureReason: code === "HCM_BROWSER_LIST_FAILED"
         ? "HCMCloud browser list failed"
         : "HCMCloud browser count failed",
-      priorTransportAttempts
+      priorTransportAttempts: [...transportAttempts, {
+        transport: "BROWSER_SESSION", outcome: "FAILED", code, capturedAt,
+        ...(browserResult.fetchEvidence ? { fetchEvidence: browserResult.fetchEvidence } : {}),
+        ...(browserResult.paginationEvaluation ? { paginationEvaluation: browserResult.paginationEvaluation } : {})
+      }]
     };
   } catch {
     const failure = hcmCloudBrowserEntryFailure(capturedAt, entryArtifact);
-    return { ...failure, priorTransportAttempts };
+    return { ...failure, priorTransportAttempts: [...transportAttempts, {
+      transport: "BROWSER_SESSION", outcome: "FAILED", code: "HCM_BROWSER_ENTRY_FAILED", capturedAt,
+      ...(failure.fetchEvidence ? { fetchEvidence: failure.fetchEvidence } : {})
+    }] };
   } finally {
     try { await session.close(); } catch { /* cleanup failures are non-evidence operational details */ }
   }
@@ -4330,8 +4355,12 @@ async function fetchHcmCloudWithPost({
   let countResponse: OfficialJsonHttpResponse;
   try {
     countResponse = await post("count", encodeHcmCloudRequest(countPayload));
-  } catch {
-    return hcmCloudFailure(capturedAt, "HCMCloud count API TRANSPORT_FAILURE", artifacts, pages, counts, losses);
+  } catch (error) {
+    const transportFailure = retryableTransportFailureFromError(error);
+    return hcmCloudFailure(capturedAt, transportFailure
+      ? safeSourceTransportFailureReason(transportFailure)
+      : "HCMCloud count API TRANSPORT_FAILURE", artifacts, pages, counts, losses,
+      undefined, "HCM_COUNT_RESPONSE_FAILED", transportFailure);
   }
   const countArtifact = hcmCloudArtifact({
     id: `${artifactPrefix}hcm-count-0000`, kind: "ATS_API_RESPONSE", requestedUrl: countUrl,
@@ -4351,8 +4380,11 @@ async function fetchHcmCloudWithPost({
   }
   artifacts.push(countArtifact!);
   if (countResponse.status < 200 || countResponse.status >= 300) {
-    return hcmCloudFailure(capturedAt, `HCMCloud count API returned HTTP ${countResponse.status}`,
-      artifacts, pages, counts, losses);
+    const transportFailure = retryableHttpTransportFailure(countResponse.status);
+    return hcmCloudFailure(capturedAt, transportFailure
+      ? safeSourceTransportFailureReason(transportFailure)
+      : `HCMCloud count API returned HTTP ${countResponse.status}`,
+      artifacts, pages, counts, losses, undefined, "HCM_COUNT_RESPONSE_FAILED", transportFailure);
   }
   try {
     assertOfficialJsonMime(countResponse);
@@ -4397,10 +4429,13 @@ async function fetchHcmCloudWithPost({
     let response: OfficialJsonHttpResponse;
     try {
       response = await post("list", encodeHcmCloudRequest(requestPayload));
-    } catch {
-      return hcmCloudFailure(capturedAt, "HCMCloud list API TRANSPORT_FAILURE",
+    } catch (error) {
+      const transportFailure = retryableTransportFailureFromError(error);
+      return hcmCloudFailure(capturedAt, transportFailure
+        ? safeSourceTransportFailureReason(transportFailure)
+        : "HCMCloud list API TRANSPORT_FAILURE",
         artifacts, pages, counts, losses, hcmCloudDeclared(expectedJobCount, countArtifact),
-        "HCM_LIST_RESPONSE_FAILED");
+        "HCM_LIST_RESPONSE_FAILED", transportFailure);
     }
     let artifact: SourceFetchArtifactDraft | undefined;
     try {
@@ -4425,8 +4460,12 @@ async function fetchHcmCloudWithPost({
     if (response.status < 200 || response.status >= 300) {
       pages.push(hcmCloudPageTrace({ artifact, sequence: pages.length, requestedPage: page,
         ...(expectedJobCount !== undefined ? { declaredTotal: expectedJobCount } : {}), termination: "FAILED" }));
-      return hcmCloudFailure(capturedAt, `HCMCloud list API returned HTTP ${response.status}`,
-        artifacts, pages, counts, losses, hcmCloudDeclared(expectedJobCount, countArtifact));
+      const transportFailure = retryableHttpTransportFailure(response.status);
+      return hcmCloudFailure(capturedAt, transportFailure
+        ? safeSourceTransportFailureReason(transportFailure)
+        : `HCMCloud list API returned HTTP ${response.status}`,
+        artifacts, pages, counts, losses, hcmCloudDeclared(expectedJobCount, countArtifact),
+        "HCM_LIST_RESPONSE_FAILED", transportFailure);
     }
     try { assertOfficialJsonMime(response); } catch (error) {
       pages.push(hcmCloudPageTrace({ artifact, sequence: pages.length, requestedPage: page,
@@ -4834,22 +4873,28 @@ function hcmCloudFailure(
   counts: PersistentSourceFetchEvidence["fetchCounts"],
   losses: PersistentSourceFetchEvidence["fetchLosses"],
   declared?: PersistentSourceFetchEvidence["declaredCompleteness"],
-  supportingCode: "HCM_COUNT_RESPONSE_FAILED" | "HCM_LIST_RESPONSE_FAILED" | "HCM_BROWSER_ENTRY_FAILED" = "HCM_COUNT_RESPONSE_FAILED"
+  supportingCode: "HCM_COUNT_RESPONSE_FAILED" | "HCM_LIST_RESPONSE_FAILED" | "HCM_BROWSER_ENTRY_FAILED" = "HCM_COUNT_RESPONSE_FAILED",
+  transportFailure?: SourceTransportFailure
 ): SourceFetchResult {
-  if (artifacts.length === 0) return failed(capturedAt, reason);
+  if (artifacts.length === 0) {
+    const result = failed(capturedAt, reason);
+    return transportFailure ? { ...result, transportFailure } : result;
+  }
   if (pages.length === 0) {
-    return failedWithEvidence(capturedAt, reason, finalizeOfficialJsonSupportingFailureEvidence({
+    const result = failedWithEvidence(capturedAt, reason, finalizeOfficialJsonSupportingFailureEvidence({
       artifacts,
       code: supportingCode
     }));
+    return transportFailure ? { ...result, transportFailure } : result;
   }
   const evidencePages = pages.length > 0 ? pages.map((page, index) =>
     index === pages.length - 1 && page.termination === "CONTINUE" ? { ...page, termination: "ABORTED" as const } : page
   ) : [];
-  return failedWithEvidence(capturedAt, reason, finalizeOfficialJsonFailureEvidenceBundle({
+  const result = failedWithEvidence(capturedAt, reason, finalizeOfficialJsonFailureEvidenceBundle({
     artifacts, pages: evidencePages, fetchCounts: counts, fetchLosses: losses,
     ...(declared ? { declaredCompleteness: declared } : {})
   }));
+  return transportFailure ? { ...result, transportFailure } : result;
 }
 
 function recordHcmCloudLoss(
@@ -4890,6 +4935,9 @@ export async function defaultHcmCloudBrowserFetch({
   signal
 }: HcmCloudBrowserFetchInput): Promise<HcmCloudBrowserSession> {
   if (signal?.aborted) throw signal.reason;
+  const releaseBrowserPermit = await acquireBrowserSourcePermit(signal);
+  let permitTransferredToSession = false;
+  try {
   const { chromium } = await import("playwright-core");
   const { FORMAL_CHROMIUM_ARGS, FORMAL_CHROMIUM_PATH } = await import("../readiness/formalBrowserPreflight");
   const browserTimeoutMs = officialBrowserTimeoutMs();
@@ -4921,7 +4969,7 @@ export async function defaultHcmCloudBrowserFetch({
       capturedAt: new Date().toISOString()
     };
     await page.waitForTimeout(hcmCloudBrowserSettleMs());
-    return {
+    const session: HcmCloudBrowserSession = {
       entryResponse,
       post: async (endpoint, body) => {
         const path = endpoint === "count"
@@ -4953,13 +5001,18 @@ export async function defaultHcmCloudBrowserFetch({
       },
       close: async () => {
         browserLifecycle.dispose();
-        await browserLifecycle.close();
+        try { await browserLifecycle.close(); } finally { releaseBrowserPermit(); }
       }
     };
+    permitTransferredToSession = true;
+    return session;
   } catch (error) {
     browserLifecycle.dispose();
     try { await browserLifecycle.close(); } catch { /* cleanup must not replace the crawl failure */ }
     throw error;
+  }
+  } finally {
+    if (!permitTransferredToSession) releaseBrowserPermit();
   }
 }
 

@@ -5,7 +5,8 @@ import {
   type HcmCloudBrowserSession,
   type OfficialJsonHttpResponse
 } from "../../src/crawler/officialJsonSourceFetch";
-import { runSourceCrawl } from "../../src/crawler/runSourceCrawl";
+import { createSourceFetchAttemptTracker, runSourceCrawl } from "../../src/crawler/runSourceCrawl";
+import { createSourceFetchRouter } from "../../src/crawler/sourceFetchRouter";
 import { runWithOfficialSourceAttemptTimeout } from "../../src/crawler/officialHttpRuntimeLimits";
 import type { SourceCrawlPlan } from "../../src/crawler/sourcePlan";
 
@@ -96,6 +97,19 @@ describe("HCM Cloud browser transport evidence instrumentation", () => {
     expect(closed).toBe(1);
   });
 
+  it("closes a browser handle even when the injected session shape is invalid", async () => {
+    let closed = 0;
+    const result = await createOfficialJsonSourceFetch({
+      now: clock(),
+      http: async () => ({ status: 503, body: "{}", finalUrl: COUNT,
+        contentType: "application/json", capturedAt: START }),
+      hcmCloudBrowserFetch: async () => ({ close: async () => { closed += 1; } }) as never
+    })(plan);
+
+    expect(result).toMatchObject({ ok: false, failureReason: "HCMCloud browser session failed" });
+    expect(closed).toBe(1);
+  });
+
   it("routes constrained browser responses through the shared manual builder and preserves direct evidence", async () => {
     const directBody = JSON.stringify({ errcode: 17003 });
     let directEvidence: unknown;
@@ -118,7 +132,13 @@ describe("HCM Cloud browser transport evidence instrumentation", () => {
         { logicalKey: "browser-hcm-count-0000", kind: "ATS_API_RESPONSE" },
         { logicalKey: "browser-hcm-list-0001", kind: "PAGINATION_PAGE" }
       ] },
-      priorTransportAttempts: [{ transport: "DIRECT_HTTP", outcome: "FAILED", code: "HCM_DIRECT_FAILED" }]
+      priorTransportAttempts: [
+        { transport: "DIRECT_HTTP", outcome: "FAILED", code: "HCM_DIRECT_FAILED" },
+        { transport: "BROWSER_SESSION", outcome: "SUCCEEDED", code: "HCM_BROWSER_SUCCEEDED" }
+      ]
+    });
+    expect(result.priorTransportAttempts?.[1]).toMatchObject({
+      transport: "BROWSER_SESSION", outcome: "SUCCEEDED", code: "HCM_BROWSER_SUCCEEDED"
     });
     expect(result.priorTransportAttempts?.[0]?.fetchEvidence).toEqual(directEvidence);
     expect(result.priorTransportAttempts?.[0]?.fetchEvidence).not.toBe(result.fetchEvidence);
@@ -146,7 +166,10 @@ describe("HCM Cloud browser transport evidence instrumentation", () => {
     expect(result).toMatchObject({ ok: false, failureReason: "HCMCloud browser list failed",
       fetchEvidence: { artifacts: [
         { kind: "OFFICIAL_COMPANY_PAGE" }, { kind: "ATS_API_RESPONSE" }, { kind: "PAGINATION_PAGE" }
-      ] }, priorTransportAttempts: [{ code: "HCM_DIRECT_FAILED" }] });
+      ] }, priorTransportAttempts: [
+        { code: "HCM_DIRECT_FAILED" },
+        { transport: "BROWSER_SESSION", outcome: "FAILED", code: "HCM_BROWSER_LIST_FAILED" }
+      ] });
     expect(closed).toBe(1);
     const redacted = JSON.parse(JSON.stringify(result)) as {
       fetchEvidence?: { artifacts: Array<Record<string, unknown>> };
@@ -210,7 +233,10 @@ describe("HCM Cloud browser transport evidence instrumentation", () => {
         pages: [],
         supportingArtifactOnlyFailure: { code: "HCM_BROWSER_ENTRY_FAILED" }
       },
-      priorTransportAttempts: [{ code: "HCM_DIRECT_FAILED" }]
+      priorTransportAttempts: [
+        { code: "HCM_DIRECT_FAILED" },
+        { code: "HCM_BROWSER_ENTRY_FAILED", outcome: "FAILED" }
+      ]
     });
     expect(result.fetchEvidence).not.toBe(result.priorTransportAttempts?.[0]?.fetchEvidence);
   });
@@ -228,11 +254,58 @@ describe("HCM Cloud browser transport evidence instrumentation", () => {
       expect(result).toMatchObject({
         ok: false,
         failureReason: "HCMCloud browser entry failed",
-        priorTransportAttempts: [{ code: "HCM_DIRECT_FAILED" }]
+        priorTransportAttempts: [
+          { code: "HCM_DIRECT_FAILED" },
+          { code: "HCM_BROWSER_ENTRY_FAILED", outcome: "FAILED" }
+        ]
       });
       expect(result.fetchEvidence).toBeUndefined();
-      expect(result.priorTransportAttempts).toHaveLength(1);
+      expect(result.priorTransportAttempts).toHaveLength(2);
       expect(JSON.stringify(result)).not.toMatch(/Zod|network artifact requires|invalid_type|contentType.*Required|capturedAt.*Required/i);
     }
   );
+
+  it("does not open a browser for direct parse, pagination, or completeness failures", async () => {
+    let browserCalls = 0;
+    const malformed = createOfficialJsonSourceFetch({
+      now: clock(),
+      http: async () => ({ status: 200, body: "not-hcm-json", finalUrl: COUNT,
+        contentType: "application/json", capturedAt: START }),
+      hcmCloudBrowserFetch: async () => { browserCalls += 1; return browserSession(); }
+    });
+
+    await expect(malformed(plan)).resolves.toMatchObject({
+      ok: false,
+      failureReason: "HCMCloud count response decode failed"
+    });
+    expect(browserCalls).toBe(0);
+  });
+
+  it("treats the bounded direct-to-browser route as one outer attempt", async () => {
+    let directCalls = 0;
+    let browserCalls = 0;
+    const hcm = createOfficialJsonSourceFetch({
+      now: clock(),
+      http: async () => { directCalls += 1; return { status: 503, body: "{}", finalUrl: COUNT,
+        contentType: "application/json", capturedAt: START }; },
+      hcmCloudBrowserFetch: async () => { browserCalls += 1; throw new Error("browser unavailable"); }
+    });
+    const routedPlan = { ...plan, transientRetryPolicy: { maxRetries: 2 as const, backoffMs: 1_000 } };
+    const routed = createSourceFetchRouter({
+      moka: hcm,
+      officialJson: hcm,
+      fallback: hcm,
+      delay: async () => undefined
+    });
+
+    const attemptTracker = createSourceFetchAttemptTracker();
+    const result = await routed(routedPlan, attemptTracker);
+    expect(result).toMatchObject({
+      ok: false,
+      failureReason: "HCMCloud browser session failed"
+    });
+    expect(attemptTracker).toEqual({ fetchAttemptCount: 1, retryCount: 0, retryReasonCodes: [] });
+    expect(directCalls).toBe(1);
+    expect(browserCalls).toBe(1);
+  });
 });

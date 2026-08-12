@@ -1503,7 +1503,8 @@ describe("runP0CrawlBatch", () => {
       failureCategory: null,
       failureDiagnosticCode: null,
       fetchAttemptCount: 2,
-      retryCount: 1
+      retryCount: 1,
+      retryReasonCodes: ["OFFICIAL_HTTP_503"]
     });
   });
 

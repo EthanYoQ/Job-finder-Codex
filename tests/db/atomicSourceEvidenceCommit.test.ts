@@ -128,6 +128,7 @@ function validCommit(): AtomicSourceEvidenceCommit {
       ,collisionLedgerSha256: H
       ,completenessCertificate: null
       ,completenessCertificateSha256: null
+      ,retryReasonCodes: []
     },
     observationProvenance: {
       ...tuple,
@@ -491,6 +492,18 @@ describe("executeAtomicSourceEvidenceCommit", () => {
     const db = transactionalDb();
     await expect(executeAtomicSourceEvidenceCommit(input, db)).rejects.toThrow(/attempt code/i);
     expect(db.calls.transactions).toBe(0);
+  });
+
+  it("rejects transport-attempt codes paired with the wrong transport or outcome", async () => {
+    const wrongTransport = validCommit();
+    wrongTransport.priorTransportAttempts[0]!.transport = "BROWSER_SESSION";
+    await expect(executeAtomicSourceEvidenceCommit(wrongTransport, transactionalDb())).rejects.toThrow(/inconsistent/i);
+
+    const wrongSuccess = validCommit();
+    wrongSuccess.priorTransportAttempts[0]!.code = "HCM_BROWSER_SUCCEEDED";
+    wrongSuccess.priorTransportAttempts[0]!.outcome = "SUCCEEDED";
+    wrongSuccess.priorTransportAttempts[0]!.transport = "DIRECT_HTTP";
+    await expect(executeAtomicSourceEvidenceCommit(wrongSuccess, transactionalDb())).rejects.toThrow(/inconsistent/i);
   });
 
   it("rejects a prior transport attempt with zero artifact references", async () => {
