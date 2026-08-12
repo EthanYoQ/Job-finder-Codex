@@ -28,7 +28,7 @@ describe("production security gate", () => {
     const receipt = evaluateProductionSecurityGate({
       ...identity,
       findings: [highFinding],
-      reachability: [{ packageName: "runtime-parser", state: "REACHABLE", reason: "Imported by the server entrypoint", evidence: "src/server/httpServer.ts", owner: "security@example.com", expiresAt: "2026-09-01T00:00:00.000Z" }],
+      reachability: [{ scanner: "TRIVY", vulnerabilityId: "CVE-2026-1000", packageName: "runtime-parser", installedVersion: "1.0.0", state: "REACHABLE", reason: "Imported by the server entrypoint", evidence: "src/server/httpServer.ts", evidenceSha256: "1".repeat(64), owner: "security@example.com", expiresAt: "2026-09-01T00:00:00.000Z" }],
       exceptions: []
     });
 
@@ -41,7 +41,7 @@ describe("production security gate", () => {
     const receipt = evaluateProductionSecurityGate({
       ...identity,
       findings: [highFinding],
-      reachability: [{ packageName: "runtime-parser", state: "UNREACHABLE", reason: "Only imported by the build-time renderer", evidence: "vite.config.ts", owner: "security@example.com", expiresAt: "2026-09-01T00:00:00.000Z" }],
+      reachability: [{ scanner: "TRIVY", vulnerabilityId: "CVE-2026-1000", packageName: "runtime-parser", installedVersion: "1.0.0", state: "UNREACHABLE", reason: "Only imported by the build-time renderer", evidence: "vite.config.ts", evidenceSha256: "1".repeat(64), owner: "security@example.com", expiresAt: "2026-09-01T00:00:00.000Z" }],
       exceptions: []
     });
 
@@ -77,7 +77,7 @@ describe("production security gate", () => {
       installedVersion: "3.0.0", fixedVersion: "3.0.1", severity: "CRITICAL"
     })]);
     expect(parseNpmAuditProductionFindings({ vulnerabilities: { undici: {
-      severity: "high", via: [{ severity: "high", url: "https://github.com/advisories/GHSA-test" }]
+      severity: "high", nodes: ["node_modules/undici"], via: [{ severity: "high", url: "https://github.com/advisories/GHSA-test" }]
     } } }, { packages: { "node_modules/undici": { version: "7.28.0" } } })).toEqual([
       expect.objectContaining({ scanner: "NPM_AUDIT", vulnerabilityId: "GHSA-test",
         packageName: "undici", installedVersion: "7.28.0", severity: "HIGH" })
@@ -93,5 +93,27 @@ describe("production security gate", () => {
     });
     expect(receipt.findings[0]).toMatchObject({ runtimeReachability: "UNKNOWN", disposition: "BLOCKED" });
     expect(receipt.decision).toBe("BLOCKED");
+  });
+
+  it("rejects a report for another image and binds nested npm versions from audit nodes", () => {
+    expect(() => parseTrivyProductionFindings({ ArtifactID: `sha256:${"1".repeat(64)}`, Results: [] },
+      `sha256:${"2".repeat(64)}`)).toThrow(/identity/i);
+    const lockHash = "3".repeat(64);
+    expect(parseNpmAuditProductionFindings({ jobFinderPackageLockSha256: lockHash, vulnerabilities: { x: {
+      severity: "high", nodes: ["node_modules/parent/node_modules/x"],
+      via: [{ severity: "high", url: "https://github.com/advisories/GHSA-nested" }]
+    } } }, { packages: {
+      "node_modules/x": { version: "2.0.0" },
+      "node_modules/parent/node_modules/x": { version: "1.0.0" }
+    } }, lockHash)).toEqual([expect.objectContaining({ packageName: "x", installedVersion: "1.0.0" })]);
+  });
+
+  it("rejects malformed or unknown scanner severities instead of returning an empty pass", () => {
+    expect(() => parseTrivyProductionFindings({ Results: [{ Vulnerabilities: [{
+      VulnerabilityID: "CVE-x", PkgName: "x", InstalledVersion: "1", Severity: "NEW_LEVEL"
+    }] }] })).toThrow(/severity/i);
+    expect(() => parseNpmAuditProductionFindings({ vulnerabilities: { x: {
+      severity: "new-level", nodes: ["node_modules/x"], via: []
+    } } }, { packages: { "node_modules/x": { version: "1" } } })).toThrow(/invalid/i);
   });
 });

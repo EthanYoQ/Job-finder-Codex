@@ -83,5 +83,7 @@ describe("production container contract", () => {
     expect(workflow).toContain("npm run security:production-gate");
     expect(workflow).toContain("--image-digest \"$IMAGE_DIGEST\"");
     expect(workflow).toContain("production-security-receipt.json");
+    expect(workflow).toContain("scripts/bind-npm-audit-report.ts");
+    expect(workflow).toContain("actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02");
   });
 });

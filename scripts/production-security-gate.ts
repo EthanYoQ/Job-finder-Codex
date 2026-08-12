@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
-import { dirname, resolve } from "node:path";
+import { dirname, relative, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import {
   evaluateProductionSecurityGate,
@@ -38,18 +38,20 @@ export async function runProductionSecurityGate(
   const exceptions = parsePolicyArray<ProductionVulnerabilityException>(
     parseJson(exceptionsBytes, "vulnerability exceptions"), "exceptions", "exceptions"
   );
+  await validateAndBindReachabilityEvidence(reachability);
+  const packageLockSha256 = sha256(packageLockBytes);
   const receipt = evaluateProductionSecurityGate({
     imageRef: args.imageRef,
     imageDigest: args.imageDigest,
-    packageLockSha256: sha256(packageLockBytes),
+    packageLockSha256,
     scannerReports: { trivySha256: sha256(trivyBytes), npmAuditSha256: sha256(npmAuditBytes) },
     policyReports: {
       reachabilitySha256: sha256(reachabilityBytes), exceptionsSha256: sha256(exceptionsBytes)
     },
     evaluatedAt,
     findings: [
-      ...parseTrivyProductionFindings(trivy),
-      ...parseNpmAuditProductionFindings(npmAudit, packageLock)
+      ...parseTrivyProductionFindings(trivy, args.imageDigest),
+      ...parseNpmAuditProductionFindings(npmAudit, packageLock, packageLockSha256)
     ],
     reachability,
     exceptions
@@ -102,6 +104,23 @@ function parsePolicyArray<T>(value: unknown, field: string, label: string): T[] 
     throw new Error(`Production ${label} policy is invalid`);
   }
   return value[field] as T[];
+}
+
+async function validateAndBindReachabilityEvidence(
+  decisions: readonly ProductionReachabilityDecision[]
+): Promise<void> {
+  const root = resolve(process.cwd());
+  for (const decision of decisions) {
+    const evidencePath = resolve(root, decision.evidence);
+    const pathFromRoot = relative(root, evidencePath);
+    if (pathFromRoot.startsWith("..") || resolve(root, pathFromRoot) !== evidencePath) {
+      throw new Error(`Reachability evidence escapes the repository: ${decision.evidence}`);
+    }
+    const evidenceBytes = await readFile(evidencePath);
+    if (sha256(evidenceBytes) !== decision.evidenceSha256) {
+      throw new Error(`Reachability evidence hash mismatch: ${decision.evidence}`);
+    }
+  }
 }
 
 async function writeJsonAtomically(path: string, value: unknown): Promise<void> {

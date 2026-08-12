@@ -14,10 +14,14 @@ export interface ProductionVulnerabilityFinding {
 }
 
 export interface ProductionReachabilityDecision {
+  scanner: ProductionFindingScanner;
+  vulnerabilityId: string;
   packageName: string;
+  installedVersion: string;
   state: Exclude<RuntimeReachability, "UNKNOWN">;
   reason: string;
   evidence: string;
+  evidenceSha256: string;
   owner: string;
   expiresAt: string;
 }
@@ -53,6 +57,9 @@ export interface EvaluatedProductionFinding extends ProductionVulnerabilityFindi
   runtimeReachability: RuntimeReachability;
   reachabilityReason: string;
   reachabilityEvidence: string | null;
+  reachabilityEvidenceSha256: string | null;
+  reachabilityOwner: string | null;
+  reachabilityExpiresAt: string | null;
   disposition: ProductionFindingDisposition;
   exceptionOwner: string | null;
   exceptionExpiresAt: string | null;
@@ -79,10 +86,10 @@ export function evaluateProductionSecurityGate(
   validateIdentity(input);
   const evaluatedAt = input.evaluatedAt.toISOString();
   const policyErrors = validatePolicyRecords(input, input.evaluatedAt);
-  const reachabilityByPackage = new Map(input.reachability.map((entry) => [entry.packageName, entry]));
+  const reachabilityByFinding = new Map(input.reachability.map((entry) => [findingKey(entry), entry]));
   const findings = input.findings.map((finding): EvaluatedProductionFinding => {
     validateFinding(finding);
-    const reachability = reachabilityByPackage.get(finding.packageName);
+    const reachability = reachabilityByFinding.get(findingKey(finding));
     const matchingException = input.exceptions.find((entry) => exceptionMatches(entry, finding));
     const exceptionExpiry = matchingException === undefined ? null : new Date(matchingException.expiresAt);
     const exceptionExpired = exceptionExpiry !== null && exceptionExpiry.getTime() <= input.evaluatedAt.getTime();
@@ -105,6 +112,9 @@ export function evaluateProductionSecurityGate(
       reachabilityReason:
         reachability?.reason ?? "No production reachability evidence; policy defaults to reachable",
       reachabilityEvidence: reachability?.evidence ?? null,
+      reachabilityEvidenceSha256: reachability?.evidenceSha256 ?? null,
+      reachabilityOwner: reachability?.owner ?? null,
+      reachabilityExpiresAt: reachability?.expiresAt ?? null,
       disposition,
       exceptionOwner: matchingException?.owner ?? null,
       exceptionExpiresAt: matchingException?.expiresAt ?? null
@@ -132,14 +142,24 @@ export function evaluateProductionSecurityGate(
   };
 }
 
-export function parseTrivyProductionFindings(value: unknown): ProductionVulnerabilityFinding[] {
-  if (!isRecord(value) || !Array.isArray(value.Results)) throw new Error("Trivy report is invalid");
+export function parseTrivyProductionFindings(
+  value: unknown,
+  expectedImageDigest?: string
+): ProductionVulnerabilityFinding[] {
+  if (!isRecord(value) || !Array.isArray(value.Results) ||
+    (expectedImageDigest !== undefined && value.ArtifactID !== expectedImageDigest)) {
+    throw new Error("Trivy report identity or schema is invalid");
+  }
   const findings: ProductionVulnerabilityFinding[] = [];
   for (const result of value.Results) {
-    if (!isRecord(result) || result.Vulnerabilities === null || result.Vulnerabilities === undefined) continue;
+    if (!isRecord(result)) throw new Error("Trivy result is invalid");
+    if (result.Vulnerabilities === null || result.Vulnerabilities === undefined) continue;
     if (!Array.isArray(result.Vulnerabilities)) throw new Error("Trivy vulnerabilities are invalid");
     for (const vulnerability of result.Vulnerabilities) {
-      if (!isRecord(vulnerability) || !isHighSeverity(vulnerability.Severity)) continue;
+      if (!isRecord(vulnerability) || !isKnownSeverity(vulnerability.Severity)) {
+        throw new Error("Trivy vulnerability severity or schema is invalid");
+      }
+      if (!isHighSeverity(vulnerability.Severity)) continue;
       const vulnerabilityId = requiredString(vulnerability.VulnerabilityID, "Trivy vulnerability ID");
       const packageName = requiredString(vulnerability.PkgName, "Trivy package name");
       const installedVersion = requiredString(vulnerability.InstalledVersion, "Trivy installed version");
@@ -155,17 +175,34 @@ export function parseTrivyProductionFindings(value: unknown): ProductionVulnerab
 
 export function parseNpmAuditProductionFindings(
   value: unknown,
-  packageLock: unknown
+  packageLock: unknown,
+  expectedPackageLockSha256?: string
 ): ProductionVulnerabilityFinding[] {
   if (!isRecord(value) || !isRecord(value.vulnerabilities) || !isRecord(packageLock) ||
-    !isRecord(packageLock.packages)) throw new Error("npm audit report or package lock is invalid");
+    !isRecord(packageLock.packages) || (expectedPackageLockSha256 !== undefined &&
+      value.jobFinderPackageLockSha256 !== expectedPackageLockSha256)) {
+    throw new Error("npm audit report or package lock identity is invalid");
+  }
+  const lockPackages = packageLock.packages;
   const findings: ProductionVulnerabilityFinding[] = [];
   for (const [packageName, aggregate] of Object.entries(value.vulnerabilities)) {
-    if (!isRecord(aggregate)) throw new Error("npm audit vulnerability is invalid");
-    const lockEntry = packageLock.packages[`node_modules/${packageName}`];
-    if (!isRecord(lockEntry)) throw new Error(`npm audit package is absent from lock: ${packageName}`);
-    const installedVersion = requiredString(lockEntry.version, "npm installed version");
-    const advisories = Array.isArray(aggregate.via) ? aggregate.via.filter(isRecord) : [];
+    if (!isRecord(aggregate) || !Array.isArray(aggregate.via) || !Array.isArray(aggregate.nodes) ||
+      !isKnownSeverity(aggregate.severity)) {
+      throw new Error("npm audit vulnerability is invalid");
+    }
+    const nodeVersions = aggregate.nodes.map((node) => {
+      const nodePath = requiredString(node, "npm audit node");
+      const lockEntry = lockPackages[nodePath];
+      if (!isRecord(lockEntry)) throw new Error(`npm audit node is absent from lock: ${nodePath}`);
+      return requiredString(lockEntry.version, "npm installed version");
+    });
+    const advisories = aggregate.via.filter((entry) => {
+      if (typeof entry === "string") return false;
+      if (!isRecord(entry) || !isKnownSeverity(entry.severity)) {
+        throw new Error("npm audit advisory is invalid");
+      }
+      return true;
+    }) as Record<string, unknown>[];
     const highAdvisories = advisories.filter((advisory) => isHighSeverity(normalizeSeverity(advisory.severity)));
     if (highAdvisories.length === 0 && isHighSeverity(normalizeSeverity(aggregate.severity))) {
       highAdvisories.push({ severity: aggregate.severity, url: `NPM-AUDIT:${packageName}` });
@@ -174,12 +211,9 @@ export function parseNpmAuditProductionFindings(
       const severity = normalizeSeverity(advisory.severity);
       if (!isHighSeverity(severity)) continue;
       const reference = requiredString(advisory.url, "npm advisory reference");
-      findings.push({
-        scanner: "NPM_AUDIT",
-        vulnerabilityId: reference.split("/").at(-1) ?? reference,
-        packageName,
-        installedVersion,
-        severity
+      for (const installedVersion of new Set(nodeVersions)) findings.push({
+        scanner: "NPM_AUDIT", vulnerabilityId: reference.split("/").at(-1) ?? reference,
+        packageName, installedVersion, severity
       });
     }
   }
@@ -209,12 +243,14 @@ function validatePolicyRecords(input: ProductionSecurityGateInput, evaluatedAt: 
   const errors: string[] = [];
   const seenReachability = new Set<string>();
   for (const entry of input.reachability) {
-    if (seenReachability.has(entry.packageName)) errors.push(`Duplicate reachability decision for ${entry.packageName}`);
-    seenReachability.add(entry.packageName);
+    const key = findingKey(entry);
+    if (seenReachability.has(key)) errors.push(`Duplicate reachability decision for ${entry.packageName}`);
+    seenReachability.add(key);
     const expiry = new Date(entry.expiresAt);
-    if (entry.packageName.trim().length === 0 || entry.reason.trim().length === 0 ||
+    if (!isFindingIdentity(entry) || entry.reason.trim().length === 0 ||
       entry.evidence.trim().length === 0 || entry.owner.trim().length === 0 ||
-      !Number.isFinite(expiry.getTime()) || !["REACHABLE", "UNREACHABLE"].includes(entry.state)) {
+      !/^[0-9a-f]{64}$/u.test(entry.evidenceSha256) || !Number.isFinite(expiry.getTime()) ||
+      !["REACHABLE", "UNREACHABLE"].includes(entry.state)) {
       errors.push(`Invalid reachability decision for ${entry.packageName || "<empty>"}`);
     } else if (expiry.getTime() <= evaluatedAt.getTime()) {
       errors.push(`Expired reachability decision for ${entry.packageName}`);
@@ -264,4 +300,20 @@ function requiredString(value: unknown, label: string): string {
 
 function optionalString(value: unknown): string | undefined {
   return typeof value === "string" && value.trim().length > 0 ? value : undefined;
+}
+
+function isKnownSeverity(value: unknown): boolean {
+  return typeof value === "string" && ["UNKNOWN", "LOW", "MEDIUM", "MODERATE", "HIGH", "CRITICAL", "OTHER"]
+    .includes(value.toUpperCase());
+}
+
+function isFindingIdentity(value: Pick<ProductionVulnerabilityFinding,
+"scanner" | "vulnerabilityId" | "packageName" | "installedVersion">): boolean {
+  return ["TRIVY", "NPM_AUDIT"].includes(value.scanner) && value.vulnerabilityId.trim().length > 0 &&
+    value.packageName.trim().length > 0 && value.installedVersion.trim().length > 0;
+}
+
+function findingKey(value: Pick<ProductionVulnerabilityFinding,
+"scanner" | "vulnerabilityId" | "packageName" | "installedVersion">): string {
+  return [value.scanner, value.vulnerabilityId, value.packageName, value.installedVersion].join("\u0000");
 }
