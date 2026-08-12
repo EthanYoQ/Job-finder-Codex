@@ -34,6 +34,7 @@ jobs:
           SOURCE_TREE_SHA256="$(npx tsx -e "import { canonicalSourceTreeSha256 } from './src/readiness/buildIdentity.ts'; process.stdout.write(canonicalSourceTreeSha256(process.cwd()))")"
           echo "SOURCE_TREE_SHA256=$SOURCE_TREE_SHA256" >> "$GITHUB_ENV"
       - run: npm run image:context-check
+      - run: npm run image:runtime-contract-check
 
       - name: Build from a clean context
         run: >-

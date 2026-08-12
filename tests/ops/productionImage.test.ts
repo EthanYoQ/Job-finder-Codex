@@ -24,6 +24,10 @@ describe("production container contract", () => {
     expect(dockerfile).not.toContain("COPY . .");
     expect(packageJson.dependencies?.tsx).toBeDefined();
     expect(packageJson.devDependencies?.tsx).toBeUndefined();
+    for (const buildOnly of ["@tavily/core", "lucide-react", "react", "react-dom"]) {
+      expect(packageJson.dependencies?.[buildOnly]).toBeUndefined();
+      expect(packageJson.devDependencies?.[buildOnly]).toBeDefined();
+    }
   });
 
   it("uses an allowlisted context, non-root runtime, liveness probe, and size guard", () => {
@@ -32,6 +36,7 @@ describe("production container contract", () => {
     const packageJson = JSON.parse(read("package.json")) as {
       scripts?: Record<string, string>;
     };
+    const contextCheck = read("scripts/check-production-image-context.mjs");
 
     expect(dockerignore.trimStart()).toMatch(/^\*\*/u);
     for (const excluded of [".git", "node_modules", "tests", "outputs", ".scratch", "*.db"]) {
@@ -43,12 +48,18 @@ describe("production container contract", () => {
     expect(packageJson.scripts?.["image:context-check"]).toBe(
       "node scripts/check-production-image-context.mjs"
     );
+    expect(packageJson.scripts?.["image:runtime-contract-check"]).toBe(
+      "tsx scripts/check-production-runtime-contract.ts"
+    );
+    expect(contextCheck).toContain('".docker-build-provenance.bundle"');
+    expect(contextCheck).toContain("MAX_PROVENANCE_BUNDLE_BYTES");
   });
 
   it("provides a repeatable clean Linux build and startup smoke workflow", () => {
     const workflow = read(".github/workflows/production-image.yml");
 
     expect(workflow).toContain("npm run image:context-check");
+    expect(workflow).toContain("npm run image:runtime-contract-check");
     expect(workflow).toContain("npm run docker:export-provenance");
     expect(workflow).toMatch(/docker build[\s\S]*--no-cache/u);
     expect(workflow).toContain("BUILD_COMMIT_SHA=${{ github.sha }}");

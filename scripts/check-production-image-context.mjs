@@ -3,6 +3,7 @@ import { resolve } from "node:path";
 
 const DEFAULT_MAX_CONTEXT_BYTES = 25 * 1024 * 1024;
 const BUILD_INPUTS = [
+  ".docker-build-provenance.bundle",
   ".dockerignore",
   "Dockerfile",
   "index.html",
@@ -15,6 +16,7 @@ const BUILD_INPUTS = [
   "tsconfig.json",
   "vite.config.ts"
 ];
+const MAX_PROVENANCE_BUNDLE_BYTES = 20 * 1024 * 1024;
 
 const configuredLimit = Number(
   process.env.PRODUCTION_IMAGE_MAX_CONTEXT_BYTES ?? DEFAULT_MAX_CONTEXT_BYTES
@@ -28,7 +30,10 @@ let totalBytes = 0;
 let fileCount = 0;
 
 for (const input of BUILD_INPUTS) {
-  await measure(resolve(root, input));
+  const inputBytes = await measure(resolve(root, input));
+  if (input === ".docker-build-provenance.bundle" && inputBytes > MAX_PROVENANCE_BUNDLE_BYTES) {
+    throw new Error("Docker provenance bundle exceeds its 20 MiB guard");
+  }
 }
 
 const result = {
@@ -46,14 +51,17 @@ async function measure(path) {
     throw new Error(`Production image context must not contain symlinks: ${path}`);
   }
   if (stat.isDirectory()) {
+    let directoryBytes = 0;
     const entries = await readdir(path, { withFileTypes: true });
     for (const entry of entries) {
-      await measure(resolve(path, entry.name));
+      directoryBytes += await measure(resolve(path, entry.name));
     }
-    return;
+    return directoryBytes;
   }
   if (stat.isFile()) {
     totalBytes += stat.size;
     fileCount += 1;
+    return stat.size;
   }
+  return 0;
 }
