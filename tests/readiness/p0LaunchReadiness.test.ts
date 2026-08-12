@@ -24,7 +24,8 @@ describe("P0 launch readiness aggregator", () => {
       "npm run build",
       "npm run prisma:validate",
       "npm run p0:staged-readiness -- --mode phase1",
-      "npm run p0:staged-data-quality"
+      "npm run p0:staged-data-quality",
+      "npm run p0:authoritative-launch-receipt"
     ]);
     expect(gateCommands.join("\n")).not.toMatch(/public-beta|p0:readiness|p0:data-quality/);
   });

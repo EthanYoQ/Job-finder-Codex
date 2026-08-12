@@ -35,6 +35,7 @@
     "p0:staged-data-quality": "tsx scripts/p0-staged-data-quality.ts",
     "p0:staged-release-promotion": "tsx scripts/p0-staged-release-promotion.ts",
     "p0:launch-readiness": "tsx scripts/p0-launch-readiness.ts",
+    "p0:authoritative-launch-receipt": "tsx scripts/p0-authoritative-launch-receipt.ts",
     "browser:smoke": "node scripts/browser-runtime-smoke.mjs",
     "docker:export-provenance": "tsx scripts/export-docker-build-provenance.ts",
     "phase4:manifest": "tsx scripts/generate-phase4-release-manifest.ts",

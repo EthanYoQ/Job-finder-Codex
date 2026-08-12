@@ -83,6 +83,10 @@ export function getLaunchReadinessGates(): LaunchGate[] {
     {
       name: "Staged public data quality",
       command: ["npm", "run", "p0:staged-data-quality"]
+    },
+    {
+      name: "Authoritative launch receipt",
+      command: ["npm", "run", "p0:authoritative-launch-receipt"]
     }
   ];
 }

@@ -203,9 +203,9 @@ jobs:
           ARCHIVE="$(find .runtime/restore -maxdepth 1 -type f -name '*.dump' -print -quit)"
           test -n "$ARCHIVE"
           docker run --rm --network "$NETWORK" --env RESTORE_ADMIN_DATABASE_URL="$ADMIN_URL" \
-            --env RESTORE_RECEIPT_PATH=/backup/restore-receipt.json --volume "$PWD/.runtime/restore:/backup" \
+            --env RESTORE_RECEIPT_PATH=/backup/restore-pass-receipt.json --volume "$PWD/.runtime/restore:/backup" \
             "$IMAGE_TAG" npm run ops:qualify-restore -- "/backup/$(basename "$ARCHIVE")"
-          test "$(node -p "JSON.parse(require('fs').readFileSync('.runtime/restore/restore-receipt.json')).decision")" = PASSED
+          test "$(node -p "JSON.parse(require('fs').readFileSync('.runtime/restore/restore-pass-receipt.json')).decision")" = PASSED
           test "$(docker exec "$POSTGRES_NAME" psql -U jobfinder -d postgres -Atc \"SELECT count(*) FROM pg_database WHERE datname LIKE 'jobfinder\\_restore\\_%' ESCAPE '\\\\'\")" = 0
           cp "$ARCHIVE" .runtime/restore/corrupt.dump
           ARCHIVE_SIZE="$(stat --format=%s .runtime/restore/corrupt.dump)"
@@ -214,16 +214,38 @@ jobs:
           printf '%s  corrupt.dump\n' "$CORRUPT_SHA" > .runtime/restore/corrupt.dump.sha256
           node -e "const fs=require('fs'),p='.runtime/restore/corrupt.dump.metadata.json',v=JSON.parse(fs.readFileSync('$ARCHIVE.metadata.json'));v.archiveSha256=process.argv[1];fs.writeFileSync(p,JSON.stringify(v))" "$CORRUPT_SHA"
           if docker run --rm --network "$NETWORK" --env RESTORE_ADMIN_DATABASE_URL="$ADMIN_URL" \
-            --env RESTORE_RECEIPT_PATH=/backup/restore-receipt.json --volume "$PWD/.runtime/restore:/backup" \
+            --env RESTORE_RECEIPT_PATH=/backup/restore-failed-corrupt-receipt.json --volume "$PWD/.runtime/restore:/backup" \
             "$IMAGE_TAG" npm run ops:qualify-restore -- /backup/corrupt.dump; then exit 1; fi
-          test "$(node -p "JSON.parse(require('fs').readFileSync('.runtime/restore/restore-receipt.json')).decision")" = FAILED
+          test "$(node -p "JSON.parse(require('fs').readFileSync('.runtime/restore/restore-failed-corrupt-receipt.json')).decision")" = FAILED
           test "$(docker exec "$POSTGRES_NAME" psql -U jobfinder -d postgres -Atc \"SELECT count(*) FROM pg_database WHERE datname LIKE 'jobfinder\\_restore\\_%' ESCAPE '\\\\'\")" = 0
           cp "$ARCHIVE" .runtime/restore/incompatible.dump
           cp "$ARCHIVE.sha256" .runtime/restore/incompatible.dump.sha256
           sed -i "s/$(basename "$ARCHIVE")/incompatible.dump/" .runtime/restore/incompatible.dump.sha256
           node -e "const fs=require('fs'),p='.runtime/restore/incompatible.dump.metadata.json',v=JSON.parse(fs.readFileSync('$ARCHIVE.metadata.json'));v.database.serverVersionNum='150000';fs.writeFileSync(p,JSON.stringify(v))"
           if docker run --rm --network "$NETWORK" --env RESTORE_ADMIN_DATABASE_URL="$ADMIN_URL" \
-            --env RESTORE_RECEIPT_PATH=/backup/restore-receipt.json --volume "$PWD/.runtime/restore:/backup" \
+            --env RESTORE_RECEIPT_PATH=/backup/restore-failed-version-receipt.json --volume "$PWD/.runtime/restore:/backup" \
             "$IMAGE_TAG" npm run ops:qualify-restore -- /backup/incompatible.dump; then exit 1; fi
-          test "$(node -p "JSON.parse(require('fs').readFileSync('.runtime/restore/restore-receipt.json')).failureCode")" = VALIDATION_FAILED
+          test "$(node -p "JSON.parse(require('fs').readFileSync('.runtime/restore/restore-failed-version-receipt.json')).failureCode")" = VALIDATION_FAILED
           test "$(docker exec "$POSTGRES_NAME" psql -U jobfinder -d postgres -Atc \"SELECT count(*) FROM pg_database WHERE datname LIKE 'jobfinder\\_restore\\_%' ESCAPE '\\\\'\")" = 0
+
+      - name: Publish exact-image qualification receipt
+        run: |
+          IMAGE_DIGEST="$(docker image inspect --format '{{.Id}}' "$IMAGE_TAG")"
+          IDENTITY_CONTAINER="$(docker create "$IMAGE_TAG")"
+          trap 'docker rm "$IDENTITY_CONTAINER" >/dev/null 2>&1 || true' EXIT
+          docker cp "$IDENTITY_CONTAINER:/app/build-identity.json" .runtime/build-identity.json
+          npx tsx scripts/write-image-qualification-receipt.ts \
+            .runtime/image-qualification-receipt.json "$IMAGE_DIGEST" "${{ github.sha }}" \
+            .runtime/build-identity.json .runtime/security/production-security-receipt.json \
+            .runtime/restore/restore-pass-receipt.json
+
+      - name: Preserve production qualification receipts
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: production-qualification-${{ github.sha }}
+          path: |
+            .runtime/image-qualification-receipt.json
+            .runtime/restore/*receipt.json
+          if-no-files-found: error
+          retention-days: 14
