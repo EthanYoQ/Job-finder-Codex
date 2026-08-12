@@ -1,13 +1,16 @@
-const P0_CRAWL_WINDOW_DEFINITIONS = [
+const CHINA_UTC_OFFSET_HOURS = 8;
+const P0_CRAWL_WINDOW_DEFINITIONS = Object.freeze([
   { label: "00:01", minuteOfDay: 1 },
   { label: "12:01", minuteOfDay: 12 * 60 + 1 }
-] as const;
-export const P0_CRAWL_WINDOWS = P0_CRAWL_WINDOW_DEFINITIONS.map(({ label }) => label);
+] as const);
+export const P0_CRAWL_WINDOWS: readonly P0CrawlWindowLabel[] = Object.freeze(
+  P0_CRAWL_WINDOW_DEFINITIONS.map(({ label }) => label)
+);
 export type P0CrawlWindowLabel = (typeof P0_CRAWL_WINDOW_DEFINITIONS)[number]["label"];
 export interface P0CrawlWindow { label: P0CrawlWindowLabel; startsAt: string; }
 export interface SourceScheduleState { sourceId: string; lastSuccessfulCrawlAt?: string | Date; consecutiveFailureCount: number; }
 
-const CHINA_UTC_OFFSET_MS = 8 * 60 * 60 * 1000;
+const CHINA_UTC_OFFSET_MS = CHINA_UTC_OFFSET_HOURS * 60 * 60 * 1000;
 const EXPLICIT_TIMEZONE_PATTERN = /(Z|[+-]\d{2}:\d{2})$/i;
 
 export function nextP0CrawlWindow(now: Date): P0CrawlWindow {
@@ -56,7 +59,8 @@ function windowFor(
   dayOffset = 0
 ): P0CrawlWindow {
   const hour = Math.floor(definition.minuteOfDay / 60), minuteWithinHour = definition.minuteOfDay % 60;
-  const utc = Date.UTC(china.year, china.monthIndex, china.day + dayOffset, hour - 8, minuteWithinHour);
+  const utc = Date.UTC(china.year, china.monthIndex, china.day + dayOffset,
+    hour - CHINA_UTC_OFFSET_HOURS, minuteWithinHour);
   return { label: definition.label, startsAt: new Date(utc).toISOString() };
 }
 

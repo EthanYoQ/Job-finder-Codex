@@ -5,7 +5,7 @@ import { createPrismaCrawlRuntimeDeps } from "../src/db/crawlRuntimeRepository";
 import { createHotjobLegacySourceFetch } from "../src/crawler/hotjobLegacySourceFetch";
 import { createHotjobWecruitSourceFetch } from "../src/crawler/hotjobWecruitSourceFetch";
 import { createHttpHtmlSourceFetch } from "../src/crawler/httpHtmlSourceFetch";
-import { createManualSourceBatchExecutor } from "../src/crawler/manualSourceBatchExecutor";
+import { createCurrentAuthorityManualSourceBatchExecutor } from "../src/crawler/manualSourceBatchExecutor";
 import { manualCrawlWorkerExitCode, runManualCrawlWorker } from "../src/crawler/manualCrawlWorker";
 import { parseManualCrawlWorkerArgs } from "../src/crawler/manualCrawlWorkerCli";
 import { createMokaSourceFetch } from "../src/crawler/mokaSourceFetch";
@@ -43,9 +43,6 @@ for (const signal of ["SIGINT", "SIGTERM"] as const) {
 
 const prisma = new PrismaClient();
 try {
-  const authority = await resolveCurrentStagedScheduleAuthority(prisma);
-  const plans = authority.plans;
-  const baseIdentity = authority.identity;
   const fetch = createSourceFetchRouter({
     moka: createMokaSourceFetch(),
     html: createHttpHtmlSourceFetch(),
@@ -56,15 +53,23 @@ try {
     profileBoundSource: createProfileBoundSourceFetch(),
     fallback: createUnsupportedSourceFetch()
   });
-  const repository = createManualCrawlRequestRepository({ db: prisma });
-  const executeSource = createManualSourceBatchExecutor({
-    plans,
-    baseIdentity,
+  const resolveAuthority = () => resolveCurrentStagedScheduleAuthority(prisma);
+  const repository = createManualCrawlRequestRepository({
     db: prisma,
-    fetch,
-    runtimeDeps: createPrismaCrawlRuntimeDeps(prisma),
-    now: () => new Date(),
-    runP0CrawlBatch
+    resolveClaimableSourceIds: async () => (await resolveAuthority()).plans.map(({ source }) => source.id)
+  });
+  const executeSource = createCurrentAuthorityManualSourceBatchExecutor({
+    resolveAuthority: async () => {
+      const authority = await resolveAuthority();
+      return { plans: authority.plans, baseIdentity: authority.identity };
+    },
+    execution: {
+      db: prisma,
+      fetch,
+      runtimeDeps: createPrismaCrawlRuntimeDeps(prisma),
+      now: () => new Date(),
+      runP0CrawlBatch
+    }
   });
   const result = await runManualCrawlWorker({
     repository,

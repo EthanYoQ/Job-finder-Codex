@@ -220,7 +220,7 @@ describe("admin API", () => {
       })
     }));
     const response = await handleAdminApi(request("/admin/api/manual-crawl", {
-      method: "POST", body: { sourceId: "source-1", reason: "verify" }
+      method: "POST", body: { sourceId: "source-roche-china-social", reason: "verify" }
     }), { db, now: () => new Date("2026-07-08T12:00:00.000Z") });
     expect(response).toMatchObject({ status: 409, body: { error: "ALREADY_ACTIVE" } });
   });
@@ -229,7 +229,7 @@ describe("admin API", () => {
     const db = createDb() as ReturnType<typeof createDb> & { $transaction: Function };
     db.$transaction = async (callback: Function) => callback(manualCrawlTx({ sourceStatus: "UNVERIFIED" }));
     const response = await handleAdminApi(request("/admin/api/manual-crawl", {
-      method: "POST", body: { sourceId: "source-1", reason: "verify" }
+      method: "POST", body: { sourceId: "source-roche-china-social", reason: "verify" }
     }), { db, now: () => new Date("2026-07-08T12:00:00.000Z") });
     expect(response).toMatchObject({ status: 422, body: { error: "NOT_EXECUTABLE" } });
   });
@@ -260,7 +260,7 @@ describe("admin API", () => {
 function manualCrawlTx(options: { createError?: unknown; sourceStatus?: string } = {}) {
   return {
     recruitmentSource: { findUnique: vi.fn(async () => ({
-      id: "source-1", companyId: "company-roche-china", kind: "SOCIAL", atsKind: "MOKA",
+      id: "source-roche-china-social", companyId: "company-roche-china", kind: "SOCIAL", atsKind: "MOKA",
       status: options.sourceStatus ?? "VERIFIED_SCRAPABLE"
     })) },
     manualCrawlRequest: { create: vi.fn(async () => {

@@ -1,4 +1,5 @@
 export type ManualCrawlRequestStatus = "QUEUED" | "RUNNING" | "SUCCESS" | "FAILED";
+import type { ManualCrawlFailureCode } from "../db/manualCrawlRequestRepository";
 
 export interface RecentManualCrawlStatus {
   id: string;
@@ -6,7 +7,7 @@ export interface RecentManualCrawlStatus {
   status: ManualCrawlRequestStatus;
   attemptCount: number;
   crawlBatchId: string | null;
-  failureCode: string | null;
+  failureCode: ManualCrawlFailureCode | null;
   createdAt: string;
   startedAt: string | null;
   finishedAt: string | null;
@@ -14,13 +15,17 @@ export interface RecentManualCrawlStatus {
 
 export interface ManualCrawlStatusDb {
   manualCrawlRequest: {
-    findMany(args: unknown): Promise<Array<{
+    findMany(args: {
+      orderBy: { createdAt: "desc" };
+      select: Record<keyof RecentManualCrawlStatus, true>;
+      take: 50;
+    }): Promise<Array<{
       id: string;
       sourceId: string;
       status: ManualCrawlRequestStatus;
       attemptCount: number;
       crawlBatchId: string | null;
-      failureCode: string | null;
+      failureCode: ManualCrawlFailureCode | null;
       createdAt: Date;
       startedAt: Date | null;
       finishedAt: Date | null;
