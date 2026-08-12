@@ -287,7 +287,7 @@ function fakeDb(options: FakeOptions = {}): { db: ManualCrawlRequestDb; calls: R
     recruitmentSource: { async findUnique(args: unknown) {
       calls.sourceFind.push(args);
       return options.source === undefined
-        ? { id: "source-1", companyId: "company-roche", kind: "SOCIAL", atsKind: "MOKA", status: "VERIFIED_SCRAPABLE" }
+        ? { id: "source-roche-china-social", companyId: "company-roche-china", kind: "SOCIAL", atsKind: "MOKA", status: "VERIFIED_SCRAPABLE" }
         : options.source;
     } },
     crawlBatch: { async findUnique(args: unknown) {

@@ -11,7 +11,8 @@ export type ManualCrawlRequestRepositoryErrorCode =
   | "OWNERSHIP_LOST"
   | "INVALID_MANUAL_BATCH"
   | "INVALID_OWNER_OR_LEASE"
-  | "UNSAFE_FAILURE_CODE";
+  | "UNSAFE_FAILURE_CODE"
+  | "AUTHORITY_UNAVAILABLE";
 
 export class ManualCrawlRequestRepositoryError extends Error {
   constructor(public readonly code: ManualCrawlRequestRepositoryErrorCode) {
@@ -115,6 +116,7 @@ export function evaluateCanonicalManualCrawlEligibility(source: ManualCrawlSourc
 export function createManualCrawlRequestRepository(input: {
   db: ManualCrawlRequestDb;
   evaluateEligibility?: (source: ManualCrawlSource) => ManualCrawlEligibility;
+  resolveEnqueueableSourceIds?: () => Promise<readonly string[]>;
   resolveClaimableSourceIds?: () => Promise<readonly string[]>;
 }) {
   const evaluateEligibility = input.evaluateEligibility ?? evaluateCanonicalManualCrawlEligibility;
@@ -127,6 +129,18 @@ export function createManualCrawlRequestRepository(input: {
       ip: string;
       userAgent: string;
     }): Promise<ManualCrawlRequestRecord> {
+      let enqueueableSourceIds: readonly string[];
+      try {
+        enqueueableSourceIds = input.resolveEnqueueableSourceIds === undefined
+          ? P0_MANUAL_CRAWL_SOURCE_IDS
+          : await input.resolveEnqueueableSourceIds();
+      } catch {
+        throw new ManualCrawlRequestRepositoryError("AUTHORITY_UNAVAILABLE");
+      }
+      const enqueueableSourceIdSet = new Set(enqueueableSourceIds);
+      if (enqueueableSourceIds.length === 0 || enqueueableSourceIdSet.size !== enqueueableSourceIds.length) {
+        throw new ManualCrawlRequestRepositoryError("AUTHORITY_UNAVAILABLE");
+      }
       try {
         return await input.db.$transaction(async (transaction) => {
           const source = await transaction.recruitmentSource.findUnique({
@@ -136,6 +150,9 @@ export function createManualCrawlRequestRepository(input: {
           if (!source) throw new ManualCrawlRequestRepositoryError("SOURCE_NOT_FOUND");
           const eligibility = evaluateEligibility(source);
           if (!eligibility.eligible) throw new ManualCrawlRequestRepositoryError(eligibility.code);
+          if (!enqueueableSourceIdSet.has(source.id)) {
+            throw new ManualCrawlRequestRepositoryError("NOT_EXECUTABLE");
+          }
 
           const created = await transaction.manualCrawlRequest.create({
             data: {

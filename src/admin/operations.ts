@@ -12,6 +12,10 @@ import {
   type ManualCrawlRequestDb,
   type ManualCrawlRequestRepository
 } from "../db/manualCrawlRequestRepository";
+import {
+  resolveCurrentStagedScheduleAuthority,
+  type StagedScheduleAuthorityDb
+} from "../crawler/stagedScheduleAuthority";
 
 type FeedbackReviewStatus = "REVIEWED" | "CLOSED" | "SPAM";
 type RecommendationReviewStatus = FeedbackReviewStatus;
@@ -172,6 +176,7 @@ export type AdminOperationsDeps = {
   db: AdminOperationsDb;
   now?: () => Date;
   manualCrawlRequestRepository?: Pick<ManualCrawlRequestRepository, "enqueue">;
+  resolveManualCrawlAuthoritySourceIds?: () => Promise<readonly string[]>;
 };
 
 export async function queueManualCrawl(
@@ -180,7 +185,10 @@ export async function queueManualCrawl(
   deps: AdminOperationsDeps
 ): Promise<ManualCrawlRequestRecord> {
   const repository = deps.manualCrawlRequestRepository ?? createManualCrawlRequestRepository({
-    db: deps.db as unknown as ManualCrawlRequestDb
+    db: deps.db as unknown as ManualCrawlRequestDb,
+    resolveEnqueueableSourceIds: deps.resolveManualCrawlAuthoritySourceIds ?? (async () =>
+      (await resolveCurrentStagedScheduleAuthority(deps.db as unknown as StagedScheduleAuthorityDb))
+        .plans.map(({ source }) => source.id))
   });
   return repository.enqueue({
     sourceId: input.sourceId,

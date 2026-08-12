@@ -221,7 +221,8 @@ describe("admin API", () => {
     }));
     const response = await handleAdminApi(request("/admin/api/manual-crawl", {
       method: "POST", body: { sourceId: "source-roche-china-social", reason: "verify" }
-    }), { db, now: () => new Date("2026-07-08T12:00:00.000Z") });
+    }), { db, now: () => new Date("2026-07-08T12:00:00.000Z"),
+      resolveManualCrawlAuthoritySourceIds: async () => ["source-roche-china-social"] });
     expect(response).toMatchObject({ status: 409, body: { error: "ALREADY_ACTIVE" } });
   });
 
@@ -230,8 +231,25 @@ describe("admin API", () => {
     db.$transaction = async (callback: Function) => callback(manualCrawlTx({ sourceStatus: "UNVERIFIED" }));
     const response = await handleAdminApi(request("/admin/api/manual-crawl", {
       method: "POST", body: { sourceId: "source-roche-china-social", reason: "verify" }
-    }), { db, now: () => new Date("2026-07-08T12:00:00.000Z") });
+    }), { db, now: () => new Date("2026-07-08T12:00:00.000Z"),
+      resolveManualCrawlAuthoritySourceIds: async () => ["source-roche-china-social"] });
     expect(response).toMatchObject({ status: 422, body: { error: "NOT_EXECUTABLE" } });
+  });
+
+  it("returns 503 without enqueueing when no current release authority exists", async () => {
+    const tx = manualCrawlTx({});
+    const db = createDb() as ReturnType<typeof createDb> & { $transaction: Function };
+    db.$transaction = async (callback: Function) => callback(tx);
+    const response = await handleAdminApi(request("/admin/api/manual-crawl", {
+      method: "POST", body: { sourceId: "source-roche-china-social", reason: "verify" }
+    }), {
+      db,
+      now: () => new Date("2026-07-08T12:00:00.000Z"),
+      resolveManualCrawlAuthoritySourceIds: async () => { throw new Error("authority absent"); }
+    });
+
+    expect(response).toMatchObject({ status: 503, body: { error: "AUTHORITY_UNAVAILABLE" } });
+    expect(tx.manualCrawlRequest.create).not.toHaveBeenCalled();
   });
 
   it("processes a verified privacy export through the authenticated admin API", async () => {

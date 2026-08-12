@@ -96,6 +96,7 @@ type AdminApiDb = AdminAuthDb & ManualCrawlStatusDb &
 export interface AdminApiDeps {
   db: AdminApiDb;
   now?: () => Date;
+  resolveManualCrawlAuthoritySourceIds?: () => Promise<readonly string[]>;
 }
 
 const LoginSchema = z.object({
@@ -209,12 +210,17 @@ export async function handleAdminApi(request: AdminApiRequest, deps: AdminApiDep
       return {
         status: 202,
         headers,
-        body: await queueManualCrawl(parsed.data, operationContext, { db: deps.db })
+        body: await queueManualCrawl(parsed.data, operationContext, {
+          db: deps.db,
+          ...(deps.resolveManualCrawlAuthoritySourceIds === undefined ? {} : {
+            resolveManualCrawlAuthoritySourceIds: deps.resolveManualCrawlAuthoritySourceIds
+          })
+        })
       };
     } catch (error) {
       if (error instanceof ManualCrawlRequestRepositoryError) {
         return {
-          status: error.code === "ALREADY_ACTIVE" ? 409 : 422,
+          status: error.code === "ALREADY_ACTIVE" ? 409 : error.code === "AUTHORITY_UNAVAILABLE" ? 503 : 422,
           headers,
           body: { error: error.code }
         };
