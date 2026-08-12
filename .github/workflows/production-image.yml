@@ -208,7 +208,8 @@ jobs:
           test "$(node -p "JSON.parse(require('fs').readFileSync('.runtime/restore/restore-receipt.json')).decision")" = PASSED
           test "$(docker exec "$POSTGRES_NAME" psql -U jobfinder -d postgres -Atc \"SELECT count(*) FROM pg_database WHERE datname LIKE 'jobfinder\\_restore\\_%' ESCAPE '\\\\'\")" = 0
           cp "$ARCHIVE" .runtime/restore/corrupt.dump
-          printf 'corruption' >> .runtime/restore/corrupt.dump
+          ARCHIVE_SIZE="$(stat --format=%s .runtime/restore/corrupt.dump)"
+          truncate --size="$((ARCHIVE_SIZE / 2))" .runtime/restore/corrupt.dump
           CORRUPT_SHA="$(sha256sum .runtime/restore/corrupt.dump | cut -d' ' -f1)"
           printf '%s  corrupt.dump\n' "$CORRUPT_SHA" > .runtime/restore/corrupt.dump.sha256
           node -e "const fs=require('fs'),p='.runtime/restore/corrupt.dump.metadata.json',v=JSON.parse(fs.readFileSync('$ARCHIVE.metadata.json'));v.archiveSha256=process.argv[1];fs.writeFileSync(p,JSON.stringify(v))" "$CORRUPT_SHA"

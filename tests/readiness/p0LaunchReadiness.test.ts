@@ -17,6 +17,7 @@ describe("P0 launch readiness aggregator", () => {
       "npm test -- tests/server/httpServer.test.ts tests/server/publicApi.test.ts tests/server/rateLimit.test.ts tests/domain/route-policy.test.ts",
       "npm test -- tests/admin/AdminApp.test.tsx tests/server/adminApi.test.ts",
       "npm test -- tests/ops/backupRestore.test.ts tests/ops/deploymentConfig.test.ts",
+      "npm run ops:check-restore-receipt -- .runtime/restore/restore-receipt.json",
       "npm test -- tests/server/opsMonitoring.test.ts",
       "npm test",
       "npm run typecheck",
