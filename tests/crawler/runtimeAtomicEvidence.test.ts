@@ -378,6 +378,14 @@ describe("runtime atomic evidence planning", () => {
       blockerReason: "Official pages parsed; full traversal is not proven"
     });
     expect(incompleteCommit.commands.filter((command) => command.type === "UPSERT_JOB")).toHaveLength(1);
+    const anomalousIncompleteCommit = buildAtomicRuntimeCommit({ plan, pending, identity, batchId: "batch-1",
+      result: incompleteResult, previousJobs: [], baselineCompletedBeforeCrawl: true, artifacts: archived, oracle,
+      completenessAnomalyTriggerCodes: ["TRUSTED_COUNT_DROP"] });
+    expect(anomalousIncompleteCommit.commands.filter((command) => command.type === "UPSERT_JOB")).toEqual([]);
+    expect(anomalousIncompleteCommit.sourceResult).toMatchObject({
+      blockerCode: "COMPLETENESS_ANOMALY_UNVERIFIED",
+      blockerReason: expect.stringContaining("TRUSTED_COUNT_DROP")
+    });
     const partialJobUpsert = vi.fn(async () => undefined);
     const partialLifecycleMember = vi.fn(async () => undefined);
     const partialTx = {
@@ -396,6 +404,11 @@ describe("runtime atomic evidence planning", () => {
     })).resolves.toBeUndefined();
     expect(partialJobUpsert).toHaveBeenCalledTimes(1);
     expect(partialLifecycleMember).not.toHaveBeenCalled();
+    partialJobUpsert.mockClear();
+    await expect(executeAtomicSourceEvidenceCommit(anomalousIncompleteCommit, {
+      $transaction: async <T>(operation: (value: typeof partialTx) => Promise<T>) => operation(partialTx)
+    })).resolves.toBeUndefined();
+    expect(partialJobUpsert).not.toHaveBeenCalled();
     const incompleteWithoutReason = structuredClone(incompleteResult);
     delete incompleteWithoutReason.observation.completenessBlockerReason;
     const incompleteWithoutReasonCommit = buildAtomicRuntimeCommit({

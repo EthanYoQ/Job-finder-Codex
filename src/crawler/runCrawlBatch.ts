@@ -21,7 +21,8 @@ import {
   runSourceCrawl,
   SourceCrawlStageError,
   type SourceFetchAttemptTracker,
-  type SourceFetchFunction
+  type SourceFetchFunction,
+  type SourceCrawlResult
 } from "./runSourceCrawl";
 import {
   hashCanonicalJobKeySet,
@@ -58,10 +59,19 @@ import {
   sourceAttemptTimeoutMs
 } from "./officialHttpRuntimeLimits";
 import {
+  readReusableViatrisTraversalValidation,
   requiresBGradeTraversalCertificate,
   runViatrisBrowserTraversalValidator,
+  viatrisTraversalValidationMatchesCurrentJobs,
+  type BGradeValidationTrigger,
   type ViatrisBrowserTraversalValidation
 } from "./traversalCertificate";
+import { requiresAGradeOfficialTotalCertificate } from "./completenessCertificate";
+import {
+  evaluateCompletenessAnomaly,
+  selectCompletenessValidationTrigger,
+  type PersistedTrustedCompletenessBaseline
+} from "./completenessAnomalyPolicy";
 
 export interface P0CrawlBatchResult {
   status: Exclude<CrawlBatchStatus, "RUNNING">;
@@ -238,6 +248,9 @@ export interface RunP0CrawlBatchDeps {
   getPreviousJobs(sourceId: string): Promise<readonly JobSnapshot[]>;
   getRecentObservations(sourceId: string): Promise<readonly PersistedCrawlObservationRow[]>;
   isBaselineCompleted(sourceId: string): Promise<boolean>;
+  getTrustedCompletenessBaseline?(
+    sourceId: string
+  ): Promise<PersistedTrustedCompletenessBaseline | null>;
   runIndependentTraversalValidator?: typeof runViatrisBrowserTraversalValidator;
 }
 
@@ -320,7 +333,15 @@ export async function runP0CrawlBatch(
 
       dueSourceCount += 1;
 
-      const baselineCompletedBeforeCrawl = await deps.isBaselineCompleted(plan.source.id);
+      const trustedCompletenessBaseline = deps.getTrustedCompletenessBaseline
+        ? await deps.getTrustedCompletenessBaseline(plan.source.id)
+        : null;
+      const certificateBaselineRequired = requiresAGradeOfficialTotalCertificate(plan) ||
+        requiresBGradeTraversalCertificate(plan);
+      const baselineCompletedBeforeCrawl = certificateBaselineRequired &&
+          deps.getTrustedCompletenessBaseline
+        ? trustedCompletenessBaseline !== null
+        : await deps.isBaselineCompleted(plan.source.id);
       const previousJobs = await deps.getPreviousJobs(plan.source.id);
       const pending = plannedBatch.sources.find((source) => source.sourceId === plan.source.id)!;
       const attemptTracker = createSourceFetchAttemptTracker();
@@ -377,6 +398,62 @@ export async function runP0CrawlBatch(
         continue;
       }
 
+      let independentTraversalValidation: ViatrisBrowserTraversalValidation | undefined;
+      let independentTraversalValidationExecution: "CURRENT_RUN" | "REUSED" | undefined;
+      let independentTraversalValidationTrigger: BGradeValidationTrigger | undefined;
+      const anomaly = certificateBaselineRequired
+        ? evaluateCompletenessAnomalyForCrawl(plan, crawlResult, trustedCompletenessBaseline)
+        : { independentValidationRequired: false, triggerCodes: [], countChange: null };
+      const completenessAnomalyTriggerCodes: readonly string[] = anomaly.triggerCodes;
+      if (requiresBGradeTraversalCertificate(plan)) {
+        independentTraversalValidationTrigger = selectCompletenessValidationTrigger({
+          baseline: trustedCompletenessBaseline,
+          currentSourceConfigSha256: pending.sourceConfigHash,
+          anomaly
+        });
+        const mainPathCanBeCertified = crawlResult.truth.transportSuccess && crawlResult.truth.adapterSuccess;
+        if (mainPathCanBeCertified || anomaly.independentValidationRequired) {
+          if (independentTraversalValidationTrigger === "STABLE_RUN" &&
+              trustedCompletenessBaseline?.certificateGrade === "B") {
+            try {
+              independentTraversalValidation = readReusableViatrisTraversalValidation({
+                certificate: trustedCompletenessBaseline.certificate,
+                certificateSha256: trustedCompletenessBaseline.certificateSha256,
+                sourceConfigSha256: pending.sourceConfigHash,
+                now: crawlResult.observation.crawledAt
+              });
+              if (viatrisTraversalValidationMatchesCurrentJobs(
+                independentTraversalValidation,
+                crawlResult.jobs
+              )) {
+                independentTraversalValidationExecution = "REUSED";
+              } else {
+                independentTraversalValidation = undefined;
+              }
+            } catch {
+              // Expired or malformed reusable evidence is refreshed through the independent path.
+            }
+          }
+          if (!independentTraversalValidation) {
+            try {
+              independentTraversalValidation = await (
+                deps.runIndependentTraversalValidator ?? runViatrisBrowserTraversalValidator
+              )({
+                entryUrl: plan.source.officialEntryUrl,
+                sourceConfigSha256: pending.sourceConfigHash,
+                surfaceIds: pending.officialSurfaceIds,
+                channelIds: pending.officialChannelIds
+              });
+              independentTraversalValidationExecution = "CURRENT_RUN";
+            } catch {
+              // Missing independent evidence is a C-grade completeness outcome, not an atomic transport failure.
+              independentTraversalValidation = undefined;
+              independentTraversalValidationExecution = undefined;
+            }
+          }
+        }
+      }
+
       if (crawlResult.truth.transportSuccess) {
         transportSuccessfulSourceCount += 1;
         if (crawlResult.truth.adapterSuccess) adapterSuccessfulSourceCount += 1;
@@ -420,22 +497,6 @@ export async function runP0CrawlBatch(
       }
 
       let committedCompletenessVerified = false;
-      let independentTraversalValidation: ViatrisBrowserTraversalValidation | undefined;
-      if (requiresBGradeTraversalCertificate(plan)) {
-        try {
-          independentTraversalValidation = await (
-            deps.runIndependentTraversalValidator ?? runViatrisBrowserTraversalValidator
-          )({
-            entryUrl: plan.source.officialEntryUrl,
-            sourceConfigSha256: pending.sourceConfigHash,
-            surfaceIds: pending.officialSurfaceIds,
-            channelIds: pending.officialChannelIds
-          });
-        } catch {
-          // Missing independent evidence is a C-grade completeness outcome, not an atomic transport failure.
-          independentTraversalValidation = undefined;
-        }
-      }
       let retainedArtifacts: readonly ArchivedEvidenceArtifact[] = [];
       let commit: AtomicSourceEvidenceCommit | undefined;
       let atomicFailureCode:
@@ -477,14 +538,16 @@ export async function runP0CrawlBatch(
           attemptTracker,
           ...(independentTraversalValidation ? {
             independentTraversalValidation,
-            independentTraversalValidationExecution: "CURRENT_RUN" as const,
-            independentTraversalValidationTrigger: baselineCompletedBeforeCrawl
-              ? "STABLE_RUN" as const
-              : "INITIAL_QUALIFICATION" as const,
+            independentTraversalValidationExecution: independentTraversalValidationExecution!,
+            independentTraversalValidationTrigger: independentTraversalValidationTrigger!,
             completedAt: new Date(Math.max(
               crawlResult.observation.crawledAt.getTime(),
               Date.parse(independentTraversalValidation.observedAt)
             ))
+          } : {}),
+          trustedCompletenessBaseline,
+          ...(completenessAnomalyTriggerCodes.length > 0 ? {
+            completenessAnomalyTriggerCodes
           } : {}),
           ...(trustedOracle ? { trustedOracle } : {}) });
         atomicFailureCode = "ATOMIC_EVIDENCE_COMMIT_FAILED";
@@ -808,4 +871,37 @@ function classifyAtomicCommitFailureCode(error: unknown):
 
 function resolveNow(now: RunP0CrawlBatchDeps["now"]): Date {
   return now instanceof Date ? now : now();
+}
+
+function evaluateCompletenessAnomalyForCrawl(
+  plan: SourceCrawlPlan,
+  result: SourceCrawlResult,
+  baseline: PersistedTrustedCompletenessBaseline | null
+) {
+  const pages = result.fetchEvidence?.pages ?? [];
+  const finalPage = pages.length > 0 ? pages[pages.length - 1]! : undefined;
+  const terminalSignalProven = finalPage !== undefined &&
+    finalPage.nextPageSignalAfter === null &&
+    ["NEXT_ABSENT", "EMPTY_PAGE", "DECLARED_TOTAL_REACHED"].includes(finalPage.termination);
+  const pagination = plan.adapterId === "html-table" ? plan.table.pagination : undefined;
+  const suspiciousAdapterCapacity = pagination?.pageSize !== undefined &&
+      pages.length === pagination.maxPages
+    ? pagination.pageSize * pagination.maxPages
+    : undefined;
+  return evaluateCompletenessAnomaly({
+    baseline,
+    currentJobCount: result.jobs.length,
+    ...(result.paginationEvaluation ? {
+      paginationAnomalyCodes: result.paginationEvaluation.derivedAnomalyCodes
+    } : {}),
+    ...(finalPage ? {
+      finalPage: {
+        returnedPageSize: finalPage.returnedPageSize ?? null,
+        requestedPageSize: finalPage.requestedPageSize ?? null,
+        terminalSignalProven,
+        nextSignalPresent: finalPage.nextPageSignalAfter !== null
+      }
+    } : {}),
+    ...(suspiciousAdapterCapacity === undefined ? {} : { suspiciousAdapterCapacity })
+  });
 }

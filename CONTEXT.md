@@ -31,3 +31,7 @@ _Avoid_: Soft launch, partial release
 **Routine Publication**:
 Post-launch publication evaluated independently per company. A current failure affects that company and does not reapply a global minimum to otherwise eligible companies.
 _Avoid_: Requalification launch
+
+**Trusted Completeness Baseline**:
+The latest atomically committed A-grade official-total or B-grade independent-traversal certificate for one source. Only a newly committed A/B certificate may advance its certified job count; an unverified anomaly preserves both this baseline and the last trusted public job projection.
+_Avoid_: Repeated count, last attempted count, manually estimated count

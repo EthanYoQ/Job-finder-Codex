@@ -30,6 +30,11 @@ import {
   type BGradeValidationTrigger,
   type ViatrisBrowserTraversalValidation
 } from "./traversalCertificate";
+import {
+  canonicalCompletenessAnomalyTriggerCodes,
+  transitionTrustedCompletenessBaseline,
+  type TrustedCompletenessBaseline
+} from "./completenessAnomalyPolicy";
 
 const sha256 = (value: string): string =>
   createHash("sha256").update(value, "utf8").digest("hex");
@@ -205,6 +210,8 @@ export function buildAtomicRuntimeCommit(input: {
   independentTraversalValidationExecution?: "CURRENT_RUN" | "REUSED";
   independentTraversalValidationTrigger?: BGradeValidationTrigger;
   completedAt?: Date;
+  trustedCompletenessBaseline?: TrustedCompletenessBaseline | null;
+  completenessAnomalyTriggerCodes?: readonly string[];
 }): AtomicSourceEvidenceCommit {
   const { plan, pending, identity, batchId, result } = input;
   if (!result.truth.transportSuccess || !result.truth.adapterSuccess || !result.fetchEvidence) {
@@ -310,14 +317,36 @@ export function buildAtomicRuntimeCommit(input: {
     ? canonicalStringSetSha256(oracleAudited.officialSurfaceIds) === canonicalStringSetSha256(visitedSurfaces) &&
       canonicalStringSetSha256(oracleAudited.officialChannelIds) === canonicalStringSetSha256(visitedChannels)
     : stagedBindingMatchesPending;
-  const completenessVerified = sourceCompletenessVerified && sourceBindingVerified;
+  const completenessAnomalyTriggerCodes = input.completenessAnomalyTriggerCodes
+    ? canonicalCompletenessAnomalyTriggerCodes(input.completenessAnomalyTriggerCodes)
+    : [];
+  const anomalyValidationSatisfied = completenessAnomalyTriggerCodes.length === 0 || certificateCertified;
+  const completenessVerified = sourceCompletenessVerified && sourceBindingVerified && anomalyValidationSatisfied;
+  const baselineTransition = completenessVerified && certificateDecision?.status === "CERTIFIED"
+    ? transitionTrustedCompletenessBaseline({
+        previous: input.trustedCompletenessBaseline ?? null,
+        verified: {
+          sourceId: plan.source.id,
+          sourceResultId: pending.id,
+          sourceConfigSha256: pending.sourceConfigHash,
+          certificateGrade: certificateDecision.certificate.grade,
+          certificateSha256: certificateDecision.certificateSha256,
+          certifiedJobCount: ledger.dedupeOutputCount,
+          verifiedAt: finishedAt.toISOString()
+        }
+      })
+    : undefined;
   const incompleteBlocker = completenessVerified ? undefined : {
-    blockerCode: certificateRequired && !certificateCertified
+    blockerCode: completenessAnomalyTriggerCodes.length > 0
+      ? "COMPLETENESS_ANOMALY_UNVERIFIED"
+      : certificateRequired && !certificateCertified
       ? aGradeCertificateRequired ? "A_GRADE_CERTIFICATE_NOT_ISSUED" : "B_GRADE_CERTIFICATE_NOT_ISSUED"
       : oracleAudited || stagedBindingMatchesPending
       ? "COMPLETENESS_NOT_VERIFIED"
       : "SOURCE_SURFACE_ORACLE_MISSING",
-    blockerReason: certificateRequired && !certificateCertified
+    blockerReason: completenessAnomalyTriggerCodes.length > 0
+      ? `Completeness anomaly requires successful independent validation: ${completenessAnomalyTriggerCodes.join(",")}`
+      : certificateRequired && !certificateCertified
       ? `${aGradeCertificateRequired ? "A-grade official-total" : "B-grade independent-traversal"} certificate was not issued: ${certificateDecision?.status === "REJECTED"
           ? certificateDecision.blockerCodes.join(",")
           : aGradeCertificateRequired ? "PAGINATION_NOT_VERIFIED" : "INDEPENDENT_VALIDATION_MISSING"}`
@@ -341,7 +370,9 @@ export function buildAtomicRuntimeCommit(input: {
   ) : [];
   const lifecycle = completenessVerified
     ? reducedLifecycle
-    : reducedLifecycle.filter(({ dedupeKey }) => currentKeySet.has(dedupeKey));
+    : completenessAnomalyTriggerCodes.length > 0
+      ? []
+      : reducedLifecycle.filter(({ dedupeKey }) => currentKeySet.has(dedupeKey));
   const graceKeys = lifecycle.filter((x) => !currentKeySet.has(x.dedupeKey) && x.lifecycleStatus === "ACTIVE" &&
     x.missingSuccessfulCrawlCount === 1).map((x) => x.dedupeKey);
   const visibleKeys = lifecycle.filter((x) => x.lifecycleStatus === "ACTIVE").map((x) => x.dedupeKey);
@@ -406,6 +437,11 @@ export function buildAtomicRuntimeCommit(input: {
       adapterReconciliationSha256: ledger.ledgerSha256, collisionLedgerSha256: sha256(canonicalJson(ledger.collisionGroups)),
       completenessCertificate: certificateCertified ? certificateDecision.certificate : null,
       completenessCertificateSha256: certificateCertified ? certificateDecision.certificateSha256 : null,
+      ...(baselineTransition ? {
+        baselinePreviousSourceResultId: baselineTransition.previousSourceResultId,
+        baselinePreviousJobCount: baselineTransition.previousJobCount,
+        baselineChangeReason: baselineTransition.changeReason
+      } : {}),
       failureCategory: null, failureDiagnosticCode: null,
       fetchAttemptCount: attemptTracker.fetchAttemptCount, retryCount: attemptTracker.retryCount,
       ...(incompleteBlocker ?? {}) },

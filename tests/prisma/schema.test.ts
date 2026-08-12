@@ -12,6 +12,7 @@ const lifecycleSecurityMigration=readFileSync(resolve(process.cwd(),"prisma","mi
 const qualificationThresholdMigration=readFileSync(resolve(process.cwd(),"prisma","migrations","20260716190000_release_candidate_qualification_threshold","migration.sql"),"utf8");
 const releasePromotionMigration=readFileSync(resolve(process.cwd(),"prisma","migrations","20260716210000_release_candidate_promotion_gate","migration.sql"),"utf8");
 const sourceFailureDiagnosticsMigration=readFileSync(resolve(process.cwd(),"prisma","migrations","20260717090000_source_failure_diagnostics","migration.sql"),"utf8");
+const trustedBaselineMigration=readFileSync(resolve(process.cwd(),"prisma","migrations","20260813002000_trusted_completeness_baseline","migration.sql"),"utf8");
 const baselineMigration = readFileSync(
   resolve(process.cwd(), "prisma", "migrations", "20260710000000_baseline", "migration.sql"),
   "utf8"
@@ -124,6 +125,7 @@ describe("prisma schema", () => {
       ,"20260716210000_release_candidate_promotion_gate"
       ,"20260717090000_source_failure_diagnostics"
       ,"20260812231000_a_grade_completeness_certificate"
+      ,"20260813002000_trusted_completeness_baseline"
     ]);
     const statements = crawlStatusValuesMigration
       .split("\n")
@@ -430,6 +432,28 @@ describe("prisma schema", () => {
     expect(sourceFailureDiagnosticsMigration).toContain('CrawlBatchSourceResult_failure_diagnostic_bundle_check');
     expect(sourceFailureDiagnosticsMigration).toContain('"failureCategory" IS NULL AND\n      "failureDiagnosticCode" IS NULL AND\n      "fetchAttemptCount" IS NOT NULL');
     expect(sourceFailureDiagnosticsMigration).not.toContain('UPDATE "CrawlBatchSourceResult"');
+  });
+
+  it("stores certificate-bound trusted baseline transitions without rewriting historical rows", () => {
+    const sourceResult = block("model", "CrawlBatchSourceResult");
+    expect(sourceResult).toMatch(/^\s*baselinePreviousSourceResultId\s+String\?$/mu);
+    expect(sourceResult).toMatch(/^\s*baselinePreviousJobCount\s+Int\?$/mu);
+    expect(sourceResult).toMatch(/^\s*baselineChangeReason\s+String\?$/mu);
+    expect(trustedBaselineMigration).toContain('ADD COLUMN "baselinePreviousSourceResultId" TEXT');
+    expect(trustedBaselineMigration).toContain('ADD COLUMN "baselinePreviousJobCount" INTEGER');
+    expect(trustedBaselineMigration).toContain('ADD COLUMN "baselineChangeReason" TEXT');
+    expect(trustedBaselineMigration).toContain('"CrawlBatchSourceResult_baseline_transition_shape_check"');
+    expect(trustedBaselineMigration).toContain('"completenessState" = \'VERIFIED\'');
+    expect(trustedBaselineMigration).toContain('"completenessCertificate" IS NOT NULL');
+    expect(trustedBaselineMigration).toContain('INDEPENDENT_VALIDATION_CONFIRMED_DECREASE');
+    expect(trustedBaselineMigration).toContain('"baselinePreviousJobCount" >= 0');
+    expect(trustedBaselineMigration).toContain('"dedupeOutputCount" > "baselinePreviousJobCount"');
+    expect(trustedBaselineMigration).toContain('"dedupeOutputCount" < "baselinePreviousJobCount"');
+    expect(trustedBaselineMigration).toContain('"dedupeOutputCount" = "baselinePreviousJobCount"');
+    expect(trustedBaselineMigration).toContain('"completenessCertificate"->>\'grade\' = \'A\'');
+    expect(trustedBaselineMigration).toContain('"completenessCertificate"->>\'grade\' = \'B\'');
+    expect(trustedBaselineMigration).toContain('"baselinePreviousSourceResultId" <> "id"');
+    expect(trustedBaselineMigration).not.toMatch(/UPDATE\s+"CrawlBatchSourceResult"/iu);
   });
 
   it("stores direct nullable observation provenance and exact reconciliation counters", () => {

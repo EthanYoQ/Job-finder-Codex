@@ -26,6 +26,10 @@ import {
   requiresBGradeCertificateSourceId,
   verifyBGradeTraversalCertificateReceipt
 } from "../crawler/traversalCertificate";
+import {
+  assertTrustedBaselineTransition,
+  type TrustedBaselineChangeReason
+} from "../crawler/completenessAnomalyPolicy";
 
 interface CrawlObservationCreateArgs {
   data: {
@@ -191,6 +195,9 @@ export interface AtomicSourceResultInput {
   collisionLedgerSha256: string;
   completenessCertificate: unknown | null;
   completenessCertificateSha256: string | null;
+  baselinePreviousSourceResultId?: string | null;
+  baselinePreviousJobCount?: number | null;
+  baselineChangeReason?: TrustedBaselineChangeReason | null;
   blockerCode?: string | null;
   blockerReason?: string | null;
   failureCategory?: SourceFailureCategory | null;
@@ -1034,6 +1041,24 @@ function validateCommittedSourceResultTruthTable(result: AtomicSourceResultInput
     }
     verifyPersistedCompletenessCertificate(result);
   }
+  const baselineTransitionSupplied = result.baselineChangeReason !== undefined &&
+    result.baselineChangeReason !== null;
+  if (baselineTransitionSupplied) {
+    if (result.completenessState !== "VERIFIED" || result.completenessCertificate === null) {
+      throw new Error("Trusted baseline transition requires VERIFIED certificate truth");
+    }
+    assertTrustedBaselineTransition({
+      previousSourceResultId: result.baselinePreviousSourceResultId,
+      previousJobCount: result.baselinePreviousJobCount,
+      currentSourceResultId: result.id,
+      currentJobCount: result.dedupeOutputCount,
+      certificateGrade: (result.completenessCertificate as { grade: "A" | "B" }).grade,
+      changeReason: result.baselineChangeReason
+    });
+  } else if (result.baselinePreviousSourceResultId !== null && result.baselinePreviousSourceResultId !== undefined ||
+      result.baselinePreviousJobCount !== null && result.baselinePreviousJobCount !== undefined) {
+    throw new Error("Trusted baseline previous values require a change reason");
+  }
 }
 
 function verifyPersistedCompletenessCertificate(
@@ -1110,6 +1135,7 @@ const ATOMIC_SOURCE_RESULT_FIELDS = [
   "canonicalOutputSetSha256", "adapterInputCount", "adapterOutputCount", "adapterLossCount",
   "adapterCollisionGroupCount", "adapterReconciliationSha256", "collisionLedgerSha256", "blockerCode",
   "completenessCertificate", "completenessCertificateSha256",
+  "baselinePreviousSourceResultId", "baselinePreviousJobCount", "baselineChangeReason",
   "blockerReason", "failureCategory", "failureDiagnosticCode", "fetchAttemptCount", "retryCount",
   "failureCode", "failureReason"
 ] as const satisfies readonly (keyof AtomicSourceResultInput)[];
@@ -1123,10 +1149,19 @@ function isExactPersistedSourceResult(
   persisted: Record<string, unknown>,
   expected: AtomicSourceResultInput
 ): boolean {
-  return ATOMIC_SOURCE_RESULT_FIELDS.every((field) =>
-    Object.prototype.hasOwnProperty.call(persisted, field) &&
-    persistedSourceValueEquals(persisted[field], expected[field] ?? null));
+  return ATOMIC_SOURCE_RESULT_FIELDS.every((field) => {
+    const persistedHasField = Object.prototype.hasOwnProperty.call(persisted, field);
+    const expectedHasField = Object.prototype.hasOwnProperty.call(expected, field);
+    if (!persistedHasField && !expectedHasField && OPTIONAL_BASELINE_SOURCE_RESULT_FIELDS.has(field)) {
+      return true;
+    }
+    return persistedHasField && persistedSourceValueEquals(persisted[field], expected[field] ?? null);
+  });
 }
+
+const OPTIONAL_BASELINE_SOURCE_RESULT_FIELDS = new Set<keyof AtomicSourceResultInput>([
+  "baselinePreviousSourceResultId", "baselinePreviousJobCount", "baselineChangeReason"
+]);
 
 function isExpectedPendingSourceResult(
   persisted: Record<string, unknown>,
@@ -1273,19 +1308,27 @@ function validateAtomicSourceEvidenceCommit(input: AtomicSourceEvidenceCommit, m
     }
   } else if (!manualPreview) {
     const emptySetHash = hashCanonicalStringSet([]);
-    for (const command of jobCommands) {
-      if (command.missingSuccessfulCrawlCount !== 0 || command.lifecycleStatus !== "ACTIVE" ||
-          command.visibleInFrontend !== true) {
-        throw new Error("Partial source result may only refresh currently observed active jobs");
+    if (result.blockerCode === "COMPLETENESS_ANOMALY_UNVERIFIED") {
+      if (jobCommands.length !== 0 || result.canonicalGraceJobSetSha256 !== emptySetHash ||
+          result.canonicalVisibleJobSetSha256 !== emptySetHash ||
+          result.canonicalOutputSetSha256 !== result.canonicalCurrentJobSetSha256) {
+        throw new Error("Unverified completeness anomaly must preserve the prior public Job projection");
       }
-    }
-    const currentKeys = jobCommands.map((command) => command.dedupeKey);
-    if (currentKeys.length !== result.dedupeOutputCount ||
-        hashCanonicalStringSet(currentKeys) !== result.canonicalCurrentJobSetSha256 ||
-        result.canonicalOutputSetSha256 !== result.canonicalCurrentJobSetSha256 ||
-        result.canonicalGraceJobSetSha256 !== emptySetHash ||
-        result.canonicalVisibleJobSetSha256 !== result.canonicalCurrentJobSetSha256) {
-      throw new Error("Partial current job set does not match committed hashes");
+    } else {
+      for (const command of jobCommands) {
+        if (command.missingSuccessfulCrawlCount !== 0 || command.lifecycleStatus !== "ACTIVE" ||
+            command.visibleInFrontend !== true) {
+          throw new Error("Partial source result may only refresh currently observed active jobs");
+        }
+      }
+      const currentKeys = jobCommands.map((command) => command.dedupeKey);
+      if (currentKeys.length !== result.dedupeOutputCount ||
+          hashCanonicalStringSet(currentKeys) !== result.canonicalCurrentJobSetSha256 ||
+          result.canonicalOutputSetSha256 !== result.canonicalCurrentJobSetSha256 ||
+          result.canonicalGraceJobSetSha256 !== emptySetHash ||
+          result.canonicalVisibleJobSetSha256 !== result.canonicalCurrentJobSetSha256) {
+        throw new Error("Partial current job set does not match committed hashes");
+      }
     }
   }
   if (observation.observation.structuredJobCount !== result.dedupeOutputCount) {

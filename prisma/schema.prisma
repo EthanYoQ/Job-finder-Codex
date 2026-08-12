@@ -464,6 +464,9 @@ model CrawlBatchSourceResult {
   collisionLedgerSha256        String?
   completenessCertificate      Json?
   completenessCertificateSha256 String?
+  baselinePreviousSourceResultId String?
+  baselinePreviousJobCount       Int?
+  baselineChangeReason           String?
 
   @@unique([batchId, sourceId])
   @@unique([id, releaseCandidateId, batchId, sourceId])

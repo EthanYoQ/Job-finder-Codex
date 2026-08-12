@@ -71,6 +71,46 @@ const browserValidationSchema = z.object({
 
 export type ViatrisBrowserTraversalValidation = z.infer<typeof browserValidationSchema>;
 
+export function readReusableViatrisTraversalValidation(input: {
+  certificate: unknown;
+  certificateSha256: string;
+  sourceConfigSha256: string;
+  now: Date;
+}): ViatrisBrowserTraversalValidation {
+  if (!(input.now instanceof Date) || !Number.isFinite(input.now.getTime())) {
+    throw new Error("B-grade validation reuse requires a valid current time");
+  }
+  const certificate = certificateSchema.parse(input.certificate);
+  if (!SHA256.safeParse(input.certificateSha256).success ||
+      sha256(canonicalJson(certificate)) !== input.certificateSha256) {
+    throw new Error("B-grade traversal certificate hash mismatch");
+  }
+  if (certificate.binding.sourceConfigSha256 !== input.sourceConfigSha256 ||
+      certificate.independentValidation.sourceConfigSha256 !== input.sourceConfigSha256) {
+    throw new Error("B-grade traversal certificate source config mismatch");
+  }
+  const observedAt = Date.parse(certificate.independentValidation.observedAt);
+  const expiresAt = Date.parse(certificate.independentValidation.expiresAt);
+  if (observedAt > input.now.getTime() || expiresAt < input.now.getTime() ||
+      expiresAt - observedAt > B_GRADE_VALIDATION_FRESHNESS_MAXIMUM_MS) {
+    throw new Error("B-grade traversal validation is expired or temporally invalid");
+  }
+  return certificate.independentValidation;
+}
+
+export function viatrisTraversalValidationMatchesCurrentJobs(
+  validation: ViatrisBrowserTraversalValidation,
+  jobs: readonly NormalizedJobRecord[]
+): boolean {
+  const parsed = browserValidationSchema.safeParse(validation);
+  if (!parsed.success || jobs.some((job) => job.sourceId !== "source-viatris-social" || !job.sourceJobId)) {
+    return false;
+  }
+  const sourceJobIds = canonicalStrings(jobs.map((job) => job.sourceJobId!));
+  return sourceJobIds.length === jobs.length &&
+    parsed.data.canonicalJobIdSetSha256 === canonicalStringSetSha256(sourceJobIds);
+}
+
 export interface ViatrisRenderedUiPageCapture {
   pageNumber: number;
   declaredTotalPages: number;

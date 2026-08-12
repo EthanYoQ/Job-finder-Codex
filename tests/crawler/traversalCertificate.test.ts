@@ -14,7 +14,9 @@ import {
   createViatrisBrowserTraversalValidation,
   evaluateBGradeValidationRequirement,
   issueBGradeTraversalCertificate,
+  readReusableViatrisTraversalValidation,
   runViatrisBrowserTraversalValidator,
+  viatrisTraversalValidationMatchesCurrentJobs,
   verifyBGradeTraversalCertificateReceipt
 } from "../../src/crawler/traversalCertificate";
 
@@ -230,6 +232,39 @@ describe("B-grade independent traversal certificate", () => {
     })).toMatchObject({ acceptable: false, reason: "CURRENT_RUN_VALIDATION_TOO_OLD" });
   });
 
+  it("reuses only an unexpired hash-bound stable validation receipt", () => {
+    const decision = issueBGradeTraversalCertificate(candidate());
+    if (decision.status !== "CERTIFIED") throw new Error("Expected certificate");
+    expect(readReusableViatrisTraversalValidation({
+      certificate: decision.certificate,
+      certificateSha256: decision.certificateSha256,
+      sourceConfigSha256: sourcePlanConfigSha256(plan()),
+      now
+    })).toMatchObject({ retrievalPath: "PLAYWRIGHT_RENDERED_UI_CLICK_PAGINATION" });
+    const reusable = readReusableViatrisTraversalValidation({
+      certificate: decision.certificate,
+      certificateSha256: decision.certificateSha256,
+      sourceConfigSha256: sourcePlanConfigSha256(plan()),
+      now
+    });
+    expect(viatrisTraversalValidationMatchesCurrentJobs(reusable, [job("v-1"), job("v-2"), job("v-3")]))
+      .toBe(true);
+    expect(viatrisTraversalValidationMatchesCurrentJobs(reusable, [job("v-1"), job("v-2"), job("v-4")]))
+      .toBe(false);
+    expect(() => readReusableViatrisTraversalValidation({
+      certificate: decision.certificate,
+      certificateSha256: decision.certificateSha256,
+      sourceConfigSha256: sourcePlanConfigSha256(plan()),
+      now: new Date("2026-08-20T12:05:00.000Z")
+    })).toThrow(/expired/i);
+    expect(() => readReusableViatrisTraversalValidation({
+      certificate: decision.certificate,
+      certificateSha256: "0".repeat(64),
+      sourceConfigSha256: sourcePlanConfigSha256(plan()),
+      now
+    })).toThrow(/hash/i);
+  });
+
   it("runs the representative Viatris HTTP crawl through an independent browser receipt into an atomic B-grade commit", async () => {
     const sourcePlan = plan();
     const row = (id: string) => `<div class="position-item"><div class="e-title"><a href="/Viatris/position/detail?positionId=${id}">Role ${id}</a></div><div class="e-city">上海</div></div>`;
@@ -331,12 +366,24 @@ describe("B-grade independent traversal certificate", () => {
       artifacts: archived,
       independentTraversalValidation: independentValidation,
       independentTraversalValidationExecution: "CURRENT_RUN",
-      independentTraversalValidationTrigger: "INITIAL_QUALIFICATION"
+      independentTraversalValidationTrigger: "ANOMALY_TRIGGERED",
+      trustedCompletenessBaseline: {
+        sourceId: sourcePlan.source.id,
+        sourceResultId: "previous-verified-result",
+        sourceConfigSha256: pending.sourceConfigHash,
+        certificateGrade: "B",
+        certificateSha256: "a".repeat(64),
+        certifiedJobCount: 4,
+        verifiedAt: "2026-08-11T12:00:00.000Z"
+      }
     });
     expect(commit.sourceResult, JSON.stringify(commit.sourceResult)).toMatchObject({
       completenessState: "VERIFIED",
       completenessCertificate: { grade: "B", independentValidation: { validatorImplementationId: "viatris-playwright-ui-traversal-v1" } },
-      completenessCertificateSha256: expect.stringMatching(/^[0-9a-f]{64}$/u)
+      completenessCertificateSha256: expect.stringMatching(/^[0-9a-f]{64}$/u),
+      baselinePreviousSourceResultId: "previous-verified-result",
+      baselinePreviousJobCount: 4,
+      baselineChangeReason: "INDEPENDENT_VALIDATION_CONFIRMED_DECREASE"
     });
   });
 });

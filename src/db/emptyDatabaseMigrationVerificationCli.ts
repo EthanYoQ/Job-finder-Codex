@@ -35,7 +35,8 @@ export const REVIEWED_MIGRATION_NAMES = [
   "20260716190000_release_candidate_qualification_threshold",
   "20260716210000_release_candidate_promotion_gate",
   "20260717090000_source_failure_diagnostics",
-  "20260812231000_a_grade_completeness_certificate"
+  "20260812231000_a_grade_completeness_certificate",
+  "20260813002000_trusted_completeness_baseline"
 ] as const;
 
 export const REVIEWED_APP_TABLE_NAMES = [

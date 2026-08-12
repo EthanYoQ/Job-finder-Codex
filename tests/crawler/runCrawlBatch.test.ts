@@ -11,7 +11,7 @@ import {
   type RunP0CrawlBatchDeps
 } from "../../src/crawler/runCrawlBatch";
 import { buildJobDedupeKey, type NormalizedJobRecord } from "../../src/crawler/normalizedJob";
-import { buildDiscoverySourcePlanCandidates, buildStagedSourceCrawlPlans, expectedChannelSetHash, getPlanBySourceId, type SourceCrawlPlan } from "../../src/crawler/sourcePlan";
+import { buildDiscoverySourcePlanCandidates, buildStagedSourceCrawlPlans, expectedChannelSetHash, getPlanBySourceId, sourcePlanConfigSha256, type SourceCrawlPlan } from "../../src/crawler/sourcePlan";
 import type { JobSnapshot } from "../../src/crawler/lifecycle";
 import { candidateCompanies } from "../../src/data/companyRegistry";
 import {
@@ -201,6 +201,81 @@ function strictSuccessfulFetch(plan: SourceCrawlPlan, sourceJobId = "later-job")
   };
 }
 
+function strictViatrisFetch(plan: SourceCrawlPlan, jobCount: number) {
+  if (plan.adapterId !== "html-table" || plan.source.id !== "source-viatris-social") {
+    throw new Error("Test helper requires the Viatris html-table plan");
+  }
+  const channelId = plan.expectedChannels?.[0]?.channelId;
+  if (!channelId) throw new Error("Test helper requires a bound Viatris channel");
+  const ids = Array.from({ length: jobCount }, (_, index) => `viatris-${index}`);
+  const rows = ids.map((id) => `<div class="position-item"><div class="e-title"><a href="/Viatris/position/detail?positionId=${id}">Role ${id}</a></div><div class="e-city">上海</div></div>`).join("");
+  const html = `<div class="position-list-body">${rows}</div><ul id="pageTurnUl"><li data-total-pages="1"></li></ul>`;
+  const logicalKey = "viatris-main-0";
+  const fetchEvidence: PersistentSourceFetchEvidence = {
+    captureTool: { name: "viatris-http-test", version: "1" },
+    artifacts: [{
+      id: logicalKey,
+      logicalKey,
+      kind: "ATS_PAGE",
+      channelId,
+      requestedUrl: plan.source.officialEntryUrl,
+      finalUrl: plan.source.officialEntryUrl,
+      httpStatus: 200,
+      contentType: "text/html",
+      capturedAt: CAPTURED_AT,
+      body: html,
+      bodyRepresentation: "EXACT",
+      extractorLocator: "tupu360-http-post-v1|page:1"
+    }],
+    pages: [{
+      sequence: 0,
+      artifactLogicalKey: logicalKey,
+      channelId,
+      requestedOffset: 0,
+      returnedOffset: 0,
+      requestedPageSize: 10,
+      returnedPageSize: jobCount,
+      rawJobIds: ids,
+      validJobIds: ids,
+      declaredPages: 1,
+      declaredCount: jobCount,
+      nextPageSignalBefore: "initial",
+      nextPageSignalAfter: null,
+      responseFingerprintSha256: createHash("sha256").update(html).digest("hex"),
+      termination: "NEXT_ABSENT",
+      anomalyCodes: [],
+      capturedAt: CAPTURED_AT
+    }],
+    declaredCompleteness: {
+      kind: "COMPLETE_PAGE_TRAVERSAL",
+      value: 1,
+      artifactLogicalKey: logicalKey,
+      extractorLocator: "tupu360-http-post-v1|page:1",
+      scope: "CHANNEL",
+      channelId
+    },
+    fetchCounts: {
+      rawCount: jobCount,
+      parsedCount: jobCount,
+      validCount: jobCount,
+      parseDiscardCount: 0,
+      validationDiscardCount: 0
+    },
+    fetchLosses: []
+  };
+  return {
+    ok: true as const,
+    capturedAt: CAPTURED_AT,
+    html,
+    fetchEvidence,
+    paginationEvaluation: evaluatePaginationEvidence({
+      evidence: fetchEvidence,
+      expectedChannelIds: [channelId],
+      filteredOutput: true
+    })
+  };
+}
+
 function strategyDeclaredArtifactUrl(plan: SourceCrawlPlan): string {
   if (plan.adapterId !== "official-json") throw new Error("Expected official-json strategy plan");
   const entry = new URL(plan.source.officialEntryUrl);
@@ -365,6 +440,60 @@ function fakeDb() {
 }
 
 describe("runP0CrawlBatch", () => {
+  it("reads a B-grade baseline, forces current independent validation on a 100-to-10 drop, and preserves jobs when validation fails", async () => {
+    const plan = planFor("source-viatris-social");
+    const db = fakeDb();
+    const archiveDeps = inMemoryArchiveDeps();
+    const runIndependentTraversalValidator = vi.fn(async () => {
+      throw new Error("independent traversal unavailable");
+    });
+    let committed: AtomicSourceEvidenceCommit | undefined;
+
+    const result = await runP0CrawlBatch([plan], {
+      db,
+      now: NOW,
+      force: true,
+      identity: identityForPlans([plan]),
+      fetch: async (candidate) => strictViatrisFetch(candidate, 10),
+      ...archiveDeps,
+      executeAtomicCommit: async (commit) => {
+        committed = commit;
+        db.persistAtomicSourceResult(commit.sourceResult);
+      },
+      runIndependentTraversalValidator,
+      getPreviousJobs: async () => Array.from({ length: 100 }, (_, index) => makeSnapshot(makeJob({
+        sourceId: plan.source.id,
+        sourceJobId: `trusted-${index}`,
+        officialUrl: `https://careersite.tupu360.com/Viatris/position/detail?positionId=trusted-${index}`
+      }))),
+      getRecentObservations: async () => [],
+      getTrustedCompletenessBaseline: async () => ({
+        sourceId: plan.source.id,
+        sourceResultId: "trusted-source-result-1",
+        sourceConfigSha256: sourcePlanConfigSha256(plan),
+        certificateGrade: "B",
+        certificateSha256: "b".repeat(64),
+        certifiedJobCount: 100,
+        verifiedAt: "2026-07-07T00:00:00.000Z",
+        certificate: {},
+        previousSourceResultId: null,
+        previousJobCount: null,
+        changeReason: "INDEPENDENT_VALIDATION_CONFIRMED_INITIAL"
+      }),
+      isBaselineCompleted: async () => true
+    });
+
+    expect(runIndependentTraversalValidator).toHaveBeenCalledOnce();
+    expect(result).toMatchObject({ status: "INCOMPLETE", completenessIncompleteSourceCount: 1 });
+    expect(committed?.sourceResult).toMatchObject({
+      completenessState: "INCOMPLETE",
+      blockerCode: "COMPLETENESS_ANOMALY_UNVERIFIED",
+      blockerReason: expect.stringContaining("TRUSTED_COUNT_DROP")
+    });
+    expect(committed?.commands.filter((command) => command.type === "UPSERT_JOB")).toEqual([]);
+    expect(db.calls.jobs).toEqual([]);
+  });
+
   it("derives terminal counters from persisted source rows instead of stale process counters", () => {
     const rows = [
       ...Array.from({ length: 13 }, (_, index) => ({
