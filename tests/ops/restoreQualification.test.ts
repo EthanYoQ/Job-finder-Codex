@@ -2,7 +2,8 @@ import { createHash } from "node:crypto";
 import { mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { qualifyBackupRestore, type RestoreQualificationDeps } from "../../src/ops/restoreQualification";
+import { listCurrentPrismaMigrations } from "../../src/db/prismaMigrationManifest";
+import { qualifyBackupRestore, readRestoreQualificationEvidence, type RestoreQualificationDeps } from "../../src/ops/restoreQualification";
 
 const root = resolve(".runtime/.cache/restore-qualification-test");
 afterEach(() => rmSync(root, { recursive: true, force: true }));
@@ -16,6 +17,32 @@ describe("backup restore qualification", () => {
     expect(JSON.parse(readFileSync(input.receiptPath, "utf8"))).toMatchObject({ decision: "PASSED" });
     expect(deps.createDatabase).toHaveBeenCalledWith(input.adminDatabaseUrl, expect.stringMatching(/^jobfinder_restore_/));
     expect(deps.dropDatabase).toHaveBeenCalledWith(input.adminDatabaseUrl, expect.stringMatching(/^jobfinder_restore_/));
+    expect(vi.mocked(deps.dropDatabase).mock.invocationCallOrder[0]!).toBeLessThan(
+      vi.mocked(deps.publishReceipt!).mock.invocationCallOrder[0]!);
+  });
+
+  it("publishes FAILED after a create acknowledgement is lost or cleanup fails, never preserving an old PASS", async () => {
+    for (const failure of ["create", "drop"] as const) {
+      const input = fixture();
+      writeFileSync(input.receiptPath, JSON.stringify({ schemaVersion: 1, decision: "PASSED", verifiedAt: input.now.toISOString(), contentSha256: "0".repeat(64) }));
+      const deps = fakeDeps();
+      if (failure === "create") vi.mocked(deps.createDatabase).mockRejectedValueOnce(new Error("connection lost after server create"));
+      else vi.mocked(deps.dropDatabase).mockRejectedValueOnce(new Error("drop failed"));
+      await expect(qualifyBackupRestore(input, deps)).rejects.toThrow();
+      expect(deps.dropDatabase).toHaveBeenCalledTimes(1);
+      const persisted = JSON.parse(readFileSync(input.receiptPath, "utf8"));
+      expect(persisted).toMatchObject({ decision: "FAILED" });
+      expect(await readRestoreQualificationEvidence(input.receiptPath)).toMatchObject({ latestRestoreSucceeded: false });
+    }
+  });
+
+  it("rejects a mismatched migration manifest or unrelated certificate and job counts", async () => {
+    const input = fixture();
+    const migrationMismatch = fakeDeps();
+    vi.mocked(migrationMismatch.inspectRestoredDatabase).mockResolvedValueOnce({ ...validFacts(), migrations: [] });
+    await expect(qualifyBackupRestore(input, migrationMismatch)).rejects.toThrow(/migration manifest/i);
+    const unrelated = fakeDeps({ qualifiedEvidenceChainCount: 0 });
+    await expect(qualifyBackupRestore(input, unrelated)).rejects.toThrow(/evidence chain/i);
   });
 
   it("rejects a damaged archive before creating a database", async () => {
@@ -31,7 +58,7 @@ describe("backup restore qualification", () => {
     await expect(qualifyBackupRestore(incompatible, fakeDeps())).rejects.toThrow(/source server/i);
     const valid = fixture();
     const deps = fakeDeps({ trustedVisibleJobCount: 0 });
-    await expect(qualifyBackupRestore(valid, deps)).rejects.toThrow(/lacks migrations/i);
+    await expect(qualifyBackupRestore(valid, deps)).rejects.toThrow(/evidence chain/i);
     expect(deps.dropDatabase).toHaveBeenCalledTimes(1);
   });
 });
@@ -46,6 +73,7 @@ function fixture(serverVersionNum = "160014") {
   writeFileSync(metadataPath, JSON.stringify({ schemaVersion: 1,
     archiveSha256: createHash("sha256").update(archive).digest("hex"), database: { serverVersionNum } }));
   return { archivePath, checksumPath, metadataPath, receiptPath, adminDatabaseUrl: "postgresql://user:secret@db/postgres",
+    expectedMigrations: listCurrentPrismaMigrations(process.cwd()),
     now: new Date("2026-08-13T00:00:00Z") };
 }
 
@@ -53,8 +81,16 @@ function fakeDeps(facts: Partial<Record<string, number>> = {}): RestoreQualifica
   return {
     serverVersionNum: vi.fn(async () => "160014"), createDatabase: vi.fn(async () => undefined),
     restoreArchive: vi.fn(async () => undefined), dropDatabase: vi.fn(async () => undefined),
-    inspectRestoredDatabase: vi.fn(async () => ({ migrationCount: 3, successfulFullReleaseBatchCount: 1,
-      certifiedSourceResultCount: 1, trustedVisibleJobCount: 1, orphanObservationCount: 0,
-      orphanSourceResultCount: 0, orphanJobCount: 0, ...facts }))
+    publishReceipt: vi.fn(async (path: string, value: unknown) => {
+      mkdirSync(resolve(path, ".."), { recursive: true }); writeFileSync(path, `${JSON.stringify(value)}\n`);
+    }),
+    inspectRestoredDatabase: vi.fn(async () => ({ ...validFacts(), ...facts }))
   } as never;
+}
+
+function validFacts() {
+  return { migrations: listCurrentPrismaMigrations(process.cwd()), successfulFullReleaseBatchCount: 1,
+    certifiedSourceResultCount: 1, trustedVisibleJobCount: 1, qualifiedEvidenceChainCount: 1,
+    orphanObservationCount: 0, orphanSourceResultCount: 0, orphanJobCount: 0,
+    mismatchedJobSourceCompanyCount: 0 };
 }

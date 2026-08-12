@@ -294,7 +294,7 @@ services:
       context: ..
       dockerfile: Dockerfile
       args: *release-build-args
-    restart: "on-failure:3"
+    restart: "unless-stopped"
     logging: *bounded-logging
     user: node
     read_only: true
@@ -306,10 +306,11 @@ services:
       - sh
       - -lc
       - >-
-        set -eu; while true; do
+        set -u; while true; do
         marker="$$(find /backups -maxdepth 1 -type f -name '*.dump.sha256' -printf '%T@ %p\n' | sort -nr | head -n 1 | cut -d' ' -f2-)";
-        test -n "$$marker"; archive="$${marker%.sha256}";
-        npm run ops:qualify-restore -- "$$archive";
+        if test -n "$$marker"; then archive="$${marker%.sha256}";
+        if ! npm run ops:qualify-restore -- "$$archive"; then echo '[restore-verifier] qualification failed; FAILED receipt published.' >&2; fi;
+        else echo '[restore-verifier] no committed backup marker is available.' >&2; fi;
         sleep "$${RESTORE_VERIFY_INTERVAL_SECONDS:-604800}";
         done
     environment:
@@ -330,7 +331,7 @@ services:
         read_only: true
       - restore-state:/restore-state
     healthcheck:
-      test: ["CMD-SHELL", "find /restore-state -maxdepth 1 -type f -name 'restore-receipt.json' -size +0c -mmin -11520 -print -quit | grep -q ."]
+      test: ["CMD", "npm", "run", "ops:check-restore-receipt", "--", "/restore-state/restore-receipt.json"]
       interval: 1h
       timeout: 10s
       retries: 3
@@ -399,7 +400,7 @@ services:
       backup:
         condition: service_healthy
       restore-verifier:
-        condition: service_healthy
+        condition: service_started
       postgres:
         condition: service_healthy
       monitor-state-init:

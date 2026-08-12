@@ -174,3 +174,52 @@ jobs:
             "INSERT INTO \"_prisma_migrations\" (id,checksum,migration_name,started_at,applied_steps_count) VALUES ('00000000-0000-0000-0000-000000000000',repeat('0',64),'99999999999999_unfinished',now(),0)"
           sleep 2
           docker exec "$APP_NAME" node -e "fetch('http://127.0.0.1:3000/readyz').then(r=>process.exit(r.status===503?0:1)).catch(()=>process.exit(1))"
+
+      - name: Qualify a real PostgreSQL 16 backup restore and failure receipts
+        run: |
+          set -euo pipefail
+          NETWORK="job-finder-restore-${{ github.run_id }}"
+          POSTGRES_NAME="job-finder-restore-postgres-${{ github.run_id }}"
+          DATABASE_URL='postgresql://jobfinder:restore-test-password@postgres/jobfinder'
+          ADMIN_URL='postgresql://jobfinder:restore-test-password@postgres/postgres'
+          mkdir -p .runtime/restore && chmod 0777 .runtime/restore
+          docker network create "$NETWORK"
+          trap 'docker rm --force "$POSTGRES_NAME" >/dev/null 2>&1 || true; docker network rm "$NETWORK" >/dev/null 2>&1 || true' EXIT
+          docker run --detach --name "$POSTGRES_NAME" --network "$NETWORK" --network-alias postgres \
+            --env POSTGRES_DB=jobfinder --env POSTGRES_USER=jobfinder --env POSTGRES_PASSWORD=restore-test-password \
+            postgres:16-bookworm@sha256:da788743d2060767375896de4d646f7576f5911461444b372616f19ea61db2ec
+          READY=0
+          for attempt in $(seq 1 30); do
+            if docker exec "$POSTGRES_NAME" pg_isready -U jobfinder -d jobfinder; then READY=1; break; fi
+            sleep 1
+          done
+          test "$READY" = 1
+          docker run --rm --network "$NETWORK" --env DATABASE_URL="$DATABASE_URL" \
+            "$IMAGE_TAG" node node_modules/prisma/build/index.js migrate deploy
+          docker exec -i "$POSTGRES_NAME" psql -U jobfinder -d jobfinder -v ON_ERROR_STOP=1 \
+            < tests/ops/fixtures/restoreQualificationEvidence.sql
+          docker run --rm --network "$NETWORK" --env DATABASE_URL="$DATABASE_URL" --env BACKUP_DIR=/backup \
+            --volume "$PWD/.runtime/restore:/backup" "$IMAGE_TAG" sh ./ops/backup.sh
+          ARCHIVE="$(find .runtime/restore -maxdepth 1 -type f -name '*.dump' -print -quit)"
+          test -n "$ARCHIVE"
+          docker run --rm --network "$NETWORK" --env RESTORE_ADMIN_DATABASE_URL="$ADMIN_URL" \
+            --env RESTORE_RECEIPT_PATH=/backup/restore-receipt.json --volume "$PWD/.runtime/restore:/backup" \
+            "$IMAGE_TAG" npm run ops:qualify-restore -- "/backup/$(basename "$ARCHIVE")"
+          test "$(node -p "JSON.parse(require('fs').readFileSync('.runtime/restore/restore-receipt.json')).decision")" = PASSED
+          cp "$ARCHIVE" .runtime/restore/corrupt.dump
+          printf 'corruption' >> .runtime/restore/corrupt.dump
+          CORRUPT_SHA="$(sha256sum .runtime/restore/corrupt.dump | cut -d' ' -f1)"
+          printf '%s  corrupt.dump\n' "$CORRUPT_SHA" > .runtime/restore/corrupt.dump.sha256
+          node -e "const fs=require('fs'),p='.runtime/restore/corrupt.dump.metadata.json',v=JSON.parse(fs.readFileSync('$ARCHIVE.metadata.json'));v.archiveSha256=process.argv[1];fs.writeFileSync(p,JSON.stringify(v))" "$CORRUPT_SHA"
+          if docker run --rm --network "$NETWORK" --env RESTORE_ADMIN_DATABASE_URL="$ADMIN_URL" \
+            --env RESTORE_RECEIPT_PATH=/backup/restore-receipt.json --volume "$PWD/.runtime/restore:/backup" \
+            "$IMAGE_TAG" npm run ops:qualify-restore -- /backup/corrupt.dump; then exit 1; fi
+          test "$(node -p "JSON.parse(require('fs').readFileSync('.runtime/restore/restore-receipt.json')).decision")" = FAILED
+          cp "$ARCHIVE" .runtime/restore/incompatible.dump
+          cp "$ARCHIVE.sha256" .runtime/restore/incompatible.dump.sha256
+          sed -i "s/$(basename "$ARCHIVE")/incompatible.dump/" .runtime/restore/incompatible.dump.sha256
+          node -e "const fs=require('fs'),p='.runtime/restore/incompatible.dump.metadata.json',v=JSON.parse(fs.readFileSync('$ARCHIVE.metadata.json'));v.database.serverVersionNum='150000';fs.writeFileSync(p,JSON.stringify(v))"
+          if docker run --rm --network "$NETWORK" --env RESTORE_ADMIN_DATABASE_URL="$ADMIN_URL" \
+            --env RESTORE_RECEIPT_PATH=/backup/restore-receipt.json --volume "$PWD/.runtime/restore:/backup" \
+            "$IMAGE_TAG" npm run ops:qualify-restore -- /backup/incompatible.dump; then exit 1; fi
+          test "$(node -p "JSON.parse(require('fs').readFileSync('.runtime/restore/restore-receipt.json')).failureCode")" = VALIDATION_FAILED
