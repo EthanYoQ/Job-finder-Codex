@@ -9,7 +9,7 @@ const identity = {
   imageRef: "job-finder:test",
   imageDigest: `sha256:${"a".repeat(64)}`,
   packageLockSha256: "b".repeat(64),
-  scannerReports: { trivySha256: "c".repeat(64), npmAuditSha256: "d".repeat(64) },
+  scannerReports: { trivySha256: "c".repeat(64), npmAuditSha256: "d".repeat(64), npmAuditIdentitySha256: "0".repeat(64) },
   policyReports: { reachabilitySha256: "e".repeat(64), exceptionsSha256: "f".repeat(64) },
   evaluatedAt: new Date("2026-08-13T00:00:00.000Z")
 };
@@ -69,14 +69,14 @@ describe("production security gate", () => {
   });
 
   it("normalizes high findings from the image and production lock scanners", () => {
-    expect(parseTrivyProductionFindings({ Results: [{ Vulnerabilities: [{
+    expect(parseTrivyProductionFindings({ SchemaVersion: 2, ArtifactType: "container_image", Metadata: {}, Results: [{ Vulnerabilities: [{
       VulnerabilityID: "CVE-2026-2000", PkgName: "openssl", InstalledVersion: "3.0.0",
       FixedVersion: "3.0.1", Severity: "CRITICAL"
     }] }] })).toEqual([expect.objectContaining({
       scanner: "TRIVY", vulnerabilityId: "CVE-2026-2000", packageName: "openssl",
       installedVersion: "3.0.0", fixedVersion: "3.0.1", severity: "CRITICAL"
     })]);
-    expect(parseNpmAuditProductionFindings({ vulnerabilities: { undici: {
+    expect(parseNpmAuditProductionFindings({ auditReportVersion: 2, vulnerabilities: { undici: {
       severity: "high", nodes: ["node_modules/undici"], via: [{ severity: "high", url: "https://github.com/advisories/GHSA-test" }]
     } } }, { packages: { "node_modules/undici": { version: "7.28.0" } } })).toEqual([
       expect.objectContaining({ scanner: "NPM_AUDIT", vulnerabilityId: "GHSA-test",
@@ -96,24 +96,32 @@ describe("production security gate", () => {
   });
 
   it("rejects a report for another image and binds nested npm versions from audit nodes", () => {
-    expect(() => parseTrivyProductionFindings({ ArtifactID: `sha256:${"1".repeat(64)}`, Results: [] },
+    expect(() => parseTrivyProductionFindings({ SchemaVersion: 2, ArtifactType: "container_image", Metadata: { ImageID: `sha256:${"1".repeat(64)}` }, Results: [] },
       `sha256:${"2".repeat(64)}`)).toThrow(/identity/i);
     const lockHash = "3".repeat(64);
-    expect(parseNpmAuditProductionFindings({ jobFinderPackageLockSha256: lockHash, vulnerabilities: { x: {
+    const auditHash = "4".repeat(64);
+    expect(parseNpmAuditProductionFindings({ auditReportVersion: 2, vulnerabilities: { x: {
       severity: "high", nodes: ["node_modules/parent/node_modules/x"],
       via: [{ severity: "high", url: "https://github.com/advisories/GHSA-nested" }]
     } } }, { packages: {
       "node_modules/x": { version: "2.0.0" },
       "node_modules/parent/node_modules/x": { version: "1.0.0" }
-    } }, lockHash)).toEqual([expect.objectContaining({ packageName: "x", installedVersion: "1.0.0" })]);
+    } }, lockHash, auditHash, { schemaVersion: 1, packageLockSha256: lockHash, npmAuditSha256: auditHash }))
+      .toEqual([expect.objectContaining({ packageName: "x", installedVersion: "1.0.0" })]);
   });
 
   it("rejects malformed or unknown scanner severities instead of returning an empty pass", () => {
-    expect(() => parseTrivyProductionFindings({ Results: [{ Vulnerabilities: [{
+    expect(() => parseTrivyProductionFindings({ SchemaVersion: 2, ArtifactType: "container_image", Metadata: {}, Results: [{ Vulnerabilities: [{
       VulnerabilityID: "CVE-x", PkgName: "x", InstalledVersion: "1", Severity: "NEW_LEVEL"
     }] }] })).toThrow(/severity/i);
-    expect(() => parseNpmAuditProductionFindings({ vulnerabilities: { x: {
+    expect(() => parseNpmAuditProductionFindings({ auditReportVersion: 2, vulnerabilities: { x: {
       severity: "new-level", nodes: ["node_modules/x"], via: []
     } } }, { packages: { "node_modules/x": { version: "1" } } })).toThrow(/invalid/i);
+  });
+
+  it("accepts supported low severities without turning them into blocking findings", () => {
+    expect(parseNpmAuditProductionFindings({ auditReportVersion: 2, vulnerabilities: { x: {
+      severity: "info", nodes: ["node_modules/x"], via: [{ severity: "info", url: "info" }]
+    } } }, { packages: { "node_modules/x": { version: "1" } } })).toEqual([]);
   });
 });

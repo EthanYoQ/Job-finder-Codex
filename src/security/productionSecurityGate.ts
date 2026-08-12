@@ -39,7 +39,7 @@ export interface ProductionSecurityGateInput {
   imageRef: string;
   imageDigest: string;
   packageLockSha256: string;
-  scannerReports: { trivySha256: string; npmAuditSha256: string };
+  scannerReports: { trivySha256: string; npmAuditSha256: string; npmAuditIdentitySha256: string };
   policyReports: { reachabilitySha256: string; exceptionsSha256: string };
   evaluatedAt: Date;
   findings: readonly ProductionVulnerabilityFinding[];
@@ -72,7 +72,7 @@ export interface ProductionSecurityReceipt {
   imageRef: string;
   imageDigest: string;
   packageLockSha256: string;
-  scannerReports: { trivySha256: string; npmAuditSha256: string };
+  scannerReports: { trivySha256: string; npmAuditSha256: string; npmAuditIdentitySha256: string };
   policyReports: { reachabilitySha256: string; exceptionsSha256: string };
   evaluatedAt: string;
   findings: EvaluatedProductionFinding[];
@@ -146,8 +146,9 @@ export function parseTrivyProductionFindings(
   value: unknown,
   expectedImageDigest?: string
 ): ProductionVulnerabilityFinding[] {
-  if (!isRecord(value) || !Array.isArray(value.Results) ||
-    (expectedImageDigest !== undefined && value.ArtifactID !== expectedImageDigest)) {
+  if (!isRecord(value) || value.SchemaVersion !== 2 || value.ArtifactType !== "container_image" ||
+    !isRecord(value.Metadata) || !Array.isArray(value.Results) ||
+    (expectedImageDigest !== undefined && value.Metadata.ImageID !== expectedImageDigest)) {
     throw new Error("Trivy report identity or schema is invalid");
   }
   const findings: ProductionVulnerabilityFinding[] = [];
@@ -176,11 +177,15 @@ export function parseTrivyProductionFindings(
 export function parseNpmAuditProductionFindings(
   value: unknown,
   packageLock: unknown,
-  expectedPackageLockSha256?: string
+  expectedPackageLockSha256?: string,
+  expectedNpmAuditSha256?: string,
+  reportIdentity?: unknown
 ): ProductionVulnerabilityFinding[] {
   if (!isRecord(value) || !isRecord(value.vulnerabilities) || !isRecord(packageLock) ||
-    !isRecord(packageLock.packages) || (expectedPackageLockSha256 !== undefined &&
-      value.jobFinderPackageLockSha256 !== expectedPackageLockSha256)) {
+    value.auditReportVersion !== 2 || !isRecord(packageLock.packages) ||
+    (expectedPackageLockSha256 !== undefined && !validNpmAuditIdentity(
+      reportIdentity, expectedPackageLockSha256, expectedNpmAuditSha256
+    ))) {
     throw new Error("npm audit report or package lock identity is invalid");
   }
   const lockPackages = packageLock.packages;
@@ -207,6 +212,9 @@ export function parseNpmAuditProductionFindings(
     if (highAdvisories.length === 0 && isHighSeverity(normalizeSeverity(aggregate.severity))) {
       highAdvisories.push({ severity: aggregate.severity, url: `NPM-AUDIT:${packageName}` });
     }
+    if (isHighSeverity(normalizeSeverity(aggregate.severity)) && nodeVersions.length === 0) {
+      throw new Error(`npm audit high vulnerability has no affected nodes: ${packageName}`);
+    }
     for (const advisory of highAdvisories) {
       const severity = normalizeSeverity(advisory.severity);
       if (!isHighSeverity(severity)) continue;
@@ -225,6 +233,7 @@ function validateIdentity(input: ProductionSecurityGateInput): void {
     !/^[0-9a-f]{64}$/u.test(input.packageLockSha256) ||
     !/^[0-9a-f]{64}$/u.test(input.scannerReports.trivySha256) ||
     !/^[0-9a-f]{64}$/u.test(input.scannerReports.npmAuditSha256) ||
+    !/^[0-9a-f]{64}$/u.test(input.scannerReports.npmAuditIdentitySha256) ||
     !/^[0-9a-f]{64}$/u.test(input.policyReports.reachabilitySha256) ||
     !/^[0-9a-f]{64}$/u.test(input.policyReports.exceptionsSha256) ||
     !Number.isFinite(input.evaluatedAt.getTime())) {
@@ -303,8 +312,13 @@ function optionalString(value: unknown): string | undefined {
 }
 
 function isKnownSeverity(value: unknown): boolean {
-  return typeof value === "string" && ["UNKNOWN", "LOW", "MEDIUM", "MODERATE", "HIGH", "CRITICAL", "OTHER"]
+  return typeof value === "string" && ["UNKNOWN", "INFO", "LOW", "MEDIUM", "MODERATE", "HIGH", "CRITICAL", "OTHER"]
     .includes(value.toUpperCase());
+}
+
+function validNpmAuditIdentity(value: unknown, packageLockSha256: string, npmAuditSha256?: string): boolean {
+  return isRecord(value) && value.schemaVersion === 1 &&
+    value.packageLockSha256 === packageLockSha256 && value.npmAuditSha256 === npmAuditSha256;
 }
 
 function isFindingIdentity(value: Pick<ProductionVulnerabilityFinding,

@@ -85,5 +85,6 @@ describe("production container contract", () => {
     expect(workflow).toContain("production-security-receipt.json");
     expect(workflow).toContain("scripts/bind-npm-audit-report.ts");
     expect(workflow).toContain("actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02");
+    expect(workflow).toMatch(/name: Preserve production security evidence\s+if: always\(\)/u);
   });
 });

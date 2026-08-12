@@ -58,7 +58,7 @@ jobs:
         run: |
           mkdir -p .runtime/security
           npm audit --omit=dev --json > .runtime/security/npm-audit.json || test -s .runtime/security/npm-audit.json
-          npx tsx scripts/bind-npm-audit-report.ts .runtime/security/npm-audit.json package-lock.json
+          npx tsx scripts/bind-npm-audit-report.ts .runtime/security/npm-audit.json package-lock.json .runtime/security/npm-audit-identity.json
 
       - name: Scan the exact production image
         uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
@@ -78,12 +78,14 @@ jobs:
             --image-ref "$IMAGE_TAG" --image-digest "$IMAGE_DIGEST" \
             --trivy-report .runtime/security/trivy-image.json \
             --npm-audit-report .runtime/security/npm-audit.json \
+            --npm-audit-identity .runtime/security/npm-audit-identity.json \
             --package-lock package-lock.json \
             --reachability security/production-reachability.json \
             --exceptions security/production-vulnerability-exceptions.json \
             --output .runtime/security/production-security-receipt.json
 
       - name: Preserve production security evidence
+        if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: production-security-${{ github.sha }}

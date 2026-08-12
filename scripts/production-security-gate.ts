@@ -15,6 +15,7 @@ interface SecurityGateArguments {
   imageDigest: string;
   trivyReport: string;
   npmAuditReport: string;
+  npmAuditIdentity: string;
   packageLock: string;
   reachability: string;
   exceptions: string;
@@ -25,12 +26,13 @@ export async function runProductionSecurityGate(
   args: SecurityGateArguments,
   evaluatedAt = new Date()
 ): Promise<0 | 1> {
-  const [trivyBytes, npmAuditBytes, packageLockBytes, reachabilityBytes, exceptionsBytes] = await Promise.all([
-    readFile(args.trivyReport), readFile(args.npmAuditReport), readFile(args.packageLock),
-    readFile(args.reachability), readFile(args.exceptions)
+  const [trivyBytes, npmAuditBytes, npmAuditIdentityBytes, packageLockBytes, reachabilityBytes, exceptionsBytes] = await Promise.all([
+    readFile(args.trivyReport), readFile(args.npmAuditReport), readFile(args.npmAuditIdentity),
+    readFile(args.packageLock), readFile(args.reachability), readFile(args.exceptions)
   ]);
   const trivy = parseJson(trivyBytes, "Trivy report");
   const npmAudit = parseJson(npmAuditBytes, "npm audit report");
+  const npmAuditIdentity = parseJson(npmAuditIdentityBytes, "npm audit identity");
   const packageLock = parseJson(packageLockBytes, "package lock");
   const reachability = parsePolicyArray<ProductionReachabilityDecision>(
     parseJson(reachabilityBytes, "reachability policy"), "decisions", "reachability"
@@ -44,14 +46,19 @@ export async function runProductionSecurityGate(
     imageRef: args.imageRef,
     imageDigest: args.imageDigest,
     packageLockSha256,
-    scannerReports: { trivySha256: sha256(trivyBytes), npmAuditSha256: sha256(npmAuditBytes) },
+    scannerReports: {
+      trivySha256: sha256(trivyBytes), npmAuditSha256: sha256(npmAuditBytes),
+      npmAuditIdentitySha256: sha256(npmAuditIdentityBytes)
+    },
     policyReports: {
       reachabilitySha256: sha256(reachabilityBytes), exceptionsSha256: sha256(exceptionsBytes)
     },
     evaluatedAt,
     findings: [
       ...parseTrivyProductionFindings(trivy, args.imageDigest),
-      ...parseNpmAuditProductionFindings(npmAudit, packageLock, packageLockSha256)
+      ...parseNpmAuditProductionFindings(
+        npmAudit, packageLock, packageLockSha256, sha256(npmAuditBytes), npmAuditIdentity
+      )
     ],
     reachability,
     exceptions
@@ -83,12 +90,13 @@ export function parseProductionSecurityGateArgs(argv: readonly string[]): Securi
     if (value === undefined || value.trim().length === 0) throw new Error(`Missing production security argument: ${name}`);
     return value;
   };
-  const expected = ["--image-ref", "--image-digest", "--trivy-report", "--npm-audit-report",
+  const expected = ["--image-ref", "--image-digest", "--trivy-report", "--npm-audit-report", "--npm-audit-identity",
     "--package-lock", "--reachability", "--exceptions", "--output"];
   for (const key of parsed.keys()) if (!expected.includes(key)) throw new Error(`Unknown production security argument: ${key}`);
   return {
     imageRef: read("--image-ref"), imageDigest: read("--image-digest"),
     trivyReport: read("--trivy-report"), npmAuditReport: read("--npm-audit-report"),
+    npmAuditIdentity: read("--npm-audit-identity"),
     packageLock: read("--package-lock"), reachability: read("--reachability"),
     exceptions: read("--exceptions"), output: read("--output")
   };
