@@ -124,4 +124,10 @@ describe("production security gate", () => {
       severity: "info", nodes: ["node_modules/x"], via: [{ severity: "info", url: "info" }]
     } } }, { packages: { "node_modules/x": { version: "1" } } })).toEqual([]);
   });
+
+  it("rejects a high advisory with no affected lock nodes even if the aggregate severity drifts low", () => {
+    expect(() => parseNpmAuditProductionFindings({ auditReportVersion: 2, vulnerabilities: { x: {
+      severity: "low", nodes: [], via: [{ severity: "high", url: "GHSA-empty" }]
+    } } }, { packages: {} })).toThrow(/no affected nodes/i);
+  });
 });

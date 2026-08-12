@@ -212,7 +212,7 @@ export function parseNpmAuditProductionFindings(
     if (highAdvisories.length === 0 && isHighSeverity(normalizeSeverity(aggregate.severity))) {
       highAdvisories.push({ severity: aggregate.severity, url: `NPM-AUDIT:${packageName}` });
     }
-    if (isHighSeverity(normalizeSeverity(aggregate.severity)) && nodeVersions.length === 0) {
+    if (highAdvisories.length > 0 && nodeVersions.length === 0) {
       throw new Error(`npm audit high vulnerability has no affected nodes: ${packageName}`);
     }
     for (const advisory of highAdvisories) {
