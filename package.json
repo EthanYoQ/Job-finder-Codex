@@ -18,6 +18,7 @@
     "image:context-check": "node scripts/check-production-image-context.mjs",
     "image:runtime-contract-check": "tsx scripts/check-production-runtime-contract.ts",
     "db:verify-empty-migrations": "tsx scripts/verify-empty-db-migrations.ts",
+    "ops:bootstrap": "tsx scripts/ops-bootstrap.ts",
     "p0:crawl": "tsx scripts/p0-crawl.ts",
     "p0:manual-crawl-worker": "tsx scripts/p0-manual-crawl-worker.ts",
     "p0:formal-crawl-once": "tsx scripts/p0-formal-crawl-once.ts",

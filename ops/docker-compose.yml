@@ -41,10 +41,14 @@ services:
     command: ["npm", "run", "start"]
     environment:
       DATABASE_URL: ${DATABASE_URL:?set DATABASE_URL}
+      ADMIN_EMAIL: ${ADMIN_EMAIL:-}
+      ADMIN_PASSWORD_HASH: ${ADMIN_PASSWORD_HASH:-}
       POSTGRES_READINESS_TIMEOUT_MS: ${POSTGRES_READINESS_TIMEOUT_MS:-2500}
       PORT: 3000
       TRUSTED_PROXY_CIDRS: ${TRUSTED_PROXY_CIDRS:-10.0.0.0/8,172.16.0.0/12,192.168.0.0/16,127.0.0.1/32}
     depends_on:
+      bootstrap:
+        condition: service_completed_successfully
       postgres:
         condition: service_healthy
     volumes:
@@ -66,6 +70,30 @@ services:
       timeout: 5s
       retries: 6
       start_period: 30s
+    networks:
+      - internal
+
+  bootstrap:
+    build:
+      context: ..
+      dockerfile: Dockerfile
+      args: *release-build-args
+    restart: "no"
+    user: node
+    read_only: true
+    cap_drop: ["ALL"]
+    security_opt: ["no-new-privileges:true"]
+    tmpfs:
+      - /tmp:rw,nosuid,nodev,noexec,size=64m,mode=1777
+    command: ["npm", "run", "ops:bootstrap"]
+    environment:
+      DATABASE_URL: ${DATABASE_URL:?set DATABASE_URL}
+      ADMIN_EMAIL: ${ADMIN_EMAIL:-}
+      ADMIN_PASSWORD_HASH: ${ADMIN_PASSWORD_HASH:-}
+      NODE_ENV: production
+    depends_on:
+      postgres:
+        condition: service_healthy
     networks:
       - internal
 

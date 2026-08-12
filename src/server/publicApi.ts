@@ -112,7 +112,7 @@ export async function handlePublicApi(request: PublicApiRequest, deps: PublicApi
     };
   }
 
-  if (request.path === "/healthz") {
+  if (request.path === "/readyz" || request.path === "/healthz") {
     const ok = await getBoundedDatabaseReadiness(deps);
     return {
       status: ok ? 200 : 503,

@@ -27,7 +27,7 @@ afterEach(async () => {
 });
 
 describe("http server", () => {
-  function createTestServer() {
+  function createTestServer(overrides: { checkDatabaseReadiness?: () => Promise<boolean> } = {}) {
     const staticRoot = mkdtempSync(resolve(tmpdir(), "job-finder-http-"));
     writeFileSync(resolve(staticRoot, "index.html"), "<div id=\"root\"></div>", "utf8");
 
@@ -59,7 +59,7 @@ describe("http server", () => {
         manualCrawlRequest: { create: async () => ({ id: "crawl-1" }) },
         recruitmentSource: { findMany: async () => [] }
       },
-      checkDatabaseReadiness: async () => true,
+      checkDatabaseReadiness: overrides.checkDatabaseReadiness ?? (async () => true),
       rateLimitStore: createMemoryRateLimitStore()
     };
 
@@ -98,6 +98,13 @@ describe("http server", () => {
 
     expect(response.status).toBe(200);
     await expect(response.json()).resolves.toEqual({ ok: true });
+  });
+
+  it("routes GET /readyz through deployment readiness", async () => {
+    const address = await listen(createTestServer({ checkDatabaseReadiness: async () => false }));
+    const response = await fetch(`http://127.0.0.1:${address.port}/readyz`);
+    expect(response.status).toBe(503);
+    await expect(response.json()).resolves.toEqual({ ok: false });
   });
 
   it("serves privacy and terms as plain text documents before consent", async () => {

@@ -1,19 +1,17 @@
 import { PrismaClient } from "@prisma/client";
 import { createServer as createNodeServer, type IncomingMessage, type Server, type ServerResponse } from "node:http";
 import { readFile } from "node:fs/promises";
+import { readdirSync } from "node:fs";
 import { extname, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import { handleAdminApi, type AdminApiDeps, type AdminApiResponse } from "./adminApi";
 import { handlePublicApi, type PublicApiDeps, type PublicApiResponse } from "./publicApi";
-import {
-  createCachedPostgresReadiness,
-  DEFAULT_POSTGRES_READINESS_TIMEOUT_MS,
-  normalizePostgresReadinessTimeout
-} from "./postgresReadiness";
+import { DEFAULT_POSTGRES_READINESS_TIMEOUT_MS, normalizePostgresReadinessTimeout } from "./postgresReadiness";
+import { checkDeploymentReadiness } from "./deploymentReadiness";
 
 const DEFAULT_HOST = "0.0.0.0";
 const DEFAULT_PORT = 3000;
-const STATIC_ROUTES = new Set(["/livez", "/healthz", "/privacy", "/terms", "/robots.txt"]);
+const STATIC_ROUTES = new Set(["/livez", "/readyz", "/healthz", "/privacy", "/terms", "/robots.txt"]);
 const CONTENT_TYPES: Record<string, string> = {
   ".css": "text/css; charset=utf-8",
   ".html": "text/html; charset=utf-8",
@@ -52,7 +50,16 @@ export async function startServer(): Promise<Server> {
   const readinessTimeoutMs = normalizePostgresReadinessTimeout(
     Number(process.env.POSTGRES_READINESS_TIMEOUT_MS ?? DEFAULT_POSTGRES_READINESS_TIMEOUT_MS)
   );
-  const checkDatabaseReadiness = createCachedPostgresReadiness(databaseUrl, { timeoutMs: readinessTimeoutMs });
+  const migrationRoot = resolve(process.cwd(), "prisma", "migrations");
+  const expectedMigrationNames = readdirSync(migrationRoot, { withFileTypes: true })
+    .filter((entry) => entry.isDirectory()).map((entry) => entry.name);
+  const checkDatabaseReadiness = () => checkDeploymentReadiness({
+    databaseUrl,
+    expectedMigrationNames,
+    adminEmail: process.env.ADMIN_EMAIL,
+    ...(process.env.ADMIN_PASSWORD_HASH ? { adminPasswordHash: process.env.ADMIN_PASSWORD_HASH } : {}),
+    timeoutMs: readinessTimeoutMs
+  });
   const server = createServer({
     db: prisma,
     checkDatabaseReadiness,
