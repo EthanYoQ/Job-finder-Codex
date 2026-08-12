@@ -60,6 +60,16 @@ describe("ops monitoring alerts", () => {
     expect(healthyAlerts.some((alert) => alert.code === code)).toBe(false);
   });
 
+  it("rejects a restore receipt timestamp more than five minutes in the future", async () => {
+    const { evaluateOpsAlerts } = await loadOpsMonitoringModule();
+    const alerts = evaluateOpsAlerts({ now, health: { ok: true },
+      backup: { latestBackupAt: "2026-07-08T10:00:00.000Z", latestBackupSucceeded: true },
+      restore: { latestRestoreAt: "2026-07-08T12:05:00.001Z", latestRestoreSucceeded: true },
+      crawl: { authorityState: "VALID", attemptState: "SUCCESS", summaryState: "VALID",
+        consecutiveFailuresByCompany: {} } });
+    expect(alerts).toContainEqual(expect.objectContaining({ code: "RESTORE_QUALIFICATION_STALE", severity: "critical" }));
+  });
+
   it("emits an exact identity-bound one-shot alert for the two-round initial qualification pause", async () => {
     const { evaluateOpsAlerts } = await loadOpsMonitoringModule();
     const notificationKey = "a".repeat(64);

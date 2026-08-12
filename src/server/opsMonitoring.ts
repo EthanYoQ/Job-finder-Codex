@@ -98,7 +98,8 @@ export function evaluateOpsAlerts(input: OpsAlertInput): OpsAlert[] {
   } else if (input.restore !== undefined && input.restore.latestRestoreSucceeded !== true) {
     alerts.push({ code: "RESTORE_QUALIFICATION_FAILED", severity: "critical",
       message: "The latest backup restore qualification receipt is invalid or failed." });
-  } else if (restoreAt && input.now.getTime() - restoreAt.getTime() > RESTORE_STALE_HOURS * 3_600_000) {
+  } else if (restoreAt && (restoreAt.getTime() > input.now.getTime() + 5 * 60_000 ||
+      input.now.getTime() - restoreAt.getTime() > RESTORE_STALE_HOURS * 3_600_000)) {
     alerts.push({ code: "RESTORE_QUALIFICATION_STALE", severity: "critical",
       message: "The latest successful backup restore qualification is older than eight days." });
   }
