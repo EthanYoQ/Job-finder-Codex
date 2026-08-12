@@ -17,6 +17,7 @@
     "prisma:validate": "node ./scripts/prisma-validate.mjs",
     "image:context-check": "node scripts/check-production-image-context.mjs",
     "image:runtime-contract-check": "tsx scripts/check-production-runtime-contract.ts",
+    "security:production-gate": "tsx scripts/production-security-gate.ts",
     "db:verify-empty-migrations": "tsx scripts/verify-empty-db-migrations.ts",
     "ops:bootstrap": "tsx scripts/ops-bootstrap.ts",
     "p0:crawl": "tsx scripts/p0-crawl.ts",

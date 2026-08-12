@@ -54,6 +54,34 @@ jobs:
           test "$IMAGE_REVISION" = "${{ github.sha }}"
           test "$IMAGE_BYTES" -le "$MAX_IMAGE_BYTES"
 
+      - name: Capture production lock vulnerability report
+        run: |
+          mkdir -p .runtime/security
+          npm audit --omit=dev --json > .runtime/security/npm-audit.json || test -s .runtime/security/npm-audit.json
+
+      - name: Scan the exact production image
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          image-ref: ${{ env.IMAGE_TAG }}
+          version: v0.70.0
+          format: json
+          output: .runtime/security/trivy-image.json
+          severity: HIGH,CRITICAL
+          ignore-unfixed: false
+          exit-code: 0
+
+      - name: Enforce reachable production vulnerability policy
+        run: |
+          IMAGE_DIGEST="$(docker image inspect --format '{{.Id}}' "$IMAGE_TAG")"
+          npm run security:production-gate -- \
+            --image-ref "$IMAGE_TAG" --image-digest "$IMAGE_DIGEST" \
+            --trivy-report .runtime/security/trivy-image.json \
+            --npm-audit-report .runtime/security/npm-audit.json \
+            --package-lock package-lock.json \
+            --reachability security/production-reachability.json \
+            --exceptions security/production-vulnerability-exceptions.json \
+            --output .runtime/security/production-security-receipt.json
+
       - name: Start in a blank Linux container and probe liveness
         run: |
           ADMIN_HASH='scrypt$aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa$bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb'

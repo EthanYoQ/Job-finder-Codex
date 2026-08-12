@@ -35,3 +35,7 @@ _Avoid_: Requalification launch
 **Trusted Completeness Baseline**:
 The latest atomically committed A-grade official-total or B-grade independent-traversal certificate for one source. Only a newly committed A/B certificate may advance its certified job count; an unverified anomaly preserves both this baseline and the last trusted public job projection.
 _Avoid_: Repeated count, last attempted count, manually estimated count
+
+**Production Security Receipt**:
+The commit-run result that binds one production image, production lockfile, raw vulnerability reports and time-bounded reachability/exception policies. Unknown reachability and expired evidence fail closed.
+_Avoid_: Repository-wide audit result, unbound scanner log, permanent vulnerability waiver

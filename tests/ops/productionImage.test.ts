@@ -78,5 +78,10 @@ describe("production container contract", () => {
     expect(workflow).not.toContain("docker run --detach --rm");
     expect(workflow).toContain("MAX_IMAGE_BYTES");
     expect(workflow).toContain("MAX_IMAGE_BYTES: 1600000000");
+    expect(workflow).toContain("aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25");
+    expect(workflow).toContain("npm audit --omit=dev --json");
+    expect(workflow).toContain("npm run security:production-gate");
+    expect(workflow).toContain("--image-digest \"$IMAGE_DIGEST\"");
+    expect(workflow).toContain("production-security-receipt.json");
   });
 });
