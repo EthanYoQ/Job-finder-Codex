@@ -8,7 +8,11 @@ const browserRequired = plans.some((plan) =>
   plan.transportPolicy?.fallback === "BROWSER_SESSION" || requiresBGradeTraversalCertificate(plan)
 );
 const dockerfile = readFileSync("Dockerfile", "utf8");
-const chromiumInstalled = /install-apt-packages\.sh[^\n]*\bchromium\b/u.test(dockerfile);
+const runtimeStage = dockerfile.match(
+  /FROM node:22-bookworm-slim@sha256:[a-f0-9]{64} AS runtime\b([\s\S]*?)(?=\nFROM\s|$)/u
+)?.[1];
+if (!runtimeStage) throw new Error("Production image is missing its pinned runtime stage");
+const chromiumInstalled = /install-apt-packages\.sh[^\n]*\bchromium\b/u.test(runtimeStage);
 
 if (browserRequired !== chromiumInstalled) {
   throw new Error(
