@@ -1,29 +1,67 @@
 import { describe, expect, it, vi } from "vitest";
-import { checkDeploymentReadiness } from "../../src/server/deploymentReadiness";
+import { checkDeploymentReadiness, createCachedDeploymentReadiness } from "../../src/server/deploymentReadiness";
+
+const EXPECTED = [
+  { migrationName: "001", checksum: "a".repeat(64) },
+  { migrationName: "002", checksum: "b".repeat(64) }
+];
+const migrationRows = EXPECTED.map(({ migrationName, checksum }) => ({
+  migration_name: migrationName, checksum, finished_at: new Date("2026-08-13T00:00:00Z"), rolled_back_at: null
+}));
+const base = {
+  databaseUrl: "postgresql://user:password@db/jobfinder",
+  expectedMigrations: EXPECTED,
+  adminEmail: "owner@example.com",
+  adminPasswordHash: `scrypt$${"a".repeat(32)}$${"b".repeat(128)}`
+};
 
 describe("deployment readiness", () => {
-  it("is ready only when database, all local migrations, and administrator initialization agree", async () => {
+  it("is ready only when database, exact local migrations, and configured administrator agree", async () => {
     const query = vi.fn()
-      .mockResolvedValueOnce({ rows: [{ migration_name: "001" }, { migration_name: "002" }] })
+      .mockResolvedValueOnce({ rows: migrationRows })
       .mockResolvedValueOnce({ rows: [{ initialized: true }] });
-    await expect(checkDeploymentReadiness({
-      databaseUrl: "postgresql://user:password@db/jobfinder",
-      expectedMigrationNames: ["001", "002"],
-      adminEmail: "owner@example.com",
+    await expect(checkDeploymentReadiness({ ...base,
       createClient: () => ({ connect: async () => undefined, query, end: async () => undefined })
     })).resolves.toBe(true);
+    expect(query).toHaveBeenLastCalledWith(expect.stringContaining('"passwordHash" = $2'), [
+      base.adminEmail, base.adminPasswordHash
+    ]);
   });
 
   it.each([
-    ["missing migration", [{ migration_name: "001" }], [{ initialized: true }]],
-    ["missing administrator", [{ migration_name: "001" }, { migration_name: "002" }], [{ initialized: false }]]
-  ])("fails closed for %s", async (_label, migrationRows, adminRows) => {
-    const query = vi.fn().mockResolvedValueOnce({ rows: migrationRows }).mockResolvedValueOnce({ rows: adminRows });
-    await expect(checkDeploymentReadiness({
-      databaseUrl: "postgresql://user:password@db/jobfinder",
-      expectedMigrationNames: ["001", "002"],
-      adminEmail: "owner@example.com",
+    ["missing migration", migrationRows.slice(0, 1), [{ initialized: true }]],
+    ["unfinished migration", [...migrationRows, { migration_name: "003", checksum: "c".repeat(64), finished_at: null, rolled_back_at: null }], [{ initialized: true }]],
+    ["checksum drift", [{ ...migrationRows[0], checksum: "0".repeat(64) }, migrationRows[1]], [{ initialized: true }]],
+    ["missing administrator", migrationRows, [{ initialized: false }]]
+  ])("fails closed for %s", async (_label, migrations, admins) => {
+    const query = vi.fn().mockResolvedValueOnce({ rows: migrations }).mockResolvedValueOnce({ rows: admins });
+    await expect(checkDeploymentReadiness({ ...base,
       createClient: () => ({ connect: async () => undefined, query, end: async () => undefined })
     })).resolves.toBe(false);
+  });
+
+  it("fails closed when cleanup rejects or hangs and coalesces concurrent checks", async () => {
+    const query = vi.fn()
+      .mockResolvedValue({ rows: migrationRows })
+      .mockResolvedValueOnce({ rows: migrationRows })
+      .mockResolvedValueOnce({ rows: [{ initialized: true }] });
+    await expect(checkDeploymentReadiness({ ...base, timeoutMs: 20,
+      createClient: () => ({ connect: async () => undefined, query, end: async () => { throw new Error("end"); } })
+    })).resolves.toBe(false);
+
+    let connectCalls = 0;
+    const cached = createCachedDeploymentReadiness({ ...base,
+      createClient: () => ({
+        connect: async () => { connectCalls += 1; },
+        query: vi.fn().mockResolvedValueOnce({ rows: migrationRows }).mockResolvedValueOnce({ rows: [{ initialized: true }] }),
+        end: async () => undefined
+      })
+    });
+    await expect(Promise.all([cached(), cached(), cached()])).resolves.toEqual([true, true, true]);
+    expect(connectCalls).toBe(1);
+  });
+
+  it("requires the full production bootstrap configuration", async () => {
+    await expect(checkDeploymentReadiness({ ...base, adminPasswordHash: "" })).resolves.toBe(false);
   });
 });

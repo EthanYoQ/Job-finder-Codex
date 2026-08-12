@@ -66,3 +66,43 @@ jobs:
           done
           docker logs "$CONTAINER_ID"
           exit 1
+
+      - name: Prove production bootstrap idempotence and readiness against blank PostgreSQL
+        run: |
+          set -euo pipefail
+          NETWORK="job-finder-bootstrap-${{ github.run_id }}"
+          POSTGRES_NAME="job-finder-postgres-${{ github.run_id }}"
+          APP_NAME="job-finder-web-${{ github.run_id }}"
+          ADMIN_HASH='scrypt$aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa$bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb'
+          DATABASE_URL='postgresql://jobfinder:bootstrap-test-password@postgres/jobfinder?schema=public'
+          docker network create "$NETWORK"
+          trap 'docker rm --force "$APP_NAME" "$POSTGRES_NAME" >/dev/null 2>&1 || true; docker network rm "$NETWORK" >/dev/null 2>&1 || true' EXIT
+          docker run --detach --name "$POSTGRES_NAME" --network "$NETWORK" --network-alias postgres \
+            --env POSTGRES_DB=jobfinder --env POSTGRES_USER=jobfinder --env POSTGRES_PASSWORD=bootstrap-test-password \
+            postgres:16-bookworm@sha256:da788743d2060767375896de4d646f7576f5911461444b372616f19ea61db2ec
+          for attempt in $(seq 1 30); do
+            docker exec "$POSTGRES_NAME" pg_isready -U jobfinder -d jobfinder && break
+            sleep 1
+          done
+          docker run --rm --network "$NETWORK" --env DATABASE_URL="$DATABASE_URL" \
+            --env ADMIN_EMAIL=owner@example.com --env ADMIN_PASSWORD_HASH="$ADMIN_HASH" "$IMAGE_TAG" npm run ops:bootstrap
+          docker run --rm --network "$NETWORK" --env DATABASE_URL="$DATABASE_URL" \
+            --env ADMIN_EMAIL=owner@example.com --env ADMIN_PASSWORD_HASH="$ADMIN_HASH" "$IMAGE_TAG" npm run ops:bootstrap &
+          FIRST_PID=$!
+          docker run --rm --network "$NETWORK" --env DATABASE_URL="$DATABASE_URL" \
+            --env ADMIN_EMAIL=owner@example.com --env ADMIN_PASSWORD_HASH="$ADMIN_HASH" "$IMAGE_TAG" npm run ops:bootstrap &
+          SECOND_PID=$!
+          wait "$FIRST_PID"
+          wait "$SECOND_PID"
+          test "$(docker exec "$POSTGRES_NAME" psql -U jobfinder -d jobfinder -Atc 'SELECT count(*) FROM "AdminUser"')" = "1"
+          test "$(docker exec "$POSTGRES_NAME" psql -U jobfinder -d jobfinder -Atc \"SELECT count(*) FROM \\\"AdminAuditEvent\\\" WHERE action='DEPLOYMENT_ADMIN_BOOTSTRAPPED'\")" = "1"
+          docker run --detach --name "$APP_NAME" --network "$NETWORK" --env DATABASE_URL="$DATABASE_URL" \
+            --env ADMIN_EMAIL=owner@example.com --env ADMIN_PASSWORD_HASH="$ADMIN_HASH" "$IMAGE_TAG"
+          for attempt in $(seq 1 30); do
+            docker exec "$APP_NAME" node -e "fetch('http://127.0.0.1:3000/readyz').then(r=>process.exit(r.status===200?0:1)).catch(()=>process.exit(1))" && break
+            sleep 1
+          done
+          docker exec "$POSTGRES_NAME" psql -U jobfinder -d jobfinder -v ON_ERROR_STOP=1 -c \
+            "INSERT INTO \"_prisma_migrations\" (id,checksum,migration_name,started_at,applied_steps_count) VALUES ('00000000-0000-0000-0000-000000000000',repeat('0',64),'99999999999999_unfinished',now(),0)"
+          sleep 2
+          docker exec "$APP_NAME" node -e "fetch('http://127.0.0.1:3000/readyz').then(r=>process.exit(r.status===503?0:1)).catch(()=>process.exit(1))"

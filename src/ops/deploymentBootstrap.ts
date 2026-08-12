@@ -5,6 +5,7 @@ export interface DeploymentBootstrapConfig {
 }
 
 interface BootstrapDb {
+  $executeRawUnsafe(query: string): Promise<unknown>;
   adminUser: {
     findUnique(args: { where: { email: string } }): Promise<{
       id: string; email: string; passwordHash: string; disabledAt: Date | null;
@@ -21,7 +22,6 @@ interface BootstrapDb {
 
 export interface DeploymentBootstrapDeps {
   migrate(): Promise<void>;
-  db: BootstrapDb;
   transaction<T>(operation: (db: BootstrapDb) => Promise<T>): Promise<T>;
 }
 
@@ -43,6 +43,7 @@ export async function bootstrapDeployment(
 ): Promise<{ created: boolean; adminEmail: string }> {
   await deps.migrate();
   const created = await deps.transaction(async (db) => {
+    await db.$executeRawUnsafe("SELECT pg_advisory_xact_lock(1246707789)");
     const existing = await db.adminUser.findUnique({ where: { email: config.adminEmail } });
     if (existing) {
       if (existing.disabledAt || existing.passwordHash !== config.adminPasswordHash) {

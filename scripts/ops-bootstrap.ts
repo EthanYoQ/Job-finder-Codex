@@ -12,10 +12,16 @@ export async function runDeploymentBootstrap(env: NodeJS.ProcessEnv = process.en
       migrate: async () => {
         const result = spawnSync(process.execPath, [
           resolve("node_modules/prisma/build/index.js"), "migrate", "deploy", "--schema", "prisma/schema.prisma"
-        ], { env: { ...process.env, DATABASE_URL: config.databaseUrl }, stdio: "inherit", shell: false });
-        if (result.status !== 0) throw new Error("Database migration failed");
+        ], {
+          env: { ...process.env, DATABASE_URL: config.databaseUrl },
+          encoding: "utf8",
+          shell: false,
+          windowsHide: true,
+          timeout: 5 * 60_000,
+          maxBuffer: 4 * 1024 * 1024
+        });
+        if (result.status !== 0 || result.error) throw new Error("Database migration failed");
       },
-      db: prisma,
       transaction: (operation) => prisma.$transaction((transaction) => operation(transaction))
     });
     process.stdout.write(`${JSON.stringify({ ok: true, ...report })}\n`);

@@ -11,9 +11,11 @@ describe("deployment bootstrap", () => {
       .mockResolvedValueOnce({ id: "admin-1", email: "owner@example.com", passwordHash: HASH, disabledAt: null });
     const create = vi.fn(async () => ({ id: "admin-1" }));
     const auditCreate = vi.fn(async () => ({}));
+    const lock = vi.fn(async () => undefined);
     const deps = {
       migrate,
       db: {
+        $executeRawUnsafe: lock,
         adminUser: { findUnique, create },
         adminAuditEvent: { create: auditCreate }
       },
@@ -31,6 +33,7 @@ describe("deployment bootstrap", () => {
     expect(migrate).toHaveBeenCalledTimes(2);
     expect(create).toHaveBeenCalledTimes(1);
     expect(auditCreate).toHaveBeenCalledTimes(1);
+    expect(lock).toHaveBeenCalledTimes(2);
   });
 
   it("rejects missing, placeholder, or malformed production configuration without exposing secrets", () => {

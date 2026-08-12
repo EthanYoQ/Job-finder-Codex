@@ -10,8 +10,8 @@ Run the non-interactive command once on a new server:
 npm run ops:bootstrap
 ```
 
-The command runs the repository-local `prisma migrate deploy` before an atomic administrator
-upsert. Repeating it is safe when the configured administrator is unchanged. First creation emits
+The command runs the repository-local `prisma migrate deploy` before an advisory-lock-serialized administrator
+creation transaction. Repeating or concurrently invoking it is safe when the configured administrator is unchanged. First creation emits
 an `AdminAuditEvent`; a conflicting or disabled administrator returns a nonzero exit code.
 
 In Compose, the one-shot `bootstrap` service runs after PostgreSQL is healthy and `web` starts only

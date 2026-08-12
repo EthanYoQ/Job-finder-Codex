@@ -23,6 +23,7 @@ describe("production container contract", () => {
     expect(dockerfile).toContain("COPY --from=identity /app/node_modules ./node_modules");
     expect(dockerfile).not.toContain("COPY . .");
     expect(packageJson.dependencies?.tsx).toBeDefined();
+    expect(packageJson.dependencies?.prisma).toBeDefined();
     expect(packageJson.devDependencies?.tsx).toBeUndefined();
     for (const buildOnly of ["@tavily/core", "lucide-react", "react", "react-dom"]) {
       expect(packageJson.dependencies?.[buildOnly]).toBeUndefined();

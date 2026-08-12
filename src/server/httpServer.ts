@@ -1,13 +1,13 @@
 import { PrismaClient } from "@prisma/client";
 import { createServer as createNodeServer, type IncomingMessage, type Server, type ServerResponse } from "node:http";
 import { readFile } from "node:fs/promises";
-import { readdirSync } from "node:fs";
 import { extname, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import { handleAdminApi, type AdminApiDeps, type AdminApiResponse } from "./adminApi";
 import { handlePublicApi, type PublicApiDeps, type PublicApiResponse } from "./publicApi";
 import { DEFAULT_POSTGRES_READINESS_TIMEOUT_MS, normalizePostgresReadinessTimeout } from "./postgresReadiness";
-import { checkDeploymentReadiness } from "./deploymentReadiness";
+import { createCachedDeploymentReadiness, readDeploymentMigrationManifest } from "./deploymentReadiness";
+import { resolveDeploymentBootstrapConfig } from "../ops/deploymentBootstrap";
 
 const DEFAULT_HOST = "0.0.0.0";
 const DEFAULT_PORT = 3000;
@@ -46,18 +46,15 @@ export function createServer(deps: HttpServerDeps, options: HttpServerOptions = 
 
 export async function startServer(): Promise<Server> {
   const prisma = new PrismaClient();
-  const databaseUrl = process.env.DATABASE_URL;
+  const bootstrapConfig = resolveDeploymentBootstrapConfig(process.env);
   const readinessTimeoutMs = normalizePostgresReadinessTimeout(
     Number(process.env.POSTGRES_READINESS_TIMEOUT_MS ?? DEFAULT_POSTGRES_READINESS_TIMEOUT_MS)
   );
-  const migrationRoot = resolve(process.cwd(), "prisma", "migrations");
-  const expectedMigrationNames = readdirSync(migrationRoot, { withFileTypes: true })
-    .filter((entry) => entry.isDirectory()).map((entry) => entry.name);
-  const checkDatabaseReadiness = () => checkDeploymentReadiness({
-    databaseUrl,
-    expectedMigrationNames,
-    adminEmail: process.env.ADMIN_EMAIL,
-    ...(process.env.ADMIN_PASSWORD_HASH ? { adminPasswordHash: process.env.ADMIN_PASSWORD_HASH } : {}),
+  const checkDatabaseReadiness = createCachedDeploymentReadiness({
+    databaseUrl: bootstrapConfig.databaseUrl,
+    expectedMigrations: readDeploymentMigrationManifest(process.cwd()),
+    adminEmail: bootstrapConfig.adminEmail,
+    adminPasswordHash: bootstrapConfig.adminPasswordHash,
     timeoutMs: readinessTimeoutMs
   });
   const server = createServer({
