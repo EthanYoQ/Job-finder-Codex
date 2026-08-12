@@ -251,6 +251,26 @@ describe("deployment configuration", () => {
     expect(nginx).toMatch(/locked origin/i);
     expect(nginx).toMatch(/trusted prox(y|ies)|allowlist/i);
     expect(nginx).toMatch(/default deny|deny-by-default|deny all except/i);
+    expect(nginx).toMatch(/listen 443 ssl/);
+    expect(nginx).toContain("ssl_certificate /run/tls/fullchain.pem");
+    expect(nginx).toContain("ssl_certificate_key /run/tls/privkey.pem");
+    expect(nginx).toMatch(/client_max_body_size\s+1m/);
+    expect(nginx).toMatch(/proxy_connect_timeout\s+5s/);
+    expect(nginx).toMatch(/proxy_read_timeout\s+30s/);
+    expect(nginx).toMatch(/proxy_send_timeout\s+30s/);
+  });
+
+  it("publishes only nginx HTTP/TLS ports and mounts TLS material read-only", () => {
+    const compose = readRequiredFile(composePath);
+    const nginx = readComposeService(compose, "nginx");
+    expect(nginx).toContain('target: /run/tls/fullchain.pem');
+    expect(nginx).toContain('target: /run/tls/privkey.pem');
+    expect(nginx.match(/read_only:\s*true/gu)).toHaveLength(3);
+    expect(nginx).toContain('${HTTP_PORT:-80}:80');
+    expect(nginx).toContain('${HTTPS_PORT:-443}:443');
+    for (const serviceName of ["postgres", "web", "worker", "scheduler"]) {
+      expect(readComposeService(compose, serviceName)).not.toContain("ports:");
+    }
   });
 
   it("rate-limits the exact public health endpoint without changing the internal web healthcheck", () => {
