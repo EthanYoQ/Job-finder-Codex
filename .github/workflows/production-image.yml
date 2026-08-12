@@ -56,7 +56,10 @@ jobs:
 
       - name: Start in a blank Linux container and probe liveness
         run: |
-          CONTAINER_ID="$(docker run --detach --publish 127.0.0.1:3000:3000 --env DATABASE_URL=postgresql://unused:unused@127.0.0.1:5432/unused "$IMAGE_TAG")"
+          ADMIN_HASH='scrypt$aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa$bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb'
+          CONTAINER_ID="$(docker run --detach --publish 127.0.0.1:3000:3000 \
+            --env DATABASE_URL=postgresql://unused:unused@127.0.0.1:5432/unused \
+            --env ADMIN_EMAIL=owner@example.com --env ADMIN_PASSWORD_HASH="$ADMIN_HASH" "$IMAGE_TAG")"
           trap 'docker rm --force "$CONTAINER_ID" >/dev/null 2>&1 || true' EXIT
           for attempt in $(seq 1 30); do
             if curl --fail --silent http://127.0.0.1:3000/livez | grep --quiet '"ok":true'; then
@@ -80,12 +83,14 @@ jobs:
           docker run --detach --name "$POSTGRES_NAME" --network "$NETWORK" --network-alias postgres \
             --env POSTGRES_DB=jobfinder --env POSTGRES_USER=jobfinder --env POSTGRES_PASSWORD=bootstrap-test-password \
             postgres:16-bookworm@sha256:da788743d2060767375896de4d646f7576f5911461444b372616f19ea61db2ec
+          POSTGRES_READY=0
           for attempt in $(seq 1 30); do
-            docker exec "$POSTGRES_NAME" pg_isready -U jobfinder -d jobfinder && break
+            if docker exec "$POSTGRES_NAME" pg_isready -U jobfinder -d jobfinder; then POSTGRES_READY=1; break; fi
             sleep 1
           done
+          test "$POSTGRES_READY" = 1
           docker run --rm --network "$NETWORK" --env DATABASE_URL="$DATABASE_URL" \
-            --env ADMIN_EMAIL=owner@example.com --env ADMIN_PASSWORD_HASH="$ADMIN_HASH" "$IMAGE_TAG" npm run ops:bootstrap
+            "$IMAGE_TAG" node node_modules/prisma/build/index.js migrate deploy
           docker run --rm --network "$NETWORK" --env DATABASE_URL="$DATABASE_URL" \
             --env ADMIN_EMAIL=owner@example.com --env ADMIN_PASSWORD_HASH="$ADMIN_HASH" "$IMAGE_TAG" npm run ops:bootstrap &
           FIRST_PID=$!
@@ -94,14 +99,34 @@ jobs:
           SECOND_PID=$!
           wait "$FIRST_PID"
           wait "$SECOND_PID"
+          docker run --rm --network "$NETWORK" --env DATABASE_URL="$DATABASE_URL" \
+            --env ADMIN_EMAIL=owner@example.com --env ADMIN_PASSWORD_HASH="$ADMIN_HASH" "$IMAGE_TAG" npm run ops:bootstrap
           test "$(docker exec "$POSTGRES_NAME" psql -U jobfinder -d jobfinder -Atc 'SELECT count(*) FROM "AdminUser"')" = "1"
           test "$(docker exec "$POSTGRES_NAME" psql -U jobfinder -d jobfinder -Atc \"SELECT count(*) FROM \\\"AdminAuditEvent\\\" WHERE action='DEPLOYMENT_ADMIN_BOOTSTRAPPED'\")" = "1"
           docker run --detach --name "$APP_NAME" --network "$NETWORK" --env DATABASE_URL="$DATABASE_URL" \
             --env ADMIN_EMAIL=owner@example.com --env ADMIN_PASSWORD_HASH="$ADMIN_HASH" "$IMAGE_TAG"
+          APP_READY=0
           for attempt in $(seq 1 30); do
-            docker exec "$APP_NAME" node -e "fetch('http://127.0.0.1:3000/readyz').then(r=>process.exit(r.status===200?0:1)).catch(()=>process.exit(1))" && break
+            if docker exec "$APP_NAME" node -e "fetch('http://127.0.0.1:3000/readyz').then(r=>process.exit(r.status===200?0:1)).catch(()=>process.exit(1))"; then APP_READY=1; break; fi
             sleep 1
           done
+          test "$APP_READY" = 1
+          docker stop "$POSTGRES_NAME"
+          sleep 1
+          docker exec "$APP_NAME" node -e "fetch('http://127.0.0.1:3000/readyz').then(r=>process.exit(r.status===503?0:1)).catch(()=>process.exit(1))"
+          docker start "$POSTGRES_NAME"
+          POSTGRES_READY=0
+          for attempt in $(seq 1 30); do
+            if docker exec "$POSTGRES_NAME" pg_isready -U jobfinder -d jobfinder; then POSTGRES_READY=1; break; fi
+            sleep 1
+          done
+          test "$POSTGRES_READY" = 1
+          APP_READY=0
+          for attempt in $(seq 1 30); do
+            if docker exec "$APP_NAME" node -e "fetch('http://127.0.0.1:3000/readyz').then(r=>process.exit(r.status===200?0:1)).catch(()=>process.exit(1))"; then APP_READY=1; break; fi
+            sleep 1
+          done
+          test "$APP_READY" = 1
           docker exec "$POSTGRES_NAME" psql -U jobfinder -d jobfinder -v ON_ERROR_STOP=1 -c \
             "INSERT INTO \"_prisma_migrations\" (id,checksum,migration_name,started_at,applied_steps_count) VALUES ('00000000-0000-0000-0000-000000000000',repeat('0',64),'99999999999999_unfinished',now(),0)"
           sleep 2

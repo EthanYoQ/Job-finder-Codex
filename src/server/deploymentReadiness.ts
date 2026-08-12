@@ -1,7 +1,8 @@
-import { createHash } from "node:crypto";
-import { readFileSync, readdirSync } from "node:fs";
-import { resolve } from "node:path";
 import { Client, type ClientConfig } from "pg";
+import {
+  listCurrentPrismaMigrations,
+  type PrismaMigrationArtifact
+} from "../db/prismaMigrationManifest";
 
 interface ReadinessClient {
   connect(): Promise<void>;
@@ -9,10 +10,7 @@ interface ReadinessClient {
   end(): Promise<void>;
 }
 
-export interface DeploymentMigrationExpectation {
-  migrationName: string;
-  checksum: string;
-}
+export type DeploymentMigrationExpectation = PrismaMigrationArtifact;
 
 export interface DeploymentReadinessOptions {
   databaseUrl: string;
@@ -24,16 +22,7 @@ export interface DeploymentReadinessOptions {
 }
 
 export function readDeploymentMigrationManifest(projectRoot: string): DeploymentMigrationExpectation[] {
-  const migrationRoot = resolve(projectRoot, "prisma", "migrations");
-  return readdirSync(migrationRoot, { withFileTypes: true })
-    .filter((entry) => entry.isDirectory())
-    .map((entry) => ({
-      migrationName: entry.name,
-      checksum: createHash("sha256")
-        .update(readFileSync(resolve(migrationRoot, entry.name, "migration.sql")))
-        .digest("hex")
-    }))
-    .sort((left, right) => compareUtf8(left.migrationName, right.migrationName));
+  return listCurrentPrismaMigrations(projectRoot);
 }
 
 export async function checkDeploymentReadiness(options: DeploymentReadinessOptions): Promise<boolean> {
@@ -58,7 +47,7 @@ export async function checkDeploymentReadiness(options: DeploymentReadinessOptio
     const operation = (async () => {
       await client!.connect();
       const migrations = await client!.query(
-        'SELECT migration_name, checksum, finished_at, rolled_back_at FROM "_prisma_migrations" ORDER BY migration_name'
+        'SELECT migration_name, checksum, finished_at, rolled_back_at FROM "_prisma_migrations" ORDER BY migration_name COLLATE "C", id COLLATE "C"'
       );
       if (!matchesMigrationManifest(migrations.rows, options.expectedMigrations)) return false;
       const admin = await client!.query(
@@ -122,14 +111,9 @@ function matchesMigrationManifest(
   rows: readonly Record<string, unknown>[],
   expected: readonly DeploymentMigrationExpectation[]
 ): boolean {
-  if (rows.length !== expected.length) return false;
-  return expected.every((migration, index) => {
-    const row = rows[index];
-    return row?.migration_name === migration.migrationName &&
-      row.checksum === migration.checksum &&
-      row.finished_at !== null && row.finished_at !== undefined &&
-      row.rolled_back_at === null;
-  });
+  if (rows.some((row) => row.finished_at == null && row.rolled_back_at == null)) return false;
+  const successful = rows.filter((row) => row.finished_at != null && row.rolled_back_at == null);
+  if (successful.length !== expected.length) return false;
+  return expected.every((migration, index) => successful[index]?.migration_name === migration.migrationName &&
+    successful[index]?.checksum === migration.checksum);
 }
-
-const compareUtf8 = (left: string, right: string): number => Buffer.from(left).compare(Buffer.from(right));

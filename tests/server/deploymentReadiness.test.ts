@@ -40,6 +40,30 @@ describe("deployment readiness", () => {
     })).resolves.toBe(false);
   });
 
+  it("allows an explicitly rolled-back historical attempt when each local migration has one successful row", async () => {
+    const query = vi.fn()
+      .mockResolvedValueOnce({ rows: [
+        { migration_name: "001", checksum: "0".repeat(64), finished_at: null, rolled_back_at: new Date("2026-08-12T00:00:00Z") },
+        ...migrationRows
+      ] })
+      .mockResolvedValueOnce({ rows: [{ initialized: true }] });
+    await expect(checkDeploymentReadiness({ ...base,
+      createClient: () => ({ connect: async () => undefined, query, end: async () => undefined })
+    })).resolves.toBe(true);
+  });
+
+  it("fails closed when the database connection is unavailable", async () => {
+    const query = vi.fn();
+    await expect(checkDeploymentReadiness({ ...base,
+      createClient: () => ({
+        connect: async () => { throw new Error("connection refused"); },
+        query,
+        end: async () => undefined
+      })
+    })).resolves.toBe(false);
+    expect(query).not.toHaveBeenCalled();
+  });
+
   it("fails closed when cleanup rejects or hangs and coalesces concurrent checks", async () => {
     const query = vi.fn()
       .mockResolvedValue({ rows: migrationRows })
