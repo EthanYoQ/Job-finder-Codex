@@ -56,7 +56,10 @@ describe("http server", () => {
           findUnique: async () => null
         },
         adminAuditEvent: { create: async () => ({}) },
-        manualCrawlRequest: { create: async () => ({ id: "crawl-1" }) },
+        manualCrawlRequest: {
+          create: async () => ({ id: "crawl-1" }),
+          findMany: async () => []
+        },
         recruitmentSource: { findMany: async () => [] }
       },
       checkDatabaseReadiness: overrides.checkDatabaseReadiness ?? (async () => true),

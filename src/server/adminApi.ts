@@ -36,6 +36,33 @@ export interface AdminApiResponse {
 
 type AdminApiDb = AdminAuthDb &
   AdminOperationsDb & {
+    manualCrawlRequest: AdminOperationsDb["manualCrawlRequest"] & {
+      findMany(args: {
+        orderBy: { createdAt: "desc" };
+        select: {
+          id: true;
+          sourceId: true;
+          status: true;
+          attemptCount: true;
+          crawlBatchId: true;
+          failureCode: true;
+          createdAt: true;
+          startedAt: true;
+          finishedAt: true;
+        };
+        take: 50;
+      }): Promise<Array<{
+        id: string;
+        sourceId: string;
+        status: string;
+        attemptCount: number;
+        crawlBatchId: string | null;
+        failureCode: string | null;
+        createdAt: Date;
+        startedAt: Date | null;
+        finishedAt: Date | null;
+      }>>;
+    };
     adminUser: {
       findUnique(args: {
         where: { email: string };
@@ -190,6 +217,36 @@ export async function handleAdminApi(request: AdminApiRequest, deps: AdminApiDep
         recommendationQueue,
         categoryCorrectionQueue
       })
+    };
+  }
+
+  if (request.path === "/admin/api/manual-crawls" && request.method === "GET") {
+    const rows = await deps.db.manualCrawlRequest.findMany({
+      orderBy: { createdAt: "desc" },
+      select: {
+        id: true,
+        sourceId: true,
+        status: true,
+        attemptCount: true,
+        crawlBatchId: true,
+        failureCode: true,
+        createdAt: true,
+        startedAt: true,
+        finishedAt: true
+      },
+      take: 50
+    });
+    return {
+      status: 200,
+      headers,
+      body: {
+        requests: rows.map((row) => ({
+          ...row,
+          createdAt: row.createdAt.toISOString(),
+          startedAt: row.startedAt?.toISOString() ?? null,
+          finishedAt: row.finishedAt?.toISOString() ?? null
+        }))
+      }
     };
   }
 

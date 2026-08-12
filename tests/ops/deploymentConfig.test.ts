@@ -152,9 +152,15 @@ async function startFakeTcpServer(): Promise<{ port: number; stop: () => Promise
 }
 
 describe("deployment configuration", () => {
-  it("renders the base stack without historical manual-worker authority inputs", () => {
+  it("renders the base stack with the deployed manual-request worker", () => {
     const rendered = renderBaseComposeWithoutManualAuthority();
     expect(readComposeService(rendered, "web")).toContain("DATABASE_URL");
+    const worker = readComposeService(rendered, "worker");
+    expect(worker).toMatch(/command:\s*\n\s+- npm\s*\n\s+- run\s*\n\s+- p0:manual-crawl-worker/u);
+    expect(worker).toMatch(/restart:\s*unless-stopped/u);
+    expect(worker).not.toContain("profiles:");
+    expect(worker).not.toContain("P0_FULL_RELEASE_");
+    expect(worker).not.toContain("/run/release-authority/");
     expect(readRequiredFile(envExamplePath)).toContain(
       "postgresql://jobfinder:replace-with-a-long-random-database-password@postgres:5432/jobfinder?schema=public"
     );
@@ -311,10 +317,9 @@ describe("deployment configuration", () => {
       expect(service).toContain("STAGED_INITIAL_QUALIFICATION_PAUSE_PATH: /app/outputs/staged-initial-qualification-pause.json");
       expect(service).not.toMatch(/STAGED_CRAWL_(?:SUMMARY_PATH|ATTEMPT_DIR):\s*\$\{/u);
     }
-    expect(worker).toContain("P0_FULL_RELEASE_MEMBERSHIP_FILE: /run/release-authority/membership.json");
-    expect(worker).toContain("P0_FULL_RELEASE_ORACLE_FILE: /run/release-authority/oracle.json");
-    expect(worker).toContain("target: /run/release-authority/membership.json");
-    expect(worker).toContain("target: /run/release-authority/oracle.json");
+    expect(worker).toContain("P0_MANUAL_CRAWL_WORKER_ID:");
+    expect(worker).not.toMatch(/P0_(?:FULL_RELEASE|RELEASE_)/u);
+    expect(worker).not.toContain("/run/release-authority/");
     const monitorScript = readRequiredFile(monitoringCheckPath);
     expect(monitorScript).toContain("loadProductionStagedMonitoringIdentity");
     expect(monitorScript).toContain("loadProductionStagedMonitoringIdentity(databaseUrl)");

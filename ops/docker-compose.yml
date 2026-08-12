@@ -102,8 +102,7 @@ services:
       context: ..
       dockerfile: Dockerfile
       args: *release-build-args
-    profiles: ["manual"]
-    restart: "no"
+    restart: unless-stopped
     user: node
     read_only: true
     cap_drop:
@@ -112,29 +111,14 @@ services:
       - no-new-privileges:true
     tmpfs:
       - /tmp:rw,nosuid,nodev,noexec,size=1g,mode=1777
-    command: ["npm", "run", "p0:formal-crawl-once"]
+    command: ["npm", "run", "p0:manual-crawl-worker"]
     environment:
       DATABASE_URL: ${DATABASE_URL:?set DATABASE_URL}
-      P0_FULL_RELEASE_MEMBERSHIP_FILE: /run/release-authority/membership.json
-      P0_FULL_RELEASE_MEMBERSHIP_FILE_SHA256: ${P0_FULL_RELEASE_MEMBERSHIP_FILE_SHA256:-manual-profile-not-configured}
-      P0_FULL_RELEASE_ORACLE_FILE: /run/release-authority/oracle.json
-      P0_FULL_RELEASE_ORACLE_FILE_SHA256: ${P0_FULL_RELEASE_ORACLE_FILE_SHA256:-manual-profile-not-configured}
+      P0_MANUAL_CRAWL_WORKER_ID: ${P0_MANUAL_CRAWL_WORKER_ID:-manual-worker-1}
     volumes:
-      - type: bind
-        source: ${P0_FULL_RELEASE_MEMBERSHIP_FILE:-./manual-release-authority-not-configured/membership.json}
-        target: /run/release-authority/membership.json
-        read_only: true
-        bind:
-          create_host_path: false
       - type: volume
         source: formal-artifacts
         target: /app/outputs
-      - type: bind
-        source: ${P0_FULL_RELEASE_ORACLE_FILE:-./manual-release-authority-not-configured/oracle.json}
-        target: /run/release-authority/oracle.json
-        read_only: true
-        bind:
-          create_host_path: false
     depends_on:
       bootstrap:
         condition: service_completed_successfully

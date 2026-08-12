@@ -22,7 +22,22 @@ function createDb() {
         adminUser: { id: "admin-1", disabledAt: null }
       }))
     },
-    manualCrawlRequest: { create: vi.fn(async () => ({ id: "manual-1" })) },
+    manualCrawlRequest: {
+      create: vi.fn(async () => ({ id: "manual-1" })),
+      findMany: vi.fn(async () => [
+        {
+          id: "manual-1",
+          sourceId: "source-1",
+          status: "SUCCESS",
+          attemptCount: 1,
+          crawlBatchId: "batch-1",
+          failureCode: null,
+          createdAt: new Date("2026-07-08T10:00:00.000Z"),
+          startedAt: new Date("2026-07-08T10:01:00.000Z"),
+          finishedAt: new Date("2026-07-08T10:02:00.000Z")
+        }
+      ])
+    },
     adminAuditEvent: { create: vi.fn(async () => ({})) },
     feedback: {
       create: vi.fn(async () => ({ id: "feedback-1" })),
@@ -104,6 +119,49 @@ function request(path: string, overrides: Partial<Parameters<typeof handleAdminA
 }
 
 describe("admin API", () => {
+  it("lists recent manual crawl request status for an active admin session", async () => {
+    const db = createDb();
+
+    const response = await handleAdminApi(request("/admin/api/manual-crawls"), {
+      db,
+      now: () => new Date("2026-07-08T12:00:00.000Z")
+    });
+
+    expect(response).toMatchObject({
+      status: 200,
+      body: {
+        requests: [
+          {
+            id: "manual-1",
+            sourceId: "source-1",
+            status: "SUCCESS",
+            attemptCount: 1,
+            crawlBatchId: "batch-1",
+            failureCode: null,
+            createdAt: "2026-07-08T10:00:00.000Z",
+            startedAt: "2026-07-08T10:01:00.000Z",
+            finishedAt: "2026-07-08T10:02:00.000Z"
+          }
+        ]
+      }
+    });
+    expect(db.manualCrawlRequest.findMany).toHaveBeenCalledWith({
+      orderBy: { createdAt: "desc" },
+      select: {
+        id: true,
+        sourceId: true,
+        status: true,
+        attemptCount: true,
+        crawlBatchId: true,
+        failureCode: true,
+        createdAt: true,
+        startedAt: true,
+        finishedAt: true
+      },
+      take: 50
+    });
+  });
+
   it("returns dashboard data for an active admin session", async () => {
     const db = createDb();
 

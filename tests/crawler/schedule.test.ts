@@ -15,33 +15,36 @@ function sourceState(overrides: Partial<SourceScheduleState> = {}): SourceSchedu
   };
 }
 
-describe("daily P0 crawl schedule policy", () => {
-  it("uses one 00:01 China-time window with exact and cross-year boundaries", () => {
-    expect(P0_CRAWL_WINDOWS).toEqual(["00:01"]);
+describe("12-hour P0 crawl schedule policy", () => {
+  it("uses 00:01 and 12:01 China-time windows with exact boundaries", () => {
+    expect(P0_CRAWL_WINDOWS).toEqual(["00:01", "12:01"]);
 
     expect(nextP0CrawlWindow(new Date("2026-07-07T16:00:59.999Z"))).toEqual({
       label: "00:01",
       startsAt: "2026-07-07T16:01:00.000Z"
     });
     expect(nextP0CrawlWindow(new Date("2026-07-07T16:01:00.000Z"))).toEqual({
-      label: "00:01",
-      startsAt: "2026-07-08T16:01:00.000Z"
+      label: "12:01",
+      startsAt: "2026-07-08T04:01:00.000Z"
     });
     expect(nextP0CrawlWindow(new Date("2026-07-07T16:01:00.001Z"))).toEqual({
-      label: "00:01",
-      startsAt: "2026-07-08T16:01:00.000Z"
+      label: "12:01",
+      startsAt: "2026-07-08T04:01:00.000Z"
     });
     expect(nextP0CrawlWindow(new Date("2026-12-31T16:00:59.999Z"))).toEqual({
       label: "00:01",
       startsAt: "2026-12-31T16:01:00.000Z"
     });
     expect(nextP0CrawlWindow(new Date("2026-12-31T16:01:00.000Z"))).toEqual({
-      label: "00:01",
-      startsAt: "2027-01-01T16:01:00.000Z"
+      label: "12:01",
+      startsAt: "2027-01-01T04:01:00.000Z"
+    });
+    expect(nextP0CrawlWindow(new Date("2026-07-08T04:01:00.000Z"))).toEqual({
+      label: "00:01", startsAt: "2026-07-08T16:01:00.000Z"
     });
   });
 
-  it("runs one catch-up after 00:01 only when the current China-day window has no attempt", () => {
+  it("runs one catch-up after each 12-hour boundary only when that window has no attempt", () => {
     const afterWindow = new Date("2026-07-07T16:02:00.000Z");
     expect(nextP0SchedulerWindow(afterWindow)).toEqual({
       label: "00:01",
@@ -52,10 +55,19 @@ describe("daily P0 crawl schedule policy", () => {
       startsAt: "2026-07-07T16:01:00.000Z"
     });
     expect(nextP0SchedulerWindow(afterWindow, new Date("2026-07-07T16:01:00.000Z"))).toEqual({
-      label: "00:01",
-      startsAt: "2026-07-08T16:01:00.000Z"
+      label: "12:01",
+      startsAt: "2026-07-08T04:01:00.000Z"
     });
     expect(nextP0SchedulerWindow(afterWindow, new Date("2026-07-07T16:02:00.000Z"))).toEqual({
+      label: "12:01",
+      startsAt: "2026-07-08T04:01:00.000Z"
+    });
+    const afterNoonWindow = new Date("2026-07-08T04:02:00.000Z");
+    expect(nextP0SchedulerWindow(afterNoonWindow)).toEqual({
+      label: "12:01",
+      startsAt: "2026-07-08T04:01:00.000Z"
+    });
+    expect(nextP0SchedulerWindow(afterNoonWindow, new Date("2026-07-08T04:01:00.000Z"))).toEqual({
       label: "00:01",
       startsAt: "2026-07-08T16:01:00.000Z"
     });
