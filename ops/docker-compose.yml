@@ -122,7 +122,6 @@ services:
     command: ["npm", "run", "p0:manual-crawl-worker"]
     environment:
       DATABASE_URL: ${DATABASE_URL:?set DATABASE_URL}
-      P0_MANUAL_CRAWL_WORKER_ID: ${P0_MANUAL_CRAWL_WORKER_ID:-manual-worker-1}
     volumes:
       - type: volume
         source: formal-artifacts

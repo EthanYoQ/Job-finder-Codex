@@ -397,8 +397,7 @@ export async function runStagedCrawlOperation(
 }
 
 function isOperationallySuccessfulScheduledBatch(batch: StagedScheduledCrawlResult["batch"]): boolean {
-  return batch.status === "SUCCESS" ||
-    (batch.status === "INCOMPLETE" && batch.atomicFailedSourceCount === 0);
+  return batch.status === "SUCCESS";
 }
 
 export async function runProductionStagedCrawlCli(

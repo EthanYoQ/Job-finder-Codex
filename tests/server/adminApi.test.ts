@@ -28,7 +28,7 @@ function createDb() {
         {
           id: "manual-1",
           sourceId: "source-1",
-          status: "SUCCESS",
+          status: "SUCCESS" as const,
           attemptCount: 1,
           crawlBatchId: "batch-1",
           failureCode: null,

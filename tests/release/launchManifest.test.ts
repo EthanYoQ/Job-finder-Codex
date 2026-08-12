@@ -94,8 +94,8 @@ describe("P0 launch manifest", () => {
   it("locks deterministic company, source, and whole-manifest identities", () => {
     expect(launchManifestIdentity(P0_LAUNCH_MANIFEST)).toEqual({
       companySetSha256: "aa0cef75afe2fb3a3dc967804a9483857b5e612f055d16ac7887c35716647b6a",
-      sourceIdentitySha256: "214c7ff65cec9bb3ded4f89eeae6abda5cff72adc446125f4c34e6dc0c584f73",
-      manifestSha256: "d3a903a02aa19f18553a5e4b5c198756ab42e398aebdbe63a271f06f449be459"
+      sourceIdentitySha256: "9b603e01617c18e8aa92d6f8150e11fae5764fa3a5772f7228f0cce3e16e80e6",
+      manifestSha256: "01d987b13d9b14d5d5269f7c7b92a0933631cb9a78e1a220ad7a36c6ac2e696d"
     });
   });
 

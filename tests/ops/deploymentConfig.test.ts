@@ -346,9 +346,13 @@ describe("deployment configuration", () => {
       expect(service).toContain("STAGED_INITIAL_QUALIFICATION_PAUSE_PATH: /app/outputs/staged-initial-qualification-pause.json");
       expect(service).not.toMatch(/STAGED_CRAWL_(?:SUMMARY_PATH|ATTEMPT_DIR):\s*\$\{/u);
     }
-    expect(worker).toContain("P0_MANUAL_CRAWL_WORKER_ID:");
+    expect(worker).not.toContain("P0_MANUAL_CRAWL_WORKER_ID:");
     expect(worker).not.toMatch(/P0_(?:FULL_RELEASE|RELEASE_)/u);
     expect(worker).not.toContain("/run/release-authority/");
+    const manualWorkerScript = readRequiredFile(resolve(repoRoot, "scripts", "p0-manual-crawl-worker.ts"));
+    expect(manualWorkerScript).toContain("resolveCurrentStagedScheduleAuthority(prisma)");
+    expect(manualWorkerScript).not.toContain("loadCurrentReleaseIdentity");
+    expect(manualWorkerScript).toMatch(/manual-\$\{hostname\(\)\}-\$\{process\.pid\}/u);
     const monitorScript = readRequiredFile(monitoringCheckPath);
     expect(monitorScript).toContain("loadProductionStagedMonitoringIdentity");
     expect(monitorScript).toContain("loadProductionStagedMonitoringIdentity(databaseUrl)");

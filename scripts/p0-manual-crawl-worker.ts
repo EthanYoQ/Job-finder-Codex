@@ -1,6 +1,5 @@
 import { hostname } from "node:os";
 import { PrismaClient } from "@prisma/client";
-import { candidateCompanies } from "../src/data/companyRegistry";
 import { createManualCrawlRequestRepository } from "../src/db/manualCrawlRequestRepository";
 import { createPrismaCrawlRuntimeDeps } from "../src/db/crawlRuntimeRepository";
 import { createHotjobLegacySourceFetch } from "../src/crawler/hotjobLegacySourceFetch";
@@ -14,10 +13,9 @@ import { createProfileBoundSourceFetch } from "../src/crawler/profileBoundSource
 import { createOfficialJsonSourceFetch } from "../src/crawler/officialJsonSourceFetch";
 import { runP0CrawlBatch } from "../src/crawler/runCrawlBatch";
 import { createSourceFetchRouter } from "../src/crawler/sourceFetchRouter";
-import { buildSourceCrawlPlans } from "../src/crawler/sourcePlan";
 import { createUnsupportedSourceFetch } from "../src/crawler/unsupportedSourceFetch";
 import { createWorkdaySourceFetch } from "../src/crawler/workdaySourceFetch";
-import { loadCurrentReleaseIdentity } from "../src/readiness/currentReleaseIdentity";
+import { resolveCurrentStagedScheduleAuthority } from "../src/crawler/stagedScheduleAuthority";
 
 function printHelp(): void {
   console.log("Usage: npm run p0:manual-crawl-worker -- [--once]");
@@ -45,8 +43,9 @@ for (const signal of ["SIGINT", "SIGTERM"] as const) {
 
 const prisma = new PrismaClient();
 try {
-  const plans = buildSourceCrawlPlans(candidateCompanies);
-  const baseIdentity = await loadCurrentReleaseIdentity();
+  const authority = await resolveCurrentStagedScheduleAuthority(prisma);
+  const plans = authority.plans;
+  const baseIdentity = authority.identity;
   const fetch = createSourceFetchRouter({
     moka: createMokaSourceFetch(),
     html: createHttpHtmlSourceFetch(),

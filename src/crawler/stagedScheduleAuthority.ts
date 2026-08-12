@@ -1,10 +1,7 @@
 import { createHash } from "node:crypto";
 import { candidateCompanies, type CandidateCompany } from "../data/companyRegistry";
-import { PHASE1_MINIMUM_STABLE_COMPANIES } from "../data/phase1ScopePolicy";
-import {
-  assertExactConfirmedCompanyRosterV3,
-  confirmedCompanyRosterV3
-} from "../data/confirmedCompanyRosterV3";
+import { P0_LAUNCH_MANIFEST, launchManifestIdentity, selectLaunchCompanies,
+  validateLaunchBatchIdentity, validateLaunchManifest } from "../release/launchManifest";
 import { resolveCurrentBuildIdentity, type BuildIdentityArtifact } from "../readiness/buildIdentity";
 import {
   activeSourcePlanSha256,
@@ -123,10 +120,11 @@ export interface StagedQualificationRoundDb {
 export function deriveCurrentStagedScheduleExpectation(
   buildIdentity: BuildIdentityArtifact
 ): StagedScheduleExpectation {
+  const launchCompanies = selectLaunchCompanies(P0_LAUNCH_MANIFEST, candidateCompanies);
   return __testOnlyDeriveStagedScheduleExpectation(
     buildIdentity,
-    candidateCompanies,
-    buildStagedSourceCrawlPlans(candidateCompanies)
+    launchCompanies,
+    buildStagedSourceCrawlPlans(launchCompanies)
   );
 }
 
@@ -137,10 +135,13 @@ export function __testOnlyDeriveStagedScheduleExpectation(
   plans: readonly SourceCrawlPlan[]
 ): StagedScheduleExpectation {
   validateBuildIdentity(buildIdentity);
-  assertExactConfirmedCompanyRosterV3(companies.map(({ id, category }) => ({ id, category })));
-  assertCanonicalCompanyRegistry(companies);
+  const manifestErrors = validateLaunchManifest(P0_LAUNCH_MANIFEST, candidateCompanies.map(({ id }) => id));
+  if (manifestErrors.length > 0) throw new Error(`Launch Manifest is invalid: ${manifestErrors.join(",")}`);
+  assertCanonicalLaunchCompanies(companies);
 
-  const canonicalPlans = canonicalizePlans(buildStagedSourceCrawlPlans(candidateCompanies));
+  const canonicalPlans = canonicalizePlans(buildStagedSourceCrawlPlans(
+    selectLaunchCompanies(P0_LAUNCH_MANIFEST, candidateCompanies)
+  ));
   const orderedPlans = canonicalizePlans(plans);
   if (
     orderedPlans.length !== canonicalPlans.length ||
@@ -156,17 +157,26 @@ export function __testOnlyDeriveStagedScheduleExpectation(
   }
 
   const plannedSourceIds = canonicalizePlannedSourceIds(orderedPlans.map((plan) => plan.source.id));
+  const manifestIdentity = launchManifestIdentity(P0_LAUNCH_MANIFEST);
+  const launchErrors = validateLaunchBatchIdentity(P0_LAUNCH_MANIFEST, {
+    batchKind: "SCHEDULED",
+    rosterSha256: manifestIdentity.companySetSha256,
+    sourcePlanSha256: manifestIdentity.sourceIdentitySha256,
+    expectedPlannedSourceIds: plannedSourceIds,
+    expectedPlannedSourceCount: plannedSourceIds.length
+  }, orderedPlans);
+  if (launchErrors.length > 0) throw new Error(`Launch runtime identity is invalid: ${launchErrors.join(",")}`);
   return {
     companies: canonicalizeCompanies(companies),
     plans: orderedPlans,
     commitSha: buildIdentity.commitSha,
-    rosterSha256: confirmedCompanyRosterV3.membersSha256,
-    sourcePlanSha256: activeSourcePlanSha256(orderedPlans),
+    rosterSha256: manifestIdentity.companySetSha256,
+    sourcePlanSha256: manifestIdentity.sourceIdentitySha256,
     sourceConfigSha256: deriveStagedSourceConfigSha256(orderedPlans),
     adapterBundleSha256: deriveStagedAdapterBundleSha256(buildIdentity.runtimeTreeSha256, orderedPlans),
     sourceTreeSha256: buildIdentity.sourceTreeSha256,
     runtimeTreeSha256: buildIdentity.runtimeTreeSha256,
-    minimumStableCompanyCount: PHASE1_MINIMUM_STABLE_COMPANIES,
+    minimumStableCompanyCount: P0_LAUNCH_MANIFEST.companies.length,
     plannedSourceIds,
     plannedSourceSetSha256: hashCanonicalStringSet(plannedSourceIds),
     plannedSourceCount: plannedSourceIds.length
@@ -399,9 +409,10 @@ function assertExistingScheduledBatchIdentity(
   }
 }
 
-function assertCanonicalCompanyRegistry(companies: readonly CandidateCompany[]): void {
-  if (stableJson(canonicalizeCompanies(companies)) !== stableJson(canonicalizeCompanies(candidateCompanies))) {
-    throw new Error("Staged schedule company roster does not match canonical company registry");
+function assertCanonicalLaunchCompanies(companies: readonly CandidateCompany[]): void {
+  const expected = selectLaunchCompanies(P0_LAUNCH_MANIFEST, candidateCompanies);
+  if (stableJson(canonicalizeCompanies(companies)) !== stableJson(canonicalizeCompanies(expected))) {
+    throw new Error("Staged schedule company roster does not match frozen launch Manifest");
   }
 }
 

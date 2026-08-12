@@ -1,23 +1,27 @@
-export const P0_CRAWL_WINDOWS = ["00:01", "12:01"] as const;
-export type P0CrawlWindowLabel = (typeof P0_CRAWL_WINDOWS)[number];
+const P0_CRAWL_WINDOW_DEFINITIONS = [
+  { label: "00:01", minuteOfDay: 1 },
+  { label: "12:01", minuteOfDay: 12 * 60 + 1 }
+] as const;
+export const P0_CRAWL_WINDOWS = P0_CRAWL_WINDOW_DEFINITIONS.map(({ label }) => label);
+export type P0CrawlWindowLabel = (typeof P0_CRAWL_WINDOW_DEFINITIONS)[number]["label"];
 export interface P0CrawlWindow { label: P0CrawlWindowLabel; startsAt: string; }
 export interface SourceScheduleState { sourceId: string; lastSuccessfulCrawlAt?: string | Date; consecutiveFailureCount: number; }
 
 const CHINA_UTC_OFFSET_MS = 8 * 60 * 60 * 1000;
-const WINDOW_MINUTES = [1, 12 * 60 + 1] as const;
 const EXPLICIT_TIMEZONE_PATTERN = /(Z|[+-]\d{2}:\d{2})$/i;
 
 export function nextP0CrawlWindow(now: Date): P0CrawlWindow {
   const china = chinaDateParts(now);
-  const next = WINDOW_MINUTES.find((minute) => china.minuteOfDay < minute);
-  return next === undefined ? windowFor(china, 1, 1) : windowFor(china, next);
+  const next = P0_CRAWL_WINDOW_DEFINITIONS.find(({ minuteOfDay }) => china.minuteOfDay < minuteOfDay);
+  return next === undefined ? windowFor(china, P0_CRAWL_WINDOW_DEFINITIONS[0], 1) : windowFor(china, next);
 }
 
 export function nextP0SchedulerWindow(now: Date, latestAttemptStartedAt?: Date): P0CrawlWindow {
   const china = chinaDateParts(now);
-  if (china.minuteOfDay < WINDOW_MINUTES[0]) return windowFor(china, WINDOW_MINUTES[0]);
-  const currentMinute = [...WINDOW_MINUTES].reverse().find((minute) => china.minuteOfDay >= minute)!;
-  const current = windowFor(china, currentMinute);
+  if (china.minuteOfDay < P0_CRAWL_WINDOW_DEFINITIONS[0].minuteOfDay) return windowFor(china, P0_CRAWL_WINDOW_DEFINITIONS[0]);
+  const currentDefinition = [...P0_CRAWL_WINDOW_DEFINITIONS].reverse()
+    .find(({ minuteOfDay }) => china.minuteOfDay >= minuteOfDay)!;
+  const current = windowFor(china, currentDefinition);
   const attempted = latestAttemptStartedAt?.getTime() ?? Number.NaN;
   return Number.isFinite(attempted) && attempted >= timestamp(current.startsAt)
     ? nextP0CrawlWindow(now)
@@ -35,8 +39,9 @@ export function isSourceDueForScheduledRun(source: SourceScheduleState, now: Dat
 
 function currentP0CrawlWindow(now: Date): P0CrawlWindow {
   const china = chinaDateParts(now);
-  const current = [...WINDOW_MINUTES].reverse().find((minute) => china.minuteOfDay >= minute);
-  return current === undefined ? windowFor(china, WINDOW_MINUTES[1], -1) : windowFor(china, current);
+  const current = [...P0_CRAWL_WINDOW_DEFINITIONS].reverse()
+    .find(({ minuteOfDay }) => china.minuteOfDay >= minuteOfDay);
+  return current === undefined ? windowFor(china, P0_CRAWL_WINDOW_DEFINITIONS.at(-1)!, -1) : windowFor(china, current);
 }
 
 function chinaDateParts(date: Date) {
@@ -45,11 +50,14 @@ function chinaDateParts(date: Date) {
     minuteOfDay: clock.getUTCHours() * 60 + clock.getUTCMinutes() };
 }
 
-function windowFor(china: { year: number; monthIndex: number; day: number }, minute: number, dayOffset = 0): P0CrawlWindow {
-  const hour = Math.floor(minute / 60), minuteWithinHour = minute % 60;
+function windowFor(
+  china: { year: number; monthIndex: number; day: number },
+  definition: (typeof P0_CRAWL_WINDOW_DEFINITIONS)[number],
+  dayOffset = 0
+): P0CrawlWindow {
+  const hour = Math.floor(definition.minuteOfDay / 60), minuteWithinHour = definition.minuteOfDay % 60;
   const utc = Date.UTC(china.year, china.monthIndex, china.day + dayOffset, hour - 8, minuteWithinHour);
-  return { label: `${String(hour).padStart(2, "0")}:${String(minuteWithinHour).padStart(2, "0")}` as P0CrawlWindowLabel,
-    startsAt: new Date(utc).toISOString() };
+  return { label: definition.label, startsAt: new Date(utc).toISOString() };
 }
 
 function timestamp(value: string | Date): number {

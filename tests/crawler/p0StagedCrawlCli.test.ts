@@ -290,7 +290,7 @@ describe("staged crawl operational CLI", () => {
 
       const result = await runStagedCrawlOperation(operationInput(fixture.deps));
 
-      const operationalSuccess = status !== "FAILED";
+      const operationalSuccess = status === "SUCCESS";
       expect(result.exitCode).toBe(operationalSuccess ? 0 : 1);
       expect(result.commandResult.batch).toEqual(batch(status));
       expect(fixture.summaries).toHaveLength(1);

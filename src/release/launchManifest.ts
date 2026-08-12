@@ -100,8 +100,8 @@ const HTML_TABLE_COMPANY_IDS = new Set<string>([
   "company-abbvie-china", "company-astrazeneca", "company-novartis", "company-sanofi-china",
   "company-takeda-china", "company-boehringer-ingelheim-china", "company-bayer-healthcare",
   "company-csl-china", "company-viatris", "company-teva-china", "company-astellas-china",
-  "company-otsuka-china", "company-servier-china", "company-grand-pharma",
-  "company-fosun-pharma", "company-kelun", "company-tongrentang", "company-livzon",
+  "company-otsuka-china", "company-grand-pharma",
+  "company-fosun-pharma", "company-kelun", "company-tongrentang",
   "company-buchang", "company-hansoh", "company-huahai"
 ]);
 
@@ -283,6 +283,9 @@ export function selectLaunchCompanies<T extends { id: string }>(
 
 function sourceIdentityFor(companyId: string): LaunchSourceIdentity {
   const suffix = companyId.replace(/^company-/, "");
+  if (companyId === "company-otsuka-china") {
+    return { sourceId: "source-otsuka-china-social-2", surfaceId: "surface-otsuka-china-social-2", adapterId: "html-table" };
+  }
   return {
     sourceId: `source-${suffix}-social`,
     surfaceId: `surface-${suffix}-social`,
