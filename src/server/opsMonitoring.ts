@@ -14,6 +14,8 @@ export type OpsAlertCode =
   | "CRAWL_ATTEMPT_INVALID"
   | "CRAWL_ATTEMPT_FAILED"
   | "CRAWL_ATTEMPT_STALE"
+  | "MANDATORY_COMPANY_FAILURE"
+  | "CRAWL_COMPLETENESS_FAILURE"
   | "INITIAL_QUALIFICATION_PAUSED_BELOW_MINIMUM"
   | "COMPANY_CONSECUTIVE_FAILURES"
   | "CERTIFICATE_EXPIRING"
@@ -37,6 +39,7 @@ export interface OpsAlertInput {
     ok: boolean;
     statusCode?: number;
   };
+  database?: { ok: boolean };
   backup: {
     latestBackupAt?: string;
     latestBackupSucceeded?: boolean;
@@ -46,6 +49,7 @@ export interface OpsAlertInput {
     attemptState: "SUCCESS" | "RUNNING" | "PAUSED" | "MISSING" | "INVALID" | "FAILED" | "STALE";
     summaryState: "VALID" | "MISSING" | "INVALID" | "STALE";
     globalSuccessRate?: number;
+    completenessFailureCount?: number;
     consecutiveFailuresByCompany: Record<string, number>;
     initialQualificationPause?: {
       notificationKey: string;
@@ -90,7 +94,7 @@ export function evaluateOpsAlerts(input: OpsAlertInput): OpsAlert[] {
   } as const;
   if (!["SUCCESS", "RUNNING", "PAUSED"].includes(input.crawl.attemptState)) {
     const [code, message] = attemptAlert[input.crawl.attemptState as keyof typeof attemptAlert];
-    alerts.push({ code, severity: input.crawl.attemptState === "FAILED" ? "warning" : "critical", message });
+    alerts.push({ code, severity: "critical", message });
   }
 
   const pause = input.crawl.initialQualificationPause;
@@ -135,6 +139,14 @@ export function evaluateOpsAlerts(input: OpsAlertInput): OpsAlert[] {
     });
   }
 
+  if (input.database?.ok === false) {
+    alerts.push({
+      code: "DATABASE_UNREACHABLE",
+      severity: "critical",
+      message: "Authenticated PostgreSQL readiness check failed."
+    });
+  }
+
   if (input.backup.latestBackupSucceeded === false) {
     alerts.push({
       code: "BACKUP_FAILED",
@@ -155,7 +167,7 @@ export function evaluateOpsAlerts(input: OpsAlertInput): OpsAlert[] {
     if (ageHours > BACKUP_STALE_HOURS) {
       alerts.push({
         code: "BACKUP_STALE",
-        severity: "warning",
+        severity: "critical",
         message: `Latest backup is ${Math.floor(ageHours)} hours old.`,
         metadata: { latestBackupAt: latestBackupAt.toISOString() }
       });
@@ -166,14 +178,14 @@ export function evaluateOpsAlerts(input: OpsAlertInput): OpsAlert[] {
   if (globalSuccessRate !== undefined && globalSuccessRate < CRAWL_SUCCESS_SLO) {
     alerts.push({
       code: "CRAWL_SUCCESS_BELOW_SLO",
-      severity: "warning",
+      severity: "critical",
       message: `Global crawl success rate fell to ${(globalSuccessRate * 100).toFixed(1)}%.`,
       metadata: { globalSuccessRate }
     });
   } else if (globalSuccessRate !== undefined && globalSuccessRate < 1) {
     alerts.push({
       code: "CRAWL_PARTIAL_COMPANY_RESULTS",
-      severity: "warning",
+      severity: "critical",
       message: `Some company sources were unavailable; global crawl success was ${(globalSuccessRate * 100).toFixed(1)}%.`,
       metadata: { globalSuccessRate }
     });
@@ -189,6 +201,32 @@ export function evaluateOpsAlerts(input: OpsAlertInput): OpsAlert[] {
       severity: "critical",
       message: `${failingCompanies.length} company source(s) have three consecutive crawl failures.`,
       metadata: { companies: failingCompanies }
+    });
+  }
+
+  const mandatoryCompanyFailures = Object.entries(input.crawl.consecutiveFailuresByCompany)
+    .filter(([, failures]) => failures >= 1)
+    .map(([companyId]) => companyId)
+    .sort();
+  if (mandatoryCompanyFailures.length > 0) {
+    alerts.push({
+      code: "MANDATORY_COMPANY_FAILURE",
+      severity: "critical",
+      message: `${mandatoryCompanyFailures.length} mandatory company source(s) failed the latest formal crawl.`,
+      metadata: { companies: mandatoryCompanyFailures }
+    });
+  }
+
+  const completenessFailureCount = input.crawl.completenessFailureCount ?? 0;
+  if (!Number.isSafeInteger(completenessFailureCount) || completenessFailureCount < 0) {
+    throw new Error("Completeness failure monitoring input is invalid");
+  }
+  if (completenessFailureCount > 0) {
+    alerts.push({
+      code: "CRAWL_COMPLETENESS_FAILURE",
+      severity: "critical",
+      message: `${completenessFailureCount} source(s) failed formal crawl completeness qualification.`,
+      metadata: { completenessFailureCount }
     });
   }
 

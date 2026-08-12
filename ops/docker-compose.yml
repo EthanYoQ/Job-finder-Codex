@@ -3,6 +3,12 @@
 # the origin generic and does not assume an ICP filing. Aliyun Korea / Seoul
 # is a valid origin placement for the application and PostgreSQL services.
 
+x-bounded-logging: &bounded-logging
+  driver: local
+  options:
+    max-size: "10m"
+    max-file: "5"
+
 services:
   postgres:
     image: postgres:16-bookworm@sha256:da788743d2060767375896de4d646f7576f5911461444b372616f19ea61db2ec
@@ -30,6 +36,7 @@ services:
         BUILD_SOURCE_CLEAN: ${BUILD_SOURCE_CLEAN:?set BUILD_SOURCE_CLEAN}
         BUILD_SOURCE_TREE_SHA256: ${BUILD_SOURCE_TREE_SHA256:?set BUILD_SOURCE_TREE_SHA256}
     restart: unless-stopped
+    logging: *bounded-logging
     user: node
     read_only: true
     cap_drop:
@@ -103,6 +110,7 @@ services:
       dockerfile: Dockerfile
       args: *release-build-args
     restart: unless-stopped
+    logging: *bounded-logging
     user: node
     read_only: true
     cap_drop:
@@ -133,6 +141,7 @@ services:
       dockerfile: Dockerfile
       args: *release-build-args
     restart: unless-stopped
+    logging: *bounded-logging
     user: node
     read_only: true
     cap_drop:
@@ -162,6 +171,7 @@ services:
   nginx:
     image: nginx:1.27-alpine@sha256:65645c7bb6a0661892a8b03b89d0743208a18dd2f3f17a54ef4b76fb8e2f2a10
     restart: unless-stopped
+    logging: *bounded-logging
     depends_on:
       web:
         condition: service_healthy
@@ -221,6 +231,7 @@ services:
       dockerfile: Dockerfile
       args: *release-build-args
     restart: "on-failure:3"
+    logging: *bounded-logging
     user: node
     read_only: true
     cap_drop:
@@ -291,6 +302,7 @@ services:
       dockerfile: Dockerfile
       args: *release-build-args
     restart: "unless-stopped"
+    logging: *bounded-logging
     user: node
     read_only: true
     cap_drop:

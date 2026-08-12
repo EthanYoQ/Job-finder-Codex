@@ -185,6 +185,15 @@ describe("deployment configuration", () => {
     expect(compose).toMatch(/Aliyun Korea|Korea origin|Seoul/i);
   });
 
+  it("bounds retained logs for every long-running production service", () => {
+    const compose = readRequiredFile(composePath);
+    expect(compose).toMatch(/x-bounded-logging:\s*&bounded-logging[\s\S]*driver:\s*local[\s\S]*max-size:\s*"10m"[\s\S]*max-file:\s*"5"/u);
+    for (const serviceName of ["web", "worker", "scheduler", "nginx", "backup", "monitor"]) {
+      const service = readComposeService(compose, serviceName);
+      expect(service).toContain("logging: *bounded-logging");
+    }
+  });
+
   it("keeps runtime image inputs aligned with worker, scheduler, backup, and monitor commands", () => {
     const dockerfile = readRequiredFile(dockerfilePath);
     const compose = readRequiredFile(composePath);

@@ -82,6 +82,7 @@ async function main(): Promise<void> {
       })
     : { state: "INVALID" as const };
   const crawlSummary = crawlEvidence.state === "VALID" ? crawlEvidence.summary : undefined;
+  const crawlCounters = readRecord(crawlSummary, "counters");
   const attemptEvidence = monitoringIdentity
     ? await readLatestCrawlAttempt(crawlAttemptDir, {
         now,
@@ -96,6 +97,7 @@ async function main(): Promise<void> {
   const candidateAlerts = evaluateOpsAlerts({
     now,
     health,
+    database: { ok: dbReachable },
     backup: backupEvidence,
     crawl: {
       authorityState: pauseBundle.state === "PAUSED"
@@ -106,6 +108,7 @@ async function main(): Promise<void> {
       attemptState: attemptEvidence.state,
       summaryState: crawlEvidence.state,
       globalSuccessRate: readNumber(crawlSummary, "globalSuccessRate"),
+      completenessFailureCount: readNumber(crawlCounters, "completenessIncompleteSourceCount"),
       consecutiveFailuresByCompany: toFailureMap(readRecord(crawlSummary, "consecutiveFailuresByCompany")),
       initialQualificationPause: pauseBundle.state === "PAUSED" ? {
         notificationKey: pauseBundle.evidence.notificationKey,
@@ -128,14 +131,6 @@ async function main(): Promise<void> {
       baselineRequestsPerHour: readEnvNumber("BASELINE_REQUESTS_PER_HOUR")
     }
   } satisfies OpsAlertInput);
-
-  if (dbReachable === false) {
-    candidateAlerts.push({
-      code: "DATABASE_UNREACHABLE",
-      severity: "critical",
-      message: "Authenticated PostgreSQL readiness check failed."
-    });
-  }
 
   let alerts: typeof candidateAlerts;
   try {
