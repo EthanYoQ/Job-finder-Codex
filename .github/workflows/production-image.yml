@@ -112,8 +112,12 @@ jobs:
           done
           test "$APP_READY" = 1
           docker stop "$POSTGRES_NAME"
-          sleep 1
-          docker exec "$APP_NAME" node -e "fetch('http://127.0.0.1:3000/readyz').then(r=>process.exit(r.status===503?0:1)).catch(()=>process.exit(1))"
+          APP_NOT_READY=0
+          for attempt in $(seq 1 10); do
+            if docker exec "$APP_NAME" node -e "fetch('http://127.0.0.1:3000/readyz').then(r=>process.exit(r.status===503?0:1)).catch(()=>process.exit(1))"; then APP_NOT_READY=1; break; fi
+            sleep 1
+          done
+          test "$APP_NOT_READY" = 1
           docker start "$POSTGRES_NAME"
           POSTGRES_READY=0
           for attempt in $(seq 1 30); do
