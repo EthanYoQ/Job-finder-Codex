@@ -7,4 +7,5 @@ coverage/
 playwright-report/
 test-results/
 .docker-build-provenance.bundle
+.vibe-owner.json
 .superpowers/sdd/task-1-report.md
