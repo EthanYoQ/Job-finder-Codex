@@ -12,6 +12,7 @@ import { DAILY_PUBLICATION_FRESHNESS_MAXIMUM_MS } from "../domain/publicationEli
 import type { StrictReadinessExpectation } from "./strictPersistedReadiness";
 import {resolveCurrentBuildIdentity} from "./buildIdentity";
 import { REQUIRED_A_GRADE_COMPLETENESS_CERTIFICATES } from "../crawler/completenessCertificate";
+import { REQUIRED_B_GRADE_TRAVERSAL_CERTIFICATES } from "../crawler/traversalCertificate";
 
 export const CURRENT_RELEASE_FRESHNESS_MAXIMUM_MS = DAILY_PUBLICATION_FRESHNESS_MAXIMUM_MS;
 
@@ -42,6 +43,7 @@ export async function loadCurrentReleaseIdentity(validationTime:Date=new Date())
   return {...runtime,plannedSourceIds,plannedSourceSetSha256:runtime.expectedPlannedSourceSetSha256,
     sourceConfigHashes,adapterVersions,companyAudits:validatedOracle.artifact.companyAudits,releaseMembers,
     requiredAGradeCertificates:REQUIRED_A_GRADE_COMPLETENESS_CERTIFICATES,
+    requiredBGradeCertificates:REQUIRED_B_GRADE_TRAVERSAL_CERTIFICATES,
     sourceTreeSha256:buildIdentity.sourceTreeSha256,runtimeTreeSha256:buildIdentity.runtimeTreeSha256,
     currentTime:validationTime,freshnessMaximum:CURRENT_RELEASE_FRESHNESS_MAXIMUM_MS};
 }

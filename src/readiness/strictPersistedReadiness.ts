@@ -2,6 +2,7 @@ import { hashCanonicalStringSet } from "../crawler/runtimeBatchIdentity";
 import type { ReleaseMember } from "../crawler/authoritativeReleaseMembership";
 import { reconcileLifecycleSets, type LifecycleSetEvidence } from "./lifecycleSetReconciliation";
 import { verifyAGradeCompletenessCertificateReceipt } from "../crawler/completenessCertificate";
+import { verifyBGradeTraversalCertificateReceipt } from "../crawler/traversalCertificate";
 
 export interface StrictCompanyAudit {
   companyId: string;
@@ -20,6 +21,7 @@ export interface StrictReadinessExpectation {
   companyAudits: readonly StrictCompanyAudit[];
   releaseMembers: readonly ReleaseMember[];
   requiredAGradeCertificates?: Readonly<Record<string, string>>;
+  requiredBGradeCertificates?: Readonly<Record<string, string>>;
   currentTime: Date; freshnessMaximum: number;
 }
 export interface StrictReadinessSourceResult {
@@ -126,6 +128,32 @@ function validateBatch(batch: StrictReadinessBatch, expected: StrictReadinessExp
           adapterReconciliationSha256: source.adapterReconciliationSha256,
           collisionLedgerSha256: source.collisionLedgerSha256
         }
+      });
+    }
+    const requiredBGradeCertificateCompanyId = expected.requiredBGradeCertificates?.[sourceId];
+    if (requiredBGradeCertificateCompanyId !== undefined) {
+      if (source.completenessCertificate === null || source.completenessCertificate === undefined ||
+          !source.completenessCertificateSha256 || !source.officialSurfaceIds || !source.officialChannelIds ||
+          !source.adapterReconciliationSha256 || !source.collisionLedgerSha256) {
+        throw new Error(`Readiness source ${sourceId} is missing its required B-grade traversal certificate`);
+      }
+      verifyBGradeTraversalCertificateReceipt({
+        certificate: source.completenessCertificate,
+        certificateSha256: source.completenessCertificateSha256,
+        expected: {
+          releaseCandidateId: batch.releaseCandidateId,
+          batchId: batch.id,
+          sourceResultId: source.id,
+          sourceId,
+          companyId: requiredBGradeCertificateCompanyId,
+          sourceConfigSha256: source.sourceConfigHash,
+          surfaceIds: source.officialSurfaceIds,
+          channelIds: source.officialChannelIds,
+          canonicalJobSetSha256: source.canonicalOutputSetSha256!,
+          adapterReconciliationSha256: source.adapterReconciliationSha256,
+          collisionLedgerSha256: source.collisionLedgerSha256
+        },
+        now: expected.currentTime
       });
     }
     if(source.lifecycleSetEvidence.releaseCandidateId!==batch.releaseCandidateId||source.lifecycleSetEvidence.batchId!==batch.id||

@@ -22,6 +22,10 @@ import {
   requiresAGradeCertificateSourceId,
   verifyAGradeCompletenessCertificateReceipt
 } from "../crawler/completenessCertificate";
+import {
+  requiresBGradeCertificateSourceId,
+  verifyBGradeTraversalCertificateReceipt
+} from "../crawler/traversalCertificate";
 
 interface CrawlObservationCreateArgs {
   data: {
@@ -1019,32 +1023,62 @@ function validateCommittedSourceResultTruthTable(result: AtomicSourceResultInput
       (result.completenessCertificateSha256 === null)) {
     throw new Error("Completeness certificate and hash must be supplied together");
   }
-  if (requiresAGradeCertificateSourceId(result.sourceId) &&
+  if ((requiresAGradeCertificateSourceId(result.sourceId) || requiresBGradeCertificateSourceId(result.sourceId)) &&
       result.completenessState === "VERIFIED" &&
       result.completenessCertificate === null) {
-    throw new Error("Required A-grade completeness certificate is missing");
+    throw new Error("Required completeness certificate is missing");
   }
   if (result.completenessCertificate !== null) {
     if (result.completenessState !== "VERIFIED") {
-      throw new Error("A-grade completeness certificate requires VERIFIED source truth");
+      throw new Error("Completeness certificate requires VERIFIED source truth");
     }
+    verifyPersistedCompletenessCertificate(result);
+  }
+}
+
+function verifyPersistedCompletenessCertificate(
+  result: AtomicSourceResultInput,
+  officialArtifact?: { logicalKey: string; sha256: string }
+): void {
+  const expected = {
+    releaseCandidateId: result.releaseCandidateId,
+    batchId: result.batchId,
+    sourceResultId: result.id,
+    sourceId: result.sourceId,
+    sourceConfigSha256: result.sourceConfigHash,
+    surfaceIds: result.officialSurfaceIds,
+    channelIds: result.officialChannelIds,
+    canonicalJobSetSha256: result.canonicalOutputSetSha256,
+    adapterReconciliationSha256: result.adapterReconciliationSha256,
+    collisionLedgerSha256: result.collisionLedgerSha256
+  };
+  if (requiresAGradeCertificateSourceId(result.sourceId)) {
     verifyAGradeCompletenessCertificateReceipt({
       certificate: result.completenessCertificate,
       certificateSha256: result.completenessCertificateSha256!,
       expected: {
-        releaseCandidateId: result.releaseCandidateId,
-        batchId: result.batchId,
-        sourceResultId: result.id,
-        sourceId: result.sourceId,
-        sourceConfigSha256: result.sourceConfigHash,
-        surfaceIds: result.officialSurfaceIds,
-        channelIds: result.officialChannelIds,
-        canonicalJobSetSha256: result.canonicalOutputSetSha256,
-        adapterReconciliationSha256: result.adapterReconciliationSha256,
-        collisionLedgerSha256: result.collisionLedgerSha256
+        ...expected,
+        ...(officialArtifact ? {
+          officialArtifactLogicalKey: officialArtifact.logicalKey,
+          officialArtifactSha256: officialArtifact.sha256
+        } : {})
       }
     });
+    return;
   }
+  if (requiresBGradeCertificateSourceId(result.sourceId)) {
+    if (!(result.finishedAt instanceof Date) || !Number.isFinite(result.finishedAt.getTime())) {
+      throw new Error("B-grade completeness certificate requires a finishedAt validation instant");
+    }
+    verifyBGradeTraversalCertificateReceipt({
+      certificate: result.completenessCertificate,
+      certificateSha256: result.completenessCertificateSha256!,
+      expected,
+      now: result.finishedAt
+    });
+    return;
+  }
+  throw new Error("Completeness certificate is not supported for this source");
 }
 
 function pendingSourceTupleWhere(input: { id: string; releaseCandidateId: string; batchId: string; sourceId: string }): Record<string, unknown> {
@@ -1297,23 +1331,9 @@ function validateAtomicSourceEvidenceCommit(input: AtomicSourceEvidenceCommit, m
   const officialArtifact = artifactByLogicalKey.get(provenance.officialEvidenceArtifactLogicalKey);
   if (!officialArtifact) throw new Error("Designated official evidence artifact is missing");
   if (result.completenessCertificate !== null) {
-    verifyAGradeCompletenessCertificateReceipt({
-      certificate: result.completenessCertificate,
-      certificateSha256: result.completenessCertificateSha256!,
-      expected: {
-        releaseCandidateId: result.releaseCandidateId,
-        batchId: result.batchId,
-        sourceResultId: result.id,
-        sourceId: result.sourceId,
-        sourceConfigSha256: result.sourceConfigHash,
-        surfaceIds: result.officialSurfaceIds,
-        channelIds: result.officialChannelIds,
-        officialArtifactLogicalKey: officialArtifact.logicalKey,
-        officialArtifactSha256: officialArtifact.sha256,
-        canonicalJobSetSha256: result.canonicalOutputSetSha256,
-        adapterReconciliationSha256: result.adapterReconciliationSha256,
-        collisionLedgerSha256: result.collisionLedgerSha256
-      }
+    verifyPersistedCompletenessCertificate(result, {
+      logicalKey: officialArtifact.logicalKey,
+      sha256: officialArtifact.sha256
     });
   }
   if (result.expectedEvidenceKind === "OFFICIAL_TOTAL_COUNT") {

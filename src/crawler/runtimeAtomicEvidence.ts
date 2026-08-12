@@ -24,6 +24,12 @@ import {
   issueAGradeOfficialTotalCertificate,
   requiresAGradeOfficialTotalCertificate
 } from "./completenessCertificate";
+import {
+  issueBGradeTraversalCertificate,
+  requiresBGradeTraversalCertificate,
+  type BGradeValidationTrigger,
+  type ViatrisBrowserTraversalValidation
+} from "./traversalCertificate";
 
 const sha256 = (value: string): string =>
   createHash("sha256").update(value, "utf8").digest("hex");
@@ -195,6 +201,10 @@ export function buildAtomicRuntimeCommit(input: {
   attemptTracker?: Pick<SourceFetchAttemptTracker, "fetchAttemptCount" | "retryCount">;
   oracle?: AuditedSourceSurfaceOracle;
   trustedOracle?: StartupTrustedSourceSurfaceOracle;
+  independentTraversalValidation?: ViatrisBrowserTraversalValidation;
+  independentTraversalValidationExecution?: "CURRENT_RUN" | "REUSED";
+  independentTraversalValidationTrigger?: BGradeValidationTrigger;
+  completedAt?: Date;
 }): AtomicSourceEvidenceCommit {
   const { plan, pending, identity, batchId, result } = input;
   if (!result.truth.transportSuccess || !result.truth.adapterSuccess || !result.fetchEvidence) {
@@ -208,11 +218,18 @@ export function buildAtomicRuntimeCommit(input: {
   }
   const ledger = assertAdapterReconciliation(result);
   const evidence = result.fetchEvidence;
+  const finishedAt = input.completedAt ?? result.observation.crawledAt;
+  if (!(finishedAt instanceof Date) || !Number.isFinite(finishedAt.getTime()) ||
+      finishedAt.getTime() < result.observation.crawledAt.getTime()) {
+    throw new Error("atomic runtime commit completedAt must not precede the crawl observation");
+  }
   const tuple = { releaseCandidateId: identity.releaseCandidateId, batchId,
     sourceId: plan.source.id, sourceResultId: pending.id };
-  const certificateRequired = requiresAGradeOfficialTotalCertificate(plan);
+  const aGradeCertificateRequired = requiresAGradeOfficialTotalCertificate(plan);
+  const bGradeCertificateRequired = requiresBGradeTraversalCertificate(plan);
+  const certificateRequired = aGradeCertificateRequired || bGradeCertificateRequired;
   const declarationLogicalKey = evidence.declaredCompleteness?.artifactLogicalKey;
-  const certificateDecision = certificateRequired && result.paginationEvaluation
+  const aGradeCertificateDecision = aGradeCertificateRequired && result.paginationEvaluation
     ? issueAGradeOfficialTotalCertificate({
         binding: {
           releaseCandidateId: identity.releaseCandidateId,
@@ -232,6 +249,29 @@ export function buildAtomicRuntimeCommit(input: {
         )?.sha256
       })
     : undefined;
+  const bGradeCertificateDecision = bGradeCertificateRequired && result.paginationEvaluation &&
+      input.independentTraversalValidation
+    ? issueBGradeTraversalCertificate({
+        binding: {
+          releaseCandidateId: identity.releaseCandidateId,
+          batchId,
+          sourceResultId: pending.id,
+          sourceConfigSha256: pending.sourceConfigHash
+        },
+        plan,
+        transportSuccess: result.truth.transportSuccess,
+        adapterSuccess: result.truth.adapterSuccess,
+        evidence,
+        paginationEvaluation: result.paginationEvaluation,
+        reconciliation: ledger,
+        jobs: result.jobs,
+        independentValidation: input.independentTraversalValidation,
+        validationExecution: input.independentTraversalValidationExecution ?? "CURRENT_RUN",
+        trigger: input.independentTraversalValidationTrigger ?? "INITIAL_QUALIFICATION",
+        now: finishedAt
+      })
+    : undefined;
+  const certificateDecision = aGradeCertificateDecision ?? bGradeCertificateDecision;
   const certificateCertified = certificateDecision?.status === "CERTIFIED";
   const sourceCompletenessVerified = certificateRequired
     ? certificateCertified
@@ -273,19 +313,18 @@ export function buildAtomicRuntimeCommit(input: {
   const completenessVerified = sourceCompletenessVerified && sourceBindingVerified;
   const incompleteBlocker = completenessVerified ? undefined : {
     blockerCode: certificateRequired && !certificateCertified
-      ? "A_GRADE_CERTIFICATE_NOT_ISSUED"
+      ? aGradeCertificateRequired ? "A_GRADE_CERTIFICATE_NOT_ISSUED" : "B_GRADE_CERTIFICATE_NOT_ISSUED"
       : oracleAudited || stagedBindingMatchesPending
       ? "COMPLETENESS_NOT_VERIFIED"
       : "SOURCE_SURFACE_ORACLE_MISSING",
     blockerReason: certificateRequired && !certificateCertified
-      ? `A-grade official-total certificate was not issued: ${certificateDecision?.status === "REJECTED"
+      ? `${aGradeCertificateRequired ? "A-grade official-total" : "B-grade independent-traversal"} certificate was not issued: ${certificateDecision?.status === "REJECTED"
           ? certificateDecision.blockerCodes.join(",")
-          : "PAGINATION_NOT_VERIFIED"}`
+          : aGradeCertificateRequired ? "PAGINATION_NOT_VERIFIED" : "INDEPENDENT_VALIDATION_MISSING"}`
       : oracleAudited || stagedBindingMatchesPending
       ? result.observation.completenessBlockerReason ?? "Strict completeness gate was not satisfied"
       : "Audited source-surface oracle is missing"
   };
-  const finishedAt = result.observation.crawledAt;
   // These decisions are transaction candidates only. They become true only if the enclosing atomic commit succeeds.
   const manualPreview = identity.batchKind === "MANUAL_SOURCE";
   const currentKeySet=new Set(currentKeys);

@@ -57,6 +57,11 @@ import {
   runWithOfficialSourceAttemptTimeout,
   sourceAttemptTimeoutMs
 } from "./officialHttpRuntimeLimits";
+import {
+  requiresBGradeTraversalCertificate,
+  runViatrisBrowserTraversalValidator,
+  type ViatrisBrowserTraversalValidation
+} from "./traversalCertificate";
 
 export interface P0CrawlBatchResult {
   status: Exclude<CrawlBatchStatus, "RUNNING">;
@@ -233,6 +238,7 @@ export interface RunP0CrawlBatchDeps {
   getPreviousJobs(sourceId: string): Promise<readonly JobSnapshot[]>;
   getRecentObservations(sourceId: string): Promise<readonly PersistedCrawlObservationRow[]>;
   isBaselineCompleted(sourceId: string): Promise<boolean>;
+  runIndependentTraversalValidator?: typeof runViatrisBrowserTraversalValidator;
 }
 
 export async function runP0CrawlBatch(
@@ -414,6 +420,22 @@ export async function runP0CrawlBatch(
       }
 
       let committedCompletenessVerified = false;
+      let independentTraversalValidation: ViatrisBrowserTraversalValidation | undefined;
+      if (requiresBGradeTraversalCertificate(plan)) {
+        try {
+          independentTraversalValidation = await (
+            deps.runIndependentTraversalValidator ?? runViatrisBrowserTraversalValidator
+          )({
+            entryUrl: plan.source.officialEntryUrl,
+            sourceConfigSha256: pending.sourceConfigHash,
+            surfaceIds: pending.officialSurfaceIds,
+            channelIds: pending.officialChannelIds
+          });
+        } catch {
+          // Missing independent evidence is a C-grade completeness outcome, not an atomic transport failure.
+          independentTraversalValidation = undefined;
+        }
+      }
       let retainedArtifacts: readonly ArchivedEvidenceArtifact[] = [];
       let commit: AtomicSourceEvidenceCommit | undefined;
       let atomicFailureCode:
@@ -453,6 +475,17 @@ export async function runP0CrawlBatch(
         commit = buildAtomicRuntimeCommit({ plan, pending, identity: deps.identity, batchId: batch.id,
           result: crawlResult, previousJobs, baselineCompletedBeforeCrawl, artifacts: verifiedArtifacts,
           attemptTracker,
+          ...(independentTraversalValidation ? {
+            independentTraversalValidation,
+            independentTraversalValidationExecution: "CURRENT_RUN" as const,
+            independentTraversalValidationTrigger: baselineCompletedBeforeCrawl
+              ? "STABLE_RUN" as const
+              : "INITIAL_QUALIFICATION" as const,
+            completedAt: new Date(Math.max(
+              crawlResult.observation.crawledAt.getTime(),
+              Date.parse(independentTraversalValidation.observedAt)
+            ))
+          } : {}),
           ...(trustedOracle ? { trustedOracle } : {}) });
         atomicFailureCode = "ATOMIC_EVIDENCE_COMMIT_FAILED";
         if (deps.identity.batchKind === "MANUAL_SOURCE") {
