@@ -13,7 +13,7 @@ import {
 
 const DEFAULT_HOST = "0.0.0.0";
 const DEFAULT_PORT = 3000;
-const STATIC_ROUTES = new Set(["/healthz", "/privacy", "/terms", "/robots.txt"]);
+const STATIC_ROUTES = new Set(["/livez", "/healthz", "/privacy", "/terms", "/robots.txt"]);
 const CONTENT_TYPES: Record<string, string> = {
   ".css": "text/css; charset=utf-8",
   ".html": "text/html; charset=utf-8",

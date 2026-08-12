@@ -92,6 +92,14 @@ describe("http server", () => {
     await expect(response.json()).resolves.toEqual({ ok: true });
   });
 
+  it("routes GET /livez through the public API handler", async () => {
+    const address = await listen(createTestServer());
+    const response = await fetch(`http://127.0.0.1:${address.port}/livez`);
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toEqual({ ok: true });
+  });
+
   it("serves privacy and terms as plain text documents before consent", async () => {
     const address = await listen(createTestServer());
 

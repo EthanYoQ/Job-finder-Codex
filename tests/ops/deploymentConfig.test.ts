@@ -192,10 +192,10 @@ describe("deployment configuration", () => {
     expect(readRequiredFile(monitoringCheckPath)).toContain("deliverOpsAlerts");
     expect(compose).toMatch(/node dist\/server\/httpServer\.js|"npm",\s*"run",\s*"start"|npm run start/);
     expect(compose).toContain("TRUSTED_PROXY_CIDRS");
-    expect(dockerfile).toMatch(/COPY --from=build \/app\/scripts \.\/scripts/);
-    expect(dockerfile).toMatch(/COPY --from=build \/app\/src \.\/src/);
-    expect(dockerfile).toMatch(/COPY --from=build \/app\/prisma \.\/prisma/);
-    expect(dockerfile).toMatch(/COPY --from=deps \/app\/node_modules \.\/node_modules|RUN npm ci(?!\s+--omit=dev)/);
+    expect(dockerfile).toMatch(/COPY --from=identity \/app\/scripts \.\/scripts/);
+    expect(dockerfile).toMatch(/COPY --from=identity \/app\/src \.\/src/);
+    expect(dockerfile).toMatch(/COPY --from=identity \/app\/prisma \.\/prisma/);
+    expect(dockerfile).toMatch(/COPY --from=identity \/app\/node_modules \.\/node_modules/);
     expect(dockerfile).toMatch(/COPY --from=pg16-client \/usr\/lib\/postgresql\/16\/bin\/pg_dump/);
   });
 

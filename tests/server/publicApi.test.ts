@@ -114,6 +114,24 @@ describe("public API route policy", () => {
     expect(findCompanies).not.toHaveBeenCalled();
   });
 
+  it("reports process liveness without consulting database readiness", async () => {
+    const checkDatabaseReadiness = vi.fn(async () => false);
+    const response = await handlePublicApi(
+      {
+        method: "GET",
+        path: "/livez",
+        query: {},
+        headers: {},
+        body: undefined,
+        ip: "127.0.0.1"
+      },
+      { db: {} as never, checkDatabaseReadiness }
+    );
+
+    expect(response).toMatchObject({ status: 200, body: { ok: true } });
+    expect(checkDatabaseReadiness).not.toHaveBeenCalled();
+  });
+
   it.each([Number.NaN, -100])("normalizes invalid readiness timeout %s to the shared default", async (readinessTimeoutMs) => {
     vi.useFakeTimers();
     try {

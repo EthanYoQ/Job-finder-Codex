@@ -1,0 +1,67 @@
+name: Production image
+
+on:
+  pull_request:
+  push:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  clean-build-and-smoke:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    env:
+      IMAGE_TAG: job-finder:${{ github.sha }}
+      # Measured clean image: 1,537,937,087 bytes; keep a narrow regression budget.
+      MAX_IMAGE_BYTES: 1600000000
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 22.23.1
+          cache: npm
+
+      - run: npm ci
+      - name: Export commit-bound Docker provenance
+        run: |
+          npm run docker:export-provenance
+          SOURCE_TREE_SHA256="$(npx tsx -e "import { canonicalSourceTreeSha256 } from './src/readiness/buildIdentity.ts'; process.stdout.write(canonicalSourceTreeSha256(process.cwd()))")"
+          echo "SOURCE_TREE_SHA256=$SOURCE_TREE_SHA256" >> "$GITHUB_ENV"
+      - run: npm run image:context-check
+
+      - name: Build from a clean context
+        run: >-
+          docker build --pull --no-cache
+          --build-arg BUILD_COMMIT_SHA=${{ github.sha }}
+          --build-arg BUILD_SOURCE_CLEAN=true
+          --build-arg BUILD_SOURCE_TREE_SHA256="$SOURCE_TREE_SHA256"
+          --tag "$IMAGE_TAG" .
+
+      - name: Enforce runtime identity and image size
+        run: |
+          IMAGE_USER="$(docker image inspect --format '{{.Config.User}}' "$IMAGE_TAG")"
+          IMAGE_REVISION="$(docker image inspect --format '{{index .Config.Labels "org.opencontainers.image.revision"}}' "$IMAGE_TAG")"
+          IMAGE_BYTES="$(docker image inspect --format '{{.Size}}' "$IMAGE_TAG")"
+          printf 'runtime_user=%s\nrevision=%s\nimage_bytes=%s\nmax_image_bytes=%s\n' "$IMAGE_USER" "$IMAGE_REVISION" "$IMAGE_BYTES" "$MAX_IMAGE_BYTES"
+          test "$IMAGE_USER" = "node"
+          test "$IMAGE_REVISION" = "${{ github.sha }}"
+          test "$IMAGE_BYTES" -le "$MAX_IMAGE_BYTES"
+
+      - name: Start in a blank Linux container and probe liveness
+        run: |
+          CONTAINER_ID="$(docker run --detach --publish 127.0.0.1:3000:3000 --env DATABASE_URL=postgresql://unused:unused@127.0.0.1:5432/unused "$IMAGE_TAG")"
+          trap 'docker rm --force "$CONTAINER_ID" >/dev/null 2>&1 || true' EXIT
+          for attempt in $(seq 1 30); do
+            if curl --fail --silent http://127.0.0.1:3000/livez | grep --quiet '"ok":true'; then
+              exit 0
+            fi
+            sleep 1
+          done
+          docker logs "$CONTAINER_ID"
+          exit 1
