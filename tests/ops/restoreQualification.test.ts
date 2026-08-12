@@ -51,6 +51,22 @@ describe("backup restore qualification", () => {
     expect(JSON.parse(readFileSync(input.receiptPath, "utf8"))).toMatchObject({ decision: "FAILED" });
   });
 
+  it("rejects self-consistent PASSED receipts with zero evidence, orphans, or a stale migration manifest", async () => {
+    for (const verification of [
+      { ...validFacts(), qualifiedEvidenceChainCount: 0 },
+      { ...validFacts(), orphanJobCount: 1 },
+      { ...validFacts(), migrations: [] }
+    ]) {
+      const input = fixture(), base = { schemaVersion: 1, decision: "PASSED", verifiedAt: input.now.toISOString(),
+        archiveSha256: "a".repeat(64), backupMetadataSha256: "b".repeat(64), sourceServerVersionNum: "160014",
+        targetServerVersionNum: "160014", verification };
+      writeFileSync(input.receiptPath, JSON.stringify({ ...base,
+        contentSha256: createHash("sha256").update(JSON.stringify(base)).digest("hex") }));
+      expect(await readRestoreQualificationEvidence(input.receiptPath, input.expectedMigrations))
+        .toMatchObject({ latestRestoreSucceeded: false });
+    }
+  });
+
   it("rejects a mismatched migration manifest or unrelated certificate and job counts", async () => {
     const input = fixture();
     const migrationMismatch = fakeDeps();

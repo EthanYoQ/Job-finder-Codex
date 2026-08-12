@@ -50,7 +50,7 @@ export interface FailedRestoreQualificationReceipt extends RestoreReceiptBase {
 
 export type RestoreQualificationReceipt = RunningRestoreQualificationReceipt | PassedRestoreQualificationReceipt | FailedRestoreQualificationReceipt;
 
-export async function readRestoreQualificationEvidence(path: string): Promise<{
+export async function readRestoreQualificationEvidence(path: string, expectedMigrations?: readonly PrismaMigrationArtifact[]): Promise<{
   latestRestoreAt?: string; latestRestoreSucceeded?: boolean
 }> {
   try {
@@ -59,6 +59,10 @@ export async function readRestoreQualificationEvidence(path: string): Promise<{
     const { contentSha256, ...base } = value;
     if (contentSha256 !== sha256(Buffer.from(JSON.stringify(base)))) {
       return { latestRestoreAt: "verifiedAt" in value ? value.verifiedAt : value.startedAt, latestRestoreSucceeded: false };
+    }
+    if (value.decision === "PASSED") {
+      try { assertRestoreFacts(value.verification, expectedMigrations ?? value.verification.migrations); }
+      catch { return { latestRestoreAt: value.verifiedAt, latestRestoreSucceeded: false }; }
     }
     return { latestRestoreAt: "verifiedAt" in value ? value.verifiedAt : value.startedAt,
       latestRestoreSucceeded: value.decision === "PASSED" };

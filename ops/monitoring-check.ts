@@ -17,6 +17,7 @@ import {
   filterAcknowledgedOneShotAlerts
 } from "../src/server/oneShotAlertDelivery";
 import { readRestoreQualificationEvidence } from "../src/ops/restoreQualification";
+import { listCurrentPrismaMigrations } from "../src/db/prismaMigrationManifest";
 
 interface JsonMap {
   [key: string]: unknown;
@@ -49,7 +50,7 @@ async function main(): Promise<void> {
       timeoutMs: postgresReadinessTimeoutMs
     }),
     readBackupEvidence(backupDir),
-    readRestoreQualificationEvidence(restoreReceiptPath),
+    readRestoreQualificationEvidence(restoreReceiptPath, listCurrentPrismaMigrations(process.cwd())),
     readOptionalJson(readinessSummaryPath)
   ]);
 
