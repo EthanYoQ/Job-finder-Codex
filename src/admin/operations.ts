@@ -3,6 +3,15 @@ import { toSourceScheduleState } from "../db/crawlStateRepository";
 import { toPrismaJobCategory, type PrismaJobCategoryName } from "../db/prismaMappers";
 import type { VerificationStatus } from "../domain/company";
 import type { JobCategory } from "../domain/search";
+import type {
+  SourceFailureCategory,
+  SourceFailureDiagnosticCode
+} from "../crawler/sourceFailureDiagnostics";
+import {
+  createManualCrawlRequestRepository,
+  type ManualCrawlRequestDb,
+  type ManualCrawlRequestRepository
+} from "../db/manualCrawlRequestRepository";
 
 type FeedbackReviewStatus = "REVIEWED" | "CLOSED" | "SPAM";
 type RecommendationReviewStatus = FeedbackReviewStatus;
@@ -51,6 +60,15 @@ type SourceHealthObservationRow = {
   failureReason: string | null;
 };
 
+type SourceHealthBatchResultRow = {
+  finishedAt: Date | null;
+  failureReason: string | null;
+  failureCategory: SourceFailureCategory | null;
+  failureDiagnosticCode: SourceFailureDiagnosticCode | null;
+  fetchAttemptCount: number | null;
+  retryCount: number | null;
+};
+
 type SourceHealthRow = {
   id: string;
   companyId: string;
@@ -59,6 +77,7 @@ type SourceHealthRow = {
     officialChineseName: string;
   };
   crawlObservations: SourceHealthObservationRow[];
+  batchResults?: SourceHealthBatchResultRow[];
   _count: {
     jobs: number;
   };
@@ -81,13 +100,13 @@ export type AdminOperationsDb = {
   feedback: {
     update(args: {
       where: { id: string };
-      data: { status: FeedbackReviewStatus };
+      data: { status: FeedbackReviewStatus; closedAt?: Date };
     }): Promise<FeedbackRecord>;
   };
   recommendedCompany: {
     update(args: {
       where: { id: string };
-      data: { status: RecommendationReviewStatus };
+      data: { status: RecommendationReviewStatus; closedAt?: Date };
     }): Promise<RecommendedCompanyRecord>;
   };
   job: {
@@ -120,6 +139,25 @@ export type AdminOperationsDb = {
             failureReason: true;
           };
         };
+        batchResults: {
+          where: {
+            failureCategory: {
+              not: null;
+            };
+          };
+          orderBy: {
+            finishedAt: "desc";
+          };
+          take: 1;
+          select: {
+            finishedAt: true;
+            failureReason: true;
+            failureCategory: true;
+            failureDiagnosticCode: true;
+            fetchAttemptCount: true;
+            retryCount: true;
+          };
+        };
         _count: {
           select: {
             jobs: true;
@@ -133,6 +171,7 @@ export type AdminOperationsDb = {
 export type AdminOperationsDeps = {
   db: AdminOperationsDb;
   now?: () => Date;
+  manualCrawlRequestRepository?: Pick<ManualCrawlRequestRepository, "enqueue">;
 };
 
 export async function queueManualCrawl(
@@ -140,27 +179,16 @@ export async function queueManualCrawl(
   context: AdminOperationContext,
   deps: AdminOperationsDeps
 ): Promise<ManualCrawlRequestRecord> {
-  const request = await deps.db.manualCrawlRequest.create({
-    data: {
-      sourceId: input.sourceId,
-      requestedById: context.adminUserId,
-      status: "QUEUED",
-      ...(input.reason === undefined ? {} : { reason: input.reason })
-    }
+  const repository = deps.manualCrawlRequestRepository ?? createManualCrawlRequestRepository({
+    db: deps.db as unknown as ManualCrawlRequestDb
   });
-
-  await writeAuditEvent(context, deps.db, {
-    action: "QUEUE_MANUAL_CRAWL",
-    targetType: "RecruitmentSource",
-    targetId: input.sourceId,
-    metadata: {
-      sourceId: input.sourceId,
-      ...(input.reason === undefined ? {} : { reason: input.reason }),
-      manualCrawlRequestId: request.id
-    }
+  return repository.enqueue({
+    sourceId: input.sourceId,
+    requestedById: context.adminUserId,
+    ip: context.ip,
+    userAgent: context.userAgent,
+    ...(input.reason === undefined ? {} : { reason: input.reason })
   });
-
-  return request;
 }
 
 export async function reviewFeedback(
@@ -169,9 +197,10 @@ export async function reviewFeedback(
   deps: AdminOperationsDeps
 ): Promise<FeedbackRecord> {
   const status = assertReviewStatus(input.status, "feedback");
+  const closedAt = status === "CLOSED" ? (deps.now?.() ?? new Date()) : undefined;
   const feedback = await deps.db.feedback.update({
     where: { id: input.feedbackId },
-    data: { status }
+    data: { status, ...(closedAt === undefined ? {} : { closedAt }) }
   });
 
   await writeAuditEvent(context, deps.db, {
@@ -194,9 +223,10 @@ export async function reviewRecommendedCompany(
   deps: AdminOperationsDeps
 ): Promise<RecommendedCompanyRecord> {
   const status = assertReviewStatus(input.status, "recommended company");
+  const closedAt = status === "CLOSED" ? (deps.now?.() ?? new Date()) : undefined;
   const recommendation = await deps.db.recommendedCompany.update({
     where: { id: input.recommendationId },
-    data: { status }
+    data: { status, ...(closedAt === undefined ? {} : { closedAt }) }
   });
 
   await writeAuditEvent(context, deps.db, {
@@ -266,6 +296,14 @@ export async function listSourceHealth(
       structuredJobCount: number;
       failureReason: string | null;
     } | null;
+    latestFailure: {
+      finishedAt: Date;
+      reason: string;
+      category: SourceFailureCategory;
+      diagnosticCode: SourceFailureDiagnosticCode;
+      fetchAttemptCount: number;
+      retryCount: number;
+    } | null;
   }>
 > {
   const sources = await deps.db.recruitmentSource.findMany({
@@ -286,6 +324,25 @@ export async function listSourceHealth(
           failureReason: true
         }
       },
+      batchResults: {
+        where: {
+          failureCategory: {
+            not: null
+          }
+        },
+        orderBy: {
+          finishedAt: "desc"
+        },
+        take: 1,
+        select: {
+          finishedAt: true,
+          failureReason: true,
+          failureCategory: true,
+          failureDiagnosticCode: true,
+          fetchAttemptCount: true,
+          retryCount: true
+        }
+      },
       _count: {
         select: {
           jobs: true
@@ -299,6 +356,19 @@ export async function listSourceHealth(
       (left, right) => right.crawledAt.getTime() - left.crawledAt.getTime()
     );
     const latestObservation = sortedObservations[0] ?? null;
+    const latestBatchFailure = source.batchResults?.[0] ?? null;
+    const latestFailure = latestBatchFailure?.finishedAt && latestBatchFailure.failureReason &&
+      latestBatchFailure.failureCategory && latestBatchFailure.failureDiagnosticCode &&
+      latestBatchFailure.fetchAttemptCount !== null && latestBatchFailure.retryCount !== null
+      ? {
+          finishedAt: latestBatchFailure.finishedAt,
+          reason: latestBatchFailure.failureReason,
+          category: latestBatchFailure.failureCategory,
+          diagnosticCode: latestBatchFailure.failureDiagnosticCode,
+          fetchAttemptCount: latestBatchFailure.fetchAttemptCount,
+          retryCount: latestBatchFailure.retryCount
+        }
+      : null;
     const sourceScheduleState = toSourceScheduleState(source.id, sortedObservations);
 
     return {
@@ -316,7 +386,8 @@ export async function listSourceHealth(
               successful: latestObservation.successful,
               structuredJobCount: latestObservation.structuredJobCount,
               failureReason: latestObservation.failureReason
-            }
+            },
+      latestFailure
     };
   });
 }

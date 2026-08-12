@@ -1,4 +1,5 @@
 import { companies, type CompanyResult, type JobResult } from "./jobData";
+import { SearchRequestSchema } from "../domain/search";
 
 export { companies, type CompanyResult, type JobResult } from "./jobData";
 
@@ -44,6 +45,8 @@ export function filterJobs(filters: SearchFilters): CompanyResult[] {
   if (!city) {
     return [];
   }
+
+  SearchRequestSchema.parse({ city });
 
   const keyword = normalized(filters.keyword);
   const categories = new Set(filters.categories);

@@ -19,6 +19,7 @@ export interface SuspiciousRequestInput {
   path: string;
   query: Record<string, string | undefined>;
   userAgent: string;
+  maxLimit?: number;
 }
 
 export interface ChallengeDecision {
@@ -63,8 +64,9 @@ export function classifySuspiciousRequest(input: SuspiciousRequestInput): Challe
   const limit = Number(input.query.limit ?? "0");
   const offset = Number(input.query.offset ?? "0");
   const userAgent = input.userAgent.toLocaleLowerCase();
+  const maxLimit = input.maxLimit ?? 50;
 
-  if (limit > 50 || offset > 500) {
+  if (limit > maxLimit || offset > 500) {
     return { action: "CHALLENGE", reason: "bulk pagination pattern" };
   }
 

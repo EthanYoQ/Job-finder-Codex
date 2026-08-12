@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -137,6 +138,28 @@ function assertAdapterTypeBoundaries(): void {
 void assertAdapterTypeBoundaries;
 
 describe("crawler source adapters", () => {
+  it("does not promote an explicit manual-review status when output equals the official total", () => {
+    const result = officialJsonAdapter.extract({
+      ...ASTRAZENECA_METADATA,
+      capturedAt,
+      payload: { jobs: [{ title: "Medical Lead", url: "https://example.com/jobs/1", location: "Shanghai" }] },
+      json: {
+        jobsPath: "jobs",
+        fields: { officialTitle: "title", officialUrl: "url", locationRaw: "location" }
+      },
+      completeness: {
+        completenessStatus: "NEEDS_MANUAL_COMPLETENESS_REVIEW",
+        expectedJobCount: 1,
+        completenessEvidenceKind: "OFFICIAL_TOTAL_COUNT",
+        completenessEvidenceUrl: "https://example.com/api",
+        completenessBlockerReason: "Adapter accounting is pending"
+      }
+    });
+
+    expect(result.observation.completenessStatus).toBe("NEEDS_MANUAL_COMPLETENESS_REVIEW");
+    expect(result.observation.completenessBlockerReason).toBe("Adapter accounting is pending");
+  });
+
   it("normalizes at least one Beijing job from an official JSON fixture", () => {
     const result = officialJsonAdapter.extract({
       ...ASTRAZENECA_METADATA,
@@ -185,6 +208,279 @@ describe("crawler source adapters", () => {
     expect(job?.category).toBe("其他");
     expect(job?.officialUrl).toBe(
       "https://www.novartis.com/careers/careers/job/job-cn-medical-science-liaison"
+    );
+  });
+
+  it("normalizes CSPC official HTML rows using title job codes as stable IDs", () => {
+    const result = htmlTableAdapter.extract({
+      company: CSPC_METADATA.company,
+      source: {
+        ...CSPC_METADATA.source,
+        atsKind: "OFFICIAL_HTML",
+        officialEntryUrl: "https://www.e-cspc.com/hr/social.html",
+        officialChainEvidenceUrl: "https://www.cspc.cn/hr/index.html"
+      },
+      capturedAt,
+      completeness: {
+        completenessStatus: "VERIFIED",
+        completenessEvidenceKind: "COMPLETE_PAGE_TRAVERSAL",
+        completenessEvidenceUrl: "https://www.e-cspc.com/hr/social.html",
+        totalPages: 1,
+        pagesVisited: 1
+      },
+      html: `
+        <ul id="workUl">
+          <li>
+            <h2 class="fnt_20">政策法规专员（2020年社会招聘）(J12369) (未申请)</h2>
+            <h3><span>工作地点： 河北省-石家庄市</span></h3>
+          </li>
+          <li>
+            <h2 class="fnt_20">销售代表-药品事业部(重庆)(J12273) (未申请)</h2>
+            <h3><span>工作地点： 重庆市</span></h3>
+          </li>
+        </ul>
+      `,
+      table: {
+        rowSelector: "#workUl li",
+        fields: {
+          sourceJobId: { selector: "h2", pattern: "\\((J\\d+)\\)" },
+          officialTitle: { selector: "h2", pattern: "^(.+?)\\(J\\d+\\)" },
+          officialUrl: { value: "https://www.e-cspc.com/hr/social.html" },
+          locationRaw: {
+            selector: "h3 span:contains('工作地点')",
+            pattern: "工作地点：\\s*(.+)"
+          }
+        }
+      }
+    });
+
+    const jobs = expectSuccessfulJobs(result);
+    expect(jobs.map((job) => job.sourceJobId)).toEqual(["J12369", "J12273"]);
+    expect(jobs.map((job) => job.officialTitle)).toEqual([
+      "政策法规专员（2020年社会招聘）",
+      "销售代表-药品事业部(重庆)"
+    ]);
+    expect(jobs.every((job) => job.officialUrl === "https://www.e-cspc.com/hr/social.html")).toBe(true);
+  });
+
+  it("does not invent official completeness from a configured HTML expected count", () => {
+    const result = htmlTableAdapter.extract({
+      ...ASTRAZENECA_METADATA,
+      capturedAt,
+      html: `
+        <section id="search-results" data-total-job-results="283">
+          <ul id="search-results-list">
+            <li>
+              <a class="search-results-link" href="/jobs/1"><h2>IT Quality Manager</h2></a>
+              <span class="job-location">上海</span>
+            </li>
+            <li>
+              <a class="search-results-link" href="/jobs/2"><h2>MR-LC-北京</h2></a>
+              <span class="job-location">北京</span>
+            </li>
+          </ul>
+        </section>
+      `,
+      table: {
+        rowSelector: "#search-results-list li",
+        pagination: {
+          totalPagesSelector: "#search-results",
+          totalPagesAttribute: "data-total-pages",
+          pageSearchParam: "p",
+          maxPages: 25,
+          expectedJobCountSelector: "#search-results",
+          expectedJobCountAttribute: "data-total-job-results"
+        },
+        fields: {
+          officialTitle: { selector: "a.search-results-link h2" },
+          officialUrl: { selector: "a.search-results-link", attribute: "href" },
+          locationRaw: { selector: "span.job-location" }
+        }
+      }
+    });
+
+    expect(result.status).toBe("SUCCESS");
+    expect(result.observation.expectedJobCount).toBeUndefined();
+    expect(result.observation.completenessStatus).toBeUndefined();
+    expect(result.observation.completenessEvidenceKind).toBeUndefined();
+    expect(result.observation.completenessEvidenceUrl).toBeUndefined();
+    expect(result.observation.completenessBlockerReason).toBeUndefined();
+  });
+
+  it("keeps CSL multi-location rows when the official job id repeats", () => {
+    const result = htmlTableAdapter.extract({
+      company: {
+        id: "company-csl",
+        officialChineseName: "CSL"
+      },
+      source: {
+        id: "source-csl-china-social",
+        companyId: "company-csl",
+        kind: "SOCIAL",
+        atsKind: "OFFICIAL_HTML",
+        officialEntryUrl: "https://jobs.csl.com/en/jobs?filterrific%5Bwith_location3%5D=china",
+        officialChainEvidenceUrl: "https://www.csl.com/careers",
+        status: "VERIFIED_SCRAPABLE"
+      },
+      capturedAt,
+      html: `
+        <ul>
+          <li>
+            <a href="https://jobs.csl.com/en/jobs/china-ra-manager-en-r-279336-behring-beijing">
+              <p class="text-18">China RA manager</p>
+              <p>Full Time</p>
+              <p>Research Development & Sciences</p>
+              <p>Global & Regional Regulatory Affairs</p>
+              <p>CSL Behring</p>
+              <p><svg aria-hidden="true"></svg>Beijing, Beijing, China</p>
+              <p>R-279336</p>
+            </a>
+          </li>
+          <li>
+            <a href="https://jobs.csl.com/en/jobs/china-ra-manager-en-r-279336-behring">
+              <p class="text-18">China RA manager</p>
+              <p>Full Time</p>
+              <p>Research Development & Sciences</p>
+              <p>Global & Regional Regulatory Affairs</p>
+              <p>CSL Behring</p>
+              <p><svg aria-hidden="true"></svg>Shanghai, Shang Hai Shi, China</p>
+              <p>R-279336</p>
+            </a>
+          </li>
+          <li>
+            <a href="https://jobs.csl.com/en/jobs/senior-director-regional-ecosystem-lead-shanghai-en-r-269798">
+              <p class="text-18">Senior Director, Regional Ecosystem Lead, Shanghai</p>
+              <p>Full Time</p>
+              <p>Research Development & Sciences</p>
+              <p>Discovery & Product Development</p>
+              <p>CSL Behring</p>
+              <p><svg aria-hidden="true"></svg>Shanghai, Shanghai, China</p>
+              <p>R-269798</p>
+            </a>
+          </li>
+        </ul>
+      `,
+      table: {
+        rowSelector: "a[href^='https://jobs.csl.com/en/jobs/']",
+        fields: {
+          sourceJobId: { selector: ":scope", attribute: "href" },
+          officialTitle: { selector: "p.text-18" },
+          officialUrl: { selector: ":scope", attribute: "href" },
+          locationRaw: { selector: "p:has(svg[aria-hidden='true'])" }
+        }
+      },
+      completeness: {
+        completenessStatus: "VERIFIED",
+        expectedJobCount: 3,
+        completenessEvidenceKind: "OFFICIAL_TOTAL_COUNT",
+        completenessEvidenceUrl: "https://jobs.csl.com/en/jobs?filterrific%5Bwith_location3%5D=china"
+      }
+    });
+
+    const jobs = expectSuccessfulJobs(result);
+    expect(jobs).toHaveLength(3);
+    expect(jobs.map((job) => job.locationRaw).sort()).toEqual([
+      "Beijing, Beijing, China",
+      "Shanghai, Shang Hai Shi, China",
+      "Shanghai, Shanghai, China"
+    ]);
+    expect(result.observation.completenessStatus).toBe("NEEDS_MANUAL_COMPLETENESS_REVIEW");
+    expect(result.observation.expectedJobCount).toBeUndefined();
+  });
+
+  it("counts unique jobs when official HTML pagination repeats rows", () => {
+    const result = htmlTableAdapter.extract({
+      ...NOVARTIS_METADATA,
+      capturedAt,
+      html: `
+        <table>
+          <tbody>
+            <tr>
+              <td class="title"><a href="/jobs/1">Medical Science Liaison</a></td>
+              <td class="location">上海</td>
+            </tr>
+            <tr>
+              <td class="title"><a href="/jobs/1">Medical Science Liaison</a></td>
+              <td class="location">上海</td>
+            </tr>
+            <tr>
+              <td class="title"><a href="/jobs/2">Brand Manager</a></td>
+              <td class="location">北京</td>
+            </tr>
+          </tbody>
+        </table>
+      `,
+      table: {
+        rowSelector: "tbody tr",
+        fields: {
+          officialTitle: { selector: ".title a" },
+          officialUrl: { selector: ".title a", attribute: "href" },
+          locationRaw: { selector: ".location" }
+        }
+      },
+      completeness: {
+        completenessStatus: "VERIFIED",
+        expectedJobCount: 2,
+        completenessEvidenceKind: "OFFICIAL_TOTAL_COUNT",
+        completenessEvidenceUrl: "https://prod1.novartis.com/careers/career-search/tag/LOC_CN",
+        totalPages: 2,
+        pagesVisited: 2
+      }
+    });
+
+    const jobs = expectSuccessfulJobs(result);
+    expect(jobs).toHaveLength(2);
+    expect(result.observation.structuredJobCount).toBe(2);
+    expect(result.observation.completenessStatus).toBe("NEEDS_MANUAL_COMPLETENESS_REVIEW");
+  });
+
+  it("downgrades fetch completeness when JSON normalization drops official-counted rows", () => {
+    const result = officialJsonAdapter.extract({
+      ...ASTRAZENECA_METADATA,
+      capturedAt,
+      payload: {
+        data: {
+          jobs: [
+            {
+              id: "job-1",
+              title: "Medical Advisor",
+              url: "https://careers.example/jobs/1",
+              location: "上海"
+            },
+            {
+              id: "job-2",
+              title: "Incomplete Row",
+              url: "https://careers.example/jobs/2"
+            }
+          ]
+        }
+      },
+      json: {
+        jobsPath: "data.jobs",
+        fields: {
+          sourceJobId: "id",
+          officialTitle: "title",
+          officialUrl: "url",
+          locationRaw: "location"
+        }
+      },
+      completeness: {
+        completenessStatus: "VERIFIED",
+        expectedJobCount: 2,
+        completenessEvidenceKind: "OFFICIAL_TOTAL_COUNT",
+        completenessEvidenceUrl: "https://careers.example/search",
+        totalPages: 1,
+        pageSize: 20,
+        pagesVisited: 1
+      }
+    });
+
+    const jobs = expectSuccessfulJobs(result);
+    expect(jobs).toHaveLength(1);
+    expect(result.observation.expectedJobCount).toBeUndefined();
+    expect(result.observation.completenessStatus).toBe("INCOMPLETE");
+    expect(result.observation.completenessBlockerReason).toContain(
+      "Structured 1 jobs after adapter normalization"
     );
   });
 
@@ -311,6 +607,55 @@ describe("crawler source adapters", () => {
     ]);
   });
 
+  it("extracts a URL from a component attribute with a configured pattern", () => {
+    const result = htmlTableAdapter.extract({
+      company: {
+        id: "company-zaiding",
+        officialChineseName: "再鼎医药（上海）有限公司"
+      },
+      source: {
+        id: "source-zaiding-social",
+        companyId: "company-zaiding",
+        kind: "SOCIAL",
+        atsKind: "OFFICIAL_HTML",
+        officialEntryUrl: "https://cn.zailaboratory.com/jobs/",
+        officialChainEvidenceUrl: "https://cn.zailaboratory.com/careers/",
+        status: "VERIFIED_SCRAPABLE"
+      },
+      capturedAt,
+      html: `
+        <div class="jobs">
+          <div class="job-card">
+            <div class="job-title">(Senior) Product Manager</div>
+            <div class="job-location">上海</div>
+            <zai-button :link="{ url: 'https://cn.zailaboratory.com/jobs/3406916/', title: '了解更多' }"></zai-button>
+          </div>
+        </div>
+      `,
+      table: {
+        rowSelector: ".job-card",
+        fields: {
+          sourceJobId: {
+            selector: "zai-button",
+            attribute: ":link",
+            pattern: "jobs/(\\d+)/"
+          },
+          officialTitle: { selector: ".job-title" },
+          officialUrl: {
+            selector: "zai-button",
+            attribute: ":link",
+            pattern: "url:\\s*'([^']+)'"
+          },
+          locationRaw: { selector: ".job-location" }
+        }
+      }
+    });
+
+    const [job] = expectSuccessfulJobs(result);
+    expect(job?.sourceJobId).toBe("3406916");
+    expect(job?.officialUrl).toBe("https://cn.zailaboratory.com/jobs/3406916/");
+  });
+
   it("normalizes Redsea-style network JSON even when DOM content is empty", () => {
     const result = officialJsonAdapter.extract({
       ...CSPC_METADATA,
@@ -353,6 +698,38 @@ describe("crawler source adapters", () => {
     expectFailedResult(result, "No normalized jobs found in JSON payload");
   });
 
+  it("rejects caller-only completeness for an empty JSON payload", () => {
+    const result = officialJsonAdapter.extract({
+      ...ASTRAZENECA_METADATA,
+      capturedAt,
+      payload: { data: { jobs: [] } },
+      completeness: {
+        completenessStatus: "VERIFIED",
+        expectedJobCount: 0,
+        completenessEvidenceKind: "OFFICIAL_TOTAL_COUNT",
+        completenessEvidenceUrl: "https://example.com/no-results",
+        pagesVisited: 1
+      },
+      json: {
+        jobsPath: "data.jobs",
+        fields: {
+          officialTitle: "title",
+          officialUrl: "url",
+          locationRaw: "location"
+        }
+      }
+    });
+
+    expect(result.status).toBe("FAILED");
+    expect(result.jobs).toEqual([]);
+    expect(result.observation).toMatchObject({
+      successful: false,
+      structuredJobCount: 0,
+      completenessStatus: "NEEDS_MANUAL_COMPLETENESS_REVIEW",
+      stableRequiredFields: []
+    });
+  });
+
   it("returns the external failure contract when HTML table has no normalized jobs", () => {
     const result = htmlTableAdapter.extract({
       ...NOVARTIS_METADATA,
@@ -369,5 +746,147 @@ describe("crawler source adapters", () => {
     });
 
     expectFailedResult(result, "No normalized jobs found in HTML table");
+  });
+
+  it("rejects caller-only completeness for an empty HTML table", () => {
+    const result = htmlTableAdapter.extract({
+      ...NOVARTIS_METADATA,
+      capturedAt,
+      html: "<table><tbody></tbody></table>",
+      completeness: {
+        completenessStatus: "VERIFIED",
+        expectedJobCount: 0,
+        completenessEvidenceKind: "OFFICIAL_TOTAL_COUNT",
+        completenessEvidenceUrl: "https://example.com/no-results",
+        pagesVisited: 1
+      },
+      table: {
+        rowSelector: "tbody tr",
+        fields: {
+          officialTitle: { selector: "[data-field='title']" },
+          officialUrl: { selector: "[data-field='title'] a", attribute: "href" },
+          locationRaw: { selector: "[data-field='city']" }
+        }
+      }
+    });
+
+    expect(result.status).toBe("FAILED");
+    expect(result.jobs).toEqual([]);
+    expect(result.observation).toMatchObject({
+      successful: false,
+      structuredJobCount: 0,
+      completenessStatus: "NEEDS_MANUAL_COMPLETENESS_REVIEW",
+      stableRequiredFields: []
+    });
+  });
+
+  it("builds deterministic composite HTML source ids without merging equal titles in different locations", () => {
+    const extract = (html: string) => htmlTableAdapter.extract({
+      ...NOVARTIS_METADATA,
+      capturedAt,
+      html,
+      table: {
+        rowSelector: ".job",
+        fields: {
+          sourceJobIdParts: [
+            { selector: ".title" },
+            { selector: ".location" },
+            { selector: ".contact" }
+          ],
+          officialTitle: { selector: ".title" },
+          officialUrl: { value: "https://example.test/jobs" },
+          locationRaw: { selector: ".location" }
+        }
+      }
+    });
+    const result = extract(`
+      <article class="job"><h2 class="title">医学负责人</h2><p class="location">上海</p><p class="contact">team@example.invalid</p></article>
+      <article class="job"><h2 class="title">医学负责人</h2><p class="location">北京</p><p class="contact">team@example.invalid</p></article>
+    `);
+    const whitespaceVariant = extract(`
+      <article class="job"><h2 class="title">  医学负责人  </h2><p class="location">  上海  </p><p class="contact">  team@example.invalid  </p></article>
+    `);
+
+    const jobs = expectSuccessfulJobs(result);
+    const whitespaceJobs = expectSuccessfulJobs(whitespaceVariant);
+    const expectedShanghai = `html:sha256:${createHash("sha256")
+      .update(["医学负责人", "上海", "team@example.invalid"].join("\u001f"), "utf8")
+      .digest("hex")}`;
+    expect(jobs.map((job) => job.sourceJobId)).toEqual([
+      expectedShanghai,
+      expect.stringMatching(/^html:sha256:[0-9a-f]{64}$/)
+    ]);
+    expect(new Set(jobs.map((job) => job.sourceJobId))).toHaveLength(2);
+    expect(whitespaceJobs[0]?.sourceJobId).toBe(expectedShanghai);
+  });
+
+  it("fails an HTML row when any configured composite source-id part is missing", () => {
+    const result = htmlTableAdapter.extract({
+      ...NOVARTIS_METADATA,
+      capturedAt,
+      html: `<article class="job"><h2 class="title">医学负责人</h2><p class="location">上海</p></article>`,
+      table: {
+        rowSelector: ".job",
+        fields: {
+          sourceJobIdParts: [{ selector: ".title" }, { selector: ".location" }, { selector: ".contact" }],
+          officialTitle: { selector: ".title" },
+          officialUrl: { value: "https://example.test/jobs" },
+          locationRaw: { selector: ".location" }
+        }
+      }
+    });
+
+    expectFailedResult(result, "No normalized jobs found in HTML table");
+    expect(result.reconciliation?.adapterLosses).toEqual([
+      { stage: "VALIDATION", reason: "NORMALIZED_SCHEMA_INVALID", rawIndex: 0 }
+    ]);
+  });
+
+  it("rejects ambiguous single-part and composite HTML source-id configuration", () => {
+    const result = htmlTableAdapter.extract({
+      ...NOVARTIS_METADATA,
+      capturedAt,
+      html: `<article class="job"><h2 class="title">医学负责人</h2><p class="location">上海</p></article>`,
+      table: {
+        rowSelector: ".job",
+        fields: {
+          sourceJobId: { selector: ".title" },
+          sourceJobIdParts: [{ selector: ".title" }, { selector: ".location" }],
+          officialTitle: { selector: ".title" },
+          officialUrl: { value: "https://example.test/jobs" },
+          locationRaw: { selector: ".location" }
+        }
+      }
+    });
+
+    expectFailedResult(result, "HTML source job ID config is invalid");
+  });
+
+  it("accepts a sanitized static-list zero only when its configured official empty marker matches", () => {
+    const result = htmlTableAdapter.extract({
+      ...NOVARTIS_METADATA,
+      capturedAt,
+      html: `<section id="jobs"><p id="empty">No public positions</p></section>`,
+      table: {
+        rowSelector: ".job",
+        staticPublicList: {
+          containerSelector: "#jobs",
+          nextControlSelector: "#jobs .next",
+          explicitEmptyState: { selector: "#empty", pattern: "^No public positions$" }
+        },
+        fields: {
+          officialTitle: { selector: ".title" },
+          officialUrl: { value: "https://example.test/jobs" },
+          locationRaw: { selector: ".location" }
+        }
+      }
+    });
+
+    expect(result).toMatchObject({
+      status: "SUCCESS",
+      jobs: [],
+      observation: { successful: true, structuredJobCount: 0, stableRequiredFields: [] },
+      reconciliation: { rawInputCount: 0, dedupeOutputCount: 0 }
+    });
   });
 });

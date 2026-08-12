@@ -1,7 +1,12 @@
 import { SearchRequestSchema, type JobCategory } from "../domain/search";
 import { toPrismaJobCategory, type PrismaJobCategoryName } from "../db/prismaMappers";
+import {
+  getCompanyPublicationSnapshotFromDb,
+  type PublicationEligibilityDb
+} from "../db/publicationEligibilityRepository";
+import type { CompanyPublicationSnapshot } from "../domain/publicationEligibility";
 
-export interface PrismaJobSearchDb {
+export interface PrismaJobSearchTransactionDb extends PublicationEligibilityDb {
   job: {
     findMany(args: PrismaLikeJobFindManyArgs): Promise<unknown[]>;
   };
@@ -10,16 +15,33 @@ export interface PrismaJobSearchDb {
   };
 }
 
+interface RepeatableReadJobSearchTransactionOptions {
+  isolationLevel: "RepeatableRead";
+  maxWait: number;
+  timeout: number;
+}
+
+export interface PrismaJobSearchDb extends PrismaJobSearchTransactionDb {
+  $transaction?<T>(
+    operation: (transaction: PrismaJobSearchTransactionDb) => Promise<T>,
+    options: RepeatableReadJobSearchTransactionOptions
+  ): Promise<T>;
+}
+
 interface JobRow {
   id: string;
+  sourceId: string;
   companyId: string;
   officialTitle: string;
   auxiliaryChineseTitle: string | null;
+  humanCorrectedTitle: string | null;
   officialUrl: string;
   officialPublishedAt: Date | null;
   city: string;
   cities: string[];
+  locationRaw: string;
   category: string;
+  humanCorrectedCategory: string | null;
   isNew: boolean;
   company: {
     id: string;
@@ -47,12 +69,12 @@ interface PrismaLikeCrawlObservationFindFirstArgs {
 interface PrismaLikeJobWhereInput {
   visibleInFrontend: true;
   lifecycleStatus: "ACTIVE";
-  OR: Array<Record<string, unknown>>;
+  OR?: Array<Record<string, unknown>>;
   AND?: Array<Record<string, unknown>>;
-  category?: {
-    in: PrismaJobCategoryName[];
-  };
   companyId?: {
+    in: string[];
+  };
+  sourceId: {
     in: string[];
   };
   isNew?: true;
@@ -64,6 +86,7 @@ export interface DatabaseSearchJobResult {
   officialTitle: string;
   officialPublishedAt: string | null;
   city: string;
+  locationRaw: string;
   category: JobCategory;
   isNew: boolean;
   officialUrl: string;
@@ -102,46 +125,86 @@ const PRISMA_TO_JOB_CATEGORY: Record<PrismaJobCategoryName, JobCategory> = {
   OTHER: "其他"
 };
 
+export type PublicationSnapshotReader = (
+  db: PublicationEligibilityDb
+) => Promise<CompanyPublicationSnapshot>;
+
 export async function searchJobsFromDatabase(
   request: unknown,
-  db: PrismaJobSearchDb
+  db: PrismaJobSearchDb,
+  readPublicationSnapshot: PublicationSnapshotReader = getCompanyPublicationSnapshotFromDb
 ): Promise<DatabaseSearchResult> {
   const parsed = SearchRequestSchema.parse(request);
+  if (typeof db.$transaction !== "function") {
+    throw new Error("REPEATABLE_READ_JOB_SEARCH_TRANSACTION_REQUIRED");
+  }
+  return db.$transaction(
+    (transaction) => searchJobsWithinTransaction(parsed, transaction, readPublicationSnapshot),
+    { isolationLevel: "RepeatableRead", maxWait: 5_000, timeout: 10_000 }
+  );
+}
 
-  const jobRows = (await db.job.findMany({
-    where: buildWhereClause(parsed),
+async function searchJobsWithinTransaction(
+  parsed: ReturnType<typeof SearchRequestSchema.parse>,
+  db: PrismaJobSearchTransactionDb,
+  readPublicationSnapshot: PublicationSnapshotReader
+): Promise<DatabaseSearchResult> {
+  const snapshot = await readPublicationSnapshot(db);
+  const eligibleCompanyIds = [...new Set(snapshot.eligibleCompanyIds)];
+  const eligibleSourceIds = [...new Set(snapshot.eligibleSourceIds)];
+
+  if (eligibleSourceIds.length === 0) {
+    return { companies: [], totalJobs: 0, lastUpdatedAt: null };
+  }
+
+  const rawJobRows = (await db.job.findMany({
+    where: buildWhereClause(parsed, eligibleSourceIds),
     include: { company: true }
   })) as JobRow[];
+  const eligibleSourceIdSet = new Set(eligibleSourceIds);
+  const eligibleCompanyIdSet = new Set(eligibleCompanyIds);
+  const jobRows = rawJobRows.filter((row) =>
+    eligibleSourceIdSet.has(row.sourceId) && eligibleCompanyIdSet.has(row.companyId)
+  );
 
   const companies = sortCompanies(groupRowsByCompany(jobRows), parsed.sort);
-  const latestObservation = await db.crawlObservation.findFirst({
-    select: { crawledAt: true },
-    orderBy: { crawledAt: "desc" }
-  });
 
   return {
     companies,
     totalJobs: jobRows.length,
-    lastUpdatedAt: latestObservation?.crawledAt.toISOString() ?? null
+    lastUpdatedAt: latestEligiblePublicationAt(snapshot)
   };
 }
 
-function buildWhereClause(request: ReturnType<typeof SearchRequestSchema.parse>): PrismaLikeJobWhereInput {
+function buildWhereClause(
+  request: ReturnType<typeof SearchRequestSchema.parse>,
+  eligibleSourceIds: string[]
+): PrismaLikeJobWhereInput {
   const where: PrismaLikeJobWhereInput = {
     visibleInFrontend: true,
     lifecycleStatus: "ACTIVE",
-    OR: [
-      { cities: { has: request.city } },
-      { city: request.city },
-      { cities: { has: "全国" } },
-      { city: "全国" },
-      { cities: { has: "中国" } },
-      { city: "中国" }
-    ]
+    sourceId: { in: eligibleSourceIds }
   };
 
+  where.OR = [
+    { cities: { has: request.city } },
+    { city: request.city },
+    { cities: { has: "全国" } },
+    { city: "全国" },
+    { cities: { has: "中国" } },
+    { city: "中国" }
+  ];
+
+  const effectiveCategoryAndKeywordFilters: Array<Record<string, unknown>> = [];
+
   if (request.categories.length > 0) {
-    where.category = { in: request.categories.map(toPrismaJobCategory) };
+    const categories = request.categories.map(toPrismaJobCategory);
+    effectiveCategoryAndKeywordFilters.push({
+      OR: [
+        { humanCorrectedCategory: { in: categories } },
+        { humanCorrectedCategory: null, category: { in: categories } }
+      ]
+    });
   }
 
   if (request.companyIds.length > 0) {
@@ -149,16 +212,19 @@ function buildWhereClause(request: ReturnType<typeof SearchRequestSchema.parse>)
   }
 
   if (request.keyword && request.keyword.length > 0) {
-    where.AND = [
-      {
-        OR: [
-          { officialTitle: { contains: request.keyword } },
-          { auxiliaryChineseTitle: { contains: request.keyword } },
-          { company: { is: { officialChineseName: { contains: request.keyword } } } },
-          { company: { is: { pinyinName: { contains: request.keyword } } } }
-        ]
-      }
-    ];
+    effectiveCategoryAndKeywordFilters.push({
+      OR: [
+        { humanCorrectedTitle: { contains: request.keyword } },
+        { officialTitle: { contains: request.keyword } },
+        { auxiliaryChineseTitle: { contains: request.keyword } },
+        { company: { is: { officialChineseName: { contains: request.keyword } } } },
+        { company: { is: { pinyinName: { contains: request.keyword } } } }
+      ]
+    });
+  }
+
+  if (effectiveCategoryAndKeywordFilters.length > 0) {
+    where.AND = effectiveCategoryAndKeywordFilters;
   }
 
   if (request.newWithinDays === 7) {
@@ -166,6 +232,18 @@ function buildWhereClause(request: ReturnType<typeof SearchRequestSchema.parse>)
   }
 
   return where;
+}
+
+function latestEligiblePublicationAt(snapshot: CompanyPublicationSnapshot): string | null {
+  const eligibleCompanyIds = new Set(snapshot.eligibleCompanyIds);
+  let latest: Date | null = null;
+  for (const company of snapshot.companies) {
+    if (!eligibleCompanyIds.has(company.companyId) || company.state !== "PUBLISHING") continue;
+    if (company.lastSuccessAt !== null && (latest === null || company.lastSuccessAt > latest)) {
+      latest = company.lastSuccessAt;
+    }
+  }
+  return latest?.toISOString() ?? null;
 }
 
 function groupRowsByCompany(rows: JobRow[]): DatabaseSearchCompanyResult[] {
@@ -186,11 +264,15 @@ function groupRowsByCompany(rows: JobRow[]): DatabaseSearchCompanyResult[] {
 
     company.jobs.push({
       id: row.id,
-      title: row.auxiliaryChineseTitle || row.officialTitle,
+      title: row.humanCorrectedTitle || row.auxiliaryChineseTitle || row.officialTitle,
       officialTitle: row.officialTitle,
       officialPublishedAt: toIsoString(row.officialPublishedAt),
       city: row.city,
-      category: PRISMA_TO_JOB_CATEGORY[row.category as PrismaJobCategoryName],
+      locationRaw: row.locationRaw,
+      category:
+        PRISMA_TO_JOB_CATEGORY[
+          (row.humanCorrectedCategory ?? row.category) as PrismaJobCategoryName
+        ],
       isNew: row.isNew,
       officialUrl: row.officialUrl
     });

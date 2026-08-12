@@ -22,13 +22,13 @@ describe("anonymous feedback service", () => {
     const context = { ip: "1.2.3.4", userAgent: "Mozilla/5.0" };
 
     await expect(
-      createFeedback({ issueType: "错误链接", description: "官方链接打不开", companyId: "c1", jobId: "j1" }, context, db)
+      createFeedback({ issueType: "错误链接", description: "官方链接打不开", contact: "user@example.cn", companyId: "c1", jobId: "j1" }, context, db)
     ).resolves.toEqual({ id: "f1", status: "OPEN" });
     await expect(
       createRecommendedCompany({ companyName: "测试药企", officialWebsiteUrl: "https://example.cn" }, context, db)
     ).resolves.toEqual({ id: "r1", status: "OPEN" });
     expect(feedbackCreates[0]).toMatchObject({
-      data: { ip: "1.2.3.4", userAgent: "Mozilla/5.0", companyId: "c1", jobId: "j1" }
+      data: { ip: "1.2.3.4", userAgent: "Mozilla/5.0", contact: "user@example.cn", companyId: "c1", jobId: "j1" }
     });
     expect(recommendedCreates[0]).toMatchObject({
       data: { ip: "1.2.3.4", userAgent: "Mozilla/5.0", companyName: "测试药企" }

@@ -6,6 +6,7 @@ export interface RequestContext {
 export interface FeedbackInput {
   issueType: string;
   description: string;
+  contact?: string;
   companyId?: string;
   jobId?: string;
 }
@@ -30,6 +31,7 @@ export interface FeedbackDb {
       data: {
         issueType: string;
         description: string;
+        contact?: string;
         companyId?: string;
         jobId?: string;
         ip: string;
@@ -63,6 +65,7 @@ export async function createFeedback(
       ip: context.ip,
       userAgent: context.userAgent,
       status: "OPEN",
+      ...(input.contact === undefined ? {} : { contact: input.contact }),
       ...(input.companyId === undefined ? {} : { companyId: input.companyId }),
       ...(input.jobId === undefined ? {} : { jobId: input.jobId })
     }

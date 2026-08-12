@@ -10,10 +10,16 @@
   --color-primary-soft: #dbe9ff;
   --color-success-bg: #ecfdf3;
   --color-success-ink: #166534;
+  --color-warning-bg: #fff7ed;
+  --color-warning-ink: #9a3412;
+  --color-danger-bg: #fff1f2;
+  --color-danger-ink: #9f1239;
   --color-new: #b45309;
   --shadow-card:
     0 0 0 1px rgba(31, 95, 209, 0.08),
     0 14px 26px rgba(15, 23, 42, 0.05);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
 * {
@@ -90,6 +96,7 @@ a {
 .locked-panel h2 {
   margin: 0;
   line-height: 1.2;
+  text-wrap: balance;
 }
 
 .app-header h1 {
@@ -106,6 +113,11 @@ a {
 .muted-copy {
   margin: 0;
   color: var(--color-muted);
+  text-wrap: pretty;
+}
+
+.tabular-numerals {
+  font-variant-numeric: tabular-nums;
 }
 
 .document-trigger,
@@ -494,13 +506,83 @@ a {
 
 .coverage-row {
   padding: 14px;
-  border: 1px solid var(--color-border);
   border-radius: 8px;
+  background: var(--color-surface);
+  box-shadow: var(--shadow-card);
 }
 
-.coverage-row a {
+.coverage-row-heading,
+.coverage-company-copy,
+.coverage-statuses {
+  display: flex;
+  align-items: center;
+}
+
+.coverage-row-heading {
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.coverage-company-copy,
+.coverage-statuses {
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.coverage-category,
+.coverage-status,
+.coverage-health {
+  display: inline-flex;
+  align-items: center;
+  min-height: 28px;
+  padding: 4px 9px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.coverage-category {
+  color: var(--color-muted);
+  background: var(--color-page);
+}
+
+.coverage-status {
   color: var(--color-primary-dark);
-  overflow-wrap: anywhere;
+  background: var(--color-primary-soft);
+}
+
+.coverage-status[data-state="PUBLISHING"] {
+  color: var(--color-success-ink);
+  background: var(--color-success-bg);
+}
+
+.coverage-status[data-state="NO_PUBLIC_OFFICIAL_CAREERS_LINK_AT_CAPTURE_TIME"] {
+  color: var(--color-muted);
+  background: var(--color-page);
+}
+
+.coverage-status[data-state="USER_AUTHORIZED_PHASE1_EXCLUSION"] {
+  color: var(--color-warning-ink);
+  background: var(--color-warning-bg);
+}
+
+.coverage-health {
+  color: var(--color-danger-ink);
+  background: var(--color-danger-bg);
+}
+
+.coverage-note,
+.coverage-updated {
+  margin: 0;
+  color: var(--color-muted);
+  font-size: 13px;
+  line-height: 1.55;
+  text-wrap: pretty;
+}
+
+.coverage-link {
+  justify-self: start;
 }
 
 .modal-overlay,
@@ -603,7 +685,7 @@ a:focus-visible {
 
 button:active,
 .official-link:active {
-  transform: scale(0.98);
+  transform: scale(0.96);
 }
 
 @media (min-width: 900px) {

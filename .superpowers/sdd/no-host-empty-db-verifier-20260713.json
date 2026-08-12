@@ -1,0 +1,52 @@
+{
+  "schemaVersion": 1,
+  "observedAt": "2026-07-13T03:20:05.4766744+08:00",
+  "producer": "root-main-agent",
+  "commitSha": "63df8ede3f1d38e780097321cb7bab873bc0f02c",
+  "runtime": {
+    "verifierImage": "job-finder:rc008-d0c5499",
+    "verifierImageId": "sha256:c6df3e7d593a24d1ede8d304b4f4128958689c3236a7ba7f531df49e15c817c5",
+    "currentSourceMountedReadOnly": [
+      "/app/src",
+      "/app/scripts",
+      "/app/prisma",
+      "/app/tsconfig.json"
+    ],
+    "postgresImage": "postgres@sha256:16bc17c64a573ef34162af9298258d1aec548232985b33ed7b1eac33ba35c229",
+    "postgresVersion": "16.14"
+  },
+  "isolation": {
+    "network": "jobfinder-empty-verify-net-20260713",
+    "networkInternal": true,
+    "postgresContainer": "jobfinder-empty-verify-pg-20260713",
+    "hostPortBindings": {},
+    "published5432": null,
+    "databaseName": "jobfinder_empty_verify_a1b2c3d4e5f60713",
+    "systemIdentifier": "7661720144163995682",
+    "forbiddenSystemIdentifiers": [
+      "7659954889866510370",
+      "7661513485212065826"
+    ]
+  },
+  "command": {
+    "entrypoint": "/app/node_modules/.bin/tsx /app/scripts/verify-empty-db-migrations.ts",
+    "readOnlyRootFilesystem": true,
+    "tmpfs": "/tmp:rw,noexec,nosuid,nodev,size=128m",
+    "explicitVerificationOptIn": true,
+    "exitCode": 0
+  },
+  "stdout": {
+    "databaseName": "jobfinder_empty_verify_a1b2c3d4e5f60713",
+    "serverVersion": "16.14",
+    "systemIdentifier": "7661720144163995682",
+    "migrationCount": 15,
+    "appTableCount": 21,
+    "allAppTableCountsZero": true,
+    "normalizedSchemaSha256": "35d74d79c19dfe21df0f8db8d9c238825937996c86aba6f169338b2a625a6042",
+    "secondDeployNoop": true
+  },
+  "claimBoundary": {
+    "proves": "The mounted commit source, scripts, and migrations pass the project no-host-port empty-database verifier with the preserved RC008 runtime toolchain.",
+    "doesNotProve": "A new exact immutable image or release candidate contains commit 63df8ed; no release, readiness, or production-completeness claim is made."
+  }
+}

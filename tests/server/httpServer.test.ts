@@ -38,6 +38,7 @@ describe("http server", () => {
           update: async () => ({ id: "job-1" })
         },
         crawlObservation: { findFirst: async () => null },
+        crawlBatchSourceResult: { findMany: async () => [] },
         company: { findMany: async () => [] },
         feedback: {
           create: async () => ({ id: "feedback-1" }),
@@ -58,6 +59,7 @@ describe("http server", () => {
         manualCrawlRequest: { create: async () => ({ id: "crawl-1" }) },
         recruitmentSource: { findMany: async () => [] }
       },
+      checkDatabaseReadiness: async () => true,
       rateLimitStore: createMemoryRateLimitStore()
     };
 

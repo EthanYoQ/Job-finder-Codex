@@ -5,6 +5,11 @@ import { extname, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import { handleAdminApi, type AdminApiDeps, type AdminApiResponse } from "./adminApi";
 import { handlePublicApi, type PublicApiDeps, type PublicApiResponse } from "./publicApi";
+import {
+  createCachedPostgresReadiness,
+  DEFAULT_POSTGRES_READINESS_TIMEOUT_MS,
+  normalizePostgresReadinessTimeout
+} from "./postgresReadiness";
 
 const DEFAULT_HOST = "0.0.0.0";
 const DEFAULT_PORT = 3000;
@@ -43,7 +48,16 @@ export function createServer(deps: HttpServerDeps, options: HttpServerOptions = 
 
 export async function startServer(): Promise<Server> {
   const prisma = new PrismaClient();
-  const server = createServer({ db: prisma });
+  const databaseUrl = process.env.DATABASE_URL;
+  const readinessTimeoutMs = normalizePostgresReadinessTimeout(
+    Number(process.env.POSTGRES_READINESS_TIMEOUT_MS ?? DEFAULT_POSTGRES_READINESS_TIMEOUT_MS)
+  );
+  const checkDatabaseReadiness = createCachedPostgresReadiness(databaseUrl, { timeoutMs: readinessTimeoutMs });
+  const server = createServer({
+    db: prisma,
+    checkDatabaseReadiness,
+    readinessTimeoutMs
+  });
   const host = process.env.HOST ?? DEFAULT_HOST;
   const port = Number(process.env.PORT ?? DEFAULT_PORT);
 

@@ -25,13 +25,14 @@ export interface PrismaCrawlRuntimeDb {
   };
   crawlObservation: {
     findMany(args: {
-      where: { sourceId: string };
+      where: { sourceId: string; batch: { is: { kind: { not: "MANUAL_SOURCE" } } } };
       select: { crawledAt: true; successful: true };
       orderBy: { crawledAt: "desc" };
       take: 10;
     }): Promise<PersistedCrawlObservationRow[]>;
     findFirst(args: {
-      where: { sourceId: string; successful: true };
+      where: { sourceId: string; successful: true;
+        batch: { is: { kind: { not: "MANUAL_SOURCE" } } } };
       select: { id: true };
       orderBy: { crawledAt: "asc" };
     }): Promise<{ id: string } | null>;
@@ -66,7 +67,7 @@ export function createPrismaCrawlRuntimeDeps(db: PrismaCrawlRuntimeDb) {
     },
     async getRecentObservations(sourceId: string) {
       return db.crawlObservation.findMany({
-        where: { sourceId },
+        where: { sourceId, batch: { is: { kind: { not: "MANUAL_SOURCE" } } } },
         select: { crawledAt: true, successful: true },
         orderBy: { crawledAt: "desc" },
         take: 10
@@ -74,7 +75,8 @@ export function createPrismaCrawlRuntimeDeps(db: PrismaCrawlRuntimeDb) {
     },
     async isBaselineCompleted(sourceId: string) {
       const firstSuccess = await db.crawlObservation.findFirst({
-        where: { sourceId, successful: true },
+        where: { sourceId, successful: true,
+          batch: { is: { kind: { not: "MANUAL_SOURCE" } } } },
         select: { id: true },
         orderBy: { crawledAt: "asc" }
       });

@@ -92,7 +92,7 @@ describe("createPrismaCrawlRuntimeDeps", () => {
     expect(previousJobs[0]?.record.officialChineseCompanyName).toBe("测试药企");
     expect(previousJobs[0]?.record.category).toBe("销售");
     expect(db.crawlObservation.findMany).toHaveBeenCalledWith({
-      where: { sourceId: "source-test-social" },
+      where: { sourceId: "source-test-social", batch: { is: { kind: { not: "MANUAL_SOURCE" } } } },
       select: { crawledAt: true, successful: true },
       orderBy: { crawledAt: "desc" },
       take: 10
@@ -108,10 +108,25 @@ describe("createPrismaCrawlRuntimeDeps", () => {
       }
     ]);
     expect(db.crawlObservation.findFirst).toHaveBeenCalledWith({
-      where: { sourceId: "source-test-social", successful: true },
+      where: { sourceId: "source-test-social", successful: true,
+        batch: { is: { kind: { not: "MANUAL_SOURCE" } } } },
       select: { id: true },
       orderBy: { crawledAt: "asc" }
     });
     expect(baselineCompleted).toBe(true);
+  });
+
+  it("keeps MANUAL_SOURCE preview history out of later FULL_RELEASE schedule and baseline inputs", async () => {
+    const db = fakeDb();
+    const deps = createPrismaCrawlRuntimeDeps(db);
+    await deps.getRecentObservations("source-test-social");
+    await deps.isBaselineCompleted("source-test-social");
+
+    expect(db.crawlObservation.findMany).toHaveBeenCalledWith(expect.objectContaining({
+      where: expect.objectContaining({ batch: { is: { kind: { not: "MANUAL_SOURCE" } } } })
+    }));
+    expect(db.crawlObservation.findFirst).toHaveBeenCalledWith(expect.objectContaining({
+      where: expect.objectContaining({ batch: { is: { kind: { not: "MANUAL_SOURCE" } } } })
+    }));
   });
 });

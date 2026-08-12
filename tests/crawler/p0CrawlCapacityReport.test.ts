@@ -9,7 +9,7 @@ const __dirname = dirname(__filename);
 const projectRoot = join(__dirname, "..", "..");
 
 describe("p0 crawl capacity report", () => {
-  it("estimates twice-daily capacity for HTTP and browser-backed sources", () => {
+  it("estimates once-daily capacity for HTTP and browser-backed sources", () => {
     expect(
       estimateCrawlCapacity({
         sourceCount: 50,
@@ -23,7 +23,7 @@ describe("p0 crawl capacity report", () => {
     ).toEqual({
       sourceCount: 50,
       estimatedOnePassSeconds: 289,
-      estimatedTwiceDailySeconds: 578,
+      estimatedDailySeconds: 289,
       notes: [
         "HTTP/API sources are estimated in 8 batches at concurrency 6.",
         "Browser fallback sources are estimated in 5 batches at concurrency 1."
@@ -49,7 +49,7 @@ describe("p0 crawl capacity report", () => {
 
     expect(JSON.parse(stdout)).toMatchObject({
       estimatedOnePassSeconds: 289,
-      estimatedTwiceDailySeconds: 578
+      estimatedDailySeconds: 289
     });
-  });
+  },15_000);
 });

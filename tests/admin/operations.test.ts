@@ -16,56 +16,32 @@ const adminContext: AdminOperationContext = {
 };
 
 describe("admin operations", () => {
-  it("queues a manual crawl request with QUEUED status and writes an audit event", async () => {
-    const manualCrawlCreates: Array<unknown> = [];
-    const auditCreates: Array<unknown> = [];
-    const db = createDb({
-      manualCrawlRequest: {
-        async create(args) {
-          manualCrawlCreates.push(args);
-          return { id: "crawl-1" };
-        }
-      },
-      adminAuditEvent: {
-        async create(args) {
-          auditCreates.push(args);
-          return { id: "audit-1" };
-        }
-      }
-    });
+  it("queues through the transactional manual crawl repository", async () => {
+    const enqueues: Array<unknown> = [];
+    const db = createDb();
 
     const result = await queueManualCrawl(
       { sourceId: "source-1", reason: "manual verification" },
       adminContext,
-      { db }
+      {
+        db,
+        manualCrawlRequestRepository: {
+          async enqueue(input) {
+            enqueues.push(input);
+            return { id: "crawl-1" };
+          }
+        }
+      }
     );
 
     expect(result).toEqual({ id: "crawl-1" });
-    expect(manualCrawlCreates).toEqual([
+    expect(enqueues).toEqual([
       {
-        data: {
-          sourceId: "source-1",
-          requestedById: "admin-1",
-          status: "QUEUED",
-          reason: "manual verification"
-        }
-      }
-    ]);
-    expect(auditCreates).toEqual([
-      {
-        data: {
-          adminUserId: "admin-1",
-          action: "QUEUE_MANUAL_CRAWL",
-          targetType: "RecruitmentSource",
-          targetId: "source-1",
-          ip: "127.0.0.1",
-          userAgent: "vitest",
-          metadata: {
-            sourceId: "source-1",
-            reason: "manual verification",
-            manualCrawlRequestId: "crawl-1"
-          }
-        }
+        sourceId: "source-1",
+        requestedById: "admin-1",
+        reason: "manual verification",
+        ip: "127.0.0.1",
+        userAgent: "vitest"
       }
     ]);
   });
@@ -149,14 +125,14 @@ describe("admin operations", () => {
     const result = await reviewRecommendedCompany(
       { recommendationId: "recommendation-1", status: "CLOSED", note: "already tracked" },
       adminContext,
-      { db }
+      { db, now: () => new Date("2026-07-08T12:00:00.000Z") }
     );
 
     expect(result).toEqual({ id: "recommendation-1", status: "CLOSED" });
     expect(recommendedCompanyUpdates).toEqual([
       {
         where: { id: "recommendation-1" },
-        data: { status: "CLOSED" }
+        data: { status: "CLOSED", closedAt: new Date("2026-07-08T12:00:00.000Z") }
       }
     ]);
     expect(auditCreates).toEqual([
@@ -346,6 +322,16 @@ describe("admin operations", () => {
                   failureReason: null
                 }
               ],
+              batchResults: [
+                {
+                  finishedAt: new Date("2026-07-08T10:05:00.000Z"),
+                  failureReason: "Official recruitment endpoint was temporarily unavailable (HTTP 503)",
+                  failureCategory: "TEMPORARY_OFFICIAL_SOURCE_FAILURE",
+                  failureDiagnosticCode: "OFFICIAL_HTTP_503",
+                  fetchAttemptCount: 2,
+                  retryCount: 1
+                }
+              ],
               _count: {
                 jobs: 11
               }
@@ -376,6 +362,25 @@ describe("admin operations", () => {
               failureReason: true
             }
           },
+          batchResults: {
+            where: {
+              failureCategory: {
+                not: null
+              }
+            },
+            orderBy: {
+              finishedAt: "desc"
+            },
+            take: 1,
+            select: {
+              finishedAt: true,
+              failureReason: true,
+              failureCategory: true,
+              failureDiagnosticCode: true,
+              fetchAttemptCount: true,
+              retryCount: true
+            }
+          },
           _count: {
             select: {
               jobs: true
@@ -397,6 +402,14 @@ describe("admin operations", () => {
           successful: false,
           structuredJobCount: 3,
           failureReason: "timeout"
+        },
+        latestFailure: {
+          finishedAt: new Date("2026-07-08T10:05:00.000Z"),
+          reason: "Official recruitment endpoint was temporarily unavailable (HTTP 503)",
+          category: "TEMPORARY_OFFICIAL_SOURCE_FAILURE",
+          diagnosticCode: "OFFICIAL_HTTP_503",
+          fetchAttemptCount: 2,
+          retryCount: 1
         }
       }
     ]);

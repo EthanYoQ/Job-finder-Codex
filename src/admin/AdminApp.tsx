@@ -128,6 +128,14 @@ export function AdminApp({
                   <div>已入库职位 {source.structuredJobCount}</div>
                   <div>连续失败 {source.consecutiveFailureCount} 次</div>
                   <div>最近结果: {source.latestOutcomeLabel}</div>
+                  {source.latestFailureCategoryLabel === null ? null : (
+                    <div>失败类别: {source.latestFailureCategoryLabel}</div>
+                  )}
+                  {source.latestFetchAttemptCount === null || source.latestRetryCount === null ? null : (
+                    <div>
+                      抓取尝试 {source.latestFetchAttemptCount} 次，其中重试 {source.latestRetryCount} 次
+                    </div>
+                  )}
                   {source.latestFailureReason === null ? null : (
                     <div>最近失败原因: {source.latestFailureReason}</div>
                   )}
@@ -158,6 +166,7 @@ export function AdminApp({
                   <div>{feedback.jobTitle}</div>
                   <div>{feedback.issueType}</div>
                   <div>{feedback.description}</div>
+                  {feedback.contact ? <div>{feedback.contact}</div> : null}
                   <button
                     onClick={() => void onReviewFeedback({ feedbackId: feedback.id, status: "REVIEWED" })}
                     type="button"

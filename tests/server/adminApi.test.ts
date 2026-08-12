@@ -61,6 +61,7 @@ function createDb() {
           officialTitle: "Unclassified Role",
           auxiliaryChineseTitle: "待分类职位",
           category: "OTHER",
+          humanCorrectedCategory: null,
           company: { officialChineseName: "辉瑞" }
         }
       ]),
@@ -119,6 +120,16 @@ describe("admin API", () => {
       recommendationQueue: [{ id: "recommendation-1" }],
       categoryCorrectionQueue: [{ jobId: "job-other", companyName: "辉瑞" }]
     });
+    expect(db.job.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: {
+          lifecycleStatus: "ACTIVE",
+          visibleInFrontend: true,
+          category: "OTHER",
+          humanCorrectedCategory: null
+        }
+      })
+    );
   });
 
   it("rejects invalid category corrections before admin operations run", async () => {
@@ -142,4 +153,63 @@ describe("admin API", () => {
     expect(response.status).toBe(400);
     expect(db.job.update).not.toHaveBeenCalled();
   });
+
+  it("maps a duplicate active manual crawl from the default repository path to 409", async () => {
+    const db = createDb() as ReturnType<typeof createDb> & { $transaction: Function };
+    db.$transaction = async (callback: Function) => callback(manualCrawlTx({
+      createError: Object.assign(new Error("duplicate"), {
+        code: "P2002", meta: { constraint: "ManualCrawlRequest_one_active_per_source" }
+      })
+    }));
+    const response = await handleAdminApi(request("/admin/api/manual-crawl", {
+      method: "POST", body: { sourceId: "source-1", reason: "verify" }
+    }), { db, now: () => new Date("2026-07-08T12:00:00.000Z") });
+    expect(response).toMatchObject({ status: 409, body: { error: "ALREADY_ACTIVE" } });
+  });
+
+  it("maps a drifted ineligible manual crawl from the default repository path to 422", async () => {
+    const db = createDb() as ReturnType<typeof createDb> & { $transaction: Function };
+    db.$transaction = async (callback: Function) => callback(manualCrawlTx({ sourceStatus: "UNVERIFIED" }));
+    const response = await handleAdminApi(request("/admin/api/manual-crawl", {
+      method: "POST", body: { sourceId: "source-1", reason: "verify" }
+    }), { db, now: () => new Date("2026-07-08T12:00:00.000Z") });
+    expect(response).toMatchObject({ status: 422, body: { error: "NOT_EXECUTABLE" } });
+  });
+
+  it("processes a verified privacy export through the authenticated admin API", async () => {
+    const db = createDb();
+    const tx = {
+      feedback: {
+        findUnique: vi.fn(async () => ({ id: "privacy-1", issueType: "PRIVACY_EXPORT", contact: "user@example.cn" })),
+        findMany: vi.fn(async () => [{
+          id: "privacy-1", issueType: "PRIVACY_EXPORT", description: "export", status: "OPEN",
+          createdAt: new Date("2026-07-08T00:00:00Z"), closedAt: null, companyId: null, jobId: null
+        }]),
+        updateMany: vi.fn()
+      },
+      adminAuditEvent: { create: vi.fn(async () => ({})) }
+    };
+    Object.assign(db, { $transaction: async (callback: (value: typeof tx) => unknown) => callback(tx) });
+    const response = await handleAdminApi(request("/admin/api/privacy-process", {
+      method: "POST",
+      body: { requestId: "privacy-1", action: "EXPORT", verifiedContact: "user@example.cn" }
+    }), { db: db as never, now: () => new Date("2026-07-08T12:00:00Z") });
+    expect(response).toMatchObject({ status: 200, body: { action: "EXPORT", requestId: "privacy-1" } });
+    expect(tx.adminAuditEvent.create).toHaveBeenCalled();
+  });
 });
+
+function manualCrawlTx(options: { createError?: unknown; sourceStatus?: string } = {}) {
+  return {
+    recruitmentSource: { findUnique: vi.fn(async () => ({
+      id: "source-1", companyId: "company-roche-china", kind: "SOCIAL", atsKind: "MOKA",
+      status: options.sourceStatus ?? "VERIFIED_SCRAPABLE"
+    })) },
+    manualCrawlRequest: { create: vi.fn(async () => {
+      if (options.createError) throw options.createError;
+      return { id: "manual-1" };
+    }) },
+    manualCrawlRequestEvent: { create: vi.fn(async () => ({})) },
+    adminAuditEvent: { create: vi.fn(async () => ({})) }
+  };
+}

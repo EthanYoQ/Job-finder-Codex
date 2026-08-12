@@ -1,7 +1,21 @@
-import { access, readFile } from "node:fs/promises";
-import { Socket } from "node:net";
-import { URL } from "node:url";
+import { createHash } from "node:crypto";
+import { constants } from "node:fs";
+import { access, lstat, open, readFile, readdir, type FileHandle } from "node:fs/promises";
+import { basename, resolve } from "node:path";
 import { evaluateOpsAlerts, type OpsAlertInput } from "../src/server/opsMonitoring";
+import { checkPostgresReadiness, DEFAULT_POSTGRES_READINESS_TIMEOUT_MS } from "../src/server/postgresReadiness";
+import { DEFAULT_CRAWL_SUMMARY_MAX_AGE_HOURS, readCrawlSummaryFile, type CrawlEvidenceIdentity } from "../src/crawler/crawlSummary";
+import { readLatestCrawlAttempt } from "../src/crawler/crawlAttemptEvidence";
+import { loadProductionStagedMonitoringIdentity } from "../src/crawler/stagedMonitoringIdentity";
+import { resolveStagedCrawlEvidencePaths } from "../src/crawler/stagedCrawlEvidencePaths";
+import { scheduledAttemptMaxRunningAgeHours } from "../src/crawler/officialHttpRuntimeLimits";
+import { deliverOpsAlerts } from "../src/server/alertDelivery";
+import { readInitialQualificationPauseBundle } from "../src/crawler/initialQualificationPauseBundle";
+import { loadProductionInitialQualificationPauseCandidateStatus } from "../src/crawler/initialQualificationPauseCandidate";
+import {
+  acknowledgeDeliveredOneShotAlerts,
+  filterAcknowledgedOneShotAlerts
+} from "../src/server/oneShotAlertDelivery";
 
 interface JsonMap {
   [key: string]: unknown;
@@ -10,40 +24,97 @@ interface JsonMap {
 void main();
 
 async function main(): Promise<void> {
+  const {
+    attemptDir: crawlAttemptDir,
+    summaryPath: crawlSummaryPath,
+    initialQualificationPausePath
+  } = resolveStagedCrawlEvidencePaths();
   const healthUrl = process.env.HEALTHCHECK_URL ?? "http://127.0.0.1:3000/healthz";
   const databaseUrl = process.env.DATABASE_URL;
+  const backupDir = process.env.BACKUP_DIR ?? `${process.cwd()}/backups`;
   const readinessSummaryPath =
     process.env.READINESS_SUMMARY_PATH ?? `${process.cwd()}/var/readiness-summary.json`;
-  const crawlSummaryPath = process.env.CRAWL_SUMMARY_PATH ?? `${process.cwd()}/var/crawl-summary.json`;
   const certificateExpiresAt = process.env.CERTIFICATE_EXPIRES_AT;
+  const now = process.env.MONITORING_NOW ? new Date(process.env.MONITORING_NOW) : new Date();
+  const monitorStateDir = process.env.MONITOR_STATE_DIR ?? `${process.cwd()}/var/monitor-state`;
+  const postgresReadinessTimeoutMs = Number(
+    process.env.POSTGRES_READINESS_TIMEOUT_MS ?? DEFAULT_POSTGRES_READINESS_TIMEOUT_MS
+  );
 
-  const [health, dbReachable, readinessSummary, crawlSummary] = await Promise.all([
+  const [health, dbReachable, backupEvidence, readinessSummary] = await Promise.all([
     checkHealth(healthUrl),
-    databaseUrl ? checkPostgresSocket(databaseUrl) : Promise.resolve<null | boolean>(null),
-    readOptionalJson(readinessSummaryPath),
-    readOptionalJson(crawlSummaryPath)
+    checkPostgresReadiness(databaseUrl, {
+      timeoutMs: postgresReadinessTimeoutMs
+    }),
+    readBackupEvidence(backupDir),
+    readOptionalJson(readinessSummaryPath)
   ]);
 
-  const alerts = evaluateOpsAlerts({
-    now: process.env.MONITORING_NOW ? new Date(process.env.MONITORING_NOW) : new Date(),
+  let expectedIdentity: CrawlEvidenceIdentity | undefined;
+  if (dbReachable) {
+    try {
+      expectedIdentity = await loadProductionStagedMonitoringIdentity(databaseUrl);
+    } catch {
+      expectedIdentity = undefined;
+    }
+  }
+
+  const pauseBundle = await readInitialQualificationPauseBundle({
+    pausePath: initialQualificationPausePath,
+    summaryPath: crawlSummaryPath,
+    attemptDir: crawlAttemptDir,
+    now,
+    ...(expectedIdentity ? { activeIdentity: expectedIdentity } : {}),
+    loadCandidateStatus: (evidence) => {
+      if (!dbReachable) throw new Error("PostgreSQL readiness failed before pause candidate validation");
+      return loadProductionInitialQualificationPauseCandidateStatus(databaseUrl, evidence);
+    }
+  });
+  const monitoringIdentity = pauseBundle.state === "PAUSED"
+    ? pauseBundle.identity
+    : expectedIdentity;
+  const crawlEvidence = monitoringIdentity
+    ? await readCrawlSummaryFile(crawlSummaryPath, {
+        now,
+        maxAgeHours: Number(process.env.CRAWL_SUMMARY_MAX_AGE_HOURS ?? DEFAULT_CRAWL_SUMMARY_MAX_AGE_HOURS),
+        allowIncompleteScheduled: true,
+        expectedIdentity: monitoringIdentity
+      })
+    : { state: "INVALID" as const };
+  const crawlSummary = crawlEvidence.state === "VALID" ? crawlEvidence.summary : undefined;
+  const attemptEvidence = monitoringIdentity
+    ? await readLatestCrawlAttempt(crawlAttemptDir, {
+        now,
+        expectedIdentity: monitoringIdentity,
+        maxRunningAgeHours: scheduledAttemptMaxRunningAgeHours(process.env),
+        expectedCanonicalSummary: crawlEvidence.state === "VALID" || crawlEvidence.state === "STALE"
+          ? { batchId: crawlEvidence.summary.batchId!, summarySha256: crawlEvidence.summarySha256 }
+          : undefined
+      })
+    : { state: "INVALID" as const };
+
+  const candidateAlerts = evaluateOpsAlerts({
+    now,
     health,
-    backup: {
-      latestBackupAt:
-        readString(crawlSummary, "latestBackupAt") ??
-        readString(readinessSummary, "latestBackupAt") ??
-        process.env.LATEST_BACKUP_AT,
-      latestBackupSucceeded:
-        readBoolean(crawlSummary, "latestBackupSucceeded") ??
-        readBoolean(readinessSummary, "latestBackupSucceeded") ??
-        readEnvBoolean("LATEST_BACKUP_SUCCEEDED")
-    },
+    backup: backupEvidence,
     crawl: {
-      globalSuccessRate:
-        readNumber(crawlSummary, "globalSuccessRate") ?? readNumber(readinessSummary, "globalSuccessRate"),
-      consecutiveFailuresByCompany: toFailureMap(
-        readRecord(crawlSummary, "consecutiveFailuresByCompany") ??
-          readRecord(readinessSummary, "consecutiveFailuresByCompany")
-      )
+      authorityState: pauseBundle.state === "PAUSED"
+        ? "PAUSED"
+        : expectedIdentity && (pauseBundle.state === "MISSING" || pauseBundle.state === "STALE_FOR_ACTIVE_IDENTITY")
+          ? "VALID"
+          : "INVALID",
+      attemptState: attemptEvidence.state,
+      summaryState: crawlEvidence.state,
+      globalSuccessRate: readNumber(crawlSummary, "globalSuccessRate"),
+      consecutiveFailuresByCompany: toFailureMap(readRecord(crawlSummary, "consecutiveFailuresByCompany")),
+      initialQualificationPause: pauseBundle.state === "PAUSED" ? {
+        notificationKey: pauseBundle.evidence.notificationKey,
+        releaseCandidateId: pauseBundle.evidence.releaseCandidateId,
+        batchId: pauseBundle.evidence.batchId,
+        completedRoundCount: pauseBundle.evidence.completedRoundCount,
+        stableCompanyCount: pauseBundle.evidence.stableCompanyCount,
+        minimumStableCompanyCount: pauseBundle.evidence.minimumStableCompanyCount
+      } : undefined
     },
     certificate: {
       expiresAt: certificateExpiresAt ?? readString(readinessSummary, "certificateExpiresAt")
@@ -58,12 +129,35 @@ async function main(): Promise<void> {
     }
   } satisfies OpsAlertInput);
 
+  if (dbReachable === false) {
+    candidateAlerts.push({
+      code: "DATABASE_UNREACHABLE",
+      severity: "critical",
+      message: "Authenticated PostgreSQL readiness check failed."
+    });
+  }
+
+  let alerts: typeof candidateAlerts;
+  try {
+    alerts = await filterAcknowledgedOneShotAlerts(candidateAlerts, monitorStateDir);
+  } catch {
+    console.error("[critical] ALERT_DEDUPLICATION_STATE_INVALID: Operations alert state could not be verified.");
+    process.exitCode = 1;
+    return;
+  }
+
   for (const alert of alerts) {
     console.error(`[${alert.severity}] ${alert.code}: ${alert.message}`);
   }
 
-  if (dbReachable === false) {
-    console.error("[critical] DATABASE_UNREACHABLE: PostgreSQL socket check failed.");
+  try {
+    await deliverOpsAlerts(alerts, {
+      endpoint: process.env.ALERT_WEBHOOK_URL,
+      allowInsecureHttp: process.env.ALERT_WEBHOOK_ALLOW_HTTP === "1"
+    });
+    await acknowledgeDeliveredOneShotAlerts(alerts, monitorStateDir, now);
+  } catch {
+    console.error("[critical] ALERT_DELIVERY_FAILED: Operations alerts could not be delivered.");
     process.exitCode = 1;
     return;
   }
@@ -86,29 +180,100 @@ async function checkHealth(healthUrl: string): Promise<OpsAlertInput["health"]> 
   }
 }
 
-async function checkPostgresSocket(databaseUrl: string): Promise<boolean> {
-  const url = new URL(databaseUrl);
-  const port = Number(url.port || "5432");
-  const host = url.hostname;
+async function readBackupEvidence(backupDir: string): Promise<OpsAlertInput["backup"]> {
+  let newestMarker: { name: string; mtimeMs: number; mtime: Date } | undefined;
 
-  return new Promise((resolve) => {
-    const socket = new Socket();
+  try {
+    const entries = await readdir(backupDir, { withFileTypes: true });
+    const markers = await Promise.all(
+      entries
+        .filter((entry) => entry.name.endsWith(".dump.sha256"))
+        .map(async (entry) => {
+          const markerStat = await lstat(resolve(backupDir, entry.name));
+          return { name: entry.name, mtimeMs: markerStat.mtimeMs, mtime: markerStat.mtime };
+        })
+    );
+    newestMarker = markers.sort((left, right) => {
+      const timeOrder = right.mtimeMs - left.mtimeMs;
+      if (timeOrder !== 0) return timeOrder;
+      return left.name > right.name ? -1 : left.name < right.name ? 1 : 0;
+    })[0];
+  } catch {
+    return {};
+  }
 
-    socket.setTimeout(3000);
-    socket.once("connect", () => {
-      socket.destroy();
-      resolve(true);
-    });
-    socket.once("timeout", () => {
-      socket.destroy();
-      resolve(false);
-    });
-    socket.once("error", () => {
-      socket.destroy();
-      resolve(false);
-    });
+  if (!newestMarker) {
+    return {};
+  }
 
-    socket.connect(port, host);
+  const latestBackupAt = newestMarker.mtime.toISOString();
+  const markerPath = resolve(backupDir, newestMarker.name);
+  const expectedArchiveName = newestMarker.name.slice(0, -".sha256".length);
+
+  try {
+    const markerFile = await openRegularFileNoFollow(markerPath);
+    let marker: string;
+    try {
+      if (markerFile.stat.size > 256) {
+        return { latestBackupAt, latestBackupSucceeded: false };
+      }
+      marker = await markerFile.handle.readFile("utf8");
+    } finally {
+      await markerFile.handle.close();
+    }
+
+    const match = /^([0-9a-f]{64})  ([^/\\\r\n]+\.dump)\n$/u.exec(marker);
+    if (!match || match[2] !== expectedArchiveName || basename(match[2]) !== match[2]) {
+      return { latestBackupAt, latestBackupSucceeded: false };
+    }
+
+    const archiveFile = await openRegularFileNoFollow(resolve(backupDir, expectedArchiveName));
+    try {
+      const actualHash = await sha256File(archiveFile.handle);
+      return { latestBackupAt, latestBackupSucceeded: actualHash === match[1] };
+    } finally {
+      await archiveFile.handle.close();
+    }
+  } catch {
+    return { latestBackupAt, latestBackupSucceeded: false };
+  }
+}
+
+async function openRegularFileNoFollow(path: string): Promise<{ handle: FileHandle; stat: Awaited<ReturnType<FileHandle["stat"]>> }> {
+  const pathStatBefore = await lstat(path);
+  if (!pathStatBefore.isFile()) {
+    throw new Error("Backup evidence must be a regular file");
+  }
+
+  const noFollow = typeof constants.O_NOFOLLOW === "number" ? constants.O_NOFOLLOW : 0;
+  const handle = await open(path, constants.O_RDONLY | noFollow);
+  try {
+    const openedStat = await handle.stat();
+    const pathStatAfter = await lstat(path);
+    if (
+      !openedStat.isFile() ||
+      !pathStatAfter.isFile() ||
+      openedStat.dev !== pathStatBefore.dev ||
+      openedStat.ino !== pathStatBefore.ino ||
+      openedStat.dev !== pathStatAfter.dev ||
+      openedStat.ino !== pathStatAfter.ino
+    ) {
+      throw new Error("Backup evidence changed while it was opened");
+    }
+    return { handle, stat: openedStat };
+  } catch (error) {
+    await handle.close();
+    throw error;
+  }
+}
+
+async function sha256File(handle: FileHandle): Promise<string> {
+  return new Promise((resolveHash, reject) => {
+    const hash = createHash("sha256");
+    const stream = handle.createReadStream({ autoClose: false, start: 0 });
+    stream.on("error", reject);
+    stream.on("data", (chunk) => hash.update(chunk));
+    stream.on("end", () => resolveHash(hash.digest("hex")));
   });
 }
 
@@ -125,11 +290,6 @@ async function readOptionalJson(path: string): Promise<JsonMap | undefined> {
 function readString(source: JsonMap | undefined, key: string): string | undefined {
   const value = source?.[key];
   return typeof value === "string" ? value : undefined;
-}
-
-function readBoolean(source: JsonMap | undefined, key: string): boolean | undefined {
-  const value = source?.[key];
-  return typeof value === "boolean" ? value : undefined;
 }
 
 function readNumber(source: JsonMap | undefined, key: string): number | undefined {
@@ -162,13 +322,4 @@ function readEnvNumber(name: string): number | undefined {
 
   const parsed = Number(value);
   return Number.isFinite(parsed) ? parsed : undefined;
-}
-
-function readEnvBoolean(name: string): boolean | undefined {
-  const value = process.env[name];
-  if (value === undefined) {
-    return undefined;
-  }
-
-  return value === "true";
 }

@@ -1,5 +1,3 @@
-version: "3.9"
-
 # Recommended baseline for the full stack: 4 vCPU and 8 GB RAM.
 # Put Cloudflare or an equivalent WAF/CDN in front of nginx; this file keeps
 # the origin generic and does not assume an ICP filing. Aliyun Korea / Seoul
@@ -7,7 +5,7 @@ version: "3.9"
 
 services:
   postgres:
-    image: postgres:16-bookworm
+    image: postgres:16-bookworm@sha256:da788743d2060767375896de4d646f7576f5911461444b372616f19ea61db2ec
     restart: unless-stopped
     environment:
       POSTGRES_DB: ${POSTGRES_DB:-jobfinder}
@@ -27,17 +25,47 @@ services:
     build:
       context: ..
       dockerfile: Dockerfile
+      args: &release-build-args
+        BUILD_COMMIT_SHA: ${BUILD_COMMIT_SHA:?set BUILD_COMMIT_SHA}
+        BUILD_SOURCE_CLEAN: ${BUILD_SOURCE_CLEAN:?set BUILD_SOURCE_CLEAN}
+        BUILD_SOURCE_TREE_SHA256: ${BUILD_SOURCE_TREE_SHA256:?set BUILD_SOURCE_TREE_SHA256}
     restart: unless-stopped
+    user: node
+    read_only: true
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    tmpfs:
+      - /tmp:rw,nosuid,nodev,noexec,size=64m,mode=1777
     command: ["npm", "run", "start"]
     environment:
       DATABASE_URL: ${DATABASE_URL:?set DATABASE_URL}
+      POSTGRES_READINESS_TIMEOUT_MS: ${POSTGRES_READINESS_TIMEOUT_MS:-2500}
       PORT: 3000
       TRUSTED_PROXY_CIDRS: ${TRUSTED_PROXY_CIDRS:-10.0.0.0/8,172.16.0.0/12,192.168.0.0/16,127.0.0.1/32}
     depends_on:
       postgres:
         condition: service_healthy
+    volumes:
+      - type: volume
+        source: formal-artifacts
+        target: /app/outputs
+        read_only: true
     expose:
       - "3000"
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "fetch('http://127.0.0.1:3000/healthz').then(async response => { const body = await response.json(); if (!response.ok || body.ok !== true) process.exit(1); }).catch(() => process.exit(1))"
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 30s
     networks:
       - internal
 
@@ -45,10 +73,40 @@ services:
     build:
       context: ..
       dockerfile: Dockerfile
-    restart: unless-stopped
-    command: ["sh", "-lc", "npm run p0:crawl -- --force"]
+      args: *release-build-args
+    profiles: ["manual"]
+    restart: "no"
+    user: node
+    read_only: true
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    tmpfs:
+      - /tmp:rw,nosuid,nodev,noexec,size=1g,mode=1777
+    command: ["npm", "run", "p0:formal-crawl-once"]
     environment:
       DATABASE_URL: ${DATABASE_URL:?set DATABASE_URL}
+      P0_FULL_RELEASE_MEMBERSHIP_FILE: /run/release-authority/membership.json
+      P0_FULL_RELEASE_MEMBERSHIP_FILE_SHA256: ${P0_FULL_RELEASE_MEMBERSHIP_FILE_SHA256:-manual-profile-not-configured}
+      P0_FULL_RELEASE_ORACLE_FILE: /run/release-authority/oracle.json
+      P0_FULL_RELEASE_ORACLE_FILE_SHA256: ${P0_FULL_RELEASE_ORACLE_FILE_SHA256:-manual-profile-not-configured}
+    volumes:
+      - type: bind
+        source: ${P0_FULL_RELEASE_MEMBERSHIP_FILE:-./manual-release-authority-not-configured/membership.json}
+        target: /run/release-authority/membership.json
+        read_only: true
+        bind:
+          create_host_path: false
+      - type: volume
+        source: formal-artifacts
+        target: /app/outputs
+      - type: bind
+        source: ${P0_FULL_RELEASE_ORACLE_FILE:-./manual-release-authority-not-configured/oracle.json}
+        target: /run/release-authority/oracle.json
+        read_only: true
+        bind:
+          create_host_path: false
     depends_on:
       postgres:
         condition: service_healthy
@@ -59,16 +117,26 @@ services:
     build:
       context: ..
       dockerfile: Dockerfile
+      args: *release-build-args
     restart: unless-stopped
-    command:
-      [
-        "sh",
-        "-lc",
-        "while true; do npm run p0:crawl -- --force; sleep ${CRAWL_INTERVAL_SECONDS:-43200}; done"
-      ]
+    user: node
+    read_only: true
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    tmpfs:
+      - /tmp:rw,nosuid,nodev,noexec,size=1g,mode=1777
+    command: ["npm", "run", "p0:scheduler"]
     environment:
       DATABASE_URL: ${DATABASE_URL:?set DATABASE_URL}
-      CRAWL_INTERVAL_SECONDS: ${CRAWL_INTERVAL_SECONDS:-43200}
+      STAGED_CRAWL_SUMMARY_PATH: /app/outputs/staged-crawl-summary.json
+      STAGED_CRAWL_ATTEMPT_DIR: /app/outputs/staged-crawl-attempts
+      STAGED_INITIAL_QUALIFICATION_PAUSE_PATH: /app/outputs/staged-initial-qualification-pause.json
+    volumes:
+      - type: volume
+        source: formal-artifacts
+        target: /app/outputs
     depends_on:
       postgres:
         condition: service_healthy
@@ -76,7 +144,7 @@ services:
       - internal
 
   nginx:
-    image: nginx:1.27-alpine
+    image: nginx:1.27-alpine@sha256:65645c7bb6a0661892a8b03b89d0743208a18dd2f3f17a54ef4b76fb8e2f2a10
     restart: unless-stopped
     depends_on:
       - web
@@ -90,58 +158,158 @@ services:
     networks:
       - internal
 
+  backup-init:
+    build:
+      context: ..
+      dockerfile: Dockerfile
+      args: *release-build-args
+    user: "0:0"
+    restart: "no"
+    network_mode: none
+    read_only: true
+    cap_drop:
+      - ALL
+    cap_add:
+      - CHOWN
+      - FOWNER
+    security_opt:
+      - no-new-privileges:true
+    command: ["install", "-d", "-o", "node", "-g", "node", "-m", "0700", "/backups"]
+    volumes:
+      - type: volume
+        source: backup-data
+        target: /backups
+
   backup:
     build:
       context: ..
       dockerfile: Dockerfile
-    restart: unless-stopped
+      args: *release-build-args
+    restart: "on-failure:3"
+    user: node
+    read_only: true
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    tmpfs:
+      - /tmp:rw,nosuid,nodev,noexec,size=64m,mode=1777
     command:
       [
         "sh",
         "-lc",
-        "while true; do sh ./ops/backup.sh; sleep ${BACKUP_INTERVAL_SECONDS:-86400}; done"
+        "set -eu; while true; do sh ./ops/backup.sh; sleep ${BACKUP_INTERVAL_SECONDS:-86400}; done"
       ]
     environment:
       DATABASE_URL: ${DATABASE_URL:?set DATABASE_URL}
       BACKUP_DIR: ${BACKUP_DIR:-/backups}
       BACKUP_RETENTION_DAYS: ${BACKUP_RETENTION_DAYS:-14}
       BACKUP_INTERVAL_SECONDS: ${BACKUP_INTERVAL_SECONDS:-86400}
+      BACKUP_HEALTH_MAX_AGE_MINUTES: ${BACKUP_HEALTH_MAX_AGE_MINUTES:-1500}
     volumes:
       - backup-data:/backups
     depends_on:
+      backup-init:
+        condition: service_completed_successfully
       postgres:
         condition: service_healthy
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "find \"$${BACKUP_DIR:-/backups}\" -maxdepth 1 -type f -name '*.dump.sha256' -size +0c -mmin \"-$${BACKUP_HEALTH_MAX_AGE_MINUTES:-1500}\" -print -quit | grep -q ."
+        ]
+      interval: 5m
+      timeout: 10s
+      retries: 3
+      start_period: 10m
     networks:
       - internal
+
+  monitor-state-init:
+    build:
+      context: ..
+      dockerfile: Dockerfile
+      args: *release-build-args
+    user: "0:0"
+    restart: "no"
+    network_mode: none
+    read_only: true
+    cap_drop:
+      - ALL
+    cap_add:
+      - CHOWN
+      - FOWNER
+    security_opt:
+      - no-new-privileges:true
+    command: ["install", "-d", "-o", "node", "-g", "node", "-m", "0700", "/app/monitor-state"]
+    volumes:
+      - type: volume
+        source: monitor-state
+        target: /app/monitor-state
 
   monitor:
     build:
       context: ..
       dockerfile: Dockerfile
-    restart: unless-stopped
+      args: *release-build-args
+    restart: "unless-stopped"
+    user: node
+    read_only: true
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    tmpfs:
+      - /tmp:rw,nosuid,nodev,noexec,size=64m,mode=1777
     command:
       [
         "sh",
         "-lc",
-        "while true; do npx tsx ops/monitoring-check.ts; sleep ${MONITOR_INTERVAL_SECONDS:-300}; done"
+        "set -u; while true; do npx tsx ops/monitoring-check.ts; status=$$?; if [ \"$$status\" -ne 0 ]; then echo \"[monitor-loop] check exited with status $$status; continuing after interval.\" >&2; fi; sleep \"$${MONITOR_INTERVAL_SECONDS:-300}\"; done"
       ]
     environment:
       HEALTHCHECK_URL: ${HEALTHCHECK_URL:-http://web:3000/healthz}
-      DATABASE_URL: ${DATABASE_URL:-}
+      DATABASE_URL: ${DATABASE_URL:?set DATABASE_URL}
+      POSTGRES_READINESS_TIMEOUT_MS: ${POSTGRES_READINESS_TIMEOUT_MS:-2500}
+      BACKUP_DIR: /backups
       MONITOR_INTERVAL_SECONDS: ${MONITOR_INTERVAL_SECONDS:-300}
-      READINESS_SUMMARY_PATH: ${READINESS_SUMMARY_PATH:-/app/var/readiness-summary.json}
-      CRAWL_SUMMARY_PATH: ${CRAWL_SUMMARY_PATH:-/app/var/crawl-summary.json}
+      READINESS_SUMMARY_PATH: ${READINESS_SUMMARY_PATH:-/app/outputs/readiness-summary.json}
+      ALERT_WEBHOOK_URL: ${ALERT_WEBHOOK_URL:?set ALERT_WEBHOOK_URL}
+      ALERT_WEBHOOK_ALLOW_HTTP: ${ALERT_WEBHOOK_ALLOW_HTTP:-0}
+      STAGED_CRAWL_SUMMARY_PATH: /app/outputs/staged-crawl-summary.json
+      STAGED_CRAWL_ATTEMPT_DIR: /app/outputs/staged-crawl-attempts
+      STAGED_INITIAL_QUALIFICATION_PAUSE_PATH: /app/outputs/staged-initial-qualification-pause.json
+      MONITOR_STATE_DIR: /app/monitor-state
     depends_on:
+      backup:
+        condition: service_healthy
       postgres:
         condition: service_healthy
+      monitor-state-init:
+        condition: service_completed_successfully
       web:
-        condition: service_started
+        condition: service_healthy
+    volumes:
+      - type: volume
+        source: formal-artifacts
+        target: /app/outputs
+        read_only: true
+      - type: volume
+        source: backup-data
+        target: /backups
+        read_only: true
+      - type: volume
+        source: monitor-state
+        target: /app/monitor-state
     networks:
       - internal
 
 volumes:
   postgres-data:
   backup-data:
+  formal-artifacts:
+  monitor-state:
 
 networks:
   internal:

@@ -20,7 +20,7 @@ const JobCategorySchema = z.enum(JOB_CATEGORIES) satisfies z.ZodType<JobCategory
 
 export const CrawlEvidenceSchema = z.object({
   officialEntryUrl: z.string().url(),
-  officialChainEvidenceUrl: z.string().url(),
+  officialChainEvidenceUrl: z.string().url().optional(),
   capturedAt: z.string().datetime(),
   rawSnapshotRef: z.string().optional()
 });
@@ -57,5 +57,17 @@ export function hasRequiredJobFields(record: NormalizedJobRecord): boolean {
 }
 
 export function buildJobDedupeKey(record: NormalizedJobRecord): string {
-  return `${record.sourceId}:${record.sourceJobId ?? record.officialUrl}`;
+  if (record.sourceJobId) {
+    return `${record.sourceId}:${record.sourceJobId}`;
+  }
+
+  if (isStaticListPageUrl(record)) {
+    return `${record.sourceId}:${record.officialUrl}:${record.officialTitle}:${record.locationRaw}`;
+  }
+
+  return `${record.sourceId}:${record.officialUrl}`;
+}
+
+function isStaticListPageUrl(record: NormalizedJobRecord): boolean {
+  return record.officialUrl === record.listUrl || record.officialUrl === record.evidence.officialEntryUrl;
 }

@@ -1,5 +1,6 @@
 import type {
   ATSKind,
+  CompletenessEvidence,
   CrawlObservation,
   SourceKind,
   VerificationStatus
@@ -21,7 +22,7 @@ export interface CrawlAdapterSource {
   kind: SourceKind;
   atsKind: ATSKind;
   officialEntryUrl: string;
-  officialChainEvidenceUrl: string;
+  officialChainEvidenceUrl?: string;
   status: VerificationStatus;
 }
 
@@ -46,16 +47,19 @@ export type HtmlFieldSelector =
   | {
       selector: string;
       attribute?: string;
+      pattern?: string;
       value?: never;
     }
   | {
       value: string;
       selector?: never;
       attribute?: never;
+      pattern?: never;
     };
 
 export interface HtmlTableFieldMap {
   sourceJobId?: HtmlFieldSelector;
+  sourceJobIdParts?: readonly HtmlFieldSelector[];
   officialTitle: HtmlFieldSelector;
   auxiliaryChineseTitle?: HtmlFieldSelector;
   officialUrl: HtmlFieldSelector;
@@ -65,8 +69,103 @@ export interface HtmlTableFieldMap {
 
 export interface HtmlTableConfig {
   rowSelector: string;
+  /**
+   * Optional content-based refinement for a structurally shared list. The
+   * selector remains the candidate-row universe; this filter decides which
+   * candidates are recruitment rows without embedding company literals in
+   * the shared adapter.
+   */
+  rowFilter?: {
+    selector: string;
+    pattern: string;
+    requireAllCandidatesForCompleteness?: boolean;
+  };
   fields: HtmlTableFieldMap;
+  strictLocationScope?: {
+    allowUnknownEnglishLocalityWithParenthesizedMainlandProvince: boolean;
+  };
+  /**
+   * A source-bound proof recipe. Its presence never certifies a crawl by itself;
+   * the independent gate must replay the archived page bodies, URLs and page
+   * coordinates against this exact configuration.
+   */
+  completenessProof?:
+    | {
+        kind: "OFFICIAL_TOTAL_PAGES";
+        sourcePolicy?:
+          | "BAYER_CHINA_SUCCESSFACTORS_V1"
+          | "NOVARTIS_CHINA_SLIDING_WINDOW_V1";
+      }
+    | { kind: "CONFIGURED_CHANNEL_TRAVERSAL" }
+    | {
+        kind: "STATIC_PUBLIC_LIST";
+        sourcePolicy?:
+          | "APELOA_SOCIAL_TABS_V1"
+          | "ASTELLAS_CHINA_PDF_ACCORDION_V1";
+      };
+  strictEmbeddedJsonZero?: {
+    kind: "TEVA_SMARTAPPLY_CHINA";
+  };
+  staticPublicList?: {
+    containerSelector: string;
+    nextControlSelector: string;
+    excludedPartitionSelectors?: readonly string[];
+    allowRedactedPositivePartial?: boolean;
+    explicitEmptyState?: {
+      selector: string;
+      pattern: string;
+    };
+  };
   defaultCategory?: JobCategory;
+  requestHeaders?: Record<string, string>;
+  pagination?: {
+    totalPagesSelector: string;
+    totalPagesAttribute: string;
+    totalPagesPattern?: string;
+    totalPagesMode?: "first" | "max";
+    totalPagesDeclaredOnEntryOnly?: boolean;
+    pageSearchParam: string;
+    pageSearchParamMode?: "page" | "offset";
+    pageUrlTemplate?: string;
+    pageNumberOffset?: number;
+    pageSize?: number;
+    maxPages: number;
+    expectedJobCountSelector?: string;
+    expectedJobCountAttribute?: string;
+    expectedJobCountPattern?: string;
+    expectedJobCountValue?: number;
+    officialWindowMode?: "NOVARTIS_PAGE_WINDOW_V1";
+    strictPageControls?: {
+      containerSelector: string;
+      pageNumberSelector: string;
+      currentPageSelector: string;
+      previousPageSelector: string;
+      nextPageSelector: string;
+      disabledClass: string;
+      currentHref: string;
+    };
+    ajaxMode?: "talentbrew" | "tupu360";
+    talentbrewScope?: {
+      requiredActiveFacet: {
+        id: string;
+        facetType: number;
+        descriptor: string;
+      };
+      allowedPartitions: Array<{
+        channelId: string;
+        id: string;
+        facetType: number;
+        fieldName: string;
+        descriptor: string;
+      }>;
+      excludedPartitions?: Array<{
+        id: string;
+        facetType: number;
+        fieldName: string;
+        descriptor: string;
+      }>;
+    };
+  };
 }
 
 export interface BaseCrawlAdapterInput {
@@ -74,6 +173,7 @@ export interface BaseCrawlAdapterInput {
   source: CrawlAdapterSource;
   capturedAt: string;
   isBaseline?: boolean;
+  completeness?: CompletenessEvidence;
 }
 
 export interface OfficialJsonAdapterInput extends BaseCrawlAdapterInput {
@@ -88,17 +188,43 @@ export interface HtmlTableAdapterInput extends BaseCrawlAdapterInput {
 
 export type CrawlAdapterInput = OfficialJsonAdapterInput | HtmlTableAdapterInput;
 
+export type AdapterLossReason = "RAW_ROW_NOT_OBJECT" | "TITLE_INVALID" | "URL_INVALID" |
+  "LOCATION_INVALID" | "CITIES_INVALID" | "CATEGORY_INVALID" | "DATE_INVALID" |
+  "SENSITIVE_OUTPUT" | "NORMALIZED_SCHEMA_INVALID";
+export interface AdapterLoss { stage: "PARSE" | "VALIDATION"; reason: AdapterLossReason; rawIndex: number }
+export interface AdapterCollisionGroup {
+  dedupeKeySha256: string;
+  candidateKeySha256: string[];
+  winnerKeySha256: string;
+  droppedCount: number;
+  dropReason: "DUPLICATE_DEDUPE_KEY_DETERMINISTIC_WINNER";
+}
+export interface AdapterReconciliation {
+  rawInputCount: number;
+  parsedCount: number;
+  validBeforeDedupeCount: number;
+  dedupeInputCount: number;
+  dedupeOutputCount: number;
+  adapterLosses: AdapterLoss[];
+  collisionGroups: AdapterCollisionGroup[];
+  outputJobKeyCommitments: string[];
+  outputJobKeySetSha256: string;
+  ledgerSha256: string;
+}
+
 export type CrawlAdapterResult =
   | {
       status: "SUCCESS";
       jobs: NormalizedJobRecord[];
       observation: CrawlObservation;
+      reconciliation?: AdapterReconciliation;
     }
   | {
       status: "FAILED";
       jobs: [];
       failureReason: string;
       observation: CrawlObservation;
+      reconciliation?: AdapterReconciliation;
     };
 
 export interface SourceAdapter<Input extends BaseCrawlAdapterInput = BaseCrawlAdapterInput> {

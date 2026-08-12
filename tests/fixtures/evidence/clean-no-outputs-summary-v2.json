@@ -1,0 +1,7 @@
+{
+  "schemaVersion": "phase4-clean-no-outputs-summary-v2",
+  "sourceProbeRelativePath": "src/readiness/currentReleaseIdentity.ts",
+  "sourceProbeFileSha256": "e6b831149d26a5b16d0d9c22412f7dcdf1dfecb970ac53f99ec5818e0e579fc2",
+  "runtimeProbeRelativePath": "src/server/httpServer.ts",
+  "runtimeProbeFileSha256": "14c4a975fe5869a46f5380a4d9bf5569ec5c016c72be386f5078f879f9b71d18"
+}

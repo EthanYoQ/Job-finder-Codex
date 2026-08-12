@@ -73,8 +73,12 @@ export function getLaunchReadinessGates(): LaunchGate[] {
       command: ["npm", "run", "prisma:validate"]
     },
     {
-      name: "DB readiness",
-      command: ["npm", "run", "p0:readiness", "--", "--db"]
+      name: "Phase 1 staged readiness",
+      command: ["npm", "run", "p0:staged-readiness", "--", "--mode", "phase1"]
+    },
+    {
+      name: "Staged public data quality",
+      command: ["npm", "run", "p0:staged-data-quality"]
     }
   ];
 }
@@ -102,7 +106,7 @@ export async function runLaunchReadiness(
     }
 
     writeLine(`[FAIL] ${gate.name}`);
-    const detail = firstNonEmptyLine(result.stderr) ?? firstNonEmptyLine(result.stdout);
+    const detail = usefulFailureLine(result.stderr) ?? usefulFailureLine(result.stdout);
     if (detail !== undefined) {
       writeLine(`stderr: ${redactValue(detail)}`);
     }
@@ -112,6 +116,17 @@ export async function runLaunchReadiness(
 
   writeLine("Launch readiness: PASS");
   return { exitCode: 0 };
+}
+
+export async function runLaunchReadinessCommand(
+  args: readonly string[],
+  options: RunLaunchReadinessOptions = {}
+): Promise<LaunchReadinessResult> {
+  if (args.length !== 0) {
+    (options.writeLine ?? console.log)("Usage: npm run p0:launch-readiness");
+    return { exitCode: 2 };
+  }
+  return runLaunchReadiness(options);
 }
 
 async function defaultRunCommand(gate: LaunchGate): Promise<LaunchGateResult> {
@@ -167,15 +182,18 @@ function quoteWindowsShellArg(value: string): string {
   return `"${value.replace(/"/g, '\\"')}"`;
 }
 
-function firstNonEmptyLine(value: string): string | undefined {
-  return value
+function usefulFailureLine(value: string): string | undefined {
+  const lines = value
     .split(/\r?\n/)
     .map((line) => line.trim())
-    .find((line) => line.length > 0);
+    .filter((line) => line.length > 0);
+  return lines.find((line) => line.startsWith("[FAIL]")) ??
+    lines.find((line) => line.startsWith("Stable companies:")) ??
+    lines[0];
 }
 
 async function main(): Promise<void> {
-  const result = await runLaunchReadiness();
+  const result = await runLaunchReadinessCommand(process.argv.slice(2));
   process.exitCode = result.exitCode;
 }
 

@@ -5,7 +5,7 @@ import {
 } from "../../src/readiness/prismaReadiness";
 import type { PersistedReadinessCompanyRow } from "../../src/readiness/persistedReadiness";
 import { candidateCompanies } from "../../src/data/companyRegistry";
-import { P0_MIN_VERIFIED_SCRAPABLE_COMPANIES } from "../../src/domain/verification";
+import { derivePhase1Scope } from "../../src/data/phase1ScopePolicy";
 
 describe("Prisma readiness report", () => {
   it("queries companies, sources, and latest crawl observations for the readiness gate", async () => {
@@ -15,7 +15,7 @@ describe("Prisma readiness report", () => {
         officialChineseName: "百济神州",
         officialWebsiteUrl: "https://www.beonemedicines.com.cn/",
         pinyinName: "baiji-shenzhou",
-        inclusionReason: "知名 Biotech、已实测",
+        inclusionReason: "FOREIGN_PHARMA",
         sources: [
           {
             id: "source-beigene-social",
@@ -34,6 +34,15 @@ describe("Prisma readiness report", () => {
                 crawledAt: new Date("2026-07-08T20:00:00.000Z"),
                 successful: true,
                 structuredJobCount: 50,
+                expectedJobCount: 50,
+                completenessStatus: "VERIFIED",
+                completenessEvidenceKind: "OFFICIAL_TOTAL_COUNT",
+                completenessEvidenceUrl:
+                  "https://app.mokahr.com/apply/beigene/98934?sourceToken=token#/jobs",
+                completenessBlockerReason: null,
+                totalPages: 1,
+                pageSize: 50,
+                pagesVisited: 1,
                 stableRequiredFields: ["COMPANY", "TITLE", "OFFICIAL_URL", "LOCATION"],
                 failureReason: null
               },
@@ -43,6 +52,15 @@ describe("Prisma readiness report", () => {
                 crawledAt: new Date("2026-07-08T08:00:00.000Z"),
                 successful: true,
                 structuredJobCount: 50,
+                expectedJobCount: 50,
+                completenessStatus: "VERIFIED",
+                completenessEvidenceKind: "OFFICIAL_TOTAL_COUNT",
+                completenessEvidenceUrl:
+                  "https://app.mokahr.com/apply/beigene/98934?sourceToken=token#/jobs",
+                completenessBlockerReason: null,
+                totalPages: 1,
+                pageSize: 50,
+                pagesVisited: 1,
                 stableRequiredFields: ["COMPANY", "TITLE", "OFFICIAL_URL", "LOCATION"],
                 failureReason: null
               }
@@ -70,8 +88,15 @@ describe("Prisma readiness report", () => {
       orderBy: { pinyinName: "asc" }
     });
     expect(report.totalCandidates).toBe(candidateCompanies.length);
-    expect(report.declaredVerifiedSocialSources).toBe(P0_MIN_VERIFIED_SCRAPABLE_COMPANIES);
-    expect(report.crawlEvidencedVerifiedCompanies).toBe(1);
+    const requiredOfficialLinkSourceIds = new Set(
+      derivePhase1Scope(candidateCompanies).inScopeCompanies
+        .flatMap(({ sources }) => sources)
+        .filter(({ kind }) => kind === "SOCIAL")
+        .map(({ id }) => id)
+    );
+    expect(report.requiredOfficialLinkSources).toBe(requiredOfficialLinkSourceIds.size);
+    expect(report.plannedOfficialLinkSources).toBe(0);
+    expect(report.crawlEvidencedOfficialLinkSources).toBe(0);
     expect(report.canLaunchP0).toBe(false);
   });
 });

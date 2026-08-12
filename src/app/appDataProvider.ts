@@ -1,5 +1,8 @@
 import { companies as demoCompanies } from "./jobData";
 import { filterJobs, sortCompanies, type SortMode } from "./jobSearch";
+import { confirmedCompanyRosterV3Members } from "../data/confirmedCompanyRosterV3Members";
+import type { PublicationHealth, PublicationState } from "../domain/publicationEligibility";
+import { getStaticDocument } from "../server/staticDocuments";
 
 export interface SearchRequest {
   city: string;
@@ -15,6 +18,7 @@ export interface SearchJob {
   officialTitle: string;
   officialPublishedAt: string | null;
   city: string;
+  locationRaw: string;
   category: string;
   isNew: boolean;
   officialUrl: string;
@@ -42,7 +46,12 @@ export interface CoverageRequest {
 export interface CoverageCompany {
   id: string;
   companyName: string;
-  officialWebsiteUrl: string;
+  officialWebsiteUrl: string | null;
+  officialCareersUrl: string | null;
+  category: "FOREIGN_PHARMA" | "DOMESTIC_PHARMA";
+  state: PublicationState;
+  health: PublicationHealth;
+  lastSuccessAt: string | null;
 }
 
 export interface CoverageResult {
@@ -55,6 +64,7 @@ export interface CoverageResult {
 export interface FeedbackRequest {
   issueType: string;
   description: string;
+  contact?: string;
   companyId?: string;
   jobId?: string;
 }
@@ -85,33 +95,14 @@ export interface AppDataProvider {
 
 type ServerSortMode = "COMPANY_PINYIN_ASC" | "LATEST_POSTED" | "MATCHING_JOB_COUNT_DESC";
 
+export const COMPANY_DIRECTORY_PAGE_SIZE = confirmedCompanyRosterV3Members.length;
+
 const DEMO_WEBSITES: Record<string, string> = {
   astrazeneca: "https://www.astrazeneca.com.cn/",
   beigene: "https://www.beigene.com.cn/",
   pfizer: "https://www.pfizer.com.cn/",
   novartis: "https://www.novartis.com.cn/",
   innovent: "https://cn.innoventbio.com/"
-};
-
-const DEMO_DOCUMENTS: Record<"privacy" | "terms", StaticDocumentResult> = {
-  privacy: {
-    slug: "privacy",
-    title: "隐私说明",
-    body: [
-      "本服务在用户明确同意前，不提供职位搜索、反馈提交或推荐公司等交互能力。",
-      "我们仅在反滥用、限流和运维所必需的范围内记录请求元数据。",
-      "如涉及跨境数据流转、用工合规或个人信息处理，跨境合规事项仍需法律复核。"
-    ].join("\n")
-  },
-  terms: {
-    slug: "terms",
-    title: "使用条款",
-    body: [
-      "本服务仅用于求职信息查询与纠错反馈，不构成对招聘信息真实性或适用性的担保。",
-      "未经书面许可，禁止抓取、批量复制、转售或商业化复用本服务数据。",
-      "触发异常流量、自动化批量访问或规避风控的请求可能被限流或 challenge。"
-    ].join("\n")
-  }
 };
 
 function latestPublishedAt(companies: SearchCompany[]): string | null {
@@ -151,6 +142,7 @@ export function createDemoAppDataProvider(): AppDataProvider {
           officialTitle: job.officialTitle ?? job.title,
           officialPublishedAt: job.officialPublishedAt,
           city: job.city,
+          locationRaw: job.city,
           category: job.category,
           isNew: job.isNew,
           officialUrl: job.officialUrl
@@ -166,14 +158,18 @@ export function createDemoAppDataProvider(): AppDataProvider {
     async listCoverage(request) {
       const keyword = normalize(request.keyword);
       const offset = request.offset ?? 0;
-      const limit = request.limit ?? 50;
+      const limit = request.limit ?? COMPANY_DIRECTORY_PAGE_SIZE;
       const companies = demoCompanies
         .map((company) => ({
           id: company.id,
           companyName: company.companyName,
-          officialWebsiteUrl: DEMO_WEBSITES[company.id] ?? company.jobs[0]?.officialUrl ?? ""
+          officialWebsiteUrl: DEMO_WEBSITES[company.id] ?? null,
+          officialCareersUrl: null,
+          category: company.id === "innovent" ? "DOMESTIC_PHARMA" as const : "FOREIGN_PHARMA" as const,
+          state: "OFFICIAL_LINK_ONLY" as const,
+          health: "NOT_APPLICABLE" as const,
+          lastSuccessAt: null
         }))
-        .filter((company) => company.officialWebsiteUrl !== "")
         .filter((company) => {
           if (keyword === "") {
             return true;
@@ -202,7 +198,7 @@ export function createDemoAppDataProvider(): AppDataProvider {
       };
     },
     async getDocument(slug) {
-      return DEMO_DOCUMENTS[slug];
+      return getStaticDocument(slug);
     }
   };
 }
@@ -239,7 +235,7 @@ export function createHttpAppDataProvider(baseUrl = ""): AppDataProvider {
       const params = new URLSearchParams({
         keyword: request.keyword,
         offset: String(request.offset ?? 0),
-        limit: String(request.limit ?? 50)
+        limit: String(request.limit ?? COMPANY_DIRECTORY_PAGE_SIZE)
       });
       const response = await fetch(`${baseUrl}/api/coverage?${params.toString()}`, {
         headers: { "x-job-search-consent": "accepted" }
@@ -248,12 +244,12 @@ export function createHttpAppDataProvider(baseUrl = ""): AppDataProvider {
       return readJson<CoverageResult>(response);
     },
     async submitFeedback(request) {
+      const isPrivacyRequest = request.issueType === "PRIVACY_EXPORT" || request.issueType === "PRIVACY_DELETE";
       const response = await fetch(`${baseUrl}/api/feedback`, {
         method: "POST",
-        headers: {
-          "content-type": "application/json",
-          "x-job-search-consent": "accepted"
-        },
+        headers: isPrivacyRequest
+          ? { "content-type": "application/json" }
+          : { "content-type": "application/json", "x-job-search-consent": "accepted" },
         body: JSON.stringify(request)
       });
 

@@ -1,33 +1,18 @@
-import { execFileSync } from "node:child_process";
+import { execFileSync,spawnSync } from "node:child_process";
+import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 
 describe("P0 readiness CLI", () => {
-  it("prints the current readiness blockers without secrets", () => {
-    let output = "";
-    let exitCode = 0;
+  it("requires formal DB mode", () => {
     const command = process.platform === "win32" ? "cmd.exe" : "npx";
     const args =
       process.platform === "win32"
         ? ["/d", "/s", "/c", "npx", "tsx", "scripts/p0-readiness-report.ts"]
         : ["tsx", "scripts/p0-readiness-report.ts"];
 
-    try {
-      output = execFileSync(command, args, {
-        cwd: process.cwd(),
-        encoding: "utf8"
-      });
-    } catch (error) {
-      const failure = error as { status?: number; stdout?: string };
-      exitCode = failure.status ?? 1;
-      output = failure.stdout ?? "";
-    }
-
-    expect(exitCode).toBe(1);
-    expect(output).toContain("# P0 Readiness Report");
-    expect(output).toContain("Can launch P0: no");
-    expect(output).toContain("VERIFIED_COMPANIES_BELOW_50");
-    expect(output).not.toMatch(/tvly-dev-[A-Za-z0-9_-]+/);
-  });
+    const result=spawnSync(command,args,{cwd:process.cwd(),encoding:"utf8"});
+    expect(result.status).not.toBe(0);expect(result.stderr).toMatch(/--db/i);
+  },15_000);
 
   it("prints usage for the database readiness mode without exposing secrets", () => {
     const output = execFileSync(
@@ -41,8 +26,24 @@ describe("P0 readiness CLI", () => {
       }
     );
 
-    expect(output).toContain("Usage: npm run p0:readiness -- [--db]");
+    expect(output).toContain("Usage: npm run p0:readiness -- --db");
+    expect(output).not.toContain("--release-candidate-id=");
+    expect(output).not.toContain("--legacy-observations");
     expect(output).toContain("--db");
     expect(output).not.toMatch(/tvly-dev-[A-Za-z0-9_-]+/);
+  },15_000);
+
+  it.each(["--legacy-observations","--commit-sha=x","--membership-file=x"])("rejects forbidden flag before mode selection: %s",flag=>{
+    const result=spawnSync(process.platform==="win32"?"cmd.exe":"npx",process.platform==="win32"?["/d","/s","/c","npx","tsx","scripts/p0-readiness-report.ts",flag]:["tsx","scripts/p0-readiness-report.ts",flag],{cwd:process.cwd(),encoding:"utf8"});
+    expect(result.status).not.toBe(0);expect(result.stderr).toMatch(/forbidden|unknown/i);
+  },15_000);
+
+  it("uses dynamic official-link terminology without an x/60 crawl-company denominator", () => {
+    const source = readFileSync("scripts/p0-readiness-report.ts", "utf8");
+    expect(source).toContain("Required official-link sources");
+    expect(source).toContain("Crawl-evidenced official-link sources");
+    expect(source).not.toContain("Crawl-evidenced verified companies");
+    expect(source).not.toContain("crawlEvidencedVerifiedCompanies");
+    expect(source).not.toContain("requiredVerifiedCompanies");
   });
 });

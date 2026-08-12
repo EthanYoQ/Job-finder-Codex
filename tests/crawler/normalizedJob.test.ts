@@ -33,6 +33,36 @@ describe("normalized job record", () => {
     expect(buildJobDedupeKey(record)).toBe("source-astrazeneca-social:123");
   });
 
+  it("keeps static list-page jobs distinct by title and city when no source job id exists", () => {
+    const baseRecord = NormalizedJobRecordSchema.parse({
+      companyId: "company-zaiding",
+      sourceId: "source-zaiding-social",
+      sourceKind: "SOCIAL",
+      atsKind: "OFFICIAL_HTML",
+      officialChineseCompanyName: "再鼎医药（上海）有限公司",
+      officialTitle: "（高级）医药信息顾问",
+      officialUrl: "https://cn.zailaboratory.com/jobs/",
+      listUrl: "https://cn.zailaboratory.com/jobs/",
+      locationRaw: "杭州",
+      cities: ["杭州"],
+      category: "销售",
+      isBaseline: true,
+      evidence: {
+        officialEntryUrl: "https://cn.zailaboratory.com/jobs/",
+        officialChainEvidenceUrl: "https://cn.zailaboratory.com/careers/",
+        capturedAt: "2026-07-08T00:00:00.000Z"
+      }
+    });
+
+    const sameTitleOtherCity = {
+      ...baseRecord,
+      locationRaw: "沈阳",
+      cities: ["沈阳"]
+    };
+
+    expect(buildJobDedupeKey(baseRecord)).not.toBe(buildJobDedupeKey(sameTitleOtherCity));
+  });
+
   it("rejects non-social records for P0 front-end ingestion", () => {
     expect(() =>
       NormalizedJobRecordSchema.parse({

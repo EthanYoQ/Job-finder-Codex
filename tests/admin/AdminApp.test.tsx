@@ -27,6 +27,14 @@ function createModel() {
           successful: false,
           structuredJobCount: 0,
           failureReason: "timeout"
+        },
+        latestFailure: {
+          finishedAt: new Date("2026-07-08T11:00:00.000Z"),
+          reason: "Official recruitment endpoint was temporarily unavailable (HTTP 503)",
+          category: "TEMPORARY_OFFICIAL_SOURCE_FAILURE",
+          diagnosticCode: "OFFICIAL_HTTP_503",
+          fetchAttemptCount: 2,
+          retryCount: 1
         }
       }
     ],
@@ -178,7 +186,11 @@ describe("AdminApp", () => {
     const sourceSection = screen.getByRole("region", { name: "Source Health" });
     expect(within(sourceSection).getByText("问题药企")).toBeInTheDocument();
     expect(within(sourceSection).getByText("连续失败 4 次")).toBeInTheDocument();
-    expect(within(sourceSection).getByText("最近失败原因: timeout")).toBeInTheDocument();
+    expect(within(sourceSection).getByText("失败类别: 官网招聘入口暂时不可用")).toBeInTheDocument();
+    expect(within(sourceSection).getByText("抓取尝试 2 次，其中重试 1 次")).toBeInTheDocument();
+    expect(within(sourceSection).getByText(
+      "最近失败原因: Official recruitment endpoint was temporarily unavailable (HTTP 503)"
+    )).toBeInTheDocument();
 
     await user.click(within(sourceSection).getByRole("button", { name: "加入手动抓取" }));
 

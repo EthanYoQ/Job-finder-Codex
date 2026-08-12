@@ -1,6 +1,11 @@
 import { z, ZodError } from "zod";
 import { COMPANY_EXPANSION_PAGE_SIZE, SearchRequestSchema } from "../domain/search";
-import { searchJobsFromDatabase, type PrismaJobSearchDb } from "./jobSearchService";
+import { canonicalPhase1ScopeCounts } from "../data/phase1ScopePolicy";
+import {
+  searchJobsFromDatabase,
+  type PrismaJobSearchDb,
+  type PublicationSnapshotReader
+} from "./jobSearchService";
 import {
   createFeedback,
   createRecommendedCompany,
@@ -10,6 +15,7 @@ import {
 import { checkRateLimit, classifySuspiciousRequest, createMemoryRateLimitStore, type RateLimitStore } from "./rateLimit";
 import { listCompanyCoverage, type CoverageDb } from "./coverageService";
 import { getStaticDocument } from "./staticDocuments";
+import { normalizePostgresReadinessTimeout } from "./postgresReadiness";
 
 export interface PublicApiRequest {
   method: string;
@@ -31,29 +37,46 @@ type PublicApiDb = PrismaJobSearchDb & CoverageDb & FeedbackDb;
 
 export interface PublicApiDeps {
   db: PublicApiDb;
+  checkDatabaseReadiness: () => Promise<boolean>;
+  readinessTimeoutMs?: number;
   now?: () => Date;
   rateLimitStore?: RateLimitStore;
+  readPublicationSnapshot?: PublicationSnapshotReader;
 }
 
 const DEFAULT_RATE_LIMIT_STORE = createMemoryRateLimitStore();
-const API_DEFAULT_LIMIT = 50;
-const API_MAX_LIMIT = 50;
+const SEARCH_API_LIMIT = 50;
+const COVERAGE_API_LIMIT = canonicalPhase1ScopeCounts.fixedRosterCompanyCount;
 const API_MAX_WINDOW = 500;
 
-const ApiPaginationSchema = z
+function apiPaginationSchema(defaultLimit: number, maxLimit: number) {
+  return z
   .object({
     offset: z.coerce.number().int().min(0).default(0),
-    limit: z.coerce.number().int().min(1).max(API_MAX_LIMIT).default(API_DEFAULT_LIMIT)
+    limit: z.coerce.number().int().min(1).max(maxLimit).default(defaultLimit)
   })
   .refine((value) => value.offset + value.limit <= API_MAX_WINDOW, {
     message: "Pagination exceeds the controlled loading cap"
   });
+}
+
+const SearchApiPaginationSchema = apiPaginationSchema(SEARCH_API_LIMIT, SEARCH_API_LIMIT);
+const CoverageApiPaginationSchema = apiPaginationSchema(COVERAGE_API_LIMIT, COVERAGE_API_LIMIT);
 
 const FeedbackInputSchema = z.object({
   issueType: z.string().trim().min(1),
   description: z.string().trim().min(1),
+  contact: z.string().trim().min(1).optional(),
   companyId: z.string().trim().min(1).optional(),
   jobId: z.string().trim().min(1).optional()
+}).superRefine((value, context) => {
+  const privacy = value.issueType === "PRIVACY_EXPORT" || value.issueType === "PRIVACY_DELETE";
+  if (privacy && (!value.contact || value.companyId !== undefined || value.jobId !== undefined)) {
+    context.addIssue({ code: z.ZodIssueCode.custom, message: "invalid privacy request" });
+  }
+  if (!privacy && value.contact !== undefined) {
+    context.addIssue({ code: z.ZodIssueCode.custom, message: "contact is reserved for privacy requests" });
+  }
 });
 
 const RecommendedCompanyInputSchema = z.object({
@@ -82,17 +105,20 @@ export async function handlePublicApi(request: PublicApiRequest, deps: PublicApi
   }
 
   if (request.path === "/healthz") {
+    const ok = await getBoundedDatabaseReadiness(deps);
     return {
-      status: 200,
+      status: ok ? 200 : 503,
       headers: { ...headers, "content-type": "application/json; charset=utf-8" },
-      body: { ok: true }
+      body: { ok }
     };
   }
 
   if (request.path.startsWith("/api/")) {
     const consent = request.headers["x-job-search-consent"];
+    const isPrivacyFeedback = request.path === "/api/feedback" && request.method === "POST" &&
+      isPrivacyIssueType(request.body);
 
-    if (consent !== "accepted") {
+    if (consent !== "accepted" && !isPrivacyFeedback) {
       return {
         status: 403,
         headers,
@@ -110,7 +136,8 @@ export async function handlePublicApi(request: PublicApiRequest, deps: PublicApi
     const suspicious = classifySuspiciousRequest({
       path: request.path,
       query: normalizeStringQuery(request.query),
-      userAgent: context.userAgent
+      userAgent: context.userAgent,
+      maxLimit: request.path === "/api/coverage" ? COVERAGE_API_LIMIT : SEARCH_API_LIMIT
     });
 
     if (suspicious.action === "CHALLENGE") {
@@ -146,7 +173,7 @@ export async function handlePublicApi(request: PublicApiRequest, deps: PublicApi
         return invalidRequest(headers, parsed.error);
       }
 
-      const result = await searchJobsFromDatabase(parsed.data, deps.db);
+      const result = await searchJobsFromDatabase(parsed.data, deps.db, deps.readPublicationSnapshot);
       const pagedCompanies = result.companies.slice(
         paginationValidation.data.offset,
         paginationValidation.data.offset + paginationValidation.data.limit
@@ -172,7 +199,8 @@ export async function handlePublicApi(request: PublicApiRequest, deps: PublicApi
           offset: paginationValidation.data.offset,
           limit: paginationValidation.data.limit
         },
-        deps.db
+        deps.db,
+        deps.readPublicationSnapshot
       );
       return {
         status: 200,
@@ -219,6 +247,23 @@ export async function handlePublicApi(request: PublicApiRequest, deps: PublicApi
   };
 }
 
+async function getBoundedDatabaseReadiness(deps: PublicApiDeps): Promise<boolean> {
+  const timeoutMs = normalizePostgresReadinessTimeout(deps.readinessTimeoutMs);
+  let timeout: NodeJS.Timeout | undefined;
+  try {
+    return await Promise.race([
+      Promise.resolve().then(() => deps.checkDatabaseReadiness()),
+      new Promise<boolean>((resolve) => {
+        timeout = setTimeout(() => resolve(false), timeoutMs);
+      })
+    ]);
+  } catch {
+    return false;
+  } finally {
+    if (timeout) clearTimeout(timeout);
+  }
+}
+
 function createBaseHeaders(path: string): Record<string, string> {
   if (path.startsWith("/api/") || path.startsWith("/admin/")) {
     return { "x-robots-tag": "noindex, nofollow" };
@@ -256,13 +301,16 @@ function validateApiPagination(request: PublicApiRequest) {
     request.method === "GET" &&
     (request.path === "/api/search" || request.path === "/api/coverage")
   ) {
-    return ApiPaginationSchema.safeParse({
+    const schema = request.path === "/api/coverage"
+      ? CoverageApiPaginationSchema
+      : SearchApiPaginationSchema;
+    return schema.safeParse({
       offset: getSingleValue(request.query.offset),
       limit: getSingleValue(request.query.limit)
     });
   }
 
-  return ApiPaginationSchema.safeParse({});
+  return SearchApiPaginationSchema.safeParse({});
 }
 
 function normalizeFeedbackInput(body: unknown) {
@@ -278,9 +326,15 @@ function normalizeFeedbackInput(body: unknown) {
       issueType: parsed.data.issueType,
       description: parsed.data.description,
       ...(parsed.data.companyId === undefined ? {} : { companyId: parsed.data.companyId }),
-      ...(parsed.data.jobId === undefined ? {} : { jobId: parsed.data.jobId })
+      ...(parsed.data.jobId === undefined ? {} : { jobId: parsed.data.jobId }),
+      ...(parsed.data.contact === undefined ? {} : { contact: parsed.data.contact })
     }
   };
+}
+
+function isPrivacyIssueType(body: unknown): boolean {
+  if (typeof body !== "object" || body === null || !("issueType" in body)) return false;
+  return body.issueType === "PRIVACY_EXPORT" || body.issueType === "PRIVACY_DELETE";
 }
 
 function normalizeRecommendedCompanyInput(body: unknown) {

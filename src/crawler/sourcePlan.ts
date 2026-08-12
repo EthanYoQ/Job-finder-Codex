@@ -1,13 +1,36 @@
-import type { CandidateCompany, CandidateRecruitmentSource } from "../data/companyRegistry";
+import { createHash } from "node:crypto";
+import {
+  candidateCompanies,
+  expectedOfficialSurfaces,
+  hasUnresolvedSurfaceScope,
+  type CandidateCompany,
+  type CandidateRecruitmentSource,
+  type ExpectedOfficialRecruitmentSurface,
+  type ExpectedRecruitmentChannel
+} from "../data/companyRegistry";
+import {
+  isUserAuthorizedPhase1Exclusion,
+  USER_AUTHORIZED_PHASE1_EXCLUSION
+} from "../data/phase1ScopePolicy";
 import type { HtmlTableConfig, OfficialJsonConfig } from "./adapters/types";
 import type { HotjobWecruitFetchConfig } from "./hotjobWecruitSourceFetch";
 import type { HotjobLegacyFetchConfig } from "./hotjobLegacySourceFetch";
 import type { OfficialJsonFetchConfig } from "./officialJsonSourceFetch";
 import type { WorkdayFetchConfig } from "./workdaySourceFetch";
+import { companyRecruitmentExecutionConfigsBySourceId } from "./companyRecruitmentProfiles";
+import type {
+  CompanyRecruitmentExecutionConfig,
+  MokaFetchConfig,
+  ProfileBoundSourceConfig
+} from "./companyRecruitmentProfiles/types";
+export type { MokaFetchConfig } from "./companyRecruitmentProfiles/types";
 
 export type CrawlAdapterId = "official-json" | "html-table";
 
-type PlannedCompany = Pick<CandidateCompany, "id" | "officialChineseName">;
+export type ExecutableExpectedChannel = Pick<ExpectedRecruitmentChannel, "channelId" | "kind">;
+type SourcePlanPolicy = "DISCOVERY" | "STAGED" | "FULL_RELEASE";
+
+type PlannedCompany = Pick<CandidateCompany, "id" | "officialChineseName"> & { category?: CandidateCompany["category"] };
 type PlannedSource = Required<
   Pick<
     CandidateRecruitmentSource,
@@ -19,9 +42,9 @@ type PlannedSource = Required<
     | "officialEntryUrl"
     | "officialChainEvidenceUrl"
   >
->;
+> & { surfaceId?: string };
 
-export type SourceCrawlPlan =
+export type SourceCrawlPlan = (
   | {
       adapterId: "official-json";
       company: PlannedCompany;
@@ -31,626 +54,65 @@ export type SourceCrawlPlan =
       workday?: WorkdayFetchConfig;
       hotjob?: HotjobWecruitFetchConfig;
       hotjobLegacy?: HotjobLegacyFetchConfig;
+      profileBoundSource?: ProfileBoundSourceConfig;
+      moka?: MokaFetchConfig;
     }
   | {
       adapterId: "html-table";
       company: PlannedCompany;
       source: PlannedSource;
       table: HtmlTableConfig;
+    }) & {
+      executionAuthority?: "STAGED";
+      expectedChannels?: readonly ExecutableExpectedChannel[];
+      expectedChannelSetHash?: string;
+      transientRetryPolicy?: {
+        maxRetries: 1;
+        backoffMs: number;
+      };
     };
 
-type RepresentativeSourceConfig =
-  | {
-      adapterId: "official-json";
-      json: OfficialJsonConfig;
-      officialJsonFetch?: OfficialJsonFetchConfig;
-      workday?: WorkdayFetchConfig;
-      hotjob?: HotjobWecruitFetchConfig;
-      hotjobLegacy?: HotjobLegacyFetchConfig;
-    }
-  | {
-      adapterId: "html-table";
-      table: HtmlTableConfig;
-    };
+const CANONICAL_EXECUTION_CONFIG_JSON_BY_SOURCE_ID: Readonly<Record<string, string>> = Object.freeze(
+  Object.fromEntries(
+    Object.entries(companyRecruitmentExecutionConfigsBySourceId).map(([sourceId, config]) => [
+      sourceId,
+      representativeExecutionConfigJson(config)
+    ])
+  )
+);
 
-const MOKA_JSON_CONFIG: OfficialJsonConfig = {
-  jobsPath: "data.jobs",
-  fields: {
-    sourceJobId: "id",
-    officialTitle: "title",
-    officialUrl: "officialUrl",
-    locationRaw: "locationRaw",
-    cities: "cities"
-  },
-  defaultCategory: "其他"
-};
+export function buildSourceCrawlPlans(
+  companies: readonly CandidateCompany[],
+  surfaces: readonly ExpectedOfficialRecruitmentSurface[] = expectedOfficialSurfaces
+): SourceCrawlPlan[] {
+  return buildPlans(companies, surfaces, "FULL_RELEASE");
+}
 
-const WORKDAY_JSON_CONFIG: OfficialJsonConfig = {
-  jobsPath: "jobPostings",
-  fields: {
-    sourceJobId: "sourceJobId",
-    officialTitle: "title",
-    officialUrl: "officialUrl",
-    locationRaw: "locationRaw",
-    cities: "cities"
-  },
-  defaultCategory: "其他"
-};
+export function buildStagedSourceCrawlPlans(
+  companies: readonly CandidateCompany[],
+  surfaces: readonly ExpectedOfficialRecruitmentSurface[] = expectedOfficialSurfaces
+): SourceCrawlPlan[] {
+  return buildPlans(companies, surfaces, "STAGED");
+}
 
-const HOTJOB_WECRUIT_JSON_CONFIG: OfficialJsonConfig = {
-  jobsPath: "jobs",
-  fields: {
-    sourceJobId: "sourceJobId",
-    officialTitle: "title",
-    officialUrl: "officialUrl",
-    locationRaw: "locationRaw"
-  },
-  defaultCategory: "其他"
-};
+export function buildDiscoverySourcePlanCandidates(
+  companies: readonly CandidateCompany[],
+  surfaces: readonly ExpectedOfficialRecruitmentSurface[] = expectedOfficialSurfaces
+): SourceCrawlPlan[] {
+  return buildPlans(companies, surfaces, "DISCOVERY");
+}
 
-const OFFICIAL_API_JSON_CONFIG: OfficialJsonConfig = {
-  jobsPath: "jobs",
-  fields: {
-    sourceJobId: "sourceJobId",
-    officialTitle: "title",
-    officialUrl: "officialUrl",
-    locationRaw: "locationRaw",
-    cities: "cities"
-  },
-  defaultCategory: "其他"
-};
-
-const REPRESENTATIVE_CONFIGS: Record<string, RepresentativeSourceConfig> = {
-  "source-astrazeneca-social": {
-    adapterId: "html-table",
-    table: {
-      rowSelector: "#search-results-list li",
-      fields: {
-        officialTitle: { selector: "a.search-results-link h2" },
-        officialUrl: { selector: "a.search-results-link", attribute: "href" },
-        locationRaw: { selector: "span.job-location" }
-      }
-    }
-  },
-  "source-novartis-social": {
-    adapterId: "html-table",
-    table: {
-      rowSelector: "table.views-table tbody tr",
-      fields: {
-        officialTitle: { selector: "td.views-field-field-job-title a" },
-        officialUrl: {
-          selector: "td.views-field-field-job-title a",
-          attribute: "href"
-        },
-        locationRaw: { selector: "td.views-field-field-job-work-location" }
-      }
-    }
-  },
-  "source-fosun-pharma-social": {
-    adapterId: "html-table",
-    table: {
-      rowSelector: "table tr",
-      fields: {
-        officialTitle: { selector: "td:nth-child(1) a" },
-        officialUrl: { selector: "td:nth-child(1) a", attribute: "href" },
-        locationRaw: { selector: "td:nth-child(4) a" }
-      }
-    }
-  },
-  "source-beigene-social": {
-    adapterId: "official-json",
-    json: MOKA_JSON_CONFIG
-  },
-  "source-pfizer-china-social": {
-    adapterId: "official-json",
-    json: WORKDAY_JSON_CONFIG,
-    workday: {
-      tenant: "pfizer",
-      site: "PfizerCareers",
-      appliedFacets: {
-        Location_Country: ["6cb77610a8a543aea2d6bc10457e35d4"]
-      },
-      pageSize: 20,
-      maxPages: 10
-    }
-  },
-  "source-haleon-china-social": {
-    adapterId: "official-json",
-    json: WORKDAY_JSON_CONFIG,
-    workday: {
-      tenant: "gsknch",
-      site: "GSKCareers",
-      appliedFacets: {
-        location: [
-          "03fe97f04c9a01333d3739eea7577455",
-          "03fe97f04c9a01ebc5af2deea7576a55",
-          "15dc3becd679105e714122093995f79f",
-          "b5196703399c0188e29d0aedaf53abef"
-        ]
-      },
-      pageSize: 20,
-      maxPages: 5,
-      cityHints: {
-        "SHANGHAI QIANTAN PLAZA": ["上海"],
-        "Suzhou Plant Tech Industry Park": ["苏州"]
-      }
-    }
-  },
-  "source-roche-china-social": {
-    adapterId: "official-json",
-    json: WORKDAY_JSON_CONFIG,
-    workday: {
-      tenant: "roche",
-      site: "roche-ext",
-      searchText: "China",
-      pageSize: 20,
-      maxPages: 5
-    }
-  },
-  "source-msd-china-social": {
-    adapterId: "official-json",
-    json: WORKDAY_JSON_CONFIG,
-    workday: {
-      tenant: "msd",
-      site: "SearchJobs",
-      searchText: "China",
-      pageSize: 20,
-      maxPages: 5
-    }
-  },
-  "source-bms-china-social": {
-    adapterId: "official-json",
-    json: WORKDAY_JSON_CONFIG,
-    workday: {
-      tenant: "bristolmyerssquibb",
-      site: "BMS",
-      searchText: "China",
-      pageSize: 20,
-      maxPages: 5
-    }
-  },
-  "source-gilead-china-social": {
-    adapterId: "official-json",
-    json: WORKDAY_JSON_CONFIG,
-    workday: {
-      tenant: "gilead",
-      site: "gileadcareers",
-      searchText: "China",
-      pageSize: 20,
-      maxPages: 3
-    }
-  },
-  "source-agilent-china-social": {
-    adapterId: "official-json",
-    json: WORKDAY_JSON_CONFIG,
-    workday: {
-      tenant: "agilent",
-      site: "Agilent_Careers",
-      searchText: "China",
-      pageSize: 20,
-      maxPages: 5
-    }
-  },
-  "source-abbott-china-social": {
-    adapterId: "official-json",
-    json: WORKDAY_JSON_CONFIG,
-    workday: {
-      tenant: "abbott",
-      site: "abbottcareers",
-      searchText: "China",
-      pageSize: 20,
-      maxPages: 5
-    }
-  },
-  "source-stryker-china-social": {
-    adapterId: "official-json",
-    json: WORKDAY_JSON_CONFIG,
-    workday: {
-      tenant: "stryker",
-      site: "StrykerCareers",
-      searchText: "China",
-      pageSize: 20,
-      maxPages: 5
-    }
-  },
-  "source-gehc-china-social": {
-    adapterId: "official-json",
-    json: WORKDAY_JSON_CONFIG,
-    workday: {
-      tenant: "gehc",
-      site: "gehc_externalsite",
-      searchText: "China",
-      pageSize: 20,
-      maxPages: 5
-    }
-  },
-  "source-edwards-china-social": {
-    adapterId: "official-json",
-    json: WORKDAY_JSON_CONFIG,
-    workday: {
-      tenant: "edwards",
-      site: "edwardscareers",
-      searchText: "China",
-      pageSize: 20,
-      maxPages: 5
-    }
-  },
-  "source-medtronic-china-social": {
-    adapterId: "official-json",
-    json: WORKDAY_JSON_CONFIG,
-    workday: {
-      tenant: "medtronic",
-      site: "MedtronicCareers",
-      searchText: "China",
-      pageSize: 20,
-      maxPages: 5
-    }
-  },
-  "source-kenvue-china-social": {
-    adapterId: "official-json",
-    json: WORKDAY_JSON_CONFIG,
-    workday: {
-      tenant: "kenvue",
-      site: "kenvue",
-      appliedFacets: {
-        locationCountry: ["6cb77610a8a543aea2d6bc10457e35d4"]
-      },
-      pageSize: 20,
-      maxPages: 2
-    }
-  },
-  "source-amgen-china-social": {
-    adapterId: "official-json",
-    json: WORKDAY_JSON_CONFIG,
-    workday: {
-      tenant: "amgen",
-      site: "Careers",
-      appliedFacets: {
-        LocationCountry: ["6cb77610a8a543aea2d6bc10457e35d4"]
-      },
-      pageSize: 20,
-      maxPages: 3
-    }
-  },
-  "source-simcere-social": {
-    adapterId: "official-json",
-    json: HOTJOB_WECRUIT_JSON_CONFIG,
-    hotjob: {
-      suiteKey: "SU61458d83bef57c54dcb4e43f",
-      pageSize: 20,
-      maxPages: 25
-    }
-  },
-  "source-haisco-social": {
-    adapterId: "official-json",
-    json: HOTJOB_WECRUIT_JSON_CONFIG,
-    hotjob: {
-      suiteKey: "SU6663b85a1eb8051cd22556e3",
-      pageSize: 20,
-      maxPages: 10
-    }
-  },
-  "source-cr-sanjiu-social": {
-    adapterId: "official-json",
-    json: HOTJOB_WECRUIT_JSON_CONFIG,
-    hotjob: {
-      suiteKey: "SU613834ecbef57c3b6383b50e",
-      pageSize: 20,
-      maxPages: 20
-    }
-  },
-  "source-hengrui-social": {
-    adapterId: "official-json",
-    json: MOKA_JSON_CONFIG
-  },
-  "source-bayer-healthcare-social": {
-    adapterId: "html-table",
-    table: {
-      rowSelector: "#searchresults tbody tr",
-      fields: {
-        officialTitle: { selector: ".jobTitle.hidden-phone a.jobTitle-link" },
-        officialUrl: {
-          selector: ".jobTitle.hidden-phone a.jobTitle-link",
-          attribute: "href"
-        },
-        locationRaw: { selector: "td.colLocation" }
-      }
-    }
-  },
-  "source-takeda-china-social": {
-    adapterId: "html-table",
-    table: {
-      rowSelector: "#search-results-list li",
-      fields: {
-        sourceJobId: { selector: "button.js-save-job-btn", attribute: "data-job-id" },
-        officialTitle: { selector: "h2.title" },
-        officialUrl: { selector: "a[href*='/job/']", attribute: "href" },
-        locationRaw: { selector: ".location" }
-      }
-    }
-  },
-  "source-zaiding-social": {
-    adapterId: "html-table",
-    table: {
-      rowSelector: ".space-y-2 > .bg-white",
-      fields: {
-        officialTitle: { selector: ".font-bold.text-black.text-xl" },
-        officialUrl: { value: "https://cn.zailaboratory.com/jobs/" },
-        locationRaw: { selector: ".font-normal.mt-2" }
-      }
-    }
-  },
-  "source-kelun-social": {
-    adapterId: "html-table",
-    table: {
-      rowSelector: ".jobsTable tr:not(.title)",
-      fields: {
-        officialTitle: { selector: "td:nth-child(1) a" },
-        officialUrl: { selector: "td:nth-child(1) a", attribute: "href" },
-        locationRaw: { selector: "td:nth-child(5)" }
-      }
-    }
-  },
-  "source-beta-pharma-social": {
-    adapterId: "html-table",
-    table: {
-      rowSelector: ".jobsTable tr:not(.title)",
-      fields: {
-        officialTitle: { selector: "td:nth-child(1) a" },
-        officialUrl: { selector: "td:nth-child(1) a", attribute: "href" },
-        locationRaw: { selector: "td:nth-child(3)" }
-      }
-    }
-  },
-  "source-allist-social": {
-    adapterId: "html-table",
-    table: {
-      rowSelector: ".jobsTable tr:not(.title)",
-      fields: {
-        officialTitle: { selector: "td:nth-child(1) a" },
-        officialUrl: { selector: "td:nth-child(1) a", attribute: "href" },
-        locationRaw: { selector: "td:nth-child(3)" }
-      }
-    }
-  },
-  "source-hansoh-social": {
-    adapterId: "html-table",
-    table: {
-      rowSelector: ".jobsTable tr:not(.title)",
-      fields: {
-        officialTitle: { selector: "td:nth-child(1) a" },
-        officialUrl: { selector: "td:nth-child(1) a", attribute: "href" },
-        locationRaw: { selector: "td:nth-child(3)" }
-      }
-    }
-  },
-  "source-kelun-biotech-social": {
-    adapterId: "html-table",
-    table: {
-      rowSelector: "tr:has(.jname a)",
-      fields: {
-        officialTitle: { selector: ".jname a" },
-        officialUrl: { selector: ".jname a", attribute: "href" },
-        locationRaw: { selector: ".jcity", attribute: "title" }
-      }
-    }
-  },
-  "source-kpc-social": {
-    adapterId: "html-table",
-    table: {
-      rowSelector: ".JobList-J1 li:not(.first)",
-      fields: {
-        officialTitle: { selector: "._t1" },
-        officialUrl: { selector: "a", attribute: "href" },
-        locationRaw: { selector: "._t4" }
-      }
-    }
-  },
-  "source-mabwell-social": {
-    adapterId: "html-table",
-    table: {
-      rowSelector: ".recJob_list li",
-      fields: {
-        officialTitle: { selector: "a.recJob_name span:nth-child(1)" },
-        officialUrl: { selector: "a.recJob_name", attribute: "href" },
-        locationRaw: { selector: "a.recJob_name span:nth-child(2)" }
-      }
-    }
-  },
-  "source-akeso-social": {
-    adapterId: "html-table",
-    table: {
-      rowSelector: "a.job-card",
-      fields: {
-        sourceJobId: { selector: ":scope", attribute: "data-content-id" },
-        officialTitle: { selector: "h3" },
-        officialUrl: { selector: ":scope", attribute: "href" },
-        locationRaw: { selector: ":scope", attribute: "data-location" }
-      }
-    }
-  },
-  "source-sanofi-china-social": {
-    adapterId: "html-table",
-    table: {
-      rowSelector: ".job-list li",
-      fields: {
-        sourceJobId: { selector: "a", attribute: "data-job-id" },
-        officialTitle: { selector: "span.job-title" },
-        officialUrl: { selector: "a", attribute: "href" },
-        locationRaw: { selector: "span.job-location" }
-      }
-    }
-  },
-  "source-cstone-social": {
-    adapterId: "html-table",
-    table: {
-      rowSelector: "li.wow.slideInUp",
-      fields: {
-        sourceJobId: { selector: "a", attribute: "href" },
-        officialTitle: { selector: ".txt em" },
-        officialUrl: { selector: "a", attribute: "href" },
-        locationRaw: { selector: ".txt span:nth-of-type(2)" }
-      }
-    }
-  },
-  "source-rcbio-social": {
-    adapterId: "official-json",
-    json: MOKA_JSON_CONFIG
-  },
-  "source-innovent-social": {
-    adapterId: "official-json",
-    json: OFFICIAL_API_JSON_CONFIG,
-    officialJsonFetch: {
-      kind: "innovent",
-      endpointUrl: "https://www.innoventbio.com/api/jobs?limit=200"
-    }
-  },
-  "source-novo-nordisk-china-social": {
-    adapterId: "official-json",
-    json: OFFICIAL_API_JSON_CONFIG,
-    officialJsonFetch: {
-      kind: "novo-nordisk",
-      endpointUrl:
-        "https://www.novonordisk.com/bin/nncorp/careersearch?keyword=&country=China%20Mainland&category=&locale=en"
-    }
-  },
-  "source-boehringer-ingelheim-china-social": {
-    adapterId: "html-table",
-    table: {
-      rowSelector: "#job-tile-list li.job-tile",
-      fields: {
-        officialTitle: { selector: ".jobTitle-link" },
-        officialUrl: { selector: ".jobTitle-link", attribute: "href" },
-        locationRaw: { selector: '.section-field.location div[id$="-value"]' }
-      }
-    }
-  },
-  "source-merck-china-social": {
-    adapterId: "official-json",
-    json: OFFICIAL_API_JSON_CONFIG,
-    officialJsonFetch: {
-      kind: "phenom",
-      detailBaseUrl: "https://careers.emdgroup.com/us/en/job"
-    }
-  },
-  "source-thermo-fisher-china-social": {
-    adapterId: "official-json",
-    json: OFFICIAL_API_JSON_CONFIG,
-    officialJsonFetch: {
-      kind: "phenom",
-      detailBaseUrl: "https://jobs.thermofisher.com/global/en/job"
-    }
-  },
-  "source-sinocelltech-social": {
-    adapterId: "official-json",
-    json: HOTJOB_WECRUIT_JSON_CONFIG,
-    hotjobLegacy: {
-      listUrl: "https://www.hotjob.cn/wt/SCT/web/mode400/position/list",
-      suitePath: "wt/SCT",
-      pageSize: 20,
-      maxPages: 10
-    }
-  },
-  "source-grand-pharma-china-social": {
-    adapterId: "html-table",
-    table: {
-      rowSelector: ".job-card",
-      fields: {
-        sourceJobId: { selector: ".job-title" },
-        officialTitle: { selector: ".job-title" },
-        officialUrl: { value: "https://job.grandpharma.cn/" },
-        locationRaw: { selector: ".job-meta span:nth-child(1)" }
-      }
-    }
-  },
-  "source-joincare-social": {
-    adapterId: "html-table",
-    table: {
-      rowSelector: ".job_item",
-      fields: {
-        sourceJobId: { selector: ".e_text-16" },
-        officialTitle: { selector: ".e_text-16" },
-        officialUrl: { value: "https://www.joincare.com/Social_recruitment.html" },
-        locationRaw: { selector: ".cbox-13-2" }
-      }
-    }
-  },
-  "source-puluo-social": {
-    adapterId: "html-table",
-    table: {
-      rowSelector: ".join2 .table99.name",
-      fields: {
-        sourceJobId: { selector: "> div:nth-child(1) p" },
-        officialTitle: { selector: "> div:nth-child(1) p" },
-        officialUrl: { value: "https://www.apeloa.com/join.html" },
-        locationRaw: { selector: "> div:nth-child(4) p" }
-      }
-    }
-  },
-  "source-hisun-social": {
-    adapterId: "html-table",
-    table: {
-      rowSelector: ".job_list li",
-      fields: {
-        sourceJobId: { selector: "a", attribute: "id" },
-        officialTitle: { selector: ".job_name" },
-        officialUrl: { value: "https://www.hisunpharm.com/main/recruit-list.thtml?cId=10982" },
-        locationRaw: { selector: ".job_place" }
-      }
-    }
-  },
-  "source-huahai-social": {
-    adapterId: "html-table",
-    table: {
-      rowSelector: "tr.tr_title",
-      fields: {
-        sourceJobId: { selector: "td:nth-child(1)" },
-        officialTitle: { selector: "td:nth-child(1)" },
-        officialUrl: { value: "https://www.huahaipharm.com/zpgw.html" },
-        locationRaw: { selector: "td:nth-child(2)" }
-      }
-    }
-  },
-  "source-alphamab-social": {
-    adapterId: "html-table",
-    table: {
-      rowSelector: ".s_job > ul > li",
-      fields: {
-        sourceJobId: { selector: ".title h2" },
-        officialTitle: { selector: ".title h2" },
-        officialUrl: { value: "https://www.alphamabonc.com/career/job.html" },
-        locationRaw: { selector: ".title h3" }
-      }
-    }
-  },
-  "source-ascentage-social": {
-    adapterId: "html-table",
-    table: {
-      rowSelector: '.list-data:contains("Beijing")',
-      fields: {
-        sourceJobId: { selector: "h4 a", attribute: "href" },
-        officialTitle: { selector: ".job-title" },
-        officialUrl: { selector: "h4 a", attribute: "href" },
-        locationRaw: { selector: ".job-location" }
-      }
-    }
-  },
-  "source-nhwa-social": {
-    adapterId: "html-table",
-    table: {
-      rowSelector: "._jt",
-      fields: {
-        sourceJobId: { selector: ".job_name" },
-        officialTitle: { selector: ".job_name" },
-        officialUrl: { value: "https://www.nhwa-group.com/job/ren-cai-zhao-pin-list-0.htm" },
-        locationRaw: { selector: ".job_add" }
-      }
-    }
-  }
-};
-
-export function buildSourceCrawlPlans(companies: readonly CandidateCompany[]): SourceCrawlPlan[] {
+function buildPlans(
+  companies: readonly CandidateCompany[],
+  surfaces: readonly ExpectedOfficialRecruitmentSurface[],
+  policy: SourcePlanPolicy
+): SourceCrawlPlan[] {
+  const fullRelease = policy === "FULL_RELEASE";
+  const oracleBySurfaceId = new Map(surfaces.map((surface) => [surface.surfaceId, surface]));
   return companies.flatMap((company) =>
+    isUserAuthorizedPhase1Exclusion(company.id) || company.targetStatus === USER_AUTHORIZED_PHASE1_EXCLUSION
+      ? []
+      :
     company.sources.flatMap((source): SourceCrawlPlan[] => {
       if (
         source.kind !== "SOCIAL" ||
@@ -661,17 +123,34 @@ export function buildSourceCrawlPlans(companies: readonly CandidateCompany[]): S
         return [];
       }
 
-      const config = REPRESENTATIVE_CONFIGS[source.id];
-      if (!config) {
+      const representativeConfig = companyRecruitmentExecutionConfigsBySourceId[source.id];
+      const config = representativeConfig ? structuredClone(representativeConfig) : undefined;
+      const surface = source.surfaceId ? oracleBySurfaceId.get(source.surfaceId) : undefined;
+      if (
+        !config ||
+        (policy === "STAGED" && !hasCanonicalStagedAuthority(company, source, surface)) ||
+        (fullRelease && config.formalEligibility === "QUARANTINED_PENDING_TRUSTED_ORACLE") ||
+        !surface ||
+        surface.companyId !== company.id ||
+        surface.kind !== "SOCIAL" ||
+        surface.status !== "INCLUDED" ||
+        (fullRelease && surface.oracleStatus !== "INDEPENDENTLY_VERIFIED") ||
+        (fullRelease && hasUnresolvedSurfaceScope(surface)) ||
+        surface.officialEntryUrl !== source.officialEntryUrl ||
+        !surface.officialChainEvidenceUrls.includes(source.officialChainEvidenceUrl) ||
+        surface.adapterId !== config.adapterId
+      ) {
         return [];
       }
 
       const plannedCompany: PlannedCompany = {
         id: company.id,
-        officialChineseName: company.officialChineseName
+        officialChineseName: company.officialChineseName,
+        category: company.category
       };
       const plannedSource: PlannedSource = {
         id: source.id,
+        ...(source.surfaceId ? { surfaceId: source.surfaceId } : {}),
         companyId: source.companyId,
         kind: source.kind,
         atsKind: source.atsKind,
@@ -680,28 +159,379 @@ export function buildSourceCrawlPlans(companies: readonly CandidateCompany[]): S
         officialChainEvidenceUrl: source.officialChainEvidenceUrl
       };
 
+      let expectedChannels: ExecutableExpectedChannel[];
+      try {
+        expectedChannels = canonicalExpectedChannels(
+          surface.channels
+            .filter((channel) => channel.status === "EXPECTED")
+            .map(({ channelId, kind }) => ({ channelId, kind }))
+        );
+      } catch {
+        return [];
+      }
+      if (policy === "STAGED" && expectedChannels.length === 0) {
+        try {
+          expectedChannels = stagedConfiguredExpectedChannels(config, source.id);
+        } catch {
+          return [];
+        }
+      }
+      if (fullRelease &&
+          (!hasExactAdapterChannelCoverage(config, source.id, expectedChannels) || expectedChannels.length === 0)) {
+        return [];
+      }
+      if (policy === "STAGED" &&
+          (!hasExactStagedAdapterChannelCoverage(config, source.id, expectedChannels) || expectedChannels.length === 0)) {
+        return [];
+      }
+      const channelBinding = policy === "STAGED"
+        ? {
+            executionAuthority: "STAGED" as const,
+            expectedChannels,
+            expectedChannelSetHash: expectedChannelSetHash(expectedChannels)
+          }
+        : fullRelease
+          ? { expectedChannels, expectedChannelSetHash: expectedChannelSetHash(expectedChannels) }
+          : {};
+
       const plan: SourceCrawlPlan =
         config.adapterId === "official-json"
           ? {
               adapterId: "official-json",
               company: plannedCompany,
               source: plannedSource,
+              ...channelBinding,
               json: config.json,
               ...(config.officialJsonFetch ? { officialJsonFetch: config.officialJsonFetch } : {}),
               ...(config.workday ? { workday: config.workday } : {}),
               ...(config.hotjob ? { hotjob: config.hotjob } : {}),
-              ...(config.hotjobLegacy ? { hotjobLegacy: config.hotjobLegacy } : {})
+              ...(config.hotjobLegacy ? { hotjobLegacy: config.hotjobLegacy } : {}),
+              ...(config.profileBoundSource ? { profileBoundSource: config.profileBoundSource } : {}),
+              ...(config.moka ? { moka: config.moka } : {}),
+              ...(config.transientRetryPolicy ? { transientRetryPolicy: config.transientRetryPolicy } : {})
             }
           : {
               adapterId: "html-table",
               company: plannedCompany,
               source: plannedSource,
+              ...channelBinding,
               table: config.table
             };
 
+      if (policy === "STAGED") {
+        try {
+          validateExecutablePlanChannelBinding(plan);
+        } catch {
+          return [];
+        }
+      }
       return [plan];
     })
   );
+}
+
+export function canonicalExpectedChannels(
+  channels: readonly ExecutableExpectedChannel[]
+): ExecutableExpectedChannel[] {
+  const canonical = channels.map((channel) => ({ channelId: channel.channelId, kind: channel.kind }));
+  if (canonical.some((channel) => !channel.channelId.trim())) throw new Error("Expected channel id must be nonblank");
+  if (new Set(canonical.map((channel) => channel.channelId)).size !== canonical.length) {
+    throw new Error("Duplicate expected channel id");
+  }
+  return canonical.sort((left, right) =>
+    compareUtf8(left.channelId, right.channelId) || compareUtf8(left.kind, right.kind)
+  );
+}
+
+export function expectedChannelSetHash(channels: readonly ExecutableExpectedChannel[]): string {
+  return createHash("sha256")
+    .update(JSON.stringify(canonicalExpectedChannels(channels)), "utf8")
+    .digest("hex");
+}
+
+function configuredChannelIds(config: CompanyRecruitmentExecutionConfig, sourceId: string): string[] {
+  if (config.adapterId === "official-json" && config.profileBoundSource?.expectedChannelIds) {
+    return [...config.profileBoundSource.expectedChannelIds];
+  }
+  if (
+    config.adapterId === "official-json" &&
+    config.officialJsonFetch?.kind === "redsea-zp-channel"
+  ) {
+    return config.officialJsonFetch.channels
+      .filter(({ purpose }) => purpose === "SOCIAL")
+      .map(({ channelQrId }) => channelQrId);
+  }
+  return [`source:${sourceId}:default`];
+}
+
+function stagedConfiguredChannelIds(config: CompanyRecruitmentExecutionConfig, sourceId: string): string[] {
+  if (config.adapterId === "html-table" && config.table.pagination?.talentbrewScope) {
+    return config.table.pagination.talentbrewScope.allowedPartitions.map(({ channelId }) => channelId);
+  }
+  return configuredChannelIds(config, sourceId);
+}
+
+function stagedConfiguredExpectedChannels(
+  config: CompanyRecruitmentExecutionConfig,
+  sourceId: string
+): ExecutableExpectedChannel[] {
+  return canonicalExpectedChannels(
+    stagedConfiguredChannelIds(config, sourceId).map((channelId) => ({ channelId, kind: "SOCIAL" }))
+  );
+}
+
+function hasExactAdapterChannelCoverage(
+  config: CompanyRecruitmentExecutionConfig,
+  sourceId: string,
+  channels: readonly ExecutableExpectedChannel[]
+): boolean {
+  try {
+    const expectedIds = canonicalExpectedChannels(channels).map((channel) => channel.channelId);
+    const configuredIds = configuredChannelIds(config, sourceId).sort(compareUtf8);
+    return new Set(configuredIds).size === configuredIds.length &&
+      JSON.stringify(expectedIds) === JSON.stringify(configuredIds);
+  } catch {
+    return false;
+  }
+}
+
+function hasExactStagedAdapterChannelCoverage(
+  config: CompanyRecruitmentExecutionConfig,
+  sourceId: string,
+  channels: readonly ExecutableExpectedChannel[]
+): boolean {
+  try {
+    if (channels.some((channel) => channel.kind !== "SOCIAL")) return false;
+    const expectedIds = canonicalExpectedChannels(channels).map((channel) => channel.channelId);
+    const configuredIds = stagedConfiguredChannelIds(config, sourceId).sort(compareUtf8);
+    return new Set(configuredIds).size === configuredIds.length &&
+      JSON.stringify(expectedIds) === JSON.stringify(configuredIds);
+  } catch {
+    return false;
+  }
+}
+
+export function validateExecutablePlanChannelBinding(plan: SourceCrawlPlan): void {
+  if (!plan.expectedChannels || !plan.expectedChannelSetHash) {
+    throw new Error("Executable source plan channel binding is required");
+  }
+  const canonical = canonicalExpectedChannels(plan.expectedChannels);
+  if (JSON.stringify(canonical) !== JSON.stringify(plan.expectedChannels)) {
+    throw new Error("Executable source plan channels must be canonical");
+  }
+  if (expectedChannelSetHash(canonical) !== plan.expectedChannelSetHash) {
+    throw new Error("Executable source plan channel hash mismatch");
+  }
+  if (plan.adapterId === "official-json" && plan.profileBoundSource && [
+    plan.officialJsonFetch,
+    plan.workday,
+    plan.hotjob,
+    plan.hotjobLegacy,
+    plan.moka
+  ].some((strategy) => strategy !== undefined)) {
+    throw new Error("Profile-bound source strategy must be exclusive");
+  }
+  const staged = plan.executionAuthority === "STAGED";
+  if (staged && !hasCanonicalStagedPlanAuthority(plan)) {
+    throw new Error("Staged source plan does not match canonical registry authority");
+  }
+  if (staged && !hasCanonicalStagedExecutionConfig(plan)) {
+    throw new Error("Staged source plan execution config does not match canonical registry configuration");
+  }
+  const expectedAdapter = staged && plan.source.atsKind === "BEISEN_ZHIYE"
+    ? plan.adapterId
+    : plan.source.atsKind === "OFFICIAL_HTML" || plan.source.atsKind === "SUCCESSFACTORS"
+      ? "html-table"
+      : plan.source.atsKind === "UNKNOWN" || plan.source.atsKind === "BROWSER_FALLBACK"
+        ? undefined
+        : "official-json";
+  if (!expectedAdapter || expectedAdapter !== plan.adapterId) {
+    throw new Error("Executable source plan adapter does not match ATS kind");
+  }
+  const config: CompanyRecruitmentExecutionConfig = plan.adapterId === "official-json"
+    ? {
+        adapterId: "official-json", json: plan.json,
+        ...(plan.officialJsonFetch ? { officialJsonFetch: plan.officialJsonFetch } : {}),
+        ...(plan.workday ? { workday: plan.workday } : {}),
+        ...(plan.hotjob ? { hotjob: plan.hotjob } : {}),
+        ...(plan.hotjobLegacy ? { hotjobLegacy: plan.hotjobLegacy } : {}),
+        ...(plan.profileBoundSource ? { profileBoundSource: plan.profileBoundSource } : {}),
+        ...(plan.moka ? { moka: plan.moka } : {}),
+        ...(plan.transientRetryPolicy ? { transientRetryPolicy: plan.transientRetryPolicy } : {})
+      }
+    : { adapterId: "html-table", table: plan.table };
+  const exactCoverage = staged
+    ? hasExactStagedAdapterChannelCoverage(config, plan.source.id, canonical)
+    : hasExactAdapterChannelCoverage(config, plan.source.id, canonical);
+  if (!exactCoverage) {
+    throw new Error("Executable source plan channels are not fully covered by adapter config");
+  }
+}
+
+export interface SourcePlanCoverage {
+  unexpectedPlanSourceIds: string[];
+  missingEligibleSurfaceIds: string[];
+  blockedExpectedSurfaceIds: string[];
+}
+
+export function getSourcePlanCoverage(
+  companies: readonly CandidateCompany[],
+  plans: readonly SourceCrawlPlan[]
+): SourcePlanCoverage {
+  const companyIds = new Set(companies.map((company) => company.id));
+  const surfaces = expectedOfficialSurfaces.filter((surface) => companyIds.has(surface.companyId));
+  const jobSurfaces = surfaces.filter((surface) =>
+    surface.status !== "VERIFIED_NON_JOB_RECRUITMENT_INFORMATION"
+  );
+  const eligible = jobSurfaces.filter(
+    (surface) =>
+      surface.kind === "SOCIAL" &&
+      surface.status === "INCLUDED" &&
+      surface.oracleStatus === "INDEPENDENTLY_VERIFIED" &&
+      !hasUnresolvedSurfaceScope(surface) &&
+      Boolean(surface.officialEntryUrl) &&
+      surface.officialChainEvidenceUrls.length > 0 &&
+      Boolean(surface.adapterId)
+  );
+  const plannedSurfaceIds = new Set(plans.map((plan) => plan.source.surfaceId).filter(Boolean));
+  const eligibleIds = new Set(eligible.map((surface) => surface.surfaceId));
+  return {
+    unexpectedPlanSourceIds: plans
+      .filter((plan) => !plan.source.surfaceId || !eligibleIds.has(plan.source.surfaceId))
+      .map((plan) => plan.source.id)
+      .sort(compareUtf8),
+    missingEligibleSurfaceIds: eligible
+      .filter((surface) => !plannedSurfaceIds.has(surface.surfaceId))
+      .map((surface) => surface.surfaceId)
+      .sort(compareUtf8),
+    blockedExpectedSurfaceIds: jobSurfaces
+      .filter((surface) => surface.kind === "SOCIAL" && !eligibleIds.has(surface.surfaceId))
+      .map((surface) => surface.surfaceId)
+      .sort(compareUtf8)
+  };
+}
+
+function canonicalPlanValue(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map(canonicalPlanValue);
+  if (value && typeof value === "object") {
+    return Object.fromEntries(
+      Object.entries(value as Record<string, unknown>)
+        .filter(([, item]) => item !== undefined)
+        .sort(([left], [right]) => compareUtf8(left, right))
+        .map(([key, item]) => [key, canonicalPlanValue(item)])
+    );
+  }
+  return value;
+}
+
+export function sourcePlanConfigSha256(plan: SourceCrawlPlan): string {
+  return createHash("sha256")
+    .update(JSON.stringify(canonicalPlanValue(plan)), "utf8")
+    .digest("hex");
+}
+
+export function activeSourcePlanSha256(plans: readonly SourceCrawlPlan[]): string {
+  const ordered = [...plans].sort((left, right) => compareUtf8(left.source.id, right.source.id));
+  return createHash("sha256")
+    .update(JSON.stringify(canonicalPlanValue(ordered)), "utf8")
+    .digest("hex");
+}
+
+function compareUtf8(left: string, right: string): number {
+  return Buffer.from(left, "utf8").compare(Buffer.from(right, "utf8"));
+}
+
+function hasCanonicalStagedAuthority(
+  company: CandidateCompany,
+  source: CandidateRecruitmentSource,
+  surface: ExpectedOfficialRecruitmentSurface | undefined
+): boolean {
+  const canonicalCompany = candidateCompanies.find((candidate) => candidate.id === company.id);
+  const canonicalSource = canonicalCompany?.sources.find((candidate) => candidate.id === source.id);
+  const canonicalSurface = canonicalSource?.surfaceId
+    ? expectedOfficialSurfaces.find((candidate) => candidate.surfaceId === canonicalSource.surfaceId)
+    : undefined;
+  return Boolean(
+    canonicalCompany && canonicalSource && canonicalSurface && surface &&
+    company.officialChineseName === canonicalCompany.officialChineseName &&
+    company.pinyinName === canonicalCompany.pinyinName &&
+    company.category === canonicalCompany.category &&
+    company.targetStatus === canonicalCompany.targetStatus &&
+    company.officialWebsiteUrl === canonicalCompany.officialWebsiteUrl &&
+    hasCanonicalSourceAuthority(source, canonicalSource) &&
+    surface.surfaceId === canonicalSurface.surfaceId &&
+    surface.companyId === canonicalSurface.companyId &&
+    surface.kind === canonicalSurface.kind &&
+    surface.officialEntryUrl === canonicalSurface.officialEntryUrl &&
+    JSON.stringify(surface.officialChainEvidenceUrls) === JSON.stringify(canonicalSurface.officialChainEvidenceUrls) &&
+    surface.atsKind === canonicalSurface.atsKind &&
+    surface.adapterId === canonicalSurface.adapterId &&
+    surface.status === canonicalSurface.status
+  );
+}
+
+function hasCanonicalStagedPlanAuthority(plan: SourceCrawlPlan): boolean {
+  const canonicalCompany = candidateCompanies.find((candidate) => candidate.id === plan.company.id);
+  const canonicalSource = canonicalCompany?.sources.find((candidate) => candidate.id === plan.source.id);
+  return Boolean(
+    canonicalCompany && canonicalSource &&
+    plan.company.officialChineseName === canonicalCompany.officialChineseName &&
+    plan.company.category === canonicalCompany.category &&
+    hasCanonicalPlannedSourceAuthority(plan.source, canonicalSource)
+  );
+}
+
+function hasCanonicalStagedExecutionConfig(plan: SourceCrawlPlan): boolean {
+  const canonicalExecutionConfigJson = CANONICAL_EXECUTION_CONFIG_JSON_BY_SOURCE_ID[plan.source.id];
+  if (!canonicalExecutionConfigJson) return false;
+  const planExecutionConfig: CompanyRecruitmentExecutionConfig = plan.adapterId === "official-json"
+    ? {
+        adapterId: "official-json",
+        json: plan.json,
+        ...(plan.officialJsonFetch ? { officialJsonFetch: plan.officialJsonFetch } : {}),
+        ...(plan.workday ? { workday: plan.workday } : {}),
+        ...(plan.hotjob ? { hotjob: plan.hotjob } : {}),
+        ...(plan.hotjobLegacy ? { hotjobLegacy: plan.hotjobLegacy } : {}),
+        ...(plan.profileBoundSource ? { profileBoundSource: plan.profileBoundSource } : {}),
+        ...(plan.moka ? { moka: plan.moka } : {}),
+        ...(plan.transientRetryPolicy ? { transientRetryPolicy: plan.transientRetryPolicy } : {})
+      }
+    : { adapterId: "html-table", table: plan.table };
+  return representativeExecutionConfigJson(planExecutionConfig) === canonicalExecutionConfigJson;
+}
+
+function representativeExecutionConfigJson(config: CompanyRecruitmentExecutionConfig): string {
+  const { formalEligibility: _formalEligibility, ...executionConfig } = config;
+  return JSON.stringify(canonicalPlanValue(executionConfig));
+}
+
+function hasCanonicalPlannedSourceAuthority(
+  source: PlannedSource,
+  canonicalSource: CandidateRecruitmentSource
+): boolean {
+  return source.id === canonicalSource.id &&
+    source.surfaceId === canonicalSource.surfaceId &&
+    source.companyId === canonicalSource.companyId &&
+    source.kind === canonicalSource.kind &&
+    source.atsKind === canonicalSource.atsKind &&
+    source.status === canonicalSource.status &&
+    source.officialEntryUrl === canonicalSource.officialEntryUrl &&
+    source.officialChainEvidenceUrl === canonicalSource.officialChainEvidenceUrl;
+}
+
+function hasCanonicalSourceAuthority(
+  source: CandidateRecruitmentSource,
+  canonicalSource: CandidateRecruitmentSource
+): boolean {
+  return source.id === canonicalSource.id &&
+    source.surfaceId === canonicalSource.surfaceId &&
+    source.companyId === canonicalSource.companyId &&
+    source.kind === canonicalSource.kind &&
+    source.atsKind === canonicalSource.atsKind &&
+    source.status === canonicalSource.status &&
+    source.officialEntryUrl === canonicalSource.officialEntryUrl &&
+    source.officialChainEvidenceUrl === canonicalSource.officialChainEvidenceUrl &&
+    source.campusEntryUrl === canonicalSource.campusEntryUrl;
 }
 
 export function getPlanBySourceId(

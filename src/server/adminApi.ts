@@ -16,6 +16,8 @@ import {
 } from "../admin/auth";
 import { buildAdminDashboardModel } from "../admin/adminViewModel";
 import { JOB_CATEGORIES, type JobCategory } from "../domain/search";
+import { ManualCrawlRequestRepositoryError } from "../db/manualCrawlRequestRepository";
+import { processPrivacyRequest, type PrivacyOperationsDb } from "../admin/privacyOperations";
 
 export interface AdminApiRequest {
   method: string;
@@ -50,6 +52,7 @@ type AdminApiDb = AdminAuthDb &
           createdAt: Date;
           companyId: string | null;
           jobId: string | null;
+          contact?: string | null;
         }>
       >;
     };
@@ -68,7 +71,12 @@ type AdminApiDb = AdminAuthDb &
     };
     job: AdminOperationsDb["job"] & {
       findMany(args: {
-        where: { lifecycleStatus: "ACTIVE"; visibleInFrontend: true; category: "OTHER" };
+        where: {
+          lifecycleStatus: "ACTIVE";
+          visibleInFrontend: true;
+          category: "OTHER";
+          humanCorrectedCategory: null;
+        };
         include: { company: { select: { officialChineseName: true } } };
         orderBy: { firstSeenAt: "desc" };
         take: 50;
@@ -114,6 +122,12 @@ const CategoryCorrectionSchema = z.object({
   category: z.enum(JOB_CATEGORIES),
   secondaryCategory: z.enum(JOB_CATEGORIES).optional(),
   reason: z.string().trim().min(1)
+});
+
+const PrivacyProcessSchema = z.object({
+  requestId: z.string().trim().min(1),
+  action: z.enum(["EXPORT", "DELETE"]),
+  verifiedContact: z.string().min(1)
 });
 
 export async function handleAdminApi(request: AdminApiRequest, deps: AdminApiDeps): Promise<AdminApiResponse> {
@@ -182,11 +196,22 @@ export async function handleAdminApi(request: AdminApiRequest, deps: AdminApiDep
   if (request.path === "/admin/api/manual-crawl" && request.method === "POST") {
     const parsed = ManualCrawlSchema.safeParse(request.body);
     if (!parsed.success) return badRequest(headers);
-    return {
-      status: 202,
-      headers,
-      body: await queueManualCrawl(parsed.data, operationContext, { db: deps.db })
-    };
+    try {
+      return {
+        status: 202,
+        headers,
+        body: await queueManualCrawl(parsed.data, operationContext, { db: deps.db })
+      };
+    } catch (error) {
+      if (error instanceof ManualCrawlRequestRepositoryError) {
+        return {
+          status: error.code === "ALREADY_ACTIVE" ? 409 : 422,
+          headers,
+          body: { error: error.code }
+        };
+      }
+      throw error;
+    }
   }
 
   if (request.path === "/admin/api/feedback-review" && request.method === "POST") {
@@ -195,7 +220,7 @@ export async function handleAdminApi(request: AdminApiRequest, deps: AdminApiDep
     return {
       status: 200,
       headers,
-      body: await reviewFeedback(parsed.data, operationContext, { db: deps.db })
+      body: await reviewFeedback(parsed.data, operationContext, { db: deps.db, ...(deps.now === undefined ? {} : { now: deps.now }) })
     };
   }
 
@@ -205,8 +230,24 @@ export async function handleAdminApi(request: AdminApiRequest, deps: AdminApiDep
     return {
       status: 200,
       headers,
-      body: await reviewRecommendedCompany(parsed.data, operationContext, { db: deps.db })
+      body: await reviewRecommendedCompany(parsed.data, operationContext, { db: deps.db, ...(deps.now === undefined ? {} : { now: deps.now }) })
     };
+  }
+
+  if (request.path === "/admin/api/privacy-process" && request.method === "POST") {
+    const parsed = PrivacyProcessSchema.safeParse(request.body);
+    if (!parsed.success) return badRequest(headers);
+    try {
+      return { status: 200, headers, body: await processPrivacyRequest(parsed.data, operationContext, {
+        db: deps.db as unknown as PrivacyOperationsDb,
+        ...(deps.now === undefined ? {} : { now: deps.now })
+      }) };
+    } catch (error) {
+      if (error instanceof Error && error.message === "PRIVACY_REQUEST_VERIFICATION_FAILED") {
+        return { status: 403, headers, body: { error: error.message } };
+      }
+      throw error;
+    }
   }
 
   if (request.path === "/admin/api/category-correction" && request.method === "POST") {
@@ -279,6 +320,7 @@ async function listFeedbackQueue(db: AdminApiDb) {
     jobTitle: row.jobId ?? "未关联职位",
     issueType: row.issueType,
     description: row.description,
+    contact: row.contact ?? null,
     status: row.status,
     createdAt: row.createdAt
   }));
@@ -303,7 +345,12 @@ async function listRecommendationQueue(db: AdminApiDb) {
 
 async function listCategoryCorrectionQueue(db: AdminApiDb) {
   const rows = await db.job.findMany({
-    where: { lifecycleStatus: "ACTIVE", visibleInFrontend: true, category: "OTHER" },
+    where: {
+      lifecycleStatus: "ACTIVE",
+      visibleInFrontend: true,
+      category: "OTHER",
+      humanCorrectedCategory: null
+    },
     include: { company: { select: { officialChineseName: true } } },
     orderBy: { firstSeenAt: "desc" },
     take: 50

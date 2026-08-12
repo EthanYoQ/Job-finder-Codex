@@ -1,0 +1,20 @@
+import type { CompanyRecruitmentProfileSeed } from "../types";
+import { OFFICIAL_API_JSON_CONFIG } from "../shared";
+
+export const profile_novo_nordisk_china = {
+  companyId: "company-novo-nordisk-china",
+  sources: [
+    {
+      sourceId: "source-novo-nordisk-china-social",
+      executionConfig: {
+          adapterId: "official-json",
+          json: OFFICIAL_API_JSON_CONFIG,
+          officialJsonFetch: {
+              kind: "novo-nordisk",
+              endpointUrl: "https://www.novonordisk.com/bin/nncorp/careersearch?keyword=&country=China%20Mainland&category=&locale=en",
+              cityScopePolicy: "NOVO_CHINA_MAINLAND_JOB_CITY_V1"
+          }
+      }
+    },
+  ]
+} satisfies CompanyRecruitmentProfileSeed;

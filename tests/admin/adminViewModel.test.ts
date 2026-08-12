@@ -31,6 +31,14 @@ describe("buildAdminDashboardModel", () => {
             successful: false,
             structuredJobCount: 0,
             failureReason: "timeout"
+          },
+          latestFailure: {
+            finishedAt: new Date("2026-07-08T11:00:00.000Z"),
+            reason: "Official recruitment endpoint was temporarily unavailable (HTTP 503)",
+            category: "TEMPORARY_OFFICIAL_SOURCE_FAILURE",
+            diagnosticCode: "OFFICIAL_HTTP_503",
+            fetchAttemptCount: 2,
+            retryCount: 1
           }
         }
       ],
@@ -50,7 +58,10 @@ describe("buildAdminDashboardModel", () => {
       consecutiveFailureCount: 3,
       latestCrawledAt: "2026-07-08T11:00:00.000Z",
       latestOutcomeLabel: "失败",
-      latestFailureReason: "timeout",
+      latestFailureReason: "Official recruitment endpoint was temporarily unavailable (HTTP 503)",
+      latestFailureCategoryLabel: "官网招聘入口暂时不可用",
+      latestFetchAttemptCount: 2,
+      latestRetryCount: 1,
       canQueueManualCrawl: true
     });
     expect(firstSource).toBeDefined();
@@ -118,5 +129,17 @@ describe("buildAdminDashboardModel", () => {
     });
     expect("rawJobRows" in model).toBe(false);
     expect("bulkExport" in model).toBe(false);
+  });
+
+  it("shows the contact and request type needed to process a privacy request", () => {
+    const model = buildAdminDashboardModel({
+      sourceHealth: [], recommendationQueue: [], categoryCorrectionQueue: [],
+      feedbackQueue: [{
+        id: "privacy-1", companyName: "未关联公司", jobTitle: "未关联职位",
+        issueType: "PRIVACY_DELETE", description: "delete", contact: "user@example.cn",
+        status: "OPEN", createdAt: new Date("2026-07-13T00:00:00Z")
+      }]
+    });
+    expect(model.feedbackQueue[0]).toMatchObject({ issueType: "PRIVACY_DELETE", contact: "user@example.cn" });
   });
 });
