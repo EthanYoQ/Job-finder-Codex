@@ -18,7 +18,7 @@ describe("backup restore qualification", () => {
     expect(deps.createDatabase).toHaveBeenCalledWith(input.adminDatabaseUrl, expect.stringMatching(/^jobfinder_restore_/));
     expect(deps.dropDatabase).toHaveBeenCalledWith(input.adminDatabaseUrl, expect.stringMatching(/^jobfinder_restore_/));
     expect(vi.mocked(deps.dropDatabase).mock.invocationCallOrder[0]!).toBeLessThan(
-      vi.mocked(deps.publishReceipt!).mock.invocationCallOrder[0]!);
+      vi.mocked(deps.publishReceipt!).mock.invocationCallOrder.at(-1)!);
   });
 
   it("publishes FAILED after a create acknowledgement is lost or cleanup fails, never preserving an old PASS", async () => {
@@ -34,6 +34,21 @@ describe("backup restore qualification", () => {
       expect(persisted).toMatchObject({ decision: "FAILED" });
       expect(await readRestoreQualificationEvidence(input.receiptPath)).toMatchObject({ latestRestoreSucceeded: false });
     }
+  });
+
+  it("invalidates an old PASS before work and rejects a self-consistent truncated PASSED receipt", async () => {
+    const input = fixture();
+    const truncatedBase = { schemaVersion: 1, decision: "PASSED", verifiedAt: input.now.toISOString() };
+    const contentSha256 = createHash("sha256").update(JSON.stringify(truncatedBase)).digest("hex");
+    writeFileSync(input.receiptPath, JSON.stringify({ ...truncatedBase, contentSha256 }));
+    expect(await readRestoreQualificationEvidence(input.receiptPath)).toMatchObject({ latestRestoreSucceeded: false });
+
+    const deps = fakeDeps();
+    vi.mocked(deps.serverVersionNum).mockRejectedValueOnce(new Error("target unavailable"));
+    await expect(qualifyBackupRestore(input, deps)).rejects.toThrow(/target unavailable/);
+    expect(vi.mocked(deps.invalidateReceipt!).mock.invocationCallOrder[0]!).toBeLessThan(
+      vi.mocked(deps.publishReceipt!).mock.invocationCallOrder[0]!);
+    expect(JSON.parse(readFileSync(input.receiptPath, "utf8"))).toMatchObject({ decision: "FAILED" });
   });
 
   it("rejects a mismatched migration manifest or unrelated certificate and job counts", async () => {
@@ -84,6 +99,7 @@ function fakeDeps(facts: Partial<Record<string, number>> = {}): RestoreQualifica
     publishReceipt: vi.fn(async (path: string, value: unknown) => {
       mkdirSync(resolve(path, ".."), { recursive: true }); writeFileSync(path, `${JSON.stringify(value)}\n`);
     }),
+    invalidateReceipt: vi.fn(async (path: string) => { rmSync(path, { force: true }); }),
     inspectRestoredDatabase: vi.fn(async () => ({ ...validFacts(), ...facts }))
   } as never;
 }

@@ -1,5 +1,5 @@
 import { createHash, randomBytes } from "node:crypto";
-import { readFile, rename, writeFile, mkdir } from "node:fs/promises";
+import { readFile, rename, writeFile, mkdir, unlink } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
 import type { PrismaMigrationArtifact } from "../db/prismaMigrationManifest";
 
@@ -25,6 +25,13 @@ interface RestoreReceiptBase {
   targetServerVersionNum: string | null;
 }
 
+interface RunningRestoreQualificationReceipt {
+  schemaVersion: 1;
+  decision: "RUNNING";
+  startedAt: string;
+  contentSha256: string;
+}
+
 export interface PassedRestoreQualificationReceipt extends RestoreReceiptBase {
   decision: "PASSED";
   archiveSha256: string;
@@ -41,22 +48,20 @@ export interface FailedRestoreQualificationReceipt extends RestoreReceiptBase {
   contentSha256: string;
 }
 
-export type RestoreQualificationReceipt = PassedRestoreQualificationReceipt | FailedRestoreQualificationReceipt;
+export type RestoreQualificationReceipt = RunningRestoreQualificationReceipt | PassedRestoreQualificationReceipt | FailedRestoreQualificationReceipt;
 
 export async function readRestoreQualificationEvidence(path: string): Promise<{
   latestRestoreAt?: string; latestRestoreSucceeded?: boolean
 }> {
   try {
     const value = JSON.parse((await readFile(path)).toString("utf8")) as unknown;
-    if (!isRecord(value) || value.schemaVersion !== 1 ||
-      (value.decision !== "PASSED" && value.decision !== "FAILED") ||
-      typeof value.verifiedAt !== "string" || !Number.isFinite(new Date(value.verifiedAt).getTime()) ||
-      typeof value.contentSha256 !== "string") return { latestRestoreSucceeded: false };
+    if (!isRestoreReceipt(value)) return { latestRestoreSucceeded: false };
     const { contentSha256, ...base } = value;
     if (contentSha256 !== sha256(Buffer.from(JSON.stringify(base)))) {
-      return { latestRestoreAt: value.verifiedAt, latestRestoreSucceeded: false };
+      return { latestRestoreAt: "verifiedAt" in value ? value.verifiedAt : value.startedAt, latestRestoreSucceeded: false };
     }
-    return { latestRestoreAt: value.verifiedAt, latestRestoreSucceeded: value.decision === "PASSED" };
+    return { latestRestoreAt: "verifiedAt" in value ? value.verifiedAt : value.startedAt,
+      latestRestoreSucceeded: value.decision === "PASSED" };
   } catch { return {}; }
 }
 
@@ -67,6 +72,7 @@ export interface RestoreQualificationDeps {
   inspectRestoredDatabase(targetDatabaseUrl: string): Promise<RestoreQualificationFacts>;
   dropDatabase(adminDatabaseUrl: string, databaseName: string): Promise<void>;
   publishReceipt?(path: string, value: RestoreQualificationReceipt): Promise<void>;
+  invalidateReceipt?(path: string): Promise<void>;
 }
 
 export async function qualifyBackupRestore(input: {
@@ -78,6 +84,9 @@ export async function qualifyBackupRestore(input: {
   expectedMigrations: readonly PrismaMigrationArtifact[];
   now: Date;
 }, deps: RestoreQualificationDeps): Promise<PassedRestoreQualificationReceipt> {
+  await invalidate(deps, input.receiptPath);
+  const runningBase = { schemaVersion: 1 as const, decision: "RUNNING" as const, startedAt: input.now.toISOString() };
+  await publish(deps, input.receiptPath, { ...runningBase, contentSha256: sha256(Buffer.from(JSON.stringify(runningBase))) });
   let stage: FailedRestoreQualificationReceipt["failureCode"] = "VALIDATION_FAILED";
   let archiveSha256: string | null = null;
   let backupMetadataSha256: string | null = null;
@@ -181,6 +190,41 @@ async function publish(deps: RestoreQualificationDeps, path: string, value: Rest
   await mkdir(dirname(absolute), { recursive: true });
   await writeFile(temporary, `${JSON.stringify(value, null, 2)}\n`, { encoding: "utf8", mode: 0o600 });
   await rename(temporary, absolute);
+}
+
+async function invalidate(deps: RestoreQualificationDeps, path: string): Promise<void> {
+  if (deps.invalidateReceipt) return deps.invalidateReceipt(path);
+  try { await unlink(resolve(path)); }
+  catch (error) { if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error; }
+}
+
+function isRestoreReceipt(value: unknown): value is RestoreQualificationReceipt {
+  if (!isRecord(value) || value.schemaVersion !== 1 || typeof value.contentSha256 !== "string") return false;
+  if (value.decision === "RUNNING") return exactKeys(value, ["schemaVersion", "decision", "startedAt", "contentSha256"]) && validDate(value.startedAt);
+  const baseKeys = ["schemaVersion", "decision", "verifiedAt", "archiveSha256", "backupMetadataSha256",
+    "sourceServerVersionNum", "targetServerVersionNum", "contentSha256"];
+  if (value.decision === "FAILED") return exactKeys(value, [...baseKeys, "failureCode"]) && validDate(value.verifiedAt) &&
+    ["VALIDATION_FAILED", "CREATE_FAILED", "RESTORE_FAILED", "INSPECTION_FAILED", "CLEANUP_FAILED"].includes(String(value.failureCode)) &&
+    nullableSha(value.archiveSha256) && nullableSha(value.backupMetadataSha256) &&
+    nullableString(value.sourceServerVersionNum) && nullableString(value.targetServerVersionNum);
+  if (value.decision !== "PASSED" || !exactKeys(value, [...baseKeys, "verification"]) || !validDate(value.verifiedAt) ||
+    !validSha(value.archiveSha256) || !validSha(value.backupMetadataSha256) ||
+    !isPg16(value.sourceServerVersionNum) || !isPg16(value.targetServerVersionNum) || !isRecord(value.verification)) return false;
+  const facts = value.verification;
+  const factKeys = ["migrations", "successfulFullReleaseBatchCount", "certifiedSourceResultCount", "trustedVisibleJobCount",
+    "qualifiedEvidenceChainCount", "orphanObservationCount", "orphanSourceResultCount", "orphanJobCount", "mismatchedJobSourceCompanyCount"];
+  return exactKeys(facts, factKeys) && Array.isArray(facts.migrations) && facts.migrations.every((row) => isRecord(row) &&
+    exactKeys(row, ["migrationName", "checksum"]) && typeof row.migrationName === "string" && validSha(row.checksum)) &&
+    factKeys.slice(1).every((key) => Number.isSafeInteger(facts[key]) && (facts[key] as number) >= 0);
+}
+
+const validDate = (value: unknown): value is string => typeof value === "string" && Number.isFinite(Date.parse(value));
+const validSha = (value: unknown): value is string => typeof value === "string" && /^[0-9a-f]{64}$/u.test(value);
+const nullableSha = (value: unknown): boolean => value === null || validSha(value);
+const nullableString = (value: unknown): boolean => value === null || typeof value === "string";
+const isPg16 = (value: unknown): value is string => typeof value === "string" && /^16\d{4}$/u.test(value);
+function exactKeys(value: Record<string, unknown>, keys: readonly string[]): boolean {
+  return JSON.stringify(Object.keys(value).sort()) === JSON.stringify([...keys].sort());
 }
 
 function sha256(bytes: Buffer): string { return createHash("sha256").update(bytes).digest("hex"); }
