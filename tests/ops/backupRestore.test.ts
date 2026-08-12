@@ -89,7 +89,7 @@ printf 'mv:%s\\n' "\${2:-}" >> "$EVENT_LOG"
 database_url=""
 for arg in "$@"; do case "$arg" in --dbname=*) database_url="\${arg#--dbname=}" ;; esac; done
 [ -z "\${EXPECTED_LIBPQ_DATABASE_URL:-}" ] || [ "$database_url" = "$EXPECTED_LIBPQ_DATABASE_URL" ] || exit 16
-case "$*" in *to_regclass*) printf '%s\\n' "\${FAKE_MIGRATIONS_PRESENT:-0}" ;; *) printf '%s\\n' "\${FAKE_TARGET_NONEMPTY:-0}" ;; esac
+case "$*" in *server_version_num*) printf '%s\\n' "\${FAKE_SERVER_VERSION_NUM:-160014}" ;; *to_regclass*) printf '%s\\n' "\${FAKE_MIGRATIONS_PRESENT:-0}" ;; *) printf '%s\\n' "\${FAKE_TARGET_NONEMPTY:-0}" ;; esac
 printf 'psql-check\\n' >> "$EVENT_LOG"`
   );
 

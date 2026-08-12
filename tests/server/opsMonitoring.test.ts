@@ -17,6 +17,7 @@ describe("ops monitoring alerts", () => {
     health?: OpsAlertInput["health"];
     database?: OpsAlertInput["database"];
     backup?: Partial<OpsAlertInput["backup"]>;
+    restore?: Partial<NonNullable<OpsAlertInput["restore"]>>;
     crawl?: Partial<OpsAlertInput["crawl"]>;
   };
   const requiredFailureCases = [
@@ -25,7 +26,8 @@ describe("ops monitoring alerts", () => {
     ["formal crawl stale", { crawl: { attemptState: "STALE" } }, "CRAWL_ATTEMPT_STALE"],
     ["mandatory company failed once", { crawl: { consecutiveFailuresByCompany: { "company-a": 1 } } }, "MANDATORY_COMPANY_FAILURE"],
     ["completeness failed", { crawl: { completenessFailureCount: 1 } }, "CRAWL_COMPLETENESS_FAILURE"],
-    ["backup failed", { backup: { latestBackupSucceeded: false } }, "BACKUP_FAILED"]
+    ["backup failed", { backup: { latestBackupSucceeded: false } }, "BACKUP_FAILED"],
+    ["restore qualification failed", { restore: { latestRestoreSucceeded: false } }, "RESTORE_QUALIFICATION_FAILED"]
   ] as const satisfies readonly (readonly [string, MonitorPatch, OpsAlert["code"]])[];
   it.each(requiredFailureCases)("emits a nonzero-severity signal and recovers for %s", async (_label, patch, code) => {
     const { evaluateOpsAlerts } = await loadOpsMonitoringModule();
@@ -35,6 +37,7 @@ describe("ops monitoring alerts", () => {
       health: { ok: true, statusCode: 200 },
       database: { ok: true },
       backup: { latestBackupAt: "2026-07-08T10:00:00.000Z", latestBackupSucceeded: true },
+      restore: { latestRestoreAt: "2026-07-08T10:00:00.000Z", latestRestoreSucceeded: true },
       crawl: {
         authorityState: "VALID" as const,
         attemptState: "SUCCESS" as const,
@@ -48,7 +51,8 @@ describe("ops monitoring alerts", () => {
       ...healthy,
       ...typedPatch,
       crawl: { ...healthy.crawl, ...(typedPatch.crawl ?? {}) },
-      backup: { ...healthy.backup, ...(typedPatch.backup ?? {}) }
+      backup: { ...healthy.backup, ...(typedPatch.backup ?? {}) },
+      restore: { ...healthy.restore, ...(typedPatch.restore ?? {}) }
     };
     const failingAlerts = evaluateOpsAlerts(failing) as OpsAlert[];
     const healthyAlerts = evaluateOpsAlerts(healthy) as OpsAlert[];

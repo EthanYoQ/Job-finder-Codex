@@ -581,7 +581,7 @@ describe("deployment configuration", () => {
     expect(worker).toMatch(/target:\s*\/app\/outputs(?![\s\S]{0,40}read_only:\s*true)/u);
     expect(scheduler).toMatch(/target:\s*\/app\/outputs(?![\s\S]{0,40}read_only:\s*true)/u);
     expect(backup).toContain("- backup-data:/backups");
-    expect(monitor.match(/read_only:\s*true/gu)).toHaveLength(3);
+    expect(monitor.match(/read_only:\s*true/gu)).toHaveLength(4);
   });
 
   it("pins external postgres and nginx images by digest", () => {

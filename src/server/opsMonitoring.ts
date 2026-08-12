@@ -4,6 +4,9 @@ export type OpsAlertCode =
   | "BACKUP_MISSING"
   | "BACKUP_FAILED"
   | "BACKUP_STALE"
+  | "RESTORE_RECEIPT_MISSING"
+  | "RESTORE_QUALIFICATION_FAILED"
+  | "RESTORE_QUALIFICATION_STALE"
   | "CRAWL_SUCCESS_BELOW_SLO"
   | "CRAWL_PARTIAL_COMPANY_RESULTS"
   | "CRAWL_SUMMARY_MISSING"
@@ -44,6 +47,10 @@ export interface OpsAlertInput {
     latestBackupAt?: string;
     latestBackupSucceeded?: boolean;
   };
+  restore?: {
+    latestRestoreAt?: string;
+    latestRestoreSucceeded?: boolean;
+  };
   crawl: {
     authorityState: "VALID" | "PAUSED" | "INVALID";
     attemptState: "SUCCESS" | "RUNNING" | "PAUSED" | "MISSING" | "INVALID" | "FAILED" | "STALE";
@@ -74,6 +81,7 @@ export interface OpsAlertInput {
 }
 
 const BACKUP_STALE_HOURS = 26;
+const RESTORE_STALE_HOURS = 8 * 24;
 const CRAWL_SUCCESS_SLO = 0.8;
 const CERT_EXPIRY_WARNING_DAYS = 14;
 const HIGH_DISK_THRESHOLD = 90;
@@ -82,6 +90,18 @@ const TRAFFIC_SPIKE_MULTIPLIER = 3;
 
 export function evaluateOpsAlerts(input: OpsAlertInput): OpsAlert[] {
   const alerts: OpsAlert[] = [];
+
+  const restoreAt = toDate(input.restore?.latestRestoreAt);
+  if (input.restore !== undefined && !restoreAt) {
+    alerts.push({ code: "RESTORE_RECEIPT_MISSING", severity: "critical",
+      message: "No successful backup restore qualification receipt is available." });
+  } else if (input.restore !== undefined && input.restore.latestRestoreSucceeded !== true) {
+    alerts.push({ code: "RESTORE_QUALIFICATION_FAILED", severity: "critical",
+      message: "The latest backup restore qualification receipt is invalid or failed." });
+  } else if (restoreAt && input.now.getTime() - restoreAt.getTime() > RESTORE_STALE_HOURS * 3_600_000) {
+    alerts.push({ code: "RESTORE_QUALIFICATION_STALE", severity: "critical",
+      message: "The latest successful backup restore qualification is older than eight days." });
+  }
 
   if (input.crawl.authorityState === "INVALID") {
     alerts.push({ code: "CRAWL_AUTHORITY_INVALID", severity: "critical", message: "Pinned crawl release authority is unavailable or invalid." });

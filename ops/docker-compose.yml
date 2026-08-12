@@ -273,6 +273,71 @@ services:
     networks:
       - internal
 
+  restore-state-init:
+    build:
+      context: ..
+      dockerfile: Dockerfile
+      args: *release-build-args
+    user: "0:0"
+    restart: "no"
+    network_mode: none
+    read_only: true
+    cap_drop: [ALL]
+    cap_add: [CHOWN, FOWNER]
+    security_opt: [no-new-privileges:true]
+    command: ["install", "-d", "-o", "node", "-g", "node", "-m", "0700", "/restore-state"]
+    volumes:
+      - restore-state:/restore-state
+
+  restore-verifier:
+    build:
+      context: ..
+      dockerfile: Dockerfile
+      args: *release-build-args
+    restart: "on-failure:3"
+    logging: *bounded-logging
+    user: node
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    tmpfs:
+      - /tmp:rw,nosuid,nodev,noexec,size=64m,mode=1777
+    command:
+      - sh
+      - -lc
+      - >-
+        set -eu; while true; do
+        marker="$$(find /backups -maxdepth 1 -type f -name '*.dump.sha256' -printf '%T@ %p\n' | sort -nr | head -n 1 | cut -d' ' -f2-)";
+        test -n "$$marker"; archive="$${marker%.sha256}";
+        npm run ops:qualify-restore -- "$$archive";
+        sleep "$${RESTORE_VERIFY_INTERVAL_SECONDS:-604800}";
+        done
+    environment:
+      RESTORE_ADMIN_DATABASE_URL: ${RESTORE_ADMIN_DATABASE_URL:-${DATABASE_URL:?set DATABASE_URL}}
+      RESTORE_RECEIPT_PATH: /restore-state/restore-receipt.json
+      RESTORE_VERIFY_INTERVAL_SECONDS: ${RESTORE_VERIFY_INTERVAL_SECONDS:-604800}
+    depends_on:
+      backup:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+      restore-state-init:
+        condition: service_completed_successfully
+    volumes:
+      - type: volume
+        source: backup-data
+        target: /backups
+        read_only: true
+      - restore-state:/restore-state
+    healthcheck:
+      test: ["CMD-SHELL", "find /restore-state -maxdepth 1 -type f -name 'restore-receipt.json' -size +0c -mmin -11520 -print -quit | grep -q ."]
+      interval: 1h
+      timeout: 10s
+      retries: 3
+      start_period: 15m
+    networks:
+      - internal
+
   monitor-state-init:
     build:
       context: ..
@@ -329,8 +394,11 @@ services:
       STAGED_CRAWL_ATTEMPT_DIR: /app/outputs/staged-crawl-attempts
       STAGED_INITIAL_QUALIFICATION_PAUSE_PATH: /app/outputs/staged-initial-qualification-pause.json
       MONITOR_STATE_DIR: /app/monitor-state
+      RESTORE_RECEIPT_PATH: /restore-state/restore-receipt.json
     depends_on:
       backup:
+        condition: service_healthy
+      restore-verifier:
         condition: service_healthy
       postgres:
         condition: service_healthy
@@ -350,6 +418,10 @@ services:
       - type: volume
         source: monitor-state
         target: /app/monitor-state
+      - type: volume
+        source: restore-state
+        target: /restore-state
+        read_only: true
     networks:
       - internal
 
@@ -358,6 +430,7 @@ volumes:
   backup-data:
   formal-artifacts:
   monitor-state:
+  restore-state:
 
 networks:
   internal:

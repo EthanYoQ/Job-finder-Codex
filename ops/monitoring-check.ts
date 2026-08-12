@@ -16,6 +16,7 @@ import {
   acknowledgeDeliveredOneShotAlerts,
   filterAcknowledgedOneShotAlerts
 } from "../src/server/oneShotAlertDelivery";
+import { readRestoreQualificationEvidence } from "../src/ops/restoreQualification";
 
 interface JsonMap {
   [key: string]: unknown;
@@ -32,6 +33,7 @@ async function main(): Promise<void> {
   const healthUrl = process.env.HEALTHCHECK_URL ?? "http://127.0.0.1:3000/healthz";
   const databaseUrl = process.env.DATABASE_URL;
   const backupDir = process.env.BACKUP_DIR ?? `${process.cwd()}/backups`;
+  const restoreReceiptPath = process.env.RESTORE_RECEIPT_PATH ?? `${process.cwd()}/var/restore-receipt.json`;
   const readinessSummaryPath =
     process.env.READINESS_SUMMARY_PATH ?? `${process.cwd()}/var/readiness-summary.json`;
   const certificateExpiresAt = process.env.CERTIFICATE_EXPIRES_AT;
@@ -41,12 +43,13 @@ async function main(): Promise<void> {
     process.env.POSTGRES_READINESS_TIMEOUT_MS ?? DEFAULT_POSTGRES_READINESS_TIMEOUT_MS
   );
 
-  const [health, dbReachable, backupEvidence, readinessSummary] = await Promise.all([
+  const [health, dbReachable, backupEvidence, restoreEvidence, readinessSummary] = await Promise.all([
     checkHealth(healthUrl),
     checkPostgresReadiness(databaseUrl, {
       timeoutMs: postgresReadinessTimeoutMs
     }),
     readBackupEvidence(backupDir),
+    readRestoreQualificationEvidence(restoreReceiptPath),
     readOptionalJson(readinessSummaryPath)
   ]);
 
@@ -99,6 +102,7 @@ async function main(): Promise<void> {
     health,
     database: { ok: dbReachable },
     backup: backupEvidence,
+    restore: restoreEvidence,
     crawl: {
       authorityState: pauseBundle.state === "PAUSED"
         ? "PAUSED"

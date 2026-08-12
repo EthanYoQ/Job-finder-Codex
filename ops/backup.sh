@@ -50,18 +50,27 @@ case "$PG_RESTORE_VERSION" in
     exit 1
     ;;
 esac
+SERVER_VERSION_NUM="$(psql --dbname="$LIBPQ_DATABASE_URL" --no-psqlrc --set=ON_ERROR_STOP=1 --tuples-only --no-align --command='SHOW server_version_num;')"
+case "$SERVER_VERSION_NUM" in
+  16????) ;;
+  *) echo "PostgreSQL 16 server is required" >&2; exit 1 ;;
+esac
 
 TIMESTAMP="$(date -u +"%Y%m%dT%H%M%SZ")"
 ARCHIVE_PATH="$BACKUP_DIR/jobfinder-$TIMESTAMP.dump"
 CHECKSUM_PATH="$ARCHIVE_PATH.sha256"
+METADATA_PATH="$ARCHIVE_PATH.metadata.json"
 PARTIAL_ARCHIVE_PATH="$ARCHIVE_PATH.partial"
 PARTIAL_CHECKSUM_PATH="$CHECKSUM_PATH.partial"
+PARTIAL_METADATA_PATH="$METADATA_PATH.partial"
 OWNS_PARTIAL_ARCHIVE=0
 OWNS_PARTIAL_CHECKSUM=0
 OWNS_ARCHIVE=0
 OWNS_CHECKSUM=0
+OWNS_PARTIAL_METADATA=0
+OWNS_METADATA=0
 
-for candidate in "$ARCHIVE_PATH" "$CHECKSUM_PATH" "$PARTIAL_ARCHIVE_PATH" "$PARTIAL_CHECKSUM_PATH"; do
+for candidate in "$ARCHIVE_PATH" "$CHECKSUM_PATH" "$METADATA_PATH" "$PARTIAL_ARCHIVE_PATH" "$PARTIAL_CHECKSUM_PATH" "$PARTIAL_METADATA_PATH"; do
   if [ -e "$candidate" ]; then
     echo "Refusing to overwrite existing backup artifact: $candidate" >&2
     exit 1
@@ -73,6 +82,8 @@ cleanup() {
   [ "$OWNS_PARTIAL_CHECKSUM" -eq 0 ] || rm -f "$PARTIAL_CHECKSUM_PATH"
   [ "$OWNS_ARCHIVE" -eq 0 ] || rm -f "$ARCHIVE_PATH"
   [ "$OWNS_CHECKSUM" -eq 0 ] || rm -f "$CHECKSUM_PATH"
+  [ "$OWNS_PARTIAL_METADATA" -eq 0 ] || rm -f "$PARTIAL_METADATA_PATH"
+  [ "$OWNS_METADATA" -eq 0 ] || rm -f "$METADATA_PATH"
 }
 trap cleanup EXIT
 
@@ -83,10 +94,17 @@ pg_restore --list "$PARTIAL_ARCHIVE_PATH" >/dev/null
 ARCHIVE_SHA256="$(sha256sum "$PARTIAL_ARCHIVE_PATH" | awk '{print $1}')"
 OWNS_PARTIAL_CHECKSUM=1
 printf '%s  %s\n' "$ARCHIVE_SHA256" "$(basename "$ARCHIVE_PATH")" > "$PARTIAL_CHECKSUM_PATH"
+OWNS_PARTIAL_METADATA=1
+BACKUP_CREATED_AT="$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
+export BACKUP_CREATED_AT SERVER_VERSION_NUM ARCHIVE_SHA256 PG_DUMP_VERSION PG_RESTORE_VERSION ARCHIVE_NAME="$(basename "$ARCHIVE_PATH")"
+node -e 'const fs=require("fs");const value={schemaVersion:1,createdAt:process.env.BACKUP_CREATED_AT,archiveName:process.env.ARCHIVE_NAME,archiveSha256:process.env.ARCHIVE_SHA256,database:{serverVersionNum:process.env.SERVER_VERSION_NUM},tools:{pgDump:process.env.PG_DUMP_VERSION,pgRestore:process.env.PG_RESTORE_VERSION}};fs.writeFileSync(process.argv[1],JSON.stringify(value,null,2)+"\n",{mode:0o600});' "$PARTIAL_METADATA_PATH"
 
 mv "$PARTIAL_ARCHIVE_PATH" "$ARCHIVE_PATH"
 OWNS_PARTIAL_ARCHIVE=0
 OWNS_ARCHIVE=1
+mv "$PARTIAL_METADATA_PATH" "$METADATA_PATH"
+OWNS_PARTIAL_METADATA=0
+OWNS_METADATA=1
 mv "$PARTIAL_CHECKSUM_PATH" "$CHECKSUM_PATH"
 OWNS_PARTIAL_CHECKSUM=0
 OWNS_CHECKSUM=1
@@ -95,10 +113,13 @@ OWNS_CHECKSUM=1
 # belong to retention rather than failure cleanup.
 OWNS_ARCHIVE=0
 OWNS_CHECKSUM=0
+OWNS_METADATA=0
 
 RETENTION_FIND_DAYS=$((BACKUP_RETENTION_DAYS - 1))
 find "$BACKUP_DIR" -type f -name '*.dump' -mtime +"$RETENTION_FIND_DAYS" -delete
 find "$BACKUP_DIR" -type f -name '*.dump.sha256' -mtime +"$RETENTION_FIND_DAYS" -delete
+find "$BACKUP_DIR" -type f -name '*.dump.metadata.json' -mtime +"$RETENTION_FIND_DAYS" -delete
 
 echo "Backup written to $ARCHIVE_PATH"
 echo "Checksum written to $CHECKSUM_PATH"
+echo "Metadata written to $METADATA_PATH"

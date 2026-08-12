@@ -39,3 +39,7 @@ _Avoid_: Repeated count, last attempted count, manually estimated count
 **Production Security Receipt**:
 The commit-run result that binds one production image, production lockfile, raw vulnerability reports and time-bounded reachability/exception policies. Unknown reachability and expired evidence fail closed.
 _Avoid_: Repository-wide audit result, unbound scanner log, permanent vulnerability waiver
+
+**Restore Receipt**:
+A content-hashed record proving that one committed backup was restored into a newly created PostgreSQL 16 database and passed migration, formal-batch, certificate, trusted-job, and relationship checks before the temporary database was removed.
+_Avoid_: Archive existence check, pg_restore exit code alone, operator-written recovery note
