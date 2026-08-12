@@ -1,6 +1,7 @@
 import { hashCanonicalStringSet } from "../crawler/runtimeBatchIdentity";
 import type { ReleaseMember } from "../crawler/authoritativeReleaseMembership";
 import { reconcileLifecycleSets, type LifecycleSetEvidence } from "./lifecycleSetReconciliation";
+import { verifyAGradeCompletenessCertificateReceipt } from "../crawler/completenessCertificate";
 
 export interface StrictCompanyAudit {
   companyId: string;
@@ -18,6 +19,7 @@ export interface StrictReadinessExpectation {
   sourceConfigHashes: ShaMap; adapterVersions: ShaMap;
   companyAudits: readonly StrictCompanyAudit[];
   releaseMembers: readonly ReleaseMember[];
+  requiredAGradeCertificates?: Readonly<Record<string, string>>;
   currentTime: Date; freshnessMaximum: number;
 }
 export interface StrictReadinessSourceResult {
@@ -27,6 +29,12 @@ export interface StrictReadinessSourceResult {
   canonicalGraceJobSetSha256: string | null; canonicalVisibleJobSetSha256: string | null;
   officialEvidenceArtifactId: string | null; artifactRedactionCommitmentSha256: string | null;
   lifecycleSetEvidence?: LifecycleSetEvidence;
+  completenessCertificate?: unknown | null;
+  completenessCertificateSha256?: string | null;
+  officialSurfaceIds?: readonly string[];
+  officialChannelIds?: readonly string[];
+  adapterReconciliationSha256?: string | null;
+  collisionLedgerSha256?: string | null;
 }
 export interface StrictReadinessBatch {
   id: string; releaseCandidateId: string; commitSha: string; rosterSha256: string;
@@ -95,6 +103,31 @@ function validateBatch(batch: StrictReadinessBatch, expected: StrictReadinessExp
       throw new Error(`Readiness source ${sourceId} is missing canonical hashes or evidence references`);
     }
     if(!source.lifecycleSetEvidence)throw new Error(`Readiness source ${sourceId} is missing persisted lifecycle set evidence`);
+    const requiredCertificateCompanyId = expected.requiredAGradeCertificates?.[sourceId];
+    if (requiredCertificateCompanyId !== undefined) {
+      if (source.completenessCertificate === null || source.completenessCertificate === undefined ||
+          !source.completenessCertificateSha256 || !source.officialSurfaceIds || !source.officialChannelIds ||
+          !source.adapterReconciliationSha256 || !source.collisionLedgerSha256) {
+        throw new Error(`Readiness source ${sourceId} is missing its required A-grade completeness certificate`);
+      }
+      verifyAGradeCompletenessCertificateReceipt({
+        certificate: source.completenessCertificate,
+        certificateSha256: source.completenessCertificateSha256,
+        expected: {
+          releaseCandidateId: batch.releaseCandidateId,
+          batchId: batch.id,
+          sourceResultId: source.id,
+          sourceId,
+          companyId: requiredCertificateCompanyId,
+          sourceConfigSha256: source.sourceConfigHash,
+          surfaceIds: source.officialSurfaceIds,
+          channelIds: source.officialChannelIds,
+          canonicalJobSetSha256: source.canonicalOutputSetSha256!,
+          adapterReconciliationSha256: source.adapterReconciliationSha256,
+          collisionLedgerSha256: source.collisionLedgerSha256
+        }
+      });
+    }
     if(source.lifecycleSetEvidence.releaseCandidateId!==batch.releaseCandidateId||source.lifecycleSetEvidence.batchId!==batch.id||
       source.lifecycleSetEvidence.sourceResultId!==source.id||source.lifecycleSetEvidence.sourceId!==source.sourceId)throw new Error(`Readiness source ${sourceId} lifecycle set tuple mismatch`);
     const sets=reconcileLifecycleSets(source.lifecycleSetEvidence);

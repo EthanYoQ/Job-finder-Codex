@@ -11,6 +11,7 @@ import { hashCanonicalStringSet } from "../crawler/runtimeBatchIdentity";
 import { DAILY_PUBLICATION_FRESHNESS_MAXIMUM_MS } from "../domain/publicationEligibility";
 import type { StrictReadinessExpectation } from "./strictPersistedReadiness";
 import {resolveCurrentBuildIdentity} from "./buildIdentity";
+import { REQUIRED_A_GRADE_COMPLETENESS_CERTIFICATES } from "../crawler/completenessCertificate";
 
 export const CURRENT_RELEASE_FRESHNESS_MAXIMUM_MS = DAILY_PUBLICATION_FRESHNESS_MAXIMUM_MS;
 
@@ -39,7 +40,10 @@ export async function loadCurrentReleaseIdentity(validationTime:Date=new Date())
   if(mapSha(sourceConfigHashes)!==artifact.sourceConfigSha256||mapSha(adapterVersions)!==artifact.adapterBundleSha256)
     throw new Error("Current canonical config or adapter bundle does not match trusted release identity");
   return {...runtime,plannedSourceIds,plannedSourceSetSha256:runtime.expectedPlannedSourceSetSha256,
-    sourceConfigHashes,adapterVersions,companyAudits:validatedOracle.artifact.companyAudits,releaseMembers,sourceTreeSha256:buildIdentity.sourceTreeSha256,runtimeTreeSha256:buildIdentity.runtimeTreeSha256,currentTime:validationTime,freshnessMaximum:CURRENT_RELEASE_FRESHNESS_MAXIMUM_MS};
+    sourceConfigHashes,adapterVersions,companyAudits:validatedOracle.artifact.companyAudits,releaseMembers,
+    requiredAGradeCertificates:REQUIRED_A_GRADE_COMPLETENESS_CERTIFICATES,
+    sourceTreeSha256:buildIdentity.sourceTreeSha256,runtimeTreeSha256:buildIdentity.runtimeTreeSha256,
+    currentTime:validationTime,freshnessMaximum:CURRENT_RELEASE_FRESHNESS_MAXIMUM_MS};
 }
 export function assertCurrentReleaseRosterHash(membershipRosterSha256:string,oracleRosterSha256:string):void{
   if(membershipRosterSha256!==confirmedCompanyRosterV3.membersSha256||oracleRosterSha256!==confirmedCompanyRosterV3.membersSha256){

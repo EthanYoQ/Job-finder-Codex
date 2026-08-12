@@ -54,6 +54,16 @@ describe("strict persisted readiness selector", () => {
       adapterVersions: { "source-1": h } })).toThrow(/evidence/i);
   });
 
+  it("rejects a required A-grade source when its persisted certificate Receipt is missing", () => {
+    const latest = batchCopy("batch-2", new Date("2026-07-10T01:30:00Z"));
+    expect(() => selectStrictFullReleaseReadiness([batch, latest], {
+      ...identity,
+      sourceConfigHashes: { "source-1": h },
+      adapterVersions: { "source-1": h },
+      requiredAGradeCertificates: { "source-1": "company-1" }
+    })).toThrow(/A-grade completeness certificate/i);
+  });
+
   it("rejects a canonical output commitment that differs from the reconciled current set in either selected batch",()=>{
     const latest=batchCopy("batch-2",new Date("2026-07-10T01:30:00Z"));
     const broken={...latest,sourceResults:[{...latest.sourceResults[0]!,canonicalOutputSetSha256:h}]};

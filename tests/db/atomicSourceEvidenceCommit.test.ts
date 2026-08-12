@@ -126,6 +126,8 @@ function validCommit(): AtomicSourceEvidenceCommit {
       ,adapterCollisionGroupCount: 0
       ,adapterReconciliationSha256: H
       ,collisionLedgerSha256: H
+      ,completenessCertificate: null
+      ,completenessCertificateSha256: null
     },
     observationProvenance: {
       ...tuple,
@@ -228,6 +230,19 @@ function validCommit(): AtomicSourceEvidenceCommit {
       }
     ]
   };
+}
+
+function retargetCommitSource(input: AtomicSourceEvidenceCommit, sourceId: string): void {
+  input.sourceResult.sourceId = sourceId;
+  input.observationProvenance.sourceId = sourceId;
+  input.artifacts.forEach((row) => { row.sourceId = sourceId; });
+  input.pagination.forEach((row) => { row.sourceId = sourceId; });
+  input.lossLedger.forEach((row) => { row.sourceId = sourceId; });
+  input.priorTransportAttempts.forEach((row) => { row.sourceId = sourceId; });
+  input.commands.forEach((command) => {
+    if (command.type === "UPSERT_JOB") command.record.sourceId = sourceId;
+    if (command.type === "UPSERT_CRAWL_OBSERVATION") command.observation.sourceId = sourceId;
+  });
 }
 
 function removeLifecycleCommands(input: AtomicSourceEvidenceCommit): void {
@@ -759,6 +774,7 @@ describe("executeAtomicSourceEvidenceCommit", () => {
 
   it("commits NEEDS_MANUAL_COMPLETENESS_REVIEW with blocker and preserved evidence", async () => {
     const input = validCommit();
+    retargetCommitSource(input, "source-gsk-china-social");
     input.sourceResult.completenessState = "NEEDS_MANUAL_COMPLETENESS_REVIEW";
     input.sourceResult.blockerCode = "MANUAL_ORACLE_REQUIRED";
     input.sourceResult.blockerReason = "Official response has no trustworthy declared total";
@@ -789,6 +805,9 @@ describe("executeAtomicSourceEvidenceCommit", () => {
     ["COMMITTED adapter failure", (x: AtomicSourceEvidenceCommit) => { x.sourceResult.adapterState = "FAILED"; }],
     ["COMMITTED failure code", (x: AtomicSourceEvidenceCommit) => { x.sourceResult.failureCode = "SHOULD_BE_NULL"; }],
     ["VERIFIED blocker", (x: AtomicSourceEvidenceCommit) => { x.sourceResult.blockerCode = "SHOULD_BE_NULL"; }],
+    ["VERIFIED GSK without A-grade certificate", (x: AtomicSourceEvidenceCommit) => {
+      x.sourceResult.sourceId = "source-gsk-china-social";
+    }],
     ["INCOMPLETE missing blocker", (x: AtomicSourceEvidenceCommit) => {
       x.sourceResult.completenessState = "INCOMPLETE";
       x.sourceResult.blockerCode = null;
@@ -808,7 +827,7 @@ describe("executeAtomicSourceEvidenceCommit", () => {
       }
     }]
   ] as const) {
-    rejectsBeforeTransaction(`rejects ${name}`, mutate, /COMMITTED|VERIFIED|blocker|terminal/i);
+    rejectsBeforeTransaction(`rejects ${name}`, mutate, /COMMITTED|VERIFIED|blocker|terminal|certificate/i);
   }
 });
 

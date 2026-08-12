@@ -18,6 +18,10 @@ import {
   type PrismaLifecycleStatusName,
   type PrismaRequiredJobFieldName
 } from "./prismaMappers";
+import {
+  requiresAGradeCertificateSourceId,
+  verifyAGradeCompletenessCertificateReceipt
+} from "../crawler/completenessCertificate";
 
 interface CrawlObservationCreateArgs {
   data: {
@@ -181,6 +185,8 @@ export interface AtomicSourceResultInput {
   adapterCollisionGroupCount: number;
   adapterReconciliationSha256: string;
   collisionLedgerSha256: string;
+  completenessCertificate: unknown | null;
+  completenessCertificateSha256: string | null;
   blockerCode?: string | null;
   blockerReason?: string | null;
   failureCategory?: SourceFailureCategory | null;
@@ -513,6 +519,8 @@ export async function createBatchWithPendingSourceResults(
         adapterCollisionGroupCount: null,
         adapterReconciliationSha256: null,
         collisionLedgerSha256: null,
+        completenessCertificate: null,
+        completenessCertificateSha256: null,
         blockerCode: null,
         blockerReason: null,
         failureCategory: null,
@@ -1007,6 +1015,36 @@ function validateCommittedSourceResultTruthTable(result: AtomicSourceResultInput
   } else if (!nonblank(result.blockerCode) || !nonblank(result.blockerReason)) {
     throw new Error("INCOMPLETE or NEEDS_MANUAL COMMITTED source result requires blocker code and reason");
   }
+  if ((result.completenessCertificate === null) !==
+      (result.completenessCertificateSha256 === null)) {
+    throw new Error("Completeness certificate and hash must be supplied together");
+  }
+  if (requiresAGradeCertificateSourceId(result.sourceId) &&
+      result.completenessState === "VERIFIED" &&
+      result.completenessCertificate === null) {
+    throw new Error("Required A-grade completeness certificate is missing");
+  }
+  if (result.completenessCertificate !== null) {
+    if (result.completenessState !== "VERIFIED") {
+      throw new Error("A-grade completeness certificate requires VERIFIED source truth");
+    }
+    verifyAGradeCompletenessCertificateReceipt({
+      certificate: result.completenessCertificate,
+      certificateSha256: result.completenessCertificateSha256!,
+      expected: {
+        releaseCandidateId: result.releaseCandidateId,
+        batchId: result.batchId,
+        sourceResultId: result.id,
+        sourceId: result.sourceId,
+        sourceConfigSha256: result.sourceConfigHash,
+        surfaceIds: result.officialSurfaceIds,
+        channelIds: result.officialChannelIds,
+        canonicalJobSetSha256: result.canonicalOutputSetSha256,
+        adapterReconciliationSha256: result.adapterReconciliationSha256,
+        collisionLedgerSha256: result.collisionLedgerSha256
+      }
+    });
+  }
 }
 
 function pendingSourceTupleWhere(input: { id: string; releaseCandidateId: string; batchId: string; sourceId: string }): Record<string, unknown> {
@@ -1037,6 +1075,7 @@ const ATOMIC_SOURCE_RESULT_FIELDS = [
   "canonicalCurrentJobSetSha256", "canonicalGraceJobSetSha256", "canonicalVisibleJobSetSha256",
   "canonicalOutputSetSha256", "adapterInputCount", "adapterOutputCount", "adapterLossCount",
   "adapterCollisionGroupCount", "adapterReconciliationSha256", "collisionLedgerSha256", "blockerCode",
+  "completenessCertificate", "completenessCertificateSha256",
   "blockerReason", "failureCategory", "failureDiagnosticCode", "fetchAttemptCount", "retryCount",
   "failureCode", "failureReason"
 ] as const satisfies readonly (keyof AtomicSourceResultInput)[];
@@ -1257,6 +1296,26 @@ function validateAtomicSourceEvidenceCommit(input: AtomicSourceEvidenceCommit, m
   requireNonblank(provenance.officialEvidenceArtifactLogicalKey, "official evidence artifact logical key");
   const officialArtifact = artifactByLogicalKey.get(provenance.officialEvidenceArtifactLogicalKey);
   if (!officialArtifact) throw new Error("Designated official evidence artifact is missing");
+  if (result.completenessCertificate !== null) {
+    verifyAGradeCompletenessCertificateReceipt({
+      certificate: result.completenessCertificate,
+      certificateSha256: result.completenessCertificateSha256!,
+      expected: {
+        releaseCandidateId: result.releaseCandidateId,
+        batchId: result.batchId,
+        sourceResultId: result.id,
+        sourceId: result.sourceId,
+        sourceConfigSha256: result.sourceConfigHash,
+        surfaceIds: result.officialSurfaceIds,
+        channelIds: result.officialChannelIds,
+        officialArtifactLogicalKey: officialArtifact.logicalKey,
+        officialArtifactSha256: officialArtifact.sha256,
+        canonicalJobSetSha256: result.canonicalOutputSetSha256,
+        adapterReconciliationSha256: result.adapterReconciliationSha256,
+        collisionLedgerSha256: result.collisionLedgerSha256
+      }
+    });
+  }
   if (result.expectedEvidenceKind === "OFFICIAL_TOTAL_COUNT") {
     if (result.expectedJobCount === null || !NETWORK_ARTIFACT_KINDS.has(officialArtifact.kind)) {
       throw new Error("OFFICIAL_TOTAL_COUNT requires explicit expectedJobCount and an archived network artifact");

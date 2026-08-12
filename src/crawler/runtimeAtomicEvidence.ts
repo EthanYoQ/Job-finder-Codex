@@ -20,6 +20,10 @@ import type { ArchivedEvidenceArtifact } from "./artifactArchive";
 import type { AtomicSourceEvidenceCommit } from "../db/ingestionRepository";
 import type { StartupTrustedSourceSurfaceOracle } from "./sourceSurfaceOracleAuthority";
 import { assertExactIndependentCompletenessEvidence, sourceOracleProjection } from "./independentSourceSurfaceOracle";
+import {
+  issueAGradeOfficialTotalCertificate,
+  requiresAGradeOfficialTotalCertificate
+} from "./completenessCertificate";
 
 const sha256 = (value: string): string =>
   createHash("sha256").update(value, "utf8").digest("hex");
@@ -206,6 +210,32 @@ export function buildAtomicRuntimeCommit(input: {
   const evidence = result.fetchEvidence;
   const tuple = { releaseCandidateId: identity.releaseCandidateId, batchId,
     sourceId: plan.source.id, sourceResultId: pending.id };
+  const certificateRequired = requiresAGradeOfficialTotalCertificate(plan);
+  const declarationLogicalKey = evidence.declaredCompleteness?.artifactLogicalKey;
+  const certificateDecision = certificateRequired && result.paginationEvaluation
+    ? issueAGradeOfficialTotalCertificate({
+        binding: {
+          releaseCandidateId: identity.releaseCandidateId,
+          batchId,
+          sourceResultId: pending.id,
+          sourceConfigSha256: pending.sourceConfigHash
+        },
+        plan,
+        transportSuccess: result.truth.transportSuccess,
+        adapterSuccess: result.truth.adapterSuccess,
+        evidence,
+        paginationEvaluation: result.paginationEvaluation,
+        reconciliation: ledger,
+        jobs: result.jobs,
+        officialArtifactSha256: input.artifacts.find(
+          (artifact) => artifact.logicalKey === declarationLogicalKey
+        )?.sha256
+      })
+    : undefined;
+  const certificateCertified = certificateDecision?.status === "CERTIFIED";
+  const sourceCompletenessVerified = certificateRequired
+    ? certificateCertified
+    : result.truth.completenessVerified;
   const currentKeys = result.jobs.map(buildJobDedupeKey);
   const outputHash = canonicalStringSetSha256(currentKeys);
   if (identity.batchKind === "FULL_RELEASE" && !input.trustedOracle) throw new Error("FULL_RELEASE independent source/surface oracle is required");
@@ -230,7 +260,7 @@ export function buildAtomicRuntimeCommit(input: {
     stagedBindingMatchesPending && evidence.artifacts.length > 0 ? pending.officialSurfaceIds : [];
   const visitedChannels = oracleAudited ? evidence.artifacts.flatMap((artifact) =>
     oracleAudited.artifactLogicalKeyToChannelId[artifact.logicalKey] ?? []) :
-    stagedBindingMatchesPending && result.truth.completenessVerified ? pending.officialChannelIds :
+    stagedBindingMatchesPending && sourceCompletenessVerified ? pending.officialChannelIds :
       evidence.pages.flatMap((page) => page.channelId ?? []);
   const expectedSurface = expectedSurfaceIds.length > 0 ? canonicalStringSetSha256(expectedSurfaceIds) : null;
   const visitedSurface = expectedSurface !== null ? canonicalStringSetSha256(visitedSurfaces) : null;
@@ -240,12 +270,18 @@ export function buildAtomicRuntimeCommit(input: {
     ? canonicalStringSetSha256(oracleAudited.officialSurfaceIds) === canonicalStringSetSha256(visitedSurfaces) &&
       canonicalStringSetSha256(oracleAudited.officialChannelIds) === canonicalStringSetSha256(visitedChannels)
     : stagedBindingMatchesPending;
-  const completenessVerified = result.truth.completenessVerified && sourceBindingVerified;
+  const completenessVerified = sourceCompletenessVerified && sourceBindingVerified;
   const incompleteBlocker = completenessVerified ? undefined : {
-    blockerCode: oracleAudited || stagedBindingMatchesPending
+    blockerCode: certificateRequired && !certificateCertified
+      ? "A_GRADE_CERTIFICATE_NOT_ISSUED"
+      : oracleAudited || stagedBindingMatchesPending
       ? "COMPLETENESS_NOT_VERIFIED"
       : "SOURCE_SURFACE_ORACLE_MISSING",
-    blockerReason: oracleAudited || stagedBindingMatchesPending
+    blockerReason: certificateRequired && !certificateCertified
+      ? `A-grade official-total certificate was not issued: ${certificateDecision?.status === "REJECTED"
+          ? certificateDecision.blockerCodes.join(",")
+          : "PAGINATION_NOT_VERIFIED"}`
+      : oracleAudited || stagedBindingMatchesPending
       ? result.observation.completenessBlockerReason ?? "Strict completeness gate was not satisfied"
       : "Audited source-surface oracle is missing"
   };
@@ -329,6 +365,8 @@ export function buildAtomicRuntimeCommit(input: {
       adapterLossCount: ledger.adapterLosses.length + (ledger.dedupeInputCount-ledger.dedupeOutputCount),
       adapterCollisionGroupCount: ledger.collisionGroups.length,
       adapterReconciliationSha256: ledger.ledgerSha256, collisionLedgerSha256: sha256(canonicalJson(ledger.collisionGroups)),
+      completenessCertificate: certificateCertified ? certificateDecision.certificate : null,
+      completenessCertificateSha256: certificateCertified ? certificateDecision.certificateSha256 : null,
       failureCategory: null, failureDiagnosticCode: null,
       fetchAttemptCount: attemptTracker.fetchAttemptCount, retryCount: attemptTracker.retryCount,
       ...(incompleteBlocker ?? {}) },
@@ -374,14 +412,37 @@ export function buildAtomicRuntimeCommit(input: {
         paginationEvaluationSha256: sha256(canonicalJson(attempt.paginationEvaluation ?? null)),
         details: { code: attempt.code } };
     }),
-    commands: buildIngestionCommands({
-      ...result,
-      observation: { ...result.observation, pagesVisited: evidence.pages.length,
-        ...(incompleteBlocker ? { completenessBlockerReason: incompleteBlocker.blockerReason } : {}) }
+    commands: buildIngestionCommands({ ...result,
+      observation: committedObservation(result, evidence, completenessVerified, incompleteBlocker?.blockerReason)
     }, lifecycle)
   };
   runtimeCommitAttestations.set(commit,attestationSignature(commit));
   return commit;
+}
+
+function committedObservation(
+  result: SourceCrawlResult,
+  evidence: PersistentSourceFetchEvidence,
+  completenessVerified: boolean,
+  blockerReason: string | undefined
+): SourceCrawlResult["observation"] {
+  const observation = { ...result.observation, pagesVisited: evidence.pages.length };
+  if (completenessVerified) {
+    observation.completenessStatus = "VERIFIED";
+    if (evidence.declaredCompleteness !== undefined) {
+      observation.completenessEvidenceKind = evidence.declaredCompleteness.kind;
+    }
+    if (evidence.declaredCompleteness?.kind === "OFFICIAL_TOTAL_COUNT") {
+      observation.expectedJobCount = evidence.declaredCompleteness.value;
+    }
+    delete observation.completenessBlockerReason;
+  } else {
+    if (observation.completenessStatus === "VERIFIED") {
+      observation.completenessStatus = "NEEDS_MANUAL_COMPLETENESS_REVIEW";
+    }
+    observation.completenessBlockerReason = blockerReason ?? "Completeness was not verified";
+  }
+  return observation;
 }
 
 function requiredSha(value: string | undefined, label: string): string {

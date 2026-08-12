@@ -123,6 +123,7 @@ describe("prisma schema", () => {
       ,"20260716190000_release_candidate_qualification_threshold"
       ,"20260716210000_release_candidate_promotion_gate"
       ,"20260717090000_source_failure_diagnostics"
+      ,"20260812231000_a_grade_completeness_certificate"
     ]);
     const statements = crawlStatusValuesMigration
       .split("\n")

@@ -15,13 +15,20 @@ import {
   deriveCanonicalPaginationEvidence,
   evaluatePaginationEvidence
 } from "../../src/crawler/paginationEvidence";
-import type { PersistentSourceFetchEvidence } from "../../src/crawler/sourceFetchEvidence";
+import {
+  canonicalStringSetSha256,
+  sha256Bytes,
+  type PersistentSourceFetchEvidence
+} from "../../src/crawler/sourceFetchEvidence";
 import {
   buildStagedSourceCrawlPlans,
   getPlanBySourceId,
+  sourcePlanConfigSha256,
   type SourceCrawlPlan
 } from "../../src/crawler/sourcePlan";
 import { candidateCompanies } from "../../src/data/companyRegistry";
+import { issueAGradeOfficialTotalCertificate } from "../../src/crawler/completenessCertificate";
+import { buildAtomicRuntimeCommit, buildPendingRuntimeBatch } from "../../src/crawler/runtimeAtomicEvidence";
 
 const capturedAt = "2026-07-11T00:00:00.000Z";
 const entryUrl = "https://careers.example.test/cn/zh/search-results?keywords=China";
@@ -1876,6 +1883,98 @@ describe("Phenom evidence instrumentation", () => {
       truth: { transportSuccess: true, adapterSuccess: true, completenessVerified: true },
       observation: { structuredJobCount: 1, completenessStatus: "VERIFIED" },
       jobs: [{ locationRaw: "Shanghai, China", cities: ["上海"] }]
+    });
+    if (!fetched.fetchEvidence || !fetched.paginationEvaluation || !crawled.reconciliation) {
+      throw new Error("Expected complete GSK certificate inputs");
+    }
+    const declaration = fetched.fetchEvidence.declaredCompleteness!;
+    const officialArtifact = fetched.fetchEvidence.artifacts.find(
+      (artifact) => artifact.logicalKey === declaration.artifactLogicalKey
+    )!;
+    const certificateDecision = issueAGradeOfficialTotalCertificate({
+      binding: {
+        releaseCandidateId: "rc-gsk-e2e",
+        batchId: "batch-gsk-e2e",
+        sourceResultId: "result-gsk-e2e",
+        sourceConfigSha256: sourcePlanConfigSha256(stagedPlan)
+      },
+      plan: stagedPlan,
+      transportSuccess: crawled.truth.transportSuccess,
+      adapterSuccess: crawled.truth.adapterSuccess,
+      evidence: fetched.fetchEvidence,
+      paginationEvaluation: fetched.paginationEvaluation,
+      reconciliation: crawled.reconciliation,
+      jobs: crawled.jobs,
+      officialArtifactSha256: sha256Bytes(
+        typeof officialArtifact.body === "string"
+          ? Buffer.from(officialArtifact.body, "utf8")
+          : officialArtifact.body
+      ).sha256
+    });
+    expect(certificateDecision).toMatchObject({
+      status: "CERTIFIED",
+      certificate: { grade: "A", counts: { officialTotal: 1, finalUniqueJobCount: 1 } }
+    });
+    const sourceId = stagedPlan.source.id;
+    const identity = {
+      releaseCandidateId: "rc-gsk-e2e",
+      commitSha: "c".repeat(40),
+      rosterSha256: "d".repeat(64),
+      sourcePlanSha256: "e".repeat(64),
+      sourceConfigSha256: "f".repeat(64),
+      adapterBundleSha256: "1".repeat(64),
+      batchKind: "SCHEDULED" as const,
+      ownerId: "certificate-e2e",
+      expectedPlannedSourceIds: [sourceId],
+      expectedPlannedSourceSetSha256: canonicalStringSetSha256([sourceId]),
+      expectedPlannedSourceCount: 1
+    };
+    const batchId = "batch-gsk-e2e";
+    const pending = buildPendingRuntimeBatch(
+      batchId,
+      [stagedPlan],
+      identity,
+      new Date(capturedAt)
+    ).sources[0]!;
+    const artifacts = fetched.fetchEvidence.artifacts.map((artifact) => {
+      const bytes = typeof artifact.body === "string"
+        ? Buffer.from(artifact.body, "utf8")
+        : Buffer.from(artifact.body);
+      const digest = sha256Bytes(bytes);
+      return {
+        id: artifact.id,
+        logicalKey: artifact.logicalKey,
+        releaseCandidateId: identity.releaseCandidateId,
+        batchId,
+        sourceId,
+        sourceResultId: pending.id,
+        kind: artifact.kind,
+        ...(artifact.requestedUrl ? { requestedUrl: artifact.requestedUrl } : {}),
+        ...(artifact.finalUrl ? { finalUrl: artifact.finalUrl } : {}),
+        ...(artifact.httpStatus ? { httpStatus: artifact.httpStatus } : {}),
+        ...(artifact.contentType ? { contentType: artifact.contentType } : {}),
+        capturedAt: new Date(artifact.capturedAt),
+        sha256: digest.sha256,
+        byteCount: digest.byteCount,
+        path: `outputs/gsk/${artifact.id}`,
+        extractorLocator: artifact.extractorLocator,
+        captureToolName: fetched.fetchEvidence!.captureTool.name,
+        captureToolVersion: fetched.fetchEvidence!.captureTool.version
+      };
+    });
+    expect(buildAtomicRuntimeCommit({
+      plan: stagedPlan,
+      pending,
+      identity,
+      batchId,
+      result: crawled,
+      previousJobs: [],
+      baselineCompletedBeforeCrawl: true,
+      artifacts
+    }).sourceResult).toMatchObject({
+      completenessState: "VERIFIED",
+      completenessCertificateSha256: expect.stringMatching(/^[0-9a-f]{64}$/),
+      completenessCertificate: { grade: "A", binding: { sourceResultId: pending.id } }
     });
   });
 
