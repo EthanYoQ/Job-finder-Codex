@@ -98,18 +98,15 @@ printf 'psql-check\\n' >> "$EVENT_LOG"`
     FAKE_BIN: toPosixPath(binDir),
     EVENT_LOG: toPosixPath(eventLog),
     BACKUP_DIR: toPosixPath(backupDir),
-    BACKUP_ATTEMPT_RECEIPT_PATH: resolve(backupDir, "latest-backup-attempt.json"),
     BACKUP_RETENTION_DAYS: "14",
     DATABASE_URL: "postgresql://db:5432/jobfinder"
   };
 
   function run(scriptPath: string, args: string[] = [], env: NodeJS.ProcessEnv = {}) {
-    const backupAttemptReceiptPath = resolve(backupDir, "latest-backup-attempt.json");
     return spawnSync(
       gitShPath,
       ["-c", 'cd "$REPO_ROOT"; PATH="$FAKE_BIN:$PATH"; export PATH; exec sh "$@"', "harness", toPosixPath(scriptPath), ...args],
       { env: { ...baseEnv, REPO_ROOT: toPosixPath(repoRoot),
-        BACKUP_ATTEMPT_RECEIPT_PATH: backupAttemptReceiptPath,
         TMP: root, TEMP: root, TMPDIR: toPosixPath(root), ...env }, encoding: "utf8" }
     );
   }

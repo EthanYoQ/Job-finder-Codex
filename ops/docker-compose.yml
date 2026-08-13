@@ -271,7 +271,6 @@ services:
     environment:
       DATABASE_URL: ${DATABASE_URL:?set DATABASE_URL}
       BACKUP_DIR: ${BACKUP_DIR:-/backups}
-      BACKUP_ATTEMPT_RECEIPT_PATH: ${BACKUP_ATTEMPT_RECEIPT_PATH:-/backups/latest-backup-attempt.json}
       BACKUP_RETENTION_DAYS: ${BACKUP_RETENTION_DAYS:-14}
       BACKUP_INTERVAL_SECONDS: ${BACKUP_INTERVAL_SECONDS:-86400}
     volumes:
@@ -287,7 +286,7 @@ services:
       test:
         [
           "CMD-SHELL",
-          "node node_modules/tsx/dist/cli.mjs -e \"import {readBackupAttemptEvidence} from './src/ops/backupAttemptReceipt.ts'; const e=await readBackupAttemptEvidence(process.env.BACKUP_ATTEMPT_RECEIPT_PATH ?? '/backups/latest-backup-attempt.json'); if(e.latestBackupSucceeded!==true) process.exit(1)\""
+          "node node_modules/tsx/dist/cli.mjs -e \"import {readBackupAttemptEvidence} from './src/ops/backupAttemptReceipt.ts'; const e=await readBackupAttemptEvidence('/backups/latest-backup-attempt.json'); if(e.latestBackupSucceeded!==true) process.exit(1)\""
         ]
       interval: 5m
       timeout: 10s

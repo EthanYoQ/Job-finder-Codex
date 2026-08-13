@@ -2,6 +2,7 @@ import { createHash } from "node:crypto";
 import { constants } from "node:fs";
 import { access, lstat, open, readFile, readdir, type FileHandle } from "node:fs/promises";
 import { basename, resolve } from "node:path";
+import { pathToFileURL } from "node:url";
 import { evaluateOpsAlerts, type OpsAlertInput } from "../src/server/opsMonitoring";
 import { checkPostgresReadiness, DEFAULT_POSTGRES_READINESS_TIMEOUT_MS } from "../src/server/postgresReadiness";
 import { DEFAULT_CRAWL_SUMMARY_MAX_AGE_HOURS, readCrawlSummaryFile, type CrawlEvidenceIdentity } from "../src/crawler/crawlSummary";
@@ -24,7 +25,7 @@ interface JsonMap {
   [key: string]: unknown;
 }
 
-if (process.env.JOBFINDER_MONITORING_CHECK_IMPORT_ONLY !== "1") void runMonitoringCheck();
+if (process.argv[1] && pathToFileURL(process.argv[1]).href === import.meta.url) void runMonitoringCheck();
 
 export async function runMonitoringCheck(overrides: {
   databaseReachable?: boolean;

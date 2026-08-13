@@ -81,7 +81,7 @@ describe("production monitoring crawl evidence", () => {
     Object.assign(process.env, { STAGED_CRAWL_SUMMARY_PATH: summaryPath, STAGED_CRAWL_ATTEMPT_DIR: attemptDir,
       STAGED_INITIAL_QUALIFICATION_PAUSE_PATH: pausePath, BACKUP_DIR: backupRoot,
       MONITORING_NOW: "2026-08-13T02:01:00.000Z", MONITOR_STATE_DIR: resolve(root, "state"),
-      RESTORE_RECEIPT_PATH: resolve(root, "missing-restore.json"), JOBFINDER_MONITORING_CHECK_IMPORT_ONLY: "1" });
+      RESTORE_RECEIPT_PATH: resolve(root, "missing-restore.json") });
     const errors: string[] = [];
     vi.spyOn(console, "error").mockImplementation((...values) => errors.push(values.join(" ")));
     const { runMonitoringCheck } = await import("../../ops/monitoring-check");
