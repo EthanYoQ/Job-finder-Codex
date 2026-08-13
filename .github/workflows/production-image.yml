@@ -283,8 +283,17 @@ jobs:
           mv -f "$TEST_DIR/tls/fullchain.next" "$TEST_DIR/tls/fullchain.pem"
           docker exec "$NGINX_NAME" nginx -t
           docker exec "$NGINX_NAME" nginx -s reload
-          curl --fail --silent --cacert "$TEST_DIR/tls/fullchain.pem" --resolve "$TEST_HOST:18443:127.0.0.1" \
-            "https://$TEST_HOST:18443/livez" | grep --quiet '"ok":true'
+          RENEWED=0
+          for attempt in $(seq 1 30); do
+            if curl --fail --silent --connect-timeout 2 --max-time 3 \
+              --cacert "$TEST_DIR/tls/fullchain.pem" --resolve "$TEST_HOST:18443:127.0.0.1" \
+              "https://$TEST_HOST:18443/" | grep --quiet "host=$TEST_HOST"; then
+              RENEWED=1
+              break
+            fi
+            sleep 1
+          done
+          test "$RENEWED" = 1
           RATE_LIMITED=0
           for attempt in $(seq 1 12); do
             status="$(curl --silent --output /dev/null --write-out '%{http_code}' --cacert "$TEST_DIR/tls/fullchain.pem" \

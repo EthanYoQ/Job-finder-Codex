@@ -141,6 +141,23 @@ describe("production container contract", () => {
     expect(rateLimitProbe).toBeGreaterThan(tlsReload);
   });
 
+  it("waits boundedly for nginx workers to serve the renewed certificate", () => {
+    const workflow = read(".github/workflows/production-image.yml");
+    const reload = workflow.indexOf('docker exec "$NGINX_NAME" nginx -s reload');
+    const renewalSentinel = workflow.indexOf("RENEWED=0");
+    const renewalAssertion = workflow.indexOf('test "$RENEWED" = 1');
+    const renewalBlock = workflow.slice(reload, renewalAssertion + 'test "$RENEWED" = 1'.length);
+
+    expect(reload).toBeGreaterThan(-1);
+    expect(renewalSentinel).toBeGreaterThan(reload);
+    expect(renewalAssertion).toBeGreaterThan(renewalSentinel);
+    expect(renewalBlock.match(/for attempt in \$\(seq 1 30\); do/gu)).toHaveLength(1);
+    expect(renewalBlock).toContain("--connect-timeout 2 --max-time 3");
+    expect(renewalBlock).toContain('--cacert "$TEST_DIR/tls/fullchain.pem"');
+    expect(renewalBlock).toContain('"https://$TEST_HOST:18443/" | grep --quiet "host=$TEST_HOST"');
+    expect(renewalBlock).toContain("sleep 1");
+  });
+
   it("provides a repeatable clean Linux build and startup smoke workflow", () => {
     const workflow = read(".github/workflows/production-image.yml");
 
