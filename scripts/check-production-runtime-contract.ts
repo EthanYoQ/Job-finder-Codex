@@ -9,7 +9,7 @@ const browserRequired = plans.some((plan) =>
 );
 const dockerfile = readFileSync("Dockerfile", "utf8");
 const runtimeStage = dockerfile.match(
-  /FROM node:22-bookworm-slim@sha256:[a-f0-9]{64} AS runtime\b([\s\S]*?)(?=\nFROM\s|$)/u
+  /FROM node:22-trixie-slim@sha256:[a-f0-9]{64} AS runtime\b([\s\S]*?)(?=\nFROM\s|$)/u
 )?.[1];
 if (!runtimeStage) throw new Error("Production image is missing its pinned runtime stage");
 const chromiumInstalled = /install-apt-packages\.sh[^\n]*\bchromium\b/u.test(runtimeStage);

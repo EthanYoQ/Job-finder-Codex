@@ -22,7 +22,7 @@ describe("offline Prisma engine image contract",()=>{
 
   it("generates a usable Prisma client only after the schema is present in the dependency stage",()=>{
     const source=dockerfile();
-    const depsStage=source.split(/^FROM node:22-bookworm-slim@sha256:[a-f0-9]{64} AS deps$/mu)[1]
+    const depsStage=source.split(/^FROM node:22-trixie-slim@sha256:[a-f0-9]{64} AS deps$/mu)[1]
       ?.split(/^FROM deps AS build$/mu)[0];
 
     expect(depsStage).toBeDefined();

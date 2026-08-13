@@ -15,7 +15,7 @@ describe("browser-backed crawler runtime dependencies", () => {
   it("installs a production browser and exposes the fixed-path smoke command for a later no-network container run", () => {
     const dockerfile = readFileSync("Dockerfile", "utf8");
     expect(dockerfile).toContain("chromium");
-    const runtimeStage = dockerfile.split(/^FROM node:22-bookworm-slim(?:@sha256:[a-f0-9]{64})? AS runtime$/mu)[1];
+    const runtimeStage = dockerfile.split(/^FROM node:22-trixie-slim(?:@sha256:[a-f0-9]{64})? AS runtime$/mu)[1];
     expect(runtimeStage).toMatch(
       /sh \/usr\/local\/bin\/install-apt-packages\.sh[^\n]*ca-certificates[^\n]*chromium/u,
     );
@@ -39,7 +39,7 @@ describe("browser-backed crawler runtime dependencies", () => {
 
   it("binds browser state directories to the writable tmpfs used by the hardened runtime", () => {
     const dockerfile = readFileSync("Dockerfile", "utf8");
-    const runtimeStage = dockerfile.split(/^FROM node:22-bookworm-slim(?:@sha256:[a-f0-9]{64})? AS runtime$/mu)[1];
+    const runtimeStage = dockerfile.split(/^FROM node:22-trixie-slim(?:@sha256:[a-f0-9]{64})? AS runtime$/mu)[1];
 
     expect(runtimeStage).toBeDefined();
     expect(runtimeStage).toMatch(/^ENV HOME=\/tmp$/mu);

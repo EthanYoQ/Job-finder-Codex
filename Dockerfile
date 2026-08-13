@@ -2,7 +2,7 @@
 
 FROM postgres:16-bookworm@sha256:da788743d2060767375896de4d646f7576f5911461444b372616f19ea61db2ec AS pg16-client
 
-FROM node:22-bookworm-slim@sha256:53ada149d435c38b14476cb57e4a7da73c15595aba79bd6971b547ceb6d018bf AS deps
+FROM node:22-trixie-slim@sha256:db8a96a63e5264607ada2d206758876ebbed6a12be2ada7517793cbfb0c2a29c AS deps
 WORKDIR /app
 COPY ops/install-apt-packages.sh /usr/local/bin/install-apt-packages.sh
 COPY package.json ./package.json
@@ -39,7 +39,7 @@ COPY prisma ./prisma
 COPY ops ./ops
 RUN npm run build
 
-FROM node:22-bookworm-slim@sha256:53ada149d435c38b14476cb57e4a7da73c15595aba79bd6971b547ceb6d018bf AS production-deps
+FROM node:22-trixie-slim@sha256:db8a96a63e5264607ada2d206758876ebbed6a12be2ada7517793cbfb0c2a29c AS production-deps
 WORKDIR /app
 ENV NODE_ENV=production
 COPY package.json ./package.json
@@ -57,7 +57,7 @@ RUN rm -rf /app/node_modules
 COPY --from=production-deps /app/node_modules ./node_modules
 RUN npx tsx scripts/generate-build-identity.ts --commit=${BUILD_COMMIT_SHA} --clean-provenance=${BUILD_SOURCE_CLEAN} --source-tree-sha256=${BUILD_SOURCE_TREE_SHA256}
 
-FROM node:22-bookworm-slim@sha256:53ada149d435c38b14476cb57e4a7da73c15595aba79bd6971b547ceb6d018bf AS runtime
+FROM node:22-trixie-slim@sha256:db8a96a63e5264607ada2d206758876ebbed6a12be2ada7517793cbfb0c2a29c AS runtime
 WORKDIR /app
 ENV NODE_ENV=production
 ENV HOST=0.0.0.0
@@ -94,7 +94,6 @@ LABEL org.opencontainers.image.title="Job Finder" \
   org.opencontainers.image.revision="${BUILD_COMMIT_SHA}" \
   io.jobfinder.source-tree-sha256="${BUILD_SOURCE_TREE_SHA256}"
 COPY --from=identity /app/package.json ./package.json
-COPY --from=identity /app/package-lock.json ./package-lock.json
 COPY --from=identity /app/node_modules ./node_modules
 COPY --from=identity /app/dist ./dist
 COPY --from=identity /app/ops ./ops
