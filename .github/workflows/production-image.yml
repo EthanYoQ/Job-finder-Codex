@@ -11,7 +11,7 @@ permissions:
 jobs:
   clean-build-and-smoke:
     runs-on: ubuntu-24.04
-    timeout-minutes: 25
+    timeout-minutes: 30
     env:
       IMAGE_TAG: job-finder:${{ github.sha }}
       # Measured clean image: 1,537,937,087 bytes; keep a narrow regression budget.
@@ -108,6 +108,105 @@ jobs:
           done
           docker logs "$CONTAINER_ID"
           exit 1
+
+      - name: Qualify TLS ingress behavior and renewal visibility
+        run: |
+          set -euo pipefail
+          NETWORK="job-finder-ingress-${{ github.run_id }}"
+          WEB_NAME="job-finder-ingress-web-${{ github.run_id }}"
+          NGINX_NAME="job-finder-ingress-nginx-${{ github.run_id }}"
+          TEST_HOST="jobs.example.test"
+          TEST_DIR="$PWD/.runtime/ingress"
+          mkdir -p "$TEST_DIR/tls"
+          chmod 0777 "$TEST_DIR"
+          cat > "$TEST_DIR/backend.mjs" <<'EOF'
+          import { existsSync } from "node:fs";
+          import { createServer } from "node:http";
+          createServer((request, response) => {
+            if (request.url === "/readyz") {
+              const ready = !existsSync("/tmp/not-ready");
+              response.writeHead(ready ? 200 : 503, { "content-type": "application/json" });
+              response.end(JSON.stringify({ ok: ready }));
+              return;
+            }
+            if (request.url === "/livez" || request.url === "/healthz") {
+              response.writeHead(200, { "content-type": "application/json" });
+              response.end('{"ok":true}');
+              return;
+            }
+            response.writeHead(200, { "content-type": "text/plain" });
+            response.end(`host=${request.headers.host};xff=${request.headers["x-forwarded-for"] ?? ""}`);
+          }).listen(3000, "0.0.0.0");
+          EOF
+          openssl req -x509 -newkey rsa:2048 -nodes -days 1 -subj "/CN=$TEST_HOST" \
+            -addext "subjectAltName=DNS:$TEST_HOST" -keyout "$TEST_DIR/tls/privkey.pem" \
+            -out "$TEST_DIR/tls/fullchain.pem" >/dev/null 2>&1
+          docker network create "$NETWORK"
+          trap 'docker rm --force "$NGINX_NAME" "$WEB_NAME" >/dev/null 2>&1 || true; docker network rm "$NETWORK" >/dev/null 2>&1 || true' EXIT
+          docker run --detach --name "$WEB_NAME" --network "$NETWORK" --network-alias web \
+            --volume "$TEST_DIR/backend.mjs:/tmp/backend.mjs:ro" "$IMAGE_TAG" node /tmp/backend.mjs
+          docker run --detach --name "$NGINX_NAME" --network "$NETWORK" \
+            --publish 127.0.0.1:18080:80 --publish 127.0.0.1:18443:443 \
+            --env PUBLIC_HOSTNAME="$TEST_HOST" --env 'NGINX_ENVSUBST_FILTER=^PUBLIC_HOSTNAME$' \
+            --volume "$PWD/ops/nginx.conf:/etc/nginx/templates/default.conf.template:ro" \
+            --volume "$TEST_DIR/tls:/run/tls:ro" \
+            nginx:1.27-alpine@sha256:65645c7bb6a0661892a8b03b89d0743208a18dd2f3f17a54ef4b76fb8e2f2a10
+          READY=0
+          for attempt in $(seq 1 30); do
+            if docker exec "$NGINX_NAME" nginx -t && curl --fail --silent --cacert "$TEST_DIR/tls/fullchain.pem" \
+              --resolve "$TEST_HOST:18443:127.0.0.1" "https://$TEST_HOST:18443/livez" | grep --quiet '"ok":true'; then
+              READY=1
+              break
+            fi
+            sleep 1
+          done
+          test "$READY" = 1
+          mkdir -p "$TEST_DIR/invalid-tls"
+          cp "$TEST_DIR/tls/fullchain.pem" "$TEST_DIR/invalid-tls/fullchain.pem"
+          openssl genrsa -out "$TEST_DIR/invalid-tls/privkey.pem" 2048 >/dev/null 2>&1
+          if docker run --rm --network "$NETWORK" --add-host web:127.0.0.1 \
+            --env PUBLIC_HOSTNAME="$TEST_HOST" --env 'NGINX_ENVSUBST_FILTER=^PUBLIC_HOSTNAME$' \
+            --volume "$PWD/ops/nginx.conf:/etc/nginx/templates/default.conf.template:ro" \
+            --volume "$TEST_DIR/invalid-tls:/run/tls:ro" \
+            nginx:1.27-alpine@sha256:65645c7bb6a0661892a8b03b89d0743208a18dd2f3f17a54ef4b76fb8e2f2a10 nginx -t; then
+            echo "nginx accepted a certificate/private-key mismatch" >&2
+            exit 1
+          fi
+          REDIRECT_HEADERS="$(curl --silent --show-error --head --header "Host: $TEST_HOST" 'http://127.0.0.1:18080/path?q=1')"
+          grep --quiet '^HTTP/1.1 308' <<<"$REDIRECT_HEADERS"
+          grep --quiet "^Location: https://$TEST_HOST/path?q=1" <<<"$REDIRECT_HEADERS"
+          test "$(curl --silent --output /dev/null --write-out '%{http_code}' --header 'Host: attacker.example' http://127.0.0.1:18080/ || true)" = 000
+          test "$(curl --insecure --silent --output /dev/null --write-out '%{http_code}' \
+            --resolve 'attacker.example:18443:127.0.0.1' 'https://attacker.example:18443/' || true)" = 000
+          BODY="$(curl --fail --silent --cacert "$TEST_DIR/tls/fullchain.pem" --resolve "$TEST_HOST:18443:127.0.0.1" \
+            --header 'X-Forwarded-For: 203.0.113.9' "https://$TEST_HOST:18443/")"
+          grep --quiet "host=$TEST_HOST" <<<"$BODY"
+          ! grep --quiet 'xff=203.0.113.9' <<<"$BODY"
+          head --bytes 1048577 /dev/zero > "$TEST_DIR/oversize.bin"
+          test "$(curl --silent --output /dev/null --write-out '%{http_code}' --cacert "$TEST_DIR/tls/fullchain.pem" \
+            --resolve "$TEST_HOST:18443:127.0.0.1" --data-binary @"$TEST_DIR/oversize.bin" "https://$TEST_HOST:18443/api/test")" = 413
+          RATE_LIMITED=0
+          for attempt in $(seq 1 12); do
+            status="$(curl --silent --output /dev/null --write-out '%{http_code}' --cacert "$TEST_DIR/tls/fullchain.pem" \
+              --resolve "$TEST_HOST:18443:127.0.0.1" "https://$TEST_HOST:18443/healthz")"
+            if test "$status" = 429; then RATE_LIMITED=1; break; fi
+          done
+          test "$RATE_LIMITED" = 1
+          docker exec "$WEB_NAME" touch /tmp/not-ready
+          test "$(curl --silent --output /dev/null --write-out '%{http_code}' --cacert "$TEST_DIR/tls/fullchain.pem" \
+            --resolve "$TEST_HOST:18443:127.0.0.1" "https://$TEST_HOST:18443/")" = 503
+          curl --fail --silent --cacert "$TEST_DIR/tls/fullchain.pem" --resolve "$TEST_HOST:18443:127.0.0.1" \
+            "https://$TEST_HOST:18443/livez" | grep --quiet '"ok":true'
+          docker exec "$WEB_NAME" rm /tmp/not-ready
+          openssl req -x509 -newkey rsa:2048 -nodes -days 1 -subj "/CN=$TEST_HOST" \
+            -addext "subjectAltName=DNS:$TEST_HOST" -keyout "$TEST_DIR/tls/privkey.next" \
+            -out "$TEST_DIR/tls/fullchain.next" >/dev/null 2>&1
+          mv -f "$TEST_DIR/tls/privkey.next" "$TEST_DIR/tls/privkey.pem"
+          mv -f "$TEST_DIR/tls/fullchain.next" "$TEST_DIR/tls/fullchain.pem"
+          docker exec "$NGINX_NAME" nginx -t
+          docker exec "$NGINX_NAME" nginx -s reload
+          curl --fail --silent --cacert "$TEST_DIR/tls/fullchain.pem" --resolve "$TEST_HOST:18443:127.0.0.1" \
+            "https://$TEST_HOST:18443/livez" | grep --quiet '"ok":true'
 
       - name: Prove production bootstrap idempotence and readiness against blank PostgreSQL
         run: |

@@ -177,22 +177,19 @@ services:
     ports:
       - "${HTTP_PORT:-80}:80"
       - "${HTTPS_PORT:-443}:443"
+    environment:
+      PUBLIC_HOSTNAME: ${PUBLIC_HOSTNAME:?set PUBLIC_HOSTNAME}
+      NGINX_ENVSUBST_FILTER: ^PUBLIC_HOSTNAME$
     volumes:
       - type: bind
         source: ./nginx.conf
-        target: /etc/nginx/conf.d/default.conf
+        target: /etc/nginx/templates/default.conf.template
         read_only: true
         bind:
           create_host_path: false
       - type: bind
-        source: ${TLS_CERTIFICATE_FILE:-./tls-not-configured/fullchain.pem}
-        target: /run/tls/fullchain.pem
-        read_only: true
-        bind:
-          create_host_path: false
-      - type: bind
-        source: ${TLS_PRIVATE_KEY_FILE:-./tls-not-configured/privkey.pem}
-        target: /run/tls/privkey.pem
+        source: ${TLS_DIRECTORY:-./tls-not-configured}
+        target: /run/tls
         read_only: true
         bind:
           create_host_path: false

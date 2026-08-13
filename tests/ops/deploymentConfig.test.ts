@@ -67,6 +67,7 @@ function renderCompose(env: NodeJS.ProcessEnv = {}): string {
       P0_FULL_RELEASE_ORACLE_FILE: "/evidence/oracle.json",
       P0_FULL_RELEASE_ORACLE_FILE_SHA256: "4".repeat(64),
       POSTGRES_PASSWORD: "secret",
+      PUBLIC_HOSTNAME: "jobs.example.test",
       ...env
     },
     stdio: ["ignore", "pipe", "pipe"]
@@ -81,7 +82,8 @@ function renderBaseComposeWithoutManualAuthority(): string {
     BUILD_SOURCE_TREE_SHA256: "2".repeat(64),
     ALERT_WEBHOOK_URL: "https://alerts.example.invalid/job-finder",
     DATABASE_URL: "postgresql://jobfinder:secret@postgres:5432/jobfinder?schema=public",
-    POSTGRES_PASSWORD: "secret"
+    POSTGRES_PASSWORD: "secret",
+    PUBLIC_HOSTNAME: "jobs.example.test"
   };
   for (const name of [
     "P0_FULL_RELEASE_MEMBERSHIP_FILE",
@@ -264,6 +266,7 @@ describe("deployment configuration", () => {
     expect(nginx).toContain("ssl_certificate /run/tls/fullchain.pem");
     expect(nginx).toContain("ssl_certificate_key /run/tls/privkey.pem");
     expect(nginx).toMatch(/client_max_body_size\s+1m/);
+    expect(nginx).toMatch(/client_body_timeout\s+10s/);
     expect(nginx).toMatch(/proxy_connect_timeout\s+5s/);
     expect(nginx).toMatch(/proxy_read_timeout\s+30s/);
     expect(nginx).toMatch(/proxy_send_timeout\s+30s/);
@@ -272,14 +275,33 @@ describe("deployment configuration", () => {
   it("publishes only nginx HTTP/TLS ports and mounts TLS material read-only", () => {
     const compose = readRequiredFile(composePath);
     const nginx = readComposeService(compose, "nginx");
-    expect(nginx).toContain('target: /run/tls/fullchain.pem');
-    expect(nginx).toContain('target: /run/tls/privkey.pem');
-    expect(nginx.match(/read_only:\s*true/gu)).toHaveLength(3);
+    expect(nginx).toContain('source: ${TLS_DIRECTORY:-./tls-not-configured}');
+    expect(nginx).toContain('target: /run/tls');
+    expect(nginx.match(/read_only:\s*true/gu)).toHaveLength(2);
     expect(nginx).toContain('${HTTP_PORT:-80}:80');
     expect(nginx).toContain('${HTTPS_PORT:-443}:443');
     for (const serviceName of ["postgres", "web", "worker", "scheduler"]) {
       expect(readComposeService(compose, serviceName)).not.toContain("ports:");
     }
+  });
+
+  it("binds ingress to one hostname and gates ordinary traffic on live readiness", () => {
+    const nginx = readRequiredFile(nginxPath);
+    const compose = readRequiredFile(composePath);
+    const ingress = readComposeService(compose, "nginx");
+
+    expect(nginx).toContain('listen 80 default_server;');
+    expect(nginx).toContain('listen 443 ssl default_server;');
+    expect(nginx).toMatch(/server_name "";\s*return 444;/u);
+    expect(nginx).toMatch(/server_name \$\{PUBLIC_HOSTNAME\};/u);
+    expect(nginx).toContain('return 308 https://$server_name$request_uri;');
+    expect(nginx).not.toContain('https://$host');
+    expect(nginx).toContain('proxy_set_header Host $server_name;');
+    expect(nginx).toContain('auth_request /__readiness_gate;');
+    expect(nginx).toContain('error_page 500 =503 @ingress_not_ready;');
+    expect(nginx).toMatch(/location = \/__readiness_gate \{[\s\S]*internal;[\s\S]*proxy_pass http:\/\/jobfinder_web\/readyz;/u);
+    expect(ingress).toContain('PUBLIC_HOSTNAME: ${PUBLIC_HOSTNAME:?set PUBLIC_HOSTNAME}');
+    expect(ingress).toContain('target: /etc/nginx/templates/default.conf.template');
   });
 
   it("rate-limits the exact public health endpoint without changing the internal web healthcheck", () => {
