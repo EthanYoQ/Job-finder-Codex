@@ -14,17 +14,76 @@ fi
 
 work_root="$PWD/.runtime/formal-work"
 state_root="$PWD/.runtime/formal-state"
+runner_status_root="$PWD/.runtime/formal-runner-status"
 input_root="$PWD/.runtime/formal-input"
 qualification_root="$PWD/.runtime/formal-qualification-input"
 network="job-finder-formal-${GITHUB_RUN_ID}"
 postgres_name="job-finder-formal-postgres-${GITHUB_RUN_ID}"
 database_url="postgresql://jobfinder:formal-qualification-password@postgres/jobfinder?schema=public"
+postgres_network_database_url="${database_url%%\?*}"
 admin_email="qualification-owner@example.com"
 admin_hash='scrypt$aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa$bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb'
 postgres_image='postgres:16-bookworm@sha256:da788743d2060767375896de4d646f7576f5911461444b372616f19ea61db2ec'
 
 mkdir -p "$work_root" "$state_root" "$qualification_root"
 chmod 0777 "$work_root" "$state_root"
+if [ -e "$runner_status_root" ] || [ -L "$runner_status_root" ]; then
+  test -d "$runner_status_root"
+  test ! -L "$runner_status_root"
+else
+  mkdir "$runner_status_root"
+fi
+chmod 0700 "$runner_status_root"
+test "$(stat --format=%u -- "$runner_status_root")" = "$(id -u)"
+
+if [ "$FORMAL_ROUND" = 1 ]; then
+  runner_status_path="$runner_status_root/round-one-runner-status.json"
+else
+  runner_status_path="$runner_status_root/round-two-runner-status.json"
+fi
+runner_stage=INITIALIZING
+
+write_runner_status() {
+  status="$1"
+  exit_code="$2"
+  status_temp="$runner_status_path.partial"
+  updated_at="$(date -u '+%Y-%m-%dT%H:%M:%SZ')" || return 1
+  printf '{"schemaVersion":1,"formalRound":%s,"status":"%s","stage":"%s","exitCode":%s,"updatedAt":"%s"}\n' \
+    "$FORMAL_ROUND" "$status" "$runner_stage" "$exit_code" "$updated_at" > "$status_temp" || return 1
+  chmod 0600 "$status_temp" || return 1
+  mv -f "$status_temp" "$runner_status_path" || return 1
+}
+
+set_runner_stage() {
+  runner_stage="$1"
+  write_runner_status RUNNING 0
+}
+
+cleanup() {
+  docker rm --force "$postgres_name" >/dev/null 2>&1 || true
+  docker network rm "$network" >/dev/null 2>&1 || true
+}
+
+on_exit() {
+  exit_code="$1"
+  trap - EXIT
+  cleanup
+  if [ "$exit_code" -eq 0 ]; then runner_status=PASSED; else runner_status=FAILED; fi
+  rm -f -- "$runner_status_path" "$runner_status_path.partial"
+  if ! write_runner_status "$runner_status" "$exit_code"; then
+    echo "Failed to write formal qualification runner status" >&2
+    rm -f -- "$runner_status_path" "$runner_status_path.partial"
+    if [ "$exit_code" -eq 0 ]; then exit_code=1; fi
+  fi
+  exit "$exit_code"
+}
+
+trap 'on_exit $?' EXIT
+trap 'exit 129' HUP
+trap 'exit 130' INT
+trap 'exit 143' TERM
+write_runner_status RUNNING 0
+
 cp "$PWD/.runtime/image-qualification-receipt.json" "$qualification_root/image-qualification-receipt.json"
 cp "$PWD/.runtime/security/production-security-receipt.json" "$qualification_root/production-security-receipt.json"
 cp "$PWD/.runtime/restore/restore-pass-receipt.json" "$qualification_root/restore-pass-receipt.json"
@@ -60,11 +119,6 @@ normalize_formal_file() {
   test -r "$file"
 }
 
-cleanup() {
-  docker rm --force "$postgres_name" >/dev/null 2>&1 || true
-  docker network rm "$network" >/dev/null 2>&1 || true
-}
-
 run_image() {
   docker run --rm --network "$network" --read-only --cap-drop ALL \
     --security-opt no-new-privileges:true --tmpfs /tmp:rw,nosuid,nodev,noexec,size=1g,mode=1777 \
@@ -72,15 +126,12 @@ run_image() {
     --env ADMIN_PASSWORD_HASH="$admin_hash" "$IMAGE_TAG" "$@"
 }
 
-trap cleanup EXIT
-trap 'exit 129' HUP
-trap 'exit 130' INT
-trap 'exit 143' TERM
-
+set_runner_stage POSTGRES_START
 docker network create "$network" >/dev/null
 docker run --detach --name "$postgres_name" --network "$network" --network-alias postgres \
   --env POSTGRES_DB=jobfinder --env POSTGRES_USER=jobfinder \
   --env POSTGRES_PASSWORD=formal-qualification-password "$postgres_image" >/dev/null
+set_runner_stage POSTGRES_INTERNAL_READY
 postgres_ready=0
 for attempt in $(seq 1 60); do
   if docker exec "$postgres_name" pg_isready -U jobfinder -d jobfinder >/dev/null; then postgres_ready=1; break; fi
@@ -88,9 +139,10 @@ for attempt in $(seq 1 60); do
 done
 test "$postgres_ready" = 1
 
+set_runner_stage POSTGRES_NETWORK_READY
 postgres_network_ready=0
 for attempt in $(seq 1 60); do
-  if postgres_network_probe="$(run_image psql --no-psqlrc --dbname="$database_url" \
+  if postgres_network_probe="$(run_image psql --no-psqlrc --dbname="$postgres_network_database_url" \
     --tuples-only --no-align --command='SELECT 1')"; then
     if [ "$postgres_network_probe" = 1 ]; then
       postgres_network_ready=1
@@ -139,6 +191,7 @@ archive_evidence() {
 }
 
 if [ "$FORMAL_ROUND" = 1 ]; then
+  set_runner_stage ROUND_ONE_BOOTSTRAP
   run_image node node_modules/tsx/dist/cli.mjs scripts/ops-bootstrap.ts
   dump_database initial-migrated.dump
   normalize_formal_file "$state_root/initial-migrated.dump"
@@ -154,12 +207,15 @@ if [ "$FORMAL_ROUND" = 1 ]; then
     --db-snapshot-sha256 "$db_snapshot_sha256" --schema-sha256 "$schema_sha256" \
     --migration-version "$migration_version"
 
+  set_runner_stage ROUND_ONE_CRAWL
   crawl_exit=0
   run_crawl || crawl_exit=$?
   audit_exit=0
+  set_runner_stage ROUND_ONE_AUDIT
   run_audit round-one-audit.json || audit_exit=$?
   dump_database round-one.dump
   archive_evidence round-one-evidence.tar.gz
+  set_runner_stage ROUND_ONE_STATE_CAPTURE
   docker run --rm --network "$network" --read-only --cap-drop ALL --security-opt no-new-privileges:true \
     --tmpfs /tmp:rw,nosuid,nodev,noexec,size=64m,mode=1777 \
     --env DATABASE_URL="$database_url" --env GITHUB_REPOSITORY="$GITHUB_REPOSITORY" \
@@ -186,6 +242,7 @@ if [ "$FORMAL_ROUND" = 1 ]; then
   test "$audit_exit" -eq 0
   test "$decision" = ROUND_ONE_QUALIFIED
 else
+  set_runner_stage ROUND_TWO_RESTORE
   : "${ROUND_ONE_RUN_ID:?set ROUND_ONE_RUN_ID for round two}"
   test -d "$input_root"
   for input_file in round-one.dump round-one-audit.json round-one-evidence.tar.gz \
@@ -224,9 +281,11 @@ else
     chmod 0600 "$state_root/$input_file"
   done
 
+  set_runner_stage ROUND_TWO_CRAWL
   crawl_exit=0
   run_crawl || crawl_exit=$?
   audit_exit=0
+  set_runner_stage ROUND_TWO_AUDIT
   run_audit round-two-audit.json || audit_exit=$?
   archive_evidence round-two-evidence.tar.gz
   final_backup_root="$state_root/final-backup"
@@ -258,6 +317,7 @@ else
     scripts/write-image-qualification-receipt.ts /state/final-image-qualification-receipt.json \
     "$image_digest" "$GITHUB_SHA" /app/build-identity.json /qualification/production-security-receipt.json \
     /state/final-restore-receipt.json
+  set_runner_stage ROUND_TWO_LAUNCH_RECEIPT
   launch_exit=0
   docker run --rm --network "$network" --read-only --cap-drop ALL --security-opt no-new-privileges:true \
     --tmpfs /tmp:rw,nosuid,nodev,noexec,size=64m,mode=1777 \

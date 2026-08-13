@@ -38,7 +38,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-          mkdir -p .runtime/formal-input .runtime/formal-state .runtime/formal-work
+          mkdir -p .runtime/formal-input .runtime/formal-state .runtime/formal-work .runtime/formal-runner-status
           if test "${GITHUB_REF_NAME}" = qualification/launch-cohort-round-1; then
             echo 'FORMAL_ROUND=1' >> "$GITHUB_ENV"
           elif test "${GITHUB_REF_NAME}" = qualification/launch-cohort-round-2; then
@@ -525,6 +525,15 @@ jobs:
           path: .runtime/formal-state/round-one-*
           if-no-files-found: error
           retention-days: 4
+
+      - name: Preserve Launch Cohort runner diagnostics
+        if: always() && (github.ref == 'refs/heads/qualification/launch-cohort-round-1' || github.ref == 'refs/heads/qualification/launch-cohort-round-2')
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: launch-cohort-runner-round-${{ env.FORMAL_ROUND }}-${{ github.sha }}
+          path: .runtime/formal-runner-status/*.json
+          if-no-files-found: error
+          retention-days: 14
 
       - name: Preserve Launch Cohort final evidence
         if: always() && github.ref == 'refs/heads/qualification/launch-cohort-round-2'

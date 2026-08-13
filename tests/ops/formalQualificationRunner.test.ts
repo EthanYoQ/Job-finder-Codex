@@ -169,7 +169,16 @@ describe("formal Launch Cohort qualification runner", () => {
     expect(result.status, result.stderr).toBe(0);
     expect(readFileSync(resolve(harness.runtime, "formal-state", "round-one-state-receipt.json"), "utf8")).toContain("ROUND_ONE_QUALIFIED");
     expect(readFileSync(resolve(harness.runtime, "formal-state", "round-one-qualified-image.tar.gz"))).not.toHaveLength(0);
+    expect(JSON.parse(readFileSync(resolve(harness.runtime, "formal-runner-status", "round-one-runner-status.json"), "utf8"))).toMatchObject({
+      formalRound: 1,
+      status: "PASSED",
+      exitCode: 0
+    });
     const events = readFileSync(harness.eventLog, "utf8");
+    const networkProbes = events.split("\n").filter((line) => line.includes("psql --no-psqlrc --dbname="));
+    expect(networkProbes).toHaveLength(1);
+    expect(networkProbes[0]).toContain("--dbname=postgresql://jobfinder:formal-qualification-password@postgres/jobfinder ");
+    expect(networkProbes[0]).not.toContain("--dbname=postgresql://jobfinder:formal-qualification-password@postgres/jobfinder?schema=public");
     expect(events.indexOf("scripts/p0-staged-crawl.ts")).toBeLessThan(events.indexOf("scripts/p0-fixed-cohort-audit.ts"));
     expect(events.indexOf("scripts/p0-fixed-cohort-audit.ts")).toBeLessThan(events.indexOf("p0-formal-qualification-state.ts capture"));
     expect(events).toContain("rm --force job-finder-formal-postgres-12345");
@@ -180,6 +189,11 @@ describe("formal Launch Cohort qualification runner", () => {
     const harness = createHarness(1);
     const result = harness.run({ FAKE_CRAWL_EXIT: "17" });
     expect(result.status).toBe(1);
+    expect(JSON.parse(readFileSync(resolve(harness.runtime, "formal-runner-status", "round-one-runner-status.json"), "utf8"))).toMatchObject({
+      status: "FAILED",
+      stage: "ROUND_ONE_STATE_CAPTURE",
+      exitCode: 1
+    });
     expect(readFileSync(resolve(harness.runtime, "formal-state", "round-one-state-receipt.json"), "utf8")).toContain("ROUND_ONE_QUALIFIED");
     const events = readFileSync(harness.eventLog, "utf8");
     expect(events).toContain("scripts/p0-fixed-cohort-audit.ts");
@@ -192,8 +206,16 @@ describe("formal Launch Cohort qualification runner", () => {
     const result = harness.run({ FAKE_EXTERNAL_READY: "0" });
     expect(result.status).toBe(1);
     const events = readFileSync(harness.eventLog, "utf8");
-    expect(events.match(/psql --no-psqlrc --dbname=/gu)).toHaveLength(60);
+    const networkProbes = events.split("\n").filter((line) => line.includes("psql --no-psqlrc --dbname="));
+    expect(networkProbes).toHaveLength(60);
+    expect(networkProbes.every((line) => line.includes("--dbname=postgresql://jobfinder:formal-qualification-password@postgres/jobfinder "))).toBe(true);
+    expect(networkProbes.every((line) => !line.includes("--dbname=postgresql://jobfinder:formal-qualification-password@postgres/jobfinder?schema=public"))).toBe(true);
     expect(events).not.toContain("scripts/ops-bootstrap.ts");
+    expect(JSON.parse(readFileSync(resolve(harness.runtime, "formal-runner-status", "round-one-runner-status.json"), "utf8"))).toMatchObject({
+      status: "FAILED",
+      stage: "POSTGRES_NETWORK_READY",
+      exitCode: 1
+    });
     expect(events).toContain("rm --force job-finder-formal-postgres-12345");
     expect(events).toContain("network rm job-finder-formal-12345");
   });
@@ -203,7 +225,9 @@ describe("formal Launch Cohort qualification runner", () => {
     const result = harness.run({ FAKE_EXTERNAL_EXIT_AFTER_OUTPUT: "9" });
     expect(result.status).toBe(1);
     const events = readFileSync(harness.eventLog, "utf8");
-    expect(events.match(/psql --no-psqlrc --dbname=/gu)).toHaveLength(60);
+    const networkProbes = events.split("\n").filter((line) => line.includes("psql --no-psqlrc --dbname="));
+    expect(networkProbes).toHaveLength(60);
+    expect(networkProbes.every((line) => !line.includes("--dbname=postgresql://jobfinder:formal-qualification-password@postgres/jobfinder?schema=public"))).toBe(true);
     expect(events).not.toContain("scripts/ops-bootstrap.ts");
     expect(events).toContain("rm --force job-finder-formal-postgres-12345");
   });
@@ -213,6 +237,11 @@ describe("formal Launch Cohort qualification runner", () => {
     const result = harness.run();
     expect(result.status, result.stderr).toBe(0);
     expect(readFileSync(resolve(harness.runtime, "formal-state", "launch-receipt.json"), "utf8")).toContain("READY");
+    expect(JSON.parse(readFileSync(resolve(harness.runtime, "formal-runner-status", "round-two-runner-status.json"), "utf8"))).toMatchObject({
+      formalRound: 2,
+      status: "PASSED",
+      exitCode: 0
+    });
     const events = readFileSync(harness.eventLog, "utf8");
     const verifyFiles = events.indexOf("p0-formal-qualification-state.ts verify-files");
     const restore = events.indexOf("pg_restore", verifyFiles);
@@ -229,5 +258,6 @@ describe("formal Launch Cohort qualification runner", () => {
     expect(qualifyRestore).toBeGreaterThan(backup);
     expect(ready).toBeGreaterThan(qualifyRestore);
     expect(events).toContain("rm --force job-finder-formal-postgres-12345");
+    expect(events).not.toContain("formal-runner-status:/");
   });
 });
