@@ -137,6 +137,9 @@ function summarizePagination(source: FixedCohortAuditSourceInput): Array<{ chann
     if (page.channelId !== null && !source.officialChannelIds.includes(page.channelId)) return null;
     const key = page.channelId ?? "\0SOURCE", rows = groups.get(key) ?? []; rows.push(page); groups.set(key, rows);
   }
+  const observedChannelIds = [...groups.keys()].filter((key) => key !== "\0SOURCE").sort(compare);
+  if (groups.has("\0SOURCE") && source.officialChannelIds.length > 0 ||
+      JSON.stringify(observedChannelIds) !== JSON.stringify([...source.officialChannelIds].sort(compare))) return null;
   const summaries = [];
   for (const [key, rows] of [...groups].sort(([left], [right]) => compare(left, right))) {
     rows.sort((left, right) => left.sequence - right.sequence);
@@ -181,14 +184,16 @@ function primaryRootCause(row: FixedCohortAuditSourceInput & { failureClass: Aud
   if (row.failureClass === "SOURCE_TEMPORARILY_UNAVAILABLE") {
     return [row.failureCategory, row.failureDiagnosticCode].filter(Boolean).join(":") || "TEMPORARY_SOURCE_UNKNOWN";
   }
-  if (row.failureClass === "CONFIGURATION_ERROR") return row.failureCode ?? "CONFIGURATION_INVALID";
+  if (row.failureClass === "CONFIGURATION_ERROR") return row.failureCode ??
+    (["MANIFEST_BINDING_MISMATCH", "OFFICIAL_SCOPE_MISMATCH"].find((blocker) => row.blockers.includes(blocker)) ??
+      "CONFIGURATION_INVALID");
   if (row.failureClass === "PRODUCT_DEFECT") {
     return row.failureDiagnosticCode ?? row.failureCode ??
       (row.atomicCommitState === "ROLLED_BACK" ? "ATOMIC_COMMIT_ROLLED_BACK" : "ADAPTER_EXECUTION_FAILED");
   }
-  const evidencePriority = ["CERTIFICATE_INVALID", "A_OR_B_CERTIFICATE_MISSING", "OFFICIAL_SCOPE_MISMATCH",
-    "PAGINATION_EVIDENCE_INVALID", "EVIDENCE_LOCATION_MISSING", "EXPECTED_EVIDENCE_DECLARATION_MISSING",
-    "EVIDENCE_COMMITMENT_INVALID", "COMPLETENESS_NOT_VERIFIED"];
+  const evidencePriority = ["OFFICIAL_SCOPE_MISMATCH", "PAGINATION_EVIDENCE_INVALID", "EVIDENCE_LOCATION_MISSING",
+    "EXPECTED_EVIDENCE_DECLARATION_MISSING", "EVIDENCE_COMMITMENT_INVALID", "CERTIFICATE_INVALID",
+    "A_OR_B_CERTIFICATE_MISSING", "COMPLETENESS_NOT_VERIFIED"];
   return evidencePriority.find((blocker) => row.blockers.includes(blocker)) ?? row.blockers[0] ?? "UNKNOWN";
 }
 function sameStrings(left: readonly string[], right: readonly string[]): boolean {

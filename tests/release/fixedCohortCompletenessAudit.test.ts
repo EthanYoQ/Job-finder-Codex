@@ -93,6 +93,20 @@ describe("fixed cohort completeness audit", () => {
     row = buildFixedCohortCompletenessAudit(value).companies.find(({ sourceId }) => sourceId === source.sourceId)!;
     expect(row.blockers).toContain("PAGINATION_EVIDENCE_INVALID");
   });
+
+  it("rejects a declared channel without pagination evidence and keeps derived config roots separate", () => {
+    const value = input(), source = value.sources[0]!, missing = "channel:missing";
+    source.plannedChannelIds = [...source.plannedChannelIds, missing];
+    source.officialChannelIds = [...source.officialChannelIds, missing];
+    const report = buildFixedCohortCompletenessAudit(value);
+    expect(report.companies.find(({ sourceId }) => sourceId === source.sourceId)?.blockers)
+      .toContain("PAGINATION_EVIDENCE_INVALID");
+    const scopeRoot = report.repairFrontier.find(({ sourceIds }) => sourceIds.includes(source.sourceId))?.rootCause;
+    expect(scopeRoot).toBe("PAGINATION_EVIDENCE_INVALID");
+    const manifest = input(); manifest.sources[1]!.companyId = "company-substitute";
+    expect(buildFixedCohortCompletenessAudit(manifest).repairFrontier.find(({ sourceIds }) =>
+      sourceIds.includes(manifest.sources[1]!.sourceId))?.rootCause).toBe("MANIFEST_BINDING_MISMATCH");
+  });
 });
 
 function input(): { generatedAt: Date; releaseCandidateId: string; batchId: string; observedSourceIds: string[];
