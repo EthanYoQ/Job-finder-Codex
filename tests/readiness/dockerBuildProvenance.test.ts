@@ -60,7 +60,9 @@ describe("portable Docker build provenance",()=>{
       const escaped=path.replace(/[.*+?^${}()|[\]\\]/gu,"\\$&");
       expect(dockerfile).toMatch(new RegExp(`^COPY\\s+${escaped}(?:\\s+|/\\s+)`,"mu"));
     }
-    const hostCopySources=dockerfile.split(/\r?\n/u).filter(line=>/^COPY\s+(?!--from=)/u.test(line)).map(line=>/^COPY\s+(\S+)\s+\S+$/u.exec(line)?.[1]);
+    const hostCopySources=dockerfile.split(/\r?\n/u)
+      .filter(line=>/^COPY\s+/u.test(line)&&!/^COPY\s+(?:--\S+\s+)*--from=\S+\s+/u.test(line))
+      .map(line=>/^COPY\s+(\S+)\s+\S+$/u.exec(line)?.[1]);
     expect(hostCopySources.every(source=>source!==undefined&&allowed.includes(source))).toBe(true);
   });
   it("accepts a Windows CRLF checkout of an LF Git blob without weakening copied-byte binding",()=>{
