@@ -2,7 +2,7 @@
 
 FROM postgres:16-bookworm@sha256:da788743d2060767375896de4d646f7576f5911461444b372616f19ea61db2ec AS pg16-client
 
-FROM node:22-trixie-slim@sha256:db8d0a16fc4c190c808d3043c2cf3fce1e8c03b696673668ef483166a71e36a2 AS deps
+FROM node:22-trixie-slim@sha256:f4c1b09232a0ae8f765093968ec82107a1be65cb0bfb36fc831195794f139568 AS deps
 WORKDIR /app
 COPY ops/install-apt-packages.sh /usr/local/bin/install-apt-packages.sh
 COPY package.json ./package.json
@@ -39,7 +39,7 @@ COPY prisma ./prisma
 COPY ops ./ops
 RUN npm run build
 
-FROM node:22-trixie-slim@sha256:db8d0a16fc4c190c808d3043c2cf3fce1e8c03b696673668ef483166a71e36a2 AS production-deps
+FROM node:22-trixie-slim@sha256:f4c1b09232a0ae8f765093968ec82107a1be65cb0bfb36fc831195794f139568 AS production-deps
 WORKDIR /app
 ENV NODE_ENV=production
 COPY package.json ./package.json
@@ -57,7 +57,7 @@ RUN rm -rf /app/node_modules
 COPY --from=production-deps /app/node_modules ./node_modules
 RUN npx tsx scripts/generate-build-identity.ts --commit=${BUILD_COMMIT_SHA} --clean-provenance=${BUILD_SOURCE_CLEAN} --source-tree-sha256=${BUILD_SOURCE_TREE_SHA256}
 
-FROM node:22-trixie-slim@sha256:db8d0a16fc4c190c808d3043c2cf3fce1e8c03b696673668ef483166a71e36a2 AS runtime
+FROM node:22-trixie-slim@sha256:f4c1b09232a0ae8f765093968ec82107a1be65cb0bfb36fc831195794f139568 AS runtime
 WORKDIR /app
 RUN rm -rf /usr/local/lib/node_modules/npm /usr/local/bin/npm /usr/local/bin/npx
 ENV NODE_ENV=production
