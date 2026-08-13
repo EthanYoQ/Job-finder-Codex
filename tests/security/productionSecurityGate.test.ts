@@ -1,16 +1,24 @@
-import { describe, expect, it } from "vitest";
+import { createHash } from "node:crypto";
+import { mkdirSync, rmSync, writeFileSync } from "node:fs";
+import { resolve } from "node:path";
+import { afterEach, describe, expect, it } from "vitest";
 import {
   evaluateProductionSecurityGate,
   parseNpmAuditProductionFindings,
-  parseTrivyProductionFindings
+  parseTrivyProductionFindings,
+  readProductionSecurityReceipt
 } from "../../src/security/productionSecurityGate";
+
+const receiptRoot = resolve(".runtime/.cache/production-security-reader-test");
+afterEach(() => rmSync(receiptRoot, { recursive: true, force: true }));
 
 const identity = {
   imageRef: "job-finder:test",
   imageDigest: `sha256:${"a".repeat(64)}`,
   packageLockSha256: "b".repeat(64),
   scannerReports: { trivySha256: "c".repeat(64), npmAuditSha256: "d".repeat(64),
-    npmAuditIdentitySha256: "0".repeat(64), browserRuntimeSha256: "9".repeat(64) },
+    npmAuditIdentitySha256: "0".repeat(64), browserRuntimeSha256: "9".repeat(64),
+    runtimeExposureSha256: "8".repeat(64) },
   policyReports: { reachabilitySha256: "e".repeat(64), exceptionsSha256: "f".repeat(64) },
   evaluatedAt: new Date("2026-08-13T00:00:00.000Z")
 };
@@ -48,6 +56,24 @@ describe("production security gate", () => {
 
     expect(receipt.decision).toBe("PASSED");
     expect(receipt.findings[0]).toMatchObject({ runtimeReachability: "UNREACHABLE", disposition: "NON_BLOCKING_UNREACHABLE" });
+  });
+
+  it("round-trips an unreachable finding without retaining an unused exception", async () => {
+    const { fixedVersion: _fixedVersion, ...finding } = highFinding;
+    const receipt = evaluateProductionSecurityGate({ ...identity, findings: [finding], reachability: [{
+      scanner: "TRIVY", vulnerabilityId: finding.vulnerabilityId, packageName: finding.packageName,
+      installedVersion: finding.installedVersion, state: "UNREACHABLE", reason: "Exact runtime proof",
+      evidence: "evidence.json", evidenceSha256: "1".repeat(64), owner: "security@example.com",
+      expiresAt: "2026-09-01T00:00:00.000Z"
+    }], exceptions: [{ vulnerabilityId: finding.vulnerabilityId, packageName: finding.packageName,
+      installedVersion: finding.installedVersion, reason: "Unused fallback", owner: "security@example.com",
+      expiresAt: "2026-09-01T00:00:00.000Z" }] });
+    expect(receipt.findings[0]).toMatchObject({ disposition: "NON_BLOCKING_UNREACHABLE",
+      exceptionOwner: null, exceptionExpiresAt: null });
+    mkdirSync(receiptRoot, { recursive: true });
+    const path = resolve(receiptRoot, "unreachable-round-trip.json");
+    writeFileSync(path, JSON.stringify(receipt));
+    await expect(readProductionSecurityReceipt(path)).resolves.toEqual(receipt);
   });
 
   it("blocks when a vulnerability exception has expired", () => {
@@ -127,6 +153,47 @@ describe("production security gate", () => {
     });
     expect(receipt.findings[0]).toMatchObject({ runtimeReachability: "UNKNOWN", disposition: "BLOCKED" });
     expect(receipt.decision).toBe("BLOCKED");
+  });
+
+  it("rejects a self-hashed receipt with contradictory reachability disposition", async () => {
+    const receipt = evaluateProductionSecurityGate({ ...identity, findings: [highFinding], reachability: [], exceptions: [] });
+    const forgedBase = { ...receipt, findings: receipt.findings.map((finding) => ({ ...finding,
+      disposition: "NON_BLOCKING_UNREACHABLE" as const })) };
+    const { contentSha256: _oldHash, ...base } = forgedBase;
+    const forged = { ...base, contentSha256: createHash("sha256").update(JSON.stringify(base)).digest("hex") };
+    mkdirSync(receiptRoot, { recursive: true });
+    const path = resolve(receiptRoot, "receipt.json");
+    writeFileSync(path, JSON.stringify(forged));
+    await expect(readProductionSecurityReceipt(path)).rejects.toThrow(/relationships/u);
+  });
+
+  it("rejects a self-hashed accepted exception without owner and future expiry", async () => {
+    const receipt = evaluateProductionSecurityGate({ ...identity, findings: [highFinding], reachability: [], exceptions: [] });
+    const findings = receipt.findings.map((finding) => ({ ...finding,
+      disposition: "ACCEPTED_TEMPORARY_EXCEPTION" as const }));
+    const base = { ...receipt, decision: "PASSED" as const, exitCode: 0 as const, findings };
+    const { contentSha256: _oldHash, ...withoutHash } = base;
+    const forged = { ...withoutHash,
+      contentSha256: createHash("sha256").update(JSON.stringify(withoutHash)).digest("hex") };
+    mkdirSync(receiptRoot, { recursive: true });
+    const path = resolve(receiptRoot, "accepted-without-authority.json");
+    writeFileSync(path, JSON.stringify(forged));
+    await expect(readProductionSecurityReceipt(path)).rejects.toThrow(/relationships/u);
+  });
+
+  it("rejects a self-hashed accepted exception when the finding has a fixed version", async () => {
+    const receipt = evaluateProductionSecurityGate({ ...identity, findings: [highFinding], reachability: [], exceptions: [] });
+    const findings = receipt.findings.map((finding) => ({ ...finding,
+      disposition: "ACCEPTED_TEMPORARY_EXCEPTION" as const, exceptionOwner: "security@example.com",
+      exceptionExpiresAt: "2026-09-01T00:00:00.000Z" }));
+    const base = { ...receipt, decision: "PASSED" as const, exitCode: 0 as const, findings };
+    const { contentSha256: _oldHash, ...withoutHash } = base;
+    const forged = { ...withoutHash,
+      contentSha256: createHash("sha256").update(JSON.stringify(withoutHash)).digest("hex") };
+    mkdirSync(receiptRoot, { recursive: true });
+    const path = resolve(receiptRoot, "fixed-version-accepted.json");
+    writeFileSync(path, JSON.stringify(forged));
+    await expect(readProductionSecurityReceipt(path)).rejects.toThrow(/relationships/u);
   });
 
   it("rejects a report for another image and binds nested npm versions from audit nodes", () => {

@@ -4,6 +4,8 @@ import { afterEach, describe, expect, it } from "vitest";
 import { runProductionSecurityGate } from "../../scripts/production-security-gate";
 import { createHash } from "node:crypto";
 import { createBrowserRuntimeQualificationReceipt } from "../../src/security/browserRuntimeQualification";
+import { createRuntimeExposureReceipt, RUNTIME_EXPOSURE_FORMAL_EXECUTABLES,
+  RUNTIME_EXPOSURE_RISKY_EXECUTABLES } from "../../src/security/runtimeExposureQualification";
 
 const root = resolve(".runtime/.cache/security-gate-test");
 const digest = `sha256:${"a".repeat(64)}`;
@@ -26,18 +28,21 @@ describe("production security gate CLI seam", () => {
   });
 
   it("rejects a stale browser qualification even for the same immutable image", async () => {
-    const args = fixture(digest);
+    const args = fixture(digest, { runtimeAt: "2026-08-13T00:31:00.000Z" });
     await expect(runProductionSecurityGate(args, new Date("2026-08-13T00:31:00.001Z")))
       .rejects.toThrow(/not fresh/u);
   });
 });
 
-function fixture(reportDigest: string) {
+function fixture(reportDigest: string, times: { browserAt?: string; runtimeAt?: string } = {}) {
+  const browserAt = times.browserAt ?? "2026-08-13T00:00:00.000Z";
+  const runtimeAt = times.runtimeAt ?? "2026-08-13T00:00:00.000Z";
   mkdirSync(root, { recursive: true });
   const paths = {
     trivyReport: resolve(root, "trivy.json"), npmAuditReport: resolve(root, "npm.json"),
     npmAuditIdentity: resolve(root, "npm-identity.json"),
     browserRuntimeReport: resolve(root, "browser-runtime.json"),
+    runtimeExposureReport: resolve(root, "runtime-exposure.json"),
     packageLock: resolve(root, "package-lock.json"), reachability: resolve(root, "reachability.json"),
     exceptions: resolve(root, "exceptions.json"), output: resolve(root, "receipt.json")
   };
@@ -64,7 +69,21 @@ function fixture(reportDigest: string) {
     }]
   }));
   writeFileSync(paths.browserRuntimeReport, JSON.stringify(createBrowserRuntimeQualificationReceipt(
-    browserRaw, githubRelease, reportDigest, new Date("2026-08-13T00:00:00.000Z")
+    browserRaw, githubRelease, reportDigest, new Date(browserAt)
+  )));
+  const trivyBytes = readFileSync(paths.trivyReport);
+  const runtimeRaw = Buffer.from(JSON.stringify({
+    schemaVersion: 1, status: "PASS", platform: "linux", architecture: "x64", uid: 1000,
+    effectiveCapabilities: "0000000000000000", noNewPrivileges: "1", rootMountOptions: ["ro"],
+    tmpMountOptions: ["rw", "nosuid", "nodev", "noexec"], dbusEnvironment: [], dbusSockets: [], blockDevices: [],
+    forbiddenSpawnReferences: [], minizipLibraries: [], executablePaths: Object.fromEntries(
+      RUNTIME_EXPOSURE_RISKY_EXECUTABLES.map((name) => [name, null])),
+    elfClasses: Object.fromEntries(RUNTIME_EXPOSURE_FORMAL_EXECUTABLES.map((path) => [path, 2])),
+    dynamicLibraries: Object.fromEntries(RUNTIME_EXPOSURE_FORMAL_EXECUTABLES.map((path) => [path, ["libc.so.6"]])),
+    capturedAt: runtimeAt
+  }));
+  writeFileSync(paths.runtimeExposureReport, JSON.stringify(createRuntimeExposureReceipt(
+    runtimeRaw, trivyBytes, reportDigest, new Date(runtimeAt)
   )));
   writeFileSync(paths.reachability, JSON.stringify({ schemaVersion: 1, decisions: [] }));
   writeFileSync(paths.exceptions, JSON.stringify({ schemaVersion: 1, exceptions: [] }));

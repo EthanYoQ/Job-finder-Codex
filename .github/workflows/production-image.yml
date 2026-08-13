@@ -110,6 +110,7 @@ jobs:
             --npm-audit-report .runtime/security/npm-audit.json \
             --npm-audit-identity .runtime/security/npm-audit-identity.json \
             --browser-runtime-report .runtime/security/browser-runtime-report.json \
+            --runtime-exposure-report .runtime/security/runtime-exposure-report.json \
             --package-lock package-lock.json \
             --reachability security/production-reachability.json \
             --exceptions security/production-vulnerability-exceptions.json \

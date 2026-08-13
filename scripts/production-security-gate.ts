@@ -10,6 +10,7 @@ import {
   type ProductionVulnerabilityException
 } from "../src/security/productionSecurityGate";
 import { parseBrowserRuntimeQualificationReceipt } from "../src/security/browserRuntimeQualification";
+import { parseRuntimeExposureReceipt } from "../src/security/runtimeExposureQualification";
 
 interface SecurityGateArguments {
   imageRef: string;
@@ -18,6 +19,7 @@ interface SecurityGateArguments {
   npmAuditReport: string;
   npmAuditIdentity: string;
   browserRuntimeReport: string;
+  runtimeExposureReport: string;
   packageLock: string;
   reachability: string;
   exceptions: string;
@@ -28,15 +30,19 @@ export async function runProductionSecurityGate(
   args: SecurityGateArguments,
   evaluatedAt = new Date()
 ): Promise<0 | 1> {
-  const [trivyBytes, npmAuditBytes, npmAuditIdentityBytes, browserRuntimeBytes, packageLockBytes, reachabilityBytes, exceptionsBytes] = await Promise.all([
+  const [trivyBytes, npmAuditBytes, npmAuditIdentityBytes, browserRuntimeBytes, runtimeExposureBytes, packageLockBytes,
+    reachabilityBytes, exceptionsBytes] = await Promise.all([
     readFile(args.trivyReport), readFile(args.npmAuditReport), readFile(args.npmAuditIdentity),
     readFile(args.browserRuntimeReport),
+    readFile(args.runtimeExposureReport),
     readFile(args.packageLock), readFile(args.reachability), readFile(args.exceptions)
   ]);
   const trivy = parseJson(trivyBytes, "Trivy report");
   const npmAudit = parseJson(npmAuditBytes, "npm audit report");
   const npmAuditIdentity = parseJson(npmAuditIdentityBytes, "npm audit identity");
   const browserRuntime = parseBrowserRuntimeQualificationReceipt(browserRuntimeBytes, args.imageDigest);
+  const trivySha256 = sha256(trivyBytes);
+  const runtimeExposure = parseRuntimeExposureReceipt(runtimeExposureBytes, args.imageDigest, trivySha256, evaluatedAt);
   const browserEvaluatedAt = new Date(browserRuntime.evaluatedAt).getTime();
   const gateEvaluatedAt = evaluatedAt.getTime();
   if (browserEvaluatedAt > gateEvaluatedAt + 5 * 60_000 || gateEvaluatedAt - browserEvaluatedAt > 30 * 60_000) {
@@ -51,24 +57,25 @@ export async function runProductionSecurityGate(
   );
   await validateAndBindReachabilityEvidence(reachability);
   const packageLockSha256 = sha256(packageLockBytes);
+  const findings = [
+    ...parseTrivyProductionFindings(trivy, args.imageDigest),
+    ...parseNpmAuditProductionFindings(
+      npmAudit, packageLock, packageLockSha256, sha256(npmAuditBytes), npmAuditIdentity
+    )
+  ];
   const receipt = evaluateProductionSecurityGate({
     imageRef: args.imageRef,
     imageDigest: args.imageDigest,
     packageLockSha256,
     scannerReports: {
-      trivySha256: sha256(trivyBytes), npmAuditSha256: sha256(npmAuditBytes),
-      npmAuditIdentitySha256: sha256(npmAuditIdentityBytes), browserRuntimeSha256: sha256(browserRuntimeBytes)
+      trivySha256, npmAuditSha256: sha256(npmAuditBytes), npmAuditIdentitySha256: sha256(npmAuditIdentityBytes),
+      browserRuntimeSha256: sha256(browserRuntimeBytes), runtimeExposureSha256: sha256(runtimeExposureBytes)
     },
     policyReports: {
       reachabilitySha256: sha256(reachabilityBytes), exceptionsSha256: sha256(exceptionsBytes)
     },
     evaluatedAt,
-    findings: [
-      ...parseTrivyProductionFindings(trivy, args.imageDigest),
-      ...parseNpmAuditProductionFindings(
-        npmAudit, packageLock, packageLockSha256, sha256(npmAuditBytes), npmAuditIdentity
-      )
-    ],
+    findings,
     reachability,
     exceptions
   });
@@ -100,12 +107,13 @@ export function parseProductionSecurityGateArgs(argv: readonly string[]): Securi
     return value;
   };
   const expected = ["--image-ref", "--image-digest", "--trivy-report", "--npm-audit-report", "--npm-audit-identity", "--browser-runtime-report",
-    "--package-lock", "--reachability", "--exceptions", "--output"];
+    "--runtime-exposure-report", "--package-lock", "--reachability", "--exceptions", "--output"];
   for (const key of parsed.keys()) if (!expected.includes(key)) throw new Error(`Unknown production security argument: ${key}`);
   return {
     imageRef: read("--image-ref"), imageDigest: read("--image-digest"),
     trivyReport: read("--trivy-report"), npmAuditReport: read("--npm-audit-report"),
     npmAuditIdentity: read("--npm-audit-identity"), browserRuntimeReport: read("--browser-runtime-report"),
+    runtimeExposureReport: read("--runtime-exposure-report"),
     packageLock: read("--package-lock"), reachability: read("--reachability"),
     exceptions: read("--exceptions"), output: read("--output")
   };
@@ -117,7 +125,8 @@ function parseJson(bytes: Buffer, label: string): unknown {
 }
 
 function parsePolicyArray<T>(value: unknown, field: string, label: string): T[] {
-  if (!isRecord(value) || value.schemaVersion !== 1 || !Array.isArray(value[field])) {
+  if (!isRecord(value) || JSON.stringify(Object.keys(value).sort()) !== JSON.stringify(["schemaVersion", field].sort()) ||
+      value.schemaVersion !== 1 || !Array.isArray(value[field])) {
     throw new Error(`Production ${label} policy is invalid`);
   }
   return value[field] as T[];

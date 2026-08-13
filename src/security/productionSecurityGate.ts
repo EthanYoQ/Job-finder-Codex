@@ -40,7 +40,8 @@ export interface ProductionSecurityGateInput {
   imageRef: string;
   imageDigest: string;
   packageLockSha256: string;
-  scannerReports: { trivySha256: string; npmAuditSha256: string; npmAuditIdentitySha256: string; browserRuntimeSha256: string };
+  scannerReports: { trivySha256: string; npmAuditSha256: string; npmAuditIdentitySha256: string;
+    browserRuntimeSha256: string; runtimeExposureSha256: string };
   policyReports: { reachabilitySha256: string; exceptionsSha256: string };
   evaluatedAt: Date;
   findings: readonly ProductionVulnerabilityFinding[];
@@ -67,13 +68,14 @@ export interface EvaluatedProductionFinding extends ProductionVulnerabilityFindi
 }
 
 export interface ProductionSecurityReceipt {
-  schemaVersion: 1;
+  schemaVersion: 2;
   decision: "PASSED" | "BLOCKED";
   exitCode: 0 | 1;
   imageRef: string;
   imageDigest: string;
   packageLockSha256: string;
-  scannerReports: { trivySha256: string; npmAuditSha256: string; npmAuditIdentitySha256: string; browserRuntimeSha256: string };
+  scannerReports: { trivySha256: string; npmAuditSha256: string; npmAuditIdentitySha256: string;
+    browserRuntimeSha256: string; runtimeExposureSha256: string };
   policyReports: { reachabilitySha256: string; exceptionsSha256: string };
   evaluatedAt: string;
   findings: EvaluatedProductionFinding[];
@@ -85,11 +87,11 @@ export async function readProductionSecurityReceipt(path: string): Promise<Produ
   const value = JSON.parse(await readFile(path, "utf8")) as unknown;
   if (!isRecord(value) || !exactKeys(value, ["schemaVersion", "decision", "exitCode", "imageRef", "imageDigest",
     "packageLockSha256", "scannerReports", "policyReports", "evaluatedAt", "findings", "policyErrors", "contentSha256"]) ||
-    value.schemaVersion !== 1 || !["PASSED", "BLOCKED"].includes(String(value.decision)) ||
+    value.schemaVersion !== 2 || !["PASSED", "BLOCKED"].includes(String(value.decision)) ||
     ![0, 1].includes(Number(value.exitCode)) || typeof value.imageRef !== "string" || !value.imageRef.trim() ||
     !/^sha256:[0-9a-f]{64}$/u.test(String(value.imageDigest)) || !validShaValue(value.packageLockSha256) ||
     !isRecord(value.scannerReports) || !exactShaRecord(value.scannerReports,
-      ["trivySha256", "npmAuditSha256", "npmAuditIdentitySha256", "browserRuntimeSha256"]) ||
+      ["trivySha256", "npmAuditSha256", "npmAuditIdentitySha256", "browserRuntimeSha256", "runtimeExposureSha256"]) ||
     !isRecord(value.policyReports) || !exactShaRecord(value.policyReports, ["reachabilitySha256", "exceptionsSha256"]) ||
     typeof value.evaluatedAt !== "string" || !Number.isFinite(Date.parse(value.evaluatedAt)) ||
     !Array.isArray(value.findings) || !value.findings.every(isEvaluatedFinding) ||
@@ -101,6 +103,10 @@ export async function readProductionSecurityReceipt(path: string): Promise<Produ
   }
   const blocked = value.policyErrors.length > 0 || value.findings.some((finding) =>
     ["BLOCKED", "BLOCKED_EXPIRED_EXCEPTION"].includes(finding.disposition));
+  const evaluatedAt = new Date(value.evaluatedAt);
+  if (!value.findings.every((finding) => evaluatedFindingIsConsistent(finding, evaluatedAt))) {
+    throw new Error("Production security receipt finding relationships are inconsistent");
+  }
   if (value.decision !== (blocked ? "BLOCKED" : "PASSED") || value.exitCode !== (blocked ? 1 : 0)) {
     throw new Error("Production security receipt decision is inconsistent");
   }
@@ -143,15 +149,17 @@ export function evaluateProductionSecurityGate(
       reachabilityOwner: reachability?.owner ?? null,
       reachabilityExpiresAt: reachability?.expiresAt ?? null,
       disposition,
-      exceptionOwner: matchingException?.owner ?? null,
-      exceptionExpiresAt: matchingException?.expiresAt ?? null
+      exceptionOwner: disposition === "ACCEPTED_TEMPORARY_EXCEPTION" || disposition === "BLOCKED_EXPIRED_EXCEPTION"
+        ? matchingException?.owner ?? null : null,
+      exceptionExpiresAt: disposition === "ACCEPTED_TEMPORARY_EXCEPTION" || disposition === "BLOCKED_EXPIRED_EXCEPTION"
+        ? matchingException?.expiresAt ?? null : null
     };
   });
   const blocked = policyErrors.length > 0 || findings.some((finding) =>
     finding.disposition === "BLOCKED" || finding.disposition === "BLOCKED_EXPIRED_EXCEPTION"
   );
   const base = {
-    schemaVersion: 1 as const,
+    schemaVersion: 2 as const,
     decision: blocked ? "BLOCKED" as const : "PASSED" as const,
     exitCode: blocked ? 1 as const : 0 as const,
     imageRef: input.imageRef,
@@ -262,6 +270,7 @@ function validateIdentity(input: ProductionSecurityGateInput): void {
     !/^[0-9a-f]{64}$/u.test(input.scannerReports.npmAuditSha256) ||
     !/^[0-9a-f]{64}$/u.test(input.scannerReports.npmAuditIdentitySha256) ||
     !/^[0-9a-f]{64}$/u.test(input.scannerReports.browserRuntimeSha256) ||
+    !/^[0-9a-f]{64}$/u.test(input.scannerReports.runtimeExposureSha256) ||
     !/^[0-9a-f]{64}$/u.test(input.policyReports.reachabilitySha256) ||
     !/^[0-9a-f]{64}$/u.test(input.policyReports.exceptionsSha256) ||
     !Number.isFinite(input.evaluatedAt.getTime())) {
@@ -399,4 +408,28 @@ function isEvaluatedFinding(value: unknown): value is EvaluatedProductionFinding
     [value.reachabilityEvidence, value.reachabilityOwner, value.reachabilityExpiresAt,
       value.exceptionOwner, value.exceptionExpiresAt].every((entry) => entry === null || typeof entry === "string") &&
     (value.reachabilityEvidenceSha256 === null || validShaValue(value.reachabilityEvidenceSha256));
+}
+function evaluatedFindingIsConsistent(value: EvaluatedProductionFinding, evaluatedAt: Date): boolean {
+  const reachabilityFields = [value.reachabilityEvidence, value.reachabilityEvidenceSha256,
+    value.reachabilityOwner, value.reachabilityExpiresAt];
+  const hasReachability = reachabilityFields.every((entry) => typeof entry === "string" && entry.length > 0);
+  const lacksReachability = reachabilityFields.every((entry) => entry === null);
+  const reachabilityExpiry = value.reachabilityExpiresAt === null ? null : new Date(value.reachabilityExpiresAt);
+  const reachabilityConsistent = value.runtimeReachability === "UNKNOWN"
+    ? lacksReachability && value.disposition !== "NON_BLOCKING_UNREACHABLE"
+    : hasReachability && reachabilityExpiry !== null && Number.isFinite(reachabilityExpiry.getTime()) &&
+      reachabilityExpiry.getTime() > evaluatedAt.getTime() &&
+      (value.runtimeReachability === "UNREACHABLE") === (value.disposition === "NON_BLOCKING_UNREACHABLE");
+  const exceptionFields = [value.exceptionOwner, value.exceptionExpiresAt];
+  const hasException = exceptionFields.every((entry) => typeof entry === "string" && entry.length > 0);
+  const lacksException = exceptionFields.every((entry) => entry === null);
+  const exceptionExpiry = value.exceptionExpiresAt === null ? null : new Date(value.exceptionExpiresAt);
+  const exceptionConsistent = value.disposition === "ACCEPTED_TEMPORARY_EXCEPTION"
+    ? value.fixedVersion === undefined && hasException && exceptionExpiry !== null && Number.isFinite(exceptionExpiry.getTime()) &&
+      exceptionExpiry.getTime() > evaluatedAt.getTime()
+    : value.disposition === "BLOCKED_EXPIRED_EXCEPTION"
+      ? value.fixedVersion === undefined && hasException && exceptionExpiry !== null && Number.isFinite(exceptionExpiry.getTime()) &&
+        exceptionExpiry.getTime() <= evaluatedAt.getTime()
+      : lacksException;
+  return reachabilityConsistent && exceptionConsistent;
 }
