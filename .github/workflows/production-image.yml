@@ -175,7 +175,7 @@ jobs:
 
       - name: Qualify TLS ingress behavior and renewal visibility
         run: |
-          set -euo pipefail
+          set -euxo pipefail
           NETWORK="job-finder-ingress-${{ github.run_id }}"
           WEB_NAME="job-finder-ingress-web-${{ github.run_id }}"
           NGINX_NAME="job-finder-ingress-nginx-${{ github.run_id }}"
