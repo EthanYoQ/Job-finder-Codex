@@ -48,6 +48,8 @@ COPY prisma ./prisma
 RUN npm ci --omit=dev --ignore-scripts \
   && npm cache clean --force
 COPY --from=deps /app/node_modules/.prisma ./node_modules/.prisma
+COPY --from=deps /app/node_modules/@prisma/engines/schema-engine-debian-openssl-3.0.x ./node_modules/@prisma/engines/schema-engine-debian-openssl-3.0.x
+RUN test -x /app/node_modules/@prisma/engines/schema-engine-debian-openssl-3.0.x
 
 FROM build AS identity
 ARG BUILD_COMMIT_SHA

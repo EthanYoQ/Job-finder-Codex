@@ -21,6 +21,16 @@ describe("offline Prisma engine image contract",()=>{
     );
   });
 
+  it("copies the executable schema engine into the production-only dependency closure",()=>{
+    const productionDeps=extractProductionImageStage(dockerfile(),"production-deps");
+    expect(productionDeps).toContain(
+      "COPY --from=deps /app/node_modules/@prisma/engines/schema-engine-debian-openssl-3.0.x ./node_modules/@prisma/engines/schema-engine-debian-openssl-3.0.x",
+    );
+    expect(productionDeps).toMatch(
+      /^RUN test -x \/app\/node_modules\/@prisma\/engines\/schema-engine-debian-openssl-3\.0\.x$/mu,
+    );
+  });
+
   it("generates a usable Prisma client only after the schema is present in the dependency stage",()=>{
     const source=dockerfile();
     const depsStage=extractProductionImageStage(source,"deps");

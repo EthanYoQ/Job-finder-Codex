@@ -338,6 +338,10 @@ describe("production container contract", () => {
     expect(workflow).toContain("Authorization: Bearer ${{ github.token }}");
     expect(workflow).toContain("brave-browser_1.93.136_amd64.deb");
     expect(workflow).toContain("--read-only --cap-drop ALL --security-opt no-new-privileges:true");
+    expect(workflow.match(
+      /docker run --rm --network "\$NETWORK" --read-only --cap-drop ALL --security-opt no-new-privileges:true[\s\S]{0,300}node node_modules\/prisma\/build\/index\.js migrate deploy/gu
+    )).toHaveLength(2);
+    expect(workflow.match(/node node_modules\/prisma\/build\/index\.js migrate deploy/gu)).toHaveLength(2);
     expect(workflow).toContain("--tmpfs /tmp:rw,nosuid,nodev,noexec");
     expect(workflow).toContain("BUILD_SOURCE_CLEAN=true");
     expect(workflow).toContain("BUILD_SOURCE_TREE_SHA256");
