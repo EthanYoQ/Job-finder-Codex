@@ -22,7 +22,6 @@ try {
   ]);
   const snapshot = await prisma.$transaction(async (transaction) => {
     const authority = await resolveCurrentStagedScheduleAuthority(transaction as never);
-    const releaseCandidate = await transaction.releaseCandidate.findUniqueOrThrow({ where: { id: authority.identity.releaseCandidateId } });
     const batches = await transaction.crawlBatch.findMany({
       where: { releaseCandidateId: authority.identity.releaseCandidateId, kind: "SCHEDULED", status: "SUCCESS",
         finishedAt: { not: null } }, orderBy: [{ finishedAt: "desc" }, { id: "desc" }], take: 10,
@@ -37,10 +36,10 @@ try {
       SELECT EXISTS (SELECT 1 FROM "AdminUser" WHERE email = ${required("ADMIN_EMAIL").toLowerCase()}
         AND "passwordHash" = ${required("ADMIN_PASSWORD_HASH")} AND "disabledAt" IS NULL AND role = 'ADMIN') AS initialized
     `);
-    return { authority, releaseCandidate, batches: selectQualificationPair(batches, evaluatedAt),
+    return { authority, batches: selectQualificationPair(batches, evaluatedAt),
       bootstrapReady: migrationHistoryMatches(migrationRows, migrations) && adminRows[0]?.initialized === true };
   }, { isolationLevel: Prisma.TransactionIsolationLevel.RepeatableRead, maxWait: 10_000, timeout: 30_000 });
-  const { authority, releaseCandidate, batches } = snapshot;
+  const { authority, batches } = snapshot;
   const manifestBySource = new Map(P0_LAUNCH_MANIFEST.companies.map((company) => [company.source.sourceId, company]));
   const evidenceBatches = batches.slice(0, 2).map((batch) => ({
     id: batch.id, releaseCandidateId: batch.releaseCandidateId!, commitSha: batch.commitSha!, rosterSha256: batch.rosterSha256!,
@@ -60,8 +59,8 @@ try {
     image: { digest: image.imageDigest, revision: image.revision, qualificationSha256: image.contentSha256,
       buildIdentityContentSha256: image.buildIdentityContentSha256,
       securityReceiptSha256: image.securityReceiptSha256, restoreReceiptSha256: image.restoreReceiptSha256 },
-    database: { snapshotSha256: releaseCandidate.dbSnapshotHash, schemaSha256: releaseCandidate.schemaHash,
-      migrationVersion: releaseCandidate.migrationVersion, migrationManifestSha256: prismaMigrationManifestSha256(migrations),
+    database: { snapshotSha256: restore.archiveSha256, schemaSha256: prismaMigrationManifestSha256(migrations),
+      migrationVersion: migrations.at(-1)?.migrationName ?? "", migrationManifestSha256: prismaMigrationManifestSha256(migrations),
       bootstrapReady: snapshot.bootstrapReady }, security, restore,
     releaseIdentity: { releaseCandidateId: authority.identity.releaseCandidateId, commitSha: authority.identity.commitSha,
       rosterSha256: authority.identity.rosterSha256, sourcePlanSha256: authority.identity.sourcePlanSha256,
