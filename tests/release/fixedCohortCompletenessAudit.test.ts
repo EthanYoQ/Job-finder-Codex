@@ -40,6 +40,18 @@ describe("fixed cohort completeness audit", () => {
       .toThrow(/company evidence/u);
   });
 
+  it("round-trips a real failed source without pretending a canonical output commitment exists", () => {
+    const value = input(), failed = value.sources[0]!;
+    Object.assign(failed, { canonicalJobSetSha256: null, evidenceArtifacts: [], paginationEvidence: [], pagesVisited: 0,
+      expectedEvidenceKind: null, transportState: "FAILED", adapterState: "SKIPPED", completenessState: "FAILED",
+      atomicCommitState: "NOT_ATTEMPTED", failureCategory: "UNCLASSIFIED_SOURCE_FAILURE",
+      failureDiagnosticCode: "FETCH_FAILED_CLOSED", failureCode: "SOURCE_TRANSPORT_FAILED" });
+    const report = buildFixedCohortCompletenessAudit(value);
+    expect(report.companies.find(({ sourceId }) => sourceId === failed.sourceId)?.blockers)
+      .toContain("EVIDENCE_COMMITMENT_INVALID");
+    expect(parseFixedCohortCompletenessAuditReport(Buffer.from(JSON.stringify(report)))).toEqual(report);
+  });
+
   it("marks a missing or substituted frozen source as an invalid audit without hiding the other rows", () => {
     const value = input();
     value.observedSourceIds = value.observedSourceIds.slice(1);
@@ -108,14 +120,31 @@ describe("fixed cohort completeness audit", () => {
     source.plannedChannelIds = [...source.plannedChannelIds, secondChannel];
     source.officialChannelIds = [...source.officialChannelIds, secondChannel];
     source.paginationEvidence = [...source.paginationEvidence, {
-      ...source.paginationEvidence[0]!, channelId: secondChannel, sequence: 2,
+      ...source.paginationEvidence[0]!, channelId: secondChannel, sequence: 1,
       declaredTotal: 20, declaredCount: 20, declaredPages: 1
     }];
     source.pagesVisited = 2; source.totalPages = 2;
     let row = buildFixedCohortCompletenessAudit(value).companies.find(({ sourceId }) => sourceId === source.sourceId)!;
     expect(row.paginationByChannel).toHaveLength(2);
-    source.paginationEvidence = source.paginationEvidence.map((page, index) => index === 1 ? { ...page, sequence: 3 } : page);
+    source.paginationEvidence = source.paginationEvidence.map((page, index) => index === 1 ? { ...page, sequence: 2 } : page);
     row = buildFixedCohortCompletenessAudit(value).companies.find(({ sourceId }) => sourceId === source.sourceId)!;
+    expect(row.blockers).toContain("PAGINATION_EVIDENCE_INVALID");
+  });
+
+  it("treats null pagination channels as the one declared default channel", () => {
+    const value = input(), source = value.sources[0]!;
+    source.paginationEvidence = source.paginationEvidence.map((page) => ({ ...page, channelId: null }));
+    const row = buildFixedCohortCompletenessAudit(value).companies.find(({ sourceId }) => sourceId === source.sourceId)!;
+    expect(row.blockers).not.toContain("PAGINATION_EVIDENCE_INVALID");
+    expect(row.paginationByChannel).toEqual([expect.objectContaining({ channelId: source.officialChannelIds[0] })]);
+  });
+
+  it("rejects an unlabelled pagination page when more than one official channel is declared", () => {
+    const value = input(), source = value.sources[0]!;
+    source.plannedChannelIds = [...source.plannedChannelIds, "channel:second"];
+    source.officialChannelIds = [...source.officialChannelIds, "channel:second"];
+    source.paginationEvidence = source.paginationEvidence.map((page) => ({ ...page, channelId: null }));
+    const row = buildFixedCohortCompletenessAudit(value).companies.find(({ sourceId }) => sourceId === source.sourceId)!;
     expect(row.blockers).toContain("PAGINATION_EVIDENCE_INVALID");
   });
 
@@ -145,7 +174,7 @@ function input(): { generatedAt: Date; releaseCandidateId: string; batchId: stri
       plannedChannelIds: [`channel:${company.source.sourceId}`], officialSurfaceIds: [`surface:${company.source.sourceId}`],
       officialChannelIds: [`channel:${company.source.sourceId}`], evidenceArtifacts: [{ id: `artifact:${company.source.sourceId}`,
         path: `evidence/${company.source.sourceId}.json`, sha256: "c".repeat(64) }],
-      paginationEvidence: [{ artifactId: `artifact:${company.source.sourceId}`, sequence: 1,
+      paginationEvidence: [{ artifactId: `artifact:${company.source.sourceId}`, sequence: 0,
         channelId: `channel:${company.source.sourceId}`, requestedCursor: null,
         returnedCursor: null, requestedOffset: 0, returnedOffset: 0, requestedPage: 1, returnedPage: 1,
         requestedPageSize: 20, returnedPageSize: 10, responseFingerprintSha256: "d".repeat(64),

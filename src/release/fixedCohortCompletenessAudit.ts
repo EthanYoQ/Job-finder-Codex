@@ -9,7 +9,7 @@ export type AuditFailureClass = "PRODUCT_DEFECT" | "SOURCE_TEMPORARILY_UNAVAILAB
 export interface FixedCohortAuditSourceInput {
   sourceResultId: string; companyId: string; sourceId: string; adapterFamily: string; grade: "A" | "B" | "C";
   sourceConfigSha256: string; certificate: unknown | null; certificateSha256: string | null;
-  canonicalJobSetSha256: string;
+  canonicalJobSetSha256: string | null;
   plannedSurfaceIds: readonly string[]; plannedChannelIds: readonly string[];
   officialSurfaceIds: readonly string[]; officialChannelIds: readonly string[];
   evidenceArtifacts: readonly { id: string; path: string; sha256: string }[];
@@ -64,7 +64,7 @@ export function buildFixedCohortCompletenessAudit(input: { generatedAt: Date; re
     const paginationByChannel = summarizePagination(source);
     const orderedSequences = [...source.paginationEvidence].sort((left, right) => left.sequence - right.sequence);
     if (source.paginationEvidence.length === 0 || source.pagesVisited !== source.paginationEvidence.length ||
-        orderedSequences.some((page, index) => page.sequence !== index + 1) ||
+        orderedSequences.some((page, index) => page.sequence !== index) ||
         paginationByChannel === null || source.paginationEvidence.some((page) =>
       !artifactIds.has(page.artifactId) || !Number.isSafeInteger(page.sequence) || !page.termination.trim() ||
       ![page.responseFingerprintSha256, page.rawJobIdSetSha256, page.validJobIdSetSha256]
@@ -72,7 +72,7 @@ export function buildFixedCohortCompletenessAudit(input: { generatedAt: Date; re
       blockers.push("PAGINATION_EVIDENCE_INVALID");
     }
     if (!/^[0-9a-f]{64}$/u.test(source.sourceConfigSha256) ||
-        !/^[0-9a-f]{64}$/u.test(source.canonicalJobSetSha256)) blockers.push("EVIDENCE_COMMITMENT_INVALID");
+        !/^[0-9a-f]{64}$/u.test(source.canonicalJobSetSha256 ?? "")) blockers.push("EVIDENCE_COMMITMENT_INVALID");
     if (!source.expectedEvidenceKind) blockers.push("EXPECTED_EVIDENCE_DECLARATION_MISSING");
     if (source.grade === "C") blockers.push("A_OR_B_CERTIFICATE_MISSING");
     else if (!certificateValid(source, input.releaseCandidateId, input.batchId, input.generatedAt)) blockers.push("CERTIFICATE_INVALID");
@@ -157,7 +157,7 @@ function parseAuditCompany(value: unknown): FixedCohortCompletenessAuditReport["
   if (!isRecord(value) || !exactKeys(value, SOURCE_KEYS) || !stringField(value.sourceResultId) ||
       !stringField(value.companyId) || !stringField(value.sourceId) || !stringField(value.adapterFamily) ||
       !["A", "B", "C"].includes(String(value.grade)) || !stringField(value.sourceConfigSha256) ||
-      !nullableString(value.certificateSha256) || !stringField(value.canonicalJobSetSha256) ||
+      !nullableString(value.certificateSha256) || !nullableSha256(value.canonicalJobSetSha256) ||
       !stringArray(value.plannedSurfaceIds) || !stringArray(value.plannedChannelIds) ||
       !stringArray(value.officialSurfaceIds) || !stringArray(value.officialChannelIds) ||
       !Array.isArray(value.evidenceArtifacts) || !value.evidenceArtifacts.every(validEvidenceArtifact) ||
@@ -209,6 +209,9 @@ function validPaginationSummary(value: unknown): boolean {
 }
 function stringField(value: unknown): value is string { return typeof value === "string" && value.length > 0; }
 function nullableString(value: unknown): value is string | null { return value === null || typeof value === "string"; }
+function nullableSha256(value: unknown): value is string | null {
+  return value === null || typeof value === "string" && /^[0-9a-f]{64}$/u.test(value);
+}
 function stringArray(value: unknown): value is string[] {
   return Array.isArray(value) && value.every((item) => typeof item === "string") && new Set(value).size === value.length;
 }
@@ -220,7 +223,8 @@ function nullableNonnegativeInteger(value: unknown): value is number | null {
 }
 
 function certificateValid(source: FixedCohortAuditSourceInput, releaseCandidateId: string, batchId: string, now: Date): boolean {
-  if (!source.certificate || !source.certificateSha256 || certificateSha256(source.certificate) !== source.certificateSha256 ||
+  if (!source.canonicalJobSetSha256 || !source.certificate || !source.certificateSha256 ||
+    certificateSha256(source.certificate) !== source.certificateSha256 ||
     typeof source.certificate !== "object" || Array.isArray(source.certificate)) return false;
   const expected = { releaseCandidateId, batchId, sourceResultId: source.sourceResultId, sourceId: source.sourceId,
     companyId: source.companyId, sourceConfigSha256: source.sourceConfigSha256,
@@ -259,7 +263,9 @@ function summarizePagination(source: FixedCohortAuditSourceInput): Array<{ chann
   const groups = new Map<string, FixedCohortAuditSourceInput["paginationEvidence"][number][]>();
   for (const page of source.paginationEvidence) {
     if (page.channelId !== null && !source.officialChannelIds.includes(page.channelId)) return null;
-    const key = page.channelId ?? "\0SOURCE", rows = groups.get(key) ?? []; rows.push(page); groups.set(key, rows);
+    const defaultChannelId = source.officialChannelIds.length === 1 ? source.officialChannelIds[0]! : null;
+    const key = page.channelId ?? defaultChannelId ?? "\0SOURCE";
+    const rows = groups.get(key) ?? []; rows.push(page); groups.set(key, rows);
   }
   const observedChannelIds = [...groups.keys()].filter((key) => key !== "\0SOURCE").sort(compare);
   if (groups.has("\0SOURCE") && source.officialChannelIds.length > 0 ||

@@ -55,7 +55,7 @@ try {
     return {
       sourceResultId: row.id, companyId: plan.company.id, sourceId: plan.source.id,
       adapterFamily: adapterFamily(plan), grade, sourceConfigSha256: row.sourceConfigHash,
-      canonicalJobSetSha256: row.canonicalOutputSetSha256 ?? "", certificate: row.completenessCertificate,
+      canonicalJobSetSha256: row.canonicalOutputSetSha256, certificate: row.completenessCertificate,
       certificateSha256: row.completenessCertificateSha256, officialSurfaceIds: row.officialSurfaceIds,
       plannedSurfaceIds: plan.source.surfaceId ? [plan.source.surfaceId] : [],
       plannedChannelIds: plan.expectedChannels?.map(({ channelId }) => channelId) ?? [],
@@ -96,7 +96,7 @@ try {
 function missingSource(plan: ReturnType<typeof buildStagedSourceCrawlPlans>[number]): FixedCohortAuditSourceInput {
   return { sourceResultId: `missing:${plan.source.id}`, companyId: plan.company.id, sourceId: plan.source.id,
     adapterFamily: adapterFamily(plan), grade: "C", sourceConfigSha256: "0".repeat(64),
-    canonicalJobSetSha256: "0".repeat(64), certificate: null, certificateSha256: null,
+    canonicalJobSetSha256: null, certificate: null, certificateSha256: null,
     plannedSurfaceIds: plan.source.surfaceId ? [plan.source.surfaceId] : [],
     plannedChannelIds: plan.expectedChannels?.map(({ channelId }) => channelId) ?? [],
     officialSurfaceIds: plan.source.surfaceId ? [plan.source.surfaceId] : [],
@@ -108,7 +108,7 @@ function missingSource(plan: ReturnType<typeof buildStagedSourceCrawlPlans>[numb
 }
 function missingManifestSource(companyId: string, sourceId: string): FixedCohortAuditSourceInput {
   return { sourceResultId: `missing:${sourceId}`, companyId, sourceId, adapterFamily: "unavailable", grade: "C",
-    sourceConfigSha256: "0".repeat(64), canonicalJobSetSha256: "0".repeat(64), certificate: null,
+    sourceConfigSha256: "0".repeat(64), canonicalJobSetSha256: null, certificate: null,
     certificateSha256: null, plannedSurfaceIds: [], plannedChannelIds: [], officialSurfaceIds: [], officialChannelIds: [],
     evidenceArtifacts: [], paginationEvidence: [], expectedEvidenceKind: null, expectedJobCount: null, pagesVisited: null,
     totalPages: null, finalJobCount: 0, transportState: "NOT_ATTEMPTED", adapterState: "NOT_ATTEMPTED",
