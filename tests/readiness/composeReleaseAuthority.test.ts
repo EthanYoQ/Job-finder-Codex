@@ -4,10 +4,10 @@ import {describe,expect,it} from "vitest";
 describe("formal compose release authority",()=>{
   const compose=readFileSync("ops/docker-compose.yml","utf8");
   const service=(name:string)=>compose.match(new RegExp(`^  ${name}:\\n[\\s\\S]*?(?=^  [a-z][a-z0-9-]*:\\n|^volumes:\\n)`,"mu"))?.[0]??"";
-  it("requires build provenance for every application image",()=>{
-    expect(compose).toMatch(/BUILD_COMMIT_SHA:\s*\$\{BUILD_COMMIT_SHA:\?[^}]+\}/u);
-    expect(compose).toMatch(/BUILD_SOURCE_CLEAN:\s*\$\{BUILD_SOURCE_CLEAN:\?[^}]+\}/u);
-    expect(compose).toMatch(/BUILD_SOURCE_TREE_SHA256:\s*\$\{BUILD_SOURCE_TREE_SHA256:\?[^}]+\}/u);
+  it("requires one qualified immutable digest for every application image",()=>{
+    expect(compose).toMatch(/ghcr\.io\/ethanyoq\/job-finder-rc022-cloud-acceptance@sha256:\$\{JOB_FINDER_IMAGE_DIGEST:\?[^}]+\}/u);
+    expect(compose.match(/^    image: \*job-finder-image$/gmu)).toHaveLength(10);
+    expect(compose).not.toMatch(/^    build:/gmu);
   });
   it.each(["membership.json","oracle.json"])("does not deploy obsolete file authority %s",name=>{
     const worker=service("worker"),scheduler=service("scheduler"),monitor=service("monitor");

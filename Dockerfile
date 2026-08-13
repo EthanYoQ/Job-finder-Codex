@@ -2,7 +2,7 @@
 
 FROM postgres:16-bookworm@sha256:da788743d2060767375896de4d646f7576f5911461444b372616f19ea61db2ec AS pg16-client
 
-FROM node:22-trixie-slim@sha256:db8a96a63e5264607ada2d206758876ebbed6a12be2ada7517793cbfb0c2a29c AS deps
+FROM node:22-bookworm-slim@sha256:d649c27dae7ba0137b3cef5dd75baa422c08dc3d9e3fc0c23dfb172dc3cc6436 AS deps
 WORKDIR /app
 COPY ops/install-apt-packages.sh /usr/local/bin/install-apt-packages.sh
 COPY package.json ./package.json
@@ -39,7 +39,7 @@ COPY prisma ./prisma
 COPY ops ./ops
 RUN npm run build
 
-FROM node:22-trixie-slim@sha256:db8a96a63e5264607ada2d206758876ebbed6a12be2ada7517793cbfb0c2a29c AS production-deps
+FROM node:22-bookworm-slim@sha256:d649c27dae7ba0137b3cef5dd75baa422c08dc3d9e3fc0c23dfb172dc3cc6436 AS production-deps
 WORKDIR /app
 ENV NODE_ENV=production
 COPY package.json ./package.json
@@ -57,8 +57,11 @@ RUN rm -rf /app/node_modules
 COPY --from=production-deps /app/node_modules ./node_modules
 RUN npx tsx scripts/generate-build-identity.ts --commit=${BUILD_COMMIT_SHA} --clean-provenance=${BUILD_SOURCE_CLEAN} --source-tree-sha256=${BUILD_SOURCE_TREE_SHA256}
 
-FROM node:22-trixie-slim@sha256:db8a96a63e5264607ada2d206758876ebbed6a12be2ada7517793cbfb0c2a29c AS runtime
+FROM node:22-bookworm-slim@sha256:d649c27dae7ba0137b3cef5dd75baa422c08dc3d9e3fc0c23dfb172dc3cc6436 AS runtime
 WORKDIR /app
+RUN npm install --global npm@12.0.2 \
+  && npm cache clean --force \
+  && test "$(npm --version)" = "12.0.2"
 ENV NODE_ENV=production
 ENV HOST=0.0.0.0
 ENV PORT=3000
@@ -69,7 +72,8 @@ ENV XDG_CACHE_HOME=/tmp/.cache
 COPY ops/install-apt-packages.sh /usr/local/bin/install-apt-packages.sh
 RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     --mount=type=cache,target=/var/lib/apt,sharing=locked \
-    sh /usr/local/bin/install-apt-packages.sh ca-certificates chromium libpq5 libreadline8t64 util-linux
+    sh /usr/local/bin/install-apt-packages.sh ca-certificates chromium libpq5 libreadline8 util-linux
+ARG PRODUCTION_CHROMIUM_MIN_VERSION
 COPY --from=pg16-client /usr/lib/postgresql/16/bin/pg_dump /usr/local/bin/pg_dump
 COPY --from=pg16-client /usr/lib/postgresql/16/bin/pg_restore /usr/local/bin/pg_restore
 COPY --from=pg16-client /usr/lib/postgresql/16/bin/psql /usr/local/bin/psql
@@ -78,6 +82,9 @@ RUN test "$(command -v pg_dump)" = "/usr/local/bin/pg_dump" \
   && test "$(command -v psql)" = "/usr/local/bin/psql" \
   && sh -lc 'test "$(command -v pg_dump)" = "/usr/local/bin/pg_dump" && test "$(command -v pg_restore)" = "/usr/local/bin/pg_restore" && test "$(command -v psql)" = "/usr/local/bin/psql"' \
   && test "$(command -v flock)" = "/usr/bin/flock" \
+  && test -n "$PRODUCTION_CHROMIUM_MIN_VERSION" \
+  && dpkg --compare-versions "$(dpkg-query -W -f='${Version}' chromium)" ge "$PRODUCTION_CHROMIUM_MIN_VERSION" \
+  && dpkg-query -W -f='chromium=${Version}\nchromium-common=${Version}\n' chromium chromium-common \
   && pg_dump --version | grep -E '^pg_dump \(PostgreSQL\) 16\.14([ .]|$)' \
   && pg_restore --version | grep -E '^pg_restore \(PostgreSQL\) 16\.14([ .]|$)' \
   && psql --version | grep -E '^psql \(PostgreSQL\) 16\.14([ .]|$)' \

@@ -52,7 +52,13 @@ describe("production security gate", () => {
   it("blocks when a vulnerability exception has expired", () => {
     const receipt = evaluateProductionSecurityGate({
       ...identity,
-      findings: [highFinding],
+      findings: [{
+        scanner: highFinding.scanner,
+        vulnerabilityId: highFinding.vulnerabilityId,
+        packageName: highFinding.packageName,
+        installedVersion: highFinding.installedVersion,
+        severity: highFinding.severity
+      }],
       reachability: [],
       exceptions: [{
         vulnerabilityId: "CVE-2026-1000",
@@ -66,6 +72,33 @@ describe("production security gate", () => {
     expect(receipt.decision).toBe("BLOCKED");
     expect(receipt.policyErrors).toContain("Expired exception for CVE-2026-1000/runtime-parser");
     expect(receipt.findings[0]?.disposition).toBe("BLOCKED_EXPIRED_EXCEPTION");
+  });
+
+  it("rejects stale exceptions and exceptions for findings with an available fix", () => {
+    const exception = {
+      vulnerabilityId: highFinding.vulnerabilityId,
+      packageName: highFinding.packageName,
+      installedVersion: highFinding.installedVersion,
+      reason: "Temporary distro risk acceptance",
+      owner: "security@example.com",
+      expiresAt: "2026-09-01T00:00:00.000Z"
+    };
+    const fixed = evaluateProductionSecurityGate({
+      ...identity, findings: [highFinding], reachability: [], exceptions: [exception]
+    });
+    expect(fixed.decision).toBe("BLOCKED");
+    expect(fixed.policyErrors).toContain(
+      "Exception is forbidden when a fix is available for CVE-2026-1000/runtime-parser"
+    );
+    expect(fixed.findings[0]?.disposition).toBe("BLOCKED");
+
+    const stale = evaluateProductionSecurityGate({
+      ...identity, findings: [], reachability: [], exceptions: [exception]
+    });
+    expect(stale.decision).toBe("BLOCKED");
+    expect(stale.policyErrors).toContain(
+      "Stale exception does not match the current image for CVE-2026-1000/runtime-parser"
+    );
   });
 
   it("normalizes high findings from the image and production lock scanners", () => {

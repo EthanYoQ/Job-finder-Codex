@@ -9,6 +9,8 @@ x-bounded-logging: &bounded-logging
     max-size: "10m"
     max-file: "5"
 
+x-job-finder-image: &job-finder-image "ghcr.io/ethanyoq/job-finder-rc022-cloud-acceptance@sha256:${JOB_FINDER_IMAGE_DIGEST:?set JOB_FINDER_IMAGE_DIGEST from the qualified deployment receipt}"
+
 services:
   postgres:
     image: postgres:16-bookworm@sha256:da788743d2060767375896de4d646f7576f5911461444b372616f19ea61db2ec
@@ -29,13 +31,7 @@ services:
       - internal
 
   web:
-    build:
-      context: ..
-      dockerfile: Dockerfile
-      args: &release-build-args
-        BUILD_COMMIT_SHA: ${BUILD_COMMIT_SHA:?set BUILD_COMMIT_SHA}
-        BUILD_SOURCE_CLEAN: ${BUILD_SOURCE_CLEAN:?set BUILD_SOURCE_CLEAN}
-        BUILD_SOURCE_TREE_SHA256: ${BUILD_SOURCE_TREE_SHA256:?set BUILD_SOURCE_TREE_SHA256}
+    image: *job-finder-image
     restart: unless-stopped
     logging: *bounded-logging
     user: node
@@ -82,10 +78,7 @@ services:
       - internal
 
   bootstrap:
-    build:
-      context: ..
-      dockerfile: Dockerfile
-      args: *release-build-args
+    image: *job-finder-image
     restart: "no"
     user: node
     read_only: true
@@ -106,10 +99,7 @@ services:
       - internal
 
   worker:
-    build:
-      context: ..
-      dockerfile: Dockerfile
-      args: *release-build-args
+    image: *job-finder-image
     restart: unless-stopped
     logging: *bounded-logging
     user: node
@@ -136,10 +126,7 @@ services:
       - internal
 
   scheduler:
-    build:
-      context: ..
-      dockerfile: Dockerfile
-      args: *release-build-args
+    image: *job-finder-image
     restart: unless-stopped
     logging: *bounded-logging
     user: node
@@ -226,10 +213,7 @@ services:
       - internal
 
   backup-init:
-    build:
-      context: ..
-      dockerfile: Dockerfile
-      args: *release-build-args
+    image: *job-finder-image
     user: "0:0"
     restart: "no"
     network_mode: none
@@ -248,10 +232,7 @@ services:
         target: /backups
 
   backup:
-    build:
-      context: ..
-      dockerfile: Dockerfile
-      args: *release-build-args
+    image: *job-finder-image
     restart: "on-failure:3"
     logging: *bounded-logging
     user: node
@@ -296,10 +277,7 @@ services:
       - internal
 
   restore-state-init:
-    build:
-      context: ..
-      dockerfile: Dockerfile
-      args: *release-build-args
+    image: *job-finder-image
     user: "0:0"
     restart: "no"
     network_mode: none
@@ -312,10 +290,7 @@ services:
       - restore-state:/restore-state
 
   restore-verifier:
-    build:
-      context: ..
-      dockerfile: Dockerfile
-      args: *release-build-args
+    image: *job-finder-image
     restart: "unless-stopped"
     logging: *bounded-logging
     user: node
@@ -362,10 +337,7 @@ services:
       - internal
 
   monitor-state-init:
-    build:
-      context: ..
-      dockerfile: Dockerfile
-      args: *release-build-args
+    image: *job-finder-image
     user: "0:0"
     restart: "no"
     network_mode: none
@@ -384,10 +356,7 @@ services:
         target: /app/monitor-state
 
   monitor:
-    build:
-      context: ..
-      dockerfile: Dockerfile
-      args: *release-build-args
+    image: *job-finder-image
     restart: "unless-stopped"
     logging: *bounded-logging
     user: node

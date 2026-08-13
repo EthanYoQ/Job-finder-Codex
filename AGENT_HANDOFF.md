@@ -1,5 +1,16 @@
 # Launch integration handoff
 
+## 2026-08-13 production-image security remediation update
+
+- Current pushed HEAD is `8d21e47ca11a09cc3844162bfbd3f7abc971403e` on `codex/launch-integration`.
+- GitHub run `31662466999` (Private cloud build gate) passed for that exact SHA.
+- GitHub run `31662466988` (Production image) built and scanned the exact image successfully, then failed the production security gate. The archived receipt is `BLOCKED` with 51 HIGH/CRITICAL findings.
+- Exact failure evidence was downloaded under ignored `.runtime/.cache/security-run-31662466988`. Its Node-package findings come from the base image's global npm tree under `/usr/local/lib/node_modules/npm`; they are not present in the project's `npm ls --omit=dev` closure. The remaining findings are Debian/Chromium packages; 43 lacked `FixedVersion` in that Trivy report.
+- Adversarial review rejected a blanket exception. Four Chromium rows (`CVE-2026-19556` and `CVE-2026-19559` across `chromium` and `chromium-common`) are directly reachable through external-page crawling. Upstream fixes them in Chromium `151.0.7922.137`; Debian Trixie security was still on `.108`, while Bookworm security published `.137`.
+- The current candidate pins runtime npm `12.0.2`, moves all Node stages to a digest-pinned Bookworm image, requires Chromium `>=151.0.7922.137-1~deb12u1` at build time, and rejects stale vulnerability exceptions or exceptions for findings with a scanner-declared fix. Focused tests, typecheck, runtime contract, and diff-check pass.
+- The repository exception and reachability policy files remain empty. Do not claim the production-image gate or overall launch readiness is green until a new exact-image report and receipt prove it.
+- Next: finish dual-axis review, commit and push this fail-closed upgrade, inspect the new exact-image report, then split the runtime into role-specific core/crawler/dbops images and add precise VEX only for findings proven unreachable in those exact images.
+
 Use this handoff when resuming the launch-readiness goal on branch `codex/launch-integration` in `.worktrees/launch-integration`.
 
 ## Frozen pause point

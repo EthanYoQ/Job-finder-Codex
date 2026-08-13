@@ -1,6 +1,10 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
-import { extractProductionNodeStage, PRODUCTION_NODE_IMAGE_REF } from "../../src/readiness/productionImageContract";
+import {
+  extractProductionNodeStage,
+  PRODUCTION_CHROMIUM_MIN_VERSION,
+  PRODUCTION_NODE_IMAGE_REF
+} from "../../src/readiness/productionImageContract";
 
 const read = (path: string) => readFileSync(path, "utf8");
 
@@ -24,6 +28,13 @@ describe("production container contract", () => {
     expect(dockerfile).toContain("COPY --from=identity /app/node_modules ./node_modules");
     const runtimeStage = extractProductionNodeStage(dockerfile, "runtime");
     expect(runtimeStage).not.toContain("package-lock.json");
+    expect(runtimeStage).toContain("npm install --global npm@12.0.2");
+    expect(runtimeStage).toContain('test "$(npm --version)" = "12.0.2"');
+    expect(runtimeStage).toContain("ARG PRODUCTION_CHROMIUM_MIN_VERSION");
+    expect(runtimeStage).not.toContain(`PRODUCTION_CHROMIUM_MIN_VERSION=${PRODUCTION_CHROMIUM_MIN_VERSION}`);
+    expect(runtimeStage).toContain(
+      'dpkg --compare-versions "$(dpkg-query -W -f=\'${Version}\' chromium)" ge "$PRODUCTION_CHROMIUM_MIN_VERSION"'
+    );
     expect(dockerfile).not.toContain("COPY . .");
     expect(packageJson.dependencies?.tsx).toBeDefined();
     expect(packageJson.dependencies?.prisma).toBeDefined();
@@ -67,6 +78,8 @@ describe("production container contract", () => {
     expect(workflow).toContain("npm run docker:export-provenance");
     expect(workflow).toMatch(/docker build[\s\S]*--no-cache/u);
     expect(workflow).toContain("BUILD_COMMIT_SHA=${{ github.sha }}");
+    expect(workflow).toContain("import { PRODUCTION_CHROMIUM_MIN_VERSION }");
+    expect(workflow).toContain('--build-arg PRODUCTION_CHROMIUM_MIN_VERSION="$CHROMIUM_MIN_VERSION"');
     expect(workflow).toContain("BUILD_SOURCE_CLEAN=true");
     expect(workflow).toContain("BUILD_SOURCE_TREE_SHA256");
     expect(workflow).toContain("docker run");
@@ -86,6 +99,16 @@ describe("production container contract", () => {
     expect(workflow).toContain("npm run security:production-gate");
     expect(workflow).toContain("--image-digest \"$IMAGE_DIGEST\"");
     expect(workflow).toContain("production-security-receipt.json");
+    expect(workflow).toContain("packages: write");
+    expect(workflow.match(/packages: write/gu)).toHaveLength(1);
+    expect(workflow).toContain("publish-qualified-image:");
+    expect(workflow).toContain("needs: clean-build-and-smoke");
+    expect(workflow).toContain("Publish and bind the qualified image manifest");
+    expect(workflow).toContain("REMOTE_CONFIG_DIGEST");
+    expect(workflow).toContain('test "$REMOTE_CONFIG_DIGEST" = "$LOCAL_CONFIG_DIGEST"');
+    expect(workflow).toContain("scripts/write-deployment-image-receipt.ts");
+    expect(workflow.indexOf("Publish and bind the qualified image manifest"))
+      .toBeGreaterThan(workflow.indexOf("Publish exact-image qualification receipt"));
     expect(workflow).toContain("scripts/bind-npm-audit-report.ts");
     expect(workflow).toContain("actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02");
     expect(workflow).toMatch(/name: Preserve production security evidence\s+if: always\(\)/u);

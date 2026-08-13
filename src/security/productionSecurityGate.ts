@@ -303,12 +303,26 @@ function validatePolicyRecords(input: ProductionSecurityGateInput, evaluatedAt: 
       errors.push(`Invalid exception for ${entry.vulnerabilityId || "<empty>"}/${entry.packageName || "<empty>"}`);
     } else if (expiry.getTime() <= evaluatedAt.getTime()) {
       errors.push(`Expired exception for ${entry.vulnerabilityId}/${entry.packageName}`);
+    } else {
+      const currentFindings = input.findings.filter((finding) => exceptionIdentityMatches(entry, finding));
+      if (currentFindings.length === 0) {
+        errors.push(`Stale exception does not match the current image for ${entry.vulnerabilityId}/${entry.packageName}`);
+      } else if (currentFindings.some((finding) => finding.fixedVersion !== undefined)) {
+        errors.push(`Exception is forbidden when a fix is available for ${entry.vulnerabilityId}/${entry.packageName}`);
+      }
     }
   }
   return errors;
 }
 
 function exceptionMatches(
+  entry: ProductionVulnerabilityException,
+  finding: ProductionVulnerabilityFinding
+): boolean {
+  return finding.fixedVersion === undefined && exceptionIdentityMatches(entry, finding);
+}
+
+function exceptionIdentityMatches(
   entry: ProductionVulnerabilityException,
   finding: ProductionVulnerabilityFinding
 ): boolean {

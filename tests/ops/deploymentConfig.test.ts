@@ -17,6 +17,7 @@ const monitoringCheckPath = resolve(repoRoot, "ops/monitoring-check.ts");
 const envExamplePath = resolve(repoRoot, ".env.example");
 const httpServerPath = resolve(repoRoot, "src/server/httpServer.ts");
 const p0CrawlPath = resolve(repoRoot, "scripts/p0-crawl.ts");
+const qualifiedImageDigest = "a".repeat(64);
 
 function readRequiredFile(path: string): string {
   expect(existsSync(path), `${path} should exist`).toBe(true);
@@ -59,9 +60,7 @@ function renderCompose(env: NodeJS.ProcessEnv = {}): string {
     encoding: "utf8",
     env: {
       ...process.env,
-      BUILD_COMMIT_SHA: "1".repeat(40),
-      BUILD_SOURCE_CLEAN: "true",
-      BUILD_SOURCE_TREE_SHA256: "2".repeat(64),
+      JOB_FINDER_IMAGE_DIGEST: qualifiedImageDigest,
       ALERT_WEBHOOK_URL: "https://alerts.example.invalid/job-finder",
       DATABASE_URL: "postgresql://jobfinder:secret@postgres:5432/jobfinder",
       P0_FULL_RELEASE_MEMBERSHIP_FILE: "/evidence/membership.json",
@@ -79,9 +78,7 @@ function renderCompose(env: NodeJS.ProcessEnv = {}): string {
 function renderBaseComposeWithoutManualAuthority(): string {
   const env: NodeJS.ProcessEnv = {
     ...process.env,
-    BUILD_COMMIT_SHA: "1".repeat(40),
-    BUILD_SOURCE_CLEAN: "true",
-    BUILD_SOURCE_TREE_SHA256: "2".repeat(64),
+    JOB_FINDER_IMAGE_DIGEST: qualifiedImageDigest,
     ALERT_WEBHOOK_URL: "https://alerts.example.invalid/job-finder",
     DATABASE_URL: "postgresql://jobfinder:secret@postgres:5432/jobfinder?schema=public",
     POSTGRES_PASSWORD: "secret",
@@ -211,6 +208,9 @@ describe("deployment configuration", () => {
     expect(readRequiredFile(monitoringCheckPath)).toContain("deliverOpsAlerts");
     expect(compose).toMatch(/node dist\/server\/httpServer\.js|"npm",\s*"run",\s*"start"|npm run start/);
     expect(compose).toContain("TRUSTED_PROXY_CIDRS");
+    expect(compose).toContain("x-job-finder-image: &job-finder-image \"ghcr.io/ethanyoq/job-finder-rc022-cloud-acceptance@sha256:${JOB_FINDER_IMAGE_DIGEST:?");
+    expect(compose.match(/^    image: \*job-finder-image$/gmu)).toHaveLength(10);
+    expect(compose).not.toMatch(/^    build:/gmu);
     expect(dockerfile).toMatch(/COPY --from=identity \/app\/scripts \.\/scripts/);
     expect(dockerfile).toMatch(/COPY --from=identity \/app\/src \.\/src/);
     expect(dockerfile).toMatch(/COPY --from=identity \/app\/prisma \.\/prisma/);

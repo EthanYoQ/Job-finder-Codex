@@ -32,7 +32,9 @@ jobs:
         run: |
           npm run docker:export-provenance
           SOURCE_TREE_SHA256="$(npx tsx -e "import { canonicalSourceTreeSha256 } from './src/readiness/buildIdentity.ts'; process.stdout.write(canonicalSourceTreeSha256(process.cwd()))")"
+          CHROMIUM_MIN_VERSION="$(npx tsx -e "import { PRODUCTION_CHROMIUM_MIN_VERSION } from './src/readiness/productionImageContract.ts'; process.stdout.write(PRODUCTION_CHROMIUM_MIN_VERSION)")"
           echo "SOURCE_TREE_SHA256=$SOURCE_TREE_SHA256" >> "$GITHUB_ENV"
+          echo "CHROMIUM_MIN_VERSION=$CHROMIUM_MIN_VERSION" >> "$GITHUB_ENV"
       - run: npm run image:context-check
       - run: npm run image:runtime-contract-check
 
@@ -42,6 +44,7 @@ jobs:
           --build-arg BUILD_COMMIT_SHA=${{ github.sha }}
           --build-arg BUILD_SOURCE_CLEAN=true
           --build-arg BUILD_SOURCE_TREE_SHA256="$SOURCE_TREE_SHA256"
+          --build-arg PRODUCTION_CHROMIUM_MIN_VERSION="$CHROMIUM_MIN_VERSION"
           --tag "$IMAGE_TAG" .
 
       - name: Enforce runtime identity and image size
@@ -359,6 +362,12 @@ jobs:
             .runtime/build-identity.json .runtime/security/production-security-receipt.json \
             .runtime/restore/restore-pass-receipt.json
 
+      - name: Export qualified image for trusted publication
+        if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+        run: |
+          set -euo pipefail
+          docker save "$IMAGE_TAG" | gzip -1 > .runtime/qualified-image.tar.gz
+
       - name: Preserve production qualification receipts
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
@@ -367,5 +376,69 @@ jobs:
           path: |
             .runtime/image-qualification-receipt.json
             .runtime/restore/*receipt.json
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Preserve qualified image for trusted publication
+        if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: qualified-image-${{ github.sha }}
+          path: .runtime/qualified-image.tar.gz
+          if-no-files-found: error
+          retention-days: 1
+
+  publish-qualified-image:
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+    needs: clean-build-and-smoke
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - name: Install the receipt writer from the locked dependency graph
+        run: npm ci --ignore-scripts
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: qualified-image-${{ github.sha }}
+          path: .runtime
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: production-qualification-${{ github.sha }}
+          path: .runtime/qualification
+      - name: Publish and bind the qualified image manifest
+        env:
+          REGISTRY_REPOSITORY: ghcr.io/ethanyoq/job-finder-rc022-cloud-acceptance
+        run: |
+          set -euo pipefail
+          gunzip --stdout .runtime/qualified-image.tar.gz | docker load
+          LOCAL_TAG="job-finder:${GITHUB_SHA}"
+          LOCAL_CONFIG_DIGEST="$(docker image inspect --format '{{.Id}}' "$LOCAL_TAG")"
+          PUBLISHED_TAG="$REGISTRY_REPOSITORY:${GITHUB_SHA}"
+          printf '%s' "${{ github.token }}" | docker login ghcr.io --username "${{ github.actor }}" --password-stdin
+          docker tag "$LOCAL_TAG" "$PUBLISHED_TAG"
+          docker push "$PUBLISHED_TAG"
+          MANIFEST_DIGEST="$(docker buildx imagetools inspect "$PUBLISHED_TAG" --format '{{json .Manifest.Digest}}' | tr -d '"')"
+          REMOTE_CONFIG_DIGEST="$(docker buildx imagetools inspect --raw "$REGISTRY_REPOSITORY@$MANIFEST_DIGEST" | jq -r '.config.digest')"
+          test "$REMOTE_CONFIG_DIGEST" = "$LOCAL_CONFIG_DIGEST"
+          node node_modules/tsx/dist/cli.mjs scripts/write-deployment-image-receipt.ts \
+            .runtime/deployment-image-receipt.json "$REGISTRY_REPOSITORY" "$MANIFEST_DIGEST" \
+            "$LOCAL_CONFIG_DIGEST" "$GITHUB_SHA" .runtime/qualification/image-qualification-receipt.json
+          jq -r '"JOB_FINDER_IMAGE_DIGEST=" + (.manifestDigest | sub("^sha256:"; ""))' \
+            .runtime/deployment-image-receipt.json > .runtime/deployment-image.env
+          docker image rm "$LOCAL_TAG" "$PUBLISHED_TAG" >/dev/null 2>&1 || true
+          docker pull "$REGISTRY_REPOSITORY@$MANIFEST_DIGEST"
+          test "$(docker image inspect --format '{{.Id}}' "$REGISTRY_REPOSITORY@$MANIFEST_DIGEST")" = "$LOCAL_CONFIG_DIGEST"
+      - name: Preserve deployment receipt
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: production-deployment-${{ github.sha }}
+          path: |
+            .runtime/deployment-image-receipt.json
+            .runtime/deployment-image.env
           if-no-files-found: error
           retention-days: 14
