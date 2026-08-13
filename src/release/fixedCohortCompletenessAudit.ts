@@ -9,8 +9,14 @@ export interface FixedCohortAuditSourceInput {
   sourceResultId: string; companyId: string; sourceId: string; adapterFamily: string; grade: "A" | "B" | "C";
   sourceConfigSha256: string; certificate: unknown | null; certificateSha256: string | null;
   canonicalJobSetSha256: string;
+  plannedSurfaceIds: readonly string[]; plannedChannelIds: readonly string[];
   officialSurfaceIds: readonly string[]; officialChannelIds: readonly string[];
-  evidenceLocations: readonly string[]; expectedEvidenceKind: string | null; expectedJobCount: number | null;
+  evidenceArtifacts: readonly { id: string; path: string; sha256: string }[];
+  paginationEvidence: readonly { artifactId: string; sequence: number; requestedCursor: string | null;
+    returnedCursor: string | null; requestedOffset: number | null; returnedOffset: number | null;
+    requestedPage: number | null; returnedPage: number | null; declaredTotal: number | null;
+    declaredCount: number | null; declaredPages: number | null; termination: string; anomalyCodes: readonly string[] }[];
+  expectedEvidenceKind: string | null; expectedJobCount: number | null;
   pagesVisited: number | null; totalPages: number | null; finalJobCount: number;
   transportState: string; adapterState: string; completenessState: string; atomicCommitState: string;
   failureCategory: string | null; failureDiagnosticCode: string | null; failureCode: string | null;
@@ -26,12 +32,17 @@ export interface FixedCohortCompletenessAuditReport {
 }
 
 export function buildFixedCohortCompletenessAudit(input: { generatedAt: Date; releaseCandidateId: string; batchId: string;
-  sources: readonly FixedCohortAuditSourceInput[] }): FixedCohortCompletenessAuditReport {
+  observedSourceIds: readonly string[]; sources: readonly FixedCohortAuditSourceInput[]; invalidReasons?: readonly string[]
+}): FixedCohortCompletenessAuditReport {
   const invalidReasons = validateLaunchManifest(P0_LAUNCH_MANIFEST, input.sources.map(({ companyId }) => companyId));
+  invalidReasons.push(...(input.invalidReasons ?? []));
   const expectedSources = P0_LAUNCH_MANIFEST.companies.map((company) => company.source.sourceId).sort(compare);
   const actualSources = input.sources.map(({ sourceId }) => sourceId).sort(compare);
   if (input.sources.length !== 50 || new Set(input.sources.map(({ companyId }) => companyId)).size !== 50 ||
     JSON.stringify(expectedSources) !== JSON.stringify(actualSources)) invalidReasons.push("AUDIT_SOURCE_DENOMINATOR_MISMATCH");
+  const observedSources = [...input.observedSourceIds].sort(compare);
+  if (input.observedSourceIds.length !== 50 || new Set(input.observedSourceIds).size !== 50 ||
+      JSON.stringify(expectedSources) !== JSON.stringify(observedSources)) invalidReasons.push("OBSERVED_SOURCE_DENOMINATOR_MISMATCH");
   if (!input.releaseCandidateId.trim() || !input.batchId.trim() || !Number.isFinite(input.generatedAt.getTime())) {
     invalidReasons.push("AUDIT_IDENTITY_INVALID");
   }
@@ -39,8 +50,15 @@ export function buildFixedCohortCompletenessAudit(input: { generatedAt: Date; re
   const companies = [...input.sources].sort((a, b) => compare(a.sourceId, b.sourceId)).map((source) => {
     const blockers: string[] = [], expected = manifestBySource.get(source.sourceId);
     if (!expected || expected.companyId !== source.companyId) blockers.push("MANIFEST_BINDING_MISMATCH");
-    if (source.officialSurfaceIds.length === 0 || source.officialChannelIds.length === 0) blockers.push("OFFICIAL_SCOPE_MISSING");
-    if (source.evidenceLocations.length === 0) blockers.push("EVIDENCE_LOCATION_MISSING");
+    if (!sameStrings(source.plannedSurfaceIds, source.officialSurfaceIds) ||
+        !sameStrings(source.plannedChannelIds, source.officialChannelIds)) blockers.push("OFFICIAL_SCOPE_MISMATCH");
+    if (source.evidenceArtifacts.length === 0 || source.evidenceArtifacts.some((artifact) =>
+      !artifact.id.trim() || !artifact.path.trim() || !/^[0-9a-f]{64}$/u.test(artifact.sha256))) blockers.push("EVIDENCE_LOCATION_MISSING");
+    const artifactIds = new Set(source.evidenceArtifacts.map(({ id }) => id));
+    if (source.paginationEvidence.length === 0 || source.paginationEvidence.some((page) =>
+      !artifactIds.has(page.artifactId) || !Number.isSafeInteger(page.sequence) || !page.termination.trim())) {
+      blockers.push("PAGINATION_EVIDENCE_INVALID");
+    }
     if (!/^[0-9a-f]{64}$/u.test(source.sourceConfigSha256) ||
         !/^[0-9a-f]{64}$/u.test(source.canonicalJobSetSha256)) blockers.push("EVIDENCE_COMMITMENT_INVALID");
     if (!source.expectedEvidenceKind) blockers.push("EXPECTED_EVIDENCE_DECLARATION_MISSING");
@@ -70,7 +88,8 @@ function certificateValid(source: FixedCohortAuditSourceInput, releaseCandidateI
     typeof source.certificate !== "object" || Array.isArray(source.certificate)) return false;
   const expected = { releaseCandidateId, batchId, sourceResultId: source.sourceResultId, sourceId: source.sourceId,
     companyId: source.companyId, sourceConfigSha256: source.sourceConfigSha256,
-    canonicalJobSetSha256: source.canonicalJobSetSha256 };
+      canonicalJobSetSha256: source.canonicalJobSetSha256, surfaceIds: source.plannedSurfaceIds,
+      channelIds: source.plannedChannelIds };
   try {
     if (source.grade === "A") verifyAGradeCompletenessCertificateReceipt({ certificate: source.certificate,
       certificateSha256: source.certificateSha256, expected });
@@ -93,14 +112,17 @@ function failureClassFor(source: FixedCohortAuditSourceInput, blockers: readonly
   if (["TEMPORARY_OFFICIAL_SOURCE_FAILURE", "SOURCE_TIME_LIMIT_REACHED"].includes(source.failureCategory ?? "")) {
     return "SOURCE_TEMPORARILY_UNAVAILABLE";
   }
-  if (source.failureCategory === "OFFICIAL_SOURCE_REVIEW_REQUIRED" || source.failureDiagnosticCode?.includes("CONFIG")) return "CONFIGURATION_ERROR";
+  if (source.failureDiagnosticCode?.includes("CONFIG")) return "CONFIGURATION_ERROR";
   if (source.adapterState !== "SUCCEEDED" || source.atomicCommitState === "ROLLED_BACK") return "PRODUCT_DEFECT";
   return "EVIDENCE_INSUFFICIENT";
 }
-function buildRepairFrontier(companies: readonly (FixedCohortAuditSourceInput & { failureClass: AuditFailureClass | null })[]) {
+function buildRepairFrontier(companies: readonly (FixedCohortAuditSourceInput & {
+  failureClass: AuditFailureClass | null; blockers: readonly string[]
+})[]) {
   const groups = new Map<string, typeof companies[number][]>();
   for (const row of companies) if (row.failureClass) {
-    const key = `${row.adapterFamily}\0${row.failureClass}`, group = groups.get(key) ?? []; group.push(row); groups.set(key, group);
+    const key = `${row.adapterFamily}\0${row.failureClass}\0${primaryRootCause(row)}`,
+      group = groups.get(key) ?? []; group.push(row); groups.set(key, group);
   }
   const frontier: { clusterId: string; adapterFamily: string; failureClass: AuditFailureClass; companyIds: string[]; sourceIds: string[]; proposedTicketOrdinal: number }[] = [];
   for (const [key, rows] of [...groups].sort(([a], [b]) => compare(a, b))) {
@@ -113,6 +135,12 @@ function buildRepairFrontier(companies: readonly (FixedCohortAuditSourceInput & 
     }
   }
   return frontier;
+}
+function primaryRootCause(row: { blockers: readonly string[] }): string {
+  return row.blockers[0] ?? "UNKNOWN";
+}
+function sameStrings(left: readonly string[], right: readonly string[]): boolean {
+  return JSON.stringify([...new Set(left)].sort(compare)) === JSON.stringify([...new Set(right)].sort(compare));
 }
 const compare = (a: string, b: string) => Buffer.from(a).compare(Buffer.from(b));
 const sha = (value: string) => createHash("sha256").update(value, "utf8").digest("hex");

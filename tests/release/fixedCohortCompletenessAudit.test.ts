@@ -17,11 +17,18 @@ describe("fixed cohort completeness audit", () => {
 
   it("marks a missing or substituted frozen source as an invalid audit without hiding the other rows", () => {
     const value = input();
-    value.sources = value.sources.slice(1);
+    value.observedSourceIds = value.observedSourceIds.slice(1);
     const report = buildFixedCohortCompletenessAudit(value);
     expect(report.decision).toBe("AUDIT_INVALID");
-    expect(report.invalidReasons).toContain("AUDIT_SOURCE_DENOMINATOR_MISMATCH");
-    expect(report.companies).toHaveLength(49);
+    expect(report.invalidReasons).toContain("OBSERVED_SOURCE_DENOMINATOR_MISMATCH");
+    expect(report.companies).toHaveLength(50);
+  });
+
+  it("keeps all 50 report rows but invalidates a batch with no real source results or with an extra source", () => {
+    const empty = input(); empty.observedSourceIds = [];
+    expect(buildFixedCohortCompletenessAudit(empty)).toMatchObject({ decision: "AUDIT_INVALID" });
+    const extra = input(); extra.observedSourceIds.push("source-substitute-social");
+    expect(buildFixedCohortCompletenessAudit(extra).invalidReasons).toContain("OBSERVED_SOURCE_DENOMINATOR_MISMATCH");
   });
 
   it("does not treat a plausible or repeated job count as completeness proof", () => {
@@ -51,19 +58,27 @@ describe("fixed cohort completeness audit", () => {
   });
 });
 
-function input(): { generatedAt: Date; releaseCandidateId: string; batchId: string; sources: FixedCohortAuditSourceInput[] } {
-  return {
-    generatedAt: new Date("2026-08-13T00:00:00.000Z"), releaseCandidateId: "rc-1", batchId: "batch-1",
-    sources: P0_LAUNCH_MANIFEST.companies.map((company): FixedCohortAuditSourceInput => ({
+function input(): { generatedAt: Date; releaseCandidateId: string; batchId: string; observedSourceIds: string[];
+  sources: FixedCohortAuditSourceInput[] } {
+  const sources = P0_LAUNCH_MANIFEST.companies.map((company): FixedCohortAuditSourceInput => ({
       sourceResultId: `result:${company.source.sourceId}`, companyId: company.companyId, sourceId: company.source.sourceId,
       adapterFamily: company.source.sourceId.split("-")[1] ?? "unknown",
       grade: "C", sourceConfigSha256: "a".repeat(64), canonicalJobSetSha256: "b".repeat(64), certificate: null,
-      certificateSha256: null, officialSurfaceIds: [`surface:${company.source.sourceId}`], officialChannelIds: [],
-      evidenceLocations: [`evidence/${company.source.sourceId}.json`], expectedEvidenceKind: null, expectedJobCount: null,
+      certificateSha256: null, plannedSurfaceIds: [`surface:${company.source.sourceId}`],
+      plannedChannelIds: [`channel:${company.source.sourceId}`], officialSurfaceIds: [`surface:${company.source.sourceId}`],
+      officialChannelIds: [`channel:${company.source.sourceId}`], evidenceArtifacts: [{ id: `artifact:${company.source.sourceId}`,
+        path: `evidence/${company.source.sourceId}.json`, sha256: "c".repeat(64) }],
+      paginationEvidence: [{ artifactId: `artifact:${company.source.sourceId}`, sequence: 1, requestedCursor: null,
+        returnedCursor: null, requestedOffset: 0, returnedOffset: 0, requestedPage: 1, returnedPage: 1,
+        declaredTotal: 10, declaredCount: 10, declaredPages: 1, termination: "NEXT_ABSENT", anomalyCodes: [] }],
+      expectedEvidenceKind: "COMPLETE_PAGE_TRAVERSAL", expectedJobCount: 10,
       pagesVisited: 1, totalPages: 1, finalJobCount: 10, transportState: "SUCCEEDED", adapterState: "SUCCEEDED",
       completenessState: "VERIFIED", atomicCommitState: "COMMITTED", failureCategory: null,
       failureDiagnosticCode: null, failureCode: null
-    }))
+    }));
+  return {
+    generatedAt: new Date("2026-08-13T00:00:00.000Z"), releaseCandidateId: "rc-1", batchId: "batch-1",
+    observedSourceIds: sources.map(({ sourceId }) => sourceId), sources
   };
 }
 
