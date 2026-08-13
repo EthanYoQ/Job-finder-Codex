@@ -13,6 +13,7 @@ services:
   postgres:
     image: postgres:16-bookworm@sha256:da788743d2060767375896de4d646f7576f5911461444b372616f19ea61db2ec
     restart: unless-stopped
+    logging: *bounded-logging
     environment:
       POSTGRES_DB: ${POSTGRES_DB:-jobfinder}
       POSTGRES_USER: ${POSTGRES_USER:-jobfinder}
