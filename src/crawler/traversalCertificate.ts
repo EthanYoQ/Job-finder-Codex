@@ -124,6 +124,41 @@ export type ViatrisRenderedUiCapture = (input: {
   signal?: AbortSignal;
 }) => Promise<{ observedAt: string; pages: ViatrisRenderedUiPageCapture[] }>;
 
+type ViatrisRenderedPaginationControl = Readonly<{
+  action: string | null;
+  pageNumber: string | null;
+  pageSize: string | null;
+}>;
+
+export function __testOnlyViatrisNextRenderedControlIndex(
+  controls: readonly ViatrisRenderedPaginationControl[],
+  nextPageNumber: number
+): number {
+  if (!Number.isSafeInteger(nextPageNumber) || nextPageNumber < 2) {
+    throw new Error("Viatris browser validator next page number invalid");
+  }
+  let declaredPageSize: number | undefined;
+  const matching: number[] = [];
+  for (const [index, control] of controls.entries()) {
+    const pageNumber = control.pageNumber && /^\d+$/u.test(control.pageNumber)
+      ? Number(control.pageNumber)
+      : Number.NaN;
+    const pageSize = control.pageSize && /^[1-9]\d*$/u.test(control.pageSize)
+      ? Number(control.pageSize)
+      : Number.NaN;
+    if (control.action !== "pageTurn" || !Number.isSafeInteger(pageNumber) || pageNumber < 1 ||
+      !Number.isSafeInteger(pageSize) || pageSize < 1) {
+      throw new Error("Viatris browser validator page control invalid");
+    }
+    if (declaredPageSize !== undefined && declaredPageSize !== pageSize) {
+      throw new Error("Viatris browser validator page-size declaration changed");
+    }
+    declaredPageSize = pageSize;
+    if (pageNumber === nextPageNumber) matching.push(index);
+  }
+  return matching[0] ?? -1;
+}
+
 const certificateSchema = z.object({
   schemaVersion: z.literal(B_GRADE_TRAVERSAL_CERTIFICATE_SCHEMA_VERSION),
   grade: z.literal("B"),
@@ -347,11 +382,15 @@ async function defaultViatrisRenderedUiCapture(input: {
         if (!id) throw new Error("Viatris browser validator rendered job ID missing");
         return id;
       });
-      const controlLocator = page.locator("#pageTurnUl li[onclick]");
-      const controlExpressions = await controlLocator.evaluateAll((elements) =>
-        elements.map((element) => element.getAttribute("onclick") ?? ""));
-      const nextIndex = controlExpressions.findIndex((expression) =>
-        new RegExp(`^\\s*pageTurn\\(\\s*${pageNumber + 1}\\s*,`, "u").test(expression));
+      const controlLocator = page.locator(
+        "#pageTurnUl li[data-action][data-pagenum][data-pagemax]"
+      );
+      const controls = await controlLocator.evaluateAll((elements) => elements.map((element) => ({
+        action: element.getAttribute("data-action"),
+        pageNumber: element.getAttribute("data-pagenum"),
+        pageSize: element.getAttribute("data-pagemax")
+      })));
+      const nextIndex = __testOnlyViatrisNextRenderedControlIndex(controls, pageNumber + 1);
       pages.push({
         pageNumber,
         declaredTotalPages: totalPages,

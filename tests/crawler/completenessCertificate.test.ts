@@ -5,6 +5,8 @@ import type { NormalizedJobRecord } from "../../src/crawler/normalizedJob";
 import { deriveCanonicalPaginationEvidence, evaluatePaginationEvidence } from "../../src/crawler/paginationEvidence";
 import { getPlanBySourceId, buildStagedSourceCrawlPlans, sourcePlanConfigSha256 } from "../../src/crawler/sourcePlan";
 import { sha256Bytes, type PersistentSourceFetchEvidence } from "../../src/crawler/sourceFetchEvidence";
+import { createHttpHtmlSourceFetch } from "../../src/crawler/httpHtmlSourceFetch";
+import { runSourceCrawl } from "../../src/crawler/runSourceCrawl";
 import {
   issueAGradeOfficialTotalCertificate,
   verifyAGradeCompletenessCertificateReceipt
@@ -19,6 +21,14 @@ function gskPlan() {
     throw new Error("Expected staged GSK plan");
   }
   return plan;
+}
+
+function canonicalJson(value: unknown): string {
+  if (value === null || typeof value !== "object") return JSON.stringify(value);
+  if (Array.isArray(value)) return `[${value.map(canonicalJson).join(",")}]`;
+  return `{${Object.entries(value as Record<string, unknown>).sort(([left], [right]) =>
+    Buffer.compare(Buffer.from(left), Buffer.from(right)))
+    .map(([key, child]) => `${JSON.stringify(key)}:${canonicalJson(child)}`).join(",")}}`;
 }
 
 function job(sourceJobId: string, suffix = ""): NormalizedJobRecord {
@@ -131,6 +141,52 @@ function candidate(input: {
 }
 
 describe("A-grade official-total completeness certificate", () => {
+  it("issues A grade for a lossless plan-bound HTML official total", async () => {
+    const plan = getPlanBySourceId(buildStagedSourceCrawlPlans(candidateCompanies), "source-csl-china-social");
+    if (plan?.adapterId !== "html-table") throw new Error("Expected staged CSL HTML plan");
+    const fetch = createHttpHtmlSourceFetch({
+      now: () => new Date(capturedAt),
+      http: async request => ({
+        status: 200,
+        body: `<main>Showing 1 to 1 of 1 results
+          <a href="https://jobs.csl.com/en/jobs/123"><p class="text-18">Medical Lead</p>
+          <p><svg aria-hidden="true"></svg>Shanghai, China</p></a></main>`,
+        finalUrl: request.url,
+        contentType: "text/html; charset=utf-8",
+        capturedAt
+      })
+    });
+    const crawl = await runSourceCrawl(plan, { fetch });
+    if (!crawl.fetchEvidence || !crawl.paginationEvaluation || !crawl.reconciliation) {
+      throw new Error("Expected exact HTML crawl evidence");
+    }
+    expect(crawl.truth.completenessVerified).toBe(true);
+    const decision = issueAGradeOfficialTotalCertificate({
+      binding: {
+        releaseCandidateId: "rc-html",
+        batchId: "batch-html",
+        sourceResultId: "result-html",
+        sourceConfigSha256: sourcePlanConfigSha256(plan)
+      },
+      plan,
+      transportSuccess: crawl.truth.transportSuccess,
+      adapterSuccess: crawl.truth.adapterSuccess,
+      evidence: crawl.fetchEvidence,
+      paginationEvaluation: crawl.paginationEvaluation,
+      reconciliation: crawl.reconciliation,
+      jobs: crawl.jobs,
+      officialArtifactSha256
+    });
+    expect(decision.status, JSON.stringify(decision)).toBe("CERTIFIED");
+    expect(decision).toMatchObject({
+      certificate: {
+        grade: "A",
+        scope: { companyId: "company-csl-china", sourceId: "source-csl-china-social" },
+        counts: { officialTotal: 1, finalUniqueJobCount: 1 }
+      }
+    });
+  });
+
   it("issues and verifies an exact same-scope certificate Receipt", () => {
     const decision = issueAGradeOfficialTotalCertificate(candidate({
       officialTotal: 2,
@@ -173,6 +229,21 @@ describe("A-grade official-total completeness certificate", () => {
         officialArtifactSha256
       }
     })).toThrow(/surface scope mismatch/i);
+
+    const wrongCompany = structuredClone(decision.certificate);
+    wrongCompany.scope.companyId = "company-abbvie-china";
+    const wrongCompanySha256 = sha256Bytes(Buffer.from(canonicalJson(wrongCompany), "utf8")).sha256;
+    expect(() => verifyAGradeCompletenessCertificateReceipt({
+      certificate: wrongCompany,
+      certificateSha256: wrongCompanySha256,
+      expected: {
+        releaseCandidateId: "rc-1",
+        batchId: "batch-1",
+        sourceResultId: "result-1",
+        sourceId: "source-gsk-china-social",
+        sourceConfigSha256: sourcePlanConfigSha256(gskPlan())
+      }
+    })).toThrow(/binding mismatch/i);
   });
 
   it("fails closed when an official total of 100 only yields 10 unique jobs", () => {

@@ -105,6 +105,7 @@ export interface HtmlTableConfig {
       };
   strictEmbeddedJsonZero?: {
     kind: "TEVA_SMARTAPPLY_CHINA";
+    remoteGlobalForeignExclusionPolicy: "TEVA_US_REMOTE_GLOBAL_V1";
   };
   staticPublicList?: {
     containerSelector: string;
@@ -134,6 +135,10 @@ export interface HtmlTableConfig {
     expectedJobCountAttribute?: string;
     expectedJobCountPattern?: string;
     expectedJobCountValue?: number;
+    explicitEmptyState?: {
+      selector: string;
+      pattern: string;
+    };
     officialWindowMode?: "NOVARTIS_PAGE_WINDOW_V1";
     strictPageControls?: {
       containerSelector: string;

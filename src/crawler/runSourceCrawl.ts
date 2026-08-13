@@ -17,6 +17,7 @@ import {
   strictHtmlExpectedAdapterOutputCount,
   validateStrictHtmlCompletenessProof
 } from "./strictHtmlCompletenessProof";
+import { strictCompletenessTrace } from "./strictCompletenessTrace";
 import { validateStrictSourceScopeExclusionProof } from "./strictSourceScopeExclusionProof";
 import {
   explicitlyForeignOrNonMainlandLocation,
@@ -398,49 +399,64 @@ function strictCompletenessGate(
   outputJobs: readonly NormalizedJobRecord[]
 ): boolean {
   if (!fetchResult.ok || !fetchResult.fetchEvidence || !fetchResult.paginationEvaluation ||
-    fetchResult.paginationEvaluation.safeCompleteness !== true) return false;
+    fetchResult.paginationEvaluation.safeCompleteness !== true) return strictGateTrace(plan, "INPUT_OR_PRIMARY_PAGINATION");
   try {
     const evidence = parsePersistentSourceFetchEvidence(fetchResult.fetchEvidence);
-    if (plan.executionAuthority !== "STAGED") return false;
+    if (plan.executionAuthority !== "STAGED") return strictGateTrace(plan, "EXECUTION_AUTHORITY");
     validateExecutablePlanChannelBinding(plan);
     const expectedChannelIds = planBoundEvidenceChannelIds(plan, evidence);
-    if (expectedChannelIds === undefined) return false;
+    if (expectedChannelIds === undefined) return strictGateTrace(plan, "CHANNEL_BINDING");
     const configuredHtmlProof = plan.adapterId === "html-table" &&
       plan.table.completenessProof !== undefined;
     const profileBoundEvidenceValidated = plan.adapterId === "official-json" && plan.profileBoundSource
       ? validateStrictProfileBoundSourceEvidence(plan, evidence, outputJobs)
       : false;
     if (plan.adapterId === "official-json" && plan.profileBoundSource && !profileBoundEvidenceValidated) {
-      return false;
+      return strictGateTrace(plan, "PROFILE_BOUND_EVIDENCE");
     }
     let artifactUrlBindings: Map<string, StrictUrlRule[]> | undefined;
     if (configuredHtmlProof) {
-      if (!validateStrictHtmlCompletenessProof(plan, evidence)) return false;
+      if (!validateStrictHtmlCompletenessProof(plan, evidence)) return strictGateTrace(plan, "HTML_PROOF");
     } else {
       const urlRules = strictPlanUrlRules(plan);
-      if (!urlRules) return false;
+      if (!urlRules) return strictGateTrace(plan, "URL_RULES");
       artifactUrlBindings = strictNetworkArtifactUrlBindings(evidence, urlRules);
-      if (!artifactUrlBindings ||
-        !strictEvidenceArtifactPurposes(plan, evidence, artifactUrlBindings) ||
-        !strictPageRequestContracts(plan, evidence, outputJobs, profileBoundEvidenceValidated)) return false;
+      if (!artifactUrlBindings) return strictGateTrace(plan, "ARTIFACT_URL_BINDING");
+      if (!strictEvidenceArtifactPurposes(plan, evidence, artifactUrlBindings)) {
+        return strictGateTrace(plan, "ARTIFACT_PURPOSE");
+      }
+      if (!strictPageRequestContracts(plan, evidence, outputJobs, profileBoundEvidenceValidated)) {
+        return strictGateTrace(plan, "PAGE_REQUEST_CONTRACT");
+      }
     }
     const hasScopeExclusionProof = hasConfiguredScopeExclusionProof(plan);
-    if (evidence.fetchLosses.length > 0 && !hasScopeExclusionProof && !profileBoundEvidenceValidated) return false;
-    if (hasScopeExclusionProof && !validateStrictSourceScopeExclusionProof(plan, evidence, outputJobs)) return false;
+    if (evidence.fetchLosses.length > 0 && !hasScopeExclusionProof && !profileBoundEvidenceValidated) {
+      return strictGateTrace(plan, "UNPROVEN_FETCH_LOSS");
+    }
+    if (hasScopeExclusionProof && !validateStrictSourceScopeExclusionProof(plan, evidence, outputJobs)) {
+      return strictGateTrace(plan, "SCOPE_EXCLUSION_PROOF");
+    }
     const replayPolicy = strictPositiveOfficialTotalReplayPolicy(plan);
     const htmlReplayPolicy = strictHtmlPaginationReplayPolicy(plan);
+    const declared = evidence.declaredCompleteness;
+    const htmlOfficialTotalReplayPolicy = configuredHtmlProof &&
+      declared?.kind === "OFFICIAL_TOTAL_COUNT" && declared.value > 0
+      ? { allowPositiveOfficialTotalCountAfterAdapterReconciliation: true as const }
+      : undefined;
     const independentlyEvaluated = evaluatePaginationEvidence({
       evidence,
       expectedChannelIds,
       filteredOutput: true,
       ...(replayPolicy ?? {}),
-      ...(htmlReplayPolicy ?? {})
+      ...(htmlReplayPolicy ?? {}),
+      ...(htmlOfficialTotalReplayPolicy ?? {})
     });
     if (independentlyEvaluated.safeCompleteness !== true || independentlyEvaluated.verifiedEligible !== true ||
       independentlyEvaluated.paginationTraceSha256 !== fetchResult.paginationEvaluation.paginationTraceSha256 ||
       JSON.stringify(independentlyEvaluated.derivedAnomalyCodes) !== JSON.stringify(fetchResult.paginationEvaluation.derivedAnomalyCodes) ||
-      JSON.stringify(independentlyEvaluated.visitedChannelIds) !== JSON.stringify(fetchResult.paginationEvaluation.visitedChannelIds)) return false;
-    const declared = evidence.declaredCompleteness;
+      JSON.stringify(independentlyEvaluated.visitedChannelIds) !== JSON.stringify(fetchResult.paginationEvaluation.visitedChannelIds)) {
+      return strictGateTrace(plan, "INDEPENDENT_PAGINATION_REPLAY");
+    }
     const expectedAdapterOutputCount = configuredHtmlProof
       ? strictHtmlExpectedAdapterOutputCount(plan, evidence)
       : undefined;
@@ -450,27 +466,62 @@ function strictCompletenessGate(
         ledger.validBeforeDedupeCount === ledger.rawInputCount);
     if (!declared || declared.scope === "GLOBAL_UNFILTERED" || evidence.supportingArtifactOnlyFailure ||
       evidence.fetchCounts.validCount !== ledger.rawInputCount ||
-      ledger.adapterLosses.length !== 0 || !adapterOutputBoundaryValid) return false;
+      ledger.adapterLosses.length !== 0 || !adapterOutputBoundaryValid) return strictGateTrace(plan, "ADAPTER_BOUNDARY");
     const artifact = evidence.artifacts.find((candidate) => candidate.logicalKey === declared.artifactLogicalKey);
     if (!artifact || !["OFFICIAL_COMPANY_PAGE", "ATS_PAGE", "ATS_API_RESPONSE", "PAGINATION_PAGE"]
-      .includes(artifact.kind)) return false;
+      .includes(artifact.kind)) return strictGateTrace(plan, "DECLARATION_ARTIFACT");
     const declaredArtifactRules = configuredHtmlProof
       ? []
       : artifactUrlBindings?.get(artifact.logicalKey);
-    if (!declaredArtifactRules) return false;
+    if (!declaredArtifactRules) return strictGateTrace(plan, "DECLARATION_URL_RULE");
     if (declared.kind === "OFFICIAL_TOTAL_COUNT") {
       const profileBoundExclusionReconciled = profileBoundEvidenceValidated &&
         replayPolicy?.allowIndependentlyVerifiedProfileBoundExclusions === true &&
         declared.value === evidence.fetchCounts.rawCount &&
         ledger.rawInputCount === evidence.fetchCounts.validCount;
-      if (declared.value !== ledger.rawInputCount && !profileBoundExclusionReconciled) return false;
-      if (declared.value > 0 && !declaredArtifactRules.some((rule) =>
-        rule.role === "ENDPOINT" && rule.allowsPositiveTotalDeclaration === true)) return false;
+      if (declared.value !== ledger.rawInputCount && !profileBoundExclusionReconciled) return strictGateTrace(plan, "OFFICIAL_TOTAL_COUNT");
+      const configuredHtmlPositiveTotal = configuredHtmlProof && plan.adapterId === "html-table" &&
+        plan.table.completenessProof?.kind === "OFFICIAL_TOTAL_PAGES" &&
+        plan.table.pagination?.expectedJobCountSelector !== undefined;
+      if (declared.value > 0 && !configuredHtmlPositiveTotal && !declaredArtifactRules.some((rule) =>
+        rule.role === "ENDPOINT" && rule.allowsPositiveTotalDeclaration === true)) return strictGateTrace(plan, "POSITIVE_TOTAL_AUTHORITY");
     }
     return true;
   } catch {
-    return false;
+    return strictGateTrace(plan, "EXCEPTION");
   }
+}
+
+function strictGateTrace(_plan: SourceCrawlPlan, _reason: string): false {
+  return strictCompletenessTrace("STRICT_COMPLETENESS_GATE", _plan.source.id, _reason);
+}
+
+export function supportsStrictOfficialTotalCertificate(plan: SourceCrawlPlan): boolean {
+  if (plan.adapterId === "html-table") {
+    if (plan.table.strictEmbeddedJsonZero?.kind === "TEVA_SMARTAPPLY_CHINA") return true;
+    return plan.table.completenessProof?.kind === "OFFICIAL_TOTAL_PAGES" &&
+      plan.table.pagination?.expectedJobCountSelector !== undefined;
+  }
+  return strictPositiveOfficialTotalReplayPolicy(plan)
+    ?.allowPositiveOfficialTotalCountAfterAdapterReconciliation === true;
+}
+
+export function validateStrictOfficialTotalCertificateEvidence(input: {
+  plan: SourceCrawlPlan;
+  evidence: PersistentSourceFetchEvidence;
+  paginationEvaluation: NonNullable<SourceFetchResult["paginationEvaluation"]>;
+  reconciliation: ReturnType<typeof assertAdapterReconciliation>;
+  jobs: readonly NormalizedJobRecord[];
+}): boolean {
+  if (!supportsStrictOfficialTotalCertificate(input.plan) ||
+      input.evidence.declaredCompleteness?.kind !== "OFFICIAL_TOTAL_COUNT") return false;
+  return strictCompletenessGate({
+    ok: true,
+    capturedAt: input.evidence.artifacts[0]?.capturedAt ?? "",
+    payload: null,
+    fetchEvidence: input.evidence,
+    paginationEvaluation: input.paginationEvaluation
+  }, input.reconciliation, input.plan, input.jobs);
 }
 
 function hasConfiguredScopeExclusionProof(plan: SourceCrawlPlan): boolean {
@@ -866,7 +917,7 @@ function strictWorkdayRequestContracts(
     ? 20 : Math.min(20, Math.max(1, Math.floor(config.pageSize)));
   const jobsUrl = new URL(`/wday/cxs/${config.tenant}/${config.site}/jobs`, plan.source.officialEntryUrl).toString();
   const artifacts = new Map(evidence.artifacts.map((artifact) => [artifact.logicalKey, artifact]));
-  if (artifacts.size !== evidence.artifacts.length) return false;
+  if (artifacts.size !== evidence.artifacts.length) return strictGateTrace(plan, "WORKDAY_DUPLICATE_ARTIFACT");
   const hasStaticLocationFacet = Object.keys(config.appliedFacets ?? {}).some(
     (facetParameter) => /location|country|countries/iu.test(facetParameter)
   );
@@ -876,7 +927,7 @@ function strictWorkdayRequestContracts(
   const locationArtifact = artifacts.get("workday-preflight-0000");
   if (needsLocationPreflight !== Boolean(locationArtifact) ||
     (config.locationFacetPolicy !== undefined && !needsLocationPreflight) ||
-    (needsLocationPreflight && config.searchText !== "China")) return false;
+    (needsLocationPreflight && config.searchText !== "China")) return strictGateTrace(plan, "WORKDAY_LOCATION_PREFLIGHT_SHAPE");
   let locationExpectedTotal: number | undefined;
   if (locationArtifact) {
     if (locationArtifact.bodyRepresentation === "REDACTED" ||
@@ -884,27 +935,29 @@ function strictWorkdayRequestContracts(
         family: "workday", role: "location-preflight", method: "POST", url: jobsUrl,
         body: { appliedFacets, limit: pageSize, offset: 0 },
         coordinate: { sequence: null, requestedOffset: 0, requestedPageSize: pageSize }
-      })) return false;
+      })) return strictGateTrace(plan, "WORKDAY_LOCATION_PREFLIGHT_REQUEST");
     const location = strictWorkdayLocationFacetDerivation(locationArtifact.body, plan);
-    if (!location) return false;
+    if (!location) return strictGateTrace(plan, "WORKDAY_LOCATION_DERIVATION");
     appliedFacets = { ...appliedFacets, ...location.appliedFacets };
     locationExpectedTotal = location.expectedFilteredTotal;
     selectedMainlandLocations = location.selectedMainlandLocations ?? [];
   }
   const facetArtifact = artifacts.get("workday-facet-preflight-0000");
   const hasDescriptorPolicy = Boolean(config.facetDescriptorBoundary) || (config.facetDescriptorExclusions?.length ?? 0) > 0;
-  if (hasDescriptorPolicy !== Boolean(facetArtifact)) return false;
+  if (hasDescriptorPolicy !== Boolean(facetArtifact)) return strictGateTrace(plan, "WORKDAY_FACET_PREFLIGHT_SHAPE");
   if (facetArtifact) {
     const preflightBody = { appliedFacets, limit: pageSize, offset: 0 };
     if (facetArtifact.bodyRepresentation === "REDACTED" ||
       !strictRequestContractMatches(facetArtifact.extractorLocator, {
       family: "workday", role: "facet-preflight", method: "POST", url: jobsUrl, body: preflightBody,
       coordinate: { sequence: null, requestedOffset: 0, requestedPageSize: pageSize }
-    })) return false;
+    })) return strictGateTrace(plan, "WORKDAY_FACET_PREFLIGHT_REQUEST");
     const facetRoot = strictUniqueJsonRecord(facetArtifact.body);
-    if (!facetRoot || (locationExpectedTotal !== undefined && facetRoot.total !== locationExpectedTotal)) return false;
+    if (!facetRoot || (locationExpectedTotal !== undefined && facetRoot.total !== locationExpectedTotal)) {
+      return strictGateTrace(plan, "WORKDAY_FACET_PREFLIGHT_TOTAL");
+    }
     const derived = strictWorkdayFacetDerivation(facetArtifact.body, config);
-    if (!derived) return false;
+    if (!derived) return strictGateTrace(plan, "WORKDAY_FACET_DERIVATION");
     appliedFacets = { ...appliedFacets, ...derived };
   }
   const pageKeys = new Set(evidence.pages.map((page) => page.artifactLogicalKey));
@@ -912,12 +965,14 @@ function strictWorkdayRequestContracts(
     if ((artifact.requestedUrl === jobsUrl || artifact.finalUrl === jobsUrl) &&
       !pageKeys.has(artifact.logicalKey) &&
       artifact.logicalKey !== "workday-preflight-0000" &&
-      artifact.logicalKey !== "workday-facet-preflight-0000") return false;
+      artifact.logicalKey !== "workday-facet-preflight-0000") return strictGateTrace(plan, "WORKDAY_UNEXPECTED_JOBS_ARTIFACT");
   }
   for (const page of evidence.pages) {
     const expected = { sequence: page.sequence, requestedCursor: null,
       requestedOffset: page.sequence * pageSize, requestedPage: page.sequence, requestedPageSize: pageSize };
-    if (!Number.isSafeInteger(page.sequence) || page.sequence < 0 || !strictPageCoordinatesEqual(page, expected)) return false;
+    if (!Number.isSafeInteger(page.sequence) || page.sequence < 0 || !strictPageCoordinatesEqual(page, expected)) {
+      return strictGateTrace(plan, "WORKDAY_PAGE_COORDINATE");
+    }
     const artifact = artifacts.get(page.artifactLogicalKey);
     const body = {
       appliedFacets,
@@ -930,22 +985,27 @@ function strictWorkdayRequestContracts(
       family: "workday", role: "page", method: "POST", url: jobsUrl, body,
       coordinate: { sequence: page.sequence, requestedOffset: page.sequence * pageSize,
         requestedPage: page.sequence, requestedPageSize: pageSize }
-    })) return false;
+    })) return strictGateTrace(plan, `WORKDAY_PAGE_REQUEST:${page.sequence}`);
     const pageRoot = strictUniqueJsonRecord(artifact.body);
     if (!pageRoot || !strictNonnegativeInteger(pageRoot.total) || !Array.isArray(pageRoot.jobPostings) ||
       page.declaredTotal !== pageRoot.total ||
       page.rawJobIds.length !== pageRoot.jobPostings.length ||
       createHash("sha256").update(typeof artifact.body === "string"
         ? Buffer.from(artifact.body, "utf8") : Buffer.from(artifact.body)).digest("hex") !==
-        page.responseFingerprintSha256) return false;
+        page.responseFingerprintSha256) return strictGateTrace(plan, `WORKDAY_PAGE_BODY:${page.sequence}`);
   }
-  return strictJnjOpaqueDetailReplay(
+  const jnjReplay = strictJnjOpaqueDetailReplay(
     plan,
     evidence,
     artifacts,
     outputJobs,
     selectedMainlandLocations
-  ) && strictPfizerOpaqueDetailReplay(plan, evidence, artifacts, outputJobs);
+  );
+  if (!jnjReplay) return strictGateTrace(plan, "WORKDAY_JNJ_DETAIL_REPLAY");
+  if (!strictPfizerOpaqueDetailReplay(plan, evidence, artifacts, outputJobs)) {
+    return strictGateTrace(plan, "WORKDAY_PFIZER_DETAIL_REPLAY");
+  }
+  return true;
 }
 
 function strictJnjOpaqueDetailReplay(
@@ -978,9 +1038,10 @@ function strictJnjOpaqueDetailReplay(
       const raw = strictRecord(candidate);
       if (!raw) return false;
       const title = strictGateString(raw.title);
+      const normalizedTitle = strictAdapterNormalizedString(title);
       const externalPath = strictGateString(raw.externalPath);
       const locationsText = strictGateString(raw.locationsText);
-      if (!title || !externalPath || !locationsText || !externalPath.startsWith("/job/")) return false;
+      if (!title || !normalizedTitle || !externalPath || !locationsText || !externalPath.startsWith("/job/")) return false;
       let listingUrl: URL;
       try { listingUrl = new URL(externalPath, `${origin}${sitePath}`); }
       catch { return false; }
@@ -989,7 +1050,7 @@ function strictJnjOpaqueDetailReplay(
       const sourceJobId = `workday:sha256:${createHash("sha256").update(Buffer.from(externalPath, "utf8")).digest("hex")}`;
       if (expectedOutputById.has(sourceJobId)) return false;
 
-      let locationRaw = locationsText;
+      let locationRaw = strictAdapterNormalizedString(locationsText)!;
       let cities = strictJnjWorkdayCities(locationsText, `${externalPath} ${title}`, true);
       if (!strictWorkdayRecordHasMainlandEvidence(`${locationsText} ${externalPath}`)) {
         const opaqueMatch = /^([2-9][0-9]*) Locations$/u.exec(locationsText);
@@ -1025,12 +1086,12 @@ function strictJnjOpaqueDetailReplay(
         if (publicLocations.length !== expectedLocationCount ||
           new Set(publicLocations).size !== publicLocations.length ||
           mainlandLocations.length === 0) return false;
-        locationRaw = publicLocations.join(" | ");
+        locationRaw = strictAdapterNormalizedString(publicLocations.join(" | "))!;
         cities = strictJnjWorkdayCities(mainlandLocations.join(" | "));
         expectedDetailKeys.add(detailKey);
       }
       expectedOutputById.set(sourceJobId, {
-        title,
+        title: normalizedTitle,
         officialUrl: `${origin}${sitePath}${externalPath}`,
         locationRaw,
         cities
@@ -1102,13 +1163,14 @@ function strictPfizerOpaqueDetailReplay(
       const expectedLocationCount = Number(opaqueMatch[1]);
       if (!Number.isSafeInteger(expectedLocationCount)) return false;
       const title = strictGateString(raw.title);
+      const normalizedTitle = strictAdapterNormalizedString(title);
       const reqId = Array.isArray(raw.bulletFields) && raw.bulletFields.length === 1
         ? strictGateString(raw.bulletFields[0])
         : undefined;
       let listingUrl: URL;
       try { listingUrl = new URL(externalPath, `${origin}${sitePath}`); }
       catch { return false; }
-      if (!title || !reqId || !externalPath.startsWith("/job/") || listingUrl.origin !== origin ||
+      if (!title || !normalizedTitle || !reqId || !externalPath.startsWith("/job/") || listingUrl.origin !== origin ||
         `${listingUrl.pathname}${listingUrl.search}${listingUrl.hash}` !== externalPath) return false;
 
       const detailKey = `workday-detail-${String(page.sequence).padStart(4, "0")}-${String(recordIndex).padStart(4, "0")}`;
@@ -1144,9 +1206,9 @@ function strictPfizerOpaqueDetailReplay(
       const sourceJobId = `workday:sha256:${createHash("sha256").update(Buffer.from(externalPath, "utf8")).digest("hex")}`;
       if (expectedOutputById.has(sourceJobId)) return false;
       expectedOutputById.set(sourceJobId, {
-        title,
+        title: normalizedTitle,
         officialUrl: `${origin}${sitePath}${externalPath}`,
-        locationRaw: publicLocations.join(" | ")
+        locationRaw: strictAdapterNormalizedString(publicLocations.join(" | "))!
       });
     }
   }
@@ -1275,7 +1337,11 @@ function strictWorkdayLocationFacetDerivation(
     }
     if (config.locationFacetPolicy !== undefined) return undefined;
     const values = strictWorkdayFlatFacetValues(group.values, []);
-    if (!values || values.reduce((sum, value) => sum + value.count, 0) !== root.total) return undefined;
+    // Workday country facets count a multi-country posting once in every country,
+    // so their aggregate may exceed the root's unique-job total. The selected
+    // country's own count is still authoritative and is independently checked
+    // against the filtered preflight response below.
+    if (!values || values.reduce((sum, value) => sum + value.count, 0) < root.total) return undefined;
     const selected = values.filter((value) => strictWorkdayExactMainlandCountry(value.descriptor));
     if (selected.length !== 1) return undefined;
     return {
@@ -1439,20 +1505,31 @@ function strictBmsWorkdayCountryFacetDerivation(
     workerBoundary.excludedDescriptors !== undefined ||
     group.facetParameter !== policy.facetParameter ||
     group.descriptor !== "Country" ||
-    !strictNonnegativeInteger(root.total)) return undefined;
+    !strictNonnegativeInteger(root.total)) {
+    strictGateTrace(plan, "BMS_LOCATION_PLAN_BINDING");
+    return undefined;
+  }
 
   const values = strictWorkdayFlatFacetValues(group.values, []);
-  if (!values || values.reduce((sum, value) => sum + value.count, 0) < root.total) return undefined;
+  if (!values || values.reduce((sum, value) => sum + value.count, 0) < root.total) {
+    strictGateTrace(plan, "BMS_LOCATION_VALUES");
+    return undefined;
+  }
   const selected = values.filter((value) => strictWorkdayExactMainlandCountry(value.descriptor));
   if (selected.length !== 1 || selected[0]!.descriptor !== "China" || selected[0]!.count > root.total) {
+    strictGateTrace(plan, "BMS_LOCATION_CHINA_SELECTION");
     return undefined;
   }
   const allowedSites = new Set(policy.foreignSiteDescriptorAliases);
   const allowedCountries = new Set(policy.foreignCountryDescriptorAliases);
-  if (values.some((value) => !selected.includes(value) &&
+  const unexpectedForeign = values.find((value) => !selected.includes(value) &&
     !allowedSites.has(value.descriptor) &&
     !allowedCountries.has(value.descriptor) &&
-    !strictWorkdayForeignLocation(value.descriptor, []))) return undefined;
+    !strictWorkdayForeignLocation(value.descriptor, []));
+  if (unexpectedForeign) {
+    strictGateTrace(plan, "BMS_LOCATION_FOREIGN_BOUNDARY");
+    return undefined;
+  }
   return {
     appliedFacets: { [policy.facetParameter]: [selected[0]!.id] },
     expectedFilteredTotal: selected[0]!.count
@@ -1902,7 +1979,11 @@ function strictPhenomRequestContracts(
     const countryCount = globalCountries?.get(facetScope.countryIncludeDescriptor);
     if (countryCount === undefined || countryEnvelope.totalHits !== countryCount ||
       countryEnvelope.jobs.some((job) =>
-        strictRecord(job)?.country !== facetScope.countryIncludeDescriptor)) return false;
+        !strictPhenomRecordMatchesCountryFacet(
+          strictRecord(job),
+          facetScope.countryIncludeDescriptor,
+          allowsMainlandAlternative
+        ))) return false;
     if (facetScope.requireGlobalDescriptorProof) {
       const globalExclusions = strictGatePhenomAggregation(
         globalEnvelope.aggregations,
@@ -2048,7 +2129,7 @@ function strictPhenomRequestContracts(
       const record = strictRecord(job);
       if (!record) return false;
       if (strictPhenomRecordHasGenericLocation(record)) return false;
-      if (allowsMainlandAlternative && !facetScope) {
+      if (allowsMainlandAlternative) {
         const primary = strictPhenomPrimaryLocation(record);
         if (record.country === expectedCountry && primary && strictPhenomMainlandLocationCities(primary)) continue;
         const alternative = strictPhenomMainlandAlternative(record);
@@ -2132,19 +2213,37 @@ type StrictPhenomMainlandAlternativeOutput = {
 
 const STRICT_PHENOM_MAINLAND_LOCATIONS: ReadonlyArray<readonly [string, string]> = [
   ["shanghai", "上海"], ["beijing", "北京"], ["changchun", "长春"], ["chongqing", "重庆"],
-  ["suzhou", "苏州"], ["dongguan", "东莞"], ["shenzhen", "深圳"], ["guangzhou", "广州"],
-  ["hangzhou", "杭州"], ["nanjing", "南京"], ["nanning", "南宁"], ["nantong", "南通"],
-  ["wuhan", "武汉"], ["chengdu", "成都"], ["urumqi", "乌鲁木齐"], ["wenzhou", "温州"],
-  ["tianjin", "天津"], ["lanzhou", "兰州"], ["jiangsu", "江苏"], ["zhejiang", "浙江"],
-  ["guangdong", "广东"], ["上海", "上海"], ["北京", "北京"], ["长春", "长春"], ["重庆", "重庆"],
+  ["daqing", "大庆"], ["suzhou", "苏州"], ["dongguan", "东莞"], ["shenzhen", "深圳"],
+  ["guangzhou", "广州"], ["hangzhou", "杭州"], ["kashi", "喀什"], ["leshan", "乐山"],
+  ["nanjing", "南京"], ["nanning", "南宁"], ["nantong", "南通"], ["ningde", "宁德"],
+  ["songyuan", "松原"], ["wuhan", "武汉"], ["chengdu", "成都"], ["urumqi", "乌鲁木齐"],
+  ["wulumuqi", "乌鲁木齐"], ["wenzhou", "温州"], ["tonghua", "通化"], ["xining", "西宁"],
+  ["zhuhai", "珠海"], ["tianjin", "天津"], ["lanzhou", "兰州"], ["jiangsu", "江苏"],
+  ["上海", "上海"], ["北京", "北京"], ["长春", "长春"], ["重庆", "重庆"], ["大庆", "大庆"],
   ["苏州", "苏州"], ["东莞", "东莞"], ["深圳", "深圳"], ["广州", "广州"], ["杭州", "杭州"],
-  ["南京", "南京"], ["南宁", "南宁"], ["南通", "南通"], ["武汉", "武汉"], ["成都", "成都"],
-  ["乌鲁木齐", "乌鲁木齐"], ["温州", "温州"], ["天津", "天津"], ["兰州", "兰州"],
-  ["江苏", "江苏"], ["浙江", "浙江"], ["广东", "广东"]
+  ["喀什", "喀什"], ["乐山", "乐山"], ["南京", "南京"], ["宁德", "宁德"], ["松原", "松原"],
+  ["武汉", "武汉"], ["成都", "成都"], ["乌鲁木齐", "乌鲁木齐"], ["通化", "通化"],
+  ["西宁", "西宁"], ["天津", "天津"], ["兰州", "兰州"]
 ];
 
 const STRICT_PHENOM_MAINLAND_COUNTRY_SEGMENTS = new Set([
   "china", "mainland china", "china mainland", "prc", "cn", "chn", "中国", "中国大陆", "中华人民共和国"
+]);
+
+const STRICT_PHENOM_MAINLAND_PROVINCES = new Map([
+  ["anhui", "安徽"], ["fujian", "福建"], ["gansu", "甘肃"], ["guangdong", "广东"],
+  ["guizhou", "贵州"], ["hainan", "海南"], ["hebei", "河北"], ["heilongjiang", "黑龙江"],
+  ["henan", "河南"], ["hubei", "湖北"], ["hunan", "湖南"], ["jiangsu", "江苏"],
+  ["jiangxi", "江西"], ["jilin", "吉林"], ["liaoning", "辽宁"], ["qinghai", "青海"],
+  ["shaanxi", "陕西"], ["shandong", "山东"], ["shanxi", "山西"], ["sichuan", "四川"],
+  ["yunnan", "云南"], ["zhejiang", "浙江"], ["guangxi", "广西"], ["inner mongolia", "内蒙古"],
+  ["ningxia", "宁夏"], ["tibet", "西藏"], ["xinjiang", "新疆"],
+  ["安徽", "安徽"], ["福建", "福建"], ["甘肃", "甘肃"], ["广东", "广东"], ["贵州", "贵州"],
+  ["海南", "海南"], ["河北", "河北"], ["黑龙江", "黑龙江"], ["河南", "河南"], ["湖北", "湖北"],
+  ["湖南", "湖南"], ["江苏", "江苏"], ["江西", "江西"], ["吉林", "吉林"], ["辽宁", "辽宁"],
+  ["青海", "青海"], ["陕西", "陕西"], ["山东", "山东"], ["山西", "山西"], ["四川", "四川"],
+  ["云南", "云南"], ["浙江", "浙江"], ["广西", "广西"], ["内蒙古", "内蒙古"], ["宁夏", "宁夏"],
+  ["西藏", "西藏"], ["新疆", "新疆"]
 ]);
 
 const STRICT_PHENOM_EXPLICIT_FOREIGN_COUNTRY_SEGMENTS = new Set([
@@ -2152,8 +2251,18 @@ const STRICT_PHENOM_EXPLICIT_FOREIGN_COUNTRY_SEGMENTS = new Set([
   "香港", "macau", "macao", "澳门", "taiwan", "台湾", "united kingdom", "uk", "英国",
   "united states", "united states of america", "usa", "us", "美国", "germany", "德国", "france", "法国",
   "japan", "日本", "south korea", "korea", "韩国", "india", "印度", "canada", "加拿大",
-  "australia", "澳大利亚"
+  "australia", "澳大利亚", "poland", "波兰", "malaysia", "马来西亚"
 ]);
+
+function strictPhenomRecordMatchesCountryFacet(
+  record: Record<string, unknown> | undefined,
+  expectedCountry: string,
+  allowMainlandAlternative: boolean
+): boolean {
+  if (!record) return false;
+  if (record.country === expectedCountry) return true;
+  return allowMainlandAlternative && strictPhenomMainlandAlternative(record) !== undefined;
+}
 
 function strictExactRochePhenomPlan(
   plan: Extract<SourceCrawlPlan, { adapterId: "official-json" }>,
@@ -2181,6 +2290,7 @@ function strictExactRochePhenomPlan(
     JSON.stringify(facet.categoryExcludeDescriptors) === JSON.stringify(["实习 & 发展项目"]) &&
     config.countryFilter === undefined && config.allowedEntryRedirect === undefined &&
     config.allowOmittedOffsetForSinglePage === undefined &&
+    config.mixedLocationScopePolicy === "EXACTLY_ONE_MAINLAND_ALTERNATIVE_V1" &&
     config.requestBoundOmittedOffsetPolicy === "ROCHE_REQUEST_BOUND_OMITTED_OFFSET_V1" &&
     config.pageSize === 100 && config.maxPages === 10 &&
     endpoint === "https://careers.roche.com/widgets" &&
@@ -2264,6 +2374,7 @@ function strictPhenomMainlandLocationCities(value: string): string[] | undefined
   const segments = rawSegments.map((segment) => segment.toLocaleLowerCase("en-US"));
   if (segments.length === 0) return undefined;
   const cities: string[] = [];
+  const provinces: string[] = [];
   const unknown: string[] = [];
   let countrySegmentCount = 0;
   for (let index = 0; index < segments.length; index += 1) {
@@ -2272,6 +2383,9 @@ function strictPhenomMainlandLocationCities(value: string): string[] | undefined
     const city = STRICT_PHENOM_MAINLAND_LOCATIONS.find(([candidate]) => candidate === segment)?.[1];
     if (city) {
       if (!cities.includes(city)) cities.push(city);
+    } else if (STRICT_PHENOM_MAINLAND_PROVINCES.has(segment)) {
+      const province = STRICT_PHENOM_MAINLAND_PROVINCES.get(segment)!;
+      if (!provinces.includes(province)) provinces.push(province);
     } else {
       unknown.push(rawSegments[index]!);
     }
@@ -2279,9 +2393,14 @@ function strictPhenomMainlandLocationCities(value: string): string[] | undefined
   for (const segment of segments) {
     if (STRICT_PHENOM_MAINLAND_COUNTRY_SEGMENTS.has(segment)) countrySegmentCount += 1;
   }
-  if (unknown.length === 0) return cities.length > 0 ? cities : undefined;
+  if (unknown.length === 0) return cities.length > 0 ? cities : provinces.length === 1 ? provinces : undefined;
   if (countrySegmentCount === 1 && cities.length === 1 && unknown.length === 1 &&
     strictPhenomMainlandSubCitySegment(unknown[0]!)) return cities;
+  if (countrySegmentCount === 1 && cities.length === 0 && unknown.length === 1 && provinces.length <= 1) {
+    const firstNonCountry = rawSegments.find((_, index) =>
+      !STRICT_PHENOM_MAINLAND_COUNTRY_SEGMENTS.has(segments[index]!));
+    return firstNonCountry === unknown[0] ? [unknown[0]!] : undefined;
+  }
   const nonCountryCount = segments.length - countrySegmentCount;
   return countrySegmentCount === 1 && nonCountryCount === 1 && cities.length === 0 && unknown.length === 1
     ? [unknown[0]!]
@@ -3114,12 +3233,12 @@ function strictCnstaffRequestContracts(
   plan: Extract<SourceCrawlPlan, { adapterId: "official-json" }>,
   evidence: PersistentSourceFetchEvidence
 ): boolean {
-  if (!strictCnstaffPlanBinding(plan)) return false;
+  if (!strictCnstaffPlanBinding(plan)) return strictGateTrace(plan, "CNSTAFF_PLAN");
   const config = plan.officialJsonFetch;
   if (config?.kind !== "cnstaff" || evidence.pages.length === 0 ||
-    evidence.artifacts.length !== evidence.pages.length || evidence.pages.length > config.maxPages!) return false;
+    evidence.artifacts.length !== evidence.pages.length || evidence.pages.length > config.maxPages!) return strictGateTrace(plan, "CNSTAFF_ENVELOPE");
   const artifacts = new Map(evidence.artifacts.map((artifact) => [artifact.logicalKey, artifact]));
-  if (artifacts.size !== evidence.artifacts.length) return false;
+  if (artifacts.size !== evidence.artifacts.length) return strictGateTrace(plan, "CNSTAFF_ARTIFACT_KEYS");
   let officialTotal: number | undefined;
   let officialPages: number | undefined;
   let observedRows = 0;
@@ -3130,7 +3249,7 @@ function strictCnstaffRequestContracts(
     if (!strictPageCoordinatesEqual(page, {
       sequence: index, requestedCursor: null, requestedOffset: null,
       requestedPage, requestedPageSize: config.pageSize!
-    }) || page.returnedPage !== requestedPage) return false;
+    }) || page.returnedPage !== requestedPage) return strictGateTrace(plan, `CNSTAFF_COORDINATE:${requestedPage}`);
     const logicalKey = `cnstaff-page-${String(requestedPage).padStart(4, "0")}`;
     const artifact = artifacts.get(logicalKey);
     const expectedUrl = exactConfiguredEndpoint(
@@ -3138,7 +3257,7 @@ function strictCnstaffRequestContracts(
     ).toString();
     if (!artifact || page.artifactLogicalKey !== logicalKey ||
       artifact.bodyRepresentation === "REDACTED" ||
-      artifact.requestedUrl !== expectedUrl || artifact.finalUrl !== expectedUrl) return false;
+      artifact.requestedUrl !== expectedUrl || artifact.finalUrl !== expectedUrl) return strictGateTrace(plan, `CNSTAFF_ARTIFACT:${requestedPage}`);
     const root = strictUniqueJsonRecord(artifact.body);
     const pageDeclaration = strictRecord(root?.page);
     if (!root || !strictGateExactObjectKeys(root, ["list", "page", "total"]) ||
@@ -3149,21 +3268,24 @@ function strictCnstaffRequestContracts(
       typeof pageDeclaration.code !== "string" || pageDeclaration.code.length > 1_000_000 ||
       pageDeclaration.limit !== `${(requestedPage - 1) * config.pageSize!},${config.pageSize!}` ||
       pageDeclaration.pageSize !== config.pageSize ||
-      pageDeclaration.now !== requestedPage) return false;
+      pageDeclaration.now !== requestedPage) return strictGateTrace(plan, `CNSTAFF_SCHEMA:${requestedPage}`);
     const total = root.total;
     const totalPages = pageDeclaration.total;
     if ((officialTotal !== undefined && total !== officialTotal) ||
-      (officialPages !== undefined && totalPages !== officialPages)) return false;
+      (officialPages !== undefined && totalPages !== officialPages)) return strictGateTrace(plan, `CNSTAFF_TOTAL_DRIFT:${requestedPage}`);
     officialTotal ??= total;
     officialPages ??= totalPages;
     if (totalPages !== (total === 0 ? 0 : Math.ceil(total / config.pageSize!)) ||
-      root.list.length > config.pageSize!) return false;
+      root.list.length > config.pageSize!) return strictGateTrace(plan, `CNSTAFF_PAGE_ARITHMETIC:${requestedPage}`);
     const rawIds: string[] = [];
     const validIds: string[] = [];
-    for (const raw of root.list) {
+    for (let rowIndex = 0; rowIndex < root.list.length; rowIndex += 1) {
+      const raw = root.list[rowIndex];
       const parsed = strictCnstaffChinaRecord(raw);
       if (!parsed || rawIds.includes(strictGateEvidenceId(parsed.officialId)) ||
-        validIds.includes(strictGateEvidenceId(strictGatePersistentJobId(parsed.officialId)))) return false;
+        validIds.includes(strictGateEvidenceId(strictGatePersistentJobId(parsed.officialId)))) {
+        return strictGateTrace(plan, `CNSTAFF_ROW:${requestedPage}:${rowIndex + 1}`);
+      }
       rawIds.push(strictGateEvidenceId(parsed.officialId));
       validIds.push(strictGateEvidenceId(strictGatePersistentJobId(parsed.officialId)));
     }
@@ -3178,15 +3300,16 @@ function strictCnstaffRequestContracts(
       page.nextPageSignalBefore !== (requestedPage === 1 ? null : `page:${requestedPage}`) ||
       page.nextPageSignalAfter !== (hasNext ? `page:${requestedPage + 1}` : null) ||
       page.termination !== expectedTermination ||
-      strictGateBodySha256(artifact.body) !== page.responseFingerprintSha256) return false;
+      strictGateBodySha256(artifact.body) !== page.responseFingerprintSha256) return strictGateTrace(plan, `CNSTAFF_PAGE_EVIDENCE:${requestedPage}`);
     const locator = strictCnstaffLocator(requestedPage, config.pageSize!);
-    if (artifact.extractorLocator !== locator) return false;
+    if (artifact.extractorLocator !== locator) return strictGateTrace(plan, `CNSTAFF_LOCATOR:${requestedPage}`);
     if (requestedPage === 1) declarationLocator = locator;
   }
-  return officialTotal !== undefined && officialPages !== undefined &&
+  const valid = officialTotal !== undefined && officialPages !== undefined &&
     observedRows === officialTotal &&
     evidence.pages.length === (officialTotal === 0 ? 1 : officialPages) &&
     strictGateOfficialTotalDeclaration(evidence, officialTotal, evidence.pages[0]!.artifactLogicalKey, declarationLocator!);
+  return valid || strictGateTrace(plan, "CNSTAFF_FINAL");
 }
 
 function strictJobsynLocator(page: number, pageSize: number, location: string): string {
@@ -3279,6 +3402,12 @@ function strictGateString(value: unknown): string | undefined {
   return typeof value === "string" && value.trim() === value && value.length > 0 ? value : undefined;
 }
 
+function strictAdapterNormalizedString(value: string | undefined): string | undefined {
+  if (value === undefined) return undefined;
+  const normalized = value.replace(/\s+/gu, " ").trim();
+  return normalized || undefined;
+}
+
 function strictGateSafeId(value: string): boolean {
   return /^[A-Za-z0-9._-]{1,128}$/u.test(value) && value !== "." && value !== "..";
 }
@@ -3308,7 +3437,7 @@ function strictGateExactMainlandCountry(value: string): boolean {
 const STRICT_GATE_FOREIGN_LOCATION =
   /(?:香港|澳门|台湾|台北|海外|国外|美国|纽约|波士顿|西雅图|日本|东京|大阪|新加坡|印度|德国|法国|加拿大|澳大利亚|英国|伦敦|韩国|首尔)|\b(?:hong kong|macao|macau|taiwan|taipei|overseas|abroad|united states|usa|u\.s\.|boston|new york|seattle|japan|tokyo|osaka|singapore|india|germany|france|canada|australia|united kingdom|london|south korea|seoul)\b/iu;
 const STRICT_GATE_MAINLAND_LOCATION =
-  /(?:中华人民共和国|中国大陆|大陆地区|中国|全国|北京|天津|上海|重庆|河北|山西|辽宁|吉林|黑龙江|江苏|浙江|安徽|福建|江西|山东|河南|湖北|湖南|广东|海南|四川|贵州|云南|陕西|甘肃|青海|内蒙古|广西|西藏|宁夏|新疆|石家庄|太原|沈阳|大连|长春|哈尔滨|南京|无锡|苏州|扬州|杭州|宁波|温州|台州|合肥|福州|厦门|南昌|济南|青岛|烟台|潍坊|郑州|开封|武汉|长沙|广州|深圳|珠海|中山|茂名|南宁|海口|成都|贵阳|昆明|拉萨|西安|兰州|西宁|银川|乌鲁木齐)|\b(?:china|prc|mainland china|china mainland|people'?s republic of china)\b/iu;
+  /(?:中华人民共和国|中国大陆|大陆地区|中国|全国|北京|天津|上海|重庆|河北|山西|辽宁|吉林|黑龙江|江苏|浙江|安徽|福建|江西|山东|河南|湖北|湖南|广东|海南|四川|贵州|云南|陕西|甘肃|青海|内蒙古|广西|西藏|宁夏|新疆|石家庄|太原|沈阳|大连|长春|哈尔滨|南京|无锡|苏州|扬州|杭州|宁波|温州|台州|合肥|福州|厦门|南昌|济南|青岛|烟台|潍坊|临沂|郑州|开封|平顶山|新乡|武汉|长沙|淮南|淮安|广州|佛山|深圳|珠海|中山|茂名|南宁|海口|成都|贵阳|昆明|拉萨|西安|兰州|西宁|银川|乌鲁木齐)|\b(?:china|prc|mainland china|china mainland|people'?s republic of china)\b/iu;
 
 function strictArtifactUrlBinding(
   rules: readonly StrictUrlRule[],

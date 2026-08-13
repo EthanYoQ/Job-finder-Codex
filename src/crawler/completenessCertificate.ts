@@ -6,16 +6,52 @@ import { buildJobDedupeKey, type NormalizedJobRecord } from "./normalizedJob";
 import { evaluatePaginationEvidence, type PaginationEvaluation } from "./paginationEvidence";
 import { sourcePlanConfigSha256, type SourceCrawlPlan } from "./sourcePlan";
 import {
+  supportsStrictOfficialTotalCertificate,
+  validateStrictOfficialTotalCertificateEvidence
+} from "./runSourceCrawl";
+import {
   canonicalStringSetSha256,
   parsePersistentSourceFetchEvidence,
   type PersistentSourceFetchEvidence
 } from "./sourceFetchEvidence";
 
 export const A_GRADE_COMPLETENESS_CERTIFICATE_SCHEMA_VERSION =
-  "a-grade-official-total-v1" as const;
+  "a-grade-official-total-v2" as const;
 
 export const REQUIRED_A_GRADE_COMPLETENESS_CERTIFICATES = Object.freeze({
-  "source-gsk-china-social": "company-gsk-china"
+  "source-abbvie-china-social": "company-abbvie-china",
+  "source-amgen-china-social": "company-amgen-china",
+  "source-astrazeneca-social": "company-astrazeneca",
+  "source-bayer-healthcare-social": "company-bayer-healthcare",
+  "source-biogen-china-social": "company-biogen-china",
+  "source-boehringer-ingelheim-china-social": "company-boehringer-ingelheim-china",
+  "source-bms-china-social": "company-bms-china",
+  "source-buchang-social": "company-buchang",
+  "source-csl-china-social": "company-csl-china",
+  "source-cttq-social": "company-cttq",
+  "source-daiichi-sankyo-china-social": "company-daiichi-sankyo-china",
+  "source-gilead-china-social": "company-gilead-china",
+  "source-grifols-china-social": "company-grifols-china",
+  "source-gsk-china-social": "company-gsk-china",
+  "source-hansoh-social": "company-hansoh",
+  "source-hengrui-social": "company-hengrui",
+  "source-jimin-kexin-social": "company-jimin-kexin",
+  "source-johnson-innovative-medicine-social": "company-johnson-innovative-medicine",
+  "source-lilly-china-social": "company-lilly-china",
+  "source-livzon-social": "company-livzon",
+  "source-lunan-social": "company-lunan",
+  "source-merck-china-social": "company-merck-china",
+  "source-novo-nordisk-china-social": "company-novo-nordisk-china",
+  "source-organon-china-social": "company-organon-china",
+  "source-pfizer-china-social": "company-pfizer-china",
+  "source-roche-china-social": "company-roche-china",
+  "source-sandoz-china-social": "company-sandoz-china",
+  "source-servier-china-social": "company-servier-china",
+  "source-shanghai-pharma-social": "company-shanghai-pharma",
+  "source-ucb-china-social": "company-ucb-china",
+  "source-united-lab-social": "company-united-lab",
+  "source-teva-china-social": "company-teva-china",
+  "source-yangzijiang-social": "company-yangzijiang"
 } as const);
 
 export type AGradeCertificateBlockerCode =
@@ -34,12 +70,12 @@ export type AGradeCertificateBlockerCode =
 const SHA256 = z.string().regex(/^[0-9a-f]{64}$/u);
 const NONBLANK = z.string().trim().min(1);
 const certificateScopeSchema = z.object({
-  companyId: z.literal("company-gsk-china"),
-  sourceId: z.literal("source-gsk-china-social"),
+  companyId: NONBLANK,
+  sourceId: NONBLANK,
   recruitmentType: z.literal("SOCIAL"),
   geography: z.literal("MAINLAND_CHINA"),
   businessUnit: z.literal("ALL"),
-  officialRequestFilter: z.object({ field: z.literal("countryFilter"), value: z.literal("China") }).strict(),
+  verificationPolicy: z.literal("STRICT_PLAN_BOUND_OFFICIAL_TOTAL_REPLAY_V1"),
   surfaceIds: z.array(NONBLANK).min(1),
   channelIds: z.array(NONBLANK).min(1)
 }).strict();
@@ -57,7 +93,7 @@ const certificateSchema = z.object({
     releaseCandidateId: NONBLANK,
     batchId: NONBLANK,
     sourceResultId: NONBLANK,
-    sourceId: z.literal("source-gsk-china-social"),
+    sourceId: NONBLANK,
     sourceConfigSha256: SHA256
   }).strict(),
   scope: certificateScopeSchema,
@@ -165,7 +201,7 @@ export function issueAGradeOfficialTotalCertificate(
   const blockers = new Set<AGradeCertificateBlockerCode>();
   const plan = input.plan;
   if (!requiresAGradeOfficialTotalCertificate(plan)) blockers.add("UNSUPPORTED_SOURCE");
-  if (!hasExactGskMainlandScope(plan)) blockers.add("SCOPE_MISMATCH");
+  if (!hasExactSupportedMainlandScope(plan)) blockers.add("SCOPE_MISMATCH");
   if (!input.transportSuccess || !input.adapterSuccess) blockers.add("TRANSPORT_OR_ADAPTER_FAILED");
   if (input.binding.sourceConfigSha256 !== sourcePlanConfigSha256(plan)) {
     blockers.add("SOURCE_CONFIG_MISMATCH");
@@ -220,6 +256,13 @@ export function issueAGradeOfficialTotalCertificate(
         JSON.stringify(input.paginationEvaluation.derivedAnomalyCodes)) {
     blockers.add("PAGINATION_NOT_VERIFIED");
   }
+  if (plan.source.id !== "source-gsk-china-social" && !validateStrictOfficialTotalCertificateEvidence({
+    plan,
+    evidence,
+    paginationEvaluation: input.paginationEvaluation,
+    reconciliation: ledger,
+    jobs: input.jobs
+  })) blockers.add("SCOPE_MISMATCH");
 
   const rawOfficialIds = canonicalStrings(evidence.pages.flatMap((page) => page.rawJobIds));
   const legalDedupeCount = ledger.collisionGroups.reduce((sum, group) => sum + group.droppedCount, 0);
@@ -264,7 +307,7 @@ export function issueAGradeOfficialTotalCertificate(
       recruitmentType: plan.source.kind,
       geography: "MAINLAND_CHINA",
       businessUnit: "ALL",
-      officialRequestFilter: { field: "countryFilter", value: "China" },
+      verificationPolicy: "STRICT_PLAN_BOUND_OFFICIAL_TOTAL_REPLAY_V1",
       surfaceIds: canonicalStrings([plan.source.surfaceId!]),
       channelIds: canonicalStrings(plan.expectedChannels!.map((channel) => channel.channelId))
     },
@@ -320,12 +363,16 @@ export function verifyAGradeCompletenessCertificateReceipt(input: {
     throw new Error("A-grade completeness certificate hash mismatch");
   }
   const expected = input.expected;
+  const registeredCompanyId = REQUIRED_A_GRADE_COMPLETENESS_CERTIFICATES[
+    expected.sourceId as keyof typeof REQUIRED_A_GRADE_COMPLETENESS_CERTIFICATES
+  ];
   if (certificate.binding.releaseCandidateId !== expected.releaseCandidateId ||
       certificate.binding.batchId !== expected.batchId ||
       certificate.binding.sourceResultId !== expected.sourceResultId ||
       certificate.binding.sourceId !== expected.sourceId ||
       certificate.binding.sourceConfigSha256 !== expected.sourceConfigSha256 ||
       certificate.scope.sourceId !== expected.sourceId ||
+      registeredCompanyId === undefined || certificate.scope.companyId !== registeredCompanyId ||
       (expected.companyId !== undefined && certificate.scope.companyId !== expected.companyId)) {
     throw new Error("A-grade completeness certificate Receipt binding mismatch");
   }
@@ -362,14 +409,15 @@ export function verifyAGradeCompletenessCertificateReceipt(input: {
   };
 }
 
-function hasExactGskMainlandScope(plan: SourceCrawlPlan): boolean {
-  return plan.adapterId === "official-json" &&
-    plan.company.id === "company-gsk-china" &&
-    plan.source.id === "source-gsk-china-social" &&
+function hasExactSupportedMainlandScope(plan: SourceCrawlPlan): boolean {
+  return REQUIRED_A_GRADE_COMPLETENESS_CERTIFICATES[
+      plan.source.id as keyof typeof REQUIRED_A_GRADE_COMPLETENESS_CERTIFICATES
+    ] === plan.company.id &&
     plan.source.companyId === plan.company.id &&
     plan.source.kind === "SOCIAL" &&
-    plan.officialJsonFetch?.kind === "phenom" &&
-    plan.officialJsonFetch.countryFilter === "China" &&
+    (plan.source.id !== "source-gsk-china-social" || plan.adapterId === "official-json" &&
+      plan.officialJsonFetch?.kind === "phenom" && plan.officialJsonFetch.countryFilter === "China") &&
+    supportsStrictOfficialTotalCertificate(plan) &&
     Boolean(plan.source.surfaceId?.trim()) &&
     Boolean(plan.expectedChannels?.length) &&
     new Set(plan.expectedChannels?.map((channel) => channel.channelId)).size === plan.expectedChannels?.length;

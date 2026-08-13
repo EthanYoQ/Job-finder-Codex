@@ -11,6 +11,7 @@ import { buildAtomicRuntimeCommit, buildPendingRuntimeBatch } from "../../src/cr
 import { hashCanonicalStringSet } from "../../src/crawler/runtimeBatchIdentity";
 import type { ArchivedEvidenceArtifact } from "../../src/crawler/artifactArchive";
 import {
+  __testOnlyViatrisNextRenderedControlIndex,
   createViatrisBrowserTraversalValidation,
   evaluateBGradeValidationRequirement,
   issueBGradeTraversalCertificate,
@@ -149,6 +150,28 @@ function candidate(overrides: Partial<Parameters<typeof issueBGradeTraversalCert
 }
 
 describe("B-grade independent traversal certificate", () => {
+  it("selects the current Tupu rendered data-attribute control without trusting presentation text", () => {
+    expect(__testOnlyViatrisNextRenderedControlIndex([
+      { action: "pageTurn", pageNumber: "2", pageSize: "10" },
+      { action: "pageTurn", pageNumber: "3", pageSize: "10" },
+      { action: "pageTurn", pageNumber: "2", pageSize: "10" }
+    ], 2)).toBe(0);
+    expect(__testOnlyViatrisNextRenderedControlIndex([
+      { action: "pageTurn", pageNumber: "24", pageSize: "10" }
+    ], 25)).toBe(-1);
+  });
+
+  it.each([
+    [[{ action: "go", pageNumber: "2", pageSize: "10" }], "control"],
+    [[{ action: "pageTurn", pageNumber: "2x", pageSize: "10" }], "control"],
+    [[
+      { action: "pageTurn", pageNumber: "2", pageSize: "10" },
+      { action: "pageTurn", pageNumber: "3", pageSize: "20" }
+    ], "page-size"]
+  ] as const)("rejects untrusted rendered pagination declarations %#", (controls, message) => {
+    expect(() => __testOnlyViatrisNextRenderedControlIndex(controls, 2)).toThrow(message);
+  });
+
   it("certifies exact complete traversal from different HTTP and rendered-browser paths", () => {
     const decision = issueBGradeTraversalCertificate(candidate());
     expect(decision.status, JSON.stringify(decision)).toBe("CERTIFIED");

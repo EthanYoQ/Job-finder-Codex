@@ -229,7 +229,7 @@ describe("runtime atomic evidence planning", () => {
       officialEntryId: "entry-1", officialSurfaceIds: [surfaceId],
       officialChannelIds: [channelId],
       artifactLogicalKeyToSurfaceId: Object.fromEntries(["page-0", ...sandozScopeKeys].map((key) => [key, surfaceId])),
-      artifactLogicalKeyToChannelId: Object.fromEntries(["page-0", ...sandozScopeKeys].map((key) => [key, channelId]))
+      artifactLogicalKeyToChannelId: Object.fromEntries(sandozScopeKeys.map((key) => [key, channelId]))
     } } };
     const pending = buildPendingRuntimeBatch("batch-1", [plan], identity,
       new Date("2026-07-10T00:00:00Z"), oracle).sources[0]!;
@@ -282,18 +282,19 @@ describe("runtime atomic evidence planning", () => {
         "$.links.self.href,$.links.next.href"));
     }
     const evidence = { captureTool: { name: "test", version: "1" }, artifacts: [...scopeArtifacts, { id: "page-0", logicalKey: "page-0",
-      kind: "PAGINATION_PAGE" as const, channelId, requestedUrl: evidenceUrl.toString(), finalUrl: evidenceUrl.toString(),
+      kind: "PAGINATION_PAGE" as const, requestedUrl: evidenceUrl.toString(), finalUrl: evidenceUrl.toString(),
       httpStatus: 200, contentType: "application/json", capturedAt: "2026-07-10T00:00:01Z", body,
-      extractorLocator: "json:total" }], pages: [{ sequence: 0, artifactLogicalKey: "page-0", channelId,
+      extractorLocator: "json:total" }], pages: [{ sequence: 0, artifactLogicalKey: "page-0",
       requestedPage: 0, returnedPage: 0, requestedPageSize: 10, returnedPageSize: 10,
       rawJobIds: ["1"], validJobIds: ["1"],
       declaredTotal: 1, declaredCount: 1, declaredPages: 1,
       responseFingerprintSha256: (await import("node:crypto")).createHash("sha256").update(body).digest("hex"),
       termination: "DECLARED_TOTAL_REACHED" as const, anomalyCodes: [], capturedAt: "2026-07-10T00:00:01Z" }],
-      declaredCompleteness: { kind: "OFFICIAL_TOTAL_PAGES" as const, value: 1, artifactLogicalKey: "page-0",
-        extractorLocator: "json:total", scope: "CHANNEL" as const, channelId },
+      declaredCompleteness: { kind: "OFFICIAL_TOTAL_COUNT" as const, value: 1, artifactLogicalKey: "page-0",
+        extractorLocator: "json:total", scope: "SOURCE" as const },
       fetchCounts: { rawCount: 1, parsedCount: 1, validCount: 1, parseDiscardCount: 0, validationDiscardCount: 0 }, fetchLosses: [] };
-    const evaluation = evaluatePaginationEvidence({ evidence, expectedChannelIds: [channelId], filteredOutput: true });
+    const evaluation = evaluatePaginationEvidence({ evidence, expectedChannelIds: [], filteredOutput: true,
+      allowPositiveOfficialTotalCountAfterAdapterReconciliation: true });
     expect(evaluation).toMatchObject({ safeCompleteness: true, verifiedEligible: true });
     const result = await runSourceCrawl(plan, { fetch: async () => ({ ok: true, capturedAt: "2026-07-10T00:00:01Z",
       payload: JSON.parse(body), fetchEvidence: evidence, paginationEvaluation: evaluation }) });
@@ -392,11 +393,16 @@ describe("runtime atomic evidence planning", () => {
     incompleteResult.truth.completenessVerified = false;
     incompleteResult.observation.completenessStatus = "NEEDS_MANUAL_COMPLETENESS_REVIEW";
     incompleteResult.observation.completenessBlockerReason = "Official pages parsed; full traversal is not proven";
+    incompleteResult.fetchEvidence!.declaredCompleteness = {
+      ...incompleteResult.fetchEvidence!.declaredCompleteness!,
+      kind: "OFFICIAL_TOTAL_PAGES"
+    };
     const incompleteCommit = buildAtomicRuntimeCommit({ plan, pending, identity, batchId: "batch-1",
       result: incompleteResult, previousJobs: [], baselineCompletedBeforeCrawl: true, artifacts: archived, oracle });
     expect(incompleteCommit.sourceResult).toMatchObject({
       completenessState: "NEEDS_MANUAL_COMPLETENESS_REVIEW",
-      blockerReason: "Official pages parsed; full traversal is not proven"
+      blockerCode: "A_GRADE_CERTIFICATE_NOT_ISSUED",
+      blockerReason: "A-grade official-total certificate was not issued: SCOPE_MISMATCH"
     });
     expect(incompleteCommit.commands.filter((command) => command.type === "UPSERT_JOB")).toHaveLength(1);
     const anomalousIncompleteCommit = buildAtomicRuntimeCommit({ plan, pending, identity, batchId: "batch-1",
@@ -444,9 +450,11 @@ describe("runtime atomic evidence planning", () => {
       oracle
     });
     expect(incompleteWithoutReasonCommit.sourceResult.blockerReason)
-      .toBe("Strict completeness gate was not satisfied");
+      .toBe("A-grade official-total certificate was not issued: SCOPE_MISMATCH");
     expect(incompleteWithoutReasonCommit.commands.find((command) => command.type === "UPSERT_CRAWL_OBSERVATION"))
-      .toMatchObject({ observation: { completenessBlockerReason: "Strict completeness gate was not satisfied" } });
+      .toMatchObject({ observation: {
+        completenessBlockerReason: "A-grade official-total certificate was not issued: SCOPE_MISMATCH"
+      } });
     await expect(executeAtomicSourceEvidenceCommit(incompleteWithoutReasonCommit, {
       $transaction: async <T>(operation: (value: typeof partialTx) => Promise<T>) => operation(partialTx)
     })).resolves.toBeUndefined();
