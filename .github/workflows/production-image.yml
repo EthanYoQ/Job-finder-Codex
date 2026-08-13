@@ -102,6 +102,27 @@ jobs:
             .runtime/security/runtime-exposure-raw.json .runtime/security/trivy-image.json \
             "$IMAGE_DIGEST" .runtime/security/runtime-exposure-report.json
 
+      - name: Capture exact image size decomposition
+        run: |
+          IMAGE_DIGEST="$(docker image inspect --format '{{.Id}}' "$IMAGE_TAG")"
+          cp .runtime/image-bytes.txt .runtime/security/image-bytes.txt
+          printf 'image_digest=%s\n' "$IMAGE_DIGEST" > .runtime/security/image-size-identity.txt
+          docker history --no-trunc --human=false --format '{{json .}}' "$IMAGE_TAG" \
+            > .runtime/security/image-history.jsonl
+          docker run --rm --network none --user 0 --read-only --cap-drop ALL \
+            --cap-add DAC_READ_SEARCH \
+            --security-opt no-new-privileges:true \
+            --tmpfs /tmp:rw,nosuid,nodev,noexec,size=64m,mode=1777 \
+            --entrypoint sh "$IMAGE_TAG" -c \
+            'set -eu; du -x -B1 -d1 /app /opt /usr /var > /tmp/image-directory-bytes.txt; test -s /tmp/image-directory-bytes.txt; sort -nr /tmp/image-directory-bytes.txt' \
+            > .runtime/security/image-directory-bytes.txt
+          docker run --rm --network none --user 0 --read-only --cap-drop ALL \
+            --security-opt no-new-privileges:true \
+            --tmpfs /tmp:rw,nosuid,nodev,noexec,size=16m,mode=1777 \
+            --entrypoint sh "$IMAGE_TAG" -c \
+            'set -eu; dpkg-query -W -f="\${Installed-Size}\t\${Package}\t\${Version}\n" > /tmp/image-package-kib.txt; awk -F "\t" "NF != 3 || \$1 !~ /^[0-9]+$/ || \$2 == \"\" || \$3 == \"\" { exit 1 } END { if (NR == 0) exit 1 }" /tmp/image-package-kib.txt; sort -nr /tmp/image-package-kib.txt' \
+            > .runtime/security/image-package-kib.txt
+
       - name: Enforce reachable production vulnerability policy
         run: |
           IMAGE_DIGEST="$(docker image inspect --format '{{.Id}}' "$IMAGE_TAG")"
