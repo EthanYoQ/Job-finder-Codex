@@ -12,7 +12,7 @@ export interface FixedCohortAuditSourceInput {
   plannedSurfaceIds: readonly string[]; plannedChannelIds: readonly string[];
   officialSurfaceIds: readonly string[]; officialChannelIds: readonly string[];
   evidenceArtifacts: readonly { id: string; path: string; sha256: string }[];
-  paginationEvidence: readonly { artifactId: string; sequence: number; requestedCursor: string | null;
+  paginationEvidence: readonly { artifactId: string; sequence: number; channelId: string | null; requestedCursor: string | null;
     returnedCursor: string | null; requestedOffset: number | null; returnedOffset: number | null;
     requestedPage: number | null; returnedPage: number | null; requestedPageSize: number | null;
     returnedPageSize: number | null; responseFingerprintSha256: string; rawJobIdSetSha256: string;
@@ -28,7 +28,9 @@ export interface FixedCohortCompletenessAuditReport {
   schemaVersion: 1; decision: "AUDIT_COMPLETE" | "AUDIT_INVALID"; generatedAt: string;
   releaseCandidateId: string; batchId: string; manifestSha256: string; sourceIdentitySha256: string;
   companyCount: number; foreignCompanyCount: number;
-  companies: readonly (FixedCohortAuditSourceInput & { failureClass: AuditFailureClass | null; failureStage: string | null; blockers: readonly string[] })[];
+  companies: readonly (FixedCohortAuditSourceInput & { failureClass: AuditFailureClass | null; failureStage: string | null;
+    blockers: readonly string[]; paginationByChannel: readonly { channelId: string | null; pageCount: number;
+      declaredTotal: number | null; declaredPages: number | null; terminalEvent: string }[] })[];
   repairFrontier: readonly { clusterId: string; adapterFamily: string; failureClass: AuditFailureClass; rootCause: string;
     companyIds: readonly string[]; sourceIds: readonly string[]; proposedTicketOrdinal: number }[];
   invalidReasons: readonly string[]; contentSha256: string;
@@ -58,7 +60,11 @@ export function buildFixedCohortCompletenessAudit(input: { generatedAt: Date; re
     if (source.evidenceArtifacts.length === 0 || source.evidenceArtifacts.some((artifact) =>
       !artifact.id.trim() || !artifact.path.trim() || !/^[0-9a-f]{64}$/u.test(artifact.sha256))) blockers.push("EVIDENCE_LOCATION_MISSING");
     const artifactIds = new Set(source.evidenceArtifacts.map(({ id }) => id));
-    if (source.paginationEvidence.length === 0 || source.paginationEvidence.some((page) =>
+    const paginationByChannel = summarizePagination(source);
+    const orderedSequences = [...source.paginationEvidence].sort((left, right) => left.sequence - right.sequence);
+    if (source.paginationEvidence.length === 0 || source.pagesVisited !== source.paginationEvidence.length ||
+        orderedSequences.some((page, index) => page.sequence !== index + 1) ||
+        paginationByChannel === null || source.paginationEvidence.some((page) =>
       !artifactIds.has(page.artifactId) || !Number.isSafeInteger(page.sequence) || !page.termination.trim() ||
       ![page.responseFingerprintSha256, page.rawJobIdSetSha256, page.validJobIdSetSha256]
         .every((value) => /^[0-9a-f]{64}$/u.test(value)) || !Number.isFinite(Date.parse(page.capturedAt)))) {
@@ -75,7 +81,8 @@ export function buildFixedCohortCompletenessAudit(input: { generatedAt: Date; re
     if (source.atomicCommitState !== "COMMITTED") blockers.push("ATOMIC_COMMIT_NOT_COMMITTED");
     if (!Number.isSafeInteger(source.finalJobCount) || source.finalJobCount < 0) blockers.push("FINAL_JOB_COUNT_INVALID");
     const failureStage = failureStageFor(blockers), failureClass = failureClassFor(source, blockers);
-    return { ...source, blockers: [...new Set(blockers)], failureStage, failureClass };
+    return { ...source, blockers: [...new Set(blockers)], failureStage, failureClass,
+      paginationByChannel: paginationByChannel ?? [] };
   });
   const repairFrontier = buildRepairFrontier(companies);
   const identity = launchManifestIdentity(P0_LAUNCH_MANIFEST);
@@ -117,10 +124,36 @@ function failureClassFor(source: FixedCohortAuditSourceInput, blockers: readonly
   if (["TEMPORARY_OFFICIAL_SOURCE_FAILURE", "SOURCE_TIME_LIMIT_REACHED"].includes(source.failureCategory ?? "")) {
     return "SOURCE_TEMPORARILY_UNAVAILABLE";
   }
-  if (source.failureCode?.includes("CONFIG") || source.failureCode?.includes("PLAN_") ||
+  if (blockers.some((blocker) => ["MANIFEST_BINDING_MISMATCH", "OFFICIAL_SCOPE_MISMATCH"].includes(blocker)) ||
+      source.failureCode?.includes("CONFIG") || source.failureCode?.includes("PLAN_") ||
       source.failureCode?.includes("SCOPE_")) return "CONFIGURATION_ERROR";
   if (source.adapterState !== "SUCCEEDED" || source.atomicCommitState === "ROLLED_BACK") return "PRODUCT_DEFECT";
   return "EVIDENCE_INSUFFICIENT";
+}
+function summarizePagination(source: FixedCohortAuditSourceInput): Array<{ channelId: string | null; pageCount: number;
+  declaredTotal: number | null; declaredPages: number | null; terminalEvent: string }> | null {
+  const groups = new Map<string, FixedCohortAuditSourceInput["paginationEvidence"][number][]>();
+  for (const page of source.paginationEvidence) {
+    if (page.channelId !== null && !source.officialChannelIds.includes(page.channelId)) return null;
+    const key = page.channelId ?? "\0SOURCE", rows = groups.get(key) ?? []; rows.push(page); groups.set(key, rows);
+  }
+  const summaries = [];
+  for (const [key, rows] of [...groups].sort(([left], [right]) => compare(left, right))) {
+    rows.sort((left, right) => left.sequence - right.sequence);
+    if (rows.some((page) =>
+      [page.requestedOffset, page.returnedOffset, page.requestedPage, page.returnedPage,
+        page.requestedPageSize, page.returnedPageSize, page.declaredTotal, page.declaredCount, page.declaredPages]
+        .some((value) => value !== null && (!Number.isSafeInteger(value) || value < 0)))) return null;
+    const totals = [...new Set(rows.flatMap((page) => page.declaredTotal === null ? [] : [page.declaredTotal]))];
+    const pages = [...new Set(rows.flatMap((page) => page.declaredPages === null ? [] : [page.declaredPages]))];
+    if (totals.length > 1 || pages.length > 1 || (pages[0] !== undefined && pages[0] !== rows.length)) return null;
+    summaries.push({ channelId: key === "\0SOURCE" ? null : key, pageCount: rows.length,
+      declaredTotal: totals[0] ?? null, declaredPages: pages[0] ?? null, terminalEvent: rows.at(-1)!.termination });
+  }
+  const expectedTotalPages = summaries.some(({ declaredPages }) => declaredPages === null)
+    ? null : summaries.reduce((sum, row) => sum + row.declaredPages!, 0);
+  if (source.totalPages !== expectedTotalPages) return null;
+  return summaries;
 }
 function buildRepairFrontier(companies: readonly (FixedCohortAuditSourceInput & {
   failureClass: AuditFailureClass | null; blockers: readonly string[]

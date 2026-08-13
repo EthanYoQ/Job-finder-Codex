@@ -43,7 +43,15 @@ try {
     const row = results.get(plan.source.id);
     if (!row) return missingSource(plan);
     const grade = certificateGrade(row.completenessCertificate);
-    const declaredPages = row.paginationEvidence.flatMap(({ declaredPages }) => declaredPages === null ? [] : [declaredPages]);
+    const declaredPagesByChannel = new Map<string, number | null>();
+    for (const page of row.paginationEvidence) {
+      const key = page.channelId ?? "\0SOURCE", current = declaredPagesByChannel.get(key);
+      if (current === undefined) declaredPagesByChannel.set(key, page.declaredPages);
+      else if (current !== page.declaredPages) declaredPagesByChannel.set(key, null);
+    }
+    const totalPages = declaredPagesByChannel.size > 0 &&
+      [...declaredPagesByChannel.values()].every((value): value is number => value !== null)
+      ? [...declaredPagesByChannel.values()].reduce((sum, value) => sum + value, 0) : null;
     return {
       sourceResultId: row.id, companyId: plan.company.id, sourceId: plan.source.id,
       adapterFamily: adapterFamily(plan), grade, sourceConfigSha256: row.sourceConfigHash,
@@ -53,6 +61,7 @@ try {
       plannedChannelIds: plan.expectedChannels?.map(({ channelId }) => channelId) ?? [],
       officialChannelIds: row.officialChannelIds, evidenceArtifacts: row.evidenceArtifacts.map(({ id, path, sha256 }) => ({ id, path, sha256 })),
       paginationEvidence: row.paginationEvidence.map((page) => ({ artifactId: page.artifactId, sequence: page.sequence,
+        channelId: page.channelId,
         requestedCursor: page.requestedCursor, returnedCursor: page.returnedCursor, requestedOffset: page.requestedOffset,
         returnedOffset: page.returnedOffset, requestedPage: page.requestedPage, returnedPage: page.returnedPage,
         requestedPageSize: page.requestedPageSize, returnedPageSize: page.returnedPageSize,
@@ -62,7 +71,7 @@ try {
         nextPageSignalBefore: page.nextPageSignalBefore, nextPageSignalAfter: page.nextPageSignalAfter,
         termination: page.termination, anomalyCodes: page.anomalyCodes, capturedAt: page.capturedAt.toISOString() })),
       expectedEvidenceKind: row.expectedEvidenceKind, expectedJobCount: row.expectedJobCount,
-      pagesVisited: row.paginationEvidence.length, totalPages: declaredPages.length === 0 ? null : Math.max(...declaredPages),
+      pagesVisited: row.paginationEvidence.length, totalPages,
       finalJobCount: row.dedupeOutputCount, transportState: row.transportState, adapterState: row.adapterState,
       completenessState: row.completenessState, atomicCommitState: row.atomicCommitState,
       failureCategory: row.failureCategory, failureDiagnosticCode: row.failureDiagnosticCode, failureCode: row.failureCode

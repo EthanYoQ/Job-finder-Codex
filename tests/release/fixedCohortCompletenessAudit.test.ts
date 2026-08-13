@@ -77,6 +77,22 @@ describe("fixed cohort completeness audit", () => {
     expect(buildFixedCohortCompletenessAudit(value).companies.find(({ sourceId }) =>
       sourceId === source.sourceId)?.blockers).toContain("OFFICIAL_SCOPE_MISMATCH");
   });
+
+  it("keeps multi-channel pagination separate and rejects non-contiguous page evidence", () => {
+    const value = input(), source = value.sources[0]!, secondChannel = "channel:second";
+    source.plannedChannelIds = [...source.plannedChannelIds, secondChannel];
+    source.officialChannelIds = [...source.officialChannelIds, secondChannel];
+    source.paginationEvidence = [...source.paginationEvidence, {
+      ...source.paginationEvidence[0]!, channelId: secondChannel, sequence: 2,
+      declaredTotal: 20, declaredCount: 20, declaredPages: 1
+    }];
+    source.pagesVisited = 2; source.totalPages = 2;
+    let row = buildFixedCohortCompletenessAudit(value).companies.find(({ sourceId }) => sourceId === source.sourceId)!;
+    expect(row.paginationByChannel).toHaveLength(2);
+    source.paginationEvidence = source.paginationEvidence.map((page, index) => index === 1 ? { ...page, sequence: 3 } : page);
+    row = buildFixedCohortCompletenessAudit(value).companies.find(({ sourceId }) => sourceId === source.sourceId)!;
+    expect(row.blockers).toContain("PAGINATION_EVIDENCE_INVALID");
+  });
 });
 
 function input(): { generatedAt: Date; releaseCandidateId: string; batchId: string; observedSourceIds: string[];
@@ -89,7 +105,8 @@ function input(): { generatedAt: Date; releaseCandidateId: string; batchId: stri
       plannedChannelIds: [`channel:${company.source.sourceId}`], officialSurfaceIds: [`surface:${company.source.sourceId}`],
       officialChannelIds: [`channel:${company.source.sourceId}`], evidenceArtifacts: [{ id: `artifact:${company.source.sourceId}`,
         path: `evidence/${company.source.sourceId}.json`, sha256: "c".repeat(64) }],
-      paginationEvidence: [{ artifactId: `artifact:${company.source.sourceId}`, sequence: 1, requestedCursor: null,
+      paginationEvidence: [{ artifactId: `artifact:${company.source.sourceId}`, sequence: 1,
+        channelId: `channel:${company.source.sourceId}`, requestedCursor: null,
         returnedCursor: null, requestedOffset: 0, returnedOffset: 0, requestedPage: 1, returnedPage: 1,
         requestedPageSize: 20, returnedPageSize: 10, responseFingerprintSha256: "d".repeat(64),
         rawJobIdSetSha256: "e".repeat(64), validJobIdSetSha256: "f".repeat(64),
