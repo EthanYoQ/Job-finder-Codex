@@ -2,7 +2,7 @@ import { readFileSync } from "node:fs";
 import { buildStagedSourceCrawlPlans } from "../src/crawler/sourcePlan";
 import { requiresBGradeTraversalCertificate } from "../src/crawler/traversalCertificate";
 import { candidateCompanies } from "../src/data/companyRegistry";
-import { extractProductionNodeStage } from "../src/readiness/productionImageContract";
+import { extractProductionNodeStage, PRODUCTION_RUNTIME_APT_COMMAND } from "../src/readiness/productionImageContract";
 
 const plans = buildStagedSourceCrawlPlans(candidateCompanies);
 const browserRequired = plans.some((plan) =>
@@ -10,7 +10,7 @@ const browserRequired = plans.some((plan) =>
 );
 const dockerfile = readFileSync("Dockerfile", "utf8");
 const runtimeStage = extractProductionNodeStage(dockerfile, "runtime");
-const chromiumInstalled = /install-apt-packages\.sh[^\n]*\bchromium\b/u.test(runtimeStage);
+const chromiumInstalled = runtimeStage.includes(PRODUCTION_RUNTIME_APT_COMMAND);
 
 if (browserRequired !== chromiumInstalled) {
   throw new Error(

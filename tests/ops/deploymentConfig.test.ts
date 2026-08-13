@@ -5,6 +5,7 @@ import { tmpdir } from "node:os";
 import { resolve } from "node:path";
 import { execFileSync, spawn } from "node:child_process";
 import { describe, expect, it } from "vitest";
+import { PRODUCTION_RUNTIME_APT_COMMAND } from "../../src/readiness/productionImageContract";
 
 const repoRoot = process.cwd();
 const dockerfilePath = resolve(repoRoot, "Dockerfile");
@@ -240,7 +241,7 @@ describe("deployment configuration", () => {
     expect(dockerfile).toMatch(/ldd -r \/usr\/local\/bin\/pg_restore/u);
     expect(dockerfile).toMatch(/ldd -r \/usr\/local\/bin\/psql/u);
     expect(dockerfile).toMatch(/not found\|undefined symbol/u);
-    expect(dockerfile).toContain("sh /usr/local/bin/install-apt-packages.sh ca-certificates chromium libpq5 libreadline8 util-linux");
+    expect(dockerfile).toContain(PRODUCTION_RUNTIME_APT_COMMAND);
     expect(dockerfile).toMatch(/command -v flock[^\n]*\/usr\/bin\/flock/u);
     expect(dockerfile).toMatch(/flock --version[^\n]*util-linux/u);
     expect(dockerfile).toContain("flock -n /tmp/flock-build-probe true");
