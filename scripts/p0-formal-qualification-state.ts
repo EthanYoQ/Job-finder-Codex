@@ -4,7 +4,7 @@ import { lstat, mkdir, readFile, rename, writeFile } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import { Prisma, PrismaClient } from "@prisma/client";
-import { resolveCurrentStagedScheduleAuthority } from "../src/crawler/stagedScheduleAuthority";
+import { resolveCurrentBuildingStagedScheduleAuthority } from "../src/crawler/stagedScheduleAuthority";
 import { parseFixedCohortCompletenessAuditReport } from "../src/release/fixedCohortCompletenessAudit";
 import {
   assertFormalQualificationSecondRoundMayStart,
@@ -135,11 +135,11 @@ async function loadCurrentBatchSnapshot(releaseCandidateId: string, batchId: str
   const prisma = new PrismaClient();
   try {
     return await prisma.$transaction(async (transaction) => {
-      const resolved = await resolveCurrentStagedScheduleAuthority(transaction as never);
-      if (resolved.authority.identity.releaseCandidateId !== releaseCandidateId) {
+      const authority = await resolveCurrentBuildingStagedScheduleAuthority(transaction as never);
+      if (authority.identity.releaseCandidateId !== releaseCandidateId) {
         throw new Error("Fixed cohort audit release candidate does not match current authority");
       }
-      const identity = resolved.authority.identity;
+      const identity = authority.identity;
       const batch = await transaction.crawlBatch.findFirstOrThrow({
         where: { id: batchId, releaseCandidateId, kind: "SCHEDULED", status: { in: ["SUCCESS", "INCOMPLETE", "FAILED"] },
           finishedAt: { not: null }, commitSha: identity.commitSha, rosterSha256: identity.rosterSha256,
@@ -161,8 +161,8 @@ async function verifyRestoredDatabase(receipt: FormalQualificationRoundOneReceip
   const prisma = new PrismaClient();
   try {
     await prisma.$transaction(async (transaction) => {
-      const resolved = await resolveCurrentStagedScheduleAuthority(transaction as never);
-      if (resolved.status !== "BUILDING" || resolved.authority.identity.releaseCandidateId !== receipt.releaseCandidateId) {
+      const authority = await resolveCurrentBuildingStagedScheduleAuthority(transaction as never);
+      if (authority.identity.releaseCandidateId !== receipt.releaseCandidateId) {
         throw new Error("Restored formal qualification authority is invalid");
       }
       const batches = await transaction.crawlBatch.findMany({

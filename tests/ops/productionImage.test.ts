@@ -325,6 +325,17 @@ describe("production container contract", () => {
     expect(runner).not.toMatch(/sleep (?:4[3-9][0-9]{3,}|[5-9][0-9]{4,})/u);
   });
 
+  it("reads the current staged authority using its direct return shape during formal state capture", () => {
+    const source = read("scripts/p0-formal-qualification-state.ts");
+    const stagedCli = read("src/crawler/stagedCrawlCli.ts");
+    expect(source).not.toContain("resolved.authority.identity");
+    expect(source).toContain("resolveCurrentBuildingStagedScheduleAuthority");
+    expect(source).toContain("authority.identity.releaseCandidateId");
+    expect(source).not.toContain('candidate?.status !== "BUILDING"');
+    expect(stagedCli).toContain("{ syncLaunchCohortSourcesToDb }");
+    expect(stagedCli).toContain("syncPlannedSourcesToDb: syncLaunchCohortSourcesToDb");
+  });
+
   it("provides a repeatable clean Linux build and startup smoke workflow", () => {
     const workflow = read(".github/workflows/production-image.yml");
 

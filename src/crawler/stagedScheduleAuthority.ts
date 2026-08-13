@@ -214,6 +214,16 @@ export async function resolveCurrentStagedScheduleAuthority(
   return (await resolveCurrentStagedScheduleAuthorityWithStatus(db)).authority;
 }
 
+export async function resolveCurrentBuildingStagedScheduleAuthority(
+  db: StagedScheduleAuthorityDb
+): Promise<CurrentStagedScheduleAuthority> {
+  const resolved = await resolveCurrentStagedScheduleAuthorityWithStatus(db);
+  if (resolved.status !== "BUILDING") {
+    throw new Error(`Formal qualification requires a BUILDING release candidate: ${resolved.authority.identity.releaseCandidateId}`);
+  }
+  return resolved.authority;
+}
+
 export async function resolveCurrentStagedScheduledCrawlAuthority(
   db: StagedScheduledCrawlAuthorityDb
 ): Promise<CurrentStagedScheduleAuthority> {

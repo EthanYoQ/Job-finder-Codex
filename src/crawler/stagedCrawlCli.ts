@@ -467,7 +467,7 @@ async function publishSummary(
 async function createProductionRuntime(force = false): Promise<StagedCrawlRuntime> {
   const [
     { PrismaClient },
-    { syncPlannedSourcesToDb },
+    { syncLaunchCohortSourcesToDb },
     { createPrismaCrawlRuntimeDeps },
     { runP0CrawlBatch },
     { createMokaSourceFetch },
@@ -517,7 +517,7 @@ async function createProductionRuntime(force = false): Promise<StagedCrawlRuntim
         fetch,
         now: () => new Date(),
         force,
-        syncPlannedSourcesToDb,
+        syncPlannedSourcesToDb: syncLaunchCohortSourcesToDb,
         createRuntimeDeps: () => runtimeDeps,
         runP0CrawlBatch
       }),

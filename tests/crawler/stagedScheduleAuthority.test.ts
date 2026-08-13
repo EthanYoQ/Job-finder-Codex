@@ -13,6 +13,7 @@ import {
   deriveCurrentStagedScheduleExpectation,
   deriveStagedAdapterBundleSha256,
   deriveStagedSourceConfigSha256,
+  resolveCurrentBuildingStagedScheduleAuthority,
   resolveCurrentStagedScheduleAuthority,
   STAGED_SCHEDULE_ORACLE_VERSION,
   type StagedScheduleExpectation
@@ -141,6 +142,16 @@ describe("current staged schedule expectation", () => {
 });
 
 describe("current staged schedule release-candidate lookup", () => {
+  it("provides a BUILDING-only authority seam for formal qualification state", async () => {
+    const expected = deriveCurrentStagedScheduleExpectation(BUILD);
+    await expect(resolveCurrentBuildingStagedScheduleAuthority({
+      releaseCandidate: { findMany: vi.fn(async () => [releaseCandidateRow(expected, { status: "BUILDING" })] as never) }
+    })).resolves.toMatchObject({ identity: { releaseCandidateId: "rc-staged-1" } });
+    await expect(resolveCurrentBuildingStagedScheduleAuthority({
+      releaseCandidate: { findMany: vi.fn(async () => [releaseCandidateRow(expected, { status: "READY_FOR_QA" })] as never) }
+    })).rejects.toThrow(/BUILDING/);
+  });
+
   it("uses every derived field, reads at most two rows, and returns the fixed SCHEDULED identity", async () => {
     const expected = deriveCurrentStagedScheduleExpectation(BUILD);
     const findMany = vi.fn(async () => [releaseCandidateRow(expected)]);
