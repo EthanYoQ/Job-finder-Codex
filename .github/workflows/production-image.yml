@@ -205,8 +205,8 @@ jobs:
           openssl req -x509 -newkey rsa:2048 -nodes -days 1 -subj "/CN=$TEST_HOST" \
             -addext "subjectAltName=DNS:$TEST_HOST" -keyout "$TEST_DIR/tls/privkey.pem" \
             -out "$TEST_DIR/tls/fullchain.pem" >/dev/null 2>&1
-          sudo chown 101:101 "$TEST_DIR/tls/privkey.pem"
           chmod 0640 "$TEST_DIR/tls/privkey.pem"
+          sudo chown 101:101 "$TEST_DIR/tls/privkey.pem"
           chmod 0644 "$TEST_DIR/tls/fullchain.pem"
           docker network create "$NETWORK"
           trap 'docker rm --force "$NGINX_NAME" "$WEB_NAME" >/dev/null 2>&1 || true; docker network rm "$NETWORK" >/dev/null 2>&1 || true' EXIT
@@ -237,8 +237,8 @@ jobs:
           mkdir -p "$TEST_DIR/invalid-tls"
           cp "$TEST_DIR/tls/fullchain.pem" "$TEST_DIR/invalid-tls/fullchain.pem"
           openssl genrsa -out "$TEST_DIR/invalid-tls/privkey.pem" 2048 >/dev/null 2>&1
-          sudo chown 101:101 "$TEST_DIR/invalid-tls/privkey.pem"
           chmod 0640 "$TEST_DIR/invalid-tls/privkey.pem"
+          sudo chown 101:101 "$TEST_DIR/invalid-tls/privkey.pem"
           chmod 0644 "$TEST_DIR/invalid-tls/fullchain.pem"
           if docker run --rm --network "$NETWORK" --add-host web:127.0.0.1 \
             --user 101:101 --read-only --cap-drop ALL --security-opt no-new-privileges:true \
@@ -283,8 +283,8 @@ jobs:
           openssl req -x509 -newkey rsa:2048 -nodes -days 1 -subj "/CN=$TEST_HOST" \
             -addext "subjectAltName=DNS:$TEST_HOST" -keyout "$TEST_DIR/tls/privkey.next" \
             -out "$TEST_DIR/tls/fullchain.next" >/dev/null 2>&1
-          sudo chown 101:101 "$TEST_DIR/tls/privkey.next"
           chmod 0640 "$TEST_DIR/tls/privkey.next"
+          sudo chown 101:101 "$TEST_DIR/tls/privkey.next"
           chmod 0644 "$TEST_DIR/tls/fullchain.next"
           mv -f "$TEST_DIR/tls/privkey.next" "$TEST_DIR/tls/privkey.pem"
           mv -f "$TEST_DIR/tls/fullchain.next" "$TEST_DIR/tls/fullchain.pem"

@@ -118,6 +118,18 @@ describe("production container contract", () => {
     expect(contextCheck).toContain("MAX_PROVENANCE_BUNDLE_BYTES");
   });
 
+  it("sets private-key permissions before transferring TLS fixture ownership", () => {
+    const workflow = read(".github/workflows/production-image.yml");
+    const privateKeys = ["privkey.pem", "invalid-tls/privkey.pem", "privkey.next"];
+
+    for (const privateKey of privateKeys) {
+      const chmod = `chmod 0640 \"$TEST_DIR/${privateKey.startsWith("invalid") ? "" : "tls/"}${privateKey}\"`;
+      const chown = `sudo chown 101:101 \"$TEST_DIR/${privateKey.startsWith("invalid") ? "" : "tls/"}${privateKey}\"`;
+      expect(workflow.indexOf(chmod)).toBeGreaterThan(-1);
+      expect(workflow.indexOf(chown)).toBeGreaterThan(workflow.indexOf(chmod));
+    }
+  });
+
   it("provides a repeatable clean Linux build and startup smoke workflow", () => {
     const workflow = read(".github/workflows/production-image.yml");
 
