@@ -40,6 +40,8 @@ describe("production container contract", () => {
     expect(runtimeStage).toContain("rm -rf /usr/local/lib/node_modules/npm /usr/local/bin/npm /usr/local/bin/npx");
     expect(runtimeStage).toContain('CMD ["node", "node_modules/tsx/dist/cli.mjs", "src/server/httpServer.ts"]');
     expect(workflow).toContain("test ! -e /usr/local/lib/node_modules/npm && ! command -v npm && ! command -v npx");
+    expect(workflow).toContain("scripts/runtime-exposure-probe.mjs > .runtime/security/runtime-exposure-raw.json");
+    expect(workflow).toContain("scripts/bind-runtime-exposure-report.ts");
     expect(runtimeStage).toContain(`ADD --checksum=sha256:${PRODUCTION_BROWSER_DEB_SHA256}`);
     expect(runtimeStage).toContain(PRODUCTION_BROWSER_DEB_URL);
     expect(runtimeStage).toContain(PRODUCTION_BROWSER_DEB_NAME);

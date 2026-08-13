@@ -91,6 +91,16 @@ jobs:
           ignore-unfixed: false
           exit-code: 0
 
+      - name: Capture exact runtime exposure evidence
+        run: |
+          IMAGE_DIGEST="$(docker image inspect --format '{{.Id}}' "$IMAGE_TAG")"
+          docker run --rm --read-only --cap-drop ALL --security-opt no-new-privileges:true \
+            --tmpfs /tmp:rw,nosuid,nodev,noexec,size=1g,mode=1777 --entrypoint node "$IMAGE_TAG" \
+            scripts/runtime-exposure-probe.mjs > .runtime/security/runtime-exposure-raw.json
+          npx tsx scripts/bind-runtime-exposure-report.ts \
+            .runtime/security/runtime-exposure-raw.json .runtime/security/trivy-image.json \
+            "$IMAGE_DIGEST" .runtime/security/runtime-exposure-report.json
+
       - name: Enforce reachable production vulnerability policy
         run: |
           IMAGE_DIGEST="$(docker image inspect --format '{{.Id}}' "$IMAGE_TAG")"
