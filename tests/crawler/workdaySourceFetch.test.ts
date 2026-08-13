@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import { createHash } from "node:crypto";
-import { createWorkdaySourceFetch } from "../../src/crawler/workdaySourceFetch";
+import { createWorkdaySourceFetch, hasRecordLevelChinaEvidence } from "../../src/crawler/workdaySourceFetch";
 import type { WorkdayHttpResponse } from "../../src/crawler/workdaySourceFetch";
 import { runSourceCrawl } from "../../src/crawler/runSourceCrawl";
 import {
@@ -151,6 +151,7 @@ const JNJ_AUDITED_FOREIGN_DESCRIPTOR_ALIASES = [
   "La Jolla, California, United States of America",
   "Los Angeles, California, United States of America",
   "Malvern, Pennsylvania, United States of America",
+  "Manitoba (Any City)",
   "Miami, Florida, United States of America",
   "Minneapolis, Minnesota, United States of America",
   "New Brighton, Minnesota, United States of America",
@@ -246,6 +247,8 @@ const JNJ_AUDITED_FOREIGN_DESCRIPTOR_ALIASES = [
 
 const GILEAD_AUDITED_FOREIGN_DESCRIPTOR_ALIASES = [
   "Czech Republic - Prague",
+  "Romania – Bucharest",
+  "Russian Federation - St. Petersburg",
   "UAE - Dubai",
   "United States – Remote"
 ] as const;
@@ -256,6 +259,7 @@ const BMS_AUDITED_FOREIGN_SITE_DESCRIPTOR_ALIASES = [
   "CA09 PSA Celgene - Los Angeles - CA",
   "CA10 PSA - Brisbane - CA",
   "CA14 San Diego Morehouse",
+  "FL02 PSA Tampa - FL",
   "IN05 Indianapolis 80th Street",
   "MA01 PSA Cambridge Crossing - MA",
   "MD01 PSA Bethesda - FL",
@@ -264,16 +268,27 @@ const BMS_AUDITED_FOREIGN_SITE_DESCRIPTOR_ALIASES = [
   "NJ09 PSA Princeton Pike - NJ",
   "NJ13 PSA Plainsboro - NJ",
   "NJ16 PSA Madison - Giralda Farms - NJ",
+  "TX02 PSA Celgene - Dallas - TX",
   "US99 PSA Field - United States",
   "WA04 PSA Celgene - Seattle Dexter Avenue - WA"
 ] as const;
 
 const BMS_AUDITED_FOREIGN_COUNTRY_DESCRIPTOR_ALIASES = [
   "Korea, Republic Of",
+  "Turkey",
   "United Kingdom (GB)"
 ] as const;
 
 describe("createWorkdaySourceFetch", () => {
+  it("rejects a mainland city token when the same descriptor explicitly names a foreign country", () => {
+    expect(hasRecordLevelChinaEvidence({ locationsText: "Shanghai, United States of America" }, undefined))
+      .toBe(false);
+    expect(hasRecordLevelChinaEvidence({ locationsText: "Shanghai, Korea, Republic Of" }, undefined))
+      .toBe(false);
+    expect(hasRecordLevelChinaEvidence({ locationsText: "Shanghai, United Kingdom (GB)" }, undefined))
+      .toBe(false);
+    expect(hasRecordLevelChinaEvidence({ locationsText: "Shanghai, China" }, undefined)).toBe(true);
+  });
   it("retains exact Workday pages and official total evidence without promoting fetch completeness", async () => {
     const fetcher = createWorkdaySourceFetch({
       now: () => new Date("2026-07-08T00:00:00.000Z"),
@@ -1975,7 +1990,6 @@ describe("createWorkdaySourceFetch", () => {
   });
 
   it.each([
-    "Albany, NY, United States of America",
     "CN999 Future Site",
     "Shanghai"
   ])("keeps JNJ's unaudited descriptor drift fail-closed: %s", async (driftedDescriptor) => {
@@ -2014,7 +2028,7 @@ describe("createWorkdaySourceFetch", () => {
     });
   });
 
-  it("excludes JNJ's exact audited Lancaster foreign descriptor from the China facet", async () => {
+  it("excludes an unambiguous foreign country alias outside JNJ's audited city list", async () => {
     const requests: Array<{ body: string }> = [];
     const fetcher = createWorkdaySourceFetch({
       http: async (request) => {
@@ -2038,8 +2052,8 @@ describe("createWorkdaySourceFetch", () => {
                 values: [
                   { descriptor: "Shanghai, China", id: "china", count: 1 },
                   {
-                    descriptor: "Lancaster, Pennsylvania, United States of America",
-                    id: "lancaster-us",
+                    descriptor: "Albany, NY, United States of America",
+                    id: "albany-us",
                     count: 1
                   }
                 ]
@@ -2126,7 +2140,7 @@ describe("createWorkdaySourceFetch", () => {
           total: 2,
           jobPostings: [
             {
-              title: "CQRA Specialist, HK",
+              title: "CQRA  Specialist, HK",
               externalPath: listingPath,
               locationsText: "2 Locations",
               bulletFields: ["R-100"]
@@ -2142,7 +2156,7 @@ describe("createWorkdaySourceFetch", () => {
       },
       detailHttp: async (request) => response({
         jobPostingInfo: {
-          title: "CQRA Specialist, HK",
+          title: "CQRA  Specialist, HK",
           jobPostingSiteId: "JJ",
           jobPostingId: "CQRA_R-100",
           jobReqId: "R-100",
@@ -2725,6 +2739,150 @@ describe("createWorkdaySourceFetch", () => {
     expect(JSON.parse(requests[2]!.body).appliedFacets).toEqual({
       locationHierarchy2: ["china-dynamic"],
       workerSubType: ["fixed-term-dynamic", "permanent-dynamic"]
+    });
+  });
+
+  it("hydrates an opaque BMS APAC listing only when its strict detail proves a mainland China location", async () => {
+    const externalPath = "/job/Singapore---SG/Regional-Privacy-Counsel---APAC_R1605226";
+    const rawJob = {
+      title: "Regional Privacy Counsel - APAC",
+      externalPath,
+      locationsText: "6 Locations",
+      bulletFields: ["R1605226"],
+      workerSubType: "Permanent"
+    };
+    const mainlandJob = {
+      title: "China Privacy Counsel",
+      externalPath: "/job/China/China-Privacy-Counsel_R1000000",
+      locationsText: "Shanghai, China",
+      bulletFields: ["R1000000"],
+      workerSubType: "Fixed Term (Fixed Term)"
+    };
+    const locationFacet = {
+      facetParameter: "locationMainGroup",
+      values: [{
+        facetParameter: "locationHierarchy2",
+        descriptor: "Country",
+        values: [
+          { descriptor: "China", id: "china-dynamic", count: 2 },
+          ...BMS_AUDITED_FOREIGN_SITE_DESCRIPTOR_ALIASES.map((descriptor, index) => ({
+            descriptor,
+            id: `bms-site-${index}`,
+            count: 1
+          })),
+          ...BMS_AUDITED_FOREIGN_COUNTRY_DESCRIPTOR_ALIASES.map((descriptor, index) => ({
+            descriptor,
+            id: `bms-country-${index}`,
+            count: 1
+          }))
+        ]
+      }]
+    };
+    const workerFacet = {
+      facetParameter: "workerSubType",
+      descriptor: "Job Type",
+      values: [
+        { descriptor: "Fixed Term (Fixed Term)", id: "fixed-term-dynamic", count: 1 },
+        { descriptor: "Permanent", id: "permanent-dynamic", count: 1 }
+      ]
+    };
+    const fetcher = createWorkdaySourceFetch({
+      http: async (request) => {
+        const body = JSON.parse(request.body) as { appliedFacets: Record<string, string[]>; offset: number };
+        if (!body.appliedFacets.locationHierarchy2) {
+          return response({
+            total: 2,
+            jobPostings: [],
+            facets: [locationFacet]
+          });
+        }
+        if (!body.appliedFacets.workerSubType) {
+          return response({
+            total: 2,
+            jobPostings: [],
+            facets: [workerFacet]
+          });
+        }
+        return response({
+          total: body.offset === 0 ? 2 : 0,
+          jobPostings: body.offset === 0 ? [mainlandJob] : [rawJob],
+          facets: body.offset === 0 ? [locationFacet, workerFacet] : [],
+          userAuthenticated: false
+        });
+      },
+      detailHttp: async (request) => response({
+        jobPostingInfo: {
+          title: rawJob.title,
+          jobPostingSiteId: "BMS",
+          jobPostingId: externalPath.split("/").at(-1),
+          jobReqId: "R1605226",
+          externalUrl: `https://bristolmyerssquibb.wd5.myworkdayjobs.com/BMS${externalPath}`,
+          posted: true,
+          canApply: true,
+          location: "Singapore - SG",
+          additionalLocations: [
+            "Seoul - KR",
+            "Mulgrave - AU",
+            "Hong Kong - HK",
+            "Shanghai P.R. HQ",
+            "Tokyo - JP"
+          ]
+        }
+      }, "2026-07-14T00:00:02.000Z", { finalUrl: request.url })
+    });
+
+    const result = await fetcher({
+      ...plan,
+      source: {
+        ...plan.source,
+        id: "source-bms-china-social",
+        officialEntryUrl: "https://bristolmyerssquibb.wd5.myworkdayjobs.com/BMS"
+      },
+      workday: {
+        tenant: "bristolmyerssquibb",
+        site: "BMS",
+        searchText: "China",
+        laterZeroTotalPolicy: "BMS_AUDITED_EXACT_RECONCILIATION",
+        opaqueMultiLocationDetailPolicy: "BMS_AUDITED_CHINA_DETAIL_V1",
+        locationFacetPolicy: {
+          kind: "BMS_AUDITED_FOREIGN_DESCRIPTOR_ALLOWLIST",
+          facetParameter: "locationHierarchy2",
+          foreignSiteDescriptorAliases: BMS_AUDITED_FOREIGN_SITE_DESCRIPTOR_ALIASES,
+          foreignCountryDescriptorAliases: BMS_AUDITED_FOREIGN_COUNTRY_DESCRIPTOR_ALIASES
+        },
+        facetDescriptorBoundary: {
+          facetParameter: "workerSubType",
+          allowedDescriptors: ["Fixed Term (Fixed Term)", "Permanent"]
+        },
+        pageSize: 1,
+        maxPages: 5
+      }
+    } as SourceCrawlPlan);
+
+    if (!result.ok) throw new Error(`Expected hydrated BMS result: ${result.failureReason}`);
+    expect(result).toMatchObject({
+      ok: true,
+      completeness: { expectedJobCount: 2, pagesVisited: 2 },
+      fetchEvidence: {
+        fetchCounts: { rawCount: 2, parsedCount: 2, validCount: 2, validationDiscardCount: 0 },
+        fetchLosses: []
+      }
+    });
+    if (!("payload" in result)) throw new Error("Expected hydrated BMS payload");
+    expect(result.payload).toEqual({
+      jobPostings: [{
+        sourceJobId: workdayId(mainlandJob.externalPath),
+        title: mainlandJob.title,
+        officialUrl: `https://bristolmyerssquibb.wd5.myworkdayjobs.com/BMS${mainlandJob.externalPath}`,
+        locationRaw: mainlandJob.locationsText,
+        cities: ["上海"]
+      }, {
+        sourceJobId: workdayId(externalPath),
+        title: rawJob.title,
+        officialUrl: `https://bristolmyerssquibb.wd5.myworkdayjobs.com/BMS${externalPath}`,
+        locationRaw: "Singapore - SG | Seoul - KR | Mulgrave - AU | Hong Kong - HK | Shanghai P.R. HQ | Tokyo - JP",
+        cities: ["上海"]
+      }]
     });
   });
 
@@ -3598,6 +3756,10 @@ describe("createWorkdaySourceFetch", () => {
 
   it.each([
     { name: "exact CLDR names", foreignDescriptors: ["Georgia", "Jordan"] },
+    {
+      name: "exact audited country aliases",
+      foreignDescriptors: ["Korea, Republic of", "Turkey"]
+    },
     { name: "exact ISO alpha-2 codes", foreignDescriptors: ["US", "DE"] },
     { name: "exact ISO alpha-3 codes", foreignDescriptors: ["USA", "DEU"] }
   ])("accepts provable foreign country siblings from $name", async ({ foreignDescriptors }) => {

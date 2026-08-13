@@ -35,6 +35,7 @@ export interface WorkdayFetchConfig {
 
 export type WorkdayOpaqueMultiLocationDetailPolicy =
   | "JNJ_AUDITED_CHINA_DETAIL_V1"
+  | "BMS_AUDITED_CHINA_DETAIL_V1"
   | "PFIZER_AUDITED_APAC_DETAIL_V1";
 
 export type WorkdayLaterZeroTotalPolicy =
@@ -129,6 +130,7 @@ export const BMS_AUDITED_FOREIGN_SITE_DESCRIPTOR_ALIASES = [
   "CA09 PSA Celgene - Los Angeles - CA",
   "CA10 PSA - Brisbane - CA",
   "CA14 San Diego Morehouse",
+  "FL02 PSA Tampa - FL",
   "IN05 Indianapolis 80th Street",
   "MA01 PSA Cambridge Crossing - MA",
   "MD01 PSA Bethesda - FL",
@@ -137,11 +139,13 @@ export const BMS_AUDITED_FOREIGN_SITE_DESCRIPTOR_ALIASES = [
   "NJ09 PSA Princeton Pike - NJ",
   "NJ13 PSA Plainsboro - NJ",
   "NJ16 PSA Madison - Giralda Farms - NJ",
+  "TX02 PSA Celgene - Dallas - TX",
   "US99 PSA Field - United States",
   "WA04 PSA Celgene - Seattle Dexter Avenue - WA"
 ] as const;
 export const BMS_AUDITED_FOREIGN_COUNTRY_DESCRIPTOR_ALIASES = [
   "Korea, Republic Of",
+  "Turkey",
   "United Kingdom (GB)"
 ] as const;
 export const JNJ_AUDITED_MAINLAND_DESCRIPTOR_ALIASES = [
@@ -210,6 +214,7 @@ export const JNJ_AUDITED_FOREIGN_DESCRIPTOR_ALIASES = [
   "La Jolla, California, United States of America",
   "Los Angeles, California, United States of America",
   "Malvern, Pennsylvania, United States of America",
+  "Manitoba (Any City)",
   "Miami, Florida, United States of America",
   "Minneapolis, Minnesota, United States of America",
   "New Brighton, Minnesota, United States of America",
@@ -304,6 +309,8 @@ export const JNJ_AUDITED_FOREIGN_DESCRIPTOR_ALIASES = [
 ] as const;
 export const GILEAD_AUDITED_FOREIGN_DESCRIPTOR_ALIASES = [
   "Czech Republic - Prague",
+  "Romania – Bucharest",
+  "Russian Federation - St. Petersburg",
   "UAE - Dubai",
   "United States – Remote"
 ] as const;
@@ -510,6 +517,22 @@ function resolveOpaqueMultiLocationDetailPolicy(
     config.tenant === "jj" &&
     config.site === "JJ" &&
     auditedLocationFacetPolicy.facetParameter === "locations"
+  ) {
+    return { kind };
+  }
+  if (
+    kind === "BMS_AUDITED_CHINA_DETAIL_V1" &&
+    sourceId === "source-bms-china-social" &&
+    config.tenant === "bristolmyerssquibb" &&
+    config.site === "BMS" &&
+    config.laterZeroTotalPolicy === BMS_LATER_ZERO_TOTAL_POLICY &&
+    auditedLocationFacetPolicy.facetParameter === "locationHierarchy2" &&
+    config.facetDescriptorBoundary?.facetParameter === "workerSubType" &&
+    exactStringArray(
+      config.facetDescriptorBoundary.allowedDescriptors,
+      ["Fixed Term (Fixed Term)", "Permanent"]
+    ) &&
+    config.facetDescriptorBoundary.excludedDescriptors === undefined
   ) {
     return { kind };
   }
@@ -1276,11 +1299,12 @@ function safeDecode(value: string): string {
   try { return decodeURIComponent(value); } catch { return value; }
 }
 
-function hasRecordLevelChinaEvidence(
+export function hasRecordLevelChinaEvidence(
   job: Record<string, unknown>,
   cityHints: Record<string, readonly string[]> | undefined
 ): boolean {
   const scopeText = `${stringValue(job.locationsText) ?? ""} ${stringValue(job.externalPath) ?? ""}`;
+  if (hasKnownForeignCountryPart(scopeText) || isNonMainlandChinaDescriptor(scopeText)) return false;
   const normalized = scopeText.toLowerCase();
   if (/(?:^|[^a-z])(?:china|chn|cn)(?:[^a-z]|$)/u.test(normalized) || scopeText.includes("中国")) {
     return true;
@@ -1388,7 +1412,9 @@ function validateOpaqueMultiLocationDetail({
   const selectedDescriptors = new Set(selectedMainlandLocations.map((item) => item.descriptor));
   const matchedMainlandDescriptors = policy.kind === "PFIZER_AUDITED_APAC_DETAIL_V1"
     ? publicLocations.filter(isPfizerWorkdayMainlandChinaLocationDescriptor)
-    : publicLocations.filter((descriptor) => selectedDescriptors.has(descriptor));
+    : policy.kind === "BMS_AUDITED_CHINA_DETAIL_V1"
+      ? publicLocations.filter((descriptor) => hasRecordLevelChinaEvidence({ locationsText: descriptor }, cityHints))
+      : publicLocations.filter((descriptor) => selectedDescriptors.has(descriptor));
   if (policy.kind === "PFIZER_AUDITED_APAC_DETAIL_V1") {
     const exactApacDescriptor = "APAC - Any Pfizer Site";
     if (publicLocations.some((descriptor) => /\bAPAC\b/iu.test(descriptor) && descriptor !== exactApacDescriptor)) {
@@ -2381,7 +2407,11 @@ const NON_MAINLAND_CHINA_COUNTRY_NAMES = new Set([
   "macau", "macao", "macao sar china", "澳门", "澳門", "中国澳门", "中國澳門",
   "taiwan", "taiwan province of china", "台湾", "台灣", "中国台湾", "中國台灣"
 ]);
-const EXACT_FOREIGN_COUNTRY_ALIASES = new Set(["united states of america"]);
+const EXACT_FOREIGN_COUNTRY_ALIASES = new Set([
+  "korea, republic of",
+  "turkey",
+  "united states of america"
+]);
 
 // Exact ISO 3166-1 assignments are generated from Debian iso-codes through
 // pycountry 26.2.16 (https://github.com/pycountry/pycountry); display names
@@ -2418,9 +2448,17 @@ function isExactNonMainlandChinaCountryDescriptor(descriptor: string): boolean {
 }
 
 function hasKnownForeignCountryPart(descriptor: string): boolean {
+  const normalizedDescriptor = normalizeFacetDescriptor(descriptor);
+  const containsAuditedAlias = [...EXACT_FOREIGN_COUNTRY_ALIASES].some((alias) =>
+    normalizedDescriptor === alias ||
+    normalizedDescriptor.startsWith(`${alias} `) ||
+    normalizedDescriptor.endsWith(` ${alias}`) ||
+    normalizedDescriptor.includes(` ${alias} `));
+  if (containsAuditedAlias) return true;
   return descriptorParts(descriptor).some((part) => {
     const code = part.toUpperCase();
     return !MAINLAND_CHINA_NAMES.has(part) && (
+      EXACT_FOREIGN_COUNTRY_ALIASES.has(part) ||
       KNOWN_REGION_NAMES.has(part) ||
       (ISO_ALPHA_2_CODES.has(code) && code !== "CN") ||
       (ISO_ALPHA_3_CODES.has(code) && code !== "CHN")
@@ -2430,7 +2468,7 @@ function hasKnownForeignCountryPart(descriptor: string): boolean {
 
 function descriptorParts(descriptor: string): string[] {
   return descriptor
-    .split(/\s+-\s+|[,/|]/gu)
+    .split(/\s+-\s+|[,/|()]/gu)
     .map(normalizeFacetDescriptor)
     .filter(Boolean);
 }

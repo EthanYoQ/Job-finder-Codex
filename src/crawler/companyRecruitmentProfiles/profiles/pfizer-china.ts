@@ -23,7 +23,7 @@ export const profile_pfizer_china = {
                   allowedDescriptors: ["Regular"]
               },
               pageSize: 20,
-              maxPages: 10
+              maxPages: 20
           }
       }
     },

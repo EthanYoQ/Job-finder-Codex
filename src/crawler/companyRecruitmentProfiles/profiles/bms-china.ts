@@ -15,6 +15,7 @@ export const profile_bms_china = {
               site: "BMS",
               searchText: "China",
               laterZeroTotalPolicy: "BMS_AUDITED_EXACT_RECONCILIATION",
+              opaqueMultiLocationDetailPolicy: "BMS_AUDITED_CHINA_DETAIL_V1",
               locationFacetPolicy: {
                   kind: "BMS_AUDITED_FOREIGN_DESCRIPTOR_ALLOWLIST",
                   facetParameter: "locationHierarchy2",
