@@ -27,6 +27,7 @@ export const REQUIRED_A_GRADE_COMPLETENESS_CERTIFICATES = Object.freeze({
   "source-boehringer-ingelheim-china-social": "company-boehringer-ingelheim-china",
   "source-bms-china-social": "company-bms-china",
   "source-buchang-social": "company-buchang",
+  "source-cr-pharma-social": "company-cr-pharma",
   "source-csl-china-social": "company-csl-china",
   "source-cttq-social": "company-cttq",
   "source-daiichi-sankyo-china-social": "company-daiichi-sankyo-china",

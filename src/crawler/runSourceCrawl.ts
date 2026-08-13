@@ -39,6 +39,7 @@ import {
 } from "./workdaySourceFetch";
 import type { SourceTransportFailure } from "./sourceFetchFailure";
 import type { RetryableSourceTransportFailureCode } from "./sourceFetchFailure";
+import { validateStrictHotjobLegacyEvidence } from "./hotjobLegacySourceFetch";
 
 export type SourceFetchResult =
   | { ok: true; capturedAt: string; payload: unknown; completeness?: CompletenessEvidence; fetchEvidence?: PersistentSourceFetchEvidence; paginationEvaluation?: PaginationEvaluation; priorTransportAttempts?: readonly SourceTransportAttempt[] }
@@ -670,6 +671,7 @@ function strictPageRequestContracts(
   if (plan.adapterId !== "official-json") return true;
   if (plan.workday) return strictWorkdayRequestContracts(plan, evidence, outputJobs);
   if (plan.moka) return strictMokaRequestContracts(plan, evidence);
+  if (plan.hotjobLegacy) return validateStrictHotjobLegacyEvidence(plan, evidence, outputJobs);
   if (plan.profileBoundSource) return profileBoundEvidenceValidated;
   const strategy = plan.officialJsonFetch;
   if (strategy?.kind === "novo-nordisk") return strictNovoRequestContracts(plan, evidence);

@@ -25,6 +25,7 @@ import {
 } from "./sourceFetchEvidence";
 import type { PaginationEvaluation } from "./paginationEvidence";
 import { hasUniqueJsonObjectKeys } from "./strictJsonObjectKeys";
+import type { NormalizedJobRecord } from "./normalizedJob";
 
 export interface HotjobLegacyFetchConfig {
   listUrl: string;
@@ -59,7 +60,9 @@ export interface HotjobLegacySourceFetchDeps {
 
 interface ParsedLegacyPage {
   rowCount?: number;
+  rowCountPath?: "$.data.rowCount" | "$.rowCount";
   totalPages?: number;
+  rowSize?: number;
   returnedPage?: number;
   details: unknown[];
   detailsPath: "$.data.details" | "$.postList";
@@ -332,20 +335,35 @@ function isExactTextHtmlUtf8(value: string | undefined): boolean {
 
 function parseResponse(body: string): ParsedLegacyPage {
   let parsed: unknown;
+  if (!hasUniqueJsonObjectKeys(body)) throw new Error("Hotjob legacy response has ambiguous JSON keys");
   try { parsed = JSON.parse(body); } catch { throw new Error("Hotjob legacy response is not valid JSON"); }
   if (!isRecord(parsed)) throw new Error("Hotjob legacy response is not an object");
   const data = isRecord(parsed.data) ? parsed.data : undefined;
-  const details = Array.isArray(data?.details) ? data.details : Array.isArray(parsed.postList) ? parsed.postList : undefined;
+  const nestedDetails = Array.isArray(data?.details) ? data.details : undefined;
+  const rootDetails = Array.isArray(parsed.postList) ? parsed.postList : undefined;
+  if (nestedDetails && rootDetails) throw new Error("Hotjob legacy response has ambiguous job collections");
+  const details = nestedDetails ?? rootDetails;
   if (!details) throw new Error("Hotjob legacy response is missing the required job collection");
-  const rowCount = nonnegativeInt(data?.rowCount);
+  const hasNestedRowCount = data !== undefined && Object.prototype.hasOwnProperty.call(data, "rowCount");
+  const hasRootRowCount = Object.prototype.hasOwnProperty.call(parsed, "rowCount");
+  if (hasNestedRowCount && hasRootRowCount) throw new Error("Hotjob legacy response has ambiguous rowCount declarations");
+  const rowCountValue = hasNestedRowCount ? data?.rowCount : hasRootRowCount ? parsed.rowCount : undefined;
+  const rowCount = nonnegativeInt(rowCountValue);
+  if ((hasNestedRowCount || hasRootRowCount) && rowCount === undefined) {
+    throw new Error("Hotjob legacy response has an invalid rowCount declaration");
+  }
   const totalPages = nonnegativeInt(parsed.pageCount);
+  const rowSize = nonnegativeInt(parsed.rowSize);
   const returnedPage = nonnegativeInt(data?.currentPage ?? parsed.currentPage ?? parsed.page);
   return {
     ...(rowCount === undefined ? {} : { rowCount }),
+    ...(hasNestedRowCount ? { rowCountPath: "$.data.rowCount" as const } :
+      hasRootRowCount ? { rowCountPath: "$.rowCount" as const } : {}),
     ...(totalPages === undefined ? {} : { totalPages }),
+    ...(rowSize === undefined ? {} : { rowSize }),
     ...(returnedPage === undefined ? {} : { returnedPage }),
     details,
-    detailsPath: Array.isArray(data?.details) ? "$.data.details" : "$.postList"
+    detailsPath: nestedDetails ? "$.data.details" : "$.postList"
   };
 }
 
@@ -374,11 +392,89 @@ function declaredLegacyCompleteness(
 
 function legacyLocator(key: string, page: number, pageSize: number, parsed: ParsedLegacyPage): string {
   const paths = [
-    ...(parsed.rowCount === undefined ? [] : ["rowCount=$.data.rowCount"]),
+    ...(parsed.rowCountPath === undefined ? [] : [`rowCount=${parsed.rowCountPath}`]),
     ...(parsed.totalPages === undefined ? [] : ["pageCount=$.pageCount"]),
+    ...(parsed.rowSize === undefined ? [] : ["rowSize=$.rowSize"]),
     `records=${parsed.detailsPath}`
   ];
   return `hotjob-legacy-v1|raw:${key}|request:page=${page},pageSize=${pageSize}|json:${paths.join(";")}`;
+}
+
+export function validateStrictHotjobLegacyEvidence(
+  plan: Parameters<SourceFetchFunction>[0],
+  evidence: PersistentSourceFetchEvidence,
+  outputJobs: readonly NormalizedJobRecord[]
+): boolean {
+  try {
+    if (plan.adapterId !== "official-json" || plan.executionAuthority !== "STAGED" ||
+      !plan.hotjobLegacy || plan.hotjobLegacy.paginationMode !== "query-page" ||
+      evidence.supportingArtifactOnlyFailure || evidence.fetchLosses.length !== 0 ||
+      evidence.fetchCounts.parseDiscardCount !== 0 || evidence.fetchCounts.validationDiscardCount !== 0 ||
+      evidence.pages.length === 0 || evidence.artifacts.length !== evidence.pages.length) return false;
+    const declaration = evidence.declaredCompleteness;
+    if (declaration?.kind !== "OFFICIAL_TOTAL_COUNT" || declaration.scope !== "SOURCE" ||
+      declaration.value <= 0) return false;
+    const pageSize = normalizePageSize(plan.hotjobLegacy.pageSize);
+    const entryUrl = safeEntryUrl(plan.source.officialEntryUrl);
+    const expectedJobs: Array<{ sourceJobId: string; officialTitle: string; officialUrl: string; locationRaw: string }> = [];
+    let rawCount = 0;
+    let totalPages: number | undefined;
+    for (let index = 0; index < evidence.pages.length; index += 1) {
+      const page = evidence.pages[index]!;
+      const artifact = evidence.artifacts.find((candidate) => candidate.logicalKey === page.artifactLogicalKey);
+      if (!artifact || typeof artifact.body !== "string" ||
+        (artifact.bodyRepresentation !== undefined && artifact.bodyRepresentation !== "EXACT") ||
+        page.sequence !== index || page.requestedPage !== index + 1 || page.returnedPage !== index + 1 ||
+        page.requestedPageSize !== pageSize || page.requestedOffset !== null || page.returnedOffset !== null ||
+        page.responseFingerprintSha256 !== responseSha256(artifact.body)) return false;
+      const parsed = parseResponse(artifact.body);
+      if (parsed.rowCount !== declaration.value || parsed.returnedPage !== index + 1 ||
+        parsed.totalPages === undefined || parsed.totalPages <= 0 ||
+        (totalPages !== undefined && totalPages !== parsed.totalPages) ||
+        (parsed.rowSize !== undefined && parsed.rowSize !== pageSize) ||
+        artifact.extractorLocator !== legacyLocator(artifact.logicalKey, index + 1, pageSize, parsed) ||
+        page.declaredTotal !== declaration.value || page.declaredPages !== parsed.totalPages ||
+        page.rawJobIds.length !== parsed.details.length || page.validJobIds.length !== parsed.details.length) return false;
+      totalPages = parsed.totalPages;
+      const rawIds: string[] = [];
+      const validIds: string[] = [];
+      for (let recordIndex = 0; recordIndex < parsed.details.length; recordIndex += 1) {
+        const raw = parsed.details[recordIndex];
+        const officialId = readOfficialId(raw);
+        const title = isRecord(raw) ? readString(raw.PostName) ?? readString(raw.postName) : undefined;
+        const locationRaw = isRecord(raw) ? readString(raw.WorkPlace) ?? readString(raw.workPlace) : undefined;
+        if (!officialId || !title || !locationRaw || !safeHotjobOfficialId(officialId) ||
+          explicitlyOutsideChina(locationRaw) || sensitiveOutputField({ sourceJobId: officialId, title, locationRaw })) {
+          return false;
+        }
+        rawIds.push(irreversibleHotjobId([officialId, recordIndex, raw]));
+        validIds.push(irreversibleHotjobId(officialId));
+        expectedJobs.push({
+          sourceJobId: persistentHotjobId(officialId),
+          officialTitle: title,
+          officialUrl: `${entryUrl}#/position/detail?postId=${encodeURIComponent(officialId)}`,
+          locationRaw
+        });
+      }
+      if (JSON.stringify(page.rawJobIds) !== JSON.stringify(rawIds) ||
+        JSON.stringify(page.validJobIds) !== JSON.stringify(validIds)) return false;
+      rawCount += parsed.details.length;
+    }
+    if (totalPages !== evidence.pages.length || rawCount !== declaration.value ||
+      evidence.fetchCounts.rawCount !== rawCount || evidence.fetchCounts.parsedCount !== rawCount ||
+      evidence.fetchCounts.validCount !== rawCount || declaration.artifactLogicalKey !== evidence.pages[0]!.artifactLogicalKey ||
+      declaration.extractorLocator !== evidence.artifacts.find(
+        (artifact) => artifact.logicalKey === declaration.artifactLogicalKey
+      )?.extractorLocator || outputJobs.length !== expectedJobs.length) return false;
+    return expectedJobs.every((expected, index) => {
+      const actual = outputJobs[index];
+      return actual?.sourceId === plan.source.id && actual.companyId === plan.company.id &&
+        actual.sourceJobId === expected.sourceJobId && actual.officialTitle === expected.officialTitle &&
+        actual.officialUrl === expected.officialUrl && actual.locationRaw === expected.locationRaw;
+    });
+  } catch {
+    return false;
+  }
 }
 
 function manualCompleteness(

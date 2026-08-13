@@ -4,6 +4,7 @@ import { runSourceCrawl } from "../../src/crawler/runSourceCrawl";
 import {
   buildStagedSourceCrawlPlans,
   expectedChannelSetHash,
+  sourcePlanConfigSha256,
   type SourceCrawlPlan
 } from "../../src/crawler/sourcePlan";
 import { candidateCompanies } from "../../src/data/companyRegistry";
@@ -13,6 +14,7 @@ import {
   type PaginationEvaluation
 } from "../../src/crawler/paginationEvidence";
 import type { PersistentSourceFetchEvidence } from "../../src/crawler/sourceFetchEvidence";
+import { issueAGradeOfficialTotalCertificate } from "../../src/crawler/completenessCertificate";
 import {
   createHttpHtmlSourceFetch,
   type HttpHtmlRequest,
@@ -830,8 +832,8 @@ describe("real staged non-regression plans", () => {
     const plan = planFor("source-cr-pharma-social");
     const fetch = createHotjobLegacySourceFetch({ now: () => new Date(CAPTURED_AT), http: async (request: HotjobLegacyHttpRequest) => ({
       status: 200,
-      body: JSON.stringify({ pageCount: 1, data: { currentPage: 1, rowCount: 1,
-        details: [{ postId: 1127, postName: "自动化生产管理岗", workPlace: "成都市" }] } }),
+      body: JSON.stringify({ pageCount: 1, page: 1, rowCount: 1, rowSize: 10,
+        postList: [{ postId: 1127, postName: "自动化生产管理岗", workPlace: "成都市" }] }),
       finalUrl: request.url,
       contentType: "text/html;charset=utf-8",
       capturedAt: CAPTURED_AT
@@ -841,5 +843,49 @@ describe("real staged non-regression plans", () => {
     expect(result).toMatchObject({ status: "SUCCESS",
       truth: { transportSuccess: true, adapterSuccess: true, completenessVerified: true },
       observation: { completenessStatus: "VERIFIED", expectedJobCount: 1, structuredJobCount: 1 } });
+
+    const declaration = result.fetchEvidence?.declaredCompleteness;
+    const officialArtifact = result.fetchEvidence?.artifacts.find(
+      (artifact) => artifact.logicalKey === declaration?.artifactLogicalKey
+    );
+    if (!result.fetchEvidence || !result.paginationEvaluation || !result.reconciliation || !officialArtifact) {
+      throw new Error("Expected exact CR Pharma certificate inputs");
+    }
+    const officialArtifactBytes = typeof officialArtifact.body === "string"
+      ? Buffer.from(officialArtifact.body, "utf8")
+      : Buffer.from(officialArtifact.body);
+    const certificate = issueAGradeOfficialTotalCertificate({
+      binding: {
+        releaseCandidateId: "rc-cr-pharma",
+        batchId: "batch-cr-pharma",
+        sourceResultId: "result-cr-pharma",
+        sourceConfigSha256: sourcePlanConfigSha256(plan)
+      },
+      plan,
+      transportSuccess: result.truth.transportSuccess,
+      adapterSuccess: result.truth.adapterSuccess,
+      evidence: result.fetchEvidence,
+      paginationEvaluation: result.paginationEvaluation,
+      reconciliation: result.reconciliation,
+      jobs: result.jobs,
+      officialArtifactSha256: createHash("sha256").update(officialArtifactBytes).digest("hex")
+    });
+    expect(certificate.status, JSON.stringify(certificate)).toBe("CERTIFIED");
+
+    if (!fetched.ok || !fetched.fetchEvidence) throw new Error("Expected exact CR Pharma evidence");
+    const forgedEvidence = {
+      ...fetched.fetchEvidence,
+      artifacts: fetched.fetchEvidence.artifacts.map((artifact) => ({
+        ...artifact,
+        body: typeof artifact.body === "string"
+          ? artifact.body.replace('"rowCount":1', '"rowCount":2')
+          : artifact.body
+      }))
+    };
+    const forged = await runSourceCrawl(plan, { fetch: async () => ({
+      ...fetched,
+      fetchEvidence: forgedEvidence
+    }) });
+    expect(forged.truth.completenessVerified).toBe(false);
   });
 });

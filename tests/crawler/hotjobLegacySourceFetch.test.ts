@@ -247,8 +247,22 @@ describe("createHotjobLegacySourceFetch", () => {
     await expect(fetcher(crPlan)).resolves.toMatchObject({
       ok: true,
       payload: { jobs: [{ title: "自动化生产管理岗", locationRaw: "成都市" }] },
+      completeness: {
+        completenessStatus: "NEEDS_MANUAL_COMPLETENESS_REVIEW",
+        completenessEvidenceKind: "OFFICIAL_TOTAL_COUNT",
+        expectedJobCount: 1,
+        totalPages: 1
+      },
       fetchEvidence: {
-        artifacts: [{ contentType: "text/html;charset=utf-8" }],
+        artifacts: [{
+          contentType: "text/html;charset=utf-8",
+          extractorLocator: expect.stringContaining("rowCount=$.rowCount")
+        }],
+        declaredCompleteness: {
+          kind: "OFFICIAL_TOTAL_COUNT",
+          value: 1,
+          extractorLocator: expect.stringContaining("rowCount=$.rowCount")
+        },
         fetchCounts: { rawCount: 1, validCount: 1 }
       }
     });
