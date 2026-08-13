@@ -30,13 +30,16 @@ const capturedAt = "2026-08-14T00:00:00.000Z";
 const now = new Date("2026-08-14T00:05:00.000Z");
 
 describe("plan-bound HTML B-grade traversal certificates", () => {
-  it("requires an independent certificate for the exact five-company repair group", () => {
+  it("requires an independent certificate for every registered plan-bound HTML source", () => {
     expect(PLAN_BOUND_HTML_TRAVERSAL_SOURCE_IDS).toEqual([
       "source-novartis-social",
       "source-astellas-china-social",
       "source-otsuka-china-social-2",
       "source-grand-pharma-social",
-      "source-huahai-social"
+      "source-huahai-social",
+      "source-fosun-pharma-social",
+      "source-kelun-social",
+      "source-tongrentang-social"
     ]);
     for (const sourceId of PLAN_BOUND_HTML_TRAVERSAL_SOURCE_IDS) {
       expect(requiresBGradeCertificateSourceId(sourceId)).toBe(true);
@@ -394,13 +397,16 @@ async function strictMainCrawl(sourceId: PlanBoundHtmlTraversalSourceId, staticB
     ? [novartisPage(1, ["a", "b", "c"]), novartisPage(2, ["c", "d", "e"]), novartisPage(3, ["e", "f"])]
     : [sourceId === "source-astellas-china-social"
         ? astellasHtml()
-        : staticBodyOverride ?? readFileSync(resolve(
-            process.cwd(),
-            `src/crawler/fixtures/static-official-sources/${{
+        : staticBodyOverride ?? ({
+            "source-fosun-pharma-social": fosunHtml(),
+            "source-kelun-social": kelunHtml(),
+            "source-tongrentang-social": tongrentangHtml()
+          } as Partial<Record<PlanBoundHtmlTraversalSourceId, string>>)[sourceId] ?? readFileSync(resolve(
+            process.cwd(), `src/crawler/fixtures/static-official-sources/${({
               "source-otsuka-china-social-2": "otsuka-group.html",
               "source-grand-pharma-social": "grand.html",
               "source-huahai-social": "huahai.html"
-            }[sourceId]}`
+            } as Partial<Record<PlanBoundHtmlTraversalSourceId, string>>)[sourceId]}`
           ), "utf8")];
   let index = 0;
   const fetch = createHttpHtmlSourceFetch({
@@ -414,6 +420,23 @@ async function strictMainCrawl(sourceId: PlanBoundHtmlTraversalSourceId, staticB
     })
   });
   return runSourceCrawl(sourcePlan, { fetch, isBaseline: true });
+}
+
+function fosunHtml(): string {
+  return `<table><tr><td><a href="/socialxq?jobId=123">招聘岗位</a></td><td>研发</td>` +
+    `<td>复星医药</td><td><a>上海市</a></td></tr></table>` +
+    `<div class="page"><a href="/social/?PageIndex=1">1</a></div>`;
+}
+
+function kelunHtml(): string {
+  return `<table class="jobsTable"><tr><td><a href="/job_show/123">招聘岗位</a></td>` +
+    `<td>研发</td><td>科伦</td><td>1</td><td>四川省</td></tr></table>` +
+    `<a href="/social/?PageIndex=1">1</a>`;
+}
+
+function tongrentangHtml(): string {
+  return `<a href="https://www.tongrentang.com/menu54/newsDetail/abc123.html">公开招聘公告</a>` +
+    `<div class="page">共 1 页</div>`;
 }
 
 function astellasHtml(): string {

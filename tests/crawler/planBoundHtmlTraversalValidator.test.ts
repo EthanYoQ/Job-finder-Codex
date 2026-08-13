@@ -67,6 +67,58 @@ describe("plan-bound HTML rendered traversal", () => {
     expect(close).toHaveBeenCalledTimes(1);
   });
 
+  it.each([
+    {
+      sourceId: "source-fosun-pharma-social" as const,
+      pageUrls: ["https://fosunpharma.zhiye.com/social", "https://fosunpharma.zhiye.com/social/?PageIndex=2"],
+      rowUrls: [["https://fosunpharma.zhiye.com/socialxq?jobId=101"],
+        ["https://fosunpharma.zhiye.com/socialxq?jobId=102"]]
+    },
+    {
+      sourceId: "source-kelun-social" as const,
+      pageUrls: ["https://kelun.zhiye.com/social", "https://kelun.zhiye.com/social/?PageIndex=2"],
+      rowUrls: [["https://kelun.zhiye.com/job_show/101"],
+        ["https://kelun.zhiye.com/job_show/102?PageIndex=2"]]
+    },
+    {
+      sourceId: "source-tongrentang-social" as const,
+      pageUrls: ["https://www.tongrentang.com/newsList/54/1.html", "https://www.tongrentang.com/newsList/54/2.html"],
+      rowUrls: [["https://www.tongrentang.com/menu54/newsDetail/one.html"],
+        ["https://www.tongrentang.com/menu54/newsDetail/two.html"]]
+    }
+  ])("traverses and closes the registered $sourceId page coordinate", async ({ sourceId, pageUrls, rowUrls }) => {
+    const close = vi.fn(async () => undefined);
+    const result = await capturePlanBoundHtmlRenderedTraversal({
+      sourceId,
+      entryUrl: pageUrls[0]!,
+      launchBrowser: async () => pagedOfficialBrowser({ sourceId, pageUrls, rowUrls, close })
+    });
+
+    expect(result.pages).toMatchObject([
+      { pageNumber: 1, declaredTotalPages: 2, nextControlPresent: true },
+      { pageNumber: 2, declaredTotalPages: 2, nextControlPresent: false }
+    ]);
+    expect(result.pages.flatMap((page) => page.matchKeys)).toHaveLength(2);
+    expect(close).toHaveBeenCalledTimes(1);
+  });
+
+  it("rejects an unregistered query on a plan-bound official job URL", async () => {
+    const sourceId = "source-fosun-pharma-social" as const;
+    const pageUrls = [PLAN_BOUND_HTML_TRAVERSAL_POLICIES[sourceId].entryUrl];
+    const close = vi.fn(async () => undefined);
+    await expect(capturePlanBoundHtmlRenderedTraversal({
+      sourceId,
+      entryUrl: pageUrls[0]!,
+      launchBrowser: async () => pagedOfficialBrowser({
+        sourceId,
+        pageUrls,
+        rowUrls: [["https://fosunpharma.zhiye.com/socialxq?jobId=101&utm_source=forged"]],
+        close
+      })
+    })).rejects.toThrow("job URL query is invalid");
+    expect(close).toHaveBeenCalledTimes(1);
+  });
+
   it("expands and proves every Astellas accordion partition", async () => {
     const sourceId = "source-astellas-china-social" as const;
     const entryUrl = PLAN_BOUND_HTML_TRAVERSAL_POLICIES[sourceId].entryUrl;
@@ -220,6 +272,37 @@ function novartisBrowser(input: {
             nth: () => nextItem,
             first: () => nextItem
           }
+        : { first: () => ({ waitFor: async () => undefined }) }
+  };
+  return { newPage: async () => page as never, close: input.close };
+}
+
+function pagedOfficialBrowser(input: {
+  sourceId: "source-fosun-pharma-social" | "source-kelun-social" | "source-tongrentang-social";
+  pageUrls: string[];
+  rowUrls: string[][];
+  close: () => Promise<void>;
+}) {
+  const policy = PLAN_BOUND_HTML_TRAVERSAL_POLICIES[input.sourceId];
+  let pageIndex = 0;
+  const nextItem = {
+    getAttribute: async (name: string) => name === "href"
+      ? input.pageUrls[Math.min(pageIndex + 1, input.pageUrls.length - 1)]!
+      : null,
+    click: async () => { pageIndex += 1; }
+  };
+  const page = {
+    goto: async () => response(input.pageUrls[0]!),
+    url: () => input.pageUrls[pageIndex]!,
+    waitForURL: async (predicate: (url: URL) => boolean) => new Promise<void>((resolve, reject) => {
+      setTimeout(() => predicate(new URL(input.pageUrls[pageIndex]!))
+        ? resolve()
+        : reject(new Error("URL did not change")), 0);
+    }),
+    locator: (selector: string) => selector === policy.rowSelector
+      ? { evaluateAll: async () => input.rowUrls[pageIndex], first: () => ({ waitFor: async () => undefined }) }
+      : selector === policy.nextSelector
+        ? { count: async () => 1, nth: () => nextItem, first: () => nextItem }
         : { first: () => ({ waitFor: async () => undefined }) }
   };
   return { newPage: async () => page as never, close: input.close };

@@ -1167,8 +1167,8 @@ function assertBrowserValidationEquations(validation: BGradeIndependentTraversal
   }
   if (validation.schemaVersion === "plan-bound-html-browser-traversal-v1") {
     const planBoundPolicy = PLAN_BOUND_HTML_TRAVERSAL_POLICIES[validation.sourceId];
-    if (validation.pages.length > planBoundPolicy.maxPages ||
-        validation.sourceId !== "source-novartis-social" && validation.pages.length !== 1) {
+    if (validation.pages.length < 1 || validation.pages.length > planBoundPolicy.maxPages ||
+        planBoundPolicy.maxPages === 1 && validation.pages.length !== 1) {
       throw new Error("Plan-bound HTML browser validation page limit mismatch");
     }
   }

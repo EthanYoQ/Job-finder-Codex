@@ -87,6 +87,51 @@ export const PLAN_BOUND_HTML_TRAVERSAL_POLICIES = Object.freeze({
     nextSelector: "table:has(tr.tr_title) .pagination a[href], table:has(tr.tr_title) a[rel='next'][href], table:has(tr.tr_title) [data-page]",
     key: { kind: "SYNTHETIC_SOURCE_JOB_ID", partSelectors: ["td:nth-child(1)", "td:nth-child(2)", "td:nth-child(5)"] },
     maxPages: 1
+  },
+  "source-fosun-pharma-social": {
+    companyId: "company-fosun-pharma",
+    entryUrl: "https://fosunpharma.zhiye.com/social",
+    retrievalPath: "PLAYWRIGHT_RENDERED_HTML_NEXT_LINK_TRAVERSAL",
+    validatorImplementationId: "plan-bound-html-playwright-traversal-v1",
+    mainRetrievalPath: "HTTP_HTML_OFFICIAL_TOTAL_PAGES",
+    matchKeyKind: "JOB_DEDUPE_KEY",
+    artifactLogicalKey: "source-fosun-pharma-social-browser-traversal-validation",
+    readySelector: "table tr:has(td:nth-child(1) a[href*='/socialxq?jobId='])",
+    rowSelector: "table tr:has(td:nth-child(1) a[href*='/socialxq?jobId='])",
+    nextSelector: ".page a.next:not(.disabled):has-text('下一页')[href]",
+    pageCoordinate: { kind: "QUERY", firstPath: "/social", pagePath: "/social/", parameter: "PageIndex" },
+    key: { kind: "OFFICIAL_URL", selector: "td:nth-child(1) a", origin: "https://fosunpharma.zhiye.com", pathPrefix: "/socialxq", dedupe: "OFFICIAL_URL", allowedSearchParam: "jobId", searchParamRequired: true },
+    maxPages: 20
+  },
+  "source-kelun-social": {
+    companyId: "company-kelun",
+    entryUrl: "https://kelun.zhiye.com/social",
+    retrievalPath: "PLAYWRIGHT_RENDERED_HTML_NEXT_LINK_TRAVERSAL",
+    validatorImplementationId: "plan-bound-html-playwright-traversal-v1",
+    mainRetrievalPath: "HTTP_HTML_OFFICIAL_TOTAL_PAGES",
+    matchKeyKind: "JOB_DEDUPE_KEY",
+    artifactLogicalKey: "source-kelun-social-browser-traversal-validation",
+    readySelector: ".jobsTable tr:not(.title)",
+    rowSelector: ".jobsTable tr:not(.title)",
+    nextSelector: "a.next:has-text('下一页')[href*='PageIndex=']",
+    pageCoordinate: { kind: "QUERY", firstPath: "/social", pagePath: "/social/", parameter: "PageIndex" },
+    key: { kind: "OFFICIAL_URL", selector: "td:nth-child(1) a", origin: "https://kelun.zhiye.com", pathPrefix: "/job_show/", dedupe: "OFFICIAL_URL", allowedSearchParam: "PageIndex" },
+    maxPages: 20
+  },
+  "source-tongrentang-social": {
+    companyId: "company-tongrentang",
+    entryUrl: "https://www.tongrentang.com/newsList/54/1.html",
+    retrievalPath: "PLAYWRIGHT_RENDERED_HTML_NEXT_LINK_TRAVERSAL",
+    validatorImplementationId: "plan-bound-html-playwright-traversal-v1",
+    mainRetrievalPath: "HTTP_HTML_OFFICIAL_TOTAL_PAGES",
+    matchKeyKind: "JOB_DEDUPE_KEY",
+    artifactLogicalKey: "source-tongrentang-social-browser-traversal-validation",
+    readySelector: "a[href*='/menu54/newsDetail/']:has-text('招聘')",
+    rowSelector: "a[href*='/menu54/newsDetail/']:has-text('招聘')",
+    nextSelector: ".page li.next > a[href]",
+    pageCoordinate: { kind: "PATH_PAGE", prefix: "/newsList/54/", suffix: ".html" },
+    key: { kind: "OFFICIAL_URL", selector: ":scope", origin: "https://www.tongrentang.com", pathPrefix: "/menu54/newsDetail/", dedupe: "URL_SOURCE_JOB_ID", sourceJobIdPattern: "/([^/]+)\\.html$" },
+    maxPages: 10
   }
 } as const);
 
@@ -242,7 +287,7 @@ export async function capturePlanBoundHtmlRenderedTraversal(input: {
           throw new Error("Plan-bound HTML browser validator page added no new jobs");
         }
         const next = page.locator(policy.nextSelector);
-        const activeNextCount = await countActiveNextControls(next);
+        const activeNextCount = await countActiveNextControls(next, pageUrl);
         if (activeNextCount > 1) throw new Error("Plan-bound HTML browser validator found multiple active next controls");
         const nextControlPresent = activeNextCount === 1;
         capturedPages.push({
@@ -354,7 +399,10 @@ async function readMatchKeysFromLocator(
   return matchKeys.sort(compareUtf8);
 }
 
-async function countActiveNextControls(locator: import("playwright-core").Locator): Promise<number> {
+async function countActiveNextControls(
+  locator: import("playwright-core").Locator,
+  currentPageUrl: string
+): Promise<number> {
   const count = await locator.count();
   let active = 0;
   for (let index = 0; index < count; index += 1) {
@@ -362,8 +410,12 @@ async function countActiveNextControls(locator: import("playwright-core").Locato
     const href = await candidate.getAttribute("href");
     const ariaDisabled = await candidate.getAttribute("aria-disabled");
     const className = await candidate.getAttribute("class");
+    const target = href?.trim() ? new URL(href, currentPageUrl) : undefined;
+    const current = new URL(currentPageUrl);
+    const targetsCurrentPage = target !== undefined && target.origin === current.origin &&
+      target.pathname === current.pathname && target.search === current.search;
     if (ariaDisabled !== "true" && !className?.split(/\s+/u).some((part) => part === "disabled") &&
-        (href?.trim() || await candidate.getAttribute("data-page"))) active += 1;
+        !targetsCurrentPage && (href?.trim() || await candidate.getAttribute("data-page"))) active += 1;
   }
   return active;
 }
@@ -387,16 +439,32 @@ function assertPageUrl(sourceId: PlanBoundHtmlTraversalSourceId, value: string, 
   const policy = PLAN_BOUND_HTML_TRAVERSAL_POLICIES[sourceId];
   const actual = new URL(value);
   const entry = new URL(policy.entryUrl);
-  if (actual.username || actual.password || actual.hash || actual.origin !== entry.origin || actual.pathname !== entry.pathname) {
+  if (actual.username || actual.password || actual.hash || actual.origin !== entry.origin) {
     throw new Error("Plan-bound HTML browser validator page URL escaped the registered source");
   }
-  if (sourceId === "source-novartis-social") {
+  if ("pageCoordinate" in policy) {
+    const coordinate = policy.pageCoordinate;
+    if (coordinate.kind === "QUERY") {
+      const expectedPath = pageNumber === 1 ? coordinate.firstPath : coordinate.pagePath;
+      const expectedPage = pageNumber === 1 ? null : String(pageNumber);
+      if (actual.pathname !== expectedPath || actual.searchParams.get(coordinate.parameter) !== expectedPage ||
+          [...actual.searchParams.keys()].some((key) => key !== coordinate.parameter)) {
+        throw new Error("Plan-bound HTML browser validator query page coordinate mismatch");
+      }
+    } else if (actual.pathname !== `${coordinate.prefix}${pageNumber}${coordinate.suffix}` ||
+        actual.search !== "") {
+      throw new Error("Plan-bound HTML browser validator path page coordinate mismatch");
+    }
+  } else if (sourceId === "source-novartis-social") {
+    if (actual.pathname !== entry.pathname) {
+      throw new Error("Novartis browser validator path mismatch");
+    }
     const expectedPage = pageNumber === 1 ? null : String(pageNumber - 1);
     if (actual.searchParams.get("page") !== expectedPage ||
         [...actual.searchParams.keys()].some((key) => key !== "page")) {
       throw new Error("Novartis browser validator page coordinate mismatch");
     }
-  } else if (actual.search !== "") {
+  } else if (actual.pathname !== entry.pathname || actual.search !== "") {
     throw new Error("Static HTML browser validator added unexpected query parameters");
   }
 }
@@ -410,6 +478,17 @@ function assertOfficialJobUrl(
   if (url.username || url.password || url.hash || url.origin !== policy.key.origin ||
       !url.pathname.startsWith(policy.key.pathPrefix)) {
     throw new Error("Plan-bound HTML browser validator job URL escaped the registered source");
+  }
+  const allowedSearchParam = "allowedSearchParam" in policy.key ? policy.key.allowedSearchParam : undefined;
+  if (allowedSearchParam) {
+    const value = url.searchParams.get(allowedSearchParam);
+    const required = "searchParamRequired" in policy.key && policy.key.searchParamRequired === true;
+    if ((required && !value) || (value !== null && !/^[1-9][0-9]*$/u.test(value)) ||
+        [...url.searchParams.keys()].some((key) => key !== allowedSearchParam)) {
+      throw new Error("Plan-bound HTML browser validator job URL query is invalid");
+    }
+  } else if (url.search !== "") {
+    throw new Error("Plan-bound HTML browser validator job URL added unexpected query parameters");
   }
 }
 
