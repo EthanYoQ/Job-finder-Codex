@@ -16,7 +16,8 @@ catch {
   const sources = P0_LAUNCH_MANIFEST.companies.map((company) => missingManifestSource(company.companyId, company.source.sourceId));
   const report = buildFixedCohortCompletenessAudit({ generatedAt: new Date(), releaseCandidateId: "UNAVAILABLE",
     batchId: "UNAVAILABLE", observedSourceIds: [], sources, invalidReasons: ["SOURCE_PLAN_BUILD_FAILED"] });
-  await publish(outputPath, report); await prisma.$disconnect(); process.exit(1);
+  try { await publish(outputPath, report); } finally { await prisma.$disconnect(); }
+  process.exit(1);
 }
 try {
   const generatedAt = new Date();
@@ -54,8 +55,12 @@ try {
       paginationEvidence: row.paginationEvidence.map((page) => ({ artifactId: page.artifactId, sequence: page.sequence,
         requestedCursor: page.requestedCursor, returnedCursor: page.returnedCursor, requestedOffset: page.requestedOffset,
         returnedOffset: page.returnedOffset, requestedPage: page.requestedPage, returnedPage: page.returnedPage,
+        requestedPageSize: page.requestedPageSize, returnedPageSize: page.returnedPageSize,
+        responseFingerprintSha256: page.responseFingerprintSha256, rawJobIdSetSha256: page.rawJobIdSetSha256,
+        validJobIdSetSha256: page.validJobIdSetSha256,
         declaredTotal: page.declaredTotal, declaredCount: page.declaredCount, declaredPages: page.declaredPages,
-        termination: page.termination, anomalyCodes: page.anomalyCodes })),
+        nextPageSignalBefore: page.nextPageSignalBefore, nextPageSignalAfter: page.nextPageSignalAfter,
+        termination: page.termination, anomalyCodes: page.anomalyCodes, capturedAt: page.capturedAt.toISOString() })),
       expectedEvidenceKind: row.expectedEvidenceKind, expectedJobCount: row.expectedJobCount,
       pagesVisited: row.paginationEvidence.length, totalPages: declaredPages.length === 0 ? null : Math.max(...declaredPages),
       finalJobCount: row.dedupeOutputCount, transportState: row.transportState, adapterState: row.adapterState,

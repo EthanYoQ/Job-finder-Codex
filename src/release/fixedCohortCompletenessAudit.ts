@@ -14,8 +14,11 @@ export interface FixedCohortAuditSourceInput {
   evidenceArtifacts: readonly { id: string; path: string; sha256: string }[];
   paginationEvidence: readonly { artifactId: string; sequence: number; requestedCursor: string | null;
     returnedCursor: string | null; requestedOffset: number | null; returnedOffset: number | null;
-    requestedPage: number | null; returnedPage: number | null; declaredTotal: number | null;
-    declaredCount: number | null; declaredPages: number | null; termination: string; anomalyCodes: readonly string[] }[];
+    requestedPage: number | null; returnedPage: number | null; requestedPageSize: number | null;
+    returnedPageSize: number | null; responseFingerprintSha256: string; rawJobIdSetSha256: string;
+    validJobIdSetSha256: string; declaredTotal: number | null; declaredCount: number | null;
+    declaredPages: number | null; nextPageSignalBefore: string | null; nextPageSignalAfter: string | null;
+    termination: string; anomalyCodes: readonly string[]; capturedAt: string }[];
   expectedEvidenceKind: string | null; expectedJobCount: number | null;
   pagesVisited: number | null; totalPages: number | null; finalJobCount: number;
   transportState: string; adapterState: string; completenessState: string; atomicCommitState: string;
@@ -26,7 +29,7 @@ export interface FixedCohortCompletenessAuditReport {
   releaseCandidateId: string; batchId: string; manifestSha256: string; sourceIdentitySha256: string;
   companyCount: number; foreignCompanyCount: number;
   companies: readonly (FixedCohortAuditSourceInput & { failureClass: AuditFailureClass | null; failureStage: string | null; blockers: readonly string[] })[];
-  repairFrontier: readonly { clusterId: string; adapterFamily: string; failureClass: AuditFailureClass;
+  repairFrontier: readonly { clusterId: string; adapterFamily: string; failureClass: AuditFailureClass; rootCause: string;
     companyIds: readonly string[]; sourceIds: readonly string[]; proposedTicketOrdinal: number }[];
   invalidReasons: readonly string[]; contentSha256: string;
 }
@@ -56,7 +59,9 @@ export function buildFixedCohortCompletenessAudit(input: { generatedAt: Date; re
       !artifact.id.trim() || !artifact.path.trim() || !/^[0-9a-f]{64}$/u.test(artifact.sha256))) blockers.push("EVIDENCE_LOCATION_MISSING");
     const artifactIds = new Set(source.evidenceArtifacts.map(({ id }) => id));
     if (source.paginationEvidence.length === 0 || source.paginationEvidence.some((page) =>
-      !artifactIds.has(page.artifactId) || !Number.isSafeInteger(page.sequence) || !page.termination.trim())) {
+      !artifactIds.has(page.artifactId) || !Number.isSafeInteger(page.sequence) || !page.termination.trim() ||
+      ![page.responseFingerprintSha256, page.rawJobIdSetSha256, page.validJobIdSetSha256]
+        .every((value) => /^[0-9a-f]{64}$/u.test(value)) || !Number.isFinite(Date.parse(page.capturedAt)))) {
       blockers.push("PAGINATION_EVIDENCE_INVALID");
     }
     if (!/^[0-9a-f]{64}$/u.test(source.sourceConfigSha256) ||
@@ -112,7 +117,8 @@ function failureClassFor(source: FixedCohortAuditSourceInput, blockers: readonly
   if (["TEMPORARY_OFFICIAL_SOURCE_FAILURE", "SOURCE_TIME_LIMIT_REACHED"].includes(source.failureCategory ?? "")) {
     return "SOURCE_TEMPORARILY_UNAVAILABLE";
   }
-  if (source.failureDiagnosticCode?.includes("CONFIG")) return "CONFIGURATION_ERROR";
+  if (source.failureCode?.includes("CONFIG") || source.failureCode?.includes("PLAN_") ||
+      source.failureCode?.includes("SCOPE_")) return "CONFIGURATION_ERROR";
   if (source.adapterState !== "SUCCEEDED" || source.atomicCommitState === "ROLLED_BACK") return "PRODUCT_DEFECT";
   return "EVIDENCE_INSUFFICIENT";
 }
@@ -121,26 +127,40 @@ function buildRepairFrontier(companies: readonly (FixedCohortAuditSourceInput & 
 })[]) {
   const groups = new Map<string, typeof companies[number][]>();
   for (const row of companies) if (row.failureClass) {
-    const key = `${row.adapterFamily}\0${row.failureClass}\0${primaryRootCause(row)}`,
+    const rootCause = primaryRootCause(row), key = `${row.adapterFamily}\0${row.failureClass}\0${rootCause}`,
       group = groups.get(key) ?? []; group.push(row); groups.set(key, group);
   }
-  const frontier: { clusterId: string; adapterFamily: string; failureClass: AuditFailureClass; companyIds: string[]; sourceIds: string[]; proposedTicketOrdinal: number }[] = [];
+  const frontier: { clusterId: string; adapterFamily: string; failureClass: AuditFailureClass; rootCause: string;
+    companyIds: string[]; sourceIds: string[]; proposedTicketOrdinal: number }[] = [];
   for (const [key, rows] of [...groups].sort(([a], [b]) => compare(a, b))) {
-    const [adapterFamily, failureClass] = key.split("\0") as [string, AuditFailureClass];
+    const [adapterFamily, failureClass, rootCause] = key.split("\0") as [string, AuditFailureClass, string];
     const sorted = rows.sort((a, b) => compare(a.companyId, b.companyId));
     for (let index = 0; index < sorted.length; index += 5) {
       const chunk = sorted.slice(index, index + 5), ordinal = index / 5 + 1;
-      frontier.push({ clusterId: sha(`${key}\0${ordinal}`).slice(0, 16), adapterFamily, failureClass,
+      frontier.push({ clusterId: sha(`${key}\0${ordinal}`).slice(0, 16), adapterFamily, failureClass, rootCause,
         companyIds: chunk.map(({ companyId }) => companyId), sourceIds: chunk.map(({ sourceId }) => sourceId), proposedTicketOrdinal: ordinal });
     }
   }
   return frontier;
 }
-function primaryRootCause(row: { blockers: readonly string[] }): string {
-  return row.blockers[0] ?? "UNKNOWN";
+function primaryRootCause(row: FixedCohortAuditSourceInput & { failureClass: AuditFailureClass | null;
+  blockers: readonly string[] }): string {
+  if (row.failureClass === "SOURCE_TEMPORARILY_UNAVAILABLE") {
+    return [row.failureCategory, row.failureDiagnosticCode].filter(Boolean).join(":") || "TEMPORARY_SOURCE_UNKNOWN";
+  }
+  if (row.failureClass === "CONFIGURATION_ERROR") return row.failureCode ?? "CONFIGURATION_INVALID";
+  if (row.failureClass === "PRODUCT_DEFECT") {
+    return row.failureDiagnosticCode ?? row.failureCode ??
+      (row.atomicCommitState === "ROLLED_BACK" ? "ATOMIC_COMMIT_ROLLED_BACK" : "ADAPTER_EXECUTION_FAILED");
+  }
+  const evidencePriority = ["CERTIFICATE_INVALID", "A_OR_B_CERTIFICATE_MISSING", "OFFICIAL_SCOPE_MISMATCH",
+    "PAGINATION_EVIDENCE_INVALID", "EVIDENCE_LOCATION_MISSING", "EXPECTED_EVIDENCE_DECLARATION_MISSING",
+    "EVIDENCE_COMMITMENT_INVALID", "COMPLETENESS_NOT_VERIFIED"];
+  return evidencePriority.find((blocker) => row.blockers.includes(blocker)) ?? row.blockers[0] ?? "UNKNOWN";
 }
 function sameStrings(left: readonly string[], right: readonly string[]): boolean {
-  return JSON.stringify([...new Set(left)].sort(compare)) === JSON.stringify([...new Set(right)].sort(compare));
+  if (new Set(left).size !== left.length || new Set(right).size !== right.length) return false;
+  return JSON.stringify([...left].sort(compare)) === JSON.stringify([...right].sort(compare));
 }
 const compare = (a: string, b: string) => Buffer.from(a).compare(Buffer.from(b));
 const sha = (value: string) => createHash("sha256").update(value, "utf8").digest("hex");

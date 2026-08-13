@@ -46,7 +46,8 @@ describe("fixed cohort completeness audit", () => {
   it("distinguishes temporary, configuration, product and evidence failure classes", () => {
     const value = input();
     Object.assign(value.sources[0]!, { transportState: "FAILED", failureCategory: "TEMPORARY_OFFICIAL_SOURCE_FAILURE" });
-    Object.assign(value.sources[1]!, { failureCategory: "OFFICIAL_SOURCE_REVIEW_REQUIRED", failureDiagnosticCode: "CONFIG_CHANGED" });
+    Object.assign(value.sources[1]!, { failureCategory: "OFFICIAL_SOURCE_REVIEW_REQUIRED",
+      failureDiagnosticCode: "FETCH_FAILED_CLOSED", failureCode: "SOURCE_CONFIG_INVALID" });
     Object.assign(value.sources[2]!, { adapterState: "FAILED", failureCategory: "UNCLASSIFIED_SOURCE_FAILURE" });
     const classes = buildFixedCohortCompletenessAudit(value).companies.reduce<Record<string, string | null>>((all, row) => {
       all[row.sourceId] = row.failureClass; return all;
@@ -55,6 +56,26 @@ describe("fixed cohort completeness audit", () => {
     expect(classes[value.sources[1]!.sourceId]).toBe("CONFIGURATION_ERROR");
     expect(classes[value.sources[2]!.sourceId]).toBe("PRODUCT_DEFECT");
     expect(classes[value.sources[3]!.sourceId]).toBe("EVIDENCE_INSUFFICIENT");
+  });
+
+  it("clusters legal diagnostics by explicit common root cause rather than incidental missing evidence", () => {
+    const value = input();
+    const diagnostics = ["OFFICIAL_HTTP_429", "OFFICIAL_HTTP_TIMEOUT"] as const;
+    for (const [index, diagnostic] of diagnostics.entries()) {
+      Object.assign(value.sources[index]!, { transportState: "FAILED", evidenceArtifacts: [], paginationEvidence: [],
+        failureCategory: "TEMPORARY_OFFICIAL_SOURCE_FAILURE", failureDiagnosticCode: diagnostic });
+    }
+    const frontier = buildFixedCohortCompletenessAudit(value).repairFrontier;
+    expect(frontier.some(({ rootCause }) => rootCause.endsWith("OFFICIAL_HTTP_429"))).toBe(true);
+    expect(frontier.some(({ rootCause }) => rootCause.endsWith("OFFICIAL_HTTP_TIMEOUT"))).toBe(true);
+  });
+
+  it("rejects duplicated planned or observed scope ids", () => {
+    const value = input();
+    const source = value.sources[0]!;
+    source.officialChannelIds = [source.plannedChannelIds[0]!, source.plannedChannelIds[0]!];
+    expect(buildFixedCohortCompletenessAudit(value).companies.find(({ sourceId }) =>
+      sourceId === source.sourceId)?.blockers).toContain("OFFICIAL_SCOPE_MISMATCH");
   });
 });
 
@@ -70,7 +91,11 @@ function input(): { generatedAt: Date; releaseCandidateId: string; batchId: stri
         path: `evidence/${company.source.sourceId}.json`, sha256: "c".repeat(64) }],
       paginationEvidence: [{ artifactId: `artifact:${company.source.sourceId}`, sequence: 1, requestedCursor: null,
         returnedCursor: null, requestedOffset: 0, returnedOffset: 0, requestedPage: 1, returnedPage: 1,
-        declaredTotal: 10, declaredCount: 10, declaredPages: 1, termination: "NEXT_ABSENT", anomalyCodes: [] }],
+        requestedPageSize: 20, returnedPageSize: 10, responseFingerprintSha256: "d".repeat(64),
+        rawJobIdSetSha256: "e".repeat(64), validJobIdSetSha256: "f".repeat(64),
+        declaredTotal: 10, declaredCount: 10, declaredPages: 1, nextPageSignalBefore: null,
+        nextPageSignalAfter: null, termination: "NEXT_ABSENT", anomalyCodes: [],
+        capturedAt: "2026-08-12T23:00:00.000Z" }],
       expectedEvidenceKind: "COMPLETE_PAGE_TRAVERSAL", expectedJobCount: 10,
       pagesVisited: 1, totalPages: 1, finalJobCount: 10, transportState: "SUCCEEDED", adapterState: "SUCCEEDED",
       completenessState: "VERIFIED", atomicCommitState: "COMMITTED", failureCategory: null,
