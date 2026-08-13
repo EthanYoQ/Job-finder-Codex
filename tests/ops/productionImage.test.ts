@@ -1,5 +1,6 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
+import { extractProductionNodeStage, PRODUCTION_NODE_IMAGE_REF } from "../../src/readiness/productionImageContract";
 
 const read = (path: string) => readFileSync(path, "utf8");
 
@@ -13,7 +14,7 @@ describe("production container contract", () => {
 
     expect(dockerfile).toContain("npx prisma generate");
     expect(dockerfile).toMatch(
-      /FROM node:22-trixie-slim@sha256:[a-f0-9]{64} AS deps[\s\S]*install-apt-packages\.sh openssl[\s\S]*npx prisma generate/u
+      new RegExp(`FROM ${PRODUCTION_NODE_IMAGE_REF} AS deps[\\s\\S]*install-apt-packages\\.sh openssl[\\s\\S]*npx prisma generate`, "u")
     );
     expect(dockerfile).toMatch(/npm ci --omit=dev/u);
     expect(dockerfile).toMatch(
@@ -21,8 +22,7 @@ describe("production container contract", () => {
     );
     expect(dockerfile).not.toContain("FROM production-deps AS identity");
     expect(dockerfile).toContain("COPY --from=identity /app/node_modules ./node_modules");
-    const runtimeStage = dockerfile.split(/^FROM node:22-trixie-slim@sha256:[a-f0-9]{64} AS runtime$/mu)[1];
-    expect(runtimeStage).toBeDefined();
+    const runtimeStage = extractProductionNodeStage(dockerfile, "runtime");
     expect(runtimeStage).not.toContain("package-lock.json");
     expect(dockerfile).not.toContain("COPY . .");
     expect(packageJson.dependencies?.tsx).toBeDefined();

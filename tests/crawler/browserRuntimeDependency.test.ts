@@ -1,5 +1,6 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
+import { extractProductionNodeStage } from "../../src/readiness/productionImageContract";
 
 describe("browser-backed crawler runtime dependencies", () => {
   it("declares playwright-core as a production dependency", () => {
@@ -15,7 +16,7 @@ describe("browser-backed crawler runtime dependencies", () => {
   it("installs a production browser and exposes the fixed-path smoke command for a later no-network container run", () => {
     const dockerfile = readFileSync("Dockerfile", "utf8");
     expect(dockerfile).toContain("chromium");
-    const runtimeStage = dockerfile.split(/^FROM node:22-trixie-slim(?:@sha256:[a-f0-9]{64})? AS runtime$/mu)[1];
+    const runtimeStage = extractProductionNodeStage(dockerfile, "runtime");
     expect(runtimeStage).toMatch(
       /sh \/usr\/local\/bin\/install-apt-packages\.sh[^\n]*ca-certificates[^\n]*chromium/u,
     );
@@ -39,7 +40,7 @@ describe("browser-backed crawler runtime dependencies", () => {
 
   it("binds browser state directories to the writable tmpfs used by the hardened runtime", () => {
     const dockerfile = readFileSync("Dockerfile", "utf8");
-    const runtimeStage = dockerfile.split(/^FROM node:22-trixie-slim(?:@sha256:[a-f0-9]{64})? AS runtime$/mu)[1];
+    const runtimeStage = extractProductionNodeStage(dockerfile, "runtime");
 
     expect(runtimeStage).toBeDefined();
     expect(runtimeStage).toMatch(/^ENV HOME=\/tmp$/mu);

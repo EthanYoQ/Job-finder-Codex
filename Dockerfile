@@ -69,7 +69,7 @@ ENV XDG_CACHE_HOME=/tmp/.cache
 COPY ops/install-apt-packages.sh /usr/local/bin/install-apt-packages.sh
 RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     --mount=type=cache,target=/var/lib/apt,sharing=locked \
-    sh /usr/local/bin/install-apt-packages.sh ca-certificates chromium libpq5 libreadline8 util-linux
+    sh /usr/local/bin/install-apt-packages.sh ca-certificates chromium libpq5 libreadline8t64 util-linux
 COPY --from=pg16-client /usr/lib/postgresql/16/bin/pg_dump /usr/local/bin/pg_dump
 COPY --from=pg16-client /usr/lib/postgresql/16/bin/pg_restore /usr/local/bin/pg_restore
 COPY --from=pg16-client /usr/lib/postgresql/16/bin/psql /usr/local/bin/psql
