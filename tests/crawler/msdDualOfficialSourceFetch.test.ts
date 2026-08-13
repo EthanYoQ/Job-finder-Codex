@@ -5,9 +5,14 @@ import {
   validateStrictMsdDualOfficialEvidence,
   type MsdOfficialReconciliationInput
 } from "../../src/crawler/msdDualOfficialSourceFetch";
-import { buildStagedSourceCrawlPlans } from "../../src/crawler/sourcePlan";
+import {
+  issueAGradeOfficialTotalCertificate,
+  requiresAGradeOfficialTotalCertificate
+} from "../../src/crawler/completenessCertificate";
+import { buildStagedSourceCrawlPlans, sourcePlanConfigSha256 } from "../../src/crawler/sourcePlan";
 import { candidateCompanies } from "../../src/data/companyRegistry";
 import { runSourceCrawl } from "../../src/crawler/runSourceCrawl";
+import { sha256Bytes } from "../../src/crawler/sourceFetchEvidence";
 
 const detailBaseUrl = "https://jobs.msd.com/cn/zh/job";
 const allowedApplyOrigins = ["https://msd.wd5.myworkdayjobs.com"];
@@ -39,13 +44,32 @@ function phenomRecord(id: string, overrides: Record<string, unknown> = {}): Reco
   };
 }
 
+function workdayDetailRecord(id: string): Record<string, unknown> {
+  const externalPath = `/job/USA---Pennsylvania---West-Point/Medical-role-${id}`;
+  return {
+    jobPostingInfo: {
+      jobReqId: id,
+      title: `Medical role ${id}`,
+      externalUrl: `${allowedApplyOrigins[0]}/SearchJobs${externalPath}`,
+      location: "USA - Pennsylvania - West Point",
+      additionalLocations: ["CHN - Beijing - Beijing (Wangjing Park)"],
+      posted: true,
+      canApply: true,
+      jobPostingSiteId: "SearchJobs",
+      jobPostingId: `Medical-role-${id}`
+    }
+  };
+}
+
 function reconcile(
   workdayRecords: readonly Record<string, unknown>[],
-  phenomRecords: readonly Record<string, unknown>[]
+  phenomRecords: readonly Record<string, unknown>[],
+  workdayDetailRecords: readonly Record<string, unknown>[] = []
 ) {
   return reconcileMsdOfficialSets({
     workdayRecords,
     phenomRecords,
+    workdayDetailRecords,
     officialDetailBaseUrl: detailBaseUrl,
     allowedApplyOrigins
   } satisfies MsdOfficialReconciliationInput);
@@ -85,26 +109,37 @@ describe("MSD dual-official-source reconciliation", () => {
     expect(result.jobs[0]?.officialUrl).not.toContain("myworkdayjobs.com");
   });
 
-  it("keeps a strong current posting from the primary official careers page when Workday has already dropped it", () => {
+  it("rejects a non-placeholder careers-page posting outside the formal Workday requisition set", () => {
     const officialOnlyId = "REQ-OFFICIAL-PAGE-ONLY";
     const result = reconcile([], [phenomRecord(officialOnlyId, {
       visibilityType: "External",
       postedDate: "2026-07-17T08:00:00+08:00"
     })]);
 
-    expect(result).toMatchObject({
-      ok: true,
-      jobs: [{ officialId: officialOnlyId }],
-      excluded: []
-    });
+    expect(result).toMatchObject({ ok: false, failureCode: "MSD_UNKNOWN_OFFICIAL_SET_DIFFERENCE" });
   });
 
-  it("accepts the official page timestamp when its UTC offset omits the colon", () => {
-    const officialOnlyId = "REQ-OFFICIAL-UTC-BASIC";
-    expect(reconcile([], [phenomRecord(officialOnlyId, {
-      visibilityType: "External",
-      postedDate: "2026-07-17T00:00:00.000+0000"
-    })])).toMatchObject({ ok: true, jobs: [{ officialId: officialOnlyId }] });
+  it("keeps a Workday-only requisition only after its exact official detail proves a mainland location", () => {
+    const formalId = "REQ-WORKDAY-DETAIL";
+    const listRecord = {
+      ...workdayRecord(formalId),
+      externalPath: `/job/USA---Pennsylvania---West-Point/Medical-role-${formalId}`,
+      locationsText: "2 Locations"
+    };
+
+    expect(reconcile([listRecord], [])).toMatchObject({
+      ok: false,
+      failureCode: "MSD_UNKNOWN_OFFICIAL_SET_DIFFERENCE"
+    });
+    expect(reconcile([listRecord], [], [workdayDetailRecord(formalId)])).toMatchObject({
+      ok: true,
+      jobs: [{
+        officialId: formalId,
+        officialUrl: `${allowedApplyOrigins[0]}/SearchJobs/job/USA---Pennsylvania---West-Point/Medical-role-${formalId}`,
+        locationRaw: "CHN - Beijing - Beijing (Wangjing Park)"
+      }],
+      excluded: []
+    });
   });
 
   it.each([
@@ -224,7 +259,7 @@ describe("MSD dual-official-source pagination", () => {
   it("accepts a short final Phenom page and requests every dynamic offset exactly once", async () => {
     const ids = Array.from({ length: 101 }, (_, index) => `REQ-PAGE-${index + 1}`);
     const placeholderId = "SYNTHETIC-PLACEHOLDER";
-    const phenomIds = [...ids, placeholderId];
+    const phenomIds = [...ids.slice(1), placeholderId];
     const capturedAt = "2026-07-17T00:00:00.000Z";
     const entryBody = `<script>
       var phApp = phApp || {"widgetApiEndpoint":"https://jobs.msd.com/widgets","country":"cn","deviceType":"desktop","locale":"zh_cn","refNum":"MSD1GB","pageName":"search-results"}; phApp.ddo = {};
@@ -249,6 +284,9 @@ describe("MSD dual-official-source pagination", () => {
         capturedAt
       }),
       workdayHttp: async (request) => {
+        if (request.method === "GET") {
+          return jsonResponse(workdayDetailRecord(ids[0]!), request.url);
+        }
         const body = JSON.parse(request.body ?? "{}") as {
           appliedFacets?: Record<string, unknown>;
           offset?: number;
@@ -266,7 +304,13 @@ describe("MSD dual-official-source pagination", () => {
         workdayRequests.push(offset);
         return jsonResponse({
           total: ids.length,
-          jobPostings: ids.slice(offset, offset + (body.limit ?? 20)).map((id) => workdayRecord(id))
+          jobPostings: ids.slice(offset, offset + (body.limit ?? 20)).map((id) => id === ids[0]
+            ? {
+                ...workdayRecord(id),
+                externalPath: `/job/USA---Pennsylvania---West-Point/Medical-role-${id}`,
+                locationsText: "2 Locations"
+              }
+            : workdayRecord(id))
         }, request.url);
       },
       phenomHttp: async (request) => {
@@ -312,13 +356,15 @@ describe("MSD dual-official-source pagination", () => {
     expect(payload.jobPostings).toHaveLength(ids.length);
     expect(phenomRequests).toEqual([0, 100]);
     expect(workdayRequests).toEqual([0, 20, 40, 60, 80, 100]);
-    expect(result.fetchEvidence.pages.map((page) => page.returnedPageSize)).toEqual([null, null]);
+    expect(result.fetchEvidence.pages.map((page) => page.returnedPageSize)).toEqual(
+      Array.from({ length: workdayRequests.length }, () => null)
+    );
     expect(result.fetchEvidence.fetchCounts).toMatchObject({
-      rawCount: phenomIds.length,
+      rawCount: ids.length,
       validCount: ids.length,
-      validationDiscardCount: 1
+      validationDiscardCount: 0
     });
-    expect(result.fetchEvidence.fetchLosses).toHaveLength(1);
+    expect(result.fetchEvidence.fetchLosses).toHaveLength(0);
 
     const crawled = await runSourceCrawl(plan!, { fetch: async () => result });
     expect(crawled.truth).toEqual({
@@ -327,11 +373,43 @@ describe("MSD dual-official-source pagination", () => {
       completenessVerified: true
     });
     expect(crawled.observation.expectedJobCount).toBe(crawled.jobs.length);
+    expect(requiresAGradeOfficialTotalCertificate(plan!)).toBe(true);
     expect(validateStrictMsdDualOfficialEvidence(
       plan!,
       crawled.fetchEvidence,
       crawled.jobs
     )).toBe(true);
+
+    if (!result.paginationEvaluation || !crawled.reconciliation) {
+      throw new Error("MSD_TEST_CERTIFICATE_INPUT_MISSING");
+    }
+    const declaration = result.fetchEvidence.declaredCompleteness!;
+    const officialArtifact = result.fetchEvidence.artifacts.find(
+      (artifact) => artifact.logicalKey === declaration.artifactLogicalKey
+    )!;
+    expect(issueAGradeOfficialTotalCertificate({
+      binding: {
+        releaseCandidateId: "rc-msd-e2e",
+        batchId: "batch-msd-e2e",
+        sourceResultId: "result-msd-e2e",
+        sourceConfigSha256: sourcePlanConfigSha256(plan!)
+      },
+      plan: plan!,
+      transportSuccess: crawled.truth.transportSuccess,
+      adapterSuccess: crawled.truth.adapterSuccess,
+      evidence: result.fetchEvidence,
+      paginationEvaluation: result.paginationEvaluation,
+      reconciliation: crawled.reconciliation,
+      jobs: crawled.jobs,
+      officialArtifactSha256: sha256Bytes(
+        typeof officialArtifact.body === "string"
+          ? Buffer.from(officialArtifact.body, "utf8")
+          : officialArtifact.body
+      ).sha256
+    })).toMatchObject({
+      status: "CERTIFIED",
+      certificate: { grade: "A", counts: { officialTotal: ids.length, finalUniqueJobCount: ids.length } }
+    });
 
     const evidence = crawled.fetchEvidence!;
     const mutateArtifact = (
@@ -362,8 +440,13 @@ describe("MSD dual-official-source pagination", () => {
     const requestProofTamper = mutateArtifact("msd-phenom-page-0000", (artifact) => {
       artifact.extractorLocator = `${artifact.extractorLocator.slice(0, -1)}0`;
     });
-    const exclusionTamper = structuredClone(evidence);
-    exclusionTamper.fetchLosses[0]!.reason = "TAMPERED_EXCLUSION";
+    const detailTamper = mutateArtifact("msd-workday-detail-0000", (artifact) => {
+      const body = JSON.parse(artifact.body as string) as {
+        jobPostingInfo: Record<string, unknown>;
+      };
+      body.jobPostingInfo.canApply = false;
+      artifact.body = JSON.stringify(body);
+    });
     const outputTamper = crawled.jobs.map((job, index) => index === 0
       ? { ...job, officialTitle: "Tampered output" }
       : job);
@@ -377,7 +460,7 @@ describe("MSD dual-official-source pagination", () => {
       workdayTamper,
       phenomTamper,
       requestProofTamper,
-      exclusionTamper
+      detailTamper
     ]) {
       expect(validateStrictMsdDualOfficialEvidence(plan!, tamperedEvidence, crawled.jobs)).toBe(false);
     }

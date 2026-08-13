@@ -41,6 +41,7 @@ export const REQUIRED_A_GRADE_COMPLETENESS_CERTIFICATES = Object.freeze({
   "source-livzon-social": "company-livzon",
   "source-lunan-social": "company-lunan",
   "source-merck-china-social": "company-merck-china",
+  "source-msd-china-social": "company-msd-china",
   "source-novo-nordisk-china-social": "company-novo-nordisk-china",
   "source-organon-china-social": "company-organon-china",
   "source-pfizer-china-social": "company-pfizer-china",

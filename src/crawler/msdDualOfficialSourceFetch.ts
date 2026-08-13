@@ -92,6 +92,7 @@ export interface MsdDualOfficialSourceFetchDeps {
 export interface MsdOfficialReconciliationInput {
   workdayRecords: readonly Record<string, unknown>[];
   phenomRecords: readonly Record<string, unknown>[];
+  workdayDetailRecords?: readonly Record<string, unknown>[];
   officialDetailBaseUrl: string;
   allowedApplyOrigins: readonly string[];
 }
@@ -125,10 +126,11 @@ export type MsdOfficialReconciliationResult =
 
 /**
  * Reconciles MSD's two public official systems without treating either one as
- * self-certifying. Workday defines the formal requisition set. The public MSD
- * careers index defines the current public posting set and supplies the
- * user-facing title, location and stable official detail URL. Workday is an
- * independently archived official corroboration source, not the denominator.
+ * self-certifying. The exact China + Regular Workday result set is the formal
+ * denominator. The public MSD careers index corroborates matching records and
+ * supplies their user-facing title, location and stable detail URL. A Workday-
+ * only requisition is accepted only when its archived exact detail response
+ * independently proves that it remains posted, applicable and mainland-scoped.
  */
 export function reconcileMsdOfficialSets(
   input: MsdOfficialReconciliationInput
@@ -171,10 +173,13 @@ export function reconcileMsdOfficialSets(
     phenomById.set(id, record);
   }
 
-  for (const id of workdayById.keys()) {
-    if (!phenomById.has(id)) {
-      return { ok: false, failureCode: "MSD_UNKNOWN_OFFICIAL_SET_DIFFERENCE" };
-    }
+  const workdayDetailsById = new Map<string, Record<string, unknown>>();
+  for (const detailRecord of input.workdayDetailRecords ?? []) {
+    const info = isRecord(detailRecord.jobPostingInfo) ? detailRecord.jobPostingInfo : undefined;
+    const id = info ? stringField(info, "jobReqId") : undefined;
+    if (!id) return { ok: false, failureCode: "MSD_INVALID_OFFICIAL_RECORD" };
+    if (workdayDetailsById.has(id)) return { ok: false, failureCode: "MSD_DUPLICATE_OFFICIAL_ID" };
+    workdayDetailsById.set(id, detailRecord);
   }
 
   const jobs: MsdOfficialReconciledJob[] = [];
@@ -182,6 +187,18 @@ export function reconcileMsdOfficialSets(
     officialId: string;
     code: "VERIFIED_OFFICIAL_TEST_PLACEHOLDER";
   }> = [];
+  for (const [id, record] of [...workdayById.entries()].sort(([left], [right]) => compareUtf8(left, right))) {
+    if (phenomById.has(id)) continue;
+    const detailRecord = workdayDetailsById.get(id);
+    const detailJob = detailRecord
+      ? reconcileMsdWorkdayOnlyDetail(record, detailRecord, id, allowedApplyOrigins)
+      : undefined;
+    if (!detailJob) return { ok: false, failureCode: "MSD_UNKNOWN_OFFICIAL_SET_DIFFERENCE" };
+    jobs.push(detailJob);
+  }
+  if ([...workdayDetailsById.keys()].some((id) => phenomById.has(id) || !workdayById.has(id))) {
+    return { ok: false, failureCode: "MSD_UNKNOWN_OFFICIAL_SET_DIFFERENCE" };
+  }
   for (const [id, record] of [...phenomById.entries()].sort(([left], [right]) => compareUtf8(left, right))) {
     const inWorkday = workdayById.has(id);
     if (isVerifiedTestPlaceholder(record, id)) {
@@ -191,7 +208,7 @@ export function reconcileMsdOfficialSets(
       excluded.push({ officialId: id, code: "VERIFIED_OFFICIAL_TEST_PLACEHOLDER" });
       continue;
     }
-    if (!inWorkday && !isStrongOfficialPageJob(record, id)) {
+    if (!inWorkday) {
       return { ok: false, failureCode: "MSD_UNKNOWN_OFFICIAL_SET_DIFFERENCE" };
     }
     const title = stringField(record, "title");
@@ -211,7 +228,48 @@ export function reconcileMsdOfficialSets(
     });
   }
 
-  return { ok: true, jobs, excluded };
+  return {
+    ok: true,
+    jobs: jobs.sort((left, right) => compareUtf8(left.officialId, right.officialId)),
+    excluded: excluded.sort((left, right) => compareUtf8(left.officialId, right.officialId))
+  };
+}
+
+function reconcileMsdWorkdayOnlyDetail(
+  listRecord: Record<string, unknown>,
+  detailRecord: Record<string, unknown>,
+  officialId: string,
+  allowedApplyOrigins: ReadonlySet<string>
+): MsdOfficialReconciledJob | undefined {
+  const info = isRecord(detailRecord.jobPostingInfo) ? detailRecord.jobPostingInfo : undefined;
+  const title = stringField(listRecord, "title");
+  const externalPath = stringField(listRecord, "externalPath");
+  if (!info || !title || !externalPath || !externalPath.startsWith("/job/") ||
+      stringField(info, "jobReqId") !== officialId || stringField(info, "title") !== title ||
+      stringField(info, "jobPostingSiteId") !== "SearchJobs" ||
+      stringField(info, "jobPostingId") !== externalPath.split("/").at(-1) ||
+      info.posted !== true || info.canApply !== true) return undefined;
+  const externalUrl = stringField(info, "externalUrl");
+  const safeExternalUrl = externalUrl ? safeHttpsUrl(externalUrl) : undefined;
+  if (!safeExternalUrl || !allowedApplyOrigins.has(new URL(safeExternalUrl).origin) ||
+      new URL(safeExternalUrl).pathname !== `/SearchJobs${externalPath}`) return undefined;
+  const location = stringField(info, "location");
+  const additionalLocations = stringArrayField(info, "additionalLocations");
+  if (!location || !Array.isArray(info.additionalLocations) ||
+      additionalLocations.length !== info.additionalLocations.length) return undefined;
+  const publicLocations = [location, ...additionalLocations];
+  if (new Set(publicLocations).size !== publicLocations.length) return undefined;
+  const opaqueCount = /^([1-9][0-9]*) Locations$/u.exec(stringField(listRecord, "locationsText") ?? "");
+  if (opaqueCount && Number(opaqueCount[1]) !== publicLocations.length) return undefined;
+  const mainlandLocations = publicLocations.filter(isMainlandChinaLocation);
+  if (mainlandLocations.length === 0) return undefined;
+  return {
+    officialId,
+    title,
+    officialUrl: safeExternalUrl,
+    locationRaw: mainlandLocations.join(" | "),
+    cities: mainlandLocations
+  };
 }
 
 function workdayOfficialId(record: Record<string, unknown>): string | undefined {
@@ -241,25 +299,6 @@ function isVerifiedTestPlaceholder(record: Record<string, unknown>, officialId: 
     .replace(/[\s.,，。:：;；_\-]+/gu, "");
   return hasUnambiguousTestMarker && descriptionWithoutIdentifier.length === 0 &&
     !stringField(record, "applyUrl") && record.externalApply === false;
-}
-
-function isStrongOfficialPageJob(record: Record<string, unknown>, officialId: string): boolean {
-  const title = stringField(record, "title") ?? "";
-  const description = [
-    stringField(record, "descriptionTeaser"),
-    nestedStringField(record, ["ml_job_parser", "descriptionTeaser_ats"])
-  ].filter((value): value is string => value !== undefined).join(" ");
-  const meaningfulDescription = description
-    .normalize("NFKC")
-    .replace(/requisition\s*id/giu, "")
-    .replaceAll(officialId, "")
-    .replace(/[\s.,，。:：;；_\-]+/gu, "");
-  const applyUrl = stringField(record, "applyUrl");
-  const postedDate = stringField(record, "postedDate");
-  return title.length > 0 && meaningfulDescription.length >= 12 && Boolean(applyUrl) &&
-    record.externalApply === true && stringField(record, "visibilityType") === "External" &&
-    Boolean(postedDate && /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:?\d{2})$/u.test(postedDate)) &&
-    selectMainlandLocation(record) !== undefined;
 }
 
 function selectMainlandLocation(record: Record<string, unknown>): {
@@ -356,6 +395,15 @@ interface MsdCapturedPage {
   locator: string;
 }
 
+interface MsdCapturedDetail {
+  logicalKey: string;
+  officialId: string;
+  request: MsdDualOfficialHttpRequest;
+  response: MsdValidatedResponse;
+  record: Record<string, unknown>;
+  locator: string;
+}
+
 interface MsdCapture {
   entry: {
     request: MsdDualOfficialHttpRequest;
@@ -370,6 +418,7 @@ interface MsdCapture {
     locator: string;
   };
   workdayPages: MsdCapturedPage[];
+  workdayDetails: MsdCapturedDetail[];
   phenomPages: MsdCapturedPage[];
 }
 
@@ -526,9 +575,51 @@ export function createMsdDualOfficialSourceFetch(
         throw new MsdSourceError("MSD_PHENOM_TOTAL_NOT_CLOSED");
       }
 
+      const phenomIds = new Set(phenomRecords.map((record) => stringField(record, "reqId")));
+      const workdayDetails: MsdCapturedDetail[] = [];
+      const workdayOnlyRecords = workdayRecords
+        .map((record) => ({ record, officialId: workdayOfficialId(record) }))
+        .filter((item): item is { record: Record<string, unknown>; officialId: string } =>
+          item.officialId !== undefined && !phenomIds.has(item.officialId))
+        .sort((left, right) => compareUtf8(left.officialId, right.officialId));
+      for (let detailIndex = 0; detailIndex < workdayOnlyRecords.length; detailIndex += 1) {
+        const { record, officialId } = workdayOnlyRecords[detailIndex]!;
+        const externalPath = stringField(record, "externalPath");
+        const detailUrl = externalPath
+          ? safeMsdWorkdayDetailUrl(config.allowedApplyOrigins[0], externalPath)
+          : undefined;
+        if (!detailUrl) throw new MsdSourceError("MSD_WORKDAY_DETAIL_INVALID");
+        const detailRequest = msdJsonGetRequest(detailUrl, config.workdayEntryUrl);
+        const detailResponse = validateMsdResponse(
+          detailRequest,
+          await workdayHttp(detailRequest),
+          capturedAt,
+          "application/json"
+        );
+        const detailRecord = strictJsonRecord(detailResponse.body, "MSD_WORKDAY_DETAIL_INVALID");
+        const logicalKey = `msd-workday-detail-${String(detailIndex).padStart(4, "0")}`;
+        const locator = requestContractV2Locator("msd-workday-detail-v1|json:$.jobPostingInfo", {
+          family: "workday",
+          role: "detail-corroboration",
+          method: "GET",
+          url: detailUrl,
+          body: null,
+          coordinate: { sequence: detailIndex, officialId }
+        });
+        workdayDetails.push({
+          logicalKey,
+          officialId,
+          request: detailRequest,
+          response: detailResponse,
+          record: detailRecord,
+          locator
+        });
+      }
+
       const reconciliation = reconcileMsdOfficialSets({
         workdayRecords,
         phenomRecords,
+        workdayDetailRecords: workdayDetails.map((detail) => detail.record),
         officialDetailBaseUrl: config.officialDetailBaseUrl,
         allowedApplyOrigins: config.allowedApplyOrigins
       });
@@ -544,6 +635,7 @@ export function createMsdDualOfficialSourceFetch(
           locator: preflightLocator
         },
         workdayPages,
+        workdayDetails,
         phenomPages
       };
       const { evidence, evaluation } = buildMsdEvidence(capture, reconciliation.jobs);
@@ -563,7 +655,7 @@ export function createMsdDualOfficialSourceFetch(
             cities: job.cities
           }))
         },
-        completeness: msdCompleteness(phenomTotal, phenomPages.length),
+        completeness: msdCompleteness(workdayTotal, workdayPages.length),
         fetchEvidence: evidence,
         paginationEvaluation: evaluation
       } satisfies SourceFetchResult;
@@ -615,19 +707,6 @@ function buildMsdEvidence(
   const workdayArtifacts: SourceFetchArtifactDraft[] = capture.workdayPages.map((page) => ({
     id: page.logicalKey,
     logicalKey: page.logicalKey,
-    kind: "ATS_API_RESPONSE",
-    requestedUrl: page.request.url,
-    finalUrl: page.response.finalUrl,
-    httpStatus: page.response.status,
-    contentType: page.response.contentType,
-    capturedAt: page.response.capturedAt,
-    body: page.response.body,
-    bodyRepresentation: "EXACT",
-    extractorLocator: page.locator
-  }));
-  const phenomArtifacts: SourceFetchArtifactDraft[] = capture.phenomPages.map((page) => ({
-    id: page.logicalKey,
-    logicalKey: page.logicalKey,
     kind: "PAGINATION_PAGE",
     requestedUrl: page.request.url,
     finalUrl: page.response.finalUrl,
@@ -638,17 +717,39 @@ function buildMsdEvidence(
     bodyRepresentation: "EXACT",
     extractorLocator: page.locator
   }));
+  const workdayDetailArtifacts: SourceFetchArtifactDraft[] = capture.workdayDetails.map((detail) => ({
+    id: detail.logicalKey,
+    logicalKey: detail.logicalKey,
+    kind: "ATS_API_RESPONSE",
+    requestedUrl: detail.request.url,
+    finalUrl: detail.response.finalUrl,
+    httpStatus: detail.response.status,
+    contentType: detail.response.contentType,
+    capturedAt: detail.response.capturedAt,
+    body: detail.response.body,
+    bodyRepresentation: "EXACT",
+    extractorLocator: detail.locator
+  }));
+  const phenomArtifacts: SourceFetchArtifactDraft[] = capture.phenomPages.map((page) => ({
+    id: page.logicalKey,
+    logicalKey: page.logicalKey,
+    kind: "ATS_API_RESPONSE",
+    requestedUrl: page.request.url,
+    finalUrl: page.response.finalUrl,
+    httpStatus: page.response.status,
+    contentType: page.response.contentType,
+    capturedAt: page.response.capturedAt,
+    body: page.response.body,
+    bodyRepresentation: "EXACT",
+    extractorLocator: page.locator
+  }));
   const validIds = new Set(jobs.map((job) => job.officialId));
-  const exclusions: Array<{ pageSequence: number; recordIndex: number; id: string }> = [];
-  const pages: SourceFetchPageTrace[] = capture.phenomPages.map((page, sequence) => {
-    const ids = page.records.map((record) => stringField(record, "reqId"));
-    if (ids.some((id) => id === undefined)) throw new MsdSourceError("MSD_PHENOM_ID_INVALID");
+  const pages: SourceFetchPageTrace[] = capture.workdayPages.map((page, sequence) => {
+    const ids = page.records.map(workdayOfficialId);
+    if (ids.some((id) => id === undefined)) throw new MsdSourceError("MSD_WORKDAY_ID_INVALID");
     const rawIds = ids as string[];
-    const pageValidIds = rawIds.filter((id, recordIndex) => {
-      const valid = validIds.has(id);
-      if (!valid) exclusions.push({ pageSequence: sequence, recordIndex, id });
-      return valid;
-    });
+    const pageValidIds = rawIds.filter((id) => validIds.has(id));
+    if (pageValidIds.length !== rawIds.length) throw new MsdSourceError("MSD_RECONCILIATION_OUTPUT_MISMATCH");
     const nextOffset = page.requestedOffset + page.records.length;
     const hasNext = nextOffset < page.total;
     return {
@@ -661,32 +762,29 @@ function buildMsdEvidence(
       requestedPage: null,
       returnedPage: null,
       requestedPageSize: page.requestedPageSize,
-      // Phenom does not declare an effective page-size field in the response.
-      // The number of records on the final page is an observation, not a
-      // returned capacity declaration; rawJobIds already records that count.
       returnedPageSize: null,
       rawJobIds: rawIds,
       validJobIds: pageValidIds,
       declaredTotal: page.total,
       declaredCount: null,
-      declaredPages: null,
+      declaredPages: Math.ceil(page.total / page.requestedPageSize),
       nextPageSignalBefore: page.requestedOffset === 0 ? null : `offset:${page.requestedOffset}`,
       nextPageSignalAfter: hasNext ? `offset:${nextOffset}` : null,
       responseFingerprintSha256: sha256Bytes(Buffer.from(page.response.body, "utf8")).sha256,
-      termination: page.total === 0 ? "EMPTY_PAGE" : hasNext ? "CONTINUE" : "NEXT_ABSENT",
+      termination: page.total === 0 ? "EMPTY_PAGE" : hasNext ? "CONTINUE" : "DECLARED_TOTAL_REACHED",
       anomalyCodes: [],
       capturedAt: page.response.capturedAt
     };
   });
-  const declarationArtifact = phenomArtifacts[0];
-  if (!declarationArtifact) throw new MsdSourceError("MSD_PHENOM_PAGE_MISSING");
-  const rawCount = capture.phenomPages.reduce((sum, page) => sum + page.records.length, 0);
-  if (rawCount !== jobs.length + exclusions.length) {
+  const declarationArtifact = workdayArtifacts[0];
+  if (!declarationArtifact) throw new MsdSourceError("MSD_WORKDAY_PAGE_MISSING");
+  const rawCount = capture.workdayPages.reduce((sum, page) => sum + page.records.length, 0);
+  if (rawCount !== jobs.length) {
     throw new MsdSourceError("MSD_RECONCILIATION_OUTPUT_MISMATCH");
   }
   const rawEvidence = parsePersistentSourceFetchEvidence({
     captureTool: { name: "msd-dual-official-http", version: "1" },
-    artifacts: [entryArtifact, preflightArtifact, ...workdayArtifacts, ...phenomArtifacts],
+    artifacts: [entryArtifact, preflightArtifact, ...workdayArtifacts, ...workdayDetailArtifacts, ...phenomArtifacts],
     pages,
     declaredCompleteness: {
       kind: "OFFICIAL_TOTAL_COUNT",
@@ -700,32 +798,21 @@ function buildMsdEvidence(
       parsedCount: rawCount,
       validCount: jobs.length,
       parseDiscardCount: 0,
-      validationDiscardCount: exclusions.length
+      validationDiscardCount: 0
     },
-    fetchLosses: exclusions.map((exclusion) => ({
-      stage: "VALIDATION" as const,
-      reason: "VERIFIED_OFFICIAL_TEST_PLACEHOLDER",
-      rawLocator: `msd-phenom-page-${String(exclusion.pageSequence).padStart(4, "0")}#record:${exclusion.recordIndex}`,
-      details: {
-        code: "VERIFIED_OFFICIAL_TEST_PLACEHOLDER",
-        pageSequence: exclusion.pageSequence,
-        recordIndex: exclusion.recordIndex
-      }
-    }))
+    fetchLosses: []
   });
   const evidence = deriveCanonicalPaginationEvidence({
     evidence: rawEvidence,
     expectedChannelIds: [],
     filteredOutput: true,
-    allowPositiveOfficialTotalCountAfterAdapterReconciliation: true,
-    allowIndependentlyVerifiedProfileBoundExclusions: true
+    allowPositiveOfficialTotalCountAfterAdapterReconciliation: true
   });
   const evaluation = evaluatePaginationEvidence({
     evidence,
     expectedChannelIds: [],
     filteredOutput: true,
-    allowPositiveOfficialTotalCountAfterAdapterReconciliation: true,
-    allowIndependentlyVerifiedProfileBoundExclusions: true
+    allowPositiveOfficialTotalCountAfterAdapterReconciliation: true
   });
   return { evidence, evaluation };
 }
@@ -773,6 +860,31 @@ function msdGetRequest(url: string): MsdDualOfficialHttpRequest {
       "User-Agent": "job-search-crawler/0.1"
     }
   };
+}
+
+function msdJsonGetRequest(url: string, referer: string): MsdDualOfficialHttpRequest {
+  return {
+    url,
+    method: "GET",
+    headers: {
+      Accept: "application/json",
+      Referer: referer,
+      "User-Agent": "job-search-crawler/0.1"
+    }
+  };
+}
+
+function safeMsdWorkdayDetailUrl(origin: string, externalPath: string): string | undefined {
+  try {
+    const originUrl = new URL(origin);
+    const url = new URL(`/wday/cxs/msd/SearchJobs${externalPath}`, originUrl.origin);
+    return originUrl.protocol === "https:" && externalPath.startsWith("/job/") &&
+      !externalPath.includes("?") && !externalPath.includes("#") && url.origin === originUrl.origin
+      ? url.toString()
+      : undefined;
+  } catch {
+    return undefined;
+  }
 }
 
 function msdPostRequest(url: string, body: string, referer: string): MsdDualOfficialHttpRequest {
@@ -972,13 +1084,12 @@ export function getStrictMsdDualOfficialNetworkPolicy(
   urlRules: Array<{
     id: string;
     url: string;
-    match: "EXACT";
+    match: "EXACT" | "PATH_PREFIX";
     allowsPagination?: true;
     allowsDeclaration?: true;
     allowsPositiveTotalDeclaration?: true;
   }>;
   allowPositiveOfficialTotalCountAfterAdapterReconciliation: true;
-  allowIndependentlyVerifiedProfileBoundExclusions: true;
 } | undefined {
   const config = exactMsdDualOfficialConfig(plan);
   if (!config) return undefined;
@@ -988,15 +1099,23 @@ export function getStrictMsdDualOfficialNetworkPolicy(
       {
         id: "profile-msd-phenom",
         url: config.phenomWidgetUrl,
+        match: "EXACT"
+      },
+      {
+        id: "profile-msd-workday",
+        url: config.workdayJobsUrl,
         match: "EXACT",
         allowsPagination: true,
         allowsDeclaration: true,
         allowsPositiveTotalDeclaration: true
       },
-      { id: "profile-msd-workday", url: config.workdayJobsUrl, match: "EXACT" }
+      {
+        id: "profile-msd-workday-detail",
+        url: `${config.allowedApplyOrigins[0]}/wday/cxs/msd/SearchJobs/job/`,
+        match: "PATH_PREFIX"
+      }
     ],
-    allowPositiveOfficialTotalCountAfterAdapterReconciliation: true,
-    allowIndependentlyVerifiedProfileBoundExclusions: true
+    allowPositiveOfficialTotalCountAfterAdapterReconciliation: true
   };
 }
 
@@ -1055,25 +1174,36 @@ export function validateStrictMsdDualOfficialEvidence(
     const workdayArtifacts = evidence.artifacts
       .filter((artifact) => /^msd-workday-page-\d{4}$/u.test(artifact.logicalKey))
       .sort((left, right) => left.logicalKey.localeCompare(right.logicalKey, "en"));
+    const workdayDetailArtifacts = evidence.artifacts
+      .filter((artifact) => /^msd-workday-detail-\d{4}$/u.test(artifact.logicalKey))
+      .sort((left, right) => left.logicalKey.localeCompare(right.logicalKey, "en"));
     const phenomArtifacts = evidence.artifacts
       .filter((artifact) => /^msd-phenom-page-\d{4}$/u.test(artifact.logicalKey))
       .sort((left, right) => left.logicalKey.localeCompare(right.logicalKey, "en"));
     if (workdayArtifacts.length === 0 || phenomArtifacts.length === 0 ||
       workdayArtifacts.length > config.maxPages || phenomArtifacts.length > config.maxPages ||
-      evidence.artifacts.length !== 2 + workdayArtifacts.length + phenomArtifacts.length ||
-      evidence.pages.length !== phenomArtifacts.length) return false;
+      evidence.artifacts.length !== 2 + workdayArtifacts.length + workdayDetailArtifacts.length +
+        phenomArtifacts.length ||
+      evidence.pages.length !== workdayArtifacts.length) return false;
 
     const appliedFacets = {
       locations: facetSelection.locationIds,
       workerSubType: [facetSelection.workerSubtypeId]
     };
     const workdayRecords: Record<string, unknown>[] = [];
+    const workdayPageRecords: Array<{
+      artifact: PersistentSourceFetchEvidence["artifacts"][number];
+      records: Record<string, unknown>[];
+      total: number;
+      offset: number;
+      rawIds: string[];
+    }> = [];
     let workdayTotal: number | undefined;
     for (let sequence = 0; sequence < workdayArtifacts.length; sequence += 1) {
       const artifact = workdayArtifacts[sequence]!;
       const offset = sequence * config.workdayPageSize;
       if (artifact.logicalKey !== `msd-workday-page-${String(sequence).padStart(4, "0")}` ||
-        !strictMsdNetworkArtifact(artifact, "ATS_API_RESPONSE", config.workdayJobsUrl) ||
+        !strictMsdNetworkArtifact(artifact, "PAGINATION_PAGE", config.workdayJobsUrl) ||
         typeof artifact.body !== "string") return false;
       const root = strictJsonRecord(artifact.body, "MSD_WORKDAY_PAGE_INVALID");
       const total = nonnegativeInteger(root.total, "MSD_WORKDAY_TOTAL_INVALID");
@@ -1097,24 +1227,18 @@ export function validateStrictMsdDualOfficialEvidence(
       })) return false;
       const ids = records.map(workdayOfficialId);
       if (ids.some((id) => id === undefined)) return false;
+      workdayPageRecords.push({ artifact, records, total, offset, rawIds: ids as string[] });
       workdayRecords.push(...records);
     }
     if (workdayTotal === undefined || workdayRecords.length !== workdayTotal) return false;
 
     const phenomRecords: Record<string, unknown>[] = [];
-    const phenomPageRecords: Array<{
-      artifact: PersistentSourceFetchEvidence["artifacts"][number];
-      records: Record<string, unknown>[];
-      total: number;
-      offset: number;
-      rawIds: string[];
-    }> = [];
     let phenomTotal: number | undefined;
     for (let sequence = 0; sequence < phenomArtifacts.length; sequence += 1) {
       const artifact = phenomArtifacts[sequence]!;
       const offset = sequence * config.pageSize;
       if (artifact.logicalKey !== `msd-phenom-page-${String(sequence).padStart(4, "0")}` ||
-        !strictMsdNetworkArtifact(artifact, "PAGINATION_PAGE", config.phenomWidgetUrl) ||
+        !strictMsdNetworkArtifact(artifact, "ATS_API_RESPONSE", config.phenomWidgetUrl) ||
         typeof artifact.body !== "string") return false;
       const envelope = parseMsdPhenomEnvelope(artifact.body);
       if (phenomTotal === undefined) phenomTotal = envelope.total;
@@ -1131,50 +1255,54 @@ export function validateStrictMsdDualOfficialEvidence(
       })) return false;
       const rawIds = envelope.records.map((record) => stringField(record, "reqId"));
       if (rawIds.some((id) => id === undefined)) return false;
-      phenomPageRecords.push({
-        artifact,
-        records: envelope.records,
-        total: envelope.total,
-        offset,
-        rawIds: rawIds as string[]
-      });
       phenomRecords.push(...envelope.records);
     }
     if (phenomTotal === undefined || phenomRecords.length !== phenomTotal) return false;
 
+    const phenomIds = new Set(phenomRecords.map((record) => stringField(record, "reqId")));
+    const expectedWorkdayOnly = workdayRecords
+      .map((record) => ({ record, officialId: workdayOfficialId(record) }))
+      .filter((item): item is { record: Record<string, unknown>; officialId: string } =>
+        item.officialId !== undefined && !phenomIds.has(item.officialId))
+      .sort((left, right) => compareUtf8(left.officialId, right.officialId));
+    if (expectedWorkdayOnly.length !== workdayDetailArtifacts.length) return false;
+    const workdayDetailRecords: Record<string, unknown>[] = [];
+    for (let sequence = 0; sequence < workdayDetailArtifacts.length; sequence += 1) {
+      const artifact = workdayDetailArtifacts[sequence]!;
+      const expected = expectedWorkdayOnly[sequence]!;
+      const externalPath = stringField(expected.record, "externalPath");
+      const detailUrl = externalPath
+        ? safeMsdWorkdayDetailUrl(config.allowedApplyOrigins[0], externalPath)
+        : undefined;
+      if (!detailUrl ||
+        artifact.logicalKey !== `msd-workday-detail-${String(sequence).padStart(4, "0")}` ||
+        !strictMsdNetworkArtifact(artifact, "ATS_API_RESPONSE", detailUrl) ||
+        typeof artifact.body !== "string" ||
+        !requestContractV2Matches(artifact.extractorLocator, {
+          family: "workday",
+          role: "detail-corroboration",
+          method: "GET",
+          url: detailUrl,
+          body: null,
+          coordinate: { sequence, officialId: expected.officialId }
+        })) return false;
+      workdayDetailRecords.push(strictJsonRecord(artifact.body, "MSD_WORKDAY_DETAIL_INVALID"));
+    }
+
     const reconciled = reconcileMsdOfficialSets({
       workdayRecords,
       phenomRecords,
+      workdayDetailRecords,
       officialDetailBaseUrl: config.officialDetailBaseUrl,
       allowedApplyOrigins: config.allowedApplyOrigins
     });
     if (!reconciled.ok) return false;
     const validIds = new Set(reconciled.jobs.map((job) => job.officialId));
-    const expectedLosses: Array<{
-      stage: "VALIDATION";
-      reason: string;
-      rawLocator: string;
-      details: { code: string; pageSequence: number; recordIndex: number };
-    }> = [];
-    for (let sequence = 0; sequence < phenomPageRecords.length; sequence += 1) {
-      const page = phenomPageRecords[sequence]!;
+    for (let sequence = 0; sequence < workdayPageRecords.length; sequence += 1) {
+      const page = workdayPageRecords[sequence]!;
       const trace = evidence.pages[sequence];
-      const validPageIds = page.rawIds.filter((id, recordIndex) => {
-        const valid = validIds.has(id);
-        if (!valid) {
-          expectedLosses.push({
-            stage: "VALIDATION",
-            reason: "VERIFIED_OFFICIAL_TEST_PLACEHOLDER",
-            rawLocator: `msd-phenom-page-${String(sequence).padStart(4, "0")}#record:${recordIndex}`,
-            details: {
-              code: "VERIFIED_OFFICIAL_TEST_PLACEHOLDER",
-              pageSequence: sequence,
-              recordIndex
-            }
-          });
-        }
-        return valid;
-      });
+      const validPageIds = page.rawIds.filter((id) => validIds.has(id));
+      if (validPageIds.length !== page.rawIds.length) return false;
       const nextOffset = page.offset + page.records.length;
       const hasNext = nextOffset < page.total;
       if (!trace ||
@@ -1182,37 +1310,31 @@ export function validateStrictMsdDualOfficialEvidence(
         trace.requestedOffset !== page.offset || trace.returnedOffset !== null ||
         trace.requestedCursor !== null || trace.returnedCursor !== null ||
         trace.requestedPage !== null || trace.returnedPage !== null ||
-        trace.requestedPageSize !== config.pageSize ||
+        trace.requestedPageSize !== config.workdayPageSize ||
         trace.returnedPageSize !== null ||
         JSON.stringify(trace.rawJobIds) !== JSON.stringify(page.rawIds) ||
         JSON.stringify(trace.validJobIds) !== JSON.stringify(validPageIds) ||
-        trace.declaredTotal !== page.total || trace.declaredCount !== null || trace.declaredPages !== null ||
+        trace.declaredTotal !== page.total || trace.declaredCount !== null ||
+        trace.declaredPages !== Math.ceil(page.total / config.workdayPageSize) ||
         trace.nextPageSignalBefore !== (page.offset === 0 ? null : `offset:${page.offset}`) ||
         trace.nextPageSignalAfter !== (hasNext ? `offset:${nextOffset}` : null) ||
-        trace.termination !== (page.total === 0 ? "EMPTY_PAGE" : hasNext ? "CONTINUE" : "NEXT_ABSENT") ||
+        trace.termination !== (page.total === 0 ? "EMPTY_PAGE" : hasNext ? "CONTINUE" : "DECLARED_TOTAL_REACHED") ||
         typeof page.artifact.body !== "string" ||
         trace.responseFingerprintSha256 !== sha256Bytes(Buffer.from(page.artifact.body, "utf8")).sha256 ||
         trace.capturedAt !== page.artifact.capturedAt || trace.anomalyCodes.length !== 0
       ) return false;
     }
-    const observedLosses = evidence.fetchLosses.map((loss) => ({
-      stage: loss.stage,
-      reason: loss.reason,
-      rawLocator: loss.rawLocator,
-      details: loss.details
-    }));
-    if (JSON.stringify(observedLosses) !== JSON.stringify(expectedLosses)) return false;
     const declaration = evidence.declaredCompleteness;
     if (
       declaration?.kind !== "OFFICIAL_TOTAL_COUNT" || declaration.scope !== "SOURCE" ||
-      declaration.channelId !== undefined || declaration.value !== phenomTotal ||
-      declaration.artifactLogicalKey !== phenomArtifacts[0]!.logicalKey ||
-      declaration.extractorLocator !== phenomArtifacts[0]!.extractorLocator ||
-      evidence.fetchCounts.rawCount !== phenomTotal ||
-      evidence.fetchCounts.parsedCount !== phenomTotal ||
+      declaration.channelId !== undefined || declaration.value !== workdayTotal ||
+      declaration.artifactLogicalKey !== workdayArtifacts[0]!.logicalKey ||
+      declaration.extractorLocator !== workdayArtifacts[0]!.extractorLocator ||
+      evidence.fetchCounts.rawCount !== workdayTotal ||
+      evidence.fetchCounts.parsedCount !== workdayTotal ||
       evidence.fetchCounts.validCount !== reconciled.jobs.length ||
-      evidence.fetchCounts.validationDiscardCount !== expectedLosses.length ||
-      reconciled.jobs.length + expectedLosses.length !== phenomTotal
+      evidence.fetchCounts.validationDiscardCount !== 0 || evidence.fetchLosses.length !== 0 ||
+      reconciled.jobs.length !== workdayTotal
     ) return false;
 
     const expectedOutput = reconciled.jobs.map((job) => ({
@@ -1235,8 +1357,7 @@ export function validateStrictMsdDualOfficialEvidence(
       evidence,
       expectedChannelIds: [],
       filteredOutput: true,
-      allowPositiveOfficialTotalCountAfterAdapterReconciliation: true,
-      allowIndependentlyVerifiedProfileBoundExclusions: true
+      allowPositiveOfficialTotalCountAfterAdapterReconciliation: true
     });
     return evaluation.safeCompleteness === true && evaluation.verifiedEligible === true &&
       evaluation.derivedAnomalyCodes.length === 0;
