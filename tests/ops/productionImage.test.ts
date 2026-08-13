@@ -130,6 +130,17 @@ describe("production container contract", () => {
     }
   });
 
+  it("runs the stateful health rate-limit probe only after readiness and TLS renewal checks", () => {
+    const workflow = read(".github/workflows/production-image.yml");
+    const rateLimitProbe = workflow.indexOf("RATE_LIMITED=0");
+    const readinessRecovery = workflow.indexOf('docker exec "$WEB_NAME" rm /tmp/not-ready');
+    const tlsReload = workflow.indexOf('docker exec "$NGINX_NAME" nginx -s reload');
+
+    expect(readinessRecovery).toBeGreaterThan(-1);
+    expect(tlsReload).toBeGreaterThan(readinessRecovery);
+    expect(rateLimitProbe).toBeGreaterThan(tlsReload);
+  });
+
   it("provides a repeatable clean Linux build and startup smoke workflow", () => {
     const workflow = read(".github/workflows/production-image.yml");
 

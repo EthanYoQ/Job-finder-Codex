@@ -175,7 +175,7 @@ jobs:
 
       - name: Qualify TLS ingress behavior and renewal visibility
         run: |
-          set -euxo pipefail
+          set -euo pipefail
           NETWORK="job-finder-ingress-${{ github.run_id }}"
           WEB_NAME="job-finder-ingress-web-${{ github.run_id }}"
           NGINX_NAME="job-finder-ingress-nginx-${{ github.run_id }}"
@@ -267,13 +267,6 @@ jobs:
           head --bytes 1048577 /dev/zero > "$TEST_DIR/oversize.bin"
           test "$(curl --silent --output /dev/null --write-out '%{http_code}' --cacert "$TEST_DIR/tls/fullchain.pem" \
             --resolve "$TEST_HOST:18443:127.0.0.1" --data-binary @"$TEST_DIR/oversize.bin" "https://$TEST_HOST:18443/api/test")" = 413
-          RATE_LIMITED=0
-          for attempt in $(seq 1 12); do
-            status="$(curl --silent --output /dev/null --write-out '%{http_code}' --cacert "$TEST_DIR/tls/fullchain.pem" \
-              --resolve "$TEST_HOST:18443:127.0.0.1" "https://$TEST_HOST:18443/healthz")"
-            if test "$status" = 429; then RATE_LIMITED=1; break; fi
-          done
-          test "$RATE_LIMITED" = 1
           docker exec "$WEB_NAME" touch /tmp/not-ready
           test "$(curl --silent --output /dev/null --write-out '%{http_code}' --cacert "$TEST_DIR/tls/fullchain.pem" \
             --resolve "$TEST_HOST:18443:127.0.0.1" "https://$TEST_HOST:18443/")" = 503
@@ -292,6 +285,13 @@ jobs:
           docker exec "$NGINX_NAME" nginx -s reload
           curl --fail --silent --cacert "$TEST_DIR/tls/fullchain.pem" --resolve "$TEST_HOST:18443:127.0.0.1" \
             "https://$TEST_HOST:18443/livez" | grep --quiet '"ok":true'
+          RATE_LIMITED=0
+          for attempt in $(seq 1 12); do
+            status="$(curl --silent --output /dev/null --write-out '%{http_code}' --cacert "$TEST_DIR/tls/fullchain.pem" \
+              --resolve "$TEST_HOST:18443:127.0.0.1" "https://$TEST_HOST:18443/healthz")"
+            if test "$status" = 429; then RATE_LIMITED=1; break; fi
+          done
+          test "$RATE_LIMITED" = 1
 
       - name: Prove production bootstrap idempotence and readiness against blank PostgreSQL
         run: |
