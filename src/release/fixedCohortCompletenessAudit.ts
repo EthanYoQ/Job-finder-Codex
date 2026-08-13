@@ -184,9 +184,10 @@ function primaryRootCause(row: FixedCohortAuditSourceInput & { failureClass: Aud
   if (row.failureClass === "SOURCE_TEMPORARILY_UNAVAILABLE") {
     return [row.failureCategory, row.failureDiagnosticCode].filter(Boolean).join(":") || "TEMPORARY_SOURCE_UNKNOWN";
   }
-  if (row.failureClass === "CONFIGURATION_ERROR") return
-    (["MANIFEST_BINDING_MISMATCH", "OFFICIAL_SCOPE_MISMATCH"].find((blocker) => row.blockers.includes(blocker)) ??
-      row.failureCode ?? "CONFIGURATION_INVALID");
+  if (row.failureClass === "CONFIGURATION_ERROR") {
+    return ["MANIFEST_BINDING_MISMATCH", "OFFICIAL_SCOPE_MISMATCH"]
+      .find((blocker) => row.blockers.includes(blocker)) ?? row.failureCode ?? "CONFIGURATION_INVALID";
+  }
   if (row.failureClass === "PRODUCT_DEFECT") {
     return row.failureDiagnosticCode ?? row.failureCode ??
       (row.atomicCommitState === "ROLLED_BACK" ? "ATOMIC_COMMIT_ROLLED_BACK" : "ADAPTER_EXECUTION_FAILED");
