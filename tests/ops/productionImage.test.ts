@@ -171,6 +171,27 @@ describe("production container contract", () => {
     expect(workflow).not.toMatch(/test "\$\(docker exec/u);
   });
 
+  it("builds restore evidence before making its parent crawl batch terminal", () => {
+    const fixture = read("tests/ops/fixtures/restoreQualificationEvidence.sql");
+    const begin = fixture.indexOf("BEGIN;");
+    const pendingBatch = fixture.indexOf("NULL,'RUNNING');");
+    const sourceResult = fixture.indexOf('INSERT INTO "CrawlBatchSourceResult"');
+    const job = fixture.indexOf('INSERT INTO "Job"');
+    const lifecycleEvidence = fixture.indexOf('INSERT INTO "LifecycleSetEvidenceMember"');
+    const terminalBatch = fixture.indexOf(
+      'UPDATE "CrawlBatch" SET "finishedAt"=now(),status=\'SUCCESS\' WHERE id=\'restore-batch\' AND status=\'RUNNING\';'
+    );
+    const commit = fixture.indexOf("COMMIT;");
+
+    expect(begin).toBeGreaterThan(-1);
+    expect(pendingBatch).toBeGreaterThan(begin);
+    expect(sourceResult).toBeGreaterThan(pendingBatch);
+    expect(job).toBeGreaterThan(sourceResult);
+    expect(lifecycleEvidence).toBeGreaterThan(job);
+    expect(terminalBatch).toBeGreaterThan(lifecycleEvidence);
+    expect(commit).toBeGreaterThan(terminalBatch);
+  });
+
   it("provides a repeatable clean Linux build and startup smoke workflow", () => {
     const workflow = read(".github/workflows/production-image.yml");
 
