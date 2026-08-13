@@ -378,6 +378,28 @@ jobs:
           DATABASE_URL='postgresql://jobfinder:restore-test-password@postgres/jobfinder'
           ADMIN_URL='postgresql://jobfinder:restore-test-password@postgres/postgres'
           mkdir -p .runtime/restore && chmod 0777 .runtime/restore
+          normalize_restore_receipt() {
+            receipt="$1"
+            case "$receipt" in
+              .runtime/restore/restore-pass-receipt.json|\
+              .runtime/restore/restore-failed-corrupt-receipt.json|\
+              .runtime/restore/restore-failed-version-receipt.json) ;;
+              *) return 1 ;;
+            esac
+            restore_root="$(realpath --canonicalize-existing .runtime/restore)"
+            test ! -L "$receipt"
+            test -f "$receipt"
+            test "$(stat --format=%h -- "$receipt")" = 1
+            receipt_real="$(realpath --canonicalize-existing -- "$receipt")"
+            case "$receipt_real" in "$restore_root"/*) ;; *) return 1 ;; esac
+            sudo chown --no-dereference -- "$(id -u):$(id -g)" "$receipt"
+            test ! -L "$receipt"
+            test -f "$receipt"
+            test "$(stat --format=%h -- "$receipt")" = 1
+            test "$(realpath --canonicalize-existing -- "$receipt")" = "$receipt_real"
+            chmod 0600 -- "$receipt"
+            test -r "$receipt"
+          }
           docker network create "$NETWORK"
           trap 'docker rm --force "$POSTGRES_NAME" >/dev/null 2>&1 || true; docker network rm "$NETWORK" >/dev/null 2>&1 || true' EXIT
           docker run --detach --name "$POSTGRES_NAME" --network "$NETWORK" --network-alias postgres \
@@ -397,9 +419,12 @@ jobs:
             --volume "$PWD/.runtime/restore:/backup" "$IMAGE_TAG" sh ./ops/backup.sh
           ARCHIVE="$(find .runtime/restore -maxdepth 1 -type f -name '*.dump' -print -quit)"
           test -n "$ARCHIVE"
+          RESTORE_EXIT=0
           docker run --rm --network "$NETWORK" --env RESTORE_ADMIN_DATABASE_URL="$ADMIN_URL" \
             --env RESTORE_RECEIPT_PATH=/backup/restore-pass-receipt.json --volume "$PWD/.runtime/restore:/backup" \
-            "$IMAGE_TAG" node node_modules/tsx/dist/cli.mjs scripts/qualify-backup-restore.ts "/backup/$(basename "$ARCHIVE")"
+            "$IMAGE_TAG" node node_modules/tsx/dist/cli.mjs scripts/qualify-backup-restore.ts "/backup/$(basename "$ARCHIVE")" || RESTORE_EXIT=$?
+          normalize_restore_receipt ".runtime/restore/restore-pass-receipt.json"
+          if test "$RESTORE_EXIT" -ne 0; then exit "$RESTORE_EXIT"; fi
           test "$(node -p "JSON.parse(require('fs').readFileSync('.runtime/restore/restore-pass-receipt.json')).decision")" = PASSED
           RESTORE_DATABASE_COUNT="$(docker exec "$POSTGRES_NAME" psql -U jobfinder -d postgres -Atc "SELECT count(*) FROM pg_database WHERE left(datname, 18) = 'jobfinder_restore_'")"
           test "$RESTORE_DATABASE_COUNT" = 0
@@ -412,6 +437,7 @@ jobs:
           if docker run --rm --network "$NETWORK" --env RESTORE_ADMIN_DATABASE_URL="$ADMIN_URL" \
             --env RESTORE_RECEIPT_PATH=/backup/restore-failed-corrupt-receipt.json --volume "$PWD/.runtime/restore:/backup" \
             "$IMAGE_TAG" node node_modules/tsx/dist/cli.mjs scripts/qualify-backup-restore.ts /backup/corrupt.dump; then exit 1; fi
+          normalize_restore_receipt ".runtime/restore/restore-failed-corrupt-receipt.json"
           test "$(node -p "JSON.parse(require('fs').readFileSync('.runtime/restore/restore-failed-corrupt-receipt.json')).decision")" = FAILED
           RESTORE_DATABASE_COUNT="$(docker exec "$POSTGRES_NAME" psql -U jobfinder -d postgres -Atc "SELECT count(*) FROM pg_database WHERE left(datname, 18) = 'jobfinder_restore_'")"
           test "$RESTORE_DATABASE_COUNT" = 0
@@ -422,6 +448,7 @@ jobs:
           if docker run --rm --network "$NETWORK" --env RESTORE_ADMIN_DATABASE_URL="$ADMIN_URL" \
             --env RESTORE_RECEIPT_PATH=/backup/restore-failed-version-receipt.json --volume "$PWD/.runtime/restore:/backup" \
             "$IMAGE_TAG" node node_modules/tsx/dist/cli.mjs scripts/qualify-backup-restore.ts /backup/incompatible.dump; then exit 1; fi
+          normalize_restore_receipt ".runtime/restore/restore-failed-version-receipt.json"
           test "$(node -p "JSON.parse(require('fs').readFileSync('.runtime/restore/restore-failed-version-receipt.json')).failureCode")" = VALIDATION_FAILED
           RESTORE_DATABASE_COUNT="$(docker exec "$POSTGRES_NAME" psql -U jobfinder -d postgres -Atc "SELECT count(*) FROM pg_database WHERE left(datname, 18) = 'jobfinder_restore_'")"
           test "$RESTORE_DATABASE_COUNT" = 0

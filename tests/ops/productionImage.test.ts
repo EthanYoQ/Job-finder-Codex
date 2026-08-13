@@ -192,6 +192,68 @@ describe("production container contract", () => {
     expect(commit).toBeGreaterThan(terminalBatch);
   });
 
+  it("returns container-written restore receipts to the runner before host consumption", () => {
+    const workflow = read(".github/workflows/production-image.yml");
+    const restoreStepStart = workflow.indexOf("name: Qualify a real PostgreSQL 16 backup restore and failure receipts");
+    const restoreStepEnd = workflow.indexOf("name: Publish exact-image qualification receipt");
+    const restoreStep = workflow.slice(restoreStepStart, restoreStepEnd);
+    const receiptPaths = [
+      ".runtime/restore/restore-pass-receipt.json",
+      ".runtime/restore/restore-failed-corrupt-receipt.json",
+      ".runtime/restore/restore-failed-version-receipt.json"
+    ];
+
+    expect(restoreStepStart).toBeGreaterThan(-1);
+    expect(restoreStepEnd).toBeGreaterThan(restoreStepStart);
+    expect(restoreStep).toContain("normalize_restore_receipt() {");
+    expect(restoreStep).toContain('restore_root="$(realpath --canonicalize-existing .runtime/restore)"');
+    expect(restoreStep).toContain('receipt_real="$(realpath --canonicalize-existing -- "$receipt")"');
+    expect(restoreStep).toContain('test ! -L "$receipt"');
+    expect(restoreStep).toContain('test -f "$receipt"');
+    expect(restoreStep).toContain('test "$(stat --format=%h -- "$receipt")" = 1');
+    expect(restoreStep).toContain('sudo chown --no-dereference -- "$(id -u):$(id -g)" "$receipt"');
+    expect(restoreStep.match(/normalize_restore_receipt ".runtime\/restore\/.+receipt\.json"/gu))
+      .toHaveLength(receiptPaths.length);
+
+    const helper = restoreStep.slice(
+      restoreStep.indexOf("normalize_restore_receipt() {"),
+      restoreStep.indexOf("docker network create")
+    );
+    expect(helper).toContain(
+      ".runtime/restore/restore-pass-receipt.json|\\\n" +
+      "              .runtime/restore/restore-failed-corrupt-receipt.json|\\\n" +
+      "              .runtime/restore/restore-failed-version-receipt.json) ;;"
+    );
+    expect(helper).toContain('case "$receipt_real" in "$restore_root"/*) ;; *) return 1 ;; esac');
+    expect(helper).toContain('test "$(realpath --canonicalize-existing -- "$receipt")" = "$receipt_real"');
+    const firstSymlinkCheck = helper.indexOf('test ! -L "$receipt"');
+    const chown = helper.indexOf('sudo chown --no-dereference -- "$(id -u):$(id -g)" "$receipt"');
+    const secondSymlinkCheck = helper.indexOf('test ! -L "$receipt"', firstSymlinkCheck + 1);
+    const chmod = helper.indexOf('chmod 0600 -- "$receipt"');
+    const readable = helper.indexOf('test -r "$receipt"');
+    expect(firstSymlinkCheck).toBeGreaterThan(-1);
+    expect(chown).toBeGreaterThan(firstSymlinkCheck);
+    expect(secondSymlinkCheck).toBeGreaterThan(chown);
+    expect(chmod).toBeGreaterThan(secondSymlinkCheck);
+    expect(readable).toBeGreaterThan(chmod);
+
+    const passContainer = restoreStep.indexOf("--env RESTORE_RECEIPT_PATH=/backup/restore-pass-receipt.json");
+    const passExitCapture = restoreStep.indexOf('RESTORE_EXIT=$?');
+    const passNormalize = restoreStep.indexOf('normalize_restore_receipt ".runtime/restore/restore-pass-receipt.json"');
+    const passExitPropagation = restoreStep.indexOf('if test "$RESTORE_EXIT" -ne 0; then exit "$RESTORE_EXIT"; fi');
+    expect(passContainer).toBeGreaterThan(-1);
+    expect(passExitCapture).toBeGreaterThan(passContainer);
+    expect(passNormalize).toBeGreaterThan(passExitCapture);
+    expect(passExitPropagation).toBeGreaterThan(passNormalize);
+
+    for (const receiptPath of receiptPaths) {
+      const normalize = restoreStep.indexOf(`normalize_restore_receipt "${receiptPath}"`);
+      const hostRead = restoreStep.indexOf(`readFileSync('${receiptPath}')`);
+      expect(normalize).toBeGreaterThan(-1);
+      expect(hostRead).toBeGreaterThan(normalize);
+    }
+  });
+
   it("provides a repeatable clean Linux build and startup smoke workflow", () => {
     const workflow = read(".github/workflows/production-image.yml");
 
