@@ -207,7 +207,7 @@ describe("Jobsyn and CNStaff strict source-bound completeness replay", () => {
       .toBe(false);
   });
 
-  it.each(["中山", "台州", "开封", "扬州", "温州", "潍坊", "烟台", "茂名"])(
+  it.each(["中山", "台州", "开封", "扬州", "温州", "潍坊", "烟台", "茂名", "临沂", "平顶山", "淮南", "淮安", "佛山", "新乡"])(
     "independently accepts the official CNStaff mainland city %s",
     async (location) => {
       const { plan, fetched } = await cnstaffFixture(location);

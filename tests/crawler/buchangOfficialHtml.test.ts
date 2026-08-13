@@ -77,7 +77,7 @@ describe("Buchang official social recruitment page", () => {
       ok: true,
       fetchEvidence: {
         fetchCounts: { rawCount: 1, parsedCount: 1, validCount: 1 },
-        declaredCompleteness: { kind: "OFFICIAL_TOTAL_PAGES", value: 1 }
+        declaredCompleteness: { kind: "OFFICIAL_TOTAL_COUNT", value: 1 }
       }
     });
     if (!fetched.ok || !fetched.fetchEvidence) throw new Error("Expected exact Buchang evidence");
@@ -87,7 +87,7 @@ describe("Buchang official social recruitment page", () => {
     expect(crawled).toMatchObject({
       status: "SUCCESS",
       truth: { completenessVerified: true },
-      observation: { structuredJobCount: 1, completenessStatus: "VERIFIED", totalPages: 1 }
+      observation: { structuredJobCount: 1, completenessStatus: "VERIFIED", expectedJobCount: 1 }
     });
     expect(crawled.jobs).toMatchObject([{
       sourceJobId: "c82b55e1-57f9-41e9-a349-3b2a068ee51e",

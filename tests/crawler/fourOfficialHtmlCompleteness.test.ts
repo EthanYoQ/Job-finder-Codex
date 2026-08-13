@@ -285,7 +285,8 @@ describe("four audited official HTML sources", () => {
       const second = new URL(request.url).searchParams.get("startrow") === "10";
       return response(request, bayerPage(second ? 2 : 1, second ? 13 : 12));
     });
-    if (!driftedTotal.ok || !driftedTotal.fetchEvidence) throw new Error("Expected drift evidence");
+    expect(driftedTotal).toMatchObject({ ok: false, failureReason: "HTML_PAGINATION_EVIDENCE_UNSAFE" });
+    if (!driftedTotal.fetchEvidence) throw new Error("Expected fail-closed drift evidence");
     expect(validateStrictHtmlCompletenessProof(plan, driftedTotal.fetchEvidence)).toBe(false);
   });
 

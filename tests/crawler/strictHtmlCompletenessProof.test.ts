@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { createHttpHtmlSourceFetch, type HttpHtmlRequest, type HttpHtmlResponse } from "../../src/crawler/httpHtmlSourceFetch";
 import { validateStrictHtmlCompletenessProof } from "../../src/crawler/strictHtmlCompletenessProof";
-import { runSourceCrawl } from "../../src/crawler/runSourceCrawl";
+import { runSourceCrawl, supportsStrictOfficialTotalCertificate } from "../../src/crawler/runSourceCrawl";
 import { buildStagedSourceCrawlPlans, getPlanBySourceId, type SourceCrawlPlan } from "../../src/crawler/sourcePlan";
 import type { PersistentSourceFetchEvidence } from "../../src/crawler/sourceFetchEvidence";
 import { candidateCompanies } from "../../src/data/companyRegistry";
@@ -145,6 +145,12 @@ describe("independent strict HTML completeness proof", () => {
     const fetched = await fetch(plan);
     if (!fetched.ok || !fetched.fetchEvidence) throw new Error(fetched.ok ? "missing evidence" : fetched.failureReason);
 
+    expect(fetched.fetchEvidence.declaredCompleteness).toMatchObject({
+      kind: "OFFICIAL_TOTAL_COUNT",
+      scope: "SOURCE",
+      value: 3
+    });
+    expect(supportsStrictOfficialTotalCertificate(plan)).toBe(true);
     expect(validateStrictHtmlCompletenessProof(plan, fetched.fetchEvidence)).toBe(true);
 
     const changedTotal = structuredClone(fetched.fetchEvidence);
@@ -180,6 +186,43 @@ describe("independent strict HTML completeness proof", () => {
         expectedJobCount: 0
       }
     });
+  });
+
+  it("treats Bayer's exact China empty marker as zero instead of replaying global fallback rows", async () => {
+    const plan = getPlanBySourceId(buildStagedSourceCrawlPlans(candidateCompanies), "source-bayer-healthcare-social");
+    if (plan?.adapterId !== "html-table") throw new Error("missing canonical Bayer plan");
+    const body = `<label>当前没有符合 "<span class="attention securitySearchString">China</span>" 的空缺职位。</label>
+      <div id="searchresults" aria-label="职位搜索结果列表。第 1 页，共 1 页。"><table><tbody>
+        <tr><td class="jobTitle hidden-phone"><a class="jobTitle-link" href="/job/Warsaw-Global/1/">Global</a></td>
+          <td class="colLocation">Warsaw, PL</td></tr>
+      </tbody></table></div><div class="paginationLabel">显示 1 到 10，共 10</div>`;
+    const fetched = await createHttpHtmlSourceFetch({
+      now: () => new Date(capturedAt),
+      http: async request => response(request, body)
+    })(plan);
+    if (!fetched.ok || !fetched.fetchEvidence) throw new Error(fetched.ok ? "missing evidence" : fetched.failureReason);
+
+    expect(fetched.fetchEvidence).toMatchObject({
+      declaredCompleteness: { kind: "OFFICIAL_TOTAL_COUNT", value: 0 },
+      fetchCounts: { rawCount: 0, validCount: 0 },
+      pages: [{ rawJobIds: [], validJobIds: [], termination: "EMPTY_PAGE" }]
+    });
+    expect(validateStrictHtmlCompletenessProof(plan, fetched.fetchEvidence)).toBe(true);
+  });
+
+  it("accepts Novartis' current Huhehaote transliteration with a mainland province anchor", async () => {
+    const plan = getPlanBySourceId(buildStagedSourceCrawlPlans(candidateCompanies), "source-novartis-social");
+    if (plan?.adapterId !== "html-table") throw new Error("missing canonical Novartis plan");
+    const body = `<nav class="pagination">
+        <a class="page-link active" title="Page 1 active out of 1 pages">1</a>
+        <a class="page-link btn disabled" rel="next" title="Go to next page"></a>
+      </nav><table class="views-table"><tbody><tr>
+        <td class="views-field-field-job-title"><a href="/careers/career-search/job/details/one">医学经理</a></td>
+        <td class="views-field-field-job-work-location">Huhehaote (Neimenggu Province)</td>
+      </tr></tbody></table>`;
+    const evidence = await evidenceFor(plan, async request => response(request, body));
+
+    expect(validateStrictHtmlCompletenessProof(plan, evidence)).toBe(true);
   });
 
   it("reconstructs every configured TalentBrew channel request and rejects an extra query", async () => {
@@ -236,6 +279,20 @@ describe("independent strict HTML completeness proof", () => {
     expect(validateStrictHtmlCompletenessProof(plan, evidence)).toBe(true);
     expect(requestedPartitions).toEqual(["Fixed", "Regular"]);
 
+    const staleEntryCounts = entry
+      .replace('data-count="1" data-display="Fixed"', 'data-count="2" data-display="Fixed"')
+      .replace('data-count="2" data-display="Student"', 'data-count="1" data-display="Student"');
+    const staleEntryEvidence = await evidenceFor(plan, async request => {
+      if (!request.url.includes("/results")) return response(request, staleEntryCounts);
+      const url = new URL(request.url);
+      const channel = [...url.searchParams.entries()].find(([key]) =>
+        key.startsWith("FacetFilters[1]") && key.endsWith(".Display"))?.[1] ?? "missing";
+      return response(request, talentResponse(
+        `<section id="search-results" data-current-page="1" data-total-pages="1" data-total-job-results="1" data-records-per-page="1"><table>${row(channel.toLowerCase())}</table></section>`
+      ), "application/json");
+    });
+    expect(validateStrictHtmlCompletenessProof(plan, staleEntryEvidence)).toBe(true);
+
     for (const mutate of [
       (record: Record<string, unknown>) => { record.hasJobs = false; },
       (record: Record<string, unknown>) => { record.filters = '<script>alert(1)</script>'; },
@@ -287,7 +344,8 @@ describe("independent strict HTML completeness proof", () => {
     });
     plan.source.officialEntryUrl = "https://jobs.example.test/site/position?recruitmentType=2";
     plan.source.officialChainEvidenceUrl = plan.source.officialEntryUrl;
-    const page = (body: string) => `<table>${body}</table><ul id="pageTurnUl"><li>共 2 页</li><li onclick="pageTurn(2,2)">2</li></ul>`;
+    const page = (body: string) => `<table>${body}</table><ul id="pageTurnUl"><li>共 2 页</li><li
+      data-action="pageTurn" data-pagenum="2" data-pagemax="2">2</li></ul>`;
     const evidence = await evidenceFor(plan, async request => request.method === "POST"
       ? response(request, page(row("three")))
       : response(request, page(`${row("one")}${row("two")}`)));

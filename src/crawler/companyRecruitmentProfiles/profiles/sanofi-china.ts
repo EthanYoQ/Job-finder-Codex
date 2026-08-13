@@ -28,8 +28,6 @@ export const profile_sanofi_china = {
                               fieldName: "job_type", descriptor: "Regular" }
                       ],
                       excludedPartitions: [
-                          { id: "Apprentice/Intern", facetType: 5,
-                              fieldName: "job_type", descriptor: "Apprentice/Intern" },
                           { id: "Apprentice/Intern (Fixed Term)", facetType: 5,
                               fieldName: "job_type", descriptor: "Apprentice/Intern (Fixed Term)" },
                           { id: "Student (Fixed Term)", facetType: 5,

@@ -42,7 +42,8 @@ export interface HttpHtmlSourceFetchDeps {
 
 const TEVA_CHINA_CAREERS_URL = "https://www.careers.teva/careers?location=China";
 const TEVA_EMBEDDED_ZERO_LOCATOR =
-  "#smartApplyData:strict-json:count,positions,location_used,query.location,all_applicable_locations";
+  "#smartApplyData:strict-json:count,positions,location_used,query.location,all_applicable_locations:" +
+  "TEVA_US_REMOTE_GLOBAL_V1";
 
 export function createHttpHtmlSourceFetch(
   deps: HttpHtmlSourceFetchDeps = {}
@@ -159,11 +160,7 @@ async function fetchTupu360AjaxPages({
     return failed(capturedAt, "HTML_DECLARATION_INVALID");
   }
 
-  const pageSizeText = $("#pageTurnUl li[onclick]")
-    .toArray()
-    .map((element) => $(element).attr("onclick") ?? "")
-    .find((value) => value.includes("pageTurn"));
-  const parsedPageSize = pageSizeText ? parseTupuPageSize(pageSizeText) : undefined;
+  const parsedPageSize = tupuDeclaredPageSize($) ?? undefined;
   const pageSize = parsedPageSize;
   if (pageSize === undefined || !Number.isInteger(pageSize) || pageSize < 1) {
     return failed(capturedAt, "HTML_DECLARATION_INVALID");
@@ -260,7 +257,7 @@ async function fetchTalentbrewAjaxPages({
   const criteria = talentbrewCriteria($);
   const partitions = scope
     ? strictTalentbrewPartitions($, searchResults, scope)
-    : [{ channelId: undefined, filter: undefined, declaredCount: expectedJobCount }];
+    : [{ channelId: undefined, filter: undefined }];
   const pages: string[] = [];
   let totalPages = 0;
   let totalExpectedJobs = 0;
@@ -304,9 +301,6 @@ async function fetchTalentbrewAjaxPages({
       const returnedJobs = numberAttr(returned, "data-total-job-results") ?? expectedJobCount;
       const returnedPageSize = numberAttr(returned, "data-records-per-page") ?? recordsPerPage;
       if (scope && (returnedPage !== page || returnedPages === undefined || returnedJobs === undefined || returnedPageSize === undefined)) {
-        return failed(capturedAt, "TALENTBREW_SCOPE_INVALID");
-      }
-      if (partition.declaredCount !== undefined && returnedJobs !== partition.declaredCount) {
         return failed(capturedAt, "TALENTBREW_SCOPE_INVALID");
       }
       if (scope && returnedJobs !== undefined && returnedPageSize !== undefined && returnedPages !== undefined &&
@@ -356,7 +350,7 @@ function strictTalentbrewPartitions(
   $: ReturnType<typeof load>,
   results: { attr(name: string): string | undefined },
   scope: NonNullable<NonNullable<HtmlTableConfig["pagination"]>["talentbrewScope"]>
-): Array<{ channelId: string; declaredCount: number; filter: Record<string, TalentbrewCriteriaValue> }> {
+): Array<{ channelId: string; filter: Record<string, TalentbrewCriteriaValue> }> {
   const active = scope.requiredActiveFacet;
   const configuredFacets = [...scope.allowedPartitions, ...(scope.excludedPartitions ?? [])];
   const partitionDimension = scope.allowedPartitions[0];
@@ -407,7 +401,6 @@ function strictTalentbrewPartitions(
     if (declaredCount === undefined) throw new Error("TALENTBREW_SCOPE_INVALID");
     return {
       channelId: partition.channelId,
-      declaredCount,
       filter: {
         ID: partition.id, FacetType: partition.facetType, Count: declaredCount,
         Display: partition.descriptor, IsApplied: true, FieldName: partition.fieldName
@@ -568,6 +561,14 @@ function readPaginationEvidence(
   }
 
   const $ = load(html);
+  if (matchesPaginationExplicitEmptyState($, pagination)) {
+    return {
+      declaredTotalPages: 1,
+      pagesToVisit: 1,
+      expectedJobCount: 0,
+      ...(pagination.pageSize === undefined ? {} : { pageSize: pagination.pageSize })
+    };
+  }
   const totalPageValues = $(pagination.totalPagesSelector)
     .toArray()
     .flatMap((element) => {
@@ -633,6 +634,18 @@ function readPaginationEvidence(
     ...(parsedExpectedJobCount === undefined ? {} : { expectedJobCount: parsedExpectedJobCount }),
     ...(configuredPageSize === undefined ? {} : { pageSize: configuredPageSize })
   };
+}
+
+function matchesPaginationExplicitEmptyState(
+  $: ReturnType<typeof load>,
+  pagination: NonNullable<HtmlTableConfig["pagination"]>
+): boolean {
+  const empty = pagination.explicitEmptyState;
+  if (!empty) return false;
+  const markers = $(empty.selector);
+  if (markers.length !== 1) return false;
+  const text = markers.first().text().replace(/\s+/gu, " ").trim();
+  return new RegExp(empty.pattern, "u").test(text);
 }
 
 function htmlCompleteness(
@@ -856,10 +869,9 @@ function attachHtmlEvidence(
         : null;
     const declaredTotal = mode === "talentbrew"
       ? strictOptionalNonnegativeInt($("#search-results").first().attr("data-total-job-results") ?? null) ?? null
-      : mode === "ordinary" && table.completenessProof?.kind === "OFFICIAL_TOTAL_PAGES" &&
-          ordinaryDeclaration?.expectedJobCount === 0
-        ? 0
-      : null;
+      : mode === "ordinary" && table.completenessProof?.kind === "OFFICIAL_TOTAL_PAGES"
+        ? ordinaryDeclaration?.expectedJobCount ?? null
+        : null;
     const declaredPages = mode === "talentbrew"
       ? strictOptionalNonnegativeInt($("#search-results").first().attr("data-total-pages") ?? null) ?? null
       : mode === "tupu360"
@@ -980,6 +992,9 @@ function attachHtmlEvidence(
       : {}),
     ...(mode === "ordinary" && isNovartisOfficialWindow(table)
       ? { allowRawIdOverlapAcrossPages: true }
+      : {}),
+    ...(configuredDeclaration?.kind === "OFFICIAL_TOTAL_COUNT" && configuredDeclaration.value > 0
+      ? { allowPositiveOfficialTotalCountAfterAdapterReconciliation: true }
       : {})
   };
   const evidence = deriveCanonicalPaginationEvidence({ evidence: evidence0, ...paginationOptions });
@@ -1039,13 +1054,25 @@ function configuredHtmlCompletenessDeclaration(
       declaredPages !== pages.length || pages.some((page) => page.declaredPages !== declaredPages)) return undefined;
     const artifact = artifacts.find((candidate) => candidate.logicalKey === pages[0]!.artifactLogicalKey);
     if (!artifact) return undefined;
-    return {
-      kind: "OFFICIAL_TOTAL_PAGES",
-      value: declaredPages,
-      artifactLogicalKey: artifact.logicalKey,
-      extractorLocator: artifact.extractorLocator,
-      scope: "SOURCE"
-    };
+    const repeatedOfficialTotal = pages[0]?.declaredTotal;
+    const exactOfficialTotal = repeatedOfficialTotal !== null && repeatedOfficialTotal !== undefined &&
+      pages.every((page) => page.declaredTotal === repeatedOfficialTotal) &&
+      new Set(pages.flatMap((page) => page.rawJobIds)).size === repeatedOfficialTotal;
+    return exactOfficialTotal
+      ? {
+          kind: "OFFICIAL_TOTAL_COUNT",
+          value: repeatedOfficialTotal,
+          artifactLogicalKey: artifact.logicalKey,
+          extractorLocator: artifact.extractorLocator,
+          scope: "SOURCE"
+        }
+      : {
+          kind: "OFFICIAL_TOTAL_PAGES",
+          value: declaredPages,
+          artifactLogicalKey: artifact.logicalKey,
+          extractorLocator: artifact.extractorLocator,
+          scope: "SOURCE"
+        };
   }
 
   if (policy.kind === "CONFIGURED_CHANNEL_TRAVERSAL") {
@@ -1248,8 +1275,18 @@ function tupuDeclaredPageSize($: ReturnType<typeof load>): number | null {
   const onclick = $("#pageTurnUl li[onclick]").toArray()
     .map((element) => $(element).attr("onclick") ?? "")
     .find((value) => value.includes("pageTurn"));
-  if (!onclick) return null;
-  return parseTupuPageSize(onclick) ?? null;
+  if (onclick) return parseTupuPageSize(onclick) ?? null;
+  const declared = $("#pageTurnUl li[data-action], #pageTurnUl li[data-pagenum], #pageTurnUl li[data-pagemax]").toArray();
+  if (declared.length === 0) return null;
+  const pageSizes = new Set<number>();
+  for (const element of declared) {
+    const node = $(element);
+    const pageNumber = strictOptionalPositiveInt(node.attr("data-pagenum") ?? null);
+    const pageSize = strictOptionalPositiveInt(node.attr("data-pagemax") ?? null);
+    if (node.attr("data-action") !== "pageTurn" || pageNumber === undefined || pageSize === undefined) return null;
+    pageSizes.add(pageSize);
+  }
+  return pageSizes.size === 1 ? [...pageSizes][0]! : null;
 }
 function parseTupuTotalPages(value: string): number | undefined {
   const match = /^\s*共\s*([1-9]\d*)\s*页\s*$/u.exec(value);
@@ -1421,8 +1458,7 @@ function assessTevaEmbeddedJsonZero(
     const query = parsed.query;
     return {
       valid:
-        parsed.count === 0 &&
-        Array.isArray(parsed.positions) && parsed.positions.length === 0 &&
+        tevaChinaLocalCountIsZero(parsed, table) &&
         parsed.location_used === "China" &&
         isPlainRecord(query) && query.location === "China" &&
         Array.isArray(parsed.all_applicable_locations) && parsed.all_applicable_locations.length === 0
@@ -1430,6 +1466,40 @@ function assessTevaEmbeddedJsonZero(
   } catch {
     return { valid: false };
   }
+}
+
+function tevaChinaLocalCountIsZero(parsed: Record<string, unknown>, table: HtmlTableConfig): boolean {
+  if (table.strictEmbeddedJsonZero?.remoteGlobalForeignExclusionPolicy !== "TEVA_US_REMOTE_GLOBAL_V1" ||
+    !Number.isSafeInteger(parsed.count) || (parsed.count as number) < 0 ||
+    !Array.isArray(parsed.positions) || parsed.positions.length !== parsed.count) return false;
+  if (parsed.count === 0) return true;
+  if ((parsed.count as number) > 20 || parsed.fuzzyResultsReturned !== false || parsed.requestLocation !== true ||
+    JSON.stringify(parsed.location_user) !== JSON.stringify(["China", "remote,China"])) return false;
+
+  const ids = new Set<string>();
+  return parsed.positions.every((candidate) => {
+    if (!isPlainRecord(candidate)) return false;
+    const rawId = candidate.id;
+    const id = typeof rawId === "number" && Number.isSafeInteger(rawId) && rawId > 0
+      ? String(rawId)
+      : typeof rawId === "string" && /^[1-9][0-9]{0,19}$/u.test(rawId) ? rawId : undefined;
+    if (!id || ids.has(id) || candidate.work_location_option !== "remote_global" ||
+      candidate.isPrivate !== false || typeof candidate.location !== "string" ||
+      !tevaExplicitUnitedStatesLocation(candidate.location) || !Array.isArray(candidate.locations) ||
+      candidate.locations.length === 0 || candidate.locations.some((location) =>
+        typeof location !== "string" || !tevaExplicitUnitedStatesLocation(location)) ||
+      !candidate.locations.includes(candidate.location) ||
+      candidate.canonicalPositionUrl !== `${TEVA_CHINA_CAREERS_URL.split("?")[0]}/job/${id}`) return false;
+    ids.add(id);
+    return true;
+  });
+}
+
+function tevaExplicitUnitedStatesLocation(value: string): boolean {
+  const normalized = value.normalize("NFKC").replace(/\s+/gu, " ").trim();
+  return normalized.length > 0 && normalized.length <= 200 &&
+    /(?:^|, )United States$/u.test(normalized) &&
+    !/(?:China|Mainland|中国|上海|北京|苏州|深圳|广州)/iu.test(normalized);
 }
 
 function isPlainRecord(value: unknown): value is Record<string, unknown> {

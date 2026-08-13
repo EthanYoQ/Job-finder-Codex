@@ -8,7 +8,7 @@ export const profile_bayer_healthcare = {
       executionConfig: {
           adapterId: "html-table",
           table: {
-              rowSelector: "#searchresults tbody tr",
+              rowSelector: "body:not(:has(label .attention.securitySearchString)) #searchresults tbody tr",
               completenessProof: {
                   kind: "OFFICIAL_TOTAL_PAGES",
                   sourcePolicy: "BAYER_CHINA_SUCCESSFACTORS_V1"
@@ -22,7 +22,11 @@ export const profile_bayer_healthcare = {
                   pageSize: 10,
                   maxPages: 100,
                   expectedJobCountSelector: ".paginationLabel",
-                  expectedJobCountPattern: "\\s*(\\d+)\\s*$"
+                  expectedJobCountPattern: "\\s*(\\d+)\\s*$",
+                  explicitEmptyState: {
+                      selector: "label:has(.attention.securitySearchString)",
+                      pattern: "^当前没有符合\\s*[\"“]?China[\"”]?\\s*的空缺职位。?$"
+                  }
               },
               fields: {
                   officialTitle: { selector: ".jobTitle.hidden-phone a.jobTitle-link" },
