@@ -4,6 +4,7 @@ import { runSourceCrawl } from "../../src/crawler/runSourceCrawl";
 import {
   buildStagedSourceCrawlPlans,
   expectedChannelSetHash,
+  sourcePlanConfigSha256,
   type SourceCrawlPlan
 } from "../../src/crawler/sourcePlan";
 import { candidateCompanies } from "../../src/data/companyRegistry";
@@ -12,7 +13,11 @@ import {
   evaluatePaginationEvidence,
   type PaginationEvaluation
 } from "../../src/crawler/paginationEvidence";
-import type { PersistentSourceFetchEvidence } from "../../src/crawler/sourceFetchEvidence";
+import {
+  sha256Bytes,
+  type PersistentSourceFetchEvidence
+} from "../../src/crawler/sourceFetchEvidence";
+import { issueAGradeOfficialTotalCertificate } from "../../src/crawler/completenessCertificate";
 
 const CAPTURED_AT = "2026-07-14T14:30:00.000Z";
 const SANDOZ_JSONAPI_FIELDS = [
@@ -958,6 +963,40 @@ describe("strict positive official-total completeness policy", () => {
       source: { ...plan.source, atsKind: "OFFICIAL_JSON" }
     } as SourceCrawlPlan;
     expect((await crawlWith(mismatched, evidence, evaluation)).truth.completenessVerified).toBe(false);
+  });
+
+  it("uses the same Beisen pagination replay policy when issuing the A-grade certificate", async () => {
+    const plan = planFor("source-cttq-social");
+    const { evidence, evaluation } = positiveCountEvidence(plan, { missingReturnedPage: true });
+    const crawled = await crawlWith(plan, evidence, evaluation);
+    const declaration = crawled.fetchEvidence?.declaredCompleteness;
+    const officialArtifact = crawled.fetchEvidence?.artifacts.find(
+      ({ logicalKey }) => logicalKey === declaration?.artifactLogicalKey
+    );
+    if (!crawled.fetchEvidence || !crawled.paginationEvaluation || !crawled.reconciliation ||
+        !officialArtifact) throw new Error("Expected exact Beisen certificate evidence");
+    const bytes = typeof officialArtifact.body === "string"
+      ? Buffer.from(officialArtifact.body, "utf8")
+      : Buffer.from(officialArtifact.body);
+
+    const decision = issueAGradeOfficialTotalCertificate({
+      binding: {
+        releaseCandidateId: "rc-beisen",
+        batchId: "batch-beisen",
+        sourceResultId: "result-beisen",
+        sourceConfigSha256: sourcePlanConfigSha256(plan)
+      },
+      plan,
+      transportSuccess: crawled.truth.transportSuccess,
+      adapterSuccess: crawled.truth.adapterSuccess,
+      evidence: crawled.fetchEvidence,
+      paginationEvaluation: crawled.paginationEvaluation,
+      reconciliation: crawled.reconciliation,
+      jobs: crawled.jobs,
+      officialArtifactSha256: sha256Bytes(bytes).sha256
+    });
+
+    expect(decision.status, JSON.stringify(decision)).toBe("CERTIFIED");
   });
 
   it("replays a Workday later-zero total only when the plan carries an audited policy", async () => {

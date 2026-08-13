@@ -288,6 +288,11 @@ describe("createWorkdaySourceFetch", () => {
     expect(hasRecordLevelChinaEvidence({ locationsText: "Shanghai, United Kingdom (GB)" }, undefined))
       .toBe(false);
     expect(hasRecordLevelChinaEvidence({ locationsText: "Shanghai, China" }, undefined)).toBe(true);
+    expect(hasRecordLevelChinaEvidence({
+      locationsText: "CHN - BJ - Beijing Office",
+      externalPath: "/job/CHN---BJ---Beijing-Office/_4939173-1"
+    }, undefined)).toBe(true);
+    expect(hasRecordLevelChinaEvidence({ locationsText: "CHN - US - Remote" }, undefined)).toBe(false);
   });
   it("retains exact Workday pages and official total evidence without promoting fetch completeness", async () => {
     const fetcher = createWorkdaySourceFetch({

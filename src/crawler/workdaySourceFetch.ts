@@ -2401,6 +2401,10 @@ const MAINLAND_CHINA_LOCATION_NAMES = new Set(
   CITY_MATCHES.flatMap(([english, chinese]) => [normalizeFacetDescriptor(english), normalizeFacetDescriptor(chinese)])
 );
 const NON_MAINLAND_CHINA_CODES = new Set(["hk", "hkg", "mo", "mac", "tw", "twn"]);
+const MAINLAND_CHINA_ADMINISTRATIVE_CODES = new Set([
+  "AH", "BJ", "CQ", "FJ", "GD", "GS", "GX", "GZ", "HA", "HB", "HE", "HI", "HL", "HN",
+  "JL", "JS", "JX", "LN", "NM", "NX", "QH", "SC", "SD", "SH", "SN", "TJ", "XJ", "XZ", "YN", "ZJ"
+]);
 const NON_MAINLAND_CHINA_COUNTRY_NAMES = new Set([
   ...NON_MAINLAND_CHINA_CODES,
   "hong kong", "hong kong sar china", "香港", "中国香港", "中國香港",
@@ -2455,12 +2459,15 @@ function hasKnownForeignCountryPart(descriptor: string): boolean {
     normalizedDescriptor.endsWith(` ${alias}`) ||
     normalizedDescriptor.includes(` ${alias} `));
   if (containsAuditedAlias) return true;
-  return descriptorParts(descriptor).some((part) => {
+  const parts = descriptorParts(descriptor);
+  const hasExplicitMainlandCountry = parts.some((part) => MAINLAND_CHINA_NAMES.has(part));
+  return parts.some((part) => {
     const code = part.toUpperCase();
     return !MAINLAND_CHINA_NAMES.has(part) && (
       EXACT_FOREIGN_COUNTRY_ALIASES.has(part) ||
       KNOWN_REGION_NAMES.has(part) ||
-      (ISO_ALPHA_2_CODES.has(code) && code !== "CN") ||
+      (ISO_ALPHA_2_CODES.has(code) && code !== "CN" &&
+        !(hasExplicitMainlandCountry && MAINLAND_CHINA_ADMINISTRATIVE_CODES.has(code))) ||
       (ISO_ALPHA_3_CODES.has(code) && code !== "CHN")
     );
   });

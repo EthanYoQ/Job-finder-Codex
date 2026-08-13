@@ -239,30 +239,37 @@ export function issueAGradeOfficialTotalCertificate(
   }
 
   let independentlyEvaluated: PaginationEvaluation | undefined;
-  try {
-    independentlyEvaluated = evaluatePaginationEvidence({
-      evidence,
-      expectedChannelIds: canonicalStrings(evidence.pages.flatMap((page) => page.channelId ?? [])),
-      filteredOutput: true,
-      allowPositiveOfficialTotalCountAfterAdapterReconciliation: true
-    });
-  } catch {
-    blockers.add("PAGINATION_NOT_VERIFIED");
-  }
-  if (!independentlyEvaluated || independentlyEvaluated.safeCompleteness !== true ||
-      independentlyEvaluated.verifiedEligible !== true ||
-      independentlyEvaluated.paginationTraceSha256 !== input.paginationEvaluation.paginationTraceSha256 ||
-      JSON.stringify(independentlyEvaluated.derivedAnomalyCodes) !==
-        JSON.stringify(input.paginationEvaluation.derivedAnomalyCodes)) {
-    blockers.add("PAGINATION_NOT_VERIFIED");
-  }
-  if (plan.source.id !== "source-gsk-china-social" && !validateStrictOfficialTotalCertificateEvidence({
+  if (plan.source.id === "source-gsk-china-social") {
+    try {
+      independentlyEvaluated = evaluatePaginationEvidence({
+        evidence,
+        expectedChannelIds: canonicalStrings(evidence.pages.flatMap((page) => page.channelId ?? [])),
+        filteredOutput: true,
+        allowPositiveOfficialTotalCountAfterAdapterReconciliation: true
+      });
+    } catch {
+      blockers.add("PAGINATION_NOT_VERIFIED");
+    }
+    if (!independentlyEvaluated || independentlyEvaluated.safeCompleteness !== true ||
+        independentlyEvaluated.verifiedEligible !== true ||
+        independentlyEvaluated.paginationTraceSha256 !== input.paginationEvaluation.paginationTraceSha256 ||
+        JSON.stringify(independentlyEvaluated.derivedAnomalyCodes) !==
+          JSON.stringify(input.paginationEvaluation.derivedAnomalyCodes)) {
+      blockers.add("PAGINATION_NOT_VERIFIED");
+    }
+  } else if (validateStrictOfficialTotalCertificateEvidence({
     plan,
     evidence,
     paginationEvaluation: input.paginationEvaluation,
     reconciliation: ledger,
     jobs: input.jobs
-  })) blockers.add("SCOPE_MISMATCH");
+  })) {
+    // The strict source gate has already replayed the exact plan-bound pagination policy,
+    // including source-specific allowances, and compared its trace to this evaluation.
+    independentlyEvaluated = input.paginationEvaluation;
+  } else {
+    blockers.add("SCOPE_MISMATCH");
+  }
 
   const rawOfficialIds = canonicalStrings(evidence.pages.flatMap((page) => page.rawJobIds));
   const legalDedupeCount = ledger.collisionGroups.reduce((sum, group) => sum + group.droppedCount, 0);
