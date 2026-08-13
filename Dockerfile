@@ -70,8 +70,38 @@ COPY ops/install-apt-packages.sh /usr/local/bin/install-apt-packages.sh
 RUN --mount=type=cache,id=ubuntu-26.04-apt-archives,target=/var/cache/apt,sharing=locked \
     --mount=type=cache,id=ubuntu-26.04-apt-lists,target=/var/lib/apt,sharing=locked \
     sh /usr/local/bin/install-apt-packages.sh ca-certificates libpq5 libreadline8t64 openssl util-linux \
-    && groupadd --gid 1000 node \
-    && useradd --uid 1000 --gid 1000 --create-home --home-dir /home/node --shell /usr/sbin/nologin node
+    && existing_node_gid="$(getent group node | cut -d: -f3 || true)" \
+    && { test -z "$existing_node_gid" || test "$existing_node_gid" = "1000"; } \
+    && existing_group="$(getent group 1000 | cut -d: -f1 || true)" \
+    && { test -z "$existing_group" || test "$existing_group" = "ubuntu" || test "$existing_group" = "node"; } \
+    && if test -z "$existing_group"; then groupadd --gid 1000 node; \
+       elif test "$existing_group" != "node"; then groupmod --new-name node "$existing_group"; fi \
+    && existing_node_uid="$(getent passwd node | cut -d: -f3 || true)" \
+    && { test -z "$existing_node_uid" || test "$existing_node_uid" = "1000"; } \
+    && existing_user="$(getent passwd 1000 | cut -d: -f1 || true)" \
+    && { test -z "$existing_user" || test "$existing_user" = "ubuntu" || test "$existing_user" = "node"; } \
+    && existing_home="$(getent passwd 1000 | cut -d: -f6 || true)" \
+    && { test -z "$existing_home" || test "$existing_home" = "/home/ubuntu" || test "$existing_home" = "/home/node"; } \
+    && if test -z "$existing_user"; then \
+         useradd --uid 1000 --gid 1000 --create-home --home-dir /home/node --shell /usr/sbin/nologin node; \
+       elif test "$existing_user" != "node"; then \
+         if test -d "$existing_home"; then \
+           usermod --login node --home /home/node --move-home --shell /usr/sbin/nologin --gid 1000 "$existing_user"; \
+         else \
+           usermod --login node --home /home/node --shell /usr/sbin/nologin --gid 1000 "$existing_user"; \
+         fi; \
+       else \
+         usermod --home /home/node --shell /usr/sbin/nologin --gid 1000 node; \
+       fi \
+    && usermod --groups '' node \
+    && install -d -m 0755 -o 1000 -g 1000 /home/node \
+    && test "$(id -u node)" = "1000" \
+    && test "$(id -g node)" = "1000" \
+    && test "$(id -G node)" = "1000" \
+    && test "$(getent passwd node | cut -d: -f6)" = "/home/node" \
+    && test "$(getent passwd node | cut -d: -f7)" = "/usr/sbin/nologin" \
+    && test "$(stat -c '%u:%g:%a' /home/node)" = "1000:1000:755" \
+    && { test "$existing_home" = "/home/node" || test ! -e "$existing_home"; }
 ADD --checksum=sha256:9739e5aaee4303eb4199c038b04a75d7bc7ac08314af9f763011e211dea62999 \
     https://github.com/brave/brave-browser/releases/download/v1.93.136/brave-browser_1.93.136_amd64.deb \
     /tmp/brave-browser.deb

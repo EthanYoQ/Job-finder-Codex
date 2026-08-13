@@ -41,6 +41,23 @@ describe("production container contract", () => {
     expect(runtimeStage).toContain("COPY --from=production-deps /usr/local/bin/node /usr/local/bin/node");
     expect(runtimeStage).toContain("COPY --from=production-deps /usr/local/LICENSE /usr/local/LICENSE");
     expect(runtimeStage).not.toMatch(/COPY --from=production-deps \/usr\/local\s+\/usr\/local/u);
+    expect(runtimeStage).toContain('existing_group="$(getent group 1000 | cut -d: -f1 || true)"');
+    expect(runtimeStage).toContain('test "$existing_group" = "ubuntu" || test "$existing_group" = "node"');
+    expect(runtimeStage).toContain('groupmod --new-name node "$existing_group"');
+    expect(runtimeStage).toContain('existing_user="$(getent passwd 1000 | cut -d: -f1 || true)"');
+    expect(runtimeStage).toContain('test "$existing_user" = "ubuntu" || test "$existing_user" = "node"');
+    expect(runtimeStage).toContain('test "$existing_home" = "/home/ubuntu" || test "$existing_home" = "/home/node"');
+    expect(runtimeStage).toContain(
+      'usermod --login node --home /home/node --move-home --shell /usr/sbin/nologin --gid 1000 "$existing_user"'
+    );
+    expect(runtimeStage).toContain("usermod --groups '' node");
+    expect(runtimeStage).toContain('test "$(id -u node)" = "1000"');
+    expect(runtimeStage).toContain('test "$(id -g node)" = "1000"');
+    expect(runtimeStage).toContain('test "$(id -G node)" = "1000"');
+    expect(runtimeStage).toContain('test "$(getent passwd node | cut -d: -f6)" = "/home/node"');
+    expect(runtimeStage).toContain('test "$(stat -c \'%u:%g:%a\' /home/node)" = "1000:1000:755"');
+    expect(runtimeStage).toContain('test "$existing_home" = "/home/node" || test ! -e "$existing_home"');
+    expect(runtimeStage).not.toMatch(/&& groupadd --gid 1000 node\s+\\\s+&& useradd/u);
     expect(runtimeStage).toContain('CMD ["node", "node_modules/tsx/dist/cli.mjs", "src/server/httpServer.ts"]');
     expect(runtimeStage).not.toContain("chown -R node:node /app");
     expect(runtimeStage).toContain("COPY --chown=node:node --from=identity /app/node_modules ./node_modules");
