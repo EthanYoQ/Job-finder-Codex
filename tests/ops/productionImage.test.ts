@@ -156,14 +156,16 @@ describe("production container contract", () => {
     expect(workflow.slice(decomposition, upload)).toContain("image-history.jsonl");
     expect(workflow.slice(decomposition, upload)).toContain("image-directory-bytes.txt");
     expect(workflow.slice(decomposition, upload)).toContain("image-package-kib.txt");
+    expect(workflow.slice(decomposition, upload)).toContain("image-package-dpkg-raw.txt");
     expect(workflow.slice(decomposition, upload)).toContain("image-size-identity.txt");
     expect(workflow.slice(decomposition, upload)).toContain('IMAGE_DIGEST="$(docker image inspect');
     expect(workflow.slice(decomposition, upload)).toContain("docker history --no-trunc --human=false");
     expect(workflow.slice(decomposition, upload)).toContain("--network none --user 0 --read-only --cap-drop ALL");
     expect(workflow.slice(decomposition, upload)).toContain("--cap-add DAC_READ_SEARCH");
     expect(workflow.slice(decomposition, upload)).toContain("--entrypoint dpkg-query");
-    expect(workflow.slice(decomposition, upload)).toContain("'--showformat=${Installed-Size}\\t${binary:Package}\\t${Version}\\n'");
-    expect(workflow.slice(decomposition, upload)).toContain("awk -F '\\t' 'NF != 3 || $1 !~ /^[0-9]+$/");
+    expect(workflow.slice(decomposition, upload)).toContain("'--showformat=${db:Status-Abbrev}\\t${Installed-Size}\\t${binary:Package}\\t${Version}\\n'");
+    expect(workflow.slice(decomposition, upload)).toContain("awk -F '\\t' '$1 == \"ii \"");
+    expect(workflow.slice(decomposition, upload)).toContain("END { if (count == 0) exit 1 }");
     expect(upload).toBeGreaterThan(record);
     expect(upload).toBeGreaterThan(decomposition);
     expect(sizeGate).toBeGreaterThan(upload);
