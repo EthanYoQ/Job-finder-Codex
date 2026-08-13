@@ -113,26 +113,26 @@ ARG BUILD_SOURCE_TREE_SHA256
 LABEL org.opencontainers.image.title="Job Finder" \
   org.opencontainers.image.revision="${BUILD_COMMIT_SHA}" \
   io.jobfinder.source-tree-sha256="${BUILD_SOURCE_TREE_SHA256}"
-COPY --from=identity /app/package.json ./package.json
-COPY --from=identity /app/node_modules ./node_modules
-COPY --from=identity /app/dist ./dist
-COPY --from=identity /app/ops ./ops
+COPY --chown=node:node --from=identity /app/package.json ./package.json
+COPY --chown=node:node --from=identity /app/node_modules ./node_modules
+COPY --chown=node:node --from=identity /app/dist ./dist
+COPY --chown=node:node --from=identity /app/ops ./ops
 # CSL's leaf certificate names this intermediate at http://cacerts.geotrust.com/GeoTrustTLSRSACAG1.crt.
 ENV NODE_EXTRA_CA_CERTS=/app/ops/certificates/geotrust-tls-rsa-ca-g1.pem
 RUN set -eu; \
   certificate_sha256="$(openssl x509 -in /app/ops/certificates/geotrust-tls-rsa-ca-g1.pem -outform DER | sha256sum | cut -d ' ' -f 1)"; \
   test "$certificate_sha256" = "c06e307f7cfc1d32fa72a4c033c87b90019af216f0775d64978a2eca6c8a230e"
-COPY --from=identity /app/scripts ./scripts
-COPY --from=identity /app/src ./src
-COPY --from=identity /app/prisma ./prisma
-COPY --from=identity /app/tsconfig.json ./tsconfig.json
-COPY --from=identity /app/index.html /app/index.html
-COPY --from=identity /app/vite.config.ts /app/vite.config.ts
-COPY --from=identity /app/build-identity.json /app/build-identity.json
-COPY --from=identity /app/Dockerfile /app/Dockerfile
-COPY --from=identity /app/.dockerignore /app/.dockerignore
+COPY --chown=node:node --from=identity /app/scripts ./scripts
+COPY --chown=node:node --from=identity /app/src ./src
+COPY --chown=node:node --from=identity /app/prisma ./prisma
+COPY --chown=node:node --from=identity /app/tsconfig.json ./tsconfig.json
+COPY --chown=node:node --from=identity /app/index.html /app/index.html
+COPY --chown=node:node --from=identity /app/vite.config.ts /app/vite.config.ts
+COPY --chown=node:node --from=identity /app/build-identity.json /app/build-identity.json
+COPY --chown=node:node --from=identity /app/Dockerfile /app/Dockerfile
+COPY --chown=node:node --from=identity /app/.dockerignore /app/.dockerignore
 
-RUN mkdir -p /app/outputs && chmod 0700 /app/outputs && chown -R node:node /app
+RUN install -d -m 0700 -o node -g node /app/outputs
 USER node
 
 EXPOSE 3000

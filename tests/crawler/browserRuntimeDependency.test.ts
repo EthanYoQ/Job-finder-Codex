@@ -27,7 +27,8 @@ describe("browser-backed crawler runtime dependencies", () => {
     expect(runtime).toContain("args:[...FORMAL_CHROMIUM_ARGS]");
     expect(runtime).not.toMatch(/P0_CHROMIUM_PATH|P0_CHROME_CHANNEL/u);
     expect(dockerfile).toMatch(/USER\s+(?!root\b)\S+/u);
-    expect(dockerfile).toMatch(/RUN [^\n]*chown -R node:node \/app[\s\S]*USER node/u);
+    expect(runtimeStage).not.toContain("chown -R node:node /app");
+    expect(runtimeStage).toContain("install -d -m 0700 -o node -g node /app/outputs");
     expect(readFileSync("scripts/browser-runtime-smoke.mjs", "utf8")).not.toContain("--no-sandbox");
     expect(readFileSync("src/readiness/formalBrowserPreflight.ts", "utf8")).not.toContain("--no-sandbox");
     expect(runtime).not.toContain("--no-sandbox");

@@ -212,10 +212,10 @@ describe("deployment configuration", () => {
     expect(compose).toContain("x-job-finder-image: &job-finder-image \"ghcr.io/ethanyoq/job-finder-rc022-cloud-acceptance@sha256:${JOB_FINDER_IMAGE_DIGEST:?");
     expect(compose.match(/^    image: \*job-finder-image$/gmu)).toHaveLength(10);
     expect(compose).not.toMatch(/^    build:/gmu);
-    expect(dockerfile).toMatch(/COPY --from=identity \/app\/scripts \.\/scripts/);
-    expect(dockerfile).toMatch(/COPY --from=identity \/app\/src \.\/src/);
-    expect(dockerfile).toMatch(/COPY --from=identity \/app\/prisma \.\/prisma/);
-    expect(dockerfile).toMatch(/COPY --from=identity \/app\/node_modules \.\/node_modules/);
+    expect(dockerfile).toMatch(/COPY --chown=node:node --from=identity \/app\/scripts \.\/scripts/);
+    expect(dockerfile).toMatch(/COPY --chown=node:node --from=identity \/app\/src \.\/src/);
+    expect(dockerfile).toMatch(/COPY --chown=node:node --from=identity \/app\/prisma \.\/prisma/);
+    expect(dockerfile).toMatch(/COPY --chown=node:node --from=identity \/app\/node_modules \.\/node_modules/);
     expect(dockerfile).toMatch(/COPY --from=pg16-client \/usr\/lib\/postgresql\/16\/bin\/pg_dump/);
   });
 

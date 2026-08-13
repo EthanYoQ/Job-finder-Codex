@@ -33,12 +33,18 @@ describe("production container contract", () => {
       /FROM build AS identity[\s\S]*RUN rm -rf \/app\/node_modules\s*COPY --from=production-deps \/app\/node_modules \.\/node_modules[\s\S]*generate-build-identity/u
     );
     expect(dockerfile).not.toContain("FROM production-deps AS identity");
-    expect(dockerfile).toContain("COPY --from=identity /app/node_modules ./node_modules");
+    expect(dockerfile).toContain("COPY --chown=node:node --from=identity /app/node_modules ./node_modules");
     const runtimeStage = extractProductionNodeStage(dockerfile, "runtime");
     expect(runtimeStage).not.toContain("package-lock.json");
     expect(runtimeStage).not.toMatch(/npm install --global/u);
     expect(runtimeStage).toContain("rm -rf /usr/local/lib/node_modules/npm /usr/local/bin/npm /usr/local/bin/npx");
     expect(runtimeStage).toContain('CMD ["node", "node_modules/tsx/dist/cli.mjs", "src/server/httpServer.ts"]');
+    expect(runtimeStage).not.toContain("chown -R node:node /app");
+    expect(runtimeStage).toContain("COPY --chown=node:node --from=identity /app/node_modules ./node_modules");
+    expect(runtimeStage).toContain("install -d -m 0700 -o node -g node /app/outputs");
+    const identityCopies = runtimeStage.match(/^COPY --chown=node:node --from=identity .+$/gmu) ?? [];
+    expect(identityCopies).toHaveLength(13);
+    expect(runtimeStage.match(/^COPY (?!--chown=node:node )[^\n]*--from=identity .+$/gmu)).toBeNull();
     expect(workflow).toContain("test ! -e /usr/local/lib/node_modules/npm && ! command -v npm && ! command -v npx");
     expect(workflow).toContain("scripts/runtime-exposure-probe.mjs > .runtime/security/runtime-exposure-raw.json");
     expect(workflow).toContain("scripts/bind-runtime-exposure-report.ts");

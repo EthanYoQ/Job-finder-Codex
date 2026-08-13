@@ -31,7 +31,9 @@ describe("formal compose release authority",()=>{
     expect(compose).not.toMatch(/--release-candidate-id|--commit-sha|--roster-sha256|--batch-kind/u);
   });
   it("inherits the image's non-root service user and does not replace /app with a root-owned bind",()=>{
-    expect(readFileSync("Dockerfile","utf8")).toMatch(/chown -R node:node \/app[\s\S]*USER node/u);
+    const dockerfile=readFileSync("Dockerfile","utf8");
+    expect(dockerfile).not.toContain("chown -R node:node /app");
+    expect(dockerfile).toMatch(/COPY --chown=node:node --from=identity \/app\/node_modules \.\/node_modules[\s\S]*USER node/u);
     expect(compose).not.toMatch(/target:\s*\/app(?:\s|$)/u);
   });
   it("runs one default formal scheduler and one DB-authority manual worker",()=>{
@@ -59,6 +61,6 @@ describe("formal compose release authority",()=>{
     expect(compose).toMatch(/formal-artifacts:\s*$/mu);
     expect(compose.match(/source:\s*formal-artifacts/g)?.length).toBeGreaterThanOrEqual(4);
     expect(compose).toMatch(/target:\s*\/app\/outputs[\s\S]*read_only:\s*true/u);
-    expect(readFileSync("Dockerfile","utf8")).toMatch(/mkdir -p \/app\/outputs[\s\S]*chmod 0700 \/app\/outputs/u);
+    expect(readFileSync("Dockerfile","utf8")).toMatch(/install -d -m 0700 -o node -g node \/app\/outputs[\s\S]*USER node/u);
   });
 });
