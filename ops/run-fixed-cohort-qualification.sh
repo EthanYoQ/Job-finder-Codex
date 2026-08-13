@@ -7,6 +7,8 @@ set -eu
 : "${GITHUB_RUN_ID:?set GITHUB_RUN_ID}"
 : "${GITHUB_REPOSITORY:?set GITHUB_REPOSITORY}"
 
+. "$PWD/ops/libpq-url.sh"
+
 if [ "$FORMAL_ROUND" != 1 ] && [ "$FORMAL_ROUND" != 2 ]; then
   echo "FORMAL_ROUND must be 1 or 2" >&2
   exit 2
@@ -20,7 +22,7 @@ qualification_root="$PWD/.runtime/formal-qualification-input"
 network="job-finder-formal-${GITHUB_RUN_ID}"
 postgres_name="job-finder-formal-postgres-${GITHUB_RUN_ID}"
 database_url="postgresql://jobfinder:formal-qualification-password@postgres/jobfinder?schema=public"
-postgres_network_database_url="${database_url%%\?*}"
+libpq_database_url="$(normalize_libpq_database_url "$database_url")"
 admin_email="qualification-owner@example.com"
 admin_hash='scrypt$aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa$bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb'
 postgres_image='postgres:16-bookworm@sha256:da788743d2060767375896de4d646f7576f5911461444b372616f19ea61db2ec'
@@ -142,7 +144,7 @@ test "$postgres_ready" = 1
 set_runner_stage POSTGRES_NETWORK_READY
 postgres_network_ready=0
 for attempt in $(seq 1 60); do
-  if postgres_network_probe="$(run_image psql --no-psqlrc --dbname="$postgres_network_database_url" \
+  if postgres_network_probe="$(run_image psql --no-psqlrc --dbname="$libpq_database_url" \
     --tuples-only --no-align --command='SELECT 1')"; then
     if [ "$postgres_network_probe" = 1 ]; then
       postgres_network_ready=1
@@ -178,7 +180,7 @@ dump_database() {
   output_name="$1"
   docker run --rm --network "$network" --read-only --cap-drop ALL \
     --security-opt no-new-privileges:true --tmpfs /tmp:rw,nosuid,nodev,noexec,size=64m,mode=1777 \
-    --volume "$state_root:/state" "$IMAGE_TAG" pg_dump --dbname="$database_url" \
+    --volume "$state_root:/state" "$IMAGE_TAG" pg_dump --dbname="$libpq_database_url" \
     --format=custom --compress=6 --no-owner --no-privileges --file="/state/$output_name"
 }
 
@@ -264,7 +266,7 @@ else
     --receipt /round-one/round-one-state-receipt.json --round-one-run-id "$ROUND_ONE_RUN_ID"
   docker run --rm --network "$network" --read-only --cap-drop ALL --security-opt no-new-privileges:true \
     --tmpfs /tmp:rw,nosuid,nodev,noexec,size=64m,mode=1777 --volume "$input_root:/round-one:ro" \
-    "$IMAGE_TAG" pg_restore --dbname="$database_url" --no-owner --no-privileges /round-one/round-one.dump
+    "$IMAGE_TAG" pg_restore --dbname="$libpq_database_url" --no-owner --no-privileges /round-one/round-one.dump
   docker run --rm --network "$network" --read-only --cap-drop ALL --security-opt no-new-privileges:true \
     --tmpfs /tmp:rw,nosuid,nodev,noexec,size=64m,mode=1777 --env DATABASE_URL="$database_url" \
     --env GITHUB_REPOSITORY="$GITHUB_REPOSITORY" --env GITHUB_SHA="$GITHUB_SHA" \

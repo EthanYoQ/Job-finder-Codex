@@ -41,6 +41,7 @@ function createHarness(round: 1 | 2) {
   const runtime = resolve(root, ".runtime");
   mkdirSync(bin);
   mkdirSync(resolve(root, "ops"));
+  copyFileSync(resolve(repoRoot, "ops", "libpq-url.sh"), resolve(root, "ops", "libpq-url.sh"));
   mkdirSync(resolve(runtime, "security"), { recursive: true });
   mkdirSync(resolve(runtime, "restore"), { recursive: true });
   copyFileSync(resolve(repoRoot, "ops", "run-fixed-cohort-qualification.sh"), resolve(root, "ops", "run-fixed-cohort-qualification.sh"));
@@ -179,6 +180,9 @@ describe("formal Launch Cohort qualification runner", () => {
     expect(networkProbes).toHaveLength(1);
     expect(networkProbes[0]).toContain("--dbname=postgresql://jobfinder:formal-qualification-password@postgres/jobfinder ");
     expect(networkProbes[0]).not.toContain("--dbname=postgresql://jobfinder:formal-qualification-password@postgres/jobfinder?schema=public");
+    const nativePostgresCommands = events.split("\n").filter((line) => /\b(?:psql|pg_dump|pg_restore)\b/u.test(line));
+    expect(nativePostgresCommands).not.toHaveLength(0);
+    expect(nativePostgresCommands.every((line) => !line.includes("--dbname=postgresql://jobfinder:formal-qualification-password@postgres/jobfinder?schema=public"))).toBe(true);
     expect(events.indexOf("scripts/p0-staged-crawl.ts")).toBeLessThan(events.indexOf("scripts/p0-fixed-cohort-audit.ts"));
     expect(events.indexOf("scripts/p0-fixed-cohort-audit.ts")).toBeLessThan(events.indexOf("p0-formal-qualification-state.ts capture"));
     expect(events).toContain("rm --force job-finder-formal-postgres-12345");
@@ -252,6 +256,9 @@ describe("formal Launch Cohort qualification runner", () => {
     const ready = events.indexOf("scripts/p0-authoritative-launch-receipt.ts", qualifyRestore);
     expect(verifyFiles).toBeGreaterThanOrEqual(0);
     expect(restore).toBeGreaterThan(verifyFiles);
+    const restoreCommand = events.split("\n").find((line) => line.includes("pg_restore --dbname="));
+    expect(restoreCommand).toContain("pg_restore --dbname=postgresql://jobfinder:formal-qualification-password@postgres/jobfinder ");
+    expect(restoreCommand).not.toContain("?schema=public");
     expect(verifyRestored).toBeGreaterThan(restore);
     expect(crawl).toBeGreaterThan(verifyRestored);
     expect(backup).toBeGreaterThan(crawl);
