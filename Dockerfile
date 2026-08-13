@@ -84,8 +84,12 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     # The immutable runtime deliberately strips the keyring package's APT update channel. \
     && rm -f /tmp/brave-browser.deb /tmp/brave-keyring.deb \
       /etc/apt/sources.list.d/brave-browser-release.list /usr/share/keyrings/brave-browser-archive-keyring.gpg \
+    && apt-get purge -y wget \
+    && apt-get check \
     && test ! -e /etc/apt/sources.list.d/brave-browser-release.list \
-    && test ! -e /usr/share/keyrings/brave-browser-archive-keyring.gpg
+    && test ! -e /usr/share/keyrings/brave-browser-archive-keyring.gpg \
+    && ! dpkg-query -W wget >/dev/null 2>&1 \
+    && ! command -v wget
 COPY --from=pg16-client /usr/lib/postgresql/16/bin/pg_dump /usr/local/bin/pg_dump
 COPY --from=pg16-client /usr/lib/postgresql/16/bin/pg_restore /usr/local/bin/pg_restore
 COPY --from=pg16-client /usr/lib/postgresql/16/bin/psql /usr/local/bin/psql
