@@ -18,14 +18,20 @@ import {
 } from "../src/server/oneShotAlertDelivery";
 import { readRestoreQualificationEvidence } from "../src/ops/restoreQualification";
 import { listCurrentPrismaMigrations } from "../src/db/prismaMigrationManifest";
+import { readBackupAttemptEvidence } from "../src/ops/backupAttemptReceipt";
 
 interface JsonMap {
   [key: string]: unknown;
 }
 
-void main();
+if (process.env.JOBFINDER_MONITORING_CHECK_IMPORT_ONLY !== "1") void runMonitoringCheck();
 
-async function main(): Promise<void> {
+export async function runMonitoringCheck(overrides: {
+  databaseReachable?: boolean;
+  expectedIdentity?: CrawlEvidenceIdentity;
+  health?: OpsAlertInput["health"];
+  restore?: OpsAlertInput["restore"];
+} = {}): Promise<void> {
   const {
     attemptDir: crawlAttemptDir,
     summaryPath: crawlSummaryPath,
@@ -44,17 +50,17 @@ async function main(): Promise<void> {
   );
 
   const [health, dbReachable, backupEvidence, restoreEvidence, readinessSummary] = await Promise.all([
-    checkHealth(healthUrl),
-    checkPostgresReadiness(databaseUrl, {
+    overrides.health ?? checkHealth(healthUrl),
+    overrides.databaseReachable ?? checkPostgresReadiness(databaseUrl, {
       timeoutMs: postgresReadinessTimeoutMs
     }),
     readBackupEvidence(backupDir),
-    readRestoreQualificationEvidence(restoreReceiptPath, listCurrentPrismaMigrations(process.cwd())),
+    overrides.restore ?? readRestoreQualificationEvidence(restoreReceiptPath, listCurrentPrismaMigrations(process.cwd())),
     readOptionalJson(readinessSummaryPath)
   ]);
 
-  let expectedIdentity: CrawlEvidenceIdentity | undefined;
-  if (dbReachable) {
+  let expectedIdentity: CrawlEvidenceIdentity | undefined = overrides.expectedIdentity;
+  if (dbReachable && !expectedIdentity) {
     try {
       expectedIdentity = await loadProductionStagedMonitoringIdentity(databaseUrl);
     } catch {
@@ -85,15 +91,16 @@ async function main(): Promise<void> {
       })
     : { state: "INVALID" as const };
   const crawlSummary = crawlEvidence.state === "VALID" ? crawlEvidence.summary : undefined;
-  const crawlCounters = readRecord(crawlSummary, "counters");
+  const crawlCounters = readRecord(crawlSummary as unknown as JsonMap | undefined, "counters");
+  const globalSuccessRate = readNumber(crawlSummary as unknown as JsonMap | undefined, "globalSuccessRate");
+  const completenessFailureCount = readNumber(crawlCounters, "completenessIncompleteSourceCount");
   const attemptEvidence = monitoringIdentity
     ? await readLatestCrawlAttempt(crawlAttemptDir, {
         now,
         expectedIdentity: monitoringIdentity,
         maxRunningAgeHours: scheduledAttemptMaxRunningAgeHours(process.env),
-        expectedCanonicalSummary: crawlEvidence.state === "VALID" || crawlEvidence.state === "STALE"
-          ? { batchId: crawlEvidence.summary.batchId!, summarySha256: crawlEvidence.summarySha256 }
-          : undefined
+        ...(crawlEvidence.state === "VALID" || crawlEvidence.state === "STALE" ? { expectedCanonicalSummary:
+          { batchId: crawlEvidence.summary.batchId!, summarySha256: crawlEvidence.summarySha256 } } : {})
       })
     : { state: "INVALID" as const };
 
@@ -111,17 +118,17 @@ async function main(): Promise<void> {
           : "INVALID",
       attemptState: attemptEvidence.state,
       summaryState: crawlEvidence.state,
-      globalSuccessRate: readNumber(crawlSummary, "globalSuccessRate"),
-      completenessFailureCount: readNumber(crawlCounters, "completenessIncompleteSourceCount"),
-      consecutiveFailuresByCompany: toFailureMap(readRecord(crawlSummary, "consecutiveFailuresByCompany")),
-      initialQualificationPause: pauseBundle.state === "PAUSED" ? {
+      ...(globalSuccessRate === undefined ? {} : { globalSuccessRate }),
+      ...(completenessFailureCount === undefined ? {} : { completenessFailureCount }),
+      consecutiveFailuresByCompany: toFailureMap(readRecord(crawlSummary as unknown as JsonMap | undefined, "consecutiveFailuresByCompany")),
+      ...(pauseBundle.state === "PAUSED" ? { initialQualificationPause: {
         notificationKey: pauseBundle.evidence.notificationKey,
         releaseCandidateId: pauseBundle.evidence.releaseCandidateId,
         batchId: pauseBundle.evidence.batchId,
         completedRoundCount: pauseBundle.evidence.completedRoundCount,
         stableCompanyCount: pauseBundle.evidence.stableCompanyCount,
         minimumStableCompanyCount: pauseBundle.evidence.minimumStableCompanyCount
-      } : undefined
+      } } : {})
     }
   } satisfies OpsAlertInput);
 
@@ -169,6 +176,9 @@ async function checkHealth(healthUrl: string): Promise<OpsAlertInput["health"]> 
 }
 
 async function readBackupEvidence(backupDir: string): Promise<OpsAlertInput["backup"]> {
+  const attemptEvidence = await readBackupAttemptEvidence(resolve(backupDir, "latest-backup-attempt.json"));
+  if (attemptEvidence.latestBackupAt || attemptEvidence.latestBackupSucceeded !== undefined) return attemptEvidence;
+  if (process.env.BACKUP_ATTEMPT_RECEIPT_REQUIRED === "1") return { latestBackupSucceeded: false };
   let newestMarker: { name: string; mtimeMs: number; mtime: Date } | undefined;
 
   try {

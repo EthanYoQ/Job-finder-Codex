@@ -278,13 +278,14 @@ describe("deployment configuration", () => {
     const nginx = readComposeService(compose, "nginx");
     expect(nginx).toContain('source: ${TLS_DIRECTORY:-./tls-not-configured}');
     expect(nginx).toContain('target: /run/tls');
-    expect(nginx.match(/read_only:\s*true/gu)).toHaveLength(4);
+    expect(nginx.match(/read_only:\s*true/gu)).toHaveLength(5);
     expect(nginx).toContain('${HTTP_PORT:-80}:8080');
     expect(nginx).toContain('${HTTPS_PORT:-443}:8443');
     expect(nginx).toMatch(/user:\s*["']101:101["']/u);
     expect(nginx).toMatch(/cap_drop:\s*\n\s+- ALL/u);
     expect(nginx).toMatch(/read_only:\s*true/u);
     expect(nginx).toContain('source: ./nginx-main.conf');
+    expect(nginx).toContain('source: ./render-nginx-config.sh');
     expect(readRequiredFile(nginxMainPath)).toContain('include /tmp/jobfinder-ingress.conf;');
     for (const serviceName of ["postgres", "web", "worker", "scheduler"]) {
       expect(readComposeService(compose, serviceName)).not.toContain("ports:");
@@ -300,7 +301,7 @@ describe("deployment configuration", () => {
     expect(nginx).toContain('listen 8443 ssl default_server;');
     expect(nginx).toMatch(/server_name "";\s*return 444;/u);
     expect(nginx).toMatch(/server_name \$\{PUBLIC_HOSTNAME\};/u);
-    expect(nginx).toContain('return 308 https://$server_name$request_uri;');
+    expect(nginx).toContain('return 308 https://${PUBLIC_HTTPS_AUTHORITY}$request_uri;');
     expect(nginx).not.toContain('https://$host');
     expect(nginx).toContain('proxy_set_header Host $server_name;');
     expect(nginx).toContain('auth_request /__readiness_gate;');
@@ -308,7 +309,8 @@ describe("deployment configuration", () => {
     expect(nginx).toMatch(/location = \/__readiness_gate \{[\s\S]*internal;[\s\S]*proxy_pass http:\/\/jobfinder_web\/readyz;/u);
     expect(ingress).toContain('PUBLIC_HOSTNAME: ${PUBLIC_HOSTNAME:?set PUBLIC_HOSTNAME}');
     expect(ingress).toContain('target: /etc/nginx/templates/default.conf.template');
-    expect(ingress).toContain("envsubst '$$PUBLIC_HOSTNAME'");
+    expect(ingress).toContain('sh /usr/local/bin/render-jobfinder-nginx-config');
+    expect(ingress).toContain('PUBLIC_HTTPS_PORT: ${HTTPS_PORT:-443}');
   });
 
   it("rate-limits the exact public health endpoint without changing the internal web healthcheck", () => {
@@ -529,13 +531,13 @@ describe("deployment configuration", () => {
     expect(monitor).toMatch(/source:\s*monitor-state[\s\S]*target:\s*\/app\/monitor-state/u);
   });
 
-  it("fails fast on backup errors and healthchecks only recent checksum markers", () => {
+  it("fails fast on backup errors and healthchecks the authoritative attempt receipt", () => {
     const compose = readRequiredFile(composePath);
     const backup = readComposeService(compose, "backup");
 
     expect(backup).toMatch(/restart:\s*["']on-failure:3["']/u);
     expect(backup).toContain("set -eu; while true; do sh ./ops/backup.sh; sleep");
-    expect(backup).toMatch(/healthcheck:[\s\S]*\.dump\.sha256[\s\S]*-mmin/u);
+    expect(backup).toMatch(/healthcheck:[\s\S]*readBackupAttemptEvidence/u);
     expect(backup).toMatch(/start_period:\s*(?:[1-9]\d*s|[1-9]\d*m)/u);
     expect(backup).not.toMatch(/healthcheck:[\s\S]*-name\s+["']\*\.dump["']/u);
   });

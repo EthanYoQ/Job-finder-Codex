@@ -183,8 +183,7 @@ services:
     entrypoint: ["/bin/sh", "-c"]
     command:
       - >-
-        envsubst '$$PUBLIC_HOSTNAME' < /etc/nginx/templates/default.conf.template
-        > /tmp/jobfinder-ingress.conf &&
+        sh /usr/local/bin/render-jobfinder-nginx-config &&
         exec nginx -c /etc/nginx/nginx.conf -g 'daemon off;'
     depends_on:
       web:
@@ -194,6 +193,7 @@ services:
       - "${HTTPS_PORT:-443}:8443"
     environment:
       PUBLIC_HOSTNAME: ${PUBLIC_HOSTNAME:?set PUBLIC_HOSTNAME}
+      PUBLIC_HTTPS_PORT: ${HTTPS_PORT:-443}
     volumes:
       - type: bind
         source: ./nginx.conf
@@ -204,6 +204,12 @@ services:
       - type: bind
         source: ./nginx-main.conf
         target: /etc/nginx/nginx.conf
+        read_only: true
+        bind:
+          create_host_path: false
+      - type: bind
+        source: ./render-nginx-config.sh
+        target: /usr/local/bin/render-jobfinder-nginx-config
         read_only: true
         bind:
           create_host_path: false
@@ -265,9 +271,9 @@ services:
     environment:
       DATABASE_URL: ${DATABASE_URL:?set DATABASE_URL}
       BACKUP_DIR: ${BACKUP_DIR:-/backups}
+      BACKUP_ATTEMPT_RECEIPT_PATH: ${BACKUP_ATTEMPT_RECEIPT_PATH:-/backups/latest-backup-attempt.json}
       BACKUP_RETENTION_DAYS: ${BACKUP_RETENTION_DAYS:-14}
       BACKUP_INTERVAL_SECONDS: ${BACKUP_INTERVAL_SECONDS:-86400}
-      BACKUP_HEALTH_MAX_AGE_MINUTES: ${BACKUP_HEALTH_MAX_AGE_MINUTES:-1500}
     volumes:
       - backup-data:/backups
     depends_on:
@@ -281,12 +287,12 @@ services:
       test:
         [
           "CMD-SHELL",
-          "find \"$${BACKUP_DIR:-/backups}\" -maxdepth 1 -type f -name '*.dump.sha256' -size +0c -mmin \"-$${BACKUP_HEALTH_MAX_AGE_MINUTES:-1500}\" -print -quit | grep -q ."
+          "node node_modules/tsx/dist/cli.mjs -e \"import {readBackupAttemptEvidence} from './src/ops/backupAttemptReceipt.ts'; const e=await readBackupAttemptEvidence(process.env.BACKUP_ATTEMPT_RECEIPT_PATH ?? '/backups/latest-backup-attempt.json'); if(e.latestBackupSucceeded!==true) process.exit(1)\""
         ]
       interval: 5m
       timeout: 10s
       retries: 3
-      start_period: 10m
+      start_period: 2m
     networks:
       - internal
 
@@ -404,6 +410,7 @@ services:
       DATABASE_URL: ${DATABASE_URL:?set DATABASE_URL}
       POSTGRES_READINESS_TIMEOUT_MS: ${POSTGRES_READINESS_TIMEOUT_MS:-2500}
       BACKUP_DIR: /backups
+      BACKUP_ATTEMPT_RECEIPT_REQUIRED: "1"
       MONITOR_INTERVAL_SECONDS: ${MONITOR_INTERVAL_SECONDS:-300}
       READINESS_SUMMARY_PATH: ${READINESS_SUMMARY_PATH:-/app/outputs/readiness-summary.json}
       ALERT_WEBHOOK_URL: ${ALERT_WEBHOOK_URL:?set ALERT_WEBHOOK_URL}

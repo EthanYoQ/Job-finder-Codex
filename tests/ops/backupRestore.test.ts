@@ -98,15 +98,19 @@ printf 'psql-check\\n' >> "$EVENT_LOG"`
     FAKE_BIN: toPosixPath(binDir),
     EVENT_LOG: toPosixPath(eventLog),
     BACKUP_DIR: toPosixPath(backupDir),
+    BACKUP_ATTEMPT_RECEIPT_PATH: resolve(backupDir, "latest-backup-attempt.json"),
     BACKUP_RETENTION_DAYS: "14",
     DATABASE_URL: "postgresql://db:5432/jobfinder"
   };
 
   function run(scriptPath: string, args: string[] = [], env: NodeJS.ProcessEnv = {}) {
+    const backupAttemptReceiptPath = resolve(backupDir, "latest-backup-attempt.json");
     return spawnSync(
       gitShPath,
-      ["-c", 'PATH="$FAKE_BIN:$PATH"; export PATH; exec sh "$@"', "harness", toPosixPath(scriptPath), ...args],
-      { env: { ...baseEnv, ...env }, encoding: "utf8" }
+      ["-c", 'cd "$REPO_ROOT"; PATH="$FAKE_BIN:$PATH"; export PATH; exec sh "$@"', "harness", toPosixPath(scriptPath), ...args],
+      { env: { ...baseEnv, REPO_ROOT: toPosixPath(repoRoot),
+        BACKUP_ATTEMPT_RECEIPT_PATH: backupAttemptReceiptPath,
+        TMP: root, TEMP: root, TMPDIR: toPosixPath(root), ...env }, encoding: "utf8" }
     );
   }
 
@@ -183,6 +187,9 @@ describe("backup and restore scripts", () => {
     expect(existsSync(archive)).toBe(true);
     expect(existsSync(`${archive}.sha256`)).toBe(true);
     expect(existsSync(`${archive}.partial`)).toBe(false);
+    expect(JSON.parse(readFileSync(resolve(success.backupDir, "latest-backup-attempt.json"), "utf8"))).toMatchObject({
+      decision: "SUCCEEDED", archiveName: "jobfinder-20260712T150000Z.dump"
+    });
     expect(readFileSync(success.eventLog, "utf8").trim().split(/\r?\n/).at(-1)).toBe(
       `mv:${toPosixPath(archive)}.sha256`
     );
@@ -198,6 +205,9 @@ describe("backup and restore scripts", () => {
       expect(existsSync(resolve(failure.backupDir, "jobfinder-20260712T150000Z.dump"))).toBe(false);
       expect(existsSync(resolve(failure.backupDir, "jobfinder-20260712T150000Z.dump.sha256"))).toBe(false);
       expect(existsSync(resolve(failure.backupDir, "jobfinder-20260712T150000Z.dump.partial"))).toBe(false);
+      expect(JSON.parse(readFileSync(resolve(failure.backupDir, "latest-backup-attempt.json"), "utf8"))).toMatchObject({
+        decision: "FAILED"
+      });
     }
   }, 15_000);
 

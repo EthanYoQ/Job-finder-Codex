@@ -10,7 +10,7 @@ The production Compose stack publishes only nginx on host ports 80 and 443. Post
    docker compose --env-file .env -f ops/docker-compose.yml config --quiet
    docker compose --env-file .env -f ops/docker-compose.yml up -d postgres bootstrap web
    docker compose --env-file .env -f ops/docker-compose.yml run --rm --no-deps --add-host web:127.0.0.1 \
-     --entrypoint /bin/sh nginx -c "envsubst '\$PUBLIC_HOSTNAME' < /etc/nginx/templates/default.conf.template > /tmp/jobfinder-ingress.conf && nginx -c /etc/nginx/nginx.conf -t"
+     --entrypoint /bin/sh nginx -c "sh /usr/local/bin/render-jobfinder-nginx-config && nginx -c /etc/nginx/nginx.conf -t"
    ```
 
 4. Start the stack with `docker compose --env-file .env -f ops/docker-compose.yml up -d`. Confirm every HTTP path redirects to the configured HTTPS hostname, HTTPS `/livez` remains available for process diagnosis, and `/readyz` returns 200 only after migration and administrator bootstrap complete. Ordinary HTTPS routes are refused whenever `/readyz` is not successful.

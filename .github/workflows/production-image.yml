@@ -141,6 +141,9 @@ jobs:
           openssl req -x509 -newkey rsa:2048 -nodes -days 1 -subj "/CN=$TEST_HOST" \
             -addext "subjectAltName=DNS:$TEST_HOST" -keyout "$TEST_DIR/tls/privkey.pem" \
             -out "$TEST_DIR/tls/fullchain.pem" >/dev/null 2>&1
+          sudo chown 101:101 "$TEST_DIR/tls/privkey.pem"
+          chmod 0640 "$TEST_DIR/tls/privkey.pem"
+          chmod 0644 "$TEST_DIR/tls/fullchain.pem"
           docker network create "$NETWORK"
           trap 'docker rm --force "$NGINX_NAME" "$WEB_NAME" >/dev/null 2>&1 || true; docker network rm "$NETWORK" >/dev/null 2>&1 || true' EXIT
           docker run --detach --name "$WEB_NAME" --network "$NETWORK" --network-alias web \
@@ -149,13 +152,14 @@ jobs:
             --user 101:101 --read-only --cap-drop ALL --security-opt no-new-privileges:true \
             --tmpfs /tmp:rw,nosuid,nodev,noexec,size=32m,mode=1777 \
             --publish 127.0.0.1:18080:8080 --publish 127.0.0.1:18443:8443 \
-            --env PUBLIC_HOSTNAME="$TEST_HOST" \
+            --env PUBLIC_HOSTNAME="$TEST_HOST" --env PUBLIC_HTTPS_PORT=18443 \
             --volume "$PWD/ops/nginx.conf:/etc/nginx/templates/default.conf.template:ro" \
             --volume "$PWD/ops/nginx-main.conf:/etc/nginx/nginx.conf:ro" \
+            --volume "$PWD/ops/render-nginx-config.sh:/usr/local/bin/render-jobfinder-nginx-config:ro" \
             --volume "$TEST_DIR/tls:/run/tls:ro" \
             --entrypoint /bin/sh \
             nginx:1.27-alpine@sha256:65645c7bb6a0661892a8b03b89d0743208a18dd2f3f17a54ef4b76fb8e2f2a10 \
-            -c "envsubst '\$PUBLIC_HOSTNAME' < /etc/nginx/templates/default.conf.template > /tmp/jobfinder-ingress.conf && exec nginx -c /etc/nginx/nginx.conf -g 'daemon off;'"
+            -c "sh /usr/local/bin/render-jobfinder-nginx-config && exec nginx -c /etc/nginx/nginx.conf -g 'daemon off;'"
           READY=0
           for attempt in $(seq 1 30); do
             if docker exec "$NGINX_NAME" nginx -t && curl --fail --silent --cacert "$TEST_DIR/tls/fullchain.pem" \
@@ -169,22 +173,26 @@ jobs:
           mkdir -p "$TEST_DIR/invalid-tls"
           cp "$TEST_DIR/tls/fullchain.pem" "$TEST_DIR/invalid-tls/fullchain.pem"
           openssl genrsa -out "$TEST_DIR/invalid-tls/privkey.pem" 2048 >/dev/null 2>&1
+          sudo chown 101:101 "$TEST_DIR/invalid-tls/privkey.pem"
+          chmod 0640 "$TEST_DIR/invalid-tls/privkey.pem"
+          chmod 0644 "$TEST_DIR/invalid-tls/fullchain.pem"
           if docker run --rm --network "$NETWORK" --add-host web:127.0.0.1 \
             --user 101:101 --read-only --cap-drop ALL --security-opt no-new-privileges:true \
             --tmpfs /tmp:rw,nosuid,nodev,noexec,size=32m,mode=1777 \
-            --env PUBLIC_HOSTNAME="$TEST_HOST" \
+            --env PUBLIC_HOSTNAME="$TEST_HOST" --env PUBLIC_HTTPS_PORT=18443 \
             --volume "$PWD/ops/nginx.conf:/etc/nginx/templates/default.conf.template:ro" \
             --volume "$PWD/ops/nginx-main.conf:/etc/nginx/nginx.conf:ro" \
+            --volume "$PWD/ops/render-nginx-config.sh:/usr/local/bin/render-jobfinder-nginx-config:ro" \
             --volume "$TEST_DIR/invalid-tls:/run/tls:ro" \
             --entrypoint /bin/sh \
             nginx:1.27-alpine@sha256:65645c7bb6a0661892a8b03b89d0743208a18dd2f3f17a54ef4b76fb8e2f2a10 \
-            -c "envsubst '\$PUBLIC_HOSTNAME' < /etc/nginx/templates/default.conf.template > /tmp/jobfinder-ingress.conf && exec nginx -c /etc/nginx/nginx.conf -t"; then
+            -c "sh /usr/local/bin/render-jobfinder-nginx-config && exec nginx -c /etc/nginx/nginx.conf -t"; then
             echo "nginx accepted a certificate/private-key mismatch" >&2
             exit 1
           fi
           REDIRECT_HEADERS="$(curl --silent --show-error --head --header "Host: $TEST_HOST" 'http://127.0.0.1:18080/path?q=1')"
           grep --quiet '^HTTP/1.1 308' <<<"$REDIRECT_HEADERS"
-          grep --quiet "^Location: https://$TEST_HOST/path?q=1" <<<"$REDIRECT_HEADERS"
+          grep --quiet "^Location: https://$TEST_HOST:18443/path?q=1" <<<"$REDIRECT_HEADERS"
           test "$(curl --silent --output /dev/null --write-out '%{http_code}' --header 'Host: attacker.example' http://127.0.0.1:18080/ || true)" = 000
           test "$(curl --insecure --silent --output /dev/null --write-out '%{http_code}' \
             --resolve 'attacker.example:18443:127.0.0.1' 'https://attacker.example:18443/' || true)" = 000
@@ -211,6 +219,9 @@ jobs:
           openssl req -x509 -newkey rsa:2048 -nodes -days 1 -subj "/CN=$TEST_HOST" \
             -addext "subjectAltName=DNS:$TEST_HOST" -keyout "$TEST_DIR/tls/privkey.next" \
             -out "$TEST_DIR/tls/fullchain.next" >/dev/null 2>&1
+          sudo chown 101:101 "$TEST_DIR/tls/privkey.next"
+          chmod 0640 "$TEST_DIR/tls/privkey.next"
+          chmod 0644 "$TEST_DIR/tls/fullchain.next"
           mv -f "$TEST_DIR/tls/privkey.next" "$TEST_DIR/tls/privkey.pem"
           mv -f "$TEST_DIR/tls/fullchain.next" "$TEST_DIR/tls/fullchain.pem"
           docker exec "$NGINX_NAME" nginx -t
