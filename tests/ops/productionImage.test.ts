@@ -165,6 +165,7 @@ describe("production container contract", () => {
     expect(workflow.slice(decomposition, upload)).toContain("--entrypoint dpkg-query");
     expect(workflow.slice(decomposition, upload)).toContain("'--showformat=${db:Status-Abbrev}\\t${Installed-Size}\\t${binary:Package}\\t${Version}\\n'");
     expect(workflow.slice(decomposition, upload)).toContain("awk -F '\\t' '$1 == \"ii \"");
+    expect(workflow.slice(decomposition, upload)).toContain('size=($2 == "" ? "UNKNOWN" : $2)');
     expect(workflow.slice(decomposition, upload)).toContain("END { if (count == 0) exit 1 }");
     expect(upload).toBeGreaterThan(record);
     expect(upload).toBeGreaterThan(decomposition);
