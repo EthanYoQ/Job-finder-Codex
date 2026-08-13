@@ -104,9 +104,11 @@ case "\${1:-}" in
     ;;
 esac
 case "$*" in
-  *"pg_isready --dbname="*)
+  *"psql --no-psqlrc --dbname="*"--command=SELECT 1"*)
     [ "\${FAKE_EXTERNAL_READY:-1}" = 1 ] || exit 1
     printf 'ready\n' > "$EXTERNAL_DB_READY_MARKER"
+    printf '1\n'
+    [ "\${FAKE_EXTERNAL_EXIT_AFTER_OUTPUT:-0}" = 0 ] || exit "$FAKE_EXTERNAL_EXIT_AFTER_OUTPUT"
     ;;
   *scripts/ops-bootstrap.ts*) test -f "$EXTERNAL_DB_READY_MARKER" ;;
   *listCurrentPrismaMigrations*) printf '{"schemaSha256":"%064d","migrationVersion":"20260813013000"}' 0 ;;
@@ -190,10 +192,20 @@ describe("formal Launch Cohort qualification runner", () => {
     const result = harness.run({ FAKE_EXTERNAL_READY: "0" });
     expect(result.status).toBe(1);
     const events = readFileSync(harness.eventLog, "utf8");
-    expect(events.match(/pg_isready --dbname=/gu)).toHaveLength(60);
+    expect(events.match(/psql --no-psqlrc --dbname=/gu)).toHaveLength(60);
     expect(events).not.toContain("scripts/ops-bootstrap.ts");
     expect(events).toContain("rm --force job-finder-formal-postgres-12345");
     expect(events).toContain("network rm job-finder-formal-12345");
+  });
+
+  it("does not accept a PostgreSQL probe that prints the expected row and then exits nonzero", () => {
+    const harness = createHarness(1);
+    const result = harness.run({ FAKE_EXTERNAL_EXIT_AFTER_OUTPUT: "9" });
+    expect(result.status).toBe(1);
+    const events = readFileSync(harness.eventLog, "utf8");
+    expect(events.match(/psql --no-psqlrc --dbname=/gu)).toHaveLength(60);
+    expect(events).not.toContain("scripts/ops-bootstrap.ts");
+    expect(events).toContain("rm --force job-finder-formal-postgres-12345");
   });
 
   it("restores round one, reruns the cohort, qualifies the final backup, and produces READY in round two", () => {

@@ -90,9 +90,12 @@ test "$postgres_ready" = 1
 
 postgres_network_ready=0
 for attempt in $(seq 1 60); do
-  if run_image pg_isready --dbname="$database_url" >/dev/null; then
-    postgres_network_ready=1
-    break
+  if postgres_network_probe="$(run_image psql --no-psqlrc --dbname="$database_url" \
+    --tuples-only --no-align --command='SELECT 1')"; then
+    if [ "$postgres_network_probe" = 1 ]; then
+      postgres_network_ready=1
+      break
+    fi
   fi
   sleep 1
 done
