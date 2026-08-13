@@ -86,7 +86,8 @@ describe("source-bound exact scope exclusion proof", () => {
       beisenJob("1", "北京市"),
       beisenJob("2", "上海市"),
       beisenJob("3", "美国纽约"),
-      beisenJob("4", "United States / Boston")
+      beisenJob("4", "United States / Boston"),
+      beisenJob("5", "香港特别行政区")
     ]);
 
     expect(result.truth.completenessVerified).toBe(true);

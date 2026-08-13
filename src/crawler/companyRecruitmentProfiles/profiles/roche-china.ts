@@ -17,6 +17,7 @@ export const profile_roche_china = {
               kind: "phenom",
               detailBaseUrl: "https://careers.roche.com/cn/zh/job",
               allowedApplyOrigins: ["https://roche.wd3.myworkdayjobs.com"],
+              mixedLocationScopePolicy: "EXACTLY_ONE_MAINLAND_ALTERNATIVE_V1",
               facetScope: {
                   countryIncludeDescriptor: "中国大陆",
                   categoryExcludeDescriptors: ["实习 & 发展项目"]

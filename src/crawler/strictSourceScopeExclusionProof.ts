@@ -9,7 +9,7 @@ type OfficialPlan = Extract<SourceCrawlPlan, { adapterId: "official-json" }>;
 type ProofPolicy =
   | "DONGYANGGUANG_EXPLICIT_FOREIGN_ONLY_V1"
   | "NHU_EXPLICIT_JAPAN_ONLY_V1"
-  | "QILU_EXPLICIT_US_ONLY_V1"
+  | "QILU_EXPLICIT_US_OR_HONG_KONG_ONLY_V2"
   | "THREESBIO_XIANYANG_HOMOGRAPH_V1"
   | "XIUZHENG_NON_RECRUITMENT_TITLE_V1";
 
@@ -39,8 +39,8 @@ const BINDINGS: Readonly<Record<ProofPolicy, Binding>> = {
     entryUrl: "https://xinhecheng1.zhiye.com/social/jobs",
     chainUrl: "https://www.cnhu.com/careers/zh-cn"
   },
-  QILU_EXPLICIT_US_ONLY_V1: {
-    policy: "QILU_EXPLICIT_US_ONLY_V1",
+  QILU_EXPLICIT_US_OR_HONG_KONG_ONLY_V2: {
+    policy: "QILU_EXPLICIT_US_OR_HONG_KONG_ONLY_V2",
     companyId: "company-qilu",
     sourceId: "source-qilu-social",
     atsKind: "BEISEN_ZHIYE",
@@ -147,8 +147,8 @@ function replayBeisen(
   if (config?.kind !== "beisen-zhiye-2022") return false;
   const endpoint = new URL("/api/Jobad/GetJobAdPageList", plan.source.officialEntryUrl).toString();
   const excludedByPage = exactLossIndexes(evidence, (raw) =>
-    policy === "QILU_EXPLICIT_US_ONLY_V1"
-      ? exactUnitedStatesScope(raw)
+    policy === "QILU_EXPLICIT_US_OR_HONG_KONG_ONLY_V2"
+      ? exactQiluUnitedStatesOrHongKongScope(raw)
       : policy === "NHU_EXPLICIT_JAPAN_ONLY_V1"
         ? exactJapanScope(raw)
       : policy === "DONGYANGGUANG_EXPLICIT_FOREIGN_ONLY_V1"
@@ -302,13 +302,14 @@ function exactForeignScope(raw: unknown): boolean {
     : scope.locations.length > 0 && scope.locations.every((value) => exactForeignValue(value, ALL_FOREIGN_TERMS));
 }
 
-function exactUnitedStatesScope(raw: unknown): boolean {
+function exactQiluUnitedStatesOrHongKongScope(raw: unknown): boolean {
   const scope = beisenScopeValues(raw);
   if (!scope || scope.all.length === 0 || scope.all.some((value) =>
     MAINLAND_MARKER.test(value.normalize("NFKC")))) return false;
   return scope.countries.length > 0
-    ? scope.countries.every((value) => EXACT_US_COUNTRY.test(value.normalize("NFKC").trim()))
-    : scope.locations.length > 0 && scope.locations.every((value) => exactForeignValue(value, US_TERMS));
+    ? scope.countries.every((value) => EXACT_QILU_NON_MAINLAND_COUNTRY.test(value.normalize("NFKC").trim()))
+    : scope.locations.length > 0 && scope.locations.every((value) =>
+      exactForeignValue(value, QILU_NON_MAINLAND_TERMS));
 }
 
 function exactJapanScope(raw: unknown): boolean {
@@ -372,10 +373,10 @@ function exactThreeSbioCorrectedOutput(
 
 const MAINLAND_MARKER = /(?:中华人民共和国|中国大陆|中国|大陆|china|prc|mainland|北京|上海|天津|重庆|广东|浙江|江苏|山东|四川|福建|湖北|湖南|河南|河北|安徽|江西|陕西|山西|辽宁|吉林|黑龙江|广西|海南|贵州|云南|甘肃|青海|宁夏|新疆|西藏|内蒙古|深圳|广州|杭州|南京|苏州|武汉|成都|西安)/iu;
 const EXACT_FOREIGN_COUNTRY = /^(?:united states|usa|u\.s\.?|singapore|japan|india|germany|france|canada|australia|united kingdom|u\.k\.?|south korea|republic of korea|hong kong|macau|macao|taiwan|美国|新加坡|日本|印度|德国|法国|加拿大|澳大利亚|英国|韩国|香港|澳门|台湾)$/iu;
-const EXACT_US_COUNTRY = /^(?:united states|usa|u\.s\.?|美国)$/iu;
+const EXACT_QILU_NON_MAINLAND_COUNTRY = /^(?:united states|usa|u\.s\.?|hong kong|美国|香港)$/iu;
 const EXACT_JAPAN_COUNTRY = /^(?:japan|日本)$/iu;
 const ALL_FOREIGN_TERMS = /(?:united states|usa|u\.s\.|boston|new york|san francisco|los angeles|seattle|singapore|japan|tokyo|osaka|kyoto|india|germany|france|canada|australia|united kingdom|u\.k\.|london|south korea|republic of korea|seoul|hong kong|macau|macao|taiwan|overseas|abroad|美国|纽约|波士顿|旧金山|洛杉矶|西雅图|新加坡|日本|东京|大阪|京都|印度|德国|法国|加拿大|澳大利亚|英国|伦敦|韩国|首尔|香港|澳门|台湾|海外|国外)/giu;
-const US_TERMS = /(?:united states|usa|u\.s\.|boston|new york|san francisco|los angeles|seattle|美国|纽约|波士顿|旧金山|洛杉矶|西雅图)/giu;
+const QILU_NON_MAINLAND_TERMS = /(?:united states|usa|u\.s\.|boston|new york|san francisco|los angeles|seattle|hong kong|美国|纽约|波士顿|旧金山|洛杉矶|西雅图|香港)/giu;
 const JAPAN_TERMS = /(?:japan|tokyo|osaka|kyoto|yokohama|nagoya|kobe|fukuoka|日本|东京|東京|大阪|京都|横滨|横浜|名古屋|神户|神戸|福冈|福岡)/giu;
 
 function exactForeignValue(value: string, terms: RegExp): boolean {

@@ -13,8 +13,10 @@ export const profile_livzon = {
           kind: "livzon-cecc",
           config: {
             socialIndexUrl: "https://www.livzon.com.cn/Social.html",
-            listApiUrl:
+            routeDeclaredListApiUrl:
               "https://www.livzon.com.cn/fwebapi/product/product/es/findPage?appId=143150160001&templateId=product",
+            listApiUrl:
+              "https://www.livzon.com.cn/nportal/fwebapi/product/product/es/findPage?appId=143150160001&templateId=product",
             socialPartitionSelector:
               "#c_product_list_041-1735488276515 .p_list > .p_loopitem .e_text-5 a[href]",
             pageSize: 6,

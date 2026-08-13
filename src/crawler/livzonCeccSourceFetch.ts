@@ -27,6 +27,7 @@ export interface LivzonCeccPartitionConfig {
 
 export interface LivzonCeccFetchConfig {
   socialIndexUrl: string;
+  routeDeclaredListApiUrl: string;
   listApiUrl: string;
   pageSize: number;
   maxPagesPerPartition: number;
@@ -418,11 +419,17 @@ function validatePlanBinding(plan: SourceCrawlPlan, config: LivzonCeccFetchConfi
   }
 
   const index = strictOfficialUrl(config.socialIndexUrl);
+  const declaredApi = strictOfficialUrl(config.routeDeclaredListApiUrl);
   const api = strictOfficialUrl(config.listApiUrl);
   if (
     index.origin !== LIVZON_ORIGIN || index.pathname !== "/Social.html" ||
+    declaredApi.origin !== LIVZON_ORIGIN ||
+    declaredApi.pathname !== "/fwebapi/product/product/es/findPage" ||
+    declaredApi.searchParams.get("appId") !== "143150160001" ||
+    declaredApi.searchParams.get("templateId") !== "product" ||
+    [...declaredApi.searchParams.keys()].length !== 2 ||
     api.origin !== LIVZON_ORIGIN ||
-    api.pathname !== "/fwebapi/product/product/es/findPage" ||
+    api.pathname !== "/nportal/fwebapi/product/product/es/findPage" ||
     api.searchParams.get("appId") !== "143150160001" ||
     api.searchParams.get("templateId") !== "product" ||
     [...api.searchParams.keys()].length !== 2 ||
@@ -506,7 +513,8 @@ function parseRouteConfig(
   if (
     !query || query.value !== partition.categoryId || params._detailId !== partition.categoryId ||
     params.size !== config.pageSize || params.from !== 0 ||
-    routeConfig.api !== new URL(config.listApiUrl).pathname + new URL(config.listApiUrl).search
+    routeConfig.api !== new URL(config.routeDeclaredListApiUrl).pathname +
+      new URL(config.routeDeclaredListApiUrl).search
   ) {
     throw new LivzonCeccError("LIVZON_CECC_CATEGORY_BINDING_DRIFT");
   }

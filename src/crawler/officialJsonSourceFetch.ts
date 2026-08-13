@@ -122,7 +122,7 @@ export type OfficialJsonFetchConfig =
       scopeExclusionProof?:
         | "DONGYANGGUANG_EXPLICIT_FOREIGN_ONLY_V1"
         | "NHU_EXPLICIT_JAPAN_ONLY_V1"
-        | "QILU_EXPLICIT_US_ONLY_V1"
+        | "QILU_EXPLICIT_US_OR_HONG_KONG_ONLY_V2"
         | "THREESBIO_XIANYANG_HOMOGRAPH_V1";
     }
   | {
@@ -3002,7 +3002,11 @@ async function fetchPhenomWidgets({
     artifacts.push(countryPreflight.artifact);
     if (countryPreflight.envelope.totalHits !== countryCount ||
       countryPreflight.envelope.jobs.some((raw) =>
-        !isStrictRecord(raw) || stringValue(raw.country) !== facetScope.countryIncludeDescriptor)) {
+        !isStrictRecord(raw) || !phenomRecordMatchesCountryFacet(
+          raw,
+          facetScope.countryIncludeDescriptor,
+          config.mixedLocationScopePolicy === "EXACTLY_ONE_MAINLAND_ALTERNATIVE_V1"
+        ))) {
       return phenomFailure(capturedAt, "Phenom country facet preflight drifted or returned an out-of-scope sample",
         artifacts, pages, counts, losses);
     }
@@ -3383,7 +3387,11 @@ async function fetchPhenomWidgets({
         ? stringValue(raw[facetScope.exclusionField])
         : undefined;
       const structuredScopeDrift = facetScope && (
-        stringValue(raw.country) !== facetScope.countryIncludeDescriptor ||
+        !phenomRecordMatchesCountryFacet(
+          raw,
+          facetScope.countryIncludeDescriptor,
+          config.mixedLocationScopePolicy === "EXACTLY_ONE_MAINLAND_ALTERNATIVE_V1"
+        ) ||
         (partitionScoped
           ? !partitionExpectedOfficialIds?.has(id!) ||
             (presentIncludeDescriptor !== undefined && presentIncludeDescriptor !== facetScope.includeDescriptor) ||
@@ -3535,6 +3543,7 @@ function exactRocheRequestBoundOmittedOffsetPlan(
     JSON.stringify(facet.categoryExcludeDescriptors) === JSON.stringify(["实习 & 发展项目"]) &&
     config.countryFilter === undefined && config.allowedEntryRedirect === undefined &&
     config.allowOmittedOffsetForSinglePage === undefined &&
+    config.mixedLocationScopePolicy === "EXACTLY_ONE_MAINLAND_ALTERNATIVE_V1" &&
     config.requestBoundOmittedOffsetPolicy === "ROCHE_REQUEST_BOUND_OMITTED_OFFSET_V1" &&
     config.pageSize === 100 && config.maxPages === 10 &&
     widgetEndpoint === "https://careers.roche.com/widgets" &&
@@ -4248,6 +4257,35 @@ function phenomCountryIsMainlandChina(country: string | undefined): boolean {
   const normalizedCountry = country.normalize("NFKC").trim().toLowerCase();
   return /^(?:china|prc|mainland china|china mainland|people'?s republic of china|中国|中国大陆|中华人民共和国)$/iu.test(
     normalizedCountry
+  );
+}
+
+function phenomRecordMatchesCountryFacet(
+  record: Record<string, unknown>,
+  countryDescriptor: string,
+  allowMainlandAlternative: boolean
+): boolean {
+  if (stringValue(record.country) === countryDescriptor) return true;
+  if (!allowMainlandAlternative || !phenomCountryIsMainlandChina(countryDescriptor)) return false;
+
+  const primary = stringValue(record.location) ?? stringValue(record.cityStateCountry) ?? stringValue(record.city);
+  const country = stringValue(record.country);
+  const locations = stringsValue(record.multi_location);
+  if (!primary || !country || locations.length < 2 ||
+    !explicitlyForeignOrNonMainlandLocation(primary) ||
+    !explicitlyForeignOrNonMainlandLocation(country)) return false;
+
+  const locationKey = (value: string) => value.normalize("NFKC").trim().toLocaleLowerCase("en-US");
+  const keys = locations.map(locationKey);
+  if (new Set(keys).size !== keys.length || !keys.includes(locationKey(primary))) return false;
+
+  const mainland = locations.filter((location) =>
+    !explicitlyForeignOrNonMainlandLocation(location) &&
+    !phenomLocationHasAmbiguousSegments(location) &&
+    phenomRecordHasChinaScope(undefined, location, undefined)
+  );
+  return mainland.length === 1 && locations.every((location) =>
+    location === mainland[0] || explicitlyForeignOrNonMainlandLocation(location)
   );
 }
 

@@ -356,6 +356,16 @@ function rocheJob(id: string): Record<string, unknown> {
   };
 }
 
+function rocheMixedLocationJob(id: string): Record<string, unknown> {
+  return {
+    ...rocheJob(id),
+    location: "Warsaw, 马佐夫舍, 波兰",
+    city: "Warsaw",
+    country: "波兰",
+    multi_location: ["Warsaw, 马佐夫舍, 波兰", "苏州, 江苏, 中国大陆"]
+  };
+}
+
 function facetPageBodyWithoutFrom(
   jobs: unknown[],
   totalHits: number,
@@ -377,13 +387,14 @@ async function fetchLiveShapedRoche(attack: RocheFixtureAttack = "NONE") {
   if (stagedPlan.officialJsonFetch?.kind !== "phenom") throw new Error("Expected Roche Phenom plan");
   const pageSize = stagedPlan.officialJsonFetch.pageSize ?? 50;
   const eligibleJobs = Array.from({ length: 228 }, (_, index) => rocheJob(`ROCHE-${index + 1}`));
+  eligibleJobs[0] = rocheMixedLocationJob("ROCHE-1");
   const pages = Array.from({ length: Math.ceil(eligibleJobs.length / pageSize) }, (_, index) =>
     eligibleJobs.slice(index * pageSize, (index + 1) * pageSize));
   if (attack === "REPEATED_PAGE") pages[1] = [...pages[0]!];
   if (attack === "SHORT_INTERMEDIATE_PAGE") pages[0] = pages[0]!.slice(0, -1);
   const bodies = [
     facetPageBody([], 300, 0, [{ field: "country", value: { 中国大陆: 229, 瑞士: 71 } }]),
-    facetPageBody([rocheJob("SAMPLE")], 229, 0, [{
+    facetPageBody([rocheMixedLocationJob("SAMPLE")], 229, 0, [{
       field: "category", value: { "销售 & 市场": 228, "实习 & 发展项目": 1 }
     }]),
     ...pages.map((jobs, index) => attack === "WRONG_FROM" && index === 1
@@ -1127,6 +1138,7 @@ describe("Phenom evidence instrumentation", () => {
     const { stagedPlan, fetched, requests } = await fetchLiveShapedRoche();
     expect(stagedPlan.officialJsonFetch).toMatchObject({
       kind: "phenom",
+      mixedLocationScopePolicy: "EXACTLY_ONE_MAINLAND_ALTERNATIVE_V1",
       requestBoundOmittedOffsetPolicy: "ROCHE_REQUEST_BOUND_OMITTED_OFFSET_V1",
       pageSize: 100
     });
@@ -1166,6 +1178,9 @@ describe("Phenom evidence instrumentation", () => {
         collisionGroups: []
       }
     });
+    expect(crawled.jobs).toEqual(expect.arrayContaining([
+      expect.objectContaining({ locationRaw: "苏州, 江苏, 中国大陆", cities: ["苏州"] })
+    ]));
   });
 
   it.each(["ENTRY", "FACET_GLOBAL", "FACET_COUNTRY", "PAGE"] as const)(
@@ -1975,6 +1990,52 @@ describe("Phenom evidence instrumentation", () => {
       completenessState: "VERIFIED",
       completenessCertificateSha256: expect.stringMatching(/^[0-9a-f]{64}$/),
       completenessCertificate: { grade: "A", binding: { sourceResultId: pending.id } }
+    });
+  });
+
+  it("issues the shared A-grade contract for another exact same-scope official-total source", async () => {
+    const { stagedPlan, fetched } = await fetchExactPhenomLocation(
+      "source-lilly-china-social",
+      "Shanghai, China"
+    );
+    const crawled = await runSourceCrawl(stagedPlan, { fetch: async () => fetched });
+    if (!fetched.fetchEvidence || !fetched.paginationEvaluation || !crawled.reconciliation) {
+      throw new Error("Expected complete Lilly certificate inputs");
+    }
+    const declaration = fetched.fetchEvidence.declaredCompleteness!;
+    const officialArtifact = fetched.fetchEvidence.artifacts.find(
+      (artifact) => artifact.logicalKey === declaration.artifactLogicalKey
+    )!;
+    expect(issueAGradeOfficialTotalCertificate({
+      binding: {
+        releaseCandidateId: "rc-lilly-e2e",
+        batchId: "batch-lilly-e2e",
+        sourceResultId: "result-lilly-e2e",
+        sourceConfigSha256: sourcePlanConfigSha256(stagedPlan)
+      },
+      plan: stagedPlan,
+      transportSuccess: crawled.truth.transportSuccess,
+      adapterSuccess: crawled.truth.adapterSuccess,
+      evidence: fetched.fetchEvidence,
+      paginationEvaluation: fetched.paginationEvaluation,
+      reconciliation: crawled.reconciliation,
+      jobs: crawled.jobs,
+      officialArtifactSha256: sha256Bytes(
+        typeof officialArtifact.body === "string"
+          ? Buffer.from(officialArtifact.body, "utf8")
+          : officialArtifact.body
+      ).sha256
+    })).toMatchObject({
+      status: "CERTIFIED",
+      certificate: {
+        schemaVersion: "a-grade-official-total-v2",
+        scope: {
+          companyId: "company-lilly-china",
+          sourceId: "source-lilly-china-social",
+          verificationPolicy: "STRICT_PLAN_BOUND_OFFICIAL_TOTAL_REPLAY_V1"
+        },
+        counts: { officialTotal: 1, finalUniqueJobCount: 1 }
+      }
     });
   });
 

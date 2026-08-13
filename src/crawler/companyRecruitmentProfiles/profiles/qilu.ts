@@ -16,7 +16,7 @@ export const profile_qilu = {
               pageSize: 100,
               maxPages: 5,
               detailPath: "social/detail",
-              scopeExclusionProof: "QILU_EXPLICIT_US_ONLY_V1"
+              scopeExclusionProof: "QILU_EXPLICIT_US_OR_HONG_KONG_ONLY_V2"
           }
       }
     },
