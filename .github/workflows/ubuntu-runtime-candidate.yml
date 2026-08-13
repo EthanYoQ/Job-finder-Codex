@@ -1,0 +1,138 @@
+name: Ubuntu runtime candidate diagnostic
+
+on:
+  push:
+    branches:
+      - codex/launch-integration
+    paths:
+      - .github/workflows/ubuntu-runtime-candidate.yml
+      - ops/Dockerfile.ubuntu-runtime-candidate
+
+permissions:
+  contents: read
+
+jobs:
+  diagnose:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    env:
+      SOURCE_IMAGE: job-finder-source:${{ github.sha }}
+      CANDIDATE_IMAGE: job-finder-ubuntu-candidate:${{ github.sha }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 22.23.1
+          cache: npm
+
+      - run: npm ci
+      - name: Initialize diagnostic evidence
+        if: always()
+        run: |
+          mkdir -p .runtime/ubuntu-candidate
+          printf '{"decision":"DIAGNOSTIC_ONLY","state":"STARTED","commit":"%s"}\n' \
+            '${{ github.sha }}' > .runtime/ubuntu-candidate/status.json
+
+      - name: Build the current exact source image
+        run: |
+          set -o pipefail
+          npm run docker:export-provenance
+          SOURCE_TREE_SHA256="$(npx tsx -e "import { canonicalSourceTreeSha256 } from './src/readiness/buildIdentity.ts'; process.stdout.write(canonicalSourceTreeSha256(process.cwd()))")"
+          docker build --platform linux/amd64 --pull --no-cache \
+            --build-arg BUILD_COMMIT_SHA=${{ github.sha }} \
+            --build-arg BUILD_SOURCE_CLEAN=true \
+            --build-arg BUILD_SOURCE_TREE_SHA256="$SOURCE_TREE_SHA256" \
+            --tag "$SOURCE_IMAGE" . 2>&1 | tee .runtime/ubuntu-candidate/source-build.log
+
+      - name: Build the fixed Ubuntu 26.04 LTS runtime candidate
+        run: |
+          set -o pipefail
+          docker build --platform linux/amd64 --no-cache \
+            --file ops/Dockerfile.ubuntu-runtime-candidate \
+            --build-arg SOURCE_IMAGE="$SOURCE_IMAGE" \
+            --tag "$CANDIDATE_IMAGE" . 2>&1 | tee .runtime/ubuntu-candidate/candidate-build.log
+          docker image inspect "$CANDIDATE_IMAGE" > .runtime/ubuntu-candidate/image-inspect.json
+
+      - name: Exercise Prisma and PostgreSQL 16 across the candidate ABI
+        run: |
+          NETWORK="job-finder-ubuntu-candidate-${{ github.run_id }}"
+          POSTGRES_NAME="job-finder-ubuntu-postgres-${{ github.run_id }}"
+          DATABASE_URL='postgresql://jobfinder:candidate-test-password@postgres/jobfinder?schema=public'
+          docker network create "$NETWORK"
+          trap 'docker rm --force "$POSTGRES_NAME" >/dev/null 2>&1 || true; docker network rm "$NETWORK" >/dev/null 2>&1 || true' EXIT
+          docker run --detach --name "$POSTGRES_NAME" --network "$NETWORK" --network-alias postgres \
+            --env POSTGRES_DB=jobfinder --env POSTGRES_USER=jobfinder --env POSTGRES_PASSWORD=candidate-test-password \
+            postgres:16-bookworm@sha256:da788743d2060767375896de4d646f7576f5911461444b372616f19ea61db2ec
+          READY=0
+          for attempt in $(seq 1 30); do
+            if docker exec "$POSTGRES_NAME" pg_isready -U jobfinder -d jobfinder; then READY=1; break; fi
+            sleep 1
+          done
+          test "$READY" = 1
+          docker run --rm --network "$NETWORK" --env DATABASE_URL="$DATABASE_URL" "$CANDIDATE_IMAGE" \
+            node node_modules/prisma/build/index.js migrate deploy
+          test "$(docker run --rm --network "$NETWORK" --env DATABASE_URL="$DATABASE_URL" "$CANDIDATE_IMAGE" \
+            node -e 'const {PrismaClient}=require("@prisma/client");const p=new PrismaClient();p.$queryRawUnsafe("SELECT 42 AS value").then(r=>{process.stdout.write(String(r[0].value))}).finally(()=>p.$disconnect())')" = 42
+          test "$(docker run --rm --network "$NETWORK" --env PGPASSWORD=candidate-test-password "$CANDIDATE_IMAGE" \
+            psql --host=postgres --username=jobfinder --dbname=jobfinder --tuples-only --no-align --command='SELECT 43')" = 43
+
+      - name: Exercise the formal browser under production hardening
+        run: |
+          docker run --rm --read-only --cap-drop ALL --security-opt no-new-privileges:true \
+            --tmpfs /tmp:rw,nosuid,nodev,noexec,size=1g,mode=1777 \
+            --entrypoint node "$CANDIDATE_IMAGE" \
+            node_modules/tsx/dist/cli.mjs scripts/browser-runtime-smoke.mjs \
+            > .runtime/ubuntu-candidate/browser-runtime-raw.json
+
+      - name: Scan the exact candidate image
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # 0.33.1
+        with:
+          image-ref: ${{ env.CANDIDATE_IMAGE }}
+          format: json
+          output: .runtime/ubuntu-candidate/trivy-image.json
+          severity: HIGH,CRITICAL
+          ignore-unfixed: false
+          vuln-type: os,library
+          scanners: vuln
+          version: v0.70.0
+
+      - name: Summarize candidate evidence
+        run: |
+          SOURCE_DIGEST="$(docker image inspect --format '{{.Id}}' "$SOURCE_IMAGE")"
+          CANDIDATE_DIGEST="$(docker image inspect --format '{{.Id}}' "$CANDIDATE_IMAGE")"
+          jq -e --arg digest "$CANDIDATE_DIGEST" '
+            .SchemaVersion == 2 and .ArtifactType == "container_image" and .Metadata.ImageID == $digest and
+            .Metadata.OS.Family == "ubuntu" and .Metadata.OS.Name == "26.04" and
+            ([.Results[] | select(.Class == "os-pkgs" and .Type == "ubuntu")] | length == 1) and
+            ([.Results[] | select(.Class == "os-pkgs" and .Type == "ubuntu") | .Packages | length][0] > 0)
+          ' .runtime/ubuntu-candidate/trivy-image.json >/dev/null
+          jq -n \
+            --arg decision "DIAGNOSTIC_ONLY" \
+            --arg commit "${{ github.sha }}" \
+            --arg sourceImageDigest "$SOURCE_DIGEST" \
+            --arg candidateImageDigest "$CANDIDATE_DIGEST" \
+            --arg imageBytes "$(docker image inspect --format '{{.Size}}' "$CANDIDATE_IMAGE")" \
+            --arg os "$(jq -r '.Metadata.OS.Family + ":" + .Metadata.OS.Name' .runtime/ubuntu-candidate/trivy-image.json)" \
+            --argjson highCritical "$(jq '[.Results[]?.Vulnerabilities[]? | select(.Severity == "HIGH" or .Severity == "CRITICAL")] | length' .runtime/ubuntu-candidate/trivy-image.json)" \
+            '{decision:$decision,commit:$commit,sourceImageDigest:$sourceImageDigest,candidateImageDigest:$candidateImageDigest,imageBytes:($imageBytes|tonumber),os:$os,highCritical:$highCritical}' \
+            > .runtime/ubuntu-candidate/summary-base.json
+          SUMMARY_SHA256="$(sha256sum .runtime/ubuntu-candidate/summary-base.json | cut -d ' ' -f 1)"
+          jq --arg contentSha256 "$SUMMARY_SHA256" '. + {contentSha256:$contentSha256}' \
+            .runtime/ubuntu-candidate/summary-base.json | tee .runtime/ubuntu-candidate/summary.json
+          rm .runtime/ubuntu-candidate/summary-base.json
+          printf '{"decision":"DIAGNOSTIC_ONLY","state":"COMPLETED","commit":"%s","summarySha256":"%s"}\n' \
+            '${{ github.sha }}' "$(sha256sum .runtime/ubuntu-candidate/summary.json | cut -d ' ' -f 1)" \
+            > .runtime/ubuntu-candidate/status.json
+
+      - name: Preserve candidate evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: ubuntu-runtime-candidate-${{ github.sha }}
+          path: .runtime/ubuntu-candidate
+          if-no-files-found: error
+          retention-days: 3

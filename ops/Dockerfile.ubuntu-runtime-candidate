@@ -1,0 +1,52 @@
+# syntax=docker/dockerfile:1.7
+
+ARG SOURCE_IMAGE
+FROM ${SOURCE_IMAGE} AS source
+
+FROM ubuntu:26.04@sha256:678c6550cc43645e08669028bc177f50be4e7c5b8cca677067b1914d4afc7a03 AS candidate
+WORKDIR /app
+ENV NODE_ENV=production
+ENV HOST=0.0.0.0
+ENV PORT=3000
+ENV NODE_OPTIONS=--enable-source-maps
+ENV HOME=/tmp
+ENV XDG_CONFIG_HOME=/tmp/.config
+ENV XDG_CACHE_HOME=/tmp/.cache
+
+COPY ops/install-apt-packages.sh /usr/local/bin/install-apt-packages.sh
+RUN --mount=type=cache,id=ubuntu-26.04-apt-archives,target=/var/cache/apt,sharing=locked \
+    --mount=type=cache,id=ubuntu-26.04-apt-lists,target=/var/lib/apt,sharing=locked \
+    sh /usr/local/bin/install-apt-packages.sh ca-certificates libpq5 libreadline8t64 openssl util-linux
+
+ADD --checksum=sha256:9739e5aaee4303eb4199c038b04a75d7bc7ac08314af9f763011e211dea62999 \
+    https://github.com/brave/brave-browser/releases/download/v1.93.136/brave-browser_1.93.136_amd64.deb \
+    /tmp/brave-browser.deb
+ADD --checksum=sha256:9ea8725ad4241e4d30bc31b0d5213c7ce24b1dcd5247875b2de1bcba8c4e9b00 \
+    https://brave-browser-apt-release.s3.brave.com/pool/main/b/brave-keyring/brave-keyring_1.20-1.deb \
+    /tmp/brave-keyring.deb
+RUN --mount=type=cache,id=ubuntu-26.04-apt-archives,target=/var/cache/apt,sharing=locked \
+    --mount=type=cache,id=ubuntu-26.04-apt-lists,target=/var/lib/apt,sharing=locked \
+    sh /usr/local/bin/install-apt-packages.sh /tmp/brave-keyring.deb /tmp/brave-browser.deb \
+    && ln -s /usr/bin/brave-browser-stable /usr/bin/chromium \
+    && rm -f /tmp/brave-browser.deb /tmp/brave-keyring.deb \
+      /etc/apt/sources.list.d/brave-browser-release.list /usr/share/keyrings/brave-browser-archive-keyring.gpg
+
+COPY --from=source /usr/local/bin/node /usr/local/bin/node
+COPY --from=source /usr/local/LICENSE /usr/local/LICENSE
+COPY --from=source /usr/local/bin/pg_dump /usr/local/bin/pg_dump
+COPY --from=source /usr/local/bin/pg_restore /usr/local/bin/pg_restore
+COPY --from=source /usr/local/bin/psql /usr/local/bin/psql
+COPY --chown=1000:1000 --from=source /app /app
+
+RUN node --version \
+    && pg_dump --version \
+    && pg_restore --version \
+    && psql --version \
+    && ldd -r /usr/local/bin/node \
+    && ldd -r /usr/local/bin/pg_dump \
+    && ldd -r /usr/local/bin/pg_restore \
+    && ldd -r /usr/local/bin/psql \
+    && test "$(readlink -f /usr/bin/chromium)" = "/opt/brave.com/brave/brave-browser"
+
+USER 1000:1000
+CMD ["node", "node_modules/tsx/dist/cli.mjs", "src/server/httpServer.ts"]
