@@ -5,7 +5,7 @@ import { pathToFileURL } from "node:url";
 import {
   evaluateProductionSecurityGate,
   parseNpmAuditProductionFindings,
-  parseTrivyDebianPackageInventory,
+  parseTrivyProductionPackageInventory,
   parseTrivyProductionFindings,
   type ProductionInstalledPackageIdentity,
   type ProductionReachabilityDecision,
@@ -48,9 +48,9 @@ export async function runProductionSecurityGate(
   const installedPackages = parseInstalledPackageInventory(packageInventoryBytes);
   const trivySha256 = sha256(trivyBytes);
   const runtimeExposure = parseRuntimeExposureReceipt(runtimeExposureBytes, args.imageDigest, trivySha256, evaluatedAt);
-  const trivyPackages = parseTrivyDebianPackageInventory(trivy, args.imageDigest);
+  const trivyPackages = parseTrivyProductionPackageInventory(trivy, args.imageDigest);
   if (JSON.stringify(installedPackages) !== JSON.stringify(trivyPackages)) {
-    throw new Error("Trivy Debian package coverage does not match the exact installed package inventory");
+    throw new Error("Trivy production package coverage does not match the exact installed package inventory");
   }
   const browserEvaluatedAt = new Date(browserRuntime.evaluatedAt).getTime();
   const gateEvaluatedAt = evaluatedAt.getTime();

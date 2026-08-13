@@ -6,6 +6,7 @@ import { createHash } from "node:crypto";
 import { createBrowserRuntimeQualificationReceipt } from "../../src/security/browserRuntimeQualification";
 import { createRuntimeExposureReceipt, RUNTIME_EXPOSURE_FORMAL_EXECUTABLES,
   RUNTIME_EXPOSURE_RISKY_EXECUTABLES } from "../../src/security/runtimeExposureQualification";
+import { PRODUCTION_RUNTIME_OS_FAMILY, PRODUCTION_RUNTIME_OS_NAME } from "../../src/readiness/productionImageContract";
 
 const root = resolve(".runtime/.cache/security-gate-test");
 const digest = `sha256:${"a".repeat(64)}`;
@@ -75,8 +76,8 @@ function fixture(reportDigest: string, times: { browserAt?: string; runtimeAt?: 
   const lockSha = createHash("sha256").update(lock).digest("hex");
   writeFileSync(paths.packageLock, lock);
   writeFileSync(paths.trivyReport, JSON.stringify({ SchemaVersion: 2, ArtifactType: "container_image",
-    Metadata: { ImageID: reportDigest, OS: { Family: "debian", Name: "sid" } }, Results: [{
-      Class: "os-pkgs", Type: "debian", Packages: [
+    Metadata: { ImageID: reportDigest, OS: { Family: PRODUCTION_RUNTIME_OS_FAMILY, Name: PRODUCTION_RUNTIME_OS_NAME } }, Results: [{
+      Class: "os-pkgs", Type: PRODUCTION_RUNTIME_OS_FAMILY, Packages: [
         { Name: "base-files", Version: "14", Arch: "amd64" },
         { Name: "libc6", Version: "2.41", Release: "12", Epoch: 1, Arch: "amd64" }
       ]

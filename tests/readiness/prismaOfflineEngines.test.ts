@@ -1,6 +1,6 @@
 import {readFileSync} from "node:fs";
 import {describe,expect,it} from "vitest";
-import {extractProductionNodeStage} from "../../src/readiness/productionImageContract";
+import {extractProductionImageStage} from "../../src/readiness/productionImageContract";
 
 const dockerfile=()=>readFileSync("Dockerfile","utf8");
 
@@ -23,7 +23,7 @@ describe("offline Prisma engine image contract",()=>{
 
   it("generates a usable Prisma client only after the schema is present in the dependency stage",()=>{
     const source=dockerfile();
-    const depsStage=extractProductionNodeStage(source,"deps");
+    const depsStage=extractProductionImageStage(source,"deps");
 
     expect(depsStage).toBeDefined();
     expect(depsStage).toMatch(/^COPY prisma .\/prisma$/mu);

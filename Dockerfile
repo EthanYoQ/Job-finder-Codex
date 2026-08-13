@@ -57,9 +57,8 @@ RUN rm -rf /app/node_modules
 COPY --from=production-deps /app/node_modules ./node_modules
 RUN npx tsx scripts/generate-build-identity.ts --commit=${BUILD_COMMIT_SHA} --clean-provenance=${BUILD_SOURCE_CLEAN} --source-tree-sha256=${BUILD_SOURCE_TREE_SHA256}
 
-FROM node:22-trixie-slim@sha256:f4c1b09232a0ae8f765093968ec82107a1be65cb0bfb36fc831195794f139568 AS runtime
+FROM ubuntu:26.04@sha256:678c6550cc43645e08669028bc177f50be4e7c5b8cca677067b1914d4afc7a03 AS runtime
 WORKDIR /app
-RUN rm -rf /usr/local/lib/node_modules/npm /usr/local/bin/npm /usr/local/bin/npx
 ENV NODE_ENV=production
 ENV HOST=0.0.0.0
 ENV PORT=3000
@@ -68,17 +67,19 @@ ENV HOME=/tmp
 ENV XDG_CONFIG_HOME=/tmp/.config
 ENV XDG_CACHE_HOME=/tmp/.cache
 COPY ops/install-apt-packages.sh /usr/local/bin/install-apt-packages.sh
-RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
-    --mount=type=cache,target=/var/lib/apt,sharing=locked \
-    sh /usr/local/bin/install-apt-packages.sh ca-certificates libpq5 libreadline8t64 util-linux
+RUN --mount=type=cache,id=ubuntu-26.04-apt-archives,target=/var/cache/apt,sharing=locked \
+    --mount=type=cache,id=ubuntu-26.04-apt-lists,target=/var/lib/apt,sharing=locked \
+    sh /usr/local/bin/install-apt-packages.sh ca-certificates libpq5 libreadline8t64 openssl util-linux \
+    && groupadd --gid 1000 node \
+    && useradd --uid 1000 --gid 1000 --create-home --home-dir /home/node --shell /usr/sbin/nologin node
 ADD --checksum=sha256:9739e5aaee4303eb4199c038b04a75d7bc7ac08314af9f763011e211dea62999 \
     https://github.com/brave/brave-browser/releases/download/v1.93.136/brave-browser_1.93.136_amd64.deb \
     /tmp/brave-browser.deb
 ADD --checksum=sha256:9ea8725ad4241e4d30bc31b0d5213c7ce24b1dcd5247875b2de1bcba8c4e9b00 \
     https://brave-browser-apt-release.s3.brave.com/pool/main/b/brave-keyring/brave-keyring_1.20-1.deb \
     /tmp/brave-keyring.deb
-RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
-    --mount=type=cache,target=/var/lib/apt,sharing=locked \
+RUN --mount=type=cache,id=ubuntu-26.04-apt-archives,target=/var/cache/apt,sharing=locked \
+    --mount=type=cache,id=ubuntu-26.04-apt-lists,target=/var/lib/apt,sharing=locked \
     sh /usr/local/bin/install-apt-packages.sh /tmp/brave-keyring.deb /tmp/brave-browser.deb \
     && ln -s /usr/bin/brave-browser-stable /usr/bin/chromium \
     # The immutable runtime deliberately strips the keyring package's APT update channel. \
@@ -86,6 +87,8 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
       /etc/apt/sources.list.d/brave-browser-release.list /usr/share/keyrings/brave-browser-archive-keyring.gpg \
     && test ! -e /etc/apt/sources.list.d/brave-browser-release.list \
     && test ! -e /usr/share/keyrings/brave-browser-archive-keyring.gpg
+COPY --from=production-deps /usr/local/bin/node /usr/local/bin/node
+COPY --from=production-deps /usr/local/LICENSE /usr/local/LICENSE
 COPY --from=pg16-client /usr/lib/postgresql/16/bin/pg_dump /usr/local/bin/pg_dump
 COPY --from=pg16-client /usr/lib/postgresql/16/bin/pg_restore /usr/local/bin/pg_restore
 COPY --from=pg16-client /usr/lib/postgresql/16/bin/psql /usr/local/bin/psql
@@ -94,6 +97,9 @@ RUN test "$(command -v pg_dump)" = "/usr/local/bin/pg_dump" \
   && test "$(command -v psql)" = "/usr/local/bin/psql" \
   && sh -lc 'test "$(command -v pg_dump)" = "/usr/local/bin/pg_dump" && test "$(command -v pg_restore)" = "/usr/local/bin/pg_restore" && test "$(command -v psql)" = "/usr/local/bin/psql"' \
   && test "$(command -v flock)" = "/usr/bin/flock" \
+  && test "$(id -u node)" = "1000" \
+  && test "$(id -g node)" = "1000" \
+  && node --version | grep -E '^v22\.' \
   && test "$(dpkg-query -W -f='${Version}' brave-browser)" = "1.93.136" \
   && test "$(dpkg-query -W -f='${Version}' brave-keyring)" = "1.20" \
   && dpkg-query -W -f='brave-browser=${Version}\n' brave-browser \
@@ -103,11 +109,12 @@ RUN test "$(command -v pg_dump)" = "/usr/local/bin/pg_dump" \
   && psql --version | grep -E '^psql \(PostgreSQL\) 16\.14([ .]|$)' \
   && flock --version | grep -E '^flock from util-linux [0-9]' \
   && flock -n /tmp/flock-build-probe true \
+  && ldd -r /usr/local/bin/node > /tmp/node.ldd 2>&1 \
   && ldd -r /usr/local/bin/pg_dump > /tmp/pg_dump.ldd 2>&1 \
   && ldd -r /usr/local/bin/pg_restore > /tmp/pg_restore.ldd 2>&1 \
   && ldd -r /usr/local/bin/psql > /tmp/psql.ldd 2>&1 \
-  && ! grep -E 'not found|undefined symbol' /tmp/pg_dump.ldd /tmp/pg_restore.ldd /tmp/psql.ldd \
-  && rm -f /tmp/flock-build-probe /tmp/pg_dump.ldd /tmp/pg_restore.ldd /tmp/psql.ldd
+  && ! grep -E 'not found|undefined symbol' /tmp/node.ldd /tmp/pg_dump.ldd /tmp/pg_restore.ldd /tmp/psql.ldd \
+  && rm -f /tmp/flock-build-probe /tmp/node.ldd /tmp/pg_dump.ldd /tmp/pg_restore.ldd /tmp/psql.ldd
 ARG BUILD_COMMIT_SHA
 ARG BUILD_SOURCE_TREE_SHA256
 LABEL org.opencontainers.image.title="Job Finder" \

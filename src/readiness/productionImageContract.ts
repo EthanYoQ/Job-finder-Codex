@@ -3,9 +3,15 @@ export const PRODUCTION_NODE_IMAGE_DIGEST =
   "sha256:f4c1b09232a0ae8f765093968ec82107a1be65cb0bfb36fc831195794f139568" as const;
 export const PRODUCTION_NODE_IMAGE_REF =
   `${PRODUCTION_NODE_IMAGE_REPOSITORY}@${PRODUCTION_NODE_IMAGE_DIGEST}` as const;
-export const PRODUCTION_RUNTIME_IMAGE_REF = PRODUCTION_NODE_IMAGE_REF;
+export const PRODUCTION_RUNTIME_IMAGE_REPOSITORY = "ubuntu:26.04" as const;
+export const PRODUCTION_RUNTIME_IMAGE_DIGEST =
+  "sha256:678c6550cc43645e08669028bc177f50be4e7c5b8cca677067b1914d4afc7a03" as const;
+export const PRODUCTION_RUNTIME_IMAGE_REF =
+  `${PRODUCTION_RUNTIME_IMAGE_REPOSITORY}@${PRODUCTION_RUNTIME_IMAGE_DIGEST}` as const;
+export const PRODUCTION_RUNTIME_OS_FAMILY = "ubuntu" as const;
+export const PRODUCTION_RUNTIME_OS_NAME = "26.04" as const;
 export const PRODUCTION_RUNTIME_APT_PACKAGES = [
-  "ca-certificates", "libpq5", "libreadline8t64", "util-linux"
+  "ca-certificates", "libpq5", "libreadline8t64", "openssl", "util-linux"
 ] as const;
 export const PRODUCTION_BROWSER_MIN_ENGINE_VERSION = "151.0.7922.137" as const;
 export const PRODUCTION_BROWSER_ENGINE_REALPATH = "/opt/brave.com/brave/brave" as const;
@@ -24,7 +30,7 @@ export const PRODUCTION_BROWSER_KEYRING_DEB_SHA256 =
 export const PRODUCTION_RUNTIME_APT_COMMAND =
   `sh /usr/local/bin/install-apt-packages.sh ${PRODUCTION_RUNTIME_APT_PACKAGES.join(" ")}` as const;
 
-export function extractProductionNodeStage(dockerfile: string, stage: "deps" | "production-deps" | "runtime"): string {
+export function extractProductionImageStage(dockerfile: string, stage: "deps" | "production-deps" | "runtime"): string {
   const marker = `FROM ${stage === "runtime" ? PRODUCTION_RUNTIME_IMAGE_REF : PRODUCTION_NODE_IMAGE_REF} AS ${stage}`;
   const start = dockerfile.indexOf(marker);
   if (start < 0) throw new Error(`Production image is missing pinned ${stage} stage`);

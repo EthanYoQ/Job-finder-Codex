@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import {
-  extractProductionNodeStage,
+  extractProductionImageStage,
   PRODUCTION_BROWSER_DEB_SHA256,
   PRODUCTION_BROWSER_DEB_NAME,
   PRODUCTION_BROWSER_DEB_URL,
@@ -10,7 +10,8 @@ import {
   PRODUCTION_BROWSER_KEYRING_DEB_URL,
   PRODUCTION_BROWSER_KEYRING_VERSION,
   PRODUCTION_BROWSER_RELEASE,
-  PRODUCTION_NODE_IMAGE_REF
+  PRODUCTION_NODE_IMAGE_REF,
+  PRODUCTION_RUNTIME_IMAGE_REF
 } from "../../src/readiness/productionImageContract";
 
 const read = (path: string) => readFileSync(path, "utf8");
@@ -34,10 +35,12 @@ describe("production container contract", () => {
     );
     expect(dockerfile).not.toContain("FROM production-deps AS identity");
     expect(dockerfile).toContain("COPY --chown=node:node --from=identity /app/node_modules ./node_modules");
-    const runtimeStage = extractProductionNodeStage(dockerfile, "runtime");
+    const runtimeStage = extractProductionImageStage(dockerfile, "runtime");
     expect(runtimeStage).not.toContain("package-lock.json");
     expect(runtimeStage).not.toMatch(/npm install --global/u);
-    expect(runtimeStage).toContain("rm -rf /usr/local/lib/node_modules/npm /usr/local/bin/npm /usr/local/bin/npx");
+    expect(runtimeStage).toContain("COPY --from=production-deps /usr/local/bin/node /usr/local/bin/node");
+    expect(runtimeStage).toContain("COPY --from=production-deps /usr/local/LICENSE /usr/local/LICENSE");
+    expect(runtimeStage).not.toMatch(/COPY --from=production-deps \/usr\/local\s+\/usr\/local/u);
     expect(runtimeStage).toContain('CMD ["node", "node_modules/tsx/dist/cli.mjs", "src/server/httpServer.ts"]');
     expect(runtimeStage).not.toContain("chown -R node:node /app");
     expect(runtimeStage).toContain("COPY --chown=node:node --from=identity /app/node_modules ./node_modules");
@@ -190,12 +193,13 @@ describe("production container contract", () => {
     expect(dockerfile).toContain(PRODUCTION_BROWSER_KEYRING_DEB_SHA256);
   });
 
-  it("rejects drift in every pinned Node runtime stage", () => {
+  it("rejects drift in every pinned build and runtime base stage", () => {
     const dockerfile = read("Dockerfile");
     for (const stage of ["deps", "production-deps", "runtime"] as const) {
-      expect(extractProductionNodeStage(dockerfile, stage)).toBeTruthy();
-      expect(() => extractProductionNodeStage(
-        dockerfile.replace(`FROM ${PRODUCTION_NODE_IMAGE_REF} AS ${stage}`, `FROM node:22-bookworm-slim AS ${stage}`),
+      const expectedRef = stage === "runtime" ? PRODUCTION_RUNTIME_IMAGE_REF : PRODUCTION_NODE_IMAGE_REF;
+      expect(extractProductionImageStage(dockerfile, stage)).toBeTruthy();
+      expect(() => extractProductionImageStage(
+        dockerfile.replace(`FROM ${expectedRef} AS ${stage}`, `FROM ubuntu:latest AS ${stage}`),
         stage
       )).toThrow(/pinned/u);
     }

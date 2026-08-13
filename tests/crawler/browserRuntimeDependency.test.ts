@@ -1,6 +1,6 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
-import { extractProductionNodeStage, PRODUCTION_BROWSER_DEB_SHA256, PRODUCTION_BROWSER_DEB_URL,
+import { extractProductionImageStage, PRODUCTION_BROWSER_DEB_SHA256, PRODUCTION_BROWSER_DEB_URL,
   PRODUCTION_RUNTIME_APT_COMMAND } from "../../src/readiness/productionImageContract";
 
 describe("browser-backed crawler runtime dependencies", () => {
@@ -17,7 +17,7 @@ describe("browser-backed crawler runtime dependencies", () => {
   it("installs a production browser and exposes the fixed-path smoke command for a later no-network container run", () => {
     const dockerfile = readFileSync("Dockerfile", "utf8");
     expect(dockerfile).toContain("chromium");
-    const runtimeStage = extractProductionNodeStage(dockerfile, "runtime");
+    const runtimeStage = extractProductionImageStage(dockerfile, "runtime");
     expect(runtimeStage).toContain(PRODUCTION_RUNTIME_APT_COMMAND);
     expect(runtimeStage).toContain(PRODUCTION_BROWSER_DEB_URL);
     expect(runtimeStage).toContain(PRODUCTION_BROWSER_DEB_SHA256);
@@ -42,7 +42,7 @@ describe("browser-backed crawler runtime dependencies", () => {
 
   it("binds browser state directories to the writable tmpfs used by the hardened runtime", () => {
     const dockerfile = readFileSync("Dockerfile", "utf8");
-    const runtimeStage = extractProductionNodeStage(dockerfile, "runtime");
+    const runtimeStage = extractProductionImageStage(dockerfile, "runtime");
 
     expect(runtimeStage).toBeDefined();
     expect(runtimeStage).toMatch(/^ENV HOME=\/tmp$/mu);

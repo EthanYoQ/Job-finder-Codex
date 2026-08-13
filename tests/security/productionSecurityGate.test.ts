@@ -8,6 +8,7 @@ import {
   parseTrivyProductionFindings,
   readProductionSecurityReceipt
 } from "../../src/security/productionSecurityGate";
+import { PRODUCTION_RUNTIME_OS_FAMILY, PRODUCTION_RUNTIME_OS_NAME } from "../../src/readiness/productionImageContract";
 
 const receiptRoot = resolve(".runtime/.cache/production-security-reader-test");
 afterEach(() => rmSync(receiptRoot, { recursive: true, force: true }));
@@ -130,7 +131,7 @@ describe("production security gate", () => {
 
   it("normalizes high findings from the image and production lock scanners", () => {
     expect(parseTrivyProductionFindings({ SchemaVersion: 2, ArtifactType: "container_image",
-      Metadata: { OS: { Family: "debian", Name: "sid" } }, Results: [{ Class: "os-pkgs", Type: "debian",
+      Metadata: { OS: { Family: PRODUCTION_RUNTIME_OS_FAMILY, Name: PRODUCTION_RUNTIME_OS_NAME } }, Results: [{ Class: "os-pkgs", Type: PRODUCTION_RUNTIME_OS_FAMILY,
       Packages: [{ Name: "openssl", Version: "3.0.0", Arch: "amd64" }], Vulnerabilities: [{
       VulnerabilityID: "CVE-2026-2000", PkgName: "openssl", InstalledVersion: "3.0.0",
       FixedVersion: "3.0.1", Severity: "CRITICAL"
@@ -200,8 +201,8 @@ describe("production security gate", () => {
 
   it("rejects a report for another image and binds nested npm versions from audit nodes", () => {
     expect(() => parseTrivyProductionFindings({ SchemaVersion: 2, ArtifactType: "container_image",
-      Metadata: { ImageID: `sha256:${"1".repeat(64)}`, OS: { Family: "debian", Name: "sid" } },
-      Results: [{ Class: "os-pkgs", Type: "debian", Packages: [{ Name: "base-files", Version: "14", Arch: "amd64" }] }] },
+      Metadata: { ImageID: `sha256:${"1".repeat(64)}`, OS: { Family: PRODUCTION_RUNTIME_OS_FAMILY, Name: PRODUCTION_RUNTIME_OS_NAME } },
+      Results: [{ Class: "os-pkgs", Type: PRODUCTION_RUNTIME_OS_FAMILY, Packages: [{ Name: "base-files", Version: "14", Arch: "amd64" }] }] },
       `sha256:${"2".repeat(64)}`)).toThrow(/identity/i);
     const lockHash = "3".repeat(64);
     const auditHash = "4".repeat(64);
@@ -217,7 +218,7 @@ describe("production security gate", () => {
 
   it("rejects malformed or unknown scanner severities instead of returning an empty pass", () => {
     expect(() => parseTrivyProductionFindings({ SchemaVersion: 2, ArtifactType: "container_image",
-      Metadata: { OS: { Family: "debian", Name: "sid" } }, Results: [{ Class: "os-pkgs", Type: "debian",
+      Metadata: { OS: { Family: PRODUCTION_RUNTIME_OS_FAMILY, Name: PRODUCTION_RUNTIME_OS_NAME } }, Results: [{ Class: "os-pkgs", Type: PRODUCTION_RUNTIME_OS_FAMILY,
       Packages: [{ Name: "x", Version: "1", Arch: "amd64" }], Vulnerabilities: [{
       VulnerabilityID: "CVE-x", PkgName: "x", InstalledVersion: "1", Severity: "NEW_LEVEL"
     }] }] })).toThrow(/severity/i);
@@ -226,9 +227,9 @@ describe("production security gate", () => {
     } } }, { packages: { "node_modules/x": { version: "1" } } })).toThrow(/invalid/i);
   });
 
-  it("rejects empty, missing, duplicated, or malformed Debian OS scan coverage", () => {
-    const metadata = { OS: { Family: "debian", Name: "sid" } };
-    const osResult = { Class: "os-pkgs", Type: "debian", Packages: [{ Name: "base-files", Version: "14", Arch: "amd64" }] };
+  it("rejects empty, missing, duplicated, or malformed production OS scan coverage", () => {
+    const metadata = { OS: { Family: PRODUCTION_RUNTIME_OS_FAMILY, Name: PRODUCTION_RUNTIME_OS_NAME } };
+    const osResult = { Class: "os-pkgs", Type: PRODUCTION_RUNTIME_OS_FAMILY, Packages: [{ Name: "base-files", Version: "14", Arch: "amd64" }] };
     expect(() => parseTrivyProductionFindings({ SchemaVersion: 2, ArtifactType: "container_image",
       Metadata: {}, Results: [osResult] })).toThrow(/identity|schema/i);
     expect(() => parseTrivyProductionFindings({ SchemaVersion: 2, ArtifactType: "container_image",
@@ -242,6 +243,8 @@ describe("production security gate", () => {
       .toThrow(/coverage/i);
     expect(parseTrivyProductionFindings({ SchemaVersion: 2, ArtifactType: "container_image",
       Metadata: metadata, Results: [osResult] })).toEqual([]);
+    expect(() => parseTrivyProductionFindings({ SchemaVersion: 2, ArtifactType: "container_image",
+      Metadata: { OS: { Family: "debian", Name: "13.6" } }, Results: [osResult] })).toThrow(/identity|schema/i);
   });
 
   it("accepts supported low severities without turning them into blocking findings", () => {

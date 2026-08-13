@@ -1,5 +1,6 @@
 import { createHash } from "node:crypto";
 import { readFile } from "node:fs/promises";
+import { PRODUCTION_RUNTIME_OS_FAMILY, PRODUCTION_RUNTIME_OS_NAME } from "../readiness/productionImageContract";
 
 export type ProductionFindingScanner = "TRIVY" | "NPM_AUDIT";
 export type ProductionVulnerabilitySeverity = "HIGH" | "CRITICAL";
@@ -188,7 +189,7 @@ export function parseTrivyProductionFindings(
   value: unknown,
   expectedImageDigest?: string
 ): ProductionVulnerabilityFinding[] {
-  const { results } = parseTrivyDebianReport(value, expectedImageDigest);
+  const { results } = parseTrivyProductionOsReport(value, expectedImageDigest);
   const findings: ProductionVulnerabilityFinding[] = [];
   for (const result of results) {
     if (!isRecord(result)) throw new Error("Trivy result is invalid");
@@ -212,38 +213,39 @@ export function parseTrivyProductionFindings(
   return findings;
 }
 
-export function parseTrivyDebianPackageInventory(
+export function parseTrivyProductionPackageInventory(
   value: unknown,
   expectedImageDigest?: string
 ): ProductionInstalledPackageIdentity[] {
-  const { osResult } = parseTrivyDebianReport(value, expectedImageDigest);
+  const { osResult } = parseTrivyProductionOsReport(value, expectedImageDigest);
   return (osResult.Packages as unknown[]).map((pkg) => {
-    if (!isRecord(pkg)) throw new Error("Trivy Debian OS package coverage is invalid");
-    const packageName = requiredString(pkg.Name, "Trivy Debian package name");
-    const version = requiredString(pkg.Version, "Trivy Debian package version");
-    const architecture = requiredString(pkg.Arch, "Trivy Debian package architecture");
-    const epoch = pkg.Epoch === undefined ? "" : `${nonnegativeInteger(pkg.Epoch, "Trivy Debian package epoch")}:`;
-    const release = pkg.Release === undefined ? "" : `-${requiredString(pkg.Release, "Trivy Debian package release")}`;
+    if (!isRecord(pkg)) throw new Error("Trivy production OS package coverage is invalid");
+    const packageName = requiredString(pkg.Name, "Trivy production package name");
+    const version = requiredString(pkg.Version, "Trivy production package version");
+    const architecture = requiredString(pkg.Arch, "Trivy production package architecture");
+    const epoch = pkg.Epoch === undefined ? "" : `${nonnegativeInteger(pkg.Epoch, "Trivy production package epoch")}:`;
+    const release = pkg.Release === undefined ? "" : `-${requiredString(pkg.Release, "Trivy production package release")}`;
     return { packageName, version: `${epoch}${version}${release}`, architecture };
   }).sort(comparePackageIdentity);
 }
 
-function parseTrivyDebianReport(value: unknown, expectedImageDigest?: string): {
+function parseTrivyProductionOsReport(value: unknown, expectedImageDigest?: string): {
   results: unknown[];
   osResult: Record<string, unknown>;
 } {
   if (!isRecord(value) || value.SchemaVersion !== 2 || value.ArtifactType !== "container_image" ||
-    !isRecord(value.Metadata) || !isRecord(value.Metadata.OS) || value.Metadata.OS.Family !== "debian" ||
-    typeof value.Metadata.OS.Name !== "string" || value.Metadata.OS.Name.trim().length === 0 ||
+    !isRecord(value.Metadata) || !isRecord(value.Metadata.OS) ||
+    value.Metadata.OS.Family !== PRODUCTION_RUNTIME_OS_FAMILY || value.Metadata.OS.Name !== PRODUCTION_RUNTIME_OS_NAME ||
     !Array.isArray(value.Results) ||
     (expectedImageDigest !== undefined && value.Metadata.ImageID !== expectedImageDigest)) {
     throw new Error("Trivy report identity or schema is invalid");
   }
-  const osResults = value.Results.filter((result) => isRecord(result) && result.Class === "os-pkgs" && result.Type === "debian");
+  const osResults = value.Results.filter((result) => isRecord(result) && result.Class === "os-pkgs" &&
+    result.Type === PRODUCTION_RUNTIME_OS_FAMILY);
   if (osResults.length !== 1 || !Array.isArray(osResults[0]!.Packages) || osResults[0]!.Packages.length === 0 ||
     !osResults[0]!.Packages.every((pkg: unknown) => isRecord(pkg) && typeof pkg.Name === "string" && pkg.Name.trim().length > 0 &&
       typeof pkg.Version === "string" && pkg.Version.trim().length > 0 && typeof pkg.Arch === "string" && pkg.Arch.trim().length > 0)) {
-    throw new Error("Trivy Debian OS package coverage is invalid");
+    throw new Error("Trivy production OS package coverage is invalid");
   }
   return { results: value.Results, osResult: osResults[0]! };
 }
