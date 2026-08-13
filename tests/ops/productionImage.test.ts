@@ -159,7 +159,7 @@ describe("production container contract", () => {
     for (const stage of ["deps", "production-deps", "runtime"] as const) {
       expect(extractProductionNodeStage(dockerfile, stage)).toBeTruthy();
       expect(() => extractProductionNodeStage(
-        dockerfile.replace(`FROM ${PRODUCTION_NODE_IMAGE_REF} AS ${stage}`, `FROM node:22-trixie-slim AS ${stage}`),
+        dockerfile.replace(`FROM ${PRODUCTION_NODE_IMAGE_REF} AS ${stage}`, `FROM node:22-bookworm-slim AS ${stage}`),
         stage
       )).toThrow(/pinned/u);
     }
