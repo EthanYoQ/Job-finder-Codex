@@ -30,7 +30,8 @@ describe("browser runtime qualification", () => {
       Buffer.from(JSON.stringify(receipt)), imageDigest
     )).toEqual(receipt);
     expect(receipt).toMatchObject({
-      decision: "PASSED", browserRelease: "v1.93.136", engineVersion: "151.0.7922.137"
+      decision: "PASSED", browserRelease: "v1.93.136", engineVersion: "151.0.7922.137",
+      keyringAssetSha256: "9ea8725ad4241e4d30bc31b0d5213c7ce24b1dcd5247875b2de1bcba8c4e9b00"
     });
   });
 

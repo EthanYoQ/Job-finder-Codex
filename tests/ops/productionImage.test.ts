@@ -5,6 +5,10 @@ import {
   PRODUCTION_BROWSER_DEB_SHA256,
   PRODUCTION_BROWSER_DEB_NAME,
   PRODUCTION_BROWSER_DEB_URL,
+  PRODUCTION_BROWSER_KEYRING_DEB_NAME,
+  PRODUCTION_BROWSER_KEYRING_DEB_SHA256,
+  PRODUCTION_BROWSER_KEYRING_DEB_URL,
+  PRODUCTION_BROWSER_KEYRING_VERSION,
   PRODUCTION_BROWSER_RELEASE,
   PRODUCTION_NODE_IMAGE_REF
 } from "../../src/readiness/productionImageContract";
@@ -36,6 +40,13 @@ describe("production container contract", () => {
     expect(runtimeStage).toContain(`ADD --checksum=sha256:${PRODUCTION_BROWSER_DEB_SHA256}`);
     expect(runtimeStage).toContain(PRODUCTION_BROWSER_DEB_URL);
     expect(runtimeStage).toContain(PRODUCTION_BROWSER_DEB_NAME);
+    expect(runtimeStage).toContain(PRODUCTION_BROWSER_KEYRING_DEB_NAME);
+    expect(runtimeStage).toContain(PRODUCTION_BROWSER_KEYRING_DEB_URL);
+    expect(runtimeStage).toContain(PRODUCTION_BROWSER_KEYRING_DEB_SHA256);
+    expect(runtimeStage).toContain("/tmp/brave-keyring.deb /tmp/brave-browser.deb");
+    expect(runtimeStage).toContain(`test "$(dpkg-query -W -f='\${Version}' brave-keyring)" = "${PRODUCTION_BROWSER_KEYRING_VERSION}"`);
+    expect(runtimeStage).toContain("test ! -e /etc/apt/sources.list.d/brave-browser-release.list");
+    expect(runtimeStage).toContain("test ! -e /usr/share/keyrings/brave-browser-archive-keyring.gpg");
     expect(runtimeStage).toContain("ln -s /usr/bin/brave-browser-stable /usr/bin/chromium");
     expect(runtimeStage).not.toContain("PRODUCTION_CHROMIUM_MIN_VERSION");
     expect(runtimeStage).toContain(
@@ -135,6 +146,9 @@ describe("production container contract", () => {
       expect(consumer).toContain(PRODUCTION_BROWSER_DEB_URL);
       expect(consumer).toContain(PRODUCTION_BROWSER_DEB_SHA256);
     }
+    expect(dockerfile).toContain(PRODUCTION_BROWSER_KEYRING_DEB_NAME);
+    expect(dockerfile).toContain(PRODUCTION_BROWSER_KEYRING_DEB_URL);
+    expect(dockerfile).toContain(PRODUCTION_BROWSER_KEYRING_DEB_SHA256);
   });
 
   it("rejects drift in every pinned Node runtime stage", () => {

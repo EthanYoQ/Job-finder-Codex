@@ -76,11 +76,18 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
 ADD --checksum=sha256:9739e5aaee4303eb4199c038b04a75d7bc7ac08314af9f763011e211dea62999 \
     https://github.com/brave/brave-browser/releases/download/v1.93.136/brave-browser_1.93.136_amd64.deb \
     /tmp/brave-browser.deb
+ADD --checksum=sha256:9ea8725ad4241e4d30bc31b0d5213c7ce24b1dcd5247875b2de1bcba8c4e9b00 \
+    https://brave-browser-apt-release.s3.brave.com/pool/main/b/brave-keyring/brave-keyring_1.20-1.deb \
+    /tmp/brave-keyring.deb
 RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     --mount=type=cache,target=/var/lib/apt,sharing=locked \
-    sh /usr/local/bin/install-apt-packages.sh /tmp/brave-browser.deb \
+    sh /usr/local/bin/install-apt-packages.sh /tmp/brave-keyring.deb /tmp/brave-browser.deb \
     && ln -s /usr/bin/brave-browser-stable /usr/bin/chromium \
-    && rm -f /tmp/brave-browser.deb /etc/apt/sources.list.d/brave-browser-release.list /usr/share/keyrings/brave-browser-archive-keyring.gpg
+    # The immutable runtime deliberately strips the keyring package's APT update channel. \
+    && rm -f /tmp/brave-browser.deb /tmp/brave-keyring.deb \
+      /etc/apt/sources.list.d/brave-browser-release.list /usr/share/keyrings/brave-browser-archive-keyring.gpg \
+    && test ! -e /etc/apt/sources.list.d/brave-browser-release.list \
+    && test ! -e /usr/share/keyrings/brave-browser-archive-keyring.gpg
 COPY --from=pg16-client /usr/lib/postgresql/16/bin/pg_dump /usr/local/bin/pg_dump
 COPY --from=pg16-client /usr/lib/postgresql/16/bin/pg_restore /usr/local/bin/pg_restore
 COPY --from=pg16-client /usr/lib/postgresql/16/bin/psql /usr/local/bin/psql
@@ -90,6 +97,7 @@ RUN test "$(command -v pg_dump)" = "/usr/local/bin/pg_dump" \
   && sh -lc 'test "$(command -v pg_dump)" = "/usr/local/bin/pg_dump" && test "$(command -v pg_restore)" = "/usr/local/bin/pg_restore" && test "$(command -v psql)" = "/usr/local/bin/psql"' \
   && test "$(command -v flock)" = "/usr/bin/flock" \
   && test "$(dpkg-query -W -f='${Version}' brave-browser)" = "1.93.136" \
+  && test "$(dpkg-query -W -f='${Version}' brave-keyring)" = "1.20" \
   && dpkg-query -W -f='brave-browser=${Version}\n' brave-browser \
   && test "$(readlink -f /usr/bin/chromium)" = "/opt/brave.com/brave/brave-browser" \
   && pg_dump --version | grep -E '^pg_dump \(PostgreSQL\) 16\.14([ .]|$)' \

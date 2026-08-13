@@ -5,6 +5,7 @@ import {
   PRODUCTION_BROWSER_DEB_NAME,
   PRODUCTION_BROWSER_DEB_SHA256,
   PRODUCTION_BROWSER_DEB_URL,
+  PRODUCTION_BROWSER_KEYRING_DEB_SHA256,
   PRODUCTION_BROWSER_MIN_ENGINE_VERSION,
   PRODUCTION_BROWSER_RELEASE
 } from "../readiness/productionImageContract";
@@ -18,6 +19,7 @@ export interface BrowserRuntimeQualificationReceipt {
   browserRelease: typeof PRODUCTION_BROWSER_RELEASE;
   latestStableRelease: typeof PRODUCTION_BROWSER_RELEASE;
   assetSha256: typeof PRODUCTION_BROWSER_DEB_SHA256;
+  keyringAssetSha256: typeof PRODUCTION_BROWSER_KEYRING_DEB_SHA256;
   engineVersion: string;
   minimumEngineVersion: typeof PRODUCTION_BROWSER_MIN_ENGINE_VERSION;
   rawRuntimeSha256: string;
@@ -50,6 +52,7 @@ export function createBrowserRuntimeQualificationReceipt(
     browserRelease: PRODUCTION_BROWSER_RELEASE,
     latestStableRelease: PRODUCTION_BROWSER_RELEASE,
     assetSha256: PRODUCTION_BROWSER_DEB_SHA256,
+    keyringAssetSha256: PRODUCTION_BROWSER_KEYRING_DEB_SHA256,
     engineVersion: raw.engineVersion,
     minimumEngineVersion: PRODUCTION_BROWSER_MIN_ENGINE_VERSION,
     rawRuntimeSha256: sha256(rawRuntimeBytes),
@@ -65,12 +68,13 @@ export function parseBrowserRuntimeQualificationReceipt(
 ): BrowserRuntimeQualificationReceipt {
   const value = parseJson(bytes, "Browser runtime qualification receipt");
   const keys = ["schemaVersion", "decision", "imageDigest", "browserRelease", "latestStableRelease",
-    "assetSha256", "engineVersion", "minimumEngineVersion", "rawRuntimeSha256", "githubReleaseSha256",
+    "assetSha256", "keyringAssetSha256", "engineVersion", "minimumEngineVersion", "rawRuntimeSha256", "githubReleaseSha256",
     "evaluatedAt", "contentSha256"];
   if (!isRecord(value) || !exactKeys(value, keys) || value.schemaVersion !== 1 || value.decision !== "PASSED" ||
       !isImageDigest(value.imageDigest) || (expectedImageDigest !== undefined && value.imageDigest !== expectedImageDigest) ||
       value.browserRelease !== PRODUCTION_BROWSER_RELEASE || value.latestStableRelease !== PRODUCTION_BROWSER_RELEASE ||
       value.assetSha256 !== PRODUCTION_BROWSER_DEB_SHA256 || !isEngineVersion(value.engineVersion) ||
+      value.keyringAssetSha256 !== PRODUCTION_BROWSER_KEYRING_DEB_SHA256 ||
       compareDottedVersions(value.engineVersion, PRODUCTION_BROWSER_MIN_ENGINE_VERSION) < 0 ||
       value.minimumEngineVersion !== PRODUCTION_BROWSER_MIN_ENGINE_VERSION ||
       !isSha256(value.rawRuntimeSha256) || !isSha256(value.githubReleaseSha256) ||

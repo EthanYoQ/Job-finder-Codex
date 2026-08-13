@@ -12,6 +12,7 @@ describe("Docker apt transport reliability",()=>{
     )??[];
 
     expect(layers).toHaveLength(4);
+    expect(layers.some((layer)=>layer.includes("/tmp/brave-keyring.deb /tmp/brave-browser.deb"))).toBe(true);
     for(const layer of layers){
       expect(layer).toContain("--mount=type=cache,target=/var/cache/apt,sharing=locked");
       expect(layer).toContain("--mount=type=cache,target=/var/lib/apt,sharing=locked");
