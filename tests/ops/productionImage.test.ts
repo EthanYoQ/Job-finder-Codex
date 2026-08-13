@@ -18,6 +18,7 @@ const read = (path: string) => readFileSync(path, "utf8");
 describe("production container contract", () => {
   it("builds generated artifacts explicitly and installs only runtime dependencies", () => {
     const dockerfile = read("Dockerfile");
+    const workflow = read(".github/workflows/production-image.yml");
     const packageJson = JSON.parse(read("package.json")) as {
       dependencies?: Record<string, string>;
       devDependencies?: Record<string, string>;
@@ -35,8 +36,10 @@ describe("production container contract", () => {
     expect(dockerfile).toContain("COPY --from=identity /app/node_modules ./node_modules");
     const runtimeStage = extractProductionNodeStage(dockerfile, "runtime");
     expect(runtimeStage).not.toContain("package-lock.json");
-    expect(runtimeStage).toContain("npm install --global npm@12.0.2");
-    expect(runtimeStage).toContain('test "$(npm --version)" = "12.0.2"');
+    expect(runtimeStage).not.toMatch(/npm install --global/u);
+    expect(runtimeStage).toContain("rm -rf /usr/local/lib/node_modules/npm /usr/local/bin/npm /usr/local/bin/npx");
+    expect(runtimeStage).toContain('CMD ["node", "node_modules/tsx/dist/cli.mjs", "src/server/httpServer.ts"]');
+    expect(workflow).toContain("test ! -e /usr/local/lib/node_modules/npm && ! command -v npm && ! command -v npx");
     expect(runtimeStage).toContain(`ADD --checksum=sha256:${PRODUCTION_BROWSER_DEB_SHA256}`);
     expect(runtimeStage).toContain(PRODUCTION_BROWSER_DEB_URL);
     expect(runtimeStage).toContain(PRODUCTION_BROWSER_DEB_NAME);

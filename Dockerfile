@@ -59,9 +59,7 @@ RUN npx tsx scripts/generate-build-identity.ts --commit=${BUILD_COMMIT_SHA} --cl
 
 FROM node:22-bookworm-slim@sha256:d649c27dae7ba0137b3cef5dd75baa422c08dc3d9e3fc0c23dfb172dc3cc6436 AS runtime
 WORKDIR /app
-RUN npm install --global npm@12.0.2 \
-  && npm cache clean --force \
-  && test "$(npm --version)" = "12.0.2"
+RUN rm -rf /usr/local/lib/node_modules/npm /usr/local/bin/npm /usr/local/bin/npx
 ENV NODE_ENV=production
 ENV HOST=0.0.0.0
 ENV PORT=3000
@@ -141,4 +139,4 @@ EXPOSE 3000
 HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
   CMD node -e "fetch('http://127.0.0.1:'+(process.env.PORT||3000)+'/livez').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))"
 
-CMD ["npm", "run", "start"]
+CMD ["node", "node_modules/tsx/dist/cli.mjs", "src/server/httpServer.ts"]

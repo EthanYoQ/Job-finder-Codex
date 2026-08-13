@@ -9,6 +9,7 @@ import { readInitialQualificationPauseBundle } from "../src/crawler/initialQuali
 import { loadProductionInitialQualificationPauseCandidateStatus } from "../src/crawler/initialQualificationPauseCandidate";
 import { loadProductionStagedMonitoringIdentity } from "../src/crawler/stagedMonitoringIdentity";
 import { scheduledAttemptTimeoutMs } from "../src/crawler/officialHttpRuntimeLimits";
+import { productionTsxProcessArgs } from "../src/ops/productionTsxProcess";
 
 const {attemptDir,summaryPath,initialQualificationPausePath}=resolveStagedCrawlEvidencePaths();
 let qualificationPaused=await loadQualificationPause();
@@ -32,7 +33,7 @@ for(;;){
   const result=await runScheduledCrawlWindow({attemptId,startedAt,attemptDir,
     baseEnv:{...process.env,STAGED_CRAWL_ATTEMPT_DIR:attemptDir,STAGED_CRAWL_SUMMARY_PATH:summaryPath,
       STAGED_INITIAL_QUALIFICATION_PAUSE_PATH:initialQualificationPausePath},
-    spawnChild:env=>spawnSync("npm",["run","p0:staged-crawl"],{
+    spawnChild:env=>spawnSync(process.execPath,productionTsxProcessArgs("scripts/p0-staged-crawl.ts"),{
       stdio:"inherit",env,timeout:scheduledAttemptTimeoutMs(env),killSignal:"SIGTERM"
     })});
   if(result.error||result.status!==0){

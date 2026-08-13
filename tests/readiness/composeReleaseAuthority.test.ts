@@ -37,8 +37,8 @@ describe("formal compose release authority",()=>{
   it("runs one default formal scheduler and one DB-authority manual worker",()=>{
     const worker=service("worker");
     expect(worker).toMatch(/restart:\s*unless-stopped/u);
-    expect(worker).toMatch(/command:\s*\["npm",\s*"run",\s*"p0:manual-crawl-worker"\]/u);
-    expect(compose).toMatch(/scheduler:[\s\S]*command:\s*\["npm",\s*"run",\s*"p0:scheduler"\]/u);
+    expect(worker).toMatch(/command:\s*\["node",\s*"node_modules\/tsx\/dist\/cli\.mjs",\s*"scripts\/p0-manual-crawl-worker\.ts"\]/u);
+    expect(compose).toMatch(/scheduler:[\s\S]*command:\s*\["node",\s*"node_modules\/tsx\/dist\/cli\.mjs",\s*"scripts\/p0-scheduler\.ts"\]/u);
     expect(compose).not.toMatch(/while true; do npm run p0:crawl/u);
     const scheduler=readFileSync("scripts/p0-scheduler.ts","utf8");
     expect(scheduler).toContain("nextP0SchedulerWindow");
@@ -46,7 +46,8 @@ describe("formal compose release authority",()=>{
     expect(readFileSync("src/crawler/schedule.ts","utf8")).toContain('"12:01"');
     expect(scheduler).toMatch(/no immediate retry/i);
     expect(readFileSync("src/crawler/formalCrawlLock.ts","utf8")).toContain('open(lockPath,"wx",0o600)');
-    expect(readFileSync("scripts/p0-formal-crawl-once.ts","utf8")).toContain('"p0:crawl"');
+    expect(readFileSync("scripts/p0-formal-crawl-once.ts","utf8"))
+      .toContain('productionTsxProcessArgs("scripts/p0-crawl.ts",["--force"])');
     const recovery=readFileSync("scripts/p0-recover-formal-crawl-lock.ts","utf8");
     expect(recovery.indexOf("loadCurrentReleaseIdentity()")) .toBeLessThan(recovery.indexOf('import("@prisma/client")'));
     expect(recovery).not.toMatch(/release-candidate-id|commit-sha|roster-sha256|ack-no-active/u);

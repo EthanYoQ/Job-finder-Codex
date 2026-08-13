@@ -42,7 +42,7 @@ services:
       - no-new-privileges:true
     tmpfs:
       - /tmp:rw,nosuid,nodev,noexec,size=64m,mode=1777
-    command: ["npm", "run", "start"]
+    command: ["node", "node_modules/tsx/dist/cli.mjs", "src/server/httpServer.ts"]
     environment:
       DATABASE_URL: ${DATABASE_URL:?set DATABASE_URL}
       ADMIN_EMAIL: ${ADMIN_EMAIL:-}
@@ -86,7 +86,7 @@ services:
     security_opt: ["no-new-privileges:true"]
     tmpfs:
       - /tmp:rw,nosuid,nodev,noexec,size=64m,mode=1777
-    command: ["npm", "run", "ops:bootstrap"]
+    command: ["node", "node_modules/tsx/dist/cli.mjs", "scripts/ops-bootstrap.ts"]
     environment:
       DATABASE_URL: ${DATABASE_URL:?set DATABASE_URL}
       ADMIN_EMAIL: ${ADMIN_EMAIL:-}
@@ -110,7 +110,7 @@ services:
       - no-new-privileges:true
     tmpfs:
       - /tmp:rw,nosuid,nodev,noexec,size=1g,mode=1777
-    command: ["npm", "run", "p0:manual-crawl-worker"]
+    command: ["node", "node_modules/tsx/dist/cli.mjs", "scripts/p0-manual-crawl-worker.ts"]
     environment:
       DATABASE_URL: ${DATABASE_URL:?set DATABASE_URL}
     volumes:
@@ -137,7 +137,7 @@ services:
       - no-new-privileges:true
     tmpfs:
       - /tmp:rw,nosuid,nodev,noexec,size=1g,mode=1777
-    command: ["npm", "run", "p0:scheduler"]
+    command: ["node", "node_modules/tsx/dist/cli.mjs", "scripts/p0-scheduler.ts"]
     environment:
       DATABASE_URL: ${DATABASE_URL:?set DATABASE_URL}
       STAGED_CRAWL_SUMMARY_PATH: /app/outputs/staged-crawl-summary.json
@@ -306,7 +306,7 @@ services:
         set -u; while true; do
         marker="$$(find /backups -maxdepth 1 -type f -name '*.dump.sha256' -printf '%T@ %p\n' | sort -nr | head -n 1 | cut -d' ' -f2-)";
         if test -n "$$marker"; then archive="$${marker%.sha256}";
-        if ! npm run ops:qualify-restore -- "$$archive"; then echo '[restore-verifier] qualification failed; FAILED receipt published.' >&2; fi;
+        if ! node node_modules/tsx/dist/cli.mjs scripts/qualify-backup-restore.ts "$$archive"; then echo '[restore-verifier] qualification failed; FAILED receipt published.' >&2; fi;
         else echo '[restore-verifier] no committed backup marker is available.' >&2; fi;
         sleep "$${RESTORE_VERIFY_INTERVAL_SECONDS:-604800}";
         done
@@ -328,7 +328,7 @@ services:
         read_only: true
       - restore-state:/restore-state
     healthcheck:
-      test: ["CMD", "npm", "run", "ops:check-restore-receipt", "--", "/restore-state/restore-receipt.json"]
+      test: ["CMD", "node", "node_modules/tsx/dist/cli.mjs", "scripts/check-restore-receipt.ts", "/restore-state/restore-receipt.json"]
       interval: 1h
       timeout: 10s
       retries: 3
@@ -371,7 +371,7 @@ services:
       [
         "sh",
         "-lc",
-        "set -u; while true; do npx tsx ops/monitoring-check.ts; status=$$?; if [ \"$$status\" -ne 0 ]; then echo \"[monitor-loop] check exited with status $$status; continuing after interval.\" >&2; fi; sleep \"$${MONITOR_INTERVAL_SECONDS:-300}\"; done"
+        "set -u; while true; do node node_modules/tsx/dist/cli.mjs ops/monitoring-check.ts; status=$$?; if [ \"$$status\" -ne 0 ]; then echo \"[monitor-loop] check exited with status $$status; continuing after interval.\" >&2; fi; sleep \"$${MONITOR_INTERVAL_SECONDS:-300}\"; done"
       ]
     environment:
       HEALTHCHECK_URL: ${HEALTHCHECK_URL:-http://web:3000/healthz}

@@ -157,7 +157,7 @@ describe("deployment configuration", () => {
     const rendered = renderBaseComposeWithoutManualAuthority();
     expect(readComposeService(rendered, "web")).toContain("DATABASE_URL");
     const worker = readComposeService(rendered, "worker");
-    expect(worker).toMatch(/command:\s*\n\s+- npm\s*\n\s+- run\s*\n\s+- p0:manual-crawl-worker/u);
+    expect(worker).toMatch(/command:\s*\n\s+- node\s*\n\s+- node_modules\/tsx\/dist\/cli\.mjs\s*\n\s+- scripts\/p0-manual-crawl-worker\.ts/u);
     expect(worker).toMatch(/restart:\s*unless-stopped/u);
     expect(worker).not.toContain("profiles:");
     expect(worker).not.toContain("P0_FULL_RELEASE_");
@@ -199,14 +199,15 @@ describe("deployment configuration", () => {
     const dockerfile = readRequiredFile(dockerfilePath);
     const compose = readRequiredFile(composePath);
 
-    expect(compose).toMatch(/"p0:scheduler"/);
-    expect(readRequiredFile(resolve(repoRoot, "scripts", "p0-formal-crawl-once.ts"))).toMatch(/npm.*p0:crawl/s);
-    expect(compose).toMatch(/npx tsx ops\/monitoring-check\.ts/);
+    expect(compose).toContain('"scripts/p0-scheduler.ts"');
+    expect(readRequiredFile(resolve(repoRoot, "scripts", "p0-formal-crawl-once.ts")))
+      .toContain('productionTsxProcessArgs("scripts/p0-crawl.ts",["--force"])');
+    expect(compose).toMatch(/node node_modules\/tsx\/dist\/cli\.mjs ops\/monitoring-check\.ts/);
     const monitor = readComposeService(compose, "monitor");
     expect(monitor).toMatch(/ALERT_WEBHOOK_URL:\s*\$\{ALERT_WEBHOOK_URL:\?set ALERT_WEBHOOK_URL\}/u);
     expect(monitor).toMatch(/ALERT_WEBHOOK_ALLOW_HTTP:\s*\$\{ALERT_WEBHOOK_ALLOW_HTTP:-0\}/u);
     expect(readRequiredFile(monitoringCheckPath)).toContain("deliverOpsAlerts");
-    expect(compose).toMatch(/node dist\/server\/httpServer\.js|"npm",\s*"run",\s*"start"|npm run start/);
+    expect(compose).toContain('"node_modules/tsx/dist/cli.mjs", "src/server/httpServer.ts"');
     expect(compose).toContain("TRUSTED_PROXY_CIDRS");
     expect(compose).toContain("x-job-finder-image: &job-finder-image \"ghcr.io/ethanyoq/job-finder-rc022-cloud-acceptance@sha256:${JOB_FINDER_IMAGE_DIGEST:?");
     expect(compose.match(/^    image: \*job-finder-image$/gmu)).toHaveLength(10);
@@ -552,9 +553,9 @@ describe("deployment configuration", () => {
     const monitor = readComposeService(compose, "monitor");
 
     expect(monitor).toMatch(/restart:\s*["']unless-stopped["']/u);
-    expect(monitor).toContain("set -u; while true; do npx tsx ops/monitoring-check.ts; status=$$?");
+    expect(monitor).toContain("set -u; while true; do node node_modules/tsx/dist/cli.mjs ops/monitoring-check.ts; status=$$?");
     expect(monitor).toContain("[monitor-loop] check exited with status $$status; continuing after interval.");
-    expect(monitor).not.toContain("set -eu; while true; do npx tsx ops/monitoring-check.ts");
+    expect(monitor).not.toContain("set -eu; while true; do node node_modules/tsx/dist/cli.mjs ops/monitoring-check.ts");
     expect(monitor).toMatch(/BACKUP_DIR:\s*\/backups/u);
     expect(monitor).toMatch(/DATABASE_URL:\s*\$\{DATABASE_URL:\?set DATABASE_URL\}/u);
     expect(monitor).toMatch(/READINESS_SUMMARY_PATH:\s*\$\{READINESS_SUMMARY_PATH:-\/app\/outputs\//u);

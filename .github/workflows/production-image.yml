@@ -54,6 +54,8 @@ jobs:
           test "$IMAGE_REVISION" = "${{ github.sha }}"
           test "$IMAGE_BYTES" -le "$MAX_IMAGE_BYTES"
           test "$(docker image inspect --format '{{.Architecture}}' "$IMAGE_TAG")" = "amd64"
+          docker run --rm --entrypoint sh "$IMAGE_TAG" -c \
+            'test ! -e /usr/local/lib/node_modules/npm && ! command -v npm && ! command -v npx'
           mkdir -p .runtime/security
           docker run --rm --read-only --cap-drop ALL --security-opt no-new-privileges:true \
             --tmpfs /tmp:rw,nosuid,nodev,noexec,size=1g,mode=1777 --entrypoint node "$IMAGE_TAG" \
@@ -270,15 +272,15 @@ jobs:
           docker run --rm --network "$NETWORK" --env DATABASE_URL="$DATABASE_URL" \
             "$IMAGE_TAG" node node_modules/prisma/build/index.js migrate deploy
           docker run --rm --network "$NETWORK" --env DATABASE_URL="$DATABASE_URL" \
-            --env ADMIN_EMAIL=owner@example.com --env ADMIN_PASSWORD_HASH="$ADMIN_HASH" "$IMAGE_TAG" npm run ops:bootstrap &
+            --env ADMIN_EMAIL=owner@example.com --env ADMIN_PASSWORD_HASH="$ADMIN_HASH" "$IMAGE_TAG" node node_modules/tsx/dist/cli.mjs scripts/ops-bootstrap.ts &
           FIRST_PID=$!
           docker run --rm --network "$NETWORK" --env DATABASE_URL="$DATABASE_URL" \
-            --env ADMIN_EMAIL=owner@example.com --env ADMIN_PASSWORD_HASH="$ADMIN_HASH" "$IMAGE_TAG" npm run ops:bootstrap &
+            --env ADMIN_EMAIL=owner@example.com --env ADMIN_PASSWORD_HASH="$ADMIN_HASH" "$IMAGE_TAG" node node_modules/tsx/dist/cli.mjs scripts/ops-bootstrap.ts &
           SECOND_PID=$!
           wait "$FIRST_PID"
           wait "$SECOND_PID"
           docker run --rm --network "$NETWORK" --env DATABASE_URL="$DATABASE_URL" \
-            --env ADMIN_EMAIL=owner@example.com --env ADMIN_PASSWORD_HASH="$ADMIN_HASH" "$IMAGE_TAG" npm run ops:bootstrap
+            --env ADMIN_EMAIL=owner@example.com --env ADMIN_PASSWORD_HASH="$ADMIN_HASH" "$IMAGE_TAG" node node_modules/tsx/dist/cli.mjs scripts/ops-bootstrap.ts
           test "$(docker exec "$POSTGRES_NAME" psql -U jobfinder -d jobfinder -Atc 'SELECT count(*) FROM "AdminUser"')" = "1"
           test "$(docker exec "$POSTGRES_NAME" psql -U jobfinder -d jobfinder -Atc \"SELECT count(*) FROM \\\"AdminAuditEvent\\\" WHERE action='DEPLOYMENT_ADMIN_BOOTSTRAPPED'\")" = "1"
           docker run --detach --name "$APP_NAME" --network "$NETWORK" --env DATABASE_URL="$DATABASE_URL" \
@@ -343,7 +345,7 @@ jobs:
           test -n "$ARCHIVE"
           docker run --rm --network "$NETWORK" --env RESTORE_ADMIN_DATABASE_URL="$ADMIN_URL" \
             --env RESTORE_RECEIPT_PATH=/backup/restore-pass-receipt.json --volume "$PWD/.runtime/restore:/backup" \
-            "$IMAGE_TAG" npm run ops:qualify-restore -- "/backup/$(basename "$ARCHIVE")"
+            "$IMAGE_TAG" node node_modules/tsx/dist/cli.mjs scripts/qualify-backup-restore.ts "/backup/$(basename "$ARCHIVE")"
           test "$(node -p "JSON.parse(require('fs').readFileSync('.runtime/restore/restore-pass-receipt.json')).decision")" = PASSED
           test "$(docker exec "$POSTGRES_NAME" psql -U jobfinder -d postgres -Atc \"SELECT count(*) FROM pg_database WHERE datname LIKE 'jobfinder\\_restore\\_%' ESCAPE '\\\\'\")" = 0
           cp "$ARCHIVE" .runtime/restore/corrupt.dump
@@ -354,7 +356,7 @@ jobs:
           node -e "const fs=require('fs'),p='.runtime/restore/corrupt.dump.metadata.json',v=JSON.parse(fs.readFileSync('$ARCHIVE.metadata.json'));v.archiveSha256=process.argv[1];fs.writeFileSync(p,JSON.stringify(v))" "$CORRUPT_SHA"
           if docker run --rm --network "$NETWORK" --env RESTORE_ADMIN_DATABASE_URL="$ADMIN_URL" \
             --env RESTORE_RECEIPT_PATH=/backup/restore-failed-corrupt-receipt.json --volume "$PWD/.runtime/restore:/backup" \
-            "$IMAGE_TAG" npm run ops:qualify-restore -- /backup/corrupt.dump; then exit 1; fi
+            "$IMAGE_TAG" node node_modules/tsx/dist/cli.mjs scripts/qualify-backup-restore.ts /backup/corrupt.dump; then exit 1; fi
           test "$(node -p "JSON.parse(require('fs').readFileSync('.runtime/restore/restore-failed-corrupt-receipt.json')).decision")" = FAILED
           test "$(docker exec "$POSTGRES_NAME" psql -U jobfinder -d postgres -Atc \"SELECT count(*) FROM pg_database WHERE datname LIKE 'jobfinder\\_restore\\_%' ESCAPE '\\\\'\")" = 0
           cp "$ARCHIVE" .runtime/restore/incompatible.dump
@@ -363,7 +365,7 @@ jobs:
           node -e "const fs=require('fs'),p='.runtime/restore/incompatible.dump.metadata.json',v=JSON.parse(fs.readFileSync('$ARCHIVE.metadata.json'));v.database.serverVersionNum='150000';fs.writeFileSync(p,JSON.stringify(v))"
           if docker run --rm --network "$NETWORK" --env RESTORE_ADMIN_DATABASE_URL="$ADMIN_URL" \
             --env RESTORE_RECEIPT_PATH=/backup/restore-failed-version-receipt.json --volume "$PWD/.runtime/restore:/backup" \
-            "$IMAGE_TAG" npm run ops:qualify-restore -- /backup/incompatible.dump; then exit 1; fi
+            "$IMAGE_TAG" node node_modules/tsx/dist/cli.mjs scripts/qualify-backup-restore.ts /backup/incompatible.dump; then exit 1; fi
           test "$(node -p "JSON.parse(require('fs').readFileSync('.runtime/restore/restore-failed-version-receipt.json')).failureCode")" = VALIDATION_FAILED
           test "$(docker exec "$POSTGRES_NAME" psql -U jobfinder -d postgres -Atc \"SELECT count(*) FROM pg_database WHERE datname LIKE 'jobfinder\\_restore\\_%' ESCAPE '\\\\'\")" = 0
 
