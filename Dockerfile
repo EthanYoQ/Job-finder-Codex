@@ -2,7 +2,7 @@
 
 FROM postgres:16-bookworm@sha256:da788743d2060767375896de4d646f7576f5911461444b372616f19ea61db2ec AS pg16-client
 
-FROM node:22-bookworm-slim@sha256:d649c27dae7ba0137b3cef5dd75baa422c08dc3d9e3fc0c23dfb172dc3cc6436 AS deps
+FROM node:22-trixie-slim@sha256:db8d0a16fc4c190c808d3043c2cf3fce1e8c03b696673668ef483166a71e36a2 AS deps
 WORKDIR /app
 COPY ops/install-apt-packages.sh /usr/local/bin/install-apt-packages.sh
 COPY package.json ./package.json
@@ -39,7 +39,7 @@ COPY prisma ./prisma
 COPY ops ./ops
 RUN npm run build
 
-FROM node:22-bookworm-slim@sha256:d649c27dae7ba0137b3cef5dd75baa422c08dc3d9e3fc0c23dfb172dc3cc6436 AS production-deps
+FROM node:22-trixie-slim@sha256:db8d0a16fc4c190c808d3043c2cf3fce1e8c03b696673668ef483166a71e36a2 AS production-deps
 WORKDIR /app
 ENV NODE_ENV=production
 COPY package.json ./package.json
@@ -57,7 +57,7 @@ RUN rm -rf /app/node_modules
 COPY --from=production-deps /app/node_modules ./node_modules
 RUN npx tsx scripts/generate-build-identity.ts --commit=${BUILD_COMMIT_SHA} --clean-provenance=${BUILD_SOURCE_CLEAN} --source-tree-sha256=${BUILD_SOURCE_TREE_SHA256}
 
-FROM node:22-bookworm-slim@sha256:d649c27dae7ba0137b3cef5dd75baa422c08dc3d9e3fc0c23dfb172dc3cc6436 AS runtime
+FROM node:22-trixie-slim@sha256:db8d0a16fc4c190c808d3043c2cf3fce1e8c03b696673668ef483166a71e36a2 AS runtime
 WORKDIR /app
 RUN rm -rf /usr/local/lib/node_modules/npm /usr/local/bin/npm /usr/local/bin/npx
 ENV NODE_ENV=production
@@ -70,7 +70,7 @@ ENV XDG_CACHE_HOME=/tmp/.cache
 COPY ops/install-apt-packages.sh /usr/local/bin/install-apt-packages.sh
 RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     --mount=type=cache,target=/var/lib/apt,sharing=locked \
-    sh /usr/local/bin/install-apt-packages.sh ca-certificates libpq5 libreadline8 util-linux
+    sh /usr/local/bin/install-apt-packages.sh ca-certificates libpq5 libreadline8t64 util-linux
 ADD --checksum=sha256:9739e5aaee4303eb4199c038b04a75d7bc7ac08314af9f763011e211dea62999 \
     https://github.com/brave/brave-browser/releases/download/v1.93.136/brave-browser_1.93.136_amd64.deb \
     /tmp/brave-browser.deb

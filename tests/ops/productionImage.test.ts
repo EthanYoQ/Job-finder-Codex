@@ -140,6 +140,16 @@ describe("production container contract", () => {
     expect(workflow).toContain("scripts/bind-npm-audit-report.ts");
     expect(workflow).toContain("actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02");
     expect(workflow).toMatch(/name: Preserve production security evidence\s+if: always\(\)/u);
+    const record = workflow.indexOf("mkdir -p .runtime\n          printf '%s\\n' \"$IMAGE_BYTES\" > .runtime/image-bytes.txt");
+    const upload = workflow.indexOf("name: Preserve production security evidence");
+    const sizeGate = workflow.indexOf("name: Enforce recorded production image size");
+    const qualification = workflow.indexOf("name: Start in a blank Linux container and probe liveness");
+    expect(record).toBeGreaterThan(0);
+    expect(upload).toBeGreaterThan(record);
+    expect(sizeGate).toBeGreaterThan(upload);
+    expect(qualification).toBeGreaterThan(sizeGate);
+    expect(workflow.slice(sizeGate, qualification)).toContain("if: always()");
+    expect(workflow.slice(sizeGate, qualification)).toContain('test "$IMAGE_BYTES" -le "$MAX_IMAGE_BYTES"');
   });
 
   it("keeps the declarative browser asset consumers bound to the single TypeScript contract", () => {

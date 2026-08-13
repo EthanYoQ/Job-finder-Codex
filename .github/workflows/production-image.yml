@@ -14,7 +14,7 @@ jobs:
     timeout-minutes: 30
     env:
       IMAGE_TAG: job-finder:${{ github.sha }}
-      # Measured clean image: 1,537,937,087 bytes; keep a narrow regression budget.
+      # Hard deployment budget. Evidence capture may run first, but qualification never crosses this gate.
       MAX_IMAGE_BYTES: 1600000000
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
@@ -52,7 +52,8 @@ jobs:
           printf 'runtime_user=%s\nrevision=%s\nimage_bytes=%s\nmax_image_bytes=%s\n' "$IMAGE_USER" "$IMAGE_REVISION" "$IMAGE_BYTES" "$MAX_IMAGE_BYTES"
           test "$IMAGE_USER" = "node"
           test "$IMAGE_REVISION" = "${{ github.sha }}"
-          test "$IMAGE_BYTES" -le "$MAX_IMAGE_BYTES"
+          mkdir -p .runtime
+          printf '%s\n' "$IMAGE_BYTES" > .runtime/image-bytes.txt
           test "$(docker image inspect --format '{{.Architecture}}' "$IMAGE_TAG")" = "amd64"
           docker run --rm --entrypoint sh "$IMAGE_TAG" -c \
             'test ! -e /usr/local/lib/node_modules/npm && ! command -v npm && ! command -v npx'
@@ -124,6 +125,12 @@ jobs:
           path: .runtime/security
           if-no-files-found: error
           retention-days: 14
+
+      - name: Enforce recorded production image size
+        if: always()
+        run: |
+          IMAGE_BYTES="$(cat .runtime/image-bytes.txt)"
+          test "$IMAGE_BYTES" -le "$MAX_IMAGE_BYTES"
 
       - name: Start in a blank Linux container and probe liveness
         run: |
