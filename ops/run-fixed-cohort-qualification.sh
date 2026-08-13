@@ -195,11 +195,13 @@ archive_evidence() {
 if [ "$FORMAL_ROUND" = 1 ]; then
   set_runner_stage ROUND_ONE_BOOTSTRAP
   run_image node node_modules/tsx/dist/cli.mjs scripts/ops-bootstrap.ts
+  set_runner_stage ROUND_ONE_SNAPSHOT
   dump_database initial-migrated.dump
   normalize_formal_file "$state_root/initial-migrated.dump"
   db_snapshot_sha256="$(sha256sum "$state_root/initial-migrated.dump" | awk '{print $1}')"
   migration_json="$(docker run --rm --network none --read-only --cap-drop ALL \
-    --security-opt no-new-privileges:true "$IMAGE_TAG" node node_modules/tsx/dist/cli.mjs -e \
+    --security-opt no-new-privileges:true --tmpfs /tmp:rw,nosuid,nodev,noexec,size=64m,mode=1777 \
+    "$IMAGE_TAG" node node_modules/tsx/dist/cli.mjs -e \
     "import { listCurrentPrismaMigrations, prismaMigrationManifestSha256 } from './src/db/prismaMigrationManifest.ts'; const rows=listCurrentPrismaMigrations('/app'); process.stdout.write(JSON.stringify({schemaSha256:prismaMigrationManifestSha256(rows),migrationVersion:rows.at(-1)?.migrationName??''}));")"
   schema_sha256="$(node -p "JSON.parse(process.argv[1]).schemaSha256" "$migration_json")"
   migration_version="$(node -p "JSON.parse(process.argv[1]).migrationVersion" "$migration_json")"

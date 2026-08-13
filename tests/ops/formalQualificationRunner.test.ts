@@ -180,6 +180,8 @@ describe("formal Launch Cohort qualification runner", () => {
     expect(networkProbes).toHaveLength(1);
     expect(networkProbes[0]).toContain("--dbname=postgresql://jobfinder:formal-qualification-password@postgres/jobfinder ");
     expect(networkProbes[0]).not.toContain("--dbname=postgresql://jobfinder:formal-qualification-password@postgres/jobfinder?schema=public");
+    const migrationManifestCommand = events.split("\n").find((line) => line.includes("listCurrentPrismaMigrations"));
+    expect(migrationManifestCommand).toContain("--read-only --cap-drop ALL --security-opt no-new-privileges:true --tmpfs /tmp:rw,nosuid,nodev,noexec,size=64m,mode=1777");
     const nativePostgresCommands = events.split("\n").filter((line) => /\b(?:psql|pg_dump|pg_restore)\b/u.test(line));
     expect(nativePostgresCommands).not.toHaveLength(0);
     expect(nativePostgresCommands.every((line) => !line.includes("--dbname=postgresql://jobfinder:formal-qualification-password@postgres/jobfinder?schema=public"))).toBe(true);
