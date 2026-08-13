@@ -158,6 +158,19 @@ describe("production container contract", () => {
     expect(renewalBlock).toContain("sleep 1");
   });
 
+  it("keeps bootstrap evidence SQL out of nested quoted command substitutions", () => {
+    const workflow = read(".github/workflows/production-image.yml");
+
+    expect(workflow).toContain('ADMIN_COUNT="$(docker exec "$POSTGRES_NAME" psql');
+    expect(workflow).toContain('AUDIT_COUNT="$(docker exec "$POSTGRES_NAME" psql');
+    expect(workflow).toContain('test "$ADMIN_COUNT" = "1"');
+    expect(workflow).toContain('test "$AUDIT_COUNT" = "1"');
+    expect(workflow.match(/RESTORE_DATABASE_COUNT="\$\(docker exec "\$POSTGRES_NAME" psql/gu)).toHaveLength(3);
+    expect(workflow.match(/WHERE left\(datname, 18\) = 'jobfinder_restore_'/gu)).toHaveLength(3);
+    expect(workflow.match(/test "\$RESTORE_DATABASE_COUNT" = 0/gu)).toHaveLength(3);
+    expect(workflow).not.toMatch(/test "\$\(docker exec/u);
+  });
+
   it("provides a repeatable clean Linux build and startup smoke workflow", () => {
     const workflow = read(".github/workflows/production-image.yml");
 

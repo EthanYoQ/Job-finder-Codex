@@ -333,8 +333,10 @@ jobs:
           wait "$SECOND_PID"
           docker run --rm --network "$NETWORK" --env DATABASE_URL="$DATABASE_URL" \
             --env ADMIN_EMAIL=owner@example.com --env ADMIN_PASSWORD_HASH="$ADMIN_HASH" "$IMAGE_TAG" node node_modules/tsx/dist/cli.mjs scripts/ops-bootstrap.ts
-          test "$(docker exec "$POSTGRES_NAME" psql -U jobfinder -d jobfinder -Atc 'SELECT count(*) FROM "AdminUser"')" = "1"
-          test "$(docker exec "$POSTGRES_NAME" psql -U jobfinder -d jobfinder -Atc \"SELECT count(*) FROM \\\"AdminAuditEvent\\\" WHERE action='DEPLOYMENT_ADMIN_BOOTSTRAPPED'\")" = "1"
+          ADMIN_COUNT="$(docker exec "$POSTGRES_NAME" psql -U jobfinder -d jobfinder -Atc 'SELECT count(*) FROM "AdminUser"')"
+          AUDIT_COUNT="$(docker exec "$POSTGRES_NAME" psql -U jobfinder -d jobfinder -Atc "SELECT count(*) FROM \"AdminAuditEvent\" WHERE action='DEPLOYMENT_ADMIN_BOOTSTRAPPED'")"
+          test "$ADMIN_COUNT" = "1"
+          test "$AUDIT_COUNT" = "1"
           docker run --detach --name "$APP_NAME" --network "$NETWORK" --env DATABASE_URL="$DATABASE_URL" \
             --env ADMIN_EMAIL=owner@example.com --env ADMIN_PASSWORD_HASH="$ADMIN_HASH" "$IMAGE_TAG"
           APP_READY=0
@@ -399,7 +401,8 @@ jobs:
             --env RESTORE_RECEIPT_PATH=/backup/restore-pass-receipt.json --volume "$PWD/.runtime/restore:/backup" \
             "$IMAGE_TAG" node node_modules/tsx/dist/cli.mjs scripts/qualify-backup-restore.ts "/backup/$(basename "$ARCHIVE")"
           test "$(node -p "JSON.parse(require('fs').readFileSync('.runtime/restore/restore-pass-receipt.json')).decision")" = PASSED
-          test "$(docker exec "$POSTGRES_NAME" psql -U jobfinder -d postgres -Atc \"SELECT count(*) FROM pg_database WHERE datname LIKE 'jobfinder\\_restore\\_%' ESCAPE '\\\\'\")" = 0
+          RESTORE_DATABASE_COUNT="$(docker exec "$POSTGRES_NAME" psql -U jobfinder -d postgres -Atc "SELECT count(*) FROM pg_database WHERE left(datname, 18) = 'jobfinder_restore_'")"
+          test "$RESTORE_DATABASE_COUNT" = 0
           cp "$ARCHIVE" .runtime/restore/corrupt.dump
           ARCHIVE_SIZE="$(stat --format=%s .runtime/restore/corrupt.dump)"
           truncate --size="$((ARCHIVE_SIZE / 2))" .runtime/restore/corrupt.dump
@@ -410,7 +413,8 @@ jobs:
             --env RESTORE_RECEIPT_PATH=/backup/restore-failed-corrupt-receipt.json --volume "$PWD/.runtime/restore:/backup" \
             "$IMAGE_TAG" node node_modules/tsx/dist/cli.mjs scripts/qualify-backup-restore.ts /backup/corrupt.dump; then exit 1; fi
           test "$(node -p "JSON.parse(require('fs').readFileSync('.runtime/restore/restore-failed-corrupt-receipt.json')).decision")" = FAILED
-          test "$(docker exec "$POSTGRES_NAME" psql -U jobfinder -d postgres -Atc \"SELECT count(*) FROM pg_database WHERE datname LIKE 'jobfinder\\_restore\\_%' ESCAPE '\\\\'\")" = 0
+          RESTORE_DATABASE_COUNT="$(docker exec "$POSTGRES_NAME" psql -U jobfinder -d postgres -Atc "SELECT count(*) FROM pg_database WHERE left(datname, 18) = 'jobfinder_restore_'")"
+          test "$RESTORE_DATABASE_COUNT" = 0
           cp "$ARCHIVE" .runtime/restore/incompatible.dump
           cp "$ARCHIVE.sha256" .runtime/restore/incompatible.dump.sha256
           sed -i "s/$(basename "$ARCHIVE")/incompatible.dump/" .runtime/restore/incompatible.dump.sha256
@@ -419,7 +423,8 @@ jobs:
             --env RESTORE_RECEIPT_PATH=/backup/restore-failed-version-receipt.json --volume "$PWD/.runtime/restore:/backup" \
             "$IMAGE_TAG" node node_modules/tsx/dist/cli.mjs scripts/qualify-backup-restore.ts /backup/incompatible.dump; then exit 1; fi
           test "$(node -p "JSON.parse(require('fs').readFileSync('.runtime/restore/restore-failed-version-receipt.json')).failureCode")" = VALIDATION_FAILED
-          test "$(docker exec "$POSTGRES_NAME" psql -U jobfinder -d postgres -Atc \"SELECT count(*) FROM pg_database WHERE datname LIKE 'jobfinder\\_restore\\_%' ESCAPE '\\\\'\")" = 0
+          RESTORE_DATABASE_COUNT="$(docker exec "$POSTGRES_NAME" psql -U jobfinder -d postgres -Atc "SELECT count(*) FROM pg_database WHERE left(datname, 18) = 'jobfinder_restore_'")"
+          test "$RESTORE_DATABASE_COUNT" = 0
 
       - name: Publish exact-image qualification receipt
         run: |
