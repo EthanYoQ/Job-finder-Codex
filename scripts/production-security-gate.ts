@@ -5,7 +5,9 @@ import { pathToFileURL } from "node:url";
 import {
   evaluateProductionSecurityGate,
   parseNpmAuditProductionFindings,
+  parseTrivyDebianPackageInventory,
   parseTrivyProductionFindings,
+  type ProductionInstalledPackageIdentity,
   type ProductionReachabilityDecision,
   type ProductionVulnerabilityException
 } from "../src/security/productionSecurityGate";
@@ -20,6 +22,7 @@ interface SecurityGateArguments {
   npmAuditIdentity: string;
   browserRuntimeReport: string;
   runtimeExposureReport: string;
+  packageInventory: string;
   packageLock: string;
   reachability: string;
   exceptions: string;
@@ -30,19 +33,25 @@ export async function runProductionSecurityGate(
   args: SecurityGateArguments,
   evaluatedAt = new Date()
 ): Promise<0 | 1> {
-  const [trivyBytes, npmAuditBytes, npmAuditIdentityBytes, browserRuntimeBytes, runtimeExposureBytes, packageLockBytes,
+  const [trivyBytes, npmAuditBytes, npmAuditIdentityBytes, browserRuntimeBytes, runtimeExposureBytes, packageInventoryBytes, packageLockBytes,
     reachabilityBytes, exceptionsBytes] = await Promise.all([
     readFile(args.trivyReport), readFile(args.npmAuditReport), readFile(args.npmAuditIdentity),
     readFile(args.browserRuntimeReport),
     readFile(args.runtimeExposureReport),
+    readFile(args.packageInventory),
     readFile(args.packageLock), readFile(args.reachability), readFile(args.exceptions)
   ]);
   const trivy = parseJson(trivyBytes, "Trivy report");
   const npmAudit = parseJson(npmAuditBytes, "npm audit report");
   const npmAuditIdentity = parseJson(npmAuditIdentityBytes, "npm audit identity");
   const browserRuntime = parseBrowserRuntimeQualificationReceipt(browserRuntimeBytes, args.imageDigest);
+  const installedPackages = parseInstalledPackageInventory(packageInventoryBytes);
   const trivySha256 = sha256(trivyBytes);
   const runtimeExposure = parseRuntimeExposureReceipt(runtimeExposureBytes, args.imageDigest, trivySha256, evaluatedAt);
+  const trivyPackages = parseTrivyDebianPackageInventory(trivy, args.imageDigest);
+  if (JSON.stringify(installedPackages) !== JSON.stringify(trivyPackages)) {
+    throw new Error("Trivy Debian package coverage does not match the exact installed package inventory");
+  }
   const browserEvaluatedAt = new Date(browserRuntime.evaluatedAt).getTime();
   const gateEvaluatedAt = evaluatedAt.getTime();
   if (browserEvaluatedAt > gateEvaluatedAt + 5 * 60_000 || gateEvaluatedAt - browserEvaluatedAt > 30 * 60_000) {
@@ -69,7 +78,8 @@ export async function runProductionSecurityGate(
     packageLockSha256,
     scannerReports: {
       trivySha256, npmAuditSha256: sha256(npmAuditBytes), npmAuditIdentitySha256: sha256(npmAuditIdentityBytes),
-      browserRuntimeSha256: sha256(browserRuntimeBytes), runtimeExposureSha256: sha256(runtimeExposureBytes)
+      browserRuntimeSha256: sha256(browserRuntimeBytes), runtimeExposureSha256: sha256(runtimeExposureBytes),
+      packageInventorySha256: sha256(packageInventoryBytes)
     },
     policyReports: {
       reachabilitySha256: sha256(reachabilityBytes), exceptionsSha256: sha256(exceptionsBytes)
@@ -107,16 +117,34 @@ export function parseProductionSecurityGateArgs(argv: readonly string[]): Securi
     return value;
   };
   const expected = ["--image-ref", "--image-digest", "--trivy-report", "--npm-audit-report", "--npm-audit-identity", "--browser-runtime-report",
-    "--runtime-exposure-report", "--package-lock", "--reachability", "--exceptions", "--output"];
+    "--runtime-exposure-report", "--package-inventory", "--package-lock", "--reachability", "--exceptions", "--output"];
   for (const key of parsed.keys()) if (!expected.includes(key)) throw new Error(`Unknown production security argument: ${key}`);
   return {
     imageRef: read("--image-ref"), imageDigest: read("--image-digest"),
     trivyReport: read("--trivy-report"), npmAuditReport: read("--npm-audit-report"),
     npmAuditIdentity: read("--npm-audit-identity"), browserRuntimeReport: read("--browser-runtime-report"),
     runtimeExposureReport: read("--runtime-exposure-report"),
+    packageInventory: read("--package-inventory"),
     packageLock: read("--package-lock"), reachability: read("--reachability"),
     exceptions: read("--exceptions"), output: read("--output")
   };
+}
+
+function parseInstalledPackageInventory(bytes: Buffer): ProductionInstalledPackageIdentity[] {
+  const lines = bytes.toString("utf8").split("\n").filter(Boolean);
+  const identities = new Set<string>();
+  const packages = lines.map((line) => {
+    const [size, packageName, version, architecture, ...extra] = line.split("\t");
+    const identity = `${packageName}\u0000${version}\u0000${architecture}`;
+    const invalid = extra.length > 0 || (size !== "UNKNOWN" && !/^\d+$/u.test(size ?? "")) ||
+      !packageName?.trim() || !version?.trim() || !architecture?.trim() || identities.has(identity);
+    if (invalid) throw new Error("Production installed package inventory is invalid");
+    identities.add(identity);
+    return { packageName: packageName!, version: version!, architecture: architecture! };
+  });
+  if (packages.length === 0) throw new Error("Production installed package inventory is invalid");
+  return packages.sort((left, right) => Buffer.from(`${left.packageName}\0${left.version}\0${left.architecture}`, "utf8")
+    .compare(Buffer.from(`${right.packageName}\0${right.version}\0${right.architecture}`, "utf8")));
 }
 
 function parseJson(bytes: Buffer, label: string): unknown {

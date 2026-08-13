@@ -119,9 +119,9 @@ jobs:
           docker run --rm --network none --user 0 --read-only --cap-drop ALL \
             --security-opt no-new-privileges:true \
             --entrypoint dpkg-query "$IMAGE_TAG" -W \
-            '--showformat=${db:Status-Abbrev}\t${Installed-Size}\t${binary:Package}\t${Version}\n' \
+            '--showformat=${db:Status-Abbrev}\t${Installed-Size}\t${Package}\t${Version}\t${Architecture}\n' \
             > .runtime/security/image-package-dpkg-raw.txt
-          awk -F '\t' '$1 == "ii " { if (NF != 4 || ($2 != "" && $2 !~ /^[0-9]+$/) || $3 == "" || $4 == "") exit 1; size=($2 == "" ? "UNKNOWN" : $2); print size "\t" $3 "\t" $4; count++ } END { if (count == 0) exit 1 }' \
+          awk -F '\t' '$1 == "ii " { if (NF != 5 || ($2 != "" && $2 !~ /^[0-9]+$/) || $3 == "" || $4 == "" || $5 == "") exit 1; size=($2 == "" ? "UNKNOWN" : $2); print size "\t" $3 "\t" $4 "\t" $5; count++ } END { if (count == 0) exit 1 }' \
             .runtime/security/image-package-dpkg-raw.txt > .runtime/image-package-kib.installed.txt
           LC_ALL=C sort -t $'\t' -k1,1nr -k2,2 .runtime/image-package-kib.installed.txt \
             > .runtime/security/image-package-kib.txt
@@ -136,6 +136,7 @@ jobs:
             --npm-audit-identity .runtime/security/npm-audit-identity.json \
             --browser-runtime-report .runtime/security/browser-runtime-report.json \
             --runtime-exposure-report .runtime/security/runtime-exposure-report.json \
+            --package-inventory .runtime/security/image-package-kib.txt \
             --package-lock package-lock.json \
             --reachability security/production-reachability.json \
             --exceptions security/production-vulnerability-exceptions.json \

@@ -163,7 +163,7 @@ describe("production container contract", () => {
     expect(workflow.slice(decomposition, upload)).toContain("--network none --user 0 --read-only --cap-drop ALL");
     expect(workflow.slice(decomposition, upload)).toContain("--cap-add DAC_READ_SEARCH");
     expect(workflow.slice(decomposition, upload)).toContain("--entrypoint dpkg-query");
-    expect(workflow.slice(decomposition, upload)).toContain("'--showformat=${db:Status-Abbrev}\\t${Installed-Size}\\t${binary:Package}\\t${Version}\\n'");
+    expect(workflow.slice(decomposition, upload)).toContain("'--showformat=${db:Status-Abbrev}\\t${Installed-Size}\\t${Package}\\t${Version}\\t${Architecture}\\n'");
     expect(workflow.slice(decomposition, upload)).toContain("awk -F '\\t' '$1 == \"ii \"");
     expect(workflow.slice(decomposition, upload)).toContain('size=($2 == "" ? "UNKNOWN" : $2)');
     expect(workflow.slice(decomposition, upload)).toContain("END { if (count == 0) exit 1 }");
@@ -173,6 +173,7 @@ describe("production container contract", () => {
     expect(qualification).toBeGreaterThan(sizeGate);
     expect(workflow.slice(sizeGate, qualification)).toContain("if: always()");
     expect(workflow.slice(sizeGate, qualification)).toContain('test "$IMAGE_BYTES" -le "$MAX_IMAGE_BYTES"');
+    expect(workflow).toContain("--package-inventory .runtime/security/image-package-kib.txt");
   });
 
   it("keeps the declarative browser asset consumers bound to the single TypeScript contract", () => {

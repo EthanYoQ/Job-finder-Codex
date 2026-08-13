@@ -14,6 +14,12 @@ export interface ProductionVulnerabilityFinding {
   severity: ProductionVulnerabilitySeverity;
 }
 
+export interface ProductionInstalledPackageIdentity {
+  packageName: string;
+  version: string;
+  architecture: string;
+}
+
 export interface ProductionReachabilityDecision {
   scanner: ProductionFindingScanner;
   vulnerabilityId: string;
@@ -41,7 +47,7 @@ export interface ProductionSecurityGateInput {
   imageDigest: string;
   packageLockSha256: string;
   scannerReports: { trivySha256: string; npmAuditSha256: string; npmAuditIdentitySha256: string;
-    browserRuntimeSha256: string; runtimeExposureSha256: string };
+    browserRuntimeSha256: string; runtimeExposureSha256: string; packageInventorySha256: string };
   policyReports: { reachabilitySha256: string; exceptionsSha256: string };
   evaluatedAt: Date;
   findings: readonly ProductionVulnerabilityFinding[];
@@ -68,14 +74,14 @@ export interface EvaluatedProductionFinding extends ProductionVulnerabilityFindi
 }
 
 export interface ProductionSecurityReceipt {
-  schemaVersion: 2;
+  schemaVersion: 3;
   decision: "PASSED" | "BLOCKED";
   exitCode: 0 | 1;
   imageRef: string;
   imageDigest: string;
   packageLockSha256: string;
   scannerReports: { trivySha256: string; npmAuditSha256: string; npmAuditIdentitySha256: string;
-    browserRuntimeSha256: string; runtimeExposureSha256: string };
+    browserRuntimeSha256: string; runtimeExposureSha256: string; packageInventorySha256: string };
   policyReports: { reachabilitySha256: string; exceptionsSha256: string };
   evaluatedAt: string;
   findings: EvaluatedProductionFinding[];
@@ -87,11 +93,12 @@ export async function readProductionSecurityReceipt(path: string): Promise<Produ
   const value = JSON.parse(await readFile(path, "utf8")) as unknown;
   if (!isRecord(value) || !exactKeys(value, ["schemaVersion", "decision", "exitCode", "imageRef", "imageDigest",
     "packageLockSha256", "scannerReports", "policyReports", "evaluatedAt", "findings", "policyErrors", "contentSha256"]) ||
-    value.schemaVersion !== 2 || !["PASSED", "BLOCKED"].includes(String(value.decision)) ||
+    value.schemaVersion !== 3 || !["PASSED", "BLOCKED"].includes(String(value.decision)) ||
     ![0, 1].includes(Number(value.exitCode)) || typeof value.imageRef !== "string" || !value.imageRef.trim() ||
     !/^sha256:[0-9a-f]{64}$/u.test(String(value.imageDigest)) || !validShaValue(value.packageLockSha256) ||
     !isRecord(value.scannerReports) || !exactShaRecord(value.scannerReports,
-      ["trivySha256", "npmAuditSha256", "npmAuditIdentitySha256", "browserRuntimeSha256", "runtimeExposureSha256"]) ||
+      ["trivySha256", "npmAuditSha256", "npmAuditIdentitySha256", "browserRuntimeSha256", "runtimeExposureSha256",
+        "packageInventorySha256"]) ||
     !isRecord(value.policyReports) || !exactShaRecord(value.policyReports, ["reachabilitySha256", "exceptionsSha256"]) ||
     typeof value.evaluatedAt !== "string" || !Number.isFinite(Date.parse(value.evaluatedAt)) ||
     !Array.isArray(value.findings) || !value.findings.every(isEvaluatedFinding) ||
@@ -159,7 +166,7 @@ export function evaluateProductionSecurityGate(
     finding.disposition === "BLOCKED" || finding.disposition === "BLOCKED_EXPIRED_EXCEPTION"
   );
   const base = {
-    schemaVersion: 2 as const,
+    schemaVersion: 3 as const,
     decision: blocked ? "BLOCKED" as const : "PASSED" as const,
     exitCode: blocked ? 1 as const : 0 as const,
     imageRef: input.imageRef,
@@ -181,13 +188,9 @@ export function parseTrivyProductionFindings(
   value: unknown,
   expectedImageDigest?: string
 ): ProductionVulnerabilityFinding[] {
-  if (!isRecord(value) || value.SchemaVersion !== 2 || value.ArtifactType !== "container_image" ||
-    !isRecord(value.Metadata) || !Array.isArray(value.Results) ||
-    (expectedImageDigest !== undefined && value.Metadata.ImageID !== expectedImageDigest)) {
-    throw new Error("Trivy report identity or schema is invalid");
-  }
+  const { results } = parseTrivyDebianReport(value, expectedImageDigest);
   const findings: ProductionVulnerabilityFinding[] = [];
-  for (const result of value.Results) {
+  for (const result of results) {
     if (!isRecord(result)) throw new Error("Trivy result is invalid");
     if (result.Vulnerabilities === null || result.Vulnerabilities === undefined) continue;
     if (!Array.isArray(result.Vulnerabilities)) throw new Error("Trivy vulnerabilities are invalid");
@@ -207,6 +210,42 @@ export function parseTrivyProductionFindings(
     }
   }
   return findings;
+}
+
+export function parseTrivyDebianPackageInventory(
+  value: unknown,
+  expectedImageDigest?: string
+): ProductionInstalledPackageIdentity[] {
+  const { osResult } = parseTrivyDebianReport(value, expectedImageDigest);
+  return (osResult.Packages as unknown[]).map((pkg) => {
+    if (!isRecord(pkg)) throw new Error("Trivy Debian OS package coverage is invalid");
+    const packageName = requiredString(pkg.Name, "Trivy Debian package name");
+    const version = requiredString(pkg.Version, "Trivy Debian package version");
+    const architecture = requiredString(pkg.Arch, "Trivy Debian package architecture");
+    const epoch = pkg.Epoch === undefined ? "" : `${nonnegativeInteger(pkg.Epoch, "Trivy Debian package epoch")}:`;
+    const release = pkg.Release === undefined ? "" : `-${requiredString(pkg.Release, "Trivy Debian package release")}`;
+    return { packageName, version: `${epoch}${version}${release}`, architecture };
+  }).sort(comparePackageIdentity);
+}
+
+function parseTrivyDebianReport(value: unknown, expectedImageDigest?: string): {
+  results: unknown[];
+  osResult: Record<string, unknown>;
+} {
+  if (!isRecord(value) || value.SchemaVersion !== 2 || value.ArtifactType !== "container_image" ||
+    !isRecord(value.Metadata) || !isRecord(value.Metadata.OS) || value.Metadata.OS.Family !== "debian" ||
+    typeof value.Metadata.OS.Name !== "string" || value.Metadata.OS.Name.trim().length === 0 ||
+    !Array.isArray(value.Results) ||
+    (expectedImageDigest !== undefined && value.Metadata.ImageID !== expectedImageDigest)) {
+    throw new Error("Trivy report identity or schema is invalid");
+  }
+  const osResults = value.Results.filter((result) => isRecord(result) && result.Class === "os-pkgs" && result.Type === "debian");
+  if (osResults.length !== 1 || !Array.isArray(osResults[0]!.Packages) || osResults[0]!.Packages.length === 0 ||
+    !osResults[0]!.Packages.every((pkg: unknown) => isRecord(pkg) && typeof pkg.Name === "string" && pkg.Name.trim().length > 0 &&
+      typeof pkg.Version === "string" && pkg.Version.trim().length > 0 && typeof pkg.Arch === "string" && pkg.Arch.trim().length > 0)) {
+    throw new Error("Trivy Debian OS package coverage is invalid");
+  }
+  return { results: value.Results, osResult: osResults[0]! };
 }
 
 export function parseNpmAuditProductionFindings(
@@ -271,6 +310,7 @@ function validateIdentity(input: ProductionSecurityGateInput): void {
     !/^[0-9a-f]{64}$/u.test(input.scannerReports.npmAuditIdentitySha256) ||
     !/^[0-9a-f]{64}$/u.test(input.scannerReports.browserRuntimeSha256) ||
     !/^[0-9a-f]{64}$/u.test(input.scannerReports.runtimeExposureSha256) ||
+    !/^[0-9a-f]{64}$/u.test(input.scannerReports.packageInventorySha256) ||
     !/^[0-9a-f]{64}$/u.test(input.policyReports.reachabilitySha256) ||
     !/^[0-9a-f]{64}$/u.test(input.policyReports.exceptionsSha256) ||
     !Number.isFinite(input.evaluatedAt.getTime())) {
@@ -360,6 +400,15 @@ function requiredString(value: unknown, label: string): string {
 
 function optionalString(value: unknown): string | undefined {
   return typeof value === "string" && value.trim().length > 0 ? value : undefined;
+}
+function nonnegativeInteger(value: unknown, label: string): number {
+  if (!Number.isSafeInteger(value) || Number(value) < 0) throw new Error(`${label} is invalid`);
+  return Number(value);
+}
+function comparePackageIdentity(left: ProductionInstalledPackageIdentity,
+  right: ProductionInstalledPackageIdentity): number {
+  return Buffer.from(`${left.packageName}\0${left.version}\0${left.architecture}`, "utf8")
+    .compare(Buffer.from(`${right.packageName}\0${right.version}\0${right.architecture}`, "utf8"));
 }
 
 function isKnownSeverity(value: unknown): boolean {

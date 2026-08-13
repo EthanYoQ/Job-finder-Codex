@@ -32,6 +32,30 @@ describe("production security gate CLI seam", () => {
     await expect(runProductionSecurityGate(args, new Date("2026-08-13T00:31:00.001Z")))
       .rejects.toThrow(/not fresh/u);
   });
+
+  it.each([
+    "",
+    "1\tbase-files\t14\n",
+    "NaN\tbase-files\t14\tamd64\n",
+    "1\tbase-files\t14\tamd64\n2\tbase-files\t14\tamd64\n"
+  ])("rejects malformed or duplicate installed package inventory %#", async (inventory) => {
+    const args = fixture(digest);
+    writeFileSync(args.packageInventory, inventory);
+    await expect(runProductionSecurityGate(args, new Date("2026-08-13T00:00:00Z")))
+      .rejects.toThrow(/package inventory/u);
+  });
+
+  it.each([
+    "1\tbase-files\t14\tamd64\n",
+    "1\tbase-files\t14\tamd64\n2\tlibc6\t1:2.41-13\tamd64\n",
+    "1\tbase-files\t14\tamd64\n2\tlibc6\t1:2.41-12\tarm64\n",
+    "1\tbase-files\t14\tamd64\n2\tlibc6\t1:2.41-12\tamd64\n3\tzlib1g\t1.3\tamd64\n"
+  ])("rejects installed package inventory that differs from Trivy coverage %#", async (inventory) => {
+    const args = fixture(digest);
+    writeFileSync(args.packageInventory, inventory);
+    await expect(runProductionSecurityGate(args, new Date("2026-08-13T00:00:00Z")))
+      .rejects.toThrow(/does not match/u);
+  });
 });
 
 function fixture(reportDigest: string, times: { browserAt?: string; runtimeAt?: string } = {}) {
@@ -43,6 +67,7 @@ function fixture(reportDigest: string, times: { browserAt?: string; runtimeAt?: 
     npmAuditIdentity: resolve(root, "npm-identity.json"),
     browserRuntimeReport: resolve(root, "browser-runtime.json"),
     runtimeExposureReport: resolve(root, "runtime-exposure.json"),
+    packageInventory: resolve(root, "package-inventory.txt"),
     packageLock: resolve(root, "package-lock.json"), reachability: resolve(root, "reachability.json"),
     exceptions: resolve(root, "exceptions.json"), output: resolve(root, "receipt.json")
   };
@@ -50,7 +75,13 @@ function fixture(reportDigest: string, times: { browserAt?: string; runtimeAt?: 
   const lockSha = createHash("sha256").update(lock).digest("hex");
   writeFileSync(paths.packageLock, lock);
   writeFileSync(paths.trivyReport, JSON.stringify({ SchemaVersion: 2, ArtifactType: "container_image",
-    Metadata: { ImageID: reportDigest }, Results: [] }));
+    Metadata: { ImageID: reportDigest, OS: { Family: "debian", Name: "sid" } }, Results: [{
+      Class: "os-pkgs", Type: "debian", Packages: [
+        { Name: "base-files", Version: "14", Arch: "amd64" },
+        { Name: "libc6", Version: "2.41", Release: "12", Epoch: 1, Arch: "amd64" }
+      ]
+    }] }));
+  writeFileSync(paths.packageInventory, "1\tbase-files\t14\tamd64\n2\tlibc6\t1:2.41-12\tamd64\n");
   const audit = Buffer.from(JSON.stringify({ auditReportVersion: 2, vulnerabilities: {} }));
   const auditSha = createHash("sha256").update(audit).digest("hex");
   writeFileSync(paths.npmAuditReport, audit);
