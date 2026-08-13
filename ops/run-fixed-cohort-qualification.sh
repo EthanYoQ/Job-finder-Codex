@@ -64,6 +64,14 @@ cleanup() {
   docker rm --force "$postgres_name" >/dev/null 2>&1 || true
   docker network rm "$network" >/dev/null 2>&1 || true
 }
+
+run_image() {
+  docker run --rm --network "$network" --read-only --cap-drop ALL \
+    --security-opt no-new-privileges:true --tmpfs /tmp:rw,nosuid,nodev,noexec,size=1g,mode=1777 \
+    --shm-size 1g --env DATABASE_URL="$database_url" --env ADMIN_EMAIL="$admin_email" \
+    --env ADMIN_PASSWORD_HASH="$admin_hash" "$IMAGE_TAG" "$@"
+}
+
 trap cleanup EXIT
 trap 'exit 129' HUP
 trap 'exit 130' INT
@@ -80,12 +88,15 @@ for attempt in $(seq 1 60); do
 done
 test "$postgres_ready" = 1
 
-run_image() {
-  docker run --rm --network "$network" --read-only --cap-drop ALL \
-    --security-opt no-new-privileges:true --tmpfs /tmp:rw,nosuid,nodev,noexec,size=1g,mode=1777 \
-    --shm-size 1g --env DATABASE_URL="$database_url" --env ADMIN_EMAIL="$admin_email" \
-    --env ADMIN_PASSWORD_HASH="$admin_hash" "$IMAGE_TAG" "$@"
-}
+postgres_network_ready=0
+for attempt in $(seq 1 60); do
+  if run_image pg_isready --dbname="$database_url" >/dev/null; then
+    postgres_network_ready=1
+    break
+  fi
+  sleep 1
+done
+test "$postgres_network_ready" = 1
 
 run_crawl() {
   docker run --rm --network "$network" --read-only --cap-drop ALL \

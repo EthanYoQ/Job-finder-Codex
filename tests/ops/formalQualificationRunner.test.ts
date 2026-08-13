@@ -65,6 +65,7 @@ function createHarness(round: 1 | 2) {
   const eventLog = resolve(root, "docker-events.log");
   writeFileSync(eventLog, "", "utf8");
   writeExecutable(resolve(bin, "sudo"), 'test "${1:-}" = chown');
+  writeExecutable(resolve(bin, "sleep"), "exit 0");
   writeExecutable(resolve(bin, "docker"), String.raw`
 printf '%s\n' "$*" >> "$FAKE_DOCKER_LOG"
 state_host=""
@@ -103,6 +104,11 @@ case "\${1:-}" in
     ;;
 esac
 case "$*" in
+  *"pg_isready --dbname="*)
+    [ "\${FAKE_EXTERNAL_READY:-1}" = 1 ] || exit 1
+    printf 'ready\n' > "$EXTERNAL_DB_READY_MARKER"
+    ;;
+  *scripts/ops-bootstrap.ts*) test -f "$EXTERNAL_DB_READY_MARKER" ;;
   *listCurrentPrismaMigrations*) printf '{"schemaSha256":"%064d","migrationVersion":"20260813013000"}' 0 ;;
   *scripts/p0-staged-crawl.ts*) exit "\${FAKE_CRAWL_EXIT:-0}" ;;
   *scripts/p0-fixed-cohort-audit.ts*)
@@ -135,6 +141,7 @@ exit 0`.replaceAll("\\${", "${"));
         HARNESS_ROOT: toPosixPath(root),
         FAKE_BIN: toPosixPath(bin),
         FAKE_DOCKER_LOG: toPosixPath(eventLog),
+        EXTERNAL_DB_READY_MARKER: toPosixPath(resolve(root, "external-db-ready.marker")),
         FORMAL_ROUND: String(round),
         IMAGE_TAG: "job-finder:test",
         GITHUB_SHA: "a".repeat(40),
@@ -174,6 +181,17 @@ describe("formal Launch Cohort qualification runner", () => {
     expect(readFileSync(resolve(harness.runtime, "formal-state", "round-one-state-receipt.json"), "utf8")).toContain("ROUND_ONE_QUALIFIED");
     const events = readFileSync(harness.eventLog, "utf8");
     expect(events).toContain("scripts/p0-fixed-cohort-audit.ts");
+    expect(events).toContain("rm --force job-finder-formal-postgres-12345");
+    expect(events).toContain("network rm job-finder-formal-12345");
+  });
+
+  it("fails closed and cleans up before bootstrap when PostgreSQL is not reachable over the application network", () => {
+    const harness = createHarness(1);
+    const result = harness.run({ FAKE_EXTERNAL_READY: "0" });
+    expect(result.status).toBe(1);
+    const events = readFileSync(harness.eventLog, "utf8");
+    expect(events.match(/pg_isready --dbname=/gu)).toHaveLength(60);
+    expect(events).not.toContain("scripts/ops-bootstrap.ts");
     expect(events).toContain("rm --force job-finder-formal-postgres-12345");
     expect(events).toContain("network rm job-finder-formal-12345");
   });
