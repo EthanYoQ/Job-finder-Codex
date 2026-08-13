@@ -155,8 +155,9 @@ describe("production container contract", () => {
     expect(workflow.slice(decomposition, upload)).toContain("docker history --no-trunc --human=false");
     expect(workflow.slice(decomposition, upload)).toContain("--network none --user 0 --read-only --cap-drop ALL");
     expect(workflow.slice(decomposition, upload)).toContain("--cap-add DAC_READ_SEARCH");
-    expect(workflow.slice(decomposition, upload)).toContain('-f="\\${Installed-Size}\\t\\${Package}\\t\\${Version}\\n"');
-    expect(workflow.slice(decomposition, upload)).toContain('NF != 3 || \\$1 !~ /^[0-9]+$/');
+    expect(workflow.slice(decomposition, upload)).toContain("--entrypoint dpkg-query");
+    expect(workflow.slice(decomposition, upload)).toContain("'--showformat=${Installed-Size}\\t${binary:Package}\\t${Version}\\n'");
+    expect(workflow.slice(decomposition, upload)).toContain("awk -F '\\t' 'NF != 3 || $1 !~ /^[0-9]+$/");
     expect(upload).toBeGreaterThan(record);
     expect(upload).toBeGreaterThan(decomposition);
     expect(sizeGate).toBeGreaterThan(upload);
