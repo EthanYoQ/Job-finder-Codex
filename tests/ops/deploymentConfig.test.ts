@@ -539,6 +539,8 @@ describe("deployment configuration", () => {
     expect(backup).toContain("set -eu; while true; do sh ./ops/backup.sh; sleep");
     expect(backup).toMatch(/healthcheck:[\s\S]*readBackupAttemptEvidence/u);
     expect(backup).toContain("readBackupAttemptEvidence('/backups/latest-backup-attempt.json')");
+    expect(backup).toMatch(/BACKUP_DIR:\s*\/backups/u);
+    expect(backup).not.toContain("${BACKUP_DIR");
     expect(backup).not.toContain("BACKUP_ATTEMPT_RECEIPT_PATH:");
     expect(backup).toMatch(/start_period:\s*(?:[1-9]\d*s|[1-9]\d*m)/u);
     expect(backup).not.toMatch(/healthcheck:[\s\S]*-name\s+["']\*\.dump["']/u);
