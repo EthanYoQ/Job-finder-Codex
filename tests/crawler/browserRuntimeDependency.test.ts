@@ -1,6 +1,7 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
-import { extractProductionNodeStage, PRODUCTION_RUNTIME_APT_COMMAND } from "../../src/readiness/productionImageContract";
+import { extractProductionNodeStage, PRODUCTION_BROWSER_DEB_SHA256, PRODUCTION_BROWSER_DEB_URL,
+  PRODUCTION_RUNTIME_APT_COMMAND } from "../../src/readiness/productionImageContract";
 
 describe("browser-backed crawler runtime dependencies", () => {
   it("declares playwright-core as a production dependency", () => {
@@ -18,7 +19,9 @@ describe("browser-backed crawler runtime dependencies", () => {
     expect(dockerfile).toContain("chromium");
     const runtimeStage = extractProductionNodeStage(dockerfile, "runtime");
     expect(runtimeStage).toContain(PRODUCTION_RUNTIME_APT_COMMAND);
-    expect(readFileSync("scripts/browser-runtime-smoke.mjs", "utf8")).toContain('"/usr/bin/chromium"');
+    expect(runtimeStage).toContain(PRODUCTION_BROWSER_DEB_URL);
+    expect(runtimeStage).toContain(PRODUCTION_BROWSER_DEB_SHA256);
+    expect(readFileSync("scripts/browser-runtime-smoke.mjs", "utf8")).toContain("inspectFormalBrowserReady");
     const runtime = readFileSync("src/crawler/officialJsonSourceFetch.ts", "utf8");
     expect(runtime).toContain("executablePath: FORMAL_CHROMIUM_PATH");
     expect(runtime).toContain("args:[...FORMAL_CHROMIUM_ARGS]");

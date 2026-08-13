@@ -40,7 +40,7 @@ export interface ProductionSecurityGateInput {
   imageRef: string;
   imageDigest: string;
   packageLockSha256: string;
-  scannerReports: { trivySha256: string; npmAuditSha256: string; npmAuditIdentitySha256: string };
+  scannerReports: { trivySha256: string; npmAuditSha256: string; npmAuditIdentitySha256: string; browserRuntimeSha256: string };
   policyReports: { reachabilitySha256: string; exceptionsSha256: string };
   evaluatedAt: Date;
   findings: readonly ProductionVulnerabilityFinding[];
@@ -73,7 +73,7 @@ export interface ProductionSecurityReceipt {
   imageRef: string;
   imageDigest: string;
   packageLockSha256: string;
-  scannerReports: { trivySha256: string; npmAuditSha256: string; npmAuditIdentitySha256: string };
+  scannerReports: { trivySha256: string; npmAuditSha256: string; npmAuditIdentitySha256: string; browserRuntimeSha256: string };
   policyReports: { reachabilitySha256: string; exceptionsSha256: string };
   evaluatedAt: string;
   findings: EvaluatedProductionFinding[];
@@ -89,7 +89,7 @@ export async function readProductionSecurityReceipt(path: string): Promise<Produ
     ![0, 1].includes(Number(value.exitCode)) || typeof value.imageRef !== "string" || !value.imageRef.trim() ||
     !/^sha256:[0-9a-f]{64}$/u.test(String(value.imageDigest)) || !validShaValue(value.packageLockSha256) ||
     !isRecord(value.scannerReports) || !exactShaRecord(value.scannerReports,
-      ["trivySha256", "npmAuditSha256", "npmAuditIdentitySha256"]) ||
+      ["trivySha256", "npmAuditSha256", "npmAuditIdentitySha256", "browserRuntimeSha256"]) ||
     !isRecord(value.policyReports) || !exactShaRecord(value.policyReports, ["reachabilitySha256", "exceptionsSha256"]) ||
     typeof value.evaluatedAt !== "string" || !Number.isFinite(Date.parse(value.evaluatedAt)) ||
     !Array.isArray(value.findings) || !value.findings.every(isEvaluatedFinding) ||
@@ -261,6 +261,7 @@ function validateIdentity(input: ProductionSecurityGateInput): void {
     !/^[0-9a-f]{64}$/u.test(input.scannerReports.trivySha256) ||
     !/^[0-9a-f]{64}$/u.test(input.scannerReports.npmAuditSha256) ||
     !/^[0-9a-f]{64}$/u.test(input.scannerReports.npmAuditIdentitySha256) ||
+    !/^[0-9a-f]{64}$/u.test(input.scannerReports.browserRuntimeSha256) ||
     !/^[0-9a-f]{64}$/u.test(input.policyReports.reachabilitySha256) ||
     !/^[0-9a-f]{64}$/u.test(input.policyReports.exceptionsSha256) ||
     !Number.isFinite(input.evaluatedAt.getTime())) {

@@ -11,7 +11,7 @@ describe("Docker apt transport reliability",()=>{
       /^RUN --mount=type=cache,target=\/var\/cache\/apt,sharing=locked \\\r?\n\s+--mount=type=cache,target=\/var\/lib\/apt,sharing=locked \\\r?\n\s+sh \/usr\/local\/bin\/install-apt-packages\.sh [^\r\n]+$/gmu,
     )??[];
 
-    expect(layers).toHaveLength(3);
+    expect(layers).toHaveLength(4);
     for(const layer of layers){
       expect(layer).toContain("--mount=type=cache,target=/var/cache/apt,sharing=locked");
       expect(layer).toContain("--mount=type=cache,target=/var/lib/apt,sharing=locked");

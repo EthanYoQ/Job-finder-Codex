@@ -32,19 +32,16 @@ jobs:
         run: |
           npm run docker:export-provenance
           SOURCE_TREE_SHA256="$(npx tsx -e "import { canonicalSourceTreeSha256 } from './src/readiness/buildIdentity.ts'; process.stdout.write(canonicalSourceTreeSha256(process.cwd()))")"
-          CHROMIUM_MIN_VERSION="$(npx tsx -e "import { PRODUCTION_CHROMIUM_MIN_VERSION } from './src/readiness/productionImageContract.ts'; process.stdout.write(PRODUCTION_CHROMIUM_MIN_VERSION)")"
           echo "SOURCE_TREE_SHA256=$SOURCE_TREE_SHA256" >> "$GITHUB_ENV"
-          echo "CHROMIUM_MIN_VERSION=$CHROMIUM_MIN_VERSION" >> "$GITHUB_ENV"
       - run: npm run image:context-check
       - run: npm run image:runtime-contract-check
 
       - name: Build from a clean context
         run: >-
-          docker build --pull --no-cache
+          docker build --platform linux/amd64 --pull --no-cache
           --build-arg BUILD_COMMIT_SHA=${{ github.sha }}
           --build-arg BUILD_SOURCE_CLEAN=true
           --build-arg BUILD_SOURCE_TREE_SHA256="$SOURCE_TREE_SHA256"
-          --build-arg PRODUCTION_CHROMIUM_MIN_VERSION="$CHROMIUM_MIN_VERSION"
           --tag "$IMAGE_TAG" .
 
       - name: Enforce runtime identity and image size
@@ -56,6 +53,24 @@ jobs:
           test "$IMAGE_USER" = "node"
           test "$IMAGE_REVISION" = "${{ github.sha }}"
           test "$IMAGE_BYTES" -le "$MAX_IMAGE_BYTES"
+          test "$(docker image inspect --format '{{.Architecture}}' "$IMAGE_TAG")" = "amd64"
+          mkdir -p .runtime/security
+          docker run --rm --read-only --cap-drop ALL --security-opt no-new-privileges:true \
+            --tmpfs /tmp:rw,nosuid,nodev,noexec,size=1g,mode=1777 --entrypoint node "$IMAGE_TAG" \
+            node_modules/tsx/dist/cli.mjs scripts/browser-runtime-smoke.mjs \
+            > .runtime/security/browser-runtime-raw.json
+          IMAGE_DIGEST="$(docker image inspect --format '{{.Id}}' "$IMAGE_TAG")"
+          curl --fail --silent --show-error \
+            -H 'Accept: application/vnd.github+json' \
+            -H 'Authorization: Bearer ${{ github.token }}' \
+            https://api.github.com/repos/brave/brave-browser/releases/latest > .runtime/security/browser-release.json
+          jq -e '.tag_name == "v1.93.136" and .draft == false and .prerelease == false and
+            ([.assets[] | select(.name == "brave-browser_1.93.136_amd64.deb" and
+            .browser_download_url == "https://github.com/brave/brave-browser/releases/download/v1.93.136/brave-browser_1.93.136_amd64.deb" and
+            .digest == "sha256:9739e5aaee4303eb4199c038b04a75d7bc7ac08314af9f763011e211dea62999")] | length == 1)' \
+            .runtime/security/browser-release.json >/dev/null
+          npx tsx scripts/bind-browser-runtime-report.ts .runtime/security/browser-runtime-raw.json \
+            "$IMAGE_DIGEST" .runtime/security/browser-release.json .runtime/security/browser-runtime-report.json
 
       - name: Capture production lock vulnerability report
         run: |
@@ -82,6 +97,7 @@ jobs:
             --trivy-report .runtime/security/trivy-image.json \
             --npm-audit-report .runtime/security/npm-audit.json \
             --npm-audit-identity .runtime/security/npm-audit-identity.json \
+            --browser-runtime-report .runtime/security/browser-runtime-report.json \
             --package-lock package-lock.json \
             --reachability security/production-reachability.json \
             --exceptions security/production-vulnerability-exceptions.json \

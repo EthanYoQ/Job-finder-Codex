@@ -72,8 +72,15 @@ ENV XDG_CACHE_HOME=/tmp/.cache
 COPY ops/install-apt-packages.sh /usr/local/bin/install-apt-packages.sh
 RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     --mount=type=cache,target=/var/lib/apt,sharing=locked \
-    sh /usr/local/bin/install-apt-packages.sh ca-certificates chromium libpq5 libreadline8 util-linux
-ARG PRODUCTION_CHROMIUM_MIN_VERSION
+    sh /usr/local/bin/install-apt-packages.sh ca-certificates libpq5 libreadline8 util-linux
+ADD --checksum=sha256:9739e5aaee4303eb4199c038b04a75d7bc7ac08314af9f763011e211dea62999 \
+    https://github.com/brave/brave-browser/releases/download/v1.93.136/brave-browser_1.93.136_amd64.deb \
+    /tmp/brave-browser.deb
+RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
+    --mount=type=cache,target=/var/lib/apt,sharing=locked \
+    sh /usr/local/bin/install-apt-packages.sh /tmp/brave-browser.deb \
+    && ln -s /usr/bin/brave-browser-stable /usr/bin/chromium \
+    && rm -f /tmp/brave-browser.deb /etc/apt/sources.list.d/brave-browser-release.list /usr/share/keyrings/brave-browser-archive-keyring.gpg
 COPY --from=pg16-client /usr/lib/postgresql/16/bin/pg_dump /usr/local/bin/pg_dump
 COPY --from=pg16-client /usr/lib/postgresql/16/bin/pg_restore /usr/local/bin/pg_restore
 COPY --from=pg16-client /usr/lib/postgresql/16/bin/psql /usr/local/bin/psql
@@ -82,9 +89,9 @@ RUN test "$(command -v pg_dump)" = "/usr/local/bin/pg_dump" \
   && test "$(command -v psql)" = "/usr/local/bin/psql" \
   && sh -lc 'test "$(command -v pg_dump)" = "/usr/local/bin/pg_dump" && test "$(command -v pg_restore)" = "/usr/local/bin/pg_restore" && test "$(command -v psql)" = "/usr/local/bin/psql"' \
   && test "$(command -v flock)" = "/usr/bin/flock" \
-  && test -n "$PRODUCTION_CHROMIUM_MIN_VERSION" \
-  && dpkg --compare-versions "$(dpkg-query -W -f='${Version}' chromium)" ge "$PRODUCTION_CHROMIUM_MIN_VERSION" \
-  && dpkg-query -W -f='chromium=${Version}\nchromium-common=${Version}\n' chromium chromium-common \
+  && test "$(dpkg-query -W -f='${Version}' brave-browser)" = "1.93.136" \
+  && dpkg-query -W -f='brave-browser=${Version}\n' brave-browser \
+  && test "$(readlink -f /usr/bin/chromium)" = "/opt/brave.com/brave/brave-browser" \
   && pg_dump --version | grep -E '^pg_dump \(PostgreSQL\) 16\.14([ .]|$)' \
   && pg_restore --version | grep -E '^pg_restore \(PostgreSQL\) 16\.14([ .]|$)' \
   && psql --version | grep -E '^psql \(PostgreSQL\) 16\.14([ .]|$)' \

@@ -2,7 +2,10 @@ import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import {
   extractProductionNodeStage,
-  PRODUCTION_CHROMIUM_MIN_VERSION,
+  PRODUCTION_BROWSER_DEB_SHA256,
+  PRODUCTION_BROWSER_DEB_NAME,
+  PRODUCTION_BROWSER_DEB_URL,
+  PRODUCTION_BROWSER_RELEASE,
   PRODUCTION_NODE_IMAGE_REF
 } from "../../src/readiness/productionImageContract";
 
@@ -30,10 +33,13 @@ describe("production container contract", () => {
     expect(runtimeStage).not.toContain("package-lock.json");
     expect(runtimeStage).toContain("npm install --global npm@12.0.2");
     expect(runtimeStage).toContain('test "$(npm --version)" = "12.0.2"');
-    expect(runtimeStage).toContain("ARG PRODUCTION_CHROMIUM_MIN_VERSION");
-    expect(runtimeStage).not.toContain(`PRODUCTION_CHROMIUM_MIN_VERSION=${PRODUCTION_CHROMIUM_MIN_VERSION}`);
+    expect(runtimeStage).toContain(`ADD --checksum=sha256:${PRODUCTION_BROWSER_DEB_SHA256}`);
+    expect(runtimeStage).toContain(PRODUCTION_BROWSER_DEB_URL);
+    expect(runtimeStage).toContain(PRODUCTION_BROWSER_DEB_NAME);
+    expect(runtimeStage).toContain("ln -s /usr/bin/brave-browser-stable /usr/bin/chromium");
+    expect(runtimeStage).not.toContain("PRODUCTION_CHROMIUM_MIN_VERSION");
     expect(runtimeStage).toContain(
-      'dpkg --compare-versions "$(dpkg-query -W -f=\'${Version}\' chromium)" ge "$PRODUCTION_CHROMIUM_MIN_VERSION"'
+      'test "$(dpkg-query -W -f=\'${Version}\' brave-browser)" = "1.93.136"'
     );
     expect(dockerfile).not.toContain("COPY . .");
     expect(packageJson.dependencies?.tsx).toBeDefined();
@@ -78,11 +84,17 @@ describe("production container contract", () => {
     expect(workflow).toContain("npm run docker:export-provenance");
     expect(workflow).toMatch(/docker build[\s\S]*--no-cache/u);
     expect(workflow).toContain("BUILD_COMMIT_SHA=${{ github.sha }}");
-    expect(workflow).toContain("import { PRODUCTION_CHROMIUM_MIN_VERSION }");
-    expect(workflow).toContain('--build-arg PRODUCTION_CHROMIUM_MIN_VERSION="$CHROMIUM_MIN_VERSION"');
+    expect(workflow).toContain(".draft == false");
+    expect(workflow).toContain(".prerelease == false");
+    expect(workflow).toContain("Authorization: Bearer ${{ github.token }}");
+    expect(workflow).toContain("brave-browser_1.93.136_amd64.deb");
+    expect(workflow).toContain("--read-only --cap-drop ALL --security-opt no-new-privileges:true");
+    expect(workflow).toContain("--tmpfs /tmp:rw,nosuid,nodev,noexec");
     expect(workflow).toContain("BUILD_SOURCE_CLEAN=true");
     expect(workflow).toContain("BUILD_SOURCE_TREE_SHA256");
     expect(workflow).toContain("docker run");
+    expect(workflow).toContain("docker build --platform linux/amd64");
+    expect(workflow).toContain("scripts/browser-runtime-smoke.mjs");
     expect(workflow).toContain("/livez");
     expect(workflow).toContain(".Config.User");
     expect(workflow).toContain('IMAGE_USER="$(docker image inspect');
@@ -112,5 +124,27 @@ describe("production container contract", () => {
     expect(workflow).toContain("scripts/bind-npm-audit-report.ts");
     expect(workflow).toContain("actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02");
     expect(workflow).toMatch(/name: Preserve production security evidence\s+if: always\(\)/u);
+  });
+
+  it("keeps the declarative browser asset consumers bound to the single TypeScript contract", () => {
+    const dockerfile = read("Dockerfile");
+    const workflow = read(".github/workflows/production-image.yml");
+    for (const consumer of [dockerfile, workflow]) {
+      expect(consumer).toContain(PRODUCTION_BROWSER_RELEASE);
+      expect(consumer).toContain(PRODUCTION_BROWSER_DEB_NAME);
+      expect(consumer).toContain(PRODUCTION_BROWSER_DEB_URL);
+      expect(consumer).toContain(PRODUCTION_BROWSER_DEB_SHA256);
+    }
+  });
+
+  it("rejects drift in every pinned Node runtime stage", () => {
+    const dockerfile = read("Dockerfile");
+    for (const stage of ["deps", "production-deps", "runtime"] as const) {
+      expect(extractProductionNodeStage(dockerfile, stage)).toBeTruthy();
+      expect(() => extractProductionNodeStage(
+        dockerfile.replace(`FROM ${PRODUCTION_NODE_IMAGE_REF} AS ${stage}`, `FROM node:22-bookworm-slim AS ${stage}`),
+        stage
+      )).toThrow(/pinned/u);
+    }
   });
 });

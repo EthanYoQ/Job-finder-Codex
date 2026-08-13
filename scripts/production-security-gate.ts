@@ -9,6 +9,7 @@ import {
   type ProductionReachabilityDecision,
   type ProductionVulnerabilityException
 } from "../src/security/productionSecurityGate";
+import { parseBrowserRuntimeQualificationReceipt } from "../src/security/browserRuntimeQualification";
 
 interface SecurityGateArguments {
   imageRef: string;
@@ -16,6 +17,7 @@ interface SecurityGateArguments {
   trivyReport: string;
   npmAuditReport: string;
   npmAuditIdentity: string;
+  browserRuntimeReport: string;
   packageLock: string;
   reachability: string;
   exceptions: string;
@@ -26,13 +28,20 @@ export async function runProductionSecurityGate(
   args: SecurityGateArguments,
   evaluatedAt = new Date()
 ): Promise<0 | 1> {
-  const [trivyBytes, npmAuditBytes, npmAuditIdentityBytes, packageLockBytes, reachabilityBytes, exceptionsBytes] = await Promise.all([
+  const [trivyBytes, npmAuditBytes, npmAuditIdentityBytes, browserRuntimeBytes, packageLockBytes, reachabilityBytes, exceptionsBytes] = await Promise.all([
     readFile(args.trivyReport), readFile(args.npmAuditReport), readFile(args.npmAuditIdentity),
+    readFile(args.browserRuntimeReport),
     readFile(args.packageLock), readFile(args.reachability), readFile(args.exceptions)
   ]);
   const trivy = parseJson(trivyBytes, "Trivy report");
   const npmAudit = parseJson(npmAuditBytes, "npm audit report");
   const npmAuditIdentity = parseJson(npmAuditIdentityBytes, "npm audit identity");
+  const browserRuntime = parseBrowserRuntimeQualificationReceipt(browserRuntimeBytes, args.imageDigest);
+  const browserEvaluatedAt = new Date(browserRuntime.evaluatedAt).getTime();
+  const gateEvaluatedAt = evaluatedAt.getTime();
+  if (browserEvaluatedAt > gateEvaluatedAt + 5 * 60_000 || gateEvaluatedAt - browserEvaluatedAt > 30 * 60_000) {
+    throw new Error("Browser runtime qualification receipt is not fresh for this security evaluation");
+  }
   const packageLock = parseJson(packageLockBytes, "package lock");
   const reachability = parsePolicyArray<ProductionReachabilityDecision>(
     parseJson(reachabilityBytes, "reachability policy"), "decisions", "reachability"
@@ -48,7 +57,7 @@ export async function runProductionSecurityGate(
     packageLockSha256,
     scannerReports: {
       trivySha256: sha256(trivyBytes), npmAuditSha256: sha256(npmAuditBytes),
-      npmAuditIdentitySha256: sha256(npmAuditIdentityBytes)
+      npmAuditIdentitySha256: sha256(npmAuditIdentityBytes), browserRuntimeSha256: sha256(browserRuntimeBytes)
     },
     policyReports: {
       reachabilitySha256: sha256(reachabilityBytes), exceptionsSha256: sha256(exceptionsBytes)
@@ -90,13 +99,13 @@ export function parseProductionSecurityGateArgs(argv: readonly string[]): Securi
     if (value === undefined || value.trim().length === 0) throw new Error(`Missing production security argument: ${name}`);
     return value;
   };
-  const expected = ["--image-ref", "--image-digest", "--trivy-report", "--npm-audit-report", "--npm-audit-identity",
+  const expected = ["--image-ref", "--image-digest", "--trivy-report", "--npm-audit-report", "--npm-audit-identity", "--browser-runtime-report",
     "--package-lock", "--reachability", "--exceptions", "--output"];
   for (const key of parsed.keys()) if (!expected.includes(key)) throw new Error(`Unknown production security argument: ${key}`);
   return {
     imageRef: read("--image-ref"), imageDigest: read("--image-digest"),
     trivyReport: read("--trivy-report"), npmAuditReport: read("--npm-audit-report"),
-    npmAuditIdentity: read("--npm-audit-identity"),
+    npmAuditIdentity: read("--npm-audit-identity"), browserRuntimeReport: read("--browser-runtime-report"),
     packageLock: read("--package-lock"), reachability: read("--reachability"),
     exceptions: read("--exceptions"), output: read("--output")
   };

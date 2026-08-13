@@ -9,7 +9,8 @@ const identity = {
   imageRef: "job-finder:test",
   imageDigest: `sha256:${"a".repeat(64)}`,
   packageLockSha256: "b".repeat(64),
-  scannerReports: { trivySha256: "c".repeat(64), npmAuditSha256: "d".repeat(64), npmAuditIdentitySha256: "0".repeat(64) },
+  scannerReports: { trivySha256: "c".repeat(64), npmAuditSha256: "d".repeat(64),
+    npmAuditIdentitySha256: "0".repeat(64), browserRuntimeSha256: "9".repeat(64) },
   policyReports: { reachabilitySha256: "e".repeat(64), exceptionsSha256: "f".repeat(64) },
   evaluatedAt: new Date("2026-08-13T00:00:00.000Z")
 };

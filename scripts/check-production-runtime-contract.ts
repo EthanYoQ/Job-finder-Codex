@@ -2,7 +2,8 @@ import { readFileSync } from "node:fs";
 import { buildStagedSourceCrawlPlans } from "../src/crawler/sourcePlan";
 import { requiresBGradeTraversalCertificate } from "../src/crawler/traversalCertificate";
 import { candidateCompanies } from "../src/data/companyRegistry";
-import { extractProductionNodeStage, PRODUCTION_RUNTIME_APT_COMMAND } from "../src/readiness/productionImageContract";
+import { extractProductionNodeStage, PRODUCTION_BROWSER_DEB_SHA256, PRODUCTION_BROWSER_DEB_URL,
+  PRODUCTION_RUNTIME_APT_COMMAND } from "../src/readiness/productionImageContract";
 
 const plans = buildStagedSourceCrawlPlans(candidateCompanies);
 const browserRequired = plans.some((plan) =>
@@ -10,7 +11,8 @@ const browserRequired = plans.some((plan) =>
 );
 const dockerfile = readFileSync("Dockerfile", "utf8");
 const runtimeStage = extractProductionNodeStage(dockerfile, "runtime");
-const chromiumInstalled = runtimeStage.includes(PRODUCTION_RUNTIME_APT_COMMAND);
+const chromiumInstalled = runtimeStage.includes(PRODUCTION_RUNTIME_APT_COMMAND) &&
+  runtimeStage.includes(PRODUCTION_BROWSER_DEB_URL) && runtimeStage.includes(PRODUCTION_BROWSER_DEB_SHA256);
 
 if (browserRequired !== chromiumInstalled) {
   throw new Error(
