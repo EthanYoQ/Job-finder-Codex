@@ -104,6 +104,7 @@ describe("fixed cohort completeness audit", () => {
     const scopeRoot = report.repairFrontier.find(({ sourceIds }) => sourceIds.includes(source.sourceId))?.rootCause;
     expect(scopeRoot).toBe("PAGINATION_EVIDENCE_INVALID");
     const manifest = input(); manifest.sources[1]!.companyId = "company-substitute";
+    manifest.sources[1]!.failureCode = "HTML_FETCH_FAILED";
     expect(buildFixedCohortCompletenessAudit(manifest).repairFrontier.find(({ sourceIds }) =>
       sourceIds.includes(manifest.sources[1]!.sourceId))?.rootCause).toBe("MANIFEST_BINDING_MISMATCH");
   });
