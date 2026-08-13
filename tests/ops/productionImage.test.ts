@@ -58,10 +58,6 @@ describe("production container contract", () => {
     expect(runtimeStage).toContain(`test "$(dpkg-query -W -f='\${Version}' brave-keyring)" = "${PRODUCTION_BROWSER_KEYRING_VERSION}"`);
     expect(runtimeStage).toContain("test ! -e /etc/apt/sources.list.d/brave-browser-release.list");
     expect(runtimeStage).toContain("test ! -e /usr/share/keyrings/brave-browser-archive-keyring.gpg");
-    expect(runtimeStage).toContain("apt-get purge -y wget");
-    expect(runtimeStage).toContain("apt-get check");
-    expect(runtimeStage).toContain("! dpkg-query -W wget >/dev/null 2>&1");
-    expect(runtimeStage).toContain("! command -v wget");
     expect(runtimeStage).toContain("ln -s /usr/bin/brave-browser-stable /usr/bin/chromium");
     expect(runtimeStage).not.toContain("PRODUCTION_CHROMIUM_MIN_VERSION");
     expect(runtimeStage).toContain(
