@@ -147,7 +147,9 @@ describe("source crawl planning", () => {
       laterZeroTotalPolicy: "PFIZER_AUDITED_EXACT_RECONCILIATION",
       opaqueMultiLocationDetailPolicy: "PFIZER_AUDITED_APAC_DETAIL_V1",
       appliedFacets: { Location_Country: ["6cb77610a8a543aea2d6bc10457e35d4"] },
-      facetDescriptorBoundary: { facetParameter: "workerSubType", allowedDescriptors: ["Regular"] }
+      facetDescriptorBoundary: { facetParameter: "workerSubType", allowedDescriptors: ["Regular"] },
+      pageSize: 20,
+      maxPages: 20
     });
     const { opaqueMultiLocationDetailPolicy: _removedPolicy, ...withoutPolicy } = plan.workday;
     const tampered = { ...plan, workday: withoutPolicy };
@@ -644,21 +646,23 @@ describe("source crawl planning", () => {
       .update(JSON.stringify(aliases), "utf8")
       .digest("hex");
     expect(jnjLocationPolicy.mainlandDescriptorAliases).toHaveLength(9);
-    expect(jnjLocationPolicy.foreignDescriptorAliases).toHaveLength(145);
+    expect(jnjLocationPolicy.foreignDescriptorAliases).toHaveLength(146);
     expect(descriptorAliasesSha256(jnjLocationPolicy.mainlandDescriptorAliases))
       .toBe("e7820d1245ada112373ffbb699b44a330ab3023b1388729927866efd5ea8aa98");
     expect(descriptorAliasesSha256(jnjLocationPolicy.foreignDescriptorAliases))
-      .toBe("1c1f010003a93af55f093583da0749a58e5eae18fe2035ab17368aa973521a23");
+      .toBe("b05245857d8dc84d9aa51128d65133e4cd01df37fc1791b91f787265a8ba7325");
     expect(descriptorAliasesSha256(gileadLocationPolicy.foreignDescriptorAliases))
-      .toBe("aa7db564434c890f9ab9f2a37b7e12502fb41e9be03055d03242cc169361d7fa");
-    expect(bmsLocationPolicy.foreignSiteDescriptorAliases).toHaveLength(15);
-    expect(bmsLocationPolicy.foreignCountryDescriptorAliases).toHaveLength(2);
+      .toBe("0b5712b081d45f45d66cb483997b45e94719e891bce37c11b3afd86bd999ccec");
+    expect(bmsLocationPolicy.foreignSiteDescriptorAliases).toHaveLength(17);
+    expect(bmsLocationPolicy.foreignCountryDescriptorAliases).toHaveLength(3);
     expect(bmsLocationPolicy.foreignSiteDescriptorAliases)
       .toContain("WA04 PSA Celgene - Seattle Dexter Avenue - WA");
     expect(descriptorAliasesSha256(bmsLocationPolicy.foreignSiteDescriptorAliases))
-      .toBe("b8c65d7a8ee7fbc0dc9de88428ad06318519cb6f2ec065d06d96616c7e3af474");
+      .toBe("5789cfd90d45a9216d511b7bade479db27f85334aeccaec45faeabaa577668f1");
     expect(descriptorAliasesSha256(bmsLocationPolicy.foreignCountryDescriptorAliases))
-      .toBe("136822242c07ee3916d870b6a2888c1e92eb43b3e13f74dcfe35a2e2e3e5b7cf");
+      .toBe("b985e9ec86bf6d391ec776ee9d1d16fbd7ba0335d9df43ea81b2de08d481da01");
+    expect(bmsLocationCandidate.workday.opaqueMultiLocationDetailPolicy)
+      .toBe("BMS_AUDITED_CHINA_DETAIL_V1");
     const bmsWithoutSeattleAlias = {
       ...bmsLocationCandidate,
       workday: {
@@ -987,7 +991,6 @@ describe("source crawl planning", () => {
             fieldName: "job_type", descriptor: "Regular" }
         ],
         excludedPartitions: [
-          { id: "Apprentice/Intern", facetType: 5, fieldName: "job_type", descriptor: "Apprentice/Intern" },
           { id: "Apprentice/Intern (Fixed Term)", facetType: 5,
             fieldName: "job_type", descriptor: "Apprentice/Intern (Fixed Term)" },
           { id: "Student (Fixed Term)", facetType: 5,
@@ -1131,7 +1134,10 @@ describe("source crawl planning", () => {
         officialChainEvidenceUrl: "https://www.careers.teva/careers?location=China"
       },
       table: {
-        strictEmbeddedJsonZero: { kind: "TEVA_SMARTAPPLY_CHINA" }
+        strictEmbeddedJsonZero: {
+          kind: "TEVA_SMARTAPPLY_CHINA",
+          remoteGlobalForeignExclusionPolicy: "TEVA_US_REMOTE_GLOBAL_V1"
+        }
       }
     });
     if (tevaPlan?.adapterId !== "html-table") throw new Error("Expected Teva HTML plan");
