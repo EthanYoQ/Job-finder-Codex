@@ -433,7 +433,10 @@ jobs:
           truncate --size="$((ARCHIVE_SIZE / 2))" .runtime/restore/corrupt.dump
           CORRUPT_SHA="$(sha256sum .runtime/restore/corrupt.dump | cut -d' ' -f1)"
           printf '%s  corrupt.dump\n' "$CORRUPT_SHA" > .runtime/restore/corrupt.dump.sha256
-          node -e "const fs=require('fs'),p='.runtime/restore/corrupt.dump.metadata.json',v=JSON.parse(fs.readFileSync('$ARCHIVE.metadata.json'));v.archiveSha256=process.argv[1];fs.writeFileSync(p,JSON.stringify(v))" "$CORRUPT_SHA"
+          docker run --rm --network none --read-only --cap-drop ALL --security-opt no-new-privileges:true \
+            --volume "$PWD/.runtime/restore:/backup" "$IMAGE_TAG" node -e \
+            'const fs=require("fs"),source=process.argv[1],target=process.argv[2],value=JSON.parse(fs.readFileSync(source,"utf8"));value.archiveSha256=process.argv[3];fs.writeFileSync(target,JSON.stringify(value),{mode:0o600,flag:"wx"});' \
+            "/backup/$(basename "$ARCHIVE").metadata.json" /backup/corrupt.dump.metadata.json "$CORRUPT_SHA"
           if docker run --rm --network "$NETWORK" --env RESTORE_ADMIN_DATABASE_URL="$ADMIN_URL" \
             --env RESTORE_RECEIPT_PATH=/backup/restore-failed-corrupt-receipt.json --volume "$PWD/.runtime/restore:/backup" \
             "$IMAGE_TAG" node node_modules/tsx/dist/cli.mjs scripts/qualify-backup-restore.ts /backup/corrupt.dump; then exit 1; fi
@@ -444,7 +447,10 @@ jobs:
           cp "$ARCHIVE" .runtime/restore/incompatible.dump
           cp "$ARCHIVE.sha256" .runtime/restore/incompatible.dump.sha256
           sed -i "s/$(basename "$ARCHIVE")/incompatible.dump/" .runtime/restore/incompatible.dump.sha256
-          node -e "const fs=require('fs'),p='.runtime/restore/incompatible.dump.metadata.json',v=JSON.parse(fs.readFileSync('$ARCHIVE.metadata.json'));v.database.serverVersionNum='150000';fs.writeFileSync(p,JSON.stringify(v))"
+          docker run --rm --network none --read-only --cap-drop ALL --security-opt no-new-privileges:true \
+            --volume "$PWD/.runtime/restore:/backup" "$IMAGE_TAG" node -e \
+            'const fs=require("fs"),source=process.argv[1],target=process.argv[2],value=JSON.parse(fs.readFileSync(source,"utf8"));value.database.serverVersionNum="150000";fs.writeFileSync(target,JSON.stringify(value),{mode:0o600,flag:"wx"});' \
+            "/backup/$(basename "$ARCHIVE").metadata.json" /backup/incompatible.dump.metadata.json
           if docker run --rm --network "$NETWORK" --env RESTORE_ADMIN_DATABASE_URL="$ADMIN_URL" \
             --env RESTORE_RECEIPT_PATH=/backup/restore-failed-version-receipt.json --volume "$PWD/.runtime/restore:/backup" \
             "$IMAGE_TAG" node node_modules/tsx/dist/cli.mjs scripts/qualify-backup-restore.ts /backup/incompatible.dump; then exit 1; fi

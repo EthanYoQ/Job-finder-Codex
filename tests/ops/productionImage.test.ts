@@ -254,6 +254,26 @@ describe("production container contract", () => {
     }
   });
 
+  it("derives failure fixtures inside the container that owns private backup metadata", () => {
+    const workflow = read(".github/workflows/production-image.yml");
+    const restoreStepStart = workflow.indexOf("name: Qualify a real PostgreSQL 16 backup restore and failure receipts");
+    const restoreStepEnd = workflow.indexOf("name: Publish exact-image qualification receipt");
+    const restoreStep = workflow.slice(restoreStepStart, restoreStepEnd);
+
+    expect(restoreStep).not.toContain("JSON.parse(fs.readFileSync('$ARCHIVE.metadata.json'))");
+    expect(restoreStep.match(
+      /docker run --rm --network none --read-only --cap-drop ALL --security-opt no-new-privileges:true[\s\\]+--volume "\$PWD\/\.runtime\/restore:\/backup" "\$IMAGE_TAG" node -e/gu
+    )).toHaveLength(2);
+    expect(restoreStep.match(/fs\.writeFileSync\(target,JSON\.stringify\(value\),\{mode:0o600,flag:"wx"\}\)/gu))
+      .toHaveLength(2);
+    expect(restoreStep.match(/source=process\.argv\[1\],target=process\.argv\[2\]/gu)).toHaveLength(2);
+    expect(restoreStep).toContain("value.archiveSha256=process.argv[3]");
+    expect(restoreStep).toContain('value.database.serverVersionNum="150000"');
+    expect(restoreStep).toContain('"/backup/$(basename "$ARCHIVE").metadata.json" /backup/corrupt.dump.metadata.json');
+    expect(restoreStep).toContain('/backup/corrupt.dump.metadata.json "$CORRUPT_SHA"');
+    expect(restoreStep).toContain('"/backup/$(basename "$ARCHIVE").metadata.json" /backup/incompatible.dump.metadata.json');
+  });
+
   it("provides a repeatable clean Linux build and startup smoke workflow", () => {
     const workflow = read(".github/workflows/production-image.yml");
 
