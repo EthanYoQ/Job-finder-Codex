@@ -48,7 +48,7 @@ const deps: RestoreQualificationDeps = {
 
 const RESTORE_FACTS_SQL = `
 SELECT
-  (SELECT count(*) FROM "CrawlBatch" WHERE kind = 'FULL_RELEASE' AND status = 'SUCCESS') AS "successfulFullReleaseBatchCount",
+  (SELECT count(*) FROM "CrawlBatch" WHERE kind IN ('FULL_RELEASE', 'SCHEDULED') AND status = 'SUCCESS') AS "successfulFullReleaseBatchCount",
   (SELECT count(*) FROM "CrawlBatchSourceResult" WHERE "completenessCertificateSha256" IS NOT NULL
     AND "atomicCommitState" = 'COMMITTED' AND "completenessState" = 'VERIFIED') AS "certifiedSourceResultCount",
   (SELECT count(*) FROM "Job" WHERE "visibleInFrontend" = true AND "lifecycleStatus" = 'ACTIVE') AS "trustedVisibleJobCount",
@@ -60,7 +60,7 @@ SELECT
       AND m."setKind"='VISIBLE' AND m."lifecycleStatus"='ACTIVE'
     JOIN "Job" j ON j."sourceId"=m."sourceId" AND j."dedupeKey"=m."jobKey"
       AND j."companyId"=s."companyId" AND j."visibleInFrontend"=true AND j."lifecycleStatus"='ACTIVE'
-    WHERE b.kind='FULL_RELEASE' AND b.status='SUCCESS' AND r."completenessCertificateSha256" IS NOT NULL
+    WHERE b.kind IN ('FULL_RELEASE', 'SCHEDULED') AND b.status='SUCCESS' AND r."completenessCertificateSha256" IS NOT NULL
       AND r."atomicCommitState"='COMMITTED' AND r."completenessState"='VERIFIED') AS "qualifiedEvidenceChainCount",
   (SELECT count(*) FROM "CrawlObservation" o LEFT JOIN "RecruitmentSource" s ON s.id=o."sourceId"
     WHERE s.id IS NULL OR (o."batchId" IS NOT NULL AND NOT EXISTS (SELECT 1 FROM "CrawlBatch" b WHERE b.id=o."batchId"))) AS "orphanObservationCount",

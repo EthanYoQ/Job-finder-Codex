@@ -37,6 +37,15 @@ describe("authoritative launch receipt", () => {
     expect(evaluateAuthoritativeLaunchReadiness(input).receipt.gates.find(({ name }) =>
       name === "RELEASE_IDENTITY")?.reasons).toContain("IMAGE_BUILD_IDENTITY_MISMATCH");
   });
+
+  it("binds both formal rounds and their archived evidence into the authoritative receipt", () => {
+    const input = fixture();
+    const result = evaluateAuthoritativeLaunchReadiness(input);
+    expect(result.receipt.identity.roundOneStateReceiptSha256).toBe(input.formalQualification.roundOneStateReceiptSha256);
+    input.formalQualification.roundTwoBatchId = "replacement-round";
+    expect(evaluateAuthoritativeLaunchReadiness(input).receipt.gates.find(({ name }) =>
+      name === "FORMAL_QUALIFICATION_EVIDENCE")?.reasons).toContain("FORMAL_BATCH_BINDING_MISMATCH");
+  });
 });
 
 function fixture(): AuthoritativeLaunchEvidence {
@@ -66,6 +75,9 @@ function fixture(): AuthoritativeLaunchEvidence {
     security: { decision: "PASSED", contentSha256: sha, imageDigest: `sha256:${sha}`, evaluatedAt: "2026-08-12T23:00:00.000Z" },
     restore: { decision: "PASSED", contentSha256: sha, verifiedAt: "2026-08-12T22:00:00.000Z",
       archiveSha256: sha },
+    formalQualification: { roundOneBatchId: "round-1", roundTwoBatchId: "round-2",
+      roundOneStateReceiptSha256: sha, roundOneAuditSha256: sha, roundOneEvidenceArchiveSha256: sha,
+      roundOneDatabaseArchiveSha256: sha, roundTwoAuditSha256: sha, roundTwoEvidenceArchiveSha256: sha },
     releaseIdentity, batches: [batch("round-1", "2026-08-12T08:00:00.000Z"), batch("round-2", "2026-08-12T21:00:00.000Z")],
     operationalGates: [{ name: "container-ready", passed: true, evidenceSha256: sha, reason: "readyz=200" }]
   };

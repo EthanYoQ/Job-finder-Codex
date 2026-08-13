@@ -43,6 +43,16 @@ export interface AuthoritativeLaunchEvidence {
     migrationManifestSha256: string; bootstrapReady: boolean };
   security: { decision: string; contentSha256: string; imageDigest: string; evaluatedAt: string };
   restore: { decision: string; contentSha256: string; verifiedAt: string; archiveSha256: string };
+  formalQualification: {
+    roundOneBatchId: string;
+    roundTwoBatchId: string;
+    roundOneStateReceiptSha256: string;
+    roundOneAuditSha256: string;
+    roundOneEvidenceArchiveSha256: string;
+    roundOneDatabaseArchiveSha256: string;
+    roundTwoAuditSha256: string;
+    roundTwoEvidenceArchiveSha256: string;
+  };
   releaseIdentity: {
     releaseCandidateId: string;
     commitSha: string;
@@ -56,7 +66,7 @@ export interface AuthoritativeLaunchEvidence {
 }
 
 export interface AuthoritativeLaunchReceipt {
-  schemaVersion: 1;
+  schemaVersion: 2;
   decision: "READY" | "NOT_READY";
   evaluatedAt: string;
   identity: {
@@ -66,6 +76,9 @@ export interface AuthoritativeLaunchReceipt {
     sourceConfigSha256: string; adapterBundleSha256: string;
     databaseSnapshotSha256: string; schemaSha256: string; migrationVersion: string;
     securityReceiptSha256: string; restoreReceiptSha256: string;
+    roundOneStateReceiptSha256: string; roundOneAuditSha256: string;
+    roundOneEvidenceArchiveSha256: string; roundOneDatabaseArchiveSha256: string;
+    roundTwoAuditSha256: string; roundTwoEvidenceArchiveSha256: string;
   };
   gates: readonly { name: string; passed: boolean; reasons: readonly string[] }[];
   batches: readonly { id: string; finishedAt: string; certificateCount: number; foreignSuccessCount: number }[];
@@ -90,6 +103,7 @@ export function evaluateAuthoritativeLaunchReadiness(
   if (evidence.image.restoreReceiptSha256 !== evidence.restore.contentSha256) restoreReasons.push("IMAGE_RESTORE_RECEIPT_MISMATCH");
   if (evidence.database.snapshotSha256 !== evidence.restore.archiveSha256) restoreReasons.push("DATABASE_SNAPSHOT_RESTORE_MISMATCH");
   const batchReasons = validateBatches(evidence);
+  const formalQualificationReasons = validateFormalQualificationEvidence(evidence);
   const operationReasons = evidence.operationalGates.flatMap((gate) =>
     gate.passed && validSha(gate.evidenceSha256) && gate.reason.trim() ? [] : [`${gate.name}: ${gate.reason || "missing evidence"}`]
   );
@@ -97,11 +111,13 @@ export function evaluateAuthoritativeLaunchReadiness(
   const gates = [
     gate("FROZEN_MANIFEST", manifestReasons), gate("RELEASE_IDENTITY", identityReasons),
     gate("PRODUCTION_SECURITY", securityReasons), gate("BACKUP_RESTORE", restoreReasons),
-    gate("TWO_ROUND_50_COMPANY_CERTIFICATES", batchReasons), gate("DEPLOYMENT_AND_OPERATIONS", operationReasons)
+    gate("TWO_ROUND_50_COMPANY_CERTIFICATES", batchReasons),
+    gate("FORMAL_QUALIFICATION_EVIDENCE", formalQualificationReasons),
+    gate("DEPLOYMENT_AND_OPERATIONS", operationReasons)
   ];
   const decision = gates.every(({ passed }) => passed) ? "READY" as const : "NOT_READY" as const;
   const base = {
-    schemaVersion: 1 as const,
+    schemaVersion: 2 as const,
     decision,
     evaluatedAt: evidence.evaluatedAt.toISOString(),
     identity: {
@@ -117,7 +133,13 @@ export function evaluateAuthoritativeLaunchReadiness(
       schemaSha256: evidence.database.schemaSha256,
       migrationVersion: evidence.database.migrationVersion,
       securityReceiptSha256: evidence.security.contentSha256,
-      restoreReceiptSha256: evidence.restore.contentSha256
+      restoreReceiptSha256: evidence.restore.contentSha256,
+      roundOneStateReceiptSha256: evidence.formalQualification.roundOneStateReceiptSha256,
+      roundOneAuditSha256: evidence.formalQualification.roundOneAuditSha256,
+      roundOneEvidenceArchiveSha256: evidence.formalQualification.roundOneEvidenceArchiveSha256,
+      roundOneDatabaseArchiveSha256: evidence.formalQualification.roundOneDatabaseArchiveSha256,
+      roundTwoAuditSha256: evidence.formalQualification.roundTwoAuditSha256,
+      roundTwoEvidenceArchiveSha256: evidence.formalQualification.roundTwoEvidenceArchiveSha256
     },
     gates,
     batches: evidence.batches.map((batch) => ({
@@ -128,6 +150,25 @@ export function evaluateAuthoritativeLaunchReadiness(
   };
   const receipt = { ...base, contentSha256: sha(JSON.stringify(base)) };
   return { receipt, exitCode: decision === "READY" ? 0 : 1 };
+}
+
+function validateFormalQualificationEvidence(evidence: AuthoritativeLaunchEvidence): string[] {
+  const formal = evidence.formalQualification;
+  const reasons: string[] = [];
+  for (const value of [formal.roundOneStateReceiptSha256, formal.roundOneAuditSha256,
+    formal.roundOneEvidenceArchiveSha256, formal.roundOneDatabaseArchiveSha256,
+    formal.roundTwoAuditSha256, formal.roundTwoEvidenceArchiveSha256]) {
+    if (!validSha(value)) reasons.push("FORMAL_EVIDENCE_SHA256_INVALID");
+  }
+  if (evidence.batches.length === 2) {
+    const ordered = [...evidence.batches].sort((left, right) => Date.parse(left.finishedAt) - Date.parse(right.finishedAt));
+    if (formal.roundOneBatchId !== ordered[0]?.id || formal.roundTwoBatchId !== ordered[1]?.id) {
+      reasons.push("FORMAL_BATCH_BINDING_MISMATCH");
+    }
+  } else {
+    reasons.push("FORMAL_BATCH_BINDING_MISMATCH");
+  }
+  return [...new Set(reasons)];
 }
 
 function validateIdentities(evidence: AuthoritativeLaunchEvidence, manifestIdentity: ReturnType<typeof launchManifestIdentity>): string[] {
@@ -238,7 +279,7 @@ export const certificateSha256 = (value: unknown): string => sha(canonicalJson(v
 export function buildUnavailableLaunchReceipt(evaluatedAt: Date, reason: string): AuthoritativeLaunchReceipt {
   const zero = "0".repeat(64);
   const base = {
-    schemaVersion: 1 as const,
+    schemaVersion: 2 as const,
     decision: "NOT_READY" as const,
     evaluatedAt: evaluatedAt.toISOString(),
     identity: {
@@ -247,7 +288,10 @@ export function buildUnavailableLaunchReceipt(evaluatedAt: Date, reason: string)
       manifestSha256: zero, companySetSha256: zero, sourceIdentitySha256: zero,
       sourceConfigSha256: zero, adapterBundleSha256: zero,
       databaseSnapshotSha256: zero, schemaSha256: zero, migrationVersion: "UNAVAILABLE",
-      securityReceiptSha256: zero, restoreReceiptSha256: zero
+      securityReceiptSha256: zero, restoreReceiptSha256: zero,
+      roundOneStateReceiptSha256: zero, roundOneAuditSha256: zero,
+      roundOneEvidenceArchiveSha256: zero, roundOneDatabaseArchiveSha256: zero,
+      roundTwoAuditSha256: zero, roundTwoEvidenceArchiveSha256: zero
     },
     gates: [{ name: "QUALIFICATION_EXECUTION", passed: false, reasons: [reason] }],
     batches: []

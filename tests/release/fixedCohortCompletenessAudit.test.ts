@@ -1,5 +1,7 @@
+import { createHash } from "node:crypto";
 import { describe, expect, it } from "vitest";
-import { buildFixedCohortCompletenessAudit, type FixedCohortAuditSourceInput } from
+import { buildFixedCohortCompletenessAudit, parseFixedCohortCompletenessAuditReport,
+  type FixedCohortAuditSourceInput } from
   "../../src/release/fixedCohortCompletenessAudit";
 import { P0_LAUNCH_MANIFEST } from "../../src/release/launchManifest";
 
@@ -13,6 +15,29 @@ describe("fixed cohort completeness audit", () => {
     expect(report.companies.every(({ blockers }) => blockers.includes("A_OR_B_CERTIFICATE_MISSING"))).toBe(true);
     expect(report.repairFrontier.every(({ companyIds }) => companyIds.length >= 1 && companyIds.length <= 5)).toBe(true);
     expect(new Set(report.repairFrontier.flatMap(({ companyIds }) => companyIds)).size).toBe(50);
+  });
+
+  it("reads only a content-bound exact frozen-cohort audit", () => {
+    const report = buildFixedCohortCompletenessAudit(input());
+    expect(parseFixedCohortCompletenessAuditReport(Buffer.from(JSON.stringify(report)))).toEqual(report);
+
+    const tampered = { ...report, companyCount: 49 };
+    expect(() => parseFixedCohortCompletenessAuditReport(Buffer.from(JSON.stringify(tampered))))
+      .toThrow(/hash/u);
+
+    const { contentSha256: _oldHash, ...base } = report;
+    const missing = { ...base, companies: base.companies.slice(1) };
+    const rehashed = { ...missing, contentSha256: createHash("sha256").update(JSON.stringify(missing)).digest("hex") };
+    expect(() => parseFixedCohortCompletenessAuditReport(Buffer.from(JSON.stringify(rehashed))))
+      .toThrow(/cohort/u);
+    expect(() => parseFixedCohortCompletenessAuditReport(Buffer.from(JSON.stringify({ ...report, extra: true }))))
+      .toThrow(/schema/u);
+
+    const thinRows = base.companies.map(({ companyId, sourceId }) => ({ companyId, sourceId, blockers: [] }));
+    const thinBase = { ...base, companies: thinRows, repairFrontier: [] };
+    const thin = { ...thinBase, contentSha256: createHash("sha256").update(JSON.stringify(thinBase)).digest("hex") };
+    expect(() => parseFixedCohortCompletenessAuditReport(Buffer.from(JSON.stringify(thin))))
+      .toThrow(/company evidence/u);
   });
 
   it("marks a missing or substituted frozen source as an invalid audit without hiding the other rows", () => {

@@ -7,11 +7,12 @@ on:
 
 permissions:
   contents: read
+  actions: read
 
 jobs:
   clean-build-and-smoke:
     runs-on: ubuntu-24.04
-    timeout-minutes: 30
+    timeout-minutes: ${{ startsWith(github.ref, 'refs/heads/qualification/launch-cohort-round-') && 360 || 30 }}
     env:
       IMAGE_TAG: job-finder:${{ github.sha }}
       # Hard deployment budget. Evidence capture may run first, but qualification never crosses this gate.
@@ -470,8 +471,67 @@ jobs:
             .runtime/build-identity.json .runtime/security/production-security-receipt.json \
             .runtime/restore/restore-pass-receipt.json
 
+      - name: Resolve Launch Cohort qualification round
+        if: >-
+          github.ref == 'refs/heads/qualification/launch-cohort-round-1' ||
+          github.ref == 'refs/heads/qualification/launch-cohort-round-2'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          mkdir -p .runtime/formal-input .runtime/formal-state .runtime/formal-work
+          if test "${GITHUB_REF_NAME}" = qualification/launch-cohort-round-1; then
+            echo 'FORMAL_ROUND=1' >> "$GITHUB_ENV"
+          elif test "${GITHUB_REF_NAME}" = qualification/launch-cohort-round-2; then
+            RUNS="$(gh run list --repo "$GITHUB_REPOSITORY" \
+              --branch qualification/launch-cohort-round-1 --commit "$GITHUB_SHA" --status success --limit 20 \
+              --json databaseId,createdAt,headSha,conclusion,workflowName,event)"
+            ROUND_ONE_RUN_ID="$(printf '%s' "$RUNS" | jq -er --arg sha "$GITHUB_SHA" \
+              '[.[] | select(.workflowName == "Production image" and .event == "push" and
+                .conclusion == "success" and .headSha == $sha)] | sort_by(.createdAt) | last.databaseId')"
+            test -n "$ROUND_ONE_RUN_ID"
+            gh run download "$ROUND_ONE_RUN_ID" --repo "$GITHUB_REPOSITORY" \
+              --name "launch-cohort-round-one-${{ github.sha }}" --dir .runtime/formal-input
+            echo 'FORMAL_ROUND=2' >> "$GITHUB_ENV"
+            echo "ROUND_ONE_RUN_ID=$ROUND_ONE_RUN_ID" >> "$GITHUB_ENV"
+          else
+            exit 2
+          fi
+
+      - name: Run Launch Cohort qualification round
+        if: >-
+          github.ref == 'refs/heads/qualification/launch-cohort-round-1' ||
+          github.ref == 'refs/heads/qualification/launch-cohort-round-2'
+        run: sh ops/run-fixed-cohort-qualification.sh
+
+      - name: Select the Launch Cohort-qualified image receipt
+        if: github.ref == 'refs/heads/qualification/launch-cohort-round-2'
+        run: |
+          cp .runtime/formal-state/final-image-qualification-receipt.json .runtime/image-qualification-receipt.json
+          cp .runtime/formal-state/final-restore-receipt.json .runtime/restore/restore-pass-receipt.json
+
+      - name: Preserve Launch Cohort round-one state
+        if: always() && github.ref == 'refs/heads/qualification/launch-cohort-round-1'
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: launch-cohort-round-one-${{ github.sha }}
+          path: .runtime/formal-state/round-one-*
+          if-no-files-found: error
+          retention-days: 4
+
+      - name: Preserve Launch Cohort final evidence
+        if: always() && github.ref == 'refs/heads/qualification/launch-cohort-round-2'
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: launch-cohort-final-${{ github.sha }}
+          path: .runtime/formal-state
+          if-no-files-found: error
+          retention-days: 14
+
       - name: Export qualified image for trusted publication
-        if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+        if: >-
+          github.event_name != 'pull_request' &&
+          (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/qualification/launch-cohort-round-2')
         run: |
           set -euo pipefail
           docker save "$IMAGE_TAG" | gzip -1 > .runtime/qualified-image.tar.gz
@@ -484,11 +544,15 @@ jobs:
           path: |
             .runtime/image-qualification-receipt.json
             .runtime/restore/*receipt.json
+            .runtime/formal-state/final-restore-receipt.json
+            .runtime/formal-state/production-security-receipt.json
           if-no-files-found: error
           retention-days: 14
 
       - name: Preserve qualified image for trusted publication
-        if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+        if: >-
+          github.event_name != 'pull_request' &&
+          (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/qualification/launch-cohort-round-2')
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: qualified-image-${{ github.sha }}
@@ -502,6 +566,7 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     permissions:
+      actions: read
       contents: read
       packages: write
     steps:

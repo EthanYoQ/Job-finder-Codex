@@ -1,4 +1,5 @@
 import { createHash } from "node:crypto";
+import { isDeepStrictEqual } from "node:util";
 import { P0_LAUNCH_MANIFEST, launchManifestIdentity, validateLaunchManifest } from "./launchManifest";
 import { certificateSha256 } from "./authoritativeLaunchReceipt";
 import { verifyAGradeCompletenessCertificateReceipt } from "../crawler/completenessCertificate";
@@ -93,6 +94,129 @@ export function buildFixedCohortCompletenessAudit(input: { generatedAt: Date; re
       manifestBySource.get(row.sourceId)?.category === "FOREIGN_PHARMA").length,
     companies, repairFrontier, invalidReasons: [...new Set(invalidReasons)] };
   return { ...base, contentSha256: sha(JSON.stringify(base)) };
+}
+
+export function parseFixedCohortCompletenessAuditReport(bytes: Buffer): FixedCohortCompletenessAuditReport {
+  let value: unknown;
+  try { value = JSON.parse(bytes.toString("utf8")); }
+  catch { throw new Error("Fixed cohort audit schema is invalid"); }
+  const topLevelKeys = ["batchId", "companies", "companyCount", "contentSha256", "decision", "foreignCompanyCount",
+    "generatedAt", "invalidReasons", "manifestSha256", "releaseCandidateId", "repairFrontier", "schemaVersion",
+    "sourceIdentitySha256"];
+  if (!isRecord(value) || !exactKeys(value, topLevelKeys) || value.schemaVersion !== 1 ||
+      !["AUDIT_COMPLETE", "AUDIT_INVALID"].includes(String(value.decision)) ||
+      !isCanonicalInstant(value.generatedAt) || typeof value.releaseCandidateId !== "string" ||
+      !value.releaseCandidateId.trim() || typeof value.batchId !== "string" || !value.batchId.trim() ||
+      !/^[0-9a-f]{64}$/u.test(String(value.contentSha256))) {
+    throw new Error("Fixed cohort audit schema is invalid");
+  }
+  const { contentSha256, ...base } = value;
+  if (sha(JSON.stringify(base)) !== contentSha256) throw new Error("Fixed cohort audit content hash mismatch");
+  const identity = launchManifestIdentity(P0_LAUNCH_MANIFEST);
+  const expectedBySource = new Map(P0_LAUNCH_MANIFEST.companies.map((company) => [company.source.sourceId, company]));
+  if (value.manifestSha256 !== identity.manifestSha256 || value.sourceIdentitySha256 !== identity.sourceIdentitySha256 ||
+      value.companyCount !== 50 || value.foreignCompanyCount !== 30 || !Array.isArray(value.companies) ||
+      value.companies.length !== 50 || !Array.isArray(value.invalidReasons) ||
+      !value.invalidReasons.every((reason) => typeof reason === "string" && reason.length > 0) ||
+      new Set(value.invalidReasons).size !== value.invalidReasons.length || !Array.isArray(value.repairFrontier) ||
+      (value.decision === "AUDIT_COMPLETE") !== (value.invalidReasons.length === 0)) {
+    throw new Error("Fixed cohort audit does not match the frozen cohort");
+  }
+  const seenSources = new Set<string>(), seenCompanies = new Set<string>();
+  const sources: FixedCohortAuditSourceInput[] = [];
+  for (const rawRow of value.companies) {
+    const row = parseAuditCompany(rawRow);
+    const expected = expectedBySource.get(row.sourceId);
+    if (!expected || expected.companyId !== row.companyId || seenSources.has(row.sourceId) || seenCompanies.has(row.companyId)) {
+      throw new Error("Fixed cohort audit does not match the frozen cohort");
+    }
+    seenSources.add(row.sourceId); seenCompanies.add(row.companyId);
+    sources.push(stripDerivedAuditFields(row));
+  }
+  if (seenSources.size !== expectedBySource.size) throw new Error("Fixed cohort audit does not match the frozen cohort");
+  const rebuilt = buildFixedCohortCompletenessAudit({
+    generatedAt: new Date(value.generatedAt), releaseCandidateId: value.releaseCandidateId, batchId: value.batchId,
+    observedSourceIds: sources.map(({ sourceId }) => sourceId), sources, invalidReasons: value.invalidReasons
+  });
+  if (!isDeepStrictEqual(value, rebuilt)) throw new Error("Fixed cohort audit company evidence is inconsistent");
+  return value as unknown as FixedCohortCompletenessAuditReport;
+}
+
+const SOURCE_KEYS = ["adapterFamily", "adapterState", "atomicCommitState", "blockers", "canonicalJobSetSha256",
+  "certificate", "certificateSha256", "companyId", "completenessState", "evidenceArtifacts", "expectedEvidenceKind",
+  "expectedJobCount", "failureCategory", "failureClass", "failureCode", "failureDiagnosticCode", "failureStage",
+  "finalJobCount", "grade", "officialChannelIds", "officialSurfaceIds", "pagesVisited", "paginationByChannel",
+  "paginationEvidence", "plannedChannelIds", "plannedSurfaceIds", "sourceConfigSha256", "sourceId", "sourceResultId",
+  "totalPages", "transportState"] as const;
+const PAGINATION_KEYS = ["anomalyCodes", "artifactId", "capturedAt", "channelId", "declaredCount", "declaredPages",
+  "declaredTotal", "nextPageSignalAfter", "nextPageSignalBefore", "rawJobIdSetSha256", "requestedCursor",
+  "requestedOffset", "requestedPage", "requestedPageSize", "responseFingerprintSha256", "returnedCursor",
+  "returnedOffset", "returnedPage", "returnedPageSize", "sequence", "termination", "validJobIdSetSha256"] as const;
+
+function parseAuditCompany(value: unknown): FixedCohortCompletenessAuditReport["companies"][number] {
+  if (!isRecord(value) || !exactKeys(value, SOURCE_KEYS) || !stringField(value.sourceResultId) ||
+      !stringField(value.companyId) || !stringField(value.sourceId) || !stringField(value.adapterFamily) ||
+      !["A", "B", "C"].includes(String(value.grade)) || !stringField(value.sourceConfigSha256) ||
+      !nullableString(value.certificateSha256) || !stringField(value.canonicalJobSetSha256) ||
+      !stringArray(value.plannedSurfaceIds) || !stringArray(value.plannedChannelIds) ||
+      !stringArray(value.officialSurfaceIds) || !stringArray(value.officialChannelIds) ||
+      !Array.isArray(value.evidenceArtifacts) || !value.evidenceArtifacts.every(validEvidenceArtifact) ||
+      !Array.isArray(value.paginationEvidence) || !value.paginationEvidence.every(validPaginationEvidence) ||
+      !nullableString(value.expectedEvidenceKind) || !nullableNonnegativeInteger(value.expectedJobCount) ||
+      !nullableNonnegativeInteger(value.pagesVisited) || !nullableNonnegativeInteger(value.totalPages) ||
+      !nonnegativeInteger(value.finalJobCount) || !stringField(value.transportState) ||
+      !stringField(value.adapterState) || !stringField(value.completenessState) ||
+      !stringField(value.atomicCommitState) || !nullableString(value.failureCategory) ||
+      !nullableString(value.failureDiagnosticCode) || !nullableString(value.failureCode) ||
+      !nullableString(value.failureStage) ||
+      !(value.failureClass === null || ["PRODUCT_DEFECT", "SOURCE_TEMPORARILY_UNAVAILABLE", "CONFIGURATION_ERROR",
+        "EVIDENCE_INSUFFICIENT"].includes(String(value.failureClass))) || !stringArray(value.blockers) ||
+      !Array.isArray(value.paginationByChannel) || !value.paginationByChannel.every(validPaginationSummary)) {
+    throw new Error("Fixed cohort audit company evidence is invalid");
+  }
+  return value as unknown as FixedCohortCompletenessAuditReport["companies"][number];
+}
+
+function stripDerivedAuditFields(
+  row: FixedCohortCompletenessAuditReport["companies"][number]
+): FixedCohortAuditSourceInput {
+  const { blockers: _blockers, failureClass: _failureClass, failureStage: _failureStage,
+    paginationByChannel: _paginationByChannel, ...source } = row;
+  return source;
+}
+
+function validEvidenceArtifact(value: unknown): boolean {
+  return isRecord(value) && exactKeys(value, ["id", "path", "sha256"]) && stringField(value.id) &&
+    stringField(value.path) && stringField(value.sha256);
+}
+function validPaginationEvidence(value: unknown): boolean {
+  return isRecord(value) && exactKeys(value, PAGINATION_KEYS) && stringField(value.artifactId) &&
+    nonnegativeInteger(value.sequence) && nullableString(value.channelId) && nullableString(value.requestedCursor) &&
+    nullableString(value.returnedCursor) && nullableNonnegativeInteger(value.requestedOffset) &&
+    nullableNonnegativeInteger(value.returnedOffset) && nullableNonnegativeInteger(value.requestedPage) &&
+    nullableNonnegativeInteger(value.returnedPage) && nullableNonnegativeInteger(value.requestedPageSize) &&
+    nullableNonnegativeInteger(value.returnedPageSize) && stringField(value.responseFingerprintSha256) &&
+    stringField(value.rawJobIdSetSha256) && stringField(value.validJobIdSetSha256) &&
+    nullableNonnegativeInteger(value.declaredTotal) && nullableNonnegativeInteger(value.declaredCount) &&
+    nullableNonnegativeInteger(value.declaredPages) && nullableString(value.nextPageSignalBefore) &&
+    nullableString(value.nextPageSignalAfter) && stringField(value.termination) && stringArray(value.anomalyCodes) &&
+    isCanonicalInstant(value.capturedAt);
+}
+function validPaginationSummary(value: unknown): boolean {
+  return isRecord(value) && exactKeys(value, ["channelId", "declaredPages", "declaredTotal", "pageCount", "terminalEvent"]) &&
+    nullableString(value.channelId) && nonnegativeInteger(value.pageCount) && nullableNonnegativeInteger(value.declaredTotal) &&
+    nullableNonnegativeInteger(value.declaredPages) && stringField(value.terminalEvent);
+}
+function stringField(value: unknown): value is string { return typeof value === "string" && value.length > 0; }
+function nullableString(value: unknown): value is string | null { return value === null || typeof value === "string"; }
+function stringArray(value: unknown): value is string[] {
+  return Array.isArray(value) && value.every((item) => typeof item === "string") && new Set(value).size === value.length;
+}
+function nonnegativeInteger(value: unknown): value is number {
+  return Number.isSafeInteger(value) && Number(value) >= 0;
+}
+function nullableNonnegativeInteger(value: unknown): value is number | null {
+  return value === null || nonnegativeInteger(value);
 }
 
 function certificateValid(source: FixedCohortAuditSourceInput, releaseCandidateId: string, batchId: string, now: Date): boolean {
@@ -203,3 +327,12 @@ function sameStrings(left: readonly string[], right: readonly string[]): boolean
 }
 const compare = (a: string, b: string) => Buffer.from(a).compare(Buffer.from(b));
 const sha = (value: string) => createHash("sha256").update(value, "utf8").digest("hex");
+const isRecord = (value: unknown): value is Record<string, any> =>
+  typeof value === "object" && value !== null && !Array.isArray(value);
+const exactKeys = (value: Record<string, unknown>, keys: readonly string[]): boolean =>
+  JSON.stringify(Object.keys(value).sort()) === JSON.stringify([...keys].sort());
+const isCanonicalInstant = (value: unknown): value is string => {
+  if (typeof value !== "string") return false;
+  const date = new Date(value);
+  return Number.isFinite(date.getTime()) && date.toISOString() === value;
+};

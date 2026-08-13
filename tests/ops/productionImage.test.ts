@@ -274,6 +274,52 @@ describe("production container contract", () => {
     expect(restoreStep).toContain('"/backup/$(basename "$ARCHIVE").metadata.json" /backup/incompatible.dump.metadata.json');
   });
 
+  it("runs the two Launch Cohort qualification rounds from one exact image with explicit cross-run state", () => {
+    const workflow = read(".github/workflows/production-image.yml");
+    const runner = read("ops/run-fixed-cohort-qualification.sh");
+    const imageReceipt = workflow.indexOf("name: Publish exact-image qualification receipt");
+    const resolveRound = workflow.indexOf("name: Resolve Launch Cohort qualification round");
+    const runRound = workflow.indexOf("name: Run Launch Cohort qualification round");
+
+    expect(workflow).toMatch(/permissions:\s+contents: read\s+actions: read/u);
+    expect(workflow).toContain("startsWith(github.ref, 'refs/heads/qualification/launch-cohort-round-') && 360 || 30");
+    expect(imageReceipt).toBeGreaterThan(-1);
+    expect(resolveRound).toBeGreaterThan(imageReceipt);
+    expect(runRound).toBeGreaterThan(resolveRound);
+    expect(workflow).toContain("refs/heads/qualification/launch-cohort-round-1");
+    expect(workflow).toContain("refs/heads/qualification/launch-cohort-round-2");
+    expect(workflow).toContain('gh run download "$ROUND_ONE_RUN_ID"');
+    expect(workflow).toContain('launch-cohort-round-one-${{ github.sha }}');
+    expect(workflow).toContain("ops/run-fixed-cohort-qualification.sh");
+    expect(workflow).toMatch(/name: Preserve Launch Cohort round-one state\s+if: always\(\)/u);
+    expect(workflow).toMatch(/name: Preserve Launch Cohort final evidence\s+if: always\(\)/u);
+
+    expect(runner).toContain("scripts/p0-formal-qualification-state.ts verify-files");
+    expect(runner).toContain("scripts/p0-formal-qualification-state.ts verify-restored");
+    expect(runner).toContain('docker save "$IMAGE_TAG" | gzip -1 > "$state_root/round-one-qualified-image.tar.gz"');
+    expect(runner).toContain('gunzip --stdout "$input_root/round-one-qualified-image.tar.gz" | docker load');
+    expect(runner).toContain("expected_image_digest=");
+    expect(runner.match(/--evidence-archive/gu)).toHaveLength(3);
+    expect(runner).toContain("P0_SCHEDULED_ATTEMPT_TIMEOUT_MS=14400000");
+    expect(runner).toContain('test "$decision" = ROUND_ONE_QUALIFIED');
+    expect(runner).toContain('test "$launch_decision" = READY');
+    const secondCrawl = runner.indexOf("run_crawl || crawl_exit=$?", runner.indexOf("else"));
+    const backup = runner.indexOf("ops/backup.sh", secondCrawl);
+    const restore = runner.indexOf("scripts/qualify-backup-restore.ts", backup);
+    const finalImageReceipt = runner.indexOf("scripts/write-image-qualification-receipt.ts", restore);
+    const launchReceipt = runner.indexOf("scripts/p0-authoritative-launch-receipt.ts", finalImageReceipt);
+    expect(backup).toBeGreaterThan(secondCrawl);
+    expect(restore).toBeGreaterThan(backup);
+    expect(finalImageReceipt).toBeGreaterThan(restore);
+    expect(launchReceipt).toBeGreaterThan(finalImageReceipt);
+    expect(runner).toContain("FORMAL_ROUND_ONE_STATE_RECEIPT_PATH=/round-one/round-one-state-receipt.json");
+    expect(runner).toContain("FORMAL_ROUND_ONE_AUDIT_PATH=/round-one/round-one-audit.json");
+    expect(runner).toContain("FORMAL_ROUND_TWO_AUDIT_PATH=/evidence/round-two-audit.json");
+    expect(workflow).toContain("name: Select the Launch Cohort-qualified image receipt");
+    expect(workflow).toContain("github.ref == 'refs/heads/qualification/launch-cohort-round-2'");
+    expect(runner).not.toMatch(/sleep (?:4[3-9][0-9]{3,}|[5-9][0-9]{4,})/u);
+  });
+
   it("provides a repeatable clean Linux build and startup smoke workflow", () => {
     const workflow = read(".github/workflows/production-image.yml");
 

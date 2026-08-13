@@ -39,6 +39,7 @@
     "p0:launch-readiness": "tsx scripts/p0-launch-readiness.ts",
     "p0:authoritative-launch-receipt": "tsx scripts/p0-authoritative-launch-receipt.ts",
     "p0:fixed-cohort-audit": "tsx scripts/p0-fixed-cohort-audit.ts",
+    "p0:formal-qualification-state": "tsx scripts/p0-formal-qualification-state.ts",
     "browser:smoke": "node scripts/browser-runtime-smoke.mjs",
     "docker:export-provenance": "tsx scripts/export-docker-build-provenance.ts",
     "phase4:manifest": "tsx scripts/generate-phase4-release-manifest.ts",

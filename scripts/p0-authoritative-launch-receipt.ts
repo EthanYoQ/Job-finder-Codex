@@ -1,4 +1,5 @@
-import { mkdir, rename, writeFile } from "node:fs/promises";
+import { createHash } from "node:crypto";
+import { lstat, mkdir, readFile, rename, writeFile } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
 import { Prisma, PrismaClient } from "@prisma/client";
 import { resolveCurrentBuildIdentity } from "../src/readiness/buildIdentity";
@@ -8,6 +9,8 @@ import { buildUnavailableLaunchReceipt, evaluateAuthoritativeLaunchReadiness,
   type LaunchCertificateEvidence } from "../src/release/authoritativeLaunchReceipt";
 import { readImageQualificationReceipt, readRestoreReceiptSummary, readSecurityReceiptSummary } from "../src/release/launchReceiptFiles";
 import { listCurrentPrismaMigrations, prismaMigrationManifestSha256 } from "../src/db/prismaMigrationManifest";
+import { parseFixedCohortCompletenessAuditReport } from "../src/release/fixedCohortCompletenessAudit";
+import { readFormalQualificationRoundOneReceipt } from "../src/release/formalQualificationState";
 
 const prisma = new PrismaClient();
 const receiptPath = required("LAUNCH_RECEIPT_PATH");
@@ -20,6 +23,7 @@ try {
     readSecurityReceiptSummary(required("PRODUCTION_SECURITY_RECEIPT_PATH")),
     readRestoreReceiptSummary(required("RESTORE_RECEIPT_PATH"))
   ]);
+  const formalQualification = await readFormalQualificationEvidence(evaluatedAt, image.imageDigest);
   const snapshot = await prisma.$transaction(async (transaction) => {
     const authority = await resolveCurrentStagedScheduleAuthority(transaction as never);
     const batches = await transaction.crawlBatch.findMany({
@@ -61,7 +65,7 @@ try {
       securityReceiptSha256: image.securityReceiptSha256, restoreReceiptSha256: image.restoreReceiptSha256 },
     database: { snapshotSha256: restore.archiveSha256, schemaSha256: prismaMigrationManifestSha256(migrations),
       migrationVersion: migrations.at(-1)?.migrationName ?? "", migrationManifestSha256: prismaMigrationManifestSha256(migrations),
-      bootstrapReady: snapshot.bootstrapReady }, security, restore,
+      bootstrapReady: snapshot.bootstrapReady }, security, restore, formalQualification,
     releaseIdentity: { releaseCandidateId: authority.identity.releaseCandidateId, commitSha: authority.identity.commitSha,
       rosterSha256: authority.identity.rosterSha256, sourcePlanSha256: authority.identity.sourcePlanSha256,
       sourceConfigSha256: authority.identity.sourceConfigSha256, adapterBundleSha256: authority.identity.adapterBundleSha256 },
@@ -82,6 +86,49 @@ function certificateGrade(value: unknown): "A" | "B" | "C" {
     if (grade === "A" || grade === "B") return grade;
   }
   return "C";
+}
+
+async function readFormalQualificationEvidence(now: Date, imageDigest: string) {
+  const [stateEvidence, roundOneAuditEvidence, roundOneArchiveEvidence, roundOneDatabaseEvidence,
+    roundTwoAuditEvidence, roundTwoArchiveEvidence] = await Promise.all([
+    readEvidence(required("FORMAL_ROUND_ONE_STATE_RECEIPT_PATH")),
+    readEvidence(required("FORMAL_ROUND_ONE_AUDIT_PATH")),
+    readEvidence(required("FORMAL_ROUND_ONE_EVIDENCE_ARCHIVE_PATH")),
+    readEvidence(required("FORMAL_ROUND_ONE_DATABASE_ARCHIVE_PATH")),
+    readEvidence(required("FORMAL_ROUND_TWO_AUDIT_PATH")),
+    readEvidence(required("FORMAL_ROUND_TWO_EVIDENCE_ARCHIVE_PATH"))
+  ]);
+  const state = readFormalQualificationRoundOneReceipt(stateEvidence.bytes, now);
+  const roundOneAudit = parseFixedCohortCompletenessAuditReport(roundOneAuditEvidence.bytes);
+  const roundTwoAudit = parseFixedCohortCompletenessAuditReport(roundTwoAuditEvidence.bytes);
+  if (state.decision !== "ROUND_ONE_QUALIFIED" || state.imageDigest !== imageDigest ||
+      state.auditSha256 !== roundOneAuditEvidence.sha256 || state.auditContentSha256 !== roundOneAudit.contentSha256 ||
+      state.evidenceArchiveSha256 !== roundOneArchiveEvidence.sha256 ||
+      state.databaseArchiveSha256 !== roundOneDatabaseEvidence.sha256 ||
+      roundOneAudit.decision !== "AUDIT_COMPLETE" || roundTwoAudit.decision !== "AUDIT_COMPLETE" ||
+      roundOneAudit.companies.some(({ blockers }) => blockers.length > 0) ||
+      roundTwoAudit.companies.some(({ blockers }) => blockers.length > 0)) {
+    throw new Error("Formal qualification evidence is inconsistent");
+  }
+  return {
+    roundOneBatchId: roundOneAudit.batchId,
+    roundTwoBatchId: roundTwoAudit.batchId,
+    roundOneStateReceiptSha256: stateEvidence.sha256,
+    roundOneAuditSha256: roundOneAuditEvidence.sha256,
+    roundOneEvidenceArchiveSha256: roundOneArchiveEvidence.sha256,
+    roundOneDatabaseArchiveSha256: roundOneDatabaseEvidence.sha256,
+    roundTwoAuditSha256: roundTwoAuditEvidence.sha256,
+    roundTwoEvidenceArchiveSha256: roundTwoArchiveEvidence.sha256
+  };
+}
+
+async function readEvidence(path: string): Promise<{ bytes: Buffer; sha256: string }> {
+  const stats = await lstat(path);
+  if (!stats.isFile() || stats.isSymbolicLink() || stats.nlink !== 1 || stats.size <= 0) {
+    throw new Error("Formal qualification evidence file is invalid");
+  }
+  const bytes = await readFile(path);
+  return { bytes, sha256: createHash("sha256").update(bytes).digest("hex") };
 }
 
 function selectQualificationPair<T extends { finishedAt: Date | null }>(batches: readonly T[], now: Date): T[] {
