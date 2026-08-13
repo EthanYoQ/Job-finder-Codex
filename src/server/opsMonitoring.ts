@@ -19,12 +19,7 @@ export type OpsAlertCode =
   | "CRAWL_ATTEMPT_STALE"
   | "MANDATORY_COMPANY_FAILURE"
   | "CRAWL_COMPLETENESS_FAILURE"
-  | "INITIAL_QUALIFICATION_PAUSED_BELOW_MINIMUM"
-  | "COMPANY_CONSECUTIVE_FAILURES"
-  | "CERTIFICATE_EXPIRING"
-  | "HIGH_DISK_USAGE"
-  | "HIGH_MEMORY_USAGE"
-  | "ABNORMAL_TRAFFIC";
+  | "INITIAL_QUALIFICATION_PAUSED_BELOW_MINIMUM";
 
 export type OpsAlertSeverity = "warning" | "critical";
 
@@ -67,26 +62,11 @@ export interface OpsAlertInput {
       minimumStableCompanyCount: number;
     };
   };
-  certificate?: {
-    expiresAt?: string;
-  };
-  resources?: {
-    diskUsedPercent?: number;
-    memoryUsedPercent?: number;
-  };
-  traffic?: {
-    requestsLastHour?: number;
-    baselineRequestsPerHour?: number;
-  };
 }
 
 const BACKUP_STALE_HOURS = 26;
 const RESTORE_STALE_HOURS = 8 * 24;
 const CRAWL_SUCCESS_SLO = 0.8;
-const CERT_EXPIRY_WARNING_DAYS = 14;
-const HIGH_DISK_THRESHOLD = 90;
-const HIGH_MEMORY_THRESHOLD = 90;
-const TRAFFIC_SPIKE_MULTIPLIER = 3;
 
 export function evaluateOpsAlerts(input: OpsAlertInput): OpsAlert[] {
   const alerts: OpsAlert[] = [];
@@ -212,19 +192,6 @@ export function evaluateOpsAlerts(input: OpsAlertInput): OpsAlert[] {
     });
   }
 
-  const failingCompanies = Object.entries(input.crawl.consecutiveFailuresByCompany)
-    .filter(([, failures]) => failures >= 3)
-    .map(([companyId]) => companyId)
-    .sort();
-  if (failingCompanies.length > 0) {
-    alerts.push({
-      code: "COMPANY_CONSECUTIVE_FAILURES",
-      severity: "critical",
-      message: `${failingCompanies.length} company source(s) have three consecutive crawl failures.`,
-      metadata: { companies: failingCompanies }
-    });
-  }
-
   const mandatoryCompanyFailures = Object.entries(input.crawl.consecutiveFailuresByCompany)
     .filter(([, failures]) => failures >= 1)
     .map(([companyId]) => companyId)
@@ -248,53 +215,6 @@ export function evaluateOpsAlerts(input: OpsAlertInput): OpsAlert[] {
       severity: "critical",
       message: `${completenessFailureCount} source(s) failed formal crawl completeness qualification.`,
       metadata: { completenessFailureCount }
-    });
-  }
-
-  const certificateExpiry = toDate(input.certificate?.expiresAt);
-  if (certificateExpiry) {
-    const daysLeft = (certificateExpiry.getTime() - input.now.getTime()) / 86_400_000;
-    if (daysLeft <= CERT_EXPIRY_WARNING_DAYS) {
-      alerts.push({
-        code: "CERTIFICATE_EXPIRING",
-        severity: "warning",
-        message: `TLS certificate expires in ${Math.max(0, Math.floor(daysLeft))} day(s).`,
-        metadata: { expiresAt: certificateExpiry.toISOString() }
-      });
-    }
-  }
-
-  if ((input.resources?.diskUsedPercent ?? 0) >= HIGH_DISK_THRESHOLD) {
-    alerts.push({
-      code: "HIGH_DISK_USAGE",
-      severity: "critical",
-      message: `Disk usage reached ${input.resources?.diskUsedPercent}%.`,
-      metadata: { diskUsedPercent: input.resources?.diskUsedPercent }
-    });
-  }
-
-  if ((input.resources?.memoryUsedPercent ?? 0) >= HIGH_MEMORY_THRESHOLD) {
-    alerts.push({
-      code: "HIGH_MEMORY_USAGE",
-      severity: "critical",
-      message: `Memory usage reached ${input.resources?.memoryUsedPercent}%.`,
-      metadata: { memoryUsedPercent: input.resources?.memoryUsedPercent }
-    });
-  }
-
-  const requestsLastHour = input.traffic?.requestsLastHour;
-  const baselineRequestsPerHour = input.traffic?.baselineRequestsPerHour;
-  if (
-    requestsLastHour !== undefined &&
-    baselineRequestsPerHour !== undefined &&
-    baselineRequestsPerHour > 0 &&
-    requestsLastHour / baselineRequestsPerHour >= TRAFFIC_SPIKE_MULTIPLIER
-  ) {
-    alerts.push({
-      code: "ABNORMAL_TRAFFIC",
-      severity: "warning",
-      message: `Traffic reached ${requestsLastHour} requests/hour against a ${baselineRequestsPerHour} baseline.`,
-      metadata: { requestsLastHour, baselineRequestsPerHour }
     });
   }
 

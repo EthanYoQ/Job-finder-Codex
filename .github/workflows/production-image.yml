@@ -146,11 +146,16 @@ jobs:
           docker run --detach --name "$WEB_NAME" --network "$NETWORK" --network-alias web \
             --volume "$TEST_DIR/backend.mjs:/tmp/backend.mjs:ro" "$IMAGE_TAG" node /tmp/backend.mjs
           docker run --detach --name "$NGINX_NAME" --network "$NETWORK" \
-            --publish 127.0.0.1:18080:80 --publish 127.0.0.1:18443:443 \
-            --env PUBLIC_HOSTNAME="$TEST_HOST" --env 'NGINX_ENVSUBST_FILTER=^PUBLIC_HOSTNAME$' \
+            --user 101:101 --read-only --cap-drop ALL --security-opt no-new-privileges:true \
+            --tmpfs /tmp:rw,nosuid,nodev,noexec,size=32m,mode=1777 \
+            --publish 127.0.0.1:18080:8080 --publish 127.0.0.1:18443:8443 \
+            --env PUBLIC_HOSTNAME="$TEST_HOST" \
             --volume "$PWD/ops/nginx.conf:/etc/nginx/templates/default.conf.template:ro" \
+            --volume "$PWD/ops/nginx-main.conf:/etc/nginx/nginx.conf:ro" \
             --volume "$TEST_DIR/tls:/run/tls:ro" \
-            nginx:1.27-alpine@sha256:65645c7bb6a0661892a8b03b89d0743208a18dd2f3f17a54ef4b76fb8e2f2a10
+            --entrypoint /bin/sh \
+            nginx:1.27-alpine@sha256:65645c7bb6a0661892a8b03b89d0743208a18dd2f3f17a54ef4b76fb8e2f2a10 \
+            -c "envsubst '\$PUBLIC_HOSTNAME' < /etc/nginx/templates/default.conf.template > /tmp/jobfinder-ingress.conf && exec nginx -c /etc/nginx/nginx.conf -g 'daemon off;'"
           READY=0
           for attempt in $(seq 1 30); do
             if docker exec "$NGINX_NAME" nginx -t && curl --fail --silent --cacert "$TEST_DIR/tls/fullchain.pem" \
@@ -165,10 +170,15 @@ jobs:
           cp "$TEST_DIR/tls/fullchain.pem" "$TEST_DIR/invalid-tls/fullchain.pem"
           openssl genrsa -out "$TEST_DIR/invalid-tls/privkey.pem" 2048 >/dev/null 2>&1
           if docker run --rm --network "$NETWORK" --add-host web:127.0.0.1 \
-            --env PUBLIC_HOSTNAME="$TEST_HOST" --env 'NGINX_ENVSUBST_FILTER=^PUBLIC_HOSTNAME$' \
+            --user 101:101 --read-only --cap-drop ALL --security-opt no-new-privileges:true \
+            --tmpfs /tmp:rw,nosuid,nodev,noexec,size=32m,mode=1777 \
+            --env PUBLIC_HOSTNAME="$TEST_HOST" \
             --volume "$PWD/ops/nginx.conf:/etc/nginx/templates/default.conf.template:ro" \
+            --volume "$PWD/ops/nginx-main.conf:/etc/nginx/nginx.conf:ro" \
             --volume "$TEST_DIR/invalid-tls:/run/tls:ro" \
-            nginx:1.27-alpine@sha256:65645c7bb6a0661892a8b03b89d0743208a18dd2f3f17a54ef4b76fb8e2f2a10 nginx -t; then
+            --entrypoint /bin/sh \
+            nginx:1.27-alpine@sha256:65645c7bb6a0661892a8b03b89d0743208a18dd2f3f17a54ef4b76fb8e2f2a10 \
+            -c "envsubst '\$PUBLIC_HOSTNAME' < /etc/nginx/templates/default.conf.template > /tmp/jobfinder-ingress.conf && exec nginx -c /etc/nginx/nginx.conf -t"; then
             echo "nginx accepted a certificate/private-key mismatch" >&2
             exit 1
           fi

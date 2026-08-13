@@ -10,6 +10,7 @@ const repoRoot = process.cwd();
 const dockerfilePath = resolve(repoRoot, "Dockerfile");
 const composePath = resolve(repoRoot, "ops/docker-compose.yml");
 const nginxPath = resolve(repoRoot, "ops/nginx.conf");
+const nginxMainPath = resolve(repoRoot, "ops/nginx-main.conf");
 const backupPath = resolve(repoRoot, "ops/backup.sh");
 const monitoringCheckPath = resolve(repoRoot, "ops/monitoring-check.ts");
 const envExamplePath = resolve(repoRoot, ".env.example");
@@ -262,7 +263,7 @@ describe("deployment configuration", () => {
     expect(nginx).toMatch(/locked origin/i);
     expect(nginx).toMatch(/trusted prox(y|ies)|allowlist/i);
     expect(nginx).toMatch(/default deny|deny-by-default|deny all except/i);
-    expect(nginx).toMatch(/listen 443 ssl/);
+    expect(nginx).toMatch(/listen 8443 ssl/);
     expect(nginx).toContain("ssl_certificate /run/tls/fullchain.pem");
     expect(nginx).toContain("ssl_certificate_key /run/tls/privkey.pem");
     expect(nginx).toMatch(/client_max_body_size\s+1m/);
@@ -277,9 +278,14 @@ describe("deployment configuration", () => {
     const nginx = readComposeService(compose, "nginx");
     expect(nginx).toContain('source: ${TLS_DIRECTORY:-./tls-not-configured}');
     expect(nginx).toContain('target: /run/tls');
-    expect(nginx.match(/read_only:\s*true/gu)).toHaveLength(2);
-    expect(nginx).toContain('${HTTP_PORT:-80}:80');
-    expect(nginx).toContain('${HTTPS_PORT:-443}:443');
+    expect(nginx.match(/read_only:\s*true/gu)).toHaveLength(4);
+    expect(nginx).toContain('${HTTP_PORT:-80}:8080');
+    expect(nginx).toContain('${HTTPS_PORT:-443}:8443');
+    expect(nginx).toMatch(/user:\s*["']101:101["']/u);
+    expect(nginx).toMatch(/cap_drop:\s*\n\s+- ALL/u);
+    expect(nginx).toMatch(/read_only:\s*true/u);
+    expect(nginx).toContain('source: ./nginx-main.conf');
+    expect(readRequiredFile(nginxMainPath)).toContain('include /tmp/jobfinder-ingress.conf;');
     for (const serviceName of ["postgres", "web", "worker", "scheduler"]) {
       expect(readComposeService(compose, serviceName)).not.toContain("ports:");
     }
@@ -290,8 +296,8 @@ describe("deployment configuration", () => {
     const compose = readRequiredFile(composePath);
     const ingress = readComposeService(compose, "nginx");
 
-    expect(nginx).toContain('listen 80 default_server;');
-    expect(nginx).toContain('listen 443 ssl default_server;');
+    expect(nginx).toContain('listen 8080 default_server;');
+    expect(nginx).toContain('listen 8443 ssl default_server;');
     expect(nginx).toMatch(/server_name "";\s*return 444;/u);
     expect(nginx).toMatch(/server_name \$\{PUBLIC_HOSTNAME\};/u);
     expect(nginx).toContain('return 308 https://$server_name$request_uri;');
@@ -302,6 +308,7 @@ describe("deployment configuration", () => {
     expect(nginx).toMatch(/location = \/__readiness_gate \{[\s\S]*internal;[\s\S]*proxy_pass http:\/\/jobfinder_web\/readyz;/u);
     expect(ingress).toContain('PUBLIC_HOSTNAME: ${PUBLIC_HOSTNAME:?set PUBLIC_HOSTNAME}');
     expect(ingress).toContain('target: /etc/nginx/templates/default.conf.template');
+    expect(ingress).toContain("envsubst '$$PUBLIC_HOSTNAME'");
   });
 
   it("rate-limits the exact public health endpoint without changing the internal web healthcheck", () => {

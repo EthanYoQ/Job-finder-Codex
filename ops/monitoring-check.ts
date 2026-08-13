@@ -37,7 +37,6 @@ async function main(): Promise<void> {
   const restoreReceiptPath = process.env.RESTORE_RECEIPT_PATH ?? `${process.cwd()}/var/restore-receipt.json`;
   const readinessSummaryPath =
     process.env.READINESS_SUMMARY_PATH ?? `${process.cwd()}/var/readiness-summary.json`;
-  const certificateExpiresAt = process.env.CERTIFICATE_EXPIRES_AT;
   const now = process.env.MONITORING_NOW ? new Date(process.env.MONITORING_NOW) : new Date();
   const monitorStateDir = process.env.MONITOR_STATE_DIR ?? `${process.cwd()}/var/monitor-state`;
   const postgresReadinessTimeoutMs = Number(
@@ -123,17 +122,6 @@ async function main(): Promise<void> {
         stableCompanyCount: pauseBundle.evidence.stableCompanyCount,
         minimumStableCompanyCount: pauseBundle.evidence.minimumStableCompanyCount
       } : undefined
-    },
-    certificate: {
-      expiresAt: certificateExpiresAt ?? readString(readinessSummary, "certificateExpiresAt")
-    },
-    resources: {
-      diskUsedPercent: readEnvNumber("DISK_USED_PERCENT"),
-      memoryUsedPercent: readEnvNumber("MEMORY_USED_PERCENT")
-    },
-    traffic: {
-      requestsLastHour: readEnvNumber("REQUESTS_LAST_HOUR"),
-      baselineRequestsPerHour: readEnvNumber("BASELINE_REQUESTS_PER_HOUR")
     }
   } satisfies OpsAlertInput);
 
@@ -287,11 +275,6 @@ async function readOptionalJson(path: string): Promise<JsonMap | undefined> {
   }
 }
 
-function readString(source: JsonMap | undefined, key: string): string | undefined {
-  const value = source?.[key];
-  return typeof value === "string" ? value : undefined;
-}
-
 function readNumber(source: JsonMap | undefined, key: string): number | undefined {
   const value = source?.[key];
   return typeof value === "number" ? value : undefined;
@@ -312,14 +295,4 @@ function toFailureMap(source: JsonMap | undefined): Record<string, number> {
       .filter(([, value]) => typeof value === "number")
       .map(([companyId, value]) => [companyId, value as number])
   );
-}
-
-function readEnvNumber(name: string): number | undefined {
-  const value = process.env[name];
-  if (!value) {
-    return undefined;
-  }
-
-  const parsed = Number(value);
-  return Number.isFinite(parsed) ? parsed : undefined;
 }
