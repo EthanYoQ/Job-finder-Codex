@@ -21,8 +21,20 @@ A Roster Company whose current official social-recruitment source has two latest
 _Avoid_: Reachable company, configured company, historically green company
 
 **First-launch Gate**:
-The requirement that at least 55 Stable Companies pass record-derived readiness before the first external launch or formal Phase 1 completion.
-_Avoid_: 45-company gate, configurable pass total
+The requirement that every company in the frozen 50-company Launch Cohort has current A- or B-grade completeness evidence in two qualified rounds, including all 30 foreign companies.
+_Avoid_: 55-company threshold, configurable pass total, partial launch
+
+**Launch Cohort**:
+The immutable first-launch selection of 50 Roster Companies: 30 foreign pharmaceutical companies and 20 domestic pharmaceutical companies. A failed foreign company is never replaced by another company.
+_Avoid_: Full roster, replaceable sample, successful subset
+
+**Fixed Cohort Audit**:
+A diagnostic account of completeness evidence and failure stage for every Launch Cohort company in one formal batch. It reports failures and bounded repair groups but is not itself proof that a company is launch-qualified.
+_Avoid_: Passing count, repeated-count check, launch approval
+
+**Authoritative Launch Receipt**:
+The single content-bound decision that joins the exact source, image, Launch Cohort, database snapshot, security, restore, operations, and two-round A/B evidence for first launch.
+_Avoid_: Readiness checklist, partial-ready report, operator approval
 
 **Internal Candidate Preview**:
 A restricted preview of the currently verified subset while the First-launch Gate remains closed. It is not an external release and does not prove Phase 1 completion.
