@@ -1,4 +1,5 @@
 import { createHash } from "node:crypto";
+import { readFile } from "node:fs/promises";
 
 export type ProductionFindingScanner = "TRIVY" | "NPM_AUDIT";
 export type ProductionVulnerabilitySeverity = "HIGH" | "CRITICAL";
@@ -78,6 +79,32 @@ export interface ProductionSecurityReceipt {
   findings: EvaluatedProductionFinding[];
   policyErrors: string[];
   contentSha256: string;
+}
+
+export async function readProductionSecurityReceipt(path: string): Promise<ProductionSecurityReceipt> {
+  const value = JSON.parse(await readFile(path, "utf8")) as unknown;
+  if (!isRecord(value) || !exactKeys(value, ["schemaVersion", "decision", "exitCode", "imageRef", "imageDigest",
+    "packageLockSha256", "scannerReports", "policyReports", "evaluatedAt", "findings", "policyErrors", "contentSha256"]) ||
+    value.schemaVersion !== 1 || !["PASSED", "BLOCKED"].includes(String(value.decision)) ||
+    ![0, 1].includes(Number(value.exitCode)) || typeof value.imageRef !== "string" || !value.imageRef.trim() ||
+    !/^sha256:[0-9a-f]{64}$/u.test(String(value.imageDigest)) || !validShaValue(value.packageLockSha256) ||
+    !isRecord(value.scannerReports) || !exactShaRecord(value.scannerReports,
+      ["trivySha256", "npmAuditSha256", "npmAuditIdentitySha256"]) ||
+    !isRecord(value.policyReports) || !exactShaRecord(value.policyReports, ["reachabilitySha256", "exceptionsSha256"]) ||
+    typeof value.evaluatedAt !== "string" || !Number.isFinite(Date.parse(value.evaluatedAt)) ||
+    !Array.isArray(value.findings) || !value.findings.every(isEvaluatedFinding) ||
+    !Array.isArray(value.policyErrors) || !value.policyErrors.every((error) => typeof error === "string" && error.trim()) ||
+    !validShaValue(value.contentSha256)) throw new Error("Production security receipt schema is invalid");
+  const { contentSha256, ...base } = value;
+  if (createHash("sha256").update(JSON.stringify(base), "utf8").digest("hex") !== contentSha256) {
+    throw new Error("Production security receipt content hash mismatch");
+  }
+  const blocked = value.policyErrors.length > 0 || value.findings.some((finding) =>
+    ["BLOCKED", "BLOCKED_EXPIRED_EXCEPTION"].includes(finding.disposition));
+  if (value.decision !== (blocked ? "BLOCKED" : "PASSED") || value.exitCode !== (blocked ? 1 : 0)) {
+    throw new Error("Production security receipt decision is inconsistent");
+  }
+  return value as unknown as ProductionSecurityReceipt;
 }
 
 export function evaluateProductionSecurityGate(
@@ -330,4 +357,31 @@ function isFindingIdentity(value: Pick<ProductionVulnerabilityFinding,
 function findingKey(value: Pick<ProductionVulnerabilityFinding,
 "scanner" | "vulnerabilityId" | "packageName" | "installedVersion">): string {
   return [value.scanner, value.vulnerabilityId, value.packageName, value.installedVersion].join("\u0000");
+}
+
+const validShaValue = (value: unknown): value is string =>
+  typeof value === "string" && /^[0-9a-f]{64}$/u.test(value);
+function exactKeys(value: Record<string, unknown>, keys: readonly string[]): boolean {
+  return JSON.stringify(Object.keys(value).sort()) === JSON.stringify([...keys].sort());
+}
+function exactShaRecord(value: Record<string, unknown>, keys: readonly string[]): boolean {
+  return exactKeys(value, keys) && keys.every((key) => validShaValue(value[key]));
+}
+function isEvaluatedFinding(value: unknown): value is EvaluatedProductionFinding {
+  if (!isRecord(value)) return false;
+  const required = ["scanner", "vulnerabilityId", "packageName", "installedVersion", "severity", "runtimeReachability",
+    "reachabilityReason", "reachabilityEvidence", "reachabilityEvidenceSha256", "reachabilityOwner", "reachabilityExpiresAt",
+    "disposition", "exceptionOwner", "exceptionExpiresAt"];
+  const optional = value.fixedVersion === undefined ? [] : ["fixedVersion"];
+  if (!exactKeys(value, [...required, ...optional])) return false;
+  return ["TRIVY", "NPM_AUDIT"].includes(String(value.scanner)) && ["HIGH", "CRITICAL"].includes(String(value.severity)) &&
+    ["REACHABLE", "UNREACHABLE", "UNKNOWN"].includes(String(value.runtimeReachability)) &&
+    ["BLOCKED", "BLOCKED_EXPIRED_EXCEPTION", "ACCEPTED_TEMPORARY_EXCEPTION", "NON_BLOCKING_UNREACHABLE"]
+      .includes(String(value.disposition)) &&
+    [value.vulnerabilityId, value.packageName, value.installedVersion, value.reachabilityReason]
+      .every((entry) => typeof entry === "string" && entry.trim()) &&
+    (value.fixedVersion === undefined || typeof value.fixedVersion === "string") &&
+    [value.reachabilityEvidence, value.reachabilityOwner, value.reachabilityExpiresAt,
+      value.exceptionOwner, value.exceptionExpiresAt].every((entry) => entry === null || typeof entry === "string") &&
+    (value.reachabilityEvidenceSha256 === null || validShaValue(value.reachabilityEvidenceSha256));
 }

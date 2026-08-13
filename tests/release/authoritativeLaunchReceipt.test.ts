@@ -3,12 +3,12 @@ import { certificateSha256, evaluateAuthoritativeLaunchReadiness, type Authorita
 import { P0_LAUNCH_MANIFEST, launchManifestIdentity } from "../../src/release/launchManifest";
 
 describe("authoritative launch receipt", () => {
-  it("emits READY for exact 50-company A/B evidence across two separated fresh rounds", () => {
+  it("rejects synthetic certificate shells even when all 50 bindings and hashes look consistent", () => {
     const result = evaluateAuthoritativeLaunchReadiness(fixture());
-    expect(result.exitCode).toBe(0);
-    expect(result.receipt).toMatchObject({ decision: "READY", batches: [
-      { certificateCount: 50, foreignSuccessCount: 30 }, { certificateCount: 50, foreignSuccessCount: 30 }
-    ] });
+    expect(result.exitCode).toBe(1);
+    expect(result.receipt.decision).toBe("NOT_READY");
+    expect(result.receipt.gates.find(({ name }) => name === "TWO_ROUND_50_COMPANY_CERTIFICATES")?.reasons)
+      .toContain("CERTIFICATE_INVALID:round-1:company-gsk-china");
   });
 
   it("emits deterministic NOT_READY for a C-grade foreign company without partial-ready wording", () => {
@@ -30,6 +30,13 @@ describe("authoritative launch receipt", () => {
     const stale = fixture(); stale.batches[0]!.finishedAt = "2026-08-09T00:00:00.000Z";
     expect(evaluateAuthoritativeLaunchReadiness(stale).exitCode).toBe(1);
   });
+
+  it("rejects an exact-image qualification that is not bound to the running build identity", () => {
+    const input = fixture();
+    input.image.buildIdentityContentSha256 = "f".repeat(64);
+    expect(evaluateAuthoritativeLaunchReadiness(input).receipt.gates.find(({ name }) =>
+      name === "RELEASE_IDENTITY")?.reasons).toContain("IMAGE_BUILD_IDENTITY_MISMATCH");
+  });
 });
 
 function fixture(): AuthoritativeLaunchEvidence {
@@ -49,12 +56,16 @@ function fixture(): AuthoritativeLaunchEvidence {
         certificate, certificateSha256: certificateSha256(certificate) };
     }) });
   return { evaluatedAt: new Date("2026-08-13T00:00:00.000Z"), manifest: P0_LAUNCH_MANIFEST,
-    source: { commitSha: releaseIdentity.commitSha, sourceTreeSha256: sha, runtimeTreeSha256: sha },
+    source: { commitSha: releaseIdentity.commitSha, sourceTreeSha256: sha, runtimeTreeSha256: sha,
+      buildIdentityContentSha256: sha },
     image: { digest: `sha256:${sha}`, revision: releaseIdentity.commitSha, qualificationSha256: sha,
+      buildIdentityContentSha256: sha,
       securityReceiptSha256: sha, restoreReceiptSha256: sha },
-    database: { snapshotSha256: sha, schemaSha256: sha, migrationVersion: "20260813013000" },
+    database: { snapshotSha256: sha, schemaSha256: sha, migrationVersion: "20260813013000",
+      migrationManifestSha256: sha, bootstrapReady: true },
     security: { decision: "PASSED", contentSha256: sha, imageDigest: `sha256:${sha}`, evaluatedAt: "2026-08-12T23:00:00.000Z" },
-    restore: { decision: "PASSED", contentSha256: sha, verifiedAt: "2026-08-12T22:00:00.000Z" },
+    restore: { decision: "PASSED", contentSha256: sha, verifiedAt: "2026-08-12T22:00:00.000Z",
+      archiveSha256: sha },
     releaseIdentity, batches: [batch("round-1", "2026-08-12T08:00:00.000Z"), batch("round-2", "2026-08-12T21:00:00.000Z")],
     operationalGates: [{ name: "container-ready", passed: true, evidenceSha256: sha, reason: "readyz=200" }]
   };

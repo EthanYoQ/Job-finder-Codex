@@ -50,6 +50,22 @@ export interface FailedRestoreQualificationReceipt extends RestoreReceiptBase {
 
 export type RestoreQualificationReceipt = RunningRestoreQualificationReceipt | PassedRestoreQualificationReceipt | FailedRestoreQualificationReceipt;
 
+export async function readPassedRestoreQualificationReceipt(
+  path: string,
+  expectedMigrations: readonly PrismaMigrationArtifact[]
+): Promise<PassedRestoreQualificationReceipt> {
+  const value = JSON.parse(await readFile(path, "utf8")) as unknown;
+  if (!isRestoreReceipt(value) || value.decision !== "PASSED") {
+    throw new Error("Passing restore qualification receipt is required");
+  }
+  const { contentSha256, ...base } = value;
+  if (contentSha256 !== sha256(Buffer.from(JSON.stringify(base)))) {
+    throw new Error("Restore qualification receipt content hash mismatch");
+  }
+  assertRestoreFacts(value.verification, expectedMigrations);
+  return value;
+}
+
 export async function readRestoreQualificationEvidence(path: string, expectedMigrations?: readonly PrismaMigrationArtifact[]): Promise<{
   latestRestoreAt?: string; latestRestoreSucceeded?: boolean
 }> {

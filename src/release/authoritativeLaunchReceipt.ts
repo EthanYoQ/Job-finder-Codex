@@ -1,4 +1,6 @@
 import { createHash } from "node:crypto";
+import { verifyAGradeCompletenessCertificateReceipt } from "../crawler/completenessCertificate";
+import { verifyBGradeTraversalCertificateReceipt } from "../crawler/traversalCertificate";
 import {
   P0_LAUNCH_MANIFEST,
   launchManifestIdentity,
@@ -34,11 +36,13 @@ export interface LaunchBatchEvidence {
 export interface AuthoritativeLaunchEvidence {
   evaluatedAt: Date;
   manifest: LaunchManifest;
-  source: { commitSha: string; sourceTreeSha256: string; runtimeTreeSha256: string };
-  image: { digest: string; revision: string; qualificationSha256: string; securityReceiptSha256: string; restoreReceiptSha256: string };
-  database: { snapshotSha256: string; schemaSha256: string; migrationVersion: string };
+  source: { commitSha: string; sourceTreeSha256: string; runtimeTreeSha256: string; buildIdentityContentSha256: string };
+  image: { digest: string; revision: string; qualificationSha256: string; buildIdentityContentSha256: string;
+    securityReceiptSha256: string; restoreReceiptSha256: string };
+  database: { snapshotSha256: string; schemaSha256: string; migrationVersion: string;
+    migrationManifestSha256: string; bootstrapReady: boolean };
   security: { decision: string; contentSha256: string; imageDigest: string; evaluatedAt: string };
-  restore: { decision: string; contentSha256: string; verifiedAt: string };
+  restore: { decision: string; contentSha256: string; verifiedAt: string; archiveSha256: string };
   releaseIdentity: {
     releaseCandidateId: string;
     commitSha: string;
@@ -84,6 +88,7 @@ export function evaluateAuthoritativeLaunchReadiness(
   if (evidence.image.securityReceiptSha256 !== evidence.security.contentSha256) securityReasons.push("IMAGE_SECURITY_RECEIPT_MISMATCH");
   const restoreReasons = validateExternalReceipt(evidence.restore, evidence.evaluatedAt, 8 * 24 * HOUR, "PASSED");
   if (evidence.image.restoreReceiptSha256 !== evidence.restore.contentSha256) restoreReasons.push("IMAGE_RESTORE_RECEIPT_MISMATCH");
+  if (evidence.database.snapshotSha256 !== evidence.restore.archiveSha256) restoreReasons.push("DATABASE_SNAPSHOT_RESTORE_MISMATCH");
   const batchReasons = validateBatches(evidence);
   const operationReasons = evidence.operationalGates.flatMap((gate) =>
     gate.passed && validSha(gate.evidenceSha256) && gate.reason.trim() ? [] : [`${gate.name}: ${gate.reason || "missing evidence"}`]
@@ -100,7 +105,9 @@ export function evaluateAuthoritativeLaunchReadiness(
     decision,
     evaluatedAt: evidence.evaluatedAt.toISOString(),
     identity: {
-      ...evidence.source,
+      commitSha: evidence.source.commitSha,
+      sourceTreeSha256: evidence.source.sourceTreeSha256,
+      runtimeTreeSha256: evidence.source.runtimeTreeSha256,
       imageDigest: evidence.image.digest,
       imageQualificationSha256: evidence.image.qualificationSha256,
       ...manifestIdentity,
@@ -129,12 +136,22 @@ function validateIdentities(evidence: AuthoritativeLaunchEvidence, manifestIdent
   if (!/^[0-9a-f]{40}$/u.test(evidence.source.commitSha) || evidence.image.revision !== evidence.source.commitSha ||
     identity.commitSha !== evidence.source.commitSha) reasons.push("SOURCE_IMAGE_RELEASE_REVISION_MISMATCH");
   for (const value of [evidence.source.sourceTreeSha256, evidence.source.runtimeTreeSha256,
+    evidence.source.buildIdentityContentSha256, evidence.image.buildIdentityContentSha256,
     evidence.image.qualificationSha256, evidence.database.snapshotSha256, evidence.database.schemaSha256,
-    identity.sourceConfigSha256, identity.adapterBundleSha256]) if (!validSha(value)) reasons.push("IDENTITY_SHA256_INVALID");
+    evidence.database.migrationManifestSha256, identity.sourceConfigSha256,
+    identity.adapterBundleSha256]) if (!validSha(value)) reasons.push("IDENTITY_SHA256_INVALID");
+  if (evidence.image.buildIdentityContentSha256 !== evidence.source.buildIdentityContentSha256) {
+    reasons.push("IMAGE_BUILD_IDENTITY_MISMATCH");
+  }
+  if (evidence.database.schemaSha256 !== evidence.database.migrationManifestSha256) {
+    reasons.push("DATABASE_SCHEMA_MANIFEST_MISMATCH");
+  }
   if (identity.rosterSha256 !== manifestIdentity.companySetSha256 || identity.sourcePlanSha256 !== manifestIdentity.sourceIdentitySha256) {
     reasons.push("RELEASE_MANIFEST_IDENTITY_MISMATCH");
   }
-  if (!identity.releaseCandidateId.trim() || !evidence.database.migrationVersion.trim()) reasons.push("RELEASE_OR_DATABASE_IDENTITY_MISSING");
+  if (!identity.releaseCandidateId.trim() || !evidence.database.migrationVersion.trim() || !evidence.database.bootstrapReady) {
+    reasons.push("RELEASE_OR_DATABASE_IDENTITY_MISSING");
+  }
   return [...new Set(reasons)];
 }
 
@@ -184,25 +201,59 @@ function validateCertificate(certificate: LaunchCertificateEvidence, batch: Laun
   if (!["A", "B"].includes(certificate.grade) || !validSha(certificate.certificateSha256) ||
     !validSha(certificate.sourceConfigSha256) || !validSha(certificate.canonicalJobSetSha256) ||
     !isRecord(certificate.certificate)) return false;
-  const value = certificate.certificate;
-  if (certificateSha256(value) !== certificate.certificateSha256 || value.grade !== certificate.grade ||
-    !isRecord(value.binding) || !isRecord(value.scope) || !isRecord(value.output) ||
-    value.binding.releaseCandidateId !== batch.releaseCandidateId || value.binding.batchId !== batch.id ||
-    value.binding.sourceResultId !== certificate.sourceResultId || value.binding.sourceId !== certificate.sourceId ||
-    value.binding.sourceConfigSha256 !== certificate.sourceConfigSha256 ||
-    value.scope.companyId !== certificate.companyId || value.scope.sourceId !== certificate.sourceId ||
-    value.output.canonicalJobSetSha256 !== certificate.canonicalJobSetSha256) return false;
-  if (certificate.grade === "B") {
-    const expiresAt = Date.parse(String(value.expiresAt ?? ""));
-    if (!Number.isFinite(expiresAt) || expiresAt < now.getTime()) return false;
+  try {
+    const expected = {
+      releaseCandidateId: batch.releaseCandidateId,
+      batchId: batch.id,
+      sourceResultId: certificate.sourceResultId,
+      sourceId: certificate.sourceId,
+      companyId: certificate.companyId,
+      sourceConfigSha256: certificate.sourceConfigSha256,
+      canonicalJobSetSha256: certificate.canonicalJobSetSha256
+    };
+    if (certificate.grade === "A") {
+      verifyAGradeCompletenessCertificateReceipt({
+        certificate: certificate.certificate,
+        certificateSha256: certificate.certificateSha256,
+        expected
+      });
+    } else {
+      verifyBGradeTraversalCertificateReceipt({
+        certificate: certificate.certificate,
+        certificateSha256: certificate.certificateSha256,
+        expected,
+        now
+      });
+    }
+    return true;
+  } catch {
+    return false;
   }
-  return true;
 }
 
 const gate = (name: string, reasons: readonly string[]) => ({ name, passed: reasons.length === 0, reasons });
 const validSha = (value: string | null | undefined): value is string => typeof value === "string" && /^[0-9a-f]{64}$/u.test(value);
 const sha = (value: string) => createHash("sha256").update(value, "utf8").digest("hex");
 export const certificateSha256 = (value: unknown): string => sha(canonicalJson(value));
+export function buildUnavailableLaunchReceipt(evaluatedAt: Date, reason: string): AuthoritativeLaunchReceipt {
+  const zero = "0".repeat(64);
+  const base = {
+    schemaVersion: 1 as const,
+    decision: "NOT_READY" as const,
+    evaluatedAt: evaluatedAt.toISOString(),
+    identity: {
+      commitSha: "0".repeat(40), sourceTreeSha256: zero, runtimeTreeSha256: zero,
+      imageDigest: `sha256:${zero}`, imageQualificationSha256: zero,
+      manifestSha256: zero, companySetSha256: zero, sourceIdentitySha256: zero,
+      sourceConfigSha256: zero, adapterBundleSha256: zero,
+      databaseSnapshotSha256: zero, schemaSha256: zero, migrationVersion: "UNAVAILABLE",
+      securityReceiptSha256: zero, restoreReceiptSha256: zero
+    },
+    gates: [{ name: "QUALIFICATION_EXECUTION", passed: false, reasons: [reason] }],
+    batches: []
+  };
+  return { ...base, contentSha256: sha(JSON.stringify(base)) };
+}
 function canonicalJson(value: unknown): string {
   if (Array.isArray(value)) return `[${value.map(canonicalJson).join(",")}]`;
   if (isRecord(value)) return `{${Object.entries(value).sort(([a], [b]) => Buffer.from(a).compare(Buffer.from(b)))

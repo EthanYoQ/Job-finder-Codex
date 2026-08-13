@@ -47,6 +47,11 @@ export function listCurrentPrismaMigrations(projectRoot: string): PrismaMigratio
   return migrations.sort((left, right) => compareUtf8(left.migrationName, right.migrationName));
 }
 
+export function prismaMigrationManifestSha256(migrations: readonly PrismaMigrationArtifact[]): string {
+  const canonical = [...migrations].sort((left, right) => compareUtf8(left.migrationName, right.migrationName));
+  return createHash("sha256").update(JSON.stringify(canonical), "utf8").digest("hex");
+}
+
 const compareUtf8 = (left: string, right: string): number => Buffer.compare(
   Buffer.from(left, "utf8"), Buffer.from(right, "utf8")
 );
