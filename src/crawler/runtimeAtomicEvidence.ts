@@ -28,7 +28,7 @@ import {
   issueBGradeTraversalCertificate,
   requiresBGradeTraversalCertificate,
   type BGradeValidationTrigger,
-  type ViatrisBrowserTraversalValidation
+  type BGradeIndependentTraversalValidation
 } from "./traversalCertificate";
 import {
   canonicalCompletenessAnomalyTriggerCodes,
@@ -206,7 +206,7 @@ export function buildAtomicRuntimeCommit(input: {
   attemptTracker?: Pick<SourceFetchAttemptTracker, "fetchAttemptCount" | "retryCount" | "retryReasonCodes">;
   oracle?: AuditedSourceSurfaceOracle;
   trustedOracle?: StartupTrustedSourceSurfaceOracle;
-  independentTraversalValidation?: ViatrisBrowserTraversalValidation;
+  independentTraversalValidation?: BGradeIndependentTraversalValidation;
   independentTraversalValidationExecution?: "CURRENT_RUN" | "REUSED";
   independentTraversalValidationTrigger?: BGradeValidationTrigger;
   completedAt?: Date;

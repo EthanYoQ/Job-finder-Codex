@@ -62,6 +62,7 @@ function fixture(): AuthoritativeLaunchEvidence {
         output: { canonicalJobSetSha256: sha } };
       return { sourceResultId, companyId: company.companyId, sourceId: company.source.sourceId,
         category: company.category, grade: "A" as const, sourceConfigSha256, canonicalJobSetSha256: sha,
+        canonicalRawEvidenceIdSetSha256: sha,
         certificate, certificateSha256: certificateSha256(certificate) };
     }) });
   return { evaluatedAt: new Date("2026-08-13T00:00:00.000Z"), manifest: P0_LAUNCH_MANIFEST,

@@ -2246,7 +2246,7 @@ describe("runP0CrawlBatch", () => {
 
   it("uses globally unique deterministic artifact ids across sources, batches, and release candidates", async () => {
     const stagedPlans = buildStagedSourceCrawlPlans(candidateCompanies);
-    const firstPlan = getPlanBySourceId(stagedPlans, "source-qilu-social")!;
+    const firstPlan = getPlanBySourceId(stagedPlans, "source-lilly-china-social")!;
     const secondPlan = getPlanBySourceId(stagedPlans, "source-roche-china-social")!;
     const archivedRows: Array<{
       id: string;

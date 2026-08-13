@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { describe, expect, it } from "vitest";
 import { candidateCompanies } from "../../src/data/companyRegistry";
 import {
@@ -6,10 +7,31 @@ import {
   type OfficialJsonHttpResponse
 } from "../../src/crawler/officialJsonSourceFetch";
 import { runSourceCrawl } from "../../src/crawler/runSourceCrawl";
-import { buildStagedSourceCrawlPlans, type SourceCrawlPlan } from "../../src/crawler/sourcePlan";
+import { buildStagedSourceCrawlPlans, sourcePlanConfigSha256, type SourceCrawlPlan } from "../../src/crawler/sourcePlan";
 import { validateStrictSourceScopeExclusionProof } from "../../src/crawler/strictSourceScopeExclusionProof";
+import { canonicalStringSetSha256 } from "../../src/crawler/sourceFetchEvidence";
+import { irreversibleOfficialJsonEvidenceId } from "../../src/crawler/officialJsonEvidence";
+import {
+  bGradeTraversalValidationMatchesCurrentJobs,
+  createQiluBrowserTraversalValidation,
+  issueBGradeTraversalCertificate,
+  readReusableBGradeTraversalValidation,
+  verifyBGradeTraversalCertificateReceipt
+} from "../../src/crawler/traversalCertificate";
 
 const NOW = "2026-07-15T00:00:00.000Z";
+
+function canonicalJson(value: unknown): string {
+  if (value === null || typeof value !== "object") return JSON.stringify(value);
+  if (Array.isArray(value)) return `[${value.map(canonicalJson).join(",")}]`;
+  return `{${Object.entries(value as Record<string, unknown>)
+    .sort(([left], [right]) => Buffer.compare(Buffer.from(left), Buffer.from(right)))
+    .map(([key, child]) => `${JSON.stringify(key)}:${canonicalJson(child)}`).join(",")}}`;
+}
+
+function sha256(value: unknown): string {
+  return createHash("sha256").update(canonicalJson(value), "utf8").digest("hex");
+}
 
 function stagedPlan(sourceId: string): Extract<SourceCrawlPlan, { adapterId: "official-json" }> {
   const plan = buildStagedSourceCrawlPlans(candidateCompanies).find((candidate) => candidate.source.id === sourceId);
@@ -93,6 +115,213 @@ describe("source-bound exact scope exclusion proof", () => {
     expect(result.truth.completenessVerified).toBe(true);
     expect(result.jobs).toHaveLength(2);
     expect(validateStrictSourceScopeExclusionProof(plan, result.fetchEvidence!, result.jobs)).toBe(true);
+    if (!result.fetchEvidence || !result.paginationEvaluation || !result.reconciliation) {
+      throw new Error("Expected Qilu exact traversal evidence");
+    }
+
+    const sourceConfigSha256 = sourcePlanConfigSha256(plan);
+    const independentValidation = createQiluBrowserTraversalValidation({
+      sourceConfigSha256,
+      surfaceIds: [plan.source.surfaceId!],
+      channelIds: plan.expectedChannels!.map(({ channelId }) => channelId),
+      pages: [{
+        pageNumber: 1,
+        declaredTotalPages: 1,
+        rawRows: [
+          ...result.jobs.map((job) => ({
+            officialUrl: job.officialUrl,
+            locationRaw: job.locationRaw,
+            scopeDecision: "INCLUDED_MAINLAND" as const
+          })),
+          ...[
+            ["3", "美国纽约"],
+            ["4", "United States / Boston"],
+            ["5", "香港特别行政区"]
+          ].map(([id, locationRaw]) => ({
+            officialUrl: `https://qilu-pharma.zhiye.com/social/detail?jobAdId=00000000-0000-4000-8000-${id!.padStart(12, "0")}`,
+            locationRaw: locationRaw!,
+            scopeDecision: "EXCLUDED_FOREIGN" as const
+          }))
+        ],
+        nextControlPresent: false
+      }],
+      observedAt: NOW,
+      expiresAt: "2026-07-22T00:00:00.000Z"
+    });
+    const certificateInput = {
+      binding: {
+        releaseCandidateId: "rc-qilu",
+        batchId: "batch-qilu",
+        sourceResultId: "result-qilu",
+        sourceConfigSha256
+      },
+      plan,
+      transportSuccess: true,
+      adapterSuccess: true,
+      evidence: result.fetchEvidence,
+      paginationEvaluation: result.paginationEvaluation,
+      reconciliation: result.reconciliation,
+      jobs: result.jobs,
+      independentValidation,
+      validationExecution: "CURRENT_RUN",
+      trigger: "INITIAL_QUALIFICATION",
+      now: new Date("2026-07-15T00:05:00.000Z")
+    } as const;
+    const mismatchedRawValidation = createQiluBrowserTraversalValidation({
+      sourceConfigSha256,
+      surfaceIds: [plan.source.surfaceId!],
+      channelIds: plan.expectedChannels!.map(({ channelId }) => channelId),
+      pages: [{
+        pageNumber: 1,
+        declaredTotalPages: 1,
+        rawRows: [
+          ...result.jobs.map((job) => ({
+            officialUrl: job.officialUrl,
+            locationRaw: job.locationRaw,
+            scopeDecision: "INCLUDED_MAINLAND" as const
+          })),
+          ...[
+            ["3", "美国纽约"],
+            ["4", "United States / Boston"],
+            ["6", "香港特别行政区"]
+          ].map(([id, locationRaw]) => ({
+            officialUrl: `https://qilu-pharma.zhiye.com/social/detail?jobAdId=00000000-0000-4000-8000-${id!.padStart(12, "0")}`,
+            locationRaw: locationRaw!,
+            scopeDecision: "EXCLUDED_FOREIGN" as const
+          }))
+        ],
+        nextControlPresent: false
+      }],
+      observedAt: NOW,
+      expiresAt: "2026-07-22T00:00:00.000Z"
+    });
+    expect(issueBGradeTraversalCertificate({
+      ...certificateInput,
+      independentValidation: mismatchedRawValidation
+    })).toMatchObject({
+      status: "REJECTED",
+      blockerCodes: expect.arrayContaining(["INDEPENDENT_JOB_SET_MISMATCH"])
+    });
+    const decision = issueBGradeTraversalCertificate(certificateInput);
+    expect(decision.status, JSON.stringify(decision)).toBe("CERTIFIED");
+    if (decision.status !== "CERTIFIED") throw new Error("Expected Qilu B-grade certificate");
+    expect(decision.certificate).toMatchObject({
+      scope: { companyId: "company-qilu", sourceId: "source-qilu-social" },
+      mainTraversal: { retrievalPath: "HTTP_BEISEN_JOBAD_PAGINATION", matchKeyKind: "OFFICIAL_URL" },
+      independentValidation: {
+        retrievalPath: "PLAYWRIGHT_BEISEN_RENDERED_UI_CLICK_PAGINATION",
+        matchKeyKind: "OFFICIAL_URL"
+      },
+      counts: { mainUniqueJobCount: 2, independentUniqueJobCount: 2, validationDiscardCount: 3 }
+    });
+    const reusable = readReusableBGradeTraversalValidation({
+      certificate: decision.certificate,
+      certificateSha256: decision.certificateSha256,
+      sourceConfigSha256,
+      now: new Date("2026-07-15T00:05:00.000Z")
+    });
+    expect(bGradeTraversalValidationMatchesCurrentJobs(reusable, result.jobs)).toBe(true);
+    expect(verifyBGradeTraversalCertificateReceipt({
+      certificate: decision.certificate,
+      certificateSha256: decision.certificateSha256,
+      expected: {
+        releaseCandidateId: "rc-qilu",
+        batchId: "batch-qilu",
+        sourceResultId: "result-qilu",
+        sourceId: "source-qilu-social",
+        companyId: "company-qilu",
+        sourceConfigSha256,
+        canonicalRawEvidenceIdSetSha256: canonicalStringSetSha256(
+          result.fetchEvidence.pages.flatMap((page) => page.rawJobIds)
+        )
+      },
+      now: new Date("2026-07-15T00:05:00.000Z")
+    })).toMatchObject({ status: "PASS", grade: "B", finalUniqueJobCount: 2 });
+
+    const forged = structuredClone(decision.certificate);
+    if (forged.schemaVersion !== "b-grade-independent-traversal-v2" ||
+        forged.independentValidation.schemaVersion !== "qilu-browser-traversal-validator-v2") {
+      throw new Error("Expected Qilu v2 certificate");
+    }
+    forged.independentValidation.pages[0]!.rawRows.at(-1)!.officialUrl =
+      "https://evil.example/social/detail?jobAdId=00000000-0000-4000-8000-000000000005";
+    forged.independentValidation.artifactSha256 = sha256({
+      sourceId: forged.independentValidation.sourceId,
+      retrievalPath: forged.independentValidation.retrievalPath,
+      matchKeyKind: forged.independentValidation.matchKeyKind,
+      pages: forged.independentValidation.pages,
+      observedAt: forged.independentValidation.observedAt
+    });
+    expect(() => verifyBGradeTraversalCertificateReceipt({
+      certificate: forged,
+      certificateSha256: sha256(forged),
+      expected: {
+        releaseCandidateId: "rc-qilu",
+        batchId: "batch-qilu",
+        sourceResultId: "result-qilu",
+        sourceId: "source-qilu-social",
+        sourceConfigSha256
+      },
+      now: new Date("2026-07-15T00:05:00.000Z")
+    })).toThrow(/validation unavailable|scope replay|raw evidence commitment/i);
+
+    const commitmentForgery = structuredClone(decision.certificate);
+    if (commitmentForgery.schemaVersion !== "b-grade-independent-traversal-v2" ||
+        commitmentForgery.independentValidation.schemaVersion !== "qilu-browser-traversal-validator-v2") {
+      throw new Error("Expected Qilu v2 certificate");
+    }
+    commitmentForgery.independentValidation.pages[0]!.rawRows.at(-1)!.officialUrl =
+      "https://qilu-pharma.zhiye.com/social/detail?jobAdId=00000000-0000-4000-8000-000000000006";
+    commitmentForgery.independentValidation.artifactSha256 = sha256({
+      sourceId: commitmentForgery.independentValidation.sourceId,
+      retrievalPath: commitmentForgery.independentValidation.retrievalPath,
+      matchKeyKind: commitmentForgery.independentValidation.matchKeyKind,
+      pages: commitmentForgery.independentValidation.pages,
+      observedAt: commitmentForgery.independentValidation.observedAt
+    });
+    expect(() => readReusableBGradeTraversalValidation({
+      certificate: commitmentForgery,
+      certificateSha256: sha256(commitmentForgery),
+      sourceConfigSha256,
+      now: new Date("2026-07-15T00:05:00.000Z")
+    })).toThrow(/raw-row equations/i);
+
+    const japanForgery = structuredClone(decision.certificate);
+    if (japanForgery.schemaVersion !== "b-grade-independent-traversal-v2" ||
+        japanForgery.independentValidation.schemaVersion !== "qilu-browser-traversal-validator-v2") {
+      throw new Error("Expected Qilu v2 certificate");
+    }
+    japanForgery.independentValidation.pages[0]!.rawRows.push({
+      officialUrl: "https://qilu-pharma.zhiye.com/social/detail?jobAdId=00000000-0000-4000-8000-000000000008",
+      locationRaw: "日本东京",
+      scopeDecision: "EXCLUDED_FOREIGN"
+    });
+    japanForgery.independentValidation.artifactSha256 = sha256({
+      sourceId: japanForgery.independentValidation.sourceId,
+      retrievalPath: japanForgery.independentValidation.retrievalPath,
+      matchKeyKind: japanForgery.independentValidation.matchKeyKind,
+      pages: japanForgery.independentValidation.pages,
+      observedAt: japanForgery.independentValidation.observedAt
+    });
+    const rawUrls = japanForgery.independentValidation.pages.flatMap((page) => page.rawRows.map((row) => row.officialUrl));
+    const excludedUrls = japanForgery.independentValidation.pages.flatMap((page) => page.rawRows
+      .filter((row) => row.scopeDecision === "EXCLUDED_FOREIGN").map((row) => row.officialUrl));
+    japanForgery.mainTraversal.canonicalRawMatchKeySetSha256 = canonicalStringSetSha256(rawUrls);
+    japanForgery.mainTraversal.canonicalExcludedMatchKeySetSha256 = canonicalStringSetSha256(excludedUrls);
+    japanForgery.counts.validationDiscardCount += 1;
+    const externalRawCommitment = canonicalStringSetSha256(result.fetchEvidence.pages.flatMap((page) => page.rawJobIds));
+    expect(() => verifyBGradeTraversalCertificateReceipt({
+      certificate: japanForgery,
+      certificateSha256: sha256(japanForgery),
+      expected: {
+        releaseCandidateId: "rc-qilu", batchId: "batch-qilu", sourceResultId: "result-qilu",
+        sourceId: "source-qilu-social", sourceConfigSha256,
+        canonicalRawEvidenceIdSetSha256: externalRawCommitment
+      },
+      now: new Date("2026-07-15T00:05:00.000Z")
+    })).toThrow(/validation unavailable|raw evidence commitment/i);
+    expect(externalRawCommitment).not.toBe(canonicalStringSetSha256(rawUrls.map((url) =>
+      irreversibleOfficialJsonEvidenceId(new URL(url).searchParams.get("jobAdId")!))));
   });
 
   it("verifies Xiuzheng only when the exact navigation title is the sole exclusion", async () => {

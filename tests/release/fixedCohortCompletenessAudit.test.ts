@@ -169,7 +169,8 @@ function input(): { generatedAt: Date; releaseCandidateId: string; batchId: stri
   const sources = P0_LAUNCH_MANIFEST.companies.map((company): FixedCohortAuditSourceInput => ({
       sourceResultId: `result:${company.source.sourceId}`, companyId: company.companyId, sourceId: company.source.sourceId,
       adapterFamily: company.source.sourceId.split("-")[1] ?? "unknown",
-      grade: "C", sourceConfigSha256: "a".repeat(64), canonicalJobSetSha256: "b".repeat(64), certificate: null,
+      grade: "C", sourceConfigSha256: "a".repeat(64), canonicalJobSetSha256: "b".repeat(64),
+      canonicalRawEvidenceIdSetSha256: "e".repeat(64), certificate: null,
       certificateSha256: null, plannedSurfaceIds: [`surface:${company.source.sourceId}`],
       plannedChannelIds: [`channel:${company.source.sourceId}`], officialSurfaceIds: [`surface:${company.source.sourceId}`],
       officialChannelIds: [`channel:${company.source.sourceId}`], evidenceArtifacts: [{ id: `artifact:${company.source.sourceId}`,

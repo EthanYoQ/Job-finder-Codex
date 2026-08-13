@@ -9,7 +9,7 @@ export type AuditFailureClass = "PRODUCT_DEFECT" | "SOURCE_TEMPORARILY_UNAVAILAB
 export interface FixedCohortAuditSourceInput {
   sourceResultId: string; companyId: string; sourceId: string; adapterFamily: string; grade: "A" | "B" | "C";
   sourceConfigSha256: string; certificate: unknown | null; certificateSha256: string | null;
-  canonicalJobSetSha256: string | null;
+  canonicalJobSetSha256: string | null; canonicalRawEvidenceIdSetSha256: string | null;
   plannedSurfaceIds: readonly string[]; plannedChannelIds: readonly string[];
   officialSurfaceIds: readonly string[]; officialChannelIds: readonly string[];
   evidenceArtifacts: readonly { id: string; path: string; sha256: string }[];
@@ -143,6 +143,7 @@ export function parseFixedCohortCompletenessAuditReport(bytes: Buffer): FixedCoh
 }
 
 const SOURCE_KEYS = ["adapterFamily", "adapterState", "atomicCommitState", "blockers", "canonicalJobSetSha256",
+  "canonicalRawEvidenceIdSetSha256",
   "certificate", "certificateSha256", "companyId", "completenessState", "evidenceArtifacts", "expectedEvidenceKind",
   "expectedJobCount", "failureCategory", "failureClass", "failureCode", "failureDiagnosticCode", "failureStage",
   "finalJobCount", "grade", "officialChannelIds", "officialSurfaceIds", "pagesVisited", "paginationByChannel",
@@ -158,6 +159,7 @@ function parseAuditCompany(value: unknown): FixedCohortCompletenessAuditReport["
       !stringField(value.companyId) || !stringField(value.sourceId) || !stringField(value.adapterFamily) ||
       !["A", "B", "C"].includes(String(value.grade)) || !stringField(value.sourceConfigSha256) ||
       !nullableString(value.certificateSha256) || !nullableSha256(value.canonicalJobSetSha256) ||
+      !nullableSha256(value.canonicalRawEvidenceIdSetSha256) ||
       !stringArray(value.plannedSurfaceIds) || !stringArray(value.plannedChannelIds) ||
       !stringArray(value.officialSurfaceIds) || !stringArray(value.officialChannelIds) ||
       !Array.isArray(value.evidenceArtifacts) || !value.evidenceArtifacts.every(validEvidenceArtifact) ||
@@ -229,7 +231,10 @@ function certificateValid(source: FixedCohortAuditSourceInput, releaseCandidateI
   const expected = { releaseCandidateId, batchId, sourceResultId: source.sourceResultId, sourceId: source.sourceId,
     companyId: source.companyId, sourceConfigSha256: source.sourceConfigSha256,
       canonicalJobSetSha256: source.canonicalJobSetSha256, surfaceIds: source.plannedSurfaceIds,
-      channelIds: source.plannedChannelIds };
+      channelIds: source.plannedChannelIds,
+      ...(source.canonicalRawEvidenceIdSetSha256 ? {
+        canonicalRawEvidenceIdSetSha256: source.canonicalRawEvidenceIdSetSha256
+      } : {}) };
   try {
     if (source.grade === "A") verifyAGradeCompletenessCertificateReceipt({ certificate: source.certificate,
       certificateSha256: source.certificateSha256, expected });

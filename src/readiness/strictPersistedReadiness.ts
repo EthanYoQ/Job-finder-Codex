@@ -28,6 +28,7 @@ export interface StrictReadinessSourceResult {
   id: string; sourceId: string; atomicCommitState: string; transportState: string; adapterState: string;
   completenessState: string; sourceConfigHash: string; adapterVersion: string;
   canonicalOutputSetSha256: string | null; canonicalCurrentJobSetSha256: string | null;
+  canonicalRawEvidenceIdSetSha256?: string | null;
   canonicalGraceJobSetSha256: string | null; canonicalVisibleJobSetSha256: string | null;
   officialEvidenceArtifactId: string | null; artifactRedactionCommitmentSha256: string | null;
   lifecycleSetEvidence?: LifecycleSetEvidence;
@@ -151,7 +152,10 @@ function validateBatch(batch: StrictReadinessBatch, expected: StrictReadinessExp
           channelIds: source.officialChannelIds,
           canonicalJobSetSha256: source.canonicalOutputSetSha256!,
           adapterReconciliationSha256: source.adapterReconciliationSha256,
-          collisionLedgerSha256: source.collisionLedgerSha256
+          collisionLedgerSha256: source.collisionLedgerSha256,
+          ...(source.canonicalRawEvidenceIdSetSha256 ? {
+            canonicalRawEvidenceIdSetSha256: source.canonicalRawEvidenceIdSetSha256
+          } : {})
         },
         now: expected.currentTime
       });

@@ -4,6 +4,7 @@ import type { SourceCrawlPlan } from "./sourcePlan";
 import type { NormalizedJobRecord } from "./normalizedJob";
 import { hasUniqueJsonObjectKeys } from "./strictJsonObjectKeys";
 import { requestContractV2Locator } from "./strictPageRequestContract";
+import { isStrictQiluOfficialJobUrl } from "./qiluRenderedTraversalValidator";
 
 type OfficialPlan = Extract<SourceCrawlPlan, { adapterId: "official-json" }>;
 type ProofPolicy =
@@ -88,6 +89,29 @@ export function validateStrictSourceScopeExclusionProof(
   } catch {
     return false;
   }
+}
+
+export function strictQiluRawOfficialUrls(
+  plan: SourceCrawlPlan,
+  evidence: PersistentSourceFetchEvidence,
+  outputJobs: readonly NormalizedJobRecord[] = []
+): string[] | undefined {
+  if (plan.source.id !== "source-qilu-social" ||
+      !validateStrictSourceScopeExclusionProof(plan, evidence, outputJobs)) return undefined;
+  const urls: string[] = [];
+  for (const page of evidence.pages) {
+    const artifact = exactPageArtifact(evidence, page.artifactLogicalKey);
+    const root = artifact && parseExactJsonRecord(artifact);
+    if (!root || !Array.isArray(root.Data)) return undefined;
+    for (const raw of root.Data) {
+      if (!strictRecord(raw) || typeof raw.Id !== "string" || raw.Id !== raw.Id.trim()) return undefined;
+      const url = new URL("/social/detail", plan.source.officialEntryUrl);
+      url.searchParams.set("jobAdId", raw.Id);
+      if (!isStrictQiluOfficialJobUrl(url.toString())) return undefined;
+      urls.push(url.toString());
+    }
+  }
+  return new Set(urls).size === urls.length ? urls : undefined;
 }
 
 function configuredPolicy(plan: OfficialPlan): ProofPolicy | undefined {

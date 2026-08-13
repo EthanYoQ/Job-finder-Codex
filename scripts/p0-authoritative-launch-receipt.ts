@@ -29,7 +29,7 @@ try {
     const batches = await transaction.crawlBatch.findMany({
       where: { releaseCandidateId: authority.identity.releaseCandidateId, kind: "SCHEDULED", status: "SUCCESS",
         finishedAt: { not: null } }, orderBy: [{ finishedAt: "desc" }, { id: "desc" }], take: 10,
-      include: { sourceResults: { orderBy: { sourceId: "asc" } } }
+      include: { sourceResults: { orderBy: { sourceId: "asc" }, include: { observations: true } } }
     });
     const migrationRows = await transaction.$queryRaw<Array<{ migrationName: string; checksum: string;
       finishedAt: Date | null; rolledBackAt: Date | null }>>(Prisma.sql`
@@ -51,9 +51,12 @@ try {
     adapterBundleSha256: batch.adapterBundleSha256!, status: batch.status,
     finishedAt: batch.finishedAt?.toISOString() ?? "", certificates: batch.sourceResults.map((source): LaunchCertificateEvidence => {
       const company = manifestBySource.get(source.sourceId);
+      if (source.observations.length !== 1 || source.observations[0]!.sourceResultId !== source.id ||
+          !source.observations[0]!.canonicalRawSha256) throw new Error("Launch certificate raw observation binding is incomplete");
       return { sourceResultId: source.id, companyId: company?.companyId ?? "", sourceId: source.sourceId,
         category: company?.category ?? "DOMESTIC_PHARMA", grade: certificateGrade(source.completenessCertificate),
         sourceConfigSha256: source.sourceConfigHash, canonicalJobSetSha256: source.canonicalOutputSetSha256 ?? "",
+        canonicalRawEvidenceIdSetSha256: source.observations[0]!.canonicalRawSha256,
         certificate: source.completenessCertificate, certificateSha256: source.completenessCertificateSha256 };
     })
   }));

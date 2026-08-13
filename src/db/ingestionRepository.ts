@@ -1011,7 +1011,10 @@ function validateRetryReasonCodes(values: readonly string[], retryCount: number)
   }
 }
 
-function validateCommittedSourceResultTruthTable(result: AtomicSourceResultInput): void {
+function validateCommittedSourceResultTruthTable(
+  result: AtomicSourceResultInput,
+  canonicalRawEvidenceIdSetSha256?: string
+): void {
   if (result.atomicCommitState !== "COMMITTED" || result.transportState !== "SUCCEEDED" ||
       result.adapterState !== "SUCCEEDED" || result.finishedAt === null ||
       !(["VERIFIED", "INCOMPLETE", "NEEDS_MANUAL_COMPLETENESS_REVIEW"] as string[])
@@ -1058,7 +1061,7 @@ function validateCommittedSourceResultTruthTable(result: AtomicSourceResultInput
     if (result.completenessState !== "VERIFIED") {
       throw new Error("Completeness certificate requires VERIFIED source truth");
     }
-    verifyPersistedCompletenessCertificate(result);
+    verifyPersistedCompletenessCertificate(result, undefined, canonicalRawEvidenceIdSetSha256);
   }
   const baselineTransitionSupplied = result.baselineChangeReason !== undefined &&
     result.baselineChangeReason !== null;
@@ -1082,7 +1085,8 @@ function validateCommittedSourceResultTruthTable(result: AtomicSourceResultInput
 
 function verifyPersistedCompletenessCertificate(
   result: AtomicSourceResultInput,
-  officialArtifact?: { logicalKey: string; sha256: string }
+  officialArtifact?: { logicalKey: string; sha256: string },
+  canonicalRawEvidenceIdSetSha256?: string
 ): void {
   const expected = {
     releaseCandidateId: result.releaseCandidateId,
@@ -1117,7 +1121,7 @@ function verifyPersistedCompletenessCertificate(
     verifyBGradeTraversalCertificateReceipt({
       certificate: result.completenessCertificate,
       certificateSha256: result.completenessCertificateSha256!,
-      expected,
+      expected: { ...expected, ...(canonicalRawEvidenceIdSetSha256 ? { canonicalRawEvidenceIdSetSha256 } : {}) },
       now: result.finishedAt
     });
     return;
@@ -1233,7 +1237,7 @@ function validateAtomicSourceEvidenceCommit(input: AtomicSourceEvidenceCommit, m
       (result.finishedAt !== null && result.startedAt > result.finishedAt)) {
     throw new Error("Source-result timestamps are invalid or unordered");
   }
-  validateCommittedSourceResultTruthTable(result);
+  validateCommittedSourceResultTruthTable(result, input.observationProvenance.canonicalRawSha256);
   const provenance = input.observationProvenance;
   assertTuple(provenance, tuple, "observation provenance");
   if (!isValidDate(provenance.observedFrom) || !isValidDate(provenance.observedTo) ||
@@ -1396,7 +1400,7 @@ function validateAtomicSourceEvidenceCommit(input: AtomicSourceEvidenceCommit, m
     verifyPersistedCompletenessCertificate(result, {
       logicalKey: officialArtifact.logicalKey,
       sha256: officialArtifact.sha256
-    });
+    }, provenance.canonicalRawSha256);
   }
   if (result.expectedEvidenceKind === "OFFICIAL_TOTAL_COUNT") {
     if (result.expectedJobCount === null || !NETWORK_ARTIFACT_KINDS.has(officialArtifact.kind)) {

@@ -16,6 +16,7 @@ export interface LaunchCertificateEvidence {
   grade: "A" | "B" | "C";
   sourceConfigSha256: string;
   canonicalJobSetSha256: string;
+  canonicalRawEvidenceIdSetSha256: string;
   certificate: unknown | null;
   certificateSha256: string | null;
 }
@@ -241,6 +242,7 @@ function validateBatches(evidence: AuthoritativeLaunchEvidence): string[] {
 function validateCertificate(certificate: LaunchCertificateEvidence, batch: LaunchBatchEvidence, now: Date): boolean {
   if (!["A", "B"].includes(certificate.grade) || !validSha(certificate.certificateSha256) ||
     !validSha(certificate.sourceConfigSha256) || !validSha(certificate.canonicalJobSetSha256) ||
+    !validSha(certificate.canonicalRawEvidenceIdSetSha256) ||
     !isRecord(certificate.certificate)) return false;
   try {
     const expected = {
@@ -250,7 +252,8 @@ function validateCertificate(certificate: LaunchCertificateEvidence, batch: Laun
       sourceId: certificate.sourceId,
       companyId: certificate.companyId,
       sourceConfigSha256: certificate.sourceConfigSha256,
-      canonicalJobSetSha256: certificate.canonicalJobSetSha256
+      canonicalJobSetSha256: certificate.canonicalJobSetSha256,
+      canonicalRawEvidenceIdSetSha256: certificate.canonicalRawEvidenceIdSetSha256
     };
     if (certificate.grade === "A") {
       verifyAGradeCompletenessCertificateReceipt({

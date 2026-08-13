@@ -59,12 +59,12 @@ import {
   sourceAttemptTimeoutMs
 } from "./officialHttpRuntimeLimits";
 import {
-  readReusableViatrisTraversalValidation,
+  bGradeTraversalValidationMatchesCurrentJobs,
+  readReusableBGradeTraversalValidation,
   requiresBGradeTraversalCertificate,
-  runViatrisBrowserTraversalValidator,
-  viatrisTraversalValidationMatchesCurrentJobs,
+  runBGradeIndependentTraversalValidator,
   type BGradeValidationTrigger,
-  type ViatrisBrowserTraversalValidation
+  type BGradeIndependentTraversalValidation
 } from "./traversalCertificate";
 import { requiresAGradeOfficialTotalCertificate } from "./completenessCertificate";
 import {
@@ -251,7 +251,7 @@ export interface RunP0CrawlBatchDeps {
   getTrustedCompletenessBaseline?(
     sourceId: string
   ): Promise<PersistedTrustedCompletenessBaseline | null>;
-  runIndependentTraversalValidator?: typeof runViatrisBrowserTraversalValidator;
+  runIndependentTraversalValidator?: typeof runBGradeIndependentTraversalValidator;
 }
 
 export async function runP0CrawlBatch(
@@ -398,7 +398,7 @@ export async function runP0CrawlBatch(
         continue;
       }
 
-      let independentTraversalValidation: ViatrisBrowserTraversalValidation | undefined;
+      let independentTraversalValidation: BGradeIndependentTraversalValidation | undefined;
       let independentTraversalValidationExecution: "CURRENT_RUN" | "REUSED" | undefined;
       let independentTraversalValidationTrigger: BGradeValidationTrigger | undefined;
       const anomaly = certificateBaselineRequired
@@ -416,13 +416,13 @@ export async function runP0CrawlBatch(
           if (independentTraversalValidationTrigger === "STABLE_RUN" &&
               trustedCompletenessBaseline?.certificateGrade === "B") {
             try {
-              independentTraversalValidation = readReusableViatrisTraversalValidation({
+              independentTraversalValidation = readReusableBGradeTraversalValidation({
                 certificate: trustedCompletenessBaseline.certificate,
                 certificateSha256: trustedCompletenessBaseline.certificateSha256,
                 sourceConfigSha256: pending.sourceConfigHash,
                 now: crawlResult.observation.crawledAt
               });
-              if (viatrisTraversalValidationMatchesCurrentJobs(
+              if (bGradeTraversalValidationMatchesCurrentJobs(
                 independentTraversalValidation,
                 crawlResult.jobs
               )) {
@@ -437,8 +437,10 @@ export async function runP0CrawlBatch(
           if (!independentTraversalValidation) {
             try {
               independentTraversalValidation = await (
-                deps.runIndependentTraversalValidator ?? runViatrisBrowserTraversalValidator
+                deps.runIndependentTraversalValidator ?? runBGradeIndependentTraversalValidator
               )({
+                sourceId: plan.source.id,
+                companyId: plan.company.id,
                 entryUrl: plan.source.officialEntryUrl,
                 sourceConfigSha256: pending.sourceConfigHash,
                 surfaceIds: pending.officialSurfaceIds,

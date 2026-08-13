@@ -33,7 +33,7 @@ try {
         plannedSourceCount: identity.expectedPlannedSourceCount },
       orderBy: [{ finishedAt: "desc" }, { id: "desc" }],
       include: { sourceResults: { include: { evidenceArtifacts: { orderBy: { path: "asc" } },
-        paginationEvidence: { orderBy: { sequence: "asc" } } } } }
+        paginationEvidence: { orderBy: { sequence: "asc" } }, observations: true } } }
     });
     return { authority, batch };
   }, { isolationLevel: "RepeatableRead", maxWait: 10_000, timeout: 30_000 });
@@ -42,6 +42,9 @@ try {
   const sources = plans.map((plan): FixedCohortAuditSourceInput => {
     const row = results.get(plan.source.id);
     if (!row) return missingSource(plan);
+    if (row.observations.length !== 1 || row.observations[0]!.sourceResultId !== row.id) {
+      return missingSource(plan);
+    }
     const grade = certificateGrade(row.completenessCertificate);
     const declaredPagesByChannel = new Map<string, number | null>();
     for (const page of row.paginationEvidence) {
@@ -56,6 +59,7 @@ try {
       sourceResultId: row.id, companyId: plan.company.id, sourceId: plan.source.id,
       adapterFamily: adapterFamily(plan), grade, sourceConfigSha256: row.sourceConfigHash,
       canonicalJobSetSha256: row.canonicalOutputSetSha256, certificate: row.completenessCertificate,
+      canonicalRawEvidenceIdSetSha256: row.observations[0]!.canonicalRawSha256,
       certificateSha256: row.completenessCertificateSha256, officialSurfaceIds: row.officialSurfaceIds,
       plannedSurfaceIds: plan.source.surfaceId ? [plan.source.surfaceId] : [],
       plannedChannelIds: plan.expectedChannels?.map(({ channelId }) => channelId) ?? [],
@@ -96,7 +100,7 @@ try {
 function missingSource(plan: ReturnType<typeof buildStagedSourceCrawlPlans>[number]): FixedCohortAuditSourceInput {
   return { sourceResultId: `missing:${plan.source.id}`, companyId: plan.company.id, sourceId: plan.source.id,
     adapterFamily: adapterFamily(plan), grade: "C", sourceConfigSha256: "0".repeat(64),
-    canonicalJobSetSha256: null, certificate: null, certificateSha256: null,
+    canonicalJobSetSha256: null, canonicalRawEvidenceIdSetSha256: null, certificate: null, certificateSha256: null,
     plannedSurfaceIds: plan.source.surfaceId ? [plan.source.surfaceId] : [],
     plannedChannelIds: plan.expectedChannels?.map(({ channelId }) => channelId) ?? [],
     officialSurfaceIds: plan.source.surfaceId ? [plan.source.surfaceId] : [],
@@ -108,7 +112,7 @@ function missingSource(plan: ReturnType<typeof buildStagedSourceCrawlPlans>[numb
 }
 function missingManifestSource(companyId: string, sourceId: string): FixedCohortAuditSourceInput {
   return { sourceResultId: `missing:${sourceId}`, companyId, sourceId, adapterFamily: "unavailable", grade: "C",
-    sourceConfigSha256: "0".repeat(64), canonicalJobSetSha256: null, certificate: null,
+    sourceConfigSha256: "0".repeat(64), canonicalJobSetSha256: null, canonicalRawEvidenceIdSetSha256: null, certificate: null,
     certificateSha256: null, plannedSurfaceIds: [], plannedChannelIds: [], officialSurfaceIds: [], officialChannelIds: [],
     evidenceArtifacts: [], paginationEvidence: [], expectedEvidenceKind: null, expectedJobCount: null, pagesVisited: null,
     totalPages: null, finalJobCount: 0, transportState: "NOT_ATTEMPTED", adapterState: "NOT_ATTEMPTED",

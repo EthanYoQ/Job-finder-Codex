@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { describe, expect, it } from "vitest";
 import { reconcileAdapterRows } from "../../src/crawler/adapters/reconciliation";
 import type { NormalizedJobRecord } from "../../src/crawler/normalizedJob";
@@ -23,6 +24,18 @@ import {
 
 const capturedAt = "2026-08-12T12:00:00.000Z";
 const now = new Date("2026-08-12T12:05:00.000Z");
+
+function canonicalJson(value: unknown): string {
+  if (value === null || typeof value !== "object") return JSON.stringify(value);
+  if (Array.isArray(value)) return `[${value.map(canonicalJson).join(",")}]`;
+  return `{${Object.entries(value as Record<string, unknown>)
+    .sort(([left], [right]) => Buffer.compare(Buffer.from(left), Buffer.from(right)))
+    .map(([key, child]) => `${JSON.stringify(key)}:${canonicalJson(child)}`).join(",")}}`;
+}
+
+function sha256(value: unknown): string {
+  return createHash("sha256").update(typeof value === "string" ? value : canonicalJson(value), "utf8").digest("hex");
+}
 
 function plan() {
   const value = getPlanBySourceId(buildStagedSourceCrawlPlans(candidateCompanies), "source-viatris-social");
@@ -286,6 +299,53 @@ describe("B-grade independent traversal certificate", () => {
       sourceConfigSha256: sourcePlanConfigSha256(plan()),
       now
     })).toThrow(/hash/i);
+  });
+
+  it("keeps historical Viatris v1 certificates reusable after v2 issuance begins", () => {
+    const current = issueBGradeTraversalCertificate(candidate());
+    if (current.status !== "CERTIFIED") throw new Error("Expected current certificate");
+    if (current.certificate.schemaVersion !== "b-grade-independent-traversal-v2") {
+      throw new Error("Expected current B-grade certificate v2");
+    }
+    const currentValidation = current.certificate.independentValidation;
+    if (currentValidation.schemaVersion !== "viatris-browser-traversal-validator-v2") {
+      throw new Error("Expected Viatris v2 validation");
+    }
+    const legacyPages = currentValidation.pages.map(({ matchKeys, ...page }) => ({ ...page, sourceJobIds: matchKeys }));
+    const legacyValidation = {
+      ...currentValidation,
+      schemaVersion: "viatris-browser-traversal-validator-v1" as const,
+      pages: legacyPages,
+      canonicalJobIdSetSha256: currentValidation.canonicalMatchKeySetSha256,
+      artifactSha256: sha256({
+        sourceId: currentValidation.sourceId,
+        retrievalPath: currentValidation.retrievalPath,
+        pages: legacyPages,
+        observedAt: currentValidation.observedAt
+      })
+    } as Record<string, unknown>;
+    delete legacyValidation.matchKeyKind;
+    delete legacyValidation.canonicalMatchKeySetSha256;
+    const currentMain = current.certificate.mainTraversal;
+    const legacyCertificate = {
+      ...current.certificate,
+      schemaVersion: "b-grade-independent-traversal-v1" as const,
+      mainTraversal: {
+        retrievalPath: "HTTP_TUPU360_ENTRY_PLUS_POST" as const,
+        pageCount: currentMain.pageCount,
+        terminalEvent: currentMain.terminalEvent,
+        paginationTraceSha256: currentMain.paginationTraceSha256,
+        canonicalJobIdSetSha256: currentMain.canonicalMatchKeySetSha256
+      },
+      independentValidation: legacyValidation,
+      counts: { ...current.certificate.counts, validationDiscardCount: 0 as const }
+    };
+    expect(readReusableViatrisTraversalValidation({
+      certificate: legacyCertificate,
+      certificateSha256: sha256(legacyCertificate),
+      sourceConfigSha256: sourcePlanConfigSha256(plan()),
+      now
+    })).toMatchObject({ schemaVersion: "viatris-browser-traversal-validator-v1" });
   });
 
   it("runs the representative Viatris HTTP crawl through an independent browser receipt into an atomic B-grade commit", async () => {
