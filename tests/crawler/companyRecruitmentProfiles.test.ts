@@ -22,8 +22,8 @@ import { AUTHORIZED_PHASE1_EXCLUSION_COMPANY_IDS } from "../../src/data/phase1Sc
 const BASELINE = {
   rosterSha256: "a3b9c49bb25cc9212f9bfcce3ade6f828f9ef100111cba532111acfcc9ad5618",
   surfaceOracleSha256: "ddaff84ff9ca8bc8e1aa7b0a5213786e058806f7cc4223acfc0634493e4f26ce",
-  stagedPlanSha256: "f9466373b8669a2f40f154c888a44620bfe83d9e9ff6a7af2a6685cfd1c04a54",
-  stagedConfigSetSha256: "aa8f34e0a5f70e882f7b88679c5c5eb8bac20258399dae134dc851ed5cd7307d"
+  stagedPlanSha256: "6329d487ae5c08bb5d7a2ba9e44c84eedc940060cc9a39c3722c957a86c387c2",
+  stagedConfigSetSha256: "1340d5c115d209833a7c6f49203cc8c5539d0a09bf96c5506b5e9a702ceeeba1"
 } as const;
 
 const SHARED_CORE_SOURCE_ALLOWLIST: Readonly<Record<string, readonly string[]>> = {

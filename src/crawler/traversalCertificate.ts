@@ -22,13 +22,24 @@ import {
   qiluRenderedScopeDecision
 } from "./qiluRenderedTraversalValidator";
 import { irreversibleOfficialJsonEvidenceId } from "./officialJsonEvidence";
+import {
+  assertPlanBoundHtmlValidationMatchKey,
+  capturePlanBoundHtmlRenderedTraversal,
+  isPlanBoundHtmlTraversalSourceId,
+  PLAN_BOUND_HTML_REQUIRED_CERTIFICATES,
+  PLAN_BOUND_HTML_TRAVERSAL_POLICIES,
+  PLAN_BOUND_HTML_TRAVERSAL_SOURCE_IDS,
+  type PlanBoundHtmlTraversalSourceId
+} from "./planBoundHtmlTraversalValidator";
+import { validateStrictHtmlCompletenessProof } from "./strictHtmlCompletenessProof";
 
 export const B_GRADE_TRAVERSAL_CERTIFICATE_SCHEMA_VERSION =
   "b-grade-independent-traversal-v2" as const;
 
 export const REQUIRED_B_GRADE_TRAVERSAL_CERTIFICATES = Object.freeze({
   "source-viatris-social": "company-viatris",
-  "source-qilu-social": "company-qilu"
+  "source-qilu-social": "company-qilu",
+  ...PLAN_BOUND_HTML_REQUIRED_CERTIFICATES
 } as const);
 
 const B_GRADE_VALIDATOR_POLICIES = Object.freeze({
@@ -37,15 +48,18 @@ const B_GRADE_VALIDATOR_POLICIES = Object.freeze({
     retrievalPath: "PLAYWRIGHT_RENDERED_UI_CLICK_PAGINATION",
     validatorImplementationId: "viatris-playwright-ui-traversal-v1",
     mainRetrievalPath: "HTTP_TUPU360_ENTRY_PLUS_POST",
-    matchKeyKind: "SOURCE_JOB_ID"
+    matchKeyKind: "SOURCE_JOB_ID",
+    artifactLogicalKey: "viatris-browser-traversal-validation"
   },
   "source-qilu-social": {
     companyId: "company-qilu",
     retrievalPath: "PLAYWRIGHT_BEISEN_RENDERED_UI_CLICK_PAGINATION",
     validatorImplementationId: "qilu-playwright-rendered-ui-traversal-v1",
     mainRetrievalPath: "HTTP_BEISEN_JOBAD_PAGINATION",
-    matchKeyKind: "OFFICIAL_URL"
-  }
+    matchKeyKind: "OFFICIAL_URL",
+    artifactLogicalKey: "qilu-browser-traversal-validation"
+  },
+  ...PLAN_BOUND_HTML_TRAVERSAL_POLICIES
 } as const);
 
 export const B_GRADE_VALIDATION_FRESHNESS_MAXIMUM_MS = 7 * 24 * 60 * 60 * 1000;
@@ -92,6 +106,11 @@ const qiluRawRowSchema = z.object({
   scopeDecision: z.enum(["INCLUDED_MAINLAND", "EXCLUDED_FOREIGN"])
 }).strict();
 const qiluBrowserPageSchema = browserPageSchema.extend({ rawRows: z.array(qiluRawRowSchema).min(1) }).strict();
+const planBoundHtmlPartitionSchema = z.object({
+  controlIndex: z.number().int().positive(),
+  controlId: NONBLANK,
+  matchKeys: z.array(NONBLANK).min(1)
+}).strict();
 const renderedValidationFields = {
   sourceConfigSha256: SHA256,
   surfaceIds: z.array(NONBLANK).min(1),
@@ -142,10 +161,27 @@ const qiluBrowserValidationSchema = z.object({
   pages: z.array(qiluBrowserPageSchema).min(1),
   artifactLogicalKey: z.literal("qilu-browser-traversal-validation")
 }).strict();
+const planBoundHtmlBrowserPageSchema = browserPageSchema.extend({
+  rawMatchKeys: z.array(NONBLANK).min(1),
+  partitions: z.array(planBoundHtmlPartitionSchema).min(1).optional()
+}).strict();
+const planBoundHtmlBrowserValidationSchema = z.object({
+  schemaVersion: z.literal("plan-bound-html-browser-traversal-v1"),
+  sourceId: z.enum(PLAN_BOUND_HTML_TRAVERSAL_SOURCE_IDS as unknown as
+    [PlanBoundHtmlTraversalSourceId, ...PlanBoundHtmlTraversalSourceId[]]),
+  companyId: NONBLANK,
+  retrievalPath: z.literal("PLAYWRIGHT_RENDERED_HTML_NEXT_LINK_TRAVERSAL"),
+  validatorImplementationId: z.literal("plan-bound-html-playwright-traversal-v1"),
+  matchKeyKind: z.enum(["SOURCE_JOB_ID", "OFFICIAL_URL", "JOB_DEDUPE_KEY"]),
+  ...renderedValidationFields,
+  pages: z.array(planBoundHtmlBrowserPageSchema).min(1),
+  artifactLogicalKey: NONBLANK
+}).strict();
 const browserValidationSchema = z.discriminatedUnion("schemaVersion", [
   legacyViatrisBrowserValidationSchema,
   viatrisBrowserValidationSchema,
-  qiluBrowserValidationSchema
+  qiluBrowserValidationSchema,
+  planBoundHtmlBrowserValidationSchema
 ]);
 
 export type BGradeIndependentTraversalValidation = z.infer<typeof browserValidationSchema>;
@@ -302,7 +338,7 @@ const certificateV2Schema = z.object({
   }).strict(),
   mainTraversal: z.object({
     retrievalPath: NONBLANK,
-    matchKeyKind: z.enum(["SOURCE_JOB_ID", "OFFICIAL_URL"]),
+    matchKeyKind: z.enum(["SOURCE_JOB_ID", "OFFICIAL_URL", "JOB_DEDUPE_KEY"]),
     pageCount: z.number().int().positive(),
     terminalEvent: z.enum(["NEXT_ABSENT", "EMPTY_PAGE"]),
     paginationTraceSha256: SHA256,
@@ -322,12 +358,19 @@ const certificateV2Schema = z.object({
     parseDiscardCount: z.literal(0),
     validationDiscardCount: z.number().int().nonnegative(),
     normalizationDiscardCount: z.literal(0),
-    dedupeDiscardCount: z.literal(0)
+    dedupeDiscardCount: z.number().int().nonnegative()
   }).strict(),
   output: z.object({
     canonicalJobSetSha256: SHA256,
     adapterReconciliationSha256: SHA256,
-    collisionLedgerSha256: SHA256
+    collisionLedgerSha256: SHA256,
+    collisionGroups: z.array(z.object({
+      dedupeKeySha256: SHA256,
+      candidateKeySha256: z.array(SHA256).min(2),
+      winnerKeySha256: SHA256,
+      droppedCount: z.number().int().positive(),
+      dropReason: z.literal("DUPLICATE_DEDUPE_KEY_DETERMINISTIC_WINNER")
+    }).strict()).optional()
   }).strict(),
   issuedAt: ISO
 }).strict();
@@ -438,14 +481,60 @@ export function createQiluBrowserTraversalValidation(input: {
   });
 }
 
+export function createPlanBoundHtmlBrowserTraversalValidation(input: {
+  sourceId: PlanBoundHtmlTraversalSourceId;
+  companyId: string;
+  sourceConfigSha256: string;
+  surfaceIds: readonly string[];
+  channelIds: readonly string[];
+  pages: readonly {
+    pageNumber: number;
+    declaredTotalPages: number;
+    matchKeys: readonly string[];
+    rawMatchKeys?: readonly string[];
+    partitions?: readonly {
+      controlIndex: number;
+      controlId: string;
+      matchKeys: readonly string[];
+    }[];
+    nextControlPresent: boolean;
+  }[];
+  observedAt: string;
+  expiresAt: string;
+}): BGradeIndependentTraversalValidation {
+  const policy = B_GRADE_VALIDATOR_POLICIES[input.sourceId];
+  if (input.companyId !== policy.companyId) {
+    throw new Error("Plan-bound HTML browser validation company binding mismatch");
+  }
+  return createRenderedTraversalValidation({
+    ...input,
+    pages: input.pages.map((page) => ({
+      ...page,
+      rawMatchKeys: page.rawMatchKeys ?? page.matchKeys,
+      ...(page.partitions ? {
+        partitions: page.partitions.map((partition) => ({
+          ...partition,
+          matchKeys: canonicalStrings(partition.matchKeys)
+        }))
+      } : {})
+    })),
+    schemaVersion: "plan-bound-html-browser-traversal-v1",
+    retrievalPath: policy.retrievalPath,
+    validatorImplementationId: policy.validatorImplementationId,
+    matchKeyKind: policy.matchKeyKind,
+    artifactLogicalKey: policy.artifactLogicalKey
+  });
+}
+
 function createRenderedTraversalValidation(input: {
-  sourceId: "source-viatris-social" | "source-qilu-social";
-  companyId: "company-viatris" | "company-qilu";
-  schemaVersion: "viatris-browser-traversal-validator-v2" | "qilu-browser-traversal-validator-v2";
-  retrievalPath: "PLAYWRIGHT_RENDERED_UI_CLICK_PAGINATION" | "PLAYWRIGHT_BEISEN_RENDERED_UI_CLICK_PAGINATION";
-  validatorImplementationId: "viatris-playwright-ui-traversal-v1" | "qilu-playwright-rendered-ui-traversal-v1";
-  matchKeyKind: "SOURCE_JOB_ID" | "OFFICIAL_URL";
-  artifactLogicalKey: "viatris-browser-traversal-validation" | "qilu-browser-traversal-validation";
+  sourceId: string;
+  companyId: string;
+  schemaVersion: "viatris-browser-traversal-validator-v2" | "qilu-browser-traversal-validator-v2" |
+    "plan-bound-html-browser-traversal-v1";
+  retrievalPath: string;
+  validatorImplementationId: string;
+  matchKeyKind: "SOURCE_JOB_ID" | "OFFICIAL_URL" | "JOB_DEDUPE_KEY";
+  artifactLogicalKey: string;
   sourceConfigSha256: string;
   surfaceIds: readonly string[];
   channelIds: readonly string[];
@@ -454,6 +543,12 @@ function createRenderedTraversalValidation(input: {
     declaredTotalPages: number;
     matchKeys: readonly string[];
     rawRows?: readonly { officialUrl: string; locationRaw: string; scopeDecision: "INCLUDED_MAINLAND" | "EXCLUDED_FOREIGN" }[];
+    rawMatchKeys?: readonly string[];
+    partitions?: readonly {
+      controlIndex: number;
+      controlId: string;
+      matchKeys: readonly string[];
+    }[];
     nextControlPresent: boolean;
   }[];
   observedAt: string;
@@ -475,6 +570,11 @@ function createRenderedTraversalValidation(input: {
   const canonicalPages = input.pages.map((page) => ({
     ...page,
     matchKeys: canonicalStrings(page.matchKeys),
+    ...(page.rawMatchKeys ? { rawMatchKeys: canonicalStrings(page.rawMatchKeys) } : {}),
+    ...(page.partitions ? { partitions: page.partitions.map((partition) => ({
+      ...partition,
+      matchKeys: canonicalStrings(partition.matchKeys)
+    })) } : {}),
     ...(page.rawRows ? { rawRows: page.rawRows.map((row) => ({ ...row })) } : {})
   }));
   const artifactSha256 = sha256(canonicalJson({
@@ -561,6 +661,25 @@ export async function runBGradeIndependentTraversalValidator(input: {
     const observedAtMs = Date.parse(captured.observedAt);
     if (!Number.isFinite(observedAtMs)) throw new Error("Qilu browser validation observedAt is invalid");
     return createQiluBrowserTraversalValidation({
+      sourceConfigSha256: input.sourceConfigSha256,
+      surfaceIds: input.surfaceIds,
+      channelIds: input.channelIds,
+      pages: captured.pages,
+      observedAt: captured.observedAt,
+      expiresAt: new Date(observedAtMs + B_GRADE_VALIDATION_FRESHNESS_MAXIMUM_MS).toISOString()
+    });
+  }
+  if (isPlanBoundHtmlTraversalSourceId(input.sourceId)) {
+    const captured = await capturePlanBoundHtmlRenderedTraversal({
+      sourceId: input.sourceId,
+      entryUrl: input.entryUrl,
+      ...(input.signal ? { signal: input.signal } : {})
+    });
+    const observedAtMs = Date.parse(captured.observedAt);
+    if (!Number.isFinite(observedAtMs)) throw new Error("Plan-bound HTML browser validation observedAt is invalid");
+    return createPlanBoundHtmlBrowserTraversalValidation({
+      sourceId: input.sourceId,
+      companyId: input.companyId,
       sourceConfigSha256: input.sourceConfigSha256,
       surfaceIds: input.surfaceIds,
       channelIds: input.channelIds,
@@ -692,6 +811,8 @@ export function issueBGradeTraversalCertificate(input: BGradeCertificateCandidat
   const policy = bGradePolicy(input.plan.source.id);
   const expectedSurfaces = canonicalStrings(input.plan.source.surfaceId ? [input.plan.source.surfaceId] : []);
   const expectedChannels = canonicalStrings(input.plan.expectedChannels?.map(({ channelId }) => channelId) ?? []);
+  const allowsMainPageOverlap = policy !== undefined &&
+    "allowMainPageOverlapAcrossPages" in policy && policy.allowMainPageOverlapAcrossPages === true;
   if (!requiresBGradeTraversalCertificate(input.plan)) blockers.add("UNSUPPORTED_SOURCE");
   if (!policy || input.plan.company.id !== policy.companyId || input.plan.source.companyId !== policy.companyId ||
       input.plan.source.kind !== "SOCIAL" || !input.plan.source.surfaceId ||
@@ -707,20 +828,31 @@ export function issueBGradeTraversalCertificate(input: BGradeCertificateCandidat
   let pagination: PaginationEvaluation | undefined;
   try {
     evidence = parsePersistentSourceFetchEvidence(input.evidence);
+    if (isPlanBoundHtmlTraversalSourceId(input.plan.source.id) &&
+        (input.plan.adapterId !== "html-table" || !validateStrictHtmlCompletenessProof(input.plan, evidence))) {
+      throw new Error("B-grade main HTML evidence failed its source-bound replay");
+    }
     pagination = evaluatePaginationEvidence({
       evidence,
       expectedChannelIds: [],
       filteredOutput: true,
-      ...(input.plan.source.id === "source-qilu-social" ? { allowMissingReturnedPage: true } : {})
+      ...(input.plan.source.id === "source-qilu-social" ? { allowMissingReturnedPage: true } : {}),
+      ...(allowsMainPageOverlap
+        ? { allowRawIdOverlapAcrossPages: true }
+        : isPlanBoundHtmlTraversalSourceId(input.plan.source.id)
+          ? { allowMissingReturnedPage: true }
+          : {})
     });
+    const declaration = evidence.declaredCompleteness;
     const declaredPages = evidence.pages[0]?.declaredPages;
     const last = evidence.pages.at(-1);
     const declaredPageContract = declaredPages == null
       ? evidence.pages.every((page) => page.declaredPages == null)
       : declaredPages === evidence.pages.length && evidence.pages.every((page) => page.declaredPages === declaredPages);
-    const completeTraversal = evidence.declaredCompleteness?.kind === "COMPLETE_PAGE_TRAVERSAL" &&
-      evidence.declaredCompleteness.scope === "SOURCE" &&
-      evidence.declaredCompleteness.value === evidence.pages.length &&
+    const completeTraversal = declaration !== undefined &&
+      ["COMPLETE_PAGE_TRAVERSAL", "OFFICIAL_TOTAL_PAGES"].includes(declaration.kind) &&
+      declaration.scope === "SOURCE" &&
+      declaration.value === evidence.pages.length &&
       declaredPageContract &&
       (last?.termination === "NEXT_ABSENT" || last?.termination === "EMPTY_PAGE") &&
       pagination.safeCompleteness && pagination.verifiedEligible &&
@@ -741,18 +873,26 @@ export function issueBGradeTraversalCertificate(input: BGradeCertificateCandidat
     blockers.add("OUTPUT_MISMATCH");
   }
   const rawObservationIds = evidence ? canonicalStrings(evidence.pages.flatMap((page) => page.validJobIds)) : [];
+  const rawObservationCount = evidence?.pages.reduce((count, page) => count + page.validJobIds.length, 0) ?? 0;
   const outputIds = policy ? independentMatchKeys(input.plan.source.id, input.jobs) ?? [] : [];
   const scopeExclusionsProven = evidence && input.plan.source.id === "source-qilu-social" &&
     validateStrictSourceScopeExclusionProof(input.plan, evidence, input.jobs);
   if (evidence && (evidence.fetchCounts.parseDiscardCount !== 0 ||
       evidence.fetchCounts.validationDiscardCount !== evidence.fetchLosses.length ||
-      evidence.fetchCounts.validCount !== rawObservationIds.length ||
+      (allowsMainPageOverlap
+        ? evidence.fetchCounts.validCount !== rawObservationCount
+        : evidence.fetchCounts.validCount !== rawObservationIds.length) ||
       evidence.fetchCounts.rawCount !== evidence.fetchCounts.validCount + evidence.fetchCounts.validationDiscardCount ||
       evidence.fetchLosses.length > 0 && !scopeExclusionsProven)) {
     blockers.add("LOSSY_PIPELINE");
   }
-  if (!ledger || ledger.adapterLosses.length !== 0 || ledger.collisionGroups.length !== 0 ||
-      ledger.rawInputCount !== rawObservationIds.length || ledger.dedupeOutputCount !== input.jobs.length ||
+  const collisionDiscardCount = ledger?.collisionGroups.reduce((count, group) => count + group.droppedCount, 0) ?? 0;
+  const mainReconciliationMatchesPolicy = ledger !== undefined && (allowsMainPageOverlap
+    ? ledger.rawInputCount === evidence?.fetchCounts.validCount &&
+      collisionDiscardCount === rawObservationCount - input.jobs.length
+    : ledger.collisionGroups.length === 0 && ledger.rawInputCount === rawObservationIds.length);
+  if (!ledger || ledger.adapterLosses.length !== 0 || !mainReconciliationMatchesPolicy ||
+      ledger.dedupeOutputCount !== input.jobs.length ||
       outputIds.length !== input.jobs.length ||
       canonicalStringSetSha256(input.jobs.map(buildJobDedupeKey)) !== ledger.outputJobKeySetSha256) {
     blockers.add("OUTPUT_MISMATCH");
@@ -779,6 +919,11 @@ export function issueBGradeTraversalCertificate(input: BGradeCertificateCandidat
     blockers.add("SCOPE_MISMATCH");
   }
   if (validation && validationMatchKeySetSha256(validation) !== canonicalStringSetSha256(outputIds)) {
+    blockers.add("INDEPENDENT_JOB_SET_MISMATCH");
+  }
+  if (validation?.schemaVersion === "plan-bound-html-browser-traversal-v1" && ledger &&
+      canonicalJson(planBoundDuplicateMultiplicity(validation)) !==
+        canonicalJson(collisionMultiplicity(ledger.collisionGroups))) {
     blockers.add("INDEPENDENT_JOB_SET_MISMATCH");
   }
   let mainRawMatchKeys = outputIds;
@@ -849,15 +994,19 @@ export function issueBGradeTraversalCertificate(input: BGradeCertificateCandidat
       parseDiscardCount: 0,
       validationDiscardCount: evidence.fetchCounts.validationDiscardCount,
       normalizationDiscardCount: 0,
-      dedupeDiscardCount: 0
+      dedupeDiscardCount: collisionDiscardCount
     },
     output: {
       canonicalJobSetSha256: ledger.outputJobKeySetSha256,
       adapterReconciliationSha256: ledger.ledgerSha256,
-      collisionLedgerSha256: sha256(canonicalJson(ledger.collisionGroups))
+      collisionLedgerSha256: sha256(canonicalJson(ledger.collisionGroups)),
+      ...(validation.schemaVersion === "plan-bound-html-browser-traversal-v1"
+        ? { collisionGroups: ledger.collisionGroups }
+        : {})
     },
     issuedAt: input.now.toISOString()
   });
+  assertCertificateValidationSetEquations(certificate);
   return { status: "CERTIFIED", certificate, certificateSha256: sha256(canonicalJson(certificate)) };
 }
 
@@ -902,6 +1051,12 @@ export function verifyBGradeTraversalCertificateReceipt(input: {
       (expected.collisionLedgerSha256 && certificate.output.collisionLedgerSha256 !== expected.collisionLedgerSha256)) {
     throw new Error("B-grade traversal certificate reconciliation commitment mismatch");
   }
+  if (certificate.schemaVersion === B_GRADE_TRAVERSAL_CERTIFICATE_SCHEMA_VERSION &&
+      certificateMainMatchKeyKind(certificate) === "JOB_DEDUPE_KEY" &&
+      (!expected.canonicalJobSetSha256 ||
+       certificate.mainTraversal.canonicalMatchKeySetSha256 !== expected.canonicalJobSetSha256)) {
+    throw new Error("B-grade traversal certificate external job-set commitment mismatch");
+  }
   if (certificate.independentValidation.schemaVersion === "qilu-browser-traversal-validator-v2" &&
       (!SHA256.safeParse(expected.canonicalRawEvidenceIdSetSha256).success ||
        expected.canonicalRawEvidenceIdSetSha256 !== qiluRawEvidenceIdSetSha256(certificate.independentValidation))) {
@@ -944,16 +1099,36 @@ function bGradePolicy(sourceId: string) {
 
 function assertCertificateValidationSetEquations(certificate: BGradeTraversalCertificate): void {
   if (certificate.schemaVersion !== B_GRADE_TRAVERSAL_CERTIFICATE_SCHEMA_VERSION) return;
+  if (certificate.independentValidation.schemaVersion === "plan-bound-html-browser-traversal-v1") {
+    const collisionGroups = certificate.output.collisionGroups;
+    if (!collisionGroups || sha256(canonicalJson(collisionGroups)) !== certificate.output.collisionLedgerSha256 ||
+        collisionGroups.some((group) => group.droppedCount !== group.candidateKeySha256.length - 1 ||
+          new Set(group.candidateKeySha256).size !== group.candidateKeySha256.length ||
+          !group.candidateKeySha256.includes(group.winnerKeySha256)) ||
+        new Set(collisionGroups.map((group) => group.dedupeKeySha256)).size !== collisionGroups.length ||
+        canonicalJson(collisionMultiplicity(collisionGroups)) !==
+          canonicalJson(planBoundDuplicateMultiplicity(certificate.independentValidation))) {
+      throw new Error("B-grade traversal certificate collision multiplicity does not reconcile");
+    }
+  }
   if (certificate.independentValidation.schemaVersion !== "qilu-browser-traversal-validator-v2") {
     if (certificate.mainTraversal.canonicalRawMatchKeySetSha256 !== certificate.mainTraversal.canonicalMatchKeySetSha256 ||
         certificate.mainTraversal.canonicalExcludedMatchKeySetSha256 !== canonicalStringSetSha256([])) {
       throw new Error("B-grade traversal certificate raw-set equations do not reconcile");
+    }
+    const certificatePolicy = bGradePolicy(certificate.binding.sourceId);
+    const permitsMainOverlap = certificatePolicy !== undefined &&
+      "allowMainPageOverlapAcrossPages" in certificatePolicy &&
+      certificatePolicy.allowMainPageOverlapAcrossPages === true;
+    if (!permitsMainOverlap && certificate.counts.dedupeDiscardCount !== 0) {
+      throw new Error("B-grade traversal certificate has an unexpected dedupe discard count");
     }
     return;
   }
   if (qiluRawRowCount(certificate.independentValidation) !==
         certificate.counts.independentUniqueJobCount + certificate.counts.validationDiscardCount ||
       qiluExcludedRowCount(certificate.independentValidation) !== certificate.counts.validationDiscardCount ||
+      certificate.counts.dedupeDiscardCount !== 0 ||
       certificate.mainTraversal.canonicalRawMatchKeySetSha256 !==
         canonicalStringSetSha256(qiluRawMatchKeys(certificate.independentValidation)) ||
       certificate.mainTraversal.canonicalExcludedMatchKeySetSha256 !==
@@ -970,7 +1145,9 @@ function independentMatchKeys(
   if (!policy || jobs.some((job) => job.sourceId !== sourceId)) return undefined;
   const keys = policy.matchKeyKind === "SOURCE_JOB_ID"
     ? jobs.map((job) => job.sourceJobId?.trim() ?? "")
-    : jobs.map((job) => job.officialUrl.trim());
+    : policy.matchKeyKind === "OFFICIAL_URL"
+      ? jobs.map((job) => job.officialUrl.trim())
+      : jobs.map(buildJobDedupeKey);
   return keys.some((key) => !key) ? undefined : canonicalStrings(keys);
 }
 
@@ -979,7 +1156,8 @@ function assertBrowserValidationEquations(validation: BGradeIndependentTraversal
   if (!policy || validation.companyId !== policy.companyId ||
       validation.retrievalPath !== policy.retrievalPath ||
       validation.validatorImplementationId !== policy.validatorImplementationId ||
-      validationMatchKeyKind(validation) !== policy.matchKeyKind) {
+      validationMatchKeyKind(validation) !== policy.matchKeyKind ||
+      validation.artifactLogicalKey !== policy.artifactLogicalKey) {
     throw new Error("B-grade browser validation registered policy mismatch");
   }
   if (canonicalJson(validation.surfaceIds) !== canonicalJson(canonicalStrings(validation.surfaceIds)) ||
@@ -987,8 +1165,16 @@ function assertBrowserValidationEquations(validation: BGradeIndependentTraversal
       validation.pageCount !== validation.pages.length) {
     throw new Error("B-grade browser validation canonical scope or page count mismatch");
   }
+  if (validation.schemaVersion === "plan-bound-html-browser-traversal-v1") {
+    const planBoundPolicy = PLAN_BOUND_HTML_TRAVERSAL_POLICIES[validation.sourceId];
+    if (validation.pages.length > planBoundPolicy.maxPages ||
+        validation.sourceId !== "source-novartis-social" && validation.pages.length !== 1) {
+      throw new Error("Plan-bound HTML browser validation page limit mismatch");
+    }
+  }
   const matchKeys: string[] = [];
   const qiluRawUrls: string[] = [];
+  const planBoundSeenRawMatchKeys = new Set<string>();
   for (let index = 0; index < validation.pages.length; index += 1) {
     const page = validation.pages[index]!;
     const pageMatchKeys = "matchKeys" in page ? page.matchKeys : page.sourceJobIds;
@@ -1008,6 +1194,41 @@ function assertBrowserValidationEquations(validation: BGradeIndependentTraversal
         throw new Error("Qilu browser validation raw row scope replay mismatch");
       }
       qiluRawUrls.push(...rawUrls);
+    }
+    if (validation.schemaVersion === "plan-bound-html-browser-traversal-v1") {
+      const rawMatchKeys = validation.pages[index]!.rawMatchKeys;
+      const partitions = validation.pages[index]!.partitions;
+      const expectedNewMatchKeys = rawMatchKeys.filter((key) => {
+        if (planBoundSeenRawMatchKeys.has(key)) return false;
+        planBoundSeenRawMatchKeys.add(key);
+        return true;
+      });
+      if (canonicalJson(rawMatchKeys) !== canonicalJson(canonicalStrings(rawMatchKeys)) ||
+          canonicalJson(pageMatchKeys) !== canonicalJson(canonicalStrings(expectedNewMatchKeys)) ||
+          rawMatchKeys.some((key) => {
+            try {
+              assertPlanBoundHtmlValidationMatchKey(validation.sourceId, key);
+              return false;
+            } catch {
+              return true;
+            }
+          })) {
+        throw new Error("Plan-bound HTML browser validation raw page set mismatch");
+      }
+      if (validation.sourceId === "source-astellas-china-social") {
+        if (index !== 0 || !partitions || partitions.length !== 3 ||
+            new Set(partitions.map((partition) => partition.controlId)).size !== 3 ||
+            partitions.some((partition, partitionIndex) => partition.controlIndex !== partitionIndex + 1 ||
+              canonicalJson(partition.matchKeys) !== canonicalJson(canonicalStrings(partition.matchKeys))) ||
+            new Set(partitions.flatMap((partition) => partition.matchKeys)).size !==
+              partitions.reduce((count, partition) => count + partition.matchKeys.length, 0) ||
+            canonicalJson(canonicalStrings(partitions.flatMap((partition) => partition.matchKeys))) !==
+              canonicalJson(rawMatchKeys)) {
+          throw new Error("Astellas browser validation partition proof mismatch");
+        }
+      } else if (partitions !== undefined) {
+        throw new Error("Plan-bound HTML browser validation has unexpected partition proof");
+      }
     }
     matchKeys.push(...pageMatchKeys);
   }
@@ -1029,11 +1250,34 @@ function assertBrowserValidationEquations(validation: BGradeIndependentTraversal
   }
 }
 
+function planBoundDuplicateMultiplicity(
+  validation: Extract<BGradeIndependentTraversalValidation,
+    { schemaVersion: "plan-bound-html-browser-traversal-v1" }>
+): Array<{ dedupeKeySha256: string; droppedCount: number }> {
+  const counts = new Map<string, number>();
+  for (const key of validation.pages.flatMap((page) => page.rawMatchKeys)) {
+    counts.set(key, (counts.get(key) ?? 0) + 1);
+  }
+  return [...counts.entries()]
+    .filter(([, count]) => count > 1)
+    .map(([key, count]) => ({ dedupeKeySha256: sha256(key), droppedCount: count - 1 }))
+    .sort((left, right) => compareUtf8(left.dedupeKeySha256, right.dedupeKeySha256));
+}
+
+function collisionMultiplicity(
+  groups: readonly { dedupeKeySha256: string; droppedCount: number }[]
+): Array<{ dedupeKeySha256: string; droppedCount: number }> {
+  return groups.map(({ dedupeKeySha256, droppedCount }) => ({ dedupeKeySha256, droppedCount }))
+    .sort((left, right) => compareUtf8(left.dedupeKeySha256, right.dedupeKeySha256));
+}
+
 function validationMatchKeys(validation: BGradeIndependentTraversalValidation): string[] {
   return canonicalStrings(validation.pages.flatMap((page) => "matchKeys" in page ? page.matchKeys : page.sourceJobIds));
 }
 
-function validationMatchKeyKind(validation: BGradeIndependentTraversalValidation): "SOURCE_JOB_ID" | "OFFICIAL_URL" {
+function validationMatchKeyKind(
+  validation: BGradeIndependentTraversalValidation
+): "SOURCE_JOB_ID" | "OFFICIAL_URL" | "JOB_DEDUPE_KEY" {
   return "matchKeyKind" in validation ? validation.matchKeyKind : "SOURCE_JOB_ID";
 }
 
@@ -1049,7 +1293,9 @@ function certificateMainMatchKeySetSha256(certificate: BGradeTraversalCertificat
     : certificate.mainTraversal.canonicalJobIdSetSha256;
 }
 
-function certificateMainMatchKeyKind(certificate: BGradeTraversalCertificate): "SOURCE_JOB_ID" | "OFFICIAL_URL" {
+function certificateMainMatchKeyKind(
+  certificate: BGradeTraversalCertificate
+): "SOURCE_JOB_ID" | "OFFICIAL_URL" | "JOB_DEDUPE_KEY" {
   return "matchKeyKind" in certificate.mainTraversal ? certificate.mainTraversal.matchKeyKind : "SOURCE_JOB_ID";
 }
 
@@ -1090,6 +1336,10 @@ function qiluExcludedRowCount(validation: z.infer<typeof qiluBrowserValidationSc
 
 function canonicalStrings(values: readonly string[]): string[] {
   return [...new Set(values)].sort((left, right) => Buffer.compare(Buffer.from(left), Buffer.from(right)));
+}
+
+function compareUtf8(left: string, right: string): number {
+  return Buffer.compare(Buffer.from(left, "utf8"), Buffer.from(right, "utf8"));
 }
 
 function sha256(value: string): string {

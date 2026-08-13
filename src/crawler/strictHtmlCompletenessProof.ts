@@ -782,6 +782,15 @@ function validateStaticPublicList(
   if (policy.sourcePolicy === "ASTELLAS_CHINA_PDF_ACCORDION_V1") {
     return validateAstellasStaticPlan(plan, $, rows);
   }
+  if (policy.sourcePolicy === "OTSUKA_CHINA_JOIN_LIST_V1") {
+    return validateOtsukaStaticPlan(plan, $, rows);
+  }
+  if (policy.sourcePolicy === "GRAND_PHARMA_SOCIAL_ONLY_V1") {
+    return validateGrandPharmaStaticPlan(plan, $, rows);
+  }
+  if (policy.sourcePolicy === "HUAHAI_SOCIAL_TABLE_V1") {
+    return validateHuahaiStaticPlan(plan, $, rows);
+  }
   return policy.sourcePolicy === undefined;
 }
 
@@ -840,6 +849,117 @@ function validateAstellasStaticPlan(
     seenUrls.add(url.toString());
   }
   return true;
+}
+
+function validateOtsukaStaticPlan(
+  plan: HtmlPlan,
+  $: ReturnType<typeof load>,
+  rows: readonly AnyNode[]
+): boolean {
+  const config = plan.table.staticPublicList;
+  if (!config) return false;
+  return exactStaticSourceBinding(plan, {
+    companyId: "company-otsuka-china",
+    sourceId: "source-otsuka-china-social-2",
+    entryUrl: "https://www.otsuka.com.cn/join-us/index.html",
+    rowSelector: ".join-list > .join-item",
+    containerSelector: ".join-list",
+    nextControlSelector: ".join-list .pagination, .join-list a[rel='next'], .join-list [data-page]",
+    sourceJobIdPartSelectors: [".table-td .career-title", ".table-td .col2"],
+    titleSelector: ".table-td .career-title",
+    locationSelector: ".table-td .col2"
+  }) && config.excludedPartitionSelectors === undefined && rows.length > 0 &&
+    $(config.containerSelector).length === 1 &&
+    $(config.containerSelector).children(".join-item").length === rows.length &&
+    rows.every((row) => Boolean(normalizedText($(row).find(".table-td .career-title").text())) &&
+      Boolean(normalizedText($(row).find(".table-td .col2").text())));
+}
+
+function validateGrandPharmaStaticPlan(
+  plan: HtmlPlan,
+  $: ReturnType<typeof load>,
+  rows: readonly AnyNode[]
+): boolean {
+  const config = plan.table.staticPublicList;
+  const allCards = $(".job-list > .job-card");
+  const campusCards = $(".job-list > .job-card:has(a[href='schooldetail.html'])");
+  return exactStaticSourceBinding(plan, {
+    companyId: "company-grand-pharma",
+    sourceId: "source-grand-pharma-social",
+    entryUrl: "https://job.grandpharma.cn/",
+    rowSelector: ".job-card:has(a[href='#login'])",
+    containerSelector: ".job-list",
+    nextControlSelector: ".job-list .pagination, .job-list a[rel='next'], .job-list [data-page]",
+    excludedPartitionSelectors: [".job-card:has(a[href='schooldetail.html'])"],
+    sourceJobIdPartSelectors: [".job-title", ".job-meta span:nth-child(1)"],
+    titleSelector: ".job-title",
+    locationSelector: ".job-meta span:nth-child(1)"
+  }) && config !== undefined && rows.length > 0 &&
+    allCards.length === rows.length + campusCards.length &&
+    allCards.toArray().every((card) => {
+      const social = $(card).find("a[href='#login']").length === 1;
+      const campus = $(card).find("a[href='schooldetail.html']").length === 1;
+      return social !== campus;
+    }) && rows.every((row) => Boolean(normalizedText($(row).find(".job-title").text())) &&
+      Boolean(normalizedText($(row).find(".job-meta span:nth-child(1)").text())));
+}
+
+function validateHuahaiStaticPlan(
+  plan: HtmlPlan,
+  $: ReturnType<typeof load>,
+  rows: readonly AnyNode[]
+): boolean {
+  const config = plan.table.staticPublicList;
+  if (!config) return false;
+  return exactStaticSourceBinding(plan, {
+    companyId: "company-huahai",
+    sourceId: "source-huahai-social",
+    entryUrl: "https://www.huahaipharm.com/zpgw.html",
+    rowSelector: "tr.tr_title",
+    containerSelector: "table:has(tr.tr_title)",
+    nextControlSelector: "table:has(tr.tr_title) .pagination, table:has(tr.tr_title) a[rel='next'], table:has(tr.tr_title) [data-page]",
+    sourceJobIdPartSelectors: ["td:nth-child(1)", "td:nth-child(2)", "td:nth-child(5)"],
+    titleSelector: "td:nth-child(1)",
+    locationSelector: "td:nth-child(2)"
+  }) && config.excludedPartitionSelectors === undefined && rows.length > 0 &&
+    $(config.containerSelector).length === 1 && rows.every((row) => {
+      const cells = $(row).children("td");
+      const detail = $(row).next("tr.tr_content");
+      return cells.length === 5 && Boolean(normalizedText(cells.eq(0).text())) &&
+        Boolean(normalizedText(cells.eq(1).text())) && Boolean(normalizedText(cells.eq(4).text())) &&
+        detail.length === 1 && detail.find(".apply a[href]").length === 1;
+    });
+}
+
+interface ExactStaticSourceBinding {
+  companyId: string;
+  sourceId: string;
+  entryUrl: string;
+  rowSelector: string;
+  containerSelector: string;
+  nextControlSelector: string;
+  excludedPartitionSelectors?: readonly string[];
+  sourceJobIdPartSelectors: readonly string[];
+  titleSelector: string;
+  locationSelector: string;
+}
+
+function exactStaticSourceBinding(plan: HtmlPlan, expected: ExactStaticSourceBinding): boolean {
+  const config = plan.table.staticPublicList;
+  return plan.executionAuthority === "STAGED" && plan.company.id === expected.companyId &&
+    plan.source.id === expected.sourceId && plan.source.companyId === expected.companyId &&
+    plan.source.kind === "SOCIAL" && plan.source.atsKind === "OFFICIAL_HTML" &&
+    plan.source.status === "VERIFIED_SCRAPABLE" && plan.source.officialEntryUrl === expected.entryUrl &&
+    plan.source.officialChainEvidenceUrl === expected.entryUrl && plan.table.rowSelector === expected.rowSelector &&
+    plan.table.pagination === undefined && config?.containerSelector === expected.containerSelector &&
+    config.nextControlSelector === expected.nextControlSelector &&
+    JSON.stringify(config.excludedPartitionSelectors) === JSON.stringify(expected.excludedPartitionSelectors) &&
+    JSON.stringify(plan.table.fields.sourceJobIdParts) === JSON.stringify(
+      expected.sourceJobIdPartSelectors.map((selector) => ({ selector }))) &&
+    plan.table.fields.sourceJobId === undefined &&
+    JSON.stringify(plan.table.fields.officialTitle) === JSON.stringify({ selector: expected.titleSelector }) &&
+    JSON.stringify(plan.table.fields.officialUrl) === JSON.stringify({ value: expected.entryUrl }) &&
+    JSON.stringify(plan.table.fields.locationRaw) === JSON.stringify({ selector: expected.locationSelector });
 }
 
 function exactNetworkArtifact(artifact: SourceFetchArtifactDraft): ExactArtifact | undefined {

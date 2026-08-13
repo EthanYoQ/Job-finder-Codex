@@ -282,7 +282,7 @@ export function buildAtomicRuntimeCommit(input: {
   const certificateDecision = aGradeCertificateDecision ?? bGradeCertificateDecision;
   const certificateCertified = certificateDecision?.status === "CERTIFIED";
   const sourceCompletenessVerified = certificateRequired
-    ? certificateCertified
+    ? certificateCertified && (!bGradeCertificateRequired || result.truth.completenessVerified)
     : result.truth.completenessVerified;
   const currentKeys = result.jobs.map(buildJobDedupeKey);
   const outputHash = canonicalStringSetSha256(currentKeys);

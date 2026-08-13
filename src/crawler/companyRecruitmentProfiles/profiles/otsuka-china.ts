@@ -9,6 +9,10 @@ export const profile_otsuka_china = {
           adapterId: "html-table",
           table: {
               rowSelector: ".join-list > .join-item",
+              completenessProof: {
+                  kind: "STATIC_PUBLIC_LIST",
+                  sourcePolicy: "OTSUKA_CHINA_JOIN_LIST_V1"
+              },
               staticPublicList: {
                   containerSelector: ".join-list",
                   nextControlSelector: ".join-list .pagination, .join-list a[rel='next'], .join-list [data-page]"
