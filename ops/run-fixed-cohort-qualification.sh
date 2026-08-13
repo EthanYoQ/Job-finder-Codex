@@ -25,26 +25,9 @@ postgres_image='postgres:16-bookworm@sha256:da788743d2060767375896de4d646f7576f5
 
 mkdir -p "$work_root" "$state_root" "$qualification_root"
 chmod 0777 "$work_root" "$state_root"
-if [ "$FORMAL_ROUND" = 2 ]; then
-  for exact_image_file in round-one-qualified-image.tar.gz round-one-image-qualification-receipt.json \
-    round-one-production-security-receipt.json round-one-restore-receipt.json; do
-    test ! -L "$input_root/$exact_image_file"
-    test -f "$input_root/$exact_image_file"
-    test "$(stat --format=%h -- "$input_root/$exact_image_file")" = 1
-    chmod 0444 "$input_root/$exact_image_file"
-  done
-  gunzip --stdout "$input_root/round-one-qualified-image.tar.gz" | docker load >/dev/null
-  expected_image_digest="$(node -p "JSON.parse(require('fs').readFileSync(process.argv[1],'utf8')).imageDigest" \
-    "$input_root/round-one-image-qualification-receipt.json")"
-  test "$(docker image inspect --format '{{.Id}}' "$IMAGE_TAG")" = "$expected_image_digest"
-  cp "$input_root/round-one-image-qualification-receipt.json" "$qualification_root/image-qualification-receipt.json"
-  cp "$input_root/round-one-production-security-receipt.json" "$qualification_root/production-security-receipt.json"
-  cp "$input_root/round-one-restore-receipt.json" "$qualification_root/restore-pass-receipt.json"
-else
-  cp "$PWD/.runtime/image-qualification-receipt.json" "$qualification_root/image-qualification-receipt.json"
-  cp "$PWD/.runtime/security/production-security-receipt.json" "$qualification_root/production-security-receipt.json"
-  cp "$PWD/.runtime/restore/restore-pass-receipt.json" "$qualification_root/restore-pass-receipt.json"
-fi
+cp "$PWD/.runtime/image-qualification-receipt.json" "$qualification_root/image-qualification-receipt.json"
+cp "$PWD/.runtime/security/production-security-receipt.json" "$qualification_root/production-security-receipt.json"
+cp "$PWD/.runtime/restore/restore-pass-receipt.json" "$qualification_root/restore-pass-receipt.json"
 chmod 0444 "$qualification_root/image-qualification-receipt.json" \
   "$qualification_root/production-security-receipt.json" "$qualification_root/restore-pass-receipt.json"
 
@@ -81,7 +64,10 @@ cleanup() {
   docker rm --force "$postgres_name" >/dev/null 2>&1 || true
   docker network rm "$network" >/dev/null 2>&1 || true
 }
-trap cleanup EXIT HUP INT TERM
+trap cleanup EXIT
+trap 'exit 129' HUP
+trap 'exit 130' INT
+trap 'exit 143' TERM
 
 docker network create "$network" >/dev/null
 docker run --detach --name "$postgres_name" --network "$network" --network-alias postgres \
@@ -146,8 +132,8 @@ if [ "$FORMAL_ROUND" = 1 ]; then
   migration_json="$(docker run --rm --network none --read-only --cap-drop ALL \
     --security-opt no-new-privileges:true "$IMAGE_TAG" node node_modules/tsx/dist/cli.mjs -e \
     "import { listCurrentPrismaMigrations, prismaMigrationManifestSha256 } from './src/db/prismaMigrationManifest.ts'; const rows=listCurrentPrismaMigrations('/app'); process.stdout.write(JSON.stringify({schemaSha256:prismaMigrationManifestSha256(rows),migrationVersion:rows.at(-1)?.migrationName??''}));")"
-  schema_sha256="$(printf '%s' "$migration_json" | jq -er '.schemaSha256')"
-  migration_version="$(printf '%s' "$migration_json" | jq -er '.migrationVersion')"
+  schema_sha256="$(node -p "JSON.parse(process.argv[1]).schemaSha256" "$migration_json")"
+  migration_version="$(node -p "JSON.parse(process.argv[1]).migrationVersion" "$migration_json")"
   release_candidate_id="p0-launch-$(printf '%s' "$GITHUB_SHA" | cut -c1-12)"
   run_image node node_modules/tsx/dist/cli.mjs scripts/p0-staged-release-candidate.ts prepare \
     --id "$release_candidate_id" --goal-id launch-ready --version 1 \
@@ -177,11 +163,8 @@ if [ "$FORMAL_ROUND" = 1 ]; then
   normalize_formal_file "$state_root/round-one-evidence.tar.gz"
   cp "$work_root/round-one-audit.json" "$state_root/round-one-audit.json"
   cp "$qualification_root/image-qualification-receipt.json" "$state_root/round-one-image-qualification-receipt.json"
-  cp "$qualification_root/production-security-receipt.json" "$state_root/round-one-production-security-receipt.json"
-  cp "$qualification_root/restore-pass-receipt.json" "$state_root/round-one-restore-receipt.json"
   docker save "$IMAGE_TAG" | gzip -1 > "$state_root/round-one-qualified-image.tar.gz"
   chmod 0600 "$state_root/round-one-audit.json" "$state_root/round-one-image-qualification-receipt.json" \
-    "$state_root/round-one-production-security-receipt.json" "$state_root/round-one-restore-receipt.json" \
     "$state_root/round-one-qualified-image.tar.gz"
   decision="$(node -p "JSON.parse(require('fs').readFileSync(process.argv[1],'utf8')).decision" \
     "$state_root/round-one-state-receipt.json")"

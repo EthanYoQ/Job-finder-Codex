@@ -29,6 +29,39 @@ jobs:
           cache: npm
 
       - run: npm ci
+
+      - name: Resolve Launch Cohort qualification round
+        if: >-
+          github.ref == 'refs/heads/qualification/launch-cohort-round-1' ||
+          github.ref == 'refs/heads/qualification/launch-cohort-round-2'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          mkdir -p .runtime/formal-input .runtime/formal-state .runtime/formal-work
+          if test "${GITHUB_REF_NAME}" = qualification/launch-cohort-round-1; then
+            echo 'FORMAL_ROUND=1' >> "$GITHUB_ENV"
+          elif test "${GITHUB_REF_NAME}" = qualification/launch-cohort-round-2; then
+            RUNS="$(gh run list --repo "$GITHUB_REPOSITORY" \
+              --branch qualification/launch-cohort-round-1 --commit "$GITHUB_SHA" --status success --limit 20 \
+              --json databaseId,createdAt,headSha,conclusion,workflowName,event)"
+            ROUND_ONE_RUN_ID="$(printf '%s' "$RUNS" | jq -er --arg sha "$GITHUB_SHA" \
+              '[.[] | select(.workflowName == "Production image" and .event == "push" and
+                .conclusion == "success" and .headSha == $sha)] | sort_by(.createdAt) | last.databaseId')"
+            test -n "$ROUND_ONE_RUN_ID"
+            gh run download "$ROUND_ONE_RUN_ID" --repo "$GITHUB_REPOSITORY" \
+              --name "launch-cohort-round-one-${{ github.sha }}" --dir .runtime/formal-input
+            gunzip --stdout .runtime/formal-input/round-one-qualified-image.tar.gz | docker load >/dev/null
+            EXPECTED_IMAGE_DIGEST="$(node -p \
+              "JSON.parse(require('fs').readFileSync(process.argv[1],'utf8')).imageDigest" \
+              .runtime/formal-input/round-one-image-qualification-receipt.json)"
+            test "$(docker image inspect --format '{{.Id}}' "$IMAGE_TAG")" = "$EXPECTED_IMAGE_DIGEST"
+            echo 'FORMAL_ROUND=2' >> "$GITHUB_ENV"
+            echo 'REUSE_LAUNCH_COHORT_IMAGE=1' >> "$GITHUB_ENV"
+            echo "ROUND_ONE_RUN_ID=$ROUND_ONE_RUN_ID" >> "$GITHUB_ENV"
+          else
+            exit 2
+          fi
       - name: Export commit-bound Docker provenance
         run: |
           npm run docker:export-provenance
@@ -38,6 +71,7 @@ jobs:
       - run: npm run image:runtime-contract-check
 
       - name: Build from a clean context
+        if: env.REUSE_LAUNCH_COHORT_IMAGE != '1'
         run: >-
           docker build --platform linux/amd64 --pull --no-cache
           --build-arg BUILD_COMMIT_SHA=${{ github.sha }}
@@ -470,33 +504,6 @@ jobs:
             .runtime/image-qualification-receipt.json "$IMAGE_DIGEST" "${{ github.sha }}" \
             .runtime/build-identity.json .runtime/security/production-security-receipt.json \
             .runtime/restore/restore-pass-receipt.json
-
-      - name: Resolve Launch Cohort qualification round
-        if: >-
-          github.ref == 'refs/heads/qualification/launch-cohort-round-1' ||
-          github.ref == 'refs/heads/qualification/launch-cohort-round-2'
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          set -euo pipefail
-          mkdir -p .runtime/formal-input .runtime/formal-state .runtime/formal-work
-          if test "${GITHUB_REF_NAME}" = qualification/launch-cohort-round-1; then
-            echo 'FORMAL_ROUND=1' >> "$GITHUB_ENV"
-          elif test "${GITHUB_REF_NAME}" = qualification/launch-cohort-round-2; then
-            RUNS="$(gh run list --repo "$GITHUB_REPOSITORY" \
-              --branch qualification/launch-cohort-round-1 --commit "$GITHUB_SHA" --status success --limit 20 \
-              --json databaseId,createdAt,headSha,conclusion,workflowName,event)"
-            ROUND_ONE_RUN_ID="$(printf '%s' "$RUNS" | jq -er --arg sha "$GITHUB_SHA" \
-              '[.[] | select(.workflowName == "Production image" and .event == "push" and
-                .conclusion == "success" and .headSha == $sha)] | sort_by(.createdAt) | last.databaseId')"
-            test -n "$ROUND_ONE_RUN_ID"
-            gh run download "$ROUND_ONE_RUN_ID" --repo "$GITHUB_REPOSITORY" \
-              --name "launch-cohort-round-one-${{ github.sha }}" --dir .runtime/formal-input
-            echo 'FORMAL_ROUND=2' >> "$GITHUB_ENV"
-            echo "ROUND_ONE_RUN_ID=$ROUND_ONE_RUN_ID" >> "$GITHUB_ENV"
-          else
-            exit 2
-          fi
 
       - name: Run Launch Cohort qualification round
         if: >-
