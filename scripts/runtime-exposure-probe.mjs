@@ -2,11 +2,14 @@ import { spawnSync } from "node:child_process";
 import { existsSync, lstatSync, readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 
-const riskyExecutables = ["blkid", "cupsd", "curl", "fdisk", "gzip", "infocmp", "mount",
-  "perl", "setfacl", "thunderbird", "wget", "xdg-email"];
+const contract = JSON.parse(readFileSync(new URL("../src/security/runtimeExposureContract.json", import.meta.url), "utf8"));
+const { formalExecutables, riskyExecutables } = contract;
+if (!Array.isArray(formalExecutables) || !Array.isArray(riskyExecutables) ||
+    !formalExecutables.every((value) => typeof value === "string") ||
+    !riskyExecutables.every((value) => typeof value === "string") || process.execPath !== formalExecutables[0]) {
+  throw new Error("Runtime exposure executable contract is invalid");
+}
 const sourceRoots = ["src", "scripts", "ops"];
-const formalExecutables = [process.execPath, "/opt/brave.com/brave/brave-browser", "/usr/local/bin/pg_dump",
-  "/usr/local/bin/pg_restore", "/usr/local/bin/psql"];
 for (const root of sourceRoots) if (!existsSync(root)) throw new Error(`Required source root is missing: ${root}`);
 
 const sourceFiles = sourceRoots.flatMap((root) => walk(root)).filter((path) => /\.(?:[cm]?[jt]s|sh)$/u.test(path));

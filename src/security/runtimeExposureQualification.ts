@@ -1,4 +1,5 @@
 import { createHash } from "node:crypto";
+import executableContractJson from "./runtimeExposureContract.json";
 
 export interface RuntimeExposureReceipt {
   schemaVersion: 1;
@@ -73,10 +74,9 @@ const isStringArray = (value: unknown): value is string[] => Array.isArray(value
 const isNullableStringRecord = (value: unknown): value is Record<string, string | null> => isRecord(value) && Object.values(value).every((item) => item === null || typeof item === "string");
 const isNumberRecord = (value: unknown): value is Record<string, number> => isRecord(value) && Object.values(value).every((item) => Number.isInteger(item));
 const isStringArrayRecord = (value: unknown): value is Record<string, string[]> => isRecord(value) && Object.values(value).every(isStringArray);
-const RISKY_EXECUTABLES = ["blkid", "cupsd", "curl", "fdisk", "gzip", "infocmp", "mount", "perl", "setfacl",
-  "thunderbird", "wget", "xdg-email"] as const;
-const FORMAL_EXECUTABLES = ["/usr/local/bin/node", "/opt/brave.com/brave/brave-browser", "/usr/local/bin/pg_dump",
-  "/usr/local/bin/pg_restore", "/usr/local/bin/psql"] as const;
+const executableContract = parseExecutableContract();
+export const RUNTIME_EXPOSURE_RISKY_EXECUTABLES = executableContract.riskyExecutables;
+export const RUNTIME_EXPOSURE_FORMAL_EXECUTABLES = executableContract.formalExecutables;
 const FACT_KEYS = ["platform", "architecture", "uid", "effectiveCapabilities", "noNewPrivileges", "rootMountOptions",
   "tmpMountOptions", "dbusEnvironment", "dbusSockets",
   "blockDevices", "forbiddenSpawnReferences", "minizipLibraries", "executablePaths", "elfClasses", "dynamicLibraries",
@@ -96,8 +96,9 @@ function validateSafeFacts(facts: RuntimeExposureFacts, evaluatedAt: Date): void
   const capturedAt = new Date(facts.capturedAt).getTime();
   if (facts.effectiveCapabilities !== "0000000000000000" || facts.noNewPrivileges !== "1" ||
     !facts.rootMountOptions.includes("ro") || !["rw", "nosuid", "nodev", "noexec"].every((option) => facts.tmpMountOptions.includes(option)) ||
-    !exactKeys(facts.executablePaths, RISKY_EXECUTABLES) || !exactKeys(facts.elfClasses, FORMAL_EXECUTABLES) ||
-    !exactKeys(facts.dynamicLibraries, FORMAL_EXECUTABLES) || facts.dbusEnvironment.length > 0 ||
+    !exactKeys(facts.executablePaths, RUNTIME_EXPOSURE_RISKY_EXECUTABLES) ||
+    !exactKeys(facts.elfClasses, RUNTIME_EXPOSURE_FORMAL_EXECUTABLES) ||
+    !exactKeys(facts.dynamicLibraries, RUNTIME_EXPOSURE_FORMAL_EXECUTABLES) || facts.dbusEnvironment.length > 0 ||
     facts.dbusSockets.length > 0 || facts.blockDevices.length > 0 || facts.forbiddenSpawnReferences.length > 0 ||
     facts.minizipLibraries.length > 0 || Object.values(facts.elfClasses).some((value) => value !== 2) ||
     Object.values(facts.dynamicLibraries).some((entries) => entries.length === 0 || entries.some((entry) => /not found|undefined symbol|LDD_FAILED/iu.test(entry))) ||
@@ -111,4 +112,15 @@ function exactKeys(value: Record<string, unknown>, keys: readonly string[]): boo
 function isCanonicalInstant(value: string): boolean {
   const date = new Date(value);
   return Number.isFinite(date.getTime()) && date.toISOString() === value;
+}
+function parseExecutableContract(): { formalExecutables: readonly string[]; riskyExecutables: readonly string[] } {
+  const value: unknown = executableContractJson;
+  if (!isRecord(value) || !exactKeys(value, ["formalExecutables", "riskyExecutables"]) ||
+      !isStringArray(value.formalExecutables) || !isStringArray(value.riskyExecutables) ||
+      value.formalExecutables.length !== new Set(value.formalExecutables).size ||
+      value.riskyExecutables.length !== new Set(value.riskyExecutables).size) {
+    throw new Error("Runtime exposure executable contract is invalid");
+  }
+  return { formalExecutables: Object.freeze([...value.formalExecutables]),
+    riskyExecutables: Object.freeze([...value.riskyExecutables]) };
 }

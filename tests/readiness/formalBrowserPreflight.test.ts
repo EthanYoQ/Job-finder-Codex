@@ -1,11 +1,12 @@
 import { describe, expect, it } from "vitest";
 import { assertFormalBrowserReady, FORMAL_CHROMIUM_MIN_VERSION, FORMAL_CHROMIUM_PATH,
-  FORMAL_CHROMIUM_REALPATH } from "../../src/readiness/formalBrowserPreflight";
+  FORMAL_CHROMIUM_ENGINE_REALPATH, FORMAL_CHROMIUM_REALPATH } from "../../src/readiness/formalBrowserPreflight";
 import { compareDottedVersions } from "../../src/readiness/productionImageContract";
 describe("formal browser preflight",()=>{
  it("pins the production Linux executable",()=>expect(FORMAL_CHROMIUM_PATH).toBe("/usr/bin/chromium"));
  it("pins the production browser identity",()=>{
   expect(FORMAL_CHROMIUM_REALPATH).toBe("/opt/brave.com/brave/brave-browser");
+  expect(FORMAL_CHROMIUM_ENGINE_REALPATH).toBe("/opt/brave.com/brave/brave");
  expect(FORMAL_CHROMIUM_MIN_VERSION).toBe("151.0.7922.137");
  });
  it("compares the exact four-part browser security boundary",()=>{

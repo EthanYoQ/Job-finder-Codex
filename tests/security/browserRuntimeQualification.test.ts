@@ -7,7 +7,8 @@ import {
 
 const imageDigest = `sha256:${"a".repeat(64)}`;
 const raw = Buffer.from(JSON.stringify({
-  status: "PASS", executablePath: "/usr/bin/chromium", engineVersion: "151.0.7922.137"
+  status: "PASS", executablePath: "/usr/bin/chromium", engineExecutableRealpath: "/opt/brave.com/brave/brave",
+  engineVersion: "151.0.7922.137"
 }));
 
 function release(overrides: Record<string, unknown> = {}): Buffer {
@@ -31,6 +32,7 @@ describe("browser runtime qualification", () => {
     )).toEqual(receipt);
     expect(receipt).toMatchObject({
       decision: "PASSED", browserRelease: "v1.93.136", engineVersion: "151.0.7922.137",
+      engineExecutableRealpath: "/opt/brave.com/brave/brave",
       keyringAssetSha256: "9ea8725ad4241e4d30bc31b0d5213c7ce24b1dcd5247875b2de1bcba8c4e9b00"
     });
   });
@@ -60,7 +62,8 @@ describe("browser runtime qualification", () => {
 
   it("rejects a browser engine below the fixed security floor", () => {
     const old = Buffer.from(JSON.stringify({
-      status: "PASS", executablePath: "/usr/bin/chromium", engineVersion: "151.0.7922.136"
+      status: "PASS", executablePath: "/usr/bin/chromium", engineExecutableRealpath: "/opt/brave.com/brave/brave",
+      engineVersion: "151.0.7922.136"
     }));
     expect(() => createBrowserRuntimeQualificationReceipt(old, release(), imageDigest))
       .toThrow(/probe/u);

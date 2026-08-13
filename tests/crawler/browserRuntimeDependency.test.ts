@@ -21,7 +21,7 @@ describe("browser-backed crawler runtime dependencies", () => {
     expect(runtimeStage).toContain(PRODUCTION_RUNTIME_APT_COMMAND);
     expect(runtimeStage).toContain(PRODUCTION_BROWSER_DEB_URL);
     expect(runtimeStage).toContain(PRODUCTION_BROWSER_DEB_SHA256);
-    expect(readFileSync("scripts/browser-runtime-smoke.mjs", "utf8")).toContain("inspectFormalBrowserReady");
+    expect(readFileSync("scripts/browser-runtime-smoke.mjs", "utf8")).toContain("inspectFormalBrowserRuntime");
     const runtime = readFileSync("src/crawler/officialJsonSourceFetch.ts", "utf8");
     expect(runtime).toContain("executablePath: FORMAL_CHROMIUM_PATH");
     expect(runtime).toContain("args:[...FORMAL_CHROMIUM_ARGS]");

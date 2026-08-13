@@ -5,6 +5,7 @@ import {
   PRODUCTION_BROWSER_DEB_NAME,
   PRODUCTION_BROWSER_DEB_SHA256,
   PRODUCTION_BROWSER_DEB_URL,
+  PRODUCTION_BROWSER_ENGINE_REALPATH,
   PRODUCTION_BROWSER_KEYRING_DEB_SHA256,
   PRODUCTION_BROWSER_MIN_ENGINE_VERSION,
   PRODUCTION_BROWSER_RELEASE
@@ -21,6 +22,7 @@ export interface BrowserRuntimeQualificationReceipt {
   assetSha256: typeof PRODUCTION_BROWSER_DEB_SHA256;
   keyringAssetSha256: typeof PRODUCTION_BROWSER_KEYRING_DEB_SHA256;
   engineVersion: string;
+  engineExecutableRealpath: typeof PRODUCTION_BROWSER_ENGINE_REALPATH;
   minimumEngineVersion: typeof PRODUCTION_BROWSER_MIN_ENGINE_VERSION;
   rawRuntimeSha256: string;
   githubReleaseSha256: string;
@@ -35,8 +37,9 @@ export function createBrowserRuntimeQualificationReceipt(
   evaluatedAt = new Date()
 ): BrowserRuntimeQualificationReceipt {
   const raw = parseJson(rawRuntimeBytes, "Browser runtime probe");
-  if (!isRecord(raw) || !exactKeys(raw, ["status", "executablePath", "engineVersion"]) ||
+  if (!isRecord(raw) || !exactKeys(raw, ["status", "executablePath", "engineExecutableRealpath", "engineVersion"]) ||
       raw.status !== "PASS" || raw.executablePath !== FORMAL_BROWSER_PATH ||
+      raw.engineExecutableRealpath !== PRODUCTION_BROWSER_ENGINE_REALPATH ||
       !isEngineVersion(raw.engineVersion) ||
       compareDottedVersions(raw.engineVersion, PRODUCTION_BROWSER_MIN_ENGINE_VERSION) < 0) {
     throw new Error("Browser runtime probe is invalid");
@@ -54,6 +57,7 @@ export function createBrowserRuntimeQualificationReceipt(
     assetSha256: PRODUCTION_BROWSER_DEB_SHA256,
     keyringAssetSha256: PRODUCTION_BROWSER_KEYRING_DEB_SHA256,
     engineVersion: raw.engineVersion,
+    engineExecutableRealpath: PRODUCTION_BROWSER_ENGINE_REALPATH,
     minimumEngineVersion: PRODUCTION_BROWSER_MIN_ENGINE_VERSION,
     rawRuntimeSha256: sha256(rawRuntimeBytes),
     githubReleaseSha256: sha256(githubReleaseBytes),
@@ -68,12 +72,13 @@ export function parseBrowserRuntimeQualificationReceipt(
 ): BrowserRuntimeQualificationReceipt {
   const value = parseJson(bytes, "Browser runtime qualification receipt");
   const keys = ["schemaVersion", "decision", "imageDigest", "browserRelease", "latestStableRelease",
-    "assetSha256", "keyringAssetSha256", "engineVersion", "minimumEngineVersion", "rawRuntimeSha256", "githubReleaseSha256",
+    "assetSha256", "keyringAssetSha256", "engineVersion", "engineExecutableRealpath", "minimumEngineVersion", "rawRuntimeSha256", "githubReleaseSha256",
     "evaluatedAt", "contentSha256"];
   if (!isRecord(value) || !exactKeys(value, keys) || value.schemaVersion !== 1 || value.decision !== "PASSED" ||
       !isImageDigest(value.imageDigest) || (expectedImageDigest !== undefined && value.imageDigest !== expectedImageDigest) ||
       value.browserRelease !== PRODUCTION_BROWSER_RELEASE || value.latestStableRelease !== PRODUCTION_BROWSER_RELEASE ||
       value.assetSha256 !== PRODUCTION_BROWSER_DEB_SHA256 || !isEngineVersion(value.engineVersion) ||
+      value.engineExecutableRealpath !== PRODUCTION_BROWSER_ENGINE_REALPATH ||
       value.keyringAssetSha256 !== PRODUCTION_BROWSER_KEYRING_DEB_SHA256 ||
       compareDottedVersions(value.engineVersion, PRODUCTION_BROWSER_MIN_ENGINE_VERSION) < 0 ||
       value.minimumEngineVersion !== PRODUCTION_BROWSER_MIN_ENGINE_VERSION ||

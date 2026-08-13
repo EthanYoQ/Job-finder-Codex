@@ -53,7 +53,8 @@ function fixture(reportDigest: string) {
     schemaVersion: 1, packageLockSha256: lockSha, npmAuditSha256: auditSha
   }));
   const browserRaw = Buffer.from(JSON.stringify({
-    status: "PASS", executablePath: "/usr/bin/chromium", engineVersion: "151.0.7922.137"
+    status: "PASS", executablePath: "/usr/bin/chromium", engineExecutableRealpath: "/opt/brave.com/brave/brave",
+    engineVersion: "151.0.7922.137"
   }));
   const githubRelease = Buffer.from(JSON.stringify({
     tag_name: "v1.93.136", draft: false, prerelease: false, assets: [{

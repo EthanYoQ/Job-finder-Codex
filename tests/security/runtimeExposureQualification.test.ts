@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
 import { describe, expect, it } from "vitest";
-import { createRuntimeExposureReceipt, parseRuntimeExposureReceipt } from "../../src/security/runtimeExposureQualification";
+import { createRuntimeExposureReceipt, parseRuntimeExposureReceipt, RUNTIME_EXPOSURE_FORMAL_EXECUTABLES,
+  RUNTIME_EXPOSURE_RISKY_EXECUTABLES } from "../../src/security/runtimeExposureQualification";
 
 const digest = `sha256:${"a".repeat(64)}`;
 const facts = {
@@ -8,12 +9,10 @@ const facts = {
   effectiveCapabilities: "0000000000000000", noNewPrivileges: "1", rootMountOptions: ["ro"],
   tmpMountOptions: ["rw", "nosuid", "nodev", "noexec"], dbusEnvironment: [], dbusSockets: [], blockDevices: [],
   forbiddenSpawnReferences: [], minizipLibraries: [], executablePaths: Object.fromEntries(
-    ["blkid", "cupsd", "curl", "fdisk", "gzip", "infocmp", "mount", "perl", "setfacl", "thunderbird", "wget", "xdg-email"]
-      .map((name) => [name, null])),
-  elfClasses: Object.fromEntries(["/usr/local/bin/node", "/opt/brave.com/brave/brave-browser", "/usr/local/bin/pg_dump",
-    "/usr/local/bin/pg_restore", "/usr/local/bin/psql"].map((path) => [path, 2])),
-  dynamicLibraries: Object.fromEntries(["/usr/local/bin/node", "/opt/brave.com/brave/brave-browser", "/usr/local/bin/pg_dump",
-    "/usr/local/bin/pg_restore", "/usr/local/bin/psql"].map((path) => [path, ["libc.so.6 => /lib/libc.so.6"]])),
+    RUNTIME_EXPOSURE_RISKY_EXECUTABLES.map((name) => [name, null])),
+  elfClasses: Object.fromEntries(RUNTIME_EXPOSURE_FORMAL_EXECUTABLES.map((path) => [path, 2])),
+  dynamicLibraries: Object.fromEntries(RUNTIME_EXPOSURE_FORMAL_EXECUTABLES
+    .map((path) => [path, ["libc.so.6 => /lib/libc.so.6"]])),
   capturedAt: "2026-08-13T00:00:00.000Z"
 };
 const raw = Buffer.from(JSON.stringify(facts));
@@ -21,6 +20,15 @@ const trivy = Buffer.from(JSON.stringify({ Metadata: { ImageID: digest } }));
 const trivySha = createHash("sha256").update(trivy).digest("hex");
 
 describe("runtime exposure qualification", () => {
+  it("keeps the fixed production executable policy complete", () => {
+    expect(RUNTIME_EXPOSURE_FORMAL_EXECUTABLES).toEqual(["/usr/local/bin/node", "/opt/brave.com/brave/brave",
+      "/usr/local/bin/pg_dump", "/usr/local/bin/pg_restore", "/usr/local/bin/psql"]);
+    expect(RUNTIME_EXPOSURE_RISKY_EXECUTABLES).toEqual(["blkid", "cupsd", "curl", "fdisk", "gzip", "infocmp",
+      "mount", "perl", "setfacl", "thunderbird", "wget", "xdg-email"]);
+    expect(Object.isFrozen(RUNTIME_EXPOSURE_FORMAL_EXECUTABLES)).toBe(true);
+    expect(Object.isFrozen(RUNTIME_EXPOSURE_RISKY_EXECUTABLES)).toBe(true);
+  });
+
   it("binds strict runtime facts to the exact image and Trivy report", () => {
     const receipt = createRuntimeExposureReceipt(raw, trivy, digest, new Date("2026-08-13T00:00:00.000Z"));
     expect(parseRuntimeExposureReceipt(Buffer.from(JSON.stringify(receipt)), digest, trivySha,

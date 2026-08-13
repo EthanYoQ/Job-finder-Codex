@@ -8,6 +8,7 @@ export const PRODUCTION_RUNTIME_APT_PACKAGES = [
   "ca-certificates", "libpq5", "libreadline8", "util-linux"
 ] as const;
 export const PRODUCTION_BROWSER_MIN_ENGINE_VERSION = "151.0.7922.137" as const;
+export const PRODUCTION_BROWSER_ENGINE_REALPATH = "/opt/brave.com/brave/brave" as const;
 export const PRODUCTION_BROWSER_RELEASE = "v1.93.136" as const;
 export const PRODUCTION_BROWSER_DEB_NAME = "brave-browser_1.93.136_amd64.deb" as const;
 export const PRODUCTION_BROWSER_DEB_URL =
