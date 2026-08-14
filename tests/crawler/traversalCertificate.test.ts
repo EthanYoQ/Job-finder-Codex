@@ -434,7 +434,7 @@ describe("B-grade independent traversal certificate", () => {
       artifacts: archived
     });
     expect(uncertified.sourceResult).toMatchObject({
-      completenessState: "INCOMPLETE",
+      completenessState: "NEEDS_MANUAL_COMPLETENESS_REVIEW",
       completenessCertificate: null,
       blockerCode: "B_GRADE_CERTIFICATE_NOT_ISSUED"
     });
