@@ -5,6 +5,8 @@ import { canonicalizePlannedSourceIds, hashCanonicalStringSet } from "../crawler
 import {
   isSourceFailureCategory,
   isSourceFailureDiagnosticCode,
+  tagAtomicEvidencePersistenceStage,
+  type AtomicEvidencePersistenceStage,
   type SourceFailureCategory,
   type SourceFailureDiagnosticCode
 } from "../crawler/sourceFailureDiagnostics";
@@ -752,12 +754,17 @@ async function executeAtomicSourceEvidenceCommitInternal(
   db: PrismaAtomicSourceEvidenceDb,
   manualFence?: ManualSourceCommitFence
 ): Promise<void> {
-  const { verifyAtomicRuntimeCommitAttestation } = await import("../crawler/runtimeAtomicEvidence");
-  verifyAtomicRuntimeCommitAttestation(input);
-  const validated = validateAtomicSourceEvidenceCommit(input, manualFence !== undefined);
+  let stage: AtomicEvidencePersistenceStage = "ATTESTATION";
+  try {
+    const { verifyAtomicRuntimeCommitAttestation } = await import("../crawler/runtimeAtomicEvidence");
+    verifyAtomicRuntimeCommitAttestation(input);
+    stage = "INPUT_VALIDATION";
+    const validated = validateAtomicSourceEvidenceCommit(input, manualFence !== undefined);
 
-  await db.$transaction(async (transaction) => {
+    stage = "TRANSACTION_COMMIT";
+    await db.$transaction(async (transaction) => {
     if (manualFence) {
+      stage = "OWNERSHIP_FENCE";
       if (!transaction.$queryRawUnsafe) throw new ManualSourceCommitFenceError();
       const ownedRequest = await transaction.$queryRawUnsafe<Array<{ id: string }>>(
         LOCK_MANUAL_REQUEST_FOR_COMMIT_SQL,
@@ -772,11 +779,13 @@ async function executeAtomicSourceEvidenceCommitInternal(
         throw new ManualSourceCommitFenceError();
       }
     }
+    stage = "ARTIFACT_WRITE";
     for (const artifact of input.artifacts) {
       const { logicalKey: _logicalKey, ...data } = artifact;
       await transaction.evidenceArtifact.create({ data });
     }
 
+    stage = "PAGINATION_WRITE";
     for (const page of input.pagination) {
       const { artifactLogicalKey, ...data } = page;
       await transaction.paginationEvidence.create({
@@ -784,10 +793,12 @@ async function executeAtomicSourceEvidenceCommitInternal(
       });
     }
 
+    stage = "LOSS_LEDGER_WRITE";
     for (const loss of input.lossLedger) {
       await transaction.lossLedgerEntry.create({ data: { ...loss } });
     }
 
+    stage = "TRANSPORT_ATTEMPT_WRITE";
     for (const attempt of input.priorTransportAttempts) {
       const { artifactIds, ...attemptData } = attempt;
       await transaction.transportAttemptEvidence.create({ data: attemptData });
@@ -802,6 +813,7 @@ async function executeAtomicSourceEvidenceCommitInternal(
     const observation = validated.observationCommand.observation;
     const sourceResult = input.sourceResult;
     const provenance = input.observationProvenance;
+    stage = "OBSERVATION_WRITE";
     await transaction.crawlObservation.create({
       data: {
         sourceId: sourceResult.sourceId,
@@ -858,10 +870,12 @@ async function executeAtomicSourceEvidenceCommitInternal(
       } as CrawlObservationCreateArgs["data"] & Record<string, unknown>
     });
 
+    stage = "JOB_WRITE";
     for (const command of input.commands) {
       if (command.type === "UPSERT_JOB") await upsertJobCommand(command, transaction);
     }
 
+    stage = "LIFECYCLE_WRITE";
     for (const command of input.commands) {
       if (sourceResult.completenessState !== "VERIFIED") break;
       if(command.type!=="UPSERT_JOB"||command.lifecycleStatus!=="ACTIVE")continue;
@@ -874,6 +888,7 @@ async function executeAtomicSourceEvidenceCommitInternal(
       }});
     }
 
+    stage = "SOURCE_TERMINAL_WRITE";
     const terminal = sourceResultTerminalData(input.sourceResult);
     const updateResult = await transaction.crawlBatchSourceResult.updateMany({
       where: pendingSourceTupleWhere({
@@ -885,7 +900,11 @@ async function executeAtomicSourceEvidenceCommitInternal(
       data: terminal
     });
     requireExactlyOnePendingResult(updateResult);
-  }, ATOMIC_EVIDENCE_TRANSACTION_OPTIONS);
+    stage = "TRANSACTION_COMMIT";
+    }, ATOMIC_EVIDENCE_TRANSACTION_OPTIONS);
+  } catch (error) {
+    throw tagAtomicEvidencePersistenceStage(error, stage);
+  }
 }
 
 const LOCK_MANUAL_REQUEST_FOR_COMMIT_SQL = `

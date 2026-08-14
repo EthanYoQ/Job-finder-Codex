@@ -5,6 +5,7 @@ import {
 } from "../../src/crawler/sourceFetchFailure";
 import {
   atomicEvidenceFailureCode,
+  tagAtomicEvidencePersistenceStage,
   transportFailureDiagnosticBundle
 } from "../../src/crawler/sourceFailureDiagnostics";
 
@@ -64,5 +65,25 @@ describe("atomic evidence persistence diagnostics", () => {
   it("collapses unknown errors without retaining their message or metadata", () => {
     expect(atomicEvidenceFailureCode(new Error("secret database detail")))
       .toBe("ATOMIC_EVIDENCE_COMMIT_FAILED");
+  });
+
+  it.each([
+    ["ATTESTATION", "ATOMIC_EVIDENCE_ATTESTATION_FAILED"],
+    ["INPUT_VALIDATION", "ATOMIC_EVIDENCE_INPUT_VALIDATION_FAILED"],
+    ["OWNERSHIP_FENCE", "ATOMIC_EVIDENCE_OWNERSHIP_FENCE_FAILED"],
+    ["ARTIFACT_WRITE", "ATOMIC_EVIDENCE_ARTIFACT_WRITE_FAILED"],
+    ["PAGINATION_WRITE", "ATOMIC_EVIDENCE_PAGINATION_WRITE_FAILED"],
+    ["LOSS_LEDGER_WRITE", "ATOMIC_EVIDENCE_LOSS_LEDGER_WRITE_FAILED"],
+    ["TRANSPORT_ATTEMPT_WRITE", "ATOMIC_EVIDENCE_TRANSPORT_ATTEMPT_WRITE_FAILED"],
+    ["OBSERVATION_WRITE", "ATOMIC_EVIDENCE_OBSERVATION_WRITE_FAILED"],
+    ["JOB_WRITE", "ATOMIC_EVIDENCE_JOB_WRITE_FAILED"],
+    ["LIFECYCLE_WRITE", "ATOMIC_EVIDENCE_LIFECYCLE_WRITE_FAILED"],
+    ["SOURCE_TERMINAL_WRITE", "ATOMIC_EVIDENCE_SOURCE_TERMINAL_WRITE_FAILED"],
+    ["TRANSACTION_COMMIT", "ATOMIC_EVIDENCE_TRANSACTION_COMMIT_FAILED"]
+  ] as const)("maps the redacted %s stage without serializing it", (stage, expected) => {
+    const error = tagAtomicEvidencePersistenceStage(new Error("database secret"), stage);
+    expect(atomicEvidenceFailureCode(error)).toBe(expected);
+    expect(JSON.stringify(error)).not.toContain(stage);
+    expect(JSON.stringify(error)).not.toContain("database secret");
   });
 });

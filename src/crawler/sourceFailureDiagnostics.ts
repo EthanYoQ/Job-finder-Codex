@@ -51,10 +51,56 @@ export const ATOMIC_EVIDENCE_FAILURE_CODES = [
   "ATOMIC_EVIDENCE_FOREIGN_KEY_FAILED",
   "ATOMIC_EVIDENCE_LIFECYCLE_PROJECTION_FAILED",
   "ATOMIC_EVIDENCE_CONSTRAINT_FAILED",
+  "ATOMIC_EVIDENCE_ATTESTATION_FAILED",
+  "ATOMIC_EVIDENCE_INPUT_VALIDATION_FAILED",
+  "ATOMIC_EVIDENCE_OWNERSHIP_FENCE_FAILED",
+  "ATOMIC_EVIDENCE_ARTIFACT_WRITE_FAILED",
+  "ATOMIC_EVIDENCE_PAGINATION_WRITE_FAILED",
+  "ATOMIC_EVIDENCE_LOSS_LEDGER_WRITE_FAILED",
+  "ATOMIC_EVIDENCE_TRANSPORT_ATTEMPT_WRITE_FAILED",
+  "ATOMIC_EVIDENCE_OBSERVATION_WRITE_FAILED",
+  "ATOMIC_EVIDENCE_JOB_WRITE_FAILED",
+  "ATOMIC_EVIDENCE_LIFECYCLE_WRITE_FAILED",
+  "ATOMIC_EVIDENCE_SOURCE_TERMINAL_WRITE_FAILED",
+  "ATOMIC_EVIDENCE_TRANSACTION_COMMIT_FAILED",
   "ATOMIC_EVIDENCE_COMMIT_FAILED"
 ] as const;
 
 export type AtomicEvidenceFailureCode = typeof ATOMIC_EVIDENCE_FAILURE_CODES[number];
+
+export const ATOMIC_EVIDENCE_PERSISTENCE_STAGES = [
+  "ATTESTATION",
+  "INPUT_VALIDATION",
+  "OWNERSHIP_FENCE",
+  "ARTIFACT_WRITE",
+  "PAGINATION_WRITE",
+  "LOSS_LEDGER_WRITE",
+  "TRANSPORT_ATTEMPT_WRITE",
+  "OBSERVATION_WRITE",
+  "JOB_WRITE",
+  "LIFECYCLE_WRITE",
+  "SOURCE_TERMINAL_WRITE",
+  "TRANSACTION_COMMIT"
+] as const;
+
+export type AtomicEvidencePersistenceStage = typeof ATOMIC_EVIDENCE_PERSISTENCE_STAGES[number];
+
+const ATOMIC_STAGE_FAILURE_CODE = {
+  ATTESTATION: "ATOMIC_EVIDENCE_ATTESTATION_FAILED",
+  INPUT_VALIDATION: "ATOMIC_EVIDENCE_INPUT_VALIDATION_FAILED",
+  OWNERSHIP_FENCE: "ATOMIC_EVIDENCE_OWNERSHIP_FENCE_FAILED",
+  ARTIFACT_WRITE: "ATOMIC_EVIDENCE_ARTIFACT_WRITE_FAILED",
+  PAGINATION_WRITE: "ATOMIC_EVIDENCE_PAGINATION_WRITE_FAILED",
+  LOSS_LEDGER_WRITE: "ATOMIC_EVIDENCE_LOSS_LEDGER_WRITE_FAILED",
+  TRANSPORT_ATTEMPT_WRITE: "ATOMIC_EVIDENCE_TRANSPORT_ATTEMPT_WRITE_FAILED",
+  OBSERVATION_WRITE: "ATOMIC_EVIDENCE_OBSERVATION_WRITE_FAILED",
+  JOB_WRITE: "ATOMIC_EVIDENCE_JOB_WRITE_FAILED",
+  LIFECYCLE_WRITE: "ATOMIC_EVIDENCE_LIFECYCLE_WRITE_FAILED",
+  SOURCE_TERMINAL_WRITE: "ATOMIC_EVIDENCE_SOURCE_TERMINAL_WRITE_FAILED",
+  TRANSACTION_COMMIT: "ATOMIC_EVIDENCE_TRANSACTION_COMMIT_FAILED"
+} as const satisfies Record<AtomicEvidencePersistenceStage, AtomicEvidenceFailureCode>;
+
+const PERSISTENCE_STAGE_SET = new Set<string>(ATOMIC_EVIDENCE_PERSISTENCE_STAGES);
 
 const CATEGORY_SET = new Set<string>(SOURCE_FAILURE_CATEGORIES);
 const DIAGNOSTIC_CODE_SET = new Set<string>(SOURCE_FAILURE_DIAGNOSTIC_CODES);
@@ -124,21 +170,56 @@ export function atomicEvidenceFailureCode(error: unknown): AtomicEvidenceFailure
       ? "ATOMIC_EVIDENCE_LIFECYCLE_PROJECTION_FAILED"
       : "ATOMIC_EVIDENCE_CONSTRAINT_FAILED";
   }
-  if (prisma.code !== "P2002") return "ATOMIC_EVIDENCE_COMMIT_FAILED";
-  if (prisma.modelName === "EvidenceArtifact" && prisma.targets.has("path")) {
-    return "ATOMIC_EVIDENCE_ARTIFACT_PATH_CONFLICT";
+  if (prisma.code === "P2002") {
+    if (prisma.modelName === "EvidenceArtifact" && prisma.targets.has("path")) {
+      return "ATOMIC_EVIDENCE_ARTIFACT_PATH_CONFLICT";
+    }
+    if (prisma.modelName === "Job" && prisma.targets.has("sourceId") && prisma.targets.has("dedupeKey")) {
+      return "ATOMIC_EVIDENCE_JOB_IDENTITY_CONFLICT";
+    }
+    if (prisma.modelName === "PaginationEvidence" && prisma.targets.has("sourceResultId") &&
+        prisma.targets.has("sequence")) {
+      return "ATOMIC_EVIDENCE_PAGINATION_IDENTITY_CONFLICT";
+    }
+    if (prisma.modelName === "LifecycleSetEvidenceMember") {
+      return "ATOMIC_EVIDENCE_LIFECYCLE_IDENTITY_CONFLICT";
+    }
+    return "ATOMIC_EVIDENCE_UNIQUE_CONSTRAINT_FAILED";
   }
-  if (prisma.modelName === "Job" && prisma.targets.has("sourceId") && prisma.targets.has("dedupeKey")) {
-    return "ATOMIC_EVIDENCE_JOB_IDENTITY_CONFLICT";
+  const stage = atomicEvidencePersistenceStage(error);
+  return stage ? ATOMIC_STAGE_FAILURE_CODE[stage] : "ATOMIC_EVIDENCE_COMMIT_FAILED";
+}
+
+export function tagAtomicEvidencePersistenceStage(
+  error: unknown,
+  stage: AtomicEvidencePersistenceStage
+): unknown {
+  if (typeof error === "object" && error !== null && Object.isExtensible(error)) {
+    if (atomicEvidencePersistenceStage(error)) return error;
+    Object.defineProperty(error, "atomicEvidencePersistenceStage", {
+      configurable: false,
+      enumerable: false,
+      writable: false,
+      value: stage
+    });
+    return error;
   }
-  if (prisma.modelName === "PaginationEvidence" && prisma.targets.has("sourceResultId") &&
-      prisma.targets.has("sequence")) {
-    return "ATOMIC_EVIDENCE_PAGINATION_IDENTITY_CONFLICT";
-  }
-  if (prisma.modelName === "LifecycleSetEvidenceMember") {
-    return "ATOMIC_EVIDENCE_LIFECYCLE_IDENTITY_CONFLICT";
-  }
-  return "ATOMIC_EVIDENCE_UNIQUE_CONSTRAINT_FAILED";
+  const safeError = new Error(ATOMIC_STAGE_FAILURE_CODE[stage]);
+  Object.defineProperty(safeError, "atomicEvidencePersistenceStage", {
+    configurable: false,
+    enumerable: false,
+    writable: false,
+    value: stage
+  });
+  return safeError;
+}
+
+function atomicEvidencePersistenceStage(error: unknown): AtomicEvidencePersistenceStage | undefined {
+  if (typeof error !== "object" || error === null) return undefined;
+  const value = (error as Record<string, unknown>).atomicEvidencePersistenceStage;
+  return typeof value === "string" && PERSISTENCE_STAGE_SET.has(value)
+    ? value as AtomicEvidencePersistenceStage
+    : undefined;
 }
 
 function prismaErrorFacts(error: unknown): {

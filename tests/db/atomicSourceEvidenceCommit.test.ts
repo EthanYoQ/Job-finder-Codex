@@ -9,6 +9,7 @@ import {
 } from "../../src/db/ingestionRepository";
 import type { IngestionCommand } from "../../src/crawler/ingestion";
 import { canonicalStringSetSha256 } from "../../src/crawler/sourceFetchEvidence";
+import { atomicEvidenceFailureCode } from "../../src/crawler/sourceFailureDiagnostics";
 
 vi.mock("../../src/crawler/runtimeAtomicEvidence", async (importOriginal) => ({
   ...(await importOriginal<typeof import("../../src/crawler/runtimeAtomicEvidence")>()),
@@ -436,17 +437,44 @@ describe("executeAtomicSourceEvidenceCommit", () => {
     }});
   });
 
+  const failureCodeByGroup: Record<Group, string> = {
+    sourceResults: "ATOMIC_EVIDENCE_SOURCE_TERMINAL_WRITE_FAILED",
+    artifacts: "ATOMIC_EVIDENCE_ARTIFACT_WRITE_FAILED",
+    pagination: "ATOMIC_EVIDENCE_PAGINATION_WRITE_FAILED",
+    loss: "ATOMIC_EVIDENCE_LOSS_LEDGER_WRITE_FAILED",
+    priorAttempts: "ATOMIC_EVIDENCE_TRANSPORT_ATTEMPT_WRITE_FAILED",
+    priorAttemptArtifacts: "ATOMIC_EVIDENCE_TRANSPORT_ATTEMPT_WRITE_FAILED",
+    observations: "ATOMIC_EVIDENCE_OBSERVATION_WRITE_FAILED",
+    jobs: "ATOMIC_EVIDENCE_JOB_WRITE_FAILED",
+    lifecycleMembers: "ATOMIC_EVIDENCE_LIFECYCLE_WRITE_FAILED"
+  };
   for (const group of ["sourceResults", "artifacts", "pagination", "loss", "priorAttempts", "priorAttemptArtifacts", "observations", "jobs","lifecycleMembers"] as Group[]) {
     it(`rolls back every pending write when ${group} fails`, async () => {
       const input = validCommit();
       const db = transactionalDb(group);
-      await expect(executeAtomicSourceEvidenceCommit(input, db)).rejects.toThrow(`injected ${group} failure`);
+      const rejection = await executeAtomicSourceEvidenceCommit(input, db).catch((error: unknown) => error);
+      expect(rejection).toBeInstanceOf(Error);
+      expect((rejection as Error).message).toContain(`injected ${group} failure`);
+      expect(atomicEvidenceFailureCode(rejection)).toBe(failureCodeByGroup[group]);
       expect(db.calls.transactions).toBe(1);
       for (const name of ["sourceResults", "artifacts", "pagination", "loss", "priorAttempts", "priorAttemptArtifacts", "observations", "jobs","lifecycleMembers"] as Group[]) {
         expect(db.calls[name]).toEqual([]);
       }
     });
   }
+
+  it("classifies a generic failure after the transaction callback as a commit-boundary failure", async () => {
+    const inner = transactionalDb();
+    const transaction = inner.$transaction;
+    const db: PrismaAtomicSourceEvidenceDb = {
+      $transaction: async (operation, options) => {
+        await transaction(operation, options);
+        throw new Error("private deferred transaction failure");
+      }
+    };
+    const rejection = await executeAtomicSourceEvidenceCommit(validCommit(), db).catch((error: unknown) => error);
+    expect(atomicEvidenceFailureCode(rejection)).toBe("ATOMIC_EVIDENCE_TRANSACTION_COMMIT_FAILED");
+  });
 
   it("rolls back all evidence when no matching PENDING row is consumed", async () => {
     const db = transactionalDb(undefined, 0);
