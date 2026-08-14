@@ -32,6 +32,7 @@ import {
   type PlanBoundHtmlTraversalSourceId
 } from "./planBoundHtmlTraversalValidator";
 import { validateStrictHtmlCompletenessProof } from "./strictHtmlCompletenessProof";
+import { companyRecruitmentExecutionConfigsBySourceId } from "./companyRecruitmentProfiles";
 
 export const B_GRADE_TRAVERSAL_CERTIFICATE_SCHEMA_VERSION =
   "b-grade-independent-traversal-v2" as const;
@@ -165,6 +166,11 @@ const planBoundHtmlBrowserPageSchema = browserPageSchema.extend({
   rawMatchKeys: z.array(NONBLANK).min(1),
   partitions: z.array(planBoundHtmlPartitionSchema).min(1).optional()
 }).strict();
+const planBoundTalentbrewBrowserPageSchema = browserPageSchema.extend({
+  channelId: NONBLANK,
+  declaredTotalJobs: z.number().int().nonnegative(),
+  rawMatchKeys: z.array(NONBLANK)
+}).strict();
 const planBoundHtmlBrowserValidationSchema = z.object({
   schemaVersion: z.literal("plan-bound-html-browser-traversal-v1"),
   sourceId: z.enum(PLAN_BOUND_HTML_TRAVERSAL_SOURCE_IDS as unknown as
@@ -177,15 +183,38 @@ const planBoundHtmlBrowserValidationSchema = z.object({
   pages: z.array(planBoundHtmlBrowserPageSchema).min(1),
   artifactLogicalKey: NONBLANK
 }).strict();
+const planBoundTalentbrewBrowserValidationSchema = z.object({
+  schemaVersion: z.literal("plan-bound-html-browser-traversal-v2"),
+  sourceId: z.enum(PLAN_BOUND_HTML_TRAVERSAL_SOURCE_IDS as unknown as
+    [PlanBoundHtmlTraversalSourceId, ...PlanBoundHtmlTraversalSourceId[]]),
+  companyId: NONBLANK,
+  retrievalPath: z.literal("PLAYWRIGHT_RENDERED_HTML_NEXT_LINK_TRAVERSAL"),
+  validatorImplementationId: z.literal("plan-bound-html-playwright-traversal-v2"),
+  matchKeyKind: z.literal("JOB_DEDUPE_KEY"),
+  ...renderedValidationFields,
+  pages: z.array(planBoundTalentbrewBrowserPageSchema).min(1),
+  artifactLogicalKey: NONBLANK
+}).strict();
 const browserValidationSchema = z.discriminatedUnion("schemaVersion", [
   legacyViatrisBrowserValidationSchema,
   viatrisBrowserValidationSchema,
   qiluBrowserValidationSchema,
-  planBoundHtmlBrowserValidationSchema
+  planBoundHtmlBrowserValidationSchema,
+  planBoundTalentbrewBrowserValidationSchema
 ]);
 
 export type BGradeIndependentTraversalValidation = z.infer<typeof browserValidationSchema>;
 export type ViatrisBrowserTraversalValidation = z.infer<typeof viatrisBrowserValidationSchema>;
+type PlanBoundBrowserTraversalValidation = Extract<BGradeIndependentTraversalValidation, {
+  schemaVersion: "plan-bound-html-browser-traversal-v1" | "plan-bound-html-browser-traversal-v2";
+}>;
+
+function isPlanBoundBrowserTraversalValidation(
+  validation: BGradeIndependentTraversalValidation
+): validation is PlanBoundBrowserTraversalValidation {
+  return validation.schemaVersion === "plan-bound-html-browser-traversal-v1" ||
+    validation.schemaVersion === "plan-bound-html-browser-traversal-v2";
+}
 
 export function readReusableBGradeTraversalValidation(input: {
   certificate: unknown;
@@ -433,6 +462,8 @@ export function createViatrisBrowserTraversalValidation(input: {
   pages: readonly {
     pageNumber: number;
     declaredTotalPages: number;
+    channelId?: string;
+    declaredTotalJobs?: number;
     sourceJobIds: readonly string[];
     nextControlPresent: boolean;
   }[];
@@ -490,6 +521,8 @@ export function createPlanBoundHtmlBrowserTraversalValidation(input: {
   pages: readonly {
     pageNumber: number;
     declaredTotalPages: number;
+    channelId?: string;
+    declaredTotalJobs?: number;
     matchKeys: readonly string[];
     rawMatchKeys?: readonly string[];
     partitions?: readonly {
@@ -506,6 +539,7 @@ export function createPlanBoundHtmlBrowserTraversalValidation(input: {
   if (input.companyId !== policy.companyId) {
     throw new Error("Plan-bound HTML browser validation company binding mismatch");
   }
+  const talentbrew = "talentbrewScope" in PLAN_BOUND_HTML_TRAVERSAL_POLICIES[input.sourceId];
   return createRenderedTraversalValidation({
     ...input,
     pages: input.pages.map((page) => ({
@@ -518,7 +552,9 @@ export function createPlanBoundHtmlBrowserTraversalValidation(input: {
         }))
       } : {})
     })),
-    schemaVersion: "plan-bound-html-browser-traversal-v1",
+    schemaVersion: talentbrew
+      ? "plan-bound-html-browser-traversal-v2"
+      : "plan-bound-html-browser-traversal-v1",
     retrievalPath: policy.retrievalPath,
     validatorImplementationId: policy.validatorImplementationId,
     matchKeyKind: policy.matchKeyKind,
@@ -530,7 +566,7 @@ function createRenderedTraversalValidation(input: {
   sourceId: string;
   companyId: string;
   schemaVersion: "viatris-browser-traversal-validator-v2" | "qilu-browser-traversal-validator-v2" |
-    "plan-bound-html-browser-traversal-v1";
+    "plan-bound-html-browser-traversal-v1" | "plan-bound-html-browser-traversal-v2";
   retrievalPath: string;
   validatorImplementationId: string;
   matchKeyKind: "SOURCE_JOB_ID" | "OFFICIAL_URL" | "JOB_DEDUPE_KEY";
@@ -541,6 +577,8 @@ function createRenderedTraversalValidation(input: {
   pages: readonly {
     pageNumber: number;
     declaredTotalPages: number;
+    channelId?: string;
+    declaredTotalJobs?: number;
     matchKeys: readonly string[];
     rawRows?: readonly { officialUrl: string; locationRaw: string; scopeDecision: "INCLUDED_MAINLAND" | "EXCLUDED_FOREIGN" }[];
     rawMatchKeys?: readonly string[];
@@ -556,11 +594,13 @@ function createRenderedTraversalValidation(input: {
 }): BGradeIndependentTraversalValidation {
   if (input.pages.length === 0) throw new Error("Browser traversal requires at least one rendered page");
   const total = input.pages.length;
-  for (let index = 0; index < total; index += 1) {
-    const page = input.pages[index]!;
-    if (page.pageNumber !== index + 1 || page.declaredTotalPages !== total ||
-        page.nextControlPresent !== (index < total - 1)) {
-      throw new Error("Browser traversal did not visit every declared UI page in order");
+  if (input.schemaVersion !== "plan-bound-html-browser-traversal-v2") {
+    for (let index = 0; index < total; index += 1) {
+      const page = input.pages[index]!;
+      if (page.pageNumber !== index + 1 || page.declaredTotalPages !== total ||
+          page.nextControlPresent !== (index < total - 1)) {
+        throw new Error("Browser traversal did not visit every declared UI page in order");
+      }
     }
   }
   const allMatchKeys = input.pages.flatMap((page) => [...page.matchKeys]);
@@ -834,7 +874,10 @@ export function issueBGradeTraversalCertificate(input: BGradeCertificateCandidat
     }
     pagination = evaluatePaginationEvidence({
       evidence,
-      expectedChannelIds: [],
+      expectedChannelIds: isPlanBoundHtmlTraversalSourceId(input.plan.source.id) &&
+          "talentbrewScope" in PLAN_BOUND_HTML_TRAVERSAL_POLICIES[input.plan.source.id]
+        ? expectedChannels
+        : [],
       filteredOutput: true,
       ...(input.plan.source.id === "source-qilu-social" ? { allowMissingReturnedPage: true } : {}),
       ...(allowsMainPageOverlap
@@ -846,15 +889,26 @@ export function issueBGradeTraversalCertificate(input: BGradeCertificateCandidat
     const declaration = evidence.declaredCompleteness;
     const declaredPages = evidence.pages[0]?.declaredPages;
     const last = evidence.pages.at(-1);
-    const declaredPageContract = declaredPages == null
-      ? evidence.pages.every((page) => page.declaredPages == null)
-      : declaredPages === evidence.pages.length && evidence.pages.every((page) => page.declaredPages === declaredPages);
+    const talentbrewTraversal = isPlanBoundHtmlTraversalSourceId(input.plan.source.id) &&
+      "talentbrewScope" in PLAN_BOUND_HTML_TRAVERSAL_POLICIES[input.plan.source.id];
+    const talentbrewPageGroups = talentbrewTraversal
+      ? groupPaginationPagesByChannel(evidence.pages)
+      : undefined;
+    const declaredPageContract = talentbrewPageGroups
+      ? talentbrewPageGroups.size === expectedChannels.length &&
+        canonicalJson([...talentbrewPageGroups.keys()].sort(compareUtf8)) === canonicalJson(expectedChannels) &&
+        [...talentbrewPageGroups.values()].every((pages) => pages.length > 0 &&
+          pages.every((page) => page.declaredPages === pages.length) &&
+          pages.at(-1)?.termination === "NEXT_ABSENT")
+      : declaredPages == null
+        ? evidence.pages.every((page) => page.declaredPages == null)
+        : declaredPages === evidence.pages.length && evidence.pages.every((page) => page.declaredPages === declaredPages);
     const completeTraversal = declaration !== undefined &&
       ["COMPLETE_PAGE_TRAVERSAL", "OFFICIAL_TOTAL_PAGES"].includes(declaration.kind) &&
       declaration.scope === "SOURCE" &&
       declaration.value === evidence.pages.length &&
       declaredPageContract &&
-      (last?.termination === "NEXT_ABSENT" || last?.termination === "EMPTY_PAGE") &&
+      (talentbrewPageGroups !== undefined || last?.termination === "NEXT_ABSENT" || last?.termination === "EMPTY_PAGE") &&
       pagination.safeCompleteness && pagination.verifiedEligible &&
       pagination.paginationTraceSha256 === input.paginationEvaluation.paginationTraceSha256;
     if (!completeTraversal) blockers.add("MAIN_TRAVERSAL_INCOMPLETE");
@@ -1165,9 +1219,11 @@ function assertBrowserValidationEquations(validation: BGradeIndependentTraversal
       validation.pageCount !== validation.pages.length) {
     throw new Error("B-grade browser validation canonical scope or page count mismatch");
   }
-  if (validation.schemaVersion === "plan-bound-html-browser-traversal-v1") {
+  if (isPlanBoundBrowserTraversalValidation(validation)) {
     const planBoundPolicy = PLAN_BOUND_HTML_TRAVERSAL_POLICIES[validation.sourceId];
-    if (validation.pages.length < 1 || validation.pages.length > planBoundPolicy.maxPages ||
+    if (validation.pages.length < 1 ||
+        (validation.schemaVersion !== "plan-bound-html-browser-traversal-v2" &&
+          validation.pages.length > planBoundPolicy.maxPages) ||
         planBoundPolicy.maxPages === 1 && validation.pages.length !== 1) {
       throw new Error("Plan-bound HTML browser validation page limit mismatch");
     }
@@ -1178,8 +1234,9 @@ function assertBrowserValidationEquations(validation: BGradeIndependentTraversal
   for (let index = 0; index < validation.pages.length; index += 1) {
     const page = validation.pages[index]!;
     const pageMatchKeys = "matchKeys" in page ? page.matchKeys : page.sourceJobIds;
-    if (page.pageNumber !== index + 1 || page.declaredTotalPages !== validation.pages.length ||
-        page.nextControlPresent !== (index < validation.pages.length - 1) ||
+    if ((validation.schemaVersion !== "plan-bound-html-browser-traversal-v2" &&
+        (page.pageNumber !== index + 1 || page.declaredTotalPages !== validation.pages.length ||
+         page.nextControlPresent !== (index < validation.pages.length - 1))) ||
         canonicalJson(pageMatchKeys) !== canonicalJson(canonicalStrings(pageMatchKeys))) {
       throw new Error("B-grade browser validation page traversal mismatch");
     }
@@ -1195,9 +1252,10 @@ function assertBrowserValidationEquations(validation: BGradeIndependentTraversal
       }
       qiluRawUrls.push(...rawUrls);
     }
-    if (validation.schemaVersion === "plan-bound-html-browser-traversal-v1") {
-      const rawMatchKeys = validation.pages[index]!.rawMatchKeys;
-      const partitions = validation.pages[index]!.partitions;
+    if (isPlanBoundBrowserTraversalValidation(validation)) {
+      const planBoundPage = validation.pages[index]!;
+      const rawMatchKeys = planBoundPage.rawMatchKeys;
+      const partitions = "partitions" in planBoundPage ? planBoundPage.partitions : undefined;
       const expectedNewMatchKeys = rawMatchKeys.filter((key) => {
         if (planBoundSeenRawMatchKeys.has(key)) return false;
         planBoundSeenRawMatchKeys.add(key);
@@ -1215,7 +1273,11 @@ function assertBrowserValidationEquations(validation: BGradeIndependentTraversal
           })) {
         throw new Error("Plan-bound HTML browser validation raw page set mismatch");
       }
-      if (validation.sourceId === "source-astellas-china-social") {
+      if (validation.schemaVersion === "plan-bound-html-browser-traversal-v2") {
+        if (partitions !== undefined) {
+          throw new Error("TalentBrew browser validation has unexpected reveal partitions");
+        }
+      } else if (validation.sourceId === "source-astellas-china-social") {
         if (index !== 0 || !partitions || partitions.length !== 3 ||
             new Set(partitions.map((partition) => partition.controlId)).size !== 3 ||
             partitions.some((partition, partitionIndex) => partition.controlIndex !== partitionIndex + 1 ||
@@ -1238,6 +1300,9 @@ function assertBrowserValidationEquations(validation: BGradeIndependentTraversal
   if (new Set(qiluRawUrls).size !== qiluRawUrls.length) {
     throw new Error("Qilu browser validation contains duplicate raw job URLs across pages");
   }
+  if (validation.schemaVersion === "plan-bound-html-browser-traversal-v2") {
+    assertTalentbrewValidationEquations(validation);
+  }
   const expectedArtifactSha256 = sha256(canonicalJson({
     sourceId: validation.sourceId,
     retrievalPath: validation.retrievalPath,
@@ -1252,7 +1317,7 @@ function assertBrowserValidationEquations(validation: BGradeIndependentTraversal
 
 function planBoundDuplicateMultiplicity(
   validation: Extract<BGradeIndependentTraversalValidation,
-    { schemaVersion: "plan-bound-html-browser-traversal-v1" }>
+    { schemaVersion: "plan-bound-html-browser-traversal-v1" | "plan-bound-html-browser-traversal-v2" }>
 ): Array<{ dedupeKeySha256: string; droppedCount: number }> {
   const counts = new Map<string, number>();
   for (const key of validation.pages.flatMap((page) => page.rawMatchKeys)) {
@@ -1264,11 +1329,75 @@ function planBoundDuplicateMultiplicity(
     .sort((left, right) => compareUtf8(left.dedupeKeySha256, right.dedupeKeySha256));
 }
 
+function assertTalentbrewValidationEquations(
+  validation: Extract<BGradeIndependentTraversalValidation,
+    { schemaVersion: "plan-bound-html-browser-traversal-v2" }>
+): void {
+  const policy = PLAN_BOUND_HTML_TRAVERSAL_POLICIES[validation.sourceId];
+  if (!("talentbrewScope" in policy)) {
+    throw new Error("TalentBrew browser validation source policy mismatch");
+  }
+  const configured = companyRecruitmentExecutionConfigsBySourceId[validation.sourceId];
+  const table = configured?.adapterId === "html-table" ? configured.table : undefined;
+  const partitions = table?.pagination?.ajaxMode === "talentbrew"
+    ? table.pagination.talentbrewScope?.allowedPartitions
+    : undefined;
+  if (!partitions || canonicalJson(validation.channelIds) !==
+      canonicalJson(canonicalStrings(partitions.map(({ channelId }) => channelId)))) {
+    throw new Error("TalentBrew browser validation channel scope mismatch");
+  }
+  let cursor = 0;
+  const rawKeys = new Set<string>();
+  for (const partition of partitions) {
+    const first = validation.pages[cursor];
+    if (!first || first.channelId !== partition.channelId || first.pageNumber !== 1) {
+      throw new Error("TalentBrew browser validation partition order mismatch");
+    }
+    const partitionPages = validation.pages.slice(cursor, cursor + first.declaredTotalPages);
+    if (partitionPages.length !== first.declaredTotalPages || first.declaredTotalPages > policy.maxPages) {
+      throw new Error("TalentBrew browser validation partition page count mismatch");
+    }
+    let rowCount = 0;
+    for (let index = 0; index < partitionPages.length; index += 1) {
+      const page = partitionPages[index]!;
+      if (page.channelId !== partition.channelId || page.pageNumber !== index + 1 ||
+          page.declaredTotalPages !== partitionPages.length ||
+          page.declaredTotalJobs !== first.declaredTotalJobs ||
+          page.nextControlPresent !== (index < partitionPages.length - 1) ||
+          page.rawMatchKeys.some((key) => rawKeys.has(key))) {
+        throw new Error("TalentBrew browser validation partition page equation mismatch");
+      }
+      page.rawMatchKeys.forEach((key) => rawKeys.add(key));
+      rowCount += page.rawMatchKeys.length;
+    }
+    if (rowCount !== first.declaredTotalJobs) {
+      throw new Error("TalentBrew browser validation partition total mismatch");
+    }
+    cursor += partitionPages.length;
+  }
+  if (cursor !== validation.pages.length) {
+    throw new Error("TalentBrew browser validation has an unregistered partition");
+  }
+}
+
 function collisionMultiplicity(
   groups: readonly { dedupeKeySha256: string; droppedCount: number }[]
 ): Array<{ dedupeKeySha256: string; droppedCount: number }> {
   return groups.map(({ dedupeKeySha256, droppedCount }) => ({ dedupeKeySha256, droppedCount }))
     .sort((left, right) => compareUtf8(left.dedupeKeySha256, right.dedupeKeySha256));
+}
+
+function groupPaginationPagesByChannel(
+  pages: readonly PersistentSourceFetchEvidence["pages"][number][]
+): Map<string, PersistentSourceFetchEvidence["pages"]> {
+  const groups = new Map<string, PersistentSourceFetchEvidence["pages"]>();
+  for (const page of pages) {
+    const channelId = page.channelId ?? "";
+    const existing = groups.get(channelId) ?? [];
+    existing.push(page);
+    groups.set(channelId, existing);
+  }
+  return groups;
 }
 
 function validationMatchKeys(validation: BGradeIndependentTraversalValidation): string[] {

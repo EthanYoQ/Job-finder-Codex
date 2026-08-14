@@ -119,6 +119,63 @@ describe("plan-bound HTML rendered traversal", () => {
     expect(close).toHaveBeenCalledTimes(1);
   });
 
+  it("traverses every configured TalentBrew partition and page", async () => {
+    const sourceId = "source-sanofi-china-social" as const;
+    const entryUrl = PLAN_BOUND_HTML_TRAVERSAL_POLICIES[sourceId].entryUrl;
+    const close = vi.fn(async () => undefined);
+    const result = await capturePlanBoundHtmlRenderedTraversal({
+      sourceId,
+      entryUrl,
+      launchBrowser: async () => talentbrewBrowser({ entryUrl, close })
+    });
+
+    expect(result.pages).toEqual([
+      { channelId: "employment-fixed-term", pageNumber: 1, declaredTotalPages: 2,
+        declaredTotalJobs: 3, matchKeys: [`${sourceId}:81001`, `${sourceId}:81002`],
+        rawMatchKeys: [`${sourceId}:81001`, `${sourceId}:81002`], nextControlPresent: true },
+      { channelId: "employment-fixed-term", pageNumber: 2, declaredTotalPages: 2,
+        declaredTotalJobs: 3, matchKeys: [`${sourceId}:81003`], rawMatchKeys: [`${sourceId}:81003`],
+        nextControlPresent: false },
+      { channelId: "employment-regular", pageNumber: 1, declaredTotalPages: 1,
+        declaredTotalJobs: 1, matchKeys: [`${sourceId}:82001`], rawMatchKeys: [`${sourceId}:82001`],
+        nextControlPresent: false }
+    ]);
+    expect(close).toHaveBeenCalledTimes(1);
+  });
+
+  it("rejects an unregistered TalentBrew partition in the configured facet field", async () => {
+    const sourceId = "source-sanofi-china-social" as const;
+    const entryUrl = PLAN_BOUND_HTML_TRAVERSAL_POLICIES[sourceId].entryUrl;
+    const close = vi.fn(async () => undefined);
+    await expect(capturePlanBoundHtmlRenderedTraversal({
+      sourceId,
+      entryUrl,
+      launchBrowser: async () => talentbrewBrowser({ entryUrl, close, extraPartitionId: "Contractor" })
+    })).rejects.toThrow("partition universe changed");
+    expect(close).toHaveBeenCalledTimes(1);
+  });
+
+  it("closes the active TalentBrew page and browser once when aborted", async () => {
+    const sourceId = "source-sanofi-china-social" as const;
+    const entryUrl = PLAN_BOUND_HTML_TRAVERSAL_POLICIES[sourceId].entryUrl;
+    const controller = new AbortController();
+    const close = vi.fn(async () => undefined);
+    const pageClose = vi.fn(async () => undefined);
+    await expect(capturePlanBoundHtmlRenderedTraversal({
+      sourceId,
+      entryUrl,
+      signal: controller.signal,
+      launchBrowser: async () => talentbrewBrowser({
+        entryUrl,
+        close,
+        pageClose,
+        onGoto: () => controller.abort(new Error("cancelled"))
+      })
+    })).rejects.toThrow("cancelled");
+    expect(pageClose).toHaveBeenCalledTimes(1);
+    expect(close).toHaveBeenCalledTimes(1);
+  });
+
   it("expands and proves every Astellas accordion partition", async () => {
     const sourceId = "source-astellas-china-social" as const;
     const entryUrl = PLAN_BOUND_HTML_TRAVERSAL_POLICIES[sourceId].entryUrl;
@@ -236,6 +293,7 @@ function staticBrowser(input: {
       input.onGoto?.();
       return input.navigation === undefined ? response(input.entryUrl) : input.navigation;
     },
+    close: async () => undefined,
     url: () => input.entryUrl,
     locator: (selector: string) => ({
       first: () => ({ waitFor: async () => undefined }),
@@ -359,8 +417,118 @@ function astellasBrowser(input: {
   return { newPage: async () => page as never, close: input.close };
 }
 
+function talentbrewBrowser(input: {
+  entryUrl: string;
+  close: () => Promise<void>;
+  extraPartitionId?: string;
+  onGoto?: () => void;
+  pageClose?: () => Promise<void>;
+}) {
+  const sourceId = "source-sanofi-china-social" as const;
+  const policy = PLAN_BOUND_HTML_TRAVERSAL_POLICIES[sourceId];
+  const partitions = [
+    { id: "Fixed Term (Fixed Term)", pages: [["81001", "81002"], ["81003"]] },
+    { id: "Regular", pages: [["82001"]] }
+  ];
+  const excludedIds = ["Apprentice/Intern (Fixed Term)", "Student (Fixed Term)"];
+  let partitionIndex = -1;
+  let pageIndex = 0;
+  const currentIds = () => partitionIndex < 0 ? ["79999"] : partitions[partitionIndex]!.pages[pageIndex]!;
+  const partitionForSelector = (selector: string) => partitions.findIndex(({ id }) => selector.includes(JSON.stringify(id)));
+  const allIds = [...partitions.map(({ id }) => id), ...excludedIds,
+    ...(input.extraPartitionId ? [input.extraPartitionId] : [])];
+  const page = {
+    goto: async () => {
+      partitionIndex = -1;
+      pageIndex = 0;
+      input.onGoto?.();
+      return response(input.entryUrl);
+    },
+    close: input.pageClose ?? (async () => undefined),
+    url: () => input.entryUrl,
+    waitForLoadState: async () => undefined,
+    waitForFunction: async () => undefined,
+    waitForResponse: async (predicate: (candidate: ReturnType<typeof ajaxResponse>) => boolean) => {
+      await new Promise((resolve) => setTimeout(resolve, 0));
+      const selected = partitions[Math.max(0, partitionIndex)]!;
+      const url = new URL("/results", input.entryUrl);
+      url.searchParams.set("FacetFilters[1].ID", selected.id);
+      url.searchParams.set("FacetFilters[1].FacetType", "5");
+      url.searchParams.set("FacetFilters[1].Display", selected.id);
+      url.searchParams.set("FacetFilters[1].IsApplied", "true");
+      url.searchParams.set("FacetFilters[1].FieldName", "job_type");
+      const candidate = ajaxResponse(url.toString());
+      if (!predicate(candidate)) throw new Error("Response predicate rejected the TalentBrew fixture");
+      return candidate;
+    },
+    locator: (selector: string) => {
+      if (selector === policy.rowSelector) {
+        return {
+          evaluateAll: async (callback: unknown) => String(callback).includes("key.kind")
+            ? currentIds().map((id) => `https://jobs.sanofi.com/en/job/shanghai/role/2649/${id}`)
+            : currentIds()
+        };
+      }
+      if (selector === policy.nextSelector) {
+        const next = { evaluate: async () => { pageIndex += 1; } };
+        return {
+          count: async () => partitionIndex >= 0 && pageIndex < partitions[partitionIndex]!.pages.length - 1 ? 1 : 0,
+          first: () => next
+        };
+      }
+      if (selector === "#search-results") {
+        return {
+          first: () => ({ waitFor: async () => undefined }),
+          count: async () => 1,
+          getAttribute: async (name: string) => name === "data-current-page"
+            ? String(pageIndex + 1)
+            : name === "data-total-pages"
+              ? String(partitionIndex < 0 ? 1 : partitions[partitionIndex]!.pages.length)
+              : name === "data-total-job-results"
+                ? String(partitionIndex < 0 ? 4 : partitions[partitionIndex]!.pages.flat().length)
+                : name === "data-ajax-url"
+                  ? "/results"
+                  : name === "data-facet-term"
+                    ? "1814991"
+                    : name === "data-facet-type"
+                      ? "2"
+                : null
+        };
+      }
+      if (selector.includes('[data-field-name="job_type"]') && !selector.includes("data-id=")) {
+        return { first: () => ({ waitFor: async () => undefined }), evaluateAll: async () => [...allIds].sort() };
+      }
+      const selected = partitionForSelector(selector);
+      if (selected >= 0) {
+        return {
+          count: async () => 1,
+          isChecked: async () => false,
+          getAttribute: async (name: string) => name === "data-display"
+            ? partitions[selected]!.id
+            : name === "data-count"
+              ? String(partitions[selected]!.pages.flat().length)
+              : null,
+          evaluate: async () => { partitionIndex = selected; pageIndex = 0; }
+        };
+      }
+      if (excludedIds.some((id) => selector.includes(JSON.stringify(id)))) {
+        const id = excludedIds.find((value) => selector.includes(JSON.stringify(value)))!;
+        return { count: async () => 1, isChecked: async () => false,
+          getAttribute: async (name: string) => name === "data-display" ? id : name === "data-count" ? "0" : null };
+      }
+      return { first: () => ({ waitFor: async () => undefined }) };
+    }
+  };
+  return { newPage: async () => page as never, close: input.close };
+}
+
 function response(url: string) {
   return { status: () => 200, url: () => url };
+}
+
+function ajaxResponse(url: string) {
+  return { status: () => 200, url: () => url, request: () => ({ method: () => "GET" }),
+    finished: async () => null };
 }
 
 function syntheticKey(sourceId: string, parts: readonly string[]): string {

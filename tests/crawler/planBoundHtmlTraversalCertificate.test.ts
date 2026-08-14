@@ -18,6 +18,7 @@ import {
 } from "../../src/crawler/sourcePlan";
 import { sha256Bytes, type PersistentSourceFetchEvidence } from "../../src/crawler/sourceFetchEvidence";
 import { runSourceCrawl } from "../../src/crawler/runSourceCrawl";
+import { validateStrictHtmlCompletenessProof } from "../../src/crawler/strictHtmlCompletenessProof";
 import {
   createPlanBoundHtmlBrowserTraversalValidation,
   issueBGradeTraversalCertificate,
@@ -39,7 +40,9 @@ describe("plan-bound HTML B-grade traversal certificates", () => {
       "source-huahai-social",
       "source-fosun-pharma-social",
       "source-kelun-social",
-      "source-tongrentang-social"
+      "source-tongrentang-social",
+      "source-sanofi-china-social",
+      "source-takeda-china-social"
     ]);
     for (const sourceId of PLAN_BOUND_HTML_TRAVERSAL_SOURCE_IDS) {
       expect(requiresBGradeCertificateSourceId(sourceId)).toBe(true);
@@ -51,14 +54,19 @@ describe("plan-bound HTML B-grade traversal certificates", () => {
       const sourcePlan = plan(sourceId);
       const crawled = await strictMainCrawl(sourceId);
       if (!crawled.fetchEvidence || !crawled.paginationEvaluation || !crawled.reconciliation) {
-        throw new Error("Expected strict main evidence");
+        throw new Error(`Expected strict main evidence: ${JSON.stringify(crawled)}`);
       }
-      expect(crawled.truth.completenessVerified).toBe(true);
+      expect(crawled.status, JSON.stringify(crawled)).toBe("SUCCESS");
+      if (!isTalentbrewSource(sourceId)) expect(crawled.truth.completenessVerified).toBe(true);
+      expect(validateStrictHtmlCompletenessProof(sourcePlan, crawled.fetchEvidence),
+        JSON.stringify(crawled.fetchEvidence)).toBe(true);
       const matchKeys = crawled.jobs.map(buildJobDedupeKey);
       const browserPages = sourceId === "source-novartis-social"
         ? novartisBrowserPages(matchKeys)
         : sourceId === "source-astellas-china-social"
           ? [astellasBrowserPage(matchKeys)]
+          : isTalentbrewSource(sourceId)
+            ? talentbrewBrowserPages(sourceId, crawled.jobs)
           : [{ pageNumber: 1, declaredTotalPages: 1, matchKeys, nextControlPresent: false }];
       const validation = createPlanBoundHtmlBrowserTraversalValidation({
         sourceId,
@@ -260,6 +268,47 @@ describe("plan-bound HTML B-grade traversal certificates", () => {
     })).toThrow("partition proof mismatch");
   });
 
+  it("rejects incomplete or internally inconsistent TalentBrew partition proofs", () => {
+    const sourceId = "source-sanofi-china-social" as const;
+    const sourcePlan = plan(sourceId);
+    const common = {
+      sourceId,
+      companyId: sourcePlan.company.id,
+      sourceConfigSha256: sourcePlanConfigSha256(sourcePlan),
+      surfaceIds: [sourcePlan.source.surfaceId!],
+      channelIds: sourcePlan.expectedChannels!.map(({ channelId }) => channelId),
+      observedAt: capturedAt,
+      expiresAt: "2026-08-20T00:00:00.000Z"
+    };
+    expect(() => createPlanBoundHtmlBrowserTraversalValidation({
+      ...common,
+      pages: [{ channelId: "employment-fixed-term", pageNumber: 1, declaredTotalPages: 1,
+        declaredTotalJobs: 1, matchKeys: [`${sourceId}:1`], rawMatchKeys: [`${sourceId}:1`],
+        nextControlPresent: false }]
+    })).toThrow("partition order mismatch");
+    expect(() => createPlanBoundHtmlBrowserTraversalValidation({
+      ...common,
+      pages: [
+        { channelId: "employment-fixed-term", pageNumber: 1, declaredTotalPages: 1,
+          declaredTotalJobs: 2, matchKeys: [`${sourceId}:1`], rawMatchKeys: [`${sourceId}:1`],
+          nextControlPresent: false },
+        { channelId: "employment-regular", pageNumber: 1, declaredTotalPages: 1,
+          declaredTotalJobs: 1, matchKeys: [`${sourceId}:2`], rawMatchKeys: [`${sourceId}:2`],
+          nextControlPresent: false }
+      ]
+    })).toThrow("partition total mismatch");
+    expect(() => createPlanBoundHtmlBrowserTraversalValidation({
+      ...common,
+      pages: [
+        { channelId: "employment-fixed-term", pageNumber: 1, declaredTotalPages: 1,
+          declaredTotalJobs: 0, matchKeys: [], rawMatchKeys: [], nextControlPresent: false },
+        { channelId: "employment-regular", pageNumber: 1, declaredTotalPages: 1,
+          declaredTotalJobs: 1, matchKeys: [`${sourceId}:2`], rawMatchKeys: [`${sourceId}:2`],
+          nextControlPresent: false }
+      ]
+    })).not.toThrow();
+  });
+
   it("accepts a complete Grand Pharma social partition when the campus partition is empty", async () => {
     const grand = readFileSync(resolve(process.cwd(),
       "src/crawler/fixtures/static-official-sources/grand.html"), "utf8")
@@ -393,6 +442,7 @@ function plan(sourceId: PlanBoundHtmlTraversalSourceId) {
 
 async function strictMainCrawl(sourceId: PlanBoundHtmlTraversalSourceId, staticBodyOverride?: string) {
   const sourcePlan = plan(sourceId);
+  if (isTalentbrewSource(sourceId)) return talentbrewMainCrawl(sourceId, sourcePlan);
   const bodies = sourceId === "source-novartis-social"
     ? [novartisPage(1, ["a", "b", "c"]), novartisPage(2, ["c", "d", "e"]), novartisPage(3, ["e", "f"])]
     : [sourceId === "source-astellas-china-social"
@@ -420,6 +470,89 @@ async function strictMainCrawl(sourceId: PlanBoundHtmlTraversalSourceId, staticB
     })
   });
   return runSourceCrawl(sourcePlan, { fetch, isBaseline: true });
+}
+
+function isTalentbrewSource(sourceId: PlanBoundHtmlTraversalSourceId): sourceId is
+  "source-sanofi-china-social" | "source-takeda-china-social" {
+  return sourceId === "source-sanofi-china-social" || sourceId === "source-takeda-china-social";
+}
+
+async function talentbrewMainCrawl(
+  sourceId: "source-sanofi-china-social" | "source-takeda-china-social",
+  sourcePlan: ReturnType<typeof plan>
+) {
+  const scope = sourcePlan.table.pagination?.talentbrewScope;
+  if (!scope) throw new Error("Expected TalentBrew scope");
+  const entry = `<section id="search-results" data-ajax-url="/results" data-facet-term="1814991" ` +
+    `data-facet-type="2" data-current-page="1" data-total-pages="1" ` +
+    `data-total-job-results="${scope.allowedPartitions.length + (scope.excludedPartitions?.length ?? 0)}" ` +
+    `data-records-per-page="15"></section><div id="search-filters">` +
+    `<div data-enabled="false"><input class="filter-checkbox" checked data-id="1814991" data-facet-type="2" ` +
+    `data-count="${scope.allowedPartitions.length + (scope.excludedPartitions?.length ?? 0)}" ` +
+    `data-display="China" data-field-name="" /></div>` +
+    [...scope.allowedPartitions, ...(scope.excludedPartitions ?? [])].map((partition) =>
+      `<div data-enabled="true"><input class="filter-checkbox" data-id="${partition.id}" ` +
+      `data-facet-type="${partition.facetType}" data-count="1" data-display="${partition.descriptor}" ` +
+      `data-field-name="${partition.fieldName}" /></div>`
+    ).join("") + `</div>`;
+  const partitionByDescriptor = new Map(scope.allowedPartitions.map((partition, index) =>
+    [partition.descriptor, { partition, index }]));
+  const fetch = createHttpHtmlSourceFetch({
+    now: () => new Date(capturedAt),
+    http: async (request: HttpHtmlRequest) => {
+      if (!request.url.includes("/results")) {
+        return { status: 200, body: entry, finalUrl: request.url,
+          contentType: "text/html; charset=utf-8", capturedAt };
+      }
+      const url = new URL(request.url);
+      const descriptor = [...url.searchParams.entries()].find(([key]) =>
+        key.startsWith("FacetFilters[1]") && key.endsWith(".Display"))?.[1];
+      const selected = descriptor ? partitionByDescriptor.get(descriptor) : undefined;
+      if (!selected) throw new Error(`Unexpected TalentBrew partition ${descriptor}`);
+      const id = String(80_000 + selected.index);
+      const officialUrl = sourceId === "source-sanofi-china-social"
+        ? `https://jobs.sanofi.com/en/job/shanghai/role-${selected.index}/2649/${id}`
+        : `https://jobs.takeda.com/job/shanghai/role-${selected.index}/1113/${id}`;
+      const titleClass = sourceId === "source-takeda-china-social" ? ` class="title"` : "";
+      const locationClass = sourceId === "source-takeda-china-social" ? "location" : "job-location";
+      const results = `<section id="search-results" data-current-page="1" data-total-pages="1" ` +
+        `data-total-job-results="1" data-records-per-page="15"><ul id="search-results-list"><li>` +
+        `<button class="js-save-job-btn" data-job-id="${id}"></button>` +
+        `<a href="${officialUrl}"><h2${titleClass}>Role ${selected.index}</h2></a>` +
+        `<span class="${locationClass}">上海</span></li></ul></section>`;
+      return { status: 200, body: JSON.stringify({
+        filters: '<section id="search-filters"><input class="filter-checkbox" /></section>',
+        hasContent: false,
+        hasJobs: true,
+        results
+      }), finalUrl: request.url,
+        contentType: "application/json", capturedAt };
+    }
+  });
+  return runSourceCrawl(sourcePlan, { fetch, isBaseline: true });
+}
+
+function talentbrewBrowserPages(
+  sourceId: "source-sanofi-china-social" | "source-takeda-china-social",
+  jobs: readonly NormalizedJobRecord[]
+) {
+  const sourcePlan = plan(sourceId);
+  const partitions = sourcePlan.table.pagination?.talentbrewScope?.allowedPartitions;
+  if (!partitions) throw new Error("Expected TalentBrew partitions");
+  const byId = new Map(jobs.map((value) => [value.sourceJobId, buildJobDedupeKey(value)]));
+  return partitions.map((partition, index) => {
+    const key = byId.get(String(80_000 + index));
+    if (!key) throw new Error(`Missing TalentBrew key ${partition.channelId}`);
+    return {
+      channelId: partition.channelId,
+      pageNumber: 1,
+      declaredTotalPages: 1,
+      declaredTotalJobs: 1,
+      matchKeys: [key],
+      rawMatchKeys: [key],
+      nextControlPresent: false
+    };
+  });
 }
 
 function fosunHtml(): string {

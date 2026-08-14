@@ -1,5 +1,6 @@
 import { createHash } from "node:crypto";
 import { acquireBrowserSourcePermit } from "./browserSourceConcurrency";
+import { companyRecruitmentExecutionConfigsBySourceId } from "./companyRecruitmentProfiles";
 
 export const PLAN_BOUND_HTML_TRAVERSAL_POLICIES = Object.freeze({
   "source-novartis-social": {
@@ -132,6 +133,50 @@ export const PLAN_BOUND_HTML_TRAVERSAL_POLICIES = Object.freeze({
     pageCoordinate: { kind: "PATH_PAGE", prefix: "/newsList/54/", suffix: ".html" },
     key: { kind: "OFFICIAL_URL", selector: ":scope", origin: "https://www.tongrentang.com", pathPrefix: "/menu54/newsDetail/", dedupe: "URL_SOURCE_JOB_ID", sourceJobIdPattern: "/([^/]+)\\.html$" },
     maxPages: 10
+  },
+  "source-sanofi-china-social": {
+    companyId: "company-sanofi-china",
+    entryUrl: "https://jobs.sanofi.com/en/location/china-country-jobs/2649/1814991/2",
+    retrievalPath: "PLAYWRIGHT_RENDERED_HTML_NEXT_LINK_TRAVERSAL",
+    validatorImplementationId: "plan-bound-html-playwright-traversal-v2",
+    mainRetrievalPath: "HTTP_HTML_CONFIGURED_CHANNEL_TRAVERSAL",
+    matchKeyKind: "JOB_DEDUPE_KEY",
+    artifactLogicalKey: "source-sanofi-china-social-browser-traversal-validation",
+    readySelector: "#search-results",
+    rowSelector: "#search-results-list li:has(button.js-save-job-btn)",
+    nextSelector: "#search-results a.next:not(.disabled)",
+    key: {
+      kind: "OFFICIAL_URL",
+      selector: "a[href*='/job/']",
+      origin: "https://jobs.sanofi.com",
+      pathPrefix: "/en/job/",
+      dedupe: "URL_SOURCE_JOB_ID",
+      sourceJobIdPattern: "/2649/([1-9][0-9]*)$"
+    },
+    talentbrewScope: true,
+    maxPages: 25
+  },
+  "source-takeda-china-social": {
+    companyId: "company-takeda-china",
+    entryUrl: "https://jobs.takeda.com/location/china-jobs/1113/1814991/2",
+    retrievalPath: "PLAYWRIGHT_RENDERED_HTML_NEXT_LINK_TRAVERSAL",
+    validatorImplementationId: "plan-bound-html-playwright-traversal-v2",
+    mainRetrievalPath: "HTTP_HTML_CONFIGURED_CHANNEL_TRAVERSAL",
+    matchKeyKind: "JOB_DEDUPE_KEY",
+    artifactLogicalKey: "source-takeda-china-social-browser-traversal-validation",
+    readySelector: "#search-results",
+    rowSelector: "#search-results-list li:has(button.js-save-job-btn)",
+    nextSelector: "#search-results a.next:not(.disabled)",
+    key: {
+      kind: "OFFICIAL_URL",
+      selector: "a[href*='/job/']",
+      origin: "https://jobs.takeda.com",
+      pathPrefix: "/job/",
+      dedupe: "URL_SOURCE_JOB_ID",
+      sourceJobIdPattern: "/1113/([1-9][0-9]*)$"
+    },
+    talentbrewScope: true,
+    maxPages: 30
   }
 } as const);
 
@@ -158,6 +203,8 @@ export interface PlanBoundHtmlRenderedPartitionCapture {
 export interface PlanBoundHtmlRenderedPageCapture {
   pageNumber: number;
   declaredTotalPages: number;
+  channelId?: string;
+  declaredTotalJobs?: number;
   matchKeys: string[];
   rawMatchKeys: string[];
   nextControlPresent: boolean;
@@ -212,6 +259,12 @@ export async function capturePlanBoundHtmlRenderedTraversal(input: {
     }
     input.signal?.addEventListener("abort", abort, { once: true });
     try {
+      if ("talentbrewScope" in policy) {
+        return {
+          observedAt: new Date().toISOString(),
+          pages: await captureTalentbrewPartitions(browser, input.sourceId, input.entryUrl, input.signal)
+        };
+      }
       const page = await browser.newPage();
       const navigation = await page.goto(input.entryUrl, { waitUntil: "domcontentloaded", timeout: 30_000 });
       assertNavigation(input.sourceId, navigation, input.entryUrl, 1);
@@ -322,6 +375,377 @@ export async function capturePlanBoundHtmlRenderedTraversal(input: {
     }
   } finally {
     releaseBrowserPermit();
+  }
+}
+
+interface TalentbrewPartitionPolicy {
+  channelId: string;
+  id: string;
+  facetType: number;
+  fieldName: string;
+  descriptor: string;
+}
+
+interface TalentbrewTraversalPolicy {
+  requiredActiveFacet: { id: string; facetType: number; descriptor: string };
+  allowedPartitions: readonly TalentbrewPartitionPolicy[];
+  excludedPartitions: readonly Omit<TalentbrewPartitionPolicy, "channelId">[];
+  totalPagesSelector: string;
+  totalPagesAttribute: string;
+  totalJobsSelector: string;
+  totalJobsAttribute: string;
+  sourceJobIdSelector: string;
+  sourceJobIdAttribute: string;
+}
+
+async function captureTalentbrewPartitions(
+  browser: Pick<import("playwright-core").Browser, "newPage">,
+  sourceId: PlanBoundHtmlTraversalSourceId,
+  entryUrl: string,
+  signal?: AbortSignal
+): Promise<PlanBoundHtmlRenderedPageCapture[]> {
+  const registered = PLAN_BOUND_HTML_TRAVERSAL_POLICIES[sourceId];
+  if (!("talentbrewScope" in registered)) throw new Error("TalentBrew traversal policy is unavailable");
+  const scope = configuredTalentbrewTraversalPolicy(sourceId);
+  const pages: PlanBoundHtmlRenderedPageCapture[] = [];
+  const seenMatchKeys = new Set<string>();
+  for (let partitionIndex = 0; partitionIndex < scope.allowedPartitions.length; partitionIndex += 1) {
+    const partition = scope.allowedPartitions[partitionIndex]!;
+    const page = await browser.newPage();
+    try {
+      const navigation = await page.goto(entryUrl, { waitUntil: "domcontentloaded", timeout: 30_000 });
+      assertNavigation(sourceId, navigation, entryUrl, 1);
+      await page.locator(registered.readySelector).first().waitFor({ state: "visible", timeout: 30_000 });
+      await page.waitForLoadState("load", { timeout: 30_000 });
+      if (signal?.aborted) throw signal.reason;
+      await assertFreshTalentbrewScope(page, scope);
+      const filterSelector = talentbrewFacetSelector(partition);
+      const filter = page.locator(filterSelector);
+      if (await filter.count() !== 1 || await filter.isChecked()) {
+        throw new Error("TalentBrew browser validator allowed partition control is invalid");
+      }
+      const declaredPartitionJobs = parseNonnegativeInteger(await filter.getAttribute("data-count"));
+      if (declaredPartitionJobs === undefined) {
+        throw new Error("TalentBrew browser validator partition count is invalid");
+      }
+      const ajaxEndpoint = await readTalentbrewAjaxEndpoint(page, entryUrl, scope);
+      const [partitionResponseUrl] = await Promise.all([
+        waitForTalentbrewResponse(page, ajaxEndpoint, partition),
+        filter.evaluate((element) => (element as HTMLInputElement).click())
+      ]);
+      assertTalentbrewPartitionResponse(partitionResponseUrl, partition);
+      try {
+        await page.waitForFunction(({ selector, resultsSelector, currentAttribute, totalAttribute, expectedTotal }) => {
+          const checkbox = document.querySelector(selector) as HTMLInputElement | null;
+          const results = document.querySelector(resultsSelector);
+          return checkbox !== null && results?.getAttribute(currentAttribute) === "1" &&
+            results.getAttribute(totalAttribute) === expectedTotal;
+        }, {
+          selector: filterSelector,
+          resultsSelector: scope.totalPagesSelector,
+          currentAttribute: "data-current-page",
+          totalAttribute: scope.totalJobsAttribute,
+          expectedTotal: String(declaredPartitionJobs)
+        }, { timeout: 30_000 });
+      } catch {
+        const state = await page.evaluate(({ selector, resultsSelector, totalAttribute }) => {
+          const checkbox = document.querySelector(selector) as HTMLInputElement | null;
+          const results = document.querySelector(resultsSelector);
+          return { checked: checkbox?.checked ?? null, current: results?.getAttribute("data-current-page") ?? null,
+            total: results?.getAttribute(totalAttribute) ?? null };
+        }, { selector: filterSelector, resultsSelector: scope.totalPagesSelector, totalAttribute: scope.totalJobsAttribute });
+        throw new Error(`TalentBrew browser validator partition did not become active: ` +
+          `checked=${state.checked},current=${state.current ?? "missing"},total=${state.total ?? "missing"}`);
+      }
+      const declaration = await readTalentbrewDeclaration(page, scope);
+      if (declaration.totalJobs !== declaredPartitionJobs || declaration.totalPages > registered.maxPages) {
+        throw new Error("TalentBrew browser validator page declaration exceeds the registered limit");
+      }
+      let observedRows = 0;
+      for (let pageNumber = 1; pageNumber <= declaration.totalPages; pageNumber += 1) {
+        if (signal?.aborted) throw signal.reason;
+        assertPageUrl(sourceId, page.url(), pageNumber);
+        const current = await readTalentbrewDeclaration(page, scope);
+        if (current.currentPage !== pageNumber || current.totalPages !== declaration.totalPages ||
+            current.totalJobs !== declaration.totalJobs) {
+          throw new Error("TalentBrew browser validator page declaration changed");
+        }
+        const rawMatchKeys = await readTalentbrewMatchKeys(page, sourceId, registered, scope);
+        if ((rawMatchKeys.length < 1 && declaration.totalJobs !== 0) ||
+            rawMatchKeys.some((key) => seenMatchKeys.has(key))) {
+          throw new Error("TalentBrew browser validator contains an empty or overlapping partition page");
+        }
+        rawMatchKeys.forEach((key) => seenMatchKeys.add(key));
+        observedRows += rawMatchKeys.length;
+        const next = page.locator(registered.nextSelector);
+        const activeNextCount = await next.count();
+        const expectedNext = pageNumber < declaration.totalPages;
+        if (activeNextCount !== (expectedNext ? 1 : 0)) {
+          throw new Error("TalentBrew browser validator next-page control mismatch");
+        }
+        pages.push({
+          channelId: partition.channelId,
+          pageNumber,
+          declaredTotalPages: declaration.totalPages,
+          declaredTotalJobs: declaration.totalJobs,
+          matchKeys: rawMatchKeys,
+          rawMatchKeys,
+          nextControlPresent: expectedNext
+        });
+        if (!expectedNext) continue;
+        const previousFingerprint = await talentbrewPageFingerprint(page, registered.rowSelector, scope);
+        const [nextResponseUrl] = await Promise.all([
+          waitForTalentbrewResponse(page, ajaxEndpoint, partition),
+          next.first().evaluate((element) => (element as HTMLElement).click())
+        ]);
+        assertTalentbrewPartitionResponse(nextResponseUrl, partition);
+        await page.waitForFunction(({ resultsSelector, currentAttribute, expected, rowSelector, previous }) => {
+          const results = document.querySelector(resultsSelector);
+          const ids = [...document.querySelectorAll(rowSelector)].map((row) =>
+            row.querySelector("button.js-save-job-btn")?.getAttribute("data-job-id") ?? "").sort();
+          return results?.getAttribute(currentAttribute) === expected && JSON.stringify(ids) !== previous;
+        }, {
+          resultsSelector: scope.totalPagesSelector,
+          currentAttribute: "data-current-page",
+          expected: String(pageNumber + 1),
+          rowSelector: registered.rowSelector,
+          previous: previousFingerprint
+        }, { timeout: 30_000 });
+        await page.locator(registered.readySelector).first().waitFor({ state: "visible", timeout: 30_000 });
+      }
+      if (observedRows !== declaration.totalJobs) {
+        throw new Error("TalentBrew browser validator partition total does not reconcile");
+      }
+    } finally {
+      await page.close().catch(() => undefined);
+    }
+  }
+  return pages;
+}
+
+function configuredTalentbrewTraversalPolicy(sourceId: PlanBoundHtmlTraversalSourceId): TalentbrewTraversalPolicy {
+  const registered = PLAN_BOUND_HTML_TRAVERSAL_POLICIES[sourceId];
+  const config = companyRecruitmentExecutionConfigsBySourceId[sourceId];
+  const table = config?.adapterId === "html-table" ? config.table : undefined;
+  const pagination = table?.pagination;
+  const scope = pagination?.ajaxMode === "talentbrew" ? pagination.talentbrewScope : undefined;
+  const sourceJobId = table?.fields.sourceJobId;
+  const officialUrl = table?.fields.officialUrl;
+  if (!("talentbrewScope" in registered) || !table || table.rowSelector !== registered.rowSelector ||
+      !pagination || pagination.maxPages !== registered.maxPages ||
+      pagination.totalPagesSelector !== "#search-results" || pagination.totalPagesAttribute !== "data-total-pages" ||
+      pagination.expectedJobCountSelector !== "#search-results" ||
+      pagination.expectedJobCountAttribute !== "data-total-job-results" || !scope ||
+      sourceJobId?.selector !== "button.js-save-job-btn" || sourceJobId.attribute !== "data-job-id" ||
+      !officialUrl || officialUrl.selector !== "a[href*='/job/']" || officialUrl.attribute !== "href" ||
+      scope.requiredActiveFacet.id !== "1814991" || scope.requiredActiveFacet.facetType !== 2 ||
+      scope.allowedPartitions.length < 1 ||
+      new Set(scope.allowedPartitions.map(({ channelId }) => channelId)).size !== scope.allowedPartitions.length ||
+      new Set(scope.allowedPartitions.map(({ id, facetType, fieldName }) => `${id}\u001f${facetType}\u001f${fieldName}`)).size !==
+        scope.allowedPartitions.length ||
+      scope.allowedPartitions.some(({ facetType, fieldName }) => facetType !== 5 || !fieldName.trim()) ||
+      (scope.excludedPartitions ?? []).some(({ id, facetType, fieldName }) => facetType !== 5 || !id.trim() || !fieldName.trim())) {
+    throw new Error("TalentBrew browser validator configuration contract mismatch");
+  }
+  const allowedIdentity = new Set(scope.allowedPartitions.map(({ id, facetType, fieldName }) =>
+    `${id}\u001f${facetType}\u001f${fieldName}`));
+  if ((scope.excludedPartitions ?? []).some(({ id, facetType, fieldName }) =>
+    allowedIdentity.has(`${id}\u001f${facetType}\u001f${fieldName}`))) {
+    throw new Error("TalentBrew browser validator partition policy overlaps");
+  }
+  return {
+    requiredActiveFacet: scope.requiredActiveFacet,
+    allowedPartitions: scope.allowedPartitions,
+    excludedPartitions: scope.excludedPartitions ?? [],
+    totalPagesSelector: pagination.totalPagesSelector,
+    totalPagesAttribute: pagination.totalPagesAttribute,
+    totalJobsSelector: pagination.expectedJobCountSelector,
+    totalJobsAttribute: pagination.expectedJobCountAttribute,
+    sourceJobIdSelector: sourceJobId.selector,
+    sourceJobIdAttribute: sourceJobId.attribute
+  };
+}
+
+async function assertFreshTalentbrewScope(
+  page: import("playwright-core").Page,
+  scope: TalentbrewTraversalPolicy
+): Promise<void> {
+  const results = page.locator(scope.totalPagesSelector);
+  const [facetTerm, facetType, sourceTotalRaw] = await Promise.all([
+    results.getAttribute("data-facet-term"),
+    results.getAttribute("data-facet-type"),
+    results.getAttribute(scope.totalJobsAttribute)
+  ]);
+  const sourceTotal = parseNonnegativeInteger(sourceTotalRaw);
+  if (facetTerm !== scope.requiredActiveFacet.id || facetType !== String(scope.requiredActiveFacet.facetType) ||
+      sourceTotal === undefined) {
+    throw new Error("TalentBrew browser validator required China facet declaration changed");
+  }
+  const configured = [...scope.allowedPartitions, ...scope.excludedPartitions];
+  for (const fieldName of new Set(configured.map((partition) => partition.fieldName))) {
+    const dimension = page.locator(`input.filter-checkbox[data-facet-type="5"]` +
+      `[data-field-name=${JSON.stringify(fieldName)}]`);
+    await dimension.first().waitFor({ state: "attached", timeout: 30_000 });
+    const actualIds = await dimension.evaluateAll((controls) => controls.map((control) =>
+      control.getAttribute("data-id")?.trim() ?? "").sort());
+    const expectedIds = configured.filter((partition) => partition.fieldName === fieldName)
+      .map((partition) => partition.id).sort(compareUtf8);
+    if (actualIds.some((id) => !id) || JSON.stringify(actualIds) !== JSON.stringify(expectedIds)) {
+      throw new Error(`TalentBrew browser validator partition universe changed: ${fieldName}`);
+    }
+  }
+  let partitionTotal = 0;
+  for (const partition of configured) {
+    const control = page.locator(talentbrewFacetSelector(partition));
+    const count = parseNonnegativeInteger(await control.getAttribute("data-count"));
+    if (await control.count() !== 1 || await control.isChecked() ||
+        await control.getAttribute("data-display") !== partition.descriptor ||
+        count === undefined) {
+      throw new Error("TalentBrew browser validator partition control set is invalid");
+    }
+    partitionTotal += count;
+  }
+  if (partitionTotal !== sourceTotal) {
+    throw new Error("TalentBrew browser validator partition totals do not cover the China facet");
+  }
+}
+
+function talentbrewFacetSelector(partition: Omit<TalentbrewPartitionPolicy, "channelId">): string {
+  return `input.filter-checkbox[data-id=${JSON.stringify(partition.id)}]` +
+    `[data-facet-type=${JSON.stringify(String(partition.facetType))}]` +
+    `[data-field-name=${JSON.stringify(partition.fieldName)}]`;
+}
+
+async function readTalentbrewDeclaration(
+  page: import("playwright-core").Page,
+  scope: TalentbrewTraversalPolicy
+): Promise<{ currentPage: number; totalPages: number; totalJobs: number }> {
+  const results = page.locator(scope.totalPagesSelector);
+  if (scope.totalPagesSelector !== scope.totalJobsSelector || await results.count() !== 1) {
+    throw new Error("TalentBrew browser validator result declaration is ambiguous");
+  }
+  const [currentRaw, pagesRaw, jobsRaw] = await Promise.all([
+    results.getAttribute("data-current-page"),
+    results.getAttribute(scope.totalPagesAttribute),
+    results.getAttribute(scope.totalJobsAttribute)
+  ]);
+  const currentPage = parsePositiveInteger(currentRaw);
+  const totalPages = parsePositiveInteger(pagesRaw);
+  const totalJobs = parseNonnegativeInteger(jobsRaw);
+  if (!currentPage || !totalPages || totalJobs === undefined || currentPage > totalPages) {
+    throw new Error("TalentBrew browser validator result declaration is invalid");
+  }
+  return { currentPage, totalPages, totalJobs };
+}
+
+async function talentbrewPageFingerprint(
+  page: import("playwright-core").Page,
+  rowSelector: string,
+  scope: TalentbrewTraversalPolicy
+): Promise<string> {
+  const ids = await page.locator(rowSelector).evaluateAll((rows, binding) => rows.map((row) =>
+    row.querySelector(binding.selector)?.getAttribute(binding.attribute) ?? ""), {
+    selector: scope.sourceJobIdSelector,
+    attribute: scope.sourceJobIdAttribute
+  });
+  return JSON.stringify(ids.sort(compareUtf8));
+}
+
+async function readTalentbrewMatchKeys(
+  page: import("playwright-core").Page,
+  sourceId: PlanBoundHtmlTraversalSourceId,
+  policy: typeof PLAN_BOUND_HTML_TRAVERSAL_POLICIES[PlanBoundHtmlTraversalSourceId],
+  scope: TalentbrewTraversalPolicy
+): Promise<string[]> {
+  const locator = page.locator(policy.rowSelector);
+  const matchKeys = await readMatchKeysFromLocator(locator, sourceId, policy);
+  const declaredIds = await locator.evaluateAll((rows, binding) => rows.map((row) =>
+    row.querySelector(binding.selector)?.getAttribute(binding.attribute)?.trim() ?? ""), {
+    selector: scope.sourceJobIdSelector,
+    attribute: scope.sourceJobIdAttribute
+  });
+  const expectedKeys = declaredIds.map((id) => id ? `${sourceId}:${id}` : "").sort(compareUtf8);
+  if (expectedKeys.some((key) => !key.slice(sourceId.length + 1)) ||
+      JSON.stringify(expectedKeys) !== JSON.stringify(matchKeys)) {
+    throw new Error("TalentBrew browser validator row identity does not reconcile");
+  }
+  return matchKeys;
+}
+
+function parsePositiveInteger(value: string | null): number | undefined {
+  if (!value || !/^[1-9][0-9]*$/u.test(value)) return undefined;
+  const parsed = Number(value);
+  return Number.isSafeInteger(parsed) ? parsed : undefined;
+}
+
+function parseNonnegativeInteger(value: string | null): number | undefined {
+  if (value === null || !/^(0|[1-9][0-9]*)$/u.test(value)) return undefined;
+  const parsed = Number(value);
+  return Number.isSafeInteger(parsed) ? parsed : undefined;
+}
+
+async function readTalentbrewAjaxEndpoint(
+  page: import("playwright-core").Page,
+  entryUrl: string,
+  scope: TalentbrewTraversalPolicy
+): Promise<URL> {
+  const raw = await page.locator(scope.totalPagesSelector).getAttribute("data-ajax-url");
+  if (!raw) throw new Error("TalentBrew browser validator AJAX endpoint is missing");
+  const endpoint = new URL(raw, entryUrl);
+  const entry = new URL(entryUrl);
+  if (endpoint.protocol !== "https:" || endpoint.origin !== entry.origin || endpoint.username || endpoint.password ||
+      endpoint.hash) {
+    throw new Error("TalentBrew browser validator AJAX endpoint escaped the registered source");
+  }
+  return endpoint;
+}
+
+async function waitForTalentbrewResponse(
+  page: import("playwright-core").Page,
+  endpoint: URL,
+  partition: TalentbrewPartitionPolicy
+): Promise<string> {
+  const response = await page.waitForResponse((candidate) => {
+    const url = new URL(candidate.url());
+    return candidate.request().method() === "GET" && url.origin === endpoint.origin &&
+      url.pathname === endpoint.pathname && talentbrewResponseHasPartition(url, partition);
+  }, { timeout: 30_000 });
+  const failure = await response.finished();
+  if (failure || response.status() < 200 || response.status() >= 400) {
+    throw new Error("TalentBrew browser validator AJAX request failed");
+  }
+  return response.url();
+}
+
+function talentbrewResponseHasPartition(url: URL, partition: TalentbrewPartitionPolicy): boolean {
+  const query = url.searchParams;
+  const indexes = [...query.keys()].flatMap((key) => /^FacetFilters\[([0-9]+)\]\.ID$/u.exec(key)?.[1] ?? []);
+  return indexes.some((index) => query.get(`FacetFilters[${index}].ID`) === partition.id &&
+    query.get(`FacetFilters[${index}].FacetType`) === String(partition.facetType) &&
+    query.get(`FacetFilters[${index}].FieldName`) === partition.fieldName &&
+    query.get(`FacetFilters[${index}].Display`) === partition.descriptor &&
+    query.get(`FacetFilters[${index}].IsApplied`)?.toLowerCase() === "true");
+}
+
+function assertTalentbrewPartitionResponse(responseUrl: string, partition: TalentbrewPartitionPolicy): void {
+  const query = new URL(responseUrl).searchParams;
+  const indexes = [...query.keys()].flatMap((key) => {
+    const matched = /^FacetFilters\[([0-9]+)\]\.ID$/u.exec(key);
+    return matched ? [matched[1]!] : [];
+  });
+  const applied = indexes.filter((index) => query.get(`FacetFilters[${index}].FieldName`) === partition.fieldName);
+  if (applied.length !== 1) throw new Error("TalentBrew browser validator partition request is ambiguous");
+  const index = applied[0]!;
+  if (query.get(`FacetFilters[${index}].ID`) !== partition.id ||
+      query.get(`FacetFilters[${index}].FacetType`) !== String(partition.facetType) ||
+      query.get(`FacetFilters[${index}].Display`) !== partition.descriptor ||
+      query.get(`FacetFilters[${index}].IsApplied`)?.toLowerCase() !== "true") {
+    throw new Error(`TalentBrew browser validator partition request does not match the configured scope: ` +
+      `${query.get(`FacetFilters[${index}].ID`) ?? "missing"}|` +
+      `${query.get(`FacetFilters[${index}].FacetType`) ?? "missing"}|` +
+      `${query.get(`FacetFilters[${index}].Display`) ?? "missing"}|` +
+      `${query.get(`FacetFilters[${index}].IsApplied`) ?? "missing"};expected=` +
+      `${partition.id}|${partition.facetType}|${partition.descriptor}`);
   }
 }
 
