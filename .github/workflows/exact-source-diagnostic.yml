@@ -7,6 +7,12 @@ on:
         description: "Comma-separated Launch Cohort source IDs (1-5); NON_CERTIFYING"
         required: true
         type: string
+  workflow_call:
+    inputs:
+      source_ids:
+        description: "Comma-separated Launch Cohort source IDs (1-5); NON_CERTIFYING"
+        required: true
+        type: string
 
 permissions:
   contents: read

@@ -3,12 +3,19 @@ name: Private cloud build gate
 on:
   push:
   workflow_dispatch:
+    inputs:
+      source_ids:
+        description: "Optional exact-runtime NON_CERTIFYING source IDs (comma-separated, 1-5)"
+        required: false
+        default: ""
+        type: string
 
 permissions:
   contents: read
 
 jobs:
   build:
+    if: github.event_name != 'workflow_dispatch' || inputs.source_ids == ''
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     env:
@@ -53,3 +60,9 @@ jobs:
 
       - name: Check candidate diff
         run: git diff --check aef05422bc2cba9282eb21ab2cf182a320fc5aea HEAD
+
+  exact-source-diagnostic:
+    if: github.event_name == 'workflow_dispatch' && inputs.source_ids != ''
+    uses: ./.github/workflows/exact-source-diagnostic.yml
+    with:
+      source_ids: ${{ inputs.source_ids }}

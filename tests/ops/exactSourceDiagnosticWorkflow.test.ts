@@ -3,13 +3,23 @@ import { describe, expect, it } from "vitest";
 
 const workflow = readFileSync(".github/workflows/exact-source-diagnostic.yml", "utf8");
 const productionWorkflow = readFileSync(".github/workflows/production-image.yml", "utf8");
+const privateCloudWorkflow = readFileSync(".github/workflows/private-cloud-build-gate.yml", "utf8");
 
 describe("exact-source diagnostic workflow", () => {
-  it("is manual-only and declares one bounded source selection input", () => {
+  it("is non-push and declares one bounded source selection input for dispatch and workflow call", () => {
     expect(workflow).toMatch(/^name: Exact source diagnostic$/m);
     expect(workflow).toMatch(/^on:\s*\n\s+workflow_dispatch:\s*\n\s+inputs:\s*\n\s+source_ids:/m);
+    expect(workflow).toMatch(/^\s+workflow_call:\s*\n\s+inputs:\s*\n\s+source_ids:/m);
     expect(workflow).not.toMatch(/^\s+(?:push|pull_request):/m);
     expect(workflow).toContain("NON_CERTIFYING");
+  });
+
+  it("is dispatchable before default-branch registration through the existing private cloud workflow", () => {
+    expect(privateCloudWorkflow).toMatch(/^\s+workflow_dispatch:\s*\n\s+inputs:\s*\n\s+source_ids:/m);
+    expect(privateCloudWorkflow).toContain("uses: ./.github/workflows/exact-source-diagnostic.yml");
+    expect(privateCloudWorkflow).toContain("source_ids: ${{ inputs.source_ids }}");
+    expect(privateCloudWorkflow).toContain("inputs.source_ids == ''");
+    expect(privateCloudWorkflow).toContain("inputs.source_ids != ''");
   });
 
   it("keeps the formal production workflow off ordinary development pushes and pull requests", () => {
