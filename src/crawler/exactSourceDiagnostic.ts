@@ -1,6 +1,26 @@
 import { z } from "zod";
+import { B_GRADE_INDEPENDENT_TRAVERSAL_FAILURE_CODES } from "./independentTraversalDiagnostics";
+import {
+  ATOMIC_EVIDENCE_FAILURE_CODES,
+  SOURCE_EXECUTION_FAILURE_CODES,
+  SOURCE_FAILURE_DIAGNOSTIC_CODES
+} from "./sourceFailureDiagnostics";
 
 export const EXACT_SOURCE_DIAGNOSTIC_SCHEMA_VERSION = "exact-source-diagnostic-v1" as const;
+
+export const EXACT_SOURCE_DIAGNOSTIC_CODES = Object.freeze([
+  "SOURCE_VERIFIED",
+  "DIAGNOSTIC_EVIDENCE_MISSING",
+  "DIAGNOSTIC_EVIDENCE_INVALID",
+  "SOURCE_CRAWL_FAILED",
+  "MANUAL_CRAWL_FAILED",
+  ...B_GRADE_INDEPENDENT_TRAVERSAL_FAILURE_CODES,
+  ...SOURCE_EXECUTION_FAILURE_CODES,
+  ...SOURCE_FAILURE_DIAGNOSTIC_CODES,
+  ...ATOMIC_EVIDENCE_FAILURE_CODES
+] as const);
+
+const EXACT_SOURCE_DIAGNOSTIC_CODE_SET = new Set<string>(EXACT_SOURCE_DIAGNOSTIC_CODES);
 
 const sessionSchema = z.object({
   schemaVersion: z.literal(EXACT_SOURCE_DIAGNOSTIC_SCHEMA_VERSION),
@@ -43,6 +63,9 @@ export interface ExactSourceDiagnosticRequestRow {
   finishedAt: Date | null;
   executionBatches: Array<{
     id: string;
+    kind: string | null;
+    releaseCandidateId: string | null;
+    commitSha: string | null;
     status: string;
     sourceResults: Array<{
       sourceId: string;
@@ -143,6 +166,11 @@ export function buildExactSourceDiagnosticReport(input: {
       throw new Error("Exact-source diagnostic request identity mismatch");
     }
     const batch = request.executionBatches.length === 1 ? request.executionBatches[0] : undefined;
+    if (batch && (batch.kind !== "MANUAL_SOURCE" ||
+        batch.releaseCandidateId !== input.session.releaseCandidateId ||
+        batch.commitSha !== input.session.commitSha)) {
+      throw new Error("Exact-source diagnostic batch identity mismatch");
+    }
     const sourceResult = batch?.sourceResults.length === 1 && batch.sourceResults[0]?.sourceId === sourceId
       ? batch.sourceResults[0]
       : undefined;
@@ -152,6 +180,13 @@ export function buildExactSourceDiagnosticReport(input: {
     const startedAt = sourceResult?.startedAt ?? request.startedAt;
     const finishedAt = sourceResult?.finishedAt ?? request.finishedAt;
     const durationMs = startedAt && finishedAt ? finishedAt.getTime() - startedAt.getTime() : null;
+    const persistedDiagnosticCode = sourceResult?.blockerCode ?? sourceResult?.failureDiagnosticCode ??
+      sourceResult?.failureCode ?? request.failureCode;
+    const diagnosticCode = persistedDiagnosticCode === null || persistedDiagnosticCode === undefined
+      ? (succeeded ? "SOURCE_VERIFIED" : "DIAGNOSTIC_EVIDENCE_MISSING")
+      : EXACT_SOURCE_DIAGNOSTIC_CODE_SET.has(persistedDiagnosticCode)
+        ? persistedDiagnosticCode
+        : "DIAGNOSTIC_EVIDENCE_INVALID";
     return {
       requestId,
       sourceId,
@@ -162,9 +197,7 @@ export function buildExactSourceDiagnosticReport(input: {
       adapterState: sourceResult?.adapterState ?? null,
       completenessState: sourceResult?.completenessState ?? null,
       atomicCommitState: sourceResult?.atomicCommitState ?? null,
-      diagnosticCode: sourceResult?.blockerCode ?? sourceResult?.failureCode ??
-        sourceResult?.failureDiagnosticCode ?? request.failureCode ??
-        (succeeded ? "SOURCE_VERIFIED" : "DIAGNOSTIC_EVIDENCE_MISSING"),
+      diagnosticCode,
       fetchAttemptCount: sourceResult?.fetchAttemptCount ?? null,
       retryCount: sourceResult?.retryCount ?? null,
       rawCount: sourceResult?.rawCount ?? null,

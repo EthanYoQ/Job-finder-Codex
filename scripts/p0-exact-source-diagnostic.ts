@@ -140,6 +140,9 @@ async function main(): Promise<void> {
               orderBy: { startedAt: "asc" },
               select: {
                 id: true,
+                kind: true,
+                releaseCandidateId: true,
+                commitSha: true,
                 status: true,
                 sourceResults: {
                   select: {

@@ -83,6 +83,9 @@ describe("NON_CERTIFYING exact-source diagnostic", () => {
         finishedAt: new Date("2026-08-14T12:00:35.000Z"),
         executionBatches: [{
           id: "batch-1",
+          kind: "MANUAL_SOURCE",
+          releaseCandidateId: "rc-1",
+          commitSha: "a".repeat(40),
           status: "INCOMPLETE",
           sourceResults: [{
             sourceId: "source-astellas-china-social",
@@ -121,5 +124,51 @@ describe("NON_CERTIFYING exact-source diagnostic", () => {
       }]
     });
     expect(JSON.stringify(report)).not.toContain("reason");
+  });
+
+  it.each([
+    { kind: "SCHEDULED", releaseCandidateId: "rc-1", commitSha: "a".repeat(40) },
+    { kind: "MANUAL_SOURCE", releaseCandidateId: "rc-other", commitSha: "a".repeat(40) },
+    { kind: "MANUAL_SOURCE", releaseCandidateId: "rc-1", commitSha: "b".repeat(40) }
+  ])("rejects batch evidence outside the prepared runtime identity", (identity) => {
+    expect(() => buildExactSourceDiagnosticReport({
+      session: {
+        schemaVersion: "exact-source-diagnostic-v1",
+        mode: "NON_CERTIFYING",
+        releaseCandidateId: "rc-1",
+        commitSha: "a".repeat(40),
+        preparedAt: "2026-08-14T12:00:00.000Z",
+        requests: [{ requestId: "request-1", sourceId: "source-a" }]
+      },
+      evaluatedAt: new Date("2026-08-14T12:01:00.000Z"),
+      requests: [{
+        id: "request-1", sourceId: "source-a", status: "FAILED", failureCode: null,
+        startedAt: null, finishedAt: null,
+        executionBatches: [{ ...identity, id: "batch-1", status: "INCOMPLETE", sourceResults: [] }]
+      }]
+    })).toThrow("Exact-source diagnostic batch identity mismatch");
+  });
+
+  it("replaces persisted free-form diagnostic text with a closed fallback", () => {
+    const report = buildExactSourceDiagnosticReport({
+      session: {
+        schemaVersion: "exact-source-diagnostic-v1", mode: "NON_CERTIFYING",
+        releaseCandidateId: "rc-1", commitSha: "a".repeat(40),
+        preparedAt: "2026-08-14T12:00:00.000Z",
+        requests: [{ requestId: "request-1", sourceId: "source-a" }]
+      },
+      evaluatedAt: new Date("2026-08-14T12:01:00.000Z"),
+      requests: [{
+        id: "request-1", sourceId: "source-a", status: "FAILED", failureCode: "raw secret text",
+        startedAt: null, finishedAt: null,
+        executionBatches: [{
+          id: "batch-1", kind: "MANUAL_SOURCE", releaseCandidateId: "rc-1",
+          commitSha: "a".repeat(40), status: "INCOMPLETE", sourceResults: []
+        }]
+      }]
+    });
+
+    expect(report.sources[0]?.diagnosticCode).toBe("DIAGNOSTIC_EVIDENCE_INVALID");
+    expect(JSON.stringify(report)).not.toContain("raw secret text");
   });
 });
