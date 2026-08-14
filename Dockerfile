@@ -32,6 +32,7 @@ COPY Dockerfile ./Dockerfile
 COPY .dockerignore ./.dockerignore
 COPY index.html ./index.html
 COPY vite.config.ts ./vite.config.ts
+COPY testExecutionContract.ts ./testExecutionContract.ts
 COPY .docker-build-provenance.bundle ./.docker-build-provenance.bundle
 COPY src ./src
 COPY scripts ./scripts

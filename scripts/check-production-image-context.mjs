@@ -13,6 +13,7 @@ const BUILD_INPUTS = [
   "prisma",
   "scripts",
   "src",
+  "testExecutionContract.ts",
   "tsconfig.json",
   "vite.config.ts"
 ];

@@ -7,7 +7,7 @@ export interface BuildIdentityArtifact {schemaVersion:2;commitSha:string;sourceT
 const FIXED_BUILD_IDENTITY_PATH=resolve(process.cwd(),"build-identity.json");
 const sourceRoots=["src","scripts","prisma","ops"] as const;
 const runtimeRoots=["dist","src","scripts","prisma","ops","node_modules"] as const;
-const sourceFiles=["package.json","package-lock.json","tsconfig.json","Dockerfile",".dockerignore","index.html","vite.config.ts"] as const;
+const sourceFiles=["package.json","package-lock.json","tsconfig.json","Dockerfile",".dockerignore","index.html","vite.config.ts","testExecutionContract.ts"] as const;
 const runtimeFiles=["package.json","tsconfig.json"] as const;
 
 export function resolveCurrentBuildIdentity():BuildIdentityArtifact{

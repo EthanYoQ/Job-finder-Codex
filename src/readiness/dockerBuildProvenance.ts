@@ -4,7 +4,7 @@ import {tmpdir} from "node:os";
 import {join,relative,resolve} from "node:path";
 import {canonicalSourceTreeSha256,createBuildIdentity,type BuildIdentityArtifact} from "./buildIdentity";
 
-export const ATTESTED_GIT_PATHS=["src","scripts","prisma","ops","package.json","package-lock.json","tsconfig.json","Dockerfile",".dockerignore","index.html","vite.config.ts"] as const;
+export const ATTESTED_GIT_PATHS=["src","scripts","prisma","ops","package.json","package-lock.json","tsconfig.json","Dockerfile",".dockerignore","index.html","vite.config.ts","testExecutionContract.ts"] as const;
 
 export function exportDockerBuildProvenance(root:string,bundlePath:string):void{
   const status=git(root,["status","--porcelain","--",...ATTESTED_GIT_PATHS]);

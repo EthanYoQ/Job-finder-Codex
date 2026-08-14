@@ -15,6 +15,7 @@
 !src/**
 !tsconfig.json
 !vite.config.ts
+!testExecutionContract.ts
 .git
 node_modules
 dist

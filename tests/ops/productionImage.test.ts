@@ -115,6 +115,7 @@ describe("production container contract", () => {
       "tsx scripts/check-production-runtime-contract.ts"
     );
     expect(contextCheck).toContain('".docker-build-provenance.bundle"');
+    expect(contextCheck).toContain('"testExecutionContract.ts"');
     expect(contextCheck).toContain("MAX_PROVENANCE_BUNDLE_BYTES");
   });
 
