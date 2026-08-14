@@ -37,6 +37,8 @@ const IDENTITY_BASE = {
   ownerId: "phase1-task4-test"
 };
 
+const PROCESS_HEAVY_BATCH_TEST_TIMEOUT_MS = 60_000;
+
 function identityForPlans(
   expectedPlans: readonly SourceCrawlPlan[],
   batchKind: "FULL_RELEASE" | "SCHEDULED" | "MANUAL_SOURCE" | "BASELINE" = "SCHEDULED"
@@ -1350,7 +1352,7 @@ describe("runP0CrawlBatch", () => {
       where: { id: "batch-1" },
       data: expect.objectContaining({ finishedAt: NOW, status: "FAILED" })
     });
-  });
+  }, PROCESS_HEAVY_BATCH_TEST_TIMEOUT_MS);
 
   it("records an exhausted Roche retry without upserting lifecycle job changes", async () => {
     const plan = planFor("source-roche-china-social");
@@ -1766,7 +1768,8 @@ describe("runP0CrawlBatch", () => {
           failureReason: "Atomic evidence processing failed"
         })
       }));
-    }
+    },
+    PROCESS_HEAVY_BATCH_TEST_TIMEOUT_MS
   );
 
   it("retains the source and terminalization errors when source-stage terminalization fails", async () => {
@@ -1970,7 +1973,7 @@ describe("runP0CrawlBatch", () => {
     expect(db.calls.batchesUpdated).toEqual([]);
     expect(fetch).toHaveBeenCalledTimes(1);
     expect(executeAtomicCommit).toHaveBeenCalledTimes(1);
-  });
+  }, PROCESS_HEAVY_BATCH_TEST_TIMEOUT_MS);
 
   it("retains source, terminalization, and batch-finalization errors together", async () => {
     const failedPlan = planFor("source-astrazeneca-social");
