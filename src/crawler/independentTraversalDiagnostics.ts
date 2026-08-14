@@ -3,6 +3,8 @@ export const B_GRADE_INDEPENDENT_TRAVERSAL_FAILURE_CODES = Object.freeze([
   "B_GRADE_COMPANY_BINDING_FAILED",
   "B_GRADE_POLICY_REGISTRATION_FAILED",
   "B_GRADE_KEY_POLICY_FAILED",
+  "B_GRADE_PARTITION_PROOF_FAILED",
+  "B_GRADE_VALIDATOR_ABORTED",
   "B_GRADE_POLICY_BINDING_FAILED",
   "B_GRADE_BROWSER_NAVIGATION_FAILED",
   "B_GRADE_BROWSER_READINESS_FAILED",
@@ -16,9 +18,30 @@ export const B_GRADE_INDEPENDENT_TRAVERSAL_FAILURE_CODES = Object.freeze([
 export type BGradeIndependentTraversalFailureCode =
   (typeof B_GRADE_INDEPENDENT_TRAVERSAL_FAILURE_CODES)[number];
 
+const B_GRADE_FAILURE_CODE_SET = new Set<string>(B_GRADE_INDEPENDENT_TRAVERSAL_FAILURE_CODES);
+
+export function tagBGradeIndependentTraversalFailure(
+  error: unknown,
+  code: BGradeIndependentTraversalFailureCode
+): unknown {
+  if (readTaggedFailureCode(error)) return error;
+  const tagged = error instanceof Error ? error : new Error(code);
+  if (Object.isExtensible(tagged)) {
+    Object.defineProperty(tagged, "bGradeIndependentTraversalFailureCode", {
+      configurable: false,
+      enumerable: false,
+      writable: false,
+      value: code
+    });
+  }
+  return tagged;
+}
+
 export function classifyBGradeIndependentTraversalFailure(
   error: unknown
 ): BGradeIndependentTraversalFailureCode {
+  const tagged = readTaggedFailureCode(error);
+  if (tagged) return tagged;
   const message = error instanceof Error ? error.message : "";
   if (/\bnavigation\b/iu.test(message)) return "B_GRADE_BROWSER_NAVIGATION_FAILED";
   if (/\bsource binding mismatch\b/iu.test(message)) return "B_GRADE_SOURCE_BINDING_FAILED";
@@ -42,4 +65,12 @@ export function classifyBGradeIndependentTraversalFailure(
     return "B_GRADE_EVIDENCE_VALIDATION_FAILED";
   }
   return "B_GRADE_VALIDATOR_EXECUTION_FAILED";
+}
+
+function readTaggedFailureCode(error: unknown): BGradeIndependentTraversalFailureCode | undefined {
+  if (typeof error !== "object" || error === null) return undefined;
+  const code = (error as Record<string, unknown>).bGradeIndependentTraversalFailureCode;
+  return typeof code === "string" && B_GRADE_FAILURE_CODE_SET.has(code)
+    ? code as BGradeIndependentTraversalFailureCode
+    : undefined;
 }

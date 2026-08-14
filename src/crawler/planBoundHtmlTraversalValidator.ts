@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
 import { acquireBrowserSourcePermit } from "./browserSourceConcurrency";
 import { companyRecruitmentExecutionConfigsBySourceId } from "./companyRecruitmentProfiles";
+import { tagBGradeIndependentTraversalFailure } from "./independentTraversalDiagnostics";
 
 export const PLAN_BOUND_HTML_TRAVERSAL_POLICIES = Object.freeze({
   "source-novartis-social": {
@@ -271,54 +272,64 @@ export async function capturePlanBoundHtmlRenderedTraversal(input: {
       await page.locator(policy.readySelector).first().waitFor({ state: "visible", timeout: 30_000 });
       let declaredPartitions: PlanBoundHtmlRenderedPartitionCapture[] | undefined;
       if ("revealSelector" in policy) {
-        const reveal = page.locator(policy.revealSelector);
-        const revealCount = await reveal.count();
-        if (revealCount !== policy.expectedRevealControlCount) {
-          throw new Error("Plan-bound HTML browser validator reveal-control set invalid");
-        }
-        await page.waitForFunction(({ selector, count }) => {
-          const controls = [...document.querySelectorAll(selector)];
-          return controls.length === count && controls.every((control) =>
-            ["true", "false"].includes(control.getAttribute("aria-expanded") ?? ""));
-        }, { selector: policy.revealSelector, count: policy.expectedRevealControlCount }, { timeout: 30_000 });
-        const controlIds = new Set<string>();
-        declaredPartitions = [];
-        for (let index = 0; index < revealCount; index += 1) {
-          const control = reveal.nth(index);
-          const controls = await control.getAttribute("aria-controls");
-          const panelPresent = controls
-            ? await page.evaluate((id) => Boolean(document.getElementById(id)), controls)
-            : false;
-          if (!controls || !panelPresent) {
-            throw new Error(`Plan-bound HTML browser validator declared partition is malformed: ` +
-              `controls=${Boolean(controls)},panel=${panelPresent}`);
+        try {
+          const reveal = page.locator(policy.revealSelector);
+          const revealCount = await reveal.count();
+          if (revealCount !== policy.expectedRevealControlCount) {
+            throw new Error("Plan-bound HTML browser validator reveal-control set invalid");
           }
-          if (controlIds.has(controls)) {
-            throw new Error("Plan-bound HTML browser validator reveal controls share a partition");
+          await page.waitForFunction(({ selector, count }) => {
+            const controls = [...document.querySelectorAll(selector)];
+            return controls.length === count && controls.every((control) =>
+              ["true", "false"].includes(control.getAttribute("aria-expanded") ?? ""));
+          }, { selector: policy.revealSelector, count: policy.expectedRevealControlCount }, { timeout: 30_000 });
+          const controlIds = new Set<string>();
+          declaredPartitions = [];
+          for (let index = 0; index < revealCount; index += 1) {
+            const control = reveal.nth(index);
+            const controls = await control.getAttribute("aria-controls");
+            const panelPresent = controls
+              ? await page.evaluate((id) => Boolean(document.getElementById(id)), controls)
+              : false;
+            if (!controls || !panelPresent) {
+              throw new Error(`Plan-bound HTML browser validator declared partition is malformed: ` +
+                `controls=${Boolean(controls)},panel=${panelPresent}`);
+            }
+            if (controlIds.has(controls)) {
+              throw new Error("Plan-bound HTML browser validator reveal controls share a partition");
+            }
+            controlIds.add(controls);
+            await control.click({ timeout: 10_000 });
+            await page.waitForFunction((id) => {
+              const panel = document.getElementById(id);
+              return panel !== null && panel.getAttribute("aria-hidden") !== "true";
+            }, controls, { timeout: 10_000 });
+            await normalizeRevealNavigation(page, policy.entryUrl, index);
+            const partitionLocator = page.locator(`[id=${JSON.stringify(controls)}] ${policy.rowSelector}`);
+            const partitionMatchKeys = await readMatchKeysFromLocator(partitionLocator, input.sourceId, policy);
+            if (partitionMatchKeys.length < 1) {
+              throw new Error("Plan-bound HTML browser validator declared partition is empty");
+            }
+            declaredPartitions.push({ controlIndex: index + 1, controlId: controls, matchKeys: partitionMatchKeys });
           }
-          controlIds.add(controls);
-          await control.click({ timeout: 10_000 });
-          await page.waitForFunction((id) => {
-            const panel = document.getElementById(id);
-            return panel !== null && panel.getAttribute("aria-hidden") !== "true";
-          }, controls, { timeout: 10_000 });
-          await normalizeRevealNavigation(page, policy.entryUrl, index);
-          const partitionLocator = page.locator(`[id=${JSON.stringify(controls)}] ${policy.rowSelector}`);
-          const partitionMatchKeys = await readMatchKeysFromLocator(partitionLocator, input.sourceId, policy);
-          if (partitionMatchKeys.length < 1) {
-            throw new Error("Plan-bound HTML browser validator declared partition is empty");
+          const controlledRows = await page.locator(policy.revealSelector).evaluateAll((controls, rowSelector) => {
+            const rows = controls.flatMap((control) => {
+              const id = control.getAttribute("aria-controls");
+              return id ? [...(document.getElementById(id)?.querySelectorAll(rowSelector) ?? [])] : [];
+            });
+            return { controlled: new Set(rows).size, global: document.querySelectorAll(rowSelector).length };
+          }, policy.rowSelector);
+          if (controlledRows.controlled !== controlledRows.global) {
+            throw new Error("Plan-bound HTML browser validator rows escaped the declared partitions");
           }
-          declaredPartitions.push({ controlIndex: index + 1, controlId: controls, matchKeys: partitionMatchKeys });
-        }
-        const controlledRows = await page.locator(policy.revealSelector).evaluateAll((controls, rowSelector) => {
-          const rows = controls.flatMap((control) => {
-            const id = control.getAttribute("aria-controls");
-            return id ? [...(document.getElementById(id)?.querySelectorAll(rowSelector) ?? [])] : [];
-          });
-          return { controlled: new Set(rows).size, global: document.querySelectorAll(rowSelector).length };
-        }, policy.rowSelector);
-        if (controlledRows.controlled !== controlledRows.global) {
-          throw new Error("Plan-bound HTML browser validator rows escaped the declared partitions");
+        } catch (error) {
+          if (input.signal?.aborted) {
+            throw tagBGradeIndependentTraversalFailure(
+              input.signal.reason,
+              "B_GRADE_VALIDATOR_ABORTED"
+            );
+          }
+          throw tagBGradeIndependentTraversalFailure(error, "B_GRADE_PARTITION_PROOF_FAILED");
         }
       }
       const capturedPages: Array<Omit<PlanBoundHtmlRenderedPageCapture, "declaredTotalPages">> = [];

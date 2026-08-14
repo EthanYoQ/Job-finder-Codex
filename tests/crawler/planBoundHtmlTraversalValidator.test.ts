@@ -4,6 +4,7 @@ import {
   capturePlanBoundHtmlRenderedTraversal,
   PLAN_BOUND_HTML_TRAVERSAL_POLICIES
 } from "../../src/crawler/planBoundHtmlTraversalValidator";
+import { classifyBGradeIndependentTraversalFailure } from "../../src/crawler/independentTraversalDiagnostics";
 
 describe("plan-bound HTML rendered traversal", () => {
   it("captures a terminal static list and closes the browser", async () => {
@@ -201,7 +202,7 @@ describe("plan-bound HTML rendered traversal", () => {
     const sourceId = "source-astellas-china-social" as const;
     const entryUrl = PLAN_BOUND_HTML_TRAVERSAL_POLICIES[sourceId].entryUrl;
     const close = vi.fn(async () => undefined);
-    await expect(capturePlanBoundHtmlRenderedTraversal({
+    const failure = await capturePlanBoundHtmlRenderedTraversal({
       sourceId,
       entryUrl,
       launchBrowser: async () => astellasBrowser({
@@ -210,7 +211,32 @@ describe("plan-bound HTML rendered traversal", () => {
         controlClicks: [vi.fn(), vi.fn(), vi.fn()],
         controlIds: ["panel-1", "panel-1", "panel-3"]
       })
-    })).rejects.toThrow("share a partition");
+    }).catch((error: unknown) => error);
+    expect(failure).toBeInstanceOf(Error);
+    expect((failure as Error).message).toContain("share a partition");
+    expect(classifyBGradeIndependentTraversalFailure(failure)).toBe("B_GRADE_PARTITION_PROOF_FAILED");
+    expect(close).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not misclassify an active Astellas abort as a partition-proof failure", async () => {
+    const sourceId = "source-astellas-china-social" as const;
+    const entryUrl = PLAN_BOUND_HTML_TRAVERSAL_POLICIES[sourceId].entryUrl;
+    const controller = new AbortController();
+    const reason = new Error("stop Astellas traversal");
+    const close = vi.fn(async () => undefined);
+    const failure = await capturePlanBoundHtmlRenderedTraversal({
+      sourceId,
+      entryUrl,
+      signal: controller.signal,
+      launchBrowser: async () => astellasBrowser({
+        entryUrl,
+        close,
+        controlClicks: [vi.fn(async () => { controller.abort(reason); throw reason; }), vi.fn(), vi.fn()]
+      })
+    }).catch((error: unknown) => error);
+
+    expect(failure).toBe(reason);
+    expect(classifyBGradeIndependentTraversalFailure(failure)).toBe("B_GRADE_VALIDATOR_ABORTED");
     expect(close).toHaveBeenCalledTimes(1);
   });
 
