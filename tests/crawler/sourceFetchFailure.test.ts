@@ -5,11 +5,25 @@ import {
 } from "../../src/crawler/sourceFetchFailure";
 import {
   atomicEvidenceFailureCode,
+  sourceExecutionFailureCode,
   tagAtomicEvidencePersistenceStage,
   transportFailureDiagnosticBundle
 } from "../../src/crawler/sourceFailureDiagnostics";
 
 describe("source transport retry classification", () => {
+  it("maps thrown network failures to closed transport stages", () => {
+    const cases = [
+      [{ code: "ENOTFOUND" }, "SOURCE_FETCH_DNS_FAILED"],
+      [{ cause: { code: "CERT_HAS_EXPIRED" } }, "SOURCE_FETCH_TLS_FAILED"],
+      [{ cause: { code: "ECONNRESET" } }, "SOURCE_FETCH_CONNECT_FAILED"],
+      [{ name: "AbortError" }, "SOURCE_FETCH_ABORTED"],
+      [new Error("private response text"), "SOURCE_FETCH_EXECUTION_FAILED"]
+    ] as const;
+
+    expect(cases.map(([error]) => sourceExecutionFailureCode(error)))
+      .toEqual(cases.map(([, code]) => code));
+  });
+
   it.each([429, 500, 501, 502, 503, 504, 599])("allows transient HTTP status %s", (status) => {
     expect(retryableHttpTransportFailure(status)).toEqual({
       code: `OFFICIAL_HTTP_${status}`,

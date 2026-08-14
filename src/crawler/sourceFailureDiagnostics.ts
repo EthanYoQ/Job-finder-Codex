@@ -40,6 +40,28 @@ export interface SourceFailureDiagnosticBundle {
   retryReasonCodes: SourceFetchAttemptTracker["retryReasonCodes"];
 }
 
+export const SOURCE_EXECUTION_FAILURE_CODES = Object.freeze([
+  "SOURCE_FETCH_DNS_FAILED",
+  "SOURCE_FETCH_TLS_FAILED",
+  "SOURCE_FETCH_CONNECT_FAILED",
+  "SOURCE_FETCH_ABORTED",
+  "SOURCE_FETCH_EXECUTION_FAILED"
+] as const);
+
+export type SourceExecutionFailureCode = typeof SOURCE_EXECUTION_FAILURE_CODES[number];
+
+export function sourceExecutionFailureCode(error: unknown): SourceExecutionFailureCode {
+  const facts = errorFacts(error);
+  if (["ENOTFOUND", "EAI_AGAIN"].includes(facts.code ?? "")) return "SOURCE_FETCH_DNS_FAILED";
+  if (/^(?:ERR_TLS_|ERR_SSL_|CERT_|DEPTH_ZERO_|UNABLE_TO_VERIFY_)/u.test(facts.code ?? "")) {
+    return "SOURCE_FETCH_TLS_FAILED";
+  }
+  if (["ECONNREFUSED", "ECONNRESET", "EHOSTUNREACH", "ENETUNREACH", "UND_ERR_CONNECT_TIMEOUT",
+    "UND_ERR_SOCKET"].includes(facts.code ?? "")) return "SOURCE_FETCH_CONNECT_FAILED";
+  if (facts.name === "AbortError" || facts.code === "ABORT_ERR") return "SOURCE_FETCH_ABORTED";
+  return "SOURCE_FETCH_EXECUTION_FAILED";
+}
+
 const ATOMIC_STAGE_FAILURE_CODE = {
   ATTESTATION: "ATOMIC_EVIDENCE_ATTESTATION_FAILED",
   INPUT_VALIDATION: "ATOMIC_EVIDENCE_INPUT_VALIDATION_FAILED",
@@ -229,4 +251,18 @@ function prismaErrorFacts(error: unknown): {
     targets: new Set(targets),
     ...(typeof meta.database_error === "string" ? { databaseError: meta.database_error } : {})
   };
+}
+
+function errorFacts(error: unknown): { code?: string; name?: string } {
+  let current = error;
+  const seen = new Set<unknown>();
+  for (let depth = 0; depth < 5 && typeof current === "object" && current !== null && !seen.has(current); depth += 1) {
+    seen.add(current);
+    const record = current as Record<string, unknown>;
+    const code = typeof record.code === "string" ? record.code : undefined;
+    const name = typeof record.name === "string" ? record.name : undefined;
+    if (code !== undefined || name === "AbortError") return { ...(code ? { code } : {}), ...(name ? { name } : {}) };
+    current = record.cause;
+  }
+  return {};
 }

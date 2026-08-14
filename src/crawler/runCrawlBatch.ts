@@ -35,6 +35,7 @@ import { validateExecutablePlanChannelBinding, type SourceCrawlPlan } from "./so
 import { safeSourceTransportFailureReason } from "./sourceFetchFailure";
 import {
   atomicEvidenceFailureCode,
+  sourceExecutionFailureCode,
   sourceFailureDiagnosticBundle,
   transportFailureDiagnosticBundle
 } from "./sourceFailureDiagnostics";
@@ -67,6 +68,10 @@ import {
   type BGradeValidationTrigger,
   type BGradeIndependentTraversalValidation
 } from "./traversalCertificate";
+import {
+  classifyBGradeIndependentTraversalFailure,
+  type BGradeIndependentTraversalFailureCode
+} from "./independentTraversalDiagnostics";
 import { requiresAGradeOfficialTotalCertificate } from "./completenessCertificate";
 import {
   evaluateCompletenessAnomaly,
@@ -372,7 +377,12 @@ export async function runP0CrawlBatch(
           transportState: error instanceof SourceCrawlStageError && error.stage === "ADAPTER" ? "SUCCEEDED" : "FAILED",
           adapterState: error instanceof SourceCrawlStageError && error.stage === "ADAPTER" ? "FAILED" : "SKIPPED",
           completenessState: "FAILED", atomicCommitState: "NOT_ATTEMPTED",
-          finishedAt: batchStartedAt, failureCode: "SOURCE_STAGE_FAILED",
+          finishedAt: batchStartedAt,
+          failureCode: sourceTimedOut
+            ? "SOURCE_ATTEMPT_TIMEOUT"
+            : error instanceof SourceCrawlStageError && error.stage === "ADAPTER"
+              ? "SOURCE_ADAPTER_EXECUTION_FAILED"
+              : sourceExecutionFailureCode(sourceError),
           failureReason: sourceTimedOut
             ? "Source execution exceeded the per-source time limit before atomic evidence commit"
             : "Source execution failed before atomic evidence commit",
@@ -402,6 +412,7 @@ export async function runP0CrawlBatch(
       let independentTraversalValidation: BGradeIndependentTraversalValidation | undefined;
       let independentTraversalValidationExecution: "CURRENT_RUN" | "REUSED" | undefined;
       let independentTraversalValidationTrigger: BGradeValidationTrigger | undefined;
+      let independentTraversalFailureCode: BGradeIndependentTraversalFailureCode | undefined;
       const anomaly = certificateBaselineRequired
         ? evaluateCompletenessAnomalyForCrawl(plan, crawlResult, trustedCompletenessBaseline)
         : { independentValidationRequired: false, triggerCodes: [], countChange: null };
@@ -448,10 +459,11 @@ export async function runP0CrawlBatch(
                 channelIds: pending.officialChannelIds
               });
               independentTraversalValidationExecution = "CURRENT_RUN";
-            } catch {
+            } catch (error) {
               // Missing independent evidence is a C-grade completeness outcome, not an atomic transport failure.
               independentTraversalValidation = undefined;
               independentTraversalValidationExecution = undefined;
+              independentTraversalFailureCode = classifyBGradeIndependentTraversalFailure(error);
             }
           }
         }
@@ -534,6 +546,7 @@ export async function runP0CrawlBatch(
         commit = buildAtomicRuntimeCommit({ plan, pending, identity: deps.identity, batchId: batch.id,
           result: crawlResult, previousJobs, baselineCompletedBeforeCrawl, artifacts: verifiedArtifacts,
           attemptTracker,
+          ...(independentTraversalFailureCode ? { independentTraversalFailureCode } : {}),
           ...(independentTraversalValidation ? {
             independentTraversalValidation,
             independentTraversalValidationExecution: independentTraversalValidationExecution!,

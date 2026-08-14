@@ -1,8 +1,11 @@
 name: Production image
 
 on:
-  pull_request:
   push:
+    branches:
+      - main
+      - qualification/launch-cohort-round-1
+      - qualification/launch-cohort-round-2
   workflow_dispatch:
 
 permissions:

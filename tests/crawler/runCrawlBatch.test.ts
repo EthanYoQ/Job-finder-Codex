@@ -484,7 +484,7 @@ describe("runP0CrawlBatch", () => {
         await executeAtomicSourceEvidenceCommit(commit, db as never);
       },
       runIndependentTraversalValidator: async () => {
-        throw new Error("independent traversal unavailable");
+        throw new Error("Plan-bound HTML browser validator navigation failed: https://secret.invalid/jobs");
       },
       getPreviousJobs: async () => [],
       getRecentObservations: async () => [],
@@ -500,13 +500,13 @@ describe("runP0CrawlBatch", () => {
     expect(committed?.sourceResult).toMatchObject({
       completenessState: "NEEDS_MANUAL_COMPLETENESS_REVIEW",
       atomicCommitState: "COMMITTED",
-      blockerCode: "B_GRADE_CERTIFICATE_NOT_ISSUED",
-      blockerReason: expect.stringContaining("INDEPENDENT_VALIDATION_MISSING")
+      blockerCode: "B_GRADE_BROWSER_NAVIGATION_FAILED",
+      blockerReason: "B-grade independent traversal failed at a closed diagnostic stage"
     });
     expect(committed?.commands.find((command) => command.type === "UPSERT_CRAWL_OBSERVATION"))
       .toMatchObject({ observation: {
         completenessStatus: "NEEDS_MANUAL_COMPLETENESS_REVIEW",
-        completenessBlockerReason: expect.stringContaining("INDEPENDENT_VALIDATION_MISSING")
+        completenessBlockerReason: "B-grade independent traversal failed at a closed diagnostic stage"
       } });
   });
 
@@ -1586,7 +1586,7 @@ describe("runP0CrawlBatch", () => {
     const successfulPlan = planFor("source-roche-china-social");
     const batchPlans = [failedPlan, successfulPlan];
     const db = fakeDb();
-    const fetchError = new Error("first source network timeout");
+    const fetchError = Object.assign(new Error("private DNS response"), { code: "ENOTFOUND" });
     const previousFailedJob = makeJob({
       sourceId: failedPlan.source.id,
       atsKind: failedPlan.source.atsKind,
@@ -1640,6 +1640,10 @@ describe("runP0CrawlBatch", () => {
       skippedSourceCount: 0
     });
     expect(db.calls.jobs).toEqual([]);
+    expect(db.calls.terminalSourceResults).toContainEqual(expect.objectContaining({
+      where: expect.objectContaining({ sourceId: failedPlan.source.id }),
+      data: expect.objectContaining({ failureCode: "SOURCE_FETCH_DNS_FAILED" })
+    }));
     expect((db.calls.batchesUpdated[0] as { data: { aggregateJobSetSha256: string } }).data
       .aggregateJobSetSha256).toBe(hashCanonicalJobKeySet([{
         sourceId: successfulPlan.source.id,

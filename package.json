@@ -26,6 +26,7 @@
     "ops:check-restore-receipt": "tsx scripts/check-restore-receipt.ts",
     "p0:crawl": "tsx scripts/p0-crawl.ts",
     "p0:manual-crawl-worker": "tsx scripts/p0-manual-crawl-worker.ts",
+    "p0:exact-source-diagnostic": "tsx scripts/p0-exact-source-diagnostic.ts",
     "p0:formal-crawl-once": "tsx scripts/p0-formal-crawl-once.ts",
     "p0:staged-crawl": "tsx scripts/p0-staged-crawl.ts",
     "p0:staged-release-candidate": "tsx scripts/p0-staged-release-candidate.ts",

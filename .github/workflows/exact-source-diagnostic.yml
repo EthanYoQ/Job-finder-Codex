@@ -1,0 +1,178 @@
+name: Exact source diagnostic
+
+on:
+  workflow_dispatch:
+    inputs:
+      source_ids:
+        description: "Comma-separated Launch Cohort source IDs (1-5); NON_CERTIFYING"
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: exact-source-diagnostic-${{ github.ref }}-${{ inputs.source_ids }}
+  cancel-in-progress: true
+
+jobs:
+  diagnose:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    env:
+      IMAGE_TAG: job-finder-diagnostic:${{ github.sha }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 22.23.1
+          cache: npm
+
+      - name: Install locked dependencies
+        run: npm ci
+
+      - name: Export exact build provenance
+        run: |
+          set -euo pipefail
+          npm run docker:export-provenance
+          SOURCE_TREE_SHA256="$(npx tsx -e "import { canonicalSourceTreeSha256 } from './src/readiness/buildIdentity.ts'; process.stdout.write(canonicalSourceTreeSha256(process.cwd()))")"
+          echo "SOURCE_TREE_SHA256=$SOURCE_TREE_SHA256" >> "$GITHUB_ENV"
+          npm run image:context-check
+          npm run image:runtime-contract-check
+
+      - name: Build exact diagnostic image
+        run: >-
+          docker build --platform linux/amd64 --pull
+          --build-arg BUILD_COMMIT_SHA=${{ github.sha }}
+          --build-arg BUILD_SOURCE_CLEAN=true
+          --build-arg BUILD_SOURCE_TREE_SHA256="$SOURCE_TREE_SHA256"
+          --tag "$IMAGE_TAG" .
+
+      - name: Run bounded NON_CERTIFYING source diagnostics
+        env:
+          SOURCE_IDS: ${{ inputs.source_ids }}
+        run: |
+          set -euo pipefail
+          diagnostic_root="$PWD/.runtime/exact-source-diagnostic"
+          artifact_root="$diagnostic_root/artifacts"
+          mkdir -p "$diagnostic_root" "$artifact_root"
+          chmod 0700 "$diagnostic_root"
+          chmod 0777 "$artifact_root"
+          status_path="$diagnostic_root/status.json"
+          printf '{"mode":"NON_CERTIFYING","state":"STARTED"}\n' > "$status_path"
+
+          network="exact-source-diagnostic-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          postgres_name="exact-source-postgres-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          cleanup() {
+            exit_code=$?
+            trap - EXIT
+            docker rm -f "$postgres_name" >/dev/null 2>&1 || true
+            docker network rm "$network" >/dev/null 2>&1 || true
+            if test "$exit_code" -eq 0; then state=COMPLETED; else state=FAILED; fi
+            printf '{"mode":"NON_CERTIFYING","state":"%s","exitCode":%s}\n' "$state" "$exit_code" > "$status_path"
+            exit "$exit_code"
+          }
+          trap cleanup EXIT
+
+          IFS=',' read -r -a selected_sources <<< "$SOURCE_IDS"
+          test "${#selected_sources[@]}" -ge 1
+          test "${#selected_sources[@]}" -le 5
+          declare -A seen_sources=()
+          prepare_args=()
+          for source_id in "${selected_sources[@]}"; do
+            [[ "$source_id" =~ ^[a-z0-9-]+$ ]]
+            test -z "${seen_sources[$source_id]:-}"
+            seen_sources[$source_id]=1
+            prepare_args+=(--source-id "$source_id")
+          done
+
+          postgres_image='postgres:16-bookworm@sha256:da788743d2060767375896de4d646f7576f5911461444b372616f19ea61db2ec'
+          database_url='postgresql://jobfinder:exact-source-diagnostic-password@postgres/jobfinder?schema=public'
+          admin_email='diagnostic-owner@example.com'
+          admin_hash='scrypt$aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa$bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb'
+
+          docker network create "$network" >/dev/null
+          docker run --detach --name "$postgres_name" --network "$network" --network-alias postgres \
+            --env POSTGRES_DB=jobfinder --env POSTGRES_USER=jobfinder \
+            --env POSTGRES_PASSWORD=exact-source-diagnostic-password "$postgres_image" >/dev/null
+          postgres_ready=0
+          for attempt in $(seq 1 60); do
+            if docker exec "$postgres_name" pg_isready -U jobfinder -d jobfinder >/dev/null; then
+              postgres_ready=1
+              break
+            fi
+            sleep 1
+          done
+          test "$postgres_ready" = 1
+
+          run_image() {
+            docker run --rm --network "$network" --read-only --cap-drop ALL \
+              --security-opt no-new-privileges:true --tmpfs /tmp:rw,nosuid,nodev,noexec,size=1g,mode=1777 \
+              --shm-size 1g --env DATABASE_URL="$database_url" --env ADMIN_EMAIL="$admin_email" \
+              --env ADMIN_PASSWORD_HASH="$admin_hash" "$IMAGE_TAG" "$@"
+          }
+
+          run_image node node_modules/tsx/dist/cli.mjs scripts/ops-bootstrap.ts
+          docker exec "$postgres_name" pg_dump -U jobfinder -d jobfinder --format=custom \
+            > "$diagnostic_root/initial-migrated.dump"
+          db_snapshot_sha256="$(sha256sum "$diagnostic_root/initial-migrated.dump" | awk '{print $1}')"
+          migration_json="$(docker run --rm --network none --read-only --cap-drop ALL \
+            --security-opt no-new-privileges:true --tmpfs /tmp:rw,nosuid,nodev,noexec,size=64m,mode=1777 \
+            "$IMAGE_TAG" node node_modules/tsx/dist/cli.mjs -e \
+            "import { listCurrentPrismaMigrations, prismaMigrationManifestSha256 } from './src/db/prismaMigrationManifest.ts'; const rows=listCurrentPrismaMigrations('/app'); process.stdout.write(JSON.stringify({schemaSha256:prismaMigrationManifestSha256(rows),migrationVersion:rows.at(-1)?.migrationName??''}));")"
+          schema_sha256="$(node -p "JSON.parse(process.argv[1]).schemaSha256" "$migration_json")"
+          migration_version="$(node -p "JSON.parse(process.argv[1]).migrationVersion" "$migration_json")"
+          release_candidate_id="diagnostic-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          run_image node node_modules/tsx/dist/cli.mjs scripts/p0-staged-release-candidate.ts prepare \
+            --id "$release_candidate_id" --goal-id exact-source-diagnostic --version 1 \
+            --db-snapshot-sha256 "$db_snapshot_sha256" --schema-sha256 "$schema_sha256" \
+            --migration-version "$migration_version"
+
+          runner_uid="$(id -u)"
+          runner_gid="$(id -g)"
+          docker run --rm --network "$network" --read-only --cap-drop ALL \
+            --security-opt no-new-privileges:true --user "$runner_uid:$runner_gid" \
+            --tmpfs /tmp:rw,nosuid,nodev,noexec,size=64m,mode=1777 \
+            --env HOME=/tmp --env DATABASE_URL="$database_url" --env ADMIN_EMAIL="$admin_email" \
+            --volume "$diagnostic_root:/diagnostic" "$IMAGE_TAG" \
+            node node_modules/tsx/dist/cli.mjs scripts/p0-exact-source-diagnostic.ts prepare \
+            --session /diagnostic/session.json "${prepare_args[@]}"
+
+          worker_exit=0
+          docker run --rm --network "$network" --read-only --cap-drop ALL \
+            --security-opt no-new-privileges:true --tmpfs /tmp:rw,nosuid,nodev,noexec,size=1g,mode=1777 \
+            --shm-size 1g --env DATABASE_URL="$database_url" \
+            --volume "$artifact_root:/app/outputs" "$IMAGE_TAG" \
+            node node_modules/tsx/dist/cli.mjs scripts/p0-manual-crawl-worker.ts --once \
+            > "$diagnostic_root/worker.jsonl" 2>&1 || worker_exit=$?
+
+          report_exit=0
+          docker run --rm --network "$network" --read-only --cap-drop ALL \
+            --security-opt no-new-privileges:true --user "$runner_uid:$runner_gid" \
+            --tmpfs /tmp:rw,nosuid,nodev,noexec,size=64m,mode=1777 \
+            --env HOME=/tmp --env DATABASE_URL="$database_url" \
+            --volume "$diagnostic_root:/diagnostic" "$IMAGE_TAG" \
+            node node_modules/tsx/dist/cli.mjs scripts/p0-exact-source-diagnostic.ts report \
+            --session /diagnostic/session.json --report /diagnostic/report.json || report_exit=$?
+
+          test -s "$diagnostic_root/report.json"
+          test "$(node -p "JSON.parse(require('fs').readFileSync(process.argv[1],'utf8')).mode" "$diagnostic_root/report.json")" = NON_CERTIFYING
+          test "$worker_exit" -eq 0
+          test "$report_exit" -eq 0
+
+      - name: Preserve bounded diagnostic evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: exact-source-diagnostic-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            .runtime/exact-source-diagnostic/session.json
+            .runtime/exact-source-diagnostic/report.json
+            .runtime/exact-source-diagnostic/status.json
+            .runtime/exact-source-diagnostic/worker.jsonl
+          if-no-files-found: warn
+          retention-days: 3

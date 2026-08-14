@@ -6,6 +6,7 @@ import type {
 import type { RuntimeBatchIdentity } from "./runtimeBatchIdentity";
 import { sourcePlanConfigSha256, type SourceCrawlPlan } from "./sourcePlan";
 import type { SourceCrawlResult, SourceFetchAttemptTracker } from "./runSourceCrawl";
+import type { BGradeIndependentTraversalFailureCode } from "./independentTraversalDiagnostics";
 import { applyCrawlObservation, type JobSnapshot } from "./lifecycle";
 import { buildIngestionCommands } from "./ingestion";
 import { buildJobDedupeKey } from "./normalizedJob";
@@ -209,6 +210,7 @@ export function buildAtomicRuntimeCommit(input: {
   independentTraversalValidation?: BGradeIndependentTraversalValidation;
   independentTraversalValidationExecution?: "CURRENT_RUN" | "REUSED";
   independentTraversalValidationTrigger?: BGradeValidationTrigger;
+  independentTraversalFailureCode?: BGradeIndependentTraversalFailureCode;
   completedAt?: Date;
   trustedCompletenessBaseline?: TrustedCompletenessBaseline | null;
   completenessAnomalyTriggerCodes?: readonly string[];
@@ -341,14 +343,18 @@ export function buildAtomicRuntimeCommit(input: {
     blockerCode: completenessAnomalyTriggerCodes.length > 0
       ? "COMPLETENESS_ANOMALY_UNVERIFIED"
       : certificateRequired && !certificateCertified
-      ? aGradeCertificateRequired ? "A_GRADE_CERTIFICATE_NOT_ISSUED" : "B_GRADE_CERTIFICATE_NOT_ISSUED"
+      ? aGradeCertificateRequired
+        ? "A_GRADE_CERTIFICATE_NOT_ISSUED"
+        : input.independentTraversalFailureCode ?? "B_GRADE_CERTIFICATE_NOT_ISSUED"
       : oracleAudited || stagedBindingMatchesPending
       ? "COMPLETENESS_NOT_VERIFIED"
       : "SOURCE_SURFACE_ORACLE_MISSING",
     blockerReason: completenessAnomalyTriggerCodes.length > 0
       ? `Completeness anomaly requires successful independent validation: ${completenessAnomalyTriggerCodes.join(",")}`
       : certificateRequired && !certificateCertified
-      ? `${aGradeCertificateRequired ? "A-grade official-total" : "B-grade independent-traversal"} certificate was not issued: ${certificateDecision?.status === "REJECTED"
+      ? input.independentTraversalFailureCode
+        ? "B-grade independent traversal failed at a closed diagnostic stage"
+        : `${aGradeCertificateRequired ? "A-grade official-total" : "B-grade independent-traversal"} certificate was not issued: ${certificateDecision?.status === "REJECTED"
           ? certificateDecision.blockerCodes.join(",")
           : aGradeCertificateRequired ? "PAGINATION_NOT_VERIFIED" : "INDEPENDENT_VALIDATION_MISSING"}`
       : oracleAudited || stagedBindingMatchesPending
