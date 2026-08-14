@@ -120,6 +120,11 @@ RUN --mount=type=cache,id=ubuntu-26.04-apt-archives,target=/var/cache/apt,sharin
       /etc/apt/sources.list.d/brave-browser-release.list /usr/share/keyrings/brave-browser-archive-keyring.gpg \
     && test ! -e /etc/apt/sources.list.d/brave-browser-release.list \
     && test ! -e /usr/share/keyrings/brave-browser-archive-keyring.gpg
+# Ubuntu's OCI-only Pebble service manager is not an entrypoint and is not used by any Job Finder role.
+RUN rm -f /usr/bin/pebble \
+    && rm -rf /var/lib/pebble \
+    && test ! -e /usr/bin/pebble \
+    && test ! -e /var/lib/pebble
 COPY --from=production-deps /usr/local/bin/node /usr/local/bin/node
 COPY --from=production-deps /usr/local/LICENSE /usr/local/LICENSE
 COPY --from=pg16-client /usr/lib/postgresql/16/bin/pg_dump /usr/local/bin/pg_dump
