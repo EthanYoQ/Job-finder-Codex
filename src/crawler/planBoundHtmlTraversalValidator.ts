@@ -303,10 +303,18 @@ export async function capturePlanBoundHtmlRenderedTraversal(input: {
             }
             controlIds.add(controls);
             partitionFailureCode = "B_GRADE_PARTITION_EXPANSION_FAILED";
-            await control.click({ timeout: 10_000 });
+            const expansionState = await control.getAttribute("aria-expanded");
+            if (expansionState === "false") {
+              await control.click({ timeout: 10_000 });
+            } else if (expansionState !== "true") {
+              throw new Error("Plan-bound HTML browser validator reveal-control expansion state invalid");
+            }
             await page.waitForFunction((id) => {
               const panel = document.getElementById(id);
-              return panel !== null && panel.getAttribute("aria-hidden") !== "true";
+              const control = [...document.querySelectorAll("[aria-controls]")]
+                .find((candidate) => candidate.getAttribute("aria-controls") === id);
+              return control?.getAttribute("aria-expanded") === "true" &&
+                panel !== null && panel.getAttribute("aria-hidden") !== "true";
             }, controls, { timeout: 10_000 });
             partitionFailureCode = "B_GRADE_PARTITION_URL_NORMALIZATION_FAILED";
             await normalizeRevealNavigation(page, policy.entryUrl, index);

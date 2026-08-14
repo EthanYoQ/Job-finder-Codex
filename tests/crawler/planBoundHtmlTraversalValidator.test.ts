@@ -198,6 +198,27 @@ describe("plan-bound HTML rendered traversal", () => {
     expect(close).toHaveBeenCalledTimes(1);
   });
 
+  it("leaves an already-expanded Astellas partition open and expands only collapsed controls", async () => {
+    const sourceId = "source-astellas-china-social" as const;
+    const entryUrl = PLAN_BOUND_HTML_TRAVERSAL_POLICIES[sourceId].entryUrl;
+    const close = vi.fn(async () => undefined);
+    const controlClicks = [vi.fn(), vi.fn(), vi.fn()];
+
+    await expect(capturePlanBoundHtmlRenderedTraversal({
+      sourceId,
+      entryUrl,
+      launchBrowser: async () => astellasBrowser({
+        entryUrl,
+        close,
+        controlClicks,
+        initialExpanded: [true, false, false]
+      })
+    })).resolves.toMatchObject({ pages: [{ matchKeys: expect.any(Array) }] });
+
+    expect(controlClicks.map((click) => click.mock.calls.length)).toEqual([0, 1, 1]);
+    expect(close).toHaveBeenCalledTimes(1);
+  });
+
   it("rejects Astellas controls that alias the same declared partition", async () => {
     const sourceId = "source-astellas-china-social" as const;
     const entryUrl = PLAN_BOUND_HTML_TRAVERSAL_POLICIES[sourceId].entryUrl;
@@ -397,17 +418,20 @@ function astellasBrowser(input: {
   close: () => Promise<void>;
   controlClicks: Array<ReturnType<typeof vi.fn>>;
   controlIds?: string[];
+  initialExpanded?: boolean[];
 }) {
   const policy = PLAN_BOUND_HTML_TRAVERSAL_POLICIES["source-astellas-china-social"];
   let currentUrl = input.entryUrl;
   const urls = ["role-one", "role-two", "role-three"].map((id) =>
     `https://www.astellas.com/content/dam/astellas-com/global/zh/careers/${id}.pdf`);
+  const expanded = input.controlClicks.map((_, index) => input.initialExpanded?.[index] ?? false);
   const controls = input.controlClicks.map((click, index) => ({
     getAttribute: async (name: string) => name === "aria-controls"
       ? input.controlIds?.[index] ?? `panel-${index + 1}`
-      : null,
+      : name === "aria-expanded" ? String(expanded[index]) : null,
     click: async () => {
       await click();
+      expanded[index] = true;
       currentUrl = `${input.entryUrl}#section-accordion-c88601411d-${index}`;
     }
   }));
