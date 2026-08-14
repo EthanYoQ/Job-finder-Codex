@@ -18,6 +18,8 @@ import {
 } from "../../src/crawler/sourcePlan";
 import { sha256Bytes, type PersistentSourceFetchEvidence } from "../../src/crawler/sourceFetchEvidence";
 import { runSourceCrawl } from "../../src/crawler/runSourceCrawl";
+import { buildAtomicRuntimeCommit, buildPendingRuntimeBatch } from "../../src/crawler/runtimeAtomicEvidence";
+import { hashCanonicalStringSet, type RuntimeBatchIdentity } from "../../src/crawler/runtimeBatchIdentity";
 import { validateStrictHtmlCompletenessProof } from "../../src/crawler/strictHtmlCompletenessProof";
 import {
   createPlanBoundHtmlBrowserTraversalValidation,
@@ -26,6 +28,7 @@ import {
   verifyBGradeTraversalCertificateReceipt
 } from "../../src/crawler/traversalCertificate";
 import { candidateCompanies } from "../../src/data/companyRegistry";
+import { executeAtomicSourceEvidenceCommit } from "../../src/db/ingestionRepository";
 
 const capturedAt = "2026-08-14T00:00:00.000Z";
 const now = new Date("2026-08-14T00:05:00.000Z");
@@ -116,6 +119,7 @@ describe("plan-bound HTML B-grade traversal certificates", () => {
         },
         now
       })).toMatchObject({ status: "PASS", grade: "B", sourceId });
+      await expectPlanBoundAtomicCommitToValidate({ sourcePlan, crawled, validation });
       expect(() => verifyBGradeTraversalCertificateReceipt({
         certificate: decision.certificate,
         certificateSha256: decision.certificateSha256,
@@ -433,6 +437,84 @@ describe("plan-bound HTML B-grade traversal certificates", () => {
     })).toMatchObject({ status: "REJECTED", blockerCodes: expect.arrayContaining(["OUTPUT_MISMATCH"]) });
   });
 });
+
+async function expectPlanBoundAtomicCommitToValidate(input: {
+  sourcePlan: SourceCrawlPlan;
+  crawled: Awaited<ReturnType<typeof runSourceCrawl>>;
+  validation: ReturnType<typeof createPlanBoundHtmlBrowserTraversalValidation>;
+}): Promise<void> {
+  const { sourcePlan, crawled, validation } = input;
+  if (!crawled.fetchEvidence) throw new Error("Expected strict fetch evidence");
+  const sourceId = sourcePlan.source.id;
+  const identity: RuntimeBatchIdentity = {
+    releaseCandidateId: "rc-html-atomic",
+    commitSha: "1".repeat(40),
+    rosterSha256: "2".repeat(64),
+    sourcePlanSha256: "3".repeat(64),
+    sourceConfigSha256: "4".repeat(64),
+    adapterBundleSha256: "5".repeat(64),
+    batchKind: "SCHEDULED",
+    ownerId: "plan-bound-test",
+    expectedPlannedSourceIds: [sourceId],
+    expectedPlannedSourceSetSha256: hashCanonicalStringSet([sourceId]),
+    expectedPlannedSourceCount: 1
+  };
+  const batchId = `batch-${sourceId}`;
+  const pending = buildPendingRuntimeBatch(batchId, [sourcePlan], identity,
+    new Date(capturedAt)).sources[0]!;
+  const artifacts = crawled.fetchEvidence.artifacts.map((artifact, index) => {
+    const bytes = typeof artifact.body === "string" ? Buffer.from(artifact.body, "utf8") : artifact.body;
+    const bodyIdentity = sha256Bytes(bytes);
+    return ({
+    id: createHash("sha256").update(`${batchId}\0${artifact.logicalKey}`).digest("hex"),
+    logicalKey: artifact.logicalKey,
+    releaseCandidateId: identity.releaseCandidateId,
+    batchId,
+    sourceId,
+    sourceResultId: pending.id,
+    ...(artifact.channelId === undefined ? {} : { channelId: artifact.channelId }),
+    kind: artifact.kind,
+    ...(artifact.requestedUrl === undefined ? {} : { requestedUrl: artifact.requestedUrl }),
+    ...(artifact.finalUrl === undefined ? {} : { finalUrl: artifact.finalUrl }),
+    ...(artifact.httpStatus === undefined ? {} : { httpStatus: artifact.httpStatus }),
+    ...(artifact.contentType === undefined ? {} : { contentType: artifact.contentType }),
+    bodyRepresentation: "EXACT" as const,
+    capturedAt: new Date(artifact.capturedAt),
+    sha256: bodyIdentity.sha256,
+    byteCount: bodyIdentity.byteCount,
+    path: `runtime-evidence/${sourceId}/${index}.json`,
+    extractorLocator: artifact.extractorLocator,
+    captureToolName: crawled.fetchEvidence!.captureTool.name,
+    captureToolVersion: crawled.fetchEvidence!.captureTool.version
+    });
+  });
+  const commit = buildAtomicRuntimeCommit({
+    plan: sourcePlan,
+    pending,
+    identity,
+    batchId,
+    result: crawled,
+    previousJobs: [],
+    baselineCompletedBeforeCrawl: true,
+    artifacts,
+    independentTraversalValidation: validation,
+    completedAt: now
+  });
+  const transaction = {
+    evidenceArtifact: { create: async () => undefined },
+    paginationEvidence: { create: async () => undefined },
+    lossLedgerEntry: { create: async () => undefined },
+    transportAttemptEvidence: { create: async () => undefined },
+    transportAttemptArtifact: { create: async () => undefined },
+    crawlObservation: { create: async () => undefined },
+    job: { upsert: async () => undefined },
+    lifecycleSetEvidenceMember: { create: async () => undefined },
+    crawlBatchSourceResult: { updateMany: async () => ({ count: 1 }) }
+  };
+  await expect(executeAtomicSourceEvidenceCommit(commit, {
+    $transaction: async <T>(operation: (value: typeof transaction) => Promise<T>) => operation(transaction)
+  })).resolves.toBeUndefined();
+}
 
 function plan(sourceId: PlanBoundHtmlTraversalSourceId) {
   const value = getPlanBySourceId(buildStagedSourceCrawlPlans(candidateCompanies), sourceId);

@@ -277,6 +277,7 @@ function summarizePagination(source: FixedCohortAuditSourceInput): Array<{ chann
   if (groups.has("\0SOURCE") && source.officialChannelIds.length > 0 ||
       JSON.stringify(observedChannelIds) !== JSON.stringify([...source.officialChannelIds].sort(compare))) return null;
   const summaries = [];
+  let usedExactLaterZeroDeclaration = false;
   for (const [key, rows] of [...groups].sort(([left], [right]) => compare(left, right))) {
     rows.sort((left, right) => left.sequence - right.sequence);
     if (rows.some((page) =>
@@ -284,6 +285,7 @@ function summarizePagination(source: FixedCohortAuditSourceInput): Array<{ chann
         page.requestedPageSize, page.returnedPageSize, page.declaredTotal, page.declaredCount, page.declaredPages]
         .some((value) => value !== null && (!Number.isSafeInteger(value) || value < 0)))) return null;
     const reconciledLaterZero = exactLaterZeroPaginationDeclaration(source, rows);
+    usedExactLaterZeroDeclaration ||= reconciledLaterZero !== null;
     const totals = reconciledLaterZero
       ? [reconciledLaterZero.declaredTotal]
       : [...new Set(rows.flatMap((page) => page.declaredTotal === null ? [] : [page.declaredTotal]))];
@@ -296,7 +298,9 @@ function summarizePagination(source: FixedCohortAuditSourceInput): Array<{ chann
   }
   const expectedTotalPages = summaries.some(({ declaredPages }) => declaredPages === null)
     ? null : summaries.reduce((sum, row) => sum + row.declaredPages!, 0);
-  if (source.totalPages !== expectedTotalPages) return null;
+  if (source.totalPages !== expectedTotalPages && !(
+    usedExactLaterZeroDeclaration && summaries.length === 1 && source.totalPages === null
+  )) return null;
   return summaries;
 }
 
@@ -314,7 +318,8 @@ function exactLaterZeroPaginationDeclaration(
   if (rows.some((page) => page.anomalyCodes.length > 0)) return null;
   if (source.expectedEvidenceKind !== "OFFICIAL_TOTAL_COUNT" ||
       source.expectedJobCount !== first.declaredTotal || source.finalJobCount !== first.declaredTotal ||
-      source.pagesVisited !== rows.length || source.totalPages !== first.declaredPages ||
+      source.pagesVisited !== rows.length ||
+      (source.totalPages !== null && source.totalPages !== first.declaredPages) ||
       source.transportState !== "SUCCEEDED" || source.adapterState !== "SUCCEEDED" ||
       source.completenessState !== "VERIFIED" || source.atomicCommitState !== "COMMITTED") return null;
   return { declaredTotal: first.declaredTotal, declaredPages: first.declaredPages };

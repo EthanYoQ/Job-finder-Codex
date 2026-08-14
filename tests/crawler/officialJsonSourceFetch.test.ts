@@ -97,15 +97,16 @@ describe("createOfficialJsonSourceFetch", () => {
       body: JSON.stringify({
         html: [
           '<li class="search-results__item"><div class="search-results__flag"><img alt="China flag" src="/assets/images/flags/cn.png"></div><div class="search-results__jobinfo"><a class="search-results__req_title" href="/jobs/uGT3Gvh8qEc0h0ftemuOQA?job_board_id=v42vD4vKxb3AkKvV93YsrQ">Senior Therapeutic Specialist I</a><div><span>China - Shenzhen</span><span>Sales</span><span>Regular</span></div></div></li>',
+          '<li class="search-results__item"><div class="search-results__flag"><img alt="China flag" src="/assets/images/flags/cn.png"></div><div class="search-results__jobinfo"><a class="search-results__req_title" href="/jobs/5gfgBTplkJVAZ6Pc83idrA?job_board_id=v42vD4vKxb3AkKvV93YsrQ">Senior Therapeutic Specialist II</a><div><span>China - Changsha</span><span>Sales</span><span>Regular</span></div></div></li>',
           '<li class="search-results__item"><div class="search-results__flag"><img alt="China flag" src="/assets/images/flags/cn.png"></div><div class="search-results__jobinfo"><a class="search-results__req_title" href="/jobs/Le1jJiFA05bQ2HLko2G3Ow?job_board_id=v42vD4vKxb3AkKvV93YsrQ">Therapeutic Specialist II</a><div><span>China - Wenzhou</span><span>Sales</span><span>Regular</span></div></div></li>'
         ].join(""),
-        count_on_page: 2,
+        count_on_page: 3,
         more_requisitions: false,
         query: "",
         filters: JSON.stringify([{ label: "Locations", id: 32, has_conditions: false,
           answers: [{ id: 72, label: "China" }], answer_type: "multiple_select" }]),
         text_filters: "[]",
-        display_count_text: "2 Results",
+        display_count_text: "3 Results",
         ...overrides
       })
     };
@@ -139,13 +140,15 @@ describe("createOfficialJsonSourceFetch", () => {
       payload: { jobs: [
         { title: "Senior Therapeutic Specialist I", locationRaw: "China - Shenzhen",
           officialUrl: "https://gilead.yello.co/jobs/uGT3Gvh8qEc0h0ftemuOQA?job_board_id=v42vD4vKxb3AkKvV93YsrQ" },
+        { title: "Senior Therapeutic Specialist II", locationRaw: "China - Changsha", cities: ["长沙"],
+          officialUrl: "https://gilead.yello.co/jobs/5gfgBTplkJVAZ6Pc83idrA?job_board_id=v42vD4vKxb3AkKvV93YsrQ" },
         { title: "Therapeutic Specialist II", locationRaw: "China - Wenzhou",
           officialUrl: "https://gilead.yello.co/jobs/Le1jJiFA05bQ2HLko2G3Ow?job_board_id=v42vD4vKxb3AkKvV93YsrQ" }
       ] },
       completeness: { completenessStatus: "NEEDS_MANUAL_COMPLETENESS_REVIEW",
-        completenessEvidenceKind: "OFFICIAL_TOTAL_COUNT", expectedJobCount: 2, pagesVisited: 1 },
-      fetchEvidence: { declaredCompleteness: { kind: "OFFICIAL_TOTAL_COUNT", value: 2, scope: "SOURCE" },
-        fetchCounts: { rawCount: 2, parsedCount: 2, validCount: 2, parseDiscardCount: 0,
+        completenessEvidenceKind: "OFFICIAL_TOTAL_COUNT", expectedJobCount: 3, pagesVisited: 1 },
+      fetchEvidence: { declaredCompleteness: { kind: "OFFICIAL_TOTAL_COUNT", value: 3, scope: "SOURCE" },
+        fetchCounts: { rawCount: 3, parsedCount: 3, validCount: 3, parseDiscardCount: 0,
           validationDiscardCount: 0 } }
     });
   });
@@ -162,7 +165,7 @@ describe("createOfficialJsonSourceFetch", () => {
     expect(crawled).toMatchObject({
       status: "SUCCESS",
       truth: { transportSuccess: true, adapterSuccess: true, completenessVerified: true },
-      observation: { structuredJobCount: 2, expectedJobCount: 2, completenessStatus: "VERIFIED" }
+      observation: { structuredJobCount: 3, expectedJobCount: 3, completenessStatus: "VERIFIED" }
     });
     if (!crawled.fetchEvidence || !crawled.paginationEvaluation || !crawled.reconciliation) {
       throw new Error("Expected exact Gilead Yello crawl evidence");
@@ -188,7 +191,7 @@ describe("createOfficialJsonSourceFetch", () => {
       certificate: {
         grade: "A",
         scope: { companyId: "company-gilead-china", sourceId: "source-gilead-china-social" },
-        counts: { officialTotal: 2, finalUniqueJobCount: 2 }
+        counts: { officialTotal: 3, finalUniqueJobCount: 3 }
       }
     });
   });

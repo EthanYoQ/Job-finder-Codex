@@ -244,6 +244,7 @@ interface NormalizedOfficialJsonJob {
 const CITY_MATCHES: ReadonlyArray<readonly [string, string]> = [
   ["Shanghai", "上海"],
   ["Beijing", "北京"],
+  ["Changsha", "长沙"],
   ["Changchun", "长春"],
   ["Chongqing", "重庆"],
   ["Daqing", "大庆"],
@@ -272,6 +273,7 @@ const CITY_MATCHES: ReadonlyArray<readonly [string, string]> = [
   ["Jiangsu", "江苏"],
   ["上海", "上海"],
   ["北京", "北京"],
+  ["长沙", "长沙"],
   ["长春", "长春"],
   ["重庆", "重庆"],
   ["大庆", "大庆"],

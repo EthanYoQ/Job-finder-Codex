@@ -181,7 +181,7 @@ describe("fixed cohort completeness audit", () => {
     source.expectedJobCount = 30;
     source.finalJobCount = 30;
     source.pagesVisited = 2;
-    source.totalPages = 2;
+    source.totalPages = null;
 
     const row = buildFixedCohortCompletenessAudit(value).companies.find(({ sourceId }) =>
       sourceId === source.sourceId)!;
@@ -213,6 +213,34 @@ describe("fixed cohort completeness audit", () => {
     source.finalJobCount = 29;
     source.pagesVisited = 2;
     source.totalPages = 2;
+
+    const row = buildFixedCohortCompletenessAudit(value).companies.find(({ sourceId }) =>
+      sourceId === source.sourceId)!;
+    expect(row.blockers).toContain("PAGINATION_EVIDENCE_INVALID");
+  });
+
+  it("rejects a later-zero Workday declaration when the persisted total-page count disagrees", () => {
+    const value = input();
+    const source = value.sources.find(({ sourceId }) => sourceId === "source-amgen-china-social")!;
+    const first = source.paginationEvidence[0]!;
+    source.evidenceArtifacts = [...source.evidenceArtifacts, {
+      id: "artifact:amgen:page-2", path: "evidence/amgen-page-2.json", sha256: "1".repeat(64)
+    }];
+    source.paginationEvidence = [
+      { ...first, declaredTotal: 30, declaredCount: null, declaredPages: 2,
+        nextPageSignalAfter: "20", termination: "CONTINUE" },
+      { ...first, artifactId: "artifact:amgen:page-2", sequence: 1,
+        requestedOffset: 20, returnedOffset: 20, requestedPage: 1, returnedPage: 1,
+        responseFingerprintSha256: "2".repeat(64), rawJobIdSetSha256: "3".repeat(64),
+        validJobIdSetSha256: "4".repeat(64), declaredTotal: 0, declaredCount: null,
+        declaredPages: 0, nextPageSignalBefore: "20", nextPageSignalAfter: null,
+        termination: "NEXT_ABSENT" }
+    ];
+    source.expectedEvidenceKind = "OFFICIAL_TOTAL_COUNT";
+    source.expectedJobCount = 30;
+    source.finalJobCount = 30;
+    source.pagesVisited = 2;
+    source.totalPages = 3;
 
     const row = buildFixedCohortCompletenessAudit(value).companies.find(({ sourceId }) =>
       sourceId === source.sourceId)!;
