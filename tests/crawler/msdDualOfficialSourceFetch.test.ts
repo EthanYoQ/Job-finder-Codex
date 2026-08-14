@@ -142,6 +142,43 @@ describe("MSD dual-official-source reconciliation", () => {
     });
   });
 
+  it("accepts an exact single-location Workday detail when additionalLocations is omitted", () => {
+    const formalId = "REQ-WORKDAY-SINGLE-LOCATION";
+    const externalPath = `/job/CHN---Shanghai/Medical-role-${formalId}`;
+    const listRecord = {
+      ...workdayRecord(formalId),
+      externalPath,
+      locationsText: "CHN - Shanghai - Shanghai (Tower A)"
+    };
+    const detailRecord = {
+      jobPostingInfo: {
+        jobReqId: formalId,
+        title: `Medical role ${formalId}`,
+        externalUrl: `${allowedApplyOrigins[0]}/SearchJobs${externalPath}`,
+        location: "CHN - Shanghai - Shanghai (Tower A)",
+        posted: true,
+        canApply: true,
+        jobPostingSiteId: "SearchJobs",
+        jobPostingId: `Medical-role-${formalId}`
+      }
+    };
+
+    expect(reconcile([listRecord], [], [detailRecord])).toMatchObject({
+      ok: true,
+      jobs: [{
+        officialId: formalId,
+        locationRaw: "CHN - Shanghai - Shanghai (Tower A)"
+      }],
+      excluded: []
+    });
+    expect(reconcile([listRecord], [], [{
+      jobPostingInfo: { ...detailRecord.jobPostingInfo, additionalLocations: null }
+    }])).toMatchObject({
+      ok: false,
+      failureCode: "MSD_UNKNOWN_OFFICIAL_SET_DIFFERENCE"
+    });
+  });
+
   it.each([
     "QA integration test vacancy - do not apply",
     "Automated test role - do not apply"

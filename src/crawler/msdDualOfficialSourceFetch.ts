@@ -254,9 +254,14 @@ function reconcileMsdWorkdayOnlyDetail(
   if (!safeExternalUrl || !allowedApplyOrigins.has(new URL(safeExternalUrl).origin) ||
       new URL(safeExternalUrl).pathname !== `/SearchJobs${externalPath}`) return undefined;
   const location = stringField(info, "location");
-  const additionalLocations = stringArrayField(info, "additionalLocations");
-  if (!location || !Array.isArray(info.additionalLocations) ||
-      additionalLocations.length !== info.additionalLocations.length) return undefined;
+  const additionalLocationsValue = info.additionalLocations;
+  const additionalLocations = additionalLocationsValue === undefined
+    ? []
+    : stringArrayField(info, "additionalLocations");
+  if (!location || (additionalLocationsValue !== undefined &&
+      (!Array.isArray(additionalLocationsValue) || additionalLocations.length !== additionalLocationsValue.length))) {
+    return undefined;
+  }
   const publicLocations = [location, ...additionalLocations];
   if (new Set(publicLocations).size !== publicLocations.length) return undefined;
   const opaqueCount = /^([1-9][0-9]*) Locations$/u.exec(stringField(listRecord, "locationsText") ?? "");
