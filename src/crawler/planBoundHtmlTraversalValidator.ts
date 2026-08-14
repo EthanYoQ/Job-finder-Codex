@@ -36,6 +36,10 @@ export const PLAN_BOUND_HTML_TRAVERSAL_POLICIES = Object.freeze({
     readySelector: ".cmp-accordion__button",
     revealSelector: ".cmp-accordion__button",
     expectedRevealControlCount: 3,
+    blockingOverlay: {
+      dismissSelector: "#onetrust-reject-all-handler",
+      rootSelector: "#onetrust-consent-sdk"
+    },
     rowSelector: "a[href$='.pdf'][href*='/global/zh/']",
     nextSelector: ".pagination a[rel='next'][href], a[rel='next'][href]",
     key: {
@@ -285,6 +289,17 @@ export async function capturePlanBoundHtmlRenderedTraversal(input: {
             return controls.length === count && controls.every((control) =>
               ["true", "false"].includes(control.getAttribute("aria-expanded") ?? ""));
           }, { selector: policy.revealSelector, count: policy.expectedRevealControlCount }, { timeout: 30_000 });
+          partitionFailureCode = "B_GRADE_PARTITION_EXPANSION_FAILED";
+          const overlayDismiss = page.locator(policy.blockingOverlay.dismissSelector);
+          const overlayDismissCount = await overlayDismiss.count();
+          if (overlayDismissCount > 1) {
+            throw new Error("Plan-bound HTML browser validator found multiple overlay-dismiss controls");
+          }
+          if (overlayDismissCount === 1 && await overlayDismiss.isVisible()) {
+            await overlayDismiss.click({ timeout: 10_000 });
+            await page.locator(policy.blockingOverlay.rootSelector)
+              .waitFor({ state: "hidden", timeout: 10_000 });
+          }
           const controlIds = new Set<string>();
           declaredPartitions = [];
           for (let index = 0; index < revealCount; index += 1) {

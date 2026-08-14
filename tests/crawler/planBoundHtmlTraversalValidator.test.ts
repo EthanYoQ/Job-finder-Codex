@@ -219,6 +219,29 @@ describe("plan-bound HTML rendered traversal", () => {
     expect(close).toHaveBeenCalledTimes(1);
   });
 
+  it("dismisses the Astellas privacy overlay before expanding a partition", async () => {
+    const sourceId = "source-astellas-china-social" as const;
+    const entryUrl = PLAN_BOUND_HTML_TRAVERSAL_POLICIES[sourceId].entryUrl;
+    const close = vi.fn(async () => undefined);
+    const privacyReject = vi.fn(async () => undefined);
+    const controlClicks = [vi.fn(), vi.fn(), vi.fn()];
+
+    await expect(capturePlanBoundHtmlRenderedTraversal({
+      sourceId,
+      entryUrl,
+      launchBrowser: async () => astellasBrowser({
+        entryUrl,
+        close,
+        controlClicks,
+        privacyReject
+      })
+    })).resolves.toMatchObject({ pages: [{ matchKeys: expect.any(Array) }] });
+
+    expect(privacyReject).toHaveBeenCalledTimes(1);
+    expect(controlClicks.map((click) => click.mock.calls.length)).toEqual([1, 1, 1]);
+    expect(close).toHaveBeenCalledTimes(1);
+  });
+
   it("rejects Astellas controls that alias the same declared partition", async () => {
     const sourceId = "source-astellas-china-social" as const;
     const entryUrl = PLAN_BOUND_HTML_TRAVERSAL_POLICIES[sourceId].entryUrl;
@@ -419,17 +442,20 @@ function astellasBrowser(input: {
   controlClicks: Array<ReturnType<typeof vi.fn>>;
   controlIds?: string[];
   initialExpanded?: boolean[];
+  privacyReject?: () => Promise<void>;
 }) {
   const policy = PLAN_BOUND_HTML_TRAVERSAL_POLICIES["source-astellas-china-social"];
   let currentUrl = input.entryUrl;
   const urls = ["role-one", "role-two", "role-three"].map((id) =>
     `https://www.astellas.com/content/dam/astellas-com/global/zh/careers/${id}.pdf`);
   const expanded = input.controlClicks.map((_, index) => input.initialExpanded?.[index] ?? false);
+  let privacyOverlayVisible = input.privacyReject !== undefined;
   const controls = input.controlClicks.map((click, index) => ({
     getAttribute: async (name: string) => name === "aria-controls"
       ? input.controlIds?.[index] ?? `panel-${index + 1}`
       : name === "aria-expanded" ? String(expanded[index]) : null,
     click: async () => {
+      if (privacyOverlayVisible) throw new Error("privacy overlay intercepted the partition click");
       await click();
       expanded[index] = true;
       currentUrl = `${input.entryUrl}#section-accordion-c88601411d-${index}`;
@@ -450,6 +476,19 @@ function astellasBrowser(input: {
           nth: (index: number) => controls[index],
           evaluateAll: async () => ({ controlled: 3, global: 3 })
         }
+      : selector === "#onetrust-reject-all-handler"
+        ? {
+            count: async () => input.privacyReject ? 1 : 0,
+            isVisible: async () => privacyOverlayVisible,
+            click: async () => {
+              await input.privacyReject?.();
+              privacyOverlayVisible = false;
+            }
+          }
+        : selector === "#onetrust-consent-sdk"
+          ? { waitFor: async () => {
+              if (privacyOverlayVisible) throw new Error("privacy overlay remained visible");
+            } }
       : selector === policy.rowSelector
         ? { evaluateAll: async () => urls }
         : selector.startsWith("[id=")
