@@ -4,6 +4,7 @@ import { buildFixedCohortCompletenessAudit, parseFixedCohortCompletenessAuditRep
   type FixedCohortAuditSourceInput } from
   "../../src/release/fixedCohortCompletenessAudit";
 import { P0_LAUNCH_MANIFEST } from "../../src/release/launchManifest";
+import { projectFailedFixedCohortAuditSource } from "../../src/release/fixedCohortAuditSourceProjection";
 
 describe("fixed cohort completeness audit", () => {
   it("reports every frozen company and creates deterministic repair groups of at most five", () => {
@@ -50,6 +51,26 @@ describe("fixed cohort completeness audit", () => {
     expect(report.companies.find(({ sourceId }) => sourceId === failed.sourceId)?.blockers)
       .toContain("EVIDENCE_COMMITMENT_INVALID");
     expect(parseFixedCohortCompletenessAuditReport(Buffer.from(JSON.stringify(report)))).toEqual(report);
+  });
+
+  it("preserves an atomic rollback identity and failure code when the transaction wrote no observation", () => {
+    const value = input(), existing = value.sources[0]!;
+    value.sources[0] = projectFailedFixedCohortAuditSource({
+      plan: { companyId: existing.companyId, sourceId: existing.sourceId, adapterFamily: existing.adapterFamily,
+        plannedSurfaceIds: existing.plannedSurfaceIds, plannedChannelIds: existing.plannedChannelIds },
+      result: { sourceResultId: "persisted-atomic-failure", sourceConfigSha256: existing.sourceConfigSha256,
+        officialSurfaceIds: existing.officialSurfaceIds, officialChannelIds: existing.officialChannelIds,
+        expectedEvidenceKind: null, expectedJobCount: null, finalJobCount: 0,
+        transportState: "SUCCEEDED", adapterState: "SUCCEEDED", completenessState: "FAILED",
+        atomicCommitState: "ROLLED_BACK", failureCategory: "EVIDENCE_PERSISTENCE_FAILURE",
+        failureDiagnosticCode: "EVIDENCE_PROCESSING_FAILED", failureCode: "ATOMIC_EVIDENCE_COMMIT_FAILED" }
+    });
+    const report = buildFixedCohortCompletenessAudit(value);
+    const row = report.companies.find(({ sourceId }) => sourceId === existing.sourceId)!;
+    expect(row).toMatchObject({ sourceResultId: "persisted-atomic-failure",
+      failureCode: "ATOMIC_EVIDENCE_COMMIT_FAILED", failureClass: "PRODUCT_DEFECT", failureStage: "PERSISTENCE" });
+    expect(report.repairFrontier.find(({ sourceIds }) => sourceIds.includes(existing.sourceId))?.rootCause)
+      .toBe("ATOMIC_EVIDENCE_COMMIT_FAILED");
   });
 
   it("marks a missing or substituted frozen source as an invalid audit without hiding the other rows", () => {
@@ -138,6 +159,98 @@ describe("fixed cohort completeness audit", () => {
     expect(row.blockers).not.toContain("PAGINATION_EVIDENCE_INVALID");
     expect(row.paginationByChannel).toEqual([expect.objectContaining({ channelId: source.officialChannelIds[0] })]);
   });
+
+  it("replays an exact later-zero Workday declaration from the first official total", () => {
+    const value = input();
+    const source = value.sources.find(({ sourceId }) => sourceId === "source-amgen-china-social")!;
+    const first = source.paginationEvidence[0]!;
+    source.evidenceArtifacts = [...source.evidenceArtifacts, {
+      id: "artifact:amgen:page-2", path: "evidence/amgen-page-2.json", sha256: "1".repeat(64)
+    }];
+    source.paginationEvidence = [
+      { ...first, declaredTotal: 30, declaredCount: null, declaredPages: 2,
+        nextPageSignalAfter: "20", termination: "CONTINUE" },
+      { ...first, artifactId: "artifact:amgen:page-2", sequence: 1,
+        requestedOffset: 20, returnedOffset: 20, requestedPage: 1, returnedPage: 1,
+        responseFingerprintSha256: "2".repeat(64), rawJobIdSetSha256: "3".repeat(64),
+        validJobIdSetSha256: "4".repeat(64), declaredTotal: 0, declaredCount: null,
+        declaredPages: 0, nextPageSignalBefore: "20", nextPageSignalAfter: null,
+        termination: "NEXT_ABSENT" }
+    ];
+    source.expectedEvidenceKind = "OFFICIAL_TOTAL_COUNT";
+    source.expectedJobCount = 30;
+    source.finalJobCount = 30;
+    source.pagesVisited = 2;
+    source.totalPages = 2;
+
+    const row = buildFixedCohortCompletenessAudit(value).companies.find(({ sourceId }) =>
+      sourceId === source.sourceId)!;
+    expect(row.blockers).not.toContain("PAGINATION_EVIDENCE_INVALID");
+    expect(row.paginationByChannel).toEqual([expect.objectContaining({
+      declaredTotal: 30, declaredPages: 2, pageCount: 2
+    })]);
+  });
+
+  it("rejects a later-zero Workday declaration when the final committed count disagrees", () => {
+    const value = input();
+    const source = value.sources.find(({ sourceId }) => sourceId === "source-amgen-china-social")!;
+    const first = source.paginationEvidence[0]!;
+    source.evidenceArtifacts = [...source.evidenceArtifacts, {
+      id: "artifact:amgen:page-2", path: "evidence/amgen-page-2.json", sha256: "1".repeat(64)
+    }];
+    source.paginationEvidence = [
+      { ...first, declaredTotal: 30, declaredCount: null, declaredPages: 2,
+        nextPageSignalAfter: "20", termination: "CONTINUE" },
+      { ...first, artifactId: "artifact:amgen:page-2", sequence: 1,
+        requestedOffset: 20, returnedOffset: 20, requestedPage: 1, returnedPage: 1,
+        responseFingerprintSha256: "2".repeat(64), rawJobIdSetSha256: "3".repeat(64),
+        validJobIdSetSha256: "4".repeat(64), declaredTotal: 0, declaredCount: null,
+        declaredPages: 0, nextPageSignalBefore: "20", nextPageSignalAfter: null,
+        termination: "NEXT_ABSENT" }
+    ];
+    source.expectedEvidenceKind = "OFFICIAL_TOTAL_COUNT";
+    source.expectedJobCount = 30;
+    source.finalJobCount = 29;
+    source.pagesVisited = 2;
+    source.totalPages = 2;
+
+    const row = buildFixedCohortCompletenessAudit(value).companies.find(({ sourceId }) =>
+      sourceId === source.sourceId)!;
+    expect(row.blockers).toContain("PAGINATION_EVIDENCE_INVALID");
+  });
+
+  const laterZeroRejectionCases: readonly [string, {
+    sourceId?: string;
+    lastTermination?: string;
+  }][] = [
+    ["a non-audited source", { sourceId: "source-abbvie-china-social" }],
+    ["a non-terminal last page", { lastTermination: "MAX_PAGE_LIMIT" }]
+  ];
+  it.each(laterZeroRejectionCases)(
+    "rejects later-zero reconciliation for %s", (_label, mutation) => {
+    const value = input();
+    const source = value.sources.find(({ sourceId }) => sourceId === "source-amgen-china-social")!;
+    const first = source.paginationEvidence[0]!;
+    source.evidenceArtifacts = [...source.evidenceArtifacts, {
+      id: "artifact:amgen:page-2", path: "evidence/amgen-page-2.json", sha256: "1".repeat(64)
+    }];
+    source.paginationEvidence = [
+      { ...first, declaredTotal: 30, declaredPages: 2, nextPageSignalAfter: "20", termination: "CONTINUE" },
+      { ...first, artifactId: "artifact:amgen:page-2", sequence: 1, declaredTotal: 0, declaredPages: 0,
+        responseFingerprintSha256: "2".repeat(64), rawJobIdSetSha256: "3".repeat(64),
+        validJobIdSetSha256: "4".repeat(64), termination: mutation.lastTermination ?? "NEXT_ABSENT" }
+    ];
+    source.expectedEvidenceKind = "OFFICIAL_TOTAL_COUNT";
+    source.expectedJobCount = 30;
+    source.finalJobCount = 30;
+    source.pagesVisited = 2;
+    source.totalPages = 2;
+    if (mutation.sourceId) source.sourceId = mutation.sourceId;
+    const row = buildFixedCohortCompletenessAudit(value).companies.find(({ sourceResultId }) =>
+      sourceResultId === source.sourceResultId)!;
+    expect(row.blockers).toContain("PAGINATION_EVIDENCE_INVALID");
+    }
+  );
 
   it("rejects an unlabelled pagination page when more than one official channel is declared", () => {
     const value = input(), source = value.sources[0]!;

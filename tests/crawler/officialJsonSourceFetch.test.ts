@@ -1,7 +1,14 @@
 import { describe, expect, it } from "vitest";
 import { createHash } from "node:crypto";
 import { createOfficialJsonSourceFetch } from "../../src/crawler/officialJsonSourceFetch";
-import type { SourceCrawlPlan } from "../../src/crawler/sourcePlan";
+import { runSourceCrawl } from "../../src/crawler/runSourceCrawl";
+import {
+  buildStagedSourceCrawlPlans,
+  sourcePlanConfigSha256,
+  type SourceCrawlPlan
+} from "../../src/crawler/sourcePlan";
+import { issueAGradeOfficialTotalCertificate } from "../../src/crawler/completenessCertificate";
+import { candidateCompanies } from "../../src/data/companyRegistry";
 
 const makeExampleCredential = (purpose: string) => `example-placeholder-${purpose}`;
 const beisenUuid = (seed: string) =>
@@ -31,6 +38,36 @@ const basePlan = {
   }
 } satisfies SourceCrawlPlan;
 
+const gileadYelloPlan = {
+  adapterId: "official-json",
+  company: { id: "company-gilead-china", officialChineseName: "吉利德科学" },
+  source: {
+    id: "source-gilead-china-social",
+    companyId: "company-gilead-china",
+    kind: "SOCIAL",
+    atsKind: "OFFICIAL_JSON",
+    status: "VERIFIED_SCRAPABLE",
+    officialEntryUrl: "https://gilead.yello.co/job_boards/v42vD4vKxb3AkKvV93YsrQ",
+    officialChainEvidenceUrl: "https://www.gilead.com/careers/opportunities"
+  },
+  json: {
+    jobsPath: "jobs",
+    fields: {
+      sourceJobId: "sourceJobId",
+      officialTitle: "title",
+      officialUrl: "officialUrl",
+      locationRaw: "locationRaw",
+      cities: "cities"
+    }
+  },
+  officialJsonFetch: {
+    kind: "yello-job-board",
+    boardId: "v42vD4vKxb3AkKvV93YsrQ",
+    locationFilterId: 72,
+    expectedLocationLabel: "China"
+  }
+} satisfies SourceCrawlPlan;
+
 describe("createOfficialJsonSourceFetch", () => {
   function hcmCloudResponse(payload: unknown, prefix = "rsp"): string {
     const base64 = Buffer.from(JSON.stringify(payload), "utf8").toString("base64");
@@ -50,6 +87,128 @@ describe("createOfficialJsonSourceFetch", () => {
       Buffer.from(parsed.hcm_param.slice(3), "base64").toString("utf8")
     ) as Record<string, unknown>;
   }
+
+  function yelloResponse(overrides: Record<string, unknown> = {}) {
+    return {
+      status: 200,
+      finalUrl: "https://gilead.yello.co/job_boards/v42vD4vKxb3AkKvV93YsrQ/search?query=&filters=72",
+      contentType: "application/json",
+      capturedAt: "2026-08-14T00:00:00.000Z",
+      body: JSON.stringify({
+        html: [
+          '<li class="search-results__item"><div class="search-results__flag"><img alt="China flag" src="/assets/images/flags/cn.png"></div><div class="search-results__jobinfo"><a class="search-results__req_title" href="/jobs/uGT3Gvh8qEc0h0ftemuOQA?job_board_id=v42vD4vKxb3AkKvV93YsrQ">Senior Therapeutic Specialist I</a><div><span>China - Shenzhen</span><span>Sales</span><span>Regular</span></div></div></li>',
+          '<li class="search-results__item"><div class="search-results__flag"><img alt="China flag" src="/assets/images/flags/cn.png"></div><div class="search-results__jobinfo"><a class="search-results__req_title" href="/jobs/Le1jJiFA05bQ2HLko2G3Ow?job_board_id=v42vD4vKxb3AkKvV93YsrQ">Therapeutic Specialist II</a><div><span>China - Wenzhou</span><span>Sales</span><span>Regular</span></div></div></li>'
+        ].join(""),
+        count_on_page: 2,
+        more_requisitions: false,
+        query: "",
+        filters: JSON.stringify([{ label: "Locations", id: 32, has_conditions: false,
+          answers: [{ id: 72, label: "China" }], answer_type: "multiple_select" }]),
+        text_filters: "[]",
+        display_count_text: "2 Results",
+        ...overrides
+      })
+    };
+  }
+
+  function yelloLocationOverrides(locationRaw: string): Record<string, unknown> {
+    return {
+      html: `<li class="search-results__item"><div class="search-results__flag"><img alt="China flag" src="/assets/images/flags/cn.png"></div><div class="search-results__jobinfo"><a class="search-results__req_title" href="/jobs/uGT3Gvh8qEc0h0ftemuOQA?job_board_id=v42vD4vKxb3AkKvV93YsrQ">Role</a><div><span>${locationRaw}</span></div></div></li>`,
+      count_on_page: 1,
+      display_count_text: "1 Result"
+    };
+  }
+
+  it("reconciles the exact Gilead Yello China filter as a complete official total", async () => {
+    const requests: Array<{ url: string; headers: Record<string, string> }> = [];
+    const fetcher = createOfficialJsonSourceFetch({
+      now: () => new Date("2026-08-14T00:00:00.000Z"),
+      http: async (request) => {
+        requests.push(request);
+        return yelloResponse();
+      }
+    });
+
+    const result = await fetcher(gileadYelloPlan);
+    expect(requests).toEqual([expect.objectContaining({
+      url: "https://gilead.yello.co/job_boards/v42vD4vKxb3AkKvV93YsrQ/search?query=&filters=72",
+      headers: expect.objectContaining({ "X-Requested-With": "XMLHttpRequest" })
+    })]);
+    expect(result).toMatchObject({
+      ok: true,
+      payload: { jobs: [
+        { title: "Senior Therapeutic Specialist I", locationRaw: "China - Shenzhen",
+          officialUrl: "https://gilead.yello.co/jobs/uGT3Gvh8qEc0h0ftemuOQA?job_board_id=v42vD4vKxb3AkKvV93YsrQ" },
+        { title: "Therapeutic Specialist II", locationRaw: "China - Wenzhou",
+          officialUrl: "https://gilead.yello.co/jobs/Le1jJiFA05bQ2HLko2G3Ow?job_board_id=v42vD4vKxb3AkKvV93YsrQ" }
+      ] },
+      completeness: { completenessStatus: "NEEDS_MANUAL_COMPLETENESS_REVIEW",
+        completenessEvidenceKind: "OFFICIAL_TOTAL_COUNT", expectedJobCount: 2, pagesVisited: 1 },
+      fetchEvidence: { declaredCompleteness: { kind: "OFFICIAL_TOTAL_COUNT", value: 2, scope: "SOURCE" },
+        fetchCounts: { rawCount: 2, parsedCount: 2, validCount: 2, parseDiscardCount: 0,
+          validationDiscardCount: 0 } }
+    });
+  });
+
+  it("replays the archived Gilead Yello response through the staged strict completeness gate", async () => {
+    const plan = buildStagedSourceCrawlPlans(candidateCompanies).find(({ source }) =>
+      source.id === "source-gilead-china-social")!;
+    const fetcher = createOfficialJsonSourceFetch({
+      now: () => new Date("2026-08-14T00:00:00.000Z"),
+      http: async () => yelloResponse()
+    });
+    const fetched = await fetcher(plan);
+    const crawled = await runSourceCrawl(plan, { fetch: async () => fetched });
+    expect(crawled).toMatchObject({
+      status: "SUCCESS",
+      truth: { transportSuccess: true, adapterSuccess: true, completenessVerified: true },
+      observation: { structuredJobCount: 2, expectedJobCount: 2, completenessStatus: "VERIFIED" }
+    });
+    if (!crawled.fetchEvidence || !crawled.paginationEvaluation || !crawled.reconciliation) {
+      throw new Error("Expected exact Gilead Yello crawl evidence");
+    }
+    const certificate = issueAGradeOfficialTotalCertificate({
+      binding: {
+        releaseCandidateId: "rc-gilead-yello",
+        batchId: "batch-gilead-yello",
+        sourceResultId: "result-gilead-yello",
+        sourceConfigSha256: sourcePlanConfigSha256(plan)
+      },
+      plan,
+      transportSuccess: crawled.truth.transportSuccess,
+      adapterSuccess: crawled.truth.adapterSuccess,
+      evidence: crawled.fetchEvidence,
+      paginationEvaluation: crawled.paginationEvaluation,
+      reconciliation: crawled.reconciliation,
+      jobs: crawled.jobs,
+      officialArtifactSha256: "a".repeat(64)
+    });
+    expect(certificate, JSON.stringify(certificate)).toMatchObject({
+      status: "CERTIFIED",
+      certificate: {
+        grade: "A",
+        scope: { companyId: "company-gilead-china", sourceId: "source-gilead-china-social" },
+        counts: { officialTotal: 2, finalUniqueJobCount: 2 }
+      }
+    });
+  });
+
+  it.each([
+    ["a response that can continue", { more_requisitions: true }],
+    ["a mismatched official filter", { filters: JSON.stringify([{ label: "Locations", id: 32,
+      has_conditions: false, answers: [{ id: 73, label: "Japan" }], answer_type: "multiple_select" }]) }],
+    ["a cross-origin official job link", { html: '<li class="search-results__item"><div class="search-results__flag"><img alt="China flag"></div><div class="search-results__jobinfo"><a class="search-results__req_title" href="https://evil.example/jobs/uGT3Gvh8qEc0h0ftemuOQA">Role</a><div><span>China - Shenzhen</span></div></div></li>', count_on_page: 1,
+      display_count_text: "1 Result" }],
+    ["a Hong Kong location labelled under China", yelloLocationOverrides("China - Hong Kong")],
+    ["a Macau location labelled under China", yelloLocationOverrides("China - Macau")],
+    ["a Taiwan location labelled under China", yelloLocationOverrides("China - Taiwan")]
+  ])("fails closed for %s", async (_label, overrides) => {
+    const fetcher = createOfficialJsonSourceFetch({
+      now: () => new Date("2026-08-14T00:00:00.000Z"),
+      http: async () => yelloResponse(overrides)
+    });
+    await expect(fetcher(gileadYelloPlan)).resolves.toMatchObject({ ok: false });
+  });
 
   it("normalizes Innovent official API jobs", async () => {
     const fetcher = createOfficialJsonSourceFetch({

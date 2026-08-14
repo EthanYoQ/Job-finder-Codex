@@ -7,6 +7,7 @@ import { candidateCompanies } from "../src/data/companyRegistry";
 import { P0_LAUNCH_MANIFEST, selectLaunchCompanies } from "../src/release/launchManifest";
 import { buildFixedCohortCompletenessAudit, type FixedCohortAuditSourceInput } from
   "../src/release/fixedCohortCompletenessAudit";
+import { projectFailedFixedCohortAuditSource } from "../src/release/fixedCohortAuditSourceProjection";
 
 const outputPath = process.env.FIXED_COHORT_AUDIT_PATH ?? ".runtime/audit/fixed-cohort-completeness.json";
 const prisma = new PrismaClient();
@@ -42,6 +43,20 @@ try {
   const sources = plans.map((plan): FixedCohortAuditSourceInput => {
     const row = results.get(plan.source.id);
     if (!row) return missingSource(plan);
+    if (row.observations.length === 0 && row.atomicCommitState !== "COMMITTED" && row.failureCode) {
+      return projectFailedFixedCohortAuditSource({
+        plan: { companyId: plan.company.id, sourceId: plan.source.id, adapterFamily: adapterFamily(plan),
+          plannedSurfaceIds: plan.source.surfaceId ? [plan.source.surfaceId] : [],
+          plannedChannelIds: plan.expectedChannels?.map(({ channelId }) => channelId) ?? [] },
+        result: { sourceResultId: row.id, sourceConfigSha256: row.sourceConfigHash,
+          officialSurfaceIds: row.officialSurfaceIds, officialChannelIds: row.officialChannelIds,
+          expectedEvidenceKind: row.expectedEvidenceKind, expectedJobCount: row.expectedJobCount,
+          finalJobCount: row.dedupeOutputCount, transportState: row.transportState, adapterState: row.adapterState,
+          completenessState: row.completenessState, atomicCommitState: row.atomicCommitState,
+          failureCategory: row.failureCategory, failureDiagnosticCode: row.failureDiagnosticCode,
+          failureCode: row.failureCode }
+      });
+    }
     if (row.observations.length !== 1 || row.observations[0]!.sourceResultId !== row.id) {
       return missingSource(plan);
     }
@@ -86,7 +101,9 @@ try {
   await publish(outputPath, report);
   console.log(JSON.stringify({ decision: report.decision, companyCount: report.companyCount,
     blockerCount: report.companies.filter(({ blockers }) => blockers.length > 0).length,
-    repairTicketCount: report.repairFrontier.length, contentSha256: report.contentSha256 }));
+    repairTicketCount: report.repairFrontier.length,
+    repairRootCauses: report.repairFrontier.map(({ rootCause }) => rootCause),
+    contentSha256: report.contentSha256 }));
   process.exitCode = report.decision === "AUDIT_COMPLETE" ? 0 : 1;
 } catch (error) {
   const report = buildFixedCohortCompletenessAudit({ generatedAt: new Date(), releaseCandidateId: "UNAVAILABLE",

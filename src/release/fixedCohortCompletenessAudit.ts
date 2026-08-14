@@ -81,7 +81,7 @@ export function buildFixedCohortCompletenessAudit(input: { generatedAt: Date; re
     if (source.completenessState !== "VERIFIED") blockers.push("COMPLETENESS_NOT_VERIFIED");
     if (source.atomicCommitState !== "COMMITTED") blockers.push("ATOMIC_COMMIT_NOT_COMMITTED");
     if (!Number.isSafeInteger(source.finalJobCount) || source.finalJobCount < 0) blockers.push("FINAL_JOB_COUNT_INVALID");
-    const failureStage = failureStageFor(blockers), failureClass = failureClassFor(source, blockers);
+    const failureStage = failureStageFor(source, blockers), failureClass = failureClassFor(source, blockers);
     return { ...source, blockers: [...new Set(blockers)], failureStage, failureClass,
       paginationByChannel: paginationByChannel ?? [] };
   });
@@ -244,8 +244,9 @@ function certificateValid(source: FixedCohortAuditSourceInput, releaseCandidateI
     return true;
   } catch { return false; }
 }
-function failureStageFor(blockers: readonly string[]): string | null {
+function failureStageFor(source: FixedCohortAuditSourceInput, blockers: readonly string[]): string | null {
   if (blockers.length === 0) return null;
+  if (source.atomicCommitState === "ROLLED_BACK") return "PERSISTENCE";
   if (blockers.some((code) => code.includes("TRANSPORT"))) return "TRANSPORT";
   if (blockers.some((code) => code.includes("ADAPTER"))) return "ADAPTER";
   if (blockers.some((code) => code.includes("COMPLETENESS") || code.includes("CERTIFICATE") || code.includes("EVIDENCE"))) return "COMPLETENESS_EVIDENCE";
@@ -282,8 +283,13 @@ function summarizePagination(source: FixedCohortAuditSourceInput): Array<{ chann
       [page.requestedOffset, page.returnedOffset, page.requestedPage, page.returnedPage,
         page.requestedPageSize, page.returnedPageSize, page.declaredTotal, page.declaredCount, page.declaredPages]
         .some((value) => value !== null && (!Number.isSafeInteger(value) || value < 0)))) return null;
-    const totals = [...new Set(rows.flatMap((page) => page.declaredTotal === null ? [] : [page.declaredTotal]))];
-    const pages = [...new Set(rows.flatMap((page) => page.declaredPages === null ? [] : [page.declaredPages]))];
+    const reconciledLaterZero = exactLaterZeroPaginationDeclaration(source, rows);
+    const totals = reconciledLaterZero
+      ? [reconciledLaterZero.declaredTotal]
+      : [...new Set(rows.flatMap((page) => page.declaredTotal === null ? [] : [page.declaredTotal]))];
+    const pages = reconciledLaterZero
+      ? [reconciledLaterZero.declaredPages]
+      : [...new Set(rows.flatMap((page) => page.declaredPages === null ? [] : [page.declaredPages]))];
     if (totals.length > 1 || pages.length > 1 || (pages[0] !== undefined && pages[0] !== rows.length)) return null;
     summaries.push({ channelId: key === "\0SOURCE" ? null : key, pageCount: rows.length,
       declaredTotal: totals[0] ?? null, declaredPages: pages[0] ?? null, terminalEvent: rows.at(-1)!.termination });
@@ -293,6 +299,31 @@ function summarizePagination(source: FixedCohortAuditSourceInput): Array<{ chann
   if (source.totalPages !== expectedTotalPages) return null;
   return summaries;
 }
+
+function exactLaterZeroPaginationDeclaration(
+  source: FixedCohortAuditSourceInput,
+  rows: FixedCohortAuditSourceInput["paginationEvidence"][number][]
+): { declaredTotal: number; declaredPages: number } | null {
+  const first = rows[0];
+  if (!AUDITED_LATER_ZERO_WORKDAY_SOURCE_IDS.has(source.sourceId) ||
+      !first || rows.length < 2 || first.declaredTotal === null || first.declaredTotal <= 0 ||
+      first.declaredPages === null || first.declaredPages !== rows.length) return null;
+  if (rows.slice(1).some((page) => page.declaredTotal !== 0 || page.declaredPages !== 0)) return null;
+  if (rows.slice(0, -1).some((page) => page.termination !== "CONTINUE") ||
+      rows.at(-1)!.termination !== "NEXT_ABSENT") return null;
+  if (rows.some((page) => page.anomalyCodes.length > 0)) return null;
+  if (source.expectedEvidenceKind !== "OFFICIAL_TOTAL_COUNT" ||
+      source.expectedJobCount !== first.declaredTotal || source.finalJobCount !== first.declaredTotal ||
+      source.pagesVisited !== rows.length || source.totalPages !== first.declaredPages ||
+      source.transportState !== "SUCCEEDED" || source.adapterState !== "SUCCEEDED" ||
+      source.completenessState !== "VERIFIED" || source.atomicCommitState !== "COMMITTED") return null;
+  return { declaredTotal: first.declaredTotal, declaredPages: first.declaredPages };
+}
+const AUDITED_LATER_ZERO_WORKDAY_SOURCE_IDS = new Set([
+  "source-amgen-china-social",
+  "source-bms-china-social",
+  "source-pfizer-china-social"
+]);
 function buildRepairFrontier(companies: readonly (FixedCohortAuditSourceInput & {
   failureClass: AuditFailureClass | null; blockers: readonly string[]
 })[]) {
@@ -324,7 +355,7 @@ function primaryRootCause(row: FixedCohortAuditSourceInput & { failureClass: Aud
       .find((blocker) => row.blockers.includes(blocker)) ?? row.failureCode ?? "CONFIGURATION_INVALID";
   }
   if (row.failureClass === "PRODUCT_DEFECT") {
-    return row.failureDiagnosticCode ?? row.failureCode ??
+    return row.failureCode ?? row.failureDiagnosticCode ??
       (row.atomicCommitState === "ROLLED_BACK" ? "ATOMIC_COMMIT_ROLLED_BACK" : "ADAPTER_EXECUTION_FAILED");
   }
   const evidencePriority = ["OFFICIAL_SCOPE_MISMATCH", "PAGINATION_EVIDENCE_INVALID", "EVIDENCE_LOCATION_MISSING",

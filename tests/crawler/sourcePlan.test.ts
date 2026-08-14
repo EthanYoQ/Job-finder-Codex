@@ -574,7 +574,6 @@ describe("source crawl planning", () => {
       ["source-pfizer-china-social", ["Regular"]],
       ["source-bms-china-social", ["Fixed Term (Fixed Term)", "Permanent"]],
       ["source-amgen-china-social", ["Regular"]],
-      ["source-gilead-china-social", ["Regular"]],
       ["source-biogen-china-social", ["Regular"]]
     ] as const);
     for (const [sourceId, allowedDescriptors] of workdaySocialBoundaries) {
@@ -605,11 +604,6 @@ describe("source crawl planning", () => {
         mainlandDescriptorAliases: expect.any(Array),
         foreignDescriptorAliases: expect.any(Array)
       }],
-      ["source-gilead-china-social", {
-        kind: "GILEAD_AUDITED_LOCATIONS_OVERLAP",
-        facetParameter: "locations",
-        foreignDescriptorAliases: expect.any(Array)
-      }],
       ["source-bms-china-social", {
         kind: "BMS_AUDITED_FOREIGN_DESCRIPTOR_ALLOWLIST",
         facetParameter: "locationHierarchy2",
@@ -625,22 +619,16 @@ describe("source crawl planning", () => {
       expect((candidate.workday as { locationFacetPolicy?: unknown }).locationFacetPolicy).toEqual(expectedPolicy);
     }
     const jnjLocationCandidate = getPlanBySourceId(plans, "source-johnson-innovative-medicine-social");
-    const gileadLocationCandidate = getPlanBySourceId(plans, "source-gilead-china-social");
     const bmsLocationCandidate = getPlanBySourceId(plans, "source-bms-china-social");
     if (jnjLocationCandidate?.adapterId !== "official-json" ||
         jnjLocationCandidate.workday?.locationFacetPolicy?.kind !== "JNJ_AUDITED_LOCATIONS_OVERLAP") {
       throw new Error("Expected exact JNJ audited location policy");
-    }
-    if (gileadLocationCandidate?.adapterId !== "official-json" ||
-        gileadLocationCandidate.workday?.locationFacetPolicy?.kind !== "GILEAD_AUDITED_LOCATIONS_OVERLAP") {
-      throw new Error("Expected exact Gilead audited location policy");
     }
     if (bmsLocationCandidate?.adapterId !== "official-json" ||
         bmsLocationCandidate.workday?.locationFacetPolicy?.kind !== "BMS_AUDITED_FOREIGN_DESCRIPTOR_ALLOWLIST") {
       throw new Error("Expected exact BMS audited location policy");
     }
     const jnjLocationPolicy = jnjLocationCandidate.workday.locationFacetPolicy;
-    const gileadLocationPolicy = gileadLocationCandidate.workday.locationFacetPolicy;
     const bmsLocationPolicy = bmsLocationCandidate.workday.locationFacetPolicy;
     const descriptorAliasesSha256 = (aliases: readonly string[]) => createHash("sha256")
       .update(JSON.stringify(aliases), "utf8")
@@ -651,8 +639,6 @@ describe("source crawl planning", () => {
       .toBe("e7820d1245ada112373ffbb699b44a330ab3023b1388729927866efd5ea8aa98");
     expect(descriptorAliasesSha256(jnjLocationPolicy.foreignDescriptorAliases))
       .toBe("b05245857d8dc84d9aa51128d65133e4cd01df37fc1791b91f787265a8ba7325");
-    expect(descriptorAliasesSha256(gileadLocationPolicy.foreignDescriptorAliases))
-      .toBe("0b5712b081d45f45d66cb483997b45e94719e891bce37c11b3afd86bd999ccec");
     expect(bmsLocationPolicy.foreignSiteDescriptorAliases).toHaveLength(17);
     expect(bmsLocationPolicy.foreignCountryDescriptorAliases).toHaveLength(3);
     expect(bmsLocationPolicy.foreignSiteDescriptorAliases)
@@ -683,9 +669,21 @@ describe("source crawl planning", () => {
         ? [candidate.source.id]
         : [])).toEqual([
       "source-johnson-innovative-medicine-social",
-      "source-bms-china-social",
-      "source-gilead-china-social"
+      "source-bms-china-social"
     ]);
+    expect(getPlanBySourceId(plans, "source-gilead-china-social")).toMatchObject({
+      adapterId: "official-json",
+      source: {
+        atsKind: "OFFICIAL_JSON",
+        officialEntryUrl: "https://gilead.yello.co/job_boards/v42vD4vKxb3AkKvV93YsrQ"
+      },
+      officialJsonFetch: {
+        kind: "yello-job-board",
+        boardId: "v42vD4vKxb3AkKvV93YsrQ",
+        locationFilterId: 72,
+        expectedLocationLabel: "China"
+      }
+    });
     const jnjPlan = getPlanBySourceId(plans, "source-johnson-innovative-medicine-social");
     if (jnjPlan?.adapterId !== "official-json" || !jnjPlan.workday) {
       throw new Error("Expected JNJ Workday plan");

@@ -1,5 +1,5 @@
 import type { CompanyRecruitmentProfileSeed } from "../types";
-import { GILEAD_AUDITED_FOREIGN_DESCRIPTOR_ALIASES, WORKDAY_JSON_CONFIG } from "../shared";
+import { OFFICIAL_API_JSON_CONFIG } from "../shared";
 
 export const profile_gilead_china = {
   companyId: "company-gilead-china",
@@ -8,22 +8,12 @@ export const profile_gilead_china = {
       sourceId: "source-gilead-china-social",
       executionConfig: {
           adapterId: "official-json",
-          json: WORKDAY_JSON_CONFIG,
-          workday: {
-              tenant: "gilead",
-              site: "gileadcareers",
-              searchText: "China",
-              locationFacetPolicy: {
-                  kind: "GILEAD_AUDITED_LOCATIONS_OVERLAP",
-                  facetParameter: "locations",
-                  foreignDescriptorAliases: GILEAD_AUDITED_FOREIGN_DESCRIPTOR_ALIASES
-              },
-              facetDescriptorBoundary: {
-                  facetParameter: "workerSubType",
-                  allowedDescriptors: ["Regular"]
-              },
-              pageSize: 20,
-              maxPages: 3
+          json: OFFICIAL_API_JSON_CONFIG,
+          officialJsonFetch: {
+              kind: "yello-job-board",
+              boardId: "v42vD4vKxb3AkKvV93YsrQ",
+              locationFilterId: 72,
+              expectedLocationLabel: "China"
           }
       }
     },

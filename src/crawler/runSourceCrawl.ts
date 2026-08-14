@@ -40,6 +40,7 @@ import {
 import type { SourceTransportFailure } from "./sourceFetchFailure";
 import type { RetryableSourceTransportFailureCode } from "./sourceFetchFailure";
 import { validateStrictHotjobLegacyEvidence } from "./hotjobLegacySourceFetch";
+import { parseYelloJobBoardResponse, yelloJobBoardBinding } from "./yelloJobBoardEvidence";
 
 export type SourceFetchResult =
   | { ok: true; capturedAt: string; payload: unknown; completeness?: CompletenessEvidence; fetchEvidence?: PersistentSourceFetchEvidence; paginationEvaluation?: PaginationEvaluation; priorTransportAttempts?: readonly SourceTransportAttempt[] }
@@ -682,7 +683,48 @@ function strictPageRequestContracts(
   if (strategy?.kind === "cnstaff") return strictCnstaffRequestContracts(plan, evidence);
   if (strategy?.kind === "sandoz-jsonapi") return strictSandozScopeArtifacts(plan, evidence);
   if (strategy?.kind === "redsea-zp-channel") return strictRedseaRequestContracts(plan, evidence);
+  if (strategy?.kind === "yello-job-board") return strictYelloRequestContracts(plan, evidence, outputJobs);
   return true;
+}
+
+function strictYelloRequestContracts(
+  plan: Extract<SourceCrawlPlan, { adapterId: "official-json" }>,
+  evidence: PersistentSourceFetchEvidence,
+  outputJobs: readonly NormalizedJobRecord[]
+): boolean {
+  const config = plan.officialJsonFetch;
+  if (config?.kind !== "yello-job-board" || evidence.pages.length !== 1 || evidence.artifacts.length !== 1) {
+    return false;
+  }
+  let binding: ReturnType<typeof yelloJobBoardBinding>;
+  try { binding = yelloJobBoardBinding(plan.source.officialEntryUrl, config); }
+  catch { return false; }
+  const evidenceEndpoint = sanitizeEvidenceHttpUrl(binding.endpointUrl);
+  const artifact = evidence.artifacts[0]!, page = evidence.pages[0]!;
+  if (artifact.logicalKey !== page.artifactLogicalKey || artifact.bodyRepresentation === "REDACTED" ||
+      artifact.requestedUrl !== evidenceEndpoint || artifact.finalUrl !== evidenceEndpoint ||
+      artifact.extractorLocator !== binding.extractorLocator ||
+      !strictPageCoordinatesEqual(page, { sequence: 0, requestedCursor: null, requestedOffset: null,
+        requestedPage: null, requestedPageSize: null }) ||
+      createHash("sha256").update(typeof artifact.body === "string"
+        ? Buffer.from(artifact.body, "utf8") : Buffer.from(artifact.body)).digest("hex") !==
+        page.responseFingerprintSha256) return false;
+  let parsed: ReturnType<typeof parseYelloJobBoardResponse>;
+  try { parsed = parseYelloJobBoardResponse(typeof artifact.body === "string"
+    ? artifact.body : Buffer.from(artifact.body).toString("utf8"), config); }
+  catch { return false; }
+  const compare = (left: string, right: string) => Buffer.from(left).compare(Buffer.from(right));
+  const expectedSourceIds = parsed.jobs.map(({ officialId }) => persistentOfficialJsonJobId(officialId)).sort(compare);
+  const actualSourceIds = outputJobs.flatMap(({ sourceJobId }) => sourceJobId ? [sourceJobId] : []).sort(compare);
+  const declaration = evidence.declaredCompleteness;
+  return parsed.declaredTotal === parsed.jobs.length && page.rawJobIds.length === parsed.jobs.length &&
+    page.validJobIds.length === parsed.jobs.length && page.declaredTotal === parsed.declaredTotal &&
+    page.declaredCount === parsed.declaredTotal && page.termination === "NEXT_ABSENT" &&
+    actualSourceIds.length === outputJobs.length &&
+    JSON.stringify(expectedSourceIds) === JSON.stringify(actualSourceIds) &&
+    declaration?.kind === "OFFICIAL_TOTAL_COUNT" && declaration.scope === "SOURCE" &&
+    declaration.value === parsed.declaredTotal && declaration.artifactLogicalKey === artifact.logicalKey &&
+    declaration.extractorLocator === binding.extractorLocator;
 }
 
 function strictNovoRequestContracts(
@@ -3649,6 +3691,15 @@ function strictPlanUrlRules(plan: SourceCrawlPlan): StrictUrlRule[] | undefined 
       }
       return rules;
     }
+    if (strategy?.kind === "yello-job-board") {
+      const binding = yelloJobBoardBinding(plan.source.officialEntryUrl, strategy);
+      rules.push(exactEndpointRule("yello-china-search", new URL(sanitizeEvidenceHttpUrl(binding.endpointUrl)), {
+        allowsPagination: true,
+        allowsDeclaration: true,
+        allowsPositiveTotalDeclaration: true
+      }));
+      return rules;
+    }
     if (strategy?.kind === "xiuzheng-job-list") {
       rules.push(exactEndpointRule(
         "xiuzheng-job-list",
@@ -4020,6 +4071,12 @@ function strictPositiveOfficialTotalReplayPolicy(
     if (plan.source.atsKind !== "OFFICIAL_JSON" || strategy.countryTermName !== "LOC_CN" ||
       !Number.isSafeInteger(strategy.countryTermTargetId) || strategy.countryTermTargetId <= 0 ||
       !strategy.countryTermUuid.trim()) return undefined;
+    return { allowPositiveOfficialTotalCountAfterAdapterReconciliation: true };
+  }
+  if (strategy.kind === "yello-job-board") {
+    if (plan.source.atsKind !== "OFFICIAL_JSON") return undefined;
+    try { yelloJobBoardBinding(plan.source.officialEntryUrl, strategy); }
+    catch { return undefined; }
     return { allowPositiveOfficialTotalCountAfterAdapterReconciliation: true };
   }
   return undefined;

@@ -52,6 +52,11 @@ import { deriveCanonicalPaginationEvidence, evaluatePaginationEvidence } from ".
 import { hasUniqueJsonObjectKeys } from "./strictJsonObjectKeys";
 import { requestContractV2Locator } from "./strictPageRequestContract";
 import type { SourceCrawlPlan } from "./sourcePlan";
+import {
+  parseYelloJobBoardResponse,
+  yelloJobBoardBinding,
+  type YelloJobBoardConfig
+} from "./yelloJobBoardEvidence";
 
 export type OfficialJsonFetchConfig =
   | {
@@ -182,7 +187,8 @@ export type OfficialJsonFetchConfig =
       pageSize?: number;
       maxPages?: number;
       scopeExclusionProof?: "XIUZHENG_NON_RECRUITMENT_TITLE_V1";
-    };
+    }
+  | YelloJobBoardConfig;
 
 export interface OfficialJsonHttpRequest {
   url: string;
@@ -398,6 +404,16 @@ export function createOfficialJsonSourceFetch(
         }));
       }
 
+      if (plan.officialJsonFetch.kind === "yello-job-board") {
+        return finish(await fetchYelloJobBoard({
+          http,
+          config: plan.officialJsonFetch,
+          entryUrl: plan.source.officialEntryUrl,
+          capturedAt,
+          now
+        }));
+      }
+
       return finish(await fetchSingleResponseOfficialJson({
         http,
         config: plan.officialJsonFetch,
@@ -409,6 +425,113 @@ export function createOfficialJsonSourceFetch(
     } catch (error) {
       return failed(capturedAt, error instanceof Error ? error.message : String(error));
     }
+  };
+}
+
+async function fetchYelloJobBoard({
+  http,
+  config,
+  entryUrl,
+  capturedAt,
+  now
+}: {
+  http: OfficialJsonHttpClient;
+  config: Extract<OfficialJsonFetchConfig, { kind: "yello-job-board" }>;
+  entryUrl: string;
+  capturedAt: string;
+  now: () => Date;
+}): Promise<SourceFetchResult> {
+  let safeEntryUrl: string;
+  let endpoint: string;
+  let extractorLocator: string;
+  try {
+    const binding = yelloJobBoardBinding(safeOfficialJsonEvidenceUrl(entryUrl), config);
+    safeEntryUrl = binding.entryUrl;
+    endpoint = binding.endpointUrl;
+    extractorLocator = binding.extractorLocator;
+  } catch {
+    return failed(capturedAt, "Yello source configuration is invalid");
+  }
+
+  let response: OfficialJsonHttpResponse;
+  try {
+    response = await http({
+      url: endpoint,
+      method: "GET",
+      headers: {
+        Accept: "application/json",
+        "X-Requested-With": "XMLHttpRequest",
+        "User-Agent": "job-search-crawler/0.1"
+      }
+    });
+  } catch {
+    return failed(capturedAt, "Yello source transport failed");
+  }
+
+  try {
+    assertOfficialJsonEvidenceResponse(response, {
+      requestedUrl: endpoint,
+      crawlStartedAtMs: Date.parse(capturedAt),
+      observedNowMs: now().getTime()
+    });
+  } catch {
+    return failed(capturedAt, "Yello response metadata is invalid");
+  }
+  const artifact = officialJsonArtifact({ requestedUrl: endpoint, response, extractorLocator });
+  const failureState = initialOfficialJsonEvidenceState({ artifact, termination: "FAILED" });
+  if (response.status < 200 || response.status >= 300) {
+    return failedWithEvidence(capturedAt, `Yello source returned HTTP ${response.status}`,
+      finalizeOfficialJsonFailureEvidence(failureState));
+  }
+  try {
+    assertOfficialJsonMime(response);
+  } catch {
+    return failedWithEvidence(capturedAt, "Yello response has an invalid Content-Type",
+      finalizeOfficialJsonFailureEvidence(failureState));
+  }
+
+  let parsed: ReturnType<typeof parseYelloJobBoardResponse>;
+  try {
+    parsed = parseYelloJobBoardResponse(response.body, config);
+  } catch {
+    return failedWithEvidence(capturedAt, "Yello response failed strict China partition replay",
+      finalizeOfficialJsonFailureEvidence(failureState));
+  }
+  const count = parsed.declaredTotal;
+  const state = initialOfficialJsonEvidenceState({ artifact, declaredTotal: count, termination: "ABORTED" });
+  state.page.declaredCount = count;
+  const jobs: NormalizedOfficialJsonJob[] = [];
+  for (let index = 0; index < parsed.jobs.length; index += 1) {
+    const row = parsed.jobs[index]!;
+    state.rawCount += 1;
+    state.page.rawJobIds.push(irreversibleOfficialJsonEvidenceId([index, row.rawHtml]));
+    state.parsedCount += 1;
+    const sourceJobId = persistentOfficialJsonJobId(row.officialId);
+    jobs.push({ sourceJobId, title: row.title, officialUrl: row.officialUrl, locationRaw: row.locationRaw,
+      cities: citiesFromLocation(row.locationRaw) });
+    state.validCount += 1;
+    state.page.validJobIds.push(irreversibleOfficialJsonEvidenceId(sourceJobId));
+  }
+  state.page.termination = "NEXT_ABSENT";
+  const { evidence, evaluation } = finalizeOfficialJsonEvidence({
+    state,
+    declaredCompleteness: { kind: "OFFICIAL_TOTAL_COUNT", value: count,
+      artifactLogicalKey: artifact.logicalKey, extractorLocator, scope: "SOURCE" }
+  });
+  return {
+    ok: true,
+    capturedAt,
+    payload: { jobs },
+    completeness: {
+      completenessStatus: "NEEDS_MANUAL_COMPLETENESS_REVIEW",
+      expectedJobCount: count,
+      completenessEvidenceKind: "OFFICIAL_TOTAL_COUNT",
+      completenessEvidenceUrl: safeEntryUrl,
+      completenessBlockerReason: "Yello official China total remains manual until downstream adapter accounting is complete",
+      pagesVisited: 1
+    },
+    fetchEvidence: evidence,
+    paginationEvaluation: evaluation
   };
 }
 
@@ -435,7 +558,8 @@ function attachOfficialJsonPageCapacity(
       ? [...new Set(evidence.pages.flatMap((page) => page.channelId ? [page.channelId] : []))]
       : [];
     const allowMissingReturnedPage = config.kind === "beisen-zhiye-2022";
-    const allowPositiveOfficialTotalCountAfterAdapterReconciliation = config.kind === "sandoz-jsonapi";
+    const allowPositiveOfficialTotalCountAfterAdapterReconciliation =
+      config.kind === "sandoz-jsonapi" || config.kind === "yello-job-board";
     const canonical = deriveCanonicalPaginationEvidence({
       evidence: enriched,
       expectedChannelIds,

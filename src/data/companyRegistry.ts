@@ -383,9 +383,9 @@ const CANDIDATE_SEEDS: CandidateSeed[] = [
     pinyinName: "jilide-kexue",
     category: "FOREIGN_PHARMA",
     status: "VERIFIED_SCRAPABLE",
-    atsKind: "WORKDAY",
+    atsKind: "OFFICIAL_JSON",
     officialWebsiteUrl: "https://www.gilead.com/zh-hk/",
-    socialEntryUrl: "https://gilead.wd1.myworkdayjobs.com/gileadcareers",
+    socialEntryUrl: "https://gilead.yello.co/job_boards/v42vD4vKxb3AkKvV93YsrQ",
     officialChainEvidenceUrl: "https://www.gilead.com/careers/opportunities"
   },
   {

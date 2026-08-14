@@ -24,8 +24,7 @@ import {
 const CAPTURED_AT = "2026-07-15T00:01:00.000Z";
 const PLANS = buildStagedSourceCrawlPlans(candidateCompanies);
 const WORKDAY_SOURCES = [
-  "source-biogen-china-social",
-  "source-gilead-china-social"
+  "source-biogen-china-social"
 ] as const;
 const PHENOM_SOURCES = [
   "source-lilly-china-social",
@@ -152,30 +151,15 @@ function workdayLocationFixture(plan: SourceCrawlPlan): {
   selectedIds: string[];
 } {
   if (plan.adapterId !== "official-json" || !plan.workday) throw new Error("Workday plan expected");
-  switch (plan.workday.locationFacetPolicy?.kind) {
-    case "GILEAD_AUDITED_LOCATIONS_OVERLAP":
-      return {
-        total: 3,
-        facetParameter: "locations",
-        values: [
-          { descriptor: "China - Shanghai", id: "china-shanghai", count: 1 },
-          { descriptor: "Czech Republic - Prague", id: "foreign-cz", count: 1 },
-          { descriptor: "UAE - Dubai", id: "foreign-uae", count: 1 },
-          { descriptor: "United States – Remote", id: "foreign-us", count: 1 }
-        ],
-        selectedIds: ["china-shanghai"]
-      };
-    default:
-      return {
-        total: 3,
-        facetParameter: "locationCountry",
-        values: [
-          { descriptor: "China", id: "china-country", count: 1 },
-          { descriptor: "United States of America", id: "foreign-us", count: 2 }
-        ],
-        selectedIds: ["china-country"]
-      };
-  }
+  return {
+    total: 3,
+    facetParameter: "locationCountry",
+    values: [
+      { descriptor: "China", id: "china-country", count: 1 },
+      { descriptor: "United States of America", id: "foreign-us", count: 2 }
+    ],
+    selectedIds: ["china-country"]
+  };
 }
 
 function dynamicWorkdayEvidence(plan: SourceCrawlPlan): {
@@ -570,19 +554,6 @@ describe("strict dynamic official-total replay", () => {
       observation: { completenessStatus: "VERIFIED", expectedJobCount: 1 },
       reconciliation: { rawInputCount: 1, dedupeOutputCount: 1, adapterLosses: [], collisionGroups: [] }
     });
-  });
-
-  it("rejects a Workday location descriptor drift even when the old request digest is retained", async () => {
-    const plan = planFor("source-gilead-china-social");
-    const { evidence, evaluation } = dynamicWorkdayEvidence(plan);
-    const forged = replaceArtifactBody(evidence, "workday-preflight-0000", (body) => {
-      const facets = body.facets as Array<Record<string, unknown>>;
-      const nested = (facets[0]!.values as Array<Record<string, unknown>>)[0]!;
-      const values = nested.values as Array<Record<string, unknown>>;
-      values[0]!.descriptor = "Taiwan - Taipei";
-    });
-
-    expect((await crawlWith(plan, forged, evaluation)).truth.completenessVerified).toBe(false);
   });
 
   it("rejects Workday official-total body drift and a changed request contract", async () => {
