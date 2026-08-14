@@ -49,7 +49,9 @@ export function classifyBGradeIndependentTraversalFailure(
   const tagged = readTaggedFailureCode(error);
   if (tagged) return tagged;
   const message = error instanceof Error ? error.message : "";
-  if (/\bnavigation\b/iu.test(message)) return "B_GRADE_BROWSER_NAVIGATION_FAILED";
+  if (/(?:\bnavigation\b|\bpage\.goto\b)/iu.test(message)) {
+    return "B_GRADE_BROWSER_NAVIGATION_FAILED";
+  }
   if (/\bsource binding mismatch\b/iu.test(message)) return "B_GRADE_SOURCE_BINDING_FAILED";
   if (/\bcompany binding mismatch\b/iu.test(message)) return "B_GRADE_COMPANY_BINDING_FAILED";
   if (/\bregistered policy mismatch\b/iu.test(message)) return "B_GRADE_POLICY_REGISTRATION_FAILED";

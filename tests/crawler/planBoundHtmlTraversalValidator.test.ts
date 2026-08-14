@@ -161,6 +161,43 @@ describe("plan-bound HTML rendered traversal", () => {
     expect(close).toHaveBeenCalledTimes(1);
   });
 
+  it.each([
+    {
+      sourceId: "source-fosun-pharma-social" as const,
+      rowUrls: [
+        [officialPagedUrl("fosunpharma.zhiye.com", "socialxq", 57201)],
+        [officialPagedUrl("fosunpharma.zhiye.com", "socialxq", 57202)]
+      ]
+    },
+    {
+      sourceId: "source-kelun-social" as const,
+      rowUrls: [
+        ["https://kelun.zhiye.com/job_show/57201"],
+        ["https://kelun.zhiye.com/job_show/57202"]
+      ]
+    }
+  ])("uses response commit plus the registered readiness selector for $sourceId", async ({ sourceId, rowUrls }) => {
+    const entryUrl = PLAN_BOUND_HTML_TRAVERSAL_POLICIES[sourceId].entryUrl;
+    const close = vi.fn(async () => undefined);
+
+    await expect(capturePlanBoundHtmlRenderedTraversal({
+      sourceId,
+      entryUrl,
+      launchBrowser: async () => pagedOfficialBrowser({
+        sourceId,
+        pageUrls: [entryUrl, `${entryUrl}/?PageIndex=2`],
+        rowUrls,
+        close,
+        requireCommitNavigation: true
+      })
+    })).resolves.toMatchObject({ pages: [
+      { pageNumber: 1, nextControlPresent: true },
+      { pageNumber: 2, nextControlPresent: false }
+    ] });
+
+    expect(close).toHaveBeenCalledTimes(1);
+  });
+
   it("follows the unique visible active Fosun next link when an inactive control appears first", async () => {
     const sourceId = "source-fosun-pharma-social" as const;
     const entryUrl = PLAN_BOUND_HTML_TRAVERSAL_POLICIES[sourceId].entryUrl;
@@ -546,6 +583,7 @@ function pagedOfficialBrowser(input: {
   failNextClick?: boolean;
   inactiveNextFirst?: boolean;
   hiddenActiveNext?: boolean;
+  requireCommitNavigation?: boolean;
 }) {
   const policy = PLAN_BOUND_HTML_TRAVERSAL_POLICIES[input.sourceId];
   let pageIndex = 0;
@@ -567,7 +605,10 @@ function pagedOfficialBrowser(input: {
     click: async () => { throw new Error("inactive next control must not be used"); }
   };
   const page = {
-    goto: async (url: string = input.pageUrls[0]!) => {
+    goto: async (url: string = input.pageUrls[0]!, options?: { waitUntil?: string }) => {
+      if (input.requireCommitNavigation && options?.waitUntil !== "commit") {
+        throw new Error("page.goto: Timeout 30000ms exceeded before DOMContentLoaded");
+      }
       const targetIndex = input.pageUrls.indexOf(url);
       if (targetIndex >= 0) pageIndex = targetIndex;
       return response(url);

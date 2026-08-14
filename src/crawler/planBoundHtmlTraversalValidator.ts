@@ -106,6 +106,7 @@ export const PLAN_BOUND_HTML_TRAVERSAL_POLICIES = Object.freeze({
     rowSelector: "table tr:has(td:nth-child(1) a[href*='/socialxq?jobId='])",
     nextSelector: ".page a.next:not(.disabled):has-text('下一页')[href]",
     pageCoordinate: { kind: "QUERY", firstPath: "/social", pagePath: "/social/", parameter: "PageIndex" },
+    navigationWaitUntil: "commit",
     followNextHref: true,
     key: { kind: "OFFICIAL_URL", selector: "td:nth-child(1) a", origin: "https://fosunpharma.zhiye.com", pathPrefix: "/socialxq", dedupe: "OFFICIAL_URL", allowedSearchParam: "jobId", searchParamRequired: true },
     maxPages: 20
@@ -122,6 +123,7 @@ export const PLAN_BOUND_HTML_TRAVERSAL_POLICIES = Object.freeze({
     rowSelector: ".jobsTable tr:not(.title)",
     nextSelector: "a.next:has-text('下一页')[href*='PageIndex=']",
     pageCoordinate: { kind: "QUERY", firstPath: "/social", pagePath: "/social/", parameter: "PageIndex" },
+    navigationWaitUntil: "commit",
     followNextHref: true,
     key: { kind: "OFFICIAL_URL", selector: "td:nth-child(1) a", origin: "https://kelun.zhiye.com", pathPrefix: "/job_show/", dedupe: "OFFICIAL_URL", allowedSearchParam: "PageIndex" },
     maxPages: 20
@@ -252,6 +254,8 @@ export async function capturePlanBoundHtmlRenderedTraversal(input: {
   launchBrowser?: () => Promise<Pick<import("playwright-core").Browser, "newPage" | "close">>;
 }): Promise<{ observedAt: string; pages: PlanBoundHtmlRenderedPageCapture[] }> {
   const policy = PLAN_BOUND_HTML_TRAVERSAL_POLICIES[input.sourceId];
+  const navigationWaitUntil: "commit" | "domcontentloaded" =
+    "navigationWaitUntil" in policy ? policy.navigationWaitUntil : "domcontentloaded";
   if (input.entryUrl !== policy.entryUrl) throw new Error("Plan-bound HTML browser validator entry URL mismatch");
   if (input.signal?.aborted) throw input.signal.reason;
   const releaseBrowserPermit = await acquireBrowserSourcePermit(input.signal);
@@ -273,7 +277,7 @@ export async function capturePlanBoundHtmlRenderedTraversal(input: {
         };
       }
       const page = await browser.newPage();
-      const navigation = await page.goto(input.entryUrl, { waitUntil: "domcontentloaded", timeout: 30_000 });
+      const navigation = await page.goto(input.entryUrl, { waitUntil: navigationWaitUntil, timeout: 30_000 });
       assertNavigation(input.sourceId, navigation, input.entryUrl, 1);
       await page.locator(policy.readySelector).first().waitFor({ state: "visible", timeout: 30_000 });
       let declaredPartitions: PlanBoundHtmlRenderedPartitionCapture[] | undefined;
@@ -409,7 +413,7 @@ export async function capturePlanBoundHtmlRenderedTraversal(input: {
           if (!nextHref?.trim()) throw new Error("Plan-bound HTML browser validator next-page href is missing");
           const targetUrl = new URL(nextHref, pageUrl).toString();
           assertPageUrl(input.sourceId, targetUrl, pageNumber + 1);
-          const navigation = await page.goto(targetUrl, { waitUntil: "domcontentloaded", timeout: 30_000 });
+          const navigation = await page.goto(targetUrl, { waitUntil: navigationWaitUntil, timeout: 30_000 });
           assertNavigation(input.sourceId, navigation, targetUrl, pageNumber + 1);
         } else {
           const previousUrl = pageUrl;

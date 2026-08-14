@@ -8,6 +8,12 @@ describe("B-grade independent traversal diagnostics", () => {
     expect(classifyBGradeIndependentTraversalFailure(failure)).toBe("B_GRADE_BROWSER_NAVIGATION_FAILED");
   });
 
+  it("classifies Playwright page.goto timeouts as browser navigation failures", () => {
+    const failure = new Error("page.goto: Timeout 30000ms exceeded before DOMContentLoaded");
+
+    expect(classifyBGradeIndependentTraversalFailure(failure)).toBe("B_GRADE_BROWSER_NAVIGATION_FAILED");
+  });
+
   it("fails closed with a generic code for an unrecognized error", () => {
     expect(classifyBGradeIndependentTraversalFailure(new Error("secret runtime detail")))
       .toBe("B_GRADE_VALIDATOR_EXECUTION_FAILED");
