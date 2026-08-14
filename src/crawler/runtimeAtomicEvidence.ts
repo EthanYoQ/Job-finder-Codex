@@ -405,14 +405,21 @@ export function buildAtomicRuntimeCommit(input: {
     })))
   ];
   const officialLogicalKey = evidence.declaredCompleteness?.artifactLogicalKey ?? evidence.artifacts[0]!.logicalKey;
+  const observationForCommit = committedObservation(
+    result,
+    evidence,
+    completenessVerified,
+    incompleteBlocker?.blockerReason
+  );
+  const completenessState = completenessVerified
+    ? "VERIFIED"
+    : observationForCommit.completenessStatus === "NEEDS_MANUAL_COMPLETENESS_REVIEW"
+      ? "NEEDS_MANUAL_COMPLETENESS_REVIEW"
+      : "INCOMPLETE";
   const commit: AtomicSourceEvidenceCommit = {
     sourceResult: { id: pending.id, releaseCandidateId: identity.releaseCandidateId, batchId,
       sourceId: plan.source.id, transportState: "SUCCEEDED", adapterState: "SUCCEEDED",
-      completenessState: completenessVerified
-        ? "VERIFIED"
-        : result.observation.completenessStatus === "NEEDS_MANUAL_COMPLETENESS_REVIEW"
-          ? "NEEDS_MANUAL_COMPLETENESS_REVIEW"
-          : "INCOMPLETE",
+      completenessState,
       atomicCommitState: "COMMITTED", sourceConfigHash: pending.sourceConfigHash,
       adapterVersion: pending.adapterVersion, officialEntryId: pending.officialEntryId,
       officialSurfaceIds: pending.officialSurfaceIds, officialChannelIds: pending.officialChannelIds,
@@ -492,9 +499,7 @@ export function buildAtomicRuntimeCommit(input: {
         paginationEvaluationSha256: sha256(canonicalJson(attempt.paginationEvaluation ?? null)),
         details: { code: attempt.code } };
     }),
-    commands: buildIngestionCommands({ ...result,
-      observation: committedObservation(result, evidence, completenessVerified, incompleteBlocker?.blockerReason)
-    }, lifecycle)
+    commands: buildIngestionCommands({ ...result, observation: observationForCommit }, lifecycle)
   };
   runtimeCommitAttestations.set(commit,attestationSignature(commit));
   return commit;

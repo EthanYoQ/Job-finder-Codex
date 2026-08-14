@@ -25,6 +25,7 @@ import { evaluatePaginationEvidence } from "../../src/crawler/paginationEvidence
 import type { PersistentSourceFetchEvidence } from "../../src/crawler/sourceFetchEvidence";
 import { hashCanonicalJobKeySet } from "../../src/crawler/runtimeBatchIdentity";
 import { createSourceFetchRouter } from "../../src/crawler/sourceFetchRouter";
+import { createHttpHtmlSourceFetch } from "../../src/crawler/httpHtmlSourceFetch";
 
 const IDENTITY_BASE = {
   releaseCandidateId: "p0-rc-20260710-001",
@@ -278,6 +279,25 @@ function strictViatrisFetch(plan: SourceCrawlPlan, jobCount: number) {
   };
 }
 
+function strictAstellasFetch(plan: SourceCrawlPlan) {
+  if (plan.adapterId !== "html-table" || plan.source.id !== "source-astellas-china-social") {
+    throw new Error("Test helper requires the Astellas html-table plan");
+  }
+  const pdf = (id: string) =>
+    `<a href="/content/dam/astellas-com/global/zh/careers/${id}.pdf"><span>${id}</span><span>arrow_forward</span></a>`;
+  const body = `<div class="cmp-accordion" data-cmp-is="accordion">${pdf("China External Innovation Lead")}${pdf("Data Management Lead")}</div>`;
+  return createHttpHtmlSourceFetch({
+    now: () => new Date(CAPTURED_AT),
+    http: async (request) => ({
+      status: 200,
+      body,
+      finalUrl: request.url,
+      contentType: "text/html; charset=utf-8",
+      capturedAt: CAPTURED_AT
+    })
+  })(plan);
+}
+
 function strategyDeclaredArtifactUrl(plan: SourceCrawlPlan): string {
   if (plan.adapterId !== "official-json") throw new Error("Expected official-json strategy plan");
   const entry = new URL(plan.source.officialEntryUrl);
@@ -442,6 +462,54 @@ function fakeDb() {
 }
 
 describe("runP0CrawlBatch", () => {
+  it("atomically persists one B-grade blocker state when independent traversal is unavailable", async () => {
+    const plan = getPlanBySourceId(
+      buildStagedSourceCrawlPlans(candidateCompanies),
+      "source-astellas-china-social"
+    );
+    if (!plan) throw new Error("Missing staged Astellas plan");
+    const db = fakeDb();
+    const archiveDeps = inMemoryArchiveDeps();
+    let committed: AtomicSourceEvidenceCommit | undefined;
+
+    const result = await runP0CrawlBatch([plan], {
+      db,
+      now: NOW,
+      force: true,
+      identity: identityForPlans([plan]),
+      fetch: strictAstellasFetch,
+      ...archiveDeps,
+      executeAtomicCommit: async (commit) => {
+        committed = commit;
+        await executeAtomicSourceEvidenceCommit(commit, db as never);
+      },
+      runIndependentTraversalValidator: async () => {
+        throw new Error("independent traversal unavailable");
+      },
+      getPreviousJobs: async () => [],
+      getRecentObservations: async () => [],
+      isBaselineCompleted: async () => true
+    });
+
+    expect(result).toMatchObject({
+      status: "INCOMPLETE",
+      completenessIncompleteSourceCount: 1,
+      atomicCommittedSourceCount: 1,
+      atomicFailedSourceCount: 0
+    });
+    expect(committed?.sourceResult).toMatchObject({
+      completenessState: "NEEDS_MANUAL_COMPLETENESS_REVIEW",
+      atomicCommitState: "COMMITTED",
+      blockerCode: "B_GRADE_CERTIFICATE_NOT_ISSUED",
+      blockerReason: expect.stringContaining("INDEPENDENT_VALIDATION_MISSING")
+    });
+    expect(committed?.commands.find((command) => command.type === "UPSERT_CRAWL_OBSERVATION"))
+      .toMatchObject({ observation: {
+        completenessStatus: "NEEDS_MANUAL_COMPLETENESS_REVIEW",
+        completenessBlockerReason: expect.stringContaining("INDEPENDENT_VALIDATION_MISSING")
+      } });
+  });
+
   it("reads a B-grade baseline, forces current independent validation on a 100-to-10 drop, and preserves jobs when validation fails", async () => {
     const plan = planFor("source-viatris-social");
     const db = fakeDb();
