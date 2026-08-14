@@ -33,6 +33,16 @@ import {
 } from "./planBoundHtmlTraversalValidator";
 import { validateStrictHtmlCompletenessProof } from "./strictHtmlCompletenessProof";
 import { companyRecruitmentExecutionConfigsBySourceId } from "./companyRecruitmentProfiles";
+import {
+  captureOfficialJsonRenderedTraversal,
+  isOfficialJsonRenderedTraversalSourceId,
+  OFFICIAL_JSON_RENDERED_REQUIRED_CERTIFICATES,
+  OFFICIAL_JSON_RENDERED_TRAVERSAL_POLICIES,
+  OFFICIAL_JSON_RENDERED_TRAVERSAL_SOURCE_IDS,
+  replayOfficialJsonRenderedTraversal,
+  type OfficialJsonRenderedRawRow,
+  type OfficialJsonRenderedTraversalSourceId
+} from "./officialJsonRenderedTraversalValidator";
 
 export const B_GRADE_TRAVERSAL_CERTIFICATE_SCHEMA_VERSION =
   "b-grade-independent-traversal-v2" as const;
@@ -40,6 +50,7 @@ export const B_GRADE_TRAVERSAL_CERTIFICATE_SCHEMA_VERSION =
 export const REQUIRED_B_GRADE_TRAVERSAL_CERTIFICATES = Object.freeze({
   "source-viatris-social": "company-viatris",
   "source-qilu-social": "company-qilu",
+  ...OFFICIAL_JSON_RENDERED_REQUIRED_CERTIFICATES,
   ...PLAN_BOUND_HTML_REQUIRED_CERTIFICATES
 } as const);
 
@@ -60,6 +71,7 @@ const B_GRADE_VALIDATOR_POLICIES = Object.freeze({
     matchKeyKind: "OFFICIAL_URL",
     artifactLogicalKey: "qilu-browser-traversal-validation"
   },
+  ...OFFICIAL_JSON_RENDERED_TRAVERSAL_POLICIES,
   ...PLAN_BOUND_HTML_TRAVERSAL_POLICIES
 } as const);
 
@@ -107,6 +119,20 @@ const qiluRawRowSchema = z.object({
   scopeDecision: z.enum(["INCLUDED_MAINLAND", "EXCLUDED_FOREIGN"])
 }).strict();
 const qiluBrowserPageSchema = browserPageSchema.extend({ rawRows: z.array(qiluRawRowSchema).min(1) }).strict();
+const officialJsonRenderedRawRowSchema = z.object({
+  sourceJobId: NONBLANK,
+  rawEvidenceId: z.string().regex(/^sha256:[0-9a-f]{64}$/u),
+  scopeMarker: NONBLANK,
+  scopeDecision: z.enum(["INCLUDED_MAINLAND", "EXCLUDED_AUDITED"]),
+  recordIndex: z.number().int().nonnegative(),
+  rawPayload: z.record(z.string(), z.unknown())
+}).strict();
+const officialJsonRenderedPageSchema = browserPageSchema.extend({
+  channelId: NONBLANK,
+  declaredTotalJobs: z.number().int().positive(),
+  uiRequestCandidateIds: z.array(NONBLANK),
+  rawRows: z.array(officialJsonRenderedRawRowSchema).min(1)
+}).strict();
 const planBoundHtmlPartitionSchema = z.object({
   controlIndex: z.number().int().positive(),
   controlId: NONBLANK,
@@ -195,10 +221,23 @@ const planBoundTalentbrewBrowserValidationSchema = z.object({
   pages: z.array(planBoundTalentbrewBrowserPageSchema).min(1),
   artifactLogicalKey: NONBLANK
 }).strict();
+const officialJsonRenderedValidationSchema = z.object({
+  schemaVersion: z.literal("official-json-browser-network-traversal-v1"),
+  sourceId: z.enum(OFFICIAL_JSON_RENDERED_TRAVERSAL_SOURCE_IDS as unknown as
+    [OfficialJsonRenderedTraversalSourceId, ...OfficialJsonRenderedTraversalSourceId[]]),
+  companyId: NONBLANK,
+  retrievalPath: z.literal("PLAYWRIGHT_OFFICIAL_UI_NETWORK_TRAVERSAL"),
+  validatorImplementationId: NONBLANK,
+  matchKeyKind: z.literal("SOURCE_JOB_ID"),
+  ...renderedValidationFields,
+  pages: z.array(officialJsonRenderedPageSchema).min(1),
+  artifactLogicalKey: NONBLANK
+}).strict();
 const browserValidationSchema = z.discriminatedUnion("schemaVersion", [
   legacyViatrisBrowserValidationSchema,
   viatrisBrowserValidationSchema,
   qiluBrowserValidationSchema,
+  officialJsonRenderedValidationSchema,
   planBoundHtmlBrowserValidationSchema,
   planBoundTalentbrewBrowserValidationSchema
 ]);
@@ -512,6 +551,40 @@ export function createQiluBrowserTraversalValidation(input: {
   });
 }
 
+export function createOfficialJsonRenderedTraversalValidation(input: {
+  sourceId: OfficialJsonRenderedTraversalSourceId;
+  companyId: string;
+  sourceConfigSha256: string;
+  surfaceIds: readonly string[];
+  channelIds: readonly string[];
+  pages: readonly {
+    channelId: string;
+    pageNumber: number;
+    declaredTotalPages: number;
+    declaredTotalJobs: number;
+    uiRequestCandidateIds: readonly string[];
+    rawRows: readonly OfficialJsonRenderedRawRow[];
+    nextControlPresent: boolean;
+  }[];
+  observedAt: string;
+  expiresAt: string;
+}): BGradeIndependentTraversalValidation {
+  const policy = OFFICIAL_JSON_RENDERED_TRAVERSAL_POLICIES[input.sourceId];
+  const replay = replayOfficialJsonRenderedTraversal(input.sourceId, input.pages);
+  if (replay.matchKeys.length < 1) throw new Error("Official JSON browser validation is empty");
+  return createRenderedTraversalValidation({
+    ...input,
+    pages: input.pages.map((page) => ({ ...page, matchKeys: page.rawRows
+      .filter((row) => row.scopeDecision === "INCLUDED_MAINLAND")
+      .map((row) => row.sourceJobId) })),
+    schemaVersion: "official-json-browser-network-traversal-v1",
+    retrievalPath: policy.retrievalPath,
+    validatorImplementationId: policy.validatorImplementationId,
+    matchKeyKind: "SOURCE_JOB_ID",
+    artifactLogicalKey: policy.artifactLogicalKey
+  });
+}
+
 export function createPlanBoundHtmlBrowserTraversalValidation(input: {
   sourceId: PlanBoundHtmlTraversalSourceId;
   companyId: string;
@@ -566,6 +639,7 @@ function createRenderedTraversalValidation(input: {
   sourceId: string;
   companyId: string;
   schemaVersion: "viatris-browser-traversal-validator-v2" | "qilu-browser-traversal-validator-v2" |
+    "official-json-browser-network-traversal-v1" |
     "plan-bound-html-browser-traversal-v1" | "plan-bound-html-browser-traversal-v2";
   retrievalPath: string;
   validatorImplementationId: string;
@@ -580,7 +654,8 @@ function createRenderedTraversalValidation(input: {
     channelId?: string;
     declaredTotalJobs?: number;
     matchKeys: readonly string[];
-    rawRows?: readonly { officialUrl: string; locationRaw: string; scopeDecision: "INCLUDED_MAINLAND" | "EXCLUDED_FOREIGN" }[];
+    rawRows?: readonly ({ officialUrl: string; locationRaw: string;
+      scopeDecision: "INCLUDED_MAINLAND" | "EXCLUDED_FOREIGN" } | OfficialJsonRenderedRawRow)[];
     rawMatchKeys?: readonly string[];
     partitions?: readonly {
       controlIndex: number;
@@ -701,6 +776,27 @@ export async function runBGradeIndependentTraversalValidator(input: {
     const observedAtMs = Date.parse(captured.observedAt);
     if (!Number.isFinite(observedAtMs)) throw new Error("Qilu browser validation observedAt is invalid");
     return createQiluBrowserTraversalValidation({
+      sourceConfigSha256: input.sourceConfigSha256,
+      surfaceIds: input.surfaceIds,
+      channelIds: input.channelIds,
+      pages: captured.pages,
+      observedAt: captured.observedAt,
+      expiresAt: new Date(observedAtMs + B_GRADE_VALIDATION_FRESHNESS_MAXIMUM_MS).toISOString()
+    });
+  }
+  if (isOfficialJsonRenderedTraversalSourceId(input.sourceId)) {
+    const captured = await captureOfficialJsonRenderedTraversal({
+      sourceId: input.sourceId,
+      entryUrl: input.entryUrl,
+      ...(input.signal ? { signal: input.signal } : {})
+    });
+    const observedAtMs = Date.parse(captured.observedAt);
+    if (!Number.isFinite(observedAtMs)) {
+      throw new Error("Official JSON browser validation observedAt is invalid");
+    }
+    return createOfficialJsonRenderedTraversalValidation({
+      sourceId: input.sourceId,
+      companyId: input.companyId,
       sourceConfigSha256: input.sourceConfigSha256,
       surfaceIds: input.surfaceIds,
       channelIds: input.channelIds,
@@ -874,12 +970,19 @@ export function issueBGradeTraversalCertificate(input: BGradeCertificateCandidat
     }
     pagination = evaluatePaginationEvidence({
       evidence,
-      expectedChannelIds: isPlanBoundHtmlTraversalSourceId(input.plan.source.id) &&
+      expectedChannelIds: isOfficialJsonRenderedTraversalSourceId(input.plan.source.id) &&
+          evidence.pages.some((page) => page.channelId !== undefined) ||
+          isPlanBoundHtmlTraversalSourceId(input.plan.source.id) &&
           "talentbrewScope" in PLAN_BOUND_HTML_TRAVERSAL_POLICIES[input.plan.source.id]
         ? expectedChannels
         : [],
       filteredOutput: true,
-      ...(input.plan.source.id === "source-qilu-social" ? { allowMissingReturnedPage: true } : {}),
+      ...(input.plan.source.id === "source-qilu-social" || input.plan.source.id === "source-nhu-social"
+        ? { allowMissingReturnedPage: true }
+        : {}),
+      ...(input.plan.source.id === "source-nhu-social"
+        ? { allowPositiveOfficialTotalCountAfterAdapterReconciliation: true }
+        : {}),
       ...(allowsMainPageOverlap
         ? { allowRawIdOverlapAcrossPages: true }
         : isPlanBoundHtmlTraversalSourceId(input.plan.source.id)
@@ -905,7 +1008,9 @@ export function issueBGradeTraversalCertificate(input: BGradeCertificateCandidat
         : declaredPages === evidence.pages.length && evidence.pages.every((page) => page.declaredPages === declaredPages);
     const completeTraversal = declaration !== undefined &&
       ["COMPLETE_PAGE_TRAVERSAL", "OFFICIAL_TOTAL_PAGES"].includes(declaration.kind) &&
-      declaration.scope === "SOURCE" &&
+      (declaration.scope === "SOURCE" || isOfficialJsonRenderedTraversalSourceId(input.plan.source.id) &&
+        declaration.scope === "CHANNEL" &&
+        expectedChannels.length === 1 && declaration.channelId === expectedChannels[0]) &&
       declaration.value === evidence.pages.length &&
       declaredPageContract &&
       (talentbrewPageGroups !== undefined || last?.termination === "NEXT_ABSENT" || last?.termination === "EMPTY_PAGE") &&
@@ -929,7 +1034,7 @@ export function issueBGradeTraversalCertificate(input: BGradeCertificateCandidat
   const rawObservationIds = evidence ? canonicalStrings(evidence.pages.flatMap((page) => page.validJobIds)) : [];
   const rawObservationCount = evidence?.pages.reduce((count, page) => count + page.validJobIds.length, 0) ?? 0;
   const outputIds = policy ? independentMatchKeys(input.plan.source.id, input.jobs) ?? [] : [];
-  const scopeExclusionsProven = evidence && input.plan.source.id === "source-qilu-social" &&
+  const scopeExclusionsProven = evidence &&
     validateStrictSourceScopeExclusionProof(input.plan, evidence, input.jobs);
   if (evidence && (evidence.fetchCounts.parseDiscardCount !== 0 ||
       evidence.fetchCounts.validationDiscardCount !== evidence.fetchLosses.length ||
@@ -1001,6 +1106,18 @@ export function issueBGradeTraversalCertificate(input: BGradeCertificateCandidat
         canonicalJson(independentRaw) !== canonicalJson(mainRawMatchKeys) ||
         canonicalJson(independentExcluded) !== canonicalJson(mainExcludedMatchKeys)) {
       blockers.add("INDEPENDENT_JOB_SET_MISMATCH");
+    }
+  }
+  if (validation?.schemaVersion === "official-json-browser-network-traversal-v1" && evidence) {
+    const replay = replayOfficialJsonRenderedTraversal(validation.sourceId, validation.pages);
+    const mainRawEvidenceIds = canonicalStrings(evidence.pages.flatMap((page) => page.rawJobIds));
+    if (replay.rawCount !== evidence.fetchCounts.rawCount ||
+        replay.excludedCount !== evidence.fetchCounts.validationDiscardCount ||
+        canonicalJson(replay.rawEvidenceIds) !== canonicalJson(mainRawEvidenceIds)) {
+      blockers.add("INDEPENDENT_JOB_SET_MISMATCH");
+    } else {
+      mainRawMatchKeys = replay.rawSourceJobIds;
+      mainExcludedMatchKeys = replay.excludedSourceJobIds;
     }
   }
   const requirement = evaluateBGradeValidationRequirement({
@@ -1116,6 +1233,16 @@ export function verifyBGradeTraversalCertificateReceipt(input: {
        expected.canonicalRawEvidenceIdSetSha256 !== qiluRawEvidenceIdSetSha256(certificate.independentValidation))) {
     throw new Error("B-grade traversal certificate main raw evidence commitment mismatch");
   }
+  if (certificate.independentValidation.schemaVersion === "official-json-browser-network-traversal-v1" &&
+      (!SHA256.safeParse(expected.canonicalRawEvidenceIdSetSha256).success ||
+       expected.canonicalRawEvidenceIdSetSha256 !== canonicalStringSetSha256(
+         replayOfficialJsonRenderedTraversal(
+           certificate.independentValidation.sourceId,
+           certificate.independentValidation.pages
+         ).rawEvidenceIds
+       ))) {
+    throw new Error("B-grade traversal certificate main raw evidence commitment mismatch");
+  }
   const requirement = evaluateBGradeValidationRequirement({
     trigger: "STABLE_RUN",
     validationExecution: "REUSED",
@@ -1164,6 +1291,22 @@ function assertCertificateValidationSetEquations(certificate: BGradeTraversalCer
           canonicalJson(planBoundDuplicateMultiplicity(certificate.independentValidation))) {
       throw new Error("B-grade traversal certificate collision multiplicity does not reconcile");
     }
+  }
+  if (certificate.independentValidation.schemaVersion === "official-json-browser-network-traversal-v1") {
+    const replay = replayOfficialJsonRenderedTraversal(
+      certificate.independentValidation.sourceId,
+      certificate.independentValidation.pages
+    );
+    if (replay.rawCount !== certificate.counts.independentUniqueJobCount + certificate.counts.validationDiscardCount ||
+        replay.excludedCount !== certificate.counts.validationDiscardCount ||
+        certificate.counts.dedupeDiscardCount !== 0 ||
+        certificate.mainTraversal.canonicalRawMatchKeySetSha256 !==
+          canonicalStringSetSha256(replay.rawSourceJobIds) ||
+        certificate.mainTraversal.canonicalExcludedMatchKeySetSha256 !==
+          canonicalStringSetSha256(replay.excludedSourceJobIds)) {
+      throw new Error("B-grade traversal certificate official JSON raw-row equations do not reconcile");
+    }
+    return;
   }
   if (certificate.independentValidation.schemaVersion !== "qilu-browser-traversal-validator-v2") {
     if (certificate.mainTraversal.canonicalRawMatchKeySetSha256 !== certificate.mainTraversal.canonicalMatchKeySetSha256 ||
@@ -1231,6 +1374,17 @@ function assertBrowserValidationEquations(validation: BGradeIndependentTraversal
   const matchKeys: string[] = [];
   const qiluRawUrls: string[] = [];
   const planBoundSeenRawMatchKeys = new Set<string>();
+  const officialJsonReplay = validation.schemaVersion === "official-json-browser-network-traversal-v1"
+    ? replayOfficialJsonRenderedTraversal(validation.sourceId, validation.pages)
+    : undefined;
+  const officialJsonChannelIds = validation.schemaVersion === "official-json-browser-network-traversal-v1"
+    ? validation.pages.map((page) => page.channelId)
+    : undefined;
+  if (officialJsonReplay &&
+      (canonicalJson(validation.channelIds) !== canonicalJson(canonicalStrings(officialJsonChannelIds ?? [])) ||
+       officialJsonReplay.matchKeys.length < 1)) {
+    throw new Error("Official JSON browser validation raw row replay mismatch");
+  }
   for (let index = 0; index < validation.pages.length; index += 1) {
     const page = validation.pages[index]!;
     const pageMatchKeys = "matchKeys" in page ? page.matchKeys : page.sourceJobIds;
@@ -1251,6 +1405,14 @@ function assertBrowserValidationEquations(validation: BGradeIndependentTraversal
         throw new Error("Qilu browser validation raw row scope replay mismatch");
       }
       qiluRawUrls.push(...rawUrls);
+    }
+    if (validation.schemaVersion === "official-json-browser-network-traversal-v1") {
+      const derivedPageMatchKeys = validation.pages[index]!.rawRows
+        .filter((row) => row.scopeDecision === "INCLUDED_MAINLAND")
+        .map((row) => row.sourceJobId);
+      if (canonicalJson(pageMatchKeys) !== canonicalJson(canonicalStrings(derivedPageMatchKeys))) {
+        throw new Error("Official JSON browser validation raw row replay mismatch");
+      }
     }
     if (isPlanBoundBrowserTraversalValidation(validation)) {
       const planBoundPage = validation.pages[index]!;
