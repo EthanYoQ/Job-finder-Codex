@@ -9,7 +9,10 @@ import {
 } from "../../src/db/ingestionRepository";
 import type { IngestionCommand } from "../../src/crawler/ingestion";
 import { canonicalStringSetSha256 } from "../../src/crawler/sourceFetchEvidence";
-import { atomicEvidenceFailureCode } from "../../src/crawler/sourceFailureDiagnostics";
+import {
+  atomicEvidenceFailureCode,
+  type AtomicEvidenceFailureCode
+} from "../../src/crawler/sourceFailureDiagnostics";
 
 vi.mock("../../src/crawler/runtimeAtomicEvidence", async (importOriginal) => ({
   ...(await importOriginal<typeof import("../../src/crawler/runtimeAtomicEvidence")>()),
@@ -474,6 +477,58 @@ describe("executeAtomicSourceEvidenceCommit", () => {
     };
     const rejection = await executeAtomicSourceEvidenceCommit(validCommit(), db).catch((error: unknown) => error);
     expect(atomicEvidenceFailureCode(rejection)).toBe("ATOMIC_EVIDENCE_TRANSACTION_COMMIT_FAILED");
+  });
+
+  const validationFailureCases: Array<[
+    string,
+    (input: AtomicSourceEvidenceCommit) => void,
+    AtomicEvidenceFailureCode
+  ]> = [
+    ["source-result truth", (input) => {
+      input.sourceResult.startedAt = new Date(TO.getTime() + 1);
+    }, "ATOMIC_EVIDENCE_SOURCE_RESULT_VALIDATION_FAILED"],
+    ["command projection", (input) => {
+      input.commands = input.commands.filter((command) => command.type !== "UPSERT_CRAWL_OBSERVATION");
+    }, "ATOMIC_EVIDENCE_COMMAND_VALIDATION_FAILED"],
+    ["artifact metadata", (input) => {
+      input.artifacts[0]!.sha256 = "invalid";
+    }, "ATOMIC_EVIDENCE_ARTIFACT_VALIDATION_FAILED"],
+    ["required completeness certificate", (input) => {
+      retargetCommitSource(input, "source-astellas-china-social");
+    }, "ATOMIC_EVIDENCE_CERTIFICATE_VALIDATION_FAILED"],
+    ["certificate and hash pairing", (input) => {
+      input.sourceResult.completenessCertificate = {};
+    }, "ATOMIC_EVIDENCE_CERTIFICATE_VALIDATION_FAILED"],
+    ["completeness certificate", (input) => {
+      retargetCommitSource(input, "source-astellas-china-social");
+      input.sourceResult.completenessCertificate = {};
+      input.sourceResult.completenessCertificateSha256 = H;
+    }, "ATOMIC_EVIDENCE_CERTIFICATE_VALIDATION_FAILED"],
+    ["pagination", (input) => {
+      input.pagination[0]!.sequence = 1;
+    }, "ATOMIC_EVIDENCE_PAGINATION_VALIDATION_FAILED"],
+    ["loss ledger", (input) => {
+      input.lossLedger = [];
+    }, "ATOMIC_EVIDENCE_LOSS_LEDGER_VALIDATION_FAILED"],
+    ["adapter reconciliation", (input) => {
+      input.sourceResult.adapterOutputCount = 0;
+    }, "ATOMIC_EVIDENCE_RECONCILIATION_VALIDATION_FAILED"],
+    ["transport attempt", (input) => {
+      input.priorTransportAttempts[0]!.sequence = 1;
+    }, "ATOMIC_EVIDENCE_TRANSPORT_ATTEMPT_VALIDATION_FAILED"],
+    ["committed evidence", (input) => {
+      input.observationProvenance.transportSucceeded = false;
+    }, "ATOMIC_EVIDENCE_COMMITTED_EVIDENCE_VALIDATION_FAILED"]
+  ];
+
+  it.each(validationFailureCases)("classifies %s before opening a transaction", async (_label, mutate, expected) => {
+    const input = validCommit();
+    mutate(input);
+    const db = transactionalDb();
+    const rejection = await executeAtomicSourceEvidenceCommit(input, db).catch((error: unknown) => error);
+    expect(rejection).toBeInstanceOf(Error);
+    expect(atomicEvidenceFailureCode(rejection)).toBe(expected);
+    expect(db.calls.transactions).toBe(0);
   });
 
   it("rolls back all evidence when no matching PENDING row is consumed", async () => {

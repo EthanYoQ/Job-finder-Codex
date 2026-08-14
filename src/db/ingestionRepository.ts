@@ -759,7 +759,11 @@ async function executeAtomicSourceEvidenceCommitInternal(
     const { verifyAtomicRuntimeCommitAttestation } = await import("../crawler/runtimeAtomicEvidence");
     verifyAtomicRuntimeCommitAttestation(input);
     stage = "INPUT_VALIDATION";
-    const validated = validateAtomicSourceEvidenceCommit(input, manualFence !== undefined);
+    const validated = validateAtomicSourceEvidenceCommit(
+      input,
+      manualFence !== undefined,
+      (validationStage) => { stage = validationStage; }
+    );
 
     stage = "TRANSACTION_COMMIT";
     await db.$transaction(async (transaction) => {
@@ -1032,7 +1036,8 @@ function validateRetryReasonCodes(values: readonly string[], retryCount: number)
 
 function validateCommittedSourceResultTruthTable(
   result: AtomicSourceResultInput,
-  canonicalRawEvidenceIdSetSha256?: string
+  canonicalRawEvidenceIdSetSha256: string | undefined,
+  onStage: (stage: AtomicEvidencePersistenceStage) => void
 ): void {
   if (result.atomicCommitState !== "COMMITTED" || result.transportState !== "SUCCEEDED" ||
       result.adapterState !== "SUCCEEDED" || result.finishedAt === null ||
@@ -1067,6 +1072,7 @@ function validateCommittedSourceResultTruthTable(
   } else if (!nonblank(result.blockerCode) || !nonblank(result.blockerReason)) {
     throw new Error("INCOMPLETE or NEEDS_MANUAL COMMITTED source result requires blocker code and reason");
   }
+  onStage("CERTIFICATE_VALIDATION");
   if ((result.completenessCertificate === null) !==
       (result.completenessCertificateSha256 === null)) {
     throw new Error("Completeness certificate and hash must be supplied together");
@@ -1082,6 +1088,7 @@ function validateCommittedSourceResultTruthTable(
     }
     verifyPersistedCompletenessCertificate(result, undefined, canonicalRawEvidenceIdSetSha256);
   }
+  onStage("SOURCE_RESULT_VALIDATION");
   const baselineTransitionSupplied = result.baselineChangeReason !== undefined &&
     result.baselineChangeReason !== null;
   if (baselineTransitionSupplied) {
@@ -1231,11 +1238,16 @@ function persistedSourceValueEquals(actual: unknown, expected: unknown): boolean
   return actual === expected;
 }
 
-function validateAtomicSourceEvidenceCommit(input: AtomicSourceEvidenceCommit, manualPreview = false): {
+function validateAtomicSourceEvidenceCommit(
+  input: AtomicSourceEvidenceCommit,
+  manualPreview: boolean,
+  onStage: (stage: AtomicEvidencePersistenceStage) => void
+): {
   observationCommand: Extract<IngestionCommand, { type: "UPSERT_CRAWL_OBSERVATION" }>;
   artifactIdsByLogicalKey: Map<string, string>;
   officialArtifactId: string;
 } {
+  onStage("SOURCE_RESULT_VALIDATION");
   const result = input.sourceResult;
   const tuple: EvidenceTuple = {
     releaseCandidateId: result.releaseCandidateId,
@@ -1256,7 +1268,12 @@ function validateAtomicSourceEvidenceCommit(input: AtomicSourceEvidenceCommit, m
       (result.finishedAt !== null && result.startedAt > result.finishedAt)) {
     throw new Error("Source-result timestamps are invalid or unordered");
   }
-  validateCommittedSourceResultTruthTable(result, input.observationProvenance.canonicalRawSha256);
+  validateCommittedSourceResultTruthTable(
+    result,
+    input.observationProvenance.canonicalRawSha256,
+    onStage
+  );
+  onStage("SOURCE_RESULT_VALIDATION");
   const provenance = input.observationProvenance;
   assertTuple(provenance, tuple, "observation provenance");
   if (!isValidDate(provenance.observedFrom) || !isValidDate(provenance.observedTo) ||
@@ -1276,6 +1293,7 @@ function validateAtomicSourceEvidenceCommit(input: AtomicSourceEvidenceCommit, m
   validateNonblankUniqueList(result.officialChannelIds, "official channel");
   validateCounts(result);
 
+  onStage("COMMAND_VALIDATION");
   const observations = input.commands.filter(
     (command): command is Extract<IngestionCommand, { type: "UPSERT_CRAWL_OBSERVATION" }> =>
       command.type === "UPSERT_CRAWL_OBSERVATION"
@@ -1383,6 +1401,7 @@ function validateAtomicSourceEvidenceCommit(input: AtomicSourceEvidenceCommit, m
     throw new Error("Observation counters or completeness do not match source result");
   }
 
+  onStage("ARTIFACT_VALIDATION");
   const artifactIdsByLogicalKey = new Map<string, string>();
   const paths = new Set<string>();
   const artifactByLogicalKey = new Map<string, AtomicEvidenceArtifactInput>();
@@ -1416,11 +1435,13 @@ function validateAtomicSourceEvidenceCommit(input: AtomicSourceEvidenceCommit, m
   const officialArtifact = artifactByLogicalKey.get(provenance.officialEvidenceArtifactLogicalKey);
   if (!officialArtifact) throw new Error("Designated official evidence artifact is missing");
   if (result.completenessCertificate !== null) {
+    onStage("CERTIFICATE_VALIDATION");
     verifyPersistedCompletenessCertificate(result, {
       logicalKey: officialArtifact.logicalKey,
       sha256: officialArtifact.sha256
     }, provenance.canonicalRawSha256);
   }
+  onStage("ARTIFACT_VALIDATION");
   if (result.expectedEvidenceKind === "OFFICIAL_TOTAL_COUNT") {
     if (result.expectedJobCount === null || !NETWORK_ARTIFACT_KINDS.has(officialArtifact.kind)) {
       throw new Error("OFFICIAL_TOTAL_COUNT requires explicit expectedJobCount and an archived network artifact");
@@ -1432,6 +1453,7 @@ function validateAtomicSourceEvidenceCommit(input: AtomicSourceEvidenceCommit, m
     requireNonblank(officialArtifact.extractorLocator, "OFFICIAL_TOTAL_COUNT extraction locator");
   }
 
+  onStage("PAGINATION_VALIDATION");
   const sortedPages = [...input.pagination].sort((a, b) => a.sequence - b.sequence);
   const seenSequences = new Set<number>();
   for (let index = 0; index < sortedPages.length; index += 1) {
@@ -1469,6 +1491,7 @@ function validateAtomicSourceEvidenceCommit(input: AtomicSourceEvidenceCommit, m
     }
   }
 
+  onStage("LOSS_LEDGER_VALIDATION");
   const lossCounts: Record<LossStage, number> = { PARSE: 0, VALIDATION: 0, NORMALIZATION: 0, DEDUPE: 0 };
   const collisionGroups = new Set<string>();
   for (const loss of input.lossLedger) {
@@ -1492,6 +1515,7 @@ function validateAtomicSourceEvidenceCommit(input: AtomicSourceEvidenceCommit, m
     throw new Error("Loss ledger rows do not reconcile to discard and collision counts");
   }
 
+  onStage("RECONCILIATION_VALIDATION");
   requireSha256(result.canonicalOutputSetSha256, "canonicalOutputSetSha256");
   requireSha256(result.adapterReconciliationSha256, "adapterReconciliationSha256");
   requireSha256(result.collisionLedgerSha256, "collisionLedgerSha256");
@@ -1508,6 +1532,7 @@ function validateAtomicSourceEvidenceCommit(input: AtomicSourceEvidenceCommit, m
       provenance.artifactRedactionCommitmentSha256) {
     throw new Error("Artifact redaction commitments do not match observation provenance");
   }
+  onStage("TRANSPORT_ATTEMPT_VALIDATION");
   const seenAttemptIds = new Set<string>();
   for (let index = 0; index < input.priorTransportAttempts.length; index += 1) {
     const attempt = input.priorTransportAttempts[index]!;
@@ -1536,6 +1561,7 @@ function validateAtomicSourceEvidenceCommit(input: AtomicSourceEvidenceCommit, m
     validateSafeJson(attempt.details, "transport attempt details");
   }
 
+  onStage("COMMITTED_EVIDENCE_VALIDATION");
   if (!provenance.transportSucceeded || !provenance.adapterSucceeded || !provenance.atomicCommitSucceeded ||
       provenance.completenessVerified !== (result.completenessState === "VERIFIED") ||
       !observation.observation.successful) {
