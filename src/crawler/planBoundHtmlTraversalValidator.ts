@@ -290,16 +290,19 @@ export async function capturePlanBoundHtmlRenderedTraversal(input: {
               ["true", "false"].includes(control.getAttribute("aria-expanded") ?? ""));
           }, { selector: policy.revealSelector, count: policy.expectedRevealControlCount }, { timeout: 30_000 });
           partitionFailureCode = "B_GRADE_PARTITION_EXPANSION_FAILED";
-          const overlayDismiss = page.locator(policy.blockingOverlay.dismissSelector);
-          const overlayDismissCount = await overlayDismiss.count();
-          if (overlayDismissCount > 1) {
-            throw new Error("Plan-bound HTML browser validator found multiple overlay-dismiss controls");
-          }
-          if (overlayDismissCount === 1 && await overlayDismiss.isVisible()) {
+          const dismissBlockingOverlay = async (): Promise<boolean> => {
+            const overlayDismiss = page.locator(policy.blockingOverlay.dismissSelector);
+            const overlayDismissCount = await overlayDismiss.count();
+            if (overlayDismissCount > 1) {
+              throw new Error("Plan-bound HTML browser validator found multiple overlay-dismiss controls");
+            }
+            if (overlayDismissCount !== 1 || !await overlayDismiss.isVisible()) return false;
             await overlayDismiss.click({ timeout: 10_000 });
             await page.locator(policy.blockingOverlay.rootSelector)
               .waitFor({ state: "hidden", timeout: 10_000 });
-          }
+            return true;
+          };
+          await dismissBlockingOverlay();
           const controlIds = new Set<string>();
           declaredPartitions = [];
           for (let index = 0; index < revealCount; index += 1) {
@@ -320,7 +323,12 @@ export async function capturePlanBoundHtmlRenderedTraversal(input: {
             partitionFailureCode = "B_GRADE_PARTITION_EXPANSION_FAILED";
             const expansionState = await control.getAttribute("aria-expanded");
             if (expansionState === "false") {
-              await control.click({ timeout: 10_000 });
+              try {
+                await control.click({ timeout: 10_000 });
+              } catch (error) {
+                if (input.signal?.aborted || !await dismissBlockingOverlay()) throw error;
+                await control.click({ timeout: 10_000 });
+              }
             } else if (expansionState !== "true") {
               throw new Error("Plan-bound HTML browser validator reveal-control expansion state invalid");
             }
