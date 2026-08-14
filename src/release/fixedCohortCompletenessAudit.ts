@@ -4,6 +4,7 @@ import { P0_LAUNCH_MANIFEST, launchManifestIdentity, validateLaunchManifest } fr
 import { certificateSha256 } from "./authoritativeLaunchReceipt";
 import { verifyAGradeCompletenessCertificateReceipt } from "../crawler/completenessCertificate";
 import { verifyBGradeTraversalCertificateReceipt } from "../crawler/traversalCertificate";
+import { B_GRADE_INDEPENDENT_TRAVERSAL_FAILURE_CODES } from "../crawler/independentTraversalDiagnostics";
 
 export type AuditFailureClass = "PRODUCT_DEFECT" | "SOURCE_TEMPORARILY_UNAVAILABLE" | "CONFIGURATION_ERROR" | "EVIDENCE_INSUFFICIENT";
 export interface FixedCohortAuditSourceInput {
@@ -23,10 +24,11 @@ export interface FixedCohortAuditSourceInput {
   expectedEvidenceKind: string | null; expectedJobCount: number | null;
   pagesVisited: number | null; totalPages: number | null; finalJobCount: number;
   transportState: string; adapterState: string; completenessState: string; atomicCommitState: string;
-  failureCategory: string | null; failureDiagnosticCode: string | null; failureCode: string | null;
+  blockerCode: string | null; failureCategory: string | null; failureDiagnosticCode: string | null;
+  failureCode: string | null;
 }
 export interface FixedCohortCompletenessAuditReport {
-  schemaVersion: 1; decision: "AUDIT_COMPLETE" | "AUDIT_INVALID"; generatedAt: string;
+  schemaVersion: 2; decision: "AUDIT_COMPLETE" | "AUDIT_INVALID"; generatedAt: string;
   releaseCandidateId: string; batchId: string; manifestSha256: string; sourceIdentitySha256: string;
   companyCount: number; foreignCompanyCount: number;
   companies: readonly (FixedCohortAuditSourceInput & { failureClass: AuditFailureClass | null; failureStage: string | null;
@@ -87,7 +89,7 @@ export function buildFixedCohortCompletenessAudit(input: { generatedAt: Date; re
   });
   const repairFrontier = buildRepairFrontier(companies);
   const identity = launchManifestIdentity(P0_LAUNCH_MANIFEST);
-  const base = { schemaVersion: 1 as const, decision: invalidReasons.length === 0 ? "AUDIT_COMPLETE" as const : "AUDIT_INVALID" as const,
+  const base = { schemaVersion: 2 as const, decision: invalidReasons.length === 0 ? "AUDIT_COMPLETE" as const : "AUDIT_INVALID" as const,
     generatedAt: input.generatedAt.toISOString(), releaseCandidateId: input.releaseCandidateId, batchId: input.batchId,
     manifestSha256: identity.manifestSha256, sourceIdentitySha256: identity.sourceIdentitySha256,
     companyCount: companies.length, foreignCompanyCount: companies.filter((row) =>
@@ -103,7 +105,7 @@ export function parseFixedCohortCompletenessAuditReport(bytes: Buffer): FixedCoh
   const topLevelKeys = ["batchId", "companies", "companyCount", "contentSha256", "decision", "foreignCompanyCount",
     "generatedAt", "invalidReasons", "manifestSha256", "releaseCandidateId", "repairFrontier", "schemaVersion",
     "sourceIdentitySha256"];
-  if (!isRecord(value) || !exactKeys(value, topLevelKeys) || value.schemaVersion !== 1 ||
+  if (!isRecord(value) || !exactKeys(value, topLevelKeys) || value.schemaVersion !== 2 ||
       !["AUDIT_COMPLETE", "AUDIT_INVALID"].includes(String(value.decision)) ||
       !isCanonicalInstant(value.generatedAt) || typeof value.releaseCandidateId !== "string" ||
       !value.releaseCandidateId.trim() || typeof value.batchId !== "string" || !value.batchId.trim() ||
@@ -142,7 +144,7 @@ export function parseFixedCohortCompletenessAuditReport(bytes: Buffer): FixedCoh
   return value as unknown as FixedCohortCompletenessAuditReport;
 }
 
-const SOURCE_KEYS = ["adapterFamily", "adapterState", "atomicCommitState", "blockers", "canonicalJobSetSha256",
+const SOURCE_KEYS = ["adapterFamily", "adapterState", "atomicCommitState", "blockerCode", "blockers", "canonicalJobSetSha256",
   "canonicalRawEvidenceIdSetSha256",
   "certificate", "certificateSha256", "companyId", "completenessState", "evidenceArtifacts", "expectedEvidenceKind",
   "expectedJobCount", "failureCategory", "failureClass", "failureCode", "failureDiagnosticCode", "failureStage",
@@ -168,7 +170,8 @@ function parseAuditCompany(value: unknown): FixedCohortCompletenessAuditReport["
       !nullableNonnegativeInteger(value.pagesVisited) || !nullableNonnegativeInteger(value.totalPages) ||
       !nonnegativeInteger(value.finalJobCount) || !stringField(value.transportState) ||
       !stringField(value.adapterState) || !stringField(value.completenessState) ||
-      !stringField(value.atomicCommitState) || !nullableString(value.failureCategory) ||
+      !stringField(value.atomicCommitState) || !nullableNonemptyString(value.blockerCode) ||
+      !nullableString(value.failureCategory) ||
       !nullableString(value.failureDiagnosticCode) || !nullableString(value.failureCode) ||
       !nullableString(value.failureStage) ||
       !(value.failureClass === null || ["PRODUCT_DEFECT", "SOURCE_TEMPORARILY_UNAVAILABLE", "CONFIGURATION_ERROR",
@@ -211,6 +214,7 @@ function validPaginationSummary(value: unknown): boolean {
 }
 function stringField(value: unknown): value is string { return typeof value === "string" && value.length > 0; }
 function nullableString(value: unknown): value is string | null { return value === null || typeof value === "string"; }
+function nullableNonemptyString(value: unknown): value is string | null { return value === null || stringField(value); }
 function nullableSha256(value: unknown): value is string | null {
   return value === null || typeof value === "string" && /^[0-9a-f]{64}$/u.test(value);
 }
@@ -366,7 +370,10 @@ function primaryRootCause(row: FixedCohortAuditSourceInput & { failureClass: Aud
   const evidencePriority = ["OFFICIAL_SCOPE_MISMATCH", "PAGINATION_EVIDENCE_INVALID", "EVIDENCE_LOCATION_MISSING",
     "EXPECTED_EVIDENCE_DECLARATION_MISSING", "EVIDENCE_COMMITMENT_INVALID", "CERTIFICATE_INVALID",
     "A_OR_B_CERTIFICATE_MISSING", "COMPLETENESS_NOT_VERIFIED"];
-  return evidencePriority.find((blocker) => row.blockers.includes(blocker)) ?? row.blockers[0] ?? "UNKNOWN";
+  const certificateFailure = row.blockerCode !== null && CERTIFICATE_FAILURE_CODES.has(row.blockerCode)
+    ? row.blockerCode : undefined;
+  return certificateFailure ?? evidencePriority.find((blocker) => row.blockers.includes(blocker)) ??
+    row.blockers[0] ?? "UNKNOWN";
 }
 function sameStrings(left: readonly string[], right: readonly string[]): boolean {
   if (new Set(left).size !== left.length || new Set(right).size !== right.length) return false;
@@ -374,6 +381,11 @@ function sameStrings(left: readonly string[], right: readonly string[]): boolean
 }
 const compare = (a: string, b: string) => Buffer.from(a).compare(Buffer.from(b));
 const sha = (value: string) => createHash("sha256").update(value, "utf8").digest("hex");
+const CERTIFICATE_FAILURE_CODES = new Set<string>([
+  ...B_GRADE_INDEPENDENT_TRAVERSAL_FAILURE_CODES,
+  "A_GRADE_CERTIFICATE_NOT_ISSUED",
+  "B_GRADE_CERTIFICATE_NOT_ISSUED"
+]);
 const isRecord = (value: unknown): value is Record<string, any> =>
   typeof value === "object" && value !== null && !Array.isArray(value);
 const exactKeys = (value: Record<string, unknown>, keys: readonly string[]): boolean =>

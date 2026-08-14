@@ -53,6 +53,7 @@ try {
           expectedEvidenceKind: row.expectedEvidenceKind, expectedJobCount: row.expectedJobCount,
           finalJobCount: row.dedupeOutputCount, transportState: row.transportState, adapterState: row.adapterState,
           completenessState: row.completenessState, atomicCommitState: row.atomicCommitState,
+          blockerCode: row.blockerCode,
           failureCategory: row.failureCategory, failureDiagnosticCode: row.failureDiagnosticCode,
           failureCode: row.failureCode }
       });
@@ -93,6 +94,7 @@ try {
       pagesVisited: row.paginationEvidence.length, totalPages,
       finalJobCount: row.dedupeOutputCount, transportState: row.transportState, adapterState: row.adapterState,
       completenessState: row.completenessState, atomicCommitState: row.atomicCommitState,
+      blockerCode: row.blockerCode,
       failureCategory: row.failureCategory, failureDiagnosticCode: row.failureDiagnosticCode, failureCode: row.failureCode
     };
   });
@@ -124,7 +126,7 @@ function missingSource(plan: ReturnType<typeof buildStagedSourceCrawlPlans>[numb
     officialChannelIds: plan.expectedChannels?.map(({ channelId }) => channelId) ?? [], evidenceArtifacts: [], paginationEvidence: [],
     expectedEvidenceKind: null, expectedJobCount: null, pagesVisited: null, totalPages: null, finalJobCount: 0,
     transportState: "NOT_ATTEMPTED", adapterState: "NOT_ATTEMPTED", completenessState: "INCOMPLETE",
-    atomicCommitState: "NOT_ATTEMPTED", failureCategory: "EVIDENCE_INSUFFICIENT",
+    atomicCommitState: "NOT_ATTEMPTED", blockerCode: null, failureCategory: "EVIDENCE_INSUFFICIENT",
     failureDiagnosticCode: null, failureCode: "SOURCE_RESULT_MISSING" };
 }
 function missingManifestSource(companyId: string, sourceId: string): FixedCohortAuditSourceInput {
@@ -133,7 +135,8 @@ function missingManifestSource(companyId: string, sourceId: string): FixedCohort
     certificateSha256: null, plannedSurfaceIds: [], plannedChannelIds: [], officialSurfaceIds: [], officialChannelIds: [],
     evidenceArtifacts: [], paginationEvidence: [], expectedEvidenceKind: null, expectedJobCount: null, pagesVisited: null,
     totalPages: null, finalJobCount: 0, transportState: "NOT_ATTEMPTED", adapterState: "NOT_ATTEMPTED",
-    completenessState: "INCOMPLETE", atomicCommitState: "NOT_ATTEMPTED", failureCategory: "EVIDENCE_INSUFFICIENT",
+    completenessState: "INCOMPLETE", atomicCommitState: "NOT_ATTEMPTED", blockerCode: null,
+    failureCategory: "EVIDENCE_INSUFFICIENT",
     failureDiagnosticCode: null, failureCode: "SOURCE_PLAN_MISSING" };
 }
 function certificateGrade(value: unknown): "A" | "B" | "C" {

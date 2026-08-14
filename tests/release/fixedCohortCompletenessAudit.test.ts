@@ -62,7 +62,7 @@ describe("fixed cohort completeness audit", () => {
         officialSurfaceIds: existing.officialSurfaceIds, officialChannelIds: existing.officialChannelIds,
         expectedEvidenceKind: null, expectedJobCount: null, finalJobCount: 0,
         transportState: "SUCCEEDED", adapterState: "SUCCEEDED", completenessState: "FAILED",
-        atomicCommitState: "ROLLED_BACK", failureCategory: "EVIDENCE_PERSISTENCE_FAILURE",
+        atomicCommitState: "ROLLED_BACK", blockerCode: null, failureCategory: "EVIDENCE_PERSISTENCE_FAILURE",
         failureDiagnosticCode: "EVIDENCE_PROCESSING_FAILED", failureCode: "ATOMIC_EVIDENCE_COMMIT_FAILED" }
     });
     const report = buildFixedCohortCompletenessAudit(value);
@@ -114,6 +114,21 @@ describe("fixed cohort completeness audit", () => {
     expect(classes[value.sources[1]!.sourceId]).toBe("CONFIGURATION_ERROR");
     expect(classes[value.sources[2]!.sourceId]).toBe("PRODUCT_DEFECT");
     expect(classes[value.sources[3]!.sourceId]).toBe("EVIDENCE_INSUFFICIENT");
+  });
+
+  it("preserves a committed B-grade failure code as the repair root cause", () => {
+    const value = input(), source = value.sources.find(({ sourceId }) => sourceId === "source-kelun-social")!;
+    Object.assign(source, {
+      completenessState: "NEEDS_MANUAL_COMPLETENESS_REVIEW",
+      blockerCode: "B_GRADE_BROWSER_NAVIGATION_FAILED"
+    });
+
+    const report = buildFixedCohortCompletenessAudit(value);
+    const row = report.companies.find(({ sourceId }) => sourceId === source.sourceId)!;
+    expect(row).toMatchObject({ blockerCode: "B_GRADE_BROWSER_NAVIGATION_FAILED" });
+    expect(report.repairFrontier.find(({ sourceIds }) => sourceIds.includes(source.sourceId))?.rootCause)
+      .toBe("B_GRADE_BROWSER_NAVIGATION_FAILED");
+    expect(parseFixedCohortCompletenessAuditReport(Buffer.from(JSON.stringify(report)))).toEqual(report);
   });
 
   it("clusters legal diagnostics by explicit common root cause rather than incidental missing evidence", () => {
@@ -327,7 +342,7 @@ function input(): { generatedAt: Date; releaseCandidateId: string; batchId: stri
       expectedEvidenceKind: "COMPLETE_PAGE_TRAVERSAL", expectedJobCount: 10,
       pagesVisited: 1, totalPages: 1, finalJobCount: 10, transportState: "SUCCEEDED", adapterState: "SUCCEEDED",
       completenessState: "VERIFIED", atomicCommitState: "COMMITTED", failureCategory: null,
-      failureDiagnosticCode: null, failureCode: null
+      blockerCode: null, failureDiagnosticCode: null, failureCode: null
     }));
   return {
     generatedAt: new Date("2026-08-13T00:00:00.000Z"), releaseCandidateId: "rc-1", batchId: "batch-1",

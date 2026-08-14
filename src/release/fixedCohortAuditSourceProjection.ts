@@ -20,6 +20,7 @@ export interface FailedFixedCohortResultProjection {
   adapterState: string;
   completenessState: string;
   atomicCommitState: string;
+  blockerCode: string | null;
   failureCategory: string | null;
   failureDiagnosticCode: string | null;
   failureCode: string | null;
@@ -55,6 +56,7 @@ export function projectFailedFixedCohortAuditSource(input: {
     adapterState: input.result.adapterState,
     completenessState: input.result.completenessState,
     atomicCommitState: input.result.atomicCommitState,
+    blockerCode: input.result.blockerCode,
     failureCategory: input.result.failureCategory,
     failureDiagnosticCode: input.result.failureDiagnosticCode,
     failureCode: input.result.failureCode
