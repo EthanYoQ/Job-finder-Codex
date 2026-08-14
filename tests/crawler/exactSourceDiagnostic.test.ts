@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
   buildExactSourceDiagnosticReport,
+  EXACT_SOURCE_DIAGNOSTIC_LONG_TAIL_SOURCE_IDS,
+  EXACT_SOURCE_DIAGNOSTIC_MAX_SOURCES,
   parseExactSourceDiagnosticSession,
   prepareExactSourceDiagnostic
 } from "../../src/crawler/exactSourceDiagnostic";
@@ -47,19 +49,55 @@ describe("NON_CERTIFYING exact-source diagnostic", () => {
     expect(enqueued).toEqual(["source-b", "source-a"]);
   });
 
-  it("rejects a selection larger than five sources before enqueueing", async () => {
-    let enqueueCount = 0;
-
-    await expect(prepareExactSourceDiagnostic({
-      sourceIds: ["s1", "s2", "s3", "s4", "s5", "s6"],
+  it("round-trips the maximum fifteen-source diagnostic session", async () => {
+    const sourceIds = [...EXACT_SOURCE_DIAGNOSTIC_LONG_TAIL_SOURCE_IDS];
+    const session = await prepareExactSourceDiagnostic({
+      sourceIds,
       authority: {
         releaseCandidateId: "rc-1",
         commitSha: "a".repeat(40),
-        sourceIds: ["s1", "s2", "s3", "s4", "s5", "s6"]
+        sourceIds
+      },
+      now: new Date("2026-08-14T12:00:00.000Z"),
+      enqueue: async (sourceId) => ({ id: `request-${sourceId}` })
+    });
+
+    expect(parseExactSourceDiagnosticSession(session).requests).toHaveLength(EXACT_SOURCE_DIAGNOSTIC_MAX_SOURCES);
+  });
+
+  it("rejects a fifteen-source long-tail selection unless the exact B-grade order ends in Xiuzheng", async () => {
+    const sourceIds = [...EXACT_SOURCE_DIAGNOSTIC_LONG_TAIL_SOURCE_IDS];
+    [sourceIds[0], sourceIds[1]] = [sourceIds[1]!, sourceIds[0]!];
+    let enqueueCount = 0;
+
+    await expect(prepareExactSourceDiagnostic({
+      sourceIds,
+      authority: {
+        releaseCandidateId: "rc-1",
+        commitSha: "a".repeat(40),
+        sourceIds
       },
       now: new Date("2026-08-14T12:00:00.000Z"),
       enqueue: async () => { enqueueCount += 1; return { id: "request" }; }
-    })).rejects.toThrow("Exact-source diagnostic requires between one and five sources");
+    })).rejects.toThrow("exact B-grade source order with Xiuzheng last");
+    expect(enqueueCount).toBe(0);
+  });
+
+  it("keeps the long-tail diagnostic bounded at fifteen sources", async () => {
+    let enqueueCount = 0;
+    const sourceIds = Array.from({ length: EXACT_SOURCE_DIAGNOSTIC_MAX_SOURCES + 1 },
+      (_, index) => `s${index + 1}`);
+
+    await expect(prepareExactSourceDiagnostic({
+      sourceIds,
+      authority: {
+        releaseCandidateId: "rc-1",
+        commitSha: "a".repeat(40),
+        sourceIds
+      },
+      now: new Date("2026-08-14T12:00:00.000Z"),
+      enqueue: async () => { enqueueCount += 1; return { id: "request" }; }
+    })).rejects.toThrow("Exact-source diagnostic requires between one and 15 sources");
     expect(enqueueCount).toBe(0);
   });
 
@@ -171,4 +209,67 @@ describe("NON_CERTIFYING exact-source diagnostic", () => {
     expect(report.sources[0]?.diagnosticCode).toBe("DIAGNOSTIC_EVIDENCE_INVALID");
     expect(JSON.stringify(report)).not.toContain("raw secret text");
   });
+
+  it("marks a successful long-tail report invalid when the actual claim order differs from the session", () => {
+    const session = {
+      schemaVersion: "exact-source-diagnostic-v1" as const,
+      mode: "NON_CERTIFYING" as const,
+      releaseCandidateId: "rc-1",
+      commitSha: "a".repeat(40),
+      preparedAt: "2026-08-14T12:00:00.000Z",
+      requests: [
+        { requestId: "request-a", sourceId: "source-a" },
+        { requestId: "request-b", sourceId: "source-b" }
+      ]
+    };
+    const report = buildExactSourceDiagnosticReport({
+      session,
+      evaluatedAt: new Date("2026-08-14T12:01:00.000Z"),
+      requests: [
+        successfulRequest("request-a", "source-a", "2026-08-14T12:00:10.000Z"),
+        successfulRequest("request-b", "source-b", "2026-08-14T12:00:05.000Z")
+      ]
+    });
+
+    expect(report.executionOrderMatchesSession).toBe(false);
+    expect(report.decision).toBe("NON_CERTIFYING_FAIL");
+  });
 });
+
+function successfulRequest(id: string, sourceId: string, startedAt: string) {
+  const start = new Date(startedAt);
+  const finish = new Date(start.getTime() + 1_000);
+  return {
+    id,
+    sourceId,
+    status: "SUCCESS",
+    failureCode: null,
+    startedAt: start,
+    finishedAt: finish,
+    executionBatches: [{
+      id: `batch-${id}`,
+      kind: "MANUAL_SOURCE",
+      releaseCandidateId: "rc-1",
+      commitSha: "a".repeat(40),
+      status: "SUCCESS",
+      sourceResults: [{
+        sourceId,
+        transportState: "SUCCEEDED",
+        adapterState: "SUCCEEDED",
+        completenessState: "VERIFIED",
+        atomicCommitState: "COMMITTED",
+        blockerCode: null,
+        failureCategory: null,
+        failureDiagnosticCode: null,
+        failureCode: null,
+        fetchAttemptCount: 1,
+        retryCount: 0,
+        rawCount: 1,
+        validCount: 1,
+        dedupeOutputCount: 1,
+        startedAt: start,
+        finishedAt: finish
+      }]
+    }]
+  };
+}

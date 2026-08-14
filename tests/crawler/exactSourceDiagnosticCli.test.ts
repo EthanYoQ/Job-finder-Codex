@@ -5,16 +5,16 @@ import {
 } from "../../scripts/p0-exact-source-diagnostic";
 
 describe("exact-source diagnostic CLI", () => {
-  it("parses one to five repeated source IDs for prepare", () => {
+  it("parses up to fifteen repeated source IDs for the bounded long-tail prepare", () => {
+    const sourceIds = Array.from({ length: 15 }, (_, index) => `source-${index + 1}`);
     expect(parseExactSourceDiagnosticCommand([
       "prepare",
       "--session", "/diagnostic/session.json",
-      "--source-id", "source-a",
-      "--source-id", "source-b"
+      ...sourceIds.flatMap((sourceId) => ["--source-id", sourceId])
     ])).toEqual({
       command: "prepare",
       sessionPath: "/diagnostic/session.json",
-      sourceIds: ["source-a", "source-b"]
+      sourceIds
     });
   });
 

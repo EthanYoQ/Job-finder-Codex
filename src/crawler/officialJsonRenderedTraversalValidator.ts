@@ -1,4 +1,5 @@
 import { acquireBrowserSourcePermit } from "./browserSourceConcurrency";
+import { tagBGradeIndependentTraversalFailure } from "./independentTraversalDiagnostics";
 import { irreversibleOfficialJsonEvidenceId, persistentOfficialJsonJobId } from "./officialJsonEvidence";
 import { hasUniqueJsonObjectKeys } from "./strictJsonObjectKeys";
 
@@ -343,7 +344,7 @@ async function captureXiuzheng(
   const navigation = await page.goto(homeUrl, { waitUntil: "domcontentloaded", timeout: 30_000 });
   assertNavigation(navigation, homeUrl);
   const humanResources = page.getByText("人力资源", { exact: true });
-  if (await humanResources.count() !== 1) throw new Error("Xiuzheng browser validator navigation control mismatch");
+  await waitForUniqueXiuzhengControl(humanResources, "route", signal);
   await Promise.all([
     page.waitForURL(`${officialOrigin}/#/humanResource`, { timeout: 30_000 }),
     humanResources.click()
@@ -363,7 +364,7 @@ async function captureXiuzheng(
     }
   }, { timeout: 30_000 });
   const more = page.getByText("查看更多", { exact: true });
-  if (await more.count() !== 1) throw new Error("Xiuzheng browser validator list control mismatch");
+  await waitForUniqueXiuzhengControl(more, "list", signal);
   let pendingResponse = responseForPage(1);
   const [firstResponse] = await Promise.all([
     pendingResponse,
@@ -416,6 +417,35 @@ async function captureXiuzheng(
     await nextControl.click();
   }
   return pages;
+}
+
+async function waitForUniqueXiuzhengControl(
+  locator: import("playwright-core").Locator,
+  label: "route" | "list",
+  signal?: AbortSignal
+): Promise<void> {
+  if (signal?.aborted) {
+    throw tagBGradeIndependentTraversalFailure(signal.reason, "B_GRADE_VALIDATOR_ABORTED");
+  }
+  const visibleLocator = locator.filter({ visible: true });
+  try {
+    await visibleLocator.first().waitFor({ state: "visible", timeout: 30_000 });
+    if (signal?.aborted) {
+      throw tagBGradeIndependentTraversalFailure(signal.reason, "B_GRADE_VALIDATOR_ABORTED");
+    }
+    const visibleCount = await visibleLocator.count();
+    if (signal?.aborted) {
+      throw tagBGradeIndependentTraversalFailure(signal.reason, "B_GRADE_VALIDATOR_ABORTED");
+    }
+    if (visibleCount !== 1) {
+      throw new Error(`Xiuzheng browser validator ${label} control readiness failed`);
+    }
+  } catch (error) {
+    if (signal?.aborted) {
+      throw tagBGradeIndependentTraversalFailure(signal.reason, "B_GRADE_VALIDATOR_ABORTED");
+    }
+    throw tagBGradeIndependentTraversalFailure(error, "B_GRADE_BROWSER_READINESS_FAILED");
+  }
 }
 
 async function assertXiuzhengRenderedRows(

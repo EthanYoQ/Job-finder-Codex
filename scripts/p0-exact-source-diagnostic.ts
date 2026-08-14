@@ -7,6 +7,7 @@ import type {
 } from "../src/crawler/exactSourceDiagnostic";
 import {
   buildExactSourceDiagnosticReport,
+  EXACT_SOURCE_DIAGNOSTIC_MAX_SOURCES,
   parseExactSourceDiagnosticSession,
   prepareExactSourceDiagnostic
 } from "../src/crawler/exactSourceDiagnostic";
@@ -28,7 +29,7 @@ export function parseExactSourceDiagnosticCommand(args: readonly string[]): Exac
       else if (option === "--source-id") sourceIds.push(value);
       else throw new Error("Invalid exact-source diagnostic arguments");
     }
-    if (!sessionPath || sourceIds.length < 1 || sourceIds.length > 5) {
+    if (!sessionPath || sourceIds.length < 1 || sourceIds.length > EXACT_SOURCE_DIAGNOSTIC_MAX_SOURCES) {
       throw new Error("Invalid exact-source diagnostic arguments");
     }
     return { command, sessionPath, sourceIds };

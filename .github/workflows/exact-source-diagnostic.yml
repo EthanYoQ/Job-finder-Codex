@@ -4,13 +4,13 @@ on:
   workflow_dispatch:
     inputs:
       source_ids:
-        description: "Comma-separated Launch Cohort source IDs (1-5); NON_CERTIFYING"
+        description: "Comma-separated Launch Cohort source IDs (1-15); NON_CERTIFYING"
         required: true
         type: string
   workflow_call:
     inputs:
       source_ids:
-        description: "Comma-separated Launch Cohort source IDs (1-5); NON_CERTIFYING"
+        description: "Comma-separated Launch Cohort source IDs (1-15); NON_CERTIFYING"
         required: true
         type: string
 
@@ -18,7 +18,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: exact-source-diagnostic-${{ github.ref }}-${{ inputs.source_ids }}
+  group: exact-source-diagnostic-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
@@ -73,20 +73,30 @@ jobs:
 
           network="exact-source-diagnostic-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
           postgres_name="exact-source-postgres-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          worker_name="exact-source-worker-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          worker_host_pid=""
+          telemetry_samples=0
+          telemetry_errors=0
           cleanup() {
             exit_code=$?
             trap - EXIT
+            if test -n "$worker_host_pid"; then
+              kill "$worker_host_pid" >/dev/null 2>&1 || true
+              wait "$worker_host_pid" >/dev/null 2>&1 || true
+            fi
+            docker rm -f "$worker_name" >/dev/null 2>&1 || true
             docker rm -f "$postgres_name" >/dev/null 2>&1 || true
             docker network rm "$network" >/dev/null 2>&1 || true
             if test "$exit_code" -eq 0; then state=COMPLETED; else state=FAILED; fi
-            printf '{"mode":"NON_CERTIFYING","state":"%s","exitCode":%s}\n' "$state" "$exit_code" > "$status_path"
+            printf '{"mode":"NON_CERTIFYING","state":"%s","exitCode":%s,"telemetrySamples":%s,"telemetryErrors":%s}\n' \
+              "$state" "$exit_code" "$telemetry_samples" "$telemetry_errors" > "$status_path"
             exit "$exit_code"
           }
           trap cleanup EXIT
 
           IFS=',' read -r -a selected_sources <<< "$SOURCE_IDS"
           test "${#selected_sources[@]}" -ge 1
-          test "${#selected_sources[@]}" -le 5
+          test "${#selected_sources[@]}" -le 15
           declare -A seen_sources=()
           prepare_args=()
           for source_id in "${selected_sources[@]}"; do
@@ -149,13 +159,55 @@ jobs:
             --session /diagnostic/session.json "${prepare_args[@]}"
 
           worker_exit=0
-          docker run --rm --network "$network" --read-only --cap-drop ALL \
+          : > "$diagnostic_root/runtime-resources.jsonl"
+          docker run --name "$worker_name" --network "$network" --read-only --cap-drop ALL \
             --security-opt no-new-privileges:true --tmpfs /tmp:rw,nosuid,nodev,noexec,size=1g,mode=1777 \
             --shm-size 1g --env DATABASE_URL="$database_url" \
             --volume "$artifact_root:/app/outputs" "$IMAGE_TAG" \
             node node_modules/tsx/dist/cli.mjs scripts/p0-manual-crawl-worker.ts --once \
-            > "$diagnostic_root/worker.jsonl" 2>&1 || worker_exit=$?
-
+            > "$diagnostic_root/worker.jsonl" 2>&1 &
+          worker_host_pid=$!
+          while kill -0 "$worker_host_pid" >/dev/null 2>&1; do
+            if docker inspect --format '{{.State.Running}}' "$worker_name" 2>/dev/null | grep -qx true; then
+              if sample="$(docker exec "$worker_name" sh -eu -c '
+                memory_bytes="$(cat /sys/fs/cgroup/memory.current)"
+                pids_current="$(cat /sys/fs/cgroup/pids.current)"
+                tmp_kib="$(du -sk /tmp | awk "{print \$1}")"
+                tmp_inodes="$(find /tmp -xdev -print | wc -l)"
+                brave_processes=0
+                brave_rss_kib=0
+                for status_path in /proc/[0-9]*/status; do
+                  process_dir="${status_path%/status}"
+                  executable="$(readlink "$process_dir/exe" 2>/dev/null || true)"
+                  if test "$executable" = /opt/brave.com/brave/brave; then
+                    brave_processes=$((brave_processes + 1))
+                    process_rss="$(awk "/^VmRSS:/{print \$2}" "$status_path")"
+                    brave_rss_kib=$((brave_rss_kib + ${process_rss:-0}))
+                  fi
+                done
+                node_rss_kib="$(awk "/^VmRSS:/{print \$2}" /proc/1/status)"
+                node_fds="$(find /proc/1/fd -mindepth 1 -maxdepth 1 -print 2>/dev/null | wc -l)"
+                printf "{\"memoryBytes\":%s,\"pidsCurrent\":%s,\"tmpBytes\":%s,\"tmpInodes\":%s,\"braveProcesses\":%s,\"braveRssKiB\":%s,\"nodeRssKiB\":%s,\"nodeFdCount\":%s}" \
+                  "$memory_bytes" "$pids_current" "$((tmp_kib * 1024))" "$tmp_inodes" \
+                  "$brave_processes" "$brave_rss_kib" "$node_rss_kib" "$node_fds"
+              ')"; then
+                node -e 'JSON.parse(process.argv[1])' "$sample"
+                captured_at="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+                printf '{"capturedAt":"%s","metrics":%s}\n' "$captured_at" "$sample" \
+                  >> "$diagnostic_root/runtime-resources.jsonl"
+                telemetry_samples=$((telemetry_samples + 1))
+              else
+                captured_at="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+                printf '{"capturedAt":"%s","sampleError":"METRICS_UNAVAILABLE"}\n' "$captured_at" \
+                  >> "$diagnostic_root/runtime-resources.jsonl"
+                telemetry_errors=$((telemetry_errors + 1))
+              fi
+            fi
+            sleep 2
+          done
+          wait "$worker_host_pid" || worker_exit=$?
+          worker_host_pid=""
+          docker rm "$worker_name" >/dev/null 2>&1 || true
           report_exit=0
           docker run --rm --network "$network" --read-only --cap-drop ALL \
             --security-opt no-new-privileges:true --user "$runner_uid:$runner_gid" \
@@ -167,6 +219,23 @@ jobs:
 
           test -s "$diagnostic_root/report.json"
           test "$(node -p "JSON.parse(require('fs').readFileSync(process.argv[1],'utf8')).mode" "$diagnostic_root/report.json")" = NON_CERTIFYING
+          if test "${#selected_sources[@]}" -eq 15; then
+            node - "$diagnostic_root/report.json" "$diagnostic_root/runtime-resources.jsonl" <<'NODE'
+          const fs = require("fs");
+          const report = JSON.parse(fs.readFileSync(process.argv[2], "utf8"));
+          const telemetry = fs.readFileSync(process.argv[3], "utf8").trim().split("\n")
+            .filter(Boolean).map((line) => JSON.parse(line)).filter((sample) => sample.metrics);
+          if (report.executionOrderMatchesSession !== true) throw new Error("Long-tail diagnostic execution order changed");
+          if (telemetry.length < 3) throw new Error("Long-tail diagnostic telemetry is too sparse");
+          const xiuzheng = report.sources.find((source) => source.sourceId === "source-xiuzheng-social");
+          const xiuzhengStartedAt = Date.parse(xiuzheng?.startedAt ?? "");
+          const latestSampleAt = Math.max(...telemetry.map((sample) => Date.parse(sample.capturedAt)));
+          if (!Number.isFinite(xiuzhengStartedAt) || !Number.isFinite(latestSampleAt) ||
+              latestSampleAt < xiuzhengStartedAt - 5_000) {
+            throw new Error("Long-tail diagnostic telemetry did not reach the Xiuzheng stage");
+          }
+          NODE
+          fi
           test "$worker_exit" -eq 0
           test "$report_exit" -eq 0
 
@@ -180,5 +249,6 @@ jobs:
             .runtime/exact-source-diagnostic/report.json
             .runtime/exact-source-diagnostic/status.json
             .runtime/exact-source-diagnostic/worker.jsonl
+            .runtime/exact-source-diagnostic/runtime-resources.jsonl
           if-no-files-found: warn
           retention-days: 3

@@ -5,7 +5,7 @@ on:
   workflow_dispatch:
     inputs:
       source_ids:
-        description: "Optional exact-runtime NON_CERTIFYING source IDs (comma-separated, 1-5)"
+        description: "Optional exact-runtime NON_CERTIFYING source IDs (comma-separated, 1-15)"
         required: false
         default: ""
         type: string

@@ -18,6 +18,7 @@ import {
   persistentOfficialJsonJobId
 } from "../../src/crawler/officialJsonEvidence";
 import { runSourceCrawl } from "../../src/crawler/runSourceCrawl";
+import { classifyBGradeIndependentTraversalFailure } from "../../src/crawler/independentTraversalDiagnostics";
 import {
   buildStagedSourceCrawlPlans,
   getPlanBySourceId,
@@ -295,6 +296,78 @@ describe("official JSON rendered traversal", () => {
     expect(captured.pages[0]?.rawRows[0]).toMatchObject({ sourceJobId: "16", rawPayload: raw });
   });
 
+  it("waits for delayed Xiuzheng SPA route controls after DOMContentLoaded", async () => {
+    const raw = { id: 16, name: "研发工程师" };
+    const pageObject = xiuzhengUiPage(raw, undefined, { deferRouteControls: true });
+
+    await expect(captureOfficialJsonRenderedTraversal({
+      sourceId: "source-xiuzheng-social",
+      entryUrl: OFFICIAL_JSON_RENDERED_TRAVERSAL_POLICIES["source-xiuzheng-social"].entryUrl,
+      launchBrowser: async () => browser(pageObject)
+    })).resolves.toMatchObject({ pages: [{ rawRows: [{ sourceJobId: "16" }] }] });
+
+    expect(pageObject.routeControlWaits).toEqual(["人力资源", "查看更多"]);
+  });
+
+  it("accepts one visible Xiuzheng route control when a hidden responsive duplicate comes first", async () => {
+    const raw = { id: 16, name: "研发工程师" };
+    const pageObject = xiuzhengUiPage(raw, undefined, {
+      totalRouteControlCount: 2,
+      visibleRouteControlCount: 1
+    });
+
+    await expect(captureOfficialJsonRenderedTraversal({
+      sourceId: "source-xiuzheng-social",
+      entryUrl: OFFICIAL_JSON_RENDERED_TRAVERSAL_POLICIES["source-xiuzheng-social"].entryUrl,
+      launchBrowser: async () => browser(pageObject)
+    })).resolves.toMatchObject({ pages: [{ rawRows: [{ sourceJobId: "16" }] }] });
+
+    expect(pageObject.routeControlWaits).toEqual(["人力资源", "查看更多"]);
+  });
+
+  it("preserves an abort raised while Xiuzheng waits for a delayed route control", async () => {
+    const controller = new AbortController();
+    const pageObject = xiuzhengUiPage({ id: 16, name: "研发工程师" }, undefined, {
+      deferRouteControls: true,
+      abortDuringRouteControlWait: controller
+    });
+    const close = vi.fn(async () => undefined);
+
+    await expect(captureOfficialJsonRenderedTraversal({
+      sourceId: "source-xiuzheng-social",
+      entryUrl: OFFICIAL_JSON_RENDERED_TRAVERSAL_POLICIES["source-xiuzheng-social"].entryUrl,
+      signal: controller.signal,
+      launchBrowser: async () => ({ newPage: async () => pageObject as never, close })
+    })).rejects.toThrow("cancelled during Xiuzheng route readiness");
+
+    expect(close).toHaveBeenCalledTimes(1);
+  });
+
+  it("preserves and classifies an abort raised while Xiuzheng counts visible route controls", async () => {
+    const controller = new AbortController();
+    const abortReason = new Error("cancelled during Xiuzheng visible control count");
+    const pageObject = xiuzhengUiPage({ id: 16, name: "研发工程师" }, undefined, {
+      abortDuringRouteControlCount: { controller, reason: abortReason }
+    });
+    const close = vi.fn(async () => undefined);
+
+    let captured: unknown;
+    try {
+      await captureOfficialJsonRenderedTraversal({
+        sourceId: "source-xiuzheng-social",
+        entryUrl: OFFICIAL_JSON_RENDERED_TRAVERSAL_POLICIES["source-xiuzheng-social"].entryUrl,
+        signal: controller.signal,
+        launchBrowser: async () => ({ newPage: async () => pageObject as never, close })
+      });
+    } catch (error) {
+      captured = error;
+    }
+
+    expect(captured).toBe(abortReason);
+    expect(classifyBGradeIndependentTraversalFailure(captured)).toBe("B_GRADE_VALIDATOR_ABORTED");
+    expect(close).toHaveBeenCalledTimes(1);
+  });
+
   it("waits for Xiuzheng pagination to reach the expected active page and rendered rows", async () => {
     const pageObject = xiuzhengTwoPageUi();
     const captured = await captureOfficialJsonRenderedTraversal({
@@ -549,9 +622,18 @@ function responsePage(input: {
 
 function xiuzhengUiPage(
   raw: Record<string, unknown>,
-  requestBody = JSON.stringify({ page: 1, page_size: 10 })
+  requestBody = JSON.stringify({ page: 1, page_size: 10 }),
+  options: {
+    deferRouteControls?: boolean;
+    abortDuringRouteControlWait?: AbortController;
+    abortDuringRouteControlCount?: { controller: AbortController; reason: Error };
+    totalRouteControlCount?: number;
+    visibleRouteControlCount?: number;
+  } = {}
 ) {
   const routeClicks: string[] = [];
+  const routeControlWaits: string[] = [];
+  const readyRouteControls = new Set(options.deferRouteControls ? [] : ["人力资源", "查看更多"]);
   const response = {
     url: () => "https://www.xiuzheng.com/front/human-resource/job-list",
     request: () => ({ method: () => "POST", postData: () => requestBody }),
@@ -563,16 +645,43 @@ function xiuzhengUiPage(
   };
   return {
     routeClicks,
+    routeControlWaits,
     goto: async (url: string) => ({ status: () => 200, url: () => url }),
     waitForURL: async () => undefined,
     waitForResponse: async (predicate: (value: typeof response) => boolean) => {
       if (!predicate(response)) throw new Error("Xiuzheng response predicate rejected the UI request");
       return response;
     },
-    getByText: (text: string) => ({
-      count: async () => 1,
+    getByText: (text: string) => {
+      const visibleLocator = {
+        first: () => ({ waitFor: async () => {
+          routeControlWaits.push(text);
+          if (text === "人力资源" && options.abortDuringRouteControlWait &&
+              !options.abortDuringRouteControlWait.signal.aborted) {
+            options.abortDuringRouteControlWait.abort(new Error("cancelled during Xiuzheng route readiness"));
+            throw new Error("route control wait interrupted");
+          }
+          readyRouteControls.add(text);
+        } }),
+        count: async () => {
+          if (text === "人力资源" && options.abortDuringRouteControlCount &&
+              !options.abortDuringRouteControlCount.controller.signal.aborted) {
+            options.abortDuringRouteControlCount.controller.abort(options.abortDuringRouteControlCount.reason);
+            throw new Error("page closed during visible control count");
+          }
+          return readyRouteControls.has(text) ? (options.visibleRouteControlCount ?? 1) : 0;
+        }
+      };
+      return {
+        filter: () => visibleLocator,
+        first: () => ({ waitFor: async () => {
+        routeControlWaits.push(text);
+        readyRouteControls.add(text);
+      } }),
+      count: async () => readyRouteControls.has(text) ? (options.totalRouteControlCount ?? 1) : 0,
       click: async () => { routeClicks.push(text); }
-    }),
+      };
+    },
     locator: (selector: string) => selector.includes("tabs_detail_content_item")
       ? { allTextContents: async () => [String(raw.name)] }
       : selector.includes("button.active")
@@ -606,10 +715,17 @@ function xiuzhengTwoPageUi() {
       if (!predicate(value)) throw new Error("Xiuzheng response predicate rejected the UI request");
       return value;
     },
-    getByText: (text: string) => ({
-      count: async () => 1,
-      click: async () => { routeClicks.push(text); }
-    }),
+    getByText: (text: string) => {
+      const locator = {
+        first: () => ({ waitFor: async () => undefined }),
+        count: async () => 1
+      };
+      return {
+        ...locator,
+        filter: () => locator,
+        click: async () => { routeClicks.push(text); }
+      };
+    },
     getByRole: (_role: string, input: { name: string }) => ({
       count: async () => 1,
       click: async () => {

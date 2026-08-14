@@ -12,6 +12,24 @@ describe("exact-source diagnostic workflow", () => {
     expect(workflow).toMatch(/^\s+workflow_call:\s*\n\s+inputs:\s*\n\s+source_ids:/m);
     expect(workflow).not.toMatch(/^\s+(?:push|pull_request):/m);
     expect(workflow).toContain("NON_CERTIFYING");
+    expect(workflow).toContain("source IDs (1-15)");
+    expect(workflow).toContain('test "${#selected_sources[@]}" -le 15');
+    expect(workflow).toContain("group: exact-source-diagnostic-${{ github.ref }}");
+    expect(workflow).not.toContain("group: exact-source-diagnostic-${{ github.ref }}-${{ inputs.source_ids }}");
+    expect(privateCloudWorkflow).toContain("comma-separated, 1-15");
+  });
+
+  it("captures bounded same-container resource telemetry with the diagnostic evidence", () => {
+    expect(workflow).toContain("runtime-resources.jsonl");
+    expect(workflow).toContain("/sys/fs/cgroup/memory.current");
+    expect(workflow).toContain("/sys/fs/cgroup/pids.current");
+    expect(workflow).toContain("du -sk /tmp");
+    expect(workflow).toContain("braveProcesses");
+    expect(workflow).toContain("telemetry_samples");
+    expect(workflow).toContain('"sampleError":"METRICS_UNAVAILABLE"');
+    expect(workflow).toContain("telemetry.length < 3");
+    expect(workflow).toContain("report.executionOrderMatchesSession !== true");
+    expect(workflow).toContain('source.sourceId === "source-xiuzheng-social"');
   });
 
   it("is dispatchable before default-branch registration through the existing private cloud workflow", () => {

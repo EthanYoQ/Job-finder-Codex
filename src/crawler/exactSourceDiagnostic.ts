@@ -5,8 +5,33 @@ import {
   SOURCE_EXECUTION_FAILURE_CODES,
   SOURCE_FAILURE_DIAGNOSTIC_CODES
 } from "./sourceFailureDiagnostics";
+import { REQUIRED_B_GRADE_TRAVERSAL_CERTIFICATES } from "./traversalCertificate";
 
 export const EXACT_SOURCE_DIAGNOSTIC_SCHEMA_VERSION = "exact-source-diagnostic-v1" as const;
+export const EXACT_SOURCE_DIAGNOSTIC_MAX_SOURCES = 15;
+export const EXACT_SOURCE_DIAGNOSTIC_LONG_TAIL_SOURCE_IDS = Object.freeze([
+  "source-astellas-china-social",
+  "source-cspc-social",
+  "source-fosun-pharma-social",
+  "source-grand-pharma-social",
+  "source-huahai-social",
+  "source-kelun-social",
+  "source-nhu-social",
+  "source-novartis-social",
+  "source-otsuka-china-social-2",
+  "source-qilu-social",
+  "source-sanofi-china-social",
+  "source-takeda-china-social",
+  "source-tongrentang-social",
+  "source-viatris-social",
+  "source-xiuzheng-social"
+] as const);
+
+const requiredBGradeSourceIds = Object.keys(REQUIRED_B_GRADE_TRAVERSAL_CERTIFICATES).sort();
+const diagnosticLongTailSourceIds = [...EXACT_SOURCE_DIAGNOSTIC_LONG_TAIL_SOURCE_IDS].sort();
+if (JSON.stringify(requiredBGradeSourceIds) !== JSON.stringify(diagnosticLongTailSourceIds)) {
+  throw new Error("Exact-source diagnostic long-tail selection must match the B-grade authority");
+}
 
 export const EXACT_SOURCE_DIAGNOSTIC_CODES = Object.freeze([
   "SOURCE_VERIFIED",
@@ -31,7 +56,7 @@ const sessionSchema = z.object({
   requests: z.array(z.object({
     requestId: z.string().min(1),
     sourceId: z.string().min(1)
-  }).strict()).min(1).max(5)
+  }).strict()).min(1).max(EXACT_SOURCE_DIAGNOSTIC_MAX_SOURCES)
 }).strict().superRefine((value, context) => {
   if (new Set(value.requests.map(({ requestId }) => requestId)).size !== value.requests.length ||
       new Set(value.requests.map(({ sourceId }) => sourceId)).size !== value.requests.length) {
@@ -97,6 +122,7 @@ export interface ExactSourceDiagnosticReport {
   preparedAt: string;
   evaluatedAt: string;
   sourceCount: number;
+  executionOrderMatchesSession: boolean;
   sources: Array<{
     requestId: string;
     sourceId: string;
@@ -125,12 +151,16 @@ export async function prepareExactSourceDiagnostic(input: {
   now: Date;
   enqueue(sourceId: string): Promise<{ id: string }>;
 }): Promise<ExactSourceDiagnosticSession> {
-  if (input.sourceIds.length < 1 || input.sourceIds.length > 5) {
-    throw new Error("Exact-source diagnostic requires between one and five sources");
+  if (input.sourceIds.length < 1 || input.sourceIds.length > EXACT_SOURCE_DIAGNOSTIC_MAX_SOURCES) {
+    throw new Error(`Exact-source diagnostic requires between one and ${EXACT_SOURCE_DIAGNOSTIC_MAX_SOURCES} sources`);
   }
   const selected = new Set(input.sourceIds);
   if (selected.size !== input.sourceIds.length || input.sourceIds.some((sourceId) => !sourceId.trim())) {
     throw new Error("Exact-source diagnostic source selection must be unique and nonblank");
+  }
+  if (input.sourceIds.length === EXACT_SOURCE_DIAGNOSTIC_MAX_SOURCES &&
+      JSON.stringify(input.sourceIds) !== JSON.stringify(EXACT_SOURCE_DIAGNOSTIC_LONG_TAIL_SOURCE_IDS)) {
+    throw new Error("Exact-source diagnostic fifteen-source mode requires the exact B-grade source order with Xiuzheng last");
   }
   const authoritySourceIds = new Set(input.authority.sourceIds);
   if (input.sourceIds.some((sourceId) => !authoritySourceIds.has(sourceId))) {
@@ -160,6 +190,12 @@ export function buildExactSourceDiagnosticReport(input: {
   if (rowById.size !== input.requests.length || input.requests.length !== input.session.requests.length) {
     throw new Error("Exact-source diagnostic request evidence does not match the session");
   }
+  const actualRequestOrder = [...input.requests]
+    .filter((request): request is ExactSourceDiagnosticRequestRow & { startedAt: Date } => request.startedAt !== null)
+    .sort((left, right) => left.startedAt.getTime() - right.startedAt.getTime() || left.id.localeCompare(right.id))
+    .map(({ id }) => id);
+  const executionOrderMatchesSession = actualRequestOrder.length === input.session.requests.length &&
+    JSON.stringify(actualRequestOrder) === JSON.stringify(input.session.requests.map(({ requestId }) => requestId));
   const sources = input.session.requests.map(({ requestId, sourceId }) => {
     const request = rowById.get(requestId);
     if (!request || request.sourceId !== sourceId) {
@@ -209,7 +245,7 @@ export function buildExactSourceDiagnosticReport(input: {
       succeeded
     };
   });
-  const decision = sources.every(({ succeeded }) => succeeded)
+  const decision = executionOrderMatchesSession && sources.every(({ succeeded }) => succeeded)
     ? "NON_CERTIFYING_PASS" as const
     : "NON_CERTIFYING_FAIL" as const;
   return {
@@ -221,6 +257,7 @@ export function buildExactSourceDiagnosticReport(input: {
     preparedAt: input.session.preparedAt,
     evaluatedAt: input.evaluatedAt.toISOString(),
     sourceCount: sources.length,
+    executionOrderMatchesSession,
     sources: sources.map(({ succeeded: _succeeded, ...source }) => source)
   };
 }
