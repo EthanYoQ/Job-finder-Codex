@@ -1,4 +1,8 @@
 export const B_GRADE_INDEPENDENT_TRAVERSAL_FAILURE_CODES = Object.freeze([
+  "B_GRADE_SOURCE_BINDING_FAILED",
+  "B_GRADE_COMPANY_BINDING_FAILED",
+  "B_GRADE_POLICY_REGISTRATION_FAILED",
+  "B_GRADE_KEY_POLICY_FAILED",
   "B_GRADE_POLICY_BINDING_FAILED",
   "B_GRADE_BROWSER_NAVIGATION_FAILED",
   "B_GRADE_BROWSER_READINESS_FAILED",
@@ -17,6 +21,12 @@ export function classifyBGradeIndependentTraversalFailure(
 ): BGradeIndependentTraversalFailureCode {
   const message = error instanceof Error ? error.message : "";
   if (/\bnavigation\b/iu.test(message)) return "B_GRADE_BROWSER_NAVIGATION_FAILED";
+  if (/\bsource binding mismatch\b/iu.test(message)) return "B_GRADE_SOURCE_BINDING_FAILED";
+  if (/\bcompany binding mismatch\b/iu.test(message)) return "B_GRADE_COMPANY_BINDING_FAILED";
+  if (/\bregistered policy mismatch\b/iu.test(message)) return "B_GRADE_POLICY_REGISTRATION_FAILED";
+  if (/\b(?:key policy mismatch|URL policy is unavailable)\b/iu.test(message)) {
+    return "B_GRADE_KEY_POLICY_FAILED";
+  }
   if (/\b(?:binding|policy)\b/iu.test(message)) return "B_GRADE_POLICY_BINDING_FAILED";
   if (/\b(?:rendered|stabilize|attached|selector|control)\b/iu.test(message)) {
     return "B_GRADE_BROWSER_READINESS_FAILED";

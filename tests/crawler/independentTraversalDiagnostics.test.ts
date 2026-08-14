@@ -15,7 +15,10 @@ describe("B-grade independent traversal diagnostics", () => {
 
   it("maps validator failures to the closed diagnostic stages used by exact-source diagnostics", () => {
     const cases = [
-      ["B-grade independent validator source binding mismatch", "B_GRADE_POLICY_BINDING_FAILED"],
+      ["B-grade independent validator source binding mismatch", "B_GRADE_SOURCE_BINDING_FAILED"],
+      ["Plan-bound HTML browser validation company binding mismatch", "B_GRADE_COMPANY_BINDING_FAILED"],
+      ["B-grade browser validation registered policy mismatch", "B_GRADE_POLICY_REGISTRATION_FAILED"],
+      ["Plan-bound HTML browser validator key policy mismatch", "B_GRADE_KEY_POLICY_FAILED"],
       ["browser validator rendered list did not stabilize", "B_GRADE_BROWSER_READINESS_FAILED"],
       ["browser validator request contract mismatch", "B_GRADE_REQUEST_PROTOCOL_FAILED"],
       ["browser validator pagination declaration changed", "B_GRADE_PAGINATION_FAILED"],
