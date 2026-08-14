@@ -106,6 +106,7 @@ export const PLAN_BOUND_HTML_TRAVERSAL_POLICIES = Object.freeze({
     rowSelector: "table tr:has(td:nth-child(1) a[href*='/socialxq?jobId='])",
     nextSelector: ".page a.next:not(.disabled):has-text('下一页')[href]",
     pageCoordinate: { kind: "QUERY", firstPath: "/social", pagePath: "/social/", parameter: "PageIndex" },
+    followNextHref: true,
     key: { kind: "OFFICIAL_URL", selector: "td:nth-child(1) a", origin: "https://fosunpharma.zhiye.com", pathPrefix: "/socialxq", dedupe: "OFFICIAL_URL", allowedSearchParam: "jobId", searchParamRequired: true },
     maxPages: 20
   },
@@ -389,9 +390,8 @@ export async function capturePlanBoundHtmlRenderedTraversal(input: {
           throw new Error("Plan-bound HTML browser validator page added no new jobs");
         }
         const next = page.locator(policy.nextSelector);
-        const activeNextCount = await countActiveNextControls(next, pageUrl);
-        if (activeNextCount > 1) throw new Error("Plan-bound HTML browser validator found multiple active next controls");
-        const nextControlPresent = activeNextCount === 1;
+        const activeNextControl = await findUniqueVisibleActiveNextControl(next, pageUrl);
+        const nextControlPresent = activeNextControl !== undefined;
         capturedPages.push({
           pageNumber,
           matchKeys,
@@ -403,11 +403,20 @@ export async function capturePlanBoundHtmlRenderedTraversal(input: {
         if (pageNumber === policy.maxPages) {
           throw new Error("Plan-bound HTML browser validator reached its maximum page limit");
         }
-        const previousUrl = pageUrl;
-        await Promise.all([
-          page.waitForURL((url) => url.toString() !== previousUrl, { timeout: 30_000 }),
-          next.first().click({ timeout: 10_000 })
-        ]);
+        if ("followNextHref" in policy && policy.followNextHref === true) {
+          const nextHref = await activeNextControl.getAttribute("href");
+          if (!nextHref?.trim()) throw new Error("Plan-bound HTML browser validator next-page href is missing");
+          const targetUrl = new URL(nextHref, pageUrl).toString();
+          assertPageUrl(input.sourceId, targetUrl, pageNumber + 1);
+          const navigation = await page.goto(targetUrl, { waitUntil: "domcontentloaded", timeout: 30_000 });
+          assertNavigation(input.sourceId, navigation, targetUrl, pageNumber + 1);
+        } else {
+          const previousUrl = pageUrl;
+          await Promise.all([
+            page.waitForURL((url) => url.toString() !== previousUrl, { timeout: 30_000 }),
+            activeNextControl.click({ timeout: 10_000 })
+          ]);
+        }
         await page.locator(policy.readySelector).first().waitFor({ state: "visible", timeout: 30_000 });
       }
       if (capturedPages.length === 0 || capturedPages.at(-1)?.nextControlPresent !== false) {
@@ -872,23 +881,30 @@ async function readMatchKeysFromLocator(
   return matchKeys.sort(compareUtf8);
 }
 
-async function countActiveNextControls(
+async function findUniqueVisibleActiveNextControl(
   locator: import("playwright-core").Locator,
   currentPageUrl: string
-): Promise<number> {
+): Promise<import("playwright-core").Locator | undefined> {
   const count = await locator.count();
-  let active = 0;
+  let active: import("playwright-core").Locator | undefined;
+  const current = new URL(currentPageUrl);
   for (let index = 0; index < count; index += 1) {
     const candidate = locator.nth(index);
     const href = await candidate.getAttribute("href");
     const ariaDisabled = await candidate.getAttribute("aria-disabled");
     const className = await candidate.getAttribute("class");
     const target = href?.trim() ? new URL(href, currentPageUrl) : undefined;
-    const current = new URL(currentPageUrl);
     const targetsCurrentPage = target !== undefined && target.origin === current.origin &&
       target.pathname === current.pathname && target.search === current.search;
-    if (ariaDisabled !== "true" && !className?.split(/\s+/u).some((part) => part === "disabled") &&
-        !targetsCurrentPage && (href?.trim() || await candidate.getAttribute("data-page"))) active += 1;
+    const navigable = ariaDisabled !== "true" &&
+      !className?.split(/\s+/u).some((part) => part === "disabled") &&
+      !targetsCurrentPage && Boolean(href?.trim() || await candidate.getAttribute("data-page"));
+    if (!navigable) continue;
+    if (!await candidate.isVisible()) {
+      throw new Error("Plan-bound HTML browser validator active next control is hidden");
+    }
+    if (active) throw new Error("Plan-bound HTML browser validator found multiple active next controls");
+    active = candidate;
   }
   return active;
 }

@@ -103,6 +103,85 @@ describe("plan-bound HTML rendered traversal", () => {
     expect(close).toHaveBeenCalledTimes(1);
   });
 
+  it("follows each registered Fosun next-link href without relying on a click navigation race", async () => {
+    const sourceId = "source-fosun-pharma-social" as const;
+    const entryUrl = PLAN_BOUND_HTML_TRAVERSAL_POLICIES[sourceId].entryUrl;
+    const close = vi.fn(async () => undefined);
+    const pageUrls = [entryUrl, `${entryUrl}/?PageIndex=2`, `${entryUrl}/?PageIndex=3`];
+
+    await expect(capturePlanBoundHtmlRenderedTraversal({
+      sourceId,
+      entryUrl,
+      launchBrowser: async () => pagedOfficialBrowser({
+        sourceId,
+        pageUrls,
+        rowUrls: [
+          [officialPagedUrl("fosunpharma.zhiye.com", "socialxq", 56101)],
+          [officialPagedUrl("fosunpharma.zhiye.com", "socialxq", 56102)],
+          [officialPagedUrl("fosunpharma.zhiye.com", "socialxq", 56103)]
+        ],
+        close,
+        failNextClick: true
+      })
+    })).resolves.toMatchObject({ pages: [
+      { pageNumber: 1, nextControlPresent: true },
+      { pageNumber: 2, nextControlPresent: true },
+      { pageNumber: 3, nextControlPresent: false }
+    ] });
+
+    expect(close).toHaveBeenCalledTimes(1);
+  });
+
+  it("follows the unique visible active Fosun next link when an inactive control appears first", async () => {
+    const sourceId = "source-fosun-pharma-social" as const;
+    const entryUrl = PLAN_BOUND_HTML_TRAVERSAL_POLICIES[sourceId].entryUrl;
+    const close = vi.fn(async () => undefined);
+
+    await expect(capturePlanBoundHtmlRenderedTraversal({
+      sourceId,
+      entryUrl,
+      launchBrowser: async () => pagedOfficialBrowser({
+        sourceId,
+        pageUrls: [entryUrl, `${entryUrl}/?PageIndex=2`],
+        rowUrls: [
+          [officialPagedUrl("fosunpharma.zhiye.com", "socialxq", 56201)],
+          [officialPagedUrl("fosunpharma.zhiye.com", "socialxq", 56202)]
+        ],
+        close,
+        inactiveNextFirst: true,
+        failNextClick: true
+      })
+    })).resolves.toMatchObject({ pages: [
+      { pageNumber: 1, nextControlPresent: true },
+      { pageNumber: 2, nextControlPresent: false }
+    ] });
+
+    expect(close).toHaveBeenCalledTimes(1);
+  });
+
+  it("rejects a hidden Fosun next link instead of treating it as traversal evidence", async () => {
+    const sourceId = "source-fosun-pharma-social" as const;
+    const entryUrl = PLAN_BOUND_HTML_TRAVERSAL_POLICIES[sourceId].entryUrl;
+    const close = vi.fn(async () => undefined);
+
+    await expect(capturePlanBoundHtmlRenderedTraversal({
+      sourceId,
+      entryUrl,
+      launchBrowser: async () => pagedOfficialBrowser({
+        sourceId,
+        pageUrls: [entryUrl, `${entryUrl}/?PageIndex=2`],
+        rowUrls: [
+          [officialPagedUrl("fosunpharma.zhiye.com", "socialxq", 56301)],
+          [officialPagedUrl("fosunpharma.zhiye.com", "socialxq", 56302)]
+        ],
+        close,
+        hiddenActiveNext: true
+      })
+    })).rejects.toThrow("active next control is hidden");
+
+    expect(close).toHaveBeenCalledTimes(1);
+  });
+
   it("rejects an unregistered query on a plan-bound official job URL", async () => {
     const sourceId = "source-fosun-pharma-social" as const;
     const pageUrls = [PLAN_BOUND_HTML_TRAVERSAL_POLICIES[sourceId].entryUrl];
@@ -408,6 +487,7 @@ function novartisBrowser(input: {
   const pageUrl = () => pageIndex === 0 ? input.entryUrl : `${input.entryUrl}?page=${pageIndex}`;
   const nextItem = {
     getAttribute: async (name: string) => name === "href" ? `?page=${pageIndex + 1}` : null,
+    isVisible: async () => true,
     click: async () => { pageIndex += 1; }
   };
   const page = {
@@ -434,6 +514,9 @@ function pagedOfficialBrowser(input: {
   pageUrls: string[];
   rowUrls: string[][];
   close: () => Promise<void>;
+  failNextClick?: boolean;
+  inactiveNextFirst?: boolean;
+  hiddenActiveNext?: boolean;
 }) {
   const policy = PLAN_BOUND_HTML_TRAVERSAL_POLICIES[input.sourceId];
   let pageIndex = 0;
@@ -441,10 +524,25 @@ function pagedOfficialBrowser(input: {
     getAttribute: async (name: string) => name === "href"
       ? input.pageUrls[Math.min(pageIndex + 1, input.pageUrls.length - 1)]!
       : null,
-    click: async () => { pageIndex += 1; }
+    isVisible: async () => input.hiddenActiveNext !== true,
+    click: async () => {
+      if (input.failNextClick) throw new Error("click navigation is unavailable");
+      pageIndex += 1;
+    }
+  };
+  const inactiveNextItem = {
+    getAttribute: async (name: string) => name === "href"
+      ? input.pageUrls[pageIndex]!
+      : name === "aria-disabled" ? "true" : null,
+    isVisible: async () => true,
+    click: async () => { throw new Error("inactive next control must not be used"); }
   };
   const page = {
-    goto: async () => response(input.pageUrls[0]!),
+    goto: async (url: string = input.pageUrls[0]!) => {
+      const targetIndex = input.pageUrls.indexOf(url);
+      if (targetIndex >= 0) pageIndex = targetIndex;
+      return response(url);
+    },
     url: () => input.pageUrls[pageIndex]!,
     waitForURL: async (predicate: (url: URL) => boolean) => new Promise<void>((resolve, reject) => {
       setTimeout(() => predicate(new URL(input.pageUrls[pageIndex]!))
@@ -454,7 +552,15 @@ function pagedOfficialBrowser(input: {
     locator: (selector: string) => selector === policy.rowSelector
       ? { evaluateAll: async () => input.rowUrls[pageIndex], first: () => ({ waitFor: async () => undefined }) }
       : selector === policy.nextSelector
-        ? { count: async () => 1, nth: () => nextItem, first: () => nextItem }
+        ? {
+            count: async () => input.inactiveNextFirst && pageIndex < input.pageUrls.length - 1 ? 2 : 1,
+            nth: (index: number) => input.inactiveNextFirst && pageIndex < input.pageUrls.length - 1 && index === 0
+              ? inactiveNextItem
+              : nextItem,
+            first: () => input.inactiveNextFirst && pageIndex < input.pageUrls.length - 1
+              ? inactiveNextItem
+              : nextItem
+          }
         : { first: () => ({ waitFor: async () => undefined }) }
   };
   return { newPage: async () => page as never, close: input.close };
@@ -649,6 +755,10 @@ function response(url: string) {
 function ajaxResponse(url: string) {
   return { status: () => 200, url: () => url, request: () => ({ method: () => "GET" }),
     finished: async () => null };
+}
+
+function officialPagedUrl(host: string, path: string, jobId: number): string {
+  return `https://${host}/${path}?jobId=${jobId}`;
 }
 
 function syntheticKey(sourceId: string, parts: readonly string[]): string {
