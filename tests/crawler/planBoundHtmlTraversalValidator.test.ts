@@ -214,7 +214,7 @@ describe("plan-bound HTML rendered traversal", () => {
     }).catch((error: unknown) => error);
     expect(failure).toBeInstanceOf(Error);
     expect((failure as Error).message).toContain("share a partition");
-    expect(classifyBGradeIndependentTraversalFailure(failure)).toBe("B_GRADE_PARTITION_PROOF_FAILED");
+    expect(classifyBGradeIndependentTraversalFailure(failure)).toBe("B_GRADE_PARTITION_DECLARATION_FAILED");
     expect(close).toHaveBeenCalledTimes(1);
   });
 

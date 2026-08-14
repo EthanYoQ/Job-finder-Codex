@@ -272,6 +272,8 @@ export async function capturePlanBoundHtmlRenderedTraversal(input: {
       await page.locator(policy.readySelector).first().waitFor({ state: "visible", timeout: 30_000 });
       let declaredPartitions: PlanBoundHtmlRenderedPartitionCapture[] | undefined;
       if ("revealSelector" in policy) {
+        let partitionFailureCode: Parameters<typeof tagBGradeIndependentTraversalFailure>[1] =
+          "B_GRADE_PARTITION_CONTROL_SET_FAILED";
         try {
           const reveal = page.locator(policy.revealSelector);
           const revealCount = await reveal.count();
@@ -286,6 +288,7 @@ export async function capturePlanBoundHtmlRenderedTraversal(input: {
           const controlIds = new Set<string>();
           declaredPartitions = [];
           for (let index = 0; index < revealCount; index += 1) {
+            partitionFailureCode = "B_GRADE_PARTITION_DECLARATION_FAILED";
             const control = reveal.nth(index);
             const controls = await control.getAttribute("aria-controls");
             const panelPresent = controls
@@ -299,12 +302,15 @@ export async function capturePlanBoundHtmlRenderedTraversal(input: {
               throw new Error("Plan-bound HTML browser validator reveal controls share a partition");
             }
             controlIds.add(controls);
+            partitionFailureCode = "B_GRADE_PARTITION_EXPANSION_FAILED";
             await control.click({ timeout: 10_000 });
             await page.waitForFunction((id) => {
               const panel = document.getElementById(id);
               return panel !== null && panel.getAttribute("aria-hidden") !== "true";
             }, controls, { timeout: 10_000 });
+            partitionFailureCode = "B_GRADE_PARTITION_URL_NORMALIZATION_FAILED";
             await normalizeRevealNavigation(page, policy.entryUrl, index);
+            partitionFailureCode = "B_GRADE_PARTITION_ROW_EXTRACTION_FAILED";
             const partitionLocator = page.locator(`[id=${JSON.stringify(controls)}] ${policy.rowSelector}`);
             const partitionMatchKeys = await readMatchKeysFromLocator(partitionLocator, input.sourceId, policy);
             if (partitionMatchKeys.length < 1) {
@@ -312,6 +318,7 @@ export async function capturePlanBoundHtmlRenderedTraversal(input: {
             }
             declaredPartitions.push({ controlIndex: index + 1, controlId: controls, matchKeys: partitionMatchKeys });
           }
+          partitionFailureCode = "B_GRADE_PARTITION_COVERAGE_FAILED";
           const controlledRows = await page.locator(policy.revealSelector).evaluateAll((controls, rowSelector) => {
             const rows = controls.flatMap((control) => {
               const id = control.getAttribute("aria-controls");
@@ -329,7 +336,7 @@ export async function capturePlanBoundHtmlRenderedTraversal(input: {
               "B_GRADE_VALIDATOR_ABORTED"
             );
           }
-          throw tagBGradeIndependentTraversalFailure(error, "B_GRADE_PARTITION_PROOF_FAILED");
+          throw tagBGradeIndependentTraversalFailure(error, partitionFailureCode);
         }
       }
       const capturedPages: Array<Omit<PlanBoundHtmlRenderedPageCapture, "declaredTotalPages">> = [];
