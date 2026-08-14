@@ -122,6 +122,7 @@ export const PLAN_BOUND_HTML_TRAVERSAL_POLICIES = Object.freeze({
     rowSelector: ".jobsTable tr:not(.title)",
     nextSelector: "a.next:has-text('下一页')[href*='PageIndex=']",
     pageCoordinate: { kind: "QUERY", firstPath: "/social", pagePath: "/social/", parameter: "PageIndex" },
+    followNextHref: true,
     key: { kind: "OFFICIAL_URL", selector: "td:nth-child(1) a", origin: "https://kelun.zhiye.com", pathPrefix: "/job_show/", dedupe: "OFFICIAL_URL", allowedSearchParam: "PageIndex" },
     maxPages: 20
   },

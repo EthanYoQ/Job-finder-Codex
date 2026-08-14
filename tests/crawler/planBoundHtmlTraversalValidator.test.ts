@@ -132,6 +132,35 @@ describe("plan-bound HTML rendered traversal", () => {
     expect(close).toHaveBeenCalledTimes(1);
   });
 
+  it("follows each registered Kelun next-link href without relying on a click navigation race", async () => {
+    const sourceId = "source-kelun-social" as const;
+    const entryUrl = PLAN_BOUND_HTML_TRAVERSAL_POLICIES[sourceId].entryUrl;
+    const close = vi.fn(async () => undefined);
+    const pageUrls = [entryUrl, `${entryUrl}/?PageIndex=2`, `${entryUrl}/?PageIndex=3`];
+
+    await expect(capturePlanBoundHtmlRenderedTraversal({
+      sourceId,
+      entryUrl,
+      launchBrowser: async () => pagedOfficialBrowser({
+        sourceId,
+        pageUrls,
+        rowUrls: [
+          ["https://kelun.zhiye.com/job_show/57101"],
+          ["https://kelun.zhiye.com/job_show/57102"],
+          ["https://kelun.zhiye.com/job_show/57103"]
+        ],
+        close,
+        failNextClick: true
+      })
+    })).resolves.toMatchObject({ pages: [
+      { pageNumber: 1, nextControlPresent: true },
+      { pageNumber: 2, nextControlPresent: true },
+      { pageNumber: 3, nextControlPresent: false }
+    ] });
+
+    expect(close).toHaveBeenCalledTimes(1);
+  });
+
   it("follows the unique visible active Fosun next link when an inactive control appears first", async () => {
     const sourceId = "source-fosun-pharma-social" as const;
     const entryUrl = PLAN_BOUND_HTML_TRAVERSAL_POLICIES[sourceId].entryUrl;
