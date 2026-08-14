@@ -40,6 +40,22 @@ export interface SourceFailureDiagnosticBundle {
   retryReasonCodes: SourceFetchAttemptTracker["retryReasonCodes"];
 }
 
+export const ATOMIC_EVIDENCE_FAILURE_CODES = [
+  "ATOMIC_EVIDENCE_TRANSACTION_TIMEOUT",
+  "ATOMIC_EVIDENCE_VALUE_TOO_LONG",
+  "ATOMIC_EVIDENCE_ARTIFACT_PATH_CONFLICT",
+  "ATOMIC_EVIDENCE_JOB_IDENTITY_CONFLICT",
+  "ATOMIC_EVIDENCE_PAGINATION_IDENTITY_CONFLICT",
+  "ATOMIC_EVIDENCE_LIFECYCLE_IDENTITY_CONFLICT",
+  "ATOMIC_EVIDENCE_UNIQUE_CONSTRAINT_FAILED",
+  "ATOMIC_EVIDENCE_FOREIGN_KEY_FAILED",
+  "ATOMIC_EVIDENCE_LIFECYCLE_PROJECTION_FAILED",
+  "ATOMIC_EVIDENCE_CONSTRAINT_FAILED",
+  "ATOMIC_EVIDENCE_COMMIT_FAILED"
+] as const;
+
+export type AtomicEvidenceFailureCode = typeof ATOMIC_EVIDENCE_FAILURE_CODES[number];
+
 const CATEGORY_SET = new Set<string>(SOURCE_FAILURE_CATEGORIES);
 const DIAGNOSTIC_CODE_SET = new Set<string>(SOURCE_FAILURE_DIAGNOSTIC_CODES);
 
@@ -95,4 +111,54 @@ export function sourceFailureCategoryLabel(category: SourceFailureCategory): str
     case "UNCLASSIFIED_SOURCE_FAILURE":
       return "抓取失败，原因待核验";
   }
+}
+
+export function atomicEvidenceFailureCode(error: unknown): AtomicEvidenceFailureCode {
+  const prisma = prismaErrorFacts(error);
+  if (prisma.code === "P2028") return "ATOMIC_EVIDENCE_TRANSACTION_TIMEOUT";
+  if (prisma.code === "P2000") return "ATOMIC_EVIDENCE_VALUE_TOO_LONG";
+  if (prisma.code === "P2003") return "ATOMIC_EVIDENCE_FOREIGN_KEY_FAILED";
+  if (prisma.code === "P2004") {
+    return prisma.databaseError?.includes("LifecycleSetEvidenceMember") ||
+      prisma.databaseError?.includes("lifecycle_projection")
+      ? "ATOMIC_EVIDENCE_LIFECYCLE_PROJECTION_FAILED"
+      : "ATOMIC_EVIDENCE_CONSTRAINT_FAILED";
+  }
+  if (prisma.code !== "P2002") return "ATOMIC_EVIDENCE_COMMIT_FAILED";
+  if (prisma.modelName === "EvidenceArtifact" && prisma.targets.has("path")) {
+    return "ATOMIC_EVIDENCE_ARTIFACT_PATH_CONFLICT";
+  }
+  if (prisma.modelName === "Job" && prisma.targets.has("sourceId") && prisma.targets.has("dedupeKey")) {
+    return "ATOMIC_EVIDENCE_JOB_IDENTITY_CONFLICT";
+  }
+  if (prisma.modelName === "PaginationEvidence" && prisma.targets.has("sourceResultId") &&
+      prisma.targets.has("sequence")) {
+    return "ATOMIC_EVIDENCE_PAGINATION_IDENTITY_CONFLICT";
+  }
+  if (prisma.modelName === "LifecycleSetEvidenceMember") {
+    return "ATOMIC_EVIDENCE_LIFECYCLE_IDENTITY_CONFLICT";
+  }
+  return "ATOMIC_EVIDENCE_UNIQUE_CONSTRAINT_FAILED";
+}
+
+function prismaErrorFacts(error: unknown): {
+  code?: string;
+  modelName?: string;
+  targets: ReadonlySet<string>;
+  databaseError?: string;
+} {
+  if (typeof error !== "object" || error === null) return { targets: new Set() };
+  const record = error as Record<string, unknown>;
+  const meta = typeof record.meta === "object" && record.meta !== null
+    ? record.meta as Record<string, unknown>
+    : {};
+  const targets = Array.isArray(meta.target)
+    ? meta.target.filter((value): value is string => typeof value === "string")
+    : typeof meta.target === "string" ? [meta.target] : [];
+  return {
+    ...(typeof record.code === "string" ? { code: record.code } : {}),
+    ...(typeof meta.modelName === "string" ? { modelName: meta.modelName } : {}),
+    targets: new Set(targets),
+    ...(typeof meta.database_error === "string" ? { databaseError: meta.database_error } : {})
+  };
 }

@@ -34,6 +34,7 @@ import { isSourceDueForScheduledRun } from "./schedule";
 import { validateExecutablePlanChannelBinding, type SourceCrawlPlan } from "./sourcePlan";
 import { safeSourceTransportFailureReason } from "./sourceFetchFailure";
 import {
+  atomicEvidenceFailureCode,
   sourceFailureDiagnosticBundle,
   transportFailureDiagnosticBundle
 } from "./sourceFailureDiagnostics";
@@ -501,12 +502,7 @@ export async function runP0CrawlBatch(
       let committedCompletenessVerified = false;
       let retainedArtifacts: readonly ArchivedEvidenceArtifact[] = [];
       let commit: AtomicSourceEvidenceCommit | undefined;
-      let atomicFailureCode:
-        | "EVIDENCE_ARCHIVE_FAILED"
-        | "EVIDENCE_VERIFICATION_FAILED"
-        | "ATOMIC_COMMIT_BUILD_FAILED"
-        | "ATOMIC_EVIDENCE_COMMIT_FAILED"
-        | "ATOMIC_EVIDENCE_TRANSACTION_TIMEOUT" = "ATOMIC_COMMIT_BUILD_FAILED";
+      let atomicFailureCode = "ATOMIC_COMMIT_BUILD_FAILED";
       try {
         if (!crawlResult.fetchEvidence) throw new Error("strict fetch evidence is required for atomic runtime commit");
         const artifacts = bindRuntimeEvidenceArtifactIds({
@@ -586,7 +582,7 @@ export async function runP0CrawlBatch(
             terminalSourceIds.add(plan.source.id);
             throw new AtomicCommitOutcomeUnverifiedError();
           } else {
-            atomicFailureCode = classifyAtomicCommitFailureCode(error);
+            atomicFailureCode = atomicEvidenceFailureCode(error);
             const safeCommitError = new Error(atomicFailureCode);
             try {
               await terminatePendingSourceResult({ id: pending.id,
@@ -862,14 +858,6 @@ class AtomicCommitOutcomeUnverifiedError extends Error {
     super("ATOMIC_COMMIT_OUTCOME_UNVERIFIED");
     this.name = "AtomicCommitOutcomeUnverifiedError";
   }
-}
-
-function classifyAtomicCommitFailureCode(error: unknown):
-  "ATOMIC_EVIDENCE_TRANSACTION_TIMEOUT" | "ATOMIC_EVIDENCE_COMMIT_FAILED" {
-  return typeof error === "object" && error !== null && "code" in error &&
-    (error as { code?: unknown }).code === "P2028"
-    ? "ATOMIC_EVIDENCE_TRANSACTION_TIMEOUT"
-    : "ATOMIC_EVIDENCE_COMMIT_FAILED";
 }
 
 function resolveNow(now: RunP0CrawlBatchDeps["now"]): Date {

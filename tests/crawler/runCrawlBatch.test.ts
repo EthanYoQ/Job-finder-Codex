@@ -593,10 +593,13 @@ describe("runP0CrawlBatch", () => {
     expect(db.calls.terminalSourceResults).toEqual([]);
   });
 
-  it("classifies a confirmed PENDING timeout safely before orphaning and rollback", async () => {
+  it("persists a redacted evidence artifact path conflict before orphaning and rollback", async () => {
     const plan = planFor("source-roche-china-social");
     const db = fakeDb();
-    const p2028 = Object.assign(new Error("authorization: Bearer must-not-leak"), { code: "P2028" });
+    const pathConflict = Object.assign(new Error("authorization: Bearer must-not-leak"), {
+      code: "P2002",
+      meta: { modelName: "EvidenceArtifact", target: ["path"] }
+    });
     const orphanLedger = vi.fn(async () => undefined);
 
     const result = await runP0CrawlBatch([plan], {
@@ -606,7 +609,7 @@ describe("runP0CrawlBatch", () => {
       force: true,
       identity: identityForPlans([plan]),
       ...inMemoryArchiveDeps(),
-      executeAtomicCommit: vi.fn(async () => { throw p2028; }),
+      executeAtomicCommit: vi.fn(async () => { throw pathConflict; }),
       inspectAtomicCommitOutcome: async () => ({ state: "PENDING" }),
       readPersistedBatchSourceResults: async () => [{
         sourceId: plan.source.id,
@@ -614,7 +617,7 @@ describe("runP0CrawlBatch", () => {
         adapterState: "SUCCEEDED",
         completenessState: "FAILED",
         atomicCommitState: "ROLLED_BACK",
-        failureCode: "ATOMIC_EVIDENCE_TRANSACTION_TIMEOUT"
+        failureCode: "ATOMIC_EVIDENCE_ARTIFACT_PATH_CONFLICT"
       }],
       recordOrphanedArtifacts: orphanLedger,
       getPreviousJobs: async () => [],
@@ -626,7 +629,7 @@ describe("runP0CrawlBatch", () => {
     expect(orphanLedger).toHaveBeenCalledOnce();
     expect(db.calls.terminalSourceResults).toContainEqual(expect.objectContaining({
       data: expect.objectContaining({
-        failureCode: "ATOMIC_EVIDENCE_TRANSACTION_TIMEOUT",
+        failureCode: "ATOMIC_EVIDENCE_ARTIFACT_PATH_CONFLICT",
         failureReason: "Atomic evidence processing failed"
       })
     }));
