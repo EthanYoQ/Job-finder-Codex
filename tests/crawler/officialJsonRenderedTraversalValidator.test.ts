@@ -272,7 +272,7 @@ describe("official JSON rendered traversal", () => {
       sourceId: "source-nhu-social",
       entryUrl: OFFICIAL_JSON_RENDERED_TRAVERSAL_POLICIES["source-nhu-social"].entryUrl,
       launchBrowser: async () => browser(narrowedNhu)
-    })).rejects.toThrow(/request contract mismatch|unexpected keys/i);
+    })).rejects.toThrow(/response predicate rejected|request contract mismatch|unexpected keys/i);
 
     const narrowedXiuzheng = xiuzhengUiPage({ id: 16, name: "研发工程师" },
       JSON.stringify({ page: 1, page_size: 10, department: "研发" }));
@@ -281,6 +281,26 @@ describe("official JSON rendered traversal", () => {
       entryUrl: OFFICIAL_JSON_RENDERED_TRAVERSAL_POLICIES["source-xiuzheng-social"].entryUrl,
       launchBrowser: async () => browser(narrowedXiuzheng)
     })).rejects.toThrow(/unexpected keys/i);
+  });
+
+  it("ignores a narrowed NHU request before the exact same-page protocol response", async () => {
+    const nhuId = "00000000-0000-4000-8000-000000000023";
+    const exactRequest = { PageIndex: 0, PageSize: 20, Category: ["1"], KeyWords: "", SpecialType: 0,
+      PortalId: "", DisplayFields: ["Category", "Kind", "LocId", "PostDate", "WorkWeChatQrCode"] };
+    const pageObject = responsePage({
+      expectedOrigin: "https://xinhecheng1.zhiye.com",
+      path: "/api/Jobad/GetJobAdPageList",
+      requestBody: JSON.stringify(exactRequest),
+      precedingOfficialRequestBody: JSON.stringify({ ...exactRequest, Department: "China" }),
+      responseBody: { Code: 200, Count: 1, PageIndex: 0, Data: [{ Id: nhuId, LocNames: ["上海市"] }] }
+    });
+
+    await expect(captureOfficialJsonRenderedTraversal({
+      sourceId: "source-nhu-social",
+      entryUrl: OFFICIAL_JSON_RENDERED_TRAVERSAL_POLICIES["source-nhu-social"].entryUrl,
+      launchBrowser: async () => browser(pageObject)
+    })).resolves.toMatchObject({ pages: [{ rawRows: [{ rawPayload: { Id: nhuId } }] }] });
+    expect(pageObject.precedingOfficialAccepted).toBe(false);
   });
 
   it("drives the Xiuzheng UI route and rendered list instead of calling fetch from page evaluation", async () => {
@@ -578,10 +598,11 @@ function responsePage(input: {
   cspcHasNext?: boolean;
   cspcClicksBeforeRender?: number;
   abortDuringRenderedRows?: AbortController;
+  precedingOfficialRequestBody?: string;
 }) {
-  const candidate = (origin: string) => ({
+  const candidate = (origin: string, requestBody = input.requestBody) => ({
     url: () => `${origin}${input.path}`,
-    request: () => ({ method: () => "POST", postData: () => input.requestBody }),
+    request: () => ({ method: () => "POST", postData: () => requestBody }),
     status: () => 200,
     text: async () => JSON.stringify(input.responseBody)
   });
@@ -589,8 +610,14 @@ function responsePage(input: {
   const pageObject = {
     get searchClicks() { return searchClicks; },
     crossOriginAccepted: true,
+    precedingOfficialAccepted: false,
     waitForResponse: async (predicate: (value: ReturnType<typeof candidate>) => boolean) => {
       pageObject.crossOriginAccepted = predicate(candidate("https://evil.example"));
+      if (input.precedingOfficialRequestBody) {
+        const preceding = candidate(input.expectedOrigin, input.precedingOfficialRequestBody);
+        pageObject.precedingOfficialAccepted = predicate(preceding);
+        if (pageObject.precedingOfficialAccepted) return preceding;
+      }
       const official = candidate(input.expectedOrigin);
       if (!predicate(official)) throw new Error("Official response predicate rejected its exact origin");
       return official;

@@ -203,6 +203,7 @@ describe("plan-bound HTML rendered traversal", () => {
     const entryUrl = PLAN_BOUND_HTML_TRAVERSAL_POLICIES[sourceId].entryUrl;
     const navigationTimeouts: number[] = [];
     const readinessTimeouts: number[] = [];
+    const readinessStates: string[] = [];
 
     await expect(capturePlanBoundHtmlRenderedTraversal({
       sourceId,
@@ -216,12 +217,16 @@ describe("plan-bound HTML rendered traversal", () => {
         ],
         close: async () => undefined,
         onGotoOptions: (options) => navigationTimeouts.push(options?.timeout ?? -1),
-        onReadyWaitOptions: (options) => readinessTimeouts.push(options?.timeout ?? -1)
+        onReadyWaitOptions: (options) => {
+          readinessTimeouts.push(options?.timeout ?? -1);
+          readinessStates.push(options?.state ?? "missing");
+        }
       })
     })).resolves.toMatchObject({ pages: [{ pageNumber: 1 }, { pageNumber: 2 }] });
 
     expect(navigationTimeouts).toEqual([60_000, 60_000]);
     expect(readinessTimeouts).toEqual([60_000, 60_000]);
+    expect(readinessStates).toEqual(["attached", "attached"]);
   });
 
   it.each([

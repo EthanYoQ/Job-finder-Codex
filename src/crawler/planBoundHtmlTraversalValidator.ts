@@ -104,6 +104,7 @@ export const PLAN_BOUND_HTML_TRAVERSAL_POLICIES = Object.freeze({
     matchKeyKind: "JOB_DEDUPE_KEY",
     artifactLogicalKey: "source-fosun-pharma-social-browser-traversal-validation",
     readySelector: "table tr:has(td:nth-child(1) a[href*='/socialxq?jobId='])",
+    readyState: "attached",
     rowSelector: "table tr:has(td:nth-child(1) a[href*='/socialxq?jobId='])",
     nextSelector: ".page a.next:not(.disabled):has-text('下一页')[href]",
     pageCoordinate: { kind: "QUERY", firstPath: "/social", pagePath: "/social/", parameter: "PageIndex" },
@@ -283,6 +284,8 @@ export async function capturePlanBoundHtmlRenderedTraversal(input: {
   const browserTimeoutMs = officialBrowserTimeoutMs();
   const navigationWaitUntil: "commit" | "domcontentloaded" =
     "navigationWaitUntil" in policy ? policy.navigationWaitUntil : "domcontentloaded";
+  const readinessState: "attached" | "visible" =
+    "readyState" in policy ? policy.readyState : "visible";
   if (input.entryUrl !== policy.entryUrl) throw new Error("Plan-bound HTML browser validator entry URL mismatch");
   if (input.signal?.aborted) throw input.signal.reason;
   const releaseBrowserPermit = await acquireBrowserSourcePermit(input.signal);
@@ -328,7 +331,7 @@ export async function capturePlanBoundHtmlRenderedTraversal(input: {
         signal: input.signal,
         failureCode: "B_GRADE_BROWSER_READINESS_FAILED",
         operation: () => page.locator(policy.readySelector).first()
-          .waitFor({ state: "visible", timeout: browserTimeoutMs })
+          .waitFor({ state: readinessState, timeout: browserTimeoutMs })
       });
       let declaredPartitions: PlanBoundHtmlRenderedPartitionCapture[] | undefined;
       if ("revealSelector" in policy) {
@@ -491,7 +494,7 @@ export async function capturePlanBoundHtmlRenderedTraversal(input: {
           signal: input.signal,
           failureCode: "B_GRADE_BROWSER_READINESS_FAILED",
           operation: () => page.locator(policy.readySelector).first()
-            .waitFor({ state: "visible", timeout: browserTimeoutMs })
+            .waitFor({ state: readinessState, timeout: browserTimeoutMs })
         });
       }
       if (capturedPages.length === 0 || capturedPages.at(-1)?.nextControlPresent !== false) {

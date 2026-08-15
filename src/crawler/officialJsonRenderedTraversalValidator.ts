@@ -265,7 +265,10 @@ async function captureNhu(
     const url = new URL(candidate.url());
     if (url.origin !== officialOrigin || url.pathname !== endpointPath ||
         candidate.request().method() !== "POST") return false;
-    try { return parseRecord(candidate.request().postData() ?? "{}").PageIndex === pageIndex; }
+    try {
+      parseExactNhuRequest(candidate.request().postData() ?? "{}", pageIndex);
+      return true;
+    }
     catch { return false; }
   }, { timeout: 30_000 });
   const [firstResponse, navigation] = await Promise.all([
@@ -305,16 +308,8 @@ async function parseNhuResponse(
   expectedPageIndex: number
 ): Promise<{ declaredTotalJobs: number; rawRows: OfficialJsonRenderedRawRow[] }> {
   const requestBody = response.request().postData() ?? "{}";
-  const expectedDisplayFields = ["Category", "Kind", "LocId", "PostDate", "WorkWeChatQrCode"];
-  const expectedRequestKeys = ["PageIndex", "PageSize", "Category", "KeyWords", "SpecialType", "PortalId",
-    "DisplayFields"];
-  const request = parseStrictJsonRequest(requestBody, expectedRequestKeys);
-  if (response.status() !== 200 || request.PageIndex !== expectedPageIndex || request.PageSize !== 20 ||
-      JSON.stringify(request.Category) !== JSON.stringify(["1"]) || request.KeyWords !== "" ||
-      request.SpecialType !== 0 || request.PortalId !== "" ||
-      JSON.stringify(request.DisplayFields) !== JSON.stringify(expectedDisplayFields)) {
-    throw new Error("NHU browser validator request contract mismatch");
-  }
+  parseExactNhuRequest(requestBody, expectedPageIndex);
+  if (response.status() !== 200) throw new Error("NHU browser validator request failed");
   const root = parseRecord(await response.text());
   if (root.Code !== 200 || !Number.isSafeInteger(root.Count) || Number(root.Count) < 0 ||
       !Array.isArray(root.Data) || root.Data.length > 20 ||
@@ -332,6 +327,20 @@ async function parseNhuResponse(
       replayScopeDecision("source-nhu-social", marker), recordIndex, raw);
   });
   return { declaredTotalJobs: Number(root.Count), rawRows };
+}
+
+function parseExactNhuRequest(requestBody: string, expectedPageIndex: number): Record<string, unknown> {
+  const expectedDisplayFields = ["Category", "Kind", "LocId", "PostDate", "WorkWeChatQrCode"];
+  const expectedRequestKeys = ["PageIndex", "PageSize", "Category", "KeyWords", "SpecialType", "PortalId",
+    "DisplayFields"];
+  const request = parseStrictJsonRequest(requestBody, expectedRequestKeys);
+  if (request.PageIndex !== expectedPageIndex || request.PageSize !== 20 ||
+      JSON.stringify(request.Category) !== JSON.stringify(["1"]) || request.KeyWords !== "" ||
+      request.SpecialType !== 0 || request.PortalId !== "" ||
+      JSON.stringify(request.DisplayFields) !== JSON.stringify(expectedDisplayFields)) {
+    throw new Error("NHU browser validator request contract mismatch");
+  }
+  return request;
 }
 
 async function captureXiuzheng(
