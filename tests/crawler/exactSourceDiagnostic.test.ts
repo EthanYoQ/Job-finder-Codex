@@ -1,11 +1,36 @@
 import { describe, expect, it } from "vitest";
 import {
+  assertLongTailRuntimeSettled,
   buildExactSourceDiagnosticReport,
   EXACT_SOURCE_DIAGNOSTIC_LONG_TAIL_SOURCE_IDS,
   EXACT_SOURCE_DIAGNOSTIC_MAX_SOURCES,
   parseExactSourceDiagnosticSession,
   prepareExactSourceDiagnostic
 } from "../../src/crawler/exactSourceDiagnostic";
+
+const settledMetrics = {
+  memoryBytes: 1,
+  pidsCurrent: 12,
+  tmpBytes: 1,
+  tmpInodes: 1,
+  braveProcesses: 0,
+  braveRssKiB: 0,
+  crashpadProcesses: 0,
+  zombieProcesses: 0,
+  nodeProcesses: 0,
+  nodeRssKiB: 0,
+  nodeFdCount: 0,
+  nodeThreads: 0
+};
+
+const longTailReport = {
+  executionOrderMatchesSession: true,
+  sources: [{
+    sourceId: "source-xiuzheng-social",
+    startedAt: "2026-08-14T12:00:05.000Z",
+    finishedAt: "2026-08-14T12:00:10.000Z"
+  }]
+};
 
 describe("NON_CERTIFYING exact-source diagnostic", () => {
   it("rejects a session with additional authority fields", () => {
@@ -233,6 +258,49 @@ describe("NON_CERTIFYING exact-source diagnostic", () => {
 
     expect(report.executionOrderMatchesSession).toBe(false);
     expect(report.decision).toBe("NON_CERTIFYING_FAIL");
+  });
+
+  it("accepts transient lifecycle processes only after two clean post-Xiuzheng samples", () => {
+    expect(() => assertLongTailRuntimeSettled({
+      report: longTailReport,
+      telemetry: [
+        { capturedAt: "2026-08-14T12:00:01.000Z", metrics: {
+          ...settledMetrics, pidsCurrent: 10, zombieProcesses: 1, nodeProcesses: 1
+        } },
+        { capturedAt: "2026-08-14T12:00:06.000Z", metrics: {
+          ...settledMetrics, braveProcesses: 3, nodeProcesses: 1
+        } },
+        { capturedAt: "2026-08-14T12:00:11.000Z", metrics: settledMetrics },
+        { capturedAt: "2026-08-14T12:00:13.000Z", metrics: { ...settledMetrics, pidsCurrent: 11 } }
+      ]
+    })).not.toThrow();
+  });
+
+  it.each([
+    {
+      name: "a browser still active in the terminal window",
+      tail: [
+        { capturedAt: "2026-08-14T12:00:11.000Z", metrics: settledMetrics },
+        { capturedAt: "2026-08-14T12:00:13.000Z", metrics: { ...settledMetrics, braveProcesses: 1 } }
+      ]
+    },
+    {
+      name: "a terminal telemetry error",
+      tail: [
+        { capturedAt: "2026-08-14T12:00:11.000Z", metrics: settledMetrics },
+        { capturedAt: "2026-08-14T12:00:13.000Z", sampleError: "METRICS_UNAVAILABLE" as const }
+      ]
+    }
+  ])("rejects $name", ({ tail }) => {
+    expect(() => assertLongTailRuntimeSettled({
+      report: longTailReport,
+      telemetry: [
+        { capturedAt: "2026-08-14T12:00:01.000Z", metrics: {
+          ...settledMetrics, pidsCurrent: 10, nodeProcesses: 1
+        } },
+        ...tail
+      ]
+    })).toThrow(/terminal|retained/u);
   });
 });
 

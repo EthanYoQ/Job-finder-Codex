@@ -156,7 +156,7 @@ done
 test "$postgres_network_ready" = 1
 
 run_crawl() {
-  docker run --rm --network "$network" --read-only --cap-drop ALL \
+  docker run --rm --init --network "$network" --read-only --cap-drop ALL \
     --security-opt no-new-privileges:true --tmpfs /tmp:rw,nosuid,nodev,noexec,size=1g,mode=1777 \
     --shm-size 1g --env DATABASE_URL="$database_url" \
     --env P0_SCHEDULED_ATTEMPT_TIMEOUT_MS=14400000 \

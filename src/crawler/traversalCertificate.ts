@@ -12,6 +12,8 @@ import {
   type PersistentSourceFetchEvidence
 } from "./sourceFetchEvidence";
 import { acquireBrowserSourcePermit } from "./browserSourceConcurrency";
+import { createAbortableClose } from "./officialHttpRuntimeLimits";
+import { tagBGradeIndependentTraversalFailure } from "./independentTraversalDiagnostics";
 import {
   strictQiluRawOfficialUrls,
   validateStrictSourceScopeExclusionProof
@@ -736,7 +738,7 @@ export async function runViatrisBrowserTraversalValidator(input: {
 }): Promise<ViatrisBrowserTraversalValidation> {
   const expectedEntry = "https://careersite.tupu360.com/Viatris/position/index?recruitmentType=SOCIALRECRUITMENT";
   if (input.entryUrl !== expectedEntry) throw new Error("Viatris browser validator entry URL mismatch");
-  const captured = await (input.capture ?? defaultViatrisRenderedUiCapture)({
+  const captured = await (input.capture ?? captureViatrisRenderedUiTraversal)({
     entryUrl: input.entryUrl,
     ...(input.signal ? { signal: input.signal } : {})
   });
@@ -827,24 +829,24 @@ export async function runBGradeIndependentTraversalValidator(input: {
   throw new Error("B-grade independent validator is not implemented for source");
 }
 
-async function defaultViatrisRenderedUiCapture(input: {
+export async function captureViatrisRenderedUiTraversal(input: {
   entryUrl: string;
   signal?: AbortSignal;
+  launchBrowser?: () => Promise<Pick<import("playwright-core").Browser, "newPage" | "close">>;
 }): Promise<{ observedAt: string; pages: ViatrisRenderedUiPageCapture[] }> {
-  if (input.signal?.aborted) throw input.signal.reason;
+  if (input.signal?.aborted) {
+    throw tagBGradeIndependentTraversalFailure(input.signal.reason, "B_GRADE_VALIDATOR_ABORTED");
+  }
   const releaseBrowserPermit = await acquireBrowserSourcePermit(input.signal);
   try {
-  const { chromium } = await import("playwright-core");
-  const { FORMAL_CHROMIUM_ARGS, FORMAL_CHROMIUM_PATH } = await import("../readiness/formalBrowserPreflight");
-  const browser = await chromium.launch({
-    ...(process.platform === "linux"
-      ? { executablePath: FORMAL_CHROMIUM_PATH, args: [...FORMAL_CHROMIUM_ARGS] }
-      : { channel: "chrome" as const }),
-    headless: true,
-    timeout: 30_000
-  });
-  const abort = () => { void browser.close(); };
-  input.signal?.addEventListener("abort", abort, { once: true });
+  const browser = await (input.launchBrowser ?? launchViatrisProductionBrowser)();
+  const browserLifecycle = createAbortableClose(input.signal, () => browser.close());
+  if (input.signal?.aborted) {
+    try { await browserLifecycle.close(); } catch { /* the source abort remains authoritative */ }
+    browserLifecycle.dispose();
+    throw tagBGradeIndependentTraversalFailure(input.signal.reason, "B_GRADE_VALIDATOR_ABORTED");
+  }
+  let operationError: unknown;
   try {
     const page = await browser.newPage();
     const navigation = await page.goto(input.entryUrl, { waitUntil: "domcontentloaded", timeout: 30_000 });
@@ -896,14 +898,42 @@ async function defaultViatrisRenderedUiCapture(input: {
           previous: JSON.stringify([...new Set(sourceJobIds)].sort()) }, { timeout: 30_000 });
       }
     }
+    if (input.signal?.aborted) {
+      throw tagBGradeIndependentTraversalFailure(input.signal.reason, "B_GRADE_VALIDATOR_ABORTED");
+    }
     return { observedAt: new Date().toISOString(), pages };
+  } catch (error) {
+    operationError = error;
+    if (input.signal?.aborted) {
+      throw tagBGradeIndependentTraversalFailure(input.signal.reason, "B_GRADE_VALIDATOR_ABORTED");
+    }
+    throw error;
   } finally {
-    input.signal?.removeEventListener("abort", abort);
-    await browser.close();
+    browserLifecycle.dispose();
+    try {
+      await browserLifecycle.close();
+    } catch (closeError) {
+      if (input.signal?.aborted) {
+        throw tagBGradeIndependentTraversalFailure(input.signal.reason, "B_GRADE_VALIDATOR_ABORTED");
+      }
+      if (operationError === undefined) throw closeError;
+    }
   }
   } finally {
     releaseBrowserPermit();
   }
+}
+
+async function launchViatrisProductionBrowser(): Promise<Pick<import("playwright-core").Browser, "newPage" | "close">> {
+  const { chromium } = await import("playwright-core");
+  const { FORMAL_CHROMIUM_ARGS, FORMAL_CHROMIUM_PATH } = await import("../readiness/formalBrowserPreflight");
+  return chromium.launch({
+    ...(process.platform === "linux"
+      ? { executablePath: FORMAL_CHROMIUM_PATH, args: [...FORMAL_CHROMIUM_ARGS] }
+      : { channel: "chrome" as const }),
+    headless: true,
+    timeout: 30_000
+  });
 }
 
 export function evaluateBGradeValidationRequirement(input: {

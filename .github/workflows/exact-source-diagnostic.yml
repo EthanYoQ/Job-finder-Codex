@@ -160,11 +160,14 @@ jobs:
 
           worker_exit=0
           : > "$diagnostic_root/runtime-resources.jsonl"
-          docker run --name "$worker_name" --network "$network" --read-only --cap-drop ALL \
+          docker run --name "$worker_name" --init --network "$network" --read-only --cap-drop ALL \
             --security-opt no-new-privileges:true --tmpfs /tmp:rw,nosuid,nodev,noexec,size=1g,mode=1777 \
             --shm-size 1g --env DATABASE_URL="$database_url" \
             --volume "$artifact_root:/app/outputs" "$IMAGE_TAG" \
-            node node_modules/tsx/dist/cli.mjs scripts/p0-manual-crawl-worker.ts --once \
+            sh -eu -c 'worker_exit=0
+              node node_modules/tsx/dist/cli.mjs scripts/p0-manual-crawl-worker.ts --once || worker_exit=$?
+              sleep 8
+              exit "$worker_exit"' \
             > "$diagnostic_root/worker.jsonl" 2>&1 &
           worker_host_pid=$!
           while kill -0 "$worker_host_pid" >/dev/null 2>&1; do
@@ -176,20 +179,41 @@ jobs:
                 tmp_inodes="$(find /tmp -xdev -print | wc -l)"
                 brave_processes=0
                 brave_rss_kib=0
+                crashpad_processes=0
+                zombie_processes=0
+                node_processes=0
+                node_rss_kib=0
+                node_fds=0
+                node_threads=0
                 for status_path in /proc/[0-9]*/status; do
                   process_dir="${status_path%/status}"
                   executable="$(readlink "$process_dir/exe" 2>/dev/null || true)"
+                  process_state="$(awk "/^State:/{print \$2}" "$status_path")"
+                  if test "$process_state" = Z; then
+                    zombie_processes=$((zombie_processes + 1))
+                  fi
                   if test "$executable" = /opt/brave.com/brave/brave; then
                     brave_processes=$((brave_processes + 1))
                     process_rss="$(awk "/^VmRSS:/{print \$2}" "$status_path")"
                     brave_rss_kib=$((brave_rss_kib + ${process_rss:-0}))
                   fi
+                  if test "$executable" = /opt/brave.com/brave/chrome_crashpad_handler; then
+                    crashpad_processes=$((crashpad_processes + 1))
+                  fi
+                  if test "$executable" = /usr/local/bin/node; then
+                    node_processes=$((node_processes + 1))
+                    process_rss="$(awk "/^VmRSS:/{print \$2}" "$status_path")"
+                    process_fds="$(find "$process_dir/fd" -mindepth 1 -maxdepth 1 -print 2>/dev/null | wc -l)"
+                    process_threads="$(awk "/^Threads:/{print \$2}" "$status_path")"
+                    node_rss_kib=$((node_rss_kib + ${process_rss:-0}))
+                    node_fds=$((node_fds + ${process_fds:-0}))
+                    node_threads=$((node_threads + ${process_threads:-0}))
+                  fi
                 done
-                node_rss_kib="$(awk "/^VmRSS:/{print \$2}" /proc/1/status)"
-                node_fds="$(find /proc/1/fd -mindepth 1 -maxdepth 1 -print 2>/dev/null | wc -l)"
-                printf "{\"memoryBytes\":%s,\"pidsCurrent\":%s,\"tmpBytes\":%s,\"tmpInodes\":%s,\"braveProcesses\":%s,\"braveRssKiB\":%s,\"nodeRssKiB\":%s,\"nodeFdCount\":%s}" \
+                printf "{\"memoryBytes\":%s,\"pidsCurrent\":%s,\"tmpBytes\":%s,\"tmpInodes\":%s,\"braveProcesses\":%s,\"braveRssKiB\":%s,\"crashpadProcesses\":%s,\"zombieProcesses\":%s,\"nodeProcesses\":%s,\"nodeRssKiB\":%s,\"nodeFdCount\":%s,\"nodeThreads\":%s}" \
                   "$memory_bytes" "$pids_current" "$((tmp_kib * 1024))" "$tmp_inodes" \
-                  "$brave_processes" "$brave_rss_kib" "$node_rss_kib" "$node_fds"
+                  "$brave_processes" "$brave_rss_kib" "$crashpad_processes" "$zombie_processes" \
+                  "$node_processes" "$node_rss_kib" "$node_fds" "$node_threads"
               ')"; then
                 node -e 'JSON.parse(process.argv[1])' "$sample"
                 captured_at="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
@@ -220,21 +244,8 @@ jobs:
           test -s "$diagnostic_root/report.json"
           test "$(node -p "JSON.parse(require('fs').readFileSync(process.argv[1],'utf8')).mode" "$diagnostic_root/report.json")" = NON_CERTIFYING
           if test "${#selected_sources[@]}" -eq 15; then
-            node - "$diagnostic_root/report.json" "$diagnostic_root/runtime-resources.jsonl" <<'NODE'
-          const fs = require("fs");
-          const report = JSON.parse(fs.readFileSync(process.argv[2], "utf8"));
-          const telemetry = fs.readFileSync(process.argv[3], "utf8").trim().split("\n")
-            .filter(Boolean).map((line) => JSON.parse(line)).filter((sample) => sample.metrics);
-          if (report.executionOrderMatchesSession !== true) throw new Error("Long-tail diagnostic execution order changed");
-          if (telemetry.length < 3) throw new Error("Long-tail diagnostic telemetry is too sparse");
-          const xiuzheng = report.sources.find((source) => source.sourceId === "source-xiuzheng-social");
-          const xiuzhengStartedAt = Date.parse(xiuzheng?.startedAt ?? "");
-          const latestSampleAt = Math.max(...telemetry.map((sample) => Date.parse(sample.capturedAt)));
-          if (!Number.isFinite(xiuzhengStartedAt) || !Number.isFinite(latestSampleAt) ||
-              latestSampleAt < xiuzhengStartedAt - 5_000) {
-            throw new Error("Long-tail diagnostic telemetry did not reach the Xiuzheng stage");
-          }
-          NODE
+            node node_modules/tsx/dist/cli.mjs scripts/p0-assert-long-tail-runtime.ts \
+              "$diagnostic_root/report.json" "$diagnostic_root/runtime-resources.jsonl"
           fi
           test "$worker_exit" -eq 0
           test "$report_exit" -eq 0

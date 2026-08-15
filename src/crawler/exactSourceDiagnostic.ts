@@ -145,6 +145,80 @@ export interface ExactSourceDiagnosticReport {
   }>;
 }
 
+const runtimeMetricsSchema = z.object({
+  memoryBytes: z.number().int().nonnegative(),
+  pidsCurrent: z.number().int().nonnegative(),
+  tmpBytes: z.number().int().nonnegative(),
+  tmpInodes: z.number().int().nonnegative(),
+  braveProcesses: z.number().int().nonnegative(),
+  braveRssKiB: z.number().int().nonnegative(),
+  crashpadProcesses: z.number().int().nonnegative(),
+  zombieProcesses: z.number().int().nonnegative(),
+  nodeProcesses: z.number().int().nonnegative(),
+  nodeRssKiB: z.number().int().nonnegative(),
+  nodeFdCount: z.number().int().nonnegative(),
+  nodeThreads: z.number().int().nonnegative()
+}).strict();
+
+const runtimeSampleSchema = z.union([
+  z.object({
+    capturedAt: z.string().datetime({ offset: true }),
+    metrics: runtimeMetricsSchema
+  }).strict(),
+  z.object({
+    capturedAt: z.string().datetime({ offset: true }),
+    sampleError: z.literal("METRICS_UNAVAILABLE")
+  }).strict()
+]);
+
+const longTailReportSchema = z.object({
+  executionOrderMatchesSession: z.literal(true),
+  sources: z.array(z.object({
+    sourceId: z.string().min(1),
+    startedAt: z.string().datetime({ offset: true }).nullable(),
+    finishedAt: z.string().datetime({ offset: true }).nullable()
+  }).passthrough()).min(1)
+}).passthrough();
+
+export function assertLongTailRuntimeSettled(input: {
+  report: unknown;
+  telemetry: unknown;
+}): void {
+  const report = longTailReportSchema.parse(input.report);
+  const telemetry = z.array(runtimeSampleSchema).min(3).parse(input.telemetry);
+  const xiuzheng = report.sources.find(({ sourceId }) => sourceId === "source-xiuzheng-social");
+  const xiuzhengFinishedAt = Date.parse(xiuzheng?.finishedAt ?? "");
+  if (!Number.isFinite(xiuzhengFinishedAt)) {
+    throw new Error("Long-tail diagnostic Xiuzheng completion is unavailable");
+  }
+
+  const measured = telemetry.filter((sample): sample is z.infer<typeof runtimeSampleSchema> & {
+    metrics: z.infer<typeof runtimeMetricsSchema>;
+  } => "metrics" in sample);
+  const preTerminalIdle = measured.filter((sample) =>
+    Date.parse(sample.capturedAt) < xiuzhengFinishedAt && sample.metrics.braveProcesses === 0
+  );
+  if (preTerminalIdle.length < 1) {
+    throw new Error("Long-tail diagnostic lacks an idle lifecycle baseline");
+  }
+  const baselinePids = Math.min(...preTerminalIdle.map(({ metrics }) => metrics.pidsCurrent));
+  const terminalWindow = telemetry.filter((sample) => Date.parse(sample.capturedAt) >= xiuzhengFinishedAt).slice(-2);
+  if (terminalWindow.length !== 2 || terminalWindow.some((sample) => !("metrics" in sample))) {
+    throw new Error("Long-tail diagnostic lacks a settled terminal telemetry window");
+  }
+  for (const sample of terminalWindow) {
+    if (!("metrics" in sample)) throw new Error("Long-tail diagnostic terminal telemetry is unavailable");
+    const metrics = sample.metrics;
+    if (metrics.braveProcesses !== 0 || metrics.crashpadProcesses !== 0 ||
+        metrics.zombieProcesses !== 0 || metrics.nodeProcesses !== 0) {
+      throw new Error("Long-tail diagnostic retained browser lifecycle processes");
+    }
+    if (metrics.pidsCurrent > baselinePids + 16) {
+      throw new Error("Long-tail diagnostic leaked browser lifecycle tasks");
+    }
+  }
+}
+
 export async function prepareExactSourceDiagnostic(input: {
   sourceIds: readonly string[];
   authority: { releaseCandidateId: string; commitSha: string; sourceIds: readonly string[] };

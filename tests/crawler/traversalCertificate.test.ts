@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { reconcileAdapterRows } from "../../src/crawler/adapters/reconciliation";
 import type { NormalizedJobRecord } from "../../src/crawler/normalizedJob";
 import { deriveCanonicalPaginationEvidence, evaluatePaginationEvidence } from "../../src/crawler/paginationEvidence";
@@ -13,6 +13,7 @@ import { hashCanonicalStringSet } from "../../src/crawler/runtimeBatchIdentity";
 import type { ArchivedEvidenceArtifact } from "../../src/crawler/artifactArchive";
 import {
   __testOnlyViatrisNextRenderedControlIndex,
+  captureViatrisRenderedUiTraversal,
   createViatrisBrowserTraversalValidation,
   evaluateBGradeValidationRequirement,
   issueBGradeTraversalCertificate,
@@ -21,6 +22,7 @@ import {
   viatrisTraversalValidationMatchesCurrentJobs,
   verifyBGradeTraversalCertificateReceipt
 } from "../../src/crawler/traversalCertificate";
+import { classifyBGradeIndependentTraversalFailure } from "../../src/crawler/independentTraversalDiagnostics";
 
 const capturedAt = "2026-08-12T12:00:00.000Z";
 const now = new Date("2026-08-12T12:05:00.000Z");
@@ -183,6 +185,38 @@ describe("B-grade independent traversal certificate", () => {
     ], "page-size"]
   ] as const)("rejects untrusted rendered pagination declarations %#", (controls, message) => {
     expect(() => __testOnlyViatrisNextRenderedControlIndex(controls, 2)).toThrow(message);
+  });
+
+  it("closes the active Viatris browser once and preserves the source abort identity", async () => {
+    const controller = new AbortController();
+    const sourceAbort = new Error("source deadline reached");
+    let rejectNavigation: ((error: Error) => void) | undefined;
+    let navigationStartedResolve: (() => void) | undefined;
+    const navigationStarted = new Promise<void>((resolve) => { navigationStartedResolve = resolve; });
+    const close = vi.fn(async () => {
+      rejectNavigation?.(new Error("Target page, context or browser has been closed"));
+    });
+    const browser = {
+      close,
+      newPage: async () => ({
+        goto: async () => new Promise<never>((_resolve, reject) => {
+          rejectNavigation = reject;
+          navigationStartedResolve?.();
+        })
+      })
+    };
+
+    const capture = captureViatrisRenderedUiTraversal({
+      entryUrl: plan().source.officialEntryUrl,
+      signal: controller.signal,
+      launchBrowser: async () => browser as never
+    });
+    await navigationStarted;
+    controller.abort(sourceAbort);
+
+    await expect(capture).rejects.toBe(sourceAbort);
+    expect(classifyBGradeIndependentTraversalFailure(sourceAbort)).toBe("B_GRADE_VALIDATOR_ABORTED");
+    expect(close).toHaveBeenCalledOnce();
   });
 
   it("certifies exact complete traversal from different HTTP and rendered-browser paths", () => {

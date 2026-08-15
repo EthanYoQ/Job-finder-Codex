@@ -21,15 +21,18 @@ describe("exact-source diagnostic workflow", () => {
 
   it("captures bounded same-container resource telemetry with the diagnostic evidence", () => {
     expect(workflow).toContain("runtime-resources.jsonl");
+    expect(workflow).toContain('docker run --name "$worker_name" --init');
     expect(workflow).toContain("/sys/fs/cgroup/memory.current");
     expect(workflow).toContain("/sys/fs/cgroup/pids.current");
     expect(workflow).toContain("du -sk /tmp");
     expect(workflow).toContain("braveProcesses");
+    expect(workflow).toContain("crashpadProcesses");
+    expect(workflow).toContain("nodeThreads");
+    expect(workflow).toContain("zombieProcesses");
+    expect(workflow).toContain("nodeProcesses");
     expect(workflow).toContain("telemetry_samples");
     expect(workflow).toContain('"sampleError":"METRICS_UNAVAILABLE"');
-    expect(workflow).toContain("telemetry.length < 3");
-    expect(workflow).toContain("report.executionOrderMatchesSession !== true");
-    expect(workflow).toContain('source.sourceId === "source-xiuzheng-social"');
+    expect(workflow).toContain("scripts/p0-assert-long-tail-runtime.ts");
   });
 
   it("is dispatchable before default-branch registration through the existing private cloud workflow", () => {

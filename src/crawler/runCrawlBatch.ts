@@ -57,6 +57,7 @@ import { getStartupSourceSurfaceOracle } from "./sourceSurfaceOracleAuthority";
 import { validateIndependentSourceSurfaceOracle } from "./independentSourceSurfaceOracle";
 import {
   isOfficialSourceAttemptTimeout,
+  OfficialSourceAttemptTimeoutError,
   runWithOfficialSourceAttemptTimeout,
   sourceAttemptTimeoutMs
 } from "./officialHttpRuntimeLimits";
@@ -447,6 +448,11 @@ export async function runP0CrawlBatch(
             }
           }
           if (!independentTraversalValidation) {
+            const independentTraversalController = new AbortController();
+            const independentTraversalTimer = setTimeout(
+              () => independentTraversalController.abort(new OfficialSourceAttemptTimeoutError(sourceTimeoutMs)),
+              sourceTimeoutMs
+            );
             try {
               independentTraversalValidation = await (
                 deps.runIndependentTraversalValidator ?? runBGradeIndependentTraversalValidator
@@ -456,7 +462,8 @@ export async function runP0CrawlBatch(
                 entryUrl: plan.source.officialEntryUrl,
                 sourceConfigSha256: pending.sourceConfigHash,
                 surfaceIds: pending.officialSurfaceIds,
-                channelIds: pending.officialChannelIds
+                channelIds: pending.officialChannelIds,
+                signal: independentTraversalController.signal
               });
               independentTraversalValidationExecution = "CURRENT_RUN";
             } catch (error) {
@@ -464,6 +471,8 @@ export async function runP0CrawlBatch(
               independentTraversalValidation = undefined;
               independentTraversalValidationExecution = undefined;
               independentTraversalFailureCode = classifyBGradeIndependentTraversalFailure(error);
+            } finally {
+              clearTimeout(independentTraversalTimer);
             }
           }
         }

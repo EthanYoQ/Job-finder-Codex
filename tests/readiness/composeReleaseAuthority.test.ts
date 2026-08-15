@@ -38,9 +38,10 @@ describe("formal compose release authority",()=>{
   });
   it("runs one default formal scheduler and one DB-authority manual worker",()=>{
     const worker=service("worker");
+    expect(worker).toMatch(/init:\s*true/u);
     expect(worker).toMatch(/restart:\s*unless-stopped/u);
     expect(worker).toMatch(/command:\s*\["node",\s*"node_modules\/tsx\/dist\/cli\.mjs",\s*"scripts\/p0-manual-crawl-worker\.ts"\]/u);
-    expect(compose).toMatch(/scheduler:[\s\S]*command:\s*\["node",\s*"node_modules\/tsx\/dist\/cli\.mjs",\s*"scripts\/p0-scheduler\.ts"\]/u);
+    expect(compose).toMatch(/scheduler:[\s\S]*init:\s*true[\s\S]*command:\s*\["node",\s*"node_modules\/tsx\/dist\/cli\.mjs",\s*"scripts\/p0-scheduler\.ts"\]/u);
     expect(compose).not.toMatch(/while true; do npm run p0:crawl/u);
     const scheduler=readFileSync("scripts/p0-scheduler.ts","utf8");
     expect(scheduler).toContain("nextP0SchedulerWindow");

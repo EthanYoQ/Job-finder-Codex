@@ -186,6 +186,7 @@ describe("formal Launch Cohort qualification runner", () => {
     expect(nativePostgresCommands).not.toHaveLength(0);
     expect(nativePostgresCommands.every((line) => !line.includes("--dbname=postgresql://jobfinder:formal-qualification-password@postgres/jobfinder?schema=public"))).toBe(true);
     expect(events.indexOf("scripts/p0-staged-crawl.ts")).toBeLessThan(events.indexOf("scripts/p0-fixed-cohort-audit.ts"));
+    expect(events.split("\n").find((line) => line.includes("scripts/p0-staged-crawl.ts"))).toContain("--init");
     expect(events.indexOf("scripts/p0-fixed-cohort-audit.ts")).toBeLessThan(events.indexOf("p0-formal-qualification-state.ts capture"));
     expect(events).toContain("rm --force job-finder-formal-postgres-12345");
     expect(events).toContain("network rm job-finder-formal-12345");

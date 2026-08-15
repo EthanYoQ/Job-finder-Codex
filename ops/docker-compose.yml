@@ -100,6 +100,7 @@ services:
 
   worker:
     image: *job-finder-image
+    init: true
     restart: unless-stopped
     logging: *bounded-logging
     user: node
@@ -127,6 +128,7 @@ services:
 
   scheduler:
     image: *job-finder-image
+    init: true
     restart: unless-stopped
     logging: *bounded-logging
     user: node

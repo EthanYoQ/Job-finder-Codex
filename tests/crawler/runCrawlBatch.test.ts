@@ -514,7 +514,9 @@ describe("runP0CrawlBatch", () => {
     const plan = planFor("source-viatris-social");
     const db = fakeDb();
     const archiveDeps = inMemoryArchiveDeps();
-    const runIndependentTraversalValidator = vi.fn(async () => {
+    let independentTraversalSignal: AbortSignal | undefined;
+    const runIndependentTraversalValidator = vi.fn(async (input) => {
+      independentTraversalSignal = input.signal;
       throw new Error("independent traversal unavailable");
     });
     let committed: AtomicSourceEvidenceCommit | undefined;
@@ -554,6 +556,8 @@ describe("runP0CrawlBatch", () => {
     });
 
     expect(runIndependentTraversalValidator).toHaveBeenCalledOnce();
+    expect(independentTraversalSignal).toBeInstanceOf(AbortSignal);
+    expect(independentTraversalSignal?.aborted).toBe(false);
     expect(result).toMatchObject({ status: "INCOMPLETE", completenessIncompleteSourceCount: 1 });
     expect(committed?.sourceResult).toMatchObject({
       completenessState: "INCOMPLETE",
