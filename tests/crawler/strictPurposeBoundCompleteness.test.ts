@@ -553,6 +553,76 @@ function withArtifactLocator(
   };
 }
 
+async function exactPfizerFetch(pageCount: 1 | 2) {
+  const plan = planFor("source-pfizer-china-social");
+  if (plan.adapterId !== "official-json" || !plan.workday) {
+    throw new Error("Expected canonical staged Pfizer Workday plan");
+  }
+  const pageSize = plan.workday.pageSize ?? 20;
+  const ids = Array.from({ length: pageCount === 1 ? 1 : pageSize + 1 }, (_, index) => `pfizer-${index + 1}`);
+  const fetch = createWorkdaySourceFetch({
+    now: () => new Date(CAPTURED_AT),
+    http: async (request: WorkdayHttpRequest) => {
+      const body = JSON.parse(request.body) as {
+        appliedFacets: Record<string, string[]>;
+        offset: number;
+      };
+      const response = (payload: unknown) => ({
+        status: 200,
+        body: JSON.stringify(payload),
+        finalUrl: request.url,
+        contentType: "application/json; charset=utf-8",
+        capturedAt: CAPTURED_AT
+      });
+      if (!body.appliedFacets.locations) {
+        return response({
+          total: ids.length,
+          jobPostings: [],
+          facets: [{
+            facetParameter: "locations",
+            values: [
+              { descriptor: "China - Shanghai - Shanghai", id: "shanghai-id", count: ids.length },
+              { descriptor: "APAC - Remote", id: "apac-remote-id", count: 0 }
+            ]
+          }]
+        });
+      }
+      if (!body.appliedFacets.workerSubType) {
+        return response({
+          total: ids.length,
+          jobPostings: [],
+          facets: [{
+            facetParameter: "workerSubType",
+            values: [{ descriptor: "Regular", id: "regular-id", count: ids.length }]
+          }]
+        });
+      }
+      return response({
+        total: ids.length,
+        jobPostings: ids.slice(body.offset, body.offset + pageSize).map((id) => ({
+          title: `Official role ${id}`,
+          externalPath: `/job/China/${id}`,
+          locationsText: "Shanghai, China",
+          bulletFields: [id],
+          workerSubType: "Regular"
+        }))
+      });
+    }
+  });
+  const fetched = await fetch(plan);
+  if (!fetched.ok || !fetched.fetchEvidence || !fetched.paginationEvaluation) {
+    throw new Error(fetched.ok ? "Expected complete Pfizer evidence" : fetched.failureReason);
+  }
+  return {
+    plan,
+    fetched: {
+      ...fetched,
+      fetchEvidence: fetched.fetchEvidence,
+      paginationEvaluation: fetched.paginationEvaluation
+    }
+  };
+}
+
 describe("strict purpose-bound completeness gate RED", () => {
   it("rejects a STAGED Pfizer plan whose Workday country facet is not the canonical configured value", async () => {
     const plan = buildStagedSourceCrawlPlans(candidateCompanies)
@@ -581,11 +651,17 @@ describe("strict purpose-bound completeness gate RED", () => {
     ["real Workday detail", "/wday/cxs/pfizer/PfizerCareers/job/China-Role/REQ-1"],
     ["arbitrary tenant child", "/wday/cxs/pfizer/PfizerCareers/not-a-detail"]
   ])("rejects Pfizer page two when it is a %s URL", async (_label, pathname) => {
-    const plan = planFor("source-pfizer-china-social");
-    const baseline = evidenceFor(plan, 2);
-    expect((await crawlWith(plan, baseline.evidence, baseline.evaluation, baseline.ids)).truth.completenessVerified).toBe(true);
-    const forged = withArtifactUrl(baseline.evidence, "page-2", new URL(pathname, plan.source.officialEntryUrl).toString());
-    expect((await crawlWith(plan, forged, baseline.evaluation, baseline.ids)).truth.completenessVerified).toBe(false);
+    const { plan, fetched } = await exactPfizerFetch(2);
+    expect((await runSourceCrawl(plan, { fetch: async () => fetched })).truth.completenessVerified).toBe(true);
+    const forged = {
+      ...fetched,
+      fetchEvidence: withArtifactUrl(
+        fetched.fetchEvidence,
+        "workday-page-0001",
+        new URL(pathname, plan.source.officialEntryUrl).toString()
+      )
+    };
+    expect((await runSourceCrawl(plan, { fetch: async () => forged })).truth.completenessVerified).toBe(false);
   });
 
   it.each([
@@ -626,6 +702,20 @@ describe("strict purpose-bound completeness gate RED", () => {
     ["Beisen", "source-cttq-social"],
     ["HCM", "source-lunan-social"]
   ])("rejects %s evidence when the request contract is tampered but URL and count remain valid", async (_label, sourceId) => {
+    if (sourceId === "source-pfizer-china-social") {
+      const { plan, fetched } = await exactPfizerFetch(1);
+      expect((await runSourceCrawl(plan, { fetch: async () => fetched })).truth.completenessVerified).toBe(true);
+      const forged = {
+        ...fetched,
+        fetchEvidence: withArtifactLocator(
+          fetched.fetchEvidence,
+          "workday-page-0000",
+          "json:total|request-contract-v2|sha256:" + "0".repeat(64)
+        )
+      };
+      expect((await runSourceCrawl(plan, { fetch: async () => forged })).truth.completenessVerified).toBe(false);
+      return;
+    }
     const plan = planFor(sourceId);
     const baseline = evidenceFor(plan, 1);
     expect((await crawlWith(plan, baseline.evidence, baseline.evaluation, baseline.ids)).truth.completenessVerified).toBe(true);
@@ -769,33 +859,18 @@ function encodedJson(value: unknown): string {
 }
 
 describe("real staged non-regression plans", () => {
-  it("keeps a real staged static-scope Workday request contract VERIFIED", async () => {
-    const plan = planFor("source-pfizer-china-social");
-    const fetch = createWorkdaySourceFetch({ now: () => new Date(CAPTURED_AT), http: async (request: WorkdayHttpRequest) => {
-      const body = JSON.parse(request.body) as { appliedFacets?: Record<string, string[]> };
-      const isFacetPreflight = !body.appliedFacets?.workerSubType;
-      return {
-        status: 200,
-        body: JSON.stringify(isFacetPreflight
-          ? { total: 1, jobPostings: [], facets: [{ facetParameter: "workerSubType",
-              values: [{ descriptor: "Regular", id: "regular-id", count: 1 }] }] }
-          : { total: 1, jobPostings: [{ title: "Medical role", externalPath: "/job/China/REQ-1",
-              locationsText: "Shanghai, China", bulletFields: ["REQ-1"], workerSubType: "Regular" }] }),
-        finalUrl: request.url,
-        contentType: "application/json; charset=utf-8",
-        capturedAt: CAPTURED_AT
-      };
-    } });
-    const fetched = await fetch(plan);
-    if (!fetched.ok) throw new Error(fetched.failureReason);
+  it("keeps the real staged dynamic-scope Pfizer Workday request contract VERIFIED", async () => {
+    const { plan, fetched } = await exactPfizerFetch(1);
     const result = await runSourceCrawl(plan, { fetch: async () => fetched });
     expect(result).toMatchObject({ status: "SUCCESS",
       truth: { transportSuccess: true, adapterSuccess: true, completenessVerified: true },
       observation: { completenessStatus: "VERIFIED", expectedJobCount: 1, structuredJobCount: 1 },
       fetchEvidence: { pages: [{ requestedPageSize: 20 }] } });
-    expect(fetched.fetchEvidence?.artifacts.find((artifact) => artifact.logicalKey === "workday-facet-preflight-0000")
+    expect(fetched.fetchEvidence.artifacts.find((artifact) => artifact.logicalKey === "workday-preflight-0000")
       ?.extractorLocator).toMatch(/\|request-contract-v2\|sha256:[0-9a-f]{64}$/u);
-    expect(fetched.fetchEvidence?.artifacts.find((artifact) => artifact.logicalKey === "workday-page-0000")
+    expect(fetched.fetchEvidence.artifacts.find((artifact) => artifact.logicalKey === "workday-facet-preflight-0000")
+      ?.extractorLocator).toMatch(/\|request-contract-v2\|sha256:[0-9a-f]{64}$/u);
+    expect(fetched.fetchEvidence.artifacts.find((artifact) => artifact.logicalKey === "workday-page-0000")
       ?.extractorLocator).toMatch(/\|request-contract-v2\|sha256:[0-9a-f]{64}$/u);
   });
 
