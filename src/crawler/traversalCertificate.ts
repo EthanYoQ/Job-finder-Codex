@@ -246,6 +246,15 @@ const browserValidationSchema = z.discriminatedUnion("schemaVersion", [
 
 export type BGradeIndependentTraversalValidation = z.infer<typeof browserValidationSchema>;
 export type ViatrisBrowserTraversalValidation = z.infer<typeof viatrisBrowserValidationSchema>;
+
+export function parseBGradeIndependentTraversalValidation(
+  value: unknown
+): BGradeIndependentTraversalValidation {
+  const validation = browserValidationSchema.parse(value);
+  assertBrowserValidationEquations(validation);
+  return validation;
+}
+
 type PlanBoundBrowserTraversalValidation = Extract<BGradeIndependentTraversalValidation, {
   schemaVersion: "plan-bound-html-browser-traversal-v1" | "plan-bound-html-browser-traversal-v2";
 }>;

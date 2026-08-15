@@ -930,7 +930,7 @@ describe("createWorkdaySourceFetch", () => {
         const { offset } = JSON.parse(request.body) as { offset: number };
         if (offset === 0) {
           return response({
-            total: 2,
+            total: 3,
             jobPostings: [{
               title: "Role One",
               externalPath: "/job/China/one",
@@ -2360,19 +2360,155 @@ describe("createWorkdaySourceFetch", () => {
     expect(requests).toHaveLength(1);
   });
 
-  it("keeps Pfizer opaque records returned by the exact China and Regular facets only when strict details name the audited APAC site", async () => {
+  it("refines Pfizer's audited China country facet to every explicit mainland location before crawling", async () => {
+    const requests: Array<Record<string, unknown>> = [];
+    const fetcher = createWorkdaySourceFetch({
+      now: () => new Date("2026-08-16T00:00:00.000Z"),
+      http: async (request) => {
+        const body = JSON.parse(request.body) as { appliedFacets: Record<string, string[]> };
+        requests.push(body);
+        if (!body.appliedFacets.locations) {
+          return response({
+            total: 3,
+            jobPostings: [],
+            facets: [{
+              facetParameter: "locationMainGroup",
+              values: [{
+                facetParameter: "locations",
+                descriptor: "All Locations",
+                values: [
+                  { descriptor: "China - Shanghai - Shanghai", id: "shanghai-id", count: 1 },
+                  { descriptor: "APAC - Remote", id: "apac-id", count: 1 }
+                ]
+              }]
+            }]
+          });
+        }
+        if (!body.appliedFacets.workerSubType) {
+          return response({
+            total: 1,
+            jobPostings: [],
+            facets: [{
+              facetParameter: "workerSubType",
+              descriptor: "Job Type",
+              values: [{ descriptor: "Regular", id: "regular-id", count: 1 }]
+            }]
+          });
+        }
+        return response({
+          total: 1,
+          jobPostings: [{
+            title: "China Role",
+            externalPath: "/job/China---Shanghai/China-Role_1",
+            locationsText: "China - Shanghai - Shanghai",
+            bulletFields: ["1"]
+          }]
+        });
+      }
+    });
+
+    const result = await fetcher({
+      ...plan,
+      workday: {
+        tenant: "pfizer",
+        site: "PfizerCareers",
+        laterZeroTotalPolicy: "PFIZER_AUDITED_EXACT_RECONCILIATION",
+        opaqueMultiLocationDetailPolicy: "PFIZER_AUDITED_APAC_DETAIL_V1",
+        appliedFacets: { Location_Country: ["6cb77610a8a543aea2d6bc10457e35d4"] },
+        locationFacetPolicy: {
+          kind: "PFIZER_AUDITED_COUNTRY_LOCATION_REFINEMENT",
+          facetParameter: "locations",
+          foreignDescriptorAliases: ["APAC - Remote"]
+        },
+        facetDescriptorBoundary: { facetParameter: "workerSubType", allowedDescriptors: ["Regular"] },
+        pageSize: 20,
+        maxPages: 1
+      }
+    } as unknown as SourceCrawlPlan);
+
+    expect(result).toMatchObject({ ok: true, completeness: { expectedJobCount: 1 } });
+    expect(requests).toEqual([
+      { appliedFacets: { Location_Country: ["6cb77610a8a543aea2d6bc10457e35d4"] }, limit: 20, offset: 0 },
+      {
+        appliedFacets: {
+          Location_Country: ["6cb77610a8a543aea2d6bc10457e35d4"],
+          locations: ["shanghai-id"]
+        },
+        limit: 20,
+        offset: 0
+      },
+      {
+        appliedFacets: {
+          Location_Country: ["6cb77610a8a543aea2d6bc10457e35d4"],
+          locations: ["shanghai-id"],
+          workerSubType: ["regular-id"]
+        },
+        limit: 20,
+        offset: 0
+      }
+    ]);
+  });
+
+  it("rejects an unaudited descriptor while refining Pfizer's country facet", async () => {
+    const requests: Array<Record<string, unknown>> = [];
+    const fetcher = createWorkdaySourceFetch({
+      http: async (request) => {
+        requests.push(JSON.parse(request.body) as Record<string, unknown>);
+        return response({
+          total: 2,
+          jobPostings: [],
+          facets: [{
+            facetParameter: "locationMainGroup",
+            values: [{
+              facetParameter: "locations",
+              descriptor: "All Locations",
+              values: [
+                { descriptor: "China - Shanghai - Shanghai", id: "shanghai-id", count: 1 },
+                { descriptor: "Global Remote", id: "global-id", count: 1 }
+              ]
+            }]
+          }]
+        });
+      }
+    });
+
+    await expect(fetcher({
+      ...plan,
+      workday: {
+        tenant: "pfizer",
+        site: "PfizerCareers",
+        laterZeroTotalPolicy: "PFIZER_AUDITED_EXACT_RECONCILIATION",
+        opaqueMultiLocationDetailPolicy: "PFIZER_AUDITED_APAC_DETAIL_V1",
+        appliedFacets: { Location_Country: ["6cb77610a8a543aea2d6bc10457e35d4"] },
+        locationFacetPolicy: {
+          kind: "PFIZER_AUDITED_COUNTRY_LOCATION_REFINEMENT",
+          facetParameter: "locations",
+          foreignDescriptorAliases: ["APAC - Remote"]
+        },
+        facetDescriptorBoundary: { facetParameter: "workerSubType", allowedDescriptors: ["Regular"] },
+        pageSize: 20,
+        maxPages: 1
+      }
+    } as unknown as SourceCrawlPlan)).resolves.toMatchObject({
+      ok: false,
+      failureReason: expect.stringContaining("unscoped location descriptor Global Remote")
+    });
+    expect(requests).toHaveLength(1);
+  });
+
+  it("keeps Pfizer opaque records only when strict details name explicit mainland locations", async () => {
     const details = new Map([
       ["/job/India---Vizag/Associate-Manager---BQ-QMS---Compliance_4960738", {
         title: "Associate Manager - BQ QMS & Compliance",
         reqId: "4960738",
         location: "India - Vizag",
-        additionalLocations: ["APAC - Any Pfizer Site", "India - Chennai"]
+        additionalLocations: ["APAC - Any Pfizer Site", "Shanghai, China"]
       }],
       ["/job/India---Vizag/Associate-Manager---Quality-Assurance_4958270-1", {
         title: "Associate Manager - Quality Assurance",
         reqId: "4958270",
         location: "India - Vizag",
-        additionalLocations: ["APAC - Any Pfizer Site"]
+        additionalLocations: ["APAC - Any Pfizer Site", "Shanghai, China"]
       }]
     ]);
     const rawJobs = [...details.entries()].map(([externalPath, detail]) => ({
@@ -2385,6 +2521,23 @@ describe("createWorkdaySourceFetch", () => {
     const fetcher = createWorkdaySourceFetch({
       http: async (request) => {
         const body = JSON.parse(request.body) as { appliedFacets: Record<string, string[]> };
+        if (!body.appliedFacets.locations) {
+          return response({
+            total: 3,
+            jobPostings: [],
+            facets: [{
+              facetParameter: "locationMainGroup",
+              values: [{
+                facetParameter: "locations",
+                descriptor: "All Locations",
+                values: [
+                  { descriptor: "China - Shanghai - Shanghai", id: "shanghai-id", count: 1 },
+                  { descriptor: "APAC - Remote", id: "apac-id", count: 1 }
+                ]
+              }]
+            }]
+          }, undefined, { finalUrl: request.url });
+        }
         return body.appliedFacets.workerSubType
           ? response({ total: 2, jobPostings: rawJobs }, undefined, { finalUrl: request.url })
           : response({
@@ -2425,6 +2578,11 @@ describe("createWorkdaySourceFetch", () => {
         laterZeroTotalPolicy: "PFIZER_AUDITED_EXACT_RECONCILIATION",
         opaqueMultiLocationDetailPolicy: "PFIZER_AUDITED_APAC_DETAIL_V1",
         appliedFacets: { Location_Country: ["6cb77610a8a543aea2d6bc10457e35d4"] },
+        locationFacetPolicy: {
+          kind: "PFIZER_AUDITED_COUNTRY_LOCATION_REFINEMENT",
+          facetParameter: "locations",
+          foreignDescriptorAliases: ["APAC - Remote"]
+        },
         facetDescriptorBoundary: {
           facetParameter: "workerSubType",
           allowedDescriptors: ["Regular"]
@@ -2434,6 +2592,7 @@ describe("createWorkdaySourceFetch", () => {
       }
     } as unknown as SourceCrawlPlan);
 
+    if (!result.ok) throw new Error(`Expected safe Pfizer opaque fixture fetch: ${result.failureReason}`);
     expect(result).toMatchObject({
       ok: true,
       fetchEvidence: {
@@ -2449,7 +2608,7 @@ describe("createWorkdaySourceFetch", () => {
       locationRaw: details.get(raw.externalPath)!
         ? [details.get(raw.externalPath)!.location, ...details.get(raw.externalPath)!.additionalLocations].join(" | ")
         : "",
-      cities: ["APAC - Any Pfizer Site"]
+      cities: ["上海"]
     })) });
     expect(detailRequests).toHaveLength(2);
   });
@@ -2463,6 +2622,20 @@ describe("createWorkdaySourceFetch", () => {
     const fetcher = createWorkdaySourceFetch({
       http: async (request) => {
         const body = JSON.parse(request.body) as { appliedFacets: Record<string, string[]> };
+        if (!body.appliedFacets.locations) {
+          return response({
+            total: 1,
+            jobPostings: [],
+            facets: [{
+              facetParameter: "locationMainGroup",
+              values: [{
+                facetParameter: "locations",
+                descriptor: "All Locations",
+                values: [{ descriptor: "China - Shanghai - Shanghai", id: "shanghai-id", count: 1 }]
+              }]
+            }]
+          }, undefined, { finalUrl: request.url });
+        }
         return body.appliedFacets.workerSubType
           ? response({ total: 1, jobPostings: [{
               title: "Unscoped Pfizer Role",
@@ -2503,6 +2676,11 @@ describe("createWorkdaySourceFetch", () => {
         laterZeroTotalPolicy: "PFIZER_AUDITED_EXACT_RECONCILIATION",
         opaqueMultiLocationDetailPolicy: "PFIZER_AUDITED_APAC_DETAIL_V1",
         appliedFacets: { Location_Country: ["6cb77610a8a543aea2d6bc10457e35d4"] },
+        locationFacetPolicy: {
+          kind: "PFIZER_AUDITED_COUNTRY_LOCATION_REFINEMENT",
+          facetParameter: "locations",
+          foreignDescriptorAliases: ["APAC - Remote"]
+        },
         facetDescriptorBoundary: { facetParameter: "workerSubType", allowedDescriptors: ["Regular"] },
         pageSize: 20,
         maxPages: 10

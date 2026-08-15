@@ -35,6 +35,7 @@ import {
 import {
   BMS_AUDITED_FOREIGN_COUNTRY_DESCRIPTOR_ALIASES,
   BMS_AUDITED_FOREIGN_SITE_DESCRIPTOR_ALIASES,
+  PFIZER_AUDITED_FOREIGN_LOCATION_DESCRIPTOR_ALIASES,
   isPfizerWorkdayMainlandChinaLocationDescriptor
 } from "./workdaySourceFetch";
 import type { SourceTransportFailure } from "./sourceFetchFailure";
@@ -967,11 +968,16 @@ function strictWorkdayRequestContracts(
   );
   let appliedFacets: Record<string, readonly string[]> = { ...(config.appliedFacets ?? {}) };
   let selectedMainlandLocations: readonly StrictWorkdaySelectedLocation[] = [];
-  const needsLocationPreflight = Boolean(config.searchText) && !hasStaticLocationFacet;
+  const pfizerLocationRefinement = config.locationFacetPolicy?.kind ===
+    "PFIZER_AUDITED_COUNTRY_LOCATION_REFINEMENT";
+  const needsLocationPreflight = pfizerLocationRefinement ||
+    (Boolean(config.searchText) && !hasStaticLocationFacet);
   const locationArtifact = artifacts.get("workday-preflight-0000");
   if (needsLocationPreflight !== Boolean(locationArtifact) ||
     (config.locationFacetPolicy !== undefined && !needsLocationPreflight) ||
-    (needsLocationPreflight && config.searchText !== "China")) return strictGateTrace(plan, "WORKDAY_LOCATION_PREFLIGHT_SHAPE");
+    (needsLocationPreflight && config.searchText !== "China" && !pfizerLocationRefinement)) {
+    return strictGateTrace(plan, "WORKDAY_LOCATION_PREFLIGHT_SHAPE");
+  }
   let locationExpectedTotal: number | undefined;
   if (locationArtifact) {
     if (locationArtifact.bodyRepresentation === "REDACTED" ||
@@ -1172,7 +1178,13 @@ function strictPfizerOpaqueDetailReplay(
   if (
     plan.source.id !== "source-pfizer-china-social" ||
     config.tenant !== "pfizer" || config.site !== "PfizerCareers" ||
-    config.searchText !== undefined || config.locationFacetPolicy !== undefined ||
+    config.searchText !== undefined ||
+    config.locationFacetPolicy?.kind !== "PFIZER_AUDITED_COUNTRY_LOCATION_REFINEMENT" ||
+    config.locationFacetPolicy.facetParameter !== "locations" ||
+    !strictExactStringArray(
+      config.locationFacetPolicy.foreignDescriptorAliases,
+      PFIZER_AUDITED_FOREIGN_LOCATION_DESCRIPTOR_ALIASES
+    ) ||
     (config.facetDescriptorExclusions?.length ?? 0) !== 0 ||
     config.laterZeroTotalPolicy !== "PFIZER_AUDITED_EXACT_RECONCILIATION" ||
     JSON.stringify(config.appliedFacets) !== JSON.stringify({
@@ -1364,6 +1376,9 @@ function strictWorkdayLocationFacetDerivation(
   if (config.locationFacetPolicy?.kind === "JNJ_AUDITED_LOCATIONS_OVERLAP") {
     return strictJnjWorkdayLocationFacetDerivation(root, groups, plan);
   }
+  if (config.locationFacetPolicy?.kind === "PFIZER_AUDITED_COUNTRY_LOCATION_REFINEMENT") {
+    return strictPfizerWorkdayLocationFacetDerivation(root, groups, plan);
+  }
   const countryGroups = groups.filter((group) =>
     (/country|countries/iu.test(group.facetParameter) ||
       /country|countries/iu.test(group.descriptor ?? "")) &&
@@ -1422,6 +1437,46 @@ function strictWorkdayLocationFacetDerivation(
     ...(total === root.total
       ? { expectedFilteredTotal: selected.reduce((sum, value) => sum + value.count, 0) }
       : {})
+  };
+}
+
+function strictPfizerWorkdayLocationFacetDerivation(
+  root: Record<string, unknown>,
+  groups: readonly StrictWorkdayFacetGroup[],
+  plan: Extract<SourceCrawlPlan, { adapterId: "official-json" }>
+): StrictWorkdayLocationDerivation | undefined {
+  const config = plan.workday;
+  const policy = config?.locationFacetPolicy;
+  const workerBoundary = config?.facetDescriptorBoundary;
+  if (!config || plan.company.id !== "company-pfizer-china" ||
+    plan.source.id !== "source-pfizer-china-social" || plan.source.companyId !== "company-pfizer-china" ||
+    plan.source.atsKind !== "WORKDAY" ||
+    plan.source.officialEntryUrl !== "https://pfizer.wd1.myworkdayjobs.com/PfizerCareers" ||
+    config.tenant !== "pfizer" || config.site !== "PfizerCareers" || config.searchText !== undefined ||
+    config.laterZeroTotalPolicy !== "PFIZER_AUDITED_EXACT_RECONCILIATION" ||
+    JSON.stringify(config.appliedFacets) !== JSON.stringify({
+      Location_Country: ["6cb77610a8a543aea2d6bc10457e35d4"]
+    }) ||
+    policy?.kind !== "PFIZER_AUDITED_COUNTRY_LOCATION_REFINEMENT" ||
+    policy.facetParameter !== "locations" ||
+    !strictExactStringArray(
+      policy.foreignDescriptorAliases,
+      PFIZER_AUDITED_FOREIGN_LOCATION_DESCRIPTOR_ALIASES
+    ) ||
+    workerBoundary?.facetParameter !== "workerSubType" ||
+    !strictExactStringArray(workerBoundary.allowedDescriptors, ["Regular"]) ||
+    workerBoundary.excludedDescriptors !== undefined) return undefined;
+  const candidates = groups.filter((group) => group.facetParameter === policy.facetParameter);
+  if (candidates.length !== 1) return undefined;
+  const values = strictWorkdayFlatFacetValues(candidates[0]!.values, []);
+  if (!values) return undefined;
+  const selected = values.filter((value) => strictWorkdayMainlandLocation(value.descriptor));
+  if (selected.length === 0 || selected.some((value) => strictWorkdayNonMainland(value.descriptor)) ||
+    values.filter((value) => !selected.includes(value)).some((value) =>
+      !strictWorkdayForeignLocation(value.descriptor, policy.foreignDescriptorAliases))) return undefined;
+  return {
+    appliedFacets: { [policy.facetParameter]: selected.map(({ id }) => id) },
+    selectedMainlandLocations: selected.map(({ id, descriptor }) => ({ id, descriptor }))
   };
 }
 

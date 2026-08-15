@@ -369,10 +369,40 @@ function fixtureWorkdayScope(plan: SourceCrawlPlan, total: number): {
   if (plan.adapterId !== "official-json" || !plan.workday) throw new Error("Expected Workday plan");
   const config = plan.workday;
   const appliedFacets: Record<string, readonly string[]> = { ...(config.appliedFacets ?? {}) };
+  const artifacts: FixtureArtifact[] = [];
+  if (config.locationFacetPolicy?.kind === "PFIZER_AUDITED_COUNTRY_LOCATION_REFINEMENT") {
+    const pageSize = fixturePageSize(plan);
+    const url = declaredArtifactUrl(plan);
+    const requestBody = { appliedFacets: { ...appliedFacets }, limit: pageSize, offset: 0 };
+    const selectedLocationId = "workday-pfizer-mainland-location";
+    const body = JSON.stringify({
+      total: total + 1,
+      jobPostings: [],
+      facets: [{
+        facetParameter: "locationMainGroup",
+        values: [{
+          facetParameter: "locations",
+          descriptor: "All Locations",
+          values: [
+            { descriptor: "China - Shanghai - Shanghai", id: selectedLocationId, count: total },
+            { descriptor: "APAC - Remote", id: "workday-pfizer-apac-remote", count: 0 }
+          ]
+        }]
+      }]
+    });
+    artifacts.push({
+      ...pageArtifact("workday-preflight-0000", body, url, fixtureRequestLocator("$.facets", {
+        family: "workday", role: "location-preflight", method: "POST", url, body: requestBody,
+        coordinate: { sequence: null, requestedOffset: 0, requestedPageSize: pageSize }
+      })),
+      kind: "ATS_API_RESPONSE" as const
+    });
+    appliedFacets[config.locationFacetPolicy.facetParameter] = [selectedLocationId];
+  }
   const boundary = config.facetDescriptorBoundary;
   const exclusions = config.facetDescriptorExclusions ?? [];
   const hasDescriptorPolicy = Boolean(boundary) || exclusions.length > 0;
-  if (!hasDescriptorPolicy) return { appliedFacets, artifacts: [], hasDescriptorPolicy };
+  if (!hasDescriptorPolicy) return { appliedFacets, artifacts, hasDescriptorPolicy };
 
   const parameter = boundary?.facetParameter ?? exclusions[0]!.facetParameter;
   const allowedDescriptors = boundary?.allowedDescriptors ?? ["Fixture allowed"];
@@ -389,18 +419,19 @@ function fixtureWorkdayScope(plan: SourceCrawlPlan, total: number): {
       count: 0
     }))
   ];
+  const facetPreflightAppliedFacets = { ...appliedFacets };
   appliedFacets[parameter] = boundary
     ? values.filter((value) => allowedDescriptors.includes(value.descriptor)).map((value) => value.id)
     : values.filter((value) => !excludedDescriptors.includes(value.descriptor)).map((value) => value.id);
 
   const pageSize = fixturePageSize(plan);
   const url = declaredArtifactUrl(plan);
-  const requestBody = { appliedFacets: { ...(config.appliedFacets ?? {}) }, limit: pageSize, offset: 0 };
+  const requestBody = { appliedFacets: facetPreflightAppliedFacets, limit: pageSize, offset: 0 };
   const body = JSON.stringify({ total, jobPostings: [], facets: [{ facetParameter: parameter, values }] });
   return {
     appliedFacets,
     hasDescriptorPolicy,
-    artifacts: [{
+    artifacts: [...artifacts, {
       ...pageArtifact("workday-facet-preflight-0000", body, url, fixtureRequestLocator("$.facets", {
         family: "workday", role: "facet-preflight", method: "POST", url, body: requestBody,
         coordinate: { sequence: null, requestedOffset: 0, requestedPageSize: pageSize }
@@ -491,7 +522,9 @@ function fixtureExpectedToFailClosed(plan: SourceCrawlPlan): boolean {
     const hasStaticLocationFacet = Object.keys(plan.workday.appliedFacets ?? {}).some(
       (facetParameter) => /location|country|countries/iu.test(facetParameter)
     );
-    return Boolean(plan.workday.locationFacetPolicy) || Boolean(plan.workday.searchText && !hasStaticLocationFacet);
+    const unsupportedLocationPolicy = plan.workday.locationFacetPolicy !== undefined &&
+      plan.workday.locationFacetPolicy.kind !== "PFIZER_AUDITED_COUNTRY_LOCATION_REFINEMENT";
+    return unsupportedLocationPolicy || Boolean(plan.workday.searchText && !hasStaticLocationFacet);
   }
   return plan.officialJsonFetch?.kind === "phenom" && Boolean(plan.officialJsonFetch.facetScope);
 }

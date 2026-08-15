@@ -669,6 +669,7 @@ describe("source crawl planning", () => {
         ? [candidate.source.id]
         : [])).toEqual([
       "source-johnson-innovative-medicine-social",
+      "source-pfizer-china-social",
       "source-bms-china-social"
     ]);
     expect(getPlanBySourceId(plans, "source-gilead-china-social")).toMatchObject({

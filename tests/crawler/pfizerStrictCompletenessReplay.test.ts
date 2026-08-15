@@ -33,14 +33,28 @@ function response(request: Pick<WorkdayHttpRequest, "url">, body: unknown): Work
   };
 }
 
-async function exactPfizerFetch(
+async function exactPfizerFetchResult(
   plan = exactPfizerPlan(),
-  additionalLocation = "APAC - Any Pfizer Site"
-): Promise<Extract<SourceFetchResult, { ok: true }>> {
+  additionalLocation = "Shanghai, China"
+): Promise<SourceFetchResult> {
   const fetcher = createWorkdaySourceFetch({
     now: () => new Date(CAPTURED_AT),
     http: async (request) => {
       const body = JSON.parse(request.body) as { appliedFacets: Record<string, string[]> };
+      if (!body.appliedFacets.locations) {
+        return response(request, {
+          total: 1,
+          jobPostings: [],
+          facets: [{
+            facetParameter: "locationMainGroup",
+            values: [{
+              facetParameter: "locations",
+              descriptor: "All Locations",
+              values: [{ descriptor: "China - Shanghai - Shanghai", id: "shanghai-id", count: 1 }]
+            }]
+          }]
+        });
+      }
       if (!body.appliedFacets.workerSubType) {
         return response(request, {
           total: 1,
@@ -76,7 +90,14 @@ async function exactPfizerFetch(
       }
     })
   });
-  const result = await fetcher(plan);
+  return fetcher(plan);
+}
+
+async function exactPfizerFetch(
+  plan = exactPfizerPlan(),
+  additionalLocation = "Shanghai, China"
+): Promise<Extract<SourceFetchResult, { ok: true }>> {
+  const result = await exactPfizerFetchResult(plan, additionalLocation);
   if (!result.ok) throw new Error(`Expected safe Pfizer fixture fetch: ${result.failureReason}`);
   return result;
 }
@@ -105,7 +126,7 @@ function mutateDetail(
 describe("Pfizer strict source-bound completeness replay", () => {
   it("rejects an archived Pfizer listing without an explicit mainland China location", async () => {
     const plan = exactPfizerPlan();
-    const fetched = await exactPfizerFetch(plan);
+    const fetched = await exactPfizerFetchResult(plan, "APAC - Any Pfizer Site");
 
     expect(await runSourceCrawl(plan, { fetch: async () => fetched })).toMatchObject({
       status: "FAILED",

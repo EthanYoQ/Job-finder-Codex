@@ -65,10 +65,10 @@ import {
   bGradeTraversalValidationMatchesCurrentJobs,
   readReusableBGradeTraversalValidation,
   requiresBGradeTraversalCertificate,
-  runBGradeIndependentTraversalValidator,
   type BGradeValidationTrigger,
   type BGradeIndependentTraversalValidation
 } from "./traversalCertificate";
+import { runIsolatedBGradeTraversalValidator } from "./isolatedBGradeTraversalValidator";
 import {
   classifyBGradeIndependentTraversalFailure,
   type BGradeIndependentTraversalFailureCode
@@ -258,7 +258,7 @@ export interface RunP0CrawlBatchDeps {
   getTrustedCompletenessBaseline?(
     sourceId: string
   ): Promise<PersistedTrustedCompletenessBaseline | null>;
-  runIndependentTraversalValidator?: typeof runBGradeIndependentTraversalValidator;
+  runIndependentTraversalValidator?: typeof runIsolatedBGradeTraversalValidator;
 }
 
 export async function runP0CrawlBatch(
@@ -455,7 +455,7 @@ export async function runP0CrawlBatch(
             );
             try {
               independentTraversalValidation = await (
-                deps.runIndependentTraversalValidator ?? runBGradeIndependentTraversalValidator
+                deps.runIndependentTraversalValidator ?? runIsolatedBGradeTraversalValidator
               )({
                 sourceId: plan.source.id,
                 companyId: plan.company.id,

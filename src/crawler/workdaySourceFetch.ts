@@ -45,6 +45,11 @@ export type WorkdayLaterZeroTotalPolicy =
 
 export type WorkdayLocationFacetPolicy =
   | {
+      kind: "PFIZER_AUDITED_COUNTRY_LOCATION_REFINEMENT";
+      facetParameter: "locations";
+      foreignDescriptorAliases: readonly string[];
+    }
+  | {
       kind: "JNJ_AUDITED_LOCATIONS_OVERLAP";
       facetParameter: "locations";
       mainlandDescriptorAliases: readonly string[];
@@ -124,6 +129,7 @@ const PFIZER_LATER_ZERO_TOTAL_POLICY = "PFIZER_AUDITED_EXACT_RECONCILIATION";
 const AMGEN_LATER_ZERO_TOTAL_POLICY = "AMGEN_AUDITED_EXACT_RECONCILIATION";
 const BMS_LATER_ZERO_TOTAL_POLICY = "BMS_AUDITED_EXACT_RECONCILIATION";
 const AUDITED_CHINA_LOCATION_ID = "6cb77610a8a543aea2d6bc10457e35d4";
+export const PFIZER_AUDITED_FOREIGN_LOCATION_DESCRIPTOR_ALIASES = ["APAC - Remote"] as const;
 export const BMS_AUDITED_FOREIGN_SITE_DESCRIPTOR_ALIASES = [
   "AZ01 PSA Celgene - Phoenix - AZ",
   "CA06 PSA Celgene - San Diego Science Park - CA",
@@ -338,6 +344,8 @@ interface ResolvedWorkdayLocationFacetPolicy {
   allowedForeignSiteDescriptors: readonly string[];
   allowedForeignCountryDescriptors: readonly string[];
   requireUniqueMainlandCountryLeaf: boolean;
+  preferCityFacet: boolean;
+  allowIncompleteCounts: boolean;
 }
 
 interface WorkdaySelectedLocation {
@@ -414,7 +422,32 @@ function resolveAuditedLocationFacetPolicy(
   config: WorkdayFetchConfig
 ): ResolvedWorkdayLocationFacetPolicy | undefined {
   const policy = config.locationFacetPolicy;
-  if (!policy || config.searchText !== "China" || hasConfiguredLocationFacet(config.appliedFacets ?? {})) {
+  if (!policy) {
+    return undefined;
+  }
+
+  if (
+    policy.kind === "PFIZER_AUDITED_COUNTRY_LOCATION_REFINEMENT" &&
+    policy.facetParameter === "locations" &&
+    exactStringArray(policy.foreignDescriptorAliases, PFIZER_AUDITED_FOREIGN_LOCATION_DESCRIPTOR_ALIASES) &&
+    sourceId === "source-pfizer-china-social" &&
+    config.tenant === "pfizer" && config.site === "PfizerCareers" && config.searchText === undefined &&
+    hasExactSingleAppliedFacet(config.appliedFacets, "Location_Country", AUDITED_CHINA_LOCATION_ID)
+  ) {
+    return {
+      facetParameter: "locations",
+      allowOverlappingCounts: true,
+      allowedDuplicateDescriptors: [],
+      mainlandDescriptorAliases: [],
+      allowedForeignDescriptors: PFIZER_AUDITED_FOREIGN_LOCATION_DESCRIPTOR_ALIASES,
+      allowedForeignSiteDescriptors: [],
+      allowedForeignCountryDescriptors: [],
+      requireUniqueMainlandCountryLeaf: false,
+      preferCityFacet: true,
+      allowIncompleteCounts: true
+    };
+  }
+  if (config.searchText !== "China" || hasConfiguredLocationFacet(config.appliedFacets ?? {})) {
     return undefined;
   }
 
@@ -435,7 +468,9 @@ function resolveAuditedLocationFacetPolicy(
       allowedForeignDescriptors: JNJ_AUDITED_FOREIGN_DESCRIPTOR_ALIASES,
       allowedForeignSiteDescriptors: [],
       allowedForeignCountryDescriptors: [],
-      requireUniqueMainlandCountryLeaf: false
+      requireUniqueMainlandCountryLeaf: false,
+      preferCityFacet: false,
+      allowIncompleteCounts: false
     };
   }
   if (
@@ -454,7 +489,9 @@ function resolveAuditedLocationFacetPolicy(
       allowedForeignDescriptors: GILEAD_AUDITED_FOREIGN_DESCRIPTOR_ALIASES,
       allowedForeignSiteDescriptors: [],
       allowedForeignCountryDescriptors: [],
-      requireUniqueMainlandCountryLeaf: false
+      requireUniqueMainlandCountryLeaf: false,
+      preferCityFacet: false,
+      allowIncompleteCounts: false
     };
   }
   if (
@@ -474,7 +511,9 @@ function resolveAuditedLocationFacetPolicy(
       allowedForeignDescriptors: [],
       allowedForeignSiteDescriptors: BMS_AUDITED_FOREIGN_SITE_DESCRIPTOR_ALIASES,
       allowedForeignCountryDescriptors: BMS_AUDITED_FOREIGN_COUNTRY_DESCRIPTOR_ALIASES,
-      requireUniqueMainlandCountryLeaf: true
+      requireUniqueMainlandCountryLeaf: true,
+      preferCityFacet: false,
+      allowIncompleteCounts: false
     };
   }
   return undefined;
@@ -496,7 +535,12 @@ function resolveOpaqueMultiLocationDetailPolicy(
       config.tenant === "pfizer" &&
       config.site === "PfizerCareers" &&
       config.searchText === undefined &&
-      config.locationFacetPolicy === undefined &&
+      config.locationFacetPolicy?.kind === "PFIZER_AUDITED_COUNTRY_LOCATION_REFINEMENT" &&
+      config.locationFacetPolicy.facetParameter === "locations" &&
+      exactStringArray(
+        config.locationFacetPolicy.foreignDescriptorAliases,
+        PFIZER_AUDITED_FOREIGN_LOCATION_DESCRIPTOR_ALIASES
+      ) &&
       (config.facetDescriptorExclusions?.length ?? 0) === 0 &&
       config.laterZeroTotalPolicy === PFIZER_LATER_ZERO_TOTAL_POLICY &&
       hasExactSingleAppliedFacet(config.appliedFacets, "Location_Country", AUDITED_CHINA_LOCATION_ID) &&
@@ -621,7 +665,8 @@ export function createWorkdaySourceFetch(deps: WorkdaySourceFetchDeps = {}): Sou
       let firstPaginationEnvelopeFingerprint: string | undefined;
       let selectedMainlandLocations: readonly WorkdaySelectedLocation[] = [];
 
-      const needsLocationFacetDiscovery = !hasConfiguredLocationFacet(configuredAppliedFacets) && Boolean(searchText);
+      const needsLocationFacetDiscovery = auditedLocationFacetPolicy?.preferCityFacet === true ||
+        (!hasConfiguredLocationFacet(configuredAppliedFacets) && Boolean(searchText));
       if (needsLocationFacetDiscovery) {
         const preflightRequest = workdayJobsRequest({
           url,
@@ -1420,17 +1465,15 @@ function validateOpaqueMultiLocationDetail({
     if (publicLocations.some((descriptor) => /\bAPAC\b/iu.test(descriptor) && descriptor !== exactApacDescriptor)) {
       throw new Error("detail public locations contain an unaudited APAC descriptor");
     }
-    if (matchedMainlandDescriptors.length === 0 && !publicLocations.includes(exactApacDescriptor)) {
-      throw new Error("detail public locations did not contain explicit mainland China or the exact audited Pfizer APAC site");
+    if (matchedMainlandDescriptors.length === 0) {
+      throw new Error("detail public locations did not contain explicit mainland China");
     }
   } else if (matchedMainlandDescriptors.length === 0) {
     throw new Error("detail public locations did not exactly match a selected dynamic China descriptor");
   }
   return {
     locationRaw: publicLocations.join(" | "),
-    cities: matchedMainlandDescriptors.length === 0
-      ? ["APAC - Any Pfizer Site"]
-      : citiesFromWorkdayLocation(matchedMainlandDescriptors.join(" | "), cityHints)
+    cities: citiesFromWorkdayLocation(matchedMainlandDescriptors.join(" | "), cityHints)
   };
 }
 
@@ -1779,7 +1822,7 @@ function chinaLocationAppliedFacets(
   const groups = collectFacetGroups(facets)
     .filter((group) => isLocationFacet(group.facetParameter, group.descriptor));
 
-  const countryGroups = groups.filter((group) =>
+  const countryGroups = auditedPolicy?.preferCityFacet ? [] : groups.filter((group) =>
     isCountryLevelFacet(group.facetParameter, group.descriptor) &&
     facetDescriptors(group.values).some(isMainlandChinaCountryDescriptor)
   );
@@ -1866,6 +1909,9 @@ function chinaLocationAppliedFacets(
     auditedPolicy?.allowedDuplicateDescriptors ?? []
   );
   if (!inspection.completePartition) {
+    if (auditedPolicy?.allowIncompleteCounts) {
+      return facetSelectionWithoutExpectedTotal(cityGroup.facetParameter, selectedLeaves);
+    }
     if (!inspection.overlappingCounts || !auditedPolicy?.allowOverlappingCounts) {
       throw new Error(`Workday location facet ${cityGroup.facetParameter} counts do not prove a complete partition`);
     }

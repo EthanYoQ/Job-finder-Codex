@@ -22,8 +22,8 @@ import { AUTHORIZED_PHASE1_EXCLUSION_COMPANY_IDS } from "../../src/data/phase1Sc
 const BASELINE = {
   rosterSha256: "6c5a6900a7c32984e30e43baf0e1ec45a16b8c7bd1440f1accd54ebd5c16031f",
   surfaceOracleSha256: "31d178b78aa448285d1ab9b98ac935200ab9fb0a124a52b1dfc9751907b886a7",
-  stagedPlanSha256: "b78481d8e183cccd73381fbc37dcc199c20fb5aa1729243fb5e2fdd89a2f0cf8",
-  stagedConfigSetSha256: "5761318def8a067ff0361d35b3eca6901ffec86d08063ad0b06727bb247330fd"
+  stagedPlanSha256: "0434a6e7514be8c28b9dfd3b77848a5a70d2bafe6a86f036d4aba6ed4421fd17",
+  stagedConfigSetSha256: "7e77bc64d79107057b1f38253253c788a161d7c578926bcc496e380d6bf9ed14"
 } as const;
 
 const SHARED_CORE_SOURCE_ALLOWLIST: Readonly<Record<string, readonly string[]>> = {
@@ -60,6 +60,7 @@ const SHARED_CORE_COMPANY_ALLOWLIST: Readonly<Record<string, readonly string[]>>
     "company-bms-china",
     "company-daiichi-sankyo-china",
     "company-grifols-china",
+    "company-pfizer-china",
     "company-roche-china"
   ]
 };
@@ -188,7 +189,7 @@ describe("company recruitment profiles", () => {
     }
   });
 
-  it("binds Pfizer's opaque multi-location detail rule only inside its exact company profile", () => {
+  it("binds Pfizer's opaque detail and country-to-location refinement only inside its exact profile", () => {
     expect(companyRecruitmentExecutionConfigsBySourceId["source-pfizer-china-social"]).toMatchObject({
       adapterId: "official-json",
       workday: {
@@ -197,6 +198,11 @@ describe("company recruitment profiles", () => {
         laterZeroTotalPolicy: "PFIZER_AUDITED_EXACT_RECONCILIATION",
         opaqueMultiLocationDetailPolicy: "PFIZER_AUDITED_APAC_DETAIL_V1",
         appliedFacets: { Location_Country: ["6cb77610a8a543aea2d6bc10457e35d4"] },
+        locationFacetPolicy: {
+          kind: "PFIZER_AUDITED_COUNTRY_LOCATION_REFINEMENT",
+          facetParameter: "locations",
+          foreignDescriptorAliases: ["APAC - Remote"]
+        },
         facetDescriptorBoundary: {
           facetParameter: "workerSubType",
           allowedDescriptors: ["Regular"]
