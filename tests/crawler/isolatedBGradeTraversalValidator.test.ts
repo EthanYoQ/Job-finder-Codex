@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import {
   bGradeValidatorChildEnvironment,
   createIsolatedBGradeTraversalValidator,
@@ -54,6 +54,46 @@ describe("isolated B-grade traversal validator", () => {
     const error = await run(input).catch((caught: unknown) => caught);
     expect(classifyBGradeIndependentTraversalFailure(error))
       .toBe("B_GRADE_BROWSER_NAVIGATION_FAILED");
+  });
+
+  it("retries one isolated navigation or readiness failure with a fresh subprocess", async () => {
+    const expected = validation();
+    const execute = vi.fn()
+      .mockResolvedValueOnce(JSON.stringify({
+        decision: "FAILED",
+        failureCode: "B_GRADE_BROWSER_READINESS_FAILED",
+        message: "official list did not become ready"
+      }))
+      .mockResolvedValueOnce(JSON.stringify({ decision: "SUCCEEDED", validation: expected }));
+    const run = createIsolatedBGradeTraversalValidator(execute);
+
+    await expect(run(input)).resolves.toEqual(expected);
+    expect(execute).toHaveBeenCalledTimes(2);
+  });
+
+  it("stops after two transient browser failures and never retries a policy failure", async () => {
+    const readinessExecute = vi.fn(async () => JSON.stringify({
+      decision: "FAILED",
+      failureCode: "B_GRADE_BROWSER_READINESS_FAILED",
+      message: "official list did not become ready"
+    }));
+    const readinessRun = createIsolatedBGradeTraversalValidator(readinessExecute);
+
+    const readinessError = await readinessRun(input).catch((caught: unknown) => caught);
+    expect(classifyBGradeIndependentTraversalFailure(readinessError))
+      .toBe("B_GRADE_BROWSER_READINESS_FAILED");
+    expect(readinessExecute).toHaveBeenCalledTimes(2);
+
+    const policyExecute = vi.fn(async () => JSON.stringify({
+      decision: "FAILED",
+      failureCode: "B_GRADE_POLICY_BINDING_FAILED",
+      message: "registered policy mismatch"
+    }));
+    const policyRun = createIsolatedBGradeTraversalValidator(policyExecute);
+
+    const policyError = await policyRun(input).catch((caught: unknown) => caught);
+    expect(classifyBGradeIndependentTraversalFailure(policyError)).toBe("B_GRADE_POLICY_BINDING_FAILED");
+    expect(policyExecute).toHaveBeenCalledOnce();
   });
 
   it("keeps the parent abort authoritative when process shutdown rejects", async () => {

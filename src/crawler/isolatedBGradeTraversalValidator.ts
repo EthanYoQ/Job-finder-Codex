@@ -29,35 +29,46 @@ const processResponseSchema = z.discriminatedUnion("decision", [
   }).strict()
 ]);
 
+const RETRIABLE_BROWSER_FAILURE_CODES = new Set<string>([
+  "B_GRADE_BROWSER_NAVIGATION_FAILED",
+  "B_GRADE_BROWSER_READINESS_FAILED"
+] as const);
+
 export function createIsolatedBGradeTraversalValidator(
   execute: ExecuteValidatorProcess
 ): (input: ValidatorInput) => Promise<BGradeIndependentTraversalValidation> {
   return async (input) => {
     const { signal, ...serializableInput } = input;
-    let output: string;
-    try {
-      output = await execute(serializableInput, signal);
-    } catch (error) {
+    for (let attempt = 1; attempt <= 2; attempt += 1) {
+      let output: string;
+      try {
+        output = await execute(serializableInput, signal);
+      } catch (error) {
+        if (signal?.aborted) {
+          throw tagBGradeIndependentTraversalFailure(signal.reason, "B_GRADE_VALIDATOR_ABORTED");
+        }
+        throw error;
+      }
       if (signal?.aborted) {
         throw tagBGradeIndependentTraversalFailure(signal.reason, "B_GRADE_VALIDATOR_ABORTED");
       }
-      throw error;
+      const response = processResponseSchema.parse(JSON.parse(output));
+      if (response.decision === "FAILED") {
+        if (attempt === 1 && RETRIABLE_BROWSER_FAILURE_CODES.has(response.failureCode)) {
+          continue;
+        }
+        throw tagBGradeIndependentTraversalFailure(new Error(response.message), response.failureCode);
+      }
+      const validation = parseBGradeIndependentTraversalValidation(response.validation);
+      if (validation.sourceId !== input.sourceId || validation.companyId !== input.companyId ||
+          validation.sourceConfigSha256 !== input.sourceConfigSha256 ||
+          !sameStrings(validation.surfaceIds, input.surfaceIds) ||
+          !sameStrings(validation.channelIds, input.channelIds)) {
+        throw new Error("Isolated B-grade traversal result binding mismatch");
+      }
+      return validation;
     }
-    if (signal?.aborted) {
-      throw tagBGradeIndependentTraversalFailure(signal.reason, "B_GRADE_VALIDATOR_ABORTED");
-    }
-    const response = processResponseSchema.parse(JSON.parse(output));
-    if (response.decision === "FAILED") {
-      throw tagBGradeIndependentTraversalFailure(new Error(response.message), response.failureCode);
-    }
-    const validation = parseBGradeIndependentTraversalValidation(response.validation);
-    if (validation.sourceId !== input.sourceId || validation.companyId !== input.companyId ||
-        validation.sourceConfigSha256 !== input.sourceConfigSha256 ||
-        !sameStrings(validation.surfaceIds, input.surfaceIds) ||
-        !sameStrings(validation.channelIds, input.channelIds)) {
-      throw new Error("Isolated B-grade traversal result binding mismatch");
-    }
-    return validation;
+    throw new Error("Isolated B-grade traversal retry loop exhausted without a result");
   };
 }
 
