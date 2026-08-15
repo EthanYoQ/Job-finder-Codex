@@ -1155,7 +1155,8 @@ describe("source crawl planning", () => {
         location: "chn",
         pageSize: 9,
         maxPages: 5
-      }
+      },
+      transientRetryPolicy: { maxRetries: 1, backoffMs: 10_000 }
     });
     expect(getPlanBySourceId(plans, "source-csl-china-social")).toMatchObject({
       adapterId: "html-table",

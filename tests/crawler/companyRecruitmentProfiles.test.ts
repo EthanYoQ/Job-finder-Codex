@@ -22,8 +22,8 @@ import { AUTHORIZED_PHASE1_EXCLUSION_COMPANY_IDS } from "../../src/data/phase1Sc
 const BASELINE = {
   rosterSha256: "6c5a6900a7c32984e30e43baf0e1ec45a16b8c7bd1440f1accd54ebd5c16031f",
   surfaceOracleSha256: "31d178b78aa448285d1ab9b98ac935200ab9fb0a124a52b1dfc9751907b886a7",
-  stagedPlanSha256: "0434a6e7514be8c28b9dfd3b77848a5a70d2bafe6a86f036d4aba6ed4421fd17",
-  stagedConfigSetSha256: "7e77bc64d79107057b1f38253253c788a161d7c578926bcc496e380d6bf9ed14"
+  stagedPlanSha256: "793f8b0f7fe8e096997d7cb48d9591a0cd299137cc798d59a5a3bcb564c59a99",
+  stagedConfigSetSha256: "f04101a2b8c0b22a703c77e4845666ff4512ee6241c0b5c6f6616ba47f218b3c"
 } as const;
 
 const SHARED_CORE_SOURCE_ALLOWLIST: Readonly<Record<string, readonly string[]>> = {
@@ -177,6 +177,7 @@ describe("company recruitment profiles", () => {
       .sort();
     expect(retrySourceIds).toEqual([
       "source-bms-china-social",
+      "source-grifols-china-social",
       "source-msd-china-social",
       "source-pfizer-china-social",
       "source-roche-china-social",

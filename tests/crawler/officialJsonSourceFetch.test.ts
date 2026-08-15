@@ -9,6 +9,7 @@ import {
 } from "../../src/crawler/sourcePlan";
 import { issueAGradeOfficialTotalCertificate } from "../../src/crawler/completenessCertificate";
 import { candidateCompanies } from "../../src/data/companyRegistry";
+import { OfficialHttpTimeoutError } from "../../src/crawler/officialHttpRuntimeLimits";
 
 const makeExampleCredential = (purpose: string) => `example-placeholder-${purpose}`;
 const beisenUuid = (seed: string) =>
@@ -1696,6 +1697,41 @@ describe("createOfficialJsonSourceFetch", () => {
     ]);
     expect(requests[0]?.url).toContain("location=chn");
     expect(requests[0]?.url).toContain("num_items=9");
+  });
+
+  it.each([
+    ["timeout", async () => { throw new OfficialHttpTimeoutError(); }, "OFFICIAL_HTTP_TIMEOUT"],
+    ["HTTP 503", async (request: { url: string }) => ({
+      status: 503,
+      body: "{}",
+      finalUrl: request.url,
+      contentType: "application/json",
+      capturedAt: "2026-07-08T00:00:00.000Z"
+    }), "OFFICIAL_HTTP_503"]
+  ] as const)("classifies a transient Jobsyn %s response for the bounded source retry", async (_case, http, code) => {
+    const fetcher = createOfficialJsonSourceFetch({
+      now: () => new Date("2026-07-08T00:00:00.000Z"),
+      http
+    });
+
+    const result = await fetcher({
+      ...basePlan,
+      source: { ...basePlan.source, officialEntryUrl: "https://grifols.jobs/locations/chn/jobs/" },
+      officialJsonFetch: {
+        kind: "jobsyn-solr",
+        endpointUrl: "https://prod-search-api.jobsyn.org/api/v1/solr/search",
+        siteOrigin: "grifols.jobs",
+        location: "chn",
+        pageSize: 9,
+        maxPages: 5,
+        detailBaseUrl: "https://grifols.jobs"
+      }
+    });
+
+    expect(result).toMatchObject({
+      ok: false,
+      transportFailure: { code, retryable: true }
+    });
   });
 
   it("fetches Redsea channel lists after the official entry page establishes a session", async () => {

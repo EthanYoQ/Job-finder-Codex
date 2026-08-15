@@ -1945,9 +1945,12 @@ async function fetchJobsynSolr({
       response = await http({ url: requestedUrl, method: "GET", headers: {
         Accept: "application/json", "X-Origin": config.siteOrigin, "User-Agent": "job-search-crawler/0.1"
       }});
-    } catch {
-      return jobsynFailure(capturedAt, "Jobsyn Solr transport failed", artifacts, pages, counts, losses,
-        jobsynDeclaredCompleteness(declaredTotal, declaredArtifactKey, declaredLocator));
+    } catch (error) {
+      const transportFailure = retryableTransportFailureFromError(error);
+      return jobsynFailure(capturedAt, transportFailure
+        ? safeSourceTransportFailureReason(transportFailure)
+        : "Jobsyn Solr transport failed", artifacts, pages, counts, losses,
+      jobsynDeclaredCompleteness(declaredTotal, declaredArtifactKey, declaredLocator), transportFailure);
     }
     try {
       assertOfficialJsonEvidenceResponse(response, {
@@ -1970,9 +1973,12 @@ async function fetchJobsynSolr({
     }
     previousCapturedAtMs = artifactCapturedAtMs;
     if (response.status < 200 || response.status >= 300) {
+      const transportFailure = retryableHttpTransportFailure(response.status);
       pages.push(jobsynPageTrace({ artifact, sequence: page - 1, requestedPage: page, termination: "FAILED" }));
-      return jobsynFailure(capturedAt, `Jobsyn Solr API returned HTTP ${response.status}`, artifacts, pages, counts,
-        losses, jobsynDeclaredCompleteness(declaredTotal, declaredArtifactKey, declaredLocator));
+      return jobsynFailure(capturedAt, transportFailure
+        ? safeSourceTransportFailureReason(transportFailure)
+        : `Jobsyn Solr API returned HTTP ${response.status}`, artifacts, pages, counts,
+      losses, jobsynDeclaredCompleteness(declaredTotal, declaredArtifactKey, declaredLocator), transportFailure);
     }
     try { assertOfficialJsonMime(response); } catch (error) {
       pages.push(jobsynPageTrace({ artifact, sequence: page - 1, requestedPage: page, termination: "FAILED" }));
@@ -5963,8 +5969,9 @@ function jobsynDeclaredCompleteness(total: number | undefined, artifactLogicalKe
 function jobsynFailure(capturedAt: string, failureReason: string, artifacts: SourceFetchArtifactDraft[],
   pages: SourceFetchPageTrace[], fetchCounts: PersistentSourceFetchEvidence["fetchCounts"],
   fetchLosses: PersistentSourceFetchEvidence["fetchLosses"],
-  declaredCompleteness?: PersistentSourceFetchEvidence["declaredCompleteness"]): SourceFetchResult {
-  if (artifacts.length === 0) return failed(capturedAt, failureReason);
+  declaredCompleteness?: PersistentSourceFetchEvidence["declaredCompleteness"],
+  transportFailure?: SourceTransportFailure): SourceFetchResult {
+  if (artifacts.length === 0) return failed(capturedAt, failureReason, transportFailure);
   const evidencePages = pages.length > 0
     ? pages.map((page, index) => index === pages.length - 1 && page.termination === "CONTINUE"
       ? { ...page, termination: "ABORTED" as const } : page)
@@ -5972,7 +5979,7 @@ function jobsynFailure(capturedAt: string, failureReason: string, artifacts: Sou
   return failedWithEvidence(capturedAt, failureReason, finalizeOfficialJsonFailureEvidenceBundle({
     artifacts, pages: evidencePages, fetchCounts, fetchLosses,
     ...(declaredCompleteness ? { declaredCompleteness } : {})
-  }));
+  }), transportFailure);
 }
 
 function recordJobsynLoss(losses: PersistentSourceFetchEvidence["fetchLosses"],
