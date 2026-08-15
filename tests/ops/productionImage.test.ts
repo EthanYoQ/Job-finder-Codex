@@ -302,6 +302,11 @@ describe("production container contract", () => {
     expect(workflow).toContain("ops/run-fixed-cohort-qualification.sh");
     expect(workflow).toMatch(/name: Preserve Launch Cohort round-one state\s+if: always\(\)/u);
     expect(workflow).toMatch(/name: Preserve Launch Cohort final evidence\s+if: always\(\)/u);
+    const roundOneArtifact = workflow.slice(
+      workflow.indexOf("name: Preserve Launch Cohort round-one state"),
+      workflow.indexOf("name: Preserve Launch Cohort runner diagnostics")
+    );
+    expect(roundOneArtifact).toContain(".runtime/formal-state/round-one.dump");
 
     expect(runner).toContain("scripts/p0-formal-qualification-state.ts verify-files");
     expect(runner).toContain("scripts/p0-formal-qualification-state.ts verify-restored");

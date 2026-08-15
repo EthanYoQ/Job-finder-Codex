@@ -2,6 +2,7 @@ import { createHash } from "node:crypto";
 import { acquireBrowserSourcePermit } from "./browserSourceConcurrency";
 import { companyRecruitmentExecutionConfigsBySourceId } from "./companyRecruitmentProfiles";
 import { tagBGradeIndependentTraversalFailure } from "./independentTraversalDiagnostics";
+import { officialBrowserTimeoutMs } from "./officialHttpRuntimeLimits";
 
 export const PLAN_BOUND_HTML_TRAVERSAL_POLICIES = Object.freeze({
   "source-novartis-social": {
@@ -224,6 +225,31 @@ export function isPlanBoundHtmlTraversalSourceId(value: string): value is PlanBo
   return Object.prototype.hasOwnProperty.call(PLAN_BOUND_HTML_TRAVERSAL_POLICIES, value);
 }
 
+async function runBrowserStage<T>(input: {
+  operation: () => T | Promise<T>;
+  signal: AbortSignal | undefined;
+  failureCode: "B_GRADE_BROWSER_NAVIGATION_FAILED" | "B_GRADE_BROWSER_READINESS_FAILED";
+}): Promise<T> {
+  try {
+    const result = await input.operation();
+    if (input.signal?.aborted) {
+      throw tagBGradeIndependentTraversalFailure(
+        input.signal.reason,
+        "B_GRADE_VALIDATOR_ABORTED"
+      );
+    }
+    return result;
+  } catch (error) {
+    if (input.signal?.aborted) {
+      throw tagBGradeIndependentTraversalFailure(
+        input.signal.reason,
+        "B_GRADE_VALIDATOR_ABORTED"
+      );
+    }
+    throw tagBGradeIndependentTraversalFailure(error, input.failureCode);
+  }
+}
+
 export function assertPlanBoundHtmlValidationMatchKey(
   sourceId: PlanBoundHtmlTraversalSourceId,
   value: string
@@ -254,13 +280,16 @@ export async function capturePlanBoundHtmlRenderedTraversal(input: {
   launchBrowser?: () => Promise<Pick<import("playwright-core").Browser, "newPage" | "close">>;
 }): Promise<{ observedAt: string; pages: PlanBoundHtmlRenderedPageCapture[] }> {
   const policy = PLAN_BOUND_HTML_TRAVERSAL_POLICIES[input.sourceId];
+  const browserTimeoutMs = officialBrowserTimeoutMs();
   const navigationWaitUntil: "commit" | "domcontentloaded" =
     "navigationWaitUntil" in policy ? policy.navigationWaitUntil : "domcontentloaded";
   if (input.entryUrl !== policy.entryUrl) throw new Error("Plan-bound HTML browser validator entry URL mismatch");
   if (input.signal?.aborted) throw input.signal.reason;
   const releaseBrowserPermit = await acquireBrowserSourcePermit(input.signal);
   try {
-    const browser = await (input.launchBrowser ?? launchProductionBrowser)();
+    const browser = await (input.launchBrowser
+      ? input.launchBrowser()
+      : launchProductionBrowser(browserTimeoutMs));
     let closePromise: Promise<void> | undefined;
     const closeBrowser = () => closePromise ??= browser.close();
     const abort = () => { void closeBrowser().catch(() => undefined); };
@@ -269,17 +298,38 @@ export async function capturePlanBoundHtmlRenderedTraversal(input: {
       throw input.signal.reason;
     }
     input.signal?.addEventListener("abort", abort, { once: true });
+    let operationFailed = false;
     try {
       if ("talentbrewScope" in policy) {
         return {
           observedAt: new Date().toISOString(),
-          pages: await captureTalentbrewPartitions(browser, input.sourceId, input.entryUrl, input.signal)
+          pages: await captureTalentbrewPartitions(
+            browser,
+            input.sourceId,
+            input.entryUrl,
+            browserTimeoutMs,
+            input.signal
+          )
         };
       }
       const page = await browser.newPage();
-      const navigation = await page.goto(input.entryUrl, { waitUntil: navigationWaitUntil, timeout: 30_000 });
-      assertNavigation(input.sourceId, navigation, input.entryUrl, 1);
-      await page.locator(policy.readySelector).first().waitFor({ state: "visible", timeout: 30_000 });
+      await runBrowserStage({
+        signal: input.signal,
+        failureCode: "B_GRADE_BROWSER_NAVIGATION_FAILED",
+        operation: async () => {
+          const navigation = await page.goto(input.entryUrl, {
+            waitUntil: navigationWaitUntil,
+            timeout: browserTimeoutMs
+          });
+          assertNavigation(input.sourceId, navigation, input.entryUrl, 1);
+        }
+      });
+      await runBrowserStage({
+        signal: input.signal,
+        failureCode: "B_GRADE_BROWSER_READINESS_FAILED",
+        operation: () => page.locator(policy.readySelector).first()
+          .waitFor({ state: "visible", timeout: browserTimeoutMs })
+      });
       let declaredPartitions: PlanBoundHtmlRenderedPartitionCapture[] | undefined;
       if ("revealSelector" in policy) {
         let partitionFailureCode: Parameters<typeof tagBGradeIndependentTraversalFailure>[1] =
@@ -294,7 +344,9 @@ export async function capturePlanBoundHtmlRenderedTraversal(input: {
             const controls = [...document.querySelectorAll(selector)];
             return controls.length === count && controls.every((control) =>
               ["true", "false"].includes(control.getAttribute("aria-expanded") ?? ""));
-          }, { selector: policy.revealSelector, count: policy.expectedRevealControlCount }, { timeout: 30_000 });
+          }, { selector: policy.revealSelector, count: policy.expectedRevealControlCount }, {
+            timeout: browserTimeoutMs
+          });
           partitionFailureCode = "B_GRADE_PARTITION_EXPANSION_FAILED";
           const dismissBlockingOverlay = async (): Promise<boolean> => {
             const overlayDismiss = page.locator(policy.blockingOverlay.dismissSelector);
@@ -413,16 +465,34 @@ export async function capturePlanBoundHtmlRenderedTraversal(input: {
           if (!nextHref?.trim()) throw new Error("Plan-bound HTML browser validator next-page href is missing");
           const targetUrl = new URL(nextHref, pageUrl).toString();
           assertPageUrl(input.sourceId, targetUrl, pageNumber + 1);
-          const navigation = await page.goto(targetUrl, { waitUntil: navigationWaitUntil, timeout: 30_000 });
-          assertNavigation(input.sourceId, navigation, targetUrl, pageNumber + 1);
+          await runBrowserStage({
+            signal: input.signal,
+            failureCode: "B_GRADE_BROWSER_NAVIGATION_FAILED",
+            operation: async () => {
+              const navigation = await page.goto(targetUrl, {
+                waitUntil: navigationWaitUntil,
+                timeout: browserTimeoutMs
+              });
+              assertNavigation(input.sourceId, navigation, targetUrl, pageNumber + 1);
+            }
+          });
         } else {
           const previousUrl = pageUrl;
-          await Promise.all([
-            page.waitForURL((url) => url.toString() !== previousUrl, { timeout: 30_000 }),
-            activeNextControl.click({ timeout: 10_000 })
-          ]);
+          await runBrowserStage({
+            signal: input.signal,
+            failureCode: "B_GRADE_BROWSER_NAVIGATION_FAILED",
+            operation: () => Promise.all([
+              page.waitForURL((url) => url.toString() !== previousUrl, { timeout: browserTimeoutMs }),
+              activeNextControl.click({ timeout: 10_000 })
+            ])
+          });
         }
-        await page.locator(policy.readySelector).first().waitFor({ state: "visible", timeout: 30_000 });
+        await runBrowserStage({
+          signal: input.signal,
+          failureCode: "B_GRADE_BROWSER_READINESS_FAILED",
+          operation: () => page.locator(policy.readySelector).first()
+            .waitFor({ state: "visible", timeout: browserTimeoutMs })
+        });
       }
       if (capturedPages.length === 0 || capturedPages.at(-1)?.nextControlPresent !== false) {
         throw new Error("Plan-bound HTML browser validator did not prove terminal pagination");
@@ -432,9 +502,16 @@ export async function capturePlanBoundHtmlRenderedTraversal(input: {
         observedAt: new Date().toISOString(),
         pages: capturedPages.map((captured) => ({ ...captured, declaredTotalPages: totalPages }))
       };
+    } catch (error) {
+      operationFailed = true;
+      throw error;
     } finally {
       input.signal?.removeEventListener("abort", abort);
-      await closeBrowser();
+      try {
+        await closeBrowser();
+      } catch (closeError) {
+        if (!operationFailed) throw closeError;
+      }
     }
   } finally {
     releaseBrowserPermit();
@@ -465,6 +542,7 @@ async function captureTalentbrewPartitions(
   browser: Pick<import("playwright-core").Browser, "newPage">,
   sourceId: PlanBoundHtmlTraversalSourceId,
   entryUrl: string,
+  browserTimeoutMs: number,
   signal?: AbortSignal
 ): Promise<PlanBoundHtmlRenderedPageCapture[]> {
   const registered = PLAN_BOUND_HTML_TRAVERSAL_POLICIES[sourceId];
@@ -476,12 +554,28 @@ async function captureTalentbrewPartitions(
     const partition = scope.allowedPartitions[partitionIndex]!;
     const page = await browser.newPage();
     try {
-      const navigation = await page.goto(entryUrl, { waitUntil: "domcontentloaded", timeout: 30_000 });
-      assertNavigation(sourceId, navigation, entryUrl, 1);
-      await page.locator(registered.readySelector).first().waitFor({ state: "visible", timeout: 30_000 });
-      await page.waitForLoadState("load", { timeout: 30_000 });
+      await runBrowserStage({
+        signal,
+        failureCode: "B_GRADE_BROWSER_NAVIGATION_FAILED",
+        operation: async () => {
+          const navigation = await page.goto(entryUrl, {
+            waitUntil: "domcontentloaded",
+            timeout: browserTimeoutMs
+          });
+          assertNavigation(sourceId, navigation, entryUrl, 1);
+        }
+      });
+      await runBrowserStage({
+        signal,
+        failureCode: "B_GRADE_BROWSER_READINESS_FAILED",
+        operation: async () => {
+          await page.locator(registered.readySelector).first()
+            .waitFor({ state: "visible", timeout: browserTimeoutMs });
+          await page.waitForLoadState("load", { timeout: browserTimeoutMs });
+        }
+      });
       if (signal?.aborted) throw signal.reason;
-      await assertFreshTalentbrewScope(page, scope);
+      await assertFreshTalentbrewScope(page, scope, browserTimeoutMs);
       const filterSelector = talentbrewFacetSelector(partition);
       const filter = page.locator(filterSelector);
       if (await filter.count() !== 1 || await filter.isChecked()) {
@@ -493,7 +587,7 @@ async function captureTalentbrewPartitions(
       }
       const ajaxEndpoint = await readTalentbrewAjaxEndpoint(page, entryUrl, scope);
       const [partitionResponseUrl] = await Promise.all([
-        waitForTalentbrewResponse(page, ajaxEndpoint, partition),
+        waitForTalentbrewResponse(page, ajaxEndpoint, partition, browserTimeoutMs),
         filter.evaluate((element) => (element as HTMLInputElement).click())
       ]);
       assertTalentbrewPartitionResponse(partitionResponseUrl, partition);
@@ -509,16 +603,22 @@ async function captureTalentbrewPartitions(
           currentAttribute: "data-current-page",
           totalAttribute: scope.totalJobsAttribute,
           expectedTotal: String(declaredPartitionJobs)
-        }, { timeout: 30_000 });
-      } catch {
+        }, { timeout: browserTimeoutMs });
+      } catch (error) {
+        if (signal?.aborted) {
+          throw tagBGradeIndependentTraversalFailure(signal.reason, "B_GRADE_VALIDATOR_ABORTED");
+        }
         const state = await page.evaluate(({ selector, resultsSelector, totalAttribute }) => {
           const checkbox = document.querySelector(selector) as HTMLInputElement | null;
           const results = document.querySelector(resultsSelector);
           return { checked: checkbox?.checked ?? null, current: results?.getAttribute("data-current-page") ?? null,
             total: results?.getAttribute(totalAttribute) ?? null };
         }, { selector: filterSelector, resultsSelector: scope.totalPagesSelector, totalAttribute: scope.totalJobsAttribute });
-        throw new Error(`TalentBrew browser validator partition did not become active: ` +
-          `checked=${state.checked},current=${state.current ?? "missing"},total=${state.total ?? "missing"}`);
+        throw tagBGradeIndependentTraversalFailure(
+          new Error(`TalentBrew browser validator partition did not become active: ` +
+            `checked=${state.checked},current=${state.current ?? "missing"},total=${state.total ?? "missing"}`),
+          "B_GRADE_BROWSER_READINESS_FAILED"
+        );
       }
       const declaration = await readTalentbrewDeclaration(page, scope);
       if (declaration.totalJobs !== declaredPartitionJobs || declaration.totalPages > registered.maxPages) {
@@ -558,23 +658,30 @@ async function captureTalentbrewPartitions(
         if (!expectedNext) continue;
         const previousFingerprint = await talentbrewPageFingerprint(page, registered.rowSelector, scope);
         const [nextResponseUrl] = await Promise.all([
-          waitForTalentbrewResponse(page, ajaxEndpoint, partition),
+          waitForTalentbrewResponse(page, ajaxEndpoint, partition, browserTimeoutMs),
           next.first().evaluate((element) => (element as HTMLElement).click())
         ]);
         assertTalentbrewPartitionResponse(nextResponseUrl, partition);
-        await page.waitForFunction(({ resultsSelector, currentAttribute, expected, rowSelector, previous }) => {
-          const results = document.querySelector(resultsSelector);
-          const ids = [...document.querySelectorAll(rowSelector)].map((row) =>
-            row.querySelector("button.js-save-job-btn")?.getAttribute("data-job-id") ?? "").sort();
-          return results?.getAttribute(currentAttribute) === expected && JSON.stringify(ids) !== previous;
-        }, {
-          resultsSelector: scope.totalPagesSelector,
-          currentAttribute: "data-current-page",
-          expected: String(pageNumber + 1),
-          rowSelector: registered.rowSelector,
-          previous: previousFingerprint
-        }, { timeout: 30_000 });
-        await page.locator(registered.readySelector).first().waitFor({ state: "visible", timeout: 30_000 });
+        await runBrowserStage({
+          signal,
+          failureCode: "B_GRADE_BROWSER_READINESS_FAILED",
+          operation: async () => {
+            await page.waitForFunction(({ resultsSelector, currentAttribute, expected, rowSelector, previous }) => {
+              const results = document.querySelector(resultsSelector);
+              const ids = [...document.querySelectorAll(rowSelector)].map((row) =>
+                row.querySelector("button.js-save-job-btn")?.getAttribute("data-job-id") ?? "").sort();
+              return results?.getAttribute(currentAttribute) === expected && JSON.stringify(ids) !== previous;
+            }, {
+              resultsSelector: scope.totalPagesSelector,
+              currentAttribute: "data-current-page",
+              expected: String(pageNumber + 1),
+              rowSelector: registered.rowSelector,
+              previous: previousFingerprint
+            }, { timeout: browserTimeoutMs });
+            await page.locator(registered.readySelector).first()
+              .waitFor({ state: "visible", timeout: browserTimeoutMs });
+          }
+        });
       }
       if (observedRows !== declaration.totalJobs) {
         throw new Error("TalentBrew browser validator partition total does not reconcile");
@@ -631,7 +738,8 @@ function configuredTalentbrewTraversalPolicy(sourceId: PlanBoundHtmlTraversalSou
 
 async function assertFreshTalentbrewScope(
   page: import("playwright-core").Page,
-  scope: TalentbrewTraversalPolicy
+  scope: TalentbrewTraversalPolicy,
+  browserTimeoutMs: number
 ): Promise<void> {
   const results = page.locator(scope.totalPagesSelector);
   const [facetTerm, facetType, sourceTotalRaw] = await Promise.all([
@@ -648,7 +756,7 @@ async function assertFreshTalentbrewScope(
   for (const fieldName of new Set(configured.map((partition) => partition.fieldName))) {
     const dimension = page.locator(`input.filter-checkbox[data-facet-type="5"]` +
       `[data-field-name=${JSON.stringify(fieldName)}]`);
-    await dimension.first().waitFor({ state: "attached", timeout: 30_000 });
+    await dimension.first().waitFor({ state: "attached", timeout: browserTimeoutMs });
     const actualIds = await dimension.evaluateAll((controls) => controls.map((control) =>
       control.getAttribute("data-id")?.trim() ?? "").sort());
     const expectedIds = configured.filter((partition) => partition.fieldName === fieldName)
@@ -766,13 +874,14 @@ async function readTalentbrewAjaxEndpoint(
 async function waitForTalentbrewResponse(
   page: import("playwright-core").Page,
   endpoint: URL,
-  partition: TalentbrewPartitionPolicy
+  partition: TalentbrewPartitionPolicy,
+  browserTimeoutMs: number
 ): Promise<string> {
   const response = await page.waitForResponse((candidate) => {
     const url = new URL(candidate.url());
     return candidate.request().method() === "GET" && url.origin === endpoint.origin &&
       url.pathname === endpoint.pathname && talentbrewResponseHasPartition(url, partition);
-  }, { timeout: 30_000 });
+  }, { timeout: browserTimeoutMs });
   const failure = await response.finished();
   if (failure || response.status() < 200 || response.status() >= 400) {
     throw new Error("TalentBrew browser validator AJAX request failed");
@@ -830,7 +939,9 @@ async function normalizeRevealNavigation(
   }
 }
 
-async function launchProductionBrowser(): Promise<Pick<import("playwright-core").Browser, "newPage" | "close">> {
+async function launchProductionBrowser(
+  browserTimeoutMs: number
+): Promise<Pick<import("playwright-core").Browser, "newPage" | "close">> {
   const { chromium } = await import("playwright-core");
   const { FORMAL_CHROMIUM_ARGS, FORMAL_CHROMIUM_PATH } = await import("../readiness/formalBrowserPreflight");
   return chromium.launch({
@@ -838,7 +949,7 @@ async function launchProductionBrowser(): Promise<Pick<import("playwright-core")
       ? { executablePath: FORMAL_CHROMIUM_PATH, args: [...FORMAL_CHROMIUM_ARGS] }
       : { channel: "chrome" as const }),
     headless: true,
-    timeout: 30_000
+    timeout: browserTimeoutMs
   });
 }
 

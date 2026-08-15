@@ -527,7 +527,13 @@ jobs:
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: launch-cohort-round-one-${{ github.sha }}
-          path: .runtime/formal-state/round-one-*
+          path: |
+            .runtime/formal-state/round-one.dump
+            .runtime/formal-state/round-one-audit.json
+            .runtime/formal-state/round-one-evidence.tar.gz
+            .runtime/formal-state/round-one-image-qualification-receipt.json
+            .runtime/formal-state/round-one-qualified-image.tar.gz
+            .runtime/formal-state/round-one-state-receipt.json
           if-no-files-found: error
           retention-days: 4
 

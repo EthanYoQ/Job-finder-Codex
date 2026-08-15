@@ -198,6 +198,64 @@ describe("plan-bound HTML rendered traversal", () => {
     expect(close).toHaveBeenCalledTimes(1);
   });
 
+  it("uses the shared browser timeout for every Fosun navigation and readiness wait", async () => {
+    const sourceId = "source-fosun-pharma-social" as const;
+    const entryUrl = PLAN_BOUND_HTML_TRAVERSAL_POLICIES[sourceId].entryUrl;
+    const navigationTimeouts: number[] = [];
+    const readinessTimeouts: number[] = [];
+
+    await expect(capturePlanBoundHtmlRenderedTraversal({
+      sourceId,
+      entryUrl,
+      launchBrowser: async () => pagedOfficialBrowser({
+        sourceId,
+        pageUrls: [entryUrl, `${entryUrl}/?PageIndex=2`],
+        rowUrls: [
+          [officialPagedUrl("fosunpharma.zhiye.com", "socialxq", 57301)],
+          [officialPagedUrl("fosunpharma.zhiye.com", "socialxq", 57302)]
+        ],
+        close: async () => undefined,
+        onGotoOptions: (options) => navigationTimeouts.push(options?.timeout ?? -1),
+        onReadyWaitOptions: (options) => readinessTimeouts.push(options?.timeout ?? -1)
+      })
+    })).resolves.toMatchObject({ pages: [{ pageNumber: 1 }, { pageNumber: 2 }] });
+
+    expect(navigationTimeouts).toEqual([60_000, 60_000]);
+    expect(readinessTimeouts).toEqual([60_000, 60_000]);
+  });
+
+  it.each([
+    { stage: "navigation" as const, expectedCode: "B_GRADE_BROWSER_NAVIGATION_FAILED" },
+    { stage: "readiness" as const, expectedCode: "B_GRADE_BROWSER_READINESS_FAILED" }
+  ])("tags an opaque Fosun $stage failure at its actual browser stage", async ({ stage, expectedCode }) => {
+    const sourceId = "source-fosun-pharma-social" as const;
+    const entryUrl = PLAN_BOUND_HTML_TRAVERSAL_POLICIES[sourceId].entryUrl;
+    const close = vi.fn(async () => undefined);
+    const opaqueFailure = new Error("remote browser operation failed");
+    const page = {
+      goto: async () => {
+        if (stage === "navigation") throw opaqueFailure;
+        return response(entryUrl);
+      },
+      url: () => entryUrl,
+      locator: () => ({
+        first: () => ({ waitFor: async () => {
+          if (stage === "readiness") throw opaqueFailure;
+        } })
+      })
+    };
+
+    const failure = await capturePlanBoundHtmlRenderedTraversal({
+      sourceId,
+      entryUrl,
+      launchBrowser: async () => ({ newPage: async () => page as never, close })
+    }).catch((error: unknown) => error);
+
+    expect(failure).toBe(opaqueFailure);
+    expect(classifyBGradeIndependentTraversalFailure(failure)).toBe(expectedCode);
+    expect(close).toHaveBeenCalledTimes(1);
+  });
+
   it("follows the unique visible active Fosun next link when an inactive control appears first", async () => {
     const sourceId = "source-fosun-pharma-social" as const;
     const entryUrl = PLAN_BOUND_HTML_TRAVERSAL_POLICIES[sourceId].entryUrl;
@@ -287,6 +345,25 @@ describe("plan-bound HTML rendered traversal", () => {
         nextControlPresent: false }
     ]);
     expect(close).toHaveBeenCalledTimes(1);
+  });
+
+  it("uses the shared browser timeout throughout the TalentBrew traversal", async () => {
+    const sourceId = "source-sanofi-china-social" as const;
+    const entryUrl = PLAN_BOUND_HTML_TRAVERSAL_POLICIES[sourceId].entryUrl;
+    const observedTimeouts: number[] = [];
+
+    await expect(capturePlanBoundHtmlRenderedTraversal({
+      sourceId,
+      entryUrl,
+      launchBrowser: async () => talentbrewBrowser({
+        entryUrl,
+        close: async () => undefined,
+        onTimeout: (timeout) => observedTimeouts.push(timeout ?? -1)
+      })
+    })).resolves.toMatchObject({ pages: expect.any(Array) });
+
+    expect(observedTimeouts.length).toBeGreaterThan(5);
+    expect(observedTimeouts.every((timeout) => timeout === 60_000)).toBe(true);
   });
 
   it("rejects an unregistered TalentBrew partition in the configured facet field", async () => {
@@ -518,6 +595,28 @@ describe("plan-bound HTML rendered traversal", () => {
     })).rejects.toThrow("multiple active next controls");
     expect(multipleClose).toHaveBeenCalledTimes(1);
   });
+
+  it("preserves the typed navigation failure when browser close also fails", async () => {
+    const sourceId = "source-otsuka-china-social-2" as const;
+    const entryUrl = PLAN_BOUND_HTML_TRAVERSAL_POLICIES[sourceId].entryUrl;
+    const close = vi.fn(async () => { throw new Error("browser close failed"); });
+
+    const failure = await capturePlanBoundHtmlRenderedTraversal({
+      sourceId,
+      entryUrl,
+      launchBrowser: async () => staticBrowser({
+        entryUrl,
+        rawRows: [["Role", "Shanghai"]],
+        close,
+        navigation: null
+      })
+    }).catch((error: unknown) => error);
+
+    expect(failure).toBeInstanceOf(Error);
+    expect((failure as Error).message).toContain("navigation failed");
+    expect(classifyBGradeIndependentTraversalFailure(failure)).toBe("B_GRADE_BROWSER_NAVIGATION_FAILED");
+    expect(close).toHaveBeenCalledTimes(1);
+  });
 });
 
 function staticBrowser(input: {
@@ -584,6 +683,8 @@ function pagedOfficialBrowser(input: {
   inactiveNextFirst?: boolean;
   hiddenActiveNext?: boolean;
   requireCommitNavigation?: boolean;
+  onGotoOptions?: (options: { waitUntil?: string; timeout?: number } | undefined) => void;
+  onReadyWaitOptions?: (options: { state?: string; timeout?: number } | undefined) => void;
 }) {
   const policy = PLAN_BOUND_HTML_TRAVERSAL_POLICIES[input.sourceId];
   let pageIndex = 0;
@@ -605,7 +706,8 @@ function pagedOfficialBrowser(input: {
     click: async () => { throw new Error("inactive next control must not be used"); }
   };
   const page = {
-    goto: async (url: string = input.pageUrls[0]!, options?: { waitUntil?: string }) => {
+    goto: async (url: string = input.pageUrls[0]!, options?: { waitUntil?: string; timeout?: number }) => {
+      input.onGotoOptions?.(options);
       if (input.requireCommitNavigation && options?.waitUntil !== "commit") {
         throw new Error("page.goto: Timeout 30000ms exceeded before DOMContentLoaded");
       }
@@ -620,7 +722,9 @@ function pagedOfficialBrowser(input: {
         : reject(new Error("URL did not change")), 0);
     }),
     locator: (selector: string) => selector === policy.rowSelector
-      ? { evaluateAll: async () => input.rowUrls[pageIndex], first: () => ({ waitFor: async () => undefined }) }
+      ? { evaluateAll: async () => input.rowUrls[pageIndex], first: () => ({ waitFor: async (options?: { state?: string; timeout?: number }) => {
+          input.onReadyWaitOptions?.(options);
+        } }) }
       : selector === policy.nextSelector
         ? {
             count: async () => input.inactiveNextFirst && pageIndex < input.pageUrls.length - 1 ? 2 : 1,
@@ -631,7 +735,9 @@ function pagedOfficialBrowser(input: {
               ? inactiveNextItem
               : nextItem
           }
-        : { first: () => ({ waitFor: async () => undefined }) }
+        : { first: () => ({ waitFor: async (options?: { state?: string; timeout?: number }) => {
+            input.onReadyWaitOptions?.(options);
+          } }) }
   };
   return { newPage: async () => page as never, close: input.close };
 }
@@ -719,6 +825,7 @@ function talentbrewBrowser(input: {
   extraPartitionId?: string;
   onGoto?: () => void;
   pageClose?: () => Promise<void>;
+  onTimeout?: (timeout: number | undefined) => void;
 }) {
   const sourceId = "source-sanofi-china-social" as const;
   const policy = PLAN_BOUND_HTML_TRAVERSAL_POLICIES[sourceId];
@@ -734,7 +841,8 @@ function talentbrewBrowser(input: {
   const allIds = [...partitions.map(({ id }) => id), ...excludedIds,
     ...(input.extraPartitionId ? [input.extraPartitionId] : [])];
   const page = {
-    goto: async () => {
+    goto: async (_url?: string, options?: { timeout?: number }) => {
+      input.onTimeout?.(options?.timeout);
       partitionIndex = -1;
       pageIndex = 0;
       input.onGoto?.();
@@ -742,9 +850,17 @@ function talentbrewBrowser(input: {
     },
     close: input.pageClose ?? (async () => undefined),
     url: () => input.entryUrl,
-    waitForLoadState: async () => undefined,
-    waitForFunction: async () => undefined,
-    waitForResponse: async (predicate: (candidate: ReturnType<typeof ajaxResponse>) => boolean) => {
+    waitForLoadState: async (_state?: string, options?: { timeout?: number }) => {
+      input.onTimeout?.(options?.timeout);
+    },
+    waitForFunction: async (_callback: unknown, _argument?: unknown, options?: { timeout?: number }) => {
+      input.onTimeout?.(options?.timeout);
+    },
+    waitForResponse: async (
+      predicate: (candidate: ReturnType<typeof ajaxResponse>) => boolean,
+      options?: { timeout?: number }
+    ) => {
+      input.onTimeout?.(options?.timeout);
       await new Promise((resolve) => setTimeout(resolve, 0));
       const selected = partitions[Math.max(0, partitionIndex)]!;
       const url = new URL("/results", input.entryUrl);
@@ -774,7 +890,9 @@ function talentbrewBrowser(input: {
       }
       if (selector === "#search-results") {
         return {
-          first: () => ({ waitFor: async () => undefined }),
+          first: () => ({ waitFor: async (options?: { timeout?: number }) => {
+            input.onTimeout?.(options?.timeout);
+          } }),
           count: async () => 1,
           getAttribute: async (name: string) => name === "data-current-page"
             ? String(pageIndex + 1)
@@ -812,7 +930,9 @@ function talentbrewBrowser(input: {
         return { count: async () => 1, isChecked: async () => false,
           getAttribute: async (name: string) => name === "data-display" ? id : name === "data-count" ? "0" : null };
       }
-      return { first: () => ({ waitFor: async () => undefined }) };
+      return { first: () => ({ waitFor: async (options?: { timeout?: number }) => {
+        input.onTimeout?.(options?.timeout);
+      } }) };
     }
   };
   return { newPage: async () => page as never, close: input.close };
