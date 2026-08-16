@@ -122,6 +122,7 @@ export const PLAN_BOUND_HTML_TRAVERSAL_POLICIES = Object.freeze({
     matchKeyKind: "JOB_DEDUPE_KEY",
     artifactLogicalKey: "source-kelun-social-browser-traversal-validation",
     readySelector: ".jobsTable tr:not(.title)",
+    readyState: "attached",
     rowSelector: ".jobsTable tr:not(.title)",
     nextSelector: "a.next:has-text('下一页')[href*='PageIndex=']",
     pageCoordinate: { kind: "QUERY", firstPath: "/social", pagePath: "/social/", parameter: "PageIndex" },

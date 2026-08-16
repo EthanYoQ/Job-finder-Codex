@@ -229,6 +229,25 @@ describe("plan-bound HTML rendered traversal", () => {
     expect(readinessStates).toEqual(["attached", "attached"]);
   });
 
+  it("accepts attached Kelun rows without requiring responsive CSS visibility", async () => {
+    const sourceId = "source-kelun-social" as const;
+    const entryUrl = PLAN_BOUND_HTML_TRAVERSAL_POLICIES[sourceId].entryUrl;
+
+    await expect(capturePlanBoundHtmlRenderedTraversal({
+      sourceId,
+      entryUrl,
+      launchBrowser: async () => pagedOfficialBrowser({
+        sourceId,
+        pageUrls: [entryUrl],
+        rowUrls: [["https://kelun.zhiye.com/job_show/57401"]],
+        close: async () => undefined,
+        requireReadyState: "attached"
+      })
+    })).resolves.toMatchObject({ pages: [{ pageNumber: 1, matchKeys: [
+      "source-kelun-social:https://kelun.zhiye.com/job_show/57401"
+    ] }] });
+  });
+
   it.each([
     { stage: "navigation" as const, expectedCode: "B_GRADE_BROWSER_NAVIGATION_FAILED" },
     { stage: "readiness" as const, expectedCode: "B_GRADE_BROWSER_READINESS_FAILED" }
@@ -688,6 +707,7 @@ function pagedOfficialBrowser(input: {
   inactiveNextFirst?: boolean;
   hiddenActiveNext?: boolean;
   requireCommitNavigation?: boolean;
+  requireReadyState?: "attached" | "visible";
   onGotoOptions?: (options: { waitUntil?: string; timeout?: number } | undefined) => void;
   onReadyWaitOptions?: (options: { state?: string; timeout?: number } | undefined) => void;
 }) {
@@ -729,6 +749,9 @@ function pagedOfficialBrowser(input: {
     locator: (selector: string) => selector === policy.rowSelector
       ? { evaluateAll: async () => input.rowUrls[pageIndex], first: () => ({ waitFor: async (options?: { state?: string; timeout?: number }) => {
           input.onReadyWaitOptions?.(options);
+          if (input.requireReadyState && options?.state !== input.requireReadyState) {
+            throw new Error(`expected ${input.requireReadyState} readiness`);
+          }
         } }) }
       : selector === policy.nextSelector
         ? {
