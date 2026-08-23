@@ -104,7 +104,7 @@ jobs:
           curl --fail --silent --show-error \
             -H 'Accept: application/vnd.github+json' \
             -H 'Authorization: Bearer ${{ github.token }}' \
-            https://api.github.com/repos/brave/brave-browser/releases/latest > .runtime/security/browser-release.json
+            https://api.github.com/repos/brave/brave-browser/releases/tags/v1.93.136 > .runtime/security/browser-release.json
           jq -e '.tag_name == "v1.93.136" and .draft == false and .prerelease == false and
             ([.assets[] | select(.name == "brave-browser_1.93.136_amd64.deb" and
             .browser_download_url == "https://github.com/brave/brave-browser/releases/download/v1.93.136/brave-browser_1.93.136_amd64.deb" and

@@ -357,6 +357,12 @@ describe("production container contract", () => {
     expect(workflow).toContain(".draft == false");
     expect(workflow).toContain(".prerelease == false");
     expect(workflow).toContain("Authorization: Bearer ${{ github.token }}");
+    expect(workflow).toContain(
+      "https://api.github.com/repos/brave/brave-browser/releases/tags/v1.93.136"
+    );
+    expect(workflow).not.toContain(
+      "https://api.github.com/repos/brave/brave-browser/releases/latest"
+    );
     expect(workflow).toContain("brave-browser_1.93.136_amd64.deb");
     expect(workflow).toContain("--read-only --cap-drop ALL --security-opt no-new-privileges:true");
     expect(workflow.match(
