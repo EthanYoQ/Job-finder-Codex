@@ -20,10 +20,10 @@ import {
 import { AUTHORIZED_PHASE1_EXCLUSION_COMPANY_IDS } from "../../src/data/phase1ScopePolicy";
 
 const BASELINE = {
-  rosterSha256: "6c5a6900a7c32984e30e43baf0e1ec45a16b8c7bd1440f1accd54ebd5c16031f",
-  surfaceOracleSha256: "31d178b78aa448285d1ab9b98ac935200ab9fb0a124a52b1dfc9751907b886a7",
-  stagedPlanSha256: "793f8b0f7fe8e096997d7cb48d9591a0cd299137cc798d59a5a3bcb564c59a99",
-  stagedConfigSetSha256: "f04101a2b8c0b22a703c77e4845666ff4512ee6241c0b5c6f6616ba47f218b3c"
+  rosterSha256: "4dbc06e732a0502e881aac9a5f80b7b07432330dd37628cdfde397a04cb541f0",
+  surfaceOracleSha256: "f87fe44fb43951d10d9b96809d684476cc4471a9842366beaf32eb93bd36f120",
+  stagedPlanSha256: "0bc62af5d382beccc7b9cdfd09f3d2b366a7f0444729ee89bb073ad55d2bc7f4",
+  stagedConfigSetSha256: "25756bfbea43c2818a55f7af5d36b4c8ef31666c9ec7e3cb39f321b81775ab13"
 } as const;
 
 const SHARED_CORE_SOURCE_ALLOWLIST: Readonly<Record<string, readonly string[]>> = {
@@ -181,6 +181,7 @@ describe("company recruitment profiles", () => {
       "source-msd-china-social",
       "source-pfizer-china-social",
       "source-roche-china-social",
+      "source-servier-china-social",
       "source-sinopharm-social",
       "source-united-lab-social"
     ]);

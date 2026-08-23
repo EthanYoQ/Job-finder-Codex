@@ -310,6 +310,7 @@ describe("MSD dual-official-source pagination", () => {
       capturedAt
     });
     const workdayRequests: number[] = [];
+    const workdayAppliedFacets: Array<Record<string, unknown>> = [];
     const phenomRequests: number[] = [];
     const fetch = createMsdDualOfficialSourceFetch({
       now: () => new Date(capturedAt),
@@ -333,12 +334,16 @@ describe("MSD dual-official-source pagination", () => {
           return jsonResponse({
             facets: [
               { facetParameter: "locations", values: [{ descriptor: "CHN - Shanghai", id: "china-location" }] },
-              { facetParameter: "workerSubType", values: [{ descriptor: "Regular", id: "regular-worker" }] }
+              { facetParameter: "workerSubType", values: [
+                { descriptor: "Regular", id: "regular-worker" },
+                { descriptor: "Temporary (Fixed Term)", id: "temporary-worker" }
+              ] }
             ]
           }, request.url);
         }
         const offset = body.offset ?? 0;
         workdayRequests.push(offset);
+        workdayAppliedFacets.push(body.appliedFacets ?? {});
         return jsonResponse({
           total: ids.length,
           jobPostings: ids.slice(offset, offset + (body.limit ?? 20)).map((id) => id === ids[0]
@@ -393,6 +398,10 @@ describe("MSD dual-official-source pagination", () => {
     expect(payload.jobPostings).toHaveLength(ids.length);
     expect(phenomRequests).toEqual([0, 100]);
     expect(workdayRequests).toEqual([0, 20, 40, 60, 80, 100]);
+    expect(workdayAppliedFacets).toEqual(Array.from(
+      { length: workdayRequests.length },
+      () => ({ locations: ["china-location"] })
+    ));
     expect(result.fetchEvidence.pages.map((page) => page.returnedPageSize)).toEqual(
       Array.from({ length: workdayRequests.length }, () => null)
     );

@@ -567,7 +567,7 @@ const CANDIDATE_SEEDS: CandidateSeed[] = [
     status: "VERIFIED_SCRAPABLE",
     atsKind: "MOKA",
     officialWebsiteUrl: "https://www.servier.com.cn/",
-    socialEntryUrl: "https://www.servier.com.cn/social-recruitment/shiweiya/47734",
+    socialEntryUrl: "https://app.mokahr.com/social-recruitment/shiweiya/47734",
     officialChainEvidenceUrl: "https://www.servier.com.cn/social-recruitment/shiweiya/47734",
     campusEntryUrl: "https://www.servier.com.cn/campus-recruitment/shiweiya/70032"
   },
@@ -962,7 +962,6 @@ function implementedAdapterFor(
   if (isVerifiedNonJobRecruitmentPage(sourceSeed)) return undefined;
   if ([
     "company-fosun-pharma",
-    "company-hansoh",
     "company-kelun"
   ].includes(seed.id)) return "html-table";
   if (OFFICIAL_JSON_ATS.has(sourceSeed.atsKind ?? "UNKNOWN")) return "official-json";

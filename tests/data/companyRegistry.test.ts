@@ -227,7 +227,7 @@ describe("60-company pharma registry", () => {
     });
     expect(byId.get("company-servier-china")?.sources[0]).toMatchObject({
       atsKind: "MOKA",
-      officialEntryUrl: "https://www.servier.com.cn/social-recruitment/shiweiya/47734",
+      officialEntryUrl: "https://app.mokahr.com/social-recruitment/shiweiya/47734",
       officialChainEvidenceUrl: "https://www.servier.com.cn/social-recruitment/shiweiya/47734",
       campusEntryUrl: "https://www.servier.com.cn/campus-recruitment/shiweiya/70032"
     });

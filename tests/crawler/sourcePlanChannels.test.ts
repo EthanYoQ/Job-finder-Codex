@@ -156,15 +156,18 @@ describe("executable source plan channel binding", () => {
     expect(() => validateExecutablePlanChannelBinding(plan!)).not.toThrow();
   });
 
-  it("preserves strict BEISEN HTML plan emission and legacy validator rejection", () => {
+  it("emits the current Hansoh Beisen JSON plan through strict and staged planning", () => {
     const sourceId = "source-hansoh-social";
     const fixture = resolvedStrictFixture(sourceId, [`source:${sourceId}:default`]);
     const [strictPlan] = buildSourceCrawlPlans([fixture.company], [fixture.surface]);
     const [stagedPlan] = buildStagedSourceCrawlPlans([fixture.company], [fixture.surface]);
 
-    expect(strictPlan?.adapterId).toBe("html-table");
+    expect(strictPlan?.adapterId).toBe("official-json");
+    expect(strictPlan).toMatchObject({
+      officialJsonFetch: { kind: "beisen-zhiye-2022", category: "1" }
+    });
     expect(strictPlan).not.toHaveProperty("executionAuthority");
-    expect(() => validateExecutablePlanChannelBinding(strictPlan!)).toThrow(/adapter does not match ATS kind/);
+    expect(() => validateExecutablePlanChannelBinding(strictPlan!)).not.toThrow();
     expect(stagedPlan).toHaveProperty("executionAuthority", "STAGED");
     expect(() => validateExecutablePlanChannelBinding(stagedPlan!)).not.toThrow();
   });

@@ -634,17 +634,20 @@ describe("source crawl planning", () => {
       .update(JSON.stringify(aliases), "utf8")
       .digest("hex");
     expect(jnjLocationPolicy.mainlandDescriptorAliases).toHaveLength(9);
-    expect(jnjLocationPolicy.foreignDescriptorAliases).toHaveLength(146);
+    expect(jnjLocationPolicy.foreignDescriptorAliases).toHaveLength(147);
+    expect(jnjLocationPolicy.foreignDescriptorAliases).toContain("Baja California (Any City)");
     expect(descriptorAliasesSha256(jnjLocationPolicy.mainlandDescriptorAliases))
       .toBe("e7820d1245ada112373ffbb699b44a330ab3023b1388729927866efd5ea8aa98");
     expect(descriptorAliasesSha256(jnjLocationPolicy.foreignDescriptorAliases))
-      .toBe("b05245857d8dc84d9aa51128d65133e4cd01df37fc1791b91f787265a8ba7325");
-    expect(bmsLocationPolicy.foreignSiteDescriptorAliases).toHaveLength(17);
+      .toBe("6c94e1e6ef84ccfd1c493389c53da7b291705944d9eabd4daf23fed0ed48c802");
+    expect(bmsLocationPolicy.foreignSiteDescriptorAliases).toHaveLength(18);
     expect(bmsLocationPolicy.foreignCountryDescriptorAliases).toHaveLength(3);
     expect(bmsLocationPolicy.foreignSiteDescriptorAliases)
       .toContain("WA04 PSA Celgene - Seattle Dexter Avenue - WA");
+    expect(bmsLocationPolicy.foreignSiteDescriptorAliases)
+      .toContain("CA15 San Diego RayzeBio");
     expect(descriptorAliasesSha256(bmsLocationPolicy.foreignSiteDescriptorAliases))
-      .toBe("5789cfd90d45a9216d511b7bade479db27f85334aeccaec45faeabaa577668f1");
+      .toBe("cdbca869fd5ea468966cb28241fa4949c5f7bfd91c74dc175d38135231fb556d");
     expect(descriptorAliasesSha256(bmsLocationPolicy.foreignCountryDescriptorAliases))
       .toBe("b985e9ec86bf6d391ec776ee9d1d16fbd7ba0335d9df43ea81b2de08d481da01");
     expect(bmsLocationCandidate.workday.opaqueMultiLocationDetailPolicy)
@@ -935,7 +938,7 @@ describe("source crawl planning", () => {
       adapterId: "official-json",
       source: {
         atsKind: "MOKA",
-        officialEntryUrl: "https://www.servier.com.cn/social-recruitment/shiweiya/47734"
+        officialEntryUrl: "https://app.mokahr.com/social-recruitment/shiweiya/47734"
       },
       moka: {
         expectedOrgId: "shiweiya",
@@ -1054,20 +1057,19 @@ describe("source crawl planning", () => {
       }
     });
     expect(getPlanBySourceId(plans, "source-hansoh-social")).toMatchObject({
-      adapterId: "html-table",
+      adapterId: "official-json",
       source: {
         atsKind: "BEISEN_ZHIYE",
         officialEntryUrl: "https://hspharm.zhiye.com/social",
         officialChainEvidenceUrl: "https://www.hansoh.cn/job/career-development.htm"
       },
-      table: {
-        pagination: {
-          totalPagesSelector: "a[href*='PageIndex=']:not([href*='PageIndex=0'])",
-          totalPagesPattern: "PageIndex=(\\d+)(?:&|$)",
-          totalPagesMode: "max",
-          pageSearchParam: "PageIndex",
-          expectedJobCountPattern: "共\\s*(\\d+)\\s*条记录"
-        }
+      officialJsonFetch: {
+        kind: "beisen-zhiye-2022",
+        geographyScope: "DOMESTIC_OFFICIAL_TENANT",
+        category: "1",
+        pageSize: 100,
+        maxPages: 10,
+        detailPath: "social/detail"
       }
     });
     expect(getPlanBySourceId(plans, "source-cttq-social")).toMatchObject({
@@ -1201,6 +1203,21 @@ describe("source crawl planning", () => {
     expect(plans.filter((plan) => plan.transportPolicy?.fallback === "BROWSER_SESSION")
       .map((plan) => plan.source.id)).toEqual(["source-lunan-social"]);
     expect(JSON.stringify(plans)).not.toContain("TAVILY");
+  });
+
+  it("routes Hansoh through the current official Beisen API instead of the obsolete legacy HTML table", () => {
+    const plans = buildStagedSourceCrawlPlans(candidateCompanies);
+    expect(getPlanBySourceId(plans, "source-hansoh-social")).toMatchObject({
+      adapterId: "official-json",
+      officialJsonFetch: {
+        kind: "beisen-zhiye-2022",
+        geographyScope: "DOMESTIC_OFFICIAL_TENANT",
+        category: "1",
+        pageSize: 100,
+        maxPages: 10,
+        detailPath: "social/detail"
+      }
+    });
   });
 
   it("rejects an executable plan whose transport policy is missing or tampered", () => {

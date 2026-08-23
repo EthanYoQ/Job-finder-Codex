@@ -114,6 +114,19 @@ describe("Moka source fetch", () => {
     vi.unstubAllGlobals();
   });
 
+  it("classifies a retryable Servier entry 504 as a safe transport failure", async () => {
+    const result = await createMokaSourceFetch({
+      http: async () => ({ status: 504, body: "upstream timeout" }),
+      now: () => new Date(capturedAt)
+    })(servierPlan);
+
+    expect(result).toMatchObject({
+      ok: false,
+      failureReason: "Official recruitment endpoint was temporarily unavailable (HTTP 504)",
+      transportFailure: { code: "OFFICIAL_HTTP_504", retryable: true }
+    });
+  });
+
   it("extracts Moka init data from the hidden input", () => {
     const initData = extractMokaInitData(
       htmlWithInitData({
@@ -427,7 +440,9 @@ describe("Moka source fetch", () => {
     ["site mismatch", 200, { id: "servier-1", orgId: "shiweiya", siteId: "70032", locations: [{ cityName: "北京市" }] }],
     ["site missing without profile authorization", 200, { id: "servier-1", orgId: "shiweiya", locations: [{ cityName: "北京市" }] }],
     ["missing location", 200, { id: "servier-1", orgId: "shiweiya", siteId: "47734", locations: [] }],
-    ["http failure", 503, { error: "unavailable" }]
+    ["rate limit", 429, { error: "rate limited" }],
+    ["temporary http failure", 503, { error: "unavailable" }],
+    ["non-retryable http failure", 404, { error: "not found" }]
   ])("fails closed and retains detail evidence on %s", async (_label, status, detail) => {
     const http: MokaHttpClient = async (request) => {
       if (request.method === "GET") {
@@ -462,6 +477,16 @@ describe("Moka source fetch", () => {
         fetchCounts: { rawCount: 1, parsedCount: 1, validCount: 0, parseDiscardCount: 0, validationDiscardCount: 1 }
       }
     });
+    if (status === 429 || status >= 500) {
+      expect(result).toMatchObject({
+        failureReason: status === 429
+          ? "Official recruitment endpoint temporarily rate limited the request (HTTP 429)"
+          : `Official recruitment endpoint was temporarily unavailable (HTTP ${status})`,
+        transportFailure: { code: `OFFICIAL_HTTP_${status}`, retryable: true }
+      });
+    } else {
+      expect(result).not.toHaveProperty("transportFailure");
+    }
   });
 
   it.each([

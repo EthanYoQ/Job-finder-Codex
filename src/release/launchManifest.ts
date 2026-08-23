@@ -102,7 +102,7 @@ const HTML_TABLE_COMPANY_IDS = new Set<string>([
   "company-csl-china", "company-viatris", "company-teva-china", "company-astellas-china",
   "company-otsuka-china", "company-grand-pharma",
   "company-fosun-pharma", "company-kelun", "company-tongrentang",
-  "company-buchang", "company-hansoh", "company-huahai"
+  "company-buchang", "company-huahai"
 ]);
 
 export const P0_LAUNCH_MANIFEST: LaunchManifest = {

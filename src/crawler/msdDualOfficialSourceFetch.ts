@@ -30,7 +30,6 @@ const MSD_WORKDAY_ENTRY_URL = "https://msd.wd5.myworkdayjobs.com/SearchJobs";
 const MSD_WORKDAY_JOBS_URL = "https://msd.wd5.myworkdayjobs.com/wday/cxs/msd/SearchJobs/jobs";
 const MSD_WORKDAY_APPLY_ORIGIN = "https://msd.wd5.myworkdayjobs.com";
 const MSD_COUNTRY_DESCRIPTOR = "China";
-const MSD_WORKER_SUBTYPE_DESCRIPTOR = "Regular";
 const MSD_PHENOM_PAGE_SIZE = 100;
 const MSD_WORKDAY_PAGE_SIZE = 20;
 const MSD_MAX_PAGES = 20;
@@ -43,7 +42,6 @@ export interface MsdDualOfficialFetchConfig {
   workdayJobsUrl: typeof MSD_WORKDAY_JOBS_URL;
   allowedApplyOrigins: readonly [typeof MSD_WORKDAY_APPLY_ORIGIN];
   countryDescriptor: typeof MSD_COUNTRY_DESCRIPTOR;
-  workerSubtypeDescriptor: typeof MSD_WORKER_SUBTYPE_DESCRIPTOR;
   pageSize: typeof MSD_PHENOM_PAGE_SIZE;
   workdayPageSize: typeof MSD_WORKDAY_PAGE_SIZE;
   maxPages: typeof MSD_MAX_PAGES;
@@ -57,7 +55,6 @@ export const MSD_DUAL_OFFICIAL_FETCH_CONFIG = Object.freeze({
   workdayJobsUrl: MSD_WORKDAY_JOBS_URL,
   allowedApplyOrigins: [MSD_WORKDAY_APPLY_ORIGIN] as const,
   countryDescriptor: MSD_COUNTRY_DESCRIPTOR,
-  workerSubtypeDescriptor: MSD_WORKER_SUBTYPE_DESCRIPTOR,
   pageSize: MSD_PHENOM_PAGE_SIZE,
   workdayPageSize: MSD_WORKDAY_PAGE_SIZE,
   maxPages: MSD_MAX_PAGES
@@ -126,7 +123,7 @@ export type MsdOfficialReconciliationResult =
 
 /**
  * Reconciles MSD's two public official systems without treating either one as
- * self-certifying. The exact China + Regular Workday result set is the formal
+ * self-certifying. The exact China-scoped Workday result set is the formal
  * denominator. The public MSD careers index corroborates matching records and
  * supplies their user-facing title, location and stable detail URL. A Workday-
  * only requisition is accepted only when its archived exact detail response
@@ -419,7 +416,6 @@ interface MsdCapture {
     request: MsdDualOfficialHttpRequest;
     response: MsdValidatedResponse;
     locationIds: string[];
-    workerSubtypeId: string;
     locator: string;
   };
   workdayPages: MsdCapturedPage[];
@@ -471,10 +467,7 @@ export function createMsdDualOfficialSourceFetch(
         "application/json"
       );
       const preflightRoot = strictJsonRecord(preflightResponse.body, "MSD_WORKDAY_PREFLIGHT_INVALID");
-      const workdayFacetSelection = deriveMsdWorkdayFacetSelection(
-        preflightRoot.facets,
-        config.workerSubtypeDescriptor
-      );
+      const workdayFacetSelection = deriveMsdWorkdayFacetSelection(preflightRoot.facets);
       const preflightLocator = requestContractV2Locator("msd-workday-facets-v1|json:$.facets", {
         family: "workday",
         role: "facet-preflight",
@@ -485,8 +478,7 @@ export function createMsdDualOfficialSourceFetch(
       });
 
       const appliedFacets = {
-        locations: workdayFacetSelection.locationIds,
-        workerSubType: [workdayFacetSelection.workerSubtypeId]
+        locations: workdayFacetSelection.locationIds
       };
       const workdayPages: MsdCapturedPage[] = [];
       const workdayRecords: Record<string, unknown>[] = [];
@@ -636,7 +628,6 @@ export function createMsdDualOfficialSourceFetch(
           request: preflightRequest,
           response: preflightResponse,
           locationIds: workdayFacetSelection.locationIds,
-          workerSubtypeId: workdayFacetSelection.workerSubtypeId,
           locator: preflightLocator
         },
         workdayPages,
@@ -987,10 +978,7 @@ function nonnegativeInteger(value: unknown, code: string): number {
   return value as number;
 }
 
-function deriveMsdWorkdayFacetSelection(
-  value: unknown,
-  workerSubtypeDescriptor: string
-): { locationIds: string[]; workerSubtypeId: string } {
+function deriveMsdWorkdayFacetSelection(value: unknown): { locationIds: string[] } {
   const groups = collectFacetGroups(value);
   const locationGroups = groups.filter((group) => group.facetParameter === "locations");
   const subtypeGroups = groups.filter((group) => group.facetParameter === "workerSubType");
@@ -998,16 +986,14 @@ function deriveMsdWorkdayFacetSelection(
     throw new MsdSourceError("MSD_WORKDAY_FACET_INVALID");
   }
   const locationValues = strictFacetValues(locationGroups[0]!.values);
-  const subtypeValues = strictFacetValues(subtypeGroups[0]!.values);
+  strictFacetValues(subtypeGroups[0]!.values);
   const locations = locationValues.filter((entry) => /^CHN\s*-/u.test(entry.descriptor));
-  const workerSubtypes = subtypeValues.filter((entry) => entry.descriptor === workerSubtypeDescriptor);
-  if (locations.length === 0 || workerSubtypes.length !== 1 ||
+  if (locations.length === 0 ||
     new Set(locations.map((entry) => entry.id)).size !== locations.length) {
     throw new MsdSourceError("MSD_WORKDAY_FACET_INVALID");
   }
   return {
-    locationIds: locations.map((entry) => entry.id).sort(compareUtf8),
-    workerSubtypeId: workerSubtypes[0]!.id
+    locationIds: locations.map((entry) => entry.id).sort(compareUtf8)
   };
 }
 
@@ -1160,10 +1146,7 @@ export function validateStrictMsdDualOfficialEvidence(
     assertMsdPageConfig(pageConfig, config);
 
     const preflightRoot = strictJsonRecord(preflight.body, "MSD_WORKDAY_PREFLIGHT_INVALID");
-    const facetSelection = deriveMsdWorkdayFacetSelection(
-      preflightRoot.facets,
-      config.workerSubtypeDescriptor
-    );
+    const facetSelection = deriveMsdWorkdayFacetSelection(preflightRoot.facets);
     const preflightBody = {
       appliedFacets: {}, limit: config.workdayPageSize, offset: 0, searchText: ""
     };
@@ -1192,8 +1175,7 @@ export function validateStrictMsdDualOfficialEvidence(
       evidence.pages.length !== workdayArtifacts.length) return false;
 
     const appliedFacets = {
-      locations: facetSelection.locationIds,
-      workerSubType: [facetSelection.workerSubtypeId]
+      locations: facetSelection.locationIds
     };
     const workdayRecords: Record<string, unknown>[] = [];
     const workdayPageRecords: Array<{

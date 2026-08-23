@@ -136,6 +136,7 @@ export const BMS_AUDITED_FOREIGN_SITE_DESCRIPTOR_ALIASES = [
   "CA09 PSA Celgene - Los Angeles - CA",
   "CA10 PSA - Brisbane - CA",
   "CA14 San Diego Morehouse",
+  "CA15 San Diego RayzeBio",
   "FL02 PSA Tampa - FL",
   "IN05 Indianapolis 80th Street",
   "MA01 PSA Cambridge Crossing - MA",
@@ -168,6 +169,7 @@ export const JNJ_AUDITED_MAINLAND_DESCRIPTOR_ALIASES = [
 export const JNJ_AUDITED_FOREIGN_DESCRIPTOR_ALIASES = [
   "Alaska (Any City)",
   "Arizona (Any City)",
+  "Baja California (Any City)",
   "California (Any City)",
   "Colorado (Any City)",
   "Connecticut (Any City)",

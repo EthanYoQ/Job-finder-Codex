@@ -13,6 +13,12 @@ import {
   type SourceFetchPageTrace
 } from "./sourceFetchEvidence";
 import { requestContractV2Locator } from "./strictPageRequestContract";
+import {
+  retryableHttpTransportFailure,
+  retryableTransportFailureFromError,
+  safeSourceTransportFailureReason,
+  type SourceTransportFailure
+} from "./sourceFetchFailure";
 
 export interface MokaInitData {
   aesIv: string;
@@ -78,7 +84,16 @@ export function createMokaSourceFetch(deps: MokaSourceFetchDeps = {}): SourceFet
         headers: { "User-Agent": "job-search-crawler/0.1" }
       });
       if (page.status < 200 || page.status >= 300) {
-        return failed(capturedAt, `Moka entry page returned HTTP ${page.status}`);
+        const transportFailure = retryableHttpTransportFailure(page.status);
+        return failed(
+          capturedAt,
+          transportFailure
+            ? safeSourceTransportFailureReason(transportFailure)
+            : `Moka entry page returned HTTP ${page.status}`,
+          undefined,
+          undefined,
+          transportFailure
+        );
       }
       previousResponseCapturedAtMs = assertEvidenceResponse(page, {
         expected: "entry",
@@ -142,7 +157,16 @@ export function createMokaSourceFetch(deps: MokaSourceFetchDeps = {}): SourceFet
         };
         const api = await http(listRequest);
         if (api.status < 200 || api.status >= 300) {
-          return failed(capturedAt, `Moka jobs API returned HTTP ${api.status}`);
+          const transportFailure = retryableHttpTransportFailure(api.status);
+          return failed(
+            capturedAt,
+            transportFailure
+              ? safeSourceTransportFailureReason(transportFailure)
+              : `Moka jobs API returned HTTP ${api.status}`,
+            latestEvidence,
+            latestEvaluation,
+            transportFailure
+          );
         }
         previousResponseCapturedAtMs = assertEvidenceResponse(api, {
           expected: "api",
@@ -265,6 +289,7 @@ export function createMokaSourceFetch(deps: MokaSourceFetchDeps = {}): SourceFet
               }
             };
             const detail = await http(detailRequest);
+            const detailTransportFailure = retryableHttpTransportFailure(detail.status);
             const detailLogicalKey = `moka-detail-${String(pageIndex).padStart(4, "0")}-${String(recordIndex).padStart(4, "0")}`;
             const detailExtractorLocator = requestContractV2Locator(
               `moka-detail-v2|request:jobId64=${Buffer.from(rawOfficialId, "utf8").toString("base64url")}`,
@@ -333,8 +358,12 @@ export function createMokaSourceFetch(deps: MokaSourceFetchDeps = {}): SourceFet
               });
               return failed(
                 capturedAt,
-                detailEvidenceFailure?.message ?? "Moka detail hydration failed closed",
-                latestEvidence
+                detailTransportFailure
+                  ? safeSourceTransportFailureReason(detailTransportFailure)
+                  : detailEvidenceFailure?.message ?? "Moka detail hydration failed closed",
+                latestEvidence,
+                undefined,
+                detailTransportFailure
               );
             }
             candidate = { ...raw, locations: detailValidation.locations };
@@ -519,11 +548,15 @@ export function createMokaSourceFetch(deps: MokaSourceFetchDeps = {}): SourceFet
         paginationEvaluation
       };
     } catch (error) {
+      const transportFailure = retryableTransportFailureFromError(error);
       return failed(
         capturedAt,
-        error instanceof Error ? error.message : String(error),
+        transportFailure
+          ? safeSourceTransportFailureReason(transportFailure)
+          : error instanceof Error ? error.message : String(error),
         latestEvidence,
-        latestEvaluation
+        latestEvaluation,
+        transportFailure
       );
     }
   };
@@ -1370,12 +1403,14 @@ function failed(
   capturedAt: string,
   failureReason: string,
   fetchEvidence?: PersistentSourceFetchEvidence,
-  paginationEvaluation?: ReturnType<typeof evaluatePaginationEvidence>
+  paginationEvaluation?: ReturnType<typeof evaluatePaginationEvidence>,
+  transportFailure?: SourceTransportFailure
 ): SourceFetchResult {
   return {
     ok: false,
     capturedAt,
     failureReason,
+    ...(transportFailure ? { transportFailure } : {}),
     ...(fetchEvidence ? { fetchEvidence } : {}),
     ...(paginationEvaluation ? { paginationEvaluation } : {})
   };

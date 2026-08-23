@@ -270,6 +270,7 @@ const CITY_MATCHES: ReadonlyArray<readonly [string, string]> = [
   ["Zhuhai", "珠海"],
   ["Tianjin", "天津"],
   ["Lanzhou", "兰州"],
+  ["Taiyuan", "太原"],
   ["Jiangsu", "江苏"],
   ["上海", "上海"],
   ["北京", "北京"],
@@ -293,7 +294,8 @@ const CITY_MATCHES: ReadonlyArray<readonly [string, string]> = [
   ["通化", "通化"],
   ["西宁", "西宁"],
   ["天津", "天津"],
-  ["兰州", "兰州"]
+  ["兰州", "兰州"],
+  ["太原", "太原"]
 ];
 const DEFAULT_BEISEN_ZHIYE_DISPLAY_FIELDS = [
   "Category",
@@ -7403,7 +7405,7 @@ function beisenSocialChannelMismatch(
   if (stringValue(raw.Category) !== "社会招聘") return "Category";
   if (hasOwn(raw, "CategoryId") && String(raw.CategoryId).trim() !== requestedCategory) return "CategoryId";
   const kind = stringValue(raw.Kind);
-  if (kind && /(?:校园|校招|实习|campus|intern)/iu.test(kind)) return "Kind";
+  if (kind && /(?:校园|校招|campus)/iu.test(kind)) return "Kind";
   return undefined;
 }
 

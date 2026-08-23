@@ -544,14 +544,29 @@ describe("Beisen Zhiye 2022 evidence instrumentation", () => {
     });
   });
 
+  it.each(["实习招聘", "实习", "实习生", "Intern", "Internship"])(
+    "keeps Kind=%s when the official response explicitly binds the job to the requested social channel",
+    async (kind) => {
+    const result = await createOfficialJsonSourceFetch({
+      now: () => new Date(NOW),
+      http: async () => response({
+        Code: 200,
+        Count: 1,
+        Data: [{ ...job("social-internship", ["陕西省·西安市"]), Kind: kind }]
+      })
+    })(plan());
+
+    expect(result).toMatchObject({
+      ok: true,
+      payload: { jobs: [{ title: "职位 social-internship", locationRaw: "陕西省·西安市" }] },
+      fetchEvidence: { fetchCounts: { rawCount: 1, validCount: 1, validationDiscardCount: 0 } }
+    });
+    }
+  );
+
   it.each([
     [{ Category: "校园招聘", CategoryId: "2", Kind: "全职" }],
     [{ Category: "社会招聘", CategoryId: "2", Kind: "全职" }],
-    [{ Category: "社会招聘", CategoryId: "1", Kind: "实习招聘" }],
-    [{ Category: "社会招聘", CategoryId: "1", Kind: "实习" }],
-    [{ Category: "社会招聘", CategoryId: "1", Kind: "实习生" }],
-    [{ Category: "社会招聘", CategoryId: "1", Kind: "Intern" }],
-    [{ Category: "社会招聘", CategoryId: "1", Kind: "Internship" }],
     [{ Category: "社会招聘", CategoryId: "1", Kind: "校园" }]
   ])("fails the whole source when a raw record leaks outside the requested social channel", async (override) => {
     const result = await createOfficialJsonSourceFetch({

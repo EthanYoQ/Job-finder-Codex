@@ -222,6 +222,35 @@ describe("official JSON rendered traversal", () => {
     expect(nhu.pages[0]?.rawRows[0]).toMatchObject({ rawPayload: { Id: nhuId } });
   });
 
+  it("accepts CSPC when the exact initial official response is already rendered", async () => {
+    const cspcId = "00000000-0000-4000-8000-000000000012";
+    const cspcPage = responsePage({
+      expectedOrigin: "https://ehr.e-cspc.com:8081",
+      path: "/RedseaPlatform/zhaopin/zpChannelQrCode/queryPostList.mob",
+      requestBody: new URLSearchParams({
+        channelQrId: "0beb3022-3214-4333-a2e7-20786c4916d5",
+        sortName: "zri.ext_rankNum",
+        peopleId: "",
+        root_id: "cspc",
+        shareStaff: "",
+        push_request_id: cspcId,
+        keyword: "",
+        ftl_list_stru_id: ""
+      }).toString(),
+      responseBody: { state: "1", total: "", jsonList: [{ REQUEST_ID: cspcId,
+        PUBLISH_NAME: "研发工程师", work_place: "上海市", UPDATE_TIME: "2026-08-14 00:00:00" }] },
+      renderedRows: ["1研发工程师1上海市--2026-08-14 00:00:00"],
+      cspcInitiallyRendered: true
+    });
+
+    await expect(captureOfficialJsonRenderedTraversal({
+      sourceId: "source-cspc-social",
+      entryUrl: OFFICIAL_JSON_RENDERED_TRAVERSAL_POLICIES["source-cspc-social"].entryUrl,
+      launchBrowser: async () => browser(cspcPage)
+    })).resolves.toMatchObject({ pages: [{ rawRows: [{ rawPayload: { REQUEST_ID: cspcId } }] }] });
+    expect(cspcPage.searchClicks).toBe(0);
+  });
+
   it("rejects response IDs outside CSPC UI candidates and narrowed request protocols", async () => {
     const cspcId = "00000000-0000-4000-8000-000000000020";
     const unrelatedId = "00000000-0000-4000-8000-000000000021";
@@ -597,6 +626,7 @@ function responsePage(input: {
   renderedRows?: readonly string[];
   cspcHasNext?: boolean;
   cspcClicksBeforeRender?: number;
+  cspcInitiallyRendered?: boolean;
   abortDuringRenderedRows?: AbortController;
   precedingOfficialRequestBody?: string;
 }) {
@@ -627,7 +657,8 @@ function responsePage(input: {
       getByText: () => ({ count: async () => 1, click: async () => { searchClicks += 1; } }),
       locator: (selector: string) => ({
         allTextContents: async () => {
-          const values = selector.includes("vxe-table") && searchClicks >= (input.cspcClicksBeforeRender ?? 1)
+          const values = selector.includes("vxe-table") &&
+              (input.cspcInitiallyRendered || searchClicks >= (input.cspcClicksBeforeRender ?? 1))
             ? [...(input.renderedRows ?? [])]
             : [];
           if (values.length > 0 && input.abortDuringRenderedRows && !input.abortDuringRenderedRows.signal.aborted) {

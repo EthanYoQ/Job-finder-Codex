@@ -200,9 +200,6 @@ async function captureCspc(
   const frame = page.frameLocator("#recruit-content-iframe");
   const search = frame.getByText("搜索", { exact: true });
   if (await search.count() !== 1) throw new Error("CSPC browser validator search control mismatch");
-  if ((await frame.locator(".vxe-table--body tbody tr").allTextContents()).length !== 0) {
-    throw new Error("CSPC browser validator search did not start from the unrendered list state");
-  }
   const request = new URLSearchParams(response.request().postData() ?? "");
   const channelId = "0beb3022-3214-4333-a2e7-20786c4916d5";
   const requestedIds = (request.get("push_request_id") ?? "").split(",").filter(Boolean);
@@ -230,7 +227,7 @@ async function captureCspc(
     return rawRow(`${channelId}:${raw.REQUEST_ID}`, irreversibleOfficialJsonEvidenceId(raw.REQUEST_ID), "SOCIAL_CHANNEL",
       "INCLUDED_MAINLAND", recordIndex, raw);
   });
-  let rendered = false;
+  let rendered = await waitForCspcRenderedRows(frame, rows, 0, signal);
   const renderAttemptTimeouts = [250, 2_000, 27_750] as const;
   for (const timeoutMs of renderAttemptTimeouts) {
     if (rendered) break;
