@@ -13,6 +13,7 @@ const CAPTURED_AT = "2026-07-15T00:01:00.000Z";
 const BMS_SOURCE_ID = "source-bms-china-social";
 const SEATTLE_ALIAS = "WA04 PSA Celgene - Seattle Dexter Avenue - WA";
 const SAN_DIEGO_RAYZEBIO_ALIAS = "CA15 San Diego RayzeBio";
+const DEVENS_ALIAS = "MA03 PSA Devens - MA";
 
 type OfficialJsonPlan = Extract<SourceCrawlPlan, { adapterId: "official-json" }>;
 
@@ -101,6 +102,7 @@ describe("BMS strict source-bound completeness replay", () => {
   it("verifies the canonical BMS fetch only after independently replaying its China, worker, and later-zero proof", async () => {
     expect(BMS_AUDITED_FOREIGN_SITE_DESCRIPTOR_ALIASES).toContain(SEATTLE_ALIAS);
     expect(BMS_AUDITED_FOREIGN_SITE_DESCRIPTOR_ALIASES).toContain(SAN_DIEGO_RAYZEBIO_ALIAS);
+    expect(BMS_AUDITED_FOREIGN_SITE_DESCRIPTOR_ALIASES).toContain(DEVENS_ALIAS);
     const plan = exactBmsPlan();
     const fetched = await exactBmsFetch(plan);
 

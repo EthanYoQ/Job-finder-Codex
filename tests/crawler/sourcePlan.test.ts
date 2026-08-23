@@ -634,20 +634,27 @@ describe("source crawl planning", () => {
       .update(JSON.stringify(aliases), "utf8")
       .digest("hex");
     expect(jnjLocationPolicy.mainlandDescriptorAliases).toHaveLength(9);
-    expect(jnjLocationPolicy.foreignDescriptorAliases).toHaveLength(147);
+    expect(jnjLocationPolicy.foreignDescriptorAliases).toHaveLength(150);
     expect(jnjLocationPolicy.foreignDescriptorAliases).toContain("Baja California (Any City)");
+    expect(jnjLocationPolicy.foreignDescriptorAliases).toContain("Coahuila (Any City)");
+    expect(jnjLocationPolicy.foreignDescriptorAliases)
+      .toContain("Olomouc, Olomoucky kraj, Czech Republic");
+    expect(jnjLocationPolicy.foreignDescriptorAliases)
+      .toContain("Ostrava, Moravskoslezsky kraj, Czech Republic");
     expect(descriptorAliasesSha256(jnjLocationPolicy.mainlandDescriptorAliases))
       .toBe("e7820d1245ada112373ffbb699b44a330ab3023b1388729927866efd5ea8aa98");
     expect(descriptorAliasesSha256(jnjLocationPolicy.foreignDescriptorAliases))
-      .toBe("6c94e1e6ef84ccfd1c493389c53da7b291705944d9eabd4daf23fed0ed48c802");
-    expect(bmsLocationPolicy.foreignSiteDescriptorAliases).toHaveLength(18);
+      .toBe("d67f67102ec24530f534396189b6d29a8c2b15da8de1d9775d248b30bd041708");
+    expect(bmsLocationPolicy.foreignSiteDescriptorAliases).toHaveLength(19);
     expect(bmsLocationPolicy.foreignCountryDescriptorAliases).toHaveLength(3);
     expect(bmsLocationPolicy.foreignSiteDescriptorAliases)
       .toContain("WA04 PSA Celgene - Seattle Dexter Avenue - WA");
     expect(bmsLocationPolicy.foreignSiteDescriptorAliases)
       .toContain("CA15 San Diego RayzeBio");
+    expect(bmsLocationPolicy.foreignSiteDescriptorAliases)
+      .toContain("MA03 PSA Devens - MA");
     expect(descriptorAliasesSha256(bmsLocationPolicy.foreignSiteDescriptorAliases))
-      .toBe("cdbca869fd5ea468966cb28241fa4949c5f7bfd91c74dc175d38135231fb556d");
+      .toBe("690dcab23f8c7fd8a1dfb0f2a824bd75cbb612a7eb5c24c0ea94629e4437eb79");
     expect(descriptorAliasesSha256(bmsLocationPolicy.foreignCountryDescriptorAliases))
       .toBe("b985e9ec86bf6d391ec776ee9d1d16fbd7ba0335d9df43ea81b2de08d481da01");
     expect(bmsLocationCandidate.workday.opaqueMultiLocationDetailPolicy)
