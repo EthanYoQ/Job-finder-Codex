@@ -243,6 +243,7 @@ const JNJ_AUDITED_FOREIGN_DESCRIPTOR_ALIASES = [
   "Bridgewater, New Jersey, United States of America",
   "Busan, Korea, Republic of",
   "GIMPO-SI, Korea, Republic of",
+  "Hwaseong-si, Gyeonggi-do, Korea, Republic of",
   "Pittsburgh, Pennsylvania, United States of America",
   "Trenton, New Jersey, United States of America",
   "Uşak",

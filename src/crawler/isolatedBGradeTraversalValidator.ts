@@ -29,9 +29,10 @@ const processResponseSchema = z.discriminatedUnion("decision", [
   }).strict()
 ]);
 
-const RETRIABLE_BROWSER_FAILURE_CODES = new Set<string>([
+const RETRIABLE_VALIDATOR_FAILURE_CODES = new Set<string>([
   "B_GRADE_BROWSER_NAVIGATION_FAILED",
-  "B_GRADE_BROWSER_READINESS_FAILED"
+  "B_GRADE_BROWSER_READINESS_FAILED",
+  "B_GRADE_VALIDATOR_EXECUTION_FAILED"
 ] as const);
 
 export function createIsolatedBGradeTraversalValidator(
@@ -47,14 +48,15 @@ export function createIsolatedBGradeTraversalValidator(
         if (signal?.aborted) {
           throw tagBGradeIndependentTraversalFailure(signal.reason, "B_GRADE_VALIDATOR_ABORTED");
         }
-        throw error;
+        if (attempt === 1) continue;
+        throw tagBGradeIndependentTraversalFailure(error, "B_GRADE_VALIDATOR_EXECUTION_FAILED");
       }
       if (signal?.aborted) {
         throw tagBGradeIndependentTraversalFailure(signal.reason, "B_GRADE_VALIDATOR_ABORTED");
       }
       const response = processResponseSchema.parse(JSON.parse(output));
       if (response.decision === "FAILED") {
-        if (attempt === 1 && RETRIABLE_BROWSER_FAILURE_CODES.has(response.failureCode)) {
+        if (attempt === 1 && RETRIABLE_VALIDATOR_FAILURE_CODES.has(response.failureCode)) {
           continue;
         }
         throw tagBGradeIndependentTraversalFailure(new Error(response.message), response.failureCode);

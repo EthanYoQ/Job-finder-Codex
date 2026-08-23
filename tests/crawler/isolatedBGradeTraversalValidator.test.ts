@@ -71,6 +71,69 @@ describe("isolated B-grade traversal validator", () => {
     expect(execute).toHaveBeenCalledTimes(2);
   });
 
+  it("retries one subprocess execution failure with a fresh process", async () => {
+    const expected = validation();
+    const execute = vi.fn()
+      .mockRejectedValueOnce(new Error("validator process exited without a result"))
+      .mockResolvedValueOnce(JSON.stringify({ decision: "SUCCEEDED", validation: expected }));
+    const run = createIsolatedBGradeTraversalValidator(execute);
+
+    await expect(run(input)).resolves.toEqual(expected);
+    expect(execute).toHaveBeenCalledTimes(2);
+  });
+
+  it("retries one typed validator execution failure returned by the subprocess", async () => {
+    const expected = validation();
+    const execute = vi.fn()
+      .mockResolvedValueOnce(JSON.stringify({
+        decision: "FAILED",
+        failureCode: "B_GRADE_VALIDATOR_EXECUTION_FAILED",
+        message: "browser process terminated before producing evidence"
+      }))
+      .mockResolvedValueOnce(JSON.stringify({ decision: "SUCCEEDED", validation: expected }));
+    const run = createIsolatedBGradeTraversalValidator(execute);
+
+    await expect(run(input)).resolves.toEqual(expected);
+    expect(execute).toHaveBeenCalledTimes(2);
+  });
+
+  it("stops after two subprocess execution failures with a closed failure code", async () => {
+    const execute = vi.fn(async () => {
+      throw new Error("validator process exited without a result");
+    });
+    const run = createIsolatedBGradeTraversalValidator(execute);
+
+    const error = await run(input).catch((caught: unknown) => caught);
+    expect(classifyBGradeIndependentTraversalFailure(error))
+      .toBe("B_GRADE_VALIDATOR_EXECUTION_FAILED");
+    expect(execute).toHaveBeenCalledTimes(2);
+  });
+
+  it("stops after two typed validator execution failures with the original closed code", async () => {
+    const execute = vi.fn(async () => JSON.stringify({
+      decision: "FAILED",
+      failureCode: "B_GRADE_VALIDATOR_EXECUTION_FAILED",
+      message: "browser process terminated before producing evidence"
+    }));
+    const run = createIsolatedBGradeTraversalValidator(execute);
+
+    const error = await run(input).catch((caught: unknown) => caught);
+    expect(classifyBGradeIndependentTraversalFailure(error))
+      .toBe("B_GRADE_VALIDATOR_EXECUTION_FAILED");
+    expect(execute).toHaveBeenCalledTimes(2);
+  });
+
+  it("never retries a successful envelope whose source binding is invalid", async () => {
+    const execute = vi.fn(async () => JSON.stringify({
+      decision: "SUCCEEDED",
+      validation: { ...validation(), sourceConfigSha256: "b".repeat(64) }
+    }));
+    const run = createIsolatedBGradeTraversalValidator(execute);
+
+    await expect(run(input)).rejects.toThrow("Isolated B-grade traversal result binding mismatch");
+    expect(execute).toHaveBeenCalledOnce();
+  });
+
   it("stops after two transient browser failures and never retries a policy failure", async () => {
     const readinessExecute = vi.fn(async () => JSON.stringify({
       decision: "FAILED",
