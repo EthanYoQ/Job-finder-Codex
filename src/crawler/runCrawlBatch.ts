@@ -40,6 +40,7 @@ import {
   transportFailureDiagnosticBundle
 } from "./sourceFailureDiagnostics";
 import { safeProfileBoundSourceFailureReason } from "./profileBoundSourceEvidence";
+import { isSafeHtmlFailureCode } from "./httpHtmlSourceFetch";
 import {
   bindRuntimeEvidenceArtifactIds,
   buildAtomicRuntimeCommit,
@@ -491,8 +492,11 @@ export async function runP0CrawlBatch(
 
       if (!crawlResult.truth.transportSuccess || !crawlResult.truth.adapterSuccess) {
         const transportFailed = !crawlResult.truth.transportSuccess;
-        const profileBoundFailureReason = crawlResult.status === "FAILED"
-          ? safeProfileBoundSourceFailureReason(plan, crawlResult.failureReason)
+        const boundedFailureReason = crawlResult.status === "FAILED"
+          ? safeProfileBoundSourceFailureReason(plan, crawlResult.failureReason) ??
+            (plan.adapterId === "html-table" && isSafeHtmlFailureCode(crawlResult.failureReason)
+              ? crawlResult.failureReason
+              : undefined)
           : undefined;
         await terminatePendingSourceResult({
           id: pending.id,
@@ -508,7 +512,7 @@ export async function runP0CrawlBatch(
           failureReason: transportFailed
             ? crawlResult.transportFailure
               ? safeSourceTransportFailureReason(crawlResult.transportFailure)
-              : profileBoundFailureReason ?? "Source transport failed"
+              : boundedFailureReason ?? "Source transport failed"
             : "Source adapter failed",
           ...(transportFailed
             ? transportFailureDiagnosticBundle(crawlResult.transportFailure, attemptTracker)

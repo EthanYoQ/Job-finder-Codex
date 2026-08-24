@@ -223,6 +223,7 @@ function buildPlans(
               source: plannedSource,
               ...channelBinding,
               table: config.table,
+              ...(config.transientRetryPolicy ? { transientRetryPolicy: config.transientRetryPolicy } : {}),
               transportPolicy: sourceTransportPolicy(config)
             };
 
@@ -382,7 +383,11 @@ export function validateExecutablePlanChannelBinding(plan: SourceCrawlPlan): voi
         ...(plan.moka ? { moka: plan.moka } : {}),
         ...(plan.transientRetryPolicy ? { transientRetryPolicy: plan.transientRetryPolicy } : {})
       }
-    : { adapterId: "html-table", table: plan.table };
+    : {
+        adapterId: "html-table",
+        table: plan.table,
+        ...(plan.transientRetryPolicy ? { transientRetryPolicy: plan.transientRetryPolicy } : {})
+      };
   if (!hasDeclaredTransportPolicy(plan.transportPolicy, sourceTransportPolicy(config))) {
     throw new Error("Executable source plan transport policy does not match its adapter configuration");
   }
@@ -522,7 +527,11 @@ function hasCanonicalStagedExecutionConfig(plan: SourceCrawlPlan): boolean {
         ...(plan.moka ? { moka: plan.moka } : {}),
         ...(plan.transientRetryPolicy ? { transientRetryPolicy: plan.transientRetryPolicy } : {})
       }
-    : { adapterId: "html-table", table: plan.table };
+    : {
+        adapterId: "html-table",
+        table: plan.table,
+        ...(plan.transientRetryPolicy ? { transientRetryPolicy: plan.transientRetryPolicy } : {})
+      };
   return representativeExecutionConfigJson(planExecutionConfig) === canonicalExecutionConfigJson;
 }
 

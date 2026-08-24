@@ -40,7 +40,7 @@ export function createIsolatedBGradeTraversalValidator(
 ): (input: ValidatorInput) => Promise<BGradeIndependentTraversalValidation> {
   return async (input) => {
     const { signal, ...serializableInput } = input;
-    for (let attempt = 1; attempt <= 2; attempt += 1) {
+    for (let attempt = 1; attempt <= 3; attempt += 1) {
       let output: string;
       try {
         output = await execute(serializableInput, signal);
@@ -56,7 +56,8 @@ export function createIsolatedBGradeTraversalValidator(
       }
       const response = processResponseSchema.parse(JSON.parse(output));
       if (response.decision === "FAILED") {
-        if (attempt === 1 && RETRIABLE_VALIDATOR_FAILURE_CODES.has(response.failureCode)) {
+        const maxAttempts = response.failureCode === "B_GRADE_BROWSER_READINESS_FAILED" ? 3 : 2;
+        if (attempt < maxAttempts && RETRIABLE_VALIDATOR_FAILURE_CODES.has(response.failureCode)) {
           continue;
         }
         throw tagBGradeIndependentTraversalFailure(new Error(response.message), response.failureCode);

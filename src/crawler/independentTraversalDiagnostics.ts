@@ -99,7 +99,7 @@ export function safeBGradeIndependentTraversalFailureReason(error: unknown): str
   const detail = normalized.split(":", 1)[0]?.trim() ?? "";
   return SAFE_VALIDATOR_MESSAGES.has(detail)
     ? `B-grade independent traversal failed: ${detail}`
-    : CLOSED_B_GRADE_FAILURE_REASON;
+    : `B-grade independent traversal failed: ${classifyBGradeIndependentTraversalFailure(error)}`;
 }
 
 export function isSafeBGradeIndependentTraversalFailureReason(value: unknown): boolean {
@@ -108,7 +108,7 @@ export function isSafeBGradeIndependentTraversalFailureReason(value: unknown): b
     return false;
   }
   const detail = value.slice("B-grade independent traversal failed: ".length);
-  return SAFE_VALIDATOR_MESSAGES.has(detail);
+  return SAFE_VALIDATOR_MESSAGES.has(detail) || B_GRADE_FAILURE_CODE_SET.has(detail);
 }
 
 function readTaggedFailureCode(error: unknown): BGradeIndependentTraversalFailureCode | undefined {

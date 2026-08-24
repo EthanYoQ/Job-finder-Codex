@@ -7,6 +7,7 @@ export const profile_sanofi_china = {
       sourceId: "source-sanofi-china-social",
       executionConfig: {
           adapterId: "html-table",
+          transientRetryPolicy: { maxRetries: 1, backoffMs: 10_000 },
           table: {
               rowSelector: "#search-results-list li:has(button.js-save-job-btn)",
               completenessProof: { kind: "CONFIGURED_CHANNEL_TRAVERSAL" },

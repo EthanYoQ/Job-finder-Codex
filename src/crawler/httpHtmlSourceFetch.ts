@@ -16,6 +16,11 @@ import {
 import { deriveCanonicalPaginationEvidence, evaluatePaginationEvidence } from "./paginationEvidence";
 import { requestContractV2Locator } from "./strictPageRequestContract";
 import { selectHtmlTableRows } from "./htmlTableRows";
+import {
+  retryableTransportFailureFromError,
+  safeSourceTransportFailureReason,
+  type SourceTransportFailure
+} from "./sourceFetchFailure";
 
 export interface HttpHtmlRequest {
   url: string;
@@ -132,7 +137,12 @@ export function createHttpHtmlSourceFetch(
         completeness: htmlCompleteness(plan.source.officialEntryUrl, pagination, pages.length)
       }, interactions, plan.table, capturedAt, "ordinary");
     } catch (error) {
-      const failure = failed(capturedAt, safeHtmlFailureCode(error));
+      const transportFailure = retryableTransportFailureFromError(error);
+      const failure = failed(
+        capturedAt,
+        transportFailure ? safeSourceTransportFailureReason(transportFailure) : safeHtmlFailureCode(error),
+        transportFailure
+      );
       return plan.adapterId === "html-table" && interactions.length > 0
         ? attachHtmlEvidence(failure, interactions, plan.table, capturedAt,
           plan.table.pagination?.ajaxMode ?? "ordinary")
@@ -1361,6 +1371,10 @@ const SAFE_HTML_FAILURE_CODES = new Set([
   "TALENTBREW_SCOPE_INVALID"
 ]);
 
+export function isSafeHtmlFailureCode(value: unknown): value is string {
+  return typeof value === "string" && SAFE_HTML_FAILURE_CODES.has(value);
+}
+
 function assessStaticPublicList(
   interactions: Array<{ request: HttpHtmlRequest; response: HttpHtmlResponse }>,
   table: HtmlTableConfig,
@@ -1540,10 +1554,15 @@ function isCertificateChainError(error: unknown): boolean {
   return code === "UNABLE_TO_VERIFY_LEAF_SIGNATURE";
 }
 
-function failed(capturedAt: string, failureReason: string): SourceFetchResult {
+function failed(
+  capturedAt: string,
+  failureReason: string,
+  transportFailure?: SourceTransportFailure
+): SourceFetchResult {
   return {
     ok: false,
     capturedAt,
-    failureReason
+    failureReason,
+    ...(transportFailure ? { transportFailure } : {})
   };
 }

@@ -71,6 +71,26 @@ describe("isolated B-grade traversal validator", () => {
     expect(execute).toHaveBeenCalledTimes(2);
   });
 
+  it("allows one additional fresh subprocess only for repeated browser readiness failures", async () => {
+    const expected = validation();
+    const execute = vi.fn()
+      .mockResolvedValueOnce(JSON.stringify({
+        decision: "FAILED",
+        failureCode: "B_GRADE_BROWSER_READINESS_FAILED",
+        message: "official list did not become ready"
+      }))
+      .mockResolvedValueOnce(JSON.stringify({
+        decision: "FAILED",
+        failureCode: "B_GRADE_BROWSER_READINESS_FAILED",
+        message: "official list did not become ready"
+      }))
+      .mockResolvedValueOnce(JSON.stringify({ decision: "SUCCEEDED", validation: expected }));
+    const run = createIsolatedBGradeTraversalValidator(execute);
+
+    await expect(run(input)).resolves.toEqual(expected);
+    expect(execute).toHaveBeenCalledTimes(3);
+  });
+
   it("retries one subprocess execution failure with a fresh process", async () => {
     const expected = validation();
     const execute = vi.fn()
@@ -134,7 +154,7 @@ describe("isolated B-grade traversal validator", () => {
     expect(execute).toHaveBeenCalledOnce();
   });
 
-  it("stops after two transient browser failures and never retries a policy failure", async () => {
+  it("stops after three readiness failures and never retries a policy failure", async () => {
     const readinessExecute = vi.fn(async () => JSON.stringify({
       decision: "FAILED",
       failureCode: "B_GRADE_BROWSER_READINESS_FAILED",
@@ -145,7 +165,7 @@ describe("isolated B-grade traversal validator", () => {
     const readinessError = await readinessRun(input).catch((caught: unknown) => caught);
     expect(classifyBGradeIndependentTraversalFailure(readinessError))
       .toBe("B_GRADE_BROWSER_READINESS_FAILED");
-    expect(readinessExecute).toHaveBeenCalledTimes(2);
+    expect(readinessExecute).toHaveBeenCalledTimes(3);
 
     const policyExecute = vi.fn(async () => JSON.stringify({
       decision: "FAILED",

@@ -77,6 +77,22 @@ const talentResults = (overrides: Record<string, string> = {}) => {
 };
 
 describe("official HTML fetch evidence", () => {
+  it("classifies a nested network exception without retaining upstream details", async () => {
+    const networkCause = Object.assign(new Error("private socket detail"), { code: "ECONNRESET" });
+    const result = await createHttpHtmlSourceFetch({
+      http: async () => {
+        throw new Error("private upstream response", { cause: networkCause });
+      }
+    })(base);
+
+    expect(result).toMatchObject({
+      ok: false,
+      failureReason: "Official recruitment network request failed",
+      transportFailure: { code: "OFFICIAL_NETWORK_ERROR", retryable: true }
+    });
+    expect(JSON.stringify(result)).not.toContain("private");
+  });
+
   it.each([
     [1, `<table>${row("one")}</table>`],
     [0, "<div id=\"empty\"></div>"]

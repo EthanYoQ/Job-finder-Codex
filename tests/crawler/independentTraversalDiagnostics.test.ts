@@ -31,7 +31,7 @@ describe("B-grade independent traversal diagnostics", () => {
       "B-grade independent traversal failed: Plan-bound HTML browser validator navigation failed"
     );
     expect(safeBGradeIndependentTraversalFailureReason(new Error("secret runtime detail"))).toBe(
-      "B-grade independent traversal failed at a closed diagnostic stage"
+      "B-grade independent traversal failed: B_GRADE_VALIDATOR_EXECUTION_FAILED"
     );
     expect(safeBGradeIndependentTraversalFailureReason(
       new Error("Qilu browser validator page declaration invalid")
