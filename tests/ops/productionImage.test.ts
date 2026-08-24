@@ -335,6 +335,18 @@ describe("production container contract", () => {
     expect(runner).not.toMatch(/sleep (?:4[3-9][0-9]{3,}|[5-9][0-9]{4,})/u);
   });
 
+  it("accepts an authoritative workflow-dispatch Round1 when resolving Round2", () => {
+    const workflow = read(".github/workflows/production-image.yml");
+    const resolveRoundStart = workflow.indexOf("name: Resolve Launch Cohort qualification round");
+    const resolveRoundEnd = workflow.indexOf("name: Export commit-bound Docker provenance");
+    const resolveRound = workflow.slice(resolveRoundStart, resolveRoundEnd);
+
+    expect(resolveRound).toContain('.workflowName == "Production image"');
+    expect(resolveRound).toContain('.conclusion == "success"');
+    expect(resolveRound).toContain(".headSha == $sha");
+    expect(resolveRound).toContain('(.event == "push" or .event == "workflow_dispatch")');
+  });
+
   it("reads the current staged authority using its direct return shape during formal state capture", () => {
     const source = read("scripts/p0-formal-qualification-state.ts");
     const stagedCli = read("src/crawler/stagedCrawlCli.ts");

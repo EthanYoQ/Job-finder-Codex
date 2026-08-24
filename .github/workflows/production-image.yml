@@ -49,7 +49,8 @@ jobs:
               --branch qualification/launch-cohort-round-1 --commit "$GITHUB_SHA" --status success --limit 20 \
               --json databaseId,createdAt,headSha,conclusion,workflowName,event)"
             ROUND_ONE_RUN_ID="$(printf '%s' "$RUNS" | jq -er --arg sha "$GITHUB_SHA" \
-              '[.[] | select(.workflowName == "Production image" and .event == "push" and
+              '[.[] | select(.workflowName == "Production image" and
+                (.event == "push" or .event == "workflow_dispatch") and
                 .conclusion == "success" and .headSha == $sha)] | sort_by(.createdAt) | last.databaseId')"
             test -n "$ROUND_ONE_RUN_ID"
             gh run download "$ROUND_ONE_RUN_ID" --repo "$GITHUB_REPOSITORY" \
