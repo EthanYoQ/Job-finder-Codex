@@ -1537,6 +1537,46 @@ describe("runP0CrawlBatch", () => {
     }));
   });
 
+  it("persists a bounded MSD stage failure code without making it retryable", async () => {
+    const plan = planFor("source-msd-china-social");
+    const db = fakeDb();
+    const delegate = vi.fn(async () => ({
+      ok: false as const,
+      capturedAt: CAPTURED_AT,
+      failureReason: "MSD_ENTRY_FETCH_FAILED"
+    }));
+    const fetch = createSourceFetchRouter({
+      moka: delegate,
+      profileBoundSource: delegate,
+      fallback: delegate,
+      delay: async () => undefined
+    });
+
+    await runP0CrawlBatch([plan], {
+      db,
+      fetch,
+      now: NOW,
+      identity: identityForPlans([plan]),
+      getPreviousJobs: async () => [],
+      getRecentObservations: async () => [],
+      isBaselineCompleted: async () => true
+    });
+
+    expect(delegate).toHaveBeenCalledTimes(1);
+    expect(db.calls.terminalSourceResults).toContainEqual(expect.objectContaining({
+      data: expect.objectContaining({
+        transportState: "FAILED",
+        adapterState: "SKIPPED",
+        failureCode: "SOURCE_TRANSPORT_FAILED",
+        failureReason: "MSD_ENTRY_FETCH_FAILED",
+        failureCategory: "UNCLASSIFIED_SOURCE_FAILURE",
+        failureDiagnosticCode: "FETCH_FAILED_CLOSED",
+        fetchAttemptCount: 1,
+        retryCount: 0
+      })
+    }));
+  });
+
   it("persists successful fetch attempt counts when a closed-code retry recovers", async () => {
     const plan = planFor("source-roche-china-social");
     const db = fakeDb();

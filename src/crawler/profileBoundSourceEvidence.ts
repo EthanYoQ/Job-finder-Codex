@@ -1,6 +1,7 @@
 import { getStrictLivzonCeccNetworkPolicy, validateStrictLivzonCeccEvidence } from "./livzonCeccEvidenceVerifier";
 import {
   getStrictMsdDualOfficialNetworkPolicy,
+  isSafeMsdDualOfficialFailureCode,
   validateStrictMsdDualOfficialEvidence
 } from "./msdDualOfficialSourceFetch";
 import type { NormalizedJobRecord } from "./normalizedJob";
@@ -150,11 +151,20 @@ export function safeProfileBoundSourceFailureReason(
   plan: SourceCrawlPlan,
   failureReason: unknown
 ): string | undefined {
-  if (plan.adapterId !== "official-json" ||
-    plan.company.id !== "company-sinopharm" ||
-    plan.source.id !== "source-sinopharm-social" ||
-    plan.source.companyId !== "company-sinopharm" ||
-    plan.profileBoundSource?.kind !== "sinopharm-iguopin" ||
-    !isSafeSinopharmIguopinFailureCode(failureReason)) return undefined;
-  return failureReason;
+  if (plan.adapterId !== "official-json") return undefined;
+  if (
+    plan.company.id === "company-sinopharm" &&
+    plan.source.id === "source-sinopharm-social" &&
+    plan.source.companyId === "company-sinopharm" &&
+    plan.profileBoundSource?.kind === "sinopharm-iguopin" &&
+    isSafeSinopharmIguopinFailureCode(failureReason)
+  ) return failureReason;
+  if (
+    plan.company.id === "company-msd-china" &&
+    plan.source.id === "source-msd-china-social" &&
+    plan.source.companyId === "company-msd-china" &&
+    plan.profileBoundSource?.kind === "msd-dual-official" &&
+    isSafeMsdDualOfficialFailureCode(failureReason)
+  ) return failureReason;
+  return undefined;
 }

@@ -34,6 +34,46 @@ const MSD_PHENOM_PAGE_SIZE = 100;
 const MSD_WORKDAY_PAGE_SIZE = 20;
 const MSD_MAX_PAGES = 20;
 
+type MsdFailureStage = "ENTRY" | "WORKDAY_PREFLIGHT" | "WORKDAY_PAGE" | "PHENOM_PAGE" | "WORKDAY_DETAIL";
+
+const SAFE_MSD_DUAL_OFFICIAL_FAILURE_CODES: ReadonlySet<string> = new Set([
+  "MSD_DUAL_OFFICIAL_FETCH_FAILED",
+  "MSD_DUPLICATE_OFFICIAL_ID",
+  "MSD_ENTRY_FETCH_FAILED",
+  "MSD_HTTP_RESPONSE_INVALID",
+  "MSD_INVALID_OFFICIAL_RECORD",
+  "MSD_NON_OFFICIAL_URL",
+  "MSD_OUT_OF_SCOPE",
+  "MSD_PAGINATION_EVIDENCE_UNSAFE",
+  "MSD_PHENOM_ENTRY_CONFIG_INVALID",
+  "MSD_PHENOM_MAX_PAGES_REACHED",
+  "MSD_PHENOM_PAGE_FETCH_FAILED",
+  "MSD_PHENOM_PAGE_INVALID",
+  "MSD_PHENOM_PAGINATION_DRIFT",
+  "MSD_PHENOM_TOTAL_INVALID",
+  "MSD_PHENOM_TOTAL_NOT_CLOSED",
+  "MSD_PLAN_BINDING_INVALID",
+  "MSD_RECONCILIATION_OUTPUT_MISMATCH",
+  "MSD_UNKNOWN_OFFICIAL_SET_DIFFERENCE",
+  "MSD_WORKDAY_DETAIL_FETCH_FAILED",
+  "MSD_WORKDAY_DETAIL_INVALID",
+  "MSD_WORKDAY_FACET_INVALID",
+  "MSD_WORKDAY_ID_INVALID",
+  "MSD_WORKDAY_MAX_PAGES_REACHED",
+  "MSD_WORKDAY_PAGE_FETCH_FAILED",
+  "MSD_WORKDAY_PAGE_INVALID",
+  "MSD_WORKDAY_PAGE_MISSING",
+  "MSD_WORKDAY_PAGINATION_DRIFT",
+  "MSD_WORKDAY_PREFLIGHT_FETCH_FAILED",
+  "MSD_WORKDAY_PREFLIGHT_INVALID",
+  "MSD_WORKDAY_TOTAL_INVALID",
+  "MSD_WORKDAY_TOTAL_NOT_CLOSED"
+]);
+
+export function isSafeMsdDualOfficialFailureCode(value: unknown): value is string {
+  return typeof value === "string" && SAFE_MSD_DUAL_OFFICIAL_FAILURE_CODES.has(value);
+}
+
 export interface MsdDualOfficialFetchConfig {
   officialSearchUrl: typeof MSD_OFFICIAL_SEARCH_URL;
   officialDetailBaseUrl: typeof MSD_OFFICIAL_DETAIL_BASE_URL;
@@ -444,6 +484,7 @@ export function createMsdDualOfficialSourceFetch(
     const entryHttp = deps.entryHttp ?? defaultMsdHttpClient;
     const workdayHttp = deps.workdayHttp ?? defaultMsdHttpClient;
     const phenomHttp = deps.phenomHttp ?? defaultMsdHttpClient;
+    let failureStage: MsdFailureStage = "ENTRY";
 
     try {
       const entryRequest = msdGetRequest(config.officialSearchUrl);
@@ -459,6 +500,7 @@ export function createMsdDualOfficialSourceFetch(
       const preflightBody = JSON.stringify({
         appliedFacets: {}, limit: config.workdayPageSize, offset: 0, searchText: ""
       });
+      failureStage = "WORKDAY_PREFLIGHT";
       const preflightRequest = msdPostRequest(config.workdayJobsUrl, preflightBody, config.workdayEntryUrl);
       const preflightResponse = validateMsdResponse(
         preflightRequest,
@@ -484,6 +526,7 @@ export function createMsdDualOfficialSourceFetch(
       const workdayRecords: Record<string, unknown>[] = [];
       let workdayTotal: number | undefined;
       for (let pageIndex = 0; pageIndex < config.maxPages; pageIndex += 1) {
+        failureStage = "WORKDAY_PAGE";
         const requestedOffset = pageIndex * config.workdayPageSize;
         const body = JSON.stringify({
           appliedFacets,
@@ -531,6 +574,7 @@ export function createMsdDualOfficialSourceFetch(
       const phenomRecords: Record<string, unknown>[] = [];
       let phenomTotal: number | undefined;
       for (let pageIndex = 0; pageIndex < config.maxPages; pageIndex += 1) {
+        failureStage = "PHENOM_PAGE";
         const requestedOffset = pageIndex * config.pageSize;
         const body = JSON.stringify(msdPhenomRequestBody(
           pageConfig,
@@ -580,6 +624,7 @@ export function createMsdDualOfficialSourceFetch(
           item.officialId !== undefined && !phenomIds.has(item.officialId))
         .sort((left, right) => compareUtf8(left.officialId, right.officialId));
       for (let detailIndex = 0; detailIndex < workdayOnlyRecords.length; detailIndex += 1) {
+        failureStage = "WORKDAY_DETAIL";
         const { record, officialId } = workdayOnlyRecords[detailIndex]!;
         const externalPath = stringField(record, "externalPath");
         const detailUrl = externalPath
@@ -661,7 +706,7 @@ export function createMsdDualOfficialSourceFetch(
         : retryableTransportFailureFromError(error);
       return failedMsd(
         capturedAt,
-        safeMsdFailureCode(error),
+        safeMsdFailureCode(error, failureStage),
         undefined,
         undefined,
         transportFailure
@@ -1384,8 +1429,9 @@ function failedMsd(
   };
 }
 
-function safeMsdFailureCode(error: unknown): string {
-  return error instanceof MsdSourceError ? error.code : "MSD_DUAL_OFFICIAL_FETCH_FAILED";
+function safeMsdFailureCode(error: unknown, stage: MsdFailureStage): string {
+  if (error instanceof MsdSourceError && isSafeMsdDualOfficialFailureCode(error.code)) return error.code;
+  return `MSD_${stage}_FETCH_FAILED`;
 }
 
 async function defaultMsdHttpClient(

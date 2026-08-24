@@ -293,6 +293,22 @@ describe("MSD dual-official-source pagination", () => {
     });
   });
 
+  it("classifies an unrecognized official-entry exception by stage without retaining its message", async () => {
+    const plan = buildStagedSourceCrawlPlans(candidateCompanies)
+      .find((candidate) => candidate.source.id === "source-msd-china-social");
+    const result = await createMsdDualOfficialSourceFetch({
+      entryHttp: async () => {
+        throw new Error("private upstream response details");
+      }
+    })(plan!);
+
+    expect(result).toMatchObject({
+      ok: false,
+      failureReason: "MSD_ENTRY_FETCH_FAILED"
+    });
+    expect(JSON.stringify(result)).not.toContain("private upstream response details");
+  });
+
   it("accepts a short final Phenom page and requests every dynamic offset exactly once", async () => {
     const ids = Array.from({ length: 101 }, (_, index) => `REQ-PAGE-${index + 1}`);
     const placeholderId = "SYNTHETIC-PLACEHOLDER";

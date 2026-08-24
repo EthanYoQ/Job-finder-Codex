@@ -4561,6 +4561,105 @@ describe("createWorkdaySourceFetch", () => {
     ]);
   });
 
+  it("accepts a lower exact facet preflight total after the authorized location boundary", async () => {
+    const bodies: Array<Record<string, unknown>> = [];
+    const fetcher = createWorkdaySourceFetch({
+      now: () => new Date("2026-08-24T08:00:00.000Z"),
+      http: async (request) => {
+        const body = JSON.parse(request.body) as Record<string, unknown>;
+        bodies.push(body);
+        const appliedFacets = body.appliedFacets as Record<string, string[]>;
+        if (bodies.length === 1) {
+          return response({
+            total: 46,
+            jobPostings: [],
+            facets: [{
+              facetParameter: "locations",
+              descriptor: "Locations",
+              values: [{ descriptor: "Shanghai, China", id: "shanghai-id", count: 46 }]
+            }]
+          }, "2026-08-24T08:00:01.000Z");
+        }
+        if (!appliedFacets.workerSubType) {
+          return response({
+            total: 45,
+            jobPostings: [],
+            facets: [{
+              facetParameter: "workerSubType",
+              descriptor: "Job Type",
+              values: [
+                { descriptor: "Fixed Term (Fixed Term)", id: "fixed-id", count: 1 },
+                { descriptor: "Permanent", id: "permanent-id", count: 44 }
+              ]
+            }]
+          }, "2026-08-24T08:00:02.000Z");
+        }
+        const offset = typeof body.offset === "number" ? body.offset : 0;
+        const jobs = Array.from({ length: 45 }, (_, index) => ({
+          title: `Role ${index + 1}`,
+          externalPath: `/job/China/role-${index + 1}`,
+          locationsText: "Shanghai, China",
+          workerSubType: index === 0 ? "Fixed Term (Fixed Term)" : "Permanent"
+        }));
+        return response({
+          total: 45,
+          jobPostings: jobs.slice(offset, offset + 20)
+        }, "2026-08-24T08:00:03.000Z");
+      }
+    });
+
+    const result = await fetcher({
+      ...plan,
+      workday: {
+        tenant: "pfizer",
+        site: "PfizerCareers",
+        searchText: "China",
+        facetDescriptorBoundary: {
+          facetParameter: "workerSubType",
+          allowedDescriptors: ["Fixed Term (Fixed Term)", "Permanent"]
+        },
+        pageSize: 20,
+        maxPages: 3
+      }
+    });
+
+    expect(result).toMatchObject({
+      ok: true,
+      completeness: { expectedJobCount: 45 },
+      fetchEvidence: {
+        declaredCompleteness: { value: 45, artifactLogicalKey: "workday-page-0000" }
+      }
+    });
+    expect(bodies).toEqual([
+      { appliedFacets: {}, limit: 20, offset: 0 },
+      { appliedFacets: { locations: ["shanghai-id"] }, limit: 20, offset: 0 },
+      {
+        appliedFacets: {
+          locations: ["shanghai-id"],
+          workerSubType: ["fixed-id", "permanent-id"]
+        },
+        limit: 20,
+        offset: 0
+      },
+      {
+        appliedFacets: {
+          locations: ["shanghai-id"],
+          workerSubType: ["fixed-id", "permanent-id"]
+        },
+        limit: 20,
+        offset: 20
+      },
+      {
+        appliedFacets: {
+          locations: ["shanghai-id"],
+          workerSubType: ["fixed-id", "permanent-id"]
+        },
+        limit: 20,
+        offset: 40
+      }
+    ]);
+  });
+
   it("fails before worker-type derivation when its preflight total exceeds the location-derived baseline", async () => {
     let requestNumber = 0;
     const fetcher = createWorkdaySourceFetch({
@@ -4608,7 +4707,7 @@ describe("createWorkdaySourceFetch", () => {
       }
     })).resolves.toMatchObject({
       ok: false,
-      failureReason: expect.stringContaining("social facet preflight total 2 did not match location-derived total 1"),
+      failureReason: expect.stringContaining("social facet preflight total 2 exceeded location-derived total 1"),
       fetchEvidence: {
         artifacts: [
           { logicalKey: "workday-preflight-0000" },

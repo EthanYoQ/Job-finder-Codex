@@ -741,11 +741,13 @@ export function createWorkdaySourceFetch(deps: WorkdaySourceFetchDeps = {}): Sou
           })));
         latestEvidence = workdaySupportingArtifactEvidence(artifacts, "FACET_DERIVATION_FAILED");
         const parsedFacetPreflight = parseWorkdayJobsResponse(facetPreflight.body);
-        if (locationDerivedTotal !== undefined && parsedFacetPreflight.total !== locationDerivedTotal) {
+        if (locationDerivedTotal !== undefined &&
+            parsedFacetPreflight.total !== undefined &&
+            parsedFacetPreflight.total > locationDerivedTotal) {
           latestEvidence = workdaySupportingArtifactEvidence(artifacts, "FACET_FILTER_VALIDATION_FAILED");
           return failed(
             capturedAt,
-            `Workday social facet preflight total ${String(parsedFacetPreflight.total)} did not match location-derived total ${locationDerivedTotal}`,
+            `Workday social facet preflight total ${String(parsedFacetPreflight.total)} exceeded location-derived total ${locationDerivedTotal}`,
             latestEvidence
           );
         }
