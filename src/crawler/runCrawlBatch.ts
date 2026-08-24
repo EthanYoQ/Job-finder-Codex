@@ -71,6 +71,7 @@ import {
 import { runIsolatedBGradeTraversalValidator } from "./isolatedBGradeTraversalValidator";
 import {
   classifyBGradeIndependentTraversalFailure,
+  safeBGradeIndependentTraversalFailureReason,
   type BGradeIndependentTraversalFailureCode
 } from "./independentTraversalDiagnostics";
 import { requiresAGradeOfficialTotalCertificate } from "./completenessCertificate";
@@ -414,6 +415,7 @@ export async function runP0CrawlBatch(
       let independentTraversalValidationExecution: "CURRENT_RUN" | "REUSED" | undefined;
       let independentTraversalValidationTrigger: BGradeValidationTrigger | undefined;
       let independentTraversalFailureCode: BGradeIndependentTraversalFailureCode | undefined;
+      let independentTraversalFailureReason: string | undefined;
       const anomaly = certificateBaselineRequired
         ? evaluateCompletenessAnomalyForCrawl(plan, crawlResult, trustedCompletenessBaseline)
         : { independentValidationRequired: false, triggerCodes: [], countChange: null };
@@ -471,6 +473,7 @@ export async function runP0CrawlBatch(
               independentTraversalValidation = undefined;
               independentTraversalValidationExecution = undefined;
               independentTraversalFailureCode = classifyBGradeIndependentTraversalFailure(error);
+              independentTraversalFailureReason = safeBGradeIndependentTraversalFailureReason(error);
             } finally {
               clearTimeout(independentTraversalTimer);
             }
@@ -556,6 +559,7 @@ export async function runP0CrawlBatch(
           result: crawlResult, previousJobs, baselineCompletedBeforeCrawl, artifacts: verifiedArtifacts,
           attemptTracker,
           ...(independentTraversalFailureCode ? { independentTraversalFailureCode } : {}),
+          ...(independentTraversalFailureReason ? { independentTraversalFailureReason } : {}),
           ...(independentTraversalValidation ? {
             independentTraversalValidation,
             independentTraversalValidationExecution: independentTraversalValidationExecution!,

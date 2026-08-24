@@ -1,5 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { classifyBGradeIndependentTraversalFailure } from "../../src/crawler/independentTraversalDiagnostics";
+import {
+  classifyBGradeIndependentTraversalFailure,
+  safeBGradeIndependentTraversalFailureReason
+} from "../../src/crawler/independentTraversalDiagnostics";
 
 describe("B-grade independent traversal diagnostics", () => {
   it("classifies browser navigation failures without exposing the raw error", () => {
@@ -17,6 +20,24 @@ describe("B-grade independent traversal diagnostics", () => {
   it("fails closed with a generic code for an unrecognized error", () => {
     expect(classifyBGradeIndependentTraversalFailure(new Error("secret runtime detail")))
       .toBe("B_GRADE_VALIDATOR_EXECUTION_FAILED");
+  });
+
+  it("retains an allowlisted validator stage while removing dynamic secret-bearing detail", () => {
+    const failure = new Error(
+      "Plan-bound HTML browser validator navigation failed: https://secret.invalid/jobs?token=private"
+    );
+
+    expect(safeBGradeIndependentTraversalFailureReason(failure)).toBe(
+      "B-grade independent traversal failed: Plan-bound HTML browser validator navigation failed"
+    );
+    expect(safeBGradeIndependentTraversalFailureReason(new Error("secret runtime detail"))).toBe(
+      "B-grade independent traversal failed at a closed diagnostic stage"
+    );
+    expect(safeBGradeIndependentTraversalFailureReason(
+      new Error("Qilu browser validator page declaration invalid")
+    )).toBe(
+      "B-grade independent traversal failed: Qilu browser validator page declaration invalid"
+    );
   });
 
   it("maps validator failures to the closed diagnostic stages used by exact-source diagnostics", () => {

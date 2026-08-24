@@ -6,7 +6,10 @@ import type {
 import type { RuntimeBatchIdentity } from "./runtimeBatchIdentity";
 import { sourcePlanConfigSha256, type SourceCrawlPlan } from "./sourcePlan";
 import type { SourceCrawlResult, SourceFetchAttemptTracker } from "./runSourceCrawl";
-import type { BGradeIndependentTraversalFailureCode } from "./independentTraversalDiagnostics";
+import {
+  isSafeBGradeIndependentTraversalFailureReason,
+  type BGradeIndependentTraversalFailureCode
+} from "./independentTraversalDiagnostics";
 import { applyCrawlObservation, type JobSnapshot } from "./lifecycle";
 import { buildIngestionCommands } from "./ingestion";
 import { buildJobDedupeKey } from "./normalizedJob";
@@ -211,6 +214,7 @@ export function buildAtomicRuntimeCommit(input: {
   independentTraversalValidationExecution?: "CURRENT_RUN" | "REUSED";
   independentTraversalValidationTrigger?: BGradeValidationTrigger;
   independentTraversalFailureCode?: BGradeIndependentTraversalFailureCode;
+  independentTraversalFailureReason?: string;
   completedAt?: Date;
   trustedCompletenessBaseline?: TrustedCompletenessBaseline | null;
   completenessAnomalyTriggerCodes?: readonly string[];
@@ -220,6 +224,11 @@ export function buildAtomicRuntimeCommit(input: {
     throw new Error("atomic runtime commit requires successful transport, adapter and strict fetch evidence");
   }
   const attemptTracker = input.attemptTracker ?? { fetchAttemptCount: 1, retryCount: 0, retryReasonCodes: [] };
+  if (input.independentTraversalFailureReason !== undefined &&
+      (input.independentTraversalFailureCode === undefined ||
+       !isSafeBGradeIndependentTraversalFailureReason(input.independentTraversalFailureReason))) {
+    throw new Error("independent traversal failure reason must be closed and code-bound");
+  }
   if (!Number.isSafeInteger(attemptTracker.fetchAttemptCount) || attemptTracker.fetchAttemptCount < 1 ||
       !Number.isSafeInteger(attemptTracker.retryCount) || attemptTracker.retryCount < 0 ||
       attemptTracker.retryCount >= attemptTracker.fetchAttemptCount ||
@@ -353,7 +362,8 @@ export function buildAtomicRuntimeCommit(input: {
       ? `Completeness anomaly requires successful independent validation: ${completenessAnomalyTriggerCodes.join(",")}`
       : certificateRequired && !certificateCertified
       ? input.independentTraversalFailureCode
-        ? "B-grade independent traversal failed at a closed diagnostic stage"
+        ? input.independentTraversalFailureReason ??
+          "B-grade independent traversal failed at a closed diagnostic stage"
         : `${aGradeCertificateRequired ? "A-grade official-total" : "B-grade independent-traversal"} certificate was not issued: ${certificateDecision?.status === "REJECTED"
           ? certificateDecision.blockerCodes.join(",")
           : aGradeCertificateRequired ? "PAGINATION_NOT_VERIFIED" : "INDEPENDENT_VALIDATION_MISSING"}`

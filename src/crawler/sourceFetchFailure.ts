@@ -7,6 +7,7 @@ type DecimalDigit = 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9;
 
 export type RetryableSourceTransportFailureCode =
   | "OFFICIAL_HTTP_TIMEOUT"
+  | "OFFICIAL_NETWORK_ERROR"
   | "OFFICIAL_HTTP_429"
   | `OFFICIAL_HTTP_5${DecimalDigit}${DecimalDigit}`;
 
@@ -22,7 +23,22 @@ export interface SourceTransportFailure {
   stage?: SourceTransportFailureStage;
 }
 
-const RETRYABLE_FAILURE_CODE = /^(?:OFFICIAL_HTTP_TIMEOUT|OFFICIAL_HTTP_429|OFFICIAL_HTTP_5\d\d)$/u;
+const RETRYABLE_FAILURE_CODE =
+  /^(?:OFFICIAL_HTTP_TIMEOUT|OFFICIAL_NETWORK_ERROR|OFFICIAL_HTTP_429|OFFICIAL_HTTP_5\d\d)$/u;
+const RETRYABLE_NETWORK_ERROR_CODES = new Set([
+  "EAI_AGAIN",
+  "ECONNABORTED",
+  "ECONNREFUSED",
+  "ECONNRESET",
+  "EHOSTUNREACH",
+  "ENETUNREACH",
+  "ENOTFOUND",
+  "ETIMEDOUT",
+  "UND_ERR_BODY_TIMEOUT",
+  "UND_ERR_CONNECT_TIMEOUT",
+  "UND_ERR_HEADERS_TIMEOUT",
+  "UND_ERR_SOCKET"
+]);
 
 export function isRetryableSourceTransportFailureCode(
   value: unknown
@@ -46,8 +62,9 @@ export function retryableHttpTransportFailure(status: number): SourceTransportFa
 
 export function retryableTransportFailureFromError(error: unknown): SourceTransportFailure | undefined {
   if (isOfficialSourceAttemptTimeout(error)) return undefined;
-  return isOfficialHttpTimeout(error)
-    ? { code: "OFFICIAL_HTTP_TIMEOUT", retryable: true }
+  if (isOfficialHttpTimeout(error)) return { code: "OFFICIAL_HTTP_TIMEOUT", retryable: true };
+  return RETRYABLE_NETWORK_ERROR_CODES.has(nestedErrorCode(error) ?? "")
+    ? { code: "OFFICIAL_NETWORK_ERROR", retryable: true }
     : undefined;
 }
 
@@ -56,9 +73,25 @@ export function safeSourceTransportFailureReason(failure: SourceTransportFailure
   switch (failure.code) {
     case "OFFICIAL_HTTP_TIMEOUT":
       return "Official recruitment request timed out";
+    case "OFFICIAL_NETWORK_ERROR":
+      return "Official recruitment network request failed";
     case "OFFICIAL_HTTP_429":
       return "Official recruitment endpoint temporarily rate limited the request (HTTP 429)";
     default:
       return `Official recruitment endpoint was temporarily unavailable (${failure.code.replace("OFFICIAL_HTTP_", "HTTP ")})`;
   }
+}
+
+function nestedErrorCode(error: unknown): string | undefined {
+  let current = error;
+  const seen = new Set<unknown>();
+  for (let depth = 0;
+    depth < 5 && typeof current === "object" && current !== null && !seen.has(current);
+    depth += 1) {
+    seen.add(current);
+    const record = current as Record<string, unknown>;
+    if (typeof record.code === "string") return record.code;
+    current = record.cause;
+  }
+  return undefined;
 }

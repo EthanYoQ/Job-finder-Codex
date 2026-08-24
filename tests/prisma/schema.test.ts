@@ -14,6 +14,7 @@ const releasePromotionMigration=readFileSync(resolve(process.cwd(),"prisma","mig
 const sourceFailureDiagnosticsMigration=readFileSync(resolve(process.cwd(),"prisma","migrations","20260717090000_source_failure_diagnostics","migration.sql"),"utf8");
 const trustedBaselineMigration=readFileSync(resolve(process.cwd(),"prisma","migrations","20260813002000_trusted_completeness_baseline","migration.sql"),"utf8");
 const transportPolicyMigration=readFileSync(resolve(process.cwd(),"prisma","migrations","20260813013000_transport_policy_retry_diagnostics","migration.sql"),"utf8");
+const networkRetryMigration=readFileSync(resolve(process.cwd(),"prisma","migrations","20260824070000_official_network_retry_diagnostics","migration.sql"),"utf8");
 const baselineMigration = readFileSync(
   resolve(process.cwd(), "prisma", "migrations", "20260710000000_baseline", "migration.sql"),
   "utf8"
@@ -128,6 +129,7 @@ describe("prisma schema", () => {
       ,"20260812231000_a_grade_completeness_certificate"
       ,"20260813002000_trusted_completeness_baseline"
       ,"20260813013000_transport_policy_retry_diagnostics"
+      ,"20260824070000_official_network_retry_diagnostics"
     ]);
     const statements = crawlStatusValuesMigration
       .split("\n")
@@ -412,6 +414,7 @@ describe("prisma schema", () => {
     ]);
     expect(enumMembers("SourceFailureDiagnosticCode")).toEqual([
       "OFFICIAL_HTTP_TIMEOUT",
+      "OFFICIAL_NETWORK_ERROR",
       "OFFICIAL_HTTP_429",
       "OFFICIAL_HTTP_502",
       "OFFICIAL_HTTP_503",
@@ -476,6 +479,9 @@ describe("prisma schema", () => {
       transportPolicyMigration.indexOf('ADD CONSTRAINT "CrawlBatchSourceResult_retry_reason_codes_check"')
     );
     expect(transportPolicyMigration).not.toMatch(/SET\s+"retryReasonCodes"\s*=\s*ARRAY\['OFFICIAL_HTTP_/u);
+    expect(networkRetryMigration).toContain("ADD VALUE 'OFFICIAL_NETWORK_ERROR'");
+    expect(networkRetryMigration).toContain('DROP CONSTRAINT "CrawlBatchSourceResult_retry_reason_codes_check"');
+    expect(networkRetryMigration).toContain("OFFICIAL_NETWORK_ERROR");
   });
 
   it("stores direct nullable observation provenance and exact reconciliation counters", () => {

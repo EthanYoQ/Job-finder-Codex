@@ -1,5 +1,8 @@
 import { runBGradeIndependentTraversalValidator } from "../src/crawler/traversalCertificate";
-import { classifyBGradeIndependentTraversalFailure } from "../src/crawler/independentTraversalDiagnostics";
+import {
+  classifyBGradeIndependentTraversalFailure,
+  safeBGradeIndependentTraversalFailureReason
+} from "../src/crawler/independentTraversalDiagnostics";
 
 const controller = new AbortController();
 for (const signal of ["SIGINT", "SIGTERM"] as const) {
@@ -16,13 +19,7 @@ try {
   process.stdout.write(JSON.stringify({
     decision: "FAILED",
     failureCode: classifyBGradeIndependentTraversalFailure(error),
-    message: safeErrorMessage(error)
+    message: safeBGradeIndependentTraversalFailureReason(error)
   }));
   process.exitCode = 1;
-}
-
-function safeErrorMessage(error: unknown): string {
-  const message = error instanceof Error ? error.message : "B-grade validator failed";
-  return message.replace(/[\u0000-\u001f\u007f]+/gu, " ").replace(/\s+/gu, " ").trim().slice(0, 2_000) ||
-    "B-grade validator failed";
 }

@@ -40,6 +40,23 @@ describe("source transport retry classification", () => {
     expect(retryableTransportFailureFromError(new Error("pagination config invalid"))).toBeUndefined();
   });
 
+  it.each([
+    { code: "ECONNRESET" },
+    { cause: { code: "EAI_AGAIN" } },
+    new TypeError("fetch failed", { cause: { code: "UND_ERR_CONNECT_TIMEOUT" } })
+  ])("classifies a closed set of nested network exceptions as retryable", (error) => {
+    expect(retryableTransportFailureFromError(error)).toEqual({
+      code: "OFFICIAL_NETWORK_ERROR",
+      retryable: true
+    });
+  });
+
+  it("does not retry TLS, abort, or unclassified fetch exceptions", () => {
+    expect(retryableTransportFailureFromError({ cause: { code: "CERT_HAS_EXPIRED" } })).toBeUndefined();
+    expect(retryableTransportFailureFromError({ name: "AbortError" })).toBeUndefined();
+    expect(retryableTransportFailureFromError(new TypeError("fetch failed"))).toBeUndefined();
+  });
+
   it("persists a bounded generic diagnostic for any other retryable 5xx status", () => {
     expect(transportFailureDiagnosticBundle(
       retryableHttpTransportFailure(599),
@@ -50,6 +67,19 @@ describe("source transport retry classification", () => {
       fetchAttemptCount: 2,
       retryCount: 1,
       retryReasonCodes: ["OFFICIAL_HTTP_599"]
+    });
+  });
+
+  it("persists bounded network retry diagnostics without raw exception text", () => {
+    expect(transportFailureDiagnosticBundle(
+      { code: "OFFICIAL_NETWORK_ERROR", retryable: true },
+      { fetchAttemptCount: 2, retryCount: 1, retryReasonCodes: ["OFFICIAL_NETWORK_ERROR"] }
+    )).toEqual({
+      failureCategory: "TEMPORARY_OFFICIAL_SOURCE_FAILURE",
+      failureDiagnosticCode: "OFFICIAL_NETWORK_ERROR",
+      fetchAttemptCount: 2,
+      retryCount: 1,
+      retryReasonCodes: ["OFFICIAL_NETWORK_ERROR"]
     });
   });
 });

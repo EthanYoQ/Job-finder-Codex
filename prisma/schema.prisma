@@ -91,6 +91,7 @@ enum SourceFailureCategory {
 
 enum SourceFailureDiagnosticCode {
   OFFICIAL_HTTP_TIMEOUT
+  OFFICIAL_NETWORK_ERROR
   OFFICIAL_HTTP_429
   OFFICIAL_HTTP_502
   OFFICIAL_HTTP_503

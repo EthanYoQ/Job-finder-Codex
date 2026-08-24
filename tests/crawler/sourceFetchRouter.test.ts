@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { createSourceFetchRouter } from "../../src/crawler/sourceFetchRouter";
+import { createOfficialJsonSourceFetch } from "../../src/crawler/officialJsonSourceFetch";
 import {
   createSourceFetchAttemptTracker,
   type SourceFetchFunction,
@@ -59,6 +60,44 @@ const beisenPlan: SourceCrawlPlan = {
 };
 
 describe("source fetch router", () => {
+  it("retries a profile-authorized official-json network exception with a closed diagnostic", async () => {
+    let calls = 0;
+    const attemptTracker = createSourceFetchAttemptTracker();
+    const plan = {
+      ...planWithAtsKind("OFFICIAL_JSON"),
+      officialJsonFetch: {
+        kind: "phenom",
+        detailBaseUrl: "https://example.com/jobs/"
+      },
+      transientRetryPolicy: { maxRetries: 1, backoffMs: 10_000 }
+    } as SourceCrawlPlan;
+    const officialJson = createOfficialJsonSourceFetch({
+      now: () => new Date(capturedAt),
+      http: async () => {
+        calls += 1;
+        throw new TypeError("fetch failed", { cause: { code: "ECONNRESET" } });
+      }
+    });
+    const router = createSourceFetchRouter({
+      moka: async () => ({ ok: false, capturedAt, failureReason: "wrong route" }),
+      officialJson,
+      fallback: async () => ({ ok: false, capturedAt, failureReason: "wrong route" }),
+      delay: async () => undefined
+    });
+
+    await expect(router(plan, attemptTracker)).resolves.toMatchObject({
+      ok: false,
+      failureReason: "Official recruitment network request failed",
+      transportFailure: { code: "OFFICIAL_NETWORK_ERROR", retryable: true }
+    });
+    expect(calls).toBe(2);
+    expect(attemptTracker).toEqual({
+      fetchAttemptCount: 2,
+      retryCount: 1,
+      retryReasonCodes: ["OFFICIAL_NETWORK_ERROR"]
+    });
+  });
+
   it("retries one profile-bound transient timeout after the configured delay", async () => {
     const calls: number[] = [];
     const delays: number[] = [];

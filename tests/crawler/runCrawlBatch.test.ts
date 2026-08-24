@@ -501,12 +501,12 @@ describe("runP0CrawlBatch", () => {
       completenessState: "NEEDS_MANUAL_COMPLETENESS_REVIEW",
       atomicCommitState: "COMMITTED",
       blockerCode: "B_GRADE_BROWSER_NAVIGATION_FAILED",
-      blockerReason: "B-grade independent traversal failed at a closed diagnostic stage"
+      blockerReason: "B-grade independent traversal failed: Plan-bound HTML browser validator navigation failed"
     });
     expect(committed?.commands.find((command) => command.type === "UPSERT_CRAWL_OBSERVATION"))
       .toMatchObject({ observation: {
         completenessStatus: "NEEDS_MANUAL_COMPLETENESS_REVIEW",
-        completenessBlockerReason: "B-grade independent traversal failed at a closed diagnostic stage"
+        completenessBlockerReason: "B-grade independent traversal failed: Plan-bound HTML browser validator navigation failed"
       } });
   });
 
