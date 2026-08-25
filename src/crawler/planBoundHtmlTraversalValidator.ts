@@ -1,7 +1,11 @@
 import { createHash } from "node:crypto";
 import { acquireBrowserSourcePermit } from "./browserSourceConcurrency";
 import { companyRecruitmentExecutionConfigsBySourceId } from "./companyRecruitmentProfiles";
-import { tagBGradeIndependentTraversalFailure } from "./independentTraversalDiagnostics";
+import {
+  B_GRADE_SAFE_VALIDATOR_STAGE_MESSAGES,
+  tagBGradeIndependentTraversalFailure,
+  type BGradeSafeValidatorStageMessage
+} from "./independentTraversalDiagnostics";
 import { officialBrowserTimeoutMs } from "./officialHttpRuntimeLimits";
 
 export const PLAN_BOUND_HTML_TRAVERSAL_POLICIES = Object.freeze({
@@ -231,6 +235,7 @@ async function runBrowserStage<T>(input: {
   operation: () => T | Promise<T>;
   signal: AbortSignal | undefined;
   failureCode: "B_GRADE_BROWSER_NAVIGATION_FAILED" | "B_GRADE_BROWSER_READINESS_FAILED";
+  safeStage?: BGradeSafeValidatorStageMessage;
 }): Promise<T> {
   try {
     const result = await input.operation();
@@ -248,7 +253,10 @@ async function runBrowserStage<T>(input: {
         "B_GRADE_VALIDATOR_ABORTED"
       );
     }
-    throw tagBGradeIndependentTraversalFailure(error, input.failureCode);
+    throw tagBGradeIndependentTraversalFailure(
+      input.safeStage ? new Error(input.safeStage, { cause: error }) : error,
+      input.failureCode
+    );
   }
 }
 
@@ -561,6 +569,7 @@ async function captureTalentbrewPartitions(
       await runBrowserStage({
         signal,
         failureCode: "B_GRADE_BROWSER_NAVIGATION_FAILED",
+        safeStage: B_GRADE_SAFE_VALIDATOR_STAGE_MESSAGES.TALENTBREW_ENTRY_NAVIGATION,
         operation: async () => {
           const navigation = await page.goto(entryUrl, {
             waitUntil: "domcontentloaded",
@@ -572,14 +581,20 @@ async function captureTalentbrewPartitions(
       await runBrowserStage({
         signal,
         failureCode: "B_GRADE_BROWSER_READINESS_FAILED",
+        safeStage: B_GRADE_SAFE_VALIDATOR_STAGE_MESSAGES.TALENTBREW_ENTRY_SELECTOR,
         operation: async () => {
           await page.locator(registered.readySelector).first()
             .waitFor({ state: "visible", timeout: browserTimeoutMs });
-          await page.waitForLoadState("load", { timeout: browserTimeoutMs });
         }
       });
       if (signal?.aborted) throw signal.reason;
-      await assertFreshTalentbrewScope(page, scope, browserTimeoutMs);
+      await runBrowserStage({
+        signal,
+        failureCode: "B_GRADE_BROWSER_READINESS_FAILED",
+        safeStage: B_GRADE_SAFE_VALIDATOR_STAGE_MESSAGES.TALENTBREW_SCOPE_CONTROL,
+        operation: () => waitForFreshTalentbrewScopeControls(page, scope, browserTimeoutMs)
+      });
+      await assertFreshTalentbrewScope(page, scope);
       const filterSelector = talentbrewFacetSelector(partition);
       const filter = page.locator(filterSelector);
       if (await filter.count() !== 1 || await filter.isChecked()) {
@@ -619,8 +634,10 @@ async function captureTalentbrewPartitions(
             total: results?.getAttribute(totalAttribute) ?? null };
         }, { selector: filterSelector, resultsSelector: scope.totalPagesSelector, totalAttribute: scope.totalJobsAttribute });
         throw tagBGradeIndependentTraversalFailure(
-          new Error(`TalentBrew browser validator partition did not become active: ` +
-            `checked=${state.checked},current=${state.current ?? "missing"},total=${state.total ?? "missing"}`),
+          new Error(B_GRADE_SAFE_VALIDATOR_STAGE_MESSAGES.TALENTBREW_PARTITION_ACTIVATION, {
+            cause: new Error(`checked=${state.checked},current=${state.current ?? "missing"},` +
+              `total=${state.total ?? "missing"}`)
+          }),
           "B_GRADE_BROWSER_READINESS_FAILED"
         );
       }
@@ -669,6 +686,7 @@ async function captureTalentbrewPartitions(
         await runBrowserStage({
           signal,
           failureCode: "B_GRADE_BROWSER_READINESS_FAILED",
+          safeStage: B_GRADE_SAFE_VALIDATOR_STAGE_MESSAGES.TALENTBREW_PAGE_ADVANCE,
           operation: async () => {
             await page.waitForFunction(({ resultsSelector, currentAttribute, expected, rowSelector, previous }) => {
               const results = document.querySelector(resultsSelector);
@@ -742,8 +760,7 @@ function configuredTalentbrewTraversalPolicy(sourceId: PlanBoundHtmlTraversalSou
 
 async function assertFreshTalentbrewScope(
   page: import("playwright-core").Page,
-  scope: TalentbrewTraversalPolicy,
-  browserTimeoutMs: number
+  scope: TalentbrewTraversalPolicy
 ): Promise<void> {
   const results = page.locator(scope.totalPagesSelector);
   const [facetTerm, facetType, sourceTotalRaw] = await Promise.all([
@@ -754,19 +771,24 @@ async function assertFreshTalentbrewScope(
   const sourceTotal = parseNonnegativeInteger(sourceTotalRaw);
   if (facetTerm !== scope.requiredActiveFacet.id || facetType !== String(scope.requiredActiveFacet.facetType) ||
       sourceTotal === undefined) {
-    throw new Error("TalentBrew browser validator required China facet declaration changed");
+    throw tagBGradeIndependentTraversalFailure(
+      new Error("TalentBrew browser validator required China facet declaration changed"),
+      "B_GRADE_PARTITION_PROOF_FAILED"
+    );
   }
   const configured = [...scope.allowedPartitions, ...scope.excludedPartitions];
   for (const fieldName of new Set(configured.map((partition) => partition.fieldName))) {
     const dimension = page.locator(`input.filter-checkbox[data-facet-type="5"]` +
       `[data-field-name=${JSON.stringify(fieldName)}]`);
-    await dimension.first().waitFor({ state: "attached", timeout: browserTimeoutMs });
     const actualIds = await dimension.evaluateAll((controls) => controls.map((control) =>
       control.getAttribute("data-id")?.trim() ?? "").sort());
     const expectedIds = configured.filter((partition) => partition.fieldName === fieldName)
       .map((partition) => partition.id).sort(compareUtf8);
     if (actualIds.some((id) => !id) || JSON.stringify(actualIds) !== JSON.stringify(expectedIds)) {
-      throw new Error(`TalentBrew browser validator partition universe changed: ${fieldName}`);
+      throw tagBGradeIndependentTraversalFailure(
+        new Error(`TalentBrew browser validator partition universe changed: ${fieldName}`),
+        "B_GRADE_PARTITION_CONTROL_SET_FAILED"
+      );
     }
   }
   let partitionTotal = 0;
@@ -776,12 +798,31 @@ async function assertFreshTalentbrewScope(
     if (await control.count() !== 1 || await control.isChecked() ||
         await control.getAttribute("data-display") !== partition.descriptor ||
         count === undefined) {
-      throw new Error("TalentBrew browser validator partition control set is invalid");
+      throw tagBGradeIndependentTraversalFailure(
+        new Error("TalentBrew browser validator partition control set is invalid"),
+        "B_GRADE_PARTITION_CONTROL_SET_FAILED"
+      );
     }
     partitionTotal += count;
   }
   if (partitionTotal !== sourceTotal) {
-    throw new Error("TalentBrew browser validator partition totals do not cover the China facet");
+    throw tagBGradeIndependentTraversalFailure(
+      new Error("TalentBrew browser validator partition totals do not cover the China facet"),
+      "B_GRADE_PARTITION_COVERAGE_FAILED"
+    );
+  }
+}
+
+async function waitForFreshTalentbrewScopeControls(
+  page: import("playwright-core").Page,
+  scope: TalentbrewTraversalPolicy,
+  browserTimeoutMs: number
+): Promise<void> {
+  const configured = [...scope.allowedPartitions, ...scope.excludedPartitions];
+  for (const fieldName of new Set(configured.map((partition) => partition.fieldName))) {
+    await page.locator(`input.filter-checkbox[data-facet-type="5"]` +
+      `[data-field-name=${JSON.stringify(fieldName)}]`).first()
+      .waitFor({ state: "attached", timeout: browserTimeoutMs });
   }
 }
 

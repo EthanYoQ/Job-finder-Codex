@@ -13,10 +13,10 @@ import {
 } from "../../src/db/emptyDatabaseMigrationVerificationCli";
 
 describe("empty database migration verification CLI contract", () => {
-  it("uses explicit reviewed PG16 catalog allowlists matching all 28 migrations", () => {
+  it("uses explicit reviewed PG16 catalog allowlists matching all 30 migrations", () => {
     const actualMigrations = readdirSync(resolve(process.cwd(), "prisma", "migrations"), { withFileTypes: true })
       .filter((entry) => entry.isDirectory()).map((entry) => entry.name).sort();
-    expect(REVIEWED_MIGRATION_NAMES).toHaveLength(28);
+    expect(REVIEWED_MIGRATION_NAMES).toHaveLength(30);
     expect([...REVIEWED_MIGRATION_NAMES].sort()).toEqual(actualMigrations);
     expect(REVIEWED_APP_TABLE_NAMES).toHaveLength(25);
     expect(new Set(REVIEWED_APP_TABLE_NAMES).size).toBe(25);

@@ -27,8 +27,21 @@ export type BGradeIndependentTraversalFailureCode =
 const B_GRADE_FAILURE_CODE_SET = new Set<string>(B_GRADE_INDEPENDENT_TRAVERSAL_FAILURE_CODES);
 const CLOSED_B_GRADE_FAILURE_REASON =
   "B-grade independent traversal failed at a closed diagnostic stage";
+export const B_GRADE_SAFE_VALIDATOR_STAGE_MESSAGES = Object.freeze({
+  TALENTBREW_ENTRY_NAVIGATION: "TalentBrew browser validator ENTRY_NAVIGATION navigation failed",
+  TALENTBREW_ENTRY_SELECTOR: "TalentBrew browser validator ENTRY_SELECTOR readiness failed",
+  TALENTBREW_SCOPE_CONTROL: "TalentBrew browser validator SCOPE_CONTROL readiness failed",
+  TALENTBREW_PARTITION_ACTIVATION: "TalentBrew browser validator PARTITION_ACTIVATION readiness failed",
+  TALENTBREW_PAGE_ADVANCE: "TalentBrew browser validator PAGE_ADVANCE readiness failed",
+  XIUZHENG_HOME_GOTO: "Xiuzheng browser validator HOME_GOTO navigation failed",
+  XIUZHENG_HUMAN_RESOURCE_ROUTE: "Xiuzheng browser validator HUMAN_RESOURCE_ROUTE navigation failed",
+  XIUZHENG_RECRUIT_LIST_ROUTE: "Xiuzheng browser validator RECRUIT_LIST_ROUTE navigation failed"
+} as const);
+export type BGradeSafeValidatorStageMessage =
+  typeof B_GRADE_SAFE_VALIDATOR_STAGE_MESSAGES[keyof typeof B_GRADE_SAFE_VALIDATOR_STAGE_MESSAGES];
 const SAFE_VALIDATOR_MESSAGES = new Set([
   "Plan-bound HTML browser validator navigation failed",
+  ...Object.values(B_GRADE_SAFE_VALIDATOR_STAGE_MESSAGES),
   "Qilu browser validator entry URL mismatch",
   "Qilu browser validator navigation failed",
   "Qilu browser validator page declaration invalid",

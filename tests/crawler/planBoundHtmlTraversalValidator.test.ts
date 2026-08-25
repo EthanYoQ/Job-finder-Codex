@@ -371,6 +371,24 @@ describe("plan-bound HTML rendered traversal", () => {
     expect(close).toHaveBeenCalledTimes(1);
   });
 
+  it("does not require unrelated TalentBrew subresources to reach the load event", async () => {
+    const sourceId = "source-sanofi-china-social" as const;
+    const entryUrl = PLAN_BOUND_HTML_TRAVERSAL_POLICIES[sourceId].entryUrl;
+    const loadState = vi.fn(async () => { throw new Error("unrelated resource never completed"); });
+
+    await expect(capturePlanBoundHtmlRenderedTraversal({
+      sourceId,
+      entryUrl,
+      launchBrowser: async () => talentbrewBrowser({
+        entryUrl,
+        close: async () => undefined,
+        waitForLoadState: loadState
+      })
+    })).resolves.toMatchObject({ pages: expect.any(Array) });
+
+    expect(loadState).not.toHaveBeenCalled();
+  });
+
   it("uses the shared browser timeout throughout the TalentBrew traversal", async () => {
     const sourceId = "source-sanofi-china-social" as const;
     const entryUrl = PLAN_BOUND_HTML_TRAVERSAL_POLICIES[sourceId].entryUrl;
@@ -394,11 +412,15 @@ describe("plan-bound HTML rendered traversal", () => {
     const sourceId = "source-sanofi-china-social" as const;
     const entryUrl = PLAN_BOUND_HTML_TRAVERSAL_POLICIES[sourceId].entryUrl;
     const close = vi.fn(async () => undefined);
-    await expect(capturePlanBoundHtmlRenderedTraversal({
+    const failure = await capturePlanBoundHtmlRenderedTraversal({
       sourceId,
       entryUrl,
       launchBrowser: async () => talentbrewBrowser({ entryUrl, close, extraPartitionId: "Contractor" })
-    })).rejects.toThrow("partition universe changed");
+    }).catch((error: unknown) => error);
+    expect(failure).toMatchObject({
+      message: expect.stringContaining("partition universe changed")
+    });
+    expect(classifyBGradeIndependentTraversalFailure(failure)).toBe("B_GRADE_PARTITION_CONTROL_SET_FAILED");
     expect(close).toHaveBeenCalledTimes(1);
   });
 
@@ -854,6 +876,7 @@ function talentbrewBrowser(input: {
   onGoto?: () => void;
   pageClose?: () => Promise<void>;
   onTimeout?: (timeout: number | undefined) => void;
+  waitForLoadState?: () => Promise<void>;
 }) {
   const sourceId = "source-sanofi-china-social" as const;
   const policy = PLAN_BOUND_HTML_TRAVERSAL_POLICIES[sourceId];
@@ -880,6 +903,7 @@ function talentbrewBrowser(input: {
     url: () => input.entryUrl,
     waitForLoadState: async (_state?: string, options?: { timeout?: number }) => {
       input.onTimeout?.(options?.timeout);
+      await input.waitForLoadState?.();
     },
     waitForFunction: async (_callback: unknown, _argument?: unknown, options?: { timeout?: number }) => {
       input.onTimeout?.(options?.timeout);

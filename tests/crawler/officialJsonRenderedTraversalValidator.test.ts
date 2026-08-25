@@ -428,6 +428,22 @@ describe("official JSON rendered traversal", () => {
     expect(pageObject.routeClicks).toEqual(["人力资源", "查看更多", "page:2"]);
   });
 
+  it.each([
+    ["HOME_GOTO", "HOME_GOTO"],
+    ["HUMAN_RESOURCE_ROUTE", "HUMAN_RESOURCE_ROUTE"],
+    ["RECRUIT_LIST_ROUTE", "RECRUIT_LIST_ROUTE"]
+  ] as const)("retains the safe Xiuzheng %s navigation stage", async (failureStage, expectedStage) => {
+    const pageObject = xiuzhengUiPage({ id: 16, name: "研发工程师" }, undefined, { failureStage });
+    const failure = await captureOfficialJsonRenderedTraversal({
+      sourceId: "source-xiuzheng-social",
+      entryUrl: OFFICIAL_JSON_RENDERED_TRAVERSAL_POLICIES["source-xiuzheng-social"].entryUrl,
+      launchBrowser: async () => browser(pageObject)
+    }).catch((error: unknown) => error);
+
+    expect(classifyBGradeIndependentTraversalFailure(failure)).toBe("B_GRADE_BROWSER_NAVIGATION_FAILED");
+    expect(failure).toMatchObject({ message: `Xiuzheng browser validator ${expectedStage} navigation failed` });
+  });
+
   it("issues and verifies Xiuzheng, then rejects a fully self-rehashed row outside the main raw commitment", async () => {
     const plan = getPlanBySourceId(buildStagedSourceCrawlPlans(candidateCompanies), "source-xiuzheng-social");
     if (!plan || plan.adapterId !== "official-json") throw new Error("Missing Xiuzheng plan");
@@ -687,6 +703,7 @@ function xiuzhengUiPage(
     abortDuringRouteControlCount?: { controller: AbortController; reason: Error };
     totalRouteControlCount?: number;
     visibleRouteControlCount?: number;
+    failureStage?: "HOME_GOTO" | "HUMAN_RESOURCE_ROUTE" | "RECRUIT_LIST_ROUTE";
   } = {}
 ) {
   const routeClicks: string[] = [];
@@ -704,8 +721,18 @@ function xiuzhengUiPage(
   return {
     routeClicks,
     routeControlWaits,
-    goto: async (url: string) => ({ status: () => 200, url: () => url }),
-    waitForURL: async () => undefined,
+    goto: async (url: string) => {
+      if (options.failureStage === "HOME_GOTO") throw new Error("unsafe dynamic home error");
+      return { status: () => 200, url: () => url };
+    },
+    waitForURL: async (url: string) => {
+      if (options.failureStage === "HUMAN_RESOURCE_ROUTE" && url.endsWith("#/humanResource")) {
+        throw new Error("unsafe dynamic human-resource error");
+      }
+      if (options.failureStage === "RECRUIT_LIST_ROUTE" && url.endsWith("#/humanmore")) {
+        throw new Error("unsafe dynamic recruit-list error");
+      }
+    },
     waitForResponse: async (predicate: (value: typeof response) => boolean) => {
       if (!predicate(response)) throw new Error("Xiuzheng response predicate rejected the UI request");
       return response;

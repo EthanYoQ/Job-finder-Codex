@@ -38,6 +38,13 @@ describe("B-grade independent traversal diagnostics", () => {
     )).toBe(
       "B-grade independent traversal failed: Qilu browser validator page declaration invalid"
     );
+    expect(safeBGradeIndependentTraversalFailureReason(
+      new Error("Xiuzheng browser validator HUMAN_RESOURCE_ROUTE navigation failed", {
+        cause: new Error("https://secret.invalid/?token=private")
+      })
+    )).toBe(
+      "B-grade independent traversal failed: Xiuzheng browser validator HUMAN_RESOURCE_ROUTE navigation failed"
+    );
   });
 
   it("maps validator failures to the closed diagnostic stages used by exact-source diagnostics", () => {

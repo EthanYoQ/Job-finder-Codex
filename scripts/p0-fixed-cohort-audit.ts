@@ -58,6 +58,7 @@ try {
           failureCode: row.failureCode,
           evidenceArtifacts: row.evidenceArtifacts.map(({ id, path, sha256 }) => ({ id, path, sha256 })),
           paginationEvidence: row.paginationEvidence.map(projectPaginationEvidence)
+        }
       });
     }
     if (row.observations.length !== 1 || row.observations[0]!.sourceResultId !== row.id) {

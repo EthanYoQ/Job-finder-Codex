@@ -1,5 +1,8 @@
 import { acquireBrowserSourcePermit } from "./browserSourceConcurrency";
-import { tagBGradeIndependentTraversalFailure } from "./independentTraversalDiagnostics";
+import {
+  B_GRADE_SAFE_VALIDATOR_STAGE_MESSAGES,
+  tagBGradeIndependentTraversalFailure
+} from "./independentTraversalDiagnostics";
 import { irreversibleOfficialJsonEvidenceId, persistentOfficialJsonJobId } from "./officialJsonEvidence";
 import { hasUniqueJsonObjectKeys } from "./strictJsonObjectKeys";
 
@@ -347,14 +350,16 @@ async function captureXiuzheng(
 ): Promise<OfficialJsonRenderedPageCapture[]> {
   const officialOrigin = new URL(entryUrl).origin;
   const homeUrl = `${officialOrigin}/`;
-  const navigation = await page.goto(homeUrl, { waitUntil: "domcontentloaded", timeout: 30_000 });
-  assertNavigation(navigation, homeUrl);
+  await runXiuzhengNavigationStage("HOME_GOTO", signal, async () => {
+    const navigation = await page.goto(homeUrl, { waitUntil: "domcontentloaded", timeout: 30_000 });
+    assertNavigation(navigation, homeUrl);
+  });
   const humanResources = page.getByText("人力资源", { exact: true });
   await waitForUniqueXiuzhengControl(humanResources, "route", signal);
-  await Promise.all([
+  await runXiuzhengNavigationStage("HUMAN_RESOURCE_ROUTE", signal, () => Promise.all([
     page.waitForURL(`${officialOrigin}/#/humanResource`, { timeout: 30_000 }),
     humanResources.click()
-  ]);
+  ]));
   const pages: OfficialJsonRenderedPageCapture[] = [];
   let expectedTotal: number | undefined;
   let expectedPages: number | undefined;
@@ -372,11 +377,11 @@ async function captureXiuzheng(
   const more = page.getByText("查看更多", { exact: true });
   await waitForUniqueXiuzhengControl(more, "list", signal);
   let pendingResponse = responseForPage(1);
-  const [firstResponse] = await Promise.all([
+  const [firstResponse] = await runXiuzhengNavigationStage("RECRUIT_LIST_ROUTE", signal, () => Promise.all([
     pendingResponse,
     page.waitForURL(`${officialOrigin}/#/humanmore`, { timeout: 30_000 }),
     more.click()
-  ]);
+  ]));
   for (let pageNumber = 1; pageNumber <= 5; pageNumber += 1) {
     if (signal?.aborted) throw signal.reason;
     const response = pageNumber === 1 ? firstResponse : await pendingResponse;
@@ -423,6 +428,26 @@ async function captureXiuzheng(
     await nextControl.click();
   }
   return pages;
+}
+
+async function runXiuzhengNavigationStage<T>(
+  stage: "HOME_GOTO" | "HUMAN_RESOURCE_ROUTE" | "RECRUIT_LIST_ROUTE",
+  signal: AbortSignal | undefined,
+  operation: () => Promise<T>
+): Promise<T> {
+  try {
+    const result = await operation();
+    if (signal?.aborted) throw signal.reason;
+    return result;
+  } catch (error) {
+    if (signal?.aborted) {
+      throw tagBGradeIndependentTraversalFailure(signal.reason, "B_GRADE_VALIDATOR_ABORTED");
+    }
+    throw tagBGradeIndependentTraversalFailure(
+      new Error(B_GRADE_SAFE_VALIDATOR_STAGE_MESSAGES[`XIUZHENG_${stage}`], { cause: error }),
+      "B_GRADE_BROWSER_NAVIGATION_FAILED"
+    );
+  }
 }
 
 async function waitForUniqueXiuzhengControl(

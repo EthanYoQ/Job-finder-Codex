@@ -38,7 +38,9 @@ export const REVIEWED_MIGRATION_NAMES = [
   "20260812231000_a_grade_completeness_certificate",
   "20260813002000_trusted_completeness_baseline",
   "20260813013000_transport_policy_retry_diagnostics",
-  "20260824070000_official_network_retry_diagnostics"
+  "20260824070000_official_network_retry_diagnostics",
+  "20260825093000_browser_and_pagination_retry_diagnostics",
+  "20260825113000_failed_source_diagnostic_evidence"
 ] as const;
 
 export const REVIEWED_APP_TABLE_NAMES = [

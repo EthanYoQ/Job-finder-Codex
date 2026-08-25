@@ -216,6 +216,19 @@ describe("isolated B-grade traversal validator", () => {
     expect(policyExecute).toHaveBeenCalledOnce();
   });
 
+  it("never retries a deterministic TalentBrew partition-control failure", async () => {
+    const execute = vi.fn(async () => JSON.stringify({
+      decision: "FAILED",
+      failureCode: "B_GRADE_PARTITION_CONTROL_SET_FAILED",
+      message: "B-grade independent traversal failed: B_GRADE_PARTITION_CONTROL_SET_FAILED"
+    }));
+    const run = createIsolatedBGradeTraversalValidator(execute, noDelay);
+
+    const error = await run(input).catch((caught: unknown) => caught);
+    expect(classifyBGradeIndependentTraversalFailure(error)).toBe("B_GRADE_PARTITION_CONTROL_SET_FAILED");
+    expect(execute).toHaveBeenCalledOnce();
+  });
+
   it("keeps the parent abort authoritative when process shutdown rejects", async () => {
     const controller = new AbortController();
     const reason = new Error("source deadline reached");
