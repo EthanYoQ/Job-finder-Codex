@@ -75,6 +75,83 @@ function reconcile(
   } satisfies MsdOfficialReconciliationInput);
 }
 
+function msdPlan() {
+  const plan = buildStagedSourceCrawlPlans(candidateCompanies)
+    .find((candidate) => candidate.source.id === "source-msd-china-social");
+  if (!plan) throw new Error("MSD plan missing");
+  return plan;
+}
+
+function msdEntryBody(): string {
+  return `<script>
+    var phApp = phApp || {"widgetApiEndpoint":"https://jobs.msd.com/widgets","country":"cn","deviceType":"desktop","locale":"zh_cn","refNum":"MSD1GB","pageName":"search-results"}; phApp.ddo = {};
+    phApp.pageId = "page10-ds";
+  </script>`;
+}
+
+function jsonHttpResponse(body: unknown, finalUrl: string, status = 200) {
+  return {
+    status,
+    body: JSON.stringify(body),
+    finalUrl,
+    contentType: "application/json; charset=utf-8",
+    capturedAt: "2026-07-17T00:00:00.000Z"
+  };
+}
+
+function phenomOnlyClosureFixture(
+  closure: "CLOSED" | "ACTIVE",
+  options: { applyUrl?: string; closureContentType?: string; extraClosureField?: boolean } = {}
+) {
+  const formalId = "REQ-FORMAL";
+  const staleId = "REQ-STALE-MIRROR";
+  const fetch = createMsdDualOfficialSourceFetch({
+    now: () => new Date("2026-07-17T00:00:00.000Z"),
+    entryHttp: async (request) => ({
+      status: 200,
+      body: msdEntryBody(),
+      finalUrl: request.url,
+      contentType: "text/html; charset=utf-8",
+      capturedAt: "2026-07-17T00:00:00.000Z"
+    }),
+    workdayHttp: async (request) => {
+      if (request.method === "GET") {
+        if (closure === "CLOSED") {
+          const response = jsonHttpResponse({
+              errorCode: "S22",
+              errorCaseId: "SAFE-TEST-CASE",
+              httpStatus: 403,
+              locale: "*",
+              message: "permission denied",
+              messageParams: {},
+              ...(options.extraClosureField ? { unexpected: true } : {})
+            }, request.url, 403);
+          return { ...response, contentType: options.closureContentType ?? response.contentType };
+        }
+        return jsonHttpResponse(workdayDetailRecord(staleId), request.url);
+      }
+      const body = JSON.parse(request.body ?? "{}") as { appliedFacets?: Record<string, unknown> };
+      return Object.keys(body.appliedFacets ?? {}).length === 0
+        ? jsonHttpResponse({
+            facets: [
+              { facetParameter: "locations", values: [{ descriptor: "CHN - Shanghai", id: "china-location" }] },
+              { facetParameter: "workerSubType", values: [{ descriptor: "Regular", id: "regular-worker" }] }
+            ]
+          }, request.url)
+        : jsonHttpResponse({ total: 1, jobPostings: [workdayRecord(formalId)] }, request.url);
+    },
+    phenomHttp: async (request) => jsonHttpResponse({
+      refineSearch: {
+        totalHits: 2,
+        data: { jobs: [phenomRecord(formalId), phenomRecord(staleId, {
+          ...(options.applyUrl ? { applyUrl: options.applyUrl } : {})
+        })] }
+      }
+    }, request.url)
+  });
+  return { fetch, formalId, staleId };
+}
+
 describe("MSD dual-official-source reconciliation", () => {
   it.each([1, 3, 7])("derives the formal set from the current official records when the total changes (%s)", (size) => {
     const ids = Array.from({ length: size }, (_, index) => `REQ-DYNAMIC-${index + 1}`);
@@ -116,7 +193,25 @@ describe("MSD dual-official-source reconciliation", () => {
       postedDate: "2026-07-17T08:00:00+08:00"
     })]);
 
-    expect(result).toMatchObject({ ok: false, failureCode: "MSD_UNKNOWN_OFFICIAL_SET_DIFFERENCE" });
+    expect(result).toMatchObject({ ok: false, failureCode: "MSD_PHENOM_ONLY_REQUISITION_NOT_CLOSED" });
+  });
+
+  it("excludes a Phenom-only requisition only with an exact Workday closed-detail proof", () => {
+    const formalId = "REQ-FORMAL";
+    const staleId = "REQ-STALE-MIRROR";
+    const result = reconcileMsdOfficialSets({
+      workdayRecords: [workdayRecord(formalId)],
+      phenomRecords: [phenomRecord(formalId), phenomRecord(staleId)],
+      phenomOnlyClosureProofs: [{ officialId: staleId, status: 403, errorCode: "S22" }],
+      officialDetailBaseUrl: detailBaseUrl,
+      allowedApplyOrigins
+    });
+
+    expect(result).toMatchObject({
+      ok: true,
+      jobs: [{ officialId: formalId }],
+      excluded: [{ officialId: staleId, code: "VERIFIED_WORKDAY_CLOSED_REQUISITION" }]
+    });
   });
 
   it("keeps a Workday-only requisition only after its exact official detail proves a mainland location", () => {
@@ -233,7 +328,9 @@ describe("MSD dual-official-source reconciliation", () => {
 
     expect(result).toMatchObject({
       ok: false,
-      failureCode: "MSD_UNKNOWN_OFFICIAL_SET_DIFFERENCE"
+      failureCode: includeInWorkday
+        ? "MSD_UNKNOWN_OFFICIAL_SET_DIFFERENCE"
+        : "MSD_PHENOM_ONLY_REQUISITION_NOT_CLOSED"
     });
   });
 
@@ -273,6 +370,83 @@ describe("MSD dual-official-source reconciliation", () => {
 });
 
 describe("MSD dual-official-source pagination", () => {
+  it("archives and independently replays a closed Workday detail before excluding a stale Phenom mirror", async () => {
+    const { fetch, formalId, staleId } = phenomOnlyClosureFixture("CLOSED");
+    const plan = msdPlan();
+    const result = await fetch(plan);
+
+    expect(result).toMatchObject({ ok: true, payload: { jobPostings: [{ sourceJobId: formalId }] } });
+    if (!result.ok || !result.fetchEvidence) throw new Error("expected successful MSD evidence");
+    expect(result.fetchEvidence.artifacts).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        logicalKey: "msd-phenom-only-detail-0000",
+        httpStatus: 403,
+        body: expect.stringContaining('"errorCode":"S22"')
+      })
+    ]));
+    const crawled = await runSourceCrawl(plan, { fetch: async () => result });
+    expect(validateStrictMsdDualOfficialEvidence(plan, crawled.fetchEvidence, crawled.jobs)).toBe(true);
+    expect(crawled.jobs.map((job) => job.sourceJobId)).toEqual([formalId]);
+    expect(JSON.stringify(crawled.fetchEvidence)).toContain(staleId);
+
+    const tampered = structuredClone(crawled.fetchEvidence!);
+    const closure = tampered.artifacts.find((artifact) =>
+      artifact.logicalKey === "msd-phenom-only-detail-0000");
+    if (!closure || typeof closure.body !== "string") throw new Error("closure artifact missing");
+    closure.body = closure.body.replace('"S22"', '"S23"');
+    expect(validateStrictMsdDualOfficialEvidence(plan, tampered, crawled.jobs)).toBe(false);
+
+    const mimeTampered = structuredClone(crawled.fetchEvidence!);
+    const mimeClosure = mimeTampered.artifacts.find((artifact) =>
+      artifact.logicalKey === "msd-phenom-only-detail-0000");
+    if (!mimeClosure) throw new Error("closure artifact missing");
+    mimeClosure.contentType = "application/jsonp";
+    expect(validateStrictMsdDualOfficialEvidence(plan, mimeTampered, crawled.jobs)).toBe(false);
+
+    const shapeTampered = structuredClone(crawled.fetchEvidence!);
+    const shapeClosure = shapeTampered.artifacts.find((artifact) =>
+      artifact.logicalKey === "msd-phenom-only-detail-0000");
+    if (!shapeClosure || typeof shapeClosure.body !== "string") throw new Error("closure artifact missing");
+    shapeClosure.body = JSON.stringify({ ...(JSON.parse(shapeClosure.body) as object), unexpected: true });
+    expect(validateStrictMsdDualOfficialEvidence(plan, shapeTampered, crawled.jobs)).toBe(false);
+  });
+
+  it.each([
+    `${allowedApplyOrigins[0]}/SearchJobs/job/CHN---Shanghai/%252e%252e/Medical-role-REQ-STALE-MIRROR/apply`,
+    `${allowedApplyOrigins[0]}/SearchJobs/job/CHN---Shanghai%2Fhidden/Medical-role-REQ-STALE-MIRROR/apply`,
+    `${allowedApplyOrigins[0]}/SearchJobs/job/CHN---Shanghai/apply/Medical-role-REQ-STALE-MIRROR/apply`
+  ])("rejects a non-canonical Phenom apply path before treating it as closure evidence (%s)", async (applyUrl) => {
+    const { fetch } = phenomOnlyClosureFixture("CLOSED", { applyUrl });
+    await expect(fetch(msdPlan())).resolves.toMatchObject({
+      ok: false,
+      failureReason: "MSD_PHENOM_ONLY_DETAIL_INVALID"
+    });
+  });
+
+  it.each([
+    { closureContentType: "application/jsonp", failureReason: "MSD_HTTP_RESPONSE_INVALID" },
+    { extraClosureField: true, failureReason: "MSD_PHENOM_ONLY_REQUISITION_NOT_CLOSED" }
+  ])("rejects non-exact closure response metadata and shape", async (options) => {
+    const { fetch } = phenomOnlyClosureFixture("CLOSED", options);
+    await expect(fetch(msdPlan())).resolves.toMatchObject({ ok: false, failureReason: options.failureReason });
+  });
+
+  it("retains complete official-set evidence when a Phenom-only requisition is not proven closed", async () => {
+    const { fetch } = phenomOnlyClosureFixture("ACTIVE");
+    const result = await fetch(msdPlan());
+
+    expect(result).toMatchObject({
+      ok: false,
+      failureReason: "MSD_PHENOM_ONLY_REQUISITION_NOT_CLOSED",
+      fetchEvidence: {
+        artifacts: expect.arrayContaining([
+          expect.objectContaining({ logicalKey: "msd-phenom-only-detail-0000", httpStatus: 200 })
+        ]),
+        fetchCounts: { rawCount: 1, parsedCount: 1, validCount: 1 }
+      }
+    });
+  });
+
   it("returns a structured retry signal for a temporary official-entry failure", async () => {
     const plan = buildStagedSourceCrawlPlans(candidateCompanies)
       .find((candidate) => candidate.source.id === "source-msd-china-social");
