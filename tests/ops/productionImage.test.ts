@@ -307,6 +307,23 @@ describe("production container contract", () => {
       workflow.indexOf("name: Preserve Launch Cohort runner diagnostics")
     );
     expect(roundOneArtifact).toContain(".runtime/formal-state/round-one.dump");
+    const finalArtifact = workflow.slice(
+      workflow.indexOf("name: Preserve Launch Cohort final evidence"),
+      workflow.indexOf("name: Preserve Launch Cohort raw backup failure evidence")
+    );
+    expect(finalArtifact).not.toMatch(/^\s+path: \.runtime\/formal-state\s*$/mu);
+    expect(finalArtifact).toContain(".runtime/formal-state/round-two-audit.json");
+    expect(finalArtifact).toContain(".runtime/formal-state/final-database-backup.tar.gz");
+    expect(finalArtifact).toContain(".runtime/formal-state/launch-receipt.json");
+    const rawBackupFailureArtifact = workflow.slice(
+      workflow.indexOf("name: Preserve Launch Cohort raw backup failure evidence"),
+      workflow.indexOf("name: Export qualified image for trusted publication")
+    );
+    expect(rawBackupFailureArtifact).toContain("if: failure() && github.ref == 'refs/heads/qualification/launch-cohort-round-2'");
+    expect(rawBackupFailureArtifact).toContain(".runtime/formal-state/final-backup-failure-evidence/jobfinder-*.dump");
+    expect(rawBackupFailureArtifact).toContain(".runtime/formal-state/final-backup-failure-evidence/jobfinder-*.dump.sha256");
+    expect(rawBackupFailureArtifact).toContain(".runtime/formal-state/final-backup-failure-evidence/jobfinder-*.dump.metadata.json");
+    expect(rawBackupFailureArtifact).toContain(".runtime/formal-state/final-backup-failure-evidence/latest-backup-attempt.json");
 
     expect(runner).toContain("scripts/p0-formal-qualification-state.ts verify-files");
     expect(runner).toContain("scripts/p0-formal-qualification-state.ts verify-restored");
@@ -317,7 +334,7 @@ describe("production container contract", () => {
     expect(runner).toContain("trap 'exit 129' HUP");
     expect(runner).toContain("trap 'exit 130' INT");
     expect(runner).toContain("trap 'exit 143' TERM");
-    expect(runner).toContain('test "$launch_decision" = READY');
+    expect(runner).toContain('if [ "$launch_decision" != READY ]; then stop_round_two_with_preserved_evidence 1; fi');
     const secondCrawl = runner.indexOf("run_crawl || crawl_exit=$?", runner.indexOf("else"));
     const backup = runner.indexOf("ops/backup.sh", secondCrawl);
     const restore = runner.indexOf("scripts/qualify-backup-restore.ts", backup);

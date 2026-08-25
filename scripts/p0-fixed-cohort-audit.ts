@@ -1,7 +1,7 @@
 import { mkdir, rename, writeFile } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
 import { PrismaClient } from "@prisma/client";
-import { resolveCurrentStagedScheduleAuthority } from "../src/crawler/stagedScheduleAuthority";
+import { resolveCurrentAuditableStagedScheduleAuthority } from "../src/crawler/stagedScheduleAuthority";
 import { buildStagedSourceCrawlPlans } from "../src/crawler/sourcePlan";
 import { candidateCompanies } from "../src/data/companyRegistry";
 import { P0_LAUNCH_MANIFEST, selectLaunchCompanies } from "../src/release/launchManifest";
@@ -24,7 +24,7 @@ try {
   const generatedAt = new Date();
   const requestedBatchId = process.env.FIXED_COHORT_AUDIT_BATCH_ID?.trim();
   const { authority, batch } = await prisma.$transaction(async (transaction) => {
-    const authority = await resolveCurrentStagedScheduleAuthority(transaction as never), identity = authority.identity;
+    const authority = await resolveCurrentAuditableStagedScheduleAuthority(transaction as never), identity = authority.identity;
     const batch = await transaction.crawlBatch.findFirstOrThrow({
       where: { ...(requestedBatchId ? { id: requestedBatchId } : {}), releaseCandidateId: identity.releaseCandidateId,
         kind: "SCHEDULED", status: { in: ["SUCCESS", "INCOMPLETE", "FAILED"] }, finishedAt: { not: null },

@@ -13,6 +13,7 @@ import {
   deriveCurrentStagedScheduleExpectation,
   deriveStagedAdapterBundleSha256,
   deriveStagedSourceConfigSha256,
+  resolveCurrentAuditableStagedScheduleAuthority,
   resolveCurrentBuildingStagedScheduleAuthority,
   resolveCurrentStagedScheduleAuthority,
   STAGED_SCHEDULE_ORACLE_VERSION,
@@ -142,6 +143,20 @@ describe("current staged schedule expectation", () => {
 });
 
 describe("current staged schedule release-candidate lookup", () => {
+  it("retains exact INVALIDATED authority for post-failure audit without reopening scheduling", async () => {
+    const expected = deriveCurrentStagedScheduleExpectation(BUILD);
+    const findMany = vi.fn(async () => [releaseCandidateRow(expected, { status: "INVALIDATED" })]);
+
+    await expect(resolveCurrentAuditableStagedScheduleAuthority({ releaseCandidate: { findMany } }))
+      .resolves.toMatchObject({ identity: { releaseCandidateId: "rc-staged-1" } });
+    expect(findMany).toHaveBeenCalledWith(expect.objectContaining({
+      where: expect.objectContaining({ status: { in: ["BUILDING", "READY_FOR_QA", "RELEASED", "INVALIDATED"] } })
+    }));
+    await expect(resolveCurrentStagedScheduleAuthority({
+      releaseCandidate: { findMany: vi.fn(async () => [] as never) }
+    })).rejects.toThrow();
+  });
+
   it("provides a BUILDING-only authority seam for formal qualification state", async () => {
     const expected = deriveCurrentStagedScheduleExpectation(BUILD);
     await expect(resolveCurrentBuildingStagedScheduleAuthority({

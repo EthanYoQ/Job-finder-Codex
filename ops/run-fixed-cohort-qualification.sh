@@ -92,6 +92,31 @@ cp "$PWD/.runtime/restore/restore-pass-receipt.json" "$qualification_root/restor
 chmod 0444 "$qualification_root/image-qualification-receipt.json" \
   "$qualification_root/production-security-receipt.json" "$qualification_root/restore-pass-receipt.json"
 
+validate_regular_file_below_root() {
+  root="$1"
+  file="$2"
+  test -d "$root" || return 1
+  test ! -L "$root" || return 1
+  root_real="$(realpath --canonicalize-existing "$root")" || return 1
+  test ! -L "$file" || return 1
+  test -f "$file" || return 1
+  test "$(stat --format=%h -- "$file")" = 1 || return 1
+  file_real="$(realpath --canonicalize-existing -- "$file")" || return 1
+  case "$file_real" in "$root_real"/*) ;; *) return 1 ;; esac
+}
+
+normalize_owned_regular_file() {
+  root="$1"
+  file="$2"
+  validate_regular_file_below_root "$root" "$file" || return 1
+  file_real="$(realpath --canonicalize-existing -- "$file")" || return 1
+  sudo chown --no-dereference -- "$(id -u):$(id -g)" "$file" || return 1
+  validate_regular_file_below_root "$root" "$file" || return 1
+  test "$(realpath --canonicalize-existing -- "$file")" = "$file_real" || return 1
+  chmod 0600 -- "$file" || return 1
+  test -r "$file" || return 1
+}
+
 normalize_formal_file() {
   file="$1"
   case "$file" in
@@ -106,19 +131,150 @@ normalize_formal_file() {
   esac
   root="$work_root"
   case "$file" in "$state_root"/*) root="$state_root" ;; esac
-  root_real="$(realpath --canonicalize-existing "$root")"
-  test ! -L "$file"
-  test -f "$file"
-  test "$(stat --format=%h -- "$file")" = 1
-  file_real="$(realpath --canonicalize-existing -- "$file")"
-  case "$file_real" in "$root_real"/*) ;; *) return 1 ;; esac
-  sudo chown --no-dereference -- "$(id -u):$(id -g)" "$file"
-  test ! -L "$file"
-  test -f "$file"
-  test "$(stat --format=%h -- "$file")" = 1
-  test "$(realpath --canonicalize-existing -- "$file")" = "$file_real"
-  chmod 0600 -- "$file"
-  test -r "$file"
+  normalize_owned_regular_file "$root" "$file" || return 1
+}
+
+normalize_existing_formal_file() {
+  file="$1"
+  if [ ! -e "$file" ] && [ ! -L "$file" ]; then return 0; fi
+  normalize_formal_file "$file" || return 1
+}
+
+resolve_final_backup_triplet() {
+  backup_root="$1"
+  final_archive_count="$(find "$backup_root" -maxdepth 1 -type f -name 'jobfinder-*.dump' | wc -l)" || return 1
+  test "$final_archive_count" = 1 || return 1
+  final_archive="$(find "$backup_root" -maxdepth 1 -type f -name 'jobfinder-*.dump' -print -quit)" || return 1
+  final_archive_name="$(basename "$final_archive")" || return 1
+  printf '%s\n' "$final_archive_name" | grep -Eq '^jobfinder-[0-9]{8}T[0-9]{6}Z\.dump$' || return 1
+  validate_regular_file_below_root "$backup_root" "$final_archive" || return 1
+  validate_regular_file_below_root "$backup_root" "$final_archive.sha256" || return 1
+  validate_regular_file_below_root "$backup_root" "$final_archive.metadata.json" || return 1
+}
+
+validate_final_backup_inventory() {
+  backup_root="$1"
+  archive="$2"
+  attempt_receipt="$backup_root/latest-backup-attempt.json"
+  lock_file="$backup_root/.jobfinder-backup.lock"
+  backup_entry_count="$(find "$backup_root" -mindepth 1 -maxdepth 1 -print | wc -l)" || return 1
+  test "$backup_entry_count" = 5 || return 1
+  validate_regular_file_below_root "$backup_root" "$archive" || return 1
+  validate_regular_file_below_root "$backup_root" "$archive.sha256" || return 1
+  validate_regular_file_below_root "$backup_root" "$archive.metadata.json" || return 1
+  validate_regular_file_below_root "$backup_root" "$attempt_receipt" || return 1
+  validate_regular_file_below_root "$backup_root" "$lock_file" || return 1
+}
+
+normalize_final_backup_known_files() {
+  backup_root="$1"
+  archive="$2"
+  normalize_owned_regular_file "$backup_root" "$archive" || return 1
+  normalize_owned_regular_file "$backup_root" "$archive.sha256" || return 1
+  normalize_owned_regular_file "$backup_root" "$archive.metadata.json" || return 1
+  normalize_owned_regular_file "$backup_root" "$backup_root/latest-backup-attempt.json" || return 1
+  normalize_owned_regular_file "$backup_root" "$backup_root/.jobfinder-backup.lock" || return 1
+}
+
+finalize_final_backup_evidence() {
+  backup_root="$1"
+  archive="$2"
+  validate_final_backup_inventory "$backup_root" "$archive" || return 1
+  normalize_final_backup_known_files "$backup_root" "$archive" || return 1
+  validate_final_backup_inventory "$backup_root" "$archive" || return 1
+  chmod 0700 "$backup_root" || return 1
+  test "$(stat --format=%u -- "$backup_root")" = "$(id -u)" || return 1
+}
+
+ensure_failure_backup_evidence_root() {
+  failure_backup_root="$state_root/final-backup-failure-evidence"
+  if [ -e "$failure_backup_root" ] || [ -L "$failure_backup_root" ]; then
+    test -d "$failure_backup_root" || return 1
+    test ! -L "$failure_backup_root" || return 1
+    test "$(stat --format=%u -- "$failure_backup_root")" = "$(id -u)" || return 1
+  else
+    mkdir "$failure_backup_root" || return 1
+  fi
+  chmod 0700 "$failure_backup_root" || return 1
+}
+
+stage_final_backup_attempt_failure_evidence() {
+  backup_root="$1"
+  attempt_receipt="$backup_root/latest-backup-attempt.json"
+  normalize_owned_regular_file "$backup_root" "$attempt_receipt" || return 1
+  ensure_failure_backup_evidence_root || return 1
+  cp -- "$attempt_receipt" "$failure_backup_root/latest-backup-attempt.json" || return 1
+  chmod 0600 "$failure_backup_root/latest-backup-attempt.json" || return 1
+}
+
+stage_final_backup_failure_evidence() {
+  backup_root="$1"
+  archive="$2"
+  validate_regular_file_below_root "$backup_root" "$archive" || return 1
+  validate_regular_file_below_root "$backup_root" "$archive.sha256" || return 1
+  validate_regular_file_below_root "$backup_root" "$archive.metadata.json" || return 1
+  ensure_failure_backup_evidence_root || return 1
+  cp -- "$archive" "$archive.sha256" "$archive.metadata.json" "$failure_backup_root/" || return 1
+  chmod 0600 "$failure_backup_root/$(basename "$archive")" \
+    "$failure_backup_root/$(basename "$archive").sha256" \
+    "$failure_backup_root/$(basename "$archive").metadata.json" || return 1
+}
+
+snapshot_round_two_audit() {
+  audit_path="$work_root/round-two-audit.json"
+  if [ ! -e "$audit_path" ] && [ ! -L "$audit_path" ]; then return 0; fi
+  normalize_formal_file "$audit_path" || return 1
+  cp "$audit_path" "$state_root/round-two-audit.json" || return 1
+  chmod 0600 "$state_root/round-two-audit.json" || return 1
+  chmod 0444 "$audit_path" || return 1
+}
+
+preserve_round_two_failure_evidence() {
+  round_two_preserve_exit=0
+  normalize_existing_formal_file "$work_root/round-two-audit.json" || round_two_preserve_exit=1
+  normalize_existing_formal_file "$state_root/final-restore-receipt.json" || round_two_preserve_exit=1
+  normalize_existing_formal_file "$state_root/final-image-qualification-receipt.json" || round_two_preserve_exit=1
+  normalize_existing_formal_file "$state_root/final-database-backup.tar.gz" || round_two_preserve_exit=1
+  normalize_existing_formal_file "$state_root/launch-receipt.json" || round_two_preserve_exit=1
+  normalize_existing_formal_file "$state_root/round-two-evidence.tar.gz" || round_two_preserve_exit=1
+  if [ -f "$work_root/round-two-audit.json" ] && [ ! -L "$work_root/round-two-audit.json" ]; then
+    cp "$work_root/round-two-audit.json" "$state_root/round-two-audit.json" || round_two_preserve_exit=1
+    chmod 0600 "$state_root/round-two-audit.json" || round_two_preserve_exit=1
+  fi
+  cp "$qualification_root/production-security-receipt.json" \
+    "$state_root/production-security-receipt.json" || round_two_preserve_exit=1
+  chmod 0600 "$state_root/production-security-receipt.json" || round_two_preserve_exit=1
+  if [ -n "${final_backup_root:-}" ] && \
+    { [ -e "$final_backup_root/latest-backup-attempt.json" ] || \
+      [ -L "$final_backup_root/latest-backup-attempt.json" ]; }; then
+    stage_final_backup_attempt_failure_evidence "$final_backup_root" || round_two_preserve_exit=1
+  fi
+  if [ -n "${final_archive:-}" ]; then
+    stage_final_backup_failure_evidence "$final_backup_root" "$final_archive" || round_two_preserve_exit=1
+  fi
+  return "$round_two_preserve_exit"
+}
+
+finalize_round_two_success_evidence() {
+  normalize_formal_file "$work_root/round-two-audit.json" || return 1
+  normalize_formal_file "$state_root/final-restore-receipt.json" || return 1
+  normalize_formal_file "$state_root/final-image-qualification-receipt.json" || return 1
+  normalize_formal_file "$state_root/final-database-backup.tar.gz" || return 1
+  normalize_formal_file "$state_root/launch-receipt.json" || return 1
+  normalize_formal_file "$state_root/round-two-evidence.tar.gz" || return 1
+  cp "$work_root/round-two-audit.json" "$state_root/round-two-audit.json" || return 1
+  cp "$qualification_root/production-security-receipt.json" \
+    "$state_root/production-security-receipt.json" || return 1
+  chmod 0600 "$state_root/round-two-audit.json" \
+    "$state_root/production-security-receipt.json" || return 1
+}
+
+stop_round_two_with_preserved_evidence() {
+  original_exit="$1"
+  preservation_exit=0
+  preserve_round_two_failure_evidence || preservation_exit=$?
+  if [ "$original_exit" -ne 0 ]; then exit "$original_exit"; fi
+  exit "$preservation_exit"
 }
 
 run_image() {
@@ -291,36 +447,96 @@ else
   audit_exit=0
   set_runner_stage ROUND_TWO_AUDIT
   run_audit round-two-audit.json || audit_exit=$?
-  archive_evidence round-two-evidence.tar.gz
+  round_two_audit_snapshot_exit=0
+  snapshot_round_two_audit || round_two_audit_snapshot_exit=$?
+  if [ "$round_two_audit_snapshot_exit" -ne 0 ]; then
+    stop_round_two_with_preserved_evidence "$round_two_audit_snapshot_exit"
+  fi
+  round_two_evidence_archive_exit=0
+  archive_evidence round-two-evidence.tar.gz || round_two_evidence_archive_exit=$?
+  if [ "$round_two_evidence_archive_exit" -ne 0 ]; then
+    stop_round_two_with_preserved_evidence "$round_two_evidence_archive_exit"
+  fi
   final_backup_root="$state_root/final-backup"
-  mkdir -p "$final_backup_root"
-  chmod 0777 "$final_backup_root"
+  final_backup_setup_exit=0
+  mkdir -p "$final_backup_root" || final_backup_setup_exit=$?
+  if [ "$final_backup_setup_exit" -eq 0 ]; then
+    chmod 0777 "$final_backup_root" || final_backup_setup_exit=$?
+  fi
+  if [ "$final_backup_setup_exit" -ne 0 ]; then
+    stop_round_two_with_preserved_evidence "$final_backup_setup_exit"
+  fi
+  final_backup_producer_exit=0
   docker run --rm --network "$network" --read-only --cap-drop ALL --security-opt no-new-privileges:true \
     --tmpfs /tmp:rw,nosuid,nodev,noexec,size=64m,mode=1777 --env DATABASE_URL="$database_url" \
     --env BACKUP_DIR=/state/final-backup --env BACKUP_RETENTION_DAYS=14 \
-    --volume "$state_root:/state" "$IMAGE_TAG" sh ./ops/backup.sh
-  final_archive_count="$(find "$final_backup_root" -maxdepth 1 -type f -name 'jobfinder-*.dump' | wc -l)"
-  test "$final_archive_count" = 1
-  final_archive="$(find "$final_backup_root" -maxdepth 1 -type f -name 'jobfinder-*.dump' -print -quit)"
-  final_archive_name="$(basename "$final_archive")"
+    --volume "$state_root:/state" "$IMAGE_TAG" sh ./ops/backup.sh || final_backup_producer_exit=$?
+  if [ "$final_backup_producer_exit" -ne 0 ]; then
+    stop_round_two_with_preserved_evidence "$final_backup_producer_exit"
+  fi
+  final_backup_resolution_exit=0
+  resolve_final_backup_triplet "$final_backup_root" || final_backup_resolution_exit=$?
+  if [ "$final_backup_resolution_exit" -ne 0 ]; then
+    stop_round_two_with_preserved_evidence "$final_backup_resolution_exit"
+  fi
+  final_backup_inventory_exit=0
+  validate_final_backup_inventory "$final_backup_root" "$final_archive" || final_backup_inventory_exit=$?
+  if [ "$final_backup_inventory_exit" -ne 0 ]; then
+    final_backup_normalization_exit=0
+    normalize_final_backup_known_files "$final_backup_root" "$final_archive" || final_backup_normalization_exit=$?
+    if [ "$final_backup_normalization_exit" -ne 0 ]; then
+      stop_round_two_with_preserved_evidence "$final_backup_normalization_exit"
+    fi
+    stop_round_two_with_preserved_evidence "$final_backup_inventory_exit"
+  fi
+  restore_qualification_exit=0
   docker run --rm --network "$network" --read-only --cap-drop ALL --security-opt no-new-privileges:true \
     --tmpfs /tmp:rw,nosuid,nodev,noexec,size=64m,mode=1777 \
     --env RESTORE_ADMIN_DATABASE_URL="postgresql://jobfinder:formal-qualification-password@postgres/postgres" \
     --env RESTORE_RECEIPT_PATH=/state/final-restore-receipt.json --volume "$state_root:/state" "$IMAGE_TAG" \
-    node node_modules/tsx/dist/cli.mjs scripts/qualify-backup-restore.ts "/state/final-backup/$final_archive_name"
-  restore_database_count="$(docker exec "$postgres_name" psql -U jobfinder -d postgres -Atc \
-    "SELECT count(*) FROM pg_database WHERE left(datname, 18) = 'jobfinder_restore_'")"
-  test "$restore_database_count" = 0
+    node node_modules/tsx/dist/cli.mjs scripts/qualify-backup-restore.ts "/state/final-backup/$final_archive_name" \
+    || restore_qualification_exit=$?
+  if [ "$restore_qualification_exit" -eq 0 ]; then
+    restore_database_count="$(docker exec "$postgres_name" psql -U jobfinder -d postgres -Atc \
+      "SELECT count(*) FROM pg_database WHERE left(datname, 18) = 'jobfinder_restore_'")" \
+      || restore_qualification_exit=$?
+    if [ "$restore_qualification_exit" -eq 0 ] && [ "$restore_database_count" != 0 ]; then
+      restore_qualification_exit=1
+    fi
+  fi
+  final_backup_archive_exit=0
   docker run --rm --network none --read-only --cap-drop ALL --security-opt no-new-privileges:true \
     --tmpfs /tmp:rw,nosuid,nodev,noexec,size=64m,mode=1777 --volume "$state_root:/state" "$IMAGE_TAG" \
-    tar -czf /state/final-database-backup.tar.gz -C /state/final-backup .
-  image_digest="$(docker image inspect --format '{{.Id}}' "$IMAGE_TAG")"
+    tar -czf /state/final-database-backup.tar.gz -C /state/final-backup \
+    "$final_archive_name" "$final_archive_name.sha256" "$final_archive_name.metadata.json" \
+    || final_backup_archive_exit=$?
+  final_backup_finalize_exit=0
+  finalize_final_backup_evidence "$final_backup_root" "$final_archive" || final_backup_finalize_exit=$?
+  if [ "$restore_qualification_exit" -ne 0 ] || [ "$final_backup_archive_exit" -ne 0 ] || \
+    [ "$final_backup_finalize_exit" -ne 0 ]; then
+    if [ "$restore_qualification_exit" -ne 0 ]; then
+      stop_round_two_with_preserved_evidence "$restore_qualification_exit"
+    fi
+    if [ "$final_backup_archive_exit" -ne 0 ]; then
+      stop_round_two_with_preserved_evidence "$final_backup_archive_exit"
+    fi
+    stop_round_two_with_preserved_evidence "$final_backup_finalize_exit"
+  fi
+  image_digest_exit=0
+  image_digest="$(docker image inspect --format '{{.Id}}' "$IMAGE_TAG")" || image_digest_exit=$?
+  if [ "$image_digest_exit" -ne 0 ]; then
+    stop_round_two_with_preserved_evidence "$image_digest_exit"
+  fi
+  final_image_receipt_exit=0
   docker run --rm --network none --read-only --cap-drop ALL --security-opt no-new-privileges:true \
     --tmpfs /tmp:rw,nosuid,nodev,noexec,size=64m,mode=1777 --volume "$state_root:/state" \
     --volume "$qualification_root:/qualification:ro" "$IMAGE_TAG" node node_modules/tsx/dist/cli.mjs \
     scripts/write-image-qualification-receipt.ts /state/final-image-qualification-receipt.json \
     "$image_digest" "$GITHUB_SHA" /app/build-identity.json /qualification/production-security-receipt.json \
-    /state/final-restore-receipt.json
+    /state/final-restore-receipt.json || final_image_receipt_exit=$?
+  if [ "$final_image_receipt_exit" -ne 0 ]; then
+    stop_round_two_with_preserved_evidence "$final_image_receipt_exit"
+  fi
   set_runner_stage ROUND_TWO_LAUNCH_RECEIPT
   launch_exit=0
   docker run --rm --network "$network" --read-only --cap-drop ALL --security-opt no-new-privileges:true \
@@ -339,19 +555,21 @@ else
     --volume "$state_root:/state" --volume "$input_root:/round-one:ro" --volume "$work_root:/evidence:ro" \
     --volume "$qualification_root:/qualification:ro" "$IMAGE_TAG" \
     node node_modules/tsx/dist/cli.mjs scripts/p0-authoritative-launch-receipt.ts || launch_exit=$?
-  normalize_formal_file "$work_root/round-two-audit.json"
-  normalize_formal_file "$state_root/final-restore-receipt.json"
-  normalize_formal_file "$state_root/final-image-qualification-receipt.json"
-  normalize_formal_file "$state_root/final-database-backup.tar.gz"
-  normalize_formal_file "$state_root/launch-receipt.json"
-  normalize_formal_file "$state_root/round-two-evidence.tar.gz"
-  cp "$work_root/round-two-audit.json" "$state_root/round-two-audit.json"
-  cp "$qualification_root/production-security-receipt.json" "$state_root/production-security-receipt.json"
-  chmod 0600 "$state_root/round-two-audit.json" "$state_root/production-security-receipt.json"
+  if [ "$launch_exit" -ne 0 ]; then
+    stop_round_two_with_preserved_evidence "$launch_exit"
+  fi
+  round_two_success_evidence_exit=0
+  finalize_round_two_success_evidence || round_two_success_evidence_exit=$?
+  if [ "$round_two_success_evidence_exit" -ne 0 ]; then
+    stop_round_two_with_preserved_evidence "$round_two_success_evidence_exit"
+  fi
+  launch_decision_exit=0
   launch_decision="$(node -p "JSON.parse(require('fs').readFileSync(process.argv[1],'utf8')).decision" \
-    "$state_root/launch-receipt.json")"
-  test "$crawl_exit" -eq 0
-  test "$audit_exit" -eq 0
-  test "$launch_exit" -eq 0
-  test "$launch_decision" = READY
+    "$state_root/launch-receipt.json")" || launch_decision_exit=$?
+  if [ "$launch_decision_exit" -ne 0 ]; then
+    stop_round_two_with_preserved_evidence "$launch_decision_exit"
+  fi
+  if [ "$crawl_exit" -ne 0 ]; then stop_round_two_with_preserved_evidence "$crawl_exit"; fi
+  if [ "$audit_exit" -ne 0 ]; then stop_round_two_with_preserved_evidence "$audit_exit"; fi
+  if [ "$launch_decision" != READY ]; then stop_round_two_with_preserved_evidence 1; fi
 fi

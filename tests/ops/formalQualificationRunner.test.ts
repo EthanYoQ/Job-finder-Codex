@@ -4,6 +4,7 @@ import {
   mkdirSync,
   mkdtempSync,
   readFileSync,
+  readdirSync,
   rmSync,
   writeFileSync
 } from "node:fs";
@@ -65,7 +66,7 @@ function createHarness(round: 1 | 2) {
 
   const eventLog = resolve(root, "docker-events.log");
   writeFileSync(eventLog, "", "utf8");
-  writeExecutable(resolve(bin, "sudo"), 'test "${1:-}" = chown');
+  writeExecutable(resolve(bin, "sudo"), 'printf \'sudo %s\\n\' "$*" >> "$FAKE_DOCKER_LOG"\ntest "${1:-}" = chown');
   writeExecutable(resolve(bin, "sleep"), "exit 0");
   writeExecutable(resolve(bin, "docker"), String.raw`
 printf '%s\n' "$*" >> "$FAKE_DOCKER_LOG"
@@ -121,16 +122,29 @@ case "$*" in
     ;;
   *pg_dump*) [ -n "$state_host" ] && [ -n "$dump_name" ]; printf 'database-dump\n' > "$state_host/$dump_name" ;;
   *"tar -czf /state/round-one-evidence.tar.gz"*) printf 'round-one-evidence\n' > "$state_host/round-one-evidence.tar.gz" ;;
-  *"tar -czf /state/round-two-evidence.tar.gz"*) printf 'round-two-evidence\n' > "$state_host/round-two-evidence.tar.gz" ;;
-  *"tar -czf /state/final-database-backup.tar.gz"*) printf 'final-backup-archive\n' > "$state_host/final-database-backup.tar.gz" ;;
+  *"tar -czf /state/round-two-evidence.tar.gz"*)
+    printf 'round-two-evidence\n' > "$state_host/round-two-evidence.tar.gz"
+    exit "\${FAKE_ROUND_TWO_EVIDENCE_EXIT:-0}"
+    ;;
+  *"tar -czf /state/final-database-backup.tar.gz"*)
+    printf 'final-backup-archive\n' > "$state_host/final-database-backup.tar.gz"
+    exit "\${FAKE_FINAL_BACKUP_TAR_EXIT:-0}"
+    ;;
   *"p0-formal-qualification-state.ts capture"*) printf '{"decision":"ROUND_ONE_QUALIFIED"}\n' > "$state_host/round-one-state-receipt.json" ;;
   *"sh ./ops/backup.sh"*)
     mkdir -p "$state_host/final-backup"
+    printf '{"status":"SUCCEEDED"}\n' > "$state_host/final-backup/latest-backup-attempt.json"
+    : > "$state_host/final-backup/.jobfinder-backup.lock"
+    [ "\${FAKE_BACKUP_PRODUCER_EXIT:-0}" = 0 ] || exit "$FAKE_BACKUP_PRODUCER_EXIT"
     printf 'final-dump\n' > "$state_host/final-backup/jobfinder-20260813T000000Z.dump"
     printf 'checksum\n' > "$state_host/final-backup/jobfinder-20260813T000000Z.dump.sha256"
     printf '{}\n' > "$state_host/final-backup/jobfinder-20260813T000000Z.dump.metadata.json"
+    [ "\${FAKE_EXTRA_BACKUP_ENTRY:-0}" = 0 ] || mkdir "$state_host/final-backup/unexpected-entry"
     ;;
-  *scripts/qualify-backup-restore.ts*) printf '{"decision":"PASSED"}\n' > "$state_host/final-restore-receipt.json" ;;
+  *scripts/qualify-backup-restore.ts*)
+    printf '{"decision":"PASSED"}\n' > "$state_host/final-restore-receipt.json"
+    exit "\${FAKE_RESTORE_QUALIFY_EXIT:-0}"
+    ;;
   *scripts/write-image-qualification-receipt.ts*) printf '{"decision":"PASSED"}\n' > "$state_host/final-image-qualification-receipt.json" ;;
   *scripts/p0-authoritative-launch-receipt.ts*) printf '{"decision":"READY"}\n' > "$state_host/launch-receipt.json" ;;
 esac
@@ -267,7 +281,82 @@ describe("formal Launch Cohort qualification runner", () => {
     expect(backup).toBeGreaterThan(crawl);
     expect(qualifyRestore).toBeGreaterThan(backup);
     expect(ready).toBeGreaterThan(qualifyRestore);
+    const normalizedBackupFiles = events.split("\n").filter((line) =>
+      line.startsWith("sudo chown --no-dereference -- ") && line.includes("/formal-state/final-backup/jobfinder-")
+    );
+    expect(normalizedBackupFiles).toHaveLength(3);
+    expect(normalizedBackupFiles.some((line) => line.endsWith(".dump"))).toBe(true);
+    expect(normalizedBackupFiles.some((line) => line.endsWith(".dump.sha256"))).toBe(true);
+    expect(normalizedBackupFiles.some((line) => line.endsWith(".dump.metadata.json"))).toBe(true);
+    const firstBackupNormalization = events.indexOf(normalizedBackupFiles[0]!);
+    const finalBackupArchive = events.indexOf("tar -czf /state/final-database-backup.tar.gz");
+    expect(firstBackupNormalization).toBeGreaterThan(qualifyRestore);
+    expect(firstBackupNormalization).toBeGreaterThan(finalBackupArchive);
     expect(events).toContain("rm --force job-finder-formal-postgres-12345");
     expect(events).not.toContain("formal-runner-status:/");
+  });
+
+  it("fails closed on an unexpected final-backup directory entry before launch receipt", () => {
+    const harness = createHarness(2);
+    const result = harness.run({ FAKE_EXTRA_BACKUP_ENTRY: "1" });
+    expect(result.status).toBe(1);
+    const events = readFileSync(harness.eventLog, "utf8");
+    expect(events).not.toContain("scripts/p0-authoritative-launch-receipt.ts");
+    expect(readFileSync(resolve(harness.runtime, "formal-state", "round-two-audit.json"), "utf8")).toContain("{}");
+    expect(readFileSync(resolve(harness.runtime, "formal-state", "production-security-receipt.json"), "utf8")).toContain("{}");
+    expect(events.split("\n").filter((line) =>
+      line.startsWith("sudo chown --no-dereference -- ") && line.includes("/formal-state/final-backup/jobfinder-")
+    )).toHaveLength(3);
+    expect(readdirSync(resolve(harness.runtime, "formal-state", "final-backup-failure-evidence"))).toHaveLength(4);
+    expect(JSON.parse(readFileSync(
+      resolve(harness.runtime, "formal-runner-status", "round-two-runner-status.json"), "utf8"
+    ))).toMatchObject({ status: "FAILED", stage: "ROUND_TWO_AUDIT", exitCode: 1 });
+  });
+
+  it("preserves the audit and security receipt when round-two evidence archiving fails", () => {
+    const harness = createHarness(2);
+    const result = harness.run({ FAKE_ROUND_TWO_EVIDENCE_EXIT: "29" });
+    expect(result.status).toBe(29);
+    expect(readFileSync(resolve(harness.runtime, "formal-state", "round-two-audit.json"), "utf8")).toContain("{}");
+    expect(readFileSync(resolve(harness.runtime, "formal-state", "production-security-receipt.json"), "utf8")).toContain("{}");
+    const events = readFileSync(harness.eventLog, "utf8");
+    expect(events).not.toContain("scripts/p0-authoritative-launch-receipt.ts");
+  });
+
+  it("publishes the terminal backup-attempt receipt when the producer fails before archive creation", () => {
+    const harness = createHarness(2);
+    const result = harness.run({ FAKE_BACKUP_PRODUCER_EXIT: "31" });
+    expect(result.status).toBe(31);
+    const failureBackupRoot = resolve(harness.runtime, "formal-state", "final-backup-failure-evidence");
+    expect(readdirSync(failureBackupRoot)).toEqual(["latest-backup-attempt.json"]);
+    expect(readFileSync(resolve(failureBackupRoot, "latest-backup-attempt.json"), "utf8")).toContain("SUCCEEDED");
+  });
+
+  it("stages the raw backup triplet and attempt receipt for an ordinary round-two crawl failure", () => {
+    const harness = createHarness(2);
+    const result = harness.run({ FAKE_CRAWL_EXIT: "17" });
+    expect(result.status).toBe(17);
+    expect(readdirSync(resolve(harness.runtime, "formal-state", "final-backup-failure-evidence"))).toHaveLength(4);
+  });
+
+  it.each([
+    ["restore qualification", { FAKE_RESTORE_QUALIFY_EXIT: "19" }, 19],
+    ["final backup packaging", { FAKE_FINAL_BACKUP_TAR_EXIT: "23" }, 23]
+  ])("normalizes the exact final-backup evidence after a %s failure", (_failure, failureEnv, exitCode) => {
+    const harness = createHarness(2);
+    const result = harness.run(failureEnv);
+    expect(result.status).toBe(exitCode);
+    const events = readFileSync(harness.eventLog, "utf8");
+    const normalizedBackupFiles = events.split("\n").filter((line) =>
+      line.startsWith("sudo chown --no-dereference -- ") && line.includes("/formal-state/final-backup/jobfinder-")
+    );
+    expect(normalizedBackupFiles).toHaveLength(3);
+    expect(readdirSync(resolve(harness.runtime, "formal-state", "final-backup-failure-evidence"))).toHaveLength(4);
+    expect(readFileSync(resolve(harness.runtime, "formal-state", "round-two-audit.json"), "utf8")).toContain("{}");
+    expect(readFileSync(resolve(harness.runtime, "formal-state", "production-security-receipt.json"), "utf8")).toContain("{}");
+    expect(events).not.toContain("scripts/p0-authoritative-launch-receipt.ts");
+    expect(JSON.parse(readFileSync(
+      resolve(harness.runtime, "formal-runner-status", "round-two-runner-status.json"), "utf8"
+    ))).toMatchObject({ status: "FAILED", stage: "ROUND_TWO_AUDIT", exitCode });
   });
 });

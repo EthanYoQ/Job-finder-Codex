@@ -19,6 +19,8 @@ import {
 export const STAGED_SCHEDULE_ORACLE_VERSION = "staged-official-source-v1" as const;
 
 const STAGED_SCHEDULE_ALLOWED_STATUSES = ["BUILDING", "READY_FOR_QA", "RELEASED"] as const;
+const STAGED_SCHEDULE_AUDITABLE_STATUSES = [...STAGED_SCHEDULE_ALLOWED_STATUSES, "INVALIDATED"] as const;
+type StagedScheduleAuthorityStatus = (typeof STAGED_SCHEDULE_AUDITABLE_STATUSES)[number];
 const STAGED_SCHEDULE_OWNER_ID = "staged-scheduler" as const;
 const STAGED_ADAPTER_BUNDLE_SCHEMA_VERSION = "staged-adapter-bundle-v1" as const;
 
@@ -69,7 +71,7 @@ interface StagedReleaseCandidateFindManyArgs {
     runtimeTreeHash: string;
     oracleVersion: typeof STAGED_SCHEDULE_ORACLE_VERSION;
     minimumStableCompanyCount: number;
-    status: { in: readonly (typeof STAGED_SCHEDULE_ALLOWED_STATUSES)[number][] };
+    status: { in: readonly StagedScheduleAuthorityStatus[] };
   };
   select: Record<keyof StagedReleaseCandidateRow, true>;
   take: 2;
@@ -214,6 +216,12 @@ export async function resolveCurrentStagedScheduleAuthority(
   return (await resolveCurrentStagedScheduleAuthorityWithStatus(db)).authority;
 }
 
+export async function resolveCurrentAuditableStagedScheduleAuthority(
+  db: StagedScheduleAuthorityDb
+): Promise<CurrentStagedScheduleAuthority> {
+  return (await resolveCurrentStagedScheduleAuthorityWithStatus(db, STAGED_SCHEDULE_AUDITABLE_STATUSES)).authority;
+}
+
 export async function resolveCurrentBuildingStagedScheduleAuthority(
   db: StagedScheduleAuthorityDb
 ): Promise<CurrentStagedScheduleAuthority> {
@@ -312,10 +320,11 @@ function countCompletedQualificationRows(
 }
 
 async function resolveCurrentStagedScheduleAuthorityWithStatus(
-  db: StagedScheduleAuthorityDb
+  db: StagedScheduleAuthorityDb,
+  allowedStatuses: readonly StagedScheduleAuthorityStatus[] = STAGED_SCHEDULE_ALLOWED_STATUSES
 ): Promise<{
   authority: CurrentStagedScheduleAuthority;
-  status: (typeof STAGED_SCHEDULE_ALLOWED_STATUSES)[number];
+  status: StagedScheduleAuthorityStatus;
 }> {
   const expectation = deriveCurrentStagedScheduleExpectation(resolveCurrentBuildIdentity());
   const rows = await db.releaseCandidate.findMany({
@@ -329,7 +338,7 @@ async function resolveCurrentStagedScheduleAuthorityWithStatus(
       runtimeTreeHash: expectation.runtimeTreeSha256,
       oracleVersion: STAGED_SCHEDULE_ORACLE_VERSION,
       minimumStableCompanyCount: expectation.minimumStableCompanyCount,
-      status: { in: [...STAGED_SCHEDULE_ALLOWED_STATUSES] }
+      status: { in: [...allowedStatuses] }
     },
     select: {
       id: true,
@@ -352,7 +361,7 @@ async function resolveCurrentStagedScheduleAuthorityWithStatus(
 
   const row = rows[0]!;
   if (!row.id.trim()) throw new Error("Staged schedule release candidate id must be nonblank");
-  if (!(STAGED_SCHEDULE_ALLOWED_STATUSES as readonly string[]).includes(row.status)) {
+  if (!(allowedStatuses as readonly string[]).includes(row.status)) {
     throw new Error(`Staged schedule release candidate status is not allowed: ${row.status}`);
   }
   assertReleaseCandidateField("commitSha", row.commitSha, expectation.commitSha);
@@ -388,7 +397,7 @@ async function resolveCurrentStagedScheduleAuthorityWithStatus(
   });
   return {
     authority,
-    status: row.status as (typeof STAGED_SCHEDULE_ALLOWED_STATUSES)[number]
+    status: row.status as StagedScheduleAuthorityStatus
   };
 }
 
