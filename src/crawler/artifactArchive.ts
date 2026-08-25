@@ -230,11 +230,7 @@ export async function verifyArchivedSourceEvidence(
   request: VerifyArchivedEvidenceRequest
 ): Promise<ArchivedEvidenceArtifact[]> {
   validateTuple(request);
-  const canonicalSubdirectory = validateEvidenceSubdirectory(request.evidenceSubdirectory);
-  const artifacts = validateArchivedArtifacts(request.artifacts);
-  assertUnique(artifacts.map((artifact) => artifact.id), "artifact id");
-  assertUnique(artifacts.map((artifact) => artifact.logicalKey), "artifact logical key");
-  assertUnique(artifacts.map((artifact) => normalizeForComparison(artifact.path)), "artifact path");
+  const artifacts = validateArchivedEvidenceMetadata(request);
   const workspaceRoot = path.resolve(request.workspaceRoot);
   const workspaceReal = await realpath(workspaceRoot);
   if (workspaceReal !== workspaceRoot) throw new Error("workspace root symlink/reparse alias is forbidden");
@@ -242,25 +238,6 @@ export async function verifyArchivedSourceEvidence(
   if(request.formalRelease)await validatePrivateArchiveRoot(workspaceRoot,rcRoot);
 
   for (const artifact of artifacts) {
-    if (
-      artifact.releaseCandidateId !== request.releaseCandidateId ||
-      artifact.batchId !== request.batchId ||
-      artifact.sourceId !== request.sourceId ||
-      artifact.sourceResultId !== request.sourceResultId
-    ) {
-      throw new Error(`artifact tuple mismatch for ${artifact.id}`);
-    }
-    const expectedPath = canonicalArtifactPath({
-      releaseCandidateId: request.releaseCandidateId,
-      evidenceSubdirectory: canonicalSubdirectory,
-      batchId: request.batchId,
-      sourceId: request.sourceId,
-      sourceResultId: request.sourceResultId,
-      artifact
-    });
-    if (artifact.path !== expectedPath) {
-      throw new Error(`artifact metadata does not use the exact canonical evidence path for ${artifact.id}`);
-    }
     if (path.isAbsolute(artifact.path)) throw new Error(`absolute artifact path is forbidden: ${artifact.path}`);
     const absolutePath = path.resolve(workspaceRoot, artifact.path);
     assertBelow(rcRoot, absolutePath, "artifact path");
@@ -277,6 +254,62 @@ export async function verifyArchivedSourceEvidence(
     const actual = sha256Bytes(await readFile(real));
     if (actual.byteCount !== artifact.byteCount) throw new Error(`artifact byte count mismatch: ${artifact.path}`);
     if (actual.sha256 !== artifact.sha256) throw new Error(`artifact SHA-256 mismatch: ${artifact.path}`);
+  }
+  return artifacts;
+}
+
+export function assertVerifiedArchivedEvidenceMetadata(
+  request: Omit<VerifyArchivedEvidenceRequest, "workspaceRoot">,
+  expectedDrafts: readonly SourceFetchArtifactDraft[]
+): void {
+  validateArchivedEvidenceMetadata(request, expectedDrafts);
+}
+
+function validateArchivedEvidenceMetadata(
+  request: Omit<VerifyArchivedEvidenceRequest, "workspaceRoot">,
+  expectedDrafts?: readonly SourceFetchArtifactDraft[]
+): ArchivedEvidenceArtifact[] {
+  validateTupleIdentifiers(request);
+  const canonicalSubdirectory = validateEvidenceSubdirectory(request.evidenceSubdirectory);
+  const artifacts = validateArchivedArtifacts(request.artifacts);
+  assertUnique(artifacts.map((artifact) => artifact.id), "artifact id");
+  assertUnique(artifacts.map((artifact) => artifact.logicalKey), "artifact logical key");
+  assertUnique(artifacts.map((artifact) => normalizeForComparison(artifact.path)), "artifact path");
+  if (expectedDrafts !== undefined && artifacts.length !== expectedDrafts.length) {
+    throw new Error("verified archive metadata does not match the exact fetch artifact set");
+  }
+  const drafts = new Map((expectedDrafts ?? []).map((draft) => [draft.logicalKey, draft]));
+  for (const artifact of artifacts) {
+    if (artifact.releaseCandidateId !== request.releaseCandidateId || artifact.batchId !== request.batchId ||
+        artifact.sourceId !== request.sourceId || artifact.sourceResultId !== request.sourceResultId) {
+      throw new Error(`artifact tuple mismatch for ${artifact.id}`);
+    }
+    const draft = expectedDrafts === undefined ? undefined : drafts.get(artifact.logicalKey);
+    const digest = draft === undefined ? undefined : sha256Bytes(
+      typeof draft.body === "string" ? Buffer.from(draft.body, "utf8") : Buffer.from(draft.body));
+    if (expectedDrafts !== undefined && (!draft || artifact.id !== draft.id ||
+        artifact.batchId !== request.batchId || artifact.sourceId !== request.sourceId ||
+        artifact.sourceResultId !== request.sourceResultId || artifact.kind !== draft.kind ||
+        (artifact.channelId ?? null) !== (draft.channelId ?? null) ||
+        (artifact.requestedUrl ?? null) !== (draft.requestedUrl ?? null) ||
+        (artifact.finalUrl ?? null) !== (draft.finalUrl ?? null) ||
+        (artifact.httpStatus ?? null) !== (draft.httpStatus ?? null) ||
+        (artifact.contentType ?? null) !== (draft.contentType ?? null) ||
+        (artifact.bodyRepresentation ?? null) !== (draft.bodyRepresentation ?? null) ||
+        (artifact.rawBodySha256 ?? null) !== (draft.rawBodySha256 ?? null) ||
+        JSON.stringify(artifact.redactionDescriptors ?? null) !==
+        JSON.stringify(draft.redactionDescriptors ?? null) ||
+        artifact.capturedAt.getTime() !== new Date(draft.capturedAt).getTime() ||
+        artifact.extractorLocator !== draft.extractorLocator || artifact.sha256 !== digest!.sha256 ||
+        artifact.byteCount !== digest!.byteCount)) {
+      throw new Error(`verified archive metadata is not bound to fetch artifact ${artifact.logicalKey}`);
+    }
+    const expectedPath = canonicalArtifactPath({ releaseCandidateId: request.releaseCandidateId,
+      evidenceSubdirectory: canonicalSubdirectory, batchId: request.batchId, sourceId: request.sourceId,
+      sourceResultId: request.sourceResultId, artifact });
+    if (artifact.path !== expectedPath) {
+      throw new Error(`artifact metadata does not use the exact canonical evidence path for ${artifact.id}`);
+    }
   }
   return artifacts;
 }
@@ -512,6 +545,15 @@ function validateTuple(request: {
   sourceResultId: string;
 }): void {
   if (!path.isAbsolute(request.workspaceRoot)) throw new Error("workspaceRoot must be absolute");
+  validateTupleIdentifiers(request);
+}
+
+function validateTupleIdentifiers(request: {
+  releaseCandidateId: string;
+  batchId: string;
+  sourceId: string;
+  sourceResultId: string;
+}): void {
   for (const [name, value] of Object.entries({
     releaseCandidateId: request.releaseCandidateId,
     batchId: request.batchId,

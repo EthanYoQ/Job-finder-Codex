@@ -19,6 +19,9 @@ const browserAndPaginationRetryMigrationPath=resolve(process.cwd(),"prisma","mig
 const browserAndPaginationRetryMigration=existsSync(browserAndPaginationRetryMigrationPath)
   ? readFileSync(browserAndPaginationRetryMigrationPath,"utf8")
   : "";
+const failedSourceDiagnosticEvidenceMigration=readFileSync(resolve(
+  process.cwd(), "prisma", "migrations", "20260825113000_failed_source_diagnostic_evidence", "migration.sql"
+), "utf8");
 const baselineMigration = readFileSync(
   resolve(process.cwd(), "prisma", "migrations", "20260710000000_baseline", "migration.sql"),
   "utf8"
@@ -135,6 +138,7 @@ describe("prisma schema", () => {
       ,"20260813013000_transport_policy_retry_diagnostics"
       ,"20260824070000_official_network_retry_diagnostics"
       ,"20260825093000_browser_and_pagination_retry_diagnostics"
+      ,"20260825113000_failed_source_diagnostic_evidence"
     ]);
     const statements = crawlStatusValuesMigration
       .split("\n")
@@ -619,6 +623,24 @@ describe("prisma schema", () => {
       expect(sourceCheck, counter).toContain(`"${counter}" >= 0`);
       expect(observationCheck, counter).toContain(`"${counter}" >= 0`);
     }
+  });
+
+  it("permits fetch-only counters only for failed NOT_ATTEMPTED diagnostic evidence", () => {
+    expect(failedSourceDiagnosticEvidenceMigration).toContain(
+      'DROP CONSTRAINT "CrawlBatchSourceResult_loss_reconciliation_check"'
+    );
+    for (const predicate of [
+      '"atomicCommitState" = \'NOT_ATTEMPTED\'',
+      '"completenessState" = \'FAILED\'',
+      '"adapterState" IN (\'FAILED\', \'SKIPPED\')',
+      '"normalizedCount" = 0',
+      '"dedupeInputCount" = 0',
+      '"dedupeOutputCount" = 0',
+      '"discardCount" = "parseDiscardCount" + "validationDiscardCount"'
+    ]) expect(failedSourceDiagnosticEvidenceMigration).toContain(predicate);
+    expect(failedSourceDiagnosticEvidenceMigration).toContain(
+      '"validCount" = "normalizedCount" + "normalizationDiscardCount"'
+    );
   });
 
   it("requires complete HTTP provenance for every network artifact kind", () => {

@@ -24,6 +24,8 @@ export interface FailedFixedCohortResultProjection {
   failureCategory: string | null;
   failureDiagnosticCode: string | null;
   failureCode: string | null;
+  evidenceArtifacts: FixedCohortAuditSourceInput["evidenceArtifacts"];
+  paginationEvidence: FixedCohortAuditSourceInput["paginationEvidence"];
 }
 
 export function projectFailedFixedCohortAuditSource(input: {
@@ -45,11 +47,11 @@ export function projectFailedFixedCohortAuditSource(input: {
     plannedChannelIds: input.plan.plannedChannelIds,
     officialSurfaceIds: input.result.officialSurfaceIds,
     officialChannelIds: input.result.officialChannelIds,
-    evidenceArtifacts: [],
-    paginationEvidence: [],
+    evidenceArtifacts: input.result.evidenceArtifacts,
+    paginationEvidence: input.result.paginationEvidence,
     expectedEvidenceKind: input.result.expectedEvidenceKind,
     expectedJobCount: input.result.expectedJobCount,
-    pagesVisited: 0,
+    pagesVisited: input.result.paginationEvidence.length,
     totalPages: null,
     finalJobCount: input.result.finalJobCount,
     transportState: input.result.transportState,

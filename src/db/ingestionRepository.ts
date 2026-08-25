@@ -362,6 +362,7 @@ export interface PrismaSourceResultReadDb {
   crawlBatchSourceResult: {
     findUnique(args: {
       where: { id: string };
+      include?: Record<string, unknown>;
     }): Promise<Record<string, unknown> | null>;
     findMany(args: {
       where: { releaseCandidateId: string; batchId: string };
@@ -453,6 +454,23 @@ export interface PendingSourceTerminalInput {
   fetchAttemptCount?: number | null;
   retryCount?: number | null;
   retryReasonCodes?: string[];
+}
+
+export interface FailedSourceEvidenceCommit {
+  sourceResult: PendingSourceTerminalInput;
+  fetchCounts: {
+    rawCount: number;
+    parsedCount: number;
+    validCount: number;
+    parseDiscardCount: number;
+    validationDiscardCount: number;
+  };
+  expectedJobCount: number | null;
+  expectedEvidenceKind: PrismaCompletenessEvidenceKindName | null;
+  artifacts: AtomicEvidenceArtifactInput[];
+  pagination: AtomicPaginationEvidenceInput[];
+  lossLedger: AtomicLossLedgerInput[];
+  priorTransportAttempts: AtomicTransportAttemptInput[];
 }
 
 interface PendingSourceTerminalTransactionClient {
@@ -568,25 +586,154 @@ export async function terminatePendingSourceResult(
   await db.$transaction(async (transaction) => {
     const result = await transaction.crawlBatchSourceResult.updateMany({
       where: pendingSourceTupleWhere(input),
-      data: {
-        transportState: input.transportState,
-        adapterState: input.adapterState,
-        completenessState: input.completenessState,
-        atomicCommitState: input.atomicCommitState,
-        finishedAt: input.finishedAt,
-        failureCode: input.failureCode,
-        failureReason: input.failureReason,
-        blockerCode: input.blockerCode ?? null,
-        blockerReason: input.blockerReason ?? null,
-        failureCategory: input.failureCategory ?? null,
-        failureDiagnosticCode: input.failureDiagnosticCode ?? null,
-        fetchAttemptCount: input.fetchAttemptCount ?? null,
-        retryCount: input.retryCount ?? null,
-        retryReasonCodes: input.retryReasonCodes ?? []
-      }
+      data: pendingSourceTerminalData(input)
     });
     requireExactlyOnePendingResult(result);
   });
+}
+
+export async function terminateManualPendingSourceResult(
+  input: PendingSourceTerminalInput,
+  fence: ManualSourceCommitFence,
+  db: PrismaAtomicSourceEvidenceDb
+): Promise<void> {
+  validatePendingSourceTerminal(input);
+  await db.$transaction(async (transaction) => {
+    await assertManualSourceCommitFence(transaction, fence, input.sourceId, input.batchId);
+    const result = await transaction.crawlBatchSourceResult.updateMany({
+      where: pendingSourceTupleWhere(input),
+      data: pendingSourceTerminalData(input)
+    });
+    requireExactlyOnePendingResult(result);
+  }, ATOMIC_EVIDENCE_TRANSACTION_OPTIONS);
+}
+
+function pendingSourceTerminalData(input: PendingSourceTerminalInput): Record<string, unknown> {
+  return {
+    transportState: input.transportState, adapterState: input.adapterState,
+    completenessState: input.completenessState, atomicCommitState: input.atomicCommitState,
+    finishedAt: input.finishedAt, failureCode: input.failureCode, failureReason: input.failureReason,
+    blockerCode: input.blockerCode ?? null, blockerReason: input.blockerReason ?? null,
+    failureCategory: input.failureCategory ?? null,
+    failureDiagnosticCode: input.failureDiagnosticCode ?? null,
+    fetchAttemptCount: input.fetchAttemptCount ?? null, retryCount: input.retryCount ?? null,
+    retryReasonCodes: input.retryReasonCodes ?? []
+  };
+}
+
+export async function executeFailedSourceEvidenceCommit(
+  input: FailedSourceEvidenceCommit,
+  db: PrismaAtomicSourceEvidenceDb
+): Promise<void> {
+  return executeFailedSourceEvidenceCommitInternal(input, db);
+}
+
+export async function executeManualFailedSourceEvidenceCommit(
+  input: FailedSourceEvidenceCommit,
+  fence: ManualSourceCommitFence,
+  db: PrismaAtomicSourceEvidenceDb
+): Promise<void> {
+  if (fence.requestId.trim() === "" || fence.ownerId.trim() === "") {
+    throw new ManualSourceCommitFenceError();
+  }
+  return executeFailedSourceEvidenceCommitInternal(input, db, fence);
+}
+
+async function executeFailedSourceEvidenceCommitInternal(
+  input: FailedSourceEvidenceCommit,
+  db: PrismaAtomicSourceEvidenceDb,
+  manualFence?: ManualSourceCommitFence
+): Promise<void> {
+  let stage: AtomicEvidencePersistenceStage = "ATTESTATION";
+  try {
+  const { verifyFailedRuntimeEvidenceCommitAttestation } = await import("../crawler/runtimeAtomicEvidence");
+  verifyFailedRuntimeEvidenceCommitAttestation(input);
+  stage = "INPUT_VALIDATION";
+  validatePendingSourceTerminal(input.sourceResult);
+  if (input.sourceResult.atomicCommitState !== "NOT_ATTEMPTED") {
+    throw new Error("Failed diagnostic evidence cannot claim an atomic source commit");
+  }
+  const tuple: EvidenceTuple = {
+    releaseCandidateId: input.sourceResult.releaseCandidateId,
+    batchId: input.sourceResult.batchId,
+    sourceId: input.sourceResult.sourceId,
+    sourceResultId: input.sourceResult.id
+  };
+  const artifactIdsByLogicalKey = validateDiagnosticArtifacts(input.artifacts, tuple);
+  validateDiagnosticPagination(input.pagination, tuple, artifactIdsByLogicalKey);
+  validateDiagnosticLossLedger(input.lossLedger, tuple, input.fetchCounts);
+  validateDiagnosticTransportAttempts(input.priorTransportAttempts, tuple, input.artifacts);
+  for (const [name, value] of Object.entries(input.fetchCounts)) requireNonnegativeInteger(value, name);
+  if (input.fetchCounts.rawCount !== input.fetchCounts.parsedCount + input.fetchCounts.parseDiscardCount ||
+      input.fetchCounts.parsedCount !== input.fetchCounts.validCount + input.fetchCounts.validationDiscardCount) {
+    throw new Error("Failed diagnostic fetch counts do not reconcile");
+  }
+  if (input.expectedJobCount !== null) requireNonnegativeInteger(input.expectedJobCount, "expectedJobCount");
+
+  stage = "TRANSACTION_COMMIT";
+  await db.$transaction(async (transaction) => {
+    if (manualFence) {
+      stage = "OWNERSHIP_FENCE";
+      await assertManualSourceCommitFence(transaction, manualFence, input.sourceResult.sourceId,
+        input.sourceResult.batchId);
+    }
+    stage = "ARTIFACT_WRITE";
+    for (const artifact of input.artifacts) {
+      const { logicalKey: _logicalKey, ...data } = artifact;
+      await transaction.evidenceArtifact.create({ data });
+    }
+    stage = "PAGINATION_WRITE";
+    for (const page of input.pagination) {
+      const { artifactLogicalKey, ...data } = page;
+      await transaction.paginationEvidence.create({
+        data: { ...data, artifactId: artifactIdsByLogicalKey.get(artifactLogicalKey) }
+      });
+    }
+    stage = "LOSS_LEDGER_WRITE";
+    for (const loss of input.lossLedger) {
+      await transaction.lossLedgerEntry.create({ data: { ...loss } });
+    }
+    stage = "TRANSPORT_ATTEMPT_WRITE";
+    for (const attempt of input.priorTransportAttempts) {
+      const { artifactIds, ...attemptData } = attempt;
+      await transaction.transportAttemptEvidence.create({ data: attemptData });
+      for (const artifactId of artifactIds) {
+        await transaction.transportAttemptArtifact.create({ data: {
+          attemptId: attempt.id, artifactId, releaseCandidateId: attempt.releaseCandidateId,
+          batchId: attempt.batchId, sourceId: attempt.sourceId, sourceResultId: attempt.sourceResultId
+        } });
+      }
+    }
+    stage = "SOURCE_TERMINAL_WRITE";
+    const result = await transaction.crawlBatchSourceResult.updateMany({
+      where: pendingSourceTupleWhere(input.sourceResult),
+      data: {
+        transportState: input.sourceResult.transportState,
+        adapterState: input.sourceResult.adapterState,
+        completenessState: input.sourceResult.completenessState,
+        atomicCommitState: input.sourceResult.atomicCommitState,
+        finishedAt: input.sourceResult.finishedAt,
+        failureCode: input.sourceResult.failureCode,
+        failureReason: input.sourceResult.failureReason,
+        blockerCode: input.sourceResult.blockerCode ?? null,
+        blockerReason: input.sourceResult.blockerReason ?? null,
+        failureCategory: input.sourceResult.failureCategory ?? null,
+        failureDiagnosticCode: input.sourceResult.failureDiagnosticCode ?? null,
+        fetchAttemptCount: input.sourceResult.fetchAttemptCount ?? null,
+        retryCount: input.sourceResult.retryCount ?? null,
+        retryReasonCodes: input.sourceResult.retryReasonCodes ?? [],
+        ...input.fetchCounts,
+        discardCount: input.fetchCounts.parseDiscardCount + input.fetchCounts.validationDiscardCount,
+        expectedJobCount: input.expectedJobCount,
+        expectedEvidenceKind: input.expectedEvidenceKind
+      }
+    });
+    requireExactlyOnePendingResult(result);
+    stage = "TRANSACTION_COMMIT";
+  }, ATOMIC_EVIDENCE_TRANSACTION_OPTIONS);
+  } catch (error) {
+    throw tagAtomicEvidencePersistenceStage(error, stage);
+  }
 }
 
 export async function executeIngestionCommands(
@@ -714,6 +861,27 @@ export async function inspectPersistedAtomicCommitOutcome(
   return { state: "CONFLICT" };
 }
 
+export async function inspectPersistedFailedSourceEvidenceCommitOutcome(
+  input: FailedSourceEvidenceCommit,
+  db: PrismaSourceResultReadDb
+): Promise<PersistedAtomicCommitOutcome> {
+  const persisted = await db.crawlBatchSourceResult.findUnique({
+    where: { id: input.sourceResult.id },
+    include: {
+      evidenceArtifacts: true,
+      paginationEvidence: true,
+      lossLedgerEntries: true,
+      observations: true,
+      transportAttempts: { include: { artifactRefs: true } }
+    }
+  });
+  if (!persisted) return { state: "CONFLICT" };
+  if (isExpectedPendingFailedSourceResult(persisted, input.sourceResult)) return { state: "PENDING" };
+  return isExactPersistedFailedEvidence(persisted, input)
+    ? { state: "COMMITTED_EXACT" }
+    : { state: "CONFLICT" };
+}
+
 export async function readPersistedBatchSourceResults(
   input: { releaseCandidateId: string; batchId: string },
   db: PrismaSourceResultReadDb
@@ -769,19 +937,8 @@ async function executeAtomicSourceEvidenceCommitInternal(
     await db.$transaction(async (transaction) => {
     if (manualFence) {
       stage = "OWNERSHIP_FENCE";
-      if (!transaction.$queryRawUnsafe) throw new ManualSourceCommitFenceError();
-      const ownedRequest = await transaction.$queryRawUnsafe<Array<{ id: string }>>(
-        LOCK_MANUAL_REQUEST_FOR_COMMIT_SQL,
-        manualFence.requestId, manualFence.ownerId, input.sourceResult.sourceId);
-      if (ownedRequest.length !== 1 || ownedRequest[0]?.id !== manualFence.requestId) {
-        throw new ManualSourceCommitFenceError();
-      }
-      const ownedBatch = await transaction.$queryRawUnsafe<Array<{ id: string }>>(
-        LOCK_MANUAL_BATCH_FOR_COMMIT_SQL,
-        input.sourceResult.batchId, manualFence.requestId, manualFence.ownerId);
-      if (ownedBatch.length !== 1 || ownedBatch[0]?.id !== input.sourceResult.batchId) {
-        throw new ManualSourceCommitFenceError();
-      }
+      await assertManualSourceCommitFence(transaction, manualFence, input.sourceResult.sourceId,
+        input.sourceResult.batchId);
     }
     stage = "ARTIFACT_WRITE";
     for (const artifact of input.artifacts) {
@@ -925,6 +1082,25 @@ WHERE "id" = $1 AND "manualCrawlRequestId" = $2
 FOR UPDATE
 `;
 
+async function assertManualSourceCommitFence(
+  transaction: AtomicSourceTransactionClient,
+  fence: ManualSourceCommitFence,
+  sourceId: string,
+  batchId: string
+): Promise<void> {
+  if (!transaction.$queryRawUnsafe) throw new ManualSourceCommitFenceError();
+  const ownedRequest = await transaction.$queryRawUnsafe<Array<{ id: string }>>(
+    LOCK_MANUAL_REQUEST_FOR_COMMIT_SQL, fence.requestId, fence.ownerId, sourceId);
+  if (ownedRequest.length !== 1 || ownedRequest[0]?.id !== fence.requestId) {
+    throw new ManualSourceCommitFenceError();
+  }
+  const ownedBatch = await transaction.$queryRawUnsafe<Array<{ id: string }>>(
+    LOCK_MANUAL_BATCH_FOR_COMMIT_SQL, batchId, fence.requestId, fence.ownerId);
+  if (ownedBatch.length !== 1 || ownedBatch[0]?.id !== batchId) {
+    throw new ManualSourceCommitFenceError();
+  }
+}
+
 function validatePlannedBatchWithSources(input: PlannedBatchWithSourcesInput): PlannedPendingSourceInput[] {
   const batch = input.batch;
   for (const [name, value] of [
@@ -1032,6 +1208,168 @@ function validateRetryReasonCodes(values: readonly string[], retryCount: number)
       values.some((value) => !isRetryableSourceTransportFailureCode(value))) {
     throw new Error("Retry reasons must match the bounded transient retry count and closed transport codes");
   }
+}
+
+function validateDiagnosticArtifacts(
+  artifacts: readonly AtomicEvidenceArtifactInput[],
+  tuple: EvidenceTuple
+): Map<string, string> {
+  if (artifacts.length === 0) throw new Error("Failed diagnostic evidence requires an archived artifact");
+  return validateEvidenceArtifacts(artifacts, tuple).idsByLogicalKey;
+}
+
+function validateDiagnosticPagination(
+  pages: readonly AtomicPaginationEvidenceInput[],
+  tuple: EvidenceTuple,
+  artifactIdsByLogicalKey: ReadonlyMap<string, string>
+): void {
+  validateEvidencePagination(pages, tuple, artifactIdsByLogicalKey, false);
+}
+
+function validateDiagnosticLossLedger(
+  losses: readonly AtomicLossLedgerInput[],
+  tuple: EvidenceTuple,
+  counts: FailedSourceEvidenceCommit["fetchCounts"]
+): void {
+  const { counts: lossCounts } = validateEvidenceLossRows(losses, tuple, true);
+  if (lossCounts.PARSE !== counts.parseDiscardCount || lossCounts.VALIDATION !== counts.validationDiscardCount) {
+    throw new Error("Failed diagnostic loss rows do not reconcile to fetch discard counts");
+  }
+}
+
+function validateDiagnosticTransportAttempts(
+  attempts: readonly AtomicTransportAttemptInput[],
+  tuple: EvidenceTuple,
+  artifacts: readonly AtomicEvidenceArtifactInput[]
+): void {
+  validateEvidenceTransportAttempts(attempts, tuple, new Set(artifacts.map(({ id }) => id)));
+}
+
+function validateEvidenceArtifacts(
+  artifacts: readonly AtomicEvidenceArtifactInput[],
+  tuple: EvidenceTuple
+): { idsByLogicalKey: Map<string, string>; artifactsByLogicalKey: Map<string, AtomicEvidenceArtifactInput> } {
+  const ids = new Set<string>(), paths = new Set<string>(), idsByLogicalKey = new Map<string, string>();
+  const artifactsByLogicalKey = new Map<string, AtomicEvidenceArtifactInput>();
+  for (const artifact of artifacts) {
+    assertTuple(artifact, tuple, "artifact");
+    requireNonblank(artifact.id, "artifact id"); requireNonblank(artifact.logicalKey, "artifact logical key");
+    requireNonblank(artifact.path, "artifact path"); requireNonblank(artifact.extractorLocator, "artifact extractorLocator");
+    requireNonblank(artifact.captureToolName, "artifact captureToolName");
+    requireNonblank(artifact.captureToolVersion, "artifact captureToolVersion");
+    requireSha256(artifact.sha256, "artifact sha256");
+    requireSha256(artifact.redactionCommitmentSha256, "artifact redaction commitment sha256");
+    requireNonnegativeInteger(artifact.byteCount, "artifact byteCount");
+    if (!isValidDate(artifact.capturedAt)) throw new Error("Artifact capturedAt is invalid");
+    if (ids.has(artifact.id) || idsByLogicalKey.has(artifact.logicalKey) || paths.has(artifact.path)) {
+      throw new Error("Artifact ids, logical keys and paths must be unique");
+    }
+    if (NETWORK_ARTIFACT_KINDS.has(artifact.kind)) {
+      requireNonblank(artifact.requestedUrl, "network artifact requestedUrl");
+      requireNonblank(artifact.finalUrl, "network artifact finalUrl");
+      requireNonblank(artifact.contentType, "network artifact contentType");
+      if (!Number.isInteger(artifact.httpStatus) || artifact.httpStatus! < 100 || artifact.httpStatus! > 599) {
+        throw new Error("Network artifact httpStatus is invalid");
+      }
+    }
+    ids.add(artifact.id); paths.add(artifact.path); idsByLogicalKey.set(artifact.logicalKey, artifact.id);
+    artifactsByLogicalKey.set(artifact.logicalKey, artifact);
+  }
+  return { idsByLogicalKey, artifactsByLogicalKey };
+}
+
+function validateEvidencePagination(
+  pages: readonly AtomicPaginationEvidenceInput[],
+  tuple: EvidenceTuple,
+  artifactIdsByLogicalKey: ReadonlyMap<string, string>,
+  verified: boolean
+): void {
+  const sorted = [...pages].sort((left, right) => left.sequence - right.sequence);
+  for (let index = 0; index < sorted.length; index += 1) {
+    const page = sorted[index]!;
+    assertTuple(page, tuple, "pagination");
+    if (!Number.isSafeInteger(page.sequence) || page.sequence !== index) {
+      throw new Error("Pagination sequences must be unique and contiguous from zero");
+    }
+    if (!artifactIdsByLogicalKey.has(page.artifactLogicalKey)) {
+      throw new Error("Pagination references an artifact outside the supplied artifact set");
+    }
+    requireSha256(page.responseFingerprintSha256, "pagination response sha256");
+    requireSha256(page.rawJobIdSetSha256, "pagination raw job id set sha256");
+    requireSha256(page.validJobIdSetSha256, "pagination valid job id set sha256");
+    if (!isValidDate(page.capturedAt)) throw new Error("Pagination capturedAt is invalid");
+    for (const [name, value] of [["declaredTotal", page.declaredTotal], ["declaredCount", page.declaredCount],
+      ["declaredPages", page.declaredPages], ["requestedOffset", page.requestedOffset],
+      ["returnedOffset", page.returnedOffset], ["requestedPage", page.requestedPage],
+      ["returnedPage", page.returnedPage], ["requestedPageSize", page.requestedPageSize],
+      ["returnedPageSize", page.returnedPageSize]] as const) {
+      if (value !== undefined && value !== null) {
+        requireNonnegativeInteger(value, `pagination ${name}`);
+        if ((name === "requestedPageSize" || name === "returnedPageSize") && value === 0) {
+          throw new Error(`pagination ${name} must be positive when supplied`);
+        }
+      }
+    }
+    if (verified && page.anomalyCodes.length > 0) {
+      throw new Error("VERIFIED completeness cannot contain pagination anomalies");
+    }
+    if (verified && UNSAFE_VERIFIED_TERMINATIONS.has(page.termination)) {
+      throw new Error("VERIFIED completeness cannot use an unsafe pagination termination");
+    }
+  }
+}
+
+function validateEvidenceTransportAttempts(
+  attempts: readonly AtomicTransportAttemptInput[],
+  tuple: EvidenceTuple,
+  artifactIds: ReadonlySet<string>
+): void {
+  const attemptIds = new Set<string>();
+  for (let index = 0; index < attempts.length; index += 1) {
+    const attempt = attempts[index]!;
+    assertTuple(attempt, tuple, "transport attempt"); requireNonblank(attempt.id, "transport attempt id");
+    requireNonblank(attempt.code, "transport attempt code");
+    if (attempt.sequence !== index || attemptIds.has(attempt.id) || !TRANSPORT_ATTEMPT_CODES.has(attempt.code) ||
+        !isValidDate(attempt.capturedAt)) throw new Error("Transport attempt code, sequence, ID or timestamp is invalid");
+    const expectedTransport = attempt.code === "HCM_DIRECT_FAILED" ? "DIRECT_HTTP" : "BROWSER_SESSION";
+    const expectedOutcome = attempt.code === "HCM_BROWSER_SUCCEEDED" ? "SUCCEEDED" : "FAILED";
+    if (attempt.transport !== expectedTransport || attempt.outcome !== expectedOutcome) {
+      throw new Error("Transport attempt code, transport and outcome are inconsistent");
+    }
+    for (const value of [attempt.evidenceCommitmentSha256, attempt.pageTraceSha256,
+      attempt.lossLedgerSha256, attempt.paginationEvaluationSha256]) requireSha256(value, "transport attempt commitment");
+    validateNonblankUniqueList(attempt.artifactIds, "transport attempt artifact");
+    if (attempt.artifactIds.some((id) => !artifactIds.has(id))) {
+      throw new Error("Transport attempt references an artifact outside the supplied tuple");
+    }
+    validateSafeJson(attempt.details, "transport attempt details"); attemptIds.add(attempt.id);
+  }
+}
+
+function validateEvidenceLossRows(
+  losses: readonly AtomicLossLedgerInput[],
+  tuple: EvidenceTuple,
+  fetchOnly: boolean
+): { counts: Record<LossStage, number>; collisionGroups: Set<string> } {
+  const counts: Record<LossStage, number> = { PARSE: 0, VALIDATION: 0, NORMALIZATION: 0, DEDUPE: 0 };
+  const collisionGroups = new Set<string>();
+  for (const loss of losses) {
+    assertTuple(loss, tuple, "loss ledger");
+    if (fetchOnly && loss.stage !== "PARSE" && loss.stage !== "VALIDATION") {
+      throw new Error("Failed fetch diagnostics may only persist fetch-stage losses");
+    }
+    requireNonblank(loss.reason, "loss reason"); requireNonblank(loss.rawLocator, "loss rawLocator");
+    if (loss.recordedAt !== undefined && !isValidDate(loss.recordedAt)) throw new Error("Loss recordedAt is invalid");
+    if (loss.details === undefined) throw new Error("Loss details must be supplied");
+    counts[loss.stage] += 1;
+    if (loss.stage === "DEDUPE") {
+      if (!nonblank(loss.candidateKey) || !nonblank(loss.winnerKey)) {
+        throw new Error("Dedupe loss requires nonblank candidateKey and winnerKey");
+      }
+      collisionGroups.add(loss.winnerKey);
+    }
+  }
+  return { counts, collisionGroups };
 }
 
 function validateCommittedSourceResultTruthTable(
@@ -1214,7 +1552,9 @@ const OPTIONAL_BASELINE_SOURCE_RESULT_FIELDS = new Set<keyof AtomicSourceResultI
 
 function isExpectedPendingSourceResult(
   persisted: Record<string, unknown>,
-  expected: AtomicSourceResultInput
+  expected: Pick<AtomicSourceResultInput,
+    "id" | "releaseCandidateId" | "batchId" | "sourceId" | "sourceConfigHash" |
+    "adapterVersion" | "officialEntryId" | "officialSurfaceIds" | "officialChannelIds" | "startedAt">
 ): boolean {
   if (persisted.transportState !== "PENDING" || persisted.adapterState !== "PENDING" ||
       persisted.completenessState !== "PENDING" || persisted.atomicCommitState !== "PENDING") {
@@ -1223,6 +1563,147 @@ function isExpectedPendingSourceResult(
   return PENDING_SOURCE_IMMUTABLE_FIELDS.every((field) =>
     Object.prototype.hasOwnProperty.call(persisted, field) &&
     persistedSourceValueEquals(persisted[field], expected[field] ?? null));
+}
+
+function isExpectedPendingFailedSourceResult(
+  persisted: Record<string, unknown>,
+  expected: PendingSourceTerminalInput
+): boolean {
+  return persisted.transportState === "PENDING" && persisted.adapterState === "PENDING" &&
+    persisted.completenessState === "PENDING" && persisted.atomicCommitState === "PENDING" &&
+    (["id", "releaseCandidateId", "batchId", "sourceId"] as const).every((field) =>
+      persisted[field] === expected[field]);
+}
+
+function isExactPersistedFailedEvidence(
+  persisted: Record<string, unknown>,
+  expected: FailedSourceEvidenceCommit
+): boolean {
+  const terminal = expected.sourceResult;
+  const terminalFields: Array<keyof PendingSourceTerminalInput> = [
+    "id", "releaseCandidateId", "batchId", "sourceId", "transportState", "adapterState",
+    "completenessState", "atomicCommitState", "finishedAt", "failureCode", "failureReason",
+    "blockerCode", "blockerReason", "failureCategory", "failureDiagnosticCode",
+    "fetchAttemptCount", "retryCount", "retryReasonCodes"
+  ];
+  if (!terminalFields.every((field) => persistedSourceValueEquals(
+    persisted[field], terminal[field] ?? null))) return false;
+  const countFields = ["rawCount", "parsedCount", "validCount", "parseDiscardCount",
+    "validationDiscardCount"] as const;
+  if (!countFields.every((field) => persisted[field] === expected.fetchCounts[field]) ||
+      persisted.discardCount !== expected.fetchCounts.parseDiscardCount +
+        expected.fetchCounts.validationDiscardCount ||
+      !persistedSourceValueEquals(persisted.expectedJobCount, expected.expectedJobCount) ||
+      !persistedSourceValueEquals(persisted.expectedEvidenceKind, expected.expectedEvidenceKind)) return false;
+  const zeroFields = ["normalizedCount", "dedupeInputCount", "dedupeOutputCount",
+    "normalizationDiscardCount", "dedupeDiscardCount", "collisionCount"] as const;
+  const nullFields = ["expectedSurfaceSha256", "visitedSurfaceSha256", "expectedChannelSha256",
+    "visitedChannelSha256", "canonicalCurrentJobSetSha256", "canonicalGraceJobSetSha256",
+    "canonicalVisibleJobSetSha256", "canonicalOutputSetSha256", "adapterInputCount",
+    "adapterOutputCount", "adapterLossCount", "adapterCollisionGroupCount",
+    "adapterReconciliationSha256", "collisionLedgerSha256", "completenessCertificate",
+    "completenessCertificateSha256", "baselinePreviousSourceResultId", "baselinePreviousJobCount",
+    "baselineChangeReason"] as const;
+  if (zeroFields.some((field) => persisted[field] !== 0) ||
+      nullFields.some((field) => persisted[field] != null) || relationRows(persisted.observations).length !== 0) {
+    return false;
+  }
+
+  const artifacts = relationRows(persisted.evidenceArtifacts);
+  if (!sameRows(artifacts, expected.artifacts, (row) => ({
+    id: row.id, releaseCandidateId: row.releaseCandidateId, batchId: row.batchId,
+    sourceId: row.sourceId, sourceResultId: row.sourceResultId, channelId: row.channelId ?? null,
+    kind: row.kind, requestedUrl: row.requestedUrl ?? null, finalUrl: row.finalUrl ?? null,
+    httpStatus: row.httpStatus ?? null, contentType: row.contentType ?? null,
+    capturedAt: dateValue(row.capturedAt), sha256: row.sha256, byteCount: row.byteCount, path: row.path,
+    extractorLocator: row.extractorLocator, captureToolName: row.captureToolName,
+    captureToolVersion: row.captureToolVersion, redactionCommitmentSha256: row.redactionCommitmentSha256
+  }))) return false;
+  const artifactIdByLogicalKey = new Map(expected.artifacts.map((item) => [item.logicalKey, item.id]));
+  const expectedPages = expected.pagination.map(({ artifactLogicalKey, ...page }) => ({
+    ...page, artifactId: artifactIdByLogicalKey.get(artifactLogicalKey)
+  }));
+  const pagination = relationRows(persisted.paginationEvidence);
+  if (!sameRows(pagination, expectedPages, (row) => ({
+    releaseCandidateId: row.releaseCandidateId, batchId: row.batchId, sourceId: row.sourceId,
+    sourceResultId: row.sourceResultId, artifactId: row.artifactId, sequence: row.sequence,
+    channelId: row.channelId ?? null, requestedCursor: row.requestedCursor ?? null,
+    returnedCursor: row.returnedCursor ?? null, requestedOffset: row.requestedOffset ?? null,
+    returnedOffset: row.returnedOffset ?? null, requestedPage: row.requestedPage ?? null,
+    returnedPage: row.returnedPage ?? null, requestedPageSize: row.requestedPageSize ?? null,
+    returnedPageSize: row.returnedPageSize ?? null,
+    responseFingerprintSha256: row.responseFingerprintSha256, rawJobIdSetSha256: row.rawJobIdSetSha256,
+    validJobIdSetSha256: row.validJobIdSetSha256, declaredTotal: row.declaredTotal ?? null,
+    declaredCount: row.declaredCount ?? null, declaredPages: row.declaredPages ?? null,
+    nextPageSignalBefore: row.nextPageSignalBefore ?? null, nextPageSignalAfter: row.nextPageSignalAfter ?? null,
+    termination: row.termination, anomalyCodes: row.anomalyCodes, capturedAt: dateValue(row.capturedAt)
+  }))) return false;
+  const losses = relationRows(persisted.lossLedgerEntries);
+  if (!sameLossRows(losses, expected.lossLedger)) return false;
+  const attempts = relationRows(persisted.transportAttempts);
+  return sameRows(attempts, expected.priorTransportAttempts, (row) => ({
+    id: row.id, releaseCandidateId: row.releaseCandidateId, batchId: row.batchId, sourceId: row.sourceId,
+    sourceResultId: row.sourceResultId, sequence: row.sequence, transport: row.transport,
+    outcome: row.outcome, code: row.code, capturedAt: dateValue(row.capturedAt),
+    evidenceCommitmentSha256: row.evidenceCommitmentSha256, pageTraceSha256: row.pageTraceSha256,
+    lossLedgerSha256: row.lossLedgerSha256, paginationEvaluationSha256: row.paginationEvaluationSha256,
+    details: row.details,
+    artifactIds: Array.isArray(row.artifactIds) ? [...row.artifactIds].sort() :
+      relationRows(row.artifactRefs).map((item) => String(item.artifactId)).sort()
+  }));
+}
+
+function relationRows(value: unknown): Array<Record<string, any>> {
+  return Array.isArray(value) ? value.filter((row): row is Record<string, any> =>
+    typeof row === "object" && row !== null) : [];
+}
+
+function sameRows(
+  actual: readonly Record<string, any>[],
+  expected: readonly Record<string, any>[],
+  project: (row: Record<string, any>) => unknown
+): boolean {
+  if (actual.length !== expected.length) return false;
+  const normalize = (rows: readonly Record<string, any>[]) => rows.map((row) =>
+    canonicalComparisonJson(project(row))).sort();
+  const left = normalize(actual), right = normalize(expected);
+  return left.every((value, index) => value === right[index]);
+}
+
+function sameLossRows(
+  actual: readonly Record<string, any>[],
+  expected: readonly AtomicLossLedgerInput[]
+): boolean {
+  if (actual.length !== expected.length) return false;
+  const core = (row: Record<string, any>) => canonicalComparisonJson({
+    releaseCandidateId: row.releaseCandidateId, batchId: row.batchId, sourceId: row.sourceId,
+    sourceResultId: row.sourceResultId, stage: row.stage, reason: row.reason, rawLocator: row.rawLocator,
+    details: row.details, candidateKey: row.candidateKey ?? null, winnerKey: row.winnerKey ?? null
+  });
+  const remaining = [...actual];
+  for (const expectedRow of expected) {
+    const index = remaining.findIndex((actualRow) => core(actualRow) === core(expectedRow) &&
+      (expectedRow.recordedAt === undefined ||
+        dateValue(actualRow.recordedAt) === dateValue(expectedRow.recordedAt)));
+    if (index < 0) return false;
+    remaining.splice(index, 1);
+  }
+  return remaining.length === 0;
+}
+
+function canonicalComparisonJson(value: unknown): string {
+  if (value === null || typeof value !== "object") return JSON.stringify(value);
+  if (value instanceof Date) return JSON.stringify(value.toISOString());
+  if (Array.isArray(value)) return `[${value.map(canonicalComparisonJson).join(",")}]`;
+  return `{${Object.entries(value as Record<string, unknown>).sort(([left], [right]) =>
+    left.localeCompare(right)).map(([key, child]) =>
+      `${JSON.stringify(key)}:${canonicalComparisonJson(child)}`).join(",")}}`;
+}
+
+function dateValue(value: unknown): string | null {
+  if (value == null) return null;
+  const date = value instanceof Date ? value : new Date(String(value));
+  return Number.isNaN(date.getTime()) ? String(value) : date.toISOString();
 }
 
 function persistedSourceValueEquals(actual: unknown, expected: unknown): boolean {
@@ -1402,35 +1883,8 @@ function validateAtomicSourceEvidenceCommit(
   }
 
   onStage("ARTIFACT_VALIDATION");
-  const artifactIdsByLogicalKey = new Map<string, string>();
-  const paths = new Set<string>();
-  const artifactByLogicalKey = new Map<string, AtomicEvidenceArtifactInput>();
-  for (const artifact of input.artifacts) {
-    assertTuple(artifact, tuple, "artifact");
-    requireNonblank(artifact.id, "artifact id");
-    requireNonblank(artifact.logicalKey, "artifact logical key");
-    requireNonblank(artifact.path, "artifact path");
-    requireNonblank(artifact.extractorLocator, "artifact extractorLocator");
-    requireNonblank(artifact.captureToolName, "artifact captureToolName");
-    requireNonblank(artifact.captureToolVersion, "artifact captureToolVersion");
-    requireSha256(artifact.sha256, "artifact sha256");
-    requireSha256(artifact.redactionCommitmentSha256, "artifact redaction commitment sha256");
-    requireNonnegativeInteger(artifact.byteCount, "artifact byteCount");
-    if (!isValidDate(artifact.capturedAt)) throw new Error("Artifact capturedAt is invalid");
-    if (artifactIdsByLogicalKey.has(artifact.logicalKey)) throw new Error("Artifact logical keys must be unique");
-    if (paths.has(artifact.path)) throw new Error("Artifact paths must be unique");
-    if (NETWORK_ARTIFACT_KINDS.has(artifact.kind)) {
-      requireNonblank(artifact.requestedUrl, "network artifact requestedUrl");
-      requireNonblank(artifact.finalUrl, "network artifact finalUrl");
-      requireNonblank(artifact.contentType, "network artifact contentType");
-      if (!Number.isInteger(artifact.httpStatus) || artifact.httpStatus! < 100 || artifact.httpStatus! > 599) {
-        throw new Error("Network artifact httpStatus is invalid");
-      }
-    }
-    artifactIdsByLogicalKey.set(artifact.logicalKey, artifact.id);
-    artifactByLogicalKey.set(artifact.logicalKey, artifact);
-    paths.add(artifact.path);
-  }
+  const { idsByLogicalKey: artifactIdsByLogicalKey,
+    artifactsByLogicalKey: artifactByLogicalKey } = validateEvidenceArtifacts(input.artifacts, tuple);
   requireNonblank(provenance.officialEvidenceArtifactLogicalKey, "official evidence artifact logical key");
   const officialArtifact = artifactByLogicalKey.get(provenance.officialEvidenceArtifactLogicalKey);
   if (!officialArtifact) throw new Error("Designated official evidence artifact is missing");
@@ -1454,60 +1908,11 @@ function validateAtomicSourceEvidenceCommit(
   }
 
   onStage("PAGINATION_VALIDATION");
-  const sortedPages = [...input.pagination].sort((a, b) => a.sequence - b.sequence);
-  const seenSequences = new Set<number>();
-  for (let index = 0; index < sortedPages.length; index += 1) {
-    const page = sortedPages[index]!;
-    assertTuple(page, tuple, "pagination");
-    if (!Number.isInteger(page.sequence) || page.sequence !== index || seenSequences.has(page.sequence)) {
-      throw new Error("Pagination sequences must be unique and contiguous from zero");
-    }
-    seenSequences.add(page.sequence);
-    if (!artifactIdsByLogicalKey.has(page.artifactLogicalKey)) {
-      throw new Error("Pagination references an artifact outside the supplied artifact set");
-    }
-    requireSha256(page.responseFingerprintSha256, "pagination response sha256");
-    requireSha256(page.rawJobIdSetSha256, "pagination raw job id set sha256");
-    requireSha256(page.validJobIdSetSha256, "pagination valid job id set sha256");
-    if (!isValidDate(page.capturedAt)) throw new Error("Pagination capturedAt is invalid");
-    for (const [name, value] of [["declaredTotal", page.declaredTotal], ["declaredCount", page.declaredCount],
-      ["declaredPages", page.declaredPages], ["requestedOffset", page.requestedOffset],
-      ["returnedOffset", page.returnedOffset], ["requestedPage", page.requestedPage],
-      ["returnedPage", page.returnedPage]] as const) {
-      if (value !== undefined && value !== null) requireNonnegativeInteger(value, `pagination ${name}`);
-    }
-    for (const [name, value] of [["requestedPageSize", page.requestedPageSize],
-      ["returnedPageSize", page.returnedPageSize]] as const) {
-      if (value !== undefined && value !== null) {
-        requireNonnegativeInteger(value, `pagination ${name}`);
-        if (value === 0) throw new Error(`pagination ${name} must be positive when supplied`);
-      }
-    }
-    if (result.completenessState === "VERIFIED" && page.anomalyCodes.length > 0) {
-      throw new Error("VERIFIED completeness cannot contain pagination anomalies");
-    }
-    if (result.completenessState === "VERIFIED" && UNSAFE_VERIFIED_TERMINATIONS.has(page.termination)) {
-      throw new Error("VERIFIED completeness cannot use an unsafe pagination termination");
-    }
-  }
+  validateEvidencePagination(input.pagination, tuple, artifactIdsByLogicalKey,
+    result.completenessState === "VERIFIED");
 
   onStage("LOSS_LEDGER_VALIDATION");
-  const lossCounts: Record<LossStage, number> = { PARSE: 0, VALIDATION: 0, NORMALIZATION: 0, DEDUPE: 0 };
-  const collisionGroups = new Set<string>();
-  for (const loss of input.lossLedger) {
-    assertTuple(loss, tuple, "loss ledger");
-    requireNonblank(loss.reason, "loss reason");
-    requireNonblank(loss.rawLocator, "loss rawLocator");
-    if (loss.recordedAt !== undefined && !isValidDate(loss.recordedAt)) throw new Error("Loss recordedAt is invalid");
-    if (loss.details === undefined) throw new Error("Loss details must be supplied");
-    lossCounts[loss.stage] += 1;
-    if (loss.stage === "DEDUPE") {
-      if (!nonblank(loss.candidateKey) || !nonblank(loss.winnerKey)) {
-        throw new Error("Dedupe loss requires nonblank candidateKey and winnerKey");
-      }
-      collisionGroups.add(loss.winnerKey);
-    }
-  }
+  const { counts: lossCounts, collisionGroups } = validateEvidenceLossRows(input.lossLedger, tuple, false);
   if (lossCounts.PARSE !== result.parseDiscardCount ||
       lossCounts.VALIDATION !== result.validationDiscardCount ||
       lossCounts.NORMALIZATION !== result.normalizationDiscardCount ||
@@ -1533,33 +1938,8 @@ function validateAtomicSourceEvidenceCommit(
     throw new Error("Artifact redaction commitments do not match observation provenance");
   }
   onStage("TRANSPORT_ATTEMPT_VALIDATION");
-  const seenAttemptIds = new Set<string>();
-  for (let index = 0; index < input.priorTransportAttempts.length; index += 1) {
-    const attempt = input.priorTransportAttempts[index]!;
-    assertTuple(attempt, tuple, "transport attempt");
-    requireNonblank(attempt.id, "transport attempt id");
-    requireNonblank(attempt.code, "transport attempt code");
-    if (!TRANSPORT_ATTEMPT_CODES.has(attempt.code)) throw new Error("Transport attempt code is invalid");
-    const expectedTransport = attempt.code === "HCM_DIRECT_FAILED" ? "DIRECT_HTTP" : "BROWSER_SESSION";
-    const expectedOutcome = attempt.code === "HCM_BROWSER_SUCCEEDED" ? "SUCCEEDED" : "FAILED";
-    if (attempt.transport !== expectedTransport || attempt.outcome !== expectedOutcome) {
-      throw new Error("Transport attempt code, transport and outcome are inconsistent");
-    }
-    if (attempt.sequence !== index || seenAttemptIds.has(attempt.id)) {
-      throw new Error("Transport-attempt sequences and IDs must be unique and contiguous");
-    }
-    seenAttemptIds.add(attempt.id);
-    if (!isValidDate(attempt.capturedAt)) throw new Error("Transport attempt capturedAt is invalid");
-    requireSha256(attempt.evidenceCommitmentSha256, "transport attempt evidence commitment");
-    requireSha256(attempt.pageTraceSha256, "transport attempt page trace commitment");
-    requireSha256(attempt.lossLedgerSha256, "transport attempt loss ledger commitment");
-    requireSha256(attempt.paginationEvaluationSha256, "transport attempt pagination evaluation commitment");
-    validateNonblankUniqueList(attempt.artifactIds, "transport attempt artifact");
-    if (attempt.artifactIds.some((id) => !input.artifacts.some((artifact) => artifact.id === id))) {
-      throw new Error("Transport attempt references an artifact outside the supplied tuple");
-    }
-    validateSafeJson(attempt.details, "transport attempt details");
-  }
+  validateEvidenceTransportAttempts(input.priorTransportAttempts, tuple,
+    new Set(input.artifacts.map(({ id }) => id)));
 
   onStage("COMMITTED_EVIDENCE_VALIDATION");
   if (!provenance.transportSucceeded || !provenance.adapterSucceeded || !provenance.atomicCommitSucceeded ||

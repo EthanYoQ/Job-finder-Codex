@@ -226,7 +226,7 @@ export function tagAtomicEvidencePersistenceStage(
   return safeError;
 }
 
-function atomicEvidencePersistenceStage(error: unknown): AtomicEvidencePersistenceStage | undefined {
+export function atomicEvidencePersistenceStage(error: unknown): AtomicEvidencePersistenceStage | undefined {
   if (typeof error !== "object" || error === null) return undefined;
   const value = (error as Record<string, unknown>).atomicEvidencePersistenceStage;
   return typeof value === "string" && PERSISTENCE_STAGE_SET.has(value)

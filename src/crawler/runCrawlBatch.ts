@@ -1,14 +1,19 @@
 import {
   createBatchWithPendingSourceResults,
   executeAtomicSourceEvidenceCommit,
+  executeFailedSourceEvidenceCommit,
+  executeManualFailedSourceEvidenceCommit,
   executeManualSourceEvidenceCommit,
   inspectPersistedAtomicCommitOutcome,
+  inspectPersistedFailedSourceEvidenceCommitOutcome,
   readPersistedBatchSourceResults,
+  terminateManualPendingSourceResult,
   terminatePendingSourceResult,
   type AtomicSourceEvidenceCommit,
   type PersistedBatchSourceResultRow,
   type PrismaIngestionDb,
-  type ManualSourceCommitFence
+  type ManualSourceCommitFence,
+  type PendingSourceTerminalInput
 } from "../db/ingestionRepository";
 import {
   toSourceScheduleState,
@@ -34,6 +39,7 @@ import { isSourceDueForScheduledRun } from "./schedule";
 import { validateExecutablePlanChannelBinding, type SourceCrawlPlan } from "./sourcePlan";
 import { safeSourceTransportFailureReason } from "./sourceFetchFailure";
 import {
+  atomicEvidencePersistenceStage,
   atomicEvidenceFailureCode,
   sourceExecutionFailureCode,
   sourceFailureDiagnosticBundle,
@@ -44,6 +50,7 @@ import { isSafeHtmlFailureCode } from "./httpHtmlSourceFetch";
 import {
   bindRuntimeEvidenceArtifactIds,
   buildAtomicRuntimeCommit,
+  buildFailedRuntimeEvidenceCommit,
   buildPendingRuntimeBatch
 } from "./runtimeAtomicEvidence";
 import { randomUUID } from "node:crypto";
@@ -250,7 +257,11 @@ export interface RunP0CrawlBatchDeps {
   verifyArchive?: typeof verifyArchivedSourceEvidence;
   executeAtomicCommit?: typeof executeAtomicSourceEvidenceCommit;
   executeManualAtomicCommit?: typeof executeManualSourceEvidenceCommit;
+  executeFailedEvidenceCommit?: typeof executeFailedSourceEvidenceCommit;
+  executeManualFailedEvidenceCommit?: typeof executeManualFailedSourceEvidenceCommit;
   inspectAtomicCommitOutcome?: typeof inspectPersistedAtomicCommitOutcome;
+  inspectFailedEvidenceCommitOutcome?: typeof inspectPersistedFailedSourceEvidenceCommitOutcome;
+  terminateManualSourceResult?: typeof terminateManualPendingSourceResult;
   readPersistedBatchSourceResults?: typeof readPersistedBatchSourceResults;
   manualRequestFence?: ManualSourceCommitFence;
   recordOrphanedArtifacts?: (artifacts: readonly ArchivedEvidenceArtifact[]) => Promise<void>;
@@ -261,6 +272,61 @@ export interface RunP0CrawlBatchDeps {
     sourceId: string
   ): Promise<PersistedTrustedCompletenessBaseline | null>;
   runIndependentTraversalValidator?: typeof runIsolatedBGradeTraversalValidator;
+}
+
+async function terminateRuntimeSourceResult(
+  input: PendingSourceTerminalInput,
+  deps: RunP0CrawlBatchDeps
+): Promise<void> {
+  if (deps.identity.batchKind === "MANUAL_SOURCE") {
+    await (deps.terminateManualSourceResult ?? terminateManualPendingSourceResult)(
+      input, deps.manualRequestFence!, deps.db as never);
+    return;
+  }
+  await terminatePendingSourceResult(input, deps.db as never);
+}
+
+async function archiveAndVerifyRuntimeEvidence(input: {
+  deps: RunP0CrawlBatchDeps;
+  batchId: string;
+  plan: SourceCrawlPlan;
+  pending: { id: string };
+  result: SourceCrawlResult & { fetchEvidence: NonNullable<SourceCrawlResult["fetchEvidence"]> };
+  onArchived?: (artifacts: readonly ArchivedEvidenceArtifact[]) => void;
+}): Promise<readonly ArchivedEvidenceArtifact[]> {
+  const { deps, batchId, plan, pending, result } = input;
+  const artifacts = bindRuntimeEvidenceArtifactIds({
+    releaseCandidateId: deps.identity.releaseCandidateId,
+    batchId,
+    sourceId: plan.source.id,
+    sourceResultId: pending.id,
+    artifacts: [
+      ...result.fetchEvidence.artifacts,
+      ...(result.priorTransportAttempts ?? []).flatMap((attempt) => attempt.fetchEvidence?.artifacts ?? [])
+    ]
+  });
+  const archived = await (deps.archiveEvidence ?? archiveSourceEvidence)({
+    workspaceRoot: deps.workspaceRoot ?? process.cwd(),
+    releaseCandidateId: deps.identity.releaseCandidateId,
+    batchId,
+    sourceId: plan.source.id,
+    sourceResultId: pending.id,
+    evidenceSubdirectory: deps.evidenceSubdirectory ?? "phase-1/runtime-evidence",
+    captureTool: result.fetchEvidence.captureTool,
+    formalRelease: deps.identity.batchKind === "FULL_RELEASE",
+    artifacts
+  });
+  input.onArchived?.(archived.artifacts);
+  return (deps.verifyArchive ?? verifyArchivedSourceEvidence)({
+    workspaceRoot: deps.workspaceRoot ?? process.cwd(),
+    releaseCandidateId: deps.identity.releaseCandidateId,
+    batchId,
+    sourceId: plan.source.id,
+    sourceResultId: pending.id,
+    evidenceSubdirectory: deps.evidenceSubdirectory ?? "phase-1/runtime-evidence",
+    formalRelease: deps.identity.batchKind === "FULL_RELEASE",
+    artifacts: archived.artifacts
+  });
 }
 
 export async function runP0CrawlBatch(
@@ -331,10 +397,10 @@ export async function runP0CrawlBatch(
         !isSourceDueForScheduledRun(sourceState, batchStartedAt)
       ) {
         const pending = plannedBatch.sources.find((source) => source.sourceId === plan.source.id)!;
-        await terminatePendingSourceResult({ id: pending.id, releaseCandidateId: deps.identity.releaseCandidateId,
+        await terminateRuntimeSourceResult({ id: pending.id, releaseCandidateId: deps.identity.releaseCandidateId,
           batchId: batch.id, sourceId: plan.source.id, transportState: "SKIPPED", adapterState: "SKIPPED",
           completenessState: "FAILED", atomicCommitState: "NOT_ATTEMPTED", finishedAt: batchStartedAt,
-          failureCode: "SOURCE_NOT_DUE", failureReason: "Source was not due for this scheduled batch" }, deps.db as never);
+          failureCode: "SOURCE_NOT_DUE", failureReason: "Source was not due for this scheduled batch" }, deps);
         terminalSourceIds.add(plan.source.id);
         skippedSourceCount += 1;
         continue;
@@ -375,7 +441,7 @@ export async function runP0CrawlBatch(
         }
         const sourceError = error instanceof SourceCrawlStageError ? error.cause : error;
         sourceErrors.push(sourceError);
-        await terminatePendingSourceResult({ id: pending.id, releaseCandidateId: deps.identity.releaseCandidateId,
+        await terminateRuntimeSourceResult({ id: pending.id, releaseCandidateId: deps.identity.releaseCandidateId,
           batchId: batch.id, sourceId: plan.source.id,
           transportState: error instanceof SourceCrawlStageError && error.stage === "ADAPTER" ? "SUCCEEDED" : "FAILED",
           adapterState: error instanceof SourceCrawlStageError && error.stage === "ADAPTER" ? "FAILED" : "SKIPPED",
@@ -406,7 +472,7 @@ export async function runP0CrawlBatch(
                   "FETCH_EXECUTION_FAILED",
                   attemptTracker
                 ))
-        }, deps.db as never);
+        }, deps);
         terminalSourceIds.add(plan.source.id);
         failedSourceCount += 1;
         continue;
@@ -498,7 +564,7 @@ export async function runP0CrawlBatch(
               ? crawlResult.failureReason
               : undefined)
           : undefined;
-        await terminatePendingSourceResult({
+        const terminal: PendingSourceTerminalInput = {
           id: pending.id,
           releaseCandidateId: deps.identity.releaseCandidateId,
           batchId: batch.id,
@@ -521,7 +587,83 @@ export async function runP0CrawlBatch(
                 "ADAPTER_FAILED_CLOSED",
                 attemptTracker
               ))
-        }, deps.db as never);
+        };
+        if (crawlResult.fetchEvidence) {
+          let retainedFailureArtifacts: readonly ArchivedEvidenceArtifact[] = [];
+          let failedCommit: ReturnType<typeof buildFailedRuntimeEvidenceCommit> | undefined;
+          try {
+            const verifiedArtifacts = await archiveAndVerifyRuntimeEvidence({
+              deps,
+              batchId: batch.id,
+              plan,
+              pending,
+              result: crawlResult as SourceCrawlResult & {
+                fetchEvidence: NonNullable<SourceCrawlResult["fetchEvidence"]>
+              },
+              onArchived: (artifacts) => { retainedFailureArtifacts = artifacts; }
+            });
+            retainedFailureArtifacts = verifiedArtifacts;
+            failedCommit = buildFailedRuntimeEvidenceCommit({
+              pending,
+              identity: deps.identity,
+              batchId: batch.id,
+              evidenceSubdirectory: deps.evidenceSubdirectory ?? "phase-1/runtime-evidence",
+              result: crawlResult,
+              terminal,
+              artifacts: verifiedArtifacts
+            });
+            if (deps.identity.batchKind === "MANUAL_SOURCE") {
+              await (deps.executeManualFailedEvidenceCommit ?? executeManualFailedSourceEvidenceCommit)(
+                failedCommit, deps.manualRequestFence!, deps.db as never);
+            } else {
+              await (deps.executeFailedEvidenceCommit ?? executeFailedSourceEvidenceCommit)(
+                failedCommit, deps.db as never);
+            }
+          } catch (error) {
+            if (failedCommit && atomicEvidencePersistenceStage(error) === "OWNERSHIP_FENCE") {
+              terminalSourceIds.add(plan.source.id);
+              throw error;
+            }
+            if (failedCommit && atomicEvidencePersistenceStage(error) === "TRANSACTION_COMMIT") {
+              let outcome: Awaited<ReturnType<typeof inspectPersistedFailedSourceEvidenceCommitOutcome>>;
+              try {
+                outcome = await (deps.inspectFailedEvidenceCommitOutcome ??
+                  inspectPersistedFailedSourceEvidenceCommitOutcome)(failedCommit, deps.db as never);
+              } catch {
+                terminalSourceIds.add(plan.source.id);
+                throw new AtomicCommitOutcomeUnverifiedError();
+              }
+              if (outcome.state === "COMMITTED_EXACT") {
+                terminalSourceIds.add(plan.source.id);
+                failedSourceCount += 1;
+                continue;
+              }
+              if (outcome.state === "CONFLICT") {
+                terminalSourceIds.add(plan.source.id);
+                throw new AtomicCommitOutcomeUnverifiedError();
+              }
+            }
+            if (retainedFailureArtifacts.length > 0) {
+              await (deps.recordOrphanedArtifacts ?? ((artifacts) => appendRuntimeOrphanLedger(
+                deps.workspaceRoot ?? process.cwd(), deps.identity.releaseCandidateId,
+                deps.evidenceSubdirectory ?? "phase-1/runtime-evidence", artifacts
+              )))(retainedFailureArtifacts);
+            }
+            sourceErrors.push(error);
+            await terminateRuntimeSourceResult({
+              ...terminal,
+              failureCode: "EVIDENCE_ARCHIVE_FAILED",
+              failureReason: "Failed source diagnostic evidence could not be archived and committed",
+              ...sourceFailureDiagnosticBundle(
+                "EVIDENCE_PERSISTENCE_FAILURE",
+                "EVIDENCE_PROCESSING_FAILED",
+                attemptTracker
+              )
+            }, deps);
+          }
+        } else {
+          await terminateRuntimeSourceResult(terminal, deps);
+        }
         terminalSourceIds.add(plan.source.id);
         failedSourceCount += 1;
         continue;
@@ -533,30 +675,20 @@ export async function runP0CrawlBatch(
       let atomicFailureCode = "ATOMIC_COMMIT_BUILD_FAILED";
       try {
         if (!crawlResult.fetchEvidence) throw new Error("strict fetch evidence is required for atomic runtime commit");
-        const artifacts = bindRuntimeEvidenceArtifactIds({
-          releaseCandidateId: deps.identity.releaseCandidateId,
-          batchId: batch.id,
-          sourceId: plan.source.id,
-          sourceResultId: pending.id,
-          artifacts: [
-            ...crawlResult.fetchEvidence.artifacts,
-            ...(crawlResult.priorTransportAttempts ?? []).flatMap((attempt) => attempt.fetchEvidence?.artifacts ?? [])
-          ]
-        });
         atomicFailureCode = "EVIDENCE_ARCHIVE_FAILED";
-        const archived = await (deps.archiveEvidence ?? archiveSourceEvidence)({ workspaceRoot: deps.workspaceRoot ?? process.cwd(),
-          releaseCandidateId: deps.identity.releaseCandidateId, batchId: batch.id, sourceId: plan.source.id,
-          sourceResultId: pending.id, evidenceSubdirectory: deps.evidenceSubdirectory ?? "phase-1/runtime-evidence",
-          captureTool: crawlResult.fetchEvidence.captureTool,
-          formalRelease:deps.identity.batchKind==="FULL_RELEASE",
-          artifacts });
-        retainedArtifacts = archived.artifacts;
-        atomicFailureCode = "EVIDENCE_VERIFICATION_FAILED";
-        const verifiedArtifacts = await (deps.verifyArchive ?? verifyArchivedSourceEvidence)({ workspaceRoot: deps.workspaceRoot ?? process.cwd(),
-          releaseCandidateId: deps.identity.releaseCandidateId, batchId: batch.id, sourceId: plan.source.id,
-          sourceResultId: pending.id, evidenceSubdirectory: deps.evidenceSubdirectory ?? "phase-1/runtime-evidence",
-          formalRelease:deps.identity.batchKind==="FULL_RELEASE",
-          artifacts: archived.artifacts });
+        const verifiedArtifacts = await archiveAndVerifyRuntimeEvidence({
+          deps,
+          batchId: batch.id,
+          plan,
+          pending,
+          result: crawlResult as SourceCrawlResult & {
+            fetchEvidence: NonNullable<SourceCrawlResult["fetchEvidence"]>
+          },
+          onArchived: (artifacts) => {
+            retainedArtifacts = artifacts;
+            atomicFailureCode = "EVIDENCE_VERIFICATION_FAILED";
+          }
+        });
         retainedArtifacts = verifiedArtifacts;
         atomicFailureCode = "ATOMIC_COMMIT_BUILD_FAILED";
         commit = buildAtomicRuntimeCommit({ plan, pending, identity: deps.identity, batchId: batch.id,
@@ -615,7 +747,7 @@ export async function runP0CrawlBatch(
             atomicFailureCode = atomicEvidenceFailureCode(error);
             const safeCommitError = new Error(atomicFailureCode);
             try {
-              await terminatePendingSourceResult({ id: pending.id,
+              await terminateRuntimeSourceResult({ id: pending.id,
                 releaseCandidateId: deps.identity.releaseCandidateId, batchId: batch.id,
                 sourceId: plan.source.id, transportState: "SUCCEEDED", adapterState: "SUCCEEDED",
                 completenessState: "FAILED", atomicCommitState: "ROLLED_BACK",
@@ -626,7 +758,7 @@ export async function runP0CrawlBatch(
                   "EVIDENCE_PROCESSING_FAILED",
                   attemptTracker
                 )
-              }, deps.db as never);
+              }, deps);
               terminalSourceIds.add(plan.source.id);
             } catch {
               terminalSourceIds.add(plan.source.id);
@@ -671,7 +803,7 @@ export async function runP0CrawlBatch(
             }
           }
           sourceErrors.push(propagatedError);
-          await terminatePendingSourceResult({ id: pending.id, releaseCandidateId: deps.identity.releaseCandidateId,
+          await terminateRuntimeSourceResult({ id: pending.id, releaseCandidateId: deps.identity.releaseCandidateId,
             batchId: batch.id, sourceId: plan.source.id, transportState: crawlResult.truth.transportSuccess ? "SUCCEEDED" : "FAILED",
             adapterState: crawlResult.truth.transportSuccess
               ? (crawlResult.truth.adapterSuccess ? "SUCCEEDED" : "FAILED") : "SKIPPED",
@@ -684,7 +816,7 @@ export async function runP0CrawlBatch(
               "EVIDENCE_PROCESSING_FAILED",
               attemptTracker
             )
-          }, deps.db as never);
+          }, deps);
           terminalSourceIds.add(plan.source.id);
           atomicFailedSourceCount += 1;
           failedSourceCount += 1;
@@ -729,7 +861,7 @@ export async function runP0CrawlBatch(
           retryReasonCodes: []
         };
         const sourceExecutionStarted = attemptTracker.fetchAttemptCount > 0;
-        await terminatePendingSourceResult({ id: pending.id,
+        await terminateRuntimeSourceResult({ id: pending.id,
           releaseCandidateId: deps.identity.releaseCandidateId, batchId: batch.id,
           sourceId: pending.sourceId, transportState: "FAILED", adapterState: "SKIPPED",
           completenessState: "FAILED", atomicCommitState: "NOT_ATTEMPTED",
@@ -744,7 +876,7 @@ export async function runP0CrawlBatch(
               : "BATCH_ABORTED_BEFORE_SOURCE_TERMINAL",
             attemptTracker
           )
-        }, deps.db as never);
+        }, deps);
         terminalSourceIds.add(pending.sourceId);
       } catch (closureError) {
         closureErrors.push(closureError);

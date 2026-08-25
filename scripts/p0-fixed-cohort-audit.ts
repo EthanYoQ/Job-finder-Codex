@@ -55,7 +55,9 @@ try {
           completenessState: row.completenessState, atomicCommitState: row.atomicCommitState,
           blockerCode: row.blockerCode,
           failureCategory: row.failureCategory, failureDiagnosticCode: row.failureDiagnosticCode,
-          failureCode: row.failureCode }
+          failureCode: row.failureCode,
+          evidenceArtifacts: row.evidenceArtifacts.map(({ id, path, sha256 }) => ({ id, path, sha256 })),
+          paginationEvidence: row.paginationEvidence.map(projectPaginationEvidence)
       });
     }
     if (row.observations.length !== 1 || row.observations[0]!.sourceResultId !== row.id) {
@@ -80,16 +82,7 @@ try {
       plannedSurfaceIds: plan.source.surfaceId ? [plan.source.surfaceId] : [],
       plannedChannelIds: plan.expectedChannels?.map(({ channelId }) => channelId) ?? [],
       officialChannelIds: row.officialChannelIds, evidenceArtifacts: row.evidenceArtifacts.map(({ id, path, sha256 }) => ({ id, path, sha256 })),
-      paginationEvidence: row.paginationEvidence.map((page) => ({ artifactId: page.artifactId, sequence: page.sequence,
-        channelId: page.channelId,
-        requestedCursor: page.requestedCursor, returnedCursor: page.returnedCursor, requestedOffset: page.requestedOffset,
-        returnedOffset: page.returnedOffset, requestedPage: page.requestedPage, returnedPage: page.returnedPage,
-        requestedPageSize: page.requestedPageSize, returnedPageSize: page.returnedPageSize,
-        responseFingerprintSha256: page.responseFingerprintSha256, rawJobIdSetSha256: page.rawJobIdSetSha256,
-        validJobIdSetSha256: page.validJobIdSetSha256,
-        declaredTotal: page.declaredTotal, declaredCount: page.declaredCount, declaredPages: page.declaredPages,
-        nextPageSignalBefore: page.nextPageSignalBefore, nextPageSignalAfter: page.nextPageSignalAfter,
-        termination: page.termination, anomalyCodes: page.anomalyCodes, capturedAt: page.capturedAt.toISOString() })),
+      paginationEvidence: row.paginationEvidence.map(projectPaginationEvidence),
       expectedEvidenceKind: row.expectedEvidenceKind, expectedJobCount: row.expectedJobCount,
       pagesVisited: row.paginationEvidence.length, totalPages,
       finalJobCount: row.dedupeOutputCount, transportState: row.transportState, adapterState: row.adapterState,
@@ -143,6 +136,26 @@ function certificateGrade(value: unknown): "A" | "B" | "C" {
   return typeof value === "object" && value !== null && !Array.isArray(value) &&
     ["A", "B"].includes(String((value as Record<string, unknown>).grade))
     ? (value as { grade: "A" | "B" }).grade : "C";
+}
+function projectPaginationEvidence(page: {
+  artifactId: string; sequence: number; channelId: string | null; requestedCursor: string | null;
+  returnedCursor: string | null; requestedOffset: number | null; returnedOffset: number | null;
+  requestedPage: number | null; returnedPage: number | null; requestedPageSize: number | null;
+  returnedPageSize: number | null; responseFingerprintSha256: string; rawJobIdSetSha256: string;
+  validJobIdSetSha256: string; declaredTotal: number | null; declaredCount: number | null;
+  declaredPages: number | null; nextPageSignalBefore: string | null; nextPageSignalAfter: string | null;
+  termination: string; anomalyCodes: string[]; capturedAt: Date;
+}): FixedCohortAuditSourceInput["paginationEvidence"][number] {
+  return { artifactId: page.artifactId, sequence: page.sequence, channelId: page.channelId,
+    requestedCursor: page.requestedCursor, returnedCursor: page.returnedCursor,
+    requestedOffset: page.requestedOffset, returnedOffset: page.returnedOffset,
+    requestedPage: page.requestedPage, returnedPage: page.returnedPage,
+    requestedPageSize: page.requestedPageSize, returnedPageSize: page.returnedPageSize,
+    responseFingerprintSha256: page.responseFingerprintSha256,
+    rawJobIdSetSha256: page.rawJobIdSetSha256, validJobIdSetSha256: page.validJobIdSetSha256,
+    declaredTotal: page.declaredTotal, declaredCount: page.declaredCount, declaredPages: page.declaredPages,
+    nextPageSignalBefore: page.nextPageSignalBefore, nextPageSignalAfter: page.nextPageSignalAfter,
+    termination: page.termination, anomalyCodes: page.anomalyCodes, capturedAt: page.capturedAt.toISOString() };
 }
 function adapterFamily(plan: ReturnType<typeof buildStagedSourceCrawlPlans>[number]): string {
   if (plan.adapterId === "official-json") return `${plan.adapterId}:${plan.officialJsonFetch?.kind ?? "generic"}`;

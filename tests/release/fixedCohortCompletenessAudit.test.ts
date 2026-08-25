@@ -63,7 +63,8 @@ describe("fixed cohort completeness audit", () => {
         expectedEvidenceKind: null, expectedJobCount: null, finalJobCount: 0,
         transportState: "SUCCEEDED", adapterState: "SUCCEEDED", completenessState: "FAILED",
         atomicCommitState: "ROLLED_BACK", blockerCode: null, failureCategory: "EVIDENCE_PERSISTENCE_FAILURE",
-        failureDiagnosticCode: "EVIDENCE_PROCESSING_FAILED", failureCode: "ATOMIC_EVIDENCE_COMMIT_FAILED" }
+        failureDiagnosticCode: "EVIDENCE_PROCESSING_FAILED", failureCode: "ATOMIC_EVIDENCE_COMMIT_FAILED",
+        evidenceArtifacts: [], paginationEvidence: [] }
     });
     const report = buildFixedCohortCompletenessAudit(value);
     const row = report.companies.find(({ sourceId }) => sourceId === existing.sourceId)!;
@@ -71,6 +72,29 @@ describe("fixed cohort completeness audit", () => {
       failureCode: "ATOMIC_EVIDENCE_COMMIT_FAILED", failureClass: "PRODUCT_DEFECT", failureStage: "PERSISTENCE" });
     expect(report.repairFrontier.find(({ sourceIds }) => sourceIds.includes(existing.sourceId))?.rootCause)
       .toBe("ATOMIC_EVIDENCE_COMMIT_FAILED");
+  });
+
+  it("projects archived artifacts and pagination anomalies for a failed source without an observation", () => {
+    const value = input(), existing = value.sources[0]!;
+    const paginationEvidence = existing.paginationEvidence.map((page, index) => ({
+      ...page,
+      anomalyCodes: index === 0 ? ["RETURNED_PAGE_MISMATCH"] : page.anomalyCodes
+    }));
+    const projected = projectFailedFixedCohortAuditSource({
+      plan: { companyId: existing.companyId, sourceId: existing.sourceId, adapterFamily: existing.adapterFamily,
+        plannedSurfaceIds: existing.plannedSurfaceIds, plannedChannelIds: existing.plannedChannelIds },
+      result: { sourceResultId: "persisted-fetch-failure", sourceConfigSha256: existing.sourceConfigSha256,
+        officialSurfaceIds: existing.officialSurfaceIds, officialChannelIds: existing.officialChannelIds,
+        expectedEvidenceKind: existing.expectedEvidenceKind, expectedJobCount: existing.expectedJobCount,
+        finalJobCount: 0, transportState: "FAILED", adapterState: "SKIPPED", completenessState: "FAILED",
+        atomicCommitState: "NOT_ATTEMPTED", blockerCode: null, failureCategory: "UNCLASSIFIED_SOURCE_FAILURE",
+        failureDiagnosticCode: "FETCH_FAILED_CLOSED", failureCode: "SOURCE_TRANSPORT_FAILED",
+        evidenceArtifacts: existing.evidenceArtifacts, paginationEvidence }
+    });
+
+    expect(projected.evidenceArtifacts).toEqual(existing.evidenceArtifacts);
+    expect(projected.paginationEvidence[0]?.anomalyCodes).toEqual(["RETURNED_PAGE_MISMATCH"]);
+    expect(projected.pagesVisited).toBe(paginationEvidence.length);
   });
 
   it("marks a missing or substituted frozen source as an invalid audit without hiding the other rows", () => {

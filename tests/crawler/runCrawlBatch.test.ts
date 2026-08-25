@@ -21,7 +21,7 @@ import {
 } from "../../src/db/ingestionRepository";
 import { canonicalReleaseMembersSha256, releaseMembersFromPlans,
   type AuthoritativeReleaseMembershipArtifact } from "../../src/crawler/authoritativeReleaseMembership";
-import { evaluatePaginationEvidence } from "../../src/crawler/paginationEvidence";
+import { deriveCanonicalPaginationEvidence, evaluatePaginationEvidence } from "../../src/crawler/paginationEvidence";
 import type { PersistentSourceFetchEvidence } from "../../src/crawler/sourceFetchEvidence";
 import { hashCanonicalJobKeySet } from "../../src/crawler/runtimeBatchIdentity";
 import { createSourceFetchRouter } from "../../src/crawler/sourceFetchRouter";
@@ -328,7 +328,15 @@ function inMemoryArchiveDeps(): Pick<RunP0CrawlBatchDeps, "archiveEvidence" | "v
         capturedAt: new Date(draft.capturedAt),
         sha256: createHash("sha256").update(bytes).digest("hex"),
         byteCount: bytes.byteLength,
-        path: `test/${request.sourceId}/${draft.id}`,
+        ...(draft.bodyRepresentation === undefined ? {} : { bodyRepresentation: draft.bodyRepresentation }),
+        ...(draft.rawBodySha256 === undefined ? {} : { rawBodySha256: draft.rawBodySha256 }),
+        ...(draft.redactionDescriptors === undefined ? {} : {
+          redactionDescriptors: draft.redactionDescriptors.map((descriptor) => ({ ...descriptor }))
+        }),
+        path: ["outputs", "p0-rc", request.releaseCandidateId, request.evidenceSubdirectory,
+          "artifacts", request.batchId, request.sourceId, request.sourceResultId,
+          `${draft.id}--${draft.logicalKey}${draft.contentType?.toLowerCase().includes("json") ? ".json" :
+            draft.contentType?.toLowerCase().includes("html") ? ".html" : ".bin"}`].join("/"),
         extractorLocator: draft.extractorLocator,
         captureToolName: request.captureTool.name,
         captureToolVersion: request.captureTool.version
@@ -355,6 +363,8 @@ function fakeDb() {
     batchesUpdated: [] as unknown[],
     observations: [] as unknown[],
     jobs: [] as unknown[],
+    evidenceArtifacts: [] as unknown[],
+    paginationEvidence: [] as unknown[],
     pendingSourceResults: [] as unknown[],
     terminalSourceResults: [] as unknown[]
   };
@@ -417,8 +427,14 @@ function fakeDb() {
         },
         updateMany: terminalUpdateMany
       },
-      evidenceArtifact: { create: async (args: unknown) => args },
-      paginationEvidence: { create: async (args: unknown) => args },
+      evidenceArtifact: { create: async (args: unknown) => {
+        calls.evidenceArtifacts.push(args);
+        return args;
+      } },
+      paginationEvidence: { create: async (args: unknown) => {
+        calls.paginationEvidence.push(args);
+        return args;
+      } },
       lossLedgerEntry: { create: async (args: unknown) => args },
       transportAttemptEvidence: { create: async (args: unknown) => args },
       transportAttemptArtifact: { create: async (args: unknown) => args },
@@ -1495,6 +1511,122 @@ describe("runP0CrawlBatch", () => {
       where: { id: "batch-1" },
       data: expect.objectContaining({ finishedAt: NOW, status: "INCOMPLETE" })
     });
+  });
+
+  it("atomically retains archived page evidence when strict HTML pagination fails closed", async () => {
+    const plan = planFor("source-viatris-social");
+    const db = fakeDb();
+    const fetched = strictViatrisFetch(plan, 10);
+    fetched.fetchEvidence.pages[0]!.returnedPage = 2;
+    fetched.fetchEvidence = deriveCanonicalPaginationEvidence({
+      evidence: fetched.fetchEvidence,
+      expectedChannelIds: [plan.expectedChannels![0]!.channelId],
+      filteredOutput: true
+    });
+    const paginationEvaluation = evaluatePaginationEvidence({
+      evidence: fetched.fetchEvidence,
+      expectedChannelIds: [plan.expectedChannels![0]!.channelId],
+      filteredOutput: true
+    });
+    expect(paginationEvaluation.derivedAnomalyCodes.length).toBeGreaterThan(0);
+
+    const result = await runP0CrawlBatch([plan], {
+      db,
+      fetch: async () => ({
+        ok: false as const,
+        capturedAt: CAPTURED_AT,
+        failureReason: "HTML_PAGINATION_EVIDENCE_UNSAFE",
+        fetchEvidence: fetched.fetchEvidence,
+        paginationEvaluation
+      }),
+      now: NOW,
+      force: true,
+      identity: identityForPlans([plan]),
+      ...inMemoryArchiveDeps(),
+      getPreviousJobs: async () => [],
+      getRecentObservations: async () => [],
+      isBaselineCompleted: async () => true
+    });
+
+    expect(result).toMatchObject({ status: "INCOMPLETE", failedSourceCount: 1 });
+    expect(db.calls.evidenceArtifacts).toHaveLength(1);
+    expect(db.calls.paginationEvidence).toHaveLength(1);
+    expect(db.calls.paginationEvidence[0]).toMatchObject({
+      data: expect.objectContaining({ anomalyCodes: paginationEvaluation.pages[0]!.anomalyCodes })
+    });
+    expect(db.calls.observations).toEqual([]);
+    expect(db.calls.jobs).toEqual([]);
+  });
+
+  it("does not inspect a failed-evidence commit when validation failed before the transaction boundary", async () => {
+    const plan = planFor("source-viatris-social");
+    const db = fakeDb();
+    const fetched = strictViatrisFetch(plan, 10);
+    fetched.fetchEvidence.pages[0]!.returnedPage = 2;
+    fetched.fetchEvidence = deriveCanonicalPaginationEvidence({ evidence: fetched.fetchEvidence,
+      expectedChannelIds: [plan.expectedChannels![0]!.channelId], filteredOutput: true });
+    const paginationEvaluation = evaluatePaginationEvidence({
+      evidence: fetched.fetchEvidence,
+      expectedChannelIds: [plan.expectedChannels![0]!.channelId],
+      filteredOutput: true
+    });
+    const inspect = vi.fn(async () => ({ state: "COMMITTED_EXACT" as const }));
+    const validationError = Object.assign(new Error("invalid diagnostic bundle"), {
+      atomicEvidencePersistenceStage: "INPUT_VALIDATION"
+    });
+    const result = await runP0CrawlBatch([plan], {
+      db,
+      fetch: async () => ({ ok: false as const, capturedAt: CAPTURED_AT,
+        failureReason: "HTML_PAGINATION_EVIDENCE_UNSAFE", fetchEvidence: fetched.fetchEvidence,
+        paginationEvaluation }),
+      now: NOW, force: true, identity: identityForPlans([plan]), ...inMemoryArchiveDeps(),
+      executeFailedEvidenceCommit: async () => { throw validationError; },
+      inspectFailedEvidenceCommitOutcome: inspect,
+      recordOrphanedArtifacts: async () => undefined,
+      getPreviousJobs: async () => [], getRecentObservations: async () => [],
+      isBaselineCompleted: async () => true
+    });
+    expect(result).toMatchObject({ status: "INCOMPLETE", failedSourceCount: 1 });
+    expect(inspect).not.toHaveBeenCalled();
+    expect(db.calls.terminalSourceResults).toContainEqual(expect.objectContaining({
+      data: expect.objectContaining({ failureCode: "EVIDENCE_ARCHIVE_FAILED" })
+    }));
+  });
+
+  it("accepts an exact failed-evidence readback after a transaction commit-boundary timeout", async () => {
+    const plan = planFor("source-viatris-social");
+    const db = fakeDb();
+    const fetched = strictViatrisFetch(plan, 10);
+    fetched.fetchEvidence.pages[0]!.returnedPage = 2;
+    fetched.fetchEvidence = deriveCanonicalPaginationEvidence({ evidence: fetched.fetchEvidence,
+      expectedChannelIds: [plan.expectedChannels![0]!.channelId], filteredOutput: true });
+    const paginationEvaluation = evaluatePaginationEvidence({
+      evidence: fetched.fetchEvidence,
+      expectedChannelIds: [plan.expectedChannels![0]!.channelId],
+      filteredOutput: true
+    });
+    const inspect = vi.fn(async () => ({ state: "COMMITTED_EXACT" as const }));
+    const timeout = Object.assign(new Error("commit response lost"), {
+      atomicEvidencePersistenceStage: "TRANSACTION_COMMIT"
+    });
+    const result = await runP0CrawlBatch([plan], {
+      db,
+      fetch: async () => ({ ok: false as const, capturedAt: CAPTURED_AT,
+        failureReason: "HTML_PAGINATION_EVIDENCE_UNSAFE", fetchEvidence: fetched.fetchEvidence,
+        paginationEvaluation }),
+      now: NOW, force: true, identity: identityForPlans([plan]), ...inMemoryArchiveDeps(),
+      executeFailedEvidenceCommit: async () => { throw timeout; },
+      inspectFailedEvidenceCommitOutcome: inspect,
+      readPersistedBatchSourceResults: async () => [{ sourceId: plan.source.id,
+        transportState: "FAILED", adapterState: "SKIPPED", completenessState: "FAILED",
+        atomicCommitState: "NOT_ATTEMPTED", failureCode: "SOURCE_TRANSPORT_FAILED" }],
+      recordOrphanedArtifacts: async () => undefined,
+      getPreviousJobs: async () => [], getRecentObservations: async () => [],
+      isBaselineCompleted: async () => true
+    });
+    expect(result).toMatchObject({ status: "INCOMPLETE", failedSourceCount: 1 });
+    expect(inspect).toHaveBeenCalledOnce();
+    expect(db.calls.terminalSourceResults).toEqual([]);
   });
 
   it("persists a bounded Sinopharm profile failure code without making it retryable", async () => {

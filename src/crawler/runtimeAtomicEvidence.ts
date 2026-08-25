@@ -1,5 +1,7 @@
 import { createHash, createHmac, randomBytes, timingSafeEqual } from "node:crypto";
 import type {
+  FailedSourceEvidenceCommit,
+  PendingSourceTerminalInput,
   PlannedBatchWithSourcesInput,
   PlannedPendingSourceInput
 } from "../db/ingestionRepository";
@@ -20,7 +22,7 @@ import {
   type PersistentSourceFetchEvidence,
   type SourceFetchArtifactDraft
 } from "./sourceFetchEvidence";
-import type { ArchivedEvidenceArtifact } from "./artifactArchive";
+import { assertVerifiedArchivedEvidenceMetadata, type ArchivedEvidenceArtifact } from "./artifactArchive";
 import type { AtomicSourceEvidenceCommit } from "../db/ingestionRepository";
 import type { StartupTrustedSourceSurfaceOracle } from "./sourceSurfaceOracleAuthority";
 import { assertExactIndependentCompletenessEvidence, sourceOracleProjection } from "./independentSourceSurfaceOracle";
@@ -44,6 +46,7 @@ const sha256 = (value: string): string =>
   createHash("sha256").update(value, "utf8").digest("hex");
 const attestationKey=randomBytes(32);
 const runtimeCommitAttestations=new WeakMap<AtomicSourceEvidenceCommit,Buffer>();
+const failedRuntimeCommitAttestations=new WeakMap<FailedSourceEvidenceCommit,Buffer>();
 
 function stagedPlanOfficialProjection(plan: SourceCrawlPlan): {
   officialEntryId: null;
@@ -140,7 +143,16 @@ export function verifyAtomicRuntimeCommitAttestation(commit: AtomicSourceEvidenc
   if(sealed.length!==current.length||!timingSafeEqual(sealed,current))throw new Error("ATOMIC_RUNTIME_COMMIT_ATTESTATION_INVALID");
 }
 
-function attestationSignature(commit:AtomicSourceEvidenceCommit):Buffer {
+export function verifyFailedRuntimeEvidenceCommitAttestation(commit: FailedSourceEvidenceCommit): void {
+  const sealed = failedRuntimeCommitAttestations.get(commit);
+  if (!sealed) throw new Error("FAILED_RUNTIME_EVIDENCE_COMMIT_ATTESTATION_MISSING");
+  const current = attestationSignature(commit);
+  if (sealed.length !== current.length || !timingSafeEqual(sealed, current)) {
+    throw new Error("FAILED_RUNTIME_EVIDENCE_COMMIT_ATTESTATION_INVALID");
+  }
+}
+
+function attestationSignature(commit: unknown):Buffer {
   return createHmac("sha256",attestationKey).update(canonicalJson(commit),"utf8").digest();
 }
 
@@ -196,6 +208,136 @@ export function bindRuntimeEvidenceArtifactIds(input: {
       artifact.logicalKey
     ]))
   }));
+}
+
+export function buildFailedRuntimeEvidenceCommit(input: {
+  pending: PlannedPendingSourceInput;
+  identity: RuntimeBatchIdentity;
+  batchId: string;
+  evidenceSubdirectory: string;
+  result: SourceCrawlResult;
+  terminal: PendingSourceTerminalInput;
+  artifacts: readonly ArchivedEvidenceArtifact[];
+}): FailedSourceEvidenceCommit {
+  const evidence = input.result.fetchEvidence;
+  if (!evidence || input.result.truth.transportSuccess && input.result.truth.adapterSuccess) {
+    throw new Error("failed runtime evidence commit requires failed source truth and strict fetch evidence");
+  }
+  if (input.terminal.id !== input.pending.id ||
+      input.terminal.releaseCandidateId !== input.identity.releaseCandidateId ||
+      input.terminal.batchId !== input.batchId || input.terminal.sourceId !== input.pending.sourceId) {
+    throw new Error("failed runtime evidence terminal tuple mismatch");
+  }
+  const tuple = {
+    releaseCandidateId: input.identity.releaseCandidateId,
+    batchId: input.batchId,
+    sourceId: input.pending.sourceId,
+    sourceResultId: input.pending.id
+  };
+  const boundDrafts = bindRuntimeEvidenceArtifactIds({ ...tuple,
+    artifacts: [
+      ...evidence.artifacts,
+      ...(input.result.priorTransportAttempts ?? []).flatMap((attempt) => attempt.fetchEvidence?.artifacts ?? [])
+    ]
+  });
+  assertVerifiedArchivedEvidenceMetadata({ ...tuple,
+    evidenceSubdirectory: input.evidenceSubdirectory, artifacts: [...input.artifacts] }, boundDrafts);
+  if (input.artifacts.some((artifact) => artifact.captureToolName !== evidence.captureTool.name ||
+      artifact.captureToolVersion !== evidence.captureTool.version)) {
+    throw new Error("verified archive metadata is not bound to the fetch capture tool");
+  }
+  const artifacts = input.artifacts.map((archived) => ({
+    ...tuple,
+    id: archived.id,
+    logicalKey: archived.logicalKey,
+    ...(archived.channelId ? { channelId: archived.channelId } : {}),
+    kind: archived.kind,
+    ...(archived.requestedUrl ? { requestedUrl: archived.requestedUrl } : {}),
+    ...(archived.finalUrl ? { finalUrl: archived.finalUrl } : {}),
+    ...(archived.httpStatus ? { httpStatus: archived.httpStatus } : {}),
+    ...(archived.contentType ? { contentType: archived.contentType } : {}),
+    capturedAt: archived.capturedAt,
+    sha256: archived.sha256,
+    byteCount: archived.byteCount,
+    path: archived.path,
+    extractorLocator: archived.extractorLocator,
+    captureToolName: archived.captureToolName,
+    captureToolVersion: archived.captureToolVersion,
+    redactionCommitmentSha256: archivedRedactionCommitment(archived)
+  }));
+  const pagination = evidence.pages.map((page) => ({
+    ...tuple,
+    artifactLogicalKey: page.artifactLogicalKey,
+    sequence: page.sequence,
+    ...(page.channelId ? { channelId: page.channelId } : {}),
+    requestedCursor: page.requestedCursor ?? null,
+    returnedCursor: page.returnedCursor ?? null,
+    requestedOffset: page.requestedOffset ?? null,
+    returnedOffset: page.returnedOffset ?? null,
+    requestedPage: page.requestedPage ?? null,
+    returnedPage: page.returnedPage ?? null,
+    requestedPageSize: page.requestedPageSize ?? null,
+    returnedPageSize: page.returnedPageSize ?? null,
+    responseFingerprintSha256: requiredSha(page.responseFingerprintSha256, "page response fingerprint"),
+    rawJobIdSetSha256: canonicalStringSetSha256(page.rawJobIds),
+    validJobIdSetSha256: canonicalStringSetSha256(page.validJobIds),
+    declaredTotal: page.declaredTotal ?? null,
+    declaredCount: page.declaredCount ?? null,
+    declaredPages: page.declaredPages ?? null,
+    nextPageSignalBefore: page.nextPageSignalBefore ?? null,
+    nextPageSignalAfter: page.nextPageSignalAfter ?? null,
+    termination: page.termination,
+    anomalyCodes: page.anomalyCodes,
+    capturedAt: new Date(page.capturedAt)
+  }));
+  const commit: FailedSourceEvidenceCommit = {
+    sourceResult: input.terminal,
+    fetchCounts: { ...evidence.fetchCounts },
+    expectedJobCount: evidence.declaredCompleteness?.kind === "OFFICIAL_TOTAL_COUNT"
+      ? evidence.declaredCompleteness.value
+      : null,
+    expectedEvidenceKind: evidence.declaredCompleteness?.kind ?? null,
+    artifacts,
+    pagination,
+    lossLedger: evidence.fetchLosses.map((loss) => ({
+      ...tuple,
+      stage: loss.stage,
+      reason: loss.reason,
+      rawLocator: loss.rawLocator,
+      details: loss.details,
+      ...(loss.recordedAt ? { recordedAt: new Date(loss.recordedAt) } : {})
+    })),
+    priorTransportAttempts: (input.result.priorTransportAttempts ?? []).map((attempt, sequence) => {
+      const attemptEvidence = attempt.code === "HCM_BROWSER_SUCCEEDED"
+        ? evidence
+        : attempt.fetchEvidence;
+      const artifactIds = attemptEvidence?.artifacts.map((draft) => {
+        const archived = input.artifacts.find((item) => item.logicalKey === draft.logicalKey);
+        if (!archived) throw new Error(`missing archived failed-attempt artifact ${draft.logicalKey}`);
+        return archived.id;
+      }) ?? [];
+      return {
+        ...tuple,
+        id: `${input.pending.id}--attempt-${sequence}`,
+        sequence,
+        transport: attempt.transport,
+        outcome: attempt.outcome,
+        code: attempt.code,
+        capturedAt: new Date(attempt.capturedAt),
+        artifactIds,
+        evidenceCommitmentSha256: canonicalStringSetSha256(artifactIds.map((id) =>
+          input.artifacts.find((artifact) => artifact.id === id)!.sha256)),
+        pageTraceSha256: attemptEvidence
+          ? canonicalPageTraceSha256(attemptEvidence.pages)
+          : sha256(canonicalJson(null)),
+        lossLedgerSha256: sha256(canonicalJson(attemptEvidence?.fetchLosses ?? [])),
+        paginationEvaluationSha256: sha256(canonicalJson(attempt.paginationEvaluation ?? null)),
+        details: { code: attempt.code }
+      };
+    })
+  };
+  failedRuntimeCommitAttestations.set(commit, attestationSignature(commit));
+  return commit;
 }
 
 export function buildAtomicRuntimeCommit(input: {
