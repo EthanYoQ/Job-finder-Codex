@@ -32,6 +32,18 @@ export const B_GRADE_SAFE_VALIDATOR_STAGE_MESSAGES = Object.freeze({
   TALENTBREW_ENTRY_SELECTOR: "TalentBrew browser validator ENTRY_SELECTOR readiness failed",
   TALENTBREW_SCOPE_CONTROL: "TalentBrew browser validator SCOPE_CONTROL readiness failed",
   TALENTBREW_PARTITION_ACTIVATION: "TalentBrew browser validator PARTITION_ACTIVATION readiness failed",
+  TALENTBREW_ACTIVATION_CONTROL_MISSING:
+    "TalentBrew browser validator PARTITION_ACTIVATION control missing",
+  TALENTBREW_ACTIVATION_CONTROL_AMBIGUOUS:
+    "TalentBrew browser validator PARTITION_ACTIVATION control ambiguous",
+  TALENTBREW_ACTIVATION_CONTROL_UNCHECKED:
+    "TalentBrew browser validator PARTITION_ACTIVATION control unchecked",
+  TALENTBREW_ACTIVATION_CURRENT_PAGE_MISMATCH:
+    "TalentBrew browser validator PARTITION_ACTIVATION current page mismatch",
+  TALENTBREW_ACTIVATION_TOTAL_MISMATCH:
+    "TalentBrew browser validator PARTITION_ACTIVATION total mismatch",
+  TALENTBREW_ACTIVATION_TIMEOUT:
+    "TalentBrew browser validator PARTITION_ACTIVATION timed out",
   TALENTBREW_PAGE_ADVANCE: "TalentBrew browser validator PAGE_ADVANCE readiness failed",
   XIUZHENG_HOME_GOTO: "Xiuzheng browser validator HOME_GOTO navigation failed",
   XIUZHENG_HUMAN_RESOURCE_ROUTE: "Xiuzheng browser validator HUMAN_RESOURCE_ROUTE navigation failed",

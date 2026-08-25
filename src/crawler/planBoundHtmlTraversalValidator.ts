@@ -227,6 +227,34 @@ export interface PlanBoundHtmlRenderedPageCapture {
   partitions?: PlanBoundHtmlRenderedPartitionCapture[];
 }
 
+export interface TalentbrewPartitionActivationState {
+  matchingControlCount: number;
+  checked: boolean | null;
+  currentPage: string | null;
+  selectedJobCount: string | null;
+  resultTotal: string | null;
+}
+
+export type TalentbrewPartitionActivationDecision =
+  | "READY"
+  | "CONTROL_MISSING"
+  | "CONTROL_AMBIGUOUS"
+  | "CONTROL_UNCHECKED"
+  | "CURRENT_PAGE_MISMATCH"
+  | "TOTAL_MISMATCH";
+
+export function classifyTalentbrewPartitionActivationState(
+  state: TalentbrewPartitionActivationState
+): TalentbrewPartitionActivationDecision {
+  if (state.matchingControlCount === 0) return "CONTROL_MISSING";
+  if (state.matchingControlCount !== 1) return "CONTROL_AMBIGUOUS";
+  if (state.checked !== true) return "CONTROL_UNCHECKED";
+  if (state.currentPage !== "1") return "CURRENT_PAGE_MISMATCH";
+  const controlCount = parseNonnegativeInteger(state.selectedJobCount);
+  const resultTotal = parseNonnegativeInteger(state.resultTotal);
+  return controlCount !== undefined && controlCount === resultTotal ? "READY" : "TOTAL_MISMATCH";
+}
+
 export function isPlanBoundHtmlTraversalSourceId(value: string): value is PlanBoundHtmlTraversalSourceId {
   return Object.prototype.hasOwnProperty.call(PLAN_BOUND_HTML_TRAVERSAL_POLICIES, value);
 }
@@ -600,8 +628,8 @@ async function captureTalentbrewPartitions(
       if (await filter.count() !== 1 || await filter.isChecked()) {
         throw new Error("TalentBrew browser validator allowed partition control is invalid");
       }
-      const declaredPartitionJobs = parseNonnegativeInteger(await filter.getAttribute("data-count"));
-      if (declaredPartitionJobs === undefined) {
+      const entryPartitionJobs = parseNonnegativeInteger(await filter.getAttribute("data-count"));
+      if (entryPartitionJobs === undefined) {
         throw new Error("TalentBrew browser validator partition count is invalid");
       }
       const ajaxEndpoint = await readTalentbrewAjaxEndpoint(page, entryUrl, scope);
@@ -610,37 +638,14 @@ async function captureTalentbrewPartitions(
         filter.evaluate((element) => (element as HTMLInputElement).click())
       ]);
       assertTalentbrewPartitionResponse(partitionResponseUrl, partition);
-      try {
-        await page.waitForFunction(({ selector, resultsSelector, currentAttribute, totalAttribute, expectedTotal }) => {
-          const checkbox = document.querySelector(selector) as HTMLInputElement | null;
-          const results = document.querySelector(resultsSelector);
-          return checkbox !== null && results?.getAttribute(currentAttribute) === "1" &&
-            results.getAttribute(totalAttribute) === expectedTotal;
-        }, {
-          selector: filterSelector,
-          resultsSelector: scope.totalPagesSelector,
-          currentAttribute: "data-current-page",
-          totalAttribute: scope.totalJobsAttribute,
-          expectedTotal: String(declaredPartitionJobs)
-        }, { timeout: browserTimeoutMs });
-      } catch (error) {
-        if (signal?.aborted) {
-          throw tagBGradeIndependentTraversalFailure(signal.reason, "B_GRADE_VALIDATOR_ABORTED");
-        }
-        const state = await page.evaluate(({ selector, resultsSelector, totalAttribute }) => {
-          const checkbox = document.querySelector(selector) as HTMLInputElement | null;
-          const results = document.querySelector(resultsSelector);
-          return { checked: checkbox?.checked ?? null, current: results?.getAttribute("data-current-page") ?? null,
-            total: results?.getAttribute(totalAttribute) ?? null };
-        }, { selector: filterSelector, resultsSelector: scope.totalPagesSelector, totalAttribute: scope.totalJobsAttribute });
-        throw tagBGradeIndependentTraversalFailure(
-          new Error(B_GRADE_SAFE_VALIDATOR_STAGE_MESSAGES.TALENTBREW_PARTITION_ACTIVATION, {
-            cause: new Error(`checked=${state.checked},current=${state.current ?? "missing"},` +
-              `total=${state.total ?? "missing"}`)
-          }),
-          "B_GRADE_BROWSER_READINESS_FAILED"
-        );
-      }
+      const declaredPartitionJobs = await waitForTalentbrewPartitionActivation({
+        page,
+        selector: filterSelector,
+        resultsSelector: scope.totalPagesSelector,
+        totalAttribute: scope.totalJobsAttribute,
+        browserTimeoutMs,
+        ...(signal ? { signal } : {})
+      });
       const declaration = await readTalentbrewDeclaration(page, scope);
       if (declaration.totalJobs !== declaredPartitionJobs || declaration.totalPages > registered.maxPages) {
         throw new Error("TalentBrew browser validator page declaration exceeds the registered limit");
@@ -713,6 +718,148 @@ async function captureTalentbrewPartitions(
     }
   }
   return pages;
+}
+
+async function waitForTalentbrewPartitionActivation(input: {
+  page: import("playwright-core").Page;
+  selector: string;
+  resultsSelector: string;
+  totalAttribute: string;
+  browserTimeoutMs: number;
+  signal?: AbortSignal;
+}): Promise<number> {
+  const deadline = Date.now() + input.browserTimeoutMs;
+  let decision: TalentbrewPartitionActivationDecision = "CONTROL_MISSING";
+  let state: TalentbrewPartitionActivationState | undefined;
+  let timedOut = false;
+  while (Date.now() < deadline) {
+    if (input.signal?.aborted) {
+      throw tagBGradeIndependentTraversalFailure(input.signal.reason, "B_GRADE_VALIDATOR_ABORTED");
+    }
+    const remainingMs = deadline - Date.now();
+    let attempt: TalentbrewBoundedOperationResult<TalentbrewPartitionActivationState>;
+    try {
+      attempt = await runTalentbrewBoundedOperation({
+        timeoutMs: remainingMs,
+        ...(input.signal ? { signal: input.signal } : {}),
+        operation: () => input.page.evaluate(({ selector, resultsSelector, totalAttribute }) => {
+          const controls = document.querySelectorAll(selector);
+          const checkbox = controls.length === 1 ? controls[0] as HTMLInputElement : null;
+          const results = document.querySelector(resultsSelector);
+          return {
+            matchingControlCount: controls.length,
+            checked: checkbox?.checked ?? null,
+            currentPage: results?.getAttribute("data-current-page") ?? null,
+            selectedJobCount: checkbox?.getAttribute("data-count") ?? null,
+            resultTotal: results?.getAttribute(totalAttribute) ?? null
+          };
+        }, {
+          selector: input.selector,
+          resultsSelector: input.resultsSelector,
+          totalAttribute: input.totalAttribute
+        })
+      });
+    } catch (error) {
+      if (input.signal?.aborted) {
+        throw tagBGradeIndependentTraversalFailure(input.signal.reason, "B_GRADE_VALIDATOR_ABORTED");
+      }
+      throw error;
+    }
+    if (attempt.kind === "ABORTED" || input.signal?.aborted) {
+      throw tagBGradeIndependentTraversalFailure(input.signal?.reason, "B_GRADE_VALIDATOR_ABORTED");
+    }
+    if (attempt.kind === "TIMED_OUT") {
+      timedOut = true;
+      break;
+    }
+    state = attempt.value;
+    decision = classifyTalentbrewPartitionActivationState(state);
+    if (decision === "READY") {
+      if (Date.now() >= deadline) {
+        timedOut = true;
+        break;
+      }
+      if (input.signal?.aborted) {
+        throw tagBGradeIndependentTraversalFailure(input.signal.reason, "B_GRADE_VALIDATOR_ABORTED");
+      }
+      return parseNonnegativeInteger(state.resultTotal)!;
+    }
+    const pollRemainingMs = deadline - Date.now();
+    if (pollRemainingMs <= 0) break;
+    const poll = await runTalentbrewBoundedOperation({
+      timeoutMs: pollRemainingMs,
+      ...(input.signal ? { signal: input.signal } : {}),
+      operation: () => input.page.waitForTimeout(Math.min(250, pollRemainingMs))
+    });
+    if (poll.kind === "ABORTED" || input.signal?.aborted) {
+      throw tagBGradeIndependentTraversalFailure(input.signal?.reason, "B_GRADE_VALIDATOR_ABORTED");
+    }
+    if (poll.kind === "TIMED_OUT") {
+      timedOut = true;
+      break;
+    }
+  }
+
+  if (input.signal?.aborted) {
+    throw tagBGradeIndependentTraversalFailure(input.signal.reason, "B_GRADE_VALIDATOR_ABORTED");
+  }
+  if (Date.now() >= deadline) timedOut = true;
+  const safeMessage = {
+    CONTROL_MISSING: B_GRADE_SAFE_VALIDATOR_STAGE_MESSAGES.TALENTBREW_ACTIVATION_CONTROL_MISSING,
+    CONTROL_AMBIGUOUS: B_GRADE_SAFE_VALIDATOR_STAGE_MESSAGES.TALENTBREW_ACTIVATION_CONTROL_AMBIGUOUS,
+    CONTROL_UNCHECKED: B_GRADE_SAFE_VALIDATOR_STAGE_MESSAGES.TALENTBREW_ACTIVATION_CONTROL_UNCHECKED,
+    CURRENT_PAGE_MISMATCH: B_GRADE_SAFE_VALIDATOR_STAGE_MESSAGES.TALENTBREW_ACTIVATION_CURRENT_PAGE_MISMATCH,
+    TOTAL_MISMATCH: B_GRADE_SAFE_VALIDATOR_STAGE_MESSAGES.TALENTBREW_ACTIVATION_TOTAL_MISMATCH
+  } as const;
+  const failedDecision = decision === "READY" ? "TOTAL_MISMATCH" : decision;
+  const failureMessage = timedOut
+    ? B_GRADE_SAFE_VALIDATOR_STAGE_MESSAGES.TALENTBREW_ACTIVATION_TIMEOUT
+    : safeMessage[failedDecision];
+  throw tagBGradeIndependentTraversalFailure(
+    new Error(failureMessage, {
+      cause: new Error(`matchingControlCount=${state?.matchingControlCount ?? 0},checked=${state?.checked ?? null},` +
+        `currentPage=${state?.currentPage ?? "missing"},selectedJobCount=${state?.selectedJobCount ?? "missing"},` +
+        `resultTotal=${state?.resultTotal ?? "missing"}`)
+    }),
+    "B_GRADE_BROWSER_READINESS_FAILED"
+  );
+}
+
+type TalentbrewBoundedOperationResult<T> =
+  | { kind: "COMPLETED"; value: T }
+  | { kind: "TIMED_OUT" }
+  | { kind: "ABORTED" };
+
+async function runTalentbrewBoundedOperation<T>(input: {
+  operation: () => Promise<T>;
+  timeoutMs: number;
+  signal?: AbortSignal;
+}): Promise<TalentbrewBoundedOperationResult<T>> {
+  if (input.signal?.aborted) return { kind: "ABORTED" };
+  return await new Promise<TalentbrewBoundedOperationResult<T>>((resolve, reject) => {
+    let settled = false;
+    const finish = (result: TalentbrewBoundedOperationResult<T>) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      input.signal?.removeEventListener("abort", onAbort);
+      resolve(result);
+    };
+    const fail = (error: unknown) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      input.signal?.removeEventListener("abort", onAbort);
+      reject(error);
+    };
+    const onAbort = () => finish({ kind: "ABORTED" });
+    const timer = setTimeout(() => finish({ kind: "TIMED_OUT" }), Math.max(0, input.timeoutMs));
+    input.signal?.addEventListener("abort", onAbort, { once: true });
+    Promise.resolve().then(input.operation).then(
+      (value) => finish({ kind: "COMPLETED", value }),
+      fail
+    );
+  });
 }
 
 function configuredTalentbrewTraversalPolicy(sourceId: PlanBoundHtmlTraversalSourceId): TalentbrewTraversalPolicy {

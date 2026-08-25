@@ -1,10 +1,14 @@
 import { createHash } from "node:crypto";
 import { describe, expect, it, vi } from "vitest";
 import {
+  classifyTalentbrewPartitionActivationState,
   capturePlanBoundHtmlRenderedTraversal,
   PLAN_BOUND_HTML_TRAVERSAL_POLICIES
 } from "../../src/crawler/planBoundHtmlTraversalValidator";
-import { classifyBGradeIndependentTraversalFailure } from "../../src/crawler/independentTraversalDiagnostics";
+import {
+  classifyBGradeIndependentTraversalFailure,
+  safeBGradeIndependentTraversalFailureReason
+} from "../../src/crawler/independentTraversalDiagnostics";
 
 describe("plan-bound HTML rendered traversal", () => {
   it("captures a terminal static list and closes the browser", async () => {
@@ -387,6 +391,114 @@ describe("plan-bound HTML rendered traversal", () => {
     })).resolves.toMatchObject({ pages: expect.any(Array) });
 
     expect(loadState).not.toHaveBeenCalled();
+  });
+
+  it("accepts a fresh post-AJAX TalentBrew count after a stale entry declaration", async () => {
+    const sourceId = "source-sanofi-china-social" as const;
+    const entryUrl = PLAN_BOUND_HTML_TRAVERSAL_POLICIES[sourceId].entryUrl;
+
+    await expect(capturePlanBoundHtmlRenderedTraversal({
+      sourceId,
+      entryUrl,
+      launchBrowser: async () => talentbrewBrowser({
+        entryUrl,
+        close: async () => undefined,
+        initialAllowedPartitionCounts: [4, 1]
+      })
+    })).resolves.toMatchObject({ pages: [
+      { channelId: "employment-fixed-term", declaredTotalJobs: 3 },
+      { channelId: "employment-fixed-term", declaredTotalJobs: 3 },
+      { channelId: "employment-regular", declaredTotalJobs: 1 }
+    ] });
+  });
+
+  it("polls a non-ready TalentBrew activation into one atomic ready snapshot", async () => {
+    const sourceId = "source-sanofi-china-social" as const;
+    const entryUrl = PLAN_BOUND_HTML_TRAVERSAL_POLICIES[sourceId].entryUrl;
+    const states = [
+      { matchingControlCount: 1, checked: false, currentPage: "1", selectedJobCount: "3", resultTotal: "3" },
+      { matchingControlCount: 1, checked: true, currentPage: "1", selectedJobCount: "3", resultTotal: "3" }
+    ] as const;
+    let evaluation = 0;
+
+    await expect(capturePlanBoundHtmlRenderedTraversal({
+      sourceId,
+      entryUrl,
+      launchBrowser: async () => talentbrewBrowser({
+        entryUrl,
+        close: async () => undefined,
+        activationEvaluation: async () => states[evaluation++]
+      })
+    })).resolves.toMatchObject({ pages: expect.any(Array) });
+
+    expect(evaluation).toBeGreaterThanOrEqual(2);
+  });
+
+  it("bounds a stalled TalentBrew activation evaluation with a safe typed failure", async () => {
+    vi.useFakeTimers();
+    vi.stubEnv("P0_BROWSER_TIMEOUT_MS", "5000");
+    try {
+      const sourceId = "source-sanofi-china-social" as const;
+      const entryUrl = PLAN_BOUND_HTML_TRAVERSAL_POLICIES[sourceId].entryUrl;
+      const pending = capturePlanBoundHtmlRenderedTraversal({
+        sourceId,
+        entryUrl,
+        launchBrowser: async () => talentbrewBrowser({
+          entryUrl,
+          close: async () => undefined,
+          activationEvaluation: () => new Promise(() => undefined)
+        })
+      }).catch((error: unknown) => error);
+      await vi.runAllTimersAsync();
+      const failure = await pending;
+
+      expect(classifyBGradeIndependentTraversalFailure(failure)).toBe("B_GRADE_BROWSER_READINESS_FAILED");
+      expect(failure).toMatchObject({
+        message: "TalentBrew browser validator PARTITION_ACTIVATION timed out"
+      });
+      const safeReason = safeBGradeIndependentTraversalFailureReason(failure);
+      expect(safeReason).toBe(
+        "B-grade independent traversal failed: TalentBrew browser validator PARTITION_ACTIVATION timed out"
+      );
+      expect(safeReason).not.toContain("matchingControlCount");
+    } finally {
+      vi.unstubAllEnvs();
+      vi.useRealTimers();
+    }
+  });
+
+  it("keeps abort authoritative while TalentBrew activation evaluation is stalled", async () => {
+    const sourceId = "source-sanofi-china-social" as const;
+    const entryUrl = PLAN_BOUND_HTML_TRAVERSAL_POLICIES[sourceId].entryUrl;
+    const controller = new AbortController();
+    const abortReason = new Error("abort must win over renderer shutdown");
+    const failure = await capturePlanBoundHtmlRenderedTraversal({
+      sourceId,
+      entryUrl,
+      signal: controller.signal,
+      launchBrowser: async () => talentbrewBrowser({
+        entryUrl,
+        close: async () => undefined,
+        activationEvaluation: () => {
+          queueMicrotask(() => controller.abort(abortReason));
+          return new Promise(() => undefined);
+        }
+      })
+    }).catch((error: unknown) => error);
+
+    expect(failure).toBe(abortReason);
+    expect(classifyBGradeIndependentTraversalFailure(failure)).toBe("B_GRADE_VALIDATOR_ABORTED");
+  });
+
+  it.each([
+    [{ matchingControlCount: 0, checked: null, currentPage: "1", selectedJobCount: "3", resultTotal: "3" }, "CONTROL_MISSING"],
+    [{ matchingControlCount: 2, checked: true, currentPage: "1", selectedJobCount: "3", resultTotal: "3" }, "CONTROL_AMBIGUOUS"],
+    [{ matchingControlCount: 1, checked: false, currentPage: "1", selectedJobCount: "3", resultTotal: "3" }, "CONTROL_UNCHECKED"],
+    [{ matchingControlCount: 1, checked: true, currentPage: "2", selectedJobCount: "3", resultTotal: "3" }, "CURRENT_PAGE_MISMATCH"],
+    [{ matchingControlCount: 1, checked: true, currentPage: "1", selectedJobCount: "4", resultTotal: "3" }, "TOTAL_MISMATCH"],
+    [{ matchingControlCount: 1, checked: true, currentPage: "1", selectedJobCount: "3", resultTotal: "3" }, "READY"]
+  ] as const)("classifies the exact post-AJAX activation state as %s", (state, expected) => {
+    expect(classifyTalentbrewPartitionActivationState(state)).toBe(expected);
   });
 
   it("uses the shared browser timeout throughout the TalentBrew traversal", async () => {
@@ -877,6 +989,14 @@ function talentbrewBrowser(input: {
   pageClose?: () => Promise<void>;
   onTimeout?: (timeout: number | undefined) => void;
   waitForLoadState?: () => Promise<void>;
+  initialAllowedPartitionCounts?: readonly [number, number];
+  activationEvaluation?: () => Promise<{
+    matchingControlCount: number;
+    checked: boolean | null;
+    currentPage: string | null;
+    selectedJobCount: string | null;
+    resultTotal: string | null;
+  } | undefined>;
 }) {
   const sourceId = "source-sanofi-china-social" as const;
   const policy = PLAN_BOUND_HTML_TRAVERSAL_POLICIES[sourceId];
@@ -907,6 +1027,21 @@ function talentbrewBrowser(input: {
     },
     waitForFunction: async (_callback: unknown, _argument?: unknown, options?: { timeout?: number }) => {
       input.onTimeout?.(options?.timeout);
+    },
+    waitForTimeout: async () => undefined,
+    evaluate: async (_callback: unknown, _argument?: unknown) => {
+      const activationState = await input.activationEvaluation?.();
+      if (activationState) return activationState;
+      const selected = partitionIndex;
+      const controlPresent = selected >= 0;
+      const selectedJobCount = controlPresent ? String(partitions[selected]!.pages.flat().length) : null;
+      return {
+        matchingControlCount: controlPresent ? 1 : 0,
+        checked: controlPresent,
+        currentPage: controlPresent ? String(pageIndex + 1) : null,
+        selectedJobCount,
+        resultTotal: selectedJobCount
+      };
     },
     waitForResponse: async (
       predicate: (candidate: ReturnType<typeof ajaxResponse>) => boolean,
@@ -951,7 +1086,9 @@ function talentbrewBrowser(input: {
             : name === "data-total-pages"
               ? String(partitionIndex < 0 ? 1 : partitions[partitionIndex]!.pages.length)
               : name === "data-total-job-results"
-                ? String(partitionIndex < 0 ? 4 : partitions[partitionIndex]!.pages.flat().length)
+                ? String(partitionIndex < 0
+                  ? input.initialAllowedPartitionCounts?.reduce((sum, count) => sum + count, 0) ?? 4
+                  : partitions[partitionIndex]!.pages.flat().length)
                 : name === "data-ajax-url"
                   ? "/results"
                   : name === "data-facet-term"
@@ -972,7 +1109,9 @@ function talentbrewBrowser(input: {
           getAttribute: async (name: string) => name === "data-display"
             ? partitions[selected]!.id
             : name === "data-count"
-              ? String(partitions[selected]!.pages.flat().length)
+              ? String(partitionIndex === selected
+                ? partitions[selected]!.pages.flat().length
+                : input.initialAllowedPartitionCounts?.[selected] ?? partitions[selected]!.pages.flat().length)
               : null,
           evaluate: async () => { partitionIndex = selected; pageIndex = 0; }
         };
