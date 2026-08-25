@@ -271,6 +271,7 @@ const CITY_MATCHES: ReadonlyArray<readonly [string, string]> = [
   ["Tianjin", "天津"],
   ["Lanzhou", "兰州"],
   ["Taiyuan", "太原"],
+  ["Yancheng", "盐城"],
   ["Jiangsu", "江苏"],
   ["上海", "上海"],
   ["北京", "北京"],
@@ -295,7 +296,8 @@ const CITY_MATCHES: ReadonlyArray<readonly [string, string]> = [
   ["西宁", "西宁"],
   ["天津", "天津"],
   ["兰州", "兰州"],
-  ["太原", "太原"]
+  ["太原", "太原"],
+  ["盐城", "盐城"]
 ];
 const DEFAULT_BEISEN_ZHIYE_DISPLAY_FIELDS = [
   "Category",

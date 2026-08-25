@@ -175,6 +175,31 @@ describe("createOfficialJsonSourceFetch", () => {
     });
   });
 
+  it("maps the archived Gilead Yancheng location without losing the official job", async () => {
+    const plan = buildStagedSourceCrawlPlans(candidateCompanies).find(({ source }) =>
+      source.id === "source-gilead-china-social")!;
+    const fetcher = createOfficialJsonSourceFetch({
+      now: () => new Date("2026-08-14T00:00:00.000Z"),
+      http: async () => yelloResponse(yelloLocationOverrides("China - Yancheng"))
+    });
+    const fetched = await fetcher(plan);
+    expect(fetched).toMatchObject({
+      ok: true,
+      payload: { jobs: [{ locationRaw: "China - Yancheng", cities: ["盐城"] }] }
+    });
+    const crawled = await runSourceCrawl(plan, { fetch: async () => fetched });
+
+    expect(crawled).toMatchObject({
+      status: "SUCCESS",
+      jobs: [{ locationRaw: "China - Yancheng", cities: ["盐城"] }],
+      observation: {
+        structuredJobCount: 1,
+        expectedJobCount: 1,
+        completenessStatus: "VERIFIED"
+      }
+    });
+  });
+
   it("replays the archived Gilead Yello response through the staged strict completeness gate", async () => {
     const plan = buildStagedSourceCrawlPlans(candidateCompanies).find(({ source }) =>
       source.id === "source-gilead-china-social")!;
