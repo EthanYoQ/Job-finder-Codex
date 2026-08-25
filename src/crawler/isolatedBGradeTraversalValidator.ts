@@ -32,11 +32,16 @@ const processResponseSchema = z.discriminatedUnion("decision", [
 const RETRIABLE_VALIDATOR_FAILURE_CODES = new Set<string>([
   "B_GRADE_BROWSER_NAVIGATION_FAILED",
   "B_GRADE_BROWSER_READINESS_FAILED",
+  "B_GRADE_REQUEST_PROTOCOL_FAILED",
   "B_GRADE_VALIDATOR_EXECUTION_FAILED"
 ] as const);
+const VALIDATOR_RETRY_BACKOFF_MS = 10_000;
+
+type RetryDelay = (milliseconds: number, signal?: AbortSignal) => Promise<void>;
 
 export function createIsolatedBGradeTraversalValidator(
-  execute: ExecuteValidatorProcess
+  execute: ExecuteValidatorProcess,
+  delay: RetryDelay = delayWithSignal
 ): (input: ValidatorInput) => Promise<BGradeIndependentTraversalValidation> {
   return async (input) => {
     const { signal, ...serializableInput } = input;
@@ -48,7 +53,10 @@ export function createIsolatedBGradeTraversalValidator(
         if (signal?.aborted) {
           throw tagBGradeIndependentTraversalFailure(signal.reason, "B_GRADE_VALIDATOR_ABORTED");
         }
-        if (attempt === 1) continue;
+        if (attempt === 1) {
+          await awaitRetryDelay(delay, signal);
+          continue;
+        }
         throw tagBGradeIndependentTraversalFailure(error, "B_GRADE_VALIDATOR_EXECUTION_FAILED");
       }
       if (signal?.aborted) {
@@ -58,6 +66,7 @@ export function createIsolatedBGradeTraversalValidator(
       if (response.decision === "FAILED") {
         const maxAttempts = response.failureCode === "B_GRADE_BROWSER_READINESS_FAILED" ? 3 : 2;
         if (attempt < maxAttempts && RETRIABLE_VALIDATOR_FAILURE_CODES.has(response.failureCode)) {
+          await awaitRetryDelay(delay, signal);
           continue;
         }
         throw tagBGradeIndependentTraversalFailure(new Error(response.message), response.failureCode);
@@ -73,6 +82,35 @@ export function createIsolatedBGradeTraversalValidator(
     }
     throw new Error("Isolated B-grade traversal retry loop exhausted without a result");
   };
+}
+
+async function awaitRetryDelay(delay: RetryDelay, signal?: AbortSignal): Promise<void> {
+  try {
+    await delay(VALIDATOR_RETRY_BACKOFF_MS, signal);
+  } catch (error) {
+    if (signal?.aborted) {
+      throw tagBGradeIndependentTraversalFailure(signal.reason, "B_GRADE_VALIDATOR_ABORTED");
+    }
+    throw error;
+  }
+  if (signal?.aborted) {
+    throw tagBGradeIndependentTraversalFailure(signal.reason, "B_GRADE_VALIDATOR_ABORTED");
+  }
+}
+
+function delayWithSignal(milliseconds: number, signal?: AbortSignal): Promise<void> {
+  if (signal?.aborted) return Promise.reject(signal.reason);
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => {
+      signal?.removeEventListener("abort", abort);
+      resolve();
+    }, milliseconds);
+    const abort = () => {
+      clearTimeout(timer);
+      reject(signal?.reason);
+    };
+    signal?.addEventListener("abort", abort, { once: true });
+  });
 }
 
 function sameStrings(left: readonly string[], right: readonly string[]): boolean {

@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vitest";
 import {
+  isRetryableSourceTransportFailure,
   retryableHttpTransportFailure,
-  retryableTransportFailureFromError
+  retryableTransportFailureFromError,
+  safeSourceTransportFailureReason
 } from "../../src/crawler/sourceFetchFailure";
 import {
   atomicEvidenceFailureCode,
@@ -38,6 +40,15 @@ describe("source transport retry classification", () => {
   it("does not convert configuration or parse errors into retries", () => {
     expect(retryableTransportFailureFromError(new Error("JSON parse failed"))).toBeUndefined();
     expect(retryableTransportFailureFromError(new Error("pagination config invalid"))).toBeUndefined();
+  });
+
+  it.each([
+    ["OFFICIAL_PAGINATION_SNAPSHOT_DRIFT", "Official recruitment pagination changed during traversal"],
+    ["OFFICIAL_BROWSER_SESSION_ERROR", "Official recruitment browser session failed before evidence capture"]
+  ] as const)("allows the reviewed transient condition %s without raw details", (code, reason) => {
+    const failure = { code, retryable: true as const, stage: "PAGE" as const };
+    expect(isRetryableSourceTransportFailure(failure)).toBe(true);
+    expect(safeSourceTransportFailureReason(failure)).toBe(reason);
   });
 
   it.each([

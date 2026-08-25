@@ -1864,6 +1864,34 @@ describe("Phenom evidence instrumentation", () => {
     expect(withoutOpaqueBodies(result)).not.toContain("raw-secret");
   });
 
+  it("classifies a cross-page ID overlap as retryable pagination snapshot drift", async () => {
+    const fetcher = createOfficialJsonSourceFetch({
+      now: () => new Date(capturedAt),
+      http: async (request) => {
+        if (request.method !== "POST") return response(entryHtml(), entryUrl, "text/html");
+        const from = JSON.parse(request.body ?? "{}").from as number;
+        return response(
+          pageBody(from === 0 ? [job("STABLE-JOB"), job("MOVING-JOB")] : [job("MOVING-JOB")], 3, from),
+          widgetUrl,
+          "application/json"
+        );
+      }
+    });
+
+    await expect(fetcher({
+      ...plan,
+      officialJsonFetch: { ...plan.officialJsonFetch, pageSize: 2 }
+    })).resolves.toMatchObject({
+      ok: false,
+      failureReason: "Phenom pagination evidence failed: RAW_ID_OVERLAP_ACROSS_PAGES",
+      transportFailure: {
+        code: "OFFICIAL_PAGINATION_SNAPSHOT_DRIFT",
+        retryable: true,
+        stage: "PAGE"
+      }
+    });
+  });
+
   it("selects an explicit mainland alternative from official multi_location values", async () => {
     const fetcher = createOfficialJsonSourceFetch({
       now: () => new Date(capturedAt),

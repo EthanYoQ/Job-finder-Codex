@@ -8,6 +8,8 @@ type DecimalDigit = 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9;
 export type RetryableSourceTransportFailureCode =
   | "OFFICIAL_HTTP_TIMEOUT"
   | "OFFICIAL_NETWORK_ERROR"
+  | "OFFICIAL_BROWSER_SESSION_ERROR"
+  | "OFFICIAL_PAGINATION_SNAPSHOT_DRIFT"
   | "OFFICIAL_HTTP_429"
   | `OFFICIAL_HTTP_5${DecimalDigit}${DecimalDigit}`;
 
@@ -24,7 +26,7 @@ export interface SourceTransportFailure {
 }
 
 const RETRYABLE_FAILURE_CODE =
-  /^(?:OFFICIAL_HTTP_TIMEOUT|OFFICIAL_NETWORK_ERROR|OFFICIAL_HTTP_429|OFFICIAL_HTTP_5\d\d)$/u;
+  /^(?:OFFICIAL_HTTP_TIMEOUT|OFFICIAL_NETWORK_ERROR|OFFICIAL_BROWSER_SESSION_ERROR|OFFICIAL_PAGINATION_SNAPSHOT_DRIFT|OFFICIAL_HTTP_429|OFFICIAL_HTTP_5\d\d)$/u;
 const RETRYABLE_NETWORK_ERROR_CODES = new Set([
   "EAI_AGAIN",
   "ECONNABORTED",
@@ -75,6 +77,10 @@ export function safeSourceTransportFailureReason(failure: SourceTransportFailure
       return "Official recruitment request timed out";
     case "OFFICIAL_NETWORK_ERROR":
       return "Official recruitment network request failed";
+    case "OFFICIAL_BROWSER_SESSION_ERROR":
+      return "Official recruitment browser session failed before evidence capture";
+    case "OFFICIAL_PAGINATION_SNAPSHOT_DRIFT":
+      return "Official recruitment pagination changed during traversal";
     case "OFFICIAL_HTTP_429":
       return "Official recruitment endpoint temporarily rate limited the request (HTTP 429)";
     default:

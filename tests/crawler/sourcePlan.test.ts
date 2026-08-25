@@ -634,7 +634,8 @@ describe("source crawl planning", () => {
       .update(JSON.stringify(aliases), "utf8")
       .digest("hex");
     expect(jnjLocationPolicy.mainlandDescriptorAliases).toHaveLength(9);
-    expect(jnjLocationPolicy.foreignDescriptorAliases).toHaveLength(151);
+    expect(jnjLocationPolicy.foreignDescriptorAliases).toHaveLength(152);
+    expect(jnjLocationPolicy.foreignDescriptorAliases).toContain("New Brunswick (Any City)");
     expect(jnjLocationPolicy.foreignDescriptorAliases).toContain("Baja California (Any City)");
     expect(jnjLocationPolicy.foreignDescriptorAliases).toContain("Coahuila (Any City)");
     expect(jnjLocationPolicy.foreignDescriptorAliases)
@@ -646,7 +647,7 @@ describe("source crawl planning", () => {
     expect(descriptorAliasesSha256(jnjLocationPolicy.mainlandDescriptorAliases))
       .toBe("e7820d1245ada112373ffbb699b44a330ab3023b1388729927866efd5ea8aa98");
     expect(descriptorAliasesSha256(jnjLocationPolicy.foreignDescriptorAliases))
-      .toBe("eb6011c65a0113ba912dd81ef4d6b8f147c748f924f158622258230963d8037e");
+      .toBe("fedf85f333a6f298f2b36035100b5f275d3b4e94591d381f567de956ca3f6e34");
     expect(bmsLocationPolicy.foreignSiteDescriptorAliases).toHaveLength(19);
     expect(bmsLocationPolicy.foreignCountryDescriptorAliases).toHaveLength(3);
     expect(bmsLocationPolicy.foreignSiteDescriptorAliases)

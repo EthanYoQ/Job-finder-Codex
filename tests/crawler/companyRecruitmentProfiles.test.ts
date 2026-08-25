@@ -22,8 +22,8 @@ import { AUTHORIZED_PHASE1_EXCLUSION_COMPANY_IDS } from "../../src/data/phase1Sc
 const BASELINE = {
   rosterSha256: "4dbc06e732a0502e881aac9a5f80b7b07432330dd37628cdfde397a04cb541f0",
   surfaceOracleSha256: "f87fe44fb43951d10d9b96809d684476cc4471a9842366beaf32eb93bd36f120",
-  stagedPlanSha256: "2cf059af687442234ea2c33b72eec66f9c1bf18e27e91d5806fcd0f3f0ad0937",
-  stagedConfigSetSha256: "a84fb4eb7187119d3beea733cd244fe76a3a78ba69054fac328dabd112933af7"
+  stagedPlanSha256: "feda17b687b754e70e66779eaa0651a288691998417f7eeed0bae17cf2b05faa",
+  stagedConfigSetSha256: "5d3145f820283cc1917c9be4ea92c021688b04d6f4bc525ac2b70b978747232f"
 } as const;
 
 const SHARED_CORE_SOURCE_ALLOWLIST: Readonly<Record<string, readonly string[]>> = {
@@ -178,7 +178,9 @@ describe("company recruitment profiles", () => {
     expect(retrySourceIds).toEqual([
       "source-bms-china-social",
       "source-grifols-china-social",
+      "source-lunan-social",
       "source-msd-china-social",
+      "source-organon-china-social",
       "source-pfizer-china-social",
       "source-roche-china-social",
       "source-sanofi-china-social",
@@ -190,6 +192,19 @@ describe("company recruitment profiles", () => {
       expect(companyRecruitmentExecutionConfigsBySourceId[sourceId]?.transientRetryPolicy)
         .toEqual({ maxRetries: 1, backoffMs: 10_000 });
     }
+  });
+
+  it("classifies JNJ's current New Brunswick aggregate as an audited foreign descriptor", () => {
+    expect(companyRecruitmentExecutionConfigsBySourceId[
+      "source-johnson-innovative-medicine-social"
+    ]).toMatchObject({
+      workday: {
+        locationFacetPolicy: {
+          kind: "JNJ_AUDITED_LOCATIONS_OVERLAP",
+          foreignDescriptorAliases: expect.arrayContaining(["New Brunswick (Any City)"])
+        }
+      }
+    });
   });
 
   it("binds Pfizer's opaque detail and country-to-location refinement only inside its exact profile", () => {

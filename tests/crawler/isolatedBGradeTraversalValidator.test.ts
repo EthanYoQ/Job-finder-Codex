@@ -16,6 +16,7 @@ const input = {
   surfaceIds: ["surface-viatris-social"],
   channelIds: ["source:source-viatris-social:default"]
 } as const;
+const noDelay = async () => undefined;
 
 function validation() {
   return createViatrisBrowserTraversalValidation({
@@ -49,7 +50,7 @@ describe("isolated B-grade traversal validator", () => {
       decision: "FAILED",
       failureCode: "B_GRADE_BROWSER_NAVIGATION_FAILED",
       message: "official entry navigation failed"
-    }));
+    }), noDelay);
 
     const error = await run(input).catch((caught: unknown) => caught);
     expect(classifyBGradeIndependentTraversalFailure(error))
@@ -65,10 +66,46 @@ describe("isolated B-grade traversal validator", () => {
         message: "official list did not become ready"
       }))
       .mockResolvedValueOnce(JSON.stringify({ decision: "SUCCEEDED", validation: expected }));
-    const run = createIsolatedBGradeTraversalValidator(execute);
+    const run = createIsolatedBGradeTraversalValidator(execute, noDelay);
 
     await expect(run(input)).resolves.toEqual(expected);
     expect(execute).toHaveBeenCalledTimes(2);
+  });
+
+  it("backs off before retrying a transient request-protocol failure", async () => {
+    const expected = validation();
+    const delays: number[] = [];
+    const execute = vi.fn()
+      .mockResolvedValueOnce(JSON.stringify({
+        decision: "FAILED",
+        failureCode: "B_GRADE_REQUEST_PROTOCOL_FAILED",
+        message: "official request protocol was temporarily unavailable"
+      }))
+      .mockResolvedValueOnce(JSON.stringify({ decision: "SUCCEEDED", validation: expected }));
+    const run = createIsolatedBGradeTraversalValidator(
+      execute,
+      async (milliseconds) => { delays.push(milliseconds); }
+    );
+
+    await expect(run(input)).resolves.toEqual(expected);
+    expect(execute).toHaveBeenCalledTimes(2);
+    expect(delays).toEqual([10_000]);
+  });
+
+  it("keeps a parent abort authoritative during retry backoff", async () => {
+    const controller = new AbortController();
+    const reason = new Error("source deadline reached during retry backoff");
+    const run = createIsolatedBGradeTraversalValidator(async () => JSON.stringify({
+      decision: "FAILED",
+      failureCode: "B_GRADE_BROWSER_READINESS_FAILED",
+      message: "official list did not become ready"
+    }));
+    const pending = run({ ...input, signal: controller.signal });
+    setTimeout(() => controller.abort(reason), 10);
+
+    const error = await pending.catch((caught: unknown) => caught);
+    expect(error).toBe(reason);
+    expect(classifyBGradeIndependentTraversalFailure(error)).toBe("B_GRADE_VALIDATOR_ABORTED");
   });
 
   it("allows one additional fresh subprocess only for repeated browser readiness failures", async () => {
@@ -85,7 +122,7 @@ describe("isolated B-grade traversal validator", () => {
         message: "official list did not become ready"
       }))
       .mockResolvedValueOnce(JSON.stringify({ decision: "SUCCEEDED", validation: expected }));
-    const run = createIsolatedBGradeTraversalValidator(execute);
+    const run = createIsolatedBGradeTraversalValidator(execute, noDelay);
 
     await expect(run(input)).resolves.toEqual(expected);
     expect(execute).toHaveBeenCalledTimes(3);
@@ -96,7 +133,7 @@ describe("isolated B-grade traversal validator", () => {
     const execute = vi.fn()
       .mockRejectedValueOnce(new Error("validator process exited without a result"))
       .mockResolvedValueOnce(JSON.stringify({ decision: "SUCCEEDED", validation: expected }));
-    const run = createIsolatedBGradeTraversalValidator(execute);
+    const run = createIsolatedBGradeTraversalValidator(execute, noDelay);
 
     await expect(run(input)).resolves.toEqual(expected);
     expect(execute).toHaveBeenCalledTimes(2);
@@ -111,7 +148,7 @@ describe("isolated B-grade traversal validator", () => {
         message: "browser process terminated before producing evidence"
       }))
       .mockResolvedValueOnce(JSON.stringify({ decision: "SUCCEEDED", validation: expected }));
-    const run = createIsolatedBGradeTraversalValidator(execute);
+    const run = createIsolatedBGradeTraversalValidator(execute, noDelay);
 
     await expect(run(input)).resolves.toEqual(expected);
     expect(execute).toHaveBeenCalledTimes(2);
@@ -121,7 +158,7 @@ describe("isolated B-grade traversal validator", () => {
     const execute = vi.fn(async () => {
       throw new Error("validator process exited without a result");
     });
-    const run = createIsolatedBGradeTraversalValidator(execute);
+    const run = createIsolatedBGradeTraversalValidator(execute, noDelay);
 
     const error = await run(input).catch((caught: unknown) => caught);
     expect(classifyBGradeIndependentTraversalFailure(error))
@@ -135,7 +172,7 @@ describe("isolated B-grade traversal validator", () => {
       failureCode: "B_GRADE_VALIDATOR_EXECUTION_FAILED",
       message: "browser process terminated before producing evidence"
     }));
-    const run = createIsolatedBGradeTraversalValidator(execute);
+    const run = createIsolatedBGradeTraversalValidator(execute, noDelay);
 
     const error = await run(input).catch((caught: unknown) => caught);
     expect(classifyBGradeIndependentTraversalFailure(error))
@@ -160,7 +197,7 @@ describe("isolated B-grade traversal validator", () => {
       failureCode: "B_GRADE_BROWSER_READINESS_FAILED",
       message: "official list did not become ready"
     }));
-    const readinessRun = createIsolatedBGradeTraversalValidator(readinessExecute);
+    const readinessRun = createIsolatedBGradeTraversalValidator(readinessExecute, noDelay);
 
     const readinessError = await readinessRun(input).catch((caught: unknown) => caught);
     expect(classifyBGradeIndependentTraversalFailure(readinessError))

@@ -107,6 +107,7 @@ describe("HCM Cloud browser transport evidence instrumentation", () => {
     })(plan);
 
     expect(result).toMatchObject({ ok: false, failureReason: "HCMCloud browser session failed" });
+    expect(result).not.toHaveProperty("transportFailure");
     expect(closed).toBe(1);
   });
 
@@ -281,11 +282,11 @@ describe("HCM Cloud browser transport evidence instrumentation", () => {
     expect(browserCalls).toBe(0);
   });
 
-  it("treats the bounded direct-to-browser route as one outer attempt", async () => {
+  it("retries the bounded direct-to-browser route after a transient browser-session failure", async () => {
     let directCalls = 0;
     let browserCalls = 0;
     const hcm = createOfficialJsonSourceFetch({
-      now: clock(),
+      now: () => new Date(START),
       http: async () => { directCalls += 1; return { status: 503, body: "{}", finalUrl: COUNT,
         contentType: "application/json", capturedAt: START }; },
       hcmCloudBrowserFetch: async () => { browserCalls += 1; throw new Error("browser unavailable"); }
@@ -302,8 +303,48 @@ describe("HCM Cloud browser transport evidence instrumentation", () => {
     const result = await routed(routedPlan, attemptTracker);
     expect(result).toMatchObject({
       ok: false,
-      failureReason: "HCMCloud browser session failed"
+      failureReason: "HCMCloud browser session failed",
+      transportFailure: { code: "OFFICIAL_BROWSER_SESSION_ERROR", retryable: true }
     });
+    expect(attemptTracker).toEqual({
+      fetchAttemptCount: 3,
+      retryCount: 2,
+      retryReasonCodes: ["OFFICIAL_BROWSER_SESSION_ERROR", "OFFICIAL_BROWSER_SESSION_ERROR"]
+    });
+    expect(directCalls).toBe(3);
+    expect(browserCalls).toBe(3);
+  });
+
+  it("keeps a company abort authoritative without recording or starting a retry", async () => {
+    let directCalls = 0;
+    let browserCalls = 0;
+    const hcm = createOfficialJsonSourceFetch({
+      now: () => new Date(START),
+      http: async () => { directCalls += 1; return { status: 503, body: "{}", finalUrl: COUNT,
+        contentType: "application/json", capturedAt: START }; },
+      hcmCloudBrowserFetch: async ({ signal }) => {
+        browserCalls += 1;
+        return new Promise<HcmCloudBrowserSession>((_resolve, reject) => {
+          signal?.addEventListener("abort", () => reject(signal.reason), { once: true });
+        });
+      }
+    });
+    const routed = createSourceFetchRouter({
+      moka: hcm,
+      officialJson: hcm,
+      fallback: hcm,
+      delay: async () => undefined
+    });
+    const attemptTracker = createSourceFetchAttemptTracker();
+    const routedPlan = { ...plan, transientRetryPolicy: { maxRetries: 2 as const, backoffMs: 1_000 } };
+
+    await expect(runWithOfficialSourceAttemptTimeout(
+      () => Promise.resolve(routed(routedPlan, attemptTracker)),
+      25
+    ))
+      .rejects.toMatchObject({ code: "OFFICIAL_SOURCE_ATTEMPT_TIMEOUT" });
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
     expect(attemptTracker).toEqual({ fetchAttemptCount: 1, retryCount: 0, retryReasonCodes: [] });
     expect(directCalls).toBe(1);
     expect(browserCalls).toBe(1);

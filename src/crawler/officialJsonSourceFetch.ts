@@ -1489,12 +1489,22 @@ async function fetchHcmCloud({
     ...(directResult.paginationEvaluation ? { paginationEvaluation: directResult.paginationEvaluation } : {})
   }];
   let session: HcmCloudBrowserSession | undefined;
+  const signal = currentOfficialSourceAttemptSignal();
   try {
-    const signal = currentOfficialSourceAttemptSignal();
     session = await browserFetch({ config, entryUrl: safeEntryUrl, capturedAt, ...(signal ? { signal } : {}) });
+  } catch {
+    if (signal?.aborted) throw signal.reason;
+    return { ok: false, capturedAt, failureReason: "HCMCloud browser session failed",
+      transportFailure: { code: "OFFICIAL_BROWSER_SESSION_ERROR", retryable: true, stage: "ENTRY" },
+      priorTransportAttempts: [
+      ...transportAttempts,
+      { transport: "BROWSER_SESSION", outcome: "FAILED", code: "HCM_BROWSER_SESSION_FAILED", capturedAt }
+    ] };
+  }
+  try {
     assertHcmCloudBrowserSession(session);
   } catch {
-    const close = (session as unknown as { close?: unknown } | undefined)?.close;
+    const close = (session as unknown as { close?: unknown })?.close;
     if (typeof close === "function") {
       try { await close.call(session); } catch { /* invalid-session cleanup must not replace failure */ }
     }
@@ -1536,9 +1546,8 @@ async function fetchHcmCloud({
       browserResult.fetchEvidence?.supportingArtifactOnlyFailure?.code === "HCM_LIST_RESPONSE_FAILED"
       ? "HCM_BROWSER_LIST_FAILED" as const
       : "HCM_BROWSER_COUNT_FAILED" as const;
-    const { transportFailure: _browserTransportFailure, ...boundedBrowserFailure } = browserResult;
     return {
-      ...boundedBrowserFailure,
+      ...browserResult,
       failureReason: code === "HCM_BROWSER_LIST_FAILED"
         ? "HCMCloud browser list failed"
         : "HCMCloud browser count failed",
@@ -3626,11 +3635,20 @@ async function fetchPhenomWidgets({
   const expectedNoncertifyingNoTotal = declaredTotal === undefined &&
     finalized.evaluation.derivedAnomalyCodes.length === 0;
   if (!finalized.evaluation.safeCompleteness && !expectedNoncertifyingNoTotal) {
+    const retryableSnapshotDrift = finalized.evaluation.derivedAnomalyCodes.length === 1 &&
+      finalized.evaluation.derivedAnomalyCodes[0] === "RAW_ID_OVERLAP_ACROSS_PAGES";
     return {
       ok: false, capturedAt,
       failureReason: `Phenom pagination evidence failed: ${finalized.evaluation.derivedAnomalyCodes.join(",")}`,
       fetchEvidence: finalized.evidence,
-      paginationEvaluation: finalized.evaluation
+      paginationEvaluation: finalized.evaluation,
+      ...(retryableSnapshotDrift ? {
+        transportFailure: {
+          code: "OFFICIAL_PAGINATION_SNAPSHOT_DRIFT" as const,
+          retryable: true as const,
+          stage: "PAGE" as const
+        }
+      } : {})
     };
   }
   return {

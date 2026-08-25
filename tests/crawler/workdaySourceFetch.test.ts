@@ -224,6 +224,7 @@ const JNJ_AUDITED_FOREIGN_DESCRIPTOR_ALIASES = [
   "Mountain View, California, United States of America",
   "MX301 – Circuito Interior Norte - BWI",
   "Nebraska (Any City)",
+  "New Brunswick (Any City)",
   "New Brunswick, New Jersey, United States of America",
   "Oklahoma (Any City)",
   "Redwood City, California, United States of America",

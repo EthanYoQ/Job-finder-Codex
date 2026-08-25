@@ -7,6 +7,7 @@ export const profile_organon_china = {
     {
       sourceId: "source-organon-china-social",
       executionConfig: {
+          transientRetryPolicy: { maxRetries: 1, backoffMs: 10_000 },
           adapterId: "official-json",
           json: OFFICIAL_API_JSON_CONFIG,
           officialJsonFetch: {
