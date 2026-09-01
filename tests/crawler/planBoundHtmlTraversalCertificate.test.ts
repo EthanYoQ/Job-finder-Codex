@@ -13,9 +13,12 @@ describe("plan-bound HTML certificate scope", () => {
       "source-novartis-social",
       "source-astellas-china-social",
       "source-grand-pharma-social",
+      "source-qilu-social",
       "source-kelun-social",
       "source-otsuka-china-social",
-      "source-sandoz-china-social"
+      "source-sandoz-china-social",
+      "source-sanofi-china-social",
+      "source-takeda-china-social"
     ]);
     const plans = buildStagedSourceCrawlPlans(candidateCompanies);
     for (const sourceId of PLAN_BOUND_HTML_TRAVERSAL_SOURCE_IDS) {
@@ -24,13 +27,20 @@ describe("plan-bound HTML certificate scope", () => {
     }
   });
 
-  it("does not retain obsolete certificate gates after a source changes method or identity", () => {
+  it("requires the live unpartitioned China traversal for both TalentBrew sources", () => {
     for (const sourceId of [
       "source-sanofi-china-social",
       "source-takeda-china-social"
-    ]) {
-      expect(requiresBGradeCertificateSourceId(sourceId)).toBe(false);
+    ] as const) {
+      expect(requiresBGradeCertificateSourceId(sourceId)).toBe(true);
+      expect("talentbrewScope" in PLAN_BOUND_HTML_TRAVERSAL_POLICIES[sourceId]).toBe(false);
     }
+  });
+
+  it("binds Qilu's browser check to the current official corporate list", () => {
+    expect(PLAN_BOUND_HTML_TRAVERSAL_POLICIES["source-qilu-social"].entryUrl).toBe(
+      "https://www.qilu-pharma.com/JobPosting_list.html"
+    );
   });
 
   it("binds Kelun's browser check to the same manually selected category URL", () => {

@@ -22,7 +22,8 @@ export const profile_kelun = {
               fields: {
                   sourceJobId: {
                       selector: "td:nth-child(1) a",
-                      pattern: "\\b(J\\d+)\\b"
+                      attribute: "href",
+                      pattern: "/job_show/([1-9][0-9]*)(?:[?#]|$)"
                   },
                   officialTitle: { selector: "td:nth-child(1) a" },
                   officialUrl: { selector: "td:nth-child(1) a", attribute: "href" },

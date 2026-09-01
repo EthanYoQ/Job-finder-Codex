@@ -150,6 +150,59 @@ describe("official JSON rendered traversal", () => {
     }] })])).toMatchObject({ rawCount: 1, excludedCount: 0, matchKeys: [sourceJobId] });
   });
 
+  it("retries one transient Boehringer navigation with a source-bound Chrome page and captures the rendered set", async () => {
+    const pageObject = boehringerUiPage(["THROW", 200], ["173472429", "173472430"]);
+    const newPage = vi.fn(async () => pageObject as never);
+    const close = vi.fn(async () => undefined);
+    const captured = await captureOfficialJsonRenderedTraversal({
+      sourceId: "source-boehringer-ingelheim-china-social",
+      entryUrl: OFFICIAL_JSON_RENDERED_TRAVERSAL_POLICIES["source-boehringer-ingelheim-china-social"].entryUrl,
+      launchBrowser: async () => ({ newPage, close })
+    });
+
+    expect(pageObject.goto).toHaveBeenCalledTimes(2);
+    expect(newPage).toHaveBeenCalledWith(expect.objectContaining({
+      userAgent: expect.stringContaining("Chrome/138.0.0.0"),
+      extraHTTPHeaders: { "Accept-Language": "zh-CN,zh;q=0.9,en;q=0.8" },
+      viewport: { width: 1440, height: 900 }
+    }));
+    expect(captured.pages[0]?.rawRows.map(({ rawPayload }) => rawPayload.jobId))
+      .toEqual(["173472429", "173472430"]);
+    expect(pageObject.close).toHaveBeenCalledOnce();
+    expect(close).toHaveBeenCalledOnce();
+  });
+
+  it("does not retry a non-retryable Boehringer response and keeps a safe navigation diagnostic", async () => {
+    const pageObject = boehringerUiPage([403], ["173472429"]);
+    const failure = await captureOfficialJsonRenderedTraversal({
+      sourceId: "source-boehringer-ingelheim-china-social",
+      entryUrl: OFFICIAL_JSON_RENDERED_TRAVERSAL_POLICIES["source-boehringer-ingelheim-china-social"].entryUrl,
+      launchBrowser: async () => browser(pageObject)
+    }).catch((error: unknown) => error);
+
+    expect(pageObject.goto).toHaveBeenCalledOnce();
+    expect(classifyBGradeIndependentTraversalFailure(failure)).toBe("B_GRADE_BROWSER_NAVIGATION_FAILED");
+    expect(failure).toMatchObject({
+      message: "Boehringer 51job browser validator ENTRY_NAVIGATION navigation failed",
+      cause: { message: "Boehringer 51job navigation diagnostic: NON_RETRYABLE_STATUS" }
+    });
+  });
+
+  it("stops after one Boehringer retry when a retryable response remains unavailable", async () => {
+    const pageObject = boehringerUiPage([503, 503], ["173472429"]);
+    const failure = await captureOfficialJsonRenderedTraversal({
+      sourceId: "source-boehringer-ingelheim-china-social",
+      entryUrl: OFFICIAL_JSON_RENDERED_TRAVERSAL_POLICIES["source-boehringer-ingelheim-china-social"].entryUrl,
+      launchBrowser: async () => browser(pageObject)
+    }).catch((error: unknown) => error);
+
+    expect(pageObject.goto).toHaveBeenCalledTimes(2);
+    expect(classifyBGradeIndependentTraversalFailure(failure)).toBe("B_GRADE_BROWSER_NAVIGATION_FAILED");
+    expect(failure).toMatchObject({
+      cause: { message: "Boehringer 51job navigation diagnostic: RETRYABLE_STATUS_EXHAUSTED" }
+    });
+  });
+
   it("creates a strict validation and rejects scope, evidence, and pagination forgeries", () => {
     const rows = [{
       sourceJobId: "16",
@@ -824,6 +877,32 @@ function browser(pageObject: object) {
     newPage: async () => pageObject as never,
     close: vi.fn(async () => undefined)
   };
+}
+
+function boehringerUiPage(
+  navigationOutcomes: readonly ("THROW" | number)[],
+  jobIds: readonly string[]
+) {
+  let navigationIndex = 0;
+  const pageObject = {
+    goto: vi.fn(async (url: string) => {
+      const outcome = navigationOutcomes[Math.min(navigationIndex, navigationOutcomes.length - 1)]!;
+      navigationIndex += 1;
+      if (outcome === "THROW") throw new Error("unsafe upstream transport detail");
+      return { status: () => outcome, url: () => url };
+    }),
+    locator: () => ({
+      first: () => ({ waitFor: async () => undefined }),
+      evaluateAll: async (callback: (elements: Array<{ getAttribute: (name: string) => string | null }>) => string[]) =>
+        callback(jobIds.map((jobId) => ({
+          getAttribute: (name: string) => name === "href"
+            ? `recruit_article_detail3.html?jobId=${jobId}`
+            : null
+        })))
+    }),
+    close: vi.fn(async () => undefined)
+  };
+  return pageObject;
 }
 
 function jsonResponse(request: OfficialJsonHttpRequest, body: unknown): OfficialJsonHttpResponse {

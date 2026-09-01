@@ -895,7 +895,8 @@ describe("source crawl planning", () => {
         fields: {
           sourceJobId: {
             selector: "td:nth-child(1) a",
-            pattern: "\\b(J\\d+)\\b"
+            attribute: "href",
+            pattern: "/job_show/([1-9][0-9]*)(?:[?#]|$)"
           }
         },
         pagination: {

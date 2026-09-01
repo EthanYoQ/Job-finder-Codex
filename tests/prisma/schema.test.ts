@@ -22,6 +22,12 @@ const browserAndPaginationRetryMigration=existsSync(browserAndPaginationRetryMig
 const failedSourceDiagnosticEvidenceMigration=readFileSync(resolve(
   process.cwd(), "prisma", "migrations", "20260825113000_failed_source_diagnostic_evidence", "migration.sql"
 ), "utf8");
+const jnjAndGrifolsPersistenceMigrationPath=resolve(
+  process.cwd(), "prisma", "migrations", "20260902090000_jnj_and_grifols_atomic_persistence", "migration.sql"
+);
+const jnjAndGrifolsPersistenceMigration=existsSync(jnjAndGrifolsPersistenceMigrationPath)
+  ? readFileSync(jnjAndGrifolsPersistenceMigrationPath, "utf8")
+  : "";
 const baselineMigration = readFileSync(
   resolve(process.cwd(), "prisma", "migrations", "20260710000000_baseline", "migration.sql"),
   "utf8"
@@ -139,6 +145,7 @@ describe("prisma schema", () => {
       ,"20260824070000_official_network_retry_diagnostics"
       ,"20260825093000_browser_and_pagination_retry_diagnostics"
       ,"20260825113000_failed_source_diagnostic_evidence"
+      ,"20260902090000_jnj_and_grifols_atomic_persistence"
     ]);
     const statements = crawlStatusValuesMigration
       .split("\n")
@@ -498,6 +505,57 @@ describe("prisma schema", () => {
     expect(browserAndPaginationRetryMigration).toContain('DROP CONSTRAINT "CrawlBatchSourceResult_retry_reason_codes_check"');
     expect(browserAndPaginationRetryMigration).toContain("OFFICIAL_BROWSER_SESSION_ERROR");
     expect(browserAndPaginationRetryMigration).toContain("OFFICIAL_PAGINATION_SNAPSHOT_DRIFT");
+  });
+
+  it("persists the complete source-bound J&J transport-attempt vocabulary", () => {
+    expect(enumMembers("TransportAttemptCode")).toEqual(expect.arrayContaining([
+      "JNJ_DIRECT_FAILED", "JNJ_BROWSER_SESSION_FAILED", "JNJ_BROWSER_FETCH_FAILED", "JNJ_BROWSER_SUCCEEDED"
+    ]));
+    for (const code of [
+      "JNJ_DIRECT_FAILED", "JNJ_BROWSER_SESSION_FAILED", "JNJ_BROWSER_FETCH_FAILED", "JNJ_BROWSER_SUCCEEDED"
+    ]) {
+      expect(jnjAndGrifolsPersistenceMigration).toContain(`ADD VALUE IF NOT EXISTS '${code}'`);
+      expect(jnjAndGrifolsPersistenceMigration).toContain(`\"code\"::TEXT = '${code}'`);
+    }
+    expect(jnjAndGrifolsPersistenceMigration).toContain(
+      'DROP CONSTRAINT "TransportAttemptEvidence_code_outcome_check"'
+    );
+    expect(jnjAndGrifolsPersistenceMigration).toContain(
+      `\"code\"::TEXT = 'JNJ_DIRECT_FAILED' AND\n    \"transport\" = 'DIRECT_HTTP' AND \"outcome\" = 'FAILED'`
+    );
+    expect(jnjAndGrifolsPersistenceMigration).toContain(
+      `\"code\"::TEXT = 'JNJ_BROWSER_SUCCEEDED' AND\n    \"transport\" = 'BROWSER_SESSION' AND \"outcome\" = 'SUCCEEDED'`
+    );
+    expect(jnjAndGrifolsPersistenceMigration.match(
+      /"sourceId" = 'source-johnson-innovative-medicine-social'/gu
+    )).toHaveLength(4);
+  });
+
+  it("allows the Grifols official total mismatch only for verified detail-scope exclusions", () => {
+    expect(jnjAndGrifolsPersistenceMigration).toContain(
+      'CREATE OR REPLACE FUNCTION "enforce_source_result_state_machine"()'
+    );
+    expect(jnjAndGrifolsPersistenceMigration).toContain(
+      `NEW.\"sourceId\" = 'source-grifols-china-social'`
+    );
+    expect(jnjAndGrifolsPersistenceMigration).toContain(
+      `NEW.\"expectedJobCount\" = NEW.\"dedupeOutputCount\" + NEW.\"validationDiscardCount\"`
+    );
+    expect(jnjAndGrifolsPersistenceMigration).toContain(
+      `loss.\"details\"->>'code' = 'VERIFIED_DETAIL_OUT_OF_MAINLAND_SCOPE'`
+    );
+    expect(jnjAndGrifolsPersistenceMigration).toContain(
+      `loss.\"reason\" = 'official detail places the job outside mainland China'`
+    );
+    expect(jnjAndGrifolsPersistenceMigration).toContain(
+      `artifact.\"extractorLocator\" = 'grifols-successfactors-detail-v1|html:canonical+streetAddress+content-location'`
+    );
+    expect(jnjAndGrifolsPersistenceMigration).toContain(
+      `invalid_grifols_scope_exclusion_count = 0`
+    );
+    expect(jnjAndGrifolsPersistenceMigration).toContain(
+      `grifols_detail_artifact_count >= NEW.\"validationDiscardCount\"`
+    );
   });
 
   it("stores direct nullable observation provenance and exact reconciliation counters", () => {

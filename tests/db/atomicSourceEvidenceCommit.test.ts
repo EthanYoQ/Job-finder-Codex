@@ -644,6 +644,44 @@ describe("executeAtomicSourceEvidenceCommit", () => {
     await expect(executeAtomicSourceEvidenceCommit(input, transactionalDb())).resolves.toBeUndefined();
   });
 
+  it("atomically persists the J&J direct failure and browser success transport chain", async () => {
+    const input = validCommit();
+    retargetCommitSource(input, "source-johnson-innovative-medicine-social");
+    markIncomplete(input);
+    input.priorTransportAttempts[0]!.code = "JNJ_DIRECT_FAILED";
+    input.priorTransportAttempts.push({
+      ...input.priorTransportAttempts[0]!,
+      id: "attempt-2",
+      sequence: 1,
+      transport: "BROWSER_SESSION",
+      outcome: "SUCCEEDED",
+      code: "JNJ_BROWSER_SUCCEEDED",
+      capturedAt: TO
+    });
+
+    const db = transactionalDb();
+    await expect(executeAtomicSourceEvidenceCommit(input, db)).resolves.toBeUndefined();
+    expect(db.calls.priorAttempts).toEqual([
+      { data: expect.objectContaining({
+        sourceId: "source-johnson-innovative-medicine-social",
+        transport: "DIRECT_HTTP", outcome: "FAILED", code: "JNJ_DIRECT_FAILED"
+      }) },
+      { data: expect.objectContaining({
+        sourceId: "source-johnson-innovative-medicine-social",
+        transport: "BROWSER_SESSION", outcome: "SUCCEEDED", code: "JNJ_BROWSER_SUCCEEDED"
+      }) }
+    ]);
+    expect(db.calls.priorAttemptArtifacts).toHaveLength(2);
+  });
+
+  it("rejects J&J transport codes for any other source before the transaction", async () => {
+    const input = validCommit();
+    input.priorTransportAttempts[0]!.code = "JNJ_DIRECT_FAILED";
+    const db = transactionalDb();
+    await expect(executeAtomicSourceEvidenceCommit(input, db)).rejects.toThrow(/bound to the J&J China source/i);
+    expect(db.calls.transactions).toBe(0);
+  });
+
   it("rejects unknown transport-attempt codes before the transaction", async () => {
     const input = validCommit();
     (input.priorTransportAttempts[0] as { code: string }).code = "CALLER_DEFINED";

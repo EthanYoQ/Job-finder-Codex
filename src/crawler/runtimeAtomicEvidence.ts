@@ -434,8 +434,12 @@ export function buildAtomicRuntimeCommit(input: {
     : undefined;
   const certificateDecision = aGradeCertificateDecision ?? bGradeCertificateDecision;
   const certificateCertified = certificateDecision?.status === "CERTIFIED";
+  // A certified B-grade traversal is the completeness proof for filtered sources whose
+  // official raw total intentionally differs from the in-scope output. Requiring the
+  // pre-certificate truth bit here would attach a valid certificate to INCOMPLETE truth,
+  // which the persistence verifier must reject.
   const sourceCompletenessVerified = certificateRequired
-    ? certificateCertified && (!bGradeCertificateRequired || result.truth.completenessVerified)
+    ? certificateCertified
     : result.truth.completenessVerified;
   const currentKeys = result.jobs.map(buildJobDedupeKey);
   const outputHash = canonicalStringSetSha256(currentKeys);

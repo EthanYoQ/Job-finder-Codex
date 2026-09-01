@@ -158,7 +158,9 @@ export async function captureOfficialJsonRenderedTraversal(input: {
     }
     input.signal?.addEventListener("abort", abort, { once: true });
     try {
-      const page = await browser.newPage();
+      const page = await browser.newPage(input.sourceId === "source-boehringer-ingelheim-china-social"
+        ? boehringerBrowserPageOptions()
+        : undefined);
       try {
         const observedAt = new Date().toISOString();
         const pages = input.sourceId === "source-cspc-social"
@@ -253,8 +255,7 @@ async function captureBoehringer51job(
   entryUrl: string,
   signal?: AbortSignal
 ): Promise<OfficialJsonRenderedPageCapture[]> {
-  const navigation = await page.goto(entryUrl, { waitUntil: "domcontentloaded", timeout: 30_000 });
-  assertNavigation(navigation, entryUrl);
+  await navigateBoehringer51job(page, entryUrl, signal);
   if (signal?.aborted) throw signal.reason;
   const links = page.locator("a[href*='recruit_article_detail3.html?jobId=']");
   await links.first().waitFor({ state: "attached", timeout: 30_000 });
@@ -281,6 +282,54 @@ async function captureBoehringer51job(
     rawRows: rows,
     nextControlPresent: false
   }];
+}
+
+async function navigateBoehringer51job(
+  page: import("playwright-core").Page,
+  entryUrl: string,
+  signal?: AbortSignal
+): Promise<void> {
+  for (let attempt = 1; attempt <= 2; attempt += 1) {
+    if (signal?.aborted) throw signal.reason;
+    let navigation: import("playwright-core").Response | null;
+    try {
+      navigation = await page.goto(entryUrl, { waitUntil: "domcontentloaded", timeout: 30_000 });
+    } catch {
+      if (signal?.aborted) throw signal.reason;
+      if (attempt < 2) continue;
+      throw boehringerNavigationFailure("TRANSPORT_EXCEPTION");
+    }
+    if (navigation && navigation.status() >= 200 && navigation.status() < 400 &&
+        navigation.url() === entryUrl) return;
+    const status = navigation?.status();
+    const retryable = !navigation || status === 408 || status === 425 || status === 429 ||
+      (status !== undefined && status >= 500 && status < 600);
+    if (retryable && attempt < 2) continue;
+    throw boehringerNavigationFailure(
+      !navigation ? "NO_RESPONSE" : navigation.url() !== entryUrl ? "FINAL_URL_MISMATCH" :
+        retryable ? "RETRYABLE_STATUS_EXHAUSTED" : "NON_RETRYABLE_STATUS"
+    );
+  }
+}
+
+function boehringerNavigationFailure(
+  safeCause: "TRANSPORT_EXCEPTION" | "NO_RESPONSE" | "FINAL_URL_MISMATCH" |
+    "RETRYABLE_STATUS_EXHAUSTED" | "NON_RETRYABLE_STATUS"
+): unknown {
+  const safeUnderlying = new Error(`Boehringer 51job navigation diagnostic: ${safeCause}`);
+  return tagBGradeIndependentTraversalFailure(
+    new Error("Boehringer 51job browser validator ENTRY_NAVIGATION navigation failed", { cause: safeUnderlying }),
+    "B_GRADE_BROWSER_NAVIGATION_FAILED"
+  );
+}
+
+function boehringerBrowserPageOptions(): Parameters<import("playwright-core").Browser["newPage"]>[0] {
+  return {
+    userAgent:
+      "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/138.0.0.0 Safari/537.36",
+    extraHTTPHeaders: { "Accept-Language": "zh-CN,zh;q=0.9,en;q=0.8" },
+    viewport: { width: 1440, height: 900 }
+  };
 }
 
 async function captureBeisen(

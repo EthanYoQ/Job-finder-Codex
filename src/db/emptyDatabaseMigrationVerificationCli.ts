@@ -40,7 +40,8 @@ export const REVIEWED_MIGRATION_NAMES = [
   "20260813013000_transport_policy_retry_diagnostics",
   "20260824070000_official_network_retry_diagnostics",
   "20260825093000_browser_and_pagination_retry_diagnostics",
-  "20260825113000_failed_source_diagnostic_evidence"
+  "20260825113000_failed_source_diagnostic_evidence",
+  "20260902090000_jnj_and_grifols_atomic_persistence"
 ] as const;
 
 export const REVIEWED_APP_TABLE_NAMES = [

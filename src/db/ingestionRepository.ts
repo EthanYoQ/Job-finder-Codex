@@ -1339,6 +1339,9 @@ function validateEvidenceTransportAttempts(
     if (attempt.transport !== expectedTransport || attempt.outcome !== expectedOutcome) {
       throw new Error("Transport attempt code, transport and outcome are inconsistent");
     }
+    if (attempt.code.startsWith("JNJ_") && attempt.sourceId !== JNJ_SOURCE_ID) {
+      throw new Error("J&J transport attempt code is bound to the J&J China source");
+    }
     for (const value of [attempt.evidenceCommitmentSha256, attempt.pageTraceSha256,
       attempt.lossLedgerSha256, attempt.paginationEvaluationSha256]) requireSha256(value, "transport attempt commitment");
     validateNonblankUniqueList(attempt.artifactIds, "transport attempt artifact");
@@ -2086,6 +2089,7 @@ const TRANSPORT_ATTEMPT_CODES = new Set<TransportAttemptCode>([
   "HCM_BROWSER_COUNT_FAILED", "HCM_BROWSER_LIST_FAILED", "HCM_BROWSER_SUCCEEDED",
   "JNJ_DIRECT_FAILED", "JNJ_BROWSER_SESSION_FAILED", "JNJ_BROWSER_FETCH_FAILED", "JNJ_BROWSER_SUCCEEDED"
 ]);
+const JNJ_SOURCE_ID = "source-johnson-innovative-medicine-social";
 
 function assertTuple(value: EvidenceTuple, expected: EvidenceTuple, label: string): void {
   if (value.releaseCandidateId !== expected.releaseCandidateId || value.batchId !== expected.batchId ||

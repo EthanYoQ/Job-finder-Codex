@@ -155,6 +155,28 @@ export const PLAN_BOUND_HTML_TRAVERSAL_POLICIES = Object.freeze({
     key: { kind: "OFFICIAL_URL", selector: "td:nth-child(1) a", origin: "https://fosunpharma.zhiye.com", pathPrefix: "/socialxq", dedupe: "OFFICIAL_URL", allowedSearchParam: "jobId", searchParamRequired: true },
     maxPages: 20
   },
+  "source-qilu-social": {
+    companyId: "company-qilu",
+    entryUrl: "https://www.qilu-pharma.com/JobPosting_list.html",
+    retrievalPath: "PLAYWRIGHT_RENDERED_HTML_NEXT_LINK_TRAVERSAL",
+    validatorImplementationId: "plan-bound-html-playwright-traversal-v1",
+    mainRetrievalPath: "HTTP_HTML_STATIC_PUBLIC_LIST",
+    matchKeyKind: "JOB_DEDUPE_KEY",
+    artifactLogicalKey: "source-qilu-social-browser-traversal-validation",
+    browserUserAgent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) " +
+      "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+    readySelector: ".e_loop-65",
+    rowSelector: ".e_loop-65 .cbox-65.p_loopitem",
+    nextSelector: ".p_page .page_next:not(.disabled)",
+    key: {
+      kind: "OFFICIAL_URL",
+      selector: ".e_text-83 a",
+      origin: "https://www.qilu-pharma.com",
+      pathPrefix: "/JobPosting_Detail/",
+      dedupe: "OFFICIAL_URL"
+    },
+    maxPages: 10
+  },
   "source-kelun-social": {
     companyId: "company-kelun",
     entryUrl: "https://kelun.zhiye.com/social?r=&p=1%5E2&c=&d=&k=",
@@ -180,11 +202,14 @@ export const PLAN_BOUND_HTML_TRAVERSAL_POLICIES = Object.freeze({
     navigationWaitUntil: "commit",
     followNextHref: true,
     key: {
-      kind: "TEXT_SOURCE_JOB_ID",
+      kind: "OFFICIAL_URL",
       selector: "td:nth-child(1) a",
-      sourceJobIdPattern: "\\b(J\\d+)\\b"
+      origin: "https://kelun.zhiye.com",
+      pathPrefix: "/job_show/",
+      dedupe: "URL_SOURCE_JOB_ID",
+      sourceJobIdPattern: "/job_show/([1-9][0-9]*)$",
+      queryContext: "KELUN_CATEGORY_PAGE"
     },
-    allowMainPageOverlapAcrossPages: true,
     maxPages: 20
   },
   "source-tongrentang-social": {
@@ -206,7 +231,7 @@ export const PLAN_BOUND_HTML_TRAVERSAL_POLICIES = Object.freeze({
     companyId: "company-sanofi-china",
     entryUrl: "https://jobs.sanofi.com/en/location/china-country-jobs/2649/1814991/2",
     retrievalPath: "PLAYWRIGHT_RENDERED_HTML_NEXT_LINK_TRAVERSAL",
-    validatorImplementationId: "plan-bound-html-playwright-traversal-v2",
+    validatorImplementationId: "plan-bound-html-playwright-traversal-v1",
     mainRetrievalPath: "HTTP_HTML_CONFIGURED_CHANNEL_TRAVERSAL",
     matchKeyKind: "JOB_DEDUPE_KEY",
     artifactLogicalKey: "source-sanofi-china-social-browser-traversal-validation",
@@ -215,14 +240,20 @@ export const PLAN_BOUND_HTML_TRAVERSAL_POLICIES = Object.freeze({
     nextSelector: "#search-results a.next:not(.disabled)",
     key: { kind: "OFFICIAL_URL", selector: "a[href*='/job/']", origin: "https://jobs.sanofi.com",
       pathPrefix: "/en/job/", dedupe: "URL_SOURCE_JOB_ID", sourceJobIdPattern: "/2649/([1-9][0-9]*)$" },
-    talentbrewScope: true,
+    pageCoordinate: {
+      kind: "PATH_PAGE",
+      firstPath: "/en/location/china-country-jobs/2649/1814991/2",
+      prefix: "/en/location/china-jobs/2649/1814991/2/",
+      suffix: ""
+    },
+    followNextHref: true,
     maxPages: 25
   },
   "source-takeda-china-social": {
     companyId: "company-takeda-china",
     entryUrl: "https://jobs.takeda.com/location/china-jobs/1113/1814991/2",
     retrievalPath: "PLAYWRIGHT_RENDERED_HTML_NEXT_LINK_TRAVERSAL",
-    validatorImplementationId: "plan-bound-html-playwright-traversal-v2",
+    validatorImplementationId: "plan-bound-html-playwright-traversal-v1",
     mainRetrievalPath: "HTTP_HTML_CONFIGURED_CHANNEL_TRAVERSAL",
     matchKeyKind: "JOB_DEDUPE_KEY",
     artifactLogicalKey: "source-takeda-china-social-browser-traversal-validation",
@@ -231,7 +262,13 @@ export const PLAN_BOUND_HTML_TRAVERSAL_POLICIES = Object.freeze({
     nextSelector: "#search-results a.next:not(.disabled)",
     key: { kind: "OFFICIAL_URL", selector: "a[href*='/job/']", origin: "https://jobs.takeda.com",
       pathPrefix: "/job/", dedupe: "URL_SOURCE_JOB_ID", sourceJobIdPattern: "/1113/([1-9][0-9]*)$" },
-    talentbrewScope: true,
+    pageCoordinate: {
+      kind: "PATH_PAGE",
+      firstPath: "/location/china-jobs/1113/1814991/2",
+      prefix: "/location/china-jobs/1113/1814991/2/",
+      suffix: ""
+    },
+    followNextHref: true,
     maxPages: 30
   }
 } as const);
@@ -242,9 +279,12 @@ export const PLAN_BOUND_HTML_TRAVERSAL_SOURCE_IDS = Object.freeze([
   "source-novartis-social",
   "source-astellas-china-social",
   "source-grand-pharma-social",
+  "source-qilu-social",
   "source-kelun-social",
   "source-otsuka-china-social",
-  "source-sandoz-china-social"
+  "source-sandoz-china-social",
+  "source-sanofi-china-social",
+  "source-takeda-china-social"
 ] as const satisfies readonly PlanBoundHtmlTraversalSourceId[]);
 
 export const PLAN_BOUND_HTML_REQUIRED_CERTIFICATES = Object.freeze(
@@ -347,11 +387,6 @@ export function assertPlanBoundHtmlValidationMatchKey(
     }
     return;
   }
-  if (policy.key.kind === "TEXT_SOURCE_JOB_ID") {
-    const matched = new RegExp(policy.key.sourceJobIdPattern, "u").exec(payload)?.[1];
-    if (matched !== payload) throw new Error("Plan-bound HTML validation text source job ID is invalid");
-    return;
-  }
   if (policy.key.kind === "ATTRIBUTE_SOURCE_JOB_ID") {
     if (!payload || payload.includes("/") || payload.includes("\\") || payload.includes("\u0000")) {
       throw new Error("Plan-bound HTML validation attribute source job ID is invalid");
@@ -360,6 +395,9 @@ export function assertPlanBoundHtmlValidationMatchKey(
   }
   if (policy.key.dedupe === "URL_SOURCE_JOB_ID") {
     if (!payload || payload.includes("/") || payload.includes("\\") || payload.includes("\u0000")) {
+      throw new Error("Plan-bound HTML validation source job ID is invalid");
+    }
+    if (sourceId === "source-kelun-social" && !/^[1-9][0-9]*$/u.test(payload)) {
       throw new Error("Plan-bound HTML validation source job ID is invalid");
     }
     return;
@@ -408,7 +446,9 @@ export async function capturePlanBoundHtmlRenderedTraversal(input: {
           )
         };
       }
-      const page = await browser.newPage();
+      const page = "browserUserAgent" in policy
+        ? await browser.newPage({ userAgent: policy.browserUserAgent })
+        : await browser.newPage();
       await runBrowserStage({
         signal: input.signal,
         failureCode: "B_GRADE_BROWSER_NAVIGATION_FAILED",
@@ -1220,10 +1260,6 @@ async function readMatchKeysFromLocator(
       const target = key.selector === ":scope" ? row : row.querySelector(key.selector);
       return target instanceof HTMLAnchorElement ? target.href : "";
     }
-    if (key.kind === "TEXT_SOURCE_JOB_ID") {
-      const target = row.querySelector(key.selector);
-      return target?.textContent?.replace(/\s+/gu, " ").trim() ?? "";
-    }
     if (key.kind === "ATTRIBUTE_SOURCE_JOB_ID") {
       return row.getAttribute(key.attribute)?.trim() ?? "";
     }
@@ -1235,11 +1271,6 @@ async function readMatchKeysFromLocator(
   }
   const matchKeys = rawRows.map((row) => {
     if (typeof row === "string") {
-      if (policy.key.kind === "TEXT_SOURCE_JOB_ID") {
-        const matched = new RegExp(policy.key.sourceJobIdPattern, "u").exec(row)?.[1];
-        if (!matched) throw new Error("Plan-bound HTML browser validator text source job ID is missing");
-        return `${sourceId}:${matched}`;
-      }
       if (policy.key.kind === "ATTRIBUTE_SOURCE_JOB_ID") return `${sourceId}:${row}`;
       if (policy.key.kind !== "OFFICIAL_URL") throw new Error("Plan-bound HTML browser validator key policy mismatch");
       assertOfficialJobUrl(policy, row);
@@ -1251,7 +1282,7 @@ async function readMatchKeysFromLocator(
     return `${sourceId}:html:sha256:${createHash("sha256")
       .update(row.join("\u001f"), "utf8").digest("hex")}`;
   });
-  if (policy.key.kind !== "TEXT_SOURCE_JOB_ID" && new Set(matchKeys).size !== matchKeys.length) {
+  if (new Set(matchKeys).size !== matchKeys.length) {
     throw new Error("Plan-bound HTML browser validator found duplicate match keys on one page");
   }
   return matchKeys.sort(compareUtf8);
@@ -1321,7 +1352,9 @@ function assertPageUrl(sourceId: PlanBoundHtmlTraversalSourceId, value: string, 
           canonicalSearchParams(actual.searchParams) !== canonicalSearchParams(expectedSearchParams)) {
         throw new Error("Plan-bound HTML browser validator query page coordinate mismatch");
       }
-    } else if (actual.pathname !== `${coordinate.prefix}${pageNumber}${coordinate.suffix}` ||
+    } else if (actual.pathname !== (pageNumber === 1 && "firstPath" in coordinate
+          ? coordinate.firstPath
+          : `${coordinate.prefix}${pageNumber}${coordinate.suffix}`) ||
         actual.search !== "") {
       throw new Error("Plan-bound HTML browser validator path page coordinate mismatch");
     }
@@ -1354,16 +1387,30 @@ function assertOfficialJobUrl(
       !url.pathname.startsWith(policy.key.pathPrefix)) {
     throw new Error("Plan-bound HTML browser validator job URL escaped the registered source");
   }
-  const allowedSearchParam = "allowedSearchParam" in policy.key ? policy.key.allowedSearchParam : undefined;
-  if (allowedSearchParam) {
-    const value = url.searchParams.get(allowedSearchParam);
-    const required = "searchParamRequired" in policy.key && policy.key.searchParamRequired === true;
-    if ((required && !value) || (value !== null && !/^[1-9][0-9]*$/u.test(value)) ||
-        [...url.searchParams.keys()].some((key) => key !== allowedSearchParam)) {
+  if ("queryContext" in policy.key && policy.key.queryContext === "KELUN_CATEGORY_PAGE") {
+    const pageIndex = url.searchParams.get("PageIndex");
+    const expected = pageIndex === null
+      ? new URLSearchParams({ r: "", p: "1^2", c: "", d: "", k: "" })
+      : new URLSearchParams({ p: "1^2", PageIndex: pageIndex });
+    if (pageIndex !== null && (!/^[1-9][0-9]*$/u.test(pageIndex) ||
+        !Number.isSafeInteger(Number(pageIndex)) || Number(pageIndex) < 2)) {
       throw new Error("Plan-bound HTML browser validator job URL query is invalid");
     }
-  } else if (url.search !== "") {
-    throw new Error("Plan-bound HTML browser validator job URL added unexpected query parameters");
+    if (canonicalSearchParams(url.searchParams) !== canonicalSearchParams(expected)) {
+      throw new Error("Plan-bound HTML browser validator job URL query is invalid");
+    }
+  } else {
+    const allowedSearchParam = "allowedSearchParam" in policy.key ? policy.key.allowedSearchParam : undefined;
+    if (allowedSearchParam) {
+      const value = url.searchParams.get(allowedSearchParam);
+      const required = "searchParamRequired" in policy.key && policy.key.searchParamRequired === true;
+      if ((required && !value) || (value !== null && !/^[1-9][0-9]*$/u.test(value)) ||
+          [...url.searchParams.keys()].some((key) => key !== allowedSearchParam)) {
+        throw new Error("Plan-bound HTML browser validator job URL query is invalid");
+      }
+    } else if (url.search !== "") {
+      throw new Error("Plan-bound HTML browser validator job URL added unexpected query parameters");
+    }
   }
 }
 
