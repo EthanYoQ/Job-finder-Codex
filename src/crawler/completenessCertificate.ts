@@ -31,6 +31,7 @@ export const REQUIRED_A_GRADE_COMPLETENESS_CERTIFICATES = Object.freeze({
   "source-cttq-social": "company-cttq",
   "source-daiichi-sankyo-china-social": "company-daiichi-sankyo-china",
   "source-gilead-china-social": "company-gilead-china",
+  "source-grifols-china-social": "company-grifols-china",
   "source-gsk-china-social": "company-gsk-china",
   "source-hengrui-social": "company-hengrui",
   "source-jimin-kexin-social": "company-jimin-kexin",
@@ -83,6 +84,11 @@ const legalDedupeEntrySchema = z.object({
   droppedCount: z.number().int().positive(),
   dropReason: z.literal("DUPLICATE_DEDUPE_KEY_DETERMINISTIC_WINNER")
 }).strict();
+const legalScopeExclusionEntrySchema = z.object({
+  rawLocatorSha256: SHA256,
+  recordIndex: z.number().int().nonnegative(),
+  code: z.literal("VERIFIED_DETAIL_OUT_OF_MAINLAND_SCOPE")
+}).strict();
 const certificateSchema = z.object({
   schemaVersion: z.literal(A_GRADE_COMPLETENESS_CERTIFICATE_SCHEMA_VERSION),
   grade: z.literal("A"),
@@ -112,10 +118,11 @@ const certificateSchema = z.object({
     legalDedupeCount: z.number().int().nonnegative(),
     finalUniqueJobCount: z.number().int().nonnegative(),
     parseDiscardCount: z.literal(0),
-    validationDiscardCount: z.literal(0),
+    validationDiscardCount: z.number().int().nonnegative(),
     normalizationDiscardCount: z.literal(0)
   }).strict(),
   legalDedupeLedger: z.array(legalDedupeEntrySchema),
+  legalScopeExclusionLedger: z.array(legalScopeExclusionEntrySchema).optional(),
   pagination: z.object({
     pageCount: z.number().int().positive(),
     paginationTraceSha256: SHA256,
@@ -270,10 +277,13 @@ export function issueAGradeOfficialTotalCertificate(
 
   const rawOfficialIds = canonicalStrings(evidence.pages.flatMap((page) => page.rawJobIds));
   const legalDedupeCount = ledger.collisionGroups.reduce((sum, group) => sum + group.droppedCount, 0);
-  if (evidence.fetchLosses.length !== 0 || evidence.fetchCounts.parseDiscardCount !== 0 ||
-      evidence.fetchCounts.validationDiscardCount !== 0 || ledger.adapterLosses.length !== 0 ||
+  const legalScopeExclusionLedger = exactGrifolsScopeExclusionLedger(plan, evidence);
+  const legalValidationDiscardCount = legalScopeExclusionLedger?.length ?? 0;
+  if (evidence.fetchCounts.parseDiscardCount !== 0 || ledger.adapterLosses.length !== 0 ||
+      evidence.fetchCounts.validationDiscardCount !== legalValidationDiscardCount ||
+      evidence.fetchLosses.length !== legalValidationDiscardCount ||
       evidence.fetchCounts.rawCount !== evidence.fetchCounts.parsedCount ||
-      evidence.fetchCounts.parsedCount !== evidence.fetchCounts.validCount) {
+      evidence.fetchCounts.parsedCount !== evidence.fetchCounts.validCount + legalValidationDiscardCount) {
     blockers.add("LOSSY_PIPELINE");
   }
   if (ledger.rawInputCount !== evidence.fetchCounts.validCount ||
@@ -286,7 +296,7 @@ export function issueAGradeOfficialTotalCertificate(
     blockers.add("DEDUPE_LEDGER_INVALID");
   }
   if (declaration?.value !== evidence.fetchCounts.rawCount ||
-      declaration?.value !== ledger.dedupeOutputCount + legalDedupeCount ||
+      declaration?.value !== ledger.dedupeOutputCount + legalDedupeCount + legalValidationDiscardCount ||
       ledger.dedupeOutputCount !== input.jobs.length) {
     blockers.add("OFFICIAL_TOTAL_MISMATCH");
   }
@@ -333,10 +343,11 @@ export function issueAGradeOfficialTotalCertificate(
       legalDedupeCount,
       finalUniqueJobCount: ledger.dedupeOutputCount,
       parseDiscardCount: 0,
-      validationDiscardCount: 0,
+      validationDiscardCount: legalValidationDiscardCount,
       normalizationDiscardCount: 0
     },
     legalDedupeLedger: ledger.collisionGroups,
+    legalScopeExclusionLedger,
     pagination: {
       pageCount: evidence.pages.length,
       paginationTraceSha256: independentlyEvaluated.paginationTraceSha256,
@@ -434,29 +445,66 @@ function assertCertificateEquations(certificate: AGradeOfficialTotalCertificate)
     0
   );
   const dedupeKeys = certificate.legalDedupeLedger.map((group) => group.dedupeKeySha256);
+  const legalScopeExclusionLedger = certificate.legalScopeExclusionLedger ?? [];
+  const scopeExclusionIndexes = legalScopeExclusionLedger.map((entry) => entry.recordIndex);
   const invalidDedupeGroup = certificate.legalDedupeLedger.some((group) =>
     new Set(group.candidateKeySha256).size !== group.candidateKeySha256.length ||
     group.winnerKeySha256 !== group.candidateKeySha256[0] ||
     group.droppedCount !== group.candidateKeySha256.length - 1
   );
-  if (counts.parseDiscardCount !== 0 || counts.validationDiscardCount !== 0 ||
+  if (counts.parseDiscardCount !== 0 ||
       counts.normalizationDiscardCount !== 0 ||
       counts.rawObservationCount !== counts.parsedCount ||
-      counts.parsedCount !== counts.validCount ||
+      counts.parsedCount !== counts.validCount + counts.validationDiscardCount ||
       counts.validCount !== counts.normalizedCount ||
       counts.normalizedCount !== counts.dedupeInputCount ||
       counts.dedupeInputCount - counts.finalUniqueJobCount !== counts.legalDedupeCount ||
       counts.rawUniqueOfficialRecordCount > counts.rawObservationCount ||
       counts.rawUniqueOfficialRecordCount < counts.finalUniqueJobCount ||
       counts.legalDedupeCount !== legalDedupeCount ||
+      counts.validationDiscardCount !== legalScopeExclusionLedger.length ||
       counts.officialTotal !== counts.rawObservationCount ||
-      counts.officialTotal !== counts.finalUniqueJobCount + counts.legalDedupeCount ||
+      counts.officialTotal !== counts.finalUniqueJobCount + counts.legalDedupeCount +
+        counts.validationDiscardCount ||
+      new Set(scopeExclusionIndexes).size !== scopeExclusionIndexes.length ||
       new Set(dedupeKeys).size !== dedupeKeys.length || invalidDedupeGroup ||
       certificate.output.collisionLedgerSha256 !== sha256(canonicalJson(certificate.legalDedupeLedger)) ||
       new Set(certificate.scope.surfaceIds).size !== certificate.scope.surfaceIds.length ||
       new Set(certificate.scope.channelIds).size !== certificate.scope.channelIds.length) {
     throw new Error("A-grade completeness certificate equations do not reconcile");
   }
+}
+
+function exactGrifolsScopeExclusionLedger(
+  plan: SourceCrawlPlan,
+  evidence: PersistentSourceFetchEvidence
+): Array<{ rawLocatorSha256: string; recordIndex: number;
+  code: "VERIFIED_DETAIL_OUT_OF_MAINLAND_SCOPE" }> | undefined {
+  if (evidence.fetchCounts.validationDiscardCount === 0 && evidence.fetchLosses.length === 0) return [];
+  if (plan.source.id !== "source-grifols-china-social" ||
+      plan.company.id !== "company-grifols-china" ||
+      plan.source.companyId !== "company-grifols-china" ||
+      plan.adapterId !== "official-json" ||
+      plan.profileBoundSource?.kind !== "grifols-china-detail-scope") return undefined;
+  const indexes = new Set<number>();
+  const rows: Array<{ rawLocatorSha256: string; recordIndex: number;
+    code: "VERIFIED_DETAIL_OUT_OF_MAINLAND_SCOPE" }> = [];
+  for (const loss of evidence.fetchLosses) {
+    const recordIndex = loss.details?.recordIndex;
+    if (loss.stage !== "VALIDATION" ||
+        loss.reason !== "official detail places the job outside mainland China" ||
+        loss.details?.code !== "VERIFIED_DETAIL_OUT_OF_MAINLAND_SCOPE" ||
+        !Number.isSafeInteger(recordIndex) || (recordIndex as number) < 0 || indexes.has(recordIndex as number) ||
+        !/^grifols-detail-\d{4}#grifols-successfactors-detail-v1\|html:canonical\+streetAddress\+content-location$/u
+          .test(loss.rawLocator)) return undefined;
+    indexes.add(recordIndex as number);
+    rows.push({
+      rawLocatorSha256: sha256(loss.rawLocator),
+      recordIndex: recordIndex as number,
+      code: "VERIFIED_DETAIL_OUT_OF_MAINLAND_SCOPE"
+    });
+  }
+  return rows.sort((left, right) => left.recordIndex - right.recordIndex);
 }
 
 function rejected(blockers: ReadonlySet<AGradeCertificateBlockerCode>): AGradeCertificateDecision {

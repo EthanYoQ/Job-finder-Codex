@@ -18,6 +18,11 @@ import {
 } from "../../src/crawler/sourcePlan";
 import { sourcePlanOracleConfigSha256 } from "../../src/crawler/independentSourceSurfaceOracle";
 import { candidateCompanies } from "../../src/data/companyRegistry";
+import { createOfficialJsonRenderedTraversalValidation } from "../../src/crawler/traversalCertificate";
+import {
+  irreversibleOfficialJsonEvidenceId,
+  persistentOfficialJsonJobId
+} from "../../src/crawler/officialJsonEvidence";
 
 const sha = "a".repeat(64);
 
@@ -613,4 +618,119 @@ describe("runtime atomic evidence planning", () => {
     }
     await rm(workspaceRoot, { recursive: true, force: true });
   }, 15_000);
+});
+
+describe("source-bound official-total persistence", () => {
+  it("commits the Boehringer API total only when the B certificate proves the official UI exclusion", async () => {
+    const sourceId = "source-boehringer-ingelheim-china-social" as const;
+    const plan = buildStagedSourceCrawlPlans(candidateCompanies).find(
+      ({ source }) => source.id === sourceId
+    );
+    if (!plan || plan.adapterId !== "official-json" || !plan.source.surfaceId || !plan.expectedChannels?.[0]) {
+      throw new Error("Missing canonical Boehringer plan");
+    }
+    const capturedAt = "2026-09-02T00:00:00.000Z";
+    const fetch = createOfficialJsonSourceFetch({
+      now: () => new Date(capturedAt),
+      http: async (request) => {
+        return {
+          status: 200,
+          body: request.url.includes("/scripts/recruit.js")
+            ? `let sxsPosCode = [
+                { code: "205909", jobareaname: "上海" },
+              ]
+              // official UI filters these rows before rendering`
+            : `jsoncallback({"status":"1","message":"接口调用成功","resultbody":{"totalnum":"2","joblist":[
+                {"jobid":"173472429","jobname":"Medical Advisor","jobareaname":"北京"},
+                {"jobid":"173472430","jobname":"Intern ID205909","jobareaname":"上海"}
+              ]}})`,
+          finalUrl: request.url,
+          contentType: request.url.includes("/scripts/recruit.js") ? "application/javascript" : "text/html",
+          capturedAt
+        };
+      }
+    });
+    const result = await runSourceCrawl(plan, { fetch });
+    if (!result.fetchEvidence || !result.paginationEvaluation || !result.reconciliation) {
+      throw new Error("Missing Boehringer crawl evidence");
+    }
+    const sourceConfigSha256 = sourcePlanConfigSha256(plan);
+    const independentValidation = createOfficialJsonRenderedTraversalValidation({
+      sourceId,
+      companyId: plan.company.id,
+      sourceConfigSha256,
+      surfaceIds: [plan.source.surfaceId],
+      channelIds: plan.expectedChannels.map(({ channelId }) => channelId),
+      pages: [{
+        pageNumber: 1,
+        declaredTotalPages: 1,
+        declaredTotalJobs: 1,
+        channelId: plan.expectedChannels[0].channelId,
+        uiRequestCandidateIds: [],
+        nextControlPresent: false,
+        rawRows: [{
+          sourceJobId: persistentOfficialJsonJobId("173472429"),
+          rawEvidenceId: irreversibleOfficialJsonEvidenceId("173472429"),
+          scopeMarker: "OFFICIAL_RENDERED_JOB_LINK",
+          scopeDecision: "INCLUDED_MAINLAND",
+          recordIndex: 0,
+          rawPayload: { jobId: "173472429" }
+        }]
+      }],
+      observedAt: capturedAt,
+      expiresAt: "2026-09-09T00:00:00.000Z"
+    });
+    const expectedPlannedSourceIds = [plan.source.id];
+    const identity: RuntimeBatchIdentity = {
+      releaseCandidateId: "rc-boehringer", commitSha: sha, rosterSha256: sha,
+      sourcePlanSha256: sha, sourceConfigSha256: sha, adapterBundleSha256: sha,
+      batchKind: "SCHEDULED", ownerId: "test", expectedPlannedSourceIds,
+      expectedPlannedSourceSetSha256: (await import("node:crypto")).createHash("sha256")
+        .update(JSON.stringify(expectedPlannedSourceIds)).digest("hex"),
+      expectedPlannedSourceCount: 1
+    };
+    const pending = buildPendingRuntimeBatch("batch-boehringer", [plan], identity,
+      new Date(capturedAt)).sources[0]!;
+    const workspaceRoot = await mkdtemp(join(process.cwd(), ".runtime", ".cache", "boehringer-persistence-"));
+    try {
+      const archiveResult = await archiveSourceEvidence({ workspaceRoot,
+        releaseCandidateId: identity.releaseCandidateId, batchId: "batch-boehringer", sourceId: plan.source.id,
+        sourceResultId: pending.id, evidenceSubdirectory: "phase-1/runtime-evidence",
+        captureTool: result.fetchEvidence.captureTool, artifacts: result.fetchEvidence.artifacts });
+      const archived = await verifyArchivedSourceEvidence({ workspaceRoot,
+        releaseCandidateId: identity.releaseCandidateId, batchId: "batch-boehringer", sourceId: plan.source.id,
+        sourceResultId: pending.id, evidenceSubdirectory: "phase-1/runtime-evidence",
+        artifacts: archiveResult.artifacts });
+      const commit = buildAtomicRuntimeCommit({
+        plan, pending, identity, batchId: "batch-boehringer", result, previousJobs: [],
+        baselineCompletedBeforeCrawl: false, artifacts: archived,
+        independentTraversalValidation: independentValidation,
+        independentTraversalValidationExecution: "CURRENT_RUN",
+        independentTraversalValidationTrigger: "INITIAL_QUALIFICATION",
+        completedAt: new Date("2026-09-02T00:01:00.000Z")
+      });
+      expect(commit.sourceResult).toMatchObject({
+        expectedJobCount: 2,
+        validationDiscardCount: 1,
+        dedupeOutputCount: 1,
+        completenessCertificate: { grade: "B", counts: { validationDiscardCount: 1, finalUniqueJobCount: 1 } }
+      });
+      const tx = {
+        evidenceArtifact: { create: async () => undefined },
+        paginationEvidence: { create: async () => undefined },
+        lossLedgerEntry: { create: async () => undefined },
+        transportAttemptEvidence: { create: async () => undefined },
+        transportAttemptArtifact: { create: async () => undefined },
+        crawlObservation: { create: async () => undefined },
+        job: { upsert: async () => undefined },
+        lifecycleSetEvidenceMember: { create: async () => undefined },
+        crawlBatchSourceResult: { updateMany: async () => ({ count: 1 }) }
+      };
+      await expect(executeAtomicSourceEvidenceCommit(commit, {
+        $transaction: async <T>(operation: (value: typeof tx) => Promise<T>) => operation(tx)
+      })).resolves.toBeUndefined();
+    } finally {
+      await rm(workspaceRoot, { recursive: true, force: true });
+    }
+  });
 });

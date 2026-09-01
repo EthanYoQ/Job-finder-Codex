@@ -143,12 +143,12 @@ function candidate(input: {
 }
 
 describe("A-grade official-total completeness certificate", () => {
-  it("keeps Grifols outside the zero-loss A-grade certificate path", async () => {
+  it("certifies Grifols only when official detail evidence proves every mainland scope exclusion", async () => {
     const plan = getPlanBySourceId(buildStagedSourceCrawlPlans(candidateCompanies), "source-grifols-china-social");
     if (plan?.adapterId !== "official-json" || plan.profileBoundSource?.kind !== "grifols-china-detail-scope") {
       throw new Error("Expected staged Grifols detail-scoped plan");
     }
-    expect(requiresAGradeOfficialTotalCertificate(plan)).toBe(false);
+    expect(requiresAGradeOfficialTotalCertificate(plan)).toBe(true);
     const entry = "https://jobsearch.grifols.com/search/?createNewAlert=false&q=&locationsearch=China";
     const marketing = "https://jobsearch.grifols.com/job/Shanghai-Marketing-Assistant/1429532033/";
     const fieldService = "https://jobsearch.grifols.com/job/Home-Office-%E7%8F%BE%E5%A0%B4%E6%9C%8D%E5%8B%99%E5%B7%A5%E7%A8%8B%E5%B8%AB-Field-Service-Engineer/1409962833/";
@@ -200,13 +200,31 @@ describe("A-grade official-total completeness certificate", () => {
       jobs: crawl.jobs,
       officialArtifactSha256
     });
-    expect(decision.status).toBe("REJECTED");
-    if (decision.status !== "REJECTED") throw new Error("Expected Grifols A-grade rejection");
-    expect(decision.blockerCodes).toEqual(expect.arrayContaining([
-      "LOSSY_PIPELINE",
-      "OFFICIAL_TOTAL_MISMATCH",
-      "UNSUPPORTED_SOURCE"
-    ]));
+    expect(decision.status, JSON.stringify(decision)).toBe("CERTIFIED");
+    if (decision.status !== "CERTIFIED") throw new Error("Expected Grifols A-grade certificate");
+    expect(decision.certificate).toMatchObject({
+      counts: { officialTotal: 2, validationDiscardCount: 1, finalUniqueJobCount: 1 },
+      legalScopeExclusionLedger: [{
+        code: "VERIFIED_DETAIL_OUT_OF_MAINLAND_SCOPE",
+        recordIndex: 1
+      }]
+    });
+    expect(verifyAGradeCompletenessCertificateReceipt({
+      certificate: decision.certificate,
+      certificateSha256: decision.certificateSha256,
+      expected: {
+        releaseCandidateId: "rc-html",
+        batchId: "batch-html",
+        sourceResultId: "result-html",
+        sourceId: plan.source.id,
+        companyId: plan.company.id,
+        sourceConfigSha256: sourcePlanConfigSha256(plan),
+        surfaceIds: [plan.source.surfaceId!],
+        channelIds: plan.expectedChannels!.map(({ channelId }) => channelId),
+        officialArtifactLogicalKey: crawl.fetchEvidence.declaredCompleteness!.artifactLogicalKey,
+        officialArtifactSha256
+      }
+    })).toMatchObject({ status: "PASS", grade: "A", finalUniqueJobCount: 1 });
   });
 
   it("issues and verifies an exact same-scope certificate Receipt", () => {

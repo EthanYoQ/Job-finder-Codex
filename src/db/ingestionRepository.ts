@@ -1909,6 +1909,7 @@ function validateAtomicSourceEvidenceCommit(
     if (result.completenessState === "VERIFIED" &&
         result.expectedJobCount !== result.dedupeOutputCount &&
         !hasVerifiedAGradeOfficialTotalDedupe(input) &&
+        !hasExactBoehringerVerifiedUiExclusions(input) &&
         !hasExactGrifolsVerifiedDetailScopeExclusions(input, artifactByLogicalKey)) {
       throw new Error("OFFICIAL_TOTAL_COUNT expectedJobCount must equal dedupeOutputCount");
     }
@@ -2001,6 +2002,7 @@ function validateAtomicSourceEvidenceCommit(
 }
 
 const GRIFOLS_SOURCE_ID = "source-grifols-china-social";
+const BOEHRINGER_SOURCE_ID = "source-boehringer-ingelheim-china-social";
 const GRIFOLS_DETAIL_LOCATOR =
   "grifols-successfactors-detail-v1|html:canonical+streetAddress+content-location";
 
@@ -2025,6 +2027,45 @@ function hasVerifiedAGradeOfficialTotalDedupe(input: AtomicSourceEvidenceCommit)
       input.lossLedger.length !== result.dedupeDiscardCount) return false;
   return input.lossLedger.every((loss) =>
     loss.stage === "DEDUPE" && nonblank(loss.candidateKey) && nonblank(loss.winnerKey));
+}
+
+function hasExactBoehringerVerifiedUiExclusions(input: AtomicSourceEvidenceCommit): boolean {
+  const result = input.sourceResult;
+  const certificate = result.completenessCertificate;
+  if (result.sourceId !== BOEHRINGER_SOURCE_ID ||
+      result.expectedEvidenceKind !== "OFFICIAL_TOTAL_COUNT" || result.expectedJobCount === null ||
+      typeof certificate !== "object" || certificate === null || Array.isArray(certificate) ||
+      (certificate as { schemaVersion?: unknown }).schemaVersion !== "b-grade-independent-traversal-v2" ||
+      (certificate as { grade?: unknown }).grade !== "B" ||
+      result.parseDiscardCount !== 0 || result.validationDiscardCount <= 0 ||
+      result.normalizationDiscardCount !== 0 || result.dedupeDiscardCount !== 0 || result.collisionCount !== 0 ||
+      result.discardCount !== result.validationDiscardCount || result.rawCount !== result.expectedJobCount ||
+      result.parsedCount !== result.rawCount ||
+      result.validCount !== result.rawCount - result.validationDiscardCount ||
+      result.normalizedCount !== result.validCount || result.dedupeInputCount !== result.validCount ||
+      result.dedupeOutputCount !== result.validCount ||
+      result.expectedJobCount !== result.dedupeOutputCount + result.validationDiscardCount ||
+      input.lossLedger.length !== result.validationDiscardCount) return false;
+  const values = certificate as {
+    binding?: { sourceId?: unknown };
+    counts?: { validationDiscardCount?: unknown; finalUniqueJobCount?: unknown };
+  };
+  if (values.binding?.sourceId !== BOEHRINGER_SOURCE_ID ||
+      values.counts?.validationDiscardCount !== result.validationDiscardCount ||
+      values.counts?.finalUniqueJobCount !== result.dedupeOutputCount) return false;
+  const indexes = new Set<number>();
+  return input.lossLedger.every((loss) => {
+    const details = loss.details;
+    if (loss.stage !== "VALIDATION" || loss.reason !== "51job record excluded by official recruitment UI" ||
+        !/^official-json-page-0000#record:\d+#sha256:[0-9a-f]{64}$/u.test(loss.rawLocator) ||
+        typeof details !== "object" || details === null || Array.isArray(details)) return false;
+    const code = (details as Record<string, unknown>).code;
+    const recordIndex = (details as Record<string, unknown>).recordIndex;
+    if (code !== "OFFICIAL_UI_EXCLUSION" || !Number.isSafeInteger(recordIndex) ||
+        (recordIndex as number) < 0 || indexes.has(recordIndex as number)) return false;
+    indexes.add(recordIndex as number);
+    return true;
+  });
 }
 
 function hasExactGrifolsVerifiedDetailScopeExclusions(

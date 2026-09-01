@@ -314,6 +314,69 @@ function grifolsVerifiedScopeExclusionCommit(): AtomicSourceEvidenceCommit {
   const observation = input.commands.find((command) => command.type === "UPSERT_CRAWL_OBSERVATION");
   if (observation?.type !== "UPSERT_CRAWL_OBSERVATION") throw new Error("Expected observation fixture");
   observation.observation.expectedJobCount = 2;
+  const collisionLedgerSha256 = sha256(canonicalJson([]));
+  input.sourceResult.collisionLedgerSha256 = collisionLedgerSha256;
+  const certificate = {
+    schemaVersion: "a-grade-official-total-v2",
+    grade: "A",
+    binding: {
+      releaseCandidateId: tuple.releaseCandidateId,
+      batchId: tuple.batchId,
+      sourceResultId: tuple.sourceResultId,
+      sourceId: tuple.sourceId,
+      sourceConfigSha256: H
+    },
+    scope: {
+      companyId: "company-grifols-china",
+      sourceId: tuple.sourceId,
+      recruitmentType: "SOCIAL",
+      geography: "MAINLAND_CHINA",
+      businessUnit: "ALL",
+      verificationPolicy: "STRICT_PLAN_BOUND_OFFICIAL_TOTAL_REPLAY_V1",
+      surfaceIds: ["surface-1"],
+      channelIds: ["channel-1"]
+    },
+    declaration: {
+      kind: "OFFICIAL_TOTAL_COUNT",
+      scope: "SOURCE",
+      artifactLogicalKey: "official",
+      artifactSha256: H,
+      extractorLocator: "$.total"
+    },
+    counts: {
+      officialTotal: 2,
+      rawObservationCount: 2,
+      rawUniqueOfficialRecordCount: 2,
+      parsedCount: 2,
+      validCount: 1,
+      normalizedCount: 1,
+      dedupeInputCount: 1,
+      legalDedupeCount: 0,
+      finalUniqueJobCount: 1,
+      parseDiscardCount: 0,
+      validationDiscardCount: 1,
+      normalizationDiscardCount: 0
+    },
+    legalDedupeLedger: [],
+    legalScopeExclusionLedger: [{
+      rawLocatorSha256: sha256("grifols-detail-0001#grifols-successfactors-detail-v1|html:canonical+streetAddress+content-location"),
+      recordIndex: 1,
+      code: "VERIFIED_DETAIL_OUT_OF_MAINLAND_SCOPE"
+    }],
+    pagination: {
+      pageCount: 1,
+      paginationTraceSha256: H,
+      canonicalRawOfficialIdSetSha256: H
+    },
+    output: {
+      canonicalJobSetSha256: CURRENT_SET,
+      adapterReconciliationSha256: H,
+      collisionLedgerSha256
+    },
+    observedAt: TO.toISOString()
+  };
+  input.sourceResult.completenessCertificate = certificate;
+  input.sourceResult.completenessCertificateSha256 = sha256(canonicalJson(certificate));
   return input;
 }
 
@@ -1265,7 +1328,8 @@ describe.runIf(Boolean(process.env.TASK3B_CLONE_DATABASE_URL))("Task3B real clon
       expect(sourceTrigger).toMatchObject({deferrable:true,initiallyDeferred:true});
       expect(sourceTrigger?.definition).toMatch(/DEFERRABLE INITIALLY DEFERRED/);
       const company=await prisma.company.upsert({where:{officialChineseName:"Grifols runtime fixture"},update:{},create:{id:"company-grifols-runtime",officialChineseName:"Grifols runtime fixture",officialWebsiteUrl:"https://www.grifols.com/",pinyinName:"grifols-runtime",inclusionReason:"real PostgreSQL atomic evidence test"}});
-      const source=await prisma.recruitmentSource.upsert({where:{id:"source-grifols-china-social"},update:{},create:{id:"source-grifols-china-social",companyId:company.id,kind:"SOCIAL",atsKind:"SUCCESSFACTORS",officialEntryUrl:"https://jobsearch.grifols.com/",officialChainEvidenceUrl:"https://www.grifols.com/en/careers",status:"VERIFIED_SCRAPABLE"}});const rc="task3b-runtime-rc";
+      const source=await prisma.recruitmentSource.upsert({where:{id:"source-task3b-runtime"},update:{},create:{id:"source-task3b-runtime",companyId:company.id,kind:"SOCIAL",atsKind:"OFFICIAL_JSON",officialEntryUrl:"https://example.test/jobs",officialChainEvidenceUrl:"https://example.test/careers",status:"VERIFIED_SCRAPABLE"}});const rc="task3b-runtime-rc";
+      const grifolsSource=await prisma.recruitmentSource.upsert({where:{id:"source-grifols-china-social"},update:{},create:{id:"source-grifols-china-social",companyId:company.id,kind:"SOCIAL",atsKind:"SUCCESSFACTORS",officialEntryUrl:"https://jobsearch.grifols.com/",officialChainEvidenceUrl:"https://www.grifols.com/en/careers",status:"VERIFIED_SCRAPABLE"}});
       const rocheCompany=await prisma.company.upsert({where:{officialChineseName:"Roche runtime fixture"},update:{},create:{id:"company-roche-china",officialChineseName:"Roche runtime fixture",officialWebsiteUrl:"https://www.roche.com/",pinyinName:"roche-runtime",inclusionReason:"real PostgreSQL certified dedupe test"}});
       const rocheSource=await prisma.recruitmentSource.upsert({where:{id:"source-roche-china-social"},update:{},create:{id:"source-roche-china-social",companyId:rocheCompany.id,kind:"SOCIAL",atsKind:"OFFICIAL_JSON",officialEntryUrl:"https://careers.roche.com/cn/zh/search-results",officialChainEvidenceUrl:"https://careers.roche.com/cn/zh/mainland-china-jobs",status:"VERIFIED_SCRAPABLE"}});
       await prisma.releaseCandidate.create({data:{id:rc,goalId:"task3b-runtime",version:1,commitSha:"1".repeat(40),sourceTreeHash:H,runtimeTreeHash:H,dbSnapshotHash:H,schemaHash:H,migrationVersion:"task3b",rosterHash:H,sourcePlanHash:H,sourceConfigHash:H,adapterBundleHash:H,oracleVersion:"task3b",status:"BUILDING"}});
@@ -1292,9 +1356,9 @@ describe.runIf(Boolean(process.env.TASK3B_CLONE_DATABASE_URL))("Task3B real clon
       expect(await prisma.evidenceArtifact.count({where:{sourceResultId:"task3b-runtime-result-wrong-hash"}})).toBe(0);
       expect(await prisma.lifecycleSetEvidenceMember.count({where:{sourceResultId:"task3b-runtime-result-wrong-hash"}})).toBe(0);
       expect((await prisma.crawlBatchSourceResult.findUniqueOrThrow({where:{id:"task3b-runtime-result-wrong-hash"}})).atomicCommitState).toBe("PENDING");
-      await prepare("task3b-runtime-grifols","task3b-runtime-result-grifols");
+      await prepare("task3b-runtime-grifols","task3b-runtime-result-grifols",grifolsSource);
       await expect(executeAtomicSourceEvidenceCommit(adapt(
-        "task3b-runtime-grifols","task3b-runtime-result-grifols","grifols",grifolsVerifiedScopeExclusionCommit()
+        "task3b-runtime-grifols","task3b-runtime-result-grifols","grifols",grifolsVerifiedScopeExclusionCommit(),grifolsSource
       ),prisma as never)).resolves.toBeUndefined();
       expect((await prisma.crawlBatchSourceResult.findUniqueOrThrow({where:{id:"task3b-runtime-result-grifols"}})).atomicCommitState).toBe("COMMITTED");
       await prepare("task3b-runtime-roche","task3b-runtime-result-roche",rocheSource);

@@ -28,6 +28,9 @@ const jnjAndGrifolsPersistenceMigrationPath=resolve(
 const jnjAndGrifolsPersistenceMigration=existsSync(jnjAndGrifolsPersistenceMigrationPath)
   ? readFileSync(jnjAndGrifolsPersistenceMigrationPath, "utf8")
   : "";
+const boehringerVerifiedUiMigration = readFileSync(resolve(
+  process.cwd(), "prisma", "migrations", "20260902095500_boehringer_verified_ui_exclusions", "migration.sql"
+), "utf8");
 const baselineMigration = readFileSync(
   resolve(process.cwd(), "prisma", "migrations", "20260710000000_baseline", "migration.sql"),
   "utf8"
@@ -146,6 +149,9 @@ describe("prisma schema", () => {
       ,"20260825093000_browser_and_pagination_retry_diagnostics"
       ,"20260825113000_failed_source_diagnostic_evidence"
       ,"20260902090000_jnj_and_grifols_atomic_persistence"
+      ,"20260902093000_grifols_trigger_artifact_binding"
+      ,"20260902094500_a_grade_official_total_dedupe"
+      ,"20260902095500_boehringer_verified_ui_exclusions"
     ]);
     const statements = crawlStatusValuesMigration
       .split("\n")
@@ -555,6 +561,24 @@ describe("prisma schema", () => {
     );
     expect(jnjAndGrifolsPersistenceMigration).toContain(
       `grifols_detail_artifact_count >= NEW.\"validationDiscardCount\"`
+    );
+  });
+
+  it("allows the Boehringer API/UI count difference only with exact B-grade exclusion evidence", () => {
+    expect(boehringerVerifiedUiMigration).toContain(
+      `NEW."sourceId" = 'source-boehringer-ingelheim-china-social'`
+    );
+    expect(boehringerVerifiedUiMigration).toContain(
+      `NEW."completenessCertificate"->>'schemaVersion' = 'b-grade-independent-traversal-v2'`
+    );
+    expect(boehringerVerifiedUiMigration).toContain(
+      `loss."reason" <> '51job record excluded by official recruitment UI'`
+    );
+    expect(boehringerVerifiedUiMigration).toContain(
+      `loss."details"->>'code' <> 'OFFICIAL_UI_EXCLUSION'`
+    );
+    expect(boehringerVerifiedUiMigration).toContain(
+      `NEW."expectedJobCount" = NEW."dedupeOutputCount" + NEW."validationDiscardCount"`
     );
   });
 
