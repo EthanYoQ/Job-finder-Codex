@@ -7,6 +7,52 @@ import { irreversibleOfficialJsonEvidenceId, persistentOfficialJsonJobId } from 
 import { hasUniqueJsonObjectKeys } from "./strictJsonObjectKeys";
 
 export const OFFICIAL_JSON_RENDERED_TRAVERSAL_POLICIES = Object.freeze({
+  "source-boehringer-ingelheim-china-social": {
+    companyId: "company-boehringer-ingelheim-china",
+    entryUrl: "https://campus.51job.com/BI/recruitSociety.html",
+    retrievalPath: "PLAYWRIGHT_OFFICIAL_UI_NETWORK_TRAVERSAL",
+    validatorImplementationId: "boehringer-51job-playwright-rendered-list-v1",
+    mainRetrievalPath: "HTTP_51JOB_COAPI_PLUS_UI_SCRIPT",
+    matchKeyKind: "SOURCE_JOB_ID",
+    artifactLogicalKey: "boehringer-51job-browser-rendered-validation",
+    maxPages: 1
+  },
+  "source-fosun-pharma-social": {
+    companyId: "company-fosun-pharma",
+    entryUrl: "https://fosunpharma.zhiye.com/social",
+    retrievalPath: "PLAYWRIGHT_OFFICIAL_UI_NETWORK_TRAVERSAL",
+    validatorImplementationId: "fosun-beisen-playwright-network-traversal-v1",
+    mainRetrievalPath: "HTTP_BEISEN_JOBAD_PAGINATION",
+    matchKeyKind: "SOURCE_JOB_ID",
+    artifactLogicalKey: "fosun-beisen-browser-network-validation",
+    displayFields: ["Category", "Kind", "LocId", "PostDate", "WorkWeChatQrCode"],
+    maxPages: 5
+  },
+  "source-hansoh-social": {
+    companyId: "company-hansoh",
+    entryUrl: "https://hspharm.zhiye.com/social",
+    retrievalPath: "PLAYWRIGHT_OFFICIAL_UI_NETWORK_TRAVERSAL",
+    validatorImplementationId: "hansoh-beisen-playwright-network-traversal-v1",
+    mainRetrievalPath: "HTTP_BEISEN_JOBAD_PAGINATION",
+    matchKeyKind: "SOURCE_JOB_ID",
+    artifactLogicalKey: "hansoh-beisen-browser-network-validation",
+    displayFields: ["Category", "Kind", "LocId", "PostDate", "ClassificationOne", "WorkWeChatQrCode"],
+    changedWithinDays: 183,
+    maxPages: 50
+  },
+  "source-united-lab-social": {
+    companyId: "company-united-lab",
+    entryUrl: "https://tulchina.zhiye.com/social/jobs",
+    retrievalPath: "PLAYWRIGHT_OFFICIAL_UI_NETWORK_TRAVERSAL",
+    validatorImplementationId: "united-lab-beisen-playwright-network-traversal-v1",
+    mainRetrievalPath: "HTTP_BEISEN_JOBAD_PAGINATION",
+    matchKeyKind: "SOURCE_JOB_ID",
+    artifactLogicalKey: "united-lab-beisen-browser-network-validation",
+    displayFields: ["Kind", "LocId", "Org", "HeadCount", "PostDate", "Salary", "Degree",
+      "YearsOfWorking", "ClassificationOne", "WorkWeChatQrCode"],
+    changedWithinDays: 183,
+    maxPages: 5
+  },
   "source-cspc-social": {
     companyId: "company-cspc",
     entryUrl: "https://ehr.e-cspc.com:8081/RedseaPlatform/zhaopin/zpChannelQrCode/0beb3022-3214-4333-a2e7-20786c4916d5/officeWebsite.mob",
@@ -41,6 +87,10 @@ export const OFFICIAL_JSON_RENDERED_TRAVERSAL_SOURCE_IDS = Object.freeze(
   Object.keys(OFFICIAL_JSON_RENDERED_TRAVERSAL_POLICIES) as OfficialJsonRenderedTraversalSourceId[]
 );
 export const OFFICIAL_JSON_RENDERED_REQUIRED_SOURCE_IDS = Object.freeze([
+  "source-boehringer-ingelheim-china-social",
+  "source-fosun-pharma-social",
+  "source-hansoh-social",
+  "source-united-lab-social",
   "source-cspc-social"
 ] as const satisfies readonly OfficialJsonRenderedTraversalSourceId[]);
 type RequiredOfficialJsonRenderedTraversalSourceId =
@@ -110,13 +160,19 @@ export async function captureOfficialJsonRenderedTraversal(input: {
     try {
       const page = await browser.newPage();
       try {
+        const observedAt = new Date().toISOString();
         const pages = input.sourceId === "source-cspc-social"
           ? await captureCspc(page, input.entryUrl, input.signal)
           : input.sourceId === "source-nhu-social"
             ? await captureNhu(page, input.entryUrl, input.signal)
+            : input.sourceId === "source-boehringer-ingelheim-china-social"
+              ? await captureBoehringer51job(page, input.entryUrl, input.signal)
+              : input.sourceId === "source-fosun-pharma-social" || input.sourceId === "source-hansoh-social" ||
+                  input.sourceId === "source-united-lab-social"
+                ? await captureBeisen(page, input.sourceId, input.entryUrl, observedAt, input.signal)
             : await captureXiuzheng(page, input.entryUrl, input.signal);
         replayOfficialJsonRenderedTraversal(input.sourceId, pages);
-        return { observedAt: new Date().toISOString(), pages };
+        return { observedAt, pages };
       } finally {
         await page.close().catch(() => undefined);
       }
@@ -133,7 +189,9 @@ export function replayOfficialJsonRenderedTraversal(
   sourceId: OfficialJsonRenderedTraversalSourceId,
   pages: readonly OfficialJsonRenderedPageCapture[]
 ): OfficialJsonRenderedReplay {
-  if (pages.length < 1 || pages.length > 5) throw new Error("Official JSON browser validation page count is invalid");
+  const policy = OFFICIAL_JSON_RENDERED_TRAVERSAL_POLICIES[sourceId];
+  const maxPages = "maxPages" in policy ? policy.maxPages : 5;
+  if (pages.length < 1 || pages.length > maxPages) throw new Error("Official JSON browser validation page count is invalid");
   const rawSourceJobIds: string[] = [];
   const rawEvidenceIds: string[] = [];
   const matchKeys: string[] = [];
@@ -188,6 +246,141 @@ export function replayOfficialJsonRenderedTraversal(
     rawCount: rawSourceJobIds.length,
     excludedCount: excludedSourceJobIds.length
   };
+}
+
+async function captureBoehringer51job(
+  page: import("playwright-core").Page,
+  entryUrl: string,
+  signal?: AbortSignal
+): Promise<OfficialJsonRenderedPageCapture[]> {
+  const navigation = await page.goto(entryUrl, { waitUntil: "domcontentloaded", timeout: 30_000 });
+  assertNavigation(navigation, entryUrl);
+  if (signal?.aborted) throw signal.reason;
+  const links = page.locator("a[href*='recruit_article_detail3.html?jobId=']");
+  await links.first().waitFor({ state: "attached", timeout: 30_000 });
+  const hrefs = await links.evaluateAll((elements) => elements.map((element) => element.getAttribute("href") ?? ""));
+  const jobIds = hrefs.map((href) => new URL(href, entryUrl).searchParams.get("jobId") ?? "");
+  if (jobIds.length < 1 || jobIds.some((jobId) => !/^\d+$/u.test(jobId)) ||
+      new Set(jobIds).size !== jobIds.length) {
+    throw new Error("Boehringer 51job browser validator rendered job IDs are invalid");
+  }
+  const rows = jobIds.map((jobId, recordIndex) => rawRow(
+    persistentOfficialJsonJobId(jobId),
+    irreversibleOfficialJsonEvidenceId(jobId),
+    "OFFICIAL_RENDERED_JOB_LINK",
+    "INCLUDED_MAINLAND",
+    recordIndex,
+    { jobId }
+  ));
+  return [{
+    channelId: "source:source-boehringer-ingelheim-china-social:default",
+    pageNumber: 1,
+    declaredTotalPages: 1,
+    declaredTotalJobs: rows.length,
+    uiRequestCandidateIds: [],
+    rawRows: rows,
+    nextControlPresent: false
+  }];
+}
+
+async function captureBeisen(
+  page: import("playwright-core").Page,
+  sourceId: "source-fosun-pharma-social" | "source-hansoh-social" | "source-united-lab-social",
+  entryUrl: string,
+  observedAt: string,
+  signal?: AbortSignal
+): Promise<OfficialJsonRenderedPageCapture[]> {
+  const policy = OFFICIAL_JSON_RENDERED_TRAVERSAL_POLICIES[sourceId];
+  const officialOrigin = new URL(entryUrl).origin;
+  const uiUrl = new URL(entryUrl);
+  uiUrl.pathname = "/social/jobs";
+  uiUrl.search = "";
+  uiUrl.hash = "";
+  const endpointPath = "/api/Jobad/GetJobAdPageList";
+  const responseForPage = (pageIndex: number) => page.waitForResponse((candidate) => {
+    const url = new URL(candidate.url());
+    if (url.origin !== officialOrigin || url.pathname !== endpointPath || candidate.request().method() !== "POST") {
+      return false;
+    }
+    try {
+      parseExactBeisenRequest(candidate.request().postData() ?? "{}", pageIndex, policy.displayFields);
+      return true;
+    } catch {
+      return false;
+    }
+  }, { timeout: 30_000 });
+  const firstResponsePromise = responseForPage(0);
+  const navigation = await page.goto(uiUrl.toString(), { waitUntil: "domcontentloaded", timeout: 30_000 });
+  assertNavigation(navigation, uiUrl.toString());
+  const first = await parseBeisenResponse(await firstResponsePromise, sourceId, 0, observedAt);
+  const declaredTotalPages = Math.max(1, Math.ceil(first.declaredTotalJobs / 20));
+  if (declaredTotalPages > policy.maxPages) throw new Error("Beisen browser validator page declaration is invalid");
+  const captures = [first];
+  for (let pageIndex = 1; pageIndex < declaredTotalPages; pageIndex += 1) {
+    if (signal?.aborted) throw signal.reason;
+    const pending = responseForPage(pageIndex);
+    await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
+    captures.push(await parseBeisenResponse(await pending, sourceId, pageIndex, observedAt));
+    await page.evaluate(() => window.scrollTo(0, 0));
+  }
+  if (captures.some((capture) => capture.declaredTotalJobs !== first.declaredTotalJobs)) {
+    throw new Error("Beisen browser validator declared total changed");
+  }
+  return captures.map((capture, index) => ({
+    channelId: `source:${sourceId}:default`,
+    pageNumber: index + 1,
+    declaredTotalPages,
+    declaredTotalJobs: first.declaredTotalJobs,
+    uiRequestCandidateIds: [],
+    rawRows: capture.rawRows,
+    nextControlPresent: index < declaredTotalPages - 1
+  }));
+}
+
+function parseExactBeisenRequest(body: string, pageIndex: number, displayFields: readonly string[]): void {
+  const request = parseStrictJsonRequest(body,
+    ["PageIndex", "PageSize", "Category", "KeyWords", "SpecialType", "PortalId", "DisplayFields"]);
+  if (request.PageIndex !== pageIndex || request.PageSize !== 20 ||
+      JSON.stringify(request.Category) !== JSON.stringify(["1"]) || request.KeyWords !== "" ||
+      request.SpecialType !== 0 || request.PortalId !== "" ||
+      JSON.stringify(request.DisplayFields) !== JSON.stringify(displayFields)) {
+    throw new Error("Beisen browser validator request contract mismatch");
+  }
+}
+
+async function parseBeisenResponse(
+  response: import("playwright-core").Response,
+  sourceId: "source-fosun-pharma-social" | "source-hansoh-social" | "source-united-lab-social",
+  pageIndex: number,
+  observedAt: string
+): Promise<{ declaredTotalJobs: number; rawRows: OfficialJsonRenderedRawRow[] }> {
+  const policy = OFFICIAL_JSON_RENDERED_TRAVERSAL_POLICIES[sourceId];
+  parseExactBeisenRequest(response.request().postData() ?? "{}", pageIndex, policy.displayFields);
+  if (response.status() !== 200) throw new Error("Beisen browser validator request failed");
+  const root = parseRecord(await response.text());
+  if (root.Code !== 200 || !Number.isSafeInteger(root.Count) || Number(root.Count) < 0 || !Array.isArray(root.Data) ||
+      root.Data.length !== Math.min(20, Math.max(0, Number(root.Count) - pageIndex * 20))) {
+    throw new Error("Beisen browser validator response schema is invalid");
+  }
+  const rawRows = root.Data.map((raw, recordIndex) => {
+    if (!isRecord(raw) || typeof raw.Id !== "string" || !uuid(raw.Id) || !Array.isArray(raw.LocNames) ||
+        raw.LocNames.some((value) => typeof value !== "string" || !value.trim())) {
+      throw new Error("Beisen browser validator raw row is invalid");
+    }
+    const locations = (raw.LocNames as string[]).map((value) => value.normalize("NFKC").trim()).sort(compareUtf8);
+    const marker = "changedWithinDays" in policy
+      ? JSON.stringify({ locations, changeDate: raw.ChangeDate, cutoffAt: chinaCalendarCutoffIso(observedAt, policy.changedWithinDays) })
+      : JSON.stringify({ locations });
+    return rawRow(
+      persistentOfficialJsonJobId(raw.Id),
+      irreversibleOfficialJsonEvidenceId(raw.Id),
+      marker,
+      replayScopeDecision(sourceId, marker),
+      recordIndex,
+      raw
+    );
+  });
+  return { declaredTotalJobs: Number(root.Count), rawRows };
 }
 
 async function captureCspc(
@@ -559,6 +752,32 @@ function replayScopeDecision(
     if (marker !== "SOCIAL_CHANNEL") throw new Error("CSPC browser validator scope marker mismatch");
     return "INCLUDED_MAINLAND";
   }
+  if (sourceId === "source-boehringer-ingelheim-china-social") {
+    if (marker !== "OFFICIAL_RENDERED_JOB_LINK") {
+      throw new Error("Boehringer 51job browser validator scope marker mismatch");
+    }
+    return "INCLUDED_MAINLAND";
+  }
+  if (sourceId === "source-fosun-pharma-social" || sourceId === "source-hansoh-social" ||
+      sourceId === "source-united-lab-social") {
+    let parsed: unknown;
+    try { parsed = JSON.parse(marker); } catch { throw new Error("Beisen browser validator scope marker is invalid"); }
+    if (!isRecord(parsed) || !Array.isArray(parsed.locations) || parsed.locations.length < 1 ||
+        parsed.locations.some((value) => typeof value !== "string" || !value.trim()) ||
+        !(parsed.locations as string[]).every(isAuditedMainlandLocation)) {
+      throw new Error("Beisen browser validator location is outside the audited mainland policy");
+    }
+    if (sourceId === "source-fosun-pharma-social") return "INCLUDED_MAINLAND";
+    if (typeof parsed.changeDate !== "string" || typeof parsed.cutoffAt !== "string") {
+      throw new Error("Beisen browser validator date scope marker is invalid");
+    }
+    const changedAt = parseChinaLocalDate(parsed.changeDate);
+    const cutoffAt = Date.parse(parsed.cutoffAt);
+    if (!Number.isFinite(changedAt) || !Number.isFinite(cutoffAt)) {
+      throw new Error("Beisen browser validator date scope marker is invalid");
+    }
+    return changedAt >= cutoffAt ? "INCLUDED_MAINLAND" : "EXCLUDED_AUDITED";
+  }
   if (sourceId === "source-xiuzheng-social") {
     return marker === "用人理念" ? "EXCLUDED_AUDITED" : "INCLUDED_MAINLAND";
   }
@@ -604,6 +823,14 @@ function assertRawRowIdentity(
     expectedSourceJobId = `0beb3022-3214-4333-a2e7-20786c4916d5:${id}`;
     expectedRawEvidenceId = irreversibleOfficialJsonEvidenceId(id);
     expectedMarker = "SOCIAL_CHANNEL";
+  } else if (sourceId === "source-boehringer-ingelheim-china-social") {
+    const id = row.rawPayload.jobId;
+    if (typeof id !== "string" || !/^\d+$/u.test(id)) {
+      throw new Error("Boehringer 51job browser validator raw identity is invalid");
+    }
+    expectedSourceJobId = persistentOfficialJsonJobId(id);
+    expectedRawEvidenceId = irreversibleOfficialJsonEvidenceId(id);
+    expectedMarker = "OFFICIAL_RENDERED_JOB_LINK";
   } else if (sourceId === "source-nhu-social") {
     const id = row.rawPayload.Id;
     const locations = row.rawPayload.LocNames;
@@ -614,6 +841,25 @@ function assertRawRowIdentity(
     expectedSourceJobId = persistentOfficialJsonJobId(id);
     expectedRawEvidenceId = irreversibleOfficialJsonEvidenceId(id);
     expectedMarker = JSON.stringify((locations as string[]).slice().sort(compareUtf8));
+  } else if (sourceId === "source-fosun-pharma-social" || sourceId === "source-hansoh-social" ||
+      sourceId === "source-united-lab-social") {
+    const id = row.rawPayload.Id;
+    const locations = row.rawPayload.LocNames;
+    if (typeof id !== "string" || !uuid(id) || !Array.isArray(locations) ||
+        locations.some((value) => typeof value !== "string" || !value.trim())) {
+      throw new Error("Beisen browser validator raw identity is invalid");
+    }
+    const parsedMarker = parseRecord(row.scopeMarker);
+    const canonicalLocations = (locations as string[]).map((value) => value.normalize("NFKC").trim()).sort(compareUtf8);
+    if (JSON.stringify(parsedMarker.locations) !== JSON.stringify(canonicalLocations) ||
+        (sourceId === "source-fosun-pharma-social"
+          ? Object.keys(parsedMarker).length !== 1
+          : typeof parsedMarker.cutoffAt !== "string" || parsedMarker.changeDate !== row.rawPayload.ChangeDate)) {
+      throw new Error("Beisen browser validator raw identity is invalid");
+    }
+    expectedSourceJobId = persistentOfficialJsonJobId(id);
+    expectedRawEvidenceId = irreversibleOfficialJsonEvidenceId(id);
+    expectedMarker = row.scopeMarker;
   } else {
     const id = row.rawPayload.id;
     const name = row.rawPayload.name;
@@ -629,6 +875,27 @@ function assertRawRowIdentity(
       row.scopeMarker !== expectedMarker) {
     throw new Error("Official JSON browser validation raw row identity mismatch");
   }
+}
+
+function chinaCalendarCutoffIso(observedAt: string, days: number): string {
+  const observedMs = Date.parse(observedAt);
+  if (!Number.isFinite(observedMs) || !Number.isSafeInteger(days) || days < 1) {
+    throw new Error("Beisen browser validator cutoff is invalid");
+  }
+  const china = new Date(observedMs + 8 * 60 * 60 * 1000);
+  return new Date(Date.UTC(china.getUTCFullYear(), china.getUTCMonth(), china.getUTCDate() - days) -
+    8 * 60 * 60 * 1000).toISOString();
+}
+
+function parseChinaLocalDate(value: string): number {
+  const normalized = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}$/u.test(value) ? `${value}+08:00` : value;
+  return Date.parse(normalized);
+}
+
+function isAuditedMainlandLocation(value: string): boolean {
+  const normalized = value.normalize("NFKC").trim();
+  return normalized === "全国" || normalized === "中国" || normalized === "中国大陆" ||
+    MAINLAND_PREFIXES.some((prefix) => normalized.startsWith(prefix));
 }
 
 function assertNavigation(response: import("playwright-core").Response | null, expectedUrl: string): void {

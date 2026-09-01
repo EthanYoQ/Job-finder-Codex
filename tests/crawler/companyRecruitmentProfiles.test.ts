@@ -188,17 +188,17 @@ describe("company recruitment profiles", () => {
     }
   });
 
-  it("quarantines JNJ's dedicated China careers adapter until its independent oracle is ready", () => {
+  it("binds JNJ to the official group-wide China careers result set", () => {
     expect(companyRecruitmentExecutionConfigsBySourceId[
       "source-johnson-innovative-medicine-social"
     ]).toMatchObject({
-      formalEligibility: "QUARANTINED_PENDING_TRUSTED_ORACLE",
       adapterId: "official-json",
       profileBoundSource: {
         kind: "jnj-careers-china",
         config: {
           country: "China",
-          officialSearchUrl: "https://www.careers.jnj.com/en/jobs/?country=China"
+          officialSearchUrl: "https://www.careers.jnj.com/en/jobs/?search=&country=China&pagesize=20",
+          scopePolicy: "GROUP_CHINA_ALL_BUSINESSES_V1"
         }
       }
     });

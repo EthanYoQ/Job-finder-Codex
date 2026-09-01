@@ -13,7 +13,9 @@ describe("plan-bound HTML certificate scope", () => {
       "source-novartis-social",
       "source-astellas-china-social",
       "source-grand-pharma-social",
-      "source-kelun-social"
+      "source-kelun-social",
+      "source-otsuka-china-social",
+      "source-sandoz-china-social"
     ]);
     const plans = buildStagedSourceCrawlPlans(candidateCompanies);
     for (const sourceId of PLAN_BOUND_HTML_TRAVERSAL_SOURCE_IDS) {
@@ -24,8 +26,6 @@ describe("plan-bound HTML certificate scope", () => {
 
   it("does not retain obsolete certificate gates after a source changes method or identity", () => {
     for (const sourceId of [
-      "source-fosun-pharma-social",
-      "source-otsuka-china-social-2",
       "source-sanofi-china-social",
       "source-takeda-china-social"
     ]) {

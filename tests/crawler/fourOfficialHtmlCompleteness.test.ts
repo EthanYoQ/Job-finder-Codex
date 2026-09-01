@@ -103,9 +103,11 @@ function novartisPage(
     return `<li class="page-item${page === renderedActive ? " active" : ""}"><a class="page-link" title="${title}"${page === renderedActive ? "" : ` href="?page=${page - 1}"`}>${page}</a></li>`;
   }).join("");
   const final = active === total;
+  const canonicalFilters =
+    "search_api_fulltext=&country%5B0%5D=LOC_CN&op=Submit&field_job_posted_date=All";
   const next = final && !options.nextEnabledOnLast
     ? `<li class="page-item pager__item--next"><a href="" title="Go to next page" rel="next" class="page-link btn disabled">Next</a></li>`
-    : `<li class="page-item pager__item--next"><a href="?page=${active}" title="Go to next page" rel="next" class="page-link">Next</a></li>`;
+    : `<li class="page-item pager__item--next"><a href="?${canonicalFilters}&page=${active}" title="Go to next page" rel="next" class="page-link">Next</a></li>`;
   const rows = ids.map((id) => novartisRow(id, options.titles?.[id], options.locations?.[id])).join("");
   return `<table class="views-table"><tbody>${rows}</tbody></table><ul class="pagination">${labels}${next}</ul>`;
 }
@@ -303,9 +305,9 @@ describe("four audited official HTML sources", () => {
       return response(request, bodies[requests.length - 1]!);
     });
     expect(requests).toEqual([
-      "https://www.novartis.com.cn/careers/career-search?search_api_fulltext=&country%5B%5D=LOC_CN&op=Submit&field_job_posted_date=All",
-      "https://www.novartis.com.cn/careers/career-search?search_api_fulltext=&country%5B%5D=LOC_CN&op=Submit&field_job_posted_date=All&page=1",
-      "https://www.novartis.com.cn/careers/career-search?search_api_fulltext=&country%5B%5D=LOC_CN&op=Submit&field_job_posted_date=All&page=2"
+      "https://www.novartis.com.cn/careers/career-search?search_api_fulltext=&country%5B0%5D=LOC_CN&op=Submit&field_job_posted_date=All",
+      "https://www.novartis.com.cn/careers/career-search?search_api_fulltext=&country%5B0%5D=LOC_CN&op=Submit&field_job_posted_date=All&page=1",
+      "https://www.novartis.com.cn/careers/career-search?search_api_fulltext=&country%5B0%5D=LOC_CN&op=Submit&field_job_posted_date=All&page=2"
     ]);
     expect(fetched).toMatchObject({
       ok: true,

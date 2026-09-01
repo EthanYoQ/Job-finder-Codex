@@ -52,7 +52,9 @@ export interface SourceTransportAttempt {
   transport: "DIRECT_HTTP" | "BROWSER_SESSION";
   outcome: "FAILED" | "SUCCEEDED";
   code: "HCM_DIRECT_FAILED" | "HCM_BROWSER_SESSION_FAILED" | "HCM_BROWSER_ENTRY_FAILED" |
-    "HCM_BROWSER_COUNT_FAILED" | "HCM_BROWSER_LIST_FAILED" | "HCM_BROWSER_SUCCEEDED";
+    "HCM_BROWSER_COUNT_FAILED" | "HCM_BROWSER_LIST_FAILED" | "HCM_BROWSER_SUCCEEDED" |
+    "JNJ_DIRECT_FAILED" | "JNJ_BROWSER_SESSION_FAILED" | "JNJ_BROWSER_FETCH_FAILED" |
+    "JNJ_BROWSER_SUCCEEDED";
   capturedAt: string;
   fetchEvidence?: PersistentSourceFetchEvidence;
   paginationEvaluation?: PaginationEvaluation;

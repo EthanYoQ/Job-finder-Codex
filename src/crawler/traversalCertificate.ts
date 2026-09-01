@@ -51,6 +51,7 @@ export const B_GRADE_TRAVERSAL_CERTIFICATE_SCHEMA_VERSION =
 
 export const REQUIRED_B_GRADE_TRAVERSAL_CERTIFICATES = Object.freeze({
   "source-viatris-social": "company-viatris",
+  "source-qilu-social": "company-qilu",
   ...OFFICIAL_JSON_RENDERED_REQUIRED_CERTIFICATES,
   ...PLAN_BOUND_HTML_REQUIRED_CERTIFICATES
 } as const);
@@ -72,8 +73,8 @@ const B_GRADE_VALIDATOR_POLICIES = Object.freeze({
     matchKeyKind: "OFFICIAL_URL",
     artifactLogicalKey: "qilu-browser-traversal-validation"
   },
-  ...OFFICIAL_JSON_RENDERED_TRAVERSAL_POLICIES,
-  ...PLAN_BOUND_HTML_TRAVERSAL_POLICIES
+  ...PLAN_BOUND_HTML_TRAVERSAL_POLICIES,
+  ...OFFICIAL_JSON_RENDERED_TRAVERSAL_POLICIES
 } as const);
 
 export const B_GRADE_VALIDATION_FRESHNESS_MAXIMUM_MS = 7 * 24 * 60 * 60 * 1000;
@@ -190,7 +191,7 @@ const qiluBrowserValidationSchema = z.object({
   artifactLogicalKey: z.literal("qilu-browser-traversal-validation")
 }).strict();
 const planBoundHtmlBrowserPageSchema = browserPageSchema.extend({
-  rawMatchKeys: z.array(NONBLANK).min(1),
+  rawMatchKeys: z.array(NONBLANK),
   partitions: z.array(planBoundHtmlPartitionSchema).min(1).optional()
 }).strict();
 const planBoundTalentbrewBrowserPageSchema = browserPageSchema.extend({
@@ -418,7 +419,7 @@ const certificateV2Schema = z.object({
     retrievalPath: NONBLANK,
     matchKeyKind: z.enum(["SOURCE_JOB_ID", "OFFICIAL_URL", "JOB_DEDUPE_KEY"]),
     pageCount: z.number().int().positive(),
-    terminalEvent: z.enum(["NEXT_ABSENT", "EMPTY_PAGE"]),
+    terminalEvent: z.enum(["NEXT_ABSENT", "EMPTY_PAGE", "DECLARED_TOTAL_REACHED"]),
     paginationTraceSha256: SHA256,
     canonicalMatchKeySetSha256: SHA256,
     canonicalRawMatchKeySetSha256: SHA256,
@@ -987,6 +988,8 @@ export function issueBGradeTraversalCertificate(input: BGradeCertificateCandidat
   const expectedChannels = canonicalStrings(input.plan.expectedChannels?.map(({ channelId }) => channelId) ?? []);
   const allowsMainPageOverlap = policy !== undefined &&
     "allowMainPageOverlapAcrossPages" in policy && policy.allowMainPageOverlapAcrossPages === true;
+  const auditedBeisen = ["source-fosun-pharma-social", "source-hansoh-social", "source-united-lab-social"]
+    .includes(input.plan.source.id);
   if (!requiresBGradeTraversalCertificate(input.plan)) blockers.add("UNSUPPORTED_SOURCE");
   if (!policy || input.plan.company.id !== policy.companyId || input.plan.source.companyId !== policy.companyId ||
       input.plan.source.kind !== "SOCIAL" || !input.plan.source.surfaceId ||
@@ -1002,7 +1005,7 @@ export function issueBGradeTraversalCertificate(input: BGradeCertificateCandidat
   let pagination: PaginationEvaluation | undefined;
   try {
     evidence = parsePersistentSourceFetchEvidence(input.evidence);
-    if (isPlanBoundHtmlTraversalSourceId(input.plan.source.id) &&
+    if (requiresPlanBoundHtmlCertificateSourceId(input.plan.source.id) &&
         (input.plan.adapterId !== "html-table" || !validateStrictHtmlCompletenessProof(input.plan, evidence))) {
       throw new Error("B-grade main HTML evidence failed its source-bound replay");
     }
@@ -1010,27 +1013,27 @@ export function issueBGradeTraversalCertificate(input: BGradeCertificateCandidat
       evidence,
       expectedChannelIds: isOfficialJsonRenderedTraversalSourceId(input.plan.source.id) &&
           evidence.pages.some((page) => page.channelId !== undefined) ||
-          isPlanBoundHtmlTraversalSourceId(input.plan.source.id) &&
+          requiresPlanBoundHtmlCertificateSourceId(input.plan.source.id) &&
           "talentbrewScope" in PLAN_BOUND_HTML_TRAVERSAL_POLICIES[input.plan.source.id]
         ? expectedChannels
         : [],
       filteredOutput: true,
-      ...(input.plan.source.id === "source-qilu-social" || input.plan.source.id === "source-nhu-social"
+      ...(input.plan.source.id === "source-qilu-social" || input.plan.source.id === "source-nhu-social" || auditedBeisen
         ? { allowMissingReturnedPage: true }
         : {}),
-      ...(input.plan.source.id === "source-nhu-social"
+      ...(input.plan.source.id === "source-nhu-social" || input.plan.source.id === "source-fosun-pharma-social"
         ? { allowPositiveOfficialTotalCountAfterAdapterReconciliation: true }
         : {}),
       ...(allowsMainPageOverlap
         ? { allowRawIdOverlapAcrossPages: true }
-        : isPlanBoundHtmlTraversalSourceId(input.plan.source.id)
+        : requiresPlanBoundHtmlCertificateSourceId(input.plan.source.id)
           ? { allowMissingReturnedPage: true }
           : {})
     });
     const declaration = evidence.declaredCompleteness;
     const declaredPages = evidence.pages[0]?.declaredPages;
     const last = evidence.pages.at(-1);
-    const talentbrewTraversal = isPlanBoundHtmlTraversalSourceId(input.plan.source.id) &&
+    const talentbrewTraversal = requiresPlanBoundHtmlCertificateSourceId(input.plan.source.id) &&
       "talentbrewScope" in PLAN_BOUND_HTML_TRAVERSAL_POLICIES[input.plan.source.id];
     const talentbrewPageGroups = talentbrewTraversal
       ? groupPaginationPagesByChannel(evidence.pages)
@@ -1044,15 +1047,33 @@ export function issueBGradeTraversalCertificate(input: BGradeCertificateCandidat
       : declaredPages == null
         ? evidence.pages.every((page) => page.declaredPages == null)
         : declaredPages === evidence.pages.length && evidence.pages.every((page) => page.declaredPages === declaredPages);
+    const planBoundEmpty = allowsEmptyPlanBoundSource(input.plan.source.id) &&
+      declaration?.kind === "OFFICIAL_TOTAL_COUNT" && declaration.scope === "SOURCE" && declaration.value === 0 &&
+      evidence.pages.length === 1 && evidence.pages[0]?.termination === "EMPTY_PAGE" &&
+      evidence.fetchCounts.rawCount === 0 && evidence.fetchCounts.validCount === 0 &&
+      evidence.fetchLosses.length === 0;
+    const officialJsonTotal = isOfficialJsonRenderedTraversalSourceId(input.plan.source.id) &&
+      declaration?.kind === "OFFICIAL_TOTAL_COUNT" && declaration.scope === "SOURCE" &&
+      (input.plan.source.id === "source-boehringer-ingelheim-china-social"
+        ? declaration.value === evidence.fetchCounts.validCount
+        : declaration.value === evidence.fetchCounts.rawCount);
+    const boehringerUiFilteredMain = input.plan.source.id === "source-boehringer-ingelheim-china-social" &&
+      officialJsonTotal && evidence.pages.length === 1 && evidence.pages[0]?.declaredPages === 1 &&
+      evidence.pages[0]?.termination === "DECLARED_TOTAL_REACHED" &&
+      evidence.fetchCounts.rawCount === evidence.fetchCounts.validCount + 1 &&
+      canonicalJson(input.paginationEvaluation.derivedAnomalyCodes) ===
+        canonicalJson(["DECLARED_CAPACITY_CONTRADICTION"]);
     const completeTraversal = declaration !== undefined &&
-      ["COMPLETE_PAGE_TRAVERSAL", "OFFICIAL_TOTAL_PAGES"].includes(declaration.kind) &&
+      (["COMPLETE_PAGE_TRAVERSAL", "OFFICIAL_TOTAL_PAGES"].includes(declaration.kind) ||
+        planBoundEmpty || officialJsonTotal) &&
       (declaration.scope === "SOURCE" || isOfficialJsonRenderedTraversalSourceId(input.plan.source.id) &&
         declaration.scope === "CHANNEL" &&
         expectedChannels.length === 1 && declaration.channelId === expectedChannels[0]) &&
-      declaration.value === evidence.pages.length &&
+      (planBoundEmpty || officialJsonTotal || declaration.value === evidence.pages.length) &&
       declaredPageContract &&
-      (talentbrewPageGroups !== undefined || last?.termination === "NEXT_ABSENT" || last?.termination === "EMPTY_PAGE") &&
-      pagination.safeCompleteness && pagination.verifiedEligible &&
+      (talentbrewPageGroups !== undefined || last?.termination === "NEXT_ABSENT" || last?.termination === "EMPTY_PAGE" ||
+        boehringerUiFilteredMain) &&
+      (boehringerUiFilteredMain || pagination.safeCompleteness && pagination.verifiedEligible) &&
       pagination.paginationTraceSha256 === input.paginationEvaluation.paginationTraceSha256;
     if (!completeTraversal) blockers.add("MAIN_TRAVERSAL_INCOMPLETE");
   } catch {
@@ -1074,13 +1095,14 @@ export function issueBGradeTraversalCertificate(input: BGradeCertificateCandidat
   const outputIds = policy ? independentMatchKeys(input.plan.source.id, input.jobs) ?? [] : [];
   const scopeExclusionsProven = evidence &&
     validateStrictSourceScopeExclusionProof(input.plan, evidence, input.jobs);
+  const sourceBoundOfficialJsonExclusions = evidence && auditedOfficialJsonLosses(input.plan.source.id, evidence);
   if (evidence && (evidence.fetchCounts.parseDiscardCount !== 0 ||
       evidence.fetchCounts.validationDiscardCount !== evidence.fetchLosses.length ||
       (allowsMainPageOverlap
         ? evidence.fetchCounts.validCount !== rawObservationCount
         : evidence.fetchCounts.validCount !== rawObservationIds.length) ||
       evidence.fetchCounts.rawCount !== evidence.fetchCounts.validCount + evidence.fetchCounts.validationDiscardCount ||
-      evidence.fetchLosses.length > 0 && !scopeExclusionsProven)) {
+      evidence.fetchLosses.length > 0 && !scopeExclusionsProven && !sourceBoundOfficialJsonExclusions)) {
     blockers.add("LOSSY_PIPELINE");
   }
   const collisionDiscardCount = ledger?.collisionGroups.reduce((count, group) => count + group.droppedCount, 0) ?? 0;
@@ -1149,7 +1171,10 @@ export function issueBGradeTraversalCertificate(input: BGradeCertificateCandidat
   if (validation?.schemaVersion === "official-json-browser-network-traversal-v1" && evidence) {
     const replay = replayOfficialJsonRenderedTraversal(validation.sourceId, validation.pages);
     const mainRawEvidenceIds = canonicalStrings(evidence.pages.flatMap((page) => page.rawJobIds));
-    if (replay.rawCount !== evidence.fetchCounts.rawCount ||
+    const boehringerRenderedOutputOnly = input.plan.source.id === "source-boehringer-ingelheim-china-social";
+    if (boehringerRenderedOutputOnly
+      ? replay.rawCount !== input.jobs.length || replay.excludedCount !== 0
+      : replay.rawCount !== evidence.fetchCounts.rawCount ||
         replay.excludedCount !== evidence.fetchCounts.validationDiscardCount ||
         canonicalJson(replay.rawEvidenceIds) !== canonicalJson(mainRawEvidenceIds)) {
       blockers.add("INDEPENDENT_JOB_SET_MISMATCH");
@@ -1272,6 +1297,7 @@ export function verifyBGradeTraversalCertificateReceipt(input: {
     throw new Error("B-grade traversal certificate main raw evidence commitment mismatch");
   }
   if (certificate.independentValidation.schemaVersion === "official-json-browser-network-traversal-v1" &&
+      certificate.binding.sourceId !== "source-boehringer-ingelheim-china-social" &&
       (!SHA256.safeParse(expected.canonicalRawEvidenceIdSetSha256).success ||
        expected.canonicalRawEvidenceIdSetSha256 !== canonicalStringSetSha256(
          replayOfficialJsonRenderedTraversal(
@@ -1335,8 +1361,12 @@ function assertCertificateValidationSetEquations(certificate: BGradeTraversalCer
       certificate.independentValidation.sourceId,
       certificate.independentValidation.pages
     );
-    if (replay.rawCount !== certificate.counts.independentUniqueJobCount + certificate.counts.validationDiscardCount ||
-        replay.excludedCount !== certificate.counts.validationDiscardCount ||
+    const boehringerRenderedOutputOnly = certificate.binding.sourceId ===
+      "source-boehringer-ingelheim-china-social";
+    if ((boehringerRenderedOutputOnly
+      ? replay.rawCount !== certificate.counts.independentUniqueJobCount || replay.excludedCount !== 0
+      : replay.rawCount !== certificate.counts.independentUniqueJobCount + certificate.counts.validationDiscardCount ||
+        replay.excludedCount !== certificate.counts.validationDiscardCount) ||
         certificate.counts.dedupeDiscardCount !== 0 ||
         certificate.mainTraversal.canonicalRawMatchKeySetSha256 !==
           canonicalStringSetSha256(replay.rawSourceJobIds) ||
@@ -1407,6 +1437,13 @@ function assertBrowserValidationEquations(validation: BGradeIndependentTraversal
           validation.pages.length > planBoundPolicy.maxPages) ||
         planBoundPolicy.maxPages === 1 && validation.pages.length !== 1) {
       throw new Error("Plan-bound HTML browser validation page limit mismatch");
+    }
+    const allRawMatchKeys = validation.pages.flatMap((page) => page.rawMatchKeys);
+    if (allRawMatchKeys.length === 0 && (!("allowEmptyList" in planBoundPolicy) ||
+        planBoundPolicy.allowEmptyList !== true || validation.pages.length !== 1 ||
+        validation.pages[0]?.pageNumber !== 1 || validation.pages[0]?.declaredTotalPages !== 1 ||
+        validation.pages[0]?.nextControlPresent !== false)) {
+      throw new Error("Plan-bound HTML browser validation empty-list policy mismatch");
     }
   }
   const matchKeys: string[] = [];
@@ -1665,6 +1702,34 @@ function qiluExcludedRowCount(validation: z.infer<typeof qiluBrowserValidationSc
 
 function canonicalStrings(values: readonly string[]): string[] {
   return [...new Set(values)].sort((left, right) => Buffer.compare(Buffer.from(left), Buffer.from(right)));
+}
+
+function auditedOfficialJsonLosses(sourceId: string, evidence: PersistentSourceFetchEvidence): boolean {
+  const allowed = sourceId === "source-boehringer-ingelheim-china-social"
+    ? new Set(["OFFICIAL_UI_EXCLUSION"])
+    : sourceId === "source-hansoh-social" || sourceId === "source-united-lab-social"
+      ? new Set(["OUT_OF_TIME_WINDOW", "OUT_OF_SCOPE"])
+      : sourceId === "source-fosun-pharma-social"
+        ? new Set<string>()
+        : undefined;
+  if (!allowed) return false;
+  return evidence.fetchLosses.length === evidence.fetchCounts.validationDiscardCount &&
+    evidence.fetchLosses.every((loss) => {
+      const code = loss.details && typeof loss.details === "object" && "code" in loss.details
+        ? (loss.details as { code?: unknown }).code
+        : undefined;
+      return typeof code === "string" && allowed.has(code);
+    });
+}
+
+function allowsEmptyPlanBoundSource(sourceId: string): boolean {
+  if (!requiresPlanBoundHtmlCertificateSourceId(sourceId)) return false;
+  const policy = PLAN_BOUND_HTML_TRAVERSAL_POLICIES[sourceId];
+  return "allowEmptyList" in policy && policy.allowEmptyList === true;
+}
+
+function requiresPlanBoundHtmlCertificateSourceId(sourceId: string): sourceId is PlanBoundHtmlTraversalSourceId {
+  return Object.prototype.hasOwnProperty.call(PLAN_BOUND_HTML_REQUIRED_CERTIFICATES, sourceId);
 }
 
 function compareUtf8(left: string, right: string): number {

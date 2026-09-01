@@ -7,7 +7,8 @@ export const HUMAN_VERIFIED_RECRUITMENT_BASELINE = {
     authority: "USER_SUPPLIED_MANUAL_VERIFICATION"
   },
   companies: [
-    ["company-johnson-innovative-medicine", 100, "https://www.careers.jnj.com/en/"],
+    ["company-johnson-innovative-medicine", 100, "https://www.careers.jnj.com/en/",
+      "The workbook URL and count cover J&J China group careers. Innovative Medicine has no separate official jobs page; runtime scope includes Innovative Medicine and MedTech and must retain the full dynamic China total."],
     ["company-abbvie-china", 57, "https://www.abbvie.com.cn/join-us.html"],
     ["company-msd-china", 105, "https://www.ajinga.com/msdchina/professionals"],
     ["company-roche-china", 236, "https://careers.roche.com/cn/zh/search-results"],

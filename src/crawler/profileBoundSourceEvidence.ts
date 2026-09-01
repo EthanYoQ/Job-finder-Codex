@@ -4,7 +4,11 @@ import {
   isSafeGrifolsChinaFailureCode,
   validateStrictGrifolsChinaEvidence
 } from "./grifolsChinaSourceFetch";
-import { isSafeJnjCareersFailureCode } from "./jnjCareersChinaSourceFetch";
+import {
+  getStrictJnjCareersChinaNetworkPolicy,
+  isSafeJnjCareersFailureCode,
+  validateStrictJnjCareersChinaEvidence
+} from "./jnjCareersChinaSourceFetch";
 import {
   getStrictMsdDualOfficialNetworkPolicy,
   isSafeMsdDualOfficialFailureCode,
@@ -50,7 +54,7 @@ export function validateStrictProfileBoundSourceEvidence(
     case "grifols-china-detail-scope":
       return validateStrictGrifolsChinaEvidence(plan, evidence, outputJobs);
     case "jnj-careers-china":
-      return false;
+      return validateStrictJnjCareersChinaEvidence(plan, evidence, outputJobs);
     case "msd-dual-official":
       return validateStrictMsdDualOfficialEvidence(plan, evidence, outputJobs);
     case "livzon-cecc":
@@ -102,7 +106,7 @@ export function getStrictProfileBoundSourcePolicy(
     case "grifols-china-detail-scope":
       return getStrictGrifolsChinaNetworkPolicy(plan);
     case "jnj-careers-china":
-      return undefined;
+      return getStrictJnjCareersChinaNetworkPolicy(plan);
     case "msd-dual-official":
       return getStrictMsdDualOfficialNetworkPolicy(plan);
     case "livzon-cecc": {

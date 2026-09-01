@@ -292,14 +292,14 @@ describe("source crawl planning", () => {
     )).toEqual([]);
   });
 
-  it("quarantines J&J from formal plans even when a caller labels its scope independently verified", () => {
+  it("admits the canonical J&J group-China source to formal plans without trusting renamed clones", () => {
     const company = candidateCompanies.find((item) => item.id === "company-johnson-innovative-medicine")!;
     const source = company.sources[0]!;
     const fakeHash = "a".repeat(64);
     const surface = {
       surfaceId: source.surfaceId!, companyId: company.id, kind: "SOCIAL" as const,
       legalEntityScope: [{ status: "RESOLVED" as const, value: "Johnson & Johnson China", evidenceArtifactSha256: fakeHash }],
-      businessUnitScope: [{ status: "RESOLVED" as const, value: "Innovative Medicine", evidenceArtifactSha256: fakeHash }],
+      businessUnitScope: [{ status: "RESOLVED" as const, value: "J&J China all businesses", evidenceArtifactSha256: fakeHash }],
       brandScope: [{ status: "RESOLVED" as const, value: "Johnson & Johnson", evidenceArtifactSha256: fakeHash }],
       channels: [{ channelId: `source:${source.id}:default`, kind: "SOCIAL" as const, status: "EXPECTED" as const }],
       chinaScope: { status: "RESOLVED" as const, geography: "MAINLAND_CHINA" as const, evidenceArtifactSha256: fakeHash },
@@ -316,7 +316,12 @@ describe("source crawl planning", () => {
     };
 
     const clonedCompany = { ...company, sources: [{ ...source }] };
-    expect(buildSourceCrawlPlans([clonedCompany], [surface as never])).toEqual([]);
+    expect(getPlanBySourceId(buildSourceCrawlPlans([clonedCompany], [surface as never]), source.id)).toMatchObject({
+      profileBoundSource: {
+        kind: "jnj-careers-china",
+        config: { scopePolicy: "GROUP_CHINA_ALL_BUSINESSES_V1" }
+      }
+    });
     const renamedSource = { ...source, id: `${source.id}-clone`, surfaceId: `${source.surfaceId}-clone` };
     const renamedCompany = { ...company, id: `${company.id}-clone`, sources: [{ ...renamedSource, companyId: `${company.id}-clone` }] };
     const renamedSurface = { ...surface, surfaceId: renamedSource.surfaceId, companyId: renamedCompany.id };
@@ -417,13 +422,14 @@ describe("source crawl planning", () => {
       adapterId: "official-json",
       source: {
         atsKind: "OFFICIAL_JSON",
-        officialEntryUrl: "https://www.careers.jnj.com/en/jobs/?country=China"
+        officialEntryUrl: "https://www.careers.jnj.com/en/jobs/?search=&country=China&pagesize=20"
       },
       profileBoundSource: {
         kind: "jnj-careers-china",
         config: {
-          officialSearchUrl: "https://www.careers.jnj.com/en/jobs/?country=China",
-          country: "China"
+          officialSearchUrl: "https://www.careers.jnj.com/en/jobs/?search=&country=China&pagesize=20",
+          country: "China",
+          scopePolicy: "GROUP_CHINA_ALL_BUSINESSES_V1"
         }
       }
     });
@@ -575,9 +581,10 @@ describe("source crawl planning", () => {
       profileBoundSource: {
         kind: "jnj-careers-china",
         config: {
-          officialSearchUrl: "https://www.careers.jnj.com/en/jobs/?country=China",
+          officialSearchUrl: "https://www.careers.jnj.com/en/jobs/?search=&country=China&pagesize=20",
           pageSize: 20,
-          maxPages: 20
+          maxPages: 20,
+          scopePolicy: "GROUP_CHINA_ALL_BUSINESSES_V1"
         }
       }
     });
@@ -1047,7 +1054,10 @@ describe("source crawl planning", () => {
     });
     expect(plans.every((plan) => plan.transportPolicy?.primary === "DIRECT_HTTP")).toBe(true);
     expect(plans.filter((plan) => plan.transportPolicy?.fallback === "BROWSER_SESSION")
-      .map((plan) => plan.source.id)).toEqual(["source-lunan-social"]);
+      .map((plan) => plan.source.id)).toEqual([
+        "source-johnson-innovative-medicine-social",
+        "source-lunan-social"
+      ]);
     expect(JSON.stringify(plans)).not.toContain("TAVILY");
   });
 
@@ -1067,7 +1077,9 @@ describe("source crawl planning", () => {
   });
 
   it("rejects an executable plan whose transport policy is missing or tampered", () => {
-    const plan = buildStagedSourceCrawlPlans(candidateCompanies, expectedOfficialSurfaces)[0]!;
+    const plan = buildStagedSourceCrawlPlans(candidateCompanies, expectedOfficialSurfaces).find(
+      (candidate) => candidate.transportPolicy?.fallback === undefined
+    )!;
     const { transportPolicy: _transportPolicy, ...withoutTransportPolicy } = plan;
 
     expect(() => validateExecutablePlanChannelBinding(withoutTransportPolicy as typeof plan))

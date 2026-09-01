@@ -10,7 +10,8 @@ export const profile_sandoz_china = {
           table: {
               rowSelector: "main a[href*='/jobs/'], .elementor-location-single a[href*='/jobs/']",
               completenessProof: {
-                  kind: "STATIC_PUBLIC_LIST"
+                  kind: "STATIC_PUBLIC_LIST",
+                  sourcePolicy: "ASPEN_CHINA_EMPTY_PUBLIC_LIST_V1"
               },
               staticPublicList: {
               containerSelector: ".elementor.elementor-1709",

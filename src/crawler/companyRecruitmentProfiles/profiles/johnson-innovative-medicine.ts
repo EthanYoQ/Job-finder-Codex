@@ -8,7 +8,6 @@ export const profile_johnson_innovative_medicine = {
     {
       sourceId: "source-johnson-innovative-medicine-social",
       executionConfig: {
-          formalEligibility: "QUARANTINED_PENDING_TRUSTED_ORACLE",
           adapterId: "official-json",
           json: OFFICIAL_API_JSON_CONFIG,
           profileBoundSource: {

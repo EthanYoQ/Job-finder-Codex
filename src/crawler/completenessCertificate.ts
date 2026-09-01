@@ -24,7 +24,6 @@ export const REQUIRED_A_GRADE_COMPLETENESS_CERTIFICATES = Object.freeze({
   "source-astrazeneca-social": "company-astrazeneca",
   "source-bayer-healthcare-social": "company-bayer-healthcare",
   "source-biogen-china-social": "company-biogen-china",
-  "source-boehringer-ingelheim-china-social": "company-boehringer-ingelheim-china",
   "source-bms-china-social": "company-bms-china",
   "source-buchang-social": "company-buchang",
   "source-cr-pharma-social": "company-cr-pharma",
@@ -33,7 +32,6 @@ export const REQUIRED_A_GRADE_COMPLETENESS_CERTIFICATES = Object.freeze({
   "source-daiichi-sankyo-china-social": "company-daiichi-sankyo-china",
   "source-gilead-china-social": "company-gilead-china",
   "source-gsk-china-social": "company-gsk-china",
-  "source-hansoh-social": "company-hansoh",
   "source-hengrui-social": "company-hengrui",
   "source-jimin-kexin-social": "company-jimin-kexin",
   "source-johnson-innovative-medicine-social": "company-johnson-innovative-medicine",
@@ -46,11 +44,9 @@ export const REQUIRED_A_GRADE_COMPLETENESS_CERTIFICATES = Object.freeze({
   "source-organon-china-social": "company-organon-china",
   "source-pfizer-china-social": "company-pfizer-china",
   "source-roche-china-social": "company-roche-china",
-  "source-sandoz-china-social": "company-sandoz-china",
   "source-servier-china-social": "company-servier-china",
   "source-shanghai-pharma-social": "company-shanghai-pharma",
   "source-ucb-china-social": "company-ucb-china",
-  "source-united-lab-social": "company-united-lab",
   "source-teva-china-social": "company-teva-china",
   "source-yangzijiang-social": "company-yangzijiang"
 } as const);

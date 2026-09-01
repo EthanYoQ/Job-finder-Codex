@@ -15,10 +15,13 @@ describe("human-verified recruitment scope profiles", () => {
       expect(config(sourceId).workday.facetDescriptorBoundary).toBeUndefined();
     }
     expect(config("source-johnson-innovative-medicine-social")).toMatchObject({
-      formalEligibility: "QUARANTINED_PENDING_TRUSTED_ORACLE",
       profileBoundSource: {
         kind: "jnj-careers-china",
-        config: { country: "China" }
+        config: {
+          country: "China",
+          officialSearchUrl: "https://www.careers.jnj.com/en/jobs/?search=&country=China&pagesize=20",
+          scopePolicy: "GROUP_CHINA_ALL_BUSINESSES_V1"
+        }
       }
     });
     for (const sourceId of ["source-roche-china-social", "source-ucb-china-social", "source-merck-china-social"]) {

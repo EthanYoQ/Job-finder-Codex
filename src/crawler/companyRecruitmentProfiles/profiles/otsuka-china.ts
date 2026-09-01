@@ -10,7 +10,8 @@ export const profile_otsuka_china = {
           table: {
               rowSelector: ".container.Box [data-job-id], .container.Box .job-item",
               completenessProof: {
-                  kind: "STATIC_PUBLIC_LIST"
+                  kind: "STATIC_PUBLIC_LIST",
+                  sourcePolicy: "OTSUKA_CHINA_EMPTY_PUBLIC_LIST_V1"
               },
               staticPublicList: {
                   containerSelector: ".container.Box",
@@ -23,7 +24,7 @@ export const profile_otsuka_china = {
               fields: {
                   sourceJobId: { selector: ":scope", attribute: "data-job-id" },
                   officialTitle: { selector: ":scope" },
-                  officialUrl: { value: "https://www.chinaotsuka.com.cn/class/26" },
+                  officialUrl: { value: "https://chinaotsuka.com.cn/class/26" },
                   locationRaw: { value: "中国" }
               }
           }

@@ -830,10 +830,12 @@ describe("real staged non-regression plans", () => {
   });
 
   it("keeps a real staged static official list COMPLETE_PAGE_TRAVERSAL VERIFIED", async () => {
-    const plan = planFor("source-otsuka-china-social");
+    const plan = planFor("source-qilu-social");
     const fetch = createHttpHtmlSourceFetch({ now: () => new Date(CAPTURED_AT), http: async request => htmlResponse(
       request,
-      `<section class="container Box"><article class="job-item" data-job-id="medical-manager">医学经理</article></section>`
+      `<section class="e_loop-65"><article class="cbox-65 p_loopitem">` +
+      `<div class="e_text-83"><a href="/job/medical-manager">医学经理</a></div>` +
+      `<div class="e_text-86">济南</div></article></section>`
     ) });
     const fetched = await fetch(plan);
     const result = await runSourceCrawl(plan, { fetch: async () => fetched });

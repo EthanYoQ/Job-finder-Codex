@@ -344,6 +344,88 @@ describe("independent strict HTML completeness proof", () => {
     expect(omittedPartition.ok).toBe(false);
   });
 
+  it.each([
+    ["source-sanofi-china-social", "h2", "span.job-location", "https://jobs.sanofi.com/en/job/shanghai/role/1"],
+    ["source-takeda-china-social", "h2.title", ".location", "https://jobs.takeda.com/job/shanghai/role/1113/1"]
+  ] as const)("replays %s as one unpartitioned TalentBrew China total", async (
+    sourceId,
+    titleSelector,
+    locationSelector,
+    jobUrl
+  ) => {
+    const plan = getPlanBySourceId(buildStagedSourceCrawlPlans(candidateCompanies), sourceId);
+    if (plan?.adapterId !== "html-table") throw new Error(`missing ${sourceId} plan`);
+    const entry = `<section id="search-results" data-ajax-url="/search-results" data-facet-term="1814991"
+      data-facet-type="2" data-total-pages="2" data-total-job-results="2" data-records-per-page="1"></section>
+      <section id="search-filters"><div data-enabled="false"><input class="filter-checkbox" checked
+        data-id="1814991" data-facet-type="2" data-count="2" data-display="China" data-field-name="" /></div></section>`;
+    const talentResponse = (page: number) => {
+      const title = titleSelector === "h2" ? `<h2>职位 ${page}</h2>` : `<h2 class="title">职位 ${page}</h2>`;
+      const location = locationSelector === "span.job-location"
+        ? '<span class="job-location">上海</span>'
+        : '<span class="location">上海</span>';
+      const results = `<section id="search-results" data-current-page="${page}" data-total-pages="2"
+        data-total-job-results="2" data-records-per-page="1"><ul id="search-results-list"><li>
+        <button class="js-save-job-btn" data-job-id="job-${page}"></button>${title}
+        <a href="${jobUrl.replace(/\/1$/u, `/${page}`)}">详情</a>${location}</li></ul></section>`;
+      return JSON.stringify({
+        filters: '<section id="search-filters"><input class="filter-checkbox" /></section>',
+        hasContent: false,
+        hasJobs: true,
+        results
+      });
+    };
+    const fetched = await createHttpHtmlSourceFetch({
+      now: () => new Date(capturedAt),
+      http: async request => request.url.includes("/search-results")
+        ? response(request, talentResponse(Number(new URL(request.url).searchParams.get("CurrentPage"))), "application/json")
+        : response(request, entry)
+    })(plan);
+    if (!fetched.ok || !fetched.fetchEvidence) throw new Error(fetched.ok ? "missing evidence" : fetched.failureReason);
+
+    expect(fetched.fetchEvidence.declaredCompleteness).toMatchObject({
+      kind: "OFFICIAL_TOTAL_COUNT",
+      value: 2,
+      scope: "SOURCE"
+    });
+    expect(validateStrictHtmlCompletenessProof(plan, fetched.fetchEvidence)).toBe(true);
+    expect((await runSourceCrawl(plan, { fetch: async () => fetched })).truth.completenessVerified).toBe(true);
+
+    const changedTotal = structuredClone(fetched.fetchEvidence);
+    const changedRecord = JSON.parse(String(changedTotal.artifacts[2]!.body)) as { results: string };
+    changedRecord.results = changedRecord.results
+      .replace('data-total-job-results="2"', 'data-total-job-results="3"');
+    changedTotal.artifacts[2]!.body = JSON.stringify(changedRecord);
+    expect(validateStrictHtmlCompletenessProof(plan, changedTotal)).toBe(false);
+  });
+
+  it.each([
+    ["source-otsuka-china-social", `<script>document.cookie="auth_token=value"</script>
+      <section class="container Box"><h2>热招岗位</h2><p>目前无岗位，联系我们</p></section>`, "REDACTED"],
+    ["source-sandoz-china-social", `<main><section class="elementor elementor-1709">
+      <h2>招聘</h2><p>请警惕虚假职位信息</p></section></main>`, "EXACT"]
+  ] as const)("replays %s as a source-bound explicit empty static list", async (sourceId, body, representation) => {
+    const plan = getPlanBySourceId(buildStagedSourceCrawlPlans(candidateCompanies), sourceId);
+    if (plan?.adapterId !== "html-table") throw new Error(`missing ${sourceId} plan`);
+    const fetched = await createHttpHtmlSourceFetch({
+      now: () => new Date(capturedAt),
+      http: async request => response(request, body)
+    })(plan);
+    if (!fetched.ok || !fetched.fetchEvidence) throw new Error(fetched.ok ? "missing evidence" : fetched.failureReason);
+    expect(fetched.fetchEvidence).toMatchObject({
+      declaredCompleteness: { kind: "OFFICIAL_TOTAL_COUNT", value: 0, scope: "SOURCE" },
+      artifacts: [{ bodyRepresentation: representation }],
+      pages: [{ rawJobIds: [], validJobIds: [], termination: "EMPTY_PAGE" }]
+    });
+    expect(validateStrictHtmlCompletenessProof(plan, fetched.fetchEvidence)).toBe(true);
+    const crawled = await runSourceCrawl(plan, { fetch: async () => fetched });
+    expect(crawled).toMatchObject({
+      status: "SUCCESS",
+      jobs: [],
+      truth: { transportSuccess: true, adapterSuccess: true, completenessVerified: true }
+    });
+  });
+
   it("binds Tupu page offsets to the archived POST request contract", async () => {
     const plan = basePlan({
       rowSelector: "tr.job",

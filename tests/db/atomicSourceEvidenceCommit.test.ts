@@ -271,6 +271,51 @@ function markIncomplete(input: AtomicSourceEvidenceCommit): void {
   observation.observation.completenessBlockerReason = "Fetched 1 of official total 2";
 }
 
+function grifolsVerifiedScopeExclusionCommit(): AtomicSourceEvidenceCommit {
+  const input = validCommit();
+  retargetCommitSource(input, "source-grifols-china-social");
+  const tuple = {
+    releaseCandidateId: input.sourceResult.releaseCandidateId,
+    batchId: input.sourceResult.batchId,
+    sourceId: input.sourceResult.sourceId,
+    sourceResultId: input.sourceResult.id
+  };
+  input.sourceResult.rawCount = 2;
+  input.sourceResult.parsedCount = 2;
+  input.sourceResult.validCount = 1;
+  input.sourceResult.parseDiscardCount = 0;
+  input.sourceResult.validationDiscardCount = 1;
+  input.sourceResult.discardCount = 1;
+  input.sourceResult.expectedJobCount = 2;
+  input.pagination[0]!.declaredTotal = 2;
+  input.pagination[0]!.declaredCount = 2;
+  input.lossLedger = [{
+    ...tuple,
+    stage: "VALIDATION",
+    reason: "official detail places the job outside mainland China",
+    rawLocator: "grifols-detail-0001#grifols-successfactors-detail-v1|html:canonical+streetAddress+content-location",
+    details: { code: "VERIFIED_DETAIL_OUT_OF_MAINLAND_SCOPE", recordIndex: 1 }
+  }];
+  input.artifacts.push({
+    ...input.artifacts[0]!,
+    ...tuple,
+    id: "artifact-grifols-detail-1",
+    logicalKey: "grifols-detail-0001",
+    kind: "ATS_PAGE",
+    requestedUrl: "https://jobsearch.grifols.com/job/Home-Office/example/",
+    finalUrl: "https://jobsearch.grifols.com/job/Home-Office/example/",
+    sha256: H2,
+    path: "artifacts/source-grifols-china-social/grifols-detail-0001.html",
+    extractorLocator: "grifols-successfactors-detail-v1|html:canonical+streetAddress+content-location",
+    redactionCommitmentSha256: H2
+  });
+  input.observationProvenance.artifactRedactionCommitmentSha256 = canonicalStringSetSha256([H, H2]);
+  const observation = input.commands.find((command) => command.type === "UPSERT_CRAWL_OBSERVATION");
+  if (observation?.type !== "UPSERT_CRAWL_OBSERVATION") throw new Error("Expected observation fixture");
+  observation.observation.expectedJobCount = 2;
+  return input;
+}
+
 type Group = "sourceResults" | "artifacts" | "pagination" | "loss" | "priorAttempts" | "priorAttemptArtifacts" | "observations" | "jobs" | "lifecycleMembers";
 
 function transactionalDb(failAt?: Group, sourceResultCount = 1, fenceRows: unknown[] = []): PrismaAtomicSourceEvidenceDb & {
@@ -334,6 +379,36 @@ function transactionalDb(failAt?: Group, sourceResultCount = 1, fenceRows: unkno
 }
 
 describe("executeAtomicSourceEvidenceCommit", () => {
+  it("commits the exact Grifols official total after independently verified detail-scope exclusion", async () => {
+    const db = transactionalDb();
+    await expect(executeAtomicSourceEvidenceCommit(grifolsVerifiedScopeExclusionCommit(), db)).resolves.toBeUndefined();
+    expect(db.calls.sourceResults).toHaveLength(1);
+    expect(db.calls.artifacts).toHaveLength(2);
+    expect(db.calls.loss).toHaveLength(1);
+  });
+
+  it("does not expose the Grifols scope-exclusion path to another source", async () => {
+    const input = grifolsVerifiedScopeExclusionCommit();
+    retargetCommitSource(input, "source-astellas-china-social");
+    await expect(executeAtomicSourceEvidenceCommit(input, transactionalDb())).rejects.toThrow();
+  });
+
+  it.each([
+    ["an unregistered loss code", (input: AtomicSourceEvidenceCommit) => {
+      input.lossLedger[0]!.details = { code: "OUT_OF_SCOPE", recordIndex: 1 };
+    }],
+    ["a missing detail artifact", (input: AtomicSourceEvidenceCommit) => {
+      input.artifacts = input.artifacts.filter((artifact) => artifact.logicalKey !== "grifols-detail-0001");
+      input.observationProvenance.artifactRedactionCommitmentSha256 = canonicalStringSetSha256([H]);
+    }]
+  ])("rejects Grifols-style count relaxation for %s", async (_label, mutate) => {
+    const input = grifolsVerifiedScopeExclusionCommit();
+    mutate(input);
+    await expect(executeAtomicSourceEvidenceCommit(input, transactionalDb())).rejects.toMatchObject({
+      atomicEvidencePersistenceStage: "ARTIFACT_VALIDATION"
+    });
+  });
+
   it("recognizes only an exactly matching persisted COMMITTED source result", async () => {
     const input = validCommit();
     const persisted: Record<string, unknown> = {

@@ -2112,7 +2112,8 @@ describe("createWorkdaySourceFetch", () => {
         kind: "jnj-careers-china",
         config: {
           country: "China",
-          officialSearchUrl: "https://www.careers.jnj.com/en/jobs/?country=China"
+          officialSearchUrl: "https://www.careers.jnj.com/en/jobs/?search=&country=China&pagesize=20",
+          scopePolicy: "GROUP_CHINA_ALL_BUSINESSES_V1"
         }
       }
     });

@@ -18,7 +18,7 @@ describe("human-verified official filter entry contracts", () => {
 
     const entry = new URL(plan.source.officialEntryUrl);
     expect(entry.origin).toBe("https://www.novartis.com.cn");
-    expect(entry.searchParams.getAll("country[]")).toEqual(["LOC_CN"]);
+    expect(entry.searchParams.getAll("country[0]")).toEqual(["LOC_CN"]);
     expect(entry.searchParams.get("field_job_posted_date")).toBe("All");
   });
 

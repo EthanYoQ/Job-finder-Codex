@@ -225,14 +225,14 @@ function toCompany(seed: CandidateSeed): CandidateCompany {
 const CANDIDATE_SEEDS: CandidateSeed[] = [
   {
     id: "company-johnson-innovative-medicine",
-    officialChineseName: "强生创新制药",
+    officialChineseName: "强生中国（集团招聘范围，含创新制药与医疗科技）",
     pinyinName: "qiangsheng-chuangxin-zhiyao",
     category: "FOREIGN_PHARMA",
     status: "VERIFIED_SCRAPABLE",
     atsKind: "OFFICIAL_JSON",
-    officialWebsiteUrl: "https://www.jnjpharmaceutical.com.cn/",
-    socialEntryUrl: "https://www.careers.jnj.com/en/jobs/?country=China",
-    officialChainEvidenceUrl: "https://www.jnjpharmaceutical.com.cn/en/about-jjp/company-overview"
+    officialWebsiteUrl: "https://www.jnj.com/",
+    socialEntryUrl: "https://www.careers.jnj.com/en/jobs/?search=&country=China&pagesize=20",
+    officialChainEvidenceUrl: "https://www.careers.jnj.com/en/"
   },
   {
     id: "company-abbvie-china",
@@ -298,7 +298,7 @@ const CANDIDATE_SEEDS: CandidateSeed[] = [
     atsKind: "OFFICIAL_HTML",
     officialWebsiteUrl: "https://www.novartis.com.cn/",
     socialEntryUrl:
-      "https://www.novartis.com.cn/careers/career-search?search_api_fulltext=&country%5B%5D=LOC_CN&op=Submit&field_job_posted_date=All",
+      "https://www.novartis.com.cn/careers/career-search?search_api_fulltext=&country%5B0%5D=LOC_CN&op=Submit&field_job_posted_date=All",
     officialChainEvidenceUrl: "https://www.novartis.com.cn/careers"
   },
   {

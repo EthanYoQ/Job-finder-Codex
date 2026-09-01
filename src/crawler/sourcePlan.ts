@@ -240,7 +240,8 @@ function buildPlans(
 }
 
 function sourceTransportPolicy(config: CompanyRecruitmentExecutionConfig): SourceTransportPolicy {
-  return config.adapterId === "official-json" && config.officialJsonFetch?.kind === "hcm-cloud"
+  return config.adapterId === "official-json" &&
+    (config.officialJsonFetch?.kind === "hcm-cloud" || config.profileBoundSource?.kind === "jnj-careers-china")
     ? { primary: "DIRECT_HTTP", fallback: "BROWSER_SESSION", browserConcurrency: 1 }
     : { primary: "DIRECT_HTTP" };
 }

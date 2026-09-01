@@ -25,7 +25,7 @@ describe("plan-bound HTML traversal registry", () => {
   it("preserves Novartis China filters and Kelun's selected marketing category", () => {
     const novartis = new URL(PLAN_BOUND_HTML_TRAVERSAL_POLICIES["source-novartis-social"].entryUrl);
     expect(novartis.hostname).toBe("www.novartis.com.cn");
-    expect(novartis.searchParams.getAll("country[]")).toEqual(["LOC_CN"]);
+    expect(novartis.searchParams.getAll("country[0]")).toEqual(["LOC_CN"]);
     expect(novartis.searchParams.get("field_job_posted_date")).toBe("All");
 
     const kelun = new URL(PLAN_BOUND_HTML_TRAVERSAL_POLICIES["source-kelun-social"].entryUrl);
@@ -49,8 +49,8 @@ describe("plan-bound HTML traversal registry", () => {
       count: async () => 0
     };
     const page = {
-      goto: async () => ({ status: () => 200, url: () => "https://kelun.zhiye.com/social" }),
-      url: () => "https://kelun.zhiye.com/social",
+      goto: async () => ({ status: () => 200, url: () => entryUrl }),
+      url: () => entryUrl,
       locator: (selector: string) => selector === PLAN_BOUND_HTML_TRAVERSAL_POLICIES[sourceId].nextSelector
         ? noNext
         : readyAndRows
@@ -75,5 +75,72 @@ describe("plan-bound HTML traversal registry", () => {
     }
     expect(() => assertPlanBoundHtmlValidationMatchKey(sourceId, `${sourceId}:not-a-requisition`))
       .toThrow("text source job ID is invalid");
+  });
+
+  it("preserves Kelun's source-bound filters on every browser page", async () => {
+    const sourceId = "source-kelun-social";
+    const entryUrl = PLAN_BOUND_HTML_TRAVERSAL_POLICIES[sourceId].entryUrl;
+    let currentUrl: string = entryUrl;
+    const rows = {
+      first: () => ({ waitFor: async () => undefined }),
+      evaluateAll: async () => [currentUrl.includes("PageIndex=2") ? "职位 (J20002)" : "职位 (J20001)"]
+    };
+    const next = {
+      count: async () => currentUrl.includes("PageIndex=2") ? 0 : 1,
+      nth: () => ({
+        getAttribute: async (name: string) => name === "href" ? "/social/?p=1%5E2&PageIndex=2" : null,
+        isVisible: async () => true
+      })
+    };
+    const page = {
+      goto: async (url: string) => {
+        currentUrl = url;
+        return { status: () => 200, url: () => url };
+      },
+      url: () => currentUrl,
+      locator: (selector: string) => selector === PLAN_BOUND_HTML_TRAVERSAL_POLICIES[sourceId].nextSelector
+        ? next
+        : rows
+    };
+    const captured = await capturePlanBoundHtmlRenderedTraversal({
+      sourceId,
+      entryUrl,
+      launchBrowser: async () => ({ newPage: async () => page as never, close: async () => undefined })
+    });
+    expect(captured.pages.map((page) => page.matchKeys)).toEqual([
+      [`${sourceId}:J20001`],
+      [`${sourceId}:J20002`]
+    ]);
+  });
+
+  it.each([
+    "source-otsuka-china-social",
+    "source-sandoz-china-social"
+  ] as const)("proves %s as an independently rendered terminal empty list without hard-coding zero", async sourceId => {
+    const policy = PLAN_BOUND_HTML_TRAVERSAL_POLICIES[sourceId];
+    const ready = { first: () => ({ waitFor: async () => undefined }) };
+    const rows = { evaluateAll: async () => [] };
+    const noNext = { count: async () => 0 };
+    const page = {
+      goto: async () => ({ status: () => 200, url: () => policy.entryUrl }),
+      url: () => policy.entryUrl,
+      locator: (selector: string) => selector === policy.readySelector
+        ? ready
+        : selector === policy.rowSelector
+          ? rows
+          : noNext
+    };
+    const captured = await capturePlanBoundHtmlRenderedTraversal({
+      sourceId,
+      entryUrl: policy.entryUrl,
+      launchBrowser: async () => ({ newPage: async () => page as never, close: async () => undefined })
+    });
+    expect(captured.pages).toEqual([{
+      pageNumber: 1,
+      declaredTotalPages: 1,
+      matchKeys: [],
+      rawMatchKeys: [],
+      nextControlPresent: false
+    }]);
   });
 });

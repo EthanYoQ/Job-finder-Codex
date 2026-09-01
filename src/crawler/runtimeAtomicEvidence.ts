@@ -308,7 +308,7 @@ export function buildFailedRuntimeEvidenceCommit(input: {
       ...(loss.recordedAt ? { recordedAt: new Date(loss.recordedAt) } : {})
     })),
     priorTransportAttempts: (input.result.priorTransportAttempts ?? []).map((attempt, sequence) => {
-      const attemptEvidence = attempt.code === "HCM_BROWSER_SUCCEEDED"
+      const attemptEvidence = attempt.code === "HCM_BROWSER_SUCCEEDED" || attempt.code === "JNJ_BROWSER_SUCCEEDED"
         ? evidence
         : attempt.fetchEvidence;
       const artifactIds = attemptEvidence?.artifacts.map((draft) => {
@@ -638,7 +638,7 @@ export function buildAtomicRuntimeCommit(input: {
       anomalyCodes: page.anomalyCodes, capturedAt: new Date(page.capturedAt) })),
     lossLedger,
     priorTransportAttempts: (result.priorTransportAttempts ?? []).map((attempt, sequence) => {
-      const attemptEvidence = attempt.code === "HCM_BROWSER_SUCCEEDED"
+      const attemptEvidence = attempt.code === "HCM_BROWSER_SUCCEEDED" || attempt.code === "JNJ_BROWSER_SUCCEEDED"
         ? result.fetchEvidence
         : attempt.fetchEvidence;
       const artifactIds = attemptEvidence?.artifacts.map((draft) => {

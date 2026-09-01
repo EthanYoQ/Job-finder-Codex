@@ -43,13 +43,16 @@ export function validateStrictHtmlCompletenessProof(
       evidence.fetchCounts.rawCount !== evidence.fetchCounts.validCount || evidence.pages.length === 0 ||
       !contiguousSequences(evidence.pages)) return htmlProofTrace(plan, "EVIDENCE_ENVELOPE");
 
-    const artifacts = evidence.artifacts.map(exactNetworkArtifact);
+    const artifacts = evidence.artifacts.map((artifact) => replayableNetworkArtifact(plan, artifact));
     if (artifacts.some((artifact) => artifact === undefined)) return htmlProofTrace(plan, "EXACT_ARTIFACTS");
     const exact = artifacts as ExactArtifact[];
     if (new Set(exact.map((artifact) => artifact.logicalKey)).size !== exact.length) return htmlProofTrace(plan, "ARTIFACT_KEYS");
 
     if (policy.kind === "OFFICIAL_TOTAL_PAGES") {
-      return validateOrdinaryTotalPages(plan, evidence, exact);
+      return plan.table.pagination?.ajaxMode === "talentbrew" &&
+        plan.table.pagination.talentbrewScope === undefined
+        ? validateUnpartitionedTalentbrewOfficialTotal(plan, evidence, exact)
+        : validateOrdinaryTotalPages(plan, evidence, exact);
     }
     if (policy.kind === "CONFIGURED_CHANNEL_TRAVERSAL") {
       return plan.table.pagination?.ajaxMode === "talentbrew"
@@ -314,6 +317,7 @@ function validateNovartisSlidingWindow(
   const seenUrls = new Set<string>();
   const signatures = new Map<string, string>();
   const responseHashes = new Set<string>();
+  const observedPageTotals: number[] = [];
   let observedRows = 0;
   for (let index = 0; index < evidence.pages.length; index += 1) {
     const pageNumber = index + 1;
@@ -331,7 +335,8 @@ function validateNovartisSlidingWindow(
       page.declaredPages !== evidence.pages.length || !validTermination(page, index, evidence.pages.length) ||
       !matchesRequestContract(artifact, plan.table.rowSelector, index === 0 ? "entry" : "ordinary-page", index,
         "GET", expectedUrl, null, { sequence: index, ...expectedCoordinate }) ||
-      officialTotalPages(artifact.body, pagination) !== evidence.pages.length) return htmlProofTrace(plan, `NOVARTIS_PAGE_CONTRACT:${pageNumber}`);
+      !validNovartisPageTotal(officialTotalPages(artifact.body, pagination), pageNumber,
+        evidence.pages.length)) return htmlProofTrace(plan, `NOVARTIS_PAGE_CONTRACT:${pageNumber}`);
 
     const responseHash = sha256Bytes(Buffer.from(artifact.body, "utf8")).sha256;
     if (page.responseFingerprintSha256 !== responseHash || responseHashes.has(responseHash)) return htmlProofTrace(plan, `NOVARTIS_RESPONSE_HASH:${pageNumber}`);
@@ -339,14 +344,19 @@ function validateNovartisSlidingWindow(
 
     const $ = load(artifact.body);
     const active = strictNovartisActivePage($);
-    if (!active || active.page !== pageNumber || active.totalPages !== evidence.pages.length ||
-      !strictNovartisNextState($, pageNumber, evidence.pages.length)) return htmlProofTrace(plan, `NOVARTIS_CONTROLS:${pageNumber}`);
+    if (!active || active.page !== pageNumber ||
+      !validNovartisPageTotal(active.totalPages, pageNumber, evidence.pages.length) ||
+      !strictNovartisNextState($, pageNumber, evidence.pages.length, plan.source.officialEntryUrl)) {
+      return htmlProofTrace(plan, `NOVARTIS_CONTROLS:${pageNumber}`);
+    }
     const pageLabels = $(pagination.totalPagesSelector).toArray();
-    if (pageLabels.length === 0 || pageLabels.some((element) => {
+    const pageBodyTotal = officialTotalPages(artifact.body, pagination);
+    if (pageLabels.length === 0 || pageBodyTotal === undefined || pageLabels.some((element) => {
       const title = normalizedText($(element).attr(pagination.totalPagesAttribute));
       const match = title ? /out of\s+([1-9]\d*)\s+pages/iu.exec(title) : null;
-      return !match || strictInt(match[1], true) !== evidence.pages.length;
+      return !match || strictInt(match[1], true) !== pageBodyTotal;
     })) return htmlProofTrace(plan, `NOVARTIS_TOTAL_LABELS:${pageNumber}`);
+    observedPageTotals.push(pageBodyTotal);
 
     const rows = strictNovartisRows(plan, artifact.body);
     if (!rows || rows.length === 0 || !replayPageRowsAllowingOverlap(artifact.body, plan.table, page)) return htmlProofTrace(plan, `NOVARTIS_ROWS:${pageNumber}`);
@@ -364,7 +374,12 @@ function validateNovartisSlidingWindow(
     }
     if (index > 0 && novel < 1) return htmlProofTrace(plan, `NOVARTIS_NO_NOVEL_ROW:${pageNumber}`);
   }
-  return evidence.fetchCounts.rawCount === observedRows && seenUrls.size > 0;
+  return evidence.fetchCounts.rawCount === observedRows && seenUrls.size > 0 &&
+    Math.max(...observedPageTotals) === evidence.pages.length;
+}
+
+function validNovartisPageTotal(value: number | undefined, page: number, traversedPages: number): boolean {
+  return value !== undefined && page > 0 && value > 0 && value <= traversedPages;
 }
 
 function novartisOfficialJobUrls(
@@ -543,10 +558,13 @@ function replayPageRowsAllowingOverlap(
 function strictNovartisActivePage(
   $: ReturnType<typeof load>
 ): { page: number; totalPages: number } | undefined {
-  const active = $(".pagination .page-link[title*='active'][title*='out of'][title*='pages']");
+  const active = $(".pagination .page-link[title*=' active '][title*='out of'][title*='pages'], " +
+    ".pagination .page-link[title*=' 活跃 '][title*='out of'][title*='pages']");
   if (active.length !== 1) return undefined;
   const title = normalizedText(active.first().attr("title"));
-  const match = title ? /^page\s+([1-9]\d*)\s+active\s+out of\s+([1-9]\d*)\s+pages$/iu.exec(title) : null;
+  const match = title
+    ? /^page\s+([1-9]\d*)\s+(?:active|活跃)\s+out of\s+([1-9]\d*)\s+pages$/iu.exec(title)
+    : null;
   const page = match ? strictInt(match[1], true) : undefined;
   const totalPages = match ? strictInt(match[2], true) : undefined;
   return page !== undefined && totalPages !== undefined ? { page, totalPages } : undefined;
@@ -555,15 +573,30 @@ function strictNovartisActivePage(
 function strictNovartisNextState(
   $: ReturnType<typeof load>,
   page: number,
-  totalPages: number
+  totalPages: number,
+  entryUrl: string
 ): boolean {
   const next = $(".pagination .page-link[rel='next']");
-  if (next.length !== 1 || normalizedText(next.first().attr("title")) !== "Go to next page") return false;
+  const title = normalizedText(next.first().attr("title"));
+  if (next.length !== 1 || (title !== "Go to next page" && title !== "转到下一页")) return false;
   const href = next.first().attr("href") ?? "";
   const classes = new Set((next.first().attr("class") ?? "").split(/\s+/u).filter(Boolean));
-  return page < totalPages
-    ? href === `?page=${page}` && !classes.has("disabled")
-    : href === "" && classes.has("btn") && classes.has("disabled");
+  if (page === totalPages) return href === "" && classes.has("btn") && classes.has("disabled");
+  if (classes.has("disabled")) return false;
+  try {
+    const actual = new URL(href, entryUrl);
+    const expected = new URL(entryUrl);
+    expected.searchParams.set("page", String(page));
+    return actual.origin === expected.origin && actual.pathname === expected.pathname &&
+      canonicalSearchParams(actual.searchParams) === canonicalSearchParams(expected.searchParams);
+  } catch {
+    return false;
+  }
+}
+
+function canonicalSearchParams(value: URLSearchParams): string {
+  return JSON.stringify([...value.entries()].sort(([leftKey, leftValue], [rightKey, rightValue]) =>
+    leftKey.localeCompare(rightKey) || leftValue.localeCompare(rightValue)));
 }
 
 function exactBayerPlan(plan: HtmlPlan): boolean {
@@ -589,7 +622,7 @@ function exactNovartisPlan(plan: HtmlPlan): boolean {
   const pagination = plan.table.pagination;
   return plan.source.id === "source-novartis-social" &&
     configuredUrl(plan.source.officialEntryUrl) ===
-      "https://www.novartis.com.cn/careers/career-search?search_api_fulltext=&country%5B%5D=LOC_CN&op=Submit&field_job_posted_date=All" &&
+      "https://www.novartis.com.cn/careers/career-search?search_api_fulltext=&country%5B0%5D=LOC_CN&op=Submit&field_job_posted_date=All" &&
     plan.table.rowSelector === "table.views-table tbody tr" &&
     plan.table.completenessProof?.kind === "OFFICIAL_TOTAL_PAGES" &&
     plan.table.completenessProof.sourcePolicy === "NOVARTIS_CHINA_SLIDING_WINDOW_V1" &&
@@ -708,6 +741,89 @@ function validateTalentbrewTraversal(
     htmlProofTrace(plan, "TALENTBREW_FINAL_COUNTS");
 }
 
+function validateUnpartitionedTalentbrewOfficialTotal(
+  plan: HtmlPlan,
+  evidence: PersistentSourceFetchEvidence,
+  artifacts: readonly ExactArtifact[]
+): boolean {
+  const pagination = plan.table.pagination;
+  const declaration = evidence.declaredCompleteness!;
+  if (!pagination || pagination.ajaxMode !== "talentbrew" || pagination.talentbrewScope !== undefined ||
+    declaration.kind !== "OFFICIAL_TOTAL_COUNT" || declaration.value !== evidence.fetchCounts.rawCount ||
+    artifacts.length !== evidence.pages.length + 1 || evidence.pages.some((page) => page.channelId !== undefined)) {
+    return htmlProofTrace(plan, "TALENTBREW_TOTAL_ENVELOPE");
+  }
+
+  const entry = artifacts[0]!;
+  const rawEntryUrl = configuredUrl(plan.source.officialEntryUrl);
+  const entryUrl = evidenceUrl(rawEntryUrl);
+  if (entry.logicalKey !== "official-html-page-0000" || entry.kind !== "OFFICIAL_COMPANY_PAGE" ||
+    entry.channelId !== undefined || !sameUrl(entry, entryUrl) ||
+    !matchesRequestContract(entry, "#search-results[data-ajax-url]", "entry", 0, "GET", entryUrl, null, {
+      sequence: 0, channelId: null, requestedPage: queryPositiveInt(entryUrl, "CurrentPage") ?? null,
+      requestedPageSize: queryPositiveInt(entryUrl, "RecordsPerPage") ?? null
+    })) return htmlProofTrace(plan, "TALENTBREW_TOTAL_ENTRY_CONTRACT");
+
+  const entryDom = load(entry.body);
+  const results = entryDom("#search-results");
+  const ajaxRaw = results.length === 1 ? results.first().attr("data-ajax-url") : undefined;
+  if (!ajaxRaw) return htmlProofTrace(plan, "TALENTBREW_TOTAL_AJAX_URL");
+  const ajaxUrl = new URL(ajaxRaw, rawEntryUrl);
+  if (ajaxUrl.protocol !== "https:" || ajaxUrl.origin !== new URL(rawEntryUrl).origin || ajaxUrl.hash) {
+    return htmlProofTrace(plan, "TALENTBREW_TOTAL_AJAX_BOUNDARY");
+  }
+  const staticFilters = talentbrewStaticFilters(entryDom);
+  if (!staticFilters) return htmlProofTrace(plan, "TALENTBREW_TOTAL_STATIC_FILTERS");
+
+  const seen = new Set<string>();
+  let declaredTotal: number | undefined;
+  let declaredPages: number | undefined;
+  let pageSize: number | undefined;
+  let rawRows = 0;
+  for (let index = 0; index < evidence.pages.length; index += 1) {
+    const page = evidence.pages[index]!;
+    const pageNumber = index + 1;
+    const artifact = artifactForPage(page, artifacts);
+    const rawExpectedUrl = talentbrewRequestUrl(entryDom, ajaxUrl, staticFilters, undefined, pageNumber);
+    const expectedUrl = evidenceUrl(rawExpectedUrl);
+    const expectedPageSize = queryPositiveInt(rawExpectedUrl, "RecordsPerPage") ?? null;
+    if (!artifact || artifact.channelId !== undefined || !sameUrl(artifact, expectedUrl) ||
+      page.sequence !== index || page.requestedPage !== pageNumber || page.returnedPage !== pageNumber ||
+      page.requestedPageSize !== expectedPageSize ||
+      !matchesRequestContract(artifact, plan.table.rowSelector, "talentbrew-page", index + 1, "GET", expectedUrl, null, {
+        sequence: index + 1, channelId: null, requestedPage: null, requestedPageSize: null
+      }) || !validTermination(page, index, evidence.pages.length)) {
+      return htmlProofTrace(plan, `TALENTBREW_TOTAL_PAGE_CONTRACT:${pageNumber}`);
+    }
+    const html = strictTalentbrewResults(artifact.body, plan.table.rowSelector);
+    const returned = load(html)("#search-results");
+    const current = strictInt(returned.first().attr("data-current-page"), true);
+    const totalPages = strictInt(returned.first().attr("data-total-pages"), true);
+    const total = strictInt(returned.first().attr("data-total-job-results"), false);
+    const size = strictInt(returned.first().attr("data-records-per-page"), true);
+    if (returned.length !== 1 || current !== pageNumber || totalPages === undefined || total === undefined ||
+      size === undefined || page.declaredPages !== totalPages || page.declaredTotal !== total ||
+      page.returnedPageSize !== size || page.declaredCount !== size ||
+      Math.max(1, Math.ceil(total / size)) !== totalPages) {
+      return htmlProofTrace(plan, `TALENTBREW_TOTAL_DECLARATION:${pageNumber}`);
+    }
+    declaredTotal ??= total;
+    declaredPages ??= totalPages;
+    pageSize ??= size;
+    if (declaredTotal !== total || declaredPages !== totalPages || pageSize !== size ||
+      !replayRows(html, plan.table, page, seen)) {
+      return htmlProofTrace(plan, `TALENTBREW_TOTAL_REPLAY:${pageNumber}`);
+    }
+    rawRows += page.rawJobIds.length;
+  }
+  const firstPageArtifact = artifactForPage(evidence.pages[0]!, artifacts);
+  return declaredPages === evidence.pages.length && declaredTotal === declaration.value &&
+    rawRows === declaration.value && seen.size === declaration.value &&
+    firstPageArtifact !== undefined && declaration.artifactLogicalKey === firstPageArtifact.logicalKey &&
+    declaration.extractorLocator === firstPageArtifact.extractorLocator ||
+    htmlProofTrace(plan, "TALENTBREW_TOTAL_FINAL_COUNTS");
+}
+
 function validateTupuTraversal(
   plan: HtmlPlan,
   evidence: PersistentSourceFetchEvidence,
@@ -762,10 +878,14 @@ function validateStaticPublicList(
   const entryUrl = evidenceUrl(configuredUrl(plan.source.officialEntryUrl));
   const $ = load(artifact.body);
   const container = $(config.containerSelector);
+  const terminal = declaration.kind === "OFFICIAL_TOTAL_COUNT" && declaration.value === 0
+    ? evidence.pages[0]!.termination === "EMPTY_PAGE" &&
+      evidence.pages[0]!.nextPageSignalAfter == null && evidence.pages[0]!.anomalyCodes.length === 0
+    : validTermination(evidence.pages[0]!, 0, 1);
   if (container.length !== 1 || $(config.nextControlSelector).length !== 0 || !sameUrl(artifact, entryUrl) ||
     !matchesRequestContract(artifact, plan.table.rowSelector, "entry", 0, "GET", entryUrl, null, { sequence: 0 }) ||
     declaration.extractorLocator !== artifact.extractorLocator ||
-    !validTermination(evidence.pages[0]!, 0, 1)) return false;
+    !terminal) return false;
   const rows = $(plan.table.rowSelector).toArray();
   if (rows.some((row) => $(row).closest(config.containerSelector).get(0) !== container.get(0) ||
     (config.excludedPartitionSelectors ?? []).some((selector) => $(row).closest(selector).length > 0))) return false;
@@ -775,6 +895,13 @@ function validateStaticPublicList(
     ((declaration.kind === "COMPLETE_PAGE_TRAVERSAL" && declaration.value === 1) ||
       (declaration.kind === "OFFICIAL_TOTAL_COUNT" && declaration.value === 0 && rows.length === 0));
   if (!genericValid) return false;
+  if (declaration.kind === "OFFICIAL_TOTAL_COUNT" && declaration.value === 0) {
+    const empty = config.explicitEmptyState;
+    const markers = empty ? $(empty.selector) : undefined;
+    const normalized = markers?.first().text().replace(/\s+/gu, " ").trim() ?? "";
+    if (!empty || markers?.length !== 1 || !normalized || !new RegExp(empty.pattern, "u").test(normalized) ||
+      (markers.get(0) !== container.get(0) && !$.contains(container.get(0)!, markers.get(0)!))) return false;
+  }
   const policy = plan.table.completenessProof;
   if (policy?.kind !== "STATIC_PUBLIC_LIST") return false;
   if (policy.sourcePolicy === "APELOA_SOCIAL_TABS_V1") {
@@ -782,6 +909,12 @@ function validateStaticPublicList(
   }
   if (policy.sourcePolicy === "ASTELLAS_CHINA_PDF_ACCORDION_V1") {
     return validateAstellasStaticPlan(plan, $, rows);
+  }
+  if (policy.sourcePolicy === "OTSUKA_CHINA_EMPTY_PUBLIC_LIST_V1") {
+    return validateOtsukaChinaEmptyStaticPlan(plan, rows);
+  }
+  if (policy.sourcePolicy === "ASPEN_CHINA_EMPTY_PUBLIC_LIST_V1") {
+    return validateAspenChinaEmptyStaticPlan(plan, rows);
   }
   if (policy.sourcePolicy === "OTSUKA_CHINA_JOIN_LIST_V1") {
     return validateOtsukaStaticPlan(plan, $, rows);
@@ -793,6 +926,44 @@ function validateStaticPublicList(
     return validateHuahaiStaticPlan(plan, $, rows);
   }
   return policy.sourcePolicy === undefined;
+}
+
+function validateOtsukaChinaEmptyStaticPlan(plan: HtmlPlan, rows: readonly AnyNode[]): boolean {
+  const config = plan.table.staticPublicList;
+  return plan.executionAuthority === "STAGED" && plan.company.id === "company-otsuka-china" &&
+    plan.source.id === "source-otsuka-china-social" && plan.source.companyId === "company-otsuka-china" &&
+    plan.source.kind === "SOCIAL" && plan.source.atsKind === "OFFICIAL_HTML" &&
+    plan.source.status === "VERIFIED_SCRAPABLE" &&
+    configuredUrl(plan.source.officialEntryUrl) === "https://chinaotsuka.com.cn/class/26" &&
+    configuredUrl(plan.source.officialChainEvidenceUrl) === "https://www.otsuka.com.cn/otsuka-in-china/index.html" &&
+    plan.table.rowSelector === ".container.Box [data-job-id], .container.Box .job-item" &&
+    plan.table.pagination === undefined && config?.containerSelector === ".container.Box" &&
+    config.nextControlSelector === ".container.Box .pagination, .container.Box a[rel='next'], .container.Box [data-page]" &&
+    config.explicitEmptyState?.selector === ".container.Box" &&
+    config.explicitEmptyState.pattern === "热招岗位[\\s\\S]*联系我们" &&
+    JSON.stringify(plan.table.fields.sourceJobId) === JSON.stringify({ selector: ":scope", attribute: "data-job-id" }) &&
+    JSON.stringify(plan.table.fields.officialUrl) === JSON.stringify({ value: "https://chinaotsuka.com.cn/class/26" }) &&
+    rows.length === 0;
+}
+
+function validateAspenChinaEmptyStaticPlan(plan: HtmlPlan, rows: readonly AnyNode[]): boolean {
+  const config = plan.table.staticPublicList;
+  return plan.executionAuthority === "STAGED" && plan.company.id === "company-sandoz-china" &&
+    plan.source.id === "source-sandoz-china-social" && plan.source.companyId === "company-sandoz-china" &&
+    plan.source.kind === "SOCIAL" && plan.source.atsKind === "OFFICIAL_HTML" &&
+    plan.source.status === "VERIFIED_SCRAPABLE" &&
+    configuredUrl(plan.source.officialEntryUrl) ===
+      "https://www.aspenpharma.cn/careers-at-aspen/aspen-cnjobs/" &&
+    configuredUrl(plan.source.officialChainEvidenceUrl) ===
+      "https://www.aspenpharma.cn/careers-at-aspen/aspen-cnjobs/" &&
+    plan.table.rowSelector === "main a[href*='/jobs/'], .elementor-location-single a[href*='/jobs/']" &&
+    plan.table.pagination === undefined && config?.containerSelector === ".elementor.elementor-1709" &&
+    config.nextControlSelector === "a[rel='next'], .pagination a.next" &&
+    config.explicitEmptyState?.selector === ".elementor.elementor-1709" &&
+    config.explicitEmptyState.pattern === "招聘|职位|岗位|警惕" &&
+    JSON.stringify(plan.table.fields.sourceJobId) === JSON.stringify({ selector: ":scope", attribute: "href" }) &&
+    JSON.stringify(plan.table.fields.officialUrl) === JSON.stringify({ selector: ":scope", attribute: "href" }) &&
+    rows.length === 0;
 }
 
 function validateApeloaStaticPlan(
@@ -968,6 +1139,27 @@ function exactNetworkArtifact(artifact: SourceFetchArtifactDraft): ExactArtifact
     artifact.requestedUrl !== undefined && artifact.finalUrl !== undefined &&
     artifact.httpStatus !== undefined && artifact.httpStatus >= 200 && artifact.httpStatus < 300 &&
     artifact.requestedUrl === artifact.finalUrl
+    ? artifact as ExactArtifact
+    : undefined;
+}
+
+function replayableNetworkArtifact(
+  plan: HtmlPlan,
+  artifact: SourceFetchArtifactDraft
+): ExactArtifact | undefined {
+  const exact = exactNetworkArtifact(artifact);
+  if (exact) return exact;
+  const policy = plan.table.completenessProof;
+  return policy?.kind === "STATIC_PUBLIC_LIST" &&
+    policy.sourcePolicy === "OTSUKA_CHINA_EMPTY_PUBLIC_LIST_V1" &&
+    typeof artifact.body === "string" && artifact.bodyRepresentation === "REDACTED" &&
+    artifact.requestedUrl !== undefined && artifact.finalUrl !== undefined &&
+    artifact.requestedUrl === artifact.finalUrl && artifact.httpStatus !== undefined &&
+    artifact.httpStatus >= 200 && artifact.httpStatus < 300 &&
+    /^[0-9a-f]{64}$/u.test(artifact.rawBodySha256 ?? "") &&
+    JSON.stringify(artifact.redactionDescriptors) ===
+      JSON.stringify([{ kind: "CREDENTIAL_MATERIAL", count: 1 }]) &&
+    artifact.body !== "[REDACTED_CREDENTIAL_MATERIAL]"
     ? artifact as ExactArtifact
     : undefined;
 }
@@ -1229,7 +1421,7 @@ function talentbrewRequestUrl(
   $: ReturnType<typeof load>,
   endpoint: URL,
   staticFilters: TalentValue[],
-  partition: TalentbrewPartition,
+  partition: TalentbrewPartition | undefined,
   page: number
 ): string {
   const results = $("#search-results").first();
@@ -1248,10 +1440,10 @@ function talentbrewRequestUrl(
     CustomFacetName: results.attr("data-custom-facet-name") ?? "",
     FacetTerm: results.attr("data-facet-term") ?? "",
     FacetType: strictInt(results.attr("data-facet-type"), false) ?? null,
-    FacetFilters: [...staticFilters, {
+    FacetFilters: [...staticFilters, ...(partition ? [{
       ID: partition.id, FacetType: partition.facetType, Count: partition.declaredCount,
       Display: partition.descriptor, IsApplied: true, FieldName: partition.fieldName
-    }],
+    }] : [])],
     SearchResultsModuleName: results.attr("data-search-results-module-name") ?? null,
     SearchFiltersModuleName: filters.attr("data-search-filters-module-name") ?? null,
     SortCriteria: numberOr(results, "data-sort-criteria", 0),

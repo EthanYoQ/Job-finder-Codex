@@ -11,7 +11,7 @@ import { officialBrowserTimeoutMs } from "./officialHttpRuntimeLimits";
 export const PLAN_BOUND_HTML_TRAVERSAL_POLICIES = Object.freeze({
   "source-novartis-social": {
     companyId: "company-novartis",
-    entryUrl: "https://www.novartis.com.cn/careers/career-search?search_api_fulltext=&country%5B%5D=LOC_CN&op=Submit&field_job_posted_date=All",
+    entryUrl: "https://www.novartis.com.cn/careers/career-search?search_api_fulltext=&country%5B0%5D=LOC_CN&op=Submit&field_job_posted_date=All",
     retrievalPath: "PLAYWRIGHT_RENDERED_HTML_NEXT_LINK_TRAVERSAL",
     validatorImplementationId: "plan-bound-html-playwright-traversal-v1",
     mainRetrievalPath: "HTTP_HTML_OFFICIAL_TOTAL_PAGES",
@@ -69,6 +69,44 @@ export const PLAN_BOUND_HTML_TRAVERSAL_POLICIES = Object.freeze({
     rowSelector: ".join-list > .join-item",
     nextSelector: ".join-list .pagination a[href], .join-list a[rel='next'][href], .join-list [data-page]",
     key: { kind: "SYNTHETIC_SOURCE_JOB_ID", partSelectors: [".table-td .career-title", ".table-td .col2"] },
+    maxPages: 1
+  },
+  "source-otsuka-china-social": {
+    companyId: "company-otsuka-china",
+    entryUrl: "https://chinaotsuka.com.cn/class/26",
+    retrievalPath: "PLAYWRIGHT_RENDERED_HTML_NEXT_LINK_TRAVERSAL",
+    validatorImplementationId: "plan-bound-html-playwright-traversal-v1",
+    mainRetrievalPath: "HTTP_HTML_STATIC_PUBLIC_LIST",
+    matchKeyKind: "JOB_DEDUPE_KEY",
+    artifactLogicalKey: "source-otsuka-china-social-browser-traversal-validation",
+    readySelector: ".container.Box",
+    readyState: "attached",
+    rowSelector: ".container.Box [data-job-id], .container.Box .job-item",
+    nextSelector: ".container.Box .pagination, .container.Box a[rel='next'], .container.Box [data-page]",
+    key: { kind: "ATTRIBUTE_SOURCE_JOB_ID", selector: ":scope", attribute: "data-job-id" },
+    allowEmptyList: true,
+    maxPages: 1
+  },
+  "source-sandoz-china-social": {
+    companyId: "company-sandoz-china",
+    entryUrl: "https://www.aspenpharma.cn/careers-at-aspen/aspen-cnjobs/",
+    retrievalPath: "PLAYWRIGHT_RENDERED_HTML_NEXT_LINK_TRAVERSAL",
+    validatorImplementationId: "plan-bound-html-playwright-traversal-v1",
+    mainRetrievalPath: "HTTP_HTML_STATIC_PUBLIC_LIST",
+    matchKeyKind: "JOB_DEDUPE_KEY",
+    artifactLogicalKey: "source-sandoz-china-social-browser-traversal-validation",
+    readySelector: ".elementor.elementor-1709",
+    readyState: "attached",
+    rowSelector: "main a[href*='/jobs/'], .elementor-location-single a[href*='/jobs/']",
+    nextSelector: "a[rel='next'], .pagination a.next",
+    key: {
+      kind: "OFFICIAL_URL",
+      selector: ":scope",
+      origin: "https://www.aspenpharma.cn",
+      pathPrefix: "/jobs/",
+      dedupe: "OFFICIAL_URL"
+    },
+    allowEmptyList: true,
     maxPages: 1
   },
   "source-grand-pharma-social": {
@@ -129,7 +167,16 @@ export const PLAN_BOUND_HTML_TRAVERSAL_POLICIES = Object.freeze({
     readyState: "attached",
     rowSelector: ".jobsTable tr:not(.title)",
     nextSelector: "a.next:has-text('下一页')[href*='PageIndex=']",
-    pageCoordinate: { kind: "QUERY", firstPath: "/social", pagePath: "/social/", parameter: "PageIndex" },
+    pageCoordinate: {
+      kind: "QUERY",
+      firstPath: "/social",
+      pagePath: "/social/",
+      parameter: "PageIndex",
+      fixedSearchParams: {
+        first: { r: "", p: "1^2", c: "", d: "", k: "" },
+        subsequent: { p: "1^2" }
+      }
+    },
     navigationWaitUntil: "commit",
     followNextHref: true,
     key: {
@@ -195,7 +242,9 @@ export const PLAN_BOUND_HTML_TRAVERSAL_SOURCE_IDS = Object.freeze([
   "source-novartis-social",
   "source-astellas-china-social",
   "source-grand-pharma-social",
-  "source-kelun-social"
+  "source-kelun-social",
+  "source-otsuka-china-social",
+  "source-sandoz-china-social"
 ] as const satisfies readonly PlanBoundHtmlTraversalSourceId[]);
 
 export const PLAN_BOUND_HTML_REQUIRED_CERTIFICATES = Object.freeze(
@@ -301,6 +350,12 @@ export function assertPlanBoundHtmlValidationMatchKey(
   if (policy.key.kind === "TEXT_SOURCE_JOB_ID") {
     const matched = new RegExp(policy.key.sourceJobIdPattern, "u").exec(payload)?.[1];
     if (matched !== payload) throw new Error("Plan-bound HTML validation text source job ID is invalid");
+    return;
+  }
+  if (policy.key.kind === "ATTRIBUTE_SOURCE_JOB_ID") {
+    if (!payload || payload.includes("/") || payload.includes("\\") || payload.includes("\u0000")) {
+      throw new Error("Plan-bound HTML validation attribute source job ID is invalid");
+    }
     return;
   }
   if (policy.key.dedupe === "URL_SOURCE_JOB_ID") {
@@ -484,12 +539,13 @@ export async function capturePlanBoundHtmlRenderedTraversal(input: {
           seenMatchKeys.add(key);
           return true;
         });
-        if (matchKeys.length === 0) {
-          throw new Error("Plan-bound HTML browser validator page added no new jobs");
-        }
         const next = page.locator(policy.nextSelector);
         const activeNextControl = await findUniqueVisibleActiveNextControl(next, pageUrl);
         const nextControlPresent = activeNextControl !== undefined;
+        if (matchKeys.length === 0 && (!("allowEmptyList" in policy) || policy.allowEmptyList !== true ||
+          pageNumber !== 1 || rawMatchKeys.length !== 0 || nextControlPresent)) {
+          throw new Error("Plan-bound HTML browser validator page added no new jobs");
+        }
         capturedPages.push({
           pageNumber,
           matchKeys,
@@ -1168,6 +1224,9 @@ async function readMatchKeysFromLocator(
       const target = row.querySelector(key.selector);
       return target?.textContent?.replace(/\s+/gu, " ").trim() ?? "";
     }
+    if (key.kind === "ATTRIBUTE_SOURCE_JOB_ID") {
+      return row.getAttribute(key.attribute)?.trim() ?? "";
+    }
     return key.partSelectors.map((selector) =>
       row.querySelector(selector)?.textContent?.replace(/\s+/gu, " ").trim() ?? "");
   }), policy.key);
@@ -1181,6 +1240,7 @@ async function readMatchKeysFromLocator(
         if (!matched) throw new Error("Plan-bound HTML browser validator text source job ID is missing");
         return `${sourceId}:${matched}`;
       }
+      if (policy.key.kind === "ATTRIBUTE_SOURCE_JOB_ID") return `${sourceId}:${row}`;
       if (policy.key.kind !== "OFFICIAL_URL") throw new Error("Plan-bound HTML browser validator key policy mismatch");
       assertOfficialJobUrl(policy, row);
       if (policy.key.dedupe === "OFFICIAL_URL") return `${sourceId}:${row}`;
@@ -1252,8 +1312,13 @@ function assertPageUrl(sourceId: PlanBoundHtmlTraversalSourceId, value: string, 
     if (coordinate.kind === "QUERY") {
       const expectedPath = pageNumber === 1 ? coordinate.firstPath : coordinate.pagePath;
       const expectedPage = pageNumber === 1 ? null : String(pageNumber);
-      if (actual.pathname !== expectedPath || actual.searchParams.get(coordinate.parameter) !== expectedPage ||
-          [...actual.searchParams.keys()].some((key) => key !== coordinate.parameter)) {
+      const fixedSearchParams = "fixedSearchParams" in coordinate
+        ? pageNumber === 1 ? coordinate.fixedSearchParams.first : coordinate.fixedSearchParams.subsequent
+        : {};
+      const expectedSearchParams = new URLSearchParams(fixedSearchParams);
+      if (expectedPage !== null) expectedSearchParams.set(coordinate.parameter, expectedPage);
+      if (actual.pathname !== expectedPath ||
+          canonicalSearchParams(actual.searchParams) !== canonicalSearchParams(expectedSearchParams)) {
         throw new Error("Plan-bound HTML browser validator query page coordinate mismatch");
       }
     } else if (actual.pathname !== `${coordinate.prefix}${pageNumber}${coordinate.suffix}` ||
@@ -1266,12 +1331,17 @@ function assertPageUrl(sourceId: PlanBoundHtmlTraversalSourceId, value: string, 
     }
     const expected = new URL(entry);
     if (pageNumber > 1) expected.searchParams.set("page", String(pageNumber - 1));
-    if (actual.search !== expected.search) {
+    if (canonicalSearchParams(actual.searchParams) !== canonicalSearchParams(expected.searchParams)) {
       throw new Error("Novartis browser validator page coordinate mismatch");
     }
   } else if (actual.pathname !== entry.pathname || actual.search !== "") {
     throw new Error("Static HTML browser validator added unexpected query parameters");
   }
+}
+
+function canonicalSearchParams(value: URLSearchParams): string {
+  return JSON.stringify([...value.entries()].sort(([leftKey, leftValue], [rightKey, rightValue]) =>
+    compareUtf8(leftKey, rightKey) || compareUtf8(leftValue, rightValue)));
 }
 
 function assertOfficialJobUrl(

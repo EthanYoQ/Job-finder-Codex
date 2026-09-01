@@ -117,7 +117,8 @@ export function createHttpHtmlSourceFetch(
       }
 
       const pages = [response.body];
-      for (let page = 2; page <= pagination.pagesToVisit; page += 1) {
+      let pagesToVisit = pagination.pagesToVisit;
+      for (let page = 2; page <= pagesToVisit; page += 1) {
         const pageResponse = await http({
           url: buildPageUrl(plan.source.officialEntryUrl, plan.table.pagination!, page),
           headers: htmlRequestHeaders(plan.table)
@@ -128,6 +129,12 @@ export function createHttpHtmlSourceFetch(
             plan.table, capturedAt, "ordinary");
         }
         pages.push(pageResponse.body);
+        if (plan.table.pagination?.officialWindowMode === "NOVARTIS_PAGE_WINDOW_V1") {
+          const laterTotal = readPaginationEvidence(pageResponse.body, plan.table.pagination).declaredTotalPages;
+          if (laterTotal !== undefined) {
+            pagesToVisit = Math.min(Math.max(pagesToVisit, laterTotal), plan.table.pagination.maxPages);
+          }
+        }
       }
 
       return attachHtmlEvidence({
@@ -799,6 +806,10 @@ function attachHtmlEvidence(
     mode === "ordinary" && table.pagination?.totalPagesDeclaredOnEntryOnly === true
       ? readPaginationEvidence(interactions[0]!.response.body, table.pagination)
       : undefined;
+  const novartisWindowTotalPages = mode === "ordinary" && isNovartisOfficialWindow(table)
+    ? Math.max(...interactions.map(({ response }) =>
+        readPaginationEvidence(response.body, table.pagination).declaredTotalPages ?? 0)) || undefined
+    : undefined;
   interactions.forEach(({ request, response }, sequence) => {
     const logicalKey = `official-html-page-${String(sequence).padStart(4, "0")}`;
     const isTalentEntry = mode === "talentbrew" && sequence === 0;
@@ -806,7 +817,12 @@ function attachHtmlEvidence(
     const bodyRepresentation = tevaEmbeddedZeroAssessment !== undefined || sensitiveHtmlBody(response.body)
       ? "REDACTED" as const
       : "EXACT" as const;
-    const artifactBody = bodyRepresentation === "REDACTED" ? "[REDACTED_CREDENTIAL_MATERIAL]" : response.body;
+    const safeStaticProjection = bodyRepresentation === "REDACTED" && staticAssessment?.zero === true
+      ? otsukaRedactedEmptyListProjection(response.body, table)
+      : undefined;
+    const artifactBody = bodyRepresentation === "REDACTED"
+      ? safeStaticProjection ?? "[REDACTED_CREDENTIAL_MATERIAL]"
+      : response.body;
     artifacts.push({
       id: logicalKey, logicalKey, kind,
       ...(request.evidenceChannelId ? { channelId: request.evidenceChannelId } : {}),
@@ -886,7 +902,8 @@ function attachHtmlEvidence(
       ? strictOptionalNonnegativeInt($("#search-results").first().attr("data-total-pages") ?? null) ?? null
       : mode === "tupu360"
         ? parseTupuTotalPages($("#pageTurnUl li:first-child").first().text()) ?? null
-        : entryOnlyOrdinaryDeclaration?.declaredTotalPages ?? ordinaryDeclaration?.declaredTotalPages ?? null;
+        : novartisWindowTotalPages ?? entryOnlyOrdinaryDeclaration?.declaredTotalPages ??
+          ordinaryDeclaration?.declaredTotalPages ?? null;
     const returnedPageSize = mode === "talentbrew"
       ? strictOptionalPositiveInt($("#search-results").first().attr("data-records-per-page") ?? null) ?? null
       : null;
@@ -1044,7 +1061,38 @@ function configuredHtmlCompletenessDeclaration(
   if (!policy || pages.length === 0) return undefined;
 
   if (policy.kind === "OFFICIAL_TOTAL_PAGES") {
-    if (mode !== "ordinary" || !table.pagination) return undefined;
+    if (!table.pagination) return undefined;
+    if (mode === "talentbrew") {
+      if (table.pagination.talentbrewScope !== undefined || pages.some((page) => page.channelId !== undefined)) {
+        return undefined;
+      }
+      const declaredTotal = pages[0]?.declaredTotal;
+      const declaredPages = pages[0]?.declaredPages;
+      const pageSize = pages[0]?.returnedPageSize;
+      const rawIds = pages.flatMap((page) => page.rawJobIds);
+      const closed = typeof declaredTotal === "number" && Number.isSafeInteger(declaredTotal) && declaredTotal >= 0 &&
+        typeof declaredPages === "number" && Number.isSafeInteger(declaredPages) && declaredPages > 0 &&
+        declaredPages === pages.length && typeof pageSize === "number" && Number.isSafeInteger(pageSize) && pageSize > 0 &&
+        pages.every((page, index) => page.declaredTotal === declaredTotal &&
+          page.declaredPages === declaredPages && page.requestedPage === index + 1 &&
+          page.returnedPage === index + 1 && page.requestedPageSize === pageSize &&
+          page.returnedPageSize === pageSize && page.declaredCount === pageSize &&
+          page.nextPageSignalAfter === (index + 1 < pages.length ? `page-${index + 2}` : null) &&
+          page.termination === (index + 1 < pages.length ? "CONTINUE" : "NEXT_ABSENT")) &&
+        rawIds.length === declaredTotal && new Set(rawIds).size === declaredTotal;
+      if (!closed) return undefined;
+      const artifact = artifacts.find((candidate) => candidate.logicalKey === pages[0]!.artifactLogicalKey);
+      return artifact
+        ? {
+            kind: "OFFICIAL_TOTAL_COUNT",
+            value: declaredTotal,
+            artifactLogicalKey: artifact.logicalKey,
+            extractorLocator: artifact.extractorLocator,
+            scope: "SOURCE"
+          }
+        : undefined;
+    }
+    if (mode !== "ordinary") return undefined;
     const zeroPage = pages.length === 1 ? pages[0] : undefined;
     if (zeroPage?.declaredTotal === 0 && zeroPage.declaredPages === 1 &&
       zeroPage.termination === "EMPTY_PAGE" && zeroPage.nextPageSignalAfter == null &&
@@ -1428,6 +1476,23 @@ function assessStaticPublicList(
   } catch {
     return { valid: false, zero: false, redactedPositivePartialEligible: false };
   }
+}
+
+function otsukaRedactedEmptyListProjection(body: string, table: HtmlTableConfig): string | undefined {
+  if (table.completenessProof?.kind !== "STATIC_PUBLIC_LIST" ||
+    table.completenessProof.sourcePolicy !== "OTSUKA_CHINA_EMPTY_PUBLIC_LIST_V1" ||
+    table.rowSelector !== ".container.Box [data-job-id], .container.Box .job-item" ||
+    table.staticPublicList?.containerSelector !== ".container.Box" ||
+    table.staticPublicList.nextControlSelector !==
+      ".container.Box .pagination, .container.Box a[rel='next'], .container.Box [data-page]" ||
+    table.staticPublicList.explicitEmptyState?.selector !== ".container.Box" ||
+    table.staticPublicList.explicitEmptyState.pattern !== "热招岗位[\\s\\S]*联系我们") return undefined;
+  const $ = load(body);
+  const container = $(table.staticPublicList.containerSelector);
+  if (container.length !== 1 || $(table.rowSelector).length !== 0 ||
+    $(table.staticPublicList.nextControlSelector).length !== 0) return undefined;
+  const projection = $.html(container.get(0));
+  return projection && !sensitiveHtmlBody(projection) ? projection : undefined;
 }
 
 function assessTevaEmbeddedJsonZero(

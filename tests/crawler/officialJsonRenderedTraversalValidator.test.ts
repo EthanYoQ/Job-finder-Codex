@@ -28,23 +28,34 @@ import {
   issueBGradeTraversalCertificate,
   requiresBGradeCertificateSourceId
 } from "../../src/crawler/traversalCertificate";
+import { requiresAGradeCertificateSourceId } from "../../src/crawler/completenessCertificate";
 
 const observedAt = "2026-08-14T00:00:00.000Z";
 const expiresAt = "2026-08-21T00:00:00.000Z";
 
 describe("official JSON rendered traversal", () => {
-  it("requires a B-grade certificate only for the remaining in-scope rendered source", () => {
+  it("requires B-grade certificates for lossy or independently rendered in-scope sources", () => {
     expect(OFFICIAL_JSON_RENDERED_REQUIRED_CERTIFICATES).toEqual({
+      "source-boehringer-ingelheim-china-social": "company-boehringer-ingelheim-china",
+      "source-fosun-pharma-social": "company-fosun-pharma",
+      "source-hansoh-social": "company-hansoh",
+      "source-united-lab-social": "company-united-lab",
       "source-cspc-social": "company-cspc"
     });
     expect(Object.keys(OFFICIAL_JSON_RENDERED_TRAVERSAL_POLICIES)).toEqual([
+      "source-boehringer-ingelheim-china-social",
+      "source-fosun-pharma-social",
+      "source-hansoh-social",
+      "source-united-lab-social",
       "source-cspc-social",
       "source-nhu-social",
       "source-xiuzheng-social"
     ]);
     for (const sourceId of Object.keys(OFFICIAL_JSON_RENDERED_REQUIRED_CERTIFICATES)) {
       expect(requiresBGradeCertificateSourceId(sourceId)).toBe(true);
+      expect(requiresAGradeCertificateSourceId(sourceId)).toBe(false);
     }
+    expect(requiresBGradeCertificateSourceId("source-qilu-social")).toBe(true);
   });
 
   it("replays CSPC, NHU, and Xiuzheng with the same source job identities as their main adapters", () => {
@@ -107,6 +118,36 @@ describe("official JSON rendered traversal", () => {
       rawSourceJobIds: ["16", "17"],
       excludedSourceJobIds: ["17"]
     }));
+  });
+
+  it("replays Beisen date exclusions and the Boehringer rendered UI set without count constants", () => {
+    const recentId = "00000000-0000-4000-8000-000000000031";
+    const staleId = "00000000-0000-4000-8000-000000000032";
+    const cutoffAt = "2026-03-03T16:00:00.000Z";
+    const beisenRows = [
+      { id: recentId, changeDate: "2026-03-04T00:00:00", decision: "INCLUDED_MAINLAND" as const },
+      { id: staleId, changeDate: "2026-03-03T23:59:59", decision: "EXCLUDED_AUDITED" as const }
+    ].map(({ id, changeDate, decision }, recordIndex) => ({
+      sourceJobId: persistentOfficialJsonJobId(id),
+      rawEvidenceId: irreversibleOfficialJsonEvidenceId(id),
+      scopeMarker: JSON.stringify({ locations: ["上海市"], changeDate, cutoffAt }),
+      scopeDecision: decision,
+      recordIndex,
+      rawPayload: { Id: id, LocNames: ["上海市"], ChangeDate: changeDate }
+    }));
+    expect(replayOfficialJsonRenderedTraversal("source-hansoh-social", [page({ rows: beisenRows })]))
+      .toMatchObject({ rawCount: 2, excludedCount: 1, matchKeys: [persistentOfficialJsonJobId(recentId)] });
+
+    const jobId = "173472429";
+    const sourceJobId = persistentOfficialJsonJobId(jobId);
+    expect(replayOfficialJsonRenderedTraversal("source-boehringer-ingelheim-china-social", [page({ rows: [{
+      sourceJobId,
+      rawEvidenceId: irreversibleOfficialJsonEvidenceId(jobId),
+      scopeMarker: "OFFICIAL_RENDERED_JOB_LINK",
+      scopeDecision: "INCLUDED_MAINLAND",
+      recordIndex: 0,
+      rawPayload: { jobId }
+    }] })])).toMatchObject({ rawCount: 1, excludedCount: 0, matchKeys: [sourceJobId] });
   });
 
   it("creates a strict validation and rejects scope, evidence, and pagination forgeries", () => {

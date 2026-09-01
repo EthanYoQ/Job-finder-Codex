@@ -144,7 +144,8 @@ type TransportAttemptKind = "DIRECT_HTTP" | "BROWSER_SESSION";
 type TransportAttemptOutcome = "FAILED" | "SUCCEEDED";
 type TransportAttemptCode = "HCM_DIRECT_FAILED" | "HCM_BROWSER_SESSION_FAILED" |
   "HCM_BROWSER_ENTRY_FAILED" | "HCM_BROWSER_COUNT_FAILED" | "HCM_BROWSER_LIST_FAILED" |
-  "HCM_BROWSER_SUCCEEDED";
+  "HCM_BROWSER_SUCCEEDED" | "JNJ_DIRECT_FAILED" | "JNJ_BROWSER_SESSION_FAILED" |
+  "JNJ_BROWSER_FETCH_FAILED" | "JNJ_BROWSER_SUCCEEDED";
 
 interface EvidenceTuple {
   releaseCandidateId: string;
@@ -1331,8 +1332,10 @@ function validateEvidenceTransportAttempts(
     requireNonblank(attempt.code, "transport attempt code");
     if (attempt.sequence !== index || attemptIds.has(attempt.id) || !TRANSPORT_ATTEMPT_CODES.has(attempt.code) ||
         !isValidDate(attempt.capturedAt)) throw new Error("Transport attempt code, sequence, ID or timestamp is invalid");
-    const expectedTransport = attempt.code === "HCM_DIRECT_FAILED" ? "DIRECT_HTTP" : "BROWSER_SESSION";
-    const expectedOutcome = attempt.code === "HCM_BROWSER_SUCCEEDED" ? "SUCCEEDED" : "FAILED";
+    const expectedTransport = attempt.code === "HCM_DIRECT_FAILED" || attempt.code === "JNJ_DIRECT_FAILED"
+      ? "DIRECT_HTTP" : "BROWSER_SESSION";
+    const expectedOutcome = attempt.code === "HCM_BROWSER_SUCCEEDED" || attempt.code === "JNJ_BROWSER_SUCCEEDED"
+      ? "SUCCEEDED" : "FAILED";
     if (attempt.transport !== expectedTransport || attempt.outcome !== expectedOutcome) {
       throw new Error("Transport attempt code, transport and outcome are inconsistent");
     }
@@ -1901,7 +1904,8 @@ function validateAtomicSourceEvidenceCommit(
       throw new Error("OFFICIAL_TOTAL_COUNT requires explicit expectedJobCount and an archived network artifact");
     }
     if (result.completenessState === "VERIFIED" &&
-        result.expectedJobCount !== result.dedupeOutputCount) {
+        result.expectedJobCount !== result.dedupeOutputCount &&
+        !hasExactGrifolsVerifiedDetailScopeExclusions(input, artifactByLogicalKey)) {
       throw new Error("OFFICIAL_TOTAL_COUNT expectedJobCount must equal dedupeOutputCount");
     }
     requireNonblank(officialArtifact.extractorLocator, "OFFICIAL_TOTAL_COUNT extraction locator");
@@ -1992,6 +1996,44 @@ function validateAtomicSourceEvidenceCommit(
   return { observationCommand: observation, artifactIdsByLogicalKey, officialArtifactId: officialArtifact.id };
 }
 
+const GRIFOLS_SOURCE_ID = "source-grifols-china-social";
+const GRIFOLS_DETAIL_LOCATOR =
+  "grifols-successfactors-detail-v1|html:canonical+streetAddress+content-location";
+
+function hasExactGrifolsVerifiedDetailScopeExclusions(
+  input: AtomicSourceEvidenceCommit,
+  artifactsByLogicalKey: ReadonlyMap<string, AtomicEvidenceArtifactInput>
+): boolean {
+  const result = input.sourceResult;
+  if (result.sourceId !== GRIFOLS_SOURCE_ID || result.expectedEvidenceKind !== "OFFICIAL_TOTAL_COUNT" ||
+      result.expectedJobCount === null || result.parseDiscardCount !== 0 || result.normalizationDiscardCount !== 0 ||
+      result.dedupeDiscardCount !== 0 || result.validationDiscardCount <= 0 ||
+      result.rawCount !== result.expectedJobCount || result.parsedCount !== result.rawCount ||
+      result.validCount !== result.dedupeOutputCount ||
+      result.expectedJobCount !== result.dedupeOutputCount + result.validationDiscardCount ||
+      input.lossLedger.length !== result.validationDiscardCount) return false;
+
+  const recordIndexes = new Set<number>();
+  for (const loss of input.lossLedger) {
+    const details = loss.details;
+    if (loss.stage !== "VALIDATION" ||
+        loss.reason !== "official detail places the job outside mainland China" ||
+        typeof details !== "object" || details === null || Array.isArray(details)) return false;
+    const values = details as Record<string, unknown>;
+    const recordIndex = values.recordIndex;
+    if (values.code !== "VERIFIED_DETAIL_OUT_OF_MAINLAND_SCOPE" ||
+        !Number.isSafeInteger(recordIndex) || (recordIndex as number) < 0 || recordIndexes.has(recordIndex as number)) {
+      return false;
+    }
+    const rawLocatorMatch = /^(grifols-detail-\d{4})#(.+)$/u.exec(loss.rawLocator);
+    if (!rawLocatorMatch || rawLocatorMatch[2] !== GRIFOLS_DETAIL_LOCATOR) return false;
+    const artifact = artifactsByLogicalKey.get(rawLocatorMatch[1]!);
+    if (!artifact || artifact.kind !== "ATS_PAGE" || artifact.extractorLocator !== GRIFOLS_DETAIL_LOCATOR) return false;
+    recordIndexes.add(recordIndex as number);
+  }
+  return true;
+}
+
 const NETWORK_ARTIFACT_KINDS = new Set<EvidenceArtifactKind>([
   "OFFICIAL_COMPANY_PAGE", "REDIRECT_TRACE", "ATS_PAGE", "ATS_API_RESPONSE", "PAGINATION_PAGE"
 ]);
@@ -2041,7 +2083,8 @@ function validateSafeJson(value: unknown, label: string, depth = 0): void {
 
 const TRANSPORT_ATTEMPT_CODES = new Set<TransportAttemptCode>([
   "HCM_DIRECT_FAILED", "HCM_BROWSER_SESSION_FAILED", "HCM_BROWSER_ENTRY_FAILED",
-  "HCM_BROWSER_COUNT_FAILED", "HCM_BROWSER_LIST_FAILED", "HCM_BROWSER_SUCCEEDED"
+  "HCM_BROWSER_COUNT_FAILED", "HCM_BROWSER_LIST_FAILED", "HCM_BROWSER_SUCCEEDED",
+  "JNJ_DIRECT_FAILED", "JNJ_BROWSER_SESSION_FAILED", "JNJ_BROWSER_FETCH_FAILED", "JNJ_BROWSER_SUCCEEDED"
 ]);
 
 function assertTuple(value: EvidenceTuple, expected: EvidenceTuple, label: string): void {
