@@ -220,7 +220,7 @@ function validateReceipt(receipt: FormalQualificationRoundOneReceipt): void {
 function isRoundOneQualified(value: Pick<FormalQualificationRoundOneReceipt,
   "batchStatus" | "auditDecision" | "companyCount" | "foreignCompanyCount" | "blockerCount">): boolean {
   return value.batchStatus === "SUCCESS" && value.auditDecision === "AUDIT_COMPLETE" &&
-    value.companyCount === 50 && value.foreignCompanyCount === 30 && value.blockerCount === 0;
+    value.companyCount === 41 && value.foreignCompanyCount === 30 && value.blockerCount === 0;
 }
 
 function isCanonicalInstant(value: unknown): value is string {

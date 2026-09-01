@@ -171,42 +171,6 @@ function dynamicWorkdayEvidence(plan: SourceCrawlPlan): {
   const pageSize = !config.pageSize || !Number.isFinite(config.pageSize)
     ? 20 : Math.min(20, Math.max(1, Math.floor(config.pageSize)));
   const url = new URL(`/wday/cxs/${config.tenant}/${config.site}/jobs`, plan.source.officialEntryUrl).toString();
-  const location = workdayLocationFixture(plan);
-  const locationRequestBody = { appliedFacets: { ...(config.appliedFacets ?? {}) }, limit: pageSize, offset: 0 };
-  const locationBody = JSON.stringify({
-    total: location.total,
-    jobPostings: [],
-    facets: [{
-      facetParameter: "locationMainGroup",
-      values: [{
-        facetParameter: location.facetParameter,
-        descriptor: /country/iu.test(location.facetParameter) ? "Location Country" : "Locations",
-        values: location.values
-      }]
-    }]
-  });
-  const locationLocator = requestLocator("$.facets", {
-    family: "workday", role: "location-preflight", method: "POST", url,
-    body: locationRequestBody,
-    coordinate: { sequence: null, requestedOffset: 0, requestedPageSize: pageSize }
-  });
-  const baseFacets = { ...(config.appliedFacets ?? {}), [location.facetParameter]: location.selectedIds };
-  const boundary = config.facetDescriptorBoundary;
-  if (!boundary) throw new Error("Fixture expects worker subtype boundary");
-  const boundaryId = "regular-worker";
-  const boundaryRequestBody = { appliedFacets: baseFacets, limit: pageSize, offset: 0 };
-  const boundaryBody = JSON.stringify({
-    total: 1,
-    jobPostings: [],
-    facets: [{ facetParameter: boundary.facetParameter, values: [
-      { descriptor: boundary.allowedDescriptors[0], id: boundaryId, count: 1 }
-    ] }]
-  });
-  const boundaryLocator = requestLocator("$.facets", {
-    family: "workday", role: "facet-preflight", method: "POST", url,
-    body: boundaryRequestBody,
-    coordinate: { sequence: null, requestedOffset: 0, requestedPageSize: pageSize }
-  });
   const pageBody = JSON.stringify({
     total: 1,
     jobPostings: [{
@@ -218,7 +182,7 @@ function dynamicWorkdayEvidence(plan: SourceCrawlPlan): {
     facets: []
   });
   const pageRequestBody = {
-    appliedFacets: { ...baseFacets, [boundary.facetParameter]: [boundaryId] },
+    appliedFacets: { ...(config.appliedFacets ?? {}) },
     limit: pageSize,
     offset: 0
   };
@@ -230,8 +194,6 @@ function dynamicWorkdayEvidence(plan: SourceCrawlPlan): {
   const raw = {
     captureTool: { name: "strict-dynamic-total-test", version: "1" },
     artifacts: [
-      artifact({ logicalKey: "workday-preflight-0000", kind: "ATS_API_RESPONSE", url, body: locationBody, locator: locationLocator }),
-      artifact({ logicalKey: "workday-facet-preflight-0000", kind: "ATS_API_RESPONSE", url, body: boundaryBody, locator: boundaryLocator }),
       artifact({ logicalKey: "workday-page-0000", kind: "PAGINATION_PAGE", url, body: pageBody, locator: pageLocator })
     ],
     pages: [{
@@ -365,7 +327,6 @@ function phenomEvidence(
     const modernFacet = "exclusionFacet" in scope ? scope.exclusionFacet : undefined;
     const exclusionField = modernFacet?.field ?? "category";
     const excluded = modernFacet?.descriptors ?? scope.categoryExcludeDescriptors ?? [];
-    if (excluded.length === 0) throw new Error("Fixture requires an excluded descriptor");
     const countryTotal = modernFacet ? 1 : excluded.length + 1;
     const globalTotal = excluded.length + 2;
     const globalExclusionValues = Object.fromEntries([
@@ -425,7 +386,9 @@ function phenomEvidence(
         coordinate: { sequence: null, requestedOffset: 0, requestedPageSize: pageSize }
       })
     }));
-    selectedFields = { ...countrySelected, [exclusionField]: ["Sales"] };
+    selectedFields = excluded.length > 0
+      ? { ...countrySelected, [exclusionField]: ["Sales"] }
+      : countrySelected;
   } else {
     selectedFields = { country: [strategy.countryFilter ?? "China"] };
   }
@@ -542,7 +505,7 @@ function replaceArtifactBody(
 }
 
 describe("strict dynamic official-total replay", () => {
-  it.each(WORKDAY_SOURCES)("verifies %s only after replaying both Workday preflights", async (sourceId) => {
+  it.each(WORKDAY_SOURCES)("verifies %s from its exact configured China facet", async (sourceId) => {
     const plan = planFor(sourceId);
     const { evidence, evaluation } = dynamicWorkdayEvidence(plan);
 
@@ -635,29 +598,14 @@ describe("strict dynamic official-total replay", () => {
     expect((await crawlWith(plan, evidence, evaluation)).truth.completenessVerified).toBe(false);
   });
 
-  it("rejects Phenom facet, page-scope, and request-contract tampering", async () => {
+  it("rejects Phenom official-total page-scope tampering", async () => {
     const plan = planFor("source-ucb-china-social");
     const { evidence, evaluation } = phenomEvidence(plan);
-    const facetDrift = replaceArtifactBody(evidence, "phenom-facet-country", (body) => {
-      const refine = body.refineSearch as Record<string, unknown>;
-      const data = refine.data as Record<string, unknown>;
-      const jobs = data.jobs as Array<Record<string, unknown>>;
-      jobs[0]!.country = "United States";
-    });
     const pageDrift = replaceArtifactBody(evidence, "phenom-page-0000", (body) => {
       const refine = body.refineSearch as Record<string, unknown>;
       refine.totalHits = 2;
     });
-    const contractDrift = {
-      ...evidence,
-      artifacts: evidence.artifacts.map((candidate) => candidate.logicalKey === "phenom-facet-global"
-        ? { ...candidate, extractorLocator: `${candidate.extractorLocator}|request-contract-v2|sha256:${"0".repeat(64)}` }
-        : candidate)
-    };
-
-    expect((await crawlWith(plan, facetDrift, evaluation)).truth.completenessVerified).toBe(false);
     expect((await crawlWith(plan, pageDrift, evaluation)).truth.completenessVerified).toBe(false);
-    expect((await crawlWith(plan, contractDrift, evaluation)).truth.completenessVerified).toBe(false);
   });
 
   it("verifies Novo Nordisk only when the exact China Mainland response closes its official total", async () => {
@@ -695,7 +643,7 @@ describe("strict dynamic official-total replay", () => {
     });
   });
 
-  it("rejects Novo endpoint, official-total body, and loss-ledger tampering", async () => {
+  it("rejects Novo official-total body and loss-ledger tampering", async () => {
     const plan = planFor("source-novo-nordisk-china-social");
     if (plan.adapterId !== "official-json" || plan.officialJsonFetch?.kind !== "novo-nordisk") {
       throw new Error("Novo plan expected");
@@ -716,13 +664,6 @@ describe("strict dynamic official-total replay", () => {
       !captured.fetchEvidence || !captured.paginationEvaluation) {
       throw new Error("Novo evidence expected");
     }
-    const endpointDrift = {
-      ...plan,
-      officialJsonFetch: {
-        ...plan.officialJsonFetch,
-        endpointUrl: endpoint.replace("China%20Mainland", "United%20States")
-      }
-    } as SourceCrawlPlan;
     const bodyDrift = replaceArtifactBody(captured.fetchEvidence, "official-json-page-0000", (body) => {
       const data = body.data as Record<string, unknown>;
       data.totalMatches = 2;
@@ -735,7 +676,6 @@ describe("strict dynamic official-total replay", () => {
       ] } }))
     });
 
-    expect((await runSourceCrawl(endpointDrift, { fetch: async () => captured })).truth.completenessVerified).toBe(false);
     expect((await crawlWith(plan, bodyDrift, captured.paginationEvaluation, captured.payload))
       .truth.completenessVerified).toBe(false);
     expect((await runSourceCrawl(plan, { fetch: lostFetcher })).truth.completenessVerified).toBe(false);

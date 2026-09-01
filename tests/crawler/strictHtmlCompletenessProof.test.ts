@@ -37,12 +37,12 @@ async function evidenceFor(
 
 describe("independent strict HTML completeness proof", () => {
   it("promotes a canonical staged HTML source only after the independent replay passes", async () => {
-    const plan = getPlanBySourceId(buildStagedSourceCrawlPlans(candidateCompanies), "source-fosun-pharma-social");
-    if (plan?.adapterId !== "html-table") throw new Error("missing canonical Fosun plan");
+    const plan = getPlanBySourceId(buildStagedSourceCrawlPlans(candidateCompanies), "source-kelun-social");
+    if (plan?.adapterId !== "html-table") throw new Error("missing canonical Kelun plan");
     const fetch = createHttpHtmlSourceFetch({
       now: () => new Date(capturedAt),
-      http: async request => response(request, `<div class="page"><a href="/social/?PageIndex=1">1</a></div>
-        <table><tr><td><a href="/socialxq?jobId=one">医学经理</a></td><td></td><td></td><td><a>上海</a></td></tr></table>`)
+      http: async request => response(request, `<div class="page"><a href="/social?r=&p=1%5E2&c=&d=&k=&PageIndex=1">1</a></div>
+        <table class="jobsTable"><tr><td><a href="/socialxq?jobId=one">医学经理</a></td><td></td><td></td><td></td><td>上海</td></tr></table>`)
     });
     const fetched = await fetch(plan);
     if (!fetched.ok || !fetched.fetchEvidence) throw new Error(fetched.ok ? "missing evidence" : fetched.failureReason);
@@ -56,18 +56,18 @@ describe("independent strict HTML completeness proof", () => {
     });
   });
 
-  it("accepts Fosun total pages declared only on the entry page while still requiring every page", async () => {
-    const plan = getPlanBySourceId(buildStagedSourceCrawlPlans(candidateCompanies), "source-fosun-pharma-social");
-    if (plan?.adapterId !== "html-table") throw new Error("missing canonical Fosun plan");
+  it("accepts Kelun total pages declared only on the entry page while still requiring every page", async () => {
+    const plan = getPlanBySourceId(buildStagedSourceCrawlPlans(candidateCompanies), "source-kelun-social");
+    if (plan?.adapterId !== "html-table") throw new Error("missing canonical Kelun plan");
     const fetch = createHttpHtmlSourceFetch({
       now: () => new Date(capturedAt),
       http: async request => {
         const page = Number(new URL(request.url).searchParams.get("PageIndex") ?? "1");
         const linkedPages = page === 1 ? [1, 2, 3] : page === 2 ? [1, 3] : [1, 2];
         const pagination = `<div class="page">${linkedPages
-          .map(value => `<a href="/social/?PageIndex=${value}">${value}</a>`).join("")}
+          .map(value => `<a href="/social?r=&p=1%5E2&c=&d=&k=&PageIndex=${value}">${value}</a>`).join("")}
           <a class="now" href="javascript:void(0);">${page}</a></div>`;
-        return response(request, `${pagination}<table><tr><td><a href="/socialxq?jobId=${page}">职位 ${page}</a></td><td></td><td></td><td><a>上海</a></td></tr></table>`);
+        return response(request, `${pagination}<table class="jobsTable"><tr><td><a href="/socialxq?jobId=${page}">职位 ${page}</a></td><td></td><td></td><td></td><td>上海</td></tr></table>`);
       }
     });
     const fetched = await fetch(plan);
@@ -78,7 +78,7 @@ describe("independent strict HTML completeness proof", () => {
 
     const entryTotalTampered = structuredClone(fetched.fetchEvidence);
     entryTotalTampered.artifacts[0]!.body = String(entryTotalTampered.artifacts[0]!.body)
-      .replace('<a href="/social/?PageIndex=3">3</a>', "");
+      .replace('<a href="/social?r=&p=1%5E2&c=&d=&k=&PageIndex=3">3</a>', "");
     expect(validateStrictHtmlCompletenessProof(plan, entryTotalTampered)).toBe(false);
 
     const laterPagerExceedsEntry = structuredClone(fetched.fetchEvidence);
@@ -158,9 +158,25 @@ describe("independent strict HTML completeness proof", () => {
     expect(validateStrictHtmlCompletenessProof(plan, changedTotal)).toBe(false);
   });
 
-  it("treats an official zero-job total as one losslessly replayed entry page", async () => {
-    const plan = getPlanBySourceId(buildStagedSourceCrawlPlans(candidateCompanies), "source-csl-china-social");
-    if (plan?.adapterId !== "html-table") throw new Error("missing canonical CSL plan");
+  it("replays an official zero-job total without inventing rows", async () => {
+    const plan = basePlan({
+      rowSelector: "a.job",
+      fields: {
+        officialTitle: { selector: ".title" },
+        officialUrl: { selector: "a.job", attribute: "href" },
+        locationRaw: { selector: ".location" }
+      },
+      completenessProof: { kind: "OFFICIAL_TOTAL_PAGES" },
+      pagination: {
+        totalPagesSelector: "body",
+        totalPagesAttribute: "data-total-pages",
+        pageSearchParam: "page",
+        pageSize: 25,
+        maxPages: 5,
+        expectedJobCountSelector: "body",
+        expectedJobCountPattern: "Showing\\s+\\d+\\s+to\\s+\\d+\\s+of\\s+(\\d+)\\s+results"
+      }
+    });
     const fetch = createHttpHtmlSourceFetch({
       now: () => new Date(capturedAt),
       http: async request => response(
@@ -178,10 +194,10 @@ describe("independent strict HTML completeness proof", () => {
     expect(crawled).toMatchObject({
       status: "SUCCESS",
       jobs: [],
-      truth: { completenessVerified: true },
+      truth: { completenessVerified: false },
       observation: {
         structuredJobCount: 0,
-        completenessStatus: "VERIFIED",
+        completenessStatus: "NEEDS_MANUAL_COMPLETENESS_REVIEW",
         completenessEvidenceKind: "OFFICIAL_TOTAL_COUNT",
         expectedJobCount: 0
       }

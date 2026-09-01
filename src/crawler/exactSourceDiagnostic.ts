@@ -9,28 +9,11 @@ import { REQUIRED_B_GRADE_TRAVERSAL_CERTIFICATES } from "./traversalCertificate"
 
 export const EXACT_SOURCE_DIAGNOSTIC_SCHEMA_VERSION = "exact-source-diagnostic-v1" as const;
 export const EXACT_SOURCE_DIAGNOSTIC_MAX_SOURCES = 15;
-export const EXACT_SOURCE_DIAGNOSTIC_LONG_TAIL_SOURCE_IDS = Object.freeze([
-  "source-astellas-china-social",
-  "source-cspc-social",
-  "source-fosun-pharma-social",
-  "source-grand-pharma-social",
-  "source-huahai-social",
-  "source-kelun-social",
-  "source-nhu-social",
-  "source-novartis-social",
-  "source-otsuka-china-social-2",
-  "source-qilu-social",
-  "source-sanofi-china-social",
-  "source-takeda-china-social",
-  "source-tongrentang-social",
-  "source-viatris-social",
-  "source-xiuzheng-social"
-] as const);
-
-const requiredBGradeSourceIds = Object.keys(REQUIRED_B_GRADE_TRAVERSAL_CERTIFICATES).sort();
-const diagnosticLongTailSourceIds = [...EXACT_SOURCE_DIAGNOSTIC_LONG_TAIL_SOURCE_IDS].sort();
-if (JSON.stringify(requiredBGradeSourceIds) !== JSON.stringify(diagnosticLongTailSourceIds)) {
-  throw new Error("Exact-source diagnostic long-tail selection must match the B-grade authority");
+export const EXACT_SOURCE_DIAGNOSTIC_LONG_TAIL_SOURCE_IDS = Object.freeze(
+  Object.keys(REQUIRED_B_GRADE_TRAVERSAL_CERTIFICATES).sort()
+);
+if (EXACT_SOURCE_DIAGNOSTIC_LONG_TAIL_SOURCE_IDS.length > EXACT_SOURCE_DIAGNOSTIC_MAX_SOURCES) {
+  throw new Error("Exact-source diagnostic authority exceeds the bounded source limit");
 }
 
 export const EXACT_SOURCE_DIAGNOSTIC_CODES = Object.freeze([
@@ -186,23 +169,22 @@ export function assertLongTailRuntimeSettled(input: {
 }): void {
   const report = longTailReportSchema.parse(input.report);
   const telemetry = z.array(runtimeSampleSchema).min(3).parse(input.telemetry);
-  const xiuzheng = report.sources.find(({ sourceId }) => sourceId === "source-xiuzheng-social");
-  const xiuzhengFinishedAt = Date.parse(xiuzheng?.finishedAt ?? "");
-  if (!Number.isFinite(xiuzhengFinishedAt)) {
-    throw new Error("Long-tail diagnostic Xiuzheng completion is unavailable");
+  const terminalFinishedAt = Date.parse(report.sources.at(-1)?.finishedAt ?? "");
+  if (!Number.isFinite(terminalFinishedAt)) {
+    throw new Error("Long-tail diagnostic terminal source completion is unavailable");
   }
 
   const measured = telemetry.filter((sample): sample is z.infer<typeof runtimeSampleSchema> & {
     metrics: z.infer<typeof runtimeMetricsSchema>;
   } => "metrics" in sample);
   const preTerminalIdle = measured.filter((sample) =>
-    Date.parse(sample.capturedAt) < xiuzhengFinishedAt && sample.metrics.braveProcesses === 0
+    Date.parse(sample.capturedAt) < terminalFinishedAt && sample.metrics.braveProcesses === 0
   );
   if (preTerminalIdle.length < 1) {
     throw new Error("Long-tail diagnostic lacks an idle lifecycle baseline");
   }
   const baselinePids = Math.min(...preTerminalIdle.map(({ metrics }) => metrics.pidsCurrent));
-  const terminalWindow = telemetry.filter((sample) => Date.parse(sample.capturedAt) >= xiuzhengFinishedAt).slice(-2);
+  const terminalWindow = telemetry.filter((sample) => Date.parse(sample.capturedAt) >= terminalFinishedAt).slice(-2);
   if (terminalWindow.length !== 2 || terminalWindow.some((sample) => !("metrics" in sample))) {
     throw new Error("Long-tail diagnostic lacks a settled terminal telemetry window");
   }
@@ -232,9 +214,12 @@ export async function prepareExactSourceDiagnostic(input: {
   if (selected.size !== input.sourceIds.length || input.sourceIds.some((sourceId) => !sourceId.trim())) {
     throw new Error("Exact-source diagnostic source selection must be unique and nonblank");
   }
-  if (input.sourceIds.length === EXACT_SOURCE_DIAGNOSTIC_MAX_SOURCES &&
+  const longTailSet = new Set(EXACT_SOURCE_DIAGNOSTIC_LONG_TAIL_SOURCE_IDS);
+  const selectsCompleteLongTail = input.sourceIds.length === longTailSet.size &&
+    input.sourceIds.every((sourceId) => longTailSet.has(sourceId));
+  if (selectsCompleteLongTail &&
       JSON.stringify(input.sourceIds) !== JSON.stringify(EXACT_SOURCE_DIAGNOSTIC_LONG_TAIL_SOURCE_IDS)) {
-    throw new Error("Exact-source diagnostic fifteen-source mode requires the exact B-grade source order with Xiuzheng last");
+    throw new Error("Exact-source diagnostic complete B-grade selection must use the current authority order");
   }
   const authoritySourceIds = new Set(input.authority.sourceIds);
   if (input.sourceIds.some((sourceId) => !authoritySourceIds.has(sourceId))) {

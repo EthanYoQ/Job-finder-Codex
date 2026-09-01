@@ -1,5 +1,11 @@
 import { getStrictLivzonCeccNetworkPolicy, validateStrictLivzonCeccEvidence } from "./livzonCeccEvidenceVerifier";
 import {
+  getStrictGrifolsChinaNetworkPolicy,
+  isSafeGrifolsChinaFailureCode,
+  validateStrictGrifolsChinaEvidence
+} from "./grifolsChinaSourceFetch";
+import { isSafeJnjCareersFailureCode } from "./jnjCareersChinaSourceFetch";
+import {
   getStrictMsdDualOfficialNetworkPolicy,
   isSafeMsdDualOfficialFailureCode,
   validateStrictMsdDualOfficialEvidence
@@ -41,6 +47,10 @@ export function validateStrictProfileBoundSourceEvidence(
 ): boolean {
   if (plan.adapterId !== "official-json" || !plan.profileBoundSource) return false;
   switch (plan.profileBoundSource.kind) {
+    case "grifols-china-detail-scope":
+      return validateStrictGrifolsChinaEvidence(plan, evidence, outputJobs);
+    case "jnj-careers-china":
+      return false;
     case "msd-dual-official":
       return validateStrictMsdDualOfficialEvidence(plan, evidence, outputJobs);
     case "livzon-cecc":
@@ -89,6 +99,10 @@ export function getStrictProfileBoundSourcePolicy(
 ): StrictProfileBoundSourcePolicy | undefined {
   if (plan.adapterId !== "official-json" || !plan.profileBoundSource) return undefined;
   switch (plan.profileBoundSource.kind) {
+    case "grifols-china-detail-scope":
+      return getStrictGrifolsChinaNetworkPolicy(plan);
+    case "jnj-careers-china":
+      return undefined;
     case "msd-dual-official":
       return getStrictMsdDualOfficialNetworkPolicy(plan);
     case "livzon-cecc": {
@@ -152,6 +166,20 @@ export function safeProfileBoundSourceFailureReason(
   failureReason: unknown
 ): string | undefined {
   if (plan.adapterId !== "official-json") return undefined;
+  if (
+    plan.company.id === "company-grifols-china" &&
+    plan.source.id === "source-grifols-china-social" &&
+    plan.source.companyId === "company-grifols-china" &&
+    plan.profileBoundSource?.kind === "grifols-china-detail-scope" &&
+    isSafeGrifolsChinaFailureCode(failureReason)
+  ) return failureReason;
+  if (
+    plan.company.id === "company-johnson-innovative-medicine" &&
+    plan.source.id === "source-johnson-innovative-medicine-social" &&
+    plan.source.companyId === "company-johnson-innovative-medicine" &&
+    plan.profileBoundSource?.kind === "jnj-careers-china" &&
+    isSafeJnjCareersFailureCode(failureReason)
+  ) return failureReason;
   if (
     plan.company.id === "company-sinopharm" &&
     plan.source.id === "source-sinopharm-social" &&

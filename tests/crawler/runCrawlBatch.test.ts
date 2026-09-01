@@ -1917,7 +1917,7 @@ describe("runP0CrawlBatch", () => {
   });
 
   it("isolates an adapter execution throw and commits the later due source", async () => {
-    const failedPlan = planFor("source-qilu-social");
+    const failedPlan = planFor("source-merck-china-social");
     const successfulPlan = planFor("source-roche-china-social");
     const batchPlans = [failedPlan, successfulPlan];
     const db = fakeDb();
@@ -1975,7 +1975,7 @@ describe("runP0CrawlBatch", () => {
   it.each(["archive", "verification", "build", "atomic commit"] as const)(
     "isolates a source-local %s failure and commits the later due source",
     async (failureStage) => {
-      const failedPlan = planFor("source-qilu-social");
+      const failedPlan = planFor("source-merck-china-social");
       const successfulPlan = planFor("source-roche-china-social");
       const batchPlans = [failedPlan, successfulPlan];
       const db = fakeDb();
@@ -2223,7 +2223,7 @@ describe("runP0CrawlBatch", () => {
   });
 
   it("fails closed when post-commit rollback terminalization cannot be confirmed", async () => {
-    const failedPlan = planFor("source-qilu-social");
+    const failedPlan = planFor("source-merck-china-social");
     const laterPlan = planFor("source-roche-china-social");
     const batchPlans = [failedPlan, laterPlan];
     const db = fakeDb();

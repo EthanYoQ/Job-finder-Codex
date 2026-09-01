@@ -32,8 +32,8 @@ export interface LaunchHistoricalEvidence {
 
 export interface LaunchManifest {
   schemaVersion: typeof P0_LAUNCH_MANIFEST_SCHEMA_VERSION;
-  cohortId: "p0-fixed-50-v1";
-  frozenAt: "2026-08-12";
+  cohortId: "p0-human-verified-41-v1";
+  frozenAt: "2026-09-02";
   replacementPolicy: "NO_RUNTIME_REPLACEMENT";
   companies: readonly LaunchCompanyIdentity[];
   historicalEvidence: readonly [LaunchHistoricalEvidence];
@@ -73,9 +73,7 @@ const FROZEN_FOREIGN_COMPANY_IDS = [
 const FROZEN_DOMESTIC_COMPANY_IDS = [
   "company-cr-pharma", "company-qilu", "company-grand-pharma", "company-fosun-pharma",
   "company-cspc", "company-hengrui", "company-cttq", "company-shanghai-pharma",
-  "company-kelun", "company-xiuzheng", "company-yangzijiang", "company-nhu",
-  "company-jimin-kexin", "company-united-lab", "company-tongrentang", "company-livzon",
-  "company-buchang", "company-hansoh", "company-lunan", "company-huahai"
+  "company-kelun", "company-united-lab", "company-hansoh"
 ] as const;
 
 export const P0_CANDIDATE_COMPANY_IDS = [
@@ -98,17 +96,17 @@ const RC022_STRICT_SUCCESS_DOMESTIC_COMPANY_IDS = [
 
 const HTML_TABLE_COMPANY_IDS = new Set<string>([
   "company-abbvie-china", "company-astrazeneca", "company-novartis", "company-sanofi-china",
-  "company-takeda-china", "company-boehringer-ingelheim-china", "company-bayer-healthcare",
-  "company-csl-china", "company-viatris", "company-teva-china", "company-astellas-china",
-  "company-otsuka-china", "company-grand-pharma",
-  "company-fosun-pharma", "company-kelun", "company-tongrentang",
+  "company-takeda-china", "company-bayer-healthcare",
+  "company-viatris", "company-teva-china", "company-astellas-china", "company-sandoz-china",
+  "company-otsuka-china", "company-qilu", "company-grand-pharma",
+  "company-kelun", "company-tongrentang",
   "company-buchang", "company-huahai"
 ]);
 
 export const P0_LAUNCH_MANIFEST: LaunchManifest = {
   schemaVersion: P0_LAUNCH_MANIFEST_SCHEMA_VERSION,
-  cohortId: "p0-fixed-50-v1",
-  frozenAt: "2026-08-12",
+  cohortId: "p0-human-verified-41-v1",
+  frozenAt: "2026-09-02",
   replacementPolicy: "NO_RUNTIME_REPLACEMENT",
   companies: [
     ...FROZEN_FOREIGN_COMPANY_IDS.map((companyId) => ({
@@ -159,11 +157,11 @@ export function validateLaunchManifest(
 
   if (manifest.schemaVersion !== P0_LAUNCH_MANIFEST_SCHEMA_VERSION) errors.push("MANIFEST_SCHEMA_INVALID");
   if (manifest.replacementPolicy !== "NO_RUNTIME_REPLACEMENT") errors.push("REPLACEMENT_POLICY_INVALID");
-  if (manifest.companies.length !== 50) errors.push("LAUNCH_COMPANY_COUNT_NOT_50");
+  if (manifest.companies.length !== 41) errors.push("LAUNCH_COMPANY_COUNT_NOT_41");
   if (new Set(manifestIds).size !== manifestIds.length) errors.push("DUPLICATE_LAUNCH_COMPANY_ID");
   if (new Set(sourceIds).size !== sourceIds.length) errors.push("DUPLICATE_LAUNCH_SOURCE_ID");
   if (foreign.length !== 30) errors.push("LAUNCH_FOREIGN_COMPANY_COUNT_NOT_30");
-  if (domestic.length !== 20) errors.push("LAUNCH_DOMESTIC_COMPANY_COUNT_NOT_20");
+  if (domestic.length !== 11) errors.push("LAUNCH_DOMESTIC_COMPANY_COUNT_NOT_11");
   if (!sameStringSet(foreign.map((company) => company.companyId), FROZEN_FOREIGN_COMPANY_IDS)) {
     errors.push("MANDATORY_FOREIGN_COMPANY_SET_MISMATCH");
   }
@@ -284,7 +282,7 @@ export function selectLaunchCompanies<T extends { id: string }>(
 function sourceIdentityFor(companyId: string): LaunchSourceIdentity {
   const suffix = companyId.replace(/^company-/, "");
   if (companyId === "company-otsuka-china") {
-    return { sourceId: "source-otsuka-china-social-2", surfaceId: "surface-otsuka-china-social-2", adapterId: "html-table" };
+    return { sourceId: "source-otsuka-china-social", surfaceId: "surface-otsuka-china-social", adapterId: "html-table" };
   }
   return {
     sourceId: `source-${suffix}-social`,

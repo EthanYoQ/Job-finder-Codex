@@ -9,7 +9,7 @@ import {
   writeFileSync
 } from "node:fs";
 import { resolve } from "node:path";
-import { spawnSync } from "node:child_process";
+import { spawn } from "node:child_process";
 import { afterEach, describe, expect, it } from "vitest";
 
 const repoRoot = process.cwd();
@@ -150,23 +150,41 @@ case "$*" in
 esac
 exit 0`.replaceAll("\\${", "${"));
 
-  function run(extraEnv: NodeJS.ProcessEnv = {}) {
-    return spawnSync(shellPath, ["-c", 'cd "$HARNESS_ROOT"; PATH="$FAKE_BIN:$PATH"; export PATH; exec sh ops/run-fixed-cohort-qualification.sh'], {
-      encoding: "utf8",
-      env: {
-        ...process.env,
-        HARNESS_ROOT: toPosixPath(root),
-        FAKE_BIN: toPosixPath(bin),
-        FAKE_DOCKER_LOG: toPosixPath(eventLog),
-        EXTERNAL_DB_READY_MARKER: toPosixPath(resolve(root, "external-db-ready.marker")),
-        FORMAL_ROUND: String(round),
-        IMAGE_TAG: "job-finder:test",
-        GITHUB_SHA: "a".repeat(40),
-        GITHUB_RUN_ID: "12345",
-        GITHUB_REPOSITORY: "EthanYoQ/job-finder-rc022-cloud-acceptance",
-        ...(round === 2 ? { ROUND_ONE_RUN_ID: "11111" } : {}),
-        ...extraEnv
-      }
+  function run(extraEnv: NodeJS.ProcessEnv = {}): Promise<{
+    status: number | null;
+    stdout: string;
+    stderr: string;
+  }> {
+    return new Promise((resolveResult, reject) => {
+      const child = spawn(
+        shellPath,
+        ["-c", 'cd "$HARNESS_ROOT"; PATH="$FAKE_BIN:$PATH"; export PATH; exec sh ops/run-fixed-cohort-qualification.sh'],
+        {
+          env: {
+            ...process.env,
+            HARNESS_ROOT: toPosixPath(root),
+            FAKE_BIN: toPosixPath(bin),
+            FAKE_DOCKER_LOG: toPosixPath(eventLog),
+            EXTERNAL_DB_READY_MARKER: toPosixPath(resolve(root, "external-db-ready.marker")),
+            FORMAL_ROUND: String(round),
+            IMAGE_TAG: "job-finder:test",
+            GITHUB_SHA: "a".repeat(40),
+            GITHUB_RUN_ID: "12345",
+            GITHUB_REPOSITORY: "EthanYoQ/job-finder-rc022-cloud-acceptance",
+            ...(round === 2 ? { ROUND_ONE_RUN_ID: "11111" } : {}),
+            ...extraEnv
+          },
+          stdio: ["ignore", "pipe", "pipe"]
+        }
+      );
+      let stdout = "";
+      let stderr = "";
+      child.stdout.setEncoding("utf8");
+      child.stderr.setEncoding("utf8");
+      child.stdout.on("data", (chunk: string) => { stdout += chunk; });
+      child.stderr.on("data", (chunk: string) => { stderr += chunk; });
+      child.once("error", reject);
+      child.once("close", (status) => resolveResult({ status, stdout, stderr }));
     });
   }
 
@@ -178,9 +196,9 @@ afterEach(() => {
 });
 
 describe("formal Launch Cohort qualification runner", () => {
-  it("runs round one through crawl, audit, evidence capture, image export, and cleanup", () => {
+  it("runs round one through crawl, audit, evidence capture, image export, and cleanup", async () => {
     const harness = createHarness(1);
-    const result = harness.run();
+    const result = await harness.run();
     expect(result.status, result.stderr).toBe(0);
     expect(readFileSync(resolve(harness.runtime, "formal-state", "round-one-state-receipt.json"), "utf8")).toContain("ROUND_ONE_QUALIFIED");
     expect(readFileSync(resolve(harness.runtime, "formal-state", "round-one-qualified-image.tar.gz"))).not.toHaveLength(0);
@@ -206,9 +224,9 @@ describe("formal Launch Cohort qualification runner", () => {
     expect(events).toContain("network rm job-finder-formal-12345");
   });
 
-  it("preserves round-one diagnostics and cleanup while reporting a crawl failure", () => {
+  it("preserves round-one diagnostics and cleanup while reporting a crawl failure", async () => {
     const harness = createHarness(1);
-    const result = harness.run({ FAKE_CRAWL_EXIT: "17" });
+    const result = await harness.run({ FAKE_CRAWL_EXIT: "17" });
     expect(result.status).toBe(1);
     expect(JSON.parse(readFileSync(resolve(harness.runtime, "formal-runner-status", "round-one-runner-status.json"), "utf8"))).toMatchObject({
       status: "FAILED",
@@ -222,9 +240,9 @@ describe("formal Launch Cohort qualification runner", () => {
     expect(events).toContain("network rm job-finder-formal-12345");
   });
 
-  it("fails closed and cleans up before bootstrap when PostgreSQL is not reachable over the application network", () => {
+  it("fails closed and cleans up before bootstrap when PostgreSQL is not reachable over the application network", async () => {
     const harness = createHarness(1);
-    const result = harness.run({ FAKE_EXTERNAL_READY: "0" });
+    const result = await harness.run({ FAKE_EXTERNAL_READY: "0" });
     expect(result.status).toBe(1);
     const events = readFileSync(harness.eventLog, "utf8");
     const networkProbes = events.split("\n").filter((line) => line.includes("psql --no-psqlrc --dbname="));
@@ -241,9 +259,9 @@ describe("formal Launch Cohort qualification runner", () => {
     expect(events).toContain("network rm job-finder-formal-12345");
   });
 
-  it("does not accept a PostgreSQL probe that prints the expected row and then exits nonzero", () => {
+  it("does not accept a PostgreSQL probe that prints the expected row and then exits nonzero", async () => {
     const harness = createHarness(1);
-    const result = harness.run({ FAKE_EXTERNAL_EXIT_AFTER_OUTPUT: "9" });
+    const result = await harness.run({ FAKE_EXTERNAL_EXIT_AFTER_OUTPUT: "9" });
     expect(result.status).toBe(1);
     const events = readFileSync(harness.eventLog, "utf8");
     const networkProbes = events.split("\n").filter((line) => line.includes("psql --no-psqlrc --dbname="));
@@ -253,9 +271,9 @@ describe("formal Launch Cohort qualification runner", () => {
     expect(events).toContain("rm --force job-finder-formal-postgres-12345");
   });
 
-  it("restores round one, reruns the cohort, qualifies the final backup, and produces READY in round two", () => {
+  it("restores round one, reruns the cohort, qualifies the final backup, and produces READY in round two", async () => {
     const harness = createHarness(2);
-    const result = harness.run();
+    const result = await harness.run();
     expect(result.status, result.stderr).toBe(0);
     expect(readFileSync(resolve(harness.runtime, "formal-state", "launch-receipt.json"), "utf8")).toContain("READY");
     expect(JSON.parse(readFileSync(resolve(harness.runtime, "formal-runner-status", "round-two-runner-status.json"), "utf8"))).toMatchObject({
@@ -296,9 +314,9 @@ describe("formal Launch Cohort qualification runner", () => {
     expect(events).not.toContain("formal-runner-status:/");
   });
 
-  it("fails closed on an unexpected final-backup directory entry before launch receipt", () => {
+  it("fails closed on an unexpected final-backup directory entry before launch receipt", async () => {
     const harness = createHarness(2);
-    const result = harness.run({ FAKE_EXTRA_BACKUP_ENTRY: "1" });
+    const result = await harness.run({ FAKE_EXTRA_BACKUP_ENTRY: "1" });
     expect(result.status).toBe(1);
     const events = readFileSync(harness.eventLog, "utf8");
     expect(events).not.toContain("scripts/p0-authoritative-launch-receipt.ts");
@@ -313,9 +331,9 @@ describe("formal Launch Cohort qualification runner", () => {
     ))).toMatchObject({ status: "FAILED", stage: "ROUND_TWO_AUDIT", exitCode: 1 });
   });
 
-  it("preserves the audit and security receipt when round-two evidence archiving fails", () => {
+  it("preserves the audit and security receipt when round-two evidence archiving fails", async () => {
     const harness = createHarness(2);
-    const result = harness.run({ FAKE_ROUND_TWO_EVIDENCE_EXIT: "29" });
+    const result = await harness.run({ FAKE_ROUND_TWO_EVIDENCE_EXIT: "29" });
     expect(result.status).toBe(29);
     expect(readFileSync(resolve(harness.runtime, "formal-state", "round-two-audit.json"), "utf8")).toContain("{}");
     expect(readFileSync(resolve(harness.runtime, "formal-state", "production-security-receipt.json"), "utf8")).toContain("{}");
@@ -323,18 +341,18 @@ describe("formal Launch Cohort qualification runner", () => {
     expect(events).not.toContain("scripts/p0-authoritative-launch-receipt.ts");
   });
 
-  it("publishes the terminal backup-attempt receipt when the producer fails before archive creation", () => {
+  it("publishes the terminal backup-attempt receipt when the producer fails before archive creation", async () => {
     const harness = createHarness(2);
-    const result = harness.run({ FAKE_BACKUP_PRODUCER_EXIT: "31" });
+    const result = await harness.run({ FAKE_BACKUP_PRODUCER_EXIT: "31" });
     expect(result.status).toBe(31);
     const failureBackupRoot = resolve(harness.runtime, "formal-state", "final-backup-failure-evidence");
     expect(readdirSync(failureBackupRoot)).toEqual(["latest-backup-attempt.json"]);
     expect(readFileSync(resolve(failureBackupRoot, "latest-backup-attempt.json"), "utf8")).toContain("SUCCEEDED");
   });
 
-  it("stages the raw backup triplet and attempt receipt for an ordinary round-two crawl failure", () => {
+  it("stages the raw backup triplet and attempt receipt for an ordinary round-two crawl failure", async () => {
     const harness = createHarness(2);
-    const result = harness.run({ FAKE_CRAWL_EXIT: "17" });
+    const result = await harness.run({ FAKE_CRAWL_EXIT: "17" });
     expect(result.status).toBe(17);
     expect(readdirSync(resolve(harness.runtime, "formal-state", "final-backup-failure-evidence"))).toHaveLength(4);
   });
@@ -342,9 +360,9 @@ describe("formal Launch Cohort qualification runner", () => {
   it.each([
     ["restore qualification", { FAKE_RESTORE_QUALIFY_EXIT: "19" }, 19],
     ["final backup packaging", { FAKE_FINAL_BACKUP_TAR_EXIT: "23" }, 23]
-  ])("normalizes the exact final-backup evidence after a %s failure", (_failure, failureEnv, exitCode) => {
+  ])("normalizes the exact final-backup evidence after a %s failure", async (_failure, failureEnv, exitCode) => {
     const harness = createHarness(2);
-    const result = harness.run(failureEnv);
+    const result = await harness.run(failureEnv);
     expect(result.status).toBe(exitCode);
     const events = readFileSync(harness.eventLog, "utf8");
     const normalizedBackupFiles = events.split("\n").filter((line) =>

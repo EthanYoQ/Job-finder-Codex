@@ -2,6 +2,8 @@ import type { ATSKind } from "../../domain/company";
 import type { HtmlTableConfig, OfficialJsonConfig } from "../adapters/types";
 import type { HotjobLegacyFetchConfig } from "../hotjobLegacySourceFetch";
 import type { HotjobWecruitFetchConfig } from "../hotjobWecruitSourceFetch";
+import type { GrifolsChinaFetchConfig } from "../grifolsChinaSourceFetch";
+import type { JnjCareersChinaFetchConfig } from "../jnjCareersChinaSourceFetch";
 import type { LivzonCeccFetchConfig } from "../livzonCeccSourceFetch";
 import type { MsdDualOfficialFetchConfig } from "../msdDualOfficialSourceFetch";
 import type { OfficialJsonFetchConfig } from "../officialJsonSourceFetch";
@@ -23,6 +25,16 @@ export interface MokaFetchConfig {
 }
 
 export type ProfileBoundSourceConfig =
+  | {
+      kind: "grifols-china-detail-scope";
+      config: GrifolsChinaFetchConfig;
+      expectedChannelIds?: readonly string[];
+    }
+  | {
+      kind: "jnj-careers-china";
+      config: JnjCareersChinaFetchConfig;
+      expectedChannelIds?: readonly string[];
+    }
   | {
       kind: "msd-dual-official";
       config: MsdDualOfficialFetchConfig;

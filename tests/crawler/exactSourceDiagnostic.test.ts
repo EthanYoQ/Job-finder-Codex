@@ -26,7 +26,7 @@ const settledMetrics = {
 const longTailReport = {
   executionOrderMatchesSession: true,
   sources: [{
-    sourceId: "source-xiuzheng-social",
+    sourceId: "source-terminal",
     startedAt: "2026-08-14T12:00:05.000Z",
     finishedAt: "2026-08-14T12:00:10.000Z"
   }]
@@ -74,7 +74,7 @@ describe("NON_CERTIFYING exact-source diagnostic", () => {
     expect(enqueued).toEqual(["source-b", "source-a"]);
   });
 
-  it("round-trips the maximum fifteen-source diagnostic session", async () => {
+  it("round-trips the complete current B-grade diagnostic selection", async () => {
     const sourceIds = [...EXACT_SOURCE_DIAGNOSTIC_LONG_TAIL_SOURCE_IDS];
     const session = await prepareExactSourceDiagnostic({
       sourceIds,
@@ -87,10 +87,12 @@ describe("NON_CERTIFYING exact-source diagnostic", () => {
       enqueue: async (sourceId) => ({ id: `request-${sourceId}` })
     });
 
-    expect(parseExactSourceDiagnosticSession(session).requests).toHaveLength(EXACT_SOURCE_DIAGNOSTIC_MAX_SOURCES);
+    expect(parseExactSourceDiagnosticSession(session).requests).toHaveLength(
+      EXACT_SOURCE_DIAGNOSTIC_LONG_TAIL_SOURCE_IDS.length
+    );
   });
 
-  it("rejects a fifteen-source long-tail selection unless the exact B-grade order ends in Xiuzheng", async () => {
+  it("rejects a complete B-grade selection in a different order", async () => {
     const sourceIds = [...EXACT_SOURCE_DIAGNOSTIC_LONG_TAIL_SOURCE_IDS];
     [sourceIds[0], sourceIds[1]] = [sourceIds[1]!, sourceIds[0]!];
     let enqueueCount = 0;
@@ -104,7 +106,7 @@ describe("NON_CERTIFYING exact-source diagnostic", () => {
       },
       now: new Date("2026-08-14T12:00:00.000Z"),
       enqueue: async () => { enqueueCount += 1; return { id: "request" }; }
-    })).rejects.toThrow("exact B-grade source order with Xiuzheng last");
+    })).rejects.toThrow("current authority order");
     expect(enqueueCount).toBe(0);
   });
 
@@ -260,7 +262,7 @@ describe("NON_CERTIFYING exact-source diagnostic", () => {
     expect(report.decision).toBe("NON_CERTIFYING_FAIL");
   });
 
-  it("accepts transient lifecycle processes only after two clean post-Xiuzheng samples", () => {
+  it("accepts transient lifecycle processes only after two clean post-terminal samples", () => {
     expect(() => assertLongTailRuntimeSettled({
       report: longTailReport,
       telemetry: [

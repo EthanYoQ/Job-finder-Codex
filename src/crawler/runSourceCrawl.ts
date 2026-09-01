@@ -768,7 +768,7 @@ function strictNovoRequestContracts(
       ? Buffer.from(artifact.body, "utf8") : Buffer.from(artifact.body)).digest("hex") !==
       page.responseFingerprintSha256) return false;
   const countryHash = createHash("sha256")
-    .update(JSON.stringify("China Mainland"), "utf8")
+    .update(JSON.stringify("China"), "utf8")
     .digest("hex");
   const locator = `official-json-single-v1|kind:novo-nordisk|request:country=sha256:${countryHash}|json:${totalPath}`;
   return artifact.extractorLocator === locator &&
@@ -1174,7 +1174,6 @@ function strictPfizerOpaqueDetailReplay(
 ): boolean {
   const config = plan.workday!;
   if (config.opaqueMultiLocationDetailPolicy !== "PFIZER_AUDITED_APAC_DETAIL_V1") return true;
-  const workerBoundary = config.facetDescriptorBoundary;
   if (
     plan.source.id !== "source-pfizer-china-social" ||
     config.tenant !== "pfizer" || config.site !== "PfizerCareers" ||
@@ -1189,10 +1188,7 @@ function strictPfizerOpaqueDetailReplay(
     config.laterZeroTotalPolicy !== "PFIZER_AUDITED_EXACT_RECONCILIATION" ||
     JSON.stringify(config.appliedFacets) !== JSON.stringify({
       Location_Country: ["6cb77610a8a543aea2d6bc10457e35d4"]
-    }) ||
-    workerBoundary?.facetParameter !== "workerSubType" ||
-    !strictExactStringArray(workerBoundary.allowedDescriptors, ["Regular"]) ||
-    workerBoundary.excludedDescriptors !== undefined
+    })
   ) return false;
 
   const origin = new URL(plan.source.officialEntryUrl).origin;
@@ -1447,7 +1443,6 @@ function strictPfizerWorkdayLocationFacetDerivation(
 ): StrictWorkdayLocationDerivation | undefined {
   const config = plan.workday;
   const policy = config?.locationFacetPolicy;
-  const workerBoundary = config?.facetDescriptorBoundary;
   if (!config || plan.company.id !== "company-pfizer-china" ||
     plan.source.id !== "source-pfizer-china-social" || plan.source.companyId !== "company-pfizer-china" ||
     plan.source.atsKind !== "WORKDAY" ||
@@ -1462,10 +1457,7 @@ function strictPfizerWorkdayLocationFacetDerivation(
     !strictExactStringArray(
       policy.foreignDescriptorAliases,
       PFIZER_AUDITED_FOREIGN_LOCATION_DESCRIPTOR_ALIASES
-    ) ||
-    workerBoundary?.facetParameter !== "workerSubType" ||
-    !strictExactStringArray(workerBoundary.allowedDescriptors, ["Regular"]) ||
-    workerBoundary.excludedDescriptors !== undefined) return undefined;
+    )) return undefined;
   const candidates = groups.filter((group) => group.facetParameter === policy.facetParameter);
   if (candidates.length !== 1) return undefined;
   const values = strictWorkdayFlatFacetValues(candidates[0]!.values, []);
@@ -1514,7 +1506,6 @@ function strictJnjWorkdayPlanBinding(
 ): boolean {
   const config = plan.workday;
   const policy = config?.locationFacetPolicy;
-  const workerBoundary = config?.facetDescriptorBoundary;
   return config?.searchText === "China" && config.cityHints === undefined &&
     Object.keys(config.appliedFacets ?? {}).length === 0 &&
     (config.facetDescriptorExclusions?.length ?? 0) === 0 &&
@@ -1524,17 +1515,7 @@ function strictJnjWorkdayPlanBinding(
     strictNonEmptyUniqueStringArray(policy.mainlandDescriptorAliases) &&
     strictNonEmptyUniqueStringArray(policy.foreignDescriptorAliases) &&
     policy.mainlandDescriptorAliases.every((descriptor) =>
-      !policy.foreignDescriptorAliases.includes(descriptor)) &&
-    workerBoundary?.facetParameter === "workerSubType" &&
-    strictExactStringArray(workerBoundary.allowedDescriptors, [
-      "Fixed Term Employee (Non-Intern) (Fixed Term)",
-      "Regular"
-    ]) &&
-    strictExactStringArray(workerBoundary.excludedDescriptors ?? [], [
-      "College Recruit",
-      "Intern (Fixed Term)",
-      "Temporary Agency Worker"
-    ]);
+      !policy.foreignDescriptorAliases.includes(descriptor));
 }
 
 function strictNonEmptyUniqueStringArray(values: readonly string[]): boolean {
@@ -2092,6 +2073,10 @@ function strictPhenomRequestContracts(
         [...globalExclusions.values()].reduce((sum, count) => sum + count, 0) !== globalEnvelope.totalHits ||
         facetScope.exclusionDescriptors.some((descriptor) => !globalExclusions.has(descriptor))) return false;
     }
+    if (facetScope.countryOnly) {
+      structuredExpectedTotal = countryCount;
+      selectedFields = { country: [facetScope.countryIncludeDescriptor] };
+    } else {
     const countryExclusions = strictGatePhenomAggregation(
       countryEnvelope.aggregations,
       facetScope.exclusionField
@@ -2110,6 +2095,7 @@ function strictPhenomRequestContracts(
       country: [facetScope.countryIncludeDescriptor],
       [facetScope.exclusionField]: allowed
     };
+    }
     }
   } else {
     if (facetArtifacts.length !== 0 || config.countryFilter !== "China") return false;
@@ -2250,7 +2236,8 @@ function strictPhenomRequestContracts(
         (merckPartitionReplay
           ? (presentInclude !== undefined && presentInclude !== facetScope?.includeDescriptor) ||
             (presentExclusion !== undefined && !allowedExclusionDescriptors?.has(presentExclusion))
-          : facetScope && !allowedExclusionDescriptors?.has(presentExclusion ?? ""))) {
+          : facetScope && !facetScope.countryOnly &&
+            !allowedExclusionDescriptors?.has(presentExclusion ?? ""))) {
         return false;
       }
     }
@@ -2386,7 +2373,7 @@ function strictExactRochePhenomPlan(
     config.detailBaseUrl === "https://careers.roche.com/cn/zh/job" &&
     JSON.stringify(config.allowedApplyOrigins) === JSON.stringify(["https://roche.wd3.myworkdayjobs.com"]) &&
     facet.countryIncludeDescriptor === "中国大陆" &&
-    JSON.stringify(facet.categoryExcludeDescriptors) === JSON.stringify(["实习 & 发展项目"]) &&
+    JSON.stringify(facet.categoryExcludeDescriptors) === JSON.stringify([]) &&
     config.countryFilter === undefined && config.allowedEntryRedirect === undefined &&
     config.allowOmittedOffsetForSinglePage === undefined &&
     config.mixedLocationScopePolicy === "EXACTLY_ONE_MAINLAND_ALTERNATIVE_V1" &&
@@ -2575,6 +2562,7 @@ type StrictGatePhenomConfig = {
 
 type StrictGatePhenomFacetScope = {
   countryIncludeDescriptor: string;
+  countryOnly: boolean;
   exclusionField: "category" | "jobLevelId" | "type";
   exclusionDescriptors: string[];
   requireGlobalDescriptorProof: boolean;
@@ -2601,7 +2589,8 @@ function strictGatePhenomFacetScope(
   const field = modern ? value.exclusionFacet.field : "category";
   const descriptors = modern ? value.exclusionFacet.descriptors : value.categoryExcludeDescriptors;
   if (!["category", "jobLevelId", "type"].includes(field) || !Array.isArray(descriptors) ||
-    descriptors.length === 0 || !strictUniqueNonblankStrings(descriptors)) return undefined;
+    (modern && descriptors.length === 0) ||
+    (descriptors.length > 0 && !strictUniqueNonblankStrings(descriptors))) return undefined;
   const partitioned = "partitionProofPolicy" in value &&
     value.partitionProofPolicy === "MERCK_HEALTHCARE_PARTITION_V1";
   const includeFacet = "includeFacet" in value ? value.includeFacet : undefined;
@@ -2611,6 +2600,7 @@ function strictGatePhenomFacetScope(
   if (!partitioned && includeFacet !== undefined) return undefined;
   return {
     countryIncludeDescriptor: value.countryIncludeDescriptor,
+    countryOnly: descriptors.length === 0,
     exclusionField: field,
     exclusionDescriptors: [...descriptors],
     requireGlobalDescriptorProof: modern && !partitioned,
@@ -3206,6 +3196,46 @@ function strictCnstaffPlanBinding(
     config.maxPages === 10;
 }
 
+function strictEightfoldPlanBinding(
+  plan: Extract<SourceCrawlPlan, { adapterId: "official-json" }>
+): boolean {
+  const config = plan.officialJsonFetch;
+  let entry: URL;
+  try { entry = new URL(plan.source.officialEntryUrl); }
+  catch { return false; }
+  return plan.company.id === "company-bms-china" &&
+    plan.company.officialChineseName === "百时美施贵宝中国" &&
+    plan.source.id === "source-bms-china-social" &&
+    plan.source.companyId === "company-bms-china" &&
+    plan.source.atsKind === "OFFICIAL_JSON" &&
+    entry.origin === "https://jobs.bms.com" && entry.pathname === "/careers" &&
+    !entry.username && !entry.password && !entry.hash &&
+    config?.kind === "eightfold-pcsx" &&
+    config.domain === "bms.com" &&
+    config.location === "china" &&
+    config.detailBaseUrl === "https://jobs.bms.com/careers/job" &&
+    config.pageSize === 10 &&
+    config.maxPages === 5;
+}
+
+function strictEightfoldPageUrl(
+  plan: Extract<SourceCrawlPlan, { adapterId: "official-json" }>,
+  pageIndex: number
+): URL {
+  const config = plan.officialJsonFetch;
+  if (!strictEightfoldPlanBinding(plan) || !Number.isSafeInteger(pageIndex) || pageIndex < 0 ||
+    config?.kind !== "eightfold-pcsx" || pageIndex >= config.maxPages!) {
+    throw new Error("Invalid Eightfold page");
+  }
+  const url = new URL("/api/pcsx/search", new URL(plan.source.officialEntryUrl).origin);
+  url.searchParams.set("domain", config.domain);
+  url.searchParams.set("query", "");
+  url.searchParams.set("location", config.location);
+  url.searchParams.set("start", String(pageIndex * config.pageSize!));
+  url.searchParams.set("sort_by", "distance");
+  return exactConfiguredEndpoint(url.toString());
+}
+
 function strictJobsynPageUrl(config: StrictJobsynConfig, page: number): URL {
   if (!Number.isSafeInteger(page) || page <= 0) throw new Error("Invalid Jobsyn page");
   const url = new URL(config.endpointUrl);
@@ -3714,6 +3744,23 @@ function strictPlanUrlRules(plan: SourceCrawlPlan): StrictUrlRule[] | undefined 
       }
       return rules;
     }
+    if (strategy?.kind === "eightfold-pcsx") {
+      if (!strictEightfoldPlanBinding(plan)) return undefined;
+      for (let pageIndex = 0; pageIndex < strategy.maxPages!; pageIndex += 1) {
+        rules.push(exactEndpointRule(
+          `eightfold-page-${pageIndex}`,
+          strictEightfoldPageUrl(plan, pageIndex),
+          {
+            allowsPagination: true,
+            ...(pageIndex === 0 ? {
+              allowsDeclaration: true as const,
+              allowsPositiveTotalDeclaration: true as const
+            } : {})
+          }
+        ));
+      }
+      return rules;
+    }
     if (strategy?.kind === "sandoz-jsonapi") {
       const maxPages = strategy.maxPages ?? 50;
       if (strategy.pageSize !== 10 || !Number.isSafeInteger(maxPages) || maxPages <= 0 ||
@@ -3923,10 +3970,11 @@ function strictNovoConfiguredEndpoints(value: string): { request: URL; evidence:
     request.searchParams.get(key) === expected;
   if (entries.length !== 4 ||
     !exactQuery("keyword", "") ||
-    !exactQuery("country", "China Mainland") ||
+    !exactQuery("country", "China") ||
     !exactQuery("category", "") ||
-    !exactQuery("locale", "en")) {
-    throw new Error("Novo configured endpoint does not bind the China Mainland scope");
+    !exactQuery("locale", "zh-cn") ||
+    request.hostname !== "www.novonordisk.com.cn") {
+    throw new Error("Novo configured endpoint does not bind the official China scope");
   }
   const evidenceRequest = new URL(request.toString());
   evidenceRequest.searchParams.delete("keyword");
@@ -4120,6 +4168,10 @@ function strictPositiveOfficialTotalReplayPolicy(
   }
   if (strategy.kind === "cnstaff") {
     if (!strictCnstaffPlanBinding(plan)) return undefined;
+    return { allowPositiveOfficialTotalCountAfterAdapterReconciliation: true };
+  }
+  if (strategy.kind === "eightfold-pcsx") {
+    if (!strictEightfoldPlanBinding(plan)) return undefined;
     return { allowPositiveOfficialTotalCountAfterAdapterReconciliation: true };
   }
   if (strategy.kind === "sandoz-jsonapi") {

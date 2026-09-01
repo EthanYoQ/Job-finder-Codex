@@ -12,10 +12,8 @@ export const profile_biogen_china = {
           workday: {
               tenant: "biibhr",
               site: "external",
-              searchText: "China",
-              facetDescriptorBoundary: {
-                  facetParameter: "workerSubType",
-                  allowedDescriptors: ["Regular"]
+              appliedFacets: {
+                  locationCountry: ["6cb77610a8a543aea2d6bc10457e35d4"]
               },
               pageSize: 20,
               maxPages: 3

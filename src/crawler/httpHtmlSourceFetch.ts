@@ -1275,10 +1275,12 @@ function isNovartisOfficialWindow(table: HtmlTableConfig): boolean {
     table.pagination?.officialWindowMode === "NOVARTIS_PAGE_WINDOW_V1";
 }
 function novartisActivePage($: ReturnType<typeof load>): number | undefined {
-  const active = $(".pagination .page-link[title*='active'][title*='out of'][title*='pages']");
+  const active = $(".pagination .page-link[title*='out of'][title*='pages']").filter((_index, element) =>
+    /(?:\bactive\b|活跃)/iu.test($(element).attr("title") ?? "")
+  );
   if (active.length !== 1) return undefined;
   const title = active.first().attr("title")?.replace(/\s+/gu, " ").trim();
-  const match = title ? /^page\s+([1-9]\d*)\s+active\s+out of\s+([1-9]\d*)\s+pages$/iu.exec(title) : null;
+  const match = title ? /^page\s+([1-9]\d*)\s+(?:active|活跃)\s+out of\s+([1-9]\d*)\s+pages$/iu.exec(title) : null;
   return match ? strictOptionalPositiveInt(match[1]!) : undefined;
 }
 function tupuDeclaredPageSize($: ReturnType<typeof load>): number | null {
@@ -1385,7 +1387,6 @@ function assessStaticPublicList(
     return { valid: false, zero: false, redactedPositivePartialEligible: false };
   }
   const body = interactions[0]!.response.body;
-  const redacted = sensitiveHtmlBody(body);
   try {
     const $ = load(body);
     const containers = $(config.containerSelector);
@@ -1394,6 +1395,7 @@ function assessStaticPublicList(
       return { valid: false, zero: false, redactedPositivePartialEligible: false };
     }
     const container = containers.get(0)!;
+    const redacted = sensitiveHtmlBody($.html(container));
     if (rows.some((row) => !$.contains(container, row))) {
       return { valid: false, zero: false, redactedPositivePartialEligible: false };
     }

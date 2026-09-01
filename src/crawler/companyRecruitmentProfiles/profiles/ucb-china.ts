@@ -12,13 +12,7 @@ export const profile_ucb_china = {
           officialJsonFetch: {
               kind: "phenom",
               detailBaseUrl: "https://careers.ucb.com/global/en/job",
-              facetScope: {
-                  countryIncludeDescriptor: "China",
-                  exclusionFacet: {
-                      field: "category",
-                      descriptors: ["Internships & Junior Positions"]
-                  }
-              },
+              countryFilter: "China",
               allowOmittedOffsetForSinglePage: true,
               pageSize: 50,
               maxPages: 5

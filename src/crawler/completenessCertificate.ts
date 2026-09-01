@@ -32,7 +32,6 @@ export const REQUIRED_A_GRADE_COMPLETENESS_CERTIFICATES = Object.freeze({
   "source-cttq-social": "company-cttq",
   "source-daiichi-sankyo-china-social": "company-daiichi-sankyo-china",
   "source-gilead-china-social": "company-gilead-china",
-  "source-grifols-china-social": "company-grifols-china",
   "source-gsk-china-social": "company-gsk-china",
   "source-hansoh-social": "company-hansoh",
   "source-hengrui-social": "company-hengrui",

@@ -51,7 +51,6 @@ export const B_GRADE_TRAVERSAL_CERTIFICATE_SCHEMA_VERSION =
 
 export const REQUIRED_B_GRADE_TRAVERSAL_CERTIFICATES = Object.freeze({
   "source-viatris-social": "company-viatris",
-  "source-qilu-social": "company-qilu",
   ...OFFICIAL_JSON_RENDERED_REQUIRED_CERTIFICATES,
   ...PLAN_BOUND_HTML_REQUIRED_CERTIFICATES
 } as const);

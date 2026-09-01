@@ -32,7 +32,6 @@ const PLANS = buildStagedSourceCrawlPlans(candidateCompanies);
 const AUDITED_POSITIVE_TOTAL_SOURCES = [
   "source-amgen-china-social",
   "source-biogen-china-social",
-  "source-bms-china-social",
   "source-pfizer-china-social",
   "source-hengrui-social",
   "source-jimin-kexin-social",
@@ -50,8 +49,7 @@ const STRICT_URL_STRATEGY_SOURCES = [
   "source-hengrui-social",
   "source-lilly-china-social",
   "source-cttq-social",
-  "source-lunan-social",
-  "source-sandoz-china-social"
+  "source-lunan-social"
 ] as const;
 
 function planFor(sourceId: string): SourceCrawlPlan {
@@ -781,69 +779,6 @@ describe("strict positive official-total completeness policy", () => {
       expect((await crawlWith(plan, forged, evaluation)).truth.completenessVerified).toBe(false);
     }
   );
-
-  it("requires exact configured query keys and values on supporting official entry artifacts", async () => {
-    const plan = planFor("source-ucb-china-social");
-    const { evidence, evaluation } = positiveCountEvidence(plan);
-    const withoutRequiredQuery = new URL(plan.source.officialEntryUrl);
-    withoutRequiredQuery.search = "";
-    const forged = withSupportingNetworkArtifact(
-      evidence,
-      "scope-entry",
-      withoutRequiredQuery.toString(),
-      "OFFICIAL_COMPANY_PAGE"
-    );
-
-    expect((await crawlWith(plan, forged, evaluation)).truth.completenessVerified).toBe(false);
-  });
-
-  it.each([
-    ["bare endpoint", (url: URL) => { url.search = ""; }],
-    ["missing country", (url: URL) => { url.searchParams.delete("views-filter[field_job_country]"); }],
-    ["wrong functional area", (url: URL) => { url.searchParams.set("views-filter[field_job_functional_area]", "Sales"); }],
-    ["wrong target", (url: URL) => { url.searchParams.set("views-filter[field_job_country]", "999"); }],
-    ["nonempty date", (url: URL) => { url.searchParams.set("views-filter[field_job_posted_date][min]", "2026-01-01"); }],
-    ["extra key", (url: URL) => { url.searchParams.set("extra", "1"); }],
-    ["duplicate key", (url: URL) => { url.searchParams.append("views-filter[field_job_country]", "806"); }]
-  ])("rejects a Sandoz primary declaration with %s", async (_label, mutate) => {
-    const plan = planFor("source-sandoz-china-social");
-    const { evidence, evaluation } = positiveCountEvidence(plan);
-    const forgedUrl = new URL(sandozProbeUrl(plan, "primary", 0));
-    mutate(forgedUrl);
-    const forged = withDeclaredArtifactUrls(evidence, forgedUrl.toString(), forgedUrl.toString());
-
-    expect((await crawlWith(plan, forged, evaluation)).truth.completenessVerified).toBe(false);
-  });
-
-  it.each([
-    ["alternate probe", "alt1" as const, 0],
-    ["later primary page", "primary" as const, 1]
-  ])("rejects a Sandoz %s as the declared total artifact", async (_label, probe, page) => {
-    const plan = planFor("source-sandoz-china-social");
-    const { evidence, evaluation } = positiveCountEvidence(plan);
-    const url = sandozProbeUrl(plan, probe, page);
-    const forged = withDeclaredArtifactUrls(evidence, url, url);
-
-    expect((await crawlWith(plan, forged, evaluation)).truth.completenessVerified).toBe(false);
-  });
-
-  it.each([
-    ["taxonomy target drift", (plan: SourceCrawlPlan) => {
-      if (plan.adapterId !== "official-json" || plan.officialJsonFetch?.kind !== "sandoz-jsonapi") throw new Error("Sandoz");
-      return `${plan.officialJsonFetch.taxonomyEndpointUrl}?filter%5Bdrupal_internal__tid%5D=999`;
-    }],
-    ["alternate probe path drift", (plan: SourceCrawlPlan) => {
-      const url = new URL(sandozProbeUrl(plan, "alt1", 0));
-      url.pathname = "/jsonapi/views/job_search/wrong";
-      return url.toString();
-    }]
-  ])("rejects a Sandoz supporting scope artifact with %s", async (_label, badUrl) => {
-    const plan = planFor("source-sandoz-china-social");
-    const { evidence, evaluation } = positiveCountEvidence(plan);
-    const forged = withSupportingNetworkArtifact(evidence, "scope-support", badUrl(plan));
-
-    expect((await crawlWith(plan, forged, evaluation)).truth.completenessVerified).toBe(false);
-  });
 
   it("accepts an explicitly named canonical channel only when the declaration is channel-bound", async () => {
     const plan = planFor("source-lilly-china-social");

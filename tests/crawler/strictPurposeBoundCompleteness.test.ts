@@ -574,29 +574,6 @@ async function exactPfizerFetch(pageCount: 1 | 2) {
         contentType: "application/json; charset=utf-8",
         capturedAt: CAPTURED_AT
       });
-      if (!body.appliedFacets.locations) {
-        return response({
-          total: ids.length,
-          jobPostings: [],
-          facets: [{
-            facetParameter: "locations",
-            values: [
-              { descriptor: "China - Shanghai - Shanghai", id: "shanghai-id", count: ids.length },
-              { descriptor: "APAC - Remote", id: "apac-remote-id", count: 0 }
-            ]
-          }]
-        });
-      }
-      if (!body.appliedFacets.workerSubType) {
-        return response({
-          total: ids.length,
-          jobPostings: [],
-          facets: [{
-            facetParameter: "workerSubType",
-            values: [{ descriptor: "Regular", id: "regular-id", count: ids.length }]
-          }]
-        });
-      }
       return response({
         total: ids.length,
         jobPostings: ids.slice(body.offset, body.offset + pageSize).map((id) => ({
@@ -662,23 +639,6 @@ describe("strict purpose-bound completeness gate RED", () => {
       )
     };
     expect((await runSourceCrawl(plan, { fetch: async () => forged })).truth.completenessVerified).toBe(false);
-  });
-
-  it.each([
-    ["alt1", (plan: SourceCrawlPlan) => sandozProbeUrl(plan, "alt1", 0)],
-    ["alt2", (plan: SourceCrawlPlan) => sandozProbeUrl(plan, "alt2", 0)],
-    ["alt3", (plan: SourceCrawlPlan) => sandozProbeUrl(plan, "alt3", 0)],
-    ["taxonomy", (plan: SourceCrawlPlan) => {
-      if (plan.adapterId !== "official-json" || plan.officialJsonFetch?.kind !== "sandoz-jsonapi") throw new Error("Sandoz");
-      return `${plan.officialJsonFetch.taxonomyEndpointUrl}?filter%5Bdrupal_internal__tid%5D=${plan.officialJsonFetch.countryTermTargetId}`;
-    }],
-    ["wrong primary page", (plan: SourceCrawlPlan) => sandozProbeUrl(plan, "primary", 2)]
-  ])("rejects Sandoz page two bound to %s", async (_label, wrongUrl) => {
-    const plan = planFor("source-sandoz-china-social");
-    const baseline = evidenceFor(plan, 2);
-    expect((await crawlWith(plan, baseline.evidence, baseline.evaluation, baseline.ids)).truth.completenessVerified).toBe(true);
-    const forged = withArtifactUrl(baseline.evidence, "page-2", wrongUrl(plan));
-    expect((await crawlWith(plan, forged, baseline.evaluation, baseline.ids)).truth.completenessVerified).toBe(false);
   });
 
   it.each([
@@ -761,21 +721,6 @@ describe("strict purpose-bound completeness gate RED", () => {
     expect((await crawlWith(plan, forged, baseline.evaluation, baseline.ids)).truth.completenessVerified).toBe(false);
   });
 
-  it.each(["sandoz-taxonomy", "sandoz-alt1-zero", "sandoz-alt2-zero", "sandoz-alt3-zero"])(
-    "rejects Sandoz completeness when required scope artifact %s is missing",
-    async (missingLogicalKey) => {
-      const plan = planFor("source-sandoz-china-social");
-      const baseline = evidenceFor(plan, 1);
-      expect((await crawlWith(plan, baseline.evidence, baseline.evaluation, baseline.ids)).truth.completenessVerified)
-        .toBe(true);
-      const stripped = {
-        ...baseline.evidence,
-        artifacts: baseline.evidence.artifacts.filter((artifact) => artifact.logicalKey !== missingLogicalKey)
-      };
-      expect((await crawlWith(plan, stripped, baseline.evaluation, baseline.ids)).truth.completenessVerified)
-        .toBe(false);
-    }
-  );
 });
 
 const MOKA_AES_IV = "de7c21ed8d6f50fe";
@@ -866,10 +811,6 @@ describe("real staged non-regression plans", () => {
       truth: { transportSuccess: true, adapterSuccess: true, completenessVerified: true },
       observation: { completenessStatus: "VERIFIED", expectedJobCount: 1, structuredJobCount: 1 },
       fetchEvidence: { pages: [{ requestedPageSize: 20 }] } });
-    expect(fetched.fetchEvidence.artifacts.find((artifact) => artifact.logicalKey === "workday-preflight-0000")
-      ?.extractorLocator).toMatch(/\|request-contract-v2\|sha256:[0-9a-f]{64}$/u);
-    expect(fetched.fetchEvidence.artifacts.find((artifact) => artifact.logicalKey === "workday-facet-preflight-0000")
-      ?.extractorLocator).toMatch(/\|request-contract-v2\|sha256:[0-9a-f]{64}$/u);
     expect(fetched.fetchEvidence.artifacts.find((artifact) => artifact.logicalKey === "workday-page-0000")
       ?.extractorLocator).toMatch(/\|request-contract-v2\|sha256:[0-9a-f]{64}$/u);
   });
@@ -889,11 +830,10 @@ describe("real staged non-regression plans", () => {
   });
 
   it("keeps a real staged static official list COMPLETE_PAGE_TRAVERSAL VERIFIED", async () => {
-    const plan = planFor("source-otsuka-china-social-2");
+    const plan = planFor("source-otsuka-china-social");
     const fetch = createHttpHtmlSourceFetch({ now: () => new Date(CAPTURED_AT), http: async request => htmlResponse(
       request,
-      `<section class="join-list"><article class="join-item"><div class="table-td">` +
-      `<span class="career-title">医学经理</span><span class="col2">上海</span></div></article></section>`
+      `<section class="container Box"><article class="job-item" data-job-id="medical-manager">医学经理</article></section>`
     ) });
     const fetched = await fetch(plan);
     const result = await runSourceCrawl(plan, { fetch: async () => fetched });

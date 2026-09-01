@@ -152,7 +152,7 @@ describe("60-company pharma registry", () => {
     }
   });
 
-  it("activates the verified Sandoz source without replacement and separates Otsuka sources", () => {
+  it("activates the Aspen successor and the current Otsuka job-list source", () => {
     const byId = new Map(candidateCompanies.map((company) => [company.id, company]));
     const astellasSource = byId.get("company-astellas-china")?.sources[0];
 
@@ -164,8 +164,8 @@ describe("60-company pharma registry", () => {
       sources: [
         {
           id: "source-otsuka-china-social",
-          status: "ENTRY_FOUND_PENDING_ADAPTER",
-          recruitmentPageCapability: "RECRUITMENT_INFORMATION_OR_CONTACT",
+          status: "VERIFIED_SCRAPABLE",
+          recruitmentPageCapability: "JOB_LISTING",
           capabilityVerification: {
             checkedAt: "2026-07-16",
             reason: expect.any(String)
@@ -173,8 +173,8 @@ describe("60-company pharma registry", () => {
         },
         {
           id: "source-otsuka-china-social-2",
-          status: "VERIFIED_SCRAPABLE",
-          recruitmentPageCapability: "JOB_LISTING"
+          status: "ENTRY_FOUND_PENDING_ADAPTER",
+          recruitmentPageCapability: "RECRUITMENT_INFORMATION_OR_CONTACT"
         }
       ]
     });
@@ -232,7 +232,7 @@ describe("60-company pharma registry", () => {
       campusEntryUrl: "https://www.servier.com.cn/campus-recruitment/shiweiya/70032"
     });
     expect(byId.get("company-ucb-china")?.sources[0]?.officialEntryUrl).toBe(
-      "https://careers.ucb.com/global/en/search-results?qcountry=China"
+      "https://careers.ucb.com/global/zh/search-results?keywords=China"
     );
     expect(byId.get("company-roche-china")?.sources[0]).toMatchObject({
       atsKind: "OFFICIAL_JSON",
@@ -244,7 +244,7 @@ describe("60-company pharma registry", () => {
       officialChainEvidenceUrl: "https://www.pharm.com.cn/"
     });
     expect(byId.get("company-qilu")?.sources[0]?.officialEntryUrl).toBe(
-      "https://qilu-pharma.zhiye.com/social/jobs"
+      "https://www.qilu-pharma.com/JobPosting_list.html"
     );
     expect(byId.get("company-nhu")?.sources[0]?.officialEntryUrl).toBe(
       "https://xinhecheng1.zhiye.com/social/jobs"
@@ -270,7 +270,7 @@ describe("60-company pharma registry", () => {
     });
 
     const urls = candidateCompanies.flatMap(collectCandidateUrls);
-    expect(urls).not.toContain("https://careers.ucb.com/global/en/search-results?keywords=China");
+    expect(urls).not.toContain("https://careers.ucb.com/global/en/search-results?qcountry=China");
     expect(urls).not.toContain("https://www.hengrui.com/development/recruit.html");
     expect(urls).not.toContain("https://tjph1.zhiye.com/social/jobs");
     expect(urls).not.toContain("https://www.pharm.com.cn/career/join.html");

@@ -34,6 +34,7 @@
     "p0:recover-formal-crawl-lock": "tsx scripts/p0-recover-formal-crawl-lock.ts",
     "p0:readiness": "tsx scripts/p0-readiness-report.ts",
     "p0:data-quality": "tsx scripts/p0-data-quality.ts",
+    "p0:human-baseline-diagnostic": "tsx scripts/diagnose-human-recruitment-baseline.ts",
     "p0:staged-readiness": "tsx scripts/p0-staged-readiness.ts",
     "p0:staged-data-quality": "tsx scripts/p0-staged-data-quality.ts",
     "p0:staged-release-promotion": "tsx scripts/p0-staged-release-promotion.ts",

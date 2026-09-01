@@ -3,11 +3,11 @@ import { certificateSha256, evaluateAuthoritativeLaunchReadiness, type Authorita
 import { P0_LAUNCH_MANIFEST, launchManifestIdentity } from "../../src/release/launchManifest";
 
 describe("authoritative launch receipt", () => {
-  it("rejects synthetic certificate shells even when all 50 bindings and hashes look consistent", () => {
+  it("rejects synthetic certificate shells even when all 41 bindings and hashes look consistent", () => {
     const result = evaluateAuthoritativeLaunchReadiness(fixture());
     expect(result.exitCode).toBe(1);
     expect(result.receipt.decision).toBe("NOT_READY");
-    expect(result.receipt.gates.find(({ name }) => name === "TWO_ROUND_50_COMPANY_CERTIFICATES")?.reasons)
+    expect(result.receipt.gates.find(({ name }) => name === "TWO_ROUND_41_COMPANY_CERTIFICATES")?.reasons)
       .toContain("CERTIFICATE_INVALID:round-1:company-gsk-china");
   });
 
@@ -26,7 +26,7 @@ describe("authoritative launch receipt", () => {
   it("rejects rounds less than 12 hours apart or older than 72 hours while allowing job-set changes", () => {
     const close = fixture(); close.batches[1]!.finishedAt = "2026-08-12T19:59:59.999Z";
     expect(evaluateAuthoritativeLaunchReadiness(close).receipt.gates.find(({ name }) =>
-      name === "TWO_ROUND_50_COMPANY_CERTIFICATES")?.reasons).toContain("BATCH_INTERVAL_BELOW_12_HOURS");
+      name === "TWO_ROUND_41_COMPANY_CERTIFICATES")?.reasons).toContain("BATCH_INTERVAL_BELOW_12_HOURS");
     const stale = fixture(); stale.batches[0]!.finishedAt = "2026-08-09T00:00:00.000Z";
     expect(evaluateAuthoritativeLaunchReadiness(stale).exitCode).toBe(1);
   });

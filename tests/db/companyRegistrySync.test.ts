@@ -131,12 +131,12 @@ describe("syncPlannedSourcesToDb", () => {
     const db = fakeDb();
 
     await expect(syncLaunchCohortSourcesToDb(launchPlans, launchCompanies, db as never)).resolves.toEqual({
-      companyCount: 50,
-      sourceCount: 50,
+      companyCount: 41,
+      sourceCount: 41,
       hiddenUnplannedVisibleJobCount: 0
     });
-    expect(db.company.upsert).toHaveBeenCalledTimes(50);
-    expect(db.recruitmentSource.upsert).toHaveBeenCalledTimes(50);
+    expect(db.company.upsert).toHaveBeenCalledTimes(41);
+    expect(db.recruitmentSource.upsert).toHaveBeenCalledTimes(41);
   });
 
   it("rejects a missing Launch Cohort member before writes", async () => {
@@ -319,8 +319,8 @@ describe("syncPlannedSourcesToDb", () => {
     });
 
     await expect(syncLaunchCohortSourcesToDb(launchPlans, launchCompanies, fake.db as never)).resolves.toMatchObject({
-      companyCount: 50,
-      sourceCount: 50
+      companyCount: 41,
+      sourceCount: 41
     });
     expect(fake.companyUpdate).toHaveBeenCalledWith({
       where: { id: "company-launch-legacy-alias" },

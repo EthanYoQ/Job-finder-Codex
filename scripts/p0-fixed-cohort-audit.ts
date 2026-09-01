@@ -106,7 +106,7 @@ try {
     batchId: "UNAVAILABLE", observedSourceIds: [], sources: plans.map(missingSource),
     invalidReasons: ["FORMAL_BATCH_LOAD_FAILED"] });
   await publish(outputPath, report);
-  console.error("Fixed cohort audit could not load a formal batch; a 50-company failure report was written");
+  console.error("Fixed cohort audit could not load a formal batch; a 41-company failure report was written");
   process.exitCode = 1;
 } finally { await prisma.$disconnect(); }
 

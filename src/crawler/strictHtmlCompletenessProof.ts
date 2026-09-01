@@ -589,7 +589,7 @@ function exactNovartisPlan(plan: HtmlPlan): boolean {
   const pagination = plan.table.pagination;
   return plan.source.id === "source-novartis-social" &&
     configuredUrl(plan.source.officialEntryUrl) ===
-      "https://prod1.novartis.com/careers/career-search/tag/LOC_CN" &&
+      "https://www.novartis.com.cn/careers/career-search?search_api_fulltext=&country%5B%5D=LOC_CN&op=Submit&field_job_posted_date=All" &&
     plan.table.rowSelector === "table.views-table tbody tr" &&
     plan.table.completenessProof?.kind === "OFFICIAL_TOTAL_PAGES" &&
     plan.table.completenessProof.sourcePolicy === "NOVARTIS_CHINA_SLIDING_WINDOW_V1" &&
@@ -604,6 +604,7 @@ function exactNovartisPlan(plan: HtmlPlan): boolean {
     pagination.totalPagesPattern === "out of\\s+([1-9]\\d*)\\s+pages" &&
     pagination.totalPagesMode === "max" && pagination.pageSearchParam === "page" &&
     pagination.pageNumberOffset === -1 && pagination.maxPages === 20 &&
+    pagination.totalPagesDeclaredOnEntryOnly === true &&
     pagination.officialWindowMode === "NOVARTIS_PAGE_WINDOW_V1";
 }
 

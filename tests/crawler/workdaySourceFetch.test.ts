@@ -2102,167 +2102,21 @@ describe("createWorkdaySourceFetch", () => {
     expect(JSON.parse(requests[1]!.body).appliedFacets.locations).toEqual(["china"]);
   });
 
-  it("independently verifies JNJ's exact location, worker, adapter, and opaque-detail chain", async () => {
-    const staged = stagedPlanFor("source-johnson-innovative-medicine-social");
-    if (staged.adapterId !== "official-json" || !staged.workday) {
-      throw new Error("Expected staged JNJ Workday plan");
-    }
-    const listingPath = "/job/Hong-Kong/CQRA_R-100";
-    const auditedAliasPath = "/job/Harbin/Audited-Alias_R-101";
-    const jobsUrl = "https://jj.wd5.myworkdayjobs.com/wday/cxs/jj/JJ/jobs";
-    const fetcher = createWorkdaySourceFetch({
-      now: () => new Date("2026-07-17T00:00:00.000Z"),
-      http: async (request) => {
-        const body = JSON.parse(request.body) as { appliedFacets: Record<string, string[]> };
-        if (!body.appliedFacets.locations) {
-          return response({
-            total: 3,
-            jobPostings: [],
-            facets: [{
-              facetParameter: "locations",
-              descriptor: "Locations",
-              values: [
-                { descriptor: "Shanghai, China", id: "jnj-china", count: 1 },
-                { descriptor: "CN016 Harbin", id: "jnj-cn016", count: 1 },
-                {
-                  descriptor: "Lancaster, Pennsylvania, United States of America",
-                  id: "jnj-lancaster",
-                  count: 1
-                }
-              ]
-            }]
-          }, "2026-07-17T00:00:00.000Z", { finalUrl: jobsUrl });
-        }
-        if (!body.appliedFacets.workerSubType) {
-          return response({
-            total: 2,
-            jobPostings: [],
-            facets: [{
-              facetParameter: "workerSubType",
-              values: [
-                { descriptor: "Fixed Term Employee (Non-Intern) (Fixed Term)", id: "fixed", count: 0 },
-                { descriptor: "Regular", id: "regular", count: 2 },
-                { descriptor: "College Recruit", id: "campus", count: 0 },
-                { descriptor: "Intern (Fixed Term)", id: "intern", count: 0 },
-                { descriptor: "Temporary Agency Worker", id: "agency", count: 0 }
-              ]
-            }]
-          }, "2026-07-17T00:00:01.000Z", { finalUrl: jobsUrl });
-        }
-        return response({
-          total: 2,
-          jobPostings: [
-            {
-              title: "CQRA  Specialist, HK",
-              externalPath: listingPath,
-              locationsText: "2 Locations",
-              bulletFields: ["R-100"]
-            },
-            {
-              title: "Audited alias role",
-              externalPath: auditedAliasPath,
-              locationsText: "CN016 Harbin",
-              bulletFields: ["R-101"]
-            }
-          ]
-        }, "2026-07-17T00:00:02.000Z", { finalUrl: jobsUrl });
-      },
-      detailHttp: async (request) => response({
-        jobPostingInfo: {
-          title: "CQRA  Specialist, HK",
-          jobPostingSiteId: "JJ",
-          jobPostingId: "CQRA_R-100",
-          jobReqId: "R-100",
-          externalUrl: `https://jj.wd5.myworkdayjobs.com/JJ${listingPath}`,
-          posted: true,
-          canApply: true,
-          location: "Hong Kong, Hong Kong",
-          additionalLocations: ["Shanghai, China"]
-        }
-      }, "2026-07-17T00:00:03.000Z", {
-        finalUrl: request.url,
-        contentType: "application/json; charset=utf-8"
-      })
-    });
-
-    const fetched = await fetcher(staged);
-    if (!fetched.ok) throw new Error(fetched.failureReason);
-    const result = await runSourceCrawl(staged, { fetch: async () => fetched });
-
-    expect(result.truth).toEqual({
-      transportSuccess: true,
-      adapterSuccess: true,
-      completenessVerified: true
-    });
-    expect(result.observation).toMatchObject({
-      completenessStatus: "VERIFIED",
-      expectedJobCount: 2,
-      structuredJobCount: 2
-    });
-    expect(result.jobs).toEqual([
-      expect.objectContaining({
-        sourceJobId: workdayId(listingPath),
-        officialTitle: "CQRA Specialist, HK",
-        officialUrl: `https://jj.wd5.myworkdayjobs.com/JJ${listingPath}`,
-        locationRaw: "Hong Kong, Hong Kong | Shanghai, China",
-        cities: ["上海"]
-      }),
-      expect.objectContaining({
-        sourceJobId: workdayId(auditedAliasPath),
-        officialTitle: "Audited alias role",
-        officialUrl: `https://jj.wd5.myworkdayjobs.com/JJ${auditedAliasPath}`,
-        locationRaw: "CN016 Harbin",
-        cities: ["中国"]
-      })
-    ]);
-
-    const tamperedDetail = structuredClone(fetched);
-    if (!tamperedDetail.ok || !tamperedDetail.fetchEvidence) {
-      throw new Error("Expected JNJ evidence for strict tamper checks");
-    }
-    const detailArtifact = tamperedDetail.fetchEvidence.artifacts.find(
-      ({ logicalKey }) => logicalKey === "workday-detail-0000-0000"
+  it("stages the dedicated JNJ China careers adapter without reviving the retired Workday profile", () => {
+    const staged = buildStagedSourceCrawlPlans(candidateCompanies).find(
+      (candidate) => candidate.source.id === "source-johnson-innovative-medicine-social"
     );
-    if (!detailArtifact) throw new Error("Expected JNJ detail artifact");
-    const detailBody = JSON.parse(String(detailArtifact.body)) as {
-      jobPostingInfo: { canApply: boolean };
-    };
-    detailBody.jobPostingInfo.canApply = false;
-    detailArtifact.body = JSON.stringify(detailBody);
-    await expect(runSourceCrawl(staged, { fetch: async () => tamperedDetail })).resolves.toMatchObject({
-      truth: { completenessVerified: false }
+    expect(staged).toMatchObject({
+      adapterId: "official-json",
+      profileBoundSource: {
+        kind: "jnj-careers-china",
+        config: {
+          country: "China",
+          officialSearchUrl: "https://www.careers.jnj.com/en/jobs/?country=China"
+        }
+      }
     });
-
-    const tamperedOutput = structuredClone(fetched);
-    if (!tamperedOutput.ok || !("payload" in tamperedOutput)) {
-      throw new Error("Expected JNJ payload for strict tamper checks");
-    }
-    ((tamperedOutput.payload as { jobPostings: Array<{ title: string }> }).jobPostings[0]!).title = "Tampered title";
-    await expect(runSourceCrawl(staged, { fetch: async () => tamperedOutput })).resolves.toMatchObject({
-      truth: { completenessVerified: false }
-    });
-
-    const tamperedCities = structuredClone(fetched);
-    if (!tamperedCities.ok || !("payload" in tamperedCities)) {
-      throw new Error("Expected JNJ payload for strict city tamper check");
-    }
-    ((tamperedCities.payload as { jobPostings: Array<{ cities: string[] }> }).jobPostings[0]!).cities = ["北京"];
-    await expect(runSourceCrawl(staged, { fetch: async () => tamperedCities })).resolves.toMatchObject({
-      truth: { completenessVerified: false }
-    });
-
-    const tamperedPlan = structuredClone(staged);
-    if (tamperedPlan.adapterId !== "official-json" ||
-      tamperedPlan.workday?.locationFacetPolicy?.kind !== "JNJ_AUDITED_LOCATIONS_OVERLAP") {
-      throw new Error("Expected JNJ location policy for strict tamper checks");
-    }
-    tamperedPlan.workday.locationFacetPolicy.mainlandDescriptorAliases = [
-      ...tamperedPlan.workday.locationFacetPolicy.mainlandDescriptorAliases.slice(0, -1),
-      "CN999 Unaudited Site"
-    ];
-    await expect(runSourceCrawl(tamperedPlan, { fetch: async () => fetched })).resolves.toMatchObject({
-      truth: { completenessVerified: false }
-    });
+    expect(staged).not.toHaveProperty("workday");
   });
 
   it("rejects Gilead's audited foreign alias when it appears beneath a mainland-China ancestor", async () => {

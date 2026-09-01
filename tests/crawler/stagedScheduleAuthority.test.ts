@@ -61,13 +61,13 @@ function releaseCandidateRow(
 }
 
 describe("current staged schedule expectation", () => {
-  it("derives the exact frozen 30+20 launch roster and canonical STAGED plans", () => {
+  it("derives the exact human-verified 30+11 launch roster and canonical STAGED plans", () => {
     const expectation = deriveCurrentStagedScheduleExpectation(BUILD);
     const exclusions = new Set<string>(AUTHORIZED_PHASE1_EXCLUSION_COMPANY_IDS);
 
-    expect(expectation.companies).toHaveLength(50);
+    expect(expectation.companies).toHaveLength(41);
     expect(expectation.companies.filter(({ category }) => category === "FOREIGN_PHARMA")).toHaveLength(30);
-    expect(expectation.companies.filter(({ category }) => category === "DOMESTIC_PHARMA")).toHaveLength(20);
+    expect(expectation.companies.filter(({ category }) => category === "DOMESTIC_PHARMA")).toHaveLength(11);
     expect(expectation.rosterSha256).toBe(launchManifestIdentity(P0_LAUNCH_MANIFEST).companySetSha256);
     expect(expectation.plans.map((plan) => plan.source.id)).toEqual(
       launchPlans.map((plan) => plan.source.id).sort()
@@ -75,7 +75,7 @@ describe("current staged schedule expectation", () => {
     expect(expectation.plans.every((plan) => plan.executionAuthority === "STAGED")).toBe(true);
     expect(expectation.plans.some((plan) => exclusions.has(plan.company.id))).toBe(false);
     expect(expectation.companies.filter(({ id }) => exclusions.has(id))).toHaveLength(0);
-    expect(expectation.minimumStableCompanyCount).toBe(50);
+    expect(expectation.minimumStableCompanyCount).toBe(41);
   });
 
   it("keeps canonical hash results stable when source input order changes", () => {

@@ -86,7 +86,7 @@ type BeisenPlan = Extract<SourceCrawlPlan, { adapterId: "official-json" }>;
 const AUDITED_DOMESTIC_BEISEN_SOURCES = [
   "source-nhu-social",
   "source-dongyangguang-social",
-  "source-qilu-social",
+  "source-fosun-pharma-social",
   "source-3sbio-social"
 ] as const;
 
@@ -124,6 +124,38 @@ async function fetchExactBeisen(
 }
 
 describe("Beisen Zhiye 2022 evidence instrumentation", () => {
+  it("applies the public six-month social-job window using the crawl observation time", async () => {
+    const fetcher = createOfficialJsonSourceFetch({
+      now: () => new Date("2026-09-02T00:00:00.000Z"),
+      http: async () => response({
+        Code: 200,
+        Count: 3,
+        PageIndex: 0,
+        Data: [
+          { ...job("recent"), ChangeDate: "2026-09-01T12:00:00" },
+          { ...job("boundary"), ChangeDate: "2026-03-03T00:00:00" },
+          { ...job("stale"), ChangeDate: "2026-03-01T23:59:59" }
+        ]
+      }, { capturedAt: "2026-09-02T00:00:00.000Z" })
+    });
+
+    const result = await fetcher(plan({ changedWithinDays: 183, pageSize: 100 }));
+
+    expect(result).toMatchObject({
+      ok: true,
+      completeness: {
+        completenessEvidenceKind: "COMPLETE_PAGE_TRAVERSAL",
+        pagesVisited: 1
+      },
+      fetchEvidence: {
+        fetchCounts: { rawCount: 3, validCount: 2, validationDiscardCount: 1 },
+        fetchLosses: [{ details: { code: "OUT_OF_TIME_WINDOW", field: "ChangeDate" } }]
+      }
+    });
+    if (!result.ok || !("payload" in result)) throw new Error("Expected Beisen payload");
+    expect((result.payload as { jobs: unknown[] }).jobs).toHaveLength(2);
+  });
+
   it("exposes a temporary Beisen HTTP status as a structured retry signal", async () => {
     const fetcher = createOfficialJsonSourceFetch({
       now: () => new Date(NOW),
@@ -710,7 +742,7 @@ describe("Beisen Zhiye 2022 evidence instrumentation", () => {
   });
 
   it("does not extend the NHU Japan alternative to another domestic Beisen source", async () => {
-    const { fetched } = await fetchExactBeisen("source-qilu-social", ["浙江", "大阪"]);
+    const { fetched } = await fetchExactBeisen("source-fosun-pharma-social", ["浙江", "大阪"]);
     expect(fetched).toMatchObject({
       ok: true,
       payload: { jobs: [] },

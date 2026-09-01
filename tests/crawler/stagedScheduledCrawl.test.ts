@@ -388,7 +388,11 @@ describe("current staged scheduled crawl", () => {
     });
     const syncPlannedSourcesToDb = vi.fn(async () => {
       calls.push("sync");
-      return { companyCount: 50, sourceCount: canonicalPlans.length, hiddenUnplannedVisibleJobCount: 0 };
+      return {
+        companyCount: canonicalPlans.length,
+        sourceCount: canonicalPlans.length,
+        hiddenUnplannedVisibleJobCount: 0
+      };
     });
     const runP0CrawlBatch = vi.fn(async (
       _plans: readonly SourceCrawlPlan[],

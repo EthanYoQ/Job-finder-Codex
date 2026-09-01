@@ -11,6 +11,7 @@ export const profile_hansoh = {
           json: OFFICIAL_API_JSON_CONFIG,
           officialJsonFetch: {
               kind: "beisen-zhiye-2022",
+              changedWithinDays: 183,
               geographyScope: "DOMESTIC_OFFICIAL_TENANT",
               category: "1",
               pageSize: 100,

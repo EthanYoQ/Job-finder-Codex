@@ -112,7 +112,7 @@ export function evaluateAuthoritativeLaunchReadiness(
   const gates = [
     gate("FROZEN_MANIFEST", manifestReasons), gate("RELEASE_IDENTITY", identityReasons),
     gate("PRODUCTION_SECURITY", securityReasons), gate("BACKUP_RESTORE", restoreReasons),
-    gate("TWO_ROUND_50_COMPANY_CERTIFICATES", batchReasons),
+    gate("TWO_ROUND_41_COMPANY_CERTIFICATES", batchReasons),
     gate("FORMAL_QUALIFICATION_EVIDENCE", formalQualificationReasons),
     gate("DEPLOYMENT_AND_OPERATIONS", operationReasons)
   ];
@@ -222,8 +222,8 @@ function validateBatches(evidence: AuthoritativeLaunchEvidence): string[] {
       batch.commitSha !== identity.commitSha || batch.rosterSha256 !== identity.rosterSha256 ||
       batch.sourcePlanSha256 !== identity.sourcePlanSha256 || batch.sourceConfigSha256 !== identity.sourceConfigSha256 ||
       batch.adapterBundleSha256 !== identity.adapterBundleSha256) reasons.push(`BATCH_IDENTITY_OR_STATUS_INVALID:${batch.id}`);
-    if (batch.certificates.length !== 50 || new Set(batch.certificates.map(({ companyId }) => companyId)).size !== 50) {
-      reasons.push(`CERTIFICATE_DENOMINATOR_NOT_50:${batch.id}`); continue;
+    if (batch.certificates.length !== 41 || new Set(batch.certificates.map(({ companyId }) => companyId)).size !== 41) {
+      reasons.push(`CERTIFICATE_DENOMINATOR_NOT_41:${batch.id}`); continue;
     }
     for (const certificate of batch.certificates) {
       const company = manifestByCompany.get(certificate.companyId);

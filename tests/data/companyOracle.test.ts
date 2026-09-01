@@ -91,7 +91,7 @@ describe("strict 30+30 roster and expected official-surface oracle", () => {
     expect(validateStrictCompanyRegistry(candidateCompanies, expectedOfficialSurfaces, excludedCompanies)).toEqual([]);
   });
 
-  it("activates the canonical Sandoz source and only the verified Otsuka group source without substitutions", () => {
+  it("activates the Aspen successor and only the verified Otsuka job-list source", () => {
     const byId = new Map(candidateCompanies.map((company) => [company.id, company]));
     expect(byId.get("company-sandoz-china")).toMatchObject({
       targetStatus: "ACTIVE",
@@ -100,16 +100,16 @@ describe("strict 30+30 roster and expected official-surface oracle", () => {
     expect(byId.get("company-otsuka-china")).toMatchObject({
       targetStatus: "ACTIVE",
       sources: [
-        { id: "source-otsuka-china-social", status: "ENTRY_FOUND_PENDING_ADAPTER" },
-        { id: "source-otsuka-china-social-2", status: "VERIFIED_SCRAPABLE" }
+        { id: "source-otsuka-china-social", status: "VERIFIED_SCRAPABLE" },
+        { id: "source-otsuka-china-social-2", status: "ENTRY_FOUND_PENDING_ADAPTER" }
       ]
     });
     expect(expectedOfficialSurfaces.filter((surface) => surface.companyId === "company-otsuka-china" && surface.kind === "SOCIAL"))
       .toEqual([
         expect.objectContaining({
           surfaceId: "surface-otsuka-china-social",
-          status: "VERIFIED_NON_JOB_RECRUITMENT_INFORMATION",
-          recruitmentPageCapability: "RECRUITMENT_INFORMATION_OR_CONTACT",
+          status: "INCLUDED",
+          recruitmentPageCapability: "JOB_LISTING",
           capabilityVerification: {
             checkedAt: "2026-07-16",
             reason: expect.any(String)
@@ -118,11 +118,11 @@ describe("strict 30+30 roster and expected official-surface oracle", () => {
         expect.objectContaining({
           surfaceId: "surface-otsuka-china-social-2",
           status: "INCLUDED",
-          recruitmentPageCapability: "JOB_LISTING"
+          recruitmentPageCapability: "RECRUITMENT_INFORMATION_OR_CONTACT"
         })
       ]);
     expect(expectedOfficialSurfaces.find(({ surfaceId }) => surfaceId === "surface-otsuka-china-social"))
-      .not.toHaveProperty("adapterId");
+      .toHaveProperty("adapterId", "html-table");
     expect(byId.has("company-beta-pharma")).toBe(false);
     expect(byId.has("company-jacobio")).toBe(false);
     expect(excludedCompanies.map((company) => company.companyId)).toEqual(

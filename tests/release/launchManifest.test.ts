@@ -16,9 +16,7 @@ import {
 const EXPECTED_DOMESTIC_COMPANY_IDS = [
   "company-cr-pharma", "company-qilu", "company-grand-pharma", "company-fosun-pharma",
   "company-cspc", "company-hengrui", "company-cttq", "company-shanghai-pharma",
-  "company-kelun", "company-xiuzheng", "company-yangzijiang", "company-nhu",
-  "company-jimin-kexin", "company-united-lab", "company-tongrentang", "company-livzon",
-  "company-buchang", "company-hansoh", "company-lunan", "company-huahai"
+  "company-kelun", "company-united-lab", "company-hansoh"
 ] as const;
 
 function historicalArtifacts() {
@@ -37,7 +35,7 @@ function launchPlans() {
 }
 
 describe("P0 launch manifest", () => {
-  it("freezes all 30 foreign companies and 20 historically successful domestic companies", () => {
+  it("freezes all 30 foreign companies and 11 manually retained domestic companies", () => {
     const foreignIds = P0_LAUNCH_MANIFEST.companies
       .filter((company) => company.category === "FOREIGN_PHARMA")
       .map((company) => company.companyId);
@@ -46,7 +44,7 @@ describe("P0 launch manifest", () => {
       .map((company) => company.companyId);
 
     expect(validateLaunchManifest(P0_LAUNCH_MANIFEST, P0_CANDIDATE_COMPANY_IDS)).toEqual([]);
-    expect(P0_LAUNCH_MANIFEST.companies).toHaveLength(50);
+    expect(P0_LAUNCH_MANIFEST.companies).toHaveLength(41);
     expect(foreignIds).toHaveLength(30);
     expect(domesticIds).toEqual(EXPECTED_DOMESTIC_COMPANY_IDS);
   });
@@ -57,8 +55,8 @@ describe("P0 launch manifest", () => {
 
     expect(P0_CANDIDATE_COMPANY_IDS).toHaveLength(60);
     expect(validateLaunchManifest(P0_LAUNCH_MANIFEST, expandedCandidateIds)).toEqual([]);
-    expect(selectLaunchCompanies(P0_LAUNCH_MANIFEST, expandedCandidates)).toHaveLength(50);
-    expect(expandedCandidates.length).toBeGreaterThan(50);
+    expect(selectLaunchCompanies(P0_LAUNCH_MANIFEST, expandedCandidates)).toHaveLength(41);
+    expect(expandedCandidates.length).toBeGreaterThan(41);
   });
 
   it("binds both persisted RC022 evidence artifacts and every selected domestic success", () => {
@@ -93,9 +91,9 @@ describe("P0 launch manifest", () => {
 
   it("locks deterministic company, source, and whole-manifest identities", () => {
     expect(launchManifestIdentity(P0_LAUNCH_MANIFEST)).toEqual({
-      companySetSha256: "aa0cef75afe2fb3a3dc967804a9483857b5e612f055d16ac7887c35716647b6a",
-      sourceIdentitySha256: "5ef5eb3d919aa563a37d8aa4908b68d12cd69c179e1430d245db5cbef79bec38",
-      manifestSha256: "c52765f29bb457cb5c16a4a4a40b4ff5143d259dd4853e8ca3458d5fdcd71721"
+      companySetSha256: "ac44a7c7077e23ffa5367dc4bb8a11b254feebc8a190ae7c27481c7269a5a659",
+      sourceIdentitySha256: "1016f35e8729ceb924ab45d7ea05b993bcbc30eff43c892795a97b5171c1b307",
+      manifestSha256: "528afc7a36699a8e3eba1b832c3efa8055f813fbae70fb8c1f25107a56144ac0"
     });
   });
 
@@ -137,7 +135,7 @@ describe("P0 launch manifest", () => {
     [
       "wrong company count",
       { ...P0_LAUNCH_MANIFEST, companies: P0_LAUNCH_MANIFEST.companies.slice(1) } as LaunchManifest,
-      "LAUNCH_COMPANY_COUNT_NOT_50"
+      "LAUNCH_COMPANY_COUNT_NOT_41"
     ],
     [
       "duplicate company",

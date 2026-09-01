@@ -1,4 +1,3 @@
-import { createHash } from "node:crypto";
 import { describe, expect, it, vi } from "vitest";
 import { candidateCompanies } from "../../src/data/companyRegistry";
 import {
@@ -24,23 +23,19 @@ import {
   getPlanBySourceId,
   sourcePlanConfigSha256
 } from "../../src/crawler/sourcePlan";
-import { canonicalStringSetSha256 } from "../../src/crawler/sourceFetchEvidence";
 import {
   createOfficialJsonRenderedTraversalValidation,
   issueBGradeTraversalCertificate,
-  requiresBGradeCertificateSourceId,
-  verifyBGradeTraversalCertificateReceipt
+  requiresBGradeCertificateSourceId
 } from "../../src/crawler/traversalCertificate";
 
 const observedAt = "2026-08-14T00:00:00.000Z";
 const expiresAt = "2026-08-21T00:00:00.000Z";
 
 describe("official JSON rendered traversal", () => {
-  it("registers the three remaining launch sources as B-grade certificate authorities", () => {
+  it("requires a B-grade certificate only for the remaining in-scope rendered source", () => {
     expect(OFFICIAL_JSON_RENDERED_REQUIRED_CERTIFICATES).toEqual({
-      "source-cspc-social": "company-cspc",
-      "source-nhu-social": "company-nhu",
-      "source-xiuzheng-social": "company-xiuzheng"
+      "source-cspc-social": "company-cspc"
     });
     expect(Object.keys(OFFICIAL_JSON_RENDERED_TRAVERSAL_POLICIES)).toEqual([
       "source-cspc-social",
@@ -444,7 +439,7 @@ describe("official JSON rendered traversal", () => {
     expect(failure).toMatchObject({ message: `Xiuzheng browser validator ${expectedStage} navigation failed` });
   });
 
-  it("issues and verifies Xiuzheng, then rejects a fully self-rehashed row outside the main raw commitment", async () => {
+  it("keeps historical Xiuzheng traversal replay available but rejects launch certification", async () => {
     const plan = getPlanBySourceId(buildStagedSourceCrawlPlans(candidateCompanies), "source-xiuzheng-social");
     if (!plan || plan.adapterId !== "official-json") throw new Error("Missing Xiuzheng plan");
     const mainRows = [{ id: 17, name: "用人理念" }, { id: 16, name: "研发工程师" }];
@@ -493,55 +488,11 @@ describe("official JSON rendered traversal", () => {
       trigger: "INITIAL_QUALIFICATION",
       now
     });
-    expect(decision.status, JSON.stringify(decision)).toBe("CERTIFIED");
-    if (decision.status !== "CERTIFIED") throw new Error("Expected Xiuzheng certificate");
-    const expected = {
-      releaseCandidateId: "rc-xiuzheng",
-      batchId: "batch-xiuzheng",
-      sourceResultId: "result-xiuzheng",
-      sourceId: "source-xiuzheng-social",
-      companyId: "company-xiuzheng",
-      sourceConfigSha256,
-      canonicalRawEvidenceIdSetSha256: canonicalStringSetSha256(
-        result.fetchEvidence.pages.flatMap((candidate) => candidate.rawJobIds)
-      )
-    } as const;
-    expect(verifyBGradeTraversalCertificateReceipt({
-      certificate: decision.certificate,
-      certificateSha256: decision.certificateSha256,
-      expected,
-      now
-    })).toMatchObject({ status: "PASS", finalUniqueJobCount: 1 });
-
-    const forged = structuredClone(decision.certificate);
-    if (forged.schemaVersion !== "b-grade-independent-traversal-v2" ||
-        forged.independentValidation.schemaVersion !== "official-json-browser-network-traversal-v1") {
-      throw new Error("Expected official JSON certificate");
-    }
-    const forgedPayload = { id: 999999, name: "用人理念" };
-    forged.independentValidation.pages[0]!.rawRows[0] = {
-      sourceJobId: "999999",
-      rawEvidenceId: irreversibleOfficialJsonEvidenceId([0, forgedPayload]),
-      scopeMarker: forgedPayload.name,
-      scopeDecision: "EXCLUDED_AUDITED",
-      recordIndex: 0,
-      rawPayload: forgedPayload
-    };
-    forged.independentValidation.artifactSha256 = canonicalSha256({
-      sourceId: forged.independentValidation.sourceId,
-      retrievalPath: forged.independentValidation.retrievalPath,
-      matchKeyKind: forged.independentValidation.matchKeyKind,
-      pages: forged.independentValidation.pages,
-      observedAt: forged.independentValidation.observedAt
+    expect(decision).toMatchObject({
+      status: "REJECTED",
+      resultingGrade: "C",
+      blockerCodes: ["UNSUPPORTED_SOURCE"]
     });
-    forged.mainTraversal.canonicalRawMatchKeySetSha256 = canonicalStringSetSha256(["16", "999999"]);
-    forged.mainTraversal.canonicalExcludedMatchKeySetSha256 = canonicalStringSetSha256(["999999"]);
-    expect(() => verifyBGradeTraversalCertificateReceipt({
-      certificate: forged,
-      certificateSha256: canonicalSha256(forged),
-      expected,
-      now
-    })).toThrow(/raw evidence commitment|raw match-key set/i);
   });
 
   it("rejects NHU locations outside the explicit mainland or audited Japan policy", () => {
@@ -842,20 +793,4 @@ function jsonResponse(request: OfficialJsonHttpRequest, body: unknown): Official
     contentType: "application/json; charset=utf-8",
     capturedAt: observedAt
   };
-}
-
-function canonicalSha256(value: unknown): string {
-  return createHash("sha256").update(canonicalJson(value), "utf8").digest("hex");
-}
-
-function canonicalJson(value: unknown): string {
-  if (value === null || typeof value !== "object") {
-    const primitive = JSON.stringify(value);
-    if (primitive === undefined) throw new Error("Cannot canonicalize undefined");
-    return primitive;
-  }
-  if (Array.isArray(value)) return `[${value.map(canonicalJson).join(",")}]`;
-  return `{${Object.entries(value as Record<string, unknown>)
-    .sort(([left], [right]) => Buffer.from(left, "utf8").compare(Buffer.from(right, "utf8")))
-    .map(([key, child]) => `${JSON.stringify(key)}:${canonicalJson(child)}`).join(",")}}`;
 }

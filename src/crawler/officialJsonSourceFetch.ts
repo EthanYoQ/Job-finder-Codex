@@ -18,6 +18,7 @@ import { acquireBrowserSourcePermit } from "./browserSourceConcurrency";
 import { load as loadHtml } from "cheerio";
 import { parse as parseJavaScript } from "@babel/parser";
 import type { ObjectExpression } from "@babel/types";
+import { createHash } from "node:crypto";
 import {
   assertOfficialHtmlMime,
   assertOfficialJsonEvidenceResponse,
@@ -114,6 +115,7 @@ export type OfficialJsonFetchConfig =
     }
   | {
       kind: "beisen-zhiye-2022";
+      changedWithinDays?: 183;
       category?: string;
       pageSize?: number;
       maxPages?: number;
@@ -156,6 +158,21 @@ export type OfficialJsonFetchConfig =
       pageSize?: number;
       maxPages?: number;
       detailBaseUrl: string;
+    }
+  | {
+      kind: "eightfold-pcsx";
+      domain: string;
+      location: string;
+      pageSize?: number;
+      maxPages?: number;
+      detailBaseUrl: string;
+    }
+  | {
+      kind: "51job-coapi";
+      ctmid: string;
+      uiScriptUrl: string;
+      detailBaseUrl: string;
+      pageSize?: 500;
     }
   | {
       kind: "sandoz-jsonapi";
@@ -371,6 +388,26 @@ export function createOfficialJsonSourceFetch(
 
       if (plan.officialJsonFetch.kind === "jobsyn-solr") {
         return finish(await fetchJobsynSolr({
+          http,
+          config: plan.officialJsonFetch,
+          entryUrl: plan.source.officialEntryUrl,
+          capturedAt,
+          now
+        }));
+      }
+
+      if (plan.officialJsonFetch.kind === "eightfold-pcsx") {
+        return finish(await fetchEightfoldPcsx({
+          http,
+          config: plan.officialJsonFetch,
+          entryUrl: plan.source.officialEntryUrl,
+          capturedAt,
+          now
+        }));
+      }
+
+      if (plan.officialJsonFetch.kind === "51job-coapi") {
+        return finish(await fetch51jobCoapi({
           http,
           config: plan.officialJsonFetch,
           entryUrl: plan.source.officialEntryUrl,
@@ -606,6 +643,8 @@ function officialJsonRequestedPageSize(config: OfficialJsonFetchConfig): number 
     case "cnstaff": return Math.max(1, Math.min(100, config.pageSize ?? 15));
     case "hcm-cloud": return Math.max(1, config.pageSize ?? 20);
     case "jobsyn-solr": return config.pageSize ?? 9;
+    case "eightfold-pcsx": return Math.max(1, Math.min(100, config.pageSize ?? 10));
+    case "51job-coapi": return config.pageSize ?? 500;
     case "sandoz-jsonapi": return config.pageSize ?? 10;
     case "xiuzheng-job-list": return config.pageSize ?? 10;
     default: return null;
@@ -927,19 +966,21 @@ function novoTotalLocator(endpoint: string, path: "$.data.totalMatches" | "$.dat
 }
 
 function isNovoChinaMainlandRequest(endpoint: string): boolean {
+  const url = new URL(endpoint);
   const countryEntries = [...new URL(endpoint).searchParams.entries()].filter(([key]) =>
     key.normalize("NFKC").toLowerCase() === "country"
   );
   return countryEntries.length === 1 && countryEntries[0]![0] === "country" &&
-    countryEntries[0]![1] === "China Mainland";
+    (countryEntries[0]![1] === "China Mainland" ||
+      (url.hostname === "www.novonordisk.com.cn" && countryEntries[0]![1] === "China"));
 }
 
 const EXACT_NOVO_CHINA_SOURCE_ID = "source-novo-nordisk-china-social";
 const EXACT_NOVO_CHINA_COMPANY_ID = "company-novo-nordisk-china";
 const EXACT_NOVO_CHINA_ENTRY_URL =
-  "https://www.novonordisk.com/careers/find-a-job/career-search-results.html";
+  "https://www.novonordisk.com.cn/careers/find-a-job/career-search-results.html?searchText=&countries=China&categories=";
 const EXACT_NOVO_CHINA_ENDPOINT =
-  "https://www.novonordisk.com/bin/nncorp/careersearch?keyword=&country=China%20Mainland&category=&locale=en";
+  "https://www.novonordisk.com.cn/bin/nncorp/careersearch?keyword=&country=China&category=&locale=zh-cn";
 
 function isExactNovoChinaCityPolicy(input: {
   config: Extract<OfficialJsonFetchConfig, { kind: "innovent" | "novo-nordisk" }>;
@@ -1904,6 +1945,433 @@ async function fetchSandozJsonApi({
   };
 }
 
+const FIFTY_ONE_JOB_COAPI_PUBLIC_KEY =
+  "tuD&#mheJQBlgy&Sm300l8xK^X4NzFYBcrN8@YLCret$fv1AZbtujg*KN^$YnUkh";
+
+async function fetch51jobCoapi({
+  http,
+  config,
+  entryUrl,
+  capturedAt,
+  now
+}: {
+  http: OfficialJsonHttpClient;
+  config: Extract<OfficialJsonFetchConfig, { kind: "51job-coapi" }>;
+  entryUrl: string;
+  capturedAt: string;
+  now: () => Date;
+}): Promise<SourceFetchResult> {
+  let safeEntryUrl: string;
+  let scriptUrl: string;
+  let detailBase: URL;
+  try {
+    safeEntryUrl = safeOfficialJsonEvidenceUrl(entryUrl);
+    const entry = new URL(safeEntryUrl);
+    scriptUrl = safeOfficialJsonEndpoint(config.uiScriptUrl);
+    detailBase = new URL(safeOfficialJsonEndpoint(config.detailBaseUrl));
+    const script = new URL(scriptUrl);
+    if (entry.origin !== "https://campus.51job.com" || script.origin !== entry.origin ||
+      detailBase.origin !== entry.origin || !/^\d+$/u.test(config.ctmid) ||
+      config.pageSize !== undefined && config.pageSize !== 500) throw new Error();
+  } catch {
+    return failed(capturedAt, "51job CoAPI source configuration is invalid");
+  }
+
+  let scriptResponse: OfficialJsonHttpResponse;
+  try {
+    scriptResponse = await http({ url: scriptUrl, method: "GET", headers: {
+      Accept: "application/javascript,text/javascript,*/*;q=0.1",
+      Referer: safeEntryUrl,
+      "User-Agent": "job-search-crawler/0.1"
+    } });
+    assertOfficialJsonEvidenceResponse(scriptResponse, {
+      requestedUrl: scriptUrl,
+      crawlStartedAtMs: Date.parse(capturedAt),
+      observedNowMs: now().getTime()
+    });
+  } catch {
+    return failed(capturedAt, "51job recruitment UI script transport or metadata failed");
+  }
+  if (scriptResponse.status < 200 || scriptResponse.status >= 300) {
+    return failed(capturedAt, `51job recruitment UI script returned HTTP ${scriptResponse.status}`);
+  }
+  const uiExclusions = parse51jobUiExclusions(scriptResponse.body);
+  if (!uiExclusions) return failed(capturedAt, "51job recruitment UI exclusion contract is invalid");
+  const scriptArtifact = officialJsonNetworkArtifact({
+    id: "51job-ui-script",
+    logicalKey: "51job-ui-script",
+    kind: "OFFICIAL_COMPANY_PAGE",
+    requestedUrl: scriptUrl,
+    response: scriptResponse,
+    extractorLocator: "javascript:sxsPosCode[code,jobareaname]"
+  });
+
+  const params = {
+    ctmid: config.ctmid,
+    pagesize: config.pageSize ?? 500,
+    pagenum: 1,
+    sort: "issuedate",
+    sequence: "0",
+    keyword: null,
+    jobarea: null,
+    functype: null,
+    divid: null,
+    poscode: null
+  };
+  const serializedParams = JSON.stringify(params);
+  const keyIndex = 1;
+  const sign = createHash("md5")
+    .update(`coapi${serializedParams}${FIFTY_ONE_JOB_COAPI_PUBLIC_KEY.slice(keyIndex, keyIndex + 15)}`)
+    .digest("hex");
+  const endpoint = new URL("https://coapi.51job.com/job_list.php");
+  endpoint.searchParams.set("key", String(keyIndex));
+  endpoint.searchParams.set("sign", sign);
+  endpoint.searchParams.set("params", serializedParams);
+  endpoint.searchParams.set("jsoncallback", "jsoncallback");
+  const requestedUrl = endpoint.toString();
+  let response: OfficialJsonHttpResponse;
+  try {
+    response = await http({ url: requestedUrl, method: "GET", headers: {
+      Accept: "application/javascript,application/json,text/javascript,*/*;q=0.1",
+      Referer: safeEntryUrl,
+      "User-Agent": "job-search-crawler/0.1"
+    } });
+    assertOfficialJsonEvidenceResponse(response, {
+      requestedUrl,
+      crawlStartedAtMs: Date.parse(capturedAt),
+      observedNowMs: now().getTime()
+    });
+  } catch {
+    return failed(capturedAt, "51job CoAPI transport or metadata failed");
+  }
+  const locator = requestContractV2Locator(
+    "51job-coapi-v1|jsonp:$.resultbody.joblist|total:$.resultbody.totalnum|ui:sxsPosCode",
+    { family: "51job-coapi", role: "page", method: "GET", url: requestedUrl, body: null,
+      coordinate: { sequence: 0, requestedPage: 1, requestedPageSize: params.pagesize } }
+  );
+  const apiArtifact = officialJsonNetworkArtifact({
+    id: "51job-page-0001",
+    logicalKey: "51job-page-0001",
+    kind: "ATS_API_RESPONSE",
+    requestedUrl: "https://coapi.51job.com/job_list.php",
+    response: { ...response, finalUrl: "https://coapi.51job.com/job_list.php" },
+    extractorLocator: locator
+  });
+  if (response.status < 200 || response.status >= 300) {
+    return failed(capturedAt, `51job CoAPI returned HTTP ${response.status}`);
+  }
+  const envelope = parse51jobJsonp(response.body);
+  if (!envelope) return failed(capturedAt, "51job CoAPI response schema is invalid");
+
+  const jobs: NormalizedOfficialJsonJob[] = [];
+  const rawIds: string[] = [];
+  const validIds: string[] = [];
+  const losses: PersistentSourceFetchEvidence["fetchLosses"] = [];
+  const counts: PersistentSourceFetchEvidence["fetchCounts"] = {
+    rawCount: envelope.jobs.length,
+    parsedCount: envelope.jobs.length,
+    validCount: 0,
+    parseDiscardCount: 0,
+    validationDiscardCount: 0
+  };
+  const seen = new Set<string>();
+  for (let index = 0; index < envelope.jobs.length; index += 1) {
+    const raw = envelope.jobs[index]!;
+    const rawId = stringValue(raw.jobid);
+    rawIds.push(irreversibleOfficialJsonEvidenceId(rawId ?? raw));
+    const title = stringValue(raw.jobname);
+    const locationRaw = stringValue(raw.jobareaname);
+    if (!rawId || !title || !locationRaw || seen.has(rawId)) {
+      counts.validationDiscardCount += 1;
+      losses.push({ stage: "VALIDATION", reason: "51job record rejected: INVALID_REQUIRED_FIELD",
+        rawLocator: officialJsonRawLocator(0, index), details: { code: "INVALID_REQUIRED_FIELD", recordIndex: index } });
+      continue;
+    }
+    if (uiExclusions.some((rule) => title.includes(rule.code) && locationRaw.includes(rule.location))) {
+      counts.validationDiscardCount += 1;
+      losses.push({ stage: "VALIDATION", reason: "51job record excluded by official recruitment UI",
+        rawLocator: officialJsonRawLocator(0, index), details: { code: "OFFICIAL_UI_EXCLUSION", recordIndex: index } });
+      continue;
+    }
+    const officialUrl = new URL(detailBase);
+    officialUrl.searchParams.set("jobId", rawId);
+    const sourceJobId = persistentOfficialJsonJobId(rawId);
+    jobs.push({ sourceJobId, title, officialUrl: officialUrl.toString(), locationRaw,
+      cities: citiesWithFallback(locationRaw, locationRaw) });
+    seen.add(rawId);
+    counts.validCount += 1;
+    validIds.push(irreversibleOfficialJsonEvidenceId(sourceJobId));
+  }
+  if (envelope.total !== envelope.jobs.length || envelope.jobs.length > params.pagesize ||
+    counts.validCount + counts.validationDiscardCount !== counts.rawCount) {
+    return failed(capturedAt, "51job CoAPI traversal did not close the declared total");
+  }
+  const page: SourceFetchPageTrace = {
+    sequence: 0,
+    artifactLogicalKey: apiArtifact.logicalKey,
+    requestedCursor: null,
+    returnedCursor: null,
+    requestedOffset: null,
+    returnedOffset: null,
+    requestedPage: 1,
+    returnedPage: 1,
+    requestedPageSize: params.pagesize,
+    returnedPageSize: envelope.jobs.length,
+    rawJobIds: [...new Set(rawIds)],
+    validJobIds: validIds,
+    declaredTotal: counts.validCount,
+    declaredCount: envelope.total,
+    declaredPages: 1,
+    nextPageSignalBefore: null,
+    nextPageSignalAfter: null,
+    responseFingerprintSha256: sha256Bytes(Buffer.from(response.body, "utf8")).sha256,
+    termination: "DECLARED_TOTAL_REACHED",
+    anomalyCodes: [],
+    capturedAt: apiArtifact.capturedAt
+  };
+  const declaredCompleteness = {
+    kind: "OFFICIAL_TOTAL_COUNT" as const,
+    value: counts.validCount,
+    artifactLogicalKey: apiArtifact.logicalKey,
+    extractorLocator: locator,
+    scope: "SOURCE" as const
+  };
+  const finalized = finalizeOfficialJsonEvidenceBundle({
+    artifacts: [scriptArtifact, apiArtifact],
+    pages: [page],
+    fetchCounts: counts,
+    fetchLosses: losses,
+    declaredCompleteness
+  });
+  return {
+    ok: true,
+    capturedAt,
+    payload: { jobs },
+    completeness: {
+      completenessStatus: "NEEDS_MANUAL_COMPLETENESS_REVIEW",
+      expectedJobCount: counts.validCount,
+      completenessEvidenceKind: "OFFICIAL_TOTAL_COUNT",
+      completenessEvidenceUrl: safeEntryUrl,
+      completenessBlockerReason: "51job UI exclusions await independent strict replay",
+      totalPages: 1,
+      pageSize: params.pagesize,
+      pagesVisited: 1
+    },
+    fetchEvidence: finalized.evidence,
+    paginationEvaluation: finalized.evaluation
+  };
+}
+
+function parse51jobUiExclusions(body: string): Array<{ code: string; location: string }> | undefined {
+  const block = /(?:let|var|const)\s+sxsPosCode\s*=\s*\[([\s\S]*?)\]\s*(?:;|\/\/)/u.exec(body)?.[1];
+  if (!block) return undefined;
+  const rules: Array<{ code: string; location: string }> = [];
+  const objectPattern = /\{\s*code\s*:\s*["']([^"']+)["']\s*,\s*jobareaname\s*:\s*["']([^"']+)["']\s*,?\s*\}/gu;
+  for (const match of block.matchAll(objectPattern)) {
+    const code = match[1]?.trim();
+    const location = match[2]?.trim();
+    if (!code || !location) return undefined;
+    rules.push({ code, location });
+  }
+  return rules.length > 0 && new Set(rules.map((rule) => `${rule.code}\u0000${rule.location}`)).size === rules.length
+    ? rules
+    : undefined;
+}
+
+function parse51jobJsonp(body: string): { total: number; jobs: Record<string, unknown>[] } | undefined {
+  const match = /^\s*jsoncallback\((\{[\s\S]*\})\)\s*;?\s*$/u.exec(body);
+  if (!match || !hasUniqueJsonObjectKeys(match[1]!)) return undefined;
+  try {
+    const root = JSON.parse(match[1]!) as unknown;
+    if (!isStrictRecord(root) || root.status !== "1" || !isStrictRecord(root.resultbody) ||
+      !Array.isArray(root.resultbody.joblist)) return undefined;
+    const totalRaw = root.resultbody.totalnum;
+    const total = typeof totalRaw === "string" && /^\d+$/u.test(totalRaw) ? Number(totalRaw) : totalRaw;
+    if (!isNonnegativeInteger(total) || root.resultbody.joblist.some((row) => !isStrictRecord(row))) return undefined;
+    return { total, jobs: root.resultbody.joblist as Record<string, unknown>[] };
+  } catch {
+    return undefined;
+  }
+}
+
+async function fetchEightfoldPcsx({
+  http,
+  config,
+  entryUrl,
+  capturedAt,
+  now
+}: {
+  http: OfficialJsonHttpClient;
+  config: Extract<OfficialJsonFetchConfig, { kind: "eightfold-pcsx" }>;
+  entryUrl: string;
+  capturedAt: string;
+  now: () => Date;
+}): Promise<SourceFetchResult> {
+  let safeEntryUrl: string;
+  let endpoint: URL;
+  let detailBase: URL;
+  try {
+    safeEntryUrl = safeOfficialJsonEvidenceUrl(entryUrl);
+    const entry = new URL(safeEntryUrl);
+    endpoint = new URL("/api/pcsx/search", entry.origin);
+    detailBase = new URL(safeOfficialJsonEndpoint(config.detailBaseUrl));
+    if (detailBase.origin !== entry.origin || !detailBase.pathname.startsWith("/careers/job")) throw new Error();
+    if (!/^[a-z0-9.-]+$/u.test(config.domain) || !/^[a-z]+$/u.test(config.location)) throw new Error();
+  } catch {
+    return failed(capturedAt, "Eightfold PCSx source configuration is invalid");
+  }
+  const pageSize = Math.max(1, Math.min(100, config.pageSize ?? 10));
+  const maxPages = Math.max(1, config.maxPages ?? 20);
+  const artifacts: SourceFetchArtifactDraft[] = [];
+  const pages: SourceFetchPageTrace[] = [];
+  const counts: PersistentSourceFetchEvidence["fetchCounts"] = {
+    rawCount: 0, parsedCount: 0, validCount: 0, parseDiscardCount: 0, validationDiscardCount: 0
+  };
+  const losses: PersistentSourceFetchEvidence["fetchLosses"] = [];
+  const jobs: NormalizedOfficialJsonJob[] = [];
+  const seen = new Set<string>();
+  let declaredTotal: number | undefined;
+  let declaredArtifactKey: string | undefined;
+  let declaredLocator: string | undefined;
+
+  for (let pageIndex = 0; pageIndex < maxPages; pageIndex += 1) {
+    const start = pageIndex * pageSize;
+    const url = new URL(endpoint);
+    url.searchParams.set("domain", config.domain);
+    url.searchParams.set("query", "");
+    url.searchParams.set("location", config.location);
+    url.searchParams.set("start", String(start));
+    url.searchParams.set("sort_by", "distance");
+    const requestUrl = url.toString();
+    const locator = requestContractV2Locator(
+      "eightfold-pcsx-v1|json:$.data.positions|total:$.data.count",
+      { family: "eightfold", role: "page", method: "GET", url: requestUrl, body: null,
+        coordinate: { sequence: pageIndex, requestedOffset: start, requestedPageSize: pageSize } }
+    );
+    let response: OfficialJsonHttpResponse;
+    try {
+      response = await http({ url: requestUrl, method: "GET", headers: {
+        Accept: "application/json", Referer: safeEntryUrl, "User-Agent": "job-search-crawler/0.1"
+      } });
+      assertOfficialJsonEvidenceResponse(response, {
+        requestedUrl: requestUrl,
+        crawlStartedAtMs: Date.parse(capturedAt),
+        observedNowMs: now().getTime()
+      });
+    } catch (error) {
+      return failed(capturedAt, safeOfficialJsonFailure(error, "Eightfold PCSx transport or metadata failed"));
+    }
+    const artifact = officialJsonNetworkArtifact({
+      id: `eightfold-page-${String(pageIndex).padStart(4, "0")}`,
+      logicalKey: `eightfold-page-${String(pageIndex).padStart(4, "0")}`,
+      kind: "PAGINATION_PAGE",
+      requestedUrl: requestUrl,
+      response,
+      extractorLocator: locator
+    });
+    artifacts.push(artifact);
+    if (response.status < 200 || response.status >= 300) {
+      return failed(capturedAt, `Eightfold PCSx returned HTTP ${response.status}`);
+    }
+    try { assertOfficialJsonMime(response); } catch {
+      return failed(capturedAt, "Eightfold PCSx response has an invalid Content-Type");
+    }
+    let root: unknown;
+    try { root = JSON.parse(response.body); } catch {
+      return failed(capturedAt, "Eightfold PCSx response is not valid JSON");
+    }
+    if (!hasUniqueJsonObjectKeys(response.body) || !isStrictRecord(root) || root.status !== 200 ||
+      !isStrictRecord(root.data) || !isNonnegativeInteger(root.data.count) ||
+      !Array.isArray(root.data.positions)) {
+      return failed(capturedAt, "Eightfold PCSx response schema is invalid");
+    }
+    const total = root.data.count;
+    if (declaredTotal === undefined) {
+      declaredTotal = total;
+      declaredArtifactKey = artifact.logicalKey;
+      declaredLocator = locator;
+    } else if (total !== declaredTotal) {
+      return failed(capturedAt, "Eightfold PCSx total changed during pagination");
+    }
+    const rawIds: string[] = [];
+    const validIds: string[] = [];
+    for (let recordIndex = 0; recordIndex < root.data.positions.length; recordIndex += 1) {
+      const raw = root.data.positions[recordIndex];
+      counts.rawCount += 1;
+      const rawId = isStrictRecord(raw) ? stringValue(raw.id) : undefined;
+      rawIds.push(irreversibleOfficialJsonEvidenceId(rawId ?? raw));
+      if (!isStrictRecord(raw)) {
+        counts.parseDiscardCount += 1;
+        continue;
+      }
+      counts.parsedCount += 1;
+      const id = stringValue(raw.id);
+      const title = stringValue(raw.name);
+      const positionUrl = stringValue(raw.positionUrl);
+      const locations = stringsValue(raw.locations);
+      if (!id || !title || !positionUrl || locations.length === 0 || seen.has(id)) {
+        counts.validationDiscardCount += 1;
+        continue;
+      }
+      let officialUrl: URL;
+      try { officialUrl = new URL(positionUrl, detailBase.origin); } catch {
+        counts.validationDiscardCount += 1;
+        continue;
+      }
+      if (officialUrl.origin !== detailBase.origin || !officialUrl.pathname.startsWith(`${detailBase.pathname}/`)) {
+        counts.validationDiscardCount += 1;
+        continue;
+      }
+      const locationRaw = locations.join(" | ");
+      const sourceJobId = persistentOfficialJsonJobId(id);
+      jobs.push({ sourceJobId, title, officialUrl: officialUrl.toString(), locationRaw,
+        cities: citiesWithFallback(locationRaw, locationRaw) });
+      seen.add(id);
+      counts.validCount += 1;
+      validIds.push(irreversibleOfficialJsonEvidenceId(sourceJobId));
+    }
+    const hasNext = counts.rawCount < total;
+    const atMax = pageIndex === maxPages - 1;
+    pages.push({
+      sequence: pageIndex, artifactLogicalKey: artifact.logicalKey,
+      requestedCursor: null, returnedCursor: null,
+      requestedOffset: start, returnedOffset: start,
+      requestedPage: null, returnedPage: null,
+      requestedPageSize: pageSize, returnedPageSize: root.data.positions.length,
+      rawJobIds: [...new Set(rawIds)], validJobIds: validIds,
+      declaredTotal: total, declaredCount: null, declaredPages: null,
+      nextPageSignalBefore: pageIndex === 0 ? null : `start:${start}`,
+      nextPageSignalAfter: hasNext ? `start:${start + pageSize}` : null,
+      responseFingerprintSha256: sha256Bytes(Buffer.from(response.body, "utf8")).sha256,
+      termination: hasNext ? (atMax ? "MAX_PAGE_LIMIT" : "CONTINUE") : "NEXT_ABSENT",
+      anomalyCodes: [], capturedAt: artifact.capturedAt
+    });
+    if (!hasNext || atMax) break;
+  }
+  if (declaredTotal === undefined || !declaredArtifactKey || !declaredLocator || counts.rawCount !== declaredTotal ||
+    counts.validCount !== declaredTotal || counts.parseDiscardCount !== 0 || counts.validationDiscardCount !== 0) {
+    return failed(capturedAt, "Eightfold PCSx traversal did not close the declared total");
+  }
+  const declaredCompleteness = { kind: "OFFICIAL_TOTAL_COUNT" as const, value: declaredTotal,
+    artifactLogicalKey: declaredArtifactKey, extractorLocator: declaredLocator, scope: "SOURCE" as const };
+  const finalized = finalizeOfficialJsonEvidenceBundle({
+    artifacts, pages, fetchCounts: counts, fetchLosses: losses, declaredCompleteness
+  });
+  return {
+    ok: true, capturedAt, payload: { jobs },
+    completeness: {
+      completenessStatus: "NEEDS_MANUAL_COMPLETENESS_REVIEW",
+      expectedJobCount: declaredTotal,
+      completenessEvidenceKind: "OFFICIAL_TOTAL_COUNT",
+      completenessEvidenceUrl: safeEntryUrl,
+      completenessBlockerReason: "Eightfold PCSx evidence remains manual until downstream adapter accounting is complete",
+      totalPages: Math.ceil(declaredTotal / pageSize), pageSize, pagesVisited: pages.length
+    },
+    fetchEvidence: finalized.evidence,
+    paginationEvaluation: finalized.evaluation
+  };
+}
+
 async function fetchJobsynSolr({
   http,
   config,
@@ -2724,6 +3192,20 @@ async function fetchBeisenZhiye2022({
       const officialId = beisenCanonicalOriginalUuid(raw.Id);
       const detailId = officialId;
       const title = stringValue(raw.JobAdName);
+      if (config.changedWithinDays !== undefined) {
+        const changedAt = beisenChinaLocalDateMs(raw.ChangeDate);
+        const cutoffAt = chinaCalendarCutoffMs(capturedAt, config.changedWithinDays);
+        if (changedAt === undefined) {
+          recordBeisenLoss(losses, counts, "VALIDATION", "DATE_INVALID",
+            rawLocator, pageIndex, recordIndex, "ChangeDate");
+          continue;
+        }
+        if (changedAt < cutoffAt) {
+          recordBeisenLoss(losses, counts, "VALIDATION", "OUT_OF_TIME_WINDOW",
+            rawLocator, pageIndex, recordIndex, "ChangeDate");
+          continue;
+        }
+      }
       const upstreamLocationParts = stringsValue(raw.LocNames);
       const upstreamLocationRaw = upstreamLocationParts.join(" / ") || stringValue(raw.LocName) ||
         stringValue(raw.LocationName) || stringValue(raw.City);
@@ -2851,7 +3333,7 @@ async function fetchBeisenZhiye2022({
     if (pageTotal === undefined || intermediateEmpty || !hasNext || atMax) break;
   }
 
-  const declaredCompleteness = config.scopeExclusionProof
+  const declaredCompleteness = config.scopeExclusionProof || config.changedWithinDays !== undefined
     ? sourceTraversalCompleteness(pages, artifacts)
     : beisenDeclaredCompleteness(declaredTotal, declaredArtifactKey, declaredLocator);
   let finalized: ReturnType<typeof finalizeOfficialJsonEvidenceBundle>;
@@ -2886,8 +3368,9 @@ async function fetchBeisenZhiye2022({
     payload: { jobs },
     completeness: {
       completenessStatus: "NEEDS_MANUAL_COMPLETENESS_REVIEW",
-      ...(config.scopeExclusionProof || declaredTotal === undefined ? {} : { expectedJobCount: declaredTotal }),
-      completenessEvidenceKind: config.scopeExclusionProof
+      ...(config.scopeExclusionProof || config.changedWithinDays !== undefined || declaredTotal === undefined
+        ? {} : { expectedJobCount: declaredTotal }),
+      completenessEvidenceKind: config.scopeExclusionProof || config.changedWithinDays !== undefined
         ? "COMPLETE_PAGE_TRAVERSAL"
         : declaredTotal === undefined ? "WEAK_MANUAL_SAMPLE" : "OFFICIAL_TOTAL_COUNT",
       completenessEvidenceUrl: safeOfficialJsonEvidenceUrl(safeEntryUrl),
@@ -3155,7 +3638,10 @@ async function fetchPhenomWidgets({
       return phenomFailure(capturedAt, "Phenom country facet preflight drifted or returned an out-of-scope sample",
         artifacts, pages, counts, losses);
     }
-    if (facetScope.partitionProofPolicy === "MERCK_HEALTHCARE_PARTITION_V1" &&
+    if (facetScope.countryOnly) {
+      structuredExpectedTotal = countryCount;
+      formalSelectedFields = { country: [facetScope.countryIncludeDescriptor] };
+    } else if (facetScope.partitionProofPolicy === "MERCK_HEALTHCARE_PARTITION_V1" &&
       facetScope.includeField && facetScope.includeDescriptor && exactMerckHealthcarePartition) {
       const sectorAggregation = exactPhenomAggregation(countryPreflight.envelope, facetScope.includeField);
       if (!sectorAggregation || !sectorAggregation.has(facetScope.includeDescriptor) ||
@@ -3537,12 +4023,12 @@ async function fetchPhenomWidgets({
           facetScope.countryIncludeDescriptor,
           config.mixedLocationScopePolicy === "EXACTLY_ONE_MAINLAND_ALTERNATIVE_V1"
         ) ||
-        (partitionScoped
+        (!facetScope.countryOnly && (partitionScoped
           ? !partitionExpectedOfficialIds?.has(id!) ||
             (presentIncludeDescriptor !== undefined && presentIncludeDescriptor !== facetScope.includeDescriptor) ||
             (presentExclusionDescriptor !== undefined &&
               !allowedExclusionFacetDescriptors?.has(presentExclusionDescriptor))
-          : !allowedExclusionFacetDescriptors?.has(presentExclusionDescriptor ?? ""))
+          : !allowedExclusionFacetDescriptors?.has(presentExclusionDescriptor ?? "")))
       );
       if (structuredScopeDrift) {
         recordPhenomLoss(losses, counts, "VALIDATION", "OUT_OF_SCOPE", rawLocator, pageIndex, recordIndex);
@@ -3694,7 +4180,7 @@ function exactRocheRequestBoundOmittedOffsetPlan(
     JSON.stringify(config.allowedApplyOrigins) === JSON.stringify(["https://roche.wd3.myworkdayjobs.com"]) &&
     facet !== undefined && !("exclusionFacet" in facet) &&
     facet.countryIncludeDescriptor === "中国大陆" &&
-    JSON.stringify(facet.categoryExcludeDescriptors) === JSON.stringify(["实习 & 发展项目"]) &&
+    JSON.stringify(facet.categoryExcludeDescriptors) === JSON.stringify([]) &&
     config.countryFilter === undefined && config.allowedEntryRedirect === undefined &&
     config.allowOmittedOffsetForSinglePage === undefined &&
     config.mixedLocationScopePolicy === "EXACTLY_ONE_MAINLAND_ALTERNATIVE_V1" &&
@@ -3804,6 +4290,7 @@ type PhenomFacetScope = NonNullable<Extract<OfficialJsonFetchConfig, { kind: "ph
 
 type ValidPhenomFacetScope = {
   countryIncludeDescriptor: string;
+  countryOnly: boolean;
   exclusionField: "category" | "jobLevelId" | "type";
   exclusionDescriptors: string[];
   requireGlobalDescriptorProof: boolean;
@@ -3825,7 +4312,7 @@ function validPhenomFacetScope(value: PhenomFacetScope | undefined): ValidPhenom
   const field = modern ? value.exclusionFacet.field : "category";
   const descriptors = modern ? value.exclusionFacet.descriptors : value.categoryExcludeDescriptors;
   if (!["category", "jobLevelId", "type"].includes(field) || !Array.isArray(descriptors) ||
-    descriptors.length === 0 ||
+    (modern && descriptors.length === 0) ||
     descriptors.some((item) => typeof item !== "string" || !item.trim()) ||
     new Set(descriptors).size !== descriptors.length) return undefined;
   const partitioned = "partitionProofPolicy" in value &&
@@ -3835,6 +4322,7 @@ function validPhenomFacetScope(value: PhenomFacetScope | undefined): ValidPhenom
   if (!partitioned && ("includeFacet" in value && value.includeFacet !== undefined)) return undefined;
   return {
     countryIncludeDescriptor: value.countryIncludeDescriptor,
+    countryOnly: descriptors.length === 0,
     exclusionField: field,
     exclusionDescriptors: descriptors,
     requireGlobalDescriptorProof: modern && !partitioned,
@@ -7173,7 +7661,7 @@ function recordBeisenLoss(
   code: "NON_OBJECT_RECORD" | "MISSING_REQUIRED_FIELD" | "DECLARED_LOCATION_FALLBACK" |
     "UNSAFE_OFFICIAL_ID" | "DUPLICATE_OFFICIAL_ID" | "DUPLICATE_DETAIL_ID" |
     "OUT_OF_SCOPE" | "AMBIGUOUS_SCOPE" | "SOCIAL_CHANNEL_MISMATCH" |
-    "UNSAFE_OFFICIAL_URL" | "SENSITIVE_OUTPUT",
+    "UNSAFE_OFFICIAL_URL" | "SENSITIVE_OUTPUT" | "DATE_INVALID" | "OUT_OF_TIME_WINDOW",
   rawLocator: string,
   pageSequence: number,
   recordIndex: number,
@@ -7187,6 +7675,26 @@ function recordBeisenLoss(
     rawLocator,
     details: { code, ...(field ? { field } : {}), pageSequence, recordIndex }
   });
+}
+
+function beisenChinaLocalDateMs(value: unknown): number | undefined {
+  const raw = stringValue(value);
+  if (!raw) return undefined;
+  const normalized = raw.includes("T") ? raw : raw.replace(" ", "T");
+  const zoned = /(?:Z|[+-]\d{2}:\d{2})$/u.test(normalized) ? normalized : `${normalized}+08:00`;
+  const parsed = Date.parse(zoned);
+  return Number.isFinite(parsed) ? parsed : undefined;
+}
+
+function chinaCalendarCutoffMs(capturedAt: string, days: number): number {
+  const chinaOffsetMs = 8 * 60 * 60 * 1_000;
+  const chinaCalendar = new Date(Date.parse(capturedAt) + chinaOffsetMs);
+  const chinaMidnightUtc = Date.UTC(
+    chinaCalendar.getUTCFullYear(),
+    chinaCalendar.getUTCMonth(),
+    chinaCalendar.getUTCDate()
+  ) - chinaOffsetMs;
+  return chinaMidnightUtc - days * 24 * 60 * 60 * 1_000;
 }
 
 const BEISEN_CANONICAL_UUID =

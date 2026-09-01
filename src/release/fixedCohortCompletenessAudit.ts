@@ -46,10 +46,10 @@ export function buildFixedCohortCompletenessAudit(input: { generatedAt: Date; re
   invalidReasons.push(...(input.invalidReasons ?? []));
   const expectedSources = P0_LAUNCH_MANIFEST.companies.map((company) => company.source.sourceId).sort(compare);
   const actualSources = input.sources.map(({ sourceId }) => sourceId).sort(compare);
-  if (input.sources.length !== 50 || new Set(input.sources.map(({ companyId }) => companyId)).size !== 50 ||
+  if (input.sources.length !== 41 || new Set(input.sources.map(({ companyId }) => companyId)).size !== 41 ||
     JSON.stringify(expectedSources) !== JSON.stringify(actualSources)) invalidReasons.push("AUDIT_SOURCE_DENOMINATOR_MISMATCH");
   const observedSources = [...input.observedSourceIds].sort(compare);
-  if (input.observedSourceIds.length !== 50 || new Set(input.observedSourceIds).size !== 50 ||
+  if (input.observedSourceIds.length !== 41 || new Set(input.observedSourceIds).size !== 41 ||
       JSON.stringify(expectedSources) !== JSON.stringify(observedSources)) invalidReasons.push("OBSERVED_SOURCE_DENOMINATOR_MISMATCH");
   if (!input.releaseCandidateId.trim() || !input.batchId.trim() || !Number.isFinite(input.generatedAt.getTime())) {
     invalidReasons.push("AUDIT_IDENTITY_INVALID");
@@ -117,8 +117,8 @@ export function parseFixedCohortCompletenessAuditReport(bytes: Buffer): FixedCoh
   const identity = launchManifestIdentity(P0_LAUNCH_MANIFEST);
   const expectedBySource = new Map(P0_LAUNCH_MANIFEST.companies.map((company) => [company.source.sourceId, company]));
   if (value.manifestSha256 !== identity.manifestSha256 || value.sourceIdentitySha256 !== identity.sourceIdentitySha256 ||
-      value.companyCount !== 50 || value.foreignCompanyCount !== 30 || !Array.isArray(value.companies) ||
-      value.companies.length !== 50 || !Array.isArray(value.invalidReasons) ||
+      value.companyCount !== 41 || value.foreignCompanyCount !== 30 || !Array.isArray(value.companies) ||
+      value.companies.length !== 41 || !Array.isArray(value.invalidReasons) ||
       !value.invalidReasons.every((reason) => typeof reason === "string" && reason.length > 0) ||
       new Set(value.invalidReasons).size !== value.invalidReasons.length || !Array.isArray(value.repairFrontier) ||
       (value.decision === "AUDIT_COMPLETE") !== (value.invalidReasons.length === 0)) {

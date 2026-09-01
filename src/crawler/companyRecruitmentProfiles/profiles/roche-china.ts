@@ -20,7 +20,7 @@ export const profile_roche_china = {
               mixedLocationScopePolicy: "EXACTLY_ONE_MAINLAND_ALTERNATIVE_V1",
               facetScope: {
                   countryIncludeDescriptor: "中国大陆",
-                  categoryExcludeDescriptors: ["实习 & 发展项目"]
+                  categoryExcludeDescriptors: []
               },
               requestBoundOmittedOffsetPolicy: "ROCHE_REQUEST_BOUND_OMITTED_OFFSET_V1",
               pageSize: 100,

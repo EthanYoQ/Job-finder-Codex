@@ -10,7 +10,7 @@ export const profile_sanofi_china = {
           transientRetryPolicy: { maxRetries: 1, backoffMs: 10_000 },
           table: {
               rowSelector: "#search-results-list li:has(button.js-save-job-btn)",
-              completenessProof: { kind: "CONFIGURED_CHANNEL_TRAVERSAL" },
+              completenessProof: { kind: "OFFICIAL_TOTAL_PAGES" },
               pagination: {
                   totalPagesSelector: "#search-results",
                   totalPagesAttribute: "data-total-pages",
@@ -19,22 +19,7 @@ export const profile_sanofi_china = {
                   maxPages: 25,
                   expectedJobCountSelector: "#search-results",
                   expectedJobCountAttribute: "data-total-job-results",
-                  ajaxMode: "talentbrew",
-                  talentbrewScope: {
-                      requiredActiveFacet: { id: "1814991", facetType: 2, descriptor: "China" },
-                      allowedPartitions: [
-                          { channelId: "employment-fixed-term", id: "Fixed Term (Fixed Term)", facetType: 5,
-                              fieldName: "job_type", descriptor: "Fixed Term (Fixed Term)" },
-                          { channelId: "employment-regular", id: "Regular", facetType: 5,
-                              fieldName: "job_type", descriptor: "Regular" }
-                      ],
-                      excludedPartitions: [
-                          { id: "Apprentice/Intern (Fixed Term)", facetType: 5,
-                              fieldName: "job_type", descriptor: "Apprentice/Intern (Fixed Term)" },
-                          { id: "Student (Fixed Term)", facetType: 5,
-                              fieldName: "job_type", descriptor: "Student (Fixed Term)" }
-                      ]
-                  }
+                  ajaxMode: "talentbrew"
               },
               fields: {
                   sourceJobId: { selector: "button.js-save-job-btn", attribute: "data-job-id" },

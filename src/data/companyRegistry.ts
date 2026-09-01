@@ -229,9 +229,9 @@ const CANDIDATE_SEEDS: CandidateSeed[] = [
     pinyinName: "qiangsheng-chuangxin-zhiyao",
     category: "FOREIGN_PHARMA",
     status: "VERIFIED_SCRAPABLE",
-    atsKind: "WORKDAY",
+    atsKind: "OFFICIAL_JSON",
     officialWebsiteUrl: "https://www.jnjpharmaceutical.com.cn/",
-    socialEntryUrl: "https://jj.wd5.myworkdayjobs.com/JJ",
+    socialEntryUrl: "https://www.careers.jnj.com/en/jobs/?country=China",
     officialChainEvidenceUrl: "https://www.jnjpharmaceutical.com.cn/en/about-jjp/company-overview"
   },
   {
@@ -297,7 +297,8 @@ const CANDIDATE_SEEDS: CandidateSeed[] = [
     status: "VERIFIED_SCRAPABLE",
     atsKind: "OFFICIAL_HTML",
     officialWebsiteUrl: "https://www.novartis.com.cn/",
-    socialEntryUrl: "https://prod1.novartis.com/careers/career-search/tag/LOC_CN",
+    socialEntryUrl:
+      "https://www.novartis.com.cn/careers/career-search?search_api_fulltext=&country%5B%5D=LOC_CN&op=Submit&field_job_posted_date=All",
     officialChainEvidenceUrl: "https://www.novartis.com.cn/careers"
   },
   {
@@ -306,9 +307,9 @@ const CANDIDATE_SEEDS: CandidateSeed[] = [
     pinyinName: "baishi-meishiguibao",
     category: "FOREIGN_PHARMA",
     status: "VERIFIED_SCRAPABLE",
-    atsKind: "WORKDAY",
+    atsKind: "OFFICIAL_JSON",
     officialWebsiteUrl: "https://www.bms.com/cn",
-    socialEntryUrl: "https://bristolmyerssquibb.wd5.myworkdayjobs.com/BMS",
+    socialEntryUrl: "https://jobs.bms.com/careers?start=0&location=china&pid=137482898922&sort_by=distance&filter_include_remote=1&filter_include_relocation=0",
     officialChainEvidenceUrl: "https://careers.bms.com/cn/"
   },
   {
@@ -330,7 +331,7 @@ const CANDIDATE_SEEDS: CandidateSeed[] = [
     status: "VERIFIED_SCRAPABLE",
     atsKind: "OFFICIAL_JSON",
     officialWebsiteUrl: "https://www.novonordisk.com.cn/",
-    socialEntryUrl: "https://www.novonordisk.com/careers/find-a-job/career-search-results.html",
+    socialEntryUrl: "https://www.novonordisk.com.cn/careers/find-a-job/career-search-results.html?searchText=&countries=China&categories=",
     officialChainEvidenceUrl: "https://www.novonordisk.com.cn/careers.html"
   },
   {
@@ -394,9 +395,9 @@ const CANDIDATE_SEEDS: CandidateSeed[] = [
     pinyinName: "boehringer-ingelheim",
     category: "FOREIGN_PHARMA",
     status: "VERIFIED_SCRAPABLE",
-    atsKind: "SUCCESSFACTORS",
+    atsKind: "OFFICIAL_JSON",
     officialWebsiteUrl: "https://www.boehringer-ingelheim.cn/",
-    socialEntryUrl: "https://jobs.boehringer-ingelheim.com/search/?q=&locationsearch=China",
+    socialEntryUrl: "https://campus.51job.com/BI/recruitSociety.html",
     officialChainEvidenceUrl: "https://www.boehringer-ingelheim.cn/careers/jobs"
   },
   {
@@ -416,9 +417,9 @@ const CANDIDATE_SEEDS: CandidateSeed[] = [
     pinyinName: "csl",
     category: "FOREIGN_PHARMA",
     status: "VERIFIED_SCRAPABLE",
-    atsKind: "OFFICIAL_HTML",
+    atsKind: "WORKDAY",
     officialWebsiteUrl: "https://www.csl.com/",
-    socialEntryUrl: "https://jobs.csl.com/en/jobs?filterrific%5Bwith_location3%5D=china",
+    socialEntryUrl: "https://csl.wd1.myworkdayjobs.com/zh-CN/CSL_External",
     officialChainEvidenceUrl: "https://www.csl.com/careers"
   },
   {
@@ -468,14 +469,14 @@ const CANDIDATE_SEEDS: CandidateSeed[] = [
   },
   {
     id: "company-sandoz-china",
-    officialChineseName: "山德士中国",
+    officialChineseName: "爱施健（原山德士中国业务）",
     pinyinName: "shandeshi-zhongguo",
     category: "FOREIGN_PHARMA",
     status: "VERIFIED_SCRAPABLE",
-    atsKind: "OFFICIAL_JSON",
-    officialWebsiteUrl: "https://www.sandoz.com/",
-    socialEntryUrl: "https://www.sandoz.com/careers/job-search/",
-    officialChainEvidenceUrl: "https://www.sandoz.com/careers/job-search/"
+    atsKind: "OFFICIAL_HTML",
+    officialWebsiteUrl: "https://www.aspenpharma.cn/",
+    socialEntryUrl: "https://www.aspenpharma.cn/careers-at-aspen/aspen-cnjobs/",
+    officialChainEvidenceUrl: "https://www.aspenpharma.cn/careers-at-aspen/aspen-cnjobs/"
   },
   {
     id: "company-merck-china",
@@ -496,22 +497,22 @@ const CANDIDATE_SEEDS: CandidateSeed[] = [
     officialWebsiteUrl: "https://www.otsuka.com.cn/",
     socialSources: [
       {
-        status: "ENTRY_FOUND_PENDING_ADAPTER",
+        status: "VERIFIED_SCRAPABLE",
         atsKind: "OFFICIAL_HTML",
         socialEntryUrl: "https://chinaotsuka.com.cn/class/26",
         officialChainEvidenceUrl: "https://www.otsuka.com.cn/otsuka-in-china/index.html",
-        recruitmentPageCapability: "RECRUITMENT_INFORMATION_OR_CONTACT",
+        recruitmentPageCapability: "JOB_LISTING",
         capabilityVerification: {
           checkedAt: "2026-07-16",
           reason: "The official page contains recruitment contact information but no job rows, job links, or ATS link."
         }
       },
       {
-        status: "VERIFIED_SCRAPABLE",
+        status: "ENTRY_FOUND_PENDING_ADAPTER",
         atsKind: "OFFICIAL_HTML",
         socialEntryUrl: "https://www.otsuka.com.cn/join-us/index.html",
         officialChainEvidenceUrl: "https://www.otsuka.com.cn/join-us/index.html",
-        recruitmentPageCapability: "JOB_LISTING"
+        recruitmentPageCapability: "RECRUITMENT_INFORMATION_OR_CONTACT"
       }
     ]
   },
@@ -534,7 +535,7 @@ const CANDIDATE_SEEDS: CandidateSeed[] = [
     status: "VERIFIED_SCRAPABLE",
     atsKind: "OFFICIAL_JSON",
     officialWebsiteUrl: "https://www.zh.grifolscn.com.cn/zh/china",
-    socialEntryUrl: "https://grifols.jobs/locations/chn/jobs/",
+    socialEntryUrl: "https://jobsearch.grifols.com/search/?createNewAlert=false&q=&locationsearch=China",
     officialChainEvidenceUrl: "https://www.zh.grifolscn.com.cn/zh/careers"
   },
   {
@@ -556,7 +557,7 @@ const CANDIDATE_SEEDS: CandidateSeed[] = [
     status: "VERIFIED_SCRAPABLE",
     atsKind: "OFFICIAL_JSON",
     officialWebsiteUrl: "https://www.ucb.com/",
-    socialEntryUrl: "https://careers.ucb.com/global/en/search-results?qcountry=China",
+    socialEntryUrl: "https://careers.ucb.com/global/zh/search-results?keywords=China",
     officialChainEvidenceUrl: "https://careers.ucb.com/"
   },
   {
@@ -599,9 +600,9 @@ const CANDIDATE_SEEDS: CandidateSeed[] = [
     pinyinName: "qilu",
     category: "DOMESTIC_PHARMA",
     status: "VERIFIED_SCRAPABLE",
-    atsKind: "BEISEN_ZHIYE",
+    atsKind: "OFFICIAL_HTML",
     officialWebsiteUrl: "https://www.qilu-pharma.com/",
-    socialEntryUrl: "https://qilu-pharma.zhiye.com/social/jobs",
+    socialEntryUrl: "https://www.qilu-pharma.com/JobPosting_list.html",
     officialChainEvidenceUrl: "https://www.qilu-pharma.com/JobPosting_list.html"
   },
   {
@@ -683,7 +684,7 @@ const CANDIDATE_SEEDS: CandidateSeed[] = [
     status: "VERIFIED_SCRAPABLE",
     atsKind: "BEISEN_ZHIYE",
     officialWebsiteUrl: "https://www.kelun.com/",
-    socialEntryUrl: "https://kelun.zhiye.com/social",
+    socialEntryUrl: "https://kelun.zhiye.com/social?r=&p=1%5E2&c=&d=&k=",
     officialChainEvidenceUrl: "https://www.kelun.com/intro/3.html",
     campusEntryUrl: "https://www.kelun.com/intro/5.html"
   },
@@ -960,10 +961,7 @@ function implementedAdapterFor(
 ): "official-json" | "html-table" | undefined {
   if (seed.targetStatus && seed.targetStatus !== "ACTIVE") return undefined;
   if (isVerifiedNonJobRecruitmentPage(sourceSeed)) return undefined;
-  if ([
-    "company-fosun-pharma",
-    "company-kelun"
-  ].includes(seed.id)) return "html-table";
+  if (seed.id === "company-kelun") return "html-table";
   if (OFFICIAL_JSON_ATS.has(sourceSeed.atsKind ?? "UNKNOWN")) return "official-json";
   if (sourceSeed.atsKind === "OFFICIAL_HTML" || sourceSeed.atsKind === "SUCCESSFACTORS") return "html-table";
   return undefined;

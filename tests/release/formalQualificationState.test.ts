@@ -34,7 +34,7 @@ function qualifiedReceipt(overrides: Record<string, unknown> = {}) {
     evidenceArchiveBytes: evidenceArchiveBytes.length,
     imageQualificationContentSha256: sha(imageQualificationBytes.toString()),
     auditDecision: "AUDIT_COMPLETE",
-    companyCount: 50,
+    companyCount: 41,
     foreignCompanyCount: 30,
     blockerCount: 0,
     capturedAt: new Date("2026-08-13T00:05:00.000Z"),

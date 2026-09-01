@@ -10,12 +10,12 @@ describe("fixed cohort completeness audit", () => {
   it("reports every frozen company and creates deterministic repair groups of at most five", () => {
     const report = buildFixedCohortCompletenessAudit(input());
     expect(report.decision).toBe("AUDIT_COMPLETE");
-    expect(report.companyCount).toBe(50);
+    expect(report.companyCount).toBe(41);
     expect(report.foreignCompanyCount).toBe(30);
-    expect(report.companies).toHaveLength(50);
+    expect(report.companies).toHaveLength(41);
     expect(report.companies.every(({ blockers }) => blockers.includes("A_OR_B_CERTIFICATE_MISSING"))).toBe(true);
     expect(report.repairFrontier.every(({ companyIds }) => companyIds.length >= 1 && companyIds.length <= 5)).toBe(true);
-    expect(new Set(report.repairFrontier.flatMap(({ companyIds }) => companyIds)).size).toBe(50);
+    expect(new Set(report.repairFrontier.flatMap(({ companyIds }) => companyIds)).size).toBe(41);
   });
 
   it("reads only a content-bound exact frozen-cohort audit", () => {
@@ -103,10 +103,10 @@ describe("fixed cohort completeness audit", () => {
     const report = buildFixedCohortCompletenessAudit(value);
     expect(report.decision).toBe("AUDIT_INVALID");
     expect(report.invalidReasons).toContain("OBSERVED_SOURCE_DENOMINATOR_MISMATCH");
-    expect(report.companies).toHaveLength(50);
+    expect(report.companies).toHaveLength(41);
   });
 
-  it("keeps all 50 report rows but invalidates a batch with no real source results or with an extra source", () => {
+  it("keeps all 41 report rows but invalidates a batch with no real source results or with an extra source", () => {
     const empty = input(); empty.observedSourceIds = [];
     expect(buildFixedCohortCompletenessAudit(empty)).toMatchObject({ decision: "AUDIT_INVALID" });
     const extra = input(); extra.observedSourceIds.push("source-substitute-social");

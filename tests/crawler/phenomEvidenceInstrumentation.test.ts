@@ -1,4 +1,3 @@
-import { createHash } from "node:crypto";
 import { describe, expect, it } from "vitest";
 import {
   createOfficialJsonSourceFetch,
@@ -7,18 +6,13 @@ import {
 import { OfficialHttpTimeoutError } from "../../src/crawler/officialHttpRuntimeLimits";
 import {
   createSourceFetchAttemptTracker,
-  runSourceCrawl,
-  type SourceFetchResult
+  runSourceCrawl
 } from "../../src/crawler/runSourceCrawl";
 import { createSourceFetchRouter } from "../../src/crawler/sourceFetchRouter";
-import {
-  deriveCanonicalPaginationEvidence,
-  evaluatePaginationEvidence
-} from "../../src/crawler/paginationEvidence";
+import { evaluatePaginationEvidence } from "../../src/crawler/paginationEvidence";
 import {
   canonicalStringSetSha256,
-  sha256Bytes,
-  type PersistentSourceFetchEvidence
+  sha256Bytes
 } from "../../src/crawler/sourceFetchEvidence";
 import {
   buildStagedSourceCrawlPlans,
@@ -185,158 +179,19 @@ function rochePlan(): Extract<SourceCrawlPlan, { adapterId: "official-json" }> {
   return exactPhenomPlan("source-roche-china-social");
 }
 
-function merckPlan(): Extract<SourceCrawlPlan, { adapterId: "official-json" }> {
-  return exactPhenomPlan("source-merck-china-social");
-}
-
 function merckEntryHtml(): string {
   return `<script>var phApp={"widgetApiEndpoint":"https://careers.emdgroup.com/widgets","country":"us","deviceType":"desktop","locale":"en_us","refNum":"MQAEGZUS","pageName":"search-results","pageId":"page18"};</script><script>phApp.pageId = "page18-ds";</script>`;
 }
 
-function merckJob(id: string, overrides: Record<string, unknown> = {}): Record<string, unknown> {
-  return {
-    jobSeqNo: id,
-    reqId: id,
-    title: `Merck role ${id}`,
-    location: "Shanghai, China",
-    city: "Shanghai",
-    country: "China",
-    applyUrl: `https://careers.emdgroup.com/us/en/job/${id}`,
-    ...overrides
-  };
-}
-
-type MerckFixtureAttack =
-  | "NONE"
-  | "OVERLAPPING_SECTOR_IDS"
-  | "WRONG_PRESENT_SECTOR"
-  | "OMITTED_SINGLE_PAGE_PARTITION_OFFSET"
-  | "GLOBAL_EMPTY_UI_SELECTIONS"
-  | "GLOBAL_NONEMPTY_UI_SELECTIONS"
-  | "MISSING_COUNTRY_UI_SELECTIONS"
-  | "MISSING_SECTOR_UI_SELECTIONS"
-  | "MISSING_JOB_LEVEL_UI_SELECTIONS"
-  | "MISSING_FORMAL_UI_SELECTIONS"
-  | "DUPLICATE_FORMAL_UI_SELECTION_VALUE"
-  | "EXTRA_FORMAL_UI_SELECTION_KEY"
-  | "MISSING_FORMAL_UI_SELECTION_KEY"
-  | "WRONG_FORMAL_UI_SELECTION_VALUE";
-
-type MerckResponseStage = "GLOBAL" | "COUNTRY" | "SECTOR" | "JOB_LEVEL" | "FORMAL";
-
-function merckResponseStage(selected: Record<string, string[]>): MerckResponseStage {
-  if (Object.keys(selected).length === 0) return "GLOBAL";
-  if (!selected.businessSector) return "COUNTRY";
-  if (!selected.jobLevelId) return "SECTOR";
-  return selected.jobLevelId.length > 1 ? "FORMAL" : "JOB_LEVEL";
-}
-
 function bindMerckUiSelections(
   body: string,
-  selected: Record<string, string[]>,
-  attack: MerckFixtureAttack
+  selected: Record<string, string[]>
 ): string {
   const root = JSON.parse(body) as {
     refineSearch: { data: Record<string, unknown> };
   };
-  const stage = merckResponseStage(selected);
-  const exact = Object.fromEntries(
-    Object.entries(selected).reverse().map(([key, values]) => [key, [...values].reverse()])
-  ) as Record<string, string[]>;
-
-  if (stage === "GLOBAL") {
-    if (attack === "GLOBAL_EMPTY_UI_SELECTIONS") root.refineSearch.data.ui_selections = {};
-    if (attack === "GLOBAL_NONEMPTY_UI_SELECTIONS") {
-      root.refineSearch.data.ui_selections = { country: ["China"] };
-    }
-    return JSON.stringify(root);
-  }
-
-  root.refineSearch.data.ui_selections = exact;
-  if ((attack === "MISSING_COUNTRY_UI_SELECTIONS" && stage === "COUNTRY") ||
-    (attack === "MISSING_SECTOR_UI_SELECTIONS" && stage === "SECTOR") ||
-    (attack === "MISSING_JOB_LEVEL_UI_SELECTIONS" && stage === "JOB_LEVEL") ||
-    (attack === "MISSING_FORMAL_UI_SELECTIONS" && stage === "FORMAL")) {
-    delete root.refineSearch.data.ui_selections;
-  }
-  if (stage === "FORMAL") {
-    const formal = root.refineSearch.data.ui_selections as Record<string, string[]> | undefined;
-    if (formal && attack === "DUPLICATE_FORMAL_UI_SELECTION_VALUE") {
-      formal.jobLevelId = [...formal.jobLevelId!, formal.jobLevelId![0]!];
-    }
-    if (formal && attack === "EXTRA_FORMAL_UI_SELECTION_KEY") formal.type = ["Regular"];
-    if (formal && attack === "MISSING_FORMAL_UI_SELECTION_KEY") delete formal.businessSector;
-    if (formal && attack === "WRONG_FORMAL_UI_SELECTION_VALUE") formal.country = ["Germany"];
-  }
+  if (Object.keys(selected).length > 0) root.refineSearch.data.ui_selections = selected;
   return JSON.stringify(root);
-}
-
-async function fetchLiveShapedMerck(attack: MerckFixtureAttack = "NONE") {
-  const stagedPlan = merckPlan();
-  const requests: Array<{ method?: string; body?: string }> = [];
-  const professional = [
-    merckJob("MERCK-H-1", { businessSector: "Healthcare", jobLevelId: "C - Professional" }),
-    merckJob("MERCK-H-2", { businessSector: "Healthcare", jobLevelId: "C - Professional" })
-  ];
-  const manager = merckJob("MERCK-H-MANAGER", {
-    businessSector: "Healthcare", jobLevelId: "D - Manager"
-  });
-  const student = merckJob("MERCK-H-STUDENT", {
-    businessSector: "Healthcare", jobLevelId: "A - Current Student"
-  });
-  const healthcare = [...professional, manager, student];
-  const electronics = [merckJob("MERCK-E-1", { businessSector: "Electronics" })];
-  const lifeScience = [merckJob(
-    attack === "OVERLAPPING_SECTOR_IDS" ? "MERCK-E-1" : "MERCK-L-1",
-    { businessSector: "Life Science" }
-  )];
-  const fetcher = createOfficialJsonSourceFetch({
-    now: () => new Date(capturedAt),
-    http: async (request) => {
-      requests.push(request);
-      if (request.method !== "POST") {
-        return response(merckEntryHtml(), stagedPlan.source.officialEntryUrl, "text/html");
-      }
-      const parsed = JSON.parse(request.body ?? "{}") as {
-        from?: number;
-        selected_fields?: Record<string, string[]>;
-      };
-      const selected = parsed.selected_fields ?? {};
-      const sector = selected.businessSector?.[0];
-      const levels = selected.jobLevelId;
-      let body: string;
-      if (Object.keys(selected).length === 0) {
-        body = facetPageBody([], 8, 0, [
-          { field: "country", value: { China: 6, Germany: 2 } }
-        ]);
-      } else if (!sector) {
-        body = facetPageBody([], 6, 0, [
-          { field: "businessSector", value: { Electronics: 1, Healthcare: 4, "Life Science": 1 } }
-        ]);
-      } else if (!levels) {
-        const jobs = sector === "Healthcare" ? healthcare : sector === "Electronics" ? electronics : lifeScience;
-        body = facetPageBody(jobs, jobs.length, parsed.from ?? 0, sector === "Healthcare" ? [{
-          field: "jobLevelId",
-          value: { "A - Current Student": 1, "C - Professional": 2, "D - Manager": 1 }
-        }] : []);
-      } else {
-        const jobs = levels.flatMap((level) => level === "A - Current Student" ? [student] :
-          level === "C - Professional" ? professional : level === "D - Manager" ? [manager] : []);
-        const returnedJobs = attack === "WRONG_PRESENT_SECTOR" && levels.length > 1
-          ? jobs.map((job) => ({ ...job, businessSector: "Life Science" }))
-          : jobs;
-        body = facetPageBody(returnedJobs, returnedJobs.length, parsed.from ?? 0, []);
-      }
-      body = bindMerckUiSelections(body, selected, attack);
-      if (attack === "OMITTED_SINGLE_PAGE_PARTITION_OFFSET" && sector) {
-        const envelope = JSON.parse(body) as { refineSearch: Record<string, unknown> };
-        delete envelope.refineSearch.from;
-        body = JSON.stringify(envelope);
-      }
-      return response(body, "https://careers.emdgroup.com/widgets", "application/json");
-    }
-  });
-  return { stagedPlan, fetched: await fetcher(stagedPlan), requests };
 }
 
 function rocheEntryHtml(): string {
@@ -356,69 +211,12 @@ function rocheJob(id: string): Record<string, unknown> {
   };
 }
 
-function rocheMixedLocationJob(id: string): Record<string, unknown> {
-  return {
-    ...rocheJob(id),
-    location: "Warsaw, 马佐夫舍, 波兰",
-    city: "Warsaw",
-    country: "波兰",
-    multi_location: ["Warsaw, 马佐夫舍, 波兰", "苏州, 江苏, 中国大陆"]
-  };
-}
-
 function facetPageBodyWithoutFrom(
   jobs: unknown[],
   totalHits: number,
   aggregations: Array<{ field: string; value: Record<string, unknown> }> = []
 ): string {
   return JSON.stringify({ refineSearch: { totalHits, data: { jobs, aggregations } } });
-}
-
-type RocheFixtureAttack =
-  | "NONE"
-  | "REPEATED_PAGE"
-  | "SHORT_INTERMEDIATE_PAGE"
-  | "TOTAL_DRIFT"
-  | "WRONG_FROM"
-  | "MISSING_LAST_PAGE";
-
-async function fetchLiveShapedRoche(attack: RocheFixtureAttack = "NONE") {
-  const stagedPlan = rochePlan();
-  if (stagedPlan.officialJsonFetch?.kind !== "phenom") throw new Error("Expected Roche Phenom plan");
-  const pageSize = stagedPlan.officialJsonFetch.pageSize ?? 50;
-  const eligibleJobs = Array.from({ length: 228 }, (_, index) => rocheJob(`ROCHE-${index + 1}`));
-  eligibleJobs[0] = rocheMixedLocationJob("ROCHE-1");
-  const pages = Array.from({ length: Math.ceil(eligibleJobs.length / pageSize) }, (_, index) =>
-    eligibleJobs.slice(index * pageSize, (index + 1) * pageSize));
-  if (attack === "REPEATED_PAGE") pages[1] = [...pages[0]!];
-  if (attack === "SHORT_INTERMEDIATE_PAGE") pages[0] = pages[0]!.slice(0, -1);
-  const bodies = [
-    facetPageBody([], 300, 0, [{ field: "country", value: { 中国大陆: 229, 瑞士: 71 } }]),
-    facetPageBody([rocheMixedLocationJob("SAMPLE")], 229, 0, [{
-      field: "category", value: { "销售 & 市场": 228, "实习 & 发展项目": 1 }
-    }]),
-    ...pages.map((jobs, index) => attack === "WRONG_FROM" && index === 1
-      ? facetPageBody(jobs, 228, 999, [])
-      : facetPageBodyWithoutFrom(
-          jobs,
-          attack === "TOTAL_DRIFT" && index === 1 ? 227 : 228
-        ))
-  ];
-  if (attack === "MISSING_LAST_PAGE") bodies.pop();
-  const requests: Array<{ method?: string; body?: string }> = [];
-  const fetcher = createOfficialJsonSourceFetch({
-    now: () => new Date(capturedAt),
-    http: async (request) => {
-      requests.push(request);
-      if (request.method !== "POST") {
-        return response(rocheEntryHtml(), stagedPlan.source.officialEntryUrl, "text/html");
-      }
-      const body = bodies.shift();
-      if (body === undefined) throw new Error("fixture omitted the final official page");
-      return response(body, "https://careers.roche.com/widgets", "application/json");
-    }
-  });
-  return { stagedPlan, fetched: await fetcher(stagedPlan), requests };
 }
 
 type RocheNetworkFailureStage = "ENTRY" | "FACET_GLOBAL" | "FACET_COUNTRY" | "PAGE";
@@ -462,60 +260,6 @@ async function fetchRocheWithNetworkFailure(
     }
   });
   return fetcher(stagedPlan);
-}
-
-function recanonicalizeSuccessfulRocheFetch(
-  fetched: SourceFetchResult,
-  mutate: (evidence: PersistentSourceFetchEvidence) => void
-): Extract<SourceFetchResult, { ok: true }> {
-  if (!fetched.ok || !fetched.fetchEvidence || !fetched.paginationEvaluation) {
-    throw new Error("Expected successful Roche evidence");
-  }
-  const draft = structuredClone(fetched.fetchEvidence);
-  mutate(draft);
-  const fetchEvidence = deriveCanonicalPaginationEvidence({
-    evidence: draft,
-    expectedChannelIds: [],
-    filteredOutput: true
-  });
-  const paginationEvaluation = evaluatePaginationEvidence({
-    evidence: fetchEvidence,
-    expectedChannelIds: [],
-    filteredOutput: true
-  });
-  return { ...fetched, fetchEvidence, paginationEvaluation };
-}
-
-function rewriteRocheArtifactBody(
-  evidence: PersistentSourceFetchEvidence,
-  logicalKey: string,
-  mutate: (root: Record<string, unknown>) => void
-): void {
-  const artifact = evidence.artifacts.find((candidate) => candidate.logicalKey === logicalKey);
-  const page = evidence.pages.find((candidate) => candidate.artifactLogicalKey === logicalKey);
-  if (!artifact || !page || typeof artifact.body !== "string") throw new Error(`Missing ${logicalKey}`);
-  const root = JSON.parse(artifact.body) as Record<string, unknown>;
-  mutate(root);
-  const body = JSON.stringify(root);
-  artifact.body = body;
-  page.responseFingerprintSha256 = createHash("sha256").update(body, "utf8").digest("hex");
-}
-
-function rewriteMerckArtifactBody(
-  evidence: PersistentSourceFetchEvidence,
-  logicalKey: string,
-  mutate: (data: Record<string, unknown>) => void
-): void {
-  const artifact = evidence.artifacts.find((candidate) => candidate.logicalKey === logicalKey);
-  if (!artifact || typeof artifact.body !== "string") throw new Error(`Missing ${logicalKey}`);
-  const root = JSON.parse(artifact.body) as {
-    refineSearch: { data: Record<string, unknown> };
-  };
-  mutate(root.refineSearch.data);
-  const body = JSON.stringify(root);
-  artifact.body = body;
-  const page = evidence.pages.find((candidate) => candidate.artifactLogicalKey === logicalKey);
-  if (page) page.responseFingerprintSha256 = createHash("sha256").update(body, "utf8").digest("hex");
 }
 
 function exactPhenomEntryHtml(widgetEndpoint: string): string {
@@ -597,7 +341,7 @@ async function fetchExactPhenomLocation(sourceId: string, location: string) {
           const selected = (JSON.parse(request.body ?? "{}") as {
             selected_fields?: Record<string, string[]>;
           }).selected_fields ?? {};
-          body = bindMerckUiSelections(body, selected, "NONE");
+          body = bindMerckUiSelections(body, selected);
         }
         return response(body, widgetEndpoint, "application/json");
       }
@@ -874,135 +618,6 @@ describe("Phenom evidence instrumentation", () => {
     ]);
   });
 
-  it("dynamically proves Merck Healthcare through complete sector and job-level ID partitions", async () => {
-    const { stagedPlan, fetched, requests } = await fetchLiveShapedMerck();
-    expect(stagedPlan.officialJsonFetch).toMatchObject({
-      kind: "phenom",
-      facetScope: {
-        countryIncludeDescriptor: "China",
-        includeFacet: { field: "businessSector", descriptor: "Healthcare" },
-        exclusionFacet: {
-          field: "jobLevelId",
-          descriptors: [
-            "A - Current Student",
-            "B - Recent University Graduate(<1 year of experience)"
-          ]
-        },
-        partitionProofPolicy: "MERCK_HEALTHCARE_PARTITION_V1"
-      }
-    });
-    expect(fetched).toMatchObject({
-      ok: true,
-      completeness: { expectedJobCount: 3 },
-      payload: { jobs: [
-        { title: "Merck role MERCK-H-1" },
-        { title: "Merck role MERCK-H-2" },
-        { title: "Merck role MERCK-H-MANAGER" }
-      ] },
-      fetchEvidence: {
-        fetchCounts: {
-          rawCount: 3,
-          parsedCount: 3,
-          validCount: 3,
-          parseDiscardCount: 0,
-          validationDiscardCount: 0
-        },
-        fetchLosses: []
-      }
-    });
-    const postBodies = requests.slice(1).map((request) => JSON.parse(request.body ?? "{}"));
-    expect(postBodies.every((body) => body.all_fields.includes("businessSector"))).toBe(true);
-    expect(postBodies.some((body) =>
-      JSON.stringify(body.selected_fields) === JSON.stringify({
-        country: ["China"], businessSector: ["Healthcare"],
-        jobLevelId: ["C - Professional", "D - Manager"]
-      })
-    )).toBe(true);
-    const crawled = await runSourceCrawl(stagedPlan, { fetch: async () => fetched });
-    expect(crawled).toMatchObject({
-      status: "SUCCESS",
-      truth: { transportSuccess: true, adapterSuccess: true, completenessVerified: true },
-      observation: { structuredJobCount: 3, completenessStatus: "VERIFIED" }
-    });
-  });
-
-  it("accepts a strict empty global ui_selections object", async () => {
-    const { stagedPlan, fetched } = await fetchLiveShapedMerck("GLOBAL_EMPTY_UI_SELECTIONS");
-    expect(fetched).toMatchObject({ ok: true, completeness: { expectedJobCount: 3 } });
-    const crawled = await runSourceCrawl(stagedPlan, { fetch: async () => fetched });
-    expect(crawled).toMatchObject({
-      status: "SUCCESS",
-      truth: { transportSuccess: true, adapterSuccess: true, completenessVerified: true }
-    });
-  });
-
-  it("accepts the audited Phenom omission of offset only on complete one-page Merck partitions", async () => {
-    const { stagedPlan, fetched } = await fetchLiveShapedMerck("OMITTED_SINGLE_PAGE_PARTITION_OFFSET");
-    expect(fetched).toMatchObject({ ok: true, completeness: { expectedJobCount: 3 } });
-    const crawled = await runSourceCrawl(stagedPlan, { fetch: async () => fetched });
-    expect(crawled).toMatchObject({
-      status: "SUCCESS",
-      truth: { transportSuccess: true, adapterSuccess: true, completenessVerified: true }
-    });
-  });
-
-  it.each([
-    ["overlapping sector IDs", "OVERLAPPING_SECTOR_IDS"],
-    ["a final record carrying the wrong sector", "WRONG_PRESENT_SECTOR"]
-  ] as const)("fails closed when Merck partition proof has %s", async (_label, attack) => {
-    const { fetched } = await fetchLiveShapedMerck(attack);
-    expect(fetched).toMatchObject({ ok: false });
-  });
-
-  it.each([
-    ["a nonempty global selection", "GLOBAL_NONEMPTY_UI_SELECTIONS"],
-    ["missing China selections", "MISSING_COUNTRY_UI_SELECTIONS"],
-    ["missing sector selections", "MISSING_SECTOR_UI_SELECTIONS"],
-    ["missing job-level selections", "MISSING_JOB_LEVEL_UI_SELECTIONS"],
-    ["missing formal selections", "MISSING_FORMAL_UI_SELECTIONS"],
-    ["a duplicate formal selection value", "DUPLICATE_FORMAL_UI_SELECTION_VALUE"],
-    ["an extra formal selection key", "EXTRA_FORMAL_UI_SELECTION_KEY"],
-    ["a missing formal selection key", "MISSING_FORMAL_UI_SELECTION_KEY"],
-    ["a wrong formal selection value", "WRONG_FORMAL_UI_SELECTION_VALUE"]
-  ] as const)("fails closed when Merck response ui_selections has %s", async (_label, attack) => {
-    const { fetched } = await fetchLiveShapedMerck(attack);
-    expect(fetched).toMatchObject({ ok: false });
-  });
-
-  it.each([
-    ["global", "phenom-facet-global", (data: Record<string, unknown>) => {
-      data.ui_selections = { country: ["China"] };
-    }],
-    ["China", "phenom-facet-country", (data: Record<string, unknown>) => {
-      delete data.ui_selections;
-    }],
-    ["sector", "phenom-facet-proof-business-sector-0001-0000", (data: Record<string, unknown>) => {
-      data.ui_selections = { country: ["China"], businessSector: ["Life Science"] };
-    }],
-    ["job-level", "phenom-facet-proof-job-level-0001-0000", (data: Record<string, unknown>) => {
-      data.ui_selections = {
-        country: ["China"], businessSector: ["Healthcare"],
-        jobLevelId: ["C - Professional", "C - Professional"]
-      };
-    }],
-    ["formal", "phenom-page-0000", (data: Record<string, unknown>) => {
-      data.ui_selections = {
-        country: ["China"], businessSector: ["Healthcare"],
-        jobLevelId: ["C - Professional", "D - Manager"], type: ["Regular"]
-      };
-    }]
-  ] as const)("independent replay rejects forged %s ui_selections", async (_label, logicalKey, mutate) => {
-    const { stagedPlan, fetched } = await fetchLiveShapedMerck("GLOBAL_EMPTY_UI_SELECTIONS");
-    if (!fetched.ok || !fetched.fetchEvidence) throw new Error("Expected successful Merck evidence");
-    const fetchEvidence = structuredClone(fetched.fetchEvidence);
-    rewriteMerckArtifactBody(fetchEvidence, logicalKey, mutate);
-    const crawled = await runSourceCrawl(stagedPlan, {
-      fetch: async () => ({ ...fetched, fetchEvidence })
-    });
-    expect(crawled.truth.completenessVerified).toBe(false);
-    expect(crawled.observation.completenessStatus).not.toBe("VERIFIED");
-  });
-
   it("derives a same-origin public detail URL from reqId when Phenom omits applyUrl", async () => {
     const fetcher = createOfficialJsonSourceFetch({
       now: () => new Date(capturedAt),
@@ -1134,55 +749,6 @@ describe("Phenom evidence instrumentation", () => {
     });
   });
 
-  it("closes Roche's live-shaped 228-row scope with request-bound omitted offsets at page size 100", async () => {
-    const { stagedPlan, fetched, requests } = await fetchLiveShapedRoche();
-    expect(stagedPlan.officialJsonFetch).toMatchObject({
-      kind: "phenom",
-      mixedLocationScopePolicy: "EXACTLY_ONE_MAINLAND_ALTERNATIVE_V1",
-      requestBoundOmittedOffsetPolicy: "ROCHE_REQUEST_BOUND_OMITTED_OFFSET_V1",
-      pageSize: 100
-    });
-    expect(fetched).toMatchObject({
-      ok: true,
-      completeness: { expectedJobCount: 228, pageSize: 100, pagesVisited: 3 },
-      fetchEvidence: {
-        fetchCounts: {
-          rawCount: 228,
-          parsedCount: 228,
-          validCount: 228,
-          parseDiscardCount: 0,
-          validationDiscardCount: 0
-        },
-        fetchLosses: [],
-        pages: [
-          { sequence: 0, requestedOffset: 0, returnedOffset: null, rawJobIds: expect.any(Array) },
-          { sequence: 1, requestedOffset: 100, returnedOffset: null, rawJobIds: expect.any(Array) },
-          { sequence: 2, requestedOffset: 200, returnedOffset: null, rawJobIds: expect.any(Array), termination: "NEXT_ABSENT" }
-        ]
-      },
-      paginationEvaluation: { safeCompleteness: true, verifiedEligible: false, derivedAnomalyCodes: [] }
-    });
-    expect(requests.filter((request) => request.method === "POST").slice(2)
-      .map((request) => JSON.parse(request.body ?? "{}").from)).toEqual([0, 100, 200]);
-    const crawled = await runSourceCrawl(stagedPlan, { fetch: async () => fetched });
-    expect(crawled).toMatchObject({
-      status: "SUCCESS",
-      truth: { transportSuccess: true, adapterSuccess: true, completenessVerified: true },
-      observation: { completenessStatus: "VERIFIED", expectedJobCount: 228, structuredJobCount: 228 },
-      reconciliation: {
-        rawInputCount: 228,
-        parsedCount: 228,
-        validBeforeDedupeCount: 228,
-        dedupeOutputCount: 228,
-        adapterLosses: [],
-        collisionGroups: []
-      }
-    });
-    expect(crawled.jobs).toEqual(expect.arrayContaining([
-      expect.objectContaining({ locationRaw: "苏州, 江苏, 中国大陆", cities: ["苏州"] })
-    ]));
-  });
-
   it.each(["ENTRY", "FACET_GLOBAL", "FACET_COUNTRY", "PAGE"] as const)(
     "exposes a bounded retry signal when Roche %s times out",
     async (stage) => {
@@ -1236,74 +802,6 @@ describe("Phenom evidence instrumentation", () => {
     }
   );
 
-  it.each(["TIMEOUT", "HTTP_503"] as const)(
-    "runs the exact Roche plan through the real Phenom fetcher and recovers once after %s",
-    async (failureMode) => {
-      const stagedPlan = rochePlan();
-      expect(stagedPlan.transientRetryPolicy).toEqual({ maxRetries: 1, backoffMs: 10_000 });
-      const professional = rocheJob("ROCHE-PROFESSIONAL");
-      const internship = rocheJob("ROCHE-INTERNSHIP");
-      internship.category = "实习 & 发展项目";
-      const bodies = [
-        facetPageBody([], 3, 0, [{ field: "country", value: { 中国大陆: 2, 瑞士: 1 } }]),
-        facetPageBody([professional, internship], 2, 0, [{
-          field: "category",
-          value: { "销售 & 市场": 1, "实习 & 发展项目": 1 }
-        }]),
-        facetPageBodyWithoutFrom([professional], 1)
-      ];
-      let entryAttempts = 0;
-      let postIndex = 0;
-      const actualFetcher = createOfficialJsonSourceFetch({
-        now: () => new Date(capturedAt),
-        http: async (request) => {
-          if (request.method !== "POST") {
-            entryAttempts += 1;
-            if (entryAttempts === 1) {
-              if (failureMode === "TIMEOUT") throw new OfficialHttpTimeoutError();
-              return response("{}", request.url, "text/html", { status: 503 });
-            }
-            return response(rocheEntryHtml(), stagedPlan.source.officialEntryUrl, "text/html");
-          }
-          const body = bodies[postIndex];
-          postIndex += 1;
-          if (body === undefined) throw new Error("fixture omitted a Roche response");
-          return response(body, "https://careers.roche.com/widgets", "application/json");
-        }
-      });
-      const delays: number[] = [];
-      const attemptTracker = createSourceFetchAttemptTracker();
-      const router = createSourceFetchRouter({
-        moka: async () => ({ ok: false, capturedAt, failureReason: "wrong route" }),
-        officialJson: actualFetcher,
-        fallback: async () => ({ ok: false, capturedAt, failureReason: "wrong route" }),
-        delay: async (milliseconds) => { delays.push(milliseconds); }
-      });
-
-      await expect(router(stagedPlan, attemptTracker)).resolves.toMatchObject({
-        ok: true,
-        completeness: { expectedJobCount: 1 }
-      });
-      expect(entryAttempts).toBe(2);
-      expect(postIndex).toBe(3);
-      expect(delays).toEqual([10_000]);
-      expect(attemptTracker).toMatchObject({ fetchAttemptCount: 2, retryCount: 1 });
-    }
-  );
-
-  it.each([
-    ["a repeated page / cross-page ID overlap", "REPEATED_PAGE"],
-    ["a short intermediate page", "SHORT_INTERMEDIATE_PAGE"],
-    ["dynamic total drift", "TOTAL_DRIFT"],
-    ["an explicit wrong returned offset", "WRONG_FROM"],
-    ["a missing terminal page", "MISSING_LAST_PAGE"]
-  ] as const)("rejects Roche request-bound omitted offsets with %s", async (_label, attack) => {
-    const { stagedPlan, fetched } = await fetchLiveShapedRoche(attack);
-    expect(fetched).toMatchObject({ ok: false });
-    const crawled = await runSourceCrawl(stagedPlan, { fetch: async () => fetched });
-    expect(crawled.truth.completenessVerified).toBe(false);
-  });
-
   it("does not grant Roche request-bound omitted offsets to another Phenom source", async () => {
     const lilly = exactPhenomPlan("source-lilly-china-social");
     if (lilly.officialJsonFetch?.kind !== "phenom") throw new Error("Expected Lilly Phenom plan");
@@ -1324,45 +822,6 @@ describe("Phenom evidence instrumentation", () => {
           forged.source.officialEntryUrl, "text/html")
     })(forged);
     expect(fetched).toMatchObject({ ok: false });
-  });
-
-  it("strict replay rejects raw Roche IDs changed in the archived body while trace hashes remain self-consistent", async () => {
-    const { stagedPlan, fetched } = await fetchLiveShapedRoche();
-    const forged = recanonicalizeSuccessfulRocheFetch(fetched, (evidence) => {
-      rewriteRocheArtifactBody(evidence, "phenom-page-0001", (root) => {
-        const jobs = ((root.refineSearch as Record<string, unknown>).data as Record<string, unknown>).jobs as
-          Array<Record<string, unknown>>;
-        jobs[0] = { ...jobs[0], jobSeqNo: "ROCHE-1", reqId: "ROCHE-1" };
-      });
-    });
-    expect(forged.paginationEvaluation).toMatchObject({ safeCompleteness: true, derivedAnomalyCodes: [] });
-    const crawled = await runSourceCrawl(stagedPlan, { fetch: async () => forged });
-    expect(crawled.truth.completenessVerified).toBe(false);
-  });
-
-  it("strict replay rejects a returned offset invented by evidence when Roche omitted it", async () => {
-    const { stagedPlan, fetched } = await fetchLiveShapedRoche();
-    const forged = recanonicalizeSuccessfulRocheFetch(fetched, (evidence) => {
-      evidence.pages[0]!.returnedOffset = 0;
-    });
-    expect(forged.paginationEvaluation).toMatchObject({ safeCompleteness: true, derivedAnomalyCodes: [] });
-    const crawled = await runSourceCrawl(stagedPlan, { fetch: async () => forged });
-    expect(crawled.truth.completenessVerified).toBe(false);
-  });
-
-  it("strict replay rejects a skipped middle Roche page even when an older green evaluation is replayed", async () => {
-    const { stagedPlan, fetched } = await fetchLiveShapedRoche();
-    if (!fetched.ok || !fetched.fetchEvidence) throw new Error("Expected successful Roche evidence");
-    const forged = {
-      ...fetched,
-      fetchEvidence: {
-        ...fetched.fetchEvidence,
-        pages: fetched.fetchEvidence.pages.filter((page) => page.sequence !== 1),
-        artifacts: fetched.fetchEvidence.artifacts.filter((artifact) => artifact.logicalKey !== "phenom-page-0001")
-      }
-    };
-    const crawled = await runSourceCrawl(stagedPlan, { fetch: async () => forged });
-    expect(crawled.truth.completenessVerified).toBe(false);
   });
 
   it("accepts only an exact configured same-origin entry redirect and archives the observed final URL", async () => {

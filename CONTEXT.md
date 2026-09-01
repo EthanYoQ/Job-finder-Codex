@@ -5,8 +5,8 @@ Job Finder discovers and publishes auditable official pharmaceutical-company job
 ## Language
 
 **Roster Company**:
-One of the fixed 60 Phase 1 pharmaceutical companies that must remain visible in the company directory regardless of publishing state.
-_Avoid_: Replaceable company, optional company
+One of the 41 pharmaceutical companies retained by the September 1-2, 2026 human verification: 30 foreign and 11 domestic companies. Companies absent from that verification are outside the current product scope.
+_Avoid_: Historical candidate, deleted company, optional company
 
 **China-scoped Job**:
 A job whose audited official location explicitly names mainland China, China nationwide, or a mainland city. A regional label such as APAC does not establish China scope by itself.
@@ -21,11 +21,11 @@ A Roster Company whose current official social-recruitment source has two latest
 _Avoid_: Reachable company, configured company, historically green company
 
 **First-launch Gate**:
-The requirement that every company in the frozen 50-company Launch Cohort has current A- or B-grade completeness evidence in two qualified rounds, including all 30 foreign companies.
-_Avoid_: 55-company threshold, configurable pass total, partial launch
+The requirement that every company in the frozen 41-company Launch Cohort has current A- or B-grade completeness evidence in two qualified rounds, including all 30 foreign companies.
+_Avoid_: 50-company gate, configurable pass total, partial launch
 
 **Launch Cohort**:
-The immutable first-launch selection of 50 Roster Companies: 30 foreign pharmaceutical companies and 20 domestic pharmaceutical companies. A failed foreign company is never replaced by another company.
+The immutable first-launch selection of 41 Roster Companies: 30 foreign pharmaceutical companies and 11 domestic pharmaceutical companies. A failed company is never replaced by an out-of-scope historical candidate.
 _Avoid_: Full roster, replaceable sample, successful subset
 
 **Fixed Cohort Audit**:

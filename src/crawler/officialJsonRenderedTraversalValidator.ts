@@ -40,10 +40,18 @@ export type OfficialJsonRenderedTraversalSourceId = keyof typeof OFFICIAL_JSON_R
 export const OFFICIAL_JSON_RENDERED_TRAVERSAL_SOURCE_IDS = Object.freeze(
   Object.keys(OFFICIAL_JSON_RENDERED_TRAVERSAL_POLICIES) as OfficialJsonRenderedTraversalSourceId[]
 );
+export const OFFICIAL_JSON_RENDERED_REQUIRED_SOURCE_IDS = Object.freeze([
+  "source-cspc-social"
+] as const satisfies readonly OfficialJsonRenderedTraversalSourceId[]);
+type RequiredOfficialJsonRenderedTraversalSourceId =
+  typeof OFFICIAL_JSON_RENDERED_REQUIRED_SOURCE_IDS[number];
 export const OFFICIAL_JSON_RENDERED_REQUIRED_CERTIFICATES = Object.freeze(Object.fromEntries(
-  Object.entries(OFFICIAL_JSON_RENDERED_TRAVERSAL_POLICIES).map(([sourceId, policy]) => [sourceId, policy.companyId])
-) as Record<OfficialJsonRenderedTraversalSourceId,
-  typeof OFFICIAL_JSON_RENDERED_TRAVERSAL_POLICIES[OfficialJsonRenderedTraversalSourceId]["companyId"]>);
+  OFFICIAL_JSON_RENDERED_REQUIRED_SOURCE_IDS.map((sourceId) => [
+    sourceId,
+    OFFICIAL_JSON_RENDERED_TRAVERSAL_POLICIES[sourceId].companyId
+  ])
+) as Record<RequiredOfficialJsonRenderedTraversalSourceId,
+  typeof OFFICIAL_JSON_RENDERED_TRAVERSAL_POLICIES[RequiredOfficialJsonRenderedTraversalSourceId]["companyId"]>);
 
 export interface OfficialJsonRenderedRawRow {
   sourceJobId: string;

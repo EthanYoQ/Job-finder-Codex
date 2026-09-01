@@ -537,7 +537,6 @@ function resolveOpaqueMultiLocationDetailPolicy(
     return undefined;
   }
   if (kind === "PFIZER_AUDITED_APAC_DETAIL_V1") {
-    const workerBoundary = config.facetDescriptorBoundary;
     if (
       sourceId === "source-pfizer-china-social" &&
       config.tenant === "pfizer" &&
@@ -551,10 +550,7 @@ function resolveOpaqueMultiLocationDetailPolicy(
       ) &&
       (config.facetDescriptorExclusions?.length ?? 0) === 0 &&
       config.laterZeroTotalPolicy === PFIZER_LATER_ZERO_TOTAL_POLICY &&
-      hasExactSingleAppliedFacet(config.appliedFacets, "Location_Country", AUDITED_CHINA_LOCATION_ID) &&
-      workerBoundary?.facetParameter === "workerSubType" &&
-      exactStringArray(workerBoundary.allowedDescriptors, ["Regular"]) &&
-      workerBoundary.excludedDescriptors === undefined
+      hasExactSingleAppliedFacet(config.appliedFacets, "Location_Country", AUDITED_CHINA_LOCATION_ID)
     ) {
       return { kind };
     }

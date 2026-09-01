@@ -121,6 +121,23 @@ describe("shared pagination evidence evaluator", () => {
     ]);
   });
 
+  it("does not treat repeated empty filtered result sets as repeated pagination pages", () => {
+    const input = evidence();
+    input.pages[0]!.validJobIds = [];
+    addPage(input, { body: '{"different":true}', rawJobIds: ["c"], validJobIds: [] });
+    input.fetchCounts = {
+      rawCount: 3, parsedCount: 3, validCount: 0, parseDiscardCount: 0, validationDiscardCount: 3
+    };
+    input.fetchLosses = [
+      { stage: "VALIDATION", reason: "filtered", rawLocator: "p0r0", details: { code: "FILTERED", pageSequence: 0, recordIndex: 0 }, recordedAt: "2026-07-10T10:00:00.000Z" },
+      { stage: "VALIDATION", reason: "filtered", rawLocator: "p0r1", details: { code: "FILTERED", pageSequence: 0, recordIndex: 1 }, recordedAt: "2026-07-10T10:00:00.000Z" },
+      { stage: "VALIDATION", reason: "filtered", rawLocator: "p1r0", details: { code: "FILTERED", pageSequence: 1, recordIndex: 0 }, recordedAt: "2026-07-10T10:01:00.000Z" }
+    ];
+    const canonical = deriveCanonicalPaginationEvidence({ evidence: input, expectedChannelIds: ["social"], filteredOutput: true });
+    expect(evaluatePaginationEvidence({ evidence: canonical, expectedChannelIds: ["social"], filteredOutput: true })
+      .derivedAnomalyCodes).not.toContain("REPEATED_JOB_ID_SET_WITH_NEXT");
+  });
+
   it("detects a same-page requested/returned-page mismatch", () => {
     const input = evidence();
     input.pages[0]!.requestedCursor = "cursor-1";

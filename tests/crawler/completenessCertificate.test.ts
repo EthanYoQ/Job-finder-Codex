@@ -6,9 +6,11 @@ import { deriveCanonicalPaginationEvidence, evaluatePaginationEvidence } from ".
 import { getPlanBySourceId, buildStagedSourceCrawlPlans, sourcePlanConfigSha256 } from "../../src/crawler/sourcePlan";
 import { sha256Bytes, type PersistentSourceFetchEvidence } from "../../src/crawler/sourceFetchEvidence";
 import { createHttpHtmlSourceFetch } from "../../src/crawler/httpHtmlSourceFetch";
+import { createGrifolsChinaSourceFetch, type GrifolsChinaHttpResponse } from "../../src/crawler/grifolsChinaSourceFetch";
 import { runSourceCrawl } from "../../src/crawler/runSourceCrawl";
 import {
   issueAGradeOfficialTotalCertificate,
+  requiresAGradeOfficialTotalCertificate,
   verifyAGradeCompletenessCertificateReceipt
 } from "../../src/crawler/completenessCertificate";
 
@@ -141,24 +143,45 @@ function candidate(input: {
 }
 
 describe("A-grade official-total completeness certificate", () => {
-  it("issues A grade for a lossless plan-bound HTML official total", async () => {
-    const plan = getPlanBySourceId(buildStagedSourceCrawlPlans(candidateCompanies), "source-csl-china-social");
-    if (plan?.adapterId !== "html-table") throw new Error("Expected staged CSL HTML plan");
-    const fetch = createHttpHtmlSourceFetch({
+  it("keeps Grifols outside the zero-loss A-grade certificate path", async () => {
+    const plan = getPlanBySourceId(buildStagedSourceCrawlPlans(candidateCompanies), "source-grifols-china-social");
+    if (plan?.adapterId !== "official-json" || plan.profileBoundSource?.kind !== "grifols-china-detail-scope") {
+      throw new Error("Expected staged Grifols detail-scoped plan");
+    }
+    expect(requiresAGradeOfficialTotalCertificate(plan)).toBe(false);
+    const entry = "https://jobsearch.grifols.com/search/?createNewAlert=false&q=&locationsearch=China";
+    const marketing = "https://jobsearch.grifols.com/job/Shanghai-Marketing-Assistant/1429532033/";
+    const fieldService = "https://jobsearch.grifols.com/job/Home-Office-%E7%8F%BE%E5%A0%B4%E6%9C%8D%E5%8B%99%E5%B7%A5%E7%A8%8B%E5%B8%AB-Field-Service-Engineer/1409962833/";
+    const response = (url: string, body: string): GrifolsChinaHttpResponse => ({
+      status: 200,
+      body,
+      finalUrl: url,
+      contentType: "text/html; charset=utf-8",
+      capturedAt
+    });
+    const detail = (url: string, streetAddress: string, officialLocation: string) =>
+      `<link rel="canonical" href="${url}">
+        <div class="jobDisplayShell"><meta itemprop="streetAddress" content="${streetAddress}">
+          <div class="jobDisplay"><div class="content"><b>Location: ${officialLocation}</b></div></div>
+        </div>`;
+    const fetch = createGrifolsChinaSourceFetch({
       now: () => new Date(capturedAt),
-      http: async request => ({
-        status: 200,
-        body: `<main>Showing 1 to 1 of 1 results
-          <a href="https://jobs.csl.com/en/jobs/123"><p class="text-18">Medical Lead</p>
-          <p><svg aria-hidden="true"></svg>Shanghai, China</p></a></main>`,
-        finalUrl: request.url,
-        contentType: "text/html; charset=utf-8",
-        capturedAt
-      })
+      http: async request => {
+        if (request.url === entry) return response(request.url,
+          `<span class="paginationLabel">Results <b>1 – 2</b> of <b>2</b></span>
+            <table id="searchresults" aria-label="Search results for China. Page 1 of 1, Results 1 to 2 of 2"><tbody>
+              <tr class="data-row"><td class="jobTitle hidden-phone"><a class="jobTitle-link" href="/job/Shanghai-Marketing-Assistant/1429532033/">Marketing Assistant</a></td><td class="colLocation hidden-phone"><span class="jobLocation">Shanghai, CN</span></td></tr>
+              <tr class="data-row"><td class="jobTitle hidden-phone"><a class="jobTitle-link" href="/job/Home-Office-%E7%8F%BE%E5%A0%B4%E6%9C%8D%E5%8B%99%E5%B7%A5%E7%A8%8B%E5%B8%AB-Field-Service-Engineer/1409962833/">Field Service Engineer</a></td><td class="colLocation hidden-phone"><span class="jobLocation">Home Office, CN</span></td></tr>
+            </tbody></table>`);
+        if (request.url === marketing) {
+          return response(request.url, detail(request.url, "Shanghai, CN", "APAC : China : Shanghai:Shangai"));
+        }
+        return response(request.url, detail(request.url, "Home Office, CN", "APAC : Hong Kong : Home Office:Hong Kong"));
+      }
     });
     const crawl = await runSourceCrawl(plan, { fetch });
     if (!crawl.fetchEvidence || !crawl.paginationEvaluation || !crawl.reconciliation) {
-      throw new Error("Expected exact HTML crawl evidence");
+      throw new Error("Expected exact Grifols crawl evidence");
     }
     expect(crawl.truth.completenessVerified).toBe(true);
     const decision = issueAGradeOfficialTotalCertificate({
@@ -177,14 +200,13 @@ describe("A-grade official-total completeness certificate", () => {
       jobs: crawl.jobs,
       officialArtifactSha256
     });
-    expect(decision.status, JSON.stringify(decision)).toBe("CERTIFIED");
-    expect(decision).toMatchObject({
-      certificate: {
-        grade: "A",
-        scope: { companyId: "company-csl-china", sourceId: "source-csl-china-social" },
-        counts: { officialTotal: 1, finalUniqueJobCount: 1 }
-      }
-    });
+    expect(decision.status).toBe("REJECTED");
+    if (decision.status !== "REJECTED") throw new Error("Expected Grifols A-grade rejection");
+    expect(decision.blockerCodes).toEqual(expect.arrayContaining([
+      "LOSSY_PIPELINE",
+      "OFFICIAL_TOTAL_MISMATCH",
+      "UNSUPPORTED_SOURCE"
+    ]));
   });
 
   it("issues and verifies an exact same-scope certificate Receipt", () => {

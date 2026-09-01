@@ -16,10 +16,6 @@ export const profile_amgen_china = {
               appliedFacets: {
                   LocationCountry: ["6cb77610a8a543aea2d6bc10457e35d4"]
               },
-              facetDescriptorBoundary: {
-                  facetParameter: "workerSubType",
-                  allowedDescriptors: ["Regular"]
-              },
               pageSize: 20,
               maxPages: 3
           }

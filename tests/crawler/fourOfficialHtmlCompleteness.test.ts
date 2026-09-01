@@ -303,9 +303,9 @@ describe("four audited official HTML sources", () => {
       return response(request, bodies[requests.length - 1]!);
     });
     expect(requests).toEqual([
-      "https://prod1.novartis.com/careers/career-search/tag/LOC_CN",
-      "https://prod1.novartis.com/careers/career-search/tag/LOC_CN?page=1",
-      "https://prod1.novartis.com/careers/career-search/tag/LOC_CN?page=2"
+      "https://www.novartis.com.cn/careers/career-search?search_api_fulltext=&country%5B%5D=LOC_CN&op=Submit&field_job_posted_date=All",
+      "https://www.novartis.com.cn/careers/career-search?search_api_fulltext=&country%5B%5D=LOC_CN&op=Submit&field_job_posted_date=All&page=1",
+      "https://www.novartis.com.cn/careers/career-search?search_api_fulltext=&country%5B%5D=LOC_CN&op=Submit&field_job_posted_date=All&page=2"
     ]);
     expect(fetched).toMatchObject({
       ok: true,
@@ -322,7 +322,7 @@ describe("four audited official HTML sources", () => {
     });
     expect(crawled.jobs.map((job) => job.officialUrl).sort()).toEqual(
       ["a", "b", "c", "d", "e", "f"].map((id) =>
-        `https://prod1.novartis.com/careers/career-search/job/details/${id}`
+        `https://www.novartis.com.cn/careers/career-search/job/details/${id}`
       ).sort()
     );
   });

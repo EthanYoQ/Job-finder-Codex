@@ -1,4 +1,5 @@
 import type { CompanyRecruitmentProfileSeed } from "../types";
+import { OFFICIAL_API_JSON_CONFIG } from "../shared";
 
 export const profile_fosun_pharma = {
   companyId: "company-fosun-pharma",
@@ -6,24 +7,15 @@ export const profile_fosun_pharma = {
     {
       sourceId: "source-fosun-pharma-social",
       executionConfig: {
-          adapterId: "html-table",
-          table: {
-              rowSelector: "table tr:has(td:nth-child(1) a[href*='/socialxq?jobId='])",
-              completenessProof: { kind: "OFFICIAL_TOTAL_PAGES" },
-              pagination: {
-                  totalPagesSelector: ".page a[href*='/social/?PageIndex=']",
-                  totalPagesAttribute: "href",
-                  totalPagesPattern: "PageIndex=([1-9]\\d*)(?:&|$)",
-                  totalPagesMode: "max",
-                  totalPagesDeclaredOnEntryOnly: true,
-                  pageSearchParam: "PageIndex",
-                  maxPages: 20
-              },
-              fields: {
-                  officialTitle: { selector: "td:nth-child(1) a" },
-                  officialUrl: { selector: "td:nth-child(1) a", attribute: "href" },
-                  locationRaw: { selector: "td:nth-child(4) a" }
-              }
+          adapterId: "official-json",
+          json: OFFICIAL_API_JSON_CONFIG,
+          officialJsonFetch: {
+              kind: "beisen-zhiye-2022",
+              geographyScope: "DOMESTIC_OFFICIAL_TENANT",
+              category: "1",
+              pageSize: 100,
+              maxPages: 5,
+              detailPath: "social/detail"
           }
       }
     },

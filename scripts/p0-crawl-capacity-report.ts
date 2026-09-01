@@ -41,7 +41,7 @@ const isDirectRun =
 
 if (isDirectRun) {
   const estimate = estimateCrawlCapacity({
-    sourceCount: Number(process.env.P0_SOURCE_COUNT ?? 50),
+    sourceCount: Number(process.env.P0_SOURCE_COUNT ?? 41),
     httpSourceCount: Number(process.env.P0_HTTP_SOURCE_COUNT ?? 45),
     browserSourceCount: Number(process.env.P0_BROWSER_SOURCE_COUNT ?? 5),
     httpConcurrency: Number(process.env.P0_HTTP_CONCURRENCY ?? 6),
