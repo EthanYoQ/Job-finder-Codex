@@ -110,6 +110,7 @@ export type OfficialJsonFetchConfig =
       };
       allowOmittedOffsetForSinglePage?: boolean;
       requestBoundOmittedOffsetPolicy?: "ROCHE_REQUEST_BOUND_OMITTED_OFFSET_V1";
+      exactDuplicateReconciliationPolicy?: "ROCHE_IDENTICAL_CROSS_PAGE_V1";
       pageSize?: number;
       maxPages?: number;
     }
@@ -602,13 +603,18 @@ function attachOfficialJsonPageCapacity(
       : [];
     const allowMissingReturnedPage = config.kind === "beisen-zhiye-2022";
     const allowPositiveOfficialTotalCountAfterAdapterReconciliation =
-      config.kind === "sandoz-jsonapi" || config.kind === "yello-job-board";
+      config.kind === "sandoz-jsonapi" || config.kind === "yello-job-board" || config.kind === "51job-coapi";
+    const allowIndependentlyVerifiedProfileBoundExclusions = config.kind === "51job-coapi";
+    const allowRawIdOverlapAcrossPages = config.kind === "phenom" &&
+      config.exactDuplicateReconciliationPolicy === "ROCHE_IDENTICAL_CROSS_PAGE_V1";
     const canonical = deriveCanonicalPaginationEvidence({
       evidence: enriched,
       expectedChannelIds,
       filteredOutput: true,
       allowMissingReturnedPage,
-      allowPositiveOfficialTotalCountAfterAdapterReconciliation
+      allowPositiveOfficialTotalCountAfterAdapterReconciliation,
+      allowIndependentlyVerifiedProfileBoundExclusions,
+      allowRawIdOverlapAcrossPages
     });
     return {
       evidence: canonical,
@@ -617,7 +623,9 @@ function attachOfficialJsonPageCapacity(
         expectedChannelIds,
         filteredOutput: true,
         allowMissingReturnedPage,
-        allowPositiveOfficialTotalCountAfterAdapterReconciliation
+        allowPositiveOfficialTotalCountAfterAdapterReconciliation,
+        allowIndependentlyVerifiedProfileBoundExclusions,
+        allowRawIdOverlapAcrossPages
       })
     };
   };
@@ -706,8 +714,13 @@ async function fetchSingleResponseOfficialJson({
         "User-Agent": "job-search-crawler/0.1"
       }
     });
-  } catch {
-    return failed(capturedAt, "Official JSON TRANSPORT_FAILURE");
+  } catch (error) {
+    const transportFailure = retryableTransportFailureFromError(error);
+    return failed(
+      capturedAt,
+      transportFailure ? safeSourceTransportFailureReason(transportFailure) : "Official JSON TRANSPORT_FAILURE",
+      transportFailure
+    );
   }
 
   try {
@@ -727,10 +740,14 @@ async function fetchSingleResponseOfficialJson({
   });
   const failureState = initialOfficialJsonEvidenceState({ artifact: failureArtifact, termination: "FAILED" });
   if (response.status < 200 || response.status >= 300) {
+    const transportFailure = retryableHttpTransportFailure(response.status);
     return failedWithEvidence(
       capturedAt,
-      `Official JSON source returned HTTP ${response.status}`,
-      finalizeOfficialJsonFailureEvidence(failureState)
+      transportFailure
+        ? safeSourceTransportFailureReason(transportFailure)
+        : `Official JSON source returned HTTP ${response.status}`,
+      finalizeOfficialJsonFailureEvidence(failureState),
+      transportFailure
     );
   }
   try {
@@ -2119,19 +2136,22 @@ async function fetch51jobCoapi({
     returnedPageSize: envelope.jobs.length,
     rawJobIds: [...new Set(rawIds)],
     validJobIds: validIds,
-    declaredTotal: counts.validCount,
+    // The API page declares its raw result count. The separate source-level
+    // declaration below records the official UI-visible count after applying
+    // the page's own published exclusion rules.
+    declaredTotal: envelope.total,
     declaredCount: envelope.total,
     declaredPages: 1,
     nextPageSignalBefore: null,
     nextPageSignalAfter: null,
     responseFingerprintSha256: sha256Bytes(Buffer.from(response.body, "utf8")).sha256,
-    termination: "DECLARED_TOTAL_REACHED",
+    termination: "NEXT_ABSENT",
     anomalyCodes: [],
     capturedAt: apiArtifact.capturedAt
   };
   const declaredCompleteness = {
     kind: "OFFICIAL_TOTAL_COUNT" as const,
-    value: counts.validCount,
+    value: envelope.total,
     artifactLogicalKey: apiArtifact.logicalKey,
     extractorLocator: locator,
     scope: "SOURCE" as const
@@ -2141,7 +2161,9 @@ async function fetch51jobCoapi({
     pages: [page],
     fetchCounts: counts,
     fetchLosses: losses,
-    declaredCompleteness
+    declaredCompleteness,
+    allowPositiveOfficialTotalCountAfterAdapterReconciliation: true,
+    allowIndependentlyVerifiedProfileBoundExclusions: true
   });
   return {
     ok: true,
@@ -3542,6 +3564,7 @@ async function fetchPhenomWidgets({
   const losses: PersistentSourceFetchEvidence["fetchLosses"] = [];
   const jobs: NormalizedOfficialJsonJob[] = [];
   const seenOfficialIds = new Set<string>();
+  const firstRawByOfficialId = new Map<string, { pageIndex: number; serialized: string }>();
   const pageSize = Math.max(1, Math.min(100, config.pageSize ?? 50));
   const maxPages = Math.max(1, config.maxPages ?? 20);
   const countryFilter = config.countryFilter ?? "China";
@@ -3986,7 +4009,12 @@ async function fetchPhenomWidgets({
         recordPhenomLoss(losses, counts, "VALIDATION", "UNSAFE_OFFICIAL_ID", rawLocator, pageIndex, recordIndex, "id");
         continue;
       }
-      if (seenOfficialIds.has(id!)) {
+      const firstRaw = firstRawByOfficialId.get(id!);
+      const exactDuplicate = seenOfficialIds.has(id!) && firstRaw !== undefined &&
+        firstRaw.pageIndex !== pageIndex && exactRocheRequestBoundOmittedOffset &&
+        config.exactDuplicateReconciliationPolicy === "ROCHE_IDENTICAL_CROSS_PAGE_V1" &&
+        firstRaw.serialized === JSON.stringify(raw);
+      if (seenOfficialIds.has(id!) && !exactDuplicate) {
         recordPhenomLoss(losses, counts, "VALIDATION", "DUPLICATE_OFFICIAL_ID", rawLocator, pageIndex, recordIndex, "id");
         continue;
       }
@@ -4065,6 +4093,7 @@ async function fetchPhenomWidgets({
         continue;
       }
       seenOfficialIds.add(id!);
+      if (!firstRaw) firstRawByOfficialId.set(id!, { pageIndex, serialized: JSON.stringify(raw) });
       const sourceJobId = persistentOfficialJsonJobId(id!);
       jobs.push({
         sourceJobId, title: title!, officialUrl, locationRaw: locationRaw!,
@@ -4112,7 +4141,11 @@ async function fetchPhenomWidgets({
   try {
     finalized = finalizeOfficialJsonEvidenceBundle({
       artifacts, pages, fetchCounts: counts, fetchLosses: losses,
-      ...(declaredCompleteness ? { declaredCompleteness } : {})
+      ...(declaredCompleteness ? { declaredCompleteness } : {}),
+      ...(exactRocheRequestBoundOmittedOffset &&
+        config.exactDuplicateReconciliationPolicy === "ROCHE_IDENTICAL_CROSS_PAGE_V1"
+        ? { allowRawIdOverlapAcrossPages: true }
+        : {})
     });
   } catch (error) {
     return phenomFailure(capturedAt, safeOfficialJsonFailure(error, "Phenom pagination evidence is invalid"),
@@ -4185,6 +4218,7 @@ function exactRocheRequestBoundOmittedOffsetPlan(
     config.allowOmittedOffsetForSinglePage === undefined &&
     config.mixedLocationScopePolicy === "EXACTLY_ONE_MAINLAND_ALTERNATIVE_V1" &&
     config.requestBoundOmittedOffsetPolicy === "ROCHE_REQUEST_BOUND_OMITTED_OFFSET_V1" &&
+    config.exactDuplicateReconciliationPolicy === "ROCHE_IDENTICAL_CROSS_PAGE_V1" &&
     config.pageSize === 100 && config.maxPages === 10 &&
     widgetEndpoint === "https://careers.roche.com/widgets" &&
     pageConfig.widgetApiEndpoint === "https://careers.roche.com/widgets" &&

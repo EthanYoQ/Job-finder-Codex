@@ -119,6 +119,8 @@ describe("source crawl planning", () => {
   it("binds the transient retry policy into the canonical source plan identity", () => {
     const plans = buildStagedSourceCrawlPlans(candidateCompanies);
     const pfizer = getPlanBySourceId(plans, "source-pfizer-china-social");
+    const novo = getPlanBySourceId(plans, "source-novo-nordisk-china-social");
+    expect(novo?.transientRetryPolicy).toEqual({ maxRetries: 1, backoffMs: 10_000 });
     if (pfizer?.adapterId !== "official-json" || !pfizer.transientRetryPolicy) {
       throw new Error("Expected canonical Pfizer retry policy");
     }

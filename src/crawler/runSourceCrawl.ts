@@ -465,7 +465,16 @@ function strictCompletenessGate(
     const expectedAdapterOutputCount = configuredHtmlProof
       ? strictHtmlExpectedAdapterOutputCount(plan, evidence)
       : undefined;
+    const legalPlanBoundDedupeCount = ledger.collisionGroups.reduce(
+      (sum, group) => sum + group.droppedCount,
+      0
+    );
+    const planBoundRawOverlapDedupe = replayPolicy?.allowRawIdOverlapAcrossPages === true &&
+      legalPlanBoundDedupeCount > 0 && ledger.validBeforeDedupeCount === ledger.rawInputCount &&
+      ledger.dedupeInputCount === ledger.rawInputCount &&
+      ledger.dedupeOutputCount + legalPlanBoundDedupeCount === ledger.rawInputCount;
     const adapterOutputBoundaryValid = ledger.dedupeOutputCount === ledger.rawInputCount ||
+      planBoundRawOverlapDedupe ||
       (expectedAdapterOutputCount !== undefined &&
         ledger.dedupeOutputCount === expectedAdapterOutputCount &&
         ledger.validBeforeDedupeCount === ledger.rawInputCount);
@@ -2111,6 +2120,8 @@ function strictPhenomRequestContracts(
     evidence.pages.length !== rocheExpectedPageCount ||
     evidence.artifacts.length !== evidence.pages.length + 3)) return false;
   const rocheExpectedOutputIds = new Set<string>();
+  const rocheFirstRawByOfficialId = new Map<string, { pageIndex: number; serialized: string }>();
+  let rocheExactDuplicateCount = 0;
   const merckExpectedPageCount = merckPartitionReplay
     ? Math.max(1, Math.ceil(merckPartitionReplay.expectedTotal / pageSize))
     : undefined;
@@ -2196,7 +2207,11 @@ function strictPhenomRequestContracts(
         if (!record || !rawId || !safeOfficialJsonId(rawId)) return false;
         const sourceJobId = persistentOfficialJsonJobId(rawId);
         const validEvidenceId = irreversibleOfficialJsonEvidenceId(sourceJobId);
-        if (expectedValidIds.includes(validEvidenceId) || rocheExpectedOutputIds.has(sourceJobId)) return false;
+        if (expectedValidIds.includes(validEvidenceId)) return false;
+        const firstRaw = rocheFirstRawByOfficialId.get(rawId);
+        if (firstRaw && (firstRaw.pageIndex === pageIndex || firstRaw.serialized !== JSON.stringify(raw))) return false;
+        if (firstRaw) rocheExactDuplicateCount += 1;
+        else rocheFirstRawByOfficialId.set(rawId, { pageIndex, serialized: JSON.stringify(raw) });
         expectedValidIds.push(validEvidenceId);
         rocheExpectedOutputIds.add(sourceJobId);
       }
@@ -2247,7 +2262,7 @@ function strictPhenomRequestContracts(
   }
   const rocheReplayMatches = !exactRocheRequestBoundOmittedOffset ||
     (rocheExpectedTotal !== undefined && pageRawCount === rocheExpectedTotal &&
-      rocheExpectedOutputIds.size === rocheExpectedTotal &&
+      rocheExpectedOutputIds.size + rocheExactDuplicateCount === rocheExpectedTotal &&
       evidence.fetchCounts.rawCount === rocheExpectedTotal &&
       evidence.fetchCounts.parsedCount === rocheExpectedTotal &&
       evidence.fetchCounts.validCount === rocheExpectedTotal &&
@@ -2380,6 +2395,7 @@ function strictExactRochePhenomPlan(
     config.allowOmittedOffsetForSinglePage === undefined &&
     config.mixedLocationScopePolicy === "EXACTLY_ONE_MAINLAND_ALTERNATIVE_V1" &&
     config.requestBoundOmittedOffsetPolicy === "ROCHE_REQUEST_BOUND_OMITTED_OFFSET_V1" &&
+    config.exactDuplicateReconciliationPolicy === "ROCHE_IDENTICAL_CROSS_PAGE_V1" &&
     config.pageSize === 100 && config.maxPages === 10 &&
     endpoint === "https://careers.roche.com/widgets" &&
     pageConfig.widgetApiEndpoint === "https://careers.roche.com/widgets" &&
@@ -4065,6 +4081,7 @@ interface StrictPositiveOfficialTotalReplayPolicy {
   allowPositiveOfficialTotalCountAfterAdapterReconciliation?: true;
   allowIndependentlyVerifiedProfileBoundExclusions?: true;
   allowCompleteTraversalOfEmptyFirstPage?: true;
+  allowRawIdOverlapAcrossPages?: true;
 }
 
 function strictPositiveOfficialTotalReplayPolicy(
@@ -4155,7 +4172,17 @@ function strictPositiveOfficialTotalReplayPolicy(
   if (strategy.kind === "phenom") {
     if (plan.source.atsKind !== "OFFICIAL_JSON" ||
       (!strategy.countryFilter?.trim() && !strategy.facetScope)) return undefined;
-    return { allowPositiveOfficialTotalCountAfterAdapterReconciliation: true };
+    const exactRocheDuplicatePolicy = strategy.exactDuplicateReconciliationPolicy ===
+      "ROCHE_IDENTICAL_CROSS_PAGE_V1" &&
+      plan.company.id === "company-roche-china" &&
+      plan.source.id === "source-roche-china-social" &&
+      plan.source.companyId === "company-roche-china" &&
+      plan.source.officialEntryUrl === "https://careers.roche.com/cn/zh/search-results";
+    if (strategy.exactDuplicateReconciliationPolicy !== undefined && !exactRocheDuplicatePolicy) return undefined;
+    return {
+      allowPositiveOfficialTotalCountAfterAdapterReconciliation: true,
+      ...(exactRocheDuplicatePolicy ? { allowRawIdOverlapAcrossPages: true as const } : {})
+    };
   }
   if (strategy.kind === "hcm-cloud") {
     if (plan.source.atsKind !== "OFFICIAL_JSON" ||
@@ -4181,6 +4208,14 @@ function strictPositiveOfficialTotalReplayPolicy(
       !Number.isSafeInteger(strategy.countryTermTargetId) || strategy.countryTermTargetId <= 0 ||
       !strategy.countryTermUuid.trim()) return undefined;
     return { allowPositiveOfficialTotalCountAfterAdapterReconciliation: true };
+  }
+  if (strategy.kind === "51job-coapi") {
+    if (plan.source.id !== "source-boehringer-ingelheim-china-social" ||
+      plan.source.atsKind !== "OFFICIAL_JSON") return undefined;
+    return {
+      allowPositiveOfficialTotalCountAfterAdapterReconciliation: true,
+      allowIndependentlyVerifiedProfileBoundExclusions: true
+    };
   }
   if (strategy.kind === "yello-job-board") {
     if (plan.source.atsKind !== "OFFICIAL_JSON") return undefined;

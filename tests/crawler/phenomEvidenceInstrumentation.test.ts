@@ -1351,6 +1351,112 @@ describe("Phenom evidence instrumentation", () => {
     });
   });
 
+  it("reconciles Roche's byte-identical cross-page duplicate as one legal adapter dedupe", async () => {
+    const stagedPlan = rochePlan();
+    const uniqueJobs = Array.from({ length: 235 }, (_, index) =>
+      rocheJob(`ROCHE-${String(index).padStart(3, "0")}`));
+    const pageOne = uniqueJobs.slice(0, 100);
+    const pageTwo = [uniqueJobs[99]!, ...uniqueJobs.slice(100, 199)];
+    const pageThree = uniqueJobs.slice(199);
+    const bodies = [
+      facetPageBody([], 236, 0, [{ field: "country", value: { 中国大陆: 236 } }]),
+      facetPageBody([uniqueJobs[0]!], 236, 0, []),
+      facetPageBodyWithoutFrom(pageOne, 236),
+      facetPageBodyWithoutFrom(pageTwo, 236),
+      facetPageBodyWithoutFrom(pageThree, 236)
+    ];
+    let postIndex = 0;
+    const fetcher = createOfficialJsonSourceFetch({
+      now: () => new Date(capturedAt),
+      http: async (request) => {
+        if (request.method !== "POST") {
+          return response(rocheEntryHtml(), stagedPlan.source.officialEntryUrl, "text/html");
+        }
+        const body = bodies[postIndex++];
+        if (!body) throw new Error("fixture omitted a Roche response");
+        return response(body, "https://careers.roche.com/widgets", "application/json");
+      }
+    });
+
+    const fetched = await fetcher(stagedPlan);
+    expect(fetched).toMatchObject({
+      ok: true,
+      payload: { jobs: expect.any(Array) },
+      fetchEvidence: {
+        fetchCounts: {
+          rawCount: 236,
+          parsedCount: 236,
+          validCount: 236,
+          parseDiscardCount: 0,
+          validationDiscardCount: 0
+        }
+      },
+      paginationEvaluation: {
+        safeCompleteness: true,
+        verifiedEligible: false,
+        derivedAnomalyCodes: []
+      }
+    });
+    if (!fetched.ok || !("payload" in fetched) || !fetched.fetchEvidence ||
+        !fetched.paginationEvaluation || !Array.isArray((fetched.payload as { jobs?: unknown }).jobs)) {
+      throw new Error("Expected successful Roche exact-duplicate evidence");
+    }
+    expect((fetched.payload as { jobs: unknown[] }).jobs).toHaveLength(236);
+
+    const crawled = await runSourceCrawl(stagedPlan, { fetch: async () => fetched });
+    expect(crawled).toMatchObject({
+      status: "SUCCESS",
+      truth: { transportSuccess: true, adapterSuccess: true, completenessVerified: true },
+      observation: { structuredJobCount: 235, expectedJobCount: 236, completenessStatus: "VERIFIED" },
+      reconciliation: {
+        rawInputCount: 236,
+        dedupeInputCount: 236,
+        dedupeOutputCount: 235,
+        adapterLosses: [],
+        collisionGroups: [{ droppedCount: 1 }]
+      }
+    });
+    expect(crawled.jobs).toHaveLength(235);
+
+    const declaration = fetched.fetchEvidence.declaredCompleteness!;
+    const officialArtifact = fetched.fetchEvidence.artifacts.find(
+      (artifact) => artifact.logicalKey === declaration.artifactLogicalKey
+    )!;
+    const certificate = issueAGradeOfficialTotalCertificate({
+      binding: {
+        releaseCandidateId: "rc-roche-dedupe",
+        batchId: "batch-roche-dedupe",
+        sourceResultId: "result-roche-dedupe",
+        sourceConfigSha256: sourcePlanConfigSha256(stagedPlan)
+      },
+      plan: stagedPlan,
+      transportSuccess: crawled.truth.transportSuccess,
+      adapterSuccess: crawled.truth.adapterSuccess,
+      evidence: fetched.fetchEvidence,
+      paginationEvaluation: fetched.paginationEvaluation,
+      reconciliation: crawled.reconciliation!,
+      jobs: crawled.jobs,
+      officialArtifactSha256: sha256Bytes(
+        typeof officialArtifact.body === "string"
+          ? Buffer.from(officialArtifact.body, "utf8")
+          : officialArtifact.body
+      ).sha256
+    });
+    expect(certificate).toMatchObject({
+      status: "CERTIFIED",
+      certificate: {
+        grade: "A",
+        counts: {
+          officialTotal: 236,
+          rawObservationCount: 236,
+          rawUniqueOfficialRecordCount: 235,
+          legalDedupeCount: 1,
+          finalUniqueJobCount: 235
+        }
+      }
+    });
+  });
+
   it("selects an explicit mainland alternative from official multi_location values", async () => {
     const fetcher = createOfficialJsonSourceFetch({
       now: () => new Date(capturedAt),

@@ -281,11 +281,11 @@ export function issueAGradeOfficialTotalCertificate(
       ledger.validBeforeDedupeCount !== evidence.fetchCounts.validCount ||
       ledger.dedupeInputCount !== evidence.fetchCounts.validCount ||
       ledger.dedupeInputCount - ledger.dedupeOutputCount !== legalDedupeCount ||
-      evidence.fetchCounts.rawCount !== rawOfficialIds.length ||
-      rawOfficialIds.length - ledger.dedupeOutputCount !== legalDedupeCount) {
+      rawOfficialIds.length > evidence.fetchCounts.rawCount ||
+      rawOfficialIds.length < ledger.dedupeOutputCount) {
     blockers.add("DEDUPE_LEDGER_INVALID");
   }
-  if (declaration?.value !== rawOfficialIds.length ||
+  if (declaration?.value !== evidence.fetchCounts.rawCount ||
       declaration?.value !== ledger.dedupeOutputCount + legalDedupeCount ||
       ledger.dedupeOutputCount !== input.jobs.length) {
     blockers.add("OFFICIAL_TOTAL_MISMATCH");
@@ -446,10 +446,10 @@ function assertCertificateEquations(certificate: AGradeOfficialTotalCertificate)
       counts.validCount !== counts.normalizedCount ||
       counts.normalizedCount !== counts.dedupeInputCount ||
       counts.dedupeInputCount - counts.finalUniqueJobCount !== counts.legalDedupeCount ||
-      counts.rawObservationCount !== counts.rawUniqueOfficialRecordCount ||
-      counts.rawUniqueOfficialRecordCount - counts.finalUniqueJobCount !== counts.legalDedupeCount ||
+      counts.rawUniqueOfficialRecordCount > counts.rawObservationCount ||
+      counts.rawUniqueOfficialRecordCount < counts.finalUniqueJobCount ||
       counts.legalDedupeCount !== legalDedupeCount ||
-      counts.officialTotal !== counts.rawUniqueOfficialRecordCount ||
+      counts.officialTotal !== counts.rawObservationCount ||
       counts.officialTotal !== counts.finalUniqueJobCount + counts.legalDedupeCount ||
       new Set(dedupeKeys).size !== dedupeKeys.length || invalidDedupeGroup ||
       certificate.output.collisionLedgerSha256 !== sha256(canonicalJson(certificate.legalDedupeLedger)) ||

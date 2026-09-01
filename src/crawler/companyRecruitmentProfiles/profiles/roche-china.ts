@@ -23,6 +23,7 @@ export const profile_roche_china = {
                   categoryExcludeDescriptors: []
               },
               requestBoundOmittedOffsetPolicy: "ROCHE_REQUEST_BOUND_OMITTED_OFFSET_V1",
+              exactDuplicateReconciliationPolicy: "ROCHE_IDENTICAL_CROSS_PAGE_V1",
               pageSize: 100,
               maxPages: 10
           }

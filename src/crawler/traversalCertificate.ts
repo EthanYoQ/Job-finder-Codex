@@ -1000,6 +1000,11 @@ export function issueBGradeTraversalCertificate(input: BGradeCertificateCandidat
         (input.plan.adapterId !== "html-table" || !validateStrictHtmlCompletenessProof(input.plan, evidence))) {
       throw new Error("B-grade main HTML evidence failed its source-bound replay");
     }
+    const planBoundPolicy = requiresPlanBoundHtmlCertificateSourceId(input.plan.source.id)
+      ? PLAN_BOUND_HTML_TRAVERSAL_POLICIES[input.plan.source.id]
+      : undefined;
+    const planBoundOfficialTotalPolicy = planBoundPolicy !== undefined &&
+      "officialTotalTraversal" in planBoundPolicy && planBoundPolicy.officialTotalTraversal === true;
     pagination = evaluatePaginationEvidence({
       evidence,
       expectedChannelIds: isOfficialJsonRenderedTraversalSourceId(input.plan.source.id) &&
@@ -1015,6 +1020,15 @@ export function issueBGradeTraversalCertificate(input: BGradeCertificateCandidat
       ...(input.plan.source.id === "source-nhu-social" || input.plan.source.id === "source-fosun-pharma-social"
         ? { allowPositiveOfficialTotalCountAfterAdapterReconciliation: true }
         : {}),
+      ...(input.plan.source.id === "source-boehringer-ingelheim-china-social"
+        ? {
+            allowPositiveOfficialTotalCountAfterAdapterReconciliation: true,
+            allowIndependentlyVerifiedProfileBoundExclusions: true
+          }
+        : {}),
+      ...(planBoundOfficialTotalPolicy
+        ? { allowPositiveOfficialTotalCountAfterAdapterReconciliation: true }
+        : {}),
       ...(allowsMainPageOverlap
         ? { allowRawIdOverlapAcrossPages: true }
         : requiresPlanBoundHtmlCertificateSourceId(input.plan.source.id)
@@ -1026,6 +1040,9 @@ export function issueBGradeTraversalCertificate(input: BGradeCertificateCandidat
     const last = evidence.pages.at(-1);
     const talentbrewTraversal = requiresPlanBoundHtmlCertificateSourceId(input.plan.source.id) &&
       "talentbrewScope" in PLAN_BOUND_HTML_TRAVERSAL_POLICIES[input.plan.source.id];
+    const planBoundOfficialTotalTraversal = planBoundOfficialTotalPolicy &&
+      declaration?.kind === "OFFICIAL_TOTAL_COUNT" && declaration.scope === "SOURCE" &&
+      declaration.value === evidence.fetchCounts.rawCount;
     const talentbrewPageGroups = talentbrewTraversal
       ? groupPaginationPagesByChannel(evidence.pages)
       : undefined;
@@ -1045,26 +1062,25 @@ export function issueBGradeTraversalCertificate(input: BGradeCertificateCandidat
       evidence.fetchLosses.length === 0;
     const officialJsonTotal = isOfficialJsonRenderedTraversalSourceId(input.plan.source.id) &&
       declaration?.kind === "OFFICIAL_TOTAL_COUNT" && declaration.scope === "SOURCE" &&
-      (input.plan.source.id === "source-boehringer-ingelheim-china-social"
-        ? declaration.value === evidence.fetchCounts.validCount
-        : declaration.value === evidence.fetchCounts.rawCount);
+      declaration.value === evidence.fetchCounts.rawCount;
     const boehringerUiFilteredMain = input.plan.source.id === "source-boehringer-ingelheim-china-social" &&
       officialJsonTotal && evidence.pages.length === 1 && evidence.pages[0]?.declaredPages === 1 &&
-      evidence.pages[0]?.termination === "DECLARED_TOTAL_REACHED" &&
+      evidence.pages[0]?.termination === "NEXT_ABSENT" &&
       evidence.fetchCounts.rawCount === evidence.fetchCounts.validCount + 1 &&
-      canonicalJson(input.paginationEvaluation.derivedAnomalyCodes) ===
-        canonicalJson(["DECLARED_CAPACITY_CONTRADICTION"]);
+      evidence.pages[0]?.declaredTotal === evidence.fetchCounts.rawCount &&
+      input.paginationEvaluation.derivedAnomalyCodes.length === 0;
     const completeTraversal = declaration !== undefined &&
       (["COMPLETE_PAGE_TRAVERSAL", "OFFICIAL_TOTAL_PAGES"].includes(declaration.kind) ||
-        planBoundEmpty || officialJsonTotal) &&
+        planBoundEmpty || officialJsonTotal || planBoundOfficialTotalTraversal) &&
       (declaration.scope === "SOURCE" || isOfficialJsonRenderedTraversalSourceId(input.plan.source.id) &&
         declaration.scope === "CHANNEL" &&
         expectedChannels.length === 1 && declaration.channelId === expectedChannels[0]) &&
-      (planBoundEmpty || officialJsonTotal || declaration.value === evidence.pages.length) &&
+      (planBoundEmpty || officialJsonTotal || planBoundOfficialTotalTraversal ||
+        declaration.value === evidence.pages.length) &&
       declaredPageContract &&
       (talentbrewPageGroups !== undefined || last?.termination === "NEXT_ABSENT" || last?.termination === "EMPTY_PAGE" ||
         boehringerUiFilteredMain) &&
-      (boehringerUiFilteredMain || pagination.safeCompleteness && pagination.verifiedEligible) &&
+      pagination.safeCompleteness && pagination.verifiedEligible &&
       pagination.paginationTraceSha256 === input.paginationEvaluation.paginationTraceSha256;
     if (!completeTraversal) blockers.add("MAIN_TRAVERSAL_INCOMPLETE");
   } catch {

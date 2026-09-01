@@ -73,6 +73,15 @@ for (const sourceId of sourceIds) {
     ? result.fetchEvidence.fetchCounts.parseDiscardCount + result.fetchEvidence.fetchCounts.validationDiscardCount
     : 0;
   const delta = actualCount === null || expectedCount === null ? null : actualCount - expectedCount;
+  const legalDedupeCount = result.reconciliation.collisionGroups.reduce(
+    (sum, group) => sum + group.droppedCount,
+    0
+  );
+  const exactUpstreamDuplicateReconciliation = result.status === "SUCCESS" &&
+    expectedCount !== null && expectedCount === result.reconciliation.rawInputCount &&
+    legalDedupeCount > 0 && actualCount !== null && actualCount + legalDedupeCount === expectedCount &&
+    result.truth.completenessVerified && fetchLossCount === 0 &&
+    result.reconciliation.adapterLosses.length === 0;
   const plausibleTimeDrift = delta !== null && expectedCount !== null &&
     Math.abs(delta) <= Math.max(5, Math.ceil(expectedCount * 0.1));
   const assessment = result.status !== "SUCCESS"
@@ -83,6 +92,8 @@ for (const sourceId of sourceIds) {
         ? "BASELINE_SCOPE_CONFLICT"
         : actualCount === expectedCount
           ? "MATCH"
+          : exactUpstreamDuplicateReconciliation
+            ? "UPSTREAM_DUPLICATE_RECONCILED"
           : plan.formalEligibility === "QUARANTINED_PENDING_TRUSTED_ORACLE"
             ? "SOURCE_SCOPE_UNVERIFIED"
             : plausibleTimeDrift && result.truth.completenessVerified && fetchLossCount === 0 &&
@@ -104,6 +115,7 @@ for (const sourceId of sourceIds) {
       rawInputCount: result.reconciliation.rawInputCount,
       validBeforeDedupeCount: result.reconciliation.validBeforeDedupeCount,
       dedupeOutputCount: result.reconciliation.dedupeOutputCount,
+      legalDedupeCount,
       lossCounts: Object.fromEntries([...new Set(result.reconciliation.adapterLosses.map((loss) => loss.reason))]
         .map((reason) => [reason, result.reconciliation.adapterLosses.filter((loss) => loss.reason === reason).length]))
     },

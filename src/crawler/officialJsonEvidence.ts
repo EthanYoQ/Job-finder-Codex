@@ -181,6 +181,8 @@ export function finalizeOfficialJsonEvidenceBundle(input: {
   expectedChannelIds?: string[];
   allowMissingReturnedPage?: boolean;
   allowPositiveOfficialTotalCountAfterAdapterReconciliation?: boolean;
+  allowIndependentlyVerifiedProfileBoundExclusions?: boolean;
+  allowRawIdOverlapAcrossPages?: boolean;
 }): { evidence: PersistentSourceFetchEvidence; evaluation: PaginationEvaluation } {
   if (input.pages.length === 0) throw new Error("successful Official JSON evidence requires at least one page");
   const raw = buildEvidenceBundle(input);
@@ -194,6 +196,13 @@ export function finalizeOfficialJsonEvidenceBundle(input: {
     ...(input.allowPositiveOfficialTotalCountAfterAdapterReconciliation === undefined ? {} : {
       allowPositiveOfficialTotalCountAfterAdapterReconciliation:
         input.allowPositiveOfficialTotalCountAfterAdapterReconciliation
+    }),
+    ...(input.allowIndependentlyVerifiedProfileBoundExclusions === undefined ? {} : {
+      allowIndependentlyVerifiedProfileBoundExclusions:
+        input.allowIndependentlyVerifiedProfileBoundExclusions
+    }),
+    ...(input.allowRawIdOverlapAcrossPages === undefined ? {} : {
+      allowRawIdOverlapAcrossPages: input.allowRawIdOverlapAcrossPages
     })
   });
   const evaluation = evaluatePaginationEvidence({
@@ -206,6 +215,13 @@ export function finalizeOfficialJsonEvidenceBundle(input: {
     ...(input.allowPositiveOfficialTotalCountAfterAdapterReconciliation === undefined ? {} : {
       allowPositiveOfficialTotalCountAfterAdapterReconciliation:
         input.allowPositiveOfficialTotalCountAfterAdapterReconciliation
+    }),
+    ...(input.allowIndependentlyVerifiedProfileBoundExclusions === undefined ? {} : {
+      allowIndependentlyVerifiedProfileBoundExclusions:
+        input.allowIndependentlyVerifiedProfileBoundExclusions
+    }),
+    ...(input.allowRawIdOverlapAcrossPages === undefined ? {} : {
+      allowRawIdOverlapAcrossPages: input.allowRawIdOverlapAcrossPages
     })
   });
   return { evidence, evaluation };

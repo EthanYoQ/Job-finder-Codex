@@ -1908,6 +1908,7 @@ function validateAtomicSourceEvidenceCommit(
     }
     if (result.completenessState === "VERIFIED" &&
         result.expectedJobCount !== result.dedupeOutputCount &&
+        !hasVerifiedAGradeOfficialTotalDedupe(input) &&
         !hasExactGrifolsVerifiedDetailScopeExclusions(input, artifactByLogicalKey)) {
       throw new Error("OFFICIAL_TOTAL_COUNT expectedJobCount must equal dedupeOutputCount");
     }
@@ -2002,6 +2003,29 @@ function validateAtomicSourceEvidenceCommit(
 const GRIFOLS_SOURCE_ID = "source-grifols-china-social";
 const GRIFOLS_DETAIL_LOCATOR =
   "grifols-successfactors-detail-v1|html:canonical+streetAddress+content-location";
+
+function hasVerifiedAGradeOfficialTotalDedupe(input: AtomicSourceEvidenceCommit): boolean {
+  const result = input.sourceResult;
+  const certificate = result.completenessCertificate;
+  if (!requiresAGradeCertificateSourceId(result.sourceId) ||
+      typeof certificate !== "object" || certificate === null || Array.isArray(certificate) ||
+      (certificate as { grade?: unknown }).grade !== "A" ||
+      result.expectedEvidenceKind !== "OFFICIAL_TOTAL_COUNT" || result.expectedJobCount === null ||
+      result.parseDiscardCount !== 0 || result.validationDiscardCount !== 0 ||
+      result.normalizationDiscardCount !== 0 || result.dedupeDiscardCount <= 0 ||
+      result.collisionCount <= 0 || result.discardCount !== result.dedupeDiscardCount ||
+      result.rawCount !== result.expectedJobCount || result.parsedCount !== result.rawCount ||
+      result.validCount !== result.rawCount || result.normalizedCount !== result.rawCount ||
+      result.dedupeInputCount !== result.rawCount ||
+      result.expectedJobCount !== result.dedupeOutputCount + result.dedupeDiscardCount ||
+      result.adapterInputCount !== result.dedupeInputCount ||
+      result.adapterOutputCount !== result.dedupeOutputCount ||
+      result.adapterLossCount !== result.dedupeDiscardCount ||
+      result.adapterCollisionGroupCount !== result.collisionCount ||
+      input.lossLedger.length !== result.dedupeDiscardCount) return false;
+  return input.lossLedger.every((loss) =>
+    loss.stage === "DEDUPE" && nonblank(loss.candidateKey) && nonblank(loss.winnerKey));
+}
 
 function hasExactGrifolsVerifiedDetailScopeExclusions(
   input: AtomicSourceEvidenceCommit,

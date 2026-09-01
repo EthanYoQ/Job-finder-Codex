@@ -246,6 +246,7 @@ export const PLAN_BOUND_HTML_TRAVERSAL_POLICIES = Object.freeze({
       prefix: "/en/location/china-jobs/2649/1814991/2/",
       suffix: ""
     },
+    officialTotalTraversal: true,
     followNextHref: true,
     maxPages: 25
   },
@@ -268,6 +269,7 @@ export const PLAN_BOUND_HTML_TRAVERSAL_POLICIES = Object.freeze({
       prefix: "/location/china-jobs/1113/1814991/2/",
       suffix: ""
     },
+    officialTotalTraversal: true,
     followNextHref: true,
     maxPages: 30
   }

@@ -35,7 +35,7 @@ describe("51job CoAPI official UI scope", () => {
 
     const crawled = await runSourceCrawl(plan!, { fetch });
 
-    expect(crawled.status).toBe("SUCCESS");
+    expect(crawled.status, JSON.stringify(crawled)).toBe("SUCCESS");
     expect(crawled.jobs).toHaveLength(1);
     expect(crawled.jobs[0]).toMatchObject({
       officialTitle: "Medical Advisor",
@@ -52,6 +52,21 @@ describe("51job CoAPI official UI scope", () => {
     expect(crawled.fetchEvidence?.fetchLosses).toMatchObject([
       { details: { code: "OFFICIAL_UI_EXCLUSION" } }
     ]);
+    expect(crawled.fetchEvidence?.pages).toMatchObject([{
+      declaredTotal: 2,
+      declaredCount: 2,
+      anomalyCodes: []
+    }]);
+    expect(crawled.paginationEvaluation, JSON.stringify({
+      declaration: crawled.fetchEvidence?.declaredCompleteness,
+      counts: crawled.fetchEvidence?.fetchCounts,
+      losses: crawled.fetchEvidence?.fetchLosses,
+      evaluation: crawled.paginationEvaluation
+    })).toMatchObject({
+      derivedAnomalyCodes: [],
+      safeCompleteness: true,
+      verifiedEligible: true
+    });
     expect(requests).toHaveLength(2);
     expect(new URL(requests[1]!.url).origin).toBe("https://coapi.51job.com");
   });
