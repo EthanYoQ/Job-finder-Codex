@@ -421,6 +421,35 @@ describe("official JSON rendered traversal", () => {
     expect(pageObject.precedingOfficialAccepted).toBe(false);
   });
 
+  it("accepts harmless Beisen display-field drift without relaxing scope filters", async () => {
+    const fosunId = "00000000-0000-4000-8000-000000000024";
+    const pageObject = responsePage({
+      expectedOrigin: "https://fosunpharma.zhiye.com",
+      path: "/api/Jobad/GetJobAdPageList",
+      requestBody: JSON.stringify({
+        PageIndex: 0,
+        PageSize: 20,
+        Category: ["1"],
+        KeyWords: "",
+        SpecialType: 0,
+        PortalId: "",
+        DisplayFields: ["Category", "Kind", "LocId", "PostDate", "Salary", "WorkWeChatQrCode"]
+      }),
+      responseBody: {
+        Code: 200,
+        Count: 1,
+        PageIndex: 0,
+        Data: [{ Id: fosunId, LocNames: ["上海市"] }]
+      }
+    });
+
+    await expect(captureOfficialJsonRenderedTraversal({
+      sourceId: "source-fosun-pharma-social",
+      entryUrl: OFFICIAL_JSON_RENDERED_TRAVERSAL_POLICIES["source-fosun-pharma-social"].entryUrl,
+      launchBrowser: async () => browser(pageObject)
+    })).resolves.toMatchObject({ pages: [{ rawRows: [{ rawPayload: { Id: fosunId } }] }] });
+  });
+
   it("drives the Xiuzheng UI route and rendered list instead of calling fetch from page evaluation", async () => {
     const raw = { id: 16, name: "研发工程师" };
     const pageObject = xiuzhengUiPage(raw);

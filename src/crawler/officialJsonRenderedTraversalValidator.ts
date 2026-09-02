@@ -25,7 +25,6 @@ export const OFFICIAL_JSON_RENDERED_TRAVERSAL_POLICIES = Object.freeze({
     mainRetrievalPath: "HTTP_BEISEN_JOBAD_PAGINATION",
     matchKeyKind: "SOURCE_JOB_ID",
     artifactLogicalKey: "fosun-beisen-browser-network-validation",
-    displayFields: ["Category", "Kind", "LocId", "PostDate", "WorkWeChatQrCode"],
     maxPages: 5
   },
   "source-hansoh-social": {
@@ -36,7 +35,6 @@ export const OFFICIAL_JSON_RENDERED_TRAVERSAL_POLICIES = Object.freeze({
     mainRetrievalPath: "HTTP_BEISEN_JOBAD_PAGINATION",
     matchKeyKind: "SOURCE_JOB_ID",
     artifactLogicalKey: "hansoh-beisen-browser-network-validation",
-    displayFields: ["Category", "Kind", "LocId", "PostDate", "ClassificationOne", "WorkWeChatQrCode"],
     changedWithinDays: 183,
     maxPages: 50
   },
@@ -48,8 +46,6 @@ export const OFFICIAL_JSON_RENDERED_TRAVERSAL_POLICIES = Object.freeze({
     mainRetrievalPath: "HTTP_BEISEN_JOBAD_PAGINATION",
     matchKeyKind: "SOURCE_JOB_ID",
     artifactLogicalKey: "united-lab-beisen-browser-network-validation",
-    displayFields: ["Kind", "LocId", "Org", "HeadCount", "PostDate", "Salary", "Degree",
-      "YearsOfWorking", "ClassificationOne", "WorkWeChatQrCode"],
     changedWithinDays: 183,
     maxPages: 5
   },
@@ -352,7 +348,7 @@ async function captureBeisen(
       return false;
     }
     try {
-      parseExactBeisenRequest(candidate.request().postData() ?? "{}", pageIndex, policy.displayFields);
+      parseExactBeisenRequest(candidate.request().postData() ?? "{}", pageIndex);
       return true;
     } catch {
       return false;
@@ -386,13 +382,17 @@ async function captureBeisen(
   }));
 }
 
-function parseExactBeisenRequest(body: string, pageIndex: number, displayFields: readonly string[]): void {
+function parseExactBeisenRequest(body: string, pageIndex: number): void {
   const request = parseStrictJsonRequest(body,
     ["PageIndex", "PageSize", "Category", "KeyWords", "SpecialType", "PortalId", "DisplayFields"]);
+  const displayFields = request.DisplayFields;
+  const displayFieldContractValid = Array.isArray(displayFields) && displayFields.length > 0 &&
+    displayFields.length <= 64 && displayFields.every((value) =>
+      typeof value === "string" && /^[A-Za-z][A-Za-z0-9]{0,63}$/u.test(value)) &&
+    new Set(displayFields).size === displayFields.length && displayFields.includes("LocId");
   if (request.PageIndex !== pageIndex || request.PageSize !== 20 ||
       JSON.stringify(request.Category) !== JSON.stringify(["1"]) || request.KeyWords !== "" ||
-      request.SpecialType !== 0 || request.PortalId !== "" ||
-      JSON.stringify(request.DisplayFields) !== JSON.stringify(displayFields)) {
+      request.SpecialType !== 0 || request.PortalId !== "" || !displayFieldContractValid) {
     throw new Error("Beisen browser validator request contract mismatch");
   }
 }
@@ -404,7 +404,7 @@ async function parseBeisenResponse(
   observedAt: string
 ): Promise<{ declaredTotalJobs: number; rawRows: OfficialJsonRenderedRawRow[] }> {
   const policy = OFFICIAL_JSON_RENDERED_TRAVERSAL_POLICIES[sourceId];
-  parseExactBeisenRequest(response.request().postData() ?? "{}", pageIndex, policy.displayFields);
+  parseExactBeisenRequest(response.request().postData() ?? "{}", pageIndex);
   if (response.status() !== 200) throw new Error("Beisen browser validator request failed");
   const root = parseRecord(await response.text());
   if (root.Code !== 200 || !Number.isSafeInteger(root.Count) || Number(root.Count) < 0 || !Array.isArray(root.Data) ||
