@@ -10,6 +10,7 @@ export const profile_johnson_innovative_medicine = {
       executionConfig: {
           adapterId: "official-json",
           json: OFFICIAL_API_JSON_CONFIG,
+          transientRetryPolicy: { maxRetries: 1, backoffMs: 10_000 },
           profileBoundSource: {
               kind: "jnj-careers-china",
               config: JNJ_CAREERS_CHINA_FETCH_CONFIG

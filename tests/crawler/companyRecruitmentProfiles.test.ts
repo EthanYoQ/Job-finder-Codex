@@ -33,6 +33,7 @@ const SHARED_CORE_SOURCE_ALLOWLIST: Readonly<Record<string, readonly string[]>> 
   ],
   "runSourceCrawl.ts": [
     "source-bms-china-social",
+    "source-boehringer-ingelheim-china-social",
     "source-daiichi-sankyo-china-social",
     "source-grifols-china-social",
     "source-novartis-social",
@@ -172,8 +173,10 @@ describe("company recruitment profiles", () => {
     expect(retrySourceIds).toEqual([
       "source-bms-china-social",
       "source-grifols-china-social",
+      "source-johnson-innovative-medicine-social",
       "source-lunan-social",
       "source-msd-china-social",
+      "source-novo-nordisk-china-social",
       "source-organon-china-social",
       "source-pfizer-china-social",
       "source-roche-china-social",
@@ -200,7 +203,8 @@ describe("company recruitment profiles", () => {
           officialSearchUrl: "https://www.careers.jnj.com/en/jobs/?search=&country=China&pagesize=20",
           scopePolicy: "GROUP_CHINA_ALL_BUSINESSES_V1"
         }
-      }
+      },
+      transientRetryPolicy: { maxRetries: 1, backoffMs: 10_000 }
     });
   });
 

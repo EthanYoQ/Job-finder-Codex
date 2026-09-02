@@ -433,7 +433,8 @@ describe("source crawl planning", () => {
           country: "China",
           scopePolicy: "GROUP_CHINA_ALL_BUSINESSES_V1"
         }
-      }
+      },
+      transientRetryPolicy: { maxRetries: 1, backoffMs: 10_000 }
     });
     if (jnjDiscoveryPlan?.adapterId !== "official-json" ||
         jnjDiscoveryPlan.profileBoundSource?.kind !== "jnj-careers-china") {
