@@ -25,7 +25,7 @@ export const OFFICIAL_JSON_RENDERED_TRAVERSAL_POLICIES = Object.freeze({
     mainRetrievalPath: "HTTP_BEISEN_JOBAD_PAGINATION",
     matchKeyKind: "SOURCE_JOB_ID",
     artifactLogicalKey: "fosun-beisen-browser-network-validation",
-    maxPages: 5
+    maxPages: 25
   },
   "source-hansoh-social": {
     companyId: "company-hansoh",

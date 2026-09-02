@@ -450,6 +450,11 @@ describe("official JSON rendered traversal", () => {
     })).resolves.toMatchObject({ pages: [{ rawRows: [{ rawPayload: { Id: fosunId } }] }] });
   });
 
+  it("keeps the Fosun browser validator within the main crawler's 500-job envelope", () => {
+    expect(OFFICIAL_JSON_RENDERED_TRAVERSAL_POLICIES["source-fosun-pharma-social"].maxPages)
+      .toBeGreaterThanOrEqual(25);
+  });
+
   it("drives the Xiuzheng UI route and rendered list instead of calling fetch from page evaluation", async () => {
     const raw = { id: 16, name: "研发工程师" };
     const pageObject = xiuzhengUiPage(raw);

@@ -15,6 +15,7 @@ import {
 } from "../src/crawler/sourcePlan";
 import { createWorkdaySourceFetch } from "../src/crawler/workdaySourceFetch";
 import { createUnsupportedSourceFetch } from "../src/crawler/unsupportedSourceFetch";
+import { assessHumanBaselineDiscrepancy } from "./human-baseline-discrepancy-policy";
 
 const DEFAULT_SOURCE_IDS = [
   "source-novo-nordisk-china-social",
@@ -77,38 +78,38 @@ for (const sourceId of sourceIds) {
     (sum, group) => sum + group.droppedCount,
     0
   );
-  const exactUpstreamDuplicateReconciliation = result.status === "SUCCESS" &&
-    expectedCount !== null && expectedCount === result.reconciliation.rawInputCount &&
-    legalDedupeCount > 0 && actualCount !== null && actualCount + legalDedupeCount === expectedCount &&
-    result.truth.completenessVerified && fetchLossCount === 0 &&
-    result.reconciliation.adapterLosses.length === 0;
-  const plausibleTimeDrift = delta !== null && expectedCount !== null &&
-    Math.abs(delta) <= Math.max(5, Math.ceil(expectedCount * 0.1));
-  const assessment = result.status !== "SUCCESS"
-    ? "PIPELINE_FAILURE"
-    : expectedCount === null
-      ? "UNKNOWN_BASELINE"
-      : baseline?.[3]?.startsWith("Conflict found")
-        ? "BASELINE_SCOPE_CONFLICT"
-        : actualCount === expectedCount
-          ? "MATCH"
-          : exactUpstreamDuplicateReconciliation
-            ? "UPSTREAM_DUPLICATE_RECONCILED"
-          : plan.formalEligibility === "QUARANTINED_PENDING_TRUSTED_ORACLE"
-            ? "SOURCE_SCOPE_UNVERIFIED"
-            : plausibleTimeDrift && result.truth.completenessVerified && fetchLossCount === 0 &&
-                result.reconciliation.adapterLosses.length === 0
-              ? "TIME_DRIFT_CANDIDATE"
-              : "METHOD_OR_SCOPE_REVIEW_REQUIRED";
-  assessmentCounts[assessment] = (assessmentCounts[assessment] ?? 0) + 1;
+  const officialRawCount = result.fetchEvidence?.fetchCounts.rawCount ?? result.reconciliation.rawInputCount;
+  const scopeExcludedCount = result.fetchEvidence?.fetchLosses.filter((loss) =>
+    isScopeExclusionCode(loss.details?.code)
+  ).length ?? 0;
+  const assessment = assessHumanBaselineDiscrepancy({
+    baselineCount: expectedCount,
+    actualCount,
+    crawlStatus: result.status,
+    completenessVerified: result.truth.completenessVerified,
+    unaccountedLossCount: result.truth.completenessVerified
+      ? 0
+      : fetchLossCount + result.reconciliation.adapterLosses.length,
+    baselineScopeConflict: baseline?.[3]?.startsWith("Conflict found") ?? false,
+    rawInputCount: officialRawCount,
+    legalDedupeCount,
+    scopeExcludedCount,
+    hasBaselineJobSet: false
+  });
+  assessmentCounts[assessment.historicalAssessment] =
+    (assessmentCounts[assessment.historicalAssessment] ?? 0) + 1;
   console.log(JSON.stringify({
     sourceId,
     companyId: plan.company.id,
     expectedCount,
     actualCount,
     comparison,
-    assessment,
-    baselineObservedOn: HUMAN_VERIFIED_RECRUITMENT_BASELINE.observedOn,
+    assessment: assessment.historicalAssessment,
+    deltaSeverity: assessment.deltaSeverity,
+    reviewRequired: assessment.reviewRequired,
+    blocking: assessment.blocking,
+    baselineJobSetAvailable: assessment.baselineJobSetAvailable,
+    baselineObservationTiming: HUMAN_VERIFIED_RECRUITMENT_BASELINE.observationTiming,
     delta,
     completenessVerified: result.truth.completenessVerified,
     reconciliation: {
@@ -116,6 +117,8 @@ for (const sourceId of sourceIds) {
       validBeforeDedupeCount: result.reconciliation.validBeforeDedupeCount,
       dedupeOutputCount: result.reconciliation.dedupeOutputCount,
       legalDedupeCount,
+      officialRawCount,
+      scopeExcludedCount,
       lossCounts: Object.fromEntries([...new Set(result.reconciliation.adapterLosses.map((loss) => loss.reason))]
         .map((reason) => [reason, result.reconciliation.adapterLosses.filter((loss) => loss.reason === reason).length]))
     },
@@ -136,12 +139,12 @@ for (const sourceId of sourceIds) {
     },
     ...(result.status === "FAILED" ? { failureReason: result.observation.failureReason } : {})
   }));
-  if (comparison === "FAILED") failed = true;
+  if (comparison === "FAILED" || assessment.blocking) failed = true;
 }
 
 console.log(JSON.stringify({
   summary: {
-    baselineObservedOn: HUMAN_VERIFIED_RECRUITMENT_BASELINE.observedOn,
+    baselineObservationTiming: HUMAN_VERIFIED_RECRUITMENT_BASELINE.observationTiming,
     sourceCount: sourceIds.length,
     assessmentCounts
   }
@@ -151,4 +154,10 @@ process.exitCode = failed ? 1 : 0;
 
 function sourceFetch(plan: SourceCrawlPlan): SourceFetchFunction {
   return routedFetch;
+}
+
+function isScopeExclusionCode(value: unknown): boolean {
+  return value === "OUT_OF_SCOPE" ||
+    value === "VERIFIED_DETAIL_OUT_OF_MAINLAND_SCOPE" ||
+    value === "SCOPE_EXCLUDED";
 }

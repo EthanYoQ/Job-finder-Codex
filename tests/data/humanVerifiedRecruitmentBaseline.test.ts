@@ -10,7 +10,14 @@ import { join } from "node:path";
 
 describe("user-supplied recruitment baseline", () => {
   it("binds the dated workbook provenance and 41 unique in-scope companies", () => {
-    expect(HUMAN_VERIFIED_RECRUITMENT_BASELINE.observedOn).toBe("2026-09-02");
+    expect(HUMAN_VERIFIED_RECRUITMENT_BASELINE.schemaVersion).toBe("human-recruitment-baseline-v2");
+    expect(HUMAN_VERIFIED_RECRUITMENT_BASELINE).not.toHaveProperty("observedOn");
+    expect(HUMAN_VERIFIED_RECRUITMENT_BASELINE.observationTiming).toEqual({
+      fileDateLabel: "2026-08-25",
+      workbookModifiedAt: "2026-09-01T16:32:19",
+      receivedOn: "2026-09-02",
+      perCompanyObservedAt: "UNKNOWN"
+    });
     expect(HUMAN_VERIFIED_RECRUITMENT_BASELINE.provenance.workbookSha256).toBe(
       "a325c6009b5f3bfd2308c0a38fcdd783d81b8fcf8c9072ea1c07357b0f31715d"
     );

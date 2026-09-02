@@ -1,6 +1,11 @@
 export const HUMAN_VERIFIED_RECRUITMENT_BASELINE = {
-  schemaVersion: "human-recruitment-baseline-v1",
-  observedOn: "2026-09-02",
+  schemaVersion: "human-recruitment-baseline-v2",
+  observationTiming: {
+    fileDateLabel: "2026-08-25",
+    workbookModifiedAt: "2026-09-01T16:32:19",
+    receivedOn: "2026-09-02",
+    perCompanyObservedAt: "UNKNOWN"
+  },
   provenance: {
     workbookName: "医药公司招聘网址与职位数量_2026-08-25-人工核实.xlsx",
     workbookSha256: "a325c6009b5f3bfd2308c0a38fcdd783d81b8fcf8c9072ea1c07357b0f31715d",

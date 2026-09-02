@@ -41,7 +41,10 @@ export const REVIEWED_MIGRATION_NAMES = [
   "20260824070000_official_network_retry_diagnostics",
   "20260825093000_browser_and_pagination_retry_diagnostics",
   "20260825113000_failed_source_diagnostic_evidence",
-  "20260902090000_jnj_and_grifols_atomic_persistence"
+  "20260902090000_jnj_and_grifols_atomic_persistence",
+  "20260902093000_grifols_trigger_artifact_binding",
+  "20260902094500_a_grade_official_total_dedupe",
+  "20260902095500_boehringer_verified_ui_exclusions"
 ] as const;
 
 export const REVIEWED_APP_TABLE_NAMES = [

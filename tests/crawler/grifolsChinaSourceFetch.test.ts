@@ -43,7 +43,7 @@ describe("Grifols China detail-scoped source", () => {
     if (plan?.adapterId !== "official-json" || plan.profileBoundSource?.kind !== "grifols-china-detail-scope") {
       throw new Error("Expected Grifols detail-scoped plan");
     }
-    expect(requiresAGradeOfficialTotalCertificate(plan)).toBe(false);
+    expect(requiresAGradeOfficialTotalCertificate(plan)).toBe(true);
     const requested: string[] = [];
     const fetch = createGrifolsChinaSourceFetch({
       now: () => new Date(NOW),
