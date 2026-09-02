@@ -157,6 +157,56 @@ describe("Beisen Zhiye 2022 evidence instrumentation", () => {
     expect((result.payload as { jobs: unknown[] }).jobs).toHaveLength(2);
   });
 
+  it("uses the official PostDate 180-day filter when the public UI exposes a native half-year window", async () => {
+    const requests: Array<Record<string, unknown>> = [];
+    const fetcher = createOfficialJsonSourceFetch({
+      now: () => new Date("2026-09-03T00:00:00.000Z"),
+      http: async (request) => {
+        requests.push(JSON.parse(request.body ?? "{}") as Record<string, unknown>);
+        return response({
+          Code: 200,
+          Count: 2,
+          PageIndex: 0,
+          Data: [job("native-1"), job("native-2")]
+        }, { capturedAt: "2026-09-03T00:00:00.000Z" });
+      }
+    });
+
+    const result = await fetcher(plan({ postDateWithinDays: 180, pageSize: 100 }));
+
+    expect(requests).toEqual([
+      expect.objectContaining({ PageIndex: 0, PageSize: 100, PostDate: [180], Category: ["1"] })
+    ]);
+    expect(result).toMatchObject({
+      ok: true,
+      completeness: {
+        expectedJobCount: 2,
+        completenessEvidenceKind: "OFFICIAL_TOTAL_COUNT",
+        pagesVisited: 1
+      },
+      fetchEvidence: {
+        fetchCounts: { rawCount: 2, validCount: 2, validationDiscardCount: 0 }
+      }
+    });
+  });
+
+  it("fails closed when local ChangeDate and official PostDate windows are configured together", async () => {
+    let calls = 0;
+    const result = await createOfficialJsonSourceFetch({
+      now: () => new Date(NOW),
+      http: async () => {
+        calls += 1;
+        return response({ Code: 200, Count: 0, PageIndex: 0, Data: [] });
+      }
+    })(plan({ changedWithinDays: 183, postDateWithinDays: 180 }));
+
+    expect(calls).toBe(0);
+    expect(result).toMatchObject({
+      ok: false,
+      failureReason: "Beisen Zhiye date window must use either ChangeDate or the official PostDate filter, not both"
+    });
+  });
+
   it("exposes a temporary Beisen HTTP status as a structured retry signal", async () => {
     const fetcher = createOfficialJsonSourceFetch({
       now: () => new Date(NOW),

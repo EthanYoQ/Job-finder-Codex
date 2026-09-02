@@ -117,6 +117,7 @@ export type OfficialJsonFetchConfig =
   | {
       kind: "beisen-zhiye-2022";
       changedWithinDays?: 183;
+      postDateWithinDays?: 180;
       category?: string;
       pageSize?: number;
       maxPages?: number;
@@ -2964,6 +2965,9 @@ async function fetchBeisenZhiye2022({
   capturedAt: string;
   now: () => Date;
 }): Promise<SourceFetchResult> {
+  if (config.changedWithinDays !== undefined && config.postDateWithinDays !== undefined) {
+    return failed(capturedAt, "Beisen Zhiye date window must use either ChangeDate or the official PostDate filter, not both");
+  }
   let safeEntryUrl: string;
   let endpointUrl: string;
   try {
@@ -3010,6 +3014,7 @@ async function fetchBeisenZhiye2022({
     const requestBody = {
       PageIndex: pageIndex,
       PageSize: pageSize,
+      ...(config.postDateWithinDays === undefined ? {} : { PostDate: [config.postDateWithinDays] }),
       Category: [category],
       KeyWords: "",
       SpecialType: 0,
@@ -3079,7 +3084,7 @@ async function fetchBeisenZhiye2022({
       requestedUrl: endpointUrl,
       response,
       extractorLocator: unavailableLocator,
-      ...(config.scopeExclusionProof ||
+      ...(config.scopeExclusionProof || config.postDateWithinDays !== undefined ||
         config.mixedLocationPolicy === "INHERIT_MAINLAND_PARENT_FOR_SIBLING_LOCATIONS"
         ? { bodyRepresentation: "EXACT" as const } : {})
     });

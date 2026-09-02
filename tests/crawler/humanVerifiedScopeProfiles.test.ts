@@ -67,7 +67,10 @@ describe("human-verified recruitment scope profiles", () => {
   it("binds the three six-month public lists and the corrected Aspen identity", () => {
     expect(config("source-hansoh-social").officialJsonFetch.changedWithinDays).toBe(183);
     expect(config("source-united-lab-social").officialJsonFetch.changedWithinDays).toBe(183);
-    expect(config("source-3sbio-social").officialJsonFetch.changedWithinDays).toBe(183);
+    expect(config("source-3sbio-social").officialJsonFetch).toMatchObject({
+      postDateWithinDays: 180
+    });
+    expect(config("source-3sbio-social").officialJsonFetch.changedWithinDays).toBeUndefined();
     expect(company("company-sandoz-china")).toMatchObject({
       officialChineseName: "爱施健（原山德士中国业务）",
       officialWebsiteUrl: "https://www.aspenpharma.cn/"

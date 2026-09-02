@@ -21,7 +21,8 @@ describe("future crawl expansion intake", () => {
         expect(candidate.recencyPolicy.days).toBe(183);
         expect(candidate.recencyPolicy.sourceField).toBeTruthy();
       } else if (candidate.recencyPolicy.kind === "SOURCE_NATIVE_WINDOW") {
-        expect(candidate.recencyPolicy).toMatchObject({ days: 180, queryParameter: "d" });
+        expect(candidate.recencyPolicy.days).toBe(180);
+        expect(["d", "PostDate"]).toContain(candidate.recencyPolicy.queryParameter);
       } else {
         expect(candidate.companyId).toBe("company-zaiding");
         expect(candidate.recencyPolicy.reason).toBeTruthy();
@@ -29,5 +30,10 @@ describe("future crawl expansion intake", () => {
     }
     expect(new Set(FUTURE_CRAWL_INTAKE.map(({ companyId }) => companyId)).size).toBe(10);
     expect(new Set(FUTURE_CRAWL_INTAKE.map(({ officialEntryUrl }) => officialEntryUrl)).size).toBe(10);
+    expect(FUTURE_CRAWL_INTAKE.filter(({ extractionMethod }) =>
+      extractionMethod === "BEISEN_2022_API_PAGINATION"
+    ).every(({ recencyPolicy }) =>
+      recencyPolicy.kind === "SOURCE_NATIVE_WINDOW" && recencyPolicy.queryParameter === "PostDate"
+    )).toBe(true);
   });
 });

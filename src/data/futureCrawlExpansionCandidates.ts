@@ -10,7 +10,7 @@ export type FutureCrawlSourceAuthorityStatus =
 
 export type FutureCrawlRecencyPolicy =
   | { kind: "CRAWLER_DATE_WINDOW"; days: typeof RECENT_JOB_WINDOW_DAYS; sourceField: string }
-  | { kind: "SOURCE_NATIVE_WINDOW"; days: typeof SOURCE_NATIVE_HALF_YEAR_WINDOW_DAYS; queryParameter: "d" }
+  | { kind: "SOURCE_NATIVE_WINDOW"; days: typeof SOURCE_NATIVE_HALF_YEAR_WINDOW_DAYS; queryParameter: "d" | "PostDate" }
   | { kind: "TIME_WINDOW_UNAVAILABLE"; reason: string };
 
 export interface FutureCrawlExpansionCandidate {
@@ -36,6 +36,12 @@ const dateWindow = (sourceField: string): FutureCrawlRecencyPolicy => ({
   sourceField
 });
 
+const beisenNativeWindow = (): FutureCrawlRecencyPolicy => ({
+  kind: "SOURCE_NATIVE_WINDOW",
+  days: SOURCE_NATIVE_HALF_YEAR_WINDOW_DAYS,
+  queryParameter: "PostDate"
+});
+
 export const FUTURE_CRAWL_INTAKE: readonly FutureCrawlExpansionCandidate[] = [
   {
     intakeKind: "NEW_EXPANSION", companyId: "company-beigene", officialChineseName: "百济神州",
@@ -48,13 +54,13 @@ export const FUTURE_CRAWL_INTAKE: readonly FutureCrawlExpansionCandidate[] = [
     intakeKind: "NEW_EXPANSION", companyId: "company-innovent", officialChineseName: "信达生物",
     officialEntryUrl: "https://innoventbio.zhiye.com/social/jobs", humanBaselineCount: 590,
     humanScopeNote: "社会招聘；半年内；全部地点。", sourceAuthorityStatus: "USER_VERIFIED_PENDING_OFFICIAL_CHAIN_RECHECK",
-    extractionMethod: "BEISEN_2022_API_PAGINATION", recencyPolicy: dateWindow("ChangeDate")
+    extractionMethod: "BEISEN_2022_API_PAGINATION", recencyPolicy: beisenNativeWindow()
   },
   {
     intakeKind: "NEW_EXPANSION", companyId: "company-junshi", officialChineseName: "君实生物",
     officialEntryUrl: "https://junshibiosciences.zhiye.com/social/jobs", humanBaselineCount: 22,
     humanScopeNote: "社会招聘；半年内。", sourceAuthorityStatus: "OFFICIAL_CHAIN_VERIFIED",
-    extractionMethod: "BEISEN_2022_API_PAGINATION", recencyPolicy: dateWindow("ChangeDate")
+    extractionMethod: "BEISEN_2022_API_PAGINATION", recencyPolicy: beisenNativeWindow()
   },
   {
     intakeKind: "NEW_EXPANSION", companyId: "company-akeso", officialChineseName: "康方生物",
@@ -66,7 +72,7 @@ export const FUTURE_CRAWL_INTAKE: readonly FutureCrawlExpansionCandidate[] = [
     intakeKind: "NEW_EXPANSION", companyId: "company-henlius", officialChineseName: "复宏汉霖",
     officialEntryUrl: "https://henlius.zhiye.com/social/jobs", humanBaselineCount: 77,
     humanScopeNote: "社会招聘；半年内。", sourceAuthorityStatus: "USER_VERIFIED_PENDING_OFFICIAL_CHAIN_RECHECK",
-    extractionMethod: "BEISEN_2022_API_PAGINATION", recencyPolicy: dateWindow("ChangeDate")
+    extractionMethod: "BEISEN_2022_API_PAGINATION", recencyPolicy: beisenNativeWindow()
   },
   {
     intakeKind: "NEW_EXPANSION", companyId: "company-zaiding", officialChineseName: "再鼎医药",
@@ -85,13 +91,13 @@ export const FUTURE_CRAWL_INTAKE: readonly FutureCrawlExpansionCandidate[] = [
     intakeKind: "NEW_EXPANSION", companyId: "company-innocare", officialChineseName: "诺诚健华",
     officialEntryUrl: "https://innocare.zhiye.com/social/jobs", humanBaselineCount: 86,
     humanScopeNote: "社会招聘；人工数为未按时间过滤的全量快照。", sourceAuthorityStatus: "OFFICIAL_CHAIN_VERIFIED",
-    extractionMethod: "BEISEN_2022_API_PAGINATION", recencyPolicy: dateWindow("ChangeDate")
+    extractionMethod: "BEISEN_2022_API_PAGINATION", recencyPolicy: beisenNativeWindow()
   },
   {
     intakeKind: "EXISTING_ROSTER_REQUALIFICATION", companyId: "company-3sbio", officialChineseName: "三生制药",
     officialEntryUrl: "https://3sbio.zhiye.com/social/jobs", humanBaselineCount: 164,
     humanScopeNote: "社会招聘；半年内。", sourceAuthorityStatus: "OFFICIAL_CHAIN_VERIFIED",
-    extractionMethod: "BEISEN_2022_API_PAGINATION", recencyPolicy: dateWindow("ChangeDate")
+    extractionMethod: "BEISEN_2022_API_PAGINATION", recencyPolicy: beisenNativeWindow()
   },
   {
     intakeKind: "NEW_EXPANSION", companyId: "company-allist", officialChineseName: "艾力斯",
