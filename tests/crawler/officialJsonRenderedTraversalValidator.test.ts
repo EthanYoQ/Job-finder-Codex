@@ -455,6 +455,44 @@ describe("official JSON rendered traversal", () => {
       .toBeGreaterThanOrEqual(25);
   });
 
+  it("retries one transient Beisen response wait with a fresh browser", async () => {
+    const fosunId = "00000000-0000-4000-8000-000000000025";
+    const closeFirst = vi.fn(async () => undefined);
+    const closeSecond = vi.fn(async () => undefined);
+    const failingPage = {
+      waitForResponse: async () => { throw new Error("page.waitForResponse: Timeout 30000ms exceeded"); },
+      goto: async (url: string) => ({ status: () => 200, url: () => url }),
+      close: vi.fn(async () => undefined)
+    };
+    const succeedingPage = responsePage({
+      expectedOrigin: "https://fosunpharma.zhiye.com",
+      path: "/api/Jobad/GetJobAdPageList",
+      requestBody: JSON.stringify({
+        PageIndex: 0,
+        PageSize: 20,
+        Category: ["1"],
+        KeyWords: "",
+        SpecialType: 0,
+        PortalId: "",
+        DisplayFields: ["Category", "Kind", "LocId", "PostDate", "WorkWeChatQrCode"]
+      }),
+      responseBody: { Code: 200, Count: 1, PageIndex: 0, Data: [{ Id: fosunId, LocNames: ["上海市"] }] }
+    });
+    const launchBrowser = vi.fn()
+      .mockResolvedValueOnce({ newPage: async () => failingPage as never, close: closeFirst })
+      .mockResolvedValueOnce({ newPage: async () => succeedingPage as never, close: closeSecond });
+
+    await expect(captureOfficialJsonRenderedTraversal({
+      sourceId: "source-fosun-pharma-social",
+      entryUrl: OFFICIAL_JSON_RENDERED_TRAVERSAL_POLICIES["source-fosun-pharma-social"].entryUrl,
+      launchBrowser
+    })).resolves.toMatchObject({ pages: [{ rawRows: [{ rawPayload: { Id: fosunId } }] }] });
+
+    expect(launchBrowser).toHaveBeenCalledTimes(2);
+    expect(closeFirst).toHaveBeenCalledOnce();
+    expect(closeSecond).toHaveBeenCalledOnce();
+  });
+
   it("drives the Xiuzheng UI route and rendered list instead of calling fetch from page evaluation", async () => {
     const raw = { id: 16, name: "研发工程师" };
     const pageObject = xiuzhengUiPage(raw);

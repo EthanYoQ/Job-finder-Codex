@@ -133,54 +133,86 @@ export function isOfficialJsonRenderedTraversalSourceId(
   return Object.prototype.hasOwnProperty.call(OFFICIAL_JSON_RENDERED_TRAVERSAL_POLICIES, sourceId);
 }
 
-export async function captureOfficialJsonRenderedTraversal(input: {
+type OfficialJsonRenderedTraversalCaptureInput = {
   sourceId: OfficialJsonRenderedTraversalSourceId;
   entryUrl: string;
   signal?: AbortSignal;
   launchBrowser?: () => Promise<Pick<import("playwright-core").Browser, "newPage" | "close">>;
-}): Promise<{ observedAt: string; pages: OfficialJsonRenderedPageCapture[] }> {
+};
+
+export async function captureOfficialJsonRenderedTraversal(
+  input: OfficialJsonRenderedTraversalCaptureInput
+): Promise<{ observedAt: string; pages: OfficialJsonRenderedPageCapture[] }> {
   const policy = OFFICIAL_JSON_RENDERED_TRAVERSAL_POLICIES[input.sourceId];
   if (input.entryUrl !== policy.entryUrl) throw new Error("Official JSON browser validator entry URL mismatch");
   if (input.signal?.aborted) throw input.signal.reason;
   const release = await acquireBrowserSourcePermit(input.signal);
   try {
-    const browser = await (input.launchBrowser ?? launchProductionBrowser)();
-    let closePromise: Promise<void> | undefined;
-    const closeBrowser = () => closePromise ??= browser.close();
-    const abort = () => { void closeBrowser().catch(() => undefined); };
-    if (input.signal?.aborted) {
-      await closeBrowser();
-      throw input.signal.reason;
-    }
-    input.signal?.addEventListener("abort", abort, { once: true });
-    try {
-      const page = await browser.newPage(input.sourceId === "source-boehringer-ingelheim-china-social"
-        ? boehringerBrowserPageOptions()
-        : undefined);
+    const maximumAttempts = isBeisenRenderedTraversalSource(input.sourceId) ? 2 : 1;
+    for (let attempt = 1; attempt <= maximumAttempts; attempt += 1) {
       try {
-        const observedAt = new Date().toISOString();
-        const pages = input.sourceId === "source-cspc-social"
-          ? await captureCspc(page, input.entryUrl, input.signal)
-          : input.sourceId === "source-nhu-social"
-            ? await captureNhu(page, input.entryUrl, input.signal)
-            : input.sourceId === "source-boehringer-ingelheim-china-social"
-              ? await captureBoehringer51job(page, input.entryUrl, input.signal)
-              : input.sourceId === "source-fosun-pharma-social" || input.sourceId === "source-hansoh-social" ||
-                  input.sourceId === "source-united-lab-social"
-                ? await captureBeisen(page, input.sourceId, input.entryUrl, observedAt, input.signal)
-            : await captureXiuzheng(page, input.entryUrl, input.signal);
-        replayOfficialJsonRenderedTraversal(input.sourceId, pages);
-        return { observedAt, pages };
-      } finally {
-        await page.close().catch(() => undefined);
+        return await captureOfficialJsonRenderedTraversalOnce(input);
+      } catch (error) {
+        if (attempt >= maximumAttempts || !isRetryableBeisenTraversalFailure(error) || input.signal?.aborted) {
+          throw error;
+        }
       }
-    } finally {
-      input.signal?.removeEventListener("abort", abort);
-      await closeBrowser();
     }
+    throw new Error("Official JSON browser validator exhausted traversal attempts");
   } finally {
     release();
   }
+}
+
+async function captureOfficialJsonRenderedTraversalOnce(
+  input: OfficialJsonRenderedTraversalCaptureInput
+): Promise<{ observedAt: string; pages: OfficialJsonRenderedPageCapture[] }> {
+  const browser = await (input.launchBrowser ?? launchProductionBrowser)();
+  let closePromise: Promise<void> | undefined;
+  const closeBrowser = () => closePromise ??= browser.close();
+  const abort = () => { void closeBrowser().catch(() => undefined); };
+  if (input.signal?.aborted) {
+    await closeBrowser();
+    throw input.signal.reason;
+  }
+  input.signal?.addEventListener("abort", abort, { once: true });
+  try {
+    const page = await browser.newPage(input.sourceId === "source-boehringer-ingelheim-china-social"
+      ? boehringerBrowserPageOptions()
+      : undefined);
+    try {
+      const observedAt = new Date().toISOString();
+      const pages = input.sourceId === "source-cspc-social"
+        ? await captureCspc(page, input.entryUrl, input.signal)
+        : input.sourceId === "source-nhu-social"
+          ? await captureNhu(page, input.entryUrl, input.signal)
+          : input.sourceId === "source-boehringer-ingelheim-china-social"
+            ? await captureBoehringer51job(page, input.entryUrl, input.signal)
+            : isBeisenRenderedTraversalSource(input.sourceId)
+              ? await captureBeisen(page, input.sourceId, input.entryUrl, observedAt, input.signal)
+              : await captureXiuzheng(page, input.entryUrl, input.signal);
+      replayOfficialJsonRenderedTraversal(input.sourceId, pages);
+      return { observedAt, pages };
+    } finally {
+      await page.close().catch(() => undefined);
+    }
+  } finally {
+    input.signal?.removeEventListener("abort", abort);
+    await closeBrowser();
+  }
+}
+
+function isBeisenRenderedTraversalSource(
+  sourceId: OfficialJsonRenderedTraversalSourceId
+): sourceId is "source-fosun-pharma-social" | "source-hansoh-social" | "source-united-lab-social" {
+  return sourceId === "source-fosun-pharma-social" || sourceId === "source-hansoh-social" ||
+    sourceId === "source-united-lab-social";
+}
+
+function isRetryableBeisenTraversalFailure(error: unknown): boolean {
+  const message = error instanceof Error ? error.message : "";
+  return /(?:waitForResponse.*Timeout|Beisen browser validator request failed|Beisen browser validator response schema is invalid|Official JSON browser validator response is invalid JSON|Beisen browser validator declared total changed)/iu
+    .test(message);
 }
 
 export function replayOfficialJsonRenderedTraversal(
