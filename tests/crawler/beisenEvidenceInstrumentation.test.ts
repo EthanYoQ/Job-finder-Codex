@@ -111,7 +111,8 @@ async function fetchExactBeisen(
   const endpoint = new URL("/api/Jobad/GetJobAdPageList", exactPlan.source.officialEntryUrl).toString();
   const rawJob = {
     ...job(sourceId, [...locations]),
-    JobAdName: `职位 ${sourceId}`
+    JobAdName: `职位 ${sourceId}`,
+    ChangeDate: NOW
   };
   const fetcher = createOfficialJsonSourceFetch({
     now: () => new Date(NOW),

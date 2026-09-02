@@ -1,4 +1,5 @@
 import type { ATSKind } from "../../domain/company";
+import type { RECENT_JOB_WINDOW_DAYS } from "../../domain/jobRecencyPolicy";
 import type { HtmlTableConfig, OfficialJsonConfig } from "../adapters/types";
 import type { HotjobLegacyFetchConfig } from "../hotjobLegacySourceFetch";
 import type { HotjobWecruitFetchConfig } from "../hotjobWecruitSourceFetch";
@@ -22,6 +23,7 @@ export interface MokaFetchConfig {
   };
   hydrateMissingLocationsFromDetail?: boolean;
   allowDetailSiteIdOmission?: boolean;
+  publishedWithinDays?: typeof RECENT_JOB_WINDOW_DAYS;
 }
 
 export type ProfileBoundSourceConfig =

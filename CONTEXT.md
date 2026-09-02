@@ -28,6 +28,14 @@ _Avoid_: 50-company gate, configurable pass total, partial launch
 The immutable first-launch selection of 41 Roster Companies: 30 foreign pharmaceutical companies and 11 domestic pharmaceutical companies. A failed company is never replaced by an out-of-scope historical candidate.
 _Avoid_: Full roster, replaceable sample, successful subset
 
+**Expansion Candidate**:
+A human-reviewed company accepted for future source qualification. It remains separate from the immutable Launch Cohort until a later explicit promotion decision.
+_Avoid_: Launch replacement, automatically qualified company
+
+**Recent Job Window**:
+The official social-recruitment jobs published or changed within the preceding six months at observation time. When an official date or time filter is reliable, older jobs are outside scope; when neither exists, time scope is explicitly unknown rather than inferred.
+_Avoid_: All-time jobs, guessed publication date
+
 **Fixed Cohort Audit**:
 A diagnostic account of completeness evidence and failure stage for every Launch Cohort company in one formal batch. It reports failures and bounded repair groups but is not itself proof that a company is launch-qualified.
 _Avoid_: Passing count, repeated-count check, launch approval

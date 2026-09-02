@@ -19,6 +19,14 @@ export const MOKA_JSON_CONFIG: OfficialJsonConfig = {
   defaultCategory: "其他"
 };
 
+export const MOKA_RECENT_JSON_CONFIG: OfficialJsonConfig = {
+  ...MOKA_JSON_CONFIG,
+  fields: {
+    ...MOKA_JSON_CONFIG.fields,
+    officialPublishedAt: "officialPublishedAt"
+  }
+};
+
 export const WORKDAY_JSON_CONFIG: OfficialJsonConfig = {
   jobsPath: "jobPostings",
   fields: {

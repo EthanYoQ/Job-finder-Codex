@@ -191,6 +191,44 @@ describe("Moka source fetch", () => {
     });
   });
 
+  it("filters Moka jobs by the configured China-calendar recent window and preserves the official date", async () => {
+    const recentPlan: SourceCrawlPlan = {
+      ...plan,
+      moka: {
+        expectedOrgId: "beigene",
+        expectedSiteId: "98934",
+        expectedMode: "social",
+        campaignUrl: "https://app.mokahr.com/apply/beigene/98934",
+        publishedWithinDays: 183
+      }
+    };
+    const http: MokaHttpClient = async (request) => request.method === "GET"
+      ? evidenceResponse(htmlWithInitData({
+          aesIv, mode: "social", siteId: "98934", org: { id: "beigene", siteId: 98934 }
+        }), "entry")
+      : evidenceResponse(JSON.stringify(encryptedResponse({
+          success: true,
+          data: {
+            jobStats: { total: 2 },
+            jobs: [
+              { id: "recent", title: "近期职位", publishedAt: "2026-07-01T09:30:00", locations: [{ cityName: "上海市", country: "中国" }] },
+              { id: "stale", title: "过期职位", publishedAt: "2025-01-01T09:30:00", locations: [{ cityName: "北京市", country: "中国" }] }
+            ]
+          }
+        })), "api");
+
+    const result = await createMokaSourceFetch({ http, now: () => new Date(capturedAt) })(recentPlan);
+
+    expect(result).toMatchObject({
+      ok: true,
+      fetchEvidence: {
+        fetchCounts: { rawCount: 2, parsedCount: 2, validCount: 1, parseDiscardCount: 0, validationDiscardCount: 1 },
+        fetchLosses: [expect.objectContaining({ details: expect.objectContaining({ code: "OUTSIDE_RECENT_JOB_WINDOW" }) })]
+      },
+      payload: { data: { jobs: [{ officialPublishedAt: "2026-07-01T09:30:00+08:00" }] } }
+    });
+  });
+
   it.each([
     ["evil subdomain", "https://app.mokahr.com.evil.example/social-recruitment/shiweiya/47734"],
     ["campaign path drift", "https://app.mokahr.com/campus-recruitment/shiweiya/70032"]

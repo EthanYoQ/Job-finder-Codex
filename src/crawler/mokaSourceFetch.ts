@@ -1,5 +1,6 @@
 import { createDecipheriv } from "node:crypto";
 import { load } from "cheerio";
+import { recentJobCutoffChinaDateKey } from "../domain/jobRecencyPolicy";
 import type { SourceFetchFunction, SourceFetchResult } from "./runSourceCrawl";
 import type { MokaFetchConfig } from "./sourcePlan";
 import { fetchWithOfficialTimeout } from "./officialHttpRuntimeLimits";
@@ -404,6 +405,32 @@ export function createMokaSourceFetch(deps: MokaSourceFetchDeps = {}): SourceFet
             });
             continue;
           }
+          if (configuredMoka?.publishedWithinDays !== undefined) {
+            const publishedDate = mokaPublishedDateKey(candidate.publishedAt);
+            if (!publishedDate) {
+              validationDiscardCount += 1;
+              fetchLosses.push({
+                stage: "VALIDATION",
+                reason: "Moka record is missing a reliable published date for the configured recent-job window",
+                rawLocator,
+                details: { code: "MISSING_PUBLISHED_DATE", field: "publishedAt", pageSequence: pageIndex, recordIndex },
+                recordedAt: api.capturedAt
+              });
+              continue;
+            }
+            const cutoff = recentJobCutoffChinaDateKey(new Date(capturedAt), configuredMoka.publishedWithinDays);
+            if (publishedDate < cutoff) {
+              validationDiscardCount += 1;
+              fetchLosses.push({
+                stage: "VALIDATION",
+                reason: "Moka record is outside the configured recent-job window",
+                rawLocator,
+                details: { code: "OUTSIDE_RECENT_JOB_WINDOW", field: "publishedAt", pageSequence: pageIndex, recordIndex },
+                recordedAt: api.capturedAt
+              });
+              continue;
+            }
+          }
           const officialId = mokaJobId(candidate)!;
           if (seenOfficialIds.has(officialId)) {
             validationDiscardCount += 1;
@@ -510,7 +537,11 @@ export function createMokaSourceFetch(deps: MokaSourceFetchDeps = {}): SourceFet
       }
       if (
         expectedJobCount !== undefined &&
-        (seenRawOfficialIds.size !== expectedJobCount || seenOfficialIds.size !== expectedJobCount || validCount !== expectedJobCount)
+        (
+          seenRawOfficialIds.size !== expectedJobCount ||
+          (configuredMoka?.publishedWithinDays === undefined &&
+            (seenOfficialIds.size !== expectedJobCount || validCount !== expectedJobCount))
+        )
       ) {
         return failed(
           capturedAt,
@@ -1250,14 +1281,39 @@ function enrichMokaJob(job: unknown, officialEntryUrl: string): unknown {
 
   const sourceJobId = mokaJobId(job);
   const cities = citiesFromMokaLocations(job.locations);
+  const officialPublishedAt = mokaPublishedAtIso(job.publishedAt);
 
   return {
     id: irreversibleEvidenceId(sourceJobId),
     title: requiredText(job.title),
     officialUrl: buildMokaJobUrl(officialEntryUrl, sourceJobId!),
     locationRaw: cities.join("、"),
-    cities
+    cities,
+    ...(officialPublishedAt ? { officialPublishedAt } : {})
   };
+}
+
+function mokaPublishedDateKey(value: unknown): string | undefined {
+  if (typeof value !== "string") return undefined;
+  const match = value.trim().match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (!match) return undefined;
+  const [year, month, day] = match.slice(1).map(Number) as [number, number, number];
+  const parsed = new Date(Date.UTC(year, month - 1, day));
+  if (
+    parsed.getUTCFullYear() !== year ||
+    parsed.getUTCMonth() + 1 !== month ||
+    parsed.getUTCDate() !== day
+  ) return undefined;
+  return `${match[1]}-${match[2]}-${match[3]}`;
+}
+
+function mokaPublishedAtIso(value: unknown): string | undefined {
+  if (typeof value !== "string") return undefined;
+  const text = value.trim();
+  if (!text) return undefined;
+  if (/^\d{4}-\d{2}-\d{2}$/.test(text)) return `${text}T00:00:00+08:00`;
+  if (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?$/.test(text)) return `${text}+08:00`;
+  return Number.isNaN(Date.parse(text)) ? undefined : text;
 }
 
 function buildMokaJobUrl(officialEntryUrl: string, sourceJobId: string): string {
