@@ -24,7 +24,8 @@ export const plan = { adapterId: "official-json", company: { id: first.id, offic
     officialChainEvidenceUrl: "https://example.com/careers" },
   json: { jobsPath: "jobs", fields: { sourceJobId: "id", officialTitle: "title", officialUrl: "url", locationRaw: "location" } },
   expectedChannels: [{ channelId, kind: "SOCIAL" }],
-  expectedChannelSetHash: expectedChannelSetHash([{ channelId, kind: "SOCIAL" }]) } satisfies SourceCrawlPlan;
+  expectedChannelSetHash: expectedChannelSetHash([{ channelId, kind: "SOCIAL" }]),
+  transportPolicy: { primary: "DIRECT_HTTP" } } satisfies SourceCrawlPlan;
 const expectedIds = [plan.source.id];
 export const identity = { releaseCandidateId: "rc-integration", commitSha: "1".repeat(40), rosterSha256: confirmedCompanyRosterV3.membersSha256,
   sourcePlanSha256: "3".repeat(64), sourceConfigSha256: "4".repeat(64), adapterBundleSha256: "5".repeat(64),

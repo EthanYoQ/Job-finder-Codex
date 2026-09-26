@@ -4,6 +4,7 @@ import { runSourceCrawl } from "../../src/crawler/runSourceCrawl";
 import {
   buildStagedSourceCrawlPlans,
   expectedChannelSetHash,
+  sourcePlanConfigSha256,
   type SourceCrawlPlan
 } from "../../src/crawler/sourcePlan";
 import { candidateCompanies } from "../../src/data/companyRegistry";
@@ -13,6 +14,7 @@ import {
   type PaginationEvaluation
 } from "../../src/crawler/paginationEvidence";
 import type { PersistentSourceFetchEvidence } from "../../src/crawler/sourceFetchEvidence";
+import { issueAGradeOfficialTotalCertificate } from "../../src/crawler/completenessCertificate";
 import {
   createHttpHtmlSourceFetch,
   type HttpHtmlRequest,
@@ -551,6 +553,53 @@ function withArtifactLocator(
   };
 }
 
+async function exactPfizerFetch(pageCount: 1 | 2) {
+  const plan = planFor("source-pfizer-china-social");
+  if (plan.adapterId !== "official-json" || !plan.workday) {
+    throw new Error("Expected canonical staged Pfizer Workday plan");
+  }
+  const pageSize = plan.workday.pageSize ?? 20;
+  const ids = Array.from({ length: pageCount === 1 ? 1 : pageSize + 1 }, (_, index) => `pfizer-${index + 1}`);
+  const fetch = createWorkdaySourceFetch({
+    now: () => new Date(CAPTURED_AT),
+    http: async (request: WorkdayHttpRequest) => {
+      const body = JSON.parse(request.body) as {
+        appliedFacets: Record<string, string[]>;
+        offset: number;
+      };
+      const response = (payload: unknown) => ({
+        status: 200,
+        body: JSON.stringify(payload),
+        finalUrl: request.url,
+        contentType: "application/json; charset=utf-8",
+        capturedAt: CAPTURED_AT
+      });
+      return response({
+        total: ids.length,
+        jobPostings: ids.slice(body.offset, body.offset + pageSize).map((id) => ({
+          title: `Official role ${id}`,
+          externalPath: `/job/China/${id}`,
+          locationsText: "Shanghai, China",
+          bulletFields: [id],
+          workerSubType: "Regular"
+        }))
+      });
+    }
+  });
+  const fetched = await fetch(plan);
+  if (!fetched.ok || !fetched.fetchEvidence || !fetched.paginationEvaluation) {
+    throw new Error(fetched.ok ? "Expected complete Pfizer evidence" : fetched.failureReason);
+  }
+  return {
+    plan,
+    fetched: {
+      ...fetched,
+      fetchEvidence: fetched.fetchEvidence,
+      paginationEvaluation: fetched.paginationEvaluation
+    }
+  };
+}
+
 describe("strict purpose-bound completeness gate RED", () => {
   it("rejects a STAGED Pfizer plan whose Workday country facet is not the canonical configured value", async () => {
     const plan = buildStagedSourceCrawlPlans(candidateCompanies)
@@ -579,28 +628,17 @@ describe("strict purpose-bound completeness gate RED", () => {
     ["real Workday detail", "/wday/cxs/pfizer/PfizerCareers/job/China-Role/REQ-1"],
     ["arbitrary tenant child", "/wday/cxs/pfizer/PfizerCareers/not-a-detail"]
   ])("rejects Pfizer page two when it is a %s URL", async (_label, pathname) => {
-    const plan = planFor("source-pfizer-china-social");
-    const baseline = evidenceFor(plan, 2);
-    expect((await crawlWith(plan, baseline.evidence, baseline.evaluation, baseline.ids)).truth.completenessVerified).toBe(true);
-    const forged = withArtifactUrl(baseline.evidence, "page-2", new URL(pathname, plan.source.officialEntryUrl).toString());
-    expect((await crawlWith(plan, forged, baseline.evaluation, baseline.ids)).truth.completenessVerified).toBe(false);
-  });
-
-  it.each([
-    ["alt1", (plan: SourceCrawlPlan) => sandozProbeUrl(plan, "alt1", 0)],
-    ["alt2", (plan: SourceCrawlPlan) => sandozProbeUrl(plan, "alt2", 0)],
-    ["alt3", (plan: SourceCrawlPlan) => sandozProbeUrl(plan, "alt3", 0)],
-    ["taxonomy", (plan: SourceCrawlPlan) => {
-      if (plan.adapterId !== "official-json" || plan.officialJsonFetch?.kind !== "sandoz-jsonapi") throw new Error("Sandoz");
-      return `${plan.officialJsonFetch.taxonomyEndpointUrl}?filter%5Bdrupal_internal__tid%5D=${plan.officialJsonFetch.countryTermTargetId}`;
-    }],
-    ["wrong primary page", (plan: SourceCrawlPlan) => sandozProbeUrl(plan, "primary", 2)]
-  ])("rejects Sandoz page two bound to %s", async (_label, wrongUrl) => {
-    const plan = planFor("source-sandoz-china-social");
-    const baseline = evidenceFor(plan, 2);
-    expect((await crawlWith(plan, baseline.evidence, baseline.evaluation, baseline.ids)).truth.completenessVerified).toBe(true);
-    const forged = withArtifactUrl(baseline.evidence, "page-2", wrongUrl(plan));
-    expect((await crawlWith(plan, forged, baseline.evaluation, baseline.ids)).truth.completenessVerified).toBe(false);
+    const { plan, fetched } = await exactPfizerFetch(2);
+    expect((await runSourceCrawl(plan, { fetch: async () => fetched })).truth.completenessVerified).toBe(true);
+    const forged = {
+      ...fetched,
+      fetchEvidence: withArtifactUrl(
+        fetched.fetchEvidence,
+        "workday-page-0001",
+        new URL(pathname, plan.source.officialEntryUrl).toString()
+      )
+    };
+    expect((await runSourceCrawl(plan, { fetch: async () => forged })).truth.completenessVerified).toBe(false);
   });
 
   it.each([
@@ -624,6 +662,20 @@ describe("strict purpose-bound completeness gate RED", () => {
     ["Beisen", "source-cttq-social"],
     ["HCM", "source-lunan-social"]
   ])("rejects %s evidence when the request contract is tampered but URL and count remain valid", async (_label, sourceId) => {
+    if (sourceId === "source-pfizer-china-social") {
+      const { plan, fetched } = await exactPfizerFetch(1);
+      expect((await runSourceCrawl(plan, { fetch: async () => fetched })).truth.completenessVerified).toBe(true);
+      const forged = {
+        ...fetched,
+        fetchEvidence: withArtifactLocator(
+          fetched.fetchEvidence,
+          "workday-page-0000",
+          "json:total|request-contract-v2|sha256:" + "0".repeat(64)
+        )
+      };
+      expect((await runSourceCrawl(plan, { fetch: async () => forged })).truth.completenessVerified).toBe(false);
+      return;
+    }
     const plan = planFor(sourceId);
     const baseline = evidenceFor(plan, 1);
     expect((await crawlWith(plan, baseline.evidence, baseline.evaluation, baseline.ids)).truth.completenessVerified).toBe(true);
@@ -669,21 +721,6 @@ describe("strict purpose-bound completeness gate RED", () => {
     expect((await crawlWith(plan, forged, baseline.evaluation, baseline.ids)).truth.completenessVerified).toBe(false);
   });
 
-  it.each(["sandoz-taxonomy", "sandoz-alt1-zero", "sandoz-alt2-zero", "sandoz-alt3-zero"])(
-    "rejects Sandoz completeness when required scope artifact %s is missing",
-    async (missingLogicalKey) => {
-      const plan = planFor("source-sandoz-china-social");
-      const baseline = evidenceFor(plan, 1);
-      expect((await crawlWith(plan, baseline.evidence, baseline.evaluation, baseline.ids)).truth.completenessVerified)
-        .toBe(true);
-      const stripped = {
-        ...baseline.evidence,
-        artifacts: baseline.evidence.artifacts.filter((artifact) => artifact.logicalKey !== missingLogicalKey)
-      };
-      expect((await crawlWith(plan, stripped, baseline.evaluation, baseline.ids)).truth.completenessVerified)
-        .toBe(false);
-    }
-  );
 });
 
 const MOKA_AES_IV = "de7c21ed8d6f50fe";
@@ -767,33 +804,14 @@ function encodedJson(value: unknown): string {
 }
 
 describe("real staged non-regression plans", () => {
-  it("keeps a real staged static-scope Workday request contract VERIFIED", async () => {
-    const plan = planFor("source-pfizer-china-social");
-    const fetch = createWorkdaySourceFetch({ now: () => new Date(CAPTURED_AT), http: async (request: WorkdayHttpRequest) => {
-      const body = JSON.parse(request.body) as { appliedFacets?: Record<string, string[]> };
-      const isFacetPreflight = !body.appliedFacets?.workerSubType;
-      return {
-        status: 200,
-        body: JSON.stringify(isFacetPreflight
-          ? { total: 1, jobPostings: [], facets: [{ facetParameter: "workerSubType",
-              values: [{ descriptor: "Regular", id: "regular-id", count: 1 }] }] }
-          : { total: 1, jobPostings: [{ title: "Medical role", externalPath: "/job/China/REQ-1",
-              locationsText: "Shanghai, China", bulletFields: ["REQ-1"], workerSubType: "Regular" }] }),
-        finalUrl: request.url,
-        contentType: "application/json; charset=utf-8",
-        capturedAt: CAPTURED_AT
-      };
-    } });
-    const fetched = await fetch(plan);
-    if (!fetched.ok) throw new Error(fetched.failureReason);
+  it("keeps the real staged dynamic-scope Pfizer Workday request contract VERIFIED", async () => {
+    const { plan, fetched } = await exactPfizerFetch(1);
     const result = await runSourceCrawl(plan, { fetch: async () => fetched });
     expect(result).toMatchObject({ status: "SUCCESS",
       truth: { transportSuccess: true, adapterSuccess: true, completenessVerified: true },
       observation: { completenessStatus: "VERIFIED", expectedJobCount: 1, structuredJobCount: 1 },
       fetchEvidence: { pages: [{ requestedPageSize: 20 }] } });
-    expect(fetched.fetchEvidence?.artifacts.find((artifact) => artifact.logicalKey === "workday-facet-preflight-0000")
-      ?.extractorLocator).toMatch(/\|request-contract-v2\|sha256:[0-9a-f]{64}$/u);
-    expect(fetched.fetchEvidence?.artifacts.find((artifact) => artifact.logicalKey === "workday-page-0000")
+    expect(fetched.fetchEvidence.artifacts.find((artifact) => artifact.logicalKey === "workday-page-0000")
       ?.extractorLocator).toMatch(/\|request-contract-v2\|sha256:[0-9a-f]{64}$/u);
   });
 
@@ -812,11 +830,12 @@ describe("real staged non-regression plans", () => {
   });
 
   it("keeps a real staged static official list COMPLETE_PAGE_TRAVERSAL VERIFIED", async () => {
-    const plan = planFor("source-otsuka-china-social-2");
+    const plan = planFor("source-qilu-social");
     const fetch = createHttpHtmlSourceFetch({ now: () => new Date(CAPTURED_AT), http: async request => htmlResponse(
       request,
-      `<section class="join-list"><article class="join-item"><div class="table-td">` +
-      `<span class="career-title">医学经理</span><span class="col2">上海</span></div></article></section>`
+      `<section class="e_loop-65"><article class="cbox-65 p_loopitem">` +
+      `<div class="e_text-83"><a href="/job/medical-manager">医学经理</a></div>` +
+      `<div class="e_text-86">济南</div></article></section>`
     ) });
     const fetched = await fetch(plan);
     const result = await runSourceCrawl(plan, { fetch: async () => fetched });
@@ -830,8 +849,8 @@ describe("real staged non-regression plans", () => {
     const plan = planFor("source-cr-pharma-social");
     const fetch = createHotjobLegacySourceFetch({ now: () => new Date(CAPTURED_AT), http: async (request: HotjobLegacyHttpRequest) => ({
       status: 200,
-      body: JSON.stringify({ pageCount: 1, data: { currentPage: 1, rowCount: 1,
-        details: [{ postId: 1127, postName: "自动化生产管理岗", workPlace: "成都市" }] } }),
+      body: JSON.stringify({ pageCount: 1, page: 1, rowCount: 1, rowSize: 10,
+        postList: [{ postId: 1127, postName: "自动化生产管理岗", workPlace: "成都市" }] }),
       finalUrl: request.url,
       contentType: "text/html;charset=utf-8",
       capturedAt: CAPTURED_AT
@@ -841,5 +860,49 @@ describe("real staged non-regression plans", () => {
     expect(result).toMatchObject({ status: "SUCCESS",
       truth: { transportSuccess: true, adapterSuccess: true, completenessVerified: true },
       observation: { completenessStatus: "VERIFIED", expectedJobCount: 1, structuredJobCount: 1 } });
+
+    const declaration = result.fetchEvidence?.declaredCompleteness;
+    const officialArtifact = result.fetchEvidence?.artifacts.find(
+      (artifact) => artifact.logicalKey === declaration?.artifactLogicalKey
+    );
+    if (!result.fetchEvidence || !result.paginationEvaluation || !result.reconciliation || !officialArtifact) {
+      throw new Error("Expected exact CR Pharma certificate inputs");
+    }
+    const officialArtifactBytes = typeof officialArtifact.body === "string"
+      ? Buffer.from(officialArtifact.body, "utf8")
+      : Buffer.from(officialArtifact.body);
+    const certificate = issueAGradeOfficialTotalCertificate({
+      binding: {
+        releaseCandidateId: "rc-cr-pharma",
+        batchId: "batch-cr-pharma",
+        sourceResultId: "result-cr-pharma",
+        sourceConfigSha256: sourcePlanConfigSha256(plan)
+      },
+      plan,
+      transportSuccess: result.truth.transportSuccess,
+      adapterSuccess: result.truth.adapterSuccess,
+      evidence: result.fetchEvidence,
+      paginationEvaluation: result.paginationEvaluation,
+      reconciliation: result.reconciliation,
+      jobs: result.jobs,
+      officialArtifactSha256: createHash("sha256").update(officialArtifactBytes).digest("hex")
+    });
+    expect(certificate.status, JSON.stringify(certificate)).toBe("CERTIFIED");
+
+    if (!fetched.ok || !fetched.fetchEvidence) throw new Error("Expected exact CR Pharma evidence");
+    const forgedEvidence = {
+      ...fetched.fetchEvidence,
+      artifacts: fetched.fetchEvidence.artifacts.map((artifact) => ({
+        ...artifact,
+        body: typeof artifact.body === "string"
+          ? artifact.body.replace('"rowCount":1', '"rowCount":2')
+          : artifact.body
+      }))
+    };
+    const forged = await runSourceCrawl(plan, { fetch: async () => ({
+      ...fetched,
+      fetchEvidence: forgedEvidence
+    }) });
+    expect(forged.truth.completenessVerified).toBe(false);
   });
 });

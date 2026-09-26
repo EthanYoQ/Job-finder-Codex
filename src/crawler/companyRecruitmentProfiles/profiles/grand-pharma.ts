@@ -9,6 +9,10 @@ export const profile_grand_pharma = {
           adapterId: "html-table",
           table: {
               rowSelector: ".job-card:has(a[href='#login'])",
+              completenessProof: {
+                  kind: "STATIC_PUBLIC_LIST",
+                  sourcePolicy: "GRAND_PHARMA_SOCIAL_ONLY_V1"
+              },
               staticPublicList: {
                   containerSelector: ".job-list",
                   nextControlSelector: ".job-list .pagination, .job-list a[rel='next'], .job-list [data-page]",

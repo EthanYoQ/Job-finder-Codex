@@ -4,17 +4,15 @@ import {describe,expect,it} from "vitest";
 describe("formal compose release authority",()=>{
   const compose=readFileSync("ops/docker-compose.yml","utf8");
   const service=(name:string)=>compose.match(new RegExp(`^  ${name}:\\n[\\s\\S]*?(?=^  [a-z][a-z0-9-]*:\\n|^volumes:\\n)`,"mu"))?.[0]??"";
-  it("requires build provenance for every application image",()=>{
-    expect(compose).toMatch(/BUILD_COMMIT_SHA:\s*\$\{BUILD_COMMIT_SHA:\?[^}]+\}/u);
-    expect(compose).toMatch(/BUILD_SOURCE_CLEAN:\s*\$\{BUILD_SOURCE_CLEAN:\?[^}]+\}/u);
-    expect(compose).toMatch(/BUILD_SOURCE_TREE_SHA256:\s*\$\{BUILD_SOURCE_TREE_SHA256:\?[^}]+\}/u);
+  it("requires one qualified immutable digest for every application image",()=>{
+    expect(compose).toMatch(/ghcr\.io\/ethanyoq\/job-finder-rc022-cloud-acceptance@sha256:\$\{JOB_FINDER_IMAGE_DIGEST:\?[^}]+\}/u);
+    expect(compose.match(/^    image: \*job-finder-image$/gmu)).toHaveLength(10);
+    expect(compose).not.toMatch(/^    build:/gmu);
   });
-  it.each(["membership.json","oracle.json"])("keeps %s only on the historical strict worker",name=>{
+  it.each(["membership.json","oracle.json"])("does not deploy obsolete file authority %s",name=>{
     const worker=service("worker"),scheduler=service("scheduler"),monitor=service("monitor");
-    expect(worker).toContain(`target: /run/release-authority/${name}`);
-    expect(worker).toContain("read_only: true");
     const authority=name.startsWith("membership")?"MEMBERSHIP":"ORACLE";
-    expect(worker).toContain(`P0_FULL_RELEASE_${authority}_FILE_SHA256:`);
+    expect(worker).not.toContain(`P0_FULL_RELEASE_${authority}`);
     expect(scheduler).not.toContain(`P0_FULL_RELEASE_${authority}`);
     expect(monitor).not.toContain(`P0_FULL_RELEASE_${authority}`);
     expect(scheduler).not.toContain(`/run/release-authority/${name}`);
@@ -33,19 +31,26 @@ describe("formal compose release authority",()=>{
     expect(compose).not.toMatch(/--release-candidate-id|--commit-sha|--roster-sha256|--batch-kind/u);
   });
   it("inherits the image's non-root service user and does not replace /app with a root-owned bind",()=>{
-    expect(readFileSync("Dockerfile","utf8")).toMatch(/chown -R node:node \/app[\s\S]*USER node/u);
+    const dockerfile=readFileSync("Dockerfile","utf8");
+    expect(dockerfile).not.toContain("chown -R node:node /app");
+    expect(dockerfile).toMatch(/COPY --chown=node:node --from=identity \/app\/node_modules \.\/node_modules[\s\S]*USER node/u);
     expect(compose).not.toMatch(/target:\s*\/app(?:\s|$)/u);
   });
-  it("runs one default formal scheduler while the worker is manual-only",()=>{
-    expect(compose).toMatch(/worker:[\s\S]*profiles:\s*\["manual"\][\s\S]*restart:\s*"no"/u);
-    expect(compose).toMatch(/scheduler:[\s\S]*command:\s*\["npm",\s*"run",\s*"p0:scheduler"\]/u);
+  it("runs one default formal scheduler and one DB-authority manual worker",()=>{
+    const worker=service("worker");
+    expect(worker).toMatch(/init:\s*true/u);
+    expect(worker).toMatch(/restart:\s*unless-stopped/u);
+    expect(worker).toMatch(/command:\s*\["node",\s*"node_modules\/tsx\/dist\/cli\.mjs",\s*"scripts\/p0-manual-crawl-worker\.ts"\]/u);
+    expect(compose).toMatch(/scheduler:[\s\S]*init:\s*true[\s\S]*command:\s*\["node",\s*"node_modules\/tsx\/dist\/cli\.mjs",\s*"scripts\/p0-scheduler\.ts"\]/u);
     expect(compose).not.toMatch(/while true; do npm run p0:crawl/u);
     const scheduler=readFileSync("scripts/p0-scheduler.ts","utf8");
     expect(scheduler).toContain("nextP0SchedulerWindow");
-    expect(readFileSync("src/crawler/schedule.ts","utf8")).toContain('["00:01"]');
+    expect(readFileSync("src/crawler/schedule.ts","utf8")).toContain('"00:01"');
+    expect(readFileSync("src/crawler/schedule.ts","utf8")).toContain('"12:01"');
     expect(scheduler).toMatch(/no immediate retry/i);
     expect(readFileSync("src/crawler/formalCrawlLock.ts","utf8")).toContain('open(lockPath,"wx",0o600)');
-    expect(readFileSync("scripts/p0-formal-crawl-once.ts","utf8")).toContain('"p0:crawl"');
+    expect(readFileSync("scripts/p0-formal-crawl-once.ts","utf8"))
+      .toContain('productionTsxProcessArgs("scripts/p0-crawl.ts",["--force"])');
     const recovery=readFileSync("scripts/p0-recover-formal-crawl-lock.ts","utf8");
     expect(recovery.indexOf("loadCurrentReleaseIdentity()")) .toBeLessThan(recovery.indexOf('import("@prisma/client")'));
     expect(recovery).not.toMatch(/release-candidate-id|commit-sha|roster-sha256|ack-no-active/u);
@@ -57,6 +62,6 @@ describe("formal compose release authority",()=>{
     expect(compose).toMatch(/formal-artifacts:\s*$/mu);
     expect(compose.match(/source:\s*formal-artifacts/g)?.length).toBeGreaterThanOrEqual(4);
     expect(compose).toMatch(/target:\s*\/app\/outputs[\s\S]*read_only:\s*true/u);
-    expect(readFileSync("Dockerfile","utf8")).toMatch(/mkdir -p \/app\/outputs[\s\S]*chmod 0700 \/app\/outputs/u);
+    expect(readFileSync("Dockerfile","utf8")).toMatch(/install -d -m 0700 -o node -g node \/app\/outputs[\s\S]*USER node/u);
   });
 });

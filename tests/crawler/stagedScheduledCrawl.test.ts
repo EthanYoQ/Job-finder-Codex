@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import { candidateCompanies } from "../../src/data/companyRegistry";
+import { P0_LAUNCH_MANIFEST, selectLaunchCompanies } from "../../src/release/launchManifest";
 import { buildStagedSourceCrawlPlans, type SourceCrawlPlan } from "../../src/crawler/sourcePlan";
 import type { RunP0CrawlBatchDeps } from "../../src/crawler/runCrawlBatch";
 import {
@@ -7,6 +8,9 @@ import {
   STAGED_SCHEDULE_ORACLE_VERSION
 } from "../../src/crawler/stagedScheduleAuthority";
 import { runCurrentStagedScheduledCrawl } from "../../src/crawler/stagedScheduledCrawl";
+
+const launchCompanies = selectLaunchCompanies(P0_LAUNCH_MANIFEST, candidateCompanies);
+const launchPlans = buildStagedSourceCrawlPlans(launchCompanies);
 
 vi.mock("../../src/readiness/buildIdentity", () => ({
   resolveCurrentBuildIdentity: () => ({
@@ -88,7 +92,7 @@ function failedMixedBatch(plannedSourceCount: number) {
 
 describe("current staged scheduled crawl", () => {
   it.each([0, 1])("allows BUILDING initial qualification with %i prior exact scheduled batches", async (batchCount) => {
-    const canonicalPlans = buildStagedSourceCrawlPlans(candidateCompanies);
+    const canonicalPlans = launchPlans;
     const syncPlannedSourcesToDb = vi.fn(async () => ({
       companyCount: 60,
       sourceCount: canonicalPlans.length,
@@ -150,7 +154,7 @@ describe("current staged scheduled crawl", () => {
   });
 
   it("does not count running or aborted identity-matching rows as completed qualification rounds", async () => {
-    const canonicalPlans = buildStagedSourceCrawlPlans(candidateCompanies);
+    const canonicalPlans = launchPlans;
     const runP0CrawlBatch = vi.fn(async (
       _plans: readonly SourceCrawlPlan[],
       deps: RunP0CrawlBatchDeps
@@ -261,7 +265,7 @@ describe("current staged scheduled crawl", () => {
   });
 
   it("does not apply the initial two-round limit after RELEASED", async () => {
-    const canonicalPlans = buildStagedSourceCrawlPlans(candidateCompanies);
+    const canonicalPlans = launchPlans;
     const runP0CrawlBatch = vi.fn(async (
       _plans: readonly SourceCrawlPlan[],
       deps: RunP0CrawlBatchDeps
@@ -373,7 +377,7 @@ describe("current staged scheduled crawl", () => {
 
   it("orders authority read before sync and batch with fixed SCHEDULED/no-filter/no-force authority", async () => {
     const calls: string[] = [];
-    const canonicalPlans = buildStagedSourceCrawlPlans(candidateCompanies);
+    const canonicalPlans = launchPlans;
     const findMany = vi.fn(async () => {
       calls.push("authority");
       return [matchingRow()];
@@ -384,7 +388,11 @@ describe("current staged scheduled crawl", () => {
     });
     const syncPlannedSourcesToDb = vi.fn(async () => {
       calls.push("sync");
-      return { companyCount: 60, sourceCount: canonicalPlans.length, hiddenUnplannedVisibleJobCount: 0 };
+      return {
+        companyCount: canonicalPlans.length,
+        sourceCount: canonicalPlans.length,
+        hiddenUnplannedVisibleJobCount: 0
+      };
     });
     const runP0CrawlBatch = vi.fn(async (
       _plans: readonly SourceCrawlPlan[],
@@ -410,7 +418,7 @@ describe("current staged scheduled crawl", () => {
     expect(calls).toEqual(["authority", "round-guard", "sync", "batch"]);
     expect(syncPlannedSourcesToDb).toHaveBeenCalledWith(
       expect.arrayContaining(canonicalPlans),
-      expect.arrayContaining(candidateCompanies),
+      expect.arrayContaining(launchCompanies),
       expect.anything()
     );
     const [plans, deps] = vi.mocked(runP0CrawlBatch).mock.calls[0]!;
@@ -436,7 +444,7 @@ describe("current staged scheduled crawl", () => {
   });
 
   it("allows an operator-forced run only through the same exact staged authority and full plan", async () => {
-    const canonicalPlans = buildStagedSourceCrawlPlans(candidateCompanies);
+    const canonicalPlans = launchPlans;
     const runP0CrawlBatch = vi.fn(async (
       _plans: readonly SourceCrawlPlan[],
       deps: RunP0CrawlBatchDeps

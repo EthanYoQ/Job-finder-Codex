@@ -1,4 +1,4 @@
-import { execFileSync, spawnSync } from "node:child_process";
+import { spawnSync } from "node:child_process";
 import { existsSync, readFileSync, rmSync } from "node:fs";
 import { mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -290,7 +290,7 @@ describe("staged crawl operational CLI", () => {
 
       const result = await runStagedCrawlOperation(operationInput(fixture.deps));
 
-      const operationalSuccess = status !== "FAILED";
+      const operationalSuccess = status === "SUCCESS";
       expect(result.exitCode).toBe(operationalSuccess ? 0 : 1);
       expect(result.commandResult.batch).toEqual(batch(status));
       expect(fixture.summaries).toHaveLength(1);
@@ -523,7 +523,8 @@ describe("staged crawl operational CLI", () => {
     expect(`${script}\n${operational}`).not.toMatch(/buildDiscoverySourcePlanCandidates|buildSourceCrawlPlans|buildStagedSourceCrawlPlans/u);
     expect(`${script}\n${operational}`).not.toMatch(/--source-id|--release-candidate-id|--commit-sha|--batch-kind/u);
     expect(`${script}\n${operational}`).toContain('"--force"');
-    expect(scheduler).toContain('"p0:staged-crawl"');
+    expect(scheduler).toContain('"scripts/p0-staged-crawl.ts"');
+    expect(scheduler).toContain("spawnSync(process.execPath,productionTsxProcessArgs");
     expect(scheduler).toContain("resolveStagedCrawlEvidencePaths");
     expect(scheduler.indexOf("resolveStagedCrawlEvidencePaths"))
       .toBeLessThan(scheduler.indexOf("for(;;)"));
@@ -542,12 +543,11 @@ describe("staged crawl operational CLI", () => {
     expect(packageJson.scripts["p0:crawl"]).toBe("tsx scripts/p0-crawl.ts");
     expect(packageJson.scripts["p0:formal-crawl-once"]).toBe("tsx scripts/p0-formal-crawl-once.ts");
     expect(compose.match(/^  scheduler:/gmu)).toHaveLength(1);
-    expect(compose).toMatch(/scheduler:[\s\S]*command:\s*\["npm",\s*"run",\s*"p0:scheduler"\]/u);
+    expect(compose).toMatch(/scheduler:[\s\S]*command:\s*\["node",\s*"node_modules\/tsx\/dist\/cli\.mjs",\s*"scripts\/p0-scheduler\.ts"\]/u);
     expect(compose).toContain("STAGED_INITIAL_QUALIFICATION_PAUSE_PATH: /app/outputs/staged-initial-qualification-pause.json");
 
-    for (const path of ["scripts/p0-crawl.ts", "scripts/p0-formal-crawl-once.ts"]) {
-      const head = execFileSync("git", ["show", `HEAD:${path}`]);
-      expect(readFileSync(path)).toEqual(head);
-    }
+    const formalOnce = readFileSync("scripts/p0-formal-crawl-once.ts", "utf8");
+    expect(formalOnce).toContain('productionTsxProcessArgs("scripts/p0-crawl.ts",["--force"])');
+    expect(formalOnce).toContain("spawnSync(process.execPath");
   });
 });

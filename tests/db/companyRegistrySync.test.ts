@@ -1,9 +1,12 @@
 import { describe, expect, it, vi } from "vitest";
 import type { CandidateCompany } from "../../src/data/companyRegistry";
 import type { SourceCrawlPlan } from "../../src/crawler/sourcePlan";
-import { syncPlannedSourcesToDb } from "../../src/db/companyRegistrySync";
+import { syncLaunchCohortSourcesToDb, syncPlannedSourcesToDb } from "../../src/db/companyRegistrySync";
 import { confirmedCompanyRosterV3Members } from "../../src/data/confirmedCompanyRosterV3";
 import { USER_AUTHORIZED_PHASE1_EXCLUSION } from "../../src/data/phase1ScopePolicy";
+import { candidateCompanies } from "../../src/data/companyRegistry";
+import { buildStagedSourceCrawlPlans } from "../../src/crawler/sourcePlan";
+import { P0_LAUNCH_MANIFEST, selectLaunchCompanies } from "../../src/release/launchManifest";
 
 const firstMember = confirmedCompanyRosterV3Members[0]!;
 const plannedCompany: CandidateCompany = {
@@ -122,6 +125,53 @@ function rosterWithFirst(first: CandidateCompany): CandidateCompany[] {
 }
 
 describe("syncPlannedSourcesToDb", () => {
+  it("syncs the exact frozen Launch Cohort without requiring the superseded 60-company roster", async () => {
+    const launchCompanies = selectLaunchCompanies(P0_LAUNCH_MANIFEST, candidateCompanies);
+    const launchPlans = buildStagedSourceCrawlPlans(launchCompanies);
+    const db = fakeDb();
+
+    await expect(syncLaunchCohortSourcesToDb(launchPlans, launchCompanies, db as never)).resolves.toEqual({
+      companyCount: 41,
+      sourceCount: 41,
+      hiddenUnplannedVisibleJobCount: 0
+    });
+    expect(db.company.upsert).toHaveBeenCalledTimes(41);
+    expect(db.recruitmentSource.upsert).toHaveBeenCalledTimes(41);
+  });
+
+  it("rejects a missing Launch Cohort member before writes", async () => {
+    const launchCompanies = selectLaunchCompanies(P0_LAUNCH_MANIFEST, candidateCompanies);
+    const launchPlans = buildStagedSourceCrawlPlans(launchCompanies);
+    const db = fakeDb();
+
+    await expect(syncLaunchCohortSourcesToDb(
+      launchPlans.slice(1),
+      launchCompanies.slice(1),
+      db as never
+    )).rejects.toThrow(/Launch Cohort|manifest|source set/i);
+    expect(db.$transaction).not.toHaveBeenCalled();
+  });
+
+  it("rejects a same-category Launch Cohort replacement before writes", async () => {
+    const launchCompanies = selectLaunchCompanies(P0_LAUNCH_MANIFEST, candidateCompanies);
+    const launchPlans = buildStagedSourceCrawlPlans(launchCompanies);
+    const replacedIndex = launchCompanies.findIndex(({ category }) => category === "DOMESTIC_PHARMA");
+    const replacement = candidateCompanies.find((company) =>
+      company.category === "DOMESTIC_PHARMA" &&
+      !P0_LAUNCH_MANIFEST.companies.some(({ companyId }) => companyId === company.id))!;
+    const companies = launchCompanies.map((company, index) => index === replacedIndex ? replacement : company);
+    const plans = launchPlans.map((plan) => plan.company.id === launchCompanies[replacedIndex]!.id ? {
+      ...plan,
+      company: { ...plan.company, id: replacement.id, officialChineseName: replacement.officialChineseName },
+      source: { ...plan.source, companyId: replacement.id }
+    } : plan);
+    const db = fakeDb();
+
+    await expect(syncLaunchCohortSourcesToDb(plans, companies, db as never))
+      .rejects.toThrow(/Launch Cohort|manifest|company set/i);
+    expect(db.$transaction).not.toHaveBeenCalled();
+  });
+
   it("upserts every supplied roster company but only real planned sources", async () => {
     const db = fakeDb();
 
@@ -243,6 +293,41 @@ describe("syncPlannedSourcesToDb", () => {
     expect(fake.companyUpsert).toHaveBeenCalledTimes(60);
   });
 
+  it("canonicalizes a legacy company and its existing canonical source in the same V3 transaction", async () => {
+    const fake = transactionalFakeDb({
+      companies: [{ id: "company-legacy-alias", officialChineseName: plannedCompany.officialChineseName }],
+      sources: [{ id: plan.source.id, companyId: "company-legacy-alias" }]
+    });
+
+    await expect(syncPlannedSourcesToDb([plan], rosterCompanies, fake.db as never)).resolves.toMatchObject({
+      companyCount: 60,
+      sourceCount: 1
+    });
+    expect(fake.companyUpdate).toHaveBeenCalledWith({
+      where: { id: "company-legacy-alias" },
+      data: { id: plannedCompany.id }
+    });
+  });
+
+  it("canonicalizes a legacy company and source while syncing the frozen Launch Cohort", async () => {
+    const launchCompanies = selectLaunchCompanies(P0_LAUNCH_MANIFEST, candidateCompanies);
+    const launchPlans = buildStagedSourceCrawlPlans(launchCompanies);
+    const first = launchCompanies[0]!, firstPlan = launchPlans.find(({ company }) => company.id === first.id)!;
+    const fake = transactionalFakeDb({
+      companies: [{ id: "company-launch-legacy-alias", officialChineseName: first.officialChineseName }],
+      sources: [{ id: firstPlan.source.id, companyId: "company-launch-legacy-alias" }]
+    });
+
+    await expect(syncLaunchCohortSourcesToDb(launchPlans, launchCompanies, fake.db as never)).resolves.toMatchObject({
+      companyCount: 41,
+      sourceCount: 41
+    });
+    expect(fake.companyUpdate).toHaveBeenCalledWith({
+      where: { id: "company-launch-legacy-alias" },
+      data: { id: first.id }
+    });
+  });
+
   it("rejects an authorized exclusion carrying a source before writes", async () => {
     const excluded = rosterCompanies.find((company) => company.id === "company-humanwell")!;
     const excludedSource = { ...plannedCompany.sources[0]!, id: "source-humanwell-social", companyId: excluded.id };
@@ -333,9 +418,12 @@ describe("syncPlannedSourcesToDb", () => {
     const committed: unknown[] = [];
     const transaction = vi.fn(async (operation: (tx: unknown) => Promise<unknown>) => {
       const staged: unknown[] = [];
-      const tx = { company: { findMany: vi.fn(async () => []),
+      const tx = { company: { findMany: vi.fn(async () => [{
+            id: "company-legacy-alias", officialChineseName: plannedCompany.officialChineseName
+          }]),
+          update: vi.fn(async (args: unknown) => { staged.push(args); }),
           upsert: vi.fn(async (args: unknown) => { staged.push(args); }) },
-        recruitmentSource: { findMany: vi.fn(async () => []),
+        recruitmentSource: { findMany: vi.fn(async () => [{ id: plan.source.id, companyId: "company-legacy-alias" }]),
           upsert: vi.fn(async () => { throw new Error("source write failed"); }) } };
       const result = await operation(tx);
       committed.push(...staged);

@@ -148,7 +148,8 @@ function evaluatePaginationEvidenceInternal(
     if (fingerprints.has(responseFingerprintSha256)) {
       anomalies[index]!.add("REPEATED_RESPONSE_FINGERPRINT");
     }
-    if (rawHashes.has(rawJobIdSetSha256) || validHashes.has(validJobIdSetSha256)) {
+    if (rawHashes.has(rawJobIdSetSha256) ||
+      (page.validJobIds.length > 0 && validHashes.has(validJobIdSetSha256))) {
       anomalies[index]!.add("REPEATED_JOB_ID_SET_WITH_NEXT");
     }
     fingerprints.add(responseFingerprintSha256);

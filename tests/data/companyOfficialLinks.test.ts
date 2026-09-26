@@ -146,7 +146,7 @@ describe("official-link registry cardinality", () => {
     expect(registry.validateStrictCompanyRegistry(built.companies, built.surfaces, [])).toEqual([]);
   });
 
-  it("activates the canonical Sandoz source while preserving separate pending and verified Otsuka official sources", () => {
+  it("uses the verified Aspen successor page and the current Otsuka job-list source", () => {
     const byId = new Map(registry.candidateCompanies.map((company) => [company.id, company]));
 
     expect(byId.get("company-sandoz-china")).toMatchObject({
@@ -154,8 +154,8 @@ describe("official-link registry cardinality", () => {
       sources: [{
         id: "source-sandoz-china-social",
         status: "VERIFIED_SCRAPABLE",
-        officialEntryUrl: "https://www.sandoz.com/careers/job-search/",
-        officialChainEvidenceUrl: "https://www.sandoz.com/careers/job-search/"
+        officialEntryUrl: "https://www.aspenpharma.cn/careers-at-aspen/aspen-cnjobs/",
+        officialChainEvidenceUrl: "https://www.aspenpharma.cn/careers-at-aspen/aspen-cnjobs/"
       }]
     });
     expect(byId.get("company-otsuka-china")).toMatchObject({
@@ -163,13 +163,13 @@ describe("official-link registry cardinality", () => {
       sources: [
         {
           id: "source-otsuka-china-social",
-          status: "ENTRY_FOUND_PENDING_ADAPTER",
+          status: "VERIFIED_SCRAPABLE",
           officialEntryUrl: "https://chinaotsuka.com.cn/class/26",
           officialChainEvidenceUrl: "https://www.otsuka.com.cn/otsuka-in-china/index.html"
         },
         {
           id: "source-otsuka-china-social-2",
-          status: "VERIFIED_SCRAPABLE",
+          status: "ENTRY_FOUND_PENDING_ADAPTER",
           officialEntryUrl: "https://www.otsuka.com.cn/join-us/index.html",
           officialChainEvidenceUrl: "https://www.otsuka.com.cn/join-us/index.html"
         }
@@ -196,7 +196,7 @@ describe("official-link registry cardinality", () => {
       officialChainEvidenceUrls: ["https://www.hengrui.com/development/joinUs.html"]
     });
     expect(socialSurfaceFor("company-ucb-china")?.officialEntryUrl).toBe(
-      "https://careers.ucb.com/global/en/search-results?qcountry=China"
+      "https://careers.ucb.com/global/zh/search-results?keywords=China"
     );
     expect(socialSurfaceFor("company-tianjin-pharma")).toMatchObject({
       officialEntryUrl: "https://tjph.zhiye.com/social/jobs",
@@ -225,7 +225,7 @@ describe("official-link registry cardinality", () => {
       surface.officialEntryUrl,
       ...surface.officialChainEvidenceUrls
     ]);
-    expect(surfaceUrls).not.toContain("https://careers.ucb.com/global/en/search-results?keywords=China");
+    expect(surfaceUrls).not.toContain("https://careers.ucb.com/global/en/search-results?qcountry=China");
     expect(surfaceUrls).not.toContain("https://www.hengrui.com/development/recruit.html");
     expect(surfaceUrls).not.toContain("https://tjph1.zhiye.com/social/jobs");
     expect(surfaceUrls).not.toContain("https://www.pharm.com.cn/career/join.html");

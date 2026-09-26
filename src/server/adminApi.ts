@@ -18,6 +18,7 @@ import { buildAdminDashboardModel } from "../admin/adminViewModel";
 import { JOB_CATEGORIES, type JobCategory } from "../domain/search";
 import { ManualCrawlRequestRepositoryError } from "../db/manualCrawlRequestRepository";
 import { processPrivacyRequest, type PrivacyOperationsDb } from "../admin/privacyOperations";
+import { listRecentManualCrawlStatuses, type ManualCrawlStatusDb } from "../admin/manualCrawlStatus";
 
 export interface AdminApiRequest {
   method: string;
@@ -34,7 +35,7 @@ export interface AdminApiResponse {
   body: unknown;
 }
 
-type AdminApiDb = AdminAuthDb &
+type AdminApiDb = AdminAuthDb & ManualCrawlStatusDb &
   AdminOperationsDb & {
     adminUser: {
       findUnique(args: {
@@ -95,6 +96,7 @@ type AdminApiDb = AdminAuthDb &
 export interface AdminApiDeps {
   db: AdminApiDb;
   now?: () => Date;
+  resolveManualCrawlAuthoritySourceIds?: () => Promise<readonly string[]>;
 }
 
 const LoginSchema = z.object({
@@ -193,6 +195,14 @@ export async function handleAdminApi(request: AdminApiRequest, deps: AdminApiDep
     };
   }
 
+  if (request.path === "/admin/api/manual-crawls" && request.method === "GET") {
+    return {
+      status: 200,
+      headers,
+      body: { requests: await listRecentManualCrawlStatuses(deps.db) }
+    };
+  }
+
   if (request.path === "/admin/api/manual-crawl" && request.method === "POST") {
     const parsed = ManualCrawlSchema.safeParse(request.body);
     if (!parsed.success) return badRequest(headers);
@@ -200,12 +210,17 @@ export async function handleAdminApi(request: AdminApiRequest, deps: AdminApiDep
       return {
         status: 202,
         headers,
-        body: await queueManualCrawl(parsed.data, operationContext, { db: deps.db })
+        body: await queueManualCrawl(parsed.data, operationContext, {
+          db: deps.db,
+          ...(deps.resolveManualCrawlAuthoritySourceIds === undefined ? {} : {
+            resolveManualCrawlAuthoritySourceIds: deps.resolveManualCrawlAuthoritySourceIds
+          })
+        })
       };
     } catch (error) {
       if (error instanceof ManualCrawlRequestRepositoryError) {
         return {
-          status: error.code === "ALREADY_ACTIVE" ? 409 : 422,
+          status: error.code === "ALREADY_ACTIVE" ? 409 : error.code === "AUTHORITY_UNAVAILABLE" ? 503 : 422,
           headers,
           body: { error: error.code }
         };

@@ -14,16 +14,11 @@ export const profile_pfizer_china = {
               tenant: "pfizer",
               site: "PfizerCareers",
               laterZeroTotalPolicy: "PFIZER_AUDITED_EXACT_RECONCILIATION",
-              opaqueMultiLocationDetailPolicy: "PFIZER_AUDITED_APAC_DETAIL_V1",
               appliedFacets: {
                   Location_Country: ["6cb77610a8a543aea2d6bc10457e35d4"]
               },
-              facetDescriptorBoundary: {
-                  facetParameter: "workerSubType",
-                  allowedDescriptors: ["Regular"]
-              },
               pageSize: 20,
-              maxPages: 10
+              maxPages: 20
           }
       }
     },

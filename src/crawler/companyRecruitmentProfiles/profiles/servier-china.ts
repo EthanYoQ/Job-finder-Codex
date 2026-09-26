@@ -8,6 +8,7 @@ export const profile_servier_china = {
       sourceId: "source-servier-china-social",
       executionConfig: {
           adapterId: "official-json",
+          transientRetryPolicy: { maxRetries: 1, backoffMs: 10_000 },
           json: MOKA_JSON_CONFIG,
           moka: {
               expectedOrgId: "shiweiya",

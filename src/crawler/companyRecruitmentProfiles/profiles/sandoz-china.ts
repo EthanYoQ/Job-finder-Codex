@@ -1,5 +1,4 @@
 import type { CompanyRecruitmentProfileSeed } from "../types";
-import { OFFICIAL_API_JSON_CONFIG } from "../shared";
 
 export const profile_sandoz_china = {
   companyId: "company-sandoz-china",
@@ -7,19 +6,27 @@ export const profile_sandoz_china = {
     {
       sourceId: "source-sandoz-china-social",
       executionConfig: {
-          adapterId: "official-json",
-          json: OFFICIAL_API_JSON_CONFIG,
-          officialJsonFetch: {
-              kind: "sandoz-jsonapi",
-              endpointUrl: "https://sandoz-com.cms.sandoz.com/jsonapi/views/job_search/job_search",
-              taxonomyEndpointUrl: "https://sandoz-com.cms.sandoz.com/jsonapi/taxonomy_term/job_location",
-              countryTermName: "LOC_CN",
-              countryTermTargetId: 806,
-              countryTermUuid: "2f829192-01a9-4909-b729-baab0b0bad0c",
-              pageSize: 10,
-              maxPages: 50,
-              detailBaseUrl: "https://www.sandoz.com",
-              cityScopePolicy: "SANDOZ_CHINA_TAXONOMY_LOCATION_V1"
+          adapterId: "html-table",
+          table: {
+              rowSelector: "main a[href*='/jobs/'], .elementor-location-single a[href*='/jobs/']",
+              completenessProof: {
+                  kind: "STATIC_PUBLIC_LIST",
+                  sourcePolicy: "ASPEN_CHINA_EMPTY_PUBLIC_LIST_V1"
+              },
+              staticPublicList: {
+              containerSelector: ".elementor.elementor-1709",
+                  nextControlSelector: "a[rel='next'], .pagination a.next",
+                  explicitEmptyState: {
+                  selector: ".elementor.elementor-1709",
+                  pattern: "招聘|职位|岗位|警惕"
+              }
+              },
+              fields: {
+                  sourceJobId: { selector: ":scope", attribute: "href" },
+                  officialTitle: { selector: ":scope" },
+                  officialUrl: { selector: ":scope", attribute: "href" },
+                  locationRaw: { value: "中国" }
+              }
           }
       }
     },

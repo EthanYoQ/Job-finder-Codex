@@ -1,0 +1,670 @@
+name: Production image
+
+on:
+  push:
+    branches:
+      - main
+      - qualification/launch-cohort-round-1
+      - qualification/launch-cohort-round-2
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  clean-build-and-smoke:
+    runs-on: ubuntu-24.04
+    timeout-minutes: ${{ startsWith(github.ref, 'refs/heads/qualification/launch-cohort-round-') && 360 || 30 }}
+    env:
+      IMAGE_TAG: job-finder:${{ github.sha }}
+      # Hard deployment budget. Evidence capture may run first, but qualification never crosses this gate.
+      MAX_IMAGE_BYTES: 1600000000
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 22.23.1
+          cache: npm
+
+      - run: npm ci
+
+      - name: Resolve Launch Cohort qualification round
+        if: >-
+          github.ref == 'refs/heads/qualification/launch-cohort-round-1' ||
+          github.ref == 'refs/heads/qualification/launch-cohort-round-2'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          mkdir -p .runtime/formal-input .runtime/formal-state .runtime/formal-work .runtime/formal-runner-status
+          if test "${GITHUB_REF_NAME}" = qualification/launch-cohort-round-1; then
+            echo 'FORMAL_ROUND=1' >> "$GITHUB_ENV"
+          elif test "${GITHUB_REF_NAME}" = qualification/launch-cohort-round-2; then
+            RUNS="$(gh run list --repo "$GITHUB_REPOSITORY" \
+              --branch qualification/launch-cohort-round-1 --commit "$GITHUB_SHA" --status success --limit 20 \
+              --json databaseId,createdAt,headSha,conclusion,workflowName,event)"
+            ROUND_ONE_RUN_ID="$(printf '%s' "$RUNS" | jq -er --arg sha "$GITHUB_SHA" \
+              '[.[] | select(.workflowName == "Production image" and
+                (.event == "push" or .event == "workflow_dispatch") and
+                .conclusion == "success" and .headSha == $sha)] | sort_by(.createdAt) | last.databaseId')"
+            test -n "$ROUND_ONE_RUN_ID"
+            gh run download "$ROUND_ONE_RUN_ID" --repo "$GITHUB_REPOSITORY" \
+              --name "launch-cohort-round-one-${{ github.sha }}" --dir .runtime/formal-input
+            gunzip --stdout .runtime/formal-input/round-one-qualified-image.tar.gz | docker load >/dev/null
+            EXPECTED_IMAGE_DIGEST="$(node -p \
+              "JSON.parse(require('fs').readFileSync(process.argv[1],'utf8')).imageDigest" \
+              .runtime/formal-input/round-one-image-qualification-receipt.json)"
+            test "$(docker image inspect --format '{{.Id}}' "$IMAGE_TAG")" = "$EXPECTED_IMAGE_DIGEST"
+            echo 'FORMAL_ROUND=2' >> "$GITHUB_ENV"
+            echo 'REUSE_LAUNCH_COHORT_IMAGE=1' >> "$GITHUB_ENV"
+            echo "ROUND_ONE_RUN_ID=$ROUND_ONE_RUN_ID" >> "$GITHUB_ENV"
+          else
+            exit 2
+          fi
+      - name: Export commit-bound Docker provenance
+        run: |
+          npm run docker:export-provenance
+          SOURCE_TREE_SHA256="$(npx tsx -e "import { canonicalSourceTreeSha256 } from './src/readiness/buildIdentity.ts'; process.stdout.write(canonicalSourceTreeSha256(process.cwd()))")"
+          echo "SOURCE_TREE_SHA256=$SOURCE_TREE_SHA256" >> "$GITHUB_ENV"
+      - run: npm run image:context-check
+      - run: npm run image:runtime-contract-check
+
+      - name: Build from a clean context
+        if: env.REUSE_LAUNCH_COHORT_IMAGE != '1'
+        run: >-
+          docker build --platform linux/amd64 --pull --no-cache
+          --build-arg BUILD_COMMIT_SHA=${{ github.sha }}
+          --build-arg BUILD_SOURCE_CLEAN=true
+          --build-arg BUILD_SOURCE_TREE_SHA256="$SOURCE_TREE_SHA256"
+          --tag "$IMAGE_TAG" .
+
+      - name: Enforce runtime identity and image size
+        run: |
+          IMAGE_USER="$(docker image inspect --format '{{.Config.User}}' "$IMAGE_TAG")"
+          IMAGE_REVISION="$(docker image inspect --format '{{index .Config.Labels "org.opencontainers.image.revision"}}' "$IMAGE_TAG")"
+          IMAGE_BYTES="$(docker image inspect --format '{{.Size}}' "$IMAGE_TAG")"
+          printf 'runtime_user=%s\nrevision=%s\nimage_bytes=%s\nmax_image_bytes=%s\n' "$IMAGE_USER" "$IMAGE_REVISION" "$IMAGE_BYTES" "$MAX_IMAGE_BYTES"
+          test "$IMAGE_USER" = "node"
+          test "$IMAGE_REVISION" = "${{ github.sha }}"
+          mkdir -p .runtime
+          printf '%s\n' "$IMAGE_BYTES" > .runtime/image-bytes.txt
+          test "$(docker image inspect --format '{{.Architecture}}' "$IMAGE_TAG")" = "amd64"
+          docker run --rm --entrypoint sh "$IMAGE_TAG" -c \
+            'test ! -e /usr/local/lib/node_modules/npm && ! command -v npm && ! command -v npx'
+          mkdir -p .runtime/security
+          docker run --rm --read-only --cap-drop ALL --security-opt no-new-privileges:true \
+            --tmpfs /tmp:rw,nosuid,nodev,noexec,size=1g,mode=1777 --entrypoint node "$IMAGE_TAG" \
+            node_modules/tsx/dist/cli.mjs scripts/browser-runtime-smoke.mjs \
+            > .runtime/security/browser-runtime-raw.json
+          IMAGE_DIGEST="$(docker image inspect --format '{{.Id}}' "$IMAGE_TAG")"
+          curl --fail --silent --show-error \
+            -H 'Accept: application/vnd.github+json' \
+            -H 'Authorization: Bearer ${{ github.token }}' \
+            https://api.github.com/repos/brave/brave-browser/releases/tags/v1.93.136 > .runtime/security/browser-release.json
+          jq -e '.tag_name == "v1.93.136" and .draft == false and .prerelease == false and
+            ([.assets[] | select(.name == "brave-browser_1.93.136_amd64.deb" and
+            .browser_download_url == "https://github.com/brave/brave-browser/releases/download/v1.93.136/brave-browser_1.93.136_amd64.deb" and
+            .digest == "sha256:9739e5aaee4303eb4199c038b04a75d7bc7ac08314af9f763011e211dea62999")] | length == 1)' \
+            .runtime/security/browser-release.json >/dev/null
+          npx tsx scripts/bind-browser-runtime-report.ts .runtime/security/browser-runtime-raw.json \
+            "$IMAGE_DIGEST" .runtime/security/browser-release.json .runtime/security/browser-runtime-report.json
+
+      - name: Capture production lock vulnerability report
+        run: |
+          mkdir -p .runtime/security
+          npm audit --omit=dev --json > .runtime/security/npm-audit.json || test -s .runtime/security/npm-audit.json
+          npx tsx scripts/bind-npm-audit-report.ts .runtime/security/npm-audit.json package-lock.json .runtime/security/npm-audit-identity.json
+
+      - name: Scan the exact production image
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          image-ref: ${{ env.IMAGE_TAG }}
+          version: v0.70.0
+          format: json
+          output: .runtime/security/trivy-image.json
+          severity: HIGH,CRITICAL
+          ignore-unfixed: false
+          exit-code: 0
+
+      - name: Capture exact runtime exposure evidence
+        run: |
+          IMAGE_DIGEST="$(docker image inspect --format '{{.Id}}' "$IMAGE_TAG")"
+          docker run --rm --read-only --cap-drop ALL --security-opt no-new-privileges:true \
+            --tmpfs /tmp:rw,nosuid,nodev,noexec,size=1g,mode=1777 --entrypoint node "$IMAGE_TAG" \
+            scripts/runtime-exposure-probe.mjs > .runtime/security/runtime-exposure-raw.json
+          npx tsx scripts/bind-runtime-exposure-report.ts \
+            .runtime/security/runtime-exposure-raw.json .runtime/security/trivy-image.json \
+            "$IMAGE_DIGEST" .runtime/security/runtime-exposure-report.json
+
+      - name: Capture exact image size decomposition
+        run: |
+          IMAGE_DIGEST="$(docker image inspect --format '{{.Id}}' "$IMAGE_TAG")"
+          cp .runtime/image-bytes.txt .runtime/security/image-bytes.txt
+          printf 'image_digest=%s\n' "$IMAGE_DIGEST" > .runtime/security/image-size-identity.txt
+          docker history --no-trunc --human=false --format '{{json .}}' "$IMAGE_TAG" \
+            > .runtime/security/image-history.jsonl
+          docker run --rm --network none --user 0 --read-only --cap-drop ALL \
+            --cap-add DAC_READ_SEARCH \
+            --security-opt no-new-privileges:true \
+            --tmpfs /tmp:rw,nosuid,nodev,noexec,size=64m,mode=1777 \
+            --entrypoint sh "$IMAGE_TAG" -c \
+            'set -eu; du -x -B1 -d1 /app /opt /usr /var > /tmp/image-directory-bytes.txt; test -s /tmp/image-directory-bytes.txt; sort -nr /tmp/image-directory-bytes.txt' \
+            > .runtime/security/image-directory-bytes.txt
+          docker run --rm --network none --user 0 --read-only --cap-drop ALL \
+            --security-opt no-new-privileges:true \
+            --entrypoint dpkg-query "$IMAGE_TAG" -W \
+            '--showformat=${db:Status-Abbrev}\t${Installed-Size}\t${Package}\t${Version}\t${Architecture}\n' \
+            > .runtime/security/image-package-dpkg-raw.txt
+          awk -F '\t' '$1 == "ii " { if (NF != 5 || ($2 != "" && $2 !~ /^[0-9]+$/) || $3 == "" || $4 == "" || $5 == "") exit 1; size=($2 == "" ? "UNKNOWN" : $2); print size "\t" $3 "\t" $4 "\t" $5; count++ } END { if (count == 0) exit 1 }' \
+            .runtime/security/image-package-dpkg-raw.txt > .runtime/image-package-kib.installed.txt
+          LC_ALL=C sort -t $'\t' -k1,1nr -k2,2 .runtime/image-package-kib.installed.txt \
+            > .runtime/security/image-package-kib.txt
+
+      - name: Enforce reachable production vulnerability policy
+        run: |
+          IMAGE_DIGEST="$(docker image inspect --format '{{.Id}}' "$IMAGE_TAG")"
+          npm run security:production-gate -- \
+            --image-ref "$IMAGE_TAG" --image-digest "$IMAGE_DIGEST" \
+            --trivy-report .runtime/security/trivy-image.json \
+            --npm-audit-report .runtime/security/npm-audit.json \
+            --npm-audit-identity .runtime/security/npm-audit-identity.json \
+            --browser-runtime-report .runtime/security/browser-runtime-report.json \
+            --runtime-exposure-report .runtime/security/runtime-exposure-report.json \
+            --package-inventory .runtime/security/image-package-kib.txt \
+            --package-lock package-lock.json \
+            --reachability security/production-reachability.json \
+            --exceptions security/production-vulnerability-exceptions.json \
+            --output .runtime/security/production-security-receipt.json
+
+      - name: Preserve production security evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: production-security-${{ github.sha }}
+          path: .runtime/security
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Enforce recorded production image size
+        if: always()
+        run: |
+          IMAGE_BYTES="$(cat .runtime/image-bytes.txt)"
+          test "$IMAGE_BYTES" -le "$MAX_IMAGE_BYTES"
+
+      - name: Start in a blank Linux container and probe liveness
+        run: |
+          ADMIN_HASH='scrypt$aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa$bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb'
+          CONTAINER_ID="$(docker run --detach --publish 127.0.0.1:3000:3000 \
+            --env DATABASE_URL=postgresql://unused:unused@127.0.0.1:5432/unused \
+            --env ADMIN_EMAIL=owner@example.com --env ADMIN_PASSWORD_HASH="$ADMIN_HASH" "$IMAGE_TAG")"
+          trap 'docker rm --force "$CONTAINER_ID" >/dev/null 2>&1 || true' EXIT
+          for attempt in $(seq 1 30); do
+            if curl --fail --silent http://127.0.0.1:3000/livez | grep --quiet '"ok":true'; then
+              exit 0
+            fi
+            sleep 1
+          done
+          docker logs "$CONTAINER_ID"
+          exit 1
+
+      - name: Qualify TLS ingress behavior and renewal visibility
+        run: |
+          set -euo pipefail
+          NETWORK="job-finder-ingress-${{ github.run_id }}"
+          WEB_NAME="job-finder-ingress-web-${{ github.run_id }}"
+          NGINX_NAME="job-finder-ingress-nginx-${{ github.run_id }}"
+          TEST_HOST="jobs.example.test"
+          TEST_DIR="$PWD/.runtime/ingress"
+          mkdir -p "$TEST_DIR/tls"
+          chmod 0777 "$TEST_DIR"
+          cat > "$TEST_DIR/backend.mjs" <<'EOF'
+          import { existsSync } from "node:fs";
+          import { createServer } from "node:http";
+          createServer((request, response) => {
+            if (request.url === "/readyz") {
+              const ready = !existsSync("/tmp/not-ready");
+              response.writeHead(ready ? 200 : 503, { "content-type": "application/json" });
+              response.end(JSON.stringify({ ok: ready }));
+              return;
+            }
+            if (request.url === "/livez" || request.url === "/healthz") {
+              response.writeHead(200, { "content-type": "application/json" });
+              response.end('{"ok":true}');
+              return;
+            }
+            response.writeHead(200, { "content-type": "text/plain" });
+            response.end(`host=${request.headers.host};xff=${request.headers["x-forwarded-for"] ?? ""}`);
+          }).listen(3000, "0.0.0.0");
+          EOF
+          openssl req -x509 -newkey rsa:2048 -nodes -days 1 -subj "/CN=$TEST_HOST" \
+            -addext "subjectAltName=DNS:$TEST_HOST" -keyout "$TEST_DIR/tls/privkey.pem" \
+            -out "$TEST_DIR/tls/fullchain.pem" >/dev/null 2>&1
+          chmod 0640 "$TEST_DIR/tls/privkey.pem"
+          sudo chown 101:101 "$TEST_DIR/tls/privkey.pem"
+          chmod 0644 "$TEST_DIR/tls/fullchain.pem"
+          docker network create "$NETWORK"
+          trap 'docker rm --force "$NGINX_NAME" "$WEB_NAME" >/dev/null 2>&1 || true; docker network rm "$NETWORK" >/dev/null 2>&1 || true' EXIT
+          docker run --detach --name "$WEB_NAME" --network "$NETWORK" --network-alias web \
+            --volume "$TEST_DIR/backend.mjs:/tmp/backend.mjs:ro" "$IMAGE_TAG" node /tmp/backend.mjs
+          docker run --detach --name "$NGINX_NAME" --network "$NETWORK" \
+            --user 101:101 --read-only --cap-drop ALL --security-opt no-new-privileges:true \
+            --tmpfs /tmp:rw,nosuid,nodev,noexec,size=32m,mode=1777 \
+            --publish 127.0.0.1:18080:8080 --publish 127.0.0.1:18443:8443 \
+            --env PUBLIC_HOSTNAME="$TEST_HOST" --env PUBLIC_HTTPS_PORT=18443 \
+            --volume "$PWD/ops/nginx.conf:/etc/nginx/templates/default.conf.template:ro" \
+            --volume "$PWD/ops/nginx-main.conf:/etc/nginx/nginx.conf:ro" \
+            --volume "$PWD/ops/render-nginx-config.sh:/usr/local/bin/render-jobfinder-nginx-config:ro" \
+            --volume "$TEST_DIR/tls:/run/tls:ro" \
+            --entrypoint /bin/sh \
+            nginx:1.27-alpine@sha256:65645c7bb6a0661892a8b03b89d0743208a18dd2f3f17a54ef4b76fb8e2f2a10 \
+            -c "sh /usr/local/bin/render-jobfinder-nginx-config && exec nginx -c /etc/nginx/nginx.conf -g 'daemon off;'"
+          READY=0
+          for attempt in $(seq 1 30); do
+            if docker exec "$NGINX_NAME" nginx -t && curl --fail --silent --cacert "$TEST_DIR/tls/fullchain.pem" \
+              --resolve "$TEST_HOST:18443:127.0.0.1" "https://$TEST_HOST:18443/livez" | grep --quiet '"ok":true'; then
+              READY=1
+              break
+            fi
+            sleep 1
+          done
+          test "$READY" = 1
+          mkdir -p "$TEST_DIR/invalid-tls"
+          cp "$TEST_DIR/tls/fullchain.pem" "$TEST_DIR/invalid-tls/fullchain.pem"
+          openssl genrsa -out "$TEST_DIR/invalid-tls/privkey.pem" 2048 >/dev/null 2>&1
+          chmod 0640 "$TEST_DIR/invalid-tls/privkey.pem"
+          sudo chown 101:101 "$TEST_DIR/invalid-tls/privkey.pem"
+          chmod 0644 "$TEST_DIR/invalid-tls/fullchain.pem"
+          if docker run --rm --network "$NETWORK" --add-host web:127.0.0.1 \
+            --user 101:101 --read-only --cap-drop ALL --security-opt no-new-privileges:true \
+            --tmpfs /tmp:rw,nosuid,nodev,noexec,size=32m,mode=1777 \
+            --env PUBLIC_HOSTNAME="$TEST_HOST" --env PUBLIC_HTTPS_PORT=18443 \
+            --volume "$PWD/ops/nginx.conf:/etc/nginx/templates/default.conf.template:ro" \
+            --volume "$PWD/ops/nginx-main.conf:/etc/nginx/nginx.conf:ro" \
+            --volume "$PWD/ops/render-nginx-config.sh:/usr/local/bin/render-jobfinder-nginx-config:ro" \
+            --volume "$TEST_DIR/invalid-tls:/run/tls:ro" \
+            --entrypoint /bin/sh \
+            nginx:1.27-alpine@sha256:65645c7bb6a0661892a8b03b89d0743208a18dd2f3f17a54ef4b76fb8e2f2a10 \
+            -c "sh /usr/local/bin/render-jobfinder-nginx-config && exec nginx -c /etc/nginx/nginx.conf -t"; then
+            echo "nginx accepted a certificate/private-key mismatch" >&2
+            exit 1
+          fi
+          REDIRECT_HEADERS="$(curl --silent --show-error --head --header "Host: $TEST_HOST" 'http://127.0.0.1:18080/path?q=1')"
+          grep --quiet '^HTTP/1.1 308' <<<"$REDIRECT_HEADERS"
+          grep --quiet "^Location: https://$TEST_HOST:18443/path?q=1" <<<"$REDIRECT_HEADERS"
+          test "$(curl --silent --output /dev/null --write-out '%{http_code}' --header 'Host: attacker.example' http://127.0.0.1:18080/ || true)" = 000
+          test "$(curl --insecure --silent --output /dev/null --write-out '%{http_code}' \
+            --resolve 'attacker.example:18443:127.0.0.1' 'https://attacker.example:18443/' || true)" = 000
+          BODY="$(curl --fail --silent --cacert "$TEST_DIR/tls/fullchain.pem" --resolve "$TEST_HOST:18443:127.0.0.1" \
+            --header 'X-Forwarded-For: 203.0.113.9' "https://$TEST_HOST:18443/")"
+          grep --quiet "host=$TEST_HOST" <<<"$BODY"
+          ! grep --quiet 'xff=203.0.113.9' <<<"$BODY"
+          head --bytes 1048577 /dev/zero > "$TEST_DIR/oversize.bin"
+          test "$(curl --silent --output /dev/null --write-out '%{http_code}' --cacert "$TEST_DIR/tls/fullchain.pem" \
+            --resolve "$TEST_HOST:18443:127.0.0.1" --data-binary @"$TEST_DIR/oversize.bin" "https://$TEST_HOST:18443/api/test")" = 413
+          docker exec "$WEB_NAME" touch /tmp/not-ready
+          test "$(curl --silent --output /dev/null --write-out '%{http_code}' --cacert "$TEST_DIR/tls/fullchain.pem" \
+            --resolve "$TEST_HOST:18443:127.0.0.1" "https://$TEST_HOST:18443/")" = 503
+          curl --fail --silent --cacert "$TEST_DIR/tls/fullchain.pem" --resolve "$TEST_HOST:18443:127.0.0.1" \
+            "https://$TEST_HOST:18443/livez" | grep --quiet '"ok":true'
+          docker exec "$WEB_NAME" rm /tmp/not-ready
+          openssl req -x509 -newkey rsa:2048 -nodes -days 1 -subj "/CN=$TEST_HOST" \
+            -addext "subjectAltName=DNS:$TEST_HOST" -keyout "$TEST_DIR/tls/privkey.next" \
+            -out "$TEST_DIR/tls/fullchain.next" >/dev/null 2>&1
+          chmod 0640 "$TEST_DIR/tls/privkey.next"
+          sudo chown 101:101 "$TEST_DIR/tls/privkey.next"
+          chmod 0644 "$TEST_DIR/tls/fullchain.next"
+          mv -f "$TEST_DIR/tls/privkey.next" "$TEST_DIR/tls/privkey.pem"
+          mv -f "$TEST_DIR/tls/fullchain.next" "$TEST_DIR/tls/fullchain.pem"
+          docker exec "$NGINX_NAME" nginx -t
+          docker exec "$NGINX_NAME" nginx -s reload
+          RENEWED=0
+          for attempt in $(seq 1 30); do
+            if curl --fail --silent --connect-timeout 2 --max-time 3 \
+              --cacert "$TEST_DIR/tls/fullchain.pem" --resolve "$TEST_HOST:18443:127.0.0.1" \
+              "https://$TEST_HOST:18443/" | grep --quiet "host=$TEST_HOST"; then
+              RENEWED=1
+              break
+            fi
+            sleep 1
+          done
+          test "$RENEWED" = 1
+          RATE_LIMITED=0
+          for attempt in $(seq 1 12); do
+            status="$(curl --silent --output /dev/null --write-out '%{http_code}' --cacert "$TEST_DIR/tls/fullchain.pem" \
+              --resolve "$TEST_HOST:18443:127.0.0.1" "https://$TEST_HOST:18443/healthz")"
+            if test "$status" = 429; then RATE_LIMITED=1; break; fi
+          done
+          test "$RATE_LIMITED" = 1
+
+      - name: Prove production bootstrap idempotence and readiness against blank PostgreSQL
+        run: |
+          set -euo pipefail
+          NETWORK="job-finder-bootstrap-${{ github.run_id }}"
+          POSTGRES_NAME="job-finder-postgres-${{ github.run_id }}"
+          APP_NAME="job-finder-web-${{ github.run_id }}"
+          ADMIN_HASH='scrypt$aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa$bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb'
+          DATABASE_URL='postgresql://jobfinder:bootstrap-test-password@postgres/jobfinder?schema=public'
+          docker network create "$NETWORK"
+          trap 'docker rm --force "$APP_NAME" "$POSTGRES_NAME" >/dev/null 2>&1 || true; docker network rm "$NETWORK" >/dev/null 2>&1 || true' EXIT
+          docker run --detach --name "$POSTGRES_NAME" --network "$NETWORK" --network-alias postgres \
+            --env POSTGRES_DB=jobfinder --env POSTGRES_USER=jobfinder --env POSTGRES_PASSWORD=bootstrap-test-password \
+            postgres:16-bookworm@sha256:da788743d2060767375896de4d646f7576f5911461444b372616f19ea61db2ec
+          POSTGRES_READY=0
+          for attempt in $(seq 1 30); do
+            if docker exec "$POSTGRES_NAME" pg_isready -U jobfinder -d jobfinder; then POSTGRES_READY=1; break; fi
+            sleep 1
+          done
+          test "$POSTGRES_READY" = 1
+          docker run --rm --network "$NETWORK" --read-only --cap-drop ALL --security-opt no-new-privileges:true \
+            --tmpfs /tmp:rw,nosuid,nodev,noexec,size=64m,mode=1777 --env DATABASE_URL="$DATABASE_URL" \
+            "$IMAGE_TAG" node node_modules/prisma/build/index.js migrate deploy
+          docker run --rm --network "$NETWORK" --env DATABASE_URL="$DATABASE_URL" \
+            --env ADMIN_EMAIL=owner@example.com --env ADMIN_PASSWORD_HASH="$ADMIN_HASH" "$IMAGE_TAG" node node_modules/tsx/dist/cli.mjs scripts/ops-bootstrap.ts &
+          FIRST_PID=$!
+          docker run --rm --network "$NETWORK" --env DATABASE_URL="$DATABASE_URL" \
+            --env ADMIN_EMAIL=owner@example.com --env ADMIN_PASSWORD_HASH="$ADMIN_HASH" "$IMAGE_TAG" node node_modules/tsx/dist/cli.mjs scripts/ops-bootstrap.ts &
+          SECOND_PID=$!
+          wait "$FIRST_PID"
+          wait "$SECOND_PID"
+          docker run --rm --network "$NETWORK" --env DATABASE_URL="$DATABASE_URL" \
+            --env ADMIN_EMAIL=owner@example.com --env ADMIN_PASSWORD_HASH="$ADMIN_HASH" "$IMAGE_TAG" node node_modules/tsx/dist/cli.mjs scripts/ops-bootstrap.ts
+          ADMIN_COUNT="$(docker exec "$POSTGRES_NAME" psql -U jobfinder -d jobfinder -Atc 'SELECT count(*) FROM "AdminUser"')"
+          AUDIT_COUNT="$(docker exec "$POSTGRES_NAME" psql -U jobfinder -d jobfinder -Atc "SELECT count(*) FROM \"AdminAuditEvent\" WHERE action='DEPLOYMENT_ADMIN_BOOTSTRAPPED'")"
+          test "$ADMIN_COUNT" = "1"
+          test "$AUDIT_COUNT" = "1"
+          docker run --detach --name "$APP_NAME" --network "$NETWORK" --env DATABASE_URL="$DATABASE_URL" \
+            --env ADMIN_EMAIL=owner@example.com --env ADMIN_PASSWORD_HASH="$ADMIN_HASH" "$IMAGE_TAG"
+          APP_READY=0
+          for attempt in $(seq 1 30); do
+            if docker exec "$APP_NAME" node -e "fetch('http://127.0.0.1:3000/readyz').then(r=>process.exit(r.status===200?0:1)).catch(()=>process.exit(1))"; then APP_READY=1; break; fi
+            sleep 1
+          done
+          test "$APP_READY" = 1
+          docker stop "$POSTGRES_NAME"
+          APP_NOT_READY=0
+          for attempt in $(seq 1 10); do
+            if docker exec "$APP_NAME" node -e "fetch('http://127.0.0.1:3000/readyz').then(r=>process.exit(r.status===503?0:1)).catch(()=>process.exit(1))"; then APP_NOT_READY=1; break; fi
+            sleep 1
+          done
+          test "$APP_NOT_READY" = 1
+          docker start "$POSTGRES_NAME"
+          POSTGRES_READY=0
+          for attempt in $(seq 1 30); do
+            if docker exec "$POSTGRES_NAME" pg_isready -U jobfinder -d jobfinder; then POSTGRES_READY=1; break; fi
+            sleep 1
+          done
+          test "$POSTGRES_READY" = 1
+          APP_READY=0
+          for attempt in $(seq 1 30); do
+            if docker exec "$APP_NAME" node -e "fetch('http://127.0.0.1:3000/readyz').then(r=>process.exit(r.status===200?0:1)).catch(()=>process.exit(1))"; then APP_READY=1; break; fi
+            sleep 1
+          done
+          test "$APP_READY" = 1
+          docker exec "$POSTGRES_NAME" psql -U jobfinder -d jobfinder -v ON_ERROR_STOP=1 -c \
+            "INSERT INTO \"_prisma_migrations\" (id,checksum,migration_name,started_at,applied_steps_count) VALUES ('00000000-0000-0000-0000-000000000000',repeat('0',64),'99999999999999_unfinished',now(),0)"
+          sleep 2
+          docker exec "$APP_NAME" node -e "fetch('http://127.0.0.1:3000/readyz').then(r=>process.exit(r.status===503?0:1)).catch(()=>process.exit(1))"
+
+      - name: Qualify a real PostgreSQL 16 backup restore and failure receipts
+        run: |
+          set -euo pipefail
+          NETWORK="job-finder-restore-${{ github.run_id }}"
+          POSTGRES_NAME="job-finder-restore-postgres-${{ github.run_id }}"
+          DATABASE_URL='postgresql://jobfinder:restore-test-password@postgres/jobfinder'
+          ADMIN_URL='postgresql://jobfinder:restore-test-password@postgres/postgres'
+          mkdir -p .runtime/restore && chmod 0777 .runtime/restore
+          normalize_restore_receipt() {
+            receipt="$1"
+            case "$receipt" in
+              .runtime/restore/restore-pass-receipt.json|\
+              .runtime/restore/restore-failed-corrupt-receipt.json|\
+              .runtime/restore/restore-failed-version-receipt.json) ;;
+              *) return 1 ;;
+            esac
+            restore_root="$(realpath --canonicalize-existing .runtime/restore)"
+            test ! -L "$receipt"
+            test -f "$receipt"
+            test "$(stat --format=%h -- "$receipt")" = 1
+            receipt_real="$(realpath --canonicalize-existing -- "$receipt")"
+            case "$receipt_real" in "$restore_root"/*) ;; *) return 1 ;; esac
+            sudo chown --no-dereference -- "$(id -u):$(id -g)" "$receipt"
+            test ! -L "$receipt"
+            test -f "$receipt"
+            test "$(stat --format=%h -- "$receipt")" = 1
+            test "$(realpath --canonicalize-existing -- "$receipt")" = "$receipt_real"
+            chmod 0600 -- "$receipt"
+            test -r "$receipt"
+          }
+          docker network create "$NETWORK"
+          trap 'docker rm --force "$POSTGRES_NAME" >/dev/null 2>&1 || true; docker network rm "$NETWORK" >/dev/null 2>&1 || true' EXIT
+          docker run --detach --name "$POSTGRES_NAME" --network "$NETWORK" --network-alias postgres \
+            --env POSTGRES_DB=jobfinder --env POSTGRES_USER=jobfinder --env POSTGRES_PASSWORD=restore-test-password \
+            postgres:16-bookworm@sha256:da788743d2060767375896de4d646f7576f5911461444b372616f19ea61db2ec
+          READY=0
+          for attempt in $(seq 1 30); do
+            if docker exec "$POSTGRES_NAME" pg_isready -U jobfinder -d jobfinder; then READY=1; break; fi
+            sleep 1
+          done
+          test "$READY" = 1
+          docker run --rm --network "$NETWORK" --read-only --cap-drop ALL --security-opt no-new-privileges:true \
+            --tmpfs /tmp:rw,nosuid,nodev,noexec,size=64m,mode=1777 --env DATABASE_URL="$DATABASE_URL" \
+            "$IMAGE_TAG" node node_modules/prisma/build/index.js migrate deploy
+          docker exec -i "$POSTGRES_NAME" psql -U jobfinder -d jobfinder -v ON_ERROR_STOP=1 \
+            < tests/ops/fixtures/restoreQualificationEvidence.sql
+          docker run --rm --network "$NETWORK" --env DATABASE_URL="$DATABASE_URL" --env BACKUP_DIR=/backup \
+            --volume "$PWD/.runtime/restore:/backup" "$IMAGE_TAG" sh ./ops/backup.sh
+          ARCHIVE="$(find .runtime/restore -maxdepth 1 -type f -name '*.dump' -print -quit)"
+          test -n "$ARCHIVE"
+          RESTORE_EXIT=0
+          docker run --rm --network "$NETWORK" --env RESTORE_ADMIN_DATABASE_URL="$ADMIN_URL" \
+            --env RESTORE_RECEIPT_PATH=/backup/restore-pass-receipt.json --volume "$PWD/.runtime/restore:/backup" \
+            "$IMAGE_TAG" node node_modules/tsx/dist/cli.mjs scripts/qualify-backup-restore.ts "/backup/$(basename "$ARCHIVE")" || RESTORE_EXIT=$?
+          normalize_restore_receipt ".runtime/restore/restore-pass-receipt.json"
+          if test "$RESTORE_EXIT" -ne 0; then exit "$RESTORE_EXIT"; fi
+          test "$(node -p "JSON.parse(require('fs').readFileSync('.runtime/restore/restore-pass-receipt.json')).decision")" = PASSED
+          RESTORE_DATABASE_COUNT="$(docker exec "$POSTGRES_NAME" psql -U jobfinder -d postgres -Atc "SELECT count(*) FROM pg_database WHERE left(datname, 18) = 'jobfinder_restore_'")"
+          test "$RESTORE_DATABASE_COUNT" = 0
+          cp "$ARCHIVE" .runtime/restore/corrupt.dump
+          ARCHIVE_SIZE="$(stat --format=%s .runtime/restore/corrupt.dump)"
+          truncate --size="$((ARCHIVE_SIZE / 2))" .runtime/restore/corrupt.dump
+          CORRUPT_SHA="$(sha256sum .runtime/restore/corrupt.dump | cut -d' ' -f1)"
+          printf '%s  corrupt.dump\n' "$CORRUPT_SHA" > .runtime/restore/corrupt.dump.sha256
+          docker run --rm --network none --read-only --cap-drop ALL --security-opt no-new-privileges:true \
+            --volume "$PWD/.runtime/restore:/backup" "$IMAGE_TAG" node -e \
+            'const fs=require("fs"),source=process.argv[1],target=process.argv[2],value=JSON.parse(fs.readFileSync(source,"utf8"));value.archiveSha256=process.argv[3];fs.writeFileSync(target,JSON.stringify(value),{mode:0o600,flag:"wx"});' \
+            "/backup/$(basename "$ARCHIVE").metadata.json" /backup/corrupt.dump.metadata.json "$CORRUPT_SHA"
+          if docker run --rm --network "$NETWORK" --env RESTORE_ADMIN_DATABASE_URL="$ADMIN_URL" \
+            --env RESTORE_RECEIPT_PATH=/backup/restore-failed-corrupt-receipt.json --volume "$PWD/.runtime/restore:/backup" \
+            "$IMAGE_TAG" node node_modules/tsx/dist/cli.mjs scripts/qualify-backup-restore.ts /backup/corrupt.dump; then exit 1; fi
+          normalize_restore_receipt ".runtime/restore/restore-failed-corrupt-receipt.json"
+          test "$(node -p "JSON.parse(require('fs').readFileSync('.runtime/restore/restore-failed-corrupt-receipt.json')).decision")" = FAILED
+          RESTORE_DATABASE_COUNT="$(docker exec "$POSTGRES_NAME" psql -U jobfinder -d postgres -Atc "SELECT count(*) FROM pg_database WHERE left(datname, 18) = 'jobfinder_restore_'")"
+          test "$RESTORE_DATABASE_COUNT" = 0
+          cp "$ARCHIVE" .runtime/restore/incompatible.dump
+          cp "$ARCHIVE.sha256" .runtime/restore/incompatible.dump.sha256
+          sed -i "s/$(basename "$ARCHIVE")/incompatible.dump/" .runtime/restore/incompatible.dump.sha256
+          docker run --rm --network none --read-only --cap-drop ALL --security-opt no-new-privileges:true \
+            --volume "$PWD/.runtime/restore:/backup" "$IMAGE_TAG" node -e \
+            'const fs=require("fs"),source=process.argv[1],target=process.argv[2],value=JSON.parse(fs.readFileSync(source,"utf8"));value.database.serverVersionNum="150000";fs.writeFileSync(target,JSON.stringify(value),{mode:0o600,flag:"wx"});' \
+            "/backup/$(basename "$ARCHIVE").metadata.json" /backup/incompatible.dump.metadata.json
+          if docker run --rm --network "$NETWORK" --env RESTORE_ADMIN_DATABASE_URL="$ADMIN_URL" \
+            --env RESTORE_RECEIPT_PATH=/backup/restore-failed-version-receipt.json --volume "$PWD/.runtime/restore:/backup" \
+            "$IMAGE_TAG" node node_modules/tsx/dist/cli.mjs scripts/qualify-backup-restore.ts /backup/incompatible.dump; then exit 1; fi
+          normalize_restore_receipt ".runtime/restore/restore-failed-version-receipt.json"
+          test "$(node -p "JSON.parse(require('fs').readFileSync('.runtime/restore/restore-failed-version-receipt.json')).failureCode")" = VALIDATION_FAILED
+          RESTORE_DATABASE_COUNT="$(docker exec "$POSTGRES_NAME" psql -U jobfinder -d postgres -Atc "SELECT count(*) FROM pg_database WHERE left(datname, 18) = 'jobfinder_restore_'")"
+          test "$RESTORE_DATABASE_COUNT" = 0
+
+      - name: Publish exact-image qualification receipt
+        run: |
+          IMAGE_DIGEST="$(docker image inspect --format '{{.Id}}' "$IMAGE_TAG")"
+          IDENTITY_CONTAINER="$(docker create "$IMAGE_TAG")"
+          trap 'docker rm "$IDENTITY_CONTAINER" >/dev/null 2>&1 || true' EXIT
+          docker cp "$IDENTITY_CONTAINER:/app/build-identity.json" .runtime/build-identity.json
+          npx tsx scripts/write-image-qualification-receipt.ts \
+            .runtime/image-qualification-receipt.json "$IMAGE_DIGEST" "${{ github.sha }}" \
+            .runtime/build-identity.json .runtime/security/production-security-receipt.json \
+            .runtime/restore/restore-pass-receipt.json
+
+      - name: Run Launch Cohort qualification round
+        if: >-
+          github.ref == 'refs/heads/qualification/launch-cohort-round-1' ||
+          github.ref == 'refs/heads/qualification/launch-cohort-round-2'
+        run: sh ops/run-fixed-cohort-qualification.sh
+
+      - name: Select the Launch Cohort-qualified image receipt
+        if: github.ref == 'refs/heads/qualification/launch-cohort-round-2'
+        run: |
+          cp .runtime/formal-state/final-image-qualification-receipt.json .runtime/image-qualification-receipt.json
+          cp .runtime/formal-state/final-restore-receipt.json .runtime/restore/restore-pass-receipt.json
+
+      - name: Preserve Launch Cohort round-one state
+        if: always() && github.ref == 'refs/heads/qualification/launch-cohort-round-1'
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: launch-cohort-round-one-${{ github.sha }}
+          path: |
+            .runtime/formal-state/round-one.dump
+            .runtime/formal-state/round-one-audit.json
+            .runtime/formal-state/round-one-evidence.tar.gz
+            .runtime/formal-state/round-one-image-qualification-receipt.json
+            .runtime/formal-state/round-one-qualified-image.tar.gz
+            .runtime/formal-state/round-one-state-receipt.json
+          if-no-files-found: error
+          retention-days: 4
+
+      - name: Preserve Launch Cohort runner diagnostics
+        if: always() && (github.ref == 'refs/heads/qualification/launch-cohort-round-1' || github.ref == 'refs/heads/qualification/launch-cohort-round-2')
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: launch-cohort-runner-round-${{ env.FORMAL_ROUND }}-${{ github.sha }}
+          path: .runtime/formal-runner-status/*.json
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Preserve Launch Cohort final evidence
+        if: always() && github.ref == 'refs/heads/qualification/launch-cohort-round-2'
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: launch-cohort-final-${{ github.sha }}
+          path: |
+            .runtime/formal-state/round-one.dump
+            .runtime/formal-state/round-one-audit.json
+            .runtime/formal-state/round-one-evidence.tar.gz
+            .runtime/formal-state/round-one-image-qualification-receipt.json
+            .runtime/formal-state/round-one-state-receipt.json
+            .runtime/formal-state/round-two-audit.json
+            .runtime/formal-state/round-two-evidence.tar.gz
+            .runtime/formal-state/final-database-backup.tar.gz
+            .runtime/formal-state/final-restore-receipt.json
+            .runtime/formal-state/final-image-qualification-receipt.json
+            .runtime/formal-state/production-security-receipt.json
+            .runtime/formal-state/launch-receipt.json
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Preserve Launch Cohort raw backup failure evidence
+        if: failure() && github.ref == 'refs/heads/qualification/launch-cohort-round-2'
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: launch-cohort-final-backup-raw-${{ github.sha }}
+          path: |
+            .runtime/formal-state/final-backup-failure-evidence/jobfinder-*.dump
+            .runtime/formal-state/final-backup-failure-evidence/jobfinder-*.dump.sha256
+            .runtime/formal-state/final-backup-failure-evidence/jobfinder-*.dump.metadata.json
+            .runtime/formal-state/final-backup-failure-evidence/latest-backup-attempt.json
+          if-no-files-found: ignore
+          retention-days: 14
+
+      - name: Export qualified image for trusted publication
+        if: >-
+          github.event_name != 'pull_request' &&
+          (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/qualification/launch-cohort-round-2')
+        run: |
+          set -euo pipefail
+          docker save "$IMAGE_TAG" | gzip -1 > .runtime/qualified-image.tar.gz
+
+      - name: Preserve production qualification receipts
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: production-qualification-${{ github.sha }}
+          path: |
+            .runtime/image-qualification-receipt.json
+            .runtime/restore/*receipt.json
+            .runtime/formal-state/final-restore-receipt.json
+            .runtime/formal-state/production-security-receipt.json
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Preserve qualified image for trusted publication
+        if: >-
+          github.event_name != 'pull_request' &&
+          (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/qualification/launch-cohort-round-2')
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: qualified-image-${{ github.sha }}
+          path: .runtime/qualified-image.tar.gz
+          if-no-files-found: error
+          retention-days: 1
+
+  publish-qualified-image:
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+    needs: clean-build-and-smoke
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions:
+      actions: read
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - name: Install the receipt writer from the locked dependency graph
+        run: npm ci --ignore-scripts
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: qualified-image-${{ github.sha }}
+          path: .runtime
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: production-qualification-${{ github.sha }}
+          path: .runtime/qualification
+      - name: Publish and bind the qualified image manifest
+        env:
+          REGISTRY_REPOSITORY: ghcr.io/ethanyoq/job-finder-rc022-cloud-acceptance
+        run: |
+          set -euo pipefail
+          gunzip --stdout .runtime/qualified-image.tar.gz | docker load
+          LOCAL_TAG="job-finder:${GITHUB_SHA}"
+          LOCAL_CONFIG_DIGEST="$(docker image inspect --format '{{.Id}}' "$LOCAL_TAG")"
+          PUBLISHED_TAG="$REGISTRY_REPOSITORY:${GITHUB_SHA}"
+          printf '%s' "${{ github.token }}" | docker login ghcr.io --username "${{ github.actor }}" --password-stdin
+          docker tag "$LOCAL_TAG" "$PUBLISHED_TAG"
+          docker push "$PUBLISHED_TAG"
+          MANIFEST_DIGEST="$(docker buildx imagetools inspect "$PUBLISHED_TAG" --format '{{json .Manifest.Digest}}' | tr -d '"')"
+          REMOTE_CONFIG_DIGEST="$(docker buildx imagetools inspect --raw "$REGISTRY_REPOSITORY@$MANIFEST_DIGEST" | jq -r '.config.digest')"
+          test "$REMOTE_CONFIG_DIGEST" = "$LOCAL_CONFIG_DIGEST"
+          node node_modules/tsx/dist/cli.mjs scripts/write-deployment-image-receipt.ts \
+            .runtime/deployment-image-receipt.json "$REGISTRY_REPOSITORY" "$MANIFEST_DIGEST" \
+            "$LOCAL_CONFIG_DIGEST" "$GITHUB_SHA" .runtime/qualification/image-qualification-receipt.json
+          jq -r '"JOB_FINDER_IMAGE_DIGEST=" + (.manifestDigest | sub("^sha256:"; ""))' \
+            .runtime/deployment-image-receipt.json > .runtime/deployment-image.env
+          docker image rm "$LOCAL_TAG" "$PUBLISHED_TAG" >/dev/null 2>&1 || true
+          docker pull "$REGISTRY_REPOSITORY@$MANIFEST_DIGEST"
+          test "$(docker image inspect --format '{{.Id}}' "$REGISTRY_REPOSITORY@$MANIFEST_DIGEST")" = "$LOCAL_CONFIG_DIGEST"
+      - name: Preserve deployment receipt
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: production-deployment-${{ github.sha }}
+          path: |
+            .runtime/deployment-image-receipt.json
+            .runtime/deployment-image.env
+          if-no-files-found: error
+          retention-days: 14

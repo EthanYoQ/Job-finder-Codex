@@ -63,7 +63,8 @@ const plan = {
     defaultCategory: "其他"
   },
   expectedChannels: planChannels,
-  expectedChannelSetHash: expectedChannelSetHash(planChannels)
+  expectedChannelSetHash: expectedChannelSetHash(planChannels),
+  transportPolicy: { primary: "DIRECT_HTTP" }
 } satisfies SourceCrawlPlan;
 
 const company = {

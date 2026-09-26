@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
+import { createHash } from "node:crypto";
 import {
   executeAtomicSourceEvidenceCommit,
   executeManualSourceEvidenceCommit,
@@ -9,6 +10,10 @@ import {
 } from "../../src/db/ingestionRepository";
 import type { IngestionCommand } from "../../src/crawler/ingestion";
 import { canonicalStringSetSha256 } from "../../src/crawler/sourceFetchEvidence";
+import {
+  atomicEvidenceFailureCode,
+  type AtomicEvidenceFailureCode
+} from "../../src/crawler/sourceFailureDiagnostics";
 
 vi.mock("../../src/crawler/runtimeAtomicEvidence", async (importOriginal) => ({
   ...(await importOriginal<typeof import("../../src/crawler/runtimeAtomicEvidence")>()),
@@ -126,6 +131,9 @@ function validCommit(): AtomicSourceEvidenceCommit {
       ,adapterCollisionGroupCount: 0
       ,adapterReconciliationSha256: H
       ,collisionLedgerSha256: H
+      ,completenessCertificate: null
+      ,completenessCertificateSha256: null
+      ,retryReasonCodes: []
     },
     observationProvenance: {
       ...tuple,
@@ -230,6 +238,19 @@ function validCommit(): AtomicSourceEvidenceCommit {
   };
 }
 
+function retargetCommitSource(input: AtomicSourceEvidenceCommit, sourceId: string): void {
+  input.sourceResult.sourceId = sourceId;
+  input.observationProvenance.sourceId = sourceId;
+  input.artifacts.forEach((row) => { row.sourceId = sourceId; });
+  input.pagination.forEach((row) => { row.sourceId = sourceId; });
+  input.lossLedger.forEach((row) => { row.sourceId = sourceId; });
+  input.priorTransportAttempts.forEach((row) => { row.sourceId = sourceId; });
+  input.commands.forEach((command) => {
+    if (command.type === "UPSERT_JOB") command.record.sourceId = sourceId;
+    if (command.type === "UPSERT_CRAWL_OBSERVATION") command.observation.sourceId = sourceId;
+  });
+}
+
 function removeLifecycleCommands(input: AtomicSourceEvidenceCommit): void {
   input.commands=input.commands.filter(command=>command.type!=="UPSERT_JOB");
   input.sourceResult.canonicalGraceJobSetSha256=EMPTY_SET;
@@ -249,6 +270,234 @@ function markIncomplete(input: AtomicSourceEvidenceCommit): void {
   observation.observation.expectedJobCount = 2;
   observation.observation.completenessStatus = "INCOMPLETE";
   observation.observation.completenessBlockerReason = "Fetched 1 of official total 2";
+}
+
+function grifolsVerifiedScopeExclusionCommit(): AtomicSourceEvidenceCommit {
+  const input = validCommit();
+  retargetCommitSource(input, "source-grifols-china-social");
+  const tuple = {
+    releaseCandidateId: input.sourceResult.releaseCandidateId,
+    batchId: input.sourceResult.batchId,
+    sourceId: input.sourceResult.sourceId,
+    sourceResultId: input.sourceResult.id
+  };
+  input.sourceResult.rawCount = 2;
+  input.sourceResult.parsedCount = 2;
+  input.sourceResult.validCount = 1;
+  input.sourceResult.parseDiscardCount = 0;
+  input.sourceResult.validationDiscardCount = 1;
+  input.sourceResult.discardCount = 1;
+  input.sourceResult.expectedJobCount = 2;
+  input.pagination[0]!.declaredTotal = 2;
+  input.pagination[0]!.declaredCount = 2;
+  input.lossLedger = [{
+    ...tuple,
+    stage: "VALIDATION",
+    reason: "official detail places the job outside mainland China",
+    rawLocator: "grifols-detail-0001#grifols-successfactors-detail-v1|html:canonical+streetAddress+content-location",
+    details: { code: "VERIFIED_DETAIL_OUT_OF_MAINLAND_SCOPE", recordIndex: 1 }
+  }];
+  input.artifacts.push({
+    ...input.artifacts[0]!,
+    ...tuple,
+    id: "artifact-grifols-detail-1",
+    logicalKey: "grifols-detail-0001",
+    kind: "ATS_PAGE",
+    requestedUrl: "https://jobsearch.grifols.com/job/Home-Office/example/",
+    finalUrl: "https://jobsearch.grifols.com/job/Home-Office/example/",
+    sha256: H2,
+    path: "artifacts/source-grifols-china-social/grifols-detail-0001.html",
+    extractorLocator: "grifols-successfactors-detail-v1|html:canonical+streetAddress+content-location",
+    redactionCommitmentSha256: H2
+  });
+  input.observationProvenance.artifactRedactionCommitmentSha256 = canonicalStringSetSha256([H, H2]);
+  const observation = input.commands.find((command) => command.type === "UPSERT_CRAWL_OBSERVATION");
+  if (observation?.type !== "UPSERT_CRAWL_OBSERVATION") throw new Error("Expected observation fixture");
+  observation.observation.expectedJobCount = 2;
+  const collisionLedgerSha256 = sha256(canonicalJson([]));
+  input.sourceResult.collisionLedgerSha256 = collisionLedgerSha256;
+  const certificate = {
+    schemaVersion: "a-grade-official-total-v2",
+    grade: "A",
+    binding: {
+      releaseCandidateId: tuple.releaseCandidateId,
+      batchId: tuple.batchId,
+      sourceResultId: tuple.sourceResultId,
+      sourceId: tuple.sourceId,
+      sourceConfigSha256: H
+    },
+    scope: {
+      companyId: "company-grifols-china",
+      sourceId: tuple.sourceId,
+      recruitmentType: "SOCIAL",
+      geography: "MAINLAND_CHINA",
+      businessUnit: "ALL",
+      verificationPolicy: "STRICT_PLAN_BOUND_OFFICIAL_TOTAL_REPLAY_V1",
+      surfaceIds: ["surface-1"],
+      channelIds: ["channel-1"]
+    },
+    declaration: {
+      kind: "OFFICIAL_TOTAL_COUNT",
+      scope: "SOURCE",
+      artifactLogicalKey: "official",
+      artifactSha256: H,
+      extractorLocator: "$.total"
+    },
+    counts: {
+      officialTotal: 2,
+      rawObservationCount: 2,
+      rawUniqueOfficialRecordCount: 2,
+      parsedCount: 2,
+      validCount: 1,
+      normalizedCount: 1,
+      dedupeInputCount: 1,
+      legalDedupeCount: 0,
+      finalUniqueJobCount: 1,
+      parseDiscardCount: 0,
+      validationDiscardCount: 1,
+      normalizationDiscardCount: 0
+    },
+    legalDedupeLedger: [],
+    legalScopeExclusionLedger: [{
+      rawLocatorSha256: sha256("grifols-detail-0001#grifols-successfactors-detail-v1|html:canonical+streetAddress+content-location"),
+      recordIndex: 1,
+      code: "VERIFIED_DETAIL_OUT_OF_MAINLAND_SCOPE"
+    }],
+    pagination: {
+      pageCount: 1,
+      paginationTraceSha256: H,
+      canonicalRawOfficialIdSetSha256: H
+    },
+    output: {
+      canonicalJobSetSha256: CURRENT_SET,
+      adapterReconciliationSha256: H,
+      collisionLedgerSha256
+    },
+    observedAt: TO.toISOString()
+  };
+  input.sourceResult.completenessCertificate = certificate;
+  input.sourceResult.completenessCertificateSha256 = sha256(canonicalJson(certificate));
+  return input;
+}
+
+function canonicalJson(value: unknown): string {
+  if (value === null || typeof value !== "object") return JSON.stringify(value);
+  if (Array.isArray(value)) return `[${value.map(canonicalJson).join(",")}]`;
+  return `{${Object.entries(value as Record<string, unknown>).sort(([left], [right]) =>
+    Buffer.compare(Buffer.from(left, "utf8"), Buffer.from(right, "utf8")))
+    .map(([key, child]) => `${JSON.stringify(key)}:${canonicalJson(child)}`).join(",")}}`;
+}
+
+function sha256(value: string): string {
+  return createHash("sha256").update(value, "utf8").digest("hex");
+}
+
+function rocheVerifiedOfficialTotalDedupeCommit(): AtomicSourceEvidenceCommit {
+  const input = validCommit();
+  retargetCommitSource(input, "source-roche-china-social");
+  const tuple = {
+    releaseCandidateId: input.sourceResult.releaseCandidateId,
+    batchId: input.sourceResult.batchId,
+    sourceId: input.sourceResult.sourceId,
+    sourceResultId: input.sourceResult.id
+  };
+  input.sourceResult.rawCount = 2;
+  input.sourceResult.parsedCount = 2;
+  input.sourceResult.validCount = 2;
+  input.sourceResult.normalizedCount = 2;
+  input.sourceResult.dedupeInputCount = 2;
+  input.sourceResult.dedupeOutputCount = 1;
+  input.sourceResult.parseDiscardCount = 0;
+  input.sourceResult.validationDiscardCount = 0;
+  input.sourceResult.normalizationDiscardCount = 0;
+  input.sourceResult.dedupeDiscardCount = 1;
+  input.sourceResult.collisionCount = 1;
+  input.sourceResult.discardCount = 1;
+  input.sourceResult.expectedJobCount = 2;
+  input.sourceResult.adapterInputCount = 2;
+  input.sourceResult.adapterOutputCount = 1;
+  input.sourceResult.adapterLossCount = 1;
+  input.sourceResult.adapterCollisionGroupCount = 1;
+  const legalDedupeLedger = [{
+    dedupeKeySha256: H,
+    candidateKeySha256: [H, H2],
+    winnerKeySha256: H,
+    droppedCount: 1,
+    dropReason: "DUPLICATE_DEDUPE_KEY_DETERMINISTIC_WINNER"
+  }];
+  const collisionLedgerSha256 = sha256(canonicalJson(legalDedupeLedger));
+  input.sourceResult.collisionLedgerSha256 = collisionLedgerSha256;
+  const certificate = {
+    schemaVersion: "a-grade-official-total-v2",
+    grade: "A",
+    binding: {
+      releaseCandidateId: tuple.releaseCandidateId,
+      batchId: tuple.batchId,
+      sourceResultId: tuple.sourceResultId,
+      sourceId: tuple.sourceId,
+      sourceConfigSha256: H
+    },
+    scope: {
+      companyId: "company-roche-china",
+      sourceId: tuple.sourceId,
+      recruitmentType: "SOCIAL",
+      geography: "MAINLAND_CHINA",
+      businessUnit: "ALL",
+      verificationPolicy: "STRICT_PLAN_BOUND_OFFICIAL_TOTAL_REPLAY_V1",
+      surfaceIds: ["surface-1"],
+      channelIds: ["channel-1"]
+    },
+    declaration: {
+      kind: "OFFICIAL_TOTAL_COUNT",
+      scope: "SOURCE",
+      artifactLogicalKey: "official",
+      artifactSha256: H,
+      extractorLocator: "$.total"
+    },
+    counts: {
+      officialTotal: 2,
+      rawObservationCount: 2,
+      rawUniqueOfficialRecordCount: 1,
+      parsedCount: 2,
+      validCount: 2,
+      normalizedCount: 2,
+      dedupeInputCount: 2,
+      legalDedupeCount: 1,
+      finalUniqueJobCount: 1,
+      parseDiscardCount: 0,
+      validationDiscardCount: 0,
+      normalizationDiscardCount: 0
+    },
+    legalDedupeLedger,
+    pagination: {
+      pageCount: 1,
+      paginationTraceSha256: H,
+      canonicalRawOfficialIdSetSha256: H
+    },
+    output: {
+      canonicalJobSetSha256: CURRENT_SET,
+      adapterReconciliationSha256: H,
+      collisionLedgerSha256
+    },
+    observedAt: TO.toISOString()
+  };
+  input.sourceResult.completenessCertificate = certificate;
+  input.sourceResult.completenessCertificateSha256 = sha256(canonicalJson(certificate));
+  input.pagination[0]!.declaredTotal = 2;
+  input.pagination[0]!.declaredCount = 2;
+  input.lossLedger = [{
+    ...tuple,
+    stage: "DEDUPE",
+    reason: "duplicate dedupe key; deterministic winner retained",
+    rawLocator: "adapter:raw-index:1",
+    details: {},
+    candidateKey: "candidate-2",
+    winnerKey: "candidate-1"
+  }];
+  const observation = input.commands.find((command) => command.type === "UPSERT_CRAWL_OBSERVATION");
+  if (observation?.type !== "UPSERT_CRAWL_OBSERVATION") throw new Error("Expected observation fixture");
+  observation.observation.expectedJobCount = 2;
+  return input;
 }
 
 type Group = "sourceResults" | "artifacts" | "pagination" | "loss" | "priorAttempts" | "priorAttemptArtifacts" | "observations" | "jobs" | "lifecycleMembers";
@@ -314,6 +563,57 @@ function transactionalDb(failAt?: Group, sourceResultCount = 1, fenceRows: unkno
 }
 
 describe("executeAtomicSourceEvidenceCommit", () => {
+  it("commits an A-grade official total with one exactly certified deterministic dedupe", async () => {
+    const db = transactionalDb();
+    await expect(executeAtomicSourceEvidenceCommit(
+      rocheVerifiedOfficialTotalDedupeCommit(), db
+    )).resolves.toBeUndefined();
+    expect(db.calls.sourceResults).toHaveLength(1);
+    expect(db.calls.loss).toHaveLength(1);
+  });
+
+  it.each([
+    ["non-dedupe loss", (input: AtomicSourceEvidenceCommit) => { input.lossLedger[0]!.stage = "VALIDATION"; }],
+    ["missing winner", (input: AtomicSourceEvidenceCommit) => { delete input.lossLedger[0]!.winnerKey; }],
+    ["uncertified source", (input: AtomicSourceEvidenceCommit) => {
+      retargetCommitSource(input, "source-astellas-china-social");
+    }]
+  ])("rejects official-total dedupe relaxation with %s", async (_label, mutate) => {
+    const input = rocheVerifiedOfficialTotalDedupeCommit();
+    mutate(input);
+    await expect(executeAtomicSourceEvidenceCommit(input, transactionalDb())).rejects.toThrow();
+  });
+
+  it("commits the exact Grifols official total after independently verified detail-scope exclusion", async () => {
+    const db = transactionalDb();
+    await expect(executeAtomicSourceEvidenceCommit(grifolsVerifiedScopeExclusionCommit(), db)).resolves.toBeUndefined();
+    expect(db.calls.sourceResults).toHaveLength(1);
+    expect(db.calls.artifacts).toHaveLength(2);
+    expect(db.calls.loss).toHaveLength(1);
+  });
+
+  it("does not expose the Grifols scope-exclusion path to another source", async () => {
+    const input = grifolsVerifiedScopeExclusionCommit();
+    retargetCommitSource(input, "source-astellas-china-social");
+    await expect(executeAtomicSourceEvidenceCommit(input, transactionalDb())).rejects.toThrow();
+  });
+
+  it.each([
+    ["an unregistered loss code", (input: AtomicSourceEvidenceCommit) => {
+      input.lossLedger[0]!.details = { code: "OUT_OF_SCOPE", recordIndex: 1 };
+    }],
+    ["a missing detail artifact", (input: AtomicSourceEvidenceCommit) => {
+      input.artifacts = input.artifacts.filter((artifact) => artifact.logicalKey !== "grifols-detail-0001");
+      input.observationProvenance.artifactRedactionCommitmentSha256 = canonicalStringSetSha256([H]);
+    }]
+  ])("rejects Grifols-style count relaxation for %s", async (_label, mutate) => {
+    const input = grifolsVerifiedScopeExclusionCommit();
+    mutate(input);
+    await expect(executeAtomicSourceEvidenceCommit(input, transactionalDb())).rejects.toMatchObject({
+      atomicEvidencePersistenceStage: "ARTIFACT_VALIDATION"
+    });
+  });
+
   it("recognizes only an exactly matching persisted COMMITTED source result", async () => {
     const input = validCommit();
     const persisted: Record<string, unknown> = {
@@ -420,17 +720,96 @@ describe("executeAtomicSourceEvidenceCommit", () => {
     }});
   });
 
+  const failureCodeByGroup: Record<Group, string> = {
+    sourceResults: "ATOMIC_EVIDENCE_SOURCE_TERMINAL_WRITE_FAILED",
+    artifacts: "ATOMIC_EVIDENCE_ARTIFACT_WRITE_FAILED",
+    pagination: "ATOMIC_EVIDENCE_PAGINATION_WRITE_FAILED",
+    loss: "ATOMIC_EVIDENCE_LOSS_LEDGER_WRITE_FAILED",
+    priorAttempts: "ATOMIC_EVIDENCE_TRANSPORT_ATTEMPT_WRITE_FAILED",
+    priorAttemptArtifacts: "ATOMIC_EVIDENCE_TRANSPORT_ATTEMPT_WRITE_FAILED",
+    observations: "ATOMIC_EVIDENCE_OBSERVATION_WRITE_FAILED",
+    jobs: "ATOMIC_EVIDENCE_JOB_WRITE_FAILED",
+    lifecycleMembers: "ATOMIC_EVIDENCE_LIFECYCLE_WRITE_FAILED"
+  };
   for (const group of ["sourceResults", "artifacts", "pagination", "loss", "priorAttempts", "priorAttemptArtifacts", "observations", "jobs","lifecycleMembers"] as Group[]) {
     it(`rolls back every pending write when ${group} fails`, async () => {
       const input = validCommit();
       const db = transactionalDb(group);
-      await expect(executeAtomicSourceEvidenceCommit(input, db)).rejects.toThrow(`injected ${group} failure`);
+      const rejection = await executeAtomicSourceEvidenceCommit(input, db).catch((error: unknown) => error);
+      expect(rejection).toBeInstanceOf(Error);
+      expect((rejection as Error).message).toContain(`injected ${group} failure`);
+      expect(atomicEvidenceFailureCode(rejection)).toBe(failureCodeByGroup[group]);
       expect(db.calls.transactions).toBe(1);
       for (const name of ["sourceResults", "artifacts", "pagination", "loss", "priorAttempts", "priorAttemptArtifacts", "observations", "jobs","lifecycleMembers"] as Group[]) {
         expect(db.calls[name]).toEqual([]);
       }
     });
   }
+
+  it("classifies a generic failure after the transaction callback as a commit-boundary failure", async () => {
+    const inner = transactionalDb();
+    const transaction = inner.$transaction;
+    const db: PrismaAtomicSourceEvidenceDb = {
+      $transaction: async (operation, options) => {
+        await transaction(operation, options);
+        throw new Error("private deferred transaction failure");
+      }
+    };
+    const rejection = await executeAtomicSourceEvidenceCommit(validCommit(), db).catch((error: unknown) => error);
+    expect(atomicEvidenceFailureCode(rejection)).toBe("ATOMIC_EVIDENCE_TRANSACTION_COMMIT_FAILED");
+  });
+
+  const validationFailureCases: Array<[
+    string,
+    (input: AtomicSourceEvidenceCommit) => void,
+    AtomicEvidenceFailureCode
+  ]> = [
+    ["source-result truth", (input) => {
+      input.sourceResult.startedAt = new Date(TO.getTime() + 1);
+    }, "ATOMIC_EVIDENCE_SOURCE_RESULT_VALIDATION_FAILED"],
+    ["command projection", (input) => {
+      input.commands = input.commands.filter((command) => command.type !== "UPSERT_CRAWL_OBSERVATION");
+    }, "ATOMIC_EVIDENCE_COMMAND_VALIDATION_FAILED"],
+    ["artifact metadata", (input) => {
+      input.artifacts[0]!.sha256 = "invalid";
+    }, "ATOMIC_EVIDENCE_ARTIFACT_VALIDATION_FAILED"],
+    ["required completeness certificate", (input) => {
+      retargetCommitSource(input, "source-astellas-china-social");
+    }, "ATOMIC_EVIDENCE_CERTIFICATE_VALIDATION_FAILED"],
+    ["certificate and hash pairing", (input) => {
+      input.sourceResult.completenessCertificate = {};
+    }, "ATOMIC_EVIDENCE_CERTIFICATE_VALIDATION_FAILED"],
+    ["completeness certificate", (input) => {
+      retargetCommitSource(input, "source-astellas-china-social");
+      input.sourceResult.completenessCertificate = {};
+      input.sourceResult.completenessCertificateSha256 = H;
+    }, "ATOMIC_EVIDENCE_CERTIFICATE_VALIDATION_FAILED"],
+    ["pagination", (input) => {
+      input.pagination[0]!.sequence = 1;
+    }, "ATOMIC_EVIDENCE_PAGINATION_VALIDATION_FAILED"],
+    ["loss ledger", (input) => {
+      input.lossLedger = [];
+    }, "ATOMIC_EVIDENCE_LOSS_LEDGER_VALIDATION_FAILED"],
+    ["adapter reconciliation", (input) => {
+      input.sourceResult.adapterOutputCount = 0;
+    }, "ATOMIC_EVIDENCE_RECONCILIATION_VALIDATION_FAILED"],
+    ["transport attempt", (input) => {
+      input.priorTransportAttempts[0]!.sequence = 1;
+    }, "ATOMIC_EVIDENCE_TRANSPORT_ATTEMPT_VALIDATION_FAILED"],
+    ["committed evidence", (input) => {
+      input.observationProvenance.transportSucceeded = false;
+    }, "ATOMIC_EVIDENCE_COMMITTED_EVIDENCE_VALIDATION_FAILED"]
+  ];
+
+  it.each(validationFailureCases)("classifies %s before opening a transaction", async (_label, mutate, expected) => {
+    const input = validCommit();
+    mutate(input);
+    const db = transactionalDb();
+    const rejection = await executeAtomicSourceEvidenceCommit(input, db).catch((error: unknown) => error);
+    expect(rejection).toBeInstanceOf(Error);
+    expect(atomicEvidenceFailureCode(rejection)).toBe(expected);
+    expect(db.calls.transactions).toBe(0);
+  });
 
   it("rolls back all evidence when no matching PENDING row is consumed", async () => {
     const db = transactionalDb(undefined, 0);
@@ -470,12 +849,62 @@ describe("executeAtomicSourceEvidenceCommit", () => {
     await expect(executeAtomicSourceEvidenceCommit(input, transactionalDb())).resolves.toBeUndefined();
   });
 
+  it("atomically persists the J&J direct failure and browser success transport chain", async () => {
+    const input = validCommit();
+    retargetCommitSource(input, "source-johnson-innovative-medicine-social");
+    markIncomplete(input);
+    input.priorTransportAttempts[0]!.code = "JNJ_DIRECT_FAILED";
+    input.priorTransportAttempts.push({
+      ...input.priorTransportAttempts[0]!,
+      id: "attempt-2",
+      sequence: 1,
+      transport: "BROWSER_SESSION",
+      outcome: "SUCCEEDED",
+      code: "JNJ_BROWSER_SUCCEEDED",
+      capturedAt: TO
+    });
+
+    const db = transactionalDb();
+    await expect(executeAtomicSourceEvidenceCommit(input, db)).resolves.toBeUndefined();
+    expect(db.calls.priorAttempts).toEqual([
+      { data: expect.objectContaining({
+        sourceId: "source-johnson-innovative-medicine-social",
+        transport: "DIRECT_HTTP", outcome: "FAILED", code: "JNJ_DIRECT_FAILED"
+      }) },
+      { data: expect.objectContaining({
+        sourceId: "source-johnson-innovative-medicine-social",
+        transport: "BROWSER_SESSION", outcome: "SUCCEEDED", code: "JNJ_BROWSER_SUCCEEDED"
+      }) }
+    ]);
+    expect(db.calls.priorAttemptArtifacts).toHaveLength(2);
+  });
+
+  it("rejects J&J transport codes for any other source before the transaction", async () => {
+    const input = validCommit();
+    input.priorTransportAttempts[0]!.code = "JNJ_DIRECT_FAILED";
+    const db = transactionalDb();
+    await expect(executeAtomicSourceEvidenceCommit(input, db)).rejects.toThrow(/bound to the J&J China source/i);
+    expect(db.calls.transactions).toBe(0);
+  });
+
   it("rejects unknown transport-attempt codes before the transaction", async () => {
     const input = validCommit();
     (input.priorTransportAttempts[0] as { code: string }).code = "CALLER_DEFINED";
     const db = transactionalDb();
     await expect(executeAtomicSourceEvidenceCommit(input, db)).rejects.toThrow(/attempt code/i);
     expect(db.calls.transactions).toBe(0);
+  });
+
+  it("rejects transport-attempt codes paired with the wrong transport or outcome", async () => {
+    const wrongTransport = validCommit();
+    wrongTransport.priorTransportAttempts[0]!.transport = "BROWSER_SESSION";
+    await expect(executeAtomicSourceEvidenceCommit(wrongTransport, transactionalDb())).rejects.toThrow(/inconsistent/i);
+
+    const wrongSuccess = validCommit();
+    wrongSuccess.priorTransportAttempts[0]!.code = "HCM_BROWSER_SUCCEEDED";
+    wrongSuccess.priorTransportAttempts[0]!.outcome = "SUCCEEDED";
+    wrongSuccess.priorTransportAttempts[0]!.transport = "DIRECT_HTTP";
+    await expect(executeAtomicSourceEvidenceCommit(wrongSuccess, transactionalDb())).rejects.toThrow(/inconsistent/i);
   });
 
   it("rejects a prior transport attempt with zero artifact references", async () => {
@@ -759,6 +1188,7 @@ describe("executeAtomicSourceEvidenceCommit", () => {
 
   it("commits NEEDS_MANUAL_COMPLETENESS_REVIEW with blocker and preserved evidence", async () => {
     const input = validCommit();
+    retargetCommitSource(input, "source-gsk-china-social");
     input.sourceResult.completenessState = "NEEDS_MANUAL_COMPLETENESS_REVIEW";
     input.sourceResult.blockerCode = "MANUAL_ORACLE_REQUIRED";
     input.sourceResult.blockerReason = "Official response has no trustworthy declared total";
@@ -789,6 +1219,9 @@ describe("executeAtomicSourceEvidenceCommit", () => {
     ["COMMITTED adapter failure", (x: AtomicSourceEvidenceCommit) => { x.sourceResult.adapterState = "FAILED"; }],
     ["COMMITTED failure code", (x: AtomicSourceEvidenceCommit) => { x.sourceResult.failureCode = "SHOULD_BE_NULL"; }],
     ["VERIFIED blocker", (x: AtomicSourceEvidenceCommit) => { x.sourceResult.blockerCode = "SHOULD_BE_NULL"; }],
+    ["VERIFIED GSK without A-grade certificate", (x: AtomicSourceEvidenceCommit) => {
+      x.sourceResult.sourceId = "source-gsk-china-social";
+    }],
     ["INCOMPLETE missing blocker", (x: AtomicSourceEvidenceCommit) => {
       x.sourceResult.completenessState = "INCOMPLETE";
       x.sourceResult.blockerCode = null;
@@ -808,7 +1241,7 @@ describe("executeAtomicSourceEvidenceCommit", () => {
       }
     }]
   ] as const) {
-    rejectsBeforeTransaction(`rejects ${name}`, mutate, /COMMITTED|VERIFIED|blocker|terminal/i);
+    rejectsBeforeTransaction(`rejects ${name}`, mutate, /COMMITTED|VERIFIED|blocker|terminal|certificate/i);
   }
 });
 
@@ -894,10 +1327,14 @@ describe.runIf(Boolean(process.env.TASK3B_CLONE_DATABASE_URL))("Task3B real clon
          FROM pg_trigger WHERE tgname='CrawlBatchSourceResult_verified_lifecycle_projection' AND NOT tgisinternal`);
       expect(sourceTrigger).toMatchObject({deferrable:true,initiallyDeferred:true});
       expect(sourceTrigger?.definition).toMatch(/DEFERRABLE INITIALLY DEFERRED/);
-      const source=await prisma.recruitmentSource.findFirstOrThrow({include:{company:true}});const rc="task3b-runtime-rc";
+      const company=await prisma.company.upsert({where:{officialChineseName:"Grifols runtime fixture"},update:{},create:{id:"company-grifols-runtime",officialChineseName:"Grifols runtime fixture",officialWebsiteUrl:"https://www.grifols.com/",pinyinName:"grifols-runtime",inclusionReason:"real PostgreSQL atomic evidence test"}});
+      const source=await prisma.recruitmentSource.upsert({where:{id:"source-task3b-runtime"},update:{},create:{id:"source-task3b-runtime",companyId:company.id,kind:"SOCIAL",atsKind:"OFFICIAL_JSON",officialEntryUrl:"https://example.test/jobs",officialChainEvidenceUrl:"https://example.test/careers",status:"VERIFIED_SCRAPABLE"}});const rc="task3b-runtime-rc";
+      const grifolsSource=await prisma.recruitmentSource.upsert({where:{id:"source-grifols-china-social"},update:{},create:{id:"source-grifols-china-social",companyId:company.id,kind:"SOCIAL",atsKind:"SUCCESSFACTORS",officialEntryUrl:"https://jobsearch.grifols.com/",officialChainEvidenceUrl:"https://www.grifols.com/en/careers",status:"VERIFIED_SCRAPABLE"}});
+      const rocheCompany=await prisma.company.upsert({where:{officialChineseName:"Roche runtime fixture"},update:{},create:{id:"company-roche-china",officialChineseName:"Roche runtime fixture",officialWebsiteUrl:"https://www.roche.com/",pinyinName:"roche-runtime",inclusionReason:"real PostgreSQL certified dedupe test"}});
+      const rocheSource=await prisma.recruitmentSource.upsert({where:{id:"source-roche-china-social"},update:{},create:{id:"source-roche-china-social",companyId:rocheCompany.id,kind:"SOCIAL",atsKind:"OFFICIAL_JSON",officialEntryUrl:"https://careers.roche.com/cn/zh/search-results",officialChainEvidenceUrl:"https://careers.roche.com/cn/zh/mainland-china-jobs",status:"VERIFIED_SCRAPABLE"}});
       await prisma.releaseCandidate.create({data:{id:rc,goalId:"task3b-runtime",version:1,commitSha:"1".repeat(40),sourceTreeHash:H,runtimeTreeHash:H,dbSnapshotHash:H,schemaHash:H,migrationVersion:"task3b",rosterHash:H,sourcePlanHash:H,sourceConfigHash:H,adapterBundleHash:H,oracleVersion:"task3b",status:"BUILDING"}});
-      const prepare=async(batchId:string,resultId:string)=>createBatchWithPendingSourceResults({batch:{id:batchId,releaseCandidateId:rc,commitSha:"1".repeat(40),rosterSha256:H,sourcePlanSha256:H,sourceConfigSha256:H,adapterBundleSha256:H,kind:"FULL_RELEASE",plannedSourceIds:[source.id],plannedSourceSetSha256:canonicalStringSetSha256([source.id]),plannedSourceCount:1,ownerId:"task3b",heartbeatAt:FROM,startedAt:FROM},sources:[{id:resultId,sourceId:source.id,sourceConfigHash:H,adapterVersion:"adapter@1",officialEntryId:"entry-1",officialSurfaceIds:["surface-1"],officialChannelIds:["channel-1"],startedAt:FROM}]},prisma as never);
-      const adapt=(batchId:string,resultId:string,suffix:string)=>{const x=validCommit();x.sourceResult={...x.sourceResult,id:resultId,batchId,releaseCandidateId:rc,sourceId:source.id};x.observationProvenance={...x.observationProvenance,batchId,releaseCandidateId:rc,sourceId:source.id,sourceResultId:resultId};x.artifacts=x.artifacts.map(a=>({...a,id:`artifact-${suffix}`,path:`artifacts/${suffix}.json`,batchId,releaseCandidateId:rc,sourceId:source.id,sourceResultId:resultId}));x.pagination=x.pagination.map(p=>({...p,batchId,releaseCandidateId:rc,sourceId:source.id,sourceResultId:resultId}));x.lossLedger=x.lossLedger.map(v=>({...v,batchId,releaseCandidateId:rc,sourceId:source.id,sourceResultId:resultId}));x.priorTransportAttempts=x.priorTransportAttempts.map(v=>({...v,id:`attempt-${suffix}`,artifactIds:[`artifact-${suffix}`],batchId,releaseCandidateId:rc,sourceId:source.id,sourceResultId:resultId}));x.commands=x.commands.map(c=>c.type==="UPSERT_JOB"?{...c,record:{...c.record,companyId:source.companyId,sourceId:source.id}}:{...c,observation:{...c.observation,sourceId:source.id}});return x};
+      const prepare=async(batchId:string,resultId:string,target=source)=>createBatchWithPendingSourceResults({batch:{id:batchId,releaseCandidateId:rc,commitSha:"1".repeat(40),rosterSha256:H,sourcePlanSha256:H,sourceConfigSha256:H,adapterBundleSha256:H,kind:"FULL_RELEASE",plannedSourceIds:[target.id],plannedSourceSetSha256:canonicalStringSetSha256([target.id]),plannedSourceCount:1,ownerId:"task3b",heartbeatAt:FROM,startedAt:FROM},sources:[{id:resultId,sourceId:target.id,sourceConfigHash:H,adapterVersion:"adapter@1",officialEntryId:"entry-1",officialSurfaceIds:["surface-1"],officialChannelIds:["channel-1"],startedAt:FROM}]},prisma as never);
+      const adapt=(batchId:string,resultId:string,suffix:string,input:AtomicSourceEvidenceCommit=validCommit(),target=source)=>{const x=input;const artifactIds=new Map(x.artifacts.map(a=>[a.id,`artifact-${suffix}-${a.logicalKey}`]));x.sourceResult={...x.sourceResult,id:resultId,batchId,releaseCandidateId:rc,sourceId:target.id};x.observationProvenance={...x.observationProvenance,batchId,releaseCandidateId:rc,sourceId:target.id,sourceResultId:resultId};x.artifacts=x.artifacts.map(a=>({...a,id:artifactIds.get(a.id)!,path:`artifacts/${suffix}/${a.logicalKey}`,batchId,releaseCandidateId:rc,sourceId:target.id,sourceResultId:resultId}));x.pagination=x.pagination.map(p=>({...p,batchId,releaseCandidateId:rc,sourceId:target.id,sourceResultId:resultId}));x.lossLedger=x.lossLedger.map(v=>({...v,batchId,releaseCandidateId:rc,sourceId:target.id,sourceResultId:resultId}));x.priorTransportAttempts=x.priorTransportAttempts.map(v=>({...v,id:`attempt-${suffix}`,artifactIds:v.artifactIds.map(id=>artifactIds.get(id)!),batchId,releaseCandidateId:rc,sourceId:target.id,sourceResultId:resultId}));x.commands=x.commands.map(c=>c.type==="UPSERT_JOB"?{...c,record:{...c.record,companyId:target.companyId,sourceId:target.id}}:{...c,observation:{...c.observation,sourceId:target.id}});if(x.sourceResult.completenessCertificate&&typeof x.sourceResult.completenessCertificate==="object"&&!Array.isArray(x.sourceResult.completenessCertificate)){const prior=x.sourceResult.completenessCertificate as Record<string,any>;const certificate={...prior,binding:{...prior.binding,releaseCandidateId:rc,batchId,sourceResultId:resultId,sourceId:target.id}};x.sourceResult.completenessCertificate=certificate;x.sourceResult.completenessCertificateSha256=sha256(canonicalJson(certificate));}return x};
       await prepare("task3b-runtime-ok","task3b-runtime-result-ok");await executeAtomicSourceEvidenceCommit(adapt("task3b-runtime-ok","task3b-runtime-result-ok","ok"),prisma as never);
       expect(await prisma.lifecycleSetEvidenceMember.count({where:{sourceResultId:"task3b-runtime-result-ok"}})).toBe(2);
       await prepare("task3b-runtime-fail","task3b-runtime-result-fail");const before=await prisma.crawlObservation.count({where:{sourceResultId:"task3b-runtime-result-fail"}});
@@ -919,6 +1356,17 @@ describe.runIf(Boolean(process.env.TASK3B_CLONE_DATABASE_URL))("Task3B real clon
       expect(await prisma.evidenceArtifact.count({where:{sourceResultId:"task3b-runtime-result-wrong-hash"}})).toBe(0);
       expect(await prisma.lifecycleSetEvidenceMember.count({where:{sourceResultId:"task3b-runtime-result-wrong-hash"}})).toBe(0);
       expect((await prisma.crawlBatchSourceResult.findUniqueOrThrow({where:{id:"task3b-runtime-result-wrong-hash"}})).atomicCommitState).toBe("PENDING");
+      await prepare("task3b-runtime-grifols","task3b-runtime-result-grifols",grifolsSource);
+      await expect(executeAtomicSourceEvidenceCommit(adapt(
+        "task3b-runtime-grifols","task3b-runtime-result-grifols","grifols",grifolsVerifiedScopeExclusionCommit(),grifolsSource
+      ),prisma as never)).resolves.toBeUndefined();
+      expect((await prisma.crawlBatchSourceResult.findUniqueOrThrow({where:{id:"task3b-runtime-result-grifols"}})).atomicCommitState).toBe("COMMITTED");
+      await prepare("task3b-runtime-roche","task3b-runtime-result-roche",rocheSource);
+      await expect(executeAtomicSourceEvidenceCommit(adapt(
+        "task3b-runtime-roche","task3b-runtime-result-roche","roche",
+        rocheVerifiedOfficialTotalDedupeCommit(),rocheSource
+      ),prisma as never)).resolves.toBeUndefined();
+      expect((await prisma.crawlBatchSourceResult.findUniqueOrThrow({where:{id:"task3b-runtime-result-roche"}})).atomicCommitState).toBe("COMMITTED");
     }finally{await prisma.$disconnect()}
   });
 });

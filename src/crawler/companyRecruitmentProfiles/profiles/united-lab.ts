@@ -1,5 +1,6 @@
 import type { CompanyRecruitmentProfileSeed } from "../types";
 import { OFFICIAL_API_JSON_CONFIG } from "../shared";
+import { RECENT_JOB_WINDOW_DAYS } from "../../../domain/jobRecencyPolicy";
 
 export const profile_united_lab = {
   companyId: "company-united-lab",
@@ -12,6 +13,7 @@ export const profile_united_lab = {
           transientRetryPolicy: { maxRetries: 1, backoffMs: 10_000 },
           officialJsonFetch: {
               kind: "beisen-zhiye-2022",
+              changedWithinDays: RECENT_JOB_WINDOW_DAYS,
               geographyScope: "DOMESTIC_OFFICIAL_TENANT",
               category: "1",
               pageSize: 100,

@@ -397,8 +397,7 @@ export async function runStagedCrawlOperation(
 }
 
 function isOperationallySuccessfulScheduledBatch(batch: StagedScheduledCrawlResult["batch"]): boolean {
-  return batch.status === "SUCCESS" ||
-    (batch.status === "INCOMPLETE" && batch.atomicFailedSourceCount === 0);
+  return batch.status === "SUCCESS";
 }
 
 export async function runProductionStagedCrawlCli(
@@ -468,7 +467,7 @@ async function publishSummary(
 async function createProductionRuntime(force = false): Promise<StagedCrawlRuntime> {
   const [
     { PrismaClient },
-    { syncPlannedSourcesToDb },
+    { syncLaunchCohortSourcesToDb },
     { createPrismaCrawlRuntimeDeps },
     { runP0CrawlBatch },
     { createMokaSourceFetch },
@@ -518,7 +517,7 @@ async function createProductionRuntime(force = false): Promise<StagedCrawlRuntim
         fetch,
         now: () => new Date(),
         force,
-        syncPlannedSourcesToDb,
+        syncPlannedSourcesToDb: syncLaunchCohortSourcesToDb,
         createRuntimeDeps: () => runtimeDeps,
         runP0CrawlBatch
       }),

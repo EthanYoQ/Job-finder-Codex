@@ -22,6 +22,31 @@ const TEVA_ZERO_PAYLOAD = {
   query: { query: "", location: "China", department: [], skill: [], seniority: [], pid: "" },
   all_applicable_locations: []
 };
+const TEVA_REMOTE_GLOBAL_PAYLOAD = {
+  ...TEVA_ZERO_PAYLOAD,
+  positions: [
+    {
+      id: 563602813329061,
+      location: "Atlanta, Georgia, United States",
+      locations: ["Atlanta, Georgia, United States"],
+      work_location_option: "remote_global",
+      canonicalPositionUrl: "https://www.careers.teva/careers/job/563602813329061",
+      isPrivate: false
+    },
+    {
+      id: 563602813305575,
+      location: "Chicago, United States",
+      locations: ["Chicago, United States"],
+      work_location_option: "remote_global",
+      canonicalPositionUrl: "https://www.careers.teva/careers/job/563602813305575",
+      isPrivate: false
+    }
+  ],
+  count: 2,
+  location_user: ["China", "remote,China"],
+  fuzzyResultsReturned: false,
+  requestLocation: true
+};
 const htmlEncodedJson = (value: unknown): string => JSON.stringify(value).replace(/"/g, "&#34;");
 const tevaHtml = (payload: unknown = TEVA_ZERO_PAYLOAD, token = "csrf-live-token"): string =>
   `<!doctype html><html><head><meta name="_csrf" content="${token}"></head><body>` +
@@ -40,7 +65,10 @@ const tevaPlan = (entryUrl = TEVA_CHINA_CAREERS_URL, requestHeaders?: Record<str
   table: {
     ...base.table,
     ...(requestHeaders ? { requestHeaders } : {}),
-    strictEmbeddedJsonZero: { kind: "TEVA_SMARTAPPLY_CHINA" }
+    strictEmbeddedJsonZero: {
+      kind: "TEVA_SMARTAPPLY_CHINA",
+      remoteGlobalForeignExclusionPolicy: "TEVA_US_REMOTE_GLOBAL_V1"
+    }
   }
 } as SourceCrawlPlan);
 const talentResults = (overrides: Record<string, string> = {}) => {
@@ -49,6 +77,22 @@ const talentResults = (overrides: Record<string, string> = {}) => {
 };
 
 describe("official HTML fetch evidence", () => {
+  it("classifies a nested network exception without retaining upstream details", async () => {
+    const networkCause = Object.assign(new Error("private socket detail"), { code: "ECONNRESET" });
+    const result = await createHttpHtmlSourceFetch({
+      http: async () => {
+        throw new Error("private upstream response", { cause: networkCause });
+      }
+    })(base);
+
+    expect(result).toMatchObject({
+      ok: false,
+      failureReason: "Official recruitment network request failed",
+      transportFailure: { code: "OFFICIAL_NETWORK_ERROR", retryable: true }
+    });
+    expect(JSON.stringify(result)).not.toContain("private");
+  });
+
   it.each([
     [1, `<table>${row("one")}</table>`],
     [0, "<div id=\"empty\"></div>"]
@@ -272,6 +316,65 @@ describe("official HTML fetch evidence", () => {
     expect(result.html).toContain("fixed-2");
     expect(result.html).toContain("regular-1");
     expect(paginationFlags).toEqual(["False", "True", "False"]);
+  });
+
+  it("accepts the current Sanofi China job-type partition without the retired generic apprentice facet", async () => {
+    const plan = { ...base, table: { ...base.table,
+      fields: { ...base.table.fields, sourceJobId: { selector: "button", attribute: "data-job-id" } },
+      pagination: { totalPagesSelector: "#search-results", totalPagesAttribute: "data-total-pages",
+        pageSearchParam: "CurrentPage", maxPages: 25, ajaxMode: "talentbrew",
+        talentbrewScope: {
+          requiredActiveFacet: { id: "1814991", facetType: 2, descriptor: "China" },
+          allowedPartitions: [
+            { channelId: "employment-fixed-term", id: "Fixed Term (Fixed Term)", facetType: 5,
+              fieldName: "job_type", descriptor: "Fixed Term (Fixed Term)" },
+            { channelId: "employment-regular", id: "Regular", facetType: 5,
+              fieldName: "job_type", descriptor: "Regular" }
+          ],
+          excludedPartitions: [
+            { id: "Apprentice/Intern (Fixed Term)", facetType: 5,
+              fieldName: "job_type", descriptor: "Apprentice/Intern (Fixed Term)" },
+            { id: "Student (Fixed Term)", facetType: 5,
+              fieldName: "job_type", descriptor: "Student (Fixed Term)" }
+          ]
+        }
+      }
+    } } as SourceCrawlPlan;
+    const entry = `<section id="search-results" data-ajax-url="/results" data-facet-term="1814991" data-facet-type="2"
+      data-total-pages="10" data-total-job-results="141" data-records-per-page="15"></section>
+      <div id="search-filters"><div data-enabled="false"><input class="filter-checkbox" checked data-id="1814991"
+        data-facet-type="2" data-count="141" data-display="China" data-field-name="" /></div>
+      <div data-enabled="true"><input class="filter-checkbox" data-id="Apprentice/Intern (Fixed Term)" data-facet-type="5"
+        data-count="9" data-display="Apprentice/Intern (Fixed Term)" data-field-name="job_type" /></div>
+      <div data-enabled="true"><input class="filter-checkbox" data-id="Fixed Term (Fixed Term)" data-facet-type="5"
+        data-count="112" data-display="Fixed Term (Fixed Term)" data-field-name="job_type" /></div>
+      <div data-enabled="true"><input class="filter-checkbox" data-id="Regular" data-facet-type="5"
+        data-count="17" data-display="Regular" data-field-name="job_type" /></div>
+      <div data-enabled="true"><input class="filter-checkbox" data-id="Student (Fixed Term)" data-facet-type="5"
+        data-count="3" data-display="Student (Fixed Term)" data-field-name="job_type" /></div></div>`;
+    const result = await createHttpHtmlSourceFetch({ now: () => new Date("2026-07-08T00:00:00.000Z"), http: async request => {
+      if (!request.url.includes("/results")) return at(request, entry);
+      const url = new URL(request.url);
+      const display = [...url.searchParams.entries()].find(([key]) => key.endsWith(".Display") &&
+        key.startsWith("FacetFilters[1]"))?.[1];
+      // The entry-page facet badges are a cached partition-set declaration. The selected official
+      // AJAX response is the fresh same-scope denominator and currently reports 110/25.
+      const total = display === "Fixed Term (Fixed Term)" ? 110 : 25;
+      const page = Number(url.searchParams.get("CurrentPage"));
+      const prefix = display === "Regular" ? "regular" : "fixed";
+      const returned = Math.min(15, total - ((page - 1) * 15));
+      const rows = Array.from({ length: returned }, (_unused, index) => {
+        const id = `${prefix}-${page}-${index}`;
+        return `<tr class="job"><td class="title">${id}</td><td class="location">上海</td>
+          <td><a href="/${id}">详情</a><button data-job-id="${id}"></button></td></tr>`;
+      }).join("");
+      return at(request, JSON.stringify({ results: `<section id="search-results" data-current-page="${page}"
+        data-total-pages="${Math.ceil(total / 15)}" data-total-job-results="${total}" data-records-per-page="15">
+        <table>${rows}</table></section>` }), "application/json");
+    }})(plan);
+    expect(result.ok, JSON.stringify(result)).toBe(true);
+    expect(result).toMatchObject({ ok: true, completeness: { expectedJobCount: 135 },
+      paginationEvaluation: { visitedChannelIds: ["employment-fixed-term", "employment-regular"] } });
   });
 
   it("fails closed before TalentBrew AJAX when the official active geography facet drifts", async () => {
@@ -601,6 +704,40 @@ describe("official HTML fetch evidence", () => {
     expect(result).toMatchObject({ ok: true, paginationEvaluation: { safeCompleteness: true } });
   });
 
+  it("accepts the current Tupu data-action pagination declaration", async () => {
+    const plan = { ...base, source: { ...base.source, officialEntryUrl: "https://example.test/site/position/index" },
+      table: { ...base.table, pagination: { totalPagesSelector: "#pageTurnUl li:first-child", totalPagesAttribute: "data-x",
+        pageSearchParam: "offset", pageSearchParamMode: "offset", pageSize: 2, maxPages: 2, ajaxMode: "tupu360" } } } as SourceCrawlPlan;
+    let calls = 0;
+    const result = await createHttpHtmlSourceFetch({ now: () => new Date("2026-07-08T00:00:00.000Z"), http: async request => {
+      calls += 1;
+      return at(request, `<table>${row(`${calls}a`)}${row(`${calls}b`)}</table><ul id="pageTurnUl">
+        <li class="page-item disabled"><a>共2页</a></li><li class="page-item active"><a>1</a></li>
+        <li class="page-item" data-action="pageTurn" data-pagenum="2" data-pagemax="2"><a>2</a></li></ul>`);
+    }})(plan);
+    expect(calls).toBe(2);
+    expect(result).toMatchObject({ ok: true, fetchEvidence: { pages: [{ declaredCount: 2 }, { declaredCount: 2 }] },
+      paginationEvaluation: { safeCompleteness: true } });
+  });
+
+  it.each([
+    ["wrong action", "turnPage", "2"], ["non-integer page size", "pageTurn", "2.5"],
+    ["conflicting page size", "pageTurn", "3"]
+  ])("rejects Tupu data pagination with %s", async (_label, action, secondPageSize) => {
+    const plan = { ...base, source: { ...base.source, officialEntryUrl: "https://example.test/site/position/index" },
+      table: { ...base.table, pagination: { totalPagesSelector: "#pageTurnUl li:first-child", totalPagesAttribute: "data-x",
+        pageSearchParam: "offset", pageSearchParamMode: "offset", pageSize: 2, maxPages: 2, ajaxMode: "tupu360" } } } as SourceCrawlPlan;
+    let calls = 0;
+    const result = await createHttpHtmlSourceFetch({ now: () => new Date("2026-07-08T00:00:00.000Z"), http: async request => {
+      calls += 1;
+      return at(request, `<table>${row("a")}${row("b")}</table><ul id="pageTurnUl"><li>共2页</li>
+        <li data-action="${action}" data-pagenum="2" data-pagemax="2">2</li>
+        <li data-action="pageTurn" data-pagenum="3" data-pagemax="${secondPageSize}">3</li></ul>`);
+    }})(plan);
+    expect(result).toMatchObject({ ok: false, failureReason: "HTML_DECLARATION_INVALID" });
+    expect(calls).toBe(1);
+  });
+
   it.each([
     ["共2页garbage", "pageTurn(2,2.0)"],
     ["共2页", "pageTurn(2,2.0)garbage"]
@@ -821,13 +958,13 @@ describe("official HTML fetch evidence", () => {
           bodyRepresentation: "REDACTED",
           rawBodySha256: expect.stringMatching(/^[0-9a-f]{64}$/),
           redactionDescriptors: [{ kind: "CREDENTIAL_MATERIAL", count: 1 }],
-          extractorLocator: expect.stringMatching(/^#smartApplyData:strict-json:count,positions,location_used,query\.location,all_applicable_locations\|request-contract-v2\|sha256:[0-9a-f]{64}$/)
+          extractorLocator: expect.stringMatching(/^#smartApplyData:strict-json:count,positions,location_used,query\.location,all_applicable_locations:TEVA_US_REMOTE_GLOBAL_V1\|request-contract-v2\|sha256:[0-9a-f]{64}$/)
         }],
         declaredCompleteness: {
           kind: "OFFICIAL_TOTAL_COUNT",
           value: 0,
           artifactLogicalKey: "official-html-page-0000",
-          extractorLocator: expect.stringMatching(/^#smartApplyData:strict-json:count,positions,location_used,query\.location,all_applicable_locations\|request-contract-v2\|sha256:[0-9a-f]{64}$/),
+          extractorLocator: expect.stringMatching(/^#smartApplyData:strict-json:count,positions,location_used,query\.location,all_applicable_locations:TEVA_US_REMOTE_GLOBAL_V1\|request-contract-v2\|sha256:[0-9a-f]{64}$/),
           scope: "SOURCE"
         },
         pages: [{ declaredTotal: 0, termination: "EMPTY_PAGE", rawJobIds: [], validJobIds: [] }]
@@ -845,6 +982,23 @@ describe("official HTML fetch evidence", () => {
     });
   });
 
+  it("certifies Teva China local zero when every returned result is an explicitly US remote-global role", async () => {
+    const result = await createHttpHtmlSourceFetch({
+      now: () => new Date("2026-07-08T00:00:00.000Z"),
+      http: async request => at(request, tevaHtml(TEVA_REMOTE_GLOBAL_PAYLOAD))
+    })(tevaPlan());
+
+    expect(result).toMatchObject({
+      ok: true,
+      fetchEvidence: {
+        declaredCompleteness: { kind: "OFFICIAL_TOTAL_COUNT", value: 0, scope: "SOURCE" },
+        pages: [{ declaredTotal: 0, termination: "EMPTY_PAGE", rawJobIds: [], validJobIds: [] }],
+        fetchCounts: { rawCount: 0, parsedCount: 0, validCount: 0 }
+      },
+      paginationEvaluation: { safeCompleteness: true, verifiedEligible: true }
+    });
+  });
+
   it.each([
     ["wrong official URL", tevaPlan("https://www.careers.teva/careers?location=china"), tevaHtml()],
     ["multiple embedded-data elements", tevaPlan(), tevaHtml().replace("</body>", `<code id="smartApplyData">${htmlEncodedJson(TEVA_ZERO_PAYLOAD)}</code></body>`)],
@@ -855,6 +1009,17 @@ describe("official HTML fetch evidence", () => {
     ["wrong resolved location", tevaPlan(), tevaHtml({ ...TEVA_ZERO_PAYLOAD, location_used: "Remote" })],
     ["wrong query location", tevaPlan(), tevaHtml({ ...TEVA_ZERO_PAYLOAD, query: { ...TEVA_ZERO_PAYLOAD.query, location: "Remote" } })],
     ["nonempty applicable locations", tevaPlan(), tevaHtml({ ...TEVA_ZERO_PAYLOAD, all_applicable_locations: ["China"] })],
+    ["a China-located remote-global result", tevaPlan(), tevaHtml({
+      ...TEVA_REMOTE_GLOBAL_PAYLOAD,
+      positions: [{ ...TEVA_REMOTE_GLOBAL_PAYLOAD.positions[0], location: "Shanghai, China",
+        locations: ["Shanghai, China"] }],
+      count: 1
+    })],
+    ["a non-remote foreign result", tevaPlan(), tevaHtml({
+      ...TEVA_REMOTE_GLOBAL_PAYLOAD,
+      positions: [{ ...TEVA_REMOTE_GLOBAL_PAYLOAD.positions[0], work_location_option: "onsite" }],
+      count: 1
+    })],
     ["cookie-bearing request", tevaPlan(TEVA_CHINA_CAREERS_URL, { Cookie: "session=unsafe" }), tevaHtml()]
   ])("rejects Teva embedded zero when %s", async (_label, plan, body) => {
     const result = await createHttpHtmlSourceFetch({

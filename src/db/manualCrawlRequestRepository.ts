@@ -1,8 +1,6 @@
-import {
-  canonicalPhase1InScopeRosterMembers,
-  isUserAuthorizedPhase1Exclusion
-} from "../data/phase1ScopePolicy";
+import { isUserAuthorizedPhase1Exclusion } from "../data/phase1ScopePolicy";
 import { isValidManualCrawlLeaseDuration } from "../domain/manualCrawlLeasePolicy";
+import { P0_LAUNCH_MANIFEST } from "../release/launchManifest";
 
 export type ManualCrawlRequestRepositoryErrorCode =
   | "SOURCE_NOT_FOUND"
@@ -13,7 +11,8 @@ export type ManualCrawlRequestRepositoryErrorCode =
   | "OWNERSHIP_LOST"
   | "INVALID_MANUAL_BATCH"
   | "INVALID_OWNER_OR_LEASE"
-  | "UNSAFE_FAILURE_CODE";
+  | "UNSAFE_FAILURE_CODE"
+  | "AUTHORITY_UNAVAILABLE";
 
 export class ManualCrawlRequestRepositoryError extends Error {
   constructor(public readonly code: ManualCrawlRequestRepositoryErrorCode) {
@@ -95,15 +94,17 @@ export type ManualCrawlRequestDb = {
 
 export type ManualCrawlRequestRepository = ReturnType<typeof createManualCrawlRequestRepository>;
 
-const inScopeCompanyIds = new Set(canonicalPhase1InScopeRosterMembers.map(({ id }) => id));
-const canonicalInScopeCompanyIds = Object.freeze(canonicalPhase1InScopeRosterMembers.map(({ id }) => id));
+export const P0_MANUAL_CRAWL_SOURCE_IDS = Object.freeze(
+  P0_LAUNCH_MANIFEST.companies.map(({ source }) => source.sourceId)
+);
+const launchSourceIdSet: ReadonlySet<string> = new Set(P0_MANUAL_CRAWL_SOURCE_IDS);
 const safeFailureCodeSet: ReadonlySet<string> = new Set(SAFE_MANUAL_CRAWL_FAILURE_CODES);
 
 export function evaluateCanonicalManualCrawlEligibility(source: ManualCrawlSource): ManualCrawlEligibility {
   if (isUserAuthorizedPhase1Exclusion(source.companyId)) {
     return { eligible: false, code: "AUTHORIZED_EXCLUSION" };
   }
-  if (!inScopeCompanyIds.has(source.companyId)) {
+  if (!launchSourceIdSet.has(source.id)) {
     return { eligible: false, code: "OUT_OF_SCOPE" };
   }
   if (source.kind !== "SOCIAL" || source.status !== "VERIFIED_SCRAPABLE" || source.atsKind === "UNKNOWN") {
@@ -115,6 +116,8 @@ export function evaluateCanonicalManualCrawlEligibility(source: ManualCrawlSourc
 export function createManualCrawlRequestRepository(input: {
   db: ManualCrawlRequestDb;
   evaluateEligibility?: (source: ManualCrawlSource) => ManualCrawlEligibility;
+  resolveEnqueueableSourceIds?: () => Promise<readonly string[]>;
+  resolveClaimableSourceIds?: () => Promise<readonly string[]>;
 }) {
   const evaluateEligibility = input.evaluateEligibility ?? evaluateCanonicalManualCrawlEligibility;
 
@@ -126,6 +129,18 @@ export function createManualCrawlRequestRepository(input: {
       ip: string;
       userAgent: string;
     }): Promise<ManualCrawlRequestRecord> {
+      let enqueueableSourceIds: readonly string[];
+      try {
+        enqueueableSourceIds = input.resolveEnqueueableSourceIds === undefined
+          ? P0_MANUAL_CRAWL_SOURCE_IDS
+          : await input.resolveEnqueueableSourceIds();
+      } catch {
+        throw new ManualCrawlRequestRepositoryError("AUTHORITY_UNAVAILABLE");
+      }
+      const enqueueableSourceIdSet = new Set(enqueueableSourceIds);
+      if (enqueueableSourceIds.length === 0 || enqueueableSourceIdSet.size !== enqueueableSourceIds.length) {
+        throw new ManualCrawlRequestRepositoryError("AUTHORITY_UNAVAILABLE");
+      }
       try {
         return await input.db.$transaction(async (transaction) => {
           const source = await transaction.recruitmentSource.findUnique({
@@ -135,6 +150,9 @@ export function createManualCrawlRequestRepository(input: {
           if (!source) throw new ManualCrawlRequestRepositoryError("SOURCE_NOT_FOUND");
           const eligibility = evaluateEligibility(source);
           if (!eligibility.eligible) throw new ManualCrawlRequestRepositoryError(eligibility.code);
+          if (!enqueueableSourceIdSet.has(source.id)) {
+            throw new ManualCrawlRequestRepositoryError("NOT_EXECUTABLE");
+          }
 
           const created = await transaction.manualCrawlRequest.create({
             data: {
@@ -186,8 +204,14 @@ export function createManualCrawlRequestRepository(input: {
     }): Promise<ClaimedManualCrawlRequest | null> {
       assertValidLease(claim.ownerId, claim.leaseDurationMs);
       return input.db.$transaction(async (transaction) => {
+        const claimableSourceIds = input.resolveClaimableSourceIds === undefined
+          ? P0_MANUAL_CRAWL_SOURCE_IDS
+          : await input.resolveClaimableSourceIds();
+        if (claimableSourceIds.length === 0 || new Set(claimableSourceIds).size !== claimableSourceIds.length) {
+          throw new ManualCrawlRequestRepositoryError("NOT_EXECUTABLE");
+        }
         const rows = await transaction.$queryRawUnsafe<ClaimedManualCrawlRequest[]>(CLAIM_NEXT_SQL,
-          claim.ownerId, claim.leaseDurationMs, canonicalInScopeCompanyIds);
+          claim.ownerId, claim.leaseDurationMs, claimableSourceIds);
         const claimed = rows[0] ?? null;
         if (!claimed) return null;
         const reclaimed = claimed.previousStatus === "RUNNING";
@@ -272,7 +296,7 @@ WITH candidate AS (
   JOIN "RecruitmentSource" AS source ON source."id" = request."sourceId"
   WHERE (request."status" = 'QUEUED'
      OR (request."status" = 'RUNNING' AND request."leaseExpiresAt" <= clock_timestamp()))
-    AND source."companyId" = ANY($3::text[])
+    AND source."id" = ANY($3::text[])
     AND source."status" = 'VERIFIED_SCRAPABLE'
     AND source."kind" = 'SOCIAL'
     AND source."atsKind" <> 'UNKNOWN'

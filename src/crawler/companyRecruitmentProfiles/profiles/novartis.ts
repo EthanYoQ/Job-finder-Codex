@@ -24,6 +24,7 @@ export const profile_novartis = {
                   pageSearchParam: "page",
                   pageNumberOffset: -1,
                   maxPages: 20,
+                  totalPagesDeclaredOnEntryOnly: true,
                   officialWindowMode: "NOVARTIS_PAGE_WINDOW_V1"
               },
               fields: {

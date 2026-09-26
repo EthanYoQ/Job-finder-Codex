@@ -2,6 +2,12 @@ import type { SourceCrawlPlan } from "../crawler/sourcePlan";
 import type { CandidateCompany } from "../data/companyRegistry";
 import { assertExactConfirmedCompanyRosterV3 } from "../data/confirmedCompanyRosterV3";
 import { derivePhase1Scope, isUserAuthorizedPhase1Exclusion } from "../data/phase1ScopePolicy";
+import {
+  P0_LAUNCH_MANIFEST,
+  launchManifestIdentity,
+  validateLaunchBatchIdentity,
+  validateLaunchManifest
+} from "../release/launchManifest";
 
 export interface CompanyRegistrySyncResult {
   companyCount: number;
@@ -72,10 +78,31 @@ export async function syncPlannedSourcesToDb(
   companies: readonly CandidateCompany[],
   db: CompanyRegistrySyncDb
 ): Promise<CompanyRegistrySyncResult> {
+  return syncAuthoritativeSourcesToDb(plans, companies, db, "CONFIRMED_V3");
+}
+
+export async function syncLaunchCohortSourcesToDb(
+  plans: readonly SourceCrawlPlan[],
+  companies: readonly CandidateCompany[],
+  db: CompanyRegistrySyncDb
+): Promise<CompanyRegistrySyncResult> {
+  return syncAuthoritativeSourcesToDb(plans, companies, db, "LAUNCH_COHORT");
+}
+
+async function syncAuthoritativeSourcesToDb(
+  plans: readonly SourceCrawlPlan[],
+  companies: readonly CandidateCompany[],
+  db: CompanyRegistrySyncDb,
+  authority: "CONFIRMED_V3" | "LAUNCH_COHORT"
+): Promise<CompanyRegistrySyncResult> {
   const companyById = new Map(companies.map((company) => [company.id, company]));
   if (companyById.size !== companies.length) throw new Error("Supplied company roster contains duplicate ids");
-  assertExactConfirmedCompanyRosterV3(companies.map(({ id, category }) => ({ id, category })));
-  derivePhase1Scope(companies);
+  if (authority === "CONFIRMED_V3") {
+    assertExactConfirmedCompanyRosterV3(companies.map(({ id, category }) => ({ id, category })));
+    derivePhase1Scope(companies);
+  } else {
+    assertExactLaunchCohort(companies, plans);
+  }
   const orderedCompanies = [...companies].sort((left, right) => compareUtf8(left.id, right.id));
   const rosterSourceById = new Map<string, CandidateCompany["sources"][number]>();
   for (const company of orderedCompanies) {
@@ -139,8 +166,10 @@ export async function syncPlannedSourcesToDb(
       tx.company.findMany({ select: { id: true, officialChineseName: true } }),
       tx.recruitmentSource.findMany({ select: { id: true, companyId: true } })
     ]);
-    assertCompatibleExistingRows(existingCompanies, existingSources, orderedPlans);
-    await canonicalizeLegacyCompanyIds(tx, existingCompanies, orderedCompanies);
+    assertUniqueExistingRows(existingCompanies, existingSources);
+    const legacyCompanyIds = deriveLegacyCompanyIdMap(existingCompanies, orderedCompanies);
+    assertCompatibleExistingRows(existingSources, orderedPlans, legacyCompanyIds);
+    await canonicalizeLegacyCompanyIds(tx, legacyCompanyIds);
 
     let companyCount = 0;
     for (const company of orderedCompanies) {
@@ -196,55 +225,97 @@ export async function syncPlannedSourcesToDb(
   });
 }
 
-function assertCompatibleExistingRows(
-  existingCompanies: readonly { id: string; officialChineseName?: string }[],
-  existingSources: readonly { id: string; companyId: string }[],
+function assertExactLaunchCohort(
+  companies: readonly CandidateCompany[],
   plans: readonly SourceCrawlPlan[]
+): void {
+  const errors = validateLaunchManifest(P0_LAUNCH_MANIFEST, companies.map(({ id }) => id));
+  const expectedCompanies = new Map(P0_LAUNCH_MANIFEST.companies.map((company) => [company.companyId, company]));
+  if (companies.length !== expectedCompanies.size || companies.some((company) =>
+    expectedCompanies.get(company.id)?.category !== company.category)) {
+    errors.push("RUNTIME_LAUNCH_COMPANY_SET_MISMATCH");
+  }
+  const manifestIdentity = launchManifestIdentity(P0_LAUNCH_MANIFEST);
+  const expectedPlannedSourceIds = P0_LAUNCH_MANIFEST.companies.map(({ source }) => source.sourceId);
+  errors.push(...validateLaunchBatchIdentity(P0_LAUNCH_MANIFEST, {
+    batchKind: "SCHEDULED",
+    rosterSha256: manifestIdentity.companySetSha256,
+    sourcePlanSha256: manifestIdentity.sourceIdentitySha256,
+    expectedPlannedSourceIds,
+    expectedPlannedSourceCount: expectedPlannedSourceIds.length
+  }, plans));
+  if (errors.length > 0) {
+    throw new Error(`Launch Cohort registry sync rejected authority: ${errors.join(",")}`);
+  }
+}
+
+function assertUniqueExistingRows(
+  existingCompanies: readonly { id: string; officialChineseName?: string }[],
+  existingSources: readonly { id: string; companyId: string }[]
 ): void {
   const existingCompanyIds = existingCompanies.map(({ id }) => id);
   if (new Set(existingCompanyIds).size !== existingCompanyIds.length) {
     throw new Error("Existing company rows contain duplicate IDs");
   }
-  const expectedOwnerBySourceId = new Map(plans.map((plan) => [plan.source.id, plan.company.id]));
   const existingSourceIds = existingSources.map(({ id }) => id);
   if (new Set(existingSourceIds).size !== existingSourceIds.length) {
     throw new Error("Existing recruitment source rows contain duplicate IDs");
   }
+}
+
+function assertCompatibleExistingRows(
+  existingSources: readonly { id: string; companyId: string }[],
+  plans: readonly SourceCrawlPlan[],
+  legacyCompanyIds: ReadonlyMap<string, string>
+): void {
+  const expectedOwnerBySourceId = new Map(plans.map((plan) => [plan.source.id, plan.company.id]));
   for (const source of existingSources) {
     const expectedOwner = expectedOwnerBySourceId.get(source.id);
     if (!expectedOwner) continue;
-    if (source.companyId !== expectedOwner) {
+    if (source.companyId !== expectedOwner && legacyCompanyIds.get(source.companyId) !== expectedOwner) {
       throw new Error("Existing recruitment source ownership is reassociated");
     }
   }
 }
 
-async function canonicalizeLegacyCompanyIds(
-  tx: CompanyRegistrySyncWriteDb,
+function deriveLegacyCompanyIdMap(
   existingCompanies: readonly { id: string; officialChineseName?: string }[],
   companies: readonly CandidateCompany[]
-): Promise<void> {
+): ReadonlyMap<string, string> {
   const existingIds = new Set(existingCompanies.map(({ id }) => id));
-  const existingByOfficialName = new Map(
-    existingCompanies.flatMap((company) => company.officialChineseName
-      ? [[company.officialChineseName, company] as const]
-      : [])
-  );
+  const existingByOfficialName = new Map<string, Array<{ id: string; officialChineseName?: string }>>();
+  for (const company of existingCompanies) {
+    if (!company.officialChineseName) continue;
+    const matches = existingByOfficialName.get(company.officialChineseName) ?? [];
+    matches.push(company);
+    existingByOfficialName.set(company.officialChineseName, matches);
+  }
   const canonicalIds = new Set(companies.map(({ id }) => id));
+  const legacyCompanyIds = new Map<string, string>();
 
   for (const company of companies) {
     if (existingIds.has(company.id)) continue;
-    const legacyAlias = existingByOfficialName.get(company.officialChineseName);
+    const aliases = existingByOfficialName.get(company.officialChineseName) ?? [];
+    if (aliases.length > 1) throw new Error(`Ambiguous legacy company aliases: ${company.officialChineseName}`);
+    const legacyAlias = aliases[0];
     if (!legacyAlias) continue;
     if (canonicalIds.has(legacyAlias.id)) {
       throw new Error(`Canonical company id is already assigned to another roster member: ${legacyAlias.id}`);
     }
+    legacyCompanyIds.set(legacyAlias.id, company.id);
+  }
+  return legacyCompanyIds;
+}
+
+async function canonicalizeLegacyCompanyIds(
+  tx: CompanyRegistrySyncWriteDb,
+  legacyCompanyIds: ReadonlyMap<string, string>
+): Promise<void> {
+  for (const [legacyId, canonicalId] of legacyCompanyIds) {
     await tx.company.update({
-      where: { id: legacyAlias.id },
-      data: { id: company.id }
+      where: { id: legacyId },
+      data: { id: canonicalId }
     });
-    existingIds.delete(legacyAlias.id);
-    existingIds.add(company.id);
   }
 }
 

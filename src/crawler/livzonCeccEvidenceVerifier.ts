@@ -18,6 +18,8 @@ import { hasUniqueJsonObjectKeys } from "./strictJsonObjectKeys";
 const LIVZON_ORIGIN = "https://www.livzon.com.cn";
 const LIVZON_SOCIAL_INDEX_URL = `${LIVZON_ORIGIN}/Social.html`;
 const LIVZON_LIST_API_URL =
+  `${LIVZON_ORIGIN}/nportal/fwebapi/product/product/es/findPage?appId=143150160001&templateId=product`;
+const LIVZON_ROUTE_DECLARED_LIST_API_URL =
   `${LIVZON_ORIGIN}/fwebapi/product/product/es/findPage?appId=143150160001&templateId=product`;
 const LIVZON_SOCIAL_PARTITION_SELECTOR =
   "#c_product_list_041-1735488276515 .p_list > .p_loopitem .e_text-5 a[href]";
@@ -298,6 +300,7 @@ function strictLivzonConfig(plan: SourceCrawlPlan): LivzonCeccFetchConfig | unde
   const config = plan.profileBoundSource.config;
   return config.socialIndexUrl === LIVZON_SOCIAL_INDEX_URL &&
     config.listApiUrl === LIVZON_LIST_API_URL &&
+    config.routeDeclaredListApiUrl === LIVZON_ROUTE_DECLARED_LIST_API_URL &&
     config.socialPartitionSelector === LIVZON_SOCIAL_PARTITION_SELECTOR &&
     config.pageSize === 6 && config.maxPagesPerPartition === 20 &&
     samePartitions(config.auditedPartitions, CANONICAL_PARTITIONS)
@@ -405,7 +408,8 @@ function strictRouteReplay(
     rawParams._detailId !== partition.categoryId || !header || !rawQuery ||
     query.length !== rawQuery.length || query.some((value) => value === undefined) ||
     !Array.isArray(rawParams.sort) ||
-    bound[0]!.config.api !== new URL(config.listApiUrl).pathname + new URL(config.listApiUrl).search) {
+    bound[0]!.config.api !== new URL(config.routeDeclaredListApiUrl).pathname +
+      new URL(config.routeDeclaredListApiUrl).search) {
     return undefined;
   }
 

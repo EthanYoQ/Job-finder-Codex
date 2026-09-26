@@ -4,12 +4,10 @@ import { fileURLToPath } from "node:url";
 import { load } from "cheerio";
 import { describe, expect, it } from "vitest";
 import { htmlTableAdapter } from "../../src/crawler/adapters/htmlTable";
-import { createHttpHtmlSourceFetch } from "../../src/crawler/httpHtmlSourceFetch";
 import {
   buildDiscoverySourcePlanCandidates,
   buildStagedSourceCrawlPlans,
-  getPlanBySourceId,
-  type SourceCrawlPlan
+  getPlanBySourceId
 } from "../../src/crawler/sourcePlan";
 import { candidateCompanies } from "../../src/data/companyRegistry";
 
@@ -108,24 +106,6 @@ const cases: readonly StaticFixtureCase[] = [
     locationSelector: "td:nth-child(2)",
     dateSelector: "td:nth-child(5)",
     nextControlSelector: "table:has(tr.tr_title) .pagination, table:has(tr.tr_title) a[rel='next'], table:has(tr.tr_title) [data-page]"
-  },
-  {
-    sourceId: "source-otsuka-china-social-2",
-    fixture: "otsuka-group.html",
-    sourceUrl: "https://www.otsuka.com.cn/join-us/index.html",
-    capturedAt: "2026-07-13T18:48:16.998Z",
-    fullBodyByteCount: 20799,
-    fullBodySha256: "fcdd871bba7290bc34c5b4d3f403c9d9434c2143d6bd02b97ecfa2ac84ebec6e",
-    expectedCount: 2,
-    expectedJobs: [
-      { title: "SSC IT高级经理", location: "中国上海" },
-      { title: "SSC运营经理", location: "中国上海" }
-    ],
-    containerSelector: ".join-list",
-    rowSelector: ".join-list > .join-item",
-    titleSelector: ".table-td .career-title",
-    locationSelector: ".table-td .col2",
-    nextControlSelector: ".join-list .pagination, .join-list a[rel='next'], .join-list [data-page]"
   },
   {
     sourceId: "source-grand-pharma-social",
@@ -286,63 +266,17 @@ describe("sanitized exact static official source fixtures", () => {
     ]);
   });
 
-  it("keeps the empty Otsuka subsidiary container noncertifying and non-executable", async () => {
-    const sourceId = "source-otsuka-china-social";
-    expect(getPlanBySourceId(discoveryPlans, sourceId)).toBeUndefined();
-    expect(getPlanBySourceId(stagedPlans, sourceId)).toBeUndefined();
-
-    const html = readFileSync(resolve(fixtureDirectory, "otsuka-subsidiary-empty.html"), "utf8");
-    expect(html).toContain("captured-at=\"2026-07-13T18:48:18.665Z\"");
-    expect(html).toContain("full-body-sha256=\"324e9a5716d3e440e87e72ab51c7b1a7ffeb733f3a1385469fc4ea58ebb393e4\"");
-    const $ = load(html);
-    expect($(".positionBox")).toHaveLength(1);
-    expect($(".positionBox > ul.clear")).toHaveLength(1);
-    expect($(".positionBox > ul.clear > li")).toHaveLength(0);
-    expect(normalizedText($(".positionBox").text())).toBe("");
-
-    const company = candidateCompanies.find((candidate) =>
-      candidate.sources.some((source) => source.id === sourceId));
-    const source = company?.sources.find((candidate) => candidate.id === sourceId);
-    if (!company || !source?.atsKind || !source.officialEntryUrl || !source.officialChainEvidenceUrl) {
-      throw new Error("missing canonical Otsuka subsidiary source");
-    }
-    const nonCanonicalProbe: SourceCrawlPlan = {
+  it("executes the current Otsuka subsidiary job-list source and leaves the group information page pending", () => {
+    const active = getPlanBySourceId(stagedPlans, "source-otsuka-china-social");
+    expect(active).toMatchObject({
       adapterId: "html-table",
-      company: { id: company.id, officialChineseName: company.officialChineseName },
       source: {
-        id: source.id,
-        companyId: source.companyId,
-        kind: source.kind,
-        atsKind: source.atsKind,
-        status: source.status,
-        officialEntryUrl: source.officialEntryUrl,
-        officialChainEvidenceUrl: source.officialChainEvidenceUrl,
-        ...(source.surfaceId ? { surfaceId: source.surfaceId } : {})
+        officialEntryUrl: "https://chinaotsuka.com.cn/class/26",
+        status: "VERIFIED_SCRAPABLE"
       },
-      table: {
-        rowSelector: ".positionBox > ul.clear > li",
-        staticPublicList: {
-          containerSelector: ".positionBox",
-          nextControlSelector: ".positionBox .pagination, .positionBox a[rel='next'], .positionBox [data-page]"
-        },
-        fields: {
-          officialTitle: { selector: ".title" },
-          officialUrl: { value: source.officialEntryUrl },
-          locationRaw: { selector: ".location" }
-        }
-      }
-    };
-    const result = await createHttpHtmlSourceFetch({
-      now: () => new Date("2026-07-13T18:48:18.000Z"),
-      http: async (request) => ({
-        status: 200,
-        body: html,
-        finalUrl: request.url,
-        contentType: "text/html;charset=utf-8",
-        capturedAt: "2026-07-13T18:48:18.665Z"
-      })
-    })(nonCanonicalProbe);
-    expect(result).toMatchObject({ ok: false, failureReason: "HTML_STATIC_PUBLIC_LIST_INVALID" });
-    expect(result.fetchEvidence).not.toHaveProperty("declaredCompleteness");
+      table: { completenessProof: { kind: "STATIC_PUBLIC_LIST" } }
+    });
+    expect(getPlanBySourceId(discoveryPlans, "source-otsuka-china-social-2")).toBeUndefined();
+    expect(getPlanBySourceId(stagedPlans, "source-otsuka-china-social-2")).toBeUndefined();
   });
 });

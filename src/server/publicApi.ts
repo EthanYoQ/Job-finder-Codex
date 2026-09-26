@@ -104,7 +104,15 @@ export async function handlePublicApi(request: PublicApiRequest, deps: PublicApi
     };
   }
 
-  if (request.path === "/healthz") {
+  if (request.path === "/livez") {
+    return {
+      status: 200,
+      headers: { ...headers, "content-type": "application/json; charset=utf-8" },
+      body: { ok: true }
+    };
+  }
+
+  if (request.path === "/readyz" || request.path === "/healthz") {
     const ok = await getBoundedDatabaseReadiness(deps);
     return {
       status: ok ? 200 : 503,

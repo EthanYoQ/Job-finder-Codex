@@ -94,7 +94,7 @@ function routeHtml(
   };
   const embeddedConfig = escapeAttribute(JSON.stringify({
     params,
-    api: new URL(config.listApiUrl).pathname + new URL(config.listApiUrl).search
+    api: new URL(config.routeDeclaredListApiUrl).pathname + new URL(config.routeDeclaredListApiUrl).search
   }));
   const pageParams = escapeAttribute(JSON.stringify({
     size: config.pageSize,

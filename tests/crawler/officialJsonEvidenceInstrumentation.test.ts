@@ -480,6 +480,34 @@ describe("Official JSON Innovent/Novo evidence instrumentation", () => {
     });
   });
 
+  it("marks a Novo network failure as retryable without retaining the raw error", async () => {
+    const fetcher = createOfficialJsonSourceFetch({
+      now: () => new Date(capturedAt),
+      http: async () => {
+        throw Object.assign(new Error("socket reset apiKey=abc123"), { code: "ECONNRESET" });
+      }
+    });
+    await expect(fetcher(plan("novo-nordisk"))).resolves.toMatchObject({
+      ok: false,
+      capturedAt,
+      failureReason: "Official recruitment network request failed",
+      transportFailure: { code: "OFFICIAL_NETWORK_ERROR", retryable: true }
+    });
+  });
+
+  it("marks a Novo 503 response as retryable while preserving its failure evidence", async () => {
+    const fetcher = createOfficialJsonSourceFetch({
+      now: () => new Date(capturedAt),
+      http: async () => response("temporarily unavailable", novoEndpoint, { status: 503 })
+    });
+    await expect(fetcher(plan("novo-nordisk"))).resolves.toMatchObject({
+      ok: false,
+      failureReason: "Official recruitment endpoint was temporarily unavailable (HTTP 503)",
+      transportFailure: { code: "OFFICIAL_HTTP_503", retryable: true },
+      fetchEvidence: { pages: [{ termination: "FAILED" }] }
+    });
+  });
+
   it("preserves Official JSON evidence/evaluation through runSourceCrawl by exact reference", async () => {
     const fetcher = createOfficialJsonSourceFetch({
       now: () => new Date(capturedAt),

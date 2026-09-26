@@ -335,7 +335,8 @@ describe("terminatePendingSourceResult failure diagnostics", () => {
     failureCategory: "TEMPORARY_OFFICIAL_SOURCE_FAILURE" as const,
     failureDiagnosticCode: "OFFICIAL_HTTP_503" as const,
     fetchAttemptCount: 2,
-    retryCount: 1
+    retryCount: 1,
+    retryReasonCodes: ["OFFICIAL_HTTP_503"]
   };
 
   it("persists only the closed diagnostic bundle and exact attempt counters", async () => {
@@ -365,7 +366,8 @@ describe("terminatePendingSourceResult failure diagnostics", () => {
         failureCategory: "TEMPORARY_OFFICIAL_SOURCE_FAILURE",
         failureDiagnosticCode: "OFFICIAL_HTTP_503",
         fetchAttemptCount: 2,
-        retryCount: 1
+        retryCount: 1,
+        retryReasonCodes: ["OFFICIAL_HTTP_503"]
       })
     }]);
   });

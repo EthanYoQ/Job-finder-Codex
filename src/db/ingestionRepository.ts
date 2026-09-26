@@ -5,6 +5,8 @@ import { canonicalizePlannedSourceIds, hashCanonicalStringSet } from "../crawler
 import {
   isSourceFailureCategory,
   isSourceFailureDiagnosticCode,
+  tagAtomicEvidencePersistenceStage,
+  type AtomicEvidencePersistenceStage,
   type SourceFailureCategory,
   type SourceFailureDiagnosticCode
 } from "../crawler/sourceFailureDiagnostics";
@@ -18,6 +20,19 @@ import {
   type PrismaLifecycleStatusName,
   type PrismaRequiredJobFieldName
 } from "./prismaMappers";
+import {
+  requiresAGradeCertificateSourceId,
+  verifyAGradeCompletenessCertificateReceipt
+} from "../crawler/completenessCertificate";
+import {
+  requiresBGradeCertificateSourceId,
+  verifyBGradeTraversalCertificateReceipt
+} from "../crawler/traversalCertificate";
+import {
+  assertTrustedBaselineTransition,
+  type TrustedBaselineChangeReason
+} from "../crawler/completenessAnomalyPolicy";
+import { isRetryableSourceTransportFailureCode } from "../crawler/sourceFetchFailure";
 
 interface CrawlObservationCreateArgs {
   data: {
@@ -128,7 +143,9 @@ type PaginationAnomalyCode =
 type TransportAttemptKind = "DIRECT_HTTP" | "BROWSER_SESSION";
 type TransportAttemptOutcome = "FAILED" | "SUCCEEDED";
 type TransportAttemptCode = "HCM_DIRECT_FAILED" | "HCM_BROWSER_SESSION_FAILED" |
-  "HCM_BROWSER_ENTRY_FAILED" | "HCM_BROWSER_COUNT_FAILED" | "HCM_BROWSER_LIST_FAILED";
+  "HCM_BROWSER_ENTRY_FAILED" | "HCM_BROWSER_COUNT_FAILED" | "HCM_BROWSER_LIST_FAILED" |
+  "HCM_BROWSER_SUCCEEDED" | "JNJ_DIRECT_FAILED" | "JNJ_BROWSER_SESSION_FAILED" |
+  "JNJ_BROWSER_FETCH_FAILED" | "JNJ_BROWSER_SUCCEEDED";
 
 interface EvidenceTuple {
   releaseCandidateId: string;
@@ -181,12 +198,18 @@ export interface AtomicSourceResultInput {
   adapterCollisionGroupCount: number;
   adapterReconciliationSha256: string;
   collisionLedgerSha256: string;
+  completenessCertificate: unknown | null;
+  completenessCertificateSha256: string | null;
+  baselinePreviousSourceResultId?: string | null;
+  baselinePreviousJobCount?: number | null;
+  baselineChangeReason?: TrustedBaselineChangeReason | null;
   blockerCode?: string | null;
   blockerReason?: string | null;
   failureCategory?: SourceFailureCategory | null;
   failureDiagnosticCode?: SourceFailureDiagnosticCode | null;
   fetchAttemptCount?: number | null;
   retryCount?: number | null;
+  retryReasonCodes?: string[];
   failureCode?: string | null;
   failureReason?: string | null;
 }
@@ -340,6 +363,7 @@ export interface PrismaSourceResultReadDb {
   crawlBatchSourceResult: {
     findUnique(args: {
       where: { id: string };
+      include?: Record<string, unknown>;
     }): Promise<Record<string, unknown> | null>;
     findMany(args: {
       where: { releaseCandidateId: string; batchId: string };
@@ -430,6 +454,24 @@ export interface PendingSourceTerminalInput {
   failureDiagnosticCode?: SourceFailureDiagnosticCode | null;
   fetchAttemptCount?: number | null;
   retryCount?: number | null;
+  retryReasonCodes?: string[];
+}
+
+export interface FailedSourceEvidenceCommit {
+  sourceResult: PendingSourceTerminalInput;
+  fetchCounts: {
+    rawCount: number;
+    parsedCount: number;
+    validCount: number;
+    parseDiscardCount: number;
+    validationDiscardCount: number;
+  };
+  expectedJobCount: number | null;
+  expectedEvidenceKind: PrismaCompletenessEvidenceKindName | null;
+  artifacts: AtomicEvidenceArtifactInput[];
+  pagination: AtomicPaginationEvidenceInput[];
+  lossLedger: AtomicLossLedgerInput[];
+  priorTransportAttempts: AtomicTransportAttemptInput[];
 }
 
 interface PendingSourceTerminalTransactionClient {
@@ -513,12 +555,15 @@ export async function createBatchWithPendingSourceResults(
         adapterCollisionGroupCount: null,
         adapterReconciliationSha256: null,
         collisionLedgerSha256: null,
+        completenessCertificate: null,
+        completenessCertificateSha256: null,
         blockerCode: null,
         blockerReason: null,
         failureCategory: null,
         failureDiagnosticCode: null,
         fetchAttemptCount: null,
         retryCount: null,
+        retryReasonCodes: [],
         failureCode: null,
         failureReason: null
       } });
@@ -542,24 +587,154 @@ export async function terminatePendingSourceResult(
   await db.$transaction(async (transaction) => {
     const result = await transaction.crawlBatchSourceResult.updateMany({
       where: pendingSourceTupleWhere(input),
-      data: {
-        transportState: input.transportState,
-        adapterState: input.adapterState,
-        completenessState: input.completenessState,
-        atomicCommitState: input.atomicCommitState,
-        finishedAt: input.finishedAt,
-        failureCode: input.failureCode,
-        failureReason: input.failureReason,
-        blockerCode: input.blockerCode ?? null,
-        blockerReason: input.blockerReason ?? null,
-        failureCategory: input.failureCategory ?? null,
-        failureDiagnosticCode: input.failureDiagnosticCode ?? null,
-        fetchAttemptCount: input.fetchAttemptCount ?? null,
-        retryCount: input.retryCount ?? null
-      }
+      data: pendingSourceTerminalData(input)
     });
     requireExactlyOnePendingResult(result);
   });
+}
+
+export async function terminateManualPendingSourceResult(
+  input: PendingSourceTerminalInput,
+  fence: ManualSourceCommitFence,
+  db: PrismaAtomicSourceEvidenceDb
+): Promise<void> {
+  validatePendingSourceTerminal(input);
+  await db.$transaction(async (transaction) => {
+    await assertManualSourceCommitFence(transaction, fence, input.sourceId, input.batchId);
+    const result = await transaction.crawlBatchSourceResult.updateMany({
+      where: pendingSourceTupleWhere(input),
+      data: pendingSourceTerminalData(input)
+    });
+    requireExactlyOnePendingResult(result);
+  }, ATOMIC_EVIDENCE_TRANSACTION_OPTIONS);
+}
+
+function pendingSourceTerminalData(input: PendingSourceTerminalInput): Record<string, unknown> {
+  return {
+    transportState: input.transportState, adapterState: input.adapterState,
+    completenessState: input.completenessState, atomicCommitState: input.atomicCommitState,
+    finishedAt: input.finishedAt, failureCode: input.failureCode, failureReason: input.failureReason,
+    blockerCode: input.blockerCode ?? null, blockerReason: input.blockerReason ?? null,
+    failureCategory: input.failureCategory ?? null,
+    failureDiagnosticCode: input.failureDiagnosticCode ?? null,
+    fetchAttemptCount: input.fetchAttemptCount ?? null, retryCount: input.retryCount ?? null,
+    retryReasonCodes: input.retryReasonCodes ?? []
+  };
+}
+
+export async function executeFailedSourceEvidenceCommit(
+  input: FailedSourceEvidenceCommit,
+  db: PrismaAtomicSourceEvidenceDb
+): Promise<void> {
+  return executeFailedSourceEvidenceCommitInternal(input, db);
+}
+
+export async function executeManualFailedSourceEvidenceCommit(
+  input: FailedSourceEvidenceCommit,
+  fence: ManualSourceCommitFence,
+  db: PrismaAtomicSourceEvidenceDb
+): Promise<void> {
+  if (fence.requestId.trim() === "" || fence.ownerId.trim() === "") {
+    throw new ManualSourceCommitFenceError();
+  }
+  return executeFailedSourceEvidenceCommitInternal(input, db, fence);
+}
+
+async function executeFailedSourceEvidenceCommitInternal(
+  input: FailedSourceEvidenceCommit,
+  db: PrismaAtomicSourceEvidenceDb,
+  manualFence?: ManualSourceCommitFence
+): Promise<void> {
+  let stage: AtomicEvidencePersistenceStage = "ATTESTATION";
+  try {
+  const { verifyFailedRuntimeEvidenceCommitAttestation } = await import("../crawler/runtimeAtomicEvidence");
+  verifyFailedRuntimeEvidenceCommitAttestation(input);
+  stage = "INPUT_VALIDATION";
+  validatePendingSourceTerminal(input.sourceResult);
+  if (input.sourceResult.atomicCommitState !== "NOT_ATTEMPTED") {
+    throw new Error("Failed diagnostic evidence cannot claim an atomic source commit");
+  }
+  const tuple: EvidenceTuple = {
+    releaseCandidateId: input.sourceResult.releaseCandidateId,
+    batchId: input.sourceResult.batchId,
+    sourceId: input.sourceResult.sourceId,
+    sourceResultId: input.sourceResult.id
+  };
+  const artifactIdsByLogicalKey = validateDiagnosticArtifacts(input.artifacts, tuple);
+  validateDiagnosticPagination(input.pagination, tuple, artifactIdsByLogicalKey);
+  validateDiagnosticLossLedger(input.lossLedger, tuple, input.fetchCounts);
+  validateDiagnosticTransportAttempts(input.priorTransportAttempts, tuple, input.artifacts);
+  for (const [name, value] of Object.entries(input.fetchCounts)) requireNonnegativeInteger(value, name);
+  if (input.fetchCounts.rawCount !== input.fetchCounts.parsedCount + input.fetchCounts.parseDiscardCount ||
+      input.fetchCounts.parsedCount !== input.fetchCounts.validCount + input.fetchCounts.validationDiscardCount) {
+    throw new Error("Failed diagnostic fetch counts do not reconcile");
+  }
+  if (input.expectedJobCount !== null) requireNonnegativeInteger(input.expectedJobCount, "expectedJobCount");
+
+  stage = "TRANSACTION_COMMIT";
+  await db.$transaction(async (transaction) => {
+    if (manualFence) {
+      stage = "OWNERSHIP_FENCE";
+      await assertManualSourceCommitFence(transaction, manualFence, input.sourceResult.sourceId,
+        input.sourceResult.batchId);
+    }
+    stage = "ARTIFACT_WRITE";
+    for (const artifact of input.artifacts) {
+      const { logicalKey: _logicalKey, ...data } = artifact;
+      await transaction.evidenceArtifact.create({ data });
+    }
+    stage = "PAGINATION_WRITE";
+    for (const page of input.pagination) {
+      const { artifactLogicalKey, ...data } = page;
+      await transaction.paginationEvidence.create({
+        data: { ...data, artifactId: artifactIdsByLogicalKey.get(artifactLogicalKey) }
+      });
+    }
+    stage = "LOSS_LEDGER_WRITE";
+    for (const loss of input.lossLedger) {
+      await transaction.lossLedgerEntry.create({ data: { ...loss } });
+    }
+    stage = "TRANSPORT_ATTEMPT_WRITE";
+    for (const attempt of input.priorTransportAttempts) {
+      const { artifactIds, ...attemptData } = attempt;
+      await transaction.transportAttemptEvidence.create({ data: attemptData });
+      for (const artifactId of artifactIds) {
+        await transaction.transportAttemptArtifact.create({ data: {
+          attemptId: attempt.id, artifactId, releaseCandidateId: attempt.releaseCandidateId,
+          batchId: attempt.batchId, sourceId: attempt.sourceId, sourceResultId: attempt.sourceResultId
+        } });
+      }
+    }
+    stage = "SOURCE_TERMINAL_WRITE";
+    const result = await transaction.crawlBatchSourceResult.updateMany({
+      where: pendingSourceTupleWhere(input.sourceResult),
+      data: {
+        transportState: input.sourceResult.transportState,
+        adapterState: input.sourceResult.adapterState,
+        completenessState: input.sourceResult.completenessState,
+        atomicCommitState: input.sourceResult.atomicCommitState,
+        finishedAt: input.sourceResult.finishedAt,
+        failureCode: input.sourceResult.failureCode,
+        failureReason: input.sourceResult.failureReason,
+        blockerCode: input.sourceResult.blockerCode ?? null,
+        blockerReason: input.sourceResult.blockerReason ?? null,
+        failureCategory: input.sourceResult.failureCategory ?? null,
+        failureDiagnosticCode: input.sourceResult.failureDiagnosticCode ?? null,
+        fetchAttemptCount: input.sourceResult.fetchAttemptCount ?? null,
+        retryCount: input.sourceResult.retryCount ?? null,
+        retryReasonCodes: input.sourceResult.retryReasonCodes ?? [],
+        ...input.fetchCounts,
+        discardCount: input.fetchCounts.parseDiscardCount + input.fetchCounts.validationDiscardCount,
+        expectedJobCount: input.expectedJobCount,
+        expectedEvidenceKind: input.expectedEvidenceKind
+      }
+    });
+    requireExactlyOnePendingResult(result);
+    stage = "TRANSACTION_COMMIT";
+  }, ATOMIC_EVIDENCE_TRANSACTION_OPTIONS);
+  } catch (error) {
+    throw tagAtomicEvidencePersistenceStage(error, stage);
+  }
 }
 
 export async function executeIngestionCommands(
@@ -687,6 +862,27 @@ export async function inspectPersistedAtomicCommitOutcome(
   return { state: "CONFLICT" };
 }
 
+export async function inspectPersistedFailedSourceEvidenceCommitOutcome(
+  input: FailedSourceEvidenceCommit,
+  db: PrismaSourceResultReadDb
+): Promise<PersistedAtomicCommitOutcome> {
+  const persisted = await db.crawlBatchSourceResult.findUnique({
+    where: { id: input.sourceResult.id },
+    include: {
+      evidenceArtifacts: true,
+      paginationEvidence: true,
+      lossLedgerEntries: true,
+      observations: true,
+      transportAttempts: { include: { artifactRefs: true } }
+    }
+  });
+  if (!persisted) return { state: "CONFLICT" };
+  if (isExpectedPendingFailedSourceResult(persisted, input.sourceResult)) return { state: "PENDING" };
+  return isExactPersistedFailedEvidence(persisted, input)
+    ? { state: "COMMITTED_EXACT" }
+    : { state: "CONFLICT" };
+}
+
 export async function readPersistedBatchSourceResults(
   input: { releaseCandidateId: string; batchId: string },
   db: PrismaSourceResultReadDb
@@ -727,31 +923,31 @@ async function executeAtomicSourceEvidenceCommitInternal(
   db: PrismaAtomicSourceEvidenceDb,
   manualFence?: ManualSourceCommitFence
 ): Promise<void> {
-  const { verifyAtomicRuntimeCommitAttestation } = await import("../crawler/runtimeAtomicEvidence");
-  verifyAtomicRuntimeCommitAttestation(input);
-  const validated = validateAtomicSourceEvidenceCommit(input, manualFence !== undefined);
+  let stage: AtomicEvidencePersistenceStage = "ATTESTATION";
+  try {
+    const { verifyAtomicRuntimeCommitAttestation } = await import("../crawler/runtimeAtomicEvidence");
+    verifyAtomicRuntimeCommitAttestation(input);
+    stage = "INPUT_VALIDATION";
+    const validated = validateAtomicSourceEvidenceCommit(
+      input,
+      manualFence !== undefined,
+      (validationStage) => { stage = validationStage; }
+    );
 
-  await db.$transaction(async (transaction) => {
+    stage = "TRANSACTION_COMMIT";
+    await db.$transaction(async (transaction) => {
     if (manualFence) {
-      if (!transaction.$queryRawUnsafe) throw new ManualSourceCommitFenceError();
-      const ownedRequest = await transaction.$queryRawUnsafe<Array<{ id: string }>>(
-        LOCK_MANUAL_REQUEST_FOR_COMMIT_SQL,
-        manualFence.requestId, manualFence.ownerId, input.sourceResult.sourceId);
-      if (ownedRequest.length !== 1 || ownedRequest[0]?.id !== manualFence.requestId) {
-        throw new ManualSourceCommitFenceError();
-      }
-      const ownedBatch = await transaction.$queryRawUnsafe<Array<{ id: string }>>(
-        LOCK_MANUAL_BATCH_FOR_COMMIT_SQL,
-        input.sourceResult.batchId, manualFence.requestId, manualFence.ownerId);
-      if (ownedBatch.length !== 1 || ownedBatch[0]?.id !== input.sourceResult.batchId) {
-        throw new ManualSourceCommitFenceError();
-      }
+      stage = "OWNERSHIP_FENCE";
+      await assertManualSourceCommitFence(transaction, manualFence, input.sourceResult.sourceId,
+        input.sourceResult.batchId);
     }
+    stage = "ARTIFACT_WRITE";
     for (const artifact of input.artifacts) {
       const { logicalKey: _logicalKey, ...data } = artifact;
       await transaction.evidenceArtifact.create({ data });
     }
 
+    stage = "PAGINATION_WRITE";
     for (const page of input.pagination) {
       const { artifactLogicalKey, ...data } = page;
       await transaction.paginationEvidence.create({
@@ -759,10 +955,12 @@ async function executeAtomicSourceEvidenceCommitInternal(
       });
     }
 
+    stage = "LOSS_LEDGER_WRITE";
     for (const loss of input.lossLedger) {
       await transaction.lossLedgerEntry.create({ data: { ...loss } });
     }
 
+    stage = "TRANSPORT_ATTEMPT_WRITE";
     for (const attempt of input.priorTransportAttempts) {
       const { artifactIds, ...attemptData } = attempt;
       await transaction.transportAttemptEvidence.create({ data: attemptData });
@@ -777,6 +975,7 @@ async function executeAtomicSourceEvidenceCommitInternal(
     const observation = validated.observationCommand.observation;
     const sourceResult = input.sourceResult;
     const provenance = input.observationProvenance;
+    stage = "OBSERVATION_WRITE";
     await transaction.crawlObservation.create({
       data: {
         sourceId: sourceResult.sourceId,
@@ -833,10 +1032,12 @@ async function executeAtomicSourceEvidenceCommitInternal(
       } as CrawlObservationCreateArgs["data"] & Record<string, unknown>
     });
 
+    stage = "JOB_WRITE";
     for (const command of input.commands) {
       if (command.type === "UPSERT_JOB") await upsertJobCommand(command, transaction);
     }
 
+    stage = "LIFECYCLE_WRITE";
     for (const command of input.commands) {
       if (sourceResult.completenessState !== "VERIFIED") break;
       if(command.type!=="UPSERT_JOB"||command.lifecycleStatus!=="ACTIVE")continue;
@@ -849,6 +1050,7 @@ async function executeAtomicSourceEvidenceCommitInternal(
       }});
     }
 
+    stage = "SOURCE_TERMINAL_WRITE";
     const terminal = sourceResultTerminalData(input.sourceResult);
     const updateResult = await transaction.crawlBatchSourceResult.updateMany({
       where: pendingSourceTupleWhere({
@@ -860,7 +1062,11 @@ async function executeAtomicSourceEvidenceCommitInternal(
       data: terminal
     });
     requireExactlyOnePendingResult(updateResult);
-  }, ATOMIC_EVIDENCE_TRANSACTION_OPTIONS);
+    stage = "TRANSACTION_COMMIT";
+    }, ATOMIC_EVIDENCE_TRANSACTION_OPTIONS);
+  } catch (error) {
+    throw tagAtomicEvidencePersistenceStage(error, stage);
+  }
 }
 
 const LOCK_MANUAL_REQUEST_FOR_COMMIT_SQL = `
@@ -876,6 +1082,25 @@ WHERE "id" = $1 AND "manualCrawlRequestId" = $2
   AND "ownerId" = $3 AND "kind" = 'MANUAL_SOURCE'
 FOR UPDATE
 `;
+
+async function assertManualSourceCommitFence(
+  transaction: AtomicSourceTransactionClient,
+  fence: ManualSourceCommitFence,
+  sourceId: string,
+  batchId: string
+): Promise<void> {
+  if (!transaction.$queryRawUnsafe) throw new ManualSourceCommitFenceError();
+  const ownedRequest = await transaction.$queryRawUnsafe<Array<{ id: string }>>(
+    LOCK_MANUAL_REQUEST_FOR_COMMIT_SQL, fence.requestId, fence.ownerId, sourceId);
+  if (ownedRequest.length !== 1 || ownedRequest[0]?.id !== fence.requestId) {
+    throw new ManualSourceCommitFenceError();
+  }
+  const ownedBatch = await transaction.$queryRawUnsafe<Array<{ id: string }>>(
+    LOCK_MANUAL_BATCH_FOR_COMMIT_SQL, batchId, fence.requestId, fence.ownerId);
+  if (ownedBatch.length !== 1 || ownedBatch[0]?.id !== batchId) {
+    throw new ManualSourceCommitFenceError();
+  }
+}
 
 function validatePlannedBatchWithSources(input: PlannedBatchWithSourcesInput): PlannedPendingSourceInput[] {
   const batch = input.batch;
@@ -949,7 +1174,10 @@ function validatePendingSourceTerminal(input: PendingSourceTerminalInput): void 
   const suppliedDiagnosticCount = diagnosticValues.filter(
     (value) => value !== undefined && value !== null
   ).length;
-  if (suppliedDiagnosticCount === 0) return;
+  if (suppliedDiagnosticCount === 0) {
+    if ((input.retryReasonCodes ?? []).length > 0) throw new Error("Retry reasons require source diagnostics");
+    return;
+  }
   if (suppliedDiagnosticCount !== diagnosticValues.length) {
     throw new Error("Source failure diagnostic bundle must be supplied together");
   }
@@ -973,9 +1201,188 @@ function validatePendingSourceTerminal(input: PendingSourceTerminalInput): void 
   } else if (retryCount >= fetchAttemptCount) {
     throw new Error("retry count must be less than fetch attempt count");
   }
+  validateRetryReasonCodes(input.retryReasonCodes ?? [], retryCount);
 }
 
-function validateCommittedSourceResultTruthTable(result: AtomicSourceResultInput): void {
+function validateRetryReasonCodes(values: readonly string[], retryCount: number): void {
+  if (!Array.isArray(values) || values.length !== retryCount || retryCount > 2 ||
+      values.some((value) => !isRetryableSourceTransportFailureCode(value))) {
+    throw new Error("Retry reasons must match the bounded transient retry count and closed transport codes");
+  }
+}
+
+function validateDiagnosticArtifacts(
+  artifacts: readonly AtomicEvidenceArtifactInput[],
+  tuple: EvidenceTuple
+): Map<string, string> {
+  if (artifacts.length === 0) throw new Error("Failed diagnostic evidence requires an archived artifact");
+  return validateEvidenceArtifacts(artifacts, tuple).idsByLogicalKey;
+}
+
+function validateDiagnosticPagination(
+  pages: readonly AtomicPaginationEvidenceInput[],
+  tuple: EvidenceTuple,
+  artifactIdsByLogicalKey: ReadonlyMap<string, string>
+): void {
+  validateEvidencePagination(pages, tuple, artifactIdsByLogicalKey, false);
+}
+
+function validateDiagnosticLossLedger(
+  losses: readonly AtomicLossLedgerInput[],
+  tuple: EvidenceTuple,
+  counts: FailedSourceEvidenceCommit["fetchCounts"]
+): void {
+  const { counts: lossCounts } = validateEvidenceLossRows(losses, tuple, true);
+  if (lossCounts.PARSE !== counts.parseDiscardCount || lossCounts.VALIDATION !== counts.validationDiscardCount) {
+    throw new Error("Failed diagnostic loss rows do not reconcile to fetch discard counts");
+  }
+}
+
+function validateDiagnosticTransportAttempts(
+  attempts: readonly AtomicTransportAttemptInput[],
+  tuple: EvidenceTuple,
+  artifacts: readonly AtomicEvidenceArtifactInput[]
+): void {
+  validateEvidenceTransportAttempts(attempts, tuple, new Set(artifacts.map(({ id }) => id)));
+}
+
+function validateEvidenceArtifacts(
+  artifacts: readonly AtomicEvidenceArtifactInput[],
+  tuple: EvidenceTuple
+): { idsByLogicalKey: Map<string, string>; artifactsByLogicalKey: Map<string, AtomicEvidenceArtifactInput> } {
+  const ids = new Set<string>(), paths = new Set<string>(), idsByLogicalKey = new Map<string, string>();
+  const artifactsByLogicalKey = new Map<string, AtomicEvidenceArtifactInput>();
+  for (const artifact of artifacts) {
+    assertTuple(artifact, tuple, "artifact");
+    requireNonblank(artifact.id, "artifact id"); requireNonblank(artifact.logicalKey, "artifact logical key");
+    requireNonblank(artifact.path, "artifact path"); requireNonblank(artifact.extractorLocator, "artifact extractorLocator");
+    requireNonblank(artifact.captureToolName, "artifact captureToolName");
+    requireNonblank(artifact.captureToolVersion, "artifact captureToolVersion");
+    requireSha256(artifact.sha256, "artifact sha256");
+    requireSha256(artifact.redactionCommitmentSha256, "artifact redaction commitment sha256");
+    requireNonnegativeInteger(artifact.byteCount, "artifact byteCount");
+    if (!isValidDate(artifact.capturedAt)) throw new Error("Artifact capturedAt is invalid");
+    if (ids.has(artifact.id) || idsByLogicalKey.has(artifact.logicalKey) || paths.has(artifact.path)) {
+      throw new Error("Artifact ids, logical keys and paths must be unique");
+    }
+    if (NETWORK_ARTIFACT_KINDS.has(artifact.kind)) {
+      requireNonblank(artifact.requestedUrl, "network artifact requestedUrl");
+      requireNonblank(artifact.finalUrl, "network artifact finalUrl");
+      requireNonblank(artifact.contentType, "network artifact contentType");
+      if (!Number.isInteger(artifact.httpStatus) || artifact.httpStatus! < 100 || artifact.httpStatus! > 599) {
+        throw new Error("Network artifact httpStatus is invalid");
+      }
+    }
+    ids.add(artifact.id); paths.add(artifact.path); idsByLogicalKey.set(artifact.logicalKey, artifact.id);
+    artifactsByLogicalKey.set(artifact.logicalKey, artifact);
+  }
+  return { idsByLogicalKey, artifactsByLogicalKey };
+}
+
+function validateEvidencePagination(
+  pages: readonly AtomicPaginationEvidenceInput[],
+  tuple: EvidenceTuple,
+  artifactIdsByLogicalKey: ReadonlyMap<string, string>,
+  verified: boolean
+): void {
+  const sorted = [...pages].sort((left, right) => left.sequence - right.sequence);
+  for (let index = 0; index < sorted.length; index += 1) {
+    const page = sorted[index]!;
+    assertTuple(page, tuple, "pagination");
+    if (!Number.isSafeInteger(page.sequence) || page.sequence !== index) {
+      throw new Error("Pagination sequences must be unique and contiguous from zero");
+    }
+    if (!artifactIdsByLogicalKey.has(page.artifactLogicalKey)) {
+      throw new Error("Pagination references an artifact outside the supplied artifact set");
+    }
+    requireSha256(page.responseFingerprintSha256, "pagination response sha256");
+    requireSha256(page.rawJobIdSetSha256, "pagination raw job id set sha256");
+    requireSha256(page.validJobIdSetSha256, "pagination valid job id set sha256");
+    if (!isValidDate(page.capturedAt)) throw new Error("Pagination capturedAt is invalid");
+    for (const [name, value] of [["declaredTotal", page.declaredTotal], ["declaredCount", page.declaredCount],
+      ["declaredPages", page.declaredPages], ["requestedOffset", page.requestedOffset],
+      ["returnedOffset", page.returnedOffset], ["requestedPage", page.requestedPage],
+      ["returnedPage", page.returnedPage], ["requestedPageSize", page.requestedPageSize],
+      ["returnedPageSize", page.returnedPageSize]] as const) {
+      if (value !== undefined && value !== null) {
+        requireNonnegativeInteger(value, `pagination ${name}`);
+        if ((name === "requestedPageSize" || name === "returnedPageSize") && value === 0) {
+          throw new Error(`pagination ${name} must be positive when supplied`);
+        }
+      }
+    }
+    if (verified && page.anomalyCodes.length > 0) {
+      throw new Error("VERIFIED completeness cannot contain pagination anomalies");
+    }
+    if (verified && UNSAFE_VERIFIED_TERMINATIONS.has(page.termination)) {
+      throw new Error("VERIFIED completeness cannot use an unsafe pagination termination");
+    }
+  }
+}
+
+function validateEvidenceTransportAttempts(
+  attempts: readonly AtomicTransportAttemptInput[],
+  tuple: EvidenceTuple,
+  artifactIds: ReadonlySet<string>
+): void {
+  const attemptIds = new Set<string>();
+  for (let index = 0; index < attempts.length; index += 1) {
+    const attempt = attempts[index]!;
+    assertTuple(attempt, tuple, "transport attempt"); requireNonblank(attempt.id, "transport attempt id");
+    requireNonblank(attempt.code, "transport attempt code");
+    if (attempt.sequence !== index || attemptIds.has(attempt.id) || !TRANSPORT_ATTEMPT_CODES.has(attempt.code) ||
+        !isValidDate(attempt.capturedAt)) throw new Error("Transport attempt code, sequence, ID or timestamp is invalid");
+    const expectedTransport = attempt.code === "HCM_DIRECT_FAILED" || attempt.code === "JNJ_DIRECT_FAILED"
+      ? "DIRECT_HTTP" : "BROWSER_SESSION";
+    const expectedOutcome = attempt.code === "HCM_BROWSER_SUCCEEDED" || attempt.code === "JNJ_BROWSER_SUCCEEDED"
+      ? "SUCCEEDED" : "FAILED";
+    if (attempt.transport !== expectedTransport || attempt.outcome !== expectedOutcome) {
+      throw new Error("Transport attempt code, transport and outcome are inconsistent");
+    }
+    if (attempt.code.startsWith("JNJ_") && attempt.sourceId !== JNJ_SOURCE_ID) {
+      throw new Error("J&J transport attempt code is bound to the J&J China source");
+    }
+    for (const value of [attempt.evidenceCommitmentSha256, attempt.pageTraceSha256,
+      attempt.lossLedgerSha256, attempt.paginationEvaluationSha256]) requireSha256(value, "transport attempt commitment");
+    validateNonblankUniqueList(attempt.artifactIds, "transport attempt artifact");
+    if (attempt.artifactIds.some((id) => !artifactIds.has(id))) {
+      throw new Error("Transport attempt references an artifact outside the supplied tuple");
+    }
+    validateSafeJson(attempt.details, "transport attempt details"); attemptIds.add(attempt.id);
+  }
+}
+
+function validateEvidenceLossRows(
+  losses: readonly AtomicLossLedgerInput[],
+  tuple: EvidenceTuple,
+  fetchOnly: boolean
+): { counts: Record<LossStage, number>; collisionGroups: Set<string> } {
+  const counts: Record<LossStage, number> = { PARSE: 0, VALIDATION: 0, NORMALIZATION: 0, DEDUPE: 0 };
+  const collisionGroups = new Set<string>();
+  for (const loss of losses) {
+    assertTuple(loss, tuple, "loss ledger");
+    if (fetchOnly && loss.stage !== "PARSE" && loss.stage !== "VALIDATION") {
+      throw new Error("Failed fetch diagnostics may only persist fetch-stage losses");
+    }
+    requireNonblank(loss.reason, "loss reason"); requireNonblank(loss.rawLocator, "loss rawLocator");
+    if (loss.recordedAt !== undefined && !isValidDate(loss.recordedAt)) throw new Error("Loss recordedAt is invalid");
+    if (loss.details === undefined) throw new Error("Loss details must be supplied");
+    counts[loss.stage] += 1;
+    if (loss.stage === "DEDUPE") {
+      if (!nonblank(loss.candidateKey) || !nonblank(loss.winnerKey)) {
+        throw new Error("Dedupe loss requires nonblank candidateKey and winnerKey");
+      }
+      collisionGroups.add(loss.winnerKey);
+    }
+  }
+  return { counts, collisionGroups };
+}
+
+function validateCommittedSourceResultTruthTable(
+  result: AtomicSourceResultInput,
+  canonicalRawEvidenceIdSetSha256: string | undefined,
+  onStage: (stage: AtomicEvidencePersistenceStage) => void
+): void {
   if (result.atomicCommitState !== "COMMITTED" || result.transportState !== "SUCCEEDED" ||
       result.adapterState !== "SUCCEEDED" || result.finishedAt === null ||
       !(["VERIFIED", "INCOMPLETE", "NEEDS_MANUAL_COMPLETENESS_REVIEW"] as string[])
@@ -991,6 +1398,7 @@ function validateCommittedSourceResultTruthTable(result: AtomicSourceResultInput
   }
   const attemptCount = result.fetchAttemptCount;
   const retryCount = result.retryCount;
+  const retryReasonCodes = result.retryReasonCodes ?? [];
   if ((attemptCount === undefined || attemptCount === null) !==
       (retryCount === undefined || retryCount === null)) {
     throw new Error("COMMITTED source result fetch attempt counters must be supplied together");
@@ -1000,6 +1408,7 @@ function validateCommittedSourceResultTruthTable(result: AtomicSourceResultInput
         retryCount < 0 || retryCount >= attemptCount)) {
     throw new Error("COMMITTED source result fetch attempt counters are inconsistent");
   }
+  if (retryCount !== undefined && retryCount !== null) validateRetryReasonCodes(retryReasonCodes, retryCount);
   if (result.completenessState === "VERIFIED") {
     if (nonblank(result.blockerCode) || nonblank(result.blockerReason)) {
       throw new Error("VERIFIED COMMITTED source result blocker must be null");
@@ -1007,6 +1416,87 @@ function validateCommittedSourceResultTruthTable(result: AtomicSourceResultInput
   } else if (!nonblank(result.blockerCode) || !nonblank(result.blockerReason)) {
     throw new Error("INCOMPLETE or NEEDS_MANUAL COMMITTED source result requires blocker code and reason");
   }
+  onStage("CERTIFICATE_VALIDATION");
+  if ((result.completenessCertificate === null) !==
+      (result.completenessCertificateSha256 === null)) {
+    throw new Error("Completeness certificate and hash must be supplied together");
+  }
+  if ((requiresAGradeCertificateSourceId(result.sourceId) || requiresBGradeCertificateSourceId(result.sourceId)) &&
+      result.completenessState === "VERIFIED" &&
+      result.completenessCertificate === null) {
+    throw new Error("Required completeness certificate is missing");
+  }
+  if (result.completenessCertificate !== null) {
+    if (result.completenessState !== "VERIFIED") {
+      throw new Error("Completeness certificate requires VERIFIED source truth");
+    }
+    verifyPersistedCompletenessCertificate(result, undefined, canonicalRawEvidenceIdSetSha256);
+  }
+  onStage("SOURCE_RESULT_VALIDATION");
+  const baselineTransitionSupplied = result.baselineChangeReason !== undefined &&
+    result.baselineChangeReason !== null;
+  if (baselineTransitionSupplied) {
+    if (result.completenessState !== "VERIFIED" || result.completenessCertificate === null) {
+      throw new Error("Trusted baseline transition requires VERIFIED certificate truth");
+    }
+    assertTrustedBaselineTransition({
+      previousSourceResultId: result.baselinePreviousSourceResultId,
+      previousJobCount: result.baselinePreviousJobCount,
+      currentSourceResultId: result.id,
+      currentJobCount: result.dedupeOutputCount,
+      certificateGrade: (result.completenessCertificate as { grade: "A" | "B" }).grade,
+      changeReason: result.baselineChangeReason
+    });
+  } else if (result.baselinePreviousSourceResultId !== null && result.baselinePreviousSourceResultId !== undefined ||
+      result.baselinePreviousJobCount !== null && result.baselinePreviousJobCount !== undefined) {
+    throw new Error("Trusted baseline previous values require a change reason");
+  }
+}
+
+function verifyPersistedCompletenessCertificate(
+  result: AtomicSourceResultInput,
+  officialArtifact?: { logicalKey: string; sha256: string },
+  canonicalRawEvidenceIdSetSha256?: string
+): void {
+  const expected = {
+    releaseCandidateId: result.releaseCandidateId,
+    batchId: result.batchId,
+    sourceResultId: result.id,
+    sourceId: result.sourceId,
+    sourceConfigSha256: result.sourceConfigHash,
+    surfaceIds: result.officialSurfaceIds,
+    channelIds: result.officialChannelIds,
+    canonicalJobSetSha256: result.canonicalOutputSetSha256,
+    adapterReconciliationSha256: result.adapterReconciliationSha256,
+    collisionLedgerSha256: result.collisionLedgerSha256
+  };
+  if (requiresAGradeCertificateSourceId(result.sourceId)) {
+    verifyAGradeCompletenessCertificateReceipt({
+      certificate: result.completenessCertificate,
+      certificateSha256: result.completenessCertificateSha256!,
+      expected: {
+        ...expected,
+        ...(officialArtifact ? {
+          officialArtifactLogicalKey: officialArtifact.logicalKey,
+          officialArtifactSha256: officialArtifact.sha256
+        } : {})
+      }
+    });
+    return;
+  }
+  if (requiresBGradeCertificateSourceId(result.sourceId)) {
+    if (!(result.finishedAt instanceof Date) || !Number.isFinite(result.finishedAt.getTime())) {
+      throw new Error("B-grade completeness certificate requires a finishedAt validation instant");
+    }
+    verifyBGradeTraversalCertificateReceipt({
+      certificate: result.completenessCertificate,
+      certificateSha256: result.completenessCertificateSha256!,
+      expected: { ...expected, ...(canonicalRawEvidenceIdSetSha256 ? { canonicalRawEvidenceIdSetSha256 } : {}) },
+      now: result.finishedAt
+    });
+    return;
+  }
+  throw new Error("Completeness certificate is not supported for this source");
 }
 
 function pendingSourceTupleWhere(input: { id: string; releaseCandidateId: string; batchId: string; sourceId: string }): Record<string, unknown> {
@@ -1037,7 +1527,9 @@ const ATOMIC_SOURCE_RESULT_FIELDS = [
   "canonicalCurrentJobSetSha256", "canonicalGraceJobSetSha256", "canonicalVisibleJobSetSha256",
   "canonicalOutputSetSha256", "adapterInputCount", "adapterOutputCount", "adapterLossCount",
   "adapterCollisionGroupCount", "adapterReconciliationSha256", "collisionLedgerSha256", "blockerCode",
-  "blockerReason", "failureCategory", "failureDiagnosticCode", "fetchAttemptCount", "retryCount",
+  "completenessCertificate", "completenessCertificateSha256",
+  "baselinePreviousSourceResultId", "baselinePreviousJobCount", "baselineChangeReason",
+  "blockerReason", "failureCategory", "failureDiagnosticCode", "fetchAttemptCount", "retryCount", "retryReasonCodes",
   "failureCode", "failureReason"
 ] as const satisfies readonly (keyof AtomicSourceResultInput)[];
 
@@ -1050,14 +1542,25 @@ function isExactPersistedSourceResult(
   persisted: Record<string, unknown>,
   expected: AtomicSourceResultInput
 ): boolean {
-  return ATOMIC_SOURCE_RESULT_FIELDS.every((field) =>
-    Object.prototype.hasOwnProperty.call(persisted, field) &&
-    persistedSourceValueEquals(persisted[field], expected[field] ?? null));
+  return ATOMIC_SOURCE_RESULT_FIELDS.every((field) => {
+    const persistedHasField = Object.prototype.hasOwnProperty.call(persisted, field);
+    const expectedHasField = Object.prototype.hasOwnProperty.call(expected, field);
+    if (!persistedHasField && !expectedHasField && OPTIONAL_BASELINE_SOURCE_RESULT_FIELDS.has(field)) {
+      return true;
+    }
+    return persistedHasField && persistedSourceValueEquals(persisted[field], expected[field] ?? null);
+  });
 }
+
+const OPTIONAL_BASELINE_SOURCE_RESULT_FIELDS = new Set<keyof AtomicSourceResultInput>([
+  "baselinePreviousSourceResultId", "baselinePreviousJobCount", "baselineChangeReason"
+]);
 
 function isExpectedPendingSourceResult(
   persisted: Record<string, unknown>,
-  expected: AtomicSourceResultInput
+  expected: Pick<AtomicSourceResultInput,
+    "id" | "releaseCandidateId" | "batchId" | "sourceId" | "sourceConfigHash" |
+    "adapterVersion" | "officialEntryId" | "officialSurfaceIds" | "officialChannelIds" | "startedAt">
 ): boolean {
   if (persisted.transportState !== "PENDING" || persisted.adapterState !== "PENDING" ||
       persisted.completenessState !== "PENDING" || persisted.atomicCommitState !== "PENDING") {
@@ -1066,6 +1569,147 @@ function isExpectedPendingSourceResult(
   return PENDING_SOURCE_IMMUTABLE_FIELDS.every((field) =>
     Object.prototype.hasOwnProperty.call(persisted, field) &&
     persistedSourceValueEquals(persisted[field], expected[field] ?? null));
+}
+
+function isExpectedPendingFailedSourceResult(
+  persisted: Record<string, unknown>,
+  expected: PendingSourceTerminalInput
+): boolean {
+  return persisted.transportState === "PENDING" && persisted.adapterState === "PENDING" &&
+    persisted.completenessState === "PENDING" && persisted.atomicCommitState === "PENDING" &&
+    (["id", "releaseCandidateId", "batchId", "sourceId"] as const).every((field) =>
+      persisted[field] === expected[field]);
+}
+
+function isExactPersistedFailedEvidence(
+  persisted: Record<string, unknown>,
+  expected: FailedSourceEvidenceCommit
+): boolean {
+  const terminal = expected.sourceResult;
+  const terminalFields: Array<keyof PendingSourceTerminalInput> = [
+    "id", "releaseCandidateId", "batchId", "sourceId", "transportState", "adapterState",
+    "completenessState", "atomicCommitState", "finishedAt", "failureCode", "failureReason",
+    "blockerCode", "blockerReason", "failureCategory", "failureDiagnosticCode",
+    "fetchAttemptCount", "retryCount", "retryReasonCodes"
+  ];
+  if (!terminalFields.every((field) => persistedSourceValueEquals(
+    persisted[field], terminal[field] ?? null))) return false;
+  const countFields = ["rawCount", "parsedCount", "validCount", "parseDiscardCount",
+    "validationDiscardCount"] as const;
+  if (!countFields.every((field) => persisted[field] === expected.fetchCounts[field]) ||
+      persisted.discardCount !== expected.fetchCounts.parseDiscardCount +
+        expected.fetchCounts.validationDiscardCount ||
+      !persistedSourceValueEquals(persisted.expectedJobCount, expected.expectedJobCount) ||
+      !persistedSourceValueEquals(persisted.expectedEvidenceKind, expected.expectedEvidenceKind)) return false;
+  const zeroFields = ["normalizedCount", "dedupeInputCount", "dedupeOutputCount",
+    "normalizationDiscardCount", "dedupeDiscardCount", "collisionCount"] as const;
+  const nullFields = ["expectedSurfaceSha256", "visitedSurfaceSha256", "expectedChannelSha256",
+    "visitedChannelSha256", "canonicalCurrentJobSetSha256", "canonicalGraceJobSetSha256",
+    "canonicalVisibleJobSetSha256", "canonicalOutputSetSha256", "adapterInputCount",
+    "adapterOutputCount", "adapterLossCount", "adapterCollisionGroupCount",
+    "adapterReconciliationSha256", "collisionLedgerSha256", "completenessCertificate",
+    "completenessCertificateSha256", "baselinePreviousSourceResultId", "baselinePreviousJobCount",
+    "baselineChangeReason"] as const;
+  if (zeroFields.some((field) => persisted[field] !== 0) ||
+      nullFields.some((field) => persisted[field] != null) || relationRows(persisted.observations).length !== 0) {
+    return false;
+  }
+
+  const artifacts = relationRows(persisted.evidenceArtifacts);
+  if (!sameRows(artifacts, expected.artifacts, (row) => ({
+    id: row.id, releaseCandidateId: row.releaseCandidateId, batchId: row.batchId,
+    sourceId: row.sourceId, sourceResultId: row.sourceResultId, channelId: row.channelId ?? null,
+    kind: row.kind, requestedUrl: row.requestedUrl ?? null, finalUrl: row.finalUrl ?? null,
+    httpStatus: row.httpStatus ?? null, contentType: row.contentType ?? null,
+    capturedAt: dateValue(row.capturedAt), sha256: row.sha256, byteCount: row.byteCount, path: row.path,
+    extractorLocator: row.extractorLocator, captureToolName: row.captureToolName,
+    captureToolVersion: row.captureToolVersion, redactionCommitmentSha256: row.redactionCommitmentSha256
+  }))) return false;
+  const artifactIdByLogicalKey = new Map(expected.artifacts.map((item) => [item.logicalKey, item.id]));
+  const expectedPages = expected.pagination.map(({ artifactLogicalKey, ...page }) => ({
+    ...page, artifactId: artifactIdByLogicalKey.get(artifactLogicalKey)
+  }));
+  const pagination = relationRows(persisted.paginationEvidence);
+  if (!sameRows(pagination, expectedPages, (row) => ({
+    releaseCandidateId: row.releaseCandidateId, batchId: row.batchId, sourceId: row.sourceId,
+    sourceResultId: row.sourceResultId, artifactId: row.artifactId, sequence: row.sequence,
+    channelId: row.channelId ?? null, requestedCursor: row.requestedCursor ?? null,
+    returnedCursor: row.returnedCursor ?? null, requestedOffset: row.requestedOffset ?? null,
+    returnedOffset: row.returnedOffset ?? null, requestedPage: row.requestedPage ?? null,
+    returnedPage: row.returnedPage ?? null, requestedPageSize: row.requestedPageSize ?? null,
+    returnedPageSize: row.returnedPageSize ?? null,
+    responseFingerprintSha256: row.responseFingerprintSha256, rawJobIdSetSha256: row.rawJobIdSetSha256,
+    validJobIdSetSha256: row.validJobIdSetSha256, declaredTotal: row.declaredTotal ?? null,
+    declaredCount: row.declaredCount ?? null, declaredPages: row.declaredPages ?? null,
+    nextPageSignalBefore: row.nextPageSignalBefore ?? null, nextPageSignalAfter: row.nextPageSignalAfter ?? null,
+    termination: row.termination, anomalyCodes: row.anomalyCodes, capturedAt: dateValue(row.capturedAt)
+  }))) return false;
+  const losses = relationRows(persisted.lossLedgerEntries);
+  if (!sameLossRows(losses, expected.lossLedger)) return false;
+  const attempts = relationRows(persisted.transportAttempts);
+  return sameRows(attempts, expected.priorTransportAttempts, (row) => ({
+    id: row.id, releaseCandidateId: row.releaseCandidateId, batchId: row.batchId, sourceId: row.sourceId,
+    sourceResultId: row.sourceResultId, sequence: row.sequence, transport: row.transport,
+    outcome: row.outcome, code: row.code, capturedAt: dateValue(row.capturedAt),
+    evidenceCommitmentSha256: row.evidenceCommitmentSha256, pageTraceSha256: row.pageTraceSha256,
+    lossLedgerSha256: row.lossLedgerSha256, paginationEvaluationSha256: row.paginationEvaluationSha256,
+    details: row.details,
+    artifactIds: Array.isArray(row.artifactIds) ? [...row.artifactIds].sort() :
+      relationRows(row.artifactRefs).map((item) => String(item.artifactId)).sort()
+  }));
+}
+
+function relationRows(value: unknown): Array<Record<string, any>> {
+  return Array.isArray(value) ? value.filter((row): row is Record<string, any> =>
+    typeof row === "object" && row !== null) : [];
+}
+
+function sameRows(
+  actual: readonly Record<string, any>[],
+  expected: readonly Record<string, any>[],
+  project: (row: Record<string, any>) => unknown
+): boolean {
+  if (actual.length !== expected.length) return false;
+  const normalize = (rows: readonly Record<string, any>[]) => rows.map((row) =>
+    canonicalComparisonJson(project(row))).sort();
+  const left = normalize(actual), right = normalize(expected);
+  return left.every((value, index) => value === right[index]);
+}
+
+function sameLossRows(
+  actual: readonly Record<string, any>[],
+  expected: readonly AtomicLossLedgerInput[]
+): boolean {
+  if (actual.length !== expected.length) return false;
+  const core = (row: Record<string, any>) => canonicalComparisonJson({
+    releaseCandidateId: row.releaseCandidateId, batchId: row.batchId, sourceId: row.sourceId,
+    sourceResultId: row.sourceResultId, stage: row.stage, reason: row.reason, rawLocator: row.rawLocator,
+    details: row.details, candidateKey: row.candidateKey ?? null, winnerKey: row.winnerKey ?? null
+  });
+  const remaining = [...actual];
+  for (const expectedRow of expected) {
+    const index = remaining.findIndex((actualRow) => core(actualRow) === core(expectedRow) &&
+      (expectedRow.recordedAt === undefined ||
+        dateValue(actualRow.recordedAt) === dateValue(expectedRow.recordedAt)));
+    if (index < 0) return false;
+    remaining.splice(index, 1);
+  }
+  return remaining.length === 0;
+}
+
+function canonicalComparisonJson(value: unknown): string {
+  if (value === null || typeof value !== "object") return JSON.stringify(value);
+  if (value instanceof Date) return JSON.stringify(value.toISOString());
+  if (Array.isArray(value)) return `[${value.map(canonicalComparisonJson).join(",")}]`;
+  return `{${Object.entries(value as Record<string, unknown>).sort(([left], [right]) =>
+    left.localeCompare(right)).map(([key, child]) =>
+      `${JSON.stringify(key)}:${canonicalComparisonJson(child)}`).join(",")}}`;
+}
+
+function dateValue(value: unknown): string | null {
+  if (value == null) return null;
+  const date = value instanceof Date ? value : new Date(String(value));
+  return Number.isNaN(date.getTime()) ? String(value) : date.toISOString();
 }
 
 function persistedSourceValueEquals(actual: unknown, expected: unknown): boolean {
@@ -1081,11 +1725,16 @@ function persistedSourceValueEquals(actual: unknown, expected: unknown): boolean
   return actual === expected;
 }
 
-function validateAtomicSourceEvidenceCommit(input: AtomicSourceEvidenceCommit, manualPreview = false): {
+function validateAtomicSourceEvidenceCommit(
+  input: AtomicSourceEvidenceCommit,
+  manualPreview: boolean,
+  onStage: (stage: AtomicEvidencePersistenceStage) => void
+): {
   observationCommand: Extract<IngestionCommand, { type: "UPSERT_CRAWL_OBSERVATION" }>;
   artifactIdsByLogicalKey: Map<string, string>;
   officialArtifactId: string;
 } {
+  onStage("SOURCE_RESULT_VALIDATION");
   const result = input.sourceResult;
   const tuple: EvidenceTuple = {
     releaseCandidateId: result.releaseCandidateId,
@@ -1106,7 +1755,12 @@ function validateAtomicSourceEvidenceCommit(input: AtomicSourceEvidenceCommit, m
       (result.finishedAt !== null && result.startedAt > result.finishedAt)) {
     throw new Error("Source-result timestamps are invalid or unordered");
   }
-  validateCommittedSourceResultTruthTable(result);
+  validateCommittedSourceResultTruthTable(
+    result,
+    input.observationProvenance.canonicalRawSha256,
+    onStage
+  );
+  onStage("SOURCE_RESULT_VALIDATION");
   const provenance = input.observationProvenance;
   assertTuple(provenance, tuple, "observation provenance");
   if (!isValidDate(provenance.observedFrom) || !isValidDate(provenance.observedTo) ||
@@ -1126,6 +1780,7 @@ function validateAtomicSourceEvidenceCommit(input: AtomicSourceEvidenceCommit, m
   validateNonblankUniqueList(result.officialChannelIds, "official channel");
   validateCounts(result);
 
+  onStage("COMMAND_VALIDATION");
   const observations = input.commands.filter(
     (command): command is Extract<IngestionCommand, { type: "UPSERT_CRAWL_OBSERVATION" }> =>
       command.type === "UPSERT_CRAWL_OBSERVATION"
@@ -1200,19 +1855,27 @@ function validateAtomicSourceEvidenceCommit(input: AtomicSourceEvidenceCommit, m
     }
   } else if (!manualPreview) {
     const emptySetHash = hashCanonicalStringSet([]);
-    for (const command of jobCommands) {
-      if (command.missingSuccessfulCrawlCount !== 0 || command.lifecycleStatus !== "ACTIVE" ||
-          command.visibleInFrontend !== true) {
-        throw new Error("Partial source result may only refresh currently observed active jobs");
+    if (result.blockerCode === "COMPLETENESS_ANOMALY_UNVERIFIED") {
+      if (jobCommands.length !== 0 || result.canonicalGraceJobSetSha256 !== emptySetHash ||
+          result.canonicalVisibleJobSetSha256 !== emptySetHash ||
+          result.canonicalOutputSetSha256 !== result.canonicalCurrentJobSetSha256) {
+        throw new Error("Unverified completeness anomaly must preserve the prior public Job projection");
       }
-    }
-    const currentKeys = jobCommands.map((command) => command.dedupeKey);
-    if (currentKeys.length !== result.dedupeOutputCount ||
-        hashCanonicalStringSet(currentKeys) !== result.canonicalCurrentJobSetSha256 ||
-        result.canonicalOutputSetSha256 !== result.canonicalCurrentJobSetSha256 ||
-        result.canonicalGraceJobSetSha256 !== emptySetHash ||
-        result.canonicalVisibleJobSetSha256 !== result.canonicalCurrentJobSetSha256) {
-      throw new Error("Partial current job set does not match committed hashes");
+    } else {
+      for (const command of jobCommands) {
+        if (command.missingSuccessfulCrawlCount !== 0 || command.lifecycleStatus !== "ACTIVE" ||
+            command.visibleInFrontend !== true) {
+          throw new Error("Partial source result may only refresh currently observed active jobs");
+        }
+      }
+      const currentKeys = jobCommands.map((command) => command.dedupeKey);
+      if (currentKeys.length !== result.dedupeOutputCount ||
+          hashCanonicalStringSet(currentKeys) !== result.canonicalCurrentJobSetSha256 ||
+          result.canonicalOutputSetSha256 !== result.canonicalCurrentJobSetSha256 ||
+          result.canonicalGraceJobSetSha256 !== emptySetHash ||
+          result.canonicalVisibleJobSetSha256 !== result.canonicalCurrentJobSetSha256) {
+        throw new Error("Partial current job set does not match committed hashes");
+      }
     }
   }
   if (observation.observation.structuredJobCount !== result.dedupeOutputCount) {
@@ -1225,102 +1888,40 @@ function validateAtomicSourceEvidenceCommit(input: AtomicSourceEvidenceCommit, m
     throw new Error("Observation counters or completeness do not match source result");
   }
 
-  const artifactIdsByLogicalKey = new Map<string, string>();
-  const paths = new Set<string>();
-  const artifactByLogicalKey = new Map<string, AtomicEvidenceArtifactInput>();
-  for (const artifact of input.artifacts) {
-    assertTuple(artifact, tuple, "artifact");
-    requireNonblank(artifact.id, "artifact id");
-    requireNonblank(artifact.logicalKey, "artifact logical key");
-    requireNonblank(artifact.path, "artifact path");
-    requireNonblank(artifact.extractorLocator, "artifact extractorLocator");
-    requireNonblank(artifact.captureToolName, "artifact captureToolName");
-    requireNonblank(artifact.captureToolVersion, "artifact captureToolVersion");
-    requireSha256(artifact.sha256, "artifact sha256");
-    requireSha256(artifact.redactionCommitmentSha256, "artifact redaction commitment sha256");
-    requireNonnegativeInteger(artifact.byteCount, "artifact byteCount");
-    if (!isValidDate(artifact.capturedAt)) throw new Error("Artifact capturedAt is invalid");
-    if (artifactIdsByLogicalKey.has(artifact.logicalKey)) throw new Error("Artifact logical keys must be unique");
-    if (paths.has(artifact.path)) throw new Error("Artifact paths must be unique");
-    if (NETWORK_ARTIFACT_KINDS.has(artifact.kind)) {
-      requireNonblank(artifact.requestedUrl, "network artifact requestedUrl");
-      requireNonblank(artifact.finalUrl, "network artifact finalUrl");
-      requireNonblank(artifact.contentType, "network artifact contentType");
-      if (!Number.isInteger(artifact.httpStatus) || artifact.httpStatus! < 100 || artifact.httpStatus! > 599) {
-        throw new Error("Network artifact httpStatus is invalid");
-      }
-    }
-    artifactIdsByLogicalKey.set(artifact.logicalKey, artifact.id);
-    artifactByLogicalKey.set(artifact.logicalKey, artifact);
-    paths.add(artifact.path);
-  }
+  onStage("ARTIFACT_VALIDATION");
+  const { idsByLogicalKey: artifactIdsByLogicalKey,
+    artifactsByLogicalKey: artifactByLogicalKey } = validateEvidenceArtifacts(input.artifacts, tuple);
   requireNonblank(provenance.officialEvidenceArtifactLogicalKey, "official evidence artifact logical key");
   const officialArtifact = artifactByLogicalKey.get(provenance.officialEvidenceArtifactLogicalKey);
   if (!officialArtifact) throw new Error("Designated official evidence artifact is missing");
+  if (result.completenessCertificate !== null) {
+    onStage("CERTIFICATE_VALIDATION");
+    verifyPersistedCompletenessCertificate(result, {
+      logicalKey: officialArtifact.logicalKey,
+      sha256: officialArtifact.sha256
+    }, provenance.canonicalRawSha256);
+  }
+  onStage("ARTIFACT_VALIDATION");
   if (result.expectedEvidenceKind === "OFFICIAL_TOTAL_COUNT") {
     if (result.expectedJobCount === null || !NETWORK_ARTIFACT_KINDS.has(officialArtifact.kind)) {
       throw new Error("OFFICIAL_TOTAL_COUNT requires explicit expectedJobCount and an archived network artifact");
     }
     if (result.completenessState === "VERIFIED" &&
-        result.expectedJobCount !== result.dedupeOutputCount) {
+        result.expectedJobCount !== result.dedupeOutputCount &&
+        !hasVerifiedAGradeOfficialTotalDedupe(input) &&
+        !hasExactBoehringerVerifiedUiExclusions(input) &&
+        !hasExactGrifolsVerifiedDetailScopeExclusions(input, artifactByLogicalKey)) {
       throw new Error("OFFICIAL_TOTAL_COUNT expectedJobCount must equal dedupeOutputCount");
     }
     requireNonblank(officialArtifact.extractorLocator, "OFFICIAL_TOTAL_COUNT extraction locator");
   }
 
-  const sortedPages = [...input.pagination].sort((a, b) => a.sequence - b.sequence);
-  const seenSequences = new Set<number>();
-  for (let index = 0; index < sortedPages.length; index += 1) {
-    const page = sortedPages[index]!;
-    assertTuple(page, tuple, "pagination");
-    if (!Number.isInteger(page.sequence) || page.sequence !== index || seenSequences.has(page.sequence)) {
-      throw new Error("Pagination sequences must be unique and contiguous from zero");
-    }
-    seenSequences.add(page.sequence);
-    if (!artifactIdsByLogicalKey.has(page.artifactLogicalKey)) {
-      throw new Error("Pagination references an artifact outside the supplied artifact set");
-    }
-    requireSha256(page.responseFingerprintSha256, "pagination response sha256");
-    requireSha256(page.rawJobIdSetSha256, "pagination raw job id set sha256");
-    requireSha256(page.validJobIdSetSha256, "pagination valid job id set sha256");
-    if (!isValidDate(page.capturedAt)) throw new Error("Pagination capturedAt is invalid");
-    for (const [name, value] of [["declaredTotal", page.declaredTotal], ["declaredCount", page.declaredCount],
-      ["declaredPages", page.declaredPages], ["requestedOffset", page.requestedOffset],
-      ["returnedOffset", page.returnedOffset], ["requestedPage", page.requestedPage],
-      ["returnedPage", page.returnedPage]] as const) {
-      if (value !== undefined && value !== null) requireNonnegativeInteger(value, `pagination ${name}`);
-    }
-    for (const [name, value] of [["requestedPageSize", page.requestedPageSize],
-      ["returnedPageSize", page.returnedPageSize]] as const) {
-      if (value !== undefined && value !== null) {
-        requireNonnegativeInteger(value, `pagination ${name}`);
-        if (value === 0) throw new Error(`pagination ${name} must be positive when supplied`);
-      }
-    }
-    if (result.completenessState === "VERIFIED" && page.anomalyCodes.length > 0) {
-      throw new Error("VERIFIED completeness cannot contain pagination anomalies");
-    }
-    if (result.completenessState === "VERIFIED" && UNSAFE_VERIFIED_TERMINATIONS.has(page.termination)) {
-      throw new Error("VERIFIED completeness cannot use an unsafe pagination termination");
-    }
-  }
+  onStage("PAGINATION_VALIDATION");
+  validateEvidencePagination(input.pagination, tuple, artifactIdsByLogicalKey,
+    result.completenessState === "VERIFIED");
 
-  const lossCounts: Record<LossStage, number> = { PARSE: 0, VALIDATION: 0, NORMALIZATION: 0, DEDUPE: 0 };
-  const collisionGroups = new Set<string>();
-  for (const loss of input.lossLedger) {
-    assertTuple(loss, tuple, "loss ledger");
-    requireNonblank(loss.reason, "loss reason");
-    requireNonblank(loss.rawLocator, "loss rawLocator");
-    if (loss.recordedAt !== undefined && !isValidDate(loss.recordedAt)) throw new Error("Loss recordedAt is invalid");
-    if (loss.details === undefined) throw new Error("Loss details must be supplied");
-    lossCounts[loss.stage] += 1;
-    if (loss.stage === "DEDUPE") {
-      if (!nonblank(loss.candidateKey) || !nonblank(loss.winnerKey)) {
-        throw new Error("Dedupe loss requires nonblank candidateKey and winnerKey");
-      }
-      collisionGroups.add(loss.winnerKey);
-    }
-  }
+  onStage("LOSS_LEDGER_VALIDATION");
+  const { counts: lossCounts, collisionGroups } = validateEvidenceLossRows(input.lossLedger, tuple, false);
   if (lossCounts.PARSE !== result.parseDiscardCount ||
       lossCounts.VALIDATION !== result.validationDiscardCount ||
       lossCounts.NORMALIZATION !== result.normalizationDiscardCount ||
@@ -1328,6 +1929,7 @@ function validateAtomicSourceEvidenceCommit(input: AtomicSourceEvidenceCommit, m
     throw new Error("Loss ledger rows do not reconcile to discard and collision counts");
   }
 
+  onStage("RECONCILIATION_VALIDATION");
   requireSha256(result.canonicalOutputSetSha256, "canonicalOutputSetSha256");
   requireSha256(result.adapterReconciliationSha256, "adapterReconciliationSha256");
   requireSha256(result.collisionLedgerSha256, "collisionLedgerSha256");
@@ -1344,29 +1946,11 @@ function validateAtomicSourceEvidenceCommit(input: AtomicSourceEvidenceCommit, m
       provenance.artifactRedactionCommitmentSha256) {
     throw new Error("Artifact redaction commitments do not match observation provenance");
   }
-  const seenAttemptIds = new Set<string>();
-  for (let index = 0; index < input.priorTransportAttempts.length; index += 1) {
-    const attempt = input.priorTransportAttempts[index]!;
-    assertTuple(attempt, tuple, "transport attempt");
-    requireNonblank(attempt.id, "transport attempt id");
-    requireNonblank(attempt.code, "transport attempt code");
-    if (!TRANSPORT_ATTEMPT_CODES.has(attempt.code)) throw new Error("Transport attempt code is invalid");
-    if (attempt.sequence !== index || seenAttemptIds.has(attempt.id)) {
-      throw new Error("Transport-attempt sequences and IDs must be unique and contiguous");
-    }
-    seenAttemptIds.add(attempt.id);
-    if (!isValidDate(attempt.capturedAt)) throw new Error("Transport attempt capturedAt is invalid");
-    requireSha256(attempt.evidenceCommitmentSha256, "transport attempt evidence commitment");
-    requireSha256(attempt.pageTraceSha256, "transport attempt page trace commitment");
-    requireSha256(attempt.lossLedgerSha256, "transport attempt loss ledger commitment");
-    requireSha256(attempt.paginationEvaluationSha256, "transport attempt pagination evaluation commitment");
-    validateNonblankUniqueList(attempt.artifactIds, "transport attempt artifact");
-    if (attempt.artifactIds.some((id) => !input.artifacts.some((artifact) => artifact.id === id))) {
-      throw new Error("Transport attempt references an artifact outside the supplied tuple");
-    }
-    validateSafeJson(attempt.details, "transport attempt details");
-  }
+  onStage("TRANSPORT_ATTEMPT_VALIDATION");
+  validateEvidenceTransportAttempts(input.priorTransportAttempts, tuple,
+    new Set(input.artifacts.map(({ id }) => id)));
 
+  onStage("COMMITTED_EVIDENCE_VALIDATION");
   if (!provenance.transportSucceeded || !provenance.adapterSucceeded || !provenance.atomicCommitSucceeded ||
       provenance.completenessVerified !== (result.completenessState === "VERIFIED") ||
       !observation.observation.successful) {
@@ -1415,6 +1999,107 @@ function validateAtomicSourceEvidenceCommit(input: AtomicSourceEvidenceCommit, m
     }
   }
   return { observationCommand: observation, artifactIdsByLogicalKey, officialArtifactId: officialArtifact.id };
+}
+
+const GRIFOLS_SOURCE_ID = "source-grifols-china-social";
+const BOEHRINGER_SOURCE_ID = "source-boehringer-ingelheim-china-social";
+const GRIFOLS_DETAIL_LOCATOR =
+  "grifols-successfactors-detail-v1|html:canonical+streetAddress+content-location";
+
+function hasVerifiedAGradeOfficialTotalDedupe(input: AtomicSourceEvidenceCommit): boolean {
+  const result = input.sourceResult;
+  const certificate = result.completenessCertificate;
+  if (!requiresAGradeCertificateSourceId(result.sourceId) ||
+      typeof certificate !== "object" || certificate === null || Array.isArray(certificate) ||
+      (certificate as { grade?: unknown }).grade !== "A" ||
+      result.expectedEvidenceKind !== "OFFICIAL_TOTAL_COUNT" || result.expectedJobCount === null ||
+      result.parseDiscardCount !== 0 || result.validationDiscardCount !== 0 ||
+      result.normalizationDiscardCount !== 0 || result.dedupeDiscardCount <= 0 ||
+      result.collisionCount <= 0 || result.discardCount !== result.dedupeDiscardCount ||
+      result.rawCount !== result.expectedJobCount || result.parsedCount !== result.rawCount ||
+      result.validCount !== result.rawCount || result.normalizedCount !== result.rawCount ||
+      result.dedupeInputCount !== result.rawCount ||
+      result.expectedJobCount !== result.dedupeOutputCount + result.dedupeDiscardCount ||
+      result.adapterInputCount !== result.dedupeInputCount ||
+      result.adapterOutputCount !== result.dedupeOutputCount ||
+      result.adapterLossCount !== result.dedupeDiscardCount ||
+      result.adapterCollisionGroupCount !== result.collisionCount ||
+      input.lossLedger.length !== result.dedupeDiscardCount) return false;
+  return input.lossLedger.every((loss) =>
+    loss.stage === "DEDUPE" && nonblank(loss.candidateKey) && nonblank(loss.winnerKey));
+}
+
+function hasExactBoehringerVerifiedUiExclusions(input: AtomicSourceEvidenceCommit): boolean {
+  const result = input.sourceResult;
+  const certificate = result.completenessCertificate;
+  if (result.sourceId !== BOEHRINGER_SOURCE_ID ||
+      result.expectedEvidenceKind !== "OFFICIAL_TOTAL_COUNT" || result.expectedJobCount === null ||
+      typeof certificate !== "object" || certificate === null || Array.isArray(certificate) ||
+      (certificate as { schemaVersion?: unknown }).schemaVersion !== "b-grade-independent-traversal-v2" ||
+      (certificate as { grade?: unknown }).grade !== "B" ||
+      result.parseDiscardCount !== 0 || result.validationDiscardCount <= 0 ||
+      result.normalizationDiscardCount !== 0 || result.dedupeDiscardCount !== 0 || result.collisionCount !== 0 ||
+      result.discardCount !== result.validationDiscardCount || result.rawCount !== result.expectedJobCount ||
+      result.parsedCount !== result.rawCount ||
+      result.validCount !== result.rawCount - result.validationDiscardCount ||
+      result.normalizedCount !== result.validCount || result.dedupeInputCount !== result.validCount ||
+      result.dedupeOutputCount !== result.validCount ||
+      result.expectedJobCount !== result.dedupeOutputCount + result.validationDiscardCount ||
+      input.lossLedger.length !== result.validationDiscardCount) return false;
+  const values = certificate as {
+    binding?: { sourceId?: unknown };
+    counts?: { validationDiscardCount?: unknown; finalUniqueJobCount?: unknown };
+  };
+  if (values.binding?.sourceId !== BOEHRINGER_SOURCE_ID ||
+      values.counts?.validationDiscardCount !== result.validationDiscardCount ||
+      values.counts?.finalUniqueJobCount !== result.dedupeOutputCount) return false;
+  const indexes = new Set<number>();
+  return input.lossLedger.every((loss) => {
+    const details = loss.details;
+    if (loss.stage !== "VALIDATION" || loss.reason !== "51job record excluded by official recruitment UI" ||
+        !/^official-json-page-0000#record:\d+#sha256:[0-9a-f]{64}$/u.test(loss.rawLocator) ||
+        typeof details !== "object" || details === null || Array.isArray(details)) return false;
+    const code = (details as Record<string, unknown>).code;
+    const recordIndex = (details as Record<string, unknown>).recordIndex;
+    if (code !== "OFFICIAL_UI_EXCLUSION" || !Number.isSafeInteger(recordIndex) ||
+        (recordIndex as number) < 0 || indexes.has(recordIndex as number)) return false;
+    indexes.add(recordIndex as number);
+    return true;
+  });
+}
+
+function hasExactGrifolsVerifiedDetailScopeExclusions(
+  input: AtomicSourceEvidenceCommit,
+  artifactsByLogicalKey: ReadonlyMap<string, AtomicEvidenceArtifactInput>
+): boolean {
+  const result = input.sourceResult;
+  if (result.sourceId !== GRIFOLS_SOURCE_ID || result.expectedEvidenceKind !== "OFFICIAL_TOTAL_COUNT" ||
+      result.expectedJobCount === null || result.parseDiscardCount !== 0 || result.normalizationDiscardCount !== 0 ||
+      result.dedupeDiscardCount !== 0 || result.validationDiscardCount <= 0 ||
+      result.rawCount !== result.expectedJobCount || result.parsedCount !== result.rawCount ||
+      result.validCount !== result.dedupeOutputCount ||
+      result.expectedJobCount !== result.dedupeOutputCount + result.validationDiscardCount ||
+      input.lossLedger.length !== result.validationDiscardCount) return false;
+
+  const recordIndexes = new Set<number>();
+  for (const loss of input.lossLedger) {
+    const details = loss.details;
+    if (loss.stage !== "VALIDATION" ||
+        loss.reason !== "official detail places the job outside mainland China" ||
+        typeof details !== "object" || details === null || Array.isArray(details)) return false;
+    const values = details as Record<string, unknown>;
+    const recordIndex = values.recordIndex;
+    if (values.code !== "VERIFIED_DETAIL_OUT_OF_MAINLAND_SCOPE" ||
+        !Number.isSafeInteger(recordIndex) || (recordIndex as number) < 0 || recordIndexes.has(recordIndex as number)) {
+      return false;
+    }
+    const rawLocatorMatch = /^(grifols-detail-\d{4})#(.+)$/u.exec(loss.rawLocator);
+    if (!rawLocatorMatch || rawLocatorMatch[2] !== GRIFOLS_DETAIL_LOCATOR) return false;
+    const artifact = artifactsByLogicalKey.get(rawLocatorMatch[1]!);
+    if (!artifact || artifact.kind !== "ATS_PAGE" || artifact.extractorLocator !== GRIFOLS_DETAIL_LOCATOR) return false;
+    recordIndexes.add(recordIndex as number);
+  }
+  return true;
 }
 
 const NETWORK_ARTIFACT_KINDS = new Set<EvidenceArtifactKind>([
@@ -1466,8 +2151,10 @@ function validateSafeJson(value: unknown, label: string, depth = 0): void {
 
 const TRANSPORT_ATTEMPT_CODES = new Set<TransportAttemptCode>([
   "HCM_DIRECT_FAILED", "HCM_BROWSER_SESSION_FAILED", "HCM_BROWSER_ENTRY_FAILED",
-  "HCM_BROWSER_COUNT_FAILED", "HCM_BROWSER_LIST_FAILED"
+  "HCM_BROWSER_COUNT_FAILED", "HCM_BROWSER_LIST_FAILED", "HCM_BROWSER_SUCCEEDED",
+  "JNJ_DIRECT_FAILED", "JNJ_BROWSER_SESSION_FAILED", "JNJ_BROWSER_FETCH_FAILED", "JNJ_BROWSER_SUCCEEDED"
 ]);
+const JNJ_SOURCE_ID = "source-johnson-innovative-medicine-social";
 
 function assertTuple(value: EvidenceTuple, expected: EvidenceTuple, label: string): void {
   if (value.releaseCandidateId !== expected.releaseCandidateId || value.batchId !== expected.batchId ||

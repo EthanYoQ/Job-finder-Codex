@@ -1,4 +1,5 @@
 import type { CompanyRecruitmentProfileSeed } from "../types";
+import { WORKDAY_JSON_CONFIG } from "../shared";
 
 export const profile_csl_china = {
   companyId: "company-csl-china",
@@ -6,28 +7,16 @@ export const profile_csl_china = {
     {
       sourceId: "source-csl-china-social",
       executionConfig: {
-          adapterId: "html-table",
-          table: {
-              rowSelector: "a[href^='https://jobs.csl.com/en/jobs/']",
-              completenessProof: { kind: "OFFICIAL_TOTAL_PAGES" },
-              pagination: {
-                  totalPagesSelector: "body",
-                  totalPagesAttribute: "data-total-pages",
-                  pageSearchParam: "page",
-                  pageSize: 25,
-                  maxPages: 5,
-                  expectedJobCountSelector: "body",
-                  expectedJobCountPattern: "Showing\\s+\\d+\\s+to\\s+\\d+\\s+of\\s+(\\d+)\\s+results"
+          adapterId: "official-json",
+          json: WORKDAY_JSON_CONFIG,
+          workday: {
+              tenant: "csl",
+              site: "CSL_External",
+              appliedFacets: {
+                  locationCountry: ["6cb77610a8a543aea2d6bc10457e35d4"]
               },
-              fields: {
-                  sourceJobId: {
-                      selector: ":scope",
-                      attribute: "href"
-                  },
-                  officialTitle: { selector: "p.text-18" },
-                  officialUrl: { selector: ":scope", attribute: "href" },
-                  locationRaw: { selector: "p:has(svg[aria-hidden='true'])" }
-              }
+              pageSize: 20,
+              maxPages: 10
           }
       }
     },

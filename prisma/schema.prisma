@@ -91,10 +91,14 @@ enum SourceFailureCategory {
 
 enum SourceFailureDiagnosticCode {
   OFFICIAL_HTTP_TIMEOUT
+  OFFICIAL_NETWORK_ERROR
+  OFFICIAL_BROWSER_SESSION_ERROR
+  OFFICIAL_PAGINATION_SNAPSHOT_DRIFT
   OFFICIAL_HTTP_429
   OFFICIAL_HTTP_502
   OFFICIAL_HTTP_503
   OFFICIAL_HTTP_504
+  OFFICIAL_HTTP_5XX
   SOURCE_ATTEMPT_TIMEOUT
   FETCH_EXECUTION_FAILED
   FETCH_FAILED_CLOSED
@@ -166,6 +170,11 @@ enum TransportAttemptCode {
   HCM_BROWSER_ENTRY_FAILED
   HCM_BROWSER_COUNT_FAILED
   HCM_BROWSER_LIST_FAILED
+  HCM_BROWSER_SUCCEEDED
+  JNJ_DIRECT_FAILED
+  JNJ_BROWSER_SESSION_FAILED
+  JNJ_BROWSER_FETCH_FAILED
+  JNJ_BROWSER_SUCCEEDED
 }
 
 enum RequiredJobField {
@@ -443,6 +452,7 @@ model CrawlBatchSourceResult {
   failureDiagnosticCode        SourceFailureDiagnosticCode?
   fetchAttemptCount            Int?
   retryCount                   Int?
+  retryReasonCodes             String[]            @default([])
   failureCode                  String?
   failureReason                String?
   createdAt                    DateTime            @default(now())
@@ -462,6 +472,11 @@ model CrawlBatchSourceResult {
   adapterCollisionGroupCount   Int?
   adapterReconciliationSha256  String?
   collisionLedgerSha256        String?
+  completenessCertificate      Json?
+  completenessCertificateSha256 String?
+  baselinePreviousSourceResultId String?
+  baselinePreviousJobCount       Int?
+  baselineChangeReason           String?
 
   @@unique([batchId, sourceId])
   @@unique([id, releaseCandidateId, batchId, sourceId])

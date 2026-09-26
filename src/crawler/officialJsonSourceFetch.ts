@@ -8,14 +8,17 @@ import {
   officialHttpTimeoutMs
 } from "./officialHttpRuntimeLimits";
 import {
+  isRetryableSourceTransportFailure,
   retryableHttpTransportFailure,
   retryableTransportFailureFromError,
   safeSourceTransportFailureReason,
   type SourceTransportFailure
 } from "./sourceFetchFailure";
+import { acquireBrowserSourcePermit } from "./browserSourceConcurrency";
 import { load as loadHtml } from "cheerio";
 import { parse as parseJavaScript } from "@babel/parser";
 import type { ObjectExpression } from "@babel/types";
+import { createHash } from "node:crypto";
 import {
   assertOfficialHtmlMime,
   assertOfficialJsonEvidenceResponse,
@@ -50,6 +53,11 @@ import { deriveCanonicalPaginationEvidence, evaluatePaginationEvidence } from ".
 import { hasUniqueJsonObjectKeys } from "./strictJsonObjectKeys";
 import { requestContractV2Locator } from "./strictPageRequestContract";
 import type { SourceCrawlPlan } from "./sourcePlan";
+import {
+  parseYelloJobBoardResponse,
+  yelloJobBoardBinding,
+  type YelloJobBoardConfig
+} from "./yelloJobBoardEvidence";
 
 export type OfficialJsonFetchConfig =
   | {
@@ -102,11 +110,14 @@ export type OfficialJsonFetchConfig =
       };
       allowOmittedOffsetForSinglePage?: boolean;
       requestBoundOmittedOffsetPolicy?: "ROCHE_REQUEST_BOUND_OMITTED_OFFSET_V1";
+      exactDuplicateReconciliationPolicy?: "ROCHE_IDENTICAL_CROSS_PAGE_V1";
       pageSize?: number;
       maxPages?: number;
     }
   | {
       kind: "beisen-zhiye-2022";
+      changedWithinDays?: 183;
+      postDateWithinDays?: 180;
       category?: string;
       pageSize?: number;
       maxPages?: number;
@@ -120,7 +131,7 @@ export type OfficialJsonFetchConfig =
       scopeExclusionProof?:
         | "DONGYANGGUANG_EXPLICIT_FOREIGN_ONLY_V1"
         | "NHU_EXPLICIT_JAPAN_ONLY_V1"
-        | "QILU_EXPLICIT_US_ONLY_V1"
+        | "QILU_EXPLICIT_US_OR_HONG_KONG_ONLY_V2"
         | "THREESBIO_XIANYANG_HOMOGRAPH_V1";
     }
   | {
@@ -149,6 +160,21 @@ export type OfficialJsonFetchConfig =
       pageSize?: number;
       maxPages?: number;
       detailBaseUrl: string;
+    }
+  | {
+      kind: "eightfold-pcsx";
+      domain: string;
+      location: string;
+      pageSize?: number;
+      maxPages?: number;
+      detailBaseUrl: string;
+    }
+  | {
+      kind: "51job-coapi";
+      ctmid: string;
+      uiScriptUrl: string;
+      detailBaseUrl: string;
+      pageSize?: 500;
     }
   | {
       kind: "sandoz-jsonapi";
@@ -180,7 +206,8 @@ export type OfficialJsonFetchConfig =
       pageSize?: number;
       maxPages?: number;
       scopeExclusionProof?: "XIUZHENG_NON_RECRUITMENT_TITLE_V1";
-    };
+    }
+  | YelloJobBoardConfig;
 
 export interface OfficialJsonHttpRequest {
   url: string;
@@ -236,6 +263,7 @@ interface NormalizedOfficialJsonJob {
 const CITY_MATCHES: ReadonlyArray<readonly [string, string]> = [
   ["Shanghai", "上海"],
   ["Beijing", "北京"],
+  ["Changsha", "长沙"],
   ["Changchun", "长春"],
   ["Chongqing", "重庆"],
   ["Daqing", "大庆"],
@@ -261,9 +289,12 @@ const CITY_MATCHES: ReadonlyArray<readonly [string, string]> = [
   ["Zhuhai", "珠海"],
   ["Tianjin", "天津"],
   ["Lanzhou", "兰州"],
+  ["Taiyuan", "太原"],
+  ["Yancheng", "盐城"],
   ["Jiangsu", "江苏"],
   ["上海", "上海"],
   ["北京", "北京"],
+  ["长沙", "长沙"],
   ["长春", "长春"],
   ["重庆", "重庆"],
   ["大庆", "大庆"],
@@ -283,7 +314,9 @@ const CITY_MATCHES: ReadonlyArray<readonly [string, string]> = [
   ["通化", "通化"],
   ["西宁", "西宁"],
   ["天津", "天津"],
-  ["兰州", "兰州"]
+  ["兰州", "兰州"],
+  ["太原", "太原"],
+  ["盐城", "盐城"]
 ];
 const DEFAULT_BEISEN_ZHIYE_DISPLAY_FIELDS = [
   "Category",
@@ -365,6 +398,26 @@ export function createOfficialJsonSourceFetch(
         }));
       }
 
+      if (plan.officialJsonFetch.kind === "eightfold-pcsx") {
+        return finish(await fetchEightfoldPcsx({
+          http,
+          config: plan.officialJsonFetch,
+          entryUrl: plan.source.officialEntryUrl,
+          capturedAt,
+          now
+        }));
+      }
+
+      if (plan.officialJsonFetch.kind === "51job-coapi") {
+        return finish(await fetch51jobCoapi({
+          http,
+          config: plan.officialJsonFetch,
+          entryUrl: plan.source.officialEntryUrl,
+          capturedAt,
+          now
+        }));
+      }
+
       if (plan.officialJsonFetch.kind === "sandoz-jsonapi") {
         return finish(await fetchSandozJsonApi({
           http,
@@ -396,6 +449,16 @@ export function createOfficialJsonSourceFetch(
         }));
       }
 
+      if (plan.officialJsonFetch.kind === "yello-job-board") {
+        return finish(await fetchYelloJobBoard({
+          http,
+          config: plan.officialJsonFetch,
+          entryUrl: plan.source.officialEntryUrl,
+          capturedAt,
+          now
+        }));
+      }
+
       return finish(await fetchSingleResponseOfficialJson({
         http,
         config: plan.officialJsonFetch,
@@ -407,6 +470,113 @@ export function createOfficialJsonSourceFetch(
     } catch (error) {
       return failed(capturedAt, error instanceof Error ? error.message : String(error));
     }
+  };
+}
+
+async function fetchYelloJobBoard({
+  http,
+  config,
+  entryUrl,
+  capturedAt,
+  now
+}: {
+  http: OfficialJsonHttpClient;
+  config: Extract<OfficialJsonFetchConfig, { kind: "yello-job-board" }>;
+  entryUrl: string;
+  capturedAt: string;
+  now: () => Date;
+}): Promise<SourceFetchResult> {
+  let safeEntryUrl: string;
+  let endpoint: string;
+  let extractorLocator: string;
+  try {
+    const binding = yelloJobBoardBinding(safeOfficialJsonEvidenceUrl(entryUrl), config);
+    safeEntryUrl = binding.entryUrl;
+    endpoint = binding.endpointUrl;
+    extractorLocator = binding.extractorLocator;
+  } catch {
+    return failed(capturedAt, "Yello source configuration is invalid");
+  }
+
+  let response: OfficialJsonHttpResponse;
+  try {
+    response = await http({
+      url: endpoint,
+      method: "GET",
+      headers: {
+        Accept: "application/json",
+        "X-Requested-With": "XMLHttpRequest",
+        "User-Agent": "job-search-crawler/0.1"
+      }
+    });
+  } catch {
+    return failed(capturedAt, "Yello source transport failed");
+  }
+
+  try {
+    assertOfficialJsonEvidenceResponse(response, {
+      requestedUrl: endpoint,
+      crawlStartedAtMs: Date.parse(capturedAt),
+      observedNowMs: now().getTime()
+    });
+  } catch {
+    return failed(capturedAt, "Yello response metadata is invalid");
+  }
+  const artifact = officialJsonArtifact({ requestedUrl: endpoint, response, extractorLocator });
+  const failureState = initialOfficialJsonEvidenceState({ artifact, termination: "FAILED" });
+  if (response.status < 200 || response.status >= 300) {
+    return failedWithEvidence(capturedAt, `Yello source returned HTTP ${response.status}`,
+      finalizeOfficialJsonFailureEvidence(failureState));
+  }
+  try {
+    assertOfficialJsonMime(response);
+  } catch {
+    return failedWithEvidence(capturedAt, "Yello response has an invalid Content-Type",
+      finalizeOfficialJsonFailureEvidence(failureState));
+  }
+
+  let parsed: ReturnType<typeof parseYelloJobBoardResponse>;
+  try {
+    parsed = parseYelloJobBoardResponse(response.body, config);
+  } catch {
+    return failedWithEvidence(capturedAt, "Yello response failed strict China partition replay",
+      finalizeOfficialJsonFailureEvidence(failureState));
+  }
+  const count = parsed.declaredTotal;
+  const state = initialOfficialJsonEvidenceState({ artifact, declaredTotal: count, termination: "ABORTED" });
+  state.page.declaredCount = count;
+  const jobs: NormalizedOfficialJsonJob[] = [];
+  for (let index = 0; index < parsed.jobs.length; index += 1) {
+    const row = parsed.jobs[index]!;
+    state.rawCount += 1;
+    state.page.rawJobIds.push(irreversibleOfficialJsonEvidenceId([index, row.rawHtml]));
+    state.parsedCount += 1;
+    const sourceJobId = persistentOfficialJsonJobId(row.officialId);
+    jobs.push({ sourceJobId, title: row.title, officialUrl: row.officialUrl, locationRaw: row.locationRaw,
+      cities: citiesFromLocation(row.locationRaw) });
+    state.validCount += 1;
+    state.page.validJobIds.push(irreversibleOfficialJsonEvidenceId(sourceJobId));
+  }
+  state.page.termination = "NEXT_ABSENT";
+  const { evidence, evaluation } = finalizeOfficialJsonEvidence({
+    state,
+    declaredCompleteness: { kind: "OFFICIAL_TOTAL_COUNT", value: count,
+      artifactLogicalKey: artifact.logicalKey, extractorLocator, scope: "SOURCE" }
+  });
+  return {
+    ok: true,
+    capturedAt,
+    payload: { jobs },
+    completeness: {
+      completenessStatus: "NEEDS_MANUAL_COMPLETENESS_REVIEW",
+      expectedJobCount: count,
+      completenessEvidenceKind: "OFFICIAL_TOTAL_COUNT",
+      completenessEvidenceUrl: safeEntryUrl,
+      completenessBlockerReason: "Yello official China total remains manual until downstream adapter accounting is complete",
+      pagesVisited: 1
+    },
+    fetchEvidence: evidence,
+    paginationEvaluation: evaluation
   };
 }
 
@@ -433,13 +603,19 @@ function attachOfficialJsonPageCapacity(
       ? [...new Set(evidence.pages.flatMap((page) => page.channelId ? [page.channelId] : []))]
       : [];
     const allowMissingReturnedPage = config.kind === "beisen-zhiye-2022";
-    const allowPositiveOfficialTotalCountAfterAdapterReconciliation = config.kind === "sandoz-jsonapi";
+    const allowPositiveOfficialTotalCountAfterAdapterReconciliation =
+      config.kind === "sandoz-jsonapi" || config.kind === "yello-job-board" || config.kind === "51job-coapi";
+    const allowIndependentlyVerifiedProfileBoundExclusions = config.kind === "51job-coapi";
+    const allowRawIdOverlapAcrossPages = config.kind === "phenom" &&
+      config.exactDuplicateReconciliationPolicy === "ROCHE_IDENTICAL_CROSS_PAGE_V1";
     const canonical = deriveCanonicalPaginationEvidence({
       evidence: enriched,
       expectedChannelIds,
       filteredOutput: true,
       allowMissingReturnedPage,
-      allowPositiveOfficialTotalCountAfterAdapterReconciliation
+      allowPositiveOfficialTotalCountAfterAdapterReconciliation,
+      allowIndependentlyVerifiedProfileBoundExclusions,
+      allowRawIdOverlapAcrossPages
     });
     return {
       evidence: canonical,
@@ -448,7 +624,9 @@ function attachOfficialJsonPageCapacity(
         expectedChannelIds,
         filteredOutput: true,
         allowMissingReturnedPage,
-        allowPositiveOfficialTotalCountAfterAdapterReconciliation
+        allowPositiveOfficialTotalCountAfterAdapterReconciliation,
+        allowIndependentlyVerifiedProfileBoundExclusions,
+        allowRawIdOverlapAcrossPages
       })
     };
   };
@@ -474,6 +652,8 @@ function officialJsonRequestedPageSize(config: OfficialJsonFetchConfig): number 
     case "cnstaff": return Math.max(1, Math.min(100, config.pageSize ?? 15));
     case "hcm-cloud": return Math.max(1, config.pageSize ?? 20);
     case "jobsyn-solr": return config.pageSize ?? 9;
+    case "eightfold-pcsx": return Math.max(1, Math.min(100, config.pageSize ?? 10));
+    case "51job-coapi": return config.pageSize ?? 500;
     case "sandoz-jsonapi": return config.pageSize ?? 10;
     case "xiuzheng-job-list": return config.pageSize ?? 10;
     default: return null;
@@ -535,8 +715,13 @@ async function fetchSingleResponseOfficialJson({
         "User-Agent": "job-search-crawler/0.1"
       }
     });
-  } catch {
-    return failed(capturedAt, "Official JSON TRANSPORT_FAILURE");
+  } catch (error) {
+    const transportFailure = retryableTransportFailureFromError(error);
+    return failed(
+      capturedAt,
+      transportFailure ? safeSourceTransportFailureReason(transportFailure) : "Official JSON TRANSPORT_FAILURE",
+      transportFailure
+    );
   }
 
   try {
@@ -556,10 +741,14 @@ async function fetchSingleResponseOfficialJson({
   });
   const failureState = initialOfficialJsonEvidenceState({ artifact: failureArtifact, termination: "FAILED" });
   if (response.status < 200 || response.status >= 300) {
+    const transportFailure = retryableHttpTransportFailure(response.status);
     return failedWithEvidence(
       capturedAt,
-      `Official JSON source returned HTTP ${response.status}`,
-      finalizeOfficialJsonFailureEvidence(failureState)
+      transportFailure
+        ? safeSourceTransportFailureReason(transportFailure)
+        : `Official JSON source returned HTTP ${response.status}`,
+      finalizeOfficialJsonFailureEvidence(failureState),
+      transportFailure
     );
   }
   try {
@@ -795,19 +984,21 @@ function novoTotalLocator(endpoint: string, path: "$.data.totalMatches" | "$.dat
 }
 
 function isNovoChinaMainlandRequest(endpoint: string): boolean {
+  const url = new URL(endpoint);
   const countryEntries = [...new URL(endpoint).searchParams.entries()].filter(([key]) =>
     key.normalize("NFKC").toLowerCase() === "country"
   );
   return countryEntries.length === 1 && countryEntries[0]![0] === "country" &&
-    countryEntries[0]![1] === "China Mainland";
+    (countryEntries[0]![1] === "China Mainland" ||
+      (url.hostname === "www.novonordisk.com.cn" && countryEntries[0]![1] === "China"));
 }
 
 const EXACT_NOVO_CHINA_SOURCE_ID = "source-novo-nordisk-china-social";
 const EXACT_NOVO_CHINA_COMPANY_ID = "company-novo-nordisk-china";
 const EXACT_NOVO_CHINA_ENTRY_URL =
-  "https://www.novonordisk.com/careers/find-a-job/career-search-results.html";
+  "https://www.novonordisk.com.cn/careers/find-a-job/career-search-results.html?searchText=&countries=China&categories=";
 const EXACT_NOVO_CHINA_ENDPOINT =
-  "https://www.novonordisk.com/bin/nncorp/careersearch?keyword=&country=China%20Mainland&category=&locale=en";
+  "https://www.novonordisk.com.cn/bin/nncorp/careersearch?keyword=&country=China&category=&locale=zh-cn";
 
 function isExactNovoChinaCityPolicy(input: {
   config: Extract<OfficialJsonFetchConfig, { kind: "innovent" | "novo-nordisk" }>;
@@ -1345,9 +1536,10 @@ async function fetchHcmCloud({
         body
       })
   });
-  if (directResult.ok || !browserFetch) return directResult;
+  if (directResult.ok || !browserFetch ||
+      !isRetryableSourceTransportFailure(directResult.transportFailure)) return directResult;
 
-  const priorTransportAttempts: readonly SourceTransportAttempt[] = [{
+  const transportAttempts: SourceTransportAttempt[] = [{
     transport: "DIRECT_HTTP",
     outcome: "FAILED",
     code: "HCM_DIRECT_FAILED",
@@ -1356,12 +1548,29 @@ async function fetchHcmCloud({
     ...(directResult.paginationEvaluation ? { paginationEvaluation: directResult.paginationEvaluation } : {})
   }];
   let session: HcmCloudBrowserSession | undefined;
+  const signal = currentOfficialSourceAttemptSignal();
   try {
-    const signal = currentOfficialSourceAttemptSignal();
     session = await browserFetch({ config, entryUrl: safeEntryUrl, capturedAt, ...(signal ? { signal } : {}) });
+  } catch {
+    if (signal?.aborted) throw signal.reason;
+    return { ok: false, capturedAt, failureReason: "HCMCloud browser session failed",
+      transportFailure: { code: "OFFICIAL_BROWSER_SESSION_ERROR", retryable: true, stage: "ENTRY" },
+      priorTransportAttempts: [
+      ...transportAttempts,
+      { transport: "BROWSER_SESSION", outcome: "FAILED", code: "HCM_BROWSER_SESSION_FAILED", capturedAt }
+    ] };
+  }
+  try {
     assertHcmCloudBrowserSession(session);
   } catch {
-    return { ok: false, capturedAt, failureReason: "HCMCloud browser session failed", priorTransportAttempts };
+    const close = (session as unknown as { close?: unknown })?.close;
+    if (typeof close === "function") {
+      try { await close.call(session); } catch { /* invalid-session cleanup must not replace failure */ }
+    }
+    return { ok: false, capturedAt, failureReason: "HCMCloud browser session failed", priorTransportAttempts: [
+      ...transportAttempts,
+      { transport: "BROWSER_SESSION", outcome: "FAILED", code: "HCM_BROWSER_SESSION_FAILED", capturedAt }
+    ] };
   }
 
   let entryArtifact: SourceFetchArtifactDraft | undefined;
@@ -1375,7 +1584,10 @@ async function fetchHcmCloud({
     if (session.entryResponse.status < 200 || session.entryResponse.status >= 300 ||
       !/^text\/html(?:\s*;|$)/iu.test(session.entryResponse.contentType ?? "")) {
       const failure = hcmCloudBrowserEntryFailure(capturedAt, entryArtifact);
-      return { ...failure, priorTransportAttempts };
+      return { ...failure, priorTransportAttempts: [...transportAttempts, {
+        transport: "BROWSER_SESSION", outcome: "FAILED", code: "HCM_BROWSER_ENTRY_FAILED", capturedAt,
+        ...(failure.fetchEvidence ? { fetchEvidence: failure.fetchEvidence } : {})
+      }] };
     }
     const browserResult = await fetchHcmCloudWithPost({
       config, entryUrl: safeEntryUrl, entryEvidenceUrl, origin: entry.origin, capturedAt, now,
@@ -1384,7 +1596,11 @@ async function fetchHcmCloud({
       initialCapturedAtMs: Date.parse(session.entryResponse.capturedAt!),
       artifactPrefix: "browser-"
     });
-    if (browserResult.ok) return { ...browserResult, priorTransportAttempts };
+    if (browserResult.ok) return { ...browserResult, priorTransportAttempts: [
+      ...transportAttempts,
+      { transport: "BROWSER_SESSION", outcome: "SUCCEEDED", code: "HCM_BROWSER_SUCCEEDED", capturedAt,
+        ...(browserResult.paginationEvaluation ? { paginationEvaluation: browserResult.paginationEvaluation } : {}) }
+    ] };
     const code = browserResult.fetchEvidence?.pages.length ||
       browserResult.fetchEvidence?.supportingArtifactOnlyFailure?.code === "HCM_LIST_RESPONSE_FAILED"
       ? "HCM_BROWSER_LIST_FAILED" as const
@@ -1394,11 +1610,18 @@ async function fetchHcmCloud({
       failureReason: code === "HCM_BROWSER_LIST_FAILED"
         ? "HCMCloud browser list failed"
         : "HCMCloud browser count failed",
-      priorTransportAttempts
+      priorTransportAttempts: [...transportAttempts, {
+        transport: "BROWSER_SESSION", outcome: "FAILED", code, capturedAt,
+        ...(browserResult.fetchEvidence ? { fetchEvidence: browserResult.fetchEvidence } : {}),
+        ...(browserResult.paginationEvaluation ? { paginationEvaluation: browserResult.paginationEvaluation } : {})
+      }]
     };
   } catch {
     const failure = hcmCloudBrowserEntryFailure(capturedAt, entryArtifact);
-    return { ...failure, priorTransportAttempts };
+    return { ...failure, priorTransportAttempts: [...transportAttempts, {
+      transport: "BROWSER_SESSION", outcome: "FAILED", code: "HCM_BROWSER_ENTRY_FAILED", capturedAt,
+      ...(failure.fetchEvidence ? { fetchEvidence: failure.fetchEvidence } : {})
+    }] };
   } finally {
     try { await session.close(); } catch { /* cleanup failures are non-evidence operational details */ }
   }
@@ -1740,6 +1963,438 @@ async function fetchSandozJsonApi({
   };
 }
 
+const FIFTY_ONE_JOB_COAPI_PUBLIC_KEY =
+  "tuD&#mheJQBlgy&Sm300l8xK^X4NzFYBcrN8@YLCret$fv1AZbtujg*KN^$YnUkh";
+
+async function fetch51jobCoapi({
+  http,
+  config,
+  entryUrl,
+  capturedAt,
+  now
+}: {
+  http: OfficialJsonHttpClient;
+  config: Extract<OfficialJsonFetchConfig, { kind: "51job-coapi" }>;
+  entryUrl: string;
+  capturedAt: string;
+  now: () => Date;
+}): Promise<SourceFetchResult> {
+  let safeEntryUrl: string;
+  let scriptUrl: string;
+  let detailBase: URL;
+  try {
+    safeEntryUrl = safeOfficialJsonEvidenceUrl(entryUrl);
+    const entry = new URL(safeEntryUrl);
+    scriptUrl = safeOfficialJsonEndpoint(config.uiScriptUrl);
+    detailBase = new URL(safeOfficialJsonEndpoint(config.detailBaseUrl));
+    const script = new URL(scriptUrl);
+    if (entry.origin !== "https://campus.51job.com" || script.origin !== entry.origin ||
+      detailBase.origin !== entry.origin || !/^\d+$/u.test(config.ctmid) ||
+      config.pageSize !== undefined && config.pageSize !== 500) throw new Error();
+  } catch {
+    return failed(capturedAt, "51job CoAPI source configuration is invalid");
+  }
+
+  let scriptResponse: OfficialJsonHttpResponse;
+  try {
+    scriptResponse = await http({ url: scriptUrl, method: "GET", headers: {
+      Accept: "application/javascript,text/javascript,*/*;q=0.1",
+      Referer: safeEntryUrl,
+      "User-Agent": "job-search-crawler/0.1"
+    } });
+    assertOfficialJsonEvidenceResponse(scriptResponse, {
+      requestedUrl: scriptUrl,
+      crawlStartedAtMs: Date.parse(capturedAt),
+      observedNowMs: now().getTime()
+    });
+  } catch {
+    return failed(capturedAt, "51job recruitment UI script transport or metadata failed");
+  }
+  if (scriptResponse.status < 200 || scriptResponse.status >= 300) {
+    return failed(capturedAt, `51job recruitment UI script returned HTTP ${scriptResponse.status}`);
+  }
+  const uiExclusions = parse51jobUiExclusions(scriptResponse.body);
+  if (!uiExclusions) return failed(capturedAt, "51job recruitment UI exclusion contract is invalid");
+  const scriptArtifact = officialJsonNetworkArtifact({
+    id: "51job-ui-script",
+    logicalKey: "51job-ui-script",
+    kind: "OFFICIAL_COMPANY_PAGE",
+    requestedUrl: scriptUrl,
+    response: scriptResponse,
+    extractorLocator: "javascript:sxsPosCode[code,jobareaname]"
+  });
+
+  const params = {
+    ctmid: config.ctmid,
+    pagesize: config.pageSize ?? 500,
+    pagenum: 1,
+    sort: "issuedate",
+    sequence: "0",
+    keyword: null,
+    jobarea: null,
+    functype: null,
+    divid: null,
+    poscode: null
+  };
+  const serializedParams = JSON.stringify(params);
+  const keyIndex = 1;
+  const sign = createHash("md5")
+    .update(`coapi${serializedParams}${FIFTY_ONE_JOB_COAPI_PUBLIC_KEY.slice(keyIndex, keyIndex + 15)}`)
+    .digest("hex");
+  const endpoint = new URL("https://coapi.51job.com/job_list.php");
+  endpoint.searchParams.set("key", String(keyIndex));
+  endpoint.searchParams.set("sign", sign);
+  endpoint.searchParams.set("params", serializedParams);
+  endpoint.searchParams.set("jsoncallback", "jsoncallback");
+  const requestedUrl = endpoint.toString();
+  let response: OfficialJsonHttpResponse;
+  try {
+    response = await http({ url: requestedUrl, method: "GET", headers: {
+      Accept: "application/javascript,application/json,text/javascript,*/*;q=0.1",
+      Referer: safeEntryUrl,
+      "User-Agent": "job-search-crawler/0.1"
+    } });
+    assertOfficialJsonEvidenceResponse(response, {
+      requestedUrl,
+      crawlStartedAtMs: Date.parse(capturedAt),
+      observedNowMs: now().getTime()
+    });
+  } catch {
+    return failed(capturedAt, "51job CoAPI transport or metadata failed");
+  }
+  const locator = requestContractV2Locator(
+    "51job-coapi-v1|jsonp:$.resultbody.joblist|total:$.resultbody.totalnum|ui:sxsPosCode",
+    { family: "51job-coapi", role: "page", method: "GET", url: requestedUrl, body: null,
+      coordinate: { sequence: 0, requestedPage: 1, requestedPageSize: params.pagesize } }
+  );
+  const apiArtifact = officialJsonNetworkArtifact({
+    id: "51job-page-0001",
+    logicalKey: "51job-page-0001",
+    kind: "ATS_API_RESPONSE",
+    requestedUrl: "https://coapi.51job.com/job_list.php",
+    response: { ...response, finalUrl: "https://coapi.51job.com/job_list.php" },
+    extractorLocator: locator
+  });
+  if (response.status < 200 || response.status >= 300) {
+    return failed(capturedAt, `51job CoAPI returned HTTP ${response.status}`);
+  }
+  const envelope = parse51jobJsonp(response.body);
+  if (!envelope) return failed(capturedAt, "51job CoAPI response schema is invalid");
+
+  const jobs: NormalizedOfficialJsonJob[] = [];
+  const rawIds: string[] = [];
+  const validIds: string[] = [];
+  const losses: PersistentSourceFetchEvidence["fetchLosses"] = [];
+  const counts: PersistentSourceFetchEvidence["fetchCounts"] = {
+    rawCount: envelope.jobs.length,
+    parsedCount: envelope.jobs.length,
+    validCount: 0,
+    parseDiscardCount: 0,
+    validationDiscardCount: 0
+  };
+  const seen = new Set<string>();
+  for (let index = 0; index < envelope.jobs.length; index += 1) {
+    const raw = envelope.jobs[index]!;
+    const rawId = stringValue(raw.jobid);
+    rawIds.push(irreversibleOfficialJsonEvidenceId(rawId ?? raw));
+    const title = stringValue(raw.jobname);
+    const locationRaw = stringValue(raw.jobareaname);
+    if (!rawId || !title || !locationRaw || seen.has(rawId)) {
+      counts.validationDiscardCount += 1;
+      losses.push({ stage: "VALIDATION", reason: "51job record rejected: INVALID_REQUIRED_FIELD",
+        rawLocator: officialJsonRawLocator(0, index), details: { code: "INVALID_REQUIRED_FIELD", recordIndex: index } });
+      continue;
+    }
+    if (uiExclusions.some((rule) => title.includes(rule.code) && locationRaw.includes(rule.location))) {
+      counts.validationDiscardCount += 1;
+      losses.push({ stage: "VALIDATION", reason: "51job record excluded by official recruitment UI",
+        rawLocator: officialJsonRawLocator(0, index), details: { code: "OFFICIAL_UI_EXCLUSION", recordIndex: index } });
+      continue;
+    }
+    const officialUrl = new URL(detailBase);
+    officialUrl.searchParams.set("jobId", rawId);
+    const sourceJobId = persistentOfficialJsonJobId(rawId);
+    jobs.push({ sourceJobId, title, officialUrl: officialUrl.toString(), locationRaw,
+      cities: citiesWithFallback(locationRaw, locationRaw) });
+    seen.add(rawId);
+    counts.validCount += 1;
+    validIds.push(irreversibleOfficialJsonEvidenceId(sourceJobId));
+  }
+  if (envelope.total !== envelope.jobs.length || envelope.jobs.length > params.pagesize ||
+    counts.validCount + counts.validationDiscardCount !== counts.rawCount) {
+    return failed(capturedAt, "51job CoAPI traversal did not close the declared total");
+  }
+  const page: SourceFetchPageTrace = {
+    sequence: 0,
+    artifactLogicalKey: apiArtifact.logicalKey,
+    requestedCursor: null,
+    returnedCursor: null,
+    requestedOffset: null,
+    returnedOffset: null,
+    requestedPage: 1,
+    returnedPage: 1,
+    requestedPageSize: params.pagesize,
+    returnedPageSize: envelope.jobs.length,
+    rawJobIds: [...new Set(rawIds)],
+    validJobIds: validIds,
+    // The API page declares its raw result count. The separate source-level
+    // declaration below records the official UI-visible count after applying
+    // the page's own published exclusion rules.
+    declaredTotal: envelope.total,
+    declaredCount: envelope.total,
+    declaredPages: 1,
+    nextPageSignalBefore: null,
+    nextPageSignalAfter: null,
+    responseFingerprintSha256: sha256Bytes(Buffer.from(response.body, "utf8")).sha256,
+    termination: "NEXT_ABSENT",
+    anomalyCodes: [],
+    capturedAt: apiArtifact.capturedAt
+  };
+  const declaredCompleteness = {
+    kind: "OFFICIAL_TOTAL_COUNT" as const,
+    value: envelope.total,
+    artifactLogicalKey: apiArtifact.logicalKey,
+    extractorLocator: locator,
+    scope: "SOURCE" as const
+  };
+  const finalized = finalizeOfficialJsonEvidenceBundle({
+    artifacts: [scriptArtifact, apiArtifact],
+    pages: [page],
+    fetchCounts: counts,
+    fetchLosses: losses,
+    declaredCompleteness,
+    allowPositiveOfficialTotalCountAfterAdapterReconciliation: true,
+    allowIndependentlyVerifiedProfileBoundExclusions: true
+  });
+  return {
+    ok: true,
+    capturedAt,
+    payload: { jobs },
+    completeness: {
+      completenessStatus: "NEEDS_MANUAL_COMPLETENESS_REVIEW",
+      expectedJobCount: counts.validCount,
+      completenessEvidenceKind: "OFFICIAL_TOTAL_COUNT",
+      completenessEvidenceUrl: safeEntryUrl,
+      completenessBlockerReason: "51job UI exclusions await independent strict replay",
+      totalPages: 1,
+      pageSize: params.pagesize,
+      pagesVisited: 1
+    },
+    fetchEvidence: finalized.evidence,
+    paginationEvaluation: finalized.evaluation
+  };
+}
+
+function parse51jobUiExclusions(body: string): Array<{ code: string; location: string }> | undefined {
+  const block = /(?:let|var|const)\s+sxsPosCode\s*=\s*\[([\s\S]*?)\]\s*(?:;|\/\/)/u.exec(body)?.[1];
+  if (!block) return undefined;
+  const rules: Array<{ code: string; location: string }> = [];
+  const objectPattern = /\{\s*code\s*:\s*["']([^"']+)["']\s*,\s*jobareaname\s*:\s*["']([^"']+)["']\s*,?\s*\}/gu;
+  for (const match of block.matchAll(objectPattern)) {
+    const code = match[1]?.trim();
+    const location = match[2]?.trim();
+    if (!code || !location) return undefined;
+    rules.push({ code, location });
+  }
+  return rules.length > 0 && new Set(rules.map((rule) => `${rule.code}\u0000${rule.location}`)).size === rules.length
+    ? rules
+    : undefined;
+}
+
+function parse51jobJsonp(body: string): { total: number; jobs: Record<string, unknown>[] } | undefined {
+  const match = /^\s*jsoncallback\((\{[\s\S]*\})\)\s*;?\s*$/u.exec(body);
+  if (!match || !hasUniqueJsonObjectKeys(match[1]!)) return undefined;
+  try {
+    const root = JSON.parse(match[1]!) as unknown;
+    if (!isStrictRecord(root) || root.status !== "1" || !isStrictRecord(root.resultbody) ||
+      !Array.isArray(root.resultbody.joblist)) return undefined;
+    const totalRaw = root.resultbody.totalnum;
+    const total = typeof totalRaw === "string" && /^\d+$/u.test(totalRaw) ? Number(totalRaw) : totalRaw;
+    if (!isNonnegativeInteger(total) || root.resultbody.joblist.some((row) => !isStrictRecord(row))) return undefined;
+    return { total, jobs: root.resultbody.joblist as Record<string, unknown>[] };
+  } catch {
+    return undefined;
+  }
+}
+
+async function fetchEightfoldPcsx({
+  http,
+  config,
+  entryUrl,
+  capturedAt,
+  now
+}: {
+  http: OfficialJsonHttpClient;
+  config: Extract<OfficialJsonFetchConfig, { kind: "eightfold-pcsx" }>;
+  entryUrl: string;
+  capturedAt: string;
+  now: () => Date;
+}): Promise<SourceFetchResult> {
+  let safeEntryUrl: string;
+  let endpoint: URL;
+  let detailBase: URL;
+  try {
+    safeEntryUrl = safeOfficialJsonEvidenceUrl(entryUrl);
+    const entry = new URL(safeEntryUrl);
+    endpoint = new URL("/api/pcsx/search", entry.origin);
+    detailBase = new URL(safeOfficialJsonEndpoint(config.detailBaseUrl));
+    if (detailBase.origin !== entry.origin || !detailBase.pathname.startsWith("/careers/job")) throw new Error();
+    if (!/^[a-z0-9.-]+$/u.test(config.domain) || !/^[a-z]+$/u.test(config.location)) throw new Error();
+  } catch {
+    return failed(capturedAt, "Eightfold PCSx source configuration is invalid");
+  }
+  const pageSize = Math.max(1, Math.min(100, config.pageSize ?? 10));
+  const maxPages = Math.max(1, config.maxPages ?? 20);
+  const artifacts: SourceFetchArtifactDraft[] = [];
+  const pages: SourceFetchPageTrace[] = [];
+  const counts: PersistentSourceFetchEvidence["fetchCounts"] = {
+    rawCount: 0, parsedCount: 0, validCount: 0, parseDiscardCount: 0, validationDiscardCount: 0
+  };
+  const losses: PersistentSourceFetchEvidence["fetchLosses"] = [];
+  const jobs: NormalizedOfficialJsonJob[] = [];
+  const seen = new Set<string>();
+  let declaredTotal: number | undefined;
+  let declaredArtifactKey: string | undefined;
+  let declaredLocator: string | undefined;
+
+  for (let pageIndex = 0; pageIndex < maxPages; pageIndex += 1) {
+    const start = pageIndex * pageSize;
+    const url = new URL(endpoint);
+    url.searchParams.set("domain", config.domain);
+    url.searchParams.set("query", "");
+    url.searchParams.set("location", config.location);
+    url.searchParams.set("start", String(start));
+    url.searchParams.set("sort_by", "distance");
+    const requestUrl = url.toString();
+    const locator = requestContractV2Locator(
+      "eightfold-pcsx-v1|json:$.data.positions|total:$.data.count",
+      { family: "eightfold", role: "page", method: "GET", url: requestUrl, body: null,
+        coordinate: { sequence: pageIndex, requestedOffset: start, requestedPageSize: pageSize } }
+    );
+    let response: OfficialJsonHttpResponse;
+    try {
+      response = await http({ url: requestUrl, method: "GET", headers: {
+        Accept: "application/json", Referer: safeEntryUrl, "User-Agent": "job-search-crawler/0.1"
+      } });
+      assertOfficialJsonEvidenceResponse(response, {
+        requestedUrl: requestUrl,
+        crawlStartedAtMs: Date.parse(capturedAt),
+        observedNowMs: now().getTime()
+      });
+    } catch (error) {
+      return failed(capturedAt, safeOfficialJsonFailure(error, "Eightfold PCSx transport or metadata failed"));
+    }
+    const artifact = officialJsonNetworkArtifact({
+      id: `eightfold-page-${String(pageIndex).padStart(4, "0")}`,
+      logicalKey: `eightfold-page-${String(pageIndex).padStart(4, "0")}`,
+      kind: "PAGINATION_PAGE",
+      requestedUrl: requestUrl,
+      response,
+      extractorLocator: locator
+    });
+    artifacts.push(artifact);
+    if (response.status < 200 || response.status >= 300) {
+      return failed(capturedAt, `Eightfold PCSx returned HTTP ${response.status}`);
+    }
+    try { assertOfficialJsonMime(response); } catch {
+      return failed(capturedAt, "Eightfold PCSx response has an invalid Content-Type");
+    }
+    let root: unknown;
+    try { root = JSON.parse(response.body); } catch {
+      return failed(capturedAt, "Eightfold PCSx response is not valid JSON");
+    }
+    if (!hasUniqueJsonObjectKeys(response.body) || !isStrictRecord(root) || root.status !== 200 ||
+      !isStrictRecord(root.data) || !isNonnegativeInteger(root.data.count) ||
+      !Array.isArray(root.data.positions)) {
+      return failed(capturedAt, "Eightfold PCSx response schema is invalid");
+    }
+    const total = root.data.count;
+    if (declaredTotal === undefined) {
+      declaredTotal = total;
+      declaredArtifactKey = artifact.logicalKey;
+      declaredLocator = locator;
+    } else if (total !== declaredTotal) {
+      return failed(capturedAt, "Eightfold PCSx total changed during pagination");
+    }
+    const rawIds: string[] = [];
+    const validIds: string[] = [];
+    for (let recordIndex = 0; recordIndex < root.data.positions.length; recordIndex += 1) {
+      const raw = root.data.positions[recordIndex];
+      counts.rawCount += 1;
+      const rawId = isStrictRecord(raw) ? stringValue(raw.id) : undefined;
+      rawIds.push(irreversibleOfficialJsonEvidenceId(rawId ?? raw));
+      if (!isStrictRecord(raw)) {
+        counts.parseDiscardCount += 1;
+        continue;
+      }
+      counts.parsedCount += 1;
+      const id = stringValue(raw.id);
+      const title = stringValue(raw.name);
+      const positionUrl = stringValue(raw.positionUrl);
+      const locations = stringsValue(raw.locations);
+      if (!id || !title || !positionUrl || locations.length === 0 || seen.has(id)) {
+        counts.validationDiscardCount += 1;
+        continue;
+      }
+      let officialUrl: URL;
+      try { officialUrl = new URL(positionUrl, detailBase.origin); } catch {
+        counts.validationDiscardCount += 1;
+        continue;
+      }
+      if (officialUrl.origin !== detailBase.origin || !officialUrl.pathname.startsWith(`${detailBase.pathname}/`)) {
+        counts.validationDiscardCount += 1;
+        continue;
+      }
+      const locationRaw = locations.join(" | ");
+      const sourceJobId = persistentOfficialJsonJobId(id);
+      jobs.push({ sourceJobId, title, officialUrl: officialUrl.toString(), locationRaw,
+        cities: citiesWithFallback(locationRaw, locationRaw) });
+      seen.add(id);
+      counts.validCount += 1;
+      validIds.push(irreversibleOfficialJsonEvidenceId(sourceJobId));
+    }
+    const hasNext = counts.rawCount < total;
+    const atMax = pageIndex === maxPages - 1;
+    pages.push({
+      sequence: pageIndex, artifactLogicalKey: artifact.logicalKey,
+      requestedCursor: null, returnedCursor: null,
+      requestedOffset: start, returnedOffset: start,
+      requestedPage: null, returnedPage: null,
+      requestedPageSize: pageSize, returnedPageSize: root.data.positions.length,
+      rawJobIds: [...new Set(rawIds)], validJobIds: validIds,
+      declaredTotal: total, declaredCount: null, declaredPages: null,
+      nextPageSignalBefore: pageIndex === 0 ? null : `start:${start}`,
+      nextPageSignalAfter: hasNext ? `start:${start + pageSize}` : null,
+      responseFingerprintSha256: sha256Bytes(Buffer.from(response.body, "utf8")).sha256,
+      termination: hasNext ? (atMax ? "MAX_PAGE_LIMIT" : "CONTINUE") : "NEXT_ABSENT",
+      anomalyCodes: [], capturedAt: artifact.capturedAt
+    });
+    if (!hasNext || atMax) break;
+  }
+  if (declaredTotal === undefined || !declaredArtifactKey || !declaredLocator || counts.rawCount !== declaredTotal ||
+    counts.validCount !== declaredTotal || counts.parseDiscardCount !== 0 || counts.validationDiscardCount !== 0) {
+    return failed(capturedAt, "Eightfold PCSx traversal did not close the declared total");
+  }
+  const declaredCompleteness = { kind: "OFFICIAL_TOTAL_COUNT" as const, value: declaredTotal,
+    artifactLogicalKey: declaredArtifactKey, extractorLocator: declaredLocator, scope: "SOURCE" as const };
+  const finalized = finalizeOfficialJsonEvidenceBundle({
+    artifacts, pages, fetchCounts: counts, fetchLosses: losses, declaredCompleteness
+  });
+  return {
+    ok: true, capturedAt, payload: { jobs },
+    completeness: {
+      completenessStatus: "NEEDS_MANUAL_COMPLETENESS_REVIEW",
+      expectedJobCount: declaredTotal,
+      completenessEvidenceKind: "OFFICIAL_TOTAL_COUNT",
+      completenessEvidenceUrl: safeEntryUrl,
+      completenessBlockerReason: "Eightfold PCSx evidence remains manual until downstream adapter accounting is complete",
+      totalPages: Math.ceil(declaredTotal / pageSize), pageSize, pagesVisited: pages.length
+    },
+    fetchEvidence: finalized.evidence,
+    paginationEvaluation: finalized.evaluation
+  };
+}
+
 async function fetchJobsynSolr({
   http,
   config,
@@ -1794,9 +2449,12 @@ async function fetchJobsynSolr({
       response = await http({ url: requestedUrl, method: "GET", headers: {
         Accept: "application/json", "X-Origin": config.siteOrigin, "User-Agent": "job-search-crawler/0.1"
       }});
-    } catch {
-      return jobsynFailure(capturedAt, "Jobsyn Solr transport failed", artifacts, pages, counts, losses,
-        jobsynDeclaredCompleteness(declaredTotal, declaredArtifactKey, declaredLocator));
+    } catch (error) {
+      const transportFailure = retryableTransportFailureFromError(error);
+      return jobsynFailure(capturedAt, transportFailure
+        ? safeSourceTransportFailureReason(transportFailure)
+        : "Jobsyn Solr transport failed", artifacts, pages, counts, losses,
+      jobsynDeclaredCompleteness(declaredTotal, declaredArtifactKey, declaredLocator), transportFailure);
     }
     try {
       assertOfficialJsonEvidenceResponse(response, {
@@ -1819,9 +2477,12 @@ async function fetchJobsynSolr({
     }
     previousCapturedAtMs = artifactCapturedAtMs;
     if (response.status < 200 || response.status >= 300) {
+      const transportFailure = retryableHttpTransportFailure(response.status);
       pages.push(jobsynPageTrace({ artifact, sequence: page - 1, requestedPage: page, termination: "FAILED" }));
-      return jobsynFailure(capturedAt, `Jobsyn Solr API returned HTTP ${response.status}`, artifacts, pages, counts,
-        losses, jobsynDeclaredCompleteness(declaredTotal, declaredArtifactKey, declaredLocator));
+      return jobsynFailure(capturedAt, transportFailure
+        ? safeSourceTransportFailureReason(transportFailure)
+        : `Jobsyn Solr API returned HTTP ${response.status}`, artifacts, pages, counts,
+      losses, jobsynDeclaredCompleteness(declaredTotal, declaredArtifactKey, declaredLocator), transportFailure);
     }
     try { assertOfficialJsonMime(response); } catch (error) {
       pages.push(jobsynPageTrace({ artifact, sequence: page - 1, requestedPage: page, termination: "FAILED" }));
@@ -2304,6 +2965,9 @@ async function fetchBeisenZhiye2022({
   capturedAt: string;
   now: () => Date;
 }): Promise<SourceFetchResult> {
+  if (config.changedWithinDays !== undefined && config.postDateWithinDays !== undefined) {
+    return failed(capturedAt, "Beisen Zhiye date window must use either ChangeDate or the official PostDate filter, not both");
+  }
   let safeEntryUrl: string;
   let endpointUrl: string;
   try {
@@ -2350,6 +3014,7 @@ async function fetchBeisenZhiye2022({
     const requestBody = {
       PageIndex: pageIndex,
       PageSize: pageSize,
+      ...(config.postDateWithinDays === undefined ? {} : { PostDate: [config.postDateWithinDays] }),
       Category: [category],
       KeyWords: "",
       SpecialType: 0,
@@ -2419,7 +3084,7 @@ async function fetchBeisenZhiye2022({
       requestedUrl: endpointUrl,
       response,
       extractorLocator: unavailableLocator,
-      ...(config.scopeExclusionProof ||
+      ...(config.scopeExclusionProof || config.postDateWithinDays !== undefined ||
         config.mixedLocationPolicy === "INHERIT_MAINLAND_PARENT_FOR_SIBLING_LOCATIONS"
         ? { bodyRepresentation: "EXACT" as const } : {})
     });
@@ -2554,6 +3219,20 @@ async function fetchBeisenZhiye2022({
       const officialId = beisenCanonicalOriginalUuid(raw.Id);
       const detailId = officialId;
       const title = stringValue(raw.JobAdName);
+      if (config.changedWithinDays !== undefined) {
+        const changedAt = beisenChinaLocalDateMs(raw.ChangeDate);
+        const cutoffAt = chinaCalendarCutoffMs(capturedAt, config.changedWithinDays);
+        if (changedAt === undefined) {
+          recordBeisenLoss(losses, counts, "VALIDATION", "DATE_INVALID",
+            rawLocator, pageIndex, recordIndex, "ChangeDate");
+          continue;
+        }
+        if (changedAt < cutoffAt) {
+          recordBeisenLoss(losses, counts, "VALIDATION", "OUT_OF_TIME_WINDOW",
+            rawLocator, pageIndex, recordIndex, "ChangeDate");
+          continue;
+        }
+      }
       const upstreamLocationParts = stringsValue(raw.LocNames);
       const upstreamLocationRaw = upstreamLocationParts.join(" / ") || stringValue(raw.LocName) ||
         stringValue(raw.LocationName) || stringValue(raw.City);
@@ -2681,7 +3360,7 @@ async function fetchBeisenZhiye2022({
     if (pageTotal === undefined || intermediateEmpty || !hasNext || atMax) break;
   }
 
-  const declaredCompleteness = config.scopeExclusionProof
+  const declaredCompleteness = config.scopeExclusionProof || config.changedWithinDays !== undefined
     ? sourceTraversalCompleteness(pages, artifacts)
     : beisenDeclaredCompleteness(declaredTotal, declaredArtifactKey, declaredLocator);
   let finalized: ReturnType<typeof finalizeOfficialJsonEvidenceBundle>;
@@ -2716,8 +3395,9 @@ async function fetchBeisenZhiye2022({
     payload: { jobs },
     completeness: {
       completenessStatus: "NEEDS_MANUAL_COMPLETENESS_REVIEW",
-      ...(config.scopeExclusionProof || declaredTotal === undefined ? {} : { expectedJobCount: declaredTotal }),
-      completenessEvidenceKind: config.scopeExclusionProof
+      ...(config.scopeExclusionProof || config.changedWithinDays !== undefined || declaredTotal === undefined
+        ? {} : { expectedJobCount: declaredTotal }),
+      completenessEvidenceKind: config.scopeExclusionProof || config.changedWithinDays !== undefined
         ? "COMPLETE_PAGE_TRAVERSAL"
         : declaredTotal === undefined ? "WEAK_MANUAL_SAMPLE" : "OFFICIAL_TOTAL_COUNT",
       completenessEvidenceUrl: safeOfficialJsonEvidenceUrl(safeEntryUrl),
@@ -2889,6 +3569,7 @@ async function fetchPhenomWidgets({
   const losses: PersistentSourceFetchEvidence["fetchLosses"] = [];
   const jobs: NormalizedOfficialJsonJob[] = [];
   const seenOfficialIds = new Set<string>();
+  const firstRawByOfficialId = new Map<string, { pageIndex: number; serialized: string }>();
   const pageSize = Math.max(1, Math.min(100, config.pageSize ?? 50));
   const maxPages = Math.max(1, config.maxPages ?? 20);
   const countryFilter = config.countryFilter ?? "China";
@@ -2977,11 +3658,18 @@ async function fetchPhenomWidgets({
     artifacts.push(countryPreflight.artifact);
     if (countryPreflight.envelope.totalHits !== countryCount ||
       countryPreflight.envelope.jobs.some((raw) =>
-        !isStrictRecord(raw) || stringValue(raw.country) !== facetScope.countryIncludeDescriptor)) {
+        !isStrictRecord(raw) || !phenomRecordMatchesCountryFacet(
+          raw,
+          facetScope.countryIncludeDescriptor,
+          config.mixedLocationScopePolicy === "EXACTLY_ONE_MAINLAND_ALTERNATIVE_V1"
+        ))) {
       return phenomFailure(capturedAt, "Phenom country facet preflight drifted or returned an out-of-scope sample",
         artifacts, pages, counts, losses);
     }
-    if (facetScope.partitionProofPolicy === "MERCK_HEALTHCARE_PARTITION_V1" &&
+    if (facetScope.countryOnly) {
+      structuredExpectedTotal = countryCount;
+      formalSelectedFields = { country: [facetScope.countryIncludeDescriptor] };
+    } else if (facetScope.partitionProofPolicy === "MERCK_HEALTHCARE_PARTITION_V1" &&
       facetScope.includeField && facetScope.includeDescriptor && exactMerckHealthcarePartition) {
       const sectorAggregation = exactPhenomAggregation(countryPreflight.envelope, facetScope.includeField);
       if (!sectorAggregation || !sectorAggregation.has(facetScope.includeDescriptor) ||
@@ -3326,7 +4014,12 @@ async function fetchPhenomWidgets({
         recordPhenomLoss(losses, counts, "VALIDATION", "UNSAFE_OFFICIAL_ID", rawLocator, pageIndex, recordIndex, "id");
         continue;
       }
-      if (seenOfficialIds.has(id!)) {
+      const firstRaw = firstRawByOfficialId.get(id!);
+      const exactDuplicate = seenOfficialIds.has(id!) && firstRaw !== undefined &&
+        firstRaw.pageIndex !== pageIndex && exactRocheRequestBoundOmittedOffset &&
+        config.exactDuplicateReconciliationPolicy === "ROCHE_IDENTICAL_CROSS_PAGE_V1" &&
+        firstRaw.serialized === JSON.stringify(raw);
+      if (seenOfficialIds.has(id!) && !exactDuplicate) {
         recordPhenomLoss(losses, counts, "VALIDATION", "DUPLICATE_OFFICIAL_ID", rawLocator, pageIndex, recordIndex, "id");
         continue;
       }
@@ -3358,13 +4051,17 @@ async function fetchPhenomWidgets({
         ? stringValue(raw[facetScope.exclusionField])
         : undefined;
       const structuredScopeDrift = facetScope && (
-        stringValue(raw.country) !== facetScope.countryIncludeDescriptor ||
-        (partitionScoped
+        !phenomRecordMatchesCountryFacet(
+          raw,
+          facetScope.countryIncludeDescriptor,
+          config.mixedLocationScopePolicy === "EXACTLY_ONE_MAINLAND_ALTERNATIVE_V1"
+        ) ||
+        (!facetScope.countryOnly && (partitionScoped
           ? !partitionExpectedOfficialIds?.has(id!) ||
             (presentIncludeDescriptor !== undefined && presentIncludeDescriptor !== facetScope.includeDescriptor) ||
             (presentExclusionDescriptor !== undefined &&
               !allowedExclusionFacetDescriptors?.has(presentExclusionDescriptor))
-          : !allowedExclusionFacetDescriptors?.has(presentExclusionDescriptor ?? ""))
+          : !allowedExclusionFacetDescriptors?.has(presentExclusionDescriptor ?? "")))
       );
       if (structuredScopeDrift) {
         recordPhenomLoss(losses, counts, "VALIDATION", "OUT_OF_SCOPE", rawLocator, pageIndex, recordIndex);
@@ -3401,6 +4098,7 @@ async function fetchPhenomWidgets({
         continue;
       }
       seenOfficialIds.add(id!);
+      if (!firstRaw) firstRawByOfficialId.set(id!, { pageIndex, serialized: JSON.stringify(raw) });
       const sourceJobId = persistentOfficialJsonJobId(id!);
       jobs.push({
         sourceJobId, title: title!, officialUrl, locationRaw: locationRaw!,
@@ -3448,7 +4146,11 @@ async function fetchPhenomWidgets({
   try {
     finalized = finalizeOfficialJsonEvidenceBundle({
       artifacts, pages, fetchCounts: counts, fetchLosses: losses,
-      ...(declaredCompleteness ? { declaredCompleteness } : {})
+      ...(declaredCompleteness ? { declaredCompleteness } : {}),
+      ...(exactRocheRequestBoundOmittedOffset &&
+        config.exactDuplicateReconciliationPolicy === "ROCHE_IDENTICAL_CROSS_PAGE_V1"
+        ? { allowRawIdOverlapAcrossPages: true }
+        : {})
     });
   } catch (error) {
     return phenomFailure(capturedAt, safeOfficialJsonFailure(error, "Phenom pagination evidence is invalid"),
@@ -3457,11 +4159,20 @@ async function fetchPhenomWidgets({
   const expectedNoncertifyingNoTotal = declaredTotal === undefined &&
     finalized.evaluation.derivedAnomalyCodes.length === 0;
   if (!finalized.evaluation.safeCompleteness && !expectedNoncertifyingNoTotal) {
+    const retryableSnapshotDrift = finalized.evaluation.derivedAnomalyCodes.length === 1 &&
+      finalized.evaluation.derivedAnomalyCodes[0] === "RAW_ID_OVERLAP_ACROSS_PAGES";
     return {
       ok: false, capturedAt,
       failureReason: `Phenom pagination evidence failed: ${finalized.evaluation.derivedAnomalyCodes.join(",")}`,
       fetchEvidence: finalized.evidence,
-      paginationEvaluation: finalized.evaluation
+      paginationEvaluation: finalized.evaluation,
+      ...(retryableSnapshotDrift ? {
+        transportFailure: {
+          code: "OFFICIAL_PAGINATION_SNAPSHOT_DRIFT" as const,
+          retryable: true as const,
+          stage: "PAGE" as const
+        }
+      } : {})
     };
   }
   return {
@@ -3507,10 +4218,12 @@ function exactRocheRequestBoundOmittedOffsetPlan(
     JSON.stringify(config.allowedApplyOrigins) === JSON.stringify(["https://roche.wd3.myworkdayjobs.com"]) &&
     facet !== undefined && !("exclusionFacet" in facet) &&
     facet.countryIncludeDescriptor === "中国大陆" &&
-    JSON.stringify(facet.categoryExcludeDescriptors) === JSON.stringify(["实习 & 发展项目"]) &&
+    JSON.stringify(facet.categoryExcludeDescriptors) === JSON.stringify([]) &&
     config.countryFilter === undefined && config.allowedEntryRedirect === undefined &&
     config.allowOmittedOffsetForSinglePage === undefined &&
+    config.mixedLocationScopePolicy === "EXACTLY_ONE_MAINLAND_ALTERNATIVE_V1" &&
     config.requestBoundOmittedOffsetPolicy === "ROCHE_REQUEST_BOUND_OMITTED_OFFSET_V1" &&
+    config.exactDuplicateReconciliationPolicy === "ROCHE_IDENTICAL_CROSS_PAGE_V1" &&
     config.pageSize === 100 && config.maxPages === 10 &&
     widgetEndpoint === "https://careers.roche.com/widgets" &&
     pageConfig.widgetApiEndpoint === "https://careers.roche.com/widgets" &&
@@ -3616,6 +4329,7 @@ type PhenomFacetScope = NonNullable<Extract<OfficialJsonFetchConfig, { kind: "ph
 
 type ValidPhenomFacetScope = {
   countryIncludeDescriptor: string;
+  countryOnly: boolean;
   exclusionField: "category" | "jobLevelId" | "type";
   exclusionDescriptors: string[];
   requireGlobalDescriptorProof: boolean;
@@ -3637,7 +4351,7 @@ function validPhenomFacetScope(value: PhenomFacetScope | undefined): ValidPhenom
   const field = modern ? value.exclusionFacet.field : "category";
   const descriptors = modern ? value.exclusionFacet.descriptors : value.categoryExcludeDescriptors;
   if (!["category", "jobLevelId", "type"].includes(field) || !Array.isArray(descriptors) ||
-    descriptors.length === 0 ||
+    (modern && descriptors.length === 0) ||
     descriptors.some((item) => typeof item !== "string" || !item.trim()) ||
     new Set(descriptors).size !== descriptors.length) return undefined;
   const partitioned = "partitionProofPolicy" in value &&
@@ -3647,6 +4361,7 @@ function validPhenomFacetScope(value: PhenomFacetScope | undefined): ValidPhenom
   if (!partitioned && ("includeFacet" in value && value.includeFacet !== undefined)) return undefined;
   return {
     countryIncludeDescriptor: value.countryIncludeDescriptor,
+    countryOnly: descriptors.length === 0,
     exclusionField: field,
     exclusionDescriptors: descriptors,
     requireGlobalDescriptorProof: modern && !partitioned,
@@ -4226,6 +4941,35 @@ function phenomCountryIsMainlandChina(country: string | undefined): boolean {
   );
 }
 
+function phenomRecordMatchesCountryFacet(
+  record: Record<string, unknown>,
+  countryDescriptor: string,
+  allowMainlandAlternative: boolean
+): boolean {
+  if (stringValue(record.country) === countryDescriptor) return true;
+  if (!allowMainlandAlternative || !phenomCountryIsMainlandChina(countryDescriptor)) return false;
+
+  const primary = stringValue(record.location) ?? stringValue(record.cityStateCountry) ?? stringValue(record.city);
+  const country = stringValue(record.country);
+  const locations = stringsValue(record.multi_location);
+  if (!primary || !country || locations.length < 2 ||
+    !explicitlyForeignOrNonMainlandLocation(primary) ||
+    !explicitlyForeignOrNonMainlandLocation(country)) return false;
+
+  const locationKey = (value: string) => value.normalize("NFKC").trim().toLocaleLowerCase("en-US");
+  const keys = locations.map(locationKey);
+  if (new Set(keys).size !== keys.length || !keys.includes(locationKey(primary))) return false;
+
+  const mainland = locations.filter((location) =>
+    !explicitlyForeignOrNonMainlandLocation(location) &&
+    !phenomLocationHasAmbiguousSegments(location) &&
+    phenomRecordHasChinaScope(undefined, location, undefined)
+  );
+  return mainland.length === 1 && locations.every((location) =>
+    location === mainland[0] || explicitlyForeignOrNonMainlandLocation(location)
+  );
+}
+
 function selectPhenomLocation(record: Record<string, unknown>): {
   locationRaw: string | undefined;
   city: string | undefined;
@@ -4330,8 +5074,12 @@ async function fetchHcmCloudWithPost({
   let countResponse: OfficialJsonHttpResponse;
   try {
     countResponse = await post("count", encodeHcmCloudRequest(countPayload));
-  } catch {
-    return hcmCloudFailure(capturedAt, "HCMCloud count API TRANSPORT_FAILURE", artifacts, pages, counts, losses);
+  } catch (error) {
+    const transportFailure = retryableTransportFailureFromError(error);
+    return hcmCloudFailure(capturedAt, transportFailure
+      ? safeSourceTransportFailureReason(transportFailure)
+      : "HCMCloud count API TRANSPORT_FAILURE", artifacts, pages, counts, losses,
+      undefined, "HCM_COUNT_RESPONSE_FAILED", transportFailure);
   }
   const countArtifact = hcmCloudArtifact({
     id: `${artifactPrefix}hcm-count-0000`, kind: "ATS_API_RESPONSE", requestedUrl: countUrl,
@@ -4351,8 +5099,11 @@ async function fetchHcmCloudWithPost({
   }
   artifacts.push(countArtifact!);
   if (countResponse.status < 200 || countResponse.status >= 300) {
-    return hcmCloudFailure(capturedAt, `HCMCloud count API returned HTTP ${countResponse.status}`,
-      artifacts, pages, counts, losses);
+    const transportFailure = retryableHttpTransportFailure(countResponse.status);
+    return hcmCloudFailure(capturedAt, transportFailure
+      ? safeSourceTransportFailureReason(transportFailure)
+      : `HCMCloud count API returned HTTP ${countResponse.status}`,
+      artifacts, pages, counts, losses, undefined, "HCM_COUNT_RESPONSE_FAILED", transportFailure);
   }
   try {
     assertOfficialJsonMime(countResponse);
@@ -4397,10 +5148,13 @@ async function fetchHcmCloudWithPost({
     let response: OfficialJsonHttpResponse;
     try {
       response = await post("list", encodeHcmCloudRequest(requestPayload));
-    } catch {
-      return hcmCloudFailure(capturedAt, "HCMCloud list API TRANSPORT_FAILURE",
+    } catch (error) {
+      const transportFailure = retryableTransportFailureFromError(error);
+      return hcmCloudFailure(capturedAt, transportFailure
+        ? safeSourceTransportFailureReason(transportFailure)
+        : "HCMCloud list API TRANSPORT_FAILURE",
         artifacts, pages, counts, losses, hcmCloudDeclared(expectedJobCount, countArtifact),
-        "HCM_LIST_RESPONSE_FAILED");
+        "HCM_LIST_RESPONSE_FAILED", transportFailure);
     }
     let artifact: SourceFetchArtifactDraft | undefined;
     try {
@@ -4425,8 +5179,12 @@ async function fetchHcmCloudWithPost({
     if (response.status < 200 || response.status >= 300) {
       pages.push(hcmCloudPageTrace({ artifact, sequence: pages.length, requestedPage: page,
         ...(expectedJobCount !== undefined ? { declaredTotal: expectedJobCount } : {}), termination: "FAILED" }));
-      return hcmCloudFailure(capturedAt, `HCMCloud list API returned HTTP ${response.status}`,
-        artifacts, pages, counts, losses, hcmCloudDeclared(expectedJobCount, countArtifact));
+      const transportFailure = retryableHttpTransportFailure(response.status);
+      return hcmCloudFailure(capturedAt, transportFailure
+        ? safeSourceTransportFailureReason(transportFailure)
+        : `HCMCloud list API returned HTTP ${response.status}`,
+        artifacts, pages, counts, losses, hcmCloudDeclared(expectedJobCount, countArtifact),
+        "HCM_LIST_RESPONSE_FAILED", transportFailure);
     }
     try { assertOfficialJsonMime(response); } catch (error) {
       pages.push(hcmCloudPageTrace({ artifact, sequence: pages.length, requestedPage: page,
@@ -4834,22 +5592,28 @@ function hcmCloudFailure(
   counts: PersistentSourceFetchEvidence["fetchCounts"],
   losses: PersistentSourceFetchEvidence["fetchLosses"],
   declared?: PersistentSourceFetchEvidence["declaredCompleteness"],
-  supportingCode: "HCM_COUNT_RESPONSE_FAILED" | "HCM_LIST_RESPONSE_FAILED" | "HCM_BROWSER_ENTRY_FAILED" = "HCM_COUNT_RESPONSE_FAILED"
+  supportingCode: "HCM_COUNT_RESPONSE_FAILED" | "HCM_LIST_RESPONSE_FAILED" | "HCM_BROWSER_ENTRY_FAILED" = "HCM_COUNT_RESPONSE_FAILED",
+  transportFailure?: SourceTransportFailure
 ): SourceFetchResult {
-  if (artifacts.length === 0) return failed(capturedAt, reason);
+  if (artifacts.length === 0) {
+    const result = failed(capturedAt, reason);
+    return transportFailure ? { ...result, transportFailure } : result;
+  }
   if (pages.length === 0) {
-    return failedWithEvidence(capturedAt, reason, finalizeOfficialJsonSupportingFailureEvidence({
+    const result = failedWithEvidence(capturedAt, reason, finalizeOfficialJsonSupportingFailureEvidence({
       artifacts,
       code: supportingCode
     }));
+    return transportFailure ? { ...result, transportFailure } : result;
   }
   const evidencePages = pages.length > 0 ? pages.map((page, index) =>
     index === pages.length - 1 && page.termination === "CONTINUE" ? { ...page, termination: "ABORTED" as const } : page
   ) : [];
-  return failedWithEvidence(capturedAt, reason, finalizeOfficialJsonFailureEvidenceBundle({
+  const result = failedWithEvidence(capturedAt, reason, finalizeOfficialJsonFailureEvidenceBundle({
     artifacts, pages: evidencePages, fetchCounts: counts, fetchLosses: losses,
     ...(declared ? { declaredCompleteness: declared } : {})
   }));
+  return transportFailure ? { ...result, transportFailure } : result;
 }
 
 function recordHcmCloudLoss(
@@ -4890,6 +5654,9 @@ export async function defaultHcmCloudBrowserFetch({
   signal
 }: HcmCloudBrowserFetchInput): Promise<HcmCloudBrowserSession> {
   if (signal?.aborted) throw signal.reason;
+  const releaseBrowserPermit = await acquireBrowserSourcePermit(signal);
+  let permitTransferredToSession = false;
+  try {
   const { chromium } = await import("playwright-core");
   const { FORMAL_CHROMIUM_ARGS, FORMAL_CHROMIUM_PATH } = await import("../readiness/formalBrowserPreflight");
   const browserTimeoutMs = officialBrowserTimeoutMs();
@@ -4921,7 +5688,7 @@ export async function defaultHcmCloudBrowserFetch({
       capturedAt: new Date().toISOString()
     };
     await page.waitForTimeout(hcmCloudBrowserSettleMs());
-    return {
+    const session: HcmCloudBrowserSession = {
       entryResponse,
       post: async (endpoint, body) => {
         const path = endpoint === "count"
@@ -4953,13 +5720,18 @@ export async function defaultHcmCloudBrowserFetch({
       },
       close: async () => {
         browserLifecycle.dispose();
-        await browserLifecycle.close();
+        try { await browserLifecycle.close(); } finally { releaseBrowserPermit(); }
       }
     };
+    permitTransferredToSession = true;
+    return session;
   } catch (error) {
     browserLifecycle.dispose();
     try { await browserLifecycle.close(); } catch { /* cleanup must not replace the crawl failure */ }
     throw error;
+  }
+  } finally {
+    if (!permitTransferredToSession) releaseBrowserPermit();
   }
 }
 
@@ -5746,8 +6518,9 @@ function jobsynDeclaredCompleteness(total: number | undefined, artifactLogicalKe
 function jobsynFailure(capturedAt: string, failureReason: string, artifacts: SourceFetchArtifactDraft[],
   pages: SourceFetchPageTrace[], fetchCounts: PersistentSourceFetchEvidence["fetchCounts"],
   fetchLosses: PersistentSourceFetchEvidence["fetchLosses"],
-  declaredCompleteness?: PersistentSourceFetchEvidence["declaredCompleteness"]): SourceFetchResult {
-  if (artifacts.length === 0) return failed(capturedAt, failureReason);
+  declaredCompleteness?: PersistentSourceFetchEvidence["declaredCompleteness"],
+  transportFailure?: SourceTransportFailure): SourceFetchResult {
+  if (artifacts.length === 0) return failed(capturedAt, failureReason, transportFailure);
   const evidencePages = pages.length > 0
     ? pages.map((page, index) => index === pages.length - 1 && page.termination === "CONTINUE"
       ? { ...page, termination: "ABORTED" as const } : page)
@@ -5755,7 +6528,7 @@ function jobsynFailure(capturedAt: string, failureReason: string, artifacts: Sou
   return failedWithEvidence(capturedAt, failureReason, finalizeOfficialJsonFailureEvidenceBundle({
     artifacts, pages: evidencePages, fetchCounts, fetchLosses,
     ...(declaredCompleteness ? { declaredCompleteness } : {})
-  }));
+  }), transportFailure);
 }
 
 function recordJobsynLoss(losses: PersistentSourceFetchEvidence["fetchLosses"],
@@ -6927,7 +7700,7 @@ function recordBeisenLoss(
   code: "NON_OBJECT_RECORD" | "MISSING_REQUIRED_FIELD" | "DECLARED_LOCATION_FALLBACK" |
     "UNSAFE_OFFICIAL_ID" | "DUPLICATE_OFFICIAL_ID" | "DUPLICATE_DETAIL_ID" |
     "OUT_OF_SCOPE" | "AMBIGUOUS_SCOPE" | "SOCIAL_CHANNEL_MISMATCH" |
-    "UNSAFE_OFFICIAL_URL" | "SENSITIVE_OUTPUT",
+    "UNSAFE_OFFICIAL_URL" | "SENSITIVE_OUTPUT" | "DATE_INVALID" | "OUT_OF_TIME_WINDOW",
   rawLocator: string,
   pageSequence: number,
   recordIndex: number,
@@ -6941,6 +7714,26 @@ function recordBeisenLoss(
     rawLocator,
     details: { code, ...(field ? { field } : {}), pageSequence, recordIndex }
   });
+}
+
+function beisenChinaLocalDateMs(value: unknown): number | undefined {
+  const raw = stringValue(value);
+  if (!raw) return undefined;
+  const normalized = raw.includes("T") ? raw : raw.replace(" ", "T");
+  const zoned = /(?:Z|[+-]\d{2}:\d{2})$/u.test(normalized) ? normalized : `${normalized}+08:00`;
+  const parsed = Date.parse(zoned);
+  return Number.isFinite(parsed) ? parsed : undefined;
+}
+
+function chinaCalendarCutoffMs(capturedAt: string, days: number): number {
+  const chinaOffsetMs = 8 * 60 * 60 * 1_000;
+  const chinaCalendar = new Date(Date.parse(capturedAt) + chinaOffsetMs);
+  const chinaMidnightUtc = Date.UTC(
+    chinaCalendar.getUTCFullYear(),
+    chinaCalendar.getUTCMonth(),
+    chinaCalendar.getUTCDate()
+  ) - chinaOffsetMs;
+  return chinaMidnightUtc - days * 24 * 60 * 60 * 1_000;
 }
 
 const BEISEN_CANONICAL_UUID =
@@ -7179,7 +7972,7 @@ function beisenSocialChannelMismatch(
   if (stringValue(raw.Category) !== "社会招聘") return "Category";
   if (hasOwn(raw, "CategoryId") && String(raw.CategoryId).trim() !== requestedCategory) return "CategoryId";
   const kind = stringValue(raw.Kind);
-  if (kind && /(?:校园|校招|实习|campus|intern)/iu.test(kind)) return "Kind";
+  if (kind && /(?:校园|校招|campus)/iu.test(kind)) return "Kind";
   return undefined;
 }
 

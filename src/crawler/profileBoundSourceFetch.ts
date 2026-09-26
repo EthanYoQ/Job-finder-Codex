@@ -1,4 +1,6 @@
 import { createLivzonCeccSourceFetch } from "./livzonCeccSourceFetch";
+import { createGrifolsChinaSourceFetch } from "./grifolsChinaSourceFetch";
+import { createJnjCareersChinaSourceFetch } from "./jnjCareersChinaSourceFetch";
 import { createMsdDualOfficialSourceFetch } from "./msdDualOfficialSourceFetch";
 import type { SourceFetchFunction } from "./runSourceCrawl";
 import { createSinopharmIguopinSourceFetch } from "./sinopharmIguopinSourceFetch";
@@ -11,6 +13,8 @@ import { createXinhuaOfficialAnnouncementSourceFetch } from "./xinhuaOfficialAnn
  */
 export function createProfileBoundSourceFetch(): SourceFetchFunction {
   const delegates = {
+    "grifols-china-detail-scope": createGrifolsChinaSourceFetch(),
+    "jnj-careers-china": createJnjCareersChinaSourceFetch(),
     "msd-dual-official": createMsdDualOfficialSourceFetch(),
     "livzon-cecc": createLivzonCeccSourceFetch(),
     "sinopharm-iguopin": createSinopharmIguopinSourceFetch(),

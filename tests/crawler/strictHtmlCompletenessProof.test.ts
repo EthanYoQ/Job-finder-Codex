@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { createHttpHtmlSourceFetch, type HttpHtmlRequest, type HttpHtmlResponse } from "../../src/crawler/httpHtmlSourceFetch";
 import { validateStrictHtmlCompletenessProof } from "../../src/crawler/strictHtmlCompletenessProof";
-import { runSourceCrawl } from "../../src/crawler/runSourceCrawl";
+import { runSourceCrawl, supportsStrictOfficialTotalCertificate } from "../../src/crawler/runSourceCrawl";
 import { buildStagedSourceCrawlPlans, getPlanBySourceId, type SourceCrawlPlan } from "../../src/crawler/sourcePlan";
 import type { PersistentSourceFetchEvidence } from "../../src/crawler/sourceFetchEvidence";
 import { candidateCompanies } from "../../src/data/companyRegistry";
@@ -37,12 +37,12 @@ async function evidenceFor(
 
 describe("independent strict HTML completeness proof", () => {
   it("promotes a canonical staged HTML source only after the independent replay passes", async () => {
-    const plan = getPlanBySourceId(buildStagedSourceCrawlPlans(candidateCompanies), "source-fosun-pharma-social");
-    if (plan?.adapterId !== "html-table") throw new Error("missing canonical Fosun plan");
+    const plan = getPlanBySourceId(buildStagedSourceCrawlPlans(candidateCompanies), "source-kelun-social");
+    if (plan?.adapterId !== "html-table") throw new Error("missing canonical Kelun plan");
     const fetch = createHttpHtmlSourceFetch({
       now: () => new Date(capturedAt),
-      http: async request => response(request, `<div class="page"><a href="/social/?PageIndex=1">1</a></div>
-        <table><tr><td><a href="/socialxq?jobId=one">医学经理</a></td><td></td><td></td><td><a>上海</a></td></tr></table>`)
+      http: async request => response(request, `<div class="page"><a href="/social?r=&p=1%5E2&c=&d=&k=&PageIndex=1">1</a></div>
+        <table class="jobsTable"><tr><td><a href="/socialxq?jobId=one">医学经理</a></td><td></td><td></td><td></td><td>上海</td></tr></table>`)
     });
     const fetched = await fetch(plan);
     if (!fetched.ok || !fetched.fetchEvidence) throw new Error(fetched.ok ? "missing evidence" : fetched.failureReason);
@@ -56,18 +56,18 @@ describe("independent strict HTML completeness proof", () => {
     });
   });
 
-  it("accepts Fosun total pages declared only on the entry page while still requiring every page", async () => {
-    const plan = getPlanBySourceId(buildStagedSourceCrawlPlans(candidateCompanies), "source-fosun-pharma-social");
-    if (plan?.adapterId !== "html-table") throw new Error("missing canonical Fosun plan");
+  it("accepts Kelun total pages declared only on the entry page while still requiring every page", async () => {
+    const plan = getPlanBySourceId(buildStagedSourceCrawlPlans(candidateCompanies), "source-kelun-social");
+    if (plan?.adapterId !== "html-table") throw new Error("missing canonical Kelun plan");
     const fetch = createHttpHtmlSourceFetch({
       now: () => new Date(capturedAt),
       http: async request => {
         const page = Number(new URL(request.url).searchParams.get("PageIndex") ?? "1");
         const linkedPages = page === 1 ? [1, 2, 3] : page === 2 ? [1, 3] : [1, 2];
         const pagination = `<div class="page">${linkedPages
-          .map(value => `<a href="/social/?PageIndex=${value}">${value}</a>`).join("")}
+          .map(value => `<a href="/social?r=&p=1%5E2&c=&d=&k=&PageIndex=${value}">${value}</a>`).join("")}
           <a class="now" href="javascript:void(0);">${page}</a></div>`;
-        return response(request, `${pagination}<table><tr><td><a href="/socialxq?jobId=${page}">职位 ${page}</a></td><td></td><td></td><td><a>上海</a></td></tr></table>`);
+        return response(request, `${pagination}<table class="jobsTable"><tr><td><a href="/socialxq?jobId=${page}">职位 ${page}</a></td><td></td><td></td><td></td><td>上海</td></tr></table>`);
       }
     });
     const fetched = await fetch(plan);
@@ -78,7 +78,7 @@ describe("independent strict HTML completeness proof", () => {
 
     const entryTotalTampered = structuredClone(fetched.fetchEvidence);
     entryTotalTampered.artifacts[0]!.body = String(entryTotalTampered.artifacts[0]!.body)
-      .replace('<a href="/social/?PageIndex=3">3</a>', "");
+      .replace('<a href="/social?r=&p=1%5E2&c=&d=&k=&PageIndex=3">3</a>', "");
     expect(validateStrictHtmlCompletenessProof(plan, entryTotalTampered)).toBe(false);
 
     const laterPagerExceedsEntry = structuredClone(fetched.fetchEvidence);
@@ -145,6 +145,12 @@ describe("independent strict HTML completeness proof", () => {
     const fetched = await fetch(plan);
     if (!fetched.ok || !fetched.fetchEvidence) throw new Error(fetched.ok ? "missing evidence" : fetched.failureReason);
 
+    expect(fetched.fetchEvidence.declaredCompleteness).toMatchObject({
+      kind: "OFFICIAL_TOTAL_COUNT",
+      scope: "SOURCE",
+      value: 3
+    });
+    expect(supportsStrictOfficialTotalCertificate(plan)).toBe(true);
     expect(validateStrictHtmlCompletenessProof(plan, fetched.fetchEvidence)).toBe(true);
 
     const changedTotal = structuredClone(fetched.fetchEvidence);
@@ -152,9 +158,25 @@ describe("independent strict HTML completeness proof", () => {
     expect(validateStrictHtmlCompletenessProof(plan, changedTotal)).toBe(false);
   });
 
-  it("treats an official zero-job total as one losslessly replayed entry page", async () => {
-    const plan = getPlanBySourceId(buildStagedSourceCrawlPlans(candidateCompanies), "source-csl-china-social");
-    if (plan?.adapterId !== "html-table") throw new Error("missing canonical CSL plan");
+  it("replays an official zero-job total without inventing rows", async () => {
+    const plan = basePlan({
+      rowSelector: "a.job",
+      fields: {
+        officialTitle: { selector: ".title" },
+        officialUrl: { selector: "a.job", attribute: "href" },
+        locationRaw: { selector: ".location" }
+      },
+      completenessProof: { kind: "OFFICIAL_TOTAL_PAGES" },
+      pagination: {
+        totalPagesSelector: "body",
+        totalPagesAttribute: "data-total-pages",
+        pageSearchParam: "page",
+        pageSize: 25,
+        maxPages: 5,
+        expectedJobCountSelector: "body",
+        expectedJobCountPattern: "Showing\\s+\\d+\\s+to\\s+\\d+\\s+of\\s+(\\d+)\\s+results"
+      }
+    });
     const fetch = createHttpHtmlSourceFetch({
       now: () => new Date(capturedAt),
       http: async request => response(
@@ -172,14 +194,51 @@ describe("independent strict HTML completeness proof", () => {
     expect(crawled).toMatchObject({
       status: "SUCCESS",
       jobs: [],
-      truth: { completenessVerified: true },
+      truth: { completenessVerified: false },
       observation: {
         structuredJobCount: 0,
-        completenessStatus: "VERIFIED",
+        completenessStatus: "NEEDS_MANUAL_COMPLETENESS_REVIEW",
         completenessEvidenceKind: "OFFICIAL_TOTAL_COUNT",
         expectedJobCount: 0
       }
     });
+  });
+
+  it("treats Bayer's exact China empty marker as zero instead of replaying global fallback rows", async () => {
+    const plan = getPlanBySourceId(buildStagedSourceCrawlPlans(candidateCompanies), "source-bayer-healthcare-social");
+    if (plan?.adapterId !== "html-table") throw new Error("missing canonical Bayer plan");
+    const body = `<label>当前没有符合 "<span class="attention securitySearchString">China</span>" 的空缺职位。</label>
+      <div id="searchresults" aria-label="职位搜索结果列表。第 1 页，共 1 页。"><table><tbody>
+        <tr><td class="jobTitle hidden-phone"><a class="jobTitle-link" href="/job/Warsaw-Global/1/">Global</a></td>
+          <td class="colLocation">Warsaw, PL</td></tr>
+      </tbody></table></div><div class="paginationLabel">显示 1 到 10，共 10</div>`;
+    const fetched = await createHttpHtmlSourceFetch({
+      now: () => new Date(capturedAt),
+      http: async request => response(request, body)
+    })(plan);
+    if (!fetched.ok || !fetched.fetchEvidence) throw new Error(fetched.ok ? "missing evidence" : fetched.failureReason);
+
+    expect(fetched.fetchEvidence).toMatchObject({
+      declaredCompleteness: { kind: "OFFICIAL_TOTAL_COUNT", value: 0 },
+      fetchCounts: { rawCount: 0, validCount: 0 },
+      pages: [{ rawJobIds: [], validJobIds: [], termination: "EMPTY_PAGE" }]
+    });
+    expect(validateStrictHtmlCompletenessProof(plan, fetched.fetchEvidence)).toBe(true);
+  });
+
+  it("accepts Novartis' current Huhehaote transliteration with a mainland province anchor", async () => {
+    const plan = getPlanBySourceId(buildStagedSourceCrawlPlans(candidateCompanies), "source-novartis-social");
+    if (plan?.adapterId !== "html-table") throw new Error("missing canonical Novartis plan");
+    const body = `<nav class="pagination">
+        <a class="page-link active" title="Page 1 active out of 1 pages">1</a>
+        <a class="page-link btn disabled" rel="next" title="Go to next page"></a>
+      </nav><table class="views-table"><tbody><tr>
+        <td class="views-field-field-job-title"><a href="/careers/career-search/job/details/one">医学经理</a></td>
+        <td class="views-field-field-job-work-location">Huhehaote (Neimenggu Province)</td>
+      </tr></tbody></table>`;
+    const evidence = await evidenceFor(plan, async request => response(request, body));
+
+    expect(validateStrictHtmlCompletenessProof(plan, evidence)).toBe(true);
   });
 
   it("reconstructs every configured TalentBrew channel request and rejects an extra query", async () => {
@@ -236,6 +295,20 @@ describe("independent strict HTML completeness proof", () => {
     expect(validateStrictHtmlCompletenessProof(plan, evidence)).toBe(true);
     expect(requestedPartitions).toEqual(["Fixed", "Regular"]);
 
+    const staleEntryCounts = entry
+      .replace('data-count="1" data-display="Fixed"', 'data-count="2" data-display="Fixed"')
+      .replace('data-count="2" data-display="Student"', 'data-count="1" data-display="Student"');
+    const staleEntryEvidence = await evidenceFor(plan, async request => {
+      if (!request.url.includes("/results")) return response(request, staleEntryCounts);
+      const url = new URL(request.url);
+      const channel = [...url.searchParams.entries()].find(([key]) =>
+        key.startsWith("FacetFilters[1]") && key.endsWith(".Display"))?.[1] ?? "missing";
+      return response(request, talentResponse(
+        `<section id="search-results" data-current-page="1" data-total-pages="1" data-total-job-results="1" data-records-per-page="1"><table>${row(channel.toLowerCase())}</table></section>`
+      ), "application/json");
+    });
+    expect(validateStrictHtmlCompletenessProof(plan, staleEntryEvidence)).toBe(true);
+
     for (const mutate of [
       (record: Record<string, unknown>) => { record.hasJobs = false; },
       (record: Record<string, unknown>) => { record.filters = '<script>alert(1)</script>'; },
@@ -271,6 +344,88 @@ describe("independent strict HTML completeness proof", () => {
     expect(omittedPartition.ok).toBe(false);
   });
 
+  it.each([
+    ["source-sanofi-china-social", "h2", "span.job-location", "https://jobs.sanofi.com/en/job/shanghai/role/1"],
+    ["source-takeda-china-social", "h2.title", ".location", "https://jobs.takeda.com/job/shanghai/role/1113/1"]
+  ] as const)("replays %s as one unpartitioned TalentBrew China total", async (
+    sourceId,
+    titleSelector,
+    locationSelector,
+    jobUrl
+  ) => {
+    const plan = getPlanBySourceId(buildStagedSourceCrawlPlans(candidateCompanies), sourceId);
+    if (plan?.adapterId !== "html-table") throw new Error(`missing ${sourceId} plan`);
+    const entry = `<section id="search-results" data-ajax-url="/search-results" data-facet-term="1814991"
+      data-facet-type="2" data-total-pages="2" data-total-job-results="2" data-records-per-page="1"></section>
+      <section id="search-filters"><div data-enabled="false"><input class="filter-checkbox" checked
+        data-id="1814991" data-facet-type="2" data-count="2" data-display="China" data-field-name="" /></div></section>`;
+    const talentResponse = (page: number) => {
+      const title = titleSelector === "h2" ? `<h2>职位 ${page}</h2>` : `<h2 class="title">职位 ${page}</h2>`;
+      const location = locationSelector === "span.job-location"
+        ? '<span class="job-location">上海</span>'
+        : '<span class="location">上海</span>';
+      const results = `<section id="search-results" data-current-page="${page}" data-total-pages="2"
+        data-total-job-results="2" data-records-per-page="1"><ul id="search-results-list"><li>
+        <button class="js-save-job-btn" data-job-id="job-${page}"></button>${title}
+        <a href="${jobUrl.replace(/\/1$/u, `/${page}`)}">详情</a>${location}</li></ul></section>`;
+      return JSON.stringify({
+        filters: '<section id="search-filters"><input class="filter-checkbox" /></section>',
+        hasContent: false,
+        hasJobs: true,
+        results
+      });
+    };
+    const fetched = await createHttpHtmlSourceFetch({
+      now: () => new Date(capturedAt),
+      http: async request => request.url.includes("/search-results")
+        ? response(request, talentResponse(Number(new URL(request.url).searchParams.get("CurrentPage"))), "application/json")
+        : response(request, entry)
+    })(plan);
+    if (!fetched.ok || !fetched.fetchEvidence) throw new Error(fetched.ok ? "missing evidence" : fetched.failureReason);
+
+    expect(fetched.fetchEvidence.declaredCompleteness).toMatchObject({
+      kind: "OFFICIAL_TOTAL_COUNT",
+      value: 2,
+      scope: "SOURCE"
+    });
+    expect(validateStrictHtmlCompletenessProof(plan, fetched.fetchEvidence)).toBe(true);
+    expect((await runSourceCrawl(plan, { fetch: async () => fetched })).truth.completenessVerified).toBe(true);
+
+    const changedTotal = structuredClone(fetched.fetchEvidence);
+    const changedRecord = JSON.parse(String(changedTotal.artifacts[2]!.body)) as { results: string };
+    changedRecord.results = changedRecord.results
+      .replace('data-total-job-results="2"', 'data-total-job-results="3"');
+    changedTotal.artifacts[2]!.body = JSON.stringify(changedRecord);
+    expect(validateStrictHtmlCompletenessProof(plan, changedTotal)).toBe(false);
+  });
+
+  it.each([
+    ["source-otsuka-china-social", `<script>document.cookie="auth_token=value"</script>
+      <section class="container Box"><h2>热招岗位</h2><p>目前无岗位，联系我们</p></section>`, "REDACTED"],
+    ["source-sandoz-china-social", `<main><section class="elementor elementor-1709">
+      <h2>招聘</h2><p>请警惕虚假职位信息</p></section></main>`, "EXACT"]
+  ] as const)("replays %s as a source-bound explicit empty static list", async (sourceId, body, representation) => {
+    const plan = getPlanBySourceId(buildStagedSourceCrawlPlans(candidateCompanies), sourceId);
+    if (plan?.adapterId !== "html-table") throw new Error(`missing ${sourceId} plan`);
+    const fetched = await createHttpHtmlSourceFetch({
+      now: () => new Date(capturedAt),
+      http: async request => response(request, body)
+    })(plan);
+    if (!fetched.ok || !fetched.fetchEvidence) throw new Error(fetched.ok ? "missing evidence" : fetched.failureReason);
+    expect(fetched.fetchEvidence).toMatchObject({
+      declaredCompleteness: { kind: "OFFICIAL_TOTAL_COUNT", value: 0, scope: "SOURCE" },
+      artifacts: [{ bodyRepresentation: representation }],
+      pages: [{ rawJobIds: [], validJobIds: [], termination: "EMPTY_PAGE" }]
+    });
+    expect(validateStrictHtmlCompletenessProof(plan, fetched.fetchEvidence)).toBe(true);
+    const crawled = await runSourceCrawl(plan, { fetch: async () => fetched });
+    expect(crawled).toMatchObject({
+      status: "SUCCESS",
+      jobs: [],
+      truth: { transportSuccess: true, adapterSuccess: true, completenessVerified: true }
+    });
+  });
+
   it("binds Tupu page offsets to the archived POST request contract", async () => {
     const plan = basePlan({
       rowSelector: "tr.job",
@@ -287,7 +442,8 @@ describe("independent strict HTML completeness proof", () => {
     });
     plan.source.officialEntryUrl = "https://jobs.example.test/site/position?recruitmentType=2";
     plan.source.officialChainEvidenceUrl = plan.source.officialEntryUrl;
-    const page = (body: string) => `<table>${body}</table><ul id="pageTurnUl"><li>共 2 页</li><li onclick="pageTurn(2,2)">2</li></ul>`;
+    const page = (body: string) => `<table>${body}</table><ul id="pageTurnUl"><li>共 2 页</li><li
+      data-action="pageTurn" data-pagenum="2" data-pagemax="2">2</li></ul>`;
     const evidence = await evidenceFor(plan, async request => request.method === "POST"
       ? response(request, page(row("three")))
       : response(request, page(`${row("one")}${row("two")}`)));

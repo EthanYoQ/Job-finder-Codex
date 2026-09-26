@@ -1,5 +1,4 @@
 import { describe, expect, it } from "vitest";
-import { createHash } from "node:crypto";
 import {
   buildDiscoverySourcePlanCandidates,
   buildSourceCrawlPlans,
@@ -53,7 +52,7 @@ const plannedMainListSourceIds = new Set([
   "source-novartis-social",
   "source-novo-nordisk-china-social",
   "source-organon-china-social",
-  "source-otsuka-china-social-2",
+  "source-otsuka-china-social",
   "source-pfizer-china-social",
   "source-qilu-social",
   "source-roche-china-social",
@@ -120,6 +119,8 @@ describe("source crawl planning", () => {
   it("binds the transient retry policy into the canonical source plan identity", () => {
     const plans = buildStagedSourceCrawlPlans(candidateCompanies);
     const pfizer = getPlanBySourceId(plans, "source-pfizer-china-social");
+    const novo = getPlanBySourceId(plans, "source-novo-nordisk-china-social");
+    expect(novo?.transientRetryPolicy).toEqual({ maxRetries: 1, backoffMs: 10_000 });
     if (pfizer?.adapterId !== "official-json" || !pfizer.transientRetryPolicy) {
       throw new Error("Expected canonical Pfizer retry policy");
     }
@@ -133,7 +134,7 @@ describe("source crawl planning", () => {
       .toThrow("Staged source plan execution config does not match canonical registry configuration");
   });
 
-  it("binds Pfizer's audited opaque detail policy into canonical staged plan authority", () => {
+  it("binds Pfizer's exact China-country facet into canonical staged plan authority", () => {
     const plan = getPlanBySourceId(
       buildStagedSourceCrawlPlans(candidateCompanies),
       "source-pfizer-china-social"
@@ -145,12 +146,11 @@ describe("source crawl planning", () => {
       tenant: "pfizer",
       site: "PfizerCareers",
       laterZeroTotalPolicy: "PFIZER_AUDITED_EXACT_RECONCILIATION",
-      opaqueMultiLocationDetailPolicy: "PFIZER_AUDITED_APAC_DETAIL_V1",
       appliedFacets: { Location_Country: ["6cb77610a8a543aea2d6bc10457e35d4"] },
-      facetDescriptorBoundary: { facetParameter: "workerSubType", allowedDescriptors: ["Regular"] }
+      pageSize: 20,
+      maxPages: 20
     });
-    const { opaqueMultiLocationDetailPolicy: _removedPolicy, ...withoutPolicy } = plan.workday;
-    const tampered = { ...plan, workday: withoutPolicy };
+    const tampered = { ...plan, workday: { ...plan.workday, appliedFacets: {} } };
     expect(sourcePlanConfigSha256(tampered)).not.toBe(sourcePlanConfigSha256(plan));
     expect(() => validateExecutablePlanChannelBinding(tampered))
       .toThrow("Staged source plan execution config does not match canonical registry configuration");
@@ -162,7 +162,7 @@ describe("source crawl planning", () => {
       "source-apeloa-social",
       "source-grand-pharma-social",
       "source-huahai-social",
-      "source-otsuka-china-social-2"
+      "source-otsuka-china-social"
     ];
 
     expect(plans.filter((plan) => newSourceIds.includes(plan.source.id)).map((plan) => plan.source.id).sort())
@@ -171,7 +171,7 @@ describe("source crawl planning", () => {
       expect(getPlanBySourceId(plans, sourceId)).toMatchObject({
         adapterId: "html-table",
         table: {
-          fields: { sourceJobIdParts: expect.any(Array) },
+          fields: expect.any(Object),
           staticPublicList: {
             containerSelector: expect.any(String),
             nextControlSelector: expect.any(String)
@@ -198,24 +198,16 @@ describe("source crawl planning", () => {
         staticPublicList: { excludedPartitionSelectors: [".job-card:has(a[href='schooldetail.html'])"] }
       }
     });
-    expect(getPlanBySourceId(plans, "source-otsuka-china-social")).toBeUndefined();
+    expect(getPlanBySourceId(plans, "source-otsuka-china-social-2")).toBeUndefined();
   });
 
-  it("promotes the canonical Sandoz social source with its bound China taxonomy and no hard-coded job count", () => {
+  it("promotes the canonical Aspen China page without a hard-coded job count", () => {
     const plan = getPlanBySourceId(buildDiscoverySourcePlanCandidates(candidateCompanies), "source-sandoz-china-social");
     expect(plan).toMatchObject({
-      adapterId: "official-json",
+      adapterId: "html-table",
       source: { id: "source-sandoz-china-social", kind: "SOCIAL", status: "VERIFIED_SCRAPABLE" },
-      officialJsonFetch: {
-        kind: "sandoz-jsonapi",
-        endpointUrl: "https://sandoz-com.cms.sandoz.com/jsonapi/views/job_search/job_search",
-        taxonomyEndpointUrl: "https://sandoz-com.cms.sandoz.com/jsonapi/taxonomy_term/job_location",
-        countryTermName: "LOC_CN",
-        countryTermTargetId: 806,
-        countryTermUuid: "2f829192-01a9-4909-b729-baab0b0bad0c",
-        pageSize: 10,
-        maxPages: 50,
-        detailBaseUrl: "https://www.sandoz.com"
+      table: {
+        completenessProof: { kind: "STATIC_PUBLIC_LIST" }
       }
     });
     expect(JSON.stringify(plan)).not.toMatch(/expectedJobCount|stableCompanyCount|currentJobTotal/iu);
@@ -302,14 +294,14 @@ describe("source crawl planning", () => {
     )).toEqual([]);
   });
 
-  it("quarantines J&J from formal plans even when a caller labels its scope independently verified", () => {
+  it("admits the canonical J&J group-China source to formal plans without trusting renamed clones", () => {
     const company = candidateCompanies.find((item) => item.id === "company-johnson-innovative-medicine")!;
     const source = company.sources[0]!;
     const fakeHash = "a".repeat(64);
     const surface = {
       surfaceId: source.surfaceId!, companyId: company.id, kind: "SOCIAL" as const,
       legalEntityScope: [{ status: "RESOLVED" as const, value: "Johnson & Johnson China", evidenceArtifactSha256: fakeHash }],
-      businessUnitScope: [{ status: "RESOLVED" as const, value: "Innovative Medicine", evidenceArtifactSha256: fakeHash }],
+      businessUnitScope: [{ status: "RESOLVED" as const, value: "J&J China all businesses", evidenceArtifactSha256: fakeHash }],
       brandScope: [{ status: "RESOLVED" as const, value: "Johnson & Johnson", evidenceArtifactSha256: fakeHash }],
       channels: [{ channelId: `source:${source.id}:default`, kind: "SOCIAL" as const, status: "EXPECTED" as const }],
       chinaScope: { status: "RESOLVED" as const, geography: "MAINLAND_CHINA" as const, evidenceArtifactSha256: fakeHash },
@@ -326,7 +318,12 @@ describe("source crawl planning", () => {
     };
 
     const clonedCompany = { ...company, sources: [{ ...source }] };
-    expect(buildSourceCrawlPlans([clonedCompany], [surface as never])).toEqual([]);
+    expect(getPlanBySourceId(buildSourceCrawlPlans([clonedCompany], [surface as never]), source.id)).toMatchObject({
+      profileBoundSource: {
+        kind: "jnj-careers-china",
+        config: { scopePolicy: "GROUP_CHINA_ALL_BUSINESSES_V1" }
+      }
+    });
     const renamedSource = { ...source, id: `${source.id}-clone`, surfaceId: `${source.surfaceId}-clone` };
     const renamedCompany = { ...company, id: `${company.id}-clone`, sources: [{ ...renamedSource, companyId: `${company.id}-clone` }] };
     const renamedSurface = { ...surface, surfaceId: renamedSource.surfaceId, companyId: renamedCompany.id };
@@ -426,17 +423,24 @@ describe("source crawl planning", () => {
     expect(jnjDiscoveryPlan).toMatchObject({
       adapterId: "official-json",
       source: {
-        atsKind: "WORKDAY",
-        officialEntryUrl: "https://jj.wd5.myworkdayjobs.com/JJ"
+        atsKind: "OFFICIAL_JSON",
+        officialEntryUrl: "https://www.careers.jnj.com/en/jobs/?search=&country=China&pagesize=20"
       },
-      workday: {
-        tenant: "jj",
-        site: "JJ",
-        searchText: "China"
-      }
+      profileBoundSource: {
+        kind: "jnj-careers-china",
+        config: {
+          officialSearchUrl: "https://www.careers.jnj.com/en/jobs/?search=&country=China&pagesize=20",
+          country: "China",
+          scopePolicy: "GROUP_CHINA_ALL_BUSINESSES_V1"
+        }
+      },
+      transientRetryPolicy: { maxRetries: 1, backoffMs: 10_000 }
     });
-    if (jnjDiscoveryPlan?.adapterId !== "official-json" || !jnjDiscoveryPlan.workday) throw new Error("expected JNJ Workday plan");
-    expect(jnjDiscoveryPlan.workday).not.toHaveProperty("appliedFacets");
+    if (jnjDiscoveryPlan?.adapterId !== "official-json" ||
+        jnjDiscoveryPlan.profileBoundSource?.kind !== "jnj-careers-china") {
+      throw new Error("expected JNJ public careers audit plan");
+    }
+    expect(jnjDiscoveryPlan).not.toHaveProperty("workday");
     expect(getPlanBySourceId(plans, "source-abbvie-china-social")).toMatchObject({
       adapterId: "html-table",
       table: {
@@ -546,7 +550,7 @@ describe("source crawl planning", () => {
         allowedApplyOrigins: ["https://roche.wd3.myworkdayjobs.com"],
         facetScope: {
           countryIncludeDescriptor: "中国大陆",
-          categoryExcludeDescriptors: ["实习 & 发展项目"]
+          categoryExcludeDescriptors: []
         },
         requestBoundOmittedOffsetPolicy: "ROCHE_REQUEST_BOUND_OMITTED_OFFSET_V1",
         pageSize: 100,
@@ -564,130 +568,54 @@ describe("source crawl planning", () => {
       workday: {
         tenant: "biibhr",
         site: "external",
-        searchText: "China"
+        appliedFacets: { locationCountry: ["6cb77610a8a543aea2d6bc10457e35d4"] }
       }
     });
-    const workdaySocialBoundaries = new Map([
-      ["source-johnson-innovative-medicine-social", ["Fixed Term Employee (Non-Intern) (Fixed Term)", "Regular"]],
-      ["source-pfizer-china-social", ["Regular"]],
-      ["source-bms-china-social", ["Fixed Term (Fixed Term)", "Permanent"]],
-      ["source-amgen-china-social", ["Regular"]],
-      ["source-gilead-china-social", ["Regular"]],
-      ["source-biogen-china-social", ["Regular"]]
-    ] as const);
-    for (const [sourceId, allowedDescriptors] of workdaySocialBoundaries) {
-      expect(getPlanBySourceId(plans, sourceId)).toMatchObject({
-        workday: {
-          facetDescriptorBoundary: {
-            facetParameter: "workerSubType",
-            allowedDescriptors
-          }
-        }
-      });
+    for (const sourceId of [
+      "source-pfizer-china-social",
+      "source-amgen-china-social",
+      "source-biogen-china-social"
+    ]) {
+      const candidate = getPlanBySourceId(plans, sourceId);
+      if (candidate?.adapterId !== "official-json") throw new Error(`Expected official JSON plan for ${sourceId}`);
+      expect(candidate.workday).not.toHaveProperty("facetDescriptorBoundary");
     }
     expect(getPlanBySourceId(plans, "source-johnson-innovative-medicine-social")).toMatchObject({
-      workday: {
-        opaqueMultiLocationDetailPolicy: "JNJ_AUDITED_CHINA_DETAIL_V1",
-        facetDescriptorBoundary: {
-          facetParameter: "workerSubType",
-          allowedDescriptors: ["Fixed Term Employee (Non-Intern) (Fixed Term)", "Regular"],
-          excludedDescriptors: ["College Recruit", "Intern (Fixed Term)", "Temporary Agency Worker"]
-        },
-        maxPages: 20
-      }
-    });
-    const workdayLocationFacetPolicies = new Map<string, unknown>([
-      ["source-johnson-innovative-medicine-social", {
-        kind: "JNJ_AUDITED_LOCATIONS_OVERLAP",
-        facetParameter: "locations",
-        mainlandDescriptorAliases: expect.any(Array),
-        foreignDescriptorAliases: expect.any(Array)
-      }],
-      ["source-gilead-china-social", {
-        kind: "GILEAD_AUDITED_LOCATIONS_OVERLAP",
-        facetParameter: "locations",
-        foreignDescriptorAliases: expect.any(Array)
-      }],
-      ["source-bms-china-social", {
-        kind: "BMS_AUDITED_FOREIGN_DESCRIPTOR_ALLOWLIST",
-        facetParameter: "locationHierarchy2",
-        foreignSiteDescriptorAliases: expect.any(Array),
-        foreignCountryDescriptorAliases: expect.any(Array)
-      }]
-    ]);
-    for (const [sourceId, expectedPolicy] of workdayLocationFacetPolicies) {
-      const candidate = getPlanBySourceId(plans, sourceId);
-      if (candidate?.adapterId !== "official-json" || !candidate.workday) {
-        throw new Error(`Expected Workday plan for ${sourceId}`);
-      }
-      expect((candidate.workday as { locationFacetPolicy?: unknown }).locationFacetPolicy).toEqual(expectedPolicy);
-    }
-    const jnjLocationCandidate = getPlanBySourceId(plans, "source-johnson-innovative-medicine-social");
-    const gileadLocationCandidate = getPlanBySourceId(plans, "source-gilead-china-social");
-    const bmsLocationCandidate = getPlanBySourceId(plans, "source-bms-china-social");
-    if (jnjLocationCandidate?.adapterId !== "official-json" ||
-        jnjLocationCandidate.workday?.locationFacetPolicy?.kind !== "JNJ_AUDITED_LOCATIONS_OVERLAP") {
-      throw new Error("Expected exact JNJ audited location policy");
-    }
-    if (gileadLocationCandidate?.adapterId !== "official-json" ||
-        gileadLocationCandidate.workday?.locationFacetPolicy?.kind !== "GILEAD_AUDITED_LOCATIONS_OVERLAP") {
-      throw new Error("Expected exact Gilead audited location policy");
-    }
-    if (bmsLocationCandidate?.adapterId !== "official-json" ||
-        bmsLocationCandidate.workday?.locationFacetPolicy?.kind !== "BMS_AUDITED_FOREIGN_DESCRIPTOR_ALLOWLIST") {
-      throw new Error("Expected exact BMS audited location policy");
-    }
-    const jnjLocationPolicy = jnjLocationCandidate.workday.locationFacetPolicy;
-    const gileadLocationPolicy = gileadLocationCandidate.workday.locationFacetPolicy;
-    const bmsLocationPolicy = bmsLocationCandidate.workday.locationFacetPolicy;
-    const descriptorAliasesSha256 = (aliases: readonly string[]) => createHash("sha256")
-      .update(JSON.stringify(aliases), "utf8")
-      .digest("hex");
-    expect(jnjLocationPolicy.mainlandDescriptorAliases).toHaveLength(9);
-    expect(jnjLocationPolicy.foreignDescriptorAliases).toHaveLength(145);
-    expect(descriptorAliasesSha256(jnjLocationPolicy.mainlandDescriptorAliases))
-      .toBe("e7820d1245ada112373ffbb699b44a330ab3023b1388729927866efd5ea8aa98");
-    expect(descriptorAliasesSha256(jnjLocationPolicy.foreignDescriptorAliases))
-      .toBe("1c1f010003a93af55f093583da0749a58e5eae18fe2035ab17368aa973521a23");
-    expect(descriptorAliasesSha256(gileadLocationPolicy.foreignDescriptorAliases))
-      .toBe("aa7db564434c890f9ab9f2a37b7e12502fb41e9be03055d03242cc169361d7fa");
-    expect(bmsLocationPolicy.foreignSiteDescriptorAliases).toHaveLength(15);
-    expect(bmsLocationPolicy.foreignCountryDescriptorAliases).toHaveLength(2);
-    expect(bmsLocationPolicy.foreignSiteDescriptorAliases)
-      .toContain("WA04 PSA Celgene - Seattle Dexter Avenue - WA");
-    expect(descriptorAliasesSha256(bmsLocationPolicy.foreignSiteDescriptorAliases))
-      .toBe("b8c65d7a8ee7fbc0dc9de88428ad06318519cb6f2ec065d06d96616c7e3af474");
-    expect(descriptorAliasesSha256(bmsLocationPolicy.foreignCountryDescriptorAliases))
-      .toBe("136822242c07ee3916d870b6a2888c1e92eb43b3e13f74dcfe35a2e2e3e5b7cf");
-    const bmsWithoutSeattleAlias = {
-      ...bmsLocationCandidate,
-      workday: {
-        ...bmsLocationCandidate.workday,
-        locationFacetPolicy: {
-          ...bmsLocationPolicy,
-          foreignSiteDescriptorAliases: bmsLocationPolicy.foreignSiteDescriptorAliases.filter(
-            (descriptor) => descriptor !== "WA04 PSA Celgene - Seattle Dexter Avenue - WA"
-          )
+      profileBoundSource: {
+        kind: "jnj-careers-china",
+        config: {
+          officialSearchUrl: "https://www.careers.jnj.com/en/jobs/?search=&country=China&pagesize=20",
+          pageSize: 20,
+          maxPages: 20,
+          scopePolicy: "GROUP_CHINA_ALL_BUSINESSES_V1"
         }
       }
-    };
-    expect(sourcePlanConfigSha256(bmsWithoutSeattleAlias))
-      .not.toBe(sourcePlanConfigSha256(bmsLocationCandidate));
+    });
     expect(plans.flatMap((candidate) =>
       candidate.adapterId === "official-json" &&
       (candidate.workday as { locationFacetPolicy?: unknown } | undefined)?.locationFacetPolicy !== undefined
         ? [candidate.source.id]
-        : [])).toEqual([
-      "source-johnson-innovative-medicine-social",
-      "source-bms-china-social",
-      "source-gilead-china-social"
-    ]);
+        : [])).toEqual([]);
+    expect(getPlanBySourceId(plans, "source-gilead-china-social")).toMatchObject({
+      adapterId: "official-json",
+      source: {
+        atsKind: "OFFICIAL_JSON",
+        officialEntryUrl: "https://gilead.yello.co/job_boards/v42vD4vKxb3AkKvV93YsrQ"
+      },
+      officialJsonFetch: {
+        kind: "yello-job-board",
+        boardId: "v42vD4vKxb3AkKvV93YsrQ",
+        locationFilterId: 72,
+        expectedLocationLabel: "China"
+      }
+    });
     const jnjPlan = getPlanBySourceId(plans, "source-johnson-innovative-medicine-social");
-    if (jnjPlan?.adapterId !== "official-json" || !jnjPlan.workday) {
-      throw new Error("Expected JNJ Workday plan");
+    if (jnjPlan?.adapterId !== "official-json" ||
+        jnjPlan.profileBoundSource?.kind !== "jnj-careers-china") {
+      throw new Error("Expected JNJ public careers audit plan");
     }
-    const { locationFacetPolicy: _removedLocationFacetPolicy, ...workdayWithoutLocationFacetPolicy } = jnjPlan.workday;
-    expect(sourcePlanConfigSha256({ ...jnjPlan, workday: workdayWithoutLocationFacetPolicy }))
+    const { profileBoundSource: _removedJnjProfile, ...jnjWithoutProfile } = jnjPlan;
+    expect(sourcePlanConfigSha256(jnjWithoutProfile))
       .not.toBe(sourcePlanConfigSha256(jnjPlan));
     const pfizerPlan = getPlanBySourceId(plans, "source-pfizer-china-social");
     if (pfizerPlan?.adapterId !== "official-json" || !pfizerPlan.workday) {
@@ -700,14 +628,14 @@ describe("source crawl planning", () => {
     }
     expect(amgenPlan.workday.laterZeroTotalPolicy).toBe("AMGEN_AUDITED_EXACT_RECONCILIATION");
     const bmsLaterZeroPlan = getPlanBySourceId(plans, "source-bms-china-social");
-    if (bmsLaterZeroPlan?.adapterId !== "official-json" || !bmsLaterZeroPlan.workday) {
-      throw new Error("Expected BMS Workday plan");
+    if (bmsLaterZeroPlan?.adapterId !== "official-json") {
+      throw new Error("Expected BMS official JSON plan");
     }
-    expect(bmsLaterZeroPlan.workday.laterZeroTotalPolicy).toBe("BMS_AUDITED_EXACT_RECONCILIATION");
+    expect(bmsLaterZeroPlan.officialJsonFetch).toMatchObject({ kind: "eightfold-pcsx", location: "china" });
     expect(plans.flatMap((candidate) =>
       candidate.adapterId === "official-json" && candidate.workday?.laterZeroTotalPolicy !== undefined
         ? [candidate.source.id]
-        : [])).toEqual(["source-pfizer-china-social", "source-bms-china-social", "source-amgen-china-social"]);
+        : [])).toEqual(["source-pfizer-china-social", "source-amgen-china-social"]);
     const { laterZeroTotalPolicy: _removedPolicy, ...workdayWithoutPolicy } = pfizerPlan.workday;
     expect(sourcePlanConfigSha256({ ...pfizerPlan, workday: workdayWithoutPolicy }))
       .not.toBe(sourcePlanConfigSha256(pfizerPlan));
@@ -718,13 +646,7 @@ describe("source crawl planning", () => {
       },
       officialJsonFetch: {
         kind: "phenom",
-        facetScope: {
-          countryIncludeDescriptor: "China",
-          exclusionFacet: {
-            field: "jobLevelId",
-            descriptors: ["A - Current Student", "B - Recent University Graduate(<1 year of experience)"]
-          }
-        },
+        countryFilter: "China",
         allowOmittedOffsetForSinglePage: true
       }
     });
@@ -780,17 +702,11 @@ describe("source crawl planning", () => {
       adapterId: "official-json",
       source: {
         atsKind: "OFFICIAL_JSON",
-        officialEntryUrl: "https://careers.ucb.com/global/en/search-results?qcountry=China"
+        officialEntryUrl: "https://careers.ucb.com/global/zh/search-results?keywords=China"
       },
       officialJsonFetch: {
         kind: "phenom",
-        facetScope: {
-          countryIncludeDescriptor: "China",
-          exclusionFacet: {
-            field: "category",
-            descriptors: ["Internships & Junior Positions"]
-          }
-        },
+        countryFilter: "China",
         allowOmittedOffsetForSinglePage: true,
         pageSize: 50
       }
@@ -815,18 +731,14 @@ describe("source crawl planning", () => {
     expect(plannedUrls).not.toContain("https://www.pharm.com.cn/career/join.html");
     expect(plannedUrls).not.toContain("https://www.xhzy.com/XYZP/index.html");
     expect(getPlanBySourceId(plans, "source-qilu-social")).toMatchObject({
-      adapterId: "official-json",
+      adapterId: "html-table",
       source: {
-        atsKind: "BEISEN_ZHIYE",
-        officialEntryUrl: "https://qilu-pharma.zhiye.com/social/jobs",
+        atsKind: "OFFICIAL_HTML",
+        officialEntryUrl: "https://www.qilu-pharma.com/JobPosting_list.html",
         officialChainEvidenceUrl: "https://www.qilu-pharma.com/JobPosting_list.html"
       },
-      officialJsonFetch: {
-        kind: "beisen-zhiye-2022",
-        category: "1",
-        pageSize: 100,
-        maxPages: 5,
-        detailPath: "social/detail"
+      table: {
+        completenessProof: { kind: "STATIC_PUBLIC_LIST" }
       }
     });
     expect(getPlanBySourceId(plans, "source-3sbio-social")).toMatchObject({
@@ -872,8 +784,7 @@ describe("source crawl planning", () => {
         kind: "redsea-zp-channel",
         rootId: "cspc",
         channels: [
-          { channelQrId: "0beb3022-3214-4333-a2e7-20786c4916d5", purpose: "SOCIAL" },
-          { channelQrId: "623d3b53-0d75-4649-8d4c-df366532fb58", purpose: "CAMPUS" }
+          { channelQrId: "0beb3022-3214-4333-a2e7-20786c4916d5", purpose: "SOCIAL" }
         ],
         paginationPolicy: "SINGLE_UNPAGINATED_RESPONSE_V1"
       }
@@ -932,7 +843,7 @@ describe("source crawl planning", () => {
       adapterId: "official-json",
       source: {
         atsKind: "MOKA",
-        officialEntryUrl: "https://www.servier.com.cn/social-recruitment/shiweiya/47734"
+        officialEntryUrl: "https://app.mokahr.com/social-recruitment/shiweiya/47734"
       },
       moka: {
         expectedOrgId: "shiweiya",
@@ -951,64 +862,17 @@ describe("source crawl planning", () => {
           totalPagesAttribute: "data-total-pages",
           expectedJobCountSelector: "#search-results",
           expectedJobCountAttribute: "data-total-job-results",
-          ajaxMode: "talentbrew",
-          talentbrewScope: {
-            requiredActiveFacet: { id: "1814991", facetType: 2, descriptor: "China" },
-            allowedPartitions: [
-              { channelId: "career-commercial", id: "Commercial", facetType: 5,
-                fieldName: "custom_fields.CategoryField", descriptor: "Commercial" },
-              { channelId: "career-corporate-functions", id: "Corporate Functions", facetType: 5,
-                fieldName: "custom_fields.CategoryField", descriptor: "Corporate Functions" },
-              { channelId: "career-data-digital-technology", id: "Data, Digital & Technology", facetType: 5,
-                fieldName: "custom_fields.CategoryField", descriptor: "Data, Digital & Technology" },
-              { channelId: "career-manufacturing-supply", id: "Manufacturing & Supply", facetType: 5,
-                fieldName: "custom_fields.CategoryField", descriptor: "Manufacturing & Supply" },
-              { channelId: "career-quality", id: "Quality", facetType: 5,
-                fieldName: "custom_fields.CategoryField", descriptor: "Quality" },
-              { channelId: "career-research-development", id: "Research & Development", facetType: 5,
-                fieldName: "custom_fields.CategoryField", descriptor: "Research & Development" }
-            ],
-            excludedPartitions: [
-              { id: "Early Career", facetType: 5,
-                fieldName: "custom_fields.CategoryField", descriptor: "Early Career" }
-            ]
-          }
+          ajaxMode: "talentbrew"
         }
       }
     });
     expect(getPlanBySourceId(plans, "source-sanofi-china-social")).toMatchObject({
       adapterId: "html-table",
-      table: { rowSelector: "#search-results-list li:has(button.js-save-job-btn)", pagination: { ajaxMode: "talentbrew", talentbrewScope: {
-        requiredActiveFacet: { id: "1814991", facetType: 2, descriptor: "China" },
-        allowedPartitions: [
-          { channelId: "employment-fixed-term", id: "Fixed Term (Fixed Term)", facetType: 5,
-            fieldName: "job_type", descriptor: "Fixed Term (Fixed Term)" },
-          { channelId: "employment-regular", id: "Regular", facetType: 5,
-            fieldName: "job_type", descriptor: "Regular" }
-        ],
-        excludedPartitions: [
-          { id: "Apprentice/Intern", facetType: 5, fieldName: "job_type", descriptor: "Apprentice/Intern" },
-          { id: "Apprentice/Intern (Fixed Term)", facetType: 5,
-            fieldName: "job_type", descriptor: "Apprentice/Intern (Fixed Term)" },
-          { id: "Student (Fixed Term)", facetType: 5,
-            fieldName: "job_type", descriptor: "Student (Fixed Term)" }
-        ]
-      } } }
+      table: { rowSelector: "#search-results-list li:has(button.js-save-job-btn)", pagination: { ajaxMode: "talentbrew" } }
     });
     expect(getPlanBySourceId(plans, "source-fosun-pharma-social")).toMatchObject({
-      adapterId: "html-table",
-      table: {
-        rowSelector: "table tr:has(td:nth-child(1) a[href*='/socialxq?jobId='])",
-        pagination: {
-          totalPagesSelector: ".page a[href*='/social/?PageIndex=']",
-          totalPagesAttribute: "href",
-          totalPagesPattern: "PageIndex=([1-9]\\d*)(?:&|$)",
-          totalPagesMode: "max",
-          totalPagesDeclaredOnEntryOnly: true,
-          pageSearchParam: "PageIndex",
-          maxPages: 20
-        }
-      }
+      adapterId: "official-json",
+      officialJsonFetch: { kind: "beisen-zhiye-2022", geographyScope: "DOMESTIC_OFFICIAL_TENANT" }
     });
     const novartis = getPlanBySourceId(plans, "source-novartis-social");
     if (novartis?.adapterId !== "html-table") throw new Error("expected Novartis HTML plan");
@@ -1024,48 +888,48 @@ describe("source crawl planning", () => {
         pageSearchParam: "page",
         pageNumberOffset: -1,
         maxPages: 20,
+        totalPagesDeclaredOnEntryOnly: true,
         officialWindowMode: "NOVARTIS_PAGE_WINDOW_V1"
       }
     });
     expect(getPlanBySourceId(plans, "source-kelun-social")).toMatchObject({
       adapterId: "html-table",
       table: {
+        fields: {
+          sourceJobId: {
+            selector: "td:nth-child(1) a",
+            attribute: "href",
+            pattern: "/job_show/([1-9][0-9]*)(?:[?#]|$)"
+          }
+        },
         pagination: {
           totalPagesSelector: "a[href*='PageIndex=']:not([href*='PageIndex=0'])",
           totalPagesPattern: "PageIndex=(\\d+)(?:&|$)",
           totalPagesMode: "max",
           pageSearchParam: "PageIndex",
+          totalPagesDeclaredOnEntryOnly: true,
           maxPages: 20
         }
       }
     });
     expect(getPlanBySourceId(plans, "source-boehringer-ingelheim-china-social")).toMatchObject({
-      adapterId: "html-table",
-      table: {
-        pagination: {
-          pageSearchParam: "startrow",
-          pageSearchParamMode: "offset",
-          pageSize: 25,
-          expectedJobCountSelector: "#tile-search-results-label",
-          expectedJobCountPattern: "of\\s+(\\d+)\\s+Jobs"
-        }
-      }
+      adapterId: "official-json",
+      officialJsonFetch: { kind: "51job-coapi", ctmid: "3479", pageSize: 500 }
     });
     expect(getPlanBySourceId(plans, "source-hansoh-social")).toMatchObject({
-      adapterId: "html-table",
+      adapterId: "official-json",
       source: {
         atsKind: "BEISEN_ZHIYE",
         officialEntryUrl: "https://hspharm.zhiye.com/social",
         officialChainEvidenceUrl: "https://www.hansoh.cn/job/career-development.htm"
       },
-      table: {
-        pagination: {
-          totalPagesSelector: "a[href*='PageIndex=']:not([href*='PageIndex=0'])",
-          totalPagesPattern: "PageIndex=(\\d+)(?:&|$)",
-          totalPagesMode: "max",
-          pageSearchParam: "PageIndex",
-          expectedJobCountPattern: "共\\s*(\\d+)\\s*条记录"
-        }
+      officialJsonFetch: {
+        kind: "beisen-zhiye-2022",
+        geographyScope: "DOMESTIC_OFFICIAL_TENANT",
+        category: "1",
+        pageSize: 100,
+        maxPages: 10,
+        detailPath: "social/detail"
       }
     });
     expect(getPlanBySourceId(plans, "source-cttq-social")).toMatchObject({
@@ -1131,7 +995,10 @@ describe("source crawl planning", () => {
         officialChainEvidenceUrl: "https://www.careers.teva/careers?location=China"
       },
       table: {
-        strictEmbeddedJsonZero: { kind: "TEVA_SMARTAPPLY_CHINA" }
+        strictEmbeddedJsonZero: {
+          kind: "TEVA_SMARTAPPLY_CHINA",
+          remoteGlobalForeignExclusionPolicy: "TEVA_US_REMOTE_GLOBAL_V1"
+        }
       }
     });
     if (tevaPlan?.adapterId !== "html-table") throw new Error("Expected Teva HTML plan");
@@ -1140,33 +1007,31 @@ describe("source crawl planning", () => {
       adapterId: "official-json",
       source: {
         atsKind: "OFFICIAL_JSON",
-        officialEntryUrl: "https://grifols.jobs/locations/chn/jobs/",
+        officialEntryUrl: "https://jobsearch.grifols.com/search/?createNewAlert=false&q=&locationsearch=China",
         officialChainEvidenceUrl: "https://www.zh.grifolscn.com.cn/zh/careers"
       },
-      officialJsonFetch: {
-        kind: "jobsyn-solr",
-        endpointUrl: "https://prod-search-api.jobsyn.org/api/v1/solr/search",
-        siteOrigin: "grifols.jobs",
-        location: "chn",
-        pageSize: 9,
-        maxPages: 5
-      }
+      profileBoundSource: {
+        kind: "grifols-china-detail-scope",
+        config: {
+          officialSearchUrl: "https://jobsearch.grifols.com/search/?createNewAlert=false&q=&locationsearch=China",
+          pageSize: 25,
+          maxPages: 20,
+          detailScopePolicy: "GRIFOLS_SUCCESSFACTORS_DETAIL_MAINLAND_V1"
+        }
+      },
+      transientRetryPolicy: { maxRetries: 1, backoffMs: 10_000 }
     });
     expect(getPlanBySourceId(plans, "source-csl-china-social")).toMatchObject({
-      adapterId: "html-table",
+      adapterId: "official-json",
       source: {
-        atsKind: "OFFICIAL_HTML",
-        officialEntryUrl: "https://jobs.csl.com/en/jobs?filterrific%5Bwith_location3%5D=china",
+        atsKind: "WORKDAY",
+        officialEntryUrl: "https://csl.wd1.myworkdayjobs.com/zh-CN/CSL_External",
         officialChainEvidenceUrl: "https://www.csl.com/careers"
       },
-      table: {
-        rowSelector: "a[href^='https://jobs.csl.com/en/jobs/']",
-        pagination: {
-          expectedJobCountSelector: "body",
-          expectedJobCountPattern: "Showing\\s+\\d+\\s+to\\s+\\d+\\s+of\\s+(\\d+)\\s+results",
-          pageSize: 25,
-          maxPages: 5
-        }
+      workday: {
+        tenant: "csl",
+        site: "CSL_External",
+        appliedFacets: { locationCountry: ["6cb77610a8a543aea2d6bc10457e35d4"] }
       }
     });
     expect(getPlanBySourceId(plans, "source-lunan-social")).toMatchObject({
@@ -1184,7 +1049,48 @@ describe("source crawl planning", () => {
         responsePrefixPolicy: "LUNAN_RANDOM_ALNUM3",
         listPaginationPolicy: "LUNAN_REQUEST_BOUND_PAGE_V1",
         defaultLocationRaw: "未披露"
+      },
+      transportPolicy: {
+        primary: "DIRECT_HTTP",
+        fallback: "BROWSER_SESSION",
+        browserConcurrency: 1
       }
     });
+    expect(plans.every((plan) => plan.transportPolicy?.primary === "DIRECT_HTTP")).toBe(true);
+    expect(plans.filter((plan) => plan.transportPolicy?.fallback === "BROWSER_SESSION")
+      .map((plan) => plan.source.id)).toEqual([
+        "source-johnson-innovative-medicine-social",
+        "source-lunan-social"
+      ]);
+    expect(JSON.stringify(plans)).not.toContain("TAVILY");
+  });
+
+  it("routes Hansoh through the current official Beisen API instead of the obsolete legacy HTML table", () => {
+    const plans = buildStagedSourceCrawlPlans(candidateCompanies);
+    expect(getPlanBySourceId(plans, "source-hansoh-social")).toMatchObject({
+      adapterId: "official-json",
+      officialJsonFetch: {
+        kind: "beisen-zhiye-2022",
+        geographyScope: "DOMESTIC_OFFICIAL_TENANT",
+        category: "1",
+        pageSize: 100,
+        maxPages: 10,
+        detailPath: "social/detail"
+      }
+    });
+  });
+
+  it("rejects an executable plan whose transport policy is missing or tampered", () => {
+    const plan = buildStagedSourceCrawlPlans(candidateCompanies, expectedOfficialSurfaces).find(
+      (candidate) => candidate.transportPolicy?.fallback === undefined
+    )!;
+    const { transportPolicy: _transportPolicy, ...withoutTransportPolicy } = plan;
+
+    expect(() => validateExecutablePlanChannelBinding(withoutTransportPolicy as typeof plan))
+      .toThrow(/transport policy/);
+    expect(() => validateExecutablePlanChannelBinding({
+      ...plan,
+      transportPolicy: { primary: "DIRECT_HTTP", fallback: "BROWSER_SESSION", browserConcurrency: 1 }
+    })).toThrow(/transport policy/);
   });
 });

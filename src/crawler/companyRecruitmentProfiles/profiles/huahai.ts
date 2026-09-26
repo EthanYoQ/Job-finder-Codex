@@ -9,6 +9,10 @@ export const profile_huahai = {
           adapterId: "html-table",
           table: {
               rowSelector: "tr.tr_title",
+              completenessProof: {
+                  kind: "STATIC_PUBLIC_LIST",
+                  sourcePolicy: "HUAHAI_SOCIAL_TABLE_V1"
+              },
               staticPublicList: {
                   containerSelector: "table:has(tr.tr_title)",
                   nextControlSelector: "table:has(tr.tr_title) .pagination, table:has(tr.tr_title) a[rel='next'], table:has(tr.tr_title) [data-page]"

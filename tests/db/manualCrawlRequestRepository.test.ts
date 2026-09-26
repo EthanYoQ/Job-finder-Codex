@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import {
   ManualCrawlRequestRepositoryError,
+  P0_MANUAL_CRAWL_SOURCE_IDS,
   createManualCrawlRequestRepository,
   type ManualCrawlRequestDb
 } from "../../src/db/manualCrawlRequestRepository";
@@ -47,6 +48,27 @@ describe("manual crawl request repository", () => {
     expect(excluded.calls.requestCreate).toHaveLength(0);
   });
 
+  it.each([
+    "source-sinopharm-social",
+    "source-3sbio-social",
+    "source-apeloa-social",
+    "source-xinhua-pharma-social",
+    "source-tianjin-pharma-social",
+    "source-dongyangguang-social"
+  ])("rejects %s because it is outside the frozen launch authority", async (sourceId) => {
+    const fixture = fakeDb({ source: {
+      id: sourceId,
+      companyId: `company-${sourceId.slice("source-".length, -"-social".length)}`,
+      kind: "SOCIAL",
+      atsKind: "MOKA",
+      status: "VERIFIED_SCRAPABLE"
+    } });
+    await expect(createManualCrawlRequestRepository({ db: fixture.db }).enqueue({
+      sourceId, requestedById: "admin", ip: "ip", userAgent: "ua"
+    })).rejects.toMatchObject({ code: "OUT_OF_SCOPE" });
+    expect(fixture.calls.requestCreate).toHaveLength(0);
+  });
+
   it("maps the active-source unique violation to a stable result", async () => {
     const { db } = fakeDb({ createError: Object.assign(new Error("duplicate"), {
       code: "P2002", meta: { target: "ManualCrawlRequest_one_active_per_source" }
@@ -89,8 +111,7 @@ describe("manual crawl request repository", () => {
     expect(calls.raw[0].sql).toContain("INTERVAL '1 millisecond'");
     expect(calls.raw[0].values.slice(0, 2)).toEqual(["worker-1", LEASE_DURATION_MS]);
     expect(calls.raw[0].sql).toContain('JOIN "RecruitmentSource"');
-    expect(calls.raw[0].values[2]).not.toContain("company-humanwell");
-    expect(calls.raw[0].values[2]).not.toContain("company-north-china-pharma");
+    expect(calls.raw[0].values[2]).toEqual(P0_MANUAL_CRAWL_SOURCE_IDS);
     expect(calls.raw[0].values.some((value: unknown) => value instanceof Date)).toBe(false);
     expect(calls.eventCreate[0]).toEqual({ data: expect.objectContaining({
       requestId: "request-1", eventType: "CLAIMED", actor: "SYSTEM", adminUserId: null,
@@ -111,7 +132,27 @@ describe("manual crawl request repository", () => {
     await expect(repository.claimNext({ ownerId: "worker-1", leaseDurationMs: LEASE_DURATION_MS })).resolves.toBeNull();
     expect(calls.raw[0].sql).toContain('source."status" = \'VERIFIED_SCRAPABLE\'');
     expect(calls.raw[0].sql).toContain('source."kind" = \'SOCIAL\'');
-    expect(calls.raw[0].sql).toContain('source."companyId" = ANY($3::text[])');
+    expect(calls.raw[0].sql).toContain('source."id" = ANY($3::text[])');
+  });
+
+  it("re-resolves the claim authority for every queue claim", async () => {
+    const fixture = fakeDb({ claimRows: [] });
+    const resolveClaimableSourceIds = vi.fn()
+      .mockResolvedValueOnce(["source-roche-china-social"])
+      .mockResolvedValueOnce(["source-pfizer-china-social"]);
+    const repository = createManualCrawlRequestRepository({
+      db: fixture.db,
+      evaluateEligibility: eligible,
+      resolveClaimableSourceIds
+    });
+
+    await repository.claimNext({ ownerId: "worker", leaseDurationMs: LEASE_DURATION_MS });
+    await repository.claimNext({ ownerId: "worker", leaseDurationMs: LEASE_DURATION_MS });
+
+    expect(resolveClaimableSourceIds).toHaveBeenCalledTimes(2);
+    expect(fixture.calls.raw.map((call: { values: unknown[] }) => call.values[2])).toEqual([
+      ["source-roche-china-social"], ["source-pfizer-china-social"]
+    ]);
   });
 
   it("marks a lease-expired RUNNING row as reclaimed from RUNNING", async () => {
@@ -246,7 +287,7 @@ function fakeDb(options: FakeOptions = {}): { db: ManualCrawlRequestDb; calls: R
     recruitmentSource: { async findUnique(args: unknown) {
       calls.sourceFind.push(args);
       return options.source === undefined
-        ? { id: "source-1", companyId: "company-roche", kind: "SOCIAL", atsKind: "MOKA", status: "VERIFIED_SCRAPABLE" }
+        ? { id: "source-roche-china-social", companyId: "company-roche-china", kind: "SOCIAL", atsKind: "MOKA", status: "VERIFIED_SCRAPABLE" }
         : options.source;
     } },
     crawlBatch: { async findUnique(args: unknown) {

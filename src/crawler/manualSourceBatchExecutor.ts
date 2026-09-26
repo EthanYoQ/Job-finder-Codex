@@ -9,7 +9,8 @@ import type { RunP0CrawlBatchDeps, P0CrawlBatchResult } from "./runCrawlBatch";
 import type { SourceCrawlPlan } from "./sourcePlan";
 import type { SourceFetchFunction } from "./runSourceCrawl";
 
-export function createManualSourceBatchExecutor(input: {
+type ManualSourceBatchExecutionRequest = { requestId: string; sourceId: string; ownerId: string };
+type ManualSourceBatchExecutorInput = {
   plans: readonly SourceCrawlPlan[];
   baseIdentity: RuntimeBatchIdentity;
   db: RunP0CrawlBatchDeps["db"];
@@ -20,13 +21,13 @@ export function createManualSourceBatchExecutor(input: {
     plans: readonly SourceCrawlPlan[],
     deps: RunP0CrawlBatchDeps
   ): Promise<P0CrawlBatchResult>;
-}) {
+};
+
+export function createManualSourceBatchExecutor(input: ManualSourceBatchExecutorInput) {
   validateRuntimeBatchIdentity(input.baseIdentity);
-  return async (request: {
-    requestId: string;
-    sourceId: string;
-    ownerId: string;
-  }): Promise<{ batchId: string; status: P0CrawlBatchResult["status"] }> => {
+  return async (request: ManualSourceBatchExecutionRequest): Promise<{
+    batchId: string; status: P0CrawlBatchResult["status"]
+  }> => {
     const matchingPlans = input.plans.filter((plan) => plan.source.id === request.sourceId);
     if (matchingPlans.length !== 1) {
       throw new Error("Manual crawl requires exactly one canonical source plan");
@@ -51,5 +52,15 @@ export function createManualSourceBatchExecutor(input: {
       ...input.runtimeDeps
     });
     return { batchId: batch.batchId, status: batch.status };
+  };
+}
+
+export function createCurrentAuthorityManualSourceBatchExecutor(input: {
+  resolveAuthority(): Promise<Pick<ManualSourceBatchExecutorInput, "plans" | "baseIdentity">>;
+  execution: Omit<ManualSourceBatchExecutorInput, "plans" | "baseIdentity">;
+}) {
+  return async (request: ManualSourceBatchExecutionRequest) => {
+    const authority = await input.resolveAuthority();
+    return createManualSourceBatchExecutor({ ...input.execution, ...authority })(request);
   };
 }

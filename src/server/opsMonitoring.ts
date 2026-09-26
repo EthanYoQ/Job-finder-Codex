@@ -4,6 +4,9 @@ export type OpsAlertCode =
   | "BACKUP_MISSING"
   | "BACKUP_FAILED"
   | "BACKUP_STALE"
+  | "RESTORE_RECEIPT_MISSING"
+  | "RESTORE_QUALIFICATION_FAILED"
+  | "RESTORE_QUALIFICATION_STALE"
   | "CRAWL_SUCCESS_BELOW_SLO"
   | "CRAWL_PARTIAL_COMPANY_RESULTS"
   | "CRAWL_SUMMARY_MISSING"
@@ -14,12 +17,9 @@ export type OpsAlertCode =
   | "CRAWL_ATTEMPT_INVALID"
   | "CRAWL_ATTEMPT_FAILED"
   | "CRAWL_ATTEMPT_STALE"
-  | "INITIAL_QUALIFICATION_PAUSED_BELOW_MINIMUM"
-  | "COMPANY_CONSECUTIVE_FAILURES"
-  | "CERTIFICATE_EXPIRING"
-  | "HIGH_DISK_USAGE"
-  | "HIGH_MEMORY_USAGE"
-  | "ABNORMAL_TRAFFIC";
+  | "MANDATORY_COMPANY_FAILURE"
+  | "CRAWL_COMPLETENESS_FAILURE"
+  | "INITIAL_QUALIFICATION_PAUSED_BELOW_MINIMUM";
 
 export type OpsAlertSeverity = "warning" | "critical";
 
@@ -37,15 +37,21 @@ export interface OpsAlertInput {
     ok: boolean;
     statusCode?: number;
   };
+  database?: { ok: boolean };
   backup: {
     latestBackupAt?: string;
     latestBackupSucceeded?: boolean;
+  };
+  restore?: {
+    latestRestoreAt?: string;
+    latestRestoreSucceeded?: boolean;
   };
   crawl: {
     authorityState: "VALID" | "PAUSED" | "INVALID";
     attemptState: "SUCCESS" | "RUNNING" | "PAUSED" | "MISSING" | "INVALID" | "FAILED" | "STALE";
     summaryState: "VALID" | "MISSING" | "INVALID" | "STALE";
     globalSuccessRate?: number;
+    completenessFailureCount?: number;
     consecutiveFailuresByCompany: Record<string, number>;
     initialQualificationPause?: {
       notificationKey: string;
@@ -56,28 +62,27 @@ export interface OpsAlertInput {
       minimumStableCompanyCount: number;
     };
   };
-  certificate?: {
-    expiresAt?: string;
-  };
-  resources?: {
-    diskUsedPercent?: number;
-    memoryUsedPercent?: number;
-  };
-  traffic?: {
-    requestsLastHour?: number;
-    baselineRequestsPerHour?: number;
-  };
 }
 
 const BACKUP_STALE_HOURS = 26;
+const RESTORE_STALE_HOURS = 8 * 24;
 const CRAWL_SUCCESS_SLO = 0.8;
-const CERT_EXPIRY_WARNING_DAYS = 14;
-const HIGH_DISK_THRESHOLD = 90;
-const HIGH_MEMORY_THRESHOLD = 90;
-const TRAFFIC_SPIKE_MULTIPLIER = 3;
 
 export function evaluateOpsAlerts(input: OpsAlertInput): OpsAlert[] {
   const alerts: OpsAlert[] = [];
+
+  const restoreAt = toDate(input.restore?.latestRestoreAt);
+  if (input.restore !== undefined && !restoreAt) {
+    alerts.push({ code: "RESTORE_RECEIPT_MISSING", severity: "critical",
+      message: "No successful backup restore qualification receipt is available." });
+  } else if (input.restore !== undefined && input.restore.latestRestoreSucceeded !== true) {
+    alerts.push({ code: "RESTORE_QUALIFICATION_FAILED", severity: "critical",
+      message: "The latest backup restore qualification receipt is invalid or failed." });
+  } else if (restoreAt && (restoreAt.getTime() > input.now.getTime() + 5 * 60_000 ||
+      input.now.getTime() - restoreAt.getTime() > RESTORE_STALE_HOURS * 3_600_000)) {
+    alerts.push({ code: "RESTORE_QUALIFICATION_STALE", severity: "critical",
+      message: "The latest successful backup restore qualification is older than eight days." });
+  }
 
   if (input.crawl.authorityState === "INVALID") {
     alerts.push({ code: "CRAWL_AUTHORITY_INVALID", severity: "critical", message: "Pinned crawl release authority is unavailable or invalid." });
@@ -90,7 +95,7 @@ export function evaluateOpsAlerts(input: OpsAlertInput): OpsAlert[] {
   } as const;
   if (!["SUCCESS", "RUNNING", "PAUSED"].includes(input.crawl.attemptState)) {
     const [code, message] = attemptAlert[input.crawl.attemptState as keyof typeof attemptAlert];
-    alerts.push({ code, severity: input.crawl.attemptState === "FAILED" ? "warning" : "critical", message });
+    alerts.push({ code, severity: "critical", message });
   }
 
   const pause = input.crawl.initialQualificationPause;
@@ -135,6 +140,14 @@ export function evaluateOpsAlerts(input: OpsAlertInput): OpsAlert[] {
     });
   }
 
+  if (input.database?.ok === false) {
+    alerts.push({
+      code: "DATABASE_UNREACHABLE",
+      severity: "critical",
+      message: "Authenticated PostgreSQL readiness check failed."
+    });
+  }
+
   if (input.backup.latestBackupSucceeded === false) {
     alerts.push({
       code: "BACKUP_FAILED",
@@ -155,7 +168,7 @@ export function evaluateOpsAlerts(input: OpsAlertInput): OpsAlert[] {
     if (ageHours > BACKUP_STALE_HOURS) {
       alerts.push({
         code: "BACKUP_STALE",
-        severity: "warning",
+        severity: "critical",
         message: `Latest backup is ${Math.floor(ageHours)} hours old.`,
         metadata: { latestBackupAt: latestBackupAt.toISOString() }
       });
@@ -166,76 +179,42 @@ export function evaluateOpsAlerts(input: OpsAlertInput): OpsAlert[] {
   if (globalSuccessRate !== undefined && globalSuccessRate < CRAWL_SUCCESS_SLO) {
     alerts.push({
       code: "CRAWL_SUCCESS_BELOW_SLO",
-      severity: "warning",
+      severity: "critical",
       message: `Global crawl success rate fell to ${(globalSuccessRate * 100).toFixed(1)}%.`,
       metadata: { globalSuccessRate }
     });
   } else if (globalSuccessRate !== undefined && globalSuccessRate < 1) {
     alerts.push({
       code: "CRAWL_PARTIAL_COMPANY_RESULTS",
-      severity: "warning",
+      severity: "critical",
       message: `Some company sources were unavailable; global crawl success was ${(globalSuccessRate * 100).toFixed(1)}%.`,
       metadata: { globalSuccessRate }
     });
   }
 
-  const failingCompanies = Object.entries(input.crawl.consecutiveFailuresByCompany)
-    .filter(([, failures]) => failures >= 3)
+  const mandatoryCompanyFailures = Object.entries(input.crawl.consecutiveFailuresByCompany)
+    .filter(([, failures]) => failures >= 1)
     .map(([companyId]) => companyId)
     .sort();
-  if (failingCompanies.length > 0) {
+  if (mandatoryCompanyFailures.length > 0) {
     alerts.push({
-      code: "COMPANY_CONSECUTIVE_FAILURES",
+      code: "MANDATORY_COMPANY_FAILURE",
       severity: "critical",
-      message: `${failingCompanies.length} company source(s) have three consecutive crawl failures.`,
-      metadata: { companies: failingCompanies }
+      message: `${mandatoryCompanyFailures.length} mandatory company source(s) failed the latest formal crawl.`,
+      metadata: { companies: mandatoryCompanyFailures }
     });
   }
 
-  const certificateExpiry = toDate(input.certificate?.expiresAt);
-  if (certificateExpiry) {
-    const daysLeft = (certificateExpiry.getTime() - input.now.getTime()) / 86_400_000;
-    if (daysLeft <= CERT_EXPIRY_WARNING_DAYS) {
-      alerts.push({
-        code: "CERTIFICATE_EXPIRING",
-        severity: "warning",
-        message: `TLS certificate expires in ${Math.max(0, Math.floor(daysLeft))} day(s).`,
-        metadata: { expiresAt: certificateExpiry.toISOString() }
-      });
-    }
+  const completenessFailureCount = input.crawl.completenessFailureCount ?? 0;
+  if (!Number.isSafeInteger(completenessFailureCount) || completenessFailureCount < 0) {
+    throw new Error("Completeness failure monitoring input is invalid");
   }
-
-  if ((input.resources?.diskUsedPercent ?? 0) >= HIGH_DISK_THRESHOLD) {
+  if (completenessFailureCount > 0) {
     alerts.push({
-      code: "HIGH_DISK_USAGE",
+      code: "CRAWL_COMPLETENESS_FAILURE",
       severity: "critical",
-      message: `Disk usage reached ${input.resources?.diskUsedPercent}%.`,
-      metadata: { diskUsedPercent: input.resources?.diskUsedPercent }
-    });
-  }
-
-  if ((input.resources?.memoryUsedPercent ?? 0) >= HIGH_MEMORY_THRESHOLD) {
-    alerts.push({
-      code: "HIGH_MEMORY_USAGE",
-      severity: "critical",
-      message: `Memory usage reached ${input.resources?.memoryUsedPercent}%.`,
-      metadata: { memoryUsedPercent: input.resources?.memoryUsedPercent }
-    });
-  }
-
-  const requestsLastHour = input.traffic?.requestsLastHour;
-  const baselineRequestsPerHour = input.traffic?.baselineRequestsPerHour;
-  if (
-    requestsLastHour !== undefined &&
-    baselineRequestsPerHour !== undefined &&
-    baselineRequestsPerHour > 0 &&
-    requestsLastHour / baselineRequestsPerHour >= TRAFFIC_SPIKE_MULTIPLIER
-  ) {
-    alerts.push({
-      code: "ABNORMAL_TRAFFIC",
-      severity: "warning",
-      message: `Traffic reached ${requestsLastHour} requests/hour against a ${baselineRequestsPerHour} baseline.`,
-      metadata: { requestsLastHour, baselineRequestsPerHour }
+      message: `${completenessFailureCount} source(s) failed formal crawl completeness qualification.`,
+      metadata: { completenessFailureCount }
     });
   }
 

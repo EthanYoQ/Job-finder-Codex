@@ -35,6 +35,7 @@ export interface WorkdayFetchConfig {
 
 export type WorkdayOpaqueMultiLocationDetailPolicy =
   | "JNJ_AUDITED_CHINA_DETAIL_V1"
+  | "BMS_AUDITED_CHINA_DETAIL_V1"
   | "PFIZER_AUDITED_APAC_DETAIL_V1";
 
 export type WorkdayLaterZeroTotalPolicy =
@@ -43,6 +44,11 @@ export type WorkdayLaterZeroTotalPolicy =
   | "BMS_AUDITED_EXACT_RECONCILIATION";
 
 export type WorkdayLocationFacetPolicy =
+  | {
+      kind: "PFIZER_AUDITED_COUNTRY_LOCATION_REFINEMENT";
+      facetParameter: "locations";
+      foreignDescriptorAliases: readonly string[];
+    }
   | {
       kind: "JNJ_AUDITED_LOCATIONS_OVERLAP";
       facetParameter: "locations";
@@ -123,25 +129,31 @@ const PFIZER_LATER_ZERO_TOTAL_POLICY = "PFIZER_AUDITED_EXACT_RECONCILIATION";
 const AMGEN_LATER_ZERO_TOTAL_POLICY = "AMGEN_AUDITED_EXACT_RECONCILIATION";
 const BMS_LATER_ZERO_TOTAL_POLICY = "BMS_AUDITED_EXACT_RECONCILIATION";
 const AUDITED_CHINA_LOCATION_ID = "6cb77610a8a543aea2d6bc10457e35d4";
+export const PFIZER_AUDITED_FOREIGN_LOCATION_DESCRIPTOR_ALIASES = ["APAC - Remote"] as const;
 export const BMS_AUDITED_FOREIGN_SITE_DESCRIPTOR_ALIASES = [
   "AZ01 PSA Celgene - Phoenix - AZ",
   "CA06 PSA Celgene - San Diego Science Park - CA",
   "CA09 PSA Celgene - Los Angeles - CA",
   "CA10 PSA - Brisbane - CA",
   "CA14 San Diego Morehouse",
+  "CA15 San Diego RayzeBio",
+  "FL02 PSA Tampa - FL",
   "IN05 Indianapolis 80th Street",
   "MA01 PSA Cambridge Crossing - MA",
+  "MA03 PSA Devens - MA",
   "MD01 PSA Bethesda - FL",
   "NJ05 PSA New Brunswick - NJ",
   "NJ06 PSA Princeton LVL - NJ",
   "NJ09 PSA Princeton Pike - NJ",
   "NJ13 PSA Plainsboro - NJ",
   "NJ16 PSA Madison - Giralda Farms - NJ",
+  "TX02 PSA Celgene - Dallas - TX",
   "US99 PSA Field - United States",
   "WA04 PSA Celgene - Seattle Dexter Avenue - WA"
 ] as const;
 export const BMS_AUDITED_FOREIGN_COUNTRY_DESCRIPTOR_ALIASES = [
   "Korea, Republic Of",
+  "Turkey",
   "United Kingdom (GB)"
 ] as const;
 export const JNJ_AUDITED_MAINLAND_DESCRIPTOR_ALIASES = [
@@ -158,7 +170,9 @@ export const JNJ_AUDITED_MAINLAND_DESCRIPTOR_ALIASES = [
 export const JNJ_AUDITED_FOREIGN_DESCRIPTOR_ALIASES = [
   "Alaska (Any City)",
   "Arizona (Any City)",
+  "Baja California (Any City)",
   "California (Any City)",
+  "Coahuila (Any City)",
   "Colorado (Any City)",
   "Connecticut (Any City)",
   "Delaware (Any City)",
@@ -210,10 +224,13 @@ export const JNJ_AUDITED_FOREIGN_DESCRIPTOR_ALIASES = [
   "La Jolla, California, United States of America",
   "Los Angeles, California, United States of America",
   "Malvern, Pennsylvania, United States of America",
+  "Manitoba (Any City)",
   "Miami, Florida, United States of America",
   "Minneapolis, Minnesota, United States of America",
   "New Brighton, Minnesota, United States of America",
+  "Olomouc, Olomoucky kraj, Czech Republic",
   "Orlando, Florida, United States of America",
+  "Ostrava, Moravskoslezsky kraj, Czech Republic",
   "Palm Beach Gardens, Florida, United States of America",
   "Providence, Rhode Island, United States of America",
   "Raritan, New Jersey, United States of America",
@@ -278,6 +295,7 @@ export const JNJ_AUDITED_FOREIGN_DESCRIPTOR_ALIASES = [
   "Mountain View, California, United States of America",
   "MX301 – Circuito Interior Norte - BWI",
   "Nebraska (Any City)",
+  "New Brunswick (Any City)",
   "New Brunswick, New Jersey, United States of America",
   "Oklahoma (Any City)",
   "Redwood City, California, United States of America",
@@ -297,6 +315,7 @@ export const JNJ_AUDITED_FOREIGN_DESCRIPTOR_ALIASES = [
   "Bridgewater, New Jersey, United States of America",
   "Busan, Korea, Republic of",
   "GIMPO-SI, Korea, Republic of",
+  "Hwaseong-si, Gyeonggi-do, Korea, Republic of",
   "Pittsburgh, Pennsylvania, United States of America",
   "Trenton, New Jersey, United States of America",
   "Uşak",
@@ -304,6 +323,8 @@ export const JNJ_AUDITED_FOREIGN_DESCRIPTOR_ALIASES = [
 ] as const;
 export const GILEAD_AUDITED_FOREIGN_DESCRIPTOR_ALIASES = [
   "Czech Republic - Prague",
+  "Romania – Bucharest",
+  "Russian Federation - St. Petersburg",
   "UAE - Dubai",
   "United States – Remote"
 ] as const;
@@ -331,6 +352,8 @@ interface ResolvedWorkdayLocationFacetPolicy {
   allowedForeignSiteDescriptors: readonly string[];
   allowedForeignCountryDescriptors: readonly string[];
   requireUniqueMainlandCountryLeaf: boolean;
+  preferCityFacet: boolean;
+  allowIncompleteCounts: boolean;
 }
 
 interface WorkdaySelectedLocation {
@@ -407,7 +430,32 @@ function resolveAuditedLocationFacetPolicy(
   config: WorkdayFetchConfig
 ): ResolvedWorkdayLocationFacetPolicy | undefined {
   const policy = config.locationFacetPolicy;
-  if (!policy || config.searchText !== "China" || hasConfiguredLocationFacet(config.appliedFacets ?? {})) {
+  if (!policy) {
+    return undefined;
+  }
+
+  if (
+    policy.kind === "PFIZER_AUDITED_COUNTRY_LOCATION_REFINEMENT" &&
+    policy.facetParameter === "locations" &&
+    exactStringArray(policy.foreignDescriptorAliases, PFIZER_AUDITED_FOREIGN_LOCATION_DESCRIPTOR_ALIASES) &&
+    sourceId === "source-pfizer-china-social" &&
+    config.tenant === "pfizer" && config.site === "PfizerCareers" && config.searchText === undefined &&
+    hasExactSingleAppliedFacet(config.appliedFacets, "Location_Country", AUDITED_CHINA_LOCATION_ID)
+  ) {
+    return {
+      facetParameter: "locations",
+      allowOverlappingCounts: true,
+      allowedDuplicateDescriptors: [],
+      mainlandDescriptorAliases: [],
+      allowedForeignDescriptors: PFIZER_AUDITED_FOREIGN_LOCATION_DESCRIPTOR_ALIASES,
+      allowedForeignSiteDescriptors: [],
+      allowedForeignCountryDescriptors: [],
+      requireUniqueMainlandCountryLeaf: false,
+      preferCityFacet: true,
+      allowIncompleteCounts: true
+    };
+  }
+  if (config.searchText !== "China" || hasConfiguredLocationFacet(config.appliedFacets ?? {})) {
     return undefined;
   }
 
@@ -428,7 +476,9 @@ function resolveAuditedLocationFacetPolicy(
       allowedForeignDescriptors: JNJ_AUDITED_FOREIGN_DESCRIPTOR_ALIASES,
       allowedForeignSiteDescriptors: [],
       allowedForeignCountryDescriptors: [],
-      requireUniqueMainlandCountryLeaf: false
+      requireUniqueMainlandCountryLeaf: false,
+      preferCityFacet: false,
+      allowIncompleteCounts: false
     };
   }
   if (
@@ -447,7 +497,9 @@ function resolveAuditedLocationFacetPolicy(
       allowedForeignDescriptors: GILEAD_AUDITED_FOREIGN_DESCRIPTOR_ALIASES,
       allowedForeignSiteDescriptors: [],
       allowedForeignCountryDescriptors: [],
-      requireUniqueMainlandCountryLeaf: false
+      requireUniqueMainlandCountryLeaf: false,
+      preferCityFacet: false,
+      allowIncompleteCounts: false
     };
   }
   if (
@@ -467,7 +519,9 @@ function resolveAuditedLocationFacetPolicy(
       allowedForeignDescriptors: [],
       allowedForeignSiteDescriptors: BMS_AUDITED_FOREIGN_SITE_DESCRIPTOR_ALIASES,
       allowedForeignCountryDescriptors: BMS_AUDITED_FOREIGN_COUNTRY_DESCRIPTOR_ALIASES,
-      requireUniqueMainlandCountryLeaf: true
+      requireUniqueMainlandCountryLeaf: true,
+      preferCityFacet: false,
+      allowIncompleteCounts: false
     };
   }
   return undefined;
@@ -483,19 +537,20 @@ function resolveOpaqueMultiLocationDetailPolicy(
     return undefined;
   }
   if (kind === "PFIZER_AUDITED_APAC_DETAIL_V1") {
-    const workerBoundary = config.facetDescriptorBoundary;
     if (
       sourceId === "source-pfizer-china-social" &&
       config.tenant === "pfizer" &&
       config.site === "PfizerCareers" &&
       config.searchText === undefined &&
-      config.locationFacetPolicy === undefined &&
+      config.locationFacetPolicy?.kind === "PFIZER_AUDITED_COUNTRY_LOCATION_REFINEMENT" &&
+      config.locationFacetPolicy.facetParameter === "locations" &&
+      exactStringArray(
+        config.locationFacetPolicy.foreignDescriptorAliases,
+        PFIZER_AUDITED_FOREIGN_LOCATION_DESCRIPTOR_ALIASES
+      ) &&
       (config.facetDescriptorExclusions?.length ?? 0) === 0 &&
       config.laterZeroTotalPolicy === PFIZER_LATER_ZERO_TOTAL_POLICY &&
-      hasExactSingleAppliedFacet(config.appliedFacets, "Location_Country", AUDITED_CHINA_LOCATION_ID) &&
-      workerBoundary?.facetParameter === "workerSubType" &&
-      exactStringArray(workerBoundary.allowedDescriptors, ["Regular"]) &&
-      workerBoundary.excludedDescriptors === undefined
+      hasExactSingleAppliedFacet(config.appliedFacets, "Location_Country", AUDITED_CHINA_LOCATION_ID)
     ) {
       return { kind };
     }
@@ -510,6 +565,22 @@ function resolveOpaqueMultiLocationDetailPolicy(
     config.tenant === "jj" &&
     config.site === "JJ" &&
     auditedLocationFacetPolicy.facetParameter === "locations"
+  ) {
+    return { kind };
+  }
+  if (
+    kind === "BMS_AUDITED_CHINA_DETAIL_V1" &&
+    sourceId === "source-bms-china-social" &&
+    config.tenant === "bristolmyerssquibb" &&
+    config.site === "BMS" &&
+    config.laterZeroTotalPolicy === BMS_LATER_ZERO_TOTAL_POLICY &&
+    auditedLocationFacetPolicy.facetParameter === "locationHierarchy2" &&
+    config.facetDescriptorBoundary?.facetParameter === "workerSubType" &&
+    exactStringArray(
+      config.facetDescriptorBoundary.allowedDescriptors,
+      ["Fixed Term (Fixed Term)", "Permanent"]
+    ) &&
+    config.facetDescriptorBoundary.excludedDescriptors === undefined
   ) {
     return { kind };
   }
@@ -598,7 +669,8 @@ export function createWorkdaySourceFetch(deps: WorkdaySourceFetchDeps = {}): Sou
       let firstPaginationEnvelopeFingerprint: string | undefined;
       let selectedMainlandLocations: readonly WorkdaySelectedLocation[] = [];
 
-      const needsLocationFacetDiscovery = !hasConfiguredLocationFacet(configuredAppliedFacets) && Boolean(searchText);
+      const needsLocationFacetDiscovery = auditedLocationFacetPolicy?.preferCityFacet === true ||
+        (!hasConfiguredLocationFacet(configuredAppliedFacets) && Boolean(searchText));
       if (needsLocationFacetDiscovery) {
         const preflightRequest = workdayJobsRequest({
           url,
@@ -666,11 +738,13 @@ export function createWorkdaySourceFetch(deps: WorkdaySourceFetchDeps = {}): Sou
           })));
         latestEvidence = workdaySupportingArtifactEvidence(artifacts, "FACET_DERIVATION_FAILED");
         const parsedFacetPreflight = parseWorkdayJobsResponse(facetPreflight.body);
-        if (locationDerivedTotal !== undefined && parsedFacetPreflight.total !== locationDerivedTotal) {
+        if (locationDerivedTotal !== undefined &&
+            parsedFacetPreflight.total !== undefined &&
+            parsedFacetPreflight.total > locationDerivedTotal) {
           latestEvidence = workdaySupportingArtifactEvidence(artifacts, "FACET_FILTER_VALIDATION_FAILED");
           return failed(
             capturedAt,
-            `Workday social facet preflight total ${String(parsedFacetPreflight.total)} did not match location-derived total ${locationDerivedTotal}`,
+            `Workday social facet preflight total ${String(parsedFacetPreflight.total)} exceeded location-derived total ${locationDerivedTotal}`,
             latestEvidence
           );
         }
@@ -1276,11 +1350,12 @@ function safeDecode(value: string): string {
   try { return decodeURIComponent(value); } catch { return value; }
 }
 
-function hasRecordLevelChinaEvidence(
+export function hasRecordLevelChinaEvidence(
   job: Record<string, unknown>,
   cityHints: Record<string, readonly string[]> | undefined
 ): boolean {
   const scopeText = `${stringValue(job.locationsText) ?? ""} ${stringValue(job.externalPath) ?? ""}`;
+  if (hasKnownForeignCountryPart(scopeText) || isNonMainlandChinaDescriptor(scopeText)) return false;
   const normalized = scopeText.toLowerCase();
   if (/(?:^|[^a-z])(?:china|chn|cn)(?:[^a-z]|$)/u.test(normalized) || scopeText.includes("中国")) {
     return true;
@@ -1388,23 +1463,23 @@ function validateOpaqueMultiLocationDetail({
   const selectedDescriptors = new Set(selectedMainlandLocations.map((item) => item.descriptor));
   const matchedMainlandDescriptors = policy.kind === "PFIZER_AUDITED_APAC_DETAIL_V1"
     ? publicLocations.filter(isPfizerWorkdayMainlandChinaLocationDescriptor)
-    : publicLocations.filter((descriptor) => selectedDescriptors.has(descriptor));
+    : policy.kind === "BMS_AUDITED_CHINA_DETAIL_V1"
+      ? publicLocations.filter((descriptor) => hasRecordLevelChinaEvidence({ locationsText: descriptor }, cityHints))
+      : publicLocations.filter((descriptor) => selectedDescriptors.has(descriptor));
   if (policy.kind === "PFIZER_AUDITED_APAC_DETAIL_V1") {
     const exactApacDescriptor = "APAC - Any Pfizer Site";
     if (publicLocations.some((descriptor) => /\bAPAC\b/iu.test(descriptor) && descriptor !== exactApacDescriptor)) {
       throw new Error("detail public locations contain an unaudited APAC descriptor");
     }
-    if (matchedMainlandDescriptors.length === 0 && !publicLocations.includes(exactApacDescriptor)) {
-      throw new Error("detail public locations did not contain explicit mainland China or the exact audited Pfizer APAC site");
+    if (matchedMainlandDescriptors.length === 0) {
+      throw new Error("detail public locations did not contain explicit mainland China");
     }
   } else if (matchedMainlandDescriptors.length === 0) {
     throw new Error("detail public locations did not exactly match a selected dynamic China descriptor");
   }
   return {
     locationRaw: publicLocations.join(" | "),
-    cities: matchedMainlandDescriptors.length === 0
-      ? ["APAC - Any Pfizer Site"]
-      : citiesFromWorkdayLocation(matchedMainlandDescriptors.join(" | "), cityHints)
+    cities: citiesFromWorkdayLocation(matchedMainlandDescriptors.join(" | "), cityHints)
   };
 }
 
@@ -1753,7 +1828,7 @@ function chinaLocationAppliedFacets(
   const groups = collectFacetGroups(facets)
     .filter((group) => isLocationFacet(group.facetParameter, group.descriptor));
 
-  const countryGroups = groups.filter((group) =>
+  const countryGroups = auditedPolicy?.preferCityFacet ? [] : groups.filter((group) =>
     isCountryLevelFacet(group.facetParameter, group.descriptor) &&
     facetDescriptors(group.values).some(isMainlandChinaCountryDescriptor)
   );
@@ -1840,6 +1915,9 @@ function chinaLocationAppliedFacets(
     auditedPolicy?.allowedDuplicateDescriptors ?? []
   );
   if (!inspection.completePartition) {
+    if (auditedPolicy?.allowIncompleteCounts) {
+      return facetSelectionWithoutExpectedTotal(cityGroup.facetParameter, selectedLeaves);
+    }
     if (!inspection.overlappingCounts || !auditedPolicy?.allowOverlappingCounts) {
       throw new Error(`Workday location facet ${cityGroup.facetParameter} counts do not prove a complete partition`);
     }
@@ -2375,13 +2453,21 @@ const MAINLAND_CHINA_LOCATION_NAMES = new Set(
   CITY_MATCHES.flatMap(([english, chinese]) => [normalizeFacetDescriptor(english), normalizeFacetDescriptor(chinese)])
 );
 const NON_MAINLAND_CHINA_CODES = new Set(["hk", "hkg", "mo", "mac", "tw", "twn"]);
+const MAINLAND_CHINA_ADMINISTRATIVE_CODES = new Set([
+  "AH", "BJ", "CQ", "FJ", "GD", "GS", "GX", "GZ", "HA", "HB", "HE", "HI", "HL", "HN",
+  "JL", "JS", "JX", "LN", "NM", "NX", "QH", "SC", "SD", "SH", "SN", "TJ", "XJ", "XZ", "YN", "ZJ"
+]);
 const NON_MAINLAND_CHINA_COUNTRY_NAMES = new Set([
   ...NON_MAINLAND_CHINA_CODES,
   "hong kong", "hong kong sar china", "香港", "中国香港", "中國香港",
   "macau", "macao", "macao sar china", "澳门", "澳門", "中国澳门", "中國澳門",
   "taiwan", "taiwan province of china", "台湾", "台灣", "中国台湾", "中國台灣"
 ]);
-const EXACT_FOREIGN_COUNTRY_ALIASES = new Set(["united states of america"]);
+const EXACT_FOREIGN_COUNTRY_ALIASES = new Set([
+  "korea, republic of",
+  "turkey",
+  "united states of america"
+]);
 
 // Exact ISO 3166-1 assignments are generated from Debian iso-codes through
 // pycountry 26.2.16 (https://github.com/pycountry/pycountry); display names
@@ -2418,11 +2504,22 @@ function isExactNonMainlandChinaCountryDescriptor(descriptor: string): boolean {
 }
 
 function hasKnownForeignCountryPart(descriptor: string): boolean {
-  return descriptorParts(descriptor).some((part) => {
+  const normalizedDescriptor = normalizeFacetDescriptor(descriptor);
+  const containsAuditedAlias = [...EXACT_FOREIGN_COUNTRY_ALIASES].some((alias) =>
+    normalizedDescriptor === alias ||
+    normalizedDescriptor.startsWith(`${alias} `) ||
+    normalizedDescriptor.endsWith(` ${alias}`) ||
+    normalizedDescriptor.includes(` ${alias} `));
+  if (containsAuditedAlias) return true;
+  const parts = descriptorParts(descriptor);
+  const hasExplicitMainlandCountry = parts.some((part) => MAINLAND_CHINA_NAMES.has(part));
+  return parts.some((part) => {
     const code = part.toUpperCase();
     return !MAINLAND_CHINA_NAMES.has(part) && (
+      EXACT_FOREIGN_COUNTRY_ALIASES.has(part) ||
       KNOWN_REGION_NAMES.has(part) ||
-      (ISO_ALPHA_2_CODES.has(code) && code !== "CN") ||
+      (ISO_ALPHA_2_CODES.has(code) && code !== "CN" &&
+        !(hasExplicitMainlandCountry && MAINLAND_CHINA_ADMINISTRATIVE_CODES.has(code))) ||
       (ISO_ALPHA_3_CODES.has(code) && code !== "CHN")
     );
   });
@@ -2430,7 +2527,7 @@ function hasKnownForeignCountryPart(descriptor: string): boolean {
 
 function descriptorParts(descriptor: string): string[] {
   return descriptor
-    .split(/\s+-\s+|[,/|]/gu)
+    .split(/\s+-\s+|[,/|()]/gu)
     .map(normalizeFacetDescriptor)
     .filter(Boolean);
 }

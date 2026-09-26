@@ -1,5 +1,6 @@
 import { createDecipheriv } from "node:crypto";
 import { load } from "cheerio";
+import { recentJobCutoffChinaDateKey } from "../domain/jobRecencyPolicy";
 import type { SourceFetchFunction, SourceFetchResult } from "./runSourceCrawl";
 import type { MokaFetchConfig } from "./sourcePlan";
 import { fetchWithOfficialTimeout } from "./officialHttpRuntimeLimits";
@@ -13,6 +14,12 @@ import {
   type SourceFetchPageTrace
 } from "./sourceFetchEvidence";
 import { requestContractV2Locator } from "./strictPageRequestContract";
+import {
+  retryableHttpTransportFailure,
+  retryableTransportFailureFromError,
+  safeSourceTransportFailureReason,
+  type SourceTransportFailure
+} from "./sourceFetchFailure";
 
 export interface MokaInitData {
   aesIv: string;
@@ -78,7 +85,16 @@ export function createMokaSourceFetch(deps: MokaSourceFetchDeps = {}): SourceFet
         headers: { "User-Agent": "job-search-crawler/0.1" }
       });
       if (page.status < 200 || page.status >= 300) {
-        return failed(capturedAt, `Moka entry page returned HTTP ${page.status}`);
+        const transportFailure = retryableHttpTransportFailure(page.status);
+        return failed(
+          capturedAt,
+          transportFailure
+            ? safeSourceTransportFailureReason(transportFailure)
+            : `Moka entry page returned HTTP ${page.status}`,
+          undefined,
+          undefined,
+          transportFailure
+        );
       }
       previousResponseCapturedAtMs = assertEvidenceResponse(page, {
         expected: "entry",
@@ -142,7 +158,16 @@ export function createMokaSourceFetch(deps: MokaSourceFetchDeps = {}): SourceFet
         };
         const api = await http(listRequest);
         if (api.status < 200 || api.status >= 300) {
-          return failed(capturedAt, `Moka jobs API returned HTTP ${api.status}`);
+          const transportFailure = retryableHttpTransportFailure(api.status);
+          return failed(
+            capturedAt,
+            transportFailure
+              ? safeSourceTransportFailureReason(transportFailure)
+              : `Moka jobs API returned HTTP ${api.status}`,
+            latestEvidence,
+            latestEvaluation,
+            transportFailure
+          );
         }
         previousResponseCapturedAtMs = assertEvidenceResponse(api, {
           expected: "api",
@@ -265,6 +290,7 @@ export function createMokaSourceFetch(deps: MokaSourceFetchDeps = {}): SourceFet
               }
             };
             const detail = await http(detailRequest);
+            const detailTransportFailure = retryableHttpTransportFailure(detail.status);
             const detailLogicalKey = `moka-detail-${String(pageIndex).padStart(4, "0")}-${String(recordIndex).padStart(4, "0")}`;
             const detailExtractorLocator = requestContractV2Locator(
               `moka-detail-v2|request:jobId64=${Buffer.from(rawOfficialId, "utf8").toString("base64url")}`,
@@ -333,8 +359,12 @@ export function createMokaSourceFetch(deps: MokaSourceFetchDeps = {}): SourceFet
               });
               return failed(
                 capturedAt,
-                detailEvidenceFailure?.message ?? "Moka detail hydration failed closed",
-                latestEvidence
+                detailTransportFailure
+                  ? safeSourceTransportFailureReason(detailTransportFailure)
+                  : detailEvidenceFailure?.message ?? "Moka detail hydration failed closed",
+                latestEvidence,
+                undefined,
+                detailTransportFailure
               );
             }
             candidate = { ...raw, locations: detailValidation.locations };
@@ -374,6 +404,32 @@ export function createMokaSourceFetch(deps: MokaSourceFetchDeps = {}): SourceFet
               recordedAt: api.capturedAt
             });
             continue;
+          }
+          if (configuredMoka?.publishedWithinDays !== undefined) {
+            const publishedDate = mokaPublishedDateKey(candidate.publishedAt);
+            if (!publishedDate) {
+              validationDiscardCount += 1;
+              fetchLosses.push({
+                stage: "VALIDATION",
+                reason: "Moka record is missing a reliable published date for the configured recent-job window",
+                rawLocator,
+                details: { code: "MISSING_PUBLISHED_DATE", field: "publishedAt", pageSequence: pageIndex, recordIndex },
+                recordedAt: api.capturedAt
+              });
+              continue;
+            }
+            const cutoff = recentJobCutoffChinaDateKey(new Date(capturedAt), configuredMoka.publishedWithinDays);
+            if (publishedDate < cutoff) {
+              validationDiscardCount += 1;
+              fetchLosses.push({
+                stage: "VALIDATION",
+                reason: "Moka record is outside the configured recent-job window",
+                rawLocator,
+                details: { code: "OUTSIDE_RECENT_JOB_WINDOW", field: "publishedAt", pageSequence: pageIndex, recordIndex },
+                recordedAt: api.capturedAt
+              });
+              continue;
+            }
           }
           const officialId = mokaJobId(candidate)!;
           if (seenOfficialIds.has(officialId)) {
@@ -481,7 +537,11 @@ export function createMokaSourceFetch(deps: MokaSourceFetchDeps = {}): SourceFet
       }
       if (
         expectedJobCount !== undefined &&
-        (seenRawOfficialIds.size !== expectedJobCount || seenOfficialIds.size !== expectedJobCount || validCount !== expectedJobCount)
+        (
+          seenRawOfficialIds.size !== expectedJobCount ||
+          (configuredMoka?.publishedWithinDays === undefined &&
+            (seenOfficialIds.size !== expectedJobCount || validCount !== expectedJobCount))
+        )
       ) {
         return failed(
           capturedAt,
@@ -519,11 +579,15 @@ export function createMokaSourceFetch(deps: MokaSourceFetchDeps = {}): SourceFet
         paginationEvaluation
       };
     } catch (error) {
+      const transportFailure = retryableTransportFailureFromError(error);
       return failed(
         capturedAt,
-        error instanceof Error ? error.message : String(error),
+        transportFailure
+          ? safeSourceTransportFailureReason(transportFailure)
+          : error instanceof Error ? error.message : String(error),
         latestEvidence,
-        latestEvaluation
+        latestEvaluation,
+        transportFailure
       );
     }
   };
@@ -1217,14 +1281,39 @@ function enrichMokaJob(job: unknown, officialEntryUrl: string): unknown {
 
   const sourceJobId = mokaJobId(job);
   const cities = citiesFromMokaLocations(job.locations);
+  const officialPublishedAt = mokaPublishedAtIso(job.publishedAt);
 
   return {
     id: irreversibleEvidenceId(sourceJobId),
     title: requiredText(job.title),
     officialUrl: buildMokaJobUrl(officialEntryUrl, sourceJobId!),
     locationRaw: cities.join("、"),
-    cities
+    cities,
+    ...(officialPublishedAt ? { officialPublishedAt } : {})
   };
+}
+
+function mokaPublishedDateKey(value: unknown): string | undefined {
+  if (typeof value !== "string") return undefined;
+  const match = value.trim().match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (!match) return undefined;
+  const [year, month, day] = match.slice(1).map(Number) as [number, number, number];
+  const parsed = new Date(Date.UTC(year, month - 1, day));
+  if (
+    parsed.getUTCFullYear() !== year ||
+    parsed.getUTCMonth() + 1 !== month ||
+    parsed.getUTCDate() !== day
+  ) return undefined;
+  return `${match[1]}-${match[2]}-${match[3]}`;
+}
+
+function mokaPublishedAtIso(value: unknown): string | undefined {
+  if (typeof value !== "string") return undefined;
+  const text = value.trim();
+  if (!text) return undefined;
+  if (/^\d{4}-\d{2}-\d{2}$/.test(text)) return `${text}T00:00:00+08:00`;
+  if (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?$/.test(text)) return `${text}+08:00`;
+  return Number.isNaN(Date.parse(text)) ? undefined : text;
 }
 
 function buildMokaJobUrl(officialEntryUrl: string, sourceJobId: string): string {
@@ -1370,12 +1459,14 @@ function failed(
   capturedAt: string,
   failureReason: string,
   fetchEvidence?: PersistentSourceFetchEvidence,
-  paginationEvaluation?: ReturnType<typeof evaluatePaginationEvidence>
+  paginationEvaluation?: ReturnType<typeof evaluatePaginationEvidence>,
+  transportFailure?: SourceTransportFailure
 ): SourceFetchResult {
   return {
     ok: false,
     capturedAt,
     failureReason,
+    ...(transportFailure ? { transportFailure } : {}),
     ...(fetchEvidence ? { fetchEvidence } : {}),
     ...(paginationEvaluation ? { paginationEvaluation } : {})
   };

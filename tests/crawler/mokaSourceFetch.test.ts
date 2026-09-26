@@ -114,6 +114,19 @@ describe("Moka source fetch", () => {
     vi.unstubAllGlobals();
   });
 
+  it("classifies a retryable Servier entry 504 as a safe transport failure", async () => {
+    const result = await createMokaSourceFetch({
+      http: async () => ({ status: 504, body: "upstream timeout" }),
+      now: () => new Date(capturedAt)
+    })(servierPlan);
+
+    expect(result).toMatchObject({
+      ok: false,
+      failureReason: "Official recruitment endpoint was temporarily unavailable (HTTP 504)",
+      transportFailure: { code: "OFFICIAL_HTTP_504", retryable: true }
+    });
+  });
+
   it("extracts Moka init data from the hidden input", () => {
     const initData = extractMokaInitData(
       htmlWithInitData({
@@ -175,6 +188,44 @@ describe("Moka source fetch", () => {
       url: "https://app.mokahr.com/api/outer/ats-apply/website/jobs/v2",
       headers: { Origin: "https://app.mokahr.com", Referer: servierCampaignUrl },
       body: { orgId: "shiweiya", siteId: "47734", site: "social", isCampusJob: false }
+    });
+  });
+
+  it("filters Moka jobs by the configured China-calendar recent window and preserves the official date", async () => {
+    const recentPlan: SourceCrawlPlan = {
+      ...plan,
+      moka: {
+        expectedOrgId: "beigene",
+        expectedSiteId: "98934",
+        expectedMode: "social",
+        campaignUrl: "https://app.mokahr.com/apply/beigene/98934",
+        publishedWithinDays: 183
+      }
+    };
+    const http: MokaHttpClient = async (request) => request.method === "GET"
+      ? evidenceResponse(htmlWithInitData({
+          aesIv, mode: "social", siteId: "98934", org: { id: "beigene", siteId: 98934 }
+        }), "entry")
+      : evidenceResponse(JSON.stringify(encryptedResponse({
+          success: true,
+          data: {
+            jobStats: { total: 2 },
+            jobs: [
+              { id: "recent", title: "近期职位", publishedAt: "2026-07-01T09:30:00", locations: [{ cityName: "上海市", country: "中国" }] },
+              { id: "stale", title: "过期职位", publishedAt: "2025-01-01T09:30:00", locations: [{ cityName: "北京市", country: "中国" }] }
+            ]
+          }
+        })), "api");
+
+    const result = await createMokaSourceFetch({ http, now: () => new Date(capturedAt) })(recentPlan);
+
+    expect(result).toMatchObject({
+      ok: true,
+      fetchEvidence: {
+        fetchCounts: { rawCount: 2, parsedCount: 2, validCount: 1, parseDiscardCount: 0, validationDiscardCount: 1 },
+        fetchLosses: [expect.objectContaining({ details: expect.objectContaining({ code: "OUTSIDE_RECENT_JOB_WINDOW" }) })]
+      },
+      payload: { data: { jobs: [{ officialPublishedAt: "2026-07-01T09:30:00+08:00" }] } }
     });
   });
 
@@ -427,7 +478,9 @@ describe("Moka source fetch", () => {
     ["site mismatch", 200, { id: "servier-1", orgId: "shiweiya", siteId: "70032", locations: [{ cityName: "北京市" }] }],
     ["site missing without profile authorization", 200, { id: "servier-1", orgId: "shiweiya", locations: [{ cityName: "北京市" }] }],
     ["missing location", 200, { id: "servier-1", orgId: "shiweiya", siteId: "47734", locations: [] }],
-    ["http failure", 503, { error: "unavailable" }]
+    ["rate limit", 429, { error: "rate limited" }],
+    ["temporary http failure", 503, { error: "unavailable" }],
+    ["non-retryable http failure", 404, { error: "not found" }]
   ])("fails closed and retains detail evidence on %s", async (_label, status, detail) => {
     const http: MokaHttpClient = async (request) => {
       if (request.method === "GET") {
@@ -462,6 +515,16 @@ describe("Moka source fetch", () => {
         fetchCounts: { rawCount: 1, parsedCount: 1, validCount: 0, parseDiscardCount: 0, validationDiscardCount: 1 }
       }
     });
+    if (status === 429 || status >= 500) {
+      expect(result).toMatchObject({
+        failureReason: status === 429
+          ? "Official recruitment endpoint temporarily rate limited the request (HTTP 429)"
+          : `Official recruitment endpoint was temporarily unavailable (HTTP ${status})`,
+        transportFailure: { code: `OFFICIAL_HTTP_${status}`, retryable: true }
+      });
+    } else {
+      expect(result).not.toHaveProperty("transportFailure");
+    }
   });
 
   it.each([

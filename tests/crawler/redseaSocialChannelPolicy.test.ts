@@ -78,14 +78,13 @@ function client(requestedChannels: string[], apiOverride?: Record<string, unknow
 }
 
 describe("Redsea social channel policy", () => {
-  it("models both channel purposes but binds only the social channel into the staged social plan", () => {
+  it("binds only the human-verified social channel into the staged social plan", () => {
     const staged = getPlanBySourceId(buildStagedSourceCrawlPlans(candidateCompanies), "source-cspc-social");
     if (!staged || staged.adapterId !== "official-json") throw new Error("Expected staged Redsea plan");
     expect(staged?.officialJsonFetch).toMatchObject({
       kind: "redsea-zp-channel",
       channels: [
-        { channelQrId: SOCIAL, purpose: "SOCIAL" },
-        { channelQrId: CAMPUS, purpose: "CAMPUS" }
+        { channelQrId: SOCIAL, purpose: "SOCIAL" }
       ],
       paginationPolicy: "SINGLE_UNPAGINATED_RESPONSE_V1"
     });

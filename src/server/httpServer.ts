@@ -5,15 +5,13 @@ import { extname, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import { handleAdminApi, type AdminApiDeps, type AdminApiResponse } from "./adminApi";
 import { handlePublicApi, type PublicApiDeps, type PublicApiResponse } from "./publicApi";
-import {
-  createCachedPostgresReadiness,
-  DEFAULT_POSTGRES_READINESS_TIMEOUT_MS,
-  normalizePostgresReadinessTimeout
-} from "./postgresReadiness";
+import { DEFAULT_POSTGRES_READINESS_TIMEOUT_MS, normalizePostgresReadinessTimeout } from "./postgresReadiness";
+import { createCachedDeploymentReadiness, readDeploymentMigrationManifest } from "./deploymentReadiness";
+import { resolveDeploymentBootstrapConfig } from "../ops/deploymentBootstrap";
 
 const DEFAULT_HOST = "0.0.0.0";
 const DEFAULT_PORT = 3000;
-const STATIC_ROUTES = new Set(["/healthz", "/privacy", "/terms", "/robots.txt"]);
+const STATIC_ROUTES = new Set(["/livez", "/readyz", "/healthz", "/privacy", "/terms", "/robots.txt"]);
 const CONTENT_TYPES: Record<string, string> = {
   ".css": "text/css; charset=utf-8",
   ".html": "text/html; charset=utf-8",
@@ -48,11 +46,17 @@ export function createServer(deps: HttpServerDeps, options: HttpServerOptions = 
 
 export async function startServer(): Promise<Server> {
   const prisma = new PrismaClient();
-  const databaseUrl = process.env.DATABASE_URL;
+  const bootstrapConfig = resolveDeploymentBootstrapConfig(process.env);
   const readinessTimeoutMs = normalizePostgresReadinessTimeout(
     Number(process.env.POSTGRES_READINESS_TIMEOUT_MS ?? DEFAULT_POSTGRES_READINESS_TIMEOUT_MS)
   );
-  const checkDatabaseReadiness = createCachedPostgresReadiness(databaseUrl, { timeoutMs: readinessTimeoutMs });
+  const checkDatabaseReadiness = createCachedDeploymentReadiness({
+    databaseUrl: bootstrapConfig.databaseUrl,
+    expectedMigrations: readDeploymentMigrationManifest(process.cwd()),
+    adminEmail: bootstrapConfig.adminEmail,
+    adminPasswordHash: bootstrapConfig.adminPasswordHash,
+    timeoutMs: readinessTimeoutMs
+  });
   const server = createServer({
     db: prisma,
     checkDatabaseReadiness,

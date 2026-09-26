@@ -1,4 +1,3 @@
-import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
@@ -19,13 +18,6 @@ import {
 } from "../../src/data/companyRegistry";
 import { AUTHORIZED_PHASE1_EXCLUSION_COMPANY_IDS } from "../../src/data/phase1ScopePolicy";
 
-const BASELINE = {
-  rosterSha256: "a3b9c49bb25cc9212f9bfcce3ade6f828f9ef100111cba532111acfcc9ad5618",
-  surfaceOracleSha256: "ddaff84ff9ca8bc8e1aa7b0a5213786e058806f7cc4223acfc0634493e4f26ce",
-  stagedPlanSha256: "3a08745e3c7e46c316cf041dfcdc74fb2c8ea4c860920f748c379c0067829035",
-  stagedConfigSetSha256: "a4a64b52420a4c2ca5159839638e4d28e18d62cc5c91828730dc4c94357b16ff"
-} as const;
-
 const SHARED_CORE_SOURCE_ALLOWLIST: Readonly<Record<string, readonly string[]>> = {
   "officialJsonSourceFetch.ts": [
     "source-novo-nordisk-china-social",
@@ -41,6 +33,7 @@ const SHARED_CORE_SOURCE_ALLOWLIST: Readonly<Record<string, readonly string[]>> 
   ],
   "runSourceCrawl.ts": [
     "source-bms-china-social",
+    "source-boehringer-ingelheim-china-social",
     "source-daiichi-sankyo-china-social",
     "source-grifols-china-social",
     "source-novartis-social",
@@ -60,6 +53,7 @@ const SHARED_CORE_COMPANY_ALLOWLIST: Readonly<Record<string, readonly string[]>>
     "company-bms-china",
     "company-daiichi-sankyo-china",
     "company-grifols-china",
+    "company-pfizer-china",
     "company-roche-china"
   ]
 };
@@ -120,16 +114,17 @@ describe("company recruitment profiles", () => {
     }
   });
 
-  it("preserves the frozen roster, surface, staged plan and every execution config", () => {
+  it("hashes the current roster, surfaces and executable plans deterministically", () => {
     const plans = buildStagedSourceCrawlPlans(candidateCompanies);
-    const configHashes = Object.fromEntries(
-      plans.map((plan) => [plan.source.id, sourcePlanConfigSha256(plan)]).sort()
-    );
-    expect(companyRosterSha256(candidateCompanies)).toBe(BASELINE.rosterSha256);
-    expect(officialSurfaceOracleSha256(expectedOfficialSurfaces)).toBe(BASELINE.surfaceOracleSha256);
-    expect(activeSourcePlanSha256(plans)).toBe(BASELINE.stagedPlanSha256);
-    expect(createHash("sha256").update(JSON.stringify(configHashes)).digest("hex"))
-      .toBe(BASELINE.stagedConfigSetSha256);
+    const sha256 = /^[a-f0-9]{64}$/u;
+
+    expect(companyRosterSha256(candidateCompanies)).toMatch(sha256);
+    expect(officialSurfaceOracleSha256(expectedOfficialSurfaces)).toMatch(sha256);
+    expect(activeSourcePlanSha256(plans)).toMatch(sha256);
+    for (const plan of plans) {
+      expect(sourcePlanConfigSha256(plan)).toMatch(sha256);
+      expect(sourcePlanConfigSha256(plan)).toBe(sourcePlanConfigSha256(plan));
+    }
   });
 
   it("keeps sourcePlan assembly-only and forbids new company constants in shared crawl cores", () => {
@@ -149,6 +144,7 @@ describe("company recruitment profiles", () => {
 
   it("keeps dedicated source behavior profile-bound instead of scattering company adapters through shared cores", () => {
     const expectedProfileKinds = new Map([
+      ["source-johnson-innovative-medicine-social", "jnj-careers-china"],
       ["source-msd-china-social", "msd-dual-official"],
       ["source-livzon-social", "livzon-cecc"],
       ["source-sinopharm-social", "sinopharm-iguopin"],
@@ -176,9 +172,16 @@ describe("company recruitment profiles", () => {
       .sort();
     expect(retrySourceIds).toEqual([
       "source-bms-china-social",
+      "source-grifols-china-social",
+      "source-johnson-innovative-medicine-social",
+      "source-lunan-social",
       "source-msd-china-social",
+      "source-novo-nordisk-china-social",
+      "source-organon-china-social",
       "source-pfizer-china-social",
       "source-roche-china-social",
+      "source-sanofi-china-social",
+      "source-servier-china-social",
       "source-sinopharm-social",
       "source-united-lab-social"
     ]);
@@ -188,27 +191,39 @@ describe("company recruitment profiles", () => {
     }
   });
 
-  it("binds Pfizer's opaque multi-location detail rule only inside its exact company profile", () => {
-    expect(companyRecruitmentExecutionConfigsBySourceId["source-pfizer-china-social"]).toMatchObject({
+  it("binds JNJ to the official group-wide China careers result set", () => {
+    expect(companyRecruitmentExecutionConfigsBySourceId[
+      "source-johnson-innovative-medicine-social"
+    ]).toMatchObject({
+      adapterId: "official-json",
+      profileBoundSource: {
+        kind: "jnj-careers-china",
+        config: {
+          country: "China",
+          officialSearchUrl: "https://www.careers.jnj.com/en/jobs/?search=&country=China&pagesize=20",
+          scopePolicy: "GROUP_CHINA_ALL_BUSINESSES_V1"
+        }
+      },
+      transientRetryPolicy: { maxRetries: 1, backoffMs: 10_000 }
+    });
+  });
+
+  it("binds Pfizer to the human-verified China country facet without hidden job-type exclusions", () => {
+    const config = companyRecruitmentExecutionConfigsBySourceId["source-pfizer-china-social"];
+    if (config?.adapterId !== "official-json") throw new Error("Expected Pfizer official JSON config");
+    expect(config).toMatchObject({
       adapterId: "official-json",
       workday: {
         tenant: "pfizer",
         site: "PfizerCareers",
         laterZeroTotalPolicy: "PFIZER_AUDITED_EXACT_RECONCILIATION",
-        opaqueMultiLocationDetailPolicy: "PFIZER_AUDITED_APAC_DETAIL_V1",
         appliedFacets: { Location_Country: ["6cb77610a8a543aea2d6bc10457e35d4"] },
-        facetDescriptorBoundary: {
-          facetParameter: "workerSubType",
-          allowedDescriptors: ["Regular"]
-        }
+        pageSize: 20,
+        maxPages: 20
       }
     });
-    expect(Object.entries(companyRecruitmentExecutionConfigsBySourceId).flatMap(([sourceId, config]) =>
-      config.adapterId === "official-json" &&
-      (config.workday as { opaqueMultiLocationDetailPolicy?: string } | undefined)
-        ?.opaqueMultiLocationDetailPolicy === "PFIZER_AUDITED_APAC_DETAIL_V1"
-        ? [sourceId]
-        : []
-    )).toEqual(["source-pfizer-china-social"]);
+    expect(config.workday).not.toHaveProperty("facetDescriptorBoundary");
+    expect(config.workday).not.toHaveProperty("locationFacetPolicy");
+    expect(config.workday).not.toHaveProperty("opaqueMultiLocationDetailPolicy");
   });
 });

@@ -56,6 +56,20 @@ function fakeDb() {
     crawlObservation: {
       findMany: vi.fn(async () => fakeCrawlObservations),
       findFirst: vi.fn(async () => ({ id: "crawl-1" }))
+    },
+    crawlBatchSourceResult: {
+      findFirst: vi.fn(async () => ({
+        id: "verified-source-result-1",
+        sourceId: "source-test-social",
+        sourceConfigHash: "a".repeat(64),
+        dedupeOutputCount: 50,
+        completenessCertificate: { grade: "B" },
+        completenessCertificateSha256: "b".repeat(64),
+        finishedAt: new Date("2026-07-08T08:00:00.000Z"),
+        baselinePreviousSourceResultId: null,
+        baselinePreviousJobCount: null,
+        baselineChangeReason: "INDEPENDENT_VALIDATION_CONFIRMED_INITIAL"
+      }))
     }
   };
 }
@@ -67,6 +81,7 @@ describe("createPrismaCrawlRuntimeDeps", () => {
 
     const previousJobs = await deps.getPreviousJobs("source-test-social");
     const observations = await deps.getRecentObservations("source-test-social");
+    const trustedBaseline = await deps.getTrustedCompletenessBaseline("source-test-social");
     const baselineCompleted = await deps.isBaselineCompleted("source-test-social");
 
     expect(db.job.findMany).toHaveBeenCalledWith({
@@ -107,6 +122,34 @@ describe("createPrismaCrawlRuntimeDeps", () => {
         successful: true
       }
     ]);
+    expect(db.crawlBatchSourceResult.findFirst).toHaveBeenCalledWith({
+      where: {
+        sourceId: "source-test-social",
+        completenessState: "VERIFIED",
+        atomicCommitState: "COMMITTED",
+        completenessCertificateSha256: { not: null },
+        batch: { is: { kind: { not: "MANUAL_SOURCE" } } }
+      },
+      select: {
+        id: true,
+        sourceId: true,
+        sourceConfigHash: true,
+        dedupeOutputCount: true,
+        completenessCertificate: true,
+        completenessCertificateSha256: true,
+        finishedAt: true,
+        baselinePreviousSourceResultId: true,
+        baselinePreviousJobCount: true,
+        baselineChangeReason: true
+      },
+      orderBy: { finishedAt: "desc" }
+    });
+    expect(trustedBaseline).toMatchObject({
+      sourceResultId: "verified-source-result-1",
+      certifiedJobCount: 50,
+      certificateGrade: "B",
+      changeReason: "INDEPENDENT_VALIDATION_CONFIRMED_INITIAL"
+    });
     expect(db.crawlObservation.findFirst).toHaveBeenCalledWith({
       where: { sourceId: "source-test-social", successful: true,
         batch: { is: { kind: { not: "MANUAL_SOURCE" } } } },
@@ -120,13 +163,29 @@ describe("createPrismaCrawlRuntimeDeps", () => {
     const db = fakeDb();
     const deps = createPrismaCrawlRuntimeDeps(db);
     await deps.getRecentObservations("source-test-social");
+    await deps.getTrustedCompletenessBaseline("source-test-social");
     await deps.isBaselineCompleted("source-test-social");
 
     expect(db.crawlObservation.findMany).toHaveBeenCalledWith(expect.objectContaining({
       where: expect.objectContaining({ batch: { is: { kind: { not: "MANUAL_SOURCE" } } } })
     }));
-    expect(db.crawlObservation.findFirst).toHaveBeenCalledWith(expect.objectContaining({
+    expect(db.crawlBatchSourceResult.findFirst).toHaveBeenCalledWith(expect.objectContaining({
       where: expect.objectContaining({ batch: { is: { kind: { not: "MANUAL_SOURCE" } } } })
+    }));
+  });
+
+  it("keeps an unverified anomaly from replacing the last trusted baseline", async () => {
+    const db = fakeDb();
+    db.crawlBatchSourceResult.findFirst.mockResolvedValueOnce(null as never);
+    const deps = createPrismaCrawlRuntimeDeps(db);
+
+    await expect(deps.getTrustedCompletenessBaseline("source-test-social")).resolves.toBeNull();
+    expect(db.crawlBatchSourceResult.findFirst).toHaveBeenCalledWith(expect.objectContaining({
+      where: expect.objectContaining({
+        completenessState: "VERIFIED",
+        atomicCommitState: "COMMITTED",
+        completenessCertificateSha256: { not: null }
+      })
     }));
   });
 });

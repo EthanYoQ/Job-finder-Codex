@@ -16,6 +16,8 @@ const capturedAt = "2026-07-16T00:00:00.000Z";
 const origin = "https://www.livzon.com.cn";
 const socialIndexUrl = `${origin}/Social.html`;
 const listApiUrl =
+  `${origin}/nportal/fwebapi/product/product/es/findPage?appId=143150160001&templateId=product`;
+const routeDeclaredListApiUrl =
   `${origin}/fwebapi/product/product/es/findPage?appId=143150160001&templateId=product`;
 
 const auditedPartitions = [
@@ -62,6 +64,7 @@ const plan = {
     kind: "livzon-cecc",
     config: {
       socialIndexUrl,
+      routeDeclaredListApiUrl,
       listApiUrl,
       pageSize: 6,
       maxPagesPerPartition: 20,

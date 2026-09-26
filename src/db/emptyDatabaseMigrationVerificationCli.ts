@@ -34,7 +34,17 @@ export const REVIEWED_MIGRATION_NAMES = [
   "20260715090000_atomic_evidence_commit_scaling",
   "20260716190000_release_candidate_qualification_threshold",
   "20260716210000_release_candidate_promotion_gate",
-  "20260717090000_source_failure_diagnostics"
+  "20260717090000_source_failure_diagnostics",
+  "20260812231000_a_grade_completeness_certificate",
+  "20260813002000_trusted_completeness_baseline",
+  "20260813013000_transport_policy_retry_diagnostics",
+  "20260824070000_official_network_retry_diagnostics",
+  "20260825093000_browser_and_pagination_retry_diagnostics",
+  "20260825113000_failed_source_diagnostic_evidence",
+  "20260902090000_jnj_and_grifols_atomic_persistence",
+  "20260902093000_grifols_trigger_artifact_binding",
+  "20260902094500_a_grade_official_total_dedupe",
+  "20260902095500_boehringer_verified_ui_exclusions"
 ] as const;
 
 export const REVIEWED_APP_TABLE_NAMES = [

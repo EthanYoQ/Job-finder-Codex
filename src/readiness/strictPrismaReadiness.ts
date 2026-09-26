@@ -31,6 +31,7 @@ interface StrictObservationRow {
   completenessBlockerReason: string | null; totalPages: number | null; pageSize: number | null;
   pagesVisited: number | null; stableRequiredFields: string[]; failureReason: string | null;
   canonicalOutputSha256: string | null; canonicalGraceSha256: string | null;
+  canonicalRawSha256: string | null;
   canonicalVisibleSha256: string | null; artifactRedactionCommitmentSha256: string | null;
   officialEvidenceArtifactId: string | null;
 }
@@ -109,7 +110,8 @@ export async function getStrictP0ReadinessReportFromDb(db: StrictPrismaReadiness
       graceSha256:source.canonicalGraceJobSetSha256!,visibleKeys,visibleSha256:source.canonicalVisibleJobSetSha256!,
       lifecycleEntries:[...lifecycle].map(([key,x])=>({...batchTuple(batch.id,source.id,source.sourceId,batch.releaseCandidateId),key,status:x.status,missingSuccessfulCrawlCount:x.count}))};
     return { ...source, officialEvidenceArtifactId: observation.officialEvidenceArtifactId,
-      artifactRedactionCommitmentSha256: observation.artifactRedactionCommitmentSha256,lifecycleSetEvidence };
+      artifactRedactionCommitmentSha256: observation.artifactRedactionCommitmentSha256,
+      canonicalRawEvidenceIdSetSha256: observation.canonicalRawSha256, lifecycleSetEvidence };
   }) }));
   const selected = selectStrictFullReleaseReadiness(normalized, expected);
   const latest=selected[0];

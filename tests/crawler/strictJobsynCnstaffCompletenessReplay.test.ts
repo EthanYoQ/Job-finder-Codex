@@ -31,38 +31,6 @@ function response(requestedUrl: string, body: unknown): OfficialJsonHttpResponse
   };
 }
 
-async function jobsynFixture(): Promise<{ plan: OfficialJsonPlan; fetched: SuccessfulFetch }> {
-  const plan = stagedPlan("source-grifols-china-social");
-  const fetcher = createOfficialJsonSourceFetch({
-    now: () => new Date(CAPTURED_AT),
-    http: async (request) => response(request.url, {
-      featured_jobs: [],
-      filters: {
-        city: [{ display: "Shanghai, CHN", link: "/locations/shanghai-chn/jobs", value: 1 }],
-        country: [], jobcategory: [], militarybases: [], state: [], title: []
-      },
-      jobs: [{
-        guid: "grifols-china-1",
-        title_exact: "Field Service Engineer",
-        title_slug: "field-service-engineer",
-        location_exact: "Shanghai, China",
-        city_exact: "Shanghai",
-        country_exact: "China"
-      }],
-      meta: {
-        canonical: "/locations/chn/jobs/",
-        filters: [{ display: "CHN", key: "locations", link: "/jobs", name: "locations" }],
-        request_country: "US", request_id: null, rss: "/locations/chn/jobs/feeds/rss",
-        sort: { active: "date", options: [] }, source: "solr"
-      },
-      pagination: { page: 1, page_size: 9, total: 1, total_pages: 1, has_more_pages: false, offset: 0 }
-    })
-  });
-  const fetched = await fetcher(plan);
-  if (!fetched.ok) throw new Error(`Expected Jobsyn fixture fetch: ${fetched.failureReason}`);
-  return { plan, fetched };
-}
-
 async function cnstaffFixture(location = "上海市"): Promise<{ plan: OfficialJsonPlan; fetched: SuccessfulFetch }> {
   const plan = stagedPlan("source-daiichi-sankyo-china-social");
   const fetcher = createOfficialJsonSourceFetch({
@@ -107,12 +75,9 @@ function mutateFirstBody(
   }));
 }
 
-describe("Jobsyn and CNStaff strict source-bound completeness replay", () => {
-  it.each([
-    ["Jobsyn", jobsynFixture, "company-grifols-china"],
-    ["CNStaff", cnstaffFixture, "company-daiichi-sankyo-china"]
-  ] as const)("verifies the exact staged %s fetch only after independent replay", async (_label, fixture, companyId) => {
-    const { plan, fetched } = await fixture();
+describe("CNStaff strict source-bound completeness replay", () => {
+  it("verifies the exact staged CNStaff fetch only after independent replay", async () => {
+    const { plan, fetched } = await cnstaffFixture();
     expect(fetched).toMatchObject({
       fetchEvidence: {
         fetchCounts: { rawCount: 1, parsedCount: 1, validCount: 1, parseDiscardCount: 0, validationDiscardCount: 0 },
@@ -124,18 +89,15 @@ describe("Jobsyn and CNStaff strict source-bound completeness replay", () => {
 
     expect(await runSourceCrawl(plan, { fetch: async () => fetched })).toMatchObject({
       status: "SUCCESS",
-      jobs: [expect.objectContaining({ companyId })],
+      jobs: [expect.objectContaining({ companyId: "company-daiichi-sankyo-china" })],
       truth: { transportSuccess: true, adapterSuccess: true, completenessVerified: true },
       observation: { completenessStatus: "VERIFIED", expectedJobCount: 1, structuredJobCount: 1 },
       reconciliation: { rawInputCount: 1, dedupeOutputCount: 1, adapterLosses: [] }
     });
   });
 
-  it.each([
-    ["Jobsyn", jobsynFixture],
-    ["CNStaff", cnstaffFixture]
-  ] as const)("rejects %s endpoint, locator, page-coordinate, and official-total drift", async (_label, fixture) => {
-    const { plan, fetched } = await fixture();
+  it("rejects CNStaff endpoint, locator, page-coordinate, and official-total drift", async () => {
+    const { plan, fetched } = await cnstaffFixture();
     const endpointDrift = mutateEvidence(fetched, (evidence) => ({
       ...evidence,
       artifacts: evidence.artifacts.map((artifact, index) => index === 0
@@ -166,27 +128,6 @@ describe("Jobsyn and CNStaff strict source-bound completeness replay", () => {
     }
   });
 
-  it("rejects Jobsyn source config transplant and a foreign archived payload", async () => {
-    const { plan, fetched } = await jobsynFixture();
-    const strategy = plan.officialJsonFetch;
-    if (strategy?.kind !== "jobsyn-solr") throw new Error("Expected Jobsyn plan");
-    const configDrift: OfficialJsonPlan = {
-      ...plan,
-      officialJsonFetch: { ...strategy, siteOrigin: "evil.example", location: "usa" }
-    };
-    const foreign = mutateFirstBody(fetched, (body) => {
-      const jobs = body.jobs as Array<Record<string, unknown>>;
-      jobs[0]!.location_exact = "Boston, United States";
-      jobs[0]!.city_exact = "Boston";
-      jobs[0]!.country_exact = "United States";
-    });
-
-    expect((await runSourceCrawl(configDrift, { fetch: async () => fetched })).truth.completenessVerified)
-      .toBe(false);
-    expect((await runSourceCrawl(plan, { fetch: async () => foreign })).truth.completenessVerified)
-      .toBe(false);
-  });
-
   it("rejects CNStaff config drift and a foreign archived payload", async () => {
     const { plan, fetched } = await cnstaffFixture();
     const strategy = plan.officialJsonFetch;
@@ -207,7 +148,7 @@ describe("Jobsyn and CNStaff strict source-bound completeness replay", () => {
       .toBe(false);
   });
 
-  it.each(["中山", "台州", "开封", "扬州", "温州", "潍坊", "烟台", "茂名"])(
+  it.each(["中山", "台州", "开封", "扬州", "温州", "潍坊", "烟台", "茂名", "临沂", "平顶山", "淮南", "淮安", "佛山", "新乡"])(
     "independently accepts the official CNStaff mainland city %s",
     async (location) => {
       const { plan, fetched } = await cnstaffFixture(location);
@@ -215,14 +156,4 @@ describe("Jobsyn and CNStaff strict source-bound completeness replay", () => {
     }
   );
 
-  it("rejects unreviewed Jobsyn supplemental response drift", async () => {
-    const { plan, fetched } = await jobsynFixture();
-    for (const attack of [
-      mutateFirstBody(fetched, (body) => { body.unexpected = true; }),
-      mutateFirstBody(fetched, (body) => { body.featured_jobs = [{ guid: "hidden" }]; }),
-      mutateFirstBody(fetched, (body) => { (body.pagination as Record<string, unknown>).offset = 9; })
-    ]) {
-      expect((await runSourceCrawl(plan, { fetch: async () => attack })).truth.completenessVerified).toBe(false);
-    }
-  });
 });

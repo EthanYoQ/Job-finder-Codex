@@ -89,7 +89,7 @@ printf 'mv:%s\\n' "\${2:-}" >> "$EVENT_LOG"
 database_url=""
 for arg in "$@"; do case "$arg" in --dbname=*) database_url="\${arg#--dbname=}" ;; esac; done
 [ -z "\${EXPECTED_LIBPQ_DATABASE_URL:-}" ] || [ "$database_url" = "$EXPECTED_LIBPQ_DATABASE_URL" ] || exit 16
-case "$*" in *to_regclass*) printf '%s\\n' "\${FAKE_MIGRATIONS_PRESENT:-0}" ;; *) printf '%s\\n' "\${FAKE_TARGET_NONEMPTY:-0}" ;; esac
+case "$*" in *server_version_num*) printf '%s\\n' "\${FAKE_SERVER_VERSION_NUM:-160014}" ;; *to_regclass*) printf '%s\\n' "\${FAKE_MIGRATIONS_PRESENT:-0}" ;; *) printf '%s\\n' "\${FAKE_TARGET_NONEMPTY:-0}" ;; esac
 printf 'psql-check\\n' >> "$EVENT_LOG"`
   );
 
@@ -105,8 +105,9 @@ printf 'psql-check\\n' >> "$EVENT_LOG"`
   function run(scriptPath: string, args: string[] = [], env: NodeJS.ProcessEnv = {}) {
     return spawnSync(
       gitShPath,
-      ["-c", 'PATH="$FAKE_BIN:$PATH"; export PATH; exec sh "$@"', "harness", toPosixPath(scriptPath), ...args],
-      { env: { ...baseEnv, ...env }, encoding: "utf8" }
+      ["-c", 'cd "$REPO_ROOT"; PATH="$FAKE_BIN:$PATH"; export PATH; exec sh "$@"', "harness", toPosixPath(scriptPath), ...args],
+      { env: { ...baseEnv, REPO_ROOT: toPosixPath(repoRoot),
+        TMP: root, TEMP: root, TMPDIR: toPosixPath(root), ...env }, encoding: "utf8" }
     );
   }
 
@@ -183,6 +184,9 @@ describe("backup and restore scripts", () => {
     expect(existsSync(archive)).toBe(true);
     expect(existsSync(`${archive}.sha256`)).toBe(true);
     expect(existsSync(`${archive}.partial`)).toBe(false);
+    expect(JSON.parse(readFileSync(resolve(success.backupDir, "latest-backup-attempt.json"), "utf8"))).toMatchObject({
+      decision: "SUCCEEDED", archiveName: "jobfinder-20260712T150000Z.dump"
+    });
     expect(readFileSync(success.eventLog, "utf8").trim().split(/\r?\n/).at(-1)).toBe(
       `mv:${toPosixPath(archive)}.sha256`
     );
@@ -198,6 +202,9 @@ describe("backup and restore scripts", () => {
       expect(existsSync(resolve(failure.backupDir, "jobfinder-20260712T150000Z.dump"))).toBe(false);
       expect(existsSync(resolve(failure.backupDir, "jobfinder-20260712T150000Z.dump.sha256"))).toBe(false);
       expect(existsSync(resolve(failure.backupDir, "jobfinder-20260712T150000Z.dump.partial"))).toBe(false);
+      expect(JSON.parse(readFileSync(resolve(failure.backupDir, "latest-backup-attempt.json"), "utf8"))).toMatchObject({
+        decision: "FAILED"
+      });
     }
   }, 15_000);
 

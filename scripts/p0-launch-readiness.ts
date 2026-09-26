@@ -53,6 +53,10 @@ export function getLaunchReadinessGates(): LaunchGate[] {
       command: ["npm", "test", "--", "tests/ops/backupRestore.test.ts", "tests/ops/deploymentConfig.test.ts"]
     },
     {
+      name: "Fresh restore qualification receipt",
+      command: ["npm", "run", "ops:check-restore-receipt", "--", process.env.RESTORE_RECEIPT_PATH ?? ".runtime/restore/restore-receipt.json"]
+    },
+    {
       name: "Monitoring alerts",
       command: ["npm", "test", "--", "tests/server/opsMonitoring.test.ts"]
     },
@@ -79,6 +83,10 @@ export function getLaunchReadinessGates(): LaunchGate[] {
     {
       name: "Staged public data quality",
       command: ["npm", "run", "p0:staged-data-quality"]
+    },
+    {
+      name: "Authoritative launch receipt",
+      command: ["npm", "run", "p0:authoritative-launch-receipt"]
     }
   ];
 }

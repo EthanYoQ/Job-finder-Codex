@@ -4,6 +4,7 @@ import { runSourceCrawl } from "../../src/crawler/runSourceCrawl";
 import {
   buildStagedSourceCrawlPlans,
   expectedChannelSetHash,
+  sourcePlanConfigSha256,
   type SourceCrawlPlan
 } from "../../src/crawler/sourcePlan";
 import { candidateCompanies } from "../../src/data/companyRegistry";
@@ -12,7 +13,11 @@ import {
   evaluatePaginationEvidence,
   type PaginationEvaluation
 } from "../../src/crawler/paginationEvidence";
-import type { PersistentSourceFetchEvidence } from "../../src/crawler/sourceFetchEvidence";
+import {
+  sha256Bytes,
+  type PersistentSourceFetchEvidence
+} from "../../src/crawler/sourceFetchEvidence";
+import { issueAGradeOfficialTotalCertificate } from "../../src/crawler/completenessCertificate";
 
 const CAPTURED_AT = "2026-07-14T14:30:00.000Z";
 const SANDOZ_JSONAPI_FIELDS = [
@@ -27,8 +32,6 @@ const PLANS = buildStagedSourceCrawlPlans(candidateCompanies);
 const AUDITED_POSITIVE_TOTAL_SOURCES = [
   "source-amgen-china-social",
   "source-biogen-china-social",
-  "source-bms-china-social",
-  "source-gilead-china-social",
   "source-pfizer-china-social",
   "source-hengrui-social",
   "source-jimin-kexin-social",
@@ -46,8 +49,7 @@ const STRICT_URL_STRATEGY_SOURCES = [
   "source-hengrui-social",
   "source-lilly-china-social",
   "source-cttq-social",
-  "source-lunan-social",
-  "source-sandoz-china-social"
+  "source-lunan-social"
 ] as const;
 
 function planFor(sourceId: string): SourceCrawlPlan {
@@ -365,10 +367,40 @@ function fixtureWorkdayScope(plan: SourceCrawlPlan, total: number): {
   if (plan.adapterId !== "official-json" || !plan.workday) throw new Error("Expected Workday plan");
   const config = plan.workday;
   const appliedFacets: Record<string, readonly string[]> = { ...(config.appliedFacets ?? {}) };
+  const artifacts: FixtureArtifact[] = [];
+  if (config.locationFacetPolicy?.kind === "PFIZER_AUDITED_COUNTRY_LOCATION_REFINEMENT") {
+    const pageSize = fixturePageSize(plan);
+    const url = declaredArtifactUrl(plan);
+    const requestBody = { appliedFacets: { ...appliedFacets }, limit: pageSize, offset: 0 };
+    const selectedLocationId = "workday-pfizer-mainland-location";
+    const body = JSON.stringify({
+      total: total + 1,
+      jobPostings: [],
+      facets: [{
+        facetParameter: "locationMainGroup",
+        values: [{
+          facetParameter: "locations",
+          descriptor: "All Locations",
+          values: [
+            { descriptor: "China - Shanghai - Shanghai", id: selectedLocationId, count: total },
+            { descriptor: "APAC - Remote", id: "workday-pfizer-apac-remote", count: 0 }
+          ]
+        }]
+      }]
+    });
+    artifacts.push({
+      ...pageArtifact("workday-preflight-0000", body, url, fixtureRequestLocator("$.facets", {
+        family: "workday", role: "location-preflight", method: "POST", url, body: requestBody,
+        coordinate: { sequence: null, requestedOffset: 0, requestedPageSize: pageSize }
+      })),
+      kind: "ATS_API_RESPONSE" as const
+    });
+    appliedFacets[config.locationFacetPolicy.facetParameter] = [selectedLocationId];
+  }
   const boundary = config.facetDescriptorBoundary;
   const exclusions = config.facetDescriptorExclusions ?? [];
   const hasDescriptorPolicy = Boolean(boundary) || exclusions.length > 0;
-  if (!hasDescriptorPolicy) return { appliedFacets, artifacts: [], hasDescriptorPolicy };
+  if (!hasDescriptorPolicy) return { appliedFacets, artifacts, hasDescriptorPolicy };
 
   const parameter = boundary?.facetParameter ?? exclusions[0]!.facetParameter;
   const allowedDescriptors = boundary?.allowedDescriptors ?? ["Fixture allowed"];
@@ -385,18 +417,19 @@ function fixtureWorkdayScope(plan: SourceCrawlPlan, total: number): {
       count: 0
     }))
   ];
+  const facetPreflightAppliedFacets = { ...appliedFacets };
   appliedFacets[parameter] = boundary
     ? values.filter((value) => allowedDescriptors.includes(value.descriptor)).map((value) => value.id)
     : values.filter((value) => !excludedDescriptors.includes(value.descriptor)).map((value) => value.id);
 
   const pageSize = fixturePageSize(plan);
   const url = declaredArtifactUrl(plan);
-  const requestBody = { appliedFacets: { ...(config.appliedFacets ?? {}) }, limit: pageSize, offset: 0 };
+  const requestBody = { appliedFacets: facetPreflightAppliedFacets, limit: pageSize, offset: 0 };
   const body = JSON.stringify({ total, jobPostings: [], facets: [{ facetParameter: parameter, values }] });
   return {
     appliedFacets,
     hasDescriptorPolicy,
-    artifacts: [{
+    artifacts: [...artifacts, {
       ...pageArtifact("workday-facet-preflight-0000", body, url, fixtureRequestLocator("$.facets", {
         family: "workday", role: "facet-preflight", method: "POST", url, body: requestBody,
         coordinate: { sequence: null, requestedOffset: 0, requestedPageSize: pageSize }
@@ -487,7 +520,9 @@ function fixtureExpectedToFailClosed(plan: SourceCrawlPlan): boolean {
     const hasStaticLocationFacet = Object.keys(plan.workday.appliedFacets ?? {}).some(
       (facetParameter) => /location|country|countries/iu.test(facetParameter)
     );
-    return Boolean(plan.workday.locationFacetPolicy) || Boolean(plan.workday.searchText && !hasStaticLocationFacet);
+    const unsupportedLocationPolicy = plan.workday.locationFacetPolicy !== undefined &&
+      plan.workday.locationFacetPolicy.kind !== "PFIZER_AUDITED_COUNTRY_LOCATION_REFINEMENT";
+    return unsupportedLocationPolicy || Boolean(plan.workday.searchText && !hasStaticLocationFacet);
   }
   return plan.officialJsonFetch?.kind === "phenom" && Boolean(plan.officialJsonFetch.facetScope);
 }
@@ -745,69 +780,6 @@ describe("strict positive official-total completeness policy", () => {
     }
   );
 
-  it("requires exact configured query keys and values on supporting official entry artifacts", async () => {
-    const plan = planFor("source-ucb-china-social");
-    const { evidence, evaluation } = positiveCountEvidence(plan);
-    const withoutRequiredQuery = new URL(plan.source.officialEntryUrl);
-    withoutRequiredQuery.search = "";
-    const forged = withSupportingNetworkArtifact(
-      evidence,
-      "scope-entry",
-      withoutRequiredQuery.toString(),
-      "OFFICIAL_COMPANY_PAGE"
-    );
-
-    expect((await crawlWith(plan, forged, evaluation)).truth.completenessVerified).toBe(false);
-  });
-
-  it.each([
-    ["bare endpoint", (url: URL) => { url.search = ""; }],
-    ["missing country", (url: URL) => { url.searchParams.delete("views-filter[field_job_country]"); }],
-    ["wrong functional area", (url: URL) => { url.searchParams.set("views-filter[field_job_functional_area]", "Sales"); }],
-    ["wrong target", (url: URL) => { url.searchParams.set("views-filter[field_job_country]", "999"); }],
-    ["nonempty date", (url: URL) => { url.searchParams.set("views-filter[field_job_posted_date][min]", "2026-01-01"); }],
-    ["extra key", (url: URL) => { url.searchParams.set("extra", "1"); }],
-    ["duplicate key", (url: URL) => { url.searchParams.append("views-filter[field_job_country]", "806"); }]
-  ])("rejects a Sandoz primary declaration with %s", async (_label, mutate) => {
-    const plan = planFor("source-sandoz-china-social");
-    const { evidence, evaluation } = positiveCountEvidence(plan);
-    const forgedUrl = new URL(sandozProbeUrl(plan, "primary", 0));
-    mutate(forgedUrl);
-    const forged = withDeclaredArtifactUrls(evidence, forgedUrl.toString(), forgedUrl.toString());
-
-    expect((await crawlWith(plan, forged, evaluation)).truth.completenessVerified).toBe(false);
-  });
-
-  it.each([
-    ["alternate probe", "alt1" as const, 0],
-    ["later primary page", "primary" as const, 1]
-  ])("rejects a Sandoz %s as the declared total artifact", async (_label, probe, page) => {
-    const plan = planFor("source-sandoz-china-social");
-    const { evidence, evaluation } = positiveCountEvidence(plan);
-    const url = sandozProbeUrl(plan, probe, page);
-    const forged = withDeclaredArtifactUrls(evidence, url, url);
-
-    expect((await crawlWith(plan, forged, evaluation)).truth.completenessVerified).toBe(false);
-  });
-
-  it.each([
-    ["taxonomy target drift", (plan: SourceCrawlPlan) => {
-      if (plan.adapterId !== "official-json" || plan.officialJsonFetch?.kind !== "sandoz-jsonapi") throw new Error("Sandoz");
-      return `${plan.officialJsonFetch.taxonomyEndpointUrl}?filter%5Bdrupal_internal__tid%5D=999`;
-    }],
-    ["alternate probe path drift", (plan: SourceCrawlPlan) => {
-      const url = new URL(sandozProbeUrl(plan, "alt1", 0));
-      url.pathname = "/jsonapi/views/job_search/wrong";
-      return url.toString();
-    }]
-  ])("rejects a Sandoz supporting scope artifact with %s", async (_label, badUrl) => {
-    const plan = planFor("source-sandoz-china-social");
-    const { evidence, evaluation } = positiveCountEvidence(plan);
-    const forged = withSupportingNetworkArtifact(evidence, "scope-support", badUrl(plan));
-
-    expect((await crawlWith(plan, forged, evaluation)).truth.completenessVerified).toBe(false);
-  });
-
   it("accepts an explicitly named canonical channel only when the declaration is channel-bound", async () => {
     const plan = planFor("source-lilly-china-social");
     const channelId = plan.expectedChannels?.[0]?.channelId;
@@ -958,6 +930,40 @@ describe("strict positive official-total completeness policy", () => {
       source: { ...plan.source, atsKind: "OFFICIAL_JSON" }
     } as SourceCrawlPlan;
     expect((await crawlWith(mismatched, evidence, evaluation)).truth.completenessVerified).toBe(false);
+  });
+
+  it("uses the same Beisen pagination replay policy when issuing the A-grade certificate", async () => {
+    const plan = planFor("source-cttq-social");
+    const { evidence, evaluation } = positiveCountEvidence(plan, { missingReturnedPage: true });
+    const crawled = await crawlWith(plan, evidence, evaluation);
+    const declaration = crawled.fetchEvidence?.declaredCompleteness;
+    const officialArtifact = crawled.fetchEvidence?.artifacts.find(
+      ({ logicalKey }) => logicalKey === declaration?.artifactLogicalKey
+    );
+    if (!crawled.fetchEvidence || !crawled.paginationEvaluation || !crawled.reconciliation ||
+        !officialArtifact) throw new Error("Expected exact Beisen certificate evidence");
+    const bytes = typeof officialArtifact.body === "string"
+      ? Buffer.from(officialArtifact.body, "utf8")
+      : Buffer.from(officialArtifact.body);
+
+    const decision = issueAGradeOfficialTotalCertificate({
+      binding: {
+        releaseCandidateId: "rc-beisen",
+        batchId: "batch-beisen",
+        sourceResultId: "result-beisen",
+        sourceConfigSha256: sourcePlanConfigSha256(plan)
+      },
+      plan,
+      transportSuccess: crawled.truth.transportSuccess,
+      adapterSuccess: crawled.truth.adapterSuccess,
+      evidence: crawled.fetchEvidence,
+      paginationEvaluation: crawled.paginationEvaluation,
+      reconciliation: crawled.reconciliation,
+      jobs: crawled.jobs,
+      officialArtifactSha256: sha256Bytes(bytes).sha256
+    });
+
+    expect(decision.status, JSON.stringify(decision)).toBe("CERTIFIED");
   });
 
   it("replays a Workday later-zero total only when the plan carries an audited policy", async () => {

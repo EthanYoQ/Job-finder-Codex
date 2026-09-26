@@ -3,7 +3,7 @@ import { buildAtomicRuntimeCommit, buildPendingRuntimeBatch } from "../../src/cr
 import { verifyAtomicRuntimeCommitAttestation } from "../../src/crawler/runtimeAtomicEvidence";
 import { runP0CrawlBatch } from "../../src/crawler/runCrawlBatch";
 import { runSourceCrawl } from "../../src/crawler/runSourceCrawl";
-import { evaluatePaginationEvidence } from "../../src/crawler/paginationEvidence";
+import { createOfficialJsonSourceFetch } from "../../src/crawler/officialJsonSourceFetch";
 import { executeAtomicSourceEvidenceCommit } from "../../src/db/ingestionRepository";
 import { archiveSourceEvidence, verifyArchivedSourceEvidence, ArtifactArchiveError } from "../../src/crawler/artifactArchive";
 import { mkdtemp, rm } from "node:fs/promises";
@@ -18,13 +18,19 @@ import {
 } from "../../src/crawler/sourcePlan";
 import { sourcePlanOracleConfigSha256 } from "../../src/crawler/independentSourceSurfaceOracle";
 import { candidateCompanies } from "../../src/data/companyRegistry";
+import { createOfficialJsonRenderedTraversalValidation } from "../../src/crawler/traversalCertificate";
+import {
+  irreversibleOfficialJsonEvidenceId,
+  persistentOfficialJsonJobId
+} from "../../src/crawler/officialJsonEvidence";
 
 const sha = "a".repeat(64);
 
 function channelBound(plan: SourceCrawlPlan): SourceCrawlPlan {
   const expectedChannels = [{ channelId: `source:${plan.source.id}:default`, kind: "SOCIAL" as const }];
   return { ...plan, source: { ...plan.source, surfaceId: plan.source.surfaceId ?? `surface:${plan.source.id}` },
-    expectedChannels, expectedChannelSetHash: expectedChannelSetHash(expectedChannels) };
+    expectedChannels, expectedChannelSetHash: expectedChannelSetHash(expectedChannels),
+    transportPolicy: plan.transportPolicy ?? { primary: "DIRECT_HTTP" } };
 }
 
 describe("runtime atomic evidence planning", () => {
@@ -52,7 +58,7 @@ describe("runtime atomic evidence planning", () => {
     });
     expect(planned.sources[0]?.sourceConfigHash).toMatch(/^[0-9a-f]{64}$/);
     expect(planned.sources[0]?.sourceConfigHash).toBe(sourcePlanConfigSha256(plan));
-    const preSharedHelperDigest = "535403b6dca2f9f0b445ca1b7dcaa618f144c7f0d1aef9b8dd1027f3e284026e";
+    const preSharedHelperDigest = "5215aa58bd349fe36a276470433b667d8fc82e57980da04f5ecebb5817b88979";
     expect(sourcePlanConfigSha256(plan)).toBe(preSharedHelperDigest);
     expect(sourcePlanOracleConfigSha256(plan)).toBe(preSharedHelperDigest);
     expect(planned.sources[0]?.adapterVersion).toMatch(/^[0-9a-f]{64}$/);
@@ -108,7 +114,8 @@ describe("runtime atomic evidence planning", () => {
       json: plan.json,
       source: { ...plan.source },
       company: { ...plan.company },
-      adapterId: plan.adapterId
+      adapterId: plan.adapterId,
+      transportPolicy: plan.transportPolicy
     } as SourceCrawlPlan;
 
     expect(sourcePlanConfigSha256(reordered)).toBe(sourcePlanConfigSha256(plan));
@@ -206,11 +213,11 @@ describe("runtime atomic evidence planning", () => {
 
   it("builds a validated full atomic bundle from strict crawl, lifecycle and archive truth", async () => {
     const plan = buildStagedSourceCrawlPlans(candidateCompanies).find(
-      (candidate) => candidate.source.id === "source-sandoz-china-social"
+      (candidate) => candidate.source.id === "source-novo-nordisk-china-social"
     );
-    if (!plan || plan.adapterId !== "official-json" || plan.officialJsonFetch?.kind !== "sandoz-jsonapi" ||
+    if (!plan || plan.adapterId !== "official-json" || plan.officialJsonFetch?.kind !== "novo-nordisk" ||
       !plan.source.surfaceId || !plan.expectedChannels?.[0]) {
-      throw new Error("Missing canonical staged Sandoz atomic-evidence plan");
+      throw new Error("Missing canonical staged Novo Nordisk atomic-evidence plan");
     }
     const sourceId = plan.source.id;
     const surfaceId = plan.source.surfaceId;
@@ -222,79 +229,40 @@ describe("runtime atomic evidence planning", () => {
       expectedPlannedSourceSetSha256: (await import("node:crypto")).createHash("sha256")
         .update(JSON.stringify([sourceId])).digest("hex"),
       expectedPlannedSourceCount: 1 };
-    const sandozScopeKeys = ["sandoz-taxonomy", "sandoz-alt1-zero", "sandoz-alt2-zero", "sandoz-alt3-zero"];
+    const pageLogicalKey = "official-json-page-0000";
     const oracle = { auditId: "phase2-audit-fixture", sources: { [sourceId]: {
       officialEntryId: "entry-1", officialSurfaceIds: [surfaceId],
       officialChannelIds: [channelId],
-      artifactLogicalKeyToSurfaceId: Object.fromEntries(["page-0", ...sandozScopeKeys].map((key) => [key, surfaceId])),
-      artifactLogicalKeyToChannelId: Object.fromEntries(["page-0", ...sandozScopeKeys].map((key) => [key, channelId]))
+      artifactLogicalKeyToSurfaceId: { [pageLogicalKey]: surfaceId },
+      artifactLogicalKeyToChannelId: { [pageLogicalKey]: channelId }
     } } };
     const pending = buildPendingRuntimeBatch("batch-1", [plan], identity,
       new Date("2026-07-10T00:00:00Z"), oracle).sources[0]!;
-    const body = JSON.stringify({ jobs: [{ sourceJobId: "1", title: "Role",
-      officialUrl: "https://www.sandoz.com/jobs/1", locationRaw: "上海", cities: ["上海"] }] });
-    const fields = [
-      "title", "field_job_title", "field_job_employment_type", "field_job_type", "field_job_id",
-      "field_job_business_unit", "field_job_work_location", "field_job_posted_date", "path",
-      "drupal_internal__tid", "field_date", "field_job_country", "field_job_alt_country_1",
-      "field_job_alt_country_2", "field_job_alt_country_3"
-    ].join(",");
-    const evidenceUrl = new URL(plan.officialJsonFetch.endpointUrl);
-    evidenceUrl.searchParams.set("fields[node--jobs]", fields);
-    evidenceUrl.searchParams.set("page", "0");
-    evidenceUrl.searchParams.set("views-filter[field_job_functional_area]", "All");
-    evidenceUrl.searchParams.set("views-filter[field_job_posted_date][min]", "");
-    evidenceUrl.searchParams.set("views-filter[field_job_posted_date][max]", "");
-    evidenceUrl.searchParams.set("views-filter[field_job_country]", String(plan.officialJsonFetch.countryTermTargetId));
-    evidenceUrl.searchParams.set("views-filter[field_job_alt_country_1]", "");
-    const taxonomyUrl = new URL(plan.officialJsonFetch.taxonomyEndpointUrl);
-    taxonomyUrl.searchParams.set("filter[drupal_internal__tid]", String(plan.officialJsonFetch.countryTermTargetId));
-    const networkArtifact = (logicalKey: string, url: string, artifactBody: string, extractorLocator: string) => ({
-      id: logicalKey, logicalKey, kind: "ATS_API_RESPONSE" as const, channelId,
-      requestedUrl: url, finalUrl: url, httpStatus: 200, contentType: "application/vnd.api+json",
-      capturedAt: "2026-07-10T00:00:01Z", body: artifactBody, bodyRepresentation: "EXACT" as const,
-      extractorLocator
+    const endpoint = plan.officialJsonFetch.endpointUrl;
+    const fetch = createOfficialJsonSourceFetch({
+      now: () => new Date("2026-07-10T00:00:01.000Z"),
+      http: async () => ({
+        status: 200,
+        body: JSON.stringify({ data: { totalMatches: 1, jobs: [{
+          jobId: "1",
+          jobTitle: "Medical role",
+          jobLocationLabel: "China Mainland, Beijing",
+          jobCity: { label: "Beijing" }
+        }] } }),
+        finalUrl: endpoint,
+        contentType: "application/json; charset=utf-8",
+        capturedAt: "2026-07-10T00:00:01.000Z"
+      })
     });
-    const scopeArtifacts = [networkArtifact("sandoz-taxonomy", taxonomyUrl.toString(), JSON.stringify({ data: [{
-      type: "taxonomy_term--job_location", id: plan.officialJsonFetch.countryTermUuid,
-      attributes: { drupal_internal__tid: plan.officialJsonFetch.countryTermTargetId,
-        name: plan.officialJsonFetch.countryTermName }
-    }] }), `sandoz-taxonomy-v1|target:${plan.officialJsonFetch.countryTermTargetId}|json:` +
-      "$.data[0].type,$.data[0].id,$.data[0].attributes.drupal_internal__tid,$.data[0].attributes.name")];
-    for (const probe of ["alt1", "alt2", "alt3"] as const) {
-      const url = new URL(plan.officialJsonFetch.endpointUrl);
-      url.searchParams.set("fields[node--jobs]", fields);
-      url.searchParams.set("page", "0");
-      url.searchParams.set("views-filter[field_job_functional_area]", "All");
-      url.searchParams.set("views-filter[field_job_posted_date][min]", "");
-      url.searchParams.set("views-filter[field_job_posted_date][max]", "");
-      url.searchParams.set("views-filter[field_job_country]", "All");
-      if (probe !== "alt1") url.searchParams.set("views-filter[field_job_alt_country_1]", "");
-      url.searchParams.set(`views-filter[field_job_alt_country_${probe.at(-1)}]`,
-        String(plan.officialJsonFetch.countryTermTargetId));
-      scopeArtifacts.push(networkArtifact(`sandoz-${probe}-zero`, url.toString(), JSON.stringify({
-        data: [], meta: { count: 0 }, number_of_items_per_page: plan.officialJsonFetch.pageSize,
-        links: { self: { href: url.toString() } }
-      }), `sandoz-jsonapi-v2|probe:${probe}|page:0|page-size:${plan.officialJsonFetch.pageSize}` +
-        "|fields:node--jobs-v1|json:$.data[*],$.meta.count,$.number_of_items_per_page," +
-        "$.links.self.href,$.links.next.href"));
+    const fetched = await fetch(plan);
+    if (!fetched.ok || !("payload" in fetched) || !fetched.fetchEvidence || !fetched.paginationEvaluation) {
+      throw new Error(fetched.ok ? "Missing strict Novo evidence" : fetched.failureReason);
     }
-    const evidence = { captureTool: { name: "test", version: "1" }, artifacts: [...scopeArtifacts, { id: "page-0", logicalKey: "page-0",
-      kind: "PAGINATION_PAGE" as const, channelId, requestedUrl: evidenceUrl.toString(), finalUrl: evidenceUrl.toString(),
-      httpStatus: 200, contentType: "application/json", capturedAt: "2026-07-10T00:00:01Z", body,
-      extractorLocator: "json:total" }], pages: [{ sequence: 0, artifactLogicalKey: "page-0", channelId,
-      requestedPage: 0, returnedPage: 0, requestedPageSize: 10, returnedPageSize: 10,
-      rawJobIds: ["1"], validJobIds: ["1"],
-      declaredTotal: 1, declaredCount: 1, declaredPages: 1,
-      responseFingerprintSha256: (await import("node:crypto")).createHash("sha256").update(body).digest("hex"),
-      termination: "DECLARED_TOTAL_REACHED" as const, anomalyCodes: [], capturedAt: "2026-07-10T00:00:01Z" }],
-      declaredCompleteness: { kind: "OFFICIAL_TOTAL_PAGES" as const, value: 1, artifactLogicalKey: "page-0",
-        extractorLocator: "json:total", scope: "CHANNEL" as const, channelId },
-      fetchCounts: { rawCount: 1, parsedCount: 1, validCount: 1, parseDiscardCount: 0, validationDiscardCount: 0 }, fetchLosses: [] };
-    const evaluation = evaluatePaginationEvidence({ evidence, expectedChannelIds: [channelId], filteredOutput: true });
-    expect(evaluation).toMatchObject({ safeCompleteness: true, verifiedEligible: true });
-    const result = await runSourceCrawl(plan, { fetch: async () => ({ ok: true, capturedAt: "2026-07-10T00:00:01Z",
-      payload: JSON.parse(body), fetchEvidence: evidence, paginationEvaluation: evaluation }) });
+    const body = JSON.stringify(fetched.payload);
+    const evidence = fetched.fetchEvidence;
+    const evaluation = fetched.paginationEvaluation;
+    expect(evaluation).toMatchObject({ safeCompleteness: true });
+    const result = await runSourceCrawl(plan, { fetch: async () => fetched });
     expect(result.truth).toEqual({ transportSuccess: true, adapterSuccess: true, completenessVerified: true });
     const workspaceRoot = await mkdtemp(join(tmpdir(), "task5h-runtime-archive-"));
     const archiveResult = await archiveSourceEvidence({ workspaceRoot,
@@ -315,8 +283,27 @@ describe("runtime atomic evidence planning", () => {
     expect(transaction).not.toHaveBeenCalled();
     expect(commit.sourceResult).toMatchObject({ atomicCommitState: "COMMITTED", completenessState: "VERIFIED",
       canonicalCurrentJobSetSha256: commit.observationProvenance.canonicalOutputSha256 });
-    expect(commit.artifacts).toHaveLength(5);
+    expect(commit.artifacts).toHaveLength(1);
     expect(commit.pagination).toHaveLength(1);
+
+    const browserSuccessResult = structuredClone(result);
+    browserSuccessResult.priorTransportAttempts = [{
+      transport: "BROWSER_SESSION",
+      outcome: "SUCCEEDED",
+      code: "HCM_BROWSER_SUCCEEDED",
+      capturedAt: "2026-07-10T00:00:01Z"
+    }];
+    const browserSuccessCommit = buildAtomicRuntimeCommit({
+      plan, pending, identity, batchId: "batch-1", result: browserSuccessResult,
+      previousJobs: [], baselineCompletedBeforeCrawl: true, artifacts: archived, oracle
+    });
+    expect(browserSuccessCommit.artifacts).toHaveLength(1);
+    expect(browserSuccessCommit.priorTransportAttempts[0]).toMatchObject({
+      transport: "BROWSER_SESSION",
+      outcome: "SUCCEEDED",
+      code: "HCM_BROWSER_SUCCEEDED",
+      artifactIds: browserSuccessCommit.artifacts.map(({ id }) => id)
+    });
 
     const scheduledPlan = plan;
     const scheduledPending = buildPendingRuntimeBatch("scheduled-batch", [scheduledPlan], identity,
@@ -371,13 +358,26 @@ describe("runtime atomic evidence planning", () => {
     incompleteResult.truth.completenessVerified = false;
     incompleteResult.observation.completenessStatus = "NEEDS_MANUAL_COMPLETENESS_REVIEW";
     incompleteResult.observation.completenessBlockerReason = "Official pages parsed; full traversal is not proven";
+    incompleteResult.fetchEvidence!.declaredCompleteness = {
+      ...incompleteResult.fetchEvidence!.declaredCompleteness!,
+      kind: "OFFICIAL_TOTAL_PAGES"
+    };
     const incompleteCommit = buildAtomicRuntimeCommit({ plan, pending, identity, batchId: "batch-1",
       result: incompleteResult, previousJobs: [], baselineCompletedBeforeCrawl: true, artifacts: archived, oracle });
     expect(incompleteCommit.sourceResult).toMatchObject({
       completenessState: "NEEDS_MANUAL_COMPLETENESS_REVIEW",
-      blockerReason: "Official pages parsed; full traversal is not proven"
+      blockerCode: "A_GRADE_CERTIFICATE_NOT_ISSUED",
+      blockerReason: "A-grade official-total certificate was not issued: SCOPE_MISMATCH"
     });
     expect(incompleteCommit.commands.filter((command) => command.type === "UPSERT_JOB")).toHaveLength(1);
+    const anomalousIncompleteCommit = buildAtomicRuntimeCommit({ plan, pending, identity, batchId: "batch-1",
+      result: incompleteResult, previousJobs: [], baselineCompletedBeforeCrawl: true, artifacts: archived, oracle,
+      completenessAnomalyTriggerCodes: ["TRUSTED_COUNT_DROP"] });
+    expect(anomalousIncompleteCommit.commands.filter((command) => command.type === "UPSERT_JOB")).toEqual([]);
+    expect(anomalousIncompleteCommit.sourceResult).toMatchObject({
+      blockerCode: "COMPLETENESS_ANOMALY_UNVERIFIED",
+      blockerReason: expect.stringContaining("TRUSTED_COUNT_DROP")
+    });
     const partialJobUpsert = vi.fn(async () => undefined);
     const partialLifecycleMember = vi.fn(async () => undefined);
     const partialTx = {
@@ -396,6 +396,11 @@ describe("runtime atomic evidence planning", () => {
     })).resolves.toBeUndefined();
     expect(partialJobUpsert).toHaveBeenCalledTimes(1);
     expect(partialLifecycleMember).not.toHaveBeenCalled();
+    partialJobUpsert.mockClear();
+    await expect(executeAtomicSourceEvidenceCommit(anomalousIncompleteCommit, {
+      $transaction: async <T>(operation: (value: typeof partialTx) => Promise<T>) => operation(partialTx)
+    })).resolves.toBeUndefined();
+    expect(partialJobUpsert).not.toHaveBeenCalled();
     const incompleteWithoutReason = structuredClone(incompleteResult);
     delete incompleteWithoutReason.observation.completenessBlockerReason;
     const incompleteWithoutReasonCommit = buildAtomicRuntimeCommit({
@@ -410,9 +415,11 @@ describe("runtime atomic evidence planning", () => {
       oracle
     });
     expect(incompleteWithoutReasonCommit.sourceResult.blockerReason)
-      .toBe("Strict completeness gate was not satisfied");
+      .toBe("A-grade official-total certificate was not issued: SCOPE_MISMATCH");
     expect(incompleteWithoutReasonCommit.commands.find((command) => command.type === "UPSERT_CRAWL_OBSERVATION"))
-      .toMatchObject({ observation: { completenessBlockerReason: "Strict completeness gate was not satisfied" } });
+      .toMatchObject({ observation: {
+        completenessBlockerReason: "A-grade official-total certificate was not issued: SCOPE_MISMATCH"
+      } });
     await expect(executeAtomicSourceEvidenceCommit(incompleteWithoutReasonCommit, {
       $transaction: async <T>(operation: (value: typeof partialTx) => Promise<T>) => operation(partialTx)
     })).resolves.toBeUndefined();
@@ -611,4 +618,119 @@ describe("runtime atomic evidence planning", () => {
     }
     await rm(workspaceRoot, { recursive: true, force: true });
   }, 15_000);
+});
+
+describe("source-bound official-total persistence", () => {
+  it("commits the Boehringer API total only when the B certificate proves the official UI exclusion", async () => {
+    const sourceId = "source-boehringer-ingelheim-china-social" as const;
+    const plan = buildStagedSourceCrawlPlans(candidateCompanies).find(
+      ({ source }) => source.id === sourceId
+    );
+    if (!plan || plan.adapterId !== "official-json" || !plan.source.surfaceId || !plan.expectedChannels?.[0]) {
+      throw new Error("Missing canonical Boehringer plan");
+    }
+    const capturedAt = "2026-09-02T00:00:00.000Z";
+    const fetch = createOfficialJsonSourceFetch({
+      now: () => new Date(capturedAt),
+      http: async (request) => {
+        return {
+          status: 200,
+          body: request.url.includes("/scripts/recruit.js")
+            ? `let sxsPosCode = [
+                { code: "205909", jobareaname: "上海" },
+              ]
+              // official UI filters these rows before rendering`
+            : `jsoncallback({"status":"1","message":"接口调用成功","resultbody":{"totalnum":"2","joblist":[
+                {"jobid":"173472429","jobname":"Medical Advisor","jobareaname":"北京"},
+                {"jobid":"173472430","jobname":"Intern ID205909","jobareaname":"上海"}
+              ]}})`,
+          finalUrl: request.url,
+          contentType: request.url.includes("/scripts/recruit.js") ? "application/javascript" : "text/html",
+          capturedAt
+        };
+      }
+    });
+    const result = await runSourceCrawl(plan, { fetch });
+    if (!result.fetchEvidence || !result.paginationEvaluation || !result.reconciliation) {
+      throw new Error("Missing Boehringer crawl evidence");
+    }
+    const sourceConfigSha256 = sourcePlanConfigSha256(plan);
+    const independentValidation = createOfficialJsonRenderedTraversalValidation({
+      sourceId,
+      companyId: plan.company.id,
+      sourceConfigSha256,
+      surfaceIds: [plan.source.surfaceId],
+      channelIds: plan.expectedChannels.map(({ channelId }) => channelId),
+      pages: [{
+        pageNumber: 1,
+        declaredTotalPages: 1,
+        declaredTotalJobs: 1,
+        channelId: plan.expectedChannels[0].channelId,
+        uiRequestCandidateIds: [],
+        nextControlPresent: false,
+        rawRows: [{
+          sourceJobId: persistentOfficialJsonJobId("173472429"),
+          rawEvidenceId: irreversibleOfficialJsonEvidenceId("173472429"),
+          scopeMarker: "OFFICIAL_RENDERED_JOB_LINK",
+          scopeDecision: "INCLUDED_MAINLAND",
+          recordIndex: 0,
+          rawPayload: { jobId: "173472429" }
+        }]
+      }],
+      observedAt: capturedAt,
+      expiresAt: "2026-09-09T00:00:00.000Z"
+    });
+    const expectedPlannedSourceIds = [plan.source.id];
+    const identity: RuntimeBatchIdentity = {
+      releaseCandidateId: "rc-boehringer", commitSha: sha, rosterSha256: sha,
+      sourcePlanSha256: sha, sourceConfigSha256: sha, adapterBundleSha256: sha,
+      batchKind: "SCHEDULED", ownerId: "test", expectedPlannedSourceIds,
+      expectedPlannedSourceSetSha256: (await import("node:crypto")).createHash("sha256")
+        .update(JSON.stringify(expectedPlannedSourceIds)).digest("hex"),
+      expectedPlannedSourceCount: 1
+    };
+    const pending = buildPendingRuntimeBatch("batch-boehringer", [plan], identity,
+      new Date(capturedAt)).sources[0]!;
+    const workspaceRoot = await mkdtemp(join(process.cwd(), ".runtime", ".cache", "boehringer-persistence-"));
+    try {
+      const archiveResult = await archiveSourceEvidence({ workspaceRoot,
+        releaseCandidateId: identity.releaseCandidateId, batchId: "batch-boehringer", sourceId: plan.source.id,
+        sourceResultId: pending.id, evidenceSubdirectory: "phase-1/runtime-evidence",
+        captureTool: result.fetchEvidence.captureTool, artifacts: result.fetchEvidence.artifacts });
+      const archived = await verifyArchivedSourceEvidence({ workspaceRoot,
+        releaseCandidateId: identity.releaseCandidateId, batchId: "batch-boehringer", sourceId: plan.source.id,
+        sourceResultId: pending.id, evidenceSubdirectory: "phase-1/runtime-evidence",
+        artifacts: archiveResult.artifacts });
+      const commit = buildAtomicRuntimeCommit({
+        plan, pending, identity, batchId: "batch-boehringer", result, previousJobs: [],
+        baselineCompletedBeforeCrawl: false, artifacts: archived,
+        independentTraversalValidation: independentValidation,
+        independentTraversalValidationExecution: "CURRENT_RUN",
+        independentTraversalValidationTrigger: "INITIAL_QUALIFICATION",
+        completedAt: new Date("2026-09-02T00:01:00.000Z")
+      });
+      expect(commit.sourceResult).toMatchObject({
+        expectedJobCount: 2,
+        validationDiscardCount: 1,
+        dedupeOutputCount: 1,
+        completenessCertificate: { grade: "B", counts: { validationDiscardCount: 1, finalUniqueJobCount: 1 } }
+      });
+      const tx = {
+        evidenceArtifact: { create: async () => undefined },
+        paginationEvidence: { create: async () => undefined },
+        lossLedgerEntry: { create: async () => undefined },
+        transportAttemptEvidence: { create: async () => undefined },
+        transportAttemptArtifact: { create: async () => undefined },
+        crawlObservation: { create: async () => undefined },
+        job: { upsert: async () => undefined },
+        lifecycleSetEvidenceMember: { create: async () => undefined },
+        crawlBatchSourceResult: { updateMany: async () => ({ count: 1 }) }
+      };
+      await expect(executeAtomicSourceEvidenceCommit(commit, {
+        $transaction: async <T>(operation: (value: typeof tx) => Promise<T>) => operation(tx)
+      })).resolves.toBeUndefined();
+    } finally {
+      await rm(workspaceRoot, { recursive: true, force: true });
+    }
+  });
 });

@@ -4,23 +4,28 @@ export const profile_otsuka_china = {
   companyId: "company-otsuka-china",
   sources: [
     {
-      sourceId: "source-otsuka-china-social-2",
+      sourceId: "source-otsuka-china-social",
       executionConfig: {
           adapterId: "html-table",
           table: {
-              rowSelector: ".join-list > .join-item",
+              rowSelector: ".container.Box [data-job-id], .container.Box .job-item",
+              completenessProof: {
+                  kind: "STATIC_PUBLIC_LIST",
+                  sourcePolicy: "OTSUKA_CHINA_EMPTY_PUBLIC_LIST_V1"
+              },
               staticPublicList: {
-                  containerSelector: ".join-list",
-                  nextControlSelector: ".join-list .pagination, .join-list a[rel='next'], .join-list [data-page]"
+                  containerSelector: ".container.Box",
+                  nextControlSelector: ".container.Box .pagination, .container.Box a[rel='next'], .container.Box [data-page]",
+                  explicitEmptyState: {
+                      selector: ".container.Box",
+                      pattern: "热招岗位[\\s\\S]*联系我们"
+                  }
               },
               fields: {
-                  sourceJobIdParts: [
-                      { selector: ".table-td .career-title" },
-                      { selector: ".table-td .col2" }
-                  ],
-                  officialTitle: { selector: ".table-td .career-title" },
-                  officialUrl: { value: "https://www.otsuka.com.cn/join-us/index.html" },
-                  locationRaw: { selector: ".table-td .col2" }
+                  sourceJobId: { selector: ":scope", attribute: "data-job-id" },
+                  officialTitle: { selector: ":scope" },
+                  officialUrl: { value: "https://chinaotsuka.com.cn/class/26" },
+                  locationRaw: { value: "中国" }
               }
           }
       }

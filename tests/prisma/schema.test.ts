@@ -12,6 +12,25 @@ const lifecycleSecurityMigration=readFileSync(resolve(process.cwd(),"prisma","mi
 const qualificationThresholdMigration=readFileSync(resolve(process.cwd(),"prisma","migrations","20260716190000_release_candidate_qualification_threshold","migration.sql"),"utf8");
 const releasePromotionMigration=readFileSync(resolve(process.cwd(),"prisma","migrations","20260716210000_release_candidate_promotion_gate","migration.sql"),"utf8");
 const sourceFailureDiagnosticsMigration=readFileSync(resolve(process.cwd(),"prisma","migrations","20260717090000_source_failure_diagnostics","migration.sql"),"utf8");
+const trustedBaselineMigration=readFileSync(resolve(process.cwd(),"prisma","migrations","20260813002000_trusted_completeness_baseline","migration.sql"),"utf8");
+const transportPolicyMigration=readFileSync(resolve(process.cwd(),"prisma","migrations","20260813013000_transport_policy_retry_diagnostics","migration.sql"),"utf8");
+const networkRetryMigration=readFileSync(resolve(process.cwd(),"prisma","migrations","20260824070000_official_network_retry_diagnostics","migration.sql"),"utf8");
+const browserAndPaginationRetryMigrationPath=resolve(process.cwd(),"prisma","migrations","20260825093000_browser_and_pagination_retry_diagnostics","migration.sql");
+const browserAndPaginationRetryMigration=existsSync(browserAndPaginationRetryMigrationPath)
+  ? readFileSync(browserAndPaginationRetryMigrationPath,"utf8")
+  : "";
+const failedSourceDiagnosticEvidenceMigration=readFileSync(resolve(
+  process.cwd(), "prisma", "migrations", "20260825113000_failed_source_diagnostic_evidence", "migration.sql"
+), "utf8");
+const jnjAndGrifolsPersistenceMigrationPath=resolve(
+  process.cwd(), "prisma", "migrations", "20260902090000_jnj_and_grifols_atomic_persistence", "migration.sql"
+);
+const jnjAndGrifolsPersistenceMigration=existsSync(jnjAndGrifolsPersistenceMigrationPath)
+  ? readFileSync(jnjAndGrifolsPersistenceMigrationPath, "utf8")
+  : "";
+const boehringerVerifiedUiMigration = readFileSync(resolve(
+  process.cwd(), "prisma", "migrations", "20260902095500_boehringer_verified_ui_exclusions", "migration.sql"
+), "utf8");
 const baselineMigration = readFileSync(
   resolve(process.cwd(), "prisma", "migrations", "20260710000000_baseline", "migration.sql"),
   "utf8"
@@ -123,6 +142,16 @@ describe("prisma schema", () => {
       ,"20260716190000_release_candidate_qualification_threshold"
       ,"20260716210000_release_candidate_promotion_gate"
       ,"20260717090000_source_failure_diagnostics"
+      ,"20260812231000_a_grade_completeness_certificate"
+      ,"20260813002000_trusted_completeness_baseline"
+      ,"20260813013000_transport_policy_retry_diagnostics"
+      ,"20260824070000_official_network_retry_diagnostics"
+      ,"20260825093000_browser_and_pagination_retry_diagnostics"
+      ,"20260825113000_failed_source_diagnostic_evidence"
+      ,"20260902090000_jnj_and_grifols_atomic_persistence"
+      ,"20260902093000_grifols_trigger_artifact_binding"
+      ,"20260902094500_a_grade_official_total_dedupe"
+      ,"20260902095500_boehringer_verified_ui_exclusions"
     ]);
     const statements = crawlStatusValuesMigration
       .split("\n")
@@ -220,7 +249,7 @@ describe("prisma schema", () => {
     });
 
     expect(output).toMatch(/is valid/i);
-  }, 15_000);
+  }, 30_000);
 
   it("stores a required per-source dedupe key for jobs", () => {
     expect(schema).toMatch(/dedupeKey\s+String/);
@@ -407,10 +436,14 @@ describe("prisma schema", () => {
     ]);
     expect(enumMembers("SourceFailureDiagnosticCode")).toEqual([
       "OFFICIAL_HTTP_TIMEOUT",
+      "OFFICIAL_NETWORK_ERROR",
+      "OFFICIAL_BROWSER_SESSION_ERROR",
+      "OFFICIAL_PAGINATION_SNAPSHOT_DRIFT",
       "OFFICIAL_HTTP_429",
       "OFFICIAL_HTTP_502",
       "OFFICIAL_HTTP_503",
       "OFFICIAL_HTTP_504",
+      "OFFICIAL_HTTP_5XX",
       "SOURCE_ATTEMPT_TIMEOUT",
       "FETCH_EXECUTION_FAILED",
       "FETCH_FAILED_CLOSED",
@@ -429,6 +462,124 @@ describe("prisma schema", () => {
     expect(sourceFailureDiagnosticsMigration).toContain('CrawlBatchSourceResult_failure_diagnostic_bundle_check');
     expect(sourceFailureDiagnosticsMigration).toContain('"failureCategory" IS NULL AND\n      "failureDiagnosticCode" IS NULL AND\n      "fetchAttemptCount" IS NOT NULL');
     expect(sourceFailureDiagnosticsMigration).not.toContain('UPDATE "CrawlBatchSourceResult"');
+  });
+
+  it("stores certificate-bound trusted baseline transitions without rewriting historical rows", () => {
+    const sourceResult = block("model", "CrawlBatchSourceResult");
+    expect(sourceResult).toMatch(/^\s*baselinePreviousSourceResultId\s+String\?$/mu);
+    expect(sourceResult).toMatch(/^\s*baselinePreviousJobCount\s+Int\?$/mu);
+    expect(sourceResult).toMatch(/^\s*baselineChangeReason\s+String\?$/mu);
+    expect(trustedBaselineMigration).toContain('ADD COLUMN "baselinePreviousSourceResultId" TEXT');
+    expect(trustedBaselineMigration).toContain('ADD COLUMN "baselinePreviousJobCount" INTEGER');
+    expect(trustedBaselineMigration).toContain('ADD COLUMN "baselineChangeReason" TEXT');
+    expect(trustedBaselineMigration).toContain('"CrawlBatchSourceResult_baseline_transition_shape_check"');
+    expect(trustedBaselineMigration).toContain('"completenessState" = \'VERIFIED\'');
+    expect(trustedBaselineMigration).toContain('"completenessCertificate" IS NOT NULL');
+    expect(trustedBaselineMigration).toContain('INDEPENDENT_VALIDATION_CONFIRMED_DECREASE');
+    expect(trustedBaselineMigration).toContain('"baselinePreviousJobCount" >= 0');
+    expect(trustedBaselineMigration).toContain('"dedupeOutputCount" > "baselinePreviousJobCount"');
+    expect(trustedBaselineMigration).toContain('"dedupeOutputCount" < "baselinePreviousJobCount"');
+    expect(trustedBaselineMigration).toContain('"dedupeOutputCount" = "baselinePreviousJobCount"');
+    expect(trustedBaselineMigration).toContain('"completenessCertificate"->>\'grade\' = \'A\'');
+    expect(trustedBaselineMigration).toContain('"completenessCertificate"->>\'grade\' = \'B\'');
+    expect(trustedBaselineMigration).toContain('"baselinePreviousSourceResultId" <> "id"');
+    expect(trustedBaselineMigration).not.toMatch(/UPDATE\s+"CrawlBatchSourceResult"/iu);
+  });
+
+  it("stores bounded transient retry reasons for recovered and failed source attempts", () => {
+    const sourceResult = block("model", "CrawlBatchSourceResult");
+    expect(sourceResult).toMatch(/^\s*retryReasonCodes\s+String\[\]\s+@default\(\[\]\)$/mu);
+    expect(schema).toContain("OFFICIAL_HTTP_5XX");
+    expect(transportPolicyMigration).toContain("ADD VALUE 'OFFICIAL_HTTP_5XX'");
+    expect(transportPolicyMigration).toContain("ADD VALUE 'HCM_BROWSER_SUCCEEDED'");
+    expect(transportPolicyMigration).toContain("TransportAttemptEvidence_code_outcome_check");
+    expect(transportPolicyMigration).toContain('"transport" = \'BROWSER_SESSION\'');
+    expect(transportPolicyMigration).toContain('"transport" = \'DIRECT_HTTP\'');
+    expect(transportPolicyMigration).toContain('ADD COLUMN "retryReasonCodes" TEXT[] NOT NULL');
+    expect(transportPolicyMigration).toContain('cardinality("retryReasonCodes") = COALESCE("retryCount", 0)');
+    expect(transportPolicyMigration).toContain("OFFICIAL_HTTP_5[0-9][0-9]");
+    expect(transportPolicyMigration).toContain("LEGACY_RETRY_REASON_UNKNOWN");
+    expect(transportPolicyMigration.indexOf('UPDATE "CrawlBatchSourceResult"')).toBeLessThan(
+      transportPolicyMigration.indexOf('ADD CONSTRAINT "CrawlBatchSourceResult_retry_reason_codes_check"')
+    );
+    expect(transportPolicyMigration).not.toMatch(/SET\s+"retryReasonCodes"\s*=\s*ARRAY\['OFFICIAL_HTTP_/u);
+    expect(networkRetryMigration).toContain("ADD VALUE 'OFFICIAL_NETWORK_ERROR'");
+    expect(networkRetryMigration).toContain('DROP CONSTRAINT "CrawlBatchSourceResult_retry_reason_codes_check"');
+    expect(networkRetryMigration).toContain("OFFICIAL_NETWORK_ERROR");
+    expect(browserAndPaginationRetryMigration).toContain("ADD VALUE 'OFFICIAL_BROWSER_SESSION_ERROR'");
+    expect(browserAndPaginationRetryMigration).toContain("ADD VALUE 'OFFICIAL_PAGINATION_SNAPSHOT_DRIFT'");
+    expect(browserAndPaginationRetryMigration).toContain('DROP CONSTRAINT "CrawlBatchSourceResult_retry_reason_codes_check"');
+    expect(browserAndPaginationRetryMigration).toContain("OFFICIAL_BROWSER_SESSION_ERROR");
+    expect(browserAndPaginationRetryMigration).toContain("OFFICIAL_PAGINATION_SNAPSHOT_DRIFT");
+  });
+
+  it("persists the complete source-bound J&J transport-attempt vocabulary", () => {
+    expect(enumMembers("TransportAttemptCode")).toEqual(expect.arrayContaining([
+      "JNJ_DIRECT_FAILED", "JNJ_BROWSER_SESSION_FAILED", "JNJ_BROWSER_FETCH_FAILED", "JNJ_BROWSER_SUCCEEDED"
+    ]));
+    for (const code of [
+      "JNJ_DIRECT_FAILED", "JNJ_BROWSER_SESSION_FAILED", "JNJ_BROWSER_FETCH_FAILED", "JNJ_BROWSER_SUCCEEDED"
+    ]) {
+      expect(jnjAndGrifolsPersistenceMigration).toContain(`ADD VALUE IF NOT EXISTS '${code}'`);
+      expect(jnjAndGrifolsPersistenceMigration).toContain(`\"code\"::TEXT = '${code}'`);
+    }
+    expect(jnjAndGrifolsPersistenceMigration).toContain(
+      'DROP CONSTRAINT "TransportAttemptEvidence_code_outcome_check"'
+    );
+    expect(jnjAndGrifolsPersistenceMigration).toContain(
+      `\"code\"::TEXT = 'JNJ_DIRECT_FAILED' AND\n    \"transport\" = 'DIRECT_HTTP' AND \"outcome\" = 'FAILED'`
+    );
+    expect(jnjAndGrifolsPersistenceMigration).toContain(
+      `\"code\"::TEXT = 'JNJ_BROWSER_SUCCEEDED' AND\n    \"transport\" = 'BROWSER_SESSION' AND \"outcome\" = 'SUCCEEDED'`
+    );
+    expect(jnjAndGrifolsPersistenceMigration.match(
+      /"sourceId" = 'source-johnson-innovative-medicine-social'/gu
+    )).toHaveLength(4);
+  });
+
+  it("allows the Grifols official total mismatch only for verified detail-scope exclusions", () => {
+    expect(jnjAndGrifolsPersistenceMigration).toContain(
+      'CREATE OR REPLACE FUNCTION "enforce_source_result_state_machine"()'
+    );
+    expect(jnjAndGrifolsPersistenceMigration).toContain(
+      `NEW.\"sourceId\" = 'source-grifols-china-social'`
+    );
+    expect(jnjAndGrifolsPersistenceMigration).toContain(
+      `NEW.\"expectedJobCount\" = NEW.\"dedupeOutputCount\" + NEW.\"validationDiscardCount\"`
+    );
+    expect(jnjAndGrifolsPersistenceMigration).toContain(
+      `loss.\"details\"->>'code' = 'VERIFIED_DETAIL_OUT_OF_MAINLAND_SCOPE'`
+    );
+    expect(jnjAndGrifolsPersistenceMigration).toContain(
+      `loss.\"reason\" = 'official detail places the job outside mainland China'`
+    );
+    expect(jnjAndGrifolsPersistenceMigration).toContain(
+      `artifact.\"extractorLocator\" = 'grifols-successfactors-detail-v1|html:canonical+streetAddress+content-location'`
+    );
+    expect(jnjAndGrifolsPersistenceMigration).toContain(
+      `invalid_grifols_scope_exclusion_count = 0`
+    );
+    expect(jnjAndGrifolsPersistenceMigration).toContain(
+      `grifols_detail_artifact_count >= NEW.\"validationDiscardCount\"`
+    );
+  });
+
+  it("allows the Boehringer API/UI count difference only with exact B-grade exclusion evidence", () => {
+    expect(boehringerVerifiedUiMigration).toContain(
+      `NEW."sourceId" = 'source-boehringer-ingelheim-china-social'`
+    );
+    expect(boehringerVerifiedUiMigration).toContain(
+      `NEW."completenessCertificate"->>'schemaVersion' = 'b-grade-independent-traversal-v2'`
+    );
+    expect(boehringerVerifiedUiMigration).toContain(
+      `loss."reason" <> '51job record excluded by official recruitment UI'`
+    );
+    expect(boehringerVerifiedUiMigration).toContain(
+      `loss."details"->>'code' <> 'OFFICIAL_UI_EXCLUSION'`
+    );
+    expect(boehringerVerifiedUiMigration).toContain(
+      `NEW."expectedJobCount" = NEW."dedupeOutputCount" + NEW."validationDiscardCount"`
+    );
   });
 
   it("stores direct nullable observation provenance and exact reconciliation counters", () => {
@@ -554,6 +705,24 @@ describe("prisma schema", () => {
       expect(sourceCheck, counter).toContain(`"${counter}" >= 0`);
       expect(observationCheck, counter).toContain(`"${counter}" >= 0`);
     }
+  });
+
+  it("permits fetch-only counters only for failed NOT_ATTEMPTED diagnostic evidence", () => {
+    expect(failedSourceDiagnosticEvidenceMigration).toContain(
+      'DROP CONSTRAINT "CrawlBatchSourceResult_loss_reconciliation_check"'
+    );
+    for (const predicate of [
+      '"atomicCommitState" = \'NOT_ATTEMPTED\'',
+      '"completenessState" = \'FAILED\'',
+      '"adapterState" IN (\'FAILED\', \'SKIPPED\')',
+      '"normalizedCount" = 0',
+      '"dedupeInputCount" = 0',
+      '"dedupeOutputCount" = 0',
+      '"discardCount" = "parseDiscardCount" + "validationDiscardCount"'
+    ]) expect(failedSourceDiagnosticEvidenceMigration).toContain(predicate);
+    expect(failedSourceDiagnosticEvidenceMigration).toContain(
+      '"validCount" = "normalizedCount" + "normalizationDiscardCount"'
+    );
   });
 
   it("requires complete HTTP provenance for every network artifact kind", () => {

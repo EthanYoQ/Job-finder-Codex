@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import { createHash } from "node:crypto";
-import { createWorkdaySourceFetch } from "../../src/crawler/workdaySourceFetch";
+import { createWorkdaySourceFetch, hasRecordLevelChinaEvidence } from "../../src/crawler/workdaySourceFetch";
 import type { WorkdayHttpResponse } from "../../src/crawler/workdaySourceFetch";
 import { runSourceCrawl } from "../../src/crawler/runSourceCrawl";
 import {
@@ -99,7 +99,9 @@ const JNJ_AUDITED_MAINLAND_DESCRIPTOR_ALIASES = [
 const JNJ_AUDITED_FOREIGN_DESCRIPTOR_ALIASES = [
   "Alaska (Any City)",
   "Arizona (Any City)",
+  "Baja California (Any City)",
   "California (Any City)",
+  "Coahuila (Any City)",
   "Colorado (Any City)",
   "Connecticut (Any City)",
   "Delaware (Any City)",
@@ -151,10 +153,13 @@ const JNJ_AUDITED_FOREIGN_DESCRIPTOR_ALIASES = [
   "La Jolla, California, United States of America",
   "Los Angeles, California, United States of America",
   "Malvern, Pennsylvania, United States of America",
+  "Manitoba (Any City)",
   "Miami, Florida, United States of America",
   "Minneapolis, Minnesota, United States of America",
   "New Brighton, Minnesota, United States of America",
+  "Olomouc, Olomoucky kraj, Czech Republic",
   "Orlando, Florida, United States of America",
+  "Ostrava, Moravskoslezsky kraj, Czech Republic",
   "Palm Beach Gardens, Florida, United States of America",
   "Providence, Rhode Island, United States of America",
   "Raritan, New Jersey, United States of America",
@@ -219,6 +224,7 @@ const JNJ_AUDITED_FOREIGN_DESCRIPTOR_ALIASES = [
   "Mountain View, California, United States of America",
   "MX301 – Circuito Interior Norte - BWI",
   "Nebraska (Any City)",
+  "New Brunswick (Any City)",
   "New Brunswick, New Jersey, United States of America",
   "Oklahoma (Any City)",
   "Redwood City, California, United States of America",
@@ -238,6 +244,7 @@ const JNJ_AUDITED_FOREIGN_DESCRIPTOR_ALIASES = [
   "Bridgewater, New Jersey, United States of America",
   "Busan, Korea, Republic of",
   "GIMPO-SI, Korea, Republic of",
+  "Hwaseong-si, Gyeonggi-do, Korea, Republic of",
   "Pittsburgh, Pennsylvania, United States of America",
   "Trenton, New Jersey, United States of America",
   "Uşak",
@@ -246,6 +253,8 @@ const JNJ_AUDITED_FOREIGN_DESCRIPTOR_ALIASES = [
 
 const GILEAD_AUDITED_FOREIGN_DESCRIPTOR_ALIASES = [
   "Czech Republic - Prague",
+  "Romania – Bucharest",
+  "Russian Federation - St. Petersburg",
   "UAE - Dubai",
   "United States – Remote"
 ] as const;
@@ -256,24 +265,43 @@ const BMS_AUDITED_FOREIGN_SITE_DESCRIPTOR_ALIASES = [
   "CA09 PSA Celgene - Los Angeles - CA",
   "CA10 PSA - Brisbane - CA",
   "CA14 San Diego Morehouse",
+  "CA15 San Diego RayzeBio",
+  "FL02 PSA Tampa - FL",
   "IN05 Indianapolis 80th Street",
   "MA01 PSA Cambridge Crossing - MA",
+  "MA03 PSA Devens - MA",
   "MD01 PSA Bethesda - FL",
   "NJ05 PSA New Brunswick - NJ",
   "NJ06 PSA Princeton LVL - NJ",
   "NJ09 PSA Princeton Pike - NJ",
   "NJ13 PSA Plainsboro - NJ",
   "NJ16 PSA Madison - Giralda Farms - NJ",
+  "TX02 PSA Celgene - Dallas - TX",
   "US99 PSA Field - United States",
   "WA04 PSA Celgene - Seattle Dexter Avenue - WA"
 ] as const;
 
 const BMS_AUDITED_FOREIGN_COUNTRY_DESCRIPTOR_ALIASES = [
   "Korea, Republic Of",
+  "Turkey",
   "United Kingdom (GB)"
 ] as const;
 
 describe("createWorkdaySourceFetch", () => {
+  it("rejects a mainland city token when the same descriptor explicitly names a foreign country", () => {
+    expect(hasRecordLevelChinaEvidence({ locationsText: "Shanghai, United States of America" }, undefined))
+      .toBe(false);
+    expect(hasRecordLevelChinaEvidence({ locationsText: "Shanghai, Korea, Republic Of" }, undefined))
+      .toBe(false);
+    expect(hasRecordLevelChinaEvidence({ locationsText: "Shanghai, United Kingdom (GB)" }, undefined))
+      .toBe(false);
+    expect(hasRecordLevelChinaEvidence({ locationsText: "Shanghai, China" }, undefined)).toBe(true);
+    expect(hasRecordLevelChinaEvidence({
+      locationsText: "CHN - BJ - Beijing Office",
+      externalPath: "/job/CHN---BJ---Beijing-Office/_4939173-1"
+    }, undefined)).toBe(true);
+    expect(hasRecordLevelChinaEvidence({ locationsText: "CHN - US - Remote" }, undefined)).toBe(false);
+  });
   it("retains exact Workday pages and official total evidence without promoting fetch completeness", async () => {
     const fetcher = createWorkdaySourceFetch({
       now: () => new Date("2026-07-08T00:00:00.000Z"),
@@ -910,7 +938,7 @@ describe("createWorkdaySourceFetch", () => {
         const { offset } = JSON.parse(request.body) as { offset: number };
         if (offset === 0) {
           return response({
-            total: 2,
+            total: 3,
             jobPostings: [{
               title: "Role One",
               externalPath: "/job/China/one",
@@ -1191,7 +1219,8 @@ describe("createWorkdaySourceFetch", () => {
 
     await expect(fetcher(plan)).resolves.toMatchObject({
       ok: false,
-      failureReason: "Workday jobs API returned HTTP 500"
+      failureReason: "Official recruitment endpoint was temporarily unavailable (HTTP 500)",
+      transportFailure: { code: "OFFICIAL_HTTP_500", retryable: true }
     });
   });
 
@@ -1974,7 +2003,6 @@ describe("createWorkdaySourceFetch", () => {
   });
 
   it.each([
-    "Albany, NY, United States of America",
     "CN999 Future Site",
     "Shanghai"
   ])("keeps JNJ's unaudited descriptor drift fail-closed: %s", async (driftedDescriptor) => {
@@ -2013,7 +2041,7 @@ describe("createWorkdaySourceFetch", () => {
     });
   });
 
-  it("excludes JNJ's exact audited Lancaster foreign descriptor from the China facet", async () => {
+  it("excludes an unambiguous foreign country alias outside JNJ's audited city list", async () => {
     const requests: Array<{ body: string }> = [];
     const fetcher = createWorkdaySourceFetch({
       http: async (request) => {
@@ -2037,8 +2065,8 @@ describe("createWorkdaySourceFetch", () => {
                 values: [
                   { descriptor: "Shanghai, China", id: "china", count: 1 },
                   {
-                    descriptor: "Lancaster, Pennsylvania, United States of America",
-                    id: "lancaster-us",
+                    descriptor: "Albany, NY, United States of America",
+                    id: "albany-us",
                     count: 1
                   }
                 ]
@@ -2074,167 +2102,22 @@ describe("createWorkdaySourceFetch", () => {
     expect(JSON.parse(requests[1]!.body).appliedFacets.locations).toEqual(["china"]);
   });
 
-  it("independently verifies JNJ's exact location, worker, adapter, and opaque-detail chain", async () => {
-    const staged = stagedPlanFor("source-johnson-innovative-medicine-social");
-    if (staged.adapterId !== "official-json" || !staged.workday) {
-      throw new Error("Expected staged JNJ Workday plan");
-    }
-    const listingPath = "/job/Hong-Kong/CQRA_R-100";
-    const auditedAliasPath = "/job/Harbin/Audited-Alias_R-101";
-    const jobsUrl = "https://jj.wd5.myworkdayjobs.com/wday/cxs/jj/JJ/jobs";
-    const fetcher = createWorkdaySourceFetch({
-      now: () => new Date("2026-07-17T00:00:00.000Z"),
-      http: async (request) => {
-        const body = JSON.parse(request.body) as { appliedFacets: Record<string, string[]> };
-        if (!body.appliedFacets.locations) {
-          return response({
-            total: 3,
-            jobPostings: [],
-            facets: [{
-              facetParameter: "locations",
-              descriptor: "Locations",
-              values: [
-                { descriptor: "Shanghai, China", id: "jnj-china", count: 1 },
-                { descriptor: "CN016 Harbin", id: "jnj-cn016", count: 1 },
-                {
-                  descriptor: "Lancaster, Pennsylvania, United States of America",
-                  id: "jnj-lancaster",
-                  count: 1
-                }
-              ]
-            }]
-          }, "2026-07-17T00:00:00.000Z", { finalUrl: jobsUrl });
-        }
-        if (!body.appliedFacets.workerSubType) {
-          return response({
-            total: 2,
-            jobPostings: [],
-            facets: [{
-              facetParameter: "workerSubType",
-              values: [
-                { descriptor: "Fixed Term Employee (Non-Intern) (Fixed Term)", id: "fixed", count: 0 },
-                { descriptor: "Regular", id: "regular", count: 2 },
-                { descriptor: "College Recruit", id: "campus", count: 0 },
-                { descriptor: "Intern (Fixed Term)", id: "intern", count: 0 },
-                { descriptor: "Temporary Agency Worker", id: "agency", count: 0 }
-              ]
-            }]
-          }, "2026-07-17T00:00:01.000Z", { finalUrl: jobsUrl });
-        }
-        return response({
-          total: 2,
-          jobPostings: [
-            {
-              title: "CQRA Specialist, HK",
-              externalPath: listingPath,
-              locationsText: "2 Locations",
-              bulletFields: ["R-100"]
-            },
-            {
-              title: "Audited alias role",
-              externalPath: auditedAliasPath,
-              locationsText: "CN016 Harbin",
-              bulletFields: ["R-101"]
-            }
-          ]
-        }, "2026-07-17T00:00:02.000Z", { finalUrl: jobsUrl });
-      },
-      detailHttp: async (request) => response({
-        jobPostingInfo: {
-          title: "CQRA Specialist, HK",
-          jobPostingSiteId: "JJ",
-          jobPostingId: "CQRA_R-100",
-          jobReqId: "R-100",
-          externalUrl: `https://jj.wd5.myworkdayjobs.com/JJ${listingPath}`,
-          posted: true,
-          canApply: true,
-          location: "Hong Kong, Hong Kong",
-          additionalLocations: ["Shanghai, China"]
-        }
-      }, "2026-07-17T00:00:03.000Z", {
-        finalUrl: request.url,
-        contentType: "application/json; charset=utf-8"
-      })
-    });
-
-    const fetched = await fetcher(staged);
-    if (!fetched.ok) throw new Error(fetched.failureReason);
-    const result = await runSourceCrawl(staged, { fetch: async () => fetched });
-
-    expect(result.truth).toEqual({
-      transportSuccess: true,
-      adapterSuccess: true,
-      completenessVerified: true
-    });
-    expect(result.observation).toMatchObject({
-      completenessStatus: "VERIFIED",
-      expectedJobCount: 2,
-      structuredJobCount: 2
-    });
-    expect(result.jobs).toEqual([
-      expect.objectContaining({
-        sourceJobId: workdayId(listingPath),
-        officialTitle: "CQRA Specialist, HK",
-        officialUrl: `https://jj.wd5.myworkdayjobs.com/JJ${listingPath}`,
-        locationRaw: "Hong Kong, Hong Kong | Shanghai, China",
-        cities: ["上海"]
-      }),
-      expect.objectContaining({
-        sourceJobId: workdayId(auditedAliasPath),
-        officialTitle: "Audited alias role",
-        officialUrl: `https://jj.wd5.myworkdayjobs.com/JJ${auditedAliasPath}`,
-        locationRaw: "CN016 Harbin",
-        cities: ["中国"]
-      })
-    ]);
-
-    const tamperedDetail = structuredClone(fetched);
-    if (!tamperedDetail.ok || !tamperedDetail.fetchEvidence) {
-      throw new Error("Expected JNJ evidence for strict tamper checks");
-    }
-    const detailArtifact = tamperedDetail.fetchEvidence.artifacts.find(
-      ({ logicalKey }) => logicalKey === "workday-detail-0000-0000"
+  it("stages the dedicated JNJ China careers adapter without reviving the retired Workday profile", () => {
+    const staged = buildStagedSourceCrawlPlans(candidateCompanies).find(
+      (candidate) => candidate.source.id === "source-johnson-innovative-medicine-social"
     );
-    if (!detailArtifact) throw new Error("Expected JNJ detail artifact");
-    const detailBody = JSON.parse(String(detailArtifact.body)) as {
-      jobPostingInfo: { canApply: boolean };
-    };
-    detailBody.jobPostingInfo.canApply = false;
-    detailArtifact.body = JSON.stringify(detailBody);
-    await expect(runSourceCrawl(staged, { fetch: async () => tamperedDetail })).resolves.toMatchObject({
-      truth: { completenessVerified: false }
+    expect(staged).toMatchObject({
+      adapterId: "official-json",
+      profileBoundSource: {
+        kind: "jnj-careers-china",
+        config: {
+          country: "China",
+          officialSearchUrl: "https://www.careers.jnj.com/en/jobs/?search=&country=China&pagesize=20",
+          scopePolicy: "GROUP_CHINA_ALL_BUSINESSES_V1"
+        }
+      }
     });
-
-    const tamperedOutput = structuredClone(fetched);
-    if (!tamperedOutput.ok || !("payload" in tamperedOutput)) {
-      throw new Error("Expected JNJ payload for strict tamper checks");
-    }
-    ((tamperedOutput.payload as { jobPostings: Array<{ title: string }> }).jobPostings[0]!).title = "Tampered title";
-    await expect(runSourceCrawl(staged, { fetch: async () => tamperedOutput })).resolves.toMatchObject({
-      truth: { completenessVerified: false }
-    });
-
-    const tamperedCities = structuredClone(fetched);
-    if (!tamperedCities.ok || !("payload" in tamperedCities)) {
-      throw new Error("Expected JNJ payload for strict city tamper check");
-    }
-    ((tamperedCities.payload as { jobPostings: Array<{ cities: string[] }> }).jobPostings[0]!).cities = ["北京"];
-    await expect(runSourceCrawl(staged, { fetch: async () => tamperedCities })).resolves.toMatchObject({
-      truth: { completenessVerified: false }
-    });
-
-    const tamperedPlan = structuredClone(staged);
-    if (tamperedPlan.adapterId !== "official-json" ||
-      tamperedPlan.workday?.locationFacetPolicy?.kind !== "JNJ_AUDITED_LOCATIONS_OVERLAP") {
-      throw new Error("Expected JNJ location policy for strict tamper checks");
-    }
-    tamperedPlan.workday.locationFacetPolicy.mainlandDescriptorAliases = [
-      ...tamperedPlan.workday.locationFacetPolicy.mainlandDescriptorAliases.slice(0, -1),
-      "CN999 Unaudited Site"
-    ];
-    await expect(runSourceCrawl(tamperedPlan, { fetch: async () => fetched })).resolves.toMatchObject({
-      truth: { completenessVerified: false }
-    });
+    expect(staged).not.toHaveProperty("workday");
   });
 
   it("rejects Gilead's audited foreign alias when it appears beneath a mainland-China ancestor", async () => {
@@ -2340,19 +2223,155 @@ describe("createWorkdaySourceFetch", () => {
     expect(requests).toHaveLength(1);
   });
 
-  it("keeps Pfizer opaque records returned by the exact China and Regular facets only when strict details name the audited APAC site", async () => {
+  it("refines Pfizer's audited China country facet to every explicit mainland location before crawling", async () => {
+    const requests: Array<Record<string, unknown>> = [];
+    const fetcher = createWorkdaySourceFetch({
+      now: () => new Date("2026-08-16T00:00:00.000Z"),
+      http: async (request) => {
+        const body = JSON.parse(request.body) as { appliedFacets: Record<string, string[]> };
+        requests.push(body);
+        if (!body.appliedFacets.locations) {
+          return response({
+            total: 3,
+            jobPostings: [],
+            facets: [{
+              facetParameter: "locationMainGroup",
+              values: [{
+                facetParameter: "locations",
+                descriptor: "All Locations",
+                values: [
+                  { descriptor: "China - Shanghai - Shanghai", id: "shanghai-id", count: 1 },
+                  { descriptor: "APAC - Remote", id: "apac-id", count: 1 }
+                ]
+              }]
+            }]
+          });
+        }
+        if (!body.appliedFacets.workerSubType) {
+          return response({
+            total: 1,
+            jobPostings: [],
+            facets: [{
+              facetParameter: "workerSubType",
+              descriptor: "Job Type",
+              values: [{ descriptor: "Regular", id: "regular-id", count: 1 }]
+            }]
+          });
+        }
+        return response({
+          total: 1,
+          jobPostings: [{
+            title: "China Role",
+            externalPath: "/job/China---Shanghai/China-Role_1",
+            locationsText: "China - Shanghai - Shanghai",
+            bulletFields: ["1"]
+          }]
+        });
+      }
+    });
+
+    const result = await fetcher({
+      ...plan,
+      workday: {
+        tenant: "pfizer",
+        site: "PfizerCareers",
+        laterZeroTotalPolicy: "PFIZER_AUDITED_EXACT_RECONCILIATION",
+        opaqueMultiLocationDetailPolicy: "PFIZER_AUDITED_APAC_DETAIL_V1",
+        appliedFacets: { Location_Country: ["6cb77610a8a543aea2d6bc10457e35d4"] },
+        locationFacetPolicy: {
+          kind: "PFIZER_AUDITED_COUNTRY_LOCATION_REFINEMENT",
+          facetParameter: "locations",
+          foreignDescriptorAliases: ["APAC - Remote"]
+        },
+        facetDescriptorBoundary: { facetParameter: "workerSubType", allowedDescriptors: ["Regular"] },
+        pageSize: 20,
+        maxPages: 1
+      }
+    } as unknown as SourceCrawlPlan);
+
+    expect(result).toMatchObject({ ok: true, completeness: { expectedJobCount: 1 } });
+    expect(requests).toEqual([
+      { appliedFacets: { Location_Country: ["6cb77610a8a543aea2d6bc10457e35d4"] }, limit: 20, offset: 0 },
+      {
+        appliedFacets: {
+          Location_Country: ["6cb77610a8a543aea2d6bc10457e35d4"],
+          locations: ["shanghai-id"]
+        },
+        limit: 20,
+        offset: 0
+      },
+      {
+        appliedFacets: {
+          Location_Country: ["6cb77610a8a543aea2d6bc10457e35d4"],
+          locations: ["shanghai-id"],
+          workerSubType: ["regular-id"]
+        },
+        limit: 20,
+        offset: 0
+      }
+    ]);
+  });
+
+  it("rejects an unaudited descriptor while refining Pfizer's country facet", async () => {
+    const requests: Array<Record<string, unknown>> = [];
+    const fetcher = createWorkdaySourceFetch({
+      http: async (request) => {
+        requests.push(JSON.parse(request.body) as Record<string, unknown>);
+        return response({
+          total: 2,
+          jobPostings: [],
+          facets: [{
+            facetParameter: "locationMainGroup",
+            values: [{
+              facetParameter: "locations",
+              descriptor: "All Locations",
+              values: [
+                { descriptor: "China - Shanghai - Shanghai", id: "shanghai-id", count: 1 },
+                { descriptor: "Global Remote", id: "global-id", count: 1 }
+              ]
+            }]
+          }]
+        });
+      }
+    });
+
+    await expect(fetcher({
+      ...plan,
+      workday: {
+        tenant: "pfizer",
+        site: "PfizerCareers",
+        laterZeroTotalPolicy: "PFIZER_AUDITED_EXACT_RECONCILIATION",
+        opaqueMultiLocationDetailPolicy: "PFIZER_AUDITED_APAC_DETAIL_V1",
+        appliedFacets: { Location_Country: ["6cb77610a8a543aea2d6bc10457e35d4"] },
+        locationFacetPolicy: {
+          kind: "PFIZER_AUDITED_COUNTRY_LOCATION_REFINEMENT",
+          facetParameter: "locations",
+          foreignDescriptorAliases: ["APAC - Remote"]
+        },
+        facetDescriptorBoundary: { facetParameter: "workerSubType", allowedDescriptors: ["Regular"] },
+        pageSize: 20,
+        maxPages: 1
+      }
+    } as unknown as SourceCrawlPlan)).resolves.toMatchObject({
+      ok: false,
+      failureReason: expect.stringContaining("unscoped location descriptor Global Remote")
+    });
+    expect(requests).toHaveLength(1);
+  });
+
+  it("keeps Pfizer opaque records only when strict details name explicit mainland locations", async () => {
     const details = new Map([
       ["/job/India---Vizag/Associate-Manager---BQ-QMS---Compliance_4960738", {
         title: "Associate Manager - BQ QMS & Compliance",
         reqId: "4960738",
         location: "India - Vizag",
-        additionalLocations: ["APAC - Any Pfizer Site", "India - Chennai"]
+        additionalLocations: ["APAC - Any Pfizer Site", "Shanghai, China"]
       }],
       ["/job/India---Vizag/Associate-Manager---Quality-Assurance_4958270-1", {
         title: "Associate Manager - Quality Assurance",
         reqId: "4958270",
         location: "India - Vizag",
-        additionalLocations: ["APAC - Any Pfizer Site"]
+        additionalLocations: ["APAC - Any Pfizer Site", "Shanghai, China"]
       }]
     ]);
     const rawJobs = [...details.entries()].map(([externalPath, detail]) => ({
@@ -2365,6 +2384,23 @@ describe("createWorkdaySourceFetch", () => {
     const fetcher = createWorkdaySourceFetch({
       http: async (request) => {
         const body = JSON.parse(request.body) as { appliedFacets: Record<string, string[]> };
+        if (!body.appliedFacets.locations) {
+          return response({
+            total: 3,
+            jobPostings: [],
+            facets: [{
+              facetParameter: "locationMainGroup",
+              values: [{
+                facetParameter: "locations",
+                descriptor: "All Locations",
+                values: [
+                  { descriptor: "China - Shanghai - Shanghai", id: "shanghai-id", count: 1 },
+                  { descriptor: "APAC - Remote", id: "apac-id", count: 1 }
+                ]
+              }]
+            }]
+          }, undefined, { finalUrl: request.url });
+        }
         return body.appliedFacets.workerSubType
           ? response({ total: 2, jobPostings: rawJobs }, undefined, { finalUrl: request.url })
           : response({
@@ -2405,6 +2441,11 @@ describe("createWorkdaySourceFetch", () => {
         laterZeroTotalPolicy: "PFIZER_AUDITED_EXACT_RECONCILIATION",
         opaqueMultiLocationDetailPolicy: "PFIZER_AUDITED_APAC_DETAIL_V1",
         appliedFacets: { Location_Country: ["6cb77610a8a543aea2d6bc10457e35d4"] },
+        locationFacetPolicy: {
+          kind: "PFIZER_AUDITED_COUNTRY_LOCATION_REFINEMENT",
+          facetParameter: "locations",
+          foreignDescriptorAliases: ["APAC - Remote"]
+        },
         facetDescriptorBoundary: {
           facetParameter: "workerSubType",
           allowedDescriptors: ["Regular"]
@@ -2414,6 +2455,7 @@ describe("createWorkdaySourceFetch", () => {
       }
     } as unknown as SourceCrawlPlan);
 
+    if (!result.ok) throw new Error(`Expected safe Pfizer opaque fixture fetch: ${result.failureReason}`);
     expect(result).toMatchObject({
       ok: true,
       fetchEvidence: {
@@ -2429,7 +2471,7 @@ describe("createWorkdaySourceFetch", () => {
       locationRaw: details.get(raw.externalPath)!
         ? [details.get(raw.externalPath)!.location, ...details.get(raw.externalPath)!.additionalLocations].join(" | ")
         : "",
-      cities: ["APAC - Any Pfizer Site"]
+      cities: ["上海"]
     })) });
     expect(detailRequests).toHaveLength(2);
   });
@@ -2443,6 +2485,20 @@ describe("createWorkdaySourceFetch", () => {
     const fetcher = createWorkdaySourceFetch({
       http: async (request) => {
         const body = JSON.parse(request.body) as { appliedFacets: Record<string, string[]> };
+        if (!body.appliedFacets.locations) {
+          return response({
+            total: 1,
+            jobPostings: [],
+            facets: [{
+              facetParameter: "locationMainGroup",
+              values: [{
+                facetParameter: "locations",
+                descriptor: "All Locations",
+                values: [{ descriptor: "China - Shanghai - Shanghai", id: "shanghai-id", count: 1 }]
+              }]
+            }]
+          }, undefined, { finalUrl: request.url });
+        }
         return body.appliedFacets.workerSubType
           ? response({ total: 1, jobPostings: [{
               title: "Unscoped Pfizer Role",
@@ -2483,6 +2539,11 @@ describe("createWorkdaySourceFetch", () => {
         laterZeroTotalPolicy: "PFIZER_AUDITED_EXACT_RECONCILIATION",
         opaqueMultiLocationDetailPolicy: "PFIZER_AUDITED_APAC_DETAIL_V1",
         appliedFacets: { Location_Country: ["6cb77610a8a543aea2d6bc10457e35d4"] },
+        locationFacetPolicy: {
+          kind: "PFIZER_AUDITED_COUNTRY_LOCATION_REFINEMENT",
+          facetParameter: "locations",
+          foreignDescriptorAliases: ["APAC - Remote"]
+        },
         facetDescriptorBoundary: { facetParameter: "workerSubType", allowedDescriptors: ["Regular"] },
         pageSize: 20,
         maxPages: 10
@@ -2724,6 +2785,150 @@ describe("createWorkdaySourceFetch", () => {
     expect(JSON.parse(requests[2]!.body).appliedFacets).toEqual({
       locationHierarchy2: ["china-dynamic"],
       workerSubType: ["fixed-term-dynamic", "permanent-dynamic"]
+    });
+  });
+
+  it("hydrates an opaque BMS APAC listing only when its strict detail proves a mainland China location", async () => {
+    const externalPath = "/job/Singapore---SG/Regional-Privacy-Counsel---APAC_R1605226";
+    const rawJob = {
+      title: "Regional Privacy Counsel - APAC",
+      externalPath,
+      locationsText: "6 Locations",
+      bulletFields: ["R1605226"],
+      workerSubType: "Permanent"
+    };
+    const mainlandJob = {
+      title: "China Privacy Counsel",
+      externalPath: "/job/China/China-Privacy-Counsel_R1000000",
+      locationsText: "Shanghai, China",
+      bulletFields: ["R1000000"],
+      workerSubType: "Fixed Term (Fixed Term)"
+    };
+    const locationFacet = {
+      facetParameter: "locationMainGroup",
+      values: [{
+        facetParameter: "locationHierarchy2",
+        descriptor: "Country",
+        values: [
+          { descriptor: "China", id: "china-dynamic", count: 2 },
+          ...BMS_AUDITED_FOREIGN_SITE_DESCRIPTOR_ALIASES.map((descriptor, index) => ({
+            descriptor,
+            id: `bms-site-${index}`,
+            count: 1
+          })),
+          ...BMS_AUDITED_FOREIGN_COUNTRY_DESCRIPTOR_ALIASES.map((descriptor, index) => ({
+            descriptor,
+            id: `bms-country-${index}`,
+            count: 1
+          }))
+        ]
+      }]
+    };
+    const workerFacet = {
+      facetParameter: "workerSubType",
+      descriptor: "Job Type",
+      values: [
+        { descriptor: "Fixed Term (Fixed Term)", id: "fixed-term-dynamic", count: 1 },
+        { descriptor: "Permanent", id: "permanent-dynamic", count: 1 }
+      ]
+    };
+    const fetcher = createWorkdaySourceFetch({
+      http: async (request) => {
+        const body = JSON.parse(request.body) as { appliedFacets: Record<string, string[]>; offset: number };
+        if (!body.appliedFacets.locationHierarchy2) {
+          return response({
+            total: 2,
+            jobPostings: [],
+            facets: [locationFacet]
+          });
+        }
+        if (!body.appliedFacets.workerSubType) {
+          return response({
+            total: 2,
+            jobPostings: [],
+            facets: [workerFacet]
+          });
+        }
+        return response({
+          total: body.offset === 0 ? 2 : 0,
+          jobPostings: body.offset === 0 ? [mainlandJob] : [rawJob],
+          facets: body.offset === 0 ? [locationFacet, workerFacet] : [],
+          userAuthenticated: false
+        });
+      },
+      detailHttp: async (request) => response({
+        jobPostingInfo: {
+          title: rawJob.title,
+          jobPostingSiteId: "BMS",
+          jobPostingId: externalPath.split("/").at(-1),
+          jobReqId: "R1605226",
+          externalUrl: `https://bristolmyerssquibb.wd5.myworkdayjobs.com/BMS${externalPath}`,
+          posted: true,
+          canApply: true,
+          location: "Singapore - SG",
+          additionalLocations: [
+            "Seoul - KR",
+            "Mulgrave - AU",
+            "Hong Kong - HK",
+            "Shanghai P.R. HQ",
+            "Tokyo - JP"
+          ]
+        }
+      }, "2026-07-14T00:00:02.000Z", { finalUrl: request.url })
+    });
+
+    const result = await fetcher({
+      ...plan,
+      source: {
+        ...plan.source,
+        id: "source-bms-china-social",
+        officialEntryUrl: "https://bristolmyerssquibb.wd5.myworkdayjobs.com/BMS"
+      },
+      workday: {
+        tenant: "bristolmyerssquibb",
+        site: "BMS",
+        searchText: "China",
+        laterZeroTotalPolicy: "BMS_AUDITED_EXACT_RECONCILIATION",
+        opaqueMultiLocationDetailPolicy: "BMS_AUDITED_CHINA_DETAIL_V1",
+        locationFacetPolicy: {
+          kind: "BMS_AUDITED_FOREIGN_DESCRIPTOR_ALLOWLIST",
+          facetParameter: "locationHierarchy2",
+          foreignSiteDescriptorAliases: BMS_AUDITED_FOREIGN_SITE_DESCRIPTOR_ALIASES,
+          foreignCountryDescriptorAliases: BMS_AUDITED_FOREIGN_COUNTRY_DESCRIPTOR_ALIASES
+        },
+        facetDescriptorBoundary: {
+          facetParameter: "workerSubType",
+          allowedDescriptors: ["Fixed Term (Fixed Term)", "Permanent"]
+        },
+        pageSize: 1,
+        maxPages: 5
+      }
+    } as SourceCrawlPlan);
+
+    if (!result.ok) throw new Error(`Expected hydrated BMS result: ${result.failureReason}`);
+    expect(result).toMatchObject({
+      ok: true,
+      completeness: { expectedJobCount: 2, pagesVisited: 2 },
+      fetchEvidence: {
+        fetchCounts: { rawCount: 2, parsedCount: 2, validCount: 2, validationDiscardCount: 0 },
+        fetchLosses: []
+      }
+    });
+    if (!("payload" in result)) throw new Error("Expected hydrated BMS payload");
+    expect(result.payload).toEqual({
+      jobPostings: [{
+        sourceJobId: workdayId(mainlandJob.externalPath),
+        title: mainlandJob.title,
+        officialUrl: `https://bristolmyerssquibb.wd5.myworkdayjobs.com/BMS${mainlandJob.externalPath}`,
+        locationRaw: mainlandJob.locationsText,
+        cities: ["上海"]
+      }, {
+        sourceJobId: workdayId(externalPath),
+        title: rawJob.title,
+        officialUrl: `https://bristolmyerssquibb.wd5.myworkdayjobs.com/BMS${externalPath}`,
+        locationRaw: "Singapore - SG | Seoul - KR | Mulgrave - AU | Hong Kong - HK | Shanghai P.R. HQ | Tokyo - JP",
+        cities: ["上海"]
+      }]
     });
   });
 
@@ -3597,6 +3802,10 @@ describe("createWorkdaySourceFetch", () => {
 
   it.each([
     { name: "exact CLDR names", foreignDescriptors: ["Georgia", "Jordan"] },
+    {
+      name: "exact audited country aliases",
+      foreignDescriptors: ["Korea, Republic of", "Turkey"]
+    },
     { name: "exact ISO alpha-2 codes", foreignDescriptors: ["US", "DE"] },
     { name: "exact ISO alpha-3 codes", foreignDescriptors: ["USA", "DEU"] }
   ])("accepts provable foreign country siblings from $name", async ({ foreignDescriptors }) => {
@@ -4208,6 +4417,105 @@ describe("createWorkdaySourceFetch", () => {
     ]);
   });
 
+  it("accepts a lower exact facet preflight total after the authorized location boundary", async () => {
+    const bodies: Array<Record<string, unknown>> = [];
+    const fetcher = createWorkdaySourceFetch({
+      now: () => new Date("2026-08-24T08:00:00.000Z"),
+      http: async (request) => {
+        const body = JSON.parse(request.body) as Record<string, unknown>;
+        bodies.push(body);
+        const appliedFacets = body.appliedFacets as Record<string, string[]>;
+        if (bodies.length === 1) {
+          return response({
+            total: 46,
+            jobPostings: [],
+            facets: [{
+              facetParameter: "locations",
+              descriptor: "Locations",
+              values: [{ descriptor: "Shanghai, China", id: "shanghai-id", count: 46 }]
+            }]
+          }, "2026-08-24T08:00:01.000Z");
+        }
+        if (!appliedFacets.workerSubType) {
+          return response({
+            total: 45,
+            jobPostings: [],
+            facets: [{
+              facetParameter: "workerSubType",
+              descriptor: "Job Type",
+              values: [
+                { descriptor: "Fixed Term (Fixed Term)", id: "fixed-id", count: 1 },
+                { descriptor: "Permanent", id: "permanent-id", count: 44 }
+              ]
+            }]
+          }, "2026-08-24T08:00:02.000Z");
+        }
+        const offset = typeof body.offset === "number" ? body.offset : 0;
+        const jobs = Array.from({ length: 45 }, (_, index) => ({
+          title: `Role ${index + 1}`,
+          externalPath: `/job/China/role-${index + 1}`,
+          locationsText: "Shanghai, China",
+          workerSubType: index === 0 ? "Fixed Term (Fixed Term)" : "Permanent"
+        }));
+        return response({
+          total: 45,
+          jobPostings: jobs.slice(offset, offset + 20)
+        }, "2026-08-24T08:00:03.000Z");
+      }
+    });
+
+    const result = await fetcher({
+      ...plan,
+      workday: {
+        tenant: "pfizer",
+        site: "PfizerCareers",
+        searchText: "China",
+        facetDescriptorBoundary: {
+          facetParameter: "workerSubType",
+          allowedDescriptors: ["Fixed Term (Fixed Term)", "Permanent"]
+        },
+        pageSize: 20,
+        maxPages: 3
+      }
+    });
+
+    expect(result).toMatchObject({
+      ok: true,
+      completeness: { expectedJobCount: 45 },
+      fetchEvidence: {
+        declaredCompleteness: { value: 45, artifactLogicalKey: "workday-page-0000" }
+      }
+    });
+    expect(bodies).toEqual([
+      { appliedFacets: {}, limit: 20, offset: 0 },
+      { appliedFacets: { locations: ["shanghai-id"] }, limit: 20, offset: 0 },
+      {
+        appliedFacets: {
+          locations: ["shanghai-id"],
+          workerSubType: ["fixed-id", "permanent-id"]
+        },
+        limit: 20,
+        offset: 0
+      },
+      {
+        appliedFacets: {
+          locations: ["shanghai-id"],
+          workerSubType: ["fixed-id", "permanent-id"]
+        },
+        limit: 20,
+        offset: 20
+      },
+      {
+        appliedFacets: {
+          locations: ["shanghai-id"],
+          workerSubType: ["fixed-id", "permanent-id"]
+        },
+        limit: 20,
+        offset: 40
+      }
+    ]);
+  });
+
   it("fails before worker-type derivation when its preflight total exceeds the location-derived baseline", async () => {
     let requestNumber = 0;
     const fetcher = createWorkdaySourceFetch({
@@ -4255,7 +4563,7 @@ describe("createWorkdaySourceFetch", () => {
       }
     })).resolves.toMatchObject({
       ok: false,
-      failureReason: expect.stringContaining("social facet preflight total 2 did not match location-derived total 1"),
+      failureReason: expect.stringContaining("social facet preflight total 2 exceeded location-derived total 1"),
       fetchEvidence: {
         artifacts: [
           { logicalKey: "workday-preflight-0000" },

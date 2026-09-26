@@ -101,10 +101,16 @@ export interface HtmlTableConfig {
         kind: "STATIC_PUBLIC_LIST";
         sourcePolicy?:
           | "APELOA_SOCIAL_TABS_V1"
-          | "ASTELLAS_CHINA_PDF_ACCORDION_V1";
+          | "ASTELLAS_CHINA_PDF_ACCORDION_V1"
+          | "ASPEN_CHINA_EMPTY_PUBLIC_LIST_V1"
+          | "OTSUKA_CHINA_EMPTY_PUBLIC_LIST_V1"
+          | "OTSUKA_CHINA_JOIN_LIST_V1"
+          | "GRAND_PHARMA_SOCIAL_ONLY_V1"
+          | "HUAHAI_SOCIAL_TABLE_V1";
       };
   strictEmbeddedJsonZero?: {
     kind: "TEVA_SMARTAPPLY_CHINA";
+    remoteGlobalForeignExclusionPolicy: "TEVA_US_REMOTE_GLOBAL_V1";
   };
   staticPublicList?: {
     containerSelector: string;
@@ -134,6 +140,10 @@ export interface HtmlTableConfig {
     expectedJobCountAttribute?: string;
     expectedJobCountPattern?: string;
     expectedJobCountValue?: number;
+    explicitEmptyState?: {
+      selector: string;
+      pattern: string;
+    };
     officialWindowMode?: "NOVARTIS_PAGE_WINDOW_V1";
     strictPageControls?: {
       containerSelector: string;

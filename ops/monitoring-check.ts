@@ -2,6 +2,7 @@ import { createHash } from "node:crypto";
 import { constants } from "node:fs";
 import { access, lstat, open, readFile, readdir, type FileHandle } from "node:fs/promises";
 import { basename, resolve } from "node:path";
+import { pathToFileURL } from "node:url";
 import { evaluateOpsAlerts, type OpsAlertInput } from "../src/server/opsMonitoring";
 import { checkPostgresReadiness, DEFAULT_POSTGRES_READINESS_TIMEOUT_MS } from "../src/server/postgresReadiness";
 import { DEFAULT_CRAWL_SUMMARY_MAX_AGE_HOURS, readCrawlSummaryFile, type CrawlEvidenceIdentity } from "../src/crawler/crawlSummary";
@@ -16,14 +17,22 @@ import {
   acknowledgeDeliveredOneShotAlerts,
   filterAcknowledgedOneShotAlerts
 } from "../src/server/oneShotAlertDelivery";
+import { readRestoreQualificationEvidence } from "../src/ops/restoreQualification";
+import { listCurrentPrismaMigrations } from "../src/db/prismaMigrationManifest";
+import { readBackupAttemptEvidence } from "../src/ops/backupAttemptReceipt";
 
 interface JsonMap {
   [key: string]: unknown;
 }
 
-void main();
+if (process.argv[1] && pathToFileURL(process.argv[1]).href === import.meta.url) void runMonitoringCheck();
 
-async function main(): Promise<void> {
+export async function runMonitoringCheck(overrides: {
+  databaseReachable?: boolean;
+  expectedIdentity?: CrawlEvidenceIdentity;
+  health?: OpsAlertInput["health"];
+  restore?: OpsAlertInput["restore"];
+} = {}): Promise<void> {
   const {
     attemptDir: crawlAttemptDir,
     summaryPath: crawlSummaryPath,
@@ -32,26 +41,27 @@ async function main(): Promise<void> {
   const healthUrl = process.env.HEALTHCHECK_URL ?? "http://127.0.0.1:3000/healthz";
   const databaseUrl = process.env.DATABASE_URL;
   const backupDir = process.env.BACKUP_DIR ?? `${process.cwd()}/backups`;
+  const restoreReceiptPath = process.env.RESTORE_RECEIPT_PATH ?? `${process.cwd()}/var/restore-receipt.json`;
   const readinessSummaryPath =
     process.env.READINESS_SUMMARY_PATH ?? `${process.cwd()}/var/readiness-summary.json`;
-  const certificateExpiresAt = process.env.CERTIFICATE_EXPIRES_AT;
   const now = process.env.MONITORING_NOW ? new Date(process.env.MONITORING_NOW) : new Date();
   const monitorStateDir = process.env.MONITOR_STATE_DIR ?? `${process.cwd()}/var/monitor-state`;
   const postgresReadinessTimeoutMs = Number(
     process.env.POSTGRES_READINESS_TIMEOUT_MS ?? DEFAULT_POSTGRES_READINESS_TIMEOUT_MS
   );
 
-  const [health, dbReachable, backupEvidence, readinessSummary] = await Promise.all([
-    checkHealth(healthUrl),
-    checkPostgresReadiness(databaseUrl, {
+  const [health, dbReachable, backupEvidence, restoreEvidence, readinessSummary] = await Promise.all([
+    overrides.health ?? checkHealth(healthUrl),
+    overrides.databaseReachable ?? checkPostgresReadiness(databaseUrl, {
       timeoutMs: postgresReadinessTimeoutMs
     }),
     readBackupEvidence(backupDir),
+    overrides.restore ?? readRestoreQualificationEvidence(restoreReceiptPath, listCurrentPrismaMigrations(process.cwd())),
     readOptionalJson(readinessSummaryPath)
   ]);
 
-  let expectedIdentity: CrawlEvidenceIdentity | undefined;
-  if (dbReachable) {
+  let expectedIdentity: CrawlEvidenceIdentity | undefined = overrides.expectedIdentity;
+  if (dbReachable && !expectedIdentity) {
     try {
       expectedIdentity = await loadProductionStagedMonitoringIdentity(databaseUrl);
     } catch {
@@ -82,21 +92,25 @@ async function main(): Promise<void> {
       })
     : { state: "INVALID" as const };
   const crawlSummary = crawlEvidence.state === "VALID" ? crawlEvidence.summary : undefined;
+  const crawlCounters = readRecord(crawlSummary as unknown as JsonMap | undefined, "counters");
+  const globalSuccessRate = readNumber(crawlSummary as unknown as JsonMap | undefined, "globalSuccessRate");
+  const completenessFailureCount = readNumber(crawlCounters, "completenessIncompleteSourceCount");
   const attemptEvidence = monitoringIdentity
     ? await readLatestCrawlAttempt(crawlAttemptDir, {
         now,
         expectedIdentity: monitoringIdentity,
         maxRunningAgeHours: scheduledAttemptMaxRunningAgeHours(process.env),
-        expectedCanonicalSummary: crawlEvidence.state === "VALID" || crawlEvidence.state === "STALE"
-          ? { batchId: crawlEvidence.summary.batchId!, summarySha256: crawlEvidence.summarySha256 }
-          : undefined
+        ...(crawlEvidence.state === "VALID" || crawlEvidence.state === "STALE" ? { expectedCanonicalSummary:
+          { batchId: crawlEvidence.summary.batchId!, summarySha256: crawlEvidence.summarySha256 } } : {})
       })
     : { state: "INVALID" as const };
 
   const candidateAlerts = evaluateOpsAlerts({
     now,
     health,
+    database: { ok: dbReachable },
     backup: backupEvidence,
+    restore: restoreEvidence,
     crawl: {
       authorityState: pauseBundle.state === "PAUSED"
         ? "PAUSED"
@@ -105,37 +119,19 @@ async function main(): Promise<void> {
           : "INVALID",
       attemptState: attemptEvidence.state,
       summaryState: crawlEvidence.state,
-      globalSuccessRate: readNumber(crawlSummary, "globalSuccessRate"),
-      consecutiveFailuresByCompany: toFailureMap(readRecord(crawlSummary, "consecutiveFailuresByCompany")),
-      initialQualificationPause: pauseBundle.state === "PAUSED" ? {
+      ...(globalSuccessRate === undefined ? {} : { globalSuccessRate }),
+      ...(completenessFailureCount === undefined ? {} : { completenessFailureCount }),
+      consecutiveFailuresByCompany: toFailureMap(readRecord(crawlSummary as unknown as JsonMap | undefined, "consecutiveFailuresByCompany")),
+      ...(pauseBundle.state === "PAUSED" ? { initialQualificationPause: {
         notificationKey: pauseBundle.evidence.notificationKey,
         releaseCandidateId: pauseBundle.evidence.releaseCandidateId,
         batchId: pauseBundle.evidence.batchId,
         completedRoundCount: pauseBundle.evidence.completedRoundCount,
         stableCompanyCount: pauseBundle.evidence.stableCompanyCount,
         minimumStableCompanyCount: pauseBundle.evidence.minimumStableCompanyCount
-      } : undefined
-    },
-    certificate: {
-      expiresAt: certificateExpiresAt ?? readString(readinessSummary, "certificateExpiresAt")
-    },
-    resources: {
-      diskUsedPercent: readEnvNumber("DISK_USED_PERCENT"),
-      memoryUsedPercent: readEnvNumber("MEMORY_USED_PERCENT")
-    },
-    traffic: {
-      requestsLastHour: readEnvNumber("REQUESTS_LAST_HOUR"),
-      baselineRequestsPerHour: readEnvNumber("BASELINE_REQUESTS_PER_HOUR")
+      } } : {})
     }
   } satisfies OpsAlertInput);
-
-  if (dbReachable === false) {
-    candidateAlerts.push({
-      code: "DATABASE_UNREACHABLE",
-      severity: "critical",
-      message: "Authenticated PostgreSQL readiness check failed."
-    });
-  }
 
   let alerts: typeof candidateAlerts;
   try {
@@ -181,6 +177,9 @@ async function checkHealth(healthUrl: string): Promise<OpsAlertInput["health"]> 
 }
 
 async function readBackupEvidence(backupDir: string): Promise<OpsAlertInput["backup"]> {
+  const attemptEvidence = await readBackupAttemptEvidence(resolve(backupDir, "latest-backup-attempt.json"));
+  if (attemptEvidence.latestBackupAt || attemptEvidence.latestBackupSucceeded !== undefined) return attemptEvidence;
+  if (process.env.BACKUP_ATTEMPT_RECEIPT_REQUIRED === "1") return { latestBackupSucceeded: false };
   let newestMarker: { name: string; mtimeMs: number; mtime: Date } | undefined;
 
   try {
@@ -287,11 +286,6 @@ async function readOptionalJson(path: string): Promise<JsonMap | undefined> {
   }
 }
 
-function readString(source: JsonMap | undefined, key: string): string | undefined {
-  const value = source?.[key];
-  return typeof value === "string" ? value : undefined;
-}
-
 function readNumber(source: JsonMap | undefined, key: string): number | undefined {
   const value = source?.[key];
   return typeof value === "number" ? value : undefined;
@@ -312,14 +306,4 @@ function toFailureMap(source: JsonMap | undefined): Record<string, number> {
       .filter(([, value]) => typeof value === "number")
       .map(([companyId, value]) => [companyId, value as number])
   );
-}
-
-function readEnvNumber(name: string): number | undefined {
-  const value = process.env[name];
-  if (!value) {
-    return undefined;
-  }
-
-  const parsed = Number(value);
-  return Number.isFinite(parsed) ? parsed : undefined;
 }

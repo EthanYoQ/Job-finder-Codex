@@ -11,7 +11,7 @@ import {
   type RunP0CrawlBatchDeps
 } from "../../src/crawler/runCrawlBatch";
 import { buildJobDedupeKey, type NormalizedJobRecord } from "../../src/crawler/normalizedJob";
-import { buildDiscoverySourcePlanCandidates, buildStagedSourceCrawlPlans, expectedChannelSetHash, getPlanBySourceId, type SourceCrawlPlan } from "../../src/crawler/sourcePlan";
+import { buildDiscoverySourcePlanCandidates, buildStagedSourceCrawlPlans, expectedChannelSetHash, getPlanBySourceId, sourcePlanConfigSha256, type SourceCrawlPlan } from "../../src/crawler/sourcePlan";
 import type { JobSnapshot } from "../../src/crawler/lifecycle";
 import { candidateCompanies } from "../../src/data/companyRegistry";
 import {
@@ -21,10 +21,11 @@ import {
 } from "../../src/db/ingestionRepository";
 import { canonicalReleaseMembersSha256, releaseMembersFromPlans,
   type AuthoritativeReleaseMembershipArtifact } from "../../src/crawler/authoritativeReleaseMembership";
-import { evaluatePaginationEvidence } from "../../src/crawler/paginationEvidence";
+import { deriveCanonicalPaginationEvidence, evaluatePaginationEvidence } from "../../src/crawler/paginationEvidence";
 import type { PersistentSourceFetchEvidence } from "../../src/crawler/sourceFetchEvidence";
 import { hashCanonicalJobKeySet } from "../../src/crawler/runtimeBatchIdentity";
 import { createSourceFetchRouter } from "../../src/crawler/sourceFetchRouter";
+import { createHttpHtmlSourceFetch } from "../../src/crawler/httpHtmlSourceFetch";
 
 const IDENTITY_BASE = {
   releaseCandidateId: "p0-rc-20260710-001",
@@ -36,6 +37,8 @@ const IDENTITY_BASE = {
   batchKind: "SCHEDULED" as const,
   ownerId: "phase1-task4-test"
 };
+
+const PROCESS_HEAVY_BATCH_TEST_TIMEOUT_MS = 60_000;
 
 function identityForPlans(
   expectedPlans: readonly SourceCrawlPlan[],
@@ -201,6 +204,100 @@ function strictSuccessfulFetch(plan: SourceCrawlPlan, sourceJobId = "later-job")
   };
 }
 
+function strictViatrisFetch(plan: SourceCrawlPlan, jobCount: number) {
+  if (plan.adapterId !== "html-table" || plan.source.id !== "source-viatris-social") {
+    throw new Error("Test helper requires the Viatris html-table plan");
+  }
+  const channelId = plan.expectedChannels?.[0]?.channelId;
+  if (!channelId) throw new Error("Test helper requires a bound Viatris channel");
+  const ids = Array.from({ length: jobCount }, (_, index) => `viatris-${index}`);
+  const rows = ids.map((id) => `<div class="position-item"><div class="e-title"><a href="/Viatris/position/detail?positionId=${id}">Role ${id}</a></div><div class="e-city">上海</div></div>`).join("");
+  const html = `<div class="position-list-body">${rows}</div><ul id="pageTurnUl"><li data-total-pages="1"></li></ul>`;
+  const logicalKey = "viatris-main-0";
+  const fetchEvidence: PersistentSourceFetchEvidence = {
+    captureTool: { name: "viatris-http-test", version: "1" },
+    artifacts: [{
+      id: logicalKey,
+      logicalKey,
+      kind: "ATS_PAGE",
+      channelId,
+      requestedUrl: plan.source.officialEntryUrl,
+      finalUrl: plan.source.officialEntryUrl,
+      httpStatus: 200,
+      contentType: "text/html",
+      capturedAt: CAPTURED_AT,
+      body: html,
+      bodyRepresentation: "EXACT",
+      extractorLocator: "tupu360-http-post-v1|page:1"
+    }],
+    pages: [{
+      sequence: 0,
+      artifactLogicalKey: logicalKey,
+      channelId,
+      requestedOffset: 0,
+      returnedOffset: 0,
+      requestedPageSize: 10,
+      returnedPageSize: jobCount,
+      rawJobIds: ids,
+      validJobIds: ids,
+      declaredPages: 1,
+      declaredCount: jobCount,
+      nextPageSignalBefore: "initial",
+      nextPageSignalAfter: null,
+      responseFingerprintSha256: createHash("sha256").update(html).digest("hex"),
+      termination: "NEXT_ABSENT",
+      anomalyCodes: [],
+      capturedAt: CAPTURED_AT
+    }],
+    declaredCompleteness: {
+      kind: "COMPLETE_PAGE_TRAVERSAL",
+      value: 1,
+      artifactLogicalKey: logicalKey,
+      extractorLocator: "tupu360-http-post-v1|page:1",
+      scope: "CHANNEL",
+      channelId
+    },
+    fetchCounts: {
+      rawCount: jobCount,
+      parsedCount: jobCount,
+      validCount: jobCount,
+      parseDiscardCount: 0,
+      validationDiscardCount: 0
+    },
+    fetchLosses: []
+  };
+  return {
+    ok: true as const,
+    capturedAt: CAPTURED_AT,
+    html,
+    fetchEvidence,
+    paginationEvaluation: evaluatePaginationEvidence({
+      evidence: fetchEvidence,
+      expectedChannelIds: [channelId],
+      filteredOutput: true
+    })
+  };
+}
+
+function strictAstellasFetch(plan: SourceCrawlPlan) {
+  if (plan.adapterId !== "html-table" || plan.source.id !== "source-astellas-china-social") {
+    throw new Error("Test helper requires the Astellas html-table plan");
+  }
+  const pdf = (id: string) =>
+    `<a href="/content/dam/astellas-com/global/zh/careers/${id}.pdf"><span>${id}</span><span>arrow_forward</span></a>`;
+  const body = `<div class="cmp-accordion" data-cmp-is="accordion">${pdf("China External Innovation Lead")}${pdf("Data Management Lead")}</div>`;
+  return createHttpHtmlSourceFetch({
+    now: () => new Date(CAPTURED_AT),
+    http: async (request) => ({
+      status: 200,
+      body,
+      finalUrl: request.url,
+      contentType: "text/html; charset=utf-8",
+      capturedAt: CAPTURED_AT
+    })
+  })(plan);
+}
+
 function strategyDeclaredArtifactUrl(plan: SourceCrawlPlan): string {
   if (plan.adapterId !== "official-json") throw new Error("Expected official-json strategy plan");
   const entry = new URL(plan.source.officialEntryUrl);
@@ -231,7 +328,15 @@ function inMemoryArchiveDeps(): Pick<RunP0CrawlBatchDeps, "archiveEvidence" | "v
         capturedAt: new Date(draft.capturedAt),
         sha256: createHash("sha256").update(bytes).digest("hex"),
         byteCount: bytes.byteLength,
-        path: `test/${request.sourceId}/${draft.id}`,
+        ...(draft.bodyRepresentation === undefined ? {} : { bodyRepresentation: draft.bodyRepresentation }),
+        ...(draft.rawBodySha256 === undefined ? {} : { rawBodySha256: draft.rawBodySha256 }),
+        ...(draft.redactionDescriptors === undefined ? {} : {
+          redactionDescriptors: draft.redactionDescriptors.map((descriptor) => ({ ...descriptor }))
+        }),
+        path: ["outputs", "p0-rc", request.releaseCandidateId, request.evidenceSubdirectory,
+          "artifacts", request.batchId, request.sourceId, request.sourceResultId,
+          `${draft.id}--${draft.logicalKey}${draft.contentType?.toLowerCase().includes("json") ? ".json" :
+            draft.contentType?.toLowerCase().includes("html") ? ".html" : ".bin"}`].join("/"),
         extractorLocator: draft.extractorLocator,
         captureToolName: request.captureTool.name,
         captureToolVersion: request.captureTool.version
@@ -258,6 +363,8 @@ function fakeDb() {
     batchesUpdated: [] as unknown[],
     observations: [] as unknown[],
     jobs: [] as unknown[],
+    evidenceArtifacts: [] as unknown[],
+    paginationEvidence: [] as unknown[],
     pendingSourceResults: [] as unknown[],
     terminalSourceResults: [] as unknown[]
   };
@@ -320,8 +427,14 @@ function fakeDb() {
         },
         updateMany: terminalUpdateMany
       },
-      evidenceArtifact: { create: async (args: unknown) => args },
-      paginationEvidence: { create: async (args: unknown) => args },
+      evidenceArtifact: { create: async (args: unknown) => {
+        calls.evidenceArtifacts.push(args);
+        return args;
+      } },
+      paginationEvidence: { create: async (args: unknown) => {
+        calls.paginationEvidence.push(args);
+        return args;
+      } },
       lossLedgerEntry: { create: async (args: unknown) => args },
       transportAttemptEvidence: { create: async (args: unknown) => args },
       transportAttemptArtifact: { create: async (args: unknown) => args },
@@ -365,6 +478,112 @@ function fakeDb() {
 }
 
 describe("runP0CrawlBatch", () => {
+  it("atomically persists one B-grade blocker state when independent traversal is unavailable", async () => {
+    const plan = getPlanBySourceId(
+      buildStagedSourceCrawlPlans(candidateCompanies),
+      "source-astellas-china-social"
+    );
+    if (!plan) throw new Error("Missing staged Astellas plan");
+    const db = fakeDb();
+    const archiveDeps = inMemoryArchiveDeps();
+    let committed: AtomicSourceEvidenceCommit | undefined;
+
+    const result = await runP0CrawlBatch([plan], {
+      db,
+      now: NOW,
+      force: true,
+      identity: identityForPlans([plan]),
+      fetch: strictAstellasFetch,
+      ...archiveDeps,
+      executeAtomicCommit: async (commit) => {
+        committed = commit;
+        await executeAtomicSourceEvidenceCommit(commit, db as never);
+      },
+      runIndependentTraversalValidator: async () => {
+        throw new Error("Plan-bound HTML browser validator navigation failed: https://secret.invalid/jobs");
+      },
+      getPreviousJobs: async () => [],
+      getRecentObservations: async () => [],
+      isBaselineCompleted: async () => true
+    });
+
+    expect(result).toMatchObject({
+      status: "INCOMPLETE",
+      completenessIncompleteSourceCount: 1,
+      atomicCommittedSourceCount: 1,
+      atomicFailedSourceCount: 0
+    });
+    expect(committed?.sourceResult).toMatchObject({
+      completenessState: "NEEDS_MANUAL_COMPLETENESS_REVIEW",
+      atomicCommitState: "COMMITTED",
+      blockerCode: "B_GRADE_BROWSER_NAVIGATION_FAILED",
+      blockerReason: "B-grade independent traversal failed: Plan-bound HTML browser validator navigation failed"
+    });
+    expect(committed?.commands.find((command) => command.type === "UPSERT_CRAWL_OBSERVATION"))
+      .toMatchObject({ observation: {
+        completenessStatus: "NEEDS_MANUAL_COMPLETENESS_REVIEW",
+        completenessBlockerReason: "B-grade independent traversal failed: Plan-bound HTML browser validator navigation failed"
+      } });
+  });
+
+  it("reads a B-grade baseline, forces current independent validation on a 100-to-10 drop, and preserves jobs when validation fails", async () => {
+    const plan = planFor("source-viatris-social");
+    const db = fakeDb();
+    const archiveDeps = inMemoryArchiveDeps();
+    let independentTraversalSignal: AbortSignal | undefined;
+    const runIndependentTraversalValidator = vi.fn(async (input) => {
+      independentTraversalSignal = input.signal;
+      throw new Error("independent traversal unavailable");
+    });
+    let committed: AtomicSourceEvidenceCommit | undefined;
+
+    const result = await runP0CrawlBatch([plan], {
+      db,
+      now: NOW,
+      force: true,
+      identity: identityForPlans([plan]),
+      fetch: async (candidate) => strictViatrisFetch(candidate, 10),
+      ...archiveDeps,
+      executeAtomicCommit: async (commit) => {
+        committed = commit;
+        db.persistAtomicSourceResult(commit.sourceResult);
+      },
+      runIndependentTraversalValidator,
+      getPreviousJobs: async () => Array.from({ length: 100 }, (_, index) => makeSnapshot(makeJob({
+        sourceId: plan.source.id,
+        sourceJobId: `trusted-${index}`,
+        officialUrl: `https://careersite.tupu360.com/Viatris/position/detail?positionId=trusted-${index}`
+      }))),
+      getRecentObservations: async () => [],
+      getTrustedCompletenessBaseline: async () => ({
+        sourceId: plan.source.id,
+        sourceResultId: "trusted-source-result-1",
+        sourceConfigSha256: sourcePlanConfigSha256(plan),
+        certificateGrade: "B",
+        certificateSha256: "b".repeat(64),
+        certifiedJobCount: 100,
+        verifiedAt: "2026-07-07T00:00:00.000Z",
+        certificate: {},
+        previousSourceResultId: null,
+        previousJobCount: null,
+        changeReason: "INDEPENDENT_VALIDATION_CONFIRMED_INITIAL"
+      }),
+      isBaselineCompleted: async () => true
+    });
+
+    expect(runIndependentTraversalValidator).toHaveBeenCalledOnce();
+    expect(independentTraversalSignal).toBeInstanceOf(AbortSignal);
+    expect(independentTraversalSignal?.aborted).toBe(false);
+    expect(result).toMatchObject({ status: "INCOMPLETE", completenessIncompleteSourceCount: 1 });
+    expect(committed?.sourceResult).toMatchObject({
+      completenessState: "INCOMPLETE",
+      blockerCode: "COMPLETENESS_ANOMALY_UNVERIFIED",
+      blockerReason: expect.stringContaining("TRUSTED_COUNT_DROP")
+    });
+    expect(committed?.commands.filter((command) => command.type === "UPSERT_JOB")).toEqual([]);
+    expect(db.calls.jobs).toEqual([]);
+  });
+
   it("derives terminal counters from persisted source rows instead of stale process counters", () => {
     const rows = [
       ...Array.from({ length: 13 }, (_, index) => ({
@@ -462,10 +681,13 @@ describe("runP0CrawlBatch", () => {
     expect(db.calls.terminalSourceResults).toEqual([]);
   });
 
-  it("classifies a confirmed PENDING timeout safely before orphaning and rollback", async () => {
+  it("persists a redacted evidence artifact path conflict before orphaning and rollback", async () => {
     const plan = planFor("source-roche-china-social");
     const db = fakeDb();
-    const p2028 = Object.assign(new Error("authorization: Bearer must-not-leak"), { code: "P2028" });
+    const pathConflict = Object.assign(new Error("authorization: Bearer must-not-leak"), {
+      code: "P2002",
+      meta: { modelName: "EvidenceArtifact", target: ["path"] }
+    });
     const orphanLedger = vi.fn(async () => undefined);
 
     const result = await runP0CrawlBatch([plan], {
@@ -475,7 +697,7 @@ describe("runP0CrawlBatch", () => {
       force: true,
       identity: identityForPlans([plan]),
       ...inMemoryArchiveDeps(),
-      executeAtomicCommit: vi.fn(async () => { throw p2028; }),
+      executeAtomicCommit: vi.fn(async () => { throw pathConflict; }),
       inspectAtomicCommitOutcome: async () => ({ state: "PENDING" }),
       readPersistedBatchSourceResults: async () => [{
         sourceId: plan.source.id,
@@ -483,7 +705,7 @@ describe("runP0CrawlBatch", () => {
         adapterState: "SUCCEEDED",
         completenessState: "FAILED",
         atomicCommitState: "ROLLED_BACK",
-        failureCode: "ATOMIC_EVIDENCE_TRANSACTION_TIMEOUT"
+        failureCode: "ATOMIC_EVIDENCE_ARTIFACT_PATH_CONFLICT"
       }],
       recordOrphanedArtifacts: orphanLedger,
       getPreviousJobs: async () => [],
@@ -495,7 +717,7 @@ describe("runP0CrawlBatch", () => {
     expect(orphanLedger).toHaveBeenCalledOnce();
     expect(db.calls.terminalSourceResults).toContainEqual(expect.objectContaining({
       data: expect.objectContaining({
-        failureCode: "ATOMIC_EVIDENCE_TRANSACTION_TIMEOUT",
+        failureCode: "ATOMIC_EVIDENCE_ARTIFACT_PATH_CONFLICT",
         failureReason: "Atomic evidence processing failed"
       })
     }));
@@ -1221,7 +1443,7 @@ describe("runP0CrawlBatch", () => {
       where: { id: "batch-1" },
       data: expect.objectContaining({ finishedAt: NOW, status: "FAILED" })
     });
-  });
+  }, PROCESS_HEAVY_BATCH_TEST_TIMEOUT_MS);
 
   it("records an exhausted Roche retry without upserting lifecycle job changes", async () => {
     const plan = planFor("source-roche-china-social");
@@ -1291,6 +1513,122 @@ describe("runP0CrawlBatch", () => {
     });
   });
 
+  it("atomically retains archived page evidence when strict HTML pagination fails closed", async () => {
+    const plan = planFor("source-viatris-social");
+    const db = fakeDb();
+    const fetched = strictViatrisFetch(plan, 10);
+    fetched.fetchEvidence.pages[0]!.returnedPage = 2;
+    fetched.fetchEvidence = deriveCanonicalPaginationEvidence({
+      evidence: fetched.fetchEvidence,
+      expectedChannelIds: [plan.expectedChannels![0]!.channelId],
+      filteredOutput: true
+    });
+    const paginationEvaluation = evaluatePaginationEvidence({
+      evidence: fetched.fetchEvidence,
+      expectedChannelIds: [plan.expectedChannels![0]!.channelId],
+      filteredOutput: true
+    });
+    expect(paginationEvaluation.derivedAnomalyCodes.length).toBeGreaterThan(0);
+
+    const result = await runP0CrawlBatch([plan], {
+      db,
+      fetch: async () => ({
+        ok: false as const,
+        capturedAt: CAPTURED_AT,
+        failureReason: "HTML_PAGINATION_EVIDENCE_UNSAFE",
+        fetchEvidence: fetched.fetchEvidence,
+        paginationEvaluation
+      }),
+      now: NOW,
+      force: true,
+      identity: identityForPlans([plan]),
+      ...inMemoryArchiveDeps(),
+      getPreviousJobs: async () => [],
+      getRecentObservations: async () => [],
+      isBaselineCompleted: async () => true
+    });
+
+    expect(result).toMatchObject({ status: "INCOMPLETE", failedSourceCount: 1 });
+    expect(db.calls.evidenceArtifacts).toHaveLength(1);
+    expect(db.calls.paginationEvidence).toHaveLength(1);
+    expect(db.calls.paginationEvidence[0]).toMatchObject({
+      data: expect.objectContaining({ anomalyCodes: paginationEvaluation.pages[0]!.anomalyCodes })
+    });
+    expect(db.calls.observations).toEqual([]);
+    expect(db.calls.jobs).toEqual([]);
+  });
+
+  it("does not inspect a failed-evidence commit when validation failed before the transaction boundary", async () => {
+    const plan = planFor("source-viatris-social");
+    const db = fakeDb();
+    const fetched = strictViatrisFetch(plan, 10);
+    fetched.fetchEvidence.pages[0]!.returnedPage = 2;
+    fetched.fetchEvidence = deriveCanonicalPaginationEvidence({ evidence: fetched.fetchEvidence,
+      expectedChannelIds: [plan.expectedChannels![0]!.channelId], filteredOutput: true });
+    const paginationEvaluation = evaluatePaginationEvidence({
+      evidence: fetched.fetchEvidence,
+      expectedChannelIds: [plan.expectedChannels![0]!.channelId],
+      filteredOutput: true
+    });
+    const inspect = vi.fn(async () => ({ state: "COMMITTED_EXACT" as const }));
+    const validationError = Object.assign(new Error("invalid diagnostic bundle"), {
+      atomicEvidencePersistenceStage: "INPUT_VALIDATION"
+    });
+    const result = await runP0CrawlBatch([plan], {
+      db,
+      fetch: async () => ({ ok: false as const, capturedAt: CAPTURED_AT,
+        failureReason: "HTML_PAGINATION_EVIDENCE_UNSAFE", fetchEvidence: fetched.fetchEvidence,
+        paginationEvaluation }),
+      now: NOW, force: true, identity: identityForPlans([plan]), ...inMemoryArchiveDeps(),
+      executeFailedEvidenceCommit: async () => { throw validationError; },
+      inspectFailedEvidenceCommitOutcome: inspect,
+      recordOrphanedArtifacts: async () => undefined,
+      getPreviousJobs: async () => [], getRecentObservations: async () => [],
+      isBaselineCompleted: async () => true
+    });
+    expect(result).toMatchObject({ status: "INCOMPLETE", failedSourceCount: 1 });
+    expect(inspect).not.toHaveBeenCalled();
+    expect(db.calls.terminalSourceResults).toContainEqual(expect.objectContaining({
+      data: expect.objectContaining({ failureCode: "EVIDENCE_ARCHIVE_FAILED" })
+    }));
+  });
+
+  it("accepts an exact failed-evidence readback after a transaction commit-boundary timeout", async () => {
+    const plan = planFor("source-viatris-social");
+    const db = fakeDb();
+    const fetched = strictViatrisFetch(plan, 10);
+    fetched.fetchEvidence.pages[0]!.returnedPage = 2;
+    fetched.fetchEvidence = deriveCanonicalPaginationEvidence({ evidence: fetched.fetchEvidence,
+      expectedChannelIds: [plan.expectedChannels![0]!.channelId], filteredOutput: true });
+    const paginationEvaluation = evaluatePaginationEvidence({
+      evidence: fetched.fetchEvidence,
+      expectedChannelIds: [plan.expectedChannels![0]!.channelId],
+      filteredOutput: true
+    });
+    const inspect = vi.fn(async () => ({ state: "COMMITTED_EXACT" as const }));
+    const timeout = Object.assign(new Error("commit response lost"), {
+      atomicEvidencePersistenceStage: "TRANSACTION_COMMIT"
+    });
+    const result = await runP0CrawlBatch([plan], {
+      db,
+      fetch: async () => ({ ok: false as const, capturedAt: CAPTURED_AT,
+        failureReason: "HTML_PAGINATION_EVIDENCE_UNSAFE", fetchEvidence: fetched.fetchEvidence,
+        paginationEvaluation }),
+      now: NOW, force: true, identity: identityForPlans([plan]), ...inMemoryArchiveDeps(),
+      executeFailedEvidenceCommit: async () => { throw timeout; },
+      inspectFailedEvidenceCommitOutcome: inspect,
+      readPersistedBatchSourceResults: async () => [{ sourceId: plan.source.id,
+        transportState: "FAILED", adapterState: "SKIPPED", completenessState: "FAILED",
+        atomicCommitState: "NOT_ATTEMPTED", failureCode: "SOURCE_TRANSPORT_FAILED" }],
+      recordOrphanedArtifacts: async () => undefined,
+      getPreviousJobs: async () => [], getRecentObservations: async () => [],
+      isBaselineCompleted: async () => true
+    });
+    expect(result).toMatchObject({ status: "INCOMPLETE", failedSourceCount: 1 });
+    expect(inspect).toHaveBeenCalledOnce();
+    expect(db.calls.terminalSourceResults).toEqual([]);
+  });
+
   it("persists a bounded Sinopharm profile failure code without making it retryable", async () => {
     const plan = planFor("source-sinopharm-social");
     const db = fakeDb();
@@ -1323,6 +1661,84 @@ describe("runP0CrawlBatch", () => {
         adapterState: "SKIPPED",
         failureCode: "SOURCE_TRANSPORT_FAILED",
         failureReason: "SINOPHARM_IGUOPIN_HTTP_STATUS_403",
+        failureCategory: "UNCLASSIFIED_SOURCE_FAILURE",
+        failureDiagnosticCode: "FETCH_FAILED_CLOSED",
+        fetchAttemptCount: 1,
+        retryCount: 0
+      })
+    }));
+  });
+
+  it("persists a bounded MSD stage failure code without making it retryable", async () => {
+    const plan = planFor("source-msd-china-social");
+    const db = fakeDb();
+    const delegate = vi.fn(async () => ({
+      ok: false as const,
+      capturedAt: CAPTURED_AT,
+      failureReason: "MSD_ENTRY_FETCH_FAILED"
+    }));
+    const fetch = createSourceFetchRouter({
+      moka: delegate,
+      profileBoundSource: delegate,
+      fallback: delegate,
+      delay: async () => undefined
+    });
+
+    await runP0CrawlBatch([plan], {
+      db,
+      fetch,
+      now: NOW,
+      identity: identityForPlans([plan]),
+      getPreviousJobs: async () => [],
+      getRecentObservations: async () => [],
+      isBaselineCompleted: async () => true
+    });
+
+    expect(delegate).toHaveBeenCalledTimes(1);
+    expect(db.calls.terminalSourceResults).toContainEqual(expect.objectContaining({
+      data: expect.objectContaining({
+        transportState: "FAILED",
+        adapterState: "SKIPPED",
+        failureCode: "SOURCE_TRANSPORT_FAILED",
+        failureReason: "MSD_ENTRY_FETCH_FAILED",
+        failureCategory: "UNCLASSIFIED_SOURCE_FAILURE",
+        failureDiagnosticCode: "FETCH_FAILED_CLOSED",
+        fetchAttemptCount: 1,
+        retryCount: 0
+      })
+    }));
+  });
+
+  it("persists a bounded static HTML failure code without retaining upstream details", async () => {
+    const plan = planFor("source-sanofi-china-social");
+    const db = fakeDb();
+    const delegate = vi.fn(async () => ({
+      ok: false as const,
+      capturedAt: CAPTURED_AT,
+      failureReason: "HTML_FETCH_FAILED"
+    }));
+    const fetch = createSourceFetchRouter({
+      moka: delegate,
+      html: delegate,
+      fallback: delegate,
+      delay: async () => undefined
+    });
+
+    await runP0CrawlBatch([plan], {
+      db,
+      fetch,
+      now: NOW,
+      identity: identityForPlans([plan]),
+      getPreviousJobs: async () => [],
+      getRecentObservations: async () => [],
+      isBaselineCompleted: async () => true
+    });
+
+    expect(delegate).toHaveBeenCalledTimes(1);
+    expect(db.calls.terminalSourceResults).toContainEqual(expect.objectContaining({
+      data: expect.objectContaining({
+        failureCode: "SOURCE_TRANSPORT_FAILED",
+        failureReason: "HTML_FETCH_FAILED",
         failureCategory: "UNCLASSIFIED_SOURCE_FAILURE",
         failureDiagnosticCode: "FETCH_FAILED_CLOSED",
         fetchAttemptCount: 1,
@@ -1374,7 +1790,8 @@ describe("runP0CrawlBatch", () => {
       failureCategory: null,
       failureDiagnosticCode: null,
       fetchAttemptCount: 2,
-      retryCount: 1
+      retryCount: 1,
+      retryReasonCodes: ["OFFICIAL_HTTP_503"]
     });
   });
 
@@ -1383,7 +1800,7 @@ describe("runP0CrawlBatch", () => {
     const successfulPlan = planFor("source-roche-china-social");
     const batchPlans = [failedPlan, successfulPlan];
     const db = fakeDb();
-    const fetchError = new Error("first source network timeout");
+    const fetchError = Object.assign(new Error("private DNS response"), { code: "ENOTFOUND" });
     const previousFailedJob = makeJob({
       sourceId: failedPlan.source.id,
       atsKind: failedPlan.source.atsKind,
@@ -1437,6 +1854,10 @@ describe("runP0CrawlBatch", () => {
       skippedSourceCount: 0
     });
     expect(db.calls.jobs).toEqual([]);
+    expect(db.calls.terminalSourceResults).toContainEqual(expect.objectContaining({
+      where: expect.objectContaining({ sourceId: failedPlan.source.id }),
+      data: expect.objectContaining({ failureCode: "SOURCE_FETCH_DNS_FAILED" })
+    }));
     expect((db.calls.batchesUpdated[0] as { data: { aggregateJobSetSha256: string } }).data
       .aggregateJobSetSha256).toBe(hashCanonicalJobKeySet([{
         sourceId: successfulPlan.source.id,
@@ -1496,7 +1917,7 @@ describe("runP0CrawlBatch", () => {
   });
 
   it("isolates an adapter execution throw and commits the later due source", async () => {
-    const failedPlan = planFor("source-qilu-social");
+    const failedPlan = planFor("source-merck-china-social");
     const successfulPlan = planFor("source-roche-china-social");
     const batchPlans = [failedPlan, successfulPlan];
     const db = fakeDb();
@@ -1554,7 +1975,7 @@ describe("runP0CrawlBatch", () => {
   it.each(["archive", "verification", "build", "atomic commit"] as const)(
     "isolates a source-local %s failure and commits the later due source",
     async (failureStage) => {
-      const failedPlan = planFor("source-qilu-social");
+      const failedPlan = planFor("source-merck-china-social");
       const successfulPlan = planFor("source-roche-china-social");
       const batchPlans = [failedPlan, successfulPlan];
       const db = fakeDb();
@@ -1636,7 +2057,8 @@ describe("runP0CrawlBatch", () => {
           failureReason: "Atomic evidence processing failed"
         })
       }));
-    }
+    },
+    PROCESS_HEAVY_BATCH_TEST_TIMEOUT_MS
   );
 
   it("retains the source and terminalization errors when source-stage terminalization fails", async () => {
@@ -1801,7 +2223,7 @@ describe("runP0CrawlBatch", () => {
   });
 
   it("fails closed when post-commit rollback terminalization cannot be confirmed", async () => {
-    const failedPlan = planFor("source-qilu-social");
+    const failedPlan = planFor("source-merck-china-social");
     const laterPlan = planFor("source-roche-china-social");
     const batchPlans = [failedPlan, laterPlan];
     const db = fakeDb();
@@ -1840,7 +2262,7 @@ describe("runP0CrawlBatch", () => {
     expect(db.calls.batchesUpdated).toEqual([]);
     expect(fetch).toHaveBeenCalledTimes(1);
     expect(executeAtomicCommit).toHaveBeenCalledTimes(1);
-  });
+  }, PROCESS_HEAVY_BATCH_TEST_TIMEOUT_MS);
 
   it("retains source, terminalization, and batch-finalization errors together", async () => {
     const failedPlan = planFor("source-astrazeneca-social");
@@ -2116,7 +2538,7 @@ describe("runP0CrawlBatch", () => {
 
   it("uses globally unique deterministic artifact ids across sources, batches, and release candidates", async () => {
     const stagedPlans = buildStagedSourceCrawlPlans(candidateCompanies);
-    const firstPlan = getPlanBySourceId(stagedPlans, "source-qilu-social")!;
+    const firstPlan = getPlanBySourceId(stagedPlans, "source-lilly-china-social")!;
     const secondPlan = getPlanBySourceId(stagedPlans, "source-roche-china-social")!;
     const archivedRows: Array<{
       id: string;

@@ -8,15 +8,19 @@ describe("Docker apt transport reliability",()=>{
   it("uses one bounded installer with locked download and index caches in every apt layer",()=>{
     const dockerfile=read("Dockerfile");
     const layers=dockerfile.match(
-      /^RUN --mount=type=cache,target=\/var\/cache\/apt,sharing=locked \\\r?\n\s+--mount=type=cache,target=\/var\/lib\/apt,sharing=locked \\\r?\n\s+sh \/usr\/local\/bin\/install-apt-packages\.sh [^\r\n]+$/gmu,
+      /^RUN --mount=type=cache,(?:id=[^,\r\n]+,)?target=\/var\/cache\/apt,sharing=locked \\\r?\n\s+--mount=type=cache,(?:id=[^,\r\n]+,)?target=\/var\/lib\/apt,sharing=locked \\\r?\n\s+sh \/usr\/local\/bin\/install-apt-packages\.sh [^\r\n]+$/gmu,
     )??[];
 
-    expect(layers).toHaveLength(3);
+    expect(layers).toHaveLength(4);
+    expect(layers.some((layer)=>layer.includes("/tmp/brave-keyring.deb /tmp/brave-browser.deb"))).toBe(true);
     for(const layer of layers){
-      expect(layer).toContain("--mount=type=cache,target=/var/cache/apt,sharing=locked");
-      expect(layer).toContain("--mount=type=cache,target=/var/lib/apt,sharing=locked");
+      expect(layer).toMatch(/--mount=type=cache,(?:id=[^,\r\n]+,)?target=\/var\/cache\/apt,sharing=locked/u);
+      expect(layer).toMatch(/--mount=type=cache,(?:id=[^,\r\n]+,)?target=\/var\/lib\/apt,sharing=locked/u);
       expect(layer).toMatch(/sh \/usr\/local\/bin\/install-apt-packages\.sh [^\n]+/u);
     }
+    const ubuntuLayers=layers.filter((layer)=>layer.includes("id=ubuntu-26.04-apt-"));
+    expect(ubuntuLayers).toHaveLength(2);
+    expect(layers.filter((layer)=>!layer.includes("id=ubuntu-26.04-apt-"))).toHaveLength(2);
     expect(dockerfile).not.toMatch(/apt-get[^\n]*(?:update|install)/u);
   });
 

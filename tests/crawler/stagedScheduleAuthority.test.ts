@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import { candidateCompanies } from "../../src/data/companyRegistry";
-import { confirmedCompanyRosterV3 } from "../../src/data/confirmedCompanyRosterV3";
 import { AUTHORIZED_PHASE1_EXCLUSION_COMPANY_IDS } from "../../src/data/phase1ScopePolicy";
+import { P0_LAUNCH_MANIFEST, launchManifestIdentity, selectLaunchCompanies } from "../../src/release/launchManifest";
 import {
   activeSourcePlanSha256,
   buildDiscoverySourcePlanCandidates,
@@ -13,6 +13,8 @@ import {
   deriveCurrentStagedScheduleExpectation,
   deriveStagedAdapterBundleSha256,
   deriveStagedSourceConfigSha256,
+  resolveCurrentAuditableStagedScheduleAuthority,
+  resolveCurrentBuildingStagedScheduleAuthority,
   resolveCurrentStagedScheduleAuthority,
   STAGED_SCHEDULE_ORACLE_VERSION,
   type StagedScheduleExpectation
@@ -35,6 +37,8 @@ const BUILD = {
   runtimeTreeSha256: "3".repeat(64),
   contentSha256: "4".repeat(64)
 };
+const launchCompanies = selectLaunchCompanies(P0_LAUNCH_MANIFEST, candidateCompanies);
+const launchPlans = buildStagedSourceCrawlPlans(launchCompanies);
 
 function releaseCandidateRow(
   expectation: StagedScheduleExpectation,
@@ -57,25 +61,25 @@ function releaseCandidateRow(
 }
 
 describe("current staged schedule expectation", () => {
-  it("derives the exact 30+30 roster and canonical STAGED plans without planning exclusions", () => {
+  it("derives the exact human-verified 30+11 launch roster and canonical STAGED plans", () => {
     const expectation = deriveCurrentStagedScheduleExpectation(BUILD);
     const exclusions = new Set<string>(AUTHORIZED_PHASE1_EXCLUSION_COMPANY_IDS);
 
-    expect(expectation.companies).toHaveLength(60);
+    expect(expectation.companies).toHaveLength(41);
     expect(expectation.companies.filter(({ category }) => category === "FOREIGN_PHARMA")).toHaveLength(30);
-    expect(expectation.companies.filter(({ category }) => category === "DOMESTIC_PHARMA")).toHaveLength(30);
-    expect(expectation.rosterSha256).toBe(confirmedCompanyRosterV3.membersSha256);
+    expect(expectation.companies.filter(({ category }) => category === "DOMESTIC_PHARMA")).toHaveLength(11);
+    expect(expectation.rosterSha256).toBe(launchManifestIdentity(P0_LAUNCH_MANIFEST).companySetSha256);
     expect(expectation.plans.map((plan) => plan.source.id)).toEqual(
-      buildStagedSourceCrawlPlans(candidateCompanies).map((plan) => plan.source.id).sort()
+      launchPlans.map((plan) => plan.source.id).sort()
     );
     expect(expectation.plans.every((plan) => plan.executionAuthority === "STAGED")).toBe(true);
     expect(expectation.plans.some((plan) => exclusions.has(plan.company.id))).toBe(false);
-    expect(expectation.companies.filter(({ id }) => exclusions.has(id))).toHaveLength(2);
-    expect(expectation.minimumStableCompanyCount).toBe(55);
+    expect(expectation.companies.filter(({ id }) => exclusions.has(id))).toHaveLength(0);
+    expect(expectation.minimumStableCompanyCount).toBe(41);
   });
 
   it("keeps canonical hash results stable when source input order changes", () => {
-    const plans = buildStagedSourceCrawlPlans(candidateCompanies);
+    const plans = launchPlans;
     const reversed = [...plans].reverse();
 
     expect(activeSourcePlanSha256(reversed)).toBe(activeSourcePlanSha256(plans));
@@ -86,7 +90,7 @@ describe("current staged schedule expectation", () => {
   });
 
   it("binds plan/config/runtime-tree/adapter changes to the appropriate digests without circular RC input", () => {
-    const plans = buildStagedSourceCrawlPlans(candidateCompanies);
+    const plans = launchPlans;
     const first = plans[0]!;
     const changedConfig = [{
       ...first,
@@ -112,17 +116,17 @@ describe("current staged schedule expectation", () => {
 
   it.each([
     ["discovery", () => buildDiscoverySourcePlanCandidates(candidateCompanies)],
-    ["subset", () => buildStagedSourceCrawlPlans(candidateCompanies).slice(1)],
+    ["subset", () => launchPlans.slice(1)],
     ["mutated ownership", () => {
-      const plans = buildStagedSourceCrawlPlans(candidateCompanies);
+      const plans = launchPlans;
       return [{ ...plans[0]!, company: { ...plans[0]!.company, id: plans[1]!.company.id } }, ...plans.slice(1)];
     }],
-    ["non-STAGED", () => buildStagedSourceCrawlPlans(candidateCompanies).map((plan) => ({
+    ["non-STAGED", () => launchPlans.map((plan) => ({
       ...plan,
       executionAuthority: undefined
     }))]
   ])("rejects %s fixture during pure derivation", (_label, fixture) => {
-    expect(() => __testOnlyDeriveStagedScheduleExpectation(BUILD, candidateCompanies, fixture() as SourceCrawlPlan[]))
+    expect(() => __testOnlyDeriveStagedScheduleExpectation(BUILD, launchCompanies, fixture() as SourceCrawlPlan[]))
       .toThrow();
   });
 
@@ -133,12 +137,36 @@ describe("current staged schedule expectation", () => {
     expect(() => __testOnlyDeriveStagedScheduleExpectation(
       BUILD,
       mutated,
-      buildStagedSourceCrawlPlans(candidateCompanies)
+      launchPlans
     )).toThrow(/canonical|roster/i);
   });
 });
 
 describe("current staged schedule release-candidate lookup", () => {
+  it("retains exact INVALIDATED authority for post-failure audit without reopening scheduling", async () => {
+    const expected = deriveCurrentStagedScheduleExpectation(BUILD);
+    const findMany = vi.fn(async () => [releaseCandidateRow(expected, { status: "INVALIDATED" })]);
+
+    await expect(resolveCurrentAuditableStagedScheduleAuthority({ releaseCandidate: { findMany } }))
+      .resolves.toMatchObject({ identity: { releaseCandidateId: "rc-staged-1" } });
+    expect(findMany).toHaveBeenCalledWith(expect.objectContaining({
+      where: expect.objectContaining({ status: { in: ["BUILDING", "READY_FOR_QA", "RELEASED", "INVALIDATED"] } })
+    }));
+    await expect(resolveCurrentStagedScheduleAuthority({
+      releaseCandidate: { findMany: vi.fn(async () => [] as never) }
+    })).rejects.toThrow();
+  });
+
+  it("provides a BUILDING-only authority seam for formal qualification state", async () => {
+    const expected = deriveCurrentStagedScheduleExpectation(BUILD);
+    await expect(resolveCurrentBuildingStagedScheduleAuthority({
+      releaseCandidate: { findMany: vi.fn(async () => [releaseCandidateRow(expected, { status: "BUILDING" })] as never) }
+    })).resolves.toMatchObject({ identity: { releaseCandidateId: "rc-staged-1" } });
+    await expect(resolveCurrentBuildingStagedScheduleAuthority({
+      releaseCandidate: { findMany: vi.fn(async () => [releaseCandidateRow(expected, { status: "READY_FOR_QA" })] as never) }
+    })).rejects.toThrow(/BUILDING/);
+  });
+
   it("uses every derived field, reads at most two rows, and returns the fixed SCHEDULED identity", async () => {
     const expected = deriveCurrentStagedScheduleExpectation(BUILD);
     const findMany = vi.fn(async () => [releaseCandidateRow(expected)]);

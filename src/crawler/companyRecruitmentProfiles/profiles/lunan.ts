@@ -7,6 +7,7 @@ export const profile_lunan = {
     {
       sourceId: "source-lunan-social",
       executionConfig: {
+          transientRetryPolicy: { maxRetries: 1, backoffMs: 10_000 },
           adapterId: "official-json",
           json: OFFICIAL_API_JSON_CONFIG,
           officialJsonFetch: {

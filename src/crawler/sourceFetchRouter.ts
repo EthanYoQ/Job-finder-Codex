@@ -46,9 +46,9 @@ export function createSourceFetchRouter({
     let result = await delegate(plan);
     const policy = plan.transientRetryPolicy;
     if (!policy) return result;
-    if (policy.maxRetries !== 1 || !Number.isSafeInteger(policy.backoffMs) ||
+    if (![1, 2].includes(policy.maxRetries) || !Number.isSafeInteger(policy.backoffMs) ||
       policy.backoffMs < 1_000 || policy.backoffMs > 60_000) {
-      throw new Error("Transient retry policy must allow exactly one retry after 1000 through 60000 milliseconds");
+      throw new Error("Transient retry policy must allow one or two retries after 1000 through 60000 milliseconds");
     }
     for (let retry = 0; retry < policy.maxRetries; retry += 1) {
       if (result.ok || !isRetryableSourceTransportFailure(result.transportFailure)) return result;
@@ -56,7 +56,7 @@ export function createSourceFetchRouter({
       if (signal?.aborted) return result;
       await delay(policy.backoffMs);
       if (signal?.aborted) return result;
-      markSourceFetchRetry(attemptTracker);
+      markSourceFetchRetry(attemptTracker, result.transportFailure.code);
       result = await delegate(plan);
     }
     return result;

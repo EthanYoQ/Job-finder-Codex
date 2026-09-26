@@ -67,7 +67,12 @@ describe("Jobsyn Solr evidence instrumentation", () => {
     let call = 0;
     const secret = "Bearer example-placeholder";
     const result = await createOfficialJsonSourceFetch({ now: () => new Date(NOW), http: async (request) => call++ === 0 ? response(body(1, [row("a"), row("b")]), request.url) : response(secret, request.url, { status: 503 }) })(plan());
-    expect(result).toMatchObject({ ok: false, failureReason: "Jobsyn Solr API returned HTTP 503", fetchEvidence: { artifacts: [{}, { body: secret }], pages: [{ termination: "CONTINUE" }, { termination: "FAILED" }] } });
+    expect(result).toMatchObject({
+      ok: false,
+      failureReason: "Official recruitment endpoint was temporarily unavailable (HTTP 503)",
+      transportFailure: { code: "OFFICIAL_HTTP_503", retryable: true },
+      fetchEvidence: { artifacts: [{}, { body: secret }], pages: [{ termination: "CONTINUE" }, { termination: "FAILED" }] }
+    });
     if (result.ok) throw new Error("expected failure");
     expect(result.failureReason).not.toContain(secret);
   });

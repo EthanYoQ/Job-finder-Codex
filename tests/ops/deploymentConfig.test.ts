@@ -5,16 +5,19 @@ import { tmpdir } from "node:os";
 import { resolve } from "node:path";
 import { execFileSync, spawn } from "node:child_process";
 import { describe, expect, it } from "vitest";
+import { PRODUCTION_RUNTIME_APT_COMMAND } from "../../src/readiness/productionImageContract";
 
 const repoRoot = process.cwd();
 const dockerfilePath = resolve(repoRoot, "Dockerfile");
 const composePath = resolve(repoRoot, "ops/docker-compose.yml");
 const nginxPath = resolve(repoRoot, "ops/nginx.conf");
+const nginxMainPath = resolve(repoRoot, "ops/nginx-main.conf");
 const backupPath = resolve(repoRoot, "ops/backup.sh");
 const monitoringCheckPath = resolve(repoRoot, "ops/monitoring-check.ts");
 const envExamplePath = resolve(repoRoot, ".env.example");
 const httpServerPath = resolve(repoRoot, "src/server/httpServer.ts");
 const p0CrawlPath = resolve(repoRoot, "scripts/p0-crawl.ts");
+const qualifiedImageDigest = "a".repeat(64);
 
 function readRequiredFile(path: string): string {
   expect(existsSync(path), `${path} should exist`).toBe(true);
@@ -57,9 +60,7 @@ function renderCompose(env: NodeJS.ProcessEnv = {}): string {
     encoding: "utf8",
     env: {
       ...process.env,
-      BUILD_COMMIT_SHA: "1".repeat(40),
-      BUILD_SOURCE_CLEAN: "true",
-      BUILD_SOURCE_TREE_SHA256: "2".repeat(64),
+      JOB_FINDER_IMAGE_DIGEST: qualifiedImageDigest,
       ALERT_WEBHOOK_URL: "https://alerts.example.invalid/job-finder",
       DATABASE_URL: "postgresql://jobfinder:secret@postgres:5432/jobfinder",
       P0_FULL_RELEASE_MEMBERSHIP_FILE: "/evidence/membership.json",
@@ -67,6 +68,7 @@ function renderCompose(env: NodeJS.ProcessEnv = {}): string {
       P0_FULL_RELEASE_ORACLE_FILE: "/evidence/oracle.json",
       P0_FULL_RELEASE_ORACLE_FILE_SHA256: "4".repeat(64),
       POSTGRES_PASSWORD: "secret",
+      PUBLIC_HOSTNAME: "jobs.example.test",
       ...env
     },
     stdio: ["ignore", "pipe", "pipe"]
@@ -76,12 +78,11 @@ function renderCompose(env: NodeJS.ProcessEnv = {}): string {
 function renderBaseComposeWithoutManualAuthority(): string {
   const env: NodeJS.ProcessEnv = {
     ...process.env,
-    BUILD_COMMIT_SHA: "1".repeat(40),
-    BUILD_SOURCE_CLEAN: "true",
-    BUILD_SOURCE_TREE_SHA256: "2".repeat(64),
+    JOB_FINDER_IMAGE_DIGEST: qualifiedImageDigest,
     ALERT_WEBHOOK_URL: "https://alerts.example.invalid/job-finder",
     DATABASE_URL: "postgresql://jobfinder:secret@postgres:5432/jobfinder?schema=public",
-    POSTGRES_PASSWORD: "secret"
+    POSTGRES_PASSWORD: "secret",
+    PUBLIC_HOSTNAME: "jobs.example.test"
   };
   for (const name of [
     "P0_FULL_RELEASE_MEMBERSHIP_FILE",
@@ -152,9 +153,15 @@ async function startFakeTcpServer(): Promise<{ port: number; stop: () => Promise
 }
 
 describe("deployment configuration", () => {
-  it("renders the base stack without historical manual-worker authority inputs", () => {
+  it("renders the base stack with the deployed manual-request worker", () => {
     const rendered = renderBaseComposeWithoutManualAuthority();
     expect(readComposeService(rendered, "web")).toContain("DATABASE_URL");
+    const worker = readComposeService(rendered, "worker");
+    expect(worker).toMatch(/command:\s*\n\s+- node\s*\n\s+- node_modules\/tsx\/dist\/cli\.mjs\s*\n\s+- scripts\/p0-manual-crawl-worker\.ts/u);
+    expect(worker).toMatch(/restart:\s*unless-stopped/u);
+    expect(worker).not.toContain("profiles:");
+    expect(worker).not.toContain("P0_FULL_RELEASE_");
+    expect(worker).not.toContain("/run/release-authority/");
     expect(readRequiredFile(envExamplePath)).toContain(
       "postgresql://jobfinder:replace-with-a-long-random-database-password@postgres:5432/jobfinder?schema=public"
     );
@@ -179,23 +186,36 @@ describe("deployment configuration", () => {
     expect(compose).toMatch(/Aliyun Korea|Korea origin|Seoul/i);
   });
 
+  it("bounds retained logs for every long-running production service", () => {
+    const compose = readRequiredFile(composePath);
+    expect(compose).toMatch(/x-bounded-logging:\s*&bounded-logging[\s\S]*driver:\s*local[\s\S]*max-size:\s*"10m"[\s\S]*max-file:\s*"5"/u);
+    for (const serviceName of ["postgres", "web", "worker", "scheduler", "nginx", "backup", "restore-verifier", "monitor"]) {
+      const service = readComposeService(compose, serviceName);
+      expect(service).toContain("logging: *bounded-logging");
+    }
+  });
+
   it("keeps runtime image inputs aligned with worker, scheduler, backup, and monitor commands", () => {
     const dockerfile = readRequiredFile(dockerfilePath);
     const compose = readRequiredFile(composePath);
 
-    expect(compose).toMatch(/"p0:scheduler"/);
-    expect(readRequiredFile(resolve(repoRoot, "scripts", "p0-formal-crawl-once.ts"))).toMatch(/npm.*p0:crawl/s);
-    expect(compose).toMatch(/npx tsx ops\/monitoring-check\.ts/);
+    expect(compose).toContain('"scripts/p0-scheduler.ts"');
+    expect(readRequiredFile(resolve(repoRoot, "scripts", "p0-formal-crawl-once.ts")))
+      .toContain('productionTsxProcessArgs("scripts/p0-crawl.ts",["--force"])');
+    expect(compose).toMatch(/node node_modules\/tsx\/dist\/cli\.mjs ops\/monitoring-check\.ts/);
     const monitor = readComposeService(compose, "monitor");
     expect(monitor).toMatch(/ALERT_WEBHOOK_URL:\s*\$\{ALERT_WEBHOOK_URL:\?set ALERT_WEBHOOK_URL\}/u);
     expect(monitor).toMatch(/ALERT_WEBHOOK_ALLOW_HTTP:\s*\$\{ALERT_WEBHOOK_ALLOW_HTTP:-0\}/u);
     expect(readRequiredFile(monitoringCheckPath)).toContain("deliverOpsAlerts");
-    expect(compose).toMatch(/node dist\/server\/httpServer\.js|"npm",\s*"run",\s*"start"|npm run start/);
+    expect(compose).toContain('"node_modules/tsx/dist/cli.mjs", "src/server/httpServer.ts"');
     expect(compose).toContain("TRUSTED_PROXY_CIDRS");
-    expect(dockerfile).toMatch(/COPY --from=build \/app\/scripts \.\/scripts/);
-    expect(dockerfile).toMatch(/COPY --from=build \/app\/src \.\/src/);
-    expect(dockerfile).toMatch(/COPY --from=build \/app\/prisma \.\/prisma/);
-    expect(dockerfile).toMatch(/COPY --from=deps \/app\/node_modules \.\/node_modules|RUN npm ci(?!\s+--omit=dev)/);
+    expect(compose).toContain("x-job-finder-image: &job-finder-image \"ghcr.io/ethanyoq/job-finder-rc022-cloud-acceptance@sha256:${JOB_FINDER_IMAGE_DIGEST:?");
+    expect(compose.match(/^    image: \*job-finder-image$/gmu)).toHaveLength(10);
+    expect(compose).not.toMatch(/^    build:/gmu);
+    expect(dockerfile).toMatch(/COPY --chown=node:node --from=identity \/app\/scripts \.\/scripts/);
+    expect(dockerfile).toMatch(/COPY --chown=node:node --from=identity \/app\/src \.\/src/);
+    expect(dockerfile).toMatch(/COPY --chown=node:node --from=identity \/app\/prisma \.\/prisma/);
+    expect(dockerfile).toMatch(/COPY --chown=node:node --from=identity \/app\/node_modules \.\/node_modules/);
     expect(dockerfile).toMatch(/COPY --from=pg16-client \/usr\/lib\/postgresql\/16\/bin\/pg_dump/);
   });
 
@@ -222,7 +242,7 @@ describe("deployment configuration", () => {
     expect(dockerfile).toMatch(/ldd -r \/usr\/local\/bin\/pg_restore/u);
     expect(dockerfile).toMatch(/ldd -r \/usr\/local\/bin\/psql/u);
     expect(dockerfile).toMatch(/not found\|undefined symbol/u);
-    expect(dockerfile).toContain("sh /usr/local/bin/install-apt-packages.sh ca-certificates chromium libpq5 libreadline8 util-linux");
+    expect(dockerfile).toContain(PRODUCTION_RUNTIME_APT_COMMAND);
     expect(dockerfile).toMatch(/command -v flock[^\n]*\/usr\/bin\/flock/u);
     expect(dockerfile).toMatch(/flock --version[^\n]*util-linux/u);
     expect(dockerfile).toContain("flock -n /tmp/flock-build-probe true");
@@ -245,6 +265,54 @@ describe("deployment configuration", () => {
     expect(nginx).toMatch(/locked origin/i);
     expect(nginx).toMatch(/trusted prox(y|ies)|allowlist/i);
     expect(nginx).toMatch(/default deny|deny-by-default|deny all except/i);
+    expect(nginx).toMatch(/listen 8443 ssl/);
+    expect(nginx).toContain("ssl_certificate /run/tls/fullchain.pem");
+    expect(nginx).toContain("ssl_certificate_key /run/tls/privkey.pem");
+    expect(nginx).toMatch(/client_max_body_size\s+1m/);
+    expect(nginx).toMatch(/client_body_timeout\s+10s/);
+    expect(nginx).toMatch(/proxy_connect_timeout\s+5s/);
+    expect(nginx).toMatch(/proxy_read_timeout\s+30s/);
+    expect(nginx).toMatch(/proxy_send_timeout\s+30s/);
+  });
+
+  it("publishes only nginx HTTP/TLS ports and mounts TLS material read-only", () => {
+    const compose = readRequiredFile(composePath);
+    const nginx = readComposeService(compose, "nginx");
+    expect(nginx).toContain('source: ${TLS_DIRECTORY:-./tls-not-configured}');
+    expect(nginx).toContain('target: /run/tls');
+    expect(nginx.match(/read_only:\s*true/gu)).toHaveLength(5);
+    expect(nginx).toContain('${HTTP_PORT:-80}:8080');
+    expect(nginx).toContain('${HTTPS_PORT:-443}:8443');
+    expect(nginx).toMatch(/user:\s*["']101:101["']/u);
+    expect(nginx).toMatch(/cap_drop:\s*\n\s+- ALL/u);
+    expect(nginx).toMatch(/read_only:\s*true/u);
+    expect(nginx).toContain('source: ./nginx-main.conf');
+    expect(nginx).toContain('source: ./render-nginx-config.sh');
+    expect(readRequiredFile(nginxMainPath)).toContain('include /tmp/jobfinder-ingress.conf;');
+    for (const serviceName of ["postgres", "web", "worker", "scheduler"]) {
+      expect(readComposeService(compose, serviceName)).not.toContain("ports:");
+    }
+  });
+
+  it("binds ingress to one hostname and gates ordinary traffic on live readiness", () => {
+    const nginx = readRequiredFile(nginxPath);
+    const compose = readRequiredFile(composePath);
+    const ingress = readComposeService(compose, "nginx");
+
+    expect(nginx).toContain('listen 8080 default_server;');
+    expect(nginx).toContain('listen 8443 ssl default_server;');
+    expect(nginx).toMatch(/server_name "";\s*return 444;/u);
+    expect(nginx).toMatch(/server_name \$\{PUBLIC_HOSTNAME\};/u);
+    expect(nginx).toContain('return 308 https://${PUBLIC_HTTPS_AUTHORITY}$request_uri;');
+    expect(nginx).not.toContain('https://$host');
+    expect(nginx).toContain('proxy_set_header Host $server_name;');
+    expect(nginx).toContain('auth_request /__readiness_gate;');
+    expect(nginx).toContain('error_page 500 =503 @ingress_not_ready;');
+    expect(nginx).toMatch(/location = \/__readiness_gate \{[\s\S]*internal;[\s\S]*proxy_pass http:\/\/jobfinder_web\/readyz;/u);
+    expect(ingress).toContain('PUBLIC_HOSTNAME: ${PUBLIC_HOSTNAME:?set PUBLIC_HOSTNAME}');
+    expect(ingress).toContain('target: /etc/nginx/templates/default.conf.template');
+    expect(ingress).toContain('sh /usr/local/bin/render-jobfinder-nginx-config');
+    expect(ingress).toContain('PUBLIC_HTTPS_PORT: ${HTTPS_PORT:-443}');
   });
 
   it("rate-limits the exact public health endpoint without changing the internal web healthcheck", () => {
@@ -311,10 +379,13 @@ describe("deployment configuration", () => {
       expect(service).toContain("STAGED_INITIAL_QUALIFICATION_PAUSE_PATH: /app/outputs/staged-initial-qualification-pause.json");
       expect(service).not.toMatch(/STAGED_CRAWL_(?:SUMMARY_PATH|ATTEMPT_DIR):\s*\$\{/u);
     }
-    expect(worker).toContain("P0_FULL_RELEASE_MEMBERSHIP_FILE: /run/release-authority/membership.json");
-    expect(worker).toContain("P0_FULL_RELEASE_ORACLE_FILE: /run/release-authority/oracle.json");
-    expect(worker).toContain("target: /run/release-authority/membership.json");
-    expect(worker).toContain("target: /run/release-authority/oracle.json");
+    expect(worker).not.toContain("P0_MANUAL_CRAWL_WORKER_ID:");
+    expect(worker).not.toMatch(/P0_(?:FULL_RELEASE|RELEASE_)/u);
+    expect(worker).not.toContain("/run/release-authority/");
+    const manualWorkerScript = readRequiredFile(resolve(repoRoot, "scripts", "p0-manual-crawl-worker.ts"));
+    expect(manualWorkerScript).toContain("resolveCurrentStagedScheduleAuthority(prisma)");
+    expect(manualWorkerScript).not.toContain("loadCurrentReleaseIdentity");
+    expect(manualWorkerScript).toMatch(/manual-\$\{hostname\(\)\}-\$\{process\.pid\}/u);
     const monitorScript = readRequiredFile(monitoringCheckPath);
     expect(monitorScript).toContain("loadProductionStagedMonitoringIdentity");
     expect(monitorScript).toContain("loadProductionStagedMonitoringIdentity(databaseUrl)");
@@ -462,13 +533,17 @@ describe("deployment configuration", () => {
     expect(monitor).toMatch(/source:\s*monitor-state[\s\S]*target:\s*\/app\/monitor-state/u);
   });
 
-  it("fails fast on backup errors and healthchecks only recent checksum markers", () => {
+  it("fails fast on backup errors and healthchecks the authoritative attempt receipt", () => {
     const compose = readRequiredFile(composePath);
     const backup = readComposeService(compose, "backup");
 
     expect(backup).toMatch(/restart:\s*["']on-failure:3["']/u);
     expect(backup).toContain("set -eu; while true; do sh ./ops/backup.sh; sleep");
-    expect(backup).toMatch(/healthcheck:[\s\S]*\.dump\.sha256[\s\S]*-mmin/u);
+    expect(backup).toMatch(/healthcheck:[\s\S]*readBackupAttemptEvidence/u);
+    expect(backup).toContain("readBackupAttemptEvidence('/backups/latest-backup-attempt.json')");
+    expect(backup).toMatch(/BACKUP_DIR:\s*\/backups/u);
+    expect(backup).not.toContain("${BACKUP_DIR");
+    expect(backup).not.toContain("BACKUP_ATTEMPT_RECEIPT_PATH:");
     expect(backup).toMatch(/start_period:\s*(?:[1-9]\d*s|[1-9]\d*m)/u);
     expect(backup).not.toMatch(/healthcheck:[\s\S]*-name\s+["']\*\.dump["']/u);
   });
@@ -478,9 +553,9 @@ describe("deployment configuration", () => {
     const monitor = readComposeService(compose, "monitor");
 
     expect(monitor).toMatch(/restart:\s*["']unless-stopped["']/u);
-    expect(monitor).toContain("set -u; while true; do npx tsx ops/monitoring-check.ts; status=$$?");
+    expect(monitor).toContain("set -u; while true; do node node_modules/tsx/dist/cli.mjs ops/monitoring-check.ts; status=$$?");
     expect(monitor).toContain("[monitor-loop] check exited with status $$status; continuing after interval.");
-    expect(monitor).not.toContain("set -eu; while true; do npx tsx ops/monitoring-check.ts");
+    expect(monitor).not.toContain("set -eu; while true; do node node_modules/tsx/dist/cli.mjs ops/monitoring-check.ts");
     expect(monitor).toMatch(/BACKUP_DIR:\s*\/backups/u);
     expect(monitor).toMatch(/DATABASE_URL:\s*\$\{DATABASE_URL:\?set DATABASE_URL\}/u);
     expect(monitor).toMatch(/READINESS_SUMMARY_PATH:\s*\$\{READINESS_SUMMARY_PATH:-\/app\/outputs\//u);
@@ -543,7 +618,7 @@ describe("deployment configuration", () => {
     expect(worker).toMatch(/target:\s*\/app\/outputs(?![\s\S]{0,40}read_only:\s*true)/u);
     expect(scheduler).toMatch(/target:\s*\/app\/outputs(?![\s\S]{0,40}read_only:\s*true)/u);
     expect(backup).toContain("- backup-data:/backups");
-    expect(monitor.match(/read_only:\s*true/gu)).toHaveLength(3);
+    expect(monitor.match(/read_only:\s*true/gu)).toHaveLength(4);
   });
 
   it("pins external postgres and nginx images by digest", () => {

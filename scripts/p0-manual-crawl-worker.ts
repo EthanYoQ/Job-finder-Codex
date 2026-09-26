@@ -1,12 +1,11 @@
 import { hostname } from "node:os";
 import { PrismaClient } from "@prisma/client";
-import { candidateCompanies } from "../src/data/companyRegistry";
 import { createManualCrawlRequestRepository } from "../src/db/manualCrawlRequestRepository";
 import { createPrismaCrawlRuntimeDeps } from "../src/db/crawlRuntimeRepository";
 import { createHotjobLegacySourceFetch } from "../src/crawler/hotjobLegacySourceFetch";
 import { createHotjobWecruitSourceFetch } from "../src/crawler/hotjobWecruitSourceFetch";
 import { createHttpHtmlSourceFetch } from "../src/crawler/httpHtmlSourceFetch";
-import { createManualSourceBatchExecutor } from "../src/crawler/manualSourceBatchExecutor";
+import { createCurrentAuthorityManualSourceBatchExecutor } from "../src/crawler/manualSourceBatchExecutor";
 import { manualCrawlWorkerExitCode, runManualCrawlWorker } from "../src/crawler/manualCrawlWorker";
 import { parseManualCrawlWorkerArgs } from "../src/crawler/manualCrawlWorkerCli";
 import { createMokaSourceFetch } from "../src/crawler/mokaSourceFetch";
@@ -14,10 +13,9 @@ import { createProfileBoundSourceFetch } from "../src/crawler/profileBoundSource
 import { createOfficialJsonSourceFetch } from "../src/crawler/officialJsonSourceFetch";
 import { runP0CrawlBatch } from "../src/crawler/runCrawlBatch";
 import { createSourceFetchRouter } from "../src/crawler/sourceFetchRouter";
-import { buildSourceCrawlPlans } from "../src/crawler/sourcePlan";
 import { createUnsupportedSourceFetch } from "../src/crawler/unsupportedSourceFetch";
 import { createWorkdaySourceFetch } from "../src/crawler/workdaySourceFetch";
-import { loadCurrentReleaseIdentity } from "../src/readiness/currentReleaseIdentity";
+import { resolveCurrentStagedScheduleAuthority } from "../src/crawler/stagedScheduleAuthority";
 
 function printHelp(): void {
   console.log("Usage: npm run p0:manual-crawl-worker -- [--once]");
@@ -45,8 +43,6 @@ for (const signal of ["SIGINT", "SIGTERM"] as const) {
 
 const prisma = new PrismaClient();
 try {
-  const plans = buildSourceCrawlPlans(candidateCompanies);
-  const baseIdentity = await loadCurrentReleaseIdentity();
   const fetch = createSourceFetchRouter({
     moka: createMokaSourceFetch(),
     html: createHttpHtmlSourceFetch(),
@@ -57,15 +53,23 @@ try {
     profileBoundSource: createProfileBoundSourceFetch(),
     fallback: createUnsupportedSourceFetch()
   });
-  const repository = createManualCrawlRequestRepository({ db: prisma });
-  const executeSource = createManualSourceBatchExecutor({
-    plans,
-    baseIdentity,
+  const resolveAuthority = () => resolveCurrentStagedScheduleAuthority(prisma);
+  const repository = createManualCrawlRequestRepository({
     db: prisma,
-    fetch,
-    runtimeDeps: createPrismaCrawlRuntimeDeps(prisma),
-    now: () => new Date(),
-    runP0CrawlBatch
+    resolveClaimableSourceIds: async () => (await resolveAuthority()).plans.map(({ source }) => source.id)
+  });
+  const executeSource = createCurrentAuthorityManualSourceBatchExecutor({
+    resolveAuthority: async () => {
+      const authority = await resolveAuthority();
+      return { plans: authority.plans, baseIdentity: authority.identity };
+    },
+    execution: {
+      db: prisma,
+      fetch,
+      runtimeDeps: createPrismaCrawlRuntimeDeps(prisma),
+      now: () => new Date(),
+      runP0CrawlBatch
+    }
   });
   const result = await runManualCrawlWorker({
     repository,

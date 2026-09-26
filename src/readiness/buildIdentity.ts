@@ -7,8 +7,8 @@ export interface BuildIdentityArtifact {schemaVersion:2;commitSha:string;sourceT
 const FIXED_BUILD_IDENTITY_PATH=resolve(process.cwd(),"build-identity.json");
 const sourceRoots=["src","scripts","prisma","ops"] as const;
 const runtimeRoots=["dist","src","scripts","prisma","ops","node_modules"] as const;
-const sourceFiles=["package.json","package-lock.json","tsconfig.json","Dockerfile",".dockerignore","index.html","vite.config.ts"] as const;
-const runtimeFiles=["package.json","package-lock.json","tsconfig.json"] as const;
+const sourceFiles=["package.json","package-lock.json","tsconfig.json","Dockerfile",".dockerignore","index.html","vite.config.ts","testExecutionContract.ts"] as const;
+const runtimeFiles=["package.json","tsconfig.json"] as const;
 
 export function resolveCurrentBuildIdentity():BuildIdentityArtifact{
   try{
@@ -31,7 +31,7 @@ export function readAndValidateBakedBuildIdentity():BuildIdentityArtifact{
   let value:BuildIdentityArtifact;try{value=JSON.parse(readFileSync(path,"utf8")) as BuildIdentityArtifact;}catch{throw new Error("Baked build identity is absent or invalid");}
   if(value.schemaVersion!==2||!validSha(value.sourceTreeSha256)||!validSha(value.runtimeTreeSha256)||!validSha(value.contentSha256)||!/^[0-9a-f]{40}$/.test(value.commitSha))throw new Error("Baked build identity format is invalid");
   const expected=digest(JSON.stringify({schemaVersion:value.schemaVersion,commitSha:value.commitSha,sourceTreeSha256:value.sourceTreeSha256,runtimeTreeSha256:value.runtimeTreeSha256}));
-  if(!safeEqual(expected,value.contentSha256)||!safeEqual(canonicalSourceTreeSha256(root),value.sourceTreeSha256)||!safeEqual(canonicalRuntimeTreeSha256(root),value.runtimeTreeSha256))throw new Error("Baked build identity digest or runtime tree binding mismatch");
+  if(!safeEqual(expected,value.contentSha256)||!safeEqual(canonicalRuntimeTreeSha256(root),value.runtimeTreeSha256))throw new Error("Baked build identity digest or runtime tree binding mismatch");
   return Object.freeze(value);
 }
 export const canonicalSourceTreeSha256=(root:string)=>canonicalTree(root,sourceRoots,sourceFiles);

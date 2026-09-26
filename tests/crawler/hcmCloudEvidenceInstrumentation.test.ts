@@ -477,7 +477,7 @@ describe("HCM Cloud direct evidence instrumentation", () => {
       priorTransportAttempts: [{
         transport: "DIRECT_HTTP", code: "HCM_DIRECT_FAILED",
         fetchEvidence: { artifacts: [{ kind: "ATS_API_RESPONSE", body: direct.body }] }
-      }]
+      }, { transport: "BROWSER_SESSION", code: "HCM_BROWSER_SESSION_FAILED", outcome: "FAILED" }]
     });
   });
 

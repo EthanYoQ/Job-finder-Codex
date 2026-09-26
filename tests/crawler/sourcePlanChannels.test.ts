@@ -29,29 +29,6 @@ function resolvedCspcSurface(ids = channelIds) {
 }
 
 describe("executable source plan channel binding", () => {
-  function talentbrewFixture(sourceId: "source-sanofi-china-social" | "source-takeda-china-social") {
-    const company = candidateCompanies.find((item) => item.sources.some((source) => source.id === sourceId))!;
-    const discovery = getPlanBySourceId(buildDiscoverySourcePlanCandidates([company]), sourceId)!;
-    if (discovery.adapterId !== "html-table") throw new Error("Expected a TalentBrew HTML adapter");
-    const configuredIds = discovery.table.pagination?.talentbrewScope?.allowedPartitions.map(
-      ({ channelId }) => channelId
-    );
-    if (!configuredIds?.length) throw new Error("Expected configured TalentBrew partitions");
-    const surface = expectedOfficialSurfaces.find((item) => item.surfaceId === discovery.source.surfaceId)!;
-    return {
-      company,
-      configuredIds,
-      surface: {
-        ...surface,
-        channels: configuredIds.map((channelId) => ({
-          channelId,
-          kind: "SOCIAL" as const,
-          status: "EXPECTED" as const
-        }))
-      }
-    };
-  }
-
   function resolvedStrictFixture(
     sourceId: string,
     ids: readonly string[],
@@ -75,15 +52,17 @@ describe("executable source plan channel binding", () => {
     };
   }
 
-  it("binds every configured TalentBrew partition for staged execution while strict remains gated", () => {
-    const { company, configuredIds, surface } = talentbrewFixture("source-takeda-china-social");
-    const [plan] = buildStagedSourceCrawlPlans([company], [surface]);
-
-    expect(plan?.expectedChannels?.map(({ channelId }) => channelId)).toEqual([...configuredIds].sort());
-    expect(plan).toHaveProperty("executionAuthority", "STAGED");
-    expect(plan?.expectedChannelSetHash).toBe(expectedChannelSetHash(plan!.expectedChannels!));
-    expect(() => validateExecutablePlanChannelBinding(plan!)).not.toThrow();
-    expect(buildSourceCrawlPlans([company], [surface])).toEqual([]);
+  it("uses one canonical China-page channel without hidden TalentBrew job-type partitions", () => {
+    const staged = buildStagedSourceCrawlPlans(candidateCompanies);
+    for (const sourceId of ["source-sanofi-china-social", "source-takeda-china-social"]) {
+      const plan = getPlanBySourceId(staged, sourceId);
+      expect(plan?.expectedChannels).toEqual([
+        { channelId: `source:${sourceId}:default`, kind: "SOCIAL" }
+      ]);
+      if (plan?.adapterId !== "html-table") throw new Error("Expected a TalentBrew HTML adapter");
+      expect(plan.table.pagination?.talentbrewScope).toBeUndefined();
+      expect(() => validateExecutablePlanChannelBinding(plan)).not.toThrow();
+    }
   });
 
   it("binds each new official source to its canonical default social channel", () => {
@@ -91,7 +70,7 @@ describe("executable source plan channel binding", () => {
       "source-apeloa-social",
       "source-grand-pharma-social",
       "source-huahai-social",
-      "source-otsuka-china-social-2",
+      "source-otsuka-china-social",
       "source-sandoz-china-social"
     ];
     const staged = buildStagedSourceCrawlPlans(candidateCompanies);
@@ -103,32 +82,7 @@ describe("executable source plan channel binding", () => {
       ]);
       expect(() => validateExecutablePlanChannelBinding(plan!)).not.toThrow();
     }
-    expect(getPlanBySourceId(staged, "source-otsuka-china-social")).toBeUndefined();
-  });
-
-  it.each([
-    ["missing", (ids: string[]) => ids.slice(1)],
-    ["replacement", (ids: string[]) => ["not-a-configured-partition", ...ids.slice(1)]],
-    ["duplicate", (ids: string[]) => [ids[0]!, ids[0]!, ...ids.slice(2)]]
-  ])("fails staged planning closed for %s TalentBrew partition coverage", (_label, mutate) => {
-    const { company, configuredIds, surface } = talentbrewFixture("source-takeda-china-social");
-    const channelIds = mutate(configuredIds);
-    const mutated = {
-      ...surface,
-      channels: channelIds.map((channelId) => ({ channelId, kind: "SOCIAL" as const, status: "EXPECTED" as const }))
-    };
-    expect(buildStagedSourceCrawlPlans([company], [mutated])).toEqual([]);
-  });
-
-  it("fails staged planning closed when a configured channel is not social", () => {
-    const { company, surface } = talentbrewFixture("source-sanofi-china-social");
-    const mutated = {
-      ...surface,
-      channels: surface.channels.map((channel, index) =>
-        index === 0 ? { ...channel, kind: "CAMPUS" as const } : channel
-      )
-    };
-    expect(buildStagedSourceCrawlPlans([company], [mutated])).toEqual([]);
+    expect(getPlanBySourceId(staged, "source-otsuka-china-social-2")).toBeUndefined();
   });
 
   it("preserves strict TalentBrew default-channel behavior and unmarked plan shape", () => {
@@ -141,9 +95,8 @@ describe("executable source plan channel binding", () => {
     expect(plan).not.toHaveProperty("executionAuthority");
     expect(() => validateExecutablePlanChannelBinding(plan!)).not.toThrow();
 
-    const { configuredIds } = talentbrewFixture(sourceId);
-    const stagedOnlyChannels = resolvedStrictFixture(sourceId, configuredIds);
-    expect(buildSourceCrawlPlans([stagedOnlyChannels.company], [stagedOnlyChannels.surface])).toEqual([]);
+    const stagedPlan = getPlanBySourceId(buildStagedSourceCrawlPlans([legacy.company]), sourceId);
+    expect(stagedPlan?.expectedChannels).toEqual([{ channelId: legacyDefaultId, kind: "SOCIAL" }]);
   });
 
   it("preserves strict ID-only channel comparison for a non-social expected kind", () => {
@@ -156,15 +109,18 @@ describe("executable source plan channel binding", () => {
     expect(() => validateExecutablePlanChannelBinding(plan!)).not.toThrow();
   });
 
-  it("preserves strict BEISEN HTML plan emission and legacy validator rejection", () => {
+  it("emits the current Hansoh Beisen JSON plan through strict and staged planning", () => {
     const sourceId = "source-hansoh-social";
     const fixture = resolvedStrictFixture(sourceId, [`source:${sourceId}:default`]);
     const [strictPlan] = buildSourceCrawlPlans([fixture.company], [fixture.surface]);
     const [stagedPlan] = buildStagedSourceCrawlPlans([fixture.company], [fixture.surface]);
 
-    expect(strictPlan?.adapterId).toBe("html-table");
+    expect(strictPlan?.adapterId).toBe("official-json");
+    expect(strictPlan).toMatchObject({
+      officialJsonFetch: { kind: "beisen-zhiye-2022", category: "1" }
+    });
     expect(strictPlan).not.toHaveProperty("executionAuthority");
-    expect(() => validateExecutablePlanChannelBinding(strictPlan!)).toThrow(/adapter does not match ATS kind/);
+    expect(() => validateExecutablePlanChannelBinding(strictPlan!)).not.toThrow();
     expect(stagedPlan).toHaveProperty("executionAuthority", "STAGED");
     expect(() => validateExecutablePlanChannelBinding(stagedPlan!)).not.toThrow();
   });
