@@ -172,6 +172,6 @@ describe("Novartis real official-presence lifecycle boundary",()=>{
     expect(selected).toMatchObject({state:"PUBLISHING",health:"DEGRADED",lastAcceptedJobCount:155,lastAcceptedAt:NOW});
     const rows=[...keys.map(key=>job(key,NOW)),job(extra,EARLIER,1)].map(row=>({...row,companyId:plan.company.id,sourceId:plan.source.id,dedupeKey:`${plan.source.id}:${row.id}`,officialUrl:url(row.id)}));
     expect(projectPortableSourceJobs(selected,last.members,rows,{currentTime:now})).toMatchObject({state:"PUBLISHING",visibleJobCount:156});
-    expect(selectPortableSourceSnapshots([plan],[first.result,last.result,failure],{currentTime:new Date(Date.parse(NOW)+30*3_600_000)})[0]).toMatchObject({state:"HOLD",freshness:"STALE"});
+    expect(selectPortableSourceSnapshots([plan],[first.result,last.result,failure],{currentTime:new Date(Date.parse(NOW)+30*3_600_000)})[0]).toMatchObject({state:"PUBLISHING",freshness:"STALE",health:"DEGRADED"});
   });
 });

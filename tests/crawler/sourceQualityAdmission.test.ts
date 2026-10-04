@@ -59,9 +59,16 @@ async function portableCommit() {
 const digest = (value: string) => createHash("sha256").update(value).digest("hex");
 
 describe("plan-bound source quality admission", () => {
-  it("pins only twenty-one reviewed exact configurations and refuses a changed plan", () => {
+  it("pins the twenty-two reviewed exact source configurations and refuses a changed plan", () => {
     const plans = buildStagedSourceCrawlPlans(candidateCompanies);
-    expect(plans.filter(p => getSourceQualityPolicy(p) !== null)).toHaveLength(21);
+    expect(plans.filter(p => getSourceQualityPolicy(p) !== null).map(p => p.source.id).sort()).toEqual([
+      "source-abbvie-china-social", "source-astellas-china-social", "source-biogen-china-social",
+      "source-bms-china-social", "source-boehringer-ingelheim-china-social", "source-csl-china-social",
+      "source-cspc-social", "source-fosun-pharma-social", "source-gilead-china-social", "source-grifols-china-social",
+      "source-hansoh-social", "source-hengrui-social", "source-kelun-social", "source-lilly-china-social",
+      "source-merck-china-social", "source-novartis-social", "source-novo-nordisk-china-social", "source-organon-china-social",
+      "source-qilu-social", "source-takeda-china-social", "source-ucb-china-social", "source-viatris-social"
+    ]);
     const altered = plan(); altered.source.officialEntryUrl += "?different=1";
     expect(getSourceQualityPolicy(altered)).toBeNull();
   });

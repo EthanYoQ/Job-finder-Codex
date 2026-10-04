@@ -3,7 +3,7 @@ import { archiveSourceEvidence } from "../../src/crawler/artifactArchive";
 import { bindRuntimeEvidenceArtifactIds, buildAtomicRuntimeCommit, buildPendingRuntimeBatch } from "../../src/crawler/runtimeAtomicEvidence";
 import { issueSourceQualityAdmission } from "../../src/crawler/sourceQualityAdmission";
 import { sourcePlanConfigSha256 } from "../../src/crawler/sourcePlan";
-import { LILLY_SYNTHETIC_FIXTURE_KIND, captureSyntheticLilly, syntheticLillyRow } from "./lillyPhenom";
+import { LILLY_SYNTHETIC_FIXTURE_KIND, captureSyntheticLilly, syntheticLillyNativeDetailBody, syntheticLillyRow } from "./lillyPhenom";
 
 export function syntheticLillyCohort() {
   return Array.from({length: 88}, (_, index) => {
@@ -12,8 +12,13 @@ export function syntheticLillyCohort() {
     return row;
   });
 }
-export async function captureSyntheticLillyQuality(workspaceRoot: string, rows = syntheticLillyCohort()) {
-  const {plan, result, startedAt, requests} = await captureSyntheticLilly(rows, {owned: true});
+export async function captureSyntheticLillyQuality(workspaceRoot: string, rows?: Record<string, unknown>[]) {
+  const cohort = rows ?? syntheticLillyCohort();
+  // The default cohort deliberately includes 69 native details without a reviewed city.
+  // A list/apply-URL contradiction alone no longer overrides the native detail locality.
+  const detailBodies = rows ? undefined : Object.fromEntries(cohort.map((row, index) => [String(row.applyUrl),
+    syntheticLillyNativeDetailBody(row, {jobLocation: {address: {addressCountry: "China", addressLocality: index < 69 ? "China" : "Shang Hai"}}})]));
+  const {plan, result, startedAt, requests} = await captureSyntheticLilly(cohort, {owned: true, detailBodies});
   if (!result.fetchEvidence) throw Error("SYNTHETIC_LILLY_MISSING_EVIDENCE");
   const binding = {releaseCandidateId: "synthetic-lilly-replay", batchId: "synthetic-lilly-batch", sourceResultId: `synthetic-lilly-batch--${plan.source.id}`,
     sourceConfigSha256: sourcePlanConfigSha256(plan), adapterVersion: "a".repeat(64)};

@@ -42,10 +42,14 @@ jobs:
 
       - name: Prepare test runtime prerequisites
         run: |
+          sudo apt-get update
+          sudo apt-get install --yes --no-install-recommends poppler-utils
           mkdir -p .runtime/.cache
           docker --version
           docker compose version
           pwsh --version
+          pdfinfo -v
+          pdftotext -v
 
       - name: Typecheck
         run: npm run typecheck

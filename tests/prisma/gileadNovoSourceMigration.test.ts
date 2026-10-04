@@ -12,7 +12,14 @@ const body=(s:string)=>s.slice(s.indexOf('CREATE OR REPLACE FUNCTION'),s.indexOf
 describe('append-only Gilead/Novo SQL45 admission',()=>{
  it('adds only exact Gilead and Novo tuples after the unchanged SQL44 function',()=>{
   const old=read(prior),sql=read(next);let stripped=body(sql);
-  for(const source of ['gilead','novo-nordisk']){const p=buildStagedSourceCrawlPlans(candidateCompanies).find(p=>p.source.id===`source-${source}-china-social`)!;const tuple=`                ('${p.source.id}','${p.company.id}','${sourcePlanConfigSha256(p)}'),\n`;expect(stripped.split(tuple)).toHaveLength(2);stripped=stripped.replace(tuple,'');}
+  const historicalConfigs = {
+    gilead: 'bdb31408948240f810347b6ba217407b0b50c9327c9600b4115a2a7a0869e40c',
+    'novo-nordisk': '2b79c0304952bfea93d2e50e2ebfb7668760043eb6c841b51597893378648805'
+  } as const;
+  for(const source of ['gilead','novo-nordisk'] as const){const p=buildStagedSourceCrawlPlans(candidateCompanies).find(p=>p.source.id===`source-${source}-china-social`)!;const tuple=`                ('${p.source.id}','${p.company.id}','${historicalConfigs[source]}'),\n`;expect(stripped.split(tuple)).toHaveLength(2);stripped=stripped.replace(tuple,'');}
+  const currentNovo=buildStagedSourceCrawlPlans(candidateCompanies).find(p=>p.source.id==='source-novo-nordisk-china-social')!;
+  expect(read('20261002093322_novo_native_application_policy')).toContain(
+    `('source-novo-nordisk-china-social','company-novo-nordisk-china','${sourcePlanConfigSha256(currentNovo)}')`);
   expect(stripped).toBe(body(old));
   const definition=body(old).slice(0,body(old).lastIndexOf('$function$'))+'$function$\n';
   expect(sql).toContain(`<> '${createHash('md5').update(definition).digest('hex')}' THEN`);

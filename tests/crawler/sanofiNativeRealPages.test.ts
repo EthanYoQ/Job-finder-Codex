@@ -41,6 +41,7 @@ describe("Sanofi minimized historical regression cases bind the main job identit
       expect($('script[type="application/ld+json"]')).toHaveLength(1);
       const allowedAttributes = new Set(["type", "id", "class", "href", "data-job-id", "data-selector-name", "data-apply-url"]);
       for (const node of $("*").toArray()) {
+        if (!("attribs" in node)) throw new Error("Expected an element in the semantic fixture");
         expect(Object.keys(node.attribs).every(key => allowedAttributes.has(key))).toBe(true);
       }
       const schema = JSON.parse($('script[type="application/ld+json"]').html()!);
@@ -79,7 +80,7 @@ describe("Sanofi minimized historical regression cases bind the main job identit
       expect(parse(r, $.html()), `JD conflict: ${r.sourceVersion}:${r.logicalKey}`).toBeUndefined();
       $(mainJd).text(schema.description);
       expect(parse(r, $.html())?.reqId, `fully repaired: ${r.sourceVersion}:${r.logicalKey}`).toBe(r.reqId);
-      buttons.each((index, node) => $(node).replaceWith(mismatchedApply.eq(index)));
+      buttons.each((index, node) => { $(node).replaceWith(mismatchedApply.eq(index)); });
       expect(parse(r, $.html()), `apply conflict: ${r.sourceVersion}:${r.logicalKey}`).toBeUndefined();
     }
   });

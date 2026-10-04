@@ -1,3 +1,4 @@
+import { captureSyntheticLilly, syntheticLillyRow } from "../helpers/lillyPhenom";
 import { describe, expect, it } from "vitest";
 import { createHash } from "node:crypto";
 import { deriveCanonicalPaginationEvidence, evaluatePaginationEvidence } from "../../src/crawler/paginationEvidence";
@@ -142,22 +143,19 @@ describe("UCB official posted-date preservation without temporal admission", () 
     expect(result.truth.completenessVerified).toBe(false);
   });
 
-  it("leaves Lilly's date interpretation and source config hash unchanged", async () => {
+  it("keeps Lilly's independent current date and native-detail contract unchanged by UCB replay", async () => {
     const plan = getPlanBySourceId(buildStagedSourceCrawlPlans(candidateCompanies), "source-lilly-china-social");
     if (plan?.adapterId !== "official-json") throw new Error("Lilly missing");
-    expect(plan.json.fields.officialPublishedAt).toBeUndefined();
-    expect(sourcePlanConfigSha256(plan)).toBe("7bae42300e8b2a1ce5161efaa15b01745e7b5479e5dd38055e1c8efd10f4b04a");
-    const fetched = await createOfficialJsonSourceFetch({ now: () => new Date(capturedAt), http: async request => ({
-      status: 200, capturedAt, finalUrl: request.url,
-      contentType: request.method === "POST" ? "application/json" : "text/html",
-      body: request.method === "POST" ? JSON.stringify({refineSearch:{totalHits:1,from:0,data:{jobs:[rawJob({
-        applyUrl: "https://careers.lilly.com/us/en/job/93941", postedDate: "not a date"
-      })],aggregations:[]}}}) : `<script>var phApp=${JSON.stringify({widgetApiEndpoint:"https://careers.lilly.com/widgets",
-        country:"cn",deviceType:"desktop",locale:"zh_cn",refNum:"MECEUS",pageName:"search-results",pageId:"page18"})};</script>`
-    }) })(plan);
-    expect(fetched).toMatchObject({ok:true,payload:{jobs:[{sourceJobId:expect.any(String)}]}});
-    if (!fetched.ok || !("payload" in fetched)) throw new Error("Fetch failed");
-    expect((fetched.payload as {jobs:Array<Record<string,unknown>>}).jobs[0]).not.toHaveProperty("officialPublishedAt");
+    const before = sourcePlanConfigSha256(plan);
+    expect(plan.json.fields.officialPublishedAt).toBe("officialPublishedAt");
+    await fetchJobs();
+    const { result } = await captureSyntheticLilly();
+    expect(result.truth.completenessVerified).toBe(true);
+    expect(result.jobs[0]?.officialPublishedAt).toBe("2025-11-12T00:00:00.000Z");
+    expect(result.fetchEvidence?.artifacts.some(a => a.logicalKey.startsWith("lilly-detail-"))).toBe(true);
+    const invalid = await captureSyntheticLilly([syntheticLillyRow(0, { postedDate: "not a date" })]);
+    expect(invalid.result.truth.completenessVerified).toBe(false);
+    expect(sourcePlanConfigSha256(getPlanBySourceId(buildStagedSourceCrawlPlans(candidateCompanies), "source-lilly-china-social")!)).toBe(before);
   });
 
   it.each(["company", "source", "date field", "country filter", "city policy", "copied policy"])("rejects altered UCB binding: %s", async kind => {

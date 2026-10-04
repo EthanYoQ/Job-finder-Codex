@@ -49,7 +49,7 @@ async function collect(options: { changeList?: (rows: any[]) => void; changeDeta
     const body = request.method === "GET" ? `<input id="init-data" value='${JSON.stringify(bootstrap)}'>`
       : request.url.endsWith("jobs/v2") ? encrypted({ success: true, data: { jobStats: { orgId: "bayer", total: rows.length }, jobs: rows } })
         : encrypted({ success: true, data: details.find(r => r.id === request.body?.jobId) });
-    return { status: 200, body, finalUrl: request.method === "GET" ? ENTRY.split("#")[0] : request.url,
+    return { status: 200, body, finalUrl: request.method === "GET" ? ENTRY.split("#")[0]! : request.url,
       contentType: request.method === "GET" ? "text/html" : "application/json", capturedAt: NOW };
   };
   const plan = bayerTestPlan();

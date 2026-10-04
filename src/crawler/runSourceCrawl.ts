@@ -827,7 +827,7 @@ function strictPageRequestContracts(
 ): boolean {
   if (plan.adapterId !== "official-json") return true;
   if (plan.workday) return strictWorkdayRequestContracts(plan, evidence, outputJobs) && replayWorkdayMainlandQuality(plan, evidence, outputJobs, capturedAt);
-  if (plan.moka) return strictMokaRequestContracts(plan, evidence);
+  if (plan.moka) return strictMokaRequestContracts(plan, evidence, outputJobs, capturedAt);
   if (plan.hotjobLegacy) return validateStrictHotjobLegacyEvidence(plan, evidence, outputJobs);
   if (plan.profileBoundSource) return profileBoundEvidenceValidated;
   const strategy = plan.officialJsonFetch;
@@ -2025,7 +2025,12 @@ function strictRecord(value: unknown): Record<string, unknown> | undefined {
     : undefined;
 }
 
-function strictMokaRequestContracts(plan: Extract<SourceCrawlPlan, { adapterId: "official-json" }>, evidence: PersistentSourceFetchEvidence): boolean {
+function strictMokaRequestContracts(
+  plan: Extract<SourceCrawlPlan, { adapterId: "official-json" }>,
+  evidence: PersistentSourceFetchEvidence,
+  outputJobs: readonly NormalizedJobRecord[],
+  capturedAt: string
+): boolean {
   if (isServierTraversalPlan(plan)) return replayServierTraversal(plan, evidence) !== undefined;
   if (isBayerMedicalTraversalPlan(plan)) return replayBayerMedicalTraversal(plan, evidence) !== undefined;
   const config = plan.moka!;
@@ -2040,6 +2045,8 @@ function strictMokaRequestContracts(plan: Extract<SourceCrawlPlan, { adapterId: 
   const artifacts = new Map(evidence.artifacts.map((artifact) => [artifact.logicalKey, artifact]));
   if (artifacts.size !== evidence.artifacts.length) return false;
   const requiredDetails = new Map<string, string>();
+  const bindGskOutput = config.requisitionStatusPolicy === "GSK_NATIVE_OPEN_REQUISITIONS_V1";
+  const gskRows = new Map<string, { title: string; locations: unknown }>();
   for (const page of evidence.pages) {
     const offset = page.sequence * 50;
     const expected = { sequence: page.sequence, requestedCursor: null, requestedOffset: offset,
@@ -2060,8 +2067,15 @@ function strictMokaRequestContracts(plan: Extract<SourceCrawlPlan, { adapterId: 
     for (let recordIndex = 0; recordIndex < data.jobs.length; recordIndex += 1) {
       const record = strictRecord(data.jobs[recordIndex]);
       const jobId = strictMokaJobId(record);
-      if (!record || !jobId || !strictNonblankText(record.title)) continue;
+      if (!record || !jobId || !strictNonblankText(record.title)) {
+        if (bindGskOutput) return false;
+        continue;
+      }
       if (config.requisitionStatusPolicy && record.status !== "open") return false;
+      if (bindGskOutput) {
+        if (gskRows.has(jobId)) return false;
+        gskRows.set(jobId, { title: strictNonblankText(record.title)!, locations: record.locations });
+      }
       if (config.hydrateMissingLocationsFromDetail && strictMokaCities(record.locations).length === 0) {
         const logicalKey = `moka-detail-${String(page.sequence).padStart(4, "0")}-${String(recordIndex).padStart(4, "0")}`;
         requiredDetails.set(logicalKey, jobId);
@@ -2097,6 +2111,32 @@ function strictMokaRequestContracts(plan: Extract<SourceCrawlPlan, { adapterId: 
       (detailSiteId !== config.expectedSiteId &&
         !(detailSiteId === undefined && config.allowDetailSiteIdOmission === true)) ||
       strictMokaCities(detail.locations).length === 0) return false;
+    if (bindGskOutput) {
+      const row = gskRows.get(expectedJobId);
+      if (!row) return false;
+      row.locations = detail.locations;
+    }
+  }
+  if (bindGskOutput) {
+    // The current native GSK contract must bind the exact raw list/detail projection
+    // to the final record, not merely certify the same number of arbitrary outputs.
+    if (gskRows.size !== outputJobs.length || evidence.fetchCounts.rawCount !== gskRows.size ||
+      evidence.fetchCounts.validCount !== gskRows.size || evidence.fetchLosses.length !== 0) return false;
+    if (gskRows.size === 0) return true;
+    const source = safeSourceClone(plan.source);
+    if (!source) return false;
+    const jobs = [...gskRows].map(([id, row]) => {
+      const cities = strictMokaCities(row.locations);
+      const url = new URL(config.campaignUrl);
+      url.search = "";
+      url.hash = `/job/${encodeURIComponent(id)}`;
+      return { id: irreversibleOfficialJsonEvidenceId(id), title: row.title, officialUrl: url.toString(),
+        locationRaw: cities.join("、"), cities };
+    });
+    const replay = officialJsonAdapter.extract({ company: plan.company, source, json: plan.json,
+      capturedAt, isBaseline: outputJobs[0]!.isBaseline, payload: { data: { jobs } } });
+    return replay.status === "SUCCESS" && replay.reconciliation?.adapterLosses.length === 0 &&
+      replay.reconciliation?.collisionGroups.length === 0 && isDeepStrictEqual(replay.jobs, outputJobs);
   }
   return true;
 }

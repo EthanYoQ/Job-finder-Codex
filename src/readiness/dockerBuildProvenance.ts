@@ -9,15 +9,35 @@ export const ATTESTED_GIT_PATHS=["src","scripts","prisma","ops","public","packag
 export function exportDockerBuildProvenance(root:string,bundlePath:string):void{
   const status=git(root,["status","--porcelain","--",...ATTESTED_GIT_PATHS]);
   if(status.trim())throw new Error("Docker build source provenance is dirty");
-  git(root,["bundle","create",resolve(bundlePath),"HEAD"]);
+  const head=git(root,["rev-parse","HEAD"]).trim();
+  const blobs=new Set<string>();
+  for(const record of git(root,["ls-tree","-r","-z",head,"--",...ATTESTED_GIT_PATHS]).split("\0").filter(Boolean)){
+    const match=/^\d+\s+blob\s+([0-9a-f]{40})\t/u.exec(record);
+    if(!match?.[1])throw new Error("Docker build source provenance contains an unsupported Git entry");
+    blobs.add(match[1]);
+  }
+  // Native v3 filtering keeps the original commit/tree graph. Explicitly supplied
+  // current source blobs bypass blob:none; unrelated and historical payloads do not.
+  git(root,["bundle","create","--version=3",resolve(bundlePath),"--filter=blob:none","--stdin"],
+    ["HEAD",...blobs].join("\n")+"\n");
+  if(git(root,["bundle","list-heads",resolve(bundlePath),"HEAD"]).trim()!==`${head} HEAD` ||
+    git(root,["status","--porcelain","--",...ATTESTED_GIT_PATHS]).trim()){
+    throw new Error("Docker build source provenance changed during export");
+  }
 }
 
 export function verifyDockerBuildProvenance(root:string,bundlePath:string,commitSha:string,expectedTree:string,normalizeDockerCopyModes=false):BuildIdentityArtifact{
   const checkout=mkdtempSync(join(tmpdir(),"job-finder-build-provenance-"));
   try{
-    execFileSync("git",["clone","--quiet","--no-checkout",resolve(bundlePath),checkout],{stdio:["ignore","ignore","pipe"],env:isolatedGitEnvironment()});
-    const bundledHead=git(checkout,["rev-parse","HEAD"]).trim();
+    // clone rejects filtered bundles. Native unbundle verifies/imports the pack
+    // and marks it promisor; this isolated repository has no remote for lazy fetches.
+    git(checkout,["init","--quiet","--bare","--template=","--object-format=sha1"]);
+    const heads=git(checkout,["bundle","unbundle",resolve(bundlePath)]).trim().split(/\r?\n/u)
+      .map(line=>/^([0-9a-f]{40}) HEAD$/u.exec(line)).filter(match=>match!==null);
+    if(heads.length!==1)throw new Error("Docker build provenance must contain exactly one HEAD");
+    const bundledHead=heads[0]![1]!;
     if(bundledHead!==commitSha)throw new Error("Docker build commit argument does not match portable Git provenance");
+    git(checkout,["update-ref","HEAD",bundledHead]);
     const copiedTree=canonicalSourceTreeSha256(root);
     if(copiedTree!==expectedTree)throw new Error("Docker build source tree mismatch: copied-digest");matchesCommittedGitTree(root,checkout,normalizeDockerCopyModes);
     return createBuildIdentity(root,commitSha);
@@ -27,7 +47,7 @@ export function verifyDockerBuildProvenance(root:string,bundlePath:string,commit
   }finally{rmSync(checkout,{recursive:true,force:true});}
 }
 
-function git(root:string,args:string[]):string{return execFileSync("git",args,{cwd:root,encoding:"utf8",stdio:["ignore","pipe","pipe"],env:isolatedGitEnvironment()});}
+function git(root:string,args:string[],input?:string):string{return execFileSync("git",["-c","protocol.allow=never",...args],{cwd:root,encoding:"utf8",stdio:[input===undefined?"ignore":"pipe","pipe","pipe"],...(input===undefined?{}:{input}),env:isolatedGitEnvironment()});}
 
 function matchesCommittedGitTree(root:string,checkout:string,normalizeDockerCopyModes:boolean):void{
   const committed=new Map<string,{mode:string;hash:string}>();
@@ -78,7 +98,7 @@ function attestedFiles(root:string):string[]{
   return result.sort();
 }
 function walkFiles(root:string,directory:string,result:string[]):void{for(const name of readdirSync(directory)){const absolute=join(directory,name),stat=lstatSync(absolute),path=relative(root,absolute).replaceAll("\\","/");if(stat.isDirectory()&&!stat.isSymbolicLink())walkFiles(root,absolute,result);else result.push(path);}}
-function gitBlob(checkout:string,hash:string):Buffer{return execFileSync("git",["cat-file","blob",hash],{cwd:checkout,encoding:"buffer",stdio:["ignore","pipe","pipe"],env:isolatedGitEnvironment()});}
+function gitBlob(checkout:string,hash:string):Buffer{return execFileSync("git",["-c","protocol.allow=never","cat-file","blob",hash],{cwd:checkout,encoding:"buffer",stdio:["ignore","pipe","pipe"],env:isolatedGitEnvironment()});}
 function readFileBytes(path:string):Buffer{return readFileSync(path);}
 function buffersEquivalent(copied:Buffer,committed:Buffer):boolean{
   if(copied.equals(committed))return true;
@@ -88,5 +108,9 @@ export function symlinkTargetMatchesCommitted(copiedTarget:string,committedBlob:
 function utf8Text(value:Buffer):string|undefined{if(value.includes(0))return undefined;try{return new TextDecoder("utf-8",{fatal:true}).decode(value);}catch{return undefined;}}
 function isolatedGitEnvironment():NodeJS.ProcessEnv{
   const env={...process.env};for(const key of Object.keys(env))if(key.startsWith("GIT_CONFIG_"))delete env[key];
-  return {...env,GIT_CONFIG_NOSYSTEM:"1",GIT_CONFIG_GLOBAL:process.platform==="win32"?"NUL":"/dev/null",GIT_CONFIG_COUNT:"0"};
+  // A caller's repository or alternate object store must not fill holes in the
+  // proof imported into the temporary repository.
+  for(const key of ["GIT_DIR","GIT_COMMON_DIR","GIT_WORK_TREE","GIT_INDEX_FILE","GIT_OBJECT_DIRECTORY",
+    "GIT_ALTERNATE_OBJECT_DIRECTORIES","GIT_SHALLOW_FILE","GIT_REPLACE_REF_BASE","GIT_NAMESPACE"])delete env[key];
+  return {...env,GIT_CONFIG_NOSYSTEM:"1",GIT_CONFIG_GLOBAL:process.platform==="win32"?"NUL":"/dev/null",GIT_CONFIG_COUNT:"0",GIT_NO_LAZY_FETCH:"1",GIT_NO_REPLACE_OBJECTS:"1"};
 }

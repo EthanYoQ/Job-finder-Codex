@@ -174,6 +174,7 @@ describe("company recruitment profiles", () => {
     expect(retrySourceIds).toEqual([
       "source-bms-china-social",
       "source-grifols-china-social",
+      "source-gsk-china-social",
       "source-johnson-innovative-medicine-social",
       "source-lunan-social",
       "source-msd-china-social",

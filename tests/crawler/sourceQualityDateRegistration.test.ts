@@ -45,7 +45,7 @@ describe("reviewed dated-source portable admission",()=>{
   expect(output.jobCommands).toHaveLength(1);expect(output.jobCommands[0]!.record.officialPublishedAt).toBe(source==="ucb"?"2026-08-24T05:54:14.000Z":"2026-09-28T00:00:00.000Z");
   expect(input.result.jobs[0]!.cities).toEqual(source==="ucb"?["上海"]:["全国"]);
   const record=output.jobCommands[0]!.record;
-  const snapshot={companies:[{id:record.companyId,pinyin:"company",companyName:record.officialChineseCompanyName,required:true,publishingSourceIds:[record.sourceId],jobs:[{...record,id:"j",city:record.cities[0],title:record.officialTitle,officialPublishedAt:record.officialPublishedAt,isNew:false}]}],coverage:{requiredCompanyCount:40,excludedCompanyCount:1},lastUpdatedAt:NOW.toISOString()} as unknown as PortablePublicSnapshot;
+  const snapshot={sources:[],companies:[{id:record.companyId,pinyin:"company",companyName:record.officialChineseCompanyName,required:true,publishingSourceIds:[record.sourceId],jobs:[{...record,id:"j",city:record.cities[0],title:record.officialTitle,officialPublishedAt:record.officialPublishedAt,isNew:false}]}],coverage:{requiredCompanyCount:40,excludedCompanyCount:1},lastUpdatedAt:NOW.toISOString()} as unknown as PortablePublicSnapshot;
   expect(searchPortableSnapshot({city:"上海"},snapshot).totalJobs).toBe(1);
   expect(searchPortableSnapshot({city:"北京"},snapshot).totalJobs).toBe(source==="grifols"?1:0);
   expect(searchPortableSnapshot({city:"广州"},snapshot).totalJobs).toBe(source==="grifols"?1:0);

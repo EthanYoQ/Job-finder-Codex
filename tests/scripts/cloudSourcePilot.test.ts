@@ -1,5 +1,14 @@
 // @vitest-environment node
-import { afterEach, expect, it, vi } from "vitest";
+import { afterAll, afterEach, expect, it, vi } from "vitest";
+const selectedSourceBeforeTest = vi.hoisted(() => {
+  const previous = process.env.JOBFINDER_CLOUD_SOURCE_ID;
+  process.env.JOBFINDER_CLOUD_SOURCE_ID = "source-qilu-social";
+  return previous;
+});
+afterAll(() => {
+  if (selectedSourceBeforeTest === undefined) delete process.env.JOBFINDER_CLOUD_SOURCE_ID;
+  else process.env.JOBFINDER_CLOUD_SOURCE_ID = selectedSourceBeforeTest;
+});
 import { readFile } from "node:fs/promises";
 import { candidateCompanies } from "../../src/data/companyRegistry";
 import { buildStagedSourceCrawlPlans, getPlanBySourceId, sourcePlanConfigSha256 } from "../../src/crawler/sourcePlan";
@@ -18,7 +27,7 @@ afterEach(()=>{vi.useRealTimers();vi.restoreAllMocks();vi.unstubAllGlobals();});
 it("declares an honest selected one-source scheduled identity retaining the full authority hashes",()=>{
   const full={releaseCandidateId:"candidate",commitSha:"a".repeat(40),rosterSha256:"b".repeat(64),sourcePlanSha256:"c".repeat(64),sourceConfigSha256:"d".repeat(64),adapterBundleSha256:"e".repeat(64),ownerId:"staged-scheduler",batchKind:"SCHEDULED" as const,expectedPlannedSourceIds:["other"],expectedPlannedSourceSetSha256:"f".repeat(64),expectedPlannedSourceCount:41};
   const selected=selectedPilotIdentity(full);
-  expect(selected).toEqual({...full,ownerId:"dot-cloud-qilu-pilot",batchKind:"SCHEDULED",expectedPlannedSourceIds:["source-qilu-social"],expectedPlannedSourceCount:1,expectedPlannedSourceSetSha256:hashCanonicalStringSet(["source-qilu-social"])});
+  expect(selected).toEqual({...full,ownerId:"dot-cloud-qilu-social-pilot",batchKind:"SCHEDULED",expectedPlannedSourceIds:["source-qilu-social"],expectedPlannedSourceCount:1,expectedPlannedSourceSetSha256:hashCanonicalStringSet(["source-qilu-social"])});
   expect(sourcePlanConfigSha256(plan)).toBe("0ca38d0cd6550e9567cc3e7ca6772d3b91497f5a59530f5359f823a6c62d5773");
   expect(plan.expectedChannels).toEqual([{channelId:"qilu-marketing",kind:"SOCIAL"},{channelId:"qilu-non-marketing",kind:"SOCIAL"}]);
 });

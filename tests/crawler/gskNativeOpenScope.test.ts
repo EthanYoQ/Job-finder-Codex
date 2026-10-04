@@ -34,7 +34,8 @@ describe('GSK native Open requisition scope',()=>{
   expect(p.source.atsKind).toBe('MOKA');expect(result.truth.completenessVerified).toBe(true);
   expect(result.jobs).toHaveLength(65);
   expect(result.jobs.every(job=>job.officialPublishedAt===undefined)).toBe(true);
-  const rawPage = decryptMokaResponse(JSON.parse(result.fetchEvidence!.artifacts.find(a=>a.logicalKey==='moka-page-0000')!.body), iv) as {data:{jobs:Array<{publishedAt:string}>}};
+  const pageBody = result.fetchEvidence!.artifacts.find(a=>a.logicalKey==='moka-page-0000')!.body;
+  const rawPage = decryptMokaResponse(JSON.parse(typeof pageBody === 'string' ? pageBody : Buffer.from(pageBody).toString('utf8')), iv) as {data:{jobs:Array<{publishedAt:string}>}};
   expect(rawPage.data.jobs.every(job=>job.publishedAt==='2026-09-30T14:12:03')).toBe(true);expect(requests.filter(r=>r.method==='POST')).toHaveLength(2);
   expect(result.fetchEvidence?.fetchCounts).toMatchObject({rawCount:65,validCount:65,parseDiscardCount:0,validationDiscardCount:0});
   expect(certify(p,result), JSON.stringify(certify(p,result))).toMatchObject({status:'CERTIFIED',certificate:{counts:{officialTotal:65,finalUniqueJobCount:65}}});

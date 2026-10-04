@@ -17,6 +17,12 @@ const { body, captures: html } = createNovoSyntheticFixture();
 const detailUrl = Object.keys(html).find(url => url.endsWith("job-ad.800112.en_GB.html"))!;
 const applicationUrl = Object.keys(html).find(url => url.includes("career_job_req_id=800112&"))!;
 
+function retryAfterHeader(value: string) {
+  const parsed = parseOfficialRetryAfter(value, Date.parse(capturedAt));
+  if (parsed === undefined) throw Error("Explicit Retry-After header must be classified");
+  return parsed;
+}
+
 async function routedCapture(failApplication: (attempt: number) => Partial<OfficialJsonHttpResponse> | undefined,
   wait: (milliseconds:number)=>Promise<void> = async()=>undefined) {
   const plan = getPlanBySourceId(buildStagedSourceCrawlPlans(candidateCompanies), "source-novo-nordisk-china-social")!;
@@ -45,7 +51,10 @@ async function routedCapture(failApplication: (attempt: number) => Partial<Offic
 
 describe("Novo native application transport retry classification", () => {
   it("retries a real HTTP timeout once under the unchanged source policy and retains the completed failure artifacts", async () => {
-    const actual = await routedCapture(attempt => { if (attempt === 1) throw new OfficialHttpTimeoutError(); });
+    const actual = await routedCapture(attempt => {
+      if (attempt === 1) throw new OfficialHttpTimeoutError();
+      return undefined;
+    });
     expect(actual.plan.transientRetryPolicy).toEqual({ maxRetries: 1, backoffMs: 10_000 });
     expect(actual.attemptTracker).toEqual({ fetchAttemptCount: 2, retryCount: 1, retryReasonCodes: ["OFFICIAL_HTTP_TIMEOUT"] });
     expect(actual.delays).toEqual([10_000]);
@@ -114,7 +123,7 @@ describe("Novo native application transport retry classification", () => {
 
   it.each([429, 503])("honors a bounded Retry-After on HTTP %s without increasing the source retry count", async status => {
     const actual = await routedCapture(() => ({ status, body: "Temporarily unavailable",
-      retryAfter: parseOfficialRetryAfter("10", Date.parse(capturedAt)) }));
+      retryAfter: retryAfterHeader("10") }));
     expect(actual.attemptTracker).toEqual({ fetchAttemptCount: 2, retryCount: 1, retryReasonCodes: [`OFFICIAL_HTTP_${status}`] });
     expect(actual.delays).toEqual([10_000]);
     expect(actual.result).toMatchObject({ status: "FAILED", transportFailure: { code: `OFFICIAL_HTTP_${status}`, retryAfterMs: 10_000 } });
@@ -131,7 +140,7 @@ describe("Novo native application transport retry classification", () => {
 
   it.each([429, 503])("refuses HTTP %s when Retry-After exceeds the original allowed wait", async status => {
     const actual = await routedCapture(() => ({ status, body: "Temporarily unavailable",
-      retryAfter: parseOfficialRetryAfter("11", Date.parse(capturedAt)) }));
+      retryAfter: retryAfterHeader("11") }));
     expect(actual.attemptTracker).toEqual({ fetchAttemptCount: 1, retryCount: 0, retryReasonCodes: [] });
     expect(actual.delays).toEqual([]); expect(actual.result.status).toBe("FAILED");
     expect(actual.result.transportFailure).toMatchObject({ retryAfterMs: 11_000 });
@@ -195,8 +204,8 @@ describe("Novo native application transport retry classification", () => {
     ["HTTP 503 unexpected origin", () => ({ status: 503, body: "Unavailable", finalUrl: "https://unexpected.example/error" })],
     ["HTTP 503 login redirect", () => ({ status: 503, body: "Unavailable", finalUrl: "https://careers.novonordisk.com/login/" })],
     ["HTTP 502 ambiguous job content", () => ({ status: 502, body: '<div class="jobDisplay"><div class="job">Unknown identity</div></div>' })],
-    ["HTTP 429 invalid Retry-After", () => ({ status: 429, body: "Unavailable", retryAfter: parseOfficialRetryAfter("bad", Date.parse(capturedAt)) })],
-    ["HTTP 503 overlong Retry-After", () => ({ status: 503, body: "Unavailable", retryAfter: parseOfficialRetryAfter("1".repeat(65), Date.parse(capturedAt)) })],
+    ["HTTP 429 invalid Retry-After", () => ({ status: 429, body: "Unavailable", retryAfter: retryAfterHeader("bad") })],
+    ["HTTP 503 overlong Retry-After", () => ({ status: 503, body: "Unavailable", retryAfter: retryAfterHeader("1".repeat(65)) })],
     ["generic timeout text", () => { throw Error("timeout"); }],
     ["unclassified network failure", () => { throw new TypeError("fetch failed"); }],
     ["TLS certificate failure", () => { throw new TypeError("fetch failed", { cause: { code: "CERT_HAS_EXPIRED" } }); }],

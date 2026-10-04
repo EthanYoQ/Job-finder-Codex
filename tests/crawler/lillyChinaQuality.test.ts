@@ -1,8 +1,14 @@
 import { describe, expect, it } from "vitest";
 import { createHash } from "node:crypto";
-import { captureSyntheticLilly, lillyPlan, replayLilly, syntheticLillyRow } from "../helpers/lillyPhenom";
+import { captureSyntheticLilly, lillyPlan, replayLilly, syntheticLillyNativeDetailBody, syntheticLillyRow } from "../helpers/lillyPhenom";
 import { deriveCanonicalPaginationEvidence, evaluatePaginationEvidence } from "../../src/crawler/paginationEvidence";
 import { replayStrictSourceQualityEvidence } from "../../src/crawler/runSourceCrawl";
+
+function nativeDetailBodies(rows: Record<string, unknown>[], locality = "China") {
+  return Object.fromEntries(rows.map(row => [String(row.applyUrl), syntheticLillyNativeDetailBody(row, {
+    jobLocation: {address: {addressCountry: "China", addressLocality: locality}}
+  })]));
+}
 
 describe("Lilly China source quality", () => {
   it("preserves exact old official dates and reviewed Shanghai geometry", async () => {
@@ -44,12 +50,23 @@ describe("Lilly China source quality", () => {
     const jobs = structuredClone(input.result.jobs); (jobs[0] as unknown as Record<string, unknown>).isBaseline = "true";
     expect(replayLilly(input, jobs)).toBe(false);
   });
-  it("keeps reviewed URL city contradictions pending without changing official text", async () => {
+  it.each([["China", "城市待核"], ["Shang Hai", "上海"], ["Bei Jing", "北京"]])("uses native locality %s for reviewed URL city contradictions without changing official text", async (locality, city) => {
     const row = syntheticLillyRow(); row.applyUrl = String(row.applyUrl).replace("China-Shang-Hai-", "China-Bei-Jing-");
-    const input = await captureSyntheticLilly([row]);
+    const input = await captureSyntheticLilly([row], {detailBodies: nativeDetailBodies([row], locality)});
     expect(input.result.truth.completenessVerified).toBe(true);
-    expect(input.result.jobs[0]?.cities).toEqual(["城市待核"]);
+    expect(input.result.jobs[0]).toMatchObject({cities: [city], officialTitle: row.title, locationRaw: `${locality}, China`});
     expect(replayLilly(input)).toBe(true);
+  });
+  it.each(["missing", "closed", "wrong identity", "foreign country"])("holds a listed job with %s native detail", async mutation => {
+    const row = syntheticLillyRow();
+    let body = syntheticLillyNativeDetailBody(row);
+    if (mutation === "missing") body = "";
+    if (mutation === "closed") body = body.replace("postingAvailable: true", "postingAvailable: false");
+    if (mutation === "wrong identity") body = syntheticLillyNativeDetailBody(row, {identifier: {value: "R-999999"}});
+    if (mutation === "foreign country") body = syntheticLillyNativeDetailBody(row, {jobLocation: {address: {addressCountry: "Singapore", addressLocality: "Singapore"}}});
+    const input = await captureSyntheticLilly([row], {detailBodies: {[String(row.applyUrl)]: body}});
+    expect(input.result.truth.completenessVerified).toBe(false);
+    expect(input.result.jobs).toEqual([]);
   });
   it.each([{officialTitle: "Forged"}, {officialPublishedAt: "2026-10-01T00:00:00.000Z"}, {cities: ["北京"]},
     {cities: ["上海", "城市待核"]}, {officialUrl: "https://lilly.wd115.myworkdayjobs.com/LLY/job/China-Shang-Hai-/Scientist_R-999999/apply"}])("rejects changed normalized output %j", async mutation => {
@@ -65,14 +82,14 @@ describe("Lilly China source quality", () => {
     nested.descriptionTeaser_keyword += " Work location: Singapore.";
     expect((await captureSyntheticLilly([row])).result.truth.completenessVerified).toBe(false);
   });
-  it("preserves contradictory Suzhou and remote Zhejiang shapes without guessing workplaces", async () => {
+  it("preserves contradictory Suzhou and remote Zhejiang shapes as pending when native locality is unresolved", async () => {
     const suzhou = syntheticLillyRow(1, {city: "Suzhou", state: "Shanghai", location: "Suzhou, Shanghai, China", cityState: "Suzhou, Shanghai",
       cityStateCountry: "Suzhou, Shanghai, China", latitude: "31.31092", longitude: "120.77415", address: "No.109, Fangzhong Jie SIP, Suzhou, 215126 Shanghai, China",
       multi_location: ["Suzhou, Shanghai, China"], multi_location_array: [{location: "Suzhou, Shanghai, China", latlong: {lat: 31.311389, lon: 120.618056}}]});
     const zhejiang = syntheticLillyRow(2, {city: "Zhejiang", state: "Zhejiang", location: "Zhejiang, Zhejiang, China", cityState: "Zhejiang, Zhejiang",
       cityStateCountry: "Zhejiang, Zhejiang, China", latitude: "0.0", longitude: "0.0", address: "Remote, Zhejiang, 999999 Zhejiang, China",
       multi_location: ["Zhejiang, Zhejiang, China"], multi_location_array: [{location: "Zhejiang, Zhejiang, China", latlong: {lat: Number.MIN_VALUE, lon: Number.MIN_VALUE}}]});
-    const input = await captureSyntheticLilly([suzhou, zhejiang]);
+    const input = await captureSyntheticLilly([suzhou, zhejiang], {detailBodies: nativeDetailBodies([suzhou, zhejiang])});
     expect(input.result.truth.completenessVerified).toBe(true); expect(input.result.jobs.map(j => j.cities)).toEqual([["城市待核"], ["城市待核"]]);
     expect(replayLilly(input)).toBe(true);
   });
@@ -141,12 +158,14 @@ describe("Lilly China source quality", () => {
     const row = syntheticLillyRow(0, {descriptionTeaser}); (row.ml_job_parser as Record<string, string>).descriptionTeaser = descriptionTeaser;
     const input = await captureSyntheticLilly([row]); expect(input.result.truth.completenessVerified).toBe(true); expect(replayLilly(input)).toBe(true);
   });
-  it.each(["Scientist - Singapore - Quality Assurance", "Quality Scientist (Singapore)", "Scientist - Atlantis"])("retains title-only geography with city pending: %s", async title => {
-    const input = await captureSyntheticLilly([syntheticLillyRow(0, {title})]);
+  it.each(["Scientist - Singapore - Quality Assurance", "Quality Scientist (Singapore)", "Scientist - Atlantis"])("retains title-only geography with unresolved native locality pending: %s", async title => {
+    const row = syntheticLillyRow(0, {title});
+    const input = await captureSyntheticLilly([row], {detailBodies: nativeDetailBodies([row])});
     expect(input.result.truth.completenessVerified).toBe(true); expect(input.result.jobs[0]?.cities).toEqual(["城市待核"]); expect(replayLilly(input)).toBe(true);
   });
-  it.each(["Scientist (Beijing)", "区域经理（北京）", "医药代表/北京/上海", "Beijing Medical Representative", "区域经理-北京-免疫产品组", "Scientist (Atlantis)"])("keeps conflicting or unresolved title geography pending in any segment: %s", async title => {
-    const input = await captureSyntheticLilly([syntheticLillyRow(0, {title})]); expect(input.result.truth.completenessVerified).toBe(true);
+  it.each(["Scientist (Beijing)", "区域经理（北京）", "医药代表/北京/上海", "Beijing Medical Representative", "区域经理-北京-免疫产品组", "Scientist (Atlantis)"])("keeps conflicting title geography pending when native locality is unresolved: %s", async title => {
+    const row = syntheticLillyRow(0, {title});
+    const input = await captureSyntheticLilly([row], {detailBodies: nativeDetailBodies([row])}); expect(input.result.truth.completenessVerified).toBe(true);
     expect(input.result.jobs[0]?.cities).toEqual(["城市待核"]); expect(replayLilly(input)).toBe(true);
   });
   it.each(["microsoft office", "value-based pricing"])("keeps reviewed professional skill context separate from workplace %s", async skill => {
@@ -190,14 +209,14 @@ describe("Lilly China source quality", () => {
     (row.ml_job_parser as Record<string, string>).descriptionTeaser = descriptionTeaser;
     (row.ml_job_parser as Record<string, string>).descriptionTeaser_ats = "Novel source introduction describing this research role.";
     const input = await captureSyntheticLilly([row]); expect(input.result.truth.completenessVerified).toBe(true);
-    expect(input.result.jobs[0]).toMatchObject({officialTitle: title, cities: ["城市待核"]}); expect(replayLilly(input)).toBe(true);
+    expect(input.result.jobs[0]).toMatchObject({officialTitle: title, cities: ["上海"]}); expect(replayLilly(input)).toBe(true);
   });
-  it.each(["Work location: Atlantis.", "Remote work.", "工作地点：北京", "at our Suzhou site", "business units in Shanghai"])("retains uncertain or conflicting prose as pending: %s", async descriptionTeaser => {
+  it.each(["Work location: Atlantis.", "Remote work.", "工作地点：北京", "at our Suzhou site", "business units in Shanghai"])("retains uncertain or conflicting prose as pending when native locality is unresolved: %s", async descriptionTeaser => {
     const row = syntheticLillyRow(0, {descriptionTeaser});
     (row.ml_job_parser as Record<string, string>).descriptionTeaser = descriptionTeaser;
     // A new description in a nested surface is uncertainty too; it never drops a positively China row.
     (row.ml_job_parser as Record<string, string>).descriptionTeaser_ats = descriptionTeaser;
-    const input = await captureSyntheticLilly([row]); expect(input.result.truth.completenessVerified).toBe(true);
+    const input = await captureSyntheticLilly([row], {detailBodies: nativeDetailBodies([row])}); expect(input.result.truth.completenessVerified).toBe(true);
     expect(input.result.jobs[0]?.cities).toEqual(["城市待核"]); expect(replayLilly(input)).toBe(true);
   });
   it("keeps an observed empty URL title slug and optional numeric requisition version", async () => {
@@ -208,7 +227,8 @@ describe("Lilly China source quality", () => {
     for (const size of [0, 1, 50, 55, 100]) {
       const input = await captureSyntheticLilly(Array.from({length: size}, (_, i) => syntheticLillyRow(i)));
       expect(input.result.truth.completenessVerified, String(size)).toBe(true); expect(input.result.jobs).toHaveLength(size);
-      expect(replayLilly(input)).toBe(true); expect(input.requests).toHaveLength(Math.max(1, Math.ceil(size / 50)) + 1);
+      expect(replayLilly(input)).toBe(true); expect(input.requests).toHaveLength(Math.max(1, Math.ceil(size / 50)) + 1 + size);
+      expect(input.requests.filter(request => request.method === "GET")).toHaveLength(size + 1);
     }
   });
   it("rejects offset drift, total drift, underfilled pages, and repeated raw identities", async () => {

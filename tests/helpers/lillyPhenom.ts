@@ -25,22 +25,39 @@ export function syntheticLillyRow(index = 0, overrides: Record<string, unknown> 
     postedDate: "2025-11-12T00:00:00.000+0000", dateCreated: "2026-09-29T12:05:11.334+0000", ...overrides };
 }
 export function lillyPlan() { return getPlanBySourceId(buildStagedSourceCrawlPlans(candidateCompanies), "source-lilly-china-social")!; }
+export function syntheticLillyNativeDetailBody(row: Record<string, unknown>, overrides: Record<string, unknown> = {}) {
+  return `<script>window.workday = {postingAvailable: true};</script><script type="application/ld+json">${JSON.stringify({
+    "@type": "JobPosting", identifier: {value: row.reqId}, title: row.title, description: "Synthetic pharmaceutical quality role.",
+    datePosted: new Date(String(row.postedDate)).toISOString().slice(0, 10),
+    jobLocation: {address: {addressCountry: "China", addressLocality: "Shang Hai"}}, ...overrides
+  })}</script>`;
+}
 export async function captureSyntheticLilly(rows = [syntheticLillyRow()], options: {
   plan?: SourceCrawlPlan; owned?: boolean; pages?: unknown[][]; from?: number; totals?: number[]; bootstrap?: object;
-  selection?: unknown; bodies?: string[]; entryBody?: string;
+  selection?: unknown; bodies?: string[]; entryBody?: string; detailBodies?: Record<string, string>;
 } = {}) {
   const plan = options.plan ?? lillyPlan(), pages = options.pages ?? Array.from({length: Math.max(1, Math.ceil(rows.length / 50))}, (_, i) => rows.slice(i * 50, i * 50 + 50));
   const requests: {url: string; method: string; body: unknown}[] = [], originalFetch = globalThis.fetch, startedAt = new Date();
+  const detailRows = new Map(pages.flat().filter((row): row is Record<string, unknown> => Boolean(row) && typeof row === "object")
+    .map(row => [String(row.applyUrl), row]));
+  const requestedDetails = new Set<string>();
+  let pageIndex = 0;
   globalThis.fetch = async (input, init) => {
-    const url = String(input), method = init?.method ?? "GET", index = requests.length - 1;
+    const url = String(input), method = init?.method ?? "GET";
     requests.push({url, method, body: init?.body});
-    if ((requests.length === 1 && (url !== plan.source.officialEntryUrl || method !== "GET")) ||
-      (requests.length > 1 && (url !== lillyBootstrap.widgetApiEndpoint || method !== "POST" || index >= pages.length))) {
+    let body: string;
+    if (requests.length === 1 && url === plan.source.officialEntryUrl && method === "GET") {
+      body = options.entryBody ?? `<script>var phApp=${JSON.stringify({...lillyBootstrap, ...options.bootstrap})};</script>`;
+    } else if (requests.length > 1 && url === lillyBootstrap.widgetApiEndpoint && method === "POST" && pageIndex < pages.length && requestedDetails.size === 0) {
+      const index = pageIndex++;
+      body = options.bodies?.[index] ?? JSON.stringify({refineSearch: {status: 200, hits: pages[index]!.length, totalHits: options.totals?.[index] ?? pages.flat().length,
+        ...(options.from === undefined ? {} : {from: options.from}), data: {jobs: pages[index], aggregations: [], ui_selections: options.selection ?? {country: ["China"]}}}});
+    } else if (method === "GET" && pageIndex === pages.length && detailRows.has(url) && !requestedDetails.has(url)) {
+      requestedDetails.add(url);
+      body = options.detailBodies?.[url] ?? syntheticLillyNativeDetailBody(detailRows.get(url)!);
+    } else {
       throw Error("SYNTHETIC_LILLY_UNEXPECTED_REQUEST_NO_NETWORK_FALLBACK");
     }
-    const body = method === "GET" ? options.entryBody ?? `<script>var phApp=${JSON.stringify({...lillyBootstrap, ...options.bootstrap})};</script>` :
-      options.bodies?.[index] ?? JSON.stringify({refineSearch: {status: 200, hits: pages[index]!.length, totalHits: options.totals?.[index] ?? pages.flat().length,
-        ...(options.from === undefined ? {} : {from: options.from}), data: {jobs: pages[index], aggregations: [], ui_selections: options.selection ?? {country: ["China"]}}}});
     const response = new Response(body, {status: 200, headers: {"content-type": method === "GET" ? "text/html" : "application/json"}});
     Object.defineProperty(response, "url", {value: url}); return response;
   };

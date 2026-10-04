@@ -163,6 +163,10 @@ describe("prisma schema", () => {
       ,"20261002001500_bms_mainland_geography_policy"
       ,"20261002011500_city_pending_source_policies"
       ,"20261002020000_gilead_novo_source_policies"
+      ,"20261002093322_novo_native_application_policy"
+      ,"20261002101515_organon_source_policy"
+      ,"20261002103742_lilly_source_policy"
+      ,"20261003055000_jnj_dom_evidence_admission"
     ]);
     const statements = crawlStatusValuesMigration
       .split("\n")

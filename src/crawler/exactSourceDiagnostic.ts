@@ -12,9 +12,6 @@ export const EXACT_SOURCE_DIAGNOSTIC_MAX_SOURCES = 15;
 export const EXACT_SOURCE_DIAGNOSTIC_LONG_TAIL_SOURCE_IDS = Object.freeze(
   Object.keys(REQUIRED_B_GRADE_TRAVERSAL_CERTIFICATES).sort()
 );
-if (EXACT_SOURCE_DIAGNOSTIC_LONG_TAIL_SOURCE_IDS.length > EXACT_SOURCE_DIAGNOSTIC_MAX_SOURCES) {
-  throw new Error("Exact-source diagnostic authority exceeds the bounded source limit");
-}
 
 export const EXACT_SOURCE_DIAGNOSTIC_CODES = Object.freeze([
   "SOURCE_VERIFIED",
@@ -215,11 +212,10 @@ export async function prepareExactSourceDiagnostic(input: {
     throw new Error("Exact-source diagnostic source selection must be unique and nonblank");
   }
   const longTailSet = new Set(EXACT_SOURCE_DIAGNOSTIC_LONG_TAIL_SOURCE_IDS);
-  const selectsCompleteLongTail = input.sourceIds.length === longTailSet.size &&
-    input.sourceIds.every((sourceId) => longTailSet.has(sourceId));
-  if (selectsCompleteLongTail &&
-      JSON.stringify(input.sourceIds) !== JSON.stringify(EXACT_SOURCE_DIAGNOSTIC_LONG_TAIL_SOURCE_IDS)) {
-    throw new Error("Exact-source diagnostic complete B-grade selection must use the current authority order");
+  const selectedLongTail = input.sourceIds.filter((sourceId) => longTailSet.has(sourceId));
+  const canonicalLongTail = EXACT_SOURCE_DIAGNOSTIC_LONG_TAIL_SOURCE_IDS.filter((sourceId) => selected.has(sourceId));
+  if (JSON.stringify(selectedLongTail) !== JSON.stringify(canonicalLongTail)) {
+    throw new Error("Exact-source diagnostic B-grade selection must use the current authority order");
   }
   const authoritySourceIds = new Set(input.authority.sourceIds);
   if (input.sourceIds.some((sourceId) => !authoritySourceIds.has(sourceId))) {

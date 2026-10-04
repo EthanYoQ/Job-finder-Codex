@@ -76,10 +76,16 @@ describe("company expansion contract", () => {
 
 
 describe("portable-only search request contract", () => {
-  it("adds the city-pending view without accepting a broad or unsupported city input", () => {
-    expect(PortableSearchRequestSchema.parse({ city: " 城市待核 " }).city).toBe("城市待核");
-    for (const city of ["", "全部地点", "全国", "中国", "China", "APAC", "杭州"]) {
+  it("accepts the complete published-city and province filter contract while bounding input", () => {
+    for (const city of ["城市待核", "全部城市", "全国", "杭州", "重庆", "上海"]) {
+      expect(PortableSearchRequestSchema.parse({ city: ` ${city} `, province: " 浙江 " }))
+        .toMatchObject({city, province: "浙江"});
+    }
+    for (const city of ["", "   ", "杭".repeat(81), null, 7, []]) {
       expect(PortableSearchRequestSchema.safeParse({ city }).success).toBe(false);
     }
+    expect(PortableSearchRequestSchema.safeParse({city: "杭州", province: " "}).success).toBe(false);
+    expect(SearchRequestSchema.safeParse({city: "杭州"}).success).toBe(false);
+    expect(SearchRequestSchema.safeParse({city: "城市待核"}).success).toBe(false);
   });
 });

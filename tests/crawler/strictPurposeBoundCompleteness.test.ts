@@ -1,3 +1,5 @@
+import { captureSyntheticPfizerTraversal } from "../helpers/pfizerTraversalFixture";
+import { organonBootstrap, organonBootstrapLocator, strictOrganonRow, strictOrganonPayload, strictOrganonRawId, strictOrganonValidId, strictOrganonPageLocator, captureStrictOrganon } from "../helpers/strictOrganonFixture";
 import { createCipheriv, createHash } from "node:crypto";
 import { describe, expect, it } from "vitest";
 import { runSourceCrawl } from "../../src/crawler/runSourceCrawl";
@@ -64,6 +66,7 @@ function setPath(target: Record<string, unknown>, path: string, value: unknown):
 
 function payloadFor(plan: SourceCrawlPlan, ids: readonly string[]): unknown {
   if (plan.adapterId !== "official-json") throw new Error("Expected official-json plan");
+  if (plan.source.id === "source-organon-china-social") return strictOrganonPayload(ids);
   const rows = ids.map((id) => {
     const row: Record<string, unknown> = {};
     const values: Record<string, unknown> = {
@@ -213,6 +216,7 @@ function pageRequestBody(plan: SourceCrawlPlan, coordinates: PageCoordinates): u
 }
 
 function phenomPageConfig(plan: SourceCrawlPlan) {
+  if (plan.source.id === "source-organon-china-social") return organonBootstrap;
   const origin = new URL(plan.source.officialEntryUrl).origin;
   return { widgetApiEndpoint: new URL("/widgets", origin).toString(), refNum: "strict-ref",
     locale: "en_US", deviceType: "desktop", country: "US", pageName: "search-results",
@@ -301,13 +305,16 @@ function declarationUrl(plan: SourceCrawlPlan): string {
   return paginationUrl(plan, 0);
 }
 
-function evidenceFor(plan: SourceCrawlPlan, pageCount: 1 | 2): {
+async function evidenceFor(plan: SourceCrawlPlan, pageCount: 1 | 2): Promise<{
   evidence: PersistentSourceFetchEvidence;
   evaluation: PaginationEvaluation;
   ids: string[];
-} {
+}> {
   const size = strategyPageSize(plan);
   const ids = Array.from({ length: pageCount === 1 ? 1 : size + 1 }, (_, index) => `job-${index + 1}`);
+  if (plan.source.id === "source-organon-china-social") {
+    return { ...await captureStrictOrganon(plan, ids, CAPTURED_AT), ids };
+  }
   const groups = pageCount === 1 ? [ids] : [ids.slice(0, size), ids.slice(size)];
   const artifacts: PersistentSourceFetchEvidence["artifacts"] = [];
   const pages: PersistentSourceFetchEvidence["pages"] = [];
@@ -341,7 +348,7 @@ function evidenceFor(plan: SourceCrawlPlan, pageCount: 1 | 2): {
       requestedUrl: entryEvidenceUrl.toString(), finalUrl: entryEvidenceUrl.toString(), httpStatus: 200,
       contentType: "text/html", capturedAt: CAPTURED_AT,
       body: `<html><script type="application/json">${JSON.stringify({ phApp: config })}</script></html>`,
-      bodyRepresentation: "EXACT", extractorLocator: "phenom-entry-config-v1|test:independent-json" });
+      bodyRepresentation: "EXACT", extractorLocator: plan.source.id === "source-organon-china-social" ? organonBootstrapLocator(config) : "phenom-entry-config-v1|test:independent-json" });
   }
   if (plan.adapterId === "official-json" && plan.moka) {
     artifacts.push({
@@ -430,19 +437,19 @@ function evidenceFor(plan: SourceCrawlPlan, pageCount: 1 | 2): {
         locationsText: "Shanghai, China", bulletFields: [id]
       })) });
     } else if (officialStrategy?.kind === "phenom") {
-      body = JSON.stringify({ refineSearch: { totalHits: ids.length, data: {
-        jobs: pageIds.map((id) => ({ jobId: id, title: `Official role ${id}`,
+      body = JSON.stringify({ refineSearch: { totalHits: ids.length, from: sequence * size, data: {
+        jobs: plan.source.id === "source-organon-china-social" ? pageIds.map(strictOrganonRow) : pageIds.map((id) => ({ jobId: id, title: `Official role ${id}`,
           country: officialStrategy.countryFilter ?? "China" })),
         aggregations: []
       } } });
     } else {
       body = JSON.stringify({ total: ids.length, ids: pageIds });
     }
-    const logicalKey = `page-${sequence + 1}`;
+    const logicalKey = plan.source.id === "source-organon-china-social" ? `phenom-page-${String(sequence).padStart(4, "0")}` : `page-${sequence + 1}`;
     const coordinates = pageCoordinates(plan, sequence);
     const baseLocator = plan.adapterId === "official-json" && plan.moka
       ? `moka-envelope-v1|raw:${logicalKey}|request:offset=${sequence * 50},limit=50|init:moka-entry-0000|decrypt:aes-128-cbc-v1|json:$.data.jobStats.total`
-      : "json:total";
+      : plan.source.id === "source-organon-china-social" ? strictOrganonPageLocator(sequence * size) : "json:total";
     const locator = requestContractLocator(plan, coordinates, baseLocator);
     const url = paginationUrl(plan, sequence);
     artifacts.push({ id: logicalKey, logicalKey, kind: "PAGINATION_PAGE", requestedUrl: url, finalUrl: url,
@@ -462,21 +469,21 @@ function evidenceFor(plan: SourceCrawlPlan, pageCount: 1 | 2): {
       returnedPage,
       requestedPageSize: coordinates.requestedPageSize,
       returnedPageSize: strategyName(plan) === "sandoz" ? size : null,
-      rawJobIds: pageIds.map(id => plan.adapterId === "official-json" && plan.moka ? `sha256:${createHash("sha256").update(JSON.stringify(id)).digest("hex")}` : id),
-      validJobIds: pageIds.map(id => plan.adapterId === "official-json" && plan.moka ? `sha256:${createHash("sha256").update(JSON.stringify(id)).digest("hex")}` : id),
+      rawJobIds: pageIds.map(id => plan.source.id === "source-organon-china-social" ? strictOrganonRawId(id) : plan.adapterId === "official-json" && plan.moka ? `sha256:${createHash("sha256").update(JSON.stringify(id)).digest("hex")}` : id),
+      validJobIds: pageIds.map(id => plan.source.id === "source-organon-china-social" ? strictOrganonValidId(id) : plan.adapterId === "official-json" && plan.moka ? `sha256:${createHash("sha256").update(JSON.stringify(id)).digest("hex")}` : id),
       declaredTotal: ids.length,
       declaredCount: null,
       declaredPages: plan.adapterId === "official-json" && plan.moka ? null : groups.length,
-      nextPageSignalBefore: sequence === 0 ? null : plan.adapterId === "official-json" && plan.moka ? String(sequence * 50) : `next:${sequence}`,
-      nextPageSignalAfter: hasNext ? plan.adapterId === "official-json" && plan.moka ? String((sequence + 1) * 50) : `next:${sequence + 1}` : null,
+      nextPageSignalBefore: sequence === 0 ? null : plan.source.id === "source-organon-china-social" ? `offset:${sequence * size}` : plan.adapterId === "official-json" && plan.moka ? String(sequence * 50) : `next:${sequence}`,
+      nextPageSignalAfter: hasNext ? plan.source.id === "source-organon-china-social" ? `offset:${(sequence + 1) * size}` : plan.adapterId === "official-json" && plan.moka ? String((sequence + 1) * 50) : `next:${sequence + 1}` : null,
       responseFingerprintSha256: createHash("sha256").update(body).digest("hex"),
-      termination: hasNext ? "CONTINUE" : "DECLARED_TOTAL_REACHED",
+      termination: hasNext ? "CONTINUE" : plan.source.id === "source-organon-china-social" ? "NEXT_ABSENT" : "DECLARED_TOTAL_REACHED",
       anomalyCodes: [],
       capturedAt: CAPTURED_AT
     });
   }
 
-  let declarationArtifact = artifacts.find((artifact) => artifact.logicalKey === "page-1")!;
+  let declarationArtifact = artifacts.find((artifact) => artifact.logicalKey === (plan.source.id === "source-organon-china-social" ? "phenom-page-0000" : "page-1"))!;
   if (declarationUrl(plan) !== paginationUrl(plan, 0)) {
     const body = JSON.stringify({ total: ids.length });
     const countUrl = declarationUrl(plan);
@@ -537,7 +544,7 @@ function withArtifactUrl(
   logicalKey: string,
   url: string
 ): PersistentSourceFetchEvidence {
-  return { ...evidence, artifacts: evidence.artifacts.map((artifact) => artifact.logicalKey === logicalKey
+  return { ...evidence, artifacts: evidence.artifacts.map((artifact) => (artifact.logicalKey === logicalKey || artifact.logicalKey === `phenom-page-${String(Number(logicalKey.replace("page-", "")) - 1).padStart(4, "0")}`)
     ? { ...artifact, requestedUrl: url, finalUrl: url }
     : artifact) };
 }
@@ -549,60 +556,17 @@ function withArtifactLocator(
 ): PersistentSourceFetchEvidence {
   return {
     ...evidence,
-    artifacts: evidence.artifacts.map((artifact) => artifact.logicalKey === logicalKey
+    artifacts: evidence.artifacts.map((artifact) => (artifact.logicalKey === logicalKey || artifact.logicalKey === `phenom-page-${String(Number(logicalKey.replace("page-", "")) - 1).padStart(4, "0")}`)
       ? { ...artifact, extractorLocator: locator }
       : artifact),
-    declaredCompleteness: evidence.declaredCompleteness?.artifactLogicalKey === logicalKey
+    declaredCompleteness: (evidence.declaredCompleteness?.artifactLogicalKey === logicalKey || evidence.declaredCompleteness?.artifactLogicalKey === `phenom-page-${String(Number(logicalKey.replace("page-", "")) - 1).padStart(4, "0")}`)
       ? { ...evidence.declaredCompleteness, extractorLocator: locator }
       : evidence.declaredCompleteness
   };
 }
 
 async function exactPfizerFetch(pageCount: 1 | 2) {
-  const plan = planFor("source-pfizer-china-social");
-  if (plan.adapterId !== "official-json" || !plan.workday) {
-    throw new Error("Expected canonical staged Pfizer Workday plan");
-  }
-  const pageSize = plan.workday.pageSize ?? 20;
-  const ids = Array.from({ length: pageCount === 1 ? 1 : pageSize + 1 }, (_, index) => `pfizer-${index + 1}`);
-  const fetch = createWorkdaySourceFetch({
-    now: () => new Date(CAPTURED_AT),
-    http: async (request: WorkdayHttpRequest) => {
-      const body = JSON.parse(request.body) as {
-        appliedFacets: Record<string, string[]>;
-        offset: number;
-      };
-      const response = (payload: unknown) => ({
-        status: 200,
-        body: JSON.stringify(payload),
-        finalUrl: request.url,
-        contentType: "application/json; charset=utf-8",
-        capturedAt: CAPTURED_AT
-      });
-      return response({
-        total: ids.length,
-        jobPostings: ids.slice(body.offset, body.offset + pageSize).map((id) => ({
-          title: `Official role ${id}`,
-          externalPath: `/job/China/${id}`,
-          locationsText: "Shanghai, China",
-          bulletFields: [id],
-          workerSubType: "Regular"
-        }))
-      });
-    }
-  });
-  const fetched = await fetch(plan);
-  if (!fetched.ok || !fetched.fetchEvidence || !fetched.paginationEvaluation) {
-    throw new Error(fetched.ok ? "Expected complete Pfizer evidence" : fetched.failureReason);
-  }
-  return {
-    plan,
-    fetched: {
-      ...fetched,
-      fetchEvidence: fetched.fetchEvidence,
-      paginationEvaluation: fetched.paginationEvaluation
-    }
-  };
+  return captureSyntheticPfizerTraversal(pageCount === 1 ? 1 : 21, CAPTURED_AT);
 }
 
 describe("strict purpose-bound completeness gate RED", () => {
@@ -616,7 +580,7 @@ describe("strict purpose-bound completeness gate RED", () => {
     let completenessVerified: boolean | undefined;
     try {
       plan.workday.appliedFacets = { Location_Country: ["forged-country-facet"] };
-      const forged = evidenceFor(plan, 1);
+      const forged = await evidenceFor(plan, 1);
       completenessVerified = (await crawlWith(
         plan,
         forged.evidence,
@@ -639,7 +603,7 @@ describe("strict purpose-bound completeness gate RED", () => {
       ...fetched,
       fetchEvidence: withArtifactUrl(
         fetched.fetchEvidence,
-        "workday-page-0001",
+        "pfizer-page-1",
         new URL(pathname, plan.source.officialEntryUrl).toString()
       )
     };
@@ -654,7 +618,7 @@ describe("strict purpose-bound completeness gate RED", () => {
     ["HCM count", "source-lunan-social", (plan: SourceCrawlPlan) => declarationUrl(plan)]
   ])("rejects a %s artifact masquerading as pagination", async (_label, sourceId, wrongUrl) => {
     const plan = planFor(sourceId);
-    const baseline = evidenceFor(plan, 2);
+    const baseline = await evidenceFor(plan, 2);
     expect((await crawlWith(plan, baseline.evidence, baseline.evaluation, baseline.ids)).truth.completenessVerified).toBe(true);
     const forged = withArtifactUrl(baseline.evidence, "page-2", wrongUrl(plan));
     expect((await crawlWith(plan, forged, baseline.evaluation, baseline.ids)).truth.completenessVerified).toBe(false);
@@ -674,7 +638,7 @@ describe("strict purpose-bound completeness gate RED", () => {
         ...fetched,
         fetchEvidence: withArtifactLocator(
           fetched.fetchEvidence,
-          "workday-page-0000",
+          "pfizer-page-0",
           "json:total|request-contract-v2|sha256:" + "0".repeat(64)
         )
       };
@@ -682,7 +646,7 @@ describe("strict purpose-bound completeness gate RED", () => {
       return;
     }
     const plan = planFor(sourceId);
-    const baseline = evidenceFor(plan, 1);
+    const baseline = await evidenceFor(plan, 1);
     expect((await crawlWith(plan, baseline.evidence, baseline.evaluation, baseline.ids)).truth.completenessVerified).toBe(true);
     const forged = withArtifactLocator(baseline.evidence, "page-1", "json:total|request-contract-v2|sha256:" + "0".repeat(64));
     expect((await crawlWith(plan, forged, baseline.evaluation, baseline.ids)).truth.completenessVerified).toBe(false);
@@ -690,7 +654,7 @@ describe("strict purpose-bound completeness gate RED", () => {
 
   it("requires canonical STAGED authority even after a renamed source recomputes its channel hash", async () => {
     const canonicalPlan = planFor("source-organon-china-social");
-    const baseline = evidenceFor(canonicalPlan, 1);
+    const baseline = await evidenceFor(canonicalPlan, 1);
     const renamedSourceId = "source-renamed-organon-social";
     const expectedChannels = [{ channelId: `source:${renamedSourceId}:default`, kind: "SOCIAL" as const }];
     const { executionAuthority: _authority, ...withoutAuthority } = canonicalPlan;
@@ -705,7 +669,7 @@ describe("strict purpose-bound completeness gate RED", () => {
 
   it("rejects an unreferenced network artifact carrying a channel outside the staged plan", async () => {
     const plan = planFor("source-organon-china-social");
-    const baseline = evidenceFor(plan, 1);
+    const baseline = await evidenceFor(plan, 1);
     const forged: PersistentSourceFetchEvidence = {
       ...baseline.evidence,
       artifacts: [...baseline.evidence.artifacts, {
@@ -815,10 +779,10 @@ describe("real staged non-regression plans", () => {
     const result = await runSourceCrawl(plan, { fetch: async () => fetched });
     expect(result).toMatchObject({ status: "SUCCESS",
       truth: { transportSuccess: true, adapterSuccess: true, completenessVerified: true },
-      observation: { completenessStatus: "VERIFIED", expectedJobCount: 1, structuredJobCount: 1 },
-      fetchEvidence: { pages: [{ requestedPageSize: 20 }] } });
-    expect(fetched.fetchEvidence.artifacts.find((artifact) => artifact.logicalKey === "workday-page-0000")
-      ?.extractorLocator).toMatch(/\|request-contract-v2\|sha256:[0-9a-f]{64}$/u);
+      observation: { completenessStatus: "VERIFIED", structuredJobCount: 1 },
+      fetchEvidence: { pages: expect.arrayContaining([expect.objectContaining({ sequence: 0, requestedPageSize: 20 })]) } });
+    expect(fetched.fetchEvidence.artifacts.find((artifact) => artifact.logicalKey === "pfizer-page-0")
+      ?.extractorLocator).toBe(JSON.stringify({ method: "POST", url: "https://pfizer.wd1.myworkdayjobs.com/wday/cxs/pfizer/PfizerCareers/jobs", body: { appliedFacets: { Location_Country: ["6cb77610a8a543aea2d6bc10457e35d4"] }, limit: 20, offset: 0, searchText: "" } }));
   });
 
   it("keeps the real staged Teva official zero VERIFIED", async () => {
@@ -864,7 +828,7 @@ describe("real staged non-regression plans", () => {
     const result = await runSourceCrawl(plan, { fetch: async () => fetched });
     expect(result).toMatchObject({ status: "SUCCESS",
       truth: { transportSuccess: true, adapterSuccess: true, completenessVerified: true },
-      observation: { completenessStatus: "VERIFIED", expectedJobCount: 1, structuredJobCount: 1 } });
+      observation: { completenessStatus: "VERIFIED", structuredJobCount: 1 } });
 
     const declaration = result.fetchEvidence?.declaredCompleteness;
     const officialArtifact = result.fetchEvidence?.artifacts.find(

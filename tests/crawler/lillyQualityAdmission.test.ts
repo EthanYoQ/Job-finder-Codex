@@ -29,7 +29,10 @@ describe("synthetic Lilly owned admission and atomic fixture", () => {
     expect(writes).toHaveLength(88);
     expect(writes.map(c => [c.record.officialTitle, c.record.officialPublishedAt, c.record.cities]).sort()).toEqual(input.result.jobs.map(j => [j.officialTitle, j.officialPublishedAt, j.cities]).sort());
     expect(writes.every(c => c.record.officialPublishedAt !== undefined && c.lifecycleStatus === "ACTIVE")).toBe(true);
-    expect(input.requests).toHaveLength(3);
+    expect(input.requests).toHaveLength(91);
+    expect(input.requests.filter(request => request.method === "POST")).toHaveLength(2);
+    expect(input.requests.slice(3).map(request => request.url).sort()).toEqual(input.result.jobs.map(job => job.officialUrl).sort());
+    expect(input.result.fetchEvidence!.artifacts.filter(artifact => artifact.logicalKey.startsWith("lilly-detail-"))).toHaveLength(88);
   });
 
   it("executes the complete atomic repository route against an in-memory transaction fixture", async () => {

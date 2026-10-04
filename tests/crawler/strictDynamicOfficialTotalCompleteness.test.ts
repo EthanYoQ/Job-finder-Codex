@@ -12,6 +12,7 @@ import {
   type SourceCrawlPlan
 } from "../../src/crawler/sourcePlan";
 import { candidateCompanies } from "../../src/data/companyRegistry";
+import { createNovoSingleJobHttp } from "../helpers/novoSingleJobFixture";
 import {
   deriveCanonicalPaginationEvidence,
   evaluatePaginationEvidence,
@@ -645,23 +646,9 @@ describe("strict dynamic official-total replay", () => {
     if (plan.adapterId !== "official-json" || plan.officialJsonFetch?.kind !== "novo-nordisk") {
       throw new Error("Novo plan expected");
     }
-    const endpoint = plan.officialJsonFetch.endpointUrl;
-    const body = JSON.stringify({ data: { totalMatches: 1, jobs: [{
-      jobId: "343573.en_GB",
-      jobTitle: "Medical Advisor",
-      jobLocationLabel: "China Mainland, Beijing",
-      jobCity: { label: "Beijing" }
-    }] } });
-    const response: OfficialJsonHttpResponse = {
-      status: 200,
-      body,
-      finalUrl: endpoint,
-      contentType: "application/json; charset=utf-8",
-      capturedAt: CAPTURED_AT
-    };
     const fetcher = createOfficialJsonSourceFetch({
       now: () => new Date(CAPTURED_AT),
-      http: async () => response
+      http: createNovoSingleJobHttp(CAPTURED_AT)
     });
 
     const result = await runSourceCrawl(plan, { fetch: fetcher });
@@ -671,7 +658,7 @@ describe("strict dynamic official-total replay", () => {
       truth: { transportSuccess: true, adapterSuccess: true, completenessVerified: true },
       observation: { completenessStatus: "VERIFIED", expectedJobCount: 1 },
       reconciliation: { rawInputCount: 1, dedupeOutputCount: 1, adapterLosses: [], collisionGroups: [] },
-      fetchEvidence: { pages: [{ termination: "DECLARED_TOTAL_REACHED" }] }
+      fetchEvidence: { pages: [{ termination: "NEXT_ABSENT" }] }
     });
   });
 
@@ -680,16 +667,9 @@ describe("strict dynamic official-total replay", () => {
     if (plan.adapterId !== "official-json" || plan.officialJsonFetch?.kind !== "novo-nordisk") {
       throw new Error("Novo plan expected");
     }
-    const endpoint = plan.officialJsonFetch.endpointUrl;
-    const response = (body: string): OfficialJsonHttpResponse => ({
-      status: 200, body, finalUrl: endpoint, contentType: "application/json", capturedAt: CAPTURED_AT
-    });
     const fetcher = createOfficialJsonSourceFetch({
       now: () => new Date(CAPTURED_AT),
-      http: async () => response(JSON.stringify({ data: { totalMatches: 1, jobs: [{
-        jobId: "1", jobTitle: "Medical Advisor", jobLocationLabel: "China Mainland, Beijing",
-        jobCity: { label: "Beijing" }
-      }] } }))
+      http: createNovoSingleJobHttp(CAPTURED_AT)
     });
     const captured = await fetcher(plan) as SourceFetchResult;
     if (!captured.ok || !("payload" in captured) ||
@@ -702,10 +682,7 @@ describe("strict dynamic official-total replay", () => {
     });
     const lostFetcher = createOfficialJsonSourceFetch({
       now: () => new Date(CAPTURED_AT),
-      http: async () => response(JSON.stringify({ data: { totalMatches: 2, jobs: [
-        { jobId: "1", jobTitle: "Medical Advisor", jobLocationLabel: "China Mainland, Beijing", jobCity: { label: "Beijing" } },
-        { jobId: "2", jobTitle: "", jobLocationLabel: "China Mainland, Beijing", jobCity: { label: "Beijing" } }
-      ] } }))
+      http: createNovoSingleJobHttp(CAPTURED_AT, {invalidTitle: true})
     });
 
     expect((await crawlWith(plan, bodyDrift, captured.paginationEvaluation, captured.payload))

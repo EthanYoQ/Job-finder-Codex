@@ -168,6 +168,7 @@ describe("A-grade official-total completeness certificate", () => {
     const detail = (url: string, streetAddress: string, officialLocation: string) =>
       `<link rel="canonical" href="${url}">
         <div class="jobDisplayShell"><meta itemprop="streetAddress" content="${streetAddress}">
+          <meta itemprop="datePosted" content="Sat Aug 01 00:00:00 UTC 2026">
           <div class="jobDisplay"><div class="content"><b>Location: ${officialLocation}</b></div></div>
         </div>`;
     const fetch = createGrifolsChinaSourceFetch({
@@ -176,8 +177,8 @@ describe("A-grade official-total completeness certificate", () => {
         if (request.url === entry) return response(request.url,
           `<span class="paginationLabel">Results <b>1 – 2</b> of <b>2</b></span>
             <table id="searchresults" aria-label="Search results for China. Page 1 of 1, Results 1 to 2 of 2"><tbody>
-              <tr class="data-row"><td class="jobTitle hidden-phone"><a class="jobTitle-link" href="/job/Shanghai-Marketing-Assistant/1429532033/">Marketing Assistant</a></td><td class="colLocation hidden-phone"><span class="jobLocation">Shanghai, CN</span></td></tr>
-              <tr class="data-row"><td class="jobTitle hidden-phone"><a class="jobTitle-link" href="/job/Home-Office-%E7%8F%BE%E5%A0%B4%E6%9C%8D%E5%8B%99%E5%B7%A5%E7%A8%8B%E5%B8%AB-Field-Service-Engineer/1409962833/">Field Service Engineer</a></td><td class="colLocation hidden-phone"><span class="jobLocation">Home Office, CN</span></td></tr>
+              <tr class="data-row"><td class="colDate hidden-phone"><span class="jobDate">Aug 1, 2026</span></td><td class="jobTitle hidden-phone"><a class="jobTitle-link" href="/job/Shanghai-Marketing-Assistant/1429532033/">Marketing Assistant</a></td><td class="colLocation hidden-phone"><span class="jobLocation">Shanghai, CN</span></td></tr>
+              <tr class="data-row"><td class="colDate hidden-phone"><span class="jobDate">Aug 1, 2026</span></td><td class="jobTitle hidden-phone"><a class="jobTitle-link" href="/job/Home-Office-%E7%8F%BE%E5%A0%B4%E6%9C%8D%E5%8B%99%E5%B7%A5%E7%A8%8B%E5%B8%AB-Field-Service-Engineer/1409962833/">Field Service Engineer</a></td><td class="colLocation hidden-phone"><span class="jobLocation">Home Office, CN</span></td></tr>
             </tbody></table>`);
         if (request.url === marketing) {
           return response(request.url, detail(request.url, "Shanghai, CN", "APAC : China : Shanghai:Shangai"));

@@ -90,7 +90,10 @@ describe("Pfizer exact complete-traversal B policy", () => {
         await assertBGradePublicSnapshot(p, result, decision.certificate);
         expect(decision.certificate.counts.validationDiscardCount).toBe(1);
         expect(decision.certificate.counts.finalUniqueJobCount).toBe(21);
-        expect(decision.certificate.mainTraversal.canonicalRawMatchKeySetSha256).not.toBe(decision.certificate.mainTraversal.canonicalMatchKeySetSha256);
+        const mainTraversal = decision.certificate.mainTraversal;
+        if (!("canonicalRawMatchKeySetSha256" in mainTraversal) || !("canonicalMatchKeySetSha256" in mainTraversal))
+            throw new Error("Expected the complete Workday match-key proof");
+        expect(mainTraversal.canonicalRawMatchKeySetSha256).not.toBe(mainTraversal.canonicalMatchKeySetSha256);
         expect(issueBGradeTraversalCertificate({ ...input, now: new Date("2026-10-02T17:00:01.000Z") }).status).toBe("REJECTED");
         expect(issueBGradeTraversalCertificate({ ...input, trigger: "STABLE_RUN", validationExecution: "REUSED" }).status).toBe("REJECTED");
         const staleDetail = structuredClone(input);

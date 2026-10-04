@@ -43,6 +43,10 @@ The unregistered performance/capture/Sanofi candidates are not part of this
 integration. No credentials, environment files, database exports, captured
 response bodies, or private operational state are added.
 
+An integration build has its own commit and runtime identity. Restoring or later
+deploying it requires the normal build registration; it cannot reuse the original
+producer-41 registration just because its source began at that checkpoint.
+
 ## Assets and verification
 
 Vite copies `public/` into `dist/`. Docker build context, source identity and Git
@@ -65,3 +69,10 @@ The workflow has read-only repository permissions and performs no image
 publication or server deployment. The production-image workflow keeps its existing branch triggers and publication
 guards; its two temporary-runner database migrations use the reviewed producer-41
 ops-migrate command.
+
+CI integration also fixes current-registry synchronization without changing the
+frozen launch membership, and keeps diagnostic sessions bounded to 15 reviewed
+sources even as the full catalog grows. Docker provenance uses a native filtered
+Git bundle containing the original commit/tree objects and every current attested
+blob. Unrelated historical blobs are omitted; the verifier disables network and
+alternate-object access and retains the existing byte, mode and tamper checks.

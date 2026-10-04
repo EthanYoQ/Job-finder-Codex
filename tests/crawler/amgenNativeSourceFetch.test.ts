@@ -97,6 +97,7 @@ it.each([
   const fixture = amgenFixture(1); fixture.rows[0]!.detail = mutate(fixture.rows[0]!.detail);
   const result = await runSourceCrawl(plan(), { fetch: createAmgenNativeSourceFetch({ http: fixture.http }) });
   expect(result.status).toBe("FAILED");
+  if (result.status !== "FAILED") throw new Error("Expected the conflicting detail to fail");
   expect(result.failureReason).toBe(code);
   expect(safeProfileBoundSourceFailureReason(plan(), code)).toBe(code);
   expect(safeProfileBoundSourceFailureReason(plan(), "untrusted upstream text")).toBeUndefined();

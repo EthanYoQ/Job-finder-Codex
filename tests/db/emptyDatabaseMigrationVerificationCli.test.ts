@@ -34,7 +34,7 @@ describe("empty database migration verification CLI contract", () => {
     const actualMigrations = readdirSync(resolve(process.cwd(), "prisma", "migrations"), { withFileTypes: true })
       .filter((entry) => entry.isDirectory()).map((entry) => entry.name).sort();
     expect(REVIEWED_MIGRATION_NAMES).toHaveLength(34);
-    expect(actualMigrations).toHaveLength(44);
+    expect(actualMigrations).toHaveLength(49);
     expect(actualMigrations.slice(0, 34)).toEqual([...REVIEWED_MIGRATION_NAMES].sort());
     expect(() => verifyReviewedMigrationTree(actualMigrations)).toThrow(/existing-database-only/i);
     expect(REVIEWED_APP_TABLE_NAMES).toHaveLength(25);

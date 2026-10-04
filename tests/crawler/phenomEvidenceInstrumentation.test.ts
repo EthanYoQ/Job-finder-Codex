@@ -1,5 +1,7 @@
+import { createCipheriv } from "node:crypto";
+import { createMokaSourceFetch } from "../../src/crawler/mokaSourceFetch";
 import { organonBootstrap, organonRow } from "../fixtures/organonChinaQuality";
-import { lillyBootstrap, syntheticLillyRow } from "../helpers/lillyPhenom";
+import { lillyBootstrap, syntheticLillyRow, syntheticLillyNativeDetailBody } from "../helpers/lillyPhenom";
 import { describe, expect, it } from "vitest";
 import {
   createOfficialJsonSourceFetch,
@@ -80,13 +82,23 @@ function entryHtml(overrides = ""): string {
   return `<script>var phApp={"widgetApiEndpoint":"${widgetUrl}","country":"cn","deviceType":"desktop","locale":"zh_cn","refNum":"${refNum}","pageName":"search-results","pageId":"page18"${overrides}};</script>`;
 }
 
+/** Historical offline Phenom contract. Current GSK production uses the native Moka source. */
 function gskPlan(): Extract<SourceCrawlPlan, { adapterId: "official-json" }> {
-  const staged = buildStagedSourceCrawlPlans(candidateCompanies);
-  const value = getPlanBySourceId(staged, "source-gsk-china-social");
-  if (value?.adapterId !== "official-json" || value.officialJsonFetch?.kind !== "phenom") {
-    throw new Error("Expected exact staged GSK Phenom plan");
-  }
-  return value;
+  const current = getPlanBySourceId(buildStagedSourceCrawlPlans(candidateCompanies), "source-gsk-china-social");
+  if (current?.adapterId !== "official-json" || !current.moka) throw new Error("Expected current GSK Moka plan");
+  const historical = structuredClone(current);
+  delete historical.moka;
+  delete historical.transientRetryPolicy;
+  historical.source.atsKind = "OFFICIAL_JSON";
+  historical.source.officialEntryUrl = "https://jobs.gsk.com/cn/zh/search-results?keywords=China";
+  historical.source.officialChainEvidenceUrl = "https://www.gsk-china.com/zh-cn/careers/";
+  historical.json = { jobsPath: "jobs", fields: { sourceJobId: "sourceJobId", officialTitle: "title",
+    officialUrl: "officialUrl", locationRaw: "locationRaw", cities: "cities" }, defaultCategory: "其他" };
+  historical.officialJsonFetch = { kind: "phenom", detailBaseUrl: "https://jobs.gsk.com/gb/en/job",
+    derivedDetailIdField: "jobSeqNo", mixedLocationScopePolicy: "EXACTLY_ONE_MAINLAND_ALTERNATIVE_V1",
+    countryFilter: "China", allowedApplyOrigins: ["https://gsk.wd5.myworkdayjobs.com"],
+    allowedEntryRedirect: { origin: "https://jobs.gsk.com", pathname: "/gb/en" }, pageSize: 50, maxPages: 3 };
+  return historical;
 }
 
 function gskEntryHtml(): string {
@@ -127,6 +139,30 @@ async function fetchExactGskJobs(rawJobs: Array<Record<string, unknown>>) {
       : response(gskEntryHtml(), stagedPlan.source.officialEntryUrl, "text/html")
   });
   return { stagedPlan, fetched: await fetcher(stagedPlan) };
+}
+
+async function fetchCurrentGskNative(hydrate = false) {
+  const stagedPlan = getPlanBySourceId(buildStagedSourceCrawlPlans(candidateCompanies), "source-gsk-china-social")!;
+  const iv = "de7c21ed8d6f50fe", key = "6e9ecb8e9c6c1a5e";
+  const fetch = createMokaSourceFetch({ now: () => new Date(capturedAt), http: async request => {
+    let body: string;
+    if (request.method === "GET") {
+      const init = { org: { id: "gsk" }, siteId: "148067", mode: "social", aesIv: iv,
+        jobCustomFields: [{ id: 273744, name: "Req status", type: "select_info", detail: ["Open", "Frozen", "Filled", "Close"] }] };
+      body = `<input id="init-data" value="${JSON.stringify(init).replaceAll('"', '&quot;')}">`;
+    } else if (request.url === "https://app.mokahr.com/api/outer/ats-apply/website/job") {
+      body = JSON.stringify({ id: "synthetic-gsk-open-1", orgId: "gsk", locations: [{ country: "中国", cityName: "上海" }] });
+    } else {
+      expect((request.body as Record<string, unknown>).customFields).toEqual({ "273744": { values: ["Open"] } });
+      const cipher = createCipheriv("aes-128-cbc", Buffer.from(key), Buffer.from(iv));
+      const value = { success: true, data: { jobStats: { total: 1 }, offset: 0, jobs: [{ id: "synthetic-gsk-open-1",
+        title: "Synthetic medical role", status: "open", locations: hydrate ? [] : [{ country: "中国", cityName: "上海" }] }] } };
+      body = JSON.stringify({ necromancer: key, data: cipher.update(JSON.stringify(value), "utf8", "base64") + cipher.final("base64") });
+    }
+    return { status: 200, body, finalUrl: request.url.replace(/#.*$/, ""),
+      contentType: request.method === "GET" ? "text/html" : "application/json", capturedAt };
+  } });
+  return { stagedPlan, fetched: await fetch(stagedPlan) };
 }
 
 function liveShapedGskJobs(): Array<Record<string, unknown>> {
@@ -358,6 +394,9 @@ async function fetchExactPhenomLocation(sourceId: string, location: string) {
         }
         return response(body, widgetEndpoint, "application/json");
       }
+      if (sourceId === "source-lilly-china-social" && request.url === rawJob.applyUrl) {
+        return response(syntheticLillyNativeDetailBody(rawJob), request.url, "text/html");
+      }
       return response(sourceId === "source-roche-china-social" ? rocheEntryHtml() :
         sourceId === "source-merck-china-social" ? merckEntryHtml() :
         sourceId === "source-organon-china-social" ? `<script>var phApp=${JSON.stringify(organonBootstrap)};</script>` :
@@ -421,6 +460,13 @@ function withoutOpaqueBodies(value: unknown): string {
 }
 
 describe("Phenom evidence instrumentation", () => {
+  it("keeps current GSK routing bound to native Moka instead of the historical Phenom fixture", () => {
+    const current = getPlanBySourceId(buildStagedSourceCrawlPlans(candidateCompanies), "source-gsk-china-social");
+    expect(current).toMatchObject({ adapterId: "official-json", source: { atsKind: "MOKA" },
+      moka: { expectedOrgId: "gsk", expectedSiteId: "148067", requisitionStatusPolicy: "GSK_NATIVE_OPEN_REQUISITIONS_V1" } });
+    expect(current && "officialJsonFetch" in current ? current.officialJsonFetch : undefined).toBeUndefined();
+  });
+
   it("safely accepts the Roche static phApp fallback object with one separate literal pageId assignment", async () => {
     const body = `<script>
       var phApp = phApp || {"widgetApiEndpoint":"${widgetUrl}","country":"cn","deviceType":"desktop","locale":"zh_cn","refNum":"${refNum}","pageName":"search-results"};
@@ -1446,18 +1492,18 @@ describe("Phenom evidence instrumentation", () => {
     });
   });
 
-  it("publishes the exact staged GSK source when its raw multi_location has one explicit mainland alternative", async () => {
-    const { stagedPlan, fetched } = await fetchExactGsk(gskJob());
+  it("certifies and builds the atomic bundle for the current native GSK Open source", async () => {
+    const { stagedPlan, fetched } = await fetchCurrentGskNative();
     expect(fetched).toMatchObject({
       ok: true,
-      payload: { jobs: [{ locationRaw: "Shanghai, China", cities: ["上海"] }] }
+      payload: { data: { jobs: [{ locationRaw: "上海", cities: ["上海"] }] } }
     });
     const crawled = await runSourceCrawl(stagedPlan, { fetch: async () => fetched });
     expect(crawled).toMatchObject({
       status: "SUCCESS",
       truth: { transportSuccess: true, adapterSuccess: true, completenessVerified: true },
       observation: { structuredJobCount: 1, completenessStatus: "VERIFIED" },
-      jobs: [{ locationRaw: "Shanghai, China", cities: ["上海"] }]
+      jobs: [{ locationRaw: "上海", cities: ["上海"] }]
     });
     if (!fetched.fetchEvidence || !fetched.paginationEvaluation || !crawled.reconciliation) {
       throw new Error("Expected complete GSK certificate inputs");
@@ -1599,7 +1645,7 @@ describe("Phenom evidence instrumentation", () => {
     });
   });
 
-  it("publishes all three live-shaped GSK records including a derived public detail URL", async () => {
+  it("normalizes all three historically shaped GSK records including a derived public detail URL", async () => {
     const { stagedPlan, fetched } = await fetchExactGskJobs(liveShapedGskJobs());
     expect(fetched).toMatchObject({
       ok: true,
@@ -1622,8 +1668,8 @@ describe("Phenom evidence instrumentation", () => {
     const crawled = await runSourceCrawl(stagedPlan, { fetch: async () => fetched });
     expect(crawled).toMatchObject({
       status: "SUCCESS",
-      truth: { transportSuccess: true, adapterSuccess: true, completenessVerified: true },
-      observation: { structuredJobCount: 3, completenessStatus: "VERIFIED" }
+      truth: { transportSuccess: true, adapterSuccess: true, completenessVerified: false },
+      observation: { structuredJobCount: 3, completenessStatus: "NEEDS_MANUAL_COMPLETENESS_REVIEW" }
     });
   });
 
@@ -1642,7 +1688,7 @@ describe("Phenom evidence instrumentation", () => {
     });
   });
 
-  it("publishes exact staged GSK when the official multi_location includes Bengaluru and one mainland alternative", async () => {
+  it("normalizes historical GSK Phenom when the official multi_location includes Bengaluru and one mainland alternative", async () => {
     const { stagedPlan, fetched } = await fetchExactGsk(gskJob({
       location: "Singapore, Singapore",
       multi_location: ["Singapore, Singapore", "Bengaluru, India", "Shanghai, Shanghai, China"]
@@ -1654,8 +1700,8 @@ describe("Phenom evidence instrumentation", () => {
     const crawled = await runSourceCrawl(stagedPlan, { fetch: async () => fetched });
     expect(crawled).toMatchObject({
       status: "SUCCESS",
-      truth: { transportSuccess: true, adapterSuccess: true, completenessVerified: true },
-      observation: { structuredJobCount: 1, completenessStatus: "VERIFIED" },
+      truth: { transportSuccess: true, adapterSuccess: true, completenessVerified: false },
+      observation: { structuredJobCount: 1, completenessStatus: "NEEDS_MANUAL_COMPLETENESS_REVIEW" },
       jobs: [{ locationRaw: "Shanghai, Shanghai, China", cities: ["上海"] }]
     });
   });
@@ -1672,7 +1718,9 @@ describe("Phenom evidence instrumentation", () => {
       now: () => new Date(capturedAt),
       http: async request => request.method === "POST"
         ? response(bodies.shift()!, widgetEndpoint, "application/json")
-        : response(entry, stagedPlan.source.officialEntryUrl, "text/html")
+        : request.url === rawJob.applyUrl
+          ? response(syntheticLillyNativeDetailBody(rawJob), request.url, "text/html")
+          : response(entry, stagedPlan.source.officialEntryUrl, "text/html")
     });
     const fetched = await fetcher(stagedPlan);
     expect(fetched.ok).toBe(true);
@@ -1759,7 +1807,7 @@ describe("Phenom evidence instrumentation", () => {
   );
 
   it.each(["Wuxi", "Shenyang", "Qingdao"])(
-    "publishes exact staged GSK with a safe official China city fallback for %s",
+    "normalizes historical GSK Phenom with a safe official China city fallback for %s",
     async (city) => {
       const { stagedPlan, fetched } = await fetchExactGsk(gskJob({
         multi_location: ["Singapore", `${city}, China`]
@@ -1771,8 +1819,8 @@ describe("Phenom evidence instrumentation", () => {
       const crawled = await runSourceCrawl(stagedPlan, { fetch: async () => fetched });
       expect(crawled).toMatchObject({
         status: "SUCCESS",
-        truth: { transportSuccess: true, adapterSuccess: true, completenessVerified: true },
-        observation: { structuredJobCount: 1, completenessStatus: "VERIFIED" },
+        truth: { transportSuccess: true, adapterSuccess: true, completenessVerified: false },
+        observation: { structuredJobCount: 1, completenessStatus: "NEEDS_MANUAL_COMPLETENESS_REVIEW" },
         jobs: [{ locationRaw: `${city}, China`, cities: [city] }]
       });
     }
@@ -1785,60 +1833,60 @@ describe("Phenom evidence instrumentation", () => {
     ["a mainland and foreign location mixed in one value", ["Singapore", "Shanghai, China / Singapore"]],
     ["an unknown alternative", ["Singapore", "Remote"]],
     ["an ambiguous alternative", ["Singapore", "Multiple Locations"]]
-  ])("does not publish exact staged GSK with %s", async (_label, multiLocation) => {
+  ])("does not publish historical GSK Phenom with %s", async (_label, multiLocation) => {
     const { stagedPlan, fetched } = await fetchExactGsk(gskJob({ multi_location: multiLocation }));
+    expect(fetched).toMatchObject({ ok: true, fetchEvidence: { fetchCounts: {
+      rawCount: 1, validCount: _label === "two mainland alternatives" ? 1 : 0,
+      validationDiscardCount: _label === "two mainland alternatives" ? 0 : 1
+    } } });
     const crawled = await runSourceCrawl(stagedPlan, { fetch: async () => fetched });
     expect(crawled.truth.completenessVerified).toBe(false);
     expect(crawled.observation.completenessStatus).not.toBe("VERIFIED");
   });
 
-  it.each([
-    ["location", { locationRaw: "Beijing, China" }],
-    ["cities", { cities: ["北京"] }]
-  ])("rejects exact staged GSK when final output %s disagrees with raw multi_location", async (_label, override) => {
-    const { stagedPlan, fetched } = await fetchExactGsk(gskJob());
-    if (!fetched.ok || !("payload" in fetched)) throw new Error("Expected exact GSK fetch evidence");
-    const payload = structuredClone(fetched.payload) as { jobs: Array<Record<string, unknown>> };
-    payload.jobs[0] = { ...payload.jobs[0], ...override };
-    const crawled = await runSourceCrawl(stagedPlan, {
-      fetch: async () => ({ ...fetched, payload })
-    });
-    expect(crawled.truth.completenessVerified).toBe(false);
-    expect(crawled.observation.completenessStatus).not.toBe("VERIFIED");
+  it("binds current GSK hydrated native-detail locations and rejects a swapped detail projection", async () => {
+    const { stagedPlan, fetched } = await fetchCurrentGskNative(true);
+    if (!fetched.ok || !fetched.fetchEvidence) throw Error("Expected hydrated native GSK evidence");
+    const result = await runSourceCrawl(stagedPlan, { fetch: async () => fetched });
+    expect(result.truth.completenessVerified).toBe(true);
+    expect(result.jobs[0]?.cities).toEqual(["上海"]);
+    const tampered = structuredClone(fetched);
+    const detail = tampered.fetchEvidence!.artifacts.find(a => a.logicalKey.startsWith("moka-detail-"));
+    if (!detail) throw Error("Expected exact native detail artifact");
+    const body = JSON.parse(detail.body as string);
+    body.locations = [{ country: "中国", cityName: "北京" }];
+    detail.body = JSON.stringify(body);
+    expect((await runSourceCrawl(stagedPlan, { fetch: async () => tampered })).truth.completenessVerified).toBe(false);
   });
 
   it.each([
-    ["company", (value: ReturnType<typeof gskPlan>) => ({
-      ...value,
-      company: { ...value.company, id: "company-transplanted" },
-      source: { ...value.source, companyId: "company-transplanted" }
-    })],
-    ["configuration", (value: ReturnType<typeof gskPlan>) => ({
-      ...value,
-      officialJsonFetch: { ...value.officialJsonFetch!, maxPages: 4 }
-    })],
-    ["detail base", (value: ReturnType<typeof gskPlan>) => ({
-      ...value,
-      officialJsonFetch: {
-        ...value.officialJsonFetch!,
-        detailBaseUrl: "https://jobs.gsk.com/cn/zh/job"
-      }
-    })],
-    ["mixed-location policy", (value: ReturnType<typeof gskPlan>) => ({
-      ...value,
-      officialJsonFetch: {
-        ...value.officialJsonFetch!,
-        mixedLocationScopePolicy: undefined
-      }
-    })]
-  ])("rejects GSK multi_location proof transplanted to another %s", async (_label, transplant) => {
-    const { stagedPlan, fetched } = await fetchExactGsk(gskJob());
-    const crawled = await runSourceCrawl(transplant(stagedPlan) as SourceCrawlPlan, {
-      fetch: async () => fetched
-    });
-    expect(crawled.truth.completenessVerified).toBe(false);
-    expect(crawled.observation.completenessStatus).not.toBe("VERIFIED");
+    ["location", { locationRaw: "北京" }],
+    ["cities", { cities: ["北京"] }],
+    ["title", { title: "Altered medical role" }],
+    ["identity", { id: "sha256:" + "a".repeat(64) }],
+    ["URL", { officialUrl: "https://app.mokahr.com/social-recruitment/gsk/148067#/job/other" }]
+  ])("rejects current GSK output %s that disagrees with native evidence", async (_label, override) => {
+    const { stagedPlan, fetched } = await fetchCurrentGskNative();
+    if (!fetched.ok || !("payload" in fetched)) throw Error("Expected current GSK native evidence");
+    expect((await runSourceCrawl(stagedPlan, { fetch: async () => fetched })).truth.completenessVerified).toBe(true);
+    const payload = structuredClone(fetched.payload) as { data: { jobs: Array<Record<string, unknown>> } };
+    payload.data.jobs[0] = { ...payload.data.jobs[0], ...override };
+    expect((await runSourceCrawl(stagedPlan, { fetch: async () => ({ ...fetched, payload }) })).truth.completenessVerified).toBe(false);
   });
+
+  it.each(["company", "configuration", "campaign URL", "Open scope policy"])(
+    "rejects current GSK native proof transplanted to another %s", async kind => {
+      const { stagedPlan, fetched } = await fetchCurrentGskNative();
+      expect((await runSourceCrawl(stagedPlan, { fetch: async () => fetched })).truth.completenessVerified).toBe(true);
+      const changed = structuredClone(stagedPlan);
+      if (changed.adapterId !== "official-json" || !changed.moka) throw Error("Expected GSK Moka plan");
+      if (kind === "company") changed.company.id = changed.source.companyId = "company-transplanted";
+      if (kind === "configuration") changed.moka.expectedSiteId = "other-site";
+      if (kind === "campaign URL") changed.moka.campaignUrl = "https://app.mokahr.com/social-recruitment/gsk/other-site";
+      if (kind === "Open scope policy") delete changed.moka.requisitionStatusPolicy;
+      expect((await runSourceCrawl(changed, { fetch: async () => fetched })).truth.completenessVerified).toBe(false);
+    }
+  );
 
   it.each([
     ["slash-separated foreign city", "Shanghai / Singapore", "Shanghai"],

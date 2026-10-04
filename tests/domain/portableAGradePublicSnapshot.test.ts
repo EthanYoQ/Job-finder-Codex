@@ -88,6 +88,9 @@ describe("bounded genuine A-grade public snapshots", () => {
   it("preserves the A visibility floor while holding unverified portable and later unknown writers", () => {
     const f = structuredClone(baseline);
     const portable = accepted("2026-10-02T09:00:00.000Z", ["old"], [], f.plan);
+    // Lilly's portable policy is now reviewed too; make this receipt explicitly
+    // unverified instead of relying on the source's former policy exclusion.
+    portable.result.completenessCertificateSha256 = "f".repeat(64);
     const selected = selectPortableSourceSnapshots([f.plan], [f.result, portable.result], {currentTime: f.now})[0]!;
     expect(selected).toMatchObject({state: "HOLD", reasons:["RECEIPT_INTEGRITY_HOLD"], visibilityFloor: f.result.finishedAt!.toISOString()});
     const legacy = accepted(f.now.toISOString(), [], [], f.plan).result;

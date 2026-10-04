@@ -1,6 +1,15 @@
 // @vitest-environment node
 import { createHash } from "node:crypto";
 import { beforeAll, afterAll, describe, expect, it, vi } from "vitest";
+const selectedSourceBeforeTest = vi.hoisted(() => {
+  const previous = process.env.JOBFINDER_CLOUD_SOURCE_ID;
+  process.env.JOBFINDER_CLOUD_SOURCE_ID = "source-qilu-social";
+  return previous;
+});
+afterAll(() => {
+  if (selectedSourceBeforeTest === undefined) delete process.env.JOBFINDER_CLOUD_SOURCE_ID;
+  else process.env.JOBFINDER_CLOUD_SOURCE_ID = selectedSourceBeforeTest;
+});
 import { readFile, readdir, mkdtemp, rm } from "node:fs/promises";
 import { resolve, join } from "node:path";
 import { pathToFileURL } from "node:url";
@@ -23,7 +32,7 @@ const build={...base,contentSha256:digest(JSON.stringify(base))},candidate={id:"
 const expectation=deriveCurrentStagedScheduleExpectation(build),sourceId="source-qilu-social",plan=expectation.plans.find(p=>p.source.id===sourceId)!;
 const holderId="aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
 function input(startedAt=new Date()){return {projectId:"yiopvxysxrtrnvqxwgbx",build,candidate,expiresAt:new Date(Date.now()+60000).toISOString(),holderId,
- planned:buildPendingRuntimeBatch("synthetic-qilu-batch",[plan],{releaseCandidateId:candidate.id,commitSha:expectation.commitSha,rosterSha256:expectation.rosterSha256,sourcePlanSha256:expectation.sourcePlanSha256,sourceConfigSha256:expectation.sourceConfigSha256,adapterBundleSha256:expectation.adapterBundleSha256,batchKind:"SCHEDULED",ownerId:"dot-cloud-qilu-pilot",expectedPlannedSourceIds:[sourceId],expectedPlannedSourceCount:1,expectedPlannedSourceSetSha256:hashCanonicalStringSet([sourceId])},startedAt)};}
+ planned:buildPendingRuntimeBatch("synthetic-qilu-batch",[plan],{releaseCandidateId:candidate.id,commitSha:expectation.commitSha,rosterSha256:expectation.rosterSha256,sourcePlanSha256:expectation.sourcePlanSha256,sourceConfigSha256:expectation.sourceConfigSha256,adapterBundleSha256:expectation.adapterBundleSha256,batchKind:"SCHEDULED",ownerId:"dot-cloud-qilu-social-pilot",expectedPlannedSourceIds:[sourceId],expectedPlannedSourceCount:1,expectedPlannedSourceSetSha256:hashCanonicalStringSet([sourceId])},startedAt)};}
 function candidateInput(){const {projectId,build,candidate,expiresAt}=input();return {projectId,build,candidate,expiresAt};}
 it("rejects changed projects, build digests and unknown pending fields before SQL generation",()=>{
  expect(()=>compileCloudPilotCandidateSql({...candidateInput(),projectId:"other"})).toThrow();
@@ -37,11 +46,11 @@ it("accepts only the exact Qilu single-source projection and rejects every other
  expect(()=>compileCloudPilotCreatePendingSql(i)).not.toThrow();
  expect(i.planned.sources[0]!.sourceConfigHash).toBe("0ca38d0cd6550e9567cc3e7ca6772d3b91497f5a59530f5359f823a6c62d5773");
  for(const other of expectation.plans.filter(p=>p.source.id!==sourceId)){
-  const identity={releaseCandidateId:candidate.id,commitSha:expectation.commitSha,rosterSha256:expectation.rosterSha256,sourcePlanSha256:expectation.sourcePlanSha256,sourceConfigSha256:expectation.sourceConfigSha256,adapterBundleSha256:expectation.adapterBundleSha256,batchKind:"SCHEDULED" as const,ownerId:"dot-cloud-qilu-pilot",expectedPlannedSourceIds:[other.source.id],expectedPlannedSourceCount:1,expectedPlannedSourceSetSha256:hashCanonicalStringSet([other.source.id])};
+  const identity={releaseCandidateId:candidate.id,commitSha:expectation.commitSha,rosterSha256:expectation.rosterSha256,sourcePlanSha256:expectation.sourcePlanSha256,sourceConfigSha256:expectation.sourceConfigSha256,adapterBundleSha256:expectation.adapterBundleSha256,batchKind:"SCHEDULED" as const,ownerId:"dot-cloud-qilu-social-pilot",expectedPlannedSourceIds:[other.source.id],expectedPlannedSourceCount:1,expectedPlannedSourceSetSha256:hashCanonicalStringSet([other.source.id])};
   const planned=buildPendingRuntimeBatch(i.planned.batch.id,[other],identity,i.planned.batch.startedAt);
   expect(()=>compileCloudPilotCreatePendingSql({...i,planned})).toThrow(/PILOT_EXACT_PLANNED_PROJECTION_REQUIRED/);
  }
- expect(()=>compileCloudPilotCreatePendingSql({...i,planned:{...i.planned,batch:{...i.planned.batch,ownerId:"dot-cloud-novo-pilot"}}})).toThrow(/PILOT_EXACT_PLANNED_PROJECTION_REQUIRED/);
+ expect(()=>compileCloudPilotCreatePendingSql({...i,planned:{...i.planned,batch:{...i.planned.batch,ownerId:"dot-cloud-novo-nordisk-china-social-pilot"}}})).toThrow(/PILOT_EXACT_PLANNED_PROJECTION_REQUIRED/);
  expect(()=>compileCloudPilotCreatePendingSql({...i,planned:{...i.planned,sources:[{...i.planned.sources[0]!,sourceConfigHash:"0".repeat(64)}]}})).toThrow(/PILOT_EXACT_PLANNED_PROJECTION_REQUIRED/);
 });
 const modulePath=process.env.PGLITE_MODULE;
