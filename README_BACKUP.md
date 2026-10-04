@@ -1,19 +1,28 @@
-# Job Finder source backup
+# Sanofi Chinese candidate source backup
 
-Source revision: `b41a18415cfe8177740918b04c5139095d7abcc5`
+This source-only backup records reviewed candidate `d402d3639c0ea729fa72bd1a4427570b227c7481` at 2026-10-04 09:20 UTC. It is **not deployed, registered, freshly captured, or published**.
 
-State at 2026-10-04 03:40 UTC: **ACTIVE_PRODUCER41_BUILDING_FIRST_RUN_UNVERIFIED**. This is a source-only backup. It does not deploy, change the live database, qualify a release, or retain the original runtime commit identity. The backup commit is a new, different commit.
+The candidate starts from reconstructed baseline `2397e134834ba9f3c89e22ab392e403a42702407`, whose source provenance is the earlier Chinese Sanofi candidate `98293f68d1054f6760af60435a6932c6ccf0d1ee`. The original Git graph was not recovered. This GitHub commit is a separate safe backup identity.
 
-## Contents
+## Source scope
 
-Application and server/collector source, package lock, Prisma schema and migration source, configuration templates expressed as code, operational source, tests, and runtime image/font assets where present. `SOURCE_BACKUP.json` records every included original Git blob, SHA-256, mode, and source path. Included source bytes are unchanged.
+856 unchanged source files from the candidate are retained: collector/application source, package lock, Prisma schema and migration source, operational scripts, and tests. Every source path, Git blob, file mode, byte count and SHA-256 is recorded in `SOURCE_BACKUP.json`. Existing reviewed source blobs are reused from the producer41 backup; 19 source paths differ from that checkpoint.
 
-## Recovery limits
+The new Sanofi path uses the Chinese official list and matching requisition on the Chinese native application site for body, location and open/closed status. The latest repair independently reconciles complete persisted grade-B loss rows in both portable and DB_STARTED atomic SQL routes.
 
-Credentials, all `.env` files, raw captures, retained capture fixtures, database payloads/personal records, internal notes/conversations, uncommitted work, generated dependencies/builds, and original local Git history are excluded. Tests that require excluded retained evidence need that evidence supplied separately through an authorized private restore. No full test/build pass is claimed by this backup. Install the pinned dependencies, regenerate Prisma, and verify in an isolated recovery environment before any use. Do not replay historical migrations or reuse old capture/runtime identities merely because source bytes match.
+The reported bounded local verification passed 5 selected tests. Both SQL routes passed positive cases and rejected six loss-row mutations each. All 48 migration checksums and the existing SQL guard were checked. This is synthetic local SQL evidence; no full suite, TypeScript check, fresh acquisition, concurrent publication, or production qualification is claimed.
 
-GitHub Actions workflow source is retained under `backup/disabled-workflows/`; there is no active `.github/workflows/` in this backup. This branch is for backup and must not be merged or deployed automatically.
+## Recovery boundaries
 
-The live homepage source is a2bbb88; the separately backed up performance candidate a789e0d is tested but not deployed. Producer40 source is 507e40b. Unfinished Sanofi Chinese-only changes are outside this cutoff.
+45 tracked non-source/evidence files are omitted, including raw or retained job-body fixtures, historical evidence manifests, operational notes and recovery reports. Credentials, all environment files, database payloads, private profiles, uncommitted changes, dependencies/build output and original local Git history are not uploaded.
 
-Producer41 adds PORTABLE reuse of DB_STARTED atomic control. Its code was registered and started at 03:38:49 UTC. The first new collection was not yet accepted at this cutoff. Producer40 source 507e40b is preserved separately. No raw collection results or SQL payloads are included.
+In particular, `tests/fixtures/sanofi/chinese-native-semantics-20261004.json.gz` and `main-identity-semantics-20261003.json.gz` retain lengthy job descriptions despite their semantic-fixture names. They are excluded. The three real-page Sanofi regressions and any other tests using excluded retained fixtures need those inputs supplied through a separately authorized recovery. Synthetic Sanofi tests remain in source.
+
+Workflow source is moved to `backup/disabled-workflows/`. This backup branch does not run CI or deploy. Restore pinned dependencies and verify in isolation before using the code; a future build needs its own runtime registration.
+
+## Current producer context
+
+Registered producer42 uses reconstructed Git root `fb0b8e3b708d4f57cae09b465fb1c9ceddf7ad8d`. All 850 source files included in the existing producer41 GitHub backup were compared and are byte/mode-identical to that reconstruction, whose original code provenance is `b41a18415cfe8177740918b04c5139095d7abcc5`. Producer42 is not this Sanofi candidate.
+
+The default branch remains the separately CI-verified merged source `a536b80d4a0bda2196b29fac1991dcb610ae62b5`; no merge or deployment is performed by this backup.
+

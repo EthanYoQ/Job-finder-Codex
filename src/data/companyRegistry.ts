@@ -320,7 +320,7 @@ const CANDIDATE_SEEDS: CandidateSeed[] = [
     status: "VERIFIED_SCRAPABLE",
     atsKind: "OFFICIAL_HTML",
     officialWebsiteUrl: "https://www.sanofi.cn/",
-    socialEntryUrl: "https://jobs.sanofi.com/en/location/china-country-jobs/2649/1814991/2",
+    socialEntryUrl: "https://jobs.sanofi.cn/%e6%b1%82%e8%81%8c/%E4%B8%AD%E5%9B%BD/2649/2/1814991/35/105/50/2",
     officialChainEvidenceUrl: "https://jobs.sanofi.cn/"
   },
   {

@@ -68,8 +68,9 @@ export interface HtmlTableFieldMap {
 }
 
 export interface HtmlTableConfig {
-  sanofiNativePolicy?: "SANOFI_EN_CN_NATIVE_CHAIN_V1";
+  sanofiNativePolicy?: "SANOFI_EN_CN_NATIVE_CHAIN_V1" | "SANOFI_CN_NATIVE_APPLICATION_V2";
   sanofiChineseEntryUrl?: string;
+  sanofiLegacyIdentitySha256?: string;
   abbvieRowScopePolicy?: "ABBVIE_CHINA_LISTED_ROWS_V1";
   astraZenecaDetails?: typeof import("../astraZenecaDetailContract").ASTRAZENECA_DETAIL_CONFIG;
   astellasPdfLocations?: typeof import("../astellasPdfCityContract").ASTELLAS_PDF_CITY_CONFIG;

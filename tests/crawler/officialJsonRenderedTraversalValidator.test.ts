@@ -36,6 +36,7 @@ const expiresAt = "2026-08-21T00:00:00.000Z";
 describe("official JSON rendered traversal", () => {
   it("requires B-grade certificates for lossy or independently rendered in-scope sources", () => {
     expect(OFFICIAL_JSON_RENDERED_REQUIRED_CERTIFICATES).toEqual({
+      "source-sanofi-china-social": "company-sanofi-china",
       "source-servier-china-social": "company-servier-china",
       "source-pfizer-china-social": "company-pfizer-china",
       "source-bayer-healthcare-social": "company-bayer-healthcare",
@@ -46,6 +47,7 @@ describe("official JSON rendered traversal", () => {
       "source-cspc-social": "company-cspc"
     });
     expect(Object.keys(OFFICIAL_JSON_RENDERED_TRAVERSAL_POLICIES)).toEqual([
+      "source-sanofi-china-social",
       "source-servier-china-social",
       "source-pfizer-china-social",
       "source-bayer-healthcare-social",

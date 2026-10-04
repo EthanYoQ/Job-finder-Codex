@@ -1,4 +1,6 @@
 import { replayServierHybridTraversal, SERVIER_HYBRID_RETRIEVAL_PATH } from "./servierMokaRenderedTraversal";
+import { replaySanofiChineseIndependent, SANOFI_CN_INDEPENDENT_PATH } from "./sanofiChineseRenderedTraversal";
+import { SANOFI_CN_ENTRY } from "./sanofiChineseNative";
 import { SERVIER_MOKA_ENTRY } from "./servierMokaScope";
 import { capturePfizerRenderedTraversal, replayPfizerRenderedRow, assertPfizerRenderedPage } from "./pfizerRenderedTraversal";
 import { BAYER_MOKA_ENTRY } from "./bayerMokaScope";
@@ -12,6 +14,11 @@ import { irreversibleOfficialJsonEvidenceId, persistentOfficialJsonJobId } from 
 import { hasUniqueJsonObjectKeys } from "./strictJsonObjectKeys";
 
 export const OFFICIAL_JSON_RENDERED_TRAVERSAL_POLICIES = Object.freeze({
+  "source-sanofi-china-social": {
+    companyId:"company-sanofi-china",entryUrl:SANOFI_CN_ENTRY,retrievalPath:SANOFI_CN_INDEPENDENT_PATH,
+    validatorImplementationId:"sanofi-cn-dom-native-traversal-v2",mainRetrievalPath:"HTTP_CHINESE_TALENTBREW_PLUS_NATIVE_APPLICATIONS",
+    matchKeyKind:"SOURCE_JOB_ID",artifactLogicalKey:"sanofi-cn-independent-native-validation",maxPages:25
+  },
   "source-servier-china-social": {
     companyId: "company-servier-china", entryUrl: SERVIER_MOKA_ENTRY, retrievalPath: SERVIER_HYBRID_RETRIEVAL_PATH,
     validatorImplementationId: "servier-moka-open-portal-dom-http-traversal-v1",
@@ -107,6 +114,7 @@ export const OFFICIAL_JSON_RENDERED_TRAVERSAL_SOURCE_IDS = Object.freeze(
   Object.keys(OFFICIAL_JSON_RENDERED_TRAVERSAL_POLICIES) as OfficialJsonRenderedTraversalSourceId[]
 );
 export const OFFICIAL_JSON_RENDERED_REQUIRED_SOURCE_IDS = Object.freeze([
+  "source-sanofi-china-social",
   "source-servier-china-social",
   "source-pfizer-china-social",
   "source-bayer-healthcare-social",
@@ -170,6 +178,7 @@ type OfficialJsonRenderedTraversalCaptureInput = {
 export async function captureOfficialJsonRenderedTraversal(
   input: OfficialJsonRenderedTraversalCaptureInput
 ): Promise<{ observedAt: string; pages: OfficialJsonRenderedPageCapture[] }> {
+  if (input.sourceId === "source-sanofi-china-social") throw new Error("Sanofi requires actual Chinese DOM plus new independent native HTTP receipts");
   if (input.sourceId === "source-servier-china-social") throw new Error("Servier hybrid validation requires captured CUA DOM plus new independent HTTP details");
   if (input.sourceId === "source-bayer-healthcare-social") throw new Error("Bayer hybrid validation requires captured CUA DOM plus new independent HTTP details");
   const policy = OFFICIAL_JSON_RENDERED_TRAVERSAL_POLICIES[input.sourceId];
@@ -250,6 +259,7 @@ export function replayOfficialJsonRenderedTraversal(
   sourceId: OfficialJsonRenderedTraversalSourceId,
   pages: readonly OfficialJsonRenderedPageCapture[]
 ): OfficialJsonRenderedReplay {
+  if (sourceId === "source-sanofi-china-social") return replaySanofiChineseIndependent(pages);
   if (sourceId === "source-servier-china-social") return replayServierHybridTraversal(pages);
   if (sourceId === "source-bayer-healthcare-social") return replayBayerHybridTraversal(pages);
   const policy = OFFICIAL_JSON_RENDERED_TRAVERSAL_POLICIES[sourceId];

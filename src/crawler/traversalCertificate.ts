@@ -1,4 +1,6 @@
 import { isServierTraversalPlan, replayServierTraversal } from "./servierMokaScope";
+import { isSanofiChinesePlan, replaySanofiChineseNative, SANOFI_CN_PAGINATION_POLICY } from "./sanofiChineseNative";
+import { sanofiChineseIndependentObservedAt, sanofiChineseIndependentFinishedAt,replaySanofiChineseIndependent } from "./sanofiChineseRenderedTraversal";
 import { servierHybridObservedAt, servierHybridFinishedAt } from "./servierMokaRenderedTraversal";
 import { isPfizerWorkdayTraversalPlan, replayPfizerWorkdayTraversal, pfizerMainSourceJobIds, PFIZER_PAGINATION_POLICY } from "./pfizerWorkdayTraversal";
 import { isBayerMedicalTraversalPlan, replayBayerMedicalTraversal } from "./bayerMokaScope";
@@ -232,7 +234,7 @@ const officialJsonRenderedValidationSchema = z.object({
   sourceId: z.enum(OFFICIAL_JSON_RENDERED_TRAVERSAL_SOURCE_IDS as unknown as
     [OfficialJsonRenderedTraversalSourceId, ...OfficialJsonRenderedTraversalSourceId[]]),
   companyId: NONBLANK,
-  retrievalPath: z.enum(["PLAYWRIGHT_OFFICIAL_UI_NETWORK_TRAVERSAL", "PLAYWRIGHT_OFFICIAL_UI_JSONLD_TRAVERSAL", "CUA_DOM_LIST_PLUS_INDEPENDENT_HTTP_DETAILS"]),
+  retrievalPath: z.enum(["PLAYWRIGHT_OFFICIAL_UI_NETWORK_TRAVERSAL", "PLAYWRIGHT_OFFICIAL_UI_JSONLD_TRAVERSAL", "CUA_DOM_LIST_PLUS_INDEPENDENT_HTTP_DETAILS", "CUA_CHINESE_DOM_LIST_PLUS_NEW_NATIVE_HTTP"]),
   validatorImplementationId: NONBLANK,
   matchKeyKind: z.literal("SOURCE_JOB_ID"),
   ...renderedValidationFields,
@@ -288,6 +290,7 @@ export function readReusableBGradeTraversalValidation(input: {
     throw new Error("B-grade validation reuse requires a valid current time");
   }
   const certificate = certificateSchema.parse(input.certificate);
+  if (certificate.binding.sourceId === "source-sanofi-china-social") throw new Error("Sanofi requires CURRENT_RUN Chinese DOM and native detail traversal");
   if (certificate.binding.sourceId === "source-servier-china-social") throw new Error("Servier requires CURRENT_RUN independent DOM and detail traversal");
   if (certificate.binding.sourceId === "source-pfizer-china-social") throw new Error("Pfizer requires CURRENT_RUN independent UI traversal");
   if (!SHA256.safeParse(input.certificateSha256).success ||
@@ -512,6 +515,7 @@ export interface BGradeCertificateReceiptExpectation {
 }
 
 export function requiresBGradeTraversalCertificate(plan: SourceCrawlPlan): boolean {
+  if (plan.source.id === "source-sanofi-china-social") return isSanofiChinesePlan(plan);
   return plan.source.id === "source-servier-china-social" ? isServierTraversalPlan(plan) : plan.source.id === "source-pfizer-china-social" ? isPfizerWorkdayTraversalPlan(plan) :
     plan.source.id === "source-bayer-healthcare-social" ? isBayerMedicalTraversalPlan(plan) : requiresBGradeCertificateSourceId(plan.source.id);
 }
@@ -998,6 +1002,7 @@ export function issueBGradeTraversalCertificate(input: BGradeCertificateCandidat
   const auditedBeisen = ["source-fosun-pharma-social", "source-hansoh-social", "source-united-lab-social"]
     .includes(input.plan.source.id);
   if (!requiresBGradeTraversalCertificate(input.plan)) blockers.add("UNSUPPORTED_SOURCE");
+  if (isSanofiChinesePlan(input.plan) && input.validationExecution!=="CURRENT_RUN") blockers.add("VALIDATION_REFRESH_REQUIRED");
   if ((isPfizerWorkdayTraversalPlan(input.plan) || isServierTraversalPlan(input.plan)) && input.validationExecution !== "CURRENT_RUN") blockers.add("VALIDATION_REFRESH_REQUIRED");
   if (!policy || input.plan.company.id !== policy.companyId || input.plan.source.companyId !== policy.companyId ||
       input.plan.source.kind !== "SOCIAL" || !input.plan.source.surfaceId ||
@@ -1025,6 +1030,7 @@ export function issueBGradeTraversalCertificate(input: BGradeCertificateCandidat
       "officialTotalTraversal" in planBoundPolicy && planBoundPolicy.officialTotalTraversal === true;
     pagination = evaluatePaginationEvidence({
       evidence,
+      ...(isSanofiChinesePlan(input.plan) ? SANOFI_CN_PAGINATION_POLICY : {}),
       ...(isPfizerWorkdayTraversalPlan(input.plan) ? PFIZER_PAGINATION_POLICY : {}),
       expectedChannelIds: isOfficialJsonRenderedTraversalSourceId(input.plan.source.id) &&
           evidence.pages.some((page) => page.channelId !== undefined) ||
@@ -1055,6 +1061,10 @@ export function issueBGradeTraversalCertificate(input: BGradeCertificateCandidat
           : {})
     });
     pfizerMainProof = isPfizerWorkdayTraversalPlan(input.plan) && replayPfizerWorkdayTraversal(input.plan,evidence,input.jobs,input.now);
+    if (isSanofiChinesePlan(input.plan)) {
+      const chinese=replaySanofiChineseNative(input.plan,evidence,input.jobs[0]?.isBaseline ?? true);
+      if(canonicalJson(chinese.jobs)!==canonicalJson(input.jobs)) throw new Error("Sanofi Chinese native output mismatch");
+    }
     if (isPfizerWorkdayTraversalPlan(input.plan) && !pfizerMainProof) throw new Error("Pfizer source traversal failed strict raw replay");
     if (isServierTraversalPlan(input.plan) && !replayServierTraversal(input.plan, evidence, input.jobs)) throw new Error("Servier source traversal failed strict raw replay");
     const declaration = evidence.declaredCompleteness;
@@ -1123,7 +1133,7 @@ export function issueBGradeTraversalCertificate(input: BGradeCertificateCandidat
   const rawObservationCount = evidence?.pages.reduce((count, page) => count + page.validJobIds.length, 0) ?? 0;
   const outputIds = policy ? independentMatchKeys(input.plan.source.id, input.jobs) ?? [] : [];
   const scopeExclusionsProven = evidence &&
-    (validateStrictSourceScopeExclusionProof(input.plan, evidence, input.jobs) ||
+    (sanofiChineseExclusionsProven(input.plan,evidence,input.jobs) || validateStrictSourceScopeExclusionProof(input.plan, evidence, input.jobs) ||
       pfizerMainProof ||
       replayBayerMedicalTraversal(input.plan, evidence, input.jobs) !== undefined ||
       replayServierTraversal(input.plan, evidence, input.jobs) !== undefined);
@@ -1159,6 +1169,10 @@ export function issueBGradeTraversalCertificate(input: BGradeCertificateCandidat
   }
   const validationResult = browserValidationSchema.safeParse(input.independentValidation);
   const validation = validationResult.success ? validationResult.data : undefined;
+  if (validation?.schemaVersion === "official-json-browser-network-traversal-v1" && validation.sourceId === "source-sanofi-china-social") {
+    try { if (Date.parse(sanofiChineseIndependentFinishedAt(validation.pages)) > input.now.getTime()) blockers.add("INDEPENDENT_VALIDATION_INVALID"); }
+    catch { blockers.add("INDEPENDENT_VALIDATION_INVALID"); }
+  }
   if (validation?.schemaVersion === "official-json-browser-network-traversal-v1" && validation.sourceId === "source-servier-china-social") {
     try { if (Date.parse(servierHybridFinishedAt(validation.pages)) > input.now.getTime()) blockers.add("INDEPENDENT_VALIDATION_INVALID"); }
     catch { blockers.add("INDEPENDENT_VALIDATION_INVALID"); }
@@ -1212,6 +1226,13 @@ export function issueBGradeTraversalCertificate(input: BGradeCertificateCandidat
   if (validation?.schemaVersion === "official-json-browser-network-traversal-v1" && evidence) {
     const replay = replayOfficialJsonRenderedTraversal(validation.sourceId, validation.pages);
     const mainRawEvidenceIds = canonicalStrings(evidence.pages.flatMap((page) => page.rawJobIds));
+    if(isSanofiChinesePlan(input.plan)){
+      try {const main=replaySanofiChineseNative(input.plan,evidence,input.jobs[0]?.isBaseline??true),independent=replaySanofiChineseIndependent(validation.pages);
+        mainRawMatchKeys=canonicalStrings(main.rawPersistentIds);mainExcludedMatchKeys=canonicalStrings([...main.excludedIds]);
+        if(canonicalJson(main.decisions)!==canonicalJson(independent.decisions)||canonicalJson(mainRawMatchKeys)!==canonicalJson(replay.rawSourceJobIds)||
+          canonicalJson(mainExcludedMatchKeys)!==canonicalJson(replay.excludedSourceJobIds)) blockers.add("INDEPENDENT_JOB_SET_MISMATCH");
+      }catch{blockers.add("INDEPENDENT_JOB_SET_MISMATCH");}
+    }
     if (pfizerMainProof) {
       mainRawMatchKeys = canonicalStrings(pfizerMainSourceJobIds(evidence));
       mainExcludedMatchKeys = mainRawMatchKeys.filter(key => !outputIds.includes(key));
@@ -1225,7 +1246,7 @@ export function issueBGradeTraversalCertificate(input: BGradeCertificateCandidat
         replay.excludedCount !== evidence.fetchCounts.validationDiscardCount ||
         canonicalJson(replay.rawEvidenceIds) !== canonicalJson(mainRawEvidenceIds)) {
       blockers.add("INDEPENDENT_JOB_SET_MISMATCH");
-    } else if (!pfizerMainProof) {
+    } else if (!pfizerMainProof && !isSanofiChinesePlan(input.plan)) {
       mainRawMatchKeys = replay.rawSourceJobIds;
       mainExcludedMatchKeys = replay.excludedSourceJobIds;
     }
@@ -1352,6 +1373,11 @@ export function verifyBGradeTraversalCertificateReceipt(input: {
   if (!requirement.acceptable) throw new Error(`B-grade traversal certificate validation unavailable: ${requirement.reason}`);
   const issuedAtMs = Date.parse(certificate.issuedAt);
   if (certificate.independentValidation.schemaVersion === "official-json-browser-network-traversal-v1" &&
+      certificate.independentValidation.sourceId === "source-sanofi-china-social" &&
+      Date.parse(sanofiChineseIndependentFinishedAt(certificate.independentValidation.pages)) > issuedAtMs) {
+    throw new Error("Sanofi independent native receipt is later than certificate issuance");
+  }
+  if (certificate.independentValidation.schemaVersion === "official-json-browser-network-traversal-v1" &&
       certificate.independentValidation.sourceId === "source-servier-china-social" &&
       Date.parse(servierHybridFinishedAt(certificate.independentValidation.pages)) > issuedAtMs) {
     throw new Error("Servier independent HTTP receipt is later than certificate issuance");
@@ -1366,7 +1392,7 @@ export function verifyBGradeTraversalCertificateReceipt(input: {
       certificate.validationPolicy.execution === "CURRENT_RUN" &&
         issuedAtMs - observedAtMs > B_GRADE_CURRENT_RUN_MAXIMUM_SKEW_MS ||
       certificate.validationPolicy.trigger !== "STABLE_RUN" && certificate.validationPolicy.execution !== "CURRENT_RUN" ||
-      ["source-pfizer-china-social", "source-servier-china-social"].includes(certificate.binding.sourceId) && certificate.validationPolicy.execution !== "CURRENT_RUN") {
+      ["source-pfizer-china-social", "source-servier-china-social", "source-sanofi-china-social"].includes(certificate.binding.sourceId) && certificate.validationPolicy.execution !== "CURRENT_RUN") {
     throw new Error("B-grade traversal certificate validation was not current at issuance");
   }
   if (certificateMainMatchKeySetSha256(certificate) !== validationMatchKeySetSha256(certificate.independentValidation) ||
@@ -1486,6 +1512,8 @@ function independentMatchKeys(
 }
 
 function assertBrowserValidationEquations(validation: BGradeIndependentTraversalValidation): void {
+  if (validation.schemaVersion === "official-json-browser-network-traversal-v1" && validation.sourceId === "source-sanofi-china-social" &&
+      validation.observedAt !== sanofiChineseIndependentObservedAt(validation.pages)) throw new Error("Sanofi observation does not bind its first original Chinese DOM capture");
   if (validation.schemaVersion === "official-json-browser-network-traversal-v1" && validation.sourceId === "source-servier-china-social" &&
       validation.observedAt !== servierHybridObservedAt(validation.pages)) throw new Error("Servier observation does not bind its first original DOM capture");
   if (validation.schemaVersion === "official-json-browser-network-traversal-v1" && validation.sourceId === "source-bayer-healthcare-social" &&
@@ -1625,6 +1653,11 @@ function assertBrowserValidationEquations(validation: BGradeIndependentTraversal
   if (validation.artifactSha256 !== expectedArtifactSha256) {
     throw new Error("B-grade browser validation artifact hash mismatch");
   }
+}
+
+function sanofiChineseExclusionsProven(plan:SourceCrawlPlan,evidence:PersistentSourceFetchEvidence,jobs:readonly NormalizedJobRecord[]):boolean {
+  try {return isSanofiChinesePlan(plan)&&canonicalJson(replaySanofiChineseNative(plan,evidence,jobs[0]?.isBaseline??true).jobs)===canonicalJson(jobs);}
+  catch {return false;}
 }
 
 function planBoundDuplicateMultiplicity(

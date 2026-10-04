@@ -27,9 +27,9 @@ describe("plan-bound HTML certificate scope", () => {
     }
   });
 
-  it("keeps Takeda B traversal while Sanofi uses its native-bound official-total A", () => {
-    expect(requiresBGradeCertificateSourceId("source-sanofi-china-social")).toBe(false);
-    expect(requiresAGradeCertificateSourceId("source-sanofi-china-social")).toBe(true);
+  it("keeps Takeda B traversal and requires Chinese-only independent B for Sanofi", () => {
+    expect(requiresBGradeCertificateSourceId("source-sanofi-china-social")).toBe(true);
+    expect(requiresAGradeCertificateSourceId("source-sanofi-china-social")).toBe(false);
     for (const sourceId of [
       "source-takeda-china-social"
     ] as const) {

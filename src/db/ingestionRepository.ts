@@ -1230,6 +1230,10 @@ export async function compileDbStartedCloudSourcePublication(input:{source:DbSta
 
 function compileAtomicWriteStatements(writes:readonly AtomicWrite[],onStage:(stage:AtomicEvidencePersistenceStage)=>void,sharedTerminal=false):string[]{
     const statements:string[]=[];
+    const terminal = writes.find((write): write is Extract<AtomicWrite, { kind: "terminal" }> => write.kind === "terminal");
+    const certificate = terminal?.data.completenessCertificate as { schemaVersion?: string; grade?: string } | null;
+    const reconcileBLosses = certificate?.schemaVersion === "b-grade-independent-traversal-v2" && certificate.grade === "B";
+    const expectedLossRows: Record<string, unknown>[] = [];
     for (let index = 0; index < writes.length;) {
       const write = writes[index++]!;
       onStage(write.stage);
@@ -1247,6 +1251,7 @@ function compileAtomicWriteStatements(writes:readonly AtomicWrite[],onStage:(sta
           index++;
         } while (true);
         const columns = definedKeys(rows[0]!).map(sqlIdentifier).join(", ");
+        if (reconcileBLosses && write.model === "lossLedgerEntry") expectedLossRows.push(...rows);
         statements.push(`INSERT INTO public.${sqlIdentifier(table)} (${columns})
           SELECT ${columns} FROM jsonb_populate_recordset(NULL::public.${sqlIdentifier(table)}, ${sqlRecords(rows)});`);
       } else if (write.kind === "job") {
@@ -1286,6 +1291,24 @@ function compileAtomicWriteStatements(writes:readonly AtomicWrite[],onStage:(sta
           `GET DIAGNOSTICS affected = ROW_COUNT;`,
           `IF affected <> 1 THEN RAISE EXCEPTION 'Expected exactly one matching PENDING source result'; END IF;`);
       }
+    }
+    if (reconcileBLosses) {
+      // Reuse the INSERT's allocated IDs and typed values, independently of its
+      // SQL text and the certificate's self-reported commitment. Counting by
+      // source-result ID also catches extra rows with a mismatched tuple.
+      const sourceResultId = sqlText(String(terminal!.where.id));
+      // INSERT batches may differ in optional columns; retain their union when
+      // compacting the expected rows, with PostgreSQL's null/default semantics.
+      const lossKeys = [...new Set(expectedLossRows.flatMap(definedKeys))];
+      const completeLossRows = expectedLossRows.map(row => Object.fromEntries(lossKeys.map(key => [key, row[key] ?? null])));
+      statements.push(`IF (SELECT count(*) FROM public."LossLedgerEntry" WHERE "sourceResultId" = ${sourceResultId}) <> ${expectedLossRows.length}
+        OR EXISTS (
+          SELECT 1 FROM jsonb_populate_recordset(NULL::public."LossLedgerEntry", ${completeLossRows.length ? sqlRecords(completeLossRows) : sqlJson([])}) AS expected
+          LEFT JOIN public."LossLedgerEntry" AS actual ON actual.id = expected.id AND actual."sourceResultId" = ${sourceResultId}
+          WHERE actual.id IS NULL
+            OR (to_jsonb(actual) - 'recordedAt') IS DISTINCT FROM (to_jsonb(expected) - 'recordedAt')
+            OR actual."recordedAt" IS DISTINCT FROM coalesce(expected."recordedAt", CURRENT_TIMESTAMP::timestamp(3))
+        ) THEN RAISE EXCEPTION 'B_GRADE_PERSISTED_LOSS_MISMATCH'; END IF;`);
     }
     return statements;
 }
