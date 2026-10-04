@@ -1,3 +1,5 @@
+import { SANOFI_HISTORICAL_PUBLIC_PLAN } from "./sanofiHistoricalPublicPlan";
+import { isSanofiPublicTransitionPlan, isSanofiHistoricalPublicCandidate, assertSanofiHistoricalPublicRow } from "./sanofiPublicTransition";
 import { getPortableCoverageScope } from "../release/portableCoveragePolicy";
 import { B_GRADE_TRAVERSAL_CERTIFICATE_SCHEMA_VERSION, requiresBGradeTraversalCertificate, verifyBGradeTraversalCertificateReceipt, type BGradeTraversalCertificate } from "../crawler/traversalCertificate";
 import { candidateCompanies } from "../data/companyRegistry";
@@ -12,7 +14,7 @@ import { hashCanonicalStringSet } from "../crawler/runtimeBatchIdentity";
 import { fromPrismaJobCategory } from "../db/prismaMappers";
 import type { PortableSourceResultRow, PortableLifecycleMemberRow, PortableJobRow } from "../db/portablePublicSnapshotRepository";
 import { DAILY_PUBLICATION_FRESHNESS_MAXIMUM_MS } from "./publicationEligibility";
-import { A_GRADE_COMPLETENESS_CERTIFICATE_SCHEMA_VERSION, verifyAGradeCompletenessCertificateReceipt, type AGradeOfficialTotalCertificate } from "../crawler/completenessCertificate";
+import { A_GRADE_COMPLETENESS_CERTIFICATE_SCHEMA_VERSION, verifyAGradeCompletenessCertificateReceipt, verifySanofiHistoricalPublicReceipt, type AGradeOfficialTotalCertificate } from "../crawler/completenessCertificate";
 import type { DatabaseSearchJobResult } from "../server/jobSearchService";
 
 const A_GRADE_PUBLIC_POLICY = "STRICT_PLAN_BOUND_OFFICIAL_TOTAL_REPLAY_V1" as const;
@@ -22,10 +24,10 @@ const A_GRADE_PUBLIC_CONFIGS: Readonly<Record<string,string>>=Object.freeze(Obje
   buildStagedSourceCrawlPlans(candidateCompanies).filter(plan=>getPortableCoverageScope().requiredSourceIds.includes(plan.source.id)&&supportsStrictOfficialTotalCertificate(plan))
     .map(plan=>[plan.source.id,sourcePlanConfigSha256(plan)])));
 const B_GRADE_PUBLIC_POLICY = "STRICT_PLAN_BOUND_INDEPENDENT_TRAVERSAL_REPLAY_V2" as const;
-// Only the two reviewed COMPLETE_PAGE_TRAVERSAL integrations are public here.
+// Only reviewed source-specific COMPLETE_PAGE_TRAVERSAL integrations are public here.
 const B_GRADE_PUBLIC_CONFIGS: Readonly<Record<string, string>> = Object.freeze(Object.fromEntries(
   buildStagedSourceCrawlPlans(candidateCompanies).filter(plan =>
-    ["source-pfizer-china-social", "source-bayer-healthcare-social", "source-servier-china-social"].includes(plan.source.id) &&
+    ["source-pfizer-china-social", "source-bayer-healthcare-social", "source-servier-china-social", "source-sanofi-china-social"].includes(plan.source.id) &&
     getPortableCoverageScope().requiredSourceIds.includes(plan.source.id) && requiresBGradeTraversalCertificate(plan))
     .map(plan => [plan.source.id, sourcePlanConfigSha256(plan)])));
 type PublicBReceipt = Extract<BGradeTraversalCertificate, {schemaVersion: typeof B_GRADE_TRAVERSAL_CERTIFICATE_SCHEMA_VERSION}>;
@@ -105,17 +107,25 @@ function acceptedAt(selected: NonNullable<PortableSourceSelection["selected"]>):
 }
 function claimedReceipt(row: PortableSourceResultRow, plan: SourceCrawlPlan): boolean {
   const receipt = row.completenessCertificate as {schemaVersion?: unknown; policyId?: unknown} | null;
+  if (isSanofiPublicTransitionPlan(plan)) {
+    if (isSanofiHistoricalPublicCandidate(row)) return receipt?.schemaVersion === A_GRADE_COMPLETENESS_CERTIFICATE_SCHEMA_VERSION;
+    if (row.sourceConfigHash !== sourcePlanConfigSha256(plan)) return false;
+  }
   return receipt?.schemaVersion === SOURCE_QUALITY_RECEIPT_SCHEMA || receipt?.policyId === SOURCE_QUALITY_POLICY_ID ||
     receipt?.schemaVersion === A_GRADE_COMPLETENESS_CERTIFICATE_SCHEMA_VERSION && supportsPublicAGrade(plan) ||
     receipt?.schemaVersion === B_GRADE_TRAVERSAL_CERTIFICATE_SCHEMA_VERSION && supportsPublicBGrade(plan);
 }
 function verifyAcceptedAGrade(row: PortableSourceResultRow, plan: SourceCrawlPlan, now: Date): AGradeOfficialTotalCertificate {
   const fail = (): never => { throw new Error("PUBLIC_A_GRADE_RECEIPT_DRIFT"); };
-  if (!supportsPublicAGrade(plan)) fail();
-  verifyAGradeCompletenessCertificateReceipt({certificate: row.completenessCertificate, certificateSha256: row.completenessCertificateSha256 ?? "", expected: {
+  const historicalSanofi = isSanofiPublicTransitionPlan(plan) && isSanofiHistoricalPublicCandidate(row);
+  if (historicalSanofi) assertSanofiHistoricalPublicRow(row, plan);
+  else if (!supportsPublicAGrade(plan)) fail();
+  const receiptPlan = historicalSanofi ? SANOFI_HISTORICAL_PUBLIC_PLAN : plan;
+  const verifyReceipt = historicalSanofi ? verifySanofiHistoricalPublicReceipt : verifyAGradeCompletenessCertificateReceipt;
+  verifyReceipt({certificate: row.completenessCertificate, certificateSha256: row.completenessCertificateSha256 ?? "", expected: {
     releaseCandidateId: row.releaseCandidateId, batchId: row.batchId, sourceResultId: row.id,
-    sourceId: plan.source.id, companyId: plan.company.id, sourceConfigSha256: sourcePlanConfigSha256(plan),
-    surfaceIds: [plan.source.surfaceId!], channelIds: plan.expectedChannels!.map(channel => channel.channelId),
+    sourceId: plan.source.id, companyId: plan.company.id, sourceConfigSha256: sourcePlanConfigSha256(receiptPlan),
+    surfaceIds: [receiptPlan.source.surfaceId!], channelIds: receiptPlan.expectedChannels!.map(channel => channel.channelId),
     canonicalJobSetSha256: row.canonicalOutputSetSha256 ?? "", adapterReconciliationSha256: row.adapterReconciliationSha256 ?? "",
     collisionLedgerSha256: row.collisionLedgerSha256 ?? ""
   }});
@@ -250,7 +260,11 @@ export function selectPortableSourceSnapshots(
     const coverageHold = getPortableSourceCoverageHold(plan.source.id);
     if (coverageHold) return {...base, reasons: [coverageHold]};
     if (policyId === null) return {...base, reasons: ["UNSUPPORTED_CURRENT_POLICY"] as PortableSnapshotReason[]};
-    const attempts = rows.filter(row => row.sourceId === plan.source.id && row.sourceConfigHash === currentConfigSha256 && row.batch.kind === "SCHEDULED");
+    const sanofiTransition = isSanofiPublicTransitionPlan(plan);
+    // All scheduled writers are visible during this one-source transition. An
+    // unknown successor can replace mutable jobs even without a usable receipt.
+    const attempts = rows.filter(row => row.sourceId === plan.source.id &&
+      (row.sourceConfigHash === currentConfigSha256 || sanofiTransition) && row.batch.kind === "SCHEDULED");
     const accepted: NonNullable<PortableSourceSelection["selected"]>[] = [];
     let integrityHold = false;
     const invalidCertifiedHistory: PortableSourceResultRow[] = [];
@@ -285,8 +299,16 @@ export function selectPortableSourceSnapshots(
           unknownCountryJobCount: receipt.counts.validationDiscardCount};
       }
       // A different committed writer after portable cutover can have replaced mutable Job rows.
-      if (attempts.some(row => row.atomicCommitState === "COMMITTED" && row.completenessState === "VERIFIED" &&
-          !claimedReceipt(row, plan) && validDate(row.finishedAt) && row.finishedAt.getTime() >= Date.parse(base.visibilityFloor!))) integrityHold = true;
+      if (attempts.some(row => row.atomicCommitState === "COMMITTED" &&
+          (sanofiTransition || row.completenessState === "VERIFIED") && !claimedReceipt(row, plan) &&
+          (!sanofiTransition || row.id !== result.id) &&
+          (sanofiTransition ? !validDate(row.finishedAt) || row.finishedAt >= result.startedAt :
+            validDate(row.finishedAt) && row.finishedAt.getTime() >= Date.parse(base.visibilityFloor!)))) integrityHold = true;
+      // A committed CN attempt ends the historical fallback even when its
+      // completeness state/receipt is unusable. A later good B stands alone.
+      if (sanofiTransition && receipt.schemaVersion === A_GRADE_COMPLETENESS_CERTIFICATE_SCHEMA_VERSION &&
+          attempts.some(row => row.id !== result.id && row.atomicCommitState === "COMMITTED" &&
+            (!validDate(row.finishedAt) || row.finishedAt >= result.startedAt))) integrityHold = true;
       // Freshness is diagnostic. Only evidence/lifecycle failures affect publication or health.
       if (base.freshness === "STALE") base.reasons.push("LAST_GOOD_STALE");
       if (latest && latest.id !== result.id && latest.startedAt >= result.startedAt) {

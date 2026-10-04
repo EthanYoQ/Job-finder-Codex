@@ -1,3 +1,4 @@
+import { isSanofiPublicTransitionPlan, isSanofiHistoricalPublicCandidate } from "../domain/sanofiPublicTransition";
 import type { Prisma } from "@prisma/client";
 import { buildStagedSourceCrawlPlans, sourcePlanConfigSha256, type SourceCrawlPlan } from "../crawler/sourcePlan";
 import { candidateCompanies } from "../data/companyRegistry";
@@ -25,7 +26,8 @@ export const portableSourceResultSelect = {
     successful: true, transportSucceeded: true, adapterSucceeded: true, completenessVerified: true, atomicCommitSucceeded: true,
     canonicalRawSha256: true, canonicalOutputSha256: true, paginationTraceSha256: true}},
   _count: {select: {transportAttempts: true, evidenceArtifacts: true, observations: true, paginationEvidence: true, lossLedgerEntries: true, lifecycleSetMembers: true}},
-  batch: {select: {id: true, releaseCandidateId: true, kind: true, status: true}}
+  batch: {select: {id: true, releaseCandidateId: true, kind: true, status: true, commitSha: true, rosterSha256: true,
+    sourcePlanSha256: true, sourceConfigSha256: true, adapterBundleSha256: true, startedAt: true, finishedAt: true}}
 } as const satisfies Prisma.CrawlBatchSourceResultSelect;
 export type PortableSourceResultRow = Prisma.CrawlBatchSourceResultGetPayload<{select: typeof portableSourceResultSelect}>;
 const lifecycleMemberSelect = {
@@ -108,7 +110,7 @@ export async function readPortablePublicSnapshot(
   // Validate the options and duplicate source ownership before starting any I/O.
   const emptySelections = selectPortableSourceSnapshots(immutablePlans, [], readOptions);
   const requiredPlans = immutablePlans.filter(plan => !excludedSourceIds.has(plan.source.id));
-  const identities = new Map(requiredPlans.map(plan => [plan.source.id, {companyId: plan.company.id, config: sourcePlanConfigSha256(plan)}]));
+  const identities = new Map(requiredPlans.map(plan => [plan.source.id, {companyId: plan.company.id, config: sourcePlanConfigSha256(plan), sanofiTransition: isSanofiPublicTransitionPlan(plan)}]));
   const cacheScope = JSON.stringify({plans: immutablePlans.map(plan => [plan.company.id, plan.source.id, sourcePlanConfigSha256(plan)]),
     freshnessMaximumMs: readOptions.freshnessMaximumMs ?? DAILY_PUBLICATION_FRESHNESS_MAXIMUM_MS});
   const data = await db.$transaction(async tx => {
@@ -124,7 +126,8 @@ export async function readPortablePublicSnapshot(
       cache!.getPrevious(cacheScope, readOptions.currentTime.getTime());
     if (previous) return {cached: previous, refreshRequired: true};
     const rawResults = await tx.crawlBatchSourceResult.findMany({
-      where: {OR: requiredPlans.map(plan => ({sourceId: plan.source.id, sourceConfigHash: sourcePlanConfigSha256(plan)})), batch: {is: {kind: "SCHEDULED"}}},
+      where: {OR: requiredPlans.map(plan => isSanofiPublicTransitionPlan(plan) ? {sourceId: plan.source.id} :
+        {sourceId: plan.source.id, sourceConfigHash: sourcePlanConfigSha256(plan)}), batch: {is: {kind: "SCHEDULED"}}},
       select: portableSourceResultSelect, orderBy: [{startedAt: "asc"}, {id: "asc"}]
     });
     if (!Array.isArray(rawResults)) throw new Error("INVALID_PORTABLE_SOURCE_RESULT_ROWS");
@@ -135,7 +138,8 @@ export async function readPortablePublicSnapshot(
     const candidates = new Map<string, {result: PortableSourceResultRow; floor: Date; companyId: string}>();
     for (const row of results) {
       const identity = identities.get(row.sourceId);
-      if (!identity || row.sourceConfigHash !== identity.config || row.batch.kind !== "SCHEDULED" || row.atomicCommitState !== "COMMITTED" || row.completenessState !== "VERIFIED" ||
+      if (!identity || (row.sourceConfigHash !== identity.config &&
+          !(identity.sanofiTransition && isSanofiHistoricalPublicCandidate(row))) || row.batch.kind !== "SCHEDULED" || row.atomicCommitState !== "COMMITTED" || row.completenessState !== "VERIFIED" ||
           !(row.finishedAt instanceof Date) || !Number.isFinite(row.finishedAt.getTime())) continue;
       const prior = candidates.get(row.sourceId);
       const newest = !prior || row.finishedAt > prior.result.finishedAt! ||

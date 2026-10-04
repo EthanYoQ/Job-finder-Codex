@@ -53,7 +53,8 @@ export function accepted(at = FIRST, keys = ["job-1"], grace: string[] = [], cur
     canonicalCurrentJobSetSha256: hashCanonicalStringSet(currentKeys), canonicalGraceJobSetSha256: hashCanonicalStringSet(graceKeys), canonicalVisibleJobSetSha256: hashCanonicalStringSet([...currentKeys, ...graceKeys]), canonicalOutputSetSha256: hashCanonicalStringSet(currentKeys),
     adapterReconciliationSha256: SHA, collisionLedgerSha256: SHA,
     completenessCertificate: receipt, completenessCertificateSha256: digest(receipt),
-    batch: { id: binding.batchId, releaseCandidateId: binding.releaseCandidateId, kind: "SCHEDULED", status: "SUCCESS" }
+    batch: { id: binding.batchId, releaseCandidateId: binding.releaseCandidateId, kind: "SCHEDULED", status: "SUCCESS", commitSha: "a".repeat(40), rosterSha256: SHA, sourcePlanSha256: SHA,
+      sourceConfigSha256: SHA, adapterBundleSha256: SHA, startedAt: new Date(at), finishedAt: new Date(at) }
   };
   const members: PortableLifecycleMemberRow[] = [...currentKeys.map(jobKey => ({ jobKey, missingCount: 0 })), ...graceKeys.map(jobKey => ({ jobKey, missingCount: 1 }))].flatMap(({jobKey, missingCount}) =>
     [missingCount === 0 ? "CURRENT" as const : "GRACE" as const, "VISIBLE" as const].map(setKind => ({

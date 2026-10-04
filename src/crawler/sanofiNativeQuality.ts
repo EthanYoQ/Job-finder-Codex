@@ -21,11 +21,19 @@ const CN_PREFIX="sanofi-cn-list-";
 const rec=(v:unknown):Record<string,unknown>|undefined=>v!==null&&typeof v==="object"&&!Array.isArray(v)?v as Record<string,unknown>:undefined;
 const text=(v:unknown):v is string=>typeof v==="string"&&v.trim().length>0;
 const norm=(v:string)=>v.trim().replace(/\s+/gu," ");
+const descriptionText=(v:string)=>v.replace(/\s+/gu,"").normalize("NFKC");
+// The official AJD template appends these three sibling paragraphs after the JD.
+// Only this exact, structurally bounded block may differ from the JobPosting JD.
+const ajdFooter=[
+ "Pursue Progress. Discover Extraordinary.",
+ "Join Sanofi and step into a new era of science - where your growth can be just as transformative as the work we do. We invest in you to reach further, think faster, and do what’s never-been-done-before. You’ll help push boundaries, challenge convention, and build smarter solutions that reach the communities we serve. Ready to chase the miracles of science and improve people’s lives? Let’s Pursue Progress and Discover Extraordinary – together.",
+ "At Sanofi, we provide equal opportunities to all regardless of race, color, ancestry, religion, sex, national origin, sexual orientation, age, citizenship, marital status, disability, gender identity, protected veteran status or other characteristics protected by law."
+].map(descriptionText);
 const body=(a:SourceFetchArtifactDraft)=>typeof a.body==="string"?a.body:Buffer.from(a.body).toString("utf8");
 const assert=(v:unknown):void=>{if(!v)throw Error("SANOFI_NATIVE_CHAIN_INVALID");};
 const setEqual=(a:string[],b:string[])=>same([...new Set(a)].sort(),[...new Set(b)].sort());
 const absolute=(value:string,base:string)=>new URL(value,base).toString();
-export function hasSanofiNativePolicy(plan:SourceCrawlPlan):boolean{return plan.adapterId==="html-table"&&plan.table.sanofiNativePolicy!==undefined;}
+export function hasSanofiNativePolicy(plan:SourceCrawlPlan):boolean{return plan.adapterId==="html-table"&&plan.table.sanofiNativePolicy===POLICY;}
 function exactPlan(plan:SourceCrawlPlan):plan is Extract<SourceCrawlPlan,{adapterId:"html-table"}>{return plan.adapterId==="html-table"&&plan.company.id==="company-sanofi-china"&&plan.company.officialChineseName==="赛诺菲中国"&&plan.source.id==="source-sanofi-china-social"&&plan.source.companyId===plan.company.id&&plan.source.kind==="SOCIAL"&&plan.source.atsKind==="OFFICIAL_HTML"&&plan.source.officialEntryUrl===ENGLISH&&plan.source.officialChainEvidenceUrl==="https://jobs.sanofi.cn/"&&plan.table.sanofiNativePolicy===POLICY&&plan.table.sanofiChineseEntryUrl===SANOFI_CHINESE_ENTRY;}
 function listPlan(plan:Extract<SourceCrawlPlan,{adapterId:"html-table"}>,cn=false){const table=structuredClone(plan.table);delete table.sanofiNativePolicy;delete table.sanofiChineseEntryUrl;if(cn)table.fields.officialUrl={selector:"a[data-job-id]",attribute:"href"};return {...plan,source:{...plan.source,officialEntryUrl:cn?SANOFI_CHINESE_ENTRY:ENGLISH},table};}
 function json(value:string):Record<string,unknown>{assert(hasUniqueJsonObjectKeys(value));const parsed=rec(JSON.parse(value));assert(parsed);return parsed!;}
@@ -45,13 +53,29 @@ export function parseSanofiDetail(html:string,url:string,id:string):SanofiDetail
   const countries=data.jobLocation.map(v=>rec(rec(v)?.address)?.addressCountry);if(!countries.every(text))return undefined;
   const mainland=countries.some(v=>v==="China"||v==="中国");
   if(!countries.every(v=>["China","中国","Taiwan","中国香港","Hong Kong","Macau","Macao"].includes(v)))return undefined;
-  const links=$('[data-selector-name="job-apply-link"]').map((_,node)=>$(node).attr("href")).get().map(href=>absolute(href,url));
-  // Some official pages retain a neighbour's footer link. Only an exact current identity is usable.
-  const ownLinks=links.filter(link=>{const u=new URL(link);return link===tupuUrl(reqId)||
-    (u.origin==="https://www.ajinga.com"&&u.pathname===`/ats/job-detail-new/13537/${reqId}/c/`)||
-    (u.origin===parsed.origin&&u.pathname===`/sys/apply/job/application/2649/${id}`);});
-  if(new Set(ownLinks).size>1||(ownLinks.length===0&&parsed.hostname!=="jobs.sanofi.com"))return undefined;
-  return {reqId,sourceJobId:id,title:norm(data.title),url,scope:mainland?"MAINLAND":"OUTSIDE",applyUrl:ownLinks[0]??"",datePosted:data.datePosted,descriptionText:load(data.description).text().replace(/\s+/gu,"").normalize("NFKC")};
+  const main=$("main#content"),headers=main.find(".ajd__jobheader-title h2, .job-description.section7-title h1"),
+   detail=main.find(".job-description.section7-details"),jd=detail.find(".ats-description"),
+   applyRoots=main.find("#ajd-header, .job-description.section7-title, .job-description.section7-details");
+  if(main.length!==1||headers.length!==1||norm(headers.text())!==norm(data.title)||detail.length!==1||jd.length!==1)return undefined;
+  const expectedDescription=descriptionText(load(data.description).text());
+  if(descriptionText(jd.text())!==expectedDescription){
+   const copy=jd.clone(),tail=copy.children().slice(-3);
+   if(tail.length!==3||!tail.toArray().every((node,index)=>node.tagName==="p"&&
+    (index!==0||$(node).attr("class")==="italic-heading")&&descriptionText($(node).text())===ajdFooter[index]))return undefined;
+   // Remove only the verified terminal block, never an arbitrary substring or prefix.
+   tail.remove();if(descriptionText(copy.text())!==expectedDescription)return undefined;
+  }
+  const links:string[]=[];
+  for(const node of applyRoots.find('[data-selector-name="job-apply-link"]').toArray()){
+   const button=$(node),href=button.attr("href");if(button.attr("data-job-id")!==id||!text(href))return undefined;
+   const link=absolute(href,url),u=new URL(link),dataApply=button.attr("data-apply-url");
+   if(u.protocol!=="https:"||u.username||u.password||u.hash||(dataApply!==undefined&&absolute(dataApply,url)!==link)||
+    !(link===tupuUrl(reqId)||(u.origin==="https://www.ajinga.com"&&u.pathname===`/ats/job-detail-new/13537/${reqId}/c/`)||
+     (u.origin===parsed.origin&&u.pathname===`/sys/apply/job/application/2649/${id}`)))return undefined;
+   links.push(link);
+  }
+  if(!links.length||new Set(links).size!==1)return undefined;
+  return {reqId,sourceJobId:id,title:norm(data.title),url,scope:mainland?"MAINLAND":"OUTSIDE",applyUrl:links[0]!,datePosted:data.datePosted,descriptionText:expectedDescription};
  }catch{return undefined;}
 }
 function nativeCities(raw:string):string[]{assert(!explicitlyForeignOrNonMainlandLocation(raw));const parts=raw.split(/[、,，;；]/u).map(v=>v.trim().split("-").at(-1)!.trim()).filter(Boolean);return parts.length&&parts.every(v=>/^[\u4e00-\u9fff]{2,12}$/u.test(v)&&!/(?:香港|澳门|台湾|台北|高雄)/u.test(v))?[...new Set(parts.map(v=>v.replace(/市$/u,"")))]:[CITY_PENDING];}

@@ -1,3 +1,4 @@
+import { SANOFI_HISTORICAL_PUBLIC_RECEIPT } from "./sanofiHistoricalPublicReceipt";
 import { isServierTraversalPlan } from "./servierMokaScope";
 import { JNJ_DOM_CAPTURE_TOOL } from "./jnjCareersDomContract";
 import { isBayerMedicalTraversalPlan } from "./bayerMokaScope";
@@ -50,7 +51,6 @@ export const REQUIRED_A_GRADE_COMPLETENESS_CERTIFICATES = Object.freeze({
   "source-organon-china-social": "company-organon-china",
   "source-pfizer-china-social": "company-pfizer-china",
   "source-roche-china-social": "company-roche-china",
-  "source-sanofi-china-social": "company-sanofi-china",
   "source-servier-china-social": "company-servier-china",
   "source-shanghai-pharma-social": "company-shanghai-pharma",
   "source-ucb-china-social": "company-ucb-china",
@@ -385,15 +385,32 @@ export function verifyAGradeCompletenessCertificateReceipt(input: {
   certificateSha256: string;
   expected: AGradeCertificateReceiptExpectation;
 }): AGradeCertificateReceipt {
+  return verifyRegisteredAGradeReceipt(input, REQUIRED_A_GRADE_COMPLETENESS_CERTIFICATES[
+    input.expected.sourceId as keyof typeof REQUIRED_A_GRADE_COMPLETENESS_CERTIFICATES
+  ]);
+}
+
+/** Public-reader migration only: exactly one historical A receipt, never new issuance. */
+export function verifySanofiHistoricalPublicReceipt(input: {
+  certificate: unknown; certificateSha256: string; expected: AGradeCertificateReceiptExpectation;
+}): AGradeCertificateReceipt {
+  const pin = SANOFI_HISTORICAL_PUBLIC_RECEIPT;
+  if (input.certificateSha256 !== pin.certificateSha256 || input.expected.companyId !== pin.companyId ||
+      Object.entries(pin.binding).some(([key, value]) => input.expected[key as keyof typeof pin.binding] !== value)) {
+    throw new Error("SANOFI_HISTORICAL_PUBLIC_RECEIPT_MISMATCH");
+  }
+  return verifyRegisteredAGradeReceipt(input, pin.companyId);
+}
+
+function verifyRegisteredAGradeReceipt(input: {
+  certificate: unknown; certificateSha256: string; expected: AGradeCertificateReceiptExpectation;
+}, registeredCompanyId: string | undefined): AGradeCertificateReceipt {
   const certificate = certificateSchema.parse(input.certificate);
   if (!SHA256.safeParse(input.certificateSha256).success ||
       sha256(canonicalJson(certificate)) !== input.certificateSha256) {
     throw new Error("A-grade completeness certificate hash mismatch");
   }
   const expected = input.expected;
-  const registeredCompanyId = REQUIRED_A_GRADE_COMPLETENESS_CERTIFICATES[
-    expected.sourceId as keyof typeof REQUIRED_A_GRADE_COMPLETENESS_CERTIFICATES
-  ];
   if (certificate.binding.releaseCandidateId !== expected.releaseCandidateId ||
       certificate.binding.batchId !== expected.batchId ||
       certificate.binding.sourceResultId !== expected.sourceResultId ||

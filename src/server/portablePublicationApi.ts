@@ -13,6 +13,12 @@ function sourceScopeNote(sourceIds: readonly string[], snapshot: PortablePublicS
     "source-cspc-social": "石药官网的“集团官网”招聘频道（人工 D36 指定入口）；仅覆盖该频道，不代表集团及子公司全量。",
     "source-servier-china-social": "施维雅中国 Moka 社会招聘门户（47734）；门户职位总量与已确认中国工作地的职位数量分开核验，未披露工作地的职位保持未知。"
   };
+  const sanofi = snapshot.sources.find(source => source.sourceId === "source-sanofi-china-social");
+  if (sanofi?.selectedSourceResultId && sanofi.policyId === "STRICT_PLAN_BOUND_OFFICIAL_TOTAL_REPLAY_V1") {
+    notes["source-sanofi-china-social"] = "赛诺菲上一版已核验快照（英文官网中国范围清单，原采集时间保留）；中文官网完整清单及对应中文官方申请页核验完成后更新。";
+  } else if (sanofi?.selectedSourceResultId && sanofi.policyId === "STRICT_PLAN_BOUND_INDEPENDENT_TRAVERSAL_REPLAY_V2") {
+    notes["source-sanofi-china-social"] = "赛诺菲中文官网指定入口的完整岗位清单；通过对应中文官方申请页核验正文、实际工作地和招聘状态，明确境外或已关闭的岗位不计入在招岗位。";
+  }
   const servier = snapshot.sources.find(source => source.sourceId === "source-servier-china-social" && source.state === "PUBLISHING")?.sourceScopeSummary;
   if (servier) notes["source-servier-china-social"] = `施维雅中国 Moka 社会招聘门户（47734）：门户职位 ${servier.portalJobCount} 个，明确中国工作地 ${servier.verifiedChinaJobCount} 个，国家待核 ${servier.unknownCountryJobCount} 个（官方标记在招，未计入中国职位）；仅覆盖此门户。`;
   const note = sourceIds.flatMap(id => notes[id] ? [notes[id]] : []).join(" ");

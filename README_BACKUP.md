@@ -1,17 +1,24 @@
-# Job Finder source backup
+# Sanofi public-reader candidate backup
 
-Source revision: `a789e0db617fcd204eca2101f4a6c5669a6c25da`
+Source checkpoint: `43c53a6262e4c94c1fd84fbf8418d4a3064f01a6`, frozen at 2026-10-04 10:30 UTC. **Prepared and reviewed; not registered, newly captured or deployed.**
 
-State at 2026-10-04 03:20 UTC: **TESTED_NOT_DEPLOYED**. This is a source-only backup. It does not deploy, change the live database, qualify a release, or retain the original runtime commit identity. The backup commit is a new, different commit.
+## Contents and provenance
 
-## Contents
+This backup retains 957 unchanged source/assets/test/config files plus this guide and `SOURCE_BACKUP.json`. Every included source file has its original path, Git blob, mode, byte length and SHA-256 recorded. Workflow source is relocated under `backup/disabled-workflows/`; no active workflow is present.
 
-Application and server/collector source, package lock, Prisma schema and migration source, configuration templates expressed as code, operational source, tests, and runtime image/font assets where present. `SOURCE_BACKUP.json` records every included original Git blob, SHA-256, mode, and source path. Included source bytes are unchanged.
+The restored local baseline is `6085e424957f6e1b06e2b2844d23d88994eb7ded`. Its source provenance is the prepared performance candidate `a789e0db617fcd204eca2101f4a6c5669a6c25da`, based on `a2bbb88dd4817da17493a62f9f530d2fb7dece9a`. The original Git history was not restored. The backup has a separate Git commit identity and cannot reuse an existing runtime registration.
+
+The 18-file application change contains the Sanofi Chinese-only reader dependency closure and the narrowly pinned historical public receipt exception. Its dependency origin is the previously backed-up candidate `d402d3639c0ea729fa72bd1a4427570b227c7481`. It preserves the prepared performance behavior, exact historical A88 verification pins and continued prohibition on ordinary Sanofi A issuance. No producer SQL/runtime or UI change is mixed in.
+
+## Verification state
+
+The implementation's reported checks passed 223 targeted tests in 10 files, followed by 109 affected tests after the final change. The transition suite has 42 cases. All 23 changed/new TypeScript files passed isolated syntax transpilation, and read-only review found no blockers. This does not establish a full semantic typecheck, complete test suite, frontend build or production qualification.
 
 ## Recovery limits
 
-Credentials, all `.env` files, raw captures, retained capture fixtures, database payloads/personal records, internal notes/conversations, uncommitted work, generated dependencies/builds, and original local Git history are excluded. Tests that require excluded retained evidence need that evidence supplied separately through an authorized private restore. No full test/build pass is claimed by this backup. Install the pinned dependencies, regenerate Prisma, and verify in an isolated recovery environment before any use. Do not replay historical migrations or reuse old capture/runtime identities merely because source bytes match.
+33 tracked files are excluded: raw/retained capture fixtures and evidence, actual database context/control records, internal diagnostic/recovery notes and certificate material. Credentials, environment files, private profiles, generated dependencies/builds, uncommitted work and local Git history are excluded.
 
-GitHub Actions workflow source is retained under `backup/disabled-workflows/`; there is no active `.github/workflows/` in this backup. This branch is for backup and must not be merged or deployed automatically.
+Specifically, `tests/fixtures/sanofi-historical-public-context.json` contains a real database projection with 88 jobs, 176 lifecycle members and a historical result/receipt. It is not included. The transition test suite cannot run fully from this backup without separately authorized recovery of that fixture. Other retained-evidence tests have the same boundary. Synthetic test code remains intact. The small non-secret exact receipt pins and static verification-only plan required by application behavior remain in source.
 
-The live homepage source is a2bbb88; the separately backed up performance candidate a789e0d is tested but not deployed. Producer40 source is 507e40b. Unfinished Sanofi Chinese-only and portable DB_STARTED changes are outside this cutoff.
+The original prepared web backup supplies unchanged frontend assets, fonts and logos; they are reused without re-uploading. This branch is a recovery checkpoint only. It does not run CI, merge into the default branch or deploy. Live web remains separately managed at the a2 source checkpoint.
+

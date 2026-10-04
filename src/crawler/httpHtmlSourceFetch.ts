@@ -1,4 +1,5 @@
 import {hasSanofiNativePolicy,createSanofiNativeSourceFetch} from "./sanofiNativeQuality";
+import {isSanofiChinesePlan,createSanofiChineseSourceFetch} from "./sanofiChineseNative";
 import { load } from "cheerio";
 import { parseExpression } from "@babel/parser";
 import { getCACertificates, setDefaultCACertificates } from "node:tls";
@@ -55,6 +56,7 @@ export function createHttpHtmlSourceFetch(
   deps: HttpHtmlSourceFetchDeps = {}
 ): SourceFetchFunction {
   return async (plan) => {
+    if (isSanofiChinesePlan(plan)) return createSanofiChineseSourceFetch(deps)(plan);
     if (hasSanofiNativePolicy(plan)) return createSanofiNativeSourceFetch(deps)(plan);
     const capturedAt = (deps.now ?? (() => new Date()))().toISOString();
     const interactions: Array<{ request: HttpHtmlRequest; response: HttpHtmlResponse }> = [];
