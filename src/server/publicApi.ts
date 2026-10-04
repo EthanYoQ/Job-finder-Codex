@@ -47,7 +47,7 @@ export interface PublicApiDeps {
   /** HTTP finish/close barrier; omitted by non-HTTP callers. */
   responseFinished?: Promise<void>;
   readPortableSnapshot?: (() => Promise<PortablePublicSnapshot>) & {
-    readWithStatus?: (responseFinished?: Promise<void>) => Promise<PortableSnapshotRead>;
+    readWithStatus?: (responseFinished?: Promise<void>, check?: string) => Promise<PortableSnapshotRead>;
   };
 }
 
@@ -190,7 +190,7 @@ export async function handlePublicApi(request: PublicApiRequest, deps: PublicApi
       }
 
       const read = deps.readPortableSnapshot;
-      const display = read ? await (read.readWithStatus?.(deps.responseFinished) ?? read().then(snapshot => ({snapshot}))) : undefined;
+      const display = read ? await (read.readWithStatus?.(deps.responseFinished, request.headers["x-job-snapshot-check"]) ?? read().then(snapshot => ({snapshot}))) : undefined;
       const result = display
         ? {...searchPortableSnapshot(parsed.data, display.snapshot), ...("snapshotRefresh" in display ? {snapshotRefresh: display.snapshotRefresh} : {})}
         : await searchJobsFromDatabase(parsed.data, deps.db, deps.readPublicationSnapshot);
@@ -219,7 +219,7 @@ export async function handlePublicApi(request: PublicApiRequest, deps: PublicApi
           limit: paginationValidation.data.limit
         };
       const read = deps.readPortableSnapshot;
-      const display = read ? await (read.readWithStatus?.(deps.responseFinished) ?? read().then(snapshot => ({snapshot}))) : undefined;
+      const display = read ? await (read.readWithStatus?.(deps.responseFinished, request.headers["x-job-snapshot-check"]) ?? read().then(snapshot => ({snapshot}))) : undefined;
       const result = display
         ? {...coverageFromPortableSnapshot(coverageRequest, display.snapshot), ...("snapshotRefresh" in display ? {snapshotRefresh: display.snapshotRefresh} : {})}
         : await listCompanyCoverage(coverageRequest, deps.db, deps.readPublicationSnapshot);

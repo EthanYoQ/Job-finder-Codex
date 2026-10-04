@@ -4,4 +4,6 @@
 export interface PublicSnapshotRefresh {
   state: "CURRENT" | "UPDATING" | "FAILED";
   version: string;
+  /** Opaque server check returned only for this bounded follow-up round. */
+  check?: string;
 }

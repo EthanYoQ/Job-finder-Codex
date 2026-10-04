@@ -58,6 +58,30 @@ beforeEach(() => {
 afterEach(() => { cleanup(); vi.useRealTimers(); vi.restoreAllMocks(); });
 
 describe("App bounded snapshot refresh", () => {
+  it("keeps search and coverage checks separate and starts fresh after a new request", async () => {
+    const recording = createProvider();
+    recording.searchJobs.mockResolvedValue({ ...searchResult(), snapshotRefresh: { state: "UPDATING", version: "v1", check: "search-check" } });
+    recording.listCoverage.mockResolvedValue({ ...coverageResult(), snapshotRefresh: { state: "UPDATING", version: "v1", check: "coverage-check" } });
+    render(<App dataProvider={recording.provider} />);
+    await acceptConsent();
+    expect(recording.searchJobs.mock.calls[0]?.[1]?.snapshotCheck).toBeUndefined();
+    expect(recording.listCoverage.mock.calls[0]?.[1]?.snapshotCheck).toBeUndefined();
+    await tick();
+    expect(recording.searchJobs.mock.calls[1]?.[1]?.snapshotCheck).toBe("search-check");
+    expect(recording.listCoverage.mock.calls[1]?.[1]?.snapshotCheck).toBe("coverage-check");
+    await act(async () => { fireEvent.click(screen.getByRole("radio", { name: "上海" })); });
+    await click("搜索职位");
+    expect(recording.searchJobs.mock.calls[2]?.[0].city).toBe("上海");
+    expect(recording.searchJobs.mock.calls[2]?.[1]?.snapshotCheck).toBeUndefined();
+    await click("官方招聘目录");
+    expect(recording.listCoverage.mock.calls[2]?.[1]?.snapshotCheck).toBeUndefined();
+    await tick();
+    expect(recording.listCoverage.mock.calls[3]?.[1]?.snapshotCheck).toBe("coverage-check");
+    await act(async () => { fireEvent.change(screen.getByRole("searchbox", { name: "搜索已覆盖公司" }), { target: { value: "公司" } }); });
+    expect(recording.listCoverage.mock.calls[4]?.[0].keyword).toBe("公司");
+    expect(recording.listCoverage.mock.calls[4]?.[1]?.snapshotCheck).toBeUndefined();
+  });
+
   it.each([undefined, "CURRENT", "FAILED"] as const)("does not poll search or coverage with %s status", async state => {
     const recording = createProvider();
     const search = searchResult(), coverage = coverageResult();

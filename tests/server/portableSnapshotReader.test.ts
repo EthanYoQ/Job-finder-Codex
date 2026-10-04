@@ -1,3 +1,4 @@
+import { setImmediate as nextTurn } from "node:timers/promises";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createPortableSnapshotReader } from "../../src/server/httpServer";
 import { handlePublicApi, type PublicApiDeps } from "../../src/server/publicApi";
@@ -13,6 +14,7 @@ function deferred() {
   return { promise, resolve, reject };
 }
 
+const readers: ReturnType<typeof createPortableSnapshotReader>[] = [];
 function fixture() {
   const evidence = accepted();
   const tx = {
@@ -22,17 +24,18 @@ function fixture() {
   };
   const transaction = vi.fn(async (work: (db: PortableSnapshotTransactionDb) => Promise<unknown>) => work(tx));
   const db = { $transaction: transaction } as PortableSnapshotDb;
-  return { tx, transaction, read: createPortableSnapshotReader(db) };
+  const read = createPortableSnapshotReader(db); readers.push(read);
+  return { tx, transaction, read };
 }
 
 beforeEach(() => {
   vi.useFakeTimers({ toFake: ["Date"] });
   vi.setSystemTime(NOW);
 });
-afterEach(() => vi.useRealTimers());
+afterEach(async () => {await Promise.all(readers.splice(0).map(read => read.close())); vi.useRealTimers();});
 
 describe("portable snapshot reader", () => {
-  it("shares a fresh version check for simultaneous filtered search and coverage after warmup", async () => {
+  it("serves simultaneous filtered search and coverage before the shared version check after warmup", async () => {
     const f = fixture();
     const query = vi.fn(async () => PORTABLE_SNAPSHOT_VERSION_TABLES.map(relation => ({relation, epoch: "0", count: "1", digest: "a".repeat(64)})));
     Object.assign(f.tx, {$queryRawUnsafe: query});
@@ -49,6 +52,8 @@ describe("portable snapshot reader", () => {
     const [searchResult, coverageResult] = await Promise.all([search, coverage]);
     expect(searchResult).toMatchObject({status: 200, body: {totalJobs: 0, coverageSummary: {publishingCompanyCount: 1}}});
     expect(coverageResult).toMatchObject({status: 200, body: {coverageSummary: {publishingCompanyCount: 1}}});
+    expect(query).toHaveBeenCalledOnce();
+    for (let turn = 0; turn < 100 && query.mock.calls.length < 2; turn++) await nextTurn();
     expect(query).toHaveBeenCalledTimes(2);
     expect(f.transaction).toHaveBeenCalledTimes(2);
     expect(f.tx.job.findMany).toHaveBeenCalledOnce();

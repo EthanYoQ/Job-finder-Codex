@@ -1,16 +1,26 @@
-# Public-web response candidate source backup
+# Nonblocking verified-cache candidate backup
 
-Source checkpoint: `065892ee7951f1c6b1cc2c7ef2d4f3b3dbe26003`, at the 2026-10-04 15:55 UTC cutoff. It extends the previously backed-up `f32aa10767665cd8ad68085705bdfe70e93b0c8e` source. This candidate was not deployed at the cutoff.
+Source checkpoint: `3e41e8975027e8bd7a5cff6fd8859f59ef6843eb`, directly based on `065892ee7951f1c6b1cc2c7ef2d4f3b3dbe26003`. At the 2026-10-04 18:34 UTC report this was an independently reviewed local candidate, not deployed or build-verified.
 
-965 unchanged source, UI asset, test and configuration files are included, plus this guide and `SOURCE_BACKUP.json`. Twelve source paths differ from the previous web backup. Shared Sanofi changes reuse the identical reviewed producer-candidate objects. Every included path, mode, byte length, Git blob and SHA-256 is recorded.
+This safe snapshot contains 967 original source, asset, test and configuration files, plus this guide and `SOURCE_BACKUP.json`. Fourteen source/test paths changed: eight product files and six tests. All included source paths, original Git blobs, SHA-256 values, byte lengths and modes are recorded.
 
-The candidate delays background refresh until the HTTP response finishes, adds lossless gzip and ETag handling for eligible static responses with bounded immutable-cache rules, and includes the same Chinese Sanofi encoding reader. Existing UI/font/logo/license source assets are retained.
+## Behavior and boundaries
 
-The reported affected checks passed 181 cases, including one local private-capture replay. The frontend build produced 171 static output files byte-identical to the f32 build. Generated output is rebuilt from source rather than uploaded. Full-project TypeScript checking is not green because of known baseline test-type errors; no complete suite or production qualification is claimed. The temporary combined-test import issue was fixed in this frozen commit.
+HTTP reads with an already fully verified cached projection can return its real old display and timestamps immediately. A bounded version check starts after the fixed response group finishes; successful validation atomically replaces the projection when needed. Internal strict reads, startup validation, database eligibility and publication rules remain unchanged. Failed HTTP background checks retain the real old display with FAILED status.
 
-34 tracked non-source/evidence files are excluded, including actual historical database/context/control fixtures, raw or retained capture/JD material and internal recovery notes. Credentials, environment/private profiles, generated dependencies/builds, runtime state, uncommitted files and local Git history are excluded.
+Follow-up reads use a short-lived, process-local signed correlation containing only a sequence and expiry. It grants no data access, creates no persistent credential or per-user table, and saves no key to files or environment. Only the code is included; no generated signing material exists in the backup. The 60-second lifetime is for correlation, not cache freshness. Follow-up requests retain the existing five-second interval, five-attempt cap and 30-second total budget.
 
-The 42 historical public-transition cases require the separately restored private database-context fixture. The optional saved-capture replay requires private capture directories supplied via `SANOFI_MAIN_CAPTURE_DIR` and `SANOFI_INDEPENDENT_CAPTURE_DIR`; originals are not included. Other retained-evidence tests have the same recovery boundary. Necessary non-secret historical verification pins and synthetic test code remain intact.
+Invalid or old-process correlations fail closed without restarting database work. A single active task and bounded response groups prevent unbounded work. Multiple-instance routing must keep a follow-up on the same reader process; this candidate does not introduce shared state.
 
-Workflow source is placed under `backup/disabled-workflows/`; no automatic CI, merge or deployment runs. This backup has its own commit identity and cannot reuse a runtime registration. A future deployment must rebuild and verify its identity independently.
+This is a separate 065-derived candidate. The a775 request-timing patch is not included and must not be silently overwritten by treating this as its successor.
+
+## Verification and recovery
+
+Reported verification passed 161 focused tests and application-source TypeScript checking; independent review had no remaining blocker. Full-project typechecking still has seven unchanged test errors. The full suite, Vite build, production load and public-browser timing acceptance were not run. The changed frontend is therefore not claimed to be deployment-ready.
+
+The same 34 tracked exclusions remain: real database/context/control fixtures, raw or retained job-body evidence and internal recovery notes. Real public-response/benchmark payloads, private signing material, credentials, environment/private profiles, generated builds/dependencies, runtime state and identity, uncommitted files, proof reports and local Git history are excluded.
+
+Dependent historical and private-capture tests need separately authorized recovery of their excluded inputs. Existing UI assets, fonts, logos, license/readme files and non-secret verification pins are retained unchanged.
+
+Workflow source is stored under `backup/disabled-workflows/`; the branch does not run CI, merge or deploy. Its commit identity is separate from any runtime and requires independent build verification and registration.
 
