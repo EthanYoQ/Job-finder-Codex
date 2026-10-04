@@ -37,7 +37,8 @@ import {
 import {
   requiresBGradeCertificateSourceId,
   verifyBGradeTraversalCertificateReceipt,
-  B_GRADE_CURRENT_RUN_MAXIMUM_SKEW_MS
+  B_GRADE_CURRENT_RUN_MAXIMUM_SKEW_MS,
+  type SanofiArtifactCommitment
 } from "../crawler/traversalCertificate";
 import {
   assertTrustedBaselineTransition,
@@ -1663,7 +1664,8 @@ function validateEvidenceLossRows(
 function validateCommittedSourceResultTruthTable(
   result: AtomicSourceResultInput,
   canonicalRawEvidenceIdSetSha256: string | undefined,
-  onStage: (stage: AtomicEvidencePersistenceStage) => void
+  onStage: (stage: AtomicEvidencePersistenceStage) => void,
+  sanofiArtifacts?: readonly SanofiArtifactCommitment[]
 ): void {
   if (result.atomicCommitState !== "COMMITTED" || result.transportState !== "SUCCEEDED" ||
       result.adapterState !== "SUCCEEDED" || result.finishedAt === null ||
@@ -1712,7 +1714,7 @@ function validateCommittedSourceResultTruthTable(
     if (result.completenessState !== "VERIFIED") {
       throw new Error("Completeness certificate requires VERIFIED source truth");
     }
-    verifyPersistedCompletenessCertificate(result, undefined, canonicalRawEvidenceIdSetSha256);
+    verifyPersistedCompletenessCertificate(result, undefined, canonicalRawEvidenceIdSetSha256, sanofiArtifacts);
   }
   onStage("SOURCE_RESULT_VALIDATION");
   const baselineTransitionSupplied = result.baselineChangeReason !== undefined &&
@@ -1739,7 +1741,8 @@ function validateCommittedSourceResultTruthTable(
 function verifyPersistedCompletenessCertificate(
   result: AtomicSourceResultInput,
   officialArtifact?: { logicalKey: string; sha256: string },
-  canonicalRawEvidenceIdSetSha256?: string
+  canonicalRawEvidenceIdSetSha256?: string,
+  sanofiArtifacts?: readonly SanofiArtifactCommitment[]
 ): void {
   const expected = {
     releaseCandidateId: result.releaseCandidateId,
@@ -1751,7 +1754,8 @@ function verifyPersistedCompletenessCertificate(
     channelIds: result.officialChannelIds,
     canonicalJobSetSha256: result.canonicalOutputSetSha256,
     adapterReconciliationSha256: result.adapterReconciliationSha256,
-    collisionLedgerSha256: result.collisionLedgerSha256
+    collisionLedgerSha256: result.collisionLedgerSha256,
+    ...(result.sourceId==="source-sanofi-china-social" && sanofiArtifacts ? {sanofiArtifacts} : {})
   };
   if (isSourceQualityReceipt(result.completenessCertificate)) {
     const receipt = verifySourceQualityReceipt({ receipt: result.completenessCertificate,
@@ -2062,7 +2066,8 @@ function validateAtomicSourceEvidenceCommit(
   validateCommittedSourceResultTruthTable(
     result,
     input.observationProvenance.canonicalRawSha256,
-    onStage
+    onStage,
+    input.artifacts
   );
   onStage("SOURCE_RESULT_VALIDATION");
   const provenance = input.observationProvenance;
@@ -2206,7 +2211,7 @@ function validateAtomicSourceEvidenceCommit(
     verifyPersistedCompletenessCertificate(result, {
       logicalKey: officialArtifact.logicalKey,
       sha256: officialArtifact.sha256
-    }, provenance.canonicalRawSha256);
+    }, provenance.canonicalRawSha256, input.artifacts);
   }
   onStage("ARTIFACT_VALIDATION");
   if (result.expectedEvidenceKind === "OFFICIAL_TOTAL_COUNT") {

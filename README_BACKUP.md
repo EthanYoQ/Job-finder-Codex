@@ -1,16 +1,22 @@
-# Sanofi transport and capture candidate backup
+# Sanofi native-authority header candidate backup
 
-Source checkpoint: `4acb35abfe104e38caf9cc75204b73fead6ab6ef`, whose Git parent is `40141b32bafaef4f2585cad8caf11c6088546de3`. At the 2026-10-04 17:21 UTC status report it was frozen and checked, but not registered, freshly acquired or deployed.
+Source checkpoint: `4c67b32fb6eed18c45d172bad5d44cb19a6b0c6a`, with parent `4acb35abfe104e38caf9cc75204b73fead6ab6ef`. At the 2026-10-04 18:15 UTC report this was a frozen candidate, not registered, freshly qualified or deployed.
 
-This safe snapshot retains 858 original source/test/config files, plus this guide and `SOURCE_BACKUP.json`. Only four source files differ from the preceding producer backup: three implementation files and one synthetic test. Every included file's source path, Git blob, SHA-256, byte length and mode is recorded.
+This safe snapshot retains 862 original source/test/config files plus this guide and `SOURCE_BACKUP.json`. Seventeen source/test files differ from the prior backup; the eighteenth changed file was an internal recovery note and is excluded. Included bytes, source paths, file modes, Git blobs and SHA-256 values are recorded.
 
-The change keeps the existing HTTP deadline and cancellation active while consuming Sanofi response bodies. Main-path responses can be retained individually before parser validation, preserving completed originals even when later processing fails. Existing transport policies remain represented in source. Actual captured responses and private acquisition outputs are not included in this backup.
+## Technical scope
 
-Reported checks passed 57 targeted tests and targeted TypeScript validation. No complete suite, full-project typecheck, new acquisition success or production publication is claimed. Making this backup performs no tests or production operations.
+Only the main Chinese collector has the narrow foreign-header fallback. Its own list/schema/requisition and verbatim metadata apply URL must agree, while the displaced header/body/apply block must be internally coherent. The independent collector remains strict. Both paths bind each job's exact identity, full description hash, native identity and mainland location; fallback native requests prohibit redirects.
 
-The existing 46 tracked exclusions remain: raw/retained job-body and database/control evidence, internal operational/recovery notes and certificate material. Credentials, environment/private profiles, actual SQL payloads, generated dependencies/builds, runtime state, uncommitted files and local Git history are excluded.
+The B evidence binds the independent artifact hash into a derived anomaly record, without changing network originals. Issuance and reading validate this identity set and compare exact persisted artifact hashes/tuples. The Sanofi-specific reader/preflight selects seven metadata fields: releaseCandidateId, batchId, sourceResultId, sourceId, kind, extractorLocator and sha256. Actual responses, database rows or control packets are not included here.
 
-Private saved-capture replay and retained-evidence tests still need separately authorized recovery of their inputs. The new HTTP capture tests use synthetic responses without network acquisition. Source code for retaining originals is included; those originals are not.
+## Verification and recovery
 
-Workflow source is moved under `backup/disabled-workflows/`, with no active workflow. This backup branch does not merge or deploy. Its new commit identity cannot substitute for a registered runtime; a future runtime must be rebuilt and independently registered.
+Reported checks passed 206 tests in nine targeted suites, changed-path TypeScript validation and the Vite build. Private original replay/adversarial review passed, but those inputs are excluded. A broader initial typecheck found 13 unrelated existing test errors; no whole-repository typecheck, full test suite, database integration, fresh HTTP request or live qualification is claimed.
+
+47 tracked non-source/evidence files are excluded, including retained job bodies, actual database/SQL/control material and internal operational/recovery notes. Credentials, environment/private profiles, generated dependencies/builds, runtime state, uncommitted files and local Git history are excluded. The optional original replay code is preserved, but its `SANOFI_HEADER_CAPTURE_ROOT` inputs must be restored separately with authorization. Other retained-evidence tests have the same boundary.
+
+Before future qualification, publisher and web reader must share this evidence contract. Preflight needs the exact persisted metadata tuple/locator checks. Generic readiness and fixed-cohort inputs that do not supply these commitments fail closed; this candidate does not expand those generic input structures.
+
+Workflow source remains under `backup/disabled-workflows/`, with no active workflow. This branch does not run CI, merge or deploy. Its safe backup commit is a separate identity and is not a formal production candidate number; any runtime requires independent build identity and registration.
 

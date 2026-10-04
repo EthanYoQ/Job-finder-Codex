@@ -28,7 +28,7 @@ try {
     const fetch = createSanofiChineseSourceFetch({ onResponse: async (request, response, requestedAt) => {
       const sequence = responseNumber++;
       await put(`response-${String(sequence).padStart(4, "0")}.json`, JSON.stringify({ requestedAt,
-        request: { url: request.url, method: request.method ?? "GET", ...(request.body === undefined ? {} : { body: request.body }) },
+        request: { url: request.url, method: request.method ?? "GET", ...(request.redirect?{redirect:request.redirect}:{}), ...(request.body === undefined ? {} : { body: request.body }) },
         response, bodySha256: createHash("sha256").update(response.body).digest("hex") }, null, 2));
       console.log(JSON.stringify({ event: "MAIN_HTTP_ORIGINAL_ARCHIVED", sequence, url: request.url, status: response.status }));
     } });

@@ -66,6 +66,14 @@ describe("Sanofi HTTP body lifetime and original capture (no network)", () => {
     expect(pending.fetchImpl).toHaveBeenCalledWith(url, expect.objectContaining({ method: "GET", headers: request.headers, redirect: "follow" }));
   });
 
+  it("honors explicit no-redirect authority requests without retrying a redirect failure", async () => {
+    const reason = new TypeError("unexpected redirect"), fetchImpl = vi.fn<typeof fetch>().mockRejectedValue(reason);
+    vi.stubGlobal("fetch", fetchImpl);
+    await expect(sanofiChineseHttp({...request,redirect:"error"})).rejects.toBe(reason);
+    expect(fetchImpl).toHaveBeenCalledWith(url, expect.objectContaining({redirect:"error"}));
+    expect(fetchImpl).toHaveBeenCalledTimes(1);
+  });
+
   it("bounds slow headers without inventing a received response", async () => {
     const log = await diagnostics(), timeout = shortTestDeadline(); let signal: AbortSignal;
     vi.stubGlobal("fetch", vi.fn<typeof fetch>(async (_input, init) => { signal = init!.signal!; return new Promise(() => {}); }));

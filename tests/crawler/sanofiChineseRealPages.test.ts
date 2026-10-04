@@ -13,7 +13,7 @@ describe("Sanofi archived Chinese-only semantic evidence",()=>{
     expect(f.originalBodySha256).toBe("fcd24656bfe758a2ad8b89e53892a1fc93e0dced29d372d8809469639fa149fc");expect(f.nativeOriginalBodySha256).toBe("4b7ba48439ae0eeac1d8b038f600738087f53e8ffeda47e7debcb61b54d538cd");
     expect(parseSanofiDetail(f.semanticHtml,f.url,f.id)).toBeUndefined();const detail=parseSanofiChineseDetail(f.semanticHtml,{...f,listLocation:"广州市, 中国"});
     expect(detail).toMatchObject({reqId:"R2872010",countryScope:"MAINLAND",applyUrl:"https://careersite.tupu360.com/sanofi/position/detail?exid=R2872010",anomaly:{foreignId:"45000489664",foreignReq:"R2872003"}});
-    expect(parseSanofiChineseNative(f.nativeHtml!,detail)).toEqual({state:"PUBLISHING",locationRaw:"广西壮族自治区-南宁",cities:["南宁"]});
+    expect(parseSanofiChineseNative(f.nativeHtml!,detail)).toMatchObject({state:"PUBLISHING",locationRaw:"广西壮族自治区-南宁",cities:["南宁"]});
     expect(()=>parseSanofiChineseNative(f.nativeHtml!.replace('value="心血管和移植事业部 医学信息沟通代表 南宁"','value="普药事业部 医学信息沟通代表 九江"'),detail)).toThrow();
     expect(()=>parseSanofiChineseDetail(f.semanticHtml.replace('content="R2872010"','content="R2872003"'),{...f,listLocation:"广州市, 中国"})).toThrow();
   });

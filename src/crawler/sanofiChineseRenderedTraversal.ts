@@ -3,13 +3,13 @@ import { isDeepStrictEqual as same } from "node:util";
 import type { HttpHtmlClient } from "./httpHtmlSourceFetch";
 import type { OfficialJsonRenderedPageCapture, OfficialJsonRenderedReplay } from "./officialJsonRenderedTraversalValidator";
 import { SANOFI_CN_CHANNEL, SANOFI_CN_ENTRY, parseSanofiChineseDetail, parseSanofiChineseNative,
-  sanofiChineseHttp, sanofiHash, sanofiRawEvidenceId, type SanofiChineseRow, type SanofiDescriptionAnomaly } from "./sanofiChineseNative";
+  sanofiChineseDecision, sanofiChineseHttp, sanofiHash, sanofiRawEvidenceId, type SanofiChineseDecision, type SanofiChineseRow, type SanofiDescriptionAnomaly } from "./sanofiChineseNative";
 import { sanofiPersistentJobId } from "./sanofiLegacyIdentity";
 
 export const SANOFI_CN_INDEPENDENT_PATH="CUA_CHINESE_DOM_LIST_PLUS_NEW_NATIVE_HTTP";
 export interface SanofiChineseDomPage { url:string; capturedAt:string; searchResultsHtml:string }
 export interface SanofiChineseDomCapture { schemaVersion:"sanofi-cn-cua-dom-list-v1"; observedAt:string; pages:SanofiChineseDomPage[] }
-interface NativeReceipt { method:"GET";url:string;finalUrl:string;status:number;contentType:string;capturedAt:string;body:string;bodySha256:string }
+interface NativeReceipt { method:"GET";url:string;finalUrl:string;status:number;contentType:string;capturedAt:string;body:string;bodySha256:string;redirect?:"error" }
 const clean=(s:string)=>s.replace(/\s+/gu," ").trim();
 const assert=(v:unknown):void=>{if(!v)throw Error("SANOFI_CN_INDEPENDENT_EVIDENCE_INVALID");};
 const time=(s:string)=>typeof s==="string"&&/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/u.test(s)&&new Date(s).toISOString()===s;
@@ -39,20 +39,21 @@ export function validateSanofiChineseDom(capture:SanofiChineseDomCapture):{total
 }
 function validateReceipt(r:NativeReceipt|undefined,url:string,after:string):asserts r is NativeReceipt {
   assert(r&&r.method==="GET"&&r.url===url&&r.finalUrl===url&&r.status===200&&/^text\/html(?:;|$)/iu.test(r.contentType)&&time(r.capturedAt)&&
-    Date.parse(r.capturedAt)>=Date.parse(after)&&Date.parse(r.capturedAt)-Date.parse(after)<=30*60_000&&r.bodySha256===sanofiHash(r.body));
+    Date.parse(r.capturedAt)>=Date.parse(after)&&Date.parse(r.capturedAt)-Date.parse(after)<=30*60_000&&r.bodySha256===sanofiHash(r.body)&&
+    (r.redirect===undefined||r.redirect==="error"));
 }
 export async function captureSanofiChineseIndependent(input:{dom:SanofiChineseDomCapture;http?:HttpHtmlClient;now?:()=>Date;onReceipt?:(r:NativeReceipt,index:number)=>Promise<void>}):Promise<{observedAt:string;pages:OfficialJsonRenderedPageCapture[]}> {
   const {total,rows}=validateSanofiChineseDom(input.dom),now=input.now?.()??new Date();assert(now.getTime()>=Date.parse(input.dom.pages.at(-1)!.capturedAt)&&now.getTime()-Date.parse(input.dom.observedAt)<=30*60_000);
   const http=input.http??sanofiChineseHttp;let ordinal=0;
-  const get=async(url:string,after:string)=>{const r=await http({url,method:"GET",headers:{Accept:"text/html","User-Agent":"job-search-independent-validator/0.1"}});
-    const receipt:NativeReceipt={method:"GET",url,finalUrl:r.finalUrl??"",status:r.status,contentType:r.contentType??"",capturedAt:r.capturedAt??"",body:r.body,bodySha256:sanofiHash(r.body)};
+  const get=async(url:string,after:string,redirect?:"error")=>{const r=await http({url,method:"GET",headers:{Accept:"text/html","User-Agent":"job-search-independent-validator/0.1"},...(redirect?{redirect}:{})});
+    const receipt:NativeReceipt={method:"GET",url,finalUrl:r.finalUrl??"",status:r.status,contentType:r.contentType??"",capturedAt:r.capturedAt??"",body:r.body,bodySha256:sanofiHash(r.body),...(redirect?{redirect}:{})};
     await input.onReceipt?.(receipt,ordinal++);validateReceipt(receipt,url,after);return receipt;};
   const pages:OfficialJsonRenderedPageCapture[]=[];
   for(const [pageIndex,own] of rows.entries()){
     const domPage=input.dom.pages[pageIndex]!,rawRows:OfficialJsonRenderedPageCapture["rawRows"][number][]=[];
     const collect=async(row:SanofiChineseRow,recordIndex:number)=>{
       const detailResponse=await get(row.url,input.dom.pages.at(-1)!.capturedAt),detail=parseSanofiChineseDetail(detailResponse.body,row);
-      const nativeResponse=detail.countryScope==="MAINLAND"?await get(detail.applyUrl,detailResponse.capturedAt):undefined;
+      const nativeResponse=detail.countryScope==="MAINLAND"?await get(detail.applyUrl,detailResponse.capturedAt,"error"):undefined;
       const native=nativeResponse?parseSanofiChineseNative(nativeResponse.body,detail):undefined,state=native?.state??"OUTSIDE",id=sanofiPersistentJobId(detail.reqId);
       return {sourceJobId:id,rawEvidenceId:sanofiRawEvidenceId(row.id),recordIndex,scopeMarker:state,scopeDecision:state==="PUBLISHING"?"INCLUDED_MAINLAND" as const:"EXCLUDED_AUDITED" as const,
         rawPayload:{captureMethod:SANOFI_CN_INDEPENDENT_PATH,domPage,domRow:row,detailResponse,...(nativeResponse?{nativeResponse}:{}),...(native?.descriptionAnomaly?{descriptionAnomaly:native.descriptionAnomaly}:{})}};
@@ -64,21 +65,22 @@ export async function captureSanofiChineseIndependent(input:{dom:SanofiChineseDo
   }
   replaySanofiChineseIndependent(pages);return {observedAt:input.dom.observedAt,pages};
 }
-export function replaySanofiChineseIndependent(pages:readonly OfficialJsonRenderedPageCapture[]):OfficialJsonRenderedReplay&{decisions:Array<{id:string;reqId:string;sourceJobId:string;state:string}>;descriptionAnomalies:SanofiDescriptionAnomaly[]} {
+export function replaySanofiChineseIndependent(pages:readonly OfficialJsonRenderedPageCapture[]):OfficialJsonRenderedReplay&{decisions:SanofiChineseDecision[];descriptionAnomalies:SanofiDescriptionAnomaly[]} {
   assert(pages.length>0&&pages.length<=25);const dom:SanofiChineseDomCapture={schemaVersion:"sanofi-cn-cua-dom-list-v1",observedAt:sanofiChineseIndependentObservedAt(pages),pages:[]};
   const rawSourceJobIds:string[]=[],rawEvidenceIds:string[]=[],matchKeys:string[]=[],excludedSourceJobIds:string[]=[];
-  const decisions:Array<{id:string;reqId:string;sourceJobId:string;state:string}>=[],descriptionAnomalies:SanofiDescriptionAnomaly[]=[];
+  const decisions:SanofiChineseDecision[]=[],descriptionAnomalies:SanofiDescriptionAnomaly[]=[];
   for(const [pageIndex,page] of pages.entries()){
     const domPage=page.rawRows[0]?.rawPayload.domPage as SanofiChineseDomPage;assert(domPage&&page.channelId===SANOFI_CN_CHANNEL&&page.pageNumber===pageIndex+1&&page.declaredTotalPages===pages.length&&page.uiRequestCandidateIds.length===0&&page.nextControlPresent===(pageIndex<pages.length-1));dom.pages.push(domPage);
     for(const [index,r] of page.rawRows.entries()){
       const v=r.rawPayload,row=v.domRow as SanofiChineseRow;assert(v.captureMethod===SANOFI_CN_INDEPENDENT_PATH&&r.recordIndex===index&&same(v.domPage,domPage));
       const detailResponse=v.detailResponse as NativeReceipt;validateReceipt(detailResponse,row.url,domPage.capturedAt);const detail=parseSanofiChineseDetail(detailResponse.body,row);
-      const native=v.nativeResponse as NativeReceipt|undefined;let state:string,descriptionAnomaly:SanofiDescriptionAnomaly|undefined;
-      if(detail.countryScope==="OUTSIDE"){assert(native===undefined);state="OUTSIDE";}else{validateReceipt(native,detail.applyUrl,detailResponse.capturedAt);const parsed=parseSanofiChineseNative(native.body,detail);state=parsed.state;descriptionAnomaly=parsed.descriptionAnomaly;}
+      const native=v.nativeResponse as NativeReceipt|undefined;let parsed:ReturnType<typeof parseSanofiChineseNative>|undefined;
+      if(detail.countryScope==="OUTSIDE"){assert(native===undefined);}else{validateReceipt(native,detail.applyUrl,detailResponse.capturedAt);parsed=parseSanofiChineseNative(native.body,detail);}
+      const decision=sanofiChineseDecision(detail,parsed),state=decision.state,descriptionAnomaly=parsed?.descriptionAnomaly;
       assert(same(v.descriptionAnomaly,descriptionAnomaly));if(descriptionAnomaly)descriptionAnomalies.push(descriptionAnomaly);
       const id=sanofiPersistentJobId(detail.reqId),rawId=sanofiRawEvidenceId(row.id),included=state==="PUBLISHING";
       assert(r.sourceJobId===id&&r.rawEvidenceId===rawId&&r.scopeMarker===state&&r.scopeDecision===(included?"INCLUDED_MAINLAND":"EXCLUDED_AUDITED"));
-      decisions.push({id:row.id,reqId:detail.reqId,sourceJobId:id,state});
+      decisions.push(decision);
       rawSourceJobIds.push(id);rawEvidenceIds.push(rawId);(included?matchKeys:excludedSourceJobIds).push(id);
     }
   }

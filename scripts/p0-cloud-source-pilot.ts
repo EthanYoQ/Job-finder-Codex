@@ -1,3 +1,4 @@
+import { isSanofiChinesePlan, bindSanofiChineseIndependentArtifact } from "../src/crawler/sanofiChineseNative";
 import { loadPilotContext } from "../src/crawler/cloudPilotContext";
 import {runDbStartedCloudPublication} from "../src/crawler/cloudDbStartedPilot";
 import {readCurrentWorkerCapture} from "../src/crawler/currentWorkerCapture";
@@ -110,6 +111,7 @@ export async function runCloudSourcePilot(input:{bootstrapPath:string;reviewedSh
     const result=crawlResult=await runWithOfficialSourceAttemptTimeout(()=>runWithOfficialSourceCancellation(captureSignal,()=>runSourceCrawl(plan,{fetch:sourceFetch,isBaseline:!preContext.baselineCompletedBeforeCrawl,attemptTracker:currentAttemptTracker})),20*60*1000);
     phase="CHECK_SOURCE_RESULT";
     if(!result.truth.transportSuccess||!result.truth.adapterSuccess||!result.fetchEvidence)throw Error("PILOT_SUCCESSFUL_SOURCE_ONLY_FAILURE_FINALIZATION_REQUIRED");
+    if(isSanofiChinesePlan(plan)&&independentTraversalValidation) result.fetchEvidence=bindSanofiChineseIndependentArtifact(plan,result.fetchEvidence,independentTraversalValidation.artifactSha256);
     const observedFrom=captureStartedAt;
     const planned=buildPendingRuntimeBatch(batchId,[plan],identity,observedFrom),pending=planned.sources[0]!;
     const tuple={releaseCandidateId:identity.releaseCandidateId,batchId,sourceId:PILOT_SOURCE,sourceResultId:pending.id};
