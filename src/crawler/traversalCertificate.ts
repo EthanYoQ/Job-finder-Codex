@@ -1229,7 +1229,8 @@ export function issueBGradeTraversalCertificate(input: BGradeCertificateCandidat
     if(isSanofiChinesePlan(input.plan)){
       try {const main=replaySanofiChineseNative(input.plan,evidence,input.jobs[0]?.isBaseline??true),independent=replaySanofiChineseIndependent(validation.pages);
         mainRawMatchKeys=canonicalStrings(main.rawPersistentIds);mainExcludedMatchKeys=canonicalStrings([...main.excludedIds]);
-        if(canonicalJson(main.decisions)!==canonicalJson(independent.decisions)||canonicalJson(mainRawMatchKeys)!==canonicalJson(replay.rawSourceJobIds)||
+        if(canonicalJson(main.anomalies.filter(a=>a.code==="SANOFI_CN_REPLACEMENT_CHARACTER_NATIVE_AUTHORITY"))!==canonicalJson(independent.descriptionAnomalies)||
+          canonicalJson(main.decisions)!==canonicalJson(independent.decisions)||canonicalJson(mainRawMatchKeys)!==canonicalJson(replay.rawSourceJobIds)||
           canonicalJson(mainExcludedMatchKeys)!==canonicalJson(replay.excludedSourceJobIds)) blockers.add("INDEPENDENT_JOB_SET_MISMATCH");
       }catch{blockers.add("INDEPENDENT_JOB_SET_MISMATCH");}
     }

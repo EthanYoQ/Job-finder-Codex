@@ -33,7 +33,7 @@ const rec = (v:unknown):Record<string,unknown>|undefined => v!==null&&typeof v==
 const text = (v:unknown):v is string => typeof v==="string"&&v.trim().length>0;
 const requireValue = (v:unknown, code="SANOFI_CN_NATIVE_CHAIN_INVALID"):void => { if(!v)throw Error(code); };
 const parseJson = (s:string):Record<string,unknown> => { requireValue(hasUniqueJsonObjectKeys(s));const v=rec(JSON.parse(s));requireValue(v);return v!; };
-export function isSanofiChinesePlan(plan:SourceCrawlPlan):plan is Extract<SourceCrawlPlan,{adapterId:"html-table"}> {
+export function isSanofiChinesePlan(plan:SourceCrawlPlan):plan is Extract<SourceCrawlPlan,{adapterId:"html-table"}> & {table:{sanofiNativePolicy:typeof SANOFI_CN_POLICY}} {
   return plan.adapterId==="html-table"&&plan.table.sanofiNativePolicy===SANOFI_CN_POLICY;
 }
 function exactPlan(plan:SourceCrawlPlan):plan is Extract<SourceCrawlPlan,{adapterId:"html-table"}> {
@@ -47,7 +47,15 @@ function listPlan(plan:Extract<SourceCrawlPlan,{adapterId:"html-table"}>){
 }
 export interface SanofiChineseRow { id:string; title:string; url:string; listLocation:string }
 export interface SanofiModuleAnomaly { code:"SANOFI_CN_FOREIGN_MAIN_MODULE"; id:string; reqId:string; foreignId:string; foreignReq:string|null; foreignApplyUrl:string; mainDescriptionSha256:string }
-export interface SanofiChineseDetail extends SanofiChineseRow { reqId:string; countryScope:"MAINLAND"|"OUTSIDE"; applyUrl:string; description:string; anomaly?:SanofiModuleAnomaly }
+export interface SanofiDescriptionAnomaly {
+  code:"SANOFI_CN_REPLACEMENT_CHARACTER_NATIVE_AUTHORITY"; id:string; reqId:string; nativePositionId:string; applyUrl:string;
+  nativeLocationRaw:string; nativeCities:string[];
+  chineseDescriptionSha256:string; nativeDescriptionSha256:string; normalizedUtf16Offset:number; replacementCharacterCount:3; nativeCharacterCount:1
+}
+export interface SanofiChineseDetail extends SanofiChineseRow {
+  reqId:string; countryScope:"MAINLAND"|"OUTSIDE"; applyUrl:string; description:string; anomaly?:SanofiModuleAnomaly;
+  descriptionReplacementOffset?:number
+}
 
 /** Header identity comes solely from the Chinese page. A conflicting module is
  * retained explicitly; it is never relabelled as a coherent description. */
@@ -82,7 +90,13 @@ export function parseSanofiChineseDetail(html:string,row:SanofiChineseRow):Sanof
       (bottom.attr("data-apply-url")===undefined||bottom.attr("data-apply-url")===bottomHref),"SANOFI_CN_UNEXPLAINED_MAIN_MODULE");
     anomaly={code:"SANOFI_CN_FOREIGN_MAIN_MODULE",id:row.id,reqId:reqId as string,foreignId:foreignId!,foreignReq:foreignReq??null,foreignApplyUrl:bottomHref,mainDescriptionSha256:sanofiHash(sanofiDescription(jd.text()))};
   }
-  return {...row,reqId:reqId as string,countryScope:mainland?"MAINLAND":"OUTSIDE",applyUrl,description,...(anomaly?{anomaly}:{})};
+  // Exception eligibility requires the Chinese schema and visible JD to agree,
+  // including the local module identity. A foreign module cannot corroborate it.
+  const replacement=/^[^\uFFFD]*\uFFFD{3}[^\uFFFD]*$/u.test(description),module=main.find(".job-description.section7-details");
+  const descriptionReplacementOffset=replacement&&!anomaly&&module.attr("data-job-id")===row.id&&
+    sanofiDescription(module.find(".ats-description").text())===description?description.indexOf("\uFFFD"):undefined;
+  return {...row,reqId:reqId as string,countryScope:mainland?"MAINLAND":"OUTSIDE",applyUrl,description,...(anomaly?{anomaly}:{}),
+    ...(descriptionReplacementOffset===undefined?{}:{descriptionReplacementOffset})};
 }
 export function sanofiChineseLocation(raw:string):{locationRaw:string;cities:string[]} {
   const locationRaw=clean(raw),parts=locationRaw.split(/[、,，;；]/u).map(clean).filter(Boolean);requireValue(parts.length>0,"SANOFI_CN_GEOGRAPHY_UNKNOWN");
@@ -94,7 +108,7 @@ export function sanofiChineseLocation(raw:string):{locationRaw:string;cities:str
     return city.replace(/市$/u,"");
   });return {locationRaw,cities:[...new Set(cities)]};
 }
-export function parseSanofiChineseNative(html:string,detail:SanofiChineseDetail):{state:"PUBLISHING"|"CLOSED";locationRaw?:string;cities?:string[]} {
+export function parseSanofiChineseNative(html:string,detail:SanofiChineseDetail):{state:"PUBLISHING"|"CLOSED";locationRaw?:string;cities?:string[];descriptionAnomaly?:SanofiDescriptionAnomaly} {
   const $=load(html),status=$("#positionStatus").attr("value"),title=$("#positionName").attr("value"),id=$("#positionId").attr("value");
   requireValue($('meta[name="description"]').length===1&&$('meta[name="description"]').attr("content")==="赛诺菲（中国）投资有限公司上海分公司");
   // Observed native tombstone: the already-bound, exact requisition URL returns
@@ -106,10 +120,29 @@ export function parseSanofiChineseNative(html:string,detail:SanofiChineseDetail)
     $('meta[name="description"]').length===1&&$('meta[name="description"]').attr("content")==="赛诺菲（中国）投资有限公司上海分公司");
   const aliases:Record<string,string>={"DBU Regional Manager HZ":"Regional Manager","Access Strategy Project Manager":"Market Access-(Sr.) Access Strategy Project Manager-Shanghai"};
   requireValue(clean(title!)===detail.title||aliases[detail.title]===clean(title!));
-  requireValue($(".position-description").length===1&&sanofiDescription($(".position-description").text())===detail.description);
+  requireValue($(".position-description").length===1);const nativeDescription=sanofiDescription($(".position-description").text());
+  requireValue(nativeDescription.length>0);let descriptionAnomaly:SanofiDescriptionAnomaly|undefined;
+  if(nativeDescription!==detail.description){
+    const offset=detail.descriptionReplacementOffset,prefix=offset===undefined?"":detail.description.slice(0,offset),suffix=offset===undefined?"":detail.description.slice(offset+3);
+    const nativeIds=$("script").toArray().flatMap(node=>[...($(node).html()??"").matchAll(/\bvar\s+prevPositionId\s*=\s*["']([a-f0-9]{24})["']\s*;/gu)].map(match=>match[1]));
+    // This describes an observed display discrepancy, not its unknown byte-level
+    // cause. Only one triplet can correspond to one native Han character; every
+    // other normalized character must match. No text is synthesized or replaced.
+    requireValue(offset!==undefined&&!detail.anomaly&&detail.countryScope==="MAINLAND"&&status==="PUBLISHING"&&
+      clean(title!)===detail.title&&detail.applyUrl===`https://careersite.tupu360.com/sanofi/position/detail?exid=${detail.reqId}`&&
+      $("#recruitmentType").length===1&&$("#recruitmentType").attr("value")==="SOCIALRECRUITMENT"&&
+      nativeIds.length===1&&nativeIds[0]===id&&/^[^\uFFFD]*\uFFFD{3}[^\uFFFD]*$/u.test(detail.description)&&
+      /[\u3400-\u4dbf\u4e00-\u9fff]$/u.test(prefix)&&/^[\u3400-\u4dbf\u4e00-\u9fff]/u.test(suffix)&&
+      !nativeDescription.includes("\uFFFD")&&nativeDescription.length===prefix.length+1+suffix.length&&
+      nativeDescription.startsWith(prefix)&&nativeDescription.endsWith(suffix)&&/[\u3400-\u4dbf\u4e00-\u9fff]/u.test(nativeDescription.charAt(prefix.length)),
+      "SANOFI_CN_DESCRIPTION_CONFLICT");
+    const nativeLocation=sanofiChineseLocation($(".position-extend .city").text());
+    descriptionAnomaly={nativeLocationRaw:nativeLocation.locationRaw,nativeCities:nativeLocation.cities,code:"SANOFI_CN_REPLACEMENT_CHARACTER_NATIVE_AUTHORITY",id:detail.id,reqId:detail.reqId,nativePositionId:id!,applyUrl:detail.applyUrl,
+      chineseDescriptionSha256:sanofiHash(detail.description),nativeDescriptionSha256:sanofiHash(nativeDescription),normalizedUtf16Offset:offset!,replacementCharacterCount:3,nativeCharacterCount:1};
+  }
   requireValue(["SOCIALRECRUITMENT","INTERNSHIPRECRUITMENT"].includes($("#recruitmentType").attr("value")??""));
   if(status==="CLOSED")return {state:"CLOSED"};
-  return {state:"PUBLISHING",...sanofiChineseLocation($(".position-extend .city").text())};
+  return {state:"PUBLISHING",...sanofiChineseLocation($(".position-extend .city").text()),...(descriptionAnomaly?{descriptionAnomaly}:{})};
 }
 
 export const sanofiChineseHttp:HttpHtmlClient=async request=>{
@@ -146,14 +179,14 @@ function loadPrimary(plan:Extract<SourceCrawlPlan,{adapterId:"html-table"}>,evid
 }
 function project(plan:Extract<SourceCrawlPlan,{adapterId:"html-table"}>,primary:PersistentSourceFetchEvidence,artifacts:SourceFetchArtifactDraft[],isBaseline:boolean){
   const rows=listRows(primary),map=new Map(artifacts.map(a=>[a.logicalKey,a])),start=primary.artifacts[0]!.capturedAt,used=new Set(primary.artifacts.map(a=>a.logicalKey));
-  used.add(TRACE);used.add(ANOMALIES);const jobs:NormalizedJobRecord[]=[],losses:PersistentSourceFetchEvidence["fetchLosses"]=[],anomalies:SanofiModuleAnomaly[]=[],seenReq=new Set<string>(),included=new Set<string>(),closedIds=new Set<string>(),excludedIds=new Set<string>();
+  used.add(TRACE);used.add(ANOMALIES);const jobs:NormalizedJobRecord[]=[],losses:PersistentSourceFetchEvidence["fetchLosses"]=[],anomalies:Array<SanofiModuleAnomaly|SanofiDescriptionAnomaly>=[],seenReq=new Set<string>(),included=new Set<string>(),closedIds=new Set<string>(),excludedIds=new Set<string>();
   const decisions:Array<{id:string;reqId:string;sourceJobId:string;state:string}>=[];
   for(const row of rows){const key=`sanofi-cn-detail-${row.id}`,a=map.get(key);requireValue(exactArtifact(a,row.url,"detail",row.id,start));used.add(key);
     const detail=parseSanofiChineseDetail(body(a!),row);requireValue(!seenReq.has(detail.reqId));seenReq.add(detail.reqId);if(detail.anomaly)anomalies.push(detail.anomaly);
     let excluded:string|undefined,reason:string|undefined,location:{locationRaw:string;cities:string[]}|undefined;
     if(detail.countryScope==="OUTSIDE"){excluded="SANOFI_CN_OFFICIAL_OUTSIDE_MAINLAND";reason="Sanofi Chinese official detail explicitly places the job outside mainland China";}
     else {const tKey=`sanofi-cn-tupu-${detail.reqId}`,t=map.get(tKey);requireValue(exactArtifact(t,detail.applyUrl,"native",detail.reqId,start));used.add(tKey);
-      const native=parseSanofiChineseNative(body(t!),detail);if(native.state==="CLOSED"){excluded="SANOFI_CN_NATIVE_CLOSED";reason="Sanofi Chinese native application explicitly closes this requisition";closedIds.add(sanofiPersistentJobId(detail.reqId));}
+      const native=parseSanofiChineseNative(body(t!),detail);if(native.descriptionAnomaly)anomalies.push(native.descriptionAnomaly);if(native.state==="CLOSED"){excluded="SANOFI_CN_NATIVE_CLOSED";reason="Sanofi Chinese native application explicitly closes this requisition";closedIds.add(sanofiPersistentJobId(detail.reqId));}
       else location={locationRaw:native.locationRaw!,cities:native.cities!};
     }
     decisions.push({id:row.id,reqId:detail.reqId,sourceJobId:sanofiPersistentJobId(detail.reqId),state:detail.countryScope==="OUTSIDE"?"OUTSIDE":excluded?"CLOSED":"PUBLISHING"});

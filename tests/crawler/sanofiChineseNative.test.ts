@@ -3,11 +3,11 @@ import { describe,it,expect,vi } from "vitest";
 import { createHash } from "node:crypto";
 import { candidateCompanies } from "../../src/data/companyRegistry";
 import { buildStagedSourceCrawlPlans,sourcePlanConfigSha256 } from "../../src/crawler/sourcePlan";
-import { createSanofiChineseSourceFetch,parseSanofiChineseDetail,parseSanofiChineseNative,replaySanofiChineseNative,SANOFI_CN_ENTRY,sanofiChineseLocation,sanofiHash } from "../../src/crawler/sanofiChineseNative";
+import { createSanofiChineseSourceFetch,parseSanofiChineseDetail,parseSanofiChineseNative,replaySanofiChineseNative,SANOFI_CN_ENTRY,sanofiChineseLocation,sanofiHash,sanofiDescription } from "../../src/crawler/sanofiChineseNative";
 import { captureSanofiChineseIndependent,replaySanofiChineseIndependent,type SanofiChineseDomCapture } from "../../src/crawler/sanofiChineseRenderedTraversal";
 import { SANOFI_LEGACY_IDENTITY,sanofiPersistentJobId } from "../../src/crawler/sanofiLegacyIdentity";
 import { runSourceCrawl } from "../../src/crawler/runSourceCrawl";
-import { createOfficialJsonRenderedTraversalValidation,issueBGradeTraversalCertificate,readReusableBGradeTraversalValidation } from "../../src/crawler/traversalCertificate";
+import { createOfficialJsonRenderedTraversalValidation,issueBGradeTraversalCertificate,readReusableBGradeTraversalValidation,verifyBGradeTraversalCertificateReceipt } from "../../src/crawler/traversalCertificate";
 import { requiresAGradeCertificateSourceId } from "../../src/crawler/completenessCertificate";
 import type { HttpHtmlClient } from "../../src/crawler/httpHtmlSourceFetch";
 import { applyCrawlObservation } from "../../src/crawler/lifecycle";
@@ -50,7 +50,94 @@ async function collect(change?:(url:string,body:string)=>string){
   };
   const p=plan(),fetched=await createSanofiChineseSourceFetch({http,now:()=>new Date(AT)})(p),result=await runSourceCrawl(p,{fetch:()=>fetched,isBaseline:false});return {p,fetched,result,http,requests};
 }
+// Public synthetic copy only; no production JD or saved HTTP body is committed.
+const encodingNativeDescription="职责：协调内外部客户需求，完成地区团队的日常服务和信息沟通。要求：准确记录并核对客户反馈。";
+const encodingChineseDescription=encodingNativeDescription.replace("内外部","内���部");
+function encodingDetail(){return detail(1).replaceAll(description(1),encodingChineseDescription);}
+function encodingNative(){return native(1).replace(description(1),encodingNativeDescription)+`<script>var prevPositionId = "${String(1).padStart(24,"0")}";</script>`;}
+const canonicalTestJson=(value:unknown):string=>value===null||typeof value!=="object"?JSON.stringify(value):Array.isArray(value)?`[${value.map(canonicalTestJson).join(",")}]`:`{${Object.entries(value).sort(([a],[b])=>Buffer.compare(Buffer.from(a),Buffer.from(b))).map(([k,v])=>`${JSON.stringify(k)}:${canonicalTestJson(v)}`).join(",")}}`;
+const encodingResponse=(url:string,body:string)=>url.endsWith("/101")?encodingDetail():url.endsWith("exid=R9000001")?encodingNative():body;
 describe("Sanofi Chinese-only native source contract",()=>{
+  it("replays a single Chinese display replacement triplet using the unchanged same-Req native authority through the B reader",async()=>{
+    const {p,result,http}=await collect(encodingResponse);
+    expect(result.status).toBe("SUCCESS");expect(result.truth.completenessVerified).toBe(true);
+    const main=replaySanofiChineseNative(p,result.fetchEvidence!,false);
+    expect(main.anomalies).toEqual([{code:"SANOFI_CN_REPLACEMENT_CHARACTER_NATIVE_AUTHORITY",id:"101",reqId:req(1),nativePositionId:String(1).padStart(24,"0"),
+      applyUrl:`https://careersite.tupu360.com/sanofi/position/detail?exid=${req(1)}`,nativeLocationRaw:"广西壮族自治区-南宁",nativeCities:["南宁"],chineseDescriptionSha256:sanofiHash(sanofiDescription(encodingChineseDescription)),
+      nativeDescriptionSha256:sanofiHash(sanofiDescription(encodingNativeDescription)),normalizedUtf16Offset:encodingChineseDescription.indexOf("�"),replacementCharacterCount:3,nativeCharacterCount:1}]);
+    expect(result.fetchEvidence!.artifacts.find(a=>a.logicalKey==="sanofi-cn-detail-101")!.body).toBe(encodingDetail());
+    expect(result.fetchEvidence!.artifacts.find(a=>a.logicalKey==="sanofi-cn-tupu-R9000001")!.body).toBe(encodingNative());
+    const captured=await captureSanofiChineseIndependent({dom:dom(),http:async r=>({...await http(r),capturedAt:LATER}),now:()=>new Date(LATER)});
+    expect(replaySanofiChineseIndependent(captured.pages).descriptionAnomalies).toEqual(main.anomalies);
+    const validationInput={sourceId:p.source.id as "source-sanofi-china-social",companyId:p.company.id,sourceConfigSha256:sourcePlanConfigSha256(p),surfaceIds:[p.source.surfaceId!],channelIds:p.expectedChannels!.map(c=>c.channelId),pages:captured.pages,observedAt:AT,expiresAt:EXPIRES};
+    const validation=createOfficialJsonRenderedTraversalValidation(validationInput);
+    const input={plan:p,binding:{releaseCandidateId:"test-sanofi",batchId:"test-batch",sourceResultId:"test-result",sourceConfigSha256:sourcePlanConfigSha256(p)},transportSuccess:true,adapterSuccess:true,evidence:result.fetchEvidence!,paginationEvaluation:result.paginationEvaluation!,reconciliation:result.reconciliation!,jobs:result.jobs,independentValidation:validation,validationExecution:"CURRENT_RUN" as const,trigger:"INITIAL_QUALIFICATION" as const,now:new Date(LATER)};
+    const issued=issueBGradeTraversalCertificate(input);expect(issued.status).toBe("CERTIFIED");if(issued.status!=="CERTIFIED")throw Error("Expected synthetic B receipt");
+    const readerInput={certificate:issued.certificate,certificateSha256:issued.certificateSha256,expected:{...input.binding,sourceId:p.source.id,companyId:p.company.id,surfaceIds:validationInput.surfaceIds,channelIds:validationInput.channelIds,canonicalRawEvidenceIdSetSha256:canonicalStringSetSha256(replaySanofiChineseIndependent(captured.pages).rawEvidenceIds)},now:new Date(LATER)};
+    expect(verifyBGradeTraversalCertificateReceipt(readerInput)).toMatchObject({status:"PASS",grade:"B",finalUniqueJobCount:1});
+    for(const kind of ["missing","offset","nativeId","hash","extra"]){
+      const evidence=structuredClone(result.fetchEvidence!),a=evidence.artifacts.find(a=>a.logicalKey==="sanofi-cn-module-anomalies-v2")!,ledger=JSON.parse(String(a.body));
+      if(kind==="missing")ledger.entries=[];if(kind==="offset")ledger.entries[0].normalizedUtf16Offset++;if(kind==="nativeId")ledger.entries[0].nativePositionId="f".repeat(24);if(kind==="hash")ledger.entries[0].nativeDescriptionSha256="f".repeat(64);if(kind==="extra")ledger.entries.push({...ledger.entries[0]});
+      a.body=JSON.stringify(ledger);expect(()=>replaySanofiChineseNative(p,evidence,false),kind).toThrow();
+      const pages=structuredClone(captured.pages) as any,payload=pages[0].rawRows[0].rawPayload;
+      if(kind==="missing")delete payload.descriptionAnomaly;if(kind==="offset")payload.descriptionAnomaly.normalizedUtf16Offset++;if(kind==="nativeId")payload.descriptionAnomaly.nativePositionId="f".repeat(24);if(kind==="hash")payload.descriptionAnomaly.nativeDescriptionSha256="f".repeat(64);if(kind==="extra")payload.descriptionAnomaly.extra=true;
+      expect(()=>replaySanofiChineseIndependent(pages),kind).toThrow();
+      expect(()=>createOfficialJsonRenderedTraversalValidation({...validationInput,pages}),kind).toThrow();
+      const certificate=structuredClone(issued.certificate) as any,v=certificate.independentValidation;v.pages=v.pages.map((page:any,i:number)=>({...page,rawRows:pages[i].rawRows}));
+      v.artifactSha256=sanofiHash(canonicalTestJson({sourceId:v.sourceId,retrievalPath:v.retrievalPath,matchKeyKind:v.matchKeyKind,pages:v.pages,observedAt:v.observedAt}));
+      expect(()=>verifyBGradeTraversalCertificateReceipt({...readerInput,certificate,certificateSha256:sanofiHash(canonicalTestJson(certificate))}),kind).toThrow("SANOFI_CN_INDEPENDENT_EVIDENCE_INVALID");
+    }
+    const wrongUrl=structuredClone(captured.pages) as any;wrongUrl[0].rawRows[0].rawPayload.nativeResponse.url=`https://careersite.tupu360.com/sanofi/position/detail?exid=${req(2)}`;
+    expect(()=>replaySanofiChineseIndependent(wrongUrl)).toThrow();
+    // Even two individually valid native pages cannot silently disagree on native identity.
+    const drift=structuredClone(captured.pages) as any,payload=drift[0].rawRows[0].rawPayload;
+    payload.nativeResponse.body=payload.nativeResponse.body.replaceAll(String(1).padStart(24,"0"),"f".repeat(24));payload.nativeResponse.bodySha256=sanofiHash(payload.nativeResponse.body);payload.descriptionAnomaly.nativePositionId="f".repeat(24);
+    const driftValidation=createOfficialJsonRenderedTraversalValidation({...validationInput,pages:drift});
+    expect(issueBGradeTraversalCertificate({...input,independentValidation:driftValidation})).toMatchObject({status:"REJECTED",blockerCodes:expect.arrayContaining(["INDEPENDENT_JOB_SET_MISMATCH"])});
+    const cityDrift=structuredClone(captured.pages) as any,cityPayload=cityDrift[0].rawRows[0].rawPayload;
+    cityPayload.nativeResponse.body=cityPayload.nativeResponse.body.replace("广西壮族自治区-南宁","辽宁省-沈阳");cityPayload.nativeResponse.bodySha256=sanofiHash(cityPayload.nativeResponse.body);
+    cityPayload.descriptionAnomaly.nativeLocationRaw="辽宁省-沈阳";cityPayload.descriptionAnomaly.nativeCities=["沈阳"];
+    const cityValidation=createOfficialJsonRenderedTraversalValidation({...validationInput,pages:cityDrift});
+    expect(issueBGradeTraversalCertificate({...input,independentValidation:cityValidation})).toMatchObject({status:"REJECTED",blockerCodes:expect.arrayContaining(["INDEPENDENT_JOB_SET_MISMATCH"])});
+  });
+  it.each(["normal-conflict","additional-conflict","two-runs","one-replacement","four-replacements","english-replacement","non-han-symbol","two-native-characters","native-corrupt","missing-schema-JD","missing-visible-JD","missing-native-JD","foreign-module","wrong-top-id","wrong-module-id","wrong-req","wrong-native-id","malformed-native-id","duplicate-native-id","missing-native-id-binding","wrong-title","outside-city","outside-country","closed","internship"])("rejects %s instead of broadening the encoding exception",async kind=>{
+    const change=(url:string,body:string)=>{
+      let changed=encodingResponse(url,body);
+      if(url.endsWith("/101")){
+        if(kind==="normal-conflict")changed=changed.replaceAll("���","另");
+        if(kind==="two-runs")changed=changed.replaceAll("地区","地���");
+        if(kind==="one-replacement")changed=changed.replaceAll("���","�");
+        if(kind==="four-replacements")changed=changed.replaceAll("���","����");
+        if(kind==="missing-schema-JD")changed=changed.replace(`"description":"${encodingChineseDescription}"`,'"description":""');
+        if(kind==="missing-visible-JD")changed=changed.replace(`<div class="ats-description">${encodingChineseDescription}</div>`,'<div class="ats-description"></div>');
+        if(kind==="foreign-module")changed=detail(1,"China",true).replaceAll(description(1),encodingChineseDescription);
+        if(kind==="wrong-top-id")changed=changed.replace('data-job-id="101"','data-job-id="102"');
+        if(kind==="wrong-module-id")changed=changed.replace('section7-details" data-job-id="101"','section7-details" data-job-id="102"');
+        if(kind==="wrong-req")changed=changed.replace('content="R9000001"','content="R9000002"');
+        if(kind==="outside-country")changed=changed.replace('"addressCountry":"China"','"addressCountry":"Unknown"');
+      }
+      if(url.endsWith("exid=R9000001")){
+        if(kind==="additional-conflict")changed=changed.replace("日常服务","销售管理");
+        if(kind==="english-replacement")changed=changed.replace("内外部","内A部");
+        if(kind==="non-han-symbol")changed=changed.replace("内外部","内䷀部");
+        if(kind==="two-native-characters")changed=changed.replace("内外部","内外外部");
+        if(kind==="native-corrupt")changed=changed.replace("内外部","内�部");
+        if(kind==="missing-native-JD")changed=changed.replace(encodingNativeDescription,"");
+        if(kind==="wrong-native-id")changed=changed.replace(`id="positionId" value="${String(1).padStart(24,"0")}"`,'id="positionId" value="ffffffffffffffffffffffff"');
+        if(kind==="malformed-native-id")changed=changed.replace(`id="positionId" value="${String(1).padStart(24,"0")}"`,'id="positionId" value="wrong"');
+        if(kind==="duplicate-native-id")changed+='<input id="positionId" value="ffffffffffffffffffffffff">';
+        if(kind==="missing-native-id-binding")changed=changed.replace(/<script>.*<\/script>/u,"");
+        if(kind==="wrong-title")changed=changed.replace(title(1),title(2));
+        if(kind==="outside-city")changed=changed.replace("广西壮族自治区-南宁","中国台湾-台北");
+        if(kind==="closed")changed=changed.replace("PUBLISHING","CLOSED");
+        if(kind==="internship")changed=changed.replace("SOCIALRECRUITMENT","INTERNSHIPRECRUITMENT");
+      }
+      return changed;
+    };
+    const {result,http}=await collect(change);expect(result.status,kind).toBe("FAILED");expect(result.jobs).toEqual([]);expect(result.truth.completenessVerified).toBe(false);
+    await expect(captureSanofiChineseIndependent({dom:dom(),http:async r=>({...await http(r),capturedAt:LATER}),now:()=>new Date(LATER)}),kind).rejects.toThrow();
+  });
+
   it("keeps the Chinese original universe and audits foreign/closed rows without rewriting the total",async()=>{
     const {result,requests}=await collect();expect(result.status,JSON.stringify(result)).toBe("SUCCESS");expect(result.truth.completenessVerified).toBe(true);
     expect(result.jobs).toHaveLength(1);expect(result.jobs[0]).toMatchObject({sourceJobId:"sanofi-req:R9000001",cities:["南宁"],listUrl:SANOFI_CN_ENTRY});
