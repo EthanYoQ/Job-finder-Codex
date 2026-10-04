@@ -710,6 +710,7 @@ function withDeclaredArtifactUrls(
   finalUrl: string
 ): PersistentSourceFetchEvidence {
   const logicalKey = evidence.declaredCompleteness?.artifactLogicalKey;
+  if (!logicalKey) throw new Error("Expected the declared completeness artifact in this fixture");
   return {
     ...evidence,
     artifacts: evidence.artifacts.map((artifact) => (artifact.logicalKey === logicalKey || artifact.logicalKey === `phenom-page-${String(Number(logicalKey.replace("page-", "")) - 1).padStart(4, "0")}`)

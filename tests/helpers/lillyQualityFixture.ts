@@ -18,7 +18,9 @@ export async function captureSyntheticLillyQuality(workspaceRoot: string, rows?:
   // A list/apply-URL contradiction alone no longer overrides the native detail locality.
   const detailBodies = rows ? undefined : Object.fromEntries(cohort.map((row, index) => [String(row.applyUrl),
     syntheticLillyNativeDetailBody(row, {jobLocation: {address: {addressCountry: "China", addressLocality: index < 69 ? "China" : "Shang Hai"}}})]));
-  const {plan, result, startedAt, requests} = await captureSyntheticLilly(cohort, {owned: true, detailBodies});
+  const {plan, result, startedAt, requests} = await captureSyntheticLilly(cohort, {
+    owned: true, ...(detailBodies === undefined ? {} : {detailBodies})
+  });
   if (!result.fetchEvidence) throw Error("SYNTHETIC_LILLY_MISSING_EVIDENCE");
   const binding = {releaseCandidateId: "synthetic-lilly-replay", batchId: "synthetic-lilly-batch", sourceResultId: `synthetic-lilly-batch--${plan.source.id}`,
     sourceConfigSha256: sourcePlanConfigSha256(plan), adapterVersion: "a".repeat(64)};
