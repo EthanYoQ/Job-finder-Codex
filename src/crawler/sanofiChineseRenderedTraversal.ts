@@ -3,7 +3,7 @@ import { isDeepStrictEqual as same } from "node:util";
 import type { HttpHtmlClient } from "./httpHtmlSourceFetch";
 import type { OfficialJsonRenderedPageCapture, OfficialJsonRenderedReplay } from "./officialJsonRenderedTraversalValidator";
 import { SANOFI_CN_CHANNEL, SANOFI_CN_ENTRY, parseSanofiChineseDetail, parseSanofiChineseNative,
-  sanofiChineseHttp, sanofiHash, sanofiRawEvidenceId, type SanofiChineseRow } from "./sanofiChineseNative";
+  sanofiChineseHttp, sanofiHash, sanofiRawEvidenceId, type SanofiChineseRow, type SanofiDescriptionAnomaly } from "./sanofiChineseNative";
 import { sanofiPersistentJobId } from "./sanofiLegacyIdentity";
 
 export const SANOFI_CN_INDEPENDENT_PATH="CUA_CHINESE_DOM_LIST_PLUS_NEW_NATIVE_HTTP";
@@ -53,9 +53,9 @@ export async function captureSanofiChineseIndependent(input:{dom:SanofiChineseDo
     const collect=async(row:SanofiChineseRow,recordIndex:number)=>{
       const detailResponse=await get(row.url,input.dom.pages.at(-1)!.capturedAt),detail=parseSanofiChineseDetail(detailResponse.body,row);
       const nativeResponse=detail.countryScope==="MAINLAND"?await get(detail.applyUrl,detailResponse.capturedAt):undefined;
-      const state=nativeResponse?parseSanofiChineseNative(nativeResponse.body,detail).state:"OUTSIDE",id=sanofiPersistentJobId(detail.reqId);
+      const native=nativeResponse?parseSanofiChineseNative(nativeResponse.body,detail):undefined,state=native?.state??"OUTSIDE",id=sanofiPersistentJobId(detail.reqId);
       return {sourceJobId:id,rawEvidenceId:sanofiRawEvidenceId(row.id),recordIndex,scopeMarker:state,scopeDecision:state==="PUBLISHING"?"INCLUDED_MAINLAND" as const:"EXCLUDED_AUDITED" as const,
-        rawPayload:{captureMethod:SANOFI_CN_INDEPENDENT_PATH,domPage,domRow:row,detailResponse,...(nativeResponse?{nativeResponse}:{})}};
+        rawPayload:{captureMethod:SANOFI_CN_INDEPENDENT_PATH,domPage,domRow:row,detailResponse,...(nativeResponse?{nativeResponse}:{}),...(native?.descriptionAnomaly?{descriptionAnomaly:native.descriptionAnomaly}:{})}};
     };
     for(let offset=0;offset<own.length;offset+=4){const settled=await Promise.allSettled(own.slice(offset,offset+4).map((row,i)=>collect(row,offset+i)));
       const failed=settled.find((r):r is PromiseRejectedResult=>r.status==="rejected");if(failed)throw failed.reason;
@@ -64,17 +64,18 @@ export async function captureSanofiChineseIndependent(input:{dom:SanofiChineseDo
   }
   replaySanofiChineseIndependent(pages);return {observedAt:input.dom.observedAt,pages};
 }
-export function replaySanofiChineseIndependent(pages:readonly OfficialJsonRenderedPageCapture[]):OfficialJsonRenderedReplay&{decisions:Array<{id:string;reqId:string;sourceJobId:string;state:string}>} {
+export function replaySanofiChineseIndependent(pages:readonly OfficialJsonRenderedPageCapture[]):OfficialJsonRenderedReplay&{decisions:Array<{id:string;reqId:string;sourceJobId:string;state:string}>;descriptionAnomalies:SanofiDescriptionAnomaly[]} {
   assert(pages.length>0&&pages.length<=25);const dom:SanofiChineseDomCapture={schemaVersion:"sanofi-cn-cua-dom-list-v1",observedAt:sanofiChineseIndependentObservedAt(pages),pages:[]};
   const rawSourceJobIds:string[]=[],rawEvidenceIds:string[]=[],matchKeys:string[]=[],excludedSourceJobIds:string[]=[];
-  const decisions:Array<{id:string;reqId:string;sourceJobId:string;state:string}>=[];
+  const decisions:Array<{id:string;reqId:string;sourceJobId:string;state:string}>=[],descriptionAnomalies:SanofiDescriptionAnomaly[]=[];
   for(const [pageIndex,page] of pages.entries()){
     const domPage=page.rawRows[0]?.rawPayload.domPage as SanofiChineseDomPage;assert(domPage&&page.channelId===SANOFI_CN_CHANNEL&&page.pageNumber===pageIndex+1&&page.declaredTotalPages===pages.length&&page.uiRequestCandidateIds.length===0&&page.nextControlPresent===(pageIndex<pages.length-1));dom.pages.push(domPage);
     for(const [index,r] of page.rawRows.entries()){
       const v=r.rawPayload,row=v.domRow as SanofiChineseRow;assert(v.captureMethod===SANOFI_CN_INDEPENDENT_PATH&&r.recordIndex===index&&same(v.domPage,domPage));
       const detailResponse=v.detailResponse as NativeReceipt;validateReceipt(detailResponse,row.url,domPage.capturedAt);const detail=parseSanofiChineseDetail(detailResponse.body,row);
-      const native=v.nativeResponse as NativeReceipt|undefined;let state:string;
-      if(detail.countryScope==="OUTSIDE"){assert(native===undefined);state="OUTSIDE";}else{validateReceipt(native,detail.applyUrl,detailResponse.capturedAt);state=parseSanofiChineseNative(native.body,detail).state;}
+      const native=v.nativeResponse as NativeReceipt|undefined;let state:string,descriptionAnomaly:SanofiDescriptionAnomaly|undefined;
+      if(detail.countryScope==="OUTSIDE"){assert(native===undefined);state="OUTSIDE";}else{validateReceipt(native,detail.applyUrl,detailResponse.capturedAt);const parsed=parseSanofiChineseNative(native.body,detail);state=parsed.state;descriptionAnomaly=parsed.descriptionAnomaly;}
+      assert(same(v.descriptionAnomaly,descriptionAnomaly));if(descriptionAnomaly)descriptionAnomalies.push(descriptionAnomaly);
       const id=sanofiPersistentJobId(detail.reqId),rawId=sanofiRawEvidenceId(row.id),included=state==="PUBLISHING";
       assert(r.sourceJobId===id&&r.rawEvidenceId===rawId&&r.scopeMarker===state&&r.scopeDecision===(included?"INCLUDED_MAINLAND":"EXCLUDED_AUDITED"));
       decisions.push({id:row.id,reqId:detail.reqId,sourceJobId:id,state});
@@ -85,7 +86,7 @@ export function replaySanofiChineseIndependent(pages:readonly OfficialJsonRender
   for(const [i,rows] of checked.rows.entries())assert(same(rows,pages[i]!.rawRows.map(r=>r.rawPayload.domRow)));
   assert(rawSourceJobIds.length===checked.total&&new Set(rawSourceJobIds).size===checked.total&&new Set(rawEvidenceIds).size===checked.total&&Date.parse(sanofiChineseIndependentFinishedAt(pages))-Date.parse(dom.observedAt)<=30*60_000);
   const sort=(a:string[])=>a.sort((x,y)=>Buffer.compare(Buffer.from(x),Buffer.from(y)));
-  return {matchKeys:sort(matchKeys),rawSourceJobIds:sort(rawSourceJobIds),rawEvidenceIds:sort(rawEvidenceIds),excludedSourceJobIds:sort(excludedSourceJobIds),rawCount:checked.total,excludedCount:excludedSourceJobIds.length,decisions:decisions.sort((a,b)=>a.id.localeCompare(b.id))};
+  return {matchKeys:sort(matchKeys),rawSourceJobIds:sort(rawSourceJobIds),rawEvidenceIds:sort(rawEvidenceIds),excludedSourceJobIds:sort(excludedSourceJobIds),rawCount:checked.total,excludedCount:excludedSourceJobIds.length,decisions:decisions.sort((a,b)=>a.id.localeCompare(b.id)),descriptionAnomalies};
 }
 export function sanofiChineseIndependentObservedAt(pages:readonly OfficialJsonRenderedPageCapture[]):string {
   const at=(pages[0]?.rawRows[0]?.rawPayload.domPage as SanofiChineseDomPage|undefined)?.capturedAt;assert(at&&time(at));return at!;

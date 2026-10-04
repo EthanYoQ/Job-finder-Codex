@@ -54,6 +54,47 @@ afterEach(async () => {
 });
 
 describe("verified display background refresh", () => {
+  it("waits for every coalesced triggering response, then refreshes without further traffic", async () => {
+    const f = fixture(), initial = await f.read.readWithStatus();
+    const first = deferred(), second = deferred();
+    f.change();
+    const [one, two] = await Promise.all([f.read.readWithStatus(first.promise), f.read.readWithStatus(second.promise)]);
+    expect(one).toEqual({...initial, snapshotRefresh: {...initial.snapshotRefresh, state: "UPDATING"}});
+    expect(two).toEqual(one);
+    await vi.advanceTimersByTimeAsync(10);
+    expect(f.tx.job.findMany).toHaveBeenCalledOnce();
+    first.resolve();
+    await vi.advanceTimersByTimeAsync(10);
+    expect(f.tx.job.findMany).toHaveBeenCalledOnce();
+    second.resolve();
+    await vi.advanceTimersByTimeAsync(0);
+    await finishRefresh(f.read);
+    expect(f.tx.job.findMany).toHaveBeenCalledTimes(2);
+  });
+
+  it("does not let later responses indefinitely extend an already queued refresh", async () => {
+    const f = fixture(); await f.read(); f.change();
+    const triggering = deferred(), later = deferred();
+    await f.read.readWithStatus(triggering.promise);
+    await f.read.readWithStatus(later.promise);
+    triggering.resolve();
+    await vi.advanceTimersByTimeAsync(0);
+    await finishRefresh(f.read);
+    expect(f.tx.job.findMany).toHaveBeenCalledTimes(2);
+    later.resolve();
+  });
+
+  it("cancels a response-barrier refresh on shutdown", async () => {
+    const f = fixture(); await f.read(); f.change();
+    const response = deferred();
+    await f.read.readWithStatus(response.promise);
+    await f.read.close();
+    response.resolve();
+    await vi.advanceTimersByTimeAsync(10);
+    expect(f.tx.job.findMany).toHaveBeenCalledOnce();
+    expect(vi.getTimerCount()).toBe(0);
+  });
+
   it("returns the previous timestamped display immediately, coalesces the fill, and publishes a new committed batch", async () => {
     const f = fixture(), old = await f.read();
     const newer = accepted(SECOND, ["job-2"]);

@@ -2,12 +2,13 @@ import { PrismaClient } from "@prisma/client";
 import { createServer as createNodeServer, type IncomingMessage, type Server, type ServerResponse } from "node:http";
 import { readFile } from "node:fs/promises";
 import { setImmediate as yieldSnapshotWork } from "node:timers/promises";
-import { extname, resolve } from "node:path";
+import { extname, relative, resolve, sep } from "node:path";
 import { performance } from "node:perf_hooks";
 import { pathToFileURL } from "node:url";
 import { handleAdminApi, type AdminApiDeps, type AdminApiResponse } from "./adminApi";
 import { handlePublicApi, type PublicApiDeps, type PublicApiResponse } from "./publicApi";
 import { encodePublicJsonResponse } from "./publicResponseEncoding";
+import { encodeStaticResponse } from "./staticResponse";
 import { createCachedPostgresReadiness, DEFAULT_POSTGRES_READINESS_TIMEOUT_MS, normalizePostgresReadinessTimeout } from "./postgresReadiness";
 import { createCachedDeploymentReadiness, readDeploymentMigrationManifest } from "./deploymentReadiness";
 import { resolveDeploymentBootstrapConfig } from "../ops/deploymentBootstrap";
@@ -46,7 +47,7 @@ export interface PortableSnapshotRefreshStatus {
 }
 export interface PortableSnapshotReader {
   (): Promise<PortablePublicSnapshot>;
-  readWithStatus(): Promise<PortableSnapshotRead>;
+  readWithStatus(responseFinished?: Promise<void>): Promise<PortableSnapshotRead>;
   getRefreshStatus(): PortableSnapshotRefreshStatus;
   close(): Promise<void>;
 }
@@ -54,49 +55,60 @@ export interface PortableSnapshotReader {
 /** Check versions outside an active rebuild; publish one owned verified display. */
 export function createPortableSnapshotReader(db: PortableSnapshotDb): PortableSnapshotReader {
   let inFlight: Promise<PortableSnapshotRead> | undefined;
+  let inFlightResponses: Promise<void>[] | undefined;
   let background: Promise<void> | undefined;
   let timer: ReturnType<typeof setTimeout> | undefined;
+  let waitingForResponses = false;
   let closed = false;
   let status: PortableSnapshotRefreshStatus = {state: "CURRENT", failures: 0, nextRetryAt: null, lastVerifiedAt: null};
   const cache = new PortableSnapshotCache();
-  const scheduleRefresh = (delay = 0): void => {
-    if (closed || background || timer) return;
+  const scheduleRefresh = (delay = 0, responses: readonly Promise<void>[] = []): void => {
+    if (closed || background || timer || waitingForResponses) return;
     status = {...status, state: delay ? "FAILED" : "UPDATING", nextRetryAt: delay ? new Date(Date.now() + delay).toISOString() : null};
-    // Yield through the response turn before starting the expensive read. Keep
-    // the timer and task owned until success or server shutdown, even without
-    // further traffic. One failed attempt retries after 1, 2, 4, ... 30 seconds.
-    timer = setTimeout(() => {
-      timer = undefined;
-      status = {...status, state: "UPDATING", nextRetryAt: null};
-      const startedAt = Date.now();
-      console.info("PORTABLE_SNAPSHOT_REFRESH_STARTED", {...status});
-      let retry = false, refreshAgain = false;
-      let phase = "BUILD";
-      background = readPortablePublicSnapshot(db, {}, undefined, cache, undefined, yieldSnapshotWork).then(async snapshot => {
-        status = {state: "UPDATING", failures: 0, nextRetryAt: null, lastVerifiedAt: snapshot.generatedAt};
-        // A commit during a fill cannot be mixed into it. Check once more after
-        // publication so that a newer version also gets rebuilt without waiting
-        // for another browser request. Oversized projections remain uncached.
-        if (!closed && cache.hasSnapshot()) {
-          phase = "POST_BUILD_VERSION_CHECK";
-          await readPortablePublicSnapshot(db, {}, undefined, cache, () => {refreshAgain = true;}, yieldSnapshotWork);
-        }
-        status = {...status, state: refreshAgain ? "UPDATING" : "CURRENT"};
-        console.info("PORTABLE_SNAPSHOT_REFRESH_COMPLETED", {...status, durationMs: Date.now() - startedAt});
-      }).catch(() => {
-        retry = true;
-        status = {...status, state: "FAILED", failures: status.failures + 1};
-      }).finally(() => {
-        background = undefined;
-        if (retry) {
-          const delay = Math.min(1_000 * 2 ** Math.min(status.failures - 1, 5), 30_000);
-          scheduleRefresh(delay);
-          console.error("PORTABLE_SNAPSHOT_REFRESH_FAILED", {...status, phase, durationMs: Date.now() - startedAt});
-        } else if (refreshAgain) scheduleRefresh();
-      });
-    }, delay);
+    // An initial stale HTTP read must finish encoding and flushing before its
+    // rebuild can consume the event loop. A zero-delay timer alone can run while
+    // gzip is still pending. Coalesced readers share this fixed response barrier;
+    // later traffic cannot extend it. Non-HTTP reads and retries remain autonomous.
+    const begin = (): void => {
+      waitingForResponses = false;
+      if (closed) return;
+      timer = setTimeout(() => {
+        timer = undefined;
+        status = {...status, state: "UPDATING", nextRetryAt: null};
+        const startedAt = Date.now();
+        console.info("PORTABLE_SNAPSHOT_REFRESH_STARTED", {...status});
+        let retry = false, refreshAgain = false;
+        let phase = "BUILD";
+        background = readPortablePublicSnapshot(db, {}, undefined, cache, undefined, yieldSnapshotWork).then(async snapshot => {
+          status = {state: "UPDATING", failures: 0, nextRetryAt: null, lastVerifiedAt: snapshot.generatedAt};
+          // A commit during a fill cannot be mixed into it. Check once more after
+          // publication so that a newer version also gets rebuilt without waiting
+          // for another browser request. Oversized projections remain uncached.
+          if (!closed && cache.hasSnapshot()) {
+            phase = "POST_BUILD_VERSION_CHECK";
+            await readPortablePublicSnapshot(db, {}, undefined, cache, () => {refreshAgain = true;}, yieldSnapshotWork);
+          }
+          status = {...status, state: refreshAgain ? "UPDATING" : "CURRENT"};
+          console.info("PORTABLE_SNAPSHOT_REFRESH_COMPLETED", {...status, durationMs: Date.now() - startedAt});
+        }).catch(() => {
+          retry = true;
+          status = {...status, state: "FAILED", failures: status.failures + 1};
+        }).finally(() => {
+          background = undefined;
+          if (retry) {
+            const delay = Math.min(1_000 * 2 ** Math.min(status.failures - 1, 5), 30_000);
+            scheduleRefresh(delay);
+            console.error("PORTABLE_SNAPSHOT_REFRESH_FAILED", {...status, phase, durationMs: Date.now() - startedAt});
+          } else if (refreshAgain) scheduleRefresh();
+        });
+      }, delay);
+    };
+    if (responses.length > 0) {
+      waitingForResponses = true;
+      void Promise.allSettled(responses).then(begin);
+    } else begin();
   };
-  const readWithStatus = async (): Promise<PortableSnapshotRead> => {
+  const readWithStatus = async (responseFinished?: Promise<void>): Promise<PortableSnapshotRead> => {
     if (closed) throw new Error("PORTABLE_SNAPSHOT_READER_CLOSED");
     // This reader owns one DB and fixed plans/options. A rebuild can occupy the
     // pool's sole connection: don't queue foreground version checks behind it.
@@ -105,15 +117,19 @@ export function createPortableSnapshotReader(db: PortableSnapshotDb): PortableSn
       const previous = cache.getDuringRefreshRead(Date.now());
       if (previous) return {snapshot: previous.snapshot, snapshotRefresh: {state: status.state === "FAILED" ? "FAILED" : "UPDATING", version: previous.version}};
     }
-    if (!inFlight) {
+    if (inFlight) {
+      if (responseFinished) inFlightResponses!.push(responseFinished);
+    } else {
+      const responses = responseFinished ? [responseFinished] : [];
+      inFlightResponses = responses;
       inFlight = readPortablePublicSnapshotWithStatus(db, {}, undefined, cache, () => {
-        scheduleRefresh();
+        scheduleRefresh(0, responses);
         // Capture the state for this stale read synchronously with its scheduling
         // decision. Never label a returned old display using a later global state.
         return status.state === "FAILED" ? "FAILED" : "UPDATING";
       }, yieldSnapshotWork)
         .then(result => {status = {...status, lastVerifiedAt: cache.getVerifiedAt() ?? result.snapshot.generatedAt}; return result;})
-        .finally(() => { inFlight = undefined; });
+        .finally(() => { inFlight = undefined; inFlightResponses = undefined; });
     }
     // Each request owns its projection, including nested arrays and objects.
     return structuredClone(await inFlight);
@@ -218,6 +234,21 @@ async function handleRequest(
 
   if (shouldRouteToPublicApi(url.pathname)) {
     const publicRequestStartedAt = performance.now();
+    const timedPublicGet = (request.method ?? "GET") === "GET" && (url.pathname === "/api/search" || url.pathname === "/api/coverage");
+    const responseFinished = timedPublicGet && deps.readPortableSnapshot?.readWithStatus
+      ? new Promise<void>(resolve => {
+        // A disconnected client may have reached a terminal state before this
+        // handler was dispatched; its finish/close event will not fire again.
+        if (response.destroyed || response.writableFinished) { resolve(); return; }
+        const settled = () => {
+          response.off("finish", settled);
+          response.off("close", settled);
+          resolve();
+        };
+        response.once("finish", settled);
+        // Client disconnection must not cancel or indefinitely postpone refresh.
+        response.once("close", settled);
+      }) : undefined;
     const publicApiResponse = await handlePublicApi(
       {
         method: request.method ?? "GET",
@@ -228,14 +259,13 @@ async function handleRequest(
         ip: getRequestIp(request),
         ...(request.headers["user-agent"] === undefined ? {} : { userAgent: request.headers["user-agent"] })
       },
-      deps
+      responseFinished ? {...deps, responseFinished} : deps
     );
     const encoded = await encodePublicJsonResponse({
       method: request.method ?? "GET",
       path: url.pathname,
       headers: toHeaderRecord(request)
     }, publicApiResponse);
-    const timedPublicGet = (request.method ?? "GET") === "GET" && (url.pathname === "/api/search" || url.pathname === "/api/coverage");
     writeResponse(response, encoded, timedPublicGet ? publicRequestStartedAt : undefined);
     return;
   }
@@ -273,12 +303,15 @@ async function handleRequest(
 
   try {
     const content = await readFile(filePath);
-    response.statusCode = 200;
+    const encoded = await encodeStaticResponse({
+      method: request.method ?? "GET",
+      headers: toHeaderRecord(request)
+    }, relative(staticRoot, filePath).split(sep).join("/"), content);
     if (url.pathname === "/admin" || url.pathname.startsWith("/admin/")) {
       response.setHeader("x-robots-tag", "noindex, nofollow");
     }
     response.setHeader("content-type", CONTENT_TYPES[extname(filePath)] ?? "application/octet-stream");
-    response.end(request.method === "HEAD" ? undefined : content);
+    writeResponse(response, encoded);
   } catch {
     writeResponse(response, { status: 404, headers: {}, body: "Not Found" });
   }
@@ -410,7 +443,7 @@ function resolveStaticPath(staticRoot: string, pathname: string): string | undef
     : pathname.slice(1);
   const filePath = resolve(staticRoot, relativePath);
 
-  return filePath.startsWith(staticRoot) ? filePath : undefined;
+  return filePath.startsWith(`${staticRoot}${sep}`) ? filePath : undefined;
 }
 
 function writeResponse(response: ServerResponse, publicApiResponse: HttpResponse, publicRequestStartedAt?: number): void {

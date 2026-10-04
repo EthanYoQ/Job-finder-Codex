@@ -1,5 +1,5 @@
 import { request as httpRequest, type IncomingHttpHeaders, type Server } from "node:http";
-import { mkdtempSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { resolve } from "node:path";
 import { gunzipSync } from "node:zlib";
@@ -36,6 +36,9 @@ describe("http server", () => {
     writeFileSync(resolve(staticRoot, "logo.png"), Buffer.from([137, 80, 78, 71]));
     writeFileSync(resolve(staticRoot, "logo.webp"), Buffer.from("RIFF-test-WEBP"));
     writeFileSync(resolve(staticRoot, "font.woff2"), Buffer.from("wOF2"));
+    mkdirSync(resolve(staticRoot, "assets"));
+    writeFileSync(resolve(staticRoot, "assets/App-DZA08wpL.js"), 'console.log("职位");\n'.repeat(100));
+    writeFileSync(resolve(staticRoot, "assets/App-BLE5E0kn.css"), ".card { color: black; }\n".repeat(100));
 
     const db = {
       db: {
@@ -153,6 +156,54 @@ describe("http server", () => {
     expect(head.status).toBe(200);
     expect(head.headers["content-type"]).toBe("image/webp");
     expect(head.body.length).toBe(0);
+  });
+
+  it("negotiates static JS/CSS encoding, immutable caching and bodyless revalidation over HTTP", async () => {
+    const address = await listen(createTestServer());
+    for (const path of ["/assets/App-DZA08wpL.js", "/assets/App-BLE5E0kn.css?v=1"]) {
+      const plain = await rawRequest(address.port, path);
+      const compressed = await rawRequest(address.port, path, { "accept-encoding": "gzip" });
+      expect(plain.status).toBe(200);
+      expect(compressed.status).toBe(200);
+      expect(compressed.headers).toMatchObject({ "content-encoding": "gzip", vary: "Accept-Encoding", "cache-control": "public, max-age=31536000, immutable", etag: plain.headers.etag });
+      expect(compressed.headers["content-length"]).toBe(String(compressed.body.length));
+      expect(gunzipSync(compressed.body)).toEqual(plain.body);
+      for (const method of ["GET", "HEAD"]) {
+        const cached = await rawRequest(address.port, path, { "accept-encoding": "gzip", "if-none-match": plain.headers.etag! }, method);
+        expect(cached.status).toBe(304);
+        expect(cached.body.length).toBe(0);
+        expect(cached.headers).toMatchObject({ etag: plain.headers.etag, vary: "Accept-Encoding", "cache-control": "public, max-age=31536000, immutable" });
+        expect(cached.headers["content-length"]).toBeUndefined();
+      }
+      const head = await rawRequest(address.port, path, { "accept-encoding": "gzip" }, "HEAD");
+      expect(head.headers["content-length"]).toBe(compressed.headers["content-length"]);
+      expect(head.headers["content-encoding"]).toBe("gzip");
+      expect(head.body.length).toBe(0);
+    }
+  });
+
+  it("revalidates HTML and stable assets while preserving admin noindex and static routing boundaries", async () => {
+    const address = await listen(createTestServer());
+    for (const path of ["/", "/index.html", "/admin", "/admin/settings", "/logo.webp", "/font.woff2"]) {
+      const first = await rawRequest(address.port, path, { "accept-encoding": "gzip" });
+      expect(first.status).toBe(200);
+      expect(first.headers["cache-control"]).toBe("no-cache");
+      expect(first.headers["content-encoding"]).toBeUndefined();
+      const revalidated = await rawRequest(address.port, path, { "if-none-match": first.headers.etag! });
+      expect(revalidated.status).toBe(304);
+      expect(revalidated.body.length).toBe(0);
+      if (path.startsWith("/admin")) expect(revalidated.headers["x-robots-tag"]).toBe("noindex, nofollow");
+    }
+    for (const path of ["/missing.js", "/assets", "/%2e%2e/package.json", "/..%2fpackage.json"]) {
+      const result = await rawRequest(address.port, path, { "accept-encoding": "gzip", "if-none-match": "*" });
+      expect(result.status).toBe(404);
+      expect(result.headers.etag).toBeUndefined();
+      expect(result.headers["cache-control"]).toBeUndefined();
+    }
+    const post = await rawRequest(address.port, "/assets/App-DZA08wpL.js", {}, "POST");
+    expect(post.status).toBe(405);
+    expect(post.headers.allow).toBe("GET, HEAD");
+    expect(post.headers.etag).toBeUndefined();
   });
 
   it("compresses only negotiated public search/coverage JSON with correct raw wire lengths and identical decoded bytes", async () => {
