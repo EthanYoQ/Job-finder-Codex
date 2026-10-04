@@ -10,6 +10,7 @@ import { buildPendingRuntimeBatch } from "../crawler/runtimeAtomicEvidence";
 import { hashCanonicalStringSet } from "../crawler/runtimeBatchIdentity";
 import { CLOUD_PILOT_SQL45 as history } from "./cloudPilotSql45Manifest";
 import { requiresBGradeTraversalCertificate } from "../crawler/traversalCertificate";
+import { SOURCE_QUALITY_POLICY_ID, SOURCE_QUALITY_RECEIPT_SCHEMA } from "../crawler/sourceQualityAdmission";
 
 /** Pure fixed control SQL only. Send each entire packet ONCE in one request.
  * Missing/uncertain acknowledgement requires read-only reconciliation, NEVER replay.
@@ -36,7 +37,7 @@ export interface CloudPilotPublicationContext {
   candidateRow: Record<string,unknown>; sourceRow: Record<string,unknown>; companyRow: Record<string,unknown>;
 }
 /** Select an existing required canonical source. Its actual current plan hash is
- * rechecked in every control packet; the genuine A issuer remains mandatory. */
+ * rechecked in every control packet; the selected proof's live issuer remains mandatory. */
 const readySource=process.env.JOBFINDER_CLOUD_SOURCE_ID??"source-lilly-china-social";
 const readyPlan=buildStagedSourceCrawlPlans(candidateCompanies).find(plan=>plan.source.id===readySource);
 if(!readyPlan||!getPortableCoverageScope().requiredSourceIds.includes(readySource))throw Error("PILOT_CANONICAL_REQUIRED_SOURCE_ONLY");
@@ -154,15 +155,16 @@ GET DIAGNOSTICS affected=ROW_COUNT; ${fail("affected <> 1","PILOT_FINALIZATION_R
 
 /** The same complete projection is read before preparation and compared under
  * the formal-crawl row lock. checkedAt is diagnostic, never write authority. */
-function publicationContextQuery(candidateId:string):string {
- const bGrade=requiresBGradeTraversalCertificate(readyPlan!);
- const certificate=bGrade?'b-grade-independent-traversal-v2':'a-grade-official-total-v2';
+function publicationContextQuery(candidateId:string,sourceAdmissionPolicy?:typeof SOURCE_QUALITY_POLICY_ID):string {
+ if(sourceAdmissionPolicy!==undefined&&sourceAdmissionPolicy!==SOURCE_QUALITY_POLICY_ID)throw Error('PILOT_PUBLICATION_POLICY_INVALID');
+ const portable=sourceAdmissionPolicy===SOURCE_QUALITY_POLICY_ID,bGrade=!portable&&requiresBGradeTraversalCertificate(readyPlan!);
+ const certificate=portable?SOURCE_QUALITY_RECEIPT_SCHEMA:bGrade?'b-grade-independent-traversal-v2':'a-grade-official-total-v2';
  return `WITH matching AS (
  SELECT r.*${bGrade?`,coalesce((SELECT jsonb_agg(to_jsonb(o) ORDER BY o.id) FROM public."CrawlObservation" o WHERE o."sourceResultId"=r.id),'[]'::jsonb) AS observations`:''} FROM public."CrawlBatchSourceResult" r JOIN public."CrawlBatch" b ON b.id=r."batchId"
  WHERE r."sourceId"=${text(SOURCE)} AND r."sourceConfigHash"=${text(CLOUD_PILOT_SOURCE.sourceConfigSha256)}
  AND r."completenessState"='VERIFIED' AND r."atomicCommitState"='COMMITTED'
  AND r."completenessCertificateSha256" IS NOT NULL
- AND r."completenessCertificate"->>'schemaVersion'=${text(certificate)} AND b.kind<>'MANUAL_SOURCE'
+ AND r."completenessCertificate"->>'schemaVersion'=${text(certificate)}${portable?` AND r."completenessCertificate"->>'policyId'=${text(SOURCE_QUALITY_POLICY_ID)}`:''} AND b.kind<>'MANUAL_SOURCE'
  ), jobs AS (
  SELECT j."dedupeKey",j."companyId",j."sourceId",j."sourceJobId",j."officialTitle",j."auxiliaryChineseTitle",j."officialUrl",j."listUrl",j."locationRaw",j.city,j.cities,j.category,j."officialPublishedAt",j."firstSeenAt",j."lastSeenAt",j."missingSuccessCount",j."lifecycleStatus",
  jsonb_build_object('atsKind',s."atsKind",'kind',s.kind,'status',s.status,'officialEntryUrl',s."officialEntryUrl",'officialChainEvidenceUrl',s."officialChainEvidenceUrl") AS source,
@@ -177,15 +179,15 @@ function publicationContextQuery(candidateId:string):string {
  'sourceRow',(SELECT to_jsonb(r) FROM public."RecruitmentSource" r WHERE id=${text(SOURCE)}),
  'companyRow',(SELECT to_jsonb(r) FROM public."Company" r WHERE id=${text(readyPlan!.company.id)})) AS context`;
 }
-export function compileCloudPilotPublicationContextSql(input:Omit<CloudPilotControlInput,'expiresAt'>):string {
+export function compileCloudPilotPublicationContextSql(input:Omit<CloudPilotControlInput,'expiresAt'>,sourceAdmissionPolicy?:typeof SOURCE_QUALITY_POLICY_ID):string {
  const checked=commonSchema.parse({...input,expiresAt:new Date(0).toISOString()});
  candidateData(checked);
- return publicationContextQuery(input.candidate.id)+';';
+ return publicationContextQuery(input.candidate.id,sourceAdmissionPolicy)+';';
 }
 
 /** Fixed control fragments used only by the attested in-process publication
  * compiler. No arbitrary SQL or write-plan input is accepted here. */
-export function prepareCloudPilotDbStartedControl(input:CloudPilotDbStartedInput,terminal:Record<string,unknown>,holderId:string,expiresAt:string,originalTimesThrough:string){
+export function prepareCloudPilotDbStartedControl(input:CloudPilotDbStartedInput,terminal:Record<string,unknown>,holderId:string,expiresAt:string,originalTimesThrough:string,sourceAdmissionPolicy?:typeof SOURCE_QUALITY_POLICY_ID){
  const context=publicationContextSchema.parse(input.context);
  const pendingInput={projectId:input.projectId,build:input.build,candidate:input.candidate,planned:input.planned,holderId,expiresAt};
  pendingSchema.parse(pendingInput);
@@ -224,7 +226,7 @@ export function prepareCloudPilotDbStartedControl(input:CloudPilotDbStartedInput
  PERFORM 1 FROM public."Company" WHERE id=${text(plan.company.id)} FOR SHARE;
  ${fail('NOT FOUND','PILOT_COMPANY_DRIFT')}
  ${fail(`EXISTS(SELECT 1 FROM public."CrawlBatch" WHERE id=${text(p.batch.id)}) OR EXISTS(SELECT 1 FROM public."CrawlBatchSourceResult" WHERE id=${text(p.sources[0]!.id)})`,'PILOT_REQUEST_ALREADY_APPLIED')}
- SELECT context INTO current_context FROM (${publicationContextQuery(c.id)}) snapshot_now;
+ SELECT context INTO current_context FROM (${publicationContextQuery(c.id,sourceAdmissionPolicy)}) snapshot_now;
  ${fail(`(current_context-'checkedAt') IS DISTINCT FROM (expected_context_data-'checkedAt')`,'PILOT_CONTEXT_CHANGED')}
  ${gate}
  ${insert('CrawlBatch',{...p.batch,status:'RUNNING',finishedAt:null,aggregateJobSetSha256:null,...zeroes(BATCH_COUNTERS)})}

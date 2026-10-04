@@ -7,8 +7,9 @@ import {compileCloudPilotPublicationContextSql,type CloudPilotControlInput,type 
 import {compileDbStartedCloudSourcePublication,deriveDbStartedPublicationExpiry,inspectPersistedAtomicCommitOutcome,type DbStartedCloudSourceInput,type PlannedBatchWithSourcesInput} from '../db/ingestionRepository';
 import type {AGradeOfficialTotalCertificate} from './completenessCertificate';
 import type {BGradeTraversalCertificate} from './traversalCertificate';
+import type {SourceQualityReceipt} from './sourceQualityAdmission';
 
-export async function runDbStartedCloudPublication(input:{relay:FilePilotRelay;controlPath:string;planned:PlannedBatchWithSourcesInput;source:DbStartedCloudSourceInput;initialCertificate:AGradeOfficialTotalCertificate|BGradeTraversalCertificate;signal?:AbortSignal}){
+export async function runDbStartedCloudPublication(input:{relay:FilePilotRelay;controlPath:string;planned:PlannedBatchWithSourcesInput;source:DbStartedCloudSourceInput;initialCertificate:AGradeOfficialTotalCertificate|BGradeTraversalCertificate|SourceQualityReceipt;signal?:AbortSignal}){
  const control=JSON.parse(await readFile(input.controlPath,'utf8')) as Omit<CloudPilotControlInput,'expiresAt'>;
  const requestedAt=Date.now();
  // Queue only within the original proof window, keeping the existing publication
@@ -17,7 +18,7 @@ export async function runDbStartedCloudPublication(input:{relay:FilePilotRelay;c
  const contextDeadline=evidenceExpiry-PILOT_BUDGET.publishDbMs-PILOT_BUDGET.publishTransportMs;
  if(requestedAt+PILOT_BUDGET.controlCompletionMs>=contextDeadline)throw Error('PILOT_PUBLICATION_BUDGET_EXHAUSTED');
  // Compiling this fixed SELECT also checks the control/build/candidate shape.
- const rows=await input.relay.sql('READ_PUBLICATION_CONTEXT',compileCloudPilotPublicationContextSql(control),contextDeadline,input.signal);
+ const rows=await input.relay.sql('READ_PUBLICATION_CONTEXT',compileCloudPilotPublicationContextSql(control,input.source.sourceAdmissionPolicy),contextDeadline,input.signal);
  if(rows.length!==1)throw Error('PILOT_CONTEXT_RESPONSE');
  const context=z.record(z.unknown()).parse(rows[0]!.context) as unknown as CloudPilotPublicationContext;
  const checkedAt=Date.parse(context.checkedAt),receivedAt=Date.now();

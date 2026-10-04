@@ -1,8 +1,8 @@
 # Job Finder source backup
 
-Source revision: `507e40bd5ec2661e0d5d0a986b390603f046822c`
+Source revision: `b41a18415cfe8177740918b04c5139095d7abcc5`
 
-State at 2026-10-04 03:20 UTC: **LIVE_PRODUCER40**. This is a source-only backup. It does not deploy, change the live database, qualify a release, or retain the original runtime commit identity. The backup commit is a new, different commit.
+State at 2026-10-04 03:40 UTC: **ACTIVE_PRODUCER41_BUILDING_FIRST_RUN_UNVERIFIED**. This is a source-only backup. It does not deploy, change the live database, qualify a release, or retain the original runtime commit identity. The backup commit is a new, different commit.
 
 ## Contents
 
@@ -14,4 +14,6 @@ Credentials, all `.env` files, raw captures, retained capture fixtures, database
 
 GitHub Actions workflow source is retained under `backup/disabled-workflows/`; there is no active `.github/workflows/` in this backup. This branch is for backup and must not be merged or deployed automatically.
 
-The live homepage source is a2bbb88; the separately backed up performance candidate a789e0d is tested but not deployed. Producer40 source is 507e40b. Unfinished Sanofi Chinese-only and portable DB_STARTED changes are outside this cutoff.
+The live homepage source is a2bbb88; the separately backed up performance candidate a789e0d is tested but not deployed. Producer40 source is 507e40b. Unfinished Sanofi Chinese-only changes are outside this cutoff.
+
+Producer41 adds PORTABLE reuse of DB_STARTED atomic control. Its code was registered and started at 03:38:49 UTC. The first new collection was not yet accepted at this cutoff. Producer40 source 507e40b is preserved separately. No raw collection results or SQL payloads are included.

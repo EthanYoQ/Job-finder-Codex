@@ -23,9 +23,9 @@ afterEach(async()=>{vi.useRealTimers();vi.restoreAllMocks();vi.unstubAllGlobals(
 it("limits the refresh entry to the twenty unchanged configurations registered by SQL47",async()=>{
   const plans=buildStagedSourceCrawlPlans(candidateCompanies);
   expect(PORTABLE_REFRESH_SOURCE_IDS).toHaveLength(20);
-  const latest=CLOUD_PILOT_SQL45.migrations.at(-1)!;
-  const sql=await readFile(`prisma/migrations/${latest.migrationName}/migration.sql`,"utf8");
-  expect(CLOUD_PILOT_SQL45.migrations).toHaveLength(47);
+  const registration=CLOUD_PILOT_SQL45.migrations.find(m=>m.migrationName==="20261002101515_organon_source_policy")!;
+  const sql=await readFile(`prisma/migrations/${registration.migrationName}/migration.sql`,"utf8");
+  expect(CLOUD_PILOT_SQL45.migrations).toHaveLength(48);
   for(const plan of plans){
     if(PORTABLE_REFRESH_SOURCE_IDS.includes(plan.source.id)){
       expect(()=>assertPortableRefreshPlan(plan)).not.toThrow();

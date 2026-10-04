@@ -1175,8 +1175,11 @@ export type DbStartedCloudSourceInput = Omit<Parameters<typeof import('../crawle
 /** Deadline arithmetic only; the caller must still validate the complete owned
  * certificate. This function grants no publication or lease authority. */
 export function deriveDbStartedPublicationExpiry(source:Pick<AtomicSourceResultInput,'startedAt'|'completenessCertificate'>):number{
- const certificate=source.completenessCertificate as {schemaVersion?:string;independentValidation?:{observedAt?:string;expiresAt?:string};validationPolicy?:{execution?:string}}|null;
+ const certificate=source.completenessCertificate as {schemaVersion?:string;acquisition?:{finishedAt?:string};independentValidation?:{observedAt?:string;expiresAt?:string};validationPolicy?:{execution?:string}}|null;
  let expiry=source.startedAt.getTime()+30*60_000;
+ // Portable receipts already bound capture duration and issuance to the real
+ // acquisition. Waiting never renews its original 30-minute publication cutoff.
+ if(certificate?.schemaVersion===SOURCE_QUALITY_RECEIPT_SCHEMA)expiry=Date.parse(certificate.acquisition?.finishedAt??'')+30*60_000;
  if(certificate?.schemaVersion==='b-grade-independent-traversal-v2'){
   expiry=Math.min(expiry,Date.parse(certificate.independentValidation?.expiresAt??''));
   if(certificate.validationPolicy?.execution==='CURRENT_RUN')expiry=Math.min(expiry,Date.parse(certificate.independentValidation?.observedAt??'')+B_GRADE_CURRENT_RUN_MAXIMUM_SKEW_MS);
@@ -1194,15 +1197,16 @@ export async function compileDbStartedCloudSourcePublication(input:{source:DbSta
  const {buildJobDedupeKey}=await import('../crawler/normalizedJob');
  const {prepareCloudPilotDbStartedControl}=await import('./cloudPilotSqlControl');
  const control=structuredClone(input.control),source=input.source;
- if(source.publicationPolicy!=='SOURCE_ATOMIC_LAST_GOOD_V1'||source.sourceAdmissionPolicy!==undefined)throw Error('PILOT_REAL_CERTIFICATE_REQUIRED');
- const context=await loadPilotContext(control.context,source.plan,true);
+ const portable=source.sourceAdmissionPolicy===SOURCE_QUALITY_POLICY_ID;
+ if(source.publicationPolicy!=='SOURCE_ATOMIC_LAST_GOOD_V1'||source.sourceAdmissionPolicy!==undefined&&!portable)throw Error('PILOT_REAL_CERTIFICATE_REQUIRED');
+ const context=await loadPilotContext(control.context,source.plan,!portable);
  const captureStarted=source.pending.startedAt.getTime();
  if(context.trustedCompletenessBaseline&&Date.parse(context.trustedCompletenessBaseline.verifiedAt)>captureStarted)throw Error('PILOT_CAPTURE_PRECEDES_ACCEPTED_OBSERVATION');
  const currentKeys=new Set(source.result.jobs.map(buildJobDedupeKey));
- const previousJobs=context.previousJobs.filter(job=>currentKeys.has(job.dedupeKey)||(context.acceptedVisibilityFloor!==null&&Date.parse(job.lastSeenAt)>=context.acceptedVisibilityFloor.getTime()));
+ const previousJobs=portable?context.previousJobs:context.previousJobs.filter(job=>currentKeys.has(job.dedupeKey)||(context.acceptedVisibilityFloor!==null&&Date.parse(job.lastSeenAt)>=context.acceptedVisibilityFloor.getTime()));
  const commit=buildAtomicRuntimeCommit({...source,...context,previousJobs});
  const certificate=commit.sourceResult.completenessCertificate as {schemaVersion?:string;independentValidation?:{observedAt?:string;expiresAt?:string}}|null;
- if(commit.sourceResult.completenessState!=='VERIFIED'||!['a-grade-official-total-v2','b-grade-independent-traversal-v2'].includes(certificate?.schemaVersion??''))throw Error('PILOT_REAL_CERTIFICATE_REQUIRED');
+ if(commit.sourceResult.completenessState!=='VERIFIED'||!(portable?[SOURCE_QUALITY_RECEIPT_SCHEMA]:['a-grade-official-total-v2','b-grade-independent-traversal-v2']).includes(certificate?.schemaVersion??''))throw Error('PILOT_REAL_CERTIFICATE_REQUIRED');
  // Original acquisition and B validation times are preserved. No renewed local
  // lease/acknowledgement can manufacture a later deadline for this packet.
  const deadline=deriveDbStartedPublicationExpiry(commit.sourceResult);
@@ -1214,7 +1218,7 @@ export async function compileDbStartedCloudSourcePublication(input:{source:DbSta
   const holderId=randomUUID(),expiresAt=new Date(deadline).toISOString();
   const originalTimesThrough=new Date(Math.max(captureStarted,commit.sourceResult.finishedAt!.getTime(),...commit.artifacts.map(a=>a.capturedAt.getTime()),
    ...(certificate?.schemaVersion==='b-grade-independent-traversal-v2'?[Date.parse(certificate.independentValidation?.observedAt??'')]:[]))).toISOString();
-  const controls=prepareCloudPilotDbStartedControl(control,{...commit.sourceResult},holderId,expiresAt,originalTimesThrough);
+  const controls=prepareCloudPilotDbStartedControl(control,{...commit.sourceResult},holderId,expiresAt,originalTimesThrough,source.sourceAdmissionPolicy);
   // One complete terminal value feeds the existing update columns and exact
   // postcondition, so large B evidence is serialized only once in this DO.
   const statements=["PERFORM set_config('TimeZone', 'UTC', true);","PERFORM set_config('lock_timeout', '1000ms', true);","SET CONSTRAINTS ALL DEFERRED;",controls.before,...compileAtomicWriteStatements(writes,next=>{stage=next;},true),controls.after];

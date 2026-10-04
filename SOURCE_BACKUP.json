@@ -1,8 +1,8 @@
 {
   "format": "source-backup-v1",
-  "cutoffUTC": "2026-10-04T03:20:00Z",
-  "sourceCommit": "507e40bd5ec2661e0d5d0a986b390603f046822c",
-  "stateAtCutoff": "LIVE_PRODUCER40",
+  "cutoffUTC": "2026-10-04T03:40:00Z",
+  "sourceCommit": "b41a18415cfe8177740918b04c5139095d7abcc5",
+  "stateAtCutoff": "ACTIVE_PRODUCER41_BUILDING_FIRST_RUN_UNVERIFIED",
   "destination": "EthanYoQ/Job-finder-Codex",
   "runtimeIdentityReusable": false,
   "sourceBytesUnchanged": true,
@@ -150,7 +150,7 @@
       "gitBlob": "38b3c20f390851f8a2175cf6ae54ebe2a14ecc82"
     }
   ],
-  "sourceFileCount": 849,
+  "sourceFileCount": 850,
   "files": [
     {
       "path": ".dockerignore",
@@ -1219,9 +1219,9 @@
       "sourcePath": "scripts/p0-cloud-portable-source-pilot.ts",
       "mode": "100644",
       "type": "blob",
-      "sha": "4278bb80ce7dcb385475a5876ae5fcc437e27da5",
-      "sha256": "372d9896344939069c9abab562ea5e87a94ccbf778bdc7aaf649f5d3dc961785",
-      "bytes": 15678
+      "sha": "007665293dd8cd84ee9b9d448a7d6619b233fd3a",
+      "sha256": "e95043cab352897ceb3a1a36448d60d794a2fd9a78dbcb785b8b9afa9e82af45",
+      "bytes": 17968
     },
     {
       "path": "scripts/p0-cloud-source-pilot.ts",
@@ -2083,9 +2083,9 @@
       "sourcePath": "src/crawler/cloudDbStartedPilot.ts",
       "mode": "100644",
       "type": "blob",
-      "sha": "47297e020d67f41d546f839dc5593a5774778789",
-      "sha256": "27db53c56a516f3e55429d78c66e6b811696e0cf6e177f645bae8e7e71f025ef",
-      "bytes": 4987
+      "sha": "4895fdd7ffa9a05a29d9aab0db32e3007a226a26",
+      "sha256": "4b180869b19ce58e0497eb2e39047d5b153c50a64209e6d124debe8cd46720f0",
+      "bytes": 5111
     },
     {
       "path": "src/crawler/cloudPilotContext.ts",
@@ -3829,9 +3829,9 @@
       "sourcePath": "src/db/cloudPilotSqlControl.ts",
       "mode": "100644",
       "type": "blob",
-      "sha": "78df2f2f96fc97fb3a4e193e60b284441c2aedf8",
-      "sha256": "99890118fbdb8ca6d3a0887fa79a3065250574eb2c1c86da8aa5fee8dfd022a3",
-      "bytes": 27347
+      "sha": "b18998bc84993ee60c70315fdc441472cc887010",
+      "sha256": "77361a3a0bb104ec5d3c9faed12032d4989008238257da703ac0a142b8470620",
+      "bytes": 28018
     },
     {
       "path": "src/db/companyRegistrySync.ts",
@@ -3892,9 +3892,9 @@
       "sourcePath": "src/db/ingestionRepository.ts",
       "mode": "100644",
       "type": "blob",
-      "sha": "19804cbd57cf94312016655f578c37f63e95532a",
-      "sha256": "dcae2f5fb31c515d8286cbac4d7624d7272ac8cedb8e71c92d01720b4b6936e4",
-      "bytes": 122843
+      "sha": "bd6e766674cc21e93ac7e184fdd84bef379248b4",
+      "sha256": "788d9868d732e57fa79851c5a2a69b94dadf78ade8cf6c3d596d39a7fb42414b",
+      "bytes": 123360
     },
     {
       "path": "src/db/jnjDomEvidenceAdmission.ts",
@@ -7483,9 +7483,9 @@
       "sourcePath": "tests/scripts/cloudPortableSourcePilot.test.ts",
       "mode": "100644",
       "type": "blob",
-      "sha": "0221e88beebd53fedd6ab1a5d26c8e8fd3169ff3",
-      "sha256": "c4c674a405fed03a7324131e2f8117faeeb54443b10abcd2fdc49bc8050fd168",
-      "bytes": 14985
+      "sha": "b9e2c2a954a453da6d3828eff10f93a7d892017c",
+      "sha256": "bf7e462b306159280cb61cc7bdd0bc543e12b17ad08f9702f03fc43e1ec6b5ec",
+      "bytes": 15056
     },
     {
       "path": "tests/scripts/cloudSourcePilot.test.ts",
@@ -7792,6 +7792,17 @@
       "sha": "2c4f322ae27bf74bb52ddab13d0bd095a4888103",
       "sha256": "47d615bf0194b8469c6557e75f9a92e70a4b779ac1699392c2a45289ecf995cd",
       "bytes": 41
+    },
+    {
+      "path": "tests/db/cloudPilotPortableDbStartedPublication.test.ts",
+      "sourcePath": "tests/db/cloudPilotPortableDbStartedPublication.test.ts",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "d12a4f72aedad6a00769876ed95f807b8c78511b",
+      "sha256": "8a2bd837a466deed85b379c6d7538571a1ed5a1502dde244c56c3b113930f1f1",
+      "bytes": 14916
     }
-  ]
+  ],
+  "previousSourceCommit": "507e40bd5ec2661e0d5d0a986b390603f046822c",
+  "validationScope": "68 targeted tests reported passed by implementation task; no full test/build pass claimed by backup. SQL48 unchanged; first live collection not accepted at cutoff."
 }
