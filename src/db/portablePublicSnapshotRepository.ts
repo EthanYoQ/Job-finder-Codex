@@ -97,6 +97,9 @@ export interface PortableSnapshotRead {
   snapshotRefresh: PublicSnapshotRefresh;
 }
 
+/** Request-owned, numeric diagnostics. Never receives identities or query data. */
+export type SnapshotReadTiming = (phase: string, durationMs: number) => void;
+
 /** The response status travels with the selected projection across every await. */
 export async function readPortablePublicSnapshotWithStatus(
   db: PortableSnapshotDb,
@@ -104,7 +107,8 @@ export async function readPortablePublicSnapshotWithStatus(
   plans: readonly SourceCrawlPlan[] = buildStagedSourceCrawlPlans(selectLaunchCompanies(P0_LAUNCH_MANIFEST, candidateCompanies)),
   cache?: PortableSnapshotCache,
   onRefreshRequired?: () => Exclude<PublicSnapshotRefresh["state"], "CURRENT"> | void,
-  yieldAfterSource?: () => Promise<void>
+  yieldAfterSource?: () => Promise<void>,
+  timing?: {startedAt: number; record: SnapshotReadTiming}
 ): Promise<PortableSnapshotRead> {
   if (typeof db.$transaction !== "function") throw new Error("REPEATABLE_READ_PORTABLE_SNAPSHOT_REQUIRED");
   // The old 60-company registry is a catalog; the current runtime manifest owns the public roster.
@@ -131,18 +135,33 @@ export async function readPortablePublicSnapshotWithStatus(
   const identities = new Map(requiredPlans.map(plan => [plan.source.id, {companyId: plan.company.id, config: sourcePlanConfigSha256(plan), sanofiTransition: isSanofiPublicTransitionPlan(plan)}]));
   const cacheScope = JSON.stringify({plans: immutablePlans.map(plan => [plan.company.id, plan.source.id, sourcePlanConfigSha256(plan)]),
     freshnessMaximumMs: readOptions.freshnessMaximumMs ?? DAILY_PUBLICATION_FRESHNESS_MAXIMUM_MS});
+  const transactionStartedAt = performance.now();
+  timing?.record("planPrep", transactionStartedAt - timing.startedAt);
   const data = await db.$transaction(async tx => {
+    timing?.record("txAcquire", performance.now() - transactionStartedAt);
     // Check freshness in the same database snapshot used on a miss. Failure of
     // this query rejects the public request, including the opt-in display path.
-    const version = cache && tx.$queryRawUnsafe
-      ? portableSnapshotVersion(await tx.$queryRawUnsafe(PORTABLE_SNAPSHOT_VERSION_SQL)) : undefined;
+    let version: string | undefined;
+    if (cache && tx.$queryRawUnsafe) {
+      const versionStartedAt = performance.now();
+      const rows = await tx.$queryRawUnsafe(PORTABLE_SNAPSHOT_VERSION_SQL);
+      timing?.record("versionSQL", performance.now() - versionStartedAt);
+      version = portableSnapshotVersion(rows);
+    }
+    const cloneStartedAt = performance.now();
     const cached = version === undefined ? undefined : cache!.getRead(version, cacheScope, readOptions.currentTime.getTime());
-    if (cached) return {cached};
+    if (cached) {
+      timing?.record("cacheClone", performance.now() - cloneStartedAt);
+      return {cached};
+    }
     // Only the HTTP display reader opts into an older verified projection. A
     // successful current version check is mandatory; errors still reject.
     const previous = version === undefined || !onRefreshRequired ? undefined :
       cache!.getPreviousRead(cacheScope, readOptions.currentTime.getTime());
-    if (previous) return {cached: previous, refreshRequired: true};
+    if (previous) {
+      timing?.record("cacheClone", performance.now() - cloneStartedAt);
+      return {cached: previous, refreshRequired: true};
+    }
     const rawResults = await tx.crawlBatchSourceResult.findMany({
       where: {OR: requiredPlans.map(plan => isSanofiPublicTransitionPlan(plan) ? {sourceId: plan.source.id} :
         {sourceId: plan.source.id, sourceConfigHash: sourcePlanConfigSha256(plan)}), batch: {is: {kind: "SCHEDULED"}}},
@@ -187,11 +206,13 @@ export async function readPortablePublicSnapshotWithStatus(
     }
     return {results, members, jobs, version};
   }, {isolationLevel: "RepeatableRead", maxWait: 5_000, timeout: 10_000});
+  timing?.record("tx", performance.now() - transactionStartedAt);
   if (data.cached) {
     const state = data.refreshRequired ? onRefreshRequired!() ?? "UPDATING" : "CURRENT";
     return {snapshot: data.cached.snapshot, snapshotRefresh: {state, version: data.cached.version}};
   }
   const {results, members, jobs, version} = data;
+  const rebuildStartedAt = performance.now();
   // Receipt hashing, rendered evidence replay and lifecycle/job projection are pure CPU
   // work over the same owned snapshot. Release the database connection before doing them.
   let selections: ReturnType<typeof selectPortableSourceSnapshots>;
@@ -238,5 +259,6 @@ export async function readPortablePublicSnapshotWithStatus(
       unsupportedSourceCount: sources.filter(source => source.policyId === null && source.state !== "EXCLUDED").length, heldSourceCount: sources.filter(source => source.state === "HOLD").length}};
   const displayVersion = version !== undefined ? cache!.set(version, cacheScope, portableSnapshotValidUntil({results, jobs},
     readOptions.currentTime.getTime(), readOptions.freshnessMaximumMs ?? DAILY_PUBLICATION_FRESHNESS_MAXIMUM_MS, snapshot), snapshot) : portableDisplayVersion(snapshot);
+  timing?.record("rebuild", performance.now() - rebuildStartedAt);
   return {snapshot, snapshotRefresh: {state: "CURRENT", version: displayVersion}};
 }

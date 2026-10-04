@@ -12,7 +12,7 @@ import { encodeStaticResponse } from "./staticResponse";
 import { createCachedPostgresReadiness, DEFAULT_POSTGRES_READINESS_TIMEOUT_MS, normalizePostgresReadinessTimeout } from "./postgresReadiness";
 import { createCachedDeploymentReadiness, readDeploymentMigrationManifest } from "./deploymentReadiness";
 import { resolveDeploymentBootstrapConfig } from "../ops/deploymentBootstrap";
-import { readPortablePublicSnapshot, readPortablePublicSnapshotWithStatus, type PortableSnapshotRead, type PortablePublicSnapshot, type PortableSnapshotDb } from "../db/portablePublicSnapshotRepository";
+import { readPortablePublicSnapshot, readPortablePublicSnapshotWithStatus, type PortableSnapshotRead, type PortablePublicSnapshot, type PortableSnapshotDb, type SnapshotReadTiming } from "../db/portablePublicSnapshotRepository";
 import { SOURCE_QUALITY_POLICY_ID } from "../crawler/sourceQualityAdmission";
 import { PortableSnapshotCache } from "../db/portableSnapshotCache";
 
@@ -47,7 +47,7 @@ export interface PortableSnapshotRefreshStatus {
 }
 export interface PortableSnapshotReader {
   (): Promise<PortablePublicSnapshot>;
-  readWithStatus(responseFinished?: Promise<void>): Promise<PortableSnapshotRead>;
+  readWithStatus(responseFinished?: Promise<void>, recordTiming?: SnapshotReadTiming): Promise<PortableSnapshotRead>;
   getRefreshStatus(): PortableSnapshotRefreshStatus;
   close(): Promise<void>;
 }
@@ -108,15 +108,21 @@ export function createPortableSnapshotReader(db: PortableSnapshotDb): PortableSn
       void Promise.allSettled(responses).then(begin);
     } else begin();
   };
-  const readWithStatus = async (responseFinished?: Promise<void>): Promise<PortableSnapshotRead> => {
+  const readWithStatus = async (responseFinished?: Promise<void>, recordTiming?: SnapshotReadTiming): Promise<PortableSnapshotRead> => {
     if (closed) throw new Error("PORTABLE_SNAPSHOT_READER_CLOSED");
     // This reader owns one DB and fixed plans/options. A rebuild can occupy the
     // pool's sole connection: don't queue foreground version checks behind it.
     // The post-fill check catches commits made during this explicit interval.
     if (background) {
+      const cloneStartedAt = performance.now();
       const previous = cache.getDuringRefreshRead(Date.now());
-      if (previous) return {snapshot: previous.snapshot, snapshotRefresh: {state: status.state === "FAILED" ? "FAILED" : "UPDATING", version: previous.version}};
+      if (previous) {
+        recordTiming?.("backgroundClone", performance.now() - cloneStartedAt);
+        return {snapshot: previous.snapshot, snapshotRefresh: {state: status.state === "FAILED" ? "FAILED" : "UPDATING", version: previous.version}};
+      }
     }
+    const joined = Boolean(inFlight);
+    const waitStartedAt = performance.now();
     if (inFlight) {
       if (responseFinished) inFlightResponses!.push(responseFinished);
     } else {
@@ -127,12 +133,19 @@ export function createPortableSnapshotReader(db: PortableSnapshotDb): PortableSn
         // Capture the state for this stale read synchronously with its scheduling
         // decision. Never label a returned old display using a later global state.
         return status.state === "FAILED" ? "FAILED" : "UPDATING";
-      }, yieldSnapshotWork)
+      }, yieldSnapshotWork, recordTiming ? {startedAt: waitStartedAt, record: recordTiming} : undefined)
         .then(result => {status = {...status, lastVerifiedAt: cache.getVerifiedAt() ?? result.snapshot.generatedAt}; return result;})
         .finally(() => { inFlight = undefined; inFlightResponses = undefined; });
     }
     // Each request owns its projection, including nested arrays and objects.
-    return structuredClone(await inFlight);
+    const result = await inFlight;
+    // A joining request reports only its own wait and clone. The underlying
+    // preparation/SQL timings belong exclusively to the request that started it.
+    if (joined) recordTiming?.("sharedWait", performance.now() - waitStartedAt);
+    const cloneStartedAt = performance.now();
+    const owned = structuredClone(result);
+    recordTiming?.("clone", performance.now() - cloneStartedAt);
+    return owned;
   };
   const read = async (): Promise<PortablePublicSnapshot> => (await readWithStatus()).snapshot;
   return Object.assign(read, {
@@ -235,6 +248,11 @@ async function handleRequest(
   if (shouldRouteToPublicApi(url.pathname)) {
     const publicRequestStartedAt = performance.now();
     const timedPublicGet = (request.method ?? "GET") === "GET" && (url.pathname === "/api/search" || url.pathname === "/api/coverage");
+    const timings = new Map<string, number>();
+    const allowedTimings = new Set(["read", "planPrep", "txAcquire", "versionSQL", "cacheClone", "tx", "rebuild", "clone", "backgroundClone", "sharedWait", "project", "JSON", "gzip"]);
+    const recordTiming: SnapshotReadTiming | undefined = timedPublicGet ? (phase, durationMs) => {
+      if (allowedTimings.has(phase) && Number.isFinite(durationMs) && durationMs >= 0) timings.set(phase, durationMs);
+    } : undefined;
     const responseFinished = timedPublicGet && deps.readPortableSnapshot?.readWithStatus
       ? new Promise<void>(resolve => {
         // A disconnected client may have reached a terminal state before this
@@ -259,14 +277,14 @@ async function handleRequest(
         ip: getRequestIp(request),
         ...(request.headers["user-agent"] === undefined ? {} : { userAgent: request.headers["user-agent"] })
       },
-      responseFinished ? {...deps, responseFinished} : deps
+      {...deps, ...(responseFinished ? {responseFinished} : {}), ...(recordTiming ? {recordTiming} : {})}
     );
     const encoded = await encodePublicJsonResponse({
       method: request.method ?? "GET",
       path: url.pathname,
       headers: toHeaderRecord(request)
-    }, publicApiResponse);
-    writeResponse(response, encoded, timedPublicGet ? publicRequestStartedAt : undefined);
+    }, publicApiResponse, recordTiming);
+    writeResponse(response, encoded, timedPublicGet ? publicRequestStartedAt : undefined, timings);
     return;
   }
 
@@ -446,7 +464,7 @@ function resolveStaticPath(staticRoot: string, pathname: string): string | undef
   return filePath.startsWith(`${staticRoot}${sep}`) ? filePath : undefined;
 }
 
-function writeResponse(response: ServerResponse, publicApiResponse: HttpResponse, publicRequestStartedAt?: number): void {
+function writeResponse(response: ServerResponse, publicApiResponse: HttpResponse, publicRequestStartedAt?: number, timings?: ReadonlyMap<string, number>): void {
   response.statusCode = publicApiResponse.status;
 
   for (const [key, value] of Object.entries(publicApiResponse.headers)) {
@@ -461,7 +479,8 @@ function writeResponse(response: ServerResponse, publicApiResponse: HttpResponse
   if (publicRequestStartedAt !== undefined) {
     // Include reads, projection, JSON encoding and compression through this send
     // boundary. Network/proxy/TLS latency is outside the monotonic app duration.
-    response.setHeader("server-timing", `app;dur=${(performance.now() - publicRequestStartedAt).toFixed(1)}`);
+    const stages = [...timings ?? []].map(([phase, duration]) => `${phase};dur=${duration.toFixed(1)}`);
+    response.setHeader("server-timing", [`app;dur=${(performance.now() - publicRequestStartedAt).toFixed(1)}`, ...stages].join(", "));
   }
   response.end(body);
 }

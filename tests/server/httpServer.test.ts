@@ -127,14 +127,38 @@ describe("http server", () => {
     for (const path of ["/api/search?city=上海", "/api/coverage"]) {
       const result = await rawRequest(address.port, encodeURI(path), {"x-job-search-consent": "accepted", "accept-encoding": encoding});
       expect(result.status).toBe(200);
-      expect(result.headers["server-timing"]).toMatch(/^app;dur=\d+\.\d$/);
-      expect(Number(String(result.headers["server-timing"]).split("=")[1])).toBeGreaterThanOrEqual(15);
+      const timing = String(result.headers["server-timing"]);
+      expect(timing).toMatch(/^app;dur=\d+\.\d(?:, [A-Za-z]+;dur=\d+\.\d)*$/);
+      const stages = Object.fromEntries(timing.split(", ").map(stage => {
+        const [name, duration] = stage.split(";dur=");
+        return [name, Number(duration)];
+      }));
+      expect(stages.app).toBeGreaterThanOrEqual(15);
+      expect(stages.read).toBeGreaterThanOrEqual(15);
+      expect(stages.project).toBeGreaterThanOrEqual(0);
+      expect(stages.JSON).toBeGreaterThanOrEqual(0);
+      expect(stages.gzip === undefined).toBe(encoding === "identity");
       expect(JSON.parse((encoding === "gzip" ? gunzipSync(result.body) : result.body).toString())).toHaveProperty("companies");
     }
     const staticResponse = await rawRequest(address.port, "/logo.png");
     expect(staticResponse.headers["server-timing"]).toBeUndefined();
     const postResponse = await rawRequest(address.port, "/api/feedback", {"content-type": "application/json", "x-job-search-consent": "accepted"}, "POST", JSON.stringify({issueType: "OTHER", description: "test"}));
     expect(postResponse.headers["server-timing"]).toBeUndefined();
+  });
+
+  it("only exposes finite numeric stages from the fixed timing allowlist", async () => {
+    const snapshot = await publicSnapshot();
+    const read = Object.assign(async () => snapshot, {readWithStatus: async (_finished?: Promise<void>, record?: (phase: string, duration: number) => void) => {
+      record?.("versionSQL", 12.5);
+      record?.("txAcquire", Number.NaN);
+      record?.("cacheClone", -1);
+      record?.("private-id-and-sql", 1);
+      return {snapshot, snapshotRefresh: {state: "CURRENT" as const, version: "a".repeat(64)}};
+    }});
+    const address = await listen(createTestServer({readPortableSnapshot: read}));
+    const response = await rawRequest(address.port, "/api/coverage", {"x-job-search-consent": "accepted"});
+    expect(response.headers["server-timing"]).toContain("versionSQL;dur=12.5");
+    expect(response.headers["server-timing"]).not.toMatch(/private|NaN|txAcquire|cacheClone|desc=/);
   });
 
   it("serves local redesign logo and font assets with their correct MIME types", async () => {

@@ -1,13 +1,15 @@
 import { promisify } from "node:util";
 import { gzip } from "node:zlib";
 import type { PublicApiRequest, PublicApiResponse } from "./publicApi";
+import type { SnapshotReadTiming } from "../db/portablePublicSnapshotRepository";
 
 const gzipAsync = promisify(gzip);
 
 // Only these full, public JSON representations participate in compression.
 export async function encodePublicJsonResponse(
   request: Pick<PublicApiRequest, "method" | "path" | "headers">,
-  result: PublicApiResponse
+  result: PublicApiResponse,
+  recordTiming?: SnapshotReadTiming
 ): Promise<PublicApiResponse> {
   if (request.method !== "GET" || result.status !== 200 ||
       (request.path !== "/api/search" && request.path !== "/api/coverage")) return result;
@@ -17,6 +19,7 @@ export async function encodePublicJsonResponse(
       (typeof result.body === "string" && headers["content-type"] === undefined) ||
       (headers["content-type"] !== undefined && headers["content-type"].split(";")[0]?.trim().toLowerCase() !== "application/json")) return result;
 
+  const jsonStartedAt = performance.now();
   const json = typeof result.body === "string" ? result.body : JSON.stringify(result.body);
   if (json === undefined) return result;
 
@@ -30,7 +33,10 @@ export async function encodePublicJsonResponse(
   if (encoding === undefined) return { status: 406, headers: { ...headers, "content-length": "0" }, body: Buffer.alloc(0) };
 
   const plain = Buffer.from(json, "utf8");
+  recordTiming?.("JSON", performance.now() - jsonStartedAt);
+  const gzipStartedAt = performance.now();
   const body = encoding === "gzip" ? await gzipAsync(plain, { level: 1 }) : plain;
+  if (encoding === "gzip") recordTiming?.("gzip", performance.now() - gzipStartedAt);
   if (encoding === "gzip") headers["content-encoding"] = "gzip";
   headers["content-length"] = String(body.length);
   return { ...result, headers, body };

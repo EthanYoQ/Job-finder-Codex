@@ -16,7 +16,7 @@ import { checkRateLimit, classifySuspiciousRequest, createMemoryRateLimitStore, 
 import { listCompanyCoverage, type CoverageDb } from "./coverageService";
 import { getStaticDocument } from "./staticDocuments";
 import { normalizePostgresReadinessTimeout } from "./postgresReadiness";
-import type { PortablePublicSnapshot, PortableSnapshotRead } from "../db/portablePublicSnapshotRepository";
+import type { PortablePublicSnapshot, PortableSnapshotRead, SnapshotReadTiming } from "../db/portablePublicSnapshotRepository";
 import { searchPortableSnapshot, coverageFromPortableSnapshot } from "./portablePublicationApi";
 
 export interface PublicApiRequest {
@@ -46,8 +46,9 @@ export interface PublicApiDeps {
   readPublicationSnapshot?: PublicationSnapshotReader;
   /** HTTP finish/close barrier; omitted by non-HTTP callers. */
   responseFinished?: Promise<void>;
+  recordTiming?: SnapshotReadTiming;
   readPortableSnapshot?: (() => Promise<PortablePublicSnapshot>) & {
-    readWithStatus?: (responseFinished?: Promise<void>) => Promise<PortableSnapshotRead>;
+    readWithStatus?: (responseFinished?: Promise<void>, recordTiming?: SnapshotReadTiming) => Promise<PortableSnapshotRead>;
   };
 }
 
@@ -190,7 +191,10 @@ export async function handlePublicApi(request: PublicApiRequest, deps: PublicApi
       }
 
       const read = deps.readPortableSnapshot;
-      const display = read ? await (read.readWithStatus?.(deps.responseFinished) ?? read().then(snapshot => ({snapshot}))) : undefined;
+      const readStartedAt = performance.now();
+      const display = read ? await (read.readWithStatus?.(deps.responseFinished, deps.recordTiming) ?? read().then(snapshot => ({snapshot}))) : undefined;
+      if (read) deps.recordTiming?.("read", performance.now() - readStartedAt);
+      const projectStartedAt = performance.now();
       const result = display
         ? {...searchPortableSnapshot(parsed.data, display.snapshot), ...("snapshotRefresh" in display ? {snapshotRefresh: display.snapshotRefresh} : {})}
         : await searchJobsFromDatabase(parsed.data, deps.db, deps.readPublicationSnapshot);
@@ -198,6 +202,7 @@ export async function handlePublicApi(request: PublicApiRequest, deps: PublicApi
         paginationValidation.data.offset,
         paginationValidation.data.offset + paginationValidation.data.limit
       );
+      if (read) deps.recordTiming?.("project", performance.now() - projectStartedAt);
 
       return {
         status: 200,
@@ -219,10 +224,14 @@ export async function handlePublicApi(request: PublicApiRequest, deps: PublicApi
           limit: paginationValidation.data.limit
         };
       const read = deps.readPortableSnapshot;
-      const display = read ? await (read.readWithStatus?.(deps.responseFinished) ?? read().then(snapshot => ({snapshot}))) : undefined;
+      const readStartedAt = performance.now();
+      const display = read ? await (read.readWithStatus?.(deps.responseFinished, deps.recordTiming) ?? read().then(snapshot => ({snapshot}))) : undefined;
+      if (read) deps.recordTiming?.("read", performance.now() - readStartedAt);
+      const projectStartedAt = performance.now();
       const result = display
         ? {...coverageFromPortableSnapshot(coverageRequest, display.snapshot), ...("snapshotRefresh" in display ? {snapshotRefresh: display.snapshotRefresh} : {})}
         : await listCompanyCoverage(coverageRequest, deps.db, deps.readPublicationSnapshot);
+      if (read) deps.recordTiming?.("project", performance.now() - projectStartedAt);
       return {
         status: 200,
         headers,

@@ -32,6 +32,33 @@ beforeEach(() => {
 afterEach(() => vi.useRealTimers());
 
 describe("portable snapshot reader", () => {
+  it("attributes SQL to its initiating request and only wait/clone to a joining request", async () => {
+    const f = fixture();
+    const versions = () => PORTABLE_SNAPSHOT_VERSION_TABLES.map(relation => ({relation, epoch: "0", count: "1", digest: "a".repeat(64)}));
+    const query = vi.fn(async () => versions());
+    Object.assign(f.tx, {$queryRawUnsafe: query});
+    const initial = await f.read();
+    const gate = deferred();
+    query.mockImplementationOnce(async () => {await gate.promise; return versions();});
+    const owner = vi.fn(), joiner = vi.fn();
+    const first = f.read.readWithStatus(undefined, owner);
+    const second = f.read.readWithStatus(undefined, joiner);
+    await new Promise(resolve => setTimeout(resolve, 20));
+    gate.resolve();
+    const results = await Promise.all([first, second]);
+    expect(results.map(result => result.snapshot)).toEqual([initial, initial]);
+    expect(owner.mock.calls.map(([phase]) => phase)).toEqual(["planPrep", "txAcquire", "versionSQL", "cacheClone", "tx", "clone"]);
+    expect(owner.mock.calls.find(([phase]) => phase === "versionSQL")![1]).toBeGreaterThanOrEqual(15);
+    expect(joiner.mock.calls.map(([phase]) => phase)).toEqual(["sharedWait", "clone"]);
+    expect(joiner.mock.calls[0]![1]).toBeGreaterThanOrEqual(15);
+    expect(query).toHaveBeenCalledTimes(2); // Warmup plus one shared version read.
+    for (const [, duration] of [...owner.mock.calls, ...joiner.mock.calls]) {
+      expect(Number.isFinite(duration)).toBe(true);
+      expect(duration).toBeGreaterThanOrEqual(0);
+    }
+    await f.read.close();
+  });
+
   it("shares a fresh version check for simultaneous filtered search and coverage after warmup", async () => {
     const f = fixture();
     const query = vi.fn(async () => PORTABLE_SNAPSHOT_VERSION_TABLES.map(relation => ({relation, epoch: "0", count: "1", digest: "a".repeat(64)})));

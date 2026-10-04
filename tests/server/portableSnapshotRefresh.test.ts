@@ -109,9 +109,12 @@ describe("verified display background refresh", () => {
     expect(f.read.getRefreshStatus().state).toBe("UPDATING");
     await vi.advanceTimersByTimeAsync(0);
     const transactionsWhileBlocked = f.transaction.mock.calls.length;
-    const [first, second] = await Promise.all([f.read(), f.read()]);
+    const timing = vi.fn();
+    const [measured, second] = await Promise.all([f.read.readWithStatus(undefined, timing), f.read()]);
+    const first = measured.snapshot;
     expect(first).toEqual(old);
     expect(second).toEqual(old);
+    expect(timing.mock.calls.map(([phase]) => phase)).toEqual(["backgroundClone"]);
     expect(f.transaction).toHaveBeenCalledTimes(transactionsWhileBlocked);
     first.sources[0]!.reasons.push("LAST_GOOD_STALE");
     expect(second).toEqual(old);
