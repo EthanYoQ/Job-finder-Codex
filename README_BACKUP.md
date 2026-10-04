@@ -1,16 +1,16 @@
-# Sanofi encoding candidate source backup
+# Sanofi transport and capture candidate backup
 
-Source checkpoint: `40141b32bafaef4f2585cad8caf11c6088546de3`, based on `d402d3639c0ea729fa72bd1a4427570b227c7481`, at the 2026-10-04 15:55 UTC cutoff. This is a checked candidate; no new official acquisition, publication or candidate44 registration is claimed at this cutoff.
+Source checkpoint: `4acb35abfe104e38caf9cc75204b73fead6ab6ef`, whose Git parent is `40141b32bafaef4f2585cad8caf11c6088546de3`. At the 2026-10-04 17:21 UTC status report it was frozen and checked, but not registered, freshly acquired or deployed.
 
-857 original source/test/config files are included, plus this guide and `SOURCE_BACKUP.json`. Five source paths differ from the previous safe producer backup; other objects are reused. All included bytes, paths, modes and hashes are recorded in the manifest.
+This safe snapshot retains 858 original source/test/config files, plus this guide and `SOURCE_BACKUP.json`. Only four source files differ from the preceding producer backup: three implementation files and one synthetic test. Every included file's source path, Git blob, SHA-256, byte length and mode is recorded.
 
-The change audits a narrowly constrained Chinese display discrepancy: a single triplet of replacement characters must correspond to one Han character in the same-requisition native description, with all surrounding normalized text equal. Source bodies are not rewritten. Identity, location and discrepancy hashes remain bound to the explicit anomaly ledger.
+The change keeps the existing HTTP deadline and cancellation active while consuming Sanofi response bodies. Main-path responses can be retained individually before parser validation, preserving completed originals even when later processing fails. Existing transport policies remain represented in source. Actual captured responses and private acquisition outputs are not included in this backup.
 
-Reported validation passed 44 targeted tests and a read-only replay of private saved pairs. No complete suite, full TypeScript check or successful new production run is claimed by this backup.
+Reported checks passed 57 targeted tests and targeted TypeScript validation. No complete suite, full-project typecheck, new acquisition success or production publication is claimed. Making this backup performs no tests or production operations.
 
-46 tracked non-source/evidence files are excluded, including internal recovery notes, actual database/control material and retained job bodies. Credentials, environment/private profiles, generated dependencies/builds, runtime state, uncommitted files and original local Git history are not uploaded.
+The existing 46 tracked exclusions remain: raw/retained job-body and database/control evidence, internal operational/recovery notes and certificate material. Credentials, environment/private profiles, actual SQL payloads, generated dependencies/builds, runtime state, uncommitted files and local Git history are excluded.
 
-The optional `sanofiChineseEncodingCaptureReplay.test.ts` is retained as code. Its private capture directories, raw responses and original JDs are excluded; it needs separately authorized local input via `SANOFI_MAIN_CAPTURE_DIR` and `SANOFI_INDEPENDENT_CAPTURE_DIR`. Other retained-evidence tests also require their excluded inputs for recovery. Synthetic tests remain intact.
+Private saved-capture replay and retained-evidence tests still need separately authorized recovery of their inputs. The new HTTP capture tests use synthetic responses without network acquisition. Source code for retaining originals is included; those originals are not.
 
-Workflow source is retained under `backup/disabled-workflows/`, with no active workflow. This independent backup commit does not preserve runtime registration identity and must not be treated as a deployed build. Nothing is automatically tested, merged or deployed by this branch.
+Workflow source is moved under `backup/disabled-workflows/`, with no active workflow. This backup branch does not merge or deploy. Its new commit identity cannot substitute for a registered runtime; a future runtime must be rebuilt and independently registered.
 

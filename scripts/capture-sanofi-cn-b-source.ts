@@ -24,9 +24,16 @@ const sourceConfigSha256 = sourcePlanConfigSha256(plan), startedAt = new Date().
 await put("plan.json", JSON.stringify(plan, null, 2));
 try {
   if (mode === "main") {
-    let fetched: SourceFetchResult | undefined;
+    let fetched: SourceFetchResult | undefined, responseNumber = 0;
+    const fetch = createSanofiChineseSourceFetch({ onResponse: async (request, response, requestedAt) => {
+      const sequence = responseNumber++;
+      await put(`response-${String(sequence).padStart(4, "0")}.json`, JSON.stringify({ requestedAt,
+        request: { url: request.url, method: request.method ?? "GET", ...(request.body === undefined ? {} : { body: request.body }) },
+        response, bodySha256: createHash("sha256").update(response.body).digest("hex") }, null, 2));
+      console.log(JSON.stringify({ event: "MAIN_HTTP_ORIGINAL_ARCHIVED", sequence, url: request.url, status: response.status }));
+    } });
     const result = await runWithOfficialSourceAttemptTimeout(() => runSourceCrawl(plan, { isBaseline: false, fetch: async (p, t) => {
-      fetched = await createSanofiChineseSourceFetch()(p, t);
+      fetched = await fetch(p, t);
       await put("sourceFetchResult.v8", serialize(fetched)); return fetched;
     } }), 20 * 60_000);
     const bytes = serialize(fetched), finishedAt = new Date().toISOString();

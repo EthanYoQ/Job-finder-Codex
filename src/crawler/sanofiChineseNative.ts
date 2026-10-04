@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
 import { isDeepStrictEqual as same } from "node:util";
 import { load } from "cheerio";
-import { createHttpHtmlSourceFetch, type HttpHtmlClient, type HttpHtmlSourceFetchDeps } from "./httpHtmlSourceFetch";
+import { createHttpHtmlSourceFetch, defaultHttpHtmlClient, type HttpHtmlClient, type HttpHtmlRequest, type HttpHtmlResponse, type HttpHtmlSourceFetchDeps } from "./httpHtmlSourceFetch";
 import { parseSanofiDetail } from "./sanofiNativeQuality";
 import { fetchWithOfficialTimeout } from "./officialHttpRuntimeLimits";
 import { retryableHttpTransportFailure, retryableTransportFailureFromError, type SourceTransportFailure } from "./sourceFetchFailure";
@@ -146,8 +146,9 @@ export function parseSanofiChineseNative(html:string,detail:SanofiChineseDetail)
 }
 
 export const sanofiChineseHttp:HttpHtmlClient=async request=>{
-  const r=await fetchWithOfficialTimeout(request.url,{method:"GET",headers:request.headers,redirect:"follow"});
-  return {status:r.status,body:await r.text(),finalUrl:r.url,contentType:r.headers.get("content-type")??"",capturedAt:new Date().toISOString()};
+  return fetchWithOfficialTimeout(request.url,{method:"GET",headers:request.headers,redirect:"follow"},{
+    consumeResponse:async r=>({status:r.status,body:await r.text(),finalUrl:r.url,contentType:r.headers.get("content-type")??"",capturedAt:new Date().toISOString()})
+  });
 };
 function locator(role:string,url:string,id:string){return requestContractV2Locator(`sanofi-cn-${role}-v2`,{family:"html",role:`sanofi-cn-${role}`,method:"GET",url,body:null,coordinate:{id}});}
 function exactArtifact(a:SourceFetchArtifactDraft|undefined,url:string,role:string,id:string,start:string):a is SourceFetchArtifactDraft {
@@ -207,14 +208,25 @@ export function replaySanofiChineseNative(plan:SourceCrawlPlan,input:PersistentS
   requireValue(same(e.pages,result.pages)&&same(e.fetchCounts,result.counts)&&same(e.fetchLosses,result.losses)&&
     same(e.declaredCompleteness,{...primary.declaredCompleteness,kind:"COMPLETE_PAGE_TRAVERSAL",value:primary.pages.length}));return result;
 }
-export function createSanofiChineseSourceFetch(deps:HttpHtmlSourceFetchDeps={}):SourceFetchFunction {
+export interface SanofiChineseSourceFetchDeps extends HttpHtmlSourceFetchDeps {
+  /** Complete originals are persisted before status, content or parser validation. */
+  onResponse?:(request:HttpHtmlRequest,response:HttpHtmlResponse,requestedAt:string)=>Promise<void>;
+}
+export function createSanofiChineseSourceFetch(deps:SanofiChineseSourceFetchDeps={}):SourceFetchFunction {
   return async plan=>{
     let capturedAt=(deps.now?.()??new Date()).toISOString(),base:SourceFetchResult|undefined,primary:PersistentSourceFetchEvidence|undefined,transportFailure:SourceTransportFailure|undefined;const artifacts:SourceFetchArtifactDraft[]=[];
-    if(!exactPlan(plan))return {ok:false,capturedAt,failureReason:"SANOFI_CN_PLAN_INVALID"};const http=deps.http??sanofiChineseHttp;
+    if(!exactPlan(plan))return {ok:false,capturedAt,failureReason:"SANOFI_CN_PLAN_INVALID"};
+    const retain=(client:HttpHtmlClient):HttpHtmlClient=>async request=>{
+      const requestedAt=new Date().toISOString(),response=await client(request);
+      await deps.onResponse?.(request,response,requestedAt);return response;
+    };
+    const http=retain(deps.http??sanofiChineseHttp);
     const get=async(url:string,key:string,role:string,id:string)=>{let r;try{r=await http({url,method:"GET",headers:{Accept:"text/html","User-Agent":"job-search-crawler/0.1"}});}catch(error){transportFailure=retryableTransportFailureFromError(error);throw error;}
       transportFailure=retryableHttpTransportFailure(r.status)??transportFailure;const a:SourceFetchArtifactDraft={id:key,logicalKey:key,kind:"ATS_PAGE",requestedUrl:sanitizeEvidenceHttpUrl(url),finalUrl:r.finalUrl?sanitizeEvidenceHttpUrl(r.finalUrl):undefined,httpStatus:r.status,contentType:r.contentType,capturedAt:r.capturedAt??"",body:r.body,bodyRepresentation:"EXACT",extractorLocator:locator(role,url,id)};
       artifacts.push(a);requireValue(exactArtifact(a,url,role,id,capturedAt));return a;};
-    try {base=await createHttpHtmlSourceFetch(deps)(listPlan(plan));if(!base.ok)return base;requireValue(base.fetchEvidence&&"html"in base);primary=base.fetchEvidence!;capturedAt=primary.artifacts[0]!.capturedAt;
+    // Preserve the list client's existing certificate fallback and detail client's
+    // existing policy while retaining both kinds of original before validation.
+    try {base=await createHttpHtmlSourceFetch({...deps,http:retain(deps.http??defaultHttpHtmlClient)})(listPlan(plan));if(!base.ok)return base;requireValue(base.fetchEvidence&&"html"in base);primary=base.fetchEvidence!;capturedAt=primary.artifacts[0]!.capturedAt;
       requireValue(validateStrictHtmlCompletenessProof(listPlan(plan),primary));artifacts.push(...primary.artifacts);const {artifacts:_raw,...trace}=primary;
       artifacts.push({id:TRACE,logicalKey:TRACE,kind:"ORACLE_RESULT",capturedAt:primary.artifacts.at(-1)!.capturedAt,body:JSON.stringify(trace),bodyRepresentation:"EXACT",extractorLocator:TRACE});
       // Settle the bounded group so every in-flight original is retained on failure.

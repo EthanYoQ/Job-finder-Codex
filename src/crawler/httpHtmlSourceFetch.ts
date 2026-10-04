@@ -751,7 +751,7 @@ function buildPageUrl(
   return url.toString();
 }
 
-async function defaultHttpHtmlClient(request: HttpHtmlRequest): Promise<HttpHtmlResponse> {
+export async function defaultHttpHtmlClient(request: HttpHtmlRequest): Promise<HttpHtmlResponse> {
   try {
     return await fetchHtml(request);
   } catch (error) {
