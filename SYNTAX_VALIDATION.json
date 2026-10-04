@@ -1,0 +1,747 @@
+[
+  {
+    "path": "hosts/bayer42/archive-transfer.mjs",
+    "syntaxOnly": true,
+    "passed": true
+  },
+  {
+    "path": "hosts/bayer42/host-files.mts",
+    "syntaxOnly": true,
+    "passed": true
+  },
+  {
+    "path": "hosts/bayer42/host-helper-functions.js",
+    "syntaxOnly": true,
+    "passed": true
+  },
+  {
+    "path": "hosts/bayer42/host-stage-functions.js",
+    "syntaxOnly": true,
+    "passed": true
+  },
+  {
+    "path": "hosts/bayer42/relay-files.mjs",
+    "syntaxOnly": true,
+    "passed": true
+  },
+  {
+    "path": "hosts/bayer42/runtime/continuous-relay-v3-durable-monitor.js",
+    "syntaxOnly": true,
+    "passed": true
+  },
+  {
+    "path": "hosts/bayer42/runtime/describe-inputs.mjs",
+    "syntaxOnly": true,
+    "passed": true
+  },
+  {
+    "path": "hosts/bayer42/runtime/load-bayer42-runtime.js",
+    "syntaxOnly": true,
+    "passed": true
+  },
+  {
+    "path": "hosts/bayer42/runtime/load-host-state.js",
+    "syntaxOnly": true,
+    "passed": true
+  },
+  {
+    "path": "hosts/bayer42/runtime/preflight/preflight-launch.mjs",
+    "syntaxOnly": true,
+    "passed": true
+  },
+  {
+    "path": "hosts/bayer42/runtime/preflight/runtime-check.mjs",
+    "syntaxOnly": true,
+    "passed": true
+  },
+  {
+    "path": "hosts/bayer42/runtime/review-current-bayer.py",
+    "syntaxOnly": true,
+    "passed": true
+  },
+  {
+    "path": "hosts/bayer42/runtime/start-monitor-bayer42.js",
+    "syntaxOnly": true,
+    "passed": true
+  },
+  {
+    "path": "hosts/sanofi43/archive-transfer.mjs",
+    "syntaxOnly": true,
+    "passed": true
+  },
+  {
+    "path": "hosts/sanofi43/host-files.mts",
+    "syntaxOnly": true,
+    "passed": true
+  },
+  {
+    "path": "hosts/sanofi43/host-helper-functions.js",
+    "syntaxOnly": true,
+    "passed": true
+  },
+  {
+    "path": "hosts/sanofi43/host-stage-functions.js",
+    "syntaxOnly": true,
+    "passed": true
+  },
+  {
+    "path": "hosts/sanofi43/relay-files.mjs",
+    "syntaxOnly": true,
+    "passed": true
+  },
+  {
+    "path": "hosts/sanofi43/runtime/continuous-relay-v3-durable-monitor.js",
+    "syntaxOnly": true,
+    "passed": true
+  },
+  {
+    "path": "hosts/sanofi43/runtime/describe-inputs.mjs",
+    "syntaxOnly": true,
+    "passed": true
+  },
+  {
+    "path": "hosts/sanofi43/runtime/load-host-state.js",
+    "syntaxOnly": true,
+    "passed": true
+  },
+  {
+    "path": "hosts/sanofi43/runtime/load-sanofi43-runtime.js",
+    "syntaxOnly": true,
+    "passed": true
+  },
+  {
+    "path": "hosts/sanofi43/runtime/preflight/preflight-launch.mjs",
+    "syntaxOnly": true,
+    "passed": true
+  },
+  {
+    "path": "hosts/sanofi43/runtime/preflight/runtime-check.mjs",
+    "syntaxOnly": true,
+    "passed": true
+  },
+  {
+    "path": "hosts/sanofi43/runtime/start-monitor-sanofi43.js",
+    "syntaxOnly": true,
+    "passed": true
+  },
+  {
+    "path": "hosts/portable42-following/check-host.mjs",
+    "syntaxOnly": true,
+    "passed": true
+  },
+  {
+    "path": "hosts/portable42-following/check-loader.mjs",
+    "syntaxOnly": true,
+    "passed": true
+  },
+  {
+    "path": "hosts/portable42-following/check-relay-smoke.mjs",
+    "syntaxOnly": true,
+    "passed": true
+  },
+  {
+    "path": "hosts/portable42-following/describe-routes.mjs",
+    "syntaxOnly": true,
+    "passed": true
+  },
+  {
+    "path": "hosts/portable42-following/novo/archive-transfer.mjs",
+    "syntaxOnly": true,
+    "passed": true
+  },
+  {
+    "path": "hosts/portable42-following/novo/host-files.mts",
+    "syntaxOnly": true,
+    "passed": true
+  },
+  {
+    "path": "hosts/portable42-following/novo/host-helper-functions.js",
+    "syntaxOnly": true,
+    "passed": true
+  },
+  {
+    "path": "hosts/portable42-following/novo/host-stage-functions.js",
+    "syntaxOnly": true,
+    "passed": true
+  },
+  {
+    "path": "hosts/portable42-following/novo/relay-files.mjs",
+    "syntaxOnly": true,
+    "passed": true
+  },
+  {
+    "path": "hosts/portable42-following/prepare-host.mjs",
+    "syntaxOnly": true,
+    "passed": true
+  },
+  {
+    "path": "hosts/portable42-following/qilu/archive-transfer.mjs",
+    "syntaxOnly": true,
+    "passed": true
+  },
+  {
+    "path": "hosts/portable42-following/qilu/host-files.mts",
+    "syntaxOnly": true,
+    "passed": true
+  },
+  {
+    "path": "hosts/portable42-following/qilu/host-helper-functions.js",
+    "syntaxOnly": true,
+    "passed": true
+  },
+  {
+    "path": "hosts/portable42-following/qilu/host-stage-functions.js",
+    "syntaxOnly": true,
+    "passed": true
+  },
+  {
+    "path": "hosts/portable42-following/qilu/relay-files.mjs",
+    "syntaxOnly": true,
+    "passed": true
+  },
+  {
+    "path": "hosts/portable42-following/runtime/continuous-relay-v3-durable-monitor.js",
+    "syntaxOnly": true,
+    "passed": true
+  },
+  {
+    "path": "hosts/portable42-following/runtime/load-host-state.js",
+    "syntaxOnly": true,
+    "passed": true
+  },
+  {
+    "path": "hosts/portable42-following/runtime/load-portable42-runtime.js",
+    "syntaxOnly": true,
+    "passed": true
+  },
+  {
+    "path": "hosts/portable42-following/runtime/preflight/preflight-launch.mjs",
+    "syntaxOnly": true,
+    "passed": true
+  },
+  {
+    "path": "hosts/portable42-following/runtime/preflight/runtime-check.mjs",
+    "syntaxOnly": true,
+    "passed": true
+  },
+  {
+    "path": "hosts/portable42-following/runtime/review-portable-publication.py",
+    "syntaxOnly": true,
+    "passed": true
+  },
+  {
+    "path": "hosts/portable42-following/runtime/start-monitor-portable42.js",
+    "syntaxOnly": true,
+    "passed": true
+  },
+  {
+    "path": "hosts/portable42-following/ucb/archive-transfer.mjs",
+    "syntaxOnly": true,
+    "passed": true
+  },
+  {
+    "path": "hosts/portable42-following/ucb/host-files.mts",
+    "syntaxOnly": true,
+    "passed": true
+  },
+  {
+    "path": "hosts/portable42-following/ucb/host-helper-functions.js",
+    "syntaxOnly": true,
+    "passed": true
+  },
+  {
+    "path": "hosts/portable42-following/ucb/host-stage-functions.js",
+    "syntaxOnly": true,
+    "passed": true
+  },
+  {
+    "path": "hosts/portable42-following/ucb/relay-files.mjs",
+    "syntaxOnly": true,
+    "passed": true
+  },
+  {
+    "path": "hosts/true-a42-next/cr/archive-transfer.mjs",
+    "syntaxOnly": true,
+    "passed": true
+  },
+  {
+    "path": "hosts/true-a42-next/cr/host-files.mts",
+    "syntaxOnly": true,
+    "passed": true
+  },
+  {
+    "path": "hosts/true-a42-next/cr/host-helper-functions.js",
+    "syntaxOnly": true,
+    "passed": true
+  },
+  {
+    "path": "hosts/true-a42-next/cr/host-stage-functions.js",
+    "syntaxOnly": true,
+    "passed": true
+  },
+  {
+    "path": "hosts/true-a42-next/cr/relay-files.mjs",
+    "syntaxOnly": true,
+    "passed": true
+  },
+  {
+    "path": "hosts/true-a42-next/cr/runtime/continuous-relay-v3-durable-monitor.js",
+    "syntaxOnly": true,
+    "passed": true
+  },
+  {
+    "path": "hosts/true-a42-next/cr/runtime/load-host-state.js",
+    "syntaxOnly": true,
+    "passed": true
+  },
+  {
+    "path": "hosts/true-a42-next/cr/runtime/load-true-a42-runtime.js",
+    "syntaxOnly": true,
+    "passed": true
+  },
+  {
+    "path": "hosts/true-a42-next/cr/runtime/preflight/preflight-launch.mjs",
+    "syntaxOnly": true,
+    "passed": true
+  },
+  {
+    "path": "hosts/true-a42-next/cr/runtime/preflight/runtime-check.mjs",
+    "syntaxOnly": true,
+    "passed": true
+  },
+  {
+    "path": "hosts/true-a42-next/cr/runtime/start-monitor-true-a42.js",
+    "syntaxOnly": true,
+    "passed": true
+  },
+  {
+    "path": "hosts/true-a42-next/csl/archive-transfer.mjs",
+    "syntaxOnly": true,
+    "passed": true
+  },
+  {
+    "path": "hosts/true-a42-next/csl/host-files.mts",
+    "syntaxOnly": true,
+    "passed": true
+  },
+  {
+    "path": "hosts/true-a42-next/csl/host-helper-functions.js",
+    "syntaxOnly": true,
+    "passed": true
+  },
+  {
+    "path": "hosts/true-a42-next/csl/host-stage-functions.js",
+    "syntaxOnly": true,
+    "passed": true
+  },
+  {
+    "path": "hosts/true-a42-next/csl/relay-files.mjs",
+    "syntaxOnly": true,
+    "passed": true
+  },
+  {
+    "path": "hosts/true-a42-next/csl/runtime/continuous-relay-v3-durable-monitor.js",
+    "syntaxOnly": true,
+    "passed": true
+  },
+  {
+    "path": "hosts/true-a42-next/csl/runtime/load-host-state.js",
+    "syntaxOnly": true,
+    "passed": true
+  },
+  {
+    "path": "hosts/true-a42-next/csl/runtime/load-true-a42-runtime.js",
+    "syntaxOnly": true,
+    "passed": true
+  },
+  {
+    "path": "hosts/true-a42-next/csl/runtime/preflight/preflight-launch.mjs",
+    "syntaxOnly": true,
+    "passed": true
+  },
+  {
+    "path": "hosts/true-a42-next/csl/runtime/preflight/runtime-check.mjs",
+    "syntaxOnly": true,
+    "passed": true
+  },
+  {
+    "path": "hosts/true-a42-next/csl/runtime/start-monitor-true-a42.js",
+    "syntaxOnly": true,
+    "passed": true
+  },
+  {
+    "path": "hosts/true-a42-next/daiichi/archive-transfer.mjs",
+    "syntaxOnly": true,
+    "passed": true
+  },
+  {
+    "path": "hosts/true-a42-next/daiichi/host-files.mts",
+    "syntaxOnly": true,
+    "passed": true
+  },
+  {
+    "path": "hosts/true-a42-next/daiichi/host-helper-functions.js",
+    "syntaxOnly": true,
+    "passed": true
+  },
+  {
+    "path": "hosts/true-a42-next/daiichi/host-stage-functions.js",
+    "syntaxOnly": true,
+    "passed": true
+  },
+  {
+    "path": "hosts/true-a42-next/daiichi/relay-files.mjs",
+    "syntaxOnly": true,
+    "passed": true
+  },
+  {
+    "path": "hosts/true-a42-next/daiichi/runtime/continuous-relay-v3-durable-monitor.js",
+    "syntaxOnly": true,
+    "passed": true
+  },
+  {
+    "path": "hosts/true-a42-next/daiichi/runtime/load-host-state.js",
+    "syntaxOnly": true,
+    "passed": true
+  },
+  {
+    "path": "hosts/true-a42-next/daiichi/runtime/load-true-a42-runtime.js",
+    "syntaxOnly": true,
+    "passed": true
+  },
+  {
+    "path": "hosts/true-a42-next/daiichi/runtime/preflight/preflight-launch.mjs",
+    "syntaxOnly": true,
+    "passed": true
+  },
+  {
+    "path": "hosts/true-a42-next/daiichi/runtime/preflight/runtime-check.mjs",
+    "syntaxOnly": true,
+    "passed": true
+  },
+  {
+    "path": "hosts/true-a42-next/daiichi/runtime/start-monitor-true-a42.js",
+    "syntaxOnly": true,
+    "passed": true
+  },
+  {
+    "path": "hosts/true-a42-next/lilly/archive-transfer.mjs",
+    "syntaxOnly": true,
+    "passed": true
+  },
+  {
+    "path": "hosts/true-a42-next/lilly/host-files.mts",
+    "syntaxOnly": true,
+    "passed": true
+  },
+  {
+    "path": "hosts/true-a42-next/lilly/host-helper-functions.js",
+    "syntaxOnly": true,
+    "passed": true
+  },
+  {
+    "path": "hosts/true-a42-next/lilly/host-stage-functions.js",
+    "syntaxOnly": true,
+    "passed": true
+  },
+  {
+    "path": "hosts/true-a42-next/lilly/relay-files.mjs",
+    "syntaxOnly": true,
+    "passed": true
+  },
+  {
+    "path": "hosts/true-a42-next/lilly/runtime/continuous-relay-v3-durable-monitor.js",
+    "syntaxOnly": true,
+    "passed": true
+  },
+  {
+    "path": "hosts/true-a42-next/lilly/runtime/load-host-state.js",
+    "syntaxOnly": true,
+    "passed": true
+  },
+  {
+    "path": "hosts/true-a42-next/lilly/runtime/load-true-a42-runtime.js",
+    "syntaxOnly": true,
+    "passed": true
+  },
+  {
+    "path": "hosts/true-a42-next/lilly/runtime/preflight/preflight-launch.mjs",
+    "syntaxOnly": true,
+    "passed": true
+  },
+  {
+    "path": "hosts/true-a42-next/lilly/runtime/preflight/runtime-check.mjs",
+    "syntaxOnly": true,
+    "passed": true
+  },
+  {
+    "path": "hosts/true-a42-next/lilly/runtime/start-monitor-true-a42.js",
+    "syntaxOnly": true,
+    "passed": true
+  },
+  {
+    "path": "hosts/true-a42-next/prepare-check-extra.mjs",
+    "syntaxOnly": true,
+    "passed": true
+  },
+  {
+    "path": "hosts/true-a42-next/prepare-check.mjs",
+    "syntaxOnly": true,
+    "passed": true
+  },
+  {
+    "path": "hosts/true-a42-next/roche/archive-transfer.mjs",
+    "syntaxOnly": true,
+    "passed": true
+  },
+  {
+    "path": "hosts/true-a42-next/roche/host-files.mts",
+    "syntaxOnly": true,
+    "passed": true
+  },
+  {
+    "path": "hosts/true-a42-next/roche/host-helper-functions.js",
+    "syntaxOnly": true,
+    "passed": true
+  },
+  {
+    "path": "hosts/true-a42-next/roche/host-stage-functions.js",
+    "syntaxOnly": true,
+    "passed": true
+  },
+  {
+    "path": "hosts/true-a42-next/roche/relay-files.mjs",
+    "syntaxOnly": true,
+    "passed": true
+  },
+  {
+    "path": "hosts/true-a42-next/roche/runtime/continuous-relay-v3-durable-monitor.js",
+    "syntaxOnly": true,
+    "passed": true
+  },
+  {
+    "path": "hosts/true-a42-next/roche/runtime/load-host-state.js",
+    "syntaxOnly": true,
+    "passed": true
+  },
+  {
+    "path": "hosts/true-a42-next/roche/runtime/load-true-a42-runtime.js",
+    "syntaxOnly": true,
+    "passed": true
+  },
+  {
+    "path": "hosts/true-a42-next/roche/runtime/preflight/preflight-launch.mjs",
+    "syntaxOnly": true,
+    "passed": true
+  },
+  {
+    "path": "hosts/true-a42-next/roche/runtime/preflight/runtime-check.mjs",
+    "syntaxOnly": true,
+    "passed": true
+  },
+  {
+    "path": "hosts/true-a42-next/roche/runtime/start-monitor-true-a42.js",
+    "syntaxOnly": true,
+    "passed": true
+  },
+  {
+    "path": "hosts/true-a42-next/run-cr.js",
+    "syntaxOnly": true,
+    "passed": true
+  },
+  {
+    "path": "hosts/true-a42-next/run-csl.js",
+    "syntaxOnly": true,
+    "passed": true
+  },
+  {
+    "path": "hosts/true-a42-next/run-daiichi.js",
+    "syntaxOnly": true,
+    "passed": true
+  },
+  {
+    "path": "hosts/true-a42-next/run-lilly.js",
+    "syntaxOnly": true,
+    "passed": true
+  },
+  {
+    "path": "hosts/true-a42-next/run-roche.js",
+    "syntaxOnly": true,
+    "passed": true
+  },
+  {
+    "path": "hosts/true-a42-next/run-sph.js",
+    "syntaxOnly": true,
+    "passed": true
+  },
+  {
+    "path": "hosts/true-a42-next/runtime/load-true-a42-extra-runtime.js",
+    "syntaxOnly": true,
+    "passed": true
+  },
+  {
+    "path": "hosts/true-a42-next/runtime/load-true-a42-runtime.js",
+    "syntaxOnly": true,
+    "passed": true
+  },
+  {
+    "path": "hosts/true-a42-next/sph/archive-transfer.mjs",
+    "syntaxOnly": true,
+    "passed": true
+  },
+  {
+    "path": "hosts/true-a42-next/sph/host-files.mts",
+    "syntaxOnly": true,
+    "passed": true
+  },
+  {
+    "path": "hosts/true-a42-next/sph/host-helper-functions.js",
+    "syntaxOnly": true,
+    "passed": true
+  },
+  {
+    "path": "hosts/true-a42-next/sph/host-stage-functions.js",
+    "syntaxOnly": true,
+    "passed": true
+  },
+  {
+    "path": "hosts/true-a42-next/sph/relay-files.mjs",
+    "syntaxOnly": true,
+    "passed": true
+  },
+  {
+    "path": "hosts/true-a42-next/sph/runtime/continuous-relay-v3-durable-monitor.js",
+    "syntaxOnly": true,
+    "passed": true
+  },
+  {
+    "path": "hosts/true-a42-next/sph/runtime/load-host-state.js",
+    "syntaxOnly": true,
+    "passed": true
+  },
+  {
+    "path": "hosts/true-a42-next/sph/runtime/load-true-a42-runtime.js",
+    "syntaxOnly": true,
+    "passed": true
+  },
+  {
+    "path": "hosts/true-a42-next/sph/runtime/preflight/preflight-launch.mjs",
+    "syntaxOnly": true,
+    "passed": true
+  },
+  {
+    "path": "hosts/true-a42-next/sph/runtime/preflight/runtime-check.mjs",
+    "syntaxOnly": true,
+    "passed": true
+  },
+  {
+    "path": "hosts/true-a42-next/sph/runtime/start-monitor-true-a42.js",
+    "syntaxOnly": true,
+    "passed": true
+  },
+  {
+    "path": "hosts/portable42-novartis/check-due-gate.mjs",
+    "syntaxOnly": true,
+    "passed": true
+  },
+  {
+    "path": "hosts/portable42-novartis/check-host.mjs",
+    "syntaxOnly": true,
+    "passed": true
+  },
+  {
+    "path": "hosts/portable42-novartis/check-loader.mjs",
+    "syntaxOnly": true,
+    "passed": true
+  },
+  {
+    "path": "hosts/portable42-novartis/check-novartis-policy.mjs",
+    "syntaxOnly": true,
+    "passed": true
+  },
+  {
+    "path": "hosts/portable42-novartis/check-relay-smoke.mjs",
+    "syntaxOnly": true,
+    "passed": true
+  },
+  {
+    "path": "hosts/portable42-novartis/novartis/archive-transfer.mjs",
+    "syntaxOnly": true,
+    "passed": true
+  },
+  {
+    "path": "hosts/portable42-novartis/novartis/host-files.mts",
+    "syntaxOnly": true,
+    "passed": true
+  },
+  {
+    "path": "hosts/portable42-novartis/novartis/host-helper-functions.js",
+    "syntaxOnly": true,
+    "passed": true
+  },
+  {
+    "path": "hosts/portable42-novartis/novartis/host-stage-functions.js",
+    "syntaxOnly": true,
+    "passed": true
+  },
+  {
+    "path": "hosts/portable42-novartis/novartis/relay-files.mjs",
+    "syntaxOnly": true,
+    "passed": true
+  },
+  {
+    "path": "hosts/portable42-novartis/prepare-host.mjs",
+    "syntaxOnly": true,
+    "passed": true
+  },
+  {
+    "path": "hosts/portable42-novartis/runtime/continuous-relay-v3-durable-monitor.js",
+    "syntaxOnly": true,
+    "passed": true
+  },
+  {
+    "path": "hosts/portable42-novartis/runtime/load-host-state.js",
+    "syntaxOnly": true,
+    "passed": true
+  },
+  {
+    "path": "hosts/portable42-novartis/runtime/load-portable42-runtime.js",
+    "syntaxOnly": true,
+    "passed": true
+  },
+  {
+    "path": "hosts/portable42-novartis/runtime/preflight/preflight-launch.mjs",
+    "syntaxOnly": true,
+    "passed": true
+  },
+  {
+    "path": "hosts/portable42-novartis/runtime/preflight/runtime-check.mjs",
+    "syntaxOnly": true,
+    "passed": true
+  },
+  {
+    "path": "hosts/portable42-novartis/runtime/review-portable-publication.py",
+    "syntaxOnly": true,
+    "passed": true
+  },
+  {
+    "path": "hosts/portable42-novartis/runtime/start-monitor-portable42.js",
+    "syntaxOnly": true,
+    "passed": true
+  },
+  {
+    "path": "host-runtime/review-true-a-publication.py",
+    "syntaxOnly": true,
+    "passed": true
+  },
+  {
+    "path": "host-runtime/compact-json-review.inc.py",
+    "syntaxOnly": true,
+    "passed": true
+  },
+  {
+    "path": "web-resume-a789/resume-prepared.sh",
+    "syntaxOnly": true,
+    "passed": true
+  }
+]
