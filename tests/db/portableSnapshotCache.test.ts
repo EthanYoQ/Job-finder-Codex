@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import { readPortablePublicSnapshot, type PortableSnapshotDb, type PortableSnapshotTransactionDb } from "../../src/db/portablePublicSnapshotRepository";
 import { PortableSnapshotCache, PORTABLE_SNAPSHOT_VERSION_TABLES, PORTABLE_SNAPSHOT_VERSION_SQL,
-  portableSnapshotVersion, portableSnapshotValidUntil } from "../../src/db/portableSnapshotCache";
+  portableDisplayVersion, portableSnapshotVersion, portableSnapshotValidUntil } from "../../src/db/portableSnapshotCache";
 import { accepted, failed, job, plan, NOW, FIRST, SECOND } from "../helpers/portablePublicSnapshotFixture";
 
 function versions() {
@@ -61,6 +61,21 @@ describe("database-versioned portable projection", () => {
     f.versionRows.find(row => row.relation === "Job")!.count = "0";
     f.tx.job.findMany.mockResolvedValue([]);
     expect((await f.read()).sources[0]).toMatchObject({state: "HOLD", visibleJobCount: null, reasons: ["PROJECTION_INTEGRITY_HOLD"]});
+  });
+
+  it("keeps a content identity with its selected display even for same-time mutable corrections", async () => {
+    const f = fixture(), initial = await f.read();
+    const old = f.cache.getDuringRefreshRead(NOW.getTime())!;
+    expect(old).toEqual({snapshot: initial, version: portableDisplayVersion(initial)});
+    f.change("Job");
+    f.tx.job.findMany.mockResolvedValue([{...job(), humanCorrectedTitle: "same-time correction"}]);
+    const next = await f.read();
+    expect(next.generatedAt).toBe(initial.generatedAt);
+    const current = f.cache.getDuringRefreshRead(NOW.getTime())!;
+    expect(current.version).not.toBe(old.version);
+    old.snapshot.sources[0]!.jobs[0]!.title = "caller mutation";
+    expect(f.cache.getDuringRefreshRead(NOW.getTime())).toEqual(current);
+    expect(current.version).toBe(portableDisplayVersion(current.snapshot));
   });
 
   it("rechecks failed/latest-attempt health without replacing accepted jobs", async () => {

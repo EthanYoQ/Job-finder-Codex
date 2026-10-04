@@ -277,7 +277,7 @@ describe("App product flows", () => {
 
     expect(recording.searchJobs).toHaveBeenCalledExactlyOnceWith({
       province: "全部地区", city: "全部城市", keyword: "", categories: [], sort: "PINYIN_ASC", onlyNew: false
-    });
+    }, { signal: expect.any(AbortSignal) });
     expect(await screen.findByRole("heading", {name: "6 个职位"})).toBeInTheDocument();
     expect(within(screen.getByRole("region", {name: "公司职位列表"})).getByRole("button", { name: /阿斯利康/ })).toBeInTheDocument();
 
@@ -339,7 +339,7 @@ describe("App product flows", () => {
     await user.click(screen.getByRole("button", { name: "重新加载职位" }));
     expect(recording.searchJobs).toHaveBeenLastCalledWith(expect.objectContaining({
       city: "上海", keyword: "MSL", categories: ["医学事务"]
-    }));
+    }), { signal: expect.any(AbortSignal) });
     expect(await within(screen.getByRole("region", { name: "职位概览" })).findByRole("heading", {name: "1 个职位"})).toBeInTheDocument();
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
 
@@ -416,7 +416,7 @@ describe("App product flows", () => {
       categories: ["医学事务"],
       sort: "LATEST",
       onlyNew: true
-    });
+    }, { signal: expect.any(AbortSignal) });
   });
 
   it("offers concrete city choices and sends the selected city to the provider", async () => {
@@ -433,7 +433,7 @@ describe("App product flows", () => {
     await user.click(screen.getByRole("radio", { name: "上海" }));
     await user.click(screen.getByRole("button", { name: "搜索职位" }));
 
-    expect(recording.searchJobs).toHaveBeenLastCalledWith(expect.objectContaining({ city: "上海" }));
+    expect(recording.searchJobs).toHaveBeenLastCalledWith(expect.objectContaining({ city: "上海" }), { signal: expect.any(AbortSignal) });
   });
 
   it("keeps legacy providers limited to their supported city choices", async () => {
@@ -460,7 +460,7 @@ describe("App product flows", () => {
     await acceptConsent(user);
     await selectLocation(user, "城市/地区", "城市待核");
     await user.click(screen.getByRole('button', { name: '搜索职位' }));
-    expect(recording.searchJobs).toHaveBeenLastCalledWith(expect.objectContaining({ city: '城市待核' }));
+    expect(recording.searchJobs).toHaveBeenLastCalledWith(expect.objectContaining({ city: '城市待核' }), { signal: expect.any(AbortSignal) });
     const overview = screen.getByRole('region', { name: '职位概览' });
     expect(within(overview).getByRole("heading", {name: "1 个职位"})).toBeInTheDocument();
     expect(within(overview).getByText('当前筛选匹配')).toBeInTheDocument();
@@ -498,7 +498,7 @@ describe("App product flows", () => {
     expect(provinceSelect).toHaveTextContent('全部地区');
     await user.click(screen.getByRole('button', { name: '搜索职位' }));
     expect(recording.searchJobs).toHaveBeenCalledTimes(2);
-    expect(recording.searchJobs).toHaveBeenLastCalledWith(expect.objectContaining({ province: '全部地区', city: '全部城市' }));
+    expect(recording.searchJobs).toHaveBeenLastCalledWith(expect.objectContaining({ province: '全部地区', city: '全部城市' }), { signal: expect.any(AbortSignal) });
     expect(within(await openLocation(user, "城市/地区")).getByRole('option', { name: '全部城市 120' })).toBeInTheDocument();
     expect(within(await openLocation(user, "城市/地区")).getByRole('option', { name: '南京 5' })).toBeInTheDocument();
     expect(within(await openLocation(user, "城市/地区")).getByRole('option', { name: '全国 4' })).toBeInTheDocument();
@@ -507,7 +507,7 @@ describe("App product flows", () => {
 
     await selectLocation(user, "城市/地区", "成都");
     await user.click(screen.getByRole('button', { name: '搜索职位' }));
-    expect(recording.searchJobs).toHaveBeenLastCalledWith(expect.objectContaining({ city: '成都' }));
+    expect(recording.searchJobs).toHaveBeenLastCalledWith(expect.objectContaining({ city: '成都' }), { signal: expect.any(AbortSignal) });
     await user.type(screen.getByPlaceholderText('职位、公司或岗位类别'), '不存在');
     const overview = screen.getByRole('region', { name: '职位概览' });
     expect(within(overview).getByRole("heading", {name: "0 个职位"})).toBeInTheDocument();
@@ -523,7 +523,7 @@ describe("App product flows", () => {
     expect(within(await openLocation(user, "城市/地区")).queryByRole('option', { name: /成都|全国/ })).not.toBeInTheDocument();
     await selectLocation(user, "城市/地区", "南京");
     await user.click(screen.getByRole('button', { name: '搜索职位' }));
-    expect(recording.searchJobs).toHaveBeenLastCalledWith(expect.objectContaining({ province: '江苏', city: '南京' }));
+    expect(recording.searchJobs).toHaveBeenLastCalledWith(expect.objectContaining({ province: '江苏', city: '南京' }), { signal: expect.any(AbortSignal) });
 
     await selectLocation(user, "省份/地区", "河南");
     expect(citySelect).toHaveTextContent('全部城市');
@@ -532,7 +532,7 @@ describe("App product flows", () => {
     expect(within(await openLocation(user, "城市/地区")).getByRole('option', { name: '城市待核 2' })).toBeInTheDocument();
     await selectLocation(user, "城市/地区", "城市待核");
     await user.click(screen.getByRole('button', { name: '搜索职位' }));
-    expect(recording.searchJobs).toHaveBeenLastCalledWith(expect.objectContaining({ province: '河南', city: '城市待核' }));
+    expect(recording.searchJobs).toHaveBeenLastCalledWith(expect.objectContaining({ province: '河南', city: '城市待核' }), { signal: expect.any(AbortSignal) });
     expect(screen.getByText('官方地点未明确到城市或存在冲突；城市待核职位不计入具体城市/地区筛选。已明确省份的职位可在该省的全部城市和城市待核中查看。')).toBeInTheDocument();
   });
 
@@ -609,7 +609,7 @@ describe("App product flows", () => {
     expect(screen.queryByText(/60 家官方招聘目录/)).not.toBeInTheDocument();
 
     await waitFor(() => {
-      expect(recording.listCoverage).toHaveBeenLastCalledWith({ keyword: "", offset: 0, limit: 60 });
+      expect(recording.listCoverage).toHaveBeenLastCalledWith({ keyword: "", offset: 0, limit: 60 }, { signal: expect.any(AbortSignal) });
     });
     expect(await within(screen.getByRole("region", {name: "公司目录"})).findByText("自动更新中")).toBeInTheDocument();
     expect(within(screen.getByRole("region", {name: "公司目录"})).getByText("仅展示来源可核验的官方职位，不作抓全声明。")).toBeInTheDocument();
@@ -631,7 +631,7 @@ describe("App product flows", () => {
     await user.type(screen.getByPlaceholderText("搜索已覆盖公司"), "辉");
 
     await waitFor(() => {
-      expect(recording.listCoverage).toHaveBeenLastCalledWith({ keyword: "辉", offset: 0, limit: 60 });
+      expect(recording.listCoverage).toHaveBeenLastCalledWith({ keyword: "辉", offset: 0, limit: 60 }, { signal: expect.any(AbortSignal) });
     });
 
     expect(await within(screen.getByRole("region", {name: "公司目录"})).findByText("辉瑞")).toBeInTheDocument();
@@ -813,7 +813,7 @@ describe("App product flows", () => {
     await user.click(screen.getByRole("button", {name:"搜索职位"}));
     expect(await screen.findByRole("heading", {name:"0 个职位"})).toBeInTheDocument();
     await user.click(screen.getByRole("button", {name:"清除关键词与类别筛选"}));
-    expect(recording.searchJobs).toHaveBeenLastCalledWith({province:"全部地区",city:"全部城市",keyword:"",categories:[],sort:"PINYIN_ASC",onlyNew:false});
+    expect(recording.searchJobs).toHaveBeenLastCalledWith({province:"全部地区",city:"全部城市",keyword:"",categories:[],sort:"PINYIN_ASC",onlyNew:false}, { signal: expect.any(AbortSignal) });
     expect(await screen.findByRole("heading", {name:"6 个职位"})).toBeInTheDocument();
     expect(screen.getByRole("searchbox", {name:"职位关键词"})).toHaveValue("");
     expect(screen.getByRole("checkbox", {name:"医学事务"})).not.toBeChecked();

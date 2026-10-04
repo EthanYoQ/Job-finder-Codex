@@ -17,6 +17,22 @@ afterEach(() => {
 });
 
 describe("createHttpAppDataProvider", () => {
+  it("forwards snapshot status and cancellation to both read endpoints", async () => {
+    const snapshotRefresh = { state: "UPDATING", version: "opaque-version" };
+    const fetchMock = vi.fn<typeof fetch>(async () => jsonResponse({ snapshotRefresh }));
+    globalThis.fetch = fetchMock;
+    const provider = createHttpAppDataProvider();
+    const controller = new AbortController();
+    const options = { signal: controller.signal };
+    const request = { city: "北京", keyword: "", categories: [], onlyNew: false, sort: "PINYIN_ASC" as const };
+
+    expect((await provider.searchJobs(request, options)).snapshotRefresh).toEqual(snapshotRefresh);
+    expect((await provider.listCoverage({ keyword: "" }, options)).snapshotRefresh).toEqual(snapshotRefresh);
+    expect(fetchMock.mock.calls.map(([, init]) => init?.signal)).toEqual([controller.signal, controller.signal]);
+    controller.abort();
+    expect(fetchMock.mock.calls[0]?.[1]?.signal?.aborted).toBe(true);
+  });
+
   it("maps frontend search filters to the consent-gated server API contract", async () => {
     const fetchMock = vi.fn<typeof fetch>(async () =>
       jsonResponse({ companies: [], totalJobs: 0, lastUpdatedAt: null })

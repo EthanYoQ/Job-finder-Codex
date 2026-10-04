@@ -21,7 +21,7 @@ import {
   ShieldCheck,
   X
 } from "lucide-react";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import {
   COMPANY_DIRECTORY_PAGE_SIZE,
   createHttpAppDataProvider,
@@ -38,6 +38,7 @@ import { ALL_CITIES, ALL_PROVINCES, CITY_PENDING, NATIONWIDE } from "../domain/j
 import "./App.css";
 import { CompanyLogo, CompanyPlate, coordinate, LocationPicker, Modal, type LocationOption } from "./RedesignComponents";
 import { DESIGN_REGIONS } from "./designRegions";
+import { startBoundedSnapshotRequest } from "./boundedSnapshotRequest";
 const defaultProvider = createHttpAppDataProvider();
 
 type ConsentState = "pending" | "closed" | "accepted";
@@ -211,6 +212,9 @@ export function App({ dataProvider = defaultProvider }: AppProps) {
   const [documentError, setDocumentError] = useState("");
   const documentSequence = useRef(0);
   const searchBusy = useRef(false);
+  const searchRequestSequence = useRef(0);
+  const searchWork = useRef<{ cancel: () => void; context: string; provider: AppDataProvider } | null>(null);
+  const searchContext = JSON.stringify([consentState, province, city, keyword, selectedCategories, sort, onlyNew]);
 
 
   const [feedbackDraft, setFeedbackDraft] = useState<FeedbackDraft | null>(null);
@@ -238,24 +242,42 @@ export function App({ dataProvider = defaultProvider }: AppProps) {
 
   const visibleJobCount = visibleCompanies.reduce((sum, company) => sum + company.jobs.length, 0);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (consentState !== "accepted") return;
-    let cancelled = false;
     const sequence = ++coverageRequestSequence.current;
     setCoverageLoading(true);
     setCoverageFailed(false);
     const requestKeyword = activeView === "coverage" ? coverageKeyword : "";
-    dataProvider.listCoverage({keyword: requestKeyword, offset: 0, limit: COMPANY_DIRECTORY_PAGE_SIZE})
-      .then(result => {
-        if (cancelled) return;
+    const cancel = startBoundedSnapshotRequest({
+      request: signal => dataProvider.listCoverage({keyword: requestKeyword, offset: 0, limit: COMPANY_DIRECTORY_PAGE_SIZE}, { signal }),
+      onResult: result => {
+        if (sequence !== coverageRequestSequence.current) return;
         coverageCompletedSequence.current = sequence;
         const sorted = [...result.companies].sort((a, b) => a.companyName.localeCompare(b.companyName, "zh-CN"));
         setCoverageResults(sorted);
         if (!requestKeyword) setPlateCompanies(sorted);
-      }).catch(() => { if (!cancelled) setCoverageFailed(true); })
-      .finally(() => { if (!cancelled) setCoverageLoading(false); });
-    return () => { cancelled = true; };
+      },
+      onError: (_error, refreshing) => { if (!refreshing && sequence === coverageRequestSequence.current) setCoverageFailed(true); },
+      onInitialSettled: () => { if (sequence === coverageRequestSequence.current) setCoverageLoading(false); }
+    });
+    return () => { coverageRequestSequence.current++; cancel(); };
   }, [activeView, consentState, coverageKeyword, dataProvider, coverageRetry]);
+
+  // Invalidate changed filters during commit, before a late promise can update them.
+  useLayoutEffect(() => {
+    if (searchWork.current && (searchWork.current.context !== searchContext || searchWork.current.provider !== dataProvider)) {
+      searchRequestSequence.current++;
+      searchWork.current.cancel();
+      searchWork.current = null;
+      searchBusy.current = false;
+      setIsSearching(false);
+    }
+  }, [searchContext, dataProvider]);
+
+  useLayoutEffect(() => () => {
+    searchRequestSequence.current++;
+    searchWork.current?.cancel();
+  }, []);
 
   useEffect(() => {
     const media = window.matchMedia?.("(max-width: 720px)");
@@ -370,6 +392,8 @@ export function App({ dataProvider = defaultProvider }: AppProps) {
 
   async function executeSearch(request: SearchRequest) {
     if (searchBusy.current) return;
+    searchWork.current?.cancel();
+    const sequence = ++searchRequestSequence.current;
     searchBusy.current = true;
     setLocationOpen(null);
     setIsSearching(true);
@@ -377,18 +401,25 @@ export function App({ dataProvider = defaultProvider }: AppProps) {
     setFeedbackDraft(null);
     setFeedbackMessage("");
 
-    try {
-      const result = await dataProvider.searchJobs(request);
-
-      setSearchResult(result);
-      setExpandedCompanyId(null);
-      setRowCaps({});
-    } catch {
-      setSearchFailed(true);
-    } finally {
-      searchBusy.current = false;
-      setIsSearching(false);
-    }
+    const cancel = startBoundedSnapshotRequest({
+      request: signal => dataProvider.searchJobs(request, { signal }),
+      onResult: (result, refreshing) => {
+        if (sequence !== searchRequestSequence.current) return;
+        setSearchResult(result);
+        if (!refreshing) { setExpandedCompanyId(null); setRowCaps({}); }
+      },
+      onError: (_error, refreshing) => { if (!refreshing && sequence === searchRequestSequence.current) setSearchFailed(true); },
+      onInitialSettled: () => {
+        if (sequence !== searchRequestSequence.current) return;
+        searchBusy.current = false;
+        setIsSearching(false);
+      }
+    });
+    searchWork.current = {
+      cancel,
+      context: JSON.stringify(["accepted", request.province ?? province, request.city, request.keyword, request.categories, request.sort, request.onlyNew]),
+      provider: dataProvider
+    };
   }
 
   function clearSearchFilters() {

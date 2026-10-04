@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import type { PortablePublicSnapshot } from "./portablePublicSnapshotRepository";
 
 /** Every table read directly or through portableSourceResultSelect relations. */
@@ -69,22 +70,39 @@ export function portableSnapshotValidUntil(value: unknown, now: number, freshnes
   return until;
 }
 
+export interface CachedPortableSnapshot {
+  snapshot: PortablePublicSnapshot;
+  /** Content identity includes the original verification time, not response time. */
+  version: string;
+}
+export function portableDisplayVersion(snapshot: PortablePublicSnapshot): string {
+  return createHash("sha256").update(JSON.stringify(snapshot)).digest("hex");
+}
+
 /** One owned, verified projection per reader, bounded independently of DB size. */
 export class PortableSnapshotCache {
-  private entry: { version: string; scope: string; from: number; until: number; snapshot: PortablePublicSnapshot } | undefined;
+  private entry: { version: string; scope: string; from: number; until: number; snapshot: PortablePublicSnapshot; displayVersion: string } | undefined;
   constructor(private readonly maximumBytes = 16 * 1024 * 1024) {}
 
   get(version: string, scope: string, now: number): PortablePublicSnapshot | undefined {
+    return this.getRead(version, scope, now)?.snapshot;
+  }
+
+  getRead(version: string, scope: string, now: number): CachedPortableSnapshot | undefined {
     const entry = this.entry;
     if (!entry || entry.version !== version || entry.scope !== scope || now < entry.from || now >= entry.until) return undefined;
-    return structuredClone(entry.snapshot);
+    return {snapshot: structuredClone(entry.snapshot), version: entry.displayVersion};
   }
 
   /** An explicitly older display, never relabelled as a newly verified snapshot. */
   getPrevious(scope: string, now: number): PortablePublicSnapshot | undefined {
+    return this.getPreviousRead(scope, now)?.snapshot;
+  }
+
+  getPreviousRead(scope: string, now: number): CachedPortableSnapshot | undefined {
     const entry = this.entry;
     if (!entry || entry.scope !== scope || now < entry.from) return undefined;
-    return structuredClone(entry.snapshot);
+    return {snapshot: structuredClone(entry.snapshot), version: entry.displayVersion};
   }
 
   hasSnapshot(): boolean {
@@ -97,17 +115,25 @@ export class PortableSnapshotCache {
 
   /** Only for the owning reader's fixed criteria while its rebuild owns the DB. */
   getDuringRefresh(now: number): PortablePublicSnapshot | undefined {
-    const entry = this.entry;
-    if (!entry || now < entry.from) return undefined;
-    return structuredClone(entry.snapshot);
+    return this.getDuringRefreshRead(now)?.snapshot;
   }
 
-  set(version: string, scope: string, until: number, snapshot: PortablePublicSnapshot): void {
-    if (Buffer.byteLength(JSON.stringify(snapshot), "utf8") > this.maximumBytes) {
+  getDuringRefreshRead(now: number): CachedPortableSnapshot | undefined {
+    const entry = this.entry;
+    if (!entry || now < entry.from) return undefined;
+    return {snapshot: structuredClone(entry.snapshot), version: entry.displayVersion};
+  }
+
+  set(version: string, scope: string, until: number, snapshot: PortablePublicSnapshot): string {
+    // Serialize only once per completed build for both the size bound and identity.
+    const serialized = JSON.stringify(snapshot);
+    const displayVersion = createHash("sha256").update(serialized).digest("hex");
+    if (Buffer.byteLength(serialized, "utf8") > this.maximumBytes) {
       this.entry = undefined;
-      return;
+      return displayVersion;
     }
     const owned = structuredClone(snapshot);
-    this.entry = {version, scope, from: Date.parse(snapshot.generatedAt), until, snapshot: owned};
+    this.entry = {version, scope, from: Date.parse(snapshot.generatedAt), until, snapshot: owned, displayVersion};
+    return displayVersion;
   }
 }

@@ -2,6 +2,7 @@ import { companies as demoCompanies } from "./jobData";
 import { filterJobs, sortCompanies, type SortMode } from "./jobSearch";
 import { confirmedCompanyRosterV3Members } from "../data/confirmedCompanyRosterV3Members";
 import type { PublicationHealth, PublicationState } from "../domain/publicationEligibility";
+import type { PublicSnapshotRefresh } from "../domain/publicSnapshotRefresh";
 import { getStaticDocument } from "../server/staticDocuments";
 
 export interface SearchRequest {
@@ -35,6 +36,7 @@ export interface SearchCompany {
 }
 
 export interface SearchResult {
+  snapshotRefresh?: PublicSnapshotRefresh;
   companies: SearchCompany[];
   totalJobs: number;
   lastUpdatedAt: string | null;
@@ -65,6 +67,7 @@ export interface CoverageCompany {
 }
 
 export interface CoverageResult {
+  snapshotRefresh?: PublicSnapshotRefresh;
   companies: CoverageCompany[];
   offset: number;
   limit: number;
@@ -95,10 +98,14 @@ export interface StaticDocumentResult {
   body: string;
 }
 
+export interface AppRequestOptions {
+  signal?: AbortSignal;
+}
+
 export interface AppDataProvider {
   supportsCityPendingSearch?: boolean;
-  searchJobs(request: SearchRequest): Promise<SearchResult>;
-  listCoverage(request: CoverageRequest): Promise<CoverageResult>;
+  searchJobs(request: SearchRequest, options?: AppRequestOptions): Promise<SearchResult>;
+  listCoverage(request: CoverageRequest, options?: AppRequestOptions): Promise<CoverageResult>;
   submitFeedback(request: FeedbackRequest): Promise<FeedbackReceipt>;
   recommendCompany(request: RecommendedCompanyRequest): Promise<FeedbackReceipt>;
   getDocument(slug: "privacy" | "terms"): Promise<StaticDocumentResult>;
@@ -220,7 +227,7 @@ export function createDemoAppDataProvider(): AppDataProvider {
 export function createHttpAppDataProvider(baseUrl = ""): AppDataProvider {
   return {
     supportsCityPendingSearch: true,
-    async searchJobs(request) {
+    async searchJobs(request, options) {
       const params = new URLSearchParams({
         city: request.city,
         sort: toServerSort(request.sort),
@@ -245,18 +252,20 @@ export function createHttpAppDataProvider(baseUrl = ""): AppDataProvider {
       }
 
       const response = await fetch(`${baseUrl}/api/search?${params.toString()}`, {
+        ...(options?.signal ? { signal: options.signal } : {}),
         headers: { "x-job-search-consent": "accepted" }
       });
 
       return readJson<SearchResult>(response);
     },
-    async listCoverage(request) {
+    async listCoverage(request, options) {
       const params = new URLSearchParams({
         keyword: request.keyword,
         offset: String(request.offset ?? 0),
         limit: String(request.limit ?? COMPANY_DIRECTORY_PAGE_SIZE)
       });
       const response = await fetch(`${baseUrl}/api/coverage?${params.toString()}`, {
+        ...(options?.signal ? { signal: options.signal } : {}),
         headers: { "x-job-search-consent": "accepted" }
       });
 

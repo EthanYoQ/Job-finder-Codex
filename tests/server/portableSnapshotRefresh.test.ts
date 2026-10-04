@@ -1,5 +1,7 @@
 import { setImmediate as nextTurn } from "node:timers/promises";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { handlePublicApi, type PublicApiDeps } from "../../src/server/publicApi";
+import { createMemoryRateLimitStore } from "../../src/server/rateLimit";
 import { createPortableSnapshotReader, type PortableSnapshotReader } from "../../src/server/httpServer";
 import { readPortablePublicSnapshot, type PortableSnapshotDb, type PortableSnapshotTransactionDb } from "../../src/db/portablePublicSnapshotRepository";
 import { PortableSnapshotCache, PORTABLE_SNAPSHOT_VERSION_TABLES } from "../../src/db/portableSnapshotCache";
@@ -163,6 +165,58 @@ describe("verified display background refresh", () => {
     other.tx.job.findMany.mockResolvedValue([{...job(), humanCorrectedTitle: "different database"}]);
     expect(other.title(await other.read())).toBe("different database");
     expect(f.title(await f.read())).toBe("销售职位");
+  });
+
+  it("binds old search/coverage metadata before a concurrent rebuild completes, with no new timestamp", async () => {
+    const f = fixture(), initial = await f.read.readWithStatus();
+    expect(initial.snapshotRefresh).toMatchObject({state: "CURRENT", version: expect.stringMatching(/^[a-f0-9]{64}$/)});
+    const newer = accepted(SECOND, ["job-2"]);
+    f.change();
+    f.tx.crawlBatchSourceResult.findMany.mockResolvedValue([accepted().result, newer.result]);
+    f.tx.lifecycleSetEvidenceMember.findMany.mockResolvedValue(newer.members);
+    f.tx.job.findMany.mockResolvedValue([job("job-2", SECOND)]);
+    const delivered = deferred(), selected = deferred();
+    let reads = 0;
+    const read = Object.assign(f.read.bind(undefined), {readWithStatus: async () => {
+      const result = await f.read.readWithStatus();
+      if (++reads === 2) selected.resolve();
+      await delivered.promise;
+      return result;
+    }});
+    const deps: PublicApiDeps = {db: {} as PublicApiDeps["db"], checkDatabaseReadiness: async () => true,
+      rateLimitStore: createMemoryRateLimitStore(), readPortableSnapshot: read};
+    const request = {method: "GET", query: {city: "上海"}, headers: {"x-job-search-consent": "accepted"}, body: undefined, ip: "127.0.0.1"};
+    const search = handlePublicApi({...request, path: "/api/search"}, deps);
+    const coverage = handlePublicApi({...request, query: {}, path: "/api/coverage"}, deps);
+    await selected.promise;
+    await vi.advanceTimersByTimeAsync(0);
+    await finishRefresh(f.read);
+    expect(f.read.getRefreshStatus().state).toBe("CURRENT");
+    delivered.resolve();
+    const [oldSearch, oldCoverage] = await Promise.all([search, coverage]);
+    expect(oldSearch).toMatchObject({status: 200, body: {lastUpdatedAt: initial.snapshot.lastUpdatedAt,
+      companies: [{jobs: [{id: "job-1"}]}], snapshotRefresh: {...initial.snapshotRefresh, state: "UPDATING"}}});
+    expect(oldCoverage).toMatchObject({status: 200, body: {snapshotRefresh: {...initial.snapshotRefresh, state: "UPDATING"}}});
+    const current = await handlePublicApi({...request, path: "/api/search"}, deps);
+    expect(current).toMatchObject({status: 200, body: {lastUpdatedAt: SECOND, companies: [{jobs: [{id: "job-2"}]}], snapshotRefresh: {state: "CURRENT"}}});
+    expect((current.body as {snapshotRefresh: {version: string}}).snapshotRefresh.version).not.toBe(initial.snapshotRefresh.version);
+  });
+
+  it("reports a failed refresh with the retained display identity, then recovers without mutating that response", async () => {
+    const f = fixture(), initial = await f.read.readWithStatus();
+    f.change();
+    f.tx.job.findMany.mockRejectedValueOnce(new Error("technical read failure"));
+    expect((await f.read.readWithStatus()).snapshotRefresh).toEqual({...initial.snapshotRefresh, state: "UPDATING"});
+    await vi.advanceTimersByTimeAsync(0);
+    const failedRead = await f.read.readWithStatus();
+    expect(failedRead).toEqual({...initial, snapshotRefresh: {...initial.snapshotRefresh, state: "FAILED"}});
+    f.tx.job.findMany.mockResolvedValue([{...job(), humanCorrectedTitle: "after recovery"}]);
+    await vi.advanceTimersByTimeAsync(1_000);
+    await finishRefresh(f.read);
+    const recovered = await f.read.readWithStatus();
+    expect(recovered.snapshotRefresh.state).toBe("CURRENT");
+    expect(recovered.snapshotRefresh.version).not.toBe(failedRead.snapshotRefresh.version);
+    expect(failedRead).toEqual({...initial, snapshotRefresh: {...initial.snapshotRefresh, state: "FAILED"}});
   });
 
   it("cancels pending retries on shutdown and refuses new reads", async () => {

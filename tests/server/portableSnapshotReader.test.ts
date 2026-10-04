@@ -62,12 +62,13 @@ describe("portable snapshot reader", () => {
       db: {} as PublicApiDeps["db"],
       checkDatabaseReadiness: async () => true,
       rateLimitStore: createMemoryRateLimitStore(),
-      readPortableSnapshot: vi.fn(f.read)
+      readPortableSnapshot: f.read
     };
+    const readWithStatus = vi.spyOn(f.read, "readWithStatus");
     const request = { method: "GET", query: { city: "上海" }, headers: { "x-job-search-consent": "accepted" }, body: undefined, ip: "127.0.0.1" };
     const search = handlePublicApi({ ...request, path: "/api/search" }, deps);
     const coverage = handlePublicApi({ ...request, path: "/api/coverage" }, deps);
-    expect(deps.readPortableSnapshot).toHaveBeenCalledTimes(2);
+    expect(readWithStatus).toHaveBeenCalledTimes(2);
     expect(f.transaction).toHaveBeenCalledTimes(1);
     gate.resolve();
     const [searchResponse, coverageResponse] = await Promise.all([search, coverage]);

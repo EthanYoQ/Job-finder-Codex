@@ -3,6 +3,7 @@ import { createServer as createNodeServer, type IncomingMessage, type Server, ty
 import { readFile } from "node:fs/promises";
 import { setImmediate as yieldSnapshotWork } from "node:timers/promises";
 import { extname, resolve } from "node:path";
+import { performance } from "node:perf_hooks";
 import { pathToFileURL } from "node:url";
 import { handleAdminApi, type AdminApiDeps, type AdminApiResponse } from "./adminApi";
 import { handlePublicApi, type PublicApiDeps, type PublicApiResponse } from "./publicApi";
@@ -10,7 +11,7 @@ import { encodePublicJsonResponse } from "./publicResponseEncoding";
 import { createCachedPostgresReadiness, DEFAULT_POSTGRES_READINESS_TIMEOUT_MS, normalizePostgresReadinessTimeout } from "./postgresReadiness";
 import { createCachedDeploymentReadiness, readDeploymentMigrationManifest } from "./deploymentReadiness";
 import { resolveDeploymentBootstrapConfig } from "../ops/deploymentBootstrap";
-import { readPortablePublicSnapshot, type PortablePublicSnapshot, type PortableSnapshotDb } from "../db/portablePublicSnapshotRepository";
+import { readPortablePublicSnapshot, readPortablePublicSnapshotWithStatus, type PortableSnapshotRead, type PortablePublicSnapshot, type PortableSnapshotDb } from "../db/portablePublicSnapshotRepository";
 import { SOURCE_QUALITY_POLICY_ID } from "../crawler/sourceQualityAdmission";
 import { PortableSnapshotCache } from "../db/portableSnapshotCache";
 
@@ -45,13 +46,14 @@ export interface PortableSnapshotRefreshStatus {
 }
 export interface PortableSnapshotReader {
   (): Promise<PortablePublicSnapshot>;
+  readWithStatus(): Promise<PortableSnapshotRead>;
   getRefreshStatus(): PortableSnapshotRefreshStatus;
   close(): Promise<void>;
 }
 
 /** Check versions outside an active rebuild; publish one owned verified display. */
 export function createPortableSnapshotReader(db: PortableSnapshotDb): PortableSnapshotReader {
-  let inFlight: Promise<PortablePublicSnapshot> | undefined;
+  let inFlight: Promise<PortableSnapshotRead> | undefined;
   let background: Promise<void> | undefined;
   let timer: ReturnType<typeof setTimeout> | undefined;
   let closed = false;
@@ -94,24 +96,31 @@ export function createPortableSnapshotReader(db: PortableSnapshotDb): PortableSn
       });
     }, delay);
   };
-  const read = async (): Promise<PortablePublicSnapshot> => {
+  const readWithStatus = async (): Promise<PortableSnapshotRead> => {
     if (closed) throw new Error("PORTABLE_SNAPSHOT_READER_CLOSED");
     // This reader owns one DB and fixed plans/options. A rebuild can occupy the
     // pool's sole connection: don't queue foreground version checks behind it.
     // The post-fill check catches commits made during this explicit interval.
     if (background) {
-      const previous = cache.getDuringRefresh(Date.now());
-      if (previous) return previous;
+      const previous = cache.getDuringRefreshRead(Date.now());
+      if (previous) return {snapshot: previous.snapshot, snapshotRefresh: {state: status.state === "FAILED" ? "FAILED" : "UPDATING", version: previous.version}};
     }
     if (!inFlight) {
-      inFlight = readPortablePublicSnapshot(db, {}, undefined, cache, scheduleRefresh, yieldSnapshotWork)
-        .then(snapshot => {status = {...status, lastVerifiedAt: cache.getVerifiedAt() ?? snapshot.generatedAt}; return snapshot;})
+      inFlight = readPortablePublicSnapshotWithStatus(db, {}, undefined, cache, () => {
+        scheduleRefresh();
+        // Capture the state for this stale read synchronously with its scheduling
+        // decision. Never label a returned old display using a later global state.
+        return status.state === "FAILED" ? "FAILED" : "UPDATING";
+      }, yieldSnapshotWork)
+        .then(result => {status = {...status, lastVerifiedAt: cache.getVerifiedAt() ?? result.snapshot.generatedAt}; return result;})
         .finally(() => { inFlight = undefined; });
     }
     // Each request owns its projection, including nested arrays and objects.
     return structuredClone(await inFlight);
   };
+  const read = async (): Promise<PortablePublicSnapshot> => (await readWithStatus()).snapshot;
   return Object.assign(read, {
+    readWithStatus,
     getRefreshStatus: () => ({...status}),
     close: async () => {
       closed = true;
@@ -208,6 +217,7 @@ async function handleRequest(
   const url = new URL(request.url ?? "/", `http://${request.headers.host ?? "127.0.0.1"}`);
 
   if (shouldRouteToPublicApi(url.pathname)) {
+    const publicRequestStartedAt = performance.now();
     const publicApiResponse = await handlePublicApi(
       {
         method: request.method ?? "GET",
@@ -220,11 +230,13 @@ async function handleRequest(
       },
       deps
     );
-    writeResponse(response, await encodePublicJsonResponse({
+    const encoded = await encodePublicJsonResponse({
       method: request.method ?? "GET",
       path: url.pathname,
       headers: toHeaderRecord(request)
-    }, publicApiResponse));
+    }, publicApiResponse);
+    const timedPublicGet = (request.method ?? "GET") === "GET" && (url.pathname === "/api/search" || url.pathname === "/api/coverage");
+    writeResponse(response, encoded, timedPublicGet ? publicRequestStartedAt : undefined);
     return;
   }
 
@@ -401,23 +413,24 @@ function resolveStaticPath(staticRoot: string, pathname: string): string | undef
   return filePath.startsWith(staticRoot) ? filePath : undefined;
 }
 
-function writeResponse(response: ServerResponse, publicApiResponse: HttpResponse): void {
+function writeResponse(response: ServerResponse, publicApiResponse: HttpResponse, publicRequestStartedAt?: number): void {
   response.statusCode = publicApiResponse.status;
 
   for (const [key, value] of Object.entries(publicApiResponse.headers)) {
     response.setHeader(key, value);
   }
 
-  if (typeof publicApiResponse.body === "string" || Buffer.isBuffer(publicApiResponse.body)) {
-    response.end(publicApiResponse.body);
-    return;
-  }
-
-  if (!response.hasHeader("content-type")) {
+  const encoded = typeof publicApiResponse.body === "string" || Buffer.isBuffer(publicApiResponse.body);
+  const body = encoded ? publicApiResponse.body as string | Buffer : JSON.stringify(publicApiResponse.body);
+  if (!encoded && !response.hasHeader("content-type")) {
     response.setHeader("content-type", "application/json; charset=utf-8");
   }
-
-  response.end(JSON.stringify(publicApiResponse.body));
+  if (publicRequestStartedAt !== undefined) {
+    // Include reads, projection, JSON encoding and compression through this send
+    // boundary. Network/proxy/TLS latency is outside the monotonic app duration.
+    response.setHeader("server-timing", `app;dur=${(performance.now() - publicRequestStartedAt).toFixed(1)}`);
+  }
+  response.end(body);
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {

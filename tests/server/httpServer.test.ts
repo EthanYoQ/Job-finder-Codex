@@ -115,6 +115,25 @@ describe("http server", () => {
     return readPortablePublicSnapshot({ $transaction: async (work) => work(transaction) } as PortableSnapshotDb, { currentTime: NOW }, [plan]);
   }
 
+  it.each(["identity", "gzip"])("exposes public GET app duration including delayed reads and %s encoding", async encoding => {
+    const snapshot = await publicSnapshot();
+    const address = await listen(createTestServer({readPortableSnapshot: async () => {
+      await new Promise(resolve => setTimeout(resolve, 20));
+      return snapshot;
+    }}));
+    for (const path of ["/api/search?city=上海", "/api/coverage"]) {
+      const result = await rawRequest(address.port, encodeURI(path), {"x-job-search-consent": "accepted", "accept-encoding": encoding});
+      expect(result.status).toBe(200);
+      expect(result.headers["server-timing"]).toMatch(/^app;dur=\d+\.\d$/);
+      expect(Number(String(result.headers["server-timing"]).split("=")[1])).toBeGreaterThanOrEqual(15);
+      expect(JSON.parse((encoding === "gzip" ? gunzipSync(result.body) : result.body).toString())).toHaveProperty("companies");
+    }
+    const staticResponse = await rawRequest(address.port, "/logo.png");
+    expect(staticResponse.headers["server-timing"]).toBeUndefined();
+    const postResponse = await rawRequest(address.port, "/api/feedback", {"content-type": "application/json", "x-job-search-consent": "accepted"}, "POST", JSON.stringify({issueType: "OTHER", description: "test"}));
+    expect(postResponse.headers["server-timing"]).toBeUndefined();
+  });
+
   it("serves local redesign logo and font assets with their correct MIME types", async () => {
     const address = await listen(createTestServer());
     const logo = await rawRequest(address.port, "/logo.png");

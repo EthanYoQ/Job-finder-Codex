@@ -16,7 +16,7 @@ import { checkRateLimit, classifySuspiciousRequest, createMemoryRateLimitStore, 
 import { listCompanyCoverage, type CoverageDb } from "./coverageService";
 import { getStaticDocument } from "./staticDocuments";
 import { normalizePostgresReadinessTimeout } from "./postgresReadiness";
-import type { PortablePublicSnapshot } from "../db/portablePublicSnapshotRepository";
+import type { PortablePublicSnapshot, PortableSnapshotRead } from "../db/portablePublicSnapshotRepository";
 import { searchPortableSnapshot, coverageFromPortableSnapshot } from "./portablePublicationApi";
 
 export interface PublicApiRequest {
@@ -44,7 +44,9 @@ export interface PublicApiDeps {
   now?: () => Date;
   rateLimitStore?: RateLimitStore;
   readPublicationSnapshot?: PublicationSnapshotReader;
-  readPortableSnapshot?: () => Promise<PortablePublicSnapshot>;
+  readPortableSnapshot?: (() => Promise<PortablePublicSnapshot>) & {
+    readWithStatus?: () => Promise<PortableSnapshotRead>;
+  };
 }
 
 const DEFAULT_RATE_LIMIT_STORE = createMemoryRateLimitStore();
@@ -185,8 +187,10 @@ export async function handlePublicApi(request: PublicApiRequest, deps: PublicApi
         return invalidRequest(headers, parsed.error);
       }
 
-      const result = deps.readPortableSnapshot
-        ? searchPortableSnapshot(parsed.data, await deps.readPortableSnapshot())
+      const read = deps.readPortableSnapshot;
+      const display = read ? await (read.readWithStatus?.() ?? read().then(snapshot => ({snapshot}))) : undefined;
+      const result = display
+        ? {...searchPortableSnapshot(parsed.data, display.snapshot), ...("snapshotRefresh" in display ? {snapshotRefresh: display.snapshotRefresh} : {})}
         : await searchJobsFromDatabase(parsed.data, deps.db, deps.readPublicationSnapshot);
       const pagedCompanies = result.companies.slice(
         paginationValidation.data.offset,
@@ -212,8 +216,10 @@ export async function handlePublicApi(request: PublicApiRequest, deps: PublicApi
           offset: paginationValidation.data.offset,
           limit: paginationValidation.data.limit
         };
-      const result = deps.readPortableSnapshot
-        ? coverageFromPortableSnapshot(coverageRequest, await deps.readPortableSnapshot())
+      const read = deps.readPortableSnapshot;
+      const display = read ? await (read.readWithStatus?.() ?? read().then(snapshot => ({snapshot}))) : undefined;
+      const result = display
+        ? {...coverageFromPortableSnapshot(coverageRequest, display.snapshot), ...("snapshotRefresh" in display ? {snapshotRefresh: display.snapshotRefresh} : {})}
         : await listCompanyCoverage(coverageRequest, deps.db, deps.readPublicationSnapshot);
       return {
         status: 200,

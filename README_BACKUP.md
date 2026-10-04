@@ -1,24 +1,28 @@
-# Sanofi public-reader candidate backup
+# Combined public-web candidate backup
 
-Source checkpoint: `43c53a6262e4c94c1fd84fbf8418d4a3064f01a6`, frozen at 2026-10-04 10:30 UTC. **Prepared and reviewed; not registered, newly captured or deployed.**
+Source checkpoint: `f32aa10767665cd8ad68085705bdfe70e93b0c8e`, frozen at 2026-10-04 13:55 UTC. **Locally tested, not deployed at this cutoff.**
 
-## Contents and provenance
+This source-only backup contains 961 unchanged source, asset, test and configuration files, plus this guide and `SOURCE_BACKUP.json`. The manifest records every included source path, Git blob, SHA-256, byte length and mode. The 17 changed files relative to the earlier reader backup are 9 application files and 8 tests; unchanged assets and source objects are reused.
 
-This backup retains 957 unchanged source/assets/test/config files plus this guide and `SOURCE_BACKUP.json`. Every included source file has its original path, Git blob, mode, byte length and SHA-256 recorded. Workflow source is relocated under `backup/disabled-workflows/`; no active workflow is present.
+## Source provenance and behavior
 
-The restored local baseline is `6085e424957f6e1b06e2b2844d23d88994eb7ded`. Its source provenance is the prepared performance candidate `a789e0db617fcd204eca2101f4a6c5669a6c25da`, based on `a2bbb88dd4817da17493a62f9f530d2fb7dece9a`. The original Git history was not restored. The backup has a separate Git commit identity and cannot reuse an existing runtime registration.
+The actual Git parent is `62cf4cca99d4e4f42b64e464c01cfc39d7c14d29`. Bounded-refresh changes were integrated from `d565da9378044000fec845dd9edc35f38a894705`; that is change provenance, not a second Git parent. The preceding reader checkpoint is `43c53a6262e4c94c1fd84fbf8418d4a3064f01a6`.
 
-The 18-file application change contains the Sanofi Chinese-only reader dependency closure and the narrowly pinned historical public receipt exception. Its dependency origin is the previously backed-up candidate `d402d3639c0ea729fa72bd1a4427570b227c7481`. It preserves the prepared performance behavior, exact historical A88 verification pins and continued prohibition on ordinary Sanofi A issuance. No producer SQL/runtime or UI change is mixed in.
+This combines the Chinese Sanofi reader and narrow historical receipt pins with bounded follow-up reads for an explicitly UPDATING public snapshot and Server-Timing measurements. It preserves the prior prepared performance baseline and exact historical A88 verification behavior. Ordinary Sanofi A issuance remains disabled.
 
-## Verification state
+The restored baseline `6085e424957f6e1b06e2b2844d23d88994eb7ded` has source provenance `a789e0db617fcd204eca2101f4a6c5669a6c25da`; original historical Git ancestry was not recovered. This GitHub backup is a separate commit identity. Any later runtime must be rebuilt and independently registered in its deployment environment.
 
-The implementation's reported checks passed 223 targeted tests in 10 files, followed by 109 affected tests after the final change. The transition suite has 42 cases. All 23 changed/new TypeScript files passed isolated syntax transpilation, and read-only review found no blockers. This does not establish a full semantic typecheck, complete test suite, frontend build or production qualification.
+## Reported verification
 
-## Recovery limits
+The implementation passed 363 affected tests in 15 files: 321 in the combined run and 42 Sanofi cases rerun in their correct Node environment after the mixed-environment invocation failed those cases. Limited application-source TypeScript checking and the production frontend build passed. The reported build contained 171 static output files; generated output is rebuilt rather than uploaded here.
 
-33 tracked files are excluded: raw/retained capture fixtures and evidence, actual database context/control records, internal diagnostic/recovery notes and certificate material. Credentials, environment files, private profiles, generated dependencies/builds, uncommitted work and local Git history are excluded.
+No complete test suite, full semantic TypeScript check or five-second browser acceptance is claimed. No tests, CI, source acquisition or deployment are initiated by making this backup.
 
-Specifically, `tests/fixtures/sanofi-historical-public-context.json` contains a real database projection with 88 jobs, 176 lifecycle members and a historical result/receipt. It is not included. The transition test suite cannot run fully from this backup without separately authorized recovery of that fixture. Other retained-evidence tests have the same boundary. Synthetic test code remains intact. The small non-secret exact receipt pins and static verification-only plan required by application behavior remain in source.
+## Recovery boundaries
 
-The original prepared web backup supplies unchanged frontend assets, fonts and logos; they are reused without re-uploading. This branch is a recovery checkpoint only. It does not run CI, merge into the default branch or deploy. Live web remains separately managed at the a2 source checkpoint.
+The existing 33-file exclusion set is retained: real database/context/control fixtures, raw or retained capture evidence, internal operational/recovery notes and certificate material. Credentials, environment files, private profiles, generated dependencies/builds, local runtime identity files, uncommitted work and local Git history are excluded.
+
+The historical public-context fixture remains private. Its 42 transition cases require separately authorized fixture recovery; other retained-evidence tests have the same limitation. Synthetic test code and necessary non-secret historical verification pins remain intact.
+
+UI source, all fonts and logos, and their license/readme files are included unchanged. Workflow source is kept under `backup/disabled-workflows/`; there is no active workflow. This recovery branch is not automatically merged or deployed.
 

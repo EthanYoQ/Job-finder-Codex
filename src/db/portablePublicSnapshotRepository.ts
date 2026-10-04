@@ -1,4 +1,5 @@
 import { isSanofiPublicTransitionPlan, isSanofiHistoricalPublicCandidate } from "../domain/sanofiPublicTransition";
+import type { PublicSnapshotRefresh } from "../domain/publicSnapshotRefresh";
 import type { Prisma } from "@prisma/client";
 import { buildStagedSourceCrawlPlans, sourcePlanConfigSha256, type SourceCrawlPlan } from "../crawler/sourcePlan";
 import { candidateCompanies } from "../data/companyRegistry";
@@ -7,7 +8,7 @@ import { P0_LAUNCH_MANIFEST, selectLaunchCompanies, validateLaunchManifest } fro
 import { supportsPublicBGrade, selectPortableSourceSnapshots, projectPortableSourceJobs, type PortableProjectedSource, type PortablePublicJob, type PortableSnapshotOptions } from "../domain/portablePublicSnapshot";
 import { SOURCE_QUALITY_POLICY_ID } from "../crawler/sourceQualityAdmission";
 import { DAILY_PUBLICATION_FRESHNESS_MAXIMUM_MS } from "../domain/publicationEligibility";
-import { PortableSnapshotCache, PORTABLE_SNAPSHOT_VERSION_SQL, portableSnapshotVersion, portableSnapshotValidUntil } from "./portableSnapshotCache";
+import { portableDisplayVersion, PortableSnapshotCache, PORTABLE_SNAPSHOT_VERSION_SQL, portableSnapshotVersion, portableSnapshotValidUntil } from "./portableSnapshotCache";
 
 export const portableSourceResultSelect = {
   id: true, releaseCandidateId: true, batchId: true, sourceId: true, sourceConfigHash: true, adapterVersion: true,
@@ -88,6 +89,23 @@ export async function readPortablePublicSnapshot(
   onRefreshRequired?: () => void,
   yieldAfterSource?: () => Promise<void>
 ): Promise<PortablePublicSnapshot> {
+  return (await readPortablePublicSnapshotWithStatus(db, options, plans, cache, onRefreshRequired, yieldAfterSource)).snapshot;
+}
+
+export interface PortableSnapshotRead {
+  snapshot: PortablePublicSnapshot;
+  snapshotRefresh: PublicSnapshotRefresh;
+}
+
+/** The response status travels with the selected projection across every await. */
+export async function readPortablePublicSnapshotWithStatus(
+  db: PortableSnapshotDb,
+  options: Partial<PortableSnapshotOptions> = {},
+  plans: readonly SourceCrawlPlan[] = buildStagedSourceCrawlPlans(selectLaunchCompanies(P0_LAUNCH_MANIFEST, candidateCompanies)),
+  cache?: PortableSnapshotCache,
+  onRefreshRequired?: () => Exclude<PublicSnapshotRefresh["state"], "CURRENT"> | void,
+  yieldAfterSource?: () => Promise<void>
+): Promise<PortableSnapshotRead> {
   if (typeof db.$transaction !== "function") throw new Error("REPEATABLE_READ_PORTABLE_SNAPSHOT_REQUIRED");
   // The old 60-company registry is a catalog; the current runtime manifest owns the public roster.
   // Historical count/evidence fields in the manifest are not used as publication authority.
@@ -114,16 +132,16 @@ export async function readPortablePublicSnapshot(
   const cacheScope = JSON.stringify({plans: immutablePlans.map(plan => [plan.company.id, plan.source.id, sourcePlanConfigSha256(plan)]),
     freshnessMaximumMs: readOptions.freshnessMaximumMs ?? DAILY_PUBLICATION_FRESHNESS_MAXIMUM_MS});
   const data = await db.$transaction(async tx => {
-    // Check freshness in the same database snapshot used on a miss. No stale-while-
-    // revalidate path: failure of this query rejects the public request.
+    // Check freshness in the same database snapshot used on a miss. Failure of
+    // this query rejects the public request, including the opt-in display path.
     const version = cache && tx.$queryRawUnsafe
       ? portableSnapshotVersion(await tx.$queryRawUnsafe(PORTABLE_SNAPSHOT_VERSION_SQL)) : undefined;
-    const cached = version === undefined ? undefined : cache!.get(version, cacheScope, readOptions.currentTime.getTime());
+    const cached = version === undefined ? undefined : cache!.getRead(version, cacheScope, readOptions.currentTime.getTime());
     if (cached) return {cached};
     // Only the HTTP display reader opts into an older verified projection. A
     // successful current version check is mandatory; errors still reject.
     const previous = version === undefined || !onRefreshRequired ? undefined :
-      cache!.getPrevious(cacheScope, readOptions.currentTime.getTime());
+      cache!.getPreviousRead(cacheScope, readOptions.currentTime.getTime());
     if (previous) return {cached: previous, refreshRequired: true};
     const rawResults = await tx.crawlBatchSourceResult.findMany({
       where: {OR: requiredPlans.map(plan => isSanofiPublicTransitionPlan(plan) ? {sourceId: plan.source.id} :
@@ -170,8 +188,8 @@ export async function readPortablePublicSnapshot(
     return {results, members, jobs, version};
   }, {isolationLevel: "RepeatableRead", maxWait: 5_000, timeout: 10_000});
   if (data.cached) {
-    if (data.refreshRequired) onRefreshRequired!();
-    return data.cached;
+    const state = data.refreshRequired ? onRefreshRequired!() ?? "UPDATING" : "CURRENT";
+    return {snapshot: data.cached.snapshot, snapshotRefresh: {state, version: data.cached.version}};
   }
   const {results, members, jobs, version} = data;
   // Receipt hashing, rendered evidence replay and lifecycle/job projection are pure CPU
@@ -218,7 +236,7 @@ export async function readPortablePublicSnapshot(
     coverage: {companyCount: companies.length, requiredCompanyCount: scope.requiredCompanyIds.length, excludedCompanyCount: scope.exclusions.length, requiredSourceCount: scope.requiredSourceIds.length, excludedSourceCount: scope.exclusions.length, expectedSourceCount: P0_LAUNCH_MANIFEST.companies.length, sourceCount: sources.length,
       unplannedSourceCount: P0_LAUNCH_MANIFEST.companies.filter(company => !sources.some(source => source.sourceId === company.source.sourceId)).length, publishingSourceCount: published.length,
       unsupportedSourceCount: sources.filter(source => source.policyId === null && source.state !== "EXCLUDED").length, heldSourceCount: sources.filter(source => source.state === "HOLD").length}};
-  if (version !== undefined) cache!.set(version, cacheScope, portableSnapshotValidUntil({results, jobs},
-    readOptions.currentTime.getTime(), readOptions.freshnessMaximumMs ?? DAILY_PUBLICATION_FRESHNESS_MAXIMUM_MS, snapshot), snapshot);
-  return snapshot;
+  const displayVersion = version !== undefined ? cache!.set(version, cacheScope, portableSnapshotValidUntil({results, jobs},
+    readOptions.currentTime.getTime(), readOptions.freshnessMaximumMs ?? DAILY_PUBLICATION_FRESHNESS_MAXIMUM_MS, snapshot), snapshot) : portableDisplayVersion(snapshot);
+  return {snapshot, snapshotRefresh: {state: "CURRENT", version: displayVersion}};
 }

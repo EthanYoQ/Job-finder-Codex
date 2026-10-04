@@ -33,7 +33,7 @@ const rec = (v:unknown):Record<string,unknown>|undefined => v!==null&&typeof v==
 const text = (v:unknown):v is string => typeof v==="string"&&v.trim().length>0;
 const requireValue = (v:unknown, code="SANOFI_CN_NATIVE_CHAIN_INVALID"):void => { if(!v)throw Error(code); };
 const parseJson = (s:string):Record<string,unknown> => { requireValue(hasUniqueJsonObjectKeys(s));const v=rec(JSON.parse(s));requireValue(v);return v!; };
-export function isSanofiChinesePlan(plan:SourceCrawlPlan):plan is Extract<SourceCrawlPlan,{adapterId:"html-table"}> {
+export function isSanofiChinesePlan(plan:SourceCrawlPlan):plan is Extract<SourceCrawlPlan,{adapterId:"html-table"}> & {table:{sanofiNativePolicy:typeof SANOFI_CN_POLICY}} {
   return plan.adapterId==="html-table"&&plan.table.sanofiNativePolicy===SANOFI_CN_POLICY;
 }
 function exactPlan(plan:SourceCrawlPlan):plan is Extract<SourceCrawlPlan,{adapterId:"html-table"}> {
