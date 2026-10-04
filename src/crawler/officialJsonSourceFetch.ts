@@ -1,3 +1,14 @@
+import { ROCHE_NATIVE_DETAIL_POLICY, rocheNativeDetail, rocheNativeDetailUrl } from "./rocheChinaQuality";
+import { acquireBeisenDetailDates } from "./beisenDetailDates";
+import { requiresOrganonPostedDate, exactOrganonPostedDatePlan, exactOrganonPostedDateBootstrap } from "./organonOfficialPostedDate";
+import { organonOfficialCities, organonOfficialIdentity } from "./organonChinaQuality";
+import { phenomOfficialPostedDate } from "./phenomOfficialPostedDate";
+import { requiresLillyChinaQuality, exactLillyChinaQualityPlan, exactLillyChinaBootstrap, lillyOfficialCities, lillyOfficialPostedDate, lillyPageEnvelopeValid, lillyNativeDetail } from "./lillyChinaQuality";
+import { requiresMerckChinaQuality, exactMerckChinaQualityPlan, exactMerckChinaBootstrap, merckOfficialCities, merckOfficialPostedDate, merckOfficialIdentity } from "./merckChinaQuality";
+import { NOVO_CHINA_LOCATION_POLICY, NOVO_NATIVE_APPLICATION_POLICY, exactNovoChinaBootstrap, parseNovoChinaResponse, novoNativeDetailBase, novoNativeApplicationUrl, novoApplicationStatus, novoClosedLoss } from "./novoChinaQuality";
+import { BMS_GEOGRAPHY_POLICY, bmsMainlandCities } from "./bmsMainlandGeography";
+import { bmsOfficialPostedDate, exactBmsPostedDatePlan, requiresBmsPostedDate } from "./bmsOfficialPostedDate";
+import { ucbOfficialCities, exactUcbPostedDatePlan, exactUcbPostedDateBootstrap, requiresUcbPostedDate, ucbOfficialPostedDate } from "./ucbOfficialPostedDate";
 import type { SourceFetchFunction, SourceFetchResult, SourceTransportAttempt } from "./runSourceCrawl";
 import {
   createAbortableClose,
@@ -9,10 +20,12 @@ import {
 } from "./officialHttpRuntimeLimits";
 import {
   isRetryableSourceTransportFailure,
+  parseOfficialRetryAfter,
   retryableHttpTransportFailure,
   retryableTransportFailureFromError,
   safeSourceTransportFailureReason,
-  type SourceTransportFailure
+  type SourceTransportFailure,
+  type OfficialRetryAfter
 } from "./sourceFetchFailure";
 import { acquireBrowserSourcePermit } from "./browserSourceConcurrency";
 import { load as loadHtml } from "cheerio";
@@ -52,10 +65,13 @@ import {
 import { deriveCanonicalPaginationEvidence, evaluatePaginationEvidence } from "./paginationEvidence";
 import { hasUniqueJsonObjectKeys } from "./strictJsonObjectKeys";
 import { requestContractV2Locator } from "./strictPageRequestContract";
+import { auditRedseaCandidateScope } from "./redseaCandidateScope";
 import type { SourceCrawlPlan } from "./sourcePlan";
+import { exactGileadPublicAgePlan } from "./gileadPublicAge";
 import {
   parseYelloJobBoardResponse,
   yelloJobBoardBinding,
+  YelloPublicAgeError,
   type YelloJobBoardConfig
 } from "./yelloJobBoardEvidence";
 
@@ -67,10 +83,14 @@ export type OfficialJsonFetchConfig =
   | {
       kind: "novo-nordisk";
       endpointUrl: string;
-      cityScopePolicy?: "NOVO_CHINA_MAINLAND_JOB_CITY_V1";
+      cityScopePolicy?: "NOVO_CHINA_MAINLAND_JOB_CITY_V1" | typeof NOVO_CHINA_LOCATION_POLICY;
+      applicationStatusPolicy?: typeof NOVO_NATIVE_APPLICATION_POLICY;
     }
   | {
       kind: "phenom";
+      postedDatePolicy?: "UCB_PHENOM_POSTED_DATE_V1" | "MERCK_CHINA_PHENOM_POSTED_DATE_V1" | "ORGANON_PHENOM_POSTED_DATE_V1" | "LILLY_CHINA_PHENOM_POSTED_DATE_V1";
+      cityScopePolicy?: "UCB_PRIMARY_CITY_AGREEMENT_V1" | "MERCK_CHINA_LOCATION_TITLE_PENDING_V2" | "ORGANON_MAINLAND_LOCATION_PENDING_V1" | "LILLY_CHINA_REVIEWED_LOCATION_PENDING_V1";
+      publicVisibilityPolicy?: "MERCK_CHINA_PUBLIC_VISIBILITY_V1" | "ORGANON_PUBLIC_VISIBILITY_V1" | "LILLY_CHINA_PUBLIC_VISIBILITY_V1";
       detailBaseUrl: string;
       derivedDetailIdField?: "reqId" | "jobSeqNo";
       mixedLocationScopePolicy?: "EXACTLY_ONE_MAINLAND_ALTERNATIVE_V1";
@@ -109,13 +129,15 @@ export type OfficialJsonFetchConfig =
         partitionProofPolicy: "MERCK_HEALTHCARE_PARTITION_V1";
       };
       allowOmittedOffsetForSinglePage?: boolean;
-      requestBoundOmittedOffsetPolicy?: "ROCHE_REQUEST_BOUND_OMITTED_OFFSET_V1";
+      requestBoundOmittedOffsetPolicy?: "ROCHE_REQUEST_BOUND_OMITTED_OFFSET_V1" | "ORGANON_REQUEST_BOUND_OMITTED_OFFSET_V1";
       exactDuplicateReconciliationPolicy?: "ROCHE_IDENTICAL_CROSS_PAGE_V1";
+      nativeDetailPolicy?: typeof ROCHE_NATIVE_DETAIL_POLICY;
       pageSize?: number;
       maxPages?: number;
     }
   | {
       kind: "beisen-zhiye-2022";
+      detailPostedDatePolicy?: "BEISEN_NATIVE_DETAIL_POSTDATE_V1";
       changedWithinDays?: 183;
       postDateWithinDays?: 180;
       category?: string;
@@ -130,6 +152,7 @@ export type OfficialJsonFetchConfig =
         | "INHERIT_MAINLAND_PARENT_FOR_SIBLING_LOCATIONS";
       scopeExclusionProof?:
         | "DONGYANGGUANG_EXPLICIT_FOREIGN_ONLY_V1"
+        | "FOSUN_EXPLICIT_HONG_KONG_ONLY_V1"
         | "NHU_EXPLICIT_JAPAN_ONLY_V1"
         | "QILU_EXPLICIT_US_OR_HONG_KONG_ONLY_V2"
         | "THREESBIO_XIANYANG_HOMOGRAPH_V1";
@@ -163,6 +186,8 @@ export type OfficialJsonFetchConfig =
     }
   | {
       kind: "eightfold-pcsx";
+      postedDatePolicy?: "BMS_EIGHTFOLD_POSTED_SECONDS_V1";
+      cityScopePolicy?: typeof BMS_GEOGRAPHY_POLICY;
       domain: string;
       location: string;
       pageSize?: number;
@@ -223,6 +248,7 @@ export interface OfficialJsonHttpResponse {
   finalUrl?: string;
   contentType?: string;
   capturedAt?: string;
+  retryAfter?: OfficialRetryAfter;
 }
 
 export type OfficialJsonHttpClient = (
@@ -250,9 +276,12 @@ export interface OfficialJsonSourceFetchDeps {
   http?: OfficialJsonHttpClient;
   now?: () => Date;
   hcmCloudBrowserFetch?: HcmCloudBrowserFetch;
+  /** Explicit HTTP-only execution. Existing callers retain their prior default. */
+  allowBrowserFallback?: boolean;
 }
 
 interface NormalizedOfficialJsonJob {
+  officialPublishedAt?: string;
   sourceJobId: string;
   title: string;
   officialUrl: string;
@@ -356,13 +385,13 @@ export function createOfficialJsonSourceFetch(
       }
 
       if (plan.officialJsonFetch.kind === "beisen-zhiye-2022") {
-        return finish(await fetchBeisenZhiye2022({
+        return finish(await acquireBeisenDetailDates(plan, await fetchBeisenZhiye2022({
           http,
           config: plan.officialJsonFetch,
           entryUrl: plan.source.officialEntryUrl,
           capturedAt,
           now
-        }));
+        }), deps.http, now));
       }
 
       if (plan.officialJsonFetch.kind === "cnstaff") {
@@ -376,7 +405,7 @@ export function createOfficialJsonSourceFetch(
       }
 
       if (plan.officialJsonFetch.kind === "hcm-cloud") {
-        const browserFetch =
+        const browserFetch = deps.allowBrowserFallback === false ? undefined :
           deps.hcmCloudBrowserFetch ?? (deps.http ? undefined : defaultHcmCloudBrowserFetch);
         return finish(await fetchHcmCloud({
           http,
@@ -400,6 +429,7 @@ export function createOfficialJsonSourceFetch(
 
       if (plan.officialJsonFetch.kind === "eightfold-pcsx") {
         return finish(await fetchEightfoldPcsx({
+          plan,
           http,
           config: plan.officialJsonFetch,
           entryUrl: plan.source.officialEntryUrl,
@@ -450,6 +480,7 @@ export function createOfficialJsonSourceFetch(
       }
 
       if (plan.officialJsonFetch.kind === "yello-job-board") {
+        if (!exactGileadPublicAgePlan(plan)) return failed(capturedAt, "Gilead public age plan binding is invalid");
         return finish(await fetchYelloJobBoard({
           http,
           config: plan.officialJsonFetch,
@@ -538,7 +569,23 @@ async function fetchYelloJobBoard({
   let parsed: ReturnType<typeof parseYelloJobBoardResponse>;
   try {
     parsed = parseYelloJobBoardResponse(response.body, config);
-  } catch {
+  } catch (error) {
+    if (error instanceof YelloPublicAgeError) {
+      // Hold the whole partition atomically; these are diagnostic losses, never age exclusions.
+      failureState.rawCount = error.rawRows.length;
+      failureState.parsedCount = error.rawRows.length;
+      failureState.validationDiscardCount = error.rawRows.length;
+      failureState.page.declaredTotal = error.rawRows.length;
+      failureState.page.declaredCount = error.rawRows.length;
+      for (const [index, row] of error.rawRows.entries()) {
+        failureState.page.rawJobIds.push(irreversibleOfficialJsonEvidenceId([index, row]));
+        const code = index === error.rowIndex ? "GILEAD_PUBLIC_AGE_INVALID" : "GILEAD_PUBLIC_AGE_SOURCE_HELD";
+        failureState.fetchLosses.push({stage: "VALIDATION", reason: code,
+          rawLocator: officialJsonRawLocator(row, index), details: {code, field: "publicAge", pageSequence: 0, recordIndex: index},
+          recordedAt: artifact.capturedAt});
+      }
+      return failedWithEvidence(capturedAt, error.message, finalizeOfficialJsonFailureEvidence(failureState));
+    }
     return failedWithEvidence(capturedAt, "Yello response failed strict China partition replay",
       finalizeOfficialJsonFailureEvidence(failureState));
   }
@@ -553,7 +600,7 @@ async function fetchYelloJobBoard({
     state.parsedCount += 1;
     const sourceJobId = persistentOfficialJsonJobId(row.officialId);
     jobs.push({ sourceJobId, title: row.title, officialUrl: row.officialUrl, locationRaw: row.locationRaw,
-      cities: citiesFromLocation(row.locationRaw) });
+      cities: row.cities });
     state.validCount += 1;
     state.page.validJobIds.push(irreversibleOfficialJsonEvidenceId(sourceJobId));
   }
@@ -647,7 +694,7 @@ function attachOfficialJsonPageCapacity(
 
 function officialJsonRequestedPageSize(config: OfficialJsonFetchConfig): number | null {
   switch (config.kind) {
-    case "phenom": return Math.max(1, Math.min(100, config.pageSize ?? 50));
+    case "phenom": return Math.max(1, Math.min(config.requestBoundOmittedOffsetPolicy === "ROCHE_REQUEST_BOUND_OMITTED_OFFSET_V1" ? 250 : 100, config.pageSize ?? 50));
     case "beisen-zhiye-2022": return Math.max(1, Math.min(100, config.pageSize ?? 100));
     case "cnstaff": return Math.max(1, Math.min(100, config.pageSize ?? 15));
     case "hcm-cloud": return Math.max(1, config.pageSize ?? 20);
@@ -741,7 +788,10 @@ async function fetchSingleResponseOfficialJson({
   });
   const failureState = initialOfficialJsonEvidenceState({ artifact: failureArtifact, termination: "FAILED" });
   if (response.status < 200 || response.status >= 300) {
-    const transportFailure = retryableHttpTransportFailure(response.status);
+    const transportFailure = config.kind === "novo-nordisk"
+      ? (novoHttpRetryAllowed(response, endpoint, false)
+        ? retryableHttpTransportFailure(response.status, response.retryAfter) : undefined)
+      : retryableHttpTransportFailure(response.status);
     return failedWithEvidence(
       capturedAt,
       transportFailure
@@ -780,6 +830,12 @@ async function fetchSingleResponseOfficialJson({
   }
 
   const data = root.data;
+  const usesNovoNestedLocationPolicy = config.kind === "novo-nordisk" && config.cityScopePolicy === NOVO_CHINA_LOCATION_POLICY;
+  const novoNestedResponse = usesNovoNestedLocationPolicy ? parseNovoChinaResponse(response.body) : undefined;
+  if (usesNovoNestedLocationPolicy && (!exactNovoChinaBootstrap({ config, entryUrl, sourceIdentity, endpoint }) || !novoNestedResponse)) {
+    return failedWithEvidence(capturedAt, "Novo China response failed its exact nested location and request scope contract",
+      finalizeOfficialJsonFailureEvidence(failureState));
+  }
   let rawJobs: unknown[];
   let declaredTotal: number | undefined;
   let totalPath: "$.data.totalMatches" | "$.data.total" | undefined;
@@ -837,6 +893,67 @@ async function fetchSingleResponseOfficialJson({
     ...(declaredTotal === undefined ? {} : { declaredTotal }),
     termination: "ABORTED"
   });
+  if (novoNestedResponse) {
+    const artifacts: SourceFetchArtifactDraft[] = [artifact];
+    const jobs: NormalizedOfficialJsonJob[] = [];
+    const losses: PersistentSourceFetchEvidence["fetchLosses"] = [];
+    let nativeHttpFailure: SourceTransportFailure | undefined;
+    // One entry and two pages per listed requisition, with no global fallback or application submission.
+    const html = async (url: string, logicalKey: string, allowApplicationRedirect = false) => {
+      const response = await http({ url, method: "GET", headers: { Accept: "text/html", "User-Agent": "job-search-crawler/0.1" } });
+      assertOfficialJsonEvidenceResponse(response, { requestedUrl: allowApplicationRedirect ? response.finalUrl! : url,
+        crawlStartedAtMs: Date.parse(capturedAt), observedNowMs: now().getTime() });
+      const retained = officialJsonNetworkArtifact({ id: logicalKey, logicalKey, kind: "OFFICIAL_COMPANY_PAGE",
+        requestedUrl: url, response, extractorLocator: logicalKey });
+      artifacts.push(retained);
+      if (response.status !== 200) {
+        // A temporary HTTP error never establishes job status. Preserve its raw
+        // artifact, then allow only the existing source-level transport retry.
+        if (novoHttpRetryAllowed(response, url, allowApplicationRedirect)) {
+          nativeHttpFailure = retryableHttpTransportFailure(response.status, response.retryAfter);
+        }
+        throw new Error(`Novo application status UNKNOWN: HTTP ${response.status}`);
+      }
+      assertOfficialHtmlMime(response);
+      return response;
+    };
+    try {
+      const entry = await html(entryUrl, "novo-native-entry"), base = novoNativeDetailBase(entry.body);
+      if (!base || novoNestedResponse.total > 500) throw new Error("Novo native entry or bounded listing is unresolved");
+      for (let i = 0; i < novoNestedResponse.total; i++) {
+        const raw = novoNestedResponse.rawJobs[i]!, projection = novoNestedResponse.jobs[i]!;
+        const detailUrl = `${base}.${raw.jobId}.html`;
+        const detail = await html(detailUrl, `novo-detail-${raw.jobId}`);
+        const applyUrl = novoNativeApplicationUrl(detail.body, detailUrl, String(raw.jobId));
+        if (!applyUrl) throw new Error("Novo native detail/application identity is UNKNOWN");
+        const application = await html(applyUrl, `novo-application-${raw.jobId}`, true);
+        const status = novoApplicationStatus(application.body, application.finalUrl!, String((raw.jobCity as { value: string }).value));
+        if (!status) throw new Error("Novo official application status is UNKNOWN");
+        if (status.status === "CLOSED") losses.push(novoClosedLoss(raw, i, application.capturedAt!));
+        else jobs.push({ ...projection, officialUrl: detailUrl, title: status.title! });
+      }
+    } catch (error) {
+      // Preserve the existing classifier's bounded network/deadline retry signal.
+      // Unknown content, access blocks and source cancellation still fail closed.
+      const transportFailure = nativeHttpFailure ?? retryableTransportFailureFromError(error);
+      return failedWithEvidence(capturedAt, transportFailure
+        ? safeSourceTransportFailureReason(transportFailure) : safeOfficialJsonFailure(error, "Novo application status UNKNOWN"),
+        finalizeOfficialJsonSupportingFailureEvidence({ artifacts, code: "NOVO_APPLICATION_STATUS_UNKNOWN" }), transportFailure);
+    }
+    state.page.rawJobIds = novoNestedResponse.rawJobs.map((raw, i) => irreversibleOfficialJsonEvidenceId([i, raw]));
+    state.page.validJobIds = jobs.map(job => irreversibleOfficialJsonEvidenceId(job.sourceJobId));
+    state.page.termination = declaredTotal === 0 ? "EMPTY_PAGE" : "NEXT_ABSENT";
+    const { evidence, evaluation } = finalizeOfficialJsonEvidenceBundle({ artifacts, pages: [state.page],
+      fetchCounts: { rawCount: novoNestedResponse.total, parsedCount: novoNestedResponse.total, validCount: jobs.length,
+        parseDiscardCount: 0, validationDiscardCount: losses.length }, fetchLosses: losses,
+      declaredCompleteness: { kind: "OFFICIAL_TOTAL_COUNT", value: novoNestedResponse.total,
+        artifactLogicalKey: artifact.logicalKey, extractorLocator, scope: "SOURCE" },
+      allowPositiveOfficialTotalCountAfterAdapterReconciliation: true, allowIndependentlyVerifiedProfileBoundExclusions: true });
+    return { ok: true, capturedAt, payload: { jobs }, fetchEvidence: evidence, paginationEvaluation: evaluation,
+      completeness: { completenessStatus: "NEEDS_MANUAL_COMPLETENESS_REVIEW", expectedJobCount: novoNestedResponse.total,
+        completenessEvidenceKind: "OFFICIAL_TOTAL_COUNT", completenessEvidenceUrl,
+        completenessBlockerReason: "Native raw total and explicit application closures require downstream replay", pagesVisited: 1 } };
+  }
   const jobs: NormalizedOfficialJsonJob[] = [];
   const seenOfficialIds = new Set<string>();
   const usesNovoChinaCityPolicy = isExactNovoChinaCityPolicy({ config, entryUrl, sourceIdentity, endpoint });
@@ -1265,7 +1382,21 @@ async function fetchRedseaZpChannel({
       seen.set(normalized.requestId, signature); jobs.push(normalized.job); counts.validCount += 1;
       validIds.push(persistentOfficialJsonJobId(normalized.requestId));
     }
-    const terminal: SourceFetchPageTrace["termination"] = parsed.jobs.length === 0 ? "ABORTED" : "NEXT_ABSENT";
+    const candidateScope = auditRedseaCandidateScope(String(officeArtifactResult.artifact.body), parsed.jobs);
+    if (!candidateScope.complete || candidateScope.unexplainedCandidateIds.length > 0) {
+      const logicalKey = `redsea-${channelQrId}-candidate-scope`;
+      artifacts.push({
+        id: logicalKey, logicalKey, kind: "COMMAND_OUTPUT", channelId: channelQrId,
+        capturedAt: listResponse.capturedAt!,
+        body: JSON.stringify({ ...candidateScope, channelId: channelQrId,
+          listArtifactLogicalKey: officeArtifactResult.artifact.logicalKey,
+          listBodySha256: sha256Bytes(Buffer.from(String(officeArtifactResult.artifact.body), "utf8")).sha256,
+          responseArtifactLogicalKey: apiArtifactResult.artifact.logicalKey,
+          responseBodySha256: fingerprint }),
+        extractorLocator: "redsea-candidate-scope-v1|configured-candidates-minus-returned-identities"
+      });
+    }
+    const terminal: SourceFetchPageTrace["termination"] = parsed.jobs.length === 0 || !candidateScope.complete ? "ABORTED" : "NEXT_ABSENT";
     pages.push(redseaPageTrace(apiArtifactResult.artifact, channelIndex, channelQrId, rawIds, validIds, terminal, repeatedResponse));
   }
   const declarationPage = pages.length === 1 && pages[0]!.termination === "NEXT_ABSENT" ? pages[0] : undefined;
@@ -2218,6 +2349,7 @@ function parse51jobJsonp(body: string): { total: number; jobs: Record<string, un
 }
 
 async function fetchEightfoldPcsx({
+  plan,
   http,
   config,
   entryUrl,
@@ -2225,11 +2357,14 @@ async function fetchEightfoldPcsx({
   now
 }: {
   http: OfficialJsonHttpClient;
+  plan: SourceCrawlPlan;
   config: Extract<OfficialJsonFetchConfig, { kind: "eightfold-pcsx" }>;
   entryUrl: string;
   capturedAt: string;
   now: () => Date;
 }): Promise<SourceFetchResult> {
+  const preservePostedDate = requiresBmsPostedDate(plan);
+  if (preservePostedDate && !exactBmsPostedDatePlan(plan)) return failed(capturedAt, "BMS_POSTED_DATE_PLAN_INVALID");
   let safeEntryUrl: string;
   let endpoint: URL;
   let detailBase: URL;
@@ -2257,6 +2392,26 @@ async function fetchEightfoldPcsx({
   let declaredArtifactKey: string | undefined;
   let declaredLocator: string | undefined;
 
+  const fail = (reason: string): SourceFetchResult => {
+    if (!preservePostedDate || artifacts.length === 0) return failed(capturedAt, reason);
+    // A later transport/schema failure must not erase already captured date evidence.
+    // Retain counted complete pages when possible; unparsed envelopes are supporting bytes only.
+    const counted = pages.length > 0 &&
+      losses.filter(loss => loss.stage === "PARSE").length === counts.parseDiscardCount &&
+      losses.filter(loss => loss.stage === "VALIDATION").length === counts.validationDiscardCount;
+    return failedWithEvidence(capturedAt, reason, counted
+      ? finalizeOfficialJsonFailureEvidenceBundle({ artifacts, pages: pages.map((page,index) =>
+          index === pages.length - 1 && page.termination === "CONTINUE" ? { ...page, termination: "ABORTED" } : page), fetchCounts: counts, fetchLosses: losses,
+        ...(declaredTotal !== undefined && declaredArtifactKey && declaredLocator ? { declaredCompleteness: {
+          kind: "OFFICIAL_TOTAL_COUNT", value: declaredTotal, artifactLogicalKey: declaredArtifactKey,
+          extractorLocator: declaredLocator, scope: "SOURCE"
+        } } : {}) })
+      : finalizeOfficialJsonSupportingFailureEvidence({
+        artifacts: artifacts.map(artifact => ({ ...artifact, kind: "ATS_API_RESPONSE" })),
+        code: "BMS_POSTED_DATE_SOURCE_FAILURE"
+      }));
+  };
+
   for (let pageIndex = 0; pageIndex < maxPages; pageIndex += 1) {
     const start = pageIndex * pageSize;
     const url = new URL(endpoint);
@@ -2282,7 +2437,7 @@ async function fetchEightfoldPcsx({
         observedNowMs: now().getTime()
       });
     } catch (error) {
-      return failed(capturedAt, safeOfficialJsonFailure(error, "Eightfold PCSx transport or metadata failed"));
+      return fail(safeOfficialJsonFailure(error, "Eightfold PCSx transport or metadata failed"));
     }
     const artifact = officialJsonNetworkArtifact({
       id: `eightfold-page-${String(pageIndex).padStart(4, "0")}`,
@@ -2294,19 +2449,19 @@ async function fetchEightfoldPcsx({
     });
     artifacts.push(artifact);
     if (response.status < 200 || response.status >= 300) {
-      return failed(capturedAt, `Eightfold PCSx returned HTTP ${response.status}`);
+      return fail(`Eightfold PCSx returned HTTP ${response.status}`);
     }
     try { assertOfficialJsonMime(response); } catch {
-      return failed(capturedAt, "Eightfold PCSx response has an invalid Content-Type");
+      return fail("Eightfold PCSx response has an invalid Content-Type");
     }
     let root: unknown;
     try { root = JSON.parse(response.body); } catch {
-      return failed(capturedAt, "Eightfold PCSx response is not valid JSON");
+      return fail("Eightfold PCSx response is not valid JSON");
     }
     if (!hasUniqueJsonObjectKeys(response.body) || !isStrictRecord(root) || root.status !== 200 ||
       !isStrictRecord(root.data) || !isNonnegativeInteger(root.data.count) ||
       !Array.isArray(root.data.positions)) {
-      return failed(capturedAt, "Eightfold PCSx response schema is invalid");
+      return fail("Eightfold PCSx response schema is invalid");
     }
     const total = root.data.count;
     if (declaredTotal === undefined) {
@@ -2314,7 +2469,7 @@ async function fetchEightfoldPcsx({
       declaredArtifactKey = artifact.logicalKey;
       declaredLocator = locator;
     } else if (total !== declaredTotal) {
-      return failed(capturedAt, "Eightfold PCSx total changed during pagination");
+      return fail("Eightfold PCSx total changed during pagination");
     }
     const rawIds: string[] = [];
     const validIds: string[] = [];
@@ -2328,28 +2483,30 @@ async function fetchEightfoldPcsx({
         continue;
       }
       counts.parsedCount += 1;
-      const id = stringValue(raw.id);
-      const title = stringValue(raw.name);
-      const positionUrl = stringValue(raw.positionUrl);
-      const locations = stringsValue(raw.locations);
-      if (!id || !title || !positionUrl || locations.length === 0 || seen.has(id)) {
+      if (preservePostedDate && !bmsMainlandCities(raw)) {
+        counts.validationDiscardCount += 1;
+        losses.push({stage:"VALIDATION",reason:"BMS official mainland geography validation failed",
+          rawLocator:`${artifact.logicalKey}#record:${recordIndex}`,
+          details:{code:"BMS_GEOGRAPHY_INVALID",field:"locations",pageSequence:pageIndex,recordIndex}});
+        continue;
+      }
+      const projection = projectEightfoldPcsxPosition(raw, detailBase, config.cityScopePolicy);
+      if (!projection || seen.has(projection.rawId)) {
         counts.validationDiscardCount += 1;
         continue;
       }
-      let officialUrl: URL;
-      try { officialUrl = new URL(positionUrl, detailBase.origin); } catch {
-        counts.validationDiscardCount += 1;
-        continue;
-      }
-      if (officialUrl.origin !== detailBase.origin || !officialUrl.pathname.startsWith(`${detailBase.pathname}/`)) {
-        counts.validationDiscardCount += 1;
-        continue;
-      }
-      const locationRaw = locations.join(" | ");
-      const sourceJobId = persistentOfficialJsonJobId(id);
-      jobs.push({ sourceJobId, title, officialUrl: officialUrl.toString(), locationRaw,
-        cities: citiesWithFallback(locationRaw, locationRaw) });
+      const { rawId: id, ...job } = projection;
       seen.add(id);
+      const officialPublishedAt = preservePostedDate ? bmsOfficialPostedDate(raw.postedTs) : undefined;
+      if (preservePostedDate && officialPublishedAt === undefined) {
+        counts.validationDiscardCount += 1;
+        losses.push({ stage: "VALIDATION", reason: "BMS official posted-date validation failed",
+          rawLocator: `${artifact.logicalKey}#record:${recordIndex}`,
+          details: { code: "BMS_POSTED_DATE_INVALID", field: "postedTs", pageSequence: pageIndex, recordIndex } });
+        continue;
+      }
+      const sourceJobId = job.sourceJobId;
+      jobs.push({ ...job, ...(officialPublishedAt === undefined ? {} : { officialPublishedAt }) });
       counts.validCount += 1;
       validIds.push(irreversibleOfficialJsonEvidenceId(sourceJobId));
     }
@@ -2371,9 +2528,15 @@ async function fetchEightfoldPcsx({
     });
     if (!hasNext || atMax) break;
   }
+  if (losses.some(loss => loss.details.code === "BMS_GEOGRAPHY_INVALID")) {
+    return fail("BMS official mainland geography validation failed");
+  }
+  if (losses.some(loss => loss.details.code === "BMS_POSTED_DATE_INVALID")) {
+    return fail("BMS official posted-date validation failed");
+  }
   if (declaredTotal === undefined || !declaredArtifactKey || !declaredLocator || counts.rawCount !== declaredTotal ||
     counts.validCount !== declaredTotal || counts.parseDiscardCount !== 0 || counts.validationDiscardCount !== 0) {
-    return failed(capturedAt, "Eightfold PCSx traversal did not close the declared total");
+    return fail("Eightfold PCSx traversal did not close the declared total");
   }
   const declaredCompleteness = { kind: "OFFICIAL_TOTAL_COUNT" as const, value: declaredTotal,
     artifactLogicalKey: declaredArtifactKey, extractorLocator: declaredLocator, scope: "SOURCE" as const };
@@ -2393,6 +2556,23 @@ async function fetchEightfoldPcsx({
     fetchEvidence: finalized.evidence,
     paginationEvaluation: finalized.evaluation
   };
+}
+
+/** Eightfold identity projection; the BMS option requires its reviewed raw geography pair. */
+export function projectEightfoldPcsxPosition(raw: Record<string, unknown>, detailBase: URL, geographyPolicy?: typeof BMS_GEOGRAPHY_POLICY):
+  (NormalizedOfficialJsonJob & { rawId: string }) | undefined {
+  const id = stringValue(raw.id);
+  const title = stringValue(raw.name);
+  const positionUrl = stringValue(raw.positionUrl);
+  const locations = stringsValue(raw.locations);
+  if (!id || !title || !positionUrl || locations.length === 0) return undefined;
+  let officialUrl: URL;
+  try { officialUrl = new URL(positionUrl, detailBase.origin); } catch { return undefined; }
+  if (officialUrl.origin !== detailBase.origin || !officialUrl.pathname.startsWith(`${detailBase.pathname}/`)) return undefined;
+  const locationRaw = locations.join(" | ");
+  const cities = geographyPolicy === BMS_GEOGRAPHY_POLICY ? bmsMainlandCities(raw) : citiesWithFallback(locationRaw, locationRaw);
+  if (!cities) return undefined;
+  return { rawId: id, sourceJobId: persistentOfficialJsonJobId(id), title, officialUrl: officialUrl.toString(),locationRaw,cities };
 }
 
 async function fetchJobsynSolr({
@@ -3531,12 +3711,33 @@ async function fetchPhenomWidgets({
       phenomEntryFailureEvidence(unavailableEntryArtifact));
   }
 
+  const preserveMerckQuality = requiresMerckChinaQuality(plan);
+  if (preserveMerckQuality && (!exactMerckChinaQualityPlan(plan) || !exactMerckChinaBootstrap(pageConfig))) {
+    return failedWithEvidence(capturedAt, "Merck China quality policy requires the exact source and bootstrap",
+      phenomEntryFailureEvidence(unavailableEntryArtifact));
+  }
+  const preserveOrganonQuality = requiresOrganonPostedDate(plan);
+  if (preserveOrganonQuality && (!exactOrganonPostedDatePlan(plan) || !exactOrganonPostedDateBootstrap(pageConfig))) {
+    return failedWithEvidence(capturedAt, "Organon quality policy requires the exact source and bootstrap",
+      phenomEntryFailureEvidence(unavailableEntryArtifact));
+  }
+  const preserveLillyQuality = requiresLillyChinaQuality(plan);
+  if (preserveLillyQuality && (!exactLillyChinaQualityPlan(plan) || !exactLillyChinaBootstrap(pageConfig))) {
+    return failedWithEvidence(capturedAt, "Lilly China quality policy requires the exact source and bootstrap",
+      phenomEntryFailureEvidence(unavailableEntryArtifact));
+  }
+  const preserveUcbPostedDate = !preserveMerckQuality && !preserveOrganonQuality && !preserveLillyQuality && requiresUcbPostedDate(plan);
+  if (preserveUcbPostedDate && (!exactUcbPostedDatePlan(plan) || !exactUcbPostedDateBootstrap(pageConfig))) {
+    return failedWithEvidence(capturedAt, "UCB posted-date policy requires the exact source and bootstrap",
+      phenomEntryFailureEvidence(unavailableEntryArtifact));
+  }
+
   const exactRocheRequestBoundOmittedOffset = exactRocheRequestBoundOmittedOffsetPlan(
     plan,
     pageConfig,
     widgetEndpoint
   );
-  if (config.requestBoundOmittedOffsetPolicy !== undefined && !exactRocheRequestBoundOmittedOffset) {
+  if (config.requestBoundOmittedOffsetPolicy !== undefined && !exactRocheRequestBoundOmittedOffset && !preserveOrganonQuality) {
     return failedWithEvidence(capturedAt,
       "Phenom request-bound omitted offset policy is not bound to the exact Roche source",
       phenomEntryFailureEvidence(unavailableEntryArtifact));
@@ -3553,6 +3754,10 @@ async function fetchPhenomWidgets({
       phenomEntryFailureEvidence(unavailableEntryArtifact));
   }
 
+  const preserveRocheQuality = exactRocheRequestBoundOmittedOffset && config.nativeDetailPolicy === ROCHE_NATIVE_DETAIL_POLICY;
+  if (config.nativeDetailPolicy !== undefined && !preserveRocheQuality) return failed(capturedAt, "Roche native detail policy is not bound to the exact source");
+  // Bind normalized observation time to the retained entry response, as the A replay does.
+  if (preserveRocheQuality) capturedAt = entry.capturedAt!;
   const configLocator = phenomConfigLocator(pageConfig, widgetEndpoint);
   const entryArtifact = phenomArtifact({
     id: "phenom-entry-0000",
@@ -3570,7 +3775,7 @@ async function fetchPhenomWidgets({
   const jobs: NormalizedOfficialJsonJob[] = [];
   const seenOfficialIds = new Set<string>();
   const firstRawByOfficialId = new Map<string, { pageIndex: number; serialized: string }>();
-  const pageSize = Math.max(1, Math.min(100, config.pageSize ?? 50));
+  const pageSize = Math.max(1, Math.min(exactRocheRequestBoundOmittedOffset ? 250 : 100, config.pageSize ?? 50));
   const maxPages = Math.max(1, config.maxPages ?? 20);
   const countryFilter = config.countryFilter ?? "China";
   const facetScope = validPhenomFacetScope(config.facetScope);
@@ -3591,7 +3796,7 @@ async function fetchPhenomWidgets({
   if (facetScope) {
     const globalPreflight = await fetchPhenomFacetPreflight({
       http, endpoint: widgetEndpoint, entryUrl: safeEntryUrl, pageConfig,
-      pageSize, selectedFields: {}, capturedAt, now,
+      pageSize: Math.min(100, pageSize), selectedFields: {}, capturedAt, now,
       enforceExactUiSelections: exactMerckHealthcarePartition,
       id: "phenom-facet-global",
       locator: `${configLocator}|facet-preflight:global|${phenomSelectedFieldsLocator({})}`
@@ -3634,7 +3839,7 @@ async function fetchPhenomWidgets({
 
     const countryPreflight = await fetchPhenomFacetPreflight({
       http, endpoint: widgetEndpoint, entryUrl: safeEntryUrl, pageConfig,
-      pageSize, selectedFields: { country: [facetScope.countryIncludeDescriptor] }, capturedAt, now,
+      pageSize: Math.min(100, pageSize), selectedFields: { country: [facetScope.countryIncludeDescriptor] }, capturedAt, now,
       enforceExactUiSelections: exactMerckHealthcarePartition,
       id: "phenom-facet-country",
       locator: `${configLocator}|facet-preflight:country|${phenomSelectedFieldsLocator({
@@ -3908,7 +4113,11 @@ async function fetchPhenomWidgets({
     }
     const refineSearch = root.refineSearch;
     const refineData = refineSearch.data as Record<string, unknown>;
-    if (exactMerckHealthcarePartition &&
+    if (preserveLillyQuality && !lillyPageEnvelopeValid(refineSearch)) {
+      pages.push(phenomPageTrace({ artifact, sequence: pageIndex, requestedOffset, termination: "FAILED" }));
+      return phenomFailure(capturedAt, "Lilly response status or hits contradict the returned jobs", artifacts, pages, counts, losses);
+    }
+    if ((exactMerckHealthcarePartition || preserveLillyQuality) &&
       !exactPhenomResponseUiSelections(refineData, formalSelectedFields)) {
       pages.push(phenomPageTrace({ artifact, sequence: pageIndex, requestedOffset, termination: "FAILED" }));
       return phenomFailure(capturedAt,
@@ -3967,6 +4176,13 @@ async function fetchPhenomWidgets({
         return phenomFailure(capturedAt, "Phenom structured facet page offset drifted",
           artifacts, pages, counts, losses);
       }
+    }
+    if ((preserveMerckQuality || preserveOrganonQuality || preserveLillyQuality) && (pageTotal === undefined || (declaredTotal !== undefined && declaredTotal !== pageTotal) ||
+      requestedOffset > pageTotal || (refineData.jobs as unknown[]).length !== Math.min(pageSize, pageTotal - requestedOffset) ||
+      (hasOwn(refineSearch, "from") && returnedOffset !== requestedOffset))) {
+      pages.push(phenomPageTrace({ artifact, sequence: pageIndex, requestedOffset, returnedOffset, termination: "FAILED" }));
+      return phenomFailure(capturedAt, `${preserveOrganonQuality ? "Organon" : preserveLillyQuality ? "Lilly China" : "Merck China"} page cardinality or offset conflicts with its bound request`,
+        artifacts, pages, counts, losses);
     }
     const locator = pageRequestLocator(pageTotal === undefined
       ? unavailableBaseLocator.replace("json:unavailable", "json:$.refineSearch.data.jobs")
@@ -4097,12 +4313,52 @@ async function fetchPhenomWidgets({
         recordPhenomLoss(losses, counts, "VALIDATION", "SENSITIVE_OUTPUT", rawLocator, pageIndex, recordIndex, sensitiveField);
         continue;
       }
+      const organonCities = preserveOrganonQuality ? organonOfficialCities(raw) : undefined;
+      if (preserveOrganonQuality && (!organonCities || !organonOfficialIdentity(raw))) {
+        recordPhenomLoss(losses, counts, "VALIDATION", "ORGANON_RAW_FIELDS_INVALID", rawLocator, pageIndex, recordIndex, "location");
+        continue;
+      }
+      const lillyCities = preserveLillyQuality ? lillyOfficialCities(raw) : undefined;
+      if (preserveLillyQuality && !lillyCities) {
+        recordPhenomLoss(losses, counts, "VALIDATION", "LILLY_RAW_FIELDS_INVALID", rawLocator, pageIndex, recordIndex, "location");
+        continue;
+      }
+      const merckCities = preserveMerckQuality ? merckOfficialCities(raw) : undefined;
+      if (preserveMerckQuality && (!merckCities || !merckOfficialIdentity(raw))) {
+        recordPhenomLoss(losses, counts, "VALIDATION", "MERCK_RAW_FIELDS_INVALID", rawLocator, pageIndex, recordIndex, "location");
+        continue;
+      }
+      const ucbCities = preserveUcbPostedDate ? ucbOfficialCities(locationRaw, raw.city) : undefined;
+      if (preserveUcbPostedDate && ucbCities === undefined) {
+        recordPhenomLoss(losses, counts, "VALIDATION", "UCB_CITY_LOCATION_INVALID", rawLocator, pageIndex, recordIndex, "city");
+        continue;
+      }
+      const officialPublishedAt = preserveOrganonQuality ? phenomOfficialPostedDate(raw.postedDate) :
+        preserveLillyQuality ? lillyOfficialPostedDate(raw.postedDate) : preserveMerckQuality ? merckOfficialPostedDate(raw.postedDate) :
+        preserveUcbPostedDate ? ucbOfficialPostedDate(raw.postedDate) : undefined;
+      if (preserveOrganonQuality && officialPublishedAt === undefined) {
+        recordPhenomLoss(losses, counts, "VALIDATION", "ORGANON_POSTED_DATE_INVALID", rawLocator, pageIndex, recordIndex, "postedDate");
+        continue;
+      }
+      if (preserveLillyQuality && officialPublishedAt === undefined) {
+        recordPhenomLoss(losses, counts, "VALIDATION", "LILLY_POSTED_DATE_INVALID", rawLocator, pageIndex, recordIndex, "postedDate");
+        continue;
+      }
+      if (preserveMerckQuality && officialPublishedAt === undefined) {
+        recordPhenomLoss(losses, counts, "VALIDATION", "MERCK_POSTED_DATE_INVALID", rawLocator, pageIndex, recordIndex, "postedDate");
+        continue;
+      }
+      if (preserveUcbPostedDate && officialPublishedAt === undefined) {
+        recordPhenomLoss(losses, counts, "VALIDATION", "UCB_POSTED_DATE_INVALID", rawLocator, pageIndex, recordIndex, "postedDate");
+        continue;
+      }
       seenOfficialIds.add(id!);
       if (!firstRaw) firstRawByOfficialId.set(id!, { pageIndex, serialized: JSON.stringify(raw) });
       const sourceJobId = persistentOfficialJsonJobId(id!);
       jobs.push({
         sourceJobId, title: title!, officialUrl, locationRaw: locationRaw!,
-        cities: citiesWithFallback(`${city ?? ""} ${locationRaw!}`, city ?? locationRaw!)
+        ...(officialPublishedAt === undefined ? {} : { officialPublishedAt }),
+        cities: organonCities ?? lillyCities ?? merckCities ?? ucbCities ?? citiesWithFallback(`${city ?? ""} ${locationRaw!}`, city ?? locationRaw!)
       });
       counts.validCount += 1;
       validIds.push(irreversibleOfficialJsonEvidenceId(sourceJobId));
@@ -4142,6 +4398,78 @@ async function fetchPhenomWidgets({
         artifactLogicalKey: declaredArtifactKey, extractorLocator: declaredLocator, scope: "SOURCE" as const
       }
     : undefined;
+  if (preserveOrganonQuality && losses.length > 0) {
+    return phenomFailure(capturedAt, "Organon official field validation failed",
+      artifacts, pages, counts, losses, declaredCompleteness);
+  }
+  if (preserveLillyQuality && losses.length > 0) {
+    return phenomFailure(capturedAt, "Lilly China official field validation failed",
+      artifacts, pages, counts, losses, declaredCompleteness);
+  }
+  if (preserveMerckQuality && losses.length > 0) {
+    return phenomFailure(capturedAt, "Merck China official field validation failed",
+      artifacts, pages, counts, losses, declaredCompleteness);
+  }
+  if (preserveUcbPostedDate && losses.some(loss => loss.details?.code === "UCB_CITY_LOCATION_INVALID")) {
+    return phenomFailure(capturedAt, "UCB official city conflicts with the reviewed primary locality",
+      artifacts, pages, counts, losses, declaredCompleteness);
+  }
+  if (preserveUcbPostedDate && losses.some(loss => loss.details?.code === "UCB_POSTED_DATE_INVALID")) {
+    return phenomFailure(capturedAt, "UCB official posted-date validation failed",
+      artifacts, pages, counts, losses, declaredCompleteness);
+  }
+  if (preserveRocheQuality) {
+    for (const artifact of artifacts) artifact.bodyRepresentation = "EXACT";
+    if (losses.length || seenOfficialIds.size !== declaredTotal) return phenomFailure(capturedAt,
+      "Roche official identity set does not close its declared total", artifacts, pages, counts, losses, declaredCompleteness);
+    const rows = [...firstRawByOfficialId.values()].map(value => JSON.parse(value.serialized) as Record<string, unknown>);
+    try {
+      for (let offset = 0; offset < rows.length; offset += 6) {
+        const details = await Promise.all(rows.slice(offset, offset + 6).map(async raw => {
+          const requestedUrl = rocheNativeDetailUrl(raw);
+          if (!requestedUrl) throw Error("ROCHE_NATIVE_IDENTITY_INVALID");
+          const response = await http({url: requestedUrl, method: "GET", headers: {Accept: "application/json", "User-Agent": "job-search-crawler/0.1"}});
+          assertOfficialJsonEvidenceResponse(response, {requestedUrl, crawlStartedAtMs: Date.parse(capturedAt), observedNowMs: now().getTime()});
+          assertOfficialJsonMime(response);
+          const detail = phenomArtifact({id: `roche-detail-${raw.reqId}`, kind: "ATS_API_RESPONSE", requestedUrl, response, extractorLocator: "roche-workday-jobposting-v1"});
+          detail.bodyRepresentation = "EXACT";
+          return {detail, native: rocheNativeDetail(raw, detail, capturedAt), sourceJobId: persistentOfficialJsonJobId(raw.jobSeqNo as string)};
+        }));
+        artifacts.push(...details.map(value => value.detail));
+        if (details.some(value => !value.native)) throw Error("ROCHE_NATIVE_DETAIL_INVALID");
+        for (const {native, sourceJobId} of details) Object.assign(jobs.find(job => job.sourceJobId === sourceJobId)!, native);
+      }
+    } catch {
+      return phenomFailure(capturedAt, "Roche native job detail or application validation failed", artifacts, pages, counts, losses, declaredCompleteness);
+    }
+  }
+  if (preserveLillyQuality) {
+    // Reuse the listed native apply URLs; retain one exact response per identity.
+    const rows = [...firstRawByOfficialId.values()].map(value => JSON.parse(value.serialized) as Record<string, unknown>);
+    try {
+      for (let offset = 0; offset < rows.length; offset += 6) {
+        const details = await Promise.all(rows.slice(offset, offset + 6).map(async raw => {
+          const requestedUrl = raw.applyUrl as string;
+          const response = await http({url: requestedUrl, method: "GET", headers: {Accept: "text/html", "User-Agent": "job-search-crawler/0.1"}});
+          assertOfficialJsonEvidenceResponse(response, {requestedUrl, crawlStartedAtMs: Date.parse(capturedAt), observedNowMs: now().getTime()});
+          assertOfficialHtmlMime(response);
+          const detail = phenomArtifact({id: `lilly-detail-${raw.reqId}`, kind: "OFFICIAL_COMPANY_PAGE",
+            requestedUrl, response, extractorLocator: "lilly-workday-jobposting-v1"});
+          const native = lillyNativeDetail(raw, detail, capturedAt);
+          if (!native) throw Error("LILLY_NATIVE_DETAIL_INVALID");
+          return {detail, native, sourceJobId: persistentOfficialJsonJobId(raw.jobSeqNo as string)};
+        }));
+        for (const {detail, native, sourceJobId} of details) {
+          artifacts.push(detail);
+          const job = jobs.find(job => job.sourceJobId === sourceJobId)!;
+          job.cities = native.cities;
+          job.locationRaw = native.locationRaw;
+        }
+      }
+    } catch {
+      return phenomFailure(capturedAt, "Lilly native job detail or application validation failed", artifacts, pages, counts, losses, declaredCompleteness);
+    }
+  }
   let finalized: ReturnType<typeof finalizeOfficialJsonEvidenceBundle>;
   try {
     finalized = finalizeOfficialJsonEvidenceBundle({
@@ -4177,7 +4505,7 @@ async function fetchPhenomWidgets({
   }
   return {
     ok: true,
-    capturedAt,
+    capturedAt: preserveLillyQuality ? finalized.evidence.artifacts[0]!.capturedAt : capturedAt,
     payload: { jobs },
     completeness: {
       completenessStatus: "NEEDS_MANUAL_COMPLETENESS_REVIEW",
@@ -4224,7 +4552,9 @@ function exactRocheRequestBoundOmittedOffsetPlan(
     config.mixedLocationScopePolicy === "EXACTLY_ONE_MAINLAND_ALTERNATIVE_V1" &&
     config.requestBoundOmittedOffsetPolicy === "ROCHE_REQUEST_BOUND_OMITTED_OFFSET_V1" &&
     config.exactDuplicateReconciliationPolicy === "ROCHE_IDENTICAL_CROSS_PAGE_V1" &&
-    config.pageSize === 100 && config.maxPages === 10 &&
+    (config.nativeDetailPolicy === undefined ? fields.officialPublishedAt === undefined :
+      config.nativeDetailPolicy === ROCHE_NATIVE_DETAIL_POLICY && fields.officialPublishedAt === "officialPublishedAt") &&
+    (config.pageSize === 100 || config.pageSize === 250) && config.maxPages === 10 &&
     widgetEndpoint === "https://careers.roche.com/widgets" &&
     pageConfig.widgetApiEndpoint === "https://careers.roche.com/widgets" &&
     pageConfig.country === "cn" && pageConfig.deviceType === "desktop" &&
@@ -4879,7 +5209,7 @@ function recordPhenomLoss(
   counts: PersistentSourceFetchEvidence["fetchCounts"],
   stage: "PARSE" | "VALIDATION",
   code: "NON_OBJECT_RECORD" | "MISSING_REQUIRED_FIELD" | "UNSAFE_OFFICIAL_ID" |
-    "DUPLICATE_OFFICIAL_ID" | "OUT_OF_SCOPE" | "UNSAFE_OFFICIAL_URL" | "SENSITIVE_OUTPUT",
+    "DUPLICATE_OFFICIAL_ID" | "OUT_OF_SCOPE" | "UNSAFE_OFFICIAL_URL" | "SENSITIVE_OUTPUT" | "UCB_POSTED_DATE_INVALID" | "UCB_CITY_LOCATION_INVALID" | "MERCK_RAW_FIELDS_INVALID" | "MERCK_POSTED_DATE_INVALID" | "ORGANON_RAW_FIELDS_INVALID" | "ORGANON_POSTED_DATE_INVALID" | "LILLY_RAW_FIELDS_INVALID" | "LILLY_POSTED_DATE_INVALID",
   rawLocator: string,
   pageSequence: number,
   recordIndex: number,
@@ -5663,7 +5993,7 @@ export async function defaultHcmCloudBrowserFetch({
   if (signal?.aborted) throw signal.reason;
   const browser = await chromium.launch({
     ...(process.platform === "linux" ? { executablePath: FORMAL_CHROMIUM_PATH, args:[...FORMAL_CHROMIUM_ARGS] } : { channel: "chrome" }),
-    headless: true,
+    headless: true, chromiumSandbox: true,
     timeout: browserTimeoutMs
   });
   const browserLifecycle = createAbortableClose(signal, () => browser.close());
@@ -7772,7 +8102,7 @@ function officialJsonChinaRecordScope(
   return locationChina ? "CHINA" : "OUT_OF_SCOPE";
 }
 
-function beisenDomesticRecordScopeReview(
+export function beisenDomesticRecordScopeReview(
   country: string | undefined,
   locationParts: readonly string[],
   locationRaw: string,
@@ -7976,7 +8306,7 @@ function beisenSocialChannelMismatch(
   return undefined;
 }
 
-function beisenZhiyeDetailUrl(
+export function beisenZhiyeDetailUrl(
   entryUrl: string,
   detailPath: string | undefined,
   sourceJobId: string
@@ -7996,7 +8326,7 @@ function beisenZhiyeDetailUrl(
   return safe;
 }
 
-function citiesFromBeisenLocation(locationParts: readonly string[]): string[] {
+export function citiesFromBeisenLocation(locationParts: readonly string[]): string[] {
   const cities = locationParts.flatMap((location) => {
     const segments = location
       .split(/[/,，;；、]/u)
@@ -8140,16 +8470,33 @@ function balancedJsonObject(input: string, start: number): string | undefined {
   return undefined;
 }
 
+function novoHttpRetryAllowed(response: OfficialJsonHttpResponse, requestedUrl: string,
+  allowApplicationRedirect: boolean): boolean {
+  if (!retryableHttpTransportFailure(response.status)) return false;
+  const final = new URL(response.finalUrl!);
+  if (final.href !== requestedUrl && (!allowApplicationRedirect ||
+    final.origin !== "https://careers.novonordisk.com" || final.search || final.hash ||
+    !/^\/job\/[^/]+\/[0-9]+\/$/u.test(final.pathname))) return false;
+  // Explicit access challenges, login pages, and ambiguous job content are not
+  // gateway failures, even if upstream labels them with a temporary HTTP status.
+  const $ = loadHtml(response.body);
+  if ($(".jobDisplay, #careerjobdisplay, input[type=password], [id*=captcha], [class*=captcha]").length) return false;
+  $("script, style").remove();
+  if (/\bERR_SSL_PROTOCOL_ERROR\b|\b(?:SSL|TLS)\s+(?:handshake|protocol)\s+(?:failed|failure|error)\b/iu.test($.text())) return false;
+  return !/captcha|verify\s+(?:that\s+)?you\s+are\s+human|access\s+(?:denied|blocked)|forbidden|request\s+blocked|sign\s*in|log\s*in|authentication\s+required|CERT_[A-Z_]+|ERR_TLS_[A-Z_]+|UNABLE_TO_VERIFY_LEAF_SIGNATURE|(?:SSL|TLS)\s+certificate|certificate\s+(?:(?:verify|verification|validation)\s+failed|(?:has\s+)?expired|is\s+(?:invalid|not\s+trusted))|self[- ]signed\s+certificate|unable\s+to\s+verify\s+(?:the\s+)?(?:first\s+)?certificate|验证码|人机验证|登录|拒绝访问|证书错误/iu.test($.text());
+}
+
 function createDefaultHttpClient(now: () => Date): OfficialJsonHttpClient {
   return async (request) => {
-    const response = await fetchWithOfficialTimeout(request.url, {
+    const { response, body } = await fetchWithOfficialTimeout(request.url, {
       headers: request.headers,
       method: request.method ?? "GET",
       ...(request.body === undefined ? {} : { body: request.body }),
       redirect: "follow"
-    });
-    const body = await response.text();
+    }, { consumeResponse: async (response) => ({ response, body: await response.text() }) });
     const responseHeaders = response.headers as Headers & { getSetCookie?: () => string[] };
+    const capturedAt = now().toISOString();
+    const retryAfter = parseOfficialRetryAfter(response.headers.get("retry-after"), Date.parse(capturedAt));
     return {
       status: response.status,
       body,
@@ -8158,7 +8505,8 @@ function createDefaultHttpClient(now: () => Date): OfficialJsonHttpClient {
       ...(response.headers.get("content-type")
         ? { contentType: response.headers.get("content-type")! }
         : {}),
-      capturedAt: now().toISOString()
+      capturedAt,
+      ...(retryAfter ? { retryAfter } : {})
     };
   };
 }

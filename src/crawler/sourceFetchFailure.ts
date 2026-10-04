@@ -23,6 +23,25 @@ export interface SourceTransportFailure {
   code: RetryableSourceTransportFailureCode;
   retryable: true;
   stage?: SourceTransportFailureStage;
+  /** A server minimum; the router never extends the configured backoff to fit it. */
+  retryAfterMs?: number;
+}
+
+export type OfficialRetryAfter = { value: string; delayMs: number } | { invalid: true };
+
+/** Keep only an unambiguous bounded header, never arbitrary upstream text. */
+export function parseOfficialRetryAfter(value: string | null, observedAtMs: number): OfficialRetryAfter | undefined {
+  if (value === null) return undefined;
+  if (value.length > 64 || !Number.isFinite(observedAtMs)) return { invalid: true };
+  const normalized = value.replace(/^[ \t]+|[ \t]+$/gu, "");
+  if (/^[0-9]{1,10}$/u.test(normalized)) {
+    return { value: normalized, delayMs: Number(normalized) * 1_000 };
+  }
+  // Accept canonical IMF-fixdate only; obsolete, duplicate or ambiguous dates fail closed.
+  if (!/^(?:Mon|Tue|Wed|Thu|Fri|Sat|Sun), [0-9]{2} (?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec) [0-9]{4} [0-9]{2}:[0-9]{2}:[0-9]{2} GMT$/u.test(normalized)) return { invalid: true };
+  const timestamp = Date.parse(normalized);
+  if (!Number.isFinite(timestamp) || new Date(timestamp).toUTCString() !== normalized) return { invalid: true };
+  return { value: normalized, delayMs: Math.max(0, timestamp - observedAtMs) };
 }
 
 const RETRYABLE_FAILURE_CODE =
@@ -53,12 +72,16 @@ export function isRetryableSourceTransportFailure(
 ): failure is SourceTransportFailure {
   if (typeof failure !== "object" || failure === null || !("code" in failure) ||
     !("retryable" in failure) || failure.retryable !== true) return false;
-  return isRetryableSourceTransportFailureCode(failure.code);
+  return isRetryableSourceTransportFailureCode(failure.code) &&
+    (!("retryAfterMs" in failure) ||
+      (typeof failure.retryAfterMs === "number" && Number.isSafeInteger(failure.retryAfterMs) && failure.retryAfterMs >= 0));
 }
 
-export function retryableHttpTransportFailure(status: number): SourceTransportFailure | undefined {
+export function retryableHttpTransportFailure(status: number, retryAfter?: OfficialRetryAfter): SourceTransportFailure | undefined {
+  if (retryAfter && ("invalid" in retryAfter || !Number.isSafeInteger(retryAfter.delayMs) || retryAfter.delayMs < 0)) return undefined;
   return status === 429 || status >= 500 && status <= 599
-    ? { code: `OFFICIAL_HTTP_${status}` as RetryableSourceTransportFailureCode, retryable: true }
+    ? { code: `OFFICIAL_HTTP_${status}` as RetryableSourceTransportFailureCode, retryable: true,
+        ...(retryAfter && "delayMs" in retryAfter ? { retryAfterMs: retryAfter.delayMs } : {}) }
     : undefined;
 }
 

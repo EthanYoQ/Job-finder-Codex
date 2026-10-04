@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { CITY_PENDING } from "./jobLocation";
 
 export const JOB_CATEGORIES = [
   "销售",
@@ -41,6 +42,12 @@ export const SearchRequestSchema = z.object({
   companyIds: z.array(z.string().trim().min(1)).default([]),
   sort: SearchSortSchema.default("COMPANY_PINYIN_ASC"),
   newWithinDays: z.literal(7).optional()
+});
+
+/** Additive portable-only discovery option; the legacy city contract stays strict. */
+export const PORTABLE_SEARCH_CITIES = [...SEARCH_CITIES, CITY_PENDING] as const;
+export const PortableSearchRequestSchema = SearchRequestSchema.extend({
+  city: z.string().trim().pipe(z.enum(PORTABLE_SEARCH_CITIES))
 });
 
 export const COMPANY_EXPANSION_PAGE_SIZE = 10;

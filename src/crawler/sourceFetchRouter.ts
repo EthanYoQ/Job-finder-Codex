@@ -4,7 +4,10 @@ import {
   markSourceFetchRetry,
   type SourceFetchFunction
 } from "./runSourceCrawl";
-import { currentOfficialSourceAttemptSignal } from "./officialHttpRuntimeLimits";
+import {
+  currentOfficialSourceAttemptRemainingMs,
+  currentOfficialSourceAttemptSignal
+} from "./officialHttpRuntimeLimits";
 import { isRetryableSourceTransportFailure } from "./sourceFetchFailure";
 
 export interface SourceFetchRouterDeps {
@@ -52,10 +55,19 @@ export function createSourceFetchRouter({
     }
     for (let retry = 0; retry < policy.maxRetries; retry += 1) {
       if (result.ok || !isRetryableSourceTransportFailure(result.transportFailure)) return result;
+      const retryAfterMs = result.transportFailure.retryAfterMs;
+      if (retryAfterMs !== undefined &&
+        (!Number.isSafeInteger(retryAfterMs) || retryAfterMs < 0 || retryAfterMs > policy.backoffMs)) return result;
       const signal = currentOfficialSourceAttemptSignal();
       if (signal?.aborted) return result;
+      const remainingBeforeDelay = currentOfficialSourceAttemptRemainingMs();
+      if (remainingBeforeDelay !== undefined &&
+        (!Number.isFinite(remainingBeforeDelay) || remainingBeforeDelay <= policy.backoffMs)) return result;
       await delay(policy.backoffMs);
       if (signal?.aborted) return result;
+      const remainingBeforeRetry = currentOfficialSourceAttemptRemainingMs();
+      if (remainingBeforeRetry !== undefined &&
+        (!Number.isFinite(remainingBeforeRetry) || remainingBeforeRetry <= 0)) return result;
       markSourceFetchRetry(attemptTracker, result.transportFailure.code);
       result = await delegate(plan);
     }

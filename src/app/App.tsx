@@ -21,10 +21,12 @@ import {
   type AppDataProvider,
   type CoverageCompany,
   type SearchCompany,
+  type SearchResult,
   type StaticDocumentResult
 } from "./appDataProvider";
 import type { SortMode } from "./jobSearch";
-import { SEARCH_CITIES } from "../domain/search";
+import { PORTABLE_SEARCH_CITIES, SEARCH_CITIES } from "../domain/search";
+import { CITY_PENDING } from "../domain/jobLocation";
 import "./App.css";
 
 type ConsentState = "pending" | "closed" | "accepted";
@@ -45,7 +47,6 @@ interface FeedbackDraft {
 
 const DEFAULT_CITY = SEARCH_CITIES[0];
 const DEFAULT_COMPANY_ROW_CAP = 3;
-const CITY_OPTIONS = SEARCH_CITIES;
 const CATEGORY_OPTIONS = ["销售", "医学事务", "市场准入/政府事务", "临床运营"];
 
 function normalize(value: string): string {
@@ -187,12 +188,9 @@ export function App({ dataProvider = createDemoAppDataProvider() }: AppProps) {
   const [onlyNew, setOnlyNew] = useState(false);
   const [sort, setSort] = useState<SortMode>("PINYIN_ASC");
 
-  const [searchResult, setSearchResult] = useState<{
-    companies: SearchCompany[];
-    totalJobs: number;
-    lastUpdatedAt: string | null;
-  } | null>(null);
+  const [searchResult, setSearchResult] = useState<SearchResult | null>(null);
   const [isSearching, setIsSearching] = useState(false);
+  const cityOptions = dataProvider.supportsCityPendingSearch ? PORTABLE_SEARCH_CITIES : SEARCH_CITIES;
 
   const [expandedCompanyId, setExpandedCompanyId] = useState<string | null>(null);
   const [rowCaps, setRowCaps] = useState<Record<string, number>>({});
@@ -425,7 +423,7 @@ export function App({ dataProvider = createDemoAppDataProvider() }: AppProps) {
               </div>
 
               <div className="city-group" role="radiogroup" aria-label="城市">
-                {CITY_OPTIONS.map((option) => (
+                {cityOptions.map((option) => (
                   <label
                     className={`city-option${city === option ? " is-active" : ""}`}
                     key={option}
@@ -442,6 +440,10 @@ export function App({ dataProvider = createDemoAppDataProvider() }: AppProps) {
                   </label>
                 ))}
               </div>
+
+              {city === CITY_PENDING ? (
+                <p className="muted-copy">官方地点未明确到城市或存在冲突；城市待核职位不计入北京、上海、广州筛选。</p>
+              ) : null}
 
               <div className="filter-block">
                 <div className="filter-heading">
@@ -499,10 +501,15 @@ export function App({ dataProvider = createDemoAppDataProvider() }: AppProps) {
 
             <section aria-label="职位概览" className="panel summary-card">
               <div>
+                <p className="muted-copy">当前筛选匹配</p>
                 <strong className="tabular-numerals">{visibleJobCount} 个职位</strong>
                 <p className="tabular-numerals">{visibleCompanies.length} 家公司</p>
+                {searchResult?.publishedJobSummary ? (
+                  <p className="muted-copy">全部已发布职位 {searchResult.publishedJobSummary.totalJobs} 个，其中城市待核 {searchResult.publishedJobSummary.cityPendingJobs} 个（不随筛选变化）</p>
+                ) : null}
+                {searchResult?.coverageSummary ? <p className="muted-copy">当前已更新 {searchResult.coverageSummary.publishingCompanyCount}/{searchResult.coverageSummary.requiredCompanyCount} 家目标企业{searchResult.coverageSummary.publishingCompanyCount < searchResult.coverageSummary.requiredCompanyCount ? "，其他来源仍在核验" : ""}{searchResult.coverageSummary.degradedCompanyCount > 0 ? `；${searchResult.coverageSummary.degradedCompanyCount} 家近期更新异常` : ""}</p> : null}
               </div>
-              <span className="tabular-numerals">最后更新 {formatTimestamp(searchResult?.lastUpdatedAt ?? null)}</span>
+              <span className="tabular-numerals">最后更新 {formatTimestamp(searchResult?.lastUpdatedAt ?? null)}{searchResult?.lastUpdatedAt ? " UTC" : ""}</span>
             </section>
 
             <section aria-label="公司职位列表" className="company-list">
@@ -545,6 +552,10 @@ export function App({ dataProvider = createDemoAppDataProvider() }: AppProps) {
                         </span>
                       </button>
 
+                      {company.sourceScopeNote ? (
+                        <p className="source-scope-note">{company.sourceScopeNote}</p>
+                      ) : null}
+
                       {isExpanded ? (
                         <div className="job-list">
                           {visibleJobs.map((job) => (
@@ -552,13 +563,14 @@ export function App({ dataProvider = createDemoAppDataProvider() }: AppProps) {
                               <div className="job-copy">
                                 <h2>
                                   {job.title}
+                                  {job.cityPending ? <span className="city-pending-badge">官方城市尚未核实</span> : null}
                                   {job.isNew ? <span className="new-badge">新增</span> : null}
                                 </h2>
                                 <p>{job.officialTitle}</p>
                                 <div className="job-meta">
                                   <span>
                                     <MapPin aria-hidden="true" size={14} />
-                                    {job.locationRaw}
+                                    {job.cityPending ? `官方原始地点：${job.locationRaw}` : job.locationRaw}
                                   </span>
                                   <span>
                                     <BriefcaseBusiness aria-hidden="true" size={14} />
@@ -677,7 +689,7 @@ export function App({ dataProvider = createDemoAppDataProvider() }: AppProps) {
             <div className="panel-heading">
               <Building2 aria-hidden="true" size={18} />
               <div>
-                <strong><span className="tabular-numerals">{COMPANY_DIRECTORY_PAGE_SIZE}</span> 家官方招聘目录</strong>
+                <strong>官方招聘目录</strong>
                 <p>全部目标公司均在目录中；状态会明确区分自动更新、核验中与仅提供官方入口。</p>
               </div>
             </div>
@@ -718,9 +730,12 @@ export function App({ dataProvider = createDemoAppDataProvider() }: AppProps) {
                         </div>
                       </div>
                       <p className="coverage-note">{publicationNote(company)}</p>
+                      {company.sourceScopeNote ? (
+                        <p className="coverage-note">{company.sourceScopeNote}</p>
+                      ) : null}
                       {company.lastSuccessAt !== null ? (
                         <p className="coverage-updated tabular-numerals">
-                          最近成功更新 {formatTimestamp(company.lastSuccessAt)}
+                          最近成功更新 {formatTimestamp(company.lastSuccessAt)} UTC
                         </p>
                       ) : null}
                       {primaryUrl !== null ? (

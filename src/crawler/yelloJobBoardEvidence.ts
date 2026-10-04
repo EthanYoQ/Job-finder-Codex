@@ -1,8 +1,14 @@
 import { load } from "cheerio";
+import { createHash } from "node:crypto";
+import { classifyGileadPublicAge, exactGileadPublicAgePlan, GILEAD_PUBLIC_AGE_POLICY, GILEAD_YELLO_BOARD, gileadOfficialCities, type GileadPublicAgeClassification, type GileadPublicAgeEvidence } from "./gileadPublicAge";
+import type { NormalizedJobRecord } from "./normalizedJob";
+import type { SourceCrawlPlan } from "./sourcePlan";
+import type { PersistentSourceFetchEvidence, SourceFetchArtifactDraft } from "./sourceFetchEvidence";
 import { hasUniqueJsonObjectKeys } from "./strictJsonObjectKeys";
 import {
   explicitlyForeignOrNonMainlandLocation,
-  explicitlyGenericOrAmbiguousLocation
+  explicitlyGenericOrAmbiguousLocation,
+  persistentOfficialJsonJobId
 } from "./officialJsonEvidence";
 
 export interface YelloJobBoardConfig {
@@ -10,6 +16,7 @@ export interface YelloJobBoardConfig {
   boardId: string;
   locationFilterId: number;
   expectedLocationLabel: "China";
+  publicAgePolicy: typeof GILEAD_PUBLIC_AGE_POLICY;
 }
 
 export interface ParsedYelloJob {
@@ -18,6 +25,16 @@ export interface ParsedYelloJob {
   officialUrl: string;
   locationRaw: string;
   rawHtml: string;
+  cities: string[];
+  publicAgeRaw: string;
+  publicAgeClassification: GileadPublicAgeClassification;
+}
+
+export class YelloPublicAgeError extends Error {
+  constructor(readonly rawRows: string[], readonly rowIndex: number) {
+    super(`GILEAD_PUBLIC_AGE_INVALID:row:${rowIndex}`);
+    this.name = "YelloPublicAgeError";
+  }
 }
 
 export function yelloJobBoardBinding(entryUrl: string, config: YelloJobBoardConfig): {
@@ -28,20 +45,21 @@ export function yelloJobBoardBinding(entryUrl: string, config: YelloJobBoardConf
   const entry = new URL(entryUrl);
   if (entry.origin !== "https://gilead.yello.co" || entry.search || entry.hash ||
       entry.pathname !== `/job_boards/${config.boardId}` ||
-      !/^[A-Za-z0-9_-]{22}$/u.test(config.boardId) ||
-      !Number.isSafeInteger(config.locationFilterId) || config.locationFilterId <= 0 ||
-      config.expectedLocationLabel !== "China") throw new Error("Yello source configuration is invalid");
+      config.boardId !== GILEAD_YELLO_BOARD || config.locationFilterId !== 72 ||
+      config.publicAgePolicy !== GILEAD_PUBLIC_AGE_POLICY || config.expectedLocationLabel !== "China" ||
+      !exactKeys(config as unknown as Record<string, unknown>, ["kind", "boardId", "locationFilterId", "expectedLocationLabel", "publicAgePolicy"])) throw new Error("Yello source configuration is invalid");
   const endpoint = new URL(`${entry.pathname}/search`, entry.origin);
   endpoint.searchParams.set("query", "");
   endpoint.searchParams.set("filters", String(config.locationFilterId));
   return { entryUrl: entry.toString(), endpointUrl: endpoint.toString(),
-    extractorLocator: `yello-job-board-v1|board:${config.boardId}|location-filter:${config.locationFilterId}` };
+    extractorLocator: `yello-job-board-v2|board:${config.boardId}|location-filter:${config.locationFilterId}|public-age:${config.publicAgePolicy}` };
 }
 
 export function parseYelloJobBoardResponse(body: string, config: YelloJobBoardConfig): {
   declaredTotal: number;
   jobs: ParsedYelloJob[];
 } {
+  yelloJobBoardBinding(`https://gilead.yello.co/job_boards/${GILEAD_YELLO_BOARD}`, config);
   if (!hasUniqueJsonObjectKeys(body)) throw new Error("Yello response is not strict JSON");
   const root = JSON.parse(body) as unknown;
   if (!isRecord(root) || !exactKeys(root, ["html", "count_on_page", "more_requisitions", "query",
@@ -57,7 +75,8 @@ export function parseYelloJobBoardResponse(body: string, config: YelloJobBoardCo
   const rows = $("li.search-results__item").toArray();
   if (rows.length !== count) throw new Error("Yello result count does not match rendered rows");
   const seen = new Set<string>();
-  const jobs = rows.map((element): ParsedYelloJob => {
+  const rawRows = rows.map(element => $.html(element));
+  const jobs = rows.map((element, rowIndex): ParsedYelloJob => {
     const row = $(element);
     const link = row.find("a.search-results__req_title");
     const locationSpans = row.find(".search-results__jobinfo > div > span");
@@ -71,7 +90,7 @@ export function parseYelloJobBoardResponse(body: string, config: YelloJobBoardCo
     const officialId = officialUrl.pathname.match(/^\/jobs\/([A-Za-z0-9_-]{22})$/u)?.[1];
     const query = [...officialUrl.searchParams.entries()];
     if (!title || !officialId || seen.has(officialId) || officialUrl.origin !== "https://gilead.yello.co" ||
-        officialUrl.hash || query.length !== 1 || query[0]![0] !== "job_board_id" ||
+        officialUrl.username || officialUrl.password || officialUrl.hash || query.length !== 1 || query[0]![0] !== "job_board_id" ||
         query[0]![1] !== config.boardId || flag.attr("alt") !== "China flag" ||
         flag.attr("src") !== "/assets/images/flags/cn.png" || !/^China - \S/u.test(locationRaw) ||
         explicitlyForeignOrNonMainlandLocation(locationRaw) ||
@@ -79,9 +98,35 @@ export function parseYelloJobBoardResponse(body: string, config: YelloJobBoardCo
       throw new Error("Yello result row identity or China scope is invalid");
     }
     seen.add(officialId);
-    return { officialId, title, officialUrl: officialUrl.toString(), locationRaw, rawHtml: $.html(element) };
+    const age = row.find(".search-results__post-time");
+    const publicAgeRaw = age.text();
+    const publicAgeClassification = classifyGileadPublicAge(publicAgeRaw);
+    if (age.length !== 1 || age.children().length !== 0 || !publicAgeClassification) {
+      throw new YelloPublicAgeError(rawRows, rowIndex);
+    }
+    return { officialId, title, officialUrl: officialUrl.toString(), locationRaw, rawHtml: rawRows[rowIndex]!,
+      cities: gileadOfficialCities(locationRaw), publicAgeRaw, publicAgeClassification };
   });
   return { declaredTotal: count, jobs };
+}
+
+export function yelloPublicAgeEvidence(row: ParsedYelloJob, rowIndex: number, artifact: Pick<SourceFetchArtifactDraft, "logicalKey" | "capturedAt">): GileadPublicAgeEvidence {
+  return {policy: GILEAD_PUBLIC_AGE_POLICY, rawLabel: row.publicAgeRaw, classification: row.publicAgeClassification,
+    exactDateStatus: "UNKNOWN", timeWindowStatus: "TIME_WINDOW_UNAVAILABLE", capturedAt: artifact.capturedAt,
+    artifactLogicalKey: artifact.logicalKey, rowLocator: `$.html|li.search-results__item[${rowIndex}]|.search-results__post-time`,
+    rowSha256: createHash("sha256").update(row.rawHtml, "utf8").digest("hex")};
+}
+
+/** Enrich only evidence. The independent strict gate still compares every normalized identity field. */
+export function attachYelloPublicAgeEvidence(plan: SourceCrawlPlan, evidence: PersistentSourceFetchEvidence | undefined, jobs: NormalizedJobRecord[]): void {
+  if (!exactGileadPublicAgePlan(plan) || plan.adapterId !== "official-json" || plan.officialJsonFetch?.kind !== "yello-job-board" || !evidence || evidence.artifacts.length !== 1) return;
+  const artifact = evidence.artifacts[0]!;
+  const parsed = parseYelloJobBoardResponse(typeof artifact.body === "string" ? artifact.body : Buffer.from(artifact.body).toString("utf8"), plan.officialJsonFetch);
+  const byId = new Map(parsed.jobs.map((row, index) => [persistentOfficialJsonJobId(row.officialId), yelloPublicAgeEvidence(row, index, artifact)]));
+  for (const job of jobs) {
+    const age = job.sourceJobId && byId.get(job.sourceJobId);
+    if (age) job.evidence.gileadPublicAge = age;
+  }
 }
 
 function exactLocationFilter(value: unknown, config: YelloJobBoardConfig): boolean {

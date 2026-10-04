@@ -2,6 +2,8 @@ import { spawnSync } from "node:child_process";
 import { resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import { PrismaClient } from "@prisma/client";
+import { assertMigrationReplaySupported } from "../src/db/existingDatabasePreflight";
+import { listCurrentPrismaMigrations } from "../src/db/prismaMigrationManifest";
 import { bootstrapDeployment, resolveDeploymentBootstrapConfig } from "../src/ops/deploymentBootstrap";
 
 interface MigrationProcessFailure {
@@ -37,26 +39,32 @@ export function formatMigrationProcessFailure(
   return `Database migration failed (status=${result.status ?? "null"}, signal=${result.signal ?? "none"}, error=${errorCode}): ${detail}`;
 }
 
+export function runDeploymentMigrations(
+  databaseUrl: string,
+  projectRoot = process.cwd(),
+  spawnCommand: (executable: string, args: string[], options: {
+    cwd: string; env: NodeJS.ProcessEnv; encoding: "utf8"; shell: false;
+    windowsHide: true; timeout: number; maxBuffer: number;
+  }) => MigrationProcessFailure = spawnSync
+): void {
+  assertMigrationReplaySupported(listCurrentPrismaMigrations(projectRoot).map((entry) => entry.migrationName));
+  const result = spawnCommand(process.execPath, [
+    resolve(projectRoot, "node_modules/prisma/build/index.js"), "migrate", "deploy", "--schema", "prisma/schema.prisma"
+  ], {
+    cwd: projectRoot,
+    env: { ...process.env, DATABASE_URL: databaseUrl },
+    encoding: "utf8", shell: false, windowsHide: true,
+    timeout: 5 * 60_000, maxBuffer: 4 * 1024 * 1024
+  });
+  if (result.status !== 0 || result.error) throw new Error(formatMigrationProcessFailure(result, databaseUrl));
+}
+
 export async function runDeploymentBootstrap(env: NodeJS.ProcessEnv = process.env): Promise<void> {
   const config = resolveDeploymentBootstrapConfig(env);
   const prisma = new PrismaClient({ datasources: { db: { url: config.databaseUrl } } });
   try {
     const report = await bootstrapDeployment(config, {
-      migrate: async () => {
-        const result = spawnSync(process.execPath, [
-          resolve("node_modules/prisma/build/index.js"), "migrate", "deploy", "--schema", "prisma/schema.prisma"
-        ], {
-          env: { ...process.env, DATABASE_URL: config.databaseUrl },
-          encoding: "utf8",
-          shell: false,
-          windowsHide: true,
-          timeout: 5 * 60_000,
-          maxBuffer: 4 * 1024 * 1024
-        });
-        if (result.status !== 0 || result.error) {
-          throw new Error(formatMigrationProcessFailure(result, config.databaseUrl));
-        }
-      },
+      migrate: async () => { runDeploymentMigrations(config.databaseUrl); },
       transaction: (operation) => prisma.$transaction((transaction) => operation(transaction))
     });
     process.stdout.write(`${JSON.stringify({ ok: true, ...report })}\n`);

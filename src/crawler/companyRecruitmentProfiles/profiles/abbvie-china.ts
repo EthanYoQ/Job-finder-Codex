@@ -8,6 +8,7 @@ export const profile_abbvie_china = {
       executionConfig: {
           adapterId: "html-table",
           table: {
+              abbvieRowScopePolicy: "ABBVIE_CHINA_LISTED_ROWS_V1",
               rowSelector: ".attrax-vacancy-tile",
               completenessProof: { kind: "OFFICIAL_TOTAL_PAGES" },
               pagination: {

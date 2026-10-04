@@ -5,6 +5,9 @@ import {
   createHttpAppDataProvider
 } from "../../src/app/appDataProvider";
 import { confirmedCompanyRosterV3Members } from "../../src/data/confirmedCompanyRosterV3Members";
+import { handlePublicApi } from "../../src/server/publicApi";
+import { readPortablePublicSnapshot, type PortableSnapshotDb } from "../../src/db/portablePublicSnapshotRepository";
+import { accepted, job, plan, NOW } from "../helpers/portablePublicSnapshotFixture";
 import { getStaticDocument } from "../../src/server/staticDocuments";
 
 const originalFetch = globalThis.fetch;
@@ -40,6 +43,30 @@ describe("createHttpAppDataProvider", () => {
     expect(init).toMatchObject({
       headers: { "x-job-search-consent": "accepted" }
     });
+  });
+
+  it("carries the pending view and scoped counts through the HTTP API from the checked snapshot", async () => {
+    const a = accepted();
+    const tx = {
+      crawlBatchSourceResult: { findMany: async () => [a.result] },
+      lifecycleSetEvidenceMember: { findMany: async () => a.members },
+      job: { findMany: async () => [{ ...job(), city: '中国', cities: ['中国'], locationRaw: 'China' }] }
+    };
+    const snapshot = await readPortablePublicSnapshot({ $transaction: async work => work(tx) } as PortableSnapshotDb, { currentTime: NOW }, [plan]);
+    globalThis.fetch = vi.fn<typeof fetch>(async (input, init) => {
+      const url = new URL(String(input), 'https://example.test');
+      const result = await handlePublicApi({
+        method: 'GET', path: url.pathname, query: Object.fromEntries(url.searchParams),
+        headers: Object.fromEntries(new Headers(init?.headers)), body: undefined, ip: '127.0.0.99'
+      }, { db: {} as never, checkDatabaseReadiness: async () => true, readPortableSnapshot: async () => snapshot });
+      return { ok: result.status === 200, status: result.status, json: async () => result.body } as Response;
+    });
+    const provider = createHttpAppDataProvider();
+    expect(provider.supportsCityPendingSearch).toBe(true);
+    const result = await provider.searchJobs({ city: '城市待核', keyword: '', categories: [], onlyNew: false, sort: 'PINYIN_ASC' });
+    expect(result.totalJobs).toBe(1);
+    expect(result.publishedJobSummary).toEqual({ totalJobs: 1, cityPendingJobs: 1 });
+    expect(result.companies[0]!.jobs[0]).toMatchObject({ city: '中国', cityPending: true, locationRaw: 'China' });
   });
 
   it("requests the complete canonical 60-company directory in one production call", async () => {

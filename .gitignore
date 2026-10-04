@@ -1,4 +1,5 @@
 node_modules/
+.scratch/db-started-test-runtime/
 dist/
 coverage/
 .env

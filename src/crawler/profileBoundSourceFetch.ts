@@ -1,3 +1,7 @@
+import { createAmgenManualWorkdaySourceFetch } from "./amgenManualWorkdaySourceFetch";
+import { createAmgenNativeSourceFetch } from "./amgenNativeSourceFetch";
+import {createMsdAjingaSourceFetch} from "./msdAjingaSourceFetch";
+import { createQiluDualPartitionSourceFetch } from "./qiluDualPartitionSourceFetch";
 import { createLivzonCeccSourceFetch } from "./livzonCeccSourceFetch";
 import { createGrifolsChinaSourceFetch } from "./grifolsChinaSourceFetch";
 import { createJnjCareersChinaSourceFetch } from "./jnjCareersChinaSourceFetch";
@@ -13,6 +17,10 @@ import { createXinhuaOfficialAnnouncementSourceFetch } from "./xinhuaOfficialAnn
  */
 export function createProfileBoundSourceFetch(): SourceFetchFunction {
   const delegates = {
+    "amgen-manual-workday-lookup": createAmgenManualWorkdaySourceFetch(),
+    "amgen-native-china": createAmgenNativeSourceFetch(),
+    "msd-ajinga":createMsdAjingaSourceFetch(),
+    "qilu-dual-official": createQiluDualPartitionSourceFetch(),
     "grifols-china-detail-scope": createGrifolsChinaSourceFetch(),
     "jnj-careers-china": createJnjCareersChinaSourceFetch(),
     "msd-dual-official": createMsdDualOfficialSourceFetch(),

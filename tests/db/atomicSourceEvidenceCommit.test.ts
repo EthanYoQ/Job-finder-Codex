@@ -643,6 +643,39 @@ describe("executeAtomicSourceEvidenceCommit", () => {
     });
   });
 
+  it("recognizes independently parsed receipt JSON with reordered object keys", async () => {
+    const input = rocheVerifiedOfficialTotalDedupeCommit();
+    const persisted = JSON.parse(JSON.stringify({ ...input.sourceResult, blockerCode:null, blockerReason:null,
+      failureCategory:null, failureDiagnosticCode:null, fetchAttemptCount:null, retryCount:null,
+      failureCode:null, failureReason:null }));
+    function reorder(value: any): any {
+      if (Array.isArray(value)) return value.map(reorder);
+      if (value && typeof value === "object") return Object.fromEntries(Object.entries(value).reverse().map(([key, child]) => [key, reorder(child)]));
+      return value;
+    }
+    persisted.completenessCertificate = reorder(persisted.completenessCertificate);
+    const db = { crawlBatchSourceResult: { findUnique: vi.fn(async () => persisted) } };
+    await expect(inspectPersistedAtomicCommitOutcome(input, db as never)).resolves.toEqual({state:"COMMITTED_EXACT"});
+    expect(db.crawlBatchSourceResult.findUnique).toHaveBeenCalledTimes(1);
+  });
+
+  it.each(["nested field", "hash", "array order", "nested type", "object kind", "date"])(
+    "keeps a parsed receipt %s mismatch in CONFLICT", async mismatch => {
+      const input = rocheVerifiedOfficialTotalDedupeCommit();
+      const persisted = JSON.parse(JSON.stringify({ ...input.sourceResult, blockerCode:null, blockerReason:null,
+        failureCategory:null, failureDiagnosticCode:null, fetchAttemptCount:null, retryCount:null,
+        failureCode:null, failureReason:null }));
+      if (mismatch === "nested field") persisted.completenessCertificate.counts.officialTotal++;
+      if (mismatch === "hash") persisted.completenessCertificateSha256 = H2;
+      if (mismatch === "array order") persisted.completenessCertificate.legalDedupeLedger[0].candidateKeySha256.reverse();
+      if (mismatch === "nested type") persisted.completenessCertificate.counts.officialTotal = "2";
+      if (mismatch === "object kind") persisted.completenessCertificate = [persisted.completenessCertificate];
+      if (mismatch === "date") persisted.finishedAt = new Date(TO.getTime()+1).toISOString();
+      const db = { crawlBatchSourceResult: { findUnique: vi.fn(async () => persisted) } };
+      await expect(inspectPersistedAtomicCommitOutcome(input, db as never)).resolves.toEqual({state:"CONFLICT"});
+      expect(db.crawlBatchSourceResult.findUnique).toHaveBeenCalledTimes(1);
+    });
+
   it("recognizes PENDING only when the immutable planned tuple matches", async () => {
     const input = validCommit();
     const persisted: Record<string, unknown> = {
@@ -1293,6 +1326,20 @@ describe("executeManualSourceEvidenceCommit", () => {
     expect(currentDb.calls.jobs).toEqual([]);
     expect(currentDb.calls.lifecycleMembers).toEqual([]);
     expect(currentDb.calls.sourceResults).toHaveLength(1);
+  });
+
+  it("uses the owned plan tuple for manual fences after caller mutation during transaction entry", async () => {
+    const input = validCommit(); removeLifecycleCommands(input);
+    const db = transactionalDb(undefined, 1, [{ id: fence.requestId }]);
+    const transaction = db.$transaction.bind(db);
+    db.$transaction = (work, options) => {
+      input.sourceResult.sourceId = "mutated-source";
+      input.sourceResult.batchId = "mutated-batch";
+      return transaction(work, options);
+    };
+    await executeManualSourceEvidenceCommit(input, fence, db);
+    expect(db.calls.fences[0]).toMatchObject({ values:[fence.requestId, fence.ownerId, "source-1"] });
+    expect(db.calls.fences[1]).toMatchObject({ values:["batch-1", fence.requestId, fence.ownerId] });
   });
 
   it("rejects a manual commit containing canonical Job commands before opening a transaction", async () => {

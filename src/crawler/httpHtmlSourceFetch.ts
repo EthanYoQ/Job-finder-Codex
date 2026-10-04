@@ -1,3 +1,5 @@
+import {hasSanofiNativePolicy,createSanofiNativeSourceFetch} from "./sanofiNativeQuality";
+import { acquireNovartisOfficialPresence, NOVARTIS_PRESENCE_UNKNOWN } from "./novartisOfficialPresence";
 import { load } from "cheerio";
 import { parseExpression } from "@babel/parser";
 import { getCACertificates, setDefaultCACertificates } from "node:tls";
@@ -50,10 +52,16 @@ const TEVA_EMBEDDED_ZERO_LOCATOR =
   "#smartApplyData:strict-json:count,positions,location_used,query.location,all_applicable_locations:" +
   "TEVA_US_REMOTE_GLOBAL_V1";
 
+export function createPresenceCheckedHttpHtmlSourceFetch(deps: HttpHtmlSourceFetchDeps = {}): SourceFetchFunction {
+  const fetch = createHttpHtmlSourceFetch(deps);
+  return async (plan, tracker) => acquireNovartisOfficialPresence(plan, await fetch(plan, tracker), deps.http ?? defaultHttpHtmlClient);
+}
+
 export function createHttpHtmlSourceFetch(
   deps: HttpHtmlSourceFetchDeps = {}
 ): SourceFetchFunction {
   return async (plan) => {
+    if (hasSanofiNativePolicy(plan)) return createSanofiNativeSourceFetch(deps)(plan);
     const capturedAt = (deps.now ?? (() => new Date()))().toISOString();
     const interactions: Array<{ request: HttpHtmlRequest; response: HttpHtmlResponse }> = [];
 
@@ -74,7 +82,9 @@ export function createHttpHtmlSourceFetch(
         return response;
       };
       const response = await http({
-        url: plan.source.officialEntryUrl,
+        url: plan.table.pagination?.requestFirstPageExplicitly === true
+          ? buildPageUrl(plan.source.officialEntryUrl, plan.table.pagination, 1)
+          : plan.source.officialEntryUrl,
         headers: htmlRequestHeaders(plan.table)
       });
 
@@ -1411,6 +1421,7 @@ function safeHtmlFailureCode(error: unknown): string {
 }
 
 const SAFE_HTML_FAILURE_CODES = new Set([
+  NOVARTIS_PRESENCE_UNKNOWN,
   "HTML_FETCH_FAILED", "HTML_RESPONSE_METADATA_MISSING", "HTML_RESPONSE_REDIRECT_MISMATCH",
   "HTML_RESPONSE_METADATA_INVALID",
   "HTML_RESPONSE_MIME_INVALID", "HTML_RESPONSE_TIME_INVALID", "HTML_REQUEST_UNSAFE",

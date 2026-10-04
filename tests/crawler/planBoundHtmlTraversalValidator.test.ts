@@ -27,6 +27,8 @@ describe("plan-bound HTML traversal registry", () => {
     expect(novartis.hostname).toBe("www.novartis.com.cn");
     expect(novartis.searchParams.getAll("country[0]")).toEqual(["LOC_CN"]);
     expect(novartis.searchParams.get("field_job_posted_date")).toBe("All");
+    expect(novartis.searchParams.get("sort")).toBe("asc");
+    expect(novartis.searchParams.get("order")).toBe("职位名称");
 
     const kelun = new URL(PLAN_BOUND_HTML_TRAVERSAL_POLICIES["source-kelun-social"].entryUrl);
     expect(kelun.searchParams.get("p")).toBe("1^2");
@@ -174,7 +176,7 @@ describe("plan-bound HTML traversal registry", () => {
   it.each([
     "source-otsuka-china-social",
     "source-sandoz-china-social"
-  ] as const)("proves %s as an independently rendered terminal empty list without hard-coding zero", async sourceId => {
+  ] as const)("rejects %s with an attached warning/HR container and no rendered jobs", async sourceId => {
     const policy = PLAN_BOUND_HTML_TRAVERSAL_POLICIES[sourceId];
     const ready = { first: () => ({ waitFor: async () => undefined }) };
     const rows = { evaluateAll: async () => [] };
@@ -188,17 +190,10 @@ describe("plan-bound HTML traversal registry", () => {
           ? rows
           : noNext
     };
-    const captured = await capturePlanBoundHtmlRenderedTraversal({
+    await expect(capturePlanBoundHtmlRenderedTraversal({
       sourceId,
       entryUrl: policy.entryUrl,
       launchBrowser: async () => ({ newPage: async () => page as never, close: async () => undefined })
-    });
-    expect(captured.pages).toEqual([{
-      pageNumber: 1,
-      declaredTotalPages: 1,
-      matchKeys: [],
-      rawMatchKeys: [],
-      nextControlPresent: false
-    }]);
+    })).rejects.toThrow("page added no new jobs");
   });
 });

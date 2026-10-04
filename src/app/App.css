@@ -414,7 +414,8 @@ a {
   line-height: 1.5;
 }
 
-.new-badge {
+.new-badge,
+.city-pending-badge {
   display: inline-flex;
   align-items: center;
   min-height: 22px;
@@ -424,6 +425,11 @@ a {
   color: var(--color-new);
   font-size: 12px;
   font-weight: 700;
+}
+
+.city-pending-badge {
+  color: #805309;
+  background: #fff4d6;
 }
 
 .job-meta {
@@ -573,12 +579,17 @@ a {
 }
 
 .coverage-note,
-.coverage-updated {
+.coverage-updated,
+.source-scope-note {
   margin: 0;
   color: var(--color-muted);
   font-size: 13px;
   line-height: 1.55;
   text-wrap: pretty;
+}
+
+.source-scope-note {
+  padding: 0 16px 12px;
 }
 
 .coverage-link {

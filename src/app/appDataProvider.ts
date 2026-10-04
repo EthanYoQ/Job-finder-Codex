@@ -19,6 +19,7 @@ export interface SearchJob {
   officialPublishedAt: string | null;
   city: string;
   locationRaw: string;
+  cityPending?: boolean;
   category: string;
   isNew: boolean;
   officialUrl: string;
@@ -27,6 +28,7 @@ export interface SearchJob {
 export interface SearchCompany {
   id: string;
   companyName: string;
+  sourceScopeNote?: string;
   pinyin: string;
   jobs: SearchJob[];
 }
@@ -35,6 +37,9 @@ export interface SearchResult {
   companies: SearchCompany[];
   totalJobs: number;
   lastUpdatedAt: string | null;
+  /** Entire verified published set, before any search filters. */
+  publishedJobSummary?: { totalJobs: number; cityPendingJobs: number };
+  coverageSummary?: {requiredCompanyCount:number;publishingCompanyCount:number;excludedCompanyCount:number;degradedCompanyCount:number};
 }
 
 export interface CoverageRequest {
@@ -46,6 +51,7 @@ export interface CoverageRequest {
 export interface CoverageCompany {
   id: string;
   companyName: string;
+  sourceScopeNote?: string;
   officialWebsiteUrl: string | null;
   officialCareersUrl: string | null;
   category: "FOREIGN_PHARMA" | "DOMESTIC_PHARMA";
@@ -86,6 +92,7 @@ export interface StaticDocumentResult {
 }
 
 export interface AppDataProvider {
+  supportsCityPendingSearch?: boolean;
   searchJobs(request: SearchRequest): Promise<SearchResult>;
   listCoverage(request: CoverageRequest): Promise<CoverageResult>;
   submitFeedback(request: FeedbackRequest): Promise<FeedbackReceipt>;
@@ -203,8 +210,12 @@ export function createDemoAppDataProvider(): AppDataProvider {
   };
 }
 
+/** Targets the portable public API. Integrations with the legacy API must set
+ * supportsCityPendingSearch = false on the returned provider before rendering App;
+ * the legacy server intentionally continues to reject the pending-city query. */
 export function createHttpAppDataProvider(baseUrl = ""): AppDataProvider {
   return {
+    supportsCityPendingSearch: true,
     async searchJobs(request) {
       const params = new URLSearchParams({
         city: request.city,

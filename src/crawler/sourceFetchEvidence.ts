@@ -1,3 +1,6 @@
+import { astellasPdfCityEnvelopeSchema } from "./astellasPdfCityContract";
+import { astraZenecaDetailEnvelopeSchema } from "./astraZenecaDetailContract";
+import { isJnjDomListArtifact } from "./jnjCareersDomContract";
 import { createHash } from "node:crypto";
 import { z } from "zod";
 
@@ -189,6 +192,8 @@ const lossSchema = z.object({
 }).strict();
 
 const sourceFetchEvidenceSchema = z.object({
+  astraZenecaDetails: astraZenecaDetailEnvelopeSchema.optional(),
+  astellasPdfLocations: astellasPdfCityEnvelopeSchema.optional(),
   captureTool: captureToolSchema,
   artifacts: z.array(artifactSchema).min(1),
   pages: z.array(pageSchema),
@@ -239,7 +244,7 @@ const sourceFetchEvidenceSchema = z.object({
     );
     if (!pageArtifact) {
       context.addIssue({ code: z.ZodIssueCode.custom, message: `page references missing artifact ${page.artifactLogicalKey}` });
-    } else if (!NETWORK_ARTIFACT_KINDS.has(pageArtifact.kind)) {
+    } else if (!NETWORK_ARTIFACT_KINDS.has(pageArtifact.kind) && !isJnjDomListArtifact(evidence.captureTool, pageArtifact)) {
       context.addIssue({ code: z.ZodIssueCode.custom, message: "page must reference a network artifact" });
     } else if ((page.channelId ?? null) !== (pageArtifact.channelId ?? null)) {
       context.addIssue({ code: z.ZodIssueCode.custom, message: "page channel must exactly match its artifact channel" });
@@ -252,7 +257,7 @@ const sourceFetchEvidenceSchema = z.object({
     );
     if (!declaredArtifact) {
       context.addIssue({ code: z.ZodIssueCode.custom, message: "declared completeness references missing artifact" });
-    } else if (!NETWORK_ARTIFACT_KINDS.has(declaredArtifact.kind)) {
+    } else if (!NETWORK_ARTIFACT_KINDS.has(declaredArtifact.kind) && !isJnjDomListArtifact(evidence.captureTool, declaredArtifact)) {
       context.addIssue({ code: z.ZodIssueCode.custom, message: "declared official completeness requires a network artifact" });
     } else if (declaredArtifact.extractorLocator !== evidence.declaredCompleteness.extractorLocator) {
       context.addIssue({

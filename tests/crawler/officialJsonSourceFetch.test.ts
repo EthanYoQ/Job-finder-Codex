@@ -1,3 +1,4 @@
+import { redseaCandidateListHtml } from "./helpers/redseaCandidates";
 import { describe, expect, it } from "vitest";
 import { createHash } from "node:crypto";
 import { createOfficialJsonSourceFetch } from "../../src/crawler/officialJsonSourceFetch";
@@ -65,11 +66,21 @@ const gileadYelloPlan = {
     kind: "yello-job-board",
     boardId: "v42vD4vKxb3AkKvV93YsrQ",
     locationFilterId: 72,
-    expectedLocationLabel: "China"
+    expectedLocationLabel: "China",
+    publicAgePolicy: "GILEAD_PUBLIC_AGE_PRESERVATION_V1"
   }
 } satisfies SourceCrawlPlan;
 
 describe("createOfficialJsonSourceFetch", () => {
+  it("keeps explicit HTTP-only HCM failures honest without starting a browser",async()=>{
+    let browserCalls=0;
+    const result=await createOfficialJsonSourceFetch({allowBrowserFallback:false,
+      http:async()=>({status:500,finalUrl:"https://hcm.lunan.com.cn/api/hcm.model.count?model=ReleaseJobMgr",contentType:"application/json",capturedAt:"2026-10-01T00:00:00.000Z",body:'{"errcode":17003}'}),
+      hcmCloudBrowserFetch:async()=>{browserCalls++;throw Error("must not launch");}
+    })({...basePlan,source:{...basePlan.source,officialEntryUrl:"https://hcm.lunan.com.cn/recruit"},officialJsonFetch:{kind:"hcm-cloud",pageSize:20,maxPages:5}});
+    expect(result.ok).toBe(false);expect(browserCalls).toBe(0);
+    expect(result.priorTransportAttempts??[]).not.toEqual(expect.arrayContaining([expect.objectContaining({transport:"BROWSER_SESSION"})]));
+  });
   function hcmCloudResponse(payload: unknown, prefix = "rsp"): string {
     const base64 = Buffer.from(JSON.stringify(payload), "utf8").toString("base64");
     return JSON.stringify({
@@ -97,9 +108,9 @@ describe("createOfficialJsonSourceFetch", () => {
       capturedAt: "2026-08-14T00:00:00.000Z",
       body: JSON.stringify({
         html: [
-          '<li class="search-results__item"><div class="search-results__flag"><img alt="China flag" src="/assets/images/flags/cn.png"></div><div class="search-results__jobinfo"><a class="search-results__req_title" href="/jobs/uGT3Gvh8qEc0h0ftemuOQA?job_board_id=v42vD4vKxb3AkKvV93YsrQ">Senior Therapeutic Specialist I</a><div><span>China - Shenzhen</span><span>Sales</span><span>Regular</span></div></div></li>',
-          '<li class="search-results__item"><div class="search-results__flag"><img alt="China flag" src="/assets/images/flags/cn.png"></div><div class="search-results__jobinfo"><a class="search-results__req_title" href="/jobs/5gfgBTplkJVAZ6Pc83idrA?job_board_id=v42vD4vKxb3AkKvV93YsrQ">Senior Therapeutic Specialist II</a><div><span>China - Changsha</span><span>Sales</span><span>Regular</span></div></div></li>',
-          '<li class="search-results__item"><div class="search-results__flag"><img alt="China flag" src="/assets/images/flags/cn.png"></div><div class="search-results__jobinfo"><a class="search-results__req_title" href="/jobs/Le1jJiFA05bQ2HLko2G3Ow?job_board_id=v42vD4vKxb3AkKvV93YsrQ">Therapeutic Specialist II</a><div><span>China - Wenzhou</span><span>Sales</span><span>Regular</span></div></div></li>'
+          '<li class="search-results__item"><div class="search-results__flag"><img alt="China flag" src="/assets/images/flags/cn.png"></div><div class="search-results__jobinfo"><a class="search-results__req_title" href="/jobs/uGT3Gvh8qEc0h0ftemuOQA?job_board_id=v42vD4vKxb3AkKvV93YsrQ">Senior Therapeutic Specialist I</a><div><span>China - Shenzhen</span><span>Sales</span><span>Regular</span></div></div><div class="search-results__post-time">1w</div></li>',
+          '<li class="search-results__item"><div class="search-results__flag"><img alt="China flag" src="/assets/images/flags/cn.png"></div><div class="search-results__jobinfo"><a class="search-results__req_title" href="/jobs/5gfgBTplkJVAZ6Pc83idrA?job_board_id=v42vD4vKxb3AkKvV93YsrQ">Senior Therapeutic Specialist II</a><div><span>China - Changsha</span><span>Sales</span><span>Regular</span></div></div><div class="search-results__post-time">1w</div></li>',
+          '<li class="search-results__item"><div class="search-results__flag"><img alt="China flag" src="/assets/images/flags/cn.png"></div><div class="search-results__jobinfo"><a class="search-results__req_title" href="/jobs/Le1jJiFA05bQ2HLko2G3Ow?job_board_id=v42vD4vKxb3AkKvV93YsrQ">Therapeutic Specialist II</a><div><span>China - Wenzhou</span><span>Sales</span><span>Regular</span></div></div><div class="search-results__post-time">1w</div></li>'
         ].join(""),
         count_on_page: 3,
         more_requisitions: false,
@@ -115,7 +126,7 @@ describe("createOfficialJsonSourceFetch", () => {
 
   function yelloLocationOverrides(locationRaw: string): Record<string, unknown> {
     return {
-      html: `<li class="search-results__item"><div class="search-results__flag"><img alt="China flag" src="/assets/images/flags/cn.png"></div><div class="search-results__jobinfo"><a class="search-results__req_title" href="/jobs/uGT3Gvh8qEc0h0ftemuOQA?job_board_id=v42vD4vKxb3AkKvV93YsrQ">Role</a><div><span>${locationRaw}</span></div></div></li>`,
+      html: `<li class="search-results__item"><div class="search-results__flag"><img alt="China flag" src="/assets/images/flags/cn.png"></div><div class="search-results__jobinfo"><a class="search-results__req_title" href="/jobs/uGT3Gvh8qEc0h0ftemuOQA?job_board_id=v42vD4vKxb3AkKvV93YsrQ">Role</a><div><span>${locationRaw}</span></div></div><div class="search-results__post-time">1w</div></li>`,
       count_on_page: 1,
       display_count_text: "1 Result"
     };
@@ -1808,7 +1819,7 @@ describe("createOfficialJsonSourceFetch", () => {
         if (request.url.includes("officePage.mob")) {
           return {
             status: 200,
-            body: "<title>招聘列表</title>", finalUrl: request.url, contentType: "text/html", capturedAt: "2026-07-09T00:00:00.000Z"
+            body: redseaCandidateListHtml(["social-1", "social-2"]), finalUrl: request.url, contentType: "text/html", capturedAt: "2026-07-09T00:00:00.000Z"
           };
         }
 

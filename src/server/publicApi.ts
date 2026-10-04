@@ -1,5 +1,5 @@
 import { z, ZodError } from "zod";
-import { COMPANY_EXPANSION_PAGE_SIZE, SearchRequestSchema } from "../domain/search";
+import { COMPANY_EXPANSION_PAGE_SIZE, PortableSearchRequestSchema, SearchRequestSchema } from "../domain/search";
 import { canonicalPhase1ScopeCounts } from "../data/phase1ScopePolicy";
 import {
   searchJobsFromDatabase,
@@ -16,6 +16,8 @@ import { checkRateLimit, classifySuspiciousRequest, createMemoryRateLimitStore, 
 import { listCompanyCoverage, type CoverageDb } from "./coverageService";
 import { getStaticDocument } from "./staticDocuments";
 import { normalizePostgresReadinessTimeout } from "./postgresReadiness";
+import type { PortablePublicSnapshot } from "../db/portablePublicSnapshotRepository";
+import { searchPortableSnapshot, coverageFromPortableSnapshot } from "./portablePublicationApi";
 
 export interface PublicApiRequest {
   method: string;
@@ -42,6 +44,7 @@ export interface PublicApiDeps {
   now?: () => Date;
   rateLimitStore?: RateLimitStore;
   readPublicationSnapshot?: PublicationSnapshotReader;
+  readPortableSnapshot?: () => Promise<PortablePublicSnapshot>;
 }
 
 const DEFAULT_RATE_LIMIT_STORE = createMemoryRateLimitStore();
@@ -175,13 +178,16 @@ export async function handlePublicApi(request: PublicApiRequest, deps: PublicApi
     }
 
     if (request.path === "/api/search" && request.method === "GET") {
-      const parsed = SearchRequestSchema.safeParse(normalizeSearchRequest(request.query));
+      const searchSchema = deps.readPortableSnapshot ? PortableSearchRequestSchema : SearchRequestSchema;
+      const parsed = searchSchema.safeParse(normalizeSearchRequest(request.query));
 
       if (!parsed.success) {
         return invalidRequest(headers, parsed.error);
       }
 
-      const result = await searchJobsFromDatabase(parsed.data, deps.db, deps.readPublicationSnapshot);
+      const result = deps.readPortableSnapshot
+        ? searchPortableSnapshot(parsed.data, await deps.readPortableSnapshot())
+        : await searchJobsFromDatabase(parsed.data, deps.db, deps.readPublicationSnapshot);
       const pagedCompanies = result.companies.slice(
         paginationValidation.data.offset,
         paginationValidation.data.offset + paginationValidation.data.limit
@@ -194,22 +200,21 @@ export async function handlePublicApi(request: PublicApiRequest, deps: PublicApi
           ...result,
           companies: pagedCompanies.map((company) => ({
             ...company,
-            jobs: company.jobs.slice(0, COMPANY_EXPANSION_PAGE_SIZE)
+            jobs: deps.readPortableSnapshot ? company.jobs : company.jobs.slice(0, COMPANY_EXPANSION_PAGE_SIZE)
           }))
         }
       };
     }
 
     if (request.path === "/api/coverage" && request.method === "GET") {
-      const result = await listCompanyCoverage(
-        {
+      const coverageRequest = {
           keyword: getSingleValue(request.query.keyword) ?? "",
           offset: paginationValidation.data.offset,
           limit: paginationValidation.data.limit
-        },
-        deps.db,
-        deps.readPublicationSnapshot
-      );
+        };
+      const result = deps.readPortableSnapshot
+        ? coverageFromPortableSnapshot(coverageRequest, await deps.readPortableSnapshot())
+        : await listCompanyCoverage(coverageRequest, deps.db, deps.readPublicationSnapshot);
       return {
         status: 200,
         headers,

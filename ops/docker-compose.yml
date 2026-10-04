@@ -86,7 +86,7 @@ services:
     security_opt: ["no-new-privileges:true"]
     tmpfs:
       - /tmp:rw,nosuid,nodev,noexec,size=64m,mode=1777
-    command: ["node", "node_modules/tsx/dist/cli.mjs", "scripts/ops-bootstrap.ts"]
+    command: ["node", "node_modules/tsx/dist/cli.mjs", "scripts/ops-bootstrap-existing.ts"]
     environment:
       DATABASE_URL: ${DATABASE_URL:?set DATABASE_URL}
       ADMIN_EMAIL: ${ADMIN_EMAIL:-}

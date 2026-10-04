@@ -1,3 +1,4 @@
+import { redseaCandidateListHtml } from "./helpers/redseaCandidates";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
@@ -65,7 +66,7 @@ function client(requestedChannels: string[], apiOverride?: Record<string, unknow
     if (request.url.includes("officeWebsite.mob")) {
       return { ...response("<html>entry</html>", request.url, "text/html"), setCookie: ["JSESSIONID=opaque; Secure"] };
     }
-    if (request.url.includes("officePage.mob")) return response("<html>list</html>", request.url, "text/html");
+    if (request.url.includes("officePage.mob")) return response(redseaCandidateListHtml(fixture.social.map(row => String(row.REQUEST_ID))), request.url, "text/html");
     const channel = new URLSearchParams(request.body).get("channelQrId")!;
     requestedChannels.push(channel);
     return response(JSON.stringify({
@@ -167,7 +168,7 @@ describe("Redsea social channel policy", () => {
       now: () => new Date(NOW),
       http: async (request) => {
         if (request.url.includes("officeWebsite.mob")) return response("<html>entry</html>", request.url, "text/html");
-        if (request.url.includes("officePage.mob")) return response("<html>list</html>", request.url, "text/html");
+        if (request.url.includes("officePage.mob")) return response(redseaCandidateListHtml(fixture.social.map(row => String(row.REQUEST_ID))), request.url, "text/html");
         return response(JSON.stringify({ state: "1", total: "", jsonList: invalid }), request.url, "application/json");
       }
     })(plan());

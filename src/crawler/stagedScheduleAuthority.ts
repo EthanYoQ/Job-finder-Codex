@@ -1,3 +1,4 @@
+import { isBayerMedicalTraversalPlan } from "./bayerMokaScope";
 import { createHash } from "node:crypto";
 import { candidateCompanies, type CandidateCompany } from "../data/companyRegistry";
 import { P0_LAUNCH_MANIFEST, launchManifestIdentity, selectLaunchCompanies,
@@ -167,7 +168,15 @@ export function __testOnlyDeriveStagedScheduleExpectation(
     expectedPlannedSourceIds: plannedSourceIds,
     expectedPlannedSourceCount: plannedSourceIds.length
   }, orderedPlans);
-  if (launchErrors.length > 0) throw new Error(`Launch runtime identity is invalid: ${launchErrors.join(",")}`);
+  // The historical roster retains Bayer's old HTML adapter. The already exact
+  // canonical Moka B plan may migrate only that adapter, never roster ownership.
+  const currentErrors=launchErrors.filter(error=>{
+    if(error!=="RUNTIME_LAUNCH_SOURCE_IDENTITY_MISMATCH:source-bayer-healthcare-social")return true;
+    const plan=orderedPlans.find(p=>p.source.id==="source-bayer-healthcare-social")!;
+    const old=P0_LAUNCH_MANIFEST.companies.find(c=>c.source.sourceId===plan.source.id)!;
+    return !(isBayerMedicalTraversalPlan(plan)&&old.companyId===plan.company.id&&old.source.surfaceId===plan.source.surfaceId&&old.source.adapterId==="html-table");
+  });
+  if (currentErrors.length > 0) throw new Error(`Launch runtime identity is invalid: ${currentErrors.join(",")}`);
   return {
     companies: canonicalizeCompanies(companies),
     plans: orderedPlans,

@@ -67,3 +67,14 @@ export async function bootstrapDeployment(
   });
   return { created, adminEmail: config.adminEmail };
 }
+
+/** Explicit existing-database route: only the read-only preflight precedes unchanged admin initialization. */
+export async function bootstrapExistingDeployment(
+  config: DeploymentBootstrapConfig,
+  deps: Omit<DeploymentBootstrapDeps, "migrate"> & { preflight(): Promise<unknown> }
+): Promise<{ created: boolean; adminEmail: string }> {
+  return bootstrapDeployment(config, {
+    migrate: async () => { await deps.preflight(); },
+    transaction: deps.transaction
+  });
+}

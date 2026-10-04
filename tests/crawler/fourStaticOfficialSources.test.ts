@@ -266,7 +266,7 @@ describe("sanitized exact static official source fixtures", () => {
     ]);
   });
 
-  it("executes the current Otsuka subsidiary job-list source and leaves the group information page pending", () => {
+  it("retains the selected ChinaOtsuka pharmaceutical source and leaves the excluded group page pending", () => {
     const active = getPlanBySourceId(stagedPlans, "source-otsuka-china-social");
     expect(active).toMatchObject({
       adapterId: "html-table",

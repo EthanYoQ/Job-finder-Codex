@@ -1,3 +1,4 @@
+import { assertMigrationReplaySupported } from "./existingDatabasePreflight";
 import { createHash } from "node:crypto";
 import { resolve } from "node:path";
 
@@ -144,6 +145,7 @@ export async function runEmptyDatabaseMigrationVerification(
   config: EmptyDatabaseVerificationConfig,
   deps: EmptyDatabaseMigrationVerificationDeps
 ): Promise<EmptyDatabaseMigrationVerificationReport> {
+  assertMigrationReplaySupported(deps.expectedMigrationNames);
   const expectedMigrations = exactUniqueSorted(
     deps.expectedMigrationNames,
     deps.expectedMigrationNames.length,

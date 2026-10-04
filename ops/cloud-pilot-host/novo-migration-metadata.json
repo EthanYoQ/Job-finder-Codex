@@ -1,0 +1,9 @@
+{
+  "path": "/workspace/shared/job-finder-recovery/candidate-investigation/cloud-novo-active-pilot/prisma/migrations/20261002093322_novo_native_application_policy/migration.sql",
+  "name": "20261002093322_novo_native_application_policy",
+  "checksum": "d0bc0f9092560bad7d0f77fde63b0df2db1cbc512f3babaf3bdd3328291c834d",
+  "previousGuardMd5": "65f130feb89bdae18fb17f295a68fc08",
+  "newGuardMd5": "b338c188bbeac501dcea35a45169e11d",
+  "oldConfig": "2b79c0304952bfea93d2e50e2ebfb7668760043eb6c841b51597893378648805",
+  "newConfig": "40305820c3aa3f36e74f06873c0ddd1a52266cb74d277b3a36137c81fc5c604e"
+}

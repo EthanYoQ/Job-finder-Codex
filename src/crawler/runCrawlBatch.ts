@@ -1,6 +1,14 @@
+import { isProvenUnstartedBatchAbort } from "../domain/unstartedBatchAbort";
+import { getPortableCoverageScope } from "../release/portableCoveragePolicy";
+import { getPortableSourceCoverageHold } from "../release/portableSourceCoverageHolds";
+import { SOURCE_QUALITY_POLICY_ID, getSourceQualityPolicy, issueSourceQualityAdmission } from "./sourceQualityAdmission";
+import { createPortableFencedRuntimeDatabase } from "../db/portableRuntimeDatabase";
+import type { SourceQualityPublicationInput } from "./sourceQualityPublication";
+import { heartbeatPortableCrawlLease, type PortableCrawlLease, type PortableLeaseDatabase } from "./portableCrawlLease";
 import {
   createBatchWithPendingSourceResults,
   executeAtomicSourceEvidenceCommit,
+  executePortableAtomicSourceEvidenceCommit,
   executeFailedSourceEvidenceCommit,
   executeManualFailedSourceEvidenceCommit,
   executeManualSourceEvidenceCommit,
@@ -36,7 +44,7 @@ import {
   type RuntimeBatchIdentity
 } from "./runtimeBatchIdentity";
 import { isSourceDueForScheduledRun } from "./schedule";
-import { validateExecutablePlanChannelBinding, type SourceCrawlPlan } from "./sourcePlan";
+import { sourcePlanConfigSha256, validateExecutablePlanChannelBinding, type SourceCrawlPlan } from "./sourcePlan";
 import { safeSourceTransportFailureReason } from "./sourceFetchFailure";
 import {
   atomicEvidencePersistenceStage,
@@ -67,6 +75,7 @@ import {
   isOfficialSourceAttemptTimeout,
   OfficialSourceAttemptTimeoutError,
   runWithOfficialSourceAttemptTimeout,
+  runWithOfficialSourceCancellation,
   sourceAttemptTimeoutMs
 } from "./officialHttpRuntimeLimits";
 import {
@@ -85,6 +94,7 @@ import {
 import { requiresAGradeOfficialTotalCertificate } from "./completenessCertificate";
 import {
   evaluateCompletenessAnomaly,
+  comparablePortableBaseline,
   selectCompletenessValidationTrigger,
   type PersistedTrustedCompletenessBaseline
 } from "./completenessAnomalyPolicy";
@@ -133,7 +143,8 @@ type PersistedBatchSummary = Omit<
 
 export function summarizePersistedBatchSourceResults(
   plannedSourceIds: readonly string[],
-  rows: readonly PersistedBatchSourceResultRow[]
+  rows: readonly PersistedBatchSourceResultRow[],
+  portableMode = false
 ): PersistedBatchSummary {
   const planned = new Set(plannedSourceIds);
   if (planned.size !== plannedSourceIds.length || rows.length !== planned.size) {
@@ -151,8 +162,8 @@ export function summarizePersistedBatchSourceResults(
     seen.add(row.sourceId);
   }
 
-  const skipped = rows.filter(isPersistedSourceNotDue);
-  const due = rows.filter((row) => !isPersistedSourceNotDue(row));
+  const skipped = rows.filter((row) => isPersistedSourceSkip(row, portableMode));
+  const due = rows.filter((row) => !isPersistedSourceSkip(row, portableMode));
   const successful = due.filter((row) => row.transportState === "SUCCEEDED" &&
     row.adapterState === "SUCCEEDED" && row.completenessState === "VERIFIED" &&
     row.atomicCommitState === "COMMITTED" && row.failureCode === null);
@@ -166,7 +177,7 @@ export function summarizePersistedBatchSourceResults(
     dueSourceCount: due.length,
     transportSuccessfulSourceCount: due.filter((row) => row.transportState === "SUCCEEDED").length,
     transportFailedSourceCount: due.filter((row) => row.transportState === "FAILED" &&
-      row.failureCode !== "BATCH_ABORTED_BEFORE_SOURCE_TERMINAL").length,
+      (portableMode || row.failureCode !== "BATCH_ABORTED_BEFORE_SOURCE_TERMINAL")).length,
     adapterSuccessfulSourceCount: due.filter((row) => row.adapterState === "SUCCEEDED").length,
     adapterFailedSourceCount: due.filter((row) => row.adapterState === "FAILED").length,
     completenessVerifiedSourceCount: successful.length,
@@ -181,10 +192,16 @@ export function summarizePersistedBatchSourceResults(
   };
 }
 
-function isPersistedSourceNotDue(row: PersistedBatchSourceResultRow): boolean {
+const PORTABLE_SKIP_REASONS: Readonly<Record<string,string>> = Object.freeze({
+  USER_AUTHORIZED_COVERAGE_EXCLUSION: "Source is excluded from the current required coverage by the owner",
+  SOURCE_COVERAGE_REVIEW_PENDING: "Official source coverage is under review; no acquisition was attempted",
+  SOURCE_QUALITY_POLICY_NOT_REVIEWED: "Current source policy is not yet admitted; no acquisition was attempted"
+});
+function isPersistedSourceSkip(row: PersistedBatchSourceResultRow, portableMode: boolean): boolean {
+  if (portableMode && row.transportState === "SKIPPED" && isProvenUnstartedBatchAbort(row, new Date(), "RUNNING")) return true;
   return row.transportState === "SKIPPED" && row.adapterState === "SKIPPED" &&
     row.completenessState === "FAILED" && row.atomicCommitState === "NOT_ATTEMPTED" &&
-    row.failureCode === "SOURCE_NOT_DUE";
+    (row.failureCode === "SOURCE_NOT_DUE" || row.failureCode !== null && Object.hasOwn(PORTABLE_SKIP_REASONS,row.failureCode));
 }
 
 interface PrismaCrawlBatchDb {
@@ -249,6 +266,9 @@ export interface RunP0CrawlBatchDeps {
   now: Date | (() => Date);
   identity: RuntimeBatchIdentity;
   force?: boolean;
+  sourceAdmissionPolicy?: typeof SOURCE_QUALITY_POLICY_ID;
+  portableLease?: PortableCrawlLease;
+  getFirstAcceptedCurrentPolicyReceipt?(sourceId: string, sourceConfigSha256: string): Promise<SourceQualityPublicationInput["firstAcceptedCurrentPolicyReceipt"]>;
   sourceAttemptTimeoutMs?: number;
   createBatchId?: () => string;
   workspaceRoot?: string;
@@ -333,6 +353,14 @@ export async function runP0CrawlBatch(
   plans: readonly SourceCrawlPlan[],
   deps: RunP0CrawlBatchDeps
 ): Promise<P0CrawlBatchResult> {
+  const portableMode = deps.sourceAdmissionPolicy === SOURCE_QUALITY_POLICY_ID;
+  if (portableMode) {
+    if (deps.identity.batchKind !== "SCHEDULED" || !deps.portableLease || !deps.getTrustedCompletenessBaseline || !deps.getFirstAcceptedCurrentPolicyReceipt) {
+      throw new Error("Portable scheduled runs require an owned lease and durable quality baseline readers");
+    }
+    await heartbeatPortableCrawlLease(deps.db as unknown as PortableLeaseDatabase, deps.portableLease);
+    deps = { ...deps, db: createPortableFencedRuntimeDatabase(deps.db, deps.portableLease) };
+  } else if (deps.portableLease) throw new Error("Portable lease requires explicit portable admission mode");
   const sourceTimeoutMs = deps.sourceAttemptTimeoutMs ?? sourceAttemptTimeoutMs();
   if (!Number.isSafeInteger(sourceTimeoutMs) || sourceTimeoutMs <= 0 || sourceTimeoutMs > 30 * 60 * 1_000) {
     throw new Error("Official source attempt timeout must be an integer from 1 through 1800000 milliseconds");
@@ -388,6 +416,20 @@ export async function runP0CrawlBatch(
 
   try {
     for (const plan of plans) {
+      const policyHold = portableMode ? (
+        getPortableCoverageScope().exclusions.some(excluded=>excluded.sourceId===plan.source.id)
+          ? "USER_AUTHORIZED_COVERAGE_EXCLUSION"
+          : getPortableSourceCoverageHold(plan.source.id) ??
+            (getSourceQualityPolicy(plan) ? null : "SOURCE_QUALITY_POLICY_NOT_REVIEWED")
+      ) : null;
+      if(policyHold){
+        const pending=plannedBatch.sources.find(source=>source.sourceId===plan.source.id)!;
+        await terminateRuntimeSourceResult({id:pending.id,releaseCandidateId:deps.identity.releaseCandidateId,
+          batchId:batch.id,sourceId:plan.source.id,transportState:"SKIPPED",adapterState:"SKIPPED",
+          completenessState:"FAILED",atomicCommitState:"NOT_ATTEMPTED",finishedAt:new Date(),
+          failureCode:policyHold,failureReason:PORTABLE_SKIP_REASONS[policyHold]!},deps);
+        terminalSourceIds.add(plan.source.id);skippedSourceCount+=1;continue;
+      }
       const recentObservations = await deps.getRecentObservations(plan.source.id);
       const sourceState = toSourceScheduleState(plan.source.id, recentObservations);
 
@@ -399,7 +441,7 @@ export async function runP0CrawlBatch(
         const pending = plannedBatch.sources.find((source) => source.sourceId === plan.source.id)!;
         await terminateRuntimeSourceResult({ id: pending.id, releaseCandidateId: deps.identity.releaseCandidateId,
           batchId: batch.id, sourceId: plan.source.id, transportState: "SKIPPED", adapterState: "SKIPPED",
-          completenessState: "FAILED", atomicCommitState: "NOT_ATTEMPTED", finishedAt: batchStartedAt,
+          completenessState: "FAILED", atomicCommitState: "NOT_ATTEMPTED", finishedAt: portableMode ? new Date() : batchStartedAt,
           failureCode: "SOURCE_NOT_DUE", failureReason: "Source was not due for this scheduled batch" }, deps);
         terminalSourceIds.add(plan.source.id);
         skippedSourceCount += 1;
@@ -408,10 +450,15 @@ export async function runP0CrawlBatch(
 
       dueSourceCount += 1;
 
-      const trustedCompletenessBaseline = deps.getTrustedCompletenessBaseline
+      if (deps.portableLease?.signal.aborted) throw new Error("PORTABLE_CRAWL_LEASE_LOST");
+      const qualityRequired = portableMode;
+      const loadedCompletenessBaseline = deps.getTrustedCompletenessBaseline
         ? await deps.getTrustedCompletenessBaseline(plan.source.id)
         : null;
-      const certificateBaselineRequired = requiresAGradeOfficialTotalCertificate(plan) ||
+      const trustedCompletenessBaseline = portableMode
+        ? comparablePortableBaseline(loadedCompletenessBaseline, plan.source.id, sourcePlanConfigSha256(plan))
+        : loadedCompletenessBaseline;
+      const certificateBaselineRequired = qualityRequired || requiresAGradeOfficialTotalCertificate(plan) ||
         requiresBGradeTraversalCertificate(plan);
       const baselineCompletedBeforeCrawl = certificateBaselineRequired &&
           deps.getTrustedCompletenessBaseline
@@ -424,11 +471,11 @@ export async function runP0CrawlBatch(
       let crawlResult: Awaited<ReturnType<typeof runSourceCrawl>>;
       try {
         crawlResult = await runWithOfficialSourceAttemptTimeout(
-          () => runSourceCrawl(plan, {
-            fetch: deps.fetch,
-            isBaseline: !baselineCompletedBeforeCrawl,
-            attemptTracker
-          }),
+          () => {
+            const acquire = () => runSourceCrawl(plan, { fetch: deps.fetch,
+              isBaseline: !baselineCompletedBeforeCrawl, attemptTracker });
+            return deps.portableLease ? runWithOfficialSourceCancellation(deps.portableLease.signal, acquire) : acquire();
+          },
           sourceTimeoutMs
         );
       } catch (error) {
@@ -446,7 +493,7 @@ export async function runP0CrawlBatch(
           transportState: error instanceof SourceCrawlStageError && error.stage === "ADAPTER" ? "SUCCEEDED" : "FAILED",
           adapterState: error instanceof SourceCrawlStageError && error.stage === "ADAPTER" ? "FAILED" : "SKIPPED",
           completenessState: "FAILED", atomicCommitState: "NOT_ATTEMPTED",
-          finishedAt: batchStartedAt,
+          finishedAt: portableMode ? new Date() : batchStartedAt,
           failureCode: sourceTimedOut
             ? "SOURCE_ATTEMPT_TIMEOUT"
             : error instanceof SourceCrawlStageError && error.stage === "ADAPTER"
@@ -487,7 +534,7 @@ export async function runP0CrawlBatch(
         ? evaluateCompletenessAnomalyForCrawl(plan, crawlResult, trustedCompletenessBaseline)
         : { independentValidationRequired: false, triggerCodes: [], countChange: null };
       const completenessAnomalyTriggerCodes: readonly string[] = anomaly.triggerCodes;
-      if (requiresBGradeTraversalCertificate(plan)) {
+      if (!portableMode && requiresBGradeTraversalCertificate(plan)) {
         independentTraversalValidationTrigger = selectCompletenessValidationTrigger({
           baseline: trustedCompletenessBaseline,
           currentSourceConfigSha256: pending.sourceConfigHash,
@@ -691,9 +738,18 @@ export async function runP0CrawlBatch(
         });
         retainedArtifacts = verifiedArtifacts;
         atomicFailureCode = "ATOMIC_COMMIT_BUILD_FAILED";
+        const qualityAdmission = qualityRequired ? await issueSourceQualityAdmission({ plan, result: crawlResult,
+          binding: { releaseCandidateId: deps.identity.releaseCandidateId, batchId: batch.id, sourceResultId: pending.id,
+            sourceConfigSha256: pending.sourceConfigHash, adapterVersion: pending.adapterVersion },
+          archive: { workspaceRoot: deps.workspaceRoot ?? process.cwd(), evidenceSubdirectory: deps.evidenceSubdirectory ?? "phase-1/runtime-evidence", artifacts: verifiedArtifacts }
+        }) : undefined;
+        const firstAcceptedCurrentPolicyReceipt = qualityRequired
+          ? await deps.getFirstAcceptedCurrentPolicyReceipt!(plan.source.id, pending.sourceConfigHash) : undefined;
         commit = buildAtomicRuntimeCommit({ plan, pending, identity: deps.identity, batchId: batch.id,
           result: crawlResult, previousJobs, baselineCompletedBeforeCrawl, artifacts: verifiedArtifacts,
           attemptTracker,
+          ...(portableMode ? { sourceAdmissionPolicy: SOURCE_QUALITY_POLICY_ID } : {}),
+          ...(qualityAdmission ? { sourceQualityAdmission: qualityAdmission, firstAcceptedCurrentPolicyReceipt: firstAcceptedCurrentPolicyReceipt! } : {}),
           ...(independentTraversalFailureCode ? { independentTraversalFailureCode } : {}),
           ...(independentTraversalFailureReason ? { independentTraversalFailureReason } : {}),
           ...(independentTraversalValidation ? {
@@ -714,6 +770,9 @@ export async function runP0CrawlBatch(
         if (deps.identity.batchKind === "MANUAL_SOURCE") {
           await (deps.executeManualAtomicCommit ?? executeManualSourceEvidenceCommit)(
             commit, deps.manualRequestFence!, deps.db as never);
+        } else if (portableMode) {
+          // No injectable unfenced writer is used in portable mode.
+          await executePortableAtomicSourceEvidenceCommit(commit, deps.portableLease!, deps.db as never);
         } else {
           await (deps.executeAtomicCommit ?? executeAtomicSourceEvidenceCommit)(commit, deps.db as never);
         }
@@ -863,9 +922,9 @@ export async function runP0CrawlBatch(
         const sourceExecutionStarted = attemptTracker.fetchAttemptCount > 0;
         await terminateRuntimeSourceResult({ id: pending.id,
           releaseCandidateId: deps.identity.releaseCandidateId, batchId: batch.id,
-          sourceId: pending.sourceId, transportState: "FAILED", adapterState: "SKIPPED",
+          sourceId: pending.sourceId, transportState: portableMode && !sourceExecutionStarted ? "SKIPPED" : "FAILED", adapterState: "SKIPPED",
           completenessState: "FAILED", atomicCommitState: "NOT_ATTEMPTED",
-          finishedAt: batchStartedAt, failureCode: "BATCH_ABORTED_BEFORE_SOURCE_TERMINAL",
+          finishedAt: portableMode ? new Date() : batchStartedAt, failureCode: "BATCH_ABORTED_BEFORE_SOURCE_TERMINAL",
           failureReason: sourceExecutionStarted
             ? "Source execution started but did not reach a persisted terminal result"
             : "Batch aborted before this source reached a terminal state",
@@ -900,7 +959,8 @@ export async function runP0CrawlBatch(
     );
     persistedSummary = summarizePersistedBatchSourceResults(
       plans.map((plan) => plan.source.id),
-      persistedRows
+      persistedRows,
+      portableMode
     );
   } catch {
     const summaryFailure = new Error("PERSISTED_BATCH_SUMMARY_UNAVAILABLE");

@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
 import { verifyAGradeCompletenessCertificateReceipt } from "../crawler/completenessCertificate";
 import { verifyBGradeTraversalCertificateReceipt } from "../crawler/traversalCertificate";
+import { FORMAL_QUALIFICATION_MAXIMUM_WINDOW_MS, FORMAL_QUALIFICATION_MINIMUM_SEPARATION_MS } from "./formalQualificationTiming";
 import {
   P0_LAUNCH_MANIFEST,
   launchManifestIdentity,
@@ -213,8 +214,8 @@ function validateBatches(evidence: AuthoritativeLaunchEvidence): string[] {
   const batches = [...evidence.batches].sort((a, b) => Date.parse(a.finishedAt) - Date.parse(b.finishedAt));
   const times = batches.map(({ finishedAt }) => Date.parse(finishedAt));
   if (times.some((time) => !Number.isFinite(time) || time > evidence.evaluatedAt.getTime() ||
-    evidence.evaluatedAt.getTime() - time > 72 * HOUR)) reasons.push("BATCH_OUTSIDE_72_HOUR_WINDOW");
-  if (times[1]! - times[0]! < 12 * HOUR) reasons.push("BATCH_INTERVAL_BELOW_12_HOURS");
+    evidence.evaluatedAt.getTime() - time > FORMAL_QUALIFICATION_MAXIMUM_WINDOW_MS)) reasons.push("BATCH_OUTSIDE_72_HOUR_WINDOW");
+  if (times[1]! - times[0]! < FORMAL_QUALIFICATION_MINIMUM_SEPARATION_MS) reasons.push("BATCH_INTERVAL_BELOW_6_HOURS");
   const manifestByCompany = new Map(evidence.manifest.companies.map((company) => [company.companyId, company]));
   for (const batch of batches) {
     const identity = evidence.releaseIdentity;

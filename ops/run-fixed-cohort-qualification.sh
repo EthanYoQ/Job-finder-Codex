@@ -350,7 +350,7 @@ archive_evidence() {
 
 if [ "$FORMAL_ROUND" = 1 ]; then
   set_runner_stage ROUND_ONE_BOOTSTRAP
-  run_image node node_modules/tsx/dist/cli.mjs scripts/ops-bootstrap.ts
+  run_image node node_modules/tsx/dist/cli.mjs scripts/ops-bootstrap-existing.ts
   set_runner_stage ROUND_ONE_SNAPSHOT
   dump_database initial-migrated.dump
   normalize_formal_file "$state_root/initial-migrated.dump"

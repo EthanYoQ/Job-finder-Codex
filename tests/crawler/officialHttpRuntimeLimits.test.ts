@@ -1,7 +1,9 @@
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { readFileSync } from "node:fs";
 import {
   createAbortableClose,
+  currentOfficialSourceAttemptRemainingMs,
+  currentOfficialSourceAttemptSignal,
   DEFAULT_OFFICIAL_HTTP_TIMEOUT_MS,
   DEFAULT_OFFICIAL_BROWSER_TIMEOUT_MS,
   DEFAULT_HCM_CLOUD_BROWSER_SETTLE_MS,
@@ -12,11 +14,83 @@ import {
   officialBrowserTimeoutMs,
   officialHttpTimeoutMs,
   runWithOfficialSourceAttemptTimeout,
+  runWithOfficialSourceCancellation,
   scheduledAttemptMaxRunningAgeHours,
   scheduledAttemptTimeoutMs
 } from "../../src/crawler/officialHttpRuntimeLimits";
 
 describe("official crawl runtime limits", () => {
+  afterEach(() => { vi.useRealTimers(); });
+
+  it("preserves the remaining source budget through cancellation and nested timeout contexts", async () => {
+    vi.useFakeTimers();
+    const startedAt = Date.now();
+    const controller = new AbortController();
+    expect(currentOfficialSourceAttemptRemainingMs()).toBeUndefined();
+
+    await runWithOfficialSourceAttemptTimeout(async () => {
+      expect(currentOfficialSourceAttemptRemainingMs()).toBe(30_000);
+      vi.setSystemTime(startedAt + 2_000);
+      await runWithOfficialSourceCancellation(controller.signal, async () => {
+        expect(currentOfficialSourceAttemptRemainingMs()).toBe(28_000);
+        await runWithOfficialSourceAttemptTimeout(async () => {
+          expect(currentOfficialSourceAttemptRemainingMs()).toBe(28_000);
+          vi.setSystemTime(startedAt + 3_000);
+          expect(currentOfficialSourceAttemptRemainingMs()).toBe(27_000);
+        }, 60_000);
+        expect(currentOfficialSourceAttemptRemainingMs()).toBe(27_000);
+      });
+      expect(currentOfficialSourceAttemptRemainingMs()).toBe(27_000);
+    }, 30_000);
+
+    expect(currentOfficialSourceAttemptRemainingMs()).toBeUndefined();
+    expect(currentOfficialSourceAttemptSignal()).toBeUndefined();
+  });
+
+  it("keeps an outer cancellation active when a source timeout is nested inside it", async () => {
+    const controller = new AbortController();
+    const lostOwnership = new Error("ownership lost");
+    await expect(runWithOfficialSourceCancellation(controller.signal,
+      () => runWithOfficialSourceAttemptTimeout(async () => {
+        controller.abort(lostOwnership);
+        expect(currentOfficialSourceAttemptSignal()?.aborted).toBe(true);
+        expect(currentOfficialSourceAttemptRemainingMs()).toBe(0);
+        return await new Promise<never>(() => undefined);
+      }, 30_000)
+    )).rejects.toBe(lostOwnership);
+    expect(currentOfficialSourceAttemptRemainingMs()).toBeUndefined();
+    expect(currentOfficialSourceAttemptSignal()).toBeUndefined();
+  });
+
+  it("does not replace an earlier outer deadline with a longer nested timeout", async () => {
+    vi.useFakeTimers();
+    let innerSignal: AbortSignal | undefined;
+    let innerOperation!: Promise<never>;
+    const source = runWithOfficialSourceAttemptTimeout(() => {
+      innerOperation = runWithOfficialSourceAttemptTimeout(async () => {
+        innerSignal = currentOfficialSourceAttemptSignal();
+        return await new Promise<never>(() => undefined);
+      }, 60_000);
+      return innerOperation;
+    }, 10_000);
+    const rejected = expect(source).rejects.toMatchObject({ code: "OFFICIAL_SOURCE_ATTEMPT_TIMEOUT" });
+    await vi.advanceTimersByTimeAsync(10_000);
+    await rejected;
+    await expect(innerOperation).rejects.toThrow("10000 milliseconds");
+    expect(innerSignal?.aborted).toBe(true);
+    expect(currentOfficialSourceAttemptRemainingMs()).toBeUndefined();
+  });
+
+  it("reports no source deadline for cancellation-only contexts and restores context afterward", async () => {
+    const controller = new AbortController();
+    await runWithOfficialSourceCancellation(controller.signal, async () => {
+      expect(currentOfficialSourceAttemptRemainingMs()).toBeUndefined();
+      expect(currentOfficialSourceAttemptSignal()).toBe(controller.signal);
+    });
+    expect(currentOfficialSourceAttemptRemainingMs()).toBeUndefined();
+    expect(currentOfficialSourceAttemptSignal()).toBeUndefined();
+  });
+
   it("closes an aborted browser exactly once and shares the same close promise", async () => {
     const controller = new AbortController();
     let finishClose!: () => void;

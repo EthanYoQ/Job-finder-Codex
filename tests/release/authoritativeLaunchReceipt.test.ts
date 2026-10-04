@@ -23,12 +23,45 @@ describe("authoritative launch receipt", () => {
     expect(JSON.stringify(first.receipt)).not.toContain("PARTIAL");
   });
 
-  it("rejects rounds less than 12 hours apart or older than 72 hours while allowing job-set changes", () => {
-    const close = fixture(); close.batches[1]!.finishedAt = "2026-08-12T19:59:59.999Z";
+  it("rejects rounds separated by 5:59:59.999", () => {
+    const close = fixture(); close.batches[1]!.finishedAt = "2026-08-12T13:59:59.999Z";
     expect(evaluateAuthoritativeLaunchReadiness(close).receipt.gates.find(({ name }) =>
-      name === "TWO_ROUND_41_COMPANY_CERTIFICATES")?.reasons).toContain("BATCH_INTERVAL_BELOW_12_HOURS");
-    const stale = fixture(); stale.batches[0]!.finishedAt = "2026-08-09T00:00:00.000Z";
-    expect(evaluateAuthoritativeLaunchReadiness(stale).exitCode).toBe(1);
+      name === "TWO_ROUND_41_COMPANY_CERTIFICATES")?.reasons).toContain("BATCH_INTERVAL_BELOW_6_HOURS");
+  });
+
+  it.each(["2026-08-12T14:00:00.000Z", "2026-08-12T17:00:00.000Z"])(
+    "accepts the round interval at %s without bypassing certificate verification", (finishedAt) => {
+      const input = fixture(); input.batches[1]!.finishedAt = finishedAt;
+      const result = evaluateAuthoritativeLaunchReadiness(input);
+      const reasons = result.receipt.gates.find(({ name }) => name === "TWO_ROUND_41_COMPANY_CERTIFICATES")!.reasons;
+      expect(reasons.filter((reason) => reason.startsWith("BATCH_INTERVAL_"))).toEqual([]);
+      expect(reasons).toContain("CERTIFICATE_INVALID:round-1:company-gsk-china");
+      expect(result.receipt.decision).toBe("NOT_READY");
+    }
+  );
+
+  it("accepts the exact 72-hour evidence boundary and rejects one millisecond older", () => {
+    const input = fixture(); input.batches[0]!.finishedAt = "2026-08-10T00:00:00.000Z";
+    const reasons = () => evaluateAuthoritativeLaunchReadiness(input).receipt.gates.find(({ name }) =>
+      name === "TWO_ROUND_41_COMPANY_CERTIFICATES")!.reasons;
+    expect(reasons()).not.toContain("BATCH_OUTSIDE_72_HOUR_WINDOW");
+    input.batches[0]!.finishedAt = "2026-08-09T23:59:59.999Z";
+    expect(reasons()).toContain("BATCH_OUTSIDE_72_HOUR_WINDOW");
+  });
+
+  it("still requires all 41 companies, all 30 foreign companies, and the same release identity at six hours", () => {
+    const input = fixture(); input.batches[1]!.finishedAt = "2026-08-12T14:00:00.000Z";
+    input.batches[0]!.certificates = input.batches[0]!.certificates.slice(1);
+    input.batches[1]!.certificates[0]!.grade = "C";
+    input.batches[1]!.sourceConfigSha256 = "f".repeat(64);
+    const result = evaluateAuthoritativeLaunchReadiness(input);
+    expect(result.receipt.gates.find(({ name }) => name === "TWO_ROUND_41_COMPANY_CERTIFICATES")!.reasons)
+      .toEqual(expect.arrayContaining([
+        "CERTIFICATE_DENOMINATOR_NOT_41:round-1",
+        "FOREIGN_SUCCESS_NOT_30:round-2",
+        "BATCH_IDENTITY_OR_STATUS_INVALID:round-2"
+      ]));
+    expect(result.receipt.decision).toBe("NOT_READY");
   });
 
   it("rejects an exact-image qualification that is not bound to the running build identity", () => {

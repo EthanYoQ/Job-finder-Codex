@@ -68,6 +68,11 @@ export interface HtmlTableFieldMap {
 }
 
 export interface HtmlTableConfig {
+  sanofiNativePolicy?: "SANOFI_EN_CN_NATIVE_CHAIN_V1";
+  sanofiChineseEntryUrl?: string;
+  abbvieRowScopePolicy?: "ABBVIE_CHINA_LISTED_ROWS_V1";
+  astraZenecaDetails?: typeof import("../astraZenecaDetailContract").ASTRAZENECA_DETAIL_CONFIG;
+  astellasPdfLocations?: typeof import("../astellasPdfCityContract").ASTELLAS_PDF_CITY_CONFIG;
   rowSelector: string;
   /**
    * Optional content-based refinement for a structurally shared list. The
@@ -131,6 +136,7 @@ export interface HtmlTableConfig {
     totalPagesMode?: "first" | "max";
     totalPagesDeclaredOnEntryOnly?: boolean;
     pageSearchParam: string;
+    requestFirstPageExplicitly?: boolean;
     pageSearchParamMode?: "page" | "offset";
     pageUrlTemplate?: string;
     pageNumberOffset?: number;

@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   isRetryableSourceTransportFailure,
+  parseOfficialRetryAfter,
   retryableHttpTransportFailure,
   retryableTransportFailureFromError,
   safeSourceTransportFailureReason
@@ -13,6 +14,29 @@ import {
 } from "../../src/crawler/sourceFailureDiagnostics";
 
 describe("source transport retry classification", () => {
+  const headerTime = Date.parse("2026-10-03T23:07:24.000Z");
+  it.each([
+    ["0", 0], ["5", 5_000], [" 10 ", 10_000], ["9999999999", 9_999_999_999_000],
+    ["Sat, 03 Oct 2026 23:07:29 GMT", 5_000], ["Sat, 03 Oct 2026 23:07:23 GMT", 0]
+  ] as const)("parses the safe Retry-After value %s without losing its minimum wait", (value, delayMs) => {
+    const parsed = parseOfficialRetryAfter(value, headerTime);
+    expect(parsed).toEqual({ value: value.trim(), delayMs });
+    expect(retryableHttpTransportFailure(503, parsed)).toEqual({ code: "OFFICIAL_HTTP_503", retryable: true, retryAfterMs: delayMs });
+  });
+  it.each(["", " ", "-1", "+1", "1.5", "1e1", "1, 2", "\n5", "5\r\n", "5\u00a0", "unknown private token", "9".repeat(65),
+    "Sun, 03 Oct 2026 23:07:29 GMT", "Sat, 03 Oct 2026 25:07:29 GMT", "2026-10-03T23:07:29Z",
+    "Saturday, 03-Oct-26 23:07:29 GMT"])("rejects an ambiguous or unbounded Retry-After without retaining it", value => {
+    expect(parseOfficialRetryAfter(value, headerTime)).toEqual({ invalid: true });
+    expect(retryableHttpTransportFailure(429, parseOfficialRetryAfter(value, headerTime))).toBeUndefined();
+  });
+  it("distinguishes an absent header from an invalid header and rejects invalid numeric metadata", () => {
+    expect(parseOfficialRetryAfter(null, headerTime)).toBeUndefined();
+    expect(parseOfficialRetryAfter("5", NaN)).toEqual({ invalid: true });
+    for (const delayMs of [-1, NaN, Infinity, 1.5]) {
+      expect(retryableHttpTransportFailure(503, { value: "5", delayMs })).toBeUndefined();
+      expect(isRetryableSourceTransportFailure({ code: "OFFICIAL_HTTP_503", retryable: true, retryAfterMs: delayMs })).toBe(false);
+    }
+  });
   it("maps thrown network failures to closed transport stages", () => {
     const cases = [
       [{ code: "ENOTFOUND" }, "SOURCE_FETCH_DNS_FAILED"],

@@ -12,6 +12,7 @@ export const profile_fosun_pharma = {
           officialJsonFetch: {
               kind: "beisen-zhiye-2022",
               geographyScope: "DOMESTIC_OFFICIAL_TENANT",
+              scopeExclusionProof: "FOSUN_EXPLICIT_HONG_KONG_ONLY_V1",
               category: "1",
               pageSize: 100,
               maxPages: 5,

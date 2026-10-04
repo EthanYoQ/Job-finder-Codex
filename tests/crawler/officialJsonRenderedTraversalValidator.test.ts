@@ -36,6 +36,9 @@ const expiresAt = "2026-08-21T00:00:00.000Z";
 describe("official JSON rendered traversal", () => {
   it("requires B-grade certificates for lossy or independently rendered in-scope sources", () => {
     expect(OFFICIAL_JSON_RENDERED_REQUIRED_CERTIFICATES).toEqual({
+      "source-servier-china-social": "company-servier-china",
+      "source-pfizer-china-social": "company-pfizer-china",
+      "source-bayer-healthcare-social": "company-bayer-healthcare",
       "source-boehringer-ingelheim-china-social": "company-boehringer-ingelheim-china",
       "source-fosun-pharma-social": "company-fosun-pharma",
       "source-hansoh-social": "company-hansoh",
@@ -43,6 +46,9 @@ describe("official JSON rendered traversal", () => {
       "source-cspc-social": "company-cspc"
     });
     expect(Object.keys(OFFICIAL_JSON_RENDERED_TRAVERSAL_POLICIES)).toEqual([
+      "source-servier-china-social",
+      "source-pfizer-china-social",
+      "source-bayer-healthcare-social",
       "source-boehringer-ingelheim-china-social",
       "source-fosun-pharma-social",
       "source-hansoh-social",
@@ -53,7 +59,7 @@ describe("official JSON rendered traversal", () => {
     ]);
     for (const sourceId of Object.keys(OFFICIAL_JSON_RENDERED_REQUIRED_CERTIFICATES)) {
       expect(requiresBGradeCertificateSourceId(sourceId)).toBe(true);
-      expect(requiresAGradeCertificateSourceId(sourceId)).toBe(false);
+      expect(requiresAGradeCertificateSourceId(sourceId)).toBe(["source-bayer-healthcare-social", "source-pfizer-china-social", "source-servier-china-social"].includes(sourceId));
     }
     expect(requiresBGradeCertificateSourceId("source-qilu-social")).toBe(true);
   });

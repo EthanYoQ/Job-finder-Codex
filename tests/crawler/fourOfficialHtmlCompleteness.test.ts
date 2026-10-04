@@ -1,3 +1,5 @@
+import { legacyBayerPlan } from "../helpers/legacyBayerPlan";
+import { acquireAstellasPdfCities } from "../../src/crawler/astellasPdfCityAcquisition";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
@@ -12,7 +14,7 @@ import {
   getPlanBySourceId,
   type SourceCrawlPlan
 } from "../../src/crawler/sourcePlan";
-import { validateStrictHtmlCompletenessProof } from "../../src/crawler/strictHtmlCompletenessProof";
+import { strictHtmlExpectedAdapterOutputCount, validateStrictHtmlCompletenessProof } from "../../src/crawler/strictHtmlCompletenessProof";
 import { candidateCompanies } from "../../src/data/companyRegistry";
 
 type HtmlPlan = Extract<SourceCrawlPlan, { adapterId: "html-table" }>;
@@ -21,6 +23,7 @@ const capturedAt = "2026-07-15T00:00:00.000Z";
 const plans = buildStagedSourceCrawlPlans(candidateCompanies);
 
 function planFor(sourceId: string): HtmlPlan {
+  if (sourceId === "source-bayer-healthcare-social") return legacyBayerPlan();
   const plan = getPlanBySourceId(plans, sourceId);
   if (plan?.adapterId !== "html-table") throw new Error(`Missing HTML plan ${sourceId}`);
   return plan;
@@ -91,6 +94,8 @@ function novartisPage(
     nextEnabledOnLast?: boolean;
     titles?: Record<string, string>;
     locations?: Record<string, string>;
+    resultHeader?: string;
+    entryUrl?: string;
   } = {}
 ) {
   const total = 3;
@@ -103,13 +108,14 @@ function novartisPage(
     return `<li class="page-item${page === renderedActive ? " active" : ""}"><a class="page-link" title="${title}"${page === renderedActive ? "" : ` href="?page=${page - 1}"`}>${page}</a></li>`;
   }).join("");
   const final = active === total;
-  const canonicalFilters =
-    "search_api_fulltext=&country%5B0%5D=LOC_CN&op=Submit&field_job_posted_date=All";
+  const canonicalFilters = options.entryUrl
+    ? new URL(options.entryUrl).search.slice(1)
+    : "search_api_fulltext=&country%5B0%5D=LOC_CN&op=Submit&field_job_posted_date=All&sort=asc&order=%E8%81%8C%E4%BD%8D%E5%90%8D%E7%A7%B0";
   const next = final && !options.nextEnabledOnLast
     ? `<li class="page-item pager__item--next"><a href="" title="Go to next page" rel="next" class="page-link btn disabled">Next</a></li>`
     : `<li class="page-item pager__item--next"><a href="?${canonicalFilters}&page=${active}" title="Go to next page" rel="next" class="page-link">Next</a></li>`;
   const rows = ids.map((id) => novartisRow(id, options.titles?.[id], options.locations?.[id])).join("");
-  return `<table class="views-table"><tbody>${rows}</tbody></table><ul class="pagination">${labels}${next}</ul>`;
+  return `${options.resultHeader ?? '<div class="view-header">Showing 6 results</div>'}<table class="views-table"><tbody>${rows}</tbody></table><ul class="pagination">${labels}${next}</ul>`;
 }
 
 describe("four audited official HTML sources", () => {
@@ -228,7 +234,12 @@ describe("four audited official HTML sources", () => {
     const fetched = await fetchHtml(plan, async request => response(request, astellasHtml()));
     if (!fetched.ok || !fetched.fetchEvidence) throw new Error("Expected Astellas evidence");
     expect(validateStrictHtmlCompletenessProof(plan, fetched.fetchEvidence)).toBe(true);
-    const crawled = await runSourceCrawl(plan, { fetch: async () => fetched });
+    const bareList = await runSourceCrawl(plan, { fetch: async () => fetched });
+    expect(bareList.truth.completenessVerified).toBe(false);
+    // Synthetic URLs contain spaces, so the reviewed PDF URL grammar records
+    // explicit unresolved rows without attempting external HTTP.
+    const enriched = await acquireAstellasPdfCities(plan, fetched);
+    const crawled = await runSourceCrawl(plan, { fetch: async () => enriched });
     expect(crawled).toMatchObject({
       status: "SUCCESS",
       truth: { completenessVerified: true },
@@ -254,7 +265,7 @@ describe("four audited official HTML sources", () => {
     }
   });
 
-  it("replays Bayer's China offset pages and rejects foreign locations or declared-total drift", async () => {
+  it("replays archived Bayer China HTML evidence without admitting it as the current source", async () => {
     const plan = planFor("source-bayer-healthcare-social");
     const requests: string[] = [];
     const fetched = await fetchHtml(plan, async request => {
@@ -272,8 +283,8 @@ describe("four audited official HTML sources", () => {
     const crawled = await runSourceCrawl(plan, { fetch: async () => fetched });
     expect(crawled).toMatchObject({
       status: "SUCCESS",
-      truth: { completenessVerified: true },
-      observation: { structuredJobCount: 12, completenessStatus: "VERIFIED" }
+      truth: { completenessVerified: false },
+      observation: { structuredJobCount: 12, completenessStatus: "NEEDS_MANUAL_COMPLETENESS_REVIEW" }
     });
 
     const foreign = await fetchHtml(plan, async request => {
@@ -305,9 +316,9 @@ describe("four audited official HTML sources", () => {
       return response(request, bodies[requests.length - 1]!);
     });
     expect(requests).toEqual([
-      "https://www.novartis.com.cn/careers/career-search?search_api_fulltext=&country%5B0%5D=LOC_CN&op=Submit&field_job_posted_date=All",
-      "https://www.novartis.com.cn/careers/career-search?search_api_fulltext=&country%5B0%5D=LOC_CN&op=Submit&field_job_posted_date=All&page=1",
-      "https://www.novartis.com.cn/careers/career-search?search_api_fulltext=&country%5B0%5D=LOC_CN&op=Submit&field_job_posted_date=All&page=2"
+      "https://www.novartis.com.cn/careers/career-search?search_api_fulltext=&country%5B0%5D=LOC_CN&op=Submit&field_job_posted_date=All&sort=asc&order=%E8%81%8C%E4%BD%8D%E5%90%8D%E7%A7%B0",
+      "https://www.novartis.com.cn/careers/career-search?search_api_fulltext=&country%5B0%5D=LOC_CN&op=Submit&field_job_posted_date=All&sort=asc&order=%E8%81%8C%E4%BD%8D%E5%90%8D%E7%A7%B0&page=1",
+      "https://www.novartis.com.cn/careers/career-search?search_api_fulltext=&country%5B0%5D=LOC_CN&op=Submit&field_job_posted_date=All&sort=asc&order=%E8%81%8C%E4%BD%8D%E5%90%8D%E7%A7%B0&page=2"
     ]);
     expect(fetched).toMatchObject({
       ok: true,
@@ -327,6 +338,73 @@ describe("four audited official HTML sources", () => {
         `https://www.novartis.com.cn/careers/career-search/job/details/${id}`
       ).sort()
     );
+  });
+
+  it.each([
+    ["missing sort", (url: URL) => { url.searchParams.delete("sort"); url.searchParams.delete("order"); }],
+    ["descending title", (url: URL) => { url.searchParams.set("sort", "desc"); }],
+    ["publication-date sort", (url: URL) => { url.searchParams.set("order", "发布日期"); }],
+    ["changed country", (url: URL) => { url.searchParams.set("country[0]", "LOC_US"); }],
+    ["missing country", (url: URL) => { url.searchParams.delete("country[0]"); }],
+    ["changed date scope", (url: URL) => { url.searchParams.set("field_job_posted_date", "7"); }],
+    ["extra query", (url: URL) => { url.searchParams.set("unexpected", "value"); }]
+  ] as const)("rejects Novartis captures bound to %s", async (_name, mutate) => {
+    const canonical = planFor("source-novartis-social");
+    const wrongPlan = structuredClone(canonical);
+    const url = new URL(wrongPlan.source.officialEntryUrl);
+    mutate(url);
+    wrongPlan.source.officialEntryUrl = url.toString();
+    const bodies = [["a", "b", "c"], ["c", "d", "e"], ["e", "f"]].map((ids, index) =>
+      novartisPage(index + 1, ids, { entryUrl: wrongPlan.source.officialEntryUrl })
+    );
+    let index = 0;
+    const fetched = await fetchHtml(wrongPlan, async request => response(request, bodies[index++]!));
+    if (!fetched.ok || !fetched.fetchEvidence) throw new Error("Expected wrong-scope diagnostic evidence");
+    // A self-consistent old/wrong request contract is insufficient, even when
+    // all six identities and the visible source count agree.
+    expect(validateStrictHtmlCompletenessProof(wrongPlan, fetched.fetchEvidence)).toBe(false);
+    expect(validateStrictHtmlCompletenessProof(canonical, fetched.fetchEvidence)).toBe(false);
+    expect(strictHtmlExpectedAdapterOutputCount(canonical, fetched.fetchEvidence)).toBeUndefined();
+  });
+
+  it.each([
+    ["missing", ["", "", ""]],
+    ["malformed", Array(3).fill('<div class="view-header">Showing six results</div>')],
+    ["raw-row count instead of unique-job count", Array(3).fill('<div class="view-header">Showing 8 results</div>')],
+    ["under-count", Array(3).fill('<div class="view-header">Showing 5 results</div>')],
+    ["changing", [6, 7, 6].map(total => `<div class="view-header">Showing ${total} results</div>`)],
+    ["duplicate declarations", Array(3).fill('<div class="view-header">Showing 6 results</div><div class="view-header">Showing 6 results</div>')],
+    ["contradictory declarations", Array(3).fill('<div class="view-header">Showing 6 results</div><div class="view-header">Showing 8 results</div>')],
+    ["zero with positive rows", Array(3).fill('<div class="view-header">Showing 0 results</div>')],
+    ["unsafe integer", Array(3).fill('<div class="view-header">Showing 9007199254740992 results</div>')]
+  ])("rejects Novartis official result total: %s", async (_name, headers) => {
+    const plan = planFor("source-novartis-social");
+    const bodies = [["a", "b", "c"], ["c", "d", "e"], ["e", "f"]].map((ids, index) =>
+      novartisPage(index + 1, ids, { resultHeader: headers[index] })
+    );
+    let index = 0;
+    const fetched = await fetchHtml(plan, async request => response(request, bodies[index++]!));
+    if (!fetched.ok || !fetched.fetchEvidence) throw new Error("Expected diagnostic Novartis evidence");
+    expect(fetched.fetchEvidence.fetchCounts.rawCount).toBe(8);
+    expect(validateStrictHtmlCompletenessProof(plan, fetched.fetchEvidence)).toBe(false);
+    expect(strictHtmlExpectedAdapterOutputCount(plan, fetched.fetchEvidence)).toBeUndefined();
+    const crawled = await runSourceCrawl(plan, { fetch: async () => fetched });
+    expect(crawled.truth.completenessVerified).toBe(false);
+    expect(crawled.observation.completenessStatus).not.toBe("VERIFIED");
+  });
+
+  it("reads Novartis' one result header beside its separate selected-filter header", async () => {
+    const plan = planFor("source-novartis-social");
+    const resultHeader = '<div class="view-header"><div>China<a>清空所有</a></div></div>' +
+      '<div class="view-header"> Showing <span>6</span> results </div>';
+    const bodies = [["a", "b", "c"], ["c", "d", "e"], ["e", "f"]].map((ids, index) =>
+      novartisPage(index + 1, ids, { resultHeader })
+    );
+    let index = 0;
+    const fetched = await fetchHtml(plan, async request => response(request, bodies[index++]!));
+    if (!fetched.ok || !fetched.fetchEvidence) throw new Error("Expected Novartis evidence");
+    expect(validateStrictHtmlCompletenessProof(plan, fetched.fetchEvidence)).toBe(true);
+    expect(strictHtmlExpectedAdapterOutputCount(plan, fetched.fetchEvidence)).toBe(6);
   });
 
   it("accepts only independently replayed Novartis rows with auditable mainland-China locations", async () => {
@@ -395,6 +473,11 @@ describe("four audited official HTML sources", () => {
       novartisPage(1, ["a", "b", "c"]),
       novartisPage(2, ["a", "b", "c"], { titles: { a: "职位 a changed" } }),
       novartisPage(3, ["d"])
+    ]],
+    ["zero novel URLs with unchanged signatures", [
+      novartisPage(1, ["a", "b", "c"], { resultHeader: '<div class="view-header">Showing 5 results</div>' }),
+      novartisPage(2, ["a", "b", "c"], { resultHeader: '<div class="view-header">Showing 5 results</div>' }),
+      novartisPage(3, ["d", "e"], { resultHeader: '<div class="view-header">Showing 5 results</div>' })
     ]],
     ["active-page drift", [
       novartisPage(1, ["a", "b"]),

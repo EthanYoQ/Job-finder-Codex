@@ -1,3 +1,5 @@
+import { organonBootstrapLocator } from "../../src/crawler/organonOfficialPostedDate";
+import { organonBootstrap, organonRow } from "../fixtures/organonChinaQuality";
 import { createHash } from "node:crypto";
 import { describe, expect, it } from "vitest";
 import { runSourceCrawl, type SourceFetchResult } from "../../src/crawler/runSourceCrawl";
@@ -22,20 +24,18 @@ import {
 } from "../../src/crawler/officialJsonEvidence";
 
 const CAPTURED_AT = "2026-07-15T00:01:00.000Z";
+// Generic Phenom fixtures use Organon. Lilly requires the dedicated full raw-to-output fixture.
 const PLANS = buildStagedSourceCrawlPlans(candidateCompanies);
 const WORKDAY_SOURCES = [
   "source-biogen-china-social"
 ] as const;
 const PHENOM_SOURCES = [
-  "source-lilly-china-social",
   "source-organon-china-social",
   "source-ucb-china-social"
 ] as const;
 const GENERIC_LOCATION_PHENOM_SOURCES = [
-  "source-lilly-china-social",
   "source-organon-china-social",
-  "source-ucb-china-social",
-  "source-roche-china-social"
+  "source-ucb-china-social"
 ] as const;
 const GENERIC_LOCATION_VALUES = [
   "Remote",
@@ -48,7 +48,7 @@ const GENERIC_LOCATION_VALUES = [
 type Artifact = PersistentSourceFetchEvidence["artifacts"][number];
 
 function planFor(sourceId: string): SourceCrawlPlan {
-  const plan = PLANS.find((candidate) => candidate.source.id === sourceId);
+  const plan = structuredClone(PLANS.find((candidate) => candidate.source.id === sourceId));
   if (!plan) throw new Error(`Missing staged plan ${sourceId}`);
   return plan;
 }
@@ -235,6 +235,12 @@ function dynamicWorkdayEvidence(plan: SourceCrawlPlan): {
 }
 
 function phenomConfig(plan: SourceCrawlPlan) {
+  if (plan.source.id === "source-organon-china-social") return {...organonBootstrap,absUrl:true,siteType:"external"};
+  if (plan.source.id === "source-ucb-china-social") return {
+    widgetApiEndpoint: "https://careers.ucb.com/widgets", country: "global", deviceType: "desktop",
+    locale: "zh_global", absUrl: true, refNum: "UCB1GLOBAL", pageName: "search-results",
+    siteType: "external", pageId: "page17"
+  };
   if (plan.source.id === "source-roche-china-social") {
     return {
       widgetApiEndpoint: "https://careers.roche.com/widgets",
@@ -303,9 +309,11 @@ function phenomEvidence(
   }
   const strategy = plan.officialJsonFetch;
   const exactRoche = plan.source.id === "source-roche-china-social";
+  const exactUcb = plan.source.id === "source-ucb-china-social";
+  const exactOrganon = plan.source.id === "source-organon-china-social";
   const config = phenomConfig(plan);
   const endpoint = config.widgetApiEndpoint;
-  const pageSize = Math.max(1, Math.min(100, strategy.pageSize ?? 50));
+  const pageSize = Math.max(1, Math.min(exactRoche ? 250 : 100, strategy.pageSize ?? 50));
   const exactCountry = strategy.facetScope?.countryIncludeDescriptor ?? strategy.countryFilter ?? "China";
   const artifacts: Artifact[] = [];
   const entryUrl = new URL(plan.source.officialEntryUrl);
@@ -317,7 +325,7 @@ function phenomEvidence(
     kind: "OFFICIAL_COMPANY_PAGE",
     url: entryUrl.toString(),
     body: entryBody ?? `<html><script type="text/javascript">var phApp = phApp || ${JSON.stringify(config)}; phApp.ddo = {};</script></html>`,
-    locator: "phenom-entry-config-v1|fixture",
+    locator: exactOrganon ? organonBootstrapLocator(config) : "phenom-entry-config-v1|fixture",
     contentType: "text/html; charset=utf-8"
   }));
 
@@ -357,12 +365,12 @@ function phenomEvidence(
         }
       }
     });
-    const globalRequest = phenomRequestBody(config, pageSize, 0, {});
+    const globalRequest = phenomRequestBody(config, Math.min(100, pageSize), 0, {});
     artifacts.push(artifact({
       logicalKey: "phenom-facet-global", kind: "ATS_API_RESPONSE", url: endpoint, body: globalBody,
       locator: requestLocator("facet-preflight:global", {
         family: "phenom", role: "facet-preflight-global", method: "POST", url: endpoint,
-        body: globalRequest, coordinate: { sequence: null, requestedOffset: 0, requestedPageSize: pageSize }
+        body: globalRequest, coordinate: { sequence: null, requestedOffset: 0, requestedPageSize: Math.min(100, pageSize) }
       })
     }));
     const countryBody = JSON.stringify({
@@ -382,8 +390,8 @@ function phenomEvidence(
       logicalKey: "phenom-facet-country", kind: "ATS_API_RESPONSE", url: endpoint, body: countryBody,
       locator: requestLocator("facet-preflight:country", {
         family: "phenom", role: "facet-preflight-country", method: "POST", url: endpoint,
-        body: phenomRequestBody(config, pageSize, 0, countrySelected),
-        coordinate: { sequence: null, requestedOffset: 0, requestedPageSize: pageSize }
+        body: phenomRequestBody(config, Math.min(100, pageSize), 0, countrySelected),
+        coordinate: { sequence: null, requestedOffset: 0, requestedPageSize: Math.min(100, pageSize) }
       })
     }));
     selectedFields = excluded.length > 0
@@ -395,6 +403,7 @@ function phenomEvidence(
 
   const fixtureJob = phenomJob({
     country: exactCountry,
+    ...(exactUcb ? { reqId: "1", postedDate: "2026-07-14T05:54:14.000+0000" } : {}),
     ...(strategy.facetScope
       ? { ["exclusionFacet" in strategy.facetScope
         ? strategy.facetScope.exclusionFacet.field
@@ -403,6 +412,8 @@ function phenomEvidence(
     ...jobOverrides
   });
 
+  if (exactOrganon) Object.assign(fixtureJob, organonRow(1,"Shanghai",jobOverrides));
+
   const pageBody = JSON.stringify({
     refineSearch: {
       totalHits: 1,
@@ -410,7 +421,10 @@ function phenomEvidence(
       data: { jobs: [fixtureJob], aggregations: [] }
     }
   });
-  const pageLocator = requestLocator("json:$.refineSearch.totalHits", {
+  const pageLocator = requestLocator(exactOrganon ? ["phenom-page-v1","entry:phenom-entry-0000",
+    `config:${irreversibleOfficialJsonEvidenceId(organonBootstrapLocator(config))}`,
+    `selectedFields:${irreversibleOfficialJsonEvidenceId(JSON.stringify({country:["China"]}))}`,
+    "requestOffset:0","json:$.refineSearch.totalHits"].join("|") : "json:$.refineSearch.totalHits", {
     family: "phenom", role: "page", method: "POST", url: endpoint,
     body: phenomRequestBody(config, pageSize, 0, selectedFields),
     coordinate: { sequence: 0, requestedOffset: 0, requestedPage: null, requestedPageSize: pageSize }
@@ -431,8 +445,8 @@ function phenomEvidence(
       returnedPage: null,
       requestedPageSize: pageSize,
       returnedPageSize: null,
-      rawJobIds: exactRoche ? [irreversibleOfficialJsonEvidenceId("1")] : ["raw-1"],
-      validJobIds: exactRoche
+      rawJobIds: exactOrganon ? [irreversibleOfficialJsonEvidenceId("MECEUSR700001ZHCN")] : exactRoche || exactUcb ? [irreversibleOfficialJsonEvidenceId("1")] : ["raw-1"],
+      validJobIds: exactOrganon ? [irreversibleOfficialJsonEvidenceId(persistentOfficialJsonJobId("MECEUSR700001ZHCN"))] : exactRoche || exactUcb
         ? [irreversibleOfficialJsonEvidenceId(persistentOfficialJsonJobId("1"))]
         : ["valid-1"],
       declaredTotal: 1,
@@ -468,7 +482,19 @@ async function crawlWith(
   evaluation: PaginationEvaluation,
   payload?: unknown
 ) {
-  const effectivePayload = payload ?? payloadFor(plan, plan.source.id === "source-roche-china-social"
+  const ucbRaw = plan.source.id === "source-ucb-china-social" ? JSON.parse(
+    evidence.artifacts.find(artifact => artifact.logicalKey === "phenom-page-0000")!.body as string
+  ).refineSearch.data.jobs[0] : undefined;
+  const ucbPayload = ucbRaw ? { jobs: [{
+    sourceJobId: persistentOfficialJsonJobId(ucbRaw.jobId), title: ucbRaw.title,
+    officialUrl: `https://careers.ucb.com/global/en/job/${ucbRaw.reqId}`,
+    locationRaw: ucbRaw.location, cities: [ucbRaw.city === "Shanghai" ? "上海" : ucbRaw.city],
+    officialPublishedAt: "2026-07-14T05:54:14.000Z"
+  }] } : undefined;
+  const organonRaw = plan.source.id === "source-organon-china-social" ? JSON.parse(evidence.artifacts.find(a=>a.logicalKey==="phenom-page-0000")!.body as string).refineSearch.data.jobs[0] : undefined;
+  const organonPayload = organonRaw ? {jobs:[{sourceJobId:persistentOfficialJsonJobId(organonRaw.jobSeqNo),title:organonRaw.title,
+    officialUrl:organonRaw.applyUrl,locationRaw:organonRaw.location,cities:[organonRaw.city==="Shanghai"?"上海":organonRaw.city],officialPublishedAt:"2026-09-24T00:00:00.000Z"}]}:undefined;
+  const effectivePayload = payload ?? organonPayload ?? ucbPayload ?? payloadFor(plan, plan.source.id === "source-roche-china-social"
     ? [persistentOfficialJsonJobId("1")]
     : ["job-1"]);
   return runSourceCrawl(plan, { fetch: async () => ({
@@ -505,7 +531,7 @@ function replaceArtifactBody(
 }
 
 describe("strict dynamic official-total replay", () => {
-  it.each(WORKDAY_SOURCES)("verifies %s from its exact configured China facet", async (sourceId) => {
+  it.each(WORKDAY_SOURCES)("does not qualify %s from a China facet without matching raw geography and identity", async (sourceId) => {
     const plan = planFor(sourceId);
     const { evidence, evaluation } = dynamicWorkdayEvidence(plan);
 
@@ -513,8 +539,8 @@ describe("strict dynamic official-total replay", () => {
 
     expect(result).toMatchObject({
       status: "SUCCESS",
-      truth: { transportSuccess: true, adapterSuccess: true, completenessVerified: true },
-      observation: { completenessStatus: "VERIFIED", expectedJobCount: 1 },
+      truth: { transportSuccess: true, adapterSuccess: true, completenessVerified: false },
+      observation: { completenessStatus: "NEEDS_MANUAL_COMPLETENESS_REVIEW", expectedJobCount: 1 },
       reconciliation: { rawInputCount: 1, dedupeOutputCount: 1, adapterLosses: [], collisionGroups: [] }
     });
   });
@@ -563,7 +589,7 @@ describe("strict dynamic official-total replay", () => {
 
   it.each(GENERIC_LOCATION_PHENOM_SOURCES.flatMap((sourceId) =>
     ["Wuxi", "Shenyang", "Qingdao"].map((city) => [sourceId, city] as const)
-  ))("keeps coherent strict replay complete for exact staged %s with explicit China city %s", async (sourceId, city) => {
+  ))("applies source-local city review in coherent replay for %s with city %s", async (sourceId, city) => {
     const plan = planFor(sourceId);
     if (plan.adapterId !== "official-json" || plan.officialJsonFetch?.kind !== "phenom") {
       throw new Error("Phenom plan expected");
@@ -575,7 +601,13 @@ describe("strict dynamic official-total replay", () => {
       location: `${city}, ${country}`
     });
 
-    expect((await crawlWith(plan, evidence, evaluation))).toMatchObject({
+    const result=await crawlWith(plan,evidence,evaluation);
+    if(sourceId==="source-ucb-china-social" || sourceId==="source-organon-china-social") {
+      expect(result.truth.completenessVerified).toBe(false);
+      expect(result.observation.completenessStatus).not.toBe("VERIFIED");
+      return;
+    }
+    expect(result).toMatchObject({
       status: "SUCCESS",
       truth: { transportSuccess: true, adapterSuccess: true, completenessVerified: true },
       observation: { completenessStatus: "VERIFIED", expectedJobCount: 1 }
@@ -592,7 +624,7 @@ describe("strict dynamic official-total replay", () => {
     ["conflicting configs", (config: Record<string, unknown>) =>
       `<script>const phApp = ${JSON.stringify(config)};</script><script>window.phApp = ${JSON.stringify({ ...config, pageId: "other" })};</script>`]
   ])("rejects a Phenom %s", async (_label, entry) => {
-    const plan = planFor("source-lilly-china-social");
+    const plan = planFor("source-organon-china-social");
     const { evidence, evaluation } = phenomEvidence(plan, entry(phenomConfig(plan)));
 
     expect((await crawlWith(plan, evidence, evaluation)).truth.completenessVerified).toBe(false);

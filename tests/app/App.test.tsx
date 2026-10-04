@@ -190,6 +190,7 @@ function createRecordingProvider() {
   const getDocument = vi.fn(async (slug: "privacy" | "terms") => documents[slug]);
 
   const provider: AppDataProvider = {
+    supportsCityPendingSearch: true,
     searchJobs,
     listCoverage,
     submitFeedback,
@@ -287,7 +288,7 @@ describe("App product flows", () => {
     });
   });
 
-  it("offers only concrete city choices and sends the selected city to the provider", async () => {
+  it("offers concrete city choices and sends the selected city to the provider", async () => {
     const user = userEvent.setup();
     const recording = createRecordingProvider();
     render(<App dataProvider={recording.provider} />);
@@ -302,6 +303,43 @@ describe("App product flows", () => {
     await user.click(screen.getByRole("button", { name: "搜索职位" }));
 
     expect(recording.searchJobs).toHaveBeenLastCalledWith(expect.objectContaining({ city: "上海" }));
+  });
+
+  it("keeps legacy providers limited to their supported city choices", async () => {
+    const user = userEvent.setup(), recording = createRecordingProvider();
+    recording.provider.supportsCityPendingSearch = false;
+    render(<App dataProvider={recording.provider} />);
+    await acceptConsent(user);
+    expect(screen.queryByRole('radio', { name: '城市待核' })).not.toBeInTheDocument();
+    expect(screen.getByRole('radio', { name: '北京' })).toBeInTheDocument();
+  });
+
+  it("makes city-pending jobs discoverable and distinguishes matched jobs from published totals", async () => {
+    const user = userEvent.setup(), recording = createRecordingProvider();
+    const result = await recording.searchJobs({});
+    result.companies = result.companies.slice(0, 1);
+    result.companies[0]!.jobs = [{
+      ...result.companies[0]!.jobs[0]!, title: '待核城市职位', city: '城市待核',
+      cityPending: true, locationRaw: 'China / title: Shanghai; structured: Beijing'
+    }];
+    result.totalJobs = 1;
+    result.publishedJobSummary = { totalJobs: 120, cityPendingJobs: 8 };
+    render(<App dataProvider={recording.provider} />);
+    await acceptConsent(user);
+    await user.click(screen.getByRole('radio', { name: '城市待核' }));
+    await user.click(screen.getByRole('button', { name: '搜索职位' }));
+    expect(recording.searchJobs).toHaveBeenLastCalledWith(expect.objectContaining({ city: '城市待核' }));
+    const overview = screen.getByRole('region', { name: '职位概览' });
+    expect(within(overview).getByText('1 个职位')).toBeInTheDocument();
+    expect(within(overview).getByText('当前筛选匹配')).toBeInTheDocument();
+    expect(within(overview).getByText('全部已发布职位 120 个，其中城市待核 8 个（不随筛选变化）')).toBeInTheDocument();
+    await user.click(await screen.findByRole('button', { name: /阿斯利康/ }));
+    expect(screen.getByText('官方城市尚未核实')).toBeInTheDocument();
+    expect(screen.getByText('官方原始地点：China / title: Shanghai; structured: Beijing')).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: '查看官方职位 待核城市职位' })).toHaveAttribute('href', result.companies[0]!.jobs[0]!.officialUrl);
+    await user.type(screen.getByPlaceholderText('职位关键词'), '不存在');
+    expect(within(overview).getByText('0 个职位')).toBeInTheDocument();
+    expect(within(overview).getByText('全部已发布职位 120 个，其中城市待核 8 个（不随筛选变化）')).toBeInTheDocument();
   });
 
   it("loads grouped Beijing results after consent and updates by category and keyword", async () => {
@@ -351,6 +389,21 @@ describe("App product flows", () => {
     expect(within(companyCard).getByText("医学顾问")).toBeInTheDocument();
   });
 
+  it("expands the eleventh verified job and shows portable coverage honestly", async () => {
+    const user=userEvent.setup(),recording=createRecordingProvider();
+    const result=await recording.searchJobs({});
+    result.companies=result.companies.slice(0,1);
+    result.companies[0]!.jobs=Array.from({length:11},(_,i)=>({...result.companies[0]!.jobs[0]!,id:`verified-${i}`,title:`已核验职位${i+1}`,officialTitle:`Verified Job ${i+1}`}));
+    result.totalJobs=11;result.coverageSummary={requiredCompanyCount:40,publishingCompanyCount:1,excludedCompanyCount:1,degradedCompanyCount:0};
+    render(<App dataProvider={recording.provider}/>);await acceptConsent(user);await runBeijingSearch(user);
+    await user.click(await screen.findByRole("button",{name:/阿斯利康/}));
+    expect(screen.queryByText("已核验职位11")).not.toBeInTheDocument();
+    await user.click(screen.getByRole("button",{name:"查看全部 11 个职位"}));
+    expect(screen.getByText("已核验职位11")).toBeInTheDocument();
+    expect(screen.getByText(/当前已更新 1\/40 家目标企业/)).toBeInTheDocument();
+    expect(screen.getByText(/最后更新.*UTC/)).toBeInTheDocument();
+  });
+
   it("shows publication-aware coverage states and prefers official careers before website fallback", async () => {
     const user = userEvent.setup();
     const recording = createRecordingProvider();
@@ -358,6 +411,8 @@ describe("App product flows", () => {
 
     await acceptConsent(user);
     await user.click(screen.getByRole("button", { name: "查看覆盖公司" }));
+    expect(screen.getByText("官方招聘目录")).toBeInTheDocument();
+    expect(screen.queryByText(/60 家官方招聘目录/)).not.toBeInTheDocument();
 
     await waitFor(() => {
       expect(recording.listCoverage).toHaveBeenLastCalledWith({ keyword: "", offset: 0, limit: 60 });
@@ -391,6 +446,32 @@ describe("App product flows", () => {
       "https://www.pfizer.com/about/careers"
     );
     expect(screen.queryByText("医学科学联络官")).not.toBeInTheDocument();
+  });
+
+  it.each([
+    "石药官方社会招聘频道（人工 D36 指定入口）；仅覆盖该频道，不代表集团及子公司全量。",
+    "施维雅中国 Moka 社会招聘门户（47734）；门户职位总量与已确认中国工作地的职位数量分开核验，未披露工作地的职位保持未知。"
+  ])("keeps bounded source scope visible through collapse, reopen, and directory navigation: %s", async (note) => {
+    const user = userEvent.setup(), recording = createRecordingProvider();
+    const search = await recording.searchJobs({});
+    search.companies[0]!.sourceScopeNote = note;
+    const coverage = await recording.listCoverage({keyword: ""});
+    coverage.companies[0]!.sourceScopeNote = note;
+    render(<App dataProvider={recording.provider} />);
+    await acceptConsent(user);
+    await runBeijingSearch(user);
+    const card = screen.getByTestId("company-astrazeneca");
+    expect(within(card).getByText(note)).toBeVisible();
+    const toggle = within(card).getByRole("button", {name: /阿斯利康/});
+    await user.click(toggle);
+    expect(within(card).getByText(note)).toBeVisible();
+    await user.click(toggle);
+    expect(within(card).getByText(note)).toBeVisible();
+    await user.click(screen.getByRole("button", {name: "查看覆盖公司"}));
+    expect(await screen.findByText(note)).toBeVisible();
+    expect(screen.getByText("自动更新中")).toBeInTheDocument();
+    await user.type(screen.getByPlaceholderText("搜索已覆盖公司"), "辉");
+    await waitFor(() => expect(screen.queryByText(note)).not.toBeInTheDocument());
   });
 
   it("submits contextual feedback with company and job ids", async () => {

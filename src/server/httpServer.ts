@@ -8,6 +8,8 @@ import { handlePublicApi, type PublicApiDeps, type PublicApiResponse } from "./p
 import { DEFAULT_POSTGRES_READINESS_TIMEOUT_MS, normalizePostgresReadinessTimeout } from "./postgresReadiness";
 import { createCachedDeploymentReadiness, readDeploymentMigrationManifest } from "./deploymentReadiness";
 import { resolveDeploymentBootstrapConfig } from "../ops/deploymentBootstrap";
+import { readPortablePublicSnapshot } from "../db/portablePublicSnapshotRepository";
+import { SOURCE_QUALITY_POLICY_ID } from "../crawler/sourceQualityAdmission";
 
 const DEFAULT_HOST = "0.0.0.0";
 const DEFAULT_PORT = 3000;
@@ -45,6 +47,8 @@ export function createServer(deps: HttpServerDeps, options: HttpServerOptions = 
 }
 
 export async function startServer(): Promise<Server> {
+  const policy=process.env.JOBFINDER_PUBLICATION_POLICY;
+  if(policy!==undefined&&policy!==SOURCE_QUALITY_POLICY_ID)throw new Error("UNKNOWN_PUBLICATION_POLICY");
   const prisma = new PrismaClient();
   const bootstrapConfig = resolveDeploymentBootstrapConfig(process.env);
   const readinessTimeoutMs = normalizePostgresReadinessTimeout(
@@ -60,7 +64,8 @@ export async function startServer(): Promise<Server> {
   const server = createServer({
     db: prisma,
     checkDatabaseReadiness,
-    readinessTimeoutMs
+    readinessTimeoutMs,
+    ...(policy===SOURCE_QUALITY_POLICY_ID?{readPortableSnapshot:()=>readPortablePublicSnapshot(prisma)}:{})
   });
   const host = process.env.HOST ?? DEFAULT_HOST;
   const port = Number(process.env.PORT ?? DEFAULT_PORT);
