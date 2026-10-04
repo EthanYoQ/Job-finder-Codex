@@ -5,6 +5,7 @@ import type { PublicationHealth, PublicationState } from "../domain/publicationE
 import { getStaticDocument } from "../server/staticDocuments";
 
 export interface SearchRequest {
+  province?: string;
   city: string;
   keyword: string;
   categories: string[];
@@ -19,6 +20,7 @@ export interface SearchJob {
   officialPublishedAt: string | null;
   city: string;
   locationRaw: string;
+  cityPending?: boolean;
   category: string;
   isNew: boolean;
   officialUrl: string;
@@ -27,6 +29,7 @@ export interface SearchJob {
 export interface SearchCompany {
   id: string;
   companyName: string;
+  sourceScopeNote?: string;
   pinyin: string;
   jobs: SearchJob[];
 }
@@ -35,6 +38,12 @@ export interface SearchResult {
   companies: SearchCompany[];
   totalJobs: number;
   lastUpdatedAt: string | null;
+  /** Entire verified published set, before any search filters. */
+  publishedJobSummary?: { totalJobs: number; cityPendingJobs: number };
+  /** Entire published set; concrete-city counts exclude nationwide and pending jobs. */
+  provinceFacets?: Array<{ province: string; jobCount: number; cityPendingJobs: number }>;
+  cityFacets?: Array<{ city: string; province: string | null; jobCount: number }>;
+  coverageSummary?: {requiredCompanyCount:number;publishingCompanyCount:number;excludedCompanyCount:number;degradedCompanyCount:number};
 }
 
 export interface CoverageRequest {
@@ -46,6 +55,7 @@ export interface CoverageRequest {
 export interface CoverageCompany {
   id: string;
   companyName: string;
+  sourceScopeNote?: string;
   officialWebsiteUrl: string | null;
   officialCareersUrl: string | null;
   category: "FOREIGN_PHARMA" | "DOMESTIC_PHARMA";
@@ -86,6 +96,7 @@ export interface StaticDocumentResult {
 }
 
 export interface AppDataProvider {
+  supportsCityPendingSearch?: boolean;
   searchJobs(request: SearchRequest): Promise<SearchResult>;
   listCoverage(request: CoverageRequest): Promise<CoverageResult>;
   submitFeedback(request: FeedbackRequest): Promise<FeedbackReceipt>;
@@ -203,8 +214,12 @@ export function createDemoAppDataProvider(): AppDataProvider {
   };
 }
 
+/** Targets the portable public API, including all-city discovery and city facets.
+ * Legacy API integrations must set supportsCityPendingSearch = false before
+ * rendering App to retain the legacy three-city controls. */
 export function createHttpAppDataProvider(baseUrl = ""): AppDataProvider {
   return {
+    supportsCityPendingSearch: true,
     async searchJobs(request) {
       const params = new URLSearchParams({
         city: request.city,
@@ -212,6 +227,10 @@ export function createHttpAppDataProvider(baseUrl = ""): AppDataProvider {
         limit: "50",
         offset: "0"
       });
+
+      if (request.province !== undefined) {
+        params.set("province", request.province);
+      }
 
       if (request.keyword.trim() !== "") {
         params.set("keyword", request.keyword.trim());

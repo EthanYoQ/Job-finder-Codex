@@ -144,8 +144,9 @@ describe("company recruitment profiles", () => {
 
   it("keeps dedicated source behavior profile-bound instead of scattering company adapters through shared cores", () => {
     const expectedProfileKinds = new Map([
+      ["source-amgen-china-social", "amgen-manual-workday-lookup"],
       ["source-johnson-innovative-medicine-social", "jnj-careers-china"],
-      ["source-msd-china-social", "msd-dual-official"],
+      ["source-msd-china-social", "msd-ajinga"],
       ["source-livzon-social", "livzon-cecc"],
       ["source-sinopharm-social", "sinopharm-iguopin"],
       ["source-xinhua-pharma-social", "xinhua-official-announcements"]

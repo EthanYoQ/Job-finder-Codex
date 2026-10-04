@@ -8,9 +8,12 @@ export const profile_merck_china = {
       sourceId: "source-merck-china-social",
       executionConfig: {
           adapterId: "official-json",
-          json: OFFICIAL_API_JSON_CONFIG,
+          json: { ...OFFICIAL_API_JSON_CONFIG, fields: { ...OFFICIAL_API_JSON_CONFIG.fields, officialPublishedAt: "officialPublishedAt" } },
           officialJsonFetch: {
               kind: "phenom",
+              postedDatePolicy: "MERCK_CHINA_PHENOM_POSTED_DATE_V1",
+              cityScopePolicy: "MERCK_CHINA_LOCATION_TITLE_PENDING_V2",
+              publicVisibilityPolicy: "MERCK_CHINA_PUBLIC_VISIBILITY_V1",
               detailBaseUrl: "https://careers.emdgroup.com/us/en/job",
               countryFilter: "China",
               allowOmittedOffsetForSinglePage: true,

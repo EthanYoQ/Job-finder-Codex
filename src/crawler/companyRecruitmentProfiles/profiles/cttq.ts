@@ -8,9 +8,10 @@ export const profile_cttq = {
       sourceId: "source-cttq-social",
       executionConfig: {
           adapterId: "official-json",
-          json: OFFICIAL_API_JSON_CONFIG,
+          json: { ...OFFICIAL_API_JSON_CONFIG, fields: { ...OFFICIAL_API_JSON_CONFIG.fields, officialPublishedAt: "officialPublishedAt" } },
           officialJsonFetch: {
               kind: "beisen-zhiye-2022",
+              detailPostedDatePolicy: "BEISEN_NATIVE_DETAIL_POSTDATE_V1",
               geographyScope: "DOMESTIC_OFFICIAL_TENANT",
               category: "1",
               pageSize: 100,

@@ -20,7 +20,8 @@ export const profile_servier_china = {
                   pathname: "/social-recruitment/shiweiya/47734"
               },
               hydrateMissingLocationsFromDetail: true,
-              allowDetailSiteIdOmission: true
+              allowDetailSiteIdOmission: true,
+              scopeExclusionProof: "SERVIER_OPEN_PORTAL_UNKNOWN_GEOGRAPHY_V1"
           }
       }
     },

@@ -1,3 +1,7 @@
+import { assertServierUnknownLifecyclePreserved } from "./servierMokaScope";
+import { hasNovartisOfficialPresencePlan, replayNovartisOfficialPresence } from "./novartisOfficialPresence";
+import { SOURCE_QUALITY_POLICY_ID, assertIssuedSourceQualityAdmission, getSourceQualityPolicy, verifySourceQualityAtomicCommit, verifyIssuedSourceQualityArchiveForPersistence, type SourceQualityAdmission } from "./sourceQualityAdmission";
+import { buildSourceQualityJobCommands, type SourceQualityPublicationInput } from "./sourceQualityPublication";
 import { createHash, createHmac, randomBytes, timingSafeEqual } from "node:crypto";
 import type {
   FailedSourceEvidenceCommit,
@@ -45,6 +49,7 @@ import {
 const sha256 = (value: string): string =>
   createHash("sha256").update(value, "utf8").digest("hex");
 const attestationKey=randomBytes(32);
+const runtimeAstellasAdmissions=new WeakMap<AtomicSourceEvidenceCommit,SourceQualityAdmission>();
 const runtimeCommitAttestations=new WeakMap<AtomicSourceEvidenceCommit,Buffer>();
 const failedRuntimeCommitAttestations=new WeakMap<FailedSourceEvidenceCommit,Buffer>();
 
@@ -141,6 +146,17 @@ export function verifyAtomicRuntimeCommitAttestation(commit: AtomicSourceEvidenc
   const sealed=runtimeCommitAttestations.get(commit); if(!sealed)throw new Error("ATOMIC_RUNTIME_COMMIT_ATTESTATION_MISSING");
   const current=attestationSignature(commit);
   if(sealed.length!==current.length||!timingSafeEqual(sealed,current))throw new Error("ATOMIC_RUNTIME_COMMIT_ATTESTATION_INVALID");
+}
+
+/** Async replay is mandatory on the actual persistence route for Astellas. */
+export async function verifyAtomicRuntimeCommitForPersistence(commit:AtomicSourceEvidenceCommit):Promise<void> {
+  verifyAtomicRuntimeCommitAttestation(commit);
+  if(commit.sourceResult.sourceId==="source-astellas-china-social"&&commit.publicationPolicy==="SOURCE_ATOMIC_LAST_GOOD_V1"&&commit.sourceResult.completenessState==="VERIFIED"){
+    const admission=runtimeAstellasAdmissions.get(commit);
+    if(!admission)throw Error("ASTELLAS_COMMIT_ARCHIVE_REPLAY_REQUIRED");
+    await verifyIssuedSourceQualityArchiveForPersistence(admission);
+    verifyAtomicRuntimeCommitAttestation(commit);
+  }
 }
 
 export function verifyFailedRuntimeEvidenceCommitAttestation(commit: FailedSourceEvidenceCommit): void {
@@ -349,6 +365,10 @@ export function buildAtomicRuntimeCommit(input: {
   previousJobs: readonly JobSnapshot[];
   baselineCompletedBeforeCrawl: boolean;
   artifacts: readonly ArchivedEvidenceArtifact[];
+  publicationPolicy?: "SOURCE_ATOMIC_LAST_GOOD_V1";
+  sourceAdmissionPolicy?: typeof SOURCE_QUALITY_POLICY_ID;
+  sourceQualityAdmission?: SourceQualityAdmission;
+  firstAcceptedCurrentPolicyReceipt?: SourceQualityPublicationInput["firstAcceptedCurrentPolicyReceipt"];
   attemptTracker?: Pick<SourceFetchAttemptTracker, "fetchAttemptCount" | "retryCount" | "retryReasonCodes">;
   oracle?: AuditedSourceSurfaceOracle;
   trustedOracle?: StartupTrustedSourceSurfaceOracle;
@@ -377,17 +397,26 @@ export function buildAtomicRuntimeCommit(input: {
       attemptTracker.retryReasonCodes.length !== attemptTracker.retryCount) {
     throw new Error("successful atomic source result requires consistent fetch attempt counters");
   }
+  const portableMode = input.sourceAdmissionPolicy === SOURCE_QUALITY_POLICY_ID;
+  const lastGoodMode = portableMode || input.publicationPolicy === "SOURCE_ATOMIC_LAST_GOOD_V1";
+  if (lastGoodMode && identity.batchKind !== "SCHEDULED") throw new Error("Source-atomic last-good publication requires a scheduled batch");
+  const qualityRequired = portableMode;
+  if (qualityRequired && input.firstAcceptedCurrentPolicyReceipt === undefined) throw new Error("Portable receipt baseline must be loaded explicitly");
+  const qualityAdmission = qualityRequired ? input.sourceQualityAdmission : undefined;
+  const qualityAccepted = qualityAdmission?.status === "ACCEPTED";
+  if (qualityAccepted) assertIssuedSourceQualityAdmission(qualityAdmission, result, plan);
+  if (input.sourceQualityAdmission && !qualityRequired) throw new Error("Unreviewed source cannot select portable admission");
   const ledger = assertAdapterReconciliation(result);
   const evidence = result.fetchEvidence;
-  const finishedAt = input.completedAt ?? result.observation.crawledAt;
+  const finishedAt = qualityAccepted ? new Date(qualityAdmission.receipt.issuedAt) : input.completedAt ?? result.observation.crawledAt;
   if (!(finishedAt instanceof Date) || !Number.isFinite(finishedAt.getTime()) ||
       finishedAt.getTime() < result.observation.crawledAt.getTime()) {
     throw new Error("atomic runtime commit completedAt must not precede the crawl observation");
   }
   const tuple = { releaseCandidateId: identity.releaseCandidateId, batchId,
     sourceId: plan.source.id, sourceResultId: pending.id };
-  const aGradeCertificateRequired = requiresAGradeOfficialTotalCertificate(plan);
-  const bGradeCertificateRequired = requiresBGradeTraversalCertificate(plan);
+  const aGradeCertificateRequired = !qualityRequired && requiresAGradeOfficialTotalCertificate(plan);
+  const bGradeCertificateRequired = !qualityRequired && requiresBGradeTraversalCertificate(plan);
   const certificateRequired = aGradeCertificateRequired || bGradeCertificateRequired;
   const declarationLogicalKey = evidence.declaredCompleteness?.artifactLogicalKey;
   const aGradeCertificateDecision = aGradeCertificateRequired && result.paginationEvaluation
@@ -434,11 +463,13 @@ export function buildAtomicRuntimeCommit(input: {
     : undefined;
   const certificateDecision = aGradeCertificateDecision ?? bGradeCertificateDecision;
   const certificateCertified = certificateDecision?.status === "CERTIFIED";
+  const baselineProof = qualityAccepted ? { kind: SOURCE_QUALITY_POLICY_ID, sha256: qualityAdmission.receiptSha256 }
+    : certificateDecision?.status === "CERTIFIED" ? { kind: certificateDecision.certificate.grade, sha256: certificateDecision.certificateSha256 } : undefined;
   // A certified B-grade traversal is the completeness proof for filtered sources whose
   // official raw total intentionally differs from the in-scope output. Requiring the
   // pre-certificate truth bit here would attach a valid certificate to INCOMPLETE truth,
   // which the persistence verifier must reject.
-  const sourceCompletenessVerified = certificateRequired
+  const sourceCompletenessVerified = qualityRequired ? qualityAccepted : certificateRequired
     ? certificateCertified
     : result.truth.completenessVerified;
   const currentKeys = result.jobs.map(buildJobDedupeKey);
@@ -478,17 +509,17 @@ export function buildAtomicRuntimeCommit(input: {
   const completenessAnomalyTriggerCodes = input.completenessAnomalyTriggerCodes
     ? canonicalCompletenessAnomalyTriggerCodes(input.completenessAnomalyTriggerCodes)
     : [];
-  const anomalyValidationSatisfied = completenessAnomalyTriggerCodes.length === 0 || certificateCertified;
+  const anomalyValidationSatisfied = completenessAnomalyTriggerCodes.length === 0 || (!portableMode && certificateCertified);
   const completenessVerified = sourceCompletenessVerified && sourceBindingVerified && anomalyValidationSatisfied;
-  const baselineTransition = completenessVerified && certificateDecision?.status === "CERTIFIED"
+  const baselineTransition = completenessVerified && baselineProof
     ? transitionTrustedCompletenessBaseline({
         previous: input.trustedCompletenessBaseline ?? null,
         verified: {
           sourceId: plan.source.id,
           sourceResultId: pending.id,
           sourceConfigSha256: pending.sourceConfigHash,
-          certificateGrade: certificateDecision.certificate.grade,
-          certificateSha256: certificateDecision.certificateSha256,
+          certificateGrade: baselineProof.kind,
+          certificateSha256: baselineProof.sha256,
           certifiedJobCount: ledger.dedupeOutputCount,
           verifiedAt: finishedAt.toISOString()
         }
@@ -497,6 +528,8 @@ export function buildAtomicRuntimeCommit(input: {
   const incompleteBlocker = completenessVerified ? undefined : {
     blockerCode: completenessAnomalyTriggerCodes.length > 0
       ? "COMPLETENESS_ANOMALY_UNVERIFIED"
+      : qualityRequired && !qualityAccepted
+      ? "SOURCE_QUALITY_ADMISSION_REJECTED"
       : certificateRequired && !certificateCertified
       ? aGradeCertificateRequired
         ? "A_GRADE_CERTIFICATE_NOT_ISSUED"
@@ -506,6 +539,8 @@ export function buildAtomicRuntimeCommit(input: {
       : "SOURCE_SURFACE_ORACLE_MISSING",
     blockerReason: completenessAnomalyTriggerCodes.length > 0
       ? `Completeness anomaly requires successful independent validation: ${completenessAnomalyTriggerCodes.join(",")}`
+      : qualityRequired && !qualityAccepted
+      ? "The owned source acquisition did not satisfy the reviewed plan-bound quality policy"
       : certificateRequired && !certificateCertified
       ? input.independentTraversalFailureCode
         ? input.independentTraversalFailureReason ??
@@ -519,8 +554,10 @@ export function buildAtomicRuntimeCommit(input: {
   };
   // These decisions are transaction candidates only. They become true only if the enclosing atomic commit succeeds.
   const manualPreview = identity.batchKind === "MANUAL_SOURCE";
+  if (completenessVerified && !manualPreview && hasNovartisOfficialPresencePlan(plan)) replayNovartisOfficialPresence(plan,evidence);
+  if (completenessVerified && !manualPreview) assertServierUnknownLifecyclePreserved(plan, evidence, input.previousJobs.map(job => job.record));
   const currentKeySet=new Set(currentKeys);
-  const reducedLifecycle = sourceBindingVerified && !manualPreview ? applyCrawlObservation(
+  const reducedLifecycle = !qualityRequired && sourceBindingVerified && !manualPreview ? applyCrawlObservation(
     input.previousJobs,
     result.jobs,
     {
@@ -531,11 +568,16 @@ export function buildAtomicRuntimeCommit(input: {
       baselineCompletedBeforeCrawl: input.baselineCompletedBeforeCrawl
     }
   ) : [];
-  const lifecycle = completenessVerified
+  const qualityCommands = qualityAccepted && completenessVerified ? buildSourceQualityJobCommands({
+    plan, result, admission: qualityAdmission, previousJobs: input.previousJobs,
+    firstAcceptedCurrentPolicyReceipt: input.firstAcceptedCurrentPolicyReceipt!,
+    baselineCompletedBeforeCrawl: input.baselineCompletedBeforeCrawl
+  }).jobCommands : undefined;
+  const lifecycle = qualityCommands ?? (completenessVerified
     ? reducedLifecycle
-    : completenessAnomalyTriggerCodes.length > 0
+    : lastGoodMode || completenessAnomalyTriggerCodes.length > 0
       ? []
-      : reducedLifecycle.filter(({ dedupeKey }) => currentKeySet.has(dedupeKey));
+      : reducedLifecycle.filter(({ dedupeKey }) => currentKeySet.has(dedupeKey)));
   const graceKeys = lifecycle.filter((x) => !currentKeySet.has(x.dedupeKey) && x.lifecycleStatus === "ACTIVE" &&
     x.missingSuccessfulCrawlCount === 1).map((x) => x.dedupeKey);
   const visibleKeys = lifecycle.filter((x) => x.lifecycleStatus === "ACTIVE").map((x) => x.dedupeKey);
@@ -579,6 +621,7 @@ export function buildAtomicRuntimeCommit(input: {
       ? "NEEDS_MANUAL_COMPLETENESS_REVIEW"
       : "INCOMPLETE";
   const commit: AtomicSourceEvidenceCommit = {
+    ...(lastGoodMode ? { publicationPolicy: "SOURCE_ATOMIC_LAST_GOOD_V1" as const } : {}),
     sourceResult: { id: pending.id, releaseCandidateId: identity.releaseCandidateId, batchId,
       sourceId: plan.source.id, transportState: "SUCCEEDED", adapterState: "SUCCEEDED",
       completenessState,
@@ -605,8 +648,8 @@ export function buildAtomicRuntimeCommit(input: {
       adapterLossCount: ledger.adapterLosses.length + (ledger.dedupeInputCount-ledger.dedupeOutputCount),
       adapterCollisionGroupCount: ledger.collisionGroups.length,
       adapterReconciliationSha256: ledger.ledgerSha256, collisionLedgerSha256: sha256(canonicalJson(ledger.collisionGroups)),
-      completenessCertificate: certificateCertified ? certificateDecision.certificate : null,
-      completenessCertificateSha256: certificateCertified ? certificateDecision.certificateSha256 : null,
+      completenessCertificate: qualityAccepted && completenessVerified ? qualityAdmission.receipt : certificateCertified ? certificateDecision.certificate : null,
+      completenessCertificateSha256: qualityAccepted && completenessVerified ? qualityAdmission.receiptSha256 : certificateCertified ? certificateDecision.certificateSha256 : null,
       ...(baselineTransition ? {
         baselinePreviousSourceResultId: baselineTransition.previousSourceResultId,
         baselinePreviousJobCount: baselineTransition.previousJobCount,
@@ -663,6 +706,8 @@ export function buildAtomicRuntimeCommit(input: {
     }),
     commands: buildIngestionCommands({ ...result, observation: observationForCommit }, lifecycle)
   };
+  if (qualityAccepted && completenessVerified) verifySourceQualityAtomicCommit({ plan, commit });
+  if (qualityAccepted && plan.source.id==="source-astellas-china-social") runtimeAstellasAdmissions.set(commit,qualityAdmission);
   runtimeCommitAttestations.set(commit,attestationSignature(commit));
   return commit;
 }

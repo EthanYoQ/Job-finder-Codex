@@ -87,6 +87,8 @@ export interface DatabaseSearchJobResult {
   officialPublishedAt: string | null;
   city: string;
   locationRaw: string;
+  /** Present on portable results; derived only from verified structured locations. */
+  cityPending?: boolean;
   category: JobCategory;
   isNew: boolean;
   officialUrl: string;
@@ -95,6 +97,7 @@ export interface DatabaseSearchJobResult {
 export interface DatabaseSearchCompanyResult {
   id: string;
   companyName: string;
+  sourceScopeNote?: string;
   pinyin: string;
   jobs: DatabaseSearchJobResult[];
 }
@@ -192,7 +195,10 @@ function buildWhereClause(
     { cities: { has: "全国" } },
     { city: "全国" },
     { cities: { has: "中国" } },
-    { city: "中国" }
+    { city: "中国" },
+    // Preserve the exact nationwide label retained by evidence-backed sources.
+    { cities: { has: "China" } },
+    { city: "China" }
   ];
 
   const effectiveCategoryAndKeywordFilters: Array<Record<string, unknown>> = [];

@@ -246,7 +246,8 @@ describe("createHotjobLegacySourceFetch", () => {
 
     await expect(fetcher(crPlan)).resolves.toMatchObject({
       ok: true,
-      payload: { jobs: [{ title: "自动化生产管理岗", locationRaw: "成都市" }] },
+      payload: { jobs: [{ title: "自动化生产管理岗", locationRaw: "成都市",
+        officialUrl: "https://crc.wintalent.cn/wt/crpharma/web/index/webPositionN300!getOnePosition?postId=1127&recruitType=2&brandCode=1&columnId=2&importPost=0" }] },
       completeness: {
         completenessStatus: "NEEDS_MANUAL_COMPLETENESS_REVIEW",
         completenessEvidenceKind: "OFFICIAL_TOTAL_COUNT",

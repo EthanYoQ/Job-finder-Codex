@@ -20,6 +20,8 @@ describe("human-verified official filter entry contracts", () => {
     expect(entry.origin).toBe("https://www.novartis.com.cn");
     expect(entry.searchParams.getAll("country[0]")).toEqual(["LOC_CN"]);
     expect(entry.searchParams.get("field_job_posted_date")).toBe("All");
+    expect(entry.searchParams.get("sort")).toBe("asc");
+    expect(entry.searchParams.get("order")).toBe("职位名称");
   });
 
   it("retains Kelun's manually selected marketing category on every HTML page", () => {

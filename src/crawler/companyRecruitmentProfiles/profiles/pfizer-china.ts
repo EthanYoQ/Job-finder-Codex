@@ -8,10 +8,11 @@ export const profile_pfizer_china = {
       sourceId: "source-pfizer-china-social",
       executionConfig: {
           adapterId: "official-json",
-          json: WORKDAY_JSON_CONFIG,
+          json: { ...WORKDAY_JSON_CONFIG, fields: { ...WORKDAY_JSON_CONFIG.fields, officialPublishedAt: "officialPublishedAt" } },
           transientRetryPolicy: { maxRetries: 1, backoffMs: 10_000 },
           workday: {
               tenant: "pfizer",
+              traversalScopePolicy: "PFIZER_COUNTRY_DETAIL_COMPLETE_TRAVERSAL_V1",
               site: "PfizerCareers",
               laterZeroTotalPolicy: "PFIZER_AUDITED_EXACT_RECONCILIATION",
               appliedFacets: {

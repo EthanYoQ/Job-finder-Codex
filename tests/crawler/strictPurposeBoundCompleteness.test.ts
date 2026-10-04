@@ -36,6 +36,7 @@ import {
 } from "../../src/crawler/mokaSourceFetch";
 
 const CAPTURED_AT = "2026-07-15T01:00:00.000Z";
+// Generic Phenom fixtures use Organon. Lilly requires the dedicated full raw-to-output fixture.
 const PLANS = buildStagedSourceCrawlPlans(candidateCompanies);
 const SANDOZ_FIELDS = [
   "title", "field_job_title", "field_job_employment_type", "field_job_type", "field_job_id",
@@ -66,9 +67,10 @@ function payloadFor(plan: SourceCrawlPlan, ids: readonly string[]): unknown {
   const rows = ids.map((id) => {
     const row: Record<string, unknown> = {};
     const values: Record<string, unknown> = {
-      sourceJobId: id,
+      sourceJobId: plan.moka ? `sha256:${createHash("sha256").update(JSON.stringify(id)).digest("hex")}` : id,
       officialTitle: `Official role ${id}`,
-      officialUrl: new URL(`/jobs/${id}`, plan.source.officialEntryUrl).toString(),
+      officialUrl: plan.moka ? `${plan.moka.campaignUrl}#/job/${encodeURIComponent(id)}`
+        : new URL(`/jobs/${id}`, plan.source.officialEntryUrl).toString(),
       locationRaw: "上海",
       cities: ["上海"],
       category: "其他",
@@ -438,7 +440,10 @@ function evidenceFor(plan: SourceCrawlPlan, pageCount: 1 | 2): {
     }
     const logicalKey = `page-${sequence + 1}`;
     const coordinates = pageCoordinates(plan, sequence);
-    const locator = requestContractLocator(plan, coordinates, "json:total");
+    const baseLocator = plan.adapterId === "official-json" && plan.moka
+      ? `moka-envelope-v1|raw:${logicalKey}|request:offset=${sequence * 50},limit=50|init:moka-entry-0000|decrypt:aes-128-cbc-v1|json:$.data.jobStats.total`
+      : "json:total";
+    const locator = requestContractLocator(plan, coordinates, baseLocator);
     const url = paginationUrl(plan, sequence);
     artifacts.push({ id: logicalKey, logicalKey, kind: "PAGINATION_PAGE", requestedUrl: url, finalUrl: url,
       httpStatus: 200, contentType: "application/json", capturedAt: CAPTURED_AT, body,
@@ -457,13 +462,13 @@ function evidenceFor(plan: SourceCrawlPlan, pageCount: 1 | 2): {
       returnedPage,
       requestedPageSize: coordinates.requestedPageSize,
       returnedPageSize: strategyName(plan) === "sandoz" ? size : null,
-      rawJobIds: pageIds,
-      validJobIds: pageIds,
+      rawJobIds: pageIds.map(id => plan.adapterId === "official-json" && plan.moka ? `sha256:${createHash("sha256").update(JSON.stringify(id)).digest("hex")}` : id),
+      validJobIds: pageIds.map(id => plan.adapterId === "official-json" && plan.moka ? `sha256:${createHash("sha256").update(JSON.stringify(id)).digest("hex")}` : id),
       declaredTotal: ids.length,
       declaredCount: null,
-      declaredPages: groups.length,
-      nextPageSignalBefore: sequence === 0 ? null : `next:${sequence}`,
-      nextPageSignalAfter: hasNext ? `next:${sequence + 1}` : null,
+      declaredPages: plan.adapterId === "official-json" && plan.moka ? null : groups.length,
+      nextPageSignalBefore: sequence === 0 ? null : plan.adapterId === "official-json" && plan.moka ? String(sequence * 50) : `next:${sequence}`,
+      nextPageSignalAfter: hasNext ? plan.adapterId === "official-json" && plan.moka ? String((sequence + 1) * 50) : `next:${sequence + 1}` : null,
       responseFingerprintSha256: createHash("sha256").update(body).digest("hex"),
       termination: hasNext ? "CONTINUE" : "DECLARED_TOTAL_REACHED",
       anomalyCodes: [],
@@ -644,8 +649,8 @@ describe("strict purpose-bound completeness gate RED", () => {
   it.each([
     ["Moka detail", "source-hengrui-social", () => "https://app.mokahr.com/api/outer/ats-apply/website/job"],
     ["Moka entry", "source-hengrui-social", (plan: SourceCrawlPlan) => plan.source.officialEntryUrl],
-    ["Phenom entry", "source-lilly-china-social", (plan: SourceCrawlPlan) => plan.source.officialEntryUrl],
-    ["Beisen entry", "source-cttq-social", (plan: SourceCrawlPlan) => plan.source.officialEntryUrl],
+    ["Phenom entry", "source-organon-china-social", (plan: SourceCrawlPlan) => plan.source.officialEntryUrl],
+    ["Beisen entry", "source-yangzijiang-social", (plan: SourceCrawlPlan) => plan.source.officialEntryUrl],
     ["HCM count", "source-lunan-social", (plan: SourceCrawlPlan) => declarationUrl(plan)]
   ])("rejects a %s artifact masquerading as pagination", async (_label, sourceId, wrongUrl) => {
     const plan = planFor(sourceId);
@@ -658,8 +663,8 @@ describe("strict purpose-bound completeness gate RED", () => {
   it.each([
     ["Workday", "source-pfizer-china-social"],
     ["Moka", "source-hengrui-social"],
-    ["Phenom", "source-lilly-china-social"],
-    ["Beisen", "source-cttq-social"],
+    ["Phenom", "source-organon-china-social"],
+    ["Beisen", "source-yangzijiang-social"],
     ["HCM", "source-lunan-social"]
   ])("rejects %s evidence when the request contract is tampered but URL and count remain valid", async (_label, sourceId) => {
     if (sourceId === "source-pfizer-china-social") {
@@ -684,9 +689,9 @@ describe("strict purpose-bound completeness gate RED", () => {
   });
 
   it("requires canonical STAGED authority even after a renamed source recomputes its channel hash", async () => {
-    const canonicalPlan = planFor("source-lilly-china-social");
+    const canonicalPlan = planFor("source-organon-china-social");
     const baseline = evidenceFor(canonicalPlan, 1);
-    const renamedSourceId = "source-renamed-lilly-social";
+    const renamedSourceId = "source-renamed-organon-social";
     const expectedChannels = [{ channelId: `source:${renamedSourceId}:default`, kind: "SOCIAL" as const }];
     const { executionAuthority: _authority, ...withoutAuthority } = canonicalPlan;
     const forgedPlan = {
@@ -699,7 +704,7 @@ describe("strict purpose-bound completeness gate RED", () => {
   });
 
   it("rejects an unreferenced network artifact carrying a channel outside the staged plan", async () => {
-    const plan = planFor("source-lilly-china-social");
+    const plan = planFor("source-organon-china-social");
     const baseline = evidenceFor(plan, 1);
     const forged: PersistentSourceFetchEvidence = {
       ...baseline.evidence,
@@ -761,13 +766,14 @@ describe("strict Moka hydration evidence", () => {
       if (request.url === listUrl) {
         return mokaResponse(JSON.stringify(mokaEncryptedResponse({
           success: true,
-          data: { jobStats: { total: 1 }, jobs: [{ id: "servier-1", title: "医学信息沟通专员" }] }
+          data: { jobStats: { orgId: "shiweiya", total: 1 }, jobs: [{ id: "00000000-0000-4000-8000-000000000001", orgId: "shiweiya", title: "医学信息沟通专员", status: "open", showIsCampus: false, publishedAt: "2026-10-01T12:00:00" }] }
         })), listUrl);
       }
       return mokaResponse(JSON.stringify(mokaEncryptedResponse({
         success: true,
         data: {
-          id: "servier-1",
+          id: "00000000-0000-4000-8000-000000000001",
+          title: "医学信息沟通专员", status: "open", publishedAt: "2026-10-01T12:00:00", jobDescription: "用于核对社招列表和有效详情正文的完整测试职位职责。",
           orgId: plan.moka!.expectedOrgId,
           locations: [{ cityName: "北京市", provinceName: "北京市", country: "中国" }]
         }
@@ -830,12 +836,11 @@ describe("real staged non-regression plans", () => {
   });
 
   it("keeps a real staged static official list COMPLETE_PAGE_TRAVERSAL VERIFIED", async () => {
-    const plan = planFor("source-qilu-social");
+    const plan = planFor("source-grand-pharma-social");
     const fetch = createHttpHtmlSourceFetch({ now: () => new Date(CAPTURED_AT), http: async request => htmlResponse(
       request,
-      `<section class="e_loop-65"><article class="cbox-65 p_loopitem">` +
-      `<div class="e_text-83"><a href="/job/medical-manager">医学经理</a></div>` +
-      `<div class="e_text-86">济南</div></article></section>`
+      `<div class="job-list"><div class="job-card"><a href="#login">申请</a>` +
+      `<div class="job-title">医学经理</div><div class="job-meta"><span>济南</span></div></div></div>`
     ) });
     const fetched = await fetch(plan);
     const result = await runSourceCrawl(plan, { fetch: async () => fetched });

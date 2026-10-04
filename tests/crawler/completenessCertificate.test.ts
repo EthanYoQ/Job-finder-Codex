@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { OFFICIAL_API_JSON_CONFIG } from "../../src/crawler/companyRecruitmentProfiles/shared";
 import { candidateCompanies } from "../../src/data/companyRegistry";
 import { reconcileAdapterRows } from "../../src/crawler/adapters/reconciliation";
 import type { NormalizedJobRecord } from "../../src/crawler/normalizedJob";
@@ -19,10 +20,15 @@ const officialArtifactSha256 = "a".repeat(64);
 
 function gskPlan() {
   const plan = getPlanBySourceId(buildStagedSourceCrawlPlans(candidateCompanies), "source-gsk-china-social");
-  if (plan?.adapterId !== "official-json" || plan.officialJsonFetch?.kind !== "phenom") {
-    throw new Error("Expected staged GSK plan");
-  }
-  return plan;
+  if (plan?.adapterId !== "official-json") throw new Error("Expected staged GSK plan");
+  // These algebra fixtures exercise the historical Phenom certificate shape;
+  // current GSK Moka scope and strict request replay have their own integration test.
+  const { moka: _moka, ...legacy } = plan;
+  return { ...legacy, source: { ...plan.source, atsKind: "OFFICIAL_JSON" as const,
+    officialEntryUrl: "https://jobs.gsk.com/cn/zh/search-results?keywords=China" },
+    json: OFFICIAL_API_JSON_CONFIG,
+    officialJsonFetch: { kind: "phenom" as const, countryFilter: "China",
+      detailBaseUrl: "https://jobs.gsk.com/gb/en/job", pageSize: 50, maxPages: 3 } };
 }
 
 function canonicalJson(value: unknown): string {

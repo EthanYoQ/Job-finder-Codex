@@ -133,6 +133,34 @@ const rows = [
 ];
 
 describe("searchJobsFromDatabase", () => {
+  it.each(["北京", "上海", "广州"])("projects exact nationwide China evidence into %s without matching foreign or regional labels", async city => {
+    // Predicate-respecting in-memory DB boundary, not a live database/capture.
+    const candidates = [
+      { id: "nationwide-array", city: "未映射", cities: ["China"] },
+      { id: "nationwide-primary", city: "China", cities: [] },
+      { id: "nationwide-cn", city: "中国", cities: ["中国"] },
+      { id: "nationwide-all", city: "全国", cities: ["全国"] },
+      { id: "foreign-tail", city: "China, Singapore", cities: ["China, Singapore"] },
+      { id: "regional", city: "APAC", cities: ["APAC"] },
+      { id: "hong-kong", city: "Hong Kong", cities: ["Hong Kong"] }
+    ].map(location => ({ ...rows[0]!, ...location, visibleInFrontend: true, lifecycleStatus: "ACTIVE" }));
+    const db = dbReturning([]);
+    db.job.findMany = vi.fn(async ({ where }: Parameters<PrismaJobSearchDb["job"]["findMany"]>[0]) => candidates.filter(row =>
+      row.visibleInFrontend === where.visibleInFrontend && row.lifecycleStatus === where.lifecycleStatus &&
+      where.sourceId.in.includes(row.sourceId) && where.OR?.some(clause => {
+        const filter = clause as { city?: string; cities?: { has?: string } };
+        return filter.city === row.city || (filter.cities?.has !== undefined && row.cities.includes(filter.cities.has));
+      })
+    ));
+    const result = await searchWithSnapshot({ city, categories: [] }, db);
+    expect(result.totalJobs).toBe(4);
+    expect(result.companies.flatMap(company => company.jobs.map(job => job.id)).sort())
+      .toEqual(["nationwide-all", "nationwide-array", "nationwide-cn", "nationwide-primary"]);
+    const unqualified = publicationSnapshot([publicationRecord({ companyId: "company-b", sourceId: "source-b",
+      state: "VERIFYING", lastSuccessAt: null })]);
+    expect((await searchWithSnapshot({ city, categories: [] }, db, unqualified)).totalJobs).toBe(0);
+  });
+
   it("requires city before reading jobs", async () => {
     const db = dbReturning(rows);
 
@@ -194,7 +222,9 @@ describe("searchJobsFromDatabase", () => {
             { cities: { has: "全国" } },
             { city: "全国" },
             { cities: { has: "中国" } },
-            { city: "中国" }
+            { city: "中国" },
+            { cities: { has: "China" } },
+            { city: "China" }
           ]
         }),
         include: { company: true }

@@ -1,0 +1,1 @@
+Fonts used in the supplied redesign-v2 source: Bricolage Grotesque, JetBrains Mono, Noto Sans SC. Downloaded from Google Fonts on 2026-10-03 and served locally to avoid third-party font requests. SIL Open Font License; upstream notices in OFL-*.txt.

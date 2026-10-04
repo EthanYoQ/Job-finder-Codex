@@ -4,7 +4,8 @@ import {
   COMPANY_EXPANSION_PAGE_SIZE,
   JOB_CATEGORIES,
   CompanyExpansionRequestSchema,
-  SearchRequestSchema
+  SearchRequestSchema,
+  PortableSearchRequestSchema
 } from "../../src/domain/search";
 
 describe("search request contract", () => {
@@ -26,7 +27,7 @@ describe("search request contract", () => {
     expect(() => SearchRequestSchema.parse({ city: "" })).toThrow();
   });
 
-  it.each(["全部地点", "全国", "中国", "APAC", "India", "杭州"])(
+  it.each(["全部地点", "全国", "中国", "APAC", "India", "杭州", "城市待核"])(
     "rejects unsupported or non-concrete city %s",
     (city) => {
       expect(() => SearchRequestSchema.parse({ city })).toThrow();
@@ -70,5 +71,15 @@ describe("company expansion contract", () => {
         limit: 10
       })
     ).toThrow();
+  });
+});
+
+
+describe("portable-only search request contract", () => {
+  it("adds the city-pending view without accepting a broad or unsupported city input", () => {
+    expect(PortableSearchRequestSchema.parse({ city: " 城市待核 " }).city).toBe("城市待核");
+    for (const city of ["", "全部地点", "全国", "中国", "China", "APAC", "杭州"]) {
+      expect(PortableSearchRequestSchema.safeParse({ city }).success).toBe(false);
+    }
   });
 });

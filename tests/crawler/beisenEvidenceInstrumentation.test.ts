@@ -1,3 +1,4 @@
+// @vitest-environment node
 import { describe, expect, it } from "vitest";
 import { createHash } from "node:crypto";
 import {
@@ -489,6 +490,12 @@ describe("Beisen Zhiye 2022 evidence instrumentation", () => {
     const fetched = await createOfficialJsonSourceFetch({
       now: () => new Date(NOW),
       http: async (request) => {
+        if (request.method === "GET") {
+          const id = new URL(request.url).searchParams.get("jobAdId");
+          const detail = rows.find((row) => row.Id === id);
+          return response({ Code: 200, Data: { ...detail, Status: 1, Duty: "Native duties" } }, { finalUrl: request.url });
+        }
+
         const body = JSON.parse(request.body ?? "{}") as {
           PageIndex: number;
           PageSize: number;
@@ -506,6 +513,7 @@ describe("Beisen Zhiye 2022 evidence instrumentation", () => {
       }
     })(exactPlan);
 
+    if (!fetched.ok) throw new Error(fetched.failureReason);
     expect(exactPlan).toMatchObject({
       adapterId: "official-json",
       company: { id: "company-shanghai-pharma" },

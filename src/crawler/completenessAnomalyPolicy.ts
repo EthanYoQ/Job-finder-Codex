@@ -18,11 +18,14 @@ const COMPLETENESS_ANOMALY_TRIGGER_CODES = new Set<string>([
   "SUSPICIOUS_ADAPTER_CAPACITY_REACHED"
 ]);
 
+export type TrustedCompletenessProofKind = "A" | "B" | "PLAN_BOUND_SOURCE_QUALITY_V1";
+
 export interface TrustedCompletenessBaseline {
   sourceId: string;
   sourceResultId: string;
   sourceConfigSha256: string;
-  certificateGrade: "A" | "B";
+  /** Historical field name; the portable value is a proof kind, not an A/B grade. */
+  certificateGrade: TrustedCompletenessProofKind;
   certificateSha256: string;
   certifiedJobCount: number;
   verifiedAt: string;
@@ -33,6 +36,15 @@ export interface PersistedTrustedCompletenessBaseline extends TrustedCompletenes
   previousSourceResultId: string | null;
   previousJobCount: number | null;
   changeReason: TrustedBaselineChangeReason | null;
+}
+
+/** A reviewed scope/configuration change starts a new comparable series. The
+ * prior row remains in history, but its count cannot qualify or veto this scope. */
+export function comparablePortableBaseline<T extends TrustedCompletenessBaseline>(
+  baseline: T | null, sourceId: string, sourceConfigSha256: string
+): T | null {
+  return baseline?.sourceId === sourceId && baseline.sourceConfigSha256 === sourceConfigSha256
+    ? baseline : null;
 }
 
 export type CompletenessAnomalyTriggerCode =
@@ -92,7 +104,11 @@ export const TRUSTED_BASELINE_CHANGE_REASONS = Object.freeze([
   "INDEPENDENT_VALIDATION_CONFIRMED_INITIAL",
   "INDEPENDENT_VALIDATION_CONFIRMED_INCREASE",
   "INDEPENDENT_VALIDATION_CONFIRMED_DECREASE",
-  "INDEPENDENT_VALIDATION_CONFIRMED_UNCHANGED"
+  "INDEPENDENT_VALIDATION_CONFIRMED_UNCHANGED",
+  "PLAN_BOUND_REPLAY_CONFIRMED_INITIAL",
+  "PLAN_BOUND_REPLAY_CONFIRMED_INCREASE",
+  "PLAN_BOUND_REPLAY_CONFIRMED_DECREASE",
+  "PLAN_BOUND_REPLAY_CONFIRMED_UNCHANGED"
 ] as const);
 
 export type TrustedBaselineChangeReason = typeof TRUSTED_BASELINE_CHANGE_REASONS[number];
@@ -198,9 +214,7 @@ export function transitionTrustedCompletenessBaseline(input: {
       : input.verified.certifiedJobCount < input.previous.certifiedJobCount
         ? "DECREASE"
         : "UNCHANGED";
-  const proof = input.verified.certificateGrade === "A"
-    ? "OFFICIAL_EVIDENCE_CONFIRMED"
-    : "INDEPENDENT_VALIDATION_CONFIRMED";
+  const proof = proofReasonPrefix(input.verified.certificateGrade);
   return assertTrustedBaselineTransition({
     previousSourceResultId: input.previous?.sourceResultId ?? null,
     previousJobCount: input.previous?.certifiedJobCount ?? null,
@@ -216,7 +230,8 @@ export function assertTrustedBaselineTransition(input: {
   previousJobCount: number | null | undefined;
   currentSourceResultId: string;
   currentJobCount: number;
-  certificateGrade: "A" | "B";
+  /** Historical field name; the portable value is a proof kind, not an A/B grade. */
+  certificateGrade: TrustedCompletenessProofKind;
   changeReason: unknown;
 }): TrustedBaselineTransition {
   if (!input.currentSourceResultId.trim()) throw new Error("trusted baseline current source result id is required");
@@ -236,9 +251,7 @@ export function assertTrustedBaselineTransition(input: {
     }
     assertNonnegativeInteger(previousCount!, "trusted baseline previous job count");
   }
-  const expectedProof = input.certificateGrade === "A"
-    ? "OFFICIAL_EVIDENCE_CONFIRMED_"
-    : "INDEPENDENT_VALIDATION_CONFIRMED_";
+  const expectedProof = `${proofReasonPrefix(input.certificateGrade)}_`;
   if (!input.changeReason.startsWith(expectedProof)) {
     throw new Error("trusted baseline transition reason does not match certificate grade");
   }
@@ -266,6 +279,7 @@ export function assertTrustedBaselineTransition(input: {
 export function assertTrustedCompletenessBaseline(
   value: TrustedCompletenessBaseline
 ): TrustedCompletenessBaseline {
+  proofReasonPrefix(value.certificateGrade);
   if (!value.sourceId.trim() || !value.sourceResultId.trim()) {
     throw new Error("trusted baseline source identity is required");
   }
@@ -286,4 +300,11 @@ function assertNonnegativeInteger(value: number, label: string): void {
   if (!Number.isSafeInteger(value) || value < 0) {
     throw new Error(`${label} must be a nonnegative integer`);
   }
+}
+
+function proofReasonPrefix(kind: TrustedCompletenessProofKind): string {
+  if (kind === "A") return "OFFICIAL_EVIDENCE_CONFIRMED";
+  if (kind === "B") return "INDEPENDENT_VALIDATION_CONFIRMED";
+  if (kind === "PLAN_BOUND_SOURCE_QUALITY_V1") return "PLAN_BOUND_REPLAY_CONFIRMED";
+  throw new Error("Trusted completeness proof kind is invalid");
 }

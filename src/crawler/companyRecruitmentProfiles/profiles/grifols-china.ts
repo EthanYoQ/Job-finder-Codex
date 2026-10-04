@@ -9,7 +9,10 @@ export const profile_grifols_china = {
       executionConfig: {
           adapterId: "official-json",
           transientRetryPolicy: { maxRetries: 1, backoffMs: 10_000 },
-          json: OFFICIAL_API_JSON_CONFIG,
+          json: {
+              ...OFFICIAL_API_JSON_CONFIG,
+              fields: { ...OFFICIAL_API_JSON_CONFIG.fields, officialPublishedAt: "officialPublishedAt" }
+          },
           profileBoundSource: {
               kind: "grifols-china-detail-scope",
               config: GRIFOLS_CHINA_FETCH_CONFIG

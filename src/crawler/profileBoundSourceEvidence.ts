@@ -1,3 +1,9 @@
+import { JNJ_DOM_CAPTURE_TOOL } from "./jnjCareersDomContract";
+import { replayJnjCareersDomEvidence } from "./jnjCareersDomEvidence";
+import { getStrictAmgenManualWorkdayPolicy, validateStrictAmgenManualWorkdayEvidence } from "./amgenManualWorkdaySourceFetch";
+import { getStrictAmgenNativePolicy, isSafeAmgenNativeFailureCode, validateStrictAmgenNativeEvidence } from "./amgenNativeSourceFetch";
+import {getStrictMsdAjingaPolicy,validateStrictMsdAjingaEvidence} from "./msdAjingaSourceFetch";
+import { validateStrictQiluDualPartitionEvidence, getStrictQiluDualPartitionPolicy } from "./qiluDualPartitionSourceFetch";
 import { getStrictLivzonCeccNetworkPolicy, validateStrictLivzonCeccEvidence } from "./livzonCeccEvidenceVerifier";
 import {
   getStrictGrifolsChinaNetworkPolicy,
@@ -37,6 +43,7 @@ export interface StrictProfileBoundSourcePolicy {
   allowPositiveOfficialTotalCountAfterAdapterReconciliation?: true;
   allowIndependentlyVerifiedProfileBoundExclusions?: true;
   allowCompleteTraversalOfEmptyFirstPage?: true;
+  allowMissingReturnedPage?: true;
 }
 
 /**
@@ -51,10 +58,19 @@ export function validateStrictProfileBoundSourceEvidence(
 ): boolean {
   if (plan.adapterId !== "official-json" || !plan.profileBoundSource) return false;
   switch (plan.profileBoundSource.kind) {
+    case "amgen-manual-workday-lookup":
+      return validateStrictAmgenManualWorkdayEvidence(plan, evidence, outputJobs);
+    case "amgen-native-china":
+      return validateStrictAmgenNativeEvidence(plan, evidence, outputJobs);
+    case "msd-ajinga":return validateStrictMsdAjingaEvidence(plan,evidence,outputJobs);
+    case "qilu-dual-official":
+      return validateStrictQiluDualPartitionEvidence(plan, evidence, outputJobs);
     case "grifols-china-detail-scope":
       return validateStrictGrifolsChinaEvidence(plan, evidence, outputJobs);
     case "jnj-careers-china":
-      return validateStrictJnjCareersChinaEvidence(plan, evidence, outputJobs);
+      return evidence.captureTool.name === JNJ_DOM_CAPTURE_TOOL.name
+        ? replayJnjCareersDomEvidence(plan, evidence, outputJobs)
+        : validateStrictJnjCareersChinaEvidence(plan, evidence, outputJobs);
     case "msd-dual-official":
       return validateStrictMsdDualOfficialEvidence(plan, evidence, outputJobs);
     case "livzon-cecc":
@@ -103,6 +119,13 @@ export function getStrictProfileBoundSourcePolicy(
 ): StrictProfileBoundSourcePolicy | undefined {
   if (plan.adapterId !== "official-json" || !plan.profileBoundSource) return undefined;
   switch (plan.profileBoundSource.kind) {
+    case "amgen-manual-workday-lookup":
+      return getStrictAmgenManualWorkdayPolicy(plan);
+    case "amgen-native-china":
+      return getStrictAmgenNativePolicy(plan);
+    case "msd-ajinga":return getStrictMsdAjingaPolicy(plan);
+    case "qilu-dual-official":
+      return getStrictQiluDualPartitionPolicy(plan);
     case "grifols-china-detail-scope":
       return getStrictGrifolsChinaNetworkPolicy(plan);
     case "jnj-careers-china":
@@ -170,6 +193,10 @@ export function safeProfileBoundSourceFailureReason(
   failureReason: unknown
 ): string | undefined {
   if (plan.adapterId !== "official-json") return undefined;
+  if (plan.company.id === "company-amgen-china" && plan.source.id === "source-amgen-china-social" && plan.source.companyId === "company-amgen-china" &&
+    plan.profileBoundSource?.kind === "amgen-manual-workday-lookup" && failureReason === "AMGEN_MANUAL_WORKDAY_INVALID") return failureReason;
+  if (plan.company.id === "company-amgen-china" && plan.source.id === "source-amgen-china-social" && plan.source.companyId === "company-amgen-china" &&
+    plan.profileBoundSource?.kind === "amgen-native-china" && isSafeAmgenNativeFailureCode(failureReason)) return failureReason;
   if (
     plan.company.id === "company-grifols-china" &&
     plan.source.id === "source-grifols-china-social" &&

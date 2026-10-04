@@ -11,6 +11,7 @@ const BUILD_INPUTS = [
   "package-lock.json",
   "package.json",
   "prisma",
+  "public",
   "scripts",
   "src",
   "testExecutionContract.ts",

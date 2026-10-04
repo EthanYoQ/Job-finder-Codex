@@ -16,7 +16,8 @@ export const profile_biogen_china = {
                   locationCountry: ["6cb77610a8a543aea2d6bc10457e35d4"]
               },
               pageSize: 20,
-              maxPages: 3
+              maxPages: 3,
+              listGeographyPolicy: "BIOGEN_MAINLAND_CITY_PENDING_V1"
           }
       }
     },

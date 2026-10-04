@@ -35,6 +35,7 @@ COPY vite.config.ts ./vite.config.ts
 COPY testExecutionContract.ts ./testExecutionContract.ts
 COPY .docker-build-provenance.bundle ./.docker-build-provenance.bundle
 COPY src ./src
+COPY public ./public
 COPY scripts ./scripts
 COPY prisma ./prisma
 COPY ops ./ops

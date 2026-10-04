@@ -1,3 +1,4 @@
+import { reviewedAbbvieCity, validateAbbvieChinaRowScope } from "../abbvieChinaRowScope";
 import { createHash } from "node:crypto";
 import { load } from "cheerio";
 import type { AnyNode } from "domhandler";
@@ -40,7 +41,10 @@ export const htmlTableAdapter: SourceAdapter<HtmlTableAdapterInput> = {
     }
     const valid: NormalizedJobRecord[] = [];
     const adapterLosses: AdapterLoss[] = [];
-    rows.forEach((row, rawIndex) => { const normalized = normalizeTableRow(input, row);
+    const abbvieReviewed = input.table.abbvieRowScopePolicy === "ABBVIE_CHINA_LISTED_ROWS_V1" &&
+      input.source.id === "source-abbvie-china-social" && input.company.id === "company-abbvie-china" &&
+      input.source.officialEntryUrl === "https://careers.abbvie.com/zh-hans/jobs" && validateAbbvieChinaRowScope(input.html);
+    rows.forEach((row, rawIndex) => { const normalized = normalizeTableRow(input, row, abbvieReviewed);
       if ("job" in normalized) valid.push(normalized.job);
       else adapterLosses.push({ stage: normalized.stage, reason: normalized.reason, rawIndex }); });
     const { jobs, reconciliation } = reconcileAdapterRows(rows.length, rows.length, valid, adapterLosses);
@@ -76,7 +80,7 @@ function redactedInput(input: HtmlTableAdapterInput): HtmlTableAdapterInput {
     source: { ...input.source, id: "redacted-source", companyId: "redacted-company" } };
 }
 
-function normalizeTableRow(input: HtmlTableAdapterInput, row: AnyNode):
+function normalizeTableRow(input: HtmlTableAdapterInput, row: AnyNode, abbvieReviewed = false):
   { job: NormalizedJobRecord } | { stage: "VALIDATION"; reason: AdapterLoss["reason"] } {
   const $ = load(input.html);
   const { fields } = input.table;
@@ -118,7 +122,7 @@ function normalizeTableRow(input: HtmlTableAdapterInput, row: AnyNode):
     officialUrl,
     listUrl: input.source.officialEntryUrl,
     locationRaw,
-    cities: citiesFromLocation(locationRaw),
+    cities: abbvieReviewed ? [reviewedAbbvieCity(locationRaw)!] : citiesFromLocation(locationRaw),
     category,
     isBaseline: input.isBaseline ?? true,
     evidence: {

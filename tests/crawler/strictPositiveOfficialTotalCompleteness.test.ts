@@ -28,17 +28,17 @@ const SANDOZ_JSONAPI_FIELDS = [
 ].join(",");
 const MOKA_AES_IV = "de7c21ed8d6f50fe";
 const MOKA_AES_KEY = "6e9ecb8e9c6c1a5e";
+// Generic Phenom fixtures use Organon. Lilly requires the dedicated full raw-to-output fixture.
+// CTTQ/SPH native details are covered in beisenDetailDates; generic Beisen checks use Yangzijiang.
 const PLANS = buildStagedSourceCrawlPlans(candidateCompanies);
+// Amgen native-chain replay is covered by amgenNativeSourceFetch.test.ts.
 const AUDITED_POSITIVE_TOTAL_SOURCES = [
-  "source-amgen-china-social",
   "source-biogen-china-social",
   "source-pfizer-china-social",
   "source-hengrui-social",
   "source-jimin-kexin-social",
-  "source-lilly-china-social",
   "source-organon-china-social",
   "source-ucb-china-social",
-  "source-cttq-social",
   "source-tianjin-pharma-social",
   "source-united-lab-social",
   "source-yangzijiang-social",
@@ -47,8 +47,8 @@ const AUDITED_POSITIVE_TOTAL_SOURCES = [
 const STRICT_URL_STRATEGY_SOURCES = [
   "source-pfizer-china-social",
   "source-hengrui-social",
-  "source-lilly-china-social",
-  "source-cttq-social",
+  "source-organon-china-social",
+  "source-yangzijiang-social",
   "source-lunan-social"
 ] as const;
 
@@ -86,13 +86,14 @@ function payloadFor(plan: SourceCrawlPlan, ids: readonly string[]): unknown {
   const rows = ids.map((id) => {
     const row: Record<string, unknown> = {};
     const values: Record<string, unknown> = {
-      sourceJobId: id,
+      sourceJobId: plan.moka ? `sha256:${createHash("sha256").update(JSON.stringify(id)).digest("hex")}` : id,
       officialTitle: `Official role ${id}`,
-      officialUrl: new URL(`/jobs/${id}`, plan.source.officialEntryUrl).toString(),
+      officialUrl: plan.moka ? `${plan.moka.campaignUrl}#/job/${encodeURIComponent(id)}`
+        : new URL(`/jobs/${id}`, plan.source.officialEntryUrl).toString(),
       locationRaw: "上海",
       cities: ["上海"],
       category: "其他",
-      officialPublishedAt: "2026-07-14"
+      officialPublishedAt: ["source-ucb-china-social", "source-organon-china-social"].includes(plan.source.id) ? "2026-07-14T00:00:00.000Z" : "2026-07-14"
     };
     for (const [field, path] of Object.entries(plan.json.fields)) {
       if (path && field in values) setAdapterPath(row, path, values[field]);
@@ -515,6 +516,11 @@ function fixturePageCoordinates(plan: SourceCrawlPlan, sequence: number, missing
 }
 
 function fixtureExpectedToFailClosed(plan: SourceCrawlPlan): boolean {
+  // This count-only fixture has no matching Biogen raw identity/location projection.
+  // Source-local positive and contradictory cases are tested in biogenListGeographyGuard.
+  if (plan.source.id === "source-biogen-china-social") return true;
+  // This count-only fixture has no UCB/Organon raw date/identity/geography projection; exact positives are tested separately.
+  if (["source-ucb-china-social", "source-organon-china-social"].includes(plan.source.id)) return true;
   if (plan.adapterId !== "official-json") return false;
   if (plan.workday) {
     const hasStaticLocationFacet = Object.keys(plan.workday.appliedFacets ?? {}).some(
@@ -576,7 +582,9 @@ function positiveCountEvidence(plan: SourceCrawlPlan, options: {
     ? fixtureWorkdayScope(plan, ids.length)
     : undefined;
   const pageArtifacts = bodies.map((body, index) => {
-    const baseLocator = "json:total";
+    const baseLocator = plan.adapterId === "official-json" && plan.moka
+      ? `moka-envelope-v1|raw:page-${index + 1}|request:offset=${index * 50},limit=50|init:moka-entry-0000|decrypt:aes-128-cbc-v1|json:$.data.jobStats.total`
+      : "json:total";
     const contract = fixturePageContract(plan, index, workdayScope);
     const locator = contract ? fixtureRequestLocator(baseLocator, contract) : baseLocator;
     return {
@@ -625,13 +633,13 @@ function positiveCountEvidence(plan: SourceCrawlPlan, options: {
       sequence: index,
       artifactLogicalKey: `page-${index + 1}`,
       ...fixturePageCoordinates(plan, index, options.missingReturnedPage === true),
-      rawJobIds: group,
-      validJobIds: group,
+      rawJobIds: group.map(id => plan.adapterId === "official-json" && plan.moka ? `sha256:${createHash("sha256").update(JSON.stringify(id)).digest("hex")}` : id),
+      validJobIds: group.map(id => plan.adapterId === "official-json" && plan.moka ? `sha256:${createHash("sha256").update(JSON.stringify(id)).digest("hex")}` : id),
       declaredTotal: options.laterZero && index > 0 ? 0 : ids.length,
       declaredCount: null,
       declaredPages: null,
-      nextPageSignalBefore: splitChannelScopes ? null : index === 0 ? null : String(index),
-      nextPageSignalAfter: splitChannelScopes ? null : index < groups.length - 1 ? String(index + 1) : null,
+      nextPageSignalBefore: splitChannelScopes ? null : index === 0 ? null : String(plan.adapterId === "official-json" && plan.moka ? index * 50 : index),
+      nextPageSignalAfter: splitChannelScopes ? null : index < groups.length - 1 ? String(plan.adapterId === "official-json" && plan.moka ? (index + 1) * 50 : index + 1) : null,
       responseFingerprintSha256: createHash("sha256").update(bodies[index]!).digest("hex"),
       termination: splitChannelScopes
         ? "NEXT_ABSENT" as const
@@ -757,10 +765,10 @@ async function crawlWith(
 describe("strict positive official-total completeness policy", () => {
   it.each([
     ["unrelated origin", "https://attacker.example/api/jobs", "https://attacker.example/api/jobs"],
-    ["official origin wrong path", "https://careers.lilly.com/not-widgets", "https://careers.lilly.com/not-widgets"],
-    ["non-allowed redirect", "https://careers.lilly.com/widgets", "https://careers.lilly.com/not-widgets"]
+    ["official origin wrong path", "https://jobs.organon.com/not-widgets", "https://jobs.organon.com/not-widgets"],
+    ["non-allowed redirect", "https://jobs.organon.com/widgets", "https://jobs.organon.com/not-widgets"]
   ])("rejects a valid declared first page followed by a %s", async (_label, requestedUrl, finalUrl) => {
-    const plan = planFor("source-lilly-china-social");
+    const plan = planFor("source-organon-china-social");
     const ids = Array.from({ length: fixturePageSize(plan) + 1 }, (_, index) => `job-${index + 1}`);
     const { evidence, evaluation } = positiveCountEvidence(plan, { ids });
     const forged = withArtifactUrls(evidence, "page-2", requestedUrl, finalUrl);
@@ -771,7 +779,7 @@ describe("strict positive official-total completeness policy", () => {
   it.each(["ENTRY", "CHAIN"] as const)(
     "does not accept an official %s page as the positive total declaration endpoint",
     async (role) => {
-      const plan = planFor("source-lilly-china-social");
+      const plan = planFor("source-organon-china-social");
       const { evidence, evaluation } = positiveCountEvidence(plan);
       const url = role === "ENTRY" ? plan.source.officialEntryUrl : plan.source.officialChainEvidenceUrl;
       const forged = withDeclaredArtifactUrls(evidence, url, url);
@@ -781,7 +789,7 @@ describe("strict positive official-total completeness policy", () => {
   );
 
   it("accepts an explicitly named canonical channel only when the declaration is channel-bound", async () => {
-    const plan = planFor("source-lilly-china-social");
+    const plan = planFor("source-organon-china-social");
     const channelId = plan.expectedChannels?.[0]?.channelId;
     if (!channelId) throw new Error("Expected canonical channel");
     const { evidence, evaluation } = positiveCountEvidence(plan, { channelIds: [channelId] });
@@ -800,7 +808,7 @@ describe("strict positive official-total completeness policy", () => {
   );
 
   it("rejects a declared artifact on an unrelated domain", async () => {
-    const plan = planFor("source-lilly-china-social");
+    const plan = planFor("source-organon-china-social");
     const { evidence, evaluation } = positiveCountEvidence(plan);
     const forged = withDeclaredArtifactUrls(
       evidence,
@@ -812,7 +820,7 @@ describe("strict positive official-total completeness policy", () => {
   });
 
   it("rejects a declared artifact on the official origin but the wrong path", async () => {
-    const plan = planFor("source-lilly-china-social");
+    const plan = planFor("source-organon-china-social");
     const { evidence, evaluation } = positiveCountEvidence(plan);
     const wrongPath = new URL("/unrelated/export", plan.source.officialEntryUrl).toString();
     const forged = withDeclaredArtifactUrls(evidence, wrongPath, wrongPath);
@@ -834,7 +842,7 @@ describe("strict positive official-total completeness policy", () => {
   });
 
   it("requires an executable plan channel binding instead of trusting source-level upstream evidence", async () => {
-    const staged = planFor("source-lilly-china-social");
+    const staged = planFor("source-organon-china-social");
     const { expectedChannels: _channels, expectedChannelSetHash: _hash, ...unbound } = staged;
     const { evidence, evaluation } = positiveCountEvidence(staged);
 
@@ -843,7 +851,7 @@ describe("strict positive official-total completeness policy", () => {
   });
 
   it("rejects a channel named by evidence when it is not the plan's canonical default channel", async () => {
-    const plan = planFor("source-lilly-china-social");
+    const plan = planFor("source-organon-china-social");
     const { evidence, evaluation } = positiveCountEvidence(plan, { channelIds: ["source:forged:default"] });
     expect(evaluation).toMatchObject({ safeCompleteness: true, visitedChannelIds: ["source:forged:default"] });
 
@@ -851,7 +859,7 @@ describe("strict positive official-total completeness policy", () => {
   });
 
   it("rejects mixed implicit source and explicit channel evidence", async () => {
-    const plan = planFor("source-lilly-china-social");
+    const plan = planFor("source-organon-china-social");
     const defaultChannel = plan.expectedChannels?.[0]?.channelId;
     if (!defaultChannel) throw new Error("Expected staged default channel");
     const { evidence, evaluation } = positiveCountEvidence(plan, {
@@ -864,7 +872,7 @@ describe("strict positive official-total completeness policy", () => {
   });
 
   it("rejects implicit source evidence for a plan claiming multiple expected channels", async () => {
-    const plan = planFor("source-lilly-china-social");
+    const plan = planFor("source-organon-china-social");
     const expectedChannels = [
       { channelId: `source:${plan.source.id}:default`, kind: "SOCIAL" as const },
       { channelId: `source:${plan.source.id}:secondary`, kind: "SOCIAL" as const }
@@ -880,7 +888,7 @@ describe("strict positive official-total completeness policy", () => {
   });
 
   it("does not trust a forged upstream visited-channel list", async () => {
-    const plan = planFor("source-lilly-china-social");
+    const plan = planFor("source-organon-china-social");
     const { evidence, evaluation } = positiveCountEvidence(plan);
     const forged = { ...evaluation, visitedChannelIds: ["source:forged:default"] };
 
@@ -920,7 +928,7 @@ describe("strict positive official-total completeness policy", () => {
   );
 
   it("replays Beisen missing returned-page coordinates only for the matching ATS strategy", async () => {
-    const plan = planFor("source-cttq-social");
+    const plan = planFor("source-yangzijiang-social");
     const { evidence, evaluation } = positiveCountEvidence(plan, { missingReturnedPage: true });
     expect(evaluation).toMatchObject({ safeCompleteness: true, verifiedEligible: false });
     expect((await crawlWith(plan, evidence, evaluation)).truth.completenessVerified).toBe(true);
@@ -933,7 +941,7 @@ describe("strict positive official-total completeness policy", () => {
   });
 
   it("uses the same Beisen pagination replay policy when issuing the A-grade certificate", async () => {
-    const plan = planFor("source-cttq-social");
+    const plan = planFor("source-yangzijiang-social");
     const { evidence, evaluation } = positiveCountEvidence(plan, { missingReturnedPage: true });
     const crawled = await crawlWith(plan, evidence, evaluation);
     const declaration = crawled.fetchEvidence?.declaredCompleteness;
@@ -981,7 +989,7 @@ describe("strict positive official-total completeness policy", () => {
   });
 
   it("does not accept a forged upstream VERIFIED status without a supported plan strategy", async () => {
-    const supported = planFor("source-lilly-china-social");
+    const supported = planFor("source-organon-china-social");
     if (supported.adapterId !== "official-json") throw new Error("Expected official-json plan");
     const { officialJsonFetch: _strategy, ...unsupported } = supported;
     const plan = unsupported as SourceCrawlPlan;
@@ -999,7 +1007,7 @@ describe("strict positive official-total completeness policy", () => {
   });
 
   it("holds certification when adapter validation loses a row or dedupe finds a collision", async () => {
-    const plan = planFor("source-lilly-china-social");
+    const plan = planFor("source-organon-china-social");
     const ids = ["job-1", "job-2"];
     const { evidence, evaluation } = positiveCountEvidence(plan, { ids });
     const payload = payloadFor(plan, ids) as { jobs: Array<Record<string, unknown>> };
@@ -1042,7 +1050,7 @@ describe("strict positive official-total completeness policy", () => {
   });
 
   it("holds certification when fetch counts do not match adapter input or the total is global", async () => {
-    const plan = planFor("source-lilly-china-social");
+    const plan = planFor("source-organon-china-social");
     const { evidence, evaluation } = positiveCountEvidence(plan);
     const countMismatch = await crawlWith(plan, evidence, evaluation, ["job-1", "job-2"], "VERIFIED");
     expect(countMismatch.status).toBe("FAILED");

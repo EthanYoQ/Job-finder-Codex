@@ -1,3 +1,8 @@
+import { isServierTraversalPlan, replayServierTraversal } from "./servierMokaScope";
+import { servierHybridObservedAt, servierHybridFinishedAt } from "./servierMokaRenderedTraversal";
+import { isPfizerWorkdayTraversalPlan, replayPfizerWorkdayTraversal, pfizerMainSourceJobIds, PFIZER_PAGINATION_POLICY } from "./pfizerWorkdayTraversal";
+import { isBayerMedicalTraversalPlan, replayBayerMedicalTraversal } from "./bayerMokaScope";
+import { bayerHybridObservedAt, bayerHybridFinishedAt } from "./bayerMokaRenderedTraversal";
 import { createHash } from "node:crypto";
 import { z } from "zod";
 import { assertAdapterReconciliation } from "./adapters/reconciliation";
@@ -227,7 +232,7 @@ const officialJsonRenderedValidationSchema = z.object({
   sourceId: z.enum(OFFICIAL_JSON_RENDERED_TRAVERSAL_SOURCE_IDS as unknown as
     [OfficialJsonRenderedTraversalSourceId, ...OfficialJsonRenderedTraversalSourceId[]]),
   companyId: NONBLANK,
-  retrievalPath: z.literal("PLAYWRIGHT_OFFICIAL_UI_NETWORK_TRAVERSAL"),
+  retrievalPath: z.enum(["PLAYWRIGHT_OFFICIAL_UI_NETWORK_TRAVERSAL", "PLAYWRIGHT_OFFICIAL_UI_JSONLD_TRAVERSAL", "CUA_DOM_LIST_PLUS_INDEPENDENT_HTTP_DETAILS"]),
   validatorImplementationId: NONBLANK,
   matchKeyKind: z.literal("SOURCE_JOB_ID"),
   ...renderedValidationFields,
@@ -283,6 +288,8 @@ export function readReusableBGradeTraversalValidation(input: {
     throw new Error("B-grade validation reuse requires a valid current time");
   }
   const certificate = certificateSchema.parse(input.certificate);
+  if (certificate.binding.sourceId === "source-servier-china-social") throw new Error("Servier requires CURRENT_RUN independent DOM and detail traversal");
+  if (certificate.binding.sourceId === "source-pfizer-china-social") throw new Error("Pfizer requires CURRENT_RUN independent UI traversal");
   if (!SHA256.safeParse(input.certificateSha256).success ||
       sha256(canonicalJson(certificate)) !== input.certificateSha256) {
     throw new Error("B-grade traversal certificate hash mismatch");
@@ -505,7 +512,8 @@ export interface BGradeCertificateReceiptExpectation {
 }
 
 export function requiresBGradeTraversalCertificate(plan: SourceCrawlPlan): boolean {
-  return requiresBGradeCertificateSourceId(plan.source.id);
+  return plan.source.id === "source-servier-china-social" ? isServierTraversalPlan(plan) : plan.source.id === "source-pfizer-china-social" ? isPfizerWorkdayTraversalPlan(plan) :
+    plan.source.id === "source-bayer-healthcare-social" ? isBayerMedicalTraversalPlan(plan) : requiresBGradeCertificateSourceId(plan.source.id);
 }
 
 export function requiresBGradeCertificateSourceId(sourceId: string): boolean {
@@ -931,7 +939,7 @@ async function launchViatrisProductionBrowser(): Promise<Pick<import("playwright
     ...(process.platform === "linux"
       ? { executablePath: FORMAL_CHROMIUM_PATH, args: [...FORMAL_CHROMIUM_ARGS] }
       : { channel: "chrome" as const }),
-    headless: true,
+    headless: true, chromiumSandbox: true,
     timeout: 30_000
   });
 }
@@ -955,6 +963,14 @@ export function evaluateBGradeValidationRequirement(input: {
   } catch {
     return { acceptable: false, mustRunNow, reason: "VALIDATION_INVALID" };
   }
+  if (validation.data.sourceId === "source-pfizer-china-social" && validation.data.schemaVersion === "official-json-browser-network-traversal-v1" &&
+      validation.data.pages.some(page => page.rawRows.some(row => {
+        const pageAt = (row.rawPayload.listPage as {capturedAt?:unknown} | undefined)?.capturedAt;
+        return [row.rawPayload.capturedAt, ...(pageAt === undefined ? [] : [pageAt])].some(value => {
+          const at = Date.parse(String(value));
+          return !Number.isFinite(at) || at < Date.parse(validation.data.observedAt) || at > input.now.getTime();
+        });
+      }))) return { acceptable: false, mustRunNow: true, reason: "VALIDATION_INVALID" };
   const observedAt = Date.parse(validation.data.observedAt);
   const expiresAt = Date.parse(validation.data.expiresAt);
   const nowMs = input.now.getTime();
@@ -982,6 +998,7 @@ export function issueBGradeTraversalCertificate(input: BGradeCertificateCandidat
   const auditedBeisen = ["source-fosun-pharma-social", "source-hansoh-social", "source-united-lab-social"]
     .includes(input.plan.source.id);
   if (!requiresBGradeTraversalCertificate(input.plan)) blockers.add("UNSUPPORTED_SOURCE");
+  if ((isPfizerWorkdayTraversalPlan(input.plan) || isServierTraversalPlan(input.plan)) && input.validationExecution !== "CURRENT_RUN") blockers.add("VALIDATION_REFRESH_REQUIRED");
   if (!policy || input.plan.company.id !== policy.companyId || input.plan.source.companyId !== policy.companyId ||
       input.plan.source.kind !== "SOCIAL" || !input.plan.source.surfaceId ||
       expectedSurfaces.length === 0 || expectedChannels.length === 0) {
@@ -994,6 +1011,7 @@ export function issueBGradeTraversalCertificate(input: BGradeCertificateCandidat
 
   let evidence: PersistentSourceFetchEvidence | undefined;
   let pagination: PaginationEvaluation | undefined;
+  let pfizerMainProof = false;
   try {
     evidence = parsePersistentSourceFetchEvidence(input.evidence);
     if (requiresPlanBoundHtmlCertificateSourceId(input.plan.source.id) &&
@@ -1007,6 +1025,7 @@ export function issueBGradeTraversalCertificate(input: BGradeCertificateCandidat
       "officialTotalTraversal" in planBoundPolicy && planBoundPolicy.officialTotalTraversal === true;
     pagination = evaluatePaginationEvidence({
       evidence,
+      ...(isPfizerWorkdayTraversalPlan(input.plan) ? PFIZER_PAGINATION_POLICY : {}),
       expectedChannelIds: isOfficialJsonRenderedTraversalSourceId(input.plan.source.id) &&
           evidence.pages.some((page) => page.channelId !== undefined) ||
           requiresPlanBoundHtmlCertificateSourceId(input.plan.source.id) &&
@@ -1035,6 +1054,9 @@ export function issueBGradeTraversalCertificate(input: BGradeCertificateCandidat
           ? { allowMissingReturnedPage: true }
           : {})
     });
+    pfizerMainProof = isPfizerWorkdayTraversalPlan(input.plan) && replayPfizerWorkdayTraversal(input.plan,evidence,input.jobs,input.now);
+    if (isPfizerWorkdayTraversalPlan(input.plan) && !pfizerMainProof) throw new Error("Pfizer source traversal failed strict raw replay");
+    if (isServierTraversalPlan(input.plan) && !replayServierTraversal(input.plan, evidence, input.jobs)) throw new Error("Servier source traversal failed strict raw replay");
     const declaration = evidence.declaredCompleteness;
     const declaredPages = evidence.pages[0]?.declaredPages;
     const last = evidence.pages.at(-1);
@@ -1046,7 +1068,7 @@ export function issueBGradeTraversalCertificate(input: BGradeCertificateCandidat
     const talentbrewPageGroups = talentbrewTraversal
       ? groupPaginationPagesByChannel(evidence.pages)
       : undefined;
-    const declaredPageContract = talentbrewPageGroups
+    const declaredPageContract = pfizerMainProof ? true : talentbrewPageGroups
       ? talentbrewPageGroups.size === expectedChannels.length &&
         canonicalJson([...talentbrewPageGroups.keys()].sort(compareUtf8)) === canonicalJson(expectedChannels) &&
         [...talentbrewPageGroups.values()].every((pages) => pages.length > 0 &&
@@ -1101,7 +1123,10 @@ export function issueBGradeTraversalCertificate(input: BGradeCertificateCandidat
   const rawObservationCount = evidence?.pages.reduce((count, page) => count + page.validJobIds.length, 0) ?? 0;
   const outputIds = policy ? independentMatchKeys(input.plan.source.id, input.jobs) ?? [] : [];
   const scopeExclusionsProven = evidence &&
-    validateStrictSourceScopeExclusionProof(input.plan, evidence, input.jobs);
+    (validateStrictSourceScopeExclusionProof(input.plan, evidence, input.jobs) ||
+      pfizerMainProof ||
+      replayBayerMedicalTraversal(input.plan, evidence, input.jobs) !== undefined ||
+      replayServierTraversal(input.plan, evidence, input.jobs) !== undefined);
   const sourceBoundOfficialJsonExclusions = evidence && auditedOfficialJsonLosses(input.plan.source.id, evidence);
   if (evidence && (evidence.fetchCounts.parseDiscardCount !== 0 ||
       evidence.fetchCounts.validationDiscardCount !== evidence.fetchLosses.length ||
@@ -1134,6 +1159,14 @@ export function issueBGradeTraversalCertificate(input: BGradeCertificateCandidat
   }
   const validationResult = browserValidationSchema.safeParse(input.independentValidation);
   const validation = validationResult.success ? validationResult.data : undefined;
+  if (validation?.schemaVersion === "official-json-browser-network-traversal-v1" && validation.sourceId === "source-servier-china-social") {
+    try { if (Date.parse(servierHybridFinishedAt(validation.pages)) > input.now.getTime()) blockers.add("INDEPENDENT_VALIDATION_INVALID"); }
+    catch { blockers.add("INDEPENDENT_VALIDATION_INVALID"); }
+  }
+  if (validation?.schemaVersion === "official-json-browser-network-traversal-v1" && validation.sourceId === "source-bayer-healthcare-social") {
+    try { if (Date.parse(bayerHybridFinishedAt(validation.pages)) > input.now.getTime()) blockers.add("INDEPENDENT_VALIDATION_INVALID"); }
+    catch { blockers.add("INDEPENDENT_VALIDATION_INVALID"); }
+  }
   if (!validation) blockers.add("INDEPENDENT_VALIDATION_INVALID");
   if (validation && policy && (validation.sourceId !== input.plan.source.id ||
       validation.companyId !== policy.companyId || validation.retrievalPath !== policy.retrievalPath ||
@@ -1179,6 +1212,12 @@ export function issueBGradeTraversalCertificate(input: BGradeCertificateCandidat
   if (validation?.schemaVersion === "official-json-browser-network-traversal-v1" && evidence) {
     const replay = replayOfficialJsonRenderedTraversal(validation.sourceId, validation.pages);
     const mainRawEvidenceIds = canonicalStrings(evidence.pages.flatMap((page) => page.rawJobIds));
+    if (pfizerMainProof) {
+      mainRawMatchKeys = canonicalStrings(pfizerMainSourceJobIds(evidence));
+      mainExcludedMatchKeys = mainRawMatchKeys.filter(key => !outputIds.includes(key));
+      if (canonicalJson(replay.rawSourceJobIds) !== canonicalJson(mainRawMatchKeys) ||
+          canonicalJson(replay.excludedSourceJobIds) !== canonicalJson(mainExcludedMatchKeys)) blockers.add("INDEPENDENT_JOB_SET_MISMATCH");
+    }
     const boehringerRenderedOutputOnly = input.plan.source.id === "source-boehringer-ingelheim-china-social";
     if (boehringerRenderedOutputOnly
       ? replay.rawCount !== input.jobs.length || replay.excludedCount !== 0
@@ -1186,7 +1225,7 @@ export function issueBGradeTraversalCertificate(input: BGradeCertificateCandidat
         replay.excludedCount !== evidence.fetchCounts.validationDiscardCount ||
         canonicalJson(replay.rawEvidenceIds) !== canonicalJson(mainRawEvidenceIds)) {
       blockers.add("INDEPENDENT_JOB_SET_MISMATCH");
-    } else {
+    } else if (!pfizerMainProof) {
       mainRawMatchKeys = replay.rawSourceJobIds;
       mainExcludedMatchKeys = replay.excludedSourceJobIds;
     }
@@ -1312,11 +1351,22 @@ export function verifyBGradeTraversalCertificateReceipt(input: {
   });
   if (!requirement.acceptable) throw new Error(`B-grade traversal certificate validation unavailable: ${requirement.reason}`);
   const issuedAtMs = Date.parse(certificate.issuedAt);
+  if (certificate.independentValidation.schemaVersion === "official-json-browser-network-traversal-v1" &&
+      certificate.independentValidation.sourceId === "source-servier-china-social" &&
+      Date.parse(servierHybridFinishedAt(certificate.independentValidation.pages)) > issuedAtMs) {
+    throw new Error("Servier independent HTTP receipt is later than certificate issuance");
+  }
+  if (certificate.independentValidation.schemaVersion === "official-json-browser-network-traversal-v1" &&
+      certificate.independentValidation.sourceId === "source-bayer-healthcare-social" &&
+      Date.parse(bayerHybridFinishedAt(certificate.independentValidation.pages)) > issuedAtMs) {
+    throw new Error("Bayer independent HTTP receipt is later than certificate issuance");
+  }
   const observedAtMs = Date.parse(certificate.independentValidation.observedAt);
   if (observedAtMs > issuedAtMs ||
       certificate.validationPolicy.execution === "CURRENT_RUN" &&
         issuedAtMs - observedAtMs > B_GRADE_CURRENT_RUN_MAXIMUM_SKEW_MS ||
-      certificate.validationPolicy.trigger !== "STABLE_RUN" && certificate.validationPolicy.execution !== "CURRENT_RUN") {
+      certificate.validationPolicy.trigger !== "STABLE_RUN" && certificate.validationPolicy.execution !== "CURRENT_RUN" ||
+      ["source-pfizer-china-social", "source-servier-china-social"].includes(certificate.binding.sourceId) && certificate.validationPolicy.execution !== "CURRENT_RUN") {
     throw new Error("B-grade traversal certificate validation was not current at issuance");
   }
   if (certificateMainMatchKeySetSha256(certificate) !== validationMatchKeySetSha256(certificate.independentValidation) ||
@@ -1436,6 +1486,10 @@ function independentMatchKeys(
 }
 
 function assertBrowserValidationEquations(validation: BGradeIndependentTraversalValidation): void {
+  if (validation.schemaVersion === "official-json-browser-network-traversal-v1" && validation.sourceId === "source-servier-china-social" &&
+      validation.observedAt !== servierHybridObservedAt(validation.pages)) throw new Error("Servier observation does not bind its first original DOM capture");
+  if (validation.schemaVersion === "official-json-browser-network-traversal-v1" && validation.sourceId === "source-bayer-healthcare-social" &&
+      validation.observedAt !== bayerHybridObservedAt(validation.pages)) throw new Error("Bayer independent observation does not bind the first original DOM capture");
   const policy = validation.schemaVersion === "qilu-browser-traversal-validator-v2"
     ? LEGACY_QILU_RENDERED_VALIDATOR_POLICY
     : bGradePolicy(validation.sourceId);

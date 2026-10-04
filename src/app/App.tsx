@@ -1,4 +1,11 @@
 import {
+  ArrowRight,
+  Check,
+  Flag,
+  Info,
+  LockKeyhole,
+  SlidersHorizontal,
+  Sparkles,
   BriefcaseBusiness,
   Building2,
   CheckCircle2,
@@ -14,18 +21,24 @@ import {
   ShieldCheck,
   X
 } from "lucide-react";
-import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   COMPANY_DIRECTORY_PAGE_SIZE,
-  createDemoAppDataProvider,
+  createHttpAppDataProvider,
   type AppDataProvider,
   type CoverageCompany,
   type SearchCompany,
+  type SearchRequest,
+  type SearchResult,
   type StaticDocumentResult
 } from "./appDataProvider";
 import type { SortMode } from "./jobSearch";
 import { SEARCH_CITIES } from "../domain/search";
+import { ALL_CITIES, ALL_PROVINCES, CITY_PENDING, NATIONWIDE } from "../domain/jobLocation";
 import "./App.css";
+import { CompanyLogo, CompanyPlate, coordinate, LocationPicker, Modal, type LocationOption } from "./RedesignComponents";
+import { DESIGN_REGIONS } from "./designRegions";
+const defaultProvider = createHttpAppDataProvider();
 
 type ConsentState = "pending" | "closed" | "accepted";
 type ViewMode = "discover" | "coverage";
@@ -43,10 +56,10 @@ interface FeedbackDraft {
   jobTitle?: string;
 }
 
-const DEFAULT_CITY = SEARCH_CITIES[0];
 const DEFAULT_COMPANY_ROW_CAP = 3;
-const CITY_OPTIONS = SEARCH_CITIES;
 const CATEGORY_OPTIONS = ["销售", "医学事务", "市场准入/政府事务", "临床运营"];
+const NOVO_SOURCE_NOTE = "指定中国站已核实职位；全球站补充职位仍在核验";
+const ORGANON_SOURCE_NOTE = "排序日期采用官网职位列表记录；地点冲突保留为城市待核";
 
 function normalize(value: string): string {
   return value.trim().toLocaleLowerCase("zh-CN");
@@ -74,6 +87,7 @@ const COMPANY_CATEGORY_LABELS: Record<CoverageCompany["category"], string> = {
 };
 
 function publicationNote(company: CoverageCompany): string {
+  if (company.id === "company-novo-nordisk-china" && company.state === "PUBLISHING") return NOVO_SOURCE_NOTE;
   switch (company.state) {
     case "PUBLISHING":
       return "仅展示来源可核验的官方职位，不作抓全声明。";
@@ -151,48 +165,27 @@ function applyClientFilters(
   );
 }
 
-function ViewButton({
-  active,
-  children,
-  icon,
-  onClick
-}: {
-  active: boolean;
-  children: ReactNode;
-  icon: ReactNode;
-  onClick: () => void;
-}) {
-  return (
-    <button
-      aria-pressed={active}
-      className={`view-button${active ? " is-active" : ""}`}
-      onClick={onClick}
-      type="button"
-    >
-      {icon}
-      <span>{children}</span>
-    </button>
-  );
-}
-
-export function App({ dataProvider = createDemoAppDataProvider() }: AppProps) {
+export function App({ dataProvider = defaultProvider }: AppProps) {
   const [consentState, setConsentState] = useState<ConsentState>("pending");
   const [hasCheckedConsent, setHasCheckedConsent] = useState(false);
   const isLocked = consentState !== "accepted";
 
   const [activeView, setActiveView] = useState<ViewMode>("discover");
+  const [province, setProvince] = useState<string>(ALL_PROVINCES);
   const [city, setCity] = useState("");
   const [keyword, setKeyword] = useState("");
   const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
   const [onlyNew, setOnlyNew] = useState(false);
   const [sort, setSort] = useState<SortMode>("PINYIN_ASC");
 
-  const [searchResult, setSearchResult] = useState<{
-    companies: SearchCompany[];
-    totalJobs: number;
-    lastUpdatedAt: string | null;
-  } | null>(null);
+  const [searchResult, setSearchResult] = useState<SearchResult | null>(null);
   const [isSearching, setIsSearching] = useState(false);
+  const [searchFailed, setSearchFailed] = useState(false);
+  const selectedProvince = searchResult?.provinceFacets?.find((facet) => facet.province === province);
+  const allCitiesCount = province === ALL_PROVINCES ? searchResult?.publishedJobSummary?.totalJobs : selectedProvince?.jobCount;
+  const cityPendingCount = province === ALL_PROVINCES ? searchResult?.publishedJobSummary?.cityPendingJobs : selectedProvince?.cityPendingJobs;
+  const cityFacets = (searchResult?.cityFacets ?? [{ city: NATIONWIDE, province: null, jobCount: undefined }])
+    .filter((facet) => facet.city !== CITY_PENDING && (province === ALL_PROVINCES || facet.province === province));
 
   const [expandedCompanyId, setExpandedCompanyId] = useState<string | null>(null);
   const [rowCaps, setRowCaps] = useState<Record<string, number>>({});
@@ -200,6 +193,25 @@ export function App({ dataProvider = createDemoAppDataProvider() }: AppProps) {
   const [coverageKeyword, setCoverageKeyword] = useState("");
   const [coverageResults, setCoverageResults] = useState<CoverageCompany[]>([]);
   const [coverageLoading, setCoverageLoading] = useState(false);
+  const [coverageFailed, setCoverageFailed] = useState(false);
+  const [plateCompanies, setPlateCompanies] = useState<CoverageCompany[]>([]);
+  const [coverageRetry, setCoverageRetry] = useState(0);
+  const coverageRequestSequence = useRef(0);
+  const coverageCompletedSequence = useRef(0);
+  const [hotId, setHotId] = useState<string | null>(null);
+  const [locationOpen, setLocationOpen] = useState<"province" | "city" | null>(null);
+  const [filtersOpen, setFiltersOpen] = useState(false);
+  const [mobile, setMobile] = useState(() => window.matchMedia?.("(max-width: 720px)").matches ?? false);
+  const [narrow, setNarrow] = useState(() => window.matchMedia?.("(max-width: 960px)").matches ?? false);
+  const [finderStuck, setFinderStuck] = useState(false);
+  const stageRef = useRef<HTMLDivElement>(null);
+  const [pendingScroll, setPendingScroll] = useState<string | null>(null);
+  const [submitBusy, setSubmitBusy] = useState(false);
+  const [submitError, setSubmitError] = useState("");
+  const [documentError, setDocumentError] = useState("");
+  const documentSequence = useRef(0);
+  const searchBusy = useRef(false);
+
 
   const [feedbackDraft, setFeedbackDraft] = useState<FeedbackDraft | null>(null);
   const [feedbackMessage, setFeedbackMessage] = useState("");
@@ -227,50 +239,94 @@ export function App({ dataProvider = createDemoAppDataProvider() }: AppProps) {
   const visibleJobCount = visibleCompanies.reduce((sum, company) => sum + company.jobs.length, 0);
 
   useEffect(() => {
-    if (consentState !== "accepted" || activeView !== "coverage") {
-      return;
-    }
-
+    if (consentState !== "accepted") return;
     let cancelled = false;
+    const sequence = ++coverageRequestSequence.current;
     setCoverageLoading(true);
+    setCoverageFailed(false);
+    const requestKeyword = activeView === "coverage" ? coverageKeyword : "";
+    dataProvider.listCoverage({keyword: requestKeyword, offset: 0, limit: COMPANY_DIRECTORY_PAGE_SIZE})
+      .then(result => {
+        if (cancelled) return;
+        coverageCompletedSequence.current = sequence;
+        const sorted = [...result.companies].sort((a, b) => a.companyName.localeCompare(b.companyName, "zh-CN"));
+        setCoverageResults(sorted);
+        if (!requestKeyword) setPlateCompanies(sorted);
+      }).catch(() => { if (!cancelled) setCoverageFailed(true); })
+      .finally(() => { if (!cancelled) setCoverageLoading(false); });
+    return () => { cancelled = true; };
+  }, [activeView, consentState, coverageKeyword, dataProvider, coverageRetry]);
 
-    dataProvider
-      .listCoverage({ keyword: coverageKeyword, offset: 0, limit: COMPANY_DIRECTORY_PAGE_SIZE })
-      .then((result) => {
-        if (!cancelled) {
-          setCoverageResults(result.companies);
-        }
-      })
-      .finally(() => {
-        if (!cancelled) {
-          setCoverageLoading(false);
-        }
-      });
+  useEffect(() => {
+    const media = window.matchMedia?.("(max-width: 720px)");
+    if (!media) return;
+    const update = () => setMobile(media.matches);
+    media.addEventListener("change", update); return () => media.removeEventListener("change", update);
+  }, []);
+  useEffect(() => {
+    const media = window.matchMedia?.("(max-width: 960px)");
+    if (!media) return;
+    const update = () => setNarrow(media.matches);
+    media.addEventListener("change", update); return () => media.removeEventListener("change", update);
+  }, []);
+  useEffect(() => {
+    // The selected source creates this grain texture at runtime as well.
+    try {
+      if (!window.CanvasRenderingContext2D) return;
+      const canvas = window.document.createElement("canvas"); canvas.width = canvas.height = 128;
+      const context = canvas.getContext("2d"); if (!context) return;
+      const pixels = context.createImageData(128, 128);
+      for (let p = 0; p < pixels.data.length; p += 4) { const value = Math.random() * 255; pixels.data[p] = pixels.data[p + 1] = pixels.data[p + 2] = value; pixels.data[p + 3] = 60; }
+      context.putImageData(pixels, 0, 0);
+      window.document.documentElement.style.setProperty("--noise", `url(${canvas.toDataURL()})`);
+    } catch { /* Texture is decorative; the page remains usable without canvas. */ }
+  }, []);
+  useEffect(() => {
+    const update = () => setFinderStuck((stageRef.current?.getBoundingClientRect().top ?? 1) < 10);
+    window.addEventListener("scroll", update, {passive: true});
+    return () => window.removeEventListener("scroll", update);
+  }, []);
+  useEffect(() => {
+    if (!pendingScroll || (activeView === "coverage" && (coverageLoading || coverageRequestSequence.current !== coverageCompletedSequence.current))) return;
+    const element = window.document.getElementById(`row-${pendingScroll}`);
+    if (element) { element.scrollIntoView?.({behavior: window.matchMedia?.("(prefers-reduced-motion: reduce)").matches ? "instant" : "smooth", block: "center"}); setPendingScroll(null); }
+  }, [pendingScroll, activeView, coverageLoading, coverageResults, expandedCompanyId]);
+  useEffect(() => {
+    if (!locationOpen) return;
+    const close = (event: KeyboardEvent) => { if (event.key === "Escape") setLocationOpen(null); };
+    window.addEventListener("keydown", close); return () => window.removeEventListener("keydown", close);
+  }, [locationOpen]);
 
-    return () => {
-      cancelled = true;
-    };
-  }, [activeView, consentState, coverageKeyword, dataProvider]);
+  function changeView(view: ViewMode) {
+    setActiveView(view); setLocationOpen(null);
+    // Match the source navigation: a view change begins at its hero and finder.
+    window.scrollTo({top: 0, behavior: "instant"});
+  }
+  function choosePlateCompany(company: CoverageCompany) {
+    setHotId(company.id);
+    if (activeView === "discover" && visibleCompanies.some(item => item.id === company.id)) setExpandedCompanyId(company.id);
+    else { setCoverageKeyword(""); setActiveView("coverage"); }
+    setPendingScroll(company.id);
+  }
+  function closeDocument() { documentSequence.current++; setDocument(null); setDocumentLoading(null); setDocumentError(""); }
 
   async function openDocument(slug: "privacy" | "terms") {
-    setPrivacyFormOpen(false);
-    setPrivacyReceipt("");
-    setDocumentLoading(slug);
-    const nextDocument = await dataProvider.getDocument(slug);
-    setDocument(nextDocument);
-    setDocumentLoading(null);
+    const sequence = ++documentSequence.current;
+    setPrivacyFormOpen(false); setPrivacyReceipt(""); setSubmitError("");
+    setDocumentError(""); setDocument(null); setDocumentLoading(slug);
+    try { const next = await dataProvider.getDocument(slug); if (sequence === documentSequence.current) setDocument(next); }
+    catch { if (sequence === documentSequence.current) setDocumentError("文档加载失败，请关闭后重试。"); }
+    finally { if (sequence === documentSequence.current) setDocumentLoading(null); }
   }
 
   async function submitPrivacyRequest() {
-    if (privacyContact.trim() === "" || privacyDescription.trim() === "") return;
-    const receipt = await dataProvider.submitFeedback({
-      issueType: privacyType,
-      contact: privacyContact.trim(),
-      description: privacyDescription.trim()
-    });
-    setPrivacyReceipt(`隐私请求已提交，回执 ${receipt.id}`);
-    setPrivacyContact("");
-    setPrivacyDescription("");
+    if (privacyContact.trim() === "" || privacyDescription.trim() === "" || submitBusy) return;
+    setSubmitBusy(true); setSubmitError("");
+    try {
+      const receipt = await dataProvider.submitFeedback({issueType: privacyType, contact: privacyContact.trim(), description: privacyDescription.trim()});
+      setPrivacyReceipt(`隐私请求已提交，回执 ${receipt.id}`); setPrivacyContact(""); setPrivacyDescription("");
+    } catch { setSubmitError("提交失败，请重试。您填写的内容已保留。"); }
+    finally { setSubmitBusy(false); }
   }
 
   function closeConsent() {
@@ -285,33 +341,63 @@ export function App({ dataProvider = createDemoAppDataProvider() }: AppProps) {
 
     setConsentState("accepted");
     setActiveView("discover");
-    setCity(DEFAULT_CITY);
+    const initialCity = dataProvider.supportsCityPendingSearch ? ALL_CITIES : SEARCH_CITIES[0];
+    setCity(initialCity);
+    void executeSearch({
+      ...(dataProvider.supportsCityPendingSearch ? { province: ALL_PROVINCES } : {}),
+      city: initialCity,
+      keyword: "",
+      categories: [],
+      sort: "PINYIN_ASC",
+      onlyNew: false
+    });
   }
 
   async function handleSearch() {
-    if (consentState !== "accepted" || city === "") {
+    if (consentState !== "accepted" || city === "" || isSearching) {
       return;
     }
 
+    await executeSearch({
+      ...(dataProvider.supportsCityPendingSearch ? { province } : {}),
+      city,
+      keyword,
+      categories: selectedCategories,
+      sort,
+      onlyNew
+    });
+  }
+
+  async function executeSearch(request: SearchRequest) {
+    if (searchBusy.current) return;
+    searchBusy.current = true;
+    setLocationOpen(null);
     setIsSearching(true);
+    setSearchFailed(false);
     setFeedbackDraft(null);
     setFeedbackMessage("");
 
     try {
-      const result = await dataProvider.searchJobs({
-        city,
-        keyword,
-        categories: selectedCategories,
-        sort,
-        onlyNew
-      });
+      const result = await dataProvider.searchJobs(request);
 
       setSearchResult(result);
       setExpandedCompanyId(null);
       setRowCaps({});
+    } catch {
+      setSearchFailed(true);
     } finally {
+      searchBusy.current = false;
       setIsSearching(false);
     }
+  }
+
+  function clearSearchFilters() {
+    if (isLocked || searchBusy.current) return;
+    setKeyword(""); setSelectedCategories([]); setOnlyNew(false);
+    void executeSearch({
+      ...(dataProvider.supportsCityPendingSearch ? {province} : {}),
+      city, keyword: "", categories: [], sort, onlyNew: false
+    });
   }
 
   function toggleCategory(category: string) {
@@ -328,6 +414,7 @@ export function App({ dataProvider = createDemoAppDataProvider() }: AppProps) {
 
   function openFeedback(company: SearchCompany, job: SearchCompany["jobs"][number]) {
     setFeedbackMessage("");
+    setSubmitError("");
     setFeedbackDraft({
       issueType: "",
       description: "",
@@ -339,594 +426,135 @@ export function App({ dataProvider = createDemoAppDataProvider() }: AppProps) {
   }
 
   async function submitFeedback() {
-    if (
-      feedbackDraft === null ||
-      feedbackDraft.issueType.trim() === "" ||
-      feedbackDraft.description.trim() === ""
-    ) {
-      return;
-    }
-
-    await dataProvider.submitFeedback({
-      issueType: feedbackDraft.issueType,
-      description: feedbackDraft.description,
-      ...(feedbackDraft.companyId === undefined ? {} : { companyId: feedbackDraft.companyId }),
-      ...(feedbackDraft.jobId === undefined ? {} : { jobId: feedbackDraft.jobId })
-    });
-
-    setFeedbackMessage("反馈已提交，待人工核查。");
-    setFeedbackDraft(null);
+    if (!feedbackDraft || !feedbackDraft.issueType.trim() || !feedbackDraft.description.trim() || submitBusy) return;
+    setSubmitBusy(true); setSubmitError("");
+    try {
+      await dataProvider.submitFeedback({ issueType: feedbackDraft.issueType, description: feedbackDraft.description,
+        ...(feedbackDraft.companyId === undefined ? {} : {companyId: feedbackDraft.companyId}),
+        ...(feedbackDraft.jobId === undefined ? {} : {jobId: feedbackDraft.jobId}) });
+      setFeedbackMessage("反馈已提交，待人工核查。"); setFeedbackDraft(null);
+    } catch { setSubmitError("提交失败，请重试。您填写的内容已保留。"); }
+    finally { setSubmitBusy(false); }
   }
-
   async function submitRecommendation() {
-    if (recommendCompanyName.trim() === "" || recommendWebsiteUrl.trim() === "") {
-      return;
-    }
-
-    await dataProvider.recommendCompany({
-      companyName: recommendCompanyName.trim(),
-      officialWebsiteUrl: recommendWebsiteUrl.trim()
-    });
-
-    setRecommendMessage("已收到推荐，公司会进入管理员复核队列。");
-    setRecommendCompanyName("");
-    setRecommendWebsiteUrl("");
+    if (!recommendCompanyName.trim() || !recommendWebsiteUrl.trim() || submitBusy) return;
+    setSubmitBusy(true); setSubmitError("");
+    try {
+      await dataProvider.recommendCompany({companyName: recommendCompanyName.trim(), officialWebsiteUrl: recommendWebsiteUrl.trim()});
+      setRecommendMessage("已收到推荐，公司会进入管理员复核队列。"); setRecommendCompanyName(""); setRecommendWebsiteUrl("");
+    } catch { setSubmitError("提交失败，请重试。您填写的内容已保留。"); }
+    finally { setSubmitBusy(false); }
   }
 
-  return (
-    <div className="app-shell">
-      <main aria-hidden={isLocked ? "true" : undefined} className="workbench">
-        <header className="app-header">
-          <div>
-            <h1>Job-search</h1>
-            <p>中国医药官方职位聚合</p>
+  const provinceOptions: LocationOption[] = [
+    {value: ALL_PROVINCES}, ...DESIGN_REGIONS.map(([value, group]) => ({value, group, count: searchResult?.provinceFacets?.find(facet => facet.province === value)?.jobCount ?? (searchResult ? 0 : undefined)}))
+  ];
+  const cityOptions: LocationOption[] = [{value: ALL_CITIES, count: allCitiesCount}];
+  const regionCities = province === ALL_PROVINCES ? cityFacets.map(facet => facet.city) : [...new Set([...(DESIGN_REGIONS.find(([name]) => name === province)?.[2] ?? []), ...cityFacets.map(facet => facet.city)])];
+  const concreteCities = regionCities.filter(value => value !== NATIONWIDE && value !== CITY_PENDING && value !== ALL_CITIES)
+    .map(value => ({value, count: cityFacets.find(facet => facet.city === value)?.jobCount ?? (searchResult ? 0 : undefined)}));
+  if (province === ALL_PROVINCES) cityOptions.push({value: NATIONWIDE, count: cityFacets.find(facet => facet.city === NATIONWIDE)?.jobCount ?? (searchResult ? 0 : undefined)});
+  cityOptions.push({value: CITY_PENDING, count: cityPendingCount});
+  cityOptions.push(...concreteCities.filter(item => item.count !== 0).map(item => ({...item, group: "有已发布职位"})), ...concreteCities.filter(item => item.count === 0).map(item => ({...item, group: "暂无已发布职位"})));
+  const hasSearch = searchResult !== null && !isSearching && !searchFailed;
+  const plateBeforeFinder = mobile && activeView === "discover";
+  const plate = <CompanyPlate companies={plateCompanies} result={hasSearch ? searchResult : null} ready={!isLocked} hotId={hotId} onHot={setHotId} onChoose={choosePlateCompany} loading={coverageLoading} failed={coverageFailed} onRetry={() => setCoverageRetry(value => value + 1)} />;
+  const companyIndex = (id: string) => { const index = plateCompanies.findIndex(company => company.id === id); return index < 0 ? "—" : coordinate(index); };
+  const navigation = <section className="primary-nav" aria-label="产品流程">
+            <button type="button" aria-current={activeView === "discover" ? "page" : undefined} onClick={() => changeView("discover")}><List className="ic" />职位发现</button>
+            <button type="button" aria-current={activeView === "coverage" ? "page" : undefined} onClick={() => changeView("coverage")}><Building2 className="ic" />官方招聘目录</button>
+          </section>;
+  return <div className={`app-shell${locationOpen ? " pop-open" : ""}`} data-consent={consentState}>
+    <div className="public-page" aria-hidden={isLocked || document !== null || documentLoading !== null || documentError !== "" || feedbackDraft !== null ? true : undefined} inert={isLocked || document !== null || documentLoading !== null || documentError !== "" || feedbackDraft !== null}>
+      <section className="hero">
+        <header className="topbar"><div className="wrap">
+          <div className="brand"><div className="brand-mark" aria-hidden="true">J</div><div><div className="brand-name">Job-search</div><div className="brand-sub">中国医药官方职位聚合</div></div></div>
+          {!mobile ? navigation : null}
+          <div className="top-actions"><button className="ghost-nav" aria-label="隐私说明" type="button" onClick={() => void openDocument("privacy")}><ShieldCheck className="ic" /><span>隐私说明</span></button></div>
+        </div></header>
+        <div className="wrap hero-grid"><div className="hero-copy">
+          <p className="eyebrow">Official career entries · China pharma</p>
+          <h1>{activeView === "discover" ? <><span>官方发布的</span><span className="l2">药企职位</span></> : <><span>官方招聘</span><span className="l2">目录</span></>}</h1>
+          <p className="hero-lead">{activeView === "discover" ? "按城市、岗位类别查看目标药企的官方招聘信息。每个职位跳转到企业官网或企业明确背书的官方招聘入口。" : "全部目标公司都在目录里，每家公司的更新状态一目了然，并附官方招聘入口。"}</p>
+          <ul className="proofs"><li><Check className="ic" />仅展示来源可核验的官方职位，不作抓全声明</li><li><Check className="ic" />地点冲突保留为城市待核</li><li><Check className="ic" />职位信息以官方来源为准</li></ul>
+        </div><div id="plateSlot">{!narrow ? plate : null}</div></div>
+      </section>
+      <div className="wrap stage" ref={stageRef}>
+        {plateBeforeFinder ? <div className="plate-m">{plate}</div> : null}
+        {activeView === "discover" ? <form className={`finder${finderStuck && locationOpen === null ? " is-stuck" : ""}`} aria-label="搜索条件" onSubmit={event => {event.preventDefault(); void handleSearch();}}>
+          <div className="finder-main">
+            <label className="field kw"><span className="lbl">职位关键词</span><span className="control"><Search className="ic" /><input aria-label="职位关键词" placeholder="职位、公司或岗位类别" type="search" disabled={isLocked} value={keyword} onChange={event => setKeyword(event.target.value)} /></span></label>
+            {dataProvider.supportsCityPendingSearch ? <>
+              <LocationPicker label="省份/地区" value={province} options={provinceOptions} open={locationOpen === "province"} onOpen={() => setLocationOpen("province")} onClose={() => setLocationOpen(null)} disabled={isLocked} icon={<MapPin className="ic" />} onSelect={value => {setProvince(value);setCity(ALL_CITIES);setLocationOpen("city");}} />
+              <LocationPicker label="城市/地区" value={city || ALL_CITIES} options={cityOptions} open={locationOpen === "city"} onOpen={() => setLocationOpen("city")} onClose={() => setLocationOpen(null)} disabled={isLocked} icon={<Building2 className="ic" />} onSelect={value => {setCity(value);setLocationOpen(null);}} />
+            </> : <div className="legacy-cities" role="radiogroup" aria-label="城市">{SEARCH_CITIES.map(option => <label className="check" key={option}><input checked={city === option} name="city" onChange={() => setCity(option)} type="radio" value={option} /><span className="box"><Check className="ic" /></span><MapPin className="ic" />{option}</label>)}</div>}
+            <button className="btn-primary" disabled={isLocked || isSearching} type="submit"><Search className="ic" />{isSearching ? "搜索中" : "搜索职位"}<ArrowRight className="ic go" /></button>
           </div>
-          <button className="document-trigger" onClick={() => openDocument("privacy")} type="button">
-            <ShieldCheck aria-hidden="true" size={16} />
-            隐私说明
-          </button>
-        </header>
-
-        <section className="view-strip" aria-label="产品流程">
-          <ViewButton
-            active={activeView === "discover"}
-            icon={<List aria-hidden="true" size={16} />}
-            onClick={() => setActiveView("discover")}
-          >
-            职位发现
-          </ViewButton>
-          <ViewButton
-            active={activeView === "coverage"}
-            icon={<Building2 aria-hidden="true" size={16} />}
-            onClick={() => setActiveView("coverage")}
-          >
-            查看覆盖公司
-          </ViewButton>
-        </section>
-
-        {activeView === "discover" ? (
-          <>
-            <section aria-label="搜索条件" className="panel search-panel">
-              <div className="search-controls">
-                <label className="keyword-field">
-                  <Search aria-hidden="true" size={18} />
-                  <input
-                    aria-label="职位关键词"
-                    onChange={(event) => setKeyword(event.target.value)}
-                    placeholder="职位关键词"
-                    type="search"
-                    value={keyword}
-                  />
-                </label>
-                <button className="search-button" onClick={handleSearch} type="button">
-                  <Search aria-hidden="true" size={16} />
-                  {isSearching ? "搜索中" : "搜索职位"}
-                </button>
-              </div>
-
-              <div className="city-group" role="radiogroup" aria-label="城市">
-                {CITY_OPTIONS.map((option) => (
-                  <label
-                    className={`city-option${city === option ? " is-active" : ""}`}
-                    key={option}
-                  >
-                    <input
-                      checked={city === option}
-                      name="city"
-                      onChange={() => setCity(option)}
-                      type="radio"
-                      value={option}
-                    />
-                    <MapPin aria-hidden="true" size={15} />
-                    <span>{option}</span>
-                  </label>
-                ))}
-              </div>
-
-              <div className="filter-block">
-                <div className="filter-heading">
-                  <SlidersIcon />
-                  <span>筛选条件</span>
-                </div>
-                <div className="category-grid">
-                  {CATEGORY_OPTIONS.map((category) => (
-                    <label className="toggle-chip" key={category}>
-                      <input
-                        checked={selectedCategories.includes(category)}
-                        onChange={() => toggleCategory(category)}
-                        type="checkbox"
-                      />
-                      <span>{category}</span>
-                    </label>
-                  ))}
-                </div>
-                <label className="toggle-row">
-                  <input
-                    checked={onlyNew}
-                    onChange={(event) => setOnlyNew(event.target.checked)}
-                    type="checkbox"
-                  />
-                  <span>只看新增</span>
-                </label>
-                <div className="sort-row" aria-label="排序">
-                  <button
-                    aria-pressed={sort === "PINYIN_ASC"}
-                    className={`sort-button${sort === "PINYIN_ASC" ? " is-active" : ""}`}
-                    onClick={() => setSort("PINYIN_ASC")}
-                    type="button"
-                  >
-                    拼音 A-Z
-                  </button>
-                  <button
-                    aria-pressed={sort === "LATEST"}
-                    className={`sort-button${sort === "LATEST" ? " is-active" : ""}`}
-                    onClick={() => setSort("LATEST")}
-                    type="button"
-                  >
-                    最新发布
-                  </button>
-                  <button
-                    aria-pressed={sort === "JOB_COUNT_DESC"}
-                    className={`sort-button${sort === "JOB_COUNT_DESC" ? " is-active" : ""}`}
-                    onClick={() => setSort("JOB_COUNT_DESC")}
-                    type="button"
-                  >
-                    职位数量
-                  </button>
-                </div>
-              </div>
-            </section>
-
-            <section aria-label="职位概览" className="panel summary-card">
-              <div>
-                <strong className="tabular-numerals">{visibleJobCount} 个职位</strong>
-                <p className="tabular-numerals">{visibleCompanies.length} 家公司</p>
-              </div>
-              <span className="tabular-numerals">最后更新 {formatTimestamp(searchResult?.lastUpdatedAt ?? null)}</span>
-            </section>
-
-            <section aria-label="公司职位列表" className="company-list">
-              {searchResult === null ? (
-                <div className="empty-state">
-                  <BriefcaseBusiness aria-hidden="true" size={18} />
-                  <p>选择城市并搜索后加载官方职位分组结果。</p>
-                </div>
-              ) : visibleCompanies.length === 0 ? (
-                <div className="empty-state">
-                  <Search aria-hidden="true" size={18} />
-                  <p>当前筛选下没有匹配职位。</p>
-                </div>
-              ) : (
-                visibleCompanies.map((company) => {
-                  const isExpanded = expandedCompanyId === company.id;
-                  const cap = rowCaps[company.id] ?? DEFAULT_COMPANY_ROW_CAP;
-                  const visibleJobs = company.jobs.slice(0, cap);
-
-                  return (
-                    <article
-                      className="company-card"
-                      data-testid={`company-${company.id}`}
-                      key={company.id}
-                    >
-                      <button
-                        aria-expanded={isExpanded}
-                        className="company-toggle"
-                        onClick={() => toggleCompany(company.id)}
-                        type="button"
-                      >
-                        <strong>{company.companyName}</strong>
-                        <span>
-                          {company.jobs.length} 个职位
-                          {isExpanded ? (
-                            <ChevronDown aria-hidden="true" size={16} />
-                          ) : (
-                            <ChevronRight aria-hidden="true" size={16} />
-                          )}
-                        </span>
-                      </button>
-
-                      {isExpanded ? (
-                        <div className="job-list">
-                          {visibleJobs.map((job) => (
-                            <div className="job-row" key={job.id}>
-                              <div className="job-copy">
-                                <h2>
-                                  {job.title}
-                                  {job.isNew ? <span className="new-badge">新增</span> : null}
-                                </h2>
-                                <p>{job.officialTitle}</p>
-                                <div className="job-meta">
-                                  <span>
-                                    <MapPin aria-hidden="true" size={14} />
-                                    {job.locationRaw}
-                                  </span>
-                                  <span>
-                                    <BriefcaseBusiness aria-hidden="true" size={14} />
-                                    {job.category}
-                                  </span>
-                                </div>
-                              </div>
-                              <div className="job-actions">
-                                <a
-                                  aria-label={`查看官方职位 ${job.title}`}
-                                  className="official-link"
-                                  href={job.officialUrl}
-                                  rel="noreferrer"
-                                  target="_blank"
-                                >
-                                  查看官方职位
-                                  <ExternalLink aria-hidden="true" size={14} />
-                                </a>
-                                <button
-                                  aria-label={`反馈此职位 ${job.title}`}
-                                  className="secondary-button"
-                                  onClick={() => openFeedback(company, job)}
-                                  type="button"
-                                >
-                                  反馈此职位
-                                </button>
-                              </div>
-                            </div>
-                          ))}
-
-                          {company.jobs.length > cap ? (
-                            <button
-                              className="row-cap-button"
-                              onClick={() =>
-                                setRowCaps((current) => ({
-                                  ...current,
-                                  [company.id]: company.jobs.length
-                                }))
-                              }
-                              type="button"
-                            >
-                              查看全部 {company.jobs.length} 个职位
-                            </button>
-                          ) : null}
-                        </div>
-                      ) : null}
-                    </article>
-                  );
-                })
-              )}
-            </section>
-
-            {feedbackDraft !== null ? (
-              <section className="panel feedback-panel" aria-label="职位反馈">
-                <div className="panel-heading">
-                  <MessageSquareWarning aria-hidden="true" size={18} />
-                  <div>
-                    <strong>职位反馈</strong>
-                    <p>
-                      {feedbackDraft.companyName} / {feedbackDraft.jobTitle}
-                    </p>
-                  </div>
-                </div>
-                <label className="form-field">
-                  <span>反馈类型</span>
-                  <select
-                    aria-label="反馈类型"
-                    onChange={(event) =>
-                      setFeedbackDraft((current) =>
-                        current === null ? current : { ...current, issueType: event.target.value }
-                      )
-                    }
-                    value={feedbackDraft.issueType}
-                  >
-                    <option value="">请选择</option>
-                    <option value="职位信息有误">职位信息有误</option>
-                    <option value="链接不可用">链接不可用</option>
-                    <option value="重复职位">重复职位</option>
-                  </select>
-                </label>
-                <label className="form-field">
-                  <span>反馈内容</span>
-                  <textarea
-                    aria-label="反馈内容"
-                    onChange={(event) =>
-                      setFeedbackDraft((current) =>
-                        current === null ? current : { ...current, description: event.target.value }
-                      )
-                    }
-                    rows={3}
-                    value={feedbackDraft.description}
-                  />
-                </label>
-                <div className="panel-actions">
-                  <button className="secondary-button" onClick={() => setFeedbackDraft(null)} type="button">
-                    取消
-                  </button>
-                  <button className="primary-button" onClick={submitFeedback} type="button">
-                    提交反馈
-                  </button>
-                </div>
-              </section>
-            ) : null}
-
-            {feedbackMessage !== "" ? (
-              <p className="success-banner">
-                <CheckCircle2 aria-hidden="true" size={16} />
-                {feedbackMessage}
-              </p>
-            ) : null}
-          </>
-        ) : null}
-
-        {activeView === "coverage" ? (
-          <section className="panel stacked-panel" aria-label="公司目录">
-            <div className="panel-heading">
-              <Building2 aria-hidden="true" size={18} />
-              <div>
-                <strong><span className="tabular-numerals">{COMPANY_DIRECTORY_PAGE_SIZE}</span> 家官方招聘目录</strong>
-                <p>全部目标公司均在目录中；状态会明确区分自动更新、核验中与仅提供官方入口。</p>
-              </div>
-            </div>
-            <label className="keyword-field">
-              <Search aria-hidden="true" size={18} />
-              <input
-                aria-label="搜索已覆盖公司"
-                onChange={(event) => setCoverageKeyword(event.target.value)}
-                placeholder="搜索已覆盖公司"
-                type="search"
-                value={coverageKeyword}
-              />
-            </label>
-            <div className="coverage-list">
-              {coverageLoading ? (
-                <p className="muted-copy">加载中...</p>
-              ) : coverageResults.length === 0 ? (
-                <p className="muted-copy">没有符合当前关键词的公司。</p>
-              ) : (
-                coverageResults.map((company) => {
-                  const primaryUrl = company.officialCareersUrl ?? company.officialWebsiteUrl;
-                  const hasCareersUrl = company.officialCareersUrl !== null;
-
-                  return (
-                    <article className="coverage-row" key={company.id}>
-                      <div className="coverage-row-heading">
-                        <div className="coverage-company-copy">
-                          <strong>{company.companyName}</strong>
-                          <span className="coverage-category">{COMPANY_CATEGORY_LABELS[company.category]}</span>
-                        </div>
-                        <div className="coverage-statuses">
-                          <span className="coverage-status" data-state={company.state}>
-                            {PUBLICATION_STATE_LABELS[company.state]}
-                          </span>
-                          {company.health === "DEGRADED" ? (
-                            <span className="coverage-health">近期更新异常</span>
-                          ) : null}
-                        </div>
-                      </div>
-                      <p className="coverage-note">{publicationNote(company)}</p>
-                      {company.lastSuccessAt !== null ? (
-                        <p className="coverage-updated tabular-numerals">
-                          最近成功更新 {formatTimestamp(company.lastSuccessAt)}
-                        </p>
-                      ) : null}
-                      {primaryUrl !== null ? (
-                        <a
-                          aria-label={hasCareersUrl
-                            ? `查看${company.companyName}官方招聘入口`
-                            : `访问${company.companyName}公司官网`}
-                          className="official-link coverage-link"
-                          href={primaryUrl}
-                          rel="noreferrer"
-                          target="_blank"
-                        >
-                          {hasCareersUrl ? "查看官方招聘入口" : "访问公司官网"}
-                          <ExternalLink aria-hidden="true" size={14} />
-                        </a>
-                      ) : (
-                        <p className="muted-copy">暂无可用公开链接。</p>
-                      )}
-                    </article>
-                  );
-                })
-              )}
-            </div>
-          </section>
-        ) : null}
-
-        <section className="panel stacked-panel auxiliary-panel" aria-label="辅助操作">
-          <div className="panel-heading">
-            <Send aria-hidden="true" size={18} />
-            <div>
-              <strong>辅助操作</strong>
-              <p>补充未覆盖但有官方招聘入口的药企。</p>
-            </div>
+          {dataProvider.supportsCityPendingSearch ? <p className="finder-note" id="city-facet-note"><Info className="ic" /><span>{searchResult === null ? "职位加载后可查看已发布地区的职位数量。" : ""}城市数字为明确该城市/地区的岗位数，不含全国和城市待核，不随关键词等筛选变化；全部地区下按具体城市搜索时，同时包含全国岗位，选定省份后不含全国岗位。</span></p> : null}
+          {city === CITY_PENDING ? <p className="finder-note">官方地点未明确到城市或存在冲突；城市待核职位不计入具体城市/地区筛选。已明确省份的职位可在该省的全部城市和城市待核中查看。</p> : null}
+        </form> : <div className="dirbar"><p>全部目标公司均在目录中；状态会明确区分自动更新、核验中与仅提供官方入口。</p><label className="field"><span className="lbl">搜索已覆盖公司</span><span className="control"><Search className="ic" /><input type="search" aria-label="搜索已覆盖公司" placeholder="搜索已覆盖公司" value={coverageKeyword} onChange={event => setCoverageKeyword(event.target.value)} /></span></label></div>}
+        {!plateBeforeFinder ? <div className="plate-m">{narrow ? plate : null}</div> : null}
+        {activeView === "discover" ? <main className="board" aria-label="职位发现">
+          <div><button className="filter-toggle" type="button" aria-expanded={filtersOpen} aria-controls="filters" onClick={() => setFiltersOpen(value => !value)}><span><SlidersHorizontal className="ic" /> 筛选条件</span><ChevronDown className="ic" /></button>
+            <aside className="filters" id="filters" data-open={filtersOpen} aria-label="筛选条件"><h2><SlidersHorizontal className="ic" />筛选条件</h2>
+              <div><div className="group-title">岗位类别</div><div className="checks">{CATEGORY_OPTIONS.map(category => <label className="check" key={category}><input checked={selectedCategories.includes(category)} onChange={() => toggleCategory(category)} type="checkbox" /><span className="box"><Check className="ic" /></span>{category}</label>)}</div></div>
+              <label className="switch"><span><Sparkles className="ic" /> 只看新增</span><input checked={onlyNew} onChange={event => setOnlyNew(event.target.checked)} type="checkbox" /><span className="track" /></label>
+              <div><div className="group-title">排序</div><div className="seg" aria-label="排序">{([["PINYIN_ASC", "拼音 A-Z"], ["LATEST", "最新发布"], ["JOB_COUNT_DESC", "职位数量"]] as const).map(([value, label]) => <button key={value} aria-pressed={sort === value} onClick={() => setSort(value)} type="button">{label}<Check className="ic" /></button>)}</div></div>
+            </aside>
           </div>
-          <div className="auxiliary-actions">
-            <button
-              aria-expanded={isRecommendationFormOpen}
-              className="secondary-button"
-              onClick={() => {
-                setIsRecommendationFormOpen((current) => !current);
-                setRecommendMessage("");
-              }}
-              type="button"
-            >
-              <Send aria-hidden="true" size={16} />
-              推荐未覆盖公司
-            </button>
+          <div className="results">
+            <section className="results-head" aria-label="职位概览">
+              {hasSearch ? <><div><p className="kicker">当前筛选匹配</p><h2 className="results-title" aria-label={`${visibleJobCount} 个职位`}><b className="num">{visibleJobCount}</b><span>个职位</span></h2><p className="results-sub">{visibleCompanies.length} 家公司</p></div>
+                <div className="results-meta">{searchResult?.publishedJobSummary ? <p>全部已发布职位 {searchResult.publishedJobSummary.totalJobs} 个，其中城市待核 {searchResult.publishedJobSummary.cityPendingJobs} 个（不随筛选变化）</p> : null}
+                  {searchResult?.coverageSummary ? <p>当前已更新 {searchResult.coverageSummary.publishingCompanyCount}/{searchResult.coverageSummary.requiredCompanyCount} 家目标企业{searchResult.coverageSummary.publishingCompanyCount < searchResult.coverageSummary.requiredCompanyCount ? "，其他来源仍在核验" : ""}{searchResult.coverageSummary.degradedCompanyCount > 0 ? `；${searchResult.coverageSummary.degradedCompanyCount} 家近期更新异常` : ""}</p> : null}
+                  <p>最后更新 {formatTimestamp(searchResult?.lastUpdatedAt ?? null)}{searchResult?.lastUpdatedAt ? " UTC" : ""}</p>
+                </div></> : <div><p className="kicker">职位结果</p><div className="results-title"><b className="num">—</b></div><p className="results-sub">{isLocked ? "完成使用前确认后自动加载职位。" : isSearching ? "正在加载职位，请稍候…" : searchFailed ? "暂时无法获取职位数据。" : "职位尚未加载。"}</p></div>}
+            </section>
+            <p className="sort-note">排序日期采用官网职位列表记录；地点冲突保留为城市待核</p>
+            {feedbackMessage ? <p className="banner"><CheckCircle2 className="ic" />{feedbackMessage}</p> : null}
+            <section className="list" aria-label="公司职位列表" aria-busy={isSearching}>
+              {isSearching ? <div className="empty" role="status"><Search className="ic" /><p>正在加载官方职位…</p></div> : searchFailed ? <div className="empty" role="alert"><p>职位加载失败，请重试。</p><button className="btn-primary" onClick={() => void handleSearch()} type="button">重新加载职位</button></div> : searchResult === null ? <div className="empty"><BriefcaseBusiness className="ic" /><p>完成使用前确认后，将自动展示官方职位分组结果。</p></div> : !visibleCompanies.length ? <div className="empty"><Search className="ic" /><p>当前筛选下没有匹配职位。</p><button type="button" className="btn-line" onClick={clearSearchFilters}>清除关键词与类别筛选</button></div> : visibleCompanies.map(company => {
+                const expanded = expandedCompanyId === company.id, cap = rowCaps[company.id] ?? DEFAULT_COMPANY_ROW_CAP;
+                return <article className={`co${hotId === company.id ? " is-link" : ""}`} data-open={expanded} data-testid={`company-${company.id}`} id={`row-${company.id}`} key={company.id} onMouseEnter={() => setHotId(company.id)} onMouseLeave={() => setHotId(null)}>
+                  <button className="co-head" aria-expanded={expanded} aria-controls={`jobs-${company.id}`} onClick={() => toggleCompany(company.id)} type="button"><span className="coord">{companyIndex(company.id)}</span><CompanyLogo companyId={company.id} name={company.companyName} className="tk-row" /><strong className="co-name">{company.companyName}</strong><span className="co-count"><b>{company.jobs.length}</b><span>个职位</span></span><span className="co-go"><ChevronDown className="ic" /></span></button>
+                  {company.id === "company-novo-nordisk-china" ? <p className="source-scope-note">{NOVO_SOURCE_NOTE}</p> : company.id === "company-organon-china" ? <p className="source-scope-note">{ORGANON_SOURCE_NOTE}</p> : null}
+                  {company.sourceScopeNote ? <p className="source-scope-note">{company.sourceScopeNote}</p> : null}
+                  <div className="co-body"><div className="co-inner" id={`jobs-${company.id}`} inert={!expanded} aria-hidden={!expanded}>{expanded ? <div className="jobs">
+                    {company.jobs.slice(0, cap).map((job, index) => <div className="job" key={job.id}><span className="job-idx">{String(index + 1).padStart(2, "0")}</span>
+                      <div><h3>{job.title}{job.cityPending ? <span className="badge pend">官方城市尚未核实</span> : job.city === NATIONWIDE ? <span className="badge nat">全国岗位</span> : null}{job.isNew ? <span className="badge new"><Sparkles className="ic" />新增</span> : null}</h3><p className="en">{job.officialTitle}</p></div>
+                      <div className="job-meta"><span><MapPin className="ic" />{job.cityPending ? `官方原始地点：${job.locationRaw}` : job.locationRaw}</span><span><BriefcaseBusiness className="ic" />{job.category}</span></div>
+                      <div className="job-actions"><a className="btn-solid" aria-label={`查看官方职位 ${job.title}`} href={job.officialUrl} rel="noreferrer" target="_blank">查看官方职位<ExternalLink className="ic" /></a><button className="btn-text" aria-label={`反馈此职位 ${job.title}`} onClick={() => openFeedback(company, job)} type="button"><Flag className="ic" />反馈此职位</button></div>
+                    </div>)}
+                    {company.jobs.length > cap ? <button className="more" type="button" onClick={() => setRowCaps(current => ({...current, [company.id]: company.jobs.length}))}>查看全部 {company.jobs.length} 个职位<ChevronDown className="ic" /></button> : null}
+                  </div> : null}</div></div>
+                </article>;
+              })}
+            </section>
           </div>
-
-          {isRecommendationFormOpen ? (
-            <div className="recommendation-form">
-              <div className="panel-heading">
-                <Send aria-hidden="true" size={18} />
-                <div>
-                  <strong>推荐公司</strong>
-                  <p>提交后会进入管理员复核队列。</p>
-                </div>
-              </div>
-              <label className="form-field">
-                <span>公司名称</span>
-                <input
-                  aria-label="公司名称"
-                  onChange={(event) => setRecommendCompanyName(event.target.value)}
-                  type="text"
-                  value={recommendCompanyName}
-                />
-              </label>
-              <label className="form-field">
-                <span>官网链接</span>
-                <input
-                  aria-label="官网链接"
-                  onChange={(event) => setRecommendWebsiteUrl(event.target.value)}
-                  type="url"
-                  value={recommendWebsiteUrl}
-                />
-              </label>
-              <div className="panel-actions">
-                <button className="primary-button" onClick={submitRecommendation} type="button">
-                  提交推荐
-                </button>
-              </div>
-              {recommendMessage !== "" ? (
-                <p className="success-banner">
-                  <CheckCircle2 aria-hidden="true" size={16} />
-                  {recommendMessage}
-                </p>
-              ) : null}
-            </div>
-          ) : null}
-        </section>
-      </main>
-
-      {consentState === "pending" ? (
-        <div className="modal-overlay">
-          <section aria-label="使用前确认" className="consent-modal" role="dialog">
-            <button aria-label="关闭确认弹窗" className="icon-button" onClick={closeConsent} type="button">
-              <X aria-hidden="true" size={16} />
-            </button>
-            <h2>使用前确认</h2>
-            <p>先完成同意，前台才会请求职位搜索结果。</p>
-            <label className="consent-check">
-              <input
-                checked={hasCheckedConsent}
-                onChange={(event) => setHasCheckedConsent(event.target.checked)}
-                type="checkbox"
-              />
-              <span>
-                我已阅读并同意
-                <a
-                  className="inline-link"
-                  href="/privacy"
-                  onClick={(event) => {
-                    event.preventDefault();
-                    void openDocument("privacy");
-                  }}
-                >
-                  隐私政策
-                </a>
-                和
-                <a
-                  className="inline-link"
-                  href="/terms"
-                  onClick={(event) => {
-                    event.preventDefault();
-                    void openDocument("terms");
-                  }}
-                >
-                  服务条款
-                </a>
-              </span>
-            </label>
-            <button className="primary-button large-button" disabled={!hasCheckedConsent} onClick={acceptConsent} type="button">
-              进入 Job-search
-            </button>
-          </section>
-        </div>
-      ) : null}
-
-      {consentState === "closed" ? (
-        <div className="locked-overlay">
-          <section aria-label="页面已锁定" className="locked-panel">
-            <h2>使用前请先完成确认</h2>
-            <p>关闭确认后，职位搜索会保持锁定。</p>
-            <button className="primary-button" onClick={() => setConsentState("pending")} type="button">
-              重新打开确认
-            </button>
-            <button className="secondary-button" onClick={() => openDocument("privacy")} type="button">
-              查看隐私说明
-            </button>
-            <button className="secondary-button" onClick={() => openDocument("terms")} type="button">
-              查看使用条款
-            </button>
-          </section>
-        </div>
-      ) : null}
-
-      {document !== null || documentLoading !== null ? (
-        <div className="modal-overlay">
-          <section aria-label="文档内容" className="document-modal" role="dialog">
-            <button aria-label="关闭文档" className="icon-button" onClick={() => setDocument(null)} type="button">
-              <X aria-hidden="true" size={16} />
-            </button>
-            <div className="panel-heading">
-              <FileText aria-hidden="true" size={18} />
-              <div>
-                <h2>{document?.title ?? "加载中"}</h2>
-              </div>
-            </div>
-            <div className="document-body">
-              {documentLoading !== null ? documentLoading : document?.body}
-            </div>
-            {document?.slug === "privacy" ? (
-              <div className="recommendation-form">
-                <button className="secondary-button" onClick={() => setPrivacyFormOpen((value) => !value)} type="button">
-                  提交数据导出/删除请求
-                </button>
-                {privacyFormOpen ? (
-                  <>
-                    <label className="form-field">
-                      <span>请求类型</span>
-                      <select aria-label="隐私请求类型" value={privacyType} onChange={(event) => setPrivacyType(event.target.value as typeof privacyType)}>
-                        <option value="PRIVACY_EXPORT">导出</option>
-                        <option value="PRIVACY_DELETE">删除</option>
-                      </select>
-                    </label>
-                    <label className="form-field">
-                      <span>联系方式</span>
-                      <input aria-label="隐私请求联系方式" value={privacyContact} onChange={(event) => setPrivacyContact(event.target.value)} />
-                    </label>
-                    <label className="form-field">
-                      <span>说明</span>
-                      <textarea aria-label="隐私请求说明" value={privacyDescription} onChange={(event) => setPrivacyDescription(event.target.value)} />
-                    </label>
-                    <button className="primary-button" onClick={() => void submitPrivacyRequest()} type="button">提交隐私请求</button>
-                    {privacyReceipt ? <p>{privacyReceipt}</p> : null}
-                  </>
-                ) : null}
-              </div>
-            ) : null}
-          </section>
-        </div>
-      ) : null}
+        </main> : <section className="dir" aria-label="公司目录"><h2 className="sr-only">官方招聘目录</h2><div className="dir-head"><span>孔位</span><span>公司</span><span>状态</span><span>说明</span><span className="h-upd">最近成功更新</span><span>官方入口</span></div>
+          {coverageLoading ? <div className="empty" role="status">正在加载公司目录…</div> : coverageFailed ? <div className="empty" role="alert"><p>公司目录加载失败，请重试。</p><button className="btn-primary" onClick={() => setCoverageRetry(value => value + 1)} type="button">重新加载公司目录</button></div> : !coverageResults.length ? <p className="empty">没有符合当前关键词的公司。</p> : coverageResults.map(company => {
+            const url = company.officialCareersUrl ?? company.officialWebsiteUrl;
+            return <article className={`dr${hotId === company.id ? " is-link" : ""}`} id={`row-${company.id}`} key={company.id} onMouseEnter={() => setHotId(company.id)} onMouseLeave={() => setHotId(null)}><span className="coord">{companyIndex(company.id)}</span><div className="dco"><CompanyLogo companyId={company.id} name={company.companyName} className="tk-row" /><div><strong className="dname">{company.companyName}</strong><p className="dcat">{COMPANY_CATEGORY_LABELS[company.category]}</p></div></div>
+              <div className="dstate"><span className="pill" data-state={company.state}>{PUBLICATION_STATE_LABELS[company.state]}</span>{company.health === "DEGRADED" ? <span className="pill health">近期更新异常</span> : null}</div>
+              <div className="dnote"><p>{publicationNote(company)}</p>{company.sourceScopeNote ? <p>{company.sourceScopeNote}</p> : null}</div><p className="dupd">{company.lastSuccessAt ? <>最近成功更新 {formatTimestamp(company.lastSuccessAt)} UTC</> : "暂无成功更新"}</p>
+              {url ? <a className="btn-line" aria-label={company.officialCareersUrl ? `查看${company.companyName}官方招聘入口` : `访问${company.companyName}公司官网`} href={url} rel="noreferrer" target="_blank">{company.officialCareersUrl ? "官方招聘入口" : "公司官网"}<ExternalLink className="ic" /></a> : <p className="none">暂无可用公开链接。</p>}
+            </article>;
+          })}
+        </section>}
+      </div>
+      <section className="suggest" aria-label="辅助操作"><div className="wrap"><div className="suggest-top"><div><h2>目录里没有<br />你关注的药企？</h2><p>补充未覆盖但有官方招聘入口的药企，提交后进入管理员复核队列。</p></div><button className="btn-ink" aria-expanded={isRecommendationFormOpen} type="button" onClick={() => {setIsRecommendationFormOpen(current => !current);setRecommendMessage("");setSubmitError("");}}><Send className="ic" />推荐未覆盖公司</button></div>
+        {isRecommendationFormOpen ? <form className="suggest-form" onSubmit={event => {event.preventDefault();void submitRecommendation();}}><label className="field"><span className="lbl">公司名称</span><span className="control"><input required aria-label="公司名称" value={recommendCompanyName} onChange={event => setRecommendCompanyName(event.target.value)} /></span></label><label className="field"><span className="lbl">官网链接</span><span className="control"><input required aria-label="官网链接" type="url" placeholder="https://" value={recommendWebsiteUrl} onChange={event => setRecommendWebsiteUrl(event.target.value)} /></span></label><button className="btn-primary" disabled={submitBusy} type="submit"><Send className="ic" />{submitBusy ? "提交中…" : "提交推荐"}</button></form> : null}
+        {recommendMessage ? <p className="banner"><CheckCircle2 className="ic" />{recommendMessage}</p> : null}{submitError && isRecommendationFormOpen ? <p className="error-message" role="alert">{submitError}</p> : null}
+      </div></section>
+      <footer className="foot"><div className="wrap"><div><strong>Job-search</strong>中国医药官方职位聚合。仅展示来源可核验的官方职位，不作抓全声明。</div><div><strong>数据说明</strong>职位详情可能跳转到企业官网或企业明确背书的第三方官方招聘入口，离开本服务后由该入口的隐私规则负责。英文标题辅助翻译和岗位分类由 AI 或规则辅助生成，仅供参考，职位名称、职责、地点与申请条件均以官方来源为准。</div><div className="foot-links"><strong>政策</strong><button type="button" onClick={() => void openDocument("privacy")}>隐私政策</button><button type="button" onClick={() => void openDocument("terms")}>服务条款</button></div></div><div className="mega" aria-hidden="true">Job-search</div></footer>
+      {mobile ? navigation : null}
     </div>
-  );
-}
-
-function SlidersIcon() {
-  return <BriefcaseBusiness aria-hidden="true" size={16} />;
+    {locationOpen ? <div className="scrim" onClick={() => setLocationOpen(null)} aria-hidden="true" /> : null}
+    {consentState === "pending" && document === null && documentLoading === null && !documentError ? <Modal title="使用前确认" onClose={closeConsent} closeLabel="关闭确认弹窗" icon={<LockKeyhole className="ic" />}><p>先完成同意，前台才会请求职位搜索结果。</p><label className="consent-check"><input checked={hasCheckedConsent} onChange={event => setHasCheckedConsent(event.target.checked)} type="checkbox" /><span className="box"><Check className="ic" /></span><span>我已阅读并同意 <a href="/privacy" onClick={event => {event.preventDefault();void openDocument("privacy");}}>隐私政策</a> 和 <a href="/terms" onClick={event => {event.preventDefault();void openDocument("terms");}}>服务条款</a></span></label><button className="btn-primary" disabled={!hasCheckedConsent} onClick={acceptConsent} type="button">进入 Job-search<ArrowRight className="ic" /></button></Modal> : null}
+    {consentState === "closed" && document === null && documentLoading === null && !documentError ? <Modal title="页面已锁定" heading="使用前请先完成确认" icon={<LockKeyhole className="ic" />}><p>关闭确认后，职位搜索会保持锁定。</p><button className="btn-primary" onClick={() => setConsentState("pending")} type="button">重新打开确认</button><div className="actions"><button className="btn-line" onClick={() => void openDocument("privacy")} type="button">查看隐私说明</button><button className="btn-line" onClick={() => void openDocument("terms")} type="button">查看使用条款</button></div></Modal> : null}
+    {document !== null || documentLoading !== null || documentError ? <Modal title={document?.title ?? "文档内容"} onClose={closeDocument} closeLabel="关闭文档" wide plain ariaLabel="文档内容" icon={<FileText className="ic" />}><div className="doc-body">{documentError || (documentLoading ? "正在加载文档…" : document?.body)}</div>
+      {document?.slug === "privacy" ? <div className="stack"><button className="btn-line" onClick={() => {setPrivacyFormOpen(value => !value);setSubmitError("");}} type="button">提交数据导出/删除请求</button>{privacyFormOpen ? <form className="stack" onSubmit={event => {event.preventDefault();void submitPrivacyRequest();}}><label className="field"><span className="lbl">请求类型</span><span className="control"><select aria-label="隐私请求类型" value={privacyType} onChange={event => setPrivacyType(event.target.value as typeof privacyType)}><option value="PRIVACY_EXPORT">隐私数据导出</option><option value="PRIVACY_DELETE">隐私数据删除</option></select><ChevronDown className="ic" /></span></label><label className="field"><span className="lbl">联系方式</span><span className="control"><input required aria-label="隐私请求联系方式" placeholder="邮箱或其他联系渠道" value={privacyContact} onChange={event => setPrivacyContact(event.target.value)} /></span></label><label className="field"><span className="lbl">说明</span><textarea className="area" required aria-label="隐私请求说明" rows={3} placeholder="说明请求范围，不要上传身份证件。" value={privacyDescription} onChange={event => setPrivacyDescription(event.target.value)} /></label><button className="btn-primary" disabled={submitBusy} type="submit">{submitBusy ? "提交中…" : "提交隐私请求"}</button>{privacyReceipt ? <p className="receipt">{privacyReceipt}</p> : null}{submitError ? <p className="error-message" role="alert">{submitError}</p> : null}</form> : null}</div> : null}
+    </Modal> : null}
+    {feedbackDraft ? <Modal title="职位反馈" onClose={() => setFeedbackDraft(null)} closeLabel="关闭职位反馈" drawer icon={<Flag className="ic" />}><div className="ctx"><b>{feedbackDraft.companyName}</b><span>{feedbackDraft.jobTitle}</span></div><form className="stack" onSubmit={event => {event.preventDefault();void submitFeedback();}}><label className="field"><span className="lbl">反馈类型</span><span className="control"><select required aria-label="反馈类型" value={feedbackDraft.issueType} onChange={event => setFeedbackDraft(current => current ? {...current, issueType: event.target.value} : current)}><option value="">请选择</option><option>职位信息有误</option><option>链接不可用</option><option>重复职位</option></select><ChevronDown className="ic" /></span></label><label className="field"><span className="lbl">反馈内容</span><textarea required className="area" aria-label="反馈内容" rows={4} placeholder="请描述你发现的问题，不要填写身份证件、简历等个人信息。" value={feedbackDraft.description} onChange={event => setFeedbackDraft(current => current ? {...current, description: event.target.value} : current)} /></label><div className="actions"><button className="btn-line" type="button" onClick={() => setFeedbackDraft(null)}>取消</button><button className="btn-primary" disabled={submitBusy} type="submit">{submitBusy ? "提交中…" : "提交反馈"}</button></div>{submitError ? <p className="error-message" role="alert">{submitError}</p> : null}</form></Modal> : null}
+  </div>;
 }

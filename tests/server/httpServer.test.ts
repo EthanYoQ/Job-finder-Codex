@@ -1,10 +1,13 @@
-import type { Server } from "node:http";
+import { request as httpRequest, type IncomingHttpHeaders, type Server } from "node:http";
 import { mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { resolve } from "node:path";
+import { gunzipSync } from "node:zlib";
 import { afterEach, describe, expect, it } from "vitest";
 import { createServer } from "../../src/server/httpServer";
 import { createMemoryRateLimitStore } from "../../src/server/rateLimit";
+import { readPortablePublicSnapshot, type PortablePublicSnapshot, type PortableSnapshotDb } from "../../src/db/portablePublicSnapshotRepository";
+import { accepted, job, plan, NOW } from "../helpers/portablePublicSnapshotFixture";
 
 const openServers = new Set<Server>();
 
@@ -27,9 +30,12 @@ afterEach(async () => {
 });
 
 describe("http server", () => {
-  function createTestServer(overrides: { checkDatabaseReadiness?: () => Promise<boolean> } = {}) {
+  function createTestServer(overrides: { checkDatabaseReadiness?: () => Promise<boolean>; readPortableSnapshot?: () => Promise<PortablePublicSnapshot> } = {}) {
     const staticRoot = mkdtempSync(resolve(tmpdir(), "job-finder-http-"));
     writeFileSync(resolve(staticRoot, "index.html"), "<div id=\"root\"></div>", "utf8");
+    writeFileSync(resolve(staticRoot, "logo.png"), Buffer.from([137, 80, 78, 71]));
+    writeFileSync(resolve(staticRoot, "logo.webp"), Buffer.from("RIFF-test-WEBP"));
+    writeFileSync(resolve(staticRoot, "font.woff2"), Buffer.from("wOF2"));
 
     const db = {
       db: {
@@ -63,6 +69,7 @@ describe("http server", () => {
         recruitmentSource: { findMany: async () => [] }
       },
       checkDatabaseReadiness: overrides.checkDatabaseReadiness ?? (async () => true),
+      ...(overrides.readPortableSnapshot ? { readPortableSnapshot: overrides.readPortableSnapshot } : {}),
       rateLimitStore: createMemoryRateLimitStore()
     };
 
@@ -84,6 +91,108 @@ describe("http server", () => {
       });
     });
   }
+
+  function rawRequest(port: number, path: string, headers: Record<string, string> = {}, method = "GET", body?: string) {
+    return new Promise<{ status: number; headers: IncomingHttpHeaders; body: Buffer }>((resolve, reject) => {
+      const request = httpRequest({ hostname: "127.0.0.1", port, path, method, headers }, (response) => {
+        const chunks: Buffer[] = [];
+        response.on("data", (chunk: Buffer) => chunks.push(chunk));
+        response.on("error", reject);
+        response.on("end", () => resolve({ status: response.statusCode!, headers: response.headers, body: Buffer.concat(chunks) }));
+      });
+      request.on("error", reject);
+      request.end(body);
+    });
+  }
+
+  async function publicSnapshot() {
+    const evidence = accepted();
+    const transaction = {
+      crawlBatchSourceResult: { findMany: async () => [evidence.result] },
+      lifecycleSetEvidenceMember: { findMany: async () => evidence.members },
+      job: { findMany: async () => [job()] }
+    };
+    return readPortablePublicSnapshot({ $transaction: async (work) => work(transaction) } as PortableSnapshotDb, { currentTime: NOW }, [plan]);
+  }
+
+  it("serves local redesign logo and font assets with their correct MIME types", async () => {
+    const address = await listen(createTestServer());
+    const logo = await rawRequest(address.port, "/logo.png");
+    const font = await rawRequest(address.port, "/font.woff2");
+    expect(logo.status).toBe(200); expect(logo.headers["content-type"]).toBe("image/png");
+    expect(font.status).toBe(200); expect(font.headers["content-type"]).toBe("font/woff2");
+    expect(logo.body).toEqual(Buffer.from([137, 80, 78, 71])); expect(font.body.toString()).toBe("wOF2");
+  });
+
+  it("serves the lossless WebP logo sheet with image MIME for GET and HEAD", async () => {
+    const address = await listen(createTestServer());
+    const image = await rawRequest(address.port, "/logo.webp");
+    expect(image.status).toBe(200);
+    expect(image.headers["content-type"]).toBe("image/webp");
+    expect(image.body.toString()).toBe("RIFF-test-WEBP");
+    const head = await rawRequest(address.port, "/logo.webp", {}, "HEAD");
+    expect(head.status).toBe(200);
+    expect(head.headers["content-type"]).toBe("image/webp");
+    expect(head.body.length).toBe(0);
+  });
+
+  it("compresses only negotiated public search/coverage JSON with correct raw wire lengths and identical decoded bytes", async () => {
+    const snapshot = await publicSnapshot();
+    let reads = 0;
+    const address = await listen(createTestServer({ readPortableSnapshot: async () => { reads++; return snapshot; } }));
+    for (const path of ["/api/search?city=%E4%B8%8A%E6%B5%B7", "/api/coverage"]) {
+      const headers = { "x-job-search-consent": "accepted" };
+      const plain = await rawRequest(address.port, path, headers);
+      const compressed = await rawRequest(address.port, path, { ...headers, "accept-encoding": "gzip" });
+      expect([plain.status, compressed.status]).toEqual([200, 200]);
+      expect(plain.headers["content-encoding"]).toBeUndefined();
+      expect(compressed.headers["content-encoding"]).toBe("gzip");
+      for (const response of [plain, compressed]) {
+        expect(response.headers.vary).toBe("Accept-Encoding");
+        expect(response.headers["content-type"]).toBe("application/json; charset=utf-8");
+        expect(response.headers["content-length"]).toBe(String(response.body.length));
+        expect(response.headers["x-robots-tag"]).toBe("noindex, nofollow");
+      }
+      expect(gunzipSync(compressed.body)).toEqual(plain.body);
+    }
+    expect(reads).toBe(4);
+  });
+
+  it("preserves consent, errors, non-GET and sensitive routes without compression", async () => {
+    let reads = 0;
+    const address = await listen(createTestServer({ readPortableSnapshot: async () => { reads++; return publicSnapshot(); } }));
+    const acceptedHeaders = { "accept-encoding": "gzip", "x-job-search-consent": "accepted" };
+    const responses = [
+      await rawRequest(address.port, "/api/search?city=Shanghai", { "accept-encoding": "gzip" }),
+      await rawRequest(address.port, "/api/search?limit=999", acceptedHeaders),
+      await rawRequest(address.port, "/api/search", acceptedHeaders, "POST"),
+      await rawRequest(address.port, "/api/coverage", acceptedHeaders, "HEAD"),
+      await rawRequest(address.port, "/admin/api/dashboard", acceptedHeaders),
+      await rawRequest(address.port, "/api/feedback", { ...acceptedHeaders, "content-type": "application/json" }, "POST", JSON.stringify({ issueType: "PRIVACY_EXPORT", contact: "private@example.test", description: "导出我的反馈" })),
+      await rawRequest(address.port, "/healthz", acceptedHeaders)
+    ];
+    expect(responses.map((response) => response.status)).toEqual([403, 400, 404, 404, 401, 201, 200]);
+    for (const response of responses) expect(response.headers["content-encoding"]).toBeUndefined();
+    expect(reads).toBe(0);
+  });
+
+  it("keeps the public search rate limit and retry-after unchanged for gzip requests", async () => {
+    const snapshot = await publicSnapshot();
+    let reads = 0;
+    const address = await listen(createTestServer({ readPortableSnapshot: async () => { reads++; return snapshot; } }));
+    const headers = { "accept-encoding": "gzip", "x-job-search-consent": "accepted" };
+    for (let index = 0; index < 30; index++) {
+      const response = await rawRequest(address.port, "/api/search?city=Shanghai", headers);
+      expect(response.status).toBe(200);
+      expect(response.headers["content-encoding"]).toBe("gzip");
+    }
+    const limited = await rawRequest(address.port, "/api/search?city=Shanghai", headers);
+    expect(limited.status).toBe(429);
+    expect(limited.headers["content-encoding"]).toBeUndefined();
+    expect(Number(limited.headers["retry-after"])).toBeGreaterThan(0);
+    expect(JSON.parse(limited.body.toString())).toMatchObject({ error: "RATE_LIMITED" });
+    expect(reads).toBe(30);
+  });
 
   it("routes GET /healthz through the public API handler", async () => {
     const address = await listen(createTestServer());

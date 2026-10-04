@@ -23,7 +23,7 @@ describe("Kelun official detail identity reconciliation", () => {
     const expectedDetailIds = rawRows.map(({ detailId }) => detailId);
     const body = `<div class="page"><a href="/social?PageIndex=1">1</a></div>
       <table class="jobsTable">${rawRows.map(({ detailId, title, location }) =>
-        `<tr><td><a href="/job_show/${detailId}">${title}</a></td><td></td><td></td><td></td><td>${location}</td></tr>`
+        `<tr><td><a href="/job_show/${detailId}">${title}</a></td><td></td><td></td><td></td><td title="${location}">${location}</td></tr>`
       ).join("")}</table>`;
     const fetch = createHttpHtmlSourceFetch({
       now: () => new Date(capturedAt),

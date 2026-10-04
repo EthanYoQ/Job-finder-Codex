@@ -5,10 +5,13 @@ import type { NormalizedJobRecord } from "./normalizedJob";
 import { hasUniqueJsonObjectKeys } from "./strictJsonObjectKeys";
 import { requestContractV2Locator } from "./strictPageRequestContract";
 import { isStrictQiluOfficialJobUrl } from "./qiluRenderedTraversalValidator";
+import { hasExactFosunMainlandGeography } from "./fosunScopeGeography";
+import { containsSensitiveAdapterValue } from "./adapters/safeAdapterValue";
 
 type OfficialPlan = Extract<SourceCrawlPlan, { adapterId: "official-json" }>;
 type ProofPolicy =
   | "DONGYANGGUANG_EXPLICIT_FOREIGN_ONLY_V1"
+  | "FOSUN_EXPLICIT_HONG_KONG_ONLY_V1"
   | "NHU_EXPLICIT_JAPAN_ONLY_V1"
   | "QILU_EXPLICIT_US_OR_HONG_KONG_ONLY_V2"
   | "THREESBIO_XIANYANG_HOMOGRAPH_V1"
@@ -31,6 +34,14 @@ const BINDINGS: Readonly<Record<ProofPolicy, Binding>> = {
     atsKind: "BEISEN_ZHIYE",
     entryUrl: "https://hec.zhiye.com/Social/jobs",
     chainUrl: "https://www.hec.cn/"
+  },
+  FOSUN_EXPLICIT_HONG_KONG_ONLY_V1: {
+    policy: "FOSUN_EXPLICIT_HONG_KONG_ONLY_V1",
+    companyId: "company-fosun-pharma",
+    sourceId: "source-fosun-pharma-social",
+    atsKind: "BEISEN_ZHIYE",
+    entryUrl: "https://fosunpharma.zhiye.com/social",
+    chainUrl: "https://www.fosunpharma.com/careers/"
   },
   NHU_EXPLICIT_JAPAN_ONLY_V1: {
     policy: "NHU_EXPLICIT_JAPAN_ONLY_V1",
@@ -91,6 +102,12 @@ export function validateStrictSourceScopeExclusionProof(
   }
 }
 
+/** Replays raw Qilu loss rows only. It does not bind a plan, admit a policy or issue proof. */
+export function validateQiluForeignLossRowsForDiagnostic(evidence: PersistentSourceFetchEvidence): boolean {
+  try { return exactLossIndexes(evidence, exactQiluUnitedStatesOrHongKongScope) !== undefined; }
+  catch { return false; }
+}
+
 export function strictQiluRawOfficialUrls(
   plan: SourceCrawlPlan,
   evidence: PersistentSourceFetchEvidence,
@@ -138,6 +155,17 @@ function exactConfiguredPolicy(plan: OfficialPlan, policy: ProofPolicy): boolean
       config.detailBaseUrl === "https://www.xiuzheng.com/#/recruitDetail" &&
       config.defaultLocationRaw === "未披露" && config.pageSize === 10 && config.maxPages === 5;
   }
+  if (policy === "FOSUN_EXPLICIT_HONG_KONG_ONLY_V1") {
+    if (config?.kind !== "beisen-zhiye-2022" || plan.company.category !== "DOMESTIC_PHARMA" ||
+        Object.keys(config).sort().join(",") !==
+          ["kind", "geographyScope", "category", "pageSize", "maxPages", "detailPath", "scopeExclusionProof"].sort().join(",") ||
+        plan.json.jobsPath !== "jobs" || plan.json.defaultCategory !== "其他" ||
+        Object.keys(plan.json).sort().join(",") !== "defaultCategory,fields,jobsPath" ||
+        Object.keys(plan.json.fields).sort().join(",") !== "cities,locationRaw,officialTitle,officialUrl,sourceJobId" ||
+        plan.json.fields.sourceJobId !== "sourceJobId" || plan.json.fields.officialTitle !== "title" ||
+        plan.json.fields.officialUrl !== "officialUrl" || plan.json.fields.locationRaw !== "locationRaw" ||
+        plan.json.fields.cities !== "cities") return false;
+  }
   const expectedDetailPath = policy === "DONGYANGGUANG_EXPLICIT_FOREIGN_ONLY_V1"
     ? "Social/detail"
     : "social/detail";
@@ -171,7 +199,9 @@ function replayBeisen(
   if (config?.kind !== "beisen-zhiye-2022") return false;
   const endpoint = new URL("/api/Jobad/GetJobAdPageList", plan.source.officialEntryUrl).toString();
   const excludedByPage = exactLossIndexes(evidence, (raw) =>
-    policy === "QILU_EXPLICIT_US_OR_HONG_KONG_ONLY_V2"
+    policy === "FOSUN_EXPLICIT_HONG_KONG_ONLY_V1"
+      ? exactFosunHongKongOnlyScope(raw)
+      : policy === "QILU_EXPLICIT_US_OR_HONG_KONG_ONLY_V2"
       ? exactQiluUnitedStatesOrHongKongScope(raw)
       : policy === "NHU_EXPLICIT_JAPAN_ONLY_V1"
         ? exactJapanScope(raw)
@@ -181,6 +211,8 @@ function replayBeisen(
   if (!excludedByPage) return false;
 
   let rawCount = 0;
+  const fosunAllIds = new Set<string>();
+  const fosunAcceptedRows: Record<string, unknown>[] = [];
   let exactHomographCorrections = 0;
   let declaredTotal: number | undefined;
   for (let sequence = 0; sequence < evidence.pages.length; sequence += 1) {
@@ -211,6 +243,14 @@ function replayBeisen(
     for (let index = 0; index < root.Data.length; index += 1) {
       const raw = root.Data[index];
       if (!strictRecord(raw)) return false;
+      if (policy === "FOSUN_EXPLICIT_HONG_KONG_ONLY_V1") {
+        if (typeof raw.Id !== "string" ||
+            !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/u.test(raw.Id) ||
+            fosunAllIds.has(raw.Id) || !exactFosunSocialRow(raw)) return false;
+        fosunAllIds.add(raw.Id);
+        if (excluded.has(index) !== exactFosunHongKongOnlyScope(raw)) return false;
+        if (!excluded.has(index)) fosunAcceptedRows.push(raw);
+      }
       if (policy === "THREESBIO_XIANYANG_HOMOGRAPH_V1" && exactThreeSbioHomograph(raw)) {
         exactHomographCorrections += 1;
       }
@@ -227,6 +267,7 @@ function replayBeisen(
     rawCount += root.Data.length;
   }
   return declaredTotal === rawCount && exactCounts(evidence, rawCount, totalExcluded(excludedByPage)) &&
+    (policy !== "FOSUN_EXPLICIT_HONG_KONG_ONLY_V1" || exactFosunOutput(plan, fosunAcceptedRows, outputJobs)) &&
     (policy !== "THREESBIO_XIANYANG_HOMOGRAPH_V1" ||
       exactThreeSbioCorrectedOutput(outputJobs, exactHomographCorrections));
 }
@@ -334,6 +375,53 @@ function exactQiluUnitedStatesOrHongKongScope(raw: unknown): boolean {
     ? scope.countries.every((value) => EXACT_QILU_NON_MAINLAND_COUNTRY.test(value.normalize("NFKC").trim()))
     : scope.locations.length > 0 && scope.locations.every((value) =>
       exactForeignValue(value, QILU_NON_MAINLAND_TERMS));
+}
+
+function exactFosunSocialRow(raw: Record<string, unknown>): boolean {
+  return typeof raw.JobAdName === "string" && raw.JobAdName.trim().length > 0 &&
+    !containsSensitiveAdapterValue(raw.JobAdName) &&
+    raw.Category === "社会招聘" &&
+    (raw.CategoryId === undefined || raw.CategoryId === "1" || raw.CategoryId === 1) &&
+    (raw.Kind === undefined || raw.Kind === null || raw.Kind === "" ||
+      typeof raw.Kind === "string" && !/(?:校园|校招|campus)/iu.test(raw.Kind));
+}
+
+// Only the observed Hong Kong-only vocabulary is admitted for this source. All
+// populated country/alternate location labels must agree; shadow fields cannot
+// hide mainland, mixed, malformed or unknown geography behind LocNames.
+function exactFosunHongKongOnlyScope(raw: unknown): boolean {
+  if (!strictRecord(raw) || !Array.isArray(raw.LocNames) || raw.LocNames.length === 0) return false;
+  const hongKong = (value: unknown) => typeof value === "string" &&
+    /^(?:香港(?:特别行政区)?|hong kong(?: special administrative region| sar)?)$/iu.test(value.normalize("NFKC").trim());
+  return raw.LocNames.every(hongKong) &&
+    [raw.Country, raw.CountryName, raw.LocName, raw.LocationName, raw.City].every(value =>
+      value === undefined || value === null || value === "" || hongKong(value));
+}
+
+function exactFosunOutput(
+  plan: OfficialPlan,
+  rows: readonly Record<string, unknown>[],
+  jobs: readonly NormalizedJobRecord[]
+): boolean {
+  if (jobs.length !== rows.length || new Set(jobs.map(job => job.sourceJobId)).size !== jobs.length) return false;
+  const byId = new Map(jobs.map(job => [job.sourceJobId, job]));
+  const cleaned = (value: string) => value.replace(/\s+/gu, " ").trim();
+  return rows.every(raw => {
+    if (typeof raw.Id !== "string" || typeof raw.JobAdName !== "string" ||
+        !Array.isArray(raw.LocNames) || raw.LocNames.length === 0 ||
+        !raw.LocNames.every(value => typeof value === "string" && value.trim())) return false;
+    if (!hasExactFosunMainlandGeography(raw)) return false;
+    const parts = (raw.LocNames as string[]).map(value => value.trim());
+    const cities = [...new Set(parts.flatMap(value => value.split(/[/,，;；、]/u).map(segment => segment.trim())
+      .filter(Boolean).map(segment => segment.split("·").map(part => part.trim()).filter(Boolean).at(-1)!)))].map(cleaned);
+    const job = byId.get(persistentId(raw.Id));
+    const url = new URL("/social/detail", plan.source.officialEntryUrl);
+    url.searchParams.set("jobAdId", raw.Id);
+    return job !== undefined && job.companyId === plan.company.id && job.sourceId === plan.source.id &&
+      job.sourceKind === "SOCIAL" && job.atsKind === "BEISEN_ZHIYE" &&
+      job.officialTitle === cleaned(raw.JobAdName) && job.officialUrl === url.toString() &&
+      job.locationRaw === cleaned(parts.join(" / ")) && exactArray(job.cities, cities);
+  });
 }
 
 function exactJapanScope(raw: unknown): boolean {

@@ -9,7 +9,16 @@ import {assertCurrentReleaseRosterHash,loadCurrentReleaseIdentity} from "../../s
 import {confirmedCompanyRosterV3} from "../../src/data/confirmedCompanyRosterV3";
 import {createBuildIdentity} from "../../src/readiness/buildIdentity";
 const dirs:string[]=[];afterEach(()=>dirs.splice(0).forEach(x=>rmSync(x,{recursive:true,force:true})));
-function tree(){const root=mkdtempSync(join(tmpdir(),"build-id-"));dirs.push(root);for(const dir of ["src","scripts","prisma","ops","dist","node_modules"])mkdirSync(join(root,dir));for(const file of ["package.json","package-lock.json","tsconfig.json","Dockerfile",".dockerignore","index.html","vite.config.ts","testExecutionContract.ts"])writeFileSync(join(root,file),"{}\n");writeFileSync(join(root,"src","main.ts"),"export {};\n");writeFileSync(join(root,"dist","app.js"),"built\n");writeFileSync(join(root,"node_modules","dependency.js"),"dependency\n");return root;}
+function tree(){
+  const root=mkdtempSync(join(tmpdir(),"build-id-"));dirs.push(root);
+  for(const dir of ["src","scripts","prisma","ops","public/fonts","dist/fonts","node_modules"])mkdirSync(join(root,dir),{recursive:true});
+  for(const file of ["package.json","package-lock.json","tsconfig.json","Dockerfile",".dockerignore","index.html","vite.config.ts","testExecutionContract.ts"])writeFileSync(join(root,file),"{}\n");
+  writeFileSync(join(root,"src","main.ts"),"export {};\n");
+  writeFileSync(join(root,"dist","app.js"),"built\n");
+  writeFileSync(join(root,"node_modules","dependency.js"),"dependency\n");
+  for(const directory of ["public","dist"])writeFileSync(join(root,directory,"fonts","fixture.woff2"),Buffer.from([0x77,0x4f,0x46,0x32,0,1,2,3]));
+  return root;
+}
 function child(root:string){const url=pathToFileURL(resolve("src/readiness/buildIdentity.ts")).href,loader=pathToFileURL(resolve("node_modules/tsx/dist/loader.mjs")).href;return spawnSync(process.execPath,["--import",loader,"--eval",`import('${url}').then(m=>console.log(JSON.stringify(m.resolveCurrentBuildIdentity()))).catch(e=>{console.error(e.message);process.exit(9)})`],{cwd:root,encoding:"utf8"});}
 describe("current release identity",()=>{
   it("uses the user-authorized 30-hour publication freshness window",()=>{
@@ -24,6 +33,14 @@ describe("current release identity",()=>{
   it("exposes a zero-argument production loader",()=>{expect(loadCurrentReleaseIdentity.length).toBe(0);});
   it("rejects dirty and accepts clean real Git trees",()=>{const root=tree();execFileSync("git",["init"],{cwd:root});execFileSync("git",["config","user.email","test@example.com"],{cwd:root});execFileSync("git",["config","user.name","test"],{cwd:root});execFileSync("git",["add","."],{cwd:root});execFileSync("git",["commit","-m","base"],{cwd:root});expect(child(root).status).toBe(0);writeFileSync(join(root,"src","main.ts"),"dirty\n");expect(child(root).stderr).toMatch(/dirty/i);});
   it("accepts a valid baked runtime without the source-only lock and rejects runtime tampering",()=>{const root=tree(),commit="1".repeat(40),artifact=JSON.stringify(createBuildIdentity(root,commit));writeFileSync(join(root,"build-identity.json"),artifact);rmSync(join(root,"package-lock.json"));expect(child(root).status).toBe(0);writeFileSync(join(root,"dist","app.js"),"tamper\n");expect(child(root).stderr).toMatch(/binding|digest/i);writeFileSync(join(root,"dist","app.js"),"built\n");writeFileSync(join(root,"node_modules","dependency.js"),"tamper\n");expect(child(root).stderr).toMatch(/binding|digest/i);writeFileSync(join(root,"node_modules","dependency.js"),"dependency\n");rmSync(join(root,"ops"),{recursive:true});expect(child(root).stderr).toMatch(/missing/i);rmSync(join(root,"build-identity.json"));expect(child(root).stderr).toMatch(/absent|invalid/i);});
+  it("verifies served font bytes without requiring the source-only public directory in the runtime",()=>{
+    const root=tree(),identity=createBuildIdentity(root,"1".repeat(40));
+    writeFileSync(join(root,"build-identity.json"),JSON.stringify(identity));
+    rmSync(join(root,"public"),{recursive:true});
+    expect(child(root).status).toBe(0);
+    writeFileSync(join(root,"dist","fonts","fixture.woff2"),Buffer.from([0x77,0x4f,0x46,0x32,0,1,2,4]));
+    expect(child(root).stderr).toMatch(/binding|digest/i);
+  });
   it("keeps Docker runtime copied roots equal to attested runtime roots",()=>{const docker=readFileSync("Dockerfile","utf8");for(const root of ["dist","src","scripts","prisma","ops","node_modules"])expect(docker).toMatch(new RegExp(`COPY[^\\n]+/${root}[^\\n]+\\./${root}`));});
   it("keeps attested Vite build inputs available for baked runtime identity verification",()=>{const docker=readFileSync("Dockerfile","utf8");for(const file of ["index.html","vite.config.ts"])expect(docker).toContain(`COPY --chown=node:node --from=identity /app/${file} /app/${file}`);});
   it("rejects an out-of-root symlink",()=>{const root=tree(),outside=join(root,"..",`outside-${Date.now()}.txt`);writeFileSync(outside,"outside");try{symlinkSync(outside,join(root,"src","escape.ts"));expect(()=>createBuildIdentity(root,"1".repeat(40))).toThrow(/escapes/i);}finally{rmSync(outside,{force:true});}});

@@ -1,6 +1,11 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { createSourceFetchRouter } from "../../src/crawler/sourceFetchRouter";
 import { createOfficialJsonSourceFetch } from "../../src/crawler/officialJsonSourceFetch";
+import {
+  currentOfficialSourceAttemptSignal,
+  runWithOfficialSourceAttemptTimeout,
+  runWithOfficialSourceCancellation
+} from "../../src/crawler/officialHttpRuntimeLimits";
 import {
   createSourceFetchAttemptTracker,
   type SourceFetchFunction,
@@ -60,6 +65,8 @@ const beisenPlan: SourceCrawlPlan = {
 };
 
 describe("source fetch router", () => {
+  afterEach(() => { vi.useRealTimers(); });
+
   it("retries a profile-authorized official-json network exception with a closed diagnostic", async () => {
     let calls = 0;
     const attemptTracker = createSourceFetchAttemptTracker();
@@ -155,6 +162,149 @@ describe("source fetch router", () => {
     await expect(router(plan, attemptTracker)).resolves.toMatchObject({ ok: false });
     expect(calls).toEqual(["call"]);
     expect(attemptTracker).toMatchObject({ fetchAttemptCount: 1, retryCount: 0 });
+  });
+
+  it.each([0, 9_999, 10_000])("keeps the configured delay for Retry-After %i within its backoff", async (retryAfterMs) => {
+    const plan = {
+      ...planWithAtsKind("WORKDAY"),
+      transientRetryPolicy: { maxRetries: 1, backoffMs: 10_000 }
+    } as SourceCrawlPlan;
+    const delegate = vi.fn<SourceFetchFunction>()
+      .mockResolvedValueOnce({
+        ok: false, capturedAt, failureReason: "rate limited",
+        transportFailure: { code: "OFFICIAL_HTTP_429", retryable: true, retryAfterMs }
+      })
+      .mockResolvedValue({ ok: true, capturedAt, payload: { jobs: [] } });
+    const delay = vi.fn(async (_milliseconds: number) => undefined);
+    const attemptTracker = createSourceFetchAttemptTracker();
+    const router = createSourceFetchRouter({ moka: delegate, workday: delegate, fallback: delegate, delay });
+
+    await expect(runWithOfficialSourceAttemptTimeout(() => Promise.resolve(router(plan, attemptTracker)), 20_000))
+      .resolves.toMatchObject({ ok: true });
+    expect(delay).toHaveBeenCalledExactlyOnceWith(10_000);
+    expect(delegate).toHaveBeenCalledTimes(2);
+    expect(attemptTracker).toEqual({ fetchAttemptCount: 2, retryCount: 1, retryReasonCodes: ["OFFICIAL_HTTP_429"] });
+  });
+
+  it.each([10_001, -1, 0.5, NaN, Infinity, "1000", null])(
+    "refuses a Retry-After outside the policy or with malformed metadata: %s", async (retryAfterMs) => {
+      const plan = {
+        ...planWithAtsKind("WORKDAY"),
+        transientRetryPolicy: { maxRetries: 1, backoffMs: 10_000 }
+      } as SourceCrawlPlan;
+      const failure = {
+        ok: false, capturedAt, failureReason: "rate limited",
+        transportFailure: { code: "OFFICIAL_HTTP_429", retryable: true, retryAfterMs }
+      } as unknown as SourceFetchResult;
+      const delegate = vi.fn<SourceFetchFunction>().mockResolvedValue(failure);
+      const delay = vi.fn(async (_milliseconds: number) => undefined);
+      const attemptTracker = createSourceFetchAttemptTracker();
+      const router = createSourceFetchRouter({ moka: delegate, workday: delegate, fallback: delegate, delay });
+
+      await expect(runWithOfficialSourceAttemptTimeout(() => Promise.resolve(router(plan, attemptTracker)), 20_000))
+        .resolves.toBe(failure);
+      expect(delay).not.toHaveBeenCalled();
+      expect(delegate).toHaveBeenCalledOnce();
+      expect(attemptTracker).toEqual({ fetchAttemptCount: 1, retryCount: 0, retryReasonCodes: [] });
+    }
+  );
+
+  it.each([9_999, 10_000])("does not wait when only %i ms of source budget remain", async (remainingMs) => {
+    vi.useFakeTimers();
+    const startedAt = Date.now();
+    const plan = {
+      ...planWithAtsKind("WORKDAY"),
+      transientRetryPolicy: { maxRetries: 1, backoffMs: 10_000 }
+    } as SourceCrawlPlan;
+    const delegate = vi.fn<SourceFetchFunction>(async () => {
+      vi.setSystemTime(startedAt + 20_000 - remainingMs);
+      return { ok: false, capturedAt, failureReason: "unavailable", transportFailure: { code: "OFFICIAL_HTTP_503", retryable: true } };
+    });
+    const delay = vi.fn(async (_milliseconds: number) => undefined);
+    const attemptTracker = createSourceFetchAttemptTracker();
+    const controller = new AbortController();
+    const router = createSourceFetchRouter({ moka: delegate, workday: delegate, fallback: delegate, delay });
+
+    await expect(runWithOfficialSourceAttemptTimeout(
+      () => runWithOfficialSourceCancellation(controller.signal, () => Promise.resolve(router(plan, attemptTracker))), 20_000
+    )).resolves.toMatchObject({ ok: false });
+    expect(delay).not.toHaveBeenCalled();
+    expect(delegate).toHaveBeenCalledOnce();
+    expect(attemptTracker).toEqual({ fetchAttemptCount: 1, retryCount: 0, retryReasonCodes: [] });
+  });
+
+  it("checks the source deadline again after waiting even before the abort timer fires", async () => {
+    vi.useFakeTimers();
+    const startedAt = Date.now();
+    const plan = {
+      ...planWithAtsKind("WORKDAY"),
+      transientRetryPolicy: { maxRetries: 1, backoffMs: 10_000 }
+    } as SourceCrawlPlan;
+    const delegate = vi.fn<SourceFetchFunction>().mockResolvedValue({
+      ok: false, capturedAt, failureReason: "unavailable", transportFailure: { code: "OFFICIAL_HTTP_503", retryable: true }
+    });
+    const delay = vi.fn(async () => {
+      vi.setSystemTime(startedAt + 20_000);
+      expect(currentOfficialSourceAttemptSignal()?.aborted).toBe(false);
+    });
+    const attemptTracker = createSourceFetchAttemptTracker();
+    const router = createSourceFetchRouter({ moka: delegate, workday: delegate, fallback: delegate, delay });
+
+    await expect(runWithOfficialSourceAttemptTimeout(() => Promise.resolve(router(plan, attemptTracker)), 20_000))
+      .resolves.toMatchObject({ ok: false });
+    expect(delay).toHaveBeenCalledExactlyOnceWith(10_000);
+    expect(delegate).toHaveBeenCalledOnce();
+    expect(attemptTracker).toEqual({ fetchAttemptCount: 1, retryCount: 0, retryReasonCodes: [] });
+  });
+
+  it("does not start a new traversal after ownership is cancelled during backoff", async () => {
+    const controller = new AbortController();
+    const plan = {
+      ...planWithAtsKind("WORKDAY"),
+      transientRetryPolicy: { maxRetries: 1, backoffMs: 10_000 }
+    } as SourceCrawlPlan;
+    const delegate = vi.fn<SourceFetchFunction>().mockResolvedValue({
+      ok: false, capturedAt, failureReason: "unavailable", transportFailure: { code: "OFFICIAL_HTTP_503", retryable: true }
+    });
+    const delay = vi.fn(async () => { controller.abort(new Error("ownership lost")); });
+    const attemptTracker = createSourceFetchAttemptTracker();
+    const router = createSourceFetchRouter({ moka: delegate, workday: delegate, fallback: delegate, delay });
+
+    await expect(runWithOfficialSourceAttemptTimeout(
+      () => runWithOfficialSourceCancellation(controller.signal, () => Promise.resolve(router(plan, attemptTracker))), 20_000
+    )).resolves.toMatchObject({ ok: false });
+    expect(delay).toHaveBeenCalledExactlyOnceWith(10_000);
+    expect(delegate).toHaveBeenCalledOnce();
+    expect(attemptTracker).toEqual({ fetchAttemptCount: 1, retryCount: 0, retryReasonCodes: [] });
+  });
+
+  it("keeps the whole source timeout active while waiting and never traverses after it expires", async () => {
+    vi.useFakeTimers();
+    const plan = {
+      ...planWithAtsKind("WORKDAY"),
+      transientRetryPolicy: { maxRetries: 1, backoffMs: 10_000 }
+    } as SourceCrawlPlan;
+    const delegate = vi.fn<SourceFetchFunction>().mockResolvedValue({
+      ok: false, capturedAt, failureReason: "unavailable", transportFailure: { code: "OFFICIAL_HTTP_503", retryable: true }
+    });
+    let finishDelay!: () => void;
+    const delay = vi.fn(() => new Promise<void>((resolve) => { finishDelay = resolve; }));
+    const attemptTracker = createSourceFetchAttemptTracker();
+    const router = createSourceFetchRouter({ moka: delegate, workday: delegate, fallback: delegate, delay });
+    let traversal!: Promise<SourceFetchResult>;
+    const source = runWithOfficialSourceAttemptTimeout(() => {
+      traversal = Promise.resolve(router(plan, attemptTracker));
+      return traversal;
+    }, 20_000);
+    const rejected = expect(source).rejects.toMatchObject({ code: "OFFICIAL_SOURCE_ATTEMPT_TIMEOUT" });
+
+    await vi.advanceTimersByTimeAsync(20_000);
+    await rejected;
+    expect(delay).toHaveBeenCalledExactlyOnceWith(10_000);
+    finishDelay();
+    await expect(traversal).resolves.toMatchObject({ ok: false });
+    expect(delegate).toHaveBeenCalledOnce();
+    expect(attemptTracker).toEqual({ fetchAttemptCount: 1, retryCount: 0, retryReasonCodes: [] });
   });
 
   it("does not retry a whitelisted code when the structured retry flag is not exactly true", async () => {
