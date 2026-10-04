@@ -83,7 +83,8 @@ export async function readPortablePublicSnapshot(
   options: Partial<PortableSnapshotOptions> = {},
   plans: readonly SourceCrawlPlan[] = buildStagedSourceCrawlPlans(selectLaunchCompanies(P0_LAUNCH_MANIFEST, candidateCompanies)),
   cache?: PortableSnapshotCache,
-  onRefreshRequired?: () => void
+  onRefreshRequired?: () => void,
+  yieldAfterSource?: () => Promise<void>
 ): Promise<PortablePublicSnapshot> {
   if (typeof db.$transaction !== "function") throw new Error("REPEATABLE_READ_PORTABLE_SNAPSHOT_REQUIRED");
   // The old 60-company registry is a catalog; the current runtime manifest owns the public roster.
@@ -171,9 +172,24 @@ export async function readPortablePublicSnapshot(
   const {results, members, jobs, version} = data;
   // Receipt hashing, rendered evidence replay and lifecycle/job projection are pure CPU
   // work over the same owned snapshot. Release the database connection before doing them.
-  const selections = selectPortableSourceSnapshots(requiredPlans, results, readOptions);
-  const sources: PortableProjectedSource[] = selections.map(source => projectPortableSourceJobs(source,
-    members.filter(member => member.sourceResultId === source.selectedSourceResultId), jobs, readOptions));
+  let selections: ReturnType<typeof selectPortableSourceSnapshots>;
+  if (yieldAfterSource) {
+    selections = [];
+    // Plan ownership/options were validated together before I/O. Each source
+    // consumes the same owned transaction rows and fixed time, in its original
+    // history order. Never expose partial work or update the cache at a yield.
+    for (const plan of requiredPlans) {
+      selections.push(...selectPortableSourceSnapshots([plan], results, readOptions));
+      await yieldAfterSource();
+    }
+    selections.sort((left, right) => Buffer.compare(Buffer.from(left.sourceId), Buffer.from(right.sourceId)));
+  } else selections = selectPortableSourceSnapshots(requiredPlans, results, readOptions);
+  const sources: PortableProjectedSource[] = [];
+  for (const source of selections) {
+    sources.push(projectPortableSourceJobs(source,
+      members.filter(member => member.sourceResultId === source.selectedSourceResultId), jobs, readOptions));
+    if (yieldAfterSource) await yieldAfterSource();
+  }
   for (const excluded of emptySelections.filter(source => excludedSourceIds.has(source.sourceId))) {
     const {selected: _selected, ...status} = excluded;
     sources.push({...status, state: "EXCLUDED", health: "NOT_APPLICABLE", reasons: ["USER_AUTHORIZED_EXCLUSION"], visibleJobCount: null, staleJobCount: 0, jobs: []});

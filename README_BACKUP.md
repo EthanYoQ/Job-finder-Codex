@@ -1,8 +1,8 @@
 # Job Finder source backup
 
-Source revision: `a2bbb88dd4817da17493a62f9f530d2fb7dece9a`
+Source revision: `a789e0db617fcd204eca2101f4a6c5669a6c25da`
 
-State at 2026-10-04 03:20 UTC: **LIVE**. This is a source-only backup. It does not deploy, change the live database, qualify a release, or retain the original runtime commit identity. The backup commit is a new, different commit.
+State at 2026-10-04 03:20 UTC: **TESTED_NOT_DEPLOYED**. This is a source-only backup. It does not deploy, change the live database, qualify a release, or retain the original runtime commit identity. The backup commit is a new, different commit.
 
 ## Contents
 

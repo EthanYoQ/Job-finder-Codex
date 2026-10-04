@@ -1,8 +1,8 @@
 {
   "format": "source-backup-v1",
   "cutoffUTC": "2026-10-04T03:20:00Z",
-  "sourceCommit": "a2bbb88dd4817da17493a62f9f530d2fb7dece9a",
-  "stateAtCutoff": "LIVE",
+  "sourceCommit": "a789e0db617fcd204eca2101f4a6c5669a6c25da",
+  "stateAtCutoff": "TESTED_NOT_DEPLOYED",
   "destination": "EthanYoQ/Job-finder-Codex",
   "runtimeIdentityReusable": false,
   "sourceBytesUnchanged": true,
@@ -126,7 +126,7 @@
       "gitBlob": "38b3c20f390851f8a2175cf6ae54ebe2a14ecc82"
     }
   ],
-  "sourceFileCount": 946,
+  "sourceFileCount": 947,
   "files": [
     {
       "path": ".dockerignore",
@@ -5092,9 +5092,9 @@
       "sourcePath": "src/db/portablePublicSnapshotRepository.ts",
       "mode": "100644",
       "type": "blob",
-      "sha": "777f7a451dc9726cdaadfc39800850ed967e97fd",
-      "sha256": "441c6ef64416b5ce4ab1a576596f02827fe0ee959c5495cff666efe06cbc9380",
-      "bytes": 16928
+      "sha": "dfee40d14cb4bb79b62536d425dfd19192c86bda",
+      "sha256": "cecf8f5dcecdd3a50608cfd0a86ae6ba1944496741695f77e67ea663eb009fe3",
+      "bytes": 17691
     },
     {
       "path": "src/db/portableRuntimeDatabase.ts",
@@ -5641,9 +5641,9 @@
       "sourcePath": "src/server/httpServer.ts",
       "mode": "100644",
       "type": "blob",
-      "sha": "f10662a3594c6eedb7fa53633ef10bdd6cacc391",
-      "sha256": "e224f26158809d1b182a4da2ebba15f4dc77d1f89feedd6c98ab1f719ebec8dc",
-      "bytes": 15976
+      "sha": "f3fba9de6cfd8c4433b23127d6b8f0865f103019",
+      "sha256": "aed02015833054a88f3b13c5d6ab9a10585509e513a5277b9b5d0c505498d9ef",
+      "bytes": 16118
     },
     {
       "path": "src/server/jobSearchService.ts",
@@ -7536,6 +7536,15 @@
       "bytes": 11386
     },
     {
+      "path": "tests/db/portableSnapshotCooperation.test.ts",
+      "sourcePath": "tests/db/portableSnapshotCooperation.test.ts",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "4694a615483f19c2391194c8e54da22ac843ff88",
+      "sha256": "aa56cdd97236272044d93c49c88806808a476f73e0d9874cba1f42a8b4a04e4b",
+      "bytes": 3396
+    },
+    {
       "path": "tests/db/prismaMappers.test.ts",
       "sourcePath": "tests/db/prismaMappers.test.ts",
       "mode": "100644",
@@ -8503,9 +8512,9 @@
       "sourcePath": "tests/server/portableSnapshotRefresh.test.ts",
       "mode": "100644",
       "type": "blob",
-      "sha": "f72aac83807dba94a462704443e7a478877af527",
-      "sha256": "972ba1ef862fb548bc542bb47d2652ad8dd402a2b6fee18bb4fc31e91035cdb0",
-      "bytes": 9230
+      "sha": "2e989c872e8788e34d0c08906dec02593df28ca8",
+      "sha256": "14292d98fbcef69baebec37891e00015d68d519c150c7e27f5090845fd376a22",
+      "bytes": 9846
     },
     {
       "path": "tests/server/postgresReadiness.test.ts",

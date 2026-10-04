@@ -1,3 +1,4 @@
+import { setImmediate as nextTurn } from "node:timers/promises";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createPortableSnapshotReader, type PortableSnapshotReader } from "../../src/server/httpServer";
 import { readPortablePublicSnapshot, type PortableSnapshotDb, type PortableSnapshotTransactionDb } from "../../src/db/portablePublicSnapshotRepository";
@@ -10,6 +11,16 @@ function deferred() {
   const promise = new Promise<void>(done => {resolve = done;});
   return {promise, resolve};
 }
+async function finishRefresh(read: PortableSnapshotReader) {
+  // A fill now yields to real I/O between source units. Fake timer advancement
+  // alone must not stand in for completing those event-loop turns.
+  for (let turn = 0; turn < 300 && read.getRefreshStatus().state === "UPDATING"; turn++) {
+    await nextTurn();
+    await vi.advanceTimersByTimeAsync(1);
+  }
+  expect(read.getRefreshStatus().state).toBe("CURRENT");
+}
+
 function fixture() {
   const evidence = accepted();
   const versions = PORTABLE_SNAPSHOT_VERSION_TABLES.map(relation => ({relation, epoch: "0", count: "1", digest: "a".repeat(64)}));
@@ -63,7 +74,7 @@ describe("verified display background refresh", () => {
     expect(second).toEqual(old);
     expect(f.tx.job.findMany).toHaveBeenCalledTimes(2);
     gate.resolve();
-    await vi.advanceTimersByTimeAsync(0);
+    await finishRefresh(f.read);
     const current = await f.read();
     expect(current.sources.find(source => source.sourceId === plan.source.id)).toMatchObject({lastAcceptedAt: SECOND, jobs: [{id: "job-2"}]});
     expect(current.generatedAt).toBe(new Date(NOW.getTime() + 1_000).toISOString());
@@ -81,6 +92,7 @@ describe("verified display background refresh", () => {
     });
     await f.read();
     await vi.advanceTimersByTimeAsync(1);
+    await finishRefresh(f.read);
     expect(f.title(await f.read())).toBe("latest committed value");
     expect(f.tx.job.findMany).toHaveBeenCalledTimes(3);
     expect(console.info).toHaveBeenCalledWith("PORTABLE_SNAPSHOT_REFRESH_COMPLETED", expect.any(Object));
@@ -91,6 +103,7 @@ describe("verified display background refresh", () => {
     f.tx.job.findMany.mockResolvedValue([]);
     expect(await f.read()).toEqual(old);
     await vi.advanceTimersByTimeAsync(0);
+    await finishRefresh(f.read);
     const next = await f.read();
     expect(next.sources.find(source => source.sourceId === plan.source.id)).toMatchObject({state: "HOLD", reasons: ["PROJECTION_INTEGRITY_HOLD"]});
     expect(next.totalJobs).toBe(0);
@@ -115,6 +128,7 @@ describe("verified display background refresh", () => {
     expect(console.error).toHaveBeenCalledWith("PORTABLE_SNAPSHOT_REFRESH_FAILED", expect.objectContaining({failures: 7, lastVerifiedAt: old.generatedAt}));
     f.tx.job.findMany.mockResolvedValue([{...job(), humanCorrectedTitle: "retry recovered"}]);
     await vi.advanceTimersByTimeAsync(30_000);
+    await finishRefresh(f.read);
     expect(f.title(await f.read())).toBe("retry recovered");
     expect(f.read.getRefreshStatus()).toMatchObject({state: "CURRENT", failures: 0, nextRetryAt: null});
   });
@@ -133,6 +147,7 @@ describe("verified display background refresh", () => {
     vi.setSystemTime(new Date(boundary));
     expect(await f.read()).toEqual(old);
     await vi.advanceTimersByTimeAsync(0);
+    await finishRefresh(f.read);
     const next = await f.read();
     expect(next.sources.find(source => source.sourceId === plan.source.id)).toMatchObject({state: "PUBLISHING", freshness: "STALE", staleJobCount: 1});
     expect(next.generatedAt).toBe(new Date(boundary).toISOString());

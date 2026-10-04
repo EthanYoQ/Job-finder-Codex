@@ -1,6 +1,7 @@
 import { PrismaClient } from "@prisma/client";
 import { createServer as createNodeServer, type IncomingMessage, type Server, type ServerResponse } from "node:http";
 import { readFile } from "node:fs/promises";
+import { setImmediate as yieldSnapshotWork } from "node:timers/promises";
 import { extname, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import { handleAdminApi, type AdminApiDeps, type AdminApiResponse } from "./adminApi";
@@ -69,14 +70,14 @@ export function createPortableSnapshotReader(db: PortableSnapshotDb): PortableSn
       console.info("PORTABLE_SNAPSHOT_REFRESH_STARTED", {...status});
       let retry = false, refreshAgain = false;
       let phase = "BUILD";
-      background = readPortablePublicSnapshot(db, {}, undefined, cache).then(async snapshot => {
+      background = readPortablePublicSnapshot(db, {}, undefined, cache, undefined, yieldSnapshotWork).then(async snapshot => {
         status = {state: "UPDATING", failures: 0, nextRetryAt: null, lastVerifiedAt: snapshot.generatedAt};
         // A commit during a fill cannot be mixed into it. Check once more after
         // publication so that a newer version also gets rebuilt without waiting
         // for another browser request. Oversized projections remain uncached.
         if (!closed && cache.hasSnapshot()) {
           phase = "POST_BUILD_VERSION_CHECK";
-          await readPortablePublicSnapshot(db, {}, undefined, cache, () => {refreshAgain = true;});
+          await readPortablePublicSnapshot(db, {}, undefined, cache, () => {refreshAgain = true;}, yieldSnapshotWork);
         }
         status = {...status, state: refreshAgain ? "UPDATING" : "CURRENT"};
         console.info("PORTABLE_SNAPSHOT_REFRESH_COMPLETED", {...status, durationMs: Date.now() - startedAt});
@@ -103,7 +104,7 @@ export function createPortableSnapshotReader(db: PortableSnapshotDb): PortableSn
       if (previous) return previous;
     }
     if (!inFlight) {
-      inFlight = readPortablePublicSnapshot(db, {}, undefined, cache, scheduleRefresh)
+      inFlight = readPortablePublicSnapshot(db, {}, undefined, cache, scheduleRefresh, yieldSnapshotWork)
         .then(snapshot => {status = {...status, lastVerifiedAt: cache.getVerifiedAt() ?? snapshot.generatedAt}; return snapshot;})
         .finally(() => { inFlight = undefined; });
     }
