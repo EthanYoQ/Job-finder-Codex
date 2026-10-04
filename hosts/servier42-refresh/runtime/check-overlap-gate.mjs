@@ -1,0 +1,38 @@
+import {readFile,writeFile} from 'node:fs/promises';
+import {dirname,join} from 'node:path';
+import {fileURLToPath} from 'node:url';
+const host=dirname(dirname(fileURLToPath(import.meta.url))),cfg=JSON.parse(await readFile(join(host,'host-config.json'))),expected=JSON.parse(await readFile(join(host,'runtime/expected-database.json')));
+const text=await readFile(join(host,'runtime/fresh-readback.js'),'utf8'),code=text.split('// BEGIN STRICT_HISTORICAL_OVERLAP_GATE\n')[1].split('// END STRICT_HISTORICAL_OVERLAP_GATE')[0];
+const classify=new Function(code+';return classifySameSourceOverlap;')(),checks=[];
+const rows=raw=>JSON.parse(JSON.parse(raw.content.find(c=>c.type==='text').text).result.match(/\n<untrusted-data-[^>]+>\n([\s\S]*?)\n<\/untrusted-data-/)[1]);
+const diagnosis=rows(JSON.parse(await readFile(join(host,'PRECAPTURE_GATE_DIAGNOSIS_20261004T2045Z.json'))))[0],history=rows(JSON.parse(await readFile(join(host,'HISTORICAL_RUNNING_RECONCILIATION_20261004T2046Z.json'))));
+const legacyProof=JSON.parse(await readFile(join(host,'LEGACY_CANDIDATE_DATABASE_GUARDS_20261004T2048Z.json')))[0];
+const running=diagnosis.sameSourceRunning.map(r=>{const old=history.find(h=>h.historicalRun.id===r.batchId).historicalRun,candidate=legacyProof.candidate.id===r.candidateId?legacyProof.candidate:null;return {...r,sourceId:cfg.sourceId,batchCandidateId:old.candidateId,candidateStatus:old.candidateStatus,candidateVersion:old.candidateVersion,sourceConfigHash:old.sourceConfigHash,batchStartedAt:old.startedAt,sourceStartedAt:old.sourceStartedAt,sourceFinishedAt:old.sourceFinishedAt,candidateMigrationVersion:candidate?.migrationVersion??null,candidateSchemaHash:candidate?.schemaHash??null};});
+const input={...diagnosis,sameSourceRunning:running},run=r=>classify({...input,sameSourceRunning:[r]},cfg,expected.candidate.id),pass=(name,condition)=>{if(!condition)throw Error('CHECK_FAILED:'+name);checks.push({name,passed:true});};
+const original=classify(input,cfg,expected.candidate.id);
+pass('actual saved 4-row readback: 3 INVALIDATED and exact reviewed legacy tuple ignored with diagnostics',original.ignoredHistoricalRows.length===4&&original.blockingRows.length===0);
+const old=running[0];pass('old different candidate/config, INVALIDATED, expired, superseded can be ignored',run(old).ignoredHistoricalRows.length===1);
+const blocked=(name,changes,reason)=>{const result=run({...old,...changes});pass(name,result.blockingRows.length===1&&result.ignoredHistoricalRows.length===0&&result.blockingRows[0].reasons.includes(reason));};
+blocked('other old BUILDING different config is still blocked',{candidateStatus:'BUILDING'},'CANDIDATE_NOT_INVALIDATED_OR_EXACT_REVIEWED_LEGACY');
+blocked('current candidate always blocked',{candidateId:expected.candidate.id,batchCandidateId:expected.candidate.id},'CURRENT_CANDIDATE');
+blocked('current source config always blocked',{sourceConfigHash:cfg.sourceConfigSha256},'OTHER_SOURCE_CONFIG_UNPROVEN');
+blocked('missing source start blocked',{sourceStartedAt:null},'START_TIME_UNKNOWN');
+blocked('invalid batch start blocked',{batchStartedAt:'not-a-time'},'START_TIME_UNKNOWN');
+blocked('start equal to newest successful start is not superseded',{sourceStartedAt:diagnosis.latestSuccessfulSource.startedAt},'NOT_SUPERSEDED_BY_LATER_EXACT_SUCCESS');
+const now=Date.parse(diagnosis.checkedAt.replace(' ','T').replace(/\+00$/, '+00:00'));
+blocked('exactly 60 minutes old stays blocked',{sourceStartedAt:new Date(now-3600000).toISOString()},'WITHIN_MAXIMUM_60_MINUTE_EVIDENCE_CLOCK');
+blocked('fresh current-start remnant stays blocked',{sourceStartedAt:new Date(now-1000).toISOString(),batchStartedAt:new Date(now-1000).toISOString()},'WITHIN_MAXIMUM_60_MINUTE_EVIDENCE_CLOCK');
+blocked('candidate tuple mismatch blocked',{batchCandidateId:'different'},'HISTORICAL_TUPLE_UNPROVEN');
+let held=false;try{classify({...input,holderId:'nonempty'},cfg,expected.candidate.id);}catch(e){held=String(e).includes('FRESH_HOLDER');}pass('nonempty formal holder never permits history exception',held);
+pass('original ignored row identity/config/times are retained in diagnostics',original.ignoredHistoricalRows.every(r=>running.some(o=>Object.keys(o).every(k=>o[k]===r[k]))));
+const legacy=running.find(r=>r.candidateId===legacyProof.candidate.id);
+pass('reviewed legacy BUILDING is explicitly not classified as INVALIDATED',run(legacy).ignoredHistoricalRows[0].classification==='IGNORED_EXACT_LEGACY_TUPLE_NO_CURRENT_FORMAL_WRITE_AUTHORITY');
+for(const [field,value] of Object.entries({batchId:'different',sourceResultId:'different',candidateId:'different',batchCandidateId:'different',candidateStatus:'READY_FOR_QA',candidateVersion:2,sourceConfigHash:'f'.repeat(64),batchStartedAt:'2026-10-01T14:52:58.370Z',sourceStartedAt:'2026-10-01T14:52:58.370Z',candidateMigrationVersion:'different',candidateSchemaHash:'f'.repeat(64),atomicCommitState:'COMMITTED'})){
+ const result=run({...legacy,[field]:value});pass('exact legacy tuple change blocks: '+field,result.blockingRows.length===1&&result.ignoredHistoricalRows.length===0);
+}
+pass('legacy exception requires exact verified DB guard',classify({...input,sourceResultGuardMd5:'other',sameSourceRunning:[legacy]},cfg,expected.candidate.id).blockingRows.length===1);
+const A=Object.getPrototypeOf(async function(){}).constructor;new A(text);new A(await readFile(join(host,'runtime/start-monitor-servier42.js'),'utf8'));
+pass('updated functions.exec fragments parse',true);
+const report={checkedAt:new Date().toISOString(),purpose:'LOCAL_ONLY_STRICT_HISTORICAL_OVERLAP_GATE_CHECK',passed:true,sourceNetworkAccessed:false,databaseAccessed:false,producerLaunched:false,invalidatedOrExactReviewedLegacyRequired:true,checks,savedReadbackClassification:original};
+await writeFile(join(host,'OVERLAP_GATE_CHECK_RESULTS.json'),JSON.stringify(report,null,2)+'\n');
+console.log(JSON.stringify({passed:true,checks:checks.length,ignored:original.ignoredHistoricalRows.length,blocking:original.blockingRows.length,report:join(host,'OVERLAP_GATE_CHECK_RESULTS.json')}));

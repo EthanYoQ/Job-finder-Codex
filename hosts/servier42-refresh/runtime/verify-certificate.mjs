@@ -1,0 +1,14 @@
+import {readFile} from 'node:fs/promises';
+import {join,dirname,resolve} from 'node:path';
+import {fileURLToPath,pathToFileURL} from 'node:url';
+const host=dirname(dirname(fileURLToPath(import.meta.url))),cfg=JSON.parse(await readFile(join(host,'host-config.json'))),[rowPath]=process.argv.slice(2);
+if(!rowPath||!resolve(rowPath).startsWith(host+'/'))throw Error('REVIEW_ROW_SCOPE');
+globalThis.fetch=async()=>{throw Error('REVIEW_NETWORK_FORBIDDEN');};
+const row=JSON.parse(await readFile(rowPath)),imp=p=>import(pathToFileURL(join(cfg.repo,p)).href);
+const {verifyBGradeTraversalCertificateReceipt}=await imp('src/crawler/traversalCertificate.ts');
+const {deriveDbStartedPublicationExpiry}=await imp('src/db/ingestionRepository.ts');
+const certificate=row.completenessCertificate;
+const result=verifyBGradeTraversalCertificateReceipt({certificate,certificateSha256:row.completenessCertificateSha256,expected:{releaseCandidateId:row.releaseCandidateId,batchId:row.batchId,sourceResultId:row.id,sourceId:cfg.sourceId,sourceConfigSha256:cfg.sourceConfigSha256,companyId:'company-servier-china',surfaceIds:row.officialSurfaceIds,channelIds:row.officialChannelIds,canonicalJobSetSha256:row.canonicalCurrentJobSetSha256,adapterReconciliationSha256:row.adapterReconciliationSha256,collisionLedgerSha256:row.collisionLedgerSha256,canonicalRawEvidenceIdSetSha256:certificate.mainTraversal.canonicalRawMatchKeySetSha256},now:new Date()});
+const expiry=deriveDbStartedPublicationExpiry({startedAt:new Date(row.startedAt),completenessCertificate:certificate});
+if(Date.now()>=expiry)throw Error('REVIEW_EVIDENCE_EXPIRED');
+console.log(JSON.stringify({...result,publicationExpiresAt:new Date(expiry).toISOString()}));

@@ -1,0 +1,22 @@
+// functions.exec fragment. Parent-only launch using two new local capture descriptors.
+const A=Object.getPrototypeOf(async function(){}).constructor,h=await new A(load('servier42:cloudPilotHostHelpers'))();
+if(h.cfg.sourceId!=='source-servier-china-social')throw Error('SOURCE_SCOPE');
+const currentCapture=load('servier42:currentCaptureInput'),independentValidation=load('servier42:currentIndependentValidationInput'),batch=load('servier42:nextBatchId');
+if(!/^[A-Za-z0-9][A-Za-z0-9._-]{0,80}$/.test(batch??''))throw Error('BATCH_ID');
+for(const [name,value] of Object.entries({currentCapture,independentValidation}))if(!value||Object.keys(value).sort().join(',')!=='path,sha256'||typeof value.path!=='string'||!value.path.startsWith(h.cfg.root+'/')||!/^[a-f0-9]{64}$/.test(value.sha256??''))throw Error('CURRENT_B_INPUT_REQUIRED:'+name);
+const {raw,row,due,overlap}=await new A(load('servier42:freshReadbackCode'))();
+const inputs=JSON.parse(await h.cmd('node --import '+h.q(h.cfg.repo+'/node_modules/tsx/dist/loader.mjs')+' '+h.q(h.cfg.root+'/runtime/validate-capture-inputs.mjs')+' '+[currentCapture.path,currentCapture.sha256,independentValidation.path,independentValidation.sha256,due.nextEligibleAt].map(h.q).join(' '),3000));
+const run=h.cfg.root+'/'+batch;
+await h.save(run+'/candidate-readback.json',raw);await h.save(run+'/source-due-readback.json',due);await h.save(run+'/capture-input-check.json',inputs);
+await h.save(run+'/source-overlap-readback.json',overlap);
+await h.save(run+'/bootstrap.json',{schemaVersion:1,checkedAt:new Date(row.checkedAt).toISOString(),candidateRows:row.candidateRows,batchId:batch,currentCapture,independentValidation});
+const boot=await h.readFile(run+'/bootstrap.json');
+const preflight='node '+h.q(h.cfg.root+'/runtime/preflight/preflight-launch.mjs')+' check '+[h.cfg.root+'/host-config.json',h.cfg.root+'/control-base.json',run+'/bootstrap.json',boot.hash,run].map(h.q).join(' ');
+notify({phase:'B_STARTUP_PREFLIGHT',checked:await h.cmd(preflight,2000)});
+await h.cmd('node '+h.q(h.cfg.root+'/runtime/publisher-state-guard.mjs')+' idle',2000);
+const age=Date.now()-Date.parse(row.checkedAt);if(age<0||age>60000)throw Error('FRESH_BOOTSTRAP_EXPIRED_BEFORE_LAUNCH');
+const command='env TSX_DISABLE_CACHE=1 NODE_DISABLE_COMPILE_CACHE=1 PYTHONDONTWRITEBYTECODE=1 JOBFINDER_CLOUD_SOURCE_ID='+h.q(h.cfg.sourceId)+' P0_SOURCE_HTTP_TIMEOUT_MS=45000 node scripts/run-with-http-diagnostics.mjs '+h.q(run+'/diagnostics')+' 1800000 -- node --max-old-space-size=256 --import ./node_modules/tsx/dist/loader.mjs scripts/p0-cloud-source-pilot.ts '+[run+'/bootstrap.json',boot.hash,run+'/artifacts',run+'/relay'].map(h.q).join(' ')+' --db-started-control '+h.q(h.cfg.root+'/control-base.json');
+await h.save(run+'/reviewed-command.txt',command);
+store('servier42:refreshCurrentRun',run);store('servier42:refreshCurrentBatch',batch);store('servier42:cloudPilotPublishRequest',null);store('servier42:cloudPilotPendingRequest',null);
+const started=await tools.exec_command({cmd:command,workdir:h.cfg.repo,yield_time_ms:1000,max_output_tokens:1500});store('servier42:refreshSession',started.session_id);notify({phase:'FRESH_B_SOURCE_LAUNCH',batch,session:started.session_id,output:started.output});if(!started.session_id)throw Error('NO_RUNNING_LAUNCH_SESSION');
+await new A(load('servier42:continuousPortableRelayCodeWithPoll'))();
