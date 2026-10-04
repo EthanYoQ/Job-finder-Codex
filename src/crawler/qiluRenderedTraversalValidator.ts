@@ -119,7 +119,7 @@ async function launchProductionBrowser(): Promise<Pick<import("playwright-core")
     ...(process.platform === "linux"
       ? { executablePath: FORMAL_CHROMIUM_PATH, args: [...FORMAL_CHROMIUM_ARGS] }
       : { channel: "chrome" as const }),
-    headless: true,
+    headless: true, chromiumSandbox: true,
     timeout: 30_000
   });
 }

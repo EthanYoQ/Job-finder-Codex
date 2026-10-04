@@ -1,6 +1,6 @@
 import type { CompanyRecruitmentProfileSeed } from "../types";
 import { OFFICIAL_API_JSON_CONFIG } from "../shared";
-import { RECENT_JOB_WINDOW_DAYS } from "../../../domain/jobRecencyPolicy";
+import { SOURCE_NATIVE_HALF_YEAR_WINDOW_DAYS } from "../../../domain/jobRecencyPolicy";
 
 export const profile_hansoh = {
   companyId: "company-hansoh",
@@ -12,9 +12,11 @@ export const profile_hansoh = {
           json: OFFICIAL_API_JSON_CONFIG,
           officialJsonFetch: {
               kind: "beisen-zhiye-2022",
-              changedWithinDays: RECENT_JOB_WINDOW_DAYS,
+              postDateWithinDays: SOURCE_NATIVE_HALF_YEAR_WINDOW_DAYS,
               geographyScope: "DOMESTIC_OFFICIAL_TENANT",
               category: "1",
+              displayFields: ["Category", "Kind", "LocId", "Salary", "Degree", "YearsOfWorking",
+                "ClassificationOne", "WorkWeChatQrCode", "PostDate"],
               pageSize: 100,
               maxPages: 10,
               detailPath: "social/detail"

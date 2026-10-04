@@ -188,6 +188,17 @@ function successQueue(audit = migratedAudit()): CommandResult[] {
 }
 
 describe("empty database migration verification orchestration", () => {
+  it.each([
+    "20260927110000_crawl_coordinator_table_lock",
+    "20260927120000_p0_launch_cohort_41_companies"
+  ])("rejects replay of %s before even probing a database", async (historicalMigration) => {
+    const calls: CommandInvocation[] = [];
+    await expect(runEmptyDatabaseMigrationVerification(resolveEmptyDatabaseVerificationConfig(safeEnv()), {
+      ...deps([], calls), expectedMigrationNames: [...MIGRATIONS, historicalMigration]
+    })).rejects.toThrow(/existing-database-only/i);
+    expect(calls).toEqual([]);
+  });
+
   it("audits an empty PG16 target, deploys exact local migrations twice, and proves the second deploy is a no-op", async () => {
     const calls: CommandInvocation[] = [];
     const queue = [

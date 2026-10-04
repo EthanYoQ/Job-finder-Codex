@@ -19,6 +19,8 @@ export interface CoverageRequest {
 export interface CoverageCompany {
   id: string;
   companyName: string;
+  /** Bounded source description; does not change publication state or counts. */
+  sourceScopeNote?: string;
   officialWebsiteUrl: string | null;
   officialCareersUrl: string | null;
   category: "FOREIGN_PHARMA" | "DOMESTIC_PHARMA";

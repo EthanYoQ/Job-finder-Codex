@@ -1,3 +1,4 @@
+import {hasSanofiNativePolicy,createSanofiNativeSourceFetch} from "./sanofiNativeQuality";
 import { load } from "cheerio";
 import { parseExpression } from "@babel/parser";
 import { getCACertificates, setDefaultCACertificates } from "node:tls";
@@ -54,6 +55,7 @@ export function createHttpHtmlSourceFetch(
   deps: HttpHtmlSourceFetchDeps = {}
 ): SourceFetchFunction {
   return async (plan) => {
+    if (hasSanofiNativePolicy(plan)) return createSanofiNativeSourceFetch(deps)(plan);
     const capturedAt = (deps.now ?? (() => new Date()))().toISOString();
     const interactions: Array<{ request: HttpHtmlRequest; response: HttpHtmlResponse }> = [];
 
@@ -74,7 +76,9 @@ export function createHttpHtmlSourceFetch(
         return response;
       };
       const response = await http({
-        url: plan.source.officialEntryUrl,
+        url: plan.table.pagination?.requestFirstPageExplicitly === true
+          ? buildPageUrl(plan.source.officialEntryUrl, plan.table.pagination, 1)
+          : plan.source.officialEntryUrl,
         headers: htmlRequestHeaders(plan.table)
       });
 

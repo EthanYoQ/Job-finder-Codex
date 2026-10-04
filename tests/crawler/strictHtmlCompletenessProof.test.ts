@@ -42,7 +42,7 @@ describe("independent strict HTML completeness proof", () => {
     const fetch = createHttpHtmlSourceFetch({
       now: () => new Date(capturedAt),
       http: async request => response(request, `<div class="page"><a href="/social?r=&p=1%5E2&c=&d=&k=&PageIndex=1">1</a></div>
-        <table class="jobsTable"><tr><td><a href="/socialxq?jobId=one">医学经理</a></td><td></td><td></td><td></td><td>上海</td></tr></table>`)
+        <table class="jobsTable"><tr><td><a href="/socialxq?jobId=one">医学经理</a></td><td></td><td></td><td></td><td title="上海">上海</td></tr></table>`)
     });
     const fetched = await fetch(plan);
     if (!fetched.ok || !fetched.fetchEvidence) throw new Error(fetched.ok ? "missing evidence" : fetched.failureReason);
@@ -67,7 +67,7 @@ describe("independent strict HTML completeness proof", () => {
         const pagination = `<div class="page">${linkedPages
           .map(value => `<a href="/social?r=&p=1%5E2&c=&d=&k=&PageIndex=${value}">${value}</a>`).join("")}
           <a class="now" href="javascript:void(0);">${page}</a></div>`;
-        return response(request, `${pagination}<table class="jobsTable"><tr><td><a href="/socialxq?jobId=${page}">职位 ${page}</a></td><td></td><td></td><td></td><td>上海</td></tr></table>`);
+        return response(request, `${pagination}<table class="jobsTable"><tr><td><a href="/socialxq?jobId=${page}">职位 ${page}</a></td><td></td><td></td><td></td><td title="上海">上海</td></tr></table>`);
       }
     });
     const fetched = await fetch(plan);
@@ -229,7 +229,7 @@ describe("independent strict HTML completeness proof", () => {
   it("accepts Novartis' current Huhehaote transliteration with a mainland province anchor", async () => {
     const plan = getPlanBySourceId(buildStagedSourceCrawlPlans(candidateCompanies), "source-novartis-social");
     if (plan?.adapterId !== "html-table") throw new Error("missing canonical Novartis plan");
-    const body = `<nav class="pagination">
+    const body = `<div class="view-header">Showing 1 results</div><nav class="pagination">
         <a class="page-link active" title="Page 1 active out of 1 pages">1</a>
         <a class="page-link btn disabled" rel="next" title="Go to next page"></a>
       </nav><table class="views-table"><tbody><tr>
@@ -401,29 +401,31 @@ describe("independent strict HTML completeness proof", () => {
 
   it.each([
     ["source-otsuka-china-social", `<script>document.cookie="auth_token=value"</script>
-      <section class="container Box"><h2>热招岗位</h2><p>目前无岗位，联系我们</p></section>`, "REDACTED"],
+      <section class="container Box"><h2>热招岗位</h2><p>公司始终将人力资源开发置于战略核心地位。</p><p>联系我们：zhaopin@chinaotsuka.com.cn</p></section>`, "REDACTED"],
     ["source-sandoz-china-social", `<main><section class="elementor elementor-1709">
       <h2>招聘</h2><p>请警惕虚假职位信息</p></section></main>`, "EXACT"]
-  ] as const)("replays %s as a source-bound explicit empty static list", async (sourceId, body, representation) => {
+  ] as const)("does not certify %s warning or HR prose as an official zero", async (sourceId, body, representation) => {
     const plan = getPlanBySourceId(buildStagedSourceCrawlPlans(candidateCompanies), sourceId);
     if (plan?.adapterId !== "html-table") throw new Error(`missing ${sourceId} plan`);
     const fetched = await createHttpHtmlSourceFetch({
       now: () => new Date(capturedAt),
       http: async request => response(request, body)
     })(plan);
-    if (!fetched.ok || !fetched.fetchEvidence) throw new Error(fetched.ok ? "missing evidence" : fetched.failureReason);
+    expect(fetched).toMatchObject({ ok: false, failureReason: "HTML_STATIC_PUBLIC_LIST_INVALID" });
+    if (!fetched.fetchEvidence) throw new Error("missing diagnostic evidence");
     expect(fetched.fetchEvidence).toMatchObject({
-      declaredCompleteness: { kind: "OFFICIAL_TOTAL_COUNT", value: 0, scope: "SOURCE" },
+      fetchCounts: { rawCount: 0, validCount: 0 },
       artifacts: [{ bodyRepresentation: representation }],
-      pages: [{ rawJobIds: [], validJobIds: [], termination: "EMPTY_PAGE" }]
+      pages: [{ rawJobIds: [], validJobIds: [], termination: "FAILED" }]
     });
-    expect(validateStrictHtmlCompletenessProof(plan, fetched.fetchEvidence)).toBe(true);
+    expect(fetched.fetchEvidence.declaredCompleteness).toBeUndefined();
+    expect(validateStrictHtmlCompletenessProof(plan, fetched.fetchEvidence)).toBe(false);
     const crawled = await runSourceCrawl(plan, { fetch: async () => fetched });
     expect(crawled).toMatchObject({
-      status: "SUCCESS",
       jobs: [],
-      truth: { transportSuccess: true, adapterSuccess: true, completenessVerified: true }
+      truth: { completenessVerified: false }
     });
+    expect(crawled.observation.completenessStatus).not.toBe("VERIFIED");
   });
 
   it("binds Tupu page offsets to the archived POST request contract", async () => {

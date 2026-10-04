@@ -1,4 +1,9 @@
+import { isServierTraversalPlan } from "./servierMokaScope";
+import { JNJ_DOM_CAPTURE_TOOL } from "./jnjCareersDomContract";
+import { isBayerMedicalTraversalPlan } from "./bayerMokaScope";
+import { isPfizerWorkdayTraversalPlan } from "./pfizerWorkdayTraversal";
 import { createHash } from "node:crypto";
+import { hasHengruiScopeExclusionPolicy, replayHengruiScopeExclusionProof } from "./strictMokaScopeExclusionProof";
 import { z } from "zod";
 import { assertAdapterReconciliation } from "./adapters/reconciliation";
 import type { AdapterReconciliation } from "./adapters/types";
@@ -45,6 +50,7 @@ export const REQUIRED_A_GRADE_COMPLETENESS_CERTIFICATES = Object.freeze({
   "source-organon-china-social": "company-organon-china",
   "source-pfizer-china-social": "company-pfizer-china",
   "source-roche-china-social": "company-roche-china",
+  "source-sanofi-china-social": "company-sanofi-china",
   "source-servier-china-social": "company-servier-china",
   "source-shanghai-pharma-social": "company-shanghai-pharma",
   "source-ucb-china-social": "company-ucb-china",
@@ -87,7 +93,7 @@ const legalDedupeEntrySchema = z.object({
 const legalScopeExclusionEntrySchema = z.object({
   rawLocatorSha256: SHA256,
   recordIndex: z.number().int().nonnegative(),
-  code: z.literal("VERIFIED_DETAIL_OUT_OF_MAINLAND_SCOPE")
+  code: z.enum(["VERIFIED_DETAIL_OUT_OF_MAINLAND_SCOPE", "VERIFIED_MOKA_OUT_OF_MAINLAND_SCOPE"])
 }).strict();
 const certificateSchema = z.object({
   schemaVersion: z.literal(A_GRADE_COMPLETENESS_CERTIFICATE_SCHEMA_VERSION),
@@ -192,7 +198,7 @@ export interface AGradeCertificateReceipt {
 }
 
 export function requiresAGradeOfficialTotalCertificate(plan: SourceCrawlPlan): boolean {
-  return requiresAGradeCertificateSourceId(plan.source.id);
+  return !isServierTraversalPlan(plan) && !isPfizerWorkdayTraversalPlan(plan) && !isBayerMedicalTraversalPlan(plan) && requiresAGradeCertificateSourceId(plan.source.id);
 }
 
 export function requiresAGradeCertificateSourceId(sourceId: string): boolean {
@@ -242,8 +248,13 @@ export function issueAGradeOfficialTotalCertificate(
     blockers.add("OFFICIAL_ARTIFACT_INVALID");
   }
 
+  if ((hasHengruiScopeExclusionPolicy(plan) || evidence.captureTool.name === JNJ_DOM_CAPTURE_TOOL.name) && officialArtifact &&
+      input.officialArtifactSha256 !== createHash("sha256").update(officialArtifact.body).digest("hex")) {
+    blockers.add("OFFICIAL_ARTIFACT_INVALID");
+  }
+
   let independentlyEvaluated: PaginationEvaluation | undefined;
-  if (plan.source.id === "source-gsk-china-social") {
+  if (plan.source.id === "source-gsk-china-social" && (plan.adapterId !== "official-json" || !plan.moka)) {
     try {
       independentlyEvaluated = evaluatePaginationEvidence({
         evidence,
@@ -277,7 +288,9 @@ export function issueAGradeOfficialTotalCertificate(
 
   const rawOfficialIds = canonicalStrings(evidence.pages.flatMap((page) => page.rawJobIds));
   const legalDedupeCount = ledger.collisionGroups.reduce((sum, group) => sum + group.droppedCount, 0);
-  const legalScopeExclusionLedger = exactGrifolsScopeExclusionLedger(plan, evidence);
+  const legalScopeExclusionLedger = hasHengruiScopeExclusionPolicy(plan)
+    ? replayHengruiScopeExclusionProof(plan, evidence, input.jobs)?.exclusions
+    : exactGrifolsScopeExclusionLedger(plan, evidence);
   const legalValidationDiscardCount = legalScopeExclusionLedger?.length ?? 0;
   if (evidence.fetchCounts.parseDiscardCount !== 0 || ledger.adapterLosses.length !== 0 ||
       evidence.fetchCounts.validationDiscardCount !== legalValidationDiscardCount ||
@@ -431,7 +444,8 @@ function hasExactSupportedMainlandScope(plan: SourceCrawlPlan): boolean {
     plan.source.companyId === plan.company.id &&
     plan.source.kind === "SOCIAL" &&
     (plan.source.id !== "source-gsk-china-social" || plan.adapterId === "official-json" &&
-      plan.officialJsonFetch?.kind === "phenom" && plan.officialJsonFetch.countryFilter === "China") &&
+      (plan.officialJsonFetch?.kind === "phenom" && plan.officialJsonFetch.countryFilter === "China" ||
+       plan.moka?.requisitionStatusPolicy === "GSK_NATIVE_OPEN_REQUISITIONS_V1")) &&
     supportsStrictOfficialTotalCertificate(plan) &&
     Boolean(plan.source.surfaceId?.trim()) &&
     Boolean(plan.expectedChannels?.length) &&

@@ -19,7 +19,8 @@ export async function inspectFormalBrowserRuntime(): Promise<{ engineVersion: st
   const real = realpathSync(FORMAL_CHROMIUM_PATH);
   if (real !== FORMAL_CHROMIUM_REALPATH) throw new Error("formal browser path does not resolve to the fixed production binary");
   await access(real, constants.X_OK);
-  const browser = await chromium.launch({ executablePath: FORMAL_CHROMIUM_PATH, headless: true,
+  // Playwright disables sandboxing by default, even for a non-root service user.
+  const browser = await chromium.launch({ executablePath: FORMAL_CHROMIUM_PATH, headless: true, chromiumSandbox: true,
     args: [...FORMAL_CHROMIUM_ARGS] });
   try {
     const version = browser.version();

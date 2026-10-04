@@ -128,6 +128,18 @@ export async function runWithOfficialSourceAttemptTimeout<T>(
   });
 }
 
+/** Adds an outer ownership cancellation without replacing the source deadline. */
+export async function runWithOfficialSourceCancellation<T>(
+  signal: AbortSignal, operation: () => Promise<T>
+): Promise<T> {
+  const current = sourceAttemptSignal.getStore();
+  const combined = combineAbortSignals(current ? [current, signal] : [signal]);
+  try {
+    combined.signal.throwIfAborted();
+    return await sourceAttemptSignal.run(combined.signal, operation);
+  } finally { combined.dispose(); }
+}
+
 export async function fetchWithOfficialTimeout(
   input: Parameters<typeof fetch>[0],
   init: RequestInit = {},

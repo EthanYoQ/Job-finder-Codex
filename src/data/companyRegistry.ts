@@ -253,8 +253,8 @@ const CANDIDATE_SEEDS: CandidateSeed[] = [
     status: "VERIFIED_SCRAPABLE",
     atsKind: "OFFICIAL_JSON",
     officialWebsiteUrl: "https://www.msdchina.com.cn/",
-    socialEntryUrl: "https://jobs.msd.com/cn/zh/search-results",
-    officialChainEvidenceUrl: "https://jobs.msd.com/cn/zh/search-results"
+    socialEntryUrl: "https://www.ajinga.com/msdchina/professionals",
+    officialChainEvidenceUrl: "https://www.ajinga.com/msdchina/professionals"
   },
   {
     id: "company-roche-china",
@@ -298,7 +298,7 @@ const CANDIDATE_SEEDS: CandidateSeed[] = [
     atsKind: "OFFICIAL_HTML",
     officialWebsiteUrl: "https://www.novartis.com.cn/",
     socialEntryUrl:
-      "https://www.novartis.com.cn/careers/career-search?search_api_fulltext=&country%5B0%5D=LOC_CN&op=Submit&field_job_posted_date=All",
+      "https://www.novartis.com.cn/careers/career-search?search_api_fulltext=&country%5B0%5D=LOC_CN&op=Submit&field_job_posted_date=All&sort=asc&order=%E8%81%8C%E4%BD%8D%E5%90%8D%E7%A7%B0",
     officialChainEvidenceUrl: "https://www.novartis.com.cn/careers"
   },
   {
@@ -351,9 +351,9 @@ const CANDIDATE_SEEDS: CandidateSeed[] = [
     pinyinName: "gelansu-shike",
     category: "FOREIGN_PHARMA",
     status: "VERIFIED_SCRAPABLE",
-    atsKind: "OFFICIAL_JSON",
+    atsKind: "MOKA",
     officialWebsiteUrl: "https://www.gsk-china.com/zh-cn/",
-    socialEntryUrl: "https://jobs.gsk.com/cn/zh/search-results?keywords=China",
+    socialEntryUrl: "https://app.mokahr.com/social-recruitment/gsk/148067#/",
     officialChainEvidenceUrl: "https://www.gsk-china.com/zh-cn/careers/"
   },
   {
@@ -362,9 +362,9 @@ const CANDIDATE_SEEDS: CandidateSeed[] = [
     pinyinName: "anjin",
     category: "FOREIGN_PHARMA",
     status: "VERIFIED_SCRAPABLE",
-    atsKind: "WORKDAY",
+    atsKind: "OFFICIAL_JSON",
     officialWebsiteUrl: "https://www.amgen.cn/",
-    socialEntryUrl: "https://amgen.wd1.myworkdayjobs.com/Careers",
+    socialEntryUrl: "https://careers.amgen.com/en/search-jobs/China/87/2/1814991/35/105/50/2",
     officialChainEvidenceUrl: "https://careers.amgen.com/en/location/china-jobs/87/1814991/2"
   },
   {
@@ -406,9 +406,9 @@ const CANDIDATE_SEEDS: CandidateSeed[] = [
     pinyinName: "baier",
     category: "FOREIGN_PHARMA",
     status: "VERIFIED_SCRAPABLE",
-    atsKind: "SUCCESSFACTORS",
+    atsKind: "MOKA",
     officialWebsiteUrl: "https://www.bayer.com.cn/",
-    socialEntryUrl: "https://jobs.bayer.com/search/?q=&locationsearch=China&locale=zh_CN",
+    socialEntryUrl: "https://app.mokahr.com/social-recruitment/bayer/148387?locale=zh-CN#/jobs",
     officialChainEvidenceUrl: "https://www.bayer.com.cn/zh-hans/zhaoxiannashi"
   },
   {
@@ -600,7 +600,7 @@ const CANDIDATE_SEEDS: CandidateSeed[] = [
     pinyinName: "qilu",
     category: "DOMESTIC_PHARMA",
     status: "VERIFIED_SCRAPABLE",
-    atsKind: "OFFICIAL_HTML",
+    atsKind: "OFFICIAL_JSON",
     officialWebsiteUrl: "https://www.qilu-pharma.com/",
     socialEntryUrl: "https://www.qilu-pharma.com/JobPosting_list.html",
     officialChainEvidenceUrl: "https://www.qilu-pharma.com/JobPosting_list.html"

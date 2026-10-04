@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { ALL_PROVINCES, CITY_PENDING } from "./jobLocation";
 
 export const JOB_CATEGORIES = [
   "销售",
@@ -41,6 +42,13 @@ export const SearchRequestSchema = z.object({
   companyIds: z.array(z.string().trim().min(1)).default([]),
   sort: SearchSortSchema.default("COMPANY_PINYIN_ASC"),
   newWithinDays: z.literal(7).optional()
+});
+
+/** Legacy fallback options. Portable clients use facets from the verified snapshot. */
+export const PORTABLE_SEARCH_CITIES = [...SEARCH_CITIES, CITY_PENDING] as const;
+export const PortableSearchRequestSchema = SearchRequestSchema.extend({
+  city: z.string().trim().min(1).max(80),
+  province: z.string().trim().min(1).max(80).default(ALL_PROVINCES)
 });
 
 export const COMPANY_EXPANSION_PAGE_SIZE = 10;

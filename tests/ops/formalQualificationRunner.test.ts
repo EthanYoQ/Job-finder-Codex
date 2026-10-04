@@ -112,7 +112,7 @@ case "$*" in
     printf '1\n'
     [ "\${FAKE_EXTERNAL_EXIT_AFTER_OUTPUT:-0}" = 0 ] || exit "$FAKE_EXTERNAL_EXIT_AFTER_OUTPUT"
     ;;
-  *scripts/ops-bootstrap.ts*) test -f "$EXTERNAL_DB_READY_MARKER" ;;
+  *scripts/ops-bootstrap-existing.ts*) test -f "$EXTERNAL_DB_READY_MARKER" ;;
   *listCurrentPrismaMigrations*) printf '{"schemaSha256":"%064d","migrationVersion":"20260813013000"}' 0 ;;
   *scripts/p0-staged-crawl.ts*) exit "\${FAKE_CRAWL_EXIT:-0}" ;;
   *scripts/p0-fixed-cohort-audit.ts*)
@@ -249,7 +249,7 @@ describe("formal Launch Cohort qualification runner", () => {
     expect(networkProbes).toHaveLength(60);
     expect(networkProbes.every((line) => line.includes("--dbname=postgresql://jobfinder:formal-qualification-password@postgres/jobfinder "))).toBe(true);
     expect(networkProbes.every((line) => !line.includes("--dbname=postgresql://jobfinder:formal-qualification-password@postgres/jobfinder?schema=public"))).toBe(true);
-    expect(events).not.toContain("scripts/ops-bootstrap.ts");
+    expect(events).not.toContain("scripts/ops-bootstrap-existing.ts");
     expect(JSON.parse(readFileSync(resolve(harness.runtime, "formal-runner-status", "round-one-runner-status.json"), "utf8"))).toMatchObject({
       status: "FAILED",
       stage: "POSTGRES_NETWORK_READY",
@@ -267,7 +267,7 @@ describe("formal Launch Cohort qualification runner", () => {
     const networkProbes = events.split("\n").filter((line) => line.includes("psql --no-psqlrc --dbname="));
     expect(networkProbes).toHaveLength(60);
     expect(networkProbes.every((line) => !line.includes("--dbname=postgresql://jobfinder:formal-qualification-password@postgres/jobfinder?schema=public"))).toBe(true);
-    expect(events).not.toContain("scripts/ops-bootstrap.ts");
+    expect(events).not.toContain("scripts/ops-bootstrap-existing.ts");
     expect(events).toContain("rm --force job-finder-formal-postgres-12345");
   });
 

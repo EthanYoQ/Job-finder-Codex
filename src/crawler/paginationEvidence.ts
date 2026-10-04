@@ -64,6 +64,7 @@ interface PaginationEvidenceInput {
   filteredOutput: boolean;
   allowMissingReturnedPage?: boolean;
   allowLaterZeroDeclaredTotalAfterExactReconciliation?: boolean;
+  allowAuditedTraversalScopeExclusions?: boolean;
   allowPositiveOfficialTotalCountAfterAdapterReconciliation?: boolean;
   allowIndependentlyVerifiedProfileBoundExclusions?: boolean;
   allowRawIdOverlapAcrossPages?: boolean;
@@ -109,7 +110,7 @@ function evaluatePaginationEvidenceInternal(
   const previousByScope = new Map<string, SourceFetchPageTrace>();
   const declaredByScope = new Map<string, { total: number | null; count: number | null; pages: number | null }>();
   const reconciledZeroDeclarations = input.allowLaterZeroDeclaredTotalAfterExactReconciliation
-    ? exactReconciledLaterZeroDeclarations(evidence)
+    ? exactReconciledLaterZeroDeclarations(evidence, input.allowAuditedTraversalScopeExclusions === true)
     : new Map<string, { total: number; count: number | null; pages: number | null }>();
   const visited = new Set<string>();
 
@@ -318,7 +319,8 @@ function evaluatePaginationEvidenceInternal(
 }
 
 function exactReconciledLaterZeroDeclarations(
-  evidence: PersistentSourceFetchEvidence
+  evidence: PersistentSourceFetchEvidence,
+  allowAuditedTraversalScopeExclusions = false
 ): Map<string, { total: number; count: number | null; pages: number | null }> {
   const pagesByScope = new Map<string, SourceFetchPageTrace[]>();
   for (const page of evidence.pages) {
@@ -350,7 +352,15 @@ function exactReconciledLaterZeroDeclarations(
     counts.parseDiscardCount === 0 && counts.validationDiscardCount === 0 && evidence.fetchLosses.length === 0 &&
     declared?.kind === "OFFICIAL_TOTAL_COUNT" && declared.scope === "SOURCE" &&
     declared.value === officialTotal && declared.artifactLogicalKey === first.artifactLogicalKey;
-  if (!losslessExactReconciliation) return new Map();
+  const auditedTraversalReconciliation = allowAuditedTraversalScopeExclusions &&
+    uniqueRawIds.size === officialTotal && uniqueValidIds.size === counts.validCount &&
+    counts.rawCount === officialTotal && counts.parsedCount === officialTotal && counts.parseDiscardCount === 0 &&
+    counts.validCount + counts.validationDiscardCount === officialTotal &&
+    evidence.fetchLosses.length === counts.validationDiscardCount &&
+    evidence.fetchLosses.every(loss => loss.stage === "VALIDATION" && loss.details.code === "PFIZER_VERIFIED_INDIA_SCOPE") &&
+    declared?.kind === "COMPLETE_PAGE_TRAVERSAL" && declared.scope === "SOURCE" && declared.value === pages.length &&
+    declared.artifactLogicalKey === "pfizer-terminal";
+  if (!losslessExactReconciliation && !auditedTraversalReconciliation) return new Map();
 
   return new Map([[scope, {
     total: officialTotal,

@@ -1,3 +1,4 @@
+import { ASTELLAS_PDF_CITY_CONFIG } from "../../astellasPdfCityContract";
 import type { CompanyRecruitmentProfileSeed } from "../types";
 import { CHROME_LIKE_HTML_REQUEST_HEADERS } from "../shared";
 
@@ -9,6 +10,7 @@ export const profile_astellas_china = {
       executionConfig: {
           adapterId: "html-table",
           table: {
+              astellasPdfLocations: ASTELLAS_PDF_CITY_CONFIG,
               rowSelector: "a[href$='.pdf'][href*='/global/zh/']",
               completenessProof: {
                   kind: "STATIC_PUBLIC_LIST",

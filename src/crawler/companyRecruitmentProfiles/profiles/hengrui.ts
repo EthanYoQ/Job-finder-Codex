@@ -14,7 +14,8 @@ export const profile_hengrui = {
               expectedSiteId: "145996",
               expectedMode: "social",
               campaignUrl: "https://app.mokahr.com/social-recruitment/hengrui/145996",
-              hydrateMissingLocationsFromDetail: true
+              hydrateMissingLocationsFromDetail: true,
+              scopeExclusionProof: "HENGRUI_EXPLICIT_US_WALTHAM_OR_HONG_KONG_ONLY_V1"
           }
       }
     },

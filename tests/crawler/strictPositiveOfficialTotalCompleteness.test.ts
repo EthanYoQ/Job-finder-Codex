@@ -86,13 +86,14 @@ function payloadFor(plan: SourceCrawlPlan, ids: readonly string[]): unknown {
   const rows = ids.map((id) => {
     const row: Record<string, unknown> = {};
     const values: Record<string, unknown> = {
-      sourceJobId: id,
+      sourceJobId: plan.moka ? `sha256:${createHash("sha256").update(JSON.stringify(id)).digest("hex")}` : id,
       officialTitle: `Official role ${id}`,
-      officialUrl: new URL(`/jobs/${id}`, plan.source.officialEntryUrl).toString(),
+      officialUrl: plan.moka ? `${plan.moka.campaignUrl}#/job/${encodeURIComponent(id)}`
+        : new URL(`/jobs/${id}`, plan.source.officialEntryUrl).toString(),
       locationRaw: "上海",
       cities: ["上海"],
       category: "其他",
-      officialPublishedAt: "2026-07-14"
+      officialPublishedAt: plan.source.id === "source-ucb-china-social" ? "2026-07-14T00:00:00.000Z" : "2026-07-14"
     };
     for (const [field, path] of Object.entries(plan.json.fields)) {
       if (path && field in values) setAdapterPath(row, path, values[field]);
@@ -515,6 +516,11 @@ function fixturePageCoordinates(plan: SourceCrawlPlan, sequence: number, missing
 }
 
 function fixtureExpectedToFailClosed(plan: SourceCrawlPlan): boolean {
+  // This count-only fixture has no matching Biogen raw identity/location projection.
+  // Source-local positive and contradictory cases are tested in biogenListGeographyGuard.
+  if (plan.source.id === "source-biogen-china-social") return true;
+  // This count-only fixture has no UCB raw postedDate/identity projection; exact positives are tested separately.
+  if (plan.source.id === "source-ucb-china-social") return true;
   if (plan.adapterId !== "official-json") return false;
   if (plan.workday) {
     const hasStaticLocationFacet = Object.keys(plan.workday.appliedFacets ?? {}).some(
@@ -576,7 +582,9 @@ function positiveCountEvidence(plan: SourceCrawlPlan, options: {
     ? fixtureWorkdayScope(plan, ids.length)
     : undefined;
   const pageArtifacts = bodies.map((body, index) => {
-    const baseLocator = "json:total";
+    const baseLocator = plan.adapterId === "official-json" && plan.moka
+      ? `moka-envelope-v1|raw:page-${index + 1}|request:offset=${index * 50},limit=50|init:moka-entry-0000|decrypt:aes-128-cbc-v1|json:$.data.jobStats.total`
+      : "json:total";
     const contract = fixturePageContract(plan, index, workdayScope);
     const locator = contract ? fixtureRequestLocator(baseLocator, contract) : baseLocator;
     return {
@@ -625,13 +633,13 @@ function positiveCountEvidence(plan: SourceCrawlPlan, options: {
       sequence: index,
       artifactLogicalKey: `page-${index + 1}`,
       ...fixturePageCoordinates(plan, index, options.missingReturnedPage === true),
-      rawJobIds: group,
-      validJobIds: group,
+      rawJobIds: group.map(id => plan.adapterId === "official-json" && plan.moka ? `sha256:${createHash("sha256").update(JSON.stringify(id)).digest("hex")}` : id),
+      validJobIds: group.map(id => plan.adapterId === "official-json" && plan.moka ? `sha256:${createHash("sha256").update(JSON.stringify(id)).digest("hex")}` : id),
       declaredTotal: options.laterZero && index > 0 ? 0 : ids.length,
       declaredCount: null,
       declaredPages: null,
-      nextPageSignalBefore: splitChannelScopes ? null : index === 0 ? null : String(index),
-      nextPageSignalAfter: splitChannelScopes ? null : index < groups.length - 1 ? String(index + 1) : null,
+      nextPageSignalBefore: splitChannelScopes ? null : index === 0 ? null : String(plan.adapterId === "official-json" && plan.moka ? index * 50 : index),
+      nextPageSignalAfter: splitChannelScopes ? null : index < groups.length - 1 ? String(plan.adapterId === "official-json" && plan.moka ? (index + 1) * 50 : index + 1) : null,
       responseFingerprintSha256: createHash("sha256").update(bodies[index]!).digest("hex"),
       termination: splitChannelScopes
         ? "NEXT_ABSENT" as const

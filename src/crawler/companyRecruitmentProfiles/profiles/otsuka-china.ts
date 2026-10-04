@@ -11,15 +11,14 @@ export const profile_otsuka_china = {
               rowSelector: ".container.Box [data-job-id], .container.Box .job-item",
               completenessProof: {
                   kind: "STATIC_PUBLIC_LIST",
+                  // Retired zero-only policy; historical manual zero is not
+                  // current completeness evidence for this pharmaceutical source.
                   sourcePolicy: "OTSUKA_CHINA_EMPTY_PUBLIC_LIST_V1"
               },
               staticPublicList: {
                   containerSelector: ".container.Box",
-                  nextControlSelector: ".container.Box .pagination, .container.Box a[rel='next'], .container.Box [data-page]",
-                  explicitEmptyState: {
-                      selector: ".container.Box",
-                      pattern: "热招岗位[\\s\\S]*联系我们"
-                  }
+                  // Generic HR prose and contact information do not prove zero jobs.
+                  nextControlSelector: ".container.Box .pagination, .container.Box a[rel='next'], .container.Box [data-page]"
               },
               fields: {
                   sourceJobId: { selector: ":scope", attribute: "data-job-id" },

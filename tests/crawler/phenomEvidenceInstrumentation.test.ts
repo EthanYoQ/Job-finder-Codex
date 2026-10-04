@@ -325,12 +325,21 @@ async function fetchExactPhenomLocation(sourceId: string, location: string) {
   const widgetEndpoint = new URL("/widgets", stagedPlan.source.officialEntryUrl).toString();
   const rawJob = {
     jobSeqNo: `GENERIC-${sourceId}-${location.replace(/[^A-Za-z0-9._-]+/gu, "-")}`,
+    ...(sourceId === "source-ucb-china-social" ? { postedDate: "2026-07-01T05:54:14.000+0000" } : {}),
     title: `Medical role ${location}`,
     location,
-    city: location,
+    city: sourceId === "source-ucb-china-social" ? location.split(",")[0]!.trim() : location,
     country,
     applyUrl: `${config.detailBaseUrl.replace(/\/$/u, "")}/generic-location`
   };
+  if (sourceId === "source-merck-china-social") Object.assign(rawJob, {
+    title: "Medical role", jobVisibility: ["external", "internal"], visibilityType: "External", siteType: "external", externalApply: false,
+    jobSeqNo: "MQAEGZUS304084EXTERNALENUS", reqId: "304084", jobId: "304084", applyUrl: "",
+    postedDate: "2026-09-29T12:05:11.334+0000", city: location.split(",")[0]!.trim(), state: "Shanghai",
+    cityState: "Shanghai, Shanghai", cityStateCountry: location, latitude: "31.22222", longitude: "121.45806",
+    multi_location: [location], isMultiLocation: false,
+    multi_location_array: [{location, latlong: {lat:31.22222,lon:121.45806}}]
+  });
   const bodies = exactPhenomBodies(stagedPlan, rawJob);
   const fetcher = createOfficialJsonSourceFetch({
     now: () => new Date(capturedAt),
@@ -346,7 +355,11 @@ async function fetchExactPhenomLocation(sourceId: string, location: string) {
         return response(body, widgetEndpoint, "application/json");
       }
       return response(sourceId === "source-roche-china-social" ? rocheEntryHtml() :
-        sourceId === "source-merck-china-social" ? merckEntryHtml() : exactPhenomEntryHtml(widgetEndpoint),
+        sourceId === "source-merck-china-social" ? merckEntryHtml() :
+        sourceId === "source-ucb-china-social" ? `<script>var phApp=${JSON.stringify({
+          widgetApiEndpoint: widgetEndpoint, country: "global", deviceType: "desktop", locale: "zh_global",
+          refNum: "UCB1GLOBAL", pageName: "search-results", pageId: "page17"
+        })};</script>` : exactPhenomEntryHtml(widgetEndpoint),
         stagedPlan.source.officialEntryUrl, "text/html");
     }
   });
@@ -1749,13 +1762,19 @@ describe("Phenom evidence instrumentation", () => {
 
   it.each(GENERIC_LOCATION_PHENOM_SOURCES.flatMap((sourceId) =>
     ["Wuxi", "Shenyang", "Qingdao"].map((city) => [sourceId, city] as const)
-  ))("keeps exact staged %s complete for explicit unknown China city %s", async (sourceId, city) => {
+  ))("preserves source-specific review requirements for %s unknown China city %s", async (sourceId, city) => {
     const stagedPlan = exactPhenomPlan(sourceId);
     const config = stagedPlan.officialJsonFetch;
     if (config?.kind !== "phenom") throw new Error("Expected exact Phenom config");
     const country = config.facetScope?.countryIncludeDescriptor ?? config.countryFilter ?? "China";
     const location = `${city}, ${country}`;
     const { fetched } = await fetchExactPhenomLocation(sourceId, location);
+    if (sourceId === "source-ucb-china-social" || sourceId === "source-merck-china-social") {
+      expect(fetched).toMatchObject({ok:false,fetchEvidence:{fetchLosses:[{details:{code:
+        sourceId === "source-ucb-china-social" ? "UCB_CITY_LOCATION_INVALID" : "MERCK_RAW_FIELDS_INVALID"}}]}});
+      expect((await runSourceCrawl(stagedPlan,{fetch:async()=>fetched})).truth.completenessVerified).toBe(false);
+      return;
+    }
     expect(fetched).toMatchObject({ ok: true, payload: { jobs: [{ locationRaw: location, cities: [city] }] } });
     const crawled = await runSourceCrawl(stagedPlan, { fetch: async () => fetched });
     expect(crawled).toMatchObject({
@@ -1773,7 +1792,8 @@ describe("Phenom evidence instrumentation", () => {
       const config = stagedPlan.officialJsonFetch;
       if (config?.kind !== "phenom") throw new Error("Expected exact Phenom config");
       const country = config.facetScope?.countryIncludeDescriptor ?? config.countryFilter ?? "China";
-      const { fetched } = await fetchExactPhenomLocation(sourceId, `Wuxi, ${country}`);
+      const { fetched } = await fetchExactPhenomLocation(sourceId, sourceId === "source-merck-china-social"
+        ? "Shanghai, Shanghai, China" : `${sourceId === "source-ucb-china-social" ? "Shanghai" : "Wuxi"}, ${country}`);
       if (!fetched.ok || !fetched.fetchEvidence) throw new Error("Expected successful Phenom evidence");
       const forged = {
         ...fetched,

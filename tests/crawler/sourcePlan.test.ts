@@ -731,15 +731,11 @@ describe("source crawl planning", () => {
     expect(plannedUrls).not.toContain("https://www.pharm.com.cn/career/join.html");
     expect(plannedUrls).not.toContain("https://www.xhzy.com/XYZP/index.html");
     expect(getPlanBySourceId(plans, "source-qilu-social")).toMatchObject({
-      adapterId: "html-table",
-      source: {
-        atsKind: "OFFICIAL_HTML",
+      adapterId: "official-json",
+      source: { atsKind: "OFFICIAL_JSON",
         officialEntryUrl: "https://www.qilu-pharma.com/JobPosting_list.html",
-        officialChainEvidenceUrl: "https://www.qilu-pharma.com/JobPosting_list.html"
-      },
-      table: {
-        completenessProof: { kind: "STATIC_PUBLIC_LIST" }
-      }
+        officialChainEvidenceUrl: "https://www.qilu-pharma.com/JobPosting_list.html" },
+      profileBoundSource: { kind: "qilu-dual-official", expectedChannelIds: ["qilu-marketing", "qilu-non-marketing"] }
     });
     expect(getPlanBySourceId(plans, "source-3sbio-social")).toMatchObject({
       adapterId: "official-json",
@@ -1016,7 +1012,7 @@ describe("source crawl planning", () => {
           officialSearchUrl: "https://jobsearch.grifols.com/search/?createNewAlert=false&q=&locationsearch=China",
           pageSize: 25,
           maxPages: 20,
-          detailScopePolicy: "GRIFOLS_SUCCESSFACTORS_DETAIL_MAINLAND_V1"
+          detailScopePolicy: "GRIFOLS_SUCCESSFACTORS_DETAIL_CANONICAL_MAINLAND_V2"
         }
       },
       transientRetryPolicy: { maxRetries: 1, backoffMs: 10_000 }

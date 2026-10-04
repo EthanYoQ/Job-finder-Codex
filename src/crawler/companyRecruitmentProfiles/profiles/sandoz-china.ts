@@ -11,15 +11,14 @@ export const profile_sandoz_china = {
               rowSelector: "main a[href*='/jobs/'], .elementor-location-single a[href*='/jobs/']",
               completenessProof: {
                   kind: "STATIC_PUBLIC_LIST",
+                  // Retired zero-only policy; strict replay rejects it until a
+                  // current China-scoped official list is independently qualified.
                   sourcePolicy: "ASPEN_CHINA_EMPTY_PUBLIC_LIST_V1"
               },
               staticPublicList: {
-              containerSelector: ".elementor.elementor-1709",
-                  nextControlSelector: "a[rel='next'], .pagination a.next",
-                  explicitEmptyState: {
-                  selector: ".elementor.elementor-1709",
-                  pattern: "招聘|职位|岗位|警惕"
-              }
+                  containerSelector: ".elementor.elementor-1709",
+                  // Candidate-fraud guidance is not an explicit no-vacancy statement.
+                  nextControlSelector: "a[rel='next'], .pagination a.next"
               },
               fields: {
                   sourceJobId: { selector: ":scope", attribute: "href" },

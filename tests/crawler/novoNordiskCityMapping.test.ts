@@ -19,7 +19,8 @@ function exactNovoPlan(): Extract<SourceCrawlPlan, { adapterId: "official-json" 
   if (plan?.adapterId !== "official-json" || plan.officialJsonFetch?.kind !== "novo-nordisk") {
     throw new Error("Expected exact staged Novo Nordisk plan");
   }
-  return plan;
+  // This suite protects the pre-existing V1 behavior independently of the current profile.
+  return { ...plan, officialJsonFetch: { ...plan.officialJsonFetch, cityScopePolicy: "NOVO_CHINA_MAINLAND_JOB_CITY_V1" } };
 }
 
 function responseFor(
@@ -54,7 +55,7 @@ describe("exact Novo Nordisk China city mapping", () => {
     ["103.en_GB", "Xi'an"],
     ["104.en_GB", "Qingdao"],
     ["105.en_GB", "Hefei"]
-  ])("keeps the verified China Mainland jobCity label for %s / %s", async (jobId, city) => {
+  ])("keeps legacy China Mainland jobCity extraction for %s / %s without current-profile qualification", async (jobId, city) => {
     const plan = exactNovoPlan();
     const fetched = await fetchNovo(plan, [{
       jobId,
@@ -73,8 +74,8 @@ describe("exact Novo Nordisk China city mapping", () => {
     const crawled = await runSourceCrawl(plan, { fetch: async () => fetched });
     expect(crawled).toMatchObject({
       status: "SUCCESS",
-      truth: { transportSuccess: true, adapterSuccess: true, completenessVerified: true },
-      observation: { completenessStatus: "VERIFIED", expectedJobCount: 1 },
+      truth: { transportSuccess: true, adapterSuccess: true, completenessVerified: false },
+      observation: { completenessStatus: "NEEDS_MANUAL_COMPLETENESS_REVIEW", expectedJobCount: 1 },
       jobs: [{ cities: [city] }]
     });
   });

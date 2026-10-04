@@ -1,3 +1,4 @@
+import type {MsdAjingaConfig} from "../msdAjingaSourceFetch";
 import type { ATSKind } from "../../domain/company";
 import type { RECENT_JOB_WINDOW_DAYS } from "../../domain/jobRecencyPolicy";
 import type { HtmlTableConfig, OfficialJsonConfig } from "../adapters/types";
@@ -12,7 +13,11 @@ import type { SinopharmIguopinFetchConfig } from "../sinopharmIguopinSourceFetch
 import type { WorkdayFetchConfig } from "../workdaySourceFetch";
 import type { XinhuaOfficialAnnouncementFetchConfig } from "../xinhuaOfficialAnnouncementSourceFetch";
 
+import type { QiluDualPartitionConfig } from "../qiluDualPartitionConfig";
+
 export interface MokaFetchConfig {
+  requisitionStatusPolicy?: "GSK_NATIVE_OPEN_REQUISITIONS_V1";
+  scopeExclusionProof?: "HENGRUI_EXPLICIT_US_WALTHAM_OR_HONG_KONG_ONLY_V1" | "BAYER_MEDICAL_OPEN_REQUISITIONS_V1" | "SERVIER_OPEN_PORTAL_UNKNOWN_GEOGRAPHY_V1";
   expectedOrgId: string;
   expectedSiteId: string;
   expectedMode: "social";
@@ -27,6 +32,10 @@ export interface MokaFetchConfig {
 }
 
 export type ProfileBoundSourceConfig =
+  | { kind: "amgen-manual-workday-lookup"; config: import("../amgenManualWorkdaySourceFetch").AmgenManualWorkdayConfig; expectedChannelIds?: readonly string[] }
+  | { kind: "amgen-native-china"; config: import("../amgenNativeSourceFetch").AmgenNativeConfig; expectedChannelIds?: readonly string[] }
+  | {kind:"msd-ajinga";config:MsdAjingaConfig;expectedChannelIds?:readonly string[];}
+  | { kind: "qilu-dual-official"; config: QiluDualPartitionConfig; expectedChannelIds: readonly ["qilu-marketing", "qilu-non-marketing"] }
   | {
       kind: "grifols-china-detail-scope";
       config: GrifolsChinaFetchConfig;

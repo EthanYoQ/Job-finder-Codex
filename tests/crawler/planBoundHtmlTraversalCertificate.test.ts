@@ -8,7 +8,7 @@ import { candidateCompanies } from "../../src/data/companyRegistry";
 import { buildStagedSourceCrawlPlans, getPlanBySourceId } from "../../src/crawler/sourcePlan";
 
 describe("plan-bound HTML certificate scope", () => {
-  it("requires certificates only for sources that still use the matching HTML method", () => {
+  it("retains required certificate gates during the Qilu composite migration", () => {
     expect(PLAN_BOUND_HTML_TRAVERSAL_SOURCE_IDS).toEqual([
       "source-novartis-social",
       "source-astellas-china-social",
@@ -22,7 +22,7 @@ describe("plan-bound HTML certificate scope", () => {
     ]);
     const plans = buildStagedSourceCrawlPlans(candidateCompanies);
     for (const sourceId of PLAN_BOUND_HTML_TRAVERSAL_SOURCE_IDS) {
-      expect(getPlanBySourceId(plans, sourceId)?.adapterId).toBe("html-table");
+      expect(getPlanBySourceId(plans, sourceId)?.adapterId).toBe(sourceId === "source-qilu-social" ? "official-json" : "html-table");
       expect(requiresBGradeCertificateSourceId(sourceId)).toBe(true);
     }
   });

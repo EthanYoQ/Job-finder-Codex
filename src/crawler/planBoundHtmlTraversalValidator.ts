@@ -11,7 +11,7 @@ import { officialBrowserTimeoutMs } from "./officialHttpRuntimeLimits";
 export const PLAN_BOUND_HTML_TRAVERSAL_POLICIES = Object.freeze({
   "source-novartis-social": {
     companyId: "company-novartis",
-    entryUrl: "https://www.novartis.com.cn/careers/career-search?search_api_fulltext=&country%5B0%5D=LOC_CN&op=Submit&field_job_posted_date=All",
+    entryUrl: "https://www.novartis.com.cn/careers/career-search?search_api_fulltext=&country%5B0%5D=LOC_CN&op=Submit&field_job_posted_date=All&sort=asc&order=%E8%81%8C%E4%BD%8D%E5%90%8D%E7%A7%B0",
     retrievalPath: "PLAYWRIGHT_RENDERED_HTML_NEXT_LINK_TRAVERSAL",
     validatorImplementationId: "plan-bound-html-playwright-traversal-v1",
     mainRetrievalPath: "HTTP_HTML_OFFICIAL_TOTAL_PAGES",
@@ -84,7 +84,7 @@ export const PLAN_BOUND_HTML_TRAVERSAL_POLICIES = Object.freeze({
     rowSelector: ".container.Box [data-job-id], .container.Box .job-item",
     nextSelector: ".container.Box .pagination, .container.Box a[rel='next'], .container.Box [data-page]",
     key: { kind: "ATTRIBUTE_SOURCE_JOB_ID", selector: ":scope", attribute: "data-job-id" },
-    allowEmptyList: true,
+    // The selected pharmaceutical page has HR prose, not an audited empty state.
     maxPages: 1
   },
   "source-sandoz-china-social": {
@@ -106,7 +106,7 @@ export const PLAN_BOUND_HTML_TRAVERSAL_POLICIES = Object.freeze({
       pathPrefix: "/jobs/",
       dedupe: "OFFICIAL_URL"
     },
-    allowEmptyList: true,
+    // An attached candidate-warning container cannot prove a China job count.
     maxPages: 1
   },
   "source-grand-pharma-social": {
@@ -285,7 +285,6 @@ export const PLAN_BOUND_HTML_TRAVERSAL_SOURCE_IDS = Object.freeze([
   "source-kelun-social",
   "source-otsuka-china-social",
   "source-sandoz-china-social",
-  "source-sanofi-china-social",
   "source-takeda-china-social"
 ] as const satisfies readonly PlanBoundHtmlTraversalSourceId[]);
 
@@ -1239,7 +1238,7 @@ async function launchProductionBrowser(
     ...(process.platform === "linux"
       ? { executablePath: FORMAL_CHROMIUM_PATH, args: [...FORMAL_CHROMIUM_ARGS] }
       : { channel: "chrome" as const }),
-    headless: true,
+    headless: true, chromiumSandbox: true,
     timeout: browserTimeoutMs
   });
 }

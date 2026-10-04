@@ -49,11 +49,8 @@ describe("human-verified recruitment scope profiles", () => {
       { channelQrId: "0beb3022-3214-4333-a2e7-20786c4916d5", purpose: "SOCIAL" }
     ]);
     expect(config("source-qilu-social")).toMatchObject({
-      adapterId: "html-table",
-      table: {
-        rowSelector: ".e_loop-65 .cbox-65.p_loopitem",
-        completenessProof: { kind: "STATIC_PUBLIC_LIST" }
-      }
+      adapterId: "official-json", profileBoundSource: { kind: "qilu-dual-official",
+        expectedChannelIds: ["qilu-marketing", "qilu-non-marketing"] }
     });
     expect(config("source-fosun-pharma-social")).toMatchObject({
       adapterId: "official-json",
@@ -65,7 +62,8 @@ describe("human-verified recruitment scope profiles", () => {
   });
 
   it("binds the three six-month public lists and the corrected Aspen identity", () => {
-    expect(config("source-hansoh-social").officialJsonFetch.changedWithinDays).toBe(183);
+    expect(config("source-hansoh-social").officialJsonFetch.postDateWithinDays).toBe(180);
+    expect(config("source-hansoh-social").officialJsonFetch.changedWithinDays).toBeUndefined();
     expect(config("source-united-lab-social").officialJsonFetch.changedWithinDays).toBe(183);
     expect(config("source-3sbio-social").officialJsonFetch).toMatchObject({
       postDateWithinDays: 180

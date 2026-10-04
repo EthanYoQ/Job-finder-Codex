@@ -27,6 +27,7 @@ const JNJ_LIST_LOCATOR =
   "jnj-careers-list-v1|country:selected:China|html:.PageList-items-item.card-job";
 const SAFE_JNJ_FAILURE_CODES = new Set([
   "JNJ_EVIDENCE_INVALID",
+  "JNJ_DOM_OBSERVATION_INVALID",
   "JNJ_HTTP_FAILURE",
   "JNJ_INVALID_CONFIG",
   "JNJ_INVALID_PAGE",
@@ -390,6 +391,18 @@ export function parseJnjCareersChinaPage(
   const total = Number(count[3]);
   if (![first, last, total].every(Number.isSafeInteger) || total < 0) return undefined;
 
+  const jobs = parseJnjCareersChinaCards(html);
+  if (!jobs) return undefined;
+  const expectedFirst = total === 0 ? 0 : ((page - 1) * pageSize) + 1;
+  const expectedCount = total === 0 ? 0 : Math.min(pageSize, total - expectedFirst + 1);
+  if (first !== expectedFirst || last !== (total === 0 ? 0 : first + expectedCount - 1) ||
+    jobs.length !== expectedCount) return undefined;
+  return { total, jobs };
+}
+
+/** Parse the same real cards from an HTTP document or a captured UI fragment. */
+export function parseJnjCareersChinaCards(html: string): JnjCareersChinaJobSummary[] | undefined {
+  const $ = load(html);
   const jobs: JnjCareersChinaJobSummary[] = [];
   const ids = new Set<string>();
   $(".PageList-items-item.card-job").each((_index, element) => {
@@ -407,11 +420,8 @@ export function parseJnjCareersChinaPage(
     jobs.push({ officialId: id, title, officialUrl: url!, functionRaw, locationRaw,
       cities: citiesFromJnjLocation(locationRaw) });
   });
-  const expectedFirst = total === 0 ? 0 : ((page - 1) * pageSize) + 1;
-  const expectedCount = total === 0 ? 0 : Math.min(pageSize, total - expectedFirst + 1);
-  if (first !== expectedFirst || last !== (total === 0 ? 0 : first + expectedCount - 1) ||
-    jobs.length !== expectedCount) return undefined;
-  return { total, jobs };
+  if (jobs.length !== $(".PageList-items-item.card-job").length) return undefined;
+  return jobs;
 }
 
 function jnjCareersPageUrl(config: JnjCareersChinaFetchConfig, page: number): string {
@@ -563,7 +573,7 @@ const JNJ_CITY_NAMES: ReadonlyArray<readonly [string, string]> = [
   ["Changsha", "长沙"], ["Kunming", "昆明"], ["Qingdao", "青岛"], ["Jinan", "济南"],
   ["Dalian", "大连"], ["Xiamen", "厦门"], ["Fuzhou", "福州"], ["Hefei", "合肥"],
   ["Ningbo", "宁波"], ["Jiaxing", "嘉兴"], ["Zhengzhou", "郑州"], ["Shenyang", "沈阳"],
-  ["Nanchang", "南昌"]
+  ["Nanchang", "南昌"], ["Guiyang", "贵阳"]
 ];
 
 function citiesFromJnjLocation(locationRaw: string): string[] {
@@ -640,7 +650,7 @@ async function defaultJnjCareersBrowserSession(): Promise<JnjCareersBrowserSessi
       ...(process.platform === "linux"
         ? { executablePath: FORMAL_CHROMIUM_PATH, args: [...FORMAL_CHROMIUM_ARGS] }
         : { channel: "chrome" as const }),
-      headless: true,
+      headless: true, chromiumSandbox: true,
       timeout
     });
     const page = await browser.newPage({
