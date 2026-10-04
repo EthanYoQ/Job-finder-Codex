@@ -1373,7 +1373,8 @@ describe("Phenom evidence instrumentation", () => {
 
   it.each([225, 251])("closes Roche's %i unique IDs with the native 250-row request", async (total) => {
     const stagedPlan = rochePlan();
-    expect(stagedPlan.officialJsonFetch?.pageSize).toBe(250);
+    if (stagedPlan.officialJsonFetch?.kind !== "phenom") throw new Error("Expected the Roche Phenom configuration");
+    expect(stagedPlan.officialJsonFetch.pageSize).toBe(250);
     const jobs = Array.from({ length: total }, (_, i) => rocheJob(`ROCHE-${i}`));
     const requestedSizes: number[] = [];
     let post = 0;

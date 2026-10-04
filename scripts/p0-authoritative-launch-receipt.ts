@@ -11,6 +11,7 @@ import { readImageQualificationReceipt, readRestoreReceiptSummary, readSecurityR
 import { listCurrentPrismaMigrations, prismaMigrationManifestSha256 } from "../src/db/prismaMigrationManifest";
 import { parseFixedCohortCompletenessAuditReport } from "../src/release/fixedCohortCompletenessAudit";
 import { readFormalQualificationRoundOneReceipt } from "../src/release/formalQualificationState";
+import { selectQualificationPair } from "../src/release/formalQualificationTiming";
 
 const prisma = new PrismaClient();
 const receiptPath = required("LAUNCH_RECEIPT_PATH");
@@ -134,16 +135,6 @@ async function readEvidence(path: string): Promise<{ bytes: Buffer; sha256: stri
   return { bytes, sha256: createHash("sha256").update(bytes).digest("hex") };
 }
 
-function selectQualificationPair<T extends { finishedAt: Date | null }>(batches: readonly T[], now: Date): T[] {
-  for (let newer = 0; newer < batches.length; newer += 1) {
-    for (let older = newer + 1; older < batches.length; older += 1) {
-      const newTime = batches[newer]!.finishedAt?.getTime(), oldTime = batches[older]!.finishedAt?.getTime();
-      if (newTime !== undefined && oldTime !== undefined && now.getTime() - oldTime <= 72 * 3_600_000 &&
-          newTime - oldTime >= 12 * 3_600_000) return [batches[newer]!, batches[older]!];
-    }
-  }
-  return batches.slice(0, 2);
-}
 function migrationHistoryMatches(rows: readonly { migrationName: string; checksum: string; finishedAt: Date | null;
   rolledBackAt: Date | null }[], expected: readonly { migrationName: string; checksum: string }[]): boolean {
   if (rows.some((row) => row.finishedAt === null && row.rolledBackAt === null)) return false;

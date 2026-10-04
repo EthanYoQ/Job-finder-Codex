@@ -1,6 +1,7 @@
 # Responsive homepage integration
 
-This branch integrates the public homepage that was live at source commit
+This branch integrates the registered producer-41 collection source together with
+the public homepage that was live at source commit
 `a2bbb88dd4817da17493a62f9f530d2fb7dece9a` on 2026-10-04. It preserves the
 responsive desktop/mobile layouts, consent gate, province and city filters,
 company directory, feedback forms, and all 159 original logo/font assets.
@@ -19,6 +20,11 @@ lifecycle membership and freshness before displaying jobs. It does not initiate
 crawls. Search facets and counts describe the published set, including explicitly
 unresolved city locations, rather than invented or static counts.
 
+For the Docker stack, combine `ops/docker-compose.yml` with
+`ops/docker-compose.portable-public.yml`. The override passes that public-reader
+policy to the web container without placing credentials in a configuration file.
+Keep the existing database and credential configuration outside this repository.
+
 The historic backend mode remains available when that setting is absent for
 existing programmatic integrations. It does not support the full province/city
 homepage contract. Deployment must select the portable policy explicitly; this
@@ -26,10 +32,11 @@ pull request does not change any running server or database.
 
 The public reader and UI come from `a2bbb88`. Their shared collection and receipt
 validation dependencies use the already registered producer-41 source
-`b41a18415cfe8177740918b04c5139095d7abcc5` where it is newer. The necessary shared
-source modules are included so the reader uses the same configuration hashes and
-proof contracts. Unrelated collection command scripts and operational state are
-not imported. The complete producer-41 source remains available on
+`b41a18415cfe8177740918b04c5139095d7abcc5` where it is newer. Collection commands,
+scheduling and publication code, migration source, and relevant tests are included
+alongside the reader so both sides use the same configuration hashes and proof
+contracts. Operational state is not imported. The producer-41 source checkpoint
+also remains available on
 `backup/producer41-20261004-0340`.
 
 The unregistered performance/capture/Sanofi candidates are not part of this
@@ -49,8 +56,12 @@ the complete existing default test command, production build, and equality of
 every public asset with the build output. Additional regression coverage includes
 province/city discovery, consent and retry flows, cache refresh behavior, source
 receipt validation, logo identities, and font tamper detection. The existing
-external-evidence integration command remains separate as before.
+external-evidence integration command remains separate as before. Default
+regressions use invented rows and minimized identity cases rather than archived
+job bodies. BI tests retrieve the official byte-pinned script from its public
+URL and fail if that source is unavailable or its verified bytes change.
 
 The workflow has read-only repository permissions and performs no image
-publication or server deployment. The existing production-image workflow and its
-branch triggers are unchanged.
+publication or server deployment. The production-image workflow keeps its existing branch triggers and publication
+guards; its two temporary-runner database migrations use the reviewed producer-41
+ops-migrate command.

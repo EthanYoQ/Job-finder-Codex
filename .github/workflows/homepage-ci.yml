@@ -51,17 +51,21 @@ jobs:
         run: npm run typecheck
 
       - name: Run the complete default test suite
+        if: ${{ !cancelled() }}
         run: npm test
 
       - name: Build the homepage
+        if: ${{ !cancelled() }}
         run: npm run build
 
       - name: Verify Docker source provenance and context budget
+        if: ${{ !cancelled() }}
         run: |
           npm run docker:export-provenance
           npm run image:context-check
 
       - name: Verify packaged public assets
+        if: ${{ !cancelled() }}
         run: |
           node --input-type=module <<'NODE'
           import { readFileSync, readdirSync } from 'node:fs';

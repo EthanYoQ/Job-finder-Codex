@@ -362,7 +362,7 @@ jobs:
           test "$POSTGRES_READY" = 1
           docker run --rm --network "$NETWORK" --read-only --cap-drop ALL --security-opt no-new-privileges:true \
             --tmpfs /tmp:rw,nosuid,nodev,noexec,size=64m,mode=1777 --env DATABASE_URL="$DATABASE_URL" \
-            "$IMAGE_TAG" node node_modules/prisma/build/index.js migrate deploy
+            "$IMAGE_TAG" node node_modules/tsx/dist/cli.mjs scripts/ops-migrate.ts
           docker run --rm --network "$NETWORK" --env DATABASE_URL="$DATABASE_URL" \
             --env ADMIN_EMAIL=owner@example.com --env ADMIN_PASSWORD_HASH="$ADMIN_HASH" "$IMAGE_TAG" node node_modules/tsx/dist/cli.mjs scripts/ops-bootstrap.ts &
           FIRST_PID=$!
@@ -453,7 +453,7 @@ jobs:
           test "$READY" = 1
           docker run --rm --network "$NETWORK" --read-only --cap-drop ALL --security-opt no-new-privileges:true \
             --tmpfs /tmp:rw,nosuid,nodev,noexec,size=64m,mode=1777 --env DATABASE_URL="$DATABASE_URL" \
-            "$IMAGE_TAG" node node_modules/prisma/build/index.js migrate deploy
+            "$IMAGE_TAG" node node_modules/tsx/dist/cli.mjs scripts/ops-migrate.ts
           docker exec -i "$POSTGRES_NAME" psql -U jobfinder -d jobfinder -v ON_ERROR_STOP=1 \
             < tests/ops/fixtures/restoreQualificationEvidence.sql
           docker run --rm --network "$NETWORK" --env DATABASE_URL="$DATABASE_URL" --env BACKUP_DIR=/backup \

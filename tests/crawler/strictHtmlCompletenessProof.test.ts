@@ -347,7 +347,7 @@ describe("independent strict HTML completeness proof", () => {
 
   it.each([
     ["source-takeda-china-social", "h2.title", ".location", "https://jobs.takeda.com/job/shanghai/role/1113/1"]
-  ] as const)("replays %s as one unpartitioned TalentBrew China total", async (
+  ] satisfies ReadonlyArray<readonly [string, string, string, string]>)("replays %s as one unpartitioned TalentBrew China total", async (
     sourceId,
     titleSelector,
     locationSelector,

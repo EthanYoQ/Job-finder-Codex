@@ -43,7 +43,7 @@ function qualifiedReceipt(overrides: Record<string, unknown> = {}) {
 }
 
 describe("formal qualification round-one state", () => {
-  it("round-trips exact evidence and opens the second-round window only from 12 through 72 hours", () => {
+  it("round-trips exact evidence", () => {
     const receipt = qualifiedReceipt();
     const parsed = parseFormalQualificationRoundOneReceipt(Buffer.from(JSON.stringify(receipt)), {
       repository: receipt.repository,
@@ -62,19 +62,29 @@ describe("formal qualification round-one state", () => {
     });
 
     expect(parsed).toEqual(receipt);
-    expect(() => assertFormalQualificationSecondRoundMayStart(parsed,
-      new Date("2026-08-13T11:59:59.999Z"))).toThrow(/12.*72/u);
-    expect(assertFormalQualificationSecondRoundMayStart(parsed,
-      new Date("2026-08-13T12:00:00.000Z"))).toEqual(parsed);
-    expect(assertFormalQualificationSecondRoundMayStart(parsed,
-      new Date("2026-08-16T00:00:00.000Z"))).toEqual(parsed);
-    expect(() => assertFormalQualificationSecondRoundMayStart(parsed,
-      new Date("2026-08-16T00:00:00.001Z"))).toThrow(/12.*72/u);
+  });
+
+  it.each([
+    "2026-08-13T05:59:59.999Z",
+    "2026-08-16T00:00:00.001Z"
+  ])("rejects a second-round start outside the 6 through 72 hour window: %s", (now) => {
+    expect(() => assertFormalQualificationSecondRoundMayStart(qualifiedReceipt(), new Date(now)))
+      .toThrow(/6.*72/u);
+  });
+
+  it.each([
+    "2026-08-13T06:00:00.000Z",
+    "2026-08-13T09:00:00.000Z",
+    "2026-08-16T00:00:00.000Z"
+  ])("allows a qualified second round inside the inclusive 6 through 72 hour window: %s", (now) => {
+    const receipt = qualifiedReceipt();
+    expect(assertFormalQualificationSecondRoundMayStart(receipt, new Date(now))).toEqual(receipt);
   });
 
   it.each([
     { batchStatus: "INCOMPLETE" },
     { auditDecision: "AUDIT_INVALID" },
+    { companyCount: 40 },
     { companyCount: 49 },
     { foreignCompanyCount: 29 },
     { blockerCount: 1 }
@@ -82,7 +92,7 @@ describe("formal qualification round-one state", () => {
     const receipt = qualifiedReceipt(override);
     expect(receipt.decision).toBe("ROUND_ONE_DIAGNOSTIC");
     expect(() => assertFormalQualificationSecondRoundMayStart(receipt,
-      new Date("2026-08-13T12:00:00.000Z"))).toThrow(/qualified/u);
+      new Date("2026-08-13T06:00:00.000Z"))).toThrow(/qualified/u);
   });
 
   it("rejects replacement evidence, extra fields, and a self-consistent future receipt", () => {

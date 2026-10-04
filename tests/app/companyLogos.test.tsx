@@ -31,13 +31,15 @@ describe("company brand assets", () => {
     const { container } = render(<>{humanVerifiedCompanyIds().map((id, index) => <CompanyLogo key={id} companyId={id} name={id} priority={index === 0} />)}</>);
     const images = [...container.querySelectorAll("img")];
     expect(images).toHaveLength(41);
+    const firstImage = images[0];
+    if (!firstImage) throw new Error("Expected the first company logo");
     expect(new Set(images.map(image => image.src)).size).toBe(1);
     expect(new Set([...container.querySelectorAll("source")].map(source => source.srcset)).size).toBe(1);
-    expect(images[0].getAttribute("fetchpriority")).toBe("high");
-    expect(images[0].width).toBe(800);
-    expect(images[0].height).toBe(600);
+    expect(firstImage.getAttribute("fetchpriority")).toBe("high");
+    expect(firstImage.width).toBe(800);
+    expect(firstImage.height).toBe(600);
     expect(COMPANY_LOGO_SHEET.gutter).toBe(2);
-    expect(images[0].style.left).toBe("-2.083333333333333%");
+    expect(firstImage.style.left).toBe("-2.083333333333333%");
     expect(images.every(image => image.getAttribute("loading") === "eager")).toBe(true);
   });
 

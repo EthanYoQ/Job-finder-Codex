@@ -4,6 +4,7 @@ import { candidateCompanies } from "../../src/data/companyRegistry";
 /** Archived SuccessFactors policy remains inspectable, but cannot be issued as the current Moka configuration. */
 export function legacyBayerPlan(): Extract<SourceCrawlPlan, { adapterId: "html-table" }> {
   const current = buildStagedSourceCrawlPlans(candidateCompanies).find(p => p.source.id === "source-bayer-healthcare-social")!;
+  if (!current.expectedChannels || !current.expectedChannelSetHash) throw new Error("Expected a channel-bound staged Bayer plan");
   return { adapterId: "html-table", company: current.company, executionAuthority: "STAGED",
     expectedChannels: current.expectedChannels, expectedChannelSetHash: current.expectedChannelSetHash,
     transportPolicy: { primary: "DIRECT_HTTP" }, source: { ...current.source, atsKind: "SUCCESSFACTORS",

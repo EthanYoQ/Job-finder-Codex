@@ -1,4 +1,5 @@
 import { createHash } from "node:crypto";
+import { FORMAL_QUALIFICATION_MAXIMUM_WINDOW_MS, FORMAL_QUALIFICATION_MINIMUM_SEPARATION_MS } from "./formalQualificationTiming";
 
 const SHA256 = /^[0-9a-f]{64}$/u;
 const COMMIT_SHA = /^[0-9a-f]{40}$/u;
@@ -12,8 +13,6 @@ const RECEIPT_KEYS = [
   "imageDigest", "imageQualificationContentSha256", "releaseCandidateId", "repository", "schemaVersion", "sourceRevision",
   "workflowRunId"
 ] as const;
-const SECOND_ROUND_MINIMUM_MS = 12 * 60 * 60 * 1_000;
-const SECOND_ROUND_MAXIMUM_MS = 72 * 60 * 60 * 1_000;
 const MAX_FUTURE_DRIFT_MS = 5 * 60 * 1_000;
 
 export interface FormalQualificationRoundOneReceipt {
@@ -172,8 +171,8 @@ export function assertFormalQualificationSecondRoundMayStart(
     throw new Error("The first formal qualification round is not qualified");
   }
   const elapsed = now.getTime() - Date.parse(receipt.batchFinishedAt);
-  if (elapsed < SECOND_ROUND_MINIMUM_MS || elapsed > SECOND_ROUND_MAXIMUM_MS) {
-    throw new Error("The second formal qualification round must start within the 12 through 72 hour window");
+  if (elapsed < FORMAL_QUALIFICATION_MINIMUM_SEPARATION_MS || elapsed > FORMAL_QUALIFICATION_MAXIMUM_WINDOW_MS) {
+    throw new Error("The second formal qualification round must start within the 6 through 72 hour window");
   }
   return receipt;
 }

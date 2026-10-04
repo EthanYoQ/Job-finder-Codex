@@ -1,0 +1,299 @@
+{
+  "capturedAt": "2026-10-01T09:00:00.000Z",
+  "body": "<main><section class=\"elementor elementor-1709\"><h1>爱施健中国岗位招聘</h1><p>致候选人的重要提示：</p><p>Aspen China招聘团队只会使用 @aspenpharma-zh.cn后缀的邮箱与您联系。</p></section></main>",
+  "candidate": {
+    "binding": {
+      "releaseCandidateId": "regression-only-unproven-zero",
+      "batchId": "regression-only-batch",
+      "sourceResultId": "regression-only-source-sandoz-china-social",
+      "sourceConfigSha256": "f43d4c21a5e1fb07999e4519fec92a823f07f943f3400ac9121a0019d483ad61"
+    },
+    "plan": {
+      "adapterId": "html-table",
+      "company": {
+        "id": "company-sandoz-china",
+        "officialChineseName": "爱施健（原山德士中国业务）",
+        "category": "FOREIGN_PHARMA"
+      },
+      "source": {
+        "id": "source-sandoz-china-social",
+        "surfaceId": "surface-sandoz-china-social",
+        "companyId": "company-sandoz-china",
+        "kind": "SOCIAL",
+        "atsKind": "OFFICIAL_HTML",
+        "status": "VERIFIED_SCRAPABLE",
+        "officialEntryUrl": "https://www.aspenpharma.cn/careers-at-aspen/aspen-cnjobs/",
+        "officialChainEvidenceUrl": "https://www.aspenpharma.cn/careers-at-aspen/aspen-cnjobs/"
+      },
+      "executionAuthority": "STAGED",
+      "expectedChannels": [
+        {
+          "channelId": "source:source-sandoz-china-social:default",
+          "kind": "SOCIAL"
+        }
+      ],
+      "expectedChannelSetHash": "41d48a87235df0b077a18470a3f92aa611830ab8b499686a18f0f41d8d0f5e93",
+      "table": {
+        "rowSelector": "main a[href*='/jobs/'], .elementor-location-single a[href*='/jobs/']",
+        "completenessProof": {
+          "kind": "STATIC_PUBLIC_LIST",
+          "sourcePolicy": "ASPEN_CHINA_EMPTY_PUBLIC_LIST_V1"
+        },
+        "staticPublicList": {
+          "containerSelector": ".elementor.elementor-1709",
+          "nextControlSelector": "a[rel='next'], .pagination a.next",
+          "explicitEmptyState": {
+            "selector": ".elementor.elementor-1709",
+            "pattern": "招聘|职位|岗位|警惕"
+          }
+        },
+        "fields": {
+          "sourceJobId": {
+            "selector": ":scope",
+            "attribute": "href"
+          },
+          "officialTitle": {
+            "selector": ":scope"
+          },
+          "officialUrl": {
+            "selector": ":scope",
+            "attribute": "href"
+          },
+          "locationRaw": {
+            "value": "中国"
+          }
+        }
+      },
+      "transportPolicy": {
+        "primary": "DIRECT_HTTP"
+      }
+    },
+    "transportSuccess": true,
+    "adapterSuccess": true,
+    "evidence": {
+      "captureTool": {
+        "name": "official-html-http",
+        "version": "1"
+      },
+      "artifacts": [
+        {
+          "id": "official-html-page-0000",
+          "logicalKey": "official-html-page-0000",
+          "kind": "PAGINATION_PAGE",
+          "requestedUrl": "https://www.aspenpharma.cn/careers-at-aspen/aspen-cnjobs/",
+          "finalUrl": "https://www.aspenpharma.cn/careers-at-aspen/aspen-cnjobs/",
+          "httpStatus": 200,
+          "contentType": "text/html; charset=utf-8",
+          "capturedAt": "2026-10-01T09:00:00.000Z",
+          "body": "<main><section class=\"elementor elementor-1709\"><h1>爱施健中国岗位招聘</h1><p>致候选人的重要提示：</p><p>Aspen China招聘团队只会使用 @aspenpharma-zh.cn后缀的邮箱与您联系。</p></section></main>",
+          "bodyRepresentation": "EXACT",
+          "extractorLocator": "main a[href*='/jobs/'], .elementor-location-single a[href*='/jobs/']|request-contract-v2|sha256:7c9476e49fd1be40f56ddc0a7fca3e1a2c0b224b15c3f17b7bd00a3adc258991"
+        }
+      ],
+      "pages": [
+        {
+          "sequence": 0,
+          "artifactLogicalKey": "official-html-page-0000",
+          "requestedCursor": null,
+          "returnedCursor": null,
+          "requestedOffset": null,
+          "returnedOffset": null,
+          "requestedPage": null,
+          "returnedPage": null,
+          "requestedPageSize": null,
+          "returnedPageSize": null,
+          "rawJobIds": [],
+          "validJobIds": [],
+          "declaredTotal": 0,
+          "declaredCount": null,
+          "declaredPages": null,
+          "nextPageSignalBefore": "initial",
+          "nextPageSignalAfter": null,
+          "responseFingerprintSha256": "982eb1488a6f4358226a14e9a128758be9bb0b9aca5fec79563a7f9af33385bf",
+          "termination": "EMPTY_PAGE",
+          "anomalyCodes": [],
+          "capturedAt": "2026-10-01T09:00:00.000Z"
+        }
+      ],
+      "declaredCompleteness": {
+        "kind": "OFFICIAL_TOTAL_COUNT",
+        "value": 0,
+        "artifactLogicalKey": "official-html-page-0000",
+        "extractorLocator": "main a[href*='/jobs/'], .elementor-location-single a[href*='/jobs/']|request-contract-v2|sha256:7c9476e49fd1be40f56ddc0a7fca3e1a2c0b224b15c3f17b7bd00a3adc258991",
+        "scope": "SOURCE"
+      },
+      "fetchCounts": {
+        "rawCount": 0,
+        "parsedCount": 0,
+        "validCount": 0,
+        "parseDiscardCount": 0,
+        "validationDiscardCount": 0
+      },
+      "fetchLosses": []
+    },
+    "paginationEvaluation": {
+      "pages": [
+        {
+          "artifactLogicalKey": "official-html-page-0000",
+          "sequence": 0,
+          "channelId": null,
+          "requestedCursor": null,
+          "returnedCursor": null,
+          "requestedOffset": null,
+          "returnedOffset": null,
+          "requestedPage": null,
+          "returnedPage": null,
+          "requestedPageSize": null,
+          "returnedPageSize": null,
+          "responseFingerprintSha256": "982eb1488a6f4358226a14e9a128758be9bb0b9aca5fec79563a7f9af33385bf",
+          "rawJobIdSetSha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+          "validJobIdSetSha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+          "declaredTotal": 0,
+          "declaredCount": null,
+          "declaredPages": null,
+          "nextPageSignalBefore": "initial",
+          "nextPageSignalAfter": null,
+          "termination": "EMPTY_PAGE",
+          "anomalyCodes": [],
+          "capturedAt": "2026-10-01T09:00:00.000Z"
+        }
+      ],
+      "paginationTraceSha256": "521f0e04578a8f12bc6f48e668982bc7978dfed0cf2f9a7ef58a435cfe881be0",
+      "derivedAnomalyCodes": [],
+      "visitedChannelIds": [],
+      "safeCompleteness": true,
+      "verifiedEligible": true
+    },
+    "reconciliation": {
+      "rawInputCount": 0,
+      "parsedCount": 0,
+      "validBeforeDedupeCount": 0,
+      "dedupeInputCount": 0,
+      "dedupeOutputCount": 0,
+      "adapterLosses": [],
+      "collisionGroups": [],
+      "outputJobKeyCommitments": [],
+      "outputJobKeySetSha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "ledgerSha256": "29fd8b7943c9fbb1e9737316e7e40a8809341f460ad6679153d072ac37071446"
+    },
+    "jobs": [],
+    "independentValidation": {
+      "schemaVersion": "plan-bound-html-browser-traversal-v1",
+      "sourceId": "source-sandoz-china-social",
+      "companyId": "company-sandoz-china",
+      "retrievalPath": "PLAYWRIGHT_RENDERED_HTML_NEXT_LINK_TRAVERSAL",
+      "validatorImplementationId": "plan-bound-html-playwright-traversal-v1",
+      "matchKeyKind": "JOB_DEDUPE_KEY",
+      "sourceConfigSha256": "f43d4c21a5e1fb07999e4519fec92a823f07f943f3400ac9121a0019d483ad61",
+      "surfaceIds": [
+        "surface-sandoz-china-social"
+      ],
+      "channelIds": [
+        "source:source-sandoz-china-social:default"
+      ],
+      "pages": [
+        {
+          "pageNumber": 1,
+          "declaredTotalPages": 1,
+          "matchKeys": [],
+          "nextControlPresent": false,
+          "rawMatchKeys": []
+        }
+      ],
+      "pageCount": 1,
+      "canonicalMatchKeySetSha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "artifactLogicalKey": "source-sandoz-china-social-browser-traversal-validation",
+      "artifactSha256": "2e982928f91bf55ec659d055ec3eaabaae51ee9f447cda898bbab7c46ada3c96",
+      "observedAt": "2026-10-01T09:00:00.000Z",
+      "expiresAt": "2026-10-08T09:00:00.000Z"
+    },
+    "validationExecution": "CURRENT_RUN",
+    "trigger": "INITIAL_QUALIFICATION",
+    "now": "2026-10-01T09:05:00.000Z"
+  },
+  "certificate": {
+    "schemaVersion": "b-grade-independent-traversal-v2",
+    "grade": "B",
+    "binding": {
+      "releaseCandidateId": "regression-only-unproven-zero",
+      "batchId": "regression-only-batch",
+      "sourceResultId": "regression-only-source-sandoz-china-social",
+      "sourceId": "source-sandoz-china-social",
+      "sourceConfigSha256": "f43d4c21a5e1fb07999e4519fec92a823f07f943f3400ac9121a0019d483ad61"
+    },
+    "scope": {
+      "companyId": "company-sandoz-china",
+      "sourceId": "source-sandoz-china-social",
+      "recruitmentType": "SOCIAL",
+      "geography": "MAINLAND_CHINA",
+      "businessUnit": "ALL",
+      "surfaceIds": [
+        "surface-sandoz-china-social"
+      ],
+      "channelIds": [
+        "source:source-sandoz-china-social:default"
+      ]
+    },
+    "mainTraversal": {
+      "retrievalPath": "HTTP_HTML_STATIC_PUBLIC_LIST",
+      "matchKeyKind": "JOB_DEDUPE_KEY",
+      "pageCount": 1,
+      "terminalEvent": "EMPTY_PAGE",
+      "paginationTraceSha256": "460b47ba89e05da94301a1d78f64cdb7db054741404e47d466af44e686b46168",
+      "canonicalMatchKeySetSha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "canonicalRawMatchKeySetSha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "canonicalExcludedMatchKeySetSha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    "independentValidation": {
+      "schemaVersion": "plan-bound-html-browser-traversal-v1",
+      "sourceId": "source-sandoz-china-social",
+      "companyId": "company-sandoz-china",
+      "retrievalPath": "PLAYWRIGHT_RENDERED_HTML_NEXT_LINK_TRAVERSAL",
+      "validatorImplementationId": "plan-bound-html-playwright-traversal-v1",
+      "matchKeyKind": "JOB_DEDUPE_KEY",
+      "sourceConfigSha256": "f43d4c21a5e1fb07999e4519fec92a823f07f943f3400ac9121a0019d483ad61",
+      "surfaceIds": [
+        "surface-sandoz-china-social"
+      ],
+      "channelIds": [
+        "source:source-sandoz-china-social:default"
+      ],
+      "pages": [
+        {
+          "pageNumber": 1,
+          "declaredTotalPages": 1,
+          "matchKeys": [],
+          "nextControlPresent": false,
+          "rawMatchKeys": []
+        }
+      ],
+      "pageCount": 1,
+      "canonicalMatchKeySetSha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "artifactLogicalKey": "source-sandoz-china-social-browser-traversal-validation",
+      "artifactSha256": "2e982928f91bf55ec659d055ec3eaabaae51ee9f447cda898bbab7c46ada3c96",
+      "observedAt": "2026-10-01T09:00:00.000Z",
+      "expiresAt": "2026-10-08T09:00:00.000Z"
+    },
+    "validationPolicy": {
+      "trigger": "INITIAL_QUALIFICATION",
+      "execution": "CURRENT_RUN"
+    },
+    "counts": {
+      "mainUniqueJobCount": 0,
+      "independentUniqueJobCount": 0,
+      "finalUniqueJobCount": 0,
+      "parseDiscardCount": 0,
+      "validationDiscardCount": 0,
+      "normalizationDiscardCount": 0,
+      "dedupeDiscardCount": 0
+    },
+    "output": {
+      "canonicalJobSetSha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "adapterReconciliationSha256": "29fd8b7943c9fbb1e9737316e7e40a8809341f460ad6679153d072ac37071446",
+      "collisionLedgerSha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "collisionGroups": []
+    },
+    "issuedAt": "2026-10-01T09:05:00.000Z"
+  },
+  "certificateSha256": "ad238eb033dbc28a9d490bc9618ea215daa07b9556b00e0cb78c1a9146ceef38"
+}
