@@ -1,5 +1,6 @@
 import type { CompanyRecruitmentProfileSeed } from "../types";
 import { OFFICIAL_API_JSON_CONFIG } from "../shared";
+import { GILEAD_PUBLIC_AGE_POLICY } from "../../gileadPublicAge";
 
 export const profile_gilead_china = {
   companyId: "company-gilead-china",
@@ -13,7 +14,8 @@ export const profile_gilead_china = {
               kind: "yello-job-board",
               boardId: "v42vD4vKxb3AkKvV93YsrQ",
               locationFilterId: 72,
-              expectedLocationLabel: "China"
+              expectedLocationLabel: "China",
+              publicAgePolicy: GILEAD_PUBLIC_AGE_POLICY
           }
       }
     },

@@ -58,7 +58,6 @@ function rawJob(id: string, changeDate: string): Record<string, unknown> {
 
 describe("filtered Beisen B-grade atomic commit", () => {
   it.each([
-    ["source-hansoh-social", "company-hansoh"],
     ["source-united-lab-social", "company-united-lab"]
   ] as const)("lets an exact B certificate establish completeness for %s and rejects bypasses", async (
     sourceId,

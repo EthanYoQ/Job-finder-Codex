@@ -18,6 +18,7 @@ import {
 } from "../../src/crawler/sourcePlan";
 import { sourcePlanOracleConfigSha256 } from "../../src/crawler/independentSourceSurfaceOracle";
 import { candidateCompanies } from "../../src/data/companyRegistry";
+import { createNovoSingleJobHttp } from "../helpers/novoSingleJobFixture";
 import { createOfficialJsonRenderedTraversalValidation } from "../../src/crawler/traversalCertificate";
 import {
   irreversibleOfficialJsonEvidenceId,
@@ -238,21 +239,9 @@ describe("runtime atomic evidence planning", () => {
     } } };
     const pending = buildPendingRuntimeBatch("batch-1", [plan], identity,
       new Date("2026-07-10T00:00:00Z"), oracle).sources[0]!;
-    const endpoint = plan.officialJsonFetch.endpointUrl;
     const fetch = createOfficialJsonSourceFetch({
       now: () => new Date("2026-07-10T00:00:01.000Z"),
-      http: async () => ({
-        status: 200,
-        body: JSON.stringify({ data: { totalMatches: 1, jobs: [{
-          jobId: "1",
-          jobTitle: "Medical role",
-          jobLocationLabel: "China Mainland, Beijing",
-          jobCity: { label: "Beijing" }
-        }] } }),
-        finalUrl: endpoint,
-        contentType: "application/json; charset=utf-8",
-        capturedAt: "2026-07-10T00:00:01.000Z"
-      })
+      http: createNovoSingleJobHttp("2026-07-10T00:00:01.000Z")
     });
     const fetched = await fetch(plan);
     if (!fetched.ok || !("payload" in fetched) || !fetched.fetchEvidence || !fetched.paginationEvaluation) {
@@ -283,7 +272,7 @@ describe("runtime atomic evidence planning", () => {
     expect(transaction).not.toHaveBeenCalled();
     expect(commit.sourceResult).toMatchObject({ atomicCommitState: "COMMITTED", completenessState: "VERIFIED",
       canonicalCurrentJobSetSha256: commit.observationProvenance.canonicalOutputSha256 });
-    expect(commit.artifacts).toHaveLength(1);
+    expect(commit.artifacts).toHaveLength(4);
     expect(commit.pagination).toHaveLength(1);
 
     const browserSuccessResult = structuredClone(result);
@@ -297,7 +286,7 @@ describe("runtime atomic evidence planning", () => {
       plan, pending, identity, batchId: "batch-1", result: browserSuccessResult,
       previousJobs: [], baselineCompletedBeforeCrawl: true, artifacts: archived, oracle
     });
-    expect(browserSuccessCommit.artifacts).toHaveLength(1);
+    expect(browserSuccessCommit.artifacts).toHaveLength(4);
     expect(browserSuccessCommit.priorTransportAttempts[0]).toMatchObject({
       transport: "BROWSER_SESSION",
       outcome: "SUCCEEDED",

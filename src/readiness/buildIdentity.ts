@@ -5,7 +5,7 @@ import {join,relative,resolve} from "node:path";
 
 export interface BuildIdentityArtifact {schemaVersion:2;commitSha:string;sourceTreeSha256:string;runtimeTreeSha256:string;contentSha256:string}
 const FIXED_BUILD_IDENTITY_PATH=resolve(process.cwd(),"build-identity.json");
-const sourceRoots=["src","scripts","prisma","ops"] as const;
+const sourceRoots=["src","scripts","prisma","ops","public"] as const;
 const runtimeRoots=["dist","src","scripts","prisma","ops","node_modules"] as const;
 const sourceFiles=["package.json","package-lock.json","tsconfig.json","Dockerfile",".dockerignore","index.html","vite.config.ts","testExecutionContract.ts"] as const;
 const runtimeFiles=["package.json","tsconfig.json"] as const;
@@ -41,7 +41,7 @@ function canonicalTree(root:string,roots:readonly string[],files:readonly string
   const paths=[...files,...roots.flatMap(dir=>walk(root,join(root,dir)))].sort();
   const hash=createHash("sha256");for(const path of paths){const absolute=join(root,path),stat=lstatSync(absolute);const bytes=stat.isSymbolicLink()?Buffer.concat([Buffer.from(`SYMLINK\0${readlinkSync(absolute)}\0TARGET\0`,"utf8"),readFileSync(realpathSync(absolute))]):readFileSync(absolute);const name=Buffer.from(path,"utf8");const header=Buffer.alloc(8);header.writeUInt32BE(name.length,0);header.writeUInt32BE(bytes.length,4);hash.update(header).update(name).update(bytes);}return hash.digest("hex");
 }
-function walk(root:string,path:string):string[]{return readdirSync(path).flatMap(name=>{const child=resolve(path,name),stat=lstatSync(child),rel=relative(root,child).replaceAll("\\","/");if(stat.isSymbolicLink()){const target=realpathSync(child),rootReal=realpathSync(root);if(target!==rootReal&&!target.startsWith(rootReal+"/")&&!target.startsWith(rootReal+"\\"))throw new Error("Attested tree symlink escapes root");if(lstatSync(target).isDirectory())throw new Error("Attested tree directory symlink or loop is forbidden");return[rel];}return stat.isDirectory()?walk(root,child):[rel]});}
+function walk(root:string,path:string):string[]{return readdirSync(path).flatMap(name=>{const child=resolve(path,name),stat=lstatSync(child),rel=relative(root,child).replaceAll("\\","/");if(rel==="node_modules/.vite")return [];if(stat.isSymbolicLink()){const target=realpathSync(child),rootReal=realpathSync(root);if(target!==rootReal&&!target.startsWith(rootReal+"/")&&!target.startsWith(rootReal+"\\"))throw new Error("Attested tree symlink escapes root");if(lstatSync(target).isDirectory())throw new Error("Attested tree directory symlink or loop is forbidden");return[rel];}return stat.isDirectory()?walk(root,child):[rel]});}
 function statSafe(path:string){try{const stat=lstatSync(path);return stat.isFile()||stat.isDirectory();}catch{return false;}}
 const digest=(value:string)=>createHash("sha256").update(value,"utf8").digest("hex");const validSha=(value:string)=>/^[0-9a-f]{64}$/.test(value);
 function safeEqual(a:string,b:string){return validSha(a)&&validSha(b)&&timingSafeEqual(Buffer.from(a,"hex"),Buffer.from(b,"hex"));}

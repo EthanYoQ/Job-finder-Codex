@@ -1,4 +1,7 @@
+import { isServierTraversalPlan, replayServierTraversal, servierDetailScope, SERVIER_SCOPE_POLICY, SERVIER_UNKNOWN_CODE } from "./servierMokaScope";
+import { isBayerMedicalTraversalPlan, bayerNativeDivisionScope, bayerDetailScope, replayBayerMedicalTraversal } from "./bayerMokaScope";
 import { createDecipheriv } from "node:crypto";
+import { hasHengruiScopeExclusionPolicy, replayHengruiScopeExclusionProof } from "./strictMokaScopeExclusionProof";
 import { load } from "cheerio";
 import { recentJobCutoffChinaDateKey } from "../domain/jobRecencyPolicy";
 import type { SourceFetchFunction, SourceFetchResult } from "./runSourceCrawl";
@@ -62,6 +65,33 @@ const MOKA_PAGE_SIZE = 50;
 const MOKA_MAX_REDIRECTS = 10;
 const MOKA_MAX_PAGES = 100;
 
+/** Exact native server-side scope; this is not a client-side exclusion allowance. */
+export function mokaNativeListScope(plan: Parameters<SourceFetchFunction>[0], entryHtml: string): Record<string, unknown> {
+  const config = plan.adapterId === "official-json" ? plan.moka : undefined;
+  if (config?.scopeExclusionProof === SERVIER_SCOPE_POLICY) {
+    if (!isServierTraversalPlan(plan)) throw Error("Servier traversal requires its exact reviewed plan");
+    return {};
+  }
+  if (config?.scopeExclusionProof === "BAYER_MEDICAL_OPEN_REQUISITIONS_V1") return bayerNativeDivisionScope(plan, entryHtml);
+  if (plan.source.id !== "source-gsk-china-social" && config?.requisitionStatusPolicy === undefined) return {};
+  if (plan.source.id !== "source-gsk-china-social" || plan.company.id !== "company-gsk-china" ||
+      plan.source.companyId !== "company-gsk-china" || plan.source.atsKind !== "MOKA" ||
+      config?.requisitionStatusPolicy !== "GSK_NATIVE_OPEN_REQUISITIONS_V1" ||
+      config.expectedOrgId !== "gsk" || config.expectedSiteId !== "148067" || config.expectedMode !== "social" ||
+      config.campaignUrl !== "https://app.mokahr.com/social-recruitment/gsk/148067" ||
+      plan.source.officialEntryUrl !== "https://app.mokahr.com/social-recruitment/gsk/148067#/") {
+    throw new Error("GSK native Open scope requires its exact reviewed source plan");
+  }
+  const bootstrap = JSON.parse(load(entryHtml)("#init-data").attr("value") ?? "null");
+  const fields = bootstrap?.jobCustomFields;
+  const field = Array.isArray(fields) ? fields.filter(f => f?.id === 273744) : [];
+  if (field.length !== 1 || field[0].name !== "Req status" || field[0].type !== "select_info" ||
+      !Array.isArray(field[0].detail) || !field[0].detail.includes("Open")) {
+    throw new Error("GSK native Open scope definition is missing");
+  }
+  return { customFields: { "273744": { values: ["Open"] } } };
+}
+
 export function createMokaSourceFetch(deps: MokaSourceFetchDeps = {}): SourceFetchFunction {
   return async (plan) => {
     const now = deps.now ?? (() => new Date());
@@ -77,6 +107,9 @@ export function createMokaSourceFetch(deps: MokaSourceFetchDeps = {}): SourceFet
 
     try {
       const configuredMoka = "moka" in plan ? plan.moka : undefined;
+      const bayerMedical = isBayerMedicalTraversalPlan(plan);
+      const servierPortal = isServierTraversalPlan(plan);
+      const scopedTraversal = bayerMedical || servierPortal;
       const campaignBinding = resolveMokaCampaignBinding(plan.source.officialEntryUrl, configuredMoka);
       const http = deps.http ?? createDefaultMokaHttpClient(now);
       const page = await http({
@@ -119,6 +152,7 @@ export function createMokaSourceFetch(deps: MokaSourceFetchDeps = {}): SourceFet
         return failed(capturedAt, "Moka init-data was not found or incomplete", latestEvidence);
       }
       assertMokaInitBinding(initData, campaignBinding);
+      const listScope = mokaNativeListScope(plan, page.body);
 
       const jobs: Record<string, unknown>[] = [];
       const pages: SourceFetchPageTrace[] = [];
@@ -153,7 +187,8 @@ export function createMokaSourceFetch(deps: MokaSourceFetchDeps = {}): SourceFet
             needStat: true,
             isCampusJob: false,
             site: initData.mode,
-            locale: "zh-CN"
+            locale: "zh-CN",
+            ...listScope
           }
         };
         const api = await http(listRequest);
@@ -270,7 +305,7 @@ export function createMokaSourceFetch(deps: MokaSourceFetchDeps = {}): SourceFet
           if (
             rawOfficialId &&
             requiredText(raw.title) &&
-            citiesFromMokaLocations(raw.locations).length === 0 &&
+            (scopedTraversal || citiesFromMokaLocations(raw.locations).length === 0) &&
             configuredMoka?.hydrateMissingLocationsFromDetail
           ) {
             const detailRequest: MokaHttpRequest = {
@@ -318,7 +353,9 @@ export function createMokaSourceFetch(deps: MokaSourceFetchDeps = {}): SourceFet
                   expectedSiteId: initData.siteId,
                   requestBody: detailRequest.body,
                   allowSiteIdOmission: configuredMoka?.allowDetailSiteIdOmission === true,
-                  aesIv: initData.aesIv
+                  aesIv: initData.aesIv,
+                  ...(bayerMedical ? { bayerRaw: raw } : {}),
+                  ...(servierPortal ? { servierRaw: raw } : {})
                 });
             artifacts.push(detailValidation.ok
               ? mokaArtifact({
@@ -368,9 +405,22 @@ export function createMokaSourceFetch(deps: MokaSourceFetchDeps = {}): SourceFet
               );
             }
             candidate = { ...raw, locations: detailValidation.locations };
+            if (servierPortal && detailValidation.servierUnknownGeography) {
+              validationDiscardCount += 1;
+              fetchLosses.push({stage: "VALIDATION", reason: "Servier official detail leaves workplace country unknown; posting remains open", rawLocator,
+                details: {code: SERVIER_UNKNOWN_CODE, field: "locations", noteCode: "OFFICIAL_STATUS_OPEN_GEOGRAPHY_PENDING", pageSequence: pageIndex, recordIndex}, recordedAt: api.capturedAt});
+              continue;
+            }
+            if (bayerMedical && detailValidation.bayerPaused) {
+              validationDiscardCount += 1;
+              fetchLosses.push({ stage: "VALIDATION", reason: "Bayer official requisition is paused", rawLocator,
+                details: { code: "BAYER_OFFICIAL_PAUSED", pageSequence: pageIndex, recordIndex }, recordedAt: api.capturedAt });
+              continue;
+            }
           }
 
-          const missingField = missingMokaRequiredField(candidate);
+          const missingField = missingMokaRequiredField(candidate) ??
+            (configuredMoka?.requisitionStatusPolicy && candidate.status !== "open" ? "status" : undefined);
           if (missingField) {
             validationDiscardCount += 1;
             fetchLosses.push({
@@ -394,11 +444,16 @@ export function createMokaSourceFetch(deps: MokaSourceFetchDeps = {}): SourceFet
             });
             continue;
           }
-          if (isExplicitlyOutsideChina(candidate)) {
+          const hengruiHongKongOnly = hasHengruiScopeExclusionPolicy(plan) &&
+            Array.isArray(candidate.locations) && candidate.locations.length > 0 &&
+            candidate.locations.every(isHengruiHongKongLocation);
+          if (isExplicitlyOutsideChina(candidate) || hengruiHongKongOnly) {
             validationDiscardCount += 1;
             fetchLosses.push({
               stage: "VALIDATION",
-              reason: "Moka record is explicitly outside China scope",
+              reason: hengruiHongKongOnly
+                ? "Hengrui record is explicitly outside mainland China scope"
+                : "Moka record is explicitly outside China scope",
               rawLocator,
               details: { code: "OUT_OF_SCOPE", pageSequence: pageIndex, recordIndex },
               recordedAt: api.capturedAt
@@ -444,8 +499,14 @@ export function createMokaSourceFetch(deps: MokaSourceFetchDeps = {}): SourceFet
             continue;
           }
           seenOfficialIds.add(officialId);
+          // A mixed row retains its mainland alternative; a China country label alone
+          // does not make a Hong Kong location mainland evidence.
+          if (hasHengruiScopeExclusionPolicy(plan) && Array.isArray(candidate.locations)) {
+            candidate = { ...candidate, locations: candidate.locations.filter(location => !isHengruiHongKongLocation(location)) };
+          }
           const enriched = enrichMokaJob(candidate, campaignBinding.campaignUrl);
           if (!isObject(enriched)) throw new Error("Moka validated record did not enrich to an object");
+          if (bayerMedical) enriched.officialPublishedAt = new Date(String(enriched.officialPublishedAt)).toISOString();
           pageJobs.push(enriched);
           validCount += 1;
           validJobIds.push(irreversibleEvidenceId(mokaJobId(candidate)!));
@@ -463,7 +524,7 @@ export function createMokaSourceFetch(deps: MokaSourceFetchDeps = {}): SourceFet
           ? (isLastAllowedPage ? "MAX_PAGE_LIMIT" : "CONTINUE")
           : pageTotal === 0 && rawPageJobs.length === 0
             ? "EMPTY_PAGE"
-            : pageTotal !== undefined && allValidIds.size === pageTotal
+            : !scopedTraversal && pageTotal !== undefined && allValidIds.size === pageTotal
               ? "DECLARED_TOTAL_REACHED"
               : "NEXT_ABSENT";
         pages.push({
@@ -501,8 +562,8 @@ export function createMokaSourceFetch(deps: MokaSourceFetchDeps = {}): SourceFet
         ...(officialTotalPage && expectedJobCount !== undefined
           ? {
               declaredCompleteness: {
-                kind: "OFFICIAL_TOTAL_COUNT",
-                value: expectedJobCount,
+                kind: scopedTraversal ? "COMPLETE_PAGE_TRAVERSAL" : "OFFICIAL_TOTAL_COUNT",
+                value: scopedTraversal ? pages.length : expectedJobCount,
                 artifactLogicalKey: officialTotalPage.artifactLogicalKey,
                 extractorLocator: artifacts.find(
                   (artifact) => artifact.logicalKey === officialTotalPage.artifactLogicalKey
@@ -535,12 +596,24 @@ export function createMokaSourceFetch(deps: MokaSourceFetchDeps = {}): SourceFet
           paginationEvaluation
         );
       }
+      const scopeProof = hasHengruiScopeExclusionPolicy(plan)
+        ? replayHengruiScopeExclusionProof(plan, evidence)
+        : undefined;
+      if (hasHengruiScopeExclusionPolicy(plan) && !scopeProof) {
+        return failed(capturedAt, "Hengrui foreign-scope evidence failed independent replay", evidence, paginationEvaluation);
+      }
+      const bayerProof = bayerMedical ? replayBayerMedicalTraversal(plan, evidence) : undefined;
+      if (bayerMedical && !bayerProof) return failed(capturedAt, "Bayer medical original-record replay failed", evidence, paginationEvaluation);
+      const servierProof = servierPortal ? replayServierTraversal(plan, evidence) : undefined;
+      if (servierPortal && !servierProof) return failed(capturedAt, "Servier original-record replay failed", evidence, paginationEvaluation);
+      const independentlyVerifiedExclusionCount = servierProof?.excludedCount ?? bayerProof?.excludedCount ?? scopeProof?.exclusions.length ?? 0;
       if (
         expectedJobCount !== undefined &&
         (
           seenRawOfficialIds.size !== expectedJobCount ||
           (configuredMoka?.publishedWithinDays === undefined &&
-            (seenOfficialIds.size !== expectedJobCount || validCount !== expectedJobCount))
+            (seenOfficialIds.size + independentlyVerifiedExclusionCount !== expectedJobCount ||
+              validCount + independentlyVerifiedExclusionCount !== expectedJobCount))
         )
       ) {
         return failed(
@@ -555,7 +628,10 @@ export function createMokaSourceFetch(deps: MokaSourceFetchDeps = {}): SourceFet
         ok: true,
         capturedAt,
         payload: mergeMokaJobs(firstPayload, jobs),
-        completeness:
+        completeness: scopedTraversal ? {
+          completenessStatus: "NEEDS_MANUAL_COMPLETENESS_REVIEW", completenessEvidenceKind: "COMPLETE_PAGE_TRAVERSAL",
+          completenessEvidenceUrl: credentialSafeEntryUrl(plan.source.officialEntryUrl), totalPages: pages.length, pageSize: MOKA_PAGE_SIZE, pagesVisited
+        } :
           expectedJobCount === undefined
             ? {
                 completenessStatus: "NEEDS_MANUAL_COMPLETENESS_REVIEW",
@@ -638,7 +714,7 @@ function decryptMokaText(response: MokaEncryptedResponse, aesIv: string): string
   return decrypted;
 }
 
-function createDefaultMokaHttpClient(now: () => Date): MokaHttpClient {
+export function createDefaultMokaHttpClient(now: () => Date): MokaHttpClient {
   const cookies = new Map<string, string>();
 
   return async (request) => defaultMokaHttpClient(request, cookies, now);
@@ -852,7 +928,9 @@ function validateMokaDetailResponse(input: {
   requestBody: unknown;
   allowSiteIdOmission: boolean;
   aesIv: string;
-}): { ok: true; locations: unknown[] } | { ok: false; field: string } {
+  bayerRaw?: Record<string, unknown>;
+  servierRaw?: Record<string, unknown>;
+}): { ok: true; locations: unknown[]; bayerPaused?: boolean; servierUnknownGeography?: boolean } | { ok: false; field: string } {
   if (input.response.status < 200 || input.response.status >= 300) return { ok: false, field: "httpStatus" };
   let detail: unknown;
   let encryptedDetail = false;
@@ -867,7 +945,7 @@ function validateMokaDetailResponse(input: {
       }
       detail = decrypted.data;
     } else {
-      detail = parsed;
+      detail = input.servierRaw && isObject(parsed) && parsed.success === true ? parsed.data : parsed;
     }
   } catch {
     return { ok: false, field: "body" };
@@ -890,6 +968,14 @@ function validateMokaDetailResponse(input: {
     returnedSiteId === undefined &&
     (!input.allowSiteIdOmission || !isExactMokaDetailRequestBinding(input.requestBody, input))
   ) return { ok: false, field: "siteId" };
+  if (input.servierRaw) {
+    try { const scope = servierDetailScope(input.servierRaw, detail); return {ok: true, locations: scope.locations, servierUnknownGeography: scope.unknownGeography}; }
+    catch { return {ok: false, field: "servierScope"}; }
+  }
+  if (input.bayerRaw) {
+    try { const scope = bayerDetailScope(input.bayerRaw, detail); return { ok: true, locations: scope.locations, bayerPaused: scope.paused }; }
+    catch { return { ok: false, field: "bayerScope" }; }
+  }
   if (!Array.isArray(detail.locations) || citiesFromMokaLocations(detail.locations).length === 0) {
     return { ok: false, field: "locations" };
   }
@@ -1474,4 +1560,9 @@ function failed(
 
 function isObject(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;
+}
+
+function isHengruiHongKongLocation(value: unknown): boolean {
+  return isObject(value) && value.country === "中国" && value.cityName === "香港" &&
+    value.provinceName === "香港" && value.cityId === 810000 && value.provinceId === 810000;
 }

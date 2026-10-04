@@ -3,7 +3,7 @@ import { candidateCompanies } from "../../src/data/companyRegistry";
 import { buildStagedSourceCrawlPlans, getPlanBySourceId } from "../../src/crawler/sourcePlan";
 
 describe("Aspen China recruitment source (formerly Sandoz China)", () => {
-  it("uses the manually verified Aspen public page and derives zero from page structure", () => {
+  it("keeps the selected Aspen page without deriving zero from recruitment prose", () => {
     const plan = getPlanBySourceId(
       buildStagedSourceCrawlPlans(candidateCompanies),
       "source-sandoz-china-social"
@@ -18,6 +18,8 @@ describe("Aspen China recruitment source (formerly Sandoz China)", () => {
         completenessProof: { kind: "STATIC_PUBLIC_LIST" }
       }
     });
+    if (plan?.adapterId !== "html-table") throw new Error("missing Aspen plan");
+    expect(plan.table.staticPublicList?.explicitEmptyState).toBeUndefined();
     expect(JSON.stringify(plan)).not.toMatch(/expected(?:Job)?Count|manualCount/iu);
   });
 });

@@ -3,6 +3,7 @@ import { runSourceCrawl } from "../../src/crawler/runSourceCrawl";
 import { createOfficialJsonSourceFetch } from "../../src/crawler/officialJsonSourceFetch";
 import { buildStagedSourceCrawlPlans } from "../../src/crawler/sourcePlan";
 import { candidateCompanies } from "../../src/data/companyRegistry";
+import { createNovoSingleJobHttp } from "../helpers/novoSingleJobFixture";
 
 const capturedAt = "2026-07-11T00:00:00.000Z";
 const candidatePlan = buildStagedSourceCrawlPlans(candidateCompanies).find(
@@ -13,7 +14,6 @@ if (!candidatePlan || candidatePlan.adapterId !== "official-json" ||
   throw new Error("Missing staged Novo Nordisk truthfulness plan");
 }
 const plan = candidatePlan;
-const novoFetchConfig = candidatePlan.officialJsonFetch;
 const payload = {
   jobs: [{
     sourceJobId: "1",
@@ -25,26 +25,9 @@ const payload = {
 };
 
 async function strictFetch(zero = false) {
-  const endpoint = novoFetchConfig.endpointUrl;
   const fetch = createOfficialJsonSourceFetch({
     now: () => new Date(capturedAt),
-    http: async () => ({
-      status: 200,
-      body: JSON.stringify({
-        data: {
-          totalMatches: zero ? 0 : 1,
-          jobs: zero ? [] : [{
-            jobId: "1",
-            jobTitle: "Medical role",
-            jobLocationLabel: "China Mainland, Beijing",
-            jobCity: { label: "Beijing" }
-          }]
-        }
-      }),
-      finalUrl: endpoint,
-      contentType: "application/json; charset=utf-8",
-      capturedAt
-    })
+    http: createNovoSingleJobHttp(capturedAt, {zero})
   });
   const result = await fetch(plan);
   if (!result.ok || !("payload" in result) || !result.fetchEvidence || !result.paginationEvaluation) {

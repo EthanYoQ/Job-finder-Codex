@@ -1,3 +1,5 @@
+import { safeProfileBoundSourceFailureReason } from "../../src/crawler/profileBoundSourceEvidence";
+import { MSD_DUAL_OFFICIAL_FETCH_CONFIG } from "../../src/crawler/msdDualOfficialSourceFetch";
 import { readFileSync } from "node:fs";
 import { createHash } from "node:crypto";
 import { dirname, resolve } from "node:path";
@@ -1669,8 +1671,14 @@ describe("runP0CrawlBatch", () => {
     }));
   });
 
-  it("persists a bounded MSD stage failure code without making it retryable", async () => {
+  it("binds legacy MSD failure codes only to the historical strategy and sanitizes them for current Ajinga without retrying", async () => {
     const plan = planFor("source-msd-china-social");
+    if (plan.adapterId !== "official-json") throw Error("Expected MSD JSON plan");
+    expect(plan.profileBoundSource?.kind).toBe("msd-ajinga");
+    expect(safeProfileBoundSourceFailureReason({ ...plan, profileBoundSource: {
+      kind: "msd-dual-official", config: MSD_DUAL_OFFICIAL_FETCH_CONFIG
+    } }, "MSD_ENTRY_FETCH_FAILED")).toBe("MSD_ENTRY_FETCH_FAILED");
+    expect(safeProfileBoundSourceFailureReason(plan, "MSD_ENTRY_FETCH_FAILED")).toBeUndefined();
     const db = fakeDb();
     const delegate = vi.fn(async () => ({
       ok: false as const,
@@ -1700,7 +1708,7 @@ describe("runP0CrawlBatch", () => {
         transportState: "FAILED",
         adapterState: "SKIPPED",
         failureCode: "SOURCE_TRANSPORT_FAILED",
-        failureReason: "MSD_ENTRY_FETCH_FAILED",
+        failureReason: "Source transport failed",
         failureCategory: "UNCLASSIFIED_SOURCE_FAILURE",
         failureDiagnosticCode: "FETCH_FAILED_CLOSED",
         fetchAttemptCount: 1,

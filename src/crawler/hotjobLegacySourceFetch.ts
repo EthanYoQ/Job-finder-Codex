@@ -217,7 +217,7 @@ export function createHotjobLegacySourceFetch(deps: HotjobLegacySourceFetchDeps 
           jobs.push({
             sourceJobId: persistentHotjobId(officialId),
             title,
-            officialUrl: `${evidenceEntryUrl}#/position/detail?postId=${encodeURIComponent(officialId)}`,
+            officialUrl: legacyDetailUrl(plan, evidenceEntryUrl, officialId),
             locationRaw
           });
         }
@@ -452,7 +452,7 @@ export function validateStrictHotjobLegacyEvidence(
         expectedJobs.push({
           sourceJobId: persistentHotjobId(officialId),
           officialTitle: title,
-          officialUrl: `${entryUrl}#/position/detail?postId=${encodeURIComponent(officialId)}`,
+          officialUrl: legacyDetailUrl(plan, entryUrl, officialId),
           locationRaw
         });
       }
@@ -475,6 +475,16 @@ export function validateStrictHotjobLegacyEvidence(
   } catch {
     return false;
   }
+}
+
+// The CR Pharma native renderer uses this route, not the generic SPA fragment.
+function legacyDetailUrl(plan: Parameters<SourceFetchFunction>[0], entryUrl: string, officialId: string): string {
+  if (plan.source.id === "source-cr-pharma-social" && plan.company.id === "company-cr-pharma" &&
+      plan.source.companyId === "company-cr-pharma" &&
+      entryUrl === "https://crc.wintalent.cn/wt/crpharma/web/index/social") {
+    return `https://crc.wintalent.cn/wt/crpharma/web/index/webPositionN300!getOnePosition?postId=${encodeURIComponent(officialId)}&recruitType=2&brandCode=1&columnId=2&importPost=0`;
+  }
+  return `${entryUrl}#/position/detail?postId=${encodeURIComponent(officialId)}`;
 }
 
 function manualCompleteness(

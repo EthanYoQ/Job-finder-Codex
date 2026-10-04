@@ -27,7 +27,7 @@ export const profile_kelun = {
                   },
                   officialTitle: { selector: "td:nth-child(1) a" },
                   officialUrl: { selector: "td:nth-child(1) a", attribute: "href" },
-                  locationRaw: { selector: "td:nth-child(5)" }
+                  locationRaw: { selector: "td:nth-child(5)", attribute: "title" }
               }
           }
       }

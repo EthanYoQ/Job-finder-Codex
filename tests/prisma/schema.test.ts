@@ -152,6 +152,21 @@ describe("prisma schema", () => {
       ,"20260902093000_grifols_trigger_artifact_binding"
       ,"20260902094500_a_grade_official_total_dedupe"
       ,"20260902095500_boehringer_verified_ui_exclusions"
+      ,"20260927110000_crawl_coordinator_table_lock"
+      ,"20260927120000_p0_launch_cohort_41_companies"
+      ,"20261001120000_portable_source_quality_policy"
+      ,"20261001151000_portable_loss_position_identity"
+      ,"20261001163000_portable_zero_based_loss_pages"
+      ,"20261001174000_astellas_pdf_city_policy"
+      ,"20261001181500_abbvie_reviewed_row_policy"
+      ,"20261001233000_verified_date_source_policy"
+      ,"20261002001500_bms_mainland_geography_policy"
+      ,"20261002011500_city_pending_source_policies"
+      ,"20261002020000_gilead_novo_source_policies"
+      ,"20261002093322_novo_native_application_policy"
+      ,"20261002101515_organon_source_policy"
+      ,"20261002103742_lilly_source_policy"
+      ,"20261003055000_jnj_dom_evidence_admission"
     ]);
     const statements = crawlStatusValuesMigration
       .split("\n")

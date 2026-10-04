@@ -1,5 +1,10 @@
+import { fetchPfizerWorkdayTraversal, PFIZER_TRAVERSAL_POLICY } from "./pfizerWorkdayTraversal";
+import { exactWorkdayMainlandQualityPlan, requiresWorkdayMainlandQuality, parseWorkdayMainlandRow, projectWorkdayMainlandRow,
+  projectWorkdayMainlandEvidence, workdayMainlandDetailUrl, workdayMainlandDetailLocator, fetchWorkdayMainlandHttp,
+  WORKDAY_MAINLAND_BODY_LIMIT, WORKDAY_MAINLAND_DETAIL_BODY_LIMIT, WORKDAY_MAINLAND_SOURCE_BODY_LIMIT, WORKDAY_MAINLAND_MAX_DETAILS, type AMGEN_MAINLAND_POLICY, type CSL_MAINLAND_POLICY } from "./workdayMainlandQuality";
 import type { SourceFetchFunction, SourceFetchResult } from "./runSourceCrawl";
-import { fetchWithOfficialTimeout } from "./officialHttpRuntimeLimits";
+import { BIOGEN_SOURCE_ID, biogenListCities, biogenListEvidenceComplete, requiresBiogenListGeography, exactBiogenListGeographyPlan } from "./biogenListGeographyGuard";
+import { currentOfficialSourceAttemptSignal, fetchWithOfficialTimeout } from "./officialHttpRuntimeLimits";
 import { deriveCanonicalPaginationEvidence, evaluatePaginationEvidence } from "./paginationEvidence";
 import {
   parsePersistentSourceFetchEvidence,
@@ -19,6 +24,8 @@ import {
 } from "./sourceFetchFailure";
 
 export interface WorkdayFetchConfig {
+  traversalScopePolicy?: typeof PFIZER_TRAVERSAL_POLICY;
+  mainlandQualityPolicy?: typeof AMGEN_MAINLAND_POLICY | typeof CSL_MAINLAND_POLICY;
   tenant: string;
   site: string;
   searchText?: string;
@@ -31,6 +38,7 @@ export interface WorkdayFetchConfig {
   pageSize?: number;
   maxPages?: number;
   cityHints?: Record<string, readonly string[]>;
+  listGeographyPolicy?: "BIOGEN_MAINLAND_CITY_PENDING_V1";
 }
 
 export type WorkdayOpaqueMultiLocationDetailPolicy =
@@ -620,10 +628,21 @@ export function createWorkdaySourceFetch(deps: WorkdaySourceFetchDeps = {}): Sou
       return failed(capturedAt, `Workday source ${plan.source.id} is missing Workday config`);
     }
 
+    if (requiresBiogenListGeography(plan) && !exactBiogenListGeographyPlan(plan)) {
+      return failed(capturedAt, "Biogen list geography policy does not match the exact reviewed source configuration");
+    }
+
+    if (plan.workday.traversalScopePolicy !== undefined) return fetchPfizerWorkdayTraversal(plan, deps);
+
+    const mainlandQuality = requiresWorkdayMainlandQuality(plan);
     const allowsAuditedLaterZeroTotal = allowsAuditedLaterZeroTotalPolicy(plan.source.id, plan.workday);
     if (plan.workday.laterZeroTotalPolicy !== undefined && !allowsAuditedLaterZeroTotal) {
       return failed(capturedAt, `Workday later-zero total policy is not allowed for source ${plan.source.id}`);
     }
+    if (mainlandQuality && !exactWorkdayMainlandQualityPlan(plan)) {
+      return failed(capturedAt, "Workday mainland quality policy does not match the exact reviewed configuration");
+    }
+
     const auditedLocationFacetPolicy = resolveAuditedLocationFacetPolicy(plan.source.id, plan.workday);
     if (plan.workday.locationFacetPolicy !== undefined && !auditedLocationFacetPolicy) {
       return failed(capturedAt, `Workday location facet policy is not allowed for source ${plan.source.id}`);
@@ -638,11 +657,12 @@ export function createWorkdaySourceFetch(deps: WorkdaySourceFetchDeps = {}): Sou
     }
 
     try {
-      const http = deps.http ?? defaultWorkdayHttpClient;
-      const detailHttp = deps.detailHttp ?? (deps.http ? undefined : defaultWorkdayDetailHttpClient);
+      const http = deps.http ?? (mainlandQuality ? fetchWorkdayMainlandHttp : defaultWorkdayHttpClient);
+      const detailHttp = deps.detailHttp ?? (deps.http ? undefined : mainlandQuality ? fetchWorkdayMainlandHttp : defaultWorkdayDetailHttpClient);
       const jobs: ReturnType<typeof enrichWorkdayJob>[number][] = [];
       const artifacts: SourceFetchArtifactDraft[] = [];
       const pages: SourceFetchPageTrace[] = [];
+      let mainlandRetainedBytes = 0, mainlandDetailCount = 0;
       const fetchLosses: PersistentSourceFetchEvidence["fetchLosses"] = [];
       const pageSize = normalizePageSize(plan.workday.pageSize);
       const maxPages = Math.max(1, plan.workday.maxPages ?? DEFAULT_MAX_PAGES);
@@ -767,6 +787,7 @@ export function createWorkdaySourceFetch(deps: WorkdaySourceFetchDeps = {}): Sou
       }
 
       for (let pageIndex = 0; pageIndex < maxPages; pageIndex += 1) {
+        if (mainlandQuality) currentOfficialSourceAttemptSignal()?.throwIfAborted();
         const offset = pageIndex * pageSize;
         const pageRequest = workdayJobsRequest({
           url,
@@ -778,6 +799,25 @@ export function createWorkdaySourceFetch(deps: WorkdaySourceFetchDeps = {}): Sou
           offset
         });
         const response = await http(pageRequest);
+        const artifactLogicalKey = `workday-page-${String(pageIndex).padStart(4, "0")}`;
+        const pageLocator = requestContractV2Locator("$.total", {
+          family: "workday", role: "page", method: pageRequest.method, url: pageRequest.url, body: JSON.parse(pageRequest.body),
+          coordinate: { sequence: pageIndex, requestedOffset: offset, requestedPage: pageIndex, requestedPageSize: pageSize }
+        });
+        if (mainlandQuality) {
+          assertEvidenceResponse(response);
+          currentOfficialSourceAttemptSignal()?.throwIfAborted();
+          const bytes = Buffer.byteLength(response.body, "utf8");
+          if (bytes > WORKDAY_MAINLAND_BODY_LIMIT || mainlandRetainedBytes + bytes > WORKDAY_MAINLAND_SOURCE_BODY_LIMIT) throw Error("Workday mainland source body byte budget exceeded");
+          mainlandRetainedBytes += bytes;
+          artifacts.push(workdayArtifact(artifactLogicalKey, "PAGINATION_PAGE", url, response, pageLocator));
+          latestEvidence = workdayInPageFailureEvidence({ artifacts, pages, artifactLogicalKey, pageIndex, offset, pageSize,
+            rawJobIds: [], validJobIds: [], declaredTotal: undefined, response, rawCount, parsedCount, validCount,
+            parseDiscardCount, validationDiscardCount, fetchLosses });
+          if (response.status !== 200 || response.finalUrl !== url || !/^application\/json(?:\s*;|$)/iu.test(response.contentType ?? "")) {
+            return failed(capturedAt, "Workday mainland list HTTP status, URL or content type is invalid", latestEvidence);
+          }
+        }
 
         if (response.status < 200 || response.status >= 300) {
           const transportFailure = retryableHttpTransportFailure(response.status);
@@ -787,6 +827,10 @@ export function createWorkdaySourceFetch(deps: WorkdaySourceFetchDeps = {}): Sou
         }
 
         assertEvidenceResponse(response);
+        if (mainlandQuality) {
+          currentOfficialSourceAttemptSignal()?.throwIfAborted();
+          if (Buffer.byteLength(response.body, "utf8") > WORKDAY_MAINLAND_BODY_LIMIT) throw Error("Workday mainland list body exceeds byte limit");
+        }
 
         const parsed = parseWorkdayJobsResponse(response.body, {
           pageIndex,
@@ -824,8 +868,7 @@ export function createWorkdaySourceFetch(deps: WorkdaySourceFetchDeps = {}): Sou
             latestEvidence
           );
         }
-        const artifactLogicalKey = `workday-page-${String(pageIndex).padStart(4, "0")}`;
-        artifacts.push(workdayArtifact(
+        if (!mainlandQuality) artifacts.push(workdayArtifact(
           artifactLogicalKey,
           "PAGINATION_PAGE",
           url,
@@ -859,6 +902,16 @@ export function createWorkdaySourceFetch(deps: WorkdaySourceFetchDeps = {}): Sou
             continue;
           }
           parsedCount += 1;
+          const biogenCities = plan.source.id === BIOGEN_SOURCE_ID ? biogenListCities(raw) : undefined;
+          if (plan.source.id === BIOGEN_SOURCE_ID && !biogenCities) {
+            validationDiscardCount += 1;
+            fetchLosses.push({
+              stage: "VALIDATION", reason: "Biogen list geography is unresolved; the complete source is held",
+              rawLocator, details: { code: "BIOGEN_LIST_GEOGRAPHY_UNRESOLVED", pageSequence: pageIndex, recordIndex },
+              recordedAt: response.capturedAt
+            });
+            continue;
+          }
           if (facetDescriptorBoundary && Object.prototype.hasOwnProperty.call(raw, facetDescriptorBoundary.facetParameter)) {
             const recordDescriptor = stringValue(raw[facetDescriptorBoundary.facetParameter]);
             if (!recordDescriptor || !facetDescriptorBoundary.allowedDescriptors.includes(recordDescriptor)) {
@@ -903,7 +956,42 @@ export function createWorkdaySourceFetch(deps: WorkdaySourceFetchDeps = {}): Sou
             continue;
           }
           let normalized: ReturnType<typeof enrichWorkdayJob>;
-          if (!hasRecordLevelChinaEvidence(raw, plan.workday.cityHints)) {
+          if (mainlandQuality) {
+            let detailResponse: WorkdayHttpResponse | undefined;
+            try {
+              currentOfficialSourceAttemptSignal()?.throwIfAborted();
+              const row = parseWorkdayMainlandRow(plan, raw);
+              if (!row) throw Error("List identity, fields or mainland location are unresolved");
+              if (row.requiresDetail) {
+                if (!detailHttp) throw Error("An injected Workday POST transport requires an explicit detail client");
+                if (mainlandDetailCount >= WORKDAY_MAINLAND_MAX_DETAILS) throw Error("Workday mainland required detail count budget exceeded");
+                mainlandDetailCount += 1;
+                const detailUrl = workdayMainlandDetailUrl(plan, row);
+                detailResponse = await requestWorkdayDetail({ http: detailHttp, url: detailUrl, referer: plan.source.officialEntryUrl });
+                currentOfficialSourceAttemptSignal()?.throwIfAborted();
+                const bytes = Buffer.byteLength(detailResponse.body, "utf8");
+                if (bytes > WORKDAY_MAINLAND_DETAIL_BODY_LIMIT || mainlandRetainedBytes + bytes > WORKDAY_MAINLAND_SOURCE_BODY_LIMIT) throw Error("Workday mainland detail/source body byte budget exceeded");
+                mainlandRetainedBytes += bytes;
+                artifacts.push(workdayArtifact(`workday-detail-${String(pageIndex).padStart(4, "0")}-${String(recordIndex).padStart(4, "0")}`,
+                  "ATS_API_RESPONSE", detailUrl, detailResponse, workdayMainlandDetailLocator(plan, row, pageIndex, recordIndex)));
+                if (detailResponse.status !== 200 || detailResponse.finalUrl !== detailUrl ||
+                  !/^application\/json(?:\s*;|$)/iu.test(detailResponse.contentType ?? "")) throw Error("Detail HTTP status, final URL or content type is invalid");
+              }
+              const projected = projectWorkdayMainlandRow(plan, row, detailResponse?.body);
+              if (!projected) throw Error("Detail identity, posting state, country or complete locations are unresolved");
+              const { locations: _locations, ...job } = projected;
+              normalized = [job];
+            } catch (error) {
+              validationDiscardCount += 1;
+              fetchLosses.push({ stage: "VALIDATION", reason: "Workday mainland row or required detail validation failed", rawLocator,
+                details: { code: "MAINLAND_DETAIL_VALIDATION_FAILED", pageSequence: pageIndex, recordIndex },
+                recordedAt: detailResponse?.capturedAt ?? response.capturedAt });
+              latestEvidence = workdayInPageFailureEvidence({ artifacts, pages, artifactLogicalKey, pageIndex, offset, pageSize,
+                rawJobIds, validJobIds, declaredTotal: parsed.total, response, rawCount, parsedCount, validCount,
+                parseDiscardCount, validationDiscardCount, fetchLosses });
+              return failed(capturedAt, `Workday mainland quality validation failed: ${error instanceof Error ? error.message : String(error)}`, latestEvidence);
+            }
+          } else if (!hasRecordLevelChinaEvidence(raw, plan.workday.cityHints)) {
             const opaqueLocationCount = exactOpaqueMultiLocationCount(raw.locationsText);
             if (opaqueMultiLocationDetailPolicy && opaqueLocationCount !== undefined) {
               const failOpaqueDetail = (reason: string, recordedAt = response.capturedAt) => {
@@ -997,6 +1085,7 @@ export function createWorkdaySourceFetch(deps: WorkdaySourceFetchDeps = {}): Sou
               defaultCities: ["中国"]
             });
           }
+          if (biogenCities) normalized = normalized.map(job => ({ ...job, cities: biogenCities }));
           const credentialField = normalized[0] ? emittedCredentialField(normalized[0]) : undefined;
           if (credentialField) {
             validationDiscardCount += 1;
@@ -1097,6 +1186,12 @@ export function createWorkdaySourceFetch(deps: WorkdaySourceFetchDeps = {}): Sou
           : {})
       });
       latestEvaluation = paginationEvaluation;
+      if (mainlandQuality && !projectWorkdayMainlandEvidence(plan, evidence)) {
+        return failed(capturedAt, "Workday mainland raw rows, countries, alternatives, totals or details did not reconcile; complete source held", evidence, paginationEvaluation);
+      }
+      if (plan.source.id === BIOGEN_SOURCE_ID && !biogenListEvidenceComplete(plan, evidence)) {
+        return failed(capturedAt, "Biogen source geography, identity, facets, or complete counts are unresolved; complete source held", evidence, paginationEvaluation);
+      }
       if (
         plan.workday.laterZeroTotalPolicy === BMS_LATER_ZERO_TOTAL_POLICY &&
         !bmsExactLaterZeroReconciliationProven({
@@ -1130,7 +1225,8 @@ export function createWorkdaySourceFetch(deps: WorkdaySourceFetchDeps = {}): Sou
 
       return {
         ok: true,
-        capturedAt,
+        // A replay binds the same real first-response observation used by the archived evidence.
+        capturedAt: mainlandQuality ? evidence.artifacts[0]!.capturedAt : capturedAt,
         payload: { jobPostings: jobs },
         completeness:
           expectedJobCount === undefined

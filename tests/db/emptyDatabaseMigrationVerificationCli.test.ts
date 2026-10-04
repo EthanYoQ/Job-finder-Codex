@@ -1,6 +1,7 @@
-import { readFileSync, readdirSync } from "node:fs";
+import { readFileSync, readdirSync, mkdtempSync, mkdirSync, copyFileSync, rmSync } from "node:fs";
 import { resolve } from "node:path";
-import { describe, expect, it, vi } from "vitest";
+import { tmpdir } from "node:os";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   REVIEWED_APP_TABLE_NAMES,
   REVIEWED_FUNCTION_NAMES,
@@ -9,15 +10,33 @@ import {
   REVIEWED_MIGRATION_NAMES,
   REVIEWED_USER_TYPE_NAMES,
   createEmptyDatabaseVerificationDeps,
+  formatEmptyDatabaseMigrationVerificationFailure,
   verifyReviewedMigrationTree
 } from "../../src/db/emptyDatabaseMigrationVerificationCli";
 
+import { resolveEmptyDatabaseVerificationConfig, runEmptyDatabaseMigrationVerification } from "../../src/db/emptyDatabaseMigrationVerification";
+
+const fixtureRoots: string[] = [];
+afterEach(() => { for (const root of fixtureRoots.splice(0)) rmSync(root, { recursive: true, force: true }); });
+function supportedHistoryRoot(): string {
+  const root = mkdtempSync(resolve(tmpdir(), "historical-empty-verification-"));
+  fixtureRoots.push(root);
+  for (const name of REVIEWED_MIGRATION_NAMES) {
+    const dir = resolve(root, "prisma/migrations", name);
+    mkdirSync(dir, { recursive: true });
+    copyFileSync(resolve(process.cwd(), "prisma/migrations", name, "migration.sql"), resolve(dir, "migration.sql"));
+  }
+  return root;
+}
+
 describe("empty database migration verification CLI contract", () => {
-  it("uses explicit reviewed PG16 catalog allowlists matching all 34 migrations", () => {
+  it("preserves historical 34-migration PG16 allowlists and refuses the existing-only candidate", () => {
     const actualMigrations = readdirSync(resolve(process.cwd(), "prisma", "migrations"), { withFileTypes: true })
       .filter((entry) => entry.isDirectory()).map((entry) => entry.name).sort();
     expect(REVIEWED_MIGRATION_NAMES).toHaveLength(34);
-    expect([...REVIEWED_MIGRATION_NAMES].sort()).toEqual(actualMigrations);
+    expect(actualMigrations).toHaveLength(49);
+    expect(actualMigrations.slice(0, 34)).toEqual([...REVIEWED_MIGRATION_NAMES].sort());
+    expect(() => verifyReviewedMigrationTree(actualMigrations)).toThrow(/existing-database-only/i);
     expect(REVIEWED_APP_TABLE_NAMES).toHaveLength(25);
     expect(new Set(REVIEWED_APP_TABLE_NAMES).size).toBe(25);
     expect(REVIEWED_APP_TABLE_NAMES).toEqual(expect.arrayContaining([
@@ -59,14 +78,56 @@ describe("empty database migration verification CLI contract", () => {
       .toBe("d83911447578a1174f081fac6b5f6f12d5aa9f22b76338327a2e321f4c581129");
   });
 
+  it("reports the existing-only boundary without exposing arbitrary failure details", () => {
+    let refusal: unknown;
+    try { verifyReviewedMigrationTree(["20260927120000_p0_launch_cohort_41_companies"]); }
+    catch (error) { refusal = error; }
+    expect(formatEmptyDatabaseMigrationVerificationFailure(refusal)).toMatch(/existing-database-only/i);
+    expect(formatEmptyDatabaseMigrationVerificationFailure(new Error("postgresql://user:secret@db/test")))
+      .toBe("Empty database migration verification failed.");
+    const entryPoint = readFileSync(resolve(process.cwd(), "scripts/verify-empty-db-migrations.ts"), "utf8");
+    expect(entryPoint).toContain("formatEmptyDatabaseMigrationVerificationFailure(error)");
+  });
+
   it("refuses local migration drift before any command can run", () => {
     expect(() => verifyReviewedMigrationTree(["20260710000000_baseline"]))
       .toThrow(/reviewed migration tree/i);
   });
 
+  it("rejects the exported factory/orchestrator composition against the actual recovery tree before any command", async () => {
+    const databaseName = "jobfinder_empty_verify_a1b2c3d4e5f60708";
+    const config = resolveEmptyDatabaseVerificationConfig({
+      EMPTY_DB_VERIFICATION: "1", EMPTY_DB_NETWORK_INTERNAL: "1", EMPTY_DB_HOST_PORT_BINDINGS: "none",
+      EMPTY_DB_EXPECTED_DATABASE: databaseName, EMPTY_DB_EXPECTED_SYSTEM_IDENTIFIER: "7659954889866510370",
+      EMPTY_DB_FORBIDDEN_SYSTEM_IDENTIFIERS: "7659954889866510369",
+      DATABASE_URL: `postgresql://verify:dummy@empty-postgres/${databaseName}?schema=public`
+    });
+    const outputs = ["psql (PostgreSQL) 16.14", JSON.stringify({ currentDatabase: databaseName, serverVersion: "16.14",
+      systemIdentifier: "7659954889866510370", isTemplate: false }),
+      JSON.stringify({ publicSchemaObjectCount: 0, migrationTableExists: false, migrationRowCount: 0 })];
+    const spawn = vi.fn(() => ({ status: outputs.length ? 0 : 1, stdout: outputs.shift() ?? "", stderr: "" }));
+    await expect(async () => runEmptyDatabaseMigrationVerification(config,
+      createEmptyDatabaseVerificationDeps(process.cwd(), spawn))).rejects.toThrow(/existing-database-only/i);
+    expect(spawn).not.toHaveBeenCalled();
+  });
+
+  it("rechecks the actual tree at replay after the dependency factory has been created", async () => {
+    const root = supportedHistoryRoot();
+    const spawn = vi.fn(() => ({ status: 0, stdout: "", stderr: "" }));
+    const deps = createEmptyDatabaseVerificationDeps(root, spawn);
+    const name = "20260927120000_p0_launch_cohort_41_companies";
+    const dir = resolve(root, "prisma/migrations", name);
+    mkdirSync(dir);
+    copyFileSync(resolve(process.cwd(), "prisma/migrations", name, "migration.sql"), resolve(dir, "migration.sql"));
+    await expect(deps.runCommand({ stage: "first-migrate-deploy", executable: process.execPath,
+      args: [deps.prismaCliPath, "migrate", "deploy"], cwd: root, env: {}, shell: false }))
+      .rejects.toThrow(/existing-database-only/i);
+    expect(spawn).not.toHaveBeenCalled();
+  });
+
   it("constructs exact local dependency paths and preserves shell false", async () => {
     const run = vi.fn(() => ({ status: 0, stdout: "ok", stderr: "" }));
-    const root = resolve("C:\\repo");
+    const root = supportedHistoryRoot();
     const deps = createEmptyDatabaseVerificationDeps(root, run);
     expect(deps).toMatchObject({
       projectRoot: root,
@@ -85,7 +146,7 @@ describe("empty database migration verification CLI contract", () => {
     try {
       const run = vi.fn((_executable: string, _args: readonly string[], _options: { env: NodeJS.ProcessEnv }) =>
         ({ status: 0, stdout: "ok", stderr: "" }));
-      const deps = createEmptyDatabaseVerificationDeps(process.cwd(), run);
+      const deps = createEmptyDatabaseVerificationDeps(supportedHistoryRoot(), run);
       await deps.runCommand({
         stage: "probe", executable: "tool", args: [], cwd: process.cwd(),
         env: { PGDATABASE: "safe-target" }, shell: false

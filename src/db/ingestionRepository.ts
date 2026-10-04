@@ -1,5 +1,13 @@
+import { hasBoundJnjDomOfficialArtifact } from "./jnjDomEvidenceAdmission";
+import { compileAtomicJsonDeclarations } from "./atomicJsonDeclarations";
+import type { CloudPilotDbStartedInput } from "./cloudPilotSqlControl";
+import { portableSourceResultSelect, type PortableSourceResultRow } from "./portablePublicSnapshotRepository";
+import { SOURCE_QUALITY_POLICY_ID, SOURCE_QUALITY_RECEIPT_SCHEMA, verifySourceQualityReceipt, verifySourceQualityAtomicCommit } from "../crawler/sourceQualityAdmission";
+import { buildStagedSourceCrawlPlans, type SourceCrawlPlan } from "../crawler/sourcePlan";
+import { candidateCompanies } from "../data/companyRegistry";
+import { fencePortableCrawlPublication, assertPortableCrawlLeaseOwned, PORTABLE_CRAWL_LEASE_MS, type PortableCrawlLease, type PortableLeaseTransaction } from "../crawler/portableCrawlLease";
 import type { IngestionCommand } from "../crawler/ingestion";
-import { createHash } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import { containsCredentialMaterial } from "../security/credentialMaterial";
 import { canonicalizePlannedSourceIds, hashCanonicalStringSet } from "../crawler/runtimeBatchIdentity";
 import {
@@ -12,6 +20,8 @@ import {
 } from "../crawler/sourceFailureDiagnostics";
 import {
   toPrismaJobCategory,
+  fromPrismaJobCategory,
+  fromPrismaRequiredJobField,
   toPrismaLifecycleStatus,
   toPrismaRequiredJobField,
   type PrismaCompletenessEvidenceKindName,
@@ -26,7 +36,8 @@ import {
 } from "../crawler/completenessCertificate";
 import {
   requiresBGradeCertificateSourceId,
-  verifyBGradeTraversalCertificateReceipt
+  verifyBGradeTraversalCertificateReceipt,
+  B_GRADE_CURRENT_RUN_MAXIMUM_SKEW_MS
 } from "../crawler/traversalCertificate";
 import {
   assertTrustedBaselineTransition,
@@ -309,6 +320,8 @@ export interface AtomicTransportAttemptInput extends EvidenceTuple {
 }
 
 export interface AtomicSourceEvidenceCommit {
+  /** Portable mode persists evidence only on rejection; never partial Job refreshes. */
+  publicationPolicy?: "SOURCE_ATOMIC_LAST_GOOD_V1";
   sourceResult: AtomicSourceResultInput;
   observationProvenance: AtomicObservationProvenance;
   artifacts: AtomicEvidenceArtifactInput[];
@@ -350,7 +363,7 @@ export type PersistedAtomicCommitOutcome =
   | { state: "PENDING" }
   | { state: "CONFLICT" };
 
-export interface PersistedBatchSourceResultRow {
+export interface PersistedBatchSourceResultRow extends Partial<PortableSourceResultRow> {
   sourceId: string;
   transportState: TransportState;
   adapterState: AdapterState;
@@ -367,14 +380,7 @@ export interface PrismaSourceResultReadDb {
     }): Promise<Record<string, unknown> | null>;
     findMany(args: {
       where: { releaseCandidateId: string; batchId: string };
-      select: {
-        sourceId: true;
-        transportState: true;
-        adapterState: true;
-        completenessState: true;
-        atomicCommitState: true;
-        failureCode: true;
-      };
+      select: typeof portableSourceResultSelect;
       orderBy: { sourceId: "asc" };
     }): Promise<PersistedBatchSourceResultRow[]>;
   };
@@ -787,12 +793,16 @@ async function upsertJobCommand(
   command: Extract<IngestionCommand, { type: "UPSERT_JOB" }>,
   db: Pick<PrismaIngestionTransactionClient, "job">
 ): Promise<void> {
+  await db.job.upsert(jobUpsertArgs(command));
+}
+
+function jobUpsertArgs(command: Extract<IngestionCommand, { type: "UPSERT_JOB" }>): JobUpsertArgs {
   const primaryCity = command.record.cities[0];
   if (!primaryCity) {
     throw new Error(`Cannot ingest job ${command.dedupeKey} without at least one city`);
   }
 
-  await db.job.upsert({
+  return {
       where: {
         sourceId_dedupeKey: {
           sourceId: command.record.sourceId,
@@ -835,7 +845,7 @@ async function upsertJobCommand(
         visibleInFrontend: command.visibleInFrontend,
         isNew: command.isNew
       }
-  });
+  };
 }
 
 export async function executeAtomicSourceEvidenceCommit(
@@ -843,6 +853,14 @@ export async function executeAtomicSourceEvidenceCommit(
   db: PrismaAtomicSourceEvidenceDb
 ): Promise<void> {
   return executeAtomicSourceEvidenceCommitInternal(input, db);
+}
+
+/** Portable public writes participate in the same DB-time lease transaction. */
+export async function executePortableAtomicSourceEvidenceCommit(
+  input: AtomicSourceEvidenceCommit, lease: PortableCrawlLease, db: PrismaAtomicSourceEvidenceDb
+): Promise<void> {
+  if (input.publicationPolicy !== "SOURCE_ATOMIC_LAST_GOOD_V1") throw new Error("Portable publication policy is required");
+  return executeAtomicSourceEvidenceCommitInternal(input, db, undefined, lease);
 }
 
 export async function inspectPersistedAtomicCommitOutcome(
@@ -892,14 +910,7 @@ export async function readPersistedBatchSourceResults(
       releaseCandidateId: input.releaseCandidateId,
       batchId: input.batchId
     },
-    select: {
-      sourceId: true,
-      transportState: true,
-      adapterState: true,
-      completenessState: true,
-      atomicCommitState: true,
-      failureCode: true
-    },
+    select: portableSourceResultSelect,
     orderBy: { sourceId: "asc" }
   });
 }
@@ -921,51 +932,99 @@ export async function executeManualSourceEvidenceCommit(
 async function executeAtomicSourceEvidenceCommitInternal(
   input: AtomicSourceEvidenceCommit,
   db: PrismaAtomicSourceEvidenceDb,
-  manualFence?: ManualSourceCommitFence
+  manualFence?: ManualSourceCommitFence,
+  portableLease?: PortableCrawlLease
 ): Promise<void> {
+  if (input.publicationPolicy === "SOURCE_ATOMIC_LAST_GOOD_V1" && !portableLease) {
+    throw new Error("PORTABLE_PUBLICATION_LEASE_REQUIRED");
+  }
   let stage: AtomicEvidencePersistenceStage = "ATTESTATION";
   try {
-    const { verifyAtomicRuntimeCommitAttestation } = await import("../crawler/runtimeAtomicEvidence");
-    verifyAtomicRuntimeCommitAttestation(input);
-    stage = "INPUT_VALIDATION";
-    const validated = validateAtomicSourceEvidenceCommit(
-      input,
-      manualFence !== undefined,
-      (validationStage) => { stage = validationStage; }
-    );
+    const { writes, sourceId, batchId } = await prepareAtomicWritePlan(input, manualFence !== undefined,
+      validationStage => { stage = validationStage; });
 
     stage = "TRANSACTION_COMMIT";
     await db.$transaction(async (transaction) => {
+    if (portableLease) {
+      stage = "OWNERSHIP_FENCE";
+      if (!transaction.$queryRawUnsafe) throw new Error("Portable transaction SQL fence is unavailable");
+      await fencePortableCrawlPublication(transaction as PortableLeaseTransaction, portableLease);
+    }
     if (manualFence) {
       stage = "OWNERSHIP_FENCE";
-      await assertManualSourceCommitFence(transaction, manualFence, input.sourceResult.sourceId,
-        input.sourceResult.batchId);
+      await assertManualSourceCommitFence(transaction, manualFence, sourceId, batchId);
     }
+    for (const write of writes) {
+      stage = write.stage;
+      if (write.kind === "job") await transaction.job.upsert(write.args);
+      else if (write.kind === "terminal") requireExactlyOnePendingResult(
+        await transaction.crawlBatchSourceResult.updateMany({ where: write.where, data: write.data }));
+      else if (write.model === "crawlObservation") await transaction.crawlObservation.create({
+        data: write.data as CrawlObservationCreateArgs["data"]
+      });
+      else await transaction[write.model].create({ data: write.data });
+    }
+    stage = "TRANSACTION_COMMIT";
+    }, ATOMIC_EVIDENCE_TRANSACTION_OPTIONS);
+  } catch (error) {
+    throw tagAtomicEvidencePersistenceStage(error, stage);
+  }
+}
+
+type AtomicInsertModel = "evidenceArtifact" | "paginationEvidence" | "lossLedgerEntry" |
+  "transportAttemptEvidence" | "transportAttemptArtifact" | "crawlObservation" | "lifecycleSetEvidenceMember";
+type AtomicWrite = { stage: AtomicEvidencePersistenceStage } & (
+  { kind: "insert"; model: AtomicInsertModel; data: Record<string, unknown> } |
+  { kind: "job"; args: JobUpsertArgs } |
+  { kind: "terminal"; where: Record<string, unknown>; data: Record<string, unknown> }
+);
+
+// Never exported or accepted from a caller. All nested references are owned by
+// this invocation; no caller reference survives the verified snapshot.
+async function prepareAtomicWritePlan(input: AtomicSourceEvidenceCommit, manual: boolean,
+  setStage: (stage: AtomicEvidencePersistenceStage) => void): Promise<{ readonly writes: readonly AtomicWrite[]; readonly sourceId: string; readonly batchId: string }> {
+    const { verifyAtomicRuntimeCommitAttestation, verifyAtomicRuntimeCommitForPersistence } = await import("../crawler/runtimeAtomicEvidence");
+    verifyAtomicRuntimeCommitAttestation(input);
+    if (input.sourceResult.sourceId === "source-astellas-china-social" && input.publicationPolicy === "SOURCE_ATOMIC_LAST_GOOD_V1" && input.sourceResult.completenessState === "VERIFIED") {
+      await verifyAtomicRuntimeCommitForPersistence(input);
+    }
+    // A transaction/fence may await IO before its first write. Keep the verified
+    // portable payload private so caller mutations cannot change that write set.
+    input = structuredClone(input);
+    setStage("INPUT_VALIDATION");
+    const validated = validateAtomicSourceEvidenceCommit(
+      input,
+      manual,
+      setStage
+    );
+
+    const writes: AtomicWrite[] = [];
+    let stage: AtomicEvidencePersistenceStage;
     stage = "ARTIFACT_WRITE";
     for (const artifact of input.artifacts) {
       const { logicalKey: _logicalKey, ...data } = artifact;
-      await transaction.evidenceArtifact.create({ data });
+      writes.push({ kind: "insert", stage, model: "evidenceArtifact", data });
     }
 
     stage = "PAGINATION_WRITE";
     for (const page of input.pagination) {
       const { artifactLogicalKey, ...data } = page;
-      await transaction.paginationEvidence.create({
+      writes.push({ kind: "insert", stage, model: "paginationEvidence",
         data: { ...data, artifactId: validated.artifactIdsByLogicalKey.get(artifactLogicalKey) }
       });
     }
 
     stage = "LOSS_LEDGER_WRITE";
     for (const loss of input.lossLedger) {
-      await transaction.lossLedgerEntry.create({ data: { ...loss } });
+      writes.push({ kind: "insert", stage, model: "lossLedgerEntry", data: { ...loss } });
     }
 
     stage = "TRANSPORT_ATTEMPT_WRITE";
     for (const attempt of input.priorTransportAttempts) {
       const { artifactIds, ...attemptData } = attempt;
-      await transaction.transportAttemptEvidence.create({ data: attemptData });
+      writes.push({ kind: "insert", stage, model: "transportAttemptEvidence", data: attemptData });
       for (const artifactId of artifactIds) {
-        await transaction.transportAttemptArtifact.create({ data: {
+        writes.push({ kind: "insert", stage, model: "transportAttemptArtifact", data: {
           attemptId: attempt.id, artifactId, releaseCandidateId: attempt.releaseCandidateId,
           batchId: attempt.batchId, sourceId: attempt.sourceId, sourceResultId: attempt.sourceResultId
         } });
@@ -976,7 +1035,7 @@ async function executeAtomicSourceEvidenceCommitInternal(
     const sourceResult = input.sourceResult;
     const provenance = input.observationProvenance;
     stage = "OBSERVATION_WRITE";
-    await transaction.crawlObservation.create({
+    writes.push({ kind: "insert", stage, model: "crawlObservation",
       data: {
         sourceId: sourceResult.sourceId,
         batchId: sourceResult.batchId,
@@ -1034,7 +1093,7 @@ async function executeAtomicSourceEvidenceCommitInternal(
 
     stage = "JOB_WRITE";
     for (const command of input.commands) {
-      if (command.type === "UPSERT_JOB") await upsertJobCommand(command, transaction);
+      if (command.type === "UPSERT_JOB") writes.push({ kind: "job", stage, args: jobUpsertArgs(command) });
     }
 
     stage = "LIFECYCLE_WRITE";
@@ -1042,7 +1101,7 @@ async function executeAtomicSourceEvidenceCommitInternal(
       if (sourceResult.completenessState !== "VERIFIED") break;
       if(command.type!=="UPSERT_JOB"||command.lifecycleStatus!=="ACTIVE")continue;
       const kinds=command.missingSuccessfulCrawlCount===0?["CURRENT","VISIBLE"] as const:["GRACE","VISIBLE"] as const;
-      for(const setKind of kinds)await transaction.lifecycleSetEvidenceMember.create({data:{
+      for(const setKind of kinds)writes.push({ kind: "insert", stage, model: "lifecycleSetEvidenceMember",data:{
         releaseCandidateId:sourceResult.releaseCandidateId,batchId:sourceResult.batchId,sourceId:sourceResult.sourceId,
         sourceResultId:sourceResult.id,setKind,jobKey:command.dedupeKey,
         jobKeySha256:createHash("sha256").update(command.dedupeKey,"utf8").digest("hex"),
@@ -1052,7 +1111,7 @@ async function executeAtomicSourceEvidenceCommitInternal(
 
     stage = "SOURCE_TERMINAL_WRITE";
     const terminal = sourceResultTerminalData(input.sourceResult);
-    const updateResult = await transaction.crawlBatchSourceResult.updateMany({
+    writes.push({ kind: "terminal", stage,
       where: pendingSourceTupleWhere({
         id: sourceResult.id,
         releaseCandidateId: sourceResult.releaseCandidateId,
@@ -1061,12 +1120,212 @@ async function executeAtomicSourceEvidenceCommitInternal(
       }),
       data: terminal
     });
-    requireExactlyOnePendingResult(updateResult);
-    stage = "TRANSACTION_COMMIT";
-    }, ATOMIC_EVIDENCE_TRANSACTION_OPTIONS);
-  } catch (error) {
-    throw tagAtomicEvidencePersistenceStage(error, stage);
+    return freezeOwned({ writes, sourceId: sourceResult.sourceId, batchId: sourceResult.batchId });
+
+}
+
+function freezeOwned<T>(value: T): T {
+  if (value && typeof value === "object") {
+    for (const nested of Object.values(value)) freezeOwned(nested);
+    Object.freeze(value);
   }
+  return value;
+}
+
+/** LOCAL POC ONLY: no caller, route or execute_sql transport is registered.
+ * Accepts live in-process authority, never a serialized receipt/write plan.
+ * Reuse the returned immutable SQL string for identical allocated IDs; an
+ * uncertain execution still requires persisted-outcome inspection, not retry.
+ */
+export async function compilePortableAtomicSourceEvidenceSql(
+  input: AtomicSourceEvidenceCommit, lease: PortableCrawlLease
+): Promise<string> {
+  if (input.publicationPolicy !== "SOURCE_ATOMIC_LAST_GOOD_V1") throw new Error("Portable publication policy is required");
+  let stage: AtomicEvidencePersistenceStage = "ATTESTATION";
+  try {
+    assertPortableCrawlLeaseOwned(lease);
+    const { writes } = await prepareAtomicWritePlan(input, false, next => { stage = next; });
+    assertPortableCrawlLeaseOwned(lease);
+    const statements = [
+      // Bounds each lock wait, not the whole already-running DO statement.
+      `PERFORM set_config('lock_timeout', '${ATOMIC_EVIDENCE_TRANSACTION_OPTIONS.timeout}ms', true);`,
+      `PERFORM 1 FROM public."CrawlCoordinatorLock" WHERE "id" = ${sqlText(lease.lockId)} FOR UPDATE;`,
+      `IF NOT FOUND THEN RAISE EXCEPTION 'CRAWL_LEASE_LOST'; END IF;`,
+      // This is a separate command after the row lock: time cannot be stale
+      // from evaluation before SELECT FOR UPDATE waited on another holder.
+      `UPDATE public."CrawlCoordinatorLock" SET "heartbeatAt" = clock_timestamp()
+       WHERE "id" = ${sqlText(lease.lockId)} AND "holderId" = ${sqlText(lease.holderId)}
+         AND "heartbeatAt" > clock_timestamp() - (${PORTABLE_CRAWL_LEASE_MS} * interval '1 millisecond');`,
+      `GET DIAGNOSTICS affected = ROW_COUNT;`,
+      `IF affected <> 1 THEN RAISE EXCEPTION 'CRAWL_LEASE_LOST'; END IF;`
+    ];
+    statements.push(...compileAtomicWriteStatements(writes, next => { stage = next; }));
+    const body = `DECLARE affected bigint; job_data jsonb;\nBEGIN\n${statements.join("\n")}\nEND;`;
+    let delimiter: string;
+    do { delimiter = `$atomic_${randomUUID().replaceAll("-", "")}$`; } while (body.includes(delimiter));
+    // Send this complete string in one simple Query. The setter must precede
+    // DO so PostgreSQL starts its statement timeout before any publication work.
+    return `SET LOCAL statement_timeout = '${ATOMIC_EVIDENCE_TRANSACTION_OPTIONS.timeout}ms';\nDO ${delimiter}\n${body}\n${delimiter};`;
+  } catch (error) { throw tagAtomicEvidencePersistenceStage(error, stage); }
+}
+
+export type DbStartedCloudSourceInput = Omit<Parameters<typeof import('../crawler/runtimeAtomicEvidence').buildAtomicRuntimeCommit>[0],
+ 'previousJobs'|'trustedCompletenessBaseline'|'firstAcceptedCurrentPolicyReceipt'|'baselineCompletedBeforeCrawl'>;
+
+/** Deadline arithmetic only; the caller must still validate the complete owned
+ * certificate. This function grants no publication or lease authority. */
+export function deriveDbStartedPublicationExpiry(source:Pick<AtomicSourceResultInput,'startedAt'|'completenessCertificate'>):number{
+ const certificate=source.completenessCertificate as {schemaVersion?:string;acquisition?:{finishedAt?:string};independentValidation?:{observedAt?:string;expiresAt?:string};validationPolicy?:{execution?:string}}|null;
+ let expiry=source.startedAt.getTime()+30*60_000;
+ // Portable receipts already bound capture duration and issuance to the real
+ // acquisition. Waiting never renews its original 30-minute publication cutoff.
+ if(certificate?.schemaVersion===SOURCE_QUALITY_RECEIPT_SCHEMA)expiry=Date.parse(certificate.acquisition?.finishedAt??'')+30*60_000;
+ if(certificate?.schemaVersion==='b-grade-independent-traversal-v2'){
+  expiry=Math.min(expiry,Date.parse(certificate.independentValidation?.expiresAt??''));
+  if(certificate.validationPolicy?.execution==='CURRENT_RUN')expiry=Math.min(expiry,Date.parse(certificate.independentValidation?.observedAt??'')+B_GRADE_CURRENT_RUN_MAXIMUM_SKEW_MS);
+ }
+ if(!Number.isFinite(expiry))throw Error('PILOT_EVIDENCE_EXPIRY_INVALID');
+ return expiry;
+}
+
+/** Opt-in, local preparation only. Builds from the exact context subsequently
+ * compared in PostgreSQL; accepts neither serialized write plans nor leases.
+ * The prospective holder is acquired and released by the same atomic DO. */
+export async function compileDbStartedCloudSourcePublication(input:{source:DbStartedCloudSourceInput;control:CloudPilotDbStartedInput}){
+ const {loadPilotContext}=await import('../crawler/cloudPilotContext');
+ const {buildAtomicRuntimeCommit}=await import('../crawler/runtimeAtomicEvidence');
+ const {buildJobDedupeKey}=await import('../crawler/normalizedJob');
+ const {prepareCloudPilotDbStartedControl}=await import('./cloudPilotSqlControl');
+ const control=structuredClone(input.control),source=input.source;
+ const portable=source.sourceAdmissionPolicy===SOURCE_QUALITY_POLICY_ID;
+ if(source.publicationPolicy!=='SOURCE_ATOMIC_LAST_GOOD_V1'||source.sourceAdmissionPolicy!==undefined&&!portable)throw Error('PILOT_REAL_CERTIFICATE_REQUIRED');
+ const context=await loadPilotContext(control.context,source.plan,!portable);
+ const captureStarted=source.pending.startedAt.getTime();
+ if(context.trustedCompletenessBaseline&&Date.parse(context.trustedCompletenessBaseline.verifiedAt)>captureStarted)throw Error('PILOT_CAPTURE_PRECEDES_ACCEPTED_OBSERVATION');
+ const currentKeys=new Set(source.result.jobs.map(buildJobDedupeKey));
+ const previousJobs=portable?context.previousJobs:context.previousJobs.filter(job=>currentKeys.has(job.dedupeKey)||(context.acceptedVisibilityFloor!==null&&Date.parse(job.lastSeenAt)>=context.acceptedVisibilityFloor.getTime()));
+ const commit=buildAtomicRuntimeCommit({...source,...context,previousJobs});
+ const certificate=commit.sourceResult.completenessCertificate as {schemaVersion?:string;independentValidation?:{observedAt?:string;expiresAt?:string}}|null;
+ if(commit.sourceResult.completenessState!=='VERIFIED'||!(portable?[SOURCE_QUALITY_RECEIPT_SCHEMA]:['a-grade-official-total-v2','b-grade-independent-traversal-v2']).includes(certificate?.schemaVersion??''))throw Error('PILOT_REAL_CERTIFICATE_REQUIRED');
+ // Original acquisition and B validation times are preserved. No renewed local
+ // lease/acknowledgement can manufacture a later deadline for this packet.
+ const deadline=deriveDbStartedPublicationExpiry(commit.sourceResult);
+ if(!Number.isFinite(captureStarted)||!Number.isFinite(deadline)||captureStarted>Date.now()||Date.now()>=deadline)throw Error('PILOT_A_CAPTURE_NOT_FRESH');
+ if(commit.artifacts.some(a=>a.capturedAt.getTime()<captureStarted||a.capturedAt.getTime()>Date.now()))throw Error('PILOT_ORIGINAL_CAPTURE_TIMES');
+ let stage:AtomicEvidencePersistenceStage='ATTESTATION';
+ try{
+  const {writes}=await prepareAtomicWritePlan(commit,false,next=>{stage=next;});
+  const holderId=randomUUID(),expiresAt=new Date(deadline).toISOString();
+  const originalTimesThrough=new Date(Math.max(captureStarted,commit.sourceResult.finishedAt!.getTime(),...commit.artifacts.map(a=>a.capturedAt.getTime()),
+   ...(certificate?.schemaVersion==='b-grade-independent-traversal-v2'?[Date.parse(certificate.independentValidation?.observedAt??'')]:[]))).toISOString();
+  const controls=prepareCloudPilotDbStartedControl(control,{...commit.sourceResult},holderId,expiresAt,originalTimesThrough,source.sourceAdmissionPolicy);
+  // One complete terminal value feeds the existing update columns and exact
+  // postcondition, so large B evidence is serialized only once in this DO.
+  const statements=["PERFORM set_config('TimeZone', 'UTC', true);","PERFORM set_config('lock_timeout', '1000ms', true);","SET CONSTRAINTS ALL DEFERRED;",controls.before,...compileAtomicWriteStatements(writes,next=>{stage=next;},true),controls.after];
+  const body=`DECLARE affected bigint; job_data jsonb; ${compileAtomicJsonDeclarations(commit.sourceResult,controls.expectedContext)} current_context jsonb; current_count bigint; current_hash text; aggregate_hash text;\nBEGIN\n${statements.join('\n')}\nEND;`;
+  let delimiter:string;do{delimiter=`$atomic_${randomUUID().replaceAll('-','')}$`;}while(body.includes(delimiter));
+  return {sql:`SET LOCAL statement_timeout = '120000ms';\nDO ${delimiter}\n${body}\n${delimiter};`,commit,holderId,expiresAt};
+ }catch(error){throw tagAtomicEvidencePersistenceStage(error,stage);}
+}
+
+function compileAtomicWriteStatements(writes:readonly AtomicWrite[],onStage:(stage:AtomicEvidencePersistenceStage)=>void,sharedTerminal=false):string[]{
+    const statements:string[]=[];
+    for (let index = 0; index < writes.length;) {
+      const write = writes[index++]!;
+      onStage(write.stage);
+      if (write.kind === "insert") {
+        const table = ATOMIC_SQL_TABLES[write.model];
+        const rows: Record<string, unknown>[] = [];
+        let current = write;
+        do {
+          rows.push(sqlRecordData(table, current.model === "transportAttemptArtifact" || current.model === "transportAttemptEvidence"
+            ? current.data : { id: randomUUID(), ...current.data }));
+          const next = writes[index];
+          if (next?.kind !== "insert" || next.model !== write.model ||
+            JSON.stringify(definedKeys(next.data)) !== JSON.stringify(definedKeys(write.data))) break;
+          current = next;
+          index++;
+        } while (true);
+        const columns = definedKeys(rows[0]!).map(sqlIdentifier).join(", ");
+        statements.push(`INSERT INTO public.${sqlIdentifier(table)} (${columns})
+          SELECT ${columns} FROM jsonb_populate_recordset(NULL::public.${sqlIdentifier(table)}, ${sqlRecords(rows)});`);
+      } else if (write.kind === "job") {
+        // No REPLACE and no whole-record update: retained human/AI fields,
+        // category, auxiliaryChineseTitle, companyId and firstSeenAt survive.
+        const rows: Record<string, unknown>[] = [];
+        let current = write;
+        do {
+          const create = sqlRecordData("Job", { id: randomUUID(), ...current.args.create });
+          // Share values between create and update without changing either mapping.
+          const update = Object.fromEntries(definedKeys(current.args.update).filter(key =>
+            JSON.stringify(current.args.update[key as keyof typeof current.args.update]) !== JSON.stringify(create[key]))
+            .map(key => [key, current.args.update[key as keyof typeof current.args.update]]));
+          rows.push({ ...create, __update: update });
+          const next = writes[index];
+          if (next?.kind !== "job" ||
+            JSON.stringify(definedKeys(next.args.create)) !== JSON.stringify(definedKeys(write.args.create)) ||
+            JSON.stringify(definedKeys(next.args.update)) !== JSON.stringify(definedKeys(write.args.update))) break;
+          current = next;
+          index++;
+        } while (true);
+        const columns = ["id", ...definedKeys(write.args.create)].map(sqlIdentifier).join(", ");
+        const updates = definedKeys(write.args.update).map(sqlIdentifier).join(", ");
+        // Keep sequential upsert semantics even if a future plan repeats a Job key.
+        statements.push(`FOR job_data IN SELECT value FROM jsonb_array_elements(${sqlRecords(rows)}) LOOP
+          INSERT INTO public."Job" (${columns})
+          SELECT ${columns} FROM jsonb_populate_record(NULL::public."Job", job_data)
+          ON CONFLICT ("sourceId", "dedupeKey") DO UPDATE SET (${updates}) =
+            (SELECT ${updates} FROM jsonb_populate_record(NULL::public."Job", job_data || (job_data->'__update')));
+          END LOOP;`);
+      } else {
+        statements.push(`UPDATE public."CrawlBatchSourceResult" AS target
+          SET ${definedKeys(write.data).map(key => `${sqlIdentifier(key)} = v.${sqlIdentifier(key)}`).join(", ")}
+          FROM jsonb_populate_record(NULL::public."CrawlBatchSourceResult", ${sharedTerminal ? "source_result_data" : sqlJson(write.data)}) AS v
+          WHERE ${Object.entries(write.where).map(([key, value]) =>
+            `target.${sqlIdentifier(key)} = ${sqlText(String(value))}`).join(" AND ")};`,
+          `GET DIAGNOSTICS affected = ROW_COUNT;`,
+          `IF affected <> 1 THEN RAISE EXCEPTION 'Expected exactly one matching PENDING source result'; END IF;`);
+      }
+    }
+    return statements;
+}
+
+const ATOMIC_SQL_TABLES: Record<AtomicInsertModel, string> = {
+  evidenceArtifact: "EvidenceArtifact", paginationEvidence: "PaginationEvidence", lossLedgerEntry: "LossLedgerEntry",
+  transportAttemptEvidence: "TransportAttemptEvidence", transportAttemptArtifact: "TransportAttemptArtifact",
+  crawlObservation: "CrawlObservation", lifecycleSetEvidenceMember: "LifecycleSetEvidenceMember"
+};
+function definedKeys(value: object): string[] {
+  return Object.keys(value).filter(key => (value as Record<string, unknown>)[key] !== undefined);
+}
+function sqlIdentifier(value: string): string { return `"${value.replaceAll('"', '""')}"`; }
+function sqlText(value: string): string { return `E'${value.replaceAll("\\", "\\\\").replaceAll("'", "''")}'`; }
+function sqlJson(value: unknown): string { return `${sqlText(JSON.stringify(value))}::jsonb`; }
+function sqlRecordData(table: string, data: Record<string, unknown>): Record<string, unknown> {
+  // These are the only @map enum values in this bounded write set.
+  if (table === "Job" && data.category !== undefined) data = { ...data,
+    category: fromPrismaJobCategory(data.category as PrismaJobCategoryName) };
+  if (table === "CrawlObservation") data = { ...data,
+    stableRequiredFields: (data.stableRequiredFields as PrismaRequiredJobFieldName[]).map(fromPrismaRequiredJobField) };
+  return data;
+}
+
+function sqlRecords(rows: Record<string, unknown>[]): string {
+  if (rows.length === 1) return sqlJson(rows);
+  const keys = definedKeys(rows[0]!);
+  const equal = (left: unknown, right: unknown) => JSON.stringify(left) === JSON.stringify(right);
+  const common = Object.fromEntries(keys.filter(key => rows.every(row => equal(row[key], rows[0]![key])))
+    .map(key => [key, rows[0]![key]]));
+  const tupleKeys: string[] = [];
+  const fields = keys.filter(key => !(key in common)).map(key => {
+    let index = tupleKeys.findIndex(other => rows.every(row => equal(row[key], row[other])));
+    if (index === -1) index = tupleKeys.push(key) - 1;
+    return `${sqlText(key)}, tuple.value->${index}`;
+  });
+  // Visible typed JSON tuples factor repeated values and column names. Restore
+  // the exact records in order; explicit INSERT columns retain database defaults.
+  return `(SELECT jsonb_agg(${sqlJson(common)} || jsonb_build_object(${fields.join(", ")}) ORDER BY tuple.ordinality)
+    FROM jsonb_array_elements(${sqlJson(rows.map(row => tupleKeys.map(key => row[key])))}) WITH ORDINALITY AS tuple(value, ordinality))`;
 }
 
 const LOCK_MANUAL_REQUEST_FOR_COMMIT_SQL = `
@@ -1444,7 +1703,8 @@ function validateCommittedSourceResultTruthTable(
       previousJobCount: result.baselinePreviousJobCount,
       currentSourceResultId: result.id,
       currentJobCount: result.dedupeOutputCount,
-      certificateGrade: (result.completenessCertificate as { grade: "A" | "B" }).grade,
+      certificateGrade: isSourceQualityReceipt(result.completenessCertificate) ? SOURCE_QUALITY_POLICY_ID
+        : (result.completenessCertificate as { grade: "A" | "B" }).grade,
       changeReason: result.baselineChangeReason
     });
   } else if (result.baselinePreviousSourceResultId !== null && result.baselinePreviousSourceResultId !== undefined ||
@@ -1470,7 +1730,23 @@ function verifyPersistedCompletenessCertificate(
     adapterReconciliationSha256: result.adapterReconciliationSha256,
     collisionLedgerSha256: result.collisionLedgerSha256
   };
-  if (requiresAGradeCertificateSourceId(result.sourceId)) {
+  if (isSourceQualityReceipt(result.completenessCertificate)) {
+    const receipt = verifySourceQualityReceipt({ receipt: result.completenessCertificate,
+      receiptSha256: result.completenessCertificateSha256!, expected: {
+        releaseCandidateId: result.releaseCandidateId, batchId: result.batchId, sourceResultId: result.id,
+        sourceId: result.sourceId, sourceConfigSha256: result.sourceConfigHash, adapterVersion: result.adapterVersion
+      } });
+    if (receipt.output.canonicalJobKeySetSha256 !== result.canonicalOutputSetSha256 ||
+        receipt.ledger.adapterReconciliationSha256 !== result.adapterReconciliationSha256 ||
+        receipt.ledger.collisionLedgerSha256 !== result.collisionLedgerSha256 ||
+        receipt.counts.finalUniqueJobCount !== result.dedupeOutputCount ||
+        canonicalRawEvidenceIdSetSha256 !== undefined && receipt.canonicalRawEvidenceIdSetSha256 !== canonicalRawEvidenceIdSetSha256) {
+      throw new Error("Portable receipt persisted result commitment mismatch");
+    }
+    return;
+  }
+  if (requiresAGradeCertificateSourceId(result.sourceId) &&
+      (result.completenessCertificate as { grade?: unknown } | null)?.grade !== "B") {
     verifyAGradeCompletenessCertificateReceipt({
       certificate: result.completenessCertificate,
       certificateSha256: result.completenessCertificateSha256!,
@@ -1722,6 +1998,11 @@ function persistedSourceValueEquals(actual: unknown, expected: unknown): boolean
     return Array.isArray(actual) && actual.length === expected.length &&
       expected.every((value, index) => actual[index] === value);
   }
+  if (typeof expected === "object") {
+    return Object.prototype.toString.call(expected) === "[object Object]" &&
+      Object.prototype.toString.call(actual) === "[object Object]" &&
+      canonicalComparisonJson(actual) === canonicalComparisonJson(expected);
+  }
   return actual === expected;
 }
 
@@ -1779,6 +2060,9 @@ function validateAtomicSourceEvidenceCommit(
   validateNonblankUniqueList(result.officialSurfaceIds, "official surface");
   validateNonblankUniqueList(result.officialChannelIds, "official channel");
   validateCounts(result);
+  if (isSourceQualityReceipt(result.completenessCertificate)) {
+    verifySourceQualityAtomicCommit({ plan: sourceQualityPlan(result.sourceId), commit: input });
+  }
 
   onStage("COMMAND_VALIDATION");
   const observations = input.commands.filter(
@@ -1855,7 +2139,7 @@ function validateAtomicSourceEvidenceCommit(
     }
   } else if (!manualPreview) {
     const emptySetHash = hashCanonicalStringSet([]);
-    if (result.blockerCode === "COMPLETENESS_ANOMALY_UNVERIFIED") {
+    if (input.publicationPolicy === "SOURCE_ATOMIC_LAST_GOOD_V1" || result.blockerCode === "COMPLETENESS_ANOMALY_UNVERIFIED") {
       if (jobCommands.length !== 0 || result.canonicalGraceJobSetSha256 !== emptySetHash ||
           result.canonicalVisibleJobSetSha256 !== emptySetHash ||
           result.canonicalOutputSetSha256 !== result.canonicalCurrentJobSetSha256) {
@@ -1903,11 +2187,12 @@ function validateAtomicSourceEvidenceCommit(
   }
   onStage("ARTIFACT_VALIDATION");
   if (result.expectedEvidenceKind === "OFFICIAL_TOTAL_COUNT") {
-    if (result.expectedJobCount === null || !NETWORK_ARTIFACT_KINDS.has(officialArtifact.kind)) {
+    if (result.expectedJobCount === null || (!NETWORK_ARTIFACT_KINDS.has(officialArtifact.kind) && !hasBoundJnjDomOfficialArtifact(input, officialArtifact))) {
       throw new Error("OFFICIAL_TOTAL_COUNT requires explicit expectedJobCount and an archived network artifact");
     }
     if (result.completenessState === "VERIFIED" &&
         result.expectedJobCount !== result.dedupeOutputCount &&
+        !hasVerifiedPortableOfficialTotalAccounting(input) &&
         !hasVerifiedAGradeOfficialTotalDedupe(input) &&
         !hasExactBoehringerVerifiedUiExclusions(input) &&
         !hasExactGrifolsVerifiedDetailScopeExclusions(input, artifactByLogicalKey)) {
@@ -2197,4 +2482,21 @@ function isValidDate(value: Date): boolean {
 
 function toOptionalDate(value: string | undefined): Date | null {
   return value === undefined ? null : new Date(value);
+}
+
+function isSourceQualityReceipt(value: unknown): boolean {
+  return typeof value === "object" && value !== null && !Array.isArray(value) &&
+    (value as { schemaVersion?: unknown }).schemaVersion === SOURCE_QUALITY_RECEIPT_SCHEMA;
+}
+function sourceQualityPlan(sourceId: string): SourceCrawlPlan {
+  const plan = buildStagedSourceCrawlPlans(candidateCompanies).find(plan => plan.source.id === sourceId);
+  if (!plan) throw new Error("Portable source plan is unavailable");
+  return plan;
+}
+function hasVerifiedPortableOfficialTotalAccounting(input: AtomicSourceEvidenceCommit): boolean {
+  if (!isSourceQualityReceipt(input.sourceResult.completenessCertificate)) return false;
+  const receipt = verifySourceQualityAtomicCommit({ plan: sourceQualityPlan(input.sourceResult.sourceId), commit: input });
+  return receipt.declaredCompleteness.kind === "OFFICIAL_TOTAL_COUNT" && receipt.declaredCompleteness.scope === "SOURCE" &&
+    receipt.declaredCompleteness.value === input.sourceResult.expectedJobCount &&
+    receipt.counts.rawCount === input.sourceResult.expectedJobCount;
 }

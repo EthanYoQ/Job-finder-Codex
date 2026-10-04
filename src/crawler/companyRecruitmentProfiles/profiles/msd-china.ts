@@ -1,6 +1,6 @@
 import type { CompanyRecruitmentProfileSeed } from "../types";
-import { WORKDAY_JSON_CONFIG } from "../shared";
-import { MSD_DUAL_OFFICIAL_FETCH_CONFIG } from "../../msdDualOfficialSourceFetch";
+import { OFFICIAL_API_JSON_CONFIG } from "../shared";
+import { MSD_AJINGA_CONFIG } from "../../msdAjingaSourceFetch";
 
 export const profile_msd_china = {
   companyId: "company-msd-china",
@@ -9,14 +9,14 @@ export const profile_msd_china = {
       sourceId: "source-msd-china-social",
       executionConfig: {
           adapterId: "official-json",
-          json: WORKDAY_JSON_CONFIG,
+          json: OFFICIAL_API_JSON_CONFIG,
           transientRetryPolicy: {
             maxRetries: 1,
             backoffMs: 10_000
           },
           profileBoundSource: {
-            kind: "msd-dual-official",
-            config: MSD_DUAL_OFFICIAL_FETCH_CONFIG
+            kind: "msd-ajinga",
+            config: MSD_AJINGA_CONFIG
           }
       }
     },

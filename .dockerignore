@@ -9,6 +9,8 @@
 !package.json
 !prisma/
 !prisma/**
+!public/
+!public/**
 !scripts/
 !scripts/**
 !src/

@@ -522,16 +522,13 @@ describe("source crawl planning", () => {
       adapterId: "official-json",
       source: {
         atsKind: "OFFICIAL_JSON",
-        officialEntryUrl: "https://jobs.msd.com/cn/zh/search-results",
-        officialChainEvidenceUrl: "https://jobs.msd.com/cn/zh/search-results"
+        officialEntryUrl: "https://www.ajinga.com/msdchina/professionals",
+        officialChainEvidenceUrl: "https://www.ajinga.com/msdchina/professionals"
       },
       profileBoundSource: {
-        kind: "msd-dual-official",
+        kind: "msd-ajinga",
         config: {
-          officialSearchUrl: "https://jobs.msd.com/cn/zh/search-results",
-          phenomWidgetUrl: "https://jobs.msd.com/widgets",
-          workdayJobsUrl: "https://msd.wd5.myworkdayjobs.com/wday/cxs/msd/SearchJobs/jobs",
-          countryDescriptor: "China"
+          entryUrl: "https://www.ajinga.com/msdchina/professionals", companyId: 13471, pageSize: 30, maxPages: 20
         }
       },
       transientRetryPolicy: { maxRetries: 1, backoffMs: 10_000 }
@@ -553,7 +550,8 @@ describe("source crawl planning", () => {
           categoryExcludeDescriptors: []
         },
         requestBoundOmittedOffsetPolicy: "ROCHE_REQUEST_BOUND_OMITTED_OFFSET_V1",
-        pageSize: 100,
+        nativeDetailPolicy: "ROCHE_WORKDAY_NATIVE_V1",
+        pageSize: 250,
         maxPages: 10
       },
       transientRetryPolicy: { maxRetries: 1, backoffMs: 10_000 }
@@ -573,7 +571,6 @@ describe("source crawl planning", () => {
     });
     for (const sourceId of [
       "source-pfizer-china-social",
-      "source-amgen-china-social",
       "source-biogen-china-social"
     ]) {
       const candidate = getPlanBySourceId(plans, sourceId);
@@ -623,10 +620,11 @@ describe("source crawl planning", () => {
     }
     expect(pfizerPlan.workday.laterZeroTotalPolicy).toBe("PFIZER_AUDITED_EXACT_RECONCILIATION");
     const amgenPlan = getPlanBySourceId(plans, "source-amgen-china-social");
-    if (amgenPlan?.adapterId !== "official-json" || !amgenPlan.workday) {
-      throw new Error("Expected Amgen Workday plan");
+    if (amgenPlan?.adapterId !== "official-json" || amgenPlan.profileBoundSource?.kind !== "amgen-manual-workday-lookup") {
+      throw new Error("Expected Amgen original native source plan");
     }
-    expect(amgenPlan.workday.laterZeroTotalPolicy).toBe("AMGEN_AUDITED_EXACT_RECONCILIATION");
+    expect(amgenPlan.workday).toBeUndefined();
+    expect(amgenPlan.source.officialEntryUrl).toBe("https://careers.amgen.com/en/search-jobs/China/87/2/1814991/35/105/50/2");
     const bmsLaterZeroPlan = getPlanBySourceId(plans, "source-bms-china-social");
     if (bmsLaterZeroPlan?.adapterId !== "official-json") {
       throw new Error("Expected BMS official JSON plan");
@@ -635,7 +633,7 @@ describe("source crawl planning", () => {
     expect(plans.flatMap((candidate) =>
       candidate.adapterId === "official-json" && candidate.workday?.laterZeroTotalPolicy !== undefined
         ? [candidate.source.id]
-        : [])).toEqual(["source-pfizer-china-social", "source-amgen-china-social"]);
+        : [])).toEqual(["source-pfizer-china-social"]);
     const { laterZeroTotalPolicy: _removedPolicy, ...workdayWithoutPolicy } = pfizerPlan.workday;
     expect(sourcePlanConfigSha256({ ...pfizerPlan, workday: workdayWithoutPolicy }))
       .not.toBe(sourcePlanConfigSha256(pfizerPlan));
@@ -652,23 +650,10 @@ describe("source crawl planning", () => {
     });
     expect(getPlanBySourceId(plans, "source-gsk-china-social")).toMatchObject({
       adapterId: "official-json",
-      source: {
-        atsKind: "OFFICIAL_JSON",
-        officialEntryUrl: "https://jobs.gsk.com/cn/zh/search-results?keywords=China"
-      },
-      officialJsonFetch: {
-        kind: "phenom",
-        detailBaseUrl: "https://jobs.gsk.com/gb/en/job",
-        derivedDetailIdField: "jobSeqNo",
-        mixedLocationScopePolicy: "EXACTLY_ONE_MAINLAND_ALTERNATIVE_V1",
-        countryFilter: "China",
-        allowedEntryRedirect: {
-          origin: "https://jobs.gsk.com",
-          pathname: "/gb/en"
-        },
-        pageSize: 50,
-        allowedApplyOrigins: ["https://gsk.wd5.myworkdayjobs.com"]
-      }
+      source: { atsKind: "MOKA", officialEntryUrl: "https://app.mokahr.com/social-recruitment/gsk/148067#/" },
+      moka: { expectedOrgId: "gsk", expectedSiteId: "148067", expectedMode: "social",
+        campaignUrl: "https://app.mokahr.com/social-recruitment/gsk/148067",
+        requisitionStatusPolicy: "GSK_NATIVE_OPEN_REQUISITIONS_V1" }
     });
     expect(getPlanBySourceId(plans, "source-lilly-china-social")).toMatchObject({
       adapterId: "official-json",
@@ -731,15 +716,11 @@ describe("source crawl planning", () => {
     expect(plannedUrls).not.toContain("https://www.pharm.com.cn/career/join.html");
     expect(plannedUrls).not.toContain("https://www.xhzy.com/XYZP/index.html");
     expect(getPlanBySourceId(plans, "source-qilu-social")).toMatchObject({
-      adapterId: "html-table",
-      source: {
-        atsKind: "OFFICIAL_HTML",
+      adapterId: "official-json",
+      source: { atsKind: "OFFICIAL_JSON",
         officialEntryUrl: "https://www.qilu-pharma.com/JobPosting_list.html",
-        officialChainEvidenceUrl: "https://www.qilu-pharma.com/JobPosting_list.html"
-      },
-      table: {
-        completenessProof: { kind: "STATIC_PUBLIC_LIST" }
-      }
+        officialChainEvidenceUrl: "https://www.qilu-pharma.com/JobPosting_list.html" },
+      profileBoundSource: { kind: "qilu-dual-official", expectedChannelIds: ["qilu-marketing", "qilu-non-marketing"] }
     });
     expect(getPlanBySourceId(plans, "source-3sbio-social")).toMatchObject({
       adapterId: "official-json",
@@ -1016,7 +997,7 @@ describe("source crawl planning", () => {
           officialSearchUrl: "https://jobsearch.grifols.com/search/?createNewAlert=false&q=&locationsearch=China",
           pageSize: 25,
           maxPages: 20,
-          detailScopePolicy: "GRIFOLS_SUCCESSFACTORS_DETAIL_MAINLAND_V1"
+          detailScopePolicy: "GRIFOLS_SUCCESSFACTORS_DETAIL_CANONICAL_MAINLAND_V2"
         }
       },
       transientRetryPolicy: { maxRetries: 1, backoffMs: 10_000 }

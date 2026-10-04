@@ -674,6 +674,43 @@ describe("createWorkdaySourceFetch", () => {
     facetDescriptor,
     policy
   }) => {
+    if (sourceId === "source-amgen-china-social") {
+      // Preserve the historical Workday policy with its complete reviewed mainland row/facet contract.
+      // Current Amgen directory authority uses the native manual-entry adapter, tested separately.
+      const legacy: SourceCrawlPlan = { ...plan,
+        company: { id: "company-amgen-china", officialChineseName: "安进中国", category: "FOREIGN_PHARMA" },
+        source: { ...plan.source, id: sourceId, companyId: "company-amgen-china",
+          officialEntryUrl: "https://amgen.wd1.myworkdayjobs.com/Careers",
+          officialChainEvidenceUrl: "https://careers.amgen.com/en/location/china-jobs/87/1814991/2" },
+        json: { ...plan.json, defaultCategory: "其他" },
+        workday: { tenant: "amgen", site: "Careers", laterZeroTotalPolicy: "AMGEN_AUDITED_EXACT_RECONCILIATION",
+          appliedFacets: { LocationCountry: ["6cb77610a8a543aea2d6bc10457e35d4"] }, pageSize: 20, maxPages: 3,
+          mainlandQualityPolicy: "AMGEN_MAINLAND_DETAIL_V1" }
+      };
+      const rows = Array.from({ length: 21 }, (_, index) => ({ title: "Synthetic Manager",
+        externalPath: `/job/China---Shanghai/Synthetic-Manager_R-${700000 + index}`,
+        locationsText: "China - Shanghai", postedOn: "Posted Today", bulletFields: [`R-${700000 + index}`] }));
+      const facets = [
+        { facetParameter: "LocationCountry", descriptor: "Country/Territory", values: [{ descriptor: "China", id: "6cb77610a8a543aea2d6bc10457e35d4", count: 21 }] },
+        ...["jobFamilyGroup", "workerSubType", "timeType"].map(facetParameter => ({ facetParameter, descriptor: facetParameter, values: [] })),
+        { facetParameter: "locationMainGroup", values: [{ facetParameter: "locations", descriptor: "Locations",
+          values: [{ descriptor: "China - Shanghai", id: "shanghai", count: 21 }] }] }
+      ];
+      const offsets: number[] = [];
+      const fetched = await createWorkdaySourceFetch({ now: () => new Date("2026-07-13T00:00:00.000Z"),
+        http: async request => {
+          const { offset } = JSON.parse(request.body) as { offset: number };
+          offsets.push(offset);
+          return response({ total: offset === 0 ? 21 : 0, jobPostings: rows.slice(offset, offset + 20),
+            facets: offset === 0 ? facets : [], userAuthenticated: false }, "2026-07-13T00:00:00.000Z", { finalUrl: request.url });
+        }
+      })(legacy);
+      expect(fetched).toMatchObject({ ok: true,
+        fetchEvidence: { fetchCounts: { rawCount: 21, validCount: 21, validationDiscardCount: 0 } },
+        paginationEvaluation: { safeCompleteness: true, derivedAnomalyCodes: [] } });
+      expect(offsets).toEqual([0, 20]);
+      return;
+    }
     const fixedFacets = [{
       facetParameter,
       descriptor: facetDescriptor,

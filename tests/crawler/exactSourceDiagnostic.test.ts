@@ -74,26 +74,25 @@ describe("NON_CERTIFYING exact-source diagnostic", () => {
     expect(enqueued).toEqual(["source-b", "source-a"]);
   });
 
-  it("round-trips the complete current B-grade diagnostic selection", async () => {
+  it("round-trips the complete current B-grade authority in bounded sessions", async () => {
     const sourceIds = [...EXACT_SOURCE_DIAGNOSTIC_LONG_TAIL_SOURCE_IDS];
-    const session = await prepareExactSourceDiagnostic({
-      sourceIds,
-      authority: {
-        releaseCandidateId: "rc-1",
-        commitSha: "a".repeat(40),
-        sourceIds
-      },
-      now: new Date("2026-08-14T12:00:00.000Z"),
-      enqueue: async (sourceId) => ({ id: `request-${sourceId}` })
-    });
-
-    expect(parseExactSourceDiagnosticSession(session).requests).toHaveLength(
-      EXACT_SOURCE_DIAGNOSTIC_LONG_TAIL_SOURCE_IDS.length
-    );
+    const visited: string[] = [];
+    for (let offset = 0; offset < sourceIds.length; offset += EXACT_SOURCE_DIAGNOSTIC_MAX_SOURCES) {
+      const selection = sourceIds.slice(offset, offset + EXACT_SOURCE_DIAGNOSTIC_MAX_SOURCES);
+      const session = await prepareExactSourceDiagnostic({
+        sourceIds: selection,
+        authority: { releaseCandidateId: "rc-1", commitSha: "a".repeat(40), sourceIds },
+        now: new Date("2026-08-14T12:00:00.000Z"),
+        enqueue: async (sourceId) => { visited.push(sourceId); return { id: `request-${sourceId}` }; }
+      });
+      expect(parseExactSourceDiagnosticSession(session).requests).toHaveLength(selection.length);
+      expect(session.requests.length).toBeLessThanOrEqual(15);
+    }
+    expect(visited).toEqual(sourceIds);
   });
 
-  it("rejects a complete B-grade selection in a different order", async () => {
-    const sourceIds = [...EXACT_SOURCE_DIAGNOSTIC_LONG_TAIL_SOURCE_IDS];
+  it("rejects a bounded B-grade subselection in a different order", async () => {
+    const sourceIds = EXACT_SOURCE_DIAGNOSTIC_LONG_TAIL_SOURCE_IDS.slice(0, 2);
     [sourceIds[0], sourceIds[1]] = [sourceIds[1]!, sourceIds[0]!];
     let enqueueCount = 0;
 
@@ -108,6 +107,18 @@ describe("NON_CERTIFYING exact-source diagnostic", () => {
       enqueue: async () => { enqueueCount += 1; return { id: "request" }; }
     })).rejects.toThrow("current authority order");
     expect(enqueueCount).toBe(0);
+  });
+
+  it("rejects unreviewed sources before enqueue even within the session budget", async () => {
+    const sourceIds = [EXACT_SOURCE_DIAGNOSTIC_LONG_TAIL_SOURCE_IDS[0]!, "source-unreviewed"];
+    let enqueued = 0;
+    await expect(prepareExactSourceDiagnostic({
+      sourceIds,
+      authority: { releaseCandidateId: "rc-1", commitSha: "a".repeat(40), sourceIds: EXACT_SOURCE_DIAGNOSTIC_LONG_TAIL_SOURCE_IDS },
+      now: new Date("2026-08-14T12:00:00.000Z"),
+      enqueue: async () => { enqueued += 1; return { id: "request" }; }
+    })).rejects.toThrow("outside the current authority");
+    expect(enqueued).toBe(0);
   });
 
   it("keeps the long-tail diagnostic bounded at fifteen sources", async () => {
@@ -126,6 +137,19 @@ describe("NON_CERTIFYING exact-source diagnostic", () => {
       enqueue: async () => { enqueueCount += 1; return { id: "request" }; }
     })).rejects.toThrow("Exact-source diagnostic requires between one and 15 sources");
     expect(enqueueCount).toBe(0);
+  });
+
+  it("rejects an over-budget selection even when every source is currently reviewed", async () => {
+    const sourceIds = [...EXACT_SOURCE_DIAGNOSTIC_LONG_TAIL_SOURCE_IDS];
+    expect(sourceIds.length).toBeGreaterThan(EXACT_SOURCE_DIAGNOSTIC_MAX_SOURCES);
+    let enqueued = 0;
+    await expect(prepareExactSourceDiagnostic({
+      sourceIds,
+      authority: { releaseCandidateId: "rc-1", commitSha: "a".repeat(40), sourceIds },
+      now: new Date("2026-08-14T12:00:00.000Z"),
+      enqueue: async () => { enqueued += 1; return { id: "request" }; }
+    })).rejects.toThrow("between one and 15 sources");
+    expect(enqueued).toBe(0);
   });
 
   it("reports a closed B-grade stage as NON_CERTIFYING failure without raw reasons", () => {

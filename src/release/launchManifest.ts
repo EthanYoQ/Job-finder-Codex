@@ -98,7 +98,7 @@ const HTML_TABLE_COMPANY_IDS = new Set<string>([
   "company-abbvie-china", "company-astrazeneca", "company-novartis", "company-sanofi-china",
   "company-takeda-china", "company-bayer-healthcare",
   "company-viatris", "company-teva-china", "company-astellas-china", "company-sandoz-china",
-  "company-otsuka-china", "company-qilu", "company-grand-pharma",
+  "company-otsuka-china", "company-grand-pharma",
   "company-kelun", "company-tongrentang",
   "company-buchang", "company-huahai"
 ]);

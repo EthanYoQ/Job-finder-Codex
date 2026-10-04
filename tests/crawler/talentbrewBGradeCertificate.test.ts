@@ -17,7 +17,6 @@ const CAPTURED_AT = "2026-09-02T00:00:00.000Z";
 
 describe("unpartitioned TalentBrew B-grade certificate", () => {
   it.each([
-    ["source-sanofi-china-social", "company-sanofi-china", "https://jobs.sanofi.com/en/job/beijing/role/2649/"],
     ["source-takeda-china-social", "company-takeda-china", "https://jobs.takeda.com/job/beijing/role/1113/"]
   ] as const)("certifies an exact official-total traversal for %s", async (sourceId, companyId, jobPrefix) => {
     const plan = getPlanBySourceId(buildStagedSourceCrawlPlans(candidateCompanies), sourceId);

@@ -4,7 +4,8 @@ import {
   COMPANY_EXPANSION_PAGE_SIZE,
   JOB_CATEGORIES,
   CompanyExpansionRequestSchema,
-  SearchRequestSchema
+  SearchRequestSchema,
+  PortableSearchRequestSchema
 } from "../../src/domain/search";
 
 describe("search request contract", () => {
@@ -26,7 +27,7 @@ describe("search request contract", () => {
     expect(() => SearchRequestSchema.parse({ city: "" })).toThrow();
   });
 
-  it.each(["全部地点", "全国", "中国", "APAC", "India", "杭州"])(
+  it.each(["全部地点", "全国", "中国", "APAC", "India", "杭州", "城市待核"])(
     "rejects unsupported or non-concrete city %s",
     (city) => {
       expect(() => SearchRequestSchema.parse({ city })).toThrow();
@@ -70,5 +71,21 @@ describe("company expansion contract", () => {
         limit: 10
       })
     ).toThrow();
+  });
+});
+
+
+describe("portable-only search request contract", () => {
+  it("accepts the complete published-city and province filter contract while bounding input", () => {
+    for (const city of ["城市待核", "全部城市", "全国", "杭州", "重庆", "上海"]) {
+      expect(PortableSearchRequestSchema.parse({ city: ` ${city} `, province: " 浙江 " }))
+        .toMatchObject({city, province: "浙江"});
+    }
+    for (const city of ["", "   ", "杭".repeat(81), null, 7, []]) {
+      expect(PortableSearchRequestSchema.safeParse({ city }).success).toBe(false);
+    }
+    expect(PortableSearchRequestSchema.safeParse({city: "杭州", province: " "}).success).toBe(false);
+    expect(SearchRequestSchema.safeParse({city: "杭州"}).success).toBe(false);
+    expect(SearchRequestSchema.safeParse({city: "城市待核"}).success).toBe(false);
   });
 });

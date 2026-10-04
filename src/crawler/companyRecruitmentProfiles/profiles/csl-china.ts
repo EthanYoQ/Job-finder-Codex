@@ -10,6 +10,7 @@ export const profile_csl_china = {
           adapterId: "official-json",
           json: WORKDAY_JSON_CONFIG,
           workday: {
+              mainlandQualityPolicy: "CSL_MAINLAND_DETAIL_V1",
               tenant: "csl",
               site: "CSL_External",
               appliedFacets: {

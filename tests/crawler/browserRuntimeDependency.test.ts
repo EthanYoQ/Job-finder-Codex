@@ -1,9 +1,51 @@
-import { readFileSync } from "node:fs";
+import { readFileSync, readdirSync } from "node:fs";
+import { join } from "node:path";
+import ts from "typescript";
 import { describe, expect, it } from "vitest";
 import { extractProductionImageStage, PRODUCTION_BROWSER_DEB_SHA256, PRODUCTION_BROWSER_DEB_URL,
   PRODUCTION_RUNTIME_APT_COMMAND } from "../../src/readiness/productionImageContract";
 
 describe("browser-backed crawler runtime dependencies", () => {
+  it("explicitly enables sandboxing at every production Chromium launch without override", () => {
+    const launchFiles: string[] = [];
+    const unsafeLaunches: string[] = [];
+    for (const file of readdirSync("src", { recursive: true, encoding: "utf8" })) {
+      if (!/\.tsx?$/u.test(file)) continue;
+      const path = join("src", file);
+      const source = ts.createSourceFile(path, readFileSync(path, "utf8"), ts.ScriptTarget.Latest, true);
+      const visit = (node: ts.Node): void => {
+        if (ts.isCallExpression(node) && ts.isPropertyAccessExpression(node.expression) &&
+            ts.isIdentifier(node.expression.expression) && node.expression.expression.text === "chromium" &&
+            node.expression.name.text === "launch") {
+          launchFiles.push(path.replaceAll("\\", "/"));
+          const options = node.arguments[0];
+          const properties = options && ts.isObjectLiteralExpression(options) ? options.properties : [];
+          const sandboxIndex = properties.findIndex((property) => ts.isPropertyAssignment(property) &&
+            ts.isIdentifier(property.name) && property.name.text === "chromiumSandbox" &&
+            property.initializer.kind === ts.SyntaxKind.TrueKeyword);
+          // Later spreads or computed keys could silently replace the safety option.
+          const canOverride = properties.slice(sandboxIndex + 1).some((property) =>
+            ts.isSpreadAssignment(property) || property.name &&
+              (ts.isComputedPropertyName(property.name) || property.name.getText(source) === "chromiumSandbox" ||
+                ts.isStringLiteral(property.name) && property.name.text === "chromiumSandbox"));
+          if (sandboxIndex < 0 || canOverride) unsafeLaunches.push(path);
+        }
+        ts.forEachChild(node, visit);
+      };
+      visit(source);
+    }
+    expect(launchFiles.sort()).toEqual([
+      "src/crawler/jnjCareersChinaSourceFetch.ts",
+      "src/crawler/officialJsonRenderedTraversalValidator.ts",
+      "src/crawler/officialJsonSourceFetch.ts",
+      "src/crawler/planBoundHtmlTraversalValidator.ts",
+      "src/crawler/qiluRenderedTraversalValidator.ts",
+      "src/crawler/traversalCertificate.ts",
+      "src/readiness/formalBrowserPreflight.ts"
+    ]);
+    expect(unsafeLaunches).toEqual([]);
+  });
+
   it("declares playwright-core as a production dependency", () => {
     const packageJson = JSON.parse(readFileSync("package.json", "utf8")) as {
       dependencies?: Record<string, string>;

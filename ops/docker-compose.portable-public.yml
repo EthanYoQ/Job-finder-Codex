@@ -1,0 +1,6 @@
+# Explicitly select the verified public reader for the responsive homepage.
+# Use together with docker-compose.yml and a matching, already migrated database.
+services:
+  web:
+    environment:
+      JOBFINDER_PUBLICATION_POLICY: PLAN_BOUND_SOURCE_QUALITY_V1

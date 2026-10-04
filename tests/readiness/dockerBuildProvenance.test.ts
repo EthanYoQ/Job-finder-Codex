@@ -1,4 +1,5 @@
-import {execFileSync} from "node:child_process";
+import {execFileSync,spawnSync} from "node:child_process";
+import {randomBytes} from "node:crypto";
 import {lstatSync,mkdtempSync,mkdirSync,readFileSync,rmSync,symlinkSync,writeFileSync} from "node:fs";
 import {tmpdir} from "node:os";
 import {join} from "node:path";
@@ -10,9 +11,10 @@ const dirs:string[]=[];
 afterEach(()=>dirs.splice(0).forEach(path=>rmSync(path,{recursive:true,force:true})));
 function repository(){
   const root=mkdtempSync(join(tmpdir(),"docker-provenance-repo-"));dirs.push(root);
-  for(const dir of ["src","scripts","prisma","ops","dist","node_modules"])mkdirSync(join(root,dir));
+  for(const dir of ["src","scripts","prisma","ops","public/fonts","dist","node_modules"])mkdirSync(join(root,dir),{recursive:true});
   for(const file of ["package.json","package-lock.json","tsconfig.json","Dockerfile",".dockerignore","vite.config.ts","testExecutionContract.ts"])writeFileSync(join(root,file),"{}\n");
   writeFileSync(join(root,"index.html"),"<div id=\"root\"></div>\n");
+  writeFileSync(join(root,"public","fonts","fixture.woff2"),Buffer.from([0x77,0x4f,0x46,0x32,0,1,2,3]));
   writeFileSync(join(root,"src","main.ts"),"export {};\n");for(const dir of ["scripts","prisma","ops"])writeFileSync(join(root,dir,"keep"),"tracked\n");writeFileSync(join(root,"dist","app.js"),"built\n");writeFileSync(join(root,"node_modules","dependency.js"),"dependency\n");
   execFileSync("git",["init"],{cwd:root});execFileSync("git",["config","core.fileMode","false"],{cwd:root});execFileSync("git",["config","user.email","test@example.com"],{cwd:root});execFileSync("git",["config","user.name","test"],{cwd:root});execFileSync("git",["add","."],{cwd:root});execFileSync("git",["commit","-m","base"],{cwd:root});
   return root;
@@ -24,6 +26,8 @@ describe("portable Docker build provenance",()=>{
     expect(ignored).toContain("phase4-evidence");
     expect(ignored).not.toContain(".docker-build-provenance.bundle");
     expect(ignored).toContain("!testExecutionContract.ts");
+    expect(ignored).toContain("!public/");
+    expect(ignored).toContain("!public/**");
   });
   it("exports and verifies provenance from a linked worktree",()=>{
     const repo=repository(),worktree=join(tmpdir(),`docker-provenance-worktree-${Date.now()}`);dirs.push(worktree);
@@ -33,6 +37,51 @@ describe("portable Docker build provenance",()=>{
     const head=execFileSync("git",["rev-parse","HEAD"],{cwd:worktree,encoding:"utf8"}).trim();
     expect(verifyDockerBuildProvenance(worktree,bundle,head,canonicalSourceTreeSha256(worktree)).commitSha).toBe(head);
   }, 15_000);
+  it("keeps original commit and tree identities while omitting unrelated and historical blobs",()=>{
+    const root=repository();mkdirSync(join(root,"docs"));
+    writeFileSync(join(root,"docs","large.bin"),randomBytes(2*1024*1024));
+    execFileSync("git",["add","docs"],{cwd:root});execFileSync("git",["commit","-m","unrelated content"],{cwd:root});
+    const parent=execFileSync("git",["rev-parse","HEAD"],{cwd:root,encoding:"utf8"}).trim();
+    const unrelated=execFileSync("git",["rev-parse","HEAD:docs/large.bin"],{cwd:root,encoding:"utf8"}).trim();
+    const historical=execFileSync("git",["rev-parse","HEAD:src/main.ts"],{cwd:root,encoding:"utf8"}).trim();
+    writeFileSync(join(root,"src","main.ts"),"export const current = true;\n");
+    execFileSync("git",["add","src/main.ts"],{cwd:root});execFileSync("git",["commit","-m","current source"],{cwd:root});
+    const head=execFileSync("git",["rev-parse","HEAD"],{cwd:root,encoding:"utf8"}).trim();
+    const bundle=join(root,".docker-build-provenance.bundle");exportDockerBuildProvenance(root,bundle);
+    expect(readFileSync(bundle).subarray(0,100).toString()).toContain("# v3 git bundle\n@object-format=sha1\n@filter=blob:none\n");
+    expect(lstatSync(bundle).size).toBeLessThan(100*1024);
+    const imported=mkdtempSync(join(tmpdir(),"docker-filtered-proof-"));dirs.push(imported);
+    execFileSync("git",["init","--bare","--quiet","--template="],{cwd:imported});
+    expect(execFileSync("git",["bundle","unbundle",bundle],{cwd:imported,encoding:"utf8"}).trim()).toBe(`${head} HEAD`);
+    for(const revision of [head,parent]){
+      expect(execFileSync("git",["cat-file","commit",revision],{cwd:imported}))
+        .toEqual(execFileSync("git",["cat-file","commit",revision],{cwd:root}));
+      expect(execFileSync("git",["ls-tree","-r",revision],{cwd:imported}))
+        .toEqual(execFileSync("git",["ls-tree","-r",revision],{cwd:root}));
+    }
+    for(const omitted of [unrelated,historical])expect(spawnSync("git",["cat-file","-e",omitted],{cwd:imported}).status).not.toBe(0);
+    expect(verifyDockerBuildProvenance(root,bundle,head,canonicalSourceTreeSha256(root)).commitSha).toBe(head);
+  }, 15_000);
+  it.each([false,true])("rejects an omitted attested blob even with caller alternate objects: %s",withAlternateObjects=>{
+    const root=repository(),bundle=join(root,"missing-source.bundle");
+    execFileSync("git",["bundle","create","--version=3",bundle,"--filter=blob:none","HEAD"],{cwd:root});
+    const head=execFileSync("git",["rev-parse","HEAD"],{cwd:root,encoding:"utf8"}).trim();
+    const previous=process.env.GIT_ALTERNATE_OBJECT_DIRECTORIES;
+    try{
+      if(withAlternateObjects)process.env.GIT_ALTERNATE_OBJECT_DIRECTORIES=join(root,".git","objects");
+      expect(()=>verifyDockerBuildProvenance(root,bundle,head,canonicalSourceTreeSha256(root)))
+        .toThrow(/requires resolvable portable Git provenance/i);
+    }finally{
+      if(previous===undefined)delete process.env.GIT_ALTERNATE_OBJECT_DIRECTORIES;
+      else process.env.GIT_ALTERNATE_OBJECT_DIRECTORIES=previous;
+    }
+  });
+  it("still verifies an ordinary self-contained v2 Git bundle",()=>{
+    const root=repository(),bundle=join(root,"legacy.bundle");
+    execFileSync("git",["bundle","create","--version=2",bundle,"HEAD"],{cwd:root});
+    const head=execFileSync("git",["rev-parse","HEAD"],{cwd:root,encoding:"utf8"}).trim();
+    expect(verifyDockerBuildProvenance(root,bundle,head,canonicalSourceTreeSha256(root)).commitSha).toBe(head);
+  });
   it("rejects copied source tampering, a forged commit argument, and dirty export",()=>{
     const root=repository(),bundle=join(root,".docker-build-provenance.bundle");exportDockerBuildProvenance(root,bundle);
     const head=execFileSync("git",["rev-parse","HEAD"],{cwd:root,encoding:"utf8"}).trim(),digest=canonicalSourceTreeSha256(root);
@@ -56,7 +105,7 @@ describe("portable Docker build provenance",()=>{
   it("copies only explicitly attested inputs into the Docker build stage",()=>{
     const dockerfile=readFileSync("Dockerfile","utf8");
     expect(dockerfile).not.toMatch(/^COPY\s+\.\s+\.$/mu);
-    const allowed=["src","scripts","prisma","ops","ops/install-apt-packages.sh","package.json","package-lock.json","tsconfig.json","Dockerfile",".dockerignore","index.html","vite.config.ts","testExecutionContract.ts",".docker-build-provenance.bundle"];
+    const allowed=["src","scripts","prisma","ops","public","ops/install-apt-packages.sh","package.json","package-lock.json","tsconfig.json","Dockerfile",".dockerignore","index.html","vite.config.ts","testExecutionContract.ts",".docker-build-provenance.bundle"];
     for(const path of allowed){
       const escaped=path.replace(/[.*+?^${}()|[\]\\]/gu,"\\$&");
       expect(dockerfile).toMatch(new RegExp(`^COPY\\s+${escaped}(?:\\s+|/\\s+)`,"mu"));
@@ -65,6 +114,19 @@ describe("portable Docker build provenance",()=>{
       .filter(line=>/^COPY\s+/u.test(line)&&!/^COPY\s+(?:--\S+\s+)*--from=\S+\s+/u.test(line))
       .map(line=>/^COPY\s+(\S+)\s+\S+$/u.exec(line)?.[1]);
     expect(hostCopySources.every(source=>source!==undefined&&allowed.includes(source))).toBe(true);
+  });
+  it("binds public font bytes to the commit and rejects dirty or forged font provenance",()=>{
+    const root=repository(),bundle=join(root,".docker-build-provenance.bundle");
+    exportDockerBuildProvenance(root,bundle);
+    const head=execFileSync("git",["rev-parse","HEAD"],{cwd:root,encoding:"utf8"}).trim();
+    const originalDigest=canonicalSourceTreeSha256(root);
+    expect(verifyDockerBuildProvenance(root,bundle,head,originalDigest).commitSha).toBe(head);
+    writeFileSync(join(root,"public","fonts","fixture.woff2"),Buffer.from([0x77,0x4f,0x46,0x32,0,1,2,4]));
+    const tamperedDigest=canonicalSourceTreeSha256(root);
+    expect(tamperedDigest).not.toBe(originalDigest);
+    expect(()=>exportDockerBuildProvenance(root,bundle)).toThrow(/dirty/i);
+    expect(()=>verifyDockerBuildProvenance(root,bundle,head,originalDigest)).toThrow(/copied-digest/i);
+    expect(()=>verifyDockerBuildProvenance(root,bundle,head,tamperedDigest)).toThrow(/content at public\/fonts\/fixture\.woff2/i);
   });
   it("accepts a Windows CRLF checkout of an LF Git blob without weakening copied-byte binding",()=>{
     const root=repository(),bundle=join(root,".docker-build-provenance.bundle");exportDockerBuildProvenance(root,bundle);

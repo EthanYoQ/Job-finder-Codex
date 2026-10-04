@@ -1,3 +1,4 @@
+import { redseaCandidateListHtml } from "./helpers/redseaCandidates";
 import { describe, expect, it } from "vitest";
 import { createOfficialJsonSourceFetch, type OfficialJsonHttpRequest, type OfficialJsonHttpResponse } from "../../src/crawler/officialJsonSourceFetch";
 import { runSourceCrawl } from "../../src/crawler/runSourceCrawl";
@@ -38,7 +39,11 @@ function row(id: string, overrides: Record<string, unknown> = {}) {
 function client(apiByChannel: Record<string, unknown[]> = { social: [row("s1")], campus: [row("c1")] }) {
   return async (request: OfficialJsonHttpRequest): Promise<OfficialJsonHttpResponse> => {
     if (request.url.includes("officeWebsite.mob")) return { ...response("<html>entry</html>", request.url, "text/html"), setCookie: ["JSESSIONID=opaque-session; Secure"] };
-    if (request.url.includes("officePage.mob")) return response("<html>list</html>", request.url, "text/html");
+    if (request.url.includes("officePage.mob")) {
+      const channel = new URL(request.url).searchParams.get("configId")!;
+      const ids = [...new Set((apiByChannel[channel] ?? []).flatMap((row) => row && typeof row === "object" && typeof (row as Record<string, unknown>).REQUEST_ID === "string" ? [String((row as Record<string, unknown>).REQUEST_ID)] : []))].filter(id => /^[A-Za-z0-9._-]+$/u.test(id));
+      return response(redseaCandidateListHtml(ids), request.url, "text/html");
+    }
     const channel = new URLSearchParams(request.body).get("channelQrId")!;
     return response(JSON.stringify({ state: "1", total: "", jsonList: apiByChannel[channel] ?? [] }), request.url, "application/json");
   };

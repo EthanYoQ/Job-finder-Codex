@@ -1,3 +1,8 @@
+import { replayServierHybridTraversal, SERVIER_HYBRID_RETRIEVAL_PATH } from "./servierMokaRenderedTraversal";
+import { SERVIER_MOKA_ENTRY } from "./servierMokaScope";
+import { capturePfizerRenderedTraversal, replayPfizerRenderedRow, assertPfizerRenderedPage } from "./pfizerRenderedTraversal";
+import { BAYER_MOKA_ENTRY } from "./bayerMokaScope";
+import { replayBayerHybridTraversal, BAYER_HYBRID_RETRIEVAL_PATH } from "./bayerMokaRenderedTraversal";
 import { acquireBrowserSourcePermit } from "./browserSourceConcurrency";
 import {
   B_GRADE_SAFE_VALIDATOR_STAGE_MESSAGES,
@@ -7,6 +12,25 @@ import { irreversibleOfficialJsonEvidenceId, persistentOfficialJsonJobId } from 
 import { hasUniqueJsonObjectKeys } from "./strictJsonObjectKeys";
 
 export const OFFICIAL_JSON_RENDERED_TRAVERSAL_POLICIES = Object.freeze({
+  "source-servier-china-social": {
+    companyId: "company-servier-china", entryUrl: SERVIER_MOKA_ENTRY, retrievalPath: SERVIER_HYBRID_RETRIEVAL_PATH,
+    validatorImplementationId: "servier-moka-open-portal-dom-http-traversal-v1",
+    mainRetrievalPath: "HTTP_MOKA_SERVIER_OPEN_PORTAL_TRAVERSAL", matchKeyKind: "SOURCE_JOB_ID",
+    artifactLogicalKey: "servier-moka-open-portal-browser-validation", maxPages: 100
+  },
+  "source-pfizer-china-social": {
+    companyId: "company-pfizer-china", entryUrl: "https://pfizer.wd1.myworkdayjobs.com/PfizerCareers",
+    retrievalPath: "PLAYWRIGHT_OFFICIAL_UI_JSONLD_TRAVERSAL",
+    validatorImplementationId: "pfizer-official-dom-jsonld-traversal-v1",
+    mainRetrievalPath: "HTTP_WORKDAY_COUNTRY_LIST_PLUS_NATIVE_DETAILS", matchKeyKind: "SOURCE_JOB_ID",
+    artifactLogicalKey: "pfizer-workday-browser-traversal-validation", maxPages: 20
+  },
+  "source-bayer-healthcare-social": {
+    companyId: "company-bayer-healthcare", entryUrl: BAYER_MOKA_ENTRY,
+    retrievalPath: BAYER_HYBRID_RETRIEVAL_PATH, validatorImplementationId: "bayer-moka-medical-dom-http-traversal-v1",
+    mainRetrievalPath: "HTTP_MOKA_NATIVE_MEDICAL_DIVISION_TRAVERSAL", matchKeyKind: "SOURCE_JOB_ID",
+    artifactLogicalKey: "bayer-moka-medical-browser-validation", maxPages: 100
+  },
   "source-boehringer-ingelheim-china-social": {
     companyId: "company-boehringer-ingelheim-china",
     entryUrl: "https://campus.51job.com/BI/recruitSociety.html",
@@ -83,6 +107,9 @@ export const OFFICIAL_JSON_RENDERED_TRAVERSAL_SOURCE_IDS = Object.freeze(
   Object.keys(OFFICIAL_JSON_RENDERED_TRAVERSAL_POLICIES) as OfficialJsonRenderedTraversalSourceId[]
 );
 export const OFFICIAL_JSON_RENDERED_REQUIRED_SOURCE_IDS = Object.freeze([
+  "source-servier-china-social",
+  "source-pfizer-china-social",
+  "source-bayer-healthcare-social",
   "source-boehringer-ingelheim-china-social",
   "source-fosun-pharma-social",
   "source-hansoh-social",
@@ -143,6 +170,8 @@ type OfficialJsonRenderedTraversalCaptureInput = {
 export async function captureOfficialJsonRenderedTraversal(
   input: OfficialJsonRenderedTraversalCaptureInput
 ): Promise<{ observedAt: string; pages: OfficialJsonRenderedPageCapture[] }> {
+  if (input.sourceId === "source-servier-china-social") throw new Error("Servier hybrid validation requires captured CUA DOM plus new independent HTTP details");
+  if (input.sourceId === "source-bayer-healthcare-social") throw new Error("Bayer hybrid validation requires captured CUA DOM plus new independent HTTP details");
   const policy = OFFICIAL_JSON_RENDERED_TRAVERSAL_POLICIES[input.sourceId];
   if (input.entryUrl !== policy.entryUrl) throw new Error("Official JSON browser validator entry URL mismatch");
   if (input.signal?.aborted) throw input.signal.reason;
@@ -182,7 +211,9 @@ async function captureOfficialJsonRenderedTraversalOnce(
       : undefined);
     try {
       const observedAt = new Date().toISOString();
-      const pages = input.sourceId === "source-cspc-social"
+      const pages = input.sourceId === "source-pfizer-china-social"
+        ? await capturePfizerRenderedTraversal(page, input.signal)
+        : input.sourceId === "source-cspc-social"
         ? await captureCspc(page, input.entryUrl, input.signal)
         : input.sourceId === "source-nhu-social"
           ? await captureNhu(page, input.entryUrl, input.signal)
@@ -219,6 +250,8 @@ export function replayOfficialJsonRenderedTraversal(
   sourceId: OfficialJsonRenderedTraversalSourceId,
   pages: readonly OfficialJsonRenderedPageCapture[]
 ): OfficialJsonRenderedReplay {
+  if (sourceId === "source-servier-china-social") return replayServierHybridTraversal(pages);
+  if (sourceId === "source-bayer-healthcare-social") return replayBayerHybridTraversal(pages);
   const policy = OFFICIAL_JSON_RENDERED_TRAVERSAL_POLICIES[sourceId];
   const maxPages = "maxPages" in policy ? policy.maxPages : 5;
   if (pages.length < 1 || pages.length > maxPages) throw new Error("Official JSON browser validation page count is invalid");
@@ -227,8 +260,13 @@ export function replayOfficialJsonRenderedTraversal(
   const matchKeys: string[] = [];
   const excludedSourceJobIds: string[] = [];
   const declaredTotalJobs = pages[0]!.declaredTotalJobs;
+  if (sourceId === "source-pfizer-china-social" && (pages.length !== Math.ceil(declaredTotalJobs / 20) ||
+      pages.some((page, index) => page.rawRows.length !== Math.min(20, declaredTotalJobs - index * 20)))) {
+    throw new Error("Pfizer UI archived page capacity or terminal count mismatch");
+  }
   for (let index = 0; index < pages.length; index += 1) {
     const page = pages[index]!;
+    if (sourceId === "source-pfizer-china-social") assertPfizerRenderedPage(page);
     if (page.pageNumber !== index + 1 || page.declaredTotalPages !== pages.length ||
         page.declaredTotalJobs !== declaredTotalJobs || page.nextControlPresent !== (index < pages.length - 1) ||
         !page.channelId.trim()) {
@@ -251,8 +289,9 @@ export function replayOfficialJsonRenderedTraversal(
       if (!row.sourceJobId.trim() || !/^sha256:[0-9a-f]{64}$/u.test(row.rawEvidenceId) || !row.scopeMarker.trim()) {
         throw new Error("Official JSON browser validation raw row is invalid");
       }
-      assertRawRowIdentity(sourceId, row, recordIndex);
-      const expectedDecision = replayScopeDecision(sourceId, row.scopeMarker);
+      if (sourceId === "source-pfizer-china-social") replayPfizerRenderedRow(row, recordIndex);
+      else assertRawRowIdentity(sourceId, row, recordIndex);
+      const expectedDecision = sourceId === "source-pfizer-china-social" ? replayPfizerRenderedRow(row, recordIndex) : replayScopeDecision(sourceId, row.scopeMarker);
       if (row.scopeDecision !== expectedDecision) {
         throw new Error("Official JSON browser validation scope decision mismatch");
       }
@@ -1015,7 +1054,7 @@ async function launchProductionBrowser(): Promise<Pick<import("playwright-core")
     ...(process.platform === "linux"
       ? { executablePath: FORMAL_CHROMIUM_PATH, args: [...FORMAL_CHROMIUM_ARGS] }
       : { channel: "chrome" as const }),
-    headless: true,
+    headless: true, chromiumSandbox: true,
     timeout: 30_000
   });
 }

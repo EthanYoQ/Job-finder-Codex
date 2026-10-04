@@ -1,11 +1,9 @@
-import type { SourceCrawlPlan } from "../crawler/sourcePlan";
-import type { CandidateCompany } from "../data/companyRegistry";
+import { buildStagedSourceCrawlPlans, sourcePlanConfigSha256, type SourceCrawlPlan } from "../crawler/sourcePlan";
+import { candidateCompanies, type CandidateCompany } from "../data/companyRegistry";
 import { assertExactConfirmedCompanyRosterV3 } from "../data/confirmedCompanyRosterV3";
 import { derivePhase1Scope, isUserAuthorizedPhase1Exclusion } from "../data/phase1ScopePolicy";
 import {
   P0_LAUNCH_MANIFEST,
-  launchManifestIdentity,
-  validateLaunchBatchIdentity,
   validateLaunchManifest
 } from "../release/launchManifest";
 
@@ -235,15 +233,25 @@ function assertExactLaunchCohort(
     expectedCompanies.get(company.id)?.category !== company.category)) {
     errors.push("RUNTIME_LAUNCH_COMPANY_SET_MISMATCH");
   }
-  const manifestIdentity = launchManifestIdentity(P0_LAUNCH_MANIFEST);
   const expectedPlannedSourceIds = P0_LAUNCH_MANIFEST.companies.map(({ source }) => source.sourceId);
-  errors.push(...validateLaunchBatchIdentity(P0_LAUNCH_MANIFEST, {
-    batchKind: "SCHEDULED",
-    rosterSha256: manifestIdentity.companySetSha256,
-    sourcePlanSha256: manifestIdentity.sourceIdentitySha256,
-    expectedPlannedSourceIds,
-    expectedPlannedSourceCount: expectedPlannedSourceIds.length
-  }, plans));
+  const sourceIds = plans.map(plan => plan.source.id);
+  if (sourceIds.length !== expectedPlannedSourceIds.length || new Set(sourceIds).size !== sourceIds.length ||
+      expectedPlannedSourceIds.some(sourceId => !sourceIds.includes(sourceId))) {
+    errors.push("RUNTIME_LAUNCH_SOURCE_SET_MISMATCH");
+  }
+  // The frozen manifest owns cohort membership. Current source configuration is
+  // a separate authority: reviewed adapter migrations must match the complete
+  // canonical plan, never merely an adapter name supplied by the caller.
+  const canonical = new Map(buildStagedSourceCrawlPlans(candidateCompanies).map(plan => [plan.source.id, plan]));
+  const memberBySource = new Map(P0_LAUNCH_MANIFEST.companies.map(member => [member.source.sourceId, member]));
+  for (const plan of plans) {
+    const member = memberBySource.get(plan.source.id), current = canonical.get(plan.source.id);
+    if (!member || !current || plan.company.id !== member.companyId ||
+        plan.source.surfaceId !== member.source.surfaceId ||
+        sourcePlanConfigSha256(plan) !== sourcePlanConfigSha256(current)) {
+      errors.push(`RUNTIME_LAUNCH_CURRENT_SOURCE_CONFIG_MISMATCH:${plan.source.id}`);
+    }
+  }
   if (errors.length > 0) {
     throw new Error(`Launch Cohort registry sync rejected authority: ${errors.join(",")}`);
   }

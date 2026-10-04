@@ -1,5 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import { createPrismaCrawlRuntimeDeps } from "../../src/db/crawlRuntimeRepository";
+import { accepted, digest, plan } from "../helpers/portablePublicSnapshotFixture";
+import { sourcePlanConfigSha256 } from "../../src/crawler/sourcePlan";
 import type {
   PersistedCrawlObservationRow,
   PersistedJobRow
@@ -75,6 +77,44 @@ function fakeDb() {
 }
 
 describe("createPrismaCrawlRuntimeDeps", () => {
+  function portableRow() {
+    return {...accepted().result,baselinePreviousSourceResultId:null,baselinePreviousJobCount:null,
+      baselineChangeReason:"PLAN_BOUND_REPLAY_CONFIRMED_INITIAL"};
+  }
+  it("excludes an old configuration before validating its obsolete portable receipt", async () => {
+    const old=portableRow();old.sourceConfigHash="0".repeat(64);
+    const receipt=structuredClone(old.completenessCertificate) as any;
+    receipt.binding.sourceConfigSha256=old.sourceConfigHash;
+    old.completenessCertificate=receipt;old.completenessCertificateSha256=digest(receipt);
+    const db=fakeDb();
+    db.crawlBatchSourceResult.findFirst=vi.fn(async (args:any)=>args.where.sourceConfigHash===sourcePlanConfigSha256(plan)?null:old) as any;
+    const deps=createPrismaCrawlRuntimeDeps(db,{portablePlans:[plan]});
+    await expect(deps.getTrustedCompletenessBaseline(plan.source.id)).resolves.toBeNull();
+  });
+  it("still validates and retains a current-policy portable baseline", async () => {
+    const db=fakeDb();db.crawlBatchSourceResult.findFirst.mockResolvedValueOnce(portableRow() as never);
+    const deps=createPrismaCrawlRuntimeDeps(db,{portablePlans:[plan]});
+    await expect(deps.getTrustedCompletenessBaseline(plan.source.id)).resolves.toMatchObject({
+      sourceConfigSha256:sourcePlanConfigSha256(plan),certificateGrade:"PLAN_BOUND_SOURCE_QUALITY_V1",certifiedJobCount:1});
+    expect(db.crawlBatchSourceResult.findFirst).toHaveBeenCalledWith(expect.objectContaining({where:expect.objectContaining({
+      sourceId:plan.source.id,sourceConfigHash:sourcePlanConfigSha256(plan),
+      completenessCertificate:{path:["schemaVersion"],equals:"plan-bound-source-quality-v1"}})}));
+  });
+  it("rejects malformed receipts from the current configuration", async () => {
+    const row=portableRow();row.completenessCertificateSha256="0".repeat(64);
+    const db=fakeDb();db.crawlBatchSourceResult.findFirst.mockResolvedValueOnce(row as never);
+    await expect(createPrismaCrawlRuntimeDeps(db,{portablePlans:[plan]}).getTrustedCompletenessBaseline(plan.source.id)).rejects.toThrow("SOURCE_QUALITY_RECEIPT_BINDING_INVALID");
+  });
+  it("rejects a repository row outside the requested portable source/configuration", async () => {
+    const row=portableRow();row.sourceId="other-source";
+    const db=fakeDb();db.crawlBatchSourceResult.findFirst.mockResolvedValueOnce(row as never);
+    await expect(createPrismaCrawlRuntimeDeps(db,{portablePlans:[plan]}).getTrustedCompletenessBaseline(plan.source.id)).rejects.toThrow();
+  });
+  it("fails closed when portable baseline lookup has no current source plan", async () => {
+    const db=fakeDb();
+    await expect(createPrismaCrawlRuntimeDeps(db,{portablePlans:[plan]}).getTrustedCompletenessBaseline("missing-source")).rejects.toThrow("PORTABLE_BASELINE_CURRENT_PLAN_REQUIRED");
+    expect(db.crawlBatchSourceResult.findFirst).not.toHaveBeenCalled();
+  });
   it("reads previous jobs, recent observations, and baseline status for a source", async () => {
     const db = fakeDb();
     const deps = createPrismaCrawlRuntimeDeps(db);
@@ -131,6 +171,7 @@ describe("createPrismaCrawlRuntimeDeps", () => {
         batch: { is: { kind: { not: "MANUAL_SOURCE" } } }
       },
       select: {
+        releaseCandidateId: true, batchId: true, adapterVersion: true,
         id: true,
         sourceId: true,
         sourceConfigHash: true,

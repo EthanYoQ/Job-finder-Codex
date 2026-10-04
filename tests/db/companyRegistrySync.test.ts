@@ -139,6 +139,24 @@ describe("syncPlannedSourcesToDb", () => {
     expect(db.recruitmentSource.upsert).toHaveBeenCalledTimes(41);
   });
 
+  it.each(["adapter", "entry URL", "channel"])("rejects current-source %s drift before any registry write", async kind => {
+    const companies = structuredClone(selectLaunchCompanies(P0_LAUNCH_MANIFEST, candidateCompanies));
+    const plans = buildStagedSourceCrawlPlans(companies);
+    const bayer = plans.find(plan => plan.source.id === "source-bayer-healthcare-social")!;
+    expect(bayer.adapterId).toBe("official-json");
+    if (kind === "adapter") Object.assign(bayer, { adapterId: "html-table" });
+    if (kind === "entry URL") {
+      bayer.source.officialEntryUrl += "?unreviewed=1";
+      companies.find(company => company.id === bayer.company.id)!.sources
+        .find(source => source.id === bayer.source.id)!.officialEntryUrl = bayer.source.officialEntryUrl;
+    }
+    if (kind === "channel") Object.assign(bayer, { expectedChannels: [{ channelId: "unreviewed", kind: "SOCIAL" }] });
+    const db = fakeDb();
+    await expect(syncLaunchCohortSourcesToDb(plans, companies, db as never))
+      .rejects.toThrow(/CURRENT_SOURCE_CONFIG_MISMATCH/);
+    expect(db.$transaction).not.toHaveBeenCalled();
+  });
+
   it("rejects a missing Launch Cohort member before writes", async () => {
     const launchCompanies = selectLaunchCompanies(P0_LAUNCH_MANIFEST, candidateCompanies);
     const launchPlans = buildStagedSourceCrawlPlans(launchCompanies);

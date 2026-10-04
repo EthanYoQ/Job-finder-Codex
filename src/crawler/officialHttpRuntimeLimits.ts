@@ -1,4 +1,5 @@
 import { AsyncLocalStorage } from "node:async_hooks";
+import { officialHttpRequestDiagnostics } from "./officialHttpRequestDiagnostics";
 
 export const DEFAULT_OFFICIAL_HTTP_TIMEOUT_MS = 45_000;
 export const DEFAULT_SOURCE_ATTEMPT_TIMEOUT_MS = 5 * 60 * 1_000;
@@ -8,7 +9,8 @@ export const DEFAULT_OFFICIAL_BROWSER_TIMEOUT_MS = 60_000;
 export const DEFAULT_HCM_CLOUD_BROWSER_SETTLE_MS = 3_000;
 
 type RuntimeEnv = Readonly<Record<string, string | undefined>>;
-const sourceAttemptSignal = new AsyncLocalStorage<AbortSignal>();
+type SourceAttemptContext = { signal: AbortSignal; deadlineAtMs?: number };
+const sourceAttemptContext = new AsyncLocalStorage<SourceAttemptContext>();
 
 export class OfficialSourceAttemptTimeoutError extends Error {
   readonly code = "OFFICIAL_SOURCE_ATTEMPT_TIMEOUT";
@@ -78,7 +80,13 @@ export function hcmCloudBrowserSettleMs(env: RuntimeEnv = process.env): number {
 }
 
 export function currentOfficialSourceAttemptSignal(): AbortSignal | undefined {
-  return sourceAttemptSignal.getStore();
+  return sourceAttemptContext.getStore()?.signal;
+}
+
+export function currentOfficialSourceAttemptRemainingMs(): number | undefined {
+  const context = sourceAttemptContext.getStore();
+  if (context?.deadlineAtMs === undefined) return undefined;
+  return context.signal.aborted ? 0 : Math.max(0, context.deadlineAtMs - Date.now());
 }
 
 export function createAbortableClose(
@@ -114,43 +122,101 @@ export async function runWithOfficialSourceAttemptTimeout<T>(
     throw new Error("Official source attempt timeout must be an integer from 1 through 1800000 milliseconds");
   }
   const controller = new AbortController();
+  const current = sourceAttemptContext.getStore();
+  const combined = combineAbortSignals(current ? [current.signal, controller.signal] : [controller.signal]);
+  const deadlineAtMs = Math.min(Date.now() + timeoutMs, current?.deadlineAtMs ?? Infinity);
   const timeoutError = new OfficialSourceAttemptTimeoutError(timeoutMs);
   const timer = setTimeout(() => controller.abort(timeoutError), timeoutMs);
-  return sourceAttemptSignal.run(controller.signal, async () => {
-    const aborted = new Promise<never>((_resolve, reject) => {
-      controller.signal.addEventListener("abort", () => reject(timeoutError), { once: true });
-    });
+  return sourceAttemptContext.run({ signal: combined.signal, deadlineAtMs }, async () => {
+    let abortListener: (() => void) | undefined;
     try {
+      combined.signal.throwIfAborted();
+      const aborted = new Promise<never>((_resolve, reject) => {
+        abortListener = () => reject(combined.signal.reason);
+        combined.signal.addEventListener("abort", abortListener, { once: true });
+      });
       return await Promise.race([operation(), aborted]);
     } finally {
       clearTimeout(timer);
+      if (abortListener) combined.signal.removeEventListener("abort", abortListener);
+      combined.dispose();
     }
   });
 }
 
-export async function fetchWithOfficialTimeout(
+/** Adds an outer ownership cancellation without replacing the source deadline. */
+export async function runWithOfficialSourceCancellation<T>(
+  signal: AbortSignal, operation: () => Promise<T>
+): Promise<T> {
+  const current = sourceAttemptContext.getStore();
+  const combined = combineAbortSignals(current ? [current.signal, signal] : [signal]);
+  try {
+    combined.signal.throwIfAborted();
+    return await sourceAttemptContext.run({ ...current, signal: combined.signal }, operation);
+  } finally { combined.dispose(); }
+}
+
+type OfficialHttpDependencies = { fetchImpl?: typeof fetch; timeoutMs?: number };
+
+export function fetchWithOfficialTimeout<T>(
+  input: Parameters<typeof fetch>[0],
+  init: RequestInit,
+  deps: OfficialHttpDependencies & { consumeResponse: (response: Response) => Promise<T> }
+): Promise<T>;
+export function fetchWithOfficialTimeout(
+  input: Parameters<typeof fetch>[0],
+  init?: RequestInit,
+  deps?: OfficialHttpDependencies
+): Promise<Response>;
+/** A consumer keeps the deadline and source cancellation alive through body reads.
+ * Without a consumer this retains the existing headers-only Response contract. */
+export async function fetchWithOfficialTimeout<T>(
   input: Parameters<typeof fetch>[0],
   init: RequestInit = {},
-  deps: { fetchImpl?: typeof fetch; timeoutMs?: number } = {}
-): Promise<Response> {
+  deps: OfficialHttpDependencies & { consumeResponse?: (response: Response) => Promise<T> } = {}
+): Promise<Response | T> {
   const timeoutMs = deps.timeoutMs ?? officialHttpTimeoutMs();
   if (!Number.isSafeInteger(timeoutMs) || timeoutMs <= 0 || timeoutMs > 120_000) {
     throw new Error("Official HTTP timeout must be an integer from 1 through 120000 milliseconds");
   }
+  const diagnostic = officialHttpRequestDiagnostics(input, timeoutMs);
   const deadline = AbortSignal.timeout(timeoutMs);
-  const sourceSignal = sourceAttemptSignal.getStore();
-  const signals = [init.signal, sourceSignal, deadline].filter((signal): signal is AbortSignal => signal !== undefined);
+  const sourceSignal = currentOfficialSourceAttemptSignal();
+  const signals = [init.signal, sourceSignal, deadline].filter((signal): signal is AbortSignal => signal != null);
   const combined = combineAbortSignals(signals);
+  let headersReceived = false;
+  let abortListener: (() => void) | undefined;
   try {
-    return await (deps.fetchImpl ?? fetch)(input, { ...init, signal: combined.signal });
+    combined.signal.throwIfAborted();
+    diagnostic?.("REQUEST_START");
+    const aborted = new Promise<never>((_resolve, reject) => {
+      abortListener = () => reject(combined.signal.reason);
+      combined.signal.addEventListener("abort", abortListener, { once: true });
+    });
+    const response = await Promise.race([(deps.fetchImpl ?? fetch)(input, { ...init, signal: combined.signal }), aborted]);
+    headersReceived = true;
+    diagnostic?.("HEADERS_RECEIVED", { status: response.status });
+    if (!deps.consumeResponse) return response;
+    combined.signal.throwIfAborted();
+    const result = await Promise.race([deps.consumeResponse(response), aborted]);
+    combined.signal.throwIfAborted();
+    diagnostic?.("BODY_COMPLETE");
+    return result;
   } catch (error) {
     const callerAborted = init.signal?.aborted === true;
     const sourceAttemptAborted = sourceSignal?.aborted === true;
-    if (deadline.aborted && !callerAborted && !sourceAttemptAborted) {
+    const timedOut = deadline.aborted && !callerAborted && !sourceAttemptAborted;
+    diagnostic?.(headersReceived ? "BODY_FAILED" : "REQUEST_FAILED", {
+      error,
+      failureKind: timedOut ? "HTTP_TIMEOUT" : sourceAttemptAborted ? "SOURCE_ABORT" :
+        callerAborted ? "CALLER_ABORT" : "TRANSPORT_OR_BODY_ERROR"
+    });
+    if (timedOut) {
       throw new OfficialHttpTimeoutError();
     }
     throw error;
   } finally {
+    if (abortListener) combined.signal.removeEventListener("abort", abortListener);
     combined.dispose();
   }
 }

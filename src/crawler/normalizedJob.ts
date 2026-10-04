@@ -1,4 +1,6 @@
 import { z } from "zod";
+import { gileadPublicAgeEvidenceSchema } from "./gileadPublicAge";
+import { astraZenecaJobEvidenceSchema } from "./astraZenecaDetailContract";
 import type { ATSKind } from "../domain/company";
 import { JOB_CATEGORIES, type JobCategory } from "../domain/search";
 
@@ -19,6 +21,9 @@ const AtsKindSchema = z.enum(ATS_KIND_VALUES) satisfies z.ZodType<ATSKind>;
 const JobCategorySchema = z.enum(JOB_CATEGORIES) satisfies z.ZodType<JobCategory>;
 
 export const CrawlEvidenceSchema = z.object({
+  gileadPublicAge: gileadPublicAgeEvidenceSchema.optional(),
+  astraZenecaDetail: astraZenecaJobEvidenceSchema.optional(),
+  astellasPdfLocation: z.object({country:z.literal("中国").optional(),sourceCountryContext:z.literal("中国").optional(),status:z.enum(["CITY_SPECIFIC","COUNTRY_ONLY","UNRESOLVED","UNREVIEWED_LOCATION"]),artifactLogicalKey:z.string().min(1).optional(),pdfSha256:z.string().regex(/^[0-9a-f]{64}$/u).optional()}).strict().optional(),
   officialEntryUrl: z.string().url(),
   officialChainEvidenceUrl: z.string().url().optional(),
   capturedAt: z.string().datetime(),

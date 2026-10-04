@@ -43,7 +43,11 @@ function position(index: number): Record<string, unknown> {
     id: `synthetic-${index}`,
     name: `Synthetic role ${index}`,
     positionUrl: `/careers/job/synthetic-${index}`,
-    locations: ["Shanghai, China"]
+    postedTs: 1786406400,
+    locations: ["Shanghai - CN"],
+    standardizedLocations: ["Shanghai, Shanghai, CN"],
+    workLocationOption: "onsite",
+    locationFlexibility: null
   };
 }
 

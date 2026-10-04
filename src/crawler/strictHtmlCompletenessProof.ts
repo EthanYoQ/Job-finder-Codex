@@ -1,3 +1,7 @@
+import {hasSanofiNativePolicy,validateSanofiNativeQuality} from "./sanofiNativeQuality";
+import type {NormalizedJobRecord} from "./normalizedJob";
+import { validateAbbvieChinaRowScope } from "./abbvieChinaRowScope";
+import { sourcePlanConfigSha256 } from "./sourcePlan";
 import { parseExpression } from "@babel/parser";
 import { load } from "cheerio";
 import type { AnyNode } from "domhandler";
@@ -31,9 +35,17 @@ function htmlProofTrace(_plan: HtmlPlan, _reason: string): false {
  */
 export function validateStrictHtmlCompletenessProof(
   plan: HtmlPlan,
-  evidence: PersistentSourceFetchEvidence
+  evidence: PersistentSourceFetchEvidence,
+  jobs?: readonly NormalizedJobRecord[]
 ): boolean {
   try {
+    if (hasSanofiNativePolicy(plan)) return validateSanofiNativeQuality(plan,evidence,jobs);
+    // Neither frozen source currently has an audited explicit-empty assertion.
+    // Bind the rejection to identity so legacy plans or a generic-policy replay
+    // cannot restore the retired warning/HR-page zero shortcut.
+    if (evidence.fetchCounts.rawCount === 0 && [
+      "source-sandoz-china-social", "source-otsuka-china-social"
+    ].includes(plan.source.id)) return htmlProofTrace(plan, "UNPROVEN_SOURCE_ZERO");
     const policy = plan.table.completenessProof;
     const declaration = evidence.declaredCompleteness;
     if (!policy || !declaration || declaration.scope !== "SOURCE" || declaration.channelId !== undefined ||
@@ -43,9 +55,13 @@ export function validateStrictHtmlCompletenessProof(
       evidence.fetchCounts.rawCount !== evidence.fetchCounts.validCount || evidence.pages.length === 0 ||
       !contiguousSequences(evidence.pages)) return htmlProofTrace(plan, "EVIDENCE_ENVELOPE");
 
-    const artifacts = evidence.artifacts.map((artifact) => replayableNetworkArtifact(plan, artifact));
+    const artifacts = evidence.artifacts.map(exactNetworkArtifact);
     if (artifacts.some((artifact) => artifact === undefined)) return htmlProofTrace(plan, "EXACT_ARTIFACTS");
     const exact = artifacts as ExactArtifact[];
+    if (plan.source.id === "source-abbvie-china-social" && (
+      sourcePlanConfigSha256(plan) !== "4bc13113d0ea829b7df6935081d009ac389f24c97340390f09bbb7ad5234e5a9" ||
+      !exact.every(artifact => validateAbbvieChinaRowScope(artifact.body))
+    )) return htmlProofTrace(plan, "ABBVIE_ROW_SCOPE_UNREVIEWED");
     if (new Set(exact.map((artifact) => artifact.logicalKey)).size !== exact.length) return htmlProofTrace(plan, "ARTIFACT_KEYS");
 
     if (policy.kind === "OFFICIAL_TOTAL_PAGES") {
@@ -120,7 +136,7 @@ function validateOrdinaryTotalPages(
     const page = evidence.pages[index]!;
     const artifact = artifactForPage(page, artifacts);
     const pageNumber = index + 1;
-    const rawExpectedUrl = pageNumber === 1
+    const rawExpectedUrl = pageNumber === 1 && pagination.requestFirstPageExplicitly !== true
       ? configuredUrl(plan.source.officialEntryUrl)
       : configuredUrl(buildOrdinaryPageUrl(plan.source.officialEntryUrl, pagination, pageNumber));
     const expectedUrl = evidenceUrl(rawExpectedUrl);
@@ -318,6 +334,7 @@ function validateNovartisSlidingWindow(
   const signatures = new Map<string, string>();
   const responseHashes = new Set<string>();
   const observedPageTotals: number[] = [];
+  let officialJobTotal: number | undefined;
   let observedRows = 0;
   for (let index = 0; index < evidence.pages.length; index += 1) {
     const pageNumber = index + 1;
@@ -343,6 +360,11 @@ function validateNovartisSlidingWindow(
     responseHashes.add(responseHash);
 
     const $ = load(artifact.body);
+    const resultTotal = strictNovartisOfficialJobTotal($);
+    if (resultTotal === undefined || (officialJobTotal !== undefined && resultTotal !== officialJobTotal)) {
+      return htmlProofTrace(plan, `NOVARTIS_OFFICIAL_JOB_TOTAL:${pageNumber}`);
+    }
+    officialJobTotal = resultTotal;
     const active = strictNovartisActivePage($);
     if (!active || active.page !== pageNumber ||
       !validNovartisPageTotal(active.totalPages, pageNumber, evidence.pages.length) ||
@@ -374,8 +396,23 @@ function validateNovartisSlidingWindow(
     }
     if (index > 0 && novel < 1) return htmlProofTrace(plan, `NOVARTIS_NO_NOVEL_ROW:${pageNumber}`);
   }
-  return evidence.fetchCounts.rawCount === observedRows && seenUrls.size > 0 &&
-    Math.max(...observedPageTotals) === evidence.pages.length;
+  // Raw rows may overlap between advancing official windows. The source's
+  // visible result total describes distinct jobs, so matching the raw count
+  // alone cannot prove completeness.
+  return (evidence.fetchCounts.rawCount === observedRows && seenUrls.size === officialJobTotal &&
+    Math.max(...observedPageTotals) === evidence.pages.length) ||
+    htmlProofTrace(plan, "NOVARTIS_FINAL_JOB_TOTAL");
+}
+
+function strictNovartisOfficialJobTotal($: ReturnType<typeof load>): number | undefined {
+  // Novartis renders a separate .view-header for the selected China filter.
+  // Ignore that label, but require exactly one unambiguous result declaration.
+  const declarations = $(".view-header").toArray()
+    .map((element) => normalizedText($(element).text()))
+    .filter((text): text is string => text !== undefined && /^Showing\b/iu.test(text));
+  if (declarations.length !== 1) return undefined;
+  const match = /^Showing\s+([1-9]\d*)\s+results$/iu.exec(declarations[0]!);
+  return match ? strictInt(match[1], true) : undefined;
 }
 
 function validNovartisPageTotal(value: number | undefined, page: number, traversedPages: number): boolean {
@@ -622,7 +659,7 @@ function exactNovartisPlan(plan: HtmlPlan): boolean {
   const pagination = plan.table.pagination;
   return plan.source.id === "source-novartis-social" &&
     configuredUrl(plan.source.officialEntryUrl) ===
-      "https://www.novartis.com.cn/careers/career-search?search_api_fulltext=&country%5B0%5D=LOC_CN&op=Submit&field_job_posted_date=All" &&
+      "https://www.novartis.com.cn/careers/career-search?search_api_fulltext=&country%5B0%5D=LOC_CN&op=Submit&field_job_posted_date=All&sort=asc&order=%E8%81%8C%E4%BD%8D%E5%90%8D%E7%A7%B0" &&
     plan.table.rowSelector === "table.views-table tbody tr" &&
     plan.table.completenessProof?.kind === "OFFICIAL_TOTAL_PAGES" &&
     plan.table.completenessProof.sourcePolicy === "NOVARTIS_CHINA_SLIDING_WINDOW_V1" &&
@@ -910,12 +947,8 @@ function validateStaticPublicList(
   if (policy.sourcePolicy === "ASTELLAS_CHINA_PDF_ACCORDION_V1") {
     return validateAstellasStaticPlan(plan, $, rows);
   }
-  if (policy.sourcePolicy === "OTSUKA_CHINA_EMPTY_PUBLIC_LIST_V1") {
-    return validateOtsukaChinaEmptyStaticPlan(plan, rows);
-  }
-  if (policy.sourcePolicy === "ASPEN_CHINA_EMPTY_PUBLIC_LIST_V1") {
-    return validateAspenChinaEmptyStaticPlan(plan, rows);
-  }
+  // Retired zero-only policy names intentionally fall through to rejection.
+  // Do not downgrade them to the generic static-list policy.
   if (policy.sourcePolicy === "OTSUKA_CHINA_JOIN_LIST_V1") {
     return validateOtsukaStaticPlan(plan, $, rows);
   }
@@ -926,44 +959,6 @@ function validateStaticPublicList(
     return validateHuahaiStaticPlan(plan, $, rows);
   }
   return policy.sourcePolicy === undefined;
-}
-
-function validateOtsukaChinaEmptyStaticPlan(plan: HtmlPlan, rows: readonly AnyNode[]): boolean {
-  const config = plan.table.staticPublicList;
-  return plan.executionAuthority === "STAGED" && plan.company.id === "company-otsuka-china" &&
-    plan.source.id === "source-otsuka-china-social" && plan.source.companyId === "company-otsuka-china" &&
-    plan.source.kind === "SOCIAL" && plan.source.atsKind === "OFFICIAL_HTML" &&
-    plan.source.status === "VERIFIED_SCRAPABLE" &&
-    configuredUrl(plan.source.officialEntryUrl) === "https://chinaotsuka.com.cn/class/26" &&
-    configuredUrl(plan.source.officialChainEvidenceUrl) === "https://www.otsuka.com.cn/otsuka-in-china/index.html" &&
-    plan.table.rowSelector === ".container.Box [data-job-id], .container.Box .job-item" &&
-    plan.table.pagination === undefined && config?.containerSelector === ".container.Box" &&
-    config.nextControlSelector === ".container.Box .pagination, .container.Box a[rel='next'], .container.Box [data-page]" &&
-    config.explicitEmptyState?.selector === ".container.Box" &&
-    config.explicitEmptyState.pattern === "热招岗位[\\s\\S]*联系我们" &&
-    JSON.stringify(plan.table.fields.sourceJobId) === JSON.stringify({ selector: ":scope", attribute: "data-job-id" }) &&
-    JSON.stringify(plan.table.fields.officialUrl) === JSON.stringify({ value: "https://chinaotsuka.com.cn/class/26" }) &&
-    rows.length === 0;
-}
-
-function validateAspenChinaEmptyStaticPlan(plan: HtmlPlan, rows: readonly AnyNode[]): boolean {
-  const config = plan.table.staticPublicList;
-  return plan.executionAuthority === "STAGED" && plan.company.id === "company-sandoz-china" &&
-    plan.source.id === "source-sandoz-china-social" && plan.source.companyId === "company-sandoz-china" &&
-    plan.source.kind === "SOCIAL" && plan.source.atsKind === "OFFICIAL_HTML" &&
-    plan.source.status === "VERIFIED_SCRAPABLE" &&
-    configuredUrl(plan.source.officialEntryUrl) ===
-      "https://www.aspenpharma.cn/careers-at-aspen/aspen-cnjobs/" &&
-    configuredUrl(plan.source.officialChainEvidenceUrl) ===
-      "https://www.aspenpharma.cn/careers-at-aspen/aspen-cnjobs/" &&
-    plan.table.rowSelector === "main a[href*='/jobs/'], .elementor-location-single a[href*='/jobs/']" &&
-    plan.table.pagination === undefined && config?.containerSelector === ".elementor.elementor-1709" &&
-    config.nextControlSelector === "a[rel='next'], .pagination a.next" &&
-    config.explicitEmptyState?.selector === ".elementor.elementor-1709" &&
-    config.explicitEmptyState.pattern === "招聘|职位|岗位|警惕" &&
-    JSON.stringify(plan.table.fields.sourceJobId) === JSON.stringify({ selector: ":scope", attribute: "href" }) &&
-    JSON.stringify(plan.table.fields.officialUrl) === JSON.stringify({ selector: ":scope", attribute: "href" }) &&
-    rows.length === 0;
 }
 
 function validateApeloaStaticPlan(
@@ -1139,27 +1134,6 @@ function exactNetworkArtifact(artifact: SourceFetchArtifactDraft): ExactArtifact
     artifact.requestedUrl !== undefined && artifact.finalUrl !== undefined &&
     artifact.httpStatus !== undefined && artifact.httpStatus >= 200 && artifact.httpStatus < 300 &&
     artifact.requestedUrl === artifact.finalUrl
-    ? artifact as ExactArtifact
-    : undefined;
-}
-
-function replayableNetworkArtifact(
-  plan: HtmlPlan,
-  artifact: SourceFetchArtifactDraft
-): ExactArtifact | undefined {
-  const exact = exactNetworkArtifact(artifact);
-  if (exact) return exact;
-  const policy = plan.table.completenessProof;
-  return policy?.kind === "STATIC_PUBLIC_LIST" &&
-    policy.sourcePolicy === "OTSUKA_CHINA_EMPTY_PUBLIC_LIST_V1" &&
-    typeof artifact.body === "string" && artifact.bodyRepresentation === "REDACTED" &&
-    artifact.requestedUrl !== undefined && artifact.finalUrl !== undefined &&
-    artifact.requestedUrl === artifact.finalUrl && artifact.httpStatus !== undefined &&
-    artifact.httpStatus >= 200 && artifact.httpStatus < 300 &&
-    /^[0-9a-f]{64}$/u.test(artifact.rawBodySha256 ?? "") &&
-    JSON.stringify(artifact.redactionDescriptors) ===
-      JSON.stringify([{ kind: "CREDENTIAL_MATERIAL", count: 1 }]) &&
-    artifact.body !== "[REDACTED_CREDENTIAL_MATERIAL]"
     ? artifact as ExactArtifact
     : undefined;
 }

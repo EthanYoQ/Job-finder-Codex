@@ -1,5 +1,6 @@
+import { assertMigrationReplaySupported, ExistingDatabasePreflightError } from "./existingDatabasePreflight";
 import { spawnSync } from "node:child_process";
-import { readdirSync } from "node:fs";
+import { listCurrentPrismaMigrations } from "./prismaMigrationManifest";
 import { resolve } from "node:path";
 import {
   resolveEmptyDatabaseVerificationConfig,
@@ -145,6 +146,7 @@ type SpawnCommand = (executable: string, args: readonly string[], options: {
 }) => SpawnResult;
 
 export function verifyReviewedMigrationTree(actualNames: readonly string[]): void {
+  assertMigrationReplaySupported(actualNames);
   const actual = [...actualNames].sort(compareUtf8);
   const reviewed = [...REVIEWED_MIGRATION_NAMES].sort(compareUtf8);
   if (JSON.stringify(actual) !== JSON.stringify(reviewed)) {
@@ -156,6 +158,7 @@ export function createEmptyDatabaseVerificationDeps(
   projectRoot: string,
   spawnCommand: SpawnCommand = spawnSync
 ): EmptyDatabaseMigrationVerificationDeps {
+  verifyReviewedMigrationTreeAtRoot(projectRoot);
   return {
     projectRoot,
     nodeExecutable: process.execPath,
@@ -169,6 +172,8 @@ export function createEmptyDatabaseVerificationDeps(
     expectedIndexNames: REVIEWED_INDEX_NAMES,
     expectedIndexDefinitionSha256: REVIEWED_INDEX_DEFINITION_SHA256,
     runCommand: async (invocation: CommandInvocation): Promise<CommandResult> => {
+      // Recheck at execution so an intervening tree change cannot bypass the factory gate.
+      verifyReviewedMigrationTreeAtRoot(projectRoot);
       const result = spawnCommand(invocation.executable, invocation.args, {
         cwd: invocation.cwd,
         env: { ...safeHostEnvironment(process.env), ...invocation.env },
@@ -191,10 +196,7 @@ export async function executeEmptyDatabaseMigrationVerificationCli(
   env: NodeJS.ProcessEnv = process.env,
   projectRoot = process.cwd()
 ): Promise<EmptyDatabaseMigrationVerificationReport> {
-  const migrationRoot = resolve(projectRoot, "prisma", "migrations");
-  const actualMigrations = readdirSync(migrationRoot, { withFileTypes: true })
-    .filter((entry) => entry.isDirectory()).map((entry) => entry.name);
-  verifyReviewedMigrationTree(actualMigrations);
+  verifyReviewedMigrationTreeAtRoot(projectRoot);
   const config = resolveEmptyDatabaseVerificationConfig(env);
   return runEmptyDatabaseMigrationVerification(config, createEmptyDatabaseVerificationDeps(projectRoot));
 }
@@ -214,4 +216,12 @@ function asText(value: string | Buffer | null | undefined): string {
 
 function compareUtf8(left: string, right: string): number {
   return Buffer.from(left).compare(Buffer.from(right));
+}
+
+export function formatEmptyDatabaseMigrationVerificationFailure(error: unknown): string {
+  return error instanceof ExistingDatabasePreflightError ? error.message : "Empty database migration verification failed.";
+}
+
+function verifyReviewedMigrationTreeAtRoot(projectRoot: string): void {
+  verifyReviewedMigrationTree(listCurrentPrismaMigrations(projectRoot).map((entry) => entry.migrationName));
 }

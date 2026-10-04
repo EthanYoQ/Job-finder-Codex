@@ -39,6 +39,8 @@ export interface PersistedJobRow {
 }
 
 export interface PersistedCrawlObservationRow {
+  /** Only the verified portable result reader supplies this failure backoff. */
+  portableRetryNotBefore?: Date;
   crawledAt: Date;
   successful: boolean;
 }
@@ -101,6 +103,8 @@ export function toSourceScheduleState(
   return {
     sourceId,
     ...(lastSuccessfulCrawlAt === undefined ? {} : { lastSuccessfulCrawlAt }),
-    consecutiveFailureCount
+    consecutiveFailureCount,
+    ...(sortedObservations[0]?.successful===false&&sortedObservations[0].portableRetryNotBefore
+      ?{retryNotBefore:sortedObservations[0].portableRetryNotBefore}:{})
   };
 }

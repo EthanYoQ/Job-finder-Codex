@@ -5,9 +5,13 @@ import { extname, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import { handleAdminApi, type AdminApiDeps, type AdminApiResponse } from "./adminApi";
 import { handlePublicApi, type PublicApiDeps, type PublicApiResponse } from "./publicApi";
-import { DEFAULT_POSTGRES_READINESS_TIMEOUT_MS, normalizePostgresReadinessTimeout } from "./postgresReadiness";
+import { encodePublicJsonResponse } from "./publicResponseEncoding";
+import { createCachedPostgresReadiness, DEFAULT_POSTGRES_READINESS_TIMEOUT_MS, normalizePostgresReadinessTimeout } from "./postgresReadiness";
 import { createCachedDeploymentReadiness, readDeploymentMigrationManifest } from "./deploymentReadiness";
 import { resolveDeploymentBootstrapConfig } from "../ops/deploymentBootstrap";
+import { readPortablePublicSnapshot, type PortablePublicSnapshot, type PortableSnapshotDb } from "../db/portablePublicSnapshotRepository";
+import { SOURCE_QUALITY_POLICY_ID } from "../crawler/sourceQualityAdmission";
+import { PortableSnapshotCache } from "../db/portableSnapshotCache";
 
 const DEFAULT_HOST = "0.0.0.0";
 const DEFAULT_PORT = 3000;
@@ -18,8 +22,11 @@ const CONTENT_TYPES: Record<string, string> = {
   ".ico": "image/x-icon",
   ".js": "text/javascript; charset=utf-8",
   ".json": "application/json; charset=utf-8",
+  ".png": "image/png",
+  ".webp": "image/webp",
   ".svg": "image/svg+xml",
-  ".txt": "text/plain; charset=utf-8"
+  ".txt": "text/plain; charset=utf-8",
+  ".woff2": "font/woff2"
 };
 
 export interface HttpServerOptions {
@@ -28,6 +35,91 @@ export interface HttpServerOptions {
 
 type HttpServerDeps = PublicApiDeps & AdminApiDeps;
 type HttpResponse = PublicApiResponse | AdminApiResponse;
+
+export interface PortableSnapshotRefreshStatus {
+  state: "CURRENT" | "UPDATING" | "FAILED";
+  failures: number;
+  nextRetryAt: string | null;
+  lastVerifiedAt: string | null;
+}
+export interface PortableSnapshotReader {
+  (): Promise<PortablePublicSnapshot>;
+  getRefreshStatus(): PortableSnapshotRefreshStatus;
+  close(): Promise<void>;
+}
+
+/** Check versions outside an active rebuild; publish one owned verified display. */
+export function createPortableSnapshotReader(db: PortableSnapshotDb): PortableSnapshotReader {
+  let inFlight: Promise<PortablePublicSnapshot> | undefined;
+  let background: Promise<void> | undefined;
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  let closed = false;
+  let status: PortableSnapshotRefreshStatus = {state: "CURRENT", failures: 0, nextRetryAt: null, lastVerifiedAt: null};
+  const cache = new PortableSnapshotCache();
+  const scheduleRefresh = (delay = 0): void => {
+    if (closed || background || timer) return;
+    status = {...status, state: delay ? "FAILED" : "UPDATING", nextRetryAt: delay ? new Date(Date.now() + delay).toISOString() : null};
+    // Yield through the response turn before starting the expensive read. Keep
+    // the timer and task owned until success or server shutdown, even without
+    // further traffic. One failed attempt retries after 1, 2, 4, ... 30 seconds.
+    timer = setTimeout(() => {
+      timer = undefined;
+      status = {...status, state: "UPDATING", nextRetryAt: null};
+      const startedAt = Date.now();
+      console.info("PORTABLE_SNAPSHOT_REFRESH_STARTED", {...status});
+      let retry = false, refreshAgain = false;
+      let phase = "BUILD";
+      background = readPortablePublicSnapshot(db, {}, undefined, cache).then(async snapshot => {
+        status = {state: "UPDATING", failures: 0, nextRetryAt: null, lastVerifiedAt: snapshot.generatedAt};
+        // A commit during a fill cannot be mixed into it. Check once more after
+        // publication so that a newer version also gets rebuilt without waiting
+        // for another browser request. Oversized projections remain uncached.
+        if (!closed && cache.hasSnapshot()) {
+          phase = "POST_BUILD_VERSION_CHECK";
+          await readPortablePublicSnapshot(db, {}, undefined, cache, () => {refreshAgain = true;});
+        }
+        status = {...status, state: refreshAgain ? "UPDATING" : "CURRENT"};
+        console.info("PORTABLE_SNAPSHOT_REFRESH_COMPLETED", {...status, durationMs: Date.now() - startedAt});
+      }).catch(() => {
+        retry = true;
+        status = {...status, state: "FAILED", failures: status.failures + 1};
+      }).finally(() => {
+        background = undefined;
+        if (retry) {
+          const delay = Math.min(1_000 * 2 ** Math.min(status.failures - 1, 5), 30_000);
+          scheduleRefresh(delay);
+          console.error("PORTABLE_SNAPSHOT_REFRESH_FAILED", {...status, phase, durationMs: Date.now() - startedAt});
+        } else if (refreshAgain) scheduleRefresh();
+      });
+    }, delay);
+  };
+  const read = async (): Promise<PortablePublicSnapshot> => {
+    if (closed) throw new Error("PORTABLE_SNAPSHOT_READER_CLOSED");
+    // This reader owns one DB and fixed plans/options. A rebuild can occupy the
+    // pool's sole connection: don't queue foreground version checks behind it.
+    // The post-fill check catches commits made during this explicit interval.
+    if (background) {
+      const previous = cache.getDuringRefresh(Date.now());
+      if (previous) return previous;
+    }
+    if (!inFlight) {
+      inFlight = readPortablePublicSnapshot(db, {}, undefined, cache, scheduleRefresh)
+        .then(snapshot => {status = {...status, lastVerifiedAt: cache.getVerifiedAt() ?? snapshot.generatedAt}; return snapshot;})
+        .finally(() => { inFlight = undefined; });
+    }
+    // Each request owns its projection, including nested arrays and objects.
+    return structuredClone(await inFlight);
+  };
+  return Object.assign(read, {
+    getRefreshStatus: () => ({...status}),
+    close: async () => {
+      closed = true;
+      if (timer) clearTimeout(timer);
+      timer = undefined;
+      await Promise.allSettled([inFlight, background].filter(task => task !== undefined));
+    }
+  });
+}
 
 export function createServer(deps: HttpServerDeps, options: HttpServerOptions = {}): Server {
   const staticRoot = resolve(options.staticRoot ?? resolve(process.cwd(), "dist"));
@@ -45,22 +137,35 @@ export function createServer(deps: HttpServerDeps, options: HttpServerOptions = 
 }
 
 export async function startServer(): Promise<Server> {
+  const policy=process.env.JOBFINDER_PUBLICATION_POLICY;
+  if(policy!==undefined&&policy!==SOURCE_QUALITY_POLICY_ID)throw new Error("UNKNOWN_PUBLICATION_POLICY");
   const prisma = new PrismaClient();
   const bootstrapConfig = resolveDeploymentBootstrapConfig(process.env);
   const readinessTimeoutMs = normalizePostgresReadinessTimeout(
     Number(process.env.POSTGRES_READINESS_TIMEOUT_MS ?? DEFAULT_POSTGRES_READINESS_TIMEOUT_MS)
   );
-  const checkDatabaseReadiness = createCachedDeploymentReadiness({
+  // Portable receipts validate their own source policy; exact global history stays in deployment preflight.
+  const checkDatabaseReadiness = policy===SOURCE_QUALITY_POLICY_ID
+    ? createCachedPostgresReadiness(bootstrapConfig.databaseUrl,{timeoutMs:readinessTimeoutMs})
+    : createCachedDeploymentReadiness({
     databaseUrl: bootstrapConfig.databaseUrl,
     expectedMigrations: readDeploymentMigrationManifest(process.cwd()),
     adminEmail: bootstrapConfig.adminEmail,
     adminPasswordHash: bootstrapConfig.adminPasswordHash,
     timeoutMs: readinessTimeoutMs
   });
+  const readPortableSnapshot = policy === SOURCE_QUALITY_POLICY_ID ? createPortableSnapshotReader(prisma) : undefined;
+  // Warm the verified display before listening/readiness and before the deployer switches
+  // traffic. This is a public DB read only; startup never launches a source crawl.
+  if (readPortableSnapshot) {
+    try { await readPortableSnapshot(); }
+    catch (error) { await prisma.$disconnect(); throw error; }
+  }
   const server = createServer({
     db: prisma,
     checkDatabaseReadiness,
-    readinessTimeoutMs
+    readinessTimeoutMs,
+    ...(readPortableSnapshot ? {readPortableSnapshot} : {})
   });
   const host = process.env.HOST ?? DEFAULT_HOST;
   const port = Number(process.env.PORT ?? DEFAULT_PORT);
@@ -70,6 +175,7 @@ export async function startServer(): Promise<Server> {
   });
 
   const shutdown = async () => {
+    await readPortableSnapshot?.close();
     await prisma.$disconnect();
     await new Promise<void>((resolvePromise, reject) => {
       server.close((error) => {
@@ -113,7 +219,11 @@ async function handleRequest(
       },
       deps
     );
-    writeResponse(response, publicApiResponse);
+    writeResponse(response, await encodePublicJsonResponse({
+      method: request.method ?? "GET",
+      path: url.pathname,
+      headers: toHeaderRecord(request)
+    }, publicApiResponse));
     return;
   }
 
@@ -297,7 +407,7 @@ function writeResponse(response: ServerResponse, publicApiResponse: HttpResponse
     response.setHeader(key, value);
   }
 
-  if (typeof publicApiResponse.body === "string") {
+  if (typeof publicApiResponse.body === "string" || Buffer.isBuffer(publicApiResponse.body)) {
     response.end(publicApiResponse.body);
     return;
   }

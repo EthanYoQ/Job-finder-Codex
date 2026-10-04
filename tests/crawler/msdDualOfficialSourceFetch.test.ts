@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   createMsdDualOfficialSourceFetch,
+  MSD_DUAL_OFFICIAL_FETCH_CONFIG,
   reconcileMsdOfficialSets,
   validateStrictMsdDualOfficialEvidence,
   type MsdOfficialReconciliationInput
@@ -75,11 +76,17 @@ function reconcile(
   } satisfies MsdOfficialReconciliationInput);
 }
 
-function msdPlan() {
+function historicalMsdDualPlan() {
+  // Explicit offline legacy plan: current production MSD is bound to Ajinga.
   const plan = buildStagedSourceCrawlPlans(candidateCompanies)
     .find((candidate) => candidate.source.id === "source-msd-china-social");
-  if (!plan) throw new Error("MSD plan missing");
-  return plan;
+  if (!plan || plan.adapterId !== "official-json") throw new Error("MSD plan missing");
+  const historical = structuredClone(plan);
+  historical.source.officialEntryUrl = MSD_DUAL_OFFICIAL_FETCH_CONFIG.officialSearchUrl;
+  historical.source.officialChainEvidenceUrl = MSD_DUAL_OFFICIAL_FETCH_CONFIG.officialSearchUrl;
+  historical.profileBoundSource = { kind: "msd-dual-official", config: MSD_DUAL_OFFICIAL_FETCH_CONFIG };
+  historical.json.jobsPath = "jobPostings";
+  return historical;
 }
 
 function msdEntryBody(): string {
@@ -370,9 +377,16 @@ describe("MSD dual-official-source reconciliation", () => {
 });
 
 describe("MSD dual-official-source pagination", () => {
+  it("keeps current Ajinga registry plans out of the historical dual-source transport", async () => {
+    const current = buildStagedSourceCrawlPlans(candidateCompanies).find(p => p.source.id === "source-msd-china-social")!;
+    expect(current.adapterId === "official-json" && current.profileBoundSource?.kind).toBe("msd-ajinga");
+    const fetch = createMsdDualOfficialSourceFetch({ entryHttp: async () => { throw Error("Unexpected legacy request"); } });
+    await expect(fetch(current)).resolves.toMatchObject({ ok: false, failureReason: "MSD_PLAN_BINDING_INVALID" });
+  });
+
   it("archives and independently replays a closed Workday detail before excluding a stale Phenom mirror", async () => {
     const { fetch, formalId, staleId } = phenomOnlyClosureFixture("CLOSED");
-    const plan = msdPlan();
+    const plan = historicalMsdDualPlan();
     const result = await fetch(plan);
 
     expect(result).toMatchObject({ ok: true, payload: { jobPostings: [{ sourceJobId: formalId }] } });
@@ -417,7 +431,7 @@ describe("MSD dual-official-source pagination", () => {
     `${allowedApplyOrigins[0]}/SearchJobs/job/CHN---Shanghai/apply/Medical-role-REQ-STALE-MIRROR/apply`
   ])("rejects a non-canonical Phenom apply path before treating it as closure evidence (%s)", async (applyUrl) => {
     const { fetch } = phenomOnlyClosureFixture("CLOSED", { applyUrl });
-    await expect(fetch(msdPlan())).resolves.toMatchObject({
+    await expect(fetch(historicalMsdDualPlan())).resolves.toMatchObject({
       ok: false,
       failureReason: "MSD_PHENOM_ONLY_DETAIL_INVALID"
     });
@@ -428,12 +442,12 @@ describe("MSD dual-official-source pagination", () => {
     { extraClosureField: true, failureReason: "MSD_PHENOM_ONLY_REQUISITION_NOT_CLOSED" }
   ])("rejects non-exact closure response metadata and shape", async (options) => {
     const { fetch } = phenomOnlyClosureFixture("CLOSED", options);
-    await expect(fetch(msdPlan())).resolves.toMatchObject({ ok: false, failureReason: options.failureReason });
+    await expect(fetch(historicalMsdDualPlan())).resolves.toMatchObject({ ok: false, failureReason: options.failureReason });
   });
 
   it("retains complete official-set evidence when a Phenom-only requisition is not proven closed", async () => {
     const { fetch } = phenomOnlyClosureFixture("ACTIVE");
-    const result = await fetch(msdPlan());
+    const result = await fetch(historicalMsdDualPlan());
 
     expect(result).toMatchObject({
       ok: false,
@@ -448,8 +462,7 @@ describe("MSD dual-official-source pagination", () => {
   });
 
   it("returns a structured retry signal for a temporary official-entry failure", async () => {
-    const plan = buildStagedSourceCrawlPlans(candidateCompanies)
-      .find((candidate) => candidate.source.id === "source-msd-china-social");
+    const plan = historicalMsdDualPlan();
     expect(plan?.transientRetryPolicy).toEqual({ maxRetries: 1, backoffMs: 10_000 });
     const result = await createMsdDualOfficialSourceFetch({
       entryHttp: async (request) => ({
@@ -468,8 +481,7 @@ describe("MSD dual-official-source pagination", () => {
   });
 
   it("classifies an unrecognized official-entry exception by stage without retaining its message", async () => {
-    const plan = buildStagedSourceCrawlPlans(candidateCompanies)
-      .find((candidate) => candidate.source.id === "source-msd-china-social");
+    const plan = historicalMsdDualPlan();
     const result = await createMsdDualOfficialSourceFetch({
       entryHttp: async () => {
         throw new Error("private upstream response details");
@@ -483,7 +495,7 @@ describe("MSD dual-official-source pagination", () => {
     expect(JSON.stringify(result)).not.toContain("private upstream response details");
   });
 
-  it("accepts a short final Phenom page and requests every dynamic offset exactly once", async () => {
+  it("replays the historical dual-source pagination and rejects its publication under current Ajinga authority", async () => {
     const ids = Array.from({ length: 101 }, (_, index) => `REQ-PAGE-${index + 1}`);
     const placeholderId = "SYNTHETIC-PLACEHOLDER";
     const phenomIds = [...ids.slice(1), placeholderId];
@@ -569,8 +581,7 @@ describe("MSD dual-official-source pagination", () => {
         }, request.url);
       }
     });
-    const plan = buildStagedSourceCrawlPlans(candidateCompanies)
-      .find((candidate) => candidate.source.id === "source-msd-china-social");
+    const plan = historicalMsdDualPlan();
     expect(plan).toBeDefined();
 
     const result = await fetch(plan!);
@@ -606,9 +617,10 @@ describe("MSD dual-official-source pagination", () => {
     expect(crawled.truth).toEqual({
       transportSuccess: true,
       adapterSuccess: true,
-      completenessVerified: true
+      completenessVerified: false
     });
-    expect(crawled.observation.expectedJobCount).toBe(crawled.jobs.length);
+    expect(crawled.jobs).toHaveLength(ids.length);
+    expect(crawled.observation.completenessStatus).not.toBe("VERIFIED");
     expect(requiresAGradeOfficialTotalCertificate(plan!)).toBe(true);
     expect(validateStrictMsdDualOfficialEvidence(
       plan!,
@@ -643,8 +655,7 @@ describe("MSD dual-official-source pagination", () => {
           : officialArtifact.body
       ).sha256
     })).toMatchObject({
-      status: "CERTIFIED",
-      certificate: { grade: "A", counts: { officialTotal: ids.length, finalUniqueJobCount: ids.length } }
+      status: "REJECTED"
     });
 
     const evidence = crawled.fetchEvidence!;
