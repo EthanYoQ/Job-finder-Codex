@@ -55,7 +55,7 @@ assert [row[k] for k in ['transportState','adapterState','completenessState','at
 assert (row['rawCount'],row['parsedCount'],row['validCount'],row['dedupeOutputCount'],row['validationDiscardCount'])==(32,32,30,30,2)
 assert cert['schemaVersion']=='b-grade-independent-traversal-v2' and cert['validationPolicy']['execution']=='CURRENT_RUN'
 for a,b in [('sourceId','sourceId'),('sourceResultId','id'),('batchId','batchId'),('releaseCandidateId','releaseCandidateId'),('sourceConfigSha256','sourceConfigHash')]:assert cert['binding'][a]==row[b]
-iv=json.loads((run/'artifacts'/f'{run.name}.independent-validation.json').read_text());assert iv['observedAt']=='2026-10-04T11:16:06.686Z' and iv['artifactSha256']=='7cca21a852f8d5cf8e0e39fbdcb4f362fe52ee0e22c0b05a76d61f5a9ad7b170'
+iv=json.loads((run/'artifacts'/f'{run.name}.independent-validation.json').read_text());assert iv['observedAt']=='2026-10-05T00:19:23.423Z' and iv['artifactSha256']=='8e5797f844db6d2bef345c35022c74fa3396f19ab864206e00aa9d217e6fc112'
 assert iv['canonicalMatchKeySetSha256']==cert['mainTraversal']['canonicalMatchKeySetSha256']
 assert cert['output']['canonicalJobSetSha256']==row['canonicalCurrentJobSetSha256']==row['canonicalVisibleJobSetSha256']
 assert cert['counts']['mainUniqueJobCount']==cert['counts']['independentUniqueJobCount']==cert['counts']['finalUniqueJobCount']==30
