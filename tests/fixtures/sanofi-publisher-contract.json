@@ -1,0 +1,364 @@
+{
+  "purpose": "SYNTHETIC_OFFLINE_CONTRACT_ONLY",
+  "publisherCommit": "46beb14fcca2dd05854f45781abbc1b43da90ea1",
+  "observedAt": "2026-10-04T17:01:00.000Z",
+  "certificate": {
+    "schemaVersion": "b-grade-independent-traversal-v2",
+    "grade": "B",
+    "binding": {
+      "releaseCandidateId": "test-sanofi",
+      "batchId": "test-batch",
+      "sourceResultId": "test-result",
+      "sourceId": "source-sanofi-china-social",
+      "sourceConfigSha256": "2925884ffb70805a106c730a5b24a8992b0d13ce0348de28639e27d1bbfeacee"
+    },
+    "scope": {
+      "companyId": "company-sanofi-china",
+      "sourceId": "source-sanofi-china-social",
+      "recruitmentType": "SOCIAL",
+      "geography": "MAINLAND_CHINA",
+      "businessUnit": "ALL",
+      "surfaceIds": [
+        "surface-sanofi-china-social"
+      ],
+      "channelIds": [
+        "source:source-sanofi-china-social:default"
+      ]
+    },
+    "mainTraversal": {
+      "retrievalPath": "HTTP_CHINESE_TALENTBREW_PLUS_NATIVE_APPLICATIONS",
+      "matchKeyKind": "SOURCE_JOB_ID",
+      "pageCount": 1,
+      "terminalEvent": "NEXT_ABSENT",
+      "paginationTraceSha256": "8aeba9b3b5bf0d18aba19a76964df6c78837d8dc1880af8336c1f0dbcee52851",
+      "canonicalMatchKeySetSha256": "bc423bc79660ea1fc77c22119190e6f16086b33968b7330f395ffa1270268c43",
+      "canonicalRawMatchKeySetSha256": "bc423bc79660ea1fc77c22119190e6f16086b33968b7330f395ffa1270268c43",
+      "canonicalExcludedMatchKeySetSha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "sanofiIdentityProof": {
+        "oracleBody": "{\"schemaVersion\":3,\"entries\":[{\"code\":\"SANOFI_CN_FOREIGN_HEADER_NATIVE_AUTHORITY\",\"id\":\"101\",\"reqId\":\"R9000001\",\"officialUrl\":\"https://jobs.sanofi.cn/job/role/3036/101\",\"applyUrl\":\"https://careersite.tupu360.com/sanofi/position/detail?exid=R9000001\",\"title\":\"中文岗位1\",\"chineseDescriptionSha256\":\"9aa8fd20673d7e0ba9229e6277e268d34dd0d7905abde006011986fb8ffa57fc\",\"mainArtifactBodySha256\":\"e40e668880ed05a3c12edebeb6e96096407c4b67c8815f417718084e8859876d\",\"foreignId\":\"102\",\"foreignReq\":\"R9000002\",\"foreignTitle\":\"中文岗位2\",\"foreignApplyUrl\":\"https://careersite.tupu360.com/sanofi/position/detail?exid=R9000002\",\"foreignDescriptionSha256\":\"bc5c3d69903ac38309a4dcc6e12a96bf369d9bf3c76695ba7727eff0ec1a942d\",\"foreignHeaderSha256\":\"ec10baab9be4a62d8953abe04cf9898bdf7df861e88164346ff7a0f914b4216d\",\"foreignModuleSha256\":\"4c4cd6047a48326e32307f6eb0a1ff52f8cca5630554e851cfad7c3b449fbb10\"}],\"decisions\":[{\"id\":\"101\",\"reqId\":\"R9000001\",\"sourceJobId\":\"sanofi-req:R9000001\",\"state\":\"PUBLISHING\",\"title\":\"中文岗位1\",\"officialUrl\":\"https://jobs.sanofi.cn/job/role/3036/101\",\"applyUrl\":\"https://careersite.tupu360.com/sanofi/position/detail?exid=R9000001\",\"descriptionSha256\":\"9aa8fd20673d7e0ba9229e6277e268d34dd0d7905abde006011986fb8ffa57fc\",\"nativePositionId\":\"000000000000000000000001\",\"nativeDescriptionSha256\":\"9aa8fd20673d7e0ba9229e6277e268d34dd0d7905abde006011986fb8ffa57fc\",\"nativeLocationRaw\":\"北京\",\"nativeCities\":[\"北京\"]},{\"id\":\"102\",\"reqId\":\"R9000002\",\"sourceJobId\":\"sanofi-req:R9000002\",\"state\":\"PUBLISHING\",\"title\":\"中文岗位2\",\"officialUrl\":\"https://jobs.sanofi.cn/job/role/3036/102\",\"applyUrl\":\"https://careersite.tupu360.com/sanofi/position/detail?exid=R9000002\",\"descriptionSha256\":\"bc5c3d69903ac38309a4dcc6e12a96bf369d9bf3c76695ba7727eff0ec1a942d\",\"nativePositionId\":\"000000000000000000000002\",\"nativeDescriptionSha256\":\"bc5c3d69903ac38309a4dcc6e12a96bf369d9bf3c76695ba7727eff0ec1a942d\",\"nativeLocationRaw\":\"北京\",\"nativeCities\":[\"北京\"]}],\"independentArtifactSha256\":\"2170cdac561222afdfac15d4f4b5556f3ab0c2b107f1054fcf6ec16496840d39\"}"
+      }
+    },
+    "independentValidation": {
+      "schemaVersion": "official-json-browser-network-traversal-v1",
+      "sourceId": "source-sanofi-china-social",
+      "companyId": "company-sanofi-china",
+      "retrievalPath": "CUA_CHINESE_DOM_LIST_PLUS_NEW_NATIVE_HTTP",
+      "validatorImplementationId": "sanofi-cn-dom-native-traversal-v2",
+      "matchKeyKind": "SOURCE_JOB_ID",
+      "sourceConfigSha256": "2925884ffb70805a106c730a5b24a8992b0d13ce0348de28639e27d1bbfeacee",
+      "surfaceIds": [
+        "surface-sanofi-china-social"
+      ],
+      "channelIds": [
+        "source:source-sanofi-china-social:default"
+      ],
+      "pages": [
+        {
+          "pageNumber": 1,
+          "declaredTotalPages": 1,
+          "matchKeys": [
+            "sanofi-req:R9000001",
+            "sanofi-req:R9000002"
+          ],
+          "nextControlPresent": false,
+          "channelId": "source:source-sanofi-china-social:default",
+          "declaredTotalJobs": 2,
+          "uiRequestCandidateIds": [],
+          "rawRows": [
+            {
+              "sourceJobId": "sanofi-req:R9000001",
+              "rawEvidenceId": "sha256:4f0112476f5f4c14ff4ac13a792cb691119b4e1ebf07b2fdd4a901c0b7b56e34",
+              "scopeMarker": "PUBLISHING",
+              "scopeDecision": "INCLUDED_MAINLAND",
+              "recordIndex": 0,
+              "rawPayload": {
+                "captureMethod": "CUA_CHINESE_DOM_LIST_PLUS_NEW_NATIVE_HTTP",
+                "domPage": {
+                  "url": "https://jobs.sanofi.cn/%e6%b1%82%e8%81%8c/%E4%B8%AD%E5%9B%BD/2649/2/1814991/35/105/50/2",
+                  "capturedAt": "2026-10-04T17:00:00.000Z",
+                  "searchResultsHtml": "<section id=\"search-results\" data-location=\"中国\" data-keywords=\"\" data-location-path=\"1814991\" data-organization-ids=\"2649\" data-current-page=\"1\" data-total-pages=\"1\" data-total-job-results=\"2\" data-records-per-page=\"15\"><ul id=\"search-results-list\"><li><button class=\"js-save-job-btn\" data-job-id=\"101\"></button><a data-job-id=\"101\" href=\"https://jobs.sanofi.cn/job/role/3036/101\"><h2>中文岗位1</h2><span class=\"job-location\">中国</span></a></li><li><button class=\"js-save-job-btn\" data-job-id=\"102\"></button><a data-job-id=\"102\" href=\"https://jobs.sanofi.cn/job/role/3036/102\"><h2>中文岗位2</h2><span class=\"job-location\">中国</span></a></li></ul><input class=\"pagination-current\" value=\"1\" max=\"1\"><a class=\"next disabled\">下一页</a></section>"
+                },
+                "domRow": {
+                  "id": "101",
+                  "title": "中文岗位1",
+                  "url": "https://jobs.sanofi.cn/job/role/3036/101",
+                  "listLocation": "中国"
+                },
+                "detailResponse": {
+                  "method": "GET",
+                  "url": "https://jobs.sanofi.cn/job/role/3036/101",
+                  "finalUrl": "https://jobs.sanofi.cn/job/role/3036/101",
+                  "status": 200,
+                  "contentType": "text/html",
+                  "capturedAt": "2026-10-04T17:01:00.000Z",
+                  "body": "<meta name=\"job-ats-req-id\" content=\"R9000001\"><meta name=\"search-job-apply-url\" content=\"https://careersite.tupu360.com/sanofi/position/detail?exid=R9000001\"><script type=\"application/ld+json\">{\"@type\":\"JobPosting\",\"identifier\":{\"value\":\"R9000001\"},\"title\":\"中文岗位1\",\"url\":\"https://jobs.sanofi.cn/job/role/3036/101\",\"hiringOrganization\":{\"name\":\"Sanofi\"},\"description\":\"完整职责和要求1\",\"jobLocation\":[{\"address\":{\"addressCountry\":\"China\"}}]}</script><main id=\"content\"><div class=\"job-description section7-title\" data-job-id=\"101\"><h1>中文岗位1</h1><a data-job-id=\"101\" data-selector-name=\"job-apply-link\" href=\"https://careersite.tupu360.com/sanofi/position/detail?exid=R9000001\">立即申请</a></div><div class=\"job-description section7-details\" data-job-id=\"101\"><div class=\"ats-description\">完整职责和要求1</div><a data-job-id=\"101\" data-selector-name=\"job-apply-link\" href=\"https://careersite.tupu360.com/sanofi/position/detail?exid=R9000001\">立即申请</a></div></main>",
+                  "bodySha256": "98049f8f0d8d5145d2c2f155b6713cffa26814a3583429badde4c7046ec84815"
+                },
+                "nativeResponse": {
+                  "method": "GET",
+                  "url": "https://careersite.tupu360.com/sanofi/position/detail?exid=R9000001",
+                  "finalUrl": "https://careersite.tupu360.com/sanofi/position/detail?exid=R9000001",
+                  "status": 200,
+                  "contentType": "text/html",
+                  "capturedAt": "2026-10-04T17:01:00.000Z",
+                  "body": "<meta name=\"description\" content=\"赛诺菲（中国）投资有限公司上海分公司\"><input id=\"positionStatus\" value=\"PUBLISHING\"><input id=\"positionName\" value=\"中文岗位1\"><input id=\"positionId\" value=\"000000000000000000000001\"><input id=\"recruitmentType\" value=\"SOCIALRECRUITMENT\"><div class=\"position-header\"><h4 class=\"name\">中文岗位1</h4></div><div class=\"position-extend\"><span class=\"city\">北京</span></div><div class=\"position-description\">完整职责和要求1</div><script>var prevPositionId = \"000000000000000000000001\";</script>",
+                  "bodySha256": "e501fd850251b8b29367c92dda1af42dfc71c07d99f22045a53efbfce8ff95bc",
+                  "redirect": "error"
+                }
+              }
+            },
+            {
+              "sourceJobId": "sanofi-req:R9000002",
+              "rawEvidenceId": "sha256:1fbd068c903e3ca1cfcad613365160c038d5ae7c86d2dc8863a37bbc8e331464",
+              "scopeMarker": "PUBLISHING",
+              "scopeDecision": "INCLUDED_MAINLAND",
+              "recordIndex": 1,
+              "rawPayload": {
+                "captureMethod": "CUA_CHINESE_DOM_LIST_PLUS_NEW_NATIVE_HTTP",
+                "domPage": {
+                  "url": "https://jobs.sanofi.cn/%e6%b1%82%e8%81%8c/%E4%B8%AD%E5%9B%BD/2649/2/1814991/35/105/50/2",
+                  "capturedAt": "2026-10-04T17:00:00.000Z",
+                  "searchResultsHtml": "<section id=\"search-results\" data-location=\"中国\" data-keywords=\"\" data-location-path=\"1814991\" data-organization-ids=\"2649\" data-current-page=\"1\" data-total-pages=\"1\" data-total-job-results=\"2\" data-records-per-page=\"15\"><ul id=\"search-results-list\"><li><button class=\"js-save-job-btn\" data-job-id=\"101\"></button><a data-job-id=\"101\" href=\"https://jobs.sanofi.cn/job/role/3036/101\"><h2>中文岗位1</h2><span class=\"job-location\">中国</span></a></li><li><button class=\"js-save-job-btn\" data-job-id=\"102\"></button><a data-job-id=\"102\" href=\"https://jobs.sanofi.cn/job/role/3036/102\"><h2>中文岗位2</h2><span class=\"job-location\">中国</span></a></li></ul><input class=\"pagination-current\" value=\"1\" max=\"1\"><a class=\"next disabled\">下一页</a></section>"
+                },
+                "domRow": {
+                  "id": "102",
+                  "title": "中文岗位2",
+                  "url": "https://jobs.sanofi.cn/job/role/3036/102",
+                  "listLocation": "中国"
+                },
+                "detailResponse": {
+                  "method": "GET",
+                  "url": "https://jobs.sanofi.cn/job/role/3036/102",
+                  "finalUrl": "https://jobs.sanofi.cn/job/role/3036/102",
+                  "status": 200,
+                  "contentType": "text/html",
+                  "capturedAt": "2026-10-04T17:01:00.000Z",
+                  "body": "<meta name=\"job-ats-req-id\" content=\"R9000002\"><meta name=\"search-job-apply-url\" content=\"https://careersite.tupu360.com/sanofi/position/detail?exid=R9000002\"><script type=\"application/ld+json\">{\"@type\":\"JobPosting\",\"identifier\":{\"value\":\"R9000002\"},\"title\":\"中文岗位2\",\"url\":\"https://jobs.sanofi.cn/job/role/3036/102\",\"hiringOrganization\":{\"name\":\"Sanofi\"},\"description\":\"完整职责和要求2\",\"jobLocation\":[{\"address\":{\"addressCountry\":\"China\"}}]}</script><main id=\"content\"><div class=\"job-description section7-title\" data-job-id=\"102\"><h1>中文岗位2</h1><a data-job-id=\"102\" data-selector-name=\"job-apply-link\" href=\"https://careersite.tupu360.com/sanofi/position/detail?exid=R9000002\">立即申请</a></div><div class=\"job-description section7-details\" data-job-id=\"102\"><div class=\"ats-description\">完整职责和要求2</div><a data-job-id=\"102\" data-selector-name=\"job-apply-link\" href=\"https://careersite.tupu360.com/sanofi/position/detail?exid=R9000002\">立即申请</a></div></main>",
+                  "bodySha256": "c421cbbd3348156b20ba18dc78102ed0b147431b3d605ff11ec172f626b8bd2c"
+                },
+                "nativeResponse": {
+                  "method": "GET",
+                  "url": "https://careersite.tupu360.com/sanofi/position/detail?exid=R9000002",
+                  "finalUrl": "https://careersite.tupu360.com/sanofi/position/detail?exid=R9000002",
+                  "status": 200,
+                  "contentType": "text/html",
+                  "capturedAt": "2026-10-04T17:01:00.000Z",
+                  "body": "<meta name=\"description\" content=\"赛诺菲（中国）投资有限公司上海分公司\"><input id=\"positionStatus\" value=\"PUBLISHING\"><input id=\"positionName\" value=\"中文岗位2\"><input id=\"positionId\" value=\"000000000000000000000002\"><input id=\"recruitmentType\" value=\"SOCIALRECRUITMENT\"><div class=\"position-header\"><h4 class=\"name\">中文岗位2</h4></div><div class=\"position-extend\"><span class=\"city\">北京</span></div><div class=\"position-description\">完整职责和要求2</div><script>var prevPositionId = \"000000000000000000000002\";</script>",
+                  "bodySha256": "7945810ae2cc07857e1c53f9c2fe37d97b25d631594a929a978ba1c8d32c4ef3",
+                  "redirect": "error"
+                }
+              }
+            }
+          ]
+        }
+      ],
+      "pageCount": 1,
+      "canonicalMatchKeySetSha256": "bc423bc79660ea1fc77c22119190e6f16086b33968b7330f395ffa1270268c43",
+      "artifactLogicalKey": "sanofi-cn-independent-native-validation",
+      "artifactSha256": "2170cdac561222afdfac15d4f4b5556f3ab0c2b107f1054fcf6ec16496840d39",
+      "observedAt": "2026-10-04T17:00:00.000Z",
+      "expiresAt": "2026-10-04T17:30:00.000Z"
+    },
+    "validationPolicy": {
+      "trigger": "INITIAL_QUALIFICATION",
+      "execution": "CURRENT_RUN"
+    },
+    "counts": {
+      "mainUniqueJobCount": 2,
+      "independentUniqueJobCount": 2,
+      "finalUniqueJobCount": 2,
+      "parseDiscardCount": 0,
+      "validationDiscardCount": 0,
+      "normalizationDiscardCount": 0,
+      "dedupeDiscardCount": 0
+    },
+    "output": {
+      "canonicalJobSetSha256": "0bdb2b9615222456c00e30cc742e54d1d505b9d6d0dbdf8106cc62cbd0f56e58",
+      "adapterReconciliationSha256": "7456a7fd20a36fd1f91c854c9e8b63d8c3e9954e0b12ee8a96e3769bdba40031",
+      "collisionLedgerSha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    "issuedAt": "2026-10-04T17:01:00.000Z"
+  },
+  "certificateSha256": "3147ce896264dfa263b2b8e86923ead37d39c2b959e3f05f173a79ae7f9f212a",
+  "jobs": [
+    {
+      "companyId": "company-sanofi-china",
+      "sourceId": "source-sanofi-china-social",
+      "sourceKind": "SOCIAL",
+      "atsKind": "OFFICIAL_HTML",
+      "officialChineseCompanyName": "赛诺菲中国",
+      "sourceJobId": "sanofi-req:R9000001",
+      "officialTitle": "中文岗位1",
+      "officialUrl": "https://careersite.tupu360.com/sanofi/position/detail?exid=R9000001",
+      "listUrl": "https://jobs.sanofi.cn/%e6%b1%82%e8%81%8c/%E4%B8%AD%E5%9B%BD/2649/2/1814991/35/105/50/2",
+      "locationRaw": "北京",
+      "cities": [
+        "北京"
+      ],
+      "category": "其他",
+      "isBaseline": false,
+      "evidence": {
+        "officialEntryUrl": "https://jobs.sanofi.cn/%e6%b1%82%e8%81%8c/%E4%B8%AD%E5%9B%BD/2649/2/1814991/35/105/50/2",
+        "officialChainEvidenceUrl": "https://jobs.sanofi.cn/",
+        "capturedAt": "2026-10-04T17:00:00.000Z"
+      }
+    },
+    {
+      "companyId": "company-sanofi-china",
+      "sourceId": "source-sanofi-china-social",
+      "sourceKind": "SOCIAL",
+      "atsKind": "OFFICIAL_HTML",
+      "officialChineseCompanyName": "赛诺菲中国",
+      "sourceJobId": "sanofi-req:R9000002",
+      "officialTitle": "中文岗位2",
+      "officialUrl": "https://careersite.tupu360.com/sanofi/position/detail?exid=R9000002",
+      "listUrl": "https://jobs.sanofi.cn/%e6%b1%82%e8%81%8c/%E4%B8%AD%E5%9B%BD/2649/2/1814991/35/105/50/2",
+      "locationRaw": "北京",
+      "cities": [
+        "北京"
+      ],
+      "category": "其他",
+      "isBaseline": false,
+      "evidence": {
+        "officialEntryUrl": "https://jobs.sanofi.cn/%e6%b1%82%e8%81%8c/%E4%B8%AD%E5%9B%BD/2649/2/1814991/35/105/50/2",
+        "officialChainEvidenceUrl": "https://jobs.sanofi.cn/",
+        "capturedAt": "2026-10-04T17:00:00.000Z"
+      }
+    }
+  ],
+  "fetchCounts": {
+    "rawCount": 2,
+    "parsedCount": 2,
+    "validCount": 2,
+    "parseDiscardCount": 0,
+    "validationDiscardCount": 0
+  },
+  "reconciliation": {
+    "rawInputCount": 2,
+    "parsedCount": 2,
+    "validBeforeDedupeCount": 2,
+    "dedupeInputCount": 2,
+    "dedupeOutputCount": 2,
+    "adapterLosses": [],
+    "collisionGroups": [],
+    "outputJobKeyCommitments": [
+      "2910f7e4d6dd360cfc605116a2c33039db86ac62524021b5cec7ca39b0c4d1f3",
+      "18d4db5c8b8c6563a97717a41053cea67bbde7664428193c03c9d6d5848e74b6"
+    ],
+    "outputJobKeySetSha256": "0bdb2b9615222456c00e30cc742e54d1d505b9d6d0dbdf8106cc62cbd0f56e58",
+    "ledgerSha256": "7456a7fd20a36fd1f91c854c9e8b63d8c3e9954e0b12ee8a96e3769bdba40031"
+  },
+  "pages": [
+    {
+      "sequence": 0,
+      "artifactLogicalKey": "official-html-page-0001",
+      "requestedCursor": null,
+      "returnedCursor": null,
+      "requestedOffset": null,
+      "returnedOffset": null,
+      "requestedPage": 1,
+      "returnedPage": 1,
+      "requestedPageSize": 15,
+      "returnedPageSize": 15,
+      "rawJobIds": [
+        "sha256:4f0112476f5f4c14ff4ac13a792cb691119b4e1ebf07b2fdd4a901c0b7b56e34",
+        "sha256:1fbd068c903e3ca1cfcad613365160c038d5ae7c86d2dc8863a37bbc8e331464"
+      ],
+      "validJobIds": [
+        "sha256:4f0112476f5f4c14ff4ac13a792cb691119b4e1ebf07b2fdd4a901c0b7b56e34",
+        "sha256:1fbd068c903e3ca1cfcad613365160c038d5ae7c86d2dc8863a37bbc8e331464"
+      ],
+      "declaredTotal": 2,
+      "declaredCount": 15,
+      "declaredPages": 1,
+      "nextPageSignalBefore": "initial",
+      "nextPageSignalAfter": null,
+      "responseFingerprintSha256": "0f5c1de580b4a9132159467a7273ed73b3a6c32b757ba9fc336985349c3f38f9",
+      "termination": "NEXT_ABSENT",
+      "anomalyCodes": [],
+      "capturedAt": "2026-10-04T17:00:00.000Z"
+    }
+  ],
+  "artifacts": [
+    {
+      "releaseCandidateId": "test-sanofi",
+      "batchId": "test-batch",
+      "sourceResultId": "test-result",
+      "sourceConfigSha256": "2925884ffb70805a106c730a5b24a8992b0d13ce0348de28639e27d1bbfeacee",
+      "sourceId": "source-sanofi-china-social",
+      "kind": "OFFICIAL_COMPANY_PAGE",
+      "extractorLocator": "#search-results[data-ajax-url]|request-contract-v2|sha256:cac5c9915915022c580f8abdeea0ef30b93801bcacf8f03a8b05464bf915065c",
+      "sha256": "5d8155d79935d5181c0377c4500fb1bb0ee2cb910643a792284250d691bb5451"
+    },
+    {
+      "releaseCandidateId": "test-sanofi",
+      "batchId": "test-batch",
+      "sourceResultId": "test-result",
+      "sourceConfigSha256": "2925884ffb70805a106c730a5b24a8992b0d13ce0348de28639e27d1bbfeacee",
+      "sourceId": "source-sanofi-china-social",
+      "kind": "PAGINATION_PAGE",
+      "extractorLocator": "#search-results-list li:has(button.js-save-job-btn)|request-contract-v2|sha256:a3372efca2dc5e9c9ad832106c461b707c6457c94f9403cdebd99ff0d4fa811b",
+      "sha256": "0f5c1de580b4a9132159467a7273ed73b3a6c32b757ba9fc336985349c3f38f9"
+    },
+    {
+      "releaseCandidateId": "test-sanofi",
+      "batchId": "test-batch",
+      "sourceResultId": "test-result",
+      "sourceConfigSha256": "2925884ffb70805a106c730a5b24a8992b0d13ce0348de28639e27d1bbfeacee",
+      "sourceId": "source-sanofi-china-social",
+      "kind": "ORACLE_RESULT",
+      "extractorLocator": "sanofi-cn-list-trace-v2",
+      "sha256": "14aa10e8884671420b8c22fc9b4e15bb0cb65d88272cae370eccf414f29b5a2d"
+    },
+    {
+      "releaseCandidateId": "test-sanofi",
+      "batchId": "test-batch",
+      "sourceResultId": "test-result",
+      "sourceConfigSha256": "2925884ffb70805a106c730a5b24a8992b0d13ce0348de28639e27d1bbfeacee",
+      "sourceId": "source-sanofi-china-social",
+      "kind": "ATS_PAGE",
+      "extractorLocator": "sanofi-cn-detail-v2|request-contract-v2|sha256:a923ca637a407b828c5976ce4f26a21736fef103dd8a31cf0185a11abcfa9fd2",
+      "sha256": "e40e668880ed05a3c12edebeb6e96096407c4b67c8815f417718084e8859876d"
+    },
+    {
+      "releaseCandidateId": "test-sanofi",
+      "batchId": "test-batch",
+      "sourceResultId": "test-result",
+      "sourceConfigSha256": "2925884ffb70805a106c730a5b24a8992b0d13ce0348de28639e27d1bbfeacee",
+      "sourceId": "source-sanofi-china-social",
+      "kind": "ATS_PAGE",
+      "extractorLocator": "sanofi-cn-detail-v2|request-contract-v2|sha256:df98e8e0829348e61aa37ad17417a2cc6afed393e9928daf970d306faa1a2c88",
+      "sha256": "c421cbbd3348156b20ba18dc78102ed0b147431b3d605ff11ec172f626b8bd2c"
+    },
+    {
+      "releaseCandidateId": "test-sanofi",
+      "batchId": "test-batch",
+      "sourceResultId": "test-result",
+      "sourceConfigSha256": "2925884ffb70805a106c730a5b24a8992b0d13ce0348de28639e27d1bbfeacee",
+      "sourceId": "source-sanofi-china-social",
+      "kind": "ATS_PAGE",
+      "extractorLocator": "sanofi-cn-native-no-redirect-v2|request-contract-v2|sha256:2fe782b980143fc3f84becc40ee159d3cb1b17a67be717954d861c67c15d483f",
+      "sha256": "e501fd850251b8b29367c92dda1af42dfc71c07d99f22045a53efbfce8ff95bc"
+    },
+    {
+      "releaseCandidateId": "test-sanofi",
+      "batchId": "test-batch",
+      "sourceResultId": "test-result",
+      "sourceConfigSha256": "2925884ffb70805a106c730a5b24a8992b0d13ce0348de28639e27d1bbfeacee",
+      "sourceId": "source-sanofi-china-social",
+      "kind": "ATS_PAGE",
+      "extractorLocator": "sanofi-cn-native-v2|request-contract-v2|sha256:26cfe0538dccd4ee2622b8180ea2b38daee47371cdea7d8648d69efba8c25cff",
+      "sha256": "7945810ae2cc07857e1c53f9c2fe37d97b25d631594a929a978ba1c8d32c4ef3"
+    },
+    {
+      "releaseCandidateId": "test-sanofi",
+      "batchId": "test-batch",
+      "sourceResultId": "test-result",
+      "sourceConfigSha256": "2925884ffb70805a106c730a5b24a8992b0d13ce0348de28639e27d1bbfeacee",
+      "sourceId": "source-sanofi-china-social",
+      "kind": "ORACLE_RESULT",
+      "extractorLocator": "sanofi-cn-module-anomalies-v2",
+      "sha256": "f8c47acb79f5b3e4b59c22199aa1a0f33c3a0179ea0e08dd0495598d7c3e93ec"
+    }
+  ]
+}

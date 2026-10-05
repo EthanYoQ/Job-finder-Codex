@@ -26,6 +26,7 @@ function dbFixture(rows:PortableSourceResultRow[],members:any[],jobs:any[]) {
   const tx={
     $queryRawUnsafe:vi.fn(async()=>structuredClone(versions)),
     crawlBatchSourceResult:{findMany:vi.fn(async()=>rows)},
+    evidenceArtifact:{findMany:vi.fn(async()=>rows.flatMap(r=>r.sanofiArtifacts??[]))},
     lifecycleSetEvidenceMember:{findMany:vi.fn(async(args:any)=>members.filter(m=>args.where.sourceResultId.in.includes(m.sourceResultId)))},
     job:{findMany:vi.fn(async(args:any)=>jobs.filter(j=>args.where.OR.some((q:any)=>q.sourceId===j.sourceId&&q.dedupeKey.in.includes(j.dedupeKey)&&j.lastSeenAt>=q.lastSeenAt.gte&&j.lastSeenAt<=q.lastSeenAt.lte)))}
   };
@@ -142,17 +143,36 @@ describe("Sanofi pinned historical A to Chinese B public transition",()=>{
     const a=historical(),b=await chineseBFixture(),f=dbFixture([a.result],a.members,a.jobs),cache=new PortableSnapshotCache(),refresh=vi.fn();
     const first=await read(f,NOW,cache,refresh);expect(first.totalJobs).toBe(88);
     f.versions[0]!.digest="b".repeat(64);f.tx.crawlBatchSourceResult.findMany.mockResolvedValue([a.result,b.result]);
+    f.tx.evidenceArtifact.findMany.mockResolvedValue([...(b.result.sanofiArtifacts??[])]);
     f.tx.lifecycleSetEvidenceMember.findMany.mockImplementation(async(args:any)=>b.members.filter(m=>args.where.sourceResultId.in.includes(m.sourceResultId)));
     f.tx.job.findMany.mockResolvedValue(b.jobs);
     expect(await read(f,new Date(NOW.getTime()+1000),cache,refresh)).toEqual(first);expect(refresh).toHaveBeenCalledOnce();
     const rebuilt=await read(f,new Date(NOW.getTime()+2000),cache);expect(rebuilt.totalJobs).toBe(1);expect(rebuilt.lastUpdatedAt).toBe(LATER);
     expect((await read(f,new Date(NOW.getTime()+3000),cache,refresh)).lastUpdatedAt).toBe(LATER);
   });
+  it.each(["sha256","sourceResultId","kind","extractorLocator","missing"])("rechecks unchanged certificates when persisted Sanofi artifact %s changes",async field=>{
+    const b=await chineseBFixture(),f=dbFixture([b.result],b.members,b.jobs),cache=new PortableSnapshotCache();
+    expect((await read(f,NOW,cache)).totalJobs).toBe(1);
+    expect((await read(f,new Date(NOW.getTime()+1000),cache)).totalJobs).toBe(1);
+    expect(f.tx.evidenceArtifact.findMany).toHaveBeenCalledTimes(1);
+    const changed=structuredClone([...b.result.sanofiArtifacts!]);
+    const oracle=changed.find(a=>a.extractorLocator==="sanofi-cn-module-anomalies-v2")!;
+    if(field==="missing")changed.splice(changed.indexOf(oracle),1);
+    else (oracle as unknown as Record<string,string>)[field]=field==="sha256"?"f".repeat(64):"changed";
+    f.tx.evidenceArtifact.findMany.mockResolvedValue(changed);
+    // PostgreSQL UPDATE/DELETE changes EvidenceArtifact's physical tuple digest;
+    // neither certificate bytes nor any other table version changes here.
+    f.versions.find(v=>v.relation==="EvidenceArtifact")!.digest="c".repeat(64);
+    const next=await read(f,new Date(NOW.getTime()+2000),cache);
+    expect(next.totalJobs).toBe(0);expect(next.sources[0]).toMatchObject({state:"HOLD"});
+    expect(f.tx.evidenceArtifact.findMany).toHaveBeenCalledTimes(2);
+  });
   it("atomically replaces the old cached display with HOLD after invalid B commit",async()=>{
     const a=historical(),b=await chineseBFixture(),f=dbFixture([a.result],a.members,a.jobs),cache=new PortableSnapshotCache(),refresh=vi.fn();
     const first=await read(f,NOW,cache,refresh);
     b.result.completenessCertificateSha256="f".repeat(64);
     f.versions[0]!.digest="b".repeat(64);f.tx.crawlBatchSourceResult.findMany.mockResolvedValue([a.result,b.result]);
+    f.tx.evidenceArtifact.findMany.mockResolvedValue([...(b.result.sanofiArtifacts??[])]);
     f.tx.lifecycleSetEvidenceMember.findMany.mockResolvedValue(b.members);f.tx.job.findMany.mockResolvedValue(b.jobs);
     expect(await read(f,new Date(NOW.getTime()+1000),cache,refresh)).toEqual(first);
     expect((await read(f,new Date(NOW.getTime()+2000),cache)).totalJobs).toBe(0);

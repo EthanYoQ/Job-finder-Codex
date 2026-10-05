@@ -163,7 +163,8 @@ function verifyAcceptedBGrade(row: PortableSourceResultRow, plan: SourceCrawlPla
     sourceId: plan.source.id, companyId: plan.company.id, sourceConfigSha256: sourcePlanConfigSha256(plan),
     surfaceIds: [plan.source.surfaceId!], channelIds: plan.expectedChannels!.map(channel => channel.channelId),
     canonicalJobSetSha256: row.canonicalOutputSetSha256 ?? "", adapterReconciliationSha256: row.adapterReconciliationSha256 ?? "",
-    collisionLedgerSha256: row.collisionLedgerSha256 ?? "", canonicalRawEvidenceIdSetSha256: observation.canonicalRawSha256 ?? ""
+    collisionLedgerSha256: row.collisionLedgerSha256 ?? "", canonicalRawEvidenceIdSetSha256: observation.canonicalRawSha256 ?? "",
+    ...(plan.source.id==="source-sanofi-china-social" && row.sanofiArtifacts ? {sanofiArtifacts:row.sanofiArtifacts} : {})
   }});
   const receipt = row.completenessCertificate as PublicBReceipt;
   const count = receipt.counts, normalized = count.finalUniqueJobCount + count.dedupeDiscardCount;
