@@ -45,7 +45,7 @@ async function regularFile(path) {
 export function validateBootstrapShape(bootstrap) {
   const base = ['batchId', 'candidateRows', 'checkedAt', 'schemaVersion'];
   const optional = ['independentValidation', 'currentCapture', 'retainedCapture'];
-  if (!bootstrap || typeof bootstrap !== 'object' || Array.isArray(bootstrap) || bootstrap.schemaVersion !== 1 || base.some(key => !(key in bootstrap)) || Object.keys(bootstrap).some(key => !base.includes(key) && !optional.includes(key)) || !/^[A-Za-z0-9][A-Za-z0-9._-]{0,80}$/.test(bootstrap.batchId) || !Array.isArray(bootstrap.candidateRows) || bootstrap.candidateRows.length !== 1) fail('PREFLIGHT_BOOTSTRAP_SCHEMA');
+  if (!bootstrap || typeof bootstrap !== 'object' || Array.isArray(bootstrap) || bootstrap.schemaVersion !== 1 || base.some(key => !(key in bootstrap)) || Object.keys(bootstrap).some(key => !base.includes(key) && !optional.includes(key)) || typeof bootstrap.batchId !== 'string' || !/^[A-Za-z0-9][A-Za-z0-9._-]{0,80}$/.test(bootstrap.batchId) || !Array.isArray(bootstrap.candidateRows) || bootstrap.candidateRows.length !== 1) fail('PREFLIGHT_BOOTSTRAP_SCHEMA');
   if (bootstrap.currentCapture && bootstrap.retainedCapture) fail('PREFLIGHT_MULTIPLE_CAPTURE_INPUTS');
   return optional.filter(key => key in bootstrap).map(key => {
     const value = bootstrap[key];

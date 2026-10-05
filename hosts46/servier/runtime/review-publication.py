@@ -2,7 +2,7 @@
 import json,re,hashlib,datetime,sys,subprocess,os
 from pathlib import Path
 host,run=Path(sys.argv[1]).resolve(),Path(sys.argv[2]).resolve();rid=sys.argv[3]
-assert run.parent==host and host.name=='servier42-refresh' and re.fullmatch(r'[a-f0-9-]{36}',rid)
+assert run.parent==host and str(host)=='/workspace/scratch/5e9614251709/jb-workspace-recovery-20261005T2019Z/hosts46/servier' and re.fullmatch(r'[a-f0-9-]{36}',rid)
 cfg=json.loads((host/'host-config.json').read_text());assert cfg['sourceId']=='source-servier-china-social'
 env={**os.environ,'TSX_DISABLE_CACHE':'1','NODE_DISABLE_COMPILE_CACHE':'1','PYTHONDONTWRITEBYTECODE':'1','JOBFINDER_CLOUD_SOURCE_ID':cfg['sourceId']}
 subprocess.run(['node',str(host/'runtime/publisher-state-guard.mjs'),'publish',run.name],check=True,capture_output=True,env=env)
@@ -13,7 +13,7 @@ assert re.fullmatch(r"SET LOCAL statement_timeout = '120000ms';\nDO (\$atomic_[a
 scope={'sql':sql};exec((host/'runtime/compact-json-review.inc.py').read_text(),scope)
 row=scope['env']['source_result_data'];cert=row['completenessCertificate']
 assert row['id']==run.name+'--'+cfg['sourceId'] and row['batchId']==run.name and row['sourceId']==cfg['sourceId']
-assert row['releaseCandidateId']=='dot-cloud-restored-fb0b8e3-20261004' and row['sourceConfigHash']==cfg['sourceConfigSha256']
+assert row['releaseCandidateId']=='dot-cloud-restored-fb0b8e3-20261005T2028Z' and row['sourceConfigHash']==cfg['sourceConfigSha256']
 assert [row[k] for k in ['transportState','adapterState','completenessState','atomicCommitState']]==['SUCCEEDED','SUCCEEDED','VERIFIED','COMMITTED']
 assert cert['schemaVersion']=='b-grade-independent-traversal-v2' and cert['grade']=='B' and cert['validationPolicy']['execution']=='CURRENT_RUN'
 for a,b in [('sourceId','sourceId'),('sourceResultId','id'),('batchId','batchId'),('releaseCandidateId','releaseCandidateId'),('sourceConfigSha256','sourceConfigHash')]:assert cert['binding'][a]==row[b]

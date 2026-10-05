@@ -1,0 +1,37 @@
+import {readFile,writeFile} from 'node:fs/promises';
+import {execFileSync} from 'node:child_process';
+import {join,dirname} from 'node:path';
+import {fileURLToPath,pathToFileURL} from 'node:url';
+import {createHash} from 'node:crypto';
+const base=dirname(dirname(fileURLToPath(import.meta.url))),host=join(base,'hosts46/servier');
+const cfg=JSON.parse(await readFile(join(host,'host-config.json'))),control=JSON.parse(await readFile(join(host,'control-base.json'))),restored=JSON.parse(await readFile(join(host,'RESTORATION_MANIFEST.json'))),old=JSON.parse(await readFile(join(host,'originals/PREPARED.json')));
+if(process.env.JOBFINDER_CLOUD_SOURCE_ID!==cfg.sourceId||process.env.TSX_DISABLE_CACHE!=='1'||process.env.NODE_DISABLE_COMPILE_CACHE!=='1')throw Error('PREPARATION_ENV');
+globalThis.fetch=async()=>{throw Error('OFFLINE_PREPARATION_NETWORK_FORBIDDEN');};
+const imp=p=>import(pathToFileURL(join(cfg.repo,p)).href),sha=b=>createHash('sha256').update(b).digest('hex');
+const {createBuildIdentity}=await imp('src/readiness/buildIdentity.ts');
+const {deriveCurrentStagedScheduleExpectation}=await imp('src/crawler/stagedScheduleAuthority.ts');
+const {sourcePlanConfigSha256}=await imp('src/crawler/sourcePlan.ts');
+const {CLOUD_PILOT_SQL45:history}=await imp('src/db/cloudPilotSql45Manifest.ts');
+const {compileCloudPilotPublicationContextSql,CLOUD_PILOT_SOURCE}=await imp('src/db/cloudPilotSqlControl.ts');
+const {requiresBGradeTraversalCertificate}=await imp('src/crawler/traversalCertificate.ts');
+const git=a=>execFileSync('git',a,{cwd:cfg.repo,encoding:'utf8',env:{...process.env,GIT_OPTIONAL_LOCKS:'0'}}).trim();
+if(git(['rev-parse','HEAD'])!==control.build.commitSha||git(['status','--porcelain']))throw Error('FROZEN_PRODUCER_CHANGED');
+const build=createBuildIdentity(cfg.repo,control.build.commitSha);
+if(JSON.stringify(build)!==JSON.stringify(control.build))throw Error('FROZEN_BUILD_CHANGED');
+const authority=deriveCurrentStagedScheduleExpectation(build),plan=authority.plans.find(p=>p.source.id===cfg.sourceId);
+if(!plan||sourcePlanConfigSha256(plan)!==cfg.sourceConfigSha256||CLOUD_PILOT_SOURCE.id!==cfg.sourceId||!requiresBGradeTraversalCertificate(plan))throw Error('CANONICAL_TRUE_B_SOURCE_MISMATCH');
+const registered=JSON.parse(await readFile(join(base,'verification/CANDIDATE46_REGISTERED.json'))).candidate;
+for(const [k,a]of Object.entries({sourcePlanHash:'sourcePlanSha256',sourceConfigHash:'sourceConfigSha256',rosterHash:'rosterSha256',adapterBundleHash:'adapterBundleSha256',sourceTreeHash:'sourceTreeSha256',runtimeTreeHash:'runtimeTreeSha256'}))if(registered[k]!==authority[a])throw Error('REGISTERED_AUTHORITY_MISMATCH:'+k);
+const expectedCandidate=(candidate,a)=>({...candidate,commitSha:a.commitSha,...history.databaseIdentity,rosterHash:a.rosterSha256,sourcePlanHash:a.sourcePlanSha256,sourceConfigHash:a.sourceConfigSha256,adapterBundleHash:a.adapterBundleSha256,sourceTreeHash:a.sourceTreeSha256,runtimeTreeHash:a.runtimeTreeSha256,minimumStableCompanyCount:a.minimumStableCompanyCount,oracleVersion:'staged-official-source-v1',status:'BUILDING'});
+const encoded=v=>JSON.stringify(v,null,2)+'\n',put=(name,v)=>writeFile(join(host,name),typeof v==='string'?v:encoded(v),{flag:'wx',mode:0o600});
+const context=compileCloudPilotPublicationContextSql(control),expected={candidate:expectedCandidate(control.candidate,authority),migrations:history.migrations,sourceResultGuardMd5:history.sourceResultGuardMd5};
+for(const [k,v]of Object.entries(expected.candidate))if(registered[k]!==v)throw Error('REGISTERED_EXPECTED_CANDIDATE:'+k);
+await put('source-plan.json',plan);await put('context-read.sql',context);await put('runtime/expected-database.json',expected);
+// Reconstruct omitted deterministic originals and require their recorded exact hashes.
+const oldAuthority=deriveCurrentStagedScheduleExpectation(old.build),oldControl={projectId:cfg.project,build:old.build,candidate:old.candidate};
+const regen={'source-plan.json':encoded(plan),'context-read.sql':compileCloudPilotPublicationContextSql(oldControl),'control-base.json':encoded(oldControl),'host-config.json':encoded({...cfg,root:old.root,repo:old.repo}),'runtime/expected-database.json':encoded({candidate:expectedCandidate(old.candidate,oldAuthority),migrations:history.migrations,sourceResultGuardMd5:history.sourceResultGuardMd5})};
+const regenerated={};
+for(const [name,bytes]of Object.entries(regen)){const actual=sha(bytes),expectedHash=old.files[name];if(actual!==expectedHash)throw Error('ORIGINAL_REGEN_HASH:'+name+':'+actual+':'+expectedHash);await put('originals/'+name,bytes);regenerated[name]={sha256:actual,exactHistoricalHash:true};}
+const spec={...restored,status:'PREPARED_NOT_LAUNCHED',preparedAt:new Date().toISOString(),build,candidate:control.candidate,databaseIdentity:history.databaseIdentity,migrationCount:history.migrations.length,entrypoint:'scripts/p0-cloud-source-pilot.ts',publicationMode:'DB_STARTED_OWNER_V1',certificateSchema:'b-grade-independent-traversal-v2',currentCaptureRequired:true,independentValidationRequired:true,mainFreshnessMs:1800000,independentCurrentRunMs:3600000,sourceDueMs:43200000,bootstrapMaxAgeMs:60000,publicationReserveMs:165000,contextCompletionReserveMs:25000,contextSqlSha256:sha(context),freshReadbackSqlSha256:sha(await readFile(join(host,'runtime/fresh-readback.sql'))),priorCountsComparisonOnly:old.priorCountsComparisonOnly,automaticPublication:false,freshDbBootstrapAndActualObservationReadRequired:true,sourceNetworkAccessed:false,databaseAccessed:false,producerLaunched:false,regeneratedOriginals:regenerated,producerModified:false,dependencyIdentityUnchanged:true,fullBuildOrTestsRun:false};
+await put('SPEC.json',spec);
+console.log(JSON.stringify({sourceId:cfg.sourceId,trueB:true,originalRegeneratedFilesVerified:Object.keys(regenerated).length,buildUnchanged:true,preparedOnly:true}));

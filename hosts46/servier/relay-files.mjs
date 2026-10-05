@@ -21,7 +21,7 @@ async function writeResponse(dir,r,result){
  try{await link(temp,dest);}finally{await unlink(temp);}
 }
 const [command,directory,arg,expectedRequestSha256]=process.argv.slice(2);const dir=resolve(directory??'');
-if(!dir.startsWith('/workspace/scratch/5e9614251709/job-finder-runtime-restore-20261004T0834Z/hosts/servier42-refresh/'))throw Error('RELAY_DIRECTORY_OUTSIDE_TASK');
+if(!dir.startsWith('/workspace/scratch/5e9614251709/jb-workspace-recovery-20261005T2019Z/hosts46/servier/'))throw Error('RELAY_DIRECTORY_OUTSIDE_TASK');
 if(command==='next'||command==='next-meta'){
  const names=await readdir(dir),rows=[];
  for(const name of names.filter(n=>n.endsWith('.request.json')).sort()){

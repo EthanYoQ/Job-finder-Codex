@@ -1,5 +1,5 @@
 
-const cfg=load("servier42:cloudPilotHostConfig");
+const cfg=load("restored46:servier:cloudPilotHostConfig");
 const q=s=>"'"+String(s).replaceAll("'","'\\''")+"'";
 async function cmd(command,max=10000,deadline=Date.now()+90000){
  const startedAt=Date.now();if(!Number.isFinite(deadline)||deadline<=startedAt)throw Error("HOST_LOCAL_COMMAND_BUDGET_EXHAUSTED");
@@ -8,12 +8,12 @@ async function cmd(command,max=10000,deadline=Date.now()+90000){
  if(session)notify({status:"HOST_LOCAL_COMMAND_RUNNING",session,deadline:new Date(deadline).toISOString()});
  while(r.session_id){
   session=r.session_id;const remaining=deadline-Date.now();
-  if(remaining<=0){store("servier42:cloudHostLocalCommandOutcome",{status:"BUDGET_EXHAUSTED",session,startedAt,deadline});throw Error("HOST_LOCAL_COMMAND_BUDGET_EXHAUSTED:"+session);}
+  if(remaining<=0){store("restored46:servier:cloudHostLocalCommandOutcome",{status:"BUDGET_EXHAUSTED",session,startedAt,deadline});throw Error("HOST_LOCAL_COMMAND_BUDGET_EXHAUSTED:"+session);}
   try{r=await tools.write_stdin({session_id:session,chars:"",yield_time_ms:Math.min(1000,remaining),max_output_tokens:max});}
-  catch(error){store("servier42:cloudHostLocalCommandOutcome",{status:"POLL_UNRESOLVED_NO_RETRY",session,startedAt,deadline,error:String(error)});throw error;}
+  catch(error){store("restored46:servier:cloudHostLocalCommandOutcome",{status:"POLL_UNRESOLVED_NO_RETRY",session,startedAt,deadline,error:String(error)});throw error;}
   output+=r.output??"";
  }
- store("servier42:cloudHostLocalCommandOutcome",{status:"TERMINAL",session,startedAt,finishedAt:Date.now(),exitCode:r.exit_code});
+ store("restored46:servier:cloudHostLocalCommandOutcome",{status:"TERMINAL",session,startedAt,finishedAt:Date.now(),exitCode:r.exit_code});
  if(r.exit_code!==0)throw Error("HOST_COMMAND:"+output);return output;
 }
 async function save(path,value){const data=typeof value==="string"?value:JSON.stringify(value);const result=await tools.apply_patch("*** Begin Patch\n*** Add File: "+path+"\n"+data.split("\n").map(x=>"+"+x).join("\n")+"\n*** End Patch");if(result?.isError)throw Error("HOST_SAVE");return path;}
@@ -41,10 +41,10 @@ async function sqlDispatch(r,dir,sql){
  if(typeof sql!=="string"||sql!==r.payload?.sql||cfg.project!==r.payload?.projectId)throw Error("HOST_SQL_BINDING");
  if(r.kind==="PUBLISH")await cmd("node "+q(cfg.root+"/runtime/publisher-state-guard.mjs")+" publish "+q(dir.split("/").at(-2)),2000,Date.parse(r.payload.dispatchBefore??r.expiresAt));
  await mark(r,dir);let result,raw,diagnostic;
- try{raw=await tools.mcp__codex_apps__supabase_execute_sql({project_id:cfg.project,query:sql});store("servier42:cloudLastSqlToolResult",raw);result={status:"SUCCEEDED",rows:rows(raw)};}
+ try{raw=await tools.mcp__codex_apps__supabase_execute_sql({project_id:cfg.project,query:sql});store("restored46:servier:cloudLastSqlToolResult",raw);result={status:"SUCCEEDED",rows:rows(raw)};}
  catch(error){
   diagnostic={recordedAt:new Date().toISOString(),responseExpired:Date.now()>=Date.parse(r.expiresAt),toolResult:raw??null,error:{message:String(error),name:error?.name,stack:error?.stack}};
-  store("servier42:cloudHostLastDispatchError",diagnostic);result=publicationFailure(raw,r,sql);
+  store("restored46:servier:cloudHostLastDispatchError",diagnostic);result=publicationFailure(raw,r,sql);
  }
  await respond(r,dir,result,diagnostic);return result;
 }

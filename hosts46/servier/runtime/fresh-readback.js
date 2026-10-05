@@ -1,5 +1,5 @@
 // functions.exec fragment. Read-only database/state gate, callable before capture and again at launch.
-const A=Object.getPrototypeOf(async function(){}).constructor,h=await new A(load('servier42:cloudPilotHostHelpers'))();
+const A=Object.getPrototypeOf(async function(){}).constructor,h=await new A(load('restored46:servier:cloudPilotHostHelpers'))();
 await h.cmd('node '+h.q(h.cfg.root+'/runtime/publisher-state-guard.mjs')+' idle',2000);
 const expected=JSON.parse((await h.readFile(h.cfg.root+'/runtime/expected-database.json')).text);
 const query=(await h.readFile(h.cfg.root+'/runtime/fresh-readback.sql')).text;
@@ -42,7 +42,7 @@ function classifySameSourceOverlap(row,cfg,currentCandidateId){
 }
 // END STRICT_HISTORICAL_OVERLAP_GATE
 const overlap=classifySameSourceOverlap(row,h.cfg,expected.candidate.id);
-store('servier42:lastOverlapReadback',overlap);store('servier42:lastFreshReadbackRaw',raw);
+store('restored46:servier:lastOverlapReadback',overlap);store('restored46:servier:lastFreshReadbackRaw',raw);
 if(overlap.ignoredHistoricalRows.length||overlap.blockingRows.length)notify({phase:'SAME_SOURCE_OVERLAP_RECONCILIATION',...overlap});
 if(overlap.blockingRows.length)throw Error('FRESH_HOLDER_OR_SAME_SOURCE_OVERLAP:'+overlap.blockingRows.length);
 return {raw,row,due,overlap};

@@ -6,7 +6,7 @@ WITH latest_successful AS (
  ORDER BY s."finishedAt" DESC,s.id DESC LIMIT 1
 )
 SELECT clock_timestamp() AS "checkedAt",
- (SELECT jsonb_agg(to_jsonb(r)) FROM public."ReleaseCandidate" r WHERE id='dot-cloud-restored-fb0b8e3-20261004') AS "candidateRows",
+ (SELECT jsonb_agg(to_jsonb(r)) FROM public."ReleaseCandidate" r WHERE id='dot-cloud-restored-fb0b8e3-20261005T2028Z') AS "candidateRows",
  (SELECT "holderId" FROM public."CrawlCoordinatorLock" WHERE id='formal-crawl') AS "holderId",
  (SELECT coalesce(jsonb_agg(jsonb_build_object('migrationName',migration_name,'checksum',checksum,'finishedAt',finished_at,'rolledBackAt',rolled_back_at) ORDER BY migration_name),'[]'::jsonb) FROM public."_prisma_migrations") AS "migrationRows",
  (SELECT md5(pg_get_functiondef(to_regprocedure('public.enforce_source_result_state_machine()')))) AS "sourceResultGuardMd5",

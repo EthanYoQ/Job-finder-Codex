@@ -4,20 +4,19 @@ import {join,dirname} from 'node:path';
 import {fileURLToPath,pathToFileURL} from 'node:url';
 import {createHash,randomUUID} from 'node:crypto';
 import {requirePublisherState} from './publisher-state-guard.mjs';
-const host=dirname(dirname(fileURLToPath(import.meta.url))),cfg=JSON.parse(await readFile(join(host,'host-config.json'))),control=JSON.parse(await readFile(join(host,'control-base.json'))),prefix='servier42:',id=randomUUID().slice(0,8),checks=[];
+const host=dirname(dirname(fileURLToPath(import.meta.url))),cfg=JSON.parse(await readFile(join(host,'host-config.json'))),control=JSON.parse(await readFile(join(host,'control-base.json'))),prefix='restored46:servier:',id=randomUUID().slice(0,8),checks=[];
 if(process.env.JOBFINDER_CLOUD_SOURCE_ID!==cfg.sourceId||process.env.TSX_DISABLE_CACHE!=='1'||process.env.NODE_DISABLE_COMPILE_CACHE!=='1')throw Error('CHECK_ENV');
 globalThis.fetch=async()=>{throw Error('CHECK_NETWORK_FORBIDDEN');};
 const A=Object.getPrototypeOf(async function(){}).constructor,sha=b=>createHash('sha256').update(b).digest('hex'),ok=(check,detail={})=>checks.push({check,passed:true,...detail});
 async function rejects(f,code){let e;try{await f();}catch(err){e=err;}if(!String(e).includes(code))throw Error('EXPECTED_REJECTION:'+code+':'+e);}
 const js=['host-helper-functions.js','host-stage-functions.js','runtime/load-host-state.js','runtime/load-servier42-runtime.js','runtime/fresh-readback.js','runtime/observation-due-gate.js','runtime/start-monitor-servier42.js','runtime/continuous-relay-v3-durable-monitor.js','runtime/dispatch-reviewed-publication.js'];
 for(const name of js){const text=await readFile(join(host,name),'utf8');new A('root','sourceId','candidateId','commit',text);for(const m of text.matchAll(/\b(?:load|store)\(["']([^"']+)["']/g))if(!m[1].startsWith(prefix))throw Error('STORE_NAMESPACE:'+name);}
-for(const name of ['host-files.mts','relay-files.mjs','archive-transfer.mjs','runtime/prepare-metadata.mjs','runtime/publisher-state-guard.mjs','runtime/describe-inputs.mjs','runtime/pre-capture-check.mjs','runtime/validate-capture-inputs.mjs','runtime/verify-certificate.mjs','runtime/preflight/preflight-launch.mjs','runtime/preflight/runtime-check.mjs'])execFileSync(process.execPath,['--check',join(host,name)],{encoding:'utf8'});
+for(const name of ['host-files.mts','relay-files.mjs','archive-transfer.mjs','runtime/publisher-state-guard.mjs','runtime/describe-inputs.mjs','runtime/pre-capture-check.mjs','runtime/validate-capture-inputs.mjs','runtime/verify-certificate.mjs','runtime/preflight/preflight-launch.mjs','runtime/preflight/runtime-check.mjs'])execFileSync(process.execPath,['--check',join(host,name)],{encoding:'utf8'});
 execFileSync('python3',['-c','import ast,sys;ast.parse(open(sys.argv[1]).read())',join(host,'runtime/review-publication.py')],{encoding:'utf8'});
-ok('all host fragment/module/reviewer syntax and exclusive servier42 namespace');
+ok('all host fragment/module/reviewer syntax and exclusive restored46:servier namespace');
 const base=dirname(dirname(host)),monitor=await readFile(join(host,'runtime/continuous-relay-v3-durable-monitor.js'),'utf8');
-if(monitor.replaceAll(prefix,'jnj42:')!==await readFile(join(base,'hosts/jnj42/runtime/continuous-relay-v3-durable-monitor.js'),'utf8'))throw Error('DURABLE_MONITOR_CHANGED');
-const oldStarter=await readFile(join(base,'hosts/pfizer42/runtime/start-monitor-pfizer42.js'),'utf8'),oldGate=oldStarter.split('// BEGIN OBSERVATION_DUE_GATE\n')[1].split('// END OBSERVATION_DUE_GATE')[0];
-const gateText=await readFile(join(host,'runtime/observation-due-gate.js'),'utf8');if(gateText!==oldGate+'\nreturn requireObservationDue;\n')throw Error('DUE_GATE_CHANGED');
+if(monitor.replaceAll(prefix,'servier42:')!==await readFile(join(host,'originals/runtime/continuous-relay-v3-durable-monitor.js'),'utf8'))throw Error('DURABLE_MONITOR_CHANGED');
+const gateText=await readFile(join(host,'runtime/observation-due-gate.js'),'utf8');if(gateText!==await readFile(join(host,'originals/runtime/observation-due-gate.js'),'utf8'))throw Error('DUE_GATE_CHANGED');
 ok('original current-owner durable monitor and exact actual-observation 12h gate preserved');
 const requireDue=await new A(gateText)(),now=Date.now(),prior=new Date(now-43200000).toISOString(),finish=new Date(now-43100000).toISOString();
 const observation={id:'NONQUAL-O',sourceResultId:'NONQUAL-S',sourceId:cfg.sourceId,batchId:'NONQUAL-B',releaseCandidateId:control.candidate.id,sourceConfigSha256:cfg.sourceConfigSha256,crawledAt:prior,observedFrom:prior,observedTo:finish,successful:true,transportSucceeded:true,adapterSucceeded:true,completenessVerified:true,atomicCommitSucceeded:true};
@@ -28,7 +27,7 @@ await rejects(()=>requireDue({...row,checkedAt:new Date(now-1).toISOString()},cf
 await rejects(()=>requireDue({...row,latestSuccessfulSource:{...source,observations:[{...observation,crawledAt:null}]}},cfg),'SOURCE_DUE_OBSERVATION_TIME');
 await rejects(()=>requireDue({...row,latestSuccessfulSource:{...source,observations:[observation,observation]}},cfg),'SOURCE_DUE_OBSERVATION_REQUIRED');
 ok('due accepts exact 12h and rejects 1ms early, missing actual time, duplicate tuple');
-const state={schemaVersion:1,runtimeCandidate:{id:control.candidate.id,version:42,commit:control.build.commitSha},active:null,publicationPause:{noDatabasePublicationUntilBridgeTerminal:false,endedAt:prior}};
+const state={schemaVersion:1,runtimeCandidate:{id:control.candidate.id,version:46,commit:control.build.commitSha},active:null,publicationPause:{noDatabasePublicationUntilBridgeTerminal:false,endedAt:prior}};
 requirePublisherState(state,'idle');await rejects(()=>requirePublisherState({...state,publicationPause:{noDatabasePublicationUntilBridgeTerminal:true}},'idle'),'PUBLICATION_PAUSED');
 await rejects(()=>requirePublisherState({...state,active:{sourceId:'other',batchId:'other'}},'idle'),'ANOTHER_PUBLISHER_ACTIVE');
 requirePublisherState({...state,active:{sourceId:cfg.sourceId,batchId:'mine'}},'publish','mine');
@@ -36,7 +35,12 @@ await rejects(()=>requirePublisherState({...state,active:{sourceId:cfg.sourceId,
 ok('current pause boolean and active-owner binding, cleared historical pause accepted; state never written');
 const isolated=new Map([['cloudPilotHostConfig','PARENT_SENTINEL'],['jnj42:refreshSession','SIBLING_SENTINEL']]);
 globalThis.store=(k,v)=>{if(!k.startsWith(prefix))throw Error('CROSS_NAMESPACE');isolated.set(k,v);};globalThis.load=k=>isolated.get(k);globalThis.text=()=>{};globalThis.notify=()=>{};
-const local=async args=>({exit_code:0,output:execFileSync('/bin/bash',['-c',args.cmd],{cwd:args.workdir,encoding:'utf8',stdio:'pipe',timeout:60000,maxBuffer:3000000,env:{...process.env,TSX_DISABLE_CACHE:'1',NODE_DISABLE_COMPILE_CACHE:'1',PYTHONDONTWRITEBYTECODE:'1'}})});
+const local=async args=>{
+ if(!args.cmd.includes(host)||/scripts\/p0-cloud|run-with-http-diagnostics|https?:\/\/|curl |wget /.test(args.cmd))throw Error('LOCAL_COMMAND_SCOPE:'+args.cmd);
+ // Pure guard behavior was checked above; don't touch or override the live publisher state.
+ if(args.cmd.includes('/runtime/publisher-state-guard.mjs'))return {exit_code:0,output:JSON.stringify({purpose:'NONQUAL_GUARD_COMMAND_STUB',database:false})};
+ return {exit_code:0,output:execFileSync('/bin/bash',['-c',args.cmd],{cwd:args.workdir,encoding:'utf8',stdio:'pipe',timeout:20000,maxBuffer:3000000,env:{...process.env,TSX_DISABLE_CACHE:'1',NODE_DISABLE_COMPILE_CACHE:'1',PYTHONDONTWRITEBYTECODE:'1'}})};
+};
 globalThis.tools={exec_command:local};await new A(await readFile(join(host,'runtime/load-servier42-runtime.js'),'utf8'))();
 if(isolated.get('cloudPilotHostConfig')!=='PARENT_SENTINEL'||isolated.get('jnj42:refreshSession')!=='SIBLING_SENTINEL')throw Error('LOADER_ISOLATION');
 for(const key of ['currentCaptureInput','currentIndependentValidationInput','nextBatchId'])if(isolated.get(prefix+key)!==null)throw Error('STALE_INPUT');
@@ -66,7 +70,7 @@ isolated.set(prefix+'cloudPilotHostHelpers','return globalThis.__servierMockH;')
 globalThis.__servierMockReadback={raw:{purpose:'NONQUAL'},row:{...row,checkedAt:new Date().toISOString()},due:requireDue(row,cfg)};
 isolated.set(prefix+'freshReadbackCode','return globalThis.__servierMockReadback;');isolated.set(prefix+'nextBatchId',mockBatch);
 globalThis.tools={exec_command:async args=>{if(args.workdir!==cfg.repo||!args.cmd.includes('scripts/p0-cloud-source-pilot.ts')||!args.cmd.includes('--db-started-control')||!args.cmd.includes(mockRun+'/relay')||!args.cmd.includes('NODE_DISABLE_COMPILE_CACHE=1'))throw Error('STUB_LAUNCH_COMMAND');launches++;return {session_id:902,output:'NONQUAL_NO_PROCESS_LAUNCHED'};},write_stdin:async args=>{if(args.session_id!==902)throw Error('STUB_TERMINAL_SESSION');terminalPolls++;return {exit_code:0,output:'NONQUAL_TERMINAL'};}};
-const starter=await readFile(join(host,'runtime/start-monitor-servier42.js'),'utf8');await rejects(()=>new A(starter)(),'CURRENT_B_INPUT_REQUIRED');
+const starter=await readFile(join(host,'runtime/start-monitor-servier42.js'),'utf8');for(const batch of [null,undefined,123]){isolated.set(prefix+'nextBatchId',batch);await rejects(()=>new A(starter)(),'BATCH_ID');}isolated.set(prefix+'nextBatchId',mockBatch);await rejects(()=>new A(starter)(),'CURRENT_B_INPUT_REQUIRED');
 const current={path:host+'/NONQUAL/main.json',sha256:'a'.repeat(64)},independent={path:host+'/NONQUAL/independent.json',sha256:'b'.repeat(64)};
 isolated.set(prefix+'currentCaptureInput',current);isolated.set(prefix+'currentIndependentValidationInput',independent);await new A(starter)();
 const mockBoot=JSON.parse(mockFiles.get(mockRun+'/bootstrap.json'));
@@ -86,7 +90,7 @@ const {deriveDbStartedPublicationExpiry}=await import(pathToFileURL(join(cfg.rep
 const expiry=(main,independent)=>deriveDbStartedPublicationExpiry({startedAt:new Date(main),completenessCertificate:{schemaVersion:'b-grade-independent-traversal-v2',validationPolicy:{execution:'CURRENT_RUN'},independentValidation:{observedAt:new Date(independent).toISOString(),expiresAt:new Date(independent+7*86400000).toISOString()}}});
 if(expiry(epoch,epoch)!==epoch+1800000||expiry(epoch,epoch-3000000)!==epoch+600000)throw Error('FROZEN_EVIDENCE_DEADLINES');
 ok('frozen independent60m/main30m minimum deadline; diagnostic seven-day envelope grants no extension');
-const baseline=JSON.parse(await readFile(join(host,'PREPARATION_BASELINE.json')));for(const [path,hash]of Object.entries(baseline))if(sha(await readFile(path))!==hash)throw Error('REFERENCE_MUTATED:'+path);
+const baseline=JSON.parse(await readFile(join(host,'LOCAL_REFERENCE_BASELINE.json')));for(const [path,hash]of Object.entries(baseline))if(sha(await readFile(path))!==hash)throw Error('REFERENCE_MUTATED:'+path);
 if(execFileSync('git',['status','--porcelain'],{cwd:cfg.repo,encoding:'utf8'}).trim()||execFileSync('git',['rev-parse','HEAD'],{cwd:cfg.repo,encoding:'utf8'}).trim()!==control.build.commitSha)throw Error('PRODUCER_MUTATED');
 ok('reference hosts unchanged, registered source/dependencies identity unchanged, producer clean');
 await writeFile(join(host,'CHECK_RESULTS.json'),JSON.stringify({schemaVersion:1,checkedAt:new Date().toISOString(),passed:true,sourceNetworkAccessed:false,databaseAccessed:false,producerLaunched:false,fullBuildOrTestsRun:false,parentSessionStoresAccessed:false,checks},null,2)+'\n');
