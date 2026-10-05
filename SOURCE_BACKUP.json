@@ -1,1 +1,414 @@
-{"schemaVersion":1,"kind":"EXTERNAL_C46_JNJ_AND_LATE_HOSTS_SAFE_SOURCE","sourceGitCommit":null,"sourceBindingCommit":"fb0b8e3b708d4f57cae09b465fb1c9ceddf7ad8d","regularRecoveryCandidateVersion":46,"previousSafeHostBackupCommit":"6bffd58bd41c38dd5579f6182b2a1d48b5835692","freezeInputs":[{"group":"late","listed":216,"selected":59,"filelistSha256":"399dac51a47ee8041fae4fca97534377f597662df2a5182e52d73bd580ea1fe8","checksumsSha256":"fefa533180c22b48aae9fab7833fda4c2f577af1c92253981f1f64e60ccf0920"},{"group":"jnj","listed":65,"selected":19,"filelistSha256":"dd75a1ef19dd8bbddc7e46709ed45f91d3e20f14a45269c09145fcd191034ae2","checksumsSha256":"b895e8c0c800b00be1a5d0c9ee71063c0dd8a53f830ebda44f74f4e7b4c6a8e1"}],"jnjPreparedSha256":"9a33a75f6685c4376463d6c0a1bf18ec76468c1d8881caee08b04a3ee8988cd2","jnjFrozenManifestSha256":"4cc017f8776f45fc328b24d6925780cb0f1cc65e8042a7302ccf9411bceea0dd","lateLoaderSha256":"b462fd557d76cf224a435c30c064fcdc7f93522fa5d62adbc1477b19bd1ce3ff","sourceFiles":78,"sourceBytes":366688,"excludedListedEntries":203,"statusCutoffUtc":"2026-10-05T21:42:10Z","reportedRuntimeStatus":{"jnj":"Browser capture stopped after six lists and41of107 details following two same-URL ERR_BLOCKED_BY_CLIENT results; zero producer launches and zero commits.","cspc":"21:39 exit1 attributed to stale context; zero database publication.","amgen":"Running at handoff, no later outcome claimed.","abbvieAndCttq":"Prepared hosts; no outcome inferred."},"verification":{"allSelectedBytesReadTwiceAndMatchedFrozenChecksums":true,"independentStaticReview":"CURRENT_SOURCE_AND_GENERATORS_REVIEWED_NO_SECRET_OR_REAL_RESPONSE_PAYLOADS","secretFindings":0,"reportedLateLocalGroups":60,"reportedPerLateSourceGroups":15,"reportedJnjLocalChecks":19,"reportedLateGuardAudit":"LOCAL_NONQUALIFYING_SCHEMA48_CHECKSUM_CANDIDATE_ROW_LOCK_AND_DISPATCH_HASH_CHECKS_NOT_PRODUCTION_SQL_EXECUTION","backupExecutedTestsOrSource":false,"backupReadLiveRunsRawOrDatabase":false,"fullCI":false},"sources":[{"key":"cspc","route":"PORTABLE","heapMiB":256},{"key":"amgen","route":"A","heapMiB":384},{"key":"abbvie","route":"PORTABLE","heapMiB":256},{"key":"cttq","route":"A","heapMiB":384},{"key":"jnj","route":"A_BROWSER_DOM_CURRENT_CAPTURE","heapMiB":384}],"excludedCategories":["host-config/control/source-plan, candidate/build/runtime identity and state","actual database/context/SQL requests and source raw or browser evidence","all live runs, capture-inputs, stdout, NONQUAL/local-preflight and synthetic output files","internal collector handoff, operational reports, full original inventories, originals and diffs","session-cache recovery JSON, credentials and environment","verification/restore-jnj46.py containing historical observation/due text"],"recoveryLimits":["Source-only snapshot needs the separately authorized frozen producer, current configuration/registration, identity and exact evidence. It is not a directly runnable registered environment.","Original preparation documents saying not-launched describe preparation time only; later handoff status above includes blocked/failed/in-progress work without success claims.","JNJ requires complete fresh list and every native detail plus final ordered reread of every current list page with exact-byte manifests. The final reread is a separately reviewed collector requirement, not an automatic revisit by the frozen producer.","JNJ uses only actual current evidence through currentCapture; missing/partial/blocked/expired observations cannot serve as launch proof. Prior counts are comparisons, never collection targets.","The retained freeze/generator source emits broad local operational inventories including excluded categories. Never treat its entire output as the safe GitHub allowlist.","The JNJ one-time restoration generator is excluded; its prior source/metadata must be separately recovered where needed by checks.","ARCHIVE_STORE remains unsupported; evidence retention is separate. Use preflight check and the original source-specific starter.","Regular recovery C46 is not Sanofi offline commit46beb14. No source/route/heap/observation/bootstrap/atomic guard change is made by this backup.","No active workflows, CI, default update, merge or deployment."],"files":[{"path":"hosts46/abbvie/archive-transfer.mjs","group":"late","mode":"100644","type":"blob","sha":"5a454d21f34f9680221bbee2c98b3fecb94884f0","sha256":"698e966e5552967845a5252d2b3df2acca28dcd8dbbb0ae41755a3a6231e6a99","bytes":1777,"reuseExistingBlob":true},{"path":"hosts46/abbvie/context-read.sql","group":"late","mode":"100644","type":"blob","sha":"5640aeff0fc387385053b352f3fc35fb49c2f639","sha256":"b175f8539d665f91e40bcaa7e0573b0eabc9627bdf361f450e2a85aca38b463b","bytes":2141,"reuseExistingBlob":false},{"path":"hosts46/abbvie/host-files.mts","group":"late","mode":"100644","type":"blob","sha":"f130e14ace5f1b66bbbf3f86e8e2ed55f0db7b7b","sha256":"c0433bd1a968fbe411f38f7c4a908d2106a64ca937724149315cbc134c931198","bytes":4072,"reuseExistingBlob":true},{"path":"hosts46/abbvie/host-helper-functions.js","group":"late","mode":"100644","type":"blob","sha":"c7fd8245ef59f7cb86b8a98b9171e466a87688be","sha256":"794adcfdd49afe192739b0420509a37147beb7e48df15435cd7717d37fdd0010","bytes":7060,"reuseExistingBlob":false},{"path":"hosts46/abbvie/host-stage-functions.js","group":"late","mode":"100644","type":"blob","sha":"a08cf8321654309c3977c299711418f98ec65e5d","sha256":"53892b0818ebc597c2ad158e4a5eaf0cce742c86568eca0195a9ca0267638db7","bytes":5959,"reuseExistingBlob":false},{"path":"hosts46/abbvie/relay-files.mjs","group":"late","mode":"100644","type":"blob","sha":"716b23562ab28dcbdc32d395595dd41285e74181","sha256":"ebca9312a29eb3c6264573cf0d05cd3da8091321456bec17c3cb5b7a958b450f","bytes":5472,"reuseExistingBlob":false},{"path":"hosts46/abbvie/runtime/continuous-relay-v3-durable-monitor.js","group":"late","mode":"100644","type":"blob","sha":"abe4b6b2f6982eb6290e883f358e7403d9f44c65","sha256":"53ca7e588442c4c4e56d45c94d6faa681c4eebf0a993e71f9aae9c5e3c046592","bytes":2894,"reuseExistingBlob":false},{"path":"hosts46/abbvie/runtime/load-host-state.js","group":"late","mode":"100644","type":"blob","sha":"606ff0e57e113b8c34c1382cf071be4abb667e78","sha256":"0411a5942b0f149bdccd5cc7652cb8d4aa02b4e74bfa1529ddef22b125fd54a0","bytes":1869,"reuseExistingBlob":false},{"path":"hosts46/abbvie/runtime/load-source-runtime.js","group":"late","mode":"100644","type":"blob","sha":"6a5d54c4fc56789fc93c4b40630575830286bde3","sha256":"d67c9e41ba2cdec552ce4c45f0785fb85c3314abe92377698427abdb359f0c0a","bytes":1576,"reuseExistingBlob":false},{"path":"hosts46/abbvie/runtime/preflight/preflight-launch.mjs","group":"late","mode":"100644","type":"blob","sha":"aae8658b6748724e68d5d633967a3d37cf66016f","sha256":"a6af2dd6c415ee875de89cfc45560567a466d22ff2275d705398d18bde3600c4","bytes":10206,"reuseExistingBlob":false},{"path":"hosts46/abbvie/runtime/preflight/runtime-check.mjs","group":"late","mode":"100644","type":"blob","sha":"1aaf44921d83b86bb9c0065a46393286a8b725c3","sha256":"0f55d1f662d9eb3329298c68cff3b4a6161dedbefe95c86084bb451bd9e75ee7","bytes":3523,"reuseExistingBlob":true},{"path":"hosts46/abbvie/runtime/review-publication.py","group":"late","mode":"100644","type":"blob","sha":"9a1a8a69185993321864f31233d2d17624b9647f","sha256":"8115dd9fb403634109af9dab13308bb0f67b53cd0c8ec6af8eb3c535fef04521","bytes":3422,"reuseExistingBlob":false},{"path":"hosts46/abbvie/runtime/start-monitor-portable42.js","group":"late","mode":"100644","type":"blob","sha":"07066f87116db657e9972d045e440d67f9c65a3a","sha256":"866edccc0cea13713f957841f3ede58dce5498dc0eab9623043968acff15fa22","bytes":6702,"reuseExistingBlob":false},{"path":"hosts46/amgen/archive-transfer.mjs","group":"late","mode":"100644","type":"blob","sha":"5a454d21f34f9680221bbee2c98b3fecb94884f0","sha256":"698e966e5552967845a5252d2b3df2acca28dcd8dbbb0ae41755a3a6231e6a99","bytes":1777,"reuseExistingBlob":true},{"path":"hosts46/amgen/context-read.sql","group":"late","mode":"100644","type":"blob","sha":"b483bd5b5ef91dcd7fec3f42c2ebfb7d57b11927","sha256":"284d571278926d592a18e9f1cdbf0ce0b99691a3f4fda3d15a8390e1629c13bd","bytes":2056,"reuseExistingBlob":false},{"path":"hosts46/amgen/host-files.mts","group":"late","mode":"100644","type":"blob","sha":"f130e14ace5f1b66bbbf3f86e8e2ed55f0db7b7b","sha256":"c0433bd1a968fbe411f38f7c4a908d2106a64ca937724149315cbc134c931198","bytes":4072,"reuseExistingBlob":true},{"path":"hosts46/amgen/host-helper-functions.js","group":"late","mode":"100644","type":"blob","sha":"3a81c5886120b6fd83b5cd6b2fe68c25f7103dfd","sha256":"6d91219cd4267f808f6e0dfaccc47e51218771d8b3aff3ed78e35dc6ad922492","bytes":7053,"reuseExistingBlob":false},{"path":"hosts46/amgen/host-stage-functions.js","group":"late","mode":"100644","type":"blob","sha":"afa5d34d30422207113e28cafa76683503fb7769","sha256":"10d8b582e9be442e0973f68736674a6640fd6c71b6268d880c215303cb72689b","bytes":5948,"reuseExistingBlob":false},{"path":"hosts46/amgen/relay-files.mjs","group":"late","mode":"100644","type":"blob","sha":"ba9a671d06f20ef1759e525de5a2857cbef3b633","sha256":"1eab5226628c26c89ec6a7c2397612791156a448e4f1cfa2862b50a580f58cf3","bytes":5471,"reuseExistingBlob":false},{"path":"hosts46/amgen/runtime/compact-json-review.inc.py","group":"late","mode":"100644","type":"blob","sha":"bafdf1880f6793fef02bc5824547b15cb1faef37","sha256":"7f23b26241ad6bffa9f5f453bfb294b89ddd54ad5f02d001a599f6cc81d8af6c","bytes":1558,"reuseExistingBlob":true},{"path":"hosts46/amgen/runtime/continuous-relay-v3-durable-monitor.js","group":"late","mode":"100644","type":"blob","sha":"b73cdee023ad84a78769c757e8b3add96ee21582","sha256":"b3652c9c3a2f30736c44447e0d2c65504f94cda05848316d4baa8ecc6cc0cf64","bytes":2887,"reuseExistingBlob":false},{"path":"hosts46/amgen/runtime/load-host-state.js","group":"late","mode":"100644","type":"blob","sha":"f6ed367ad012db2d360d6a907855cb15f7335420","sha256":"930996a486704e2662f4a38c88071744b42aaecf49b0fb39c6f74e40e4f4a291","bytes":1865,"reuseExistingBlob":false},{"path":"hosts46/amgen/runtime/load-source-runtime.js","group":"late","mode":"100644","type":"blob","sha":"99471d5b1c8efe2ba45f6bff82f3e13d30544855","sha256":"3a11835219abf9f5cb42ed43f032c051155b893d905db628b4df301af6336f1b","bytes":1556,"reuseExistingBlob":false},{"path":"hosts46/amgen/runtime/preflight/preflight-launch.mjs","group":"late","mode":"100644","type":"blob","sha":"aae8658b6748724e68d5d633967a3d37cf66016f","sha256":"a6af2dd6c415ee875de89cfc45560567a466d22ff2275d705398d18bde3600c4","bytes":10206,"reuseExistingBlob":false},{"path":"hosts46/amgen/runtime/preflight/runtime-check.mjs","group":"late","mode":"100644","type":"blob","sha":"1aaf44921d83b86bb9c0065a46393286a8b725c3","sha256":"0f55d1f662d9eb3329298c68cff3b4a6161dedbefe95c86084bb451bd9e75ee7","bytes":3523,"reuseExistingBlob":true},{"path":"hosts46/amgen/runtime/review-publication.py","group":"late","mode":"100644","type":"blob","sha":"c0d977d3c8d47fc9258fa00fcf7d3ce7198c462c","sha256":"058f1d00c7e652f81ca43fb6d63916e49855293cab732d5e0517514c9e789e51","bytes":3568,"reuseExistingBlob":false},{"path":"hosts46/amgen/runtime/start-monitor-true-a42.js","group":"late","mode":"100644","type":"blob","sha":"1ecf2b32f27bf864d8dd10d97cf2b11306ad9467","sha256":"94d2ecb06fd6e61a9537a66c747fde5e87cac2163f0eb7395692a2b42813edd3","bytes":6584,"reuseExistingBlob":false},{"path":"hosts46/cspc/archive-transfer.mjs","group":"late","mode":"100644","type":"blob","sha":"5a454d21f34f9680221bbee2c98b3fecb94884f0","sha256":"698e966e5552967845a5252d2b3df2acca28dcd8dbbb0ae41755a3a6231e6a99","bytes":1777,"reuseExistingBlob":true},{"path":"hosts46/cspc/context-read.sql","group":"late","mode":"100644","type":"blob","sha":"9466e3247f1d6c9cb9c5f8c33dc6ef99a222befc","sha256":"34955e3dd559b7deecdebc309b12dcc6116c405ad532948c2a3eec245d0d9cd7","bytes":2101,"reuseExistingBlob":false},{"path":"hosts46/cspc/host-files.mts","group":"late","mode":"100644","type":"blob","sha":"f130e14ace5f1b66bbbf3f86e8e2ed55f0db7b7b","sha256":"c0433bd1a968fbe411f38f7c4a908d2106a64ca937724149315cbc134c931198","bytes":4072,"reuseExistingBlob":true},{"path":"hosts46/cspc/host-helper-functions.js","group":"late","mode":"100644","type":"blob","sha":"a7c29426e71f4d1b97f451035d3289161cc7c1a2","sha256":"d9969b3bddbe628de14a870ae55ea2be1edbc40ee57a6610e635f63f83426712","bytes":7040,"reuseExistingBlob":false},{"path":"hosts46/cspc/host-stage-functions.js","group":"late","mode":"100644","type":"blob","sha":"e3afa451d28949270588f154ae4a2a5d97067006","sha256":"1b912c81175c541ebbc8b19f327c226392e3389ce1ed8a5c51a4b697489d7aa2","bytes":5925,"reuseExistingBlob":false},{"path":"hosts46/cspc/relay-files.mjs","group":"late","mode":"100644","type":"blob","sha":"2cb4d815d88814dc1cddcb34794542bd5aa325d9","sha256":"a32c310d899811b8c1551fced4d28d073bf3200f57e7443afd0af2ef1ba08df0","bytes":5470,"reuseExistingBlob":false},{"path":"hosts46/cspc/runtime/continuous-relay-v3-durable-monitor.js","group":"late","mode":"100644","type":"blob","sha":"163b35444c8882b572f3d206b900f3dd37d1a570","sha256":"24b19a7e3a93640ac08fb5bb2f72c2649f30409de7f2bdf9e31ca50835fa489a","bytes":2880,"reuseExistingBlob":false},{"path":"hosts46/cspc/runtime/load-host-state.js","group":"late","mode":"100644","type":"blob","sha":"c980dda5cc3eec087a8b63ec93e033caf0a006b9","sha256":"709376675a8641f634a8351ffb070aaa0d81c89cb2ea9650416afffbc47dd177","bytes":1861,"reuseExistingBlob":false},{"path":"hosts46/cspc/runtime/load-source-runtime.js","group":"late","mode":"100644","type":"blob","sha":"97a434a4b240f3bde3972e4bcc1e9e3c58c49324","sha256":"bdde06fc6b37cbd20a22212e4a7429a93363368ecd1f571e065aada81e2faa03","bytes":1552,"reuseExistingBlob":false},{"path":"hosts46/cspc/runtime/preflight/preflight-launch.mjs","group":"late","mode":"100644","type":"blob","sha":"aae8658b6748724e68d5d633967a3d37cf66016f","sha256":"a6af2dd6c415ee875de89cfc45560567a466d22ff2275d705398d18bde3600c4","bytes":10206,"reuseExistingBlob":false},{"path":"hosts46/cspc/runtime/preflight/runtime-check.mjs","group":"late","mode":"100644","type":"blob","sha":"1aaf44921d83b86bb9c0065a46393286a8b725c3","sha256":"0f55d1f662d9eb3329298c68cff3b4a6161dedbefe95c86084bb451bd9e75ee7","bytes":3523,"reuseExistingBlob":true},{"path":"hosts46/cspc/runtime/review-publication.py","group":"late","mode":"100644","type":"blob","sha":"49ea0ce2cafd97e62ddbb0cdf8a79df676d14125","sha256":"215d99d4b4e5992975ef3049c68de4c127ab7394dba72761c3747cdc8dc10ed4","bytes":3414,"reuseExistingBlob":false},{"path":"hosts46/cspc/runtime/start-monitor-portable42.js","group":"late","mode":"100644","type":"blob","sha":"5f2adb93b584813a4220b191bfc23714bc944554","sha256":"ca2f5827fddb542c423c24104b60359f41afb438d9c8b9d752c19fee56008238","bytes":6676,"reuseExistingBlob":false},{"path":"hosts46/cttq/archive-transfer.mjs","group":"late","mode":"100644","type":"blob","sha":"5a454d21f34f9680221bbee2c98b3fecb94884f0","sha256":"698e966e5552967845a5252d2b3df2acca28dcd8dbbb0ae41755a3a6231e6a99","bytes":1777,"reuseExistingBlob":true},{"path":"hosts46/cttq/context-read.sql","group":"late","mode":"100644","type":"blob","sha":"139c76a702235b0ec7063f29b81a809c0b04ceeb","sha256":"21ad88f894c43db873ff1aadaa2ecb53519503abacc94927af036ed091064883","bytes":2021,"reuseExistingBlob":false},{"path":"hosts46/cttq/host-files.mts","group":"late","mode":"100644","type":"blob","sha":"f130e14ace5f1b66bbbf3f86e8e2ed55f0db7b7b","sha256":"c0433bd1a968fbe411f38f7c4a908d2106a64ca937724149315cbc134c931198","bytes":4072,"reuseExistingBlob":true},{"path":"hosts46/cttq/host-helper-functions.js","group":"late","mode":"100644","type":"blob","sha":"eed05a4c20ba588b112db267fc066fa60450ece1","sha256":"ad855a578509eedab22c9ca5c49adb2859124ebbed478ffaf2ebb7b29689557c","bytes":7040,"reuseExistingBlob":false},{"path":"hosts46/cttq/host-stage-functions.js","group":"late","mode":"100644","type":"blob","sha":"80bfc5decc626fa4883a0bd5248edb8161779673","sha256":"e91fda756b65ca2e63337ce6258174a00184e2e070e02e050e2c69eaf5fcc666","bytes":5925,"reuseExistingBlob":false},{"path":"hosts46/cttq/relay-files.mjs","group":"late","mode":"100644","type":"blob","sha":"6af1e4f1a080d636411009d3bfbfb18e101eb752","sha256":"8993c90cdb7b94e0a491eaaa13ee1a1cc0cee5d2d66558828871faedaa777d98","bytes":5470,"reuseExistingBlob":false},{"path":"hosts46/cttq/runtime/compact-json-review.inc.py","group":"late","mode":"100644","type":"blob","sha":"bafdf1880f6793fef02bc5824547b15cb1faef37","sha256":"7f23b26241ad6bffa9f5f453bfb294b89ddd54ad5f02d001a599f6cc81d8af6c","bytes":1558,"reuseExistingBlob":true},{"path":"hosts46/cttq/runtime/continuous-relay-v3-durable-monitor.js","group":"late","mode":"100644","type":"blob","sha":"50fd1b3073b5195803cdafa37cdf455e340d23e9","sha256":"e75a8bd6fbd6405795defe832408dd176501eb463be1aab3e448bea59e2685fd","bytes":2880,"reuseExistingBlob":false},{"path":"hosts46/cttq/runtime/load-host-state.js","group":"late","mode":"100644","type":"blob","sha":"2a8c51a4db759991a812215a9903cd90d48f7290","sha256":"a66aee71a0abe373fcc56bad753474cc9b5ea2765a19a5f0f8c483355779d909","bytes":1861,"reuseExistingBlob":false},{"path":"hosts46/cttq/runtime/load-source-runtime.js","group":"late","mode":"100644","type":"blob","sha":"47eb8d30039e8da4aa022c427ca6922cb989029f","sha256":"1f6e31e4a368cf7267f92c5286e9d96921bfa0126dcad8d928f1bf806590f13a","bytes":1541,"reuseExistingBlob":false},{"path":"hosts46/cttq/runtime/preflight/preflight-launch.mjs","group":"late","mode":"100644","type":"blob","sha":"aae8658b6748724e68d5d633967a3d37cf66016f","sha256":"a6af2dd6c415ee875de89cfc45560567a466d22ff2275d705398d18bde3600c4","bytes":10206,"reuseExistingBlob":false},{"path":"hosts46/cttq/runtime/preflight/runtime-check.mjs","group":"late","mode":"100644","type":"blob","sha":"1aaf44921d83b86bb9c0065a46393286a8b725c3","sha256":"0f55d1f662d9eb3329298c68cff3b4a6161dedbefe95c86084bb451bd9e75ee7","bytes":3523,"reuseExistingBlob":true},{"path":"hosts46/cttq/runtime/review-publication.py","group":"late","mode":"100644","type":"blob","sha":"1f3b29b694feaf9ca9672e4dd1ec68ba7c3ee49e","sha256":"7cc4ed5342dfce87667565b1436e3c49cd1d95267df2cf136e07a44d9cd94bea","bytes":3561,"reuseExistingBlob":false},{"path":"hosts46/cttq/runtime/start-monitor-true-a42.js","group":"late","mode":"100644","type":"blob","sha":"455cf3723e55af9520835040bcb2a794c2e3428a","sha256":"14680237500530fab702d9728a7351a358deae82bc5610ab3d473b3514d8717a","bytes":6568,"reuseExistingBlob":false},{"path":"hosts46/runtime/load-late46-runtime.js","group":"late","mode":"100644","type":"blob","sha":"eed3872c8fabdaa0175bc19966dd547c27dda56a","sha256":"b462fd557d76cf224a435c30c064fcdc7f93522fa5d62adbc1477b19bd1ce3ff","bytes":606,"reuseExistingBlob":false},{"path":"verification/check-late-host46.mjs","group":"late","mode":"100644","type":"blob","sha":"b8c15a82890e523f557bd80c19bf5f4de6087b18","sha256":"147dbe58e38913a1f65249996ddb38bc5944ebfeca0d3d3bd4b57be2eb577a43","bytes":21413,"reuseExistingBlob":false},{"path":"verification/freeze-late-hosts46.py","group":"late","mode":"100644","type":"blob","sha":"6c272e3877c29f2ccd95e687a5082403286230ea","sha256":"28e614b4cd44d4b9dbcbf4c3c5848d91feffaa29bcd653486879292602f37655","bytes":6211,"reuseExistingBlob":false},{"path":"verification/prepare-late-hosts46.mjs","group":"late","mode":"100644","type":"blob","sha":"c420a85c5b507c47b7b86d18c9197857881420bd","sha256":"16cea5e99617dcc9f428b7b3ba2583bb7a11325220d6b028541ae73be2168321","bytes":4395,"reuseExistingBlob":false},{"path":"verification/restore-late-hosts46.py","group":"late","mode":"100644","type":"blob","sha":"541eaac1f2506e6cfe196b4d8af1e994c2e4a868","sha256":"dc5e7c8019557f3ab89251227aa57c9a502dcb0572a1ff712bb28c8298514bc4","bytes":6992,"reuseExistingBlob":false},{"path":"hosts46/jnj/archive-transfer.mjs","group":"jnj","mode":"100644","type":"blob","sha":"5a454d21f34f9680221bbee2c98b3fecb94884f0","sha256":"698e966e5552967845a5252d2b3df2acca28dcd8dbbb0ae41755a3a6231e6a99","bytes":1777,"reuseExistingBlob":true},{"path":"hosts46/jnj/capture-due-read.sql","group":"jnj","mode":"100644","type":"blob","sha":"977fd56197b984f434d13405ecebf8ebeee419f4","sha256":"bb17e6ef19bdefefc1ea79fc230cc26c87d229f0752920d67babf9612a792de7","bytes":1674,"reuseExistingBlob":false},{"path":"hosts46/jnj/check-host.mjs","group":"jnj","mode":"100644","type":"blob","sha":"fd923eb28056e5add572dd1b1275d22439356249","sha256":"43b73aa6d76d013ec522c9644b6ad5711f34045590256f576adc0e5d819ae8c4","bytes":25097,"reuseExistingBlob":false},{"path":"hosts46/jnj/context-read.sql","group":"jnj","mode":"100644","type":"blob","sha":"6b7869419a20f4755bfa6c1eb26a530b782b2cb1","sha256":"1ee8823745aae5024317514cf815b611e16681ae8a045369db23778bfbc36cef","bytes":2136,"reuseExistingBlob":false},{"path":"hosts46/jnj/host-files.mts","group":"jnj","mode":"100644","type":"blob","sha":"f130e14ace5f1b66bbbf3f86e8e2ed55f0db7b7b","sha256":"c0433bd1a968fbe411f38f7c4a908d2106a64ca937724149315cbc134c931198","bytes":4072,"reuseExistingBlob":true},{"path":"hosts46/jnj/host-helper-functions.js","group":"jnj","mode":"100644","type":"blob","sha":"3eb631a6b2e8707d3b3d45e6801ad5882b7e6055","sha256":"04c190f746f8ca1c2195e2d1c41a3041601c16ce4299bc858ec90044e8148a25","bytes":7083,"reuseExistingBlob":false},{"path":"hosts46/jnj/host-stage-functions.js","group":"jnj","mode":"100644","type":"blob","sha":"4cfb51f090c6d161b9fdce7413dd4bfc1d1a9f00","sha256":"f4261601c046258b259425dfacd2524b2b700c2f0de97a0302b26242efc743e5","bytes":5962,"reuseExistingBlob":false},{"path":"hosts46/jnj/prepare-host.mjs","group":"jnj","mode":"100644","type":"blob","sha":"41251d1175b08f6e72912604e87bf310e6ca86ee","sha256":"32b295680346f5a534c57af8febfe9512c1aff97ae16d5beb2532081b876027d","bytes":5224,"reuseExistingBlob":false},{"path":"hosts46/jnj/relay-files.mjs","group":"jnj","mode":"100644","type":"blob","sha":"4501637f22d94ade17d48a6c3f2b0e31aca66c51","sha256":"d242c175fa1850956637e185606e885f2489ab314222f4632d23ba2f62fe8cc4","bytes":5469,"reuseExistingBlob":false},{"path":"hosts46/jnj/runtime/compact-json-review.inc.py","group":"jnj","mode":"100644","type":"blob","sha":"bafdf1880f6793fef02bc5824547b15cb1faef37","sha256":"7f23b26241ad6bffa9f5f453bfb294b89ddd54ad5f02d001a599f6cc81d8af6c","bytes":1558,"reuseExistingBlob":true},{"path":"hosts46/jnj/runtime/continuous-relay-v3-durable-monitor.js","group":"jnj","mode":"100644","type":"blob","sha":"d02864ea4c8dc73948411fe085b20dc79cf34971","sha256":"f2237fa42bda903be6fa5743c0ca67adde5e65e0d3233c56b9d99adbb951fb85","bytes":2873,"reuseExistingBlob":false},{"path":"hosts46/jnj/runtime/load-host-state.js","group":"jnj","mode":"100644","type":"blob","sha":"a021fc58b24a5555fa30b60836c0d22714ac761b","sha256":"4470c1029410a30a0d5191222a1e02e79d713a1e810ee1902d0970836c4de851","bytes":1857,"reuseExistingBlob":false},{"path":"hosts46/jnj/runtime/load-source-runtime.js","group":"jnj","mode":"100644","type":"blob","sha":"f685b3ee4aba7ebfd828b302a564031250c10f17","sha256":"4e82595ab6039c40c159f9d2ca275133b1ec7a04a6efba3aa7fc6a48c828871b","bytes":1556,"reuseExistingBlob":false},{"path":"hosts46/jnj/runtime/preflight/preflight-launch.mjs","group":"jnj","mode":"100644","type":"blob","sha":"eb54fb67421b61f2c4c95de6d9a9b8ff60ae1c4b","sha256":"8a89a298a177b0c821c5601d2d4c8422e6c2a296fcc9dc8e9484b646960f1439","bytes":10140,"reuseExistingBlob":true},{"path":"hosts46/jnj/runtime/preflight/runtime-check.mjs","group":"jnj","mode":"100644","type":"blob","sha":"1aaf44921d83b86bb9c0065a46393286a8b725c3","sha256":"0f55d1f662d9eb3329298c68cff3b4a6161dedbefe95c86084bb451bd9e75ee7","bytes":3523,"reuseExistingBlob":true},{"path":"hosts46/jnj/runtime/review-publication.py","group":"jnj","mode":"100644","type":"blob","sha":"bb29d94bce97216a942daeb1754cc2588b508527","sha256":"ebcd1d5935974dbfc2e5ff5a923f0fe603b5b0b4cc4ded9ebe40357a2681c885","bytes":3584,"reuseExistingBlob":false},{"path":"hosts46/jnj/runtime/start-monitor-true-a42.js","group":"jnj","mode":"100644","type":"blob","sha":"52d9e32b1b7b4f17c8da72c59ada0a7385b4b326","sha256":"6c89b0862ac88544340f96550a5b60f3c53f28bbfad86f44cb7cdd53651057d1","bytes":7396,"reuseExistingBlob":false},{"path":"verification/finalize-jnj46-manifest.py","group":"jnj","mode":"100644","type":"blob","sha":"e092240f005364724053a65a53b26ed9308480f1","sha256":"d2995031fd46a2ea24942fe56d8d14f8c8a0f710ca9c8126ebf79909d0f1ea05","bytes":1561,"reuseExistingBlob":false},{"path":"verification/prepare-jnj46-check.py","group":"jnj","mode":"100644","type":"blob","sha":"4e656f0c23cffb7d8aeb78323d75b907fd0c8daf","sha256":"7d970663402b3dfafccea4860edf7cfe1e7a343b48485ac4e5cd57137a7e6845","bytes":5232,"reuseExistingBlob":false}],"uploadedFileNames":["hosts46/abbvie/archive-transfer.mjs","hosts46/abbvie/context-read.sql","hosts46/abbvie/host-files.mts","hosts46/abbvie/host-helper-functions.js","hosts46/abbvie/host-stage-functions.js","hosts46/abbvie/relay-files.mjs","hosts46/abbvie/runtime/continuous-relay-v3-durable-monitor.js","hosts46/abbvie/runtime/load-host-state.js","hosts46/abbvie/runtime/load-source-runtime.js","hosts46/abbvie/runtime/preflight/preflight-launch.mjs","hosts46/abbvie/runtime/preflight/runtime-check.mjs","hosts46/abbvie/runtime/review-publication.py","hosts46/abbvie/runtime/start-monitor-portable42.js","hosts46/amgen/archive-transfer.mjs","hosts46/amgen/context-read.sql","hosts46/amgen/host-files.mts","hosts46/amgen/host-helper-functions.js","hosts46/amgen/host-stage-functions.js","hosts46/amgen/relay-files.mjs","hosts46/amgen/runtime/compact-json-review.inc.py","hosts46/amgen/runtime/continuous-relay-v3-durable-monitor.js","hosts46/amgen/runtime/load-host-state.js","hosts46/amgen/runtime/load-source-runtime.js","hosts46/amgen/runtime/preflight/preflight-launch.mjs","hosts46/amgen/runtime/preflight/runtime-check.mjs","hosts46/amgen/runtime/review-publication.py","hosts46/amgen/runtime/start-monitor-true-a42.js","hosts46/cspc/archive-transfer.mjs","hosts46/cspc/context-read.sql","hosts46/cspc/host-files.mts","hosts46/cspc/host-helper-functions.js","hosts46/cspc/host-stage-functions.js","hosts46/cspc/relay-files.mjs","hosts46/cspc/runtime/continuous-relay-v3-durable-monitor.js","hosts46/cspc/runtime/load-host-state.js","hosts46/cspc/runtime/load-source-runtime.js","hosts46/cspc/runtime/preflight/preflight-launch.mjs","hosts46/cspc/runtime/preflight/runtime-check.mjs","hosts46/cspc/runtime/review-publication.py","hosts46/cspc/runtime/start-monitor-portable42.js","hosts46/cttq/archive-transfer.mjs","hosts46/cttq/context-read.sql","hosts46/cttq/host-files.mts","hosts46/cttq/host-helper-functions.js","hosts46/cttq/host-stage-functions.js","hosts46/cttq/relay-files.mjs","hosts46/cttq/runtime/compact-json-review.inc.py","hosts46/cttq/runtime/continuous-relay-v3-durable-monitor.js","hosts46/cttq/runtime/load-host-state.js","hosts46/cttq/runtime/load-source-runtime.js","hosts46/cttq/runtime/preflight/preflight-launch.mjs","hosts46/cttq/runtime/preflight/runtime-check.mjs","hosts46/cttq/runtime/review-publication.py","hosts46/cttq/runtime/start-monitor-true-a42.js","hosts46/runtime/load-late46-runtime.js","verification/check-late-host46.mjs","verification/freeze-late-hosts46.py","verification/prepare-late-hosts46.mjs","verification/restore-late-hosts46.py","hosts46/jnj/archive-transfer.mjs","hosts46/jnj/capture-due-read.sql","hosts46/jnj/check-host.mjs","hosts46/jnj/context-read.sql","hosts46/jnj/host-files.mts","hosts46/jnj/host-helper-functions.js","hosts46/jnj/host-stage-functions.js","hosts46/jnj/prepare-host.mjs","hosts46/jnj/relay-files.mjs","hosts46/jnj/runtime/compact-json-review.inc.py","hosts46/jnj/runtime/continuous-relay-v3-durable-monitor.js","hosts46/jnj/runtime/load-host-state.js","hosts46/jnj/runtime/load-source-runtime.js","hosts46/jnj/runtime/preflight/preflight-launch.mjs","hosts46/jnj/runtime/preflight/runtime-check.mjs","hosts46/jnj/runtime/review-publication.py","hosts46/jnj/runtime/start-monitor-true-a42.js","verification/finalize-jnj46-manifest.py","verification/prepare-jnj46-check.py","README_BACKUP.md","SOURCE_BACKUP.json","SHA256SUMS"],"sha256SumsScope":"Only uploaded safe files except SHA256SUMS itself"}
+{
+  "schemaVersion": 1,
+  "kind": "safe-external-host-source-increment",
+  "repository": "EthanYoQ/Job-finder-Codex",
+  "branch": "backup/astra46-amgen47-hosts-20261005-2342",
+  "preparedAt": "2026-10-05T23:42:00Z",
+  "sourceFiles": 43,
+  "sourceBytes": 207953,
+  "groups": {
+    "astra46": {
+      "files": 22,
+      "bytes": 115610,
+      "manifestSha256": "4dc1aaded00630e9baf4eb23d7be11c0e2af82295d1c977d608e230cdd79d9b0"
+    },
+    "amgen47": {
+      "files": 21,
+      "bytes": 92343,
+      "manifestSha256": "294280a45b897506480955f2e9d17551a727a339efa3c1af146fdfbf1ae83def",
+      "finalizerSha256": "8365fdcfc66fc45b1059f980ad5090554ff36ffa9302013209397ec8a2c1fb0d"
+    }
+  },
+  "safeParentCommit": "fccc397f6abb90c0f980af63bcc1d3cb469aac59",
+  "amgenApplicationBackupCommit": "2fab322695f71d2e69a6d3c6a8f067725d9c4fb0",
+  "sourceCommit": null,
+  "runtimeIdentityReusable": false,
+  "historyImported": false,
+  "subsequentPublisherReportedStatus": {
+    "frozenAt": "2026-10-05T23:14:00Z",
+    "c47AcceptedSuccessesAtFrozenCutoff": 0,
+    "c47CommitReportedAt": "2026-10-05T23:18:00Z",
+    "c47PublicCurrentReportedAt": "2026-10-05T23:30:00Z",
+    "c47SuccessfulSources": 1,
+    "c47CurrentJobs": 50,
+    "regularC46SuccessfulSources": 11,
+    "regularC46CurrentJobs": 1330,
+    "independentlyQueriedByBackup": false
+  },
+  "excludedSourceTools": [
+    {
+      "path": "verification/amgen-e5-runtime-20261005T2248Z/derive-identity.mjs",
+      "sha256": "432dbacb7e08afe858d95d88ecc9359b609df79148e6643d1a2936f61ceedb6d",
+      "bytes": 5093,
+      "reason": "embedded actual historical observation metadata; entire unchanged file excluded"
+    }
+  ],
+  "recoveryLimitations": [
+    "source-only; no runtime/configuration/registration reconstruction",
+    "derive-identity script omitted: matching derivation outputs needed separately",
+    "ARCHIVE_STORE missing helper remains unsupported",
+    "dedicated starter and exclusive publisher required; generic preflight launch is diagnostic",
+    "network test hooks are not a complete sandbox"
+  ],
+  "excludedCategories": [
+    "actual config/runtime/registration identity",
+    "real or generated SQL/control/request/DB packets",
+    "raw jobs, captured bodies and response headers",
+    "originals, diffs, internal reports and broad manifests",
+    "credentials, environment and session material"
+  ],
+  "validation": {
+    "allSelectedHashesMatch": true,
+    "staticContentReviewed": true,
+    "sourceTestsExecuted": false,
+    "databaseQueried": false,
+    "liveRunPayloadRead": false,
+    "CIRun": false
+  },
+  "files": [
+    {
+      "path": "hosts46/astra/archive-transfer.mjs",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "5a454d21f34f9680221bbee2c98b3fecb94884f0",
+      "sha256": "698e966e5552967845a5252d2b3df2acca28dcd8dbbb0ae41755a3a6231e6a99",
+      "bytes": 1777
+    },
+    {
+      "path": "hosts46/astra/context-read.sql",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "ef78a20790982dbfb5ec74ac0dac12fc2a6f03e4",
+      "sha256": "4db3180860bc70c420d61df34deb3818d3d607cddecb8417145f5ac29944a66a",
+      "bytes": 2056
+    },
+    {
+      "path": "hosts46/astra/host-files.mts",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "f130e14ace5f1b66bbbf3f86e8e2ed55f0db7b7b",
+      "sha256": "c0433bd1a968fbe411f38f7c4a908d2106a64ca937724149315cbc134c931198",
+      "bytes": 4072
+    },
+    {
+      "path": "hosts46/astra/host-helper-functions.js",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "6755b5205ea122a10477592b5ef12865769c26a1",
+      "sha256": "b586bfbcbaa769d0dfb888e2f3618ae699cb8984f23b166061157593f246e173",
+      "bytes": 7079
+    },
+    {
+      "path": "hosts46/astra/host-stage-functions.js",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "5cc6a2676de2e64731b67f76e5a6ca0250507ccc",
+      "sha256": "11b5f54b8288431fa2ed1237eccfcf5d22edd7f178df527cb4e8cf3925a1f3df",
+      "bytes": 5948
+    },
+    {
+      "path": "hosts46/astra/relay-files.mjs",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "c6f2aa6871f9f3bbfe49ef94ee808e405b03c791",
+      "sha256": "40d0e24e09e034375c46066b9be91aa0ceae253069b64d16982294dd58a2ea32",
+      "bytes": 5471
+    },
+    {
+      "path": "hosts46/astra/runtime/compact-json-review.inc.py",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "bafdf1880f6793fef02bc5824547b15cb1faef37",
+      "sha256": "7f23b26241ad6bffa9f5f453bfb294b89ddd54ad5f02d001a599f6cc81d8af6c",
+      "bytes": 1558
+    },
+    {
+      "path": "hosts46/astra/runtime/continuous-relay-v3-durable-monitor.js",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "af6e7ef039b2ac2ba8b5da7722ab85a0c7a0c9aa",
+      "sha256": "9c4e7d8bf01d83e25634e4f152419ae4aaac5bbb2e68e488edd4efa107ee78a9",
+      "bytes": 2887
+    },
+    {
+      "path": "hosts46/astra/runtime/load-host-state.js",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "f53947d8db721d9975db714a4c74d456732e9e7b",
+      "sha256": "46456f9d80326f15279b4e2ce97c72d9717d4c88cc7dcde78401ab46d2ccc4b9",
+      "bytes": 1944
+    },
+    {
+      "path": "hosts46/astra/runtime/load-source-runtime.js",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "4e81c2b80bdb8babf99803f4e52448a9ff731d9c",
+      "sha256": "771f91d84328b50d3fd6fc8fcdb419215d1334243e645edce791a4f625a12182",
+      "bytes": 1635
+    },
+    {
+      "path": "hosts46/astra/runtime/preflight/preflight-launch.mjs",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "5308f233edac697e80afab6182161d9fef15303c",
+      "sha256": "9d5ae5eb0a90c4f91bb9b1f4ec128e68a77478f86206329beef716a1d8c81ff4",
+      "bytes": 10099
+    },
+    {
+      "path": "hosts46/astra/runtime/preflight/runtime-check.mjs",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "1aaf44921d83b86bb9c0065a46393286a8b725c3",
+      "sha256": "0f55d1f662d9eb3329298c68cff3b4a6161dedbefe95c86084bb451bd9e75ee7",
+      "bytes": 3523
+    },
+    {
+      "path": "hosts46/astra/runtime/review-publication.py",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "5bef6b1af6a739c29c1328cf92adc9d47f508a56",
+      "sha256": "85968420c2bb525c847b92eb6db62f9d05928000b7db21d73b76185aa0791d8b",
+      "bytes": 3568
+    },
+    {
+      "path": "hosts46/astra/runtime/start-monitor-true-a42.js",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "ce21eed726ba7b8ba67850a0c53a387577138987",
+      "sha256": "19d5888b34032511f3b86355f4b5bc09c51ac65133371a33d3b05347eef10fe3",
+      "bytes": 6636
+    },
+    {
+      "path": "hosts46/astra/runtime-loader.js",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "a8e9d3c791955d6e3be81ce1e0cf01a478ec1cc1",
+      "sha256": "179818a1b15fa5c110e3563d10208e82c6cf21352f8c848d3844eac44f902c06",
+      "bytes": 587
+    },
+    {
+      "path": "verification/check-astra46-detail-boundary.mjs",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "f4f705d72e77e006843def45cf1c1ac0732c3923",
+      "sha256": "18431528c62277e13358c71c48a96f7c3c3e5872da5a4ff47d006b17605a0054",
+      "bytes": 4055
+    },
+    {
+      "path": "verification/check-astra46-source.mjs",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "140063c3993f0bbdaf9d49f14e31a807bdfe1489",
+      "sha256": "cbda14de2126e865f79e18ebe4c5aad92908e830eb2e3d51afac87c9a5e099bc",
+      "bytes": 6300
+    },
+    {
+      "path": "verification/check-astra46.mjs",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "d495ce1e5b52321198f4a583fe8f54fe13881423",
+      "sha256": "1243a372c9539a805162dd30e1644d344021223f34581a63ffe788a7620879c8",
+      "bytes": 23144
+    },
+    {
+      "path": "verification/finalize-astra46-identity.mjs",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "b2033ea554850a01d3174804df64a5f8b2e0ffd6",
+      "sha256": "7fb9ad6f7baa5e19e315259131a4482c8757e43c260d0dbaf0331ba4f401c362",
+      "bytes": 3505
+    },
+    {
+      "path": "verification/freeze-astra46.py",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "747008658ddfb24eb9464423780375b3e8928525",
+      "sha256": "92ed15700d1614d8214a106cbb2b7530d38744ba9165bdad2ac1bd0067e2ac6e",
+      "bytes": 8219
+    },
+    {
+      "path": "verification/prepare-astra46.mjs",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "7ccacbba8b77db3f76eb0335c13601fbfafda5a8",
+      "sha256": "35bc794576ff769e4b705de51444d7ce659146ef56adfc5e2d2832312b8ac383",
+      "bytes": 4684
+    },
+    {
+      "path": "verification/restore-astra46.py",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "2e0bcf68a7aa544ab1ff002cb0aaa3b781a6dfdb",
+      "sha256": "7881b29f4806b8b5935fa036e331e2c931e67157864c7c42d1cb5ce133c87b3e",
+      "bytes": 6863
+    },
+    {
+      "path": "hosts-amgen-e5/amgen/archive-transfer.mjs",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "5a454d21f34f9680221bbee2c98b3fecb94884f0",
+      "sha256": "698e966e5552967845a5252d2b3df2acca28dcd8dbbb0ae41755a3a6231e6a99",
+      "bytes": 1777
+    },
+    {
+      "path": "hosts-amgen-e5/amgen/context-read.sql",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "55583b5e7aabc8b13eb5ba190ca333ece783d181",
+      "sha256": "343f1b080d4ee67b251386cd98a8f42267a8a6e828323fb24df96ba7a005551b",
+      "bytes": 2048
+    },
+    {
+      "path": "hosts-amgen-e5/amgen/host-files.mts",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "706dbb2c9170acd38e29e0ce5e2fb4db2f8f67a2",
+      "sha256": "1b3c3abde8ef3521bcce0c6982f0454f0f36c71c92bb778280c025625b46eb8b",
+      "bytes": 4100
+    },
+    {
+      "path": "hosts-amgen-e5/amgen/host-helper-functions.js",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "5a2175af4687950bf8801f841139e2d1ea5df23e",
+      "sha256": "670b57dfd74ac92a05cdbfbf2f57a89224d444f4adebdd0d251f1d5950af5f03",
+      "bytes": 7041
+    },
+    {
+      "path": "hosts-amgen-e5/amgen/host-stage-functions.js",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "7499a2da608b98c853f9b60962680f2b7620cf53",
+      "sha256": "0cf3ca6aafc4fadf89e64eb965731837b80ae71e52879295fbff5ab889cc03fa",
+      "bytes": 5986
+    },
+    {
+      "path": "hosts-amgen-e5/amgen/relay-files.mjs",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "0a81a53464a8f4ebf7fe469ddd82201567fefc89",
+      "sha256": "e5190c281a8be7ef2c342113170caa6db53c8b8b2aec0d6167817a8c685b5786",
+      "bytes": 5478
+    },
+    {
+      "path": "hosts-amgen-e5/amgen/runtime/compact-json-review.inc.py",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "bafdf1880f6793fef02bc5824547b15cb1faef37",
+      "sha256": "7f23b26241ad6bffa9f5f453bfb294b89ddd54ad5f02d001a599f6cc81d8af6c",
+      "bytes": 1558
+    },
+    {
+      "path": "hosts-amgen-e5/amgen/runtime/continuous-relay-v3-durable-monitor.js",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "e64b5b140fec72e27c3cf5b6b2814dc1b0335d98",
+      "sha256": "cab36c8114a2a264e2587c8dc79118cefaa675498aea59cc981c81d7379aca4d",
+      "bytes": 2873
+    },
+    {
+      "path": "hosts-amgen-e5/amgen/runtime/load-host-state.js",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "b27e6ad18def59f72d6266a3343f95c2174736c0",
+      "sha256": "86ea74c14f7d0b9d50bb90a7562d91f782f7069c66550b71dce4756e4086b682",
+      "bytes": 1858
+    },
+    {
+      "path": "hosts-amgen-e5/amgen/runtime/load-source-runtime.js",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "32767e3e02ac0bb5258cf0178e958d407f0e65dc",
+      "sha256": "a1a3cc61783d8067e71616dd31456d06e148955788e802db1eb552be0f4ad507",
+      "bytes": 1550
+    },
+    {
+      "path": "hosts-amgen-e5/amgen/runtime/preflight/preflight-launch.mjs",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "aae8658b6748724e68d5d633967a3d37cf66016f",
+      "sha256": "a6af2dd6c415ee875de89cfc45560567a466d22ff2275d705398d18bde3600c4",
+      "bytes": 10206
+    },
+    {
+      "path": "hosts-amgen-e5/amgen/runtime/preflight/runtime-check.mjs",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "1aaf44921d83b86bb9c0065a46393286a8b725c3",
+      "sha256": "0f55d1f662d9eb3329298c68cff3b4a6161dedbefe95c86084bb451bd9e75ee7",
+      "bytes": 3523
+    },
+    {
+      "path": "hosts-amgen-e5/amgen/runtime/review-publication.py",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "8dd46c006125012513e0a397c3abd55e0d1e38f8",
+      "sha256": "fa59146ccc0ec3a5abc3869eca8d5209f19c9408ed8bd22aebaca0609254e407",
+      "bytes": 3560
+    },
+    {
+      "path": "hosts-amgen-e5/amgen/runtime/start-monitor-true-a42.js",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "523a32895a759f003bb23680139247266125d925",
+      "sha256": "2ae0a2ab3b1c53a9b5caab3a9f388195885f47a282956e9b069291fd42040827",
+      "bytes": 6567
+    },
+    {
+      "path": "verification/amgen-e5-runtime-20261005T2248Z/check-host.mjs",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "232393b68f101b741ea090a703ccdd736345bb94",
+      "sha256": "a87cd53657b4b8e1fd627f8c716766889e6139b0d2f9b6430b48566ca36723ac",
+      "bytes": 21371
+    },
+    {
+      "path": "verification/amgen-e5-runtime-20261005T2248Z/network-diagnostic-block.cjs",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "114c87b717b52776c86778a404f9e120a30340ff",
+      "sha256": "47e3bd51330075bf0cb50540473fd6b3518c21f1d25b70bf815dfa2e3eec8508",
+      "bytes": 1045
+    },
+    {
+      "path": "verification/amgen-e5-runtime-20261005T2248Z/network-only-block.cjs",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "e09797234dd4b518d94babda7afe04de4933f23a",
+      "sha256": "fa97ebe41fd497164a3501d9cfc579bad089e45c796929f5c8e51604059b58e6",
+      "bytes": 675
+    },
+    {
+      "path": "verification/amgen-e5-runtime-20261005T2248Z/prepare-context.mjs",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "97a86f4e2f1ed1a9a48e3c932bb2944de593aa73",
+      "sha256": "417a4af6cd4de7b873c6be7ab051afbba074bafd211310501fd2331407979df3",
+      "bytes": 875
+    },
+    {
+      "path": "verification/amgen-e5-runtime-20261005T2248Z/prepare-host.py",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "f78b9926293460d93d7b7e9ee44da6fa2423ef82",
+      "sha256": "6302f215a22f2566d1b1891b596068b37f9497b7357f19d14fe8267f2f5140e5",
+      "bytes": 3702
+    },
+    {
+      "path": "verification/amgen-e5-runtime-20261005T2248Z/verify-final.mjs",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "5916468a557eccc41e6a1b3829c6ffb3fae13338",
+      "sha256": "35b78b8b02230cf3858bd32699121009a6f19871bb138dbb1d563264e40ad2ad",
+      "bytes": 1664
+    },
+    {
+      "path": "hosts-amgen-e5/amgen/runtime/complete-reviewed-source-readback.js",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "f95c463f9d039cc44bae5b9d674a6b8c5c069d4d",
+      "sha256": "8365fdcfc66fc45b1059f980ad5090554ff36ffa9302013209397ec8a2c1fb0d",
+      "bytes": 4886
+    }
+  ]
+}

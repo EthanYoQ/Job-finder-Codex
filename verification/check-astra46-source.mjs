@@ -1,0 +1,53 @@
+import assert from 'node:assert/strict';
+import {readFile,writeFile} from 'node:fs/promises';
+import {join} from 'node:path';
+import {pathToFileURL} from 'node:url';
+import {createHash} from 'node:crypto';
+const host='/workspace/scratch/5e9614251709/jb-workspace-recovery-20261005T2019Z/hosts46/astra',repo='/workspace/scratch/5e9614251709/jb-workspace-recovery-20261005T2019Z/producer42';
+if(process.env.JOBFINDER_CLOUD_SOURCE_ID!=='source-astrazeneca-social'||process.env.TSX_DISABLE_CACHE!=='1'||process.env.NODE_DISABLE_COMPILE_CACHE!=='1'||process.env.PYTHONDONTWRITEBYTECODE!=='1')throw Error('SOURCE_CHECK_ENV');
+const noNetwork=async()=>{throw Error('PREPARATION_NETWORK_FORBIDDEN');};globalThis.fetch=noNetwork;
+const imp=p=>import(pathToFileURL(join(repo,p)).href),checks=[];
+const {azPlan,azRow,azDetail,azListCapture,azResponse}=await imp('tests/helpers/astrazeneca.ts');
+const {createHttpHtmlSourceFetch}=await imp('src/crawler/httpHtmlSourceFetch.ts');
+const {validateStrictHtmlCompletenessProof}=await imp('src/crawler/strictHtmlCompletenessProof.ts');
+const {sourcePlanConfigSha256}=await imp('src/crawler/sourcePlan.ts');
+const {acquireAstraZenecaDetails}=await imp('src/crawler/astraZenecaDetailAcquisition.ts');
+const {issueAGradeOfficialTotalCertificate}=await imp('src/crawler/completenessCertificate.ts');
+const {runSourceCrawl}=await imp('src/crawler/runSourceCrawl.ts');
+const plan=azPlan();assert.deepEqual(JSON.parse(await readFile(join(host,'source-plan.json'))),plan);
+assert.equal(sourcePlanConfigSha256(plan),'ed85e5a1e4798e4393003cccd6899db986a90c9ff180e95425a63e622cd8ccc5');
+assert.equal(plan.transportPolicy.primary,'DIRECT_HTTP');assert.equal(plan.adapterId,'html-table');
+assert.equal(plan.table.pagination.requestFirstPageExplicitly,true);assert.equal(plan.table.pagination.maxPages,25);
+assert.equal(plan.source.officialEntryUrl,'https://job-search.astrazeneca.cn/%e6%b1%82%e8%81%8c');
+assert.equal(plan.source.officialChainEvidenceUrl,'https://careers.astrazeneca.com/china');
+checks.push('Full serialized plan equals frozen canonical plan; identity, official chain, DIRECT_HTTP, p=1 and max25 preserved');
+const capturedAt='2026-10-02T00:00:00.000Z',requests=[];
+const html=page=>`<section id="search-results" data-total-pages="2" data-total-job-results="2"></section><ul id="search-results-list"><li><a class="search-results-link" href="/job/test/${page}"><h2>Role ${page}</h2></a><span class="job-location">Shanghai, China</span></li></ul>`;
+const list=await createHttpHtmlSourceFetch({now:()=>new Date(capturedAt),http:async request=>{requests.push(request.url);const page=new URL(request.url).searchParams.get('p');return {status:page?200:404,body:page?html(page):'not permitted',finalUrl:request.url,contentType:'text/html',capturedAt};}})(plan);
+assert.deepEqual(requests.map(x=>new URL(x).searchParams.get('p')),['1','2']);assert.equal(list.ok,true);assert.equal(validateStrictHtmlCompletenessProof(plan,list.fetchEvidence),true);
+const tampered=structuredClone(list.fetchEvidence);tampered.artifacts[0].requestedUrl=plan.source.officialEntryUrl;assert.equal(validateStrictHtmlCompletenessProof(plan,tampered),false);
+checks.push('Synthetic p=1 then p=2, source-bound replay accepted; bare first-page URL tampering rejected');
+const row=azRow(),captured=await azListCapture([row]);let detailRequests=0;
+globalThis.fetch=async url=>{assert.equal(url,row.officialUrl);detailRequests++;return azResponse(url,azDetail(row));};
+let native;try{native=await acquireAstraZenecaDetails(plan,captured.fetched);}finally{globalThis.fetch=noNetwork;}
+assert.equal(detailRequests,1);
+const result=await runSourceCrawl(plan,{fetch:async()=>native,isBaseline:false});
+const evidence=result.fetchEvidence,artifact=evidence.artifacts.find(a=>a.logicalKey===evidence.declaredCompleteness.artifactLogicalKey);
+const input={plan,evidence,jobs:result.jobs,reconciliation:result.reconciliation,paginationEvaluation:result.paginationEvaluation,transportSuccess:result.truth.transportSuccess,adapterSuccess:result.truth.adapterSuccess,officialArtifactSha256:createHash('sha256').update(artifact.body).digest('hex'),binding:{releaseCandidateId:'synthetic-az-a',batchId:'synthetic-az-a',sourceResultId:'synthetic-az-a',sourceConfigSha256:sourcePlanConfigSha256(plan)}};
+assert.equal(issueAGradeOfficialTotalCertificate(input).status,'CERTIFIED');
+const missing=structuredClone(input);delete missing.evidence.astraZenecaDetails;missing.evidence.artifacts.pop();assert.equal(issueAGradeOfficialTotalCertificate(missing).status,'REJECTED');
+checks.push('Actual frozen native detail acquisition/replay issues A only for complete synthetic proof and rejects list-only evidence');
+for(const status of [403,429]){
+ const calls=[];
+ const blockedList=await createHttpHtmlSourceFetch({now:()=>new Date(capturedAt),http:async request=>{calls.push(request.url);return {status,body:'blocked synthetic fixture',finalUrl:request.url,contentType:'text/html',capturedAt};}})(plan);
+ assert.equal(blockedList.ok,false);assert.deepEqual(calls.map(x=>new URL(x).searchParams.get('p')),['1']);
+ const rows=[0,1,2,3].map(x=>azRow(String(100033677408+x))),capture=await azListCapture(rows);let attempted=0;
+ globalThis.fetch=async url=>{assert.ok(rows.some(row=>row.officialUrl===url));attempted++;return azResponse(url,'blocked synthetic fixture',status);};
+ let blocked;try{blocked=await acquireAstraZenecaDetails(plan,capture.fetched);}finally{globalThis.fetch=noNetwork;}
+ assert.ok(attempted<=2);assert.ok(blocked.fetchEvidence.astraZenecaDetails.entries.some(x=>x.outcome.code==='DETAIL_BOT_BLOCKED'));
+ assert.ok(blocked.fetchEvidence.astraZenecaDetails.entries.some(x=>x.outcome.code==='DETAIL_NOT_ATTEMPTED_AFTER_BLOCK'));
+ checks.push(`Synthetic ${status}: first-list-page stop and native detail block stop with <=2 already allowed concurrent requests; no fallback`);
+}
+const report={schemaVersion:1,checkedAt:new Date().toISOString(),passed:true,purpose:'SYNTHETIC_LOCAL_SOURCE_CONTRACT_ONLY_NOT_QUALIFYING',sourceNetworkAccessed:false,databaseAccessed:false,producerLaunched:false,sourceConfigSha256:sourcePlanConfigSha256(plan),checks};
+await writeFile(join(host,'SOURCE_CHECK_RESULTS.json'),JSON.stringify(report,null,2)+'\n',{flag:'wx',mode:0o600});
+console.log(JSON.stringify(report));
