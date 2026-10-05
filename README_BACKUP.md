@@ -1,27 +1,29 @@
-# Prepared portable42 capture observation host, revision 2
+# Prepared Novartis heap512 observation host
 
-This source-only backup contains a separate observation starter, shell-command builder, exact source patch, synthetic fixtures/tests and an independent process-tree sampler. At the 2026-10-05 11:28 UTC handoff it was prepared for future naturally due collection, with no real Jb peak measurement established. The original starter, producer42, dependencies and registered runtime identities are unchanged.
+This source-only snapshot preserves a separate observation copy of the original Novartis portable42 heap512 starter. At the 2026-10-05 12:30 UTC handoff it was prepared and synthetically validated, not launched. Its intended next naturally due window was around 13:02 UTC; that plan is not an automatic launch or a claim that collection occurred.
 
-The observed starter SHA256 is `0bf4d5fb3fb599ee441e587bb6de6c61c353fe76650d0185a2b952774119b3be`; sampler SHA256 is `18bc3c99319b3af0941b6499bf71b5bfcd7d5808003a6b2c8e8a1a20eae88a85`. The original starter is identified by `49e2f7cd1eca99833b8eb4ffca529307ddbc4bb88d2fef429903f544e1f13ba3`. These external files have no original Git commit. SOURCE_BACKUP.json records exact file bytes, modes and hashes.
+Observed starter SHA256: `dcb970321afb867e2a65b0ed6749a9fcc37c4ad949a54ba072a77774c40e13f1`. Original starter SHA256: `603bbf116f557d67b828eb118d9ccc9c6a1362f5dad60d928978763cfcb280db`. Sampler SHA256: `18bc3c99319b3af0941b6499bf71b5bfcd7d5808003a6b2c8e8a1a20eae88a85`. These external helper files have no original Git commit and do not replace a registered producer identity.
 
-## Changes and verification
+## Preserved behavior
 
-The starter adds an early batch string check, verifies one fixed sampler path and SHA256, wraps the original capture command in the same exec/PID namespace for observation, and repeats the original 60-second bootstrap freshness check before launch. The capture command itself remains byte-for-byte unchanged. The wrapper records observer and target exits separately and returns the original target exit code; an observer failure must not kill the target or hide its outcome.
+The only starter changes insert the previously reviewed observation block and pass its wrapped command to exec. Removing that block and restoring the one command argument exactly reconstructs the original starter bytes. The patch was checked against the exact baseline and target. The original source, capture command, heap512, quality and freshness gates are unchanged.
 
-Backup review identified that the first revision tried to read the external sampler through a host-restricted file helper. Revision 2 instead checks the fixed path with sha256sum while preserving the original host scope. The first revision was never uploaded. The author reports tests of the actual extracted starter prelaunch block: fixed-path hash check, host-restricted reader never called, wrong hash rejected, stale bootstrap rejected and original capture command unchanged.
+The observer verifies the fixed external sampler path and hash without widening host-file scope, runs alongside the target in the same exec/PID namespace, repeats the bootstrap freshness gate before launch, and preserves the original target's exit code. The old starter, producer files, dependencies and runtime identity remain unchanged.
 
-The author also reports three real shell tests using synthetic processes: target exit 7 stays 7, exit 0 stays 0, and sampler failure 2 does not kill or mask a successful target. JavaScript/shell syntax and an additional synthetic sampler scheduling check passed. These are bounded synthetic checks, not full CI or a real collection/memory measurement. The backup only inspected source, exact hashes and patch correspondence; it did not execute tests, source, database operations or process sampling.
+The inherited early batch guard still applies a character regex directly, allowing JavaScript string coercion. This backup preserves the requested original statements and does not claim to repair that guard. An explicit valid new batch must be set and independently verified before use.
 
-## Observation limits
+## Reported validation
 
-The sampler verifies an exact root argv token and follows that PID plus observed descendants, retaining known live orphans. It sends no target signals, changes no target limits and performs no network activity. It writes observation output to a separate directory; command-line contents are checked but not saved.
+The author reports nine passing synthetic cases: five actual prelaunch-block cases and four shell cases with bash errexit enabled. They cover good/wrong/failed/still-running sampler hash checks, stale bootstrap, unchanged capture statements and heap512, target exits 0 and 7, and sampler failure preserving both target completion and its original exit. Syntax checks passed, and the author reports the original ten baseline file hashes unchanged.
 
-RSS is sampled every second and PSS every five seconds in this wrapper. Observed peaks are lower bounds: short spikes/processes may be missed, process reads are sequential, and nothing before the first sample is covered. RSS totals may double-count shared pages. Per-process lifetime VmHWM must not be summed. Independent browsers/services outside the tree are not attributed, and visible shared-environment meminfo is not Jb memory usage.
+These are bounded synthetic checks, not full CI or actual Novartis peak-memory measurements. The backup inspected source, hashes, exact reversibility and patch correspondence; it did not run tests, launch a capture, read real metrics or access the database.
 
-## Recovery and archive boundaries
+## Measurement and recovery limits
 
-Seven source/test/patch files are included with this README, SOURCE_BACKUP.json and a newly generated allowlist SHA256SUMS. The sampler is stored under memory-observation; the starter and tests still expect its original fixed absolute path and hash. Restore that reviewed placement, or perform separately reviewed adaptation and revalidation. Existing producer, host/session helpers and authorized configuration are separate prerequisites; this is not a complete registered runtime environment.
+The reused sampler verifies an exact root argv token, then follows the root and observed descendants, including known live orphans. It sends no target signals or network requests. Root arguments are checked but not saved. The wrapper requests one-second RSS and five-second PSS sampling. Peaks remain lower bounds; short spikes/processes can be missed, reads are not atomic, and RSS may double-count shared pages. Per-process lifetime VmHWM values are not summed. Independent browser/services are outside attribution, and shared-environment meminfo is not Jb usage.
 
-Actual runs, memory samples/process snapshots, SQL/control/DB/public JSON, raw evidence, environment, credentials, runtime identity, SELFTEST outputs and internal reports are excluded. Checksum coverage is limited to the uploaded files other than SHA256SUMS itself.
+Seven source/test/patch files are included with this README, SOURCE_BACKUP.json and a fresh restricted SHA256SUMS. The command builder and sampler reuse existing safe GitHub objects. The sampler is stored under memory-observation, while source/tests retain its original fixed absolute path and hash; restore the reviewed placement or obtain reviewed adaptation. The prelaunch test additionally requires the excluded BASELINE.json and its original referenced files, so this archive alone cannot reproduce that test.
 
-There are no active workflows in this tree. Archiving it does not authorize a collection or live sampling run, and performs no CI, merge, default-branch update or deployment.
+Actual run data, metrics, SQL/control/DB/public JSON, raw evidence, credentials, environment, runtime identities, generated dependencies, BASELINE/PREPARED/SELFTEST outputs and internal reports are excluded. SHA256SUMS covers only the other uploaded files, not the original directory inventory. Separate producer/host configuration and authorized inputs are still required for restoration.
+
+This independent branch contains no active workflows and performs no CI, merge, deployment or default-branch update.

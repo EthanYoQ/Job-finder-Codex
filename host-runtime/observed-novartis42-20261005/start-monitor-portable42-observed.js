@@ -1,6 +1,6 @@
 
 const A=Object.getPrototypeOf(async function(){}).constructor;const h=await new A(load("cloudPilotHostHelpers"))();
-if(!["source-merck-china-social","source-gilead-china-social","source-organon-china-social"].includes(h.cfg.sourceId))throw Error("SOURCE_SCOPE");
+if(!["source-novartis-social"].includes(h.cfg.sourceId))throw Error("SOURCE_SCOPE");
 const query=`WITH latest_successful AS (
  SELECT s.id AS "sourceResultId",s."sourceId",s."batchId",s."releaseCandidateId",s."sourceConfigHash",s."startedAt",s."finishedAt"
  FROM public."CrawlBatchSourceResult" s JOIN public."CrawlBatch" b ON b.id=s."batchId" AND b."releaseCandidateId"=s."releaseCandidateId"
@@ -39,14 +39,14 @@ function requireObservationDue(row,cfg){
 }
 // END OBSERVATION_DUE_GATE
 const due=requireObservationDue(row,h.cfg);
-const batch=load("nextBatchId");if(typeof batch!=="string"||!/^[A-Za-z0-9][A-Za-z0-9._-]{0,80}$/.test(batch))throw Error("BATCH_ID");
+const batch=load("nextBatchId");if(!/^[A-Za-z0-9][A-Za-z0-9._-]{0,80}$/.test(batch))throw Error("BATCH_ID");
 const run=h.cfg.root+"/"+batch;store("refreshCurrentRun",run);store("refreshCurrentBatch",batch);store("cloudPilotPublishRequest",null);store("cloudPilotPendingRequest",null);
 await h.save(run+"/candidate-readback.json",raw);await h.save(run+"/source-due-readback.json",due);await h.save(run+"/bootstrap.json",{schemaVersion:1,checkedAt:new Date(row.checkedAt).toISOString(),candidateRows:row.candidateRows,batchId:batch});const boot=await h.readFile(run+"/bootstrap.json");
 
-const preflight="env TSX_DISABLE_CACHE=1 node "+h.q("/workspace/scratch/5e9614251709/job-finder-runtime-restore-20261004T0834Z/hosts/portable42-next/runtime/preflight/preflight-launch.mjs")+" check "+h.q(h.cfg.root+"/host-config.json")+" "+h.q(h.cfg.root+"/control-base.json")+" "+h.q(run+"/bootstrap.json")+" "+h.q(boot.hash)+" "+h.q(run);
+const preflight="env TSX_DISABLE_CACHE=1 node "+h.q("/workspace/scratch/5e9614251709/job-finder-runtime-restore-20261004T0834Z/hosts/portable42-novartis/runtime-heap512/preflight/preflight-launch.mjs")+" check "+h.q(h.cfg.root+"/host-config.json")+" "+h.q(h.cfg.root+"/control-base.json")+" "+h.q(run+"/bootstrap.json")+" "+h.q(boot.hash)+" "+h.q(run);
 const checked=await h.cmd(preflight,2000);notify({phase:"PORTABLE_DB_STARTED_PREFLIGHT",checked});
 if(Date.now()-new Date(row.checkedAt).getTime()>60000)throw Error("FRESH_BOOTSTRAP_EXPIRED_BEFORE_LAUNCH");
-const command="env TSX_DISABLE_CACHE=1 JOBFINDER_CLOUD_SOURCE_ID="+h.q(h.cfg.sourceId)+" P0_SOURCE_HTTP_TIMEOUT_MS=45000 node scripts/run-with-http-diagnostics.mjs "+h.q(run+"/diagnostics")+" 1800000 -- node --max-old-space-size=256 --import /workspace/scratch/5e9614251709/job-finder-runtime-restore-20261004T0834Z/producer-source/node_modules/tsx/dist/loader.mjs scripts/p0-cloud-portable-source-pilot.ts "+h.q(run+"/bootstrap.json")+" "+h.q(boot.hash)+" "+h.q(run+"/artifacts")+" "+h.q(run+"/relay")+" --db-started-control "+h.q(h.cfg.root+"/control-base.json");
+const command="env TSX_DISABLE_CACHE=1 JOBFINDER_CLOUD_SOURCE_ID="+h.q(h.cfg.sourceId)+" P0_SOURCE_HTTP_TIMEOUT_MS=45000 node scripts/run-with-http-diagnostics.mjs "+h.q(run+"/diagnostics")+" 1800000 -- node --max-old-space-size=512 --import /workspace/scratch/5e9614251709/job-finder-runtime-restore-20261004T0834Z/producer-source/node_modules/tsx/dist/loader.mjs scripts/p0-cloud-portable-source-pilot.ts "+h.q(run+"/bootstrap.json")+" "+h.q(boot.hash)+" "+h.q(run+"/artifacts")+" "+h.q(run+"/relay")+" --db-started-control "+h.q(h.cfg.root+"/control-base.json");
 await h.save(run+"/reviewed-command.txt",command);
 function buildObservedCommand(command, metadata, quote) {
  return [
