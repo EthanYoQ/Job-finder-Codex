@@ -1,6 +1,6 @@
 import { candidateCompanies } from "../../src/data/companyRegistry";
 import { buildStagedSourceCrawlPlans, sourcePlanConfigSha256 } from "../../src/crawler/sourcePlan";
-import { createSanofiChineseSourceFetch, SANOFI_CN_ENTRY } from "../../src/crawler/sanofiChineseNative";
+import { createSanofiChineseSourceFetch, SANOFI_CN_ENTRY, sanofiHash } from "../../src/crawler/sanofiChineseNative";
 import { captureSanofiChineseIndependent, type SanofiChineseDomCapture } from "../../src/crawler/sanofiChineseRenderedTraversal";
 import { runSourceCrawl } from "../../src/crawler/runSourceCrawl";
 import { createOfficialJsonRenderedTraversalValidation, issueBGradeTraversalCertificate } from "../../src/crawler/traversalCertificate";
@@ -45,7 +45,7 @@ export async function chineseBFixture() {
     validationExecution:"CURRENT_RUN",trigger:"INITIAL_QUALIFICATION",now:new Date(LATER)});
   if(issued.status!=="CERTIFIED")throw Error(JSON.stringify(issued));
   const receipt=issued.certificate,counts=crawl.fetchEvidence!.fetchCounts,ledger=crawl.reconciliation!;
-  Object.assign(f.result,{completenessCertificate:receipt,completenessCertificateSha256:issued.certificateSha256,...counts,
+  Object.assign(f.result,{sanofiArtifacts:crawl.fetchEvidence!.artifacts.map(a=>({releaseCandidateId:f.result.releaseCandidateId,batchId:f.result.batchId,sourceResultId:f.result.id,sourceId:p.source.id,kind:a.kind,extractorLocator:a.extractorLocator,sha256:sanofiHash(String(a.body))})),completenessCertificate:receipt,completenessCertificateSha256:issued.certificateSha256,...counts,
     normalizedCount:ledger.validBeforeDedupeCount,dedupeInputCount:ledger.dedupeInputCount,validationDiscardCount:counts.validationDiscardCount,
     discardCount:counts.validationDiscardCount,adapterInputCount:ledger.rawInputCount,adapterOutputCount:ledger.dedupeOutputCount,adapterLossCount:0,
     expectedJobCount:null,expectedEvidenceKind:"COMPLETE_PAGE_TRAVERSAL",adapterReconciliationSha256:receipt.output.adapterReconciliationSha256,

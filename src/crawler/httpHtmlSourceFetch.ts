@@ -30,6 +30,8 @@ export interface HttpHtmlRequest {
   headers: Record<string, string>;
   body?: string;
   evidenceChannelId?: string;
+  /** Explicitly prohibit redirects for a narrowly bound authority request. */
+  redirect?: "error";
 }
 
 export interface HttpHtmlResponse {

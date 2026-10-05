@@ -1,3 +1,4 @@
+import { sanofiCertificateArtifactLocators, type SanofiArtifactCommitment } from "../crawler/traversalCertificate";
 import { isSanofiPublicTransitionPlan, isSanofiHistoricalPublicCandidate } from "../domain/sanofiPublicTransition";
 import type { PublicSnapshotRefresh } from "../domain/publicSnapshotRefresh";
 import type { Prisma } from "@prisma/client";
@@ -30,7 +31,7 @@ export const portableSourceResultSelect = {
   batch: {select: {id: true, releaseCandidateId: true, kind: true, status: true, commitSha: true, rosterSha256: true,
     sourcePlanSha256: true, sourceConfigSha256: true, adapterBundleSha256: true, startedAt: true, finishedAt: true}}
 } as const satisfies Prisma.CrawlBatchSourceResultSelect;
-export type PortableSourceResultRow = Prisma.CrawlBatchSourceResultGetPayload<{select: typeof portableSourceResultSelect}>;
+export type PortableSourceResultRow = Prisma.CrawlBatchSourceResultGetPayload<{select: typeof portableSourceResultSelect}> & {sanofiArtifacts?: readonly SanofiArtifactCommitment[]};
 const lifecycleMemberSelect = {
   releaseCandidateId: true, batchId: true, sourceId: true, sourceResultId: true, setKind: true, jobKey: true,
   jobKeySha256: true, lifecycleStatus: true, missingCount: true
@@ -43,6 +44,7 @@ const jobSelect = {
 } as const satisfies Prisma.JobSelect;
 export type PortableJobRow = Prisma.JobGetPayload<{select: typeof jobSelect}>;
 export interface PortableSnapshotTransactionDb {
+  evidenceArtifact?: {findMany(args: Prisma.EvidenceArtifactFindManyArgs): PromiseLike<unknown[]>};
   $queryRawUnsafe?<T = unknown>(query: string): PromiseLike<T>;
   crawlBatchSourceResult: {findMany(args: Prisma.CrawlBatchSourceResultFindManyArgs): PromiseLike<unknown[]>};
   lifecycleSetEvidenceMember: {findMany(args: Prisma.LifecycleSetEvidenceMemberFindManyArgs): PromiseLike<unknown[]>};
@@ -76,6 +78,28 @@ export interface PortablePublicSnapshot {
   totalJobs: number;
   lastUpdatedAt: string | null;
   coverage: {companyCount: number; requiredCompanyCount: number; excludedCompanyCount: number; requiredSourceCount: number; excludedSourceCount: number; expectedSourceCount: number; sourceCount: number; unplannedSourceCount: number; publishingSourceCount: number; unsupportedSourceCount: number; heldSourceCount: number};
+}
+
+/** Only Sanofi identity proofs need this one narrow metadata read. No bodies,
+ * paths, or independent-validation JSON are queried or exposed in the snapshot. */
+export async function bindSanofiPersistedArtifacts(tx: PortableSnapshotTransactionDb, results: PortableSourceResultRow[]): Promise<void> {
+  const requests: Array<{row:PortableSourceResultRow; locators:string[]}> = [];
+  for(const row of results){
+    if(row.sourceId!=="source-sanofi-china-social" || row.atomicCommitState!=="COMMITTED" || row.completenessState!=="VERIFIED" ||
+      (row.completenessCertificate as {grade?:unknown}|null)?.grade!=="B") continue;
+    // Never inherit caller-supplied commitments across the database read boundary.
+    delete row.sanofiArtifacts;
+    try {requests.push({row,locators:sanofiCertificateArtifactLocators(row.completenessCertificate)});} catch { /* The receipt reader holds invalid proofs. */ }
+  }
+  if(requests.length===0 || !tx.evidenceArtifact) return;
+  const artifacts=await tx.evidenceArtifact.findMany({
+    where:{OR:requests.map(({row,locators})=>({releaseCandidateId:row.releaseCandidateId,batchId:row.batchId,
+      sourceResultId:row.id,sourceId:row.sourceId,extractorLocator:{in:locators}}))},
+    select:{releaseCandidateId:true,batchId:true,sourceResultId:true,sourceId:true,kind:true,sha256:true,extractorLocator:true}
+  });
+  if(!Array.isArray(artifacts)) throw new Error("SANOFI_CN_PERSISTED_ARTIFACT_COMMITMENTS_REQUIRED");
+  for(const {row} of requests) row.sanofiArtifacts=(artifacts as SanofiArtifactCommitment[]).filter(a=>
+    a.releaseCandidateId===row.releaseCandidateId && a.batchId===row.batchId && a.sourceResultId===row.id && a.sourceId===row.sourceId);
 }
 
 /** Additive opt-in API: do not inject this into the legacy eligible-source-only search reader.
@@ -169,6 +193,7 @@ export async function readPortablePublicSnapshotWithStatus(
     });
     if (!Array.isArray(rawResults)) throw new Error("INVALID_PORTABLE_SOURCE_RESULT_ROWS");
     const results = structuredClone(rawResults) as PortableSourceResultRow[];
+    await bindSanofiPersistedArtifacts(tx,results);
     // Prefetch candidates only, never publication authority. A publishing selection must be
     // the newest committed/verified row: a later invalid or unclaimed receipt forces a hold.
     // Keep all history for the verifier's true floor, latest attempt and integrity decisions.
