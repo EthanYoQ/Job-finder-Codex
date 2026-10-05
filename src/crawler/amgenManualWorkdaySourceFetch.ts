@@ -20,6 +20,7 @@ const PAGES = `${ORIGIN}/en/search-jobs/resultspost`, LOOKUP = `${WD}/wday/cxs/a
 const CHAIN = `${ORIGIN}/en/location/china-jobs/87/1814991/2`, CHINA = "6cb77610a8a543aea2d6bc10457e35d4";
 const REPORT = "amgen-v2-binding-report", LIMIT = 32 * 1024 * 1024, WINDOW = 10 * 60 * 1000;
 const FAILURE = "AMGEN_MANUAL_WORKDAY_INVALID";
+const DETAIL_CHAINS = 2;
 type Request = { url: string; method: "GET" | "POST"; headers: Record<string, string>; body?: string };
 type Response = { body: string; status: number; finalUrl?: string; contentType?: string; capturedAt?: string };
 type Http = (request: Request) => Promise<Response>;
@@ -126,11 +127,21 @@ function assemble(artifacts: SourceFetchArtifactDraft[], pages: ReturnType<typeo
     fetchCounts: { rawCount: jobs.length, parsedCount: jobs.length, validCount: jobs.length, parseDiscardCount: 0, validationDiscardCount: 0 }, fetchLosses: [] }) });
 }
 function replay(artifacts: SourceFetchArtifactDraft[]) {
-  const map = new Map(artifacts.map(a => [a.logicalKey, a])); assert(map.size === artifacts.length && artifacts.reduce((n, a) => n + Buffer.byteLength(a.body), 0) <= LIMIT);
-  let consumed = 0, previous = Date.parse(artifacts[0]!.capturedAt); const start = previous;
-  const read = (role: Role, index: number, req: Request) => {
-    const a = map.get(key(role, index)); assert(a && typeof a.body === "string" && a.logicalKey === artifacts[consumed++]?.logicalKey);
+  const map = new Map(artifacts.map((a, index) => [a.logicalKey, { a, index }])); assert(map.size === artifacts.length && artifacts.reduce((n, a) => n + Buffer.byteLength(a.body), 0) <= LIMIT);
+  // HTTP artifacts retain actual completion order, independently of list-row projection order.
+  const consumed = new Set<string>(), open = new Set<string>(); let previous = Date.parse(artifacts[0]!.capturedAt); const start = previous;
+  for (const a of artifacts.slice(0, -1)) {
     const time = Date.parse(a.capturedAt); assert(time >= previous && time - start <= WINDOW); previous = time;
+    const detail = /^amgen-v2-(identity|application)-(\d{4})$/u.exec(a.logicalKey);
+    if (detail?.[1] === "identity") { open.add(detail[2]!); assert(open.size <= DETAIL_CHAINS); }
+    else if (detail) assert(open.delete(detail[2]!));
+  }
+  assert(open.size === 0);
+  const read = (role: Role, index: number, req: Request) => {
+    const found = map.get(key(role, index)), a = found?.a; assert(found && a && typeof a.body === "string" && !consumed.has(a.logicalKey));
+    if (role === "list" || role === "lookup") assert(found.index === consumed.size);
+    if (role === "application") assert(consumed.has(key("identity", index)) && map.get(key("identity", index))!.index < found.index);
+    consumed.add(a.logicalKey);
     const expected = artifact(role, index, req, { body: a.body, status: a.httpStatus!, finalUrl: a.finalUrl!, contentType: a.contentType!, capturedAt: a.capturedAt }, a.capturedAt);
     assert(same({ ...a, id: expected.id }, expected)); return a.body;
   };
@@ -143,9 +154,9 @@ function replay(artifacts: SourceFetchArtifactDraft[]) {
   assert(catalog.length === first.total && new Set(catalog.map(r => r.req)).size === first.total && new Set(catalog.map(r => r.path)).size === first.total);
   const selected = new Set<string>(), projected = rows.map((row, i) => { const html = read("identity", i, request(row.url)), id = identity(html, row), match = catalog.find(r => r.req === id.req);
     assert(match && !selected.has(id.req)); selected.add(id.req); return project(row, html, match, read("application", i, request(`${WD}/wday/cxs/amgen/Careers${match.path}`))); });
-  assert(artifacts.length === consumed + 1);
-  const report = reportArtifact(rows.length, catalog, projected.map(p => p.binding), artifacts[consumed - 1]!.capturedAt);
-  assert(same(artifacts[consumed], report));
+  assert(artifacts.length === consumed.size + 1);
+  const report = reportArtifact(rows.length, catalog, projected.map(p => p.binding), artifacts.at(-2)!.capturedAt);
+  assert(same(artifacts.at(-1), report));
   const jobs = projected.map(p => p.job); assert(new Set(jobs.map(j => j.sourceJobId)).size === jobs.length);
   return { evidence: assemble(artifacts, pages, jobs), jobs };
 }
@@ -162,9 +173,20 @@ export function createAmgenManualWorkdaySourceFetch(deps: { http?: Http; now?: (
       for (let i = 1; i < Math.ceil(first.total / 20); i++) catalog.push(...lookupPage(await acquire("lookup", i, lookupRequest(i)), i, first.total).rows);
       assert(catalog.length === first.total && new Set(catalog.map(r => r.req)).size === first.total && new Set(catalog.map(r => r.path)).size === first.total);
       const bindings: ReturnType<typeof project>["binding"][] = [], seen = new Set<string>();
-      for (let i = 0; i < rows.length; i++) { const row = rows[i]!, html = await acquire("identity", i, request(row.url)), id = identity(html, row), match = catalog.find(r => r.req === id.req);
-        assert(match && !seen.has(id.req)); seen.add(id.req);
-        bindings.push(project(row, html, match, await acquire("application", i, request(`${WD}/wday/cxs/amgen/Careers${match.path}`))).binding); }
+      let next = 0, failed = false;
+      const worker = async () => {
+        try {
+          while (!failed && next < rows.length) {
+            const i = next++, row = rows[i]!, html = await acquire("identity", i, request(row.url));
+            if (failed) return;
+            const id = identity(html, row), match = catalog.find(r => r.req === id.req);
+            assert(match && !seen.has(id.req)); seen.add(id.req);
+            bindings[i] = project(row, html, match, await acquire("application", i, request(`${WD}/wday/cxs/amgen/Careers${match.path}`))).binding;
+          }
+        } catch { failed = true; }
+      };
+      // Fixed, source-local bound. A failed worker stops dispatch; drain its peer before returning.
+      await Promise.all(Array.from({ length: Math.min(DETAIL_CHAINS, rows.length) }, worker)); assert(!failed);
       const report = reportArtifact(rows.length, catalog, bindings, artifacts.at(-1)!.capturedAt);
       assert(bytes + Buffer.byteLength(report.body) <= LIMIT); artifacts.push(report);
       const result = replay(artifacts), paginationEvaluation = evaluatePaginationEvidence({ ...options, evidence: result.evidence }); assert(paginationEvaluation.safeCompleteness && paginationEvaluation.verifiedEligible);
