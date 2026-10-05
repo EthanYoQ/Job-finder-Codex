@@ -1,25 +1,31 @@
-# C46 JNJ and four later source hosts
+# CSPC publication-context refresh source backup
 
-This snapshot preserves frozen source for JNJ, CSPC, Amgen, AbbVie and CTTQ, including normal host helpers, source-specific starters, read-only SELECT definitions and synthetic preparation/check code. It continues the [earlier four-source C46 host backup](https://github.com/EthanYoQ/Job-finder-Codex/tree/backup/regular-c46-recovery-hosts-20261005-2050). These are external files without an original Git commit; the source binding remains fb0b8e3b708d4f57cae09b465fb1c9ceddf7ad8d and regular recovery candidate 46. This is separate from the offline Sanofi source commit 46beb14.
+This is a small, exact-byte source backup for the CSPC C46 external host. It is not a producer release or a registered runtime image. The backup branch does not run CI or deploy anything.
 
-The late filelist/checksum hashes are `399dac51a47ee8041fae4fca97534377f597662df2a5182e52d73bd580ea1fe8` and `fefa533180c22b48aae9fab7833fda4c2f577af1c92253981f1f64e60ccf0920`. The JNJ filelist/checksum hashes are `dd75a1ef19dd8bbddc7e46709ed45f91d3e20f14a45269c09145fcd191034ae2` and `b895e8c0c800b00be1a5d0c9ee71063c0dd8a53f830ebda44f74f4e7b4c6a8e1`. Selected files match those exact frozen bytes; broad original inventories are not uploaded.
+## Version and status cutoff
 
-## Preparation and actual status are different
+- Review snapshot: approximately 2026-10-05 21:47 UTC. The preserved `Review-only` source comment describes that review-stage snapshot; it is not a current activation flag.
+- Publisher-reported activation: 2026-10-05 21:51:16 UTC, replacing only the CSPC host helper. Producer source `fb0b8e3b708d4f57cae09b465fb1c9ceddf7ad8d` and its C46 registered identity were unchanged.
+- At this handoff, there had been no new capture with the enabled fix. The previous failed round was reported as 31 captured items and zero database publication; it was not replayed. Neither activation nor the local tests establish a successful new capture.
+- Corrected helper SHA256: `643fd7fdb699bb0c2be0814a000006ad40437e41b896ba9d62c6b51d116d0511`.
+- Original helper SHA256: `d9969b3bddbe628de14a870ae55ea2be1edbc40ee57a6610e635f63f83426712`.
 
-The author reports 15 local groups per late source, 60 total, and 19 JNJ checks passing. The late guard audit checks the local 48-migration identity/checksums, candidate bindings, row-lock and uncertain-dispatch/hash rules using nonqualifying preparation inputs. These are not full CI or production publication results. The backup performed static source/hash review only and did not execute tests, SQL, a producer or browser work.
+The original host source and related dependencies are preserved in [the preceding host backup](https://github.com/EthanYoQ/Job-finder-Codex/tree/fccc397f6abb90c0f980af63bcc1d3cb469aac59). This new GitHub commit identifies the sanitized archive, not an original source Git commit or registered runtime identity.
 
-At the 2026-10-05 21:42 UTC handoff, JNJ had only six list pages and 41 of the current 107 details before two same-URL ERR_BLOCKED_BY_CLIENT results stopped collection. There were zero JNJ producer launches and zero commits. CSPC reportedly exited 1 at 21:39 because context was stale, with zero database publication. Amgen was running; this archive makes no later outcome claim. Original preparation labels such as not-launched refer to their earlier report times and are not a claim that all subsequent attempts remained unstarted or succeeded.
+## Behavior and checks
 
-## JNJ evidence contract
+Only `READ_PUBLICATION_CONTEXT`, with the exact fixed compiler-produced SELECT, source/config and candidate binding, may perform one extra read in the same live handler when a valid snapshot became stale during transport. The exclusive dispatch marker, original request bytes, original dispatch/expiry deadlines, and actual database timestamps are retained. Malformed, future, pre-attempt, mismatched, SQL-error and transport-error responses do not trigger a retry. Publication and lease writes remain single-dispatch.
 
-JNJ requires complete fresh current lists and every native detail, followed by an ordered reread of every current list page with exact-byte manifests. The final reread is a separately reviewed collector requirement; the frozen producer does not revisit the browser itself. Browser DOM observations must remain browser observations, without invented HTTP status/envelopes. Partial, blocked, old or expired evidence is not valid launch input. Prior job/page counts are comparisons, never a target denominator.
+The publisher reports 13 synthetic local tests passed. They exercise normal/stale reads, second stale results, deadline exhaustion, errors, exact query and identity checks, request mutation and write no-retry behavior. This backup only reviewed frozen bytes; it did not run tests, CI, SQL, capture or deployment. Later scheduling or file delivery can still cause the producer's 60-second freshness gate to reject a result; this is not a guarantee against delay. Dispatch deadlines prevent a new dispatch but do not cancel an SQL call already in progress; final producer validation remains necessary.
 
-The currentCapture descriptor is bound by path/hash and actual observation timing. Preserve the original China/all-businesses scope, complete list/detail identity checks, 12-hour due gate, 60-second bootstrap, 30-minute observation window, control reserves and original atomic publication gates. Source-specific route/heap behavior remains unchanged: 256 MiB for CSPC/AbbVie portable, 384 MiB for Amgen/CTTQ A and JNJ browser-DOM A. Use preflight check with the source-specific starter; inherited generic launch mode is not permission to launch another route. ARCHIVE_STORE remains unsupported and remote evidence retention is separate.
+`fixed-read-fixture.json` contains the exact nonsecret query and code-binding constants, including the project reference, workspace paths, source hash and candidate ID. The test harness produces synthetic response rows with empty `jobs`; no actual database rows, observed job content or runtime credential is included. The query is a read-only SELECT, not a captured publication request.
 
-## Safe-source restoration limits
+## Contents and recovery boundary
 
-Only selected code and its new restricted manifest/checksum list are included. Config/control/source-plan files, candidate/build/runtime identity and state, actual DB/SQL/request/response/raw/browser inputs, live runs/capture-inputs/stdout, NONQUAL/preflight/synthetic output, session-cache JSON, internal handoff/operational reports, originals/diffs, credentials and environment are excluded.
+Five source files are preserved without modification: corrected helper, exact original helper, synthetic test, fixed-query fixture and exact unified patch. `SOURCE_BACKUP.json` binds each to SHA256 and Git blob SHA; `SHA256SUMS` also covers the new README and manifest.
 
-The one-time verification/restore-jnj46.py is excluded because old replacement strings embed historical observation and due-time hints. Other retained restoration/freeze scripts contain code only, but they depend on excluded authorized inputs and can generate broad operational inventories containing those excluded categories. Their complete outputs must never be treated as the safe GitHub upload list. Rebuild configuration and identity only from separately authorized exact inputs; this snapshot is not independently runnable or a registered runtime.
+For source recovery, restore the matching CSPC host dependencies from the preceding safe host archive, then place `cspc-context-refresh/host-helper-functions.js` at that archive's `hosts46/cspc/host-helper-functions.js`. The original helper is retained for an exact byte comparison. The included patch records the same transformation, using its original review-stage paths. The test file and fixture expect to remain adjacent to the corrected helper.
 
-This branch contains no active workflow definitions and performs no CI, merge, deployment or default-branch update. SHA256SUMS covers only uploaded files other than itself.
+A usable live host still requires separately authorized local configuration, matching producer/dependencies, relay context, registration, and fresh evidence. Those are not reconstructed by this source-only archive. Fixed paths and exact safety bindings must be reassessed explicitly if restoring in a different environment; do not generalize the narrow SELECT retry or bypass identity/deadline checks.
+
+Excluded: original `ACTIVATION.json`, `RESULT.json`, `REVIEW.md`; real requests/responses, SQL publication packets, captured pages/jobs, database/control state, runtime identity files, credentials, environment files and internal operation reports. No live run or capture directory was scanned.

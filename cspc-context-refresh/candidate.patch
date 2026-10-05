@@ -1,0 +1,56 @@
+--- hosts46/cspc/host-helper-functions.js
++++ candidate/host-helper-functions.js
+@@ -37,12 +37,49 @@
+  }
+  return {status:'FAILED',outcome:'UNKNOWN',code:'UNKNOWN'};
+ }
++// Review-only CSPC candidate: exact compiler-produced SELECT, source and candidate.
++// This literal is intentionally scoped; it is not a generic SQL retry whitelist.
++const fixedPublicationContextSql="WITH matching AS (\n SELECT r.* FROM public.\"CrawlBatchSourceResult\" r JOIN public.\"CrawlBatch\" b ON b.id=r.\"batchId\"\n WHERE r.\"sourceId\"=E'source-cspc-social' AND r.\"sourceConfigHash\"=E'5fbeee6e6b8d95f05d2b8771908f206ba8f45eea32a6208f21490a058332d409'\n AND r.\"completenessState\"='VERIFIED' AND r.\"atomicCommitState\"='COMMITTED'\n AND r.\"completenessCertificateSha256\" IS NOT NULL\n AND r.\"completenessCertificate\"->>'schemaVersion'=E'plan-bound-source-quality-v1' AND r.\"completenessCertificate\"->>'policyId'=E'PLAN_BOUND_SOURCE_QUALITY_V1' AND b.kind<>'MANUAL_SOURCE'\n ), jobs AS (\n SELECT j.\"dedupeKey\",j.\"companyId\",j.\"sourceId\",j.\"sourceJobId\",j.\"officialTitle\",j.\"auxiliaryChineseTitle\",j.\"officialUrl\",j.\"listUrl\",j.\"locationRaw\",j.city,j.cities,j.category,j.\"officialPublishedAt\",j.\"firstSeenAt\",j.\"lastSeenAt\",j.\"missingSuccessCount\",j.\"lifecycleStatus\",\n jsonb_build_object('atsKind',s.\"atsKind\",'kind',s.kind,'status',s.status,'officialEntryUrl',s.\"officialEntryUrl\",'officialChainEvidenceUrl',s.\"officialChainEvidenceUrl\") AS source,\n jsonb_build_object('officialChineseName',c.\"officialChineseName\") AS company\n FROM public.\"Job\" j JOIN public.\"RecruitmentSource\" s ON s.id=j.\"sourceId\" JOIN public.\"Company\" c ON c.id=j.\"companyId\"\n WHERE j.\"sourceId\"=E'source-cspc-social'\n ) SELECT jsonb_build_object('checkedAt',clock_timestamp(),'sourceId',E'source-cspc-social','sourceConfigSha256',E'5fbeee6e6b8d95f05d2b8771908f206ba8f45eea32a6208f21490a058332d409',\n 'jobs',coalesce((SELECT jsonb_agg(to_jsonb(j) ORDER BY j.\"lastSeenAt\" DESC,j.\"dedupeKey\") FROM jobs j),'[]'::jsonb),\n 'latestAccepted',(SELECT to_jsonb(r) FROM matching r ORDER BY \"finishedAt\" DESC,id DESC LIMIT 1),\n 'firstAccepted',(SELECT to_jsonb(r) FROM matching r ORDER BY \"finishedAt\" ASC,id ASC LIMIT 1),\n 'candidateRow',(SELECT to_jsonb(r) FROM public.\"ReleaseCandidate\" r WHERE id=E'dot-cloud-restored-fb0b8e3-20261005T2028Z'),\n 'sourceRow',(SELECT to_jsonb(r) FROM public.\"RecruitmentSource\" r WHERE id=E'source-cspc-social'),\n 'companyRow',(SELECT to_jsonb(r) FROM public.\"Company\" r WHERE id=E'company-cspc')) AS context;";
++const fixedPublicationCandidateId="dot-cloud-restored-fb0b8e3-20261005T2028Z";
+ async function sqlDispatch(r,dir,sql){
+  if(typeof sql!=="string"||sql!==r.payload?.sql||cfg.project!==r.payload?.projectId)throw Error("HOST_SQL_BINDING");
+- await mark(r,dir);let result,raw,diagnostic;
+- try{raw=await tools.mcp__codex_apps__supabase_execute_sql({project_id:cfg.project,query:sql});store("restored46:cspc:cloudLastSqlToolResult",raw);result={status:"SUCCEEDED",rows:rows(raw)};}
+- catch(error){
+-  diagnostic={recordedAt:new Date().toISOString(),responseExpired:Date.now()>=Date.parse(r.expiresAt),toolResult:raw??null,error:{message:String(error),name:error?.name,stack:error?.stack}};
++ const readContext=r.kind==="READ_PUBLICATION_CONTEXT";
++ if(readContext&&sql!==fixedPublicationContextSql)throw Error("HOST_PUBLICATION_CONTEXT_SQL_BINDING");
++ await mark(r,dir);let result,raw,diagnostic;const attempts=[];
++ try{
++  for(let attempt=1;attempt<=(readContext?2:1);attempt++){
++   if(readContext){
++    const before=Date.parse(r.payload.dispatchBefore),expires=Date.parse(r.expiresAt);
++    if(!Number.isFinite(before)||!Number.isFinite(expires)||before!==expires-25000||Date.now()>=before||Date.now()>=expires)throw Error("HOST_PUBLICATION_CONTEXT_DISPATCH_EXPIRED");
++    if(attempt>1){
++     const current=JSON.parse((await readFile(dir+"/"+r.requestId+".request.json",before)).text);
++     const {expired,dispatchRecorded,...expected}=r;
++     if(JSON.stringify(current)!==JSON.stringify(expected))throw Error("HOST_REQUEST_CHANGED");
++     if(Date.now()>=before||Date.now()>=expires)throw Error("HOST_PUBLICATION_CONTEXT_DISPATCH_EXPIRED");
++    }
++   }
++   const startedAt=Date.now(),attemptRecord=readContext?{attempt,startedAt:new Date(startedAt).toISOString()}:null;
++   if(attemptRecord)attempts.push(attemptRecord);raw=undefined;
++   raw=await tools.mcp__codex_apps__supabase_execute_sql({project_id:cfg.project,query:sql});
++   store("restored46:cspc:cloudLastSqlToolResult",raw);
++   const receivedAt=Date.now();if(attemptRecord)Object.assign(attemptRecord,{receivedAt:new Date(receivedAt).toISOString(),toolResult:raw});
++   result={status:"SUCCEEDED",rows:rows(raw)};
++   if(!readContext)break;
++   const context=result.rows.length===1&&result.rows[0]?.context;
++   if(!context||context.sourceId!==cfg.sourceId||context.sourceConfigSha256!==cfg.sourceConfigSha256||context.candidateRow?.id!==fixedPublicationCandidateId)throw Error("HOST_PUBLICATION_CONTEXT_IDENTITY");
++   const checkedAt=Date.parse(context.checkedAt),expires=Date.parse(r.expiresAt),before=Date.parse(r.payload.dispatchBefore);
++   // Refresh only a valid DB snapshot that became old in transport. Never
++   // repair malformed, future, cached/pre-attempt or mismatched responses.
++   const delayed=Number.isFinite(checkedAt)&&checkedAt>=startedAt-1000&&checkedAt<=receivedAt+1000&&checkedAt<receivedAt-61000;
++   if(!delayed)break;
++   diagnostic={recordedAt:new Date().toISOString(),responseExpired:Date.now()>=expires,contextReadAttempts:attempts,reason:"ORIGINAL_STALE_RESPONSE_RETAINED"};
++   if(attempt===2||Date.now()>=before||Date.now()>=expires)break;
++   // The original exclusive marker is kept. Only this live handler may perform
++   // the one additional exact SELECT, under the original dispatch deadlines.
++  }
++  if(readContext&&attempts.length>1)diagnostic={...(diagnostic??{}),recordedAt:new Date().toISOString(),responseExpired:Date.now()>=Date.parse(r.expiresAt),contextReadAttempts:attempts,reason:"BOUNDED_CONTEXT_READ_ATTEMPTS"};
++ }catch(error){
++  diagnostic={recordedAt:new Date().toISOString(),responseExpired:Date.now()>=Date.parse(r.expiresAt),toolResult:raw??null,...readContext?{contextReadAttempts:attempts}:{},error:{message:String(error),name:error?.name,stack:error?.stack}};
+   store("restored46:cspc:cloudHostLastDispatchError",diagnostic);result=publicationFailure(raw,r,sql);
+  }
+  await respond(r,dir,result,diagnostic);return result;
