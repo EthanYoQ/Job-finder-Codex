@@ -38,7 +38,7 @@ function fixture() {
   readers.push(read);
   const change = (digest = "b") => {versions[0]!.digest = digest.repeat(64);};
   const title = (snapshot: Awaited<ReturnType<typeof read>>) => snapshot.sources.find(source => source.sourceId === plan.source.id)!.jobs[0]?.title;
-  return {tx, transaction, db, read, change, title};
+  return {tx, transaction, db, read, change, title, display: async () => (await read.readWithStatus()).snapshot};
 }
 
 beforeEach(() => {
@@ -59,8 +59,9 @@ describe("verified display background refresh", () => {
     const first = deferred(), second = deferred();
     f.change();
     const [one, two] = await Promise.all([f.read.readWithStatus(first.promise), f.read.readWithStatus(second.promise)]);
-    expect(one).toEqual({...initial, snapshotRefresh: {...initial.snapshotRefresh, state: "UPDATING"}});
-    expect(two).toEqual(one);
+    expect(one).toMatchObject({...initial, snapshotRefresh: {...initial.snapshotRefresh, state: "UPDATING", check: expect.any(String)}});
+    expect(two.snapshot).toEqual(one.snapshot);
+    expect(two.snapshotRefresh).toMatchObject({state: "UPDATING", version: one.snapshotRefresh.version, check: expect.any(String)});
     await vi.advanceTimersByTimeAsync(10);
     expect(f.tx.job.findMany).toHaveBeenCalledOnce();
     first.resolve();
@@ -104,13 +105,13 @@ describe("verified display background refresh", () => {
     const gate = deferred();
     f.tx.job.findMany.mockImplementationOnce(async () => {await gate.promise; return [job("job-2", SECOND)];});
     vi.setSystemTime(new Date(NOW.getTime() + 1_000));
-    expect(await f.read()).toEqual(old);
+    expect(await f.display()).toEqual(old);
     expect(f.tx.job.findMany).toHaveBeenCalledOnce();
     expect(f.read.getRefreshStatus().state).toBe("UPDATING");
     await vi.advanceTimersByTimeAsync(0);
     const transactionsWhileBlocked = f.transaction.mock.calls.length;
     const timing = vi.fn();
-    const [measured, second] = await Promise.all([f.read.readWithStatus(undefined, timing), f.read()]);
+    const [measured, second] = await Promise.all([f.read.readWithStatus(undefined, undefined, timing), f.display()]);
     const first = measured.snapshot;
     expect(first).toEqual(old);
     expect(second).toEqual(old);
@@ -136,7 +137,7 @@ describe("verified display background refresh", () => {
       f.tx.job.findMany.mockResolvedValue([{...job(), humanCorrectedTitle: "latest committed value"}]);
       return [{...job(), humanCorrectedTitle: "intermediate verified value"}];
     });
-    await f.read();
+    await f.display();
     await vi.advanceTimersByTimeAsync(1);
     await finishRefresh(f.read);
     expect(f.title(await f.read())).toBe("latest committed value");
@@ -147,7 +148,7 @@ describe("verified display background refresh", () => {
   it("replaces an older publishing result with a fully rebuilt integrity HOLD", async () => {
     const f = fixture(), old = await f.read(); f.change();
     f.tx.job.findMany.mockResolvedValue([]);
-    expect(await f.read()).toEqual(old);
+    expect(await f.display()).toEqual(old);
     await vi.advanceTimersByTimeAsync(0);
     await finishRefresh(f.read);
     const next = await f.read();
@@ -159,12 +160,12 @@ describe("verified display background refresh", () => {
   it("retains the verified display after technical failure and retries with capped backoff until success without traffic", async () => {
     const f = fixture(), old = await f.read(); f.change();
     f.tx.job.findMany.mockRejectedValue(new Error("technical read failure"));
-    expect(await f.read()).toEqual(old);
+    expect(await f.display()).toEqual(old);
     await vi.advanceTimersByTimeAsync(0);
     expect(f.read.getRefreshStatus()).toMatchObject({state: "FAILED", failures: 1, nextRetryAt: new Date(NOW.getTime() + 1_000).toISOString()});
     const transactionsDuringBackoff = f.transaction.mock.calls.length;
-    expect(await f.read()).toEqual(old);
-    expect(f.transaction).toHaveBeenCalledTimes(transactionsDuringBackoff + 1);
+    expect(await f.display()).toEqual(old);
+    expect(f.transaction).toHaveBeenCalledTimes(transactionsDuringBackoff);
     await vi.advanceTimersByTimeAsync(999);
     expect(f.tx.job.findMany).toHaveBeenCalledTimes(2);
     await vi.advanceTimersByTimeAsync(1);
@@ -179,7 +180,7 @@ describe("verified display background refresh", () => {
     expect(f.read.getRefreshStatus()).toMatchObject({state: "CURRENT", failures: 0, nextRetryAt: null});
   });
 
-  it("keeps foreground version-query failures fail-closed even while the previous display exists", async () => {
+  it("keeps internal strict reads fail-closed even while the previous display exists", async () => {
     const f = fixture(); await f.read();
     f.tx.$queryRawUnsafe.mockRejectedValueOnce(new Error("version unavailable"));
     await expect(f.read()).rejects.toThrow("version unavailable");
@@ -191,7 +192,7 @@ describe("verified display background refresh", () => {
     vi.setSystemTime(new Date(boundary - 1));
     const old = await f.read();
     vi.setSystemTime(new Date(boundary));
-    expect(await f.read()).toEqual(old);
+    expect(await f.display()).toEqual(old);
     await vi.advanceTimersByTimeAsync(0);
     await finishRefresh(f.read);
     const next = await f.read();
@@ -221,8 +222,8 @@ describe("verified display background refresh", () => {
     f.tx.job.findMany.mockResolvedValue([job("job-2", SECOND)]);
     const delivered = deferred(), selected = deferred();
     let reads = 0;
-    const read = Object.assign(f.read.bind(undefined), {readWithStatus: async () => {
-      const result = await f.read.readWithStatus();
+    const read = Object.assign(f.read.bind(undefined), {readWithStatus: async (_response?: Promise<void>, check?: string) => {
+      const result = await f.read.readWithStatus(undefined, check);
       if (++reads === 2) selected.resolve();
       await delivered.promise;
       return result;
@@ -241,7 +242,8 @@ describe("verified display background refresh", () => {
     expect(oldSearch).toMatchObject({status: 200, body: {lastUpdatedAt: initial.snapshot.lastUpdatedAt,
       companies: [{jobs: [{id: "job-1"}]}], snapshotRefresh: {...initial.snapshotRefresh, state: "UPDATING"}}});
     expect(oldCoverage).toMatchObject({status: 200, body: {snapshotRefresh: {...initial.snapshotRefresh, state: "UPDATING"}}});
-    const current = await handlePublicApi({...request, path: "/api/search"}, deps);
+    const check = (oldSearch.body as {snapshotRefresh: {check: string}}).snapshotRefresh.check;
+    const current = await handlePublicApi({...request, headers: {...request.headers, "x-job-snapshot-check": check}, path: "/api/search"}, deps);
     expect(current).toMatchObject({status: 200, body: {lastUpdatedAt: SECOND, companies: [{jobs: [{id: "job-2"}]}], snapshotRefresh: {state: "CURRENT"}}});
     expect((current.body as {snapshotRefresh: {version: string}}).snapshotRefresh.version).not.toBe(initial.snapshotRefresh.version);
   });
@@ -250,23 +252,23 @@ describe("verified display background refresh", () => {
     const f = fixture(), initial = await f.read.readWithStatus();
     f.change();
     f.tx.job.findMany.mockRejectedValueOnce(new Error("technical read failure"));
-    expect((await f.read.readWithStatus()).snapshotRefresh).toEqual({...initial.snapshotRefresh, state: "UPDATING"});
+    expect((await f.read.readWithStatus()).snapshotRefresh).toMatchObject({...initial.snapshotRefresh, state: "UPDATING", check: expect.any(String)});
     await vi.advanceTimersByTimeAsync(0);
     const failedRead = await f.read.readWithStatus();
-    expect(failedRead).toEqual({...initial, snapshotRefresh: {...initial.snapshotRefresh, state: "FAILED"}});
+    expect(failedRead).toMatchObject({...initial, snapshotRefresh: {...initial.snapshotRefresh, state: "FAILED", check: expect.any(String)}});
     f.tx.job.findMany.mockResolvedValue([{...job(), humanCorrectedTitle: "after recovery"}]);
     await vi.advanceTimersByTimeAsync(1_000);
     await finishRefresh(f.read);
-    const recovered = await f.read.readWithStatus();
+    const recovered = await f.read.readWithStatus(undefined, failedRead.snapshotRefresh.check);
     expect(recovered.snapshotRefresh.state).toBe("CURRENT");
     expect(recovered.snapshotRefresh.version).not.toBe(failedRead.snapshotRefresh.version);
-    expect(failedRead).toEqual({...initial, snapshotRefresh: {...initial.snapshotRefresh, state: "FAILED"}});
+    expect(failedRead).toMatchObject({...initial, snapshotRefresh: {...initial.snapshotRefresh, state: "FAILED", check: expect.any(String)}});
   });
 
   it("cancels pending retries on shutdown and refuses new reads", async () => {
     const f = fixture(); await f.read(); f.change();
     f.tx.job.findMany.mockRejectedValue(new Error("technical read failure"));
-    await f.read(); await vi.advanceTimersByTimeAsync(0);
+    await f.display(); await vi.advanceTimersByTimeAsync(0);
     expect(vi.getTimerCount()).toBe(1);
     await f.read.close();
     expect(vi.getTimerCount()).toBe(0);

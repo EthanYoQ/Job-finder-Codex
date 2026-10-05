@@ -249,7 +249,10 @@ export function App({ dataProvider = defaultProvider }: AppProps) {
     setCoverageFailed(false);
     const requestKeyword = activeView === "coverage" ? coverageKeyword : "";
     const cancel = startBoundedSnapshotRequest({
-      request: signal => dataProvider.listCoverage({keyword: requestKeyword, offset: 0, limit: COMPANY_DIRECTORY_PAGE_SIZE}, { signal }),
+      request: (signal, snapshotCheck) => dataProvider.listCoverage(
+        {keyword: requestKeyword, offset: 0, limit: COMPANY_DIRECTORY_PAGE_SIZE},
+        { signal, ...(snapshotCheck !== undefined ? { snapshotCheck } : {}) }
+      ),
       onResult: result => {
         if (sequence !== coverageRequestSequence.current) return;
         coverageCompletedSequence.current = sequence;
@@ -402,7 +405,9 @@ export function App({ dataProvider = defaultProvider }: AppProps) {
     setFeedbackMessage("");
 
     const cancel = startBoundedSnapshotRequest({
-      request: signal => dataProvider.searchJobs(request, { signal }),
+      request: (signal, snapshotCheck) => dataProvider.searchJobs(request, {
+        signal, ...(snapshotCheck !== undefined ? { snapshotCheck } : {})
+      }),
       onResult: (result, refreshing) => {
         if (sequence !== searchRequestSequence.current) return;
         setSearchResult(result);

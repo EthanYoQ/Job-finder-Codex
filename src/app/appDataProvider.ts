@@ -100,6 +100,7 @@ export interface StaticDocumentResult {
 
 export interface AppRequestOptions {
   signal?: AbortSignal;
+  snapshotCheck?: string;
 }
 
 export interface AppDataProvider {
@@ -253,7 +254,10 @@ export function createHttpAppDataProvider(baseUrl = ""): AppDataProvider {
 
       const response = await fetch(`${baseUrl}/api/search?${params.toString()}`, {
         ...(options?.signal ? { signal: options.signal } : {}),
-        headers: { "x-job-search-consent": "accepted" }
+        headers: {
+          "x-job-search-consent": "accepted",
+          ...(options?.snapshotCheck !== undefined ? { "x-job-snapshot-check": options.snapshotCheck } : {})
+        }
       });
 
       return readJson<SearchResult>(response);
@@ -266,7 +270,10 @@ export function createHttpAppDataProvider(baseUrl = ""): AppDataProvider {
       });
       const response = await fetch(`${baseUrl}/api/coverage?${params.toString()}`, {
         ...(options?.signal ? { signal: options.signal } : {}),
-        headers: { "x-job-search-consent": "accepted" }
+        headers: {
+          "x-job-search-consent": "accepted",
+          ...(options?.snapshotCheck !== undefined ? { "x-job-snapshot-check": options.snapshotCheck } : {})
+        }
       });
 
       return readJson<CoverageResult>(response);

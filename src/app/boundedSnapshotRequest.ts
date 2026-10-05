@@ -7,7 +7,7 @@ export const SNAPSHOT_REFRESH_MAX_ATTEMPTS = 5;
 /** A single user request may briefly follow an explicitly updating snapshot.
  * No timer survives a terminal response, error, cancellation, or the budget. */
 export function startBoundedSnapshotRequest<T extends { snapshotRefresh?: PublicSnapshotRefresh }>(options: {
-  request: (signal: AbortSignal) => Promise<T>;
+  request: (signal: AbortSignal, check?: string) => Promise<T>;
   onResult: (result: T, refreshing: boolean) => void;
   onError: (error: unknown, refreshing: boolean) => void;
   onInitialSettled: () => void;
@@ -18,6 +18,7 @@ export function startBoundedSnapshotRequest<T extends { snapshotRefresh?: Public
   let retryTimer: ReturnType<typeof setTimeout> | undefined;
   let deadlineTimer: ReturnType<typeof setTimeout> | undefined;
   let deadline: number | undefined;
+  let check: string | undefined;
 
   function stop(abort = false) {
     stopped = true;
@@ -28,7 +29,7 @@ export function startBoundedSnapshotRequest<T extends { snapshotRefresh?: Public
 
   async function read(refreshing: boolean) {
     try {
-      const result = await options.request(controller.signal);
+      const result = await options.request(controller.signal, refreshing ? check : undefined);
       if (stopped) return;
       if (deadline !== undefined && Date.now() >= deadline) { stop(true); return; }
       options.onResult(result, refreshing);
@@ -37,6 +38,8 @@ export function startBoundedSnapshotRequest<T extends { snapshotRefresh?: Public
         stop();
         return;
       }
+      // A replacement check continues this round; it never renews its budget.
+      check = result.snapshotRefresh.check ?? check;
       if (deadline === undefined) {
         deadline = Date.now() + SNAPSHOT_REFRESH_BUDGET_MS;
         deadlineTimer = setTimeout(() => stop(true), SNAPSHOT_REFRESH_BUDGET_MS);

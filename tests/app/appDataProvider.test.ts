@@ -9,6 +9,7 @@ import { handlePublicApi } from "../../src/server/publicApi";
 import { readPortablePublicSnapshot, type PortableSnapshotDb } from "../../src/db/portablePublicSnapshotRepository";
 import { accepted, job, plan, NOW } from "../helpers/portablePublicSnapshotFixture";
 import { getStaticDocument } from "../../src/server/staticDocuments";
+import { createMemoryRateLimitStore } from "../../src/server/rateLimit";
 
 const originalFetch = globalThis.fetch;
 
@@ -18,7 +19,7 @@ afterEach(() => {
 
 describe("createHttpAppDataProvider", () => {
   it("forwards snapshot status and cancellation to both read endpoints", async () => {
-    const snapshotRefresh = { state: "UPDATING", version: "opaque-version" };
+    const snapshotRefresh = { state: "UPDATING", version: "opaque-version", check: "signed-check" };
     const fetchMock = vi.fn<typeof fetch>(async () => jsonResponse({ snapshotRefresh }));
     globalThis.fetch = fetchMock;
     const provider = createHttpAppDataProvider();
@@ -29,8 +30,54 @@ describe("createHttpAppDataProvider", () => {
     expect((await provider.searchJobs(request, options)).snapshotRefresh).toEqual(snapshotRefresh);
     expect((await provider.listCoverage({ keyword: "" }, options)).snapshotRefresh).toEqual(snapshotRefresh);
     expect(fetchMock.mock.calls.map(([, init]) => init?.signal)).toEqual([controller.signal, controller.signal]);
+    expect(fetchMock.mock.calls.map(([, init]) => new Headers(init?.headers).get("x-job-snapshot-check"))).toEqual([null, null]);
+    await provider.searchJobs(request, { ...options, snapshotCheck: snapshotRefresh.check });
+    await provider.listCoverage({ keyword: "" }, { ...options, snapshotCheck: snapshotRefresh.check });
+    expect(fetchMock.mock.calls.slice(2).map(([, init]) => new Headers(init?.headers).get("x-job-snapshot-check")))
+      .toEqual([snapshotRefresh.check, snapshotRefresh.check]);
     controller.abort();
     expect(fetchMock.mock.calls[0]?.[1]?.signal?.aborted).toBe(true);
+  });
+
+  it.each(["search", "coverage"] as const)("carries the %s check and response barrier through the public API", async endpoint => {
+    const evidence = accepted();
+    const tx = {
+      crawlBatchSourceResult: { findMany: async () => [evidence.result] },
+      lifecycleSetEvidenceMember: { findMany: async () => evidence.members },
+      job: { findMany: async () => [job()] }
+    };
+    const snapshot = await readPortablePublicSnapshot({ $transaction: async work => work(tx) } as PortableSnapshotDb, { currentTime: NOW }, [plan]);
+    const responseFinished = new Promise<void>(() => {});
+    const recordTiming = vi.fn();
+    const readWithStatus = vi.fn(async (_responseFinished?: Promise<void>, check?: string) => ({
+      snapshot,
+      snapshotRefresh: { state: check === undefined ? "UPDATING" as const : "FAILED" as const, version: "display-v1", check: "signed-check" }
+    }));
+    const read = Object.assign(vi.fn(async () => snapshot), { readWithStatus });
+    const rateLimitStore = createMemoryRateLimitStore();
+    globalThis.fetch = vi.fn<typeof fetch>(async (input, init) => {
+      const url = new URL(String(input), "https://example.test");
+      const result = await handlePublicApi({
+        method: "GET", path: url.pathname, query: Object.fromEntries(url.searchParams),
+        headers: Object.fromEntries(new Headers(init?.headers)), body: undefined, ip: "127.0.0.99"
+      }, { db: {} as never, checkDatabaseReadiness: async () => true, responseFinished, recordTiming, readPortableSnapshot: read, rateLimitStore });
+      return { ok: result.status === 200, status: result.status, json: async () => result.body } as Response;
+    });
+    const provider = createHttpAppDataProvider();
+    const request = (snapshotCheck?: string) => {
+      const options = snapshotCheck === undefined ? {} : { snapshotCheck };
+      return endpoint === "search"
+        ? provider.searchJobs({ city: "北京", keyword: "", categories: [], onlyNew: false, sort: "PINYIN_ASC" }, options)
+        : provider.listCoverage({ keyword: "" }, options);
+    };
+    const initial = await request();
+    expect(initial.snapshotRefresh).toEqual({ state: "UPDATING", version: "display-v1", check: "signed-check" });
+    const followUp = await request(initial.snapshotRefresh?.check);
+    expect(followUp.snapshotRefresh).toEqual({ state: "FAILED", version: "display-v1", check: "signed-check" });
+    expect(followUp.companies).toEqual(initial.companies);
+    expect(readWithStatus).toHaveBeenNthCalledWith(1, responseFinished, undefined, recordTiming);
+    expect(readWithStatus).toHaveBeenNthCalledWith(2, responseFinished, "signed-check", recordTiming);
+    expect(read).not.toHaveBeenCalled();
   });
 
   it("maps frontend search filters to the consent-gated server API contract", async () => {

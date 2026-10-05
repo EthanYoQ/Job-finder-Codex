@@ -48,7 +48,7 @@ export interface PublicApiDeps {
   responseFinished?: Promise<void>;
   recordTiming?: SnapshotReadTiming;
   readPortableSnapshot?: (() => Promise<PortablePublicSnapshot>) & {
-    readWithStatus?: (responseFinished?: Promise<void>, recordTiming?: SnapshotReadTiming) => Promise<PortableSnapshotRead>;
+    readWithStatus?: (responseFinished?: Promise<void>, check?: string, recordTiming?: SnapshotReadTiming) => Promise<PortableSnapshotRead>;
   };
 }
 
@@ -192,7 +192,7 @@ export async function handlePublicApi(request: PublicApiRequest, deps: PublicApi
 
       const read = deps.readPortableSnapshot;
       const readStartedAt = performance.now();
-      const display = read ? await (read.readWithStatus?.(deps.responseFinished, deps.recordTiming) ?? read().then(snapshot => ({snapshot}))) : undefined;
+      const display = read ? await (read.readWithStatus?.(deps.responseFinished, request.headers["x-job-snapshot-check"], deps.recordTiming) ?? read().then(snapshot => ({snapshot}))) : undefined;
       if (read) deps.recordTiming?.("read", performance.now() - readStartedAt);
       const projectStartedAt = performance.now();
       const result = display
@@ -225,7 +225,7 @@ export async function handlePublicApi(request: PublicApiRequest, deps: PublicApi
         };
       const read = deps.readPortableSnapshot;
       const readStartedAt = performance.now();
-      const display = read ? await (read.readWithStatus?.(deps.responseFinished, deps.recordTiming) ?? read().then(snapshot => ({snapshot}))) : undefined;
+      const display = read ? await (read.readWithStatus?.(deps.responseFinished, request.headers["x-job-snapshot-check"], deps.recordTiming) ?? read().then(snapshot => ({snapshot}))) : undefined;
       if (read) deps.recordTiming?.("read", performance.now() - readStartedAt);
       const projectStartedAt = performance.now();
       const result = display

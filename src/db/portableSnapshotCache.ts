@@ -113,7 +113,12 @@ export class PortableSnapshotCache {
     return this.entry?.snapshot.generatedAt;
   }
 
-  /** Only for the owning reader's fixed criteria while its rebuild owns the DB. */
+  getDisplayVersion(): string | undefined {
+    return this.entry?.displayVersion;
+  }
+
+  /** Last verified display for the owning reader's fixed criteria. The caller
+   * must bind its refresh status; this access never verifies current DB state. */
   getDuringRefresh(now: number): PortablePublicSnapshot | undefined {
     return this.getDuringRefreshRead(now)?.snapshot;
   }

@@ -1,3 +1,4 @@
+import { setImmediate as nextTurn } from "node:timers/promises";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createPortableSnapshotReader } from "../../src/server/httpServer";
 import { handlePublicApi, type PublicApiDeps } from "../../src/server/publicApi";
@@ -13,6 +14,7 @@ function deferred() {
   return { promise, resolve, reject };
 }
 
+const readers: ReturnType<typeof createPortableSnapshotReader>[] = [];
 function fixture() {
   const evidence = accepted();
   const tx = {
@@ -22,14 +24,15 @@ function fixture() {
   };
   const transaction = vi.fn(async (work: (db: PortableSnapshotTransactionDb) => Promise<unknown>) => work(tx));
   const db = { $transaction: transaction } as PortableSnapshotDb;
-  return { tx, transaction, read: createPortableSnapshotReader(db) };
+  const read = createPortableSnapshotReader(db); readers.push(read);
+  return { tx, transaction, read };
 }
 
 beforeEach(() => {
   vi.useFakeTimers({ toFake: ["Date"] });
   vi.setSystemTime(NOW);
 });
-afterEach(() => vi.useRealTimers());
+afterEach(async () => {await Promise.all(readers.splice(0).map(read => read.close())); vi.useRealTimers();});
 
 describe("portable snapshot reader", () => {
   it("attributes SQL to its initiating request and only wait/clone to a joining request", async () => {
@@ -37,21 +40,21 @@ describe("portable snapshot reader", () => {
     const versions = () => PORTABLE_SNAPSHOT_VERSION_TABLES.map(relation => ({relation, epoch: "0", count: "1", digest: "a".repeat(64)}));
     const query = vi.fn(async () => versions());
     Object.assign(f.tx, {$queryRawUnsafe: query});
-    const initial = await f.read();
     const gate = deferred();
     query.mockImplementationOnce(async () => {await gate.promise; return versions();});
     const owner = vi.fn(), joiner = vi.fn();
-    const first = f.read.readWithStatus(undefined, owner);
-    const second = f.read.readWithStatus(undefined, joiner);
+    const first = f.read.readWithStatus(undefined, undefined, owner);
+    const second = f.read.readWithStatus(undefined, undefined, joiner);
     await new Promise(resolve => setTimeout(resolve, 20));
     gate.resolve();
     const results = await Promise.all([first, second]);
-    expect(results.map(result => result.snapshot)).toEqual([initial, initial]);
-    expect(owner.mock.calls.map(([phase]) => phase)).toEqual(["planPrep", "txAcquire", "versionSQL", "cacheClone", "tx", "clone"]);
+    expect(results[0]!.snapshot.totalJobs).toBe(1);
+    expect(results[1]!.snapshot).toEqual(results[0]!.snapshot);
+    expect(owner.mock.calls.map(([phase]) => phase)).toEqual(["planPrep", "txAcquire", "versionSQL", "tx", "rebuild", "clone"]);
     expect(owner.mock.calls.find(([phase]) => phase === "versionSQL")![1]).toBeGreaterThanOrEqual(15);
     expect(joiner.mock.calls.map(([phase]) => phase)).toEqual(["sharedWait", "clone"]);
     expect(joiner.mock.calls[0]![1]).toBeGreaterThanOrEqual(15);
-    expect(query).toHaveBeenCalledTimes(2); // Warmup plus one shared version read.
+    expect(query).toHaveBeenCalledOnce(); // One cold verified read, owned by the initiating request.
     for (const [, duration] of [...owner.mock.calls, ...joiner.mock.calls]) {
       expect(Number.isFinite(duration)).toBe(true);
       expect(duration).toBeGreaterThanOrEqual(0);
@@ -59,7 +62,7 @@ describe("portable snapshot reader", () => {
     await f.read.close();
   });
 
-  it("shares a fresh version check for simultaneous filtered search and coverage after warmup", async () => {
+  it("serves simultaneous filtered search and coverage before the shared version check after warmup", async () => {
     const f = fixture();
     const query = vi.fn(async () => PORTABLE_SNAPSHOT_VERSION_TABLES.map(relation => ({relation, epoch: "0", count: "1", digest: "a".repeat(64)})));
     Object.assign(f.tx, {$queryRawUnsafe: query});
@@ -76,6 +79,8 @@ describe("portable snapshot reader", () => {
     const [searchResult, coverageResult] = await Promise.all([search, coverage]);
     expect(searchResult).toMatchObject({status: 200, body: {totalJobs: 0, coverageSummary: {publishingCompanyCount: 1}}});
     expect(coverageResult).toMatchObject({status: 200, body: {coverageSummary: {publishingCompanyCount: 1}}});
+    expect(query).toHaveBeenCalledOnce();
+    for (let turn = 0; turn < 100 && query.mock.calls.length < 2; turn++) await nextTurn();
     expect(query).toHaveBeenCalledTimes(2);
     expect(f.transaction).toHaveBeenCalledTimes(2);
     expect(f.tx.job.findMany).toHaveBeenCalledOnce();

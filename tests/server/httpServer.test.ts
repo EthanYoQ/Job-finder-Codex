@@ -148,7 +148,7 @@ describe("http server", () => {
 
   it("only exposes finite numeric stages from the fixed timing allowlist", async () => {
     const snapshot = await publicSnapshot();
-    const read = Object.assign(async () => snapshot, {readWithStatus: async (_finished?: Promise<void>, record?: (phase: string, duration: number) => void) => {
+    const read = Object.assign(async () => snapshot, {readWithStatus: async (_finished?: Promise<void>, _check?: string, record?: (phase: string, duration: number) => void) => {
       record?.("versionSQL", 12.5);
       record?.("txAcquire", Number.NaN);
       record?.("cacheClone", -1);

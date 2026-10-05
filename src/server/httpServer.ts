@@ -15,6 +15,7 @@ import { resolveDeploymentBootstrapConfig } from "../ops/deploymentBootstrap";
 import { readPortablePublicSnapshot, readPortablePublicSnapshotWithStatus, type PortableSnapshotRead, type PortablePublicSnapshot, type PortableSnapshotDb, type SnapshotReadTiming } from "../db/portablePublicSnapshotRepository";
 import { SOURCE_QUALITY_POLICY_ID } from "../crawler/sourceQualityAdmission";
 import { PortableSnapshotCache } from "../db/portableSnapshotCache";
+import { createSnapshotRefreshChecks } from "./snapshotRefreshCheck";
 
 const DEFAULT_HOST = "0.0.0.0";
 const DEFAULT_PORT = 3000;
@@ -39,6 +40,8 @@ export interface HttpServerOptions {
 type HttpServerDeps = PublicApiDeps & AdminApiDeps;
 type HttpResponse = PublicApiResponse | AdminApiResponse;
 
+export const MAX_PORTABLE_RESPONSE_BARRIERS = 64;
+
 export interface PortableSnapshotRefreshStatus {
   state: "CURRENT" | "UPDATING" | "FAILED";
   failures: number;
@@ -47,107 +50,143 @@ export interface PortableSnapshotRefreshStatus {
 }
 export interface PortableSnapshotReader {
   (): Promise<PortablePublicSnapshot>;
-  readWithStatus(responseFinished?: Promise<void>, recordTiming?: SnapshotReadTiming): Promise<PortableSnapshotRead>;
+  readWithStatus(responseFinished?: Promise<void>, check?: string, recordTiming?: SnapshotReadTiming): Promise<PortableSnapshotRead>;
   getRefreshStatus(): PortableSnapshotRefreshStatus;
   close(): Promise<void>;
 }
 
-/** Check versions outside an active rebuild; publish one owned verified display. */
+/** Serve an owned verified display; correlate one bounded follow-up with a
+ * version check that starts after its original request. Never poll while idle. */
 export function createPortableSnapshotReader(db: PortableSnapshotDb): PortableSnapshotReader {
   let inFlight: Promise<PortableSnapshotRead> | undefined;
-  let inFlightResponses: Promise<void>[] | undefined;
   let background: Promise<void> | undefined;
   let timer: ReturnType<typeof setTimeout> | undefined;
   let waitingForResponses = false;
   let closed = false;
+  let requested = 0, completed = 0, failed = 0;
+  let queuedResponses: Promise<void>[] | undefined;
+  let nextResponses: Promise<void>[] | undefined;
+  let acceptingQueuedResponses = false, acceptingNextResponses = false;
   let status: PortableSnapshotRefreshStatus = {state: "CURRENT", failures: 0, nextRetryAt: null, lastVerifiedAt: null};
   const cache = new PortableSnapshotCache();
+  const checks = createSnapshotRefreshChecks();
   const scheduleRefresh = (delay = 0, responses: readonly Promise<void>[] = []): void => {
     if (closed || background || timer || waitingForResponses) return;
     status = {...status, state: delay ? "FAILED" : "UPDATING", nextRetryAt: delay ? new Date(Date.now() + delay).toISOString() : null};
-    // An initial stale HTTP read must finish encoding and flushing before its
-    // rebuild can consume the event loop. A zero-delay timer alone can run while
-    // gzip is still pending. Coalesced readers share this fixed response barrier;
-    // later traffic cannot extend it. Non-HTTP reads and retries remain autonomous.
-    const begin = (): void => {
-      waitingForResponses = false;
-      if (closed) return;
-      timer = setTimeout(() => {
-        timer = undefined;
-        status = {...status, state: "UPDATING", nextRetryAt: null};
-        const startedAt = Date.now();
-        console.info("PORTABLE_SNAPSHOT_REFRESH_STARTED", {...status});
-        let retry = false, refreshAgain = false;
-        let phase = "BUILD";
-        background = readPortablePublicSnapshot(db, {}, undefined, cache, undefined, yieldSnapshotWork).then(async snapshot => {
-          status = {state: "UPDATING", failures: 0, nextRetryAt: null, lastVerifiedAt: snapshot.generatedAt};
-          // A commit during a fill cannot be mixed into it. Check once more after
-          // publication so that a newer version also gets rebuilt without waiting
-          // for another browser request. Oversized projections remain uncached.
-          if (!closed && cache.hasSnapshot()) {
-            phase = "POST_BUILD_VERSION_CHECK";
-            await readPortablePublicSnapshot(db, {}, undefined, cache, () => {refreshAgain = true;}, yieldSnapshotWork);
-          }
-          status = {...status, state: refreshAgain ? "UPDATING" : "CURRENT"};
-          console.info("PORTABLE_SNAPSHOT_REFRESH_COMPLETED", {...status, durationMs: Date.now() - startedAt});
-        }).catch(() => {
-          retry = true;
-          status = {...status, state: "FAILED", failures: status.failures + 1};
-        }).finally(() => {
-          background = undefined;
-          if (retry) {
-            const delay = Math.min(1_000 * 2 ** Math.min(status.failures - 1, 5), 30_000);
-            scheduleRefresh(delay);
-            console.error("PORTABLE_SNAPSHOT_REFRESH_FAILED", {...status, phase, durationMs: Date.now() - startedAt});
-          } else if (refreshAgain) scheduleRefresh();
-        });
-      }, delay);
-    };
-    if (responses.length > 0) {
-      waitingForResponses = true;
-      void Promise.allSettled(responses).then(begin);
-    } else begin();
+    // Freeze this synchronous group before waiting. Later traffic can neither
+    // extend its response barrier nor start overlapping database work.
+    waitingForResponses = true;
+    queuedResponses = responses.slice(0, MAX_PORTABLE_RESPONSE_BARRIERS);
+    acceptingQueuedResponses = true;
+    queueMicrotask(() => {
+      acceptingQueuedResponses = false;
+      const barrier = queuedResponses!;
+      queuedResponses = undefined;
+      void Promise.allSettled(barrier).then(() => {
+        waitingForResponses = false;
+        if (closed) return;
+        timer = setTimeout(() => {
+          timer = undefined;
+          const target = requested;
+          status = {...status, state: "UPDATING", nextRetryAt: null};
+          const startedAt = Date.now(), previousVersion = cache.getDisplayVersion();
+          console.info("PORTABLE_SNAPSHOT_REFRESH_STARTED", {...status});
+          let retry = false, refreshAgain = false;
+          let phase = "VERSION_CHECK_OR_BUILD";
+          background = Promise.resolve(inFlight).then(() =>
+            closed ? undefined : readPortablePublicSnapshot(db, {}, undefined, cache, undefined, yieldSnapshotWork)).then(async snapshot => {
+            if (!snapshot) return;
+            status = {state: "UPDATING", failures: 0, nextRetryAt: null, lastVerifiedAt: snapshot.generatedAt};
+            // Keep the existing post-build check. An unchanged version-only read
+            // already covers its target; later arrivals require a successor below.
+            if (!closed && cache.hasSnapshot() && cache.getDisplayVersion() !== previousVersion) {
+              phase = "POST_BUILD_VERSION_CHECK";
+              await readPortablePublicSnapshot(db, {}, undefined, cache, () => {refreshAgain = true;}, yieldSnapshotWork);
+            }
+            if (!refreshAgain) completed = target;
+            status = {...status, state: refreshAgain || requested > target ? "UPDATING" : "CURRENT"};
+            console.info("PORTABLE_SNAPSHOT_REFRESH_COMPLETED", {...status, durationMs: Date.now() - startedAt});
+          }).catch(() => {
+            retry = true;
+            failed = requested;
+            status = {...status, state: "FAILED", failures: status.failures + 1};
+          }).finally(() => {
+            background = undefined;
+            const responses = nextResponses ?? [];
+            nextResponses = undefined;
+            acceptingNextResponses = false;
+            if (retry) {
+              const delay = Math.min(1_000 * 2 ** Math.min(status.failures - 1, 5), 30_000);
+              scheduleRefresh(delay, responses);
+              console.error("PORTABLE_SNAPSHOT_REFRESH_FAILED", {...status, phase, durationMs: Date.now() - startedAt});
+            } else if (refreshAgain || requested > target) scheduleRefresh(0, responses);
+          });
+        }, delay);
+      });
+    });
   };
-  const readWithStatus = async (responseFinished?: Promise<void>, recordTiming?: SnapshotReadTiming): Promise<PortableSnapshotRead> => {
+  const readWithStatus = async (responseFinished?: Promise<void>, check?: string, recordTiming?: SnapshotReadTiming): Promise<PortableSnapshotRead> => {
     if (closed) throw new Error("PORTABLE_SNAPSHOT_READER_CLOSED");
-    // This reader owns one DB and fixed plans/options. A rebuild can occupy the
-    // pool's sole connection: don't queue foreground version checks behind it.
-    // The post-fill check catches commits made during this explicit interval.
-    if (background) {
-      const cloneStartedAt = performance.now();
-      const previous = cache.getDuringRefreshRead(Date.now());
-      if (previous) {
-        recordTiming?.("backgroundClone", performance.now() - cloneStartedAt);
-        return {snapshot: previous.snapshot, snapshotRefresh: {state: status.state === "FAILED" ? "FAILED" : "UPDATING", version: previous.version}};
+    const cloneStartedAt = performance.now();
+    const now = Date.now(), previous = cache.getDuringRefreshRead(now);
+    if (previous) recordTiming?.(background ? "backgroundClone" : "cacheClone", performance.now() - cloneStartedAt);
+    const correlated = check === undefined ? undefined : checks.read(check, requested, now);
+    if (check !== undefined && correlated === undefined && !previous) throw new Error("INVALID_PORTABLE_SNAPSHOT_CHECK");
+    if (previous) {
+      let target: number;
+      if (check !== undefined) {
+        // Expired, forged and other-process checks terminate this bounded request.
+        // They must not invent CURRENT or repeatedly open fresh background work.
+        if (correlated === undefined) return {snapshot: previous.snapshot, snapshotRefresh: {state: "FAILED", version: previous.version}};
+        target = correlated;
+      } else {
+        if (!Number.isSafeInteger(requested + 1)) throw new Error("PORTABLE_SNAPSHOT_SEQUENCE_EXHAUSTED");
+        target = ++requested;
+        check = checks.issue(target, now);
+        if (background) {
+          if (!nextResponses) {
+            nextResponses = responseFinished ? [responseFinished] : [];
+            acceptingNextResponses = true;
+            queueMicrotask(() => {acceptingNextResponses = false;});
+          } else if (acceptingNextResponses && responseFinished && nextResponses.length < MAX_PORTABLE_RESPONSE_BARRIERS) nextResponses.push(responseFinished);
+        } else if (waitingForResponses || timer) {
+          if (acceptingQueuedResponses && responseFinished && queuedResponses!.length < MAX_PORTABLE_RESPONSE_BARRIERS) queuedResponses!.push(responseFinished);
+        } else scheduleRefresh(0, responseFinished ? [responseFinished] : []);
+        if (status.state === "FAILED") failed = requested;
       }
+      const state = target <= completed ? "CURRENT" : target <= failed ? "FAILED" : "UPDATING";
+      return {snapshot: previous.snapshot, snapshotRefresh: {state, version: previous.version, check}};
     }
+    // A projection over the cache size bound is not cached. Finish any existing
+    // worker first, then use the original complete verified read path.
+    if (background) {
+      await background;
+      return readWithStatus(responseFinished, check, recordTiming);
+    }
+    return readStrict(recordTiming);
+  };
+  const readStrict = async (recordTiming?: SnapshotReadTiming): Promise<PortableSnapshotRead> => {
+    if (closed) throw new Error("PORTABLE_SNAPSHOT_READER_CLOSED");
+    if (background) await background;
+    if (closed) throw new Error("PORTABLE_SNAPSHOT_READER_CLOSED");
     const joined = Boolean(inFlight);
     const waitStartedAt = performance.now();
-    if (inFlight) {
-      if (responseFinished) inFlightResponses!.push(responseFinished);
-    } else {
-      const responses = responseFinished ? [responseFinished] : [];
-      inFlightResponses = responses;
-      inFlight = readPortablePublicSnapshotWithStatus(db, {}, undefined, cache, () => {
-        scheduleRefresh(0, responses);
-        // Capture the state for this stale read synchronously with its scheduling
-        // decision. Never label a returned old display using a later global state.
-        return status.state === "FAILED" ? "FAILED" : "UPDATING";
-      }, yieldSnapshotWork, recordTiming ? {startedAt: waitStartedAt, record: recordTiming} : undefined)
+    if (!inFlight) {
+      inFlight = readPortablePublicSnapshotWithStatus(db, {}, undefined, cache, undefined, yieldSnapshotWork,
+        recordTiming ? {startedAt: waitStartedAt, record: recordTiming} : undefined)
         .then(result => {status = {...status, lastVerifiedAt: cache.getVerifiedAt() ?? result.snapshot.generatedAt}; return result;})
-        .finally(() => { inFlight = undefined; inFlightResponses = undefined; });
+        .finally(() => {inFlight = undefined;});
     }
-    // Each request owns its projection, including nested arrays and objects.
+    // Startup still waits for complete verification. SQL belongs only to its
+    // initiating request; joiners report their own wait and owned clone.
     const result = await inFlight;
-    // A joining request reports only its own wait and clone. The underlying
-    // preparation/SQL timings belong exclusively to the request that started it.
     if (joined) recordTiming?.("sharedWait", performance.now() - waitStartedAt);
     const cloneStartedAt = performance.now();
     const owned = structuredClone(result);
     recordTiming?.("clone", performance.now() - cloneStartedAt);
     return owned;
   };
-  const read = async (): Promise<PortablePublicSnapshot> => (await readWithStatus()).snapshot;
+  const read = async (): Promise<PortablePublicSnapshot> => (await readStrict()).snapshot;
   return Object.assign(read, {
     readWithStatus,
     getRefreshStatus: () => ({...status}),
