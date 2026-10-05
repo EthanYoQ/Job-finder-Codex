@@ -1,523 +1,417 @@
 {
   "schemaVersion": 1,
-  "kind": "safe-external-host-source-and-observer-snapshot",
+  "kind": "safe-external-host-source-snapshot",
   "repository": "EthanYoQ/Job-finder-Codex",
-  "branch": "backup/portable-next46-observer-20261005-2225",
-  "preparedAt": "2026-10-05T22:25:00Z",
-  "deliveryFrozenAt": "2026-10-05T22:18:04.545340Z",
-  "statusCutoff": "2026-10-05T22:22:00Z",
-  "statusAtCutoff": "four hosts prepared; none launched at handoff, later status not inferred",
-  "deliveryManifestSha256": "1739b2a0189af4fa86e3370ac760d63cbef6705033b13fb4ddbec20f67767980",
-  "sourceFilelistSha256": "fc86535f014f6c16509ebfb4e46cb3734628f94a4347e2eabcf7623be16f7c88",
-  "sourceInventorySha256": "35ded929ae135202d7af5142878bffdad5a34ae24af47fa2b8b98284d921cd0c",
+  "branch": "backup/portable-three46-20261005-2348",
+  "preparedAt": "2026-10-05T23:48:00Z",
+  "sourceCutoff": "2026-10-05T23:39:30.048415Z",
+  "sourceReportSha256": "dac465c192d3f316823fee27cf366836c8f317f9eb3cc27061587ac950596ac8",
+  "statusAtCutoff": "PREPARED_NOT_LAUNCHED",
   "sourceCommit": null,
-  "parentSafeBackupCommit": "fccc397f6abb90c0f980af63bcc1d3cb469aac59",
-  "sourceCount": 57,
-  "sourceBytes": 270713,
-  "hosts": [
-    "astellas",
-    "grifols",
-    "bms",
-    "biogen"
+  "runtimeIdentityReusable": false,
+  "safeParentCommit": "633eb0fcab80763a87bbd599c639f4f2288f0284",
+  "sourceFiles": 44,
+  "sourceBytes": 221105,
+  "hostSources": [
+    "merck",
+    "gilead",
+    "organon"
   ],
+  "inputInventories": {
+    "merck": {
+      "sha256": "e8d81d862797ccb812f31652c95013af00bf62d2c592e757bf300a12993c34f1",
+      "entries": 77
+    },
+    "gilead": {
+      "sha256": "07bfea81798d8a678a491d9be6899253da36c2b47e902ae4fae865c7d99a53f1",
+      "entries": 77
+    },
+    "organon": {
+      "sha256": "2d7851f498d070daaf262805e3a32cb45035789a3e180029b6d167afb760add9",
+      "entries": 77
+    }
+  },
+  "inventoryDistinctPaths": 193,
+  "selectedPaths": 44,
+  "excludedPaths": 149,
   "validation": {
-    "publisherReportedSyntheticChecksPerHost": 15,
-    "publisherReportedSchemaMigrations": 48,
-    "publisherReportedOriginalPackageEntriesMatched": 57,
-    "independentlyCheckedSelectedSourceHashes": 57,
+    "publisherReportedChecksPerSource": 15,
+    "publisherReportedSupplementalChecksPerSource": 6,
+    "publisherReportedSchemaMigrationCount": 48,
+    "selectedFrozenHashesVerified": 44,
+    "staticContentReviewed": true,
     "secretScanFindings": 0,
-    "ranTestsOrSource": false,
-    "ranCI": false,
-    "ranSQLOrNetworkRead": false
+    "sourceOrTestsExecuted": false,
+    "databaseOrSourceNetworkAccessed": false,
+    "CIRun": false
   },
-  "observer": {
-    "path": "observation/read-public-v2.py",
-    "sha256": "3c2c6161c88bda76e7e4fc642a08f4c474ccd3636b905ab1820c0d3145264899",
-    "bytes": 2816,
-    "originalComparedSha256": "909d94f6c0438e91ea3e75f413a6af92830b7a2ffc2b75edb778133aa34b6ee5",
-    "reportedSyntaxCheck": true,
-    "reportedActualCurrentReadAt": "2026-10-05T22:12:46Z",
-    "dedicatedRegressionTestsOrCI": false,
-    "actualObservationsIncluded": false
-  },
-  "inventory": {
-    "originalCombinedEntries": 284,
-    "selectedCombinedEntries": 56,
-    "excludedCombinedEntries": 228,
-    "separatelyFrozenObserverFiles": 1
-  },
+  "restorationLimitations": [
+    "configs and plans reconstructed by archived recipe, not recovered original bytes",
+    "original route file and historical bootstrap/control/runtime state not reconstructed",
+    "matching C46 producer/dependencies/configuration/identity and fresh observation required",
+    "ARCHIVE_STORE helper missing; dedicated starter plus preflight check and separate evidence archival required",
+    "no sampler attached",
+    "generated broad inventories are not safe export allowlists"
+  ],
+  "excludedCategories": [
+    "historical references/originals/diffs",
+    "actual config/identity/source-plan/registration",
+    "actual next-due observation references and reports",
+    "generated or actual SQL/request/control/diagnostic artifacts",
+    "raw jobs, responses, credentials, environment and internal notes"
+  ],
   "files": [
     {
-      "path": "hosts46/astellas/archive-transfer.mjs",
-      "sha256": "698e966e5552967845a5252d2b3df2acca28dcd8dbbb0ae41755a3a6231e6a99",
+      "path": "hosts46/merck/archive-transfer.mjs",
       "mode": "100644",
       "type": "blob",
       "sha": "5a454d21f34f9680221bbee2c98b3fecb94884f0",
+      "sha256": "698e966e5552967845a5252d2b3df2acca28dcd8dbbb0ae41755a3a6231e6a99",
       "bytes": 1777
     },
     {
-      "path": "hosts46/astellas/context-read.sql",
-      "sha256": "e065be155a6482336c0d4f24832b94508c06b3c2e8c331856cf2c94e431d3cc0",
+      "path": "hosts46/merck/context-read.sql",
       "mode": "100644",
       "type": "blob",
-      "sha": "5b5a13b649fff08c861d139111dddd3608cc1352",
-      "bytes": 2151
+      "sha": "61aa7c724b7505d68649cc1a7ad17be75b546e54",
+      "sha256": "9e72262d32f8f1d3d574558d633a9c2599b3f046dab9793cb7008c8cea54f444",
+      "bytes": 2136
     },
     {
-      "path": "hosts46/astellas/host-files.mts",
-      "sha256": "c0433bd1a968fbe411f38f7c4a908d2106a64ca937724149315cbc134c931198",
+      "path": "hosts46/merck/host-files.mts",
       "mode": "100644",
       "type": "blob",
       "sha": "f130e14ace5f1b66bbbf3f86e8e2ed55f0db7b7b",
-      "bytes": 4072
-    },
-    {
-      "path": "hosts46/astellas/host-helper-functions.js",
-      "sha256": "9666b003a231f363c6d73ef757a1f34442a116405c4f4c079da0e88f36a8e1e4",
-      "mode": "100644",
-      "type": "blob",
-      "sha": "7d0970d9dd4ec5611446c89773232b88c329fca9",
-      "bytes": 7074
-    },
-    {
-      "path": "hosts46/astellas/host-stage-functions.js",
-      "sha256": "80bbd07046db6bfae1be2119822ac5bff6b21015b9a559afd28922e902b13a79",
-      "mode": "100644",
-      "type": "blob",
-      "sha": "03e71b5ae5eab75a7c4b9f71d3301ddfae3e78f1",
-      "bytes": 5981
-    },
-    {
-      "path": "hosts46/astellas/relay-files.mjs",
-      "sha256": "d551acf3f9f2fe03cb496d0c3b074e59c931c589a52de9b2c485d8a829c9f412",
-      "mode": "100644",
-      "type": "blob",
-      "sha": "796643d6a36a8f0f50f9aec4812729fee6cc3467",
-      "bytes": 5474
-    },
-    {
-      "path": "hosts46/astellas/runtime/continuous-relay-v3-durable-monitor.js",
-      "sha256": "687b4a2f0a73dc0c55ec8c63bb9e13c867941c80a10ab02111654a5f24766259",
-      "mode": "100644",
-      "type": "blob",
-      "sha": "093493b8e710599e96e6c768067687605b835f4a",
-      "bytes": 2908
-    },
-    {
-      "path": "hosts46/astellas/runtime/load-host-state.js",
-      "sha256": "db4fe86879dd5baef3063daf91d71e1d9fa62507e872280d34d56cff4df79130",
-      "mode": "100644",
-      "type": "blob",
-      "sha": "f3164d0c5d2aa7aa0ff70e2f20b31a6c31cdcc19",
-      "bytes": 1877
-    },
-    {
-      "path": "hosts46/astellas/runtime/load-source-runtime.js",
-      "sha256": "41a05b53f9e8cafd12928359625a2b247009acbdd6a2c79fd903bfb2087121f7",
-      "mode": "100644",
-      "type": "blob",
-      "sha": "eb57b3f0ce4ad3b37f5d1a5bb599a3423fdf5d74",
-      "bytes": 1876
-    },
-    {
-      "path": "hosts46/astellas/runtime/preflight/preflight-launch.mjs",
-      "sha256": "a6af2dd6c415ee875de89cfc45560567a466d22ff2275d705398d18bde3600c4",
-      "mode": "100644",
-      "type": "blob",
-      "sha": "aae8658b6748724e68d5d633967a3d37cf66016f",
-      "bytes": 10206
-    },
-    {
-      "path": "hosts46/astellas/runtime/preflight/runtime-check.mjs",
-      "sha256": "0f55d1f662d9eb3329298c68cff3b4a6161dedbefe95c86084bb451bd9e75ee7",
-      "mode": "100644",
-      "type": "blob",
-      "sha": "1aaf44921d83b86bb9c0065a46393286a8b725c3",
-      "bytes": 3523
-    },
-    {
-      "path": "hosts46/astellas/runtime/review-publication.py",
-      "sha256": "e0e836e5320583aa29342baec035c9d0ae5dd00fdd3bb7c88c5348ef16dca9d7",
-      "mode": "100644",
-      "type": "blob",
-      "sha": "86b844af8edf19d25dad6bf9596f4fce5209d7eb",
-      "bytes": 3415
-    },
-    {
-      "path": "hosts46/astellas/runtime/start-monitor-portable42.js",
-      "sha256": "30c5c8877af4ba75bc514d8277321148a73181f171e16044589869144bac1e17",
-      "mode": "100644",
-      "type": "blob",
-      "sha": "cdda7430b8a6a2ec40bc37e9bcd98991fcd8ab8c",
-      "bytes": 6818
-    },
-    {
-      "path": "hosts46/grifols/archive-transfer.mjs",
-      "sha256": "698e966e5552967845a5252d2b3df2acca28dcd8dbbb0ae41755a3a6231e6a99",
-      "mode": "100644",
-      "type": "blob",
-      "sha": "5a454d21f34f9680221bbee2c98b3fecb94884f0",
-      "bytes": 1777
-    },
-    {
-      "path": "hosts46/grifols/context-read.sql",
-      "sha256": "f9916bf9e1ac2786429f971d305c7ce955413329e5c21b5f5a11923e0c0546b7",
-      "mode": "100644",
-      "type": "blob",
-      "sha": "10e6a033968bd19af6159b6b47eaeab235625b83",
-      "bytes": 2146
-    },
-    {
-      "path": "hosts46/grifols/host-files.mts",
       "sha256": "c0433bd1a968fbe411f38f7c4a908d2106a64ca937724149315cbc134c931198",
-      "mode": "100644",
-      "type": "blob",
-      "sha": "f130e14ace5f1b66bbbf3f86e8e2ed55f0db7b7b",
       "bytes": 4072
     },
     {
-      "path": "hosts46/grifols/host-helper-functions.js",
-      "sha256": "2b4495ade9191f885c64c7aea57e1127ee594e8cbfcc521d7978449e2bb28ce1",
+      "path": "hosts46/merck/host-helper-functions.js",
       "mode": "100644",
       "type": "blob",
-      "sha": "4aa2e257ab9c8851f60ed057d4cdd968c5723da3",
-      "bytes": 7067
+      "sha": "04ebe455eb49d6b4af448b8d4411a911a738ad3f",
+      "sha256": "17cb599517b3d712f395b3e30d81a634ada4bc92c6bf19e51e3ff6be8217dfe8",
+      "bytes": 7053
     },
     {
-      "path": "hosts46/grifols/host-stage-functions.js",
-      "sha256": "a44d785657a76a312959f21926c496df8659245f161c008bdeabd8795a4814dc",
+      "path": "hosts46/merck/host-stage-functions.js",
       "mode": "100644",
       "type": "blob",
-      "sha": "eb7bdaf1e598e92d9ec9a2c063658f6652f2d36a",
-      "bytes": 5970
+      "sha": "94e0147a6553a283c5bba233ec784101c36c6e28",
+      "sha256": "45ae7cb6587d03d2fd374395131f74daa75c5fc9f5ea1e4702733f1c400a8350",
+      "bytes": 5948
     },
     {
-      "path": "hosts46/grifols/relay-files.mjs",
-      "sha256": "07d4bd5d4075d56c4da92ef7ac912c597bbde7393e4df754a03db78b0d3460d6",
+      "path": "hosts46/merck/relay-files.mjs",
       "mode": "100644",
       "type": "blob",
-      "sha": "97ab1b702fdbeb41f31bccd1a169ae3119e56f84",
-      "bytes": 5473
+      "sha": "8aa2a9be84796b282a39e241a1fa5ae233664237",
+      "sha256": "46531f7c0737d7d212f9c7680ca24aec6ce2af1f15e94bbb62b7b48c161cf9a3",
+      "bytes": 5471
     },
     {
-      "path": "hosts46/grifols/runtime/continuous-relay-v3-durable-monitor.js",
-      "sha256": "e8bc63958de94e2e99ae1234cb7bc6ace71395d87c2562fbbf0c1c0e2ec2d6b5",
+      "path": "hosts46/merck/runtime/continuous-relay-v3-durable-monitor.js",
       "mode": "100644",
       "type": "blob",
-      "sha": "941fbff189ac816881b2397e33c5f5cb88169b12",
-      "bytes": 2901
+      "sha": "ced9c27f327c09da0f83ed0916f02d49120476af",
+      "sha256": "6599547913d83a513bb55a96e034af50ffbc5c729ac8cebe3bc273186a386bb8",
+      "bytes": 2887
     },
     {
-      "path": "hosts46/grifols/runtime/load-host-state.js",
-      "sha256": "d128fd9b06706940f52608b190e898f0b6971ccbeecc2e97f3d78242fcd44d55",
+      "path": "hosts46/merck/runtime/load-host-state.js",
       "mode": "100644",
       "type": "blob",
-      "sha": "e7416fa14b19ff346700d216c28f90cc83591a47",
-      "bytes": 1873
+      "sha": "3c84bd59f3a3112e40e6662d0303bf9432c4c118",
+      "sha256": "b1616d0f78fd51de6836bf906daa36268d482924443bf6d24861845ad1168398",
+      "bytes": 1865
     },
     {
-      "path": "hosts46/grifols/runtime/load-source-runtime.js",
-      "sha256": "8b26011282a55110922030beeeed35f794bce2c3381c0fc2295caac8aebe8360",
+      "path": "hosts46/merck/runtime/load-source-runtime.js",
       "mode": "100644",
       "type": "blob",
-      "sha": "b2f0c5699b26bd411329b9c21db8c8248cc4c04e",
-      "bytes": 1867
+      "sha": "6edb5b46678c62ea7bf7c84c1c2a3a75c033fee4",
+      "sha256": "21c172d85023031c6c5db3669aac49b55be70443666de6af5cdf7b79efd5878b",
+      "bytes": 1849
     },
     {
-      "path": "hosts46/grifols/runtime/preflight/preflight-launch.mjs",
-      "sha256": "a6af2dd6c415ee875de89cfc45560567a466d22ff2275d705398d18bde3600c4",
+      "path": "hosts46/merck/runtime/preflight/preflight-launch.mjs",
       "mode": "100644",
       "type": "blob",
       "sha": "aae8658b6748724e68d5d633967a3d37cf66016f",
-      "bytes": 10206
-    },
-    {
-      "path": "hosts46/grifols/runtime/preflight/runtime-check.mjs",
-      "sha256": "0f55d1f662d9eb3329298c68cff3b4a6161dedbefe95c86084bb451bd9e75ee7",
-      "mode": "100644",
-      "type": "blob",
-      "sha": "1aaf44921d83b86bb9c0065a46393286a8b725c3",
-      "bytes": 3523
-    },
-    {
-      "path": "hosts46/grifols/runtime/review-publication.py",
-      "sha256": "e0e836e5320583aa29342baec035c9d0ae5dd00fdd3bb7c88c5348ef16dca9d7",
-      "mode": "100644",
-      "type": "blob",
-      "sha": "86b844af8edf19d25dad6bf9596f4fce5209d7eb",
-      "bytes": 3415
-    },
-    {
-      "path": "hosts46/grifols/runtime/start-monitor-portable42.js",
-      "sha256": "a804a8006c585ee7c60424dc9f85d8621e315493ebc53fd189f7446551354516",
-      "mode": "100644",
-      "type": "blob",
-      "sha": "6c5423b420c9e5a36d477ac19970ef1b24a55255",
-      "bytes": 6809
-    },
-    {
-      "path": "hosts46/bms/archive-transfer.mjs",
-      "sha256": "698e966e5552967845a5252d2b3df2acca28dcd8dbbb0ae41755a3a6231e6a99",
-      "mode": "100644",
-      "type": "blob",
-      "sha": "5a454d21f34f9680221bbee2c98b3fecb94884f0",
-      "bytes": 1777
-    },
-    {
-      "path": "hosts46/bms/context-read.sql",
-      "sha256": "651412be4e3751362d6c993e28eb4dfb4ff1df90270d23d01e27ee5feb206fba",
-      "mode": "100644",
-      "type": "blob",
-      "sha": "bc8263f60c8191e3efeda89c3ae36a2cbfb40c90",
-      "bytes": 2126
-    },
-    {
-      "path": "hosts46/bms/host-files.mts",
-      "sha256": "c0433bd1a968fbe411f38f7c4a908d2106a64ca937724149315cbc134c931198",
-      "mode": "100644",
-      "type": "blob",
-      "sha": "f130e14ace5f1b66bbbf3f86e8e2ed55f0db7b7b",
-      "bytes": 4072
-    },
-    {
-      "path": "hosts46/bms/host-helper-functions.js",
-      "sha256": "8f0ed21bc764f2826d019ac07cc2b5c1a4b56d857fb40e3ae9e08edc31971610",
-      "mode": "100644",
-      "type": "blob",
-      "sha": "113d49179e26499d0ce0fa2cccdc7c37d2343021",
-      "bytes": 7039
-    },
-    {
-      "path": "hosts46/bms/host-stage-functions.js",
-      "sha256": "28f0f03df17087658e30e5df995c79dfeff3803b3dfc0e9a0e951862ef45867c",
-      "mode": "100644",
-      "type": "blob",
-      "sha": "75dbda84937d2ae5d36e9497cbb672c08a750694",
-      "bytes": 5926
-    },
-    {
-      "path": "hosts46/bms/relay-files.mjs",
-      "sha256": "467e0e6b4636b84ea6346ecdf79eef1bf117cba64b7072b33c429a8c7bb5215e",
-      "mode": "100644",
-      "type": "blob",
-      "sha": "cd287f0de47fbfebdd1df38654debcfeca89f3e5",
-      "bytes": 5469
-    },
-    {
-      "path": "hosts46/bms/runtime/continuous-relay-v3-durable-monitor.js",
-      "sha256": "4342f0c596dcf87ace5bcbf72b368c018202674ea03ffc1e9751fa7f8f8ea8f7",
-      "mode": "100644",
-      "type": "blob",
-      "sha": "68988913d01907d625fb38b8b34e291a15af678d",
-      "bytes": 2873
-    },
-    {
-      "path": "hosts46/bms/runtime/load-host-state.js",
-      "sha256": "0b266b09af1e9152bb8f28ba8d460dc802578eeab549cfd7051b6ce1c5b3f119",
-      "mode": "100644",
-      "type": "blob",
-      "sha": "1b80526ec11f2fb0e6ee30aeb03e79d8a8654b22",
-      "bytes": 1857
-    },
-    {
-      "path": "hosts46/bms/runtime/load-source-runtime.js",
-      "sha256": "d9c9227614de8da2c365d25c0529e8f8f4178bb8fe1f5744693c89fc6070834b",
-      "mode": "100644",
-      "type": "blob",
-      "sha": "f2c4b40fb05b9924f0752afd6b7f4dbc158f53da",
-      "bytes": 1831
-    },
-    {
-      "path": "hosts46/bms/runtime/preflight/preflight-launch.mjs",
       "sha256": "a6af2dd6c415ee875de89cfc45560567a466d22ff2275d705398d18bde3600c4",
-      "mode": "100644",
-      "type": "blob",
-      "sha": "aae8658b6748724e68d5d633967a3d37cf66016f",
       "bytes": 10206
     },
     {
-      "path": "hosts46/bms/runtime/preflight/runtime-check.mjs",
-      "sha256": "0f55d1f662d9eb3329298c68cff3b4a6161dedbefe95c86084bb451bd9e75ee7",
+      "path": "hosts46/merck/runtime/preflight/runtime-check.mjs",
       "mode": "100644",
       "type": "blob",
       "sha": "1aaf44921d83b86bb9c0065a46393286a8b725c3",
+      "sha256": "0f55d1f662d9eb3329298c68cff3b4a6161dedbefe95c86084bb451bd9e75ee7",
       "bytes": 3523
     },
     {
-      "path": "hosts46/bms/runtime/review-publication.py",
-      "sha256": "e0e836e5320583aa29342baec035c9d0ae5dd00fdd3bb7c88c5348ef16dca9d7",
+      "path": "hosts46/merck/runtime/review-publication.py",
       "mode": "100644",
       "type": "blob",
       "sha": "86b844af8edf19d25dad6bf9596f4fce5209d7eb",
+      "sha256": "e0e836e5320583aa29342baec035c9d0ae5dd00fdd3bb7c88c5348ef16dca9d7",
       "bytes": 3415
     },
     {
-      "path": "hosts46/bms/runtime/start-monitor-portable42.js",
-      "sha256": "fe5f55a78e4b9f581d73962d27491a131f60c8578cefc712cbfd874655268f69",
+      "path": "hosts46/merck/runtime/start-monitor-portable42.js",
       "mode": "100644",
       "type": "blob",
-      "sha": "26b761c687c0f0acb306ce9ddb517c2cebac1677",
-      "bytes": 6773
+      "sha": "bd7b5a2cf958a65b3cc680f9d6b6ba9e2eda5ed3",
+      "sha256": "b9e36f1986f87eb7de6069e111e0577cc8de9ceb969c9867e544c3f5b0245651",
+      "bytes": 6762
     },
     {
-      "path": "hosts46/biogen/archive-transfer.mjs",
-      "sha256": "698e966e5552967845a5252d2b3df2acca28dcd8dbbb0ae41755a3a6231e6a99",
+      "path": "hosts46/gilead/archive-transfer.mjs",
       "mode": "100644",
       "type": "blob",
       "sha": "5a454d21f34f9680221bbee2c98b3fecb94884f0",
+      "sha256": "698e966e5552967845a5252d2b3df2acca28dcd8dbbb0ae41755a3a6231e6a99",
       "bytes": 1777
     },
     {
-      "path": "hosts46/biogen/context-read.sql",
-      "sha256": "72cfa33340143bb44c4283cde79b636ceca283817a2249fb5abd3d58bece69c0",
+      "path": "hosts46/gilead/context-read.sql",
       "mode": "100644",
       "type": "blob",
-      "sha": "695025026aa80163ceeb63cdd1e9db20ece70287",
+      "sha": "f66481ddaf89d2ee80d33b5cf9110764415ea95e",
+      "sha256": "74ce24032fb3aeaa9424514e8596fa740594a9c7c30b3e873587c5cf88eabed0",
       "bytes": 2141
     },
     {
-      "path": "hosts46/biogen/host-files.mts",
-      "sha256": "c0433bd1a968fbe411f38f7c4a908d2106a64ca937724149315cbc134c931198",
+      "path": "hosts46/gilead/host-files.mts",
       "mode": "100644",
       "type": "blob",
       "sha": "f130e14ace5f1b66bbbf3f86e8e2ed55f0db7b7b",
+      "sha256": "c0433bd1a968fbe411f38f7c4a908d2106a64ca937724149315cbc134c931198",
       "bytes": 4072
     },
     {
-      "path": "hosts46/biogen/host-helper-functions.js",
-      "sha256": "87a0a760889f4600c2e72d0ce7aa7bc8a517236480cd18a4788d46d0b10696f3",
+      "path": "hosts46/gilead/host-helper-functions.js",
       "mode": "100644",
       "type": "blob",
-      "sha": "f83b3d6d84a70e1ca36339979c7bd08321d47efb",
+      "sha": "4ff956651ece47aed095799a6ee25076fcbd4a42",
+      "sha256": "0eb275c2150f0162d2596b189f02911019fe07224d729dd5f1ae627b278d546f",
       "bytes": 7060
     },
     {
-      "path": "hosts46/biogen/host-stage-functions.js",
-      "sha256": "1d2e86f8248e590bf78195387393aa2bfb9da1ed08ee96c29c9a77127676e6dd",
+      "path": "hosts46/gilead/host-stage-functions.js",
       "mode": "100644",
       "type": "blob",
-      "sha": "cc35bec6866ee0750c529d4b848187b80de0a026",
+      "sha": "b750bd233b18d5385d683f8aee865b6e55e8b115",
+      "sha256": "e16a141954cbc8860b65f9e156187b4d47bcc73dbcfa0f7ac7df89b4cfc39a28",
       "bytes": 5959
     },
     {
-      "path": "hosts46/biogen/relay-files.mjs",
-      "sha256": "68fd0f5dd2244528babb810e17b37fb4601917edb8ec087ec1a39232fd1ec74d",
+      "path": "hosts46/gilead/relay-files.mjs",
       "mode": "100644",
       "type": "blob",
-      "sha": "b608504151952157e6a83dcfb601e5a5f9e9e7e8",
+      "sha": "a58d4c0f129876e0e053587f7b327021e13dd410",
+      "sha256": "eb209ad690fae131881998402d4d6adbf44f8c85e136f31154930f428186b99c",
       "bytes": 5472
     },
     {
-      "path": "hosts46/biogen/runtime/continuous-relay-v3-durable-monitor.js",
-      "sha256": "d92d6625408464a5a56476328ed28ab8c58e0b1b052c9f4ce3b19fbb9a2821b8",
+      "path": "hosts46/gilead/runtime/continuous-relay-v3-durable-monitor.js",
       "mode": "100644",
       "type": "blob",
-      "sha": "1f528010617eae1306fe7e3269dd044e79e0a161",
+      "sha": "81759eb9b7d4875b906996af83dc8f8850b060f2",
+      "sha256": "6f2533c9377ea2e9e208e16701976e35c32cc8f76dcea3312e3509d1dce3a9fe",
       "bytes": 2894
     },
     {
-      "path": "hosts46/biogen/runtime/load-host-state.js",
-      "sha256": "01a3bb98a457813ed4dc8803f51112d4e3cfd49363733b7fe004d7b885e333a4",
+      "path": "hosts46/gilead/runtime/load-host-state.js",
       "mode": "100644",
       "type": "blob",
-      "sha": "bc50df34be2837de6d9798cd75fcc0be9e4cb3ed",
+      "sha": "707780e6d2bf7715c6f74649b25c83fbb7716d7e",
+      "sha256": "f600ed906f89ee5b356095f92c8fc8e53e23fa10c3c7506b439361deb96ed8ae",
       "bytes": 1869
     },
     {
-      "path": "hosts46/biogen/runtime/load-source-runtime.js",
-      "sha256": "c545cd2f12bd92ef39c7416441ef27e274df374d4702133daab9c3ada6aff986",
+      "path": "hosts46/gilead/runtime/load-source-runtime.js",
       "mode": "100644",
       "type": "blob",
-      "sha": "4847458b38e2be8e99d44b62d4cc225310b49aab",
+      "sha": "c6eb49c44c1a0c9debe51b498b49cc160012769f",
+      "sha256": "54bceccdd2b9568c99afa3a35bb0a5624b576415b96af14cf530f23ad828f245",
       "bytes": 1858
     },
     {
-      "path": "hosts46/biogen/runtime/preflight/preflight-launch.mjs",
-      "sha256": "a6af2dd6c415ee875de89cfc45560567a466d22ff2275d705398d18bde3600c4",
+      "path": "hosts46/gilead/runtime/preflight/preflight-launch.mjs",
       "mode": "100644",
       "type": "blob",
       "sha": "aae8658b6748724e68d5d633967a3d37cf66016f",
+      "sha256": "a6af2dd6c415ee875de89cfc45560567a466d22ff2275d705398d18bde3600c4",
       "bytes": 10206
     },
     {
-      "path": "hosts46/biogen/runtime/preflight/runtime-check.mjs",
-      "sha256": "0f55d1f662d9eb3329298c68cff3b4a6161dedbefe95c86084bb451bd9e75ee7",
+      "path": "hosts46/gilead/runtime/preflight/runtime-check.mjs",
       "mode": "100644",
       "type": "blob",
       "sha": "1aaf44921d83b86bb9c0065a46393286a8b725c3",
+      "sha256": "0f55d1f662d9eb3329298c68cff3b4a6161dedbefe95c86084bb451bd9e75ee7",
       "bytes": 3523
     },
     {
-      "path": "hosts46/biogen/runtime/review-publication.py",
-      "sha256": "e0e836e5320583aa29342baec035c9d0ae5dd00fdd3bb7c88c5348ef16dca9d7",
+      "path": "hosts46/gilead/runtime/review-publication.py",
       "mode": "100644",
       "type": "blob",
       "sha": "86b844af8edf19d25dad6bf9596f4fce5209d7eb",
+      "sha256": "e0e836e5320583aa29342baec035c9d0ae5dd00fdd3bb7c88c5348ef16dca9d7",
       "bytes": 3415
     },
     {
-      "path": "hosts46/biogen/runtime/start-monitor-portable42.js",
-      "sha256": "f3e324546f29f6baa1e0b42218594b8e464565fdab5e40f6cc929fc88508b8ca",
+      "path": "hosts46/gilead/runtime/start-monitor-portable42.js",
       "mode": "100644",
       "type": "blob",
-      "sha": "a0530ea38e1e7c4073d72c8f207926b914a811b9",
-      "bytes": 6800
+      "sha": "1a275ede8ada3a33737f1ba3a3d5162954b76d8a",
+      "sha256": "778e7676bbaeea2420caecbc0e2b822b1b929b41d390720b72340f8c997007f9",
+      "bytes": 6771
     },
     {
-      "path": "verification/check-portable66-host46.mjs",
-      "sha256": "2e6982942e503b76f17ba1dc3087ca3456885cd8a8167435fc22e0bd05fc1e64",
+      "path": "hosts46/organon/archive-transfer.mjs",
       "mode": "100644",
       "type": "blob",
-      "sha": "60bb49e6a8778fb56fa8d6594c1185e84c4418b8",
-      "bytes": 21418
+      "sha": "5a454d21f34f9680221bbee2c98b3fecb94884f0",
+      "sha256": "698e966e5552967845a5252d2b3df2acca28dcd8dbbb0ae41755a3a6231e6a99",
+      "bytes": 1777
     },
     {
-      "path": "verification/freeze-portable66-host46.py",
-      "sha256": "e8e67af535a12f0b6a6627f031a3ae7573899e950ba317e454de8e7188bdb794",
+      "path": "hosts46/organon/context-read.sql",
       "mode": "100644",
       "type": "blob",
-      "sha": "2a0dbba1d5ee13a751b3f0b440ec91c368894d42",
-      "bytes": 6148
+      "sha": "64d0939b8450c39a702116a31f9f9c10ef64b20e",
+      "sha256": "e514ecc5d19e848f38fc73f2f629ab43c7e1ccfa1c52b5d5efb3c064853924ca",
+      "bytes": 2146
     },
     {
-      "path": "verification/prepare-portable66-host46.mjs",
-      "sha256": "49b4c7f7b6914ba79ce6ef2daa9918b1d6af1955baad48d9af145837e16016b8",
+      "path": "hosts46/organon/host-files.mts",
       "mode": "100644",
       "type": "blob",
-      "sha": "fe934a20a19ec2561c3e17acef7a06411b9a29bb",
-      "bytes": 4400
+      "sha": "f130e14ace5f1b66bbbf3f86e8e2ed55f0db7b7b",
+      "sha256": "c0433bd1a968fbe411f38f7c4a908d2106a64ca937724149315cbc134c931198",
+      "bytes": 4072
     },
     {
-      "path": "verification/restore-portable66-host46.py",
-      "sha256": "f86413e68fba667a621399b91d76565e94285ae16f645ff9c7e54ad0746d4016",
+      "path": "hosts46/organon/host-helper-functions.js",
       "mode": "100644",
       "type": "blob",
-      "sha": "8304354b87d0316dbae7415b2de8897c408702f2",
-      "bytes": 7747
+      "sha": "d022199a421e7c3c81a563a0af90a1091544a72d",
+      "sha256": "62d5149c8e9237472207b98c4154366ec784cf1aeeaba3bb2fdde34999ee3647",
+      "bytes": 7067
     },
     {
-      "path": "observation/read-public-v2.py",
-      "sha256": "3c2c6161c88bda76e7e4fc642a08f4c474ccd3636b905ab1820c0d3145264899",
+      "path": "hosts46/organon/host-stage-functions.js",
       "mode": "100644",
       "type": "blob",
-      "sha": "abe3b9657d83f3e1acc453abd8eb78055b3d5b14",
-      "bytes": 2816
+      "sha": "e51e54a6cf0ddf757e201cea39e635317967366c",
+      "sha256": "de6dc874c0699bcdd951a877aac8bf7081d70cde55e99d1b34e954a079ecee8f",
+      "bytes": 5970
+    },
+    {
+      "path": "hosts46/organon/relay-files.mjs",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "1c96831ce299b5840ad3e3343ccbf49153a04891",
+      "sha256": "9f0c7128a6b1a6705c359f46acc00805c0f905b46712ac841987290b2c4b5142",
+      "bytes": 5473
+    },
+    {
+      "path": "hosts46/organon/runtime/continuous-relay-v3-durable-monitor.js",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "f2fec7011073ec637c379925dceb0a38760d73ee",
+      "sha256": "270a276f0f9e66fcf113c0c1e1f8803001ddeb0f6ed5db5ce595567beb39aa2d",
+      "bytes": 2901
+    },
+    {
+      "path": "hosts46/organon/runtime/load-host-state.js",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "786e9616d51dc6862b4b79fdd4d215d0c2e5e1db",
+      "sha256": "8dcf1f09118b68579e24460d076d290037051896f2d9b5809a043637bf0c5d15",
+      "bytes": 1873
+    },
+    {
+      "path": "hosts46/organon/runtime/load-source-runtime.js",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "ca812d263a80d3c29dbfb3b6bee36d66631ea86b",
+      "sha256": "ad9a736cfe97a3ed287cb999420cf22c42c39d7247c7d3696af6226b3f184084",
+      "bytes": 1867
+    },
+    {
+      "path": "hosts46/organon/runtime/preflight/preflight-launch.mjs",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "aae8658b6748724e68d5d633967a3d37cf66016f",
+      "sha256": "a6af2dd6c415ee875de89cfc45560567a466d22ff2275d705398d18bde3600c4",
+      "bytes": 10206
+    },
+    {
+      "path": "hosts46/organon/runtime/preflight/runtime-check.mjs",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "1aaf44921d83b86bb9c0065a46393286a8b725c3",
+      "sha256": "0f55d1f662d9eb3329298c68cff3b4a6161dedbefe95c86084bb451bd9e75ee7",
+      "bytes": 3523
+    },
+    {
+      "path": "hosts46/organon/runtime/review-publication.py",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "86b844af8edf19d25dad6bf9596f4fce5209d7eb",
+      "sha256": "e0e836e5320583aa29342baec035c9d0ae5dd00fdd3bb7c88c5348ef16dca9d7",
+      "bytes": 3415
+    },
+    {
+      "path": "hosts46/organon/runtime/start-monitor-portable42.js",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "7600a32a17b59f2607cbdb0fc1e2761b612f5adf",
+      "sha256": "5008b9ff536ce94d3902ded474ec0cd2ab2bedbf9f0565b039b372ace7b5081d",
+      "bytes": 6780
+    },
+    {
+      "path": "verification/check-portable66-next-host46.mjs",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "b15141d3c7e5ecee5d2f1d29004ae3163a233903",
+      "sha256": "738ddf4534c267fe257e6c82d70dcf52abae1d9a882fad4c3794c88011bbc41c",
+      "bytes": 21597
+    },
+    {
+      "path": "verification/check-portable66-next-safety46.mjs",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "795094204b2840c61cbd280baba2bb031bee7826",
+      "sha256": "9d3a2122829a72fa9d76d47bcdc02ae8f61f535e1e4d7d984d9e8af7644b9b67",
+      "bytes": 9492
+    },
+    {
+      "path": "verification/freeze-portable66-next-host46.py",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "1956f81c55ad60f620fc436a18b855a7afdc5b9e",
+      "sha256": "16d518801d8a844d0398bd9c792cbd093b575a6241757f41b76fc2dfcdce628d",
+      "bytes": 6409
+    },
+    {
+      "path": "verification/prepare-portable66-next-host46.mjs",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "df20430ac3aac89c30042a6aa912dd285e5c82d5",
+      "sha256": "f56f1b882c848f883cd754409385da086841b18ffe86e6f14aa28a6b263df226",
+      "bytes": 4391
+    },
+    {
+      "path": "verification/restore-portable66-next-host46.py",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "56cd3d0f05857af6624aceafa3ac601726a86d6c",
+      "sha256": "816cd57bf0cffac509dc561b75bf5a1b51b2371c50f351c1fbef642389f615cf",
+      "bytes": 8165
     }
-  ],
-  "recoveryLimitations": [
-    "original configs were omitted and regenerated by documented recipe, not recovered exact config bytes",
-    "runtime/configuration/registration/producer dependencies and fresh evidence remain external",
-    "synthetic checks depend on excluded configs/control and original template references",
-    "ARCHIVE_STORE missing helper remains unsupported; dedicated source starter required",
-    "preparation output inventories are not safe upload allowlists",
-    "observer handles missing files after curl returns, not every timeout or malformed metadata case"
-  ],
-  "excludedCategories": [
-    "original/template trees and diffs",
-    "configuration, control, source-plan, runtime/registration identity",
-    "original internal reports and broad inventories",
-    "actual or NONQUAL generated SQL/request/diagnostic data",
-    "live runs, captured jobs/raw bodies and real DB/public responses",
-    "credentials and environment files"
   ]
 }
