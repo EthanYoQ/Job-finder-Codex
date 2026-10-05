@@ -1,22 +1,32 @@
-# Sanofi native-authority header candidate backup
+# Offline Sanofi paired publisher candidate
 
-Source checkpoint: `4c67b32fb6eed18c45d172bad5d44cb19a6b0c6a`, with parent `4acb35abfe104e38caf9cc75204b73fead6ab6ef`. At the 2026-10-04 18:15 UTC report this was a frozen candidate, not registered, freshly qualified or deployed.
+Original source commit: 46beb14fcca2dd05854f45781abbc1b43da90ea1. Actual direct parent: 4c67b32fb6eed18c45d172bad5d44cb19a6b0c6a. Status at 2026-10-05 16:58 UTC: offline candidate, unregistered, not freshly captured and undeployed.
 
-This safe snapshot retains 862 original source/test/config files plus this guide and `SOURCE_BACKUP.json`. Seventeen source/test files differ from the prior backup; the eighteenth changed file was an internal recovery note and is excluded. Included bytes, source paths, file modes, Git blobs and SHA-256 values are recorded.
+Paired Web source: 7e5390495bc41b846d6a4a6d12a7f9061bbb745f, preserved on [the paired Web backup branch](https://github.com/EthanYoQ/Job-finder-Codex/tree/backup/sanofi-paired-web-20261005-1700).
 
-## Technical scope
+Five runtime files change only the shared context SQL and seven-field propagation through fixed-cohort audit and authoritative launch. The Sanofi verifier, source plan/configuration, Chinese parsing/replay, package and schema are unchanged from the publisher baseline. Two synthetic regression files are added. The safe tree contains 864 source/test/config/asset files plus two backup metadata files; 48 tracked files remain excluded.
 
-Only the main Chinese collector has the narrow foreign-header fallback. Its own list/schema/requisition and verbatim metadata apply URL must agree, while the displaced header/body/apply block must be internally coherent. The independent collector remains strict. Both paths bind each job's exact identity, full description hash, native identity and mainland location; fallback native requests prohibit redirects.
+The implementation reports 12 suites / 260 focused tests, a 25-root focused TypeScript check and a Vite build passing. The new wiring tests cover pre-capture/next-run compiler use, locked identical query, first/latest baseline and tampered/missing metadata, including no extra Sanofi read for Bayer/CTTQ. This is not complete formal qualification or real Schema48 publication success.
 
-The B evidence binds the independent artifact hash into a derived anomaly record, without changing network originals. Issuance and reading validate this identity set and compare exact persisted artifact hashes/tuples. The Sanofi-specific reader/preflight selects seven metadata fields: releaseCandidateId, batchId, sourceResultId, sourceId, kind, extractorLocator and sha256. Actual responses, database rows or control packets are not included here.
+## Pairing and recovery boundary
 
-## Verification and recovery
+The publisher and Web reader use the same strict Sanofi receipt/identity contract. Persisted artifact metadata is independently read by exact release/batch/result/source/locator binding; inline proof hashes cannot substitute for those records. Only seven metadata fields are projected. Publisher preparation and locked re-read use the same context query, and the Sanofi publication lock group includes EvidenceArtifact.
 
-Reported checks passed 206 tests in nine targeted suites, changed-path TypeScript validation and the Vite build. Private original replay/adversarial review passed, but those inputs are excluded. A broader initial typecheck found 13 unrelated existing test errors; no whole-repository typecheck, full test suite, database integration, fresh HTTP request or live qualification is claimed.
+The existing a775 reader rejects the new Sanofi identity receipt. The protected 3031 reader uses the old config and cannot be assumed to read the new B receipt; shared Job changes may also hold the old A projection, and its controller rejects database-version drift. These old versions are not a compatible rollback for a new Chinese B commit. A separate compatible fallback must be prepared and validated.
 
-47 tracked non-source/evidence files are excluded, including retained job bodies, actual database/SQL/control material and internal operational/recovery notes. Credentials, environment/private profiles, generated dependencies/builds, runtime state, uncommitted files and local Git history are excluded. The optional original replay code is preserved, but its `SANOFI_HEADER_CAPTURE_ROOT` inputs must be restored separately with authorization. Other retained-evidence tests have the same boundary.
+The historical A88 exception remains exactly pinned and applies only before a newer committed Chinese writer. New committed B data must meet its strict contract; invalid or expired B and unknown writers produce HOLD rather than republishing old88. The legacy FULL_RELEASE readiness path remains unsupported for new Sanofi B; HTTP reading is separate from the updated publisher formal-audit/launch entry points.
 
-Before future qualification, publisher and web reader must share this evidence contract. Preflight needs the exact persisted metadata tuple/locator checks. Generic readiness and fixed-cohort inputs that do not supply these commitments fail closed; this candidate does not expand those generic input structures.
+## Verification limits
 
-Workflow source remains under `backup/disabled-workflows/`, with no active workflow. This branch does not run CI, merge or deploy. Its safe backup commit is a separate identity and is not a formal production candidate number; any runtime requires independent build identity and registration.
+All passing counts below are grouped final suite results reported by the implementation handoff, not a single full-repository run or GitHub CI. Focused TypeScript and builds passed, while existing whole-repository test type diagnostics remain. The in-memory PostgreSQL check executed only generated context SELECT over synthetic tables. It did not execute Schema48 migrations, a complete publication transaction or production concurrency/locking/permission behavior. Sanofi's synthetic CERTIFICATE_INVALID was removed in the tested formal entry points, but other synthetic sources/timing still made the overall launch NOT_READY.
+
+There was no official new capture, production database access, registration, deployment, target runtime attestation, public five-second acceptance or browser/mobile validation. This backup did not execute source or tests. Any future runtime needs independently validated target source/build/dependencies and registration; its sanitized GitHub identity is different from the original source commit.
+
+## Safe-source scope
+
+Original source, necessary public assets/fonts/logos/licenses and previously approved tests/configuration are kept byte-for-byte from the fixed Git objects. Source workflow files are relocated under backup/disabled-workflows. Private historical database/control fixtures, real captures/full job bodies, operation/proof notes, user authorization text, runtime identities, environments/credentials, actual SQL/request/response payloads, generated dependencies/builds, uncommitted files and original local Git history are excluded. Dependent historical/real-page tests need those separately authorized private fixtures to be restored; their source alone does not make them runnable.
+
+The paired Web backup includes a contract fixture with two invented jobs (R9000001/R9000002), synthetic short HTML descriptions and test-only bindings. It is intentionally included as self-authored test data, not a capture or qualification receipt. Some paired tests also depend on the separately excluded historical DB fixture.
+
+No active workflow, CI, default-branch update, merge or deployment is performed by these independent backup branches.
 
