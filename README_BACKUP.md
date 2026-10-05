@@ -30,3 +30,8 @@ The paired Web backup includes a contract fixture with two invented jobs (R90000
 
 No active workflow, CI, default-branch update, merge or deployment is performed by these independent backup branches.
 
+
+
+## Additional offline compatible fallback
+
+A subsequently frozen application fallback, c754d92e98d964655abdca783d9ed1e52b19c3e3 (actual parent a775), is preserved on [the a775-compatible fallback branch](https://github.com/EthanYoQ/Job-finder-Codex/tree/backup/sanofi-a775-fallback-20261005-1707). It has the same six reader contract files as the main Web and retains original a775 foreground-version-check/performance behavior, without e4cd nonblocking changes. The author reports 15 grouped suites / 383 tests, focused TypeScript and build passing. It remains unregistered and undeployed, and does not authorize replacing 3031 or relaxing database-version/schema/build/routing checks. This later cross-reference changes no source file or original cutoff status above.
