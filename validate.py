@@ -3,7 +3,9 @@
 import argparse
 import hashlib
 import json
+import os
 import re
+import stat
 from pathlib import Path, PurePosixPath
 
 CONTRACT = "nonsecret-deployment-backup/v1"
@@ -16,10 +18,64 @@ def digest(body):
     return hashlib.sha256(body).hexdigest()
 
 
+def inspect_body_tree(body_root):
+    """Check root top-down before enumeration; never follow static symlinks."""
+    root = Path(body_root).absolute()
+    files, errors = {}, []
+    if ".." in root.parts:
+        return root, files, ["body root must not contain parent traversal"]
+    current = Path(root.anchor)
+    try:
+        # Check '/' first, then each component. Never lstat a child of a link.
+        chain = [current]
+        for component in root.parts[1:]:
+            current = current / component
+            chain.append(current)
+        for directory in chain:
+            mode = directory.lstat().st_mode
+            if not stat.S_ISDIR(mode):
+                return root, files, ["body root or ancestor is symlinked or not a directory: " + str(directory)]
+        pending = [root]
+        while pending:
+            directory = pending.pop()
+            with os.scandir(directory) as entries:
+                for entry in entries:
+                    path = Path(entry.path)
+                    rel = path.relative_to(root).as_posix()
+                    mode = entry.stat(follow_symlinks=False).st_mode
+                    if stat.S_ISDIR(mode):
+                        pending.append(path)
+                    elif stat.S_ISREG(mode):
+                        files[rel] = mode
+                    else:
+                        errors.append("symlinked or special archive node forbidden: " + rel)
+    except OSError as exc:
+        errors.append("body tree inspection failed: " + str(exc))
+    return root, files, errors
+
+
 def validate(manifest, scope, body_root):
     """Scope/review authenticity is a caller prerequisite, not proven here."""
     errors, gaps, bodies = [], [], {}
-    root = Path(body_root)
+
+    def result():
+        return {
+            "valid": not errors,
+            "recoveryComplete": not errors and not gaps and manifest.get("mode") == "complete",
+            "runtimeReady": False,
+            "launchAuthorized": False,
+            "restoreLiveState": False,
+            "gaps": sorted(gaps),
+            "errors": errors,
+            "scope": "deployment-materials-only",
+        }
+
+    # This gate applies even to partial manifests with every body omitted.
+    # Reject unsafe nodes before opening any archive body.
+    root, regular_files, tree_errors = inspect_body_tree(body_root)
+    errors.extend(tree_errors)
+    if errors:
+        return result()
 
     def need(condition, message):
         if not condition:
@@ -111,12 +167,10 @@ def validate(manifest, scope, body_root):
         need(rel not in used_paths, key + ": duplicate body path")
         used_paths.add(rel)
         path = root / rel
-        # Check every path component before opening. Do not follow symlinks.
-        chain = list(root.absolute().parents) + [root] + [root.joinpath(*parts[:n]) for n in range(1, len(parts) + 1)]
-        if any(p.is_symlink() for p in chain) or not path.is_file():
-            errors.append(key + ": body missing, nonregular, or symlinked")
+        if rel not in regular_files:
+            errors.append(key + ": body missing or nonregular")
             continue
-        need(path.stat().st_mode & 0o111 == 0, key + ": executable permissions forbidden")
+        need(regular_files[rel] & 0o111 == 0, key + ": executable permissions forbidden")
         body = path.read_bytes()
         bodies[key] = body
         need(type(item.get("size")) is int and item["size"] == len(body), key + ": byte size mismatch")
@@ -137,13 +191,8 @@ def validate(manifest, scope, body_root):
     done = set()
     for key in artifacts:
         visit(key, set(), done)
-    if root.is_dir() and not root.is_symlink():
-        for path in root.rglob("*"):
-            rel = path.relative_to(root).as_posix()
-            if path.is_symlink() or (path.is_file() and rel not in used_paths):
-                errors.append("unlisted or symlinked archive body: " + rel)
-    else:
-        errors.append("body root must be an existing nonsymlink directory")
+    for rel in regular_files.keys() - used_paths:
+        errors.append("unlisted archive body: " + rel)
 
     transfers = index(manifest.get("transfers"), "transfers")
     expected_transfers = index(scope.get("transfers"), "scope transfers")
@@ -172,16 +221,7 @@ def validate(manifest, scope, body_root):
         need(isinstance(gap.get("reason"), str) and bool(gap["reason"].strip()), key + ": gap reason missing")
     if manifest.get("mode") == "complete":
         need(not gaps, "complete recovery requires every required original body; hashes alone are insufficient")
-    return {
-        "valid": not errors,
-        "recoveryComplete": not errors and not gaps and manifest.get("mode") == "complete",
-        "runtimeReady": False,
-        "launchAuthorized": False,
-        "restoreLiveState": False,
-        "gaps": sorted(gaps),
-        "errors": errors,
-        "scope": "deployment-materials-only",
-    }
+    return result()
 
 
 def read_json(path):

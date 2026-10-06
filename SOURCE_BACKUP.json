@@ -1,9 +1,9 @@
 {
   "format": "safe-source-backup/v1",
-  "snapshot": "deployment-backup-contract-v1",
-  "sourcePlanSha256": "23b44fd804f227c19e8fd4d411a2e5901aec84c9b2b85a371b950174307efefd",
+  "snapshot": "deployment-backup-contract-r2",
+  "sourcePlanSha256": "4814c82c1868ba7380376eade143fe566a0d9b03e684d8d0422224eeaa87c2b3",
   "originalSourceFiles": 12,
-  "originalSourceBytes": 36566,
+  "originalSourceBytes": 42842,
   "originalBytesUnchanged": true,
   "dependencies": [
     "Python 3 standard library; preserve the relative layout so test_validate.py imports validate.py."
@@ -92,21 +92,28 @@
     },
     {
       "path": "test_validate.py",
-      "bytes": 9828,
-      "sha256": "4f2200357c0618b273d01719a4036c1c49a01d8f741610eba8a6df490a68b73c",
+      "bytes": 14730,
+      "sha256": "b18bda5aa8ee8ad6c9f8f6e7ab3b2ea61878a2e0b3af33f8b42a0bc62559a8ee",
       "mode": "100644",
-      "gitBlob": "6c6b8f23d5bca0904ce472c94db6cec9758982df"
+      "gitBlob": "93bc21aceda341e49944afc8f11cf18a6701c9a1"
     },
     {
       "path": "validate.py",
-      "bytes": 11684,
-      "sha256": "fa75f7d40d86228ecfede33351120f431ad0cd6e7626f817d840752c58b9066f",
+      "bytes": 13058,
+      "sha256": "28f41b2cc321122d6edc2f63b8cb09648c37394f2892ae915dd20bebf58f66b9",
       "mode": "100644",
-      "gitBlob": "a24e349e22e5176a4578a4722f2b60d5e03aecb3"
+      "gitBlob": "1ec7bde5e6d4f444126ef58963b5f546d5164598"
     }
   ],
   "knownStaticLimitations": [
-    "Directory inventory checks the body root itself for symlinks but not every ancestor before walking. Missing-body partial entries skip per-body ancestor checks; callers must supply an independently checked nonsymlink root path.",
-    "Directory inventory ignores unlisted FIFO, socket and other nonregular entries. This snapshot does not establish rejection of every special filesystem entry."
+    "Input directories must remain immutable during validation; TOCTOU isolation is not provided.",
+    "Manifest and scope must be trusted ordinary JSON files supplied by the caller; their paths are not covered by the archive-body tree gate."
+  ],
+  "sourcePlanScope": "Two-file revision, composed with the ten unchanged v1 source files.",
+  "baseCommit": "31ec917e1f0c122806da20a4db28c7952b4af736",
+  "revisionNotes": [
+    "Before archive-body enumeration or reads, inspect every body-root ancestor top-down with lstat, even for partial manifests with all bodies omitted.",
+    "Reject symlinks and all nonregular archive nodes before opening any body, including FIFO and socket inodes.",
+    "The 25 original test functions are AST-identical and seven synthetic cases are added. Backup verification did not execute tests. New tests require POSIX symlink, FIFO and S_IFSOCK inode creation support."
   ]
 }

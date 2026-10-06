@@ -1,9 +1,13 @@
 """All bodies and all review attestations below are synthetic fixtures."""
 import copy
 import json
+import os
+import stat
 import tempfile
 import unittest
 from pathlib import Path
+from types import SimpleNamespace
+from unittest import mock
 
 from validate import CONTRACT, digest, read_json, validate
 
@@ -209,6 +213,97 @@ class ContractTests(unittest.TestCase):
         path.write_text('{"mode":"complete","mode":"partial"}')
         with self.assertRaisesRegex(ValueError, "duplicate JSON key"):
             read_json(path)
+
+    def assert_root_rejected_before_access(self, root, stop_path):
+        calls = []
+        real_lstat = Path.lstat
+
+        def record_lstat(path, *args, **kwargs):
+            calls.append(path)
+            return real_lstat(path, *args, **kwargs)
+
+        # Spies fail immediately if validation reads a body or enumerates a
+        # directory at all. The exact lstat sequence must stop at the link.
+        with mock.patch.object(Path, "lstat", record_lstat), \
+                mock.patch.object(Path, "read_bytes", side_effect=AssertionError("body read before root gate")) as read, \
+                mock.patch("os.scandir", side_effect=AssertionError("enumeration before root gate")) as scan:
+            result = validate(self.manifest, self.scope, root)
+        self.assertFalse(result["valid"], result)
+        self.assertTrue(any("root or ancestor" in error for error in result["errors"]), result)
+        read.assert_not_called()
+        scan.assert_not_called()
+        self.assertEqual(calls, list(reversed(stop_path.parents)) + [stop_path])
+
+    def test_root_ancestor_symlink_stops_before_access(self):
+        alias = Path(self.temp.name) / "alias"
+        alias.symlink_to(Path(self.temp.name), target_is_directory=True)
+        self.assert_root_rejected_before_access(alias / "bodies", alias)
+
+    def test_partial_all_bodies_missing_ancestor_symlink_stops_before_access(self):
+        for item in self.manifest["artifacts"]:
+            self.omit(item["id"])
+        self.manifest["mode"] = "partial"
+        self.assertTrue(self.result()["valid"])
+        alias = Path(self.temp.name) / "alias"
+        alias.symlink_to(Path(self.temp.name), target_is_directory=True)
+        self.assert_root_rejected_before_access(alias / "bodies", alias)
+
+    def test_root_itself_symlink_stops_before_access(self):
+        alias = Path(self.temp.name) / "body-link"
+        alias.symlink_to(self.root, target_is_directory=True)
+        self.assert_root_rejected_before_access(alias, alias)
+
+    def assert_special_node_rejected_before_body_reads(self, rel):
+        with mock.patch.object(Path, "read_bytes", side_effect=AssertionError("body read before special-node gate")) as read:
+            result = self.result()
+        self.assertFalse(result["valid"], result)
+        self.assertTrue(any("special archive node" in error and rel in error for error in result["errors"]), result)
+        read.assert_not_called()
+
+    def test_unlisted_fifo_rejected_without_opening(self):
+        os.mkfifo(self.root / "unlisted.fifo")
+        self.assert_special_node_rejected_before_body_reads("unlisted.fifo")
+
+    def test_unlisted_unix_socket_rejected_without_opening(self):
+        # A real socket inode is sufficient for this static lstat boundary.
+        # No socket(), bind(), listener or communication endpoint is created.
+        path = self.root / "unlisted.sock"
+        os.mknod(path, stat.S_IFSOCK | 0o600)
+        self.assertTrue(stat.S_ISSOCK(path.lstat().st_mode))
+        self.assert_special_node_rejected_before_body_reads("unlisted.sock")
+
+    def test_nested_symlink_is_not_enumerated(self):
+        target = Path(self.temp.name) / "target"
+        target.mkdir()
+        (target / "never-read.txt").write_text("SYNTHETIC link target")
+        (self.root / "nested-link").symlink_to(target, target_is_directory=True)
+        real_scan, scanned = os.scandir, []
+
+        def guarded_scan(path):
+            scanned.append(Path(path))
+            self.assertNotIn("nested-link", Path(path).parts)
+            self.assertNotEqual(Path(path), target)
+            return real_scan(path)
+
+        with mock.patch("os.scandir", side_effect=guarded_scan), \
+                mock.patch.object(Path, "read_bytes", side_effect=AssertionError("body read with nested link")) as read:
+            self.reject("symlinked")
+        self.assertTrue(scanned)
+        read.assert_not_called()
+
+    def test_other_special_lstat_modes_rejected_without_body_reads(self):
+        # Classification-only coverage; no character/block devices are made.
+        for mode in (stat.S_IFSOCK, stat.S_IFCHR, stat.S_IFBLK):
+            with self.subTest(file_type=mode):
+                entry = mock.Mock(path=str(self.root / "synthetic-special"))
+                entry.stat.return_value = SimpleNamespace(st_mode=mode | 0o600)
+                scan_context = mock.MagicMock()
+                scan_context.__enter__.return_value = iter([entry])
+                with mock.patch("os.scandir", return_value=scan_context), \
+                        mock.patch.object(Path, "read_bytes", side_effect=AssertionError("body read before node classification")) as read:
+                    self.reject("special archive node")
+                entry.stat.assert_called_once_with(follow_symlinks=False)
+                read.assert_not_called()
 
 
 if __name__ == "__main__":
