@@ -1,0 +1,20 @@
+--- reviewed/fence_candidate.py
++++ stdin-review/fence_module.py
+@@ -107,7 +107,7 @@
+         require(os.listdir(dfd) == [], 'NEW_DIRECTORY_NOT_EMPTY')
+         marker = {'version': 1, 'release': RELEASE, 'nonce': nonce,
+                   'oldScriptSha256': OLD_SHA,
+-                  'fenceSourceSha256': hashlib.sha256(Path(__file__).read_bytes()).hexdigest(),
++                  'fenceSourceSha256': VERIFIED_MODULE_SHA256,
+                   'parentChain': expected_chain, 'targetIdentity': target_id}
+         data = (json.dumps(marker, sort_keys=True, separators=(',', ':')) + '\n').encode()
+         digest = hashlib.sha256(data).hexdigest()
+@@ -131,7 +131,7 @@
+     marker = receipt['marker']
+     require(marker['release'] == RELEASE and marker['oldScriptSha256'] == OLD_SHA,
+             'WRONG_RELEASE_OR_OLD_SCRIPT')
+-    require(marker['fenceSourceSha256'] == hashlib.sha256(Path(__file__).read_bytes()).hexdigest(),
++    require(marker['fenceSourceSha256'] == VERIFIED_MODULE_SHA256,
+             'FENCE_SOURCE_CHANGED')
+     fds, ids = open_chain()
+     dfd = None

@@ -1,9 +1,11 @@
-# Owner helper source increment
+# Offline fence candidate source backup
 
-Four unchanged source and patch files, 33,417 bytes. Source inventory SHA-256: `b2626ff0c9791d2748f5234f62c2dbbd99ec22d689ea9d8a3e845e652ae235a7`. SOURCE_BACKUP.json lists this branch's files; verify SHA256SUMS before restoring.
+Seven unchanged Python, shell-template, and patch files, 62,737 bytes. Source inventory SHA-256: `488d6635a285e5b8a20d1170bc2a5ca8593abcfdc3106dd61bc77bec703c050b`. SOURCE_BACKUP.json is the file allowlist; verify SHA256SUMS before restoration.
 
-The af076 baseline is preserved alongside the updated helper, exact patch, and fixed diagnostic shell source. Keep `diagnostics/printf-transport-9415.sh` at its listed relative path.
+Preserve fence_candidate.py and test_fence.py together, with the five related files under stdin-review/. The code requires Python 3 standard-library modules, a POSIX shell, and Linux/POSIX descriptor-relative filesystem operations, no-follow opens, permissions, signals, and directory fsync.
 
-Dependencies: Python 3.8+ standard library, Linux/POSIX process support, and a filesystem supporting hard links and directory fsync. Python assertions must remain enabled: no `-O`, `-OO`, or `PYTHONOPTIMIZE`. The shell source requires `/bin/sh`. External CLI, configuration, sealed inputs, and invocation state are omitted; fixed source bindings require review before adaptation.
+test_fence.py additionally references the omitted ../transfer-bootstrap/upload-000.sh. That external input was not read or included for this backup, so the complete original test module cannot run from this branch alone. The stdin-review tests depend on the included candidate and template files in their existing relative layout. Their setup requires the execution UID to own the entire absolute parent chain, with no group/other-writable ancestors; ordinary unprivileged execution or a default /tmp location can fail this requirement.
 
-This snapshot contains no actual requests, responses, credentials, profiles, environment files, captured data, or operational reports. No runtime or test execution is claimed here.
+Use fence_module.py through the included wrapper, which supplies its verified source hash; it is not a standalone entry point. The templates retain unfilled parent-snapshot and receipt inputs. They require separately validated inputs before use; restoring these source files does not execute them. The operation label is a non-secret matching value, not a credential.
+
+Actual parent snapshots, inode data, receipts, invocation state, environment/configuration files, credentials, captured data, test outputs, and operational reports are excluded. This source backup makes no runtime or test-execution claim.

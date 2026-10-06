@@ -1,43 +1,77 @@
 {
   "schemaVersion": 1,
-  "sourceInventorySha256": "b2626ff0c9791d2748f5234f62c2dbbd99ec22d689ea9d8a3e845e652ae235a7",
+  "sourceInventorySha256": "488d6635a285e5b8a20d1170bc2a5ca8593abcfdc3106dd61bc77bec703c050b",
   "files": [
     {
-      "path": "owner-before-probe-allowlist.py",
+      "path": "fence_candidate.py",
       "mode": "100644",
       "type": "blob",
-      "sha": "9ed1f2e3804797405c627e7529a0dcfeac2a27f9",
-      "sha256": "af076be1679c2a20aa1a74caa403eeea5a0f1decd7bc5dce59aab6a28340c954",
-      "bytes": 11104
+      "sha": "322d5710cf3f28974ae922612789721f94bd065f",
+      "sha256": "efc2f19e43cddcaf91e3dedda52c7f0c391a1ab9d36fb2f3393910dce0ff7aad",
+      "bytes": 7212
     },
     {
-      "path": "owner-ali-call.py",
+      "path": "test_fence.py",
       "mode": "100644",
       "type": "blob",
-      "sha": "c771d057054c22021bd5345c3baf5418675248a8",
-      "sha256": "9505e5c0348915286b3b35fa067ec74984a6ae2d6afa2a379c527dff78ebb91d",
-      "bytes": 11319
+      "sha": "2e46555339747b72365639520438d466c2505e6e",
+      "sha256": "71f503d73058eed31671376577bd5c81c3c6040e06d2967503349560d0c64979",
+      "bytes": 14143
     },
     {
-      "path": "diagnostics/printf-transport-9415.sh",
+      "path": "stdin-review/fence_module.py",
       "mode": "100644",
       "type": "blob",
-      "sha": "4d6a6e2ed2fd7e99fc00d37e971275666e053aec",
-      "sha256": "26aa3c706d08137e5d6849603b5f35730b12a88871f7c414871663b274fb0296",
-      "bytes": 9415
+      "sha": "1d0211d48e455677002ef55e3b80fb70a96b51c8",
+      "sha256": "2cf05676933aaa2ee2d6f67eef86f2cfb8e322279947423485263a4da7acccd9",
+      "bytes": 7146
     },
     {
-      "path": "owner-probe-allowlist.diff",
+      "path": "stdin-review/module-adaptation.patch",
       "mode": "100644",
       "type": "blob",
-      "sha": "e4ae1a5d06dede4e64a9b58363892cf827633f1c",
-      "sha256": "de62365175c2502c0f5703aa82a6cdbf8bbdb2e589fe9ae7a6a1beaf0d278405",
-      "bytes": 1579
+      "sha": "15136c795cf19ca2d5fbf01b6a8944579db2e409",
+      "sha256": "8f482f168da7f888856c0edc1132e02e88ed3917b8a2e0c9240659ffa5d2f147",
+      "bytes": 1082
+    },
+    {
+      "path": "stdin-review/create-fence.template.sh",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "fe6406365fffe15f03a11197992a43dadb73e213",
+      "sha256": "eec7b569a7f23f23466da183330462822aa0af07677112016e217878bb62ff3f",
+      "bytes": 10688
+    },
+    {
+      "path": "stdin-review/read-fence.template.sh",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "0120a906be6c0328de93bc0e2c8fa26cd45bd77e",
+      "sha256": "e06cc57fc290bc722bfd5986ae097a494ee2bf735ff4f5a75db0561157e8b530",
+      "bytes": 11131
+    },
+    {
+      "path": "stdin-review/test_stdin_wrapper.py",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "5cf59699b2d4a0e7de84dbbf727ff6c73482e53d",
+      "sha256": "a84015205764ef68ef9a7369a06cde07475d17598fe97fd778d118c6fd59cb81",
+      "bytes": 11335
     }
   ],
-  "omittedDependencies": [
-    "CLI and configuration",
-    "Sealed inputs and invocation state"
+  "dependencies": [
+    "Python 3 standard library",
+    "POSIX shell and Linux/POSIX filesystem and process primitives",
+    "Trusted parent chain owned by execution UID, no group/other-writable ancestors",
+    "stdin module requires verified-source-hash injection from included wrapper"
   ],
-  "requiredLayout": "Keep diagnostics/printf-transport-9415.sh relative to owner-ali-call.py"
+  "layout": "Preserve top-level Python files and stdin-review subdirectory",
+  "omittedTestDependency": "../transfer-bootstrap/upload-000.sh",
+  "excludedCategories": [
+    "Actual snapshots and inode data",
+    "Receipts and invocation state",
+    "Credentials, environment and configuration",
+    "Captured data, test outputs and operational reports"
+  ],
+  "templatesUnfilled": true
 }
