@@ -1,9 +1,7 @@
-# Five host source backups
+# Takeda host source backup
 
-This snapshot contains 96 unchanged source files (583,919 bytes) for bi, fosun, kelun, msd, and novartis, including selected preparation and synthetic check programs. SOURCE_BACKUP.json is the exact file allowlist; verify SHA256SUMS before restoration.
+Twenty unchanged source and synthetic-check files, 118,963 bytes. Source inventory SHA-256: `7adf3d05e58d241469dec2a84751438448b162fc64dc7f960ab55634cce4a308`. SOURCE_BACKUP.json is the selected allowlist; verify SHA256SUMS before restoring.
 
-The frozen source inventory is NEXT_DUE46_SAFE_SOURCE_MANIFEST.json, SHA-256 `6e223a5f28097b036164131b7a7a0a11c5965617ca93de978c40ba66151ddc2e`. The original inventory is omitted because it also lists excluded files.
+Preserve the hosts46/takeda/ and verification/ layout. Dependencies include the separately restored producer source and Node.js dependencies, Python 3 with assertions enabled, configuration/control inputs, schema expectations, and template/archive inputs referenced by the preparation tools. Fixed paths and source integrity bindings require review when adapting the files. This subset alone cannot run the host or all synthetic checks.
 
-Dependencies include the referenced producer source, Node.js and Python dependencies, separately supplied configuration and schema expectations, and any template files imported by the preparation programs. These inputs are omitted. This snapshot alone cannot run the hosts or all checks. Restore and validate inputs separately, and review fixed paths and integrity checks before relocation.
-
-Excluded: credentials, environment and configuration files, identity documents, captured data, database responses, runtime outputs, internal reports, old source copies and diffs, superseded inventories, and the preparation generators listed as omitted in SOURCE_BACKUP.json. Omitted generators mean their preparation steps are not fully reproducible from this branch alone.
+The remaining inventory entries are omitted, including configuration and identity documents, reports, original copies and diffs. Actual database replies, capture data, runtime directories, credentials, and environment files are also excluded. No code execution or runtime qualification is claimed by this backup.

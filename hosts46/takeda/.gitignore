@@ -1,0 +1,10 @@
+NONQUAL-*/
+NON_QUALIFYING_*.json
+_local-preflight-*/
+dot-*/
+HISTORICAL_RUNNING_READBACK.json
+NEXT_DUE_REFERENCE.json
+*.sql-binding.json
+*.request.json
+*.response.json
+*.dispatch.json
