@@ -1,0 +1,569 @@
+diff --git a/organon/host/context-read.sql b/organon/host/context-read.sql
+--- a/organon/host/context-read.sql
++++ b/organon/host/context-read.sql
+@@ -1,6 +1,6 @@
+ WITH matching AS (
+  SELECT r.* FROM public."CrawlBatchSourceResult" r JOIN public."CrawlBatch" b ON b.id=r."batchId"
+- WHERE r."sourceId"=E'source-merck-china-social' AND r."sourceConfigHash"=E'3bce85185c99c4513a907f87fe3da9e8297392a8e0b9b1c52f57da09f2fe7d38'
++ WHERE r."sourceId"=E'source-organon-china-social' AND r."sourceConfigHash"=E'd56e212c03224c44b0be11afc07709ae9b2fbfd2a69c24ce773c0f192fa603d2'
+  AND r."completenessState"='VERIFIED' AND r."atomicCommitState"='COMMITTED'
+  AND r."completenessCertificateSha256" IS NOT NULL
+  AND r."completenessCertificate"->>'schemaVersion'=E'plan-bound-source-quality-v1' AND r."completenessCertificate"->>'policyId'=E'PLAN_BOUND_SOURCE_QUALITY_V1' AND b.kind<>'MANUAL_SOURCE'
+@@ -9,11 +9,11 @@
+  jsonb_build_object('atsKind',s."atsKind",'kind',s.kind,'status',s.status,'officialEntryUrl',s."officialEntryUrl",'officialChainEvidenceUrl',s."officialChainEvidenceUrl") AS source,
+  jsonb_build_object('officialChineseName',c."officialChineseName") AS company
+  FROM public."Job" j JOIN public."RecruitmentSource" s ON s.id=j."sourceId" JOIN public."Company" c ON c.id=j."companyId"
+- WHERE j."sourceId"=E'source-merck-china-social'
+- ) SELECT jsonb_build_object('checkedAt',clock_timestamp(),'sourceId',E'source-merck-china-social','sourceConfigSha256',E'3bce85185c99c4513a907f87fe3da9e8297392a8e0b9b1c52f57da09f2fe7d38',
++ WHERE j."sourceId"=E'source-organon-china-social'
++ ) SELECT jsonb_build_object('checkedAt',clock_timestamp(),'sourceId',E'source-organon-china-social','sourceConfigSha256',E'd56e212c03224c44b0be11afc07709ae9b2fbfd2a69c24ce773c0f192fa603d2',
+  'jobs',coalesce((SELECT jsonb_agg(to_jsonb(j) ORDER BY j."lastSeenAt" DESC,j."dedupeKey") FROM jobs j),'[]'::jsonb),
+  'latestAccepted',(SELECT to_jsonb(r) FROM matching r ORDER BY "finishedAt" DESC,id DESC LIMIT 1),
+  'firstAccepted',(SELECT to_jsonb(r) FROM matching r ORDER BY "finishedAt" ASC,id ASC LIMIT 1),
+  'candidateRow',(SELECT to_jsonb(r) FROM public."ReleaseCandidate" r WHERE id=E'dot-cloud-deadline-47b74924-20261006'),
+- 'sourceRow',(SELECT to_jsonb(r) FROM public."RecruitmentSource" r WHERE id=E'source-merck-china-social'),
+- 'companyRow',(SELECT to_jsonb(r) FROM public."Company" r WHERE id=E'company-merck-china')) AS context;
+\ No newline at end of file
++ 'sourceRow',(SELECT to_jsonb(r) FROM public."RecruitmentSource" r WHERE id=E'source-organon-china-social'),
++ 'companyRow',(SELECT to_jsonb(r) FROM public."Company" r WHERE id=E'company-organon-china')) AS context;
+\ No newline at end of file
+diff --git a/organon/host/host-helper-functions.js b/organon/host/host-helper-functions.js
+--- a/organon/host/host-helper-functions.js
++++ b/organon/host/host-helper-functions.js
+@@ -1,19 +1,19 @@
+ 
+-const cfg=load("deadlineCandidate47b:merck:cloudPilotHostConfig");
++const cfg=load("deadlineCandidate47b:organon:cloudPilotHostConfig");
+ const q=s=>"'"+String(s).replaceAll("'","'\\''")+"'";
+ async function cmd(command,max=10000,deadline=Date.now()+90000){
+  const startedAt=Date.now();if(!Number.isFinite(deadline)||deadline<=startedAt)throw Error("HOST_LOCAL_COMMAND_BUDGET_EXHAUSTED");
+- let r=await tools.exec_command({cmd:"env JOBFINDER_CLOUD_SOURCE_ID=source-merck-china-social TSX_DISABLE_CACHE=1 NODE_DISABLE_COMPILE_CACHE=1 "+command,workdir:cfg.repo,max_output_tokens:max,yield_time_ms:Math.min(10000,Math.max(1,deadline-startedAt))});
++ let r=await tools.exec_command({cmd:"env JOBFINDER_CLOUD_SOURCE_ID=source-organon-china-social TSX_DISABLE_CACHE=1 NODE_DISABLE_COMPILE_CACHE=1 "+command,workdir:cfg.repo,max_output_tokens:max,yield_time_ms:Math.min(10000,Math.max(1,deadline-startedAt))});
+  let output=r.output??"",session=r.session_id;
+  if(session)notify({status:"HOST_LOCAL_COMMAND_RUNNING",session,deadline:new Date(deadline).toISOString()});
+  while(r.session_id){
+   session=r.session_id;const remaining=deadline-Date.now();
+-  if(remaining<=0){store("deadlineCandidate47b:merck:cloudHostLocalCommandOutcome",{status:"BUDGET_EXHAUSTED",session,startedAt,deadline});throw Error("HOST_LOCAL_COMMAND_BUDGET_EXHAUSTED:"+session);}
++  if(remaining<=0){store("deadlineCandidate47b:organon:cloudHostLocalCommandOutcome",{status:"BUDGET_EXHAUSTED",session,startedAt,deadline});throw Error("HOST_LOCAL_COMMAND_BUDGET_EXHAUSTED:"+session);}
+   try{r=await tools.write_stdin({session_id:session,chars:"",yield_time_ms:Math.min(1000,remaining),max_output_tokens:max});}
+-  catch(error){store("deadlineCandidate47b:merck:cloudHostLocalCommandOutcome",{status:"POLL_UNRESOLVED_NO_RETRY",session,startedAt,deadline,error:String(error)});throw error;}
++  catch(error){store("deadlineCandidate47b:organon:cloudHostLocalCommandOutcome",{status:"POLL_UNRESOLVED_NO_RETRY",session,startedAt,deadline,error:String(error)});throw error;}
+   output+=r.output??"";
+  }
+- store("deadlineCandidate47b:merck:cloudHostLocalCommandOutcome",{status:"TERMINAL",session,startedAt,finishedAt:Date.now(),exitCode:r.exit_code});
++ store("deadlineCandidate47b:organon:cloudHostLocalCommandOutcome",{status:"TERMINAL",session,startedAt,finishedAt:Date.now(),exitCode:r.exit_code});
+  if(r.exit_code!==0)throw Error("HOST_COMMAND:"+output);return output;
+ }
+ async function save(path,value){const data=typeof value==="string"?value:JSON.stringify(value);const result=await tools.apply_patch("*** Begin Patch\n*** Add File: "+path+"\n"+data.split("\n").map(x=>"+"+x).join("\n")+"\n*** End Patch");if(result?.isError)throw Error("HOST_SAVE");return path;}
+@@ -40,10 +40,10 @@
+ async function sqlDispatch(r,dir,sql){
+  if(typeof sql!=="string"||sql!==r.payload?.sql||cfg.project!==r.payload?.projectId)throw Error("HOST_SQL_BINDING");
+  await mark(r,dir);let result,raw,diagnostic;
+- try{raw=await tools.mcp__codex_apps__supabase_execute_sql({project_id:cfg.project,query:sql});store("deadlineCandidate47b:merck:cloudLastSqlToolResult",raw);result={status:"SUCCEEDED",rows:rows(raw)};}
++ try{raw=await tools.mcp__codex_apps__supabase_execute_sql({project_id:cfg.project,query:sql});store("deadlineCandidate47b:organon:cloudLastSqlToolResult",raw);result={status:"SUCCEEDED",rows:rows(raw)};}
+  catch(error){
+   diagnostic={recordedAt:new Date().toISOString(),responseExpired:Date.now()>=Date.parse(r.expiresAt),toolResult:raw??null,error:{message:String(error),name:error?.name,stack:error?.stack}};
+-  store("deadlineCandidate47b:merck:cloudHostLastDispatchError",diagnostic);result=publicationFailure(raw,r,sql);
++  store("deadlineCandidate47b:organon:cloudHostLastDispatchError",diagnostic);result=publicationFailure(raw,r,sql);
+  }
+  await respond(r,dir,result,diagnostic);return result;
+ }
+diff --git a/organon/host/host-stage-functions.js b/organon/host/host-stage-functions.js
+--- a/organon/host/host-stage-functions.js
++++ b/organon/host/host-stage-functions.js
+@@ -1,5 +1,5 @@
+ 
+-const AsyncFunction=Object.getPrototypeOf(async function(){}).constructor;const h=await new AsyncFunction(load("deadlineCandidate47b:merck:cloudPilotHostHelpers"))(); const {cfg}=h;
++const AsyncFunction=Object.getPrototypeOf(async function(){}).constructor;const h=await new AsyncFunction(load("deadlineCandidate47b:organon:cloudPilotHostHelpers"))(); const {cfg}=h;
+ async function handle(r,dir){
+  if(r.expired||r.dispatchRecorded)throw Error("HOST_STALE_OR_UNCERTAIN_REQUEST:"+r.kind);
+  if(["LEASE_ACQUIRE","LEASE_RENEW","LEASE_RELEASE","READ_OUTCOME","READ_PUBLICATION_CONTEXT"].includes(r.kind))return h.sqlDispatch(r,dir,r.payload.sql);
+@@ -7,28 +7,28 @@
+   const made=JSON.parse(await h.cmd("node --import /workspace/scratch/5e9614251709/jb-workspace-recovery-20261006T1136Z/workspaces/producer-fb0-exact/node_modules/tsx/dist/loader.mjs "+h.q(cfg.root+"/host-files.mts")+" pending "+h.q(dir+"/"+r.requestId+".request.json"),10000,Date.parse(r.payload.dispatchBefore??r.expiresAt)));
+   if(made.requestSha256!==r.requestSha256||made.requestId!==r.requestId||made.projectId!==cfg.project||r.payload.projectId!==cfg.project)throw Error("HOST_CONTROL_REQUEST_BINDING");
+   const sql=await h.readFile(made.output,Date.parse(r.payload.dispatchBefore??r.expiresAt));if(sql.hash!==made.sha256)throw Error("HOST_CONTROL_HASH");
+-  await h.mark(r,dir);const raw=await tools.mcp__codex_apps__supabase_execute_sql({project_id:cfg.project,query:sql.text});store("deadlineCandidate47b:merck:cloudPendingToolResult",raw);
++  await h.mark(r,dir);const raw=await tools.mcp__codex_apps__supabase_execute_sql({project_id:cfg.project,query:sql.text});store("deadlineCandidate47b:organon:cloudPendingToolResult",raw);
+   const out=h.rows(raw);if(out.length!==1||!out[0].result)throw Error("HOST_PENDING_RESPONSE");
+-  await h.respond(r,dir,out[0].result);store("deadlineCandidate47b:merck:cloudPilotPendingRequest",r);return {status:"CREATED_PENDING"};
++  await h.respond(r,dir,out[0].result);store("deadlineCandidate47b:organon:cloudPilotPendingRequest",r);return {status:"CREATED_PENDING"};
+  }
+  if(r.kind==="READ_CONTEXT"){
+-  if(r.payload.projectId!==cfg.project||r.payload.sourceId!=="source-merck-china-social"||r.payload.sourceConfigSha256!=="3bce85185c99c4513a907f87fe3da9e8297392a8e0b9b1c52f57da09f2fe7d38")throw Error("HOST_CONTEXT_SOURCE_BINDING");
++  if(r.payload.projectId!==cfg.project||r.payload.sourceId!=="source-organon-china-social"||r.payload.sourceConfigSha256!=="d56e212c03224c44b0be11afc07709ae9b2fbfd2a69c24ce773c0f192fa603d2")throw Error("HOST_CONTEXT_SOURCE_BINDING");
+   const query=(await h.readFile(cfg.root+"/context-read.sql")).text;
+-  await h.mark(r,dir);const raw=await tools.mcp__codex_apps__supabase_execute_sql({project_id:cfg.project,query});store("deadlineCandidate47b:merck:cloudLiveContextToolResult",raw);
++  await h.mark(r,dir);const raw=await tools.mcp__codex_apps__supabase_execute_sql({project_id:cfg.project,query});store("deadlineCandidate47b:organon:cloudLiveContextToolResult",raw);
+   const out=h.rows(raw);if(out.length!==1||!out[0].context)throw Error("HOST_CONTEXT_RESPONSE");
+   const context=out[0].context;if(!/^\d{4}-\d{2}-\d{2}T.*(?:Z|[+]00:00)$/.test(context.checkedAt))throw Error("HOST_CONTEXT_UTC");
+   await h.respond(r,dir,{...context,checkedAt:new Date(context.checkedAt).toISOString()});return {status:"READ_CONTEXT"};
+  }
+  if(r.kind==="ARCHIVE_STORE"){
+-  const pending=load("deadlineCandidate47b:merck:cloudPilotPendingRequest");
+-  if(!pending||pending.payload.projectId!==cfg.project||pending.payload.planned.sources.length!==1||pending.payload.planned.sources[0].sourceId!=="source-merck-china-social")throw Error("HOST_ARCHIVE_PENDING_BINDING");
++  const pending=load("deadlineCandidate47b:organon:cloudPilotPendingRequest");
++  if(!pending||pending.payload.projectId!==cfg.project||pending.payload.planned.sources.length!==1||pending.payload.planned.sources[0].sourceId!=="source-organon-china-social")throw Error("HOST_ARCHIVE_PENDING_BINDING");
+   const planned=pending.payload.planned,expectedPath=dir+"/"+r.requestId+".archive-expected.json";
+   await h.save(expectedPath,{releaseCandidateId:planned.batch.releaseCandidateId,batchId:planned.batch.id,sourceId:planned.sources[0].sourceId,sourceResultId:planned.sources[0].id,sourceConfigSha256:planned.sources[0].sourceConfigHash,evidenceSubdirectory:"cloud-pilot/runtime-evidence"});
+   const audit=JSON.parse(await h.cmd("node "+h.q(cfg.root+"/host-files.mts")+" prepare-archive-upload "+h.q(r.payload.bundlePath)+" "+h.q(expectedPath)));
+   if(audit.sha256!==r.payload.bundleSha256||audit.bytes!==r.payload.byteCount)throw Error("HOST_ARCHIVE_BINDING");
+   await h.mark(r,dir);
+   const libraryData=result=>{let body=result;for(let i=0;i<4&&body?.structuredContent;i++)body=body.structuredContent;if(body===result&&!result.structuredContent)body=JSON.parse(result.content.find(c=>c.type==="text").text);return body.result??body;};
+-  const upload=await tools.mcp__codex_apps__library_create_library_file({file:audit.output,library_artifact_type:"other"});store("deadlineCandidate47b:merck:cloudLiveArchiveCreate",upload);
++  const upload=await tools.mcp__codex_apps__library_create_library_file({file:audit.output,library_artifact_type:"other"});store("deadlineCandidate47b:organon:cloudLiveArchiveCreate",upload);
+   const item=libraryData(upload);
+   if(upload.isError||item?.status!=="succeeded"||!item.library_file_id)throw Error("HOST_ARCHIVE_UPLOAD_UNCERTAIN");
+   const attrs=JSON.stringify(item.xattrs??[]);
+@@ -37,12 +37,12 @@
+   const receipt={bundleSha256:r.payload.bundleSha256,bundleByteCount:r.payload.byteCount,libraryFileId:item.library_file_id,libraryVersion:String(item.current_version_number),libraryFileIdBacking:item.file_id,packedSha256:audit.packedSha256,packedByteCount:audit.packedBytes,stored:true,recoveryVerification:"PENDING"};
+   await h.save(dir+"/"+r.requestId+".stored-archive.json",{...receipt,packedPath:audit.output,sourceBundlePath:r.payload.bundlePath});
+   await h.respond(r,dir,receipt);
+-  store("deadlineCandidate47b:merck:cloudLiveArchiveIdentity",{...item,...receipt});return {status:"ARCHIVE_STORED_RECOVERY_PENDING",libraryFileId:item.library_file_id};
++  store("deadlineCandidate47b:organon:cloudLiveArchiveIdentity",{...item,...receipt});return {status:"ARCHIVE_STORED_RECOVERY_PENDING",libraryFileId:item.library_file_id};
+  }
+  if(r.kind==="PUBLISH"){
+   const packet=JSON.parse(await h.cmd("node --import /workspace/scratch/5e9614251709/jb-workspace-recovery-20261006T1136Z/workspaces/producer-fb0-exact/node_modules/tsx/dist/loader.mjs "+h.q(cfg.root+"/host-files.mts")+" publish "+h.q(dir+"/"+r.requestId+".request.json"),10000,Date.parse(r.payload.dispatchBefore??r.expiresAt)));
+   const sqlPath=packet.output;
+-  store("deadlineCandidate47b:merck:cloudPilotPublishRequest",r);store("deadlineCandidate47b:merck:cloudPilotPublishDirectory",dir);
++  store("deadlineCandidate47b:organon:cloudPilotPublishRequest",r);store("deadlineCandidate47b:organon:cloudPilotPublishDirectory",dir);
+   return {...packet,status:"AWAITING_PARENT_REVIEW",requestId:r.requestId,requestSha256:r.requestSha256,sqlPath,dispatchBefore:r.payload.dispatchBefore,expiresAt:r.expiresAt,characters:r.payload.sql.length};
+  }
+  throw Error("HOST_UNKNOWN_REQUEST");
+diff --git a/organon/host/relay-files.mjs b/organon/host/relay-files.mjs
+--- a/organon/host/relay-files.mjs
++++ b/organon/host/relay-files.mjs
+@@ -21,7 +21,7 @@
+  try{await link(temp,dest);}finally{await unlink(temp);}
+ }
+ const [command,directory,arg,expectedRequestSha256]=process.argv.slice(2);const dir=resolve(directory??'');
+-if(!dir.startsWith('/workspace/scratch/5e9614251709/jb-workspace-recovery-20261006T1136Z/hosts-next/merck/host/'))throw Error('RELAY_DIRECTORY_OUTSIDE_TASK');
++if(!dir.startsWith('/workspace/scratch/5e9614251709/jb-workspace-recovery-20261006T1136Z/hosts-next/organon/host/'))throw Error('RELAY_DIRECTORY_OUTSIDE_TASK');
+ if(command==='next'||command==='next-meta'){
+  const names=await readdir(dir),rows=[];
+  for(const name of names.filter(n=>n.endsWith('.request.json')).sort()){
+diff --git a/organon/host/runtime/complete-reviewed-source-readback.js b/organon/host/runtime/complete-reviewed-source-readback.js
+--- a/organon/host/runtime/complete-reviewed-source-readback.js
++++ b/organon/host/runtime/complete-reviewed-source-readback.js
+@@ -1,4 +1,4 @@
+-const ns="deadlineCandidate47b:merck:";
++const ns="deadlineCandidate47b:organon:";
+ const A=Object.getPrototypeOf(async function(){}).constructor;
+ const h=await new A(load(ns+"cloudPilotHostHelpers"))();
+ const run=load(ns+"refreshCurrentRun"),batch=load(ns+"refreshCurrentBatch"),binding=load(ns+"registeredCandidateBinding");
+diff --git a/organon/host/runtime/continuous-relay-v3-durable-monitor.js b/organon/host/runtime/continuous-relay-v3-durable-monitor.js
+--- a/organon/host/runtime/continuous-relay-v3-durable-monitor.js
++++ b/organon/host/runtime/continuous-relay-v3-durable-monitor.js
+@@ -1,22 +1,22 @@
+ 
+ const A=Object.getPrototypeOf(async function(){}).constructor;
+-const s=await new A(load("deadlineCandidate47b:merck:cloudPilotHostStages"))();
+-const run=load("deadlineCandidate47b:merck:refreshCurrentRun"),dir=run+"/relay";
++const s=await new A(load("deadlineCandidate47b:organon:cloudPilotHostStages"))();
++const run=load("deadlineCandidate47b:organon:refreshCurrentRun"),dir=run+"/relay";
+ let lastHeartbeat=0,lastStatus=0;
+ const loopStarted=Date.now(),stopAt=loopStarted+30*60*1000;
+ while(Date.now()<stopAt){
+  let req;try{req=await s.h.next(dir);}catch(error){if(!(Date.now()-loopStarted<60000&&String(error).includes("ENOENT")&&String(error).includes("scandir '"+dir+"'")))throw error;}
+  if(req){
+   notify({at:new Date().toISOString(),phase:req.kind,requestId:req.requestId,expiresAt:req.expiresAt});
+-  const out=await s.handle(req,dir);store("deadlineCandidate47b:merck:freshLastRelayResult",out);
++  const out=await s.handle(req,dir);store("deadlineCandidate47b:organon:freshLastRelayResult",out);
+   notify({at:new Date().toISOString(),phase:req.kind,status:out.status,rowCount:out.rows?.length});
+   if(req.kind==="PUBLISH"){text(out);break;}
+  }
+  if(Date.now()-lastStatus>20000){
+   const status=JSON.parse(await s.h.cmd("python3 - "+s.h.q(run)+" <<'PY'\nimport json,pathlib,sys,collections\np=pathlib.Path(sys.argv[1])\ndef lines(n):\n q=p/n\n return [json.loads(x) for x in q.read_text().splitlines() if x] if q.exists() else []\ndef obj(n):\n q=p/n\n return json.loads(q.read_text()) if q.exists() else None\na=lines('diagnostics/process.jsonl');b=lines('diagnostics/http-requests.jsonl');last=a[-1] if a else {};counts=collections.Counter(x.get('event') for x in b);print(json.dumps({'process':last,'supervisor':obj('cancel-control/terminal.json'),'observer':obj('memory-observation/summary.json'),'http':dict(counts),'lastAt':b[-1].get('recordedAt') if b else None}))\nPY",2000));
+-  store("deadlineCandidate47b:merck:portableCurrentProcessStatus",status);lastStatus=Date.now();
++  store("deadlineCandidate47b:organon:portableCurrentProcessStatus",status);lastStatus=Date.now();
+   if(status.process?.event==="CHILD_EXIT"){
+-    const activeSession=load("deadlineCandidate47b:merck:refreshSession");
++    const activeSession=load("deadlineCandidate47b:organon:refreshSession");
+     if(!Number.isSafeInteger(activeSession))throw Error("NO_ORIGINAL_EXEC_SESSION");
+     const levels={wrapper:{state:"TERMINATED",record:status.process},supervisor:{state:status.supervisor?"RECEIPT_PRESENT":"UNKNOWN",record:status.supervisor??null},observer:{state:status.observer?.status==="TARGET_TREE_EXITED"?"OBSERVED_EXIT":"UNKNOWN",record:status.observer??null}};
+     let announcedRunning=false;
+@@ -25,31 +25,31 @@
+       try{poll=await tools.write_stdin({session_id:activeSession,chars:"",yield_time_ms:1000,max_output_tokens:1200});}
+       catch(error){
+         const diagnostic={at:new Date().toISOString(),originalSessionId:activeSession,error:String(error),classification:"TERMINAL_OUTPUT_POLL_UNRESOLVED_NO_RETRY",levels};
+-        store("deadlineCandidate47b:merck:lastPortableExecPoll",diagnostic);notify(diagnostic);
++        store("deadlineCandidate47b:organon:lastPortableExecPoll",diagnostic);notify(diagnostic);
+         text({status:"ORIGINAL_EXEC_UNKNOWN",levels,originalSessionId:activeSession});return;
+       }
+-      store("deadlineCandidate47b:merck:lastPortableExecPollRaw",{at:new Date().toISOString(),originalSessionId:activeSession,raw:poll});
++      store("deadlineCandidate47b:organon:lastPortableExecPollRaw",{at:new Date().toISOString(),originalSessionId:activeSession,raw:poll});
+       if(poll.exit_code!==undefined&&poll.session_id===undefined){
+         if(!Number.isInteger(poll.exit_code)||poll.exit_code!==status.process.wrapperExitCode){
+           const diagnostic={at:new Date().toISOString(),originalSessionId:activeSession,classification:"DURABLE_EXIT_TOOL_EXIT_MISMATCH",levels};
+-          store("deadlineCandidate47b:merck:lastPortableExecPoll",diagnostic);notify(diagnostic);
++          store("deadlineCandidate47b:organon:lastPortableExecPoll",diagnostic);notify(diagnostic);
+           throw Error("DURABLE_EXIT_TOOL_EXIT_MISMATCH");
+         }
+         // Only a validated original-session terminal can feed completion.
+-        store("deadlineCandidate47b:merck:lastPortableExecPoll",{at:new Date().toISOString(),originalSessionId:activeSession,exit_code:poll.exit_code});
++        store("deadlineCandidate47b:organon:lastPortableExecPoll",{at:new Date().toISOString(),originalSessionId:activeSession,exit_code:poll.exit_code});
+         text({status:"PROCESS_TERMINATED",levels,originalExec:{state:"TERMINATED",sessionId:activeSession,exitCode:poll.exit_code},terminalToolPoll:poll});return;
+       }
+       if(poll.session_id!==activeSession||poll.exit_code!==undefined){
+         const diagnostic={at:new Date().toISOString(),originalSessionId:activeSession,classification:"ORIGINAL_EXEC_POLL_SHAPE_UNKNOWN",levels};
+-        store("deadlineCandidate47b:merck:lastPortableExecPoll",diagnostic);notify(diagnostic);
++        store("deadlineCandidate47b:organon:lastPortableExecPoll",diagnostic);notify(diagnostic);
+         text({status:"ORIGINAL_EXEC_UNKNOWN",levels,originalSessionId:activeSession});return;
+       }
+-      store("deadlineCandidate47b:merck:lastPortableExecPoll",{at:new Date().toISOString(),originalSessionId:activeSession,session_id:activeSession,classification:"ORIGINAL_EXEC_RUNNING"});
++      store("deadlineCandidate47b:organon:lastPortableExecPoll",{at:new Date().toISOString(),originalSessionId:activeSession,session_id:activeSession,classification:"ORIGINAL_EXEC_RUNNING"});
+       if(!announcedRunning){notify({status:"WRAPPER_EXIT_ORIGINAL_EXEC_STILL_RUNNING",levels,originalSessionId:activeSession});announcedRunning=true;}
+       // Only the original session is polled again. No restart or alternate route.
+     }
+     const diagnostic={at:new Date().toISOString(),originalSessionId:activeSession,classification:"ORIGINAL_EXEC_POLL_BUDGET_EXHAUSTED",levels};
+-    store("deadlineCandidate47b:merck:lastPortableExecPoll",diagnostic);notify(diagnostic);
++    store("deadlineCandidate47b:organon:lastPortableExecPoll",diagnostic);notify(diagnostic);
+     text({status:"ORIGINAL_EXEC_UNKNOWN",levels,originalSessionId:activeSession});return;
+   }
+   if(Date.now()-lastHeartbeat>55000){notify({at:new Date().toISOString(),status:"CAPTURE_OR_CONTROL_RUNNING",...status});lastHeartbeat=Date.now();}
+diff --git a/organon/host/runtime/load-host-state.js b/organon/host/runtime/load-host-state.js
+--- a/organon/host/runtime/load-host-state.js
++++ b/organon/host/runtime/load-host-state.js
+@@ -2,8 +2,8 @@
+ // functions.exec AsyncFunction parameters: root, sourceId, candidateId, commit.
+ // Read and validate every binding before replacing any session state.
+ const q=s=>"'"+String(s).replaceAll("'","'\\''")+"'";
+-const expectedRoot="/workspace/scratch/5e9614251709/jb-workspace-recovery-20261006T1136Z/hosts-next/merck/host",expectedRepo="/workspace/scratch/5e9614251709/jb-workspace-recovery-20261006T1136Z/workspaces/producer-fb0-exact",expectedBuild={"schemaVersion": 2, "commitSha": "47b74924f850a4d329460b71717b36df9a5159b8", "sourceTreeSha256": "2b69db23fda340bea9a9a6931aa58426e80599c82251909424f61cae5f3f7894", "runtimeTreeSha256": "b59a746109d74eea22cab9c4c3154de5954bae3b900ed0e7032a20d4ea510bd1", "contentSha256": "f4cf9ca5bc22fdea40d67a92018c8574bf3e8eee0e32deea6c28d48129ee9e5f"};
+-const expectedSourceId="source-merck-china-social",expectedHash="3bce85185c99c4513a907f87fe3da9e8297392a8e0b9b1c52f57da09f2fe7d38";
++const expectedRoot="/workspace/scratch/5e9614251709/jb-workspace-recovery-20261006T1136Z/hosts-next/organon/host",expectedRepo="/workspace/scratch/5e9614251709/jb-workspace-recovery-20261006T1136Z/workspaces/producer-fb0-exact",expectedBuild={"schemaVersion": 2, "commitSha": "47b74924f850a4d329460b71717b36df9a5159b8", "sourceTreeSha256": "2b69db23fda340bea9a9a6931aa58426e80599c82251909424f61cae5f3f7894", "runtimeTreeSha256": "b59a746109d74eea22cab9c4c3154de5954bae3b900ed0e7032a20d4ea510bd1", "contentSha256": "f4cf9ca5bc22fdea40d67a92018c8574bf3e8eee0e32deea6c28d48129ee9e5f"};
++const expectedSourceId="source-organon-china-social",expectedHash="d56e212c03224c44b0be11afc07709ae9b2fbfd2a69c24ce773c0f192fa603d2";
+ if(root!==expectedRoot||sourceId!==expectedSourceId||typeof candidateId!=="string"||!/^[-A-Za-z0-9._]{1,100}$/.test(candidateId)||candidateId==="dot-cloud-restored-fb0b8e3-20261005T2028Z"||commit!==expectedBuild.commitSha)throw Error("HOST_LOAD_ARGUMENT");
+ const command="python3 - "+q(root)+" <<'PY'\nfrom pathlib import Path\nimport json,sys\np=Path(sys.argv[1]);assert p.resolve()==p and p.is_dir()\nprint(json.dumps({k:(p/k).read_text() for k in ['host-config.json','control-base.json','activation.json','host-helper-functions.js','host-stage-functions.js']}))\nPY";
+ const result=await tools.exec_command({cmd:command,max_output_tokens:18000});
+@@ -14,8 +14,8 @@
+ if(!exact(control.build,expectedBuild)||!exact(binding.build,expectedBuild))throw Error("HOST_LOCAL_BUILD_BINDING_MISMATCH");
+ if(cfg.root!==expectedRoot||cfg.repo!==expectedRepo||cfg.project!=="yiopvxysxrtrnvqxwgbx"||cfg.sourceId!==expectedSourceId||cfg.sourceConfigSha256!==expectedHash||control.projectId!==cfg.project||!exact(control.candidate,binding.candidate)||binding.candidate.id!==candidateId||binding.candidate.goalId!=="jobfinder-portable-required-40"||control.build.commitSha!==commit)throw Error("HOST_LOAD_BINDING_MISMATCH");
+ if(!files['host-helper-functions.js'].includes('JOBFINDER_CLOUD_SOURCE_ID='+sourceId+' ')||!files['host-stage-functions.js'].includes('r.payload.sourceId!=="'+sourceId+'"')||!files['host-stage-functions.js'].includes('r.payload.sourceConfigSha256!=="'+cfg.sourceConfigSha256+'"'))throw Error("HOST_LOAD_HELPER_SCOPE_MISMATCH");
+-store('deadlineCandidate47b:merck:cloudPilotHostConfig',cfg);
+-store('deadlineCandidate47b:merck:cloudPilotHostHelpers',files['host-helper-functions.js']);
+-store('deadlineCandidate47b:merck:cloudPilotHostStages',files['host-stage-functions.js']);
+-store('deadlineCandidate47b:merck:registeredCandidateBinding',binding);
++store('deadlineCandidate47b:organon:cloudPilotHostConfig',cfg);
++store('deadlineCandidate47b:organon:cloudPilotHostHelpers',files['host-helper-functions.js']);
++store('deadlineCandidate47b:organon:cloudPilotHostStages',files['host-stage-functions.js']);
++store('deadlineCandidate47b:organon:registeredCandidateBinding',binding);
+ return {sourceId,candidateId,commit,root};
+diff --git a/organon/host/runtime/load-source-runtime.js b/organon/host/runtime/load-source-runtime.js
+--- a/organon/host/runtime/load-source-runtime.js
++++ b/organon/host/runtime/load-source-runtime.js
+@@ -1,17 +1,17 @@
+-if(sourceKey!=="merck")throw Error("RESTORED46_SOURCE_SELECTION");
++if(sourceKey!=="organon")throw Error("RESTORED46_SOURCE_SELECTION");
+ // functions.exec fragment: safe local load only; this does not start the producer.
+ const A=Object.getPrototypeOf(async function(){}).constructor;
+ const q=s=>"'"+String(s).replaceAll("'","'\\''")+"'";
+-const runtime="/workspace/scratch/5e9614251709/jb-workspace-recovery-20261006T1136Z/hosts-next/merck/host/runtime";
+-const result=await tools.exec_command({cmd:"python3 - "+q(runtime)+" <<'PY'\nfrom pathlib import Path\nimport json,sys\np=Path(sys.argv[1]);print(json.dumps({n:(p/n).read_text() for n in ['load-host-state.js','../../supervision/start-monitor-merck47b-combined.js','continuous-relay-v3-durable-monitor.js','complete-reviewed-source-readback.js','../activation.json']}))\nPY",max_output_tokens:18000});
++const runtime="/workspace/scratch/5e9614251709/jb-workspace-recovery-20261006T1136Z/hosts-next/organon/host/runtime";
++const result=await tools.exec_command({cmd:"python3 - "+q(runtime)+" <<'PY'\nfrom pathlib import Path\nimport json,sys\np=Path(sys.argv[1]);print(json.dumps({n:(p/n).read_text() for n in ['load-host-state.js','../../supervision/start-monitor-organon47b-combined.js','continuous-relay-v3-durable-monitor.js','complete-reviewed-source-readback.js','../activation.json']}))\nPY",max_output_tokens:18000});
+ if(result.exit_code!==0||result.session_id)throw Error('RESTORED_HOST_READ_FAILED');
+ const files=JSON.parse(result.output);
+ const binding=JSON.parse(files["../activation.json"]);
+ if(binding.status!=="REGISTERED_VERIFIED"||!binding.candidate)throw Error("CANDIDATE_NOT_REGISTERED");
+-const loaded=await new A('root','sourceId','candidateId','commit',files['load-host-state.js'])("/workspace/scratch/5e9614251709/jb-workspace-recovery-20261006T1136Z/hosts-next/merck/host",'source-merck-china-social',binding.candidate.id,binding.build.commitSha);
+-store('deadlineCandidate47b:merck:continuousPortableRelayCodeWithPoll',files['continuous-relay-v3-durable-monitor.js']);
+-store('deadlineCandidate47b:merck:completeReviewedSourceCode',files['complete-reviewed-source-readback.js']);
+-store('deadlineCandidate47b:merck:restoredPortableSourceStartCode',files['../../supervision/start-monitor-merck47b-combined.js']);
+-store('deadlineCandidate47b:merck:currentIndependentValidationInput',null);store('deadlineCandidate47b:merck:currentCaptureInput',null);store('deadlineCandidate47b:merck:nextBatchId',null);
+-store('deadlineCandidate47b:merck:currentRetainedCaptureInput',null);
++const loaded=await new A('root','sourceId','candidateId','commit',files['load-host-state.js'])("/workspace/scratch/5e9614251709/jb-workspace-recovery-20261006T1136Z/hosts-next/organon/host",'source-organon-china-social',binding.candidate.id,binding.build.commitSha);
++store('deadlineCandidate47b:organon:continuousPortableRelayCodeWithPoll',files['continuous-relay-v3-durable-monitor.js']);
++store('deadlineCandidate47b:organon:completeReviewedSourceCode',files['complete-reviewed-source-readback.js']);
++store('deadlineCandidate47b:organon:restoredPortableSourceStartCode',files['../../supervision/start-monitor-organon47b-combined.js']);
++store('deadlineCandidate47b:organon:currentIndependentValidationInput',null);store('deadlineCandidate47b:organon:currentCaptureInput',null);store('deadlineCandidate47b:organon:nextBatchId',null);
++store('deadlineCandidate47b:organon:currentRetainedCaptureInput',null);
+ text({...loaded,status:'LOCAL_HOST_LOADED_NO_LAUNCH',publicationMode:'DB_STARTED_OWNER_V1'});
+diff --git a/organon/host/runtime/review-publication.py b/organon/host/runtime/review-publication.py
+--- a/organon/host/runtime/review-publication.py
++++ b/organon/host/runtime/review-publication.py
+@@ -7,7 +7,7 @@
+ cfg=json.loads((host/'host-config.json').read_text())
+ binding=json.loads((host/'activation.json').read_text());control=json.loads((host/'control-base.json').read_text())
+ assert binding['status']=='REGISTERED_VERIFIED' and binding['candidate'] and binding['build']==control['build'] and binding['candidate']==control['candidate']
+-assert cfg['sourceId']=="source-merck-china-social" and cfg['sourceConfigSha256']=="3bce85185c99c4513a907f87fe3da9e8297392a8e0b9b1c52f57da09f2fe7d38"
++assert cfg['sourceId']=="source-organon-china-social" and cfg['sourceConfigSha256']=="d56e212c03224c44b0be11afc07709ae9b2fbfd2a69c24ce773c0f192fa603d2"
+ request=json.loads((run/'relay'/f'{request_id}.request.json').read_text())
+ assert request['kind']=='PUBLISH' and request['requestId']==request_id and request['payload']['projectId']==cfg['project']=='yiopvxysxrtrnvqxwgbx'
+ sql=(run/'relay'/f'{request_id}.request.json.sql').read_text();assert sql==request['payload']['sql']
+diff --git a/organon/host/runtime/start-monitor-portable42.js b/organon/host/runtime/start-monitor-portable42.js
+--- a/organon/host/runtime/start-monitor-portable42.js
++++ b/organon/host/runtime/start-monitor-portable42.js
+@@ -1,7 +1,7 @@
+ 
+-const A=Object.getPrototypeOf(async function(){}).constructor;const h=await new A(load("deadlineCandidate47b:merck:cloudPilotHostHelpers"))();
+-if(h.cfg.sourceId!=="source-merck-china-social")throw Error("SOURCE_SCOPE");
+-const binding=load("deadlineCandidate47b:merck:registeredCandidateBinding");
++const A=Object.getPrototypeOf(async function(){}).constructor;const h=await new A(load("deadlineCandidate47b:organon:cloudPilotHostHelpers"))();
++if(h.cfg.sourceId!=="source-organon-china-social")throw Error("SOURCE_SCOPE");
++const binding=load("deadlineCandidate47b:organon:registeredCandidateBinding");
+ if(binding?.status!=="REGISTERED_VERIFIED"||binding.build?.commitSha!=="47b74924f850a4d329460b71717b36df9a5159b8"||!binding.candidate||typeof binding.candidate.id!=="string"||!Number.isSafeInteger(binding.candidate.version)||binding.candidate.version<1)throw Error("CANDIDATE_NOT_REGISTERED");
+ const query=`WITH latest_successful AS (
+  SELECT s.id AS "sourceResultId",s."sourceId",s."batchId",s."releaseCandidateId",s."sourceConfigHash",s."startedAt",s."finishedAt"
+@@ -41,15 +41,15 @@
+ }
+ // END OBSERVATION_DUE_GATE
+ const due=requireObservationDue(row,h.cfg);
+-const batch=load("deadlineCandidate47b:merck:nextBatchId");if(typeof batch!=="string"||!/^[A-Za-z0-9][A-Za-z0-9._-]{0,80}$/.test(batch))throw Error("BATCH_ID");
+-const run=h.cfg.root+"/"+batch;store("deadlineCandidate47b:merck:refreshCurrentRun",run);store("deadlineCandidate47b:merck:refreshCurrentBatch",batch);store("deadlineCandidate47b:merck:cloudPilotPublishRequest",null);store("deadlineCandidate47b:merck:cloudPilotPendingRequest",null);
++const batch=load("deadlineCandidate47b:organon:nextBatchId");if(typeof batch!=="string"||!/^[A-Za-z0-9][A-Za-z0-9._-]{0,80}$/.test(batch))throw Error("BATCH_ID");
++const run=h.cfg.root+"/"+batch;store("deadlineCandidate47b:organon:refreshCurrentRun",run);store("deadlineCandidate47b:organon:refreshCurrentBatch",batch);store("deadlineCandidate47b:organon:cloudPilotPublishRequest",null);store("deadlineCandidate47b:organon:cloudPilotPendingRequest",null);
+ await h.save(run+"/candidate-readback.json",raw);await h.save(run+"/source-due-readback.json",due);await h.save(run+"/bootstrap.json",{schemaVersion:1,checkedAt:new Date(row.checkedAt).toISOString(),candidateRows:row.candidateRows,batchId:batch});const boot=await h.readFile(run+"/bootstrap.json");
+ 
+-const preflight="env TSX_DISABLE_CACHE=1 NODE_DISABLE_COMPILE_CACHE=1 node "+h.q("/workspace/scratch/5e9614251709/jb-workspace-recovery-20261006T1136Z/hosts-next/merck/host/runtime/preflight/preflight-launch.mjs")+" check "+h.q(h.cfg.root+"/host-config.json")+" "+h.q(h.cfg.root+"/control-base.json")+" "+h.q(run+"/bootstrap.json")+" "+h.q(boot.hash)+" "+h.q(run);
++const preflight="env TSX_DISABLE_CACHE=1 NODE_DISABLE_COMPILE_CACHE=1 node "+h.q("/workspace/scratch/5e9614251709/jb-workspace-recovery-20261006T1136Z/hosts-next/organon/host/runtime/preflight/preflight-launch.mjs")+" check "+h.q(h.cfg.root+"/host-config.json")+" "+h.q(h.cfg.root+"/control-base.json")+" "+h.q(run+"/bootstrap.json")+" "+h.q(boot.hash)+" "+h.q(run);
+ const checked=await h.cmd(preflight,2000);notify({phase:"PORTABLE_DB_STARTED_PREFLIGHT",checked});
+ if(Date.now()-new Date(row.checkedAt).getTime()>60000)throw Error("FRESH_BOOTSTRAP_EXPIRED_BEFORE_LAUNCH");
+ const command="env TSX_DISABLE_CACHE=1 NODE_DISABLE_COMPILE_CACHE=1 JOBFINDER_CLOUD_SOURCE_ID="+h.q(h.cfg.sourceId)+" P0_SOURCE_HTTP_TIMEOUT_MS=45000 node scripts/run-with-http-diagnostics.mjs "+h.q(run+"/diagnostics")+" 1800000 -- node --max-old-space-size=256 --import /workspace/scratch/5e9614251709/jb-workspace-recovery-20261006T1136Z/workspaces/producer-fb0-exact/node_modules/tsx/dist/loader.mjs scripts/p0-cloud-portable-source-pilot.ts "+h.q(run+"/bootstrap.json")+" "+h.q(boot.hash)+" "+h.q(run+"/artifacts")+" "+h.q(run+"/relay")+" --db-started-control "+h.q(h.cfg.root+"/control-base.json");
+ await h.save(run+"/reviewed-command.txt",command);
+-const started=await tools.exec_command({cmd:command,workdir:h.cfg.repo,yield_time_ms:1000,max_output_tokens:1500});store("deadlineCandidate47b:merck:refreshSession",started.session_id);notify({phase:"FRESH_PORTABLE_DB_STARTED_LAUNCH",batch,session:started.session_id,output:started.output});if(!started.session_id)throw Error("NO_RUNNING_LAUNCH_SESSION");
+-await new A(load("deadlineCandidate47b:merck:continuousPortableRelayCodeWithPoll"))();
++const started=await tools.exec_command({cmd:command,workdir:h.cfg.repo,yield_time_ms:1000,max_output_tokens:1500});store("deadlineCandidate47b:organon:refreshSession",started.session_id);notify({phase:"FRESH_PORTABLE_DB_STARTED_LAUNCH",batch,session:started.session_id,output:started.output});if(!started.session_id)throw Error("NO_RUNNING_LAUNCH_SESSION");
++await new A(load("deadlineCandidate47b:organon:continuousPortableRelayCodeWithPoll"))();
+ 
+diff --git a/organon/supervision/create-combined-starter.mjs b/organon/supervision/create-combined-starter.mjs
+--- a/organon/supervision/create-combined-starter.mjs
++++ b/organon/supervision/create-combined-starter.mjs
+@@ -6,7 +6,7 @@
+ import { buildObservedCommand } from '../build-observed-command.mjs';
+ const base=dirname(fileURLToPath(import.meta.url)),r2="/workspace/scratch/5e9614251709/jb-workspace-recovery-20261006T1136Z";
+ export const paths={base,r2,sampler:join(base,'sample_process_tree.py'),supervisor:join(base,'supervise-cancel.mjs'),inspector:join(base,'inspect-launch-identity.mjs'),wrapper:join(r2,'workspaces/producer-fb0-exact/scripts/run-with-http-diagnostics.mjs'),original:join(base,'../host/runtime/start-monitor-portable42.js')};
+-export const hashes={sampler:'3fa6daa1af1afee94d19801edfd8bcb538e1243476b5adb253e50de162a27bd6',supervisor:'489864d0691750583a7d99659aae80b43b63acc89659cf05a6138c37539175d4',wrapper:'f15522e6f209bfe99bfa258b5dffbce1f74d6af662c4c2ee682604e0798bbc88',original:'b7f2975b2a1a8f46575de2814b623980585ddfc50c55919faec745ca0ec4bc95'};
++export const hashes={sampler:'3fa6daa1af1afee94d19801edfd8bcb538e1243476b5adb253e50de162a27bd6',supervisor:'489864d0691750583a7d99659aae80b43b63acc89659cf05a6138c37539175d4',wrapper:'f15522e6f209bfe99bfa258b5dffbce1f74d6af662c4c2ee682604e0798bbc88',original:'2142cedc8ff3887f13a296b98d9f5c4d29e86f96deb9522318d4b4fde6f24a63'};
+ const sha=x=>createHash('sha256').update(x).digest('hex');
+ const launch='const started=await tools.exec_command({cmd:command,workdir:h.cfg.repo,yield_time_ms:1000,max_output_tokens:1500});';
+ export function addCombinedObservation(original) {
+@@ -41,7 +41,7 @@
+   for(const key of ['sampler','supervisor','wrapper','original'])if(sha(readFileSync(paths[key]))!==hashes[key])throw Error('SOURCE_HASH_MISMATCH:'+key);
+   const original=readFileSync(paths.original,'utf8'),combined=addCombinedObservation(original);
+   if(stripCombinedObservation(combined)!==original)throw Error('ORIGINAL_NOT_PRESERVED');
+-  const output=join(base,'start-monitor-merck47b-combined.js');
++  const output=join(base,'start-monitor-organon47b-combined.js');
+   writeFileSync(output,combined,{flag:'wx',mode:0o600});
+   console.log(JSON.stringify({status:'PROPOSAL_NOT_LOADED_OR_LAUNCHED',originalSha256:sha(original),output,outputSha256:sha(combined),originalBytesPreserved:true}));
+ }
+diff --git a/organon/supervision/start-monitor-organon47b-combined.js b/organon/supervision/start-monitor-organon47b-combined.js
+--- a/organon/supervision/start-monitor-organon47b-combined.js
++++ b/organon/supervision/start-monitor-organon47b-combined.js
+@@ -1,7 +1,7 @@
+ 
+-const A=Object.getPrototypeOf(async function(){}).constructor;const h=await new A(load("deadlineCandidate47b:merck:cloudPilotHostHelpers"))();
+-if(h.cfg.sourceId!=="source-merck-china-social")throw Error("SOURCE_SCOPE");
+-const binding=load("deadlineCandidate47b:merck:registeredCandidateBinding");
++const A=Object.getPrototypeOf(async function(){}).constructor;const h=await new A(load("deadlineCandidate47b:organon:cloudPilotHostHelpers"))();
++if(h.cfg.sourceId!=="source-organon-china-social")throw Error("SOURCE_SCOPE");
++const binding=load("deadlineCandidate47b:organon:registeredCandidateBinding");
+ if(binding?.status!=="REGISTERED_VERIFIED"||binding.build?.commitSha!=="47b74924f850a4d329460b71717b36df9a5159b8"||!binding.candidate||typeof binding.candidate.id!=="string"||!Number.isSafeInteger(binding.candidate.version)||binding.candidate.version<1)throw Error("CANDIDATE_NOT_REGISTERED");
+ const query=`WITH latest_successful AS (
+  SELECT s.id AS "sourceResultId",s."sourceId",s."batchId",s."releaseCandidateId",s."sourceConfigHash",s."startedAt",s."finishedAt"
+@@ -41,11 +41,11 @@
+ }
+ // END OBSERVATION_DUE_GATE
+ const due=requireObservationDue(row,h.cfg);
+-const batch=load("deadlineCandidate47b:merck:nextBatchId");if(typeof batch!=="string"||!/^[A-Za-z0-9][A-Za-z0-9._-]{0,80}$/.test(batch))throw Error("BATCH_ID");
+-const run=h.cfg.root+"/"+batch;store("deadlineCandidate47b:merck:refreshCurrentRun",run);store("deadlineCandidate47b:merck:refreshCurrentBatch",batch);store("deadlineCandidate47b:merck:cloudPilotPublishRequest",null);store("deadlineCandidate47b:merck:cloudPilotPendingRequest",null);
++const batch=load("deadlineCandidate47b:organon:nextBatchId");if(typeof batch!=="string"||!/^[A-Za-z0-9][A-Za-z0-9._-]{0,80}$/.test(batch))throw Error("BATCH_ID");
++const run=h.cfg.root+"/"+batch;store("deadlineCandidate47b:organon:refreshCurrentRun",run);store("deadlineCandidate47b:organon:refreshCurrentBatch",batch);store("deadlineCandidate47b:organon:cloudPilotPublishRequest",null);store("deadlineCandidate47b:organon:cloudPilotPendingRequest",null);
+ await h.save(run+"/candidate-readback.json",raw);await h.save(run+"/source-due-readback.json",due);await h.save(run+"/bootstrap.json",{schemaVersion:1,checkedAt:new Date(row.checkedAt).toISOString(),candidateRows:row.candidateRows,batchId:batch});const boot=await h.readFile(run+"/bootstrap.json");
+ 
+-const preflight="env TSX_DISABLE_CACHE=1 NODE_DISABLE_COMPILE_CACHE=1 node "+h.q("/workspace/scratch/5e9614251709/jb-workspace-recovery-20261006T1136Z/hosts-next/merck/host/runtime/preflight/preflight-launch.mjs")+" check "+h.q(h.cfg.root+"/host-config.json")+" "+h.q(h.cfg.root+"/control-base.json")+" "+h.q(run+"/bootstrap.json")+" "+h.q(boot.hash)+" "+h.q(run);
++const preflight="env TSX_DISABLE_CACHE=1 NODE_DISABLE_COMPILE_CACHE=1 node "+h.q("/workspace/scratch/5e9614251709/jb-workspace-recovery-20261006T1136Z/hosts-next/organon/host/runtime/preflight/preflight-launch.mjs")+" check "+h.q(h.cfg.root+"/host-config.json")+" "+h.q(h.cfg.root+"/control-base.json")+" "+h.q(run+"/bootstrap.json")+" "+h.q(boot.hash)+" "+h.q(run);
+ const checked=await h.cmd(preflight,2000);notify({phase:"PORTABLE_DB_STARTED_PREFLIGHT",checked});
+ if(Date.now()-new Date(row.checkedAt).getTime()>60000)throw Error("FRESH_BOOTSTRAP_EXPIRED_BEFORE_LAUNCH");
+ const command="env TSX_DISABLE_CACHE=1 NODE_DISABLE_COMPILE_CACHE=1 JOBFINDER_CLOUD_SOURCE_ID="+h.q(h.cfg.sourceId)+" P0_SOURCE_HTTP_TIMEOUT_MS=45000 node scripts/run-with-http-diagnostics.mjs "+h.q(run+"/diagnostics")+" 1800000 -- node --max-old-space-size=256 --import /workspace/scratch/5e9614251709/jb-workspace-recovery-20261006T1136Z/workspaces/producer-fb0-exact/node_modules/tsx/dist/loader.mjs scripts/p0-cloud-portable-source-pilot.ts "+h.q(run+"/bootstrap.json")+" "+h.q(boot.hash)+" "+h.q(run+"/artifacts")+" "+h.q(run+"/relay")+" --db-started-control "+h.q(h.cfg.root+"/control-base.json");
+@@ -74,9 +74,9 @@
+     outputDir: metadata.outputDir, label: metadata.label
+   }, quote), originalEnvironmentPrefix: parts[0], originalWrapperArgumentSuffix: parts[1] };
+ }
+-const combinedPaths={"base":"/workspace/scratch/5e9614251709/jb-workspace-recovery-20261006T1136Z/hosts-next/merck/supervision","r2":"/workspace/scratch/5e9614251709/jb-workspace-recovery-20261006T1136Z","sampler":"/workspace/scratch/5e9614251709/jb-workspace-recovery-20261006T1136Z/hosts-next/merck/supervision/sample_process_tree.py","supervisor":"/workspace/scratch/5e9614251709/jb-workspace-recovery-20261006T1136Z/hosts-next/merck/supervision/supervise-cancel.mjs","inspector":"/workspace/scratch/5e9614251709/jb-workspace-recovery-20261006T1136Z/hosts-next/merck/supervision/inspect-launch-identity.mjs","wrapper":"/workspace/scratch/5e9614251709/jb-workspace-recovery-20261006T1136Z/workspaces/producer-fb0-exact/scripts/run-with-http-diagnostics.mjs","original":"/workspace/scratch/5e9614251709/jb-workspace-recovery-20261006T1136Z/hosts-next/merck/host/runtime/start-monitor-portable42.js"};
++const combinedPaths={"base":"/workspace/scratch/5e9614251709/jb-workspace-recovery-20261006T1136Z/hosts-next/organon/supervision","r2":"/workspace/scratch/5e9614251709/jb-workspace-recovery-20261006T1136Z","sampler":"/workspace/scratch/5e9614251709/jb-workspace-recovery-20261006T1136Z/hosts-next/organon/supervision/sample_process_tree.py","supervisor":"/workspace/scratch/5e9614251709/jb-workspace-recovery-20261006T1136Z/hosts-next/organon/supervision/supervise-cancel.mjs","inspector":"/workspace/scratch/5e9614251709/jb-workspace-recovery-20261006T1136Z/hosts-next/organon/supervision/inspect-launch-identity.mjs","wrapper":"/workspace/scratch/5e9614251709/jb-workspace-recovery-20261006T1136Z/workspaces/producer-fb0-exact/scripts/run-with-http-diagnostics.mjs","original":"/workspace/scratch/5e9614251709/jb-workspace-recovery-20261006T1136Z/hosts-next/organon/host/runtime/start-monitor-portable42.js"};
+ const combinedHashes=await tools.exec_command({cmd:"sha256sum -- "+[combinedPaths.sampler,combinedPaths.supervisor,combinedPaths.wrapper,combinedPaths.inspector].map(h.q).join(" "),yield_time_ms:1000,max_output_tokens:1500});
+-if(combinedHashes.exit_code!==0||combinedHashes.session_id||combinedHashes.output.trim()!=="3fa6daa1af1afee94d19801edfd8bcb538e1243476b5adb253e50de162a27bd6  /workspace/scratch/5e9614251709/jb-workspace-recovery-20261006T1136Z/hosts-next/merck/supervision/sample_process_tree.py\n489864d0691750583a7d99659aae80b43b63acc89659cf05a6138c37539175d4  /workspace/scratch/5e9614251709/jb-workspace-recovery-20261006T1136Z/hosts-next/merck/supervision/supervise-cancel.mjs\nf15522e6f209bfe99bfa258b5dffbce1f74d6af662c4c2ee682604e0798bbc88  /workspace/scratch/5e9614251709/jb-workspace-recovery-20261006T1136Z/workspaces/producer-fb0-exact/scripts/run-with-http-diagnostics.mjs\n015b9181a640bcb4e4c68d7bfcef598e826c93fe6f8aaf31d33cf59780e3d81f  /workspace/scratch/5e9614251709/jb-workspace-recovery-20261006T1136Z/hosts-next/merck/supervision/inspect-launch-identity.mjs")throw Error("COMBINED_SOURCE_HASH_MISMATCH");
++if(combinedHashes.exit_code!==0||combinedHashes.session_id||combinedHashes.output.trim()!=="3fa6daa1af1afee94d19801edfd8bcb538e1243476b5adb253e50de162a27bd6  /workspace/scratch/5e9614251709/jb-workspace-recovery-20261006T1136Z/hosts-next/organon/supervision/sample_process_tree.py\n489864d0691750583a7d99659aae80b43b63acc89659cf05a6138c37539175d4  /workspace/scratch/5e9614251709/jb-workspace-recovery-20261006T1136Z/hosts-next/organon/supervision/supervise-cancel.mjs\nf15522e6f209bfe99bfa258b5dffbce1f74d6af662c4c2ee682604e0798bbc88  /workspace/scratch/5e9614251709/jb-workspace-recovery-20261006T1136Z/workspaces/producer-fb0-exact/scripts/run-with-http-diagnostics.mjs\n015b9181a640bcb4e4c68d7bfcef598e826c93fe6f8aaf31d33cf59780e3d81f  /workspace/scratch/5e9614251709/jb-workspace-recovery-20261006T1136Z/hosts-next/organon/supervision/inspect-launch-identity.mjs")throw Error("COMBINED_SOURCE_HASH_MISMATCH");
+ const combinedIdentityCheck=await tools.exec_command({cmd:"node "+h.q(combinedPaths.inspector)+" "+h.q(batch),workdir:h.cfg.repo,yield_time_ms:1000,max_output_tokens:1500});
+ if(combinedIdentityCheck.exit_code!==0||combinedIdentityCheck.session_id)throw Error("COMBINED_NORMALIZATION_CHECK");
+ const combinedIdentity=JSON.parse(combinedIdentityCheck.output);
+@@ -87,6 +87,6 @@
+ await h.save(run+"/reviewed-cancel-contract.json",{status:"PREPARED_REQUEST_NOT_SENT",originalBatch:batch,controlDirectory:combinedMetadata.controlDirectory,controlRunId:combinedMetadata.controlRunId,nodeNormalization:{original:"node",resolved:combinedIdentity.nodePath},wrapperNormalization:{original:"scripts/run-with-http-diagnostics.mjs",resolved:combinedPaths.wrapper},samplerExpectedArg:combinedPaths.supervisor,memoryScope:"Supervisor root, unchanged wrapper and observed descendants; sampler excluded",requestCommand:h.q(combinedIdentity.nodePath)+" "+h.q(combinedPaths.supervisor)+" request "+h.q(combinedMetadata.controlDirectory)+" "+h.q(combinedMetadata.controlRunId)});
+ {const combinedBootstrapAge=Date.now()-new Date(row.checkedAt).getTime();if(!Number.isFinite(combinedBootstrapAge)||combinedBootstrapAge<0||combinedBootstrapAge>60000)throw Error("FRESH_BOOTSTRAP_EXPIRED_BEFORE_LAUNCH");}
+ // END COMBINED_MEMORY_CANCEL_PROPOSAL
+-const started=await tools.exec_command({cmd:combined.observedCommand,workdir:h.cfg.repo,yield_time_ms:1000,max_output_tokens:1500});store("deadlineCandidate47b:merck:refreshSession",started.session_id);notify({phase:"FRESH_PORTABLE_DB_STARTED_LAUNCH",batch,session:started.session_id,output:started.output});if(!started.session_id)throw Error("NO_RUNNING_LAUNCH_SESSION");
+-await new A(load("deadlineCandidate47b:merck:continuousPortableRelayCodeWithPoll"))();
++const started=await tools.exec_command({cmd:combined.observedCommand,workdir:h.cfg.repo,yield_time_ms:1000,max_output_tokens:1500});store("deadlineCandidate47b:organon:refreshSession",started.session_id);notify({phase:"FRESH_PORTABLE_DB_STARTED_LAUNCH",batch,session:started.session_id,output:started.output});if(!started.session_id)throw Error("NO_RUNNING_LAUNCH_SESSION");
++await new A(load("deadlineCandidate47b:organon:continuousPortableRelayCodeWithPoll"))();
+ 
+diff --git a/organon/supervision/test-combined.mjs b/organon/supervision/test-combined.mjs
+--- a/organon/supervision/test-combined.mjs
++++ b/organon/supervision/test-combined.mjs
+@@ -16,7 +16,7 @@
+ const tests=[];
+ const pass=(name,detail={})=>tests.push({name,passed:true,...detail});
+ for(const key of ['sampler','supervisor','wrapper','original'])assert.equal(sha(readFileSync(paths[key])),hashes[key]);
+-const original=readFileSync(paths.original,'utf8'),combined=readFileSync(join(paths.base,'start-monitor-merck47b-combined.js'),'utf8');
++const original=readFileSync(paths.original,'utf8'),combined=readFileSync(join(paths.base,'start-monitor-organon47b-combined.js'),'utf8');
+ assert.equal(addCombinedObservation(original),combined);assert.equal(stripCombinedObservation(combined),original);
+ pass('fixed-source-hashes-and-original-starter-byte-roundtrip');
+ assert.notEqual(label('batch.a'),label('batch_a'));assert.match(label('batch.a'),/^jb-[a-f0-9]{64}$/);
+diff --git a/organon/supervision/test-starter-integration.mjs b/organon/supervision/test-starter-integration.mjs
+--- a/organon/supervision/test-starter-integration.mjs
++++ b/organon/supervision/test-starter-integration.mjs
+@@ -8,7 +8,7 @@
+ const A=Object.getPrototypeOf(async function(){}).constructor;
+ mkdirSync(join(paths.base,'verification'),{recursive:true,mode:0o700});
+ const privateRoot=mkdtempSync(join(paths.base,'verification/integration-'));
+-const sourceId='source-merck-china-social';
++const sourceId='source-organon-china-social';
+ const original=readFileSync(paths.original,'utf8'),combined=addCombinedObservation(original);
+ async function simulate(source,options={}) {
+   let now=Date.now();class Clock extends Date {static now(){return now;}}
+diff --git a/organon/test-binding-and-paths.mjs b/organon/test-binding-and-paths.mjs
+--- a/organon/test-binding-and-paths.mjs
++++ b/organon/test-binding-and-paths.mjs
+@@ -5,11 +5,11 @@
+ import {fileURLToPath} from 'node:url';
+ import {validateRegistrationReadback} from './bind-registered-readback.mjs';
+ import {paths,stripCombinedObservation} from './supervision/create-combined-starter.mjs';
+-const base=dirname(fileURLToPath(import.meta.url)),host=join(base,'host'),read=p=>readFileSync(p,'utf8'),A=Object.getPrototypeOf(async function(){}).constructor,ns='deadlineCandidate47b:merck:';
++const base=dirname(fileURLToPath(import.meta.url)),host=join(base,'host'),read=p=>readFileSync(p,'utf8'),A=Object.getPrototypeOf(async function(){}).constructor,ns='deadlineCandidate47b:organon:';
+ const cfg=JSON.parse(read(join(host,'host-config.template.json'))),control=JSON.parse(read(join(host,'control-base.template.json'))),build=control.build;
+ const expected=JSON.parse(read(join(base,'EXPECTED_REGISTRATION.json'))),checks=[];
+ assert.equal(control.candidate,null);assert.equal(existsSync(join(host,'activation.json')),false);assert.equal(existsSync(join(host,'control-base.json')),false);assert.deepEqual(JSON.parse(read(join(host,'host-config.json'))),cfg);checks.push('actual-activation-control-remain-absent-static-config-ready-template-candidate-null');
+-const now=Date.now(),candidate={id:'synthetic-merck-binding-only',goalId:expected.goalId,version:73};
++const now=Date.now(),candidate={id:'synthetic-organon-binding-only',goalId:expected.goalId,version:73};
+ const input={checkedAt:new Date(now).toISOString(),row:{...expected,...candidate,status:'BUILDING'}};
+ const registered=validateRegistrationReadback(input,now),unregistered={status:'UNREGISTERED',candidate:null,build};
+ assert.deepEqual(registered,{status:'REGISTERED_VERIFIED',build,candidate});checks.push('synthetic-registration-positive-in-memory-only');
+@@ -20,7 +20,7 @@
+  ['source',x=>x.row.sourceConfigHash='0'.repeat(64),/IDENTITY/],['historical-schema',x=>x.row.schemaHash='0'.repeat(64),/IDENTITY/],
+  ['snapshot',x=>x.row.dbSnapshotHash='0'.repeat(64),/IDENTITY/],['status',x=>x.row.status='INVALIDATED',/ROW/]
+  ]){const x=structuredClone(input);change(x);assert.throws(()=>validateRegistrationReadback(x,now),pattern);checks.push('registration-reject-'+name);}
+-const business=read(join(host,'runtime/start-monitor-portable42.js')),combined=read(join(base,'supervision/start-monitor-merck47b-combined.js'));
++const business=read(join(host,'runtime/start-monitor-portable42.js')),combined=read(join(base,'supervision/start-monitor-organon47b-combined.js'));
+ assert.equal(stripCombinedObservation(combined),business);assert.ok(business.includes(' 1800000 -- node --max-old-space-size=256 '));assert.ok(business.includes('P0_SOURCE_HTTP_TIMEOUT_MS=45000'));
+ const old=read(join(base,'../../workspaces/deadline-companion-r3-safe/host/runtime/start-monitor-portable42.js'));
+ const gate=s=>s.slice(s.indexOf('// BEGIN OBSERVATION_DUE_GATE'),s.indexOf('// END OBSERVATION_DUE_GATE'));
+@@ -53,12 +53,12 @@
+ }
+ {
+  const runtimeLoader=read(join(host,'runtime/load-source-runtime.js'));
+- const runtimeFiles={'load-host-state.js':loader,'../../supervision/start-monitor-merck47b-combined.js':combined,'continuous-relay-v3-durable-monitor.js':read(join(host,'runtime/continuous-relay-v3-durable-monitor.js')),'complete-reviewed-source-readback.js':read(join(host,'runtime/complete-reviewed-source-readback.js')),'../activation.json':JSON.stringify(registered)};
++ const runtimeFiles={'load-host-state.js':loader,'../../supervision/start-monitor-organon47b-combined.js':combined,'continuous-relay-v3-durable-monitor.js':read(join(host,'runtime/continuous-relay-v3-durable-monitor.js')),'complete-reviewed-source-readback.js':read(join(host,'runtime/complete-reviewed-source-readback.js')),'../activation.json':JSON.stringify(registered)};
+  const saved=new Map();let calls=0;
+  globalThis.tools={exec_command:async()=>({exit_code:0,output:JSON.stringify(++calls===1?runtimeFiles:hostFiles())})};globalThis.store=(k,v)=>saved.set(k,v);
+- try{await new A('sourceKey','load','store','text','tools',runtimeLoader)('merck',()=>undefined,globalThis.store,()=>{},globalThis.tools);}finally{delete globalThis.tools;delete globalThis.store;}
+- assert.equal(calls,2);assert.equal(saved.get(ns+'restoredPortableSourceStartCode'),combined);assert.equal(saved.get(ns+'completeReviewedSourceCode'),runtimeFiles['complete-reviewed-source-readback.js']);assert.ok([...saved.keys()].every(k=>k.startsWith(ns)));checks.push('complete-runtime-loader-selects-merck-supervised-entry-and-r3-completion');
+- let reads=0,stores=0;await assert.rejects(()=>new A('sourceKey','load','store','text','tools',runtimeLoader)('merck',()=>undefined,()=>stores++,()=>{}, {exec_command:async()=>{reads++;return {exit_code:0,output:JSON.stringify({'../activation.json':JSON.stringify(unregistered)})};}}),/CANDIDATE_NOT_REGISTERED/);assert.equal(reads,1);assert.equal(stores,0);checks.push('runtime-unregistered-rejects-before-state-replacement');
++ try{await new A('sourceKey','load','store','text','tools',runtimeLoader)('organon',()=>undefined,globalThis.store,()=>{},globalThis.tools);}finally{delete globalThis.tools;delete globalThis.store;}
++ assert.equal(calls,2);assert.equal(saved.get(ns+'restoredPortableSourceStartCode'),combined);assert.equal(saved.get(ns+'completeReviewedSourceCode'),runtimeFiles['complete-reviewed-source-readback.js']);assert.ok([...saved.keys()].every(k=>k.startsWith(ns)));checks.push('complete-runtime-loader-selects-organon-supervised-entry-and-r3-completion');
++ let reads=0,stores=0;await assert.rejects(()=>new A('sourceKey','load','store','text','tools',runtimeLoader)('organon',()=>undefined,()=>stores++,()=>{}, {exec_command:async()=>{reads++;return {exit_code:0,output:JSON.stringify({'../activation.json':JSON.stringify(unregistered)})};}}),/CANDIDATE_NOT_REGISTERED/);assert.equal(reads,1);assert.equal(stores,0);checks.push('runtime-unregistered-rejects-before-state-replacement');
+ }
+ assert.equal(existsSync(join(host,'activation.json')),false);assert.equal(existsSync(join(host,'control-base.json')),false);
+ mkdirSync(join(base,'verification'),{recursive:true});const report={status:'PASS_OFFLINE_BINDING_AND_PATHS',checks,loaderReconstructedNotOriginalBytes:true,actualCandidate:null,activationAbsent:true,controlAbsent:true,networkUsed:false,databaseUsed:false,realProducerExecuted:false};
+diff --git a/organon/test-completion-binding.mjs b/organon/test-completion-binding.mjs
+--- a/organon/test-completion-binding.mjs
++++ b/organon/test-completion-binding.mjs
+@@ -5,8 +5,8 @@
+ import {fileURLToPath} from 'node:url';
+ import {applyCandidateCompletion} from './host/runtime/update-candidate-completion-state.mjs';
+ const base=dirname(fileURLToPath(import.meta.url)),code=readFileSync(join(base,'host/runtime/complete-reviewed-source-readback.js'),'utf8');
+-const ns='deadlineCandidate47b:merck:',A=Object.getPrototypeOf(async function(){}).constructor,checks=[];
+-const sourceId='source-merck-china-social',batch='synthetic-completion',candidateId='synthetic-registered-candidate',candidateVersion=73;
++const ns='deadlineCandidate47b:organon:',A=Object.getPrototypeOf(async function(){}).constructor,checks=[];
++const sourceId='source-organon-china-social',batch='synthetic-completion',candidateId='synthetic-registered-candidate',candidateVersion=73;
+ const binding={status:'REGISTERED_VERIFIED',candidate:{id:candidateId,version:candidateVersion,goalId:'jobfinder-portable-required-40'}};
+ const src={id:batch+'--'+sourceId,releaseCandidateId:candidateId,sourceId,sourceConfigHash:'f'.repeat(64),startedAt:'2026-10-06T00:00:00Z',finishedAt:'2026-10-06T00:01:00Z',rawCount:8,dedupeOutputCount:7,canonicalCurrentJobSetSha256:'a'.repeat(64),completenessCertificateSha256:'b'.repeat(64)};
+ const observation={id:'synthetic-observation',sourceResultId:src.id,sourceId,batchId:batch,releaseCandidateId:candidateId,sourceConfigSha256:src.sourceConfigHash,observedFrom:src.startedAt,observedTo:src.finishedAt,crawledAt:'2026-10-06T00:00:30Z',successful:true,transportSucceeded:true,adapterSucceeded:true,completenessVerified:true,atomicCommitSucceeded:true};
+diff --git a/organon/test-terminal-and-launch.mjs b/organon/test-terminal-and-launch.mjs
+--- a/organon/test-terminal-and-launch.mjs
++++ b/organon/test-terminal-and-launch.mjs
+@@ -4,7 +4,7 @@
+ import {fileURLToPath} from 'node:url';
+ import {preflight} from './host/runtime/preflight/preflight-launch.mjs';
+ const base=dirname(fileURLToPath(import.meta.url)),source=readFileSync(join(base,'host/runtime/continuous-relay-v3-durable-monitor.js'),'utf8');
+-const A=Object.getPrototypeOf(async function(){}).constructor,ns='deadlineCandidate47b:merck:',checks=[];
++const A=Object.getPrototypeOf(async function(){}).constructor,ns='deadlineCandidate47b:organon:',checks=[];
+ await assert.rejects(()=>preflight(['launch','never-read','never-read','never-read','a'.repeat(64),'never-created']),/PREFLIGHT_LEGACY_LAUNCH_DISABLED_USE_SUPERVISED_STARTER/);checks.push('legacy-launch-refused-before-files-or-spawn');
+ async function run(polls,wrapperExitCode=0){
+  const stored=new Map(),messages=[],calls=[];let index=0,now=Date.now();
+@@ -37,7 +37,7 @@
+ assert.equal(mismatch.messages.some(m=>m.status==='PROCESS_TERMINATED'),false);
+ {
+  const completion=readFileSync(join(base,'host/runtime/complete-reviewed-source-readback.js'),'utf8');
+- const sourceId='source-merck-china-social',batch='synthetic-mismatch',candidateId='synthetic-candidate';
++ const sourceId='source-organon-china-social',batch='synthetic-mismatch',candidateId='synthetic-candidate';
+  const state=new Map([[ns+'refreshCurrentRun','/synthetic/host/'+batch],[ns+'refreshCurrentBatch',batch],[ns+'refreshSession',123],[ns+'lastPortableExecPoll',mismatch.stored.get(ns+'lastPortableExecPoll')],[ns+'registeredCandidateBinding',{status:'REGISTERED_VERIFIED',candidate:{id:candidateId,version:73}}],[ns+'publicationReview',{sourceResult:{id:batch+'--'+sourceId,sourceId,sourceConfigHash:'f'.repeat(64),releaseCandidateId:candidateId}}]]);
+  let dbCalls=0,stateCalls=0,outputs=0;
+  const helper={cfg:{root:'/synthetic/host',sourceId,sourceConfigSha256:'f'.repeat(64)},save:async()=>{stateCalls++;},cmd:async()=>{stateCalls++;}};
+diff --git a/organon/host/host-config.json b/organon/host/host-config.json
+--- a/organon/host/host-config.json
++++ b/organon/host/host-config.json
+@@ -1,7 +1,7 @@
+ {
+-  "root": "/workspace/scratch/5e9614251709/jb-workspace-recovery-20261006T1136Z/hosts-next/merck/host",
++  "root": "/workspace/scratch/5e9614251709/jb-workspace-recovery-20261006T1136Z/hosts-next/organon/host",
+   "repo": "/workspace/scratch/5e9614251709/jb-workspace-recovery-20261006T1136Z/workspaces/producer-fb0-exact",
+   "project": "yiopvxysxrtrnvqxwgbx",
+-  "sourceId": "source-merck-china-social",
+-  "sourceConfigSha256": "3bce85185c99c4513a907f87fe3da9e8297392a8e0b9b1c52f57da09f2fe7d38"
++  "sourceId": "source-organon-china-social",
++  "sourceConfigSha256": "d56e212c03224c44b0be11afc07709ae9b2fbfd2a69c24ce773c0f192fa603d2"
+ }
+diff --git a/organon/host/host-config.template.json b/organon/host/host-config.template.json
+--- a/organon/host/host-config.template.json
++++ b/organon/host/host-config.template.json
+@@ -1,7 +1,7 @@
+ {
+-  "root": "/workspace/scratch/5e9614251709/jb-workspace-recovery-20261006T1136Z/hosts-next/merck/host",
++  "root": "/workspace/scratch/5e9614251709/jb-workspace-recovery-20261006T1136Z/hosts-next/organon/host",
+   "repo": "/workspace/scratch/5e9614251709/jb-workspace-recovery-20261006T1136Z/workspaces/producer-fb0-exact",
+   "project": "yiopvxysxrtrnvqxwgbx",
+-  "sourceId": "source-merck-china-social",
+-  "sourceConfigSha256": "3bce85185c99c4513a907f87fe3da9e8297392a8e0b9b1c52f57da09f2fe7d38"
++  "sourceId": "source-organon-china-social",
++  "sourceConfigSha256": "d56e212c03224c44b0be11afc07709ae9b2fbfd2a69c24ce773c0f192fa603d2"
+ }
+diff --git a/organon/test-source-scope.mjs b/organon/test-source-scope.mjs
+new file mode 100644
+--- /dev/null
++++ b/organon/test-source-scope.mjs
+@@ -0,0 +1,37 @@
++// Synthetic boundaries only: reject other sources before any real tool dispatch.
++import assert from 'node:assert/strict';
++import {readFileSync,writeFileSync,existsSync} from 'node:fs';
++import {dirname,join} from 'node:path';
++import {fileURLToPath} from 'node:url';
++const base=dirname(fileURLToPath(import.meta.url)),host=join(base,'host');
++const cfg=JSON.parse(readFileSync(join(host,'host-config.json'),'utf8'));
++const A=Object.getPrototypeOf(async function(){}).constructor,checks=[];
++const stageCode=readFileSync(join(host,'host-stage-functions.js'),'utf8');
++let toolCalls=0,localCalls=0;
++const context={checkedAt:new Date().toISOString(),sourceId:cfg.sourceId,sourceConfigSha256:cfg.sourceConfigSha256};
++const h={cfg,readFile:async()=>{localCalls++;return {text:'SYNTHETIC_READ_ONLY_CONTEXT'};},mark:async()=>{localCalls++;},respond:async()=>{localCalls++;},rows:x=>x};
++globalThis.__organonScopeFixture=()=>h;
++globalThis.tools={mcp__codex_apps__supabase_execute_sql:async request=>{toolCalls++;assert.equal(request.project_id,cfg.project);assert.equal(request.query,'SYNTHETIC_READ_ONLY_CONTEXT');return [{context}];}};
++globalThis.store=()=>{};
++try{
++ const stage=await new A('load',stageCode)(()=> 'return __organonScopeFixture();');
++ const request={kind:'READ_CONTEXT',expired:false,dispatchRecorded:false,payload:{projectId:cfg.project,sourceId:cfg.sourceId,sourceConfigSha256:cfg.sourceConfigSha256}};
++ for(const [name,change,pattern] of [
++  ['merck-source',x=>x.payload.sourceId='source-merck-china-social',/HOST_CONTEXT_SOURCE_BINDING/],
++  ['merck-hash',x=>x.payload.sourceConfigSha256='3bce85185c99c4513a907f87fe3da9e8297392a8e0b9b1c52f57da09f2fe7d38',/HOST_CONTEXT_SOURCE_BINDING/],
++  ['wrong-project',x=>x.payload.projectId='wrong',/HOST_CONTEXT_SOURCE_BINDING/],
++  ['expired',x=>x.expired=true,/HOST_STALE_OR_UNCERTAIN_REQUEST/],
++  ['already-dispatched',x=>x.dispatchRecorded=true,/HOST_STALE_OR_UNCERTAIN_REQUEST/]
++ ]){const r=structuredClone(request);change(r);await assert.rejects(()=>stage.handle(r,'/synthetic/relay'),pattern);assert.equal(toolCalls,0);assert.equal(localCalls,0);checks.push('reject-'+name+'-before-tools');}
++ assert.deepEqual(await stage.handle(request,'/synthetic/relay'),{status:'READ_CONTEXT'});assert.equal(toolCalls,1);assert.equal(localCalls,3);checks.push('organon-context-mocked-positive');
++}finally{delete globalThis.__organonScopeFixture;delete globalThis.tools;delete globalThis.store;}
++const runtime=readFileSync(join(host,'runtime/load-source-runtime.js'),'utf8');
++let forbiddenCalls=0;
++const forbidden=new Proxy({},{get(){forbiddenCalls++;throw Error('FORBIDDEN_TOOL');}});
++await assert.rejects(()=>new A('sourceKey','tools',runtime)('merck',forbidden),/RESTORED46_SOURCE_SELECTION/);
++const loader=readFileSync(join(host,'runtime/load-host-state.js'),'utf8');
++await assert.rejects(()=>new A('root','sourceId','candidateId','commit','tools',loader)(host,'source-merck-china-social','synthetic-candidate','47b74924f850a4d329460b71717b36df9a5159b8',forbidden),/HOST_LOAD_ARGUMENT/);
++assert.equal(forbiddenCalls,0);checks.push('other-source-runtime-and-loader-rejected-before-tools');
++assert.equal(existsSync(join(host,'activation.json')),false);assert.equal(existsSync(join(host,'control-base.json')),false);
++const report={status:'PASS_SYNTHETIC_SOURCE_SCOPE',checks,mockedDatabaseCalls:toolCalls,actualDatabaseCalls:0,actualNetworkCalls:0,realSourceSampled:false,activationAbsent:true,controlAbsent:true};
++writeFileSync(join(base,'verification/SOURCE_SCOPE_RESULTS.json'),JSON.stringify(report,null,2)+'\n');console.log(JSON.stringify(report));

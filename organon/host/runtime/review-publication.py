@@ -7,7 +7,7 @@ assert run.parent==host and re.fullmatch(r'[a-f0-9-]{36}',request_id)
 cfg=json.loads((host/'host-config.json').read_text())
 binding=json.loads((host/'activation.json').read_text());control=json.loads((host/'control-base.json').read_text())
 assert binding['status']=='REGISTERED_VERIFIED' and binding['candidate'] and binding['build']==control['build'] and binding['candidate']==control['candidate']
-assert cfg['sourceId']=="source-merck-china-social" and cfg['sourceConfigSha256']=="3bce85185c99c4513a907f87fe3da9e8297392a8e0b9b1c52f57da09f2fe7d38"
+assert cfg['sourceId']=="source-organon-china-social" and cfg['sourceConfigSha256']=="d56e212c03224c44b0be11afc07709ae9b2fbfd2a69c24ce773c0f192fa603d2"
 request=json.loads((run/'relay'/f'{request_id}.request.json').read_text())
 assert request['kind']=='PUBLISH' and request['requestId']==request_id and request['payload']['projectId']==cfg['project']=='yiopvxysxrtrnvqxwgbx'
 sql=(run/'relay'/f'{request_id}.request.json.sql').read_text();assert sql==request['payload']['sql']

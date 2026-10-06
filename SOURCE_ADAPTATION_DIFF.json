@@ -1,0 +1,150 @@
+{
+  "baselineManifestSha256": "93915cedd77cd9038a45c43ec23f7f93da84e3ae27be41faced8ee40ac689688",
+  "baselineSourceCount": 40,
+  "unchangedCount": 21,
+  "unchanged": [
+    "bind-registered-readback.mjs",
+    "build-observed-command.mjs",
+    "check-only.mjs",
+    "host/archive-transfer.mjs",
+    "host/host-files.mts",
+    "host/runtime/preflight/preflight-launch.mjs",
+    "host/runtime/preflight/runtime-check.mjs",
+    "host/runtime/update-candidate-completion-state.mjs",
+    "sample_process_tree.py",
+    "supervision/build-combined-command.mjs",
+    "supervision/fixture-fault-inner.mjs",
+    "supervision/fixture-inner.mjs",
+    "supervision/inspect-launch-identity.mjs",
+    "supervision/sample_process_tree.py",
+    "supervision/supervise-cancel.mjs",
+    "supervision/test-sampler-startup.py",
+    "supervision/test-supervisor-faults.mjs",
+    "test-local-preflight.mjs",
+    "EXPECTED_REGISTRATION.json",
+    "LOCAL_UNREGISTERED_BUILD_IDENTITY.json",
+    "host/control-base.template.json"
+  ],
+  "changedCount": 19,
+  "changes": [
+    {
+      "from": "host/context-read.sql",
+      "to": "host/context-read.sql",
+      "oldSha256": "6cca7b22299224dfcf1b7ec6cdfc309da00e2cad87bf4292ae07de6869aff847",
+      "newSha256": "063d1e30d160569df18171699deff7629f7eb63c1f1648ad8be1844ca33871f8"
+    },
+    {
+      "from": "host/host-helper-functions.js",
+      "to": "host/host-helper-functions.js",
+      "oldSha256": "7988fa4024239bf5dfd9082eec42d9eb2b39b48f17c2aa98f5c9de8fcffe386f",
+      "newSha256": "b7a5b18b8dccae37b274ab2ff730255f2e38f6b313139d14add96c94683d064e"
+    },
+    {
+      "from": "host/host-stage-functions.js",
+      "to": "host/host-stage-functions.js",
+      "oldSha256": "5f97707fdd3e840c6881a838ff71f167d242ec018a2f93981b943765f0be0074",
+      "newSha256": "9df18dc621ad32c70ce49327afb53f2f15a0383747bb798bf8c8d36a793c2f12"
+    },
+    {
+      "from": "host/relay-files.mjs",
+      "to": "host/relay-files.mjs",
+      "oldSha256": "df2ea134be48fc4be289597a3613de9da3a4a9c1c09ca004df4bf399dfc2db5d",
+      "newSha256": "e3fdbef182f5bb353279f050a44f62047a52fb40f5e26f926d0f46aeb503b482"
+    },
+    {
+      "from": "host/runtime/complete-reviewed-source-readback.js",
+      "to": "host/runtime/complete-reviewed-source-readback.js",
+      "oldSha256": "001e1fd029adcc47e834a016173f48be84f0d2d219a96e311aeb1c5f0f0a8658",
+      "newSha256": "1098e009a9e14e737259205e6a6532444b7d58227bb9fd268839951529dcf67f"
+    },
+    {
+      "from": "host/runtime/continuous-relay-v3-durable-monitor.js",
+      "to": "host/runtime/continuous-relay-v3-durable-monitor.js",
+      "oldSha256": "c0866781b1d94f103043b683dc1947f7a2933ffecda566be2d69bdcc94c3e809",
+      "newSha256": "efe20634fb80a6480bcd46a0861795d6dc9f5affba5fd34dcb18153e556ce9de"
+    },
+    {
+      "from": "host/runtime/load-host-state.js",
+      "to": "host/runtime/load-host-state.js",
+      "oldSha256": "3e1de7fcc647809637df7251ed50adcaa7ed20bd4bf0b94ffca5f496dfd4660b",
+      "newSha256": "abdd44c79b526de52e2c90f4fae2169310ae0e475f9a72104e2da8d4e5dafb94"
+    },
+    {
+      "from": "host/runtime/load-source-runtime.js",
+      "to": "host/runtime/load-source-runtime.js",
+      "oldSha256": "585b7648b4032c2006a0ea2648991ec8d92893e1510d8eef651f648ef7ca0fec",
+      "newSha256": "7102682189889914ecf5ffdba492b6078cca807d732f9fe08251276891f9461f"
+    },
+    {
+      "from": "host/runtime/review-publication.py",
+      "to": "host/runtime/review-publication.py",
+      "oldSha256": "01557c224ce5f728dc718ca874d027e6756a4de8a32d578f05cfb02e2936f626",
+      "newSha256": "508936786ab3be787f1688c80667a094474afdac2e9c640e1b0d3c33aed8adbe"
+    },
+    {
+      "from": "host/runtime/start-monitor-portable42.js",
+      "to": "host/runtime/start-monitor-portable42.js",
+      "oldSha256": "b7f2975b2a1a8f46575de2814b623980585ddfc50c55919faec745ca0ec4bc95",
+      "newSha256": "2142cedc8ff3887f13a296b98d9f5c4d29e86f96deb9522318d4b4fde6f24a63"
+    },
+    {
+      "from": "supervision/create-combined-starter.mjs",
+      "to": "supervision/create-combined-starter.mjs",
+      "oldSha256": "bf5b156f25a55cec0d6ea36b3897a85d9e9b15fdcda3879b07168b53ebdb771d",
+      "newSha256": "450a91d103ac28729e50dd04e770fb8df8071878362243fe8b395712d7799fd8"
+    },
+    {
+      "from": "supervision/start-monitor-merck47b-combined.js",
+      "to": "supervision/start-monitor-organon47b-combined.js",
+      "oldSha256": "9eb4ba5429a7cf0026c5d6365bbab49b2e7239f55eaf1744079439c630936857",
+      "newSha256": "cc298cfecd5fd7e4a4b90eebba3797524bcb7ac8d86f8398e5826ecb5a0015e2"
+    },
+    {
+      "from": "supervision/test-combined.mjs",
+      "to": "supervision/test-combined.mjs",
+      "oldSha256": "3ced49d6444c9baffdbccbfc49851128af173050bbd8de57cce17dfcadd2b463",
+      "newSha256": "0698e8f922aa4e910070ebe2803a7461cb9e36a87ba58f47ba70580e092aeefd"
+    },
+    {
+      "from": "supervision/test-starter-integration.mjs",
+      "to": "supervision/test-starter-integration.mjs",
+      "oldSha256": "5ea0ba8b04ceb7cace22bd16aa61bbda057c266fe256fc29e2e7ea00f0efb01c",
+      "newSha256": "044dc82824f6a9e96ef6c24fcd1b0b76a306f3c44cad377f7cd8d84e235e3276"
+    },
+    {
+      "from": "test-binding-and-paths.mjs",
+      "to": "test-binding-and-paths.mjs",
+      "oldSha256": "199188ba8d06c13d2f362962658a927d925e4a211700ac1d21ae258cb6a03c59",
+      "newSha256": "bd0bbab18963bd2e5679452b98fc2c89464695d42082c72823e3f08c638a3161"
+    },
+    {
+      "from": "test-completion-binding.mjs",
+      "to": "test-completion-binding.mjs",
+      "oldSha256": "261eaf9c6645e9732534cca9099cb761375c4b33a54fd333adf2fb549a7e3a18",
+      "newSha256": "660dff412246d0c4aa2ae092768ec466aa96ab8f52339330ec75331c31168a7f"
+    },
+    {
+      "from": "test-terminal-and-launch.mjs",
+      "to": "test-terminal-and-launch.mjs",
+      "oldSha256": "b69f285e6c5dbb499828f286369a0167c3209c52d9f7a7d6dc5c0d38db2140f3",
+      "newSha256": "5ce2bb1c6eacba1f6bfd6b56f3e69340c085d7757d7fe57d73409ed13fd925a3"
+    },
+    {
+      "from": "host/host-config.json",
+      "to": "host/host-config.json",
+      "oldSha256": "54030b7c23128f0f9bcec2a4f7f38502132d0a5db7716e556d9457d3255da134",
+      "newSha256": "8f0ee576f8941235fff120db9c7c09fcc4cb84526e0e1463b2691cee4c59d121"
+    },
+    {
+      "from": "host/LAUNCH_HOLD.json",
+      "to": "host/LAUNCH_HOLD.json",
+      "oldSha256": "fe744d17e37d1268acadfb7a26f5c62ca33d39347aaed3fe9d613a411b290a35",
+      "newSha256": "d0f95604dce52b1589632b4e78d1e05a07feb3ba76525160a6f426f1192629a6"
+    }
+  ],
+  "addedFiles": [
+    "host/host-config.template.json",
+    "test-source-scope.mjs"
+  ],
+  "onlyEdits": "Merck to Organon source/key/path/namespace/hash, generated starter original-source hash pin; SQL regenerated by unchanged compiler with existing C49 and original portable policy. Test-source-scope added."
+}

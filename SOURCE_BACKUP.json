@@ -1,9 +1,9 @@
 {
   "schemaVersion": 1,
-  "frozenSourceManifestSha256": "93915cedd77cd9038a45c43ec23f7f93da84e3ae27be41faced8ee40ac689688",
+  "frozenSourceManifestSha256": "ec9a5bdc51042a20fa5c3a3d3f334b362bbedf0bbf8c4f102f93dedba75195ca",
   "files": [
     {
-      "path": "merck/bind-registered-readback.mjs",
+      "path": "organon/bind-registered-readback.mjs",
       "mode": "100644",
       "type": "blob",
       "sha": "5de6ff0d873b55597b06bd34c1c2a8a17e094206",
@@ -11,7 +11,7 @@
       "bytes": 2707
     },
     {
-      "path": "merck/build-observed-command.mjs",
+      "path": "organon/build-observed-command.mjs",
       "mode": "100644",
       "type": "blob",
       "sha": "23f748a3a05ddc682d1f66c82e8699682cfa2517",
@@ -19,7 +19,7 @@
       "bytes": 672
     },
     {
-      "path": "merck/check-only.mjs",
+      "path": "organon/check-only.mjs",
       "mode": "100644",
       "type": "blob",
       "sha": "95791158bab7b38392aa8a27258750ab149b6519",
@@ -27,7 +27,7 @@
       "bytes": 206
     },
     {
-      "path": "merck/host/archive-transfer.mjs",
+      "path": "organon/host/archive-transfer.mjs",
       "mode": "100644",
       "type": "blob",
       "sha": "5a454d21f34f9680221bbee2c98b3fecb94884f0",
@@ -35,15 +35,15 @@
       "bytes": 1777
     },
     {
-      "path": "merck/host/context-read.sql",
+      "path": "organon/host/context-read.sql",
       "mode": "100644",
       "type": "blob",
-      "sha": "4bd4216d56538a5efec27baa4a4559966c35e185",
-      "sha256": "6cca7b22299224dfcf1b7ec6cdfc309da00e2cad87bf4292ae07de6869aff847",
-      "bytes": 2131
+      "sha": "04f28e4a14a54f311c72bbdb32075075120379fa",
+      "sha256": "063d1e30d160569df18171699deff7629f7eb63c1f1648ad8be1844ca33871f8",
+      "bytes": 2141
     },
     {
-      "path": "merck/host/host-files.mts",
+      "path": "organon/host/host-files.mts",
       "mode": "100644",
       "type": "blob",
       "sha": "8c351e49c14ee76ad7c938431d3cee4da7feb09e",
@@ -51,63 +51,63 @@
       "bytes": 4091
     },
     {
-      "path": "merck/host/host-helper-functions.js",
+      "path": "organon/host/host-helper-functions.js",
       "mode": "100644",
       "type": "blob",
-      "sha": "f7034306f066fa3418a4dce87b0c77b86b01cce0",
-      "sha256": "7988fa4024239bf5dfd9082eec42d9eb2b39b48f17c2aa98f5c9de8fcffe386f",
-      "bytes": 7113
+      "sha": "54ca3bce1c34f43f6502822dab0ff72a4a17f7dc",
+      "sha256": "b7a5b18b8dccae37b274ab2ff730255f2e38f6b313139d14add96c94683d064e",
+      "bytes": 7127
     },
     {
-      "path": "merck/host/host-stage-functions.js",
+      "path": "organon/host/host-stage-functions.js",
       "mode": "100644",
       "type": "blob",
-      "sha": "817614af07bfe8b7a30d6e4fa306fcceed60a399",
-      "sha256": "5f97707fdd3e840c6881a838ff71f167d242ec018a2f93981b943765f0be0074",
-      "bytes": 6076
+      "sha": "fd240b6f85c6a1b7ca9293a0fa56e97d2bc8fe1e",
+      "sha256": "9df18dc621ad32c70ce49327afb53f2f15a0383747bb798bf8c8d36a793c2f12",
+      "bytes": 6098
     },
     {
-      "path": "merck/host/relay-files.mjs",
+      "path": "organon/host/relay-files.mjs",
       "mode": "100644",
       "type": "blob",
-      "sha": "b5d3c81a7bb78cbc1f01047c70ac2088881576d4",
-      "sha256": "df2ea134be48fc4be289597a3613de9da3a4a9c1c09ca004df4bf399dfc2db5d",
-      "bytes": 5479
+      "sha": "e9d36e55a5207444aa335a547b7c5d289c7ed3b8",
+      "sha256": "e3fdbef182f5bb353279f050a44f62047a52fb40f5e26f926d0f46aeb503b482",
+      "bytes": 5481
     },
     {
-      "path": "merck/host/runtime/complete-reviewed-source-readback.js",
+      "path": "organon/host/runtime/complete-reviewed-source-readback.js",
       "mode": "100644",
       "type": "blob",
-      "sha": "ad527523128656c7084e7b91bc2e08c2ac75719f",
-      "sha256": "001e1fd029adcc47e834a016173f48be84f0d2d219a96e311aeb1c5f0f0a8658",
-      "bytes": 5584
+      "sha": "e1ef43394a91c30ef19d55bf9c7a09eb3dce1f84",
+      "sha256": "1098e009a9e14e737259205e6a6532444b7d58227bb9fd268839951529dcf67f",
+      "bytes": 5586
     },
     {
-      "path": "merck/host/runtime/continuous-relay-v3-durable-monitor.js",
+      "path": "organon/host/runtime/continuous-relay-v3-durable-monitor.js",
       "mode": "100644",
       "type": "blob",
-      "sha": "5d944af02be308f3f7fba54c1b8c6090437e0732",
-      "sha256": "c0866781b1d94f103043b683dc1947f7a2933ffecda566be2d69bdcc94c3e809",
-      "bytes": 5268
+      "sha": "eaed62d7d43b1e1049d6c2b9af2c89f8e93f2b02",
+      "sha256": "efe20634fb80a6480bcd46a0861795d6dc9f5affba5fd34dcb18153e556ce9de",
+      "bytes": 5292
     },
     {
-      "path": "merck/host/runtime/load-host-state.js",
+      "path": "organon/host/runtime/load-host-state.js",
       "mode": "100644",
       "type": "blob",
-      "sha": "40d7b19aa7b12eddb84f1934fd88ef4195079c68",
-      "sha256": "3e1de7fcc647809637df7251ed50adcaa7ed20bd4bf0b94ffca5f496dfd4660b",
-      "bytes": 3463
+      "sha": "c9a517eaa1553020d17bec8495e8e6391171fcd8",
+      "sha256": "abdd44c79b526de52e2c90f4fae2169310ae0e475f9a72104e2da8d4e5dafb94",
+      "bytes": 3475
     },
     {
-      "path": "merck/host/runtime/load-source-runtime.js",
+      "path": "organon/host/runtime/load-source-runtime.js",
       "mode": "100644",
       "type": "blob",
-      "sha": "fe127e8bd30e42155713a86f63a81aa561928424",
-      "sha256": "585b7648b4032c2006a0ea2648991ec8d92893e1510d8eef651f648ef7ca0fec",
-      "bytes": 2046
+      "sha": "22074421e657bca7f679c5e82e70ef0a4c894281",
+      "sha256": "7102682189889914ecf5ffdba492b6078cca807d732f9fe08251276891f9461f",
+      "bytes": 2072
     },
     {
-      "path": "merck/host/runtime/preflight/preflight-launch.mjs",
+      "path": "organon/host/runtime/preflight/preflight-launch.mjs",
       "mode": "100644",
       "type": "blob",
       "sha": "d6d143f5688edf7bbf923100cfda79284254271a",
@@ -115,7 +115,7 @@
       "bytes": 10454
     },
     {
-      "path": "merck/host/runtime/preflight/runtime-check.mjs",
+      "path": "organon/host/runtime/preflight/runtime-check.mjs",
       "mode": "100644",
       "type": "blob",
       "sha": "1aaf44921d83b86bb9c0065a46393286a8b725c3",
@@ -123,23 +123,23 @@
       "bytes": 3523
     },
     {
-      "path": "merck/host/runtime/review-publication.py",
+      "path": "organon/host/runtime/review-publication.py",
       "mode": "100644",
       "type": "blob",
-      "sha": "98d2e419adeb594d3b1e8f1aab15a2d38bdd497b",
-      "sha256": "01557c224ce5f728dc718ca874d027e6756a4de8a32d578f05cfb02e2936f626",
-      "bytes": 3679
+      "sha": "bd4dcd4db2624c943e2378989763a8e62032b8a8",
+      "sha256": "508936786ab3be787f1688c80667a094474afdac2e9c640e1b0d3c33aed8adbe",
+      "bytes": 3681
     },
     {
-      "path": "merck/host/runtime/start-monitor-portable42.js",
+      "path": "organon/host/runtime/start-monitor-portable42.js",
       "mode": "100644",
       "type": "blob",
-      "sha": "ca7d12e45bd4a8bf5f6f75fc23179acc6831fa84",
-      "sha256": "b7f2975b2a1a8f46575de2814b623980585ddfc50c55919faec745ca0ec4bc95",
-      "bytes": 7298
+      "sha": "bcc4c2b20a645c0afebd37804dca053e7d67f0ba",
+      "sha256": "2142cedc8ff3887f13a296b98d9f5c4d29e86f96deb9522318d4b4fde6f24a63",
+      "bytes": 7320
     },
     {
-      "path": "merck/host/runtime/update-candidate-completion-state.mjs",
+      "path": "organon/host/runtime/update-candidate-completion-state.mjs",
       "mode": "100644",
       "type": "blob",
       "sha": "ec886e3dd2b52805daccddcdcd862b6afbaeec29",
@@ -147,7 +147,7 @@
       "bytes": 3654
     },
     {
-      "path": "merck/sample_process_tree.py",
+      "path": "organon/sample_process_tree.py",
       "mode": "100644",
       "type": "blob",
       "sha": "bf279a88e4e4bc33d751894afef8a93428f3bb4d",
@@ -155,7 +155,7 @@
       "bytes": 11778
     },
     {
-      "path": "merck/supervision/build-combined-command.mjs",
+      "path": "organon/supervision/build-combined-command.mjs",
       "mode": "100644",
       "type": "blob",
       "sha": "864757aa663adbbd7916ad246736a7a79ceb8329",
@@ -163,15 +163,15 @@
       "bytes": 1131
     },
     {
-      "path": "merck/supervision/create-combined-starter.mjs",
+      "path": "organon/supervision/create-combined-starter.mjs",
       "mode": "100644",
       "type": "blob",
-      "sha": "e709321bd87ea2bcb720bdf7e93ed8e7a4273a62",
-      "sha256": "bf5b156f25a55cec0d6ea36b3897a85d9e9b15fdcda3879b07168b53ebdb771d",
-      "bytes": 5553
+      "sha": "fc6551df22b3f86d0bea1979ee377870efe652f6",
+      "sha256": "450a91d103ac28729e50dd04e770fb8df8071878362243fe8b395712d7799fd8",
+      "bytes": 5555
     },
     {
-      "path": "merck/supervision/fixture-fault-inner.mjs",
+      "path": "organon/supervision/fixture-fault-inner.mjs",
       "mode": "100644",
       "type": "blob",
       "sha": "d0c726caa7944ba4db3bfb76b614be4f427a964b",
@@ -179,7 +179,7 @@
       "bytes": 453
     },
     {
-      "path": "merck/supervision/fixture-inner.mjs",
+      "path": "organon/supervision/fixture-inner.mjs",
       "mode": "100644",
       "type": "blob",
       "sha": "cedb1f10cc6289dbf58e3c47568cc117280c6ca3",
@@ -187,7 +187,7 @@
       "bytes": 803
     },
     {
-      "path": "merck/supervision/inspect-launch-identity.mjs",
+      "path": "organon/supervision/inspect-launch-identity.mjs",
       "mode": "100644",
       "type": "blob",
       "sha": "6083858daf1b55f62c25bd12e405df5cff35812d",
@@ -195,7 +195,7 @@
       "bytes": 706
     },
     {
-      "path": "merck/supervision/sample_process_tree.py",
+      "path": "organon/supervision/sample_process_tree.py",
       "mode": "100644",
       "type": "blob",
       "sha": "5c2924dc067309525018e4903741dc33e796b546",
@@ -203,15 +203,15 @@
       "bytes": 13065
     },
     {
-      "path": "merck/supervision/start-monitor-merck47b-combined.js",
+      "path": "organon/supervision/start-monitor-organon47b-combined.js",
       "mode": "100644",
       "type": "blob",
-      "sha": "f58bbbb2063c91611d03705ef434993c8bfe6a34",
-      "sha256": "9eb4ba5429a7cf0026c5d6365bbab49b2e7239f55eaf1744079439c630936857",
-      "bytes": 13089
+      "sha": "19a611c2dbdbef256e65aa1004a186365f39273a",
+      "sha256": "cc298cfecd5fd7e4a4b90eebba3797524bcb7ac8d86f8398e5826ecb5a0015e2",
+      "bytes": 13127
     },
     {
-      "path": "merck/supervision/supervise-cancel.mjs",
+      "path": "organon/supervision/supervise-cancel.mjs",
       "mode": "100644",
       "type": "blob",
       "sha": "331200cd47ae305e1b2d6c4fd686354c4c9d2a8a",
@@ -219,15 +219,15 @@
       "bytes": 10246
     },
     {
-      "path": "merck/supervision/test-combined.mjs",
+      "path": "organon/supervision/test-combined.mjs",
       "mode": "100644",
       "type": "blob",
-      "sha": "e77f1218cbbb250f1508a1e6e3e59395bde9bf24",
-      "sha256": "3ced49d6444c9baffdbccbfc49851128af173050bbd8de57cce17dfcadd2b463",
-      "bytes": 8338
+      "sha": "2668692b8cfbd0805de89e27c8551f6b4516eaaa",
+      "sha256": "0698e8f922aa4e910070ebe2803a7461cb9e36a87ba58f47ba70580e092aeefd",
+      "bytes": 8340
     },
     {
-      "path": "merck/supervision/test-sampler-startup.py",
+      "path": "organon/supervision/test-sampler-startup.py",
       "mode": "100644",
       "type": "blob",
       "sha": "6f8b793a520db788afae8bc9f2f81d78bfa75062",
@@ -235,15 +235,15 @@
       "bytes": 5484
     },
     {
-      "path": "merck/supervision/test-starter-integration.mjs",
+      "path": "organon/supervision/test-starter-integration.mjs",
       "mode": "100644",
       "type": "blob",
-      "sha": "69b11e42f533e1d212363ee583470496495ea1b8",
-      "sha256": "5ea0ba8b04ceb7cace22bd16aa61bbda057c266fe256fc29e2e7ea00f0efb01c",
-      "bytes": 6674
+      "sha": "fa0475a1b84fa4db81fbddcc189c2dbbe1a11dd9",
+      "sha256": "044dc82824f6a9e96ef6c24fcd1b0b76a306f3c44cad377f7cd8d84e235e3276",
+      "bytes": 6676
     },
     {
-      "path": "merck/supervision/test-supervisor-faults.mjs",
+      "path": "organon/supervision/test-supervisor-faults.mjs",
       "mode": "100644",
       "type": "blob",
       "sha": "21d98dfaec09ed1cbd19bc45ebd8264887a2c59b",
@@ -251,23 +251,23 @@
       "bytes": 7354
     },
     {
-      "path": "merck/test-binding-and-paths.mjs",
+      "path": "organon/test-binding-and-paths.mjs",
       "mode": "100644",
       "type": "blob",
-      "sha": "c45577ea3fcbf2abd97802851e18ca9003b2f29b",
-      "sha256": "199188ba8d06c13d2f362962658a927d925e4a211700ac1d21ae258cb6a03c59",
-      "bytes": 7835
+      "sha": "f563795ced265fb40f378f7c288bd471bca134d2",
+      "sha256": "bd0bbab18963bd2e5679452b98fc2c89464695d42082c72823e3f08c638a3161",
+      "bytes": 7849
     },
     {
-      "path": "merck/test-completion-binding.mjs",
+      "path": "organon/test-completion-binding.mjs",
       "mode": "100644",
       "type": "blob",
-      "sha": "1c667c59679b2aff18f37d08de3b401d81f442b0",
-      "sha256": "261eaf9c6645e9732534cca9099cb761375c4b33a54fd333adf2fb549a7e3a18",
-      "bytes": 8305
+      "sha": "c46e69c63d05da997f00ec2ffa504d8f65d777b2",
+      "sha256": "660dff412246d0c4aa2ae092768ec466aa96ab8f52339330ec75331c31168a7f",
+      "bytes": 8309
     },
     {
-      "path": "merck/test-local-preflight.mjs",
+      "path": "organon/test-local-preflight.mjs",
       "mode": "100644",
       "type": "blob",
       "sha": "8896195ad32b9479273fa944fd62b3d6dd3005fd",
@@ -275,15 +275,15 @@
       "bytes": 2387
     },
     {
-      "path": "merck/test-terminal-and-launch.mjs",
+      "path": "organon/test-terminal-and-launch.mjs",
       "mode": "100644",
       "type": "blob",
-      "sha": "522e5431509b57bd6ad77801836967cdeb651b3b",
-      "sha256": "b69f285e6c5dbb499828f286369a0167c3209c52d9f7a7d6dc5c0d38db2140f3",
-      "bytes": 5066
+      "sha": "b49e3d10d6e3a33f3beca2742bdfd9344ff59b83",
+      "sha256": "5ce2bb1c6eacba1f6bfd6b56f3e69340c085d7757d7fe57d73409ed13fd925a3",
+      "bytes": 5070
     },
     {
-      "path": "merck/EXPECTED_REGISTRATION.json",
+      "path": "organon/EXPECTED_REGISTRATION.json",
       "mode": "100644",
       "type": "blob",
       "sha": "ebe7fd81a4cca318adc51772658eff3a754cc14c",
@@ -291,7 +291,7 @@
       "bytes": 960
     },
     {
-      "path": "merck/LOCAL_UNREGISTERED_BUILD_IDENTITY.json",
+      "path": "organon/LOCAL_UNREGISTERED_BUILD_IDENTITY.json",
       "mode": "100644",
       "type": "blob",
       "sha": "41252ad091ae0c1274709dfa65e24751570260a8",
@@ -299,15 +299,15 @@
       "bytes": 434
     },
     {
-      "path": "merck/host/host-config.json",
+      "path": "organon/host/host-config.json",
       "mode": "100644",
       "type": "blob",
-      "sha": "4db55fb64e5a01676d1264e3f295fdd53362410a",
-      "sha256": "54030b7c23128f0f9bcec2a4f7f38502132d0a5db7716e556d9457d3255da134",
-      "bytes": 391
+      "sha": "687c665394a2d69ac6ef1f83d6873e6b24503ce7",
+      "sha256": "8f0ee576f8941235fff120db9c7c09fcc4cb84526e0e1463b2691cee4c59d121",
+      "bytes": 395
     },
     {
-      "path": "merck/host/control-base.template.json",
+      "path": "organon/host/control-base.template.json",
       "mode": "100644",
       "type": "blob",
       "sha": "e698b71cc4aee579e707b83c04816f3c994a7d31",
@@ -315,28 +315,52 @@
       "bytes": 439
     },
     {
-      "path": "operations/observe-company-public.py",
+      "path": "organon/host/host-config.template.json",
       "mode": "100644",
       "type": "blob",
-      "sha": "66dfe265b9b00f5ae6fa6408a1a9e4584e5f7eb2",
-      "sha256": "bcb69993591670242810bfda15beff0c6a6c5d0bb5562c93872de8d019ddfccc",
-      "bytes": 3666
+      "sha": "687c665394a2d69ac6ef1f83d6873e6b24503ce7",
+      "sha256": "8f0ee576f8941235fff120db9c7c09fcc4cb84526e0e1463b2691cee4c59d121",
+      "bytes": 395
     },
     {
-      "path": "merck/host/host-config.template.json",
+      "path": "organon/test-source-scope.mjs",
       "mode": "100644",
       "type": "blob",
-      "sha": "4db55fb64e5a01676d1264e3f295fdd53362410a",
-      "sha256": "54030b7c23128f0f9bcec2a4f7f38502132d0a5db7716e556d9457d3255da134",
-      "bytes": 391
+      "sha": "714ec1bf46f26fdb7cc231e2d2472255eb14cc1e",
+      "sha256": "eae989c97af0e7dc547b2c5cd18220c1f2124b52caf68f6f0e7ba85a7c9c5c8b",
+      "bytes": 3594
     },
     {
-      "path": "merck/supervision/inject-supervisor-fault.cjs",
+      "path": "SOURCE_ADAPTATION_SOURCE_ONLY.patch",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "b32caec5f8cc219762f8d4e814f4ab18c0da7f24",
+      "sha256": "c784840357fccbff446bf715e7d00c52631084de639456fc31438f826e52cca2",
+      "bytes": 67018
+    },
+    {
+      "path": "SOURCE_ADAPTATION_DIFF.json",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "09e7a57f77460e06ef772280fea184980953a446",
+      "sha256": "c2f751b4d370d0f89504f31e42334811baa9cba0b8562d8646ccb2c4fda74ee7",
+      "bytes": 6771
+    },
+    {
+      "path": "organon/supervision/inject-supervisor-fault.cjs",
       "mode": "100644",
       "type": "blob",
       "sha": "c6c568ce138960f1851c2ac215337d04b43f307f",
       "sha256": "6ad24493486cea118860b22c469afc387e047f3d753002df9b9f779c1bf87fdc",
       "bytes": 4758
+    },
+    {
+      "path": "organon/combined-takeda-20261006T0550Z/supervise-cancel.mjs",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "900e455aabc83af787fd08f46ecfc6bdc6cd4fc8",
+      "sha256": "c6527e9a0f37c29e8fc0305185212f25a87be273b1ad1693071ee8e496eab584",
+      "bytes": 7246
     },
     {
       "path": "workspaces/deadline-companion-r3-safe/host/runtime/start-monitor-portable42.js",
@@ -347,20 +371,12 @@
       "bytes": 7326
     },
     {
-      "path": "merck/combined-takeda-20261006T0550Z/supervise-cancel.mjs",
-      "mode": "100644",
-      "type": "blob",
-      "sha": "900e455aabc83af787fd08f46ecfc6bdc6cd4fc8",
-      "sha256": "c6527e9a0f37c29e8fc0305185212f25a87be273b1ad1693071ee8e496eab584",
-      "bytes": 7246
-    },
-    {
       "path": "RESTORE_LAYOUT.json",
       "mode": "100644",
       "type": "blob",
-      "sha": "ed9abd12c085fd5bdd25a57bec880dd271c7cef4",
-      "sha256": "e8423223ba93943b5269b4d8b13f4e309d803428e913c0ffa7f608351aaef162",
-      "bytes": 1899
+      "sha": "a453d84057f3019a72be827fae14d026807385f9",
+      "sha256": "3b6b15233111621766dc5ce3d21fdefdf46a40a39e63b56ebd3a93e3faea2c8f",
+      "bytes": 2205
     }
   ],
   "excluded": [
@@ -371,10 +387,5 @@
     "Original captures, public response JSON, generated logs and metrics",
     "Original frozen manifest/check results and LAUNCH_HOLD state",
     "Original application bundle and complete Git graph"
-  ],
-  "sourceAddendum": {
-    "manifestSha256": "d6e865e8b2ae1c6bc4a2be35dba7b17d75a59a71be731e19dae9032d6382b9a3",
-    "files": 4,
-    "sourceBytes": 19721
-  }
+  ]
 }

@@ -8,7 +8,7 @@ const q=s=>"'"+s.replaceAll("'","'\\''")+"'",sha=s=>createHash('sha256').update(
 const A=Object.getPrototypeOf(async function(){}).constructor;
 mkdirSync(join(paths.base,'verification'),{recursive:true,mode:0o700});
 const privateRoot=mkdtempSync(join(paths.base,'verification/integration-'));
-const sourceId='source-merck-china-social';
+const sourceId='source-organon-china-social';
 const original=readFileSync(paths.original,'utf8'),combined=addCombinedObservation(original);
 async function simulate(source,options={}) {
   let now=Date.now();class Clock extends Date {static now(){return now;}}

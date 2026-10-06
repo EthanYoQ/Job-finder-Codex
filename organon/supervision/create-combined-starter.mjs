@@ -6,7 +6,7 @@ import { buildCombinedCommand } from './build-combined-command.mjs';
 import { buildObservedCommand } from '../build-observed-command.mjs';
 const base=dirname(fileURLToPath(import.meta.url)),r2="/workspace/scratch/5e9614251709/jb-workspace-recovery-20261006T1136Z";
 export const paths={base,r2,sampler:join(base,'sample_process_tree.py'),supervisor:join(base,'supervise-cancel.mjs'),inspector:join(base,'inspect-launch-identity.mjs'),wrapper:join(r2,'workspaces/producer-fb0-exact/scripts/run-with-http-diagnostics.mjs'),original:join(base,'../host/runtime/start-monitor-portable42.js')};
-export const hashes={sampler:'3fa6daa1af1afee94d19801edfd8bcb538e1243476b5adb253e50de162a27bd6',supervisor:'489864d0691750583a7d99659aae80b43b63acc89659cf05a6138c37539175d4',wrapper:'f15522e6f209bfe99bfa258b5dffbce1f74d6af662c4c2ee682604e0798bbc88',original:'b7f2975b2a1a8f46575de2814b623980585ddfc50c55919faec745ca0ec4bc95'};
+export const hashes={sampler:'3fa6daa1af1afee94d19801edfd8bcb538e1243476b5adb253e50de162a27bd6',supervisor:'489864d0691750583a7d99659aae80b43b63acc89659cf05a6138c37539175d4',wrapper:'f15522e6f209bfe99bfa258b5dffbce1f74d6af662c4c2ee682604e0798bbc88',original:'2142cedc8ff3887f13a296b98d9f5c4d29e86f96deb9522318d4b4fde6f24a63'};
 const sha=x=>createHash('sha256').update(x).digest('hex');
 const launch='const started=await tools.exec_command({cmd:command,workdir:h.cfg.repo,yield_time_ms:1000,max_output_tokens:1500});';
 export function addCombinedObservation(original) {
@@ -41,7 +41,7 @@ if(process.argv[1] && resolve(process.argv[1])===fileURLToPath(import.meta.url))
   for(const key of ['sampler','supervisor','wrapper','original'])if(sha(readFileSync(paths[key]))!==hashes[key])throw Error('SOURCE_HASH_MISMATCH:'+key);
   const original=readFileSync(paths.original,'utf8'),combined=addCombinedObservation(original);
   if(stripCombinedObservation(combined)!==original)throw Error('ORIGINAL_NOT_PRESERVED');
-  const output=join(base,'start-monitor-merck47b-combined.js');
+  const output=join(base,'start-monitor-organon47b-combined.js');
   writeFileSync(output,combined,{flag:'wx',mode:0o600});
   console.log(JSON.stringify({status:'PROPOSAL_NOT_LOADED_OR_LAUNCHED',originalSha256:sha(original),output,outputSha256:sha(combined),originalBytesPreserved:true}));
 }

@@ -5,11 +5,11 @@ import {dirname,join} from 'node:path';
 import {fileURLToPath} from 'node:url';
 import {validateRegistrationReadback} from './bind-registered-readback.mjs';
 import {paths,stripCombinedObservation} from './supervision/create-combined-starter.mjs';
-const base=dirname(fileURLToPath(import.meta.url)),host=join(base,'host'),read=p=>readFileSync(p,'utf8'),A=Object.getPrototypeOf(async function(){}).constructor,ns='deadlineCandidate47b:merck:';
+const base=dirname(fileURLToPath(import.meta.url)),host=join(base,'host'),read=p=>readFileSync(p,'utf8'),A=Object.getPrototypeOf(async function(){}).constructor,ns='deadlineCandidate47b:organon:';
 const cfg=JSON.parse(read(join(host,'host-config.template.json'))),control=JSON.parse(read(join(host,'control-base.template.json'))),build=control.build;
 const expected=JSON.parse(read(join(base,'EXPECTED_REGISTRATION.json'))),checks=[];
 assert.equal(control.candidate,null);assert.equal(existsSync(join(host,'activation.json')),false);assert.equal(existsSync(join(host,'control-base.json')),false);assert.deepEqual(JSON.parse(read(join(host,'host-config.json'))),cfg);checks.push('actual-activation-control-remain-absent-static-config-ready-template-candidate-null');
-const now=Date.now(),candidate={id:'synthetic-merck-binding-only',goalId:expected.goalId,version:73};
+const now=Date.now(),candidate={id:'synthetic-organon-binding-only',goalId:expected.goalId,version:73};
 const input={checkedAt:new Date(now).toISOString(),row:{...expected,...candidate,status:'BUILDING'}};
 const registered=validateRegistrationReadback(input,now),unregistered={status:'UNREGISTERED',candidate:null,build};
 assert.deepEqual(registered,{status:'REGISTERED_VERIFIED',build,candidate});checks.push('synthetic-registration-positive-in-memory-only');
@@ -20,7 +20,7 @@ for(const [name,change,pattern] of [
  ['source',x=>x.row.sourceConfigHash='0'.repeat(64),/IDENTITY/],['historical-schema',x=>x.row.schemaHash='0'.repeat(64),/IDENTITY/],
  ['snapshot',x=>x.row.dbSnapshotHash='0'.repeat(64),/IDENTITY/],['status',x=>x.row.status='INVALIDATED',/ROW/]
  ]){const x=structuredClone(input);change(x);assert.throws(()=>validateRegistrationReadback(x,now),pattern);checks.push('registration-reject-'+name);}
-const business=read(join(host,'runtime/start-monitor-portable42.js')),combined=read(join(base,'supervision/start-monitor-merck47b-combined.js'));
+const business=read(join(host,'runtime/start-monitor-portable42.js')),combined=read(join(base,'supervision/start-monitor-organon47b-combined.js'));
 assert.equal(stripCombinedObservation(combined),business);assert.ok(business.includes(' 1800000 -- node --max-old-space-size=256 '));assert.ok(business.includes('P0_SOURCE_HTTP_TIMEOUT_MS=45000'));
 const old=read(join(base,'../../workspaces/deadline-companion-r3-safe/host/runtime/start-monitor-portable42.js'));
 const gate=s=>s.slice(s.indexOf('// BEGIN OBSERVATION_DUE_GATE'),s.indexOf('// END OBSERVATION_DUE_GATE'));
@@ -53,12 +53,12 @@ for(const mode of ['valid','unregistered','wrong-repo','wrong-hash','wrong-proje
 }
 {
  const runtimeLoader=read(join(host,'runtime/load-source-runtime.js'));
- const runtimeFiles={'load-host-state.js':loader,'../../supervision/start-monitor-merck47b-combined.js':combined,'continuous-relay-v3-durable-monitor.js':read(join(host,'runtime/continuous-relay-v3-durable-monitor.js')),'complete-reviewed-source-readback.js':read(join(host,'runtime/complete-reviewed-source-readback.js')),'../activation.json':JSON.stringify(registered)};
+ const runtimeFiles={'load-host-state.js':loader,'../../supervision/start-monitor-organon47b-combined.js':combined,'continuous-relay-v3-durable-monitor.js':read(join(host,'runtime/continuous-relay-v3-durable-monitor.js')),'complete-reviewed-source-readback.js':read(join(host,'runtime/complete-reviewed-source-readback.js')),'../activation.json':JSON.stringify(registered)};
  const saved=new Map();let calls=0;
  globalThis.tools={exec_command:async()=>({exit_code:0,output:JSON.stringify(++calls===1?runtimeFiles:hostFiles())})};globalThis.store=(k,v)=>saved.set(k,v);
- try{await new A('sourceKey','load','store','text','tools',runtimeLoader)('merck',()=>undefined,globalThis.store,()=>{},globalThis.tools);}finally{delete globalThis.tools;delete globalThis.store;}
- assert.equal(calls,2);assert.equal(saved.get(ns+'restoredPortableSourceStartCode'),combined);assert.equal(saved.get(ns+'completeReviewedSourceCode'),runtimeFiles['complete-reviewed-source-readback.js']);assert.ok([...saved.keys()].every(k=>k.startsWith(ns)));checks.push('complete-runtime-loader-selects-merck-supervised-entry-and-r3-completion');
- let reads=0,stores=0;await assert.rejects(()=>new A('sourceKey','load','store','text','tools',runtimeLoader)('merck',()=>undefined,()=>stores++,()=>{}, {exec_command:async()=>{reads++;return {exit_code:0,output:JSON.stringify({'../activation.json':JSON.stringify(unregistered)})};}}),/CANDIDATE_NOT_REGISTERED/);assert.equal(reads,1);assert.equal(stores,0);checks.push('runtime-unregistered-rejects-before-state-replacement');
+ try{await new A('sourceKey','load','store','text','tools',runtimeLoader)('organon',()=>undefined,globalThis.store,()=>{},globalThis.tools);}finally{delete globalThis.tools;delete globalThis.store;}
+ assert.equal(calls,2);assert.equal(saved.get(ns+'restoredPortableSourceStartCode'),combined);assert.equal(saved.get(ns+'completeReviewedSourceCode'),runtimeFiles['complete-reviewed-source-readback.js']);assert.ok([...saved.keys()].every(k=>k.startsWith(ns)));checks.push('complete-runtime-loader-selects-organon-supervised-entry-and-r3-completion');
+ let reads=0,stores=0;await assert.rejects(()=>new A('sourceKey','load','store','text','tools',runtimeLoader)('organon',()=>undefined,()=>stores++,()=>{}, {exec_command:async()=>{reads++;return {exit_code:0,output:JSON.stringify({'../activation.json':JSON.stringify(unregistered)})};}}),/CANDIDATE_NOT_REGISTERED/);assert.equal(reads,1);assert.equal(stores,0);checks.push('runtime-unregistered-rejects-before-state-replacement');
 }
 assert.equal(existsSync(join(host,'activation.json')),false);assert.equal(existsSync(join(host,'control-base.json')),false);
 mkdirSync(join(base,'verification'),{recursive:true});const report={status:'PASS_OFFLINE_BINDING_AND_PATHS',checks,loaderReconstructedNotOriginalBytes:true,actualCandidate:null,activationAbsent:true,controlAbsent:true,networkUsed:false,databaseUsed:false,realProducerExecuted:false};

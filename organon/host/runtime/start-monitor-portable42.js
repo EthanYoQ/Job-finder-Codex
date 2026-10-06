@@ -1,7 +1,7 @@
 
-const A=Object.getPrototypeOf(async function(){}).constructor;const h=await new A(load("deadlineCandidate47b:merck:cloudPilotHostHelpers"))();
-if(h.cfg.sourceId!=="source-merck-china-social")throw Error("SOURCE_SCOPE");
-const binding=load("deadlineCandidate47b:merck:registeredCandidateBinding");
+const A=Object.getPrototypeOf(async function(){}).constructor;const h=await new A(load("deadlineCandidate47b:organon:cloudPilotHostHelpers"))();
+if(h.cfg.sourceId!=="source-organon-china-social")throw Error("SOURCE_SCOPE");
+const binding=load("deadlineCandidate47b:organon:registeredCandidateBinding");
 if(binding?.status!=="REGISTERED_VERIFIED"||binding.build?.commitSha!=="47b74924f850a4d329460b71717b36df9a5159b8"||!binding.candidate||typeof binding.candidate.id!=="string"||!Number.isSafeInteger(binding.candidate.version)||binding.candidate.version<1)throw Error("CANDIDATE_NOT_REGISTERED");
 const query=`WITH latest_successful AS (
  SELECT s.id AS "sourceResultId",s."sourceId",s."batchId",s."releaseCandidateId",s."sourceConfigHash",s."startedAt",s."finishedAt"
@@ -41,15 +41,15 @@ function requireObservationDue(row,cfg){
 }
 // END OBSERVATION_DUE_GATE
 const due=requireObservationDue(row,h.cfg);
-const batch=load("deadlineCandidate47b:merck:nextBatchId");if(typeof batch!=="string"||!/^[A-Za-z0-9][A-Za-z0-9._-]{0,80}$/.test(batch))throw Error("BATCH_ID");
-const run=h.cfg.root+"/"+batch;store("deadlineCandidate47b:merck:refreshCurrentRun",run);store("deadlineCandidate47b:merck:refreshCurrentBatch",batch);store("deadlineCandidate47b:merck:cloudPilotPublishRequest",null);store("deadlineCandidate47b:merck:cloudPilotPendingRequest",null);
+const batch=load("deadlineCandidate47b:organon:nextBatchId");if(typeof batch!=="string"||!/^[A-Za-z0-9][A-Za-z0-9._-]{0,80}$/.test(batch))throw Error("BATCH_ID");
+const run=h.cfg.root+"/"+batch;store("deadlineCandidate47b:organon:refreshCurrentRun",run);store("deadlineCandidate47b:organon:refreshCurrentBatch",batch);store("deadlineCandidate47b:organon:cloudPilotPublishRequest",null);store("deadlineCandidate47b:organon:cloudPilotPendingRequest",null);
 await h.save(run+"/candidate-readback.json",raw);await h.save(run+"/source-due-readback.json",due);await h.save(run+"/bootstrap.json",{schemaVersion:1,checkedAt:new Date(row.checkedAt).toISOString(),candidateRows:row.candidateRows,batchId:batch});const boot=await h.readFile(run+"/bootstrap.json");
 
-const preflight="env TSX_DISABLE_CACHE=1 NODE_DISABLE_COMPILE_CACHE=1 node "+h.q("/workspace/scratch/5e9614251709/jb-workspace-recovery-20261006T1136Z/hosts-next/merck/host/runtime/preflight/preflight-launch.mjs")+" check "+h.q(h.cfg.root+"/host-config.json")+" "+h.q(h.cfg.root+"/control-base.json")+" "+h.q(run+"/bootstrap.json")+" "+h.q(boot.hash)+" "+h.q(run);
+const preflight="env TSX_DISABLE_CACHE=1 NODE_DISABLE_COMPILE_CACHE=1 node "+h.q("/workspace/scratch/5e9614251709/jb-workspace-recovery-20261006T1136Z/hosts-next/organon/host/runtime/preflight/preflight-launch.mjs")+" check "+h.q(h.cfg.root+"/host-config.json")+" "+h.q(h.cfg.root+"/control-base.json")+" "+h.q(run+"/bootstrap.json")+" "+h.q(boot.hash)+" "+h.q(run);
 const checked=await h.cmd(preflight,2000);notify({phase:"PORTABLE_DB_STARTED_PREFLIGHT",checked});
 if(Date.now()-new Date(row.checkedAt).getTime()>60000)throw Error("FRESH_BOOTSTRAP_EXPIRED_BEFORE_LAUNCH");
 const command="env TSX_DISABLE_CACHE=1 NODE_DISABLE_COMPILE_CACHE=1 JOBFINDER_CLOUD_SOURCE_ID="+h.q(h.cfg.sourceId)+" P0_SOURCE_HTTP_TIMEOUT_MS=45000 node scripts/run-with-http-diagnostics.mjs "+h.q(run+"/diagnostics")+" 1800000 -- node --max-old-space-size=256 --import /workspace/scratch/5e9614251709/jb-workspace-recovery-20261006T1136Z/workspaces/producer-fb0-exact/node_modules/tsx/dist/loader.mjs scripts/p0-cloud-portable-source-pilot.ts "+h.q(run+"/bootstrap.json")+" "+h.q(boot.hash)+" "+h.q(run+"/artifacts")+" "+h.q(run+"/relay")+" --db-started-control "+h.q(h.cfg.root+"/control-base.json");
 await h.save(run+"/reviewed-command.txt",command);
-const started=await tools.exec_command({cmd:command,workdir:h.cfg.repo,yield_time_ms:1000,max_output_tokens:1500});store("deadlineCandidate47b:merck:refreshSession",started.session_id);notify({phase:"FRESH_PORTABLE_DB_STARTED_LAUNCH",batch,session:started.session_id,output:started.output});if(!started.session_id)throw Error("NO_RUNNING_LAUNCH_SESSION");
-await new A(load("deadlineCandidate47b:merck:continuousPortableRelayCodeWithPoll"))();
+const started=await tools.exec_command({cmd:command,workdir:h.cfg.repo,yield_time_ms:1000,max_output_tokens:1500});store("deadlineCandidate47b:organon:refreshSession",started.session_id);notify({phase:"FRESH_PORTABLE_DB_STARTED_LAUNCH",batch,session:started.session_id,output:started.output});if(!started.session_id)throw Error("NO_RUNNING_LAUNCH_SESSION");
+await new A(load("deadlineCandidate47b:organon:continuousPortableRelayCodeWithPoll"))();
 

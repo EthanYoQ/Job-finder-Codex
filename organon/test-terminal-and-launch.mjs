@@ -4,7 +4,7 @@ import {dirname,join} from 'node:path';
 import {fileURLToPath} from 'node:url';
 import {preflight} from './host/runtime/preflight/preflight-launch.mjs';
 const base=dirname(fileURLToPath(import.meta.url)),source=readFileSync(join(base,'host/runtime/continuous-relay-v3-durable-monitor.js'),'utf8');
-const A=Object.getPrototypeOf(async function(){}).constructor,ns='deadlineCandidate47b:merck:',checks=[];
+const A=Object.getPrototypeOf(async function(){}).constructor,ns='deadlineCandidate47b:organon:',checks=[];
 await assert.rejects(()=>preflight(['launch','never-read','never-read','never-read','a'.repeat(64),'never-created']),/PREFLIGHT_LEGACY_LAUNCH_DISABLED_USE_SUPERVISED_STARTER/);checks.push('legacy-launch-refused-before-files-or-spawn');
 async function run(polls,wrapperExitCode=0){
  const stored=new Map(),messages=[],calls=[];let index=0,now=Date.now();
@@ -37,7 +37,7 @@ assert.equal(mismatch.stored.get(ns+'lastPortableExecPollRaw').raw.exit_code,0);
 assert.equal(mismatch.messages.some(m=>m.status==='PROCESS_TERMINATED'),false);
 {
  const completion=readFileSync(join(base,'host/runtime/complete-reviewed-source-readback.js'),'utf8');
- const sourceId='source-merck-china-social',batch='synthetic-mismatch',candidateId='synthetic-candidate';
+ const sourceId='source-organon-china-social',batch='synthetic-mismatch',candidateId='synthetic-candidate';
  const state=new Map([[ns+'refreshCurrentRun','/synthetic/host/'+batch],[ns+'refreshCurrentBatch',batch],[ns+'refreshSession',123],[ns+'lastPortableExecPoll',mismatch.stored.get(ns+'lastPortableExecPoll')],[ns+'registeredCandidateBinding',{status:'REGISTERED_VERIFIED',candidate:{id:candidateId,version:73}}],[ns+'publicationReview',{sourceResult:{id:batch+'--'+sourceId,sourceId,sourceConfigHash:'f'.repeat(64),releaseCandidateId:candidateId}}]]);
  let dbCalls=0,stateCalls=0,outputs=0;
  const helper={cfg:{root:'/synthetic/host',sourceId,sourceConfigSha256:'f'.repeat(64)},save:async()=>{stateCalls++;},cmd:async()=>{stateCalls++;}};

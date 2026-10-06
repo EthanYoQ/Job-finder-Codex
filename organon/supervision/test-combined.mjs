@@ -16,7 +16,7 @@ const privateRoot=mkdtempSync(join(paths.base,'verification/synthetic-'));
 const tests=[];
 const pass=(name,detail={})=>tests.push({name,passed:true,...detail});
 for(const key of ['sampler','supervisor','wrapper','original'])assert.equal(sha(readFileSync(paths[key])),hashes[key]);
-const original=readFileSync(paths.original,'utf8'),combined=readFileSync(join(paths.base,'start-monitor-merck47b-combined.js'),'utf8');
+const original=readFileSync(paths.original,'utf8'),combined=readFileSync(join(paths.base,'start-monitor-organon47b-combined.js'),'utf8');
 assert.equal(addCombinedObservation(original),combined);assert.equal(stripCombinedObservation(combined),original);
 pass('fixed-source-hashes-and-original-starter-byte-roundtrip');
 assert.notEqual(label('batch.a'),label('batch_a'));assert.match(label('batch.a'),/^jb-[a-f0-9]{64}$/);
