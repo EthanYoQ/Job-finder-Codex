@@ -1,112 +1,70 @@
 {
   "format": "safe-source-backup/v1",
-  "snapshot": "deployment-backup-contract-v1",
-  "sourcePlanSha256": "23b44fd804f227c19e8fd4d411a2e5901aec84c9b2b85a371b950174307efefd",
-  "originalSourceFiles": 12,
-  "originalSourceBytes": 36566,
+  "snapshot": "readonly-schedule-audit-r2",
+  "sourcePlanSha256": "48a7e2e5b61d0c3f51d1bd8b1a224bb9f95edd2f495fcd0af527af17b9d8416f",
+  "originalSourceFiles": 6,
+  "originalSourceBytes": 34182,
   "originalBytesUnchanged": true,
   "dependencies": [
-    "Python 3 standard library; preserve the relative layout so test_validate.py imports validate.py."
+    "Python 3 standard library locally; server Python 3.6+ and systemctl.",
+    "Existing official Aliyun CLI 3.5.1 and externally configured profile. No credential files are included.",
+    "Existing Node executable, PM2 daemon/socket and pm2-axon / pm2-axon-rpc modules; no installation or daemon start is performed by this backup."
   ],
   "restorationNotes": [
-    "Run from the restored repository directory; the original README contains the historical preparation path.",
-    "TEST_RESULTS.txt and EXAMPLE_VALIDATION.json mentioned in the original README are deliberately not included.",
-    "All example bodies, scope and review attestations are synthetic. Archive-only examples grant no execution or replay authority.",
-    "CLI exit 0 also allows valid partial archives; check recoveryComplete separately.",
-    "The independent frozen scope, review truthfulness and immutable input directory are caller prerequisites. This source backup does not wire the validator into any publisher."
+    "The fixed instance, region, profile and filesystem locations are non-secret source bindings. Review them and obtain a new execution authorization before operational use.",
+    "A new separately reviewed intent is required. Actual intent, submit-attempt and invocation receipt files are not included and must not be reconstructed from this backup as live authorization.",
+    "The script retains projected stdout/stderr on nonzero command exit; template timer evidence remains distinct from live instance status.",
+    "read-schedules.sh embeds exactly audit.py, whose RPC string is exactly rpc-readonly.js. Preserve their source relationship.",
+    "The extracted RPC file lacks the outer probe daemon/PID/socket gate when run on its own.",
+    "Fixed timer names, eight PM2 names, limited proc inspection and nonmerged template files are a bounded audit, not a comprehensive scheduler inventory.",
+    "Future output requires its own safety review. Path projections are not a general credential or URL sanitizer."
   ],
   "excluded": [
-    "Actual deployment materials, approval text, runtime/control data, credentials, raw or database records, internal reports and generated validation outputs."
+    "Actual timer/service/cron/PM2 outputs, raw or decoded remote API results, submission intents, invocation receipts, private comparison reports, credentials, environment files and full argv."
   ],
-  "verificationScope": "Exact source bytes and Git objects only; no tests, CI, deployment or source execution were performed by this backup.",
+  "verificationScope": "Static source hash and embedding checks, plus exact remote byte verification. No source execution, tests, server calls, CI or deployment by this backup.",
   "files": [
     {
-      "path": "CONTRACT.json",
-      "bytes": 3225,
-      "sha256": "dfd0594bcbbeb6ea0f9269224afe37695135926b64f4d41fffeece01349e0093",
-      "mode": "100644",
-      "gitBlob": "2cedc0942bba55793fb14a1caac3d98ab6bdef89"
-    },
-    {
       "path": "README.md",
-      "bytes": 4925,
-      "sha256": "44a84de7f494aa6d597c1dcf748d7ece01cb91446522566490558cfa306b7de8",
+      "sha256": "275b891c1ae303f9676877529c77ca089c389e3072e0f369a2a86b79b263be39",
+      "bytes": 2874,
       "mode": "100644",
-      "gitBlob": "d61b647eb48cfb11c3a5fb2dd3ea3839a204bf79"
+      "gitBlob": "c718a9f04fe0f9e5f446352cb93e5c66f2049384"
     },
     {
-      "path": "example/bodies/archive-only/intent.txt",
-      "bytes": 67,
-      "sha256": "5cfa53308a02a0683775c196ac02686af5696e3dc20ba9cce4ab07403b1765c8",
+      "path": "audit.py",
+      "sha256": "02f4040342b48d8b0827295366fb264618ad1d7ea64fa351f5188e9a74385b66",
+      "bytes": 11575,
       "mode": "100644",
-      "gitBlob": "bac7da9b56e39c760ff55c694e86e011fc86406a"
+      "gitBlob": "8a571f1ae1c71e70d90bc37be6ea82316cbf8a7b"
     },
     {
-      "path": "example/bodies/archive-only/receipt.txt",
-      "bytes": 65,
-      "sha256": "49f3a5831a8192dc62ca4b51a3535d70ba29aa104917cbef716d12e2d4db58c0",
+      "path": "control.py",
+      "sha256": "ef1abbd6e28dd28c9e60e171371a79ff25f516ae9c5a12eb93f7cfc5aef489b0",
+      "bytes": 3008,
       "mode": "100644",
-      "gitBlob": "b4cef548145b71c437072006a06a18c5ff10ed8d"
+      "gitBlob": "221888b3548bd530606ec6636675b1f684494f49"
     },
     {
-      "path": "example/bodies/materials/bootstrap.txt",
-      "bytes": 56,
-      "sha256": "70104d0d4be35fd22016c7441c022605f61e1cce9415b6aff22f6e6db0d8b10f",
+      "path": "read-schedules.sh",
+      "sha256": "5237c9acf319d1685edb34d50204df20831c363f06219a7d4aebb55ac06cbdd7",
+      "bytes": 11610,
       "mode": "100644",
-      "gitBlob": "0c10125927f50a2420aabc752cbefd1ded5a90e0"
+      "gitBlob": "cbf51cdd469df623674f1ecb32c724a08a1ffd6d"
     },
     {
-      "path": "example/bodies/materials/chunk-000.txt",
-      "bytes": 23,
-      "sha256": "3213241a2f773bb1a98346b286ff353864a951498d6fd4a85cdfc81e64807df4",
+      "path": "rpc-readonly.js",
+      "sha256": "095b50f541904c48b395083fe18fc6ca618bc417b1fd4edff898de1d2cc3d488",
+      "bytes": 2808,
       "mode": "100644",
-      "gitBlob": "d23ba4c1f3ae9c40f6e2bd48ff4a4d6f696407d5"
+      "gitBlob": "a62ae85c0570f6589ae9457cefb0b095872e17f2"
     },
     {
-      "path": "example/bodies/materials/chunk-001.txt",
-      "bytes": 26,
-      "sha256": "ddac54760cb02bc76c3a99efecb30e248a509d738334e759b5a6ad91a13a0e1d",
+      "path": "test_redaction.py",
+      "sha256": "3b0433c0e0e5efcb3a0fbd9f90b247eb167d8037869dcaf5904551c6b69b557e",
+      "bytes": 2307,
       "mode": "100644",
-      "gitBlob": "9da948eeb8372fe6698107c2a58cc218cdbadca2"
-    },
-    {
-      "path": "example/bodies/materials/payload.txt",
-      "bytes": 49,
-      "sha256": "d4aa1339e90ce58f91232cdb19773cb49dabda3773214feaa782f4aa9fe38903",
-      "mode": "100644",
-      "gitBlob": "a404bc82e2f8a493e157b413eb8970bc7b6438d1"
-    },
-    {
-      "path": "example/expected-scope.json",
-      "bytes": 1504,
-      "sha256": "65f8042fd27b0e2b4e6220130a87f949a043e89fef2626e61305fdd10ae5dff0",
-      "mode": "100644",
-      "gitBlob": "a76db50ddcd51f125677bc88ada603bcfdc3d8a5"
-    },
-    {
-      "path": "example/manifest.json",
-      "bytes": 5114,
-      "sha256": "abf4196b52d6676a4f11bf98c868bfce450f097ff8287e419a2f6888811122e3",
-      "mode": "100644",
-      "gitBlob": "f09152e61b6ff313f53b562c0ae831170a266f01"
-    },
-    {
-      "path": "test_validate.py",
-      "bytes": 9828,
-      "sha256": "4f2200357c0618b273d01719a4036c1c49a01d8f741610eba8a6df490a68b73c",
-      "mode": "100644",
-      "gitBlob": "6c6b8f23d5bca0904ce472c94db6cec9758982df"
-    },
-    {
-      "path": "validate.py",
-      "bytes": 11684,
-      "sha256": "fa75f7d40d86228ecfede33351120f431ad0cd6e7626f817d840752c58b9066f",
-      "mode": "100644",
-      "gitBlob": "a24e349e22e5176a4578a4722f2b60d5e03aecb3"
+      "gitBlob": "122e45536447870ee3745aa71435c7c520cd2350"
     }
-  ],
-  "knownStaticLimitations": [
-    "Directory inventory checks the body root itself for symlinks but not every ancestor before walking. Missing-body partial entries skip per-body ancestor checks; callers must supply an independently checked nonsymlink root path.",
-    "Directory inventory ignores unlisted FIFO, socket and other nonregular entries. This snapshot does not establish rejection of every special filesystem entry."
   ]
 }
