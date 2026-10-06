@@ -1,77 +1,86 @@
 {
   "schemaVersion": 1,
-  "sourceInventorySha256": "488d6635a285e5b8a20d1170bc2a5ca8593abcfdc3106dd61bc77bec703c050b",
   "files": [
     {
-      "path": "fence_candidate.py",
+      "path": "r4/create-fence.template.sh",
       "mode": "100644",
       "type": "blob",
-      "sha": "322d5710cf3f28974ae922612789721f94bd065f",
-      "sha256": "efc2f19e43cddcaf91e3dedda52c7f0c391a1ab9d36fb2f3393910dce0ff7aad",
-      "bytes": 7212
+      "sha": "ab9fcdffce45f72bbc8e051bc11222f054be88d2",
+      "sha256": "2e27b3f4d4f797ff819e9500a8ffe4c7f01ac8aacf4d9b21a8b3eb2e36451622",
+      "bytes": 5625
     },
     {
-      "path": "test_fence.py",
+      "path": "r4/fence_candidate.py",
       "mode": "100644",
       "type": "blob",
-      "sha": "2e46555339747b72365639520438d466c2505e6e",
-      "sha256": "71f503d73058eed31671376577bd5c81c3c6040e06d2967503349560d0c64979",
-      "bytes": 14143
+      "sha": "dc7987c01f2f9923ec15fa817ad66567a00e63ee",
+      "sha256": "24e845b0240df68c4cae398e46dbe923c8d27fd69a9f1ef4a15b291d7fb23f63",
+      "bytes": 8935
     },
     {
-      "path": "stdin-review/fence_module.py",
+      "path": "r4/fence_module.py",
       "mode": "100644",
       "type": "blob",
-      "sha": "1d0211d48e455677002ef55e3b80fb70a96b51c8",
-      "sha256": "2cf05676933aaa2ee2d6f67eef86f2cfb8e322279947423485263a4da7acccd9",
-      "bytes": 7146
+      "sha": "a667723c1913f44b458916b97fef9228ec64f356",
+      "sha256": "d420bd7bb06bc1f4303f24433054ae203f2228532b5acb20ffe86e38bed37d5a",
+      "bytes": 9232
     },
     {
-      "path": "stdin-review/module-adaptation.patch",
+      "path": "r4/generate_wrappers.py",
       "mode": "100644",
       "type": "blob",
-      "sha": "15136c795cf19ca2d5fbf01b6a8944579db2e409",
-      "sha256": "8f482f168da7f888856c0edc1132e02e88ed3917b8a2e0c9240659ffa5d2f147",
-      "bytes": 1082
+      "sha": "a9e159e269ff663572c3da36d792eb4d4c5395be",
+      "sha256": "2533994e8fb26a7a05dfc34ad733cae1ad0d677519417ebcd0ba3c949983107b",
+      "bytes": 4954
     },
     {
-      "path": "stdin-review/create-fence.template.sh",
+      "path": "r4/r2-to-r4-core.patch",
       "mode": "100644",
       "type": "blob",
-      "sha": "fe6406365fffe15f03a11197992a43dadb73e213",
-      "sha256": "eec7b569a7f23f23466da183330462822aa0af07677112016e217878bb62ff3f",
-      "bytes": 10688
+      "sha": "06f9173f5f9af9fb6290602e61cb1e003847a970",
+      "sha256": "fa98b6724178dc16355a678a5f315d40eb652d5aeb4bb7398d503561c701d614",
+      "bytes": 4660
     },
     {
-      "path": "stdin-review/read-fence.template.sh",
+      "path": "r4/r2-to-r4-module.patch",
       "mode": "100644",
       "type": "blob",
-      "sha": "0120a906be6c0328de93bc0e2c8fa26cd45bd77e",
-      "sha256": "e06cc57fc290bc722bfd5986ae097a494ee2bf735ff4f5a75db0561157e8b530",
-      "bytes": 11131
+      "sha": "96783ac4ef38297834a2ec59ceb6af6f41682a7e",
+      "sha256": "153573c0c4df99583822bcb2f146e7e02997243c8e699d19492e9b9295862ae0",
+      "bytes": 4857
     },
     {
-      "path": "stdin-review/test_stdin_wrapper.py",
+      "path": "r4/r3-to-r4-wrapper.patch",
       "mode": "100644",
       "type": "blob",
-      "sha": "5cf59699b2d4a0e7de84dbbf727ff6c73482e53d",
-      "sha256": "a84015205764ef68ef9a7369a06cde07475d17598fe97fd778d118c6fd59cb81",
-      "bytes": 11335
+      "sha": "718155cabf377f870bcbba8d182fa8d7f33177da",
+      "sha256": "2b50414e62cd4ac1b0dc46f7c1342e4cea84035f5a95fff51d0365ba82f7676f",
+      "bytes": 4687
+    },
+    {
+      "path": "r4/read-fence.template.sh",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "34e454ffeac9adee9f2068a562311c17b7c04b10",
+      "sha256": "86b07fa5ef81433a01aa7b2289a96138574e98e1eb796a004570f87370fb5e65",
+      "bytes": 6372
+    },
+    {
+      "path": "r4/test_fence.py",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "09d73e8f1399d5029bb385440c69865d32a9a19a",
+      "sha256": "0b1e7f78c80ef483ca7b6bed15fe51941e7d080f91d1fc7944a9edcfc6712f49",
+      "bytes": 25065
+    },
+    {
+      "path": "r4/test_stdin_wrapper.py",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "24982c590403d73b01b47de332387b443ad97235",
+      "sha256": "37b4621ea458e848fdeec28990a2b2e5da78189141d8716381f7811c44454aaf",
+      "bytes": 23845
     }
   ],
-  "dependencies": [
-    "Python 3 standard library",
-    "POSIX shell and Linux/POSIX filesystem and process primitives",
-    "Trusted parent chain owned by execution UID, no group/other-writable ancestors",
-    "stdin module requires verified-source-hash injection from included wrapper"
-  ],
-  "layout": "Preserve top-level Python files and stdin-review subdirectory",
-  "omittedTestDependency": "../transfer-bootstrap/upload-000.sh",
-  "excludedCategories": [
-    "Actual snapshots and inode data",
-    "Receipts and invocation state",
-    "Credentials, environment and configuration",
-    "Captured data, test outputs and operational reports"
-  ],
-  "templatesUnfilled": true
+  "sourceInventorySha256": "acc27bd9e7dad64242ebfdb3190a5e57a5c5abea1c3dc29eb51ef3f7a151457e"
 }

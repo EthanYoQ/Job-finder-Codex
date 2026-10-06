@@ -19,7 +19,7 @@ import tempfile
 import unittest
 
 HERE = Path(__file__).resolve().parent
-D = HERE.parent
+D = HERE.parents[1]
 SPEC = importlib.util.spec_from_file_location('candidate', HERE / 'fence_candidate.py')
 F = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(F)
@@ -33,6 +33,11 @@ PAYLOAD = base64.b64decode(next(n.value.args[0].value for n in TREE.body
                               if isinstance(n, ast.Assign) and
                               isinstance(n.targets[0], ast.Name) and n.targets[0].id == 'b'))
 assert hashlib.sha256(PAYLOAD).hexdigest() == F.PART_SHA
+def forbid_network(event, args):
+    if event.startswith('socket.'):
+        raise RuntimeError('NETWORK_FORBIDDEN_IN_OFFLINE_TEST')
+sys.addaudithook(forbid_network)
+
 NONCE = '11111111111111111111111111111111'
 OLD_PATH = '/opt/jobfinder-paired/' + F.RELEASE
 
@@ -77,7 +82,7 @@ def child(op, request):
         trace_at(F.__file__, matches[0])
     try:
         if op == 'fence':
-            result = F.create_fence(request['snapshot'], NONCE)
+            result = F.create_fence(request['snapshot'], NONCE, request.get('ancestor_snapshot'))
         elif op == 'read':
             result = F.verify_fence(request['receipt'])
         elif op == 'part':
@@ -110,7 +115,8 @@ class FenceTests(unittest.TestCase):
         self.tmp.cleanup()
 
     def start(self, op, pause=None, **extra):
-        request = {'parent': str(self.parent), 'snapshot': self.snapshot, **extra}
+        request = {'parent': str(self.parent), 'snapshot': self.snapshot,
+                   'ancestor_snapshot': getattr(self, 'ancestor_snapshot', None), **extra}
         if pause:
             request['pause'] = pause
         proc = subprocess.Popen([sys.executable, str(Path(__file__).resolve()),
@@ -300,6 +306,24 @@ class FenceTests(unittest.TestCase):
         (self.target / F.MARKER).write_bytes(b'{}\n')
         self.run_op('read', 3, receipt=receipt)
 
+    def test_fifo_marker_rejected_within_two_seconds(self):
+        receipt = self.run_op('fence')
+        (self.target / F.MARKER).unlink()
+        os.mkfifo(self.target / F.MARKER, 0o600)
+        proc = self.start('read', receipt=receipt)
+        out, err = proc.communicate(timeout=2)
+        self.assertEqual(proc.returncode, 3, (out, err))
+        self.assertEqual(json.loads(out)['error'], 'BAD_FILE')
+
+    def test_fifo_hash_rejected_within_two_seconds(self):
+        receipt = self.run_op('fence')
+        (self.target / F.HASH_FILE).unlink()
+        os.mkfifo(self.target / F.HASH_FILE, 0o600)
+        proc = self.start('read', receipt=receipt)
+        out, err = proc.communicate(timeout=2)
+        self.assertEqual(proc.returncode, 3, (out, err))
+        self.assertEqual(json.loads(out)['error'], 'BAD_FILE')
+
     def test_fixed_part_hash_and_exclusive_write(self):
         receipt = self.run_op('fence')
         self.run_op('part', 3, receipt=receipt, bad_data=True)
@@ -333,6 +357,227 @@ class FenceTests(unittest.TestCase):
         self.assertEqual(sum(p.returncode == 0 for p in (old, fence)), 1, (a, b))
         entries = set(os.listdir(self.target))
         self.assertIn(entries, [{'bootstrap.part000'}, {F.MARKER, F.HASH_FILE}])
+
+
+    def absent(self):
+        self.parent.rmdir()
+        self.ancestor_snapshot = self.snapshot[:-1]
+        self.snapshot = None
+
+    def test_absent_parent_created_then_fence_verified(self):
+        self.absent()
+        receipt = self.run_op('fence')
+        self.assertTrue(receipt['marker']['parentCreated'])
+        self.assertEqual(self.parent.stat().st_mode & 0o7777, 0o700)
+        self.assertEqual(self.run_op('read', receipt=receipt)['state'], 'FENCE_VERIFIED')
+        self.assertFalse((self.target / 'bootstrap.part000').exists())
+
+    def test_existing_trusted_parent_mode_is_unchanged(self):
+        self.parent.chmod(0o750)
+        self.snapshot = F.parent_snapshot()
+        receipt = self.run_op('fence')
+        self.assertFalse(receipt['marker']['parentCreated'])
+        self.assertEqual(self.parent.stat().st_mode & 0o7777, 0o750)
+
+    def test_absent_parent_missing_snapshot_rejected_before_mkdir(self):
+        self.absent()
+        self.ancestor_snapshot = None
+        failure = self.run_op('fence', 3)
+        self.assertEqual(failure['error'], 'ANCESTOR_SNAPSHOT_NOT_PINNED')
+        self.assertFalse(self.parent.exists())
+
+    def test_ambiguous_existing_and_absent_plans_rejected(self):
+        self.ancestor_snapshot = self.snapshot[:-1]
+        failure = self.run_op('fence', 3)
+        self.assertEqual(failure['error'], 'AMBIGUOUS_PARENT_PLAN')
+        self.assertEqual(os.listdir(self.parent), [])
+
+    def test_absent_parent_eexist_is_never_adopted(self):
+        self.absent()
+        self.parent.mkdir(mode=0o700)
+        failure = self.run_op('fence', 3)
+        self.assertEqual(failure['type'], 'FileExistsError')
+        self.assertEqual(os.listdir(self.parent), [])
+
+    def test_absent_parent_symlink_and_wrong_mode_unchanged(self):
+        self.absent()
+        other = self.root / 'other'
+        other.mkdir(mode=0o755)
+        self.parent.symlink_to(other, target_is_directory=True)
+        self.run_op('fence', 3)
+        self.assertTrue(self.parent.is_symlink())
+        self.assertEqual(os.listdir(other), [])
+        self.assertEqual(other.stat().st_mode & 0o7777, 0o755)
+
+    def test_wrong_ancestor_inode_rejected_before_parent_mkdir(self):
+        self.absent()
+        self.ancestor_snapshot[-1][1] += 1
+        failure = self.run_op('fence', 3)
+        self.assertEqual(failure['error'], 'ANCESTOR_IDENTITY_CHANGED')
+        self.assertFalse(self.parent.exists())
+
+    def test_writable_ancestor_rejected_before_parent_mkdir(self):
+        self.absent()
+        self.root.chmod(0o777)
+        try:
+            failure = self.run_op('fence', 3)
+            self.assertEqual(failure['error'], 'UNTRUSTED_PARENT_CHAIN')
+            self.assertFalse(self.parent.exists())
+        finally:
+            self.root.chmod(0o700)
+
+    @unittest.skipUnless(os.geteuid() == 0, 'real uid mismatch requires root fixture')
+    def test_wrong_existing_parent_uid_rejected_without_chown(self):
+        os.chown(self.parent, 65534, -1)
+        try:
+            self.run_op('fence', 3)
+            self.assertEqual(self.parent.stat().st_uid, 65534)
+            self.assertEqual(os.listdir(self.parent), [])
+        finally:
+            os.chown(self.parent, 0, -1)
+
+    @unittest.skipUnless(os.geteuid() == 0, 'real uid mismatch requires root fixture')
+    def test_wrong_ancestor_uid_rejected_without_chown(self):
+        self.absent()
+        os.chown(self.root, 65534, -1)
+        try:
+            self.run_op('fence', 3)
+            self.assertEqual(self.root.stat().st_uid, 65534)
+            self.assertFalse(self.parent.exists())
+        finally:
+            os.chown(self.root, 0, -1)
+
+    def test_parent_creation_wins_but_old_release_creation_can_win(self):
+        self.absent()
+        fence = self.start('fence', 'PHASE_AFTER_PARENT_MKDIR')
+        self.run_op('old')
+        before = (self.target / 'bootstrap.part000').read_bytes()
+        failure = self.resume(fence, 3)
+        self.assertEqual(failure['type'], 'FileExistsError')
+        self.assertEqual((self.target / 'bootstrap.part000').read_bytes(), before)
+        self.assertEqual(set(os.listdir(self.target)), {'bootstrap.part000'})
+
+    def test_old_parent_creation_wins_candidate_does_not_adopt(self):
+        self.absent()
+        old = self.start('old', 'before_assert')
+        failure = self.run_op('fence', 3)
+        self.assertEqual(failure['type'], 'FileExistsError')
+        self.assertFalse(self.target.exists())
+        self.resume(old, 0)
+
+    def test_absent_parent_fence_blocks_old_at_before_parent(self):
+        self.absent()
+        old = self.start('old', 'before_parent')
+        receipt = self.run_op('fence')
+        self.resume(old, 1)
+        self.run_op('read', receipt=receipt)
+        self.assertFalse((self.target / 'bootstrap.part000').exists())
+
+    def test_simultaneous_two_level_old_and_fence_race(self):
+        self.absent()
+        old = self.start('old', 'before_parent')
+        fence = self.start('fence', 'PHASE_BEFORE_PARENT_MKDIR')
+        for proc in (old, fence):
+            proc.send_signal(signal.SIGCONT)
+        results = [self.result(proc) for proc in (old, fence)]
+        self.assertEqual(sum(p.returncode == 0 for p in (old, fence)), 1, results)
+        self.assertIn(set(os.listdir(self.target)),
+                      [{'bootstrap.part000'}, {F.MARKER, F.HASH_FILE}])
+
+    def test_simultaneous_absent_parent_candidates_only_one_wins(self):
+        self.absent()
+        workers = [self.start('fence', 'PHASE_BEFORE_PARENT_MKDIR') for _ in range(4)]
+        for proc in workers:
+            proc.send_signal(signal.SIGCONT)
+        results = [self.result(proc) for proc in workers]
+        self.assertEqual(sum(p.returncode == 0 for p in workers), 1, results)
+        self.assertEqual(sum(p.returncode == 3 for p in workers), 3, results)
+        self.assertEqual(set(os.listdir(self.target)), {F.MARKER, F.HASH_FILE})
+
+    def test_kill_after_parent_mkdir_leaves_parent_and_unknown(self):
+        self.absent()
+        fence = self.start('fence', 'PHASE_AFTER_PARENT_MKDIR')
+        fence.kill()
+        self.result(fence, -signal.SIGKILL)
+        self.assertEqual(os.listdir(self.parent), [])
+        self.assertEqual(self.parent.stat().st_mode & 0o7777, 0o700)
+        self.run_op('fence', 3)
+        self.run_op('read', 3, receipt={'state': 'UNKNOWN'})
+        self.assertFalse(self.target.exists())
+        self.run_op('old')  # Parent-only residue does NOT fence legacy requests.
+        self.assertEqual(set(os.listdir(self.target)), {'bootstrap.part000'})
+
+    def test_new_parent_wrong_mode_after_mkdir_rejected_without_repair(self):
+        self.absent()
+        fence = self.start('fence', 'PHASE_AFTER_PARENT_MKDIR')
+        self.parent.chmod(0o755)
+        failure = self.resume(fence, 3)
+        self.assertEqual(failure['error'], 'BAD_NEW_PARENT')
+        self.assertEqual(self.parent.stat().st_mode & 0o7777, 0o755)
+        self.assertEqual(os.listdir(self.parent), [])
+
+    @unittest.skipUnless(os.geteuid() == 0, 'real uid mismatch requires root fixture')
+    def test_new_parent_wrong_uid_after_mkdir_rejected_without_repair(self):
+        self.absent()
+        fence = self.start('fence', 'PHASE_AFTER_PARENT_MKDIR')
+        os.chown(self.parent, 65534, -1)
+        try:
+            failure = self.resume(fence, 3)
+            self.assertEqual(failure['error'], 'BAD_NEW_PARENT')
+            self.assertEqual(self.parent.stat().st_uid, 65534)
+            self.assertEqual(os.listdir(self.parent), [])
+        finally:
+            os.chown(self.parent, 0, -1)
+
+    def test_new_parent_symlink_after_mkdir_rejected_without_following(self):
+        self.absent()
+        fence = self.start('fence', 'PHASE_AFTER_PARENT_MKDIR')
+        other = self.root / 'new-parent-displaced'
+        self.parent.rename(other)
+        self.parent.symlink_to(other, target_is_directory=True)
+        self.resume(fence, 3)
+        self.assertEqual(os.listdir(other), [])
+
+    def test_ancestor_replacement_before_mkdir_leaves_only_displaced_parent(self):
+        self.absent()
+        ancestor = self.root / 'anchor'
+        ancestor.mkdir(mode=0o700)
+        self.parent = ancestor / 'paired'
+        self.target = self.parent / F.RELEASE
+        fixture(self.parent)
+        fds, self.ancestor_snapshot = F.open_chain(ancestor)
+        for fd in reversed(fds):
+            os.close(fd)
+        fence = self.start('fence', 'PHASE_BEFORE_PARENT_MKDIR')
+        displaced = self.root / 'displaced-anchor'
+        ancestor.rename(displaced)
+        ancestor.mkdir(mode=0o700)
+        self.resume(fence, 3)
+        self.assertEqual(os.listdir(ancestor), [])
+        self.assertEqual(os.listdir(displaced / 'paired'), [])
+
+    def test_new_parent_replaced_after_fence_invalidates_proof(self):
+        self.absent()
+        old = self.start('old', 'before_parent')
+        receipt = self.run_op('fence')
+        self.parent.rename(self.root / 'displaced-parent')
+        self.parent.mkdir(mode=0o700)
+        self.resume(old, 0)
+        self.run_op('read', 3, receipt=receipt)
+        self.assertTrue((self.target / 'bootstrap.part000').is_file())
+
+    def test_root_swap_between_mkdir_and_open_is_outside_stable_path_premise(self):
+        self.absent()
+        fence = self.start('fence', 'PHASE_AFTER_PARENT_MKDIR')
+        displaced = self.root / 'displaced-parent'
+        self.parent.rename(displaced)
+        self.parent.mkdir(mode=0o700)
+        replacement_identity = F.identity(self.parent.stat())
+        receipt = self.resume(fence, 0)
+        self.assertEqual(receipt['marker']['parentChain'][-1], replacement_identity)
+        self.assertEqual(os.listdir(displaced), [])
+        self.assertEqual(set(os.listdir(self.target)), {F.MARKER, F.HASH_FILE})
+        # This is an explicit counterexample, not a supported-path safety proof.
 
 
 if __name__ == '__main__':
