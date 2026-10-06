@@ -1,78 +1,43 @@
 {
   "schemaVersion": 1,
-  "sourceManifestSha256": "ac8c29a85e7b632332d83f0e0819a1ce727722cd691c27be3f756312d9afc71f",
+  "sourceInventorySha256": "b2626ff0c9791d2748f5234f62c2dbbd99ec22d689ea9d8a3e845e652ae235a7",
   "files": [
     {
-      "path": "owner-guard-review/owner-ali-call.original.py",
-      "sha256": "c14a765215270e17fad200ed8d83e3b68f5266cd4a327640c1067398e1e90fa3",
-      "bytes": 4739,
+      "path": "owner-before-probe-allowlist.py",
       "mode": "100644",
       "type": "blob",
-      "sha": "10bf39345bc0d5e85dac682e5b0089f97a70ec2e"
-    },
-    {
-      "path": "owner-guard-review/owner-ali-call.candidate.py",
-      "sha256": "d669fa212f3431005a02e55cee10aceb4806eba4a5c9147c226913c5dea1b808",
-      "bytes": 7474,
-      "mode": "100644",
-      "type": "blob",
-      "sha": "6d9bf6ac105867a1c43a99efa3bec3439f396d2e"
-    },
-    {
-      "path": "owner-guard-review/owner-ali-call.guard.patch",
-      "sha256": "2299cabd2e30fc6736e03ac3293f4f5fb468c3b5587613c6f922fc92de9bd090",
-      "bytes": 11361,
-      "mode": "100644",
-      "type": "blob",
-      "sha": "f6d02840c9ff341eca74b84c3dee3079272d4c19"
-    },
-    {
-      "path": "observation-fix-review/owner-ali-call.baseline.py",
-      "sha256": "d669fa212f3431005a02e55cee10aceb4806eba4a5c9147c226913c5dea1b808",
-      "bytes": 7474,
-      "mode": "100644",
-      "type": "blob",
-      "sha": "6d9bf6ac105867a1c43a99efa3bec3439f396d2e"
-    },
-    {
-      "path": "observation-fix-review/owner-ali-call.candidate.py",
+      "sha": "9ed1f2e3804797405c627e7529a0dcfeac2a27f9",
       "sha256": "af076be1679c2a20aa1a74caa403eeea5a0f1decd7bc5dce59aab6a28340c954",
-      "bytes": 11104,
-      "mode": "100644",
-      "type": "blob",
-      "sha": "9ed1f2e3804797405c627e7529a0dcfeac2a27f9"
+      "bytes": 11104
     },
     {
-      "path": "observation-fix-review/owner-ali-call.observation.patch",
-      "sha256": "0f25fa86e54b28016d689b9aaa6f939f9164cf446665c5771db1d67950b0b8e1",
-      "bytes": 8990,
+      "path": "owner-ali-call.py",
       "mode": "100644",
       "type": "blob",
-      "sha": "59b4be64c4d012c41614790ccf1ae29a6c3f8f91"
+      "sha": "c771d057054c22021bd5345c3baf5418675248a8",
+      "sha256": "9505e5c0348915286b3b35fa067ec74984a6ae2d6afa2a379c527dff78ebb91d",
+      "bytes": 11319
     },
     {
-      "path": "observation-fix-review/test_owner_observation.py",
-      "sha256": "a4ef7f1d82d0f366bdc05d0ec9e66127baaf5a0b6e29df9172cd9e7a2b281b55",
-      "bytes": 22197,
+      "path": "diagnostics/printf-transport-9415.sh",
       "mode": "100644",
       "type": "blob",
-      "sha": "859e033e22c7dd9418a3de52fa633b5c2c4cbf53"
+      "sha": "4d6a6e2ed2fd7e99fc00d37e971275666e053aec",
+      "sha256": "26aa3c706d08137e5d6849603b5f35730b12a88871f7c414871663b274fb0296",
+      "bytes": 9415
+    },
+    {
+      "path": "owner-probe-allowlist.diff",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "e4ae1a5d06dede4e64a9b58363892cf827633f1c",
+      "sha256": "de62365175c2502c0f5703aa82a6cdbf8bbdb2e589fe9ae7a6a1beaf0d278405",
+      "bytes": 1579
     }
   ],
-  "requiredTestLayout": [
-    "owner-guard-review/",
-    "observation-fix-review/"
+  "omittedDependencies": [
+    "CLI and configuration",
+    "Sealed inputs and invocation state"
   ],
-  "testDependencies": [
-    "Python 3.8+ standard library with assertions enabled (no -O/-OO/PYTHONOPTIMIZE)",
-    "Linux /proc",
-    "POSIX process and signal support",
-    "Temporary directory supporting executable scripts, hard links and directory fsync"
-  ],
-  "excluded": [
-    "Runtime inputs and CLI binary",
-    "Credentials, environment and profile files",
-    "Actual ledgers, requests and responses",
-    "Operational reports"
-  ]
+  "requiredLayout": "Keep diagnostics/printf-transport-9415.sh relative to owner-ali-call.py"
 }

@@ -1,9 +1,9 @@
-# Owner helper source fixes
+# Owner helper source increment
 
-This snapshot preserves seven frozen Python, patch, and synthetic-test files (73,339 bytes). The source manifest SHA-256 is `ac8c29a85e7b632332d83f0e0819a1ce727722cd691c27be3f756312d9afc71f`. Verify SHA256SUMS before restoration.
+Four unchanged source and patch files, 33,417 bytes. Source inventory SHA-256: `b2626ff0c9791d2748f5234f62c2dbbd99ec22d689ea9d8a3e845e652ae235a7`. SOURCE_BACKUP.json lists this branch's files; verify SHA256SUMS before restoring.
 
-Keep `owner-guard-review/` and `observation-fix-review/` as sibling directories. The latter test module reads its candidate and baseline, plus `../owner-guard-review/owner-ali-call.original.py`. The guard candidate and observation baseline are intentionally identical.
+The af076 baseline is preserved alongside the updated helper, exact patch, and fixed diagnostic shell source. Keep `diagnostics/printf-transport-9415.sh` at its listed relative path.
 
-The synthetic tests require Python 3.8+ with its standard library, Linux `/proc`, and POSIX process/signal support. Use normal Python with assertions enabled: no `-O`, `-OO`, or `PYTHONOPTIMIZE`. Source checks depend on assertions. The tests use isolated temporary fixtures; the temporary directory must support executable scripts, hard links, and directory fsync. No test execution is claimed by this backup.
+Dependencies: Python 3.8+ standard library, Linux/POSIX process support, and a filesystem supporting hard links and directory fsync. Python assertions must remain enabled: no `-O`, `-OO`, or `PYTHONOPTIMIZE`. The shell source requires `/bin/sh`. External CLI, configuration, sealed inputs, and invocation state are omitted; fixed source bindings require review before adaptation.
 
-External runtime inputs and the CLI are not supplied. Fixed source bindings require deliberate review when adapting the helper. Credentials, environment/profile files, actual invocation ledgers, requests, responses, and operational reports are excluded.
+This snapshot contains no actual requests, responses, credentials, profiles, environment files, captured data, or operational reports. No runtime or test execution is claimed here.
