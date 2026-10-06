@@ -1,0 +1,24 @@
+// Real local preflight with a synthetic identity row; no registration or launch.
+import assert from 'node:assert/strict';
+import {readFileSync,writeFileSync,mkdirSync,mkdtempSync} from 'node:fs';
+import {createHash} from 'node:crypto';
+import {dirname,join} from 'node:path';
+import {fileURLToPath} from 'node:url';
+import {preflight} from './host/runtime/preflight/preflight-launch.mjs';
+const base=dirname(fileURLToPath(import.meta.url));
+mkdirSync(join(base,'verification'),{recursive:true});
+const root=mkdtempSync(join(base,'verification/local-preflight-'));
+const cfg={...JSON.parse(readFileSync(join(base,'host/host-config.json'),'utf8')),root};
+const expected=JSON.parse(readFileSync(join(base,'EXPECTED_REGISTRATION.json'),'utf8'));
+const build=JSON.parse(readFileSync(join(base,'LOCAL_UNREGISTERED_BUILD_IDENTITY.json'),'utf8')).build;
+const candidate={id:'synthetic-deadline-preflight-only',goalId:expected.goalId,version:1};
+const control={projectId:cfg.project,build,candidate};
+const bootstrap={schemaVersion:1,checkedAt:new Date().toISOString(),candidateRows:[{...expected,...candidate,status:'BUILDING'}],batchId:'synthetic-deadline-preflight-only'};
+for(const [name,value] of [['host-config.json',cfg],['control-base.json',control],['bootstrap.json',bootstrap]])writeFileSync(join(root,name),JSON.stringify(value),{flag:'wx',mode:0o600});
+const digest=createHash('sha256').update(readFileSync(join(root,'bootstrap.json'))).digest('hex');
+const {report}=await preflight(['check',join(root,'host-config.json'),join(root,'control-base.json'),join(root,'bootstrap.json'),digest,join(root,'synthetic-run')]);
+assert.equal(report.localChecksPassed,true);assert.equal(report.bootstrapFresh,true);
+assert.deepEqual(report.runtime.build,build);assert.equal(report.runtime.archiveSmoke.passed,true);
+assert.equal(report.runtime.archiveSmoke.qualification,false);assert.equal(report.runtime.archiveSmoke.network,false);assert.equal(report.runtime.archiveSmoke.database,false);
+assert.equal(JSON.parse(readFileSync(join(base,'host/activation.json'),'utf8')).status,'UNREGISTERED');
+console.log(JSON.stringify({status:'PASS_REAL_LOCAL_PREFLIGHT_SYNTHETIC_ROW',build,archiveSmoke:true,launchExecuted:false,registrationPerformed:false,networkUsed:false,databaseUsed:false,deliveryActivationStillUnregistered:true}));

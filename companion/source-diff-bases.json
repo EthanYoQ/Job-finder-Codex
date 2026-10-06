@@ -1,0 +1,191 @@
+[
+  {
+    "path": "companion/build-observed-command.mjs",
+    "basePath": "build-observed-command.mjs",
+    "baseSafeCommit": "946fb0c15a411a77d6099febdd47997130308e0c",
+    "baseSha256": "44ac3615ccfc91e9889ddb5e0a9e8d4e4323c6f3da1f6a1ba958223425a699f8",
+    "baseBlob": "23f748a3a05ddc682d1f66c82e8699682cfa2517"
+  },
+  {
+    "path": "companion/combined-takeda-20261006T0550Z/supervise-cancel.mjs",
+    "basePath": "supervise-cancel.mjs",
+    "baseSafeCommit": "17a31de0271770101b0d4305620fe6a4479fb4e3",
+    "baseSha256": "5cb86785a4362a4d346dab233f30697c0af4d54757e2a911cab98377a8578f35",
+    "baseBlob": "963ff946812a247ddc3c18e97a365022a85426be"
+  },
+  {
+    "path": "companion/host/archive-transfer.mjs",
+    "basePath": "hosts46/takeda/archive-transfer.mjs",
+    "baseSafeCommit": "7198b3e4ae3a74b423b741e822685b0e37616c68",
+    "baseSha256": "698e966e5552967845a5252d2b3df2acca28dcd8dbbb0ae41755a3a6231e6a99",
+    "baseBlob": "5a454d21f34f9680221bbee2c98b3fecb94884f0"
+  },
+  {
+    "path": "companion/host/host-files.mts",
+    "basePath": "hosts46/takeda/host-files.mts",
+    "baseSafeCommit": "7198b3e4ae3a74b423b741e822685b0e37616c68",
+    "baseSha256": "c0433bd1a968fbe411f38f7c4a908d2106a64ca937724149315cbc134c931198",
+    "baseBlob": "f130e14ace5f1b66bbbf3f86e8e2ed55f0db7b7b"
+  },
+  {
+    "path": "companion/host/host-helper-functions.js",
+    "basePath": "hosts46/takeda/host-helper-functions.js",
+    "baseSafeCommit": "7198b3e4ae3a74b423b741e822685b0e37616c68",
+    "baseSha256": "73f691885b225b98a67e491086d2aa4ec7d02832aa870f2c23b9dc6459d1078c",
+    "baseBlob": "4bd5a34d1b2fcab80fad026b2a0341485ce49474"
+  },
+  {
+    "path": "companion/host/host-stage-functions.js",
+    "basePath": "hosts46/takeda/host-stage-functions.js",
+    "baseSafeCommit": "7198b3e4ae3a74b423b741e822685b0e37616c68",
+    "baseSha256": "d1062bc3cb83a38a8fa24209e7e1dae8f13c3bd828c873278052ecb7dce31aae",
+    "baseBlob": "083bcd800705833f3fd863cafc4e7f0913a76dab"
+  },
+  {
+    "path": "companion/host/relay-files.mjs",
+    "basePath": "hosts46/takeda/relay-files.mjs",
+    "baseSafeCommit": "7198b3e4ae3a74b423b741e822685b0e37616c68",
+    "baseSha256": "e962e4125366115dfc8f49155361b6a91939ba40ab961b5b508a46a526907c42",
+    "baseBlob": "32a3804406950851d9c5dc810f2ce772d37321ab"
+  },
+  {
+    "path": "companion/host/runtime/continuous-relay-v3-durable-monitor.js",
+    "basePath": "hosts46/takeda/runtime/continuous-relay-v3-durable-monitor.js",
+    "baseSafeCommit": "7198b3e4ae3a74b423b741e822685b0e37616c68",
+    "baseSha256": "e5a7041d4b5ced4db4d95d1e8fd5b596714d224b6cfef7dff8ba96ebf544abad",
+    "baseBlob": "384db717e15cff99b6e0bf303861b47f6791c67b"
+  },
+  {
+    "path": "companion/host/runtime/load-source-runtime.js",
+    "basePath": "hosts46/takeda/runtime/load-source-runtime.js",
+    "baseSafeCommit": "7198b3e4ae3a74b423b741e822685b0e37616c68",
+    "baseSha256": "32f49c5c47e17d233556afe6174e534f5f57a37971989df731de064d73933517",
+    "baseBlob": "984475ecdfa31d9ee36f7b883697ef83bc417f9d"
+  },
+  {
+    "path": "companion/host/runtime/preflight/preflight-launch.mjs",
+    "basePath": "hosts46/takeda/runtime/preflight/preflight-launch.mjs",
+    "baseSafeCommit": "7198b3e4ae3a74b423b741e822685b0e37616c68",
+    "baseSha256": "a6af2dd6c415ee875de89cfc45560567a466d22ff2275d705398d18bde3600c4",
+    "baseBlob": "aae8658b6748724e68d5d633967a3d37cf66016f"
+  },
+  {
+    "path": "companion/host/runtime/preflight/runtime-check.mjs",
+    "basePath": "hosts46/takeda/runtime/preflight/runtime-check.mjs",
+    "baseSafeCommit": "7198b3e4ae3a74b423b741e822685b0e37616c68",
+    "baseSha256": "0f55d1f662d9eb3329298c68cff3b4a6161dedbefe95c86084bb451bd9e75ee7",
+    "baseBlob": "1aaf44921d83b86bb9c0065a46393286a8b725c3"
+  },
+  {
+    "path": "companion/host/runtime/review-publication.py",
+    "basePath": "hosts46/takeda/runtime/review-publication.py",
+    "baseSafeCommit": "7198b3e4ae3a74b423b741e822685b0e37616c68",
+    "baseSha256": "59ac0d2ddf5bc944a64db5a800d833beb077c11cbe1a998b49302c04a7d9389f",
+    "baseBlob": "3e7b0c115e8e8335613a8dfb75bb1ae4567cdb5e"
+  },
+  {
+    "path": "companion/host/runtime/start-monitor-portable42.js",
+    "basePath": "hosts46/takeda/runtime/start-monitor-portable42.js",
+    "baseSafeCommit": "7198b3e4ae3a74b423b741e822685b0e37616c68",
+    "baseSha256": "d5c9b6ef0eed05f2a3783a09db726846df1993ff6534306f95ad6b6e8eb7bab9",
+    "baseBlob": "53fc357ffc4f91c4e70085d7f1c36298cd285390"
+  },
+  {
+    "path": "companion/sample_process_tree.py",
+    "basePath": "sample_process_tree.py",
+    "baseSafeCommit": "946fb0c15a411a77d6099febdd47997130308e0c",
+    "baseSha256": "18bc3c99319b3af0941b6499bf71b5bfcd7d5808003a6b2c8e8a1a20eae88a85",
+    "baseBlob": "bf279a88e4e4bc33d751894afef8a93428f3bb4d"
+  },
+  {
+    "path": "companion/supervision/build-combined-command.mjs",
+    "basePath": "build-combined-command.mjs",
+    "baseSafeCommit": "efdef51577ae778818e443f706b506c59e58601b",
+    "baseSha256": "884760bece78974e87a3790a8ffe34d7c5d33b969b792b9a8d7d84c9c6f9c552",
+    "baseBlob": "864757aa663adbbd7916ad246736a7a79ceb8329"
+  },
+  {
+    "path": "companion/supervision/create-combined-starter.mjs",
+    "basePath": "create-combined-starter.mjs",
+    "baseSafeCommit": "efdef51577ae778818e443f706b506c59e58601b",
+    "baseSha256": "6778c77e9bcf283a93aca8a4c204c07f9658af4cc1e2d3126c3ccc05d924f229",
+    "baseBlob": "f25f656f60c242f1b165e82dfbaa66f1c81d654f"
+  },
+  {
+    "path": "companion/supervision/fixture-fault-inner.mjs",
+    "basePath": "fixture-fault-inner.mjs",
+    "baseSafeCommit": "efdef51577ae778818e443f706b506c59e58601b",
+    "baseSha256": "598fbbdb6fb3ec81c8dafa3a096b10468948728523c2455ac4ebb967920ad5b2",
+    "baseBlob": "d0c726caa7944ba4db3bfb76b614be4f427a964b"
+  },
+  {
+    "path": "companion/supervision/fixture-inner.mjs",
+    "basePath": "fixture-inner.mjs",
+    "baseSafeCommit": "efdef51577ae778818e443f706b506c59e58601b",
+    "baseSha256": "e9aae09f5e0218af12fe12be2f73e69309da2e7aeebfa14059fd8ce79ed7a51d",
+    "baseBlob": "cedb1f10cc6289dbf58e3c47568cc117280c6ca3"
+  },
+  {
+    "path": "companion/supervision/inject-supervisor-fault.cjs",
+    "basePath": "inject-supervisor-fault.cjs",
+    "baseSafeCommit": "efdef51577ae778818e443f706b506c59e58601b",
+    "baseSha256": "6ad24493486cea118860b22c469afc387e047f3d753002df9b9f779c1bf87fdc",
+    "baseBlob": "c6c568ce138960f1851c2ac215337d04b43f307f"
+  },
+  {
+    "path": "companion/supervision/inspect-launch-identity.mjs",
+    "basePath": "inspect-launch-identity.mjs",
+    "baseSafeCommit": "efdef51577ae778818e443f706b506c59e58601b",
+    "baseSha256": "015b9181a640bcb4e4c68d7bfcef598e826c93fe6f8aaf31d33cf59780e3d81f",
+    "baseBlob": "6083858daf1b55f62c25bd12e405df5cff35812d"
+  },
+  {
+    "path": "companion/supervision/sample_process_tree.py",
+    "basePath": "sample_process_tree.py",
+    "baseSafeCommit": "efdef51577ae778818e443f706b506c59e58601b",
+    "baseSha256": "3fa6daa1af1afee94d19801edfd8bcb538e1243476b5adb253e50de162a27bd6",
+    "baseBlob": "5c2924dc067309525018e4903741dc33e796b546"
+  },
+  {
+    "path": "companion/supervision/start-monitor-takeda46-combined.js",
+    "basePath": "start-monitor-takeda46-combined.js",
+    "baseSafeCommit": "efdef51577ae778818e443f706b506c59e58601b",
+    "baseSha256": "d7632f2f1f62dc8a42c048783f45b9120d6ead4689a5f58908e3d9a2e14af9c0",
+    "baseBlob": "1b609422d51b7fc48f356648551dea30dd969d32"
+  },
+  {
+    "path": "companion/supervision/supervise-cancel.mjs",
+    "basePath": "supervise-cancel.mjs",
+    "baseSafeCommit": "efdef51577ae778818e443f706b506c59e58601b",
+    "baseSha256": "62d3b778eddd9915c191f27f852dca94e2b3da608bd37d27cea2990bf7b74267",
+    "baseBlob": "cbc88f918f2c5cf251a11830e346f9e87031efaf"
+  },
+  {
+    "path": "companion/supervision/test-combined.mjs",
+    "basePath": "test-combined.mjs",
+    "baseSafeCommit": "efdef51577ae778818e443f706b506c59e58601b",
+    "baseSha256": "8653ce232885a9f69280e6341e210fc8affbd97c4a22eac9d4bdf0d8f29a8da5",
+    "baseBlob": "05a7e1edb90daddfc963a69f079a55406005a94e"
+  },
+  {
+    "path": "companion/supervision/test-sampler-startup.py",
+    "basePath": "test-sampler-startup.py",
+    "baseSafeCommit": "efdef51577ae778818e443f706b506c59e58601b",
+    "baseSha256": "b0429b44933bdeea6fba74a9965397456553d0af1841f53952ebea3d0e186acb",
+    "baseBlob": "6f8b793a520db788afae8bc9f2f81d78bfa75062"
+  },
+  {
+    "path": "companion/supervision/test-starter-integration.mjs",
+    "basePath": "test-starter-integration.mjs",
+    "baseSafeCommit": "efdef51577ae778818e443f706b506c59e58601b",
+    "baseSha256": "a6cdd10e1df1ecfa4fe8dec9a3728053a83eb21229690b7f574183a871082be1",
+    "baseBlob": "24d02dcc348bb053cd112ee87fd2a31d1b34955f"
+  },
+  {
+    "path": "companion/supervision/test-supervisor-faults.mjs",
+    "basePath": "test-supervisor-faults.mjs",
+    "baseSafeCommit": "efdef51577ae778818e443f706b506c59e58601b",
+    "baseSha256": "2b4e405d35cfcce56b4dcbd27ebf9951e9bc55b5faf0fe1d77862f757cd29bde",
+    "baseBlob": "866bd4188de8d93a7fe598ed6681b6f2c403e427"
+  }
+]

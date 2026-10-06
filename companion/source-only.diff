@@ -1,0 +1,858 @@
+diff --git a/companion/LOCAL_COMMIT_OBJECT.txt b/companion/LOCAL_COMMIT_OBJECT.txt
+new file mode 100644
+--- /dev/null
++++ b/companion/LOCAL_COMMIT_OBJECT.txt
+@@ -0,0 +1,6 @@
++tree 81a0587857bfa2d14149da3e8ae5ec8e949471de
++parent fb0b8e3b708d4f57cae09b465fb1c9ceddf7ad8d
++author dot <dot@local.invalid> 1791279023 -0700
++committer dot <dot@local.invalid> 1791279023 -0700
++
++Bound DB-started publication and reconciliation by original worker deadline
+diff --git a/companion/bind-registered-readback.mjs b/companion/bind-registered-readback.mjs
+new file mode 100644
+--- /dev/null
++++ b/companion/bind-registered-readback.mjs
+@@ -0,0 +1,31 @@
++// Local binding only. This script never registers a candidate or sends SQL.
++import {readFileSync,writeFileSync,renameSync} from 'node:fs';
++import {dirname,join,resolve} from 'node:path';
++import {fileURLToPath} from 'node:url';
++const base=dirname(fileURLToPath(import.meta.url));
++const expected=JSON.parse(readFileSync(join(base,'EXPECTED_REGISTRATION.json'),'utf8'));
++const build=JSON.parse(readFileSync(join(base,'LOCAL_UNREGISTERED_BUILD_IDENTITY.json'),'utf8')).build;
++
++export function validateRegistrationReadback(input,now=Date.now()){
++ if(!input||typeof input!=='object'||Object.keys(input).sort().join(',')!=='checkedAt,row')throw Error('REGISTRATION_READBACK_SHAPE');
++ const checkedAt=Date.parse(input.checkedAt);
++ if(!Number.isFinite(checkedAt)||checkedAt>now||now-checkedAt>60000)throw Error('REGISTRATION_FRESH_READ_REQUIRED');
++ const row=input.row;
++ if(!row||typeof row.id!=='string'||!/^[-A-Za-z0-9._]{1,100}$/.test(row.id)||row.id==='dot-cloud-restored-fb0b8e3-20261005T2028Z'||!Number.isSafeInteger(row.version)||row.version<1||!['BUILDING','READY_FOR_QA','RELEASED'].includes(row.status))throw Error('REGISTRATION_ROW_REQUIRED');
++ for(const [key,value] of Object.entries(expected))if(row[key]!==value)throw Error('REGISTRATION_IDENTITY:'+key);
++ return {status:'REGISTERED_VERIFIED',build,candidate:{id:row.id,goalId:row.goalId,version:row.version}};
++}
++
++if(process.argv[1]&&resolve(process.argv[1])===fileURLToPath(import.meta.url)){
++ const [path,...extra]=process.argv.slice(2);if(!path||extra.length)throw Error('Usage: bind-registered-readback.mjs <fresh-verified-registration-readback.json>');
++ const activationPath=join(base,'host/activation.json'),controlPath=join(base,'host/control-base.json');
++ const previous=JSON.parse(readFileSync(activationPath,'utf8')),control=JSON.parse(readFileSync(controlPath,'utf8'));
++ if(previous.status!=='UNREGISTERED'||previous.candidate!==null||control.candidate!==null||JSON.stringify(control.build)!==JSON.stringify(build))throw Error('FRESH_UNREGISTERED_HOST_REQUIRED');
++ const binding=validateRegistrationReadback(JSON.parse(readFileSync(path,'utf8')));
++ // The activation write comes last; interrupted writes continue to fail closed.
++ const controlTemp=controlPath+'.binding.tmp',activationTemp=activationPath+'.binding.tmp';
++ writeFileSync(controlTemp,JSON.stringify({...control,candidate:binding.candidate},null,2)+'\n',{flag:'wx',mode:0o600});
++ writeFileSync(activationTemp,JSON.stringify(binding,null,2)+'\n',{flag:'wx',mode:0o600});
++ renameSync(controlTemp,controlPath);renameSync(activationTemp,activationPath);
++ console.log(JSON.stringify({status:'LOCAL_HOST_BOUND_NO_LAUNCH',candidate:binding.candidate,buildCommit:build.commitSha}));
++}
+diff --git a/companion/combined-takeda-20261006T0550Z/supervise-cancel.mjs b/companion/combined-takeda-20261006T0550Z/supervise-cancel.mjs
+--- a/companion/combined-takeda-20261006T0550Z/supervise-cancel.mjs
++++ b/companion/combined-takeda-20261006T0550Z/supervise-cancel.mjs
+@@ -7,9 +7,9 @@
+ import { dirname, join, resolve } from 'node:path';
+ 
+ const R2 = '/workspace/scratch/5e9614251709/jb-workspace-recovery-20261005T2019Z';
+-const allowedWrappers = ['producer42', 'hansoh-grace-candidate-20261006T0103Z']
++const allowedWrappers = ['publication-deadline-candidate-20261006T0902Z']
+   .map(p => join(R2, p, 'scripts/run-with-http-diagnostics.mjs'));
+-const wrapperSha256 = 'd8627edbdc118f8d747f77f22459768f76184171e715a8fd29c76a69a3c82930';
++const wrapperSha256 = 'f15522e6f209bfe99bfa258b5dffbce1f74d6af662c4c2ee682604e0798bbc88';
+ const [mode, directory, runId, separator, command, ...argv] = process.argv.slice(2);
+ if (!['start', 'request'].includes(mode) || !directory || !/^[a-zA-Z0-9_-]{1,100}$/.test(runId ?? ''))
+   throw Error('Usage: start <new-control-dir> <run-id> -- <original-node> <original-wrapper> <diagnostics> <timeout> -- <inner-command> [args...] | request <control-dir> <run-id>');
+diff --git a/companion/host/host-files.mts b/companion/host/host-files.mts
+--- a/companion/host/host-files.mts
++++ b/companion/host/host-files.mts
+@@ -13,7 +13,7 @@
+  if(!Number.isInteger(offset)||offset<0)throw Error('HOST_OFFSET');
+  console.log(JSON.stringify({sha256:sha(bytes),byteCount:bytes.length,charCount:text.length,offset,text:text.slice(offset,offset+100000),next:offset+100000<text.length?offset+100000:null}));
+ }else if(op==='pending'){
+- const { compileCloudPilotCreatePendingSql }=await import('/workspace/scratch/5e9614251709/jb-workspace-recovery-20261005T2019Z/producer42/src/db/cloudPilotSqlControl.ts');
++ const { compileCloudPilotCreatePendingSql }=await import('/workspace/scratch/5e9614251709/jb-workspace-recovery-20261005T2019Z/publication-deadline-candidate-20261006T0902Z/src/db/cloudPilotSqlControl.ts');
+  const path=scoped(pathArg),r=JSON.parse(await readFile(path,'utf8'));
+  const {requestSha256,...body}=r;
+  if(r.kind!=='CREATE_PENDING'||sha(JSON.stringify(body))!==requestSha256||Date.now()>=Date.parse(r.expiresAt))throw Error('HOST_PENDING_REQUEST');
+diff --git a/companion/host/host-helper-functions.js b/companion/host/host-helper-functions.js
+--- a/companion/host/host-helper-functions.js
++++ b/companion/host/host-helper-functions.js
+@@ -1,5 +1,5 @@
+ 
+-const cfg=load("restored46:takeda:cloudPilotHostConfig");
++const cfg=load("deadlineCandidate:takeda:cloudPilotHostConfig");
+ const q=s=>"'"+String(s).replaceAll("'","'\\''")+"'";
+ async function cmd(command,max=10000,deadline=Date.now()+90000){
+  const startedAt=Date.now();if(!Number.isFinite(deadline)||deadline<=startedAt)throw Error("HOST_LOCAL_COMMAND_BUDGET_EXHAUSTED");
+@@ -8,12 +8,12 @@
+  if(session)notify({status:"HOST_LOCAL_COMMAND_RUNNING",session,deadline:new Date(deadline).toISOString()});
+  while(r.session_id){
+   session=r.session_id;const remaining=deadline-Date.now();
+-  if(remaining<=0){store("restored46:takeda:cloudHostLocalCommandOutcome",{status:"BUDGET_EXHAUSTED",session,startedAt,deadline});throw Error("HOST_LOCAL_COMMAND_BUDGET_EXHAUSTED:"+session);}
++  if(remaining<=0){store("deadlineCandidate:takeda:cloudHostLocalCommandOutcome",{status:"BUDGET_EXHAUSTED",session,startedAt,deadline});throw Error("HOST_LOCAL_COMMAND_BUDGET_EXHAUSTED:"+session);}
+   try{r=await tools.write_stdin({session_id:session,chars:"",yield_time_ms:Math.min(1000,remaining),max_output_tokens:max});}
+-  catch(error){store("restored46:takeda:cloudHostLocalCommandOutcome",{status:"POLL_UNRESOLVED_NO_RETRY",session,startedAt,deadline,error:String(error)});throw error;}
++  catch(error){store("deadlineCandidate:takeda:cloudHostLocalCommandOutcome",{status:"POLL_UNRESOLVED_NO_RETRY",session,startedAt,deadline,error:String(error)});throw error;}
+   output+=r.output??"";
+  }
+- store("restored46:takeda:cloudHostLocalCommandOutcome",{status:"TERMINAL",session,startedAt,finishedAt:Date.now(),exitCode:r.exit_code});
++ store("deadlineCandidate:takeda:cloudHostLocalCommandOutcome",{status:"TERMINAL",session,startedAt,finishedAt:Date.now(),exitCode:r.exit_code});
+  if(r.exit_code!==0)throw Error("HOST_COMMAND:"+output);return output;
+ }
+ async function save(path,value){const data=typeof value==="string"?value:JSON.stringify(value);const result=await tools.apply_patch("*** Begin Patch\n*** Add File: "+path+"\n"+data.split("\n").map(x=>"+"+x).join("\n")+"\n*** End Patch");if(result?.isError)throw Error("HOST_SAVE");return path;}
+@@ -40,10 +40,10 @@
+ async function sqlDispatch(r,dir,sql){
+  if(typeof sql!=="string"||sql!==r.payload?.sql||cfg.project!==r.payload?.projectId)throw Error("HOST_SQL_BINDING");
+  await mark(r,dir);let result,raw,diagnostic;
+- try{raw=await tools.mcp__codex_apps__supabase_execute_sql({project_id:cfg.project,query:sql});store("restored46:takeda:cloudLastSqlToolResult",raw);result={status:"SUCCEEDED",rows:rows(raw)};}
++ try{raw=await tools.mcp__codex_apps__supabase_execute_sql({project_id:cfg.project,query:sql});store("deadlineCandidate:takeda:cloudLastSqlToolResult",raw);result={status:"SUCCEEDED",rows:rows(raw)};}
+  catch(error){
+   diagnostic={recordedAt:new Date().toISOString(),responseExpired:Date.now()>=Date.parse(r.expiresAt),toolResult:raw??null,error:{message:String(error),name:error?.name,stack:error?.stack}};
+-  store("restored46:takeda:cloudHostLastDispatchError",diagnostic);result=publicationFailure(raw,r,sql);
++  store("deadlineCandidate:takeda:cloudHostLastDispatchError",diagnostic);result=publicationFailure(raw,r,sql);
+  }
+  await respond(r,dir,result,diagnostic);return result;
+ }
+diff --git a/companion/host/host-stage-functions.js b/companion/host/host-stage-functions.js
+--- a/companion/host/host-stage-functions.js
++++ b/companion/host/host-stage-functions.js
+@@ -1,26 +1,26 @@
+ 
+-const AsyncFunction=Object.getPrototypeOf(async function(){}).constructor;const h=await new AsyncFunction(load("restored46:takeda:cloudPilotHostHelpers"))(); const {cfg}=h;
++const AsyncFunction=Object.getPrototypeOf(async function(){}).constructor;const h=await new AsyncFunction(load("deadlineCandidate:takeda:cloudPilotHostHelpers"))(); const {cfg}=h;
+ async function handle(r,dir){
+  if(r.expired||r.dispatchRecorded)throw Error("HOST_STALE_OR_UNCERTAIN_REQUEST:"+r.kind);
+  if(["LEASE_ACQUIRE","LEASE_RENEW","LEASE_RELEASE","READ_OUTCOME","READ_PUBLICATION_CONTEXT"].includes(r.kind))return h.sqlDispatch(r,dir,r.payload.sql);
+  if(r.kind==="CREATE_PENDING"){
+-  const made=JSON.parse(await h.cmd("node --import /workspace/scratch/5e9614251709/jb-workspace-recovery-20261005T2019Z/producer42/node_modules/tsx/dist/loader.mjs "+h.q(cfg.root+"/host-files.mts")+" pending "+h.q(dir+"/"+r.requestId+".request.json"),10000,Date.parse(r.payload.dispatchBefore??r.expiresAt)));
++  const made=JSON.parse(await h.cmd("node --import /workspace/scratch/5e9614251709/jb-workspace-recovery-20261005T2019Z/publication-deadline-candidate-20261006T0902Z/node_modules/tsx/dist/loader.mjs "+h.q(cfg.root+"/host-files.mts")+" pending "+h.q(dir+"/"+r.requestId+".request.json"),10000,Date.parse(r.payload.dispatchBefore??r.expiresAt)));
+   if(made.requestSha256!==r.requestSha256||made.requestId!==r.requestId||made.projectId!==cfg.project||r.payload.projectId!==cfg.project)throw Error("HOST_CONTROL_REQUEST_BINDING");
+   const sql=await h.readFile(made.output,Date.parse(r.payload.dispatchBefore??r.expiresAt));if(sql.hash!==made.sha256)throw Error("HOST_CONTROL_HASH");
+-  await h.mark(r,dir);const raw=await tools.mcp__codex_apps__supabase_execute_sql({project_id:cfg.project,query:sql.text});store("restored46:takeda:cloudPendingToolResult",raw);
++  await h.mark(r,dir);const raw=await tools.mcp__codex_apps__supabase_execute_sql({project_id:cfg.project,query:sql.text});store("deadlineCandidate:takeda:cloudPendingToolResult",raw);
+   const out=h.rows(raw);if(out.length!==1||!out[0].result)throw Error("HOST_PENDING_RESPONSE");
+-  await h.respond(r,dir,out[0].result);store("restored46:takeda:cloudPilotPendingRequest",r);return {status:"CREATED_PENDING"};
++  await h.respond(r,dir,out[0].result);store("deadlineCandidate:takeda:cloudPilotPendingRequest",r);return {status:"CREATED_PENDING"};
+  }
+  if(r.kind==="READ_CONTEXT"){
+   if(r.payload.projectId!==cfg.project||r.payload.sourceId!=="source-takeda-china-social"||r.payload.sourceConfigSha256!=="048f616f00b5ed016f075f4204a2ad749457d68a3f078a9e7bde0fae2186b61f")throw Error("HOST_CONTEXT_SOURCE_BINDING");
+   const query=(await h.readFile(cfg.root+"/context-read.sql")).text;
+-  await h.mark(r,dir);const raw=await tools.mcp__codex_apps__supabase_execute_sql({project_id:cfg.project,query});store("restored46:takeda:cloudLiveContextToolResult",raw);
++  await h.mark(r,dir);const raw=await tools.mcp__codex_apps__supabase_execute_sql({project_id:cfg.project,query});store("deadlineCandidate:takeda:cloudLiveContextToolResult",raw);
+   const out=h.rows(raw);if(out.length!==1||!out[0].context)throw Error("HOST_CONTEXT_RESPONSE");
+   const context=out[0].context;if(!/^\d{4}-\d{2}-\d{2}T.*(?:Z|[+]00:00)$/.test(context.checkedAt))throw Error("HOST_CONTEXT_UTC");
+   await h.respond(r,dir,{...context,checkedAt:new Date(context.checkedAt).toISOString()});return {status:"READ_CONTEXT"};
+  }
+  if(r.kind==="ARCHIVE_STORE"){
+-  const pending=load("restored46:takeda:cloudPilotPendingRequest");
++  const pending=load("deadlineCandidate:takeda:cloudPilotPendingRequest");
+   if(!pending||pending.payload.projectId!==cfg.project||pending.payload.planned.sources.length!==1||pending.payload.planned.sources[0].sourceId!=="source-takeda-china-social")throw Error("HOST_ARCHIVE_PENDING_BINDING");
+   const planned=pending.payload.planned,expectedPath=dir+"/"+r.requestId+".archive-expected.json";
+   await h.save(expectedPath,{releaseCandidateId:planned.batch.releaseCandidateId,batchId:planned.batch.id,sourceId:planned.sources[0].sourceId,sourceResultId:planned.sources[0].id,sourceConfigSha256:planned.sources[0].sourceConfigHash,evidenceSubdirectory:"cloud-pilot/runtime-evidence"});
+@@ -28,7 +28,7 @@
+   if(audit.sha256!==r.payload.bundleSha256||audit.bytes!==r.payload.byteCount)throw Error("HOST_ARCHIVE_BINDING");
+   await h.mark(r,dir);
+   const libraryData=result=>{let body=result;for(let i=0;i<4&&body?.structuredContent;i++)body=body.structuredContent;if(body===result&&!result.structuredContent)body=JSON.parse(result.content.find(c=>c.type==="text").text);return body.result??body;};
+-  const upload=await tools.mcp__codex_apps__library_create_library_file({file:audit.output,library_artifact_type:"other"});store("restored46:takeda:cloudLiveArchiveCreate",upload);
++  const upload=await tools.mcp__codex_apps__library_create_library_file({file:audit.output,library_artifact_type:"other"});store("deadlineCandidate:takeda:cloudLiveArchiveCreate",upload);
+   const item=libraryData(upload);
+   if(upload.isError||item?.status!=="succeeded"||!item.library_file_id)throw Error("HOST_ARCHIVE_UPLOAD_UNCERTAIN");
+   const attrs=JSON.stringify(item.xattrs??[]);
+@@ -37,12 +37,12 @@
+   const receipt={bundleSha256:r.payload.bundleSha256,bundleByteCount:r.payload.byteCount,libraryFileId:item.library_file_id,libraryVersion:String(item.current_version_number),libraryFileIdBacking:item.file_id,packedSha256:audit.packedSha256,packedByteCount:audit.packedBytes,stored:true,recoveryVerification:"PENDING"};
+   await h.save(dir+"/"+r.requestId+".stored-archive.json",{...receipt,packedPath:audit.output,sourceBundlePath:r.payload.bundlePath});
+   await h.respond(r,dir,receipt);
+-  store("restored46:takeda:cloudLiveArchiveIdentity",{...item,...receipt});return {status:"ARCHIVE_STORED_RECOVERY_PENDING",libraryFileId:item.library_file_id};
++  store("deadlineCandidate:takeda:cloudLiveArchiveIdentity",{...item,...receipt});return {status:"ARCHIVE_STORED_RECOVERY_PENDING",libraryFileId:item.library_file_id};
+  }
+  if(r.kind==="PUBLISH"){
+-  const packet=JSON.parse(await h.cmd("node --import /workspace/scratch/5e9614251709/jb-workspace-recovery-20261005T2019Z/producer42/node_modules/tsx/dist/loader.mjs "+h.q(cfg.root+"/host-files.mts")+" publish "+h.q(dir+"/"+r.requestId+".request.json"),10000,Date.parse(r.payload.dispatchBefore??r.expiresAt)));
++  const packet=JSON.parse(await h.cmd("node --import /workspace/scratch/5e9614251709/jb-workspace-recovery-20261005T2019Z/publication-deadline-candidate-20261006T0902Z/node_modules/tsx/dist/loader.mjs "+h.q(cfg.root+"/host-files.mts")+" publish "+h.q(dir+"/"+r.requestId+".request.json"),10000,Date.parse(r.payload.dispatchBefore??r.expiresAt)));
+   const sqlPath=packet.output;
+-  store("restored46:takeda:cloudPilotPublishRequest",r);store("restored46:takeda:cloudPilotPublishDirectory",dir);
++  store("deadlineCandidate:takeda:cloudPilotPublishRequest",r);store("deadlineCandidate:takeda:cloudPilotPublishDirectory",dir);
+   return {...packet,status:"AWAITING_PARENT_REVIEW",requestId:r.requestId,requestSha256:r.requestSha256,sqlPath,dispatchBefore:r.payload.dispatchBefore,expiresAt:r.expiresAt,characters:r.payload.sql.length};
+  }
+  throw Error("HOST_UNKNOWN_REQUEST");
+diff --git a/companion/host/relay-files.mjs b/companion/host/relay-files.mjs
+--- a/companion/host/relay-files.mjs
++++ b/companion/host/relay-files.mjs
+@@ -21,7 +21,7 @@
+  try{await link(temp,dest);}finally{await unlink(temp);}
+ }
+ const [command,directory,arg,expectedRequestSha256]=process.argv.slice(2);const dir=resolve(directory??'');
+-if(!dir.startsWith('/workspace/scratch/5e9614251709/jb-workspace-recovery-20261005T2019Z/hosts46/takeda/'))throw Error('RELAY_DIRECTORY_OUTSIDE_TASK');
++if(!dir.startsWith('/workspace/scratch/5e9614251709/jb-workspace-recovery-20261005T2019Z/publication-deadline-companion-20261006T0933Z/host/'))throw Error('RELAY_DIRECTORY_OUTSIDE_TASK');
+ if(command==='next'||command==='next-meta'){
+  const names=await readdir(dir),rows=[];
+  for(const name of names.filter(n=>n.endsWith('.request.json')).sort()){
+diff --git a/companion/host/runtime/complete-reviewed-source-readback.js b/companion/host/runtime/complete-reviewed-source-readback.js
+new file mode 100644
+--- /dev/null
++++ b/companion/host/runtime/complete-reviewed-source-readback.js
+@@ -0,0 +1,30 @@
++const ns="deadlineCandidate:takeda:";
++const A=Object.getPrototypeOf(async function(){}).constructor;
++const h=await new A(load(ns+"cloudPilotHostHelpers"))();
++const run=load(ns+"refreshCurrentRun"),batch=load(ns+"refreshCurrentBatch"),binding=load(ns+"registeredCandidateBinding");
++const review=load(ns+"publicationReview"),src=review?.sourceResult;
++const terminal=load(ns+"lastPortableExecPoll"),originalSession=load(ns+"refreshSession");
++if(binding?.status!=="REGISTERED_VERIFIED"||!binding.candidate||!Number.isSafeInteger(binding.candidate.version)||binding.candidate.version<1)throw Error("CANDIDATE_NOT_REGISTERED");
++if(!src||src.sourceId!==h.cfg.sourceId||src.sourceConfigHash!==h.cfg.sourceConfigSha256||src.releaseCandidateId!==binding.candidate.id||src.batchId!==undefined&&src.batchId!==batch||src.id!==batch+"--"+h.cfg.sourceId||run!==h.cfg.root+"/"+batch)throw Error("COMPLETION_REVIEW_TUPLE_MISMATCH");
++if(!terminal||terminal.exit_code!==0||terminal.session_id!==undefined||!Number.isSafeInteger(originalSession)||terminal.originalSessionId!==originalSession)throw Error("ACTUAL_ORIGINAL_ZERO_EXIT_REQUIRED");
++const sql=`WITH latest AS (SELECT DISTINCT ON (s."sourceId") s."sourceId",s."dedupeOutputCount" FROM public."CrawlBatchSourceResult" s JOIN public."CrawlBatch" b ON b.id=s."batchId" WHERE s."releaseCandidateId"=${h.q(src.releaseCandidateId)} AND s."atomicCommitState"='COMMITTED' AND s."completenessState"='VERIFIED' AND b.status='SUCCESS' ORDER BY s."sourceId",s."finishedAt" DESC,s.id DESC)
++SELECT clock_timestamp() AS "checkedAt",(SELECT to_jsonb(s) FROM public."CrawlBatchSourceResult" s WHERE id=${h.q(src.id)}) AS row,(SELECT to_jsonb(b) FROM public."CrawlBatch" b WHERE id=${h.q(batch)}) AS batch,(SELECT "holderId" FROM public."CrawlCoordinatorLock" WHERE id='formal-crawl') AS "holderId",(SELECT jsonb_agg(to_jsonb(o)) FROM public."CrawlObservation" o WHERE o."sourceResultId"=${h.q(src.id)} AND o."batchId"=${h.q(batch)} AND o."sourceId"=${h.q(src.sourceId)} AND o."releaseCandidateId"=${h.q(src.releaseCandidateId)}) AS observations,(SELECT count(*) FROM latest) AS "successfulSourceCount",(SELECT sum("dedupeOutputCount") FROM latest) AS "successfulCurrentJobCount"`;
++const raw=await tools.mcp__codex_apps__supabase_execute_sql({project_id:h.cfg.project,query:sql});
++const rows=h.rows(raw),r=rows[0],s=r?.row,b=r?.batch;
++if(rows.length!==1||!s||!b||s.id!==src.id||s.batchId!==batch||s.sourceId!==src.sourceId||s.releaseCandidateId!==src.releaseCandidateId||s.sourceConfigHash!==src.sourceConfigHash||s.atomicCommitState!=="COMMITTED"||s.completenessState!=="VERIFIED"||b.id!==batch||b.releaseCandidateId!==binding.candidate.id||b.status!=="SUCCESS"||r.holderId!==""||s.canonicalCurrentJobSetSha256!==src.canonicalCurrentJobSetSha256||s.completenessCertificateSha256!==src.completenessCertificateSha256||s.dedupeOutputCount!==src.dedupeOutputCount||s.rawCount!==src.rawCount)throw Error("EXACT_COMMIT_READBACK_FAILED");
++if(r.observations?.length!==1)throw Error("EXACT_OBSERVATION_REQUIRED");
++const o=r.observations[0];
++if(![o.successful,o.transportSucceeded,o.adapterSucceeded,o.completenessVerified,o.atomicCommitSucceeded].every(x=>x===true))throw Error("OBSERVATION_FLAGS");
++if(!o.id||o.sourceResultId!==s.id||o.sourceId!==s.sourceId||o.batchId!==batch||o.releaseCandidateId!==binding.candidate.id||o.sourceConfigSha256!==s.sourceConfigHash)throw Error("EXACT_OBSERVATION_TUPLE_REQUIRED");
++const utc=value=>{if(typeof value!=="string"||!/^\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}(?::?\d{2})?)?$/.test(value))throw Error("OBSERVATION_TIME_INVALID");let text=value.replace(' ','T');if(!/(?:Z|[+-]\d{2}(?::?\d{2})?)$/.test(text))text+='Z';else if(/[+-]\d{2}$/.test(text))text+=':00';const n=Date.parse(text);if(!Number.isFinite(n))throw Error("OBSERVATION_TIME_INVALID");return n;};
++if(utc(o.observedFrom)!==utc(s.startedAt)||utc(o.observedTo)!==utc(s.finishedAt)||utc(o.crawledAt)<utc(o.observedFrom)||utc(o.crawledAt)>utc(o.observedTo)||utc(s.startedAt)!==utc(src.startedAt)||utc(s.finishedAt)!==utc(src.finishedAt))throw Error("EXACT_OBSERVATION_WINDOW_REQUIRED");
++const sourceCount=Number(r.successfulSourceCount),jobCount=Number(r.successfulCurrentJobCount);
++if(!Number.isSafeInteger(sourceCount)||sourceCount<1||!Number.isSafeInteger(jobCount)||jobCount<s.dedupeOutputCount)throw Error("COMPLETION_COUNTS_INVALID");
++const summary={recordedAt:new Date().toISOString(),state:"COMMITTED_EXACT",candidateId:binding.candidate.id,candidateVersion:binding.candidate.version,sourceId:s.sourceId,batchId:batch,sourceResultId:s.id,rawCount:s.rawCount,currentJobCount:s.dedupeOutputCount,sourceObservedFrom:s.startedAt,sourceObservedTo:s.finishedAt,batchFinishedAt:b.finishedAt,holderId:r.holderId,canonicalCurrentJobSetSha256:s.canonicalCurrentJobSetSha256,completenessCertificateSha256:s.completenessCertificateSha256,publicVerified:false,privateEvidenceRemoteSaved:false,observationId:o.id,crawledAt:o.crawledAt};
++await h.save(run+"/FINALIZED_BATCH_AND_RELEASE.json",rows);
++await h.save(run+"/POST_COMMIT_OBSERVATION.json",{checkedAt:r.checkedAt,observation:o});
++await h.save(run+"/completion-summary.json",summary);
++const statePath="/workspace/scratch/5e9614251709/jb-workspace-recovery-20261005T2019Z/PUBLISHER-ACTIVE-STATE.json";
++const data={summary,run,binding,terminal,sourceCount,jobCount};
++await h.cmd("node "+h.q(h.cfg.root+"/runtime/update-candidate-completion-state.mjs")+" "+h.q(statePath)+" "+h.q(JSON.stringify(data)),1200);
++text({...summary,successfulSourceCount:sourceCount,successfulCurrentJobCount:jobCount});
+diff --git a/companion/host/runtime/continuous-relay-v3-durable-monitor.js b/companion/host/runtime/continuous-relay-v3-durable-monitor.js
+--- a/companion/host/runtime/continuous-relay-v3-durable-monitor.js
++++ b/companion/host/runtime/continuous-relay-v3-durable-monitor.js
+@@ -1,38 +1,56 @@
+ 
+ const A=Object.getPrototypeOf(async function(){}).constructor;
+-const s=await new A(load("restored46:takeda:cloudPilotHostStages"))();
+-const run=load("restored46:takeda:refreshCurrentRun"),dir=run+"/relay";
++const s=await new A(load("deadlineCandidate:takeda:cloudPilotHostStages"))();
++const run=load("deadlineCandidate:takeda:refreshCurrentRun"),dir=run+"/relay";
+ let lastHeartbeat=0,lastStatus=0;
+ const loopStarted=Date.now(),stopAt=loopStarted+30*60*1000;
+ while(Date.now()<stopAt){
+  let req;try{req=await s.h.next(dir);}catch(error){if(!(Date.now()-loopStarted<60000&&String(error).includes("ENOENT")&&String(error).includes("scandir '"+dir+"'")))throw error;}
+  if(req){
+   notify({at:new Date().toISOString(),phase:req.kind,requestId:req.requestId,expiresAt:req.expiresAt});
+-  const out=await s.handle(req,dir);store("restored46:takeda:freshLastRelayResult",out);
++  const out=await s.handle(req,dir);store("deadlineCandidate:takeda:freshLastRelayResult",out);
+   notify({at:new Date().toISOString(),phase:req.kind,status:out.status,rowCount:out.rows?.length});
+   if(req.kind==="PUBLISH"){text(out);break;}
+  }
+  if(Date.now()-lastStatus>20000){
+-  const status=JSON.parse(await s.h.cmd("python3 - "+s.h.q(run)+" <<'PY'\nimport json,pathlib,sys,collections\np=pathlib.Path(sys.argv[1])\ndef lines(n):\n q=p/n\n return [json.loads(x) for x in q.read_text().splitlines() if x] if q.exists() else []\na=lines('diagnostics/process.jsonl');b=lines('diagnostics/http-requests.jsonl');last=a[-1] if a else {};counts=collections.Counter(x.get('event') for x in b);print(json.dumps({'process':last,'http':dict(counts),'lastAt':b[-1].get('recordedAt') if b else None}))\nPY",2000));
+-  store("restored46:takeda:portableCurrentProcessStatus",status);lastStatus=Date.now();
++  const status=JSON.parse(await s.h.cmd("python3 - "+s.h.q(run)+" <<'PY'\nimport json,pathlib,sys,collections\np=pathlib.Path(sys.argv[1])\ndef lines(n):\n q=p/n\n return [json.loads(x) for x in q.read_text().splitlines() if x] if q.exists() else []\ndef obj(n):\n q=p/n\n return json.loads(q.read_text()) if q.exists() else None\na=lines('diagnostics/process.jsonl');b=lines('diagnostics/http-requests.jsonl');last=a[-1] if a else {};counts=collections.Counter(x.get('event') for x in b);print(json.dumps({'process':last,'supervisor':obj('cancel-control/terminal.json'),'observer':obj('memory-observation/summary.json'),'http':dict(counts),'lastAt':b[-1].get('recordedAt') if b else None}))\nPY",2000));
++  store("deadlineCandidate:takeda:portableCurrentProcessStatus",status);lastStatus=Date.now();
+   if(status.process?.event==="CHILD_EXIT"){
+-    const activeSession=load("restored46:takeda:refreshSession");
++    const activeSession=load("deadlineCandidate:takeda:refreshSession");
+     if(!Number.isSafeInteger(activeSession))throw Error("NO_ORIGINAL_EXEC_SESSION");
+-    let terminalPoll;
+-    try{
+-      const poll=await tools.write_stdin({session_id:activeSession,chars:"",yield_time_ms:1000,max_output_tokens:1200});
+-      store("restored46:takeda:lastPortableExecPoll",{at:new Date().toISOString(),...poll});
+-      terminalPoll=poll;
+-    }catch(error){
+-      const diagnostic={at:new Date().toISOString(),session:activeSession,error:String(error),classification:"TERMINAL_OUTPUT_POLL_UNRESOLVED_NO_RETRY",durableProcess:status.process};
+-      store("restored46:takeda:lastPortableExecPoll",diagnostic);notify(diagnostic);
+-      text({status:"DURABLE_CHILD_EXIT_OUTPUT_UNRESOLVED",...status});
++    const levels={wrapper:{state:"TERMINATED",record:status.process},supervisor:{state:status.supervisor?"RECEIPT_PRESENT":"UNKNOWN",record:status.supervisor??null},observer:{state:status.observer?.status==="TARGET_TREE_EXITED"?"OBSERVED_EXIT":"UNKNOWN",record:status.observer??null}};
++    let announcedRunning=false;
++    while(Date.now()<stopAt){
++      let poll;
++      try{poll=await tools.write_stdin({session_id:activeSession,chars:"",yield_time_ms:1000,max_output_tokens:1200});}
++      catch(error){
++        const diagnostic={at:new Date().toISOString(),originalSessionId:activeSession,error:String(error),classification:"TERMINAL_OUTPUT_POLL_UNRESOLVED_NO_RETRY",levels};
++        store("deadlineCandidate:takeda:lastPortableExecPoll",diagnostic);notify(diagnostic);
++        text({status:"ORIGINAL_EXEC_UNKNOWN",levels,originalSessionId:activeSession});return;
++      }
++      store("deadlineCandidate:takeda:lastPortableExecPollRaw",{at:new Date().toISOString(),originalSessionId:activeSession,raw:poll});
++      if(poll.exit_code!==undefined&&poll.session_id===undefined){
++        if(!Number.isInteger(poll.exit_code)||poll.exit_code!==status.process.wrapperExitCode){
++          const diagnostic={at:new Date().toISOString(),originalSessionId:activeSession,classification:"DURABLE_EXIT_TOOL_EXIT_MISMATCH",levels};
++          store("deadlineCandidate:takeda:lastPortableExecPoll",diagnostic);notify(diagnostic);
++          throw Error("DURABLE_EXIT_TOOL_EXIT_MISMATCH");
++        }
++        // Only a validated original-session terminal can feed completion.
++        store("deadlineCandidate:takeda:lastPortableExecPoll",{at:new Date().toISOString(),originalSessionId:activeSession,exit_code:poll.exit_code});
++        text({status:"PROCESS_TERMINATED",levels,originalExec:{state:"TERMINATED",sessionId:activeSession,exitCode:poll.exit_code},terminalToolPoll:poll});return;
++      }
++      if(poll.session_id!==activeSession||poll.exit_code!==undefined){
++        const diagnostic={at:new Date().toISOString(),originalSessionId:activeSession,classification:"ORIGINAL_EXEC_POLL_SHAPE_UNKNOWN",levels};
++        store("deadlineCandidate:takeda:lastPortableExecPoll",diagnostic);notify(diagnostic);
++        text({status:"ORIGINAL_EXEC_UNKNOWN",levels,originalSessionId:activeSession});return;
++      }
++      store("deadlineCandidate:takeda:lastPortableExecPoll",{at:new Date().toISOString(),originalSessionId:activeSession,session_id:activeSession,classification:"ORIGINAL_EXEC_RUNNING"});
++      if(!announcedRunning){notify({status:"WRAPPER_EXIT_ORIGINAL_EXEC_STILL_RUNNING",levels,originalSessionId:activeSession});announcedRunning=true;}
++      // Only the original session is polled again. No restart or alternate route.
+     }
+-    if(terminalPoll){
+-      if(terminalPoll.exit_code!==undefined&&terminalPoll.exit_code!==status.process.wrapperExitCode)throw Error("DURABLE_EXIT_TOOL_EXIT_MISMATCH");
+-      text({status:"PROCESS_TERMINATED",...status,terminalToolPoll:terminalPoll});
+-    }
+-    break;
++    const diagnostic={at:new Date().toISOString(),originalSessionId:activeSession,classification:"ORIGINAL_EXEC_POLL_BUDGET_EXHAUSTED",levels};
++    store("deadlineCandidate:takeda:lastPortableExecPoll",diagnostic);notify(diagnostic);
++    text({status:"ORIGINAL_EXEC_UNKNOWN",levels,originalSessionId:activeSession});return;
+   }
+   if(Date.now()-lastHeartbeat>55000){notify({at:new Date().toISOString(),status:"CAPTURE_OR_CONTROL_RUNNING",...status});lastHeartbeat=Date.now();}
+  }
+@@ -40,4 +58,3 @@
+ }
+ 
+ if(Date.now()>=stopAt)throw Error("HOST_MONITOR_TOTAL_BUDGET_EXHAUSTED");
+-
+diff --git a/companion/host/runtime/load-source-runtime.js b/companion/host/runtime/load-source-runtime.js
+--- a/companion/host/runtime/load-source-runtime.js
++++ b/companion/host/runtime/load-source-runtime.js
+@@ -2,13 +2,16 @@
+ // functions.exec fragment: safe local load only; this does not start the producer.
+ const A=Object.getPrototypeOf(async function(){}).constructor;
+ const q=s=>"'"+String(s).replaceAll("'","'\\''")+"'";
+-const runtime="/workspace/scratch/5e9614251709/jb-workspace-recovery-20261005T2019Z/hosts46/takeda/runtime";
+-const result=await tools.exec_command({cmd:"python3 - "+q(runtime)+" <<'PY'\nfrom pathlib import Path\nimport json,sys\np=Path(sys.argv[1]);print(json.dumps({n:(p/n).read_text() for n in ['load-host-state.js','start-monitor-portable42.js','continuous-relay-v3-durable-monitor.js']}))\nPY",max_output_tokens:18000});
++const runtime="/workspace/scratch/5e9614251709/jb-workspace-recovery-20261005T2019Z/publication-deadline-companion-20261006T0933Z/host/runtime";
++const result=await tools.exec_command({cmd:"python3 - "+q(runtime)+" <<'PY'\nfrom pathlib import Path\nimport json,sys\np=Path(sys.argv[1]);print(json.dumps({n:(p/n).read_text() for n in ['load-host-state.js','../../supervision/start-monitor-takeda46-combined.js','continuous-relay-v3-durable-monitor.js','complete-reviewed-source-readback.js','../activation.json']}))\nPY",max_output_tokens:18000});
+ if(result.exit_code!==0||result.session_id)throw Error('RESTORED_HOST_READ_FAILED');
+ const files=JSON.parse(result.output);
+-const loaded=await new A('root','sourceId','candidateId','commit',files['load-host-state.js'])("/workspace/scratch/5e9614251709/jb-workspace-recovery-20261005T2019Z/hosts46/takeda",'source-takeda-china-social',"dot-cloud-restored-fb0b8e3-20261005T2028Z","fb0b8e3b708d4f57cae09b465fb1c9ceddf7ad8d");
+-store('restored46:takeda:continuousPortableRelayCodeWithPoll',files['continuous-relay-v3-durable-monitor.js']);
+-store('restored46:takeda:restoredPortableSourceStartCode',files['start-monitor-portable42.js']);
+-store('restored46:takeda:currentIndependentValidationInput',null);store('restored46:takeda:currentCaptureInput',null);store('restored46:takeda:nextBatchId',null);
+-store('restored46:takeda:currentRetainedCaptureInput',null);
++const binding=JSON.parse(files["../activation.json"]);
++if(binding.status!=="REGISTERED_VERIFIED"||!binding.candidate)throw Error("CANDIDATE_NOT_REGISTERED");
++const loaded=await new A('root','sourceId','candidateId','commit',files['load-host-state.js'])("/workspace/scratch/5e9614251709/jb-workspace-recovery-20261005T2019Z/publication-deadline-companion-20261006T0933Z/host",'source-takeda-china-social',binding.candidate.id,binding.build.commitSha);
++store('deadlineCandidate:takeda:continuousPortableRelayCodeWithPoll',files['continuous-relay-v3-durable-monitor.js']);
++store('deadlineCandidate:takeda:completeReviewedSourceCode',files['complete-reviewed-source-readback.js']);
++store('deadlineCandidate:takeda:restoredPortableSourceStartCode',files['../../supervision/start-monitor-takeda46-combined.js']);
++store('deadlineCandidate:takeda:currentIndependentValidationInput',null);store('deadlineCandidate:takeda:currentCaptureInput',null);store('deadlineCandidate:takeda:nextBatchId',null);
++store('deadlineCandidate:takeda:currentRetainedCaptureInput',null);
+ text({...loaded,status:'LOCAL_HOST_LOADED_NO_LAUNCH',publicationMode:'DB_STARTED_OWNER_V1'});
+diff --git a/companion/host/runtime/preflight/preflight-launch.mjs b/companion/host/runtime/preflight/preflight-launch.mjs
+--- a/companion/host/runtime/preflight/preflight-launch.mjs
++++ b/companion/host/runtime/preflight/preflight-launch.mjs
+@@ -57,6 +57,9 @@
+ export async function preflight(args) {
+   const [mode, configPath, controlPath, bootstrapPath, reviewedSha256, outputPath, ...extra] = args;
+   if (!['check', 'launch'].includes(mode) || !outputPath || extra.length || !/^[a-f0-9]{64}$/.test(reviewedSha256 ?? '')) fail('Usage: preflight-launch.mjs <check|launch> <host-config.json> <control-base.json> <bootstrap.json> <reviewed-bootstrap-sha256> <new-run-root>');
++  // This candidate's only launch entry is the registered, supervised starter.
++  // Keep check semantics; the legacy direct launch lacks its authority gates.
++  if (mode === 'launch') fail('PREFLIGHT_LEGACY_LAUNCH_DISABLED_USE_SUPERVISED_STARTER');
+   const files = await Promise.all([configPath, controlPath, bootstrapPath].map(regularFile));
+   const [configFile, controlFile, bootstrapFile] = files;
+   if (sha(bootstrapFile.bytes) !== reviewedSha256) fail('PREFLIGHT_BOOTSTRAP_HASH');
+diff --git a/companion/host/runtime/review-publication.py b/companion/host/runtime/review-publication.py
+--- a/companion/host/runtime/review-publication.py
++++ b/companion/host/runtime/review-publication.py
+@@ -5,6 +5,8 @@
+ host=Path(sys.argv[1]);run=Path(sys.argv[2]);request_id=sys.argv[3]
+ assert run.parent==host and re.fullmatch(r'[a-f0-9-]{36}',request_id)
+ cfg=json.loads((host/'host-config.json').read_text())
++binding=json.loads((host/'activation.json').read_text());control=json.loads((host/'control-base.json').read_text())
++assert binding['status']=='REGISTERED_VERIFIED' and binding['candidate'] and binding['build']==control['build'] and binding['candidate']==control['candidate']
+ assert cfg['sourceId']=="source-takeda-china-social" and cfg['sourceConfigSha256']=="048f616f00b5ed016f075f4204a2ad749457d68a3f078a9e7bde0fae2186b61f"
+ request=json.loads((run/'relay'/f'{request_id}.request.json').read_text())
+ assert request['kind']=='PUBLISH' and request['requestId']==request_id and request['payload']['projectId']==cfg['project']=='yiopvxysxrtrnvqxwgbx'
+@@ -12,7 +14,7 @@
+ m=re.search(r"source_result_data jsonb := E'((?:\\.|[^'])*)'::jsonb",sql);assert m
+ row=json.loads(re.sub(r"\\([\\'])",r"\1",m.group(1)))
+ assert row['sourceId']==cfg['sourceId'] and row['sourceConfigHash']==cfg['sourceConfigSha256']
+-assert row['releaseCandidateId']=='dot-cloud-restored-fb0b8e3-20261005T2028Z' and row['batchId']==run.name and row['id']==run.name+'--'+cfg['sourceId']
++assert row['releaseCandidateId']==binding['candidate']['id'] and row['batchId']==run.name and row['id']==run.name+'--'+cfg['sourceId']
+ assert (row['transportState'],row['adapterState'],row['completenessState'],row['atomicCommitState'])==('SUCCEEDED','SUCCEEDED','VERIFIED','COMMITTED')
+ cert=row['completenessCertificate'];assert cert['schemaVersion']=='plan-bound-source-quality-v1' and cert['policyId']=='PLAN_BOUND_SOURCE_QUALITY_V1'
+ for k,field in [('sourceId','sourceId'),('sourceResultId','id'),('batchId','batchId'),('releaseCandidateId','releaseCandidateId'),('sourceConfigSha256','sourceConfigHash')]:assert cert['binding'][k]==row[field]
+diff --git a/companion/host/runtime/start-monitor-portable42.js b/companion/host/runtime/start-monitor-portable42.js
+--- a/companion/host/runtime/start-monitor-portable42.js
++++ b/companion/host/runtime/start-monitor-portable42.js
+@@ -1,6 +1,8 @@
+ 
+-const A=Object.getPrototypeOf(async function(){}).constructor;const h=await new A(load("restored46:takeda:cloudPilotHostHelpers"))();
++const A=Object.getPrototypeOf(async function(){}).constructor;const h=await new A(load("deadlineCandidate:takeda:cloudPilotHostHelpers"))();
+ if(h.cfg.sourceId!=="source-takeda-china-social")throw Error("SOURCE_SCOPE");
++const binding=load("deadlineCandidate:takeda:registeredCandidateBinding");
++if(binding?.status!=="REGISTERED_VERIFIED"||binding.build?.commitSha!=="28d9bbe1a4568403b60218e688c8d40de11ef592"||!binding.candidate||typeof binding.candidate.id!=="string"||!Number.isSafeInteger(binding.candidate.version)||binding.candidate.version<1)throw Error("CANDIDATE_NOT_REGISTERED");
+ const query=`WITH latest_successful AS (
+  SELECT s.id AS "sourceResultId",s."sourceId",s."batchId",s."releaseCandidateId",s."sourceConfigHash",s."startedAt",s."finishedAt"
+  FROM public."CrawlBatchSourceResult" s JOIN public."CrawlBatch" b ON b.id=s."batchId" AND b."releaseCandidateId"=s."releaseCandidateId"
+@@ -9,14 +11,14 @@
+  ORDER BY s."finishedAt" DESC,s.id DESC LIMIT 1
+ )
+ SELECT clock_timestamp() AS "checkedAt",
+- (SELECT jsonb_agg(to_jsonb(r)) FROM public."ReleaseCandidate" r WHERE id='dot-cloud-restored-fb0b8e3-20261005T2028Z') AS "candidateRows",
++ (SELECT jsonb_agg(to_jsonb(r)) FROM public."ReleaseCandidate" r WHERE id=${h.q(binding.candidate.id)}) AS "candidateRows",
+  (SELECT "holderId" FROM public."CrawlCoordinatorLock" WHERE id='formal-crawl') AS "holderId",
+  (SELECT to_jsonb(s)||jsonb_build_object('observations',coalesce((SELECT jsonb_agg(jsonb_build_object(
+    'id',o.id,'sourceResultId',o."sourceResultId",'sourceId',o."sourceId",'batchId',o."batchId",'releaseCandidateId',o."releaseCandidateId",'sourceConfigSha256',o."sourceConfigSha256",
+    'crawledAt',o."crawledAt",'observedFrom',o."observedFrom",'observedTo',o."observedTo",'successful',o.successful,
+    'transportSucceeded',o."transportSucceeded",'adapterSucceeded',o."adapterSucceeded",'completenessVerified',o."completenessVerified",'atomicCommitSucceeded',o."atomicCommitSucceeded") ORDER BY o.id)
+    FROM public."CrawlObservation" o WHERE o."sourceResultId"=s."sourceResultId" AND o."sourceId"=s."sourceId" AND o."batchId"=s."batchId" AND o."releaseCandidateId"=s."releaseCandidateId"),'[]'::jsonb)) FROM latest_successful s) AS "latestSuccessfulSource";`;
+-const raw=await tools.mcp__codex_apps__supabase_execute_sql({project_id:h.cfg.project,query});const row=h.rows(raw)[0];if(!row||row.holderId!==""||row.candidateRows?.length!==1||row.candidateRows[0].commitSha!=="fb0b8e3b708d4f57cae09b465fb1c9ceddf7ad8d")throw Error("FRESH_CANDIDATE_PRECONDITION");
++const raw=await tools.mcp__codex_apps__supabase_execute_sql({project_id:h.cfg.project,query});const row=h.rows(raw)[0];if(!row||row.holderId!==""||row.candidateRows?.length!==1||row.candidateRows[0].commitSha!==binding.build.commitSha||row.candidateRows[0].id!==binding.candidate.id||row.candidateRows[0].version!==binding.candidate.version||row.candidateRows[0].goalId!==binding.candidate.goalId)throw Error("FRESH_CANDIDATE_PRECONDITION");
+ // BEGIN OBSERVATION_DUE_GATE
+ function requireObservationDue(row,cfg){
+  const parseUtc=value=>{
+@@ -39,15 +41,15 @@
+ }
+ // END OBSERVATION_DUE_GATE
+ const due=requireObservationDue(row,h.cfg);
+-const batch=load("restored46:takeda:nextBatchId");if(typeof batch!=="string"||!/^[A-Za-z0-9][A-Za-z0-9._-]{0,80}$/.test(batch))throw Error("BATCH_ID");
+-const run=h.cfg.root+"/"+batch;store("restored46:takeda:refreshCurrentRun",run);store("restored46:takeda:refreshCurrentBatch",batch);store("restored46:takeda:cloudPilotPublishRequest",null);store("restored46:takeda:cloudPilotPendingRequest",null);
++const batch=load("deadlineCandidate:takeda:nextBatchId");if(typeof batch!=="string"||!/^[A-Za-z0-9][A-Za-z0-9._-]{0,80}$/.test(batch))throw Error("BATCH_ID");
++const run=h.cfg.root+"/"+batch;store("deadlineCandidate:takeda:refreshCurrentRun",run);store("deadlineCandidate:takeda:refreshCurrentBatch",batch);store("deadlineCandidate:takeda:cloudPilotPublishRequest",null);store("deadlineCandidate:takeda:cloudPilotPendingRequest",null);
+ await h.save(run+"/candidate-readback.json",raw);await h.save(run+"/source-due-readback.json",due);await h.save(run+"/bootstrap.json",{schemaVersion:1,checkedAt:new Date(row.checkedAt).toISOString(),candidateRows:row.candidateRows,batchId:batch});const boot=await h.readFile(run+"/bootstrap.json");
+ 
+-const preflight="env TSX_DISABLE_CACHE=1 NODE_DISABLE_COMPILE_CACHE=1 node "+h.q("/workspace/scratch/5e9614251709/jb-workspace-recovery-20261005T2019Z/hosts46/takeda/runtime/preflight/preflight-launch.mjs")+" check "+h.q(h.cfg.root+"/host-config.json")+" "+h.q(h.cfg.root+"/control-base.json")+" "+h.q(run+"/bootstrap.json")+" "+h.q(boot.hash)+" "+h.q(run);
++const preflight="env TSX_DISABLE_CACHE=1 NODE_DISABLE_COMPILE_CACHE=1 node "+h.q("/workspace/scratch/5e9614251709/jb-workspace-recovery-20261005T2019Z/publication-deadline-companion-20261006T0933Z/host/runtime/preflight/preflight-launch.mjs")+" check "+h.q(h.cfg.root+"/host-config.json")+" "+h.q(h.cfg.root+"/control-base.json")+" "+h.q(run+"/bootstrap.json")+" "+h.q(boot.hash)+" "+h.q(run);
+ const checked=await h.cmd(preflight,2000);notify({phase:"PORTABLE_DB_STARTED_PREFLIGHT",checked});
+ if(Date.now()-new Date(row.checkedAt).getTime()>60000)throw Error("FRESH_BOOTSTRAP_EXPIRED_BEFORE_LAUNCH");
+-const command="env TSX_DISABLE_CACHE=1 NODE_DISABLE_COMPILE_CACHE=1 JOBFINDER_CLOUD_SOURCE_ID="+h.q(h.cfg.sourceId)+" P0_SOURCE_HTTP_TIMEOUT_MS=45000 node scripts/run-with-http-diagnostics.mjs "+h.q(run+"/diagnostics")+" 1800000 -- node --max-old-space-size=256 --import /workspace/scratch/5e9614251709/jb-workspace-recovery-20261005T2019Z/producer42/node_modules/tsx/dist/loader.mjs scripts/p0-cloud-portable-source-pilot.ts "+h.q(run+"/bootstrap.json")+" "+h.q(boot.hash)+" "+h.q(run+"/artifacts")+" "+h.q(run+"/relay")+" --db-started-control "+h.q(h.cfg.root+"/control-base.json");
++const command="env TSX_DISABLE_CACHE=1 NODE_DISABLE_COMPILE_CACHE=1 JOBFINDER_CLOUD_SOURCE_ID="+h.q(h.cfg.sourceId)+" P0_SOURCE_HTTP_TIMEOUT_MS=45000 node scripts/run-with-http-diagnostics.mjs "+h.q(run+"/diagnostics")+" 1800000 -- node --max-old-space-size=256 --import /workspace/scratch/5e9614251709/jb-workspace-recovery-20261005T2019Z/publication-deadline-candidate-20261006T0902Z/node_modules/tsx/dist/loader.mjs scripts/p0-cloud-portable-source-pilot.ts "+h.q(run+"/bootstrap.json")+" "+h.q(boot.hash)+" "+h.q(run+"/artifacts")+" "+h.q(run+"/relay")+" --db-started-control "+h.q(h.cfg.root+"/control-base.json");
+ await h.save(run+"/reviewed-command.txt",command);
+-const started=await tools.exec_command({cmd:command,workdir:h.cfg.repo,yield_time_ms:1000,max_output_tokens:1500});store("restored46:takeda:refreshSession",started.session_id);notify({phase:"FRESH_PORTABLE_DB_STARTED_LAUNCH",batch,session:started.session_id,output:started.output});if(!started.session_id)throw Error("NO_RUNNING_LAUNCH_SESSION");
+-await new A(load("restored46:takeda:continuousPortableRelayCodeWithPoll"))();
++const started=await tools.exec_command({cmd:command,workdir:h.cfg.repo,yield_time_ms:1000,max_output_tokens:1500});store("deadlineCandidate:takeda:refreshSession",started.session_id);notify({phase:"FRESH_PORTABLE_DB_STARTED_LAUNCH",batch,session:started.session_id,output:started.output});if(!started.session_id)throw Error("NO_RUNNING_LAUNCH_SESSION");
++await new A(load("deadlineCandidate:takeda:continuousPortableRelayCodeWithPoll"))();
+ 
+diff --git a/companion/host/runtime/update-candidate-completion-state.mjs b/companion/host/runtime/update-candidate-completion-state.mjs
+new file mode 100644
+--- /dev/null
++++ b/companion/host/runtime/update-candidate-completion-state.mjs
+@@ -0,0 +1,40 @@
++// Local state update only, after the exact read-only completion checks.
++import {readFileSync,writeFileSync,renameSync,unlinkSync} from 'node:fs';
++import {resolve} from 'node:path';
++import {fileURLToPath} from 'node:url';
++function identity(record){
++ if(!record||typeof record!=='object')return {};
++ if(record.id!==undefined&&record.candidateId!==undefined&&record.id!==record.candidateId)return {invalid:true};
++ if(record.version!==undefined&&record.candidateVersion!==undefined&&record.version!==record.candidateVersion)return {invalid:true};
++ return {id:record.candidateId??record.id,version:record.candidateVersion??record.version};
++}
++export function applyCandidateCompletion(state,data){
++ const v=data?.summary,b=data?.binding,t=data?.terminal;
++ if(v?.state!=='COMMITTED_EXACT'||b?.status!=='REGISTERED_VERIFIED'||!b.candidate||v.candidateId!==b.candidate.id||v.candidateVersion!==b.candidate.version||!Number.isSafeInteger(v.candidateVersion)||v.candidateVersion<1)throw Error('COMPLETION_REGISTERED_BINDING_REQUIRED');
++ if(t?.exit_code!==0||t.session_id!==undefined||!Number.isSafeInteger(t.originalSessionId))throw Error('ACTUAL_ORIGINAL_ZERO_EXIT_REQUIRED');
++ if(!Number.isSafeInteger(data.sourceCount)||data.sourceCount<1||!Number.isSafeInteger(data.jobCount)||data.jobCount<0)throw Error('COMPLETION_COUNTS_INVALID');
++ const matching=record=>{const x=identity(record);return !x.invalid&&x.id===v.candidateId&&x.version===v.candidateVersion;};
++ const main=matching(state.runtimeCandidate),specific=matching(state.sourceSpecificRuntimeCandidates?.[v.sourceId]);
++ if(Number(main)+Number(specific)!==1)throw Error('EXACT_EXISTING_CANDIDATE_STATE_SLOT_REQUIRED');
++ const task=item=>{if(!item||item.batchId!==v.batchId||item.sourceId!==v.sourceId)return false;const x=identity(item);return !x.invalid&&(x.id===undefined||x.id===v.candidateId)&&(x.version===undefined||x.version===v.candidateVersion);};
++ const active=task(state.active),pending=state.pendingReadOnlyTerminalSources??[];
++ if(!active&&!pending.some(item=>task(item)&&item.noFurtherProductionWriteInOriginalProcess===true))throw Error('EXACT_EXISTING_COMPLETION_TASK_REQUIRED');
++ const out=structuredClone(state),slot=main?out.runtimeCandidate:out.sourceSpecificRuntimeCandidates[v.sourceId];
++ if(main)slot.successfulSourceCount=data.sourceCount;else{slot.successfulSources=data.sourceCount;slot.actualCaptureStarted=true;}
++ slot.successfulCurrentJobCount=data.jobCount;
++ if(active)out.active=null;
++ out.pendingReadOnlyTerminalSources=pending.filter(item=>!task(item));
++ out.latestCompletedContinuation=v;out.updatedAt=new Date().toISOString();
++ const evidence=out.privateEvidencePendingSuccessfulBatches??[];
++ const old=evidence.find(item=>item.batchId===v.batchId);
++ if(old&&(old.sourceId!==v.sourceId||old.candidateId!==v.candidateId||old.candidateVersion!==v.candidateVersion))throw Error('COMPLETION_EVIDENCE_TUPLE_CONFLICT');
++ if(!old)evidence.push({...v,run:data.run});out.privateEvidencePendingSuccessfulBatches=evidence;
++ return out;
++}
++if(process.argv[1]&&resolve(process.argv[1])===fileURLToPath(import.meta.url)){
++ const [path,json,...extra]=process.argv.slice(2);if(!path||!json||extra.length)throw Error('COMPLETION_STATE_ARGUMENTS');
++ const before=readFileSync(path,'utf8'),after=applyCandidateCompletion(JSON.parse(before),JSON.parse(json));
++ const temp=path+'.completion-'+process.pid+'.tmp';writeFileSync(temp,JSON.stringify(after,null,2)+'\n',{flag:'wx',mode:0o600});
++ if(readFileSync(path,'utf8')!==before){unlinkSync(temp);throw Error('COMPLETION_STATE_CHANGED');}
++ renameSync(temp,path);console.log(JSON.stringify({status:'EXACT_CANDIDATE_LOCAL_STATE_UPDATED'}));
++}
+diff --git a/companion/supervision/create-combined-starter.mjs b/companion/supervision/create-combined-starter.mjs
+--- a/companion/supervision/create-combined-starter.mjs
++++ b/companion/supervision/create-combined-starter.mjs
+@@ -5,8 +5,8 @@
+ import { buildCombinedCommand } from './build-combined-command.mjs';
+ import { buildObservedCommand } from '../build-observed-command.mjs';
+ const base=dirname(fileURLToPath(import.meta.url)),r2=dirname(dirname(base));
+-export const paths={base,r2,sampler:join(base,'sample_process_tree.py'),supervisor:join(base,'supervise-cancel.mjs'),inspector:join(base,'inspect-launch-identity.mjs'),wrapper:join(r2,'producer42/scripts/run-with-http-diagnostics.mjs'),original:join(r2,'hosts46/takeda/runtime/start-monitor-portable42.js')};
+-export const hashes={sampler:'3fa6daa1af1afee94d19801edfd8bcb538e1243476b5adb253e50de162a27bd6',supervisor:'62d3b778eddd9915c191f27f852dca94e2b3da608bd37d27cea2990bf7b74267',wrapper:'d8627edbdc118f8d747f77f22459768f76184171e715a8fd29c76a69a3c82930',original:'d5c9b6ef0eed05f2a3783a09db726846df1993ff6534306f95ad6b6e8eb7bab9'};
++export const paths={base,r2,sampler:join(base,'sample_process_tree.py'),supervisor:join(base,'supervise-cancel.mjs'),inspector:join(base,'inspect-launch-identity.mjs'),wrapper:join(r2,'publication-deadline-candidate-20261006T0902Z/scripts/run-with-http-diagnostics.mjs'),original:join(base,'../host/runtime/start-monitor-portable42.js')};
++export const hashes={sampler:'3fa6daa1af1afee94d19801edfd8bcb538e1243476b5adb253e50de162a27bd6',supervisor:'9c4a4430bcd2b9fe31343dcbea116c2fc68b89edb200ad3e85c90b0d1aedb2d5',wrapper:'f15522e6f209bfe99bfa258b5dffbce1f74d6af662c4c2ee682604e0798bbc88',original:'db6c58edc51d7e95198502a9c4290dc21487bf65b706b7c969810092c2a38688'};
+ const sha=x=>createHash('sha256').update(x).digest('hex');
+ const launch='const started=await tools.exec_command({cmd:command,workdir:h.cfg.repo,yield_time_ms:1000,max_output_tokens:1500});';
+ export function addCombinedObservation(original) {
+diff --git a/companion/supervision/start-monitor-takeda46-combined.js b/companion/supervision/start-monitor-takeda46-combined.js
+--- a/companion/supervision/start-monitor-takeda46-combined.js
++++ b/companion/supervision/start-monitor-takeda46-combined.js
+@@ -1,6 +1,8 @@
+ 
+-const A=Object.getPrototypeOf(async function(){}).constructor;const h=await new A(load("restored46:takeda:cloudPilotHostHelpers"))();
++const A=Object.getPrototypeOf(async function(){}).constructor;const h=await new A(load("deadlineCandidate:takeda:cloudPilotHostHelpers"))();
+ if(h.cfg.sourceId!=="source-takeda-china-social")throw Error("SOURCE_SCOPE");
++const binding=load("deadlineCandidate:takeda:registeredCandidateBinding");
++if(binding?.status!=="REGISTERED_VERIFIED"||binding.build?.commitSha!=="28d9bbe1a4568403b60218e688c8d40de11ef592"||!binding.candidate||typeof binding.candidate.id!=="string"||!Number.isSafeInteger(binding.candidate.version)||binding.candidate.version<1)throw Error("CANDIDATE_NOT_REGISTERED");
+ const query=`WITH latest_successful AS (
+  SELECT s.id AS "sourceResultId",s."sourceId",s."batchId",s."releaseCandidateId",s."sourceConfigHash",s."startedAt",s."finishedAt"
+  FROM public."CrawlBatchSourceResult" s JOIN public."CrawlBatch" b ON b.id=s."batchId" AND b."releaseCandidateId"=s."releaseCandidateId"
+@@ -9,14 +11,14 @@
+  ORDER BY s."finishedAt" DESC,s.id DESC LIMIT 1
+ )
+ SELECT clock_timestamp() AS "checkedAt",
+- (SELECT jsonb_agg(to_jsonb(r)) FROM public."ReleaseCandidate" r WHERE id='dot-cloud-restored-fb0b8e3-20261005T2028Z') AS "candidateRows",
++ (SELECT jsonb_agg(to_jsonb(r)) FROM public."ReleaseCandidate" r WHERE id=${h.q(binding.candidate.id)}) AS "candidateRows",
+  (SELECT "holderId" FROM public."CrawlCoordinatorLock" WHERE id='formal-crawl') AS "holderId",
+  (SELECT to_jsonb(s)||jsonb_build_object('observations',coalesce((SELECT jsonb_agg(jsonb_build_object(
+    'id',o.id,'sourceResultId',o."sourceResultId",'sourceId',o."sourceId",'batchId',o."batchId",'releaseCandidateId',o."releaseCandidateId",'sourceConfigSha256',o."sourceConfigSha256",
+    'crawledAt',o."crawledAt",'observedFrom',o."observedFrom",'observedTo',o."observedTo",'successful',o.successful,
+    'transportSucceeded',o."transportSucceeded",'adapterSucceeded',o."adapterSucceeded",'completenessVerified',o."completenessVerified",'atomicCommitSucceeded',o."atomicCommitSucceeded") ORDER BY o.id)
+    FROM public."CrawlObservation" o WHERE o."sourceResultId"=s."sourceResultId" AND o."sourceId"=s."sourceId" AND o."batchId"=s."batchId" AND o."releaseCandidateId"=s."releaseCandidateId"),'[]'::jsonb)) FROM latest_successful s) AS "latestSuccessfulSource";`;
+-const raw=await tools.mcp__codex_apps__supabase_execute_sql({project_id:h.cfg.project,query});const row=h.rows(raw)[0];if(!row||row.holderId!==""||row.candidateRows?.length!==1||row.candidateRows[0].commitSha!=="fb0b8e3b708d4f57cae09b465fb1c9ceddf7ad8d")throw Error("FRESH_CANDIDATE_PRECONDITION");
++const raw=await tools.mcp__codex_apps__supabase_execute_sql({project_id:h.cfg.project,query});const row=h.rows(raw)[0];if(!row||row.holderId!==""||row.candidateRows?.length!==1||row.candidateRows[0].commitSha!==binding.build.commitSha||row.candidateRows[0].id!==binding.candidate.id||row.candidateRows[0].version!==binding.candidate.version||row.candidateRows[0].goalId!==binding.candidate.goalId)throw Error("FRESH_CANDIDATE_PRECONDITION");
+ // BEGIN OBSERVATION_DUE_GATE
+ function requireObservationDue(row,cfg){
+  const parseUtc=value=>{
+@@ -39,14 +41,14 @@
+ }
+ // END OBSERVATION_DUE_GATE
+ const due=requireObservationDue(row,h.cfg);
+-const batch=load("restored46:takeda:nextBatchId");if(typeof batch!=="string"||!/^[A-Za-z0-9][A-Za-z0-9._-]{0,80}$/.test(batch))throw Error("BATCH_ID");
+-const run=h.cfg.root+"/"+batch;store("restored46:takeda:refreshCurrentRun",run);store("restored46:takeda:refreshCurrentBatch",batch);store("restored46:takeda:cloudPilotPublishRequest",null);store("restored46:takeda:cloudPilotPendingRequest",null);
++const batch=load("deadlineCandidate:takeda:nextBatchId");if(typeof batch!=="string"||!/^[A-Za-z0-9][A-Za-z0-9._-]{0,80}$/.test(batch))throw Error("BATCH_ID");
++const run=h.cfg.root+"/"+batch;store("deadlineCandidate:takeda:refreshCurrentRun",run);store("deadlineCandidate:takeda:refreshCurrentBatch",batch);store("deadlineCandidate:takeda:cloudPilotPublishRequest",null);store("deadlineCandidate:takeda:cloudPilotPendingRequest",null);
+ await h.save(run+"/candidate-readback.json",raw);await h.save(run+"/source-due-readback.json",due);await h.save(run+"/bootstrap.json",{schemaVersion:1,checkedAt:new Date(row.checkedAt).toISOString(),candidateRows:row.candidateRows,batchId:batch});const boot=await h.readFile(run+"/bootstrap.json");
+ 
+-const preflight="env TSX_DISABLE_CACHE=1 NODE_DISABLE_COMPILE_CACHE=1 node "+h.q("/workspace/scratch/5e9614251709/jb-workspace-recovery-20261005T2019Z/hosts46/takeda/runtime/preflight/preflight-launch.mjs")+" check "+h.q(h.cfg.root+"/host-config.json")+" "+h.q(h.cfg.root+"/control-base.json")+" "+h.q(run+"/bootstrap.json")+" "+h.q(boot.hash)+" "+h.q(run);
++const preflight="env TSX_DISABLE_CACHE=1 NODE_DISABLE_COMPILE_CACHE=1 node "+h.q("/workspace/scratch/5e9614251709/jb-workspace-recovery-20261005T2019Z/publication-deadline-companion-20261006T0933Z/host/runtime/preflight/preflight-launch.mjs")+" check "+h.q(h.cfg.root+"/host-config.json")+" "+h.q(h.cfg.root+"/control-base.json")+" "+h.q(run+"/bootstrap.json")+" "+h.q(boot.hash)+" "+h.q(run);
+ const checked=await h.cmd(preflight,2000);notify({phase:"PORTABLE_DB_STARTED_PREFLIGHT",checked});
+ if(Date.now()-new Date(row.checkedAt).getTime()>60000)throw Error("FRESH_BOOTSTRAP_EXPIRED_BEFORE_LAUNCH");
+-const command="env TSX_DISABLE_CACHE=1 NODE_DISABLE_COMPILE_CACHE=1 JOBFINDER_CLOUD_SOURCE_ID="+h.q(h.cfg.sourceId)+" P0_SOURCE_HTTP_TIMEOUT_MS=45000 node scripts/run-with-http-diagnostics.mjs "+h.q(run+"/diagnostics")+" 1800000 -- node --max-old-space-size=256 --import /workspace/scratch/5e9614251709/jb-workspace-recovery-20261005T2019Z/producer42/node_modules/tsx/dist/loader.mjs scripts/p0-cloud-portable-source-pilot.ts "+h.q(run+"/bootstrap.json")+" "+h.q(boot.hash)+" "+h.q(run+"/artifacts")+" "+h.q(run+"/relay")+" --db-started-control "+h.q(h.cfg.root+"/control-base.json");
++const command="env TSX_DISABLE_CACHE=1 NODE_DISABLE_COMPILE_CACHE=1 JOBFINDER_CLOUD_SOURCE_ID="+h.q(h.cfg.sourceId)+" P0_SOURCE_HTTP_TIMEOUT_MS=45000 node scripts/run-with-http-diagnostics.mjs "+h.q(run+"/diagnostics")+" 1800000 -- node --max-old-space-size=256 --import /workspace/scratch/5e9614251709/jb-workspace-recovery-20261005T2019Z/publication-deadline-candidate-20261006T0902Z/node_modules/tsx/dist/loader.mjs scripts/p0-cloud-portable-source-pilot.ts "+h.q(run+"/bootstrap.json")+" "+h.q(boot.hash)+" "+h.q(run+"/artifacts")+" "+h.q(run+"/relay")+" --db-started-control "+h.q(h.cfg.root+"/control-base.json");
+ await h.save(run+"/reviewed-command.txt",command);
+ // BEGIN COMBINED_MEMORY_CANCEL_PROPOSAL
+ function buildObservedCommand(command, metadata, quote) {
+@@ -72,9 +74,9 @@
+     outputDir: metadata.outputDir, label: metadata.label
+   }, quote), originalEnvironmentPrefix: parts[0], originalWrapperArgumentSuffix: parts[1] };
+ }
+-const combinedPaths={"base":"/workspace/scratch/5e9614251709/jb-workspace-recovery-20261005T2019Z/memory-observation-recovery-20261006T0536Z/combined-takeda-supervision-r2-20261006T0718Z","r2":"/workspace/scratch/5e9614251709/jb-workspace-recovery-20261005T2019Z","sampler":"/workspace/scratch/5e9614251709/jb-workspace-recovery-20261005T2019Z/memory-observation-recovery-20261006T0536Z/combined-takeda-supervision-r2-20261006T0718Z/sample_process_tree.py","supervisor":"/workspace/scratch/5e9614251709/jb-workspace-recovery-20261005T2019Z/memory-observation-recovery-20261006T0536Z/combined-takeda-supervision-r2-20261006T0718Z/supervise-cancel.mjs","inspector":"/workspace/scratch/5e9614251709/jb-workspace-recovery-20261005T2019Z/memory-observation-recovery-20261006T0536Z/combined-takeda-supervision-r2-20261006T0718Z/inspect-launch-identity.mjs","wrapper":"/workspace/scratch/5e9614251709/jb-workspace-recovery-20261005T2019Z/producer42/scripts/run-with-http-diagnostics.mjs","original":"/workspace/scratch/5e9614251709/jb-workspace-recovery-20261005T2019Z/hosts46/takeda/runtime/start-monitor-portable42.js"};
++const combinedPaths={"base":"/workspace/scratch/5e9614251709/jb-workspace-recovery-20261005T2019Z/publication-deadline-companion-20261006T0933Z/supervision","r2":"/workspace/scratch/5e9614251709/jb-workspace-recovery-20261005T2019Z","sampler":"/workspace/scratch/5e9614251709/jb-workspace-recovery-20261005T2019Z/publication-deadline-companion-20261006T0933Z/supervision/sample_process_tree.py","supervisor":"/workspace/scratch/5e9614251709/jb-workspace-recovery-20261005T2019Z/publication-deadline-companion-20261006T0933Z/supervision/supervise-cancel.mjs","inspector":"/workspace/scratch/5e9614251709/jb-workspace-recovery-20261005T2019Z/publication-deadline-companion-20261006T0933Z/supervision/inspect-launch-identity.mjs","wrapper":"/workspace/scratch/5e9614251709/jb-workspace-recovery-20261005T2019Z/publication-deadline-candidate-20261006T0902Z/scripts/run-with-http-diagnostics.mjs","original":"/workspace/scratch/5e9614251709/jb-workspace-recovery-20261005T2019Z/publication-deadline-companion-20261006T0933Z/host/runtime/start-monitor-portable42.js"};
+ const combinedHashes=await tools.exec_command({cmd:"sha256sum -- "+[combinedPaths.sampler,combinedPaths.supervisor,combinedPaths.wrapper,combinedPaths.inspector].map(h.q).join(" "),yield_time_ms:1000,max_output_tokens:1500});
+-if(combinedHashes.exit_code!==0||combinedHashes.session_id||combinedHashes.output.trim()!=="3fa6daa1af1afee94d19801edfd8bcb538e1243476b5adb253e50de162a27bd6  /workspace/scratch/5e9614251709/jb-workspace-recovery-20261005T2019Z/memory-observation-recovery-20261006T0536Z/combined-takeda-supervision-r2-20261006T0718Z/sample_process_tree.py\n62d3b778eddd9915c191f27f852dca94e2b3da608bd37d27cea2990bf7b74267  /workspace/scratch/5e9614251709/jb-workspace-recovery-20261005T2019Z/memory-observation-recovery-20261006T0536Z/combined-takeda-supervision-r2-20261006T0718Z/supervise-cancel.mjs\nd8627edbdc118f8d747f77f22459768f76184171e715a8fd29c76a69a3c82930  /workspace/scratch/5e9614251709/jb-workspace-recovery-20261005T2019Z/producer42/scripts/run-with-http-diagnostics.mjs\n015b9181a640bcb4e4c68d7bfcef598e826c93fe6f8aaf31d33cf59780e3d81f  /workspace/scratch/5e9614251709/jb-workspace-recovery-20261005T2019Z/memory-observation-recovery-20261006T0536Z/combined-takeda-supervision-r2-20261006T0718Z/inspect-launch-identity.mjs")throw Error("COMBINED_SOURCE_HASH_MISMATCH");
++if(combinedHashes.exit_code!==0||combinedHashes.session_id||combinedHashes.output.trim()!=="3fa6daa1af1afee94d19801edfd8bcb538e1243476b5adb253e50de162a27bd6  /workspace/scratch/5e9614251709/jb-workspace-recovery-20261005T2019Z/publication-deadline-companion-20261006T0933Z/supervision/sample_process_tree.py\n9c4a4430bcd2b9fe31343dcbea116c2fc68b89edb200ad3e85c90b0d1aedb2d5  /workspace/scratch/5e9614251709/jb-workspace-recovery-20261005T2019Z/publication-deadline-companion-20261006T0933Z/supervision/supervise-cancel.mjs\nf15522e6f209bfe99bfa258b5dffbce1f74d6af662c4c2ee682604e0798bbc88  /workspace/scratch/5e9614251709/jb-workspace-recovery-20261005T2019Z/publication-deadline-candidate-20261006T0902Z/scripts/run-with-http-diagnostics.mjs\n015b9181a640bcb4e4c68d7bfcef598e826c93fe6f8aaf31d33cf59780e3d81f  /workspace/scratch/5e9614251709/jb-workspace-recovery-20261005T2019Z/publication-deadline-companion-20261006T0933Z/supervision/inspect-launch-identity.mjs")throw Error("COMBINED_SOURCE_HASH_MISMATCH");
+ const combinedIdentityCheck=await tools.exec_command({cmd:"node "+h.q(combinedPaths.inspector)+" "+h.q(batch),workdir:h.cfg.repo,yield_time_ms:1000,max_output_tokens:1500});
+ if(combinedIdentityCheck.exit_code!==0||combinedIdentityCheck.session_id)throw Error("COMBINED_NORMALIZATION_CHECK");
+ const combinedIdentity=JSON.parse(combinedIdentityCheck.output);
+@@ -85,6 +87,6 @@
+ await h.save(run+"/reviewed-cancel-contract.json",{status:"PREPARED_REQUEST_NOT_SENT",originalBatch:batch,controlDirectory:combinedMetadata.controlDirectory,controlRunId:combinedMetadata.controlRunId,nodeNormalization:{original:"node",resolved:combinedIdentity.nodePath},wrapperNormalization:{original:"scripts/run-with-http-diagnostics.mjs",resolved:combinedPaths.wrapper},samplerExpectedArg:combinedPaths.supervisor,memoryScope:"Supervisor root, unchanged wrapper and observed descendants; sampler excluded",requestCommand:h.q(combinedIdentity.nodePath)+" "+h.q(combinedPaths.supervisor)+" request "+h.q(combinedMetadata.controlDirectory)+" "+h.q(combinedMetadata.controlRunId)});
+ {const combinedBootstrapAge=Date.now()-new Date(row.checkedAt).getTime();if(!Number.isFinite(combinedBootstrapAge)||combinedBootstrapAge<0||combinedBootstrapAge>60000)throw Error("FRESH_BOOTSTRAP_EXPIRED_BEFORE_LAUNCH");}
+ // END COMBINED_MEMORY_CANCEL_PROPOSAL
+-const started=await tools.exec_command({cmd:combined.observedCommand,workdir:h.cfg.repo,yield_time_ms:1000,max_output_tokens:1500});store("restored46:takeda:refreshSession",started.session_id);notify({phase:"FRESH_PORTABLE_DB_STARTED_LAUNCH",batch,session:started.session_id,output:started.output});if(!started.session_id)throw Error("NO_RUNNING_LAUNCH_SESSION");
+-await new A(load("restored46:takeda:continuousPortableRelayCodeWithPoll"))();
++const started=await tools.exec_command({cmd:combined.observedCommand,workdir:h.cfg.repo,yield_time_ms:1000,max_output_tokens:1500});store("deadlineCandidate:takeda:refreshSession",started.session_id);notify({phase:"FRESH_PORTABLE_DB_STARTED_LAUNCH",batch,session:started.session_id,output:started.output});if(!started.session_id)throw Error("NO_RUNNING_LAUNCH_SESSION");
++await new A(load("deadlineCandidate:takeda:continuousPortableRelayCodeWithPoll"))();
+ 
+diff --git a/companion/supervision/supervise-cancel.mjs b/companion/supervision/supervise-cancel.mjs
+--- a/companion/supervision/supervise-cancel.mjs
++++ b/companion/supervision/supervise-cancel.mjs
+@@ -7,9 +7,9 @@
+ import { dirname, join, resolve } from 'node:path';
+ 
+ const R2 = '/workspace/scratch/5e9614251709/jb-workspace-recovery-20261005T2019Z';
+-const allowedWrappers = ['producer42', 'hansoh-grace-candidate-20261006T0103Z']
++const allowedWrappers = ['publication-deadline-candidate-20261006T0902Z']
+   .map(p => join(R2, p, 'scripts/run-with-http-diagnostics.mjs'));
+-const wrapperSha256 = 'd8627edbdc118f8d747f77f22459768f76184171e715a8fd29c76a69a3c82930';
++const wrapperSha256 = 'f15522e6f209bfe99bfa258b5dffbce1f74d6af662c4c2ee682604e0798bbc88';
+ const [mode, directory, runId, separator, command, ...argv] = process.argv.slice(2);
+ if (!['start', 'request'].includes(mode) || !directory || !/^[a-zA-Z0-9_-]{1,100}$/.test(runId ?? ''))
+   throw Error('Usage: start <new-control-dir> <run-id> -- <original-node> <original-wrapper> <diagnostics> <timeout> -- <inner-command> [args...] | request <control-dir> <run-id>');
+diff --git a/companion/supervision/test-combined.mjs b/companion/supervision/test-combined.mjs
+--- a/companion/supervision/test-combined.mjs
++++ b/companion/supervision/test-combined.mjs
+@@ -31,14 +31,14 @@
+   const shell=buildCombinedCommand(command,meta,q).observedCommand;
+   assert.equal(spawnSync('bash',['-n','-c',shell]).status,0);
+   let stdout='',stderr='';
+-  const child=spawn('bash',['-c','set -e\n'+shell],{cwd:join(paths.r2,'producer42'),env:process.env,stdio:['ignore','pipe','pipe']});
++  const child=spawn('bash',['-c','set -e\n'+shell],{cwd:join(paths.r2,'publication-deadline-candidate-20261006T0902Z'),env:process.env,stdio:['ignore','pipe','pipe']});
+   child.stdout.on('data',b=>stdout+=b);child.stderr.on('data',b=>stderr+=b);
+   const terminal=new Promise((resolve,reject)=>{child.once('error',reject);child.once('close',(code,signal)=>resolve({code,signal}));});
+   await until(()=>existsSync(ready)&&existsSync(join(control,'descriptor.json')));
+   const descriptor=JSON.parse(readFileSync(join(control,'descriptor.json'),'utf8'));
+   assert.equal(existsSync(join(control,'cancel.json')),false);
+   const receipt=JSON.parse(readFileSync(ready,'utf8'));
+-  assert.equal(receipt.cwd,join(paths.r2,'producer42'));assert.equal(receipt.syntheticEnv,'abc');
++  assert.equal(receipt.cwd,join(paths.r2,'publication-deadline-candidate-20261006T0902Z'));assert.equal(receipt.syntheticEnv,'abc');
+   let controlRead=control;
+   const reasons=[];
+   if(rejects) {
+diff --git a/companion/supervision/test-starter-integration.mjs b/companion/supervision/test-starter-integration.mjs
+--- a/companion/supervision/test-starter-integration.mjs
++++ b/companion/supervision/test-starter-integration.mjs
+@@ -15,13 +15,13 @@
+   const checkedAt=new Date(now).toISOString(),stamp=new Date(now-13*3600000).toISOString();
+   const tuple={sourceResultId:'synthetic-result',sourceId,batchId:'synthetic-prior',releaseCandidateId:'synthetic-candidate'};
+   const observation={...tuple,id:'synthetic-observation',sourceConfigSha256:'synthetic-config',crawledAt:stamp,observedFrom:stamp,observedTo:stamp,successful:true,transportSucceeded:true,adapterSucceeded:true,completenessVerified:true,atomicCommitSucceeded:true};
+-  const row={checkedAt,holderId:'',candidateRows:[{commitSha:'fb0b8e3b708d4f57cae09b465fb1c9ceddf7ad8d'}],latestSuccessfulSource:{...tuple,sourceConfigHash:'synthetic-config',startedAt:stamp,finishedAt:stamp,observations:[observation]}};
++  const row={checkedAt,holderId:'',candidateRows:[{id:'synthetic-deadline-candidate',version:1,goalId:'jobfinder-portable-required-40',commitSha:'28d9bbe1a4568403b60218e688c8d40de11ef592'}],latestSuccessfulSource:{...tuple,sourceConfigHash:'synthetic-config',startedAt:stamp,finishedAt:stamp,observations:[observation]}};
+   const saved=new Map(),reads=[],launches=[],checks=[];
+-  const h={cfg:{root:privateRoot,repo:join(paths.r2,'producer42'),project:'SYNTHETIC_ONLY',sourceId,sourceConfigSha256:'synthetic-config'},q,rows:x=>x,
++  const h={cfg:{root:privateRoot,repo:join(paths.r2,'publication-deadline-candidate-20261006T0902Z'),project:'SYNTHETIC_ONLY',sourceId,sourceConfigSha256:'synthetic-config'},q,rows:x=>x,
+     save:async(p,v)=>{saved.set(p,v);if(options.expire&&p.endsWith('reviewed-cancel-contract.json'))now+=61000;},
+     readFile:async p=>{reads.push(p);assert.ok(p.endsWith('/bootstrap.json'));return {hash:'synthetic-bootstrap-hash'};},
+     cmd:async()=>({exit_code:0,output:'SYNTHETIC_PREFLIGHT'})};
+-  const load=k=>k.endsWith('cloudPilotHostHelpers')?'return getCombinedFixtureHelper();':k.endsWith('nextBatchId')?'SYNTHETIC.batch_one':k.endsWith('continuousPortableRelayCodeWithPoll')?'return;':undefined;
++  const load=k=>k.endsWith('registeredCandidateBinding')?{status:'REGISTERED_VERIFIED',candidate:{id:'synthetic-deadline-candidate',version:1,goalId:'jobfinder-portable-required-40'},build:{commitSha:'28d9bbe1a4568403b60218e688c8d40de11ef592'}}:k.endsWith('cloudPilotHostHelpers')?'return getCombinedFixtureHelper();':k.endsWith('nextBatchId')?'SYNTHETIC.batch_one':k.endsWith('continuousPortableRelayCodeWithPoll')?'return;':undefined;
+   const tools={mcp__codex_apps__supabase_execute_sql:async()=>[row],exec_command:async request=>{
+     if(request.cmd.startsWith('sha256sum -- ') || request.cmd.startsWith('node '+q(paths.inspector))) {
+       checks.push(request);
+@@ -52,7 +52,7 @@
+ assert.deepEqual(before.slice(wrapperBefore+1),after.slice(wrapperAfter+1));
+ assert.deepEqual(before.slice(0,wrapperBefore-1),after.slice(0,wrapperBefore-1));
+ assert.equal(after[wrapperAfter-1],process.execPath);assert.equal(realpathSync(process.execPath),process.execPath);
+-assert.equal(realpathSync(join(paths.r2,'producer42',before[wrapperBefore])),paths.wrapper);
++assert.equal(realpathSync(join(paths.r2,'publication-deadline-candidate-20261006T0902Z',before[wrapperBefore])),paths.wrapper);
+ assert.ok(after.includes('--max-old-space-size=256'));assert.ok(after.includes('1800000'));
+ assert.equal(observed.launches[0].workdir,plain.launches[0].workdir);
+ const contract=[...observed.saved].find(([p])=>p.endsWith('reviewed-cancel-contract.json'))[1];
+diff --git a/companion/supervision/test-supervisor-faults.mjs b/companion/supervision/test-supervisor-faults.mjs
+--- a/companion/supervision/test-supervisor-faults.mjs
++++ b/companion/supervision/test-supervisor-faults.mjs
+@@ -14,7 +14,7 @@
+   const supervisor=baseline?join(paths.base,'../combined-takeda-20261006T0550Z/supervise-cancel.mjs'):paths.supervisor;
+   const args=[supervisor,'start',control,name,'--',process.execPath,paths.wrapper,diagnostics,String(timeout),'--',process.execPath,join(paths.base,'fixture-fault-inner.mjs'),ready,String(duration),String(exit),signalMode];
+   const env={...process.env,NODE_OPTIONS:'--require '+join(paths.base,'inject-supervisor-fault.cjs'),SYNTHETIC_SUPERVISOR_FAULT:fault,SYNTHETIC_SUPERVISOR_FAULT_RECEIPT:injected};
+-  const child=spawn(process.execPath,args,{env,cwd:join(paths.r2,'producer42'),stdio:['ignore','pipe','pipe']});
++  const child=spawn(process.execPath,args,{env,cwd:join(paths.r2,'publication-deadline-candidate-20261006T0902Z'),stdio:['ignore','pipe','pipe']});
+   let stderr='',stdout='';child.stderr.on('data',x=>stderr+=x);child.stdout.on('data',x=>stdout+=x);
+   let wrapperAtSupervisorExit;
+   child.once('exit',()=>{wrapperAtSupervisorExit=lines(join(diagnostics,'process.jsonl'));});
+diff --git a/companion/test-binding-and-paths.mjs b/companion/test-binding-and-paths.mjs
+new file mode 100644
+--- /dev/null
++++ b/companion/test-binding-and-paths.mjs
+@@ -0,0 +1,84 @@
++// Synthetic/read-only checks only; never materializes a registered identity.
++import assert from 'node:assert/strict';
++import {readFileSync,mkdtempSync,mkdirSync,existsSync,writeFileSync} from 'node:fs';
++import {spawnSync} from 'node:child_process';
++import {dirname,join,resolve} from 'node:path';
++import {fileURLToPath} from 'node:url';
++import {validateRegistrationReadback} from './bind-registered-readback.mjs';
++import {paths} from './supervision/create-combined-starter.mjs';
++const base=dirname(fileURLToPath(import.meta.url)),r2=dirname(base),host=join(base,'host');
++const oldHost=join(r2,'hosts46/takeda'),oldRepo=join(r2,'producer42'),newRepo=dirname(dirname(paths.wrapper));
++const read=p=>readFileSync(p,'utf8'),checks=[];
++const original=read(join(oldHost,'runtime/start-monitor-portable42.js')),candidate=read(join(host,'runtime/start-monitor-portable42.js'));
++const command=s=>s.slice(s.indexOf('const command='),s.indexOf('\nawait h.save(run+"/reviewed-command.txt"'));
++assert.equal(command(candidate),command(original).replaceAll(oldRepo,newRepo));checks.push('business-command-byte-exact-after-only-repo-path-map');
++assert.ok(command(candidate).includes(newRepo+'/node_modules/tsx/dist/loader.mjs'));assert.ok(!command(candidate).includes(oldRepo));
++assert.ok(command(candidate).includes(' 1800000 -- node --max-old-space-size=256 '));
++assert.ok(command(candidate).includes('P0_SOURCE_HTTP_TIMEOUT_MS=45000'));checks.push('same-repo-wrapper-loader-heap-timeout-and-source-env');
++const section=s=>s.slice(s.indexOf('// BEGIN OBSERVATION_DUE_GATE'),s.indexOf('// END OBSERVATION_DUE_GATE'));
++assert.equal(section(candidate),section(original));checks.push('due-gate-byte-identical');
++const cfg=JSON.parse(read(join(host,'host-config.json'))),activation=JSON.parse(read(join(host,'activation.json'))),control=JSON.parse(read(join(host,'control-base.json')));
++assert.equal(cfg.repo,newRepo);assert.equal(cfg.root,host);assert.equal(activation.status,'UNREGISTERED');assert.equal(activation.candidate,null);assert.equal(control.candidate,null);checks.push('delivery-config-has-no-fake-candidate-or-version');
++const expected=JSON.parse(read(join(base,'EXPECTED_REGISTRATION.json'))),now=Date.now();
++const input={checkedAt:new Date(now).toISOString(),row:{...expected,id:'synthetic-deadline-test-only',version:1,status:'BUILDING'}};
++assert.equal(validateRegistrationReadback(input,now).candidate.id,input.row.id);checks.push('synthetic-registration-binding');
++for(const [name,value,re] of [
++ ['stale',{...input,checkedAt:new Date(now-60001).toISOString()},/FRESH/],
++ ['future',{...input,checkedAt:new Date(now+1).toISOString()},/FRESH/],
++ ['version',{...input,row:{...input.row,version:null}},/ROW_REQUIRED/],
++ ['old-id',{...input,row:{...input.row,id:'dot-cloud-restored-fb0b8e3-20261005T2028Z'}},/ROW_REQUIRED/],
++ ['runtime',{...input,row:{...input.row,runtimeTreeHash:'0'.repeat(64)}},/IDENTITY:runtimeTreeHash/],
++ ['source',{...input,row:{...input.row,sourceConfigHash:'0'.repeat(64)}},/IDENTITY:sourceConfigHash/]
++ ]){assert.throws(()=>validateRegistrationReadback(value,now),re);checks.push('reject-'+name);}
++const A=Object.getPrototypeOf(async function(){}).constructor;
++for(const [name,source] of [['business-starter',candidate],['combined-starter',read(join(base,'supervision/start-monitor-takeda46-combined.js'))]]){
++ let calls=0;const h={cfg};globalThis.__deadlineBindingFixture=()=>h;
++ const load=k=>k.endsWith('cloudPilotHostHelpers')?'return __deadlineBindingFixture();':k.endsWith('registeredCandidateBinding')?activation:undefined;
++ try{await assert.rejects(()=>new A('load','store','notify','tools',source)(load,()=>{calls++;},()=>{calls++;},new Proxy({},{get(){calls++;throw Error('UNEXPECTED_TOOL');}})),/CANDIDATE_NOT_REGISTERED/);}
++ finally{delete globalThis.__deadlineBindingFixture;}
++ assert.equal(calls,0);checks.push(name+'-rejects-unregistered-before-tools');
++}
++const loader=read(join(host,'runtime/load-source-runtime.js'));let stores=0,reads=0;
++await assert.rejects(()=>new A('sourceKey','load','store','text','tools',loader)('takeda',()=>undefined,()=>{stores++;},()=>{}, {exec_command:async()=>{reads++;return {exit_code:0,output:JSON.stringify({'../activation.json':JSON.stringify(activation)})};}}),/CANDIDATE_NOT_REGISTERED/);
++assert.equal(reads,1);assert.equal(stores,0);checks.push('runtime-loader-rejects-before-state-replacement');
++const hostLoader=read(join(host,'runtime/load-host-state.js'));
++const approvedBinding=validateRegistrationReadback(input,now);
++const approvedControl={...control,candidate:approvedBinding.candidate};
++for(const mode of ['synthetic-valid','unregistered','wrong-repo','wrong-build','partial-binding']){
++ let saved=0;
++ const readCfg={...cfg,...(mode==='wrong-repo'?{repo:oldRepo}:{})};
++ const readBuild={...control.build,...(mode==='wrong-build'?{runtimeTreeSha256:'0'.repeat(64)}:{})};
++ const readControl={...approvedControl,build:readBuild,...(mode==='partial-binding'?{candidate:{...approvedBinding.candidate,id:'synthetic-other'}}:{})};
++ const readBinding=mode==='unregistered'?activation:{...approvedBinding,build:readBuild};
++ const files={'host-config.json':JSON.stringify(readCfg),'control-base.json':JSON.stringify(readControl),'activation.json':JSON.stringify(readBinding),'host-helper-functions.js':read(join(host,'host-helper-functions.js')),'host-stage-functions.js':read(join(host,'host-stage-functions.js'))};
++ const execute=()=>new A('root','sourceId','candidateId','commit','load','store','tools',hostLoader)(host,cfg.sourceId,approvedBinding.candidate.id,control.build.commitSha,()=>undefined,()=>{saved++;},{exec_command:async()=>({exit_code:0,output:JSON.stringify(files)})});
++ if(mode==='synthetic-valid'){await execute();assert.equal(saved,4);}
++ else{await assert.rejects(execute,/CANDIDATE_NOT_REGISTERED|HOST_LOAD_BINDING_MISMATCH|HOST_LOCAL_BUILD_BINDING_MISMATCH/);assert.equal(saved,0);}
++ checks.push('host-loader-'+mode);
++}
++const oldReview=read(join(oldHost,'runtime/review-publication.py'));
++const newReview=read(join(host,'runtime/review-publication.py')).replace("\nbinding=json.loads((host/'activation.json').read_text());control=json.loads((host/'control-base.json').read_text())\nassert binding['status']=='REGISTERED_VERIFIED' and binding['candidate'] and binding['build']==control['build'] and binding['candidate']==control['candidate']",'').replace("row['releaseCandidateId']==binding['candidate']['id']","row['releaseCandidateId']=='dot-cloud-restored-fb0b8e3-20261005T2028Z'");
++assert.equal(newReview,oldReview);checks.push('reviewer-gates-byte-identical-except-added-registration-and-id-binding');
++{
++ const saved=new Map();let reads=0;
++ const runtimeFiles={'load-host-state.js':hostLoader,'../../supervision/start-monitor-takeda46-combined.js':read(join(base,'supervision/start-monitor-takeda46-combined.js')),'continuous-relay-v3-durable-monitor.js':read(join(host,'runtime/continuous-relay-v3-durable-monitor.js')),'../activation.json':JSON.stringify(approvedBinding)};
++ runtimeFiles['complete-reviewed-source-readback.js']=read(join(host,'runtime/complete-reviewed-source-readback.js'));
++ const hostFiles={'host-config.json':JSON.stringify(cfg),'control-base.json':JSON.stringify(approvedControl),'activation.json':JSON.stringify(approvedBinding),'host-helper-functions.js':read(join(host,'host-helper-functions.js')),'host-stage-functions.js':read(join(host,'host-stage-functions.js'))};
++ const tools={exec_command:async()=>({exit_code:0,output:JSON.stringify(++reads===1?runtimeFiles:hostFiles)})};
++ globalThis.tools=tools;globalThis.store=(key,value)=>saved.set(key,value);
++ try{await new A('sourceKey','load','store','text','tools',loader)('takeda',()=>undefined,globalThis.store,()=>{},tools);}
++ finally{delete globalThis.tools;delete globalThis.store;}
++ assert.equal(reads,2);
++ assert.equal(saved.get('deadlineCandidate:takeda:restoredPortableSourceStartCode'),runtimeFiles['../../supervision/start-monitor-takeda46-combined.js']);
++ assert.ok([...saved.keys()].every(key=>key.startsWith('deadlineCandidate:takeda:')));
++ assert.equal(saved.get('deadlineCandidate:takeda:completeReviewedSourceCode'),runtimeFiles['complete-reviewed-source-readback.js']);
++ checks.push('synthetic-valid-loader-selects-candidate-bound-completion');
++ checks.push('synthetic-valid-loader-selects-supervised-starter-and-isolated-state');
++}
++mkdirSync(join(base,'verification'),{recursive:true});const artifacts=mkdtempSync(join(base,'verification/binding-'));
++const review=spawnSync('python3',[join(host,'runtime/review-publication.py'),host,join(host,'synthetic-unregistered'), '11111111-1111-4111-8111-111111111111'],{encoding:'utf8'});
++assert.notEqual(review.status,0);assert.match(review.stderr,/AssertionError/);assert.doesNotMatch(review.stderr,/FileNotFoundError/);checks.push('reviewer-rejects-unregistered-before-reading-packet');
++const rejected=spawnSync(process.execPath,[paths.supervisor,'start',join(artifacts,'old-wrapper-control'),'synthetic-old-wrapper','--',process.execPath,join(oldRepo,'scripts/run-with-http-diagnostics.mjs'),join(artifacts,'diagnostics'),'500','--',process.execPath,'-e','process.exit(99)'],{encoding:'utf8'});
++assert.notEqual(rejected.status,0);assert.match(rejected.stderr,/ORIGINAL_WRAPPER_COMMAND_REQUIRED/);assert.equal(existsSync(join(artifacts,'diagnostics')),false);checks.push('new-supervisor-refuses-old-wrapper-path');
++const report={status:'PASS_OFFLINE_BINDING_AND_PATHS',checks,realProducerExecuted:false,networkUsed:false,databaseUsed:false,activationStillUnregistered:JSON.parse(read(join(host,'activation.json'))).status==='UNREGISTERED',sameCandidatePath:newRepo};
++writeFileSync(join(artifacts,'BINDING_RESULTS.json'),JSON.stringify(report,null,2)+'\n');console.log(JSON.stringify(report));
+diff --git a/companion/test-completion-binding.mjs b/companion/test-completion-binding.mjs
+new file mode 100644
+--- /dev/null
++++ b/companion/test-completion-binding.mjs
+@@ -0,0 +1,56 @@
++// All DB/tool/state boundaries are synthetic; no real publisher state is read.
++import assert from 'node:assert/strict';
++import {readFileSync} from 'node:fs';
++import {dirname,join} from 'node:path';
++import {fileURLToPath} from 'node:url';
++import {applyCandidateCompletion} from './host/runtime/update-candidate-completion-state.mjs';
++const base=dirname(fileURLToPath(import.meta.url)),code=readFileSync(join(base,'host/runtime/complete-reviewed-source-readback.js'),'utf8');
++const ns='deadlineCandidate:takeda:',A=Object.getPrototypeOf(async function(){}).constructor,checks=[];
++const sourceId='source-takeda-china-social',batch='synthetic-completion',candidateId='synthetic-registered-candidate',candidateVersion=73;
++const binding={status:'REGISTERED_VERIFIED',candidate:{id:candidateId,version:candidateVersion,goalId:'jobfinder-portable-required-40'}};
++const src={id:batch+'--'+sourceId,releaseCandidateId:candidateId,sourceId,sourceConfigHash:'f'.repeat(64),startedAt:'2026-10-06T00:00:00Z',finishedAt:'2026-10-06T00:01:00Z',rawCount:8,dedupeOutputCount:7,canonicalCurrentJobSetSha256:'a'.repeat(64),completenessCertificateSha256:'b'.repeat(64)};
++const observation={id:'synthetic-observation',sourceResultId:src.id,sourceId,batchId:batch,releaseCandidateId:candidateId,sourceConfigSha256:src.sourceConfigHash,observedFrom:src.startedAt,observedTo:src.finishedAt,crawledAt:'2026-10-06T00:00:30Z',successful:true,transportSucceeded:true,adapterSucceeded:true,completenessVerified:true,atomicCommitSucceeded:true};
++const receipt={checkedAt:'2026-10-06T00:02:00Z',row:{...src,batchId:batch,atomicCommitState:'COMMITTED',completenessState:'VERIFIED'},batch:{id:batch,releaseCandidateId:candidateId,status:'SUCCESS',finishedAt:'2026-10-06T00:01:00Z'},holderId:'',observations:[observation],successfulSourceCount:2,successfulCurrentJobCount:14};
++async function run(mode='good'){
++ const values=new Map([[ns+'refreshCurrentRun','/synthetic/host/'+batch],[ns+'refreshCurrentBatch',batch],[ns+'registeredCandidateBinding',structuredClone(binding)],[ns+'publicationReview',{sourceResult:structuredClone(src)}],[ns+'refreshSession',123],[ns+'lastPortableExecPoll',{originalSessionId:123,exit_code:0}]]);
++ const row=structuredClone(receipt),calls={sql:0,saves:0,state:0,output:[]};let data;
++ if(mode==='running')values.set(ns+'lastPortableExecPoll',{originalSessionId:123,session_id:123});
++ if(mode==='unknown')values.set(ns+'lastPortableExecPoll',{originalSessionId:123,classification:'UNKNOWN'});
++ if(mode==='nonzero')values.set(ns+'lastPortableExecPoll',{originalSessionId:123,exit_code:1});
++ if(mode==='other-session')values.set(ns+'lastPortableExecPoll',{originalSessionId:999,exit_code:0});
++ if(mode==='contradictory-terminal')values.set(ns+'lastPortableExecPoll',{originalSessionId:123,exit_code:0,session_id:123});
++ if(mode==='unregistered')values.get(ns+'registeredCandidateBinding').status='UNREGISTERED';
++ if(mode==='review-candidate')values.get(ns+'publicationReview').sourceResult.releaseCandidateId='other';
++ if(mode==='zero-write')row.row=null;
++ if(mode==='batch-not-success')row.batch.status='RUNNING';
++ if(mode==='wrong-batch-candidate')row.batch.releaseCandidateId='other';
++ if(mode==='hash-mismatch')row.row.canonicalCurrentJobSetSha256='0'.repeat(64);
++ if(mode==='holder-busy')row.holderId='other';
++ if(mode==='observation-flags')row.observations[0].atomicCommitSucceeded=false;
++ if(mode==='observation-tuple')row.observations[0].releaseCandidateId='other';
++ if(mode==='observation-window')row.observations[0].crawledAt='2026-10-06T00:03:00Z';
++ const h={cfg:{root:'/synthetic/host',sourceId,sourceConfigSha256:src.sourceConfigHash,project:'SYNTHETIC_ONLY'},q:value=>{if(String(value).startsWith('{'))data=JSON.parse(value);return "'"+String(value).replaceAll("'","''")+"'";},rows:x=>x,save:async()=>{calls.saves++;},cmd:async()=>{calls.state++;return 'SYNTHETIC_STATE_ONLY';}};
++ globalThis.__completionFixture=()=>h;
++ let error;try{await new A('load','tools','text',code)(k=>k.endsWith('cloudPilotHostHelpers')?'return __completionFixture();':values.get(k),{mcp__codex_apps__supabase_execute_sql:async request=>{calls.sql++;assert.equal(request.project_id,'SYNTHETIC_ONLY');assert.match(request.query,/^WITH latest AS/);assert.doesNotMatch(request.query,/\b(?:INSERT|UPDATE|DELETE|ALTER|CREATE|DROP)\b/);return [row];}},x=>calls.output.push(x));}catch(e){error=e;}finally{delete globalThis.__completionFixture;}
++ return {calls,error,data};
++}
++const good=await run();assert.equal(good.error,undefined);assert.equal(good.calls.sql,1);assert.equal(good.calls.state,1);assert.equal(good.calls.output[0].candidateVersion,candidateVersion);assert.equal(good.calls.output[0].candidateId,candidateId);checks.push('exact-read-only-completion-uses-registered-version');
++for(const mode of ['running','unknown','nonzero','other-session','contradictory-terminal','unregistered','review-candidate','zero-write','batch-not-success','wrong-batch-candidate','hash-mismatch','holder-busy','observation-flags','observation-tuple','observation-window']){
++ const result=await run(mode);assert.ok(result.error,mode);assert.equal(result.calls.state,0);assert.equal(result.calls.output.length,0);assert.equal(result.calls.saves,0);checks.push('reject-'+mode);
++ if(['running','unknown','nonzero','other-session','contradictory-terminal','unregistered','review-candidate'].includes(mode))assert.equal(result.calls.sql,0);
++}
++const task={batchId:batch,sourceId,candidateId,candidateVersion};
++const oldUnknown={batchId:'old-UNKNOWN',sourceId,candidateId:'old-candidate',candidateVersion:46,outcome:'UNKNOWN',noFurtherProductionWriteInOriginalProcess:true};
++const state={active:task,pendingReadOnlyTerminalSources:[oldUnknown],runtimeCandidate:{candidateId,candidateVersion,successfulSourceCount:1,successfulCurrentJobCount:7},sourceSpecificRuntimeCandidates:{other:{candidateId:'other-candidate',candidateVersion:88,successfulSources:9}},unknownOutcomes:[oldUnknown]};
++const before=structuredClone(state),main=applyCandidateCompletion(state,good.data);
++assert.deepEqual(state,before);assert.equal(main.runtimeCandidate.successfulSourceCount,2);assert.deepEqual(main.sourceSpecificRuntimeCandidates,before.sourceSpecificRuntimeCandidates);assert.deepEqual(main.unknownOutcomes,before.unknownOutcomes);assert.deepEqual(main.pendingReadOnlyTerminalSources,[oldUnknown]);checks.push('main-slot-only-and-old-unknown-preserved');
++const specific={...before,active:oldUnknown,pendingReadOnlyTerminalSources:[oldUnknown,{...task,noFurtherProductionWriteInOriginalProcess:true}],runtimeCandidate:{candidateId:'other-main',candidateVersion:46,successfulSourceCount:40,successfulCurrentJobCount:999},sourceSpecificRuntimeCandidates:{[sourceId]:{candidateId,candidateVersion,successfulSources:1,successfulCurrentJobCount:7},other:{candidateId:'other',candidateVersion:88,successfulSources:9}}};
++const updated=applyCandidateCompletion(specific,good.data);assert.deepEqual(updated.runtimeCandidate,specific.runtimeCandidate);assert.deepEqual(updated.active,oldUnknown);assert.deepEqual(updated.pendingReadOnlyTerminalSources,[oldUnknown]);assert.equal(updated.sourceSpecificRuntimeCandidates[sourceId].successfulSources,2);assert.deepEqual(updated.sourceSpecificRuntimeCandidates.other,specific.sourceSpecificRuntimeCandidates.other);checks.push('source-specific-slot-only-and-unrelated-active-preserved');
++for(const [name,mutate] of [
++ ['wrong-version',s=>{s.runtimeCandidate.candidateVersion=74;}],
++ ['no-slot',s=>{s.runtimeCandidate.candidateId='other';}],
++ ['ambiguous-slot',s=>{s.sourceSpecificRuntimeCandidates[sourceId]={candidateId,candidateVersion};}],
++ ['no-current-task',s=>{s.active=oldUnknown;}],
++ ['conflicting-aliases',s=>{s.runtimeCandidate.id='other';}]
++ ]){const s=structuredClone(before);mutate(s);const snapshot=structuredClone(s);assert.throws(()=>applyCandidateCompletion(s,good.data));assert.deepEqual(s,snapshot);checks.push('state-reject-'+name);}
++console.log(JSON.stringify({status:'PASS_COMPLETION_BINDING_SYNTHETIC_ONLY',checks,databaseCallsActuallyExecuted:0,actualPublisherStateRead:false,actualPublisherStateWritten:false}));
+diff --git a/companion/test-local-preflight.mjs b/companion/test-local-preflight.mjs
+new file mode 100644
+--- /dev/null
++++ b/companion/test-local-preflight.mjs
+@@ -0,0 +1,24 @@
++// Real local preflight with a synthetic identity row; no registration or launch.
++import assert from 'node:assert/strict';
++import {readFileSync,writeFileSync,mkdirSync,mkdtempSync} from 'node:fs';
++import {createHash} from 'node:crypto';
++import {dirname,join} from 'node:path';
++import {fileURLToPath} from 'node:url';
++import {preflight} from './host/runtime/preflight/preflight-launch.mjs';
++const base=dirname(fileURLToPath(import.meta.url));
++mkdirSync(join(base,'verification'),{recursive:true});
++const root=mkdtempSync(join(base,'verification/local-preflight-'));
++const cfg={...JSON.parse(readFileSync(join(base,'host/host-config.json'),'utf8')),root};
++const expected=JSON.parse(readFileSync(join(base,'EXPECTED_REGISTRATION.json'),'utf8'));
++const build=JSON.parse(readFileSync(join(base,'LOCAL_UNREGISTERED_BUILD_IDENTITY.json'),'utf8')).build;
++const candidate={id:'synthetic-deadline-preflight-only',goalId:expected.goalId,version:1};
++const control={projectId:cfg.project,build,candidate};
++const bootstrap={schemaVersion:1,checkedAt:new Date().toISOString(),candidateRows:[{...expected,...candidate,status:'BUILDING'}],batchId:'synthetic-deadline-preflight-only'};
++for(const [name,value] of [['host-config.json',cfg],['control-base.json',control],['bootstrap.json',bootstrap]])writeFileSync(join(root,name),JSON.stringify(value),{flag:'wx',mode:0o600});
++const digest=createHash('sha256').update(readFileSync(join(root,'bootstrap.json'))).digest('hex');
++const {report}=await preflight(['check',join(root,'host-config.json'),join(root,'control-base.json'),join(root,'bootstrap.json'),digest,join(root,'synthetic-run')]);
++assert.equal(report.localChecksPassed,true);assert.equal(report.bootstrapFresh,true);
++assert.deepEqual(report.runtime.build,build);assert.equal(report.runtime.archiveSmoke.passed,true);
++assert.equal(report.runtime.archiveSmoke.qualification,false);assert.equal(report.runtime.archiveSmoke.network,false);assert.equal(report.runtime.archiveSmoke.database,false);
++assert.equal(JSON.parse(readFileSync(join(base,'host/activation.json'),'utf8')).status,'UNREGISTERED');
++console.log(JSON.stringify({status:'PASS_REAL_LOCAL_PREFLIGHT_SYNTHETIC_ROW',build,archiveSmoke:true,launchExecuted:false,registrationPerformed:false,networkUsed:false,databaseUsed:false,deliveryActivationStillUnregistered:true}));
+diff --git a/companion/test-terminal-and-launch.mjs b/companion/test-terminal-and-launch.mjs
+new file mode 100644
+--- /dev/null
++++ b/companion/test-terminal-and-launch.mjs
+@@ -0,0 +1,50 @@
++import assert from 'node:assert/strict';
++import {readFileSync} from 'node:fs';
++import {dirname,join} from 'node:path';
++import {fileURLToPath} from 'node:url';
++import {preflight} from './host/runtime/preflight/preflight-launch.mjs';
++const base=dirname(fileURLToPath(import.meta.url)),source=readFileSync(join(base,'host/runtime/continuous-relay-v3-durable-monitor.js'),'utf8');
++const A=Object.getPrototypeOf(async function(){}).constructor,ns='deadlineCandidate:takeda:',checks=[];
++await assert.rejects(()=>preflight(['launch','never-read','never-read','never-read','a'.repeat(64),'never-created']),/PREFLIGHT_LEGACY_LAUNCH_DISABLED_USE_SUPERVISED_STARTER/);checks.push('legacy-launch-refused-before-files-or-spawn');
++async function run(polls,wrapperExitCode=0){
++ const stored=new Map(),messages=[],calls=[];let index=0,now=Date.now();
++ class Clock extends Date{static now(){return now;}}
++ const stages={h:{next:async()=>undefined,q:JSON.stringify,cmd:async()=>JSON.stringify({process:{event:'CHILD_EXIT',wrapperExitCode},supervisor:null,observer:null,http:{}})}};
++ globalThis.__terminalFixture=()=>stages;
++ const load=k=>k.endsWith('cloudPilotHostStages')?'return __terminalFixture();':k.endsWith('refreshCurrentRun')?'/synthetic/run':k.endsWith('refreshSession')?123:undefined;
++ const tools={write_stdin:async input=>{calls.push(input.session_id);now+=1000;const p=polls[index++];if(p instanceof Error)throw p;if(!p)throw Error('UNEXPECTED_EXTRA_POLL');return p;}};
++ let error;
++ try{await new A('load','store','notify','text','tools','Date',source)(load,(k,v)=>stored.set(k,v),x=>messages.push(x),x=>messages.push(x),tools,Clock);}catch(e){error=e;}
++ finally{delete globalThis.__terminalFixture;}
++ return {stored,messages,calls,error};
++}
++const continued=await run([{session_id:123,output:'running'},{exit_code:0,output:'done'}]);
++assert.deepEqual(continued.calls,[123,123]);assert.equal(continued.messages.filter(m=>m.status==='PROCESS_TERMINATED').length,1);
++assert.equal(continued.messages[0].status,'WRAPPER_EXIT_ORIGINAL_EXEC_STILL_RUNNING');
++assert.equal(continued.messages.at(-1).originalExec.state,'TERMINATED');
++assert.equal(continued.messages.at(-1).levels.supervisor.state,'UNKNOWN');assert.equal(continued.messages.at(-1).levels.observer.state,'UNKNOWN');
++assert.equal(continued.stored.get(ns+'lastPortableExecPoll').originalSessionId,123);checks.push('running-original-session-then-actual-zero-exit');
++assert.equal(continued.error,undefined);assert.equal(continued.stored.get(ns+'lastPortableExecPoll').exit_code,0);
++for(const [name,polls] of [['denial',[Error('SYNTHETIC_REVIEW_DENIED')]],['unknown-shape',[{}]],['wrong-session',[{session_id:999}]],['running-then-denial',[{session_id:123},Error('SYNTHETIC_REVIEW_DENIED')]]]){
++ const result=await run(polls);assert.equal(result.calls.length,polls.length);assert.ok(result.calls.every(id=>id===123));
++ assert.equal(result.messages.some(m=>m.status==='PROCESS_TERMINATED'),false);assert.equal(result.messages.at(-1).status,'ORIGINAL_EXEC_UNKNOWN');
++ assert.equal(result.stored.get(ns+'lastPortableExecPoll').exit_code,undefined);checks.push(name+'-preserves-unknown-without-restart');
++}
++const mismatch=await run([{exit_code:0}],17);
++assert.match(mismatch.error.message,/DURABLE_EXIT_TOOL_EXIT_MISMATCH/);
++assert.equal(mismatch.stored.get(ns+'lastPortableExecPoll').exit_code,undefined);
++assert.equal(mismatch.stored.get(ns+'lastPortableExecPollRaw').raw.exit_code,0);
++assert.equal(mismatch.messages.some(m=>m.status==='PROCESS_TERMINATED'),false);
++{
++ const completion=readFileSync(join(base,'host/runtime/complete-reviewed-source-readback.js'),'utf8');
++ const sourceId='source-takeda-china-social',batch='synthetic-mismatch',candidateId='synthetic-candidate';
++ const state=new Map([[ns+'refreshCurrentRun','/synthetic/host/'+batch],[ns+'refreshCurrentBatch',batch],[ns+'refreshSession',123],[ns+'lastPortableExecPoll',mismatch.stored.get(ns+'lastPortableExecPoll')],[ns+'registeredCandidateBinding',{status:'REGISTERED_VERIFIED',candidate:{id:candidateId,version:73}}],[ns+'publicationReview',{sourceResult:{id:batch+'--'+sourceId,sourceId,sourceConfigHash:'f'.repeat(64),releaseCandidateId:candidateId}}]]);
++ let dbCalls=0,stateCalls=0,outputs=0;
++ const helper={cfg:{root:'/synthetic/host',sourceId,sourceConfigSha256:'f'.repeat(64)},save:async()=>{stateCalls++;},cmd:async()=>{stateCalls++;}};
++ globalThis.__mismatchCompletionFixture=()=>helper;
++ try{await assert.rejects(()=>new A('load','tools','text',completion)(k=>k.endsWith('cloudPilotHostHelpers')?'return __mismatchCompletionFixture();':state.get(k),{mcp__codex_apps__supabase_execute_sql:async()=>{dbCalls++;throw Error('FORBIDDEN_DB');}},()=>{outputs++;}),/ACTUAL_ORIGINAL_ZERO_EXIT_REQUIRED/);}
++ finally{delete globalThis.__mismatchCompletionFixture;}
++ assert.equal(dbCalls,0);assert.equal(stateCalls,0);assert.equal(outputs,0);
++ checks.push('wrapper-tool-mismatch-cannot-feed-completion');
++}
++console.log(JSON.stringify({status:'PASS_TERMINAL_AND_LAUNCH_REVISION',checks,realProducerExecuted:false,networkUsed:false,databaseUsed:false}));

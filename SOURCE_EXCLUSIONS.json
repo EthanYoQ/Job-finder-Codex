@@ -1,0 +1,97 @@
+{
+  "sourceInventories": {
+    "companionR3": "7e313744bb1c80002ed50c73452cf9f3b0ff79beab1e6e3648bf468885a7ddee",
+    "sqlSupportR3": "3f74db1ed3544c2d693a0741f95a6a9e2e8331b3149d65cc262e3ff43b6a9cbd"
+  },
+  "excludedOriginalFiles": [
+    {
+      "path": "companion/EXPECTED_REGISTRATION.json",
+      "sha256": "24bb5b4f6a22af938493f0ed68a6e07b7fc545da1dbe579ef84ba49c8cfa0cf2",
+      "reason": "Actual configuration/identity/receipt, redundant description, status README, or original revision diff"
+    },
+    {
+      "path": "companion/FINAL_COMPANION_R3_RECEIPT.json",
+      "sha256": "3ff95bd5c416f954defccda76aaecb5fe64f6f453baf486a8f9c08f03bc05fd8",
+      "reason": "Actual configuration/identity/receipt, redundant description, status README, or original revision diff"
+    },
+    {
+      "path": "companion/LOCAL_COMMIT_DESCRIPTION.txt",
+      "sha256": "9eeee905296d38b2d73bb73873ca8849ef4e9d3ab9b6bcf0ed266009c257f520",
+      "reason": "Actual configuration/identity/receipt, redundant description, status README, or original revision diff"
+    },
+    {
+      "path": "companion/LOCAL_UNREGISTERED_BUILD_IDENTITY.json",
+      "sha256": "b2396b0034b660a011e2abed6068cf618090a37f8f450be178ef9277593a6026",
+      "reason": "Actual configuration/identity/receipt, redundant description, status README, or original revision diff"
+    },
+    {
+      "path": "companion/README.md",
+      "sha256": "5488427d29f2e3b74e713e467b9e9b522d4cc34bee3179af5e523bb563a512d9",
+      "reason": "Actual configuration/identity/receipt, redundant description, status README, or original revision diff"
+    },
+    {
+      "path": "companion/companion-r3.diff",
+      "sha256": "c4e73a2fc07c41f7e1efe25f84d14ebb3b043bab7bf4841bffc822b85a01268e",
+      "reason": "Actual configuration/identity/receipt, redundant description, status README, or original revision diff"
+    },
+    {
+      "path": "companion/host/activation.json",
+      "sha256": "b11083a341c1e1fd784d5f15e898d7cbfa9d5d4a4182c5137fc4c33a976b5abf",
+      "reason": "Actual configuration/identity/receipt, redundant description, status README, or original revision diff"
+    },
+    {
+      "path": "companion/host/control-base.json",
+      "sha256": "b659dbae4e008aa6d249e8291d18ad6ca8c45719c0037bfdd0cb0e1d4c6a9a74",
+      "reason": "Actual configuration/identity/receipt, redundant description, status README, or original revision diff"
+    },
+    {
+      "path": "companion/host/host-config.json",
+      "sha256": "5f07207c6238535bc2e19c2f4085473dfc4eeceee318591b57d73c6ec1da4148",
+      "reason": "Actual configuration/identity/receipt, redundant description, status README, or original revision diff"
+    },
+    {
+      "path": "companion/host/runtime/load-host-state.js",
+      "sha256": "c0f2ff232b5aea46c70ee98ece4db6c781328013ffa7db1c80507bf43de02247",
+      "reason": "Actual configuration/identity/receipt, redundant description, status README, or original revision diff"
+    },
+    {
+      "path": "sql-test-support/OFFICIAL_SOURCE_AND_DEPENDENCIES.json",
+      "sha256": "345a4e9da46bc45bd0dd69c6ed43c0b06e741f54ae5f20822859f0173035a289",
+      "reason": "Original status/provenance/result record or redundant revision diff; only source and independent minimal dependencies retained"
+    },
+    {
+      "path": "sql-test-support/README.md",
+      "sha256": "09561fba7843f280db9a77d9933dc4d0bc1c6a320acae76f2b2dd60bbc719725",
+      "reason": "Original status/provenance/result record or redundant revision diff; only source and independent minimal dependencies retained"
+    },
+    {
+      "path": "sql-test-support/REVISION_R3.json",
+      "sha256": "5e0da9a4ad6349fb5c97858cced18a3268d94777414f573f96a6d08384632e5e",
+      "reason": "Original status/provenance/result record or redundant revision diff; only source and independent minimal dependencies retained"
+    },
+    {
+      "path": "sql-test-support/r3-from-r2.diff",
+      "sha256": "15318e8f4e76e3519b48d4d1dfbb3026d3fbe10b25971613ddef23c0e28a8be5",
+      "reason": "Original status/provenance/result record or redundant revision diff; only source and independent minimal dependencies retained"
+    },
+    {
+      "path": "companion/companion-binding.diff (initial mixed original)",
+      "sha256": "8359ffcc6c48e332c156607492e9df066c37fff39195a32db16b8e39addfd0b6",
+      "reason": "Mixed configuration/identity and source; source-only.diff is separately derived"
+    },
+    {
+      "path": "companion/companion-r2.diff (earlier source revision)",
+      "sha256": "040e9d30d3466ac9358ef2a9e09295f60fead8bdb338315fda81e8287dfd5f86",
+      "reason": "Earlier revision represented by final selected source"
+    }
+  ],
+  "otherExcluded": [
+    "Actual database rows and responses",
+    "Original captures",
+    "Environment variables and credentials",
+    "Installed dependencies and engine binaries",
+    "Native engine source/data/logs",
+    "Runtime and registration identity payloads",
+    "Internal operational reports"
+  ]
+}
