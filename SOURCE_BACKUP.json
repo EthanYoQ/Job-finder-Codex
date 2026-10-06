@@ -2,20 +2,44 @@
   "schemaVersion": 1,
   "files": [
     {
-      "path": "r4/create-fence.template.sh",
+      "path": "r5-continuation/bootstrap_continuation.py",
       "mode": "100644",
       "type": "blob",
-      "sha": "ab9fcdffce45f72bbc8e051bc11222f054be88d2",
-      "sha256": "2e27b3f4d4f797ff819e9500a8ffe4c7f01ac8aacf4d9b21a8b3eb2e36451622",
-      "bytes": 5625
+      "sha": "fa5c27b762e6515413778c41e5dd337a8e0f97d7",
+      "sha256": "08059f938d82a36b19cbca9da95cd226036db48ad0c441b09bc1b04b284430bb",
+      "bytes": 21867
     },
     {
-      "path": "r4/fence_candidate.py",
+      "path": "r5-continuation/BOOTSTRAP_CONTINUATION_R5.py",
       "mode": "100644",
       "type": "blob",
-      "sha": "dc7987c01f2f9923ec15fa817ad66567a00e63ee",
-      "sha256": "24e845b0240df68c4cae398e46dbe923c8d27fd69a9f1ef4a15b291d7fb23f63",
-      "bytes": 8935
+      "sha": "f01e435965eda3acccb4997360ee555817d97fce",
+      "sha256": "4aed747d94c36230395faa75f052c764c42da51e8b37bb8da719d12ac48006c8",
+      "bytes": 32913
+    },
+    {
+      "path": "r5-continuation/build_single_file.py",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "d13620bc3ef936a5ab1b9b90e63e79c128024cdf",
+      "sha256": "c295fdf6f3b9a56b06bccd5a06342ad8dc40f379368db5526a7097b31cb4c73b",
+      "bytes": 9370
+    },
+    {
+      "path": "r5-continuation/test_continuation.py",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "e8528942a65d2c3a6489b7972f0f6dce8e14c4ea",
+      "sha256": "a4b41e3b2a4b2d40a1318d90eb8cb0da922fc1e6b9bdf14a8126f401a83312bc",
+      "bytes": 14427
+    },
+    {
+      "path": "r5-continuation/test_wrappers.py",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "31bcf1386b3eeda869c7745b574d41a900961b02",
+      "sha256": "cf2b09137645eeb26d02397a656440235d6067cc33dde389108caf12fc5d168f",
+      "bytes": 8634
     },
     {
       "path": "r4/fence_module.py",
@@ -23,64 +47,9 @@
       "type": "blob",
       "sha": "a667723c1913f44b458916b97fef9228ec64f356",
       "sha256": "d420bd7bb06bc1f4303f24433054ae203f2228532b5acb20ffe86e38bed37d5a",
-      "bytes": 9232
-    },
-    {
-      "path": "r4/generate_wrappers.py",
-      "mode": "100644",
-      "type": "blob",
-      "sha": "a9e159e269ff663572c3da36d792eb4d4c5395be",
-      "sha256": "2533994e8fb26a7a05dfc34ad733cae1ad0d677519417ebcd0ba3c949983107b",
-      "bytes": 4954
-    },
-    {
-      "path": "r4/r2-to-r4-core.patch",
-      "mode": "100644",
-      "type": "blob",
-      "sha": "06f9173f5f9af9fb6290602e61cb1e003847a970",
-      "sha256": "fa98b6724178dc16355a678a5f315d40eb652d5aeb4bb7398d503561c701d614",
-      "bytes": 4660
-    },
-    {
-      "path": "r4/r2-to-r4-module.patch",
-      "mode": "100644",
-      "type": "blob",
-      "sha": "96783ac4ef38297834a2ec59ceb6af6f41682a7e",
-      "sha256": "153573c0c4df99583822bcb2f146e7e02997243c8e699d19492e9b9295862ae0",
-      "bytes": 4857
-    },
-    {
-      "path": "r4/r3-to-r4-wrapper.patch",
-      "mode": "100644",
-      "type": "blob",
-      "sha": "718155cabf377f870bcbba8d182fa8d7f33177da",
-      "sha256": "2b50414e62cd4ac1b0dc46f7c1342e4cea84035f5a95fff51d0365ba82f7676f",
-      "bytes": 4687
-    },
-    {
-      "path": "r4/read-fence.template.sh",
-      "mode": "100644",
-      "type": "blob",
-      "sha": "34e454ffeac9adee9f2068a562311c17b7c04b10",
-      "sha256": "86b07fa5ef81433a01aa7b2289a96138574e98e1eb796a004570f87370fb5e65",
-      "bytes": 6372
-    },
-    {
-      "path": "r4/test_fence.py",
-      "mode": "100644",
-      "type": "blob",
-      "sha": "09d73e8f1399d5029bb385440c69865d32a9a19a",
-      "sha256": "0b1e7f78c80ef483ca7b6bed15fe51941e7d080f91d1fc7944a9edcfc6712f49",
-      "bytes": 25065
-    },
-    {
-      "path": "r4/test_stdin_wrapper.py",
-      "mode": "100644",
-      "type": "blob",
-      "sha": "24982c590403d73b01b47de332387b443ad97235",
-      "sha256": "37b4621ea458e848fdeec28990a2b2e5da78189141d8716381f7811c44454aaf",
-      "bytes": 23845
+      "bytes": 9232,
+      "reusedFromCommit": "df4dcefcf2d22678abf2ecd3cb939a4454eeee5b"
     }
   ],
-  "sourceInventorySha256": "acc27bd9e7dad64242ebfdb3190a5e57a5c5abea1c3dc29eb51ef3f7a151457e"
+  "sourceInventorySha256": "f5490802e89b549eb8e03b5f23e61d80c189628e362d989779bd6ce2c2552146"
 }
