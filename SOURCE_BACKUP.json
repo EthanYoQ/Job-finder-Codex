@@ -1,45 +1,612 @@
 {
-  "format": "safe-source-backup/v1",
-  "snapshot": "sanofi-reader-replay-r2",
-  "sourcePlanSha256": "dc70404d99e8fc7fb2b4f7dfd28f7dacaebb5979603839e37603fbd5108ad927",
-  "sourceArchiveSha256": "0edaa9d579d2b6eec4eab808a38546b1db9421ad77e4c013b0b95a3913c27a01",
-  "originalSourceFiles": 717,
-  "originalSourceBytes": 11373709,
-  "originalSourceBytesUnchanged": true,
-  "priorLocalSnapshotPlanSha256": "6031c00511382797455e5c34506bcc6178b04c9e1dd1091e8a2ae5adceaafb9c",
-  "revision": {
-    "changed": 8,
-    "added": 2,
-    "unchanged": 707,
-    "readerSourcesUnchanged": 700
-  },
-  "sourceFileManifest": {
-    "path": "validation/sanofi-node22-current-20261006/SOURCE_FILE_MANIFEST.json",
-    "sha256": "2f400634871aae892e968f288600a83f96116677c3dac5cad422459e515aedbb",
-    "bytes": 148149,
-    "entriesCoverEveryOtherSourceFile": true
-  },
-  "readerClosureManifest": {
-    "path": "validation/sanofi-node22-current-20261006/READER_CLOSURE_MANIFEST.json",
-    "sha256": "2ab37704115185c2baba0e89c716f4369d8024055a0828c7240200f66f32a599",
-    "bytes": 888078
-  },
-  "verifiedReusableGitObjects": {
-    "sourcePaths": 700,
-    "uniqueBlobs": 259,
-    "uniqueBytes": 3861405,
-    "a775Commit": "50b00efd080408befb0d4156e8b462b85d6cd191",
-    "mainCommit": "6f82160f209ac4556da8578a85de7da9ffc3ff41",
-    "fallbackCommit": "a6ced5737df2b4ebc4800fa547c874e79ad6a41c"
-  },
-  "excluded": [
-    "Actual DB snapshots",
-    "Actual job projections and comparison outputs",
-    "Logs and execution receipts",
-    "Private reports and approval text",
-    "Credentials and activation/control payloads",
-    "node_modules, generated Prisma Client and runtime binaries",
-    "Unavailable historical fixture"
+  "format": "safe-source-increment/v1",
+  "sourcePlanSha256": "e3a7cda84f7e801daeec2dc92963a294bbfedda387e7b4ca7d045d3e7ea96621",
+  "sourceCutoff": "2026-10-06T18:40:05.390381+00:00",
+  "originalSourceFiles": 62,
+  "originalSourceBytes": 2879912,
+  "originalBytesUnchanged": true,
+  "roles": [
+    {
+      "role": "producer",
+      "sourceCommit": "dfd22f642469888eb781f5e7b93964a60e082ca0",
+      "gitTree": "dd32feb00cf1c006936d24100b62d9880bf9b428",
+      "parentCommit": "47b74924f850a4d329460b71717b36df9a5159b8",
+      "stagedChangeCount": 16,
+      "baseKind": "exact original local Git ancestry"
+    },
+    {
+      "role": "web-main",
+      "sourceCommit": "964be0f8385e1b5bf2028ab445c1cf0bf7e850a5",
+      "gitTree": "e409b14af7738a30dc8ce1986065ea729968452a",
+      "parentCommit": "5cd9575af8f03e3782afa266e85d1bf4446787be",
+      "stagedChangeCount": 19,
+      "baselineSourceFiles": 966,
+      "baseKind": "new reconstructed Git root over verified safe source; not original b603/a38 Git identity"
+    },
+    {
+      "role": "compatible-fallback",
+      "sourceCommit": "3c29c0798de063d141b866c05e5f78f99b922e35",
+      "gitTree": "8c74e00bf1fca5bce3ad81fbd7600472d7686c00",
+      "parentCommit": "428a6833ac646e05b72f39b7a90ea96576b99bb5",
+      "stagedChangeCount": 19,
+      "baselineSourceFiles": 963,
+      "baseKind": "new reconstructed Git root over verified safe source; not original b603/a38 Git identity"
+    }
   ],
-  "verificationScope": "Static source review and exact remote Git path/mode/blob plus content hashes; no application tests, CI, database or deployment execution by the backup."
+  "baselineSourceCommits": {
+    "producerSafeBase": "0c4586b82690203b93475551bd3409e2fbcb1574",
+    "producerDeadlineOverlay": "368733577fe5a3d395393c6464fc23eb3fa99c80",
+    "webMainSafeBase": "6f82160f209ac4556da8578a85de7da9ffc3ff41",
+    "fallbackSafeBase": "a6ced5737df2b4ebc4800fa547c874e79ad6a41c"
+  },
+  "requiredDeletion": "producer/prisma/migrations/20261002103742_lilly_source_policy/migration.sql",
+  "inactivePreservedSource": "contract/unapplied-source-only/20261002103742_lilly_source_policy/migration.sql",
+  "verificationScope": "Static source review, exact reverse/forward patch restoration, affected base blob matching, and exact remote Git/content verification; no source or SQL execution.",
+  "excluded": [
+    "actual production snapshots and publication SQL",
+    "runtime control/activation/nonce/credentials",
+    "installed dependencies and binaries",
+    "execution reports and logs",
+    "active workflow definitions and historical operational state"
+  ],
+  "files": [
+    {
+      "path": "producer/prisma/migrations/20261006172300_job_projection_delta_contract/migration.sql",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "0c0d3b4bfdd1e0ab2b76d0d695d5dbc3d6826cd2",
+      "sha256": "25e30c2075a4116220a2d5f0765a076381d7cb219a94f1276c414164dc122c31",
+      "bytes": 76179,
+      "kind": "application_or_synthetic_test_source"
+    },
+    {
+      "path": "producer/prisma/schema.prisma",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "dc5e044c57dc9dde1be308057c9c444840bb4b33",
+      "sha256": "0582f24fc0733b4d72e0224bf40152a381047d4b6f107d663f82901edcfe8c44",
+      "bytes": 32578,
+      "kind": "application_or_synthetic_test_source"
+    },
+    {
+      "path": "producer/src/crawler/cloudDbStartedPilot.ts",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "2601db4e5a11524b221cf52869641cfef05999e9",
+      "sha256": "42d9f7df49559f1f969aba6296c7d6c9bab226d73fb9186ed6f86f87d54cb6b3",
+      "bytes": 6911,
+      "kind": "application_or_synthetic_test_source"
+    },
+    {
+      "path": "producer/src/crawler/cloudPilotContext.ts",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "e486463410fe6ce9c8e5c2660c66fd95f90bfbfd",
+      "sha256": "a5281f8e4a87248cb87076eed359c79ae5ad33f3c974b98139d36efeeceb1488",
+      "bytes": 7156,
+      "kind": "application_or_synthetic_test_source"
+    },
+    {
+      "path": "producer/src/db/cloudPilotSqlControl.ts",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "b01f4f31a9c99f1748f03637c12261f837df2a51",
+      "sha256": "a869bf0bf8508eeb3361612fb3eadcfc1de167d4cff3aa762343e216598edce1",
+      "bytes": 31168,
+      "kind": "application_or_synthetic_test_source"
+    },
+    {
+      "path": "producer/src/db/ingestionRepository.ts",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "0941b7b9d94b9559c3746e6315b0e28f1a5d2e2c",
+      "sha256": "56a16ca89ae417c1613cb37f7beb53db82dbc55f181219c6db7f48b7e487223b",
+      "bytes": 126571,
+      "kind": "application_or_synthetic_test_source"
+    },
+    {
+      "path": "producer/src/db/jobProjectionDeltaCompiler.ts",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "c30ba310ed5d3536b49abb0de0d9030f9343aa0c",
+      "sha256": "e34cebde4f8433e9b58e69e110d356ce476cfa09ba203bcfc11e0d5a6da52c36",
+      "bytes": 6721,
+      "kind": "application_or_synthetic_test_source"
+    },
+    {
+      "path": "producer/src/db/jobProjectionDeltaProfile.ts",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "38cd81277cf3e98190e13acf6292dfd6d2182846",
+      "sha256": "24c3dd03e893d725477406fba5b11e9e572e8ed87439822c82799ae5f5211919",
+      "bytes": 1721,
+      "kind": "application_or_synthetic_test_source"
+    },
+    {
+      "path": "producer/src/domain/jobProjectionDeltaReceipt.ts",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "f1d1188f971f57a453f95b277a47ebd1f98cac2d",
+      "sha256": "1accefb16c321dfb87fc2a1c0abdef9d0deaff2be20e084ba47004d780130f63",
+      "bytes": 8443,
+      "kind": "application_or_synthetic_test_source"
+    },
+    {
+      "path": "producer/tests/db/incrementalCloudPublication.test.ts",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "e1436a95df5b4dc7550cf007149501317ad84c2f",
+      "sha256": "2b12474b60fb197eb3e3a4ab7664580a7811ca6816e0e2e13e08696779bb8ec3",
+      "bytes": 23900,
+      "kind": "application_or_synthetic_test_source"
+    },
+    {
+      "path": "producer/tests/db/jobProjectionDeltaReceipt.test.ts",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "2eae873b8db8bdc0d6f0e5b19069f1173c80e341",
+      "sha256": "0e83098961d8a730e7cb6f4d096e8a3e1ad38ed47dac3e6de81c95149b26d611",
+      "bytes": 11302,
+      "kind": "application_or_synthetic_test_source"
+    },
+    {
+      "path": "producer/tests/helpers/incrementalPglite.ts",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "f1ff596a12312bc3cea5d43be8a50b05892c99fc",
+      "sha256": "73ecf8864ea485ad5a86cb3b1fee1c3d54ac782e77063dd8334e36b8834321c5",
+      "bytes": 5333,
+      "kind": "application_or_synthetic_test_source"
+    },
+    {
+      "path": "producer/tests/prisma/jobProjectionDeltaMigration.test.ts",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "7ad44d47d910417e47af94ad9e6173eb57217a4d",
+      "sha256": "036659c0fb19c31b93b9e8be58912e3fc6f5b30426ef6f05198fc756f9cf073a",
+      "bytes": 30919,
+      "kind": "application_or_synthetic_test_source"
+    },
+    {
+      "path": "producer/tsconfig.incremental-tests.json",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "67486807f28ad489b422cdf9a1f29d4ff9247604",
+      "sha256": "74a3c76c26d8a082581348bd128b3954890a07cebe017a904fcf265d535e8ac3",
+      "bytes": 392,
+      "kind": "application_or_synthetic_test_source"
+    },
+    {
+      "path": "producer/tsconfig.incremental.json",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "84a770beb69ec4d7a35137347a84d2280031db3a",
+      "sha256": "e9fcc8eeb95e92a863b7f214b7770d1ee131db287f05f8a0cecdd201d02d43f7",
+      "bytes": 128,
+      "kind": "application_or_synthetic_test_source"
+    },
+    {
+      "path": "patches/producer.patch",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "59f2fc209a02674fc97753a2e9ec64e10f2f0be5",
+      "sha256": "40e61c9daa809ac4969d554a7e0c0f6ebf5b38d26c48e73a18960a83ba81a685",
+      "bytes": 237756,
+      "kind": "exact_git_source_diff"
+    },
+    {
+      "path": "web-main/src/db/portableDisplayIdentity.ts",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "7374cee8956792ad6debb9f3199f4c2d96ec5251",
+      "sha256": "8b448463b157b54580b6a14acb6c387bcacbf76491857cec97223dfce3b016ff",
+      "bytes": 6442,
+      "kind": "application_or_synthetic_test_source"
+    },
+    {
+      "path": "web-main/src/db/portablePublicSnapshotRepository.ts",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "ae7626f0db4bcf47cef1052f8aaf8c1934ec934f",
+      "sha256": "c877eb38a20554ea965a6772b5291b17c1435d6d2f72a90b2c4d7e651eac138b",
+      "bytes": 23751,
+      "kind": "application_or_synthetic_test_source"
+    },
+    {
+      "path": "web-main/src/db/portableSnapshotCache.ts",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "a7d98ca198c082540b436a309bcb76865fe4fe84",
+      "sha256": "3c132ee01cee8e90526d5eb3781be38238257fe688705f3f8616444aa38b999e",
+      "bytes": 7649,
+      "kind": "application_or_synthetic_test_source"
+    },
+    {
+      "path": "web-main/src/domain/jobProjectionDeltaReceipt.ts",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "f1d1188f971f57a453f95b277a47ebd1f98cac2d",
+      "sha256": "1accefb16c321dfb87fc2a1c0abdef9d0deaff2be20e084ba47004d780130f63",
+      "bytes": 8443,
+      "kind": "application_or_synthetic_test_source"
+    },
+    {
+      "path": "web-main/src/domain/portablePublicSnapshot.ts",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "c268a95606d9a11f35036ac8d4a22d043602758b",
+      "sha256": "115bec601cf3d385a8280739c50a9a7806574355134e3c4c1634bcc003d04238",
+      "bytes": 39022,
+      "kind": "application_or_synthetic_test_source"
+    },
+    {
+      "path": "web-main/src/domain/publicSnapshotRefresh.ts",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "ebe132c9a760018da029ca2dcda568a943ee9c62",
+      "sha256": "8e5cd95c660cd42dd18024b96b1541900995c13c12dad3479e704c58110790d8",
+      "bytes": 912,
+      "kind": "application_or_synthetic_test_source"
+    },
+    {
+      "path": "web-main/src/server/httpServer.ts",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "35e5ba85f3ee837d23d1f328a848825fcb128288",
+      "sha256": "b06f1c3de757b399afac191055bc44a20441f288fa9bcbd1605ef8c3aa75cc7b",
+      "bytes": 23133,
+      "kind": "application_or_synthetic_test_source"
+    },
+    {
+      "path": "web-main/tests/db/portableDeltaRepository.test.ts",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "97b7e99cff9dec8f8c756f55792ca33b43540c95",
+      "sha256": "a6debf3b0ddf171ba50711babc8df3fad23e3bacfb936f47b9934f6629c1182e",
+      "bytes": 4951,
+      "kind": "application_or_synthetic_test_source"
+    },
+    {
+      "path": "web-main/tests/db/portableDisplayIdentity.test.ts",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "4965c07d8d963d1d472ee3929534b87998f4bf20",
+      "sha256": "341bb344a823d6798fa5e12576c31fc2b1992f70025db296e1ff6f5c7a1dc199",
+      "bytes": 11788,
+      "kind": "application_or_synthetic_test_source"
+    },
+    {
+      "path": "web-main/tests/db/portableSnapshotCache.test.ts",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "39b3c2747467f2a444f63629e873dc413500f0a3",
+      "sha256": "fcc810740588566c662259f5910bd8d155ff7f273739144fa8e3264e68506e17",
+      "bytes": 12353,
+      "kind": "application_or_synthetic_test_source"
+    },
+    {
+      "path": "web-main/tests/db/publisherGeneratedDeltaPairing.test.ts",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "35fe6a88e8bd94b0eee5ea3b6db729a99cb68e0d",
+      "sha256": "b8a6c453af0ef0dfd7bcb458469b0d7f903b1977cd884dbe723c036c98d988fc",
+      "bytes": 6217,
+      "kind": "application_or_synthetic_test_source"
+    },
+    {
+      "path": "web-main/tests/domain/portableDeltaCertifiedSources.test.ts",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "37f939e43eb044accce1b6041681a610927f757e",
+      "sha256": "05b5ae53698ff09cc4a0d8ce3d06dbf97a540a471e6d05f66ff4f15f5dd15b12",
+      "bytes": 7926,
+      "kind": "application_or_synthetic_test_source"
+    },
+    {
+      "path": "web-main/tests/domain/portableDeltaPublicSnapshot.test.ts",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "124df76273d5d2cf26e3f0432b3cd2dee6c08a26",
+      "sha256": "99703f677eea87836d50301816cbe4d64374dcc7a31def7395562adda671f70c",
+      "bytes": 7100,
+      "kind": "application_or_synthetic_test_source"
+    },
+    {
+      "path": "web-main/tests/fixtures/legacyA775PortablePublicSnapshot.ts",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "2237f08d1ac2ceacc3179d22b1244176a9d0ad93",
+      "sha256": "5166230419d2fe291b9764e23ef70e7cb39d247713b4a06fd09d8e7cd686e8ee",
+      "bytes": 33811,
+      "kind": "application_or_synthetic_test_source"
+    },
+    {
+      "path": "web-main/tests/fixtures/publisher-generated-delta-fixtures.json",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "7f3b19b9c509b0c9d6ca983f7d3137eb85137eba",
+      "sha256": "cf14399199d62ba4e2a6a829d3c8a2938f76ad53bbc3c34312d276d57fd333bd",
+      "bytes": 284055,
+      "kind": "application_or_synthetic_test_source"
+    },
+    {
+      "path": "web-main/tests/helpers/portableDeltaFixture.ts",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "c64e858ddd71baa56532ef19fbcc07d9de2fb191",
+      "sha256": "b150a08d6c6f315d9a11e95e868b57e08eff0f88445f346e08cd8b881be4b69c",
+      "bytes": 2548,
+      "kind": "application_or_synthetic_test_source"
+    },
+    {
+      "path": "web-main/tests/helpers/portablePublicSnapshotFixture.ts",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "fd4bcd992d6b3c9230c29a392778dabaafa1ccc1",
+      "sha256": "915b15d2fc6992211f7da0be248fb553469d05303ebed8c781bb86f463a0cf43",
+      "bytes": 10006,
+      "kind": "application_or_synthetic_test_source"
+    },
+    {
+      "path": "web-main/tests/server/portableSnapshotRefresh.test.ts",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "63e5aa3b38154dca57a95a753fdd8ba7f784dda8",
+      "sha256": "b31db104a5c78c9658539a0226b6bf9c1145c0067a2df522929313762a334792",
+      "bytes": 18240,
+      "kind": "application_or_synthetic_test_source"
+    },
+    {
+      "path": "web-main/tsconfig.incremental-reader.json",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "03aab871951b3323b4447f6d8a6b3d7662ff3504",
+      "sha256": "3a3d9b08d90d7ed062d125a0c85f6e861a8349aa34950e49d52d595fb87da549",
+      "bytes": 553,
+      "kind": "application_or_synthetic_test_source"
+    },
+    {
+      "path": "patches/web-main.patch",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "29e49e5491067172f67b69224d705e33991965ff",
+      "sha256": "5a03fa77884f7525d7ebc81b755b3ea0507d5e50ca731cc1280cb5ebad2fc780",
+      "bytes": 422478,
+      "kind": "exact_git_source_diff"
+    },
+    {
+      "path": "compatible-fallback/src/db/portableDisplayIdentity.ts",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "7374cee8956792ad6debb9f3199f4c2d96ec5251",
+      "sha256": "8b448463b157b54580b6a14acb6c387bcacbf76491857cec97223dfce3b016ff",
+      "bytes": 6442,
+      "kind": "application_or_synthetic_test_source"
+    },
+    {
+      "path": "compatible-fallback/src/db/portablePublicSnapshotRepository.ts",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "ae7626f0db4bcf47cef1052f8aaf8c1934ec934f",
+      "sha256": "c877eb38a20554ea965a6772b5291b17c1435d6d2f72a90b2c4d7e651eac138b",
+      "bytes": 23751,
+      "kind": "application_or_synthetic_test_source"
+    },
+    {
+      "path": "compatible-fallback/src/db/portableSnapshotCache.ts",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "c90d3d96cdcdc09daa202d068b1ff489f0fc3e71",
+      "sha256": "3d93cfbe831b94532f5896fad5722c56d5377478156bffa140edd87dc40fb570",
+      "bytes": 7481,
+      "kind": "application_or_synthetic_test_source"
+    },
+    {
+      "path": "compatible-fallback/src/domain/jobProjectionDeltaReceipt.ts",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "f1d1188f971f57a453f95b277a47ebd1f98cac2d",
+      "sha256": "1accefb16c321dfb87fc2a1c0abdef9d0deaff2be20e084ba47004d780130f63",
+      "bytes": 8443,
+      "kind": "application_or_synthetic_test_source"
+    },
+    {
+      "path": "compatible-fallback/src/domain/portablePublicSnapshot.ts",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "c268a95606d9a11f35036ac8d4a22d043602758b",
+      "sha256": "115bec601cf3d385a8280739c50a9a7806574355134e3c4c1634bcc003d04238",
+      "bytes": 39022,
+      "kind": "application_or_synthetic_test_source"
+    },
+    {
+      "path": "compatible-fallback/src/domain/publicSnapshotRefresh.ts",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "91559b4631a3829cac178c307a0a7b9f85f355a2",
+      "sha256": "caca23fdc61d7ff708f82183e1533fb20e35795abee9fa96ced780b52da3f89d",
+      "bytes": 817,
+      "kind": "application_or_synthetic_test_source"
+    },
+    {
+      "path": "compatible-fallback/src/server/httpServer.ts",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "87ae4129c7375b424d54dd52c3ddde972c085471",
+      "sha256": "1dc666ca1b596b024a5d8d146faf4a25180ebffc00ed45c70f17ca615f29c1ca",
+      "bytes": 20809,
+      "kind": "application_or_synthetic_test_source"
+    },
+    {
+      "path": "compatible-fallback/tests/db/portableDeltaRepository.test.ts",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "97b7e99cff9dec8f8c756f55792ca33b43540c95",
+      "sha256": "a6debf3b0ddf171ba50711babc8df3fad23e3bacfb936f47b9934f6629c1182e",
+      "bytes": 4951,
+      "kind": "application_or_synthetic_test_source"
+    },
+    {
+      "path": "compatible-fallback/tests/db/portableDisplayIdentity.test.ts",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "4965c07d8d963d1d472ee3929534b87998f4bf20",
+      "sha256": "341bb344a823d6798fa5e12576c31fc2b1992f70025db296e1ff6f5c7a1dc199",
+      "bytes": 11788,
+      "kind": "application_or_synthetic_test_source"
+    },
+    {
+      "path": "compatible-fallback/tests/db/portableSnapshotCache.test.ts",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "39b3c2747467f2a444f63629e873dc413500f0a3",
+      "sha256": "fcc810740588566c662259f5910bd8d155ff7f273739144fa8e3264e68506e17",
+      "bytes": 12353,
+      "kind": "application_or_synthetic_test_source"
+    },
+    {
+      "path": "compatible-fallback/tests/db/publisherGeneratedDeltaPairing.test.ts",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "35fe6a88e8bd94b0eee5ea3b6db729a99cb68e0d",
+      "sha256": "b8a6c453af0ef0dfd7bcb458469b0d7f903b1977cd884dbe723c036c98d988fc",
+      "bytes": 6217,
+      "kind": "application_or_synthetic_test_source"
+    },
+    {
+      "path": "compatible-fallback/tests/domain/portableDeltaCertifiedSources.test.ts",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "37f939e43eb044accce1b6041681a610927f757e",
+      "sha256": "05b5ae53698ff09cc4a0d8ce3d06dbf97a540a471e6d05f66ff4f15f5dd15b12",
+      "bytes": 7926,
+      "kind": "application_or_synthetic_test_source"
+    },
+    {
+      "path": "compatible-fallback/tests/domain/portableDeltaPublicSnapshot.test.ts",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "124df76273d5d2cf26e3f0432b3cd2dee6c08a26",
+      "sha256": "99703f677eea87836d50301816cbe4d64374dcc7a31def7395562adda671f70c",
+      "bytes": 7100,
+      "kind": "application_or_synthetic_test_source"
+    },
+    {
+      "path": "compatible-fallback/tests/fixtures/legacyA775PortablePublicSnapshot.ts",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "2237f08d1ac2ceacc3179d22b1244176a9d0ad93",
+      "sha256": "5166230419d2fe291b9764e23ef70e7cb39d247713b4a06fd09d8e7cd686e8ee",
+      "bytes": 33811,
+      "kind": "application_or_synthetic_test_source"
+    },
+    {
+      "path": "compatible-fallback/tests/fixtures/publisher-generated-delta-fixtures.json",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "7f3b19b9c509b0c9d6ca983f7d3137eb85137eba",
+      "sha256": "cf14399199d62ba4e2a6a829d3c8a2938f76ad53bbc3c34312d276d57fd333bd",
+      "bytes": 284055,
+      "kind": "application_or_synthetic_test_source"
+    },
+    {
+      "path": "compatible-fallback/tests/helpers/portableDeltaFixture.ts",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "c64e858ddd71baa56532ef19fbcc07d9de2fb191",
+      "sha256": "b150a08d6c6f315d9a11e95e868b57e08eff0f88445f346e08cd8b881be4b69c",
+      "bytes": 2548,
+      "kind": "application_or_synthetic_test_source"
+    },
+    {
+      "path": "compatible-fallback/tests/helpers/portablePublicSnapshotFixture.ts",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "fd4bcd992d6b3c9230c29a392778dabaafa1ccc1",
+      "sha256": "915b15d2fc6992211f7da0be248fb553469d05303ebed8c781bb86f463a0cf43",
+      "bytes": 10006,
+      "kind": "application_or_synthetic_test_source"
+    },
+    {
+      "path": "compatible-fallback/tests/server/portableSnapshotRefresh.test.ts",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "1a470f93079b41355e10dfbe7a34b204500a051f",
+      "sha256": "4ce2de0c06567c5c49b6c42a455b12d40af7098546677193384612c9d9d73938",
+      "bytes": 17619,
+      "kind": "application_or_synthetic_test_source"
+    },
+    {
+      "path": "compatible-fallback/tsconfig.incremental-reader.json",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "03aab871951b3323b4447f6d8a6b3d7662ff3504",
+      "sha256": "3a3d9b08d90d7ed062d125a0c85f6e861a8349aa34950e49d52d595fb87da549",
+      "bytes": 553,
+      "kind": "application_or_synthetic_test_source"
+    },
+    {
+      "path": "patches/compatible-fallback.patch",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "8178d4931695b19d2f1f11587b4b27770086a439",
+      "sha256": "1ad922f995c62f257df1d6c18fee4c480bd4b93795f0e2dfe228e1e32c2fe2b6",
+      "bytes": 420124,
+      "kind": "exact_git_source_diff"
+    },
+    {
+      "path": "contract/jobProjectionDelta.ts",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "f1d1188f971f57a453f95b277a47ebd1f98cac2d",
+      "sha256": "1accefb16c321dfb87fc2a1c0abdef9d0deaff2be20e084ba47004d780130f63",
+      "bytes": 8443,
+      "kind": "source_or_schema_contract"
+    },
+    {
+      "path": "contract/publisher-generated-fixtures.json",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "7f3b19b9c509b0c9d6ca983f7d3137eb85137eba",
+      "sha256": "cf14399199d62ba4e2a6a829d3c8a2938f76ad53bbc3c34312d276d57fd333bd",
+      "bytes": 284055,
+      "kind": "synthetic_fixture"
+    },
+    {
+      "path": "contract/SQL_FUNCTION_FINGERPRINTS.json",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "99d2603a9d36cd6923e9817eb38898c967426165",
+      "sha256": "82b5162520ff152388f86f27aa2b42c8b139c188f168eccf500402344d676fea",
+      "bytes": 86253,
+      "kind": "source_or_schema_contract"
+    },
+    {
+      "path": "contract/unapplied-source-only/20261002103742_lilly_source_policy/migration.sql",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "5b1b37c23343b71d67904c90859ed392911b49aa",
+      "sha256": "49b9e22261053d08c19bf6a3765c9a1e6080e8d68748bf6d31219e38c0c961f3",
+      "bytes": 33628,
+      "kind": "source_or_schema_contract"
+    },
+    {
+      "path": "DEPENDENCY_REQUIREMENTS.json",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "e5c7e3f82c116fd1e38d0c7bd7f13a532e683c4f",
+      "sha256": "9ac1afc12802139ff165c6d788ffe637c5986552256c2dd45f1e2ccd434a2213",
+      "bytes": 1005,
+      "kind": "nonsecret_dependency_contract"
+    },
+    {
+      "path": "SOURCE_ROLE_MAP.json",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "e7f3b3826f83c597170aa45b243a01f1c29d8657",
+      "sha256": "7f556c5486d3f1def05fce321916cf06ce9d1176132ebf7bbc48ac027fca76ef",
+      "bytes": 2156,
+      "kind": "nonsecret_source_identity_map"
+    }
+  ]
 }
