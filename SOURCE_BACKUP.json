@@ -2,20 +2,53 @@
   "schemaVersion": 1,
   "files": [
     {
-      "path": "list-readiness-proposal.cjs",
+      "path": "hosts46/jnj/collector-fixes/20261006T0602Z/strict-list-before.js",
       "mode": "100644",
       "type": "blob",
-      "sha": "c2f7c13eec1de1e58b7f5d0462bc4646efb7288f",
-      "sha256": "f0cf3c5a3ffe9e4cedaffd19ea21cdaae93a6377db82bf2c1a9423fa72f72b31",
-      "bytes": 5691
+      "sha": "17b815ce7c218dea220250426b5fbc7c60700ec4",
+      "sha256": "98c30b669b269ef5f8f726ac5a4e08171a716b37acb2cd69d0ee272af40b673c",
+      "bytes": 1894
     },
     {
-      "path": "test-list-readiness.cjs",
+      "path": "hosts46/jnj/collector-fixes/20261006T0602Z/strict-list-fixed.js",
       "mode": "100644",
       "type": "blob",
-      "sha": "d9f0b5af769b3daac8133bf3672b9168d36b71c4",
-      "sha256": "515b15f190235acf7f5cd2b6f745c0c68ecf636774ac43f6bddd31d213eaa76f",
-      "bytes": 5002
+      "sha": "adf52e6f255643338aeb68f8cca002f4558fc500",
+      "sha256": "1513149d8241b94883dbf1f2927d196305d47e41f682e7b8902b1816c03f9389",
+      "bytes": 2193
+    },
+    {
+      "path": "hosts46/jnj/collector-fixes/20261006T0602Z/strict-list.diff",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "fb1fc779803e0960699668514c0eb5d425c9c7fb",
+      "sha256": "9a8298ed76d17b8995158373403c1d4766aa7328b28d185b2843d6579a417156",
+      "bytes": 1625
+    },
+    {
+      "path": "hosts46/jnj/collector-fixes/20261006T0602Z/test-serialization.cjs",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "d833d3b345dffcd2eaa216ea447dcfb6e5e774b6",
+      "sha256": "c135e009d5fe335ad56925621d8868b3ab50c84343b3a9c0b50c63cfa48c8e18",
+      "bytes": 3776
+    },
+    {
+      "path": "hosts46/jnj/diagnostics/jnj-single-page-url-20261006T0556Z/readiness-call-with-diagnostics.js",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "ec1d5d78034187117a4849be533b03574c47b0e3",
+      "sha256": "46185f85b8f5d094e80d8de6de37c412b1308e573f74c347a24b0ff6344e889e",
+      "bytes": 1121
+    },
+    {
+      "path": "hosts46/jnj/diagnostics/jnj-single-page-url-20261006T0556Z/test-readiness-diagnostic-wrapper.cjs",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "66c6a3b04e85a044c44bd2a8c50744b79da2be8d",
+      "sha256": "42bfed04e8c55a6cee3514e2f6d64b9d71d7865862fdbc661040d6c0e9b27ffc",
+      "bytes": 2367
     }
-  ]
+  ],
+  "sourceInventorySha256": "870e2dcef372fdddf43f4f6dab89e30b01a839adad722887d18d42b52adad8d9"
 }
