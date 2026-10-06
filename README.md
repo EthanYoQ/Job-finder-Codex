@@ -1,9 +1,9 @@
-# Five host source backups
+# Owner helper source fixes
 
-This snapshot contains 96 unchanged source files (583,919 bytes) for bi, fosun, kelun, msd, and novartis, including selected preparation and synthetic check programs. SOURCE_BACKUP.json is the exact file allowlist; verify SHA256SUMS before restoration.
+This snapshot preserves seven frozen Python, patch, and synthetic-test files (73,339 bytes). The source manifest SHA-256 is `ac8c29a85e7b632332d83f0e0819a1ce727722cd691c27be3f756312d9afc71f`. Verify SHA256SUMS before restoration.
 
-The frozen source inventory is NEXT_DUE46_SAFE_SOURCE_MANIFEST.json, SHA-256 `6e223a5f28097b036164131b7a7a0a11c5965617ca93de978c40ba66151ddc2e`. The original inventory is omitted because it also lists excluded files.
+Keep `owner-guard-review/` and `observation-fix-review/` as sibling directories. The latter test module reads its candidate and baseline, plus `../owner-guard-review/owner-ali-call.original.py`. The guard candidate and observation baseline are intentionally identical.
 
-Dependencies include the referenced producer source, Node.js and Python dependencies, separately supplied configuration and schema expectations, and any template files imported by the preparation programs. These inputs are omitted. This snapshot alone cannot run the hosts or all checks. Restore and validate inputs separately, and review fixed paths and integrity checks before relocation.
+The synthetic tests require Python 3.8+ with its standard library, Linux `/proc`, and POSIX process/signal support. Use normal Python with assertions enabled: no `-O`, `-OO`, or `PYTHONOPTIMIZE`. Source checks depend on assertions. The tests use isolated temporary fixtures; the temporary directory must support executable scripts, hard links, and directory fsync. No test execution is claimed by this backup.
 
-Excluded: credentials, environment and configuration files, identity documents, captured data, database responses, runtime outputs, internal reports, old source copies and diffs, superseded inventories, and the preparation generators listed as omitted in SOURCE_BACKUP.json. Omitted generators mean their preparation steps are not fully reproducible from this branch alone.
+External runtime inputs and the CLI are not supplied. Fixed source bindings require deliberate review when adapting the helper. Credentials, environment/profile files, actual invocation ledgers, requests, responses, and operational reports are excluded.

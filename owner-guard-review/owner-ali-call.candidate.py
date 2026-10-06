@@ -1,0 +1,106 @@
+#!/usr/bin/env python3
+"""One exact official CLI submission or exact result query. Never auto retries."""
+import argparse,base64,datetime,hashlib,json,os,re,subprocess,sys
+from pathlib import Path
+D=Path(__file__).resolve().parent
+OUT=D/'owner-invocations';OUT.mkdir(mode=0o700,exist_ok=True)
+CLI='/workspace/shared/aliyun-cli/aliyun'
+RELEASE='sanofi-pair-20261006T0057Z'
+INSTANCE='09495b57b769406a95c0c718f22c9d13'
+CONNECT_TIMEOUT=20;READ_TIMEOUT=45;PROCESS_TIMEOUT=75
+COMMON=['--profile','dot-web-deploy','--RegionId','ap-northeast-2','--InstanceId',INSTANCE,'--connect-timeout',str(CONNECT_TIMEOUT),'--read-timeout',str(READ_TIMEOUT)]
+READ_ONLY={
+ 'reconcile-bootstrap-readonly.sh':'a3bb763a92a83d56f75799a0a911af8277644d82911c34bce4dbf0009b0a2e82',
+ 'phases/needs.sh':'6d615d04799f0f9d4f4c978221cbf9dbfbddfaeb95084c85ed5109679355e895',
+}
+ERROR_CATEGORIES=['Forbidden','AccessDenied','InvalidAccessKeyId','SignatureDoesNotMatch','Client.Timeout','context deadline exceeded','TLS handshake timeout','no such host','connection refused','Unknown Flag','unknown flag']
+class GuardBlocked(Exception):pass
+class CliFailed(Exception):pass
+def now():return datetime.datetime.now(datetime.timezone.utc).isoformat()
+def digest(b):return hashlib.sha256(b).hexdigest()
+def save(p,v):
+ with p.open('x') as f:json.dump(v,f,indent=2);f.write('\n');f.flush();os.fsync(f.fileno())
+ p.chmod(0o600)
+def transport():return {'cliPath':CLI,'connectTimeoutSeconds':CONNECT_TIMEOUT,'readTimeoutSeconds':READ_TIMEOUT,'processTimeoutSeconds':PROCESS_TIMEOUT,'retryCount':0}
+def read_record(p):
+ if p.is_symlink() or not p.is_file():raise GuardBlocked('INVALID_RECORD')
+ j=json.loads(p.read_text())
+ if not isinstance(j,dict):raise GuardBlocked('INVALID_RECORD')
+ return j
+def guard_write(script):
+ # This marker has no automatic unlock: preserve it and require separate review.
+ unknown=OUT/'UNKNOWN_SUBMISSION.json'
+ if os.path.lexists(unknown):
+  read_record(unknown)
+  raise GuardBlocked('UNKNOWN_SUBMISSION_PRESENT')
+ for p in sorted(OUT.glob('*-intent.json')):
+  old=read_record(p)
+  if not all(isinstance(old.get(k),str) for k in ['script','targetInstance','payloadSha256']):raise GuardBlocked('INCOMPLETE_PRIOR_INTENT')
+  # Pre-patch intents belong to this pinned release directory, even without releaseId.
+  if old.get('releaseId',RELEASE)==RELEASE and old['targetInstance']==INSTANCE and old['script']==script:
+   raise GuardBlocked('PRIOR_WRITE_INTENT')
+def call(argv):
+ global call_meta
+ p=subprocess.run([CLI,'swas-open']+argv,env=dict(os.environ,HOME='/workspace/shared/aliyun-cli/home'),stdout=subprocess.PIPE,stderr=subprocess.PIPE,timeout=PROCESS_TIMEOUT)
+ # Only hashes and fixed categories are retained, never raw authentication diagnostics.
+ call_meta={'exitCode':p.returncode,'stdoutSha256':digest(p.stdout),'stderrSha256':digest(p.stderr),'knownErrorCategories':[v for v in ERROR_CATEGORIES if v in p.stderr.decode(errors='replace')]}
+ if p.returncode:raise CliFailed()
+ return json.loads(p.stdout)
+a=argparse.ArgumentParser();a.add_argument('mode',choices=['submit','query']);a.add_argument('label');a.add_argument('--script');a.add_argument('--publisher-paused',action='store_true');x=a.parse_args()
+error_label=x.label if re.fullmatch('[a-z0-9-]{1,55}',x.label) else 'invalid-label'
+receipt=OUT/(x.label+'-submit.json')
+call_started=False;call_meta={};attempt_meta={}
+try:
+ assert error_label==x.label,'INVALID_LABEL'
+ if x.mode=='submit':
+  assert x.script
+  rel=Path(x.script);assert not rel.is_absolute() and '..' not in rel.parts
+  matches=[]
+  for f in [D/'SEALED_BOOTSTRAP.json',D/'SEALED_DELTA.json',D/'SEALED_READONLY_RECONCILE.json']:
+   if f.exists():
+    m=json.loads(f.read_text());matches.extend(e['sha256'] for k in ['commandFiles','phaseScripts'] for e in m.get(k,[]) if e['path']==x.script)
+  assert matches and len(set(matches))==1,'SCRIPT_NOT_SEALED'
+  raw=(D/rel).read_bytes();assert digest(raw)==matches[0],'SCRIPT_HASH_DRIFT'
+  assert read_record(D/'manifest.json')['releaseId']==RELEASE,'RELEASE_MISMATCH'
+  mutating_phase=x.script.startswith('phases/') and x.script!='phases/needs.sh'
+  assert x.publisher_paused==mutating_phase,'PAUSE_ATTESTATION_MISMATCH'
+  payload=raw
+  if x.publisher_paused:
+   state=json.loads((D.parents[1]/'PUBLISHER-ACTIVE-STATE.json').read_text());assert state.get('active') is None,'PUBLISHER_ACTIVE'
+   payload=raw.replace(b'set -eu\n',b'set -eu\nexport JOBFINDER_PUBLISHER_PAUSED=sanofi-pair-20261006T0057Z\n',1)
+  assert len(payload)<=12288 and not receipt.exists()
+  write_action=READ_ONLY.get(x.script)!=digest(raw)
+  key={'releaseId':RELEASE,'targetInstance':INSTANCE,'script':x.script}
+  operation_key=digest(json.dumps(key,sort_keys=True,separators=(',',':')).encode())
+  attempt_meta={**key,'commandName':'jf-pair-'+x.label,'operationKey':operation_key,'sourceSha256':digest(raw),'payloadSha256':digest(payload),'publisherPaused':x.publisher_paused,'writeAction':write_action,'payloadRawBytes':len(payload),'payloadBase64Bytes':len(base64.b64encode(payload)),'transport':transport()}
+  intent={'at':now(),**attempt_meta}
+  if write_action:
+   guard_write(x.script)
+   # Exclusive stable slot precedes the label file and the subprocess. It is never removed.
+   save(OUT/('operation-'+operation_key+'.json'),intent)
+  save(OUT/(x.label+'-intent.json'),intent)
+  call_started=True
+  r=call(['RunCommand']+COMMON+['--Name',attempt_meta['commandName'],'--Type','RunShellScript','--CommandContent',payload.decode(),'--Timeout','600','--retry-count','0'])
+  assert re.fullmatch('t-[a-zA-Z0-9]+',r['InvokeId'])
+  call_meta['InvokeId']=r['InvokeId']
+  save(receipt,{'at':now(),'InvokeId':r['InvokeId'],'RequestId':r.get('RequestId'),'script':x.script,'payloadSha256':digest(payload)})
+  print(json.dumps({'state':'SUBMITTED','label':x.label,'InvokeId':r['InvokeId']}))
+ else:
+  r=json.loads(receipt.read_text());call_started=True
+  response=call(['DescribeInvocationResult']+COMMON+['--InvokeId',r['InvokeId'],'--retry-count','0']);j=response['InvocationResult']
+  decoded=base64.b64decode(j.get('Output',''),validate=True).decode();stamp=now();entry={'at':stamp,'InvokeId':r['InvokeId'],'result':j,'decodedOutput':decoded}
+  dest=OUT/(x.label+'-query-'+re.sub('[^0-9]','',stamp)+'.json');save(dest,entry)
+  try:value=json.loads(decoded)
+  except ValueError:value={'outputBytes':len(decoded.encode()),'outputSha256':digest(decoded.encode())}
+  if j.get('InvocationStatus')=='Success' and j.get('ExitCode')==0:
+   terminal=OUT/(x.label+'-success.json')
+   if not terminal.exists():save(terminal,entry)
+  print(json.dumps({'label':x.label,'InvokeId':r['InvokeId'],'status':j.get('InvocationStatus'),'exitCode':j.get('ExitCode'),'errorCode':j.get('ErrorCode'),'result':value,'localResult':str(dest)},ensure_ascii=False))
+except BaseException as exc:
+ # Catchable rejection/interruption leaves both intent files unchanged. SIGKILL cannot
+ # write a terminal record; its surviving intent still prevents another write attempt.
+ state='SUBMISSION_UNKNOWN_DO_NOT_RESUBMIT' if x.mode=='submit' and call_started else ('SUBMISSION_BLOCKED_BEFORE_CALL' if x.mode=='submit' else 'QUERY_FAILED')
+ record={'at':now(),'state':state,'exceptionType':type(exc).__name__,'callStarted':call_started,'transport':transport(),**attempt_meta,**call_meta}
+ try:save(OUT/(error_label+'-'+x.mode+'-error-'+re.sub('[^0-9]','',record['at'])+'.json'),record)
+ except BaseException:record['errorRecordSaved']=False
+ print(json.dumps(record));sys.exit(2)
