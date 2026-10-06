@@ -1,0 +1,95 @@
+{
+  "schemaVersion": 1,
+  "frozenAt": "2026-10-06T01:04:35.080213+00:00",
+  "safeSourceOnly": true,
+  "actualSqlPacketsIncluded": false,
+  "actualRunDirectoriesIncluded": false,
+  "realJobDataIncluded": false,
+  "files": [
+    {
+      "path": "CHANGE_RELATIONSHIP.json",
+      "sha256": "44bfeaae83f16d1fd6040579cb3c16556cfb4681649101ddcc4844677824eeec",
+      "byteCount": 1813
+    },
+    {
+      "path": "README.md",
+      "sha256": "af7c78bfd48f934d6f3e4fb87d1379f419b48e2d6a85795b247c100e803082ab",
+      "byteCount": 4847
+    },
+    {
+      "path": "SOURCE_BINDING_AUDIT.json",
+      "sha256": "af3bb5e88341ef9e7b04319d426c719b590a972be44e5251a5b875d9625e809f",
+      "byteCount": 14318
+    },
+    {
+      "path": "TEST_RESULTS.json",
+      "sha256": "729f6095ec19ff41cbff18ecd02f486ba83e5db6d12234731c2768a744d3963b",
+      "byteCount": 30650
+    },
+    {
+      "path": "originals/restore-portable66-next-host46.py",
+      "sha256": "816cd57bf0cffac509dc561b75bf5a1b51b2371c50f351c1fbef642389f615cf",
+      "byteCount": 8165
+    },
+    {
+      "path": "patches/gilead-reviewer.patch",
+      "sha256": "fa56d4ca86a6edad20ed999a7d6ac05a51f3ba6f892aa42fe2c5e3a70558e91e",
+      "byteCount": 797
+    },
+    {
+      "path": "patches/merck-reviewer.patch",
+      "sha256": "728885adb12ca90289d8f79eeae8eab82415ccb25f71d2012b03b7c76df3dcb3",
+      "byteCount": 796
+    },
+    {
+      "path": "patches/organon-reviewer.patch",
+      "sha256": "f458aa78e8bd660d16459b5158e480460ba08977d3213c50ab1430b9966e4c56",
+      "byteCount": 798
+    },
+    {
+      "path": "patches/restore-portable66-next-host46.py.patch",
+      "sha256": "6500055fba703f7068beac45d930a38f3d2330b6e04b7515d58f7353ffa6a650",
+      "byteCount": 2907
+    },
+    {
+      "path": "payload/verification/restore-portable66-next-host46.py",
+      "sha256": "ea371037bec76ce16ef25fcaeb5c385de6ad695829e19929ab16e3f52c1699b7",
+      "byteCount": 8490
+    },
+    {
+      "path": "reviewer-bytes/gilead-after.py",
+      "sha256": "2b353f1642c069e948999f5f954efd91860f7a16fc16713f9807c3395de7a1b8",
+      "byteCount": 3324
+    },
+    {
+      "path": "reviewer-bytes/gilead-before.py",
+      "sha256": "e0e836e5320583aa29342baec035c9d0ae5dd00fdd3bb7c88c5348ef16dca9d7",
+      "byteCount": 3415
+    },
+    {
+      "path": "reviewer-bytes/merck-after.py",
+      "sha256": "0c51a5a8d9a8db26995ef5d8e34e09b74e0b4ec068673b5ee42aa9e0f6c6eb34",
+      "byteCount": 3323
+    },
+    {
+      "path": "reviewer-bytes/merck-before.py",
+      "sha256": "e0e836e5320583aa29342baec035c9d0ae5dd00fdd3bb7c88c5348ef16dca9d7",
+      "byteCount": 3415
+    },
+    {
+      "path": "reviewer-bytes/organon-after.py",
+      "sha256": "4c328d81805c2d669430e0e1f464d31ee1cd89ab7e2cb2ed8dc02386a1f1df98",
+      "byteCount": 3325
+    },
+    {
+      "path": "reviewer-bytes/organon-before.py",
+      "sha256": "e0e836e5320583aa29342baec035c9d0ae5dd00fdd3bb7c88c5348ef16dca9d7",
+      "byteCount": 3415
+    },
+    {
+      "path": "test_review_packets.py",
+      "sha256": "a172fc71b879cb83b66130fee223c7ac13e3c27f8e0a366c685f303010449f69",
+      "byteCount": 14993
+    }
+  ]
+}

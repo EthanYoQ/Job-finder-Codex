@@ -1,169 +1,283 @@
 {
-  "schemaVersion": 1,
+  "schemaVersion": 2,
   "kind": "safe-external-host-source-snapshot",
+  "revision": 2,
   "repository": "EthanYoQ/Job-finder-Codex",
-  "branch": "backup/portable-three46-20261005-2348",
-  "preparedAt": "2026-10-05T23:48:00Z",
-  "sourceCutoff": "2026-10-05T23:39:30.048415Z",
-  "sourceReportSha256": "dac465c192d3f316823fee27cf366836c8f317f9eb3cc27061587ac950596ac8",
-  "statusAtCutoff": "PREPARED_NOT_LAUNCHED",
+  "branch": "backup/portable-three46-reviewer-r2-20261006-0117",
+  "preparedAt": "2026-10-06T01:18:08.593128+00:00",
+  "safeParentCommit": "aeb54251e44a2dbdb57b64c842bb5723e2ee75ae",
+  "baseTree": "69132abfeec5002300b1f73573a616b10a9528cb",
+  "historicalParentPreserved": true,
   "sourceCommit": null,
   "runtimeIdentityReusable": false,
-  "safeParentCommit": "633eb0fcab80763a87bbd599c639f4f2288f0284",
-  "sourceFiles": 44,
-  "sourceBytes": 221105,
   "hostSources": [
     "merck",
     "gilead",
     "organon"
   ],
-  "inputInventories": {
-    "merck": {
-      "sha256": "e8d81d862797ccb812f31652c95013af00bf62d2c592e757bf300a12993c34f1",
-      "entries": 77
-    },
-    "gilead": {
-      "sha256": "07bfea81798d8a678a491d9be6899253da36c2b47e902ae4fae865c7d99a53f1",
-      "entries": 77
-    },
-    "organon": {
-      "sha256": "2d7851f498d070daaf262805e3a32cb45035789a3e180029b6d167afb760add9",
-      "entries": 77
-    }
+  "currentHostAndToolSourceFiles": 44,
+  "currentHostAndToolSourceBytes": 221157,
+  "regressionPackageFiles": 20,
+  "regressionPackageBytes": 114242,
+  "selectedContentFiles": 64,
+  "selectedContentBytes": 335399,
+  "rootMetadataFiles": 3,
+  "expectedTotalFiles": 67,
+  "unchangedCurrentSourcePaths": 40,
+  "replacedCurrentSourcePaths": [
+    "hosts46/gilead/runtime/review-publication.py",
+    "hosts46/merck/runtime/review-publication.py",
+    "hosts46/organon/runtime/review-publication.py",
+    "verification/restore-portable66-next-host46.py"
+  ],
+  "priorSnapshot": {
+    "commit": "aeb54251e44a2dbdb57b64c842bb5723e2ee75ae",
+    "preparedCutoff": "2026-10-05T23:39:30.048415Z",
+    "statusAtCutoff": "PREPARED_NOT_LAUNCHED"
   },
-  "inventoryDistinctPaths": 193,
-  "selectedPaths": 44,
-  "excludedPaths": 149,
+  "laterPublisherHandoff": {
+    "reportedBy": "publisher",
+    "asOf": "2026-10-06T01:07:00Z",
+    "sources": [
+      "merck",
+      "gilead",
+      "organon"
+    ],
+    "status": "COMMITTED_AND_CURRENT",
+    "independentlyVerifiedInBackupPreparation": false,
+    "liveRunsRead": false
+  },
+  "sourcePackage": {
+    "root": "backup/reviewer-regression-20261006T0100Z",
+    "archiveName": "portable3-review-regression-20261006T0100Z-safe-source.tar.gz",
+    "archiveSha256": "81c73846436d1e9e4939527e6eae6805f6e9e655442be959666cad4efbe043a8",
+    "archiveBytes": 19486,
+    "packageFilesPreservedByteForByte": 20,
+    "archiveItselfIncluded": false
+  },
+  "changeScope": "Replace the legacy four-source reviewer assertion with the selected single source ID and bind the restoration recipe to emit those exact bytes. Preserve all other source bytes.",
   "validation": {
-    "publisherReportedChecksPerSource": 15,
-    "publisherReportedSupplementalChecksPerSource": 6,
-    "publisherReportedSchemaMigrationCount": 48,
-    "selectedFrozenHashesVerified": 44,
-    "staticContentReviewed": true,
-    "secretScanFindings": 0,
+    "method": "static byte/hash and manifest consistency checks only",
+    "priorFrozenSourceFilesVerified": 44,
+    "currentSourcePathsChecked": 44,
+    "packageMembersVerified": 20,
+    "recordedReviewerCliCalls": 135,
+    "recordedCorrectedReviewerAccepts": 3,
+    "recordedCorrectedReviewerRejects": 129,
+    "recordedHistoricalFailureReproductions": 3,
+    "recordedSelectedTemplateAuditFiles": 36,
+    "recordsIndependentlyRerun": false,
     "sourceOrTestsExecuted": false,
-    "databaseOrSourceNetworkAccessed": false,
-    "CIRun": false
+    "sourceNetworkOrDatabaseAccessed": false,
+    "liveRunDirectoriesRead": false,
+    "CIRun": false,
+    "productionQualificationEstablished": false
   },
+  "inheritedReviewerLimitations": [
+    "Narrow source-binding regression only; synthetic fixtures are not compiler-issued production evidence.",
+    "SQL regex and token checks are not a complete transaction verifier.",
+    "Python assert guards require a nonoptimized interpreter.",
+    "Request expiry is not checked and requestSha256 is not independently recomputed."
+  ],
   "restorationLimitations": [
-    "configs and plans reconstructed by archived recipe, not recovered original bytes",
-    "original route file and historical bootstrap/control/runtime state not reconstructed",
-    "matching C46 producer/dependencies/configuration/identity and fresh observation required",
-    "ARCHIVE_STORE helper missing; dedicated starter plus preflight check and separate evidence archival required",
-    "no sampler attached",
-    "generated broad inventories are not safe export allowlists"
+    "Not a self-contained runtime image or operational-state backup.",
+    "Original code80 portable templates and matching producer/dependencies remain external.",
+    "Configuration/control/registration/build identity and publisher state require authorized reconstruction or retrieval.",
+    "Historical config bytes were absent; no original config recovery is claimed.",
+    "Restoration refuses existing host destinations; do not execute against active hosts.",
+    "Legacy ARCHIVE_STORE helper is unsupported; source-specific starter/preflight and separate authorized evidence archival remain required.",
+    "Fresh observations/bootstrap and exclusive publisher coordination remain required.",
+    "Generated broad runtime inventories are not safe export allowlists."
   ],
   "excludedCategories": [
-    "historical references/originals/diffs",
-    "actual config/identity/source-plan/registration",
-    "actual next-due observation references and reports",
-    "generated or actual SQL/request/control/diagnostic artifacts",
-    "raw jobs, responses, credentials, environment and internal notes"
+    "environment and credentials",
+    "actual host config/source-plan/registration/control/publisher state",
+    "live runs and bootstraps",
+    "actual generated SQL/request/control packets",
+    "raw jobs and database responses",
+    "internal authorization records and unrelated audit notes"
   ],
+  "fileManifestCoverage": "64 current source and regression-package files; root metadata hashes are in SHA256SUMS.",
   "files": [
     {
-      "path": "hosts46/merck/archive-transfer.mjs",
+      "path": "backup/reviewer-regression-20261006T0100Z/CHANGE_RELATIONSHIP.json",
       "mode": "100644",
       "type": "blob",
-      "sha": "5a454d21f34f9680221bbee2c98b3fecb94884f0",
-      "sha256": "698e966e5552967845a5252d2b3df2acca28dcd8dbbb0ae41755a3a6231e6a99",
-      "bytes": 1777
+      "sha": "60a3bd480ff8ae008b4725493734ac1a0f254a38",
+      "sha256": "44bfeaae83f16d1fd6040579cb3c16556cfb4681649101ddcc4844677824eeec",
+      "bytes": 1813,
+      "contentGroup": "preserved-reviewer-regression-package"
     },
     {
-      "path": "hosts46/merck/context-read.sql",
+      "path": "backup/reviewer-regression-20261006T0100Z/FILE_MANIFEST.json",
       "mode": "100644",
       "type": "blob",
-      "sha": "61aa7c724b7505d68649cc1a7ad17be75b546e54",
-      "sha256": "9e72262d32f8f1d3d574558d633a9c2599b3f046dab9793cb7008c8cea54f444",
-      "bytes": 2136
+      "sha": "ec6505a6dec02c549d4281c6a672f6855ffc38f6",
+      "sha256": "bef3b286cc521de4609a261870c644d46920bc97c654b020c9b023ddfcc7c38c",
+      "bytes": 3102,
+      "contentGroup": "preserved-reviewer-regression-package"
     },
     {
-      "path": "hosts46/merck/host-files.mts",
+      "path": "backup/reviewer-regression-20261006T0100Z/README.md",
       "mode": "100644",
       "type": "blob",
-      "sha": "f130e14ace5f1b66bbbf3f86e8e2ed55f0db7b7b",
-      "sha256": "c0433bd1a968fbe411f38f7c4a908d2106a64ca937724149315cbc134c931198",
-      "bytes": 4072
+      "sha": "14203dc6cbd9cd22801206865288b787b44da4b7",
+      "sha256": "af7c78bfd48f934d6f3e4fb87d1379f419b48e2d6a85795b247c100e803082ab",
+      "bytes": 4847,
+      "contentGroup": "preserved-reviewer-regression-package"
     },
     {
-      "path": "hosts46/merck/host-helper-functions.js",
+      "path": "backup/reviewer-regression-20261006T0100Z/SHA256SUMS",
       "mode": "100644",
       "type": "blob",
-      "sha": "04ebe455eb49d6b4af448b8d4411a911a738ad3f",
-      "sha256": "17cb599517b3d712f395b3e30d81a634ada4bc92c6bf19e51e3ff6be8217dfe8",
-      "bytes": 7053
+      "sha": "95b02d48e5765538faf5a2389815ab8fad352d6d",
+      "sha256": "c0319ab83ede222197d9a5d50ec3aa4ef65c91a9febccec9e154283863e6fc16",
+      "bytes": 1821,
+      "contentGroup": "preserved-reviewer-regression-package"
     },
     {
-      "path": "hosts46/merck/host-stage-functions.js",
+      "path": "backup/reviewer-regression-20261006T0100Z/SOURCE_BINDING_AUDIT.json",
       "mode": "100644",
       "type": "blob",
-      "sha": "94e0147a6553a283c5bba233ec784101c36c6e28",
-      "sha256": "45ae7cb6587d03d2fd374395131f74daa75c5fc9f5ea1e4702733f1c400a8350",
-      "bytes": 5948
+      "sha": "5ea9c195a70077e3245c512af71be718a1b75b3e",
+      "sha256": "af3bb5e88341ef9e7b04319d426c719b590a972be44e5251a5b875d9625e809f",
+      "bytes": 14318,
+      "contentGroup": "preserved-reviewer-regression-package"
     },
     {
-      "path": "hosts46/merck/relay-files.mjs",
+      "path": "backup/reviewer-regression-20261006T0100Z/SOURCE_FILELIST.txt",
       "mode": "100644",
       "type": "blob",
-      "sha": "8aa2a9be84796b282a39e241a1fa5ae233664237",
-      "sha256": "46531f7c0737d7d212f9c7680ca24aec6ce2af1f15e94bbb62b7b48c161cf9a3",
-      "bytes": 5471
+      "sha": "85ba415d074f3d9fb98b065a7c3de50aa3054bb0",
+      "sha256": "d77bcf5d8478e59c46ac4f40ab1ded9ea98d846fd3c5314704faf9d40e3d69aa",
+      "bytes": 528,
+      "contentGroup": "preserved-reviewer-regression-package"
     },
     {
-      "path": "hosts46/merck/runtime/continuous-relay-v3-durable-monitor.js",
+      "path": "backup/reviewer-regression-20261006T0100Z/TEST_RESULTS.json",
       "mode": "100644",
       "type": "blob",
-      "sha": "ced9c27f327c09da0f83ed0916f02d49120476af",
-      "sha256": "6599547913d83a513bb55a96e034af50ffbc5c729ac8cebe3bc273186a386bb8",
-      "bytes": 2887
+      "sha": "eb6f560614355e961499085811529592fbdc27cc",
+      "sha256": "729f6095ec19ff41cbff18ecd02f486ba83e5db6d12234731c2768a744d3963b",
+      "bytes": 30650,
+      "contentGroup": "preserved-reviewer-regression-package"
     },
     {
-      "path": "hosts46/merck/runtime/load-host-state.js",
+      "path": "backup/reviewer-regression-20261006T0100Z/originals/restore-portable66-next-host46.py",
       "mode": "100644",
       "type": "blob",
-      "sha": "3c84bd59f3a3112e40e6662d0303bf9432c4c118",
-      "sha256": "b1616d0f78fd51de6836bf906daa36268d482924443bf6d24861845ad1168398",
-      "bytes": 1865
+      "sha": "56cd3d0f05857af6624aceafa3ac601726a86d6c",
+      "sha256": "816cd57bf0cffac509dc561b75bf5a1b51b2371c50f351c1fbef642389f615cf",
+      "bytes": 8165,
+      "contentGroup": "preserved-reviewer-regression-package"
     },
     {
-      "path": "hosts46/merck/runtime/load-source-runtime.js",
+      "path": "backup/reviewer-regression-20261006T0100Z/patches/gilead-reviewer.patch",
       "mode": "100644",
       "type": "blob",
-      "sha": "6edb5b46678c62ea7bf7c84c1c2a3a75c033fee4",
-      "sha256": "21c172d85023031c6c5db3669aac49b55be70443666de6af5cdf7b79efd5878b",
-      "bytes": 1849
+      "sha": "1e47b9508b9655368f0d8f41aedb620c99cf4344",
+      "sha256": "fa56d4ca86a6edad20ed999a7d6ac05a51f3ba6f892aa42fe2c5e3a70558e91e",
+      "bytes": 797,
+      "contentGroup": "preserved-reviewer-regression-package"
     },
     {
-      "path": "hosts46/merck/runtime/preflight/preflight-launch.mjs",
+      "path": "backup/reviewer-regression-20261006T0100Z/patches/merck-reviewer.patch",
       "mode": "100644",
       "type": "blob",
-      "sha": "aae8658b6748724e68d5d633967a3d37cf66016f",
-      "sha256": "a6af2dd6c415ee875de89cfc45560567a466d22ff2275d705398d18bde3600c4",
-      "bytes": 10206
+      "sha": "4b07ed514261c5e94366cc6b83c9efcf762cc78a",
+      "sha256": "728885adb12ca90289d8f79eeae8eab82415ccb25f71d2012b03b7c76df3dcb3",
+      "bytes": 796,
+      "contentGroup": "preserved-reviewer-regression-package"
     },
     {
-      "path": "hosts46/merck/runtime/preflight/runtime-check.mjs",
+      "path": "backup/reviewer-regression-20261006T0100Z/patches/organon-reviewer.patch",
       "mode": "100644",
       "type": "blob",
-      "sha": "1aaf44921d83b86bb9c0065a46393286a8b725c3",
-      "sha256": "0f55d1f662d9eb3329298c68cff3b4a6161dedbefe95c86084bb451bd9e75ee7",
-      "bytes": 3523
+      "sha": "24595e4d0dffeae36bfc9c6c51d58478898ad1b4",
+      "sha256": "f458aa78e8bd660d16459b5158e480460ba08977d3213c50ab1430b9966e4c56",
+      "bytes": 798,
+      "contentGroup": "preserved-reviewer-regression-package"
     },
     {
-      "path": "hosts46/merck/runtime/review-publication.py",
+      "path": "backup/reviewer-regression-20261006T0100Z/patches/restore-portable66-next-host46.py.patch",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "ed69c25d7604bed2315916b0577fbced74479b00",
+      "sha256": "6500055fba703f7068beac45d930a38f3d2330b6e04b7515d58f7353ffa6a650",
+      "bytes": 2907,
+      "contentGroup": "preserved-reviewer-regression-package"
+    },
+    {
+      "path": "backup/reviewer-regression-20261006T0100Z/payload/verification/restore-portable66-next-host46.py",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "632e6be04ade3ec5fd2338a454857049eaf4f91a",
+      "sha256": "ea371037bec76ce16ef25fcaeb5c385de6ad695829e19929ab16e3f52c1699b7",
+      "bytes": 8490,
+      "contentGroup": "preserved-reviewer-regression-package"
+    },
+    {
+      "path": "backup/reviewer-regression-20261006T0100Z/reviewer-bytes/gilead-after.py",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "3dccde02d7999e1c81086cba0f0b517089de1e24",
+      "sha256": "2b353f1642c069e948999f5f954efd91860f7a16fc16713f9807c3395de7a1b8",
+      "bytes": 3324,
+      "contentGroup": "preserved-reviewer-regression-package"
+    },
+    {
+      "path": "backup/reviewer-regression-20261006T0100Z/reviewer-bytes/gilead-before.py",
       "mode": "100644",
       "type": "blob",
       "sha": "86b844af8edf19d25dad6bf9596f4fce5209d7eb",
       "sha256": "e0e836e5320583aa29342baec035c9d0ae5dd00fdd3bb7c88c5348ef16dca9d7",
-      "bytes": 3415
+      "bytes": 3415,
+      "contentGroup": "preserved-reviewer-regression-package"
     },
     {
-      "path": "hosts46/merck/runtime/start-monitor-portable42.js",
+      "path": "backup/reviewer-regression-20261006T0100Z/reviewer-bytes/merck-after.py",
       "mode": "100644",
       "type": "blob",
-      "sha": "bd7b5a2cf958a65b3cc680f9d6b6ba9e2eda5ed3",
-      "sha256": "b9e36f1986f87eb7de6069e111e0577cc8de9ceb969c9867e544c3f5b0245651",
-      "bytes": 6762
+      "sha": "c43bc719c148d15e1ce222ac61912f39333d2f0b",
+      "sha256": "0c51a5a8d9a8db26995ef5d8e34e09b74e0b4ec068673b5ee42aa9e0f6c6eb34",
+      "bytes": 3323,
+      "contentGroup": "preserved-reviewer-regression-package"
+    },
+    {
+      "path": "backup/reviewer-regression-20261006T0100Z/reviewer-bytes/merck-before.py",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "86b844af8edf19d25dad6bf9596f4fce5209d7eb",
+      "sha256": "e0e836e5320583aa29342baec035c9d0ae5dd00fdd3bb7c88c5348ef16dca9d7",
+      "bytes": 3415,
+      "contentGroup": "preserved-reviewer-regression-package"
+    },
+    {
+      "path": "backup/reviewer-regression-20261006T0100Z/reviewer-bytes/organon-after.py",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "0c79809d8aa651897fa242404d7b35ac05ccc74f",
+      "sha256": "4c328d81805c2d669430e0e1f464d31ee1cd89ab7e2cb2ed8dc02386a1f1df98",
+      "bytes": 3325,
+      "contentGroup": "preserved-reviewer-regression-package"
+    },
+    {
+      "path": "backup/reviewer-regression-20261006T0100Z/reviewer-bytes/organon-before.py",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "86b844af8edf19d25dad6bf9596f4fce5209d7eb",
+      "sha256": "e0e836e5320583aa29342baec035c9d0ae5dd00fdd3bb7c88c5348ef16dca9d7",
+      "bytes": 3415,
+      "contentGroup": "preserved-reviewer-regression-package"
+    },
+    {
+      "path": "backup/reviewer-regression-20261006T0100Z/test_review_packets.py",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "2c6a9633b20b118f86ef11768a7266100a2e7bd9",
+      "sha256": "a172fc71b879cb83b66130fee223c7ac13e3c27f8e0a366c685f303010449f69",
+      "bytes": 14993,
+      "contentGroup": "preserved-reviewer-regression-package"
     },
     {
       "path": "hosts46/gilead/archive-transfer.mjs",
@@ -171,7 +285,8 @@
       "type": "blob",
       "sha": "5a454d21f34f9680221bbee2c98b3fecb94884f0",
       "sha256": "698e966e5552967845a5252d2b3df2acca28dcd8dbbb0ae41755a3a6231e6a99",
-      "bytes": 1777
+      "bytes": 1777,
+      "contentGroup": "current-host-and-tool-source"
     },
     {
       "path": "hosts46/gilead/context-read.sql",
@@ -179,7 +294,8 @@
       "type": "blob",
       "sha": "f66481ddaf89d2ee80d33b5cf9110764415ea95e",
       "sha256": "74ce24032fb3aeaa9424514e8596fa740594a9c7c30b3e873587c5cf88eabed0",
-      "bytes": 2141
+      "bytes": 2141,
+      "contentGroup": "current-host-and-tool-source"
     },
     {
       "path": "hosts46/gilead/host-files.mts",
@@ -187,7 +303,8 @@
       "type": "blob",
       "sha": "f130e14ace5f1b66bbbf3f86e8e2ed55f0db7b7b",
       "sha256": "c0433bd1a968fbe411f38f7c4a908d2106a64ca937724149315cbc134c931198",
-      "bytes": 4072
+      "bytes": 4072,
+      "contentGroup": "current-host-and-tool-source"
     },
     {
       "path": "hosts46/gilead/host-helper-functions.js",
@@ -195,7 +312,8 @@
       "type": "blob",
       "sha": "4ff956651ece47aed095799a6ee25076fcbd4a42",
       "sha256": "0eb275c2150f0162d2596b189f02911019fe07224d729dd5f1ae627b278d546f",
-      "bytes": 7060
+      "bytes": 7060,
+      "contentGroup": "current-host-and-tool-source"
     },
     {
       "path": "hosts46/gilead/host-stage-functions.js",
@@ -203,7 +321,8 @@
       "type": "blob",
       "sha": "b750bd233b18d5385d683f8aee865b6e55e8b115",
       "sha256": "e16a141954cbc8860b65f9e156187b4d47bcc73dbcfa0f7ac7df89b4cfc39a28",
-      "bytes": 5959
+      "bytes": 5959,
+      "contentGroup": "current-host-and-tool-source"
     },
     {
       "path": "hosts46/gilead/relay-files.mjs",
@@ -211,7 +330,8 @@
       "type": "blob",
       "sha": "a58d4c0f129876e0e053587f7b327021e13dd410",
       "sha256": "eb209ad690fae131881998402d4d6adbf44f8c85e136f31154930f428186b99c",
-      "bytes": 5472
+      "bytes": 5472,
+      "contentGroup": "current-host-and-tool-source"
     },
     {
       "path": "hosts46/gilead/runtime/continuous-relay-v3-durable-monitor.js",
@@ -219,7 +339,8 @@
       "type": "blob",
       "sha": "81759eb9b7d4875b906996af83dc8f8850b060f2",
       "sha256": "6f2533c9377ea2e9e208e16701976e35c32cc8f76dcea3312e3509d1dce3a9fe",
-      "bytes": 2894
+      "bytes": 2894,
+      "contentGroup": "current-host-and-tool-source"
     },
     {
       "path": "hosts46/gilead/runtime/load-host-state.js",
@@ -227,7 +348,8 @@
       "type": "blob",
       "sha": "707780e6d2bf7715c6f74649b25c83fbb7716d7e",
       "sha256": "f600ed906f89ee5b356095f92c8fc8e53e23fa10c3c7506b439361deb96ed8ae",
-      "bytes": 1869
+      "bytes": 1869,
+      "contentGroup": "current-host-and-tool-source"
     },
     {
       "path": "hosts46/gilead/runtime/load-source-runtime.js",
@@ -235,7 +357,8 @@
       "type": "blob",
       "sha": "c6eb49c44c1a0c9debe51b498b49cc160012769f",
       "sha256": "54bceccdd2b9568c99afa3a35bb0a5624b576415b96af14cf530f23ad828f245",
-      "bytes": 1858
+      "bytes": 1858,
+      "contentGroup": "current-host-and-tool-source"
     },
     {
       "path": "hosts46/gilead/runtime/preflight/preflight-launch.mjs",
@@ -243,7 +366,8 @@
       "type": "blob",
       "sha": "aae8658b6748724e68d5d633967a3d37cf66016f",
       "sha256": "a6af2dd6c415ee875de89cfc45560567a466d22ff2275d705398d18bde3600c4",
-      "bytes": 10206
+      "bytes": 10206,
+      "contentGroup": "current-host-and-tool-source"
     },
     {
       "path": "hosts46/gilead/runtime/preflight/runtime-check.mjs",
@@ -251,15 +375,17 @@
       "type": "blob",
       "sha": "1aaf44921d83b86bb9c0065a46393286a8b725c3",
       "sha256": "0f55d1f662d9eb3329298c68cff3b4a6161dedbefe95c86084bb451bd9e75ee7",
-      "bytes": 3523
+      "bytes": 3523,
+      "contentGroup": "current-host-and-tool-source"
     },
     {
       "path": "hosts46/gilead/runtime/review-publication.py",
       "mode": "100644",
       "type": "blob",
-      "sha": "86b844af8edf19d25dad6bf9596f4fce5209d7eb",
-      "sha256": "e0e836e5320583aa29342baec035c9d0ae5dd00fdd3bb7c88c5348ef16dca9d7",
-      "bytes": 3415
+      "sha": "3dccde02d7999e1c81086cba0f0b517089de1e24",
+      "sha256": "2b353f1642c069e948999f5f954efd91860f7a16fc16713f9807c3395de7a1b8",
+      "bytes": 3324,
+      "contentGroup": "current-host-and-tool-source"
     },
     {
       "path": "hosts46/gilead/runtime/start-monitor-portable42.js",
@@ -267,7 +393,125 @@
       "type": "blob",
       "sha": "1a275ede8ada3a33737f1ba3a3d5162954b76d8a",
       "sha256": "778e7676bbaeea2420caecbc0e2b822b1b929b41d390720b72340f8c997007f9",
-      "bytes": 6771
+      "bytes": 6771,
+      "contentGroup": "current-host-and-tool-source"
+    },
+    {
+      "path": "hosts46/merck/archive-transfer.mjs",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "5a454d21f34f9680221bbee2c98b3fecb94884f0",
+      "sha256": "698e966e5552967845a5252d2b3df2acca28dcd8dbbb0ae41755a3a6231e6a99",
+      "bytes": 1777,
+      "contentGroup": "current-host-and-tool-source"
+    },
+    {
+      "path": "hosts46/merck/context-read.sql",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "61aa7c724b7505d68649cc1a7ad17be75b546e54",
+      "sha256": "9e72262d32f8f1d3d574558d633a9c2599b3f046dab9793cb7008c8cea54f444",
+      "bytes": 2136,
+      "contentGroup": "current-host-and-tool-source"
+    },
+    {
+      "path": "hosts46/merck/host-files.mts",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "f130e14ace5f1b66bbbf3f86e8e2ed55f0db7b7b",
+      "sha256": "c0433bd1a968fbe411f38f7c4a908d2106a64ca937724149315cbc134c931198",
+      "bytes": 4072,
+      "contentGroup": "current-host-and-tool-source"
+    },
+    {
+      "path": "hosts46/merck/host-helper-functions.js",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "04ebe455eb49d6b4af448b8d4411a911a738ad3f",
+      "sha256": "17cb599517b3d712f395b3e30d81a634ada4bc92c6bf19e51e3ff6be8217dfe8",
+      "bytes": 7053,
+      "contentGroup": "current-host-and-tool-source"
+    },
+    {
+      "path": "hosts46/merck/host-stage-functions.js",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "94e0147a6553a283c5bba233ec784101c36c6e28",
+      "sha256": "45ae7cb6587d03d2fd374395131f74daa75c5fc9f5ea1e4702733f1c400a8350",
+      "bytes": 5948,
+      "contentGroup": "current-host-and-tool-source"
+    },
+    {
+      "path": "hosts46/merck/relay-files.mjs",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "8aa2a9be84796b282a39e241a1fa5ae233664237",
+      "sha256": "46531f7c0737d7d212f9c7680ca24aec6ce2af1f15e94bbb62b7b48c161cf9a3",
+      "bytes": 5471,
+      "contentGroup": "current-host-and-tool-source"
+    },
+    {
+      "path": "hosts46/merck/runtime/continuous-relay-v3-durable-monitor.js",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "ced9c27f327c09da0f83ed0916f02d49120476af",
+      "sha256": "6599547913d83a513bb55a96e034af50ffbc5c729ac8cebe3bc273186a386bb8",
+      "bytes": 2887,
+      "contentGroup": "current-host-and-tool-source"
+    },
+    {
+      "path": "hosts46/merck/runtime/load-host-state.js",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "3c84bd59f3a3112e40e6662d0303bf9432c4c118",
+      "sha256": "b1616d0f78fd51de6836bf906daa36268d482924443bf6d24861845ad1168398",
+      "bytes": 1865,
+      "contentGroup": "current-host-and-tool-source"
+    },
+    {
+      "path": "hosts46/merck/runtime/load-source-runtime.js",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "6edb5b46678c62ea7bf7c84c1c2a3a75c033fee4",
+      "sha256": "21c172d85023031c6c5db3669aac49b55be70443666de6af5cdf7b79efd5878b",
+      "bytes": 1849,
+      "contentGroup": "current-host-and-tool-source"
+    },
+    {
+      "path": "hosts46/merck/runtime/preflight/preflight-launch.mjs",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "aae8658b6748724e68d5d633967a3d37cf66016f",
+      "sha256": "a6af2dd6c415ee875de89cfc45560567a466d22ff2275d705398d18bde3600c4",
+      "bytes": 10206,
+      "contentGroup": "current-host-and-tool-source"
+    },
+    {
+      "path": "hosts46/merck/runtime/preflight/runtime-check.mjs",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "1aaf44921d83b86bb9c0065a46393286a8b725c3",
+      "sha256": "0f55d1f662d9eb3329298c68cff3b4a6161dedbefe95c86084bb451bd9e75ee7",
+      "bytes": 3523,
+      "contentGroup": "current-host-and-tool-source"
+    },
+    {
+      "path": "hosts46/merck/runtime/review-publication.py",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "c43bc719c148d15e1ce222ac61912f39333d2f0b",
+      "sha256": "0c51a5a8d9a8db26995ef5d8e34e09b74e0b4ec068673b5ee42aa9e0f6c6eb34",
+      "bytes": 3323,
+      "contentGroup": "current-host-and-tool-source"
+    },
+    {
+      "path": "hosts46/merck/runtime/start-monitor-portable42.js",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "bd7b5a2cf958a65b3cc680f9d6b6ba9e2eda5ed3",
+      "sha256": "b9e36f1986f87eb7de6069e111e0577cc8de9ceb969c9867e544c3f5b0245651",
+      "bytes": 6762,
+      "contentGroup": "current-host-and-tool-source"
     },
     {
       "path": "hosts46/organon/archive-transfer.mjs",
@@ -275,7 +519,8 @@
       "type": "blob",
       "sha": "5a454d21f34f9680221bbee2c98b3fecb94884f0",
       "sha256": "698e966e5552967845a5252d2b3df2acca28dcd8dbbb0ae41755a3a6231e6a99",
-      "bytes": 1777
+      "bytes": 1777,
+      "contentGroup": "current-host-and-tool-source"
     },
     {
       "path": "hosts46/organon/context-read.sql",
@@ -283,7 +528,8 @@
       "type": "blob",
       "sha": "64d0939b8450c39a702116a31f9f9c10ef64b20e",
       "sha256": "e514ecc5d19e848f38fc73f2f629ab43c7e1ccfa1c52b5d5efb3c064853924ca",
-      "bytes": 2146
+      "bytes": 2146,
+      "contentGroup": "current-host-and-tool-source"
     },
     {
       "path": "hosts46/organon/host-files.mts",
@@ -291,7 +537,8 @@
       "type": "blob",
       "sha": "f130e14ace5f1b66bbbf3f86e8e2ed55f0db7b7b",
       "sha256": "c0433bd1a968fbe411f38f7c4a908d2106a64ca937724149315cbc134c931198",
-      "bytes": 4072
+      "bytes": 4072,
+      "contentGroup": "current-host-and-tool-source"
     },
     {
       "path": "hosts46/organon/host-helper-functions.js",
@@ -299,7 +546,8 @@
       "type": "blob",
       "sha": "d022199a421e7c3c81a563a0af90a1091544a72d",
       "sha256": "62d5149c8e9237472207b98c4154366ec784cf1aeeaba3bb2fdde34999ee3647",
-      "bytes": 7067
+      "bytes": 7067,
+      "contentGroup": "current-host-and-tool-source"
     },
     {
       "path": "hosts46/organon/host-stage-functions.js",
@@ -307,7 +555,8 @@
       "type": "blob",
       "sha": "e51e54a6cf0ddf757e201cea39e635317967366c",
       "sha256": "de6dc874c0699bcdd951a877aac8bf7081d70cde55e99d1b34e954a079ecee8f",
-      "bytes": 5970
+      "bytes": 5970,
+      "contentGroup": "current-host-and-tool-source"
     },
     {
       "path": "hosts46/organon/relay-files.mjs",
@@ -315,7 +564,8 @@
       "type": "blob",
       "sha": "1c96831ce299b5840ad3e3343ccbf49153a04891",
       "sha256": "9f0c7128a6b1a6705c359f46acc00805c0f905b46712ac841987290b2c4b5142",
-      "bytes": 5473
+      "bytes": 5473,
+      "contentGroup": "current-host-and-tool-source"
     },
     {
       "path": "hosts46/organon/runtime/continuous-relay-v3-durable-monitor.js",
@@ -323,7 +573,8 @@
       "type": "blob",
       "sha": "f2fec7011073ec637c379925dceb0a38760d73ee",
       "sha256": "270a276f0f9e66fcf113c0c1e1f8803001ddeb0f6ed5db5ce595567beb39aa2d",
-      "bytes": 2901
+      "bytes": 2901,
+      "contentGroup": "current-host-and-tool-source"
     },
     {
       "path": "hosts46/organon/runtime/load-host-state.js",
@@ -331,7 +582,8 @@
       "type": "blob",
       "sha": "786e9616d51dc6862b4b79fdd4d215d0c2e5e1db",
       "sha256": "8dcf1f09118b68579e24460d076d290037051896f2d9b5809a043637bf0c5d15",
-      "bytes": 1873
+      "bytes": 1873,
+      "contentGroup": "current-host-and-tool-source"
     },
     {
       "path": "hosts46/organon/runtime/load-source-runtime.js",
@@ -339,7 +591,8 @@
       "type": "blob",
       "sha": "ca812d263a80d3c29dbfb3b6bee36d66631ea86b",
       "sha256": "ad9a736cfe97a3ed287cb999420cf22c42c39d7247c7d3696af6226b3f184084",
-      "bytes": 1867
+      "bytes": 1867,
+      "contentGroup": "current-host-and-tool-source"
     },
     {
       "path": "hosts46/organon/runtime/preflight/preflight-launch.mjs",
@@ -347,7 +600,8 @@
       "type": "blob",
       "sha": "aae8658b6748724e68d5d633967a3d37cf66016f",
       "sha256": "a6af2dd6c415ee875de89cfc45560567a466d22ff2275d705398d18bde3600c4",
-      "bytes": 10206
+      "bytes": 10206,
+      "contentGroup": "current-host-and-tool-source"
     },
     {
       "path": "hosts46/organon/runtime/preflight/runtime-check.mjs",
@@ -355,15 +609,17 @@
       "type": "blob",
       "sha": "1aaf44921d83b86bb9c0065a46393286a8b725c3",
       "sha256": "0f55d1f662d9eb3329298c68cff3b4a6161dedbefe95c86084bb451bd9e75ee7",
-      "bytes": 3523
+      "bytes": 3523,
+      "contentGroup": "current-host-and-tool-source"
     },
     {
       "path": "hosts46/organon/runtime/review-publication.py",
       "mode": "100644",
       "type": "blob",
-      "sha": "86b844af8edf19d25dad6bf9596f4fce5209d7eb",
-      "sha256": "e0e836e5320583aa29342baec035c9d0ae5dd00fdd3bb7c88c5348ef16dca9d7",
-      "bytes": 3415
+      "sha": "0c79809d8aa651897fa242404d7b35ac05ccc74f",
+      "sha256": "4c328d81805c2d669430e0e1f464d31ee1cd89ab7e2cb2ed8dc02386a1f1df98",
+      "bytes": 3325,
+      "contentGroup": "current-host-and-tool-source"
     },
     {
       "path": "hosts46/organon/runtime/start-monitor-portable42.js",
@@ -371,7 +627,8 @@
       "type": "blob",
       "sha": "7600a32a17b59f2607cbdb0fc1e2761b612f5adf",
       "sha256": "5008b9ff536ce94d3902ded474ec0cd2ab2bedbf9f0565b039b372ace7b5081d",
-      "bytes": 6780
+      "bytes": 6780,
+      "contentGroup": "current-host-and-tool-source"
     },
     {
       "path": "verification/check-portable66-next-host46.mjs",
@@ -379,7 +636,8 @@
       "type": "blob",
       "sha": "b15141d3c7e5ecee5d2f1d29004ae3163a233903",
       "sha256": "738ddf4534c267fe257e6c82d70dcf52abae1d9a882fad4c3794c88011bbc41c",
-      "bytes": 21597
+      "bytes": 21597,
+      "contentGroup": "current-host-and-tool-source"
     },
     {
       "path": "verification/check-portable66-next-safety46.mjs",
@@ -387,7 +645,8 @@
       "type": "blob",
       "sha": "795094204b2840c61cbd280baba2bb031bee7826",
       "sha256": "9d3a2122829a72fa9d76d47bcdc02ae8f61f535e1e4d7d984d9e8af7644b9b67",
-      "bytes": 9492
+      "bytes": 9492,
+      "contentGroup": "current-host-and-tool-source"
     },
     {
       "path": "verification/freeze-portable66-next-host46.py",
@@ -395,7 +654,8 @@
       "type": "blob",
       "sha": "1956f81c55ad60f620fc436a18b855a7afdc5b9e",
       "sha256": "16d518801d8a844d0398bd9c792cbd093b575a6241757f41b76fc2dfcdce628d",
-      "bytes": 6409
+      "bytes": 6409,
+      "contentGroup": "current-host-and-tool-source"
     },
     {
       "path": "verification/prepare-portable66-next-host46.mjs",
@@ -403,15 +663,17 @@
       "type": "blob",
       "sha": "df20430ac3aac89c30042a6aa912dd285e5c82d5",
       "sha256": "f56f1b882c848f883cd754409385da086841b18ffe86e6f14aa28a6b263df226",
-      "bytes": 4391
+      "bytes": 4391,
+      "contentGroup": "current-host-and-tool-source"
     },
     {
       "path": "verification/restore-portable66-next-host46.py",
       "mode": "100644",
       "type": "blob",
-      "sha": "56cd3d0f05857af6624aceafa3ac601726a86d6c",
-      "sha256": "816cd57bf0cffac509dc561b75bf5a1b51b2371c50f351c1fbef642389f615cf",
-      "bytes": 8165
+      "sha": "632e6be04ade3ec5fd2338a454857049eaf4f91a",
+      "sha256": "ea371037bec76ce16ef25fcaeb5c385de6ad695829e19929ab16e3f52c1699b7",
+      "bytes": 8490,
+      "contentGroup": "current-host-and-tool-source"
     }
   ]
 }

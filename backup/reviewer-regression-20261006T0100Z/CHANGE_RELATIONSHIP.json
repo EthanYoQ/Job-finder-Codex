@@ -1,0 +1,28 @@
+{
+  "schemaVersion": 1,
+  "status": "OFFLINE_VERIFIED_SAFE_SOURCE_INCREMENT",
+  "priorRecipe": "/workspace/scratch/5e9614251709/jb-workspace-recovery-20261005T2019Z/verification/restore-portable66-next-host46.py",
+  "priorRecipeSha256": "816cd57bf0cffac509dc561b75bf5a1b51b2371c50f351c1fbef642389f615cf",
+  "patchedRecipeSha256": "ea371037bec76ce16ef25fcaeb5c385de6ad695829e19929ab16e3f52c1699b7",
+  "priorRuntimeReviewerSha256": "e0e836e5320583aa29342baec035c9d0ae5dd00fdd3bb7c88c5348ef16dca9d7",
+  "parentReviewedFixedReviewerSha256": {
+    "merck": "0c51a5a8d9a8db26995ef5d8e34e09b74e0b4ec068673b5ee42aa9e0f6c6eb34",
+    "gilead": "2b353f1642c069e948999f5f954efd91860f7a16fc16713f9807c3395de7a1b8",
+    "organon": "4c328d81805c2d669430e0e1f464d31ee1cd89ab7e2cb2ed8dc02386a1f1df98"
+  },
+  "parentFixDirectory": "/workspace/scratch/5e9614251709/jb-workspace-recovery-20261005T2019Z/verification/portable3-review-scope-fix-20261006T0018Z",
+  "activeHostFilesChanged": false,
+  "oldRecipeChanged": false,
+  "producerChanged": false,
+  "databaseAccessed": false,
+  "sourceAccessed": false,
+  "patchScope": "Bind copied reviewer source allowlist to one selected exact sourceId; fail on original literal drift; preserve all other reviewer bytes",
+  "historicalBackupsUnchanged": [
+    "code84",
+    "GitHub aeb... historical commit (short ID supplied by parent, not independently expanded)"
+  ],
+  "regressionResult": "135 actual reviewer CLI invocations: 3 accepted own-source synthetic packets, 132 rejected counterexamples",
+  "integrationState": "PATCH_STAGED_IN_NEW_PACKAGE; historical R2 recipe and current live hosts preserved",
+  "scopeAudit": "36 selected template files; no additional same-class source-binding mismatch",
+  "futureRecipePathInRestoredR2": "verification/restore-portable66-next-host46.py"
+}

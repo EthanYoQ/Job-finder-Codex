@@ -5,7 +5,7 @@ from pathlib import Path
 host=Path(sys.argv[1]);run=Path(sys.argv[2]);request_id=sys.argv[3]
 assert run.parent==host and re.fullmatch(r'[a-f0-9-]{36}',request_id)
 cfg=json.loads((host/'host-config.json').read_text())
-assert cfg['sourceId'] in {'source-astellas-china-social','source-grifols-china-social','source-bms-china-social','source-biogen-china-social'}
+assert cfg['sourceId']=='source-merck-china-social'
 request=json.loads((run/'relay'/f'{request_id}.request.json').read_text())
 assert request['kind']=='PUBLISH' and request['requestId']==request_id and request['payload']['projectId']==cfg['project']=='yiopvxysxrtrnvqxwgbx'
 sql=(run/'relay'/f'{request_id}.request.json.sql').read_text();assert sql==request['payload']['sql']

@@ -1,33 +1,35 @@
-# Merck, Gilead and Organon C46 PORTABLE host source
+# Merck, Gilead and Organon C46 PORTABLE source backup, revision 2
 
-This independent safe source archive contains three prepared regular-C46 hosts and their shared preparation/check tools. It retains exact frozen source bytes and does not start collection, run CI, deploy a service or modify the repository default branch.
+This source snapshot corrects the inherited reviewer source binding for Merck, Gilead and Organon and preserves the matching restoration-recipe correction. It retains the previous 44 host/tool source paths, replacing only the three reviewer files and the restore recipe, and adds the complete 20-file source regression package plus three root metadata files: 67 files total.
 
-## Frozen cutoff
+## Relationship to the historical backup
 
-The preparation report was frozen at 2026-10-05 23:39:30 UTC, SHA256 `dac465c192d3f316823fee27cf366836c8f317f9eb3cc27061587ac950596ac8`. All three hosts were prepared and not launched at that cutoff. Approximate next-due references were 00:14 UTC for Merck, 00:18 for Gilead and 00:26 for Organon on October 6. Those are planning hints only; the actual start still requires a fresh exact observation and lock/candidate read.
+The parent is `aeb54251e44a2dbdb57b64c842bb5723e2ee75ae`, tree `69132abfeec5002300b1f73573a616b10a9528cb`. Revision 2 is prepared for `backup/portable-three46-reviewer-r2-20261006-0117`. The parent commit and earlier backup branch remain historical records; revision 2 supersedes their reviewer and recipe bytes for future clean source reconstruction. It does not rewrite that history or change the repository default branch.
 
-The publisher reports 15 main local checks plus 6 supplemental checks for each source, including the unchanged 48-migration schema, C46 bindings, lease/dispatch guards, observation due-time and bootstrap gates. No real source capture or database publication occurred as part of this preparation. This backup reviewed static source and fixed hashes without rerunning tests or reading any live run.
+The earlier snapshot recorded prepared, not launched hosts at 2026-10-05 23:39:30 UTC. A later publisher handoff reports all three sources committed and CURRENT by 2026-10-06 01:07 UTC. That later status is publisher-reported context, not independently checked by this source backup. No live run, production SQL packet, job data or database state was read or copied to establish it.
 
-## Preserved behavior
+## Exact source correction
 
-Each source retains its original PORTABLE route, 256 MiB heap, official source/config binding, 12-hour observation interval, 60-second bootstrap age and 30-minute evidence window. The regular producer source remains `fb0b8e3b708d4f57cae09b465fb1c9ceddf7ad8d` with its separately registered C46 runtime. No observer sampler was attached, and this preparation does not alter the source fetch command or claim a measured memory peak.
+The historical copied reviewer admitted the old Astellas/Grifols/BMS/Biogen source set. Each corrected reviewer instead requires its one exact Merck, Gilead or Organon source ID. Each before/after pair differs in that single assertion only. The restore recipe now requires exactly one occurrence of the legacy literal, replaces it with the selected source ID, and fails on literal drift. Other reviewer guards and recipe behavior retain their original bytes; no assertion was removed or weakened.
 
-The current 39 host source files were compared with the preceding reviewed PORTABLE hosts after accounting for their exact host/source/config bindings. The only remaining host-code difference is the intended three-source starter scope. The five shared tools retain the reviewed preparation recipe, strengthen invalid-batch test cases, add synthetic local safety counterexamples and keep broad generated inventories separate from this filtered export. They do not embed actual historical due rows or responses.
+The three corrected reviewer files under `hosts46/` and `verification/restore-portable66-next-host46.py` exactly match the corresponding after/payload bytes in `backup/reviewer-regression-20261006T0100Z/`. All 20 package members remain together with their original layout, including original and fixed sources, exact patches, synthetic test source, publisher aggregate results and package manifests. This preserves the test runner's relative file references.
 
-A launch requires the correct current C46 identity, a free formal lock, exclusive publisher ownership, fresh successful CrawlObservation evidence and parent review. An expired request with a MAY_HAVE_BEEN_SENT marker stays uncertain; it is not retried as if undispatched. Synthetic diagnostics cannot authorize a real launch.
+## Verification and its limits
+
+The packaged publisher result records 135 reviewer CLI calls: 3 accepted own-source synthetic packets, 129 rejected counterexamples against corrected reviewers, and 3 reproduced own-source failures against historical reviewers. The earlier 27 scope-only checks are separate and are not counted here. The package also records a selected 36-template binding audit. During backup preparation these records were checked for consistency and their frozen hashes were verified; the source, regression runner, restoration recipe and full CI were not executed.
+
+This is a narrow source-binding regression, not a complete transaction verifier. The positive fixtures are synthetic reviewer-contract packets, not compiler-issued production packets or source-quality evidence. Inherited SQL checks use case-sensitive regular expressions and token presence; inherited assertions require a nonoptimized Python interpreter, and the reviewer does not independently validate request expiry or recompute the request hash. These unchanged limitations are not resolved by this correction. Neither the synthetic accepts nor this backup establish production qualification, SQL execution, a successful capture, or authority to launch or publish.
+
+## Included and excluded content
+
+Included are 39 host/source/read-only-query templates and 5 shared verification/preparation scripts, plus the 20-file regression package. Forty existing current-source paths reuse the parent's exact blobs. The four current-source replacements and all package members preserve exact approved bytes. Nonsecret project/candidate/source identifiers, configuration hashes and historical workspace paths remain in source and source metadata.
+
+Excluded are environment files, credentials, actual host configuration and source-plan values, active registration/control/publisher state, bootstraps, live run directories, actual generated SQL/request/control packets, raw captured jobs, database responses, internal authorization records and unrelated audit notes. The three inherited `context-read.sql` files are read-only query source templates; they are not saved query results or production publication packets. The synthetic regression constructs SQL-shaped fixtures locally, but no materialized fixture packet is included. Broad runtime/freeze inventories are not safe upload allowlists.
 
 ## Recovery boundary
 
-Configuration and source-plan bytes were absent from the historical archive and have been regenerated from the original prepare-host recipe, source-specific stage bindings and canonical producer plan. This is reconstruction, not an assertion that old config bytes were recovered. The absent original route file, old bootstraps, SQL/control packets and runtime state were not fabricated.
+This is a filtered source snapshot, not a runnable runtime image or a database/operational-state backup. The clean restoration recipe requires the separately retained `code80-portable66-contracts/operations/external-host66` original templates and manifest. Matching producer/dependencies, current configuration/control/registration/build identity, publisher state and fresh source evidence remain external. Historical configuration bytes were absent and must be reconstructed from authorized inputs; source hashes do not recover those values.
 
-The inherited ARCHIVE_STORE path still references a missing audit helper and remains unsupported. The supported DB_STARTED flow uses separate authorized evidence archival. Use each dedicated source starter and preflight check; inherited generic preflight launch is a diagnostic template. The saved optional sampler has not been connected to these hosts.
+The recipe rejects an existing destination host. For an authorized clean reconstruction, use the revision-2 recipe at `verification/restore-portable66-next-host46.py`; preserve the packaged original and history. Do not overlay or execute it on an active host. The inherited legacy ARCHIVE_STORE helper remains unsupported. Dedicated source starters/preflight checks, fresh bootstrap/observation gates and exclusive publisher coordination remain necessary; uncertain dispatches must not be treated as safely undispatched.
 
-This source increment alone is not a runnable runtime image. Matching producer/dependencies, configuration/control, registration, live publisher state, original template inputs and fresh evidence remain external. Check and freeze scripts read such inputs and create local reports/artifacts. Their generated SOURCE_BACKUP lists include non-source operational material and must not be uploaded wholesale.
-
-## Included and excluded files
-
-Included: 13 current host/source/read-only-SQL files per source plus 5 shared verification/preparation scripts, 44 source files total. `SOURCE_BACKUP.json` binds every path, mode, Git blob SHA, SHA256 and byte length; `SHA256SUMS` covers the selected sources and new recovery metadata. Nonsecret exact source/project/candidate pins and original workspace paths remain unchanged.
-
-Each original host inventory contains 77 entries; their union has 193 distinct paths. This archive selects 44 current source entries and excludes 149 distinct inventory entries. Exclusions include historical templates/originals/diffs, actual configs and runtime/registration identity, source plans, next-due database references, broad manifests/reports, NONQUAL/local-preflight artifacts and generated SQL/control/request packets. No raw captured jobs, database response, response headers, credentials, environment file or internal operation report is included.
-
-Related previous source: [four PORTABLE C46 hosts](https://github.com/EthanYoQ/Job-finder-Codex/tree/633eb0fcab80763a87bbd599c639f4f2288f0284). No active GitHub workflow is included in this branch.
+`SOURCE_BACKUP.json` lists the 64 selected current-source/package paths with exact mode, Git blob SHA, SHA-256 and byte count. Root `SHA256SUMS` covers those 64 files plus this README and `SOURCE_BACKUP.json`; it excludes itself. The package's own manifests remain byte-for-byte unchanged. No GitHub workflow is added by this snapshot.
