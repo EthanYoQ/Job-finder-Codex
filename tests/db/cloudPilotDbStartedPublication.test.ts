@@ -100,6 +100,33 @@ describe.skipIf(!modulePath)('DB-started publication, actual local PostgreSQL si
   await rejects(packet.sql,/PILOT_CONTEXT_CHANGED|PILOT_REQUEST_ALREADY_APPLIED/);
   expect((await pg.query('SELECT count(*)::int n FROM "Job"')).rows[0].n).toBe(1);
  }));
+ it('uses a shorter outer cutoff in every SQL entry/terminal gate without changing the certificate',async()=>isolated(async()=>{
+  const f=await fixture('outer-cutoff'),publicationDeadline=Date.now()+5*60_000;
+  const packet=await compileDbStartedCloudSourcePublication({...f,publicationDeadline});
+  expect(packet.expiresAt).toBe(new Date(publicationDeadline).toISOString());
+  expect(packet.sql.split(`clock_timestamp() >= E'${packet.expiresAt}'::timestamptz`).length-1).toBeGreaterThanOrEqual(4);
+  expect(packet.commit.sourceResult.completenessCertificate).toEqual(f.initialCertificate);
+  expect(packet.commit.sourceResult.startedAt).toEqual(f.source.pending.startedAt);
+  await pg.exec(packet.sql);await pg.exec('SET CONSTRAINTS ALL IMMEDIATE');
+  expect((await pg.query('SELECT status FROM "CrawlBatch"')).rows).toEqual([{status:'SUCCESS'}]);
+ }));
+ it('cannot enlarge the original proof expiry through a later outer cap',async()=>isolated(async()=>{
+  const f=await fixture('later-outer-cap'),original=deriveDbStartedPublicationExpiry({startedAt:f.source.pending.startedAt,completenessCertificate:f.initialCertificate});
+  const packet=await compileDbStartedCloudSourcePublication({...f,publicationDeadline:original+60*60_000});
+  expect(Date.parse(packet.expiresAt)).toBe(original);
+ }));
+ it('rejects a shortened cutoff at actual DB entry while the original evidence is still fresh',async()=>isolated(async()=>{
+  const f=await fixture('expired-outer-cap'),now=Date.now(),before=await lock();
+  expect(deriveDbStartedPublicationExpiry({startedAt:f.source.pending.startedAt,completenessCertificate:f.initialCertificate})).toBeGreaterThan(now);
+  vi.useFakeTimers({toFake:['Date']});vi.setSystemTime(now-2000);
+  const packet=await compileDbStartedCloudSourcePublication({...f,publicationDeadline:now-1000});vi.useRealTimers();
+  await rejects(packet.sql,/PILOT_REQUEST_EXPIRED/);await noPublication();expect(await lock()).toEqual(before);
+ }));
+ it.each([NaN,Infinity,Date.now()+0.5])('refuses invalid publication cap %s before producing SQL',async publicationDeadline=>isolated(async()=>{
+  const f=await fixture('invalid-cap');
+  await expect(compileDbStartedCloudSourcePublication({...f,publicationDeadline})).rejects.toThrow('PILOT_PUBLICATION_DEADLINE_INVALID');
+  await noPublication();
+ }));
  it.each(['acknowledged','unknown','queued-20-minutes'] as const)('uses the opt-in relay path with %s result, no pre-acquired lease, and exactly one publication',async mode=>isolated(async()=>{
   const f=await fixture('relay-'+mode),dir=await mkdtemp(join(tmpdir(),'db-started-control-'));dirs.push(dir);
   const controlPath=join(dir,'control.json');await writeFile(controlPath,JSON.stringify(common));
@@ -125,7 +152,7 @@ describe.skipIf(!modulePath)('DB-started publication, actual local PostgreSQL si
    throw Error('UNEXPECTED_LEASE_OR_CONTROL_REQUEST');
   });
   try{
-   const result=await runDbStartedCloudPublication({relay,controlPath,planned:f.control.planned,source:f.source,initialCertificate:f.initialCertificate});
+   const result=await runDbStartedCloudPublication({relay,controlPath,planned:f.control.planned,source:f.source,initialCertificate:f.initialCertificate,overallDeadline:f.source.pending.startedAt.getTime()+32*60_000});
    expect(result).toMatchObject({state:'COMMITTED_EXACT',publishAcknowledged:mode!=='unknown',batchFinalizationRequired:false,publicationMode:'DB_STARTED_OWNER_V1'});
    expect(calls).toEqual(['READ_PUBLICATION_CONTEXT','PUBLISH','READ_OUTCOME']);
    expect((await pg.query('SELECT "holderId" FROM "CrawlCoordinatorLock"')).rows[0].holderId).toBe('');
@@ -146,7 +173,7 @@ describe.skipIf(!modulePath)('DB-started publication, actual local PostgreSQL si
    return rows;
   });
   try{
-   await expect(runDbStartedCloudPublication({relay,controlPath,planned:f.control.planned,source:f.source,initialCertificate:f.initialCertificate})).rejects.toThrow(mode==='stale-response'||mode==='pre-request-response'?'PILOT_CONTEXT_FRESH_READ_REQUIRED':'PILOT_PUBLICATION_BUDGET_EXHAUSTED');
+   await expect(runDbStartedCloudPublication({relay,controlPath,planned:f.control.planned,source:f.source,initialCertificate:f.initialCertificate,overallDeadline:f.source.pending.startedAt.getTime()+32*60_000})).rejects.toThrow(mode==='stale-response'||mode==='pre-request-response'?'PILOT_CONTEXT_FRESH_READ_REQUIRED':'PILOT_PUBLICATION_BUDGET_EXHAUSTED');
    expect(calls).toEqual(mode==='exhausted-before-read'||mode==='insufficient-read-reserve'?[]:['READ_PUBLICATION_CONTEXT']);
    await noPublication();
   }finally{spy.mockRestore();vi.useRealTimers();}
@@ -165,7 +192,7 @@ describe.skipIf(!modulePath)('DB-started publication, actual local PostgreSQL si
    throw new PilotSqlFailure('NOT_DISPATCHED','TEST_READ_STOP');
   });
   try{
-   await expect(runDbStartedCloudPublication({relay,controlPath,planned:f.control.planned,source:f.source,initialCertificate})).rejects.toThrow('TEST_READ_STOP');
+   await expect(runDbStartedCloudPublication({relay,controlPath,planned:f.control.planned,source:f.source,initialCertificate,overallDeadline:now+30*60_000})).rejects.toThrow('TEST_READ_STOP');
    expect(spy).toHaveBeenCalledTimes(1);await noPublication();
   }finally{spy.mockRestore();vi.useRealTimers();}
  }));

@@ -1,7 +1,0 @@
-{
-  "name": "20261002101515_organon_source_policy",
-  "path": "/workspace/shared/job-finder-recovery/candidate-investigation/cloud-organon-active-pilot/prisma/migrations/20261002101515_organon_source_policy/migration.sql",
-  "checksum": "96bb2c79d1bc4cdcaeeddb1e994b826cd7287f2de3654807c64aea3b2f8f214e",
-  "previousGuardMd5": "b338c188bbeac501dcea35a45169e11d",
-  "newGuardMd5": "0dc966770f95b8d593ea2404317287f3"
-}

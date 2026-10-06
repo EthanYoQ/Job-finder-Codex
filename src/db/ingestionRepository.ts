@@ -1191,7 +1191,7 @@ export function deriveDbStartedPublicationExpiry(source:Pick<AtomicSourceResultI
 /** Opt-in, local preparation only. Builds from the exact context subsequently
  * compared in PostgreSQL; accepts neither serialized write plans nor leases.
  * The prospective holder is acquired and released by the same atomic DO. */
-export async function compileDbStartedCloudSourcePublication(input:{source:DbStartedCloudSourceInput;control:CloudPilotDbStartedInput}){
+export async function compileDbStartedCloudSourcePublication(input:{source:DbStartedCloudSourceInput;control:CloudPilotDbStartedInput;publicationDeadline?:number}){
  const {loadPilotContext}=await import('../crawler/cloudPilotContext');
  const {buildAtomicRuntimeCommit}=await import('../crawler/runtimeAtomicEvidence');
  const {buildJobDedupeKey}=await import('../crawler/normalizedJob');
@@ -1209,7 +1209,10 @@ export async function compileDbStartedCloudSourcePublication(input:{source:DbSta
  if(commit.sourceResult.completenessState!=='VERIFIED'||!(portable?[SOURCE_QUALITY_RECEIPT_SCHEMA]:['a-grade-official-total-v2','b-grade-independent-traversal-v2']).includes(certificate?.schemaVersion??''))throw Error('PILOT_REAL_CERTIFICATE_REQUIRED');
  // Original acquisition and B validation times are preserved. No renewed local
  // lease/acknowledgement can manufacture a later deadline for this packet.
- const deadline=deriveDbStartedPublicationExpiry(commit.sourceResult);
+ if(input.publicationDeadline!==undefined&&!Number.isSafeInteger(input.publicationDeadline))throw Error('PILOT_PUBLICATION_DEADLINE_INVALID');
+ // The outer worker can shorten this packet's DB/relay cutoff, never extend
+ // the original acquisition or validation proof window.
+ const deadline=Math.min(deriveDbStartedPublicationExpiry(commit.sourceResult),input.publicationDeadline??Infinity);
  if(!Number.isFinite(captureStarted)||!Number.isFinite(deadline)||captureStarted>Date.now()||Date.now()>=deadline)throw Error('PILOT_A_CAPTURE_NOT_FRESH');
  if(commit.artifacts.some(a=>a.capturedAt.getTime()<captureStarted||a.capturedAt.getTime()>Date.now()))throw Error('PILOT_ORIGINAL_CAPTURE_TIMES');
  let stage:AtomicEvidencePersistenceStage='ATTESTATION';

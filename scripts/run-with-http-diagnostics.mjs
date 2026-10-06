@@ -18,6 +18,8 @@ const stdout = openSync(join(root, "stdout.log"), "wx", 0o600);
 const stderr = openSync(join(root, "stderr.log"), "wx", 0o600);
 const lifecycle = openSync(join(root, "process.jsonl"), "wx", 0o600);
 const started = performance.now();
+// Capture before spawn/import work. The child must never restart this budget.
+const outerDeadline = Date.now() + timeoutMs;
 let warningSent = false;
 const storageWarning = () => {
   if (warningSent) return;
@@ -31,8 +33,9 @@ const marker = (event, detail = {}) => {
     fsyncSync(lifecycle);
   } catch { storageWarning(); }
 };
-marker("WRAPPER_START", { timeoutMs });
+marker("WRAPPER_START", { timeoutMs, outerDeadline });
 const child = spawn(command, args, { env: { ...process.env,
+  P0_PILOT_OUTER_DEADLINE_MS: String(outerDeadline),
   P0_OFFICIAL_HTTP_DIAGNOSTICS_PATH: join(root, "http-requests.jsonl") },
   stdio: ["ignore", stdout, stderr], detached: false });
 let deadlineReached = false, spawnFailed = false, escalation;
@@ -47,7 +50,7 @@ const stop = signal => {
     marker("FORCE_KILL_ATTEMPT"); signalChild("SIGKILL");
   }, 10_000);
 };
-const deadline = setTimeout(() => { deadlineReached = true; marker("DEADLINE_REACHED"); stop("SIGTERM"); }, timeoutMs);
+const deadline = setTimeout(() => { deadlineReached = true; marker("DEADLINE_REACHED"); stop("SIGTERM"); }, Math.max(0, timeoutMs - (performance.now() - started)));
 const onSignal = signal => { marker("SIGNAL_RECEIVED", { signal }); stop(signal); };
 process.on("SIGTERM", onSignal);
 process.on("SIGINT", onSignal);

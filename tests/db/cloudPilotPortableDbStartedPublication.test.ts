@@ -121,7 +121,7 @@ describe.skipIf(!modulePath)('portable DB-started publication in local PostgreSQ
   vi.spyOn(FilePilotRelay.prototype,'sql').mockImplementation(async(kind,sql,deadline)=>{
    calls.push(kind);
    if(kind==='READ_PUBLICATION_CONTEXT'){
-    expect(deadline).toBe(captureAt+30*60_000-PILOT_BUDGET.publishDbMs-PILOT_BUDGET.publishTransportMs);
+    expect(deadline).toBe(captureAt+28*60_000-PILOT_BUDGET.publishDbMs-PILOT_BUDGET.publishTransportMs);
     expect((await pg.query('SELECT "holderId" FROM "CrawlCoordinatorLock"')).rows).toEqual([{holderId:''}]);
     vi.setSystemTime(now);return (await pg.query(sql)).rows;
    }
@@ -129,7 +129,7 @@ describe.skipIf(!modulePath)('portable DB-started publication in local PostgreSQ
    if(kind==='READ_OUTCOME')return (await pg.query(sql)).rows;
    throw Error('UNEXPECTED_PRE_ACQUIRED_LEASE');
   });
-  const report=await runCloudPortableSourcePilot({bootstrapPath,reviewedSha256:sha256(bytes),workspaceRoot,relayDirectory:join(workspaceRoot,'relay'),dbStartedControlPath:controlPath});
+  const report=await runCloudPortableSourcePilot({bootstrapPath,reviewedSha256:sha256(bytes),workspaceRoot,relayDirectory:join(workspaceRoot,'relay'),dbStartedControlPath:controlPath,overallDeadline:captureAt+30*60_000});
   expect(report).toMatchObject({state:'COMMITTED_EXACT',publicationMode:'DB_STARTED_OWNER_V1',batchFinalizationRequired:false,jobCount:1});
   expect(calls).toEqual(['READ_CONTEXT','READ_PUBLICATION_CONTEXT','PUBLISH','READ_OUTCOME']);
  }));

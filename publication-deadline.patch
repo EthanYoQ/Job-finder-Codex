@@ -1,0 +1,575 @@
+diff --git a/scripts/p0-cloud-portable-source-pilot.ts b/scripts/p0-cloud-portable-source-pilot.ts
+--- a/scripts/p0-cloud-portable-source-pilot.ts
++++ b/scripts/p0-cloud-portable-source-pilot.ts
+@@ -5,7 +5,7 @@
+ import { mkdtemp, readFile, writeFile } from "node:fs/promises";
+ import { join, resolve } from "node:path";
+ import { pathToFileURL } from "node:url";
+-import { runDbStartedCloudPublication } from "../src/crawler/cloudDbStartedPilot";
++import { runDbStartedCloudPublication, requireDbStartedOuterDeadline } from "../src/crawler/cloudDbStartedPilot";
+ import { z } from "zod";
+ import { archiveSourceEvidence } from "../src/crawler/artifactArchive";
+ import { FilePilotRelay, PILOT_BUDGET, acquireCloudPilotLease, makeArchiveBundle, restoreArchiveBundle, reviveUtcFields, sha256 } from "../src/crawler/cloudSourcePilotRelay";
+@@ -47,7 +47,8 @@
+ function assertProjection(actual:Record<string,unknown>,expected:object){
+   for(const [key,value] of Object.entries(expected))if(JSON.stringify(actual[key])!==JSON.stringify(value))throw Error(`PILOT_BOOTSTRAP_MISMATCH:${key}`);
+ }
+-export async function runCloudPortableSourcePilot(input:{bootstrapPath:string;reviewedSha256:string;workspaceRoot:string;relayDirectory:string;signal?:AbortSignal;dbStartedControlPath?:string}){
++export async function runCloudPortableSourcePilot(input:{bootstrapPath:string;reviewedSha256:string;workspaceRoot:string;relayDirectory:string;signal?:AbortSignal;dbStartedControlPath?:string;overallDeadline?:number}){
++  if(input.dbStartedControlPath)requireDbStartedOuterDeadline(input.overallDeadline);
+   const bytes=await readFile(input.bootstrapPath);if(sha256(bytes)!==input.reviewedSha256)throw Error("PILOT_REVIEWED_BOOTSTRAP_HASH_REQUIRED");
+   const bootstrap=z.object({schemaVersion:z.literal(1),checkedAt:z.string().datetime(),candidateRows:z.array(record),batchId:z.string().regex(/^[A-Za-z0-9][A-Za-z0-9._-]{0,80}$/)}).strict().parse(JSON.parse(bytes.toString("utf8")));
+   const age=Date.now()-Date.parse(bootstrap.checkedAt);if(age<0||age>60000)throw Error("PILOT_BOOTSTRAP_FRESH_READ_REQUIRED");
+@@ -98,7 +99,7 @@
+       const admission=await issueSourceQualityAdmission({plan,result,binding:{releaseCandidateId:identity.releaseCandidateId,batchId,sourceResultId:pending.id,sourceConfigSha256:pending.sourceConfigHash,adapterVersion:pending.adapterVersion},archive:{workspaceRoot:restoredRoot,evidenceSubdirectory:EVIDENCE,artifacts}});
+       if(admission.status!=="ACCEPTED")throw Error(`PILOT_ADMISSION_REJECTED:${admission.codes.join(",")}`);
+       phase="DB_STARTED_PUBLICATION";
+-      const outcome=await runDbStartedCloudPublication({relay,controlPath:input.dbStartedControlPath,planned,initialCertificate:admission.receipt,
++      const outcome=await runDbStartedCloudPublication({relay,controlPath:input.dbStartedControlPath,planned,initialCertificate:admission.receipt,overallDeadline:input.overallDeadline!,
+         source:{plan,pending,identity,batchId,result,artifacts,attemptTracker,publicationPolicy:"SOURCE_ATOMIC_LAST_GOOD_V1",sourceAdmissionPolicy:SOURCE_QUALITY_POLICY_ID,sourceQualityAdmission:admission},
+         ...(input.signal?{signal:input.signal}:{})});
+       const report={...outcome,batchId,sourceResultId:pending.id,sourceId:PILOT_SOURCE,bundlePath,bundleSha256,bundleByteCount,archiveRetention:"PENDING",recoveryVerification:"PENDING",certificateGrade:SOURCE_QUALITY_POLICY_ID};
+@@ -154,6 +155,6 @@
+   const [bootstrapPath,reviewedSha256,workspaceRoot,relayDirectory,...extra]=process.argv.slice(2);
+   if(!bootstrapPath||!reviewedSha256||!workspaceRoot||!relayDirectory||extra.length&&!(extra.length===2&&extra[0]==="--db-started-control"&&extra[1])){console.error("Usage: p0-cloud-portable-source-pilot.ts <fresh-reviewed-bootstrap.json> <sha256> <artifact-workspace> <relay-directory> [--db-started-control <control-base.json>]");process.exitCode=2;}
+   else{const controller=new AbortController();process.once("SIGINT",()=>controller.abort());process.once("SIGTERM",()=>controller.abort());
+-    try{const report=await runCloudPortableSourcePilot({bootstrapPath,reviewedSha256,workspaceRoot,relayDirectory,signal:controller.signal,...(extra[1]?{dbStartedControlPath:extra[1]}:{})});console.log(JSON.stringify(report));if(report.state!=="COMMITTED_EXACT")process.exitCode=1;}
++    try{const report=await runCloudPortableSourcePilot({bootstrapPath,reviewedSha256,workspaceRoot,relayDirectory,signal:controller.signal,...(extra[1]?{dbStartedControlPath:extra[1],overallDeadline:Number(process.env.P0_PILOT_OUTER_DEADLINE_MS)}:{})});console.log(JSON.stringify(report));if(report.state!=="COMMITTED_EXACT")process.exitCode=1;}
+     catch{console.error("CLOUD_SOURCE_PILOT_STOPPED_REVIEW_RELAY_AND_PERSISTED_OUTCOME");process.exitCode=1;}}
+ }
+diff --git a/scripts/p0-cloud-source-pilot.ts b/scripts/p0-cloud-source-pilot.ts
+--- a/scripts/p0-cloud-source-pilot.ts
++++ b/scripts/p0-cloud-source-pilot.ts
+@@ -1,5 +1,5 @@
+ import { loadPilotContext } from "../src/crawler/cloudPilotContext";
+-import {runDbStartedCloudPublication} from "../src/crawler/cloudDbStartedPilot";
++import {runDbStartedCloudPublication,requireDbStartedOuterDeadline} from "../src/crawler/cloudDbStartedPilot";
+ import {readCurrentWorkerCapture} from "../src/crawler/currentWorkerCapture";
+ /** REVIEW-ONLY PROTOTYPE. Do not launch before the documented bootstrap/live review. */
+ import { randomUUID } from "node:crypto";
+@@ -71,7 +71,8 @@
+   const artifactPath=join(input.workspaceRoot,`${input.batchId}.failure-${randomUUID()}.json`);
+   await writeFile(artifactPath,JSON.stringify(diagnostic,(_key,value)=>value instanceof Uint8Array?{encoding:"base64",bytes:Buffer.from(value).toString("base64")}:value,2),{flag:"wx",mode:0o600});return artifactPath;
+ }
+-export async function runCloudSourcePilot(input:{bootstrapPath:string;reviewedSha256:string;workspaceRoot:string;relayDirectory:string;signal?:AbortSignal;dbStartedControlPath?:string}){
++export async function runCloudSourcePilot(input:{bootstrapPath:string;reviewedSha256:string;workspaceRoot:string;relayDirectory:string;signal?:AbortSignal;dbStartedControlPath?:string;overallDeadline?:number}){
++  if(input.dbStartedControlPath)requireDbStartedOuterDeadline(input.overallDeadline);
+   const bytes=await readFile(input.bootstrapPath);if(sha256(bytes)!==input.reviewedSha256)throw Error("PILOT_REVIEWED_BOOTSTRAP_HASH_REQUIRED");
+   const bootstrap=z.object({schemaVersion:z.literal(1),checkedAt:z.string().datetime(),candidateRows:z.array(record),batchId:z.string().regex(/^[A-Za-z0-9][A-Za-z0-9._-]{0,80}$/),retainedCapture:z.object({path:z.string(),sha256:z.string().regex(/^[a-f0-9]{64}$/)}).strict().optional(),currentCapture:z.object({path:z.string(),sha256:z.string().regex(/^[a-f0-9]{64}$/)}).strict().optional(),independentValidation:z.object({path:z.string(),sha256:z.string().regex(/^[a-f0-9]{64}$/)}).strict().optional()}).strict().parse(JSON.parse(bytes.toString("utf8")));
+   if(bootstrap.retainedCapture)throw Error("A_PILOT_REQUIRES_FRESH_ACQUISITION");
+@@ -130,7 +131,7 @@
+       const artifacts=await restoreArchiveBundle(JSON.parse(restoredBytes.toString("utf8")),restoredRoot);
+       await verifyArchivedSourceEvidence({workspaceRoot:restoredRoot,evidenceSubdirectory:EVIDENCE,artifacts,...tuple});
+       phase="DB_STARTED_PUBLICATION";
+-      const outcome=await runDbStartedCloudPublication({relay,controlPath:input.dbStartedControlPath,planned,initialCertificate:initialCertificate.certificate,
++      const outcome=await runDbStartedCloudPublication({relay,controlPath:input.dbStartedControlPath,planned,initialCertificate:initialCertificate.certificate,overallDeadline:input.overallDeadline!,
+         source:{plan,pending,identity,batchId,result,artifacts,attemptTracker,completedAt:new Date(),publicationPolicy:"SOURCE_ATOMIC_LAST_GOOD_V1",
+           ...(bGrade?{independentTraversalValidation:independentTraversalValidation!,independentTraversalValidationExecution:"CURRENT_RUN" as const,independentTraversalValidationTrigger:"INITIAL_QUALIFICATION" as const}:{})},
+         ...(input.signal?{signal:input.signal}:{})});
+@@ -180,6 +181,6 @@
+   const [bootstrapPath,reviewedSha256,workspaceRoot,relayDirectory,...extra]=process.argv.slice(2);
+   if(!bootstrapPath||!reviewedSha256||!workspaceRoot||!relayDirectory||extra.length&&!(extra.length===2&&extra[0]==="--db-started-control"&&extra[1])){console.error("Usage: p0-cloud-source-pilot.ts <fresh-reviewed-bootstrap.json> <sha256> <artifact-workspace> <relay-directory> [--db-started-control <control-base.json>]");process.exitCode=2;}
+   else{const controller=new AbortController();process.once("SIGINT",()=>controller.abort());process.once("SIGTERM",()=>controller.abort());
+-    try{const report=await runCloudSourcePilot({bootstrapPath,reviewedSha256,workspaceRoot,relayDirectory,signal:controller.signal,...(extra[1]?{dbStartedControlPath:extra[1]}:{})});console.log(JSON.stringify(report));if(report.state!=="COMMITTED_EXACT")process.exitCode=1;}
++    try{const report=await runCloudSourcePilot({bootstrapPath,reviewedSha256,workspaceRoot,relayDirectory,signal:controller.signal,...(extra[1]?{dbStartedControlPath:extra[1],overallDeadline:Number(process.env.P0_PILOT_OUTER_DEADLINE_MS)}:{})});console.log(JSON.stringify(report));if(report.state!=="COMMITTED_EXACT")process.exitCode=1;}
+     catch{console.error("CLOUD_SOURCE_PILOT_STOPPED_REVIEW_RELAY_AND_PERSISTED_OUTCOME");process.exitCode=1;}}
+ }
+diff --git a/scripts/run-with-http-diagnostics.mjs b/scripts/run-with-http-diagnostics.mjs
+--- a/scripts/run-with-http-diagnostics.mjs
++++ b/scripts/run-with-http-diagnostics.mjs
+@@ -18,6 +18,8 @@
+ const stderr = openSync(join(root, "stderr.log"), "wx", 0o600);
+ const lifecycle = openSync(join(root, "process.jsonl"), "wx", 0o600);
+ const started = performance.now();
++// Capture before spawn/import work. The child must never restart this budget.
++const outerDeadline = Date.now() + timeoutMs;
+ let warningSent = false;
+ const storageWarning = () => {
+   if (warningSent) return;
+@@ -31,8 +33,9 @@
+     fsyncSync(lifecycle);
+   } catch { storageWarning(); }
+ };
+-marker("WRAPPER_START", { timeoutMs });
++marker("WRAPPER_START", { timeoutMs, outerDeadline });
+ const child = spawn(command, args, { env: { ...process.env,
++  P0_PILOT_OUTER_DEADLINE_MS: String(outerDeadline),
+   P0_OFFICIAL_HTTP_DIAGNOSTICS_PATH: join(root, "http-requests.jsonl") },
+   stdio: ["ignore", stdout, stderr], detached: false });
+ let deadlineReached = false, spawnFailed = false, escalation;
+@@ -47,7 +50,7 @@
+     marker("FORCE_KILL_ATTEMPT"); signalChild("SIGKILL");
+   }, 10_000);
+ };
+-const deadline = setTimeout(() => { deadlineReached = true; marker("DEADLINE_REACHED"); stop("SIGTERM"); }, timeoutMs);
++const deadline = setTimeout(() => { deadlineReached = true; marker("DEADLINE_REACHED"); stop("SIGTERM"); }, Math.max(0, timeoutMs - (performance.now() - started)));
+ const onSignal = signal => { marker("SIGNAL_RECEIVED", { signal }); stop(signal); };
+ process.on("SIGTERM", onSignal);
+ process.on("SIGINT", onSignal);
+diff --git a/src/crawler/cloudDbStartedPilot.ts b/src/crawler/cloudDbStartedPilot.ts
+--- a/src/crawler/cloudDbStartedPilot.ts
++++ b/src/crawler/cloudDbStartedPilot.ts
+@@ -9,13 +9,26 @@
+ import type {BGradeTraversalCertificate} from './traversalCertificate';
+ import type {SourceQualityReceipt} from './sourceQualityAdmission';
+ 
+-export async function runDbStartedCloudPublication(input:{relay:FilePilotRelay;controlPath:string;planned:PlannedBatchWithSourcesInput;source:DbStartedCloudSourceInput;initialCertificate:AGradeOfficialTotalCertificate|BGradeTraversalCertificate|SourceQualityReceipt;signal?:AbortSignal}){
++/** The wrapper owns this absolute budget. Missing/stale values cannot fall back
++ * to a fresh timer at TypeScript startup or to the later evidence expiry. */
++export function requireDbStartedOuterDeadline(deadline:number|undefined):number{
++ if(typeof deadline!=='number'||!Number.isSafeInteger(deadline))throw Error('PILOT_OUTER_DEADLINE_REQUIRED');
++ const minimumMs=2*PILOT_BUDGET.controlMs+PILOT_BUDGET.publishDbMs+PILOT_BUDGET.publishTransportMs+PILOT_BUDGET.controlCompletionMs;
++ if(Date.now()+minimumMs>=deadline)throw Error('PILOT_PUBLICATION_BUDGET_EXHAUSTED');
++ return deadline;
++}
++
++export async function runDbStartedCloudPublication(input:{relay:FilePilotRelay;controlPath:string;planned:PlannedBatchWithSourcesInput;source:DbStartedCloudSourceInput;initialCertificate:AGradeOfficialTotalCertificate|BGradeTraversalCertificate|SourceQualityReceipt;overallDeadline:number;signal?:AbortSignal}){
++ const overallDeadline=requireDbStartedOuterDeadline(input.overallDeadline);
+  const control=JSON.parse(await readFile(input.controlPath,'utf8')) as Omit<CloudPilotControlInput,'expiresAt'>;
+  const requestedAt=Date.now();
+  // Queue only within the original proof window, keeping the existing publication
+  // reserve. The relay separately reserves 25 seconds to finish the read itself.
+  const evidenceExpiry=deriveDbStartedPublicationExpiry({startedAt:input.source.pending.startedAt,completenessCertificate:input.initialCertificate});
+- const contextDeadline=evidenceExpiry-PILOT_BUDGET.publishDbMs-PILOT_BUDGET.publishTransportMs;
++ // Keep one complete final-read window and one local-report/exit window inside
++ // the original wrapper deadline, including when evidence outlives the worker.
++ const publicationDeadline=Math.min(evidenceExpiry,overallDeadline-2*PILOT_BUDGET.controlMs);
++ const contextDeadline=publicationDeadline-PILOT_BUDGET.publishDbMs-PILOT_BUDGET.publishTransportMs;
+  if(requestedAt+PILOT_BUDGET.controlCompletionMs>=contextDeadline)throw Error('PILOT_PUBLICATION_BUDGET_EXHAUSTED');
+  // Compiling this fixed SELECT also checks the control/build/candidate shape.
+  const rows=await input.relay.sql('READ_PUBLICATION_CONTEXT',compileCloudPilotPublicationContextSql(control,input.source.sourceAdmissionPolicy),contextDeadline,input.signal);
+@@ -26,9 +39,9 @@
+  // Preserve the original <=60-second response-age limit while allowing the
+  // still-undispatched SELECT to queue longer. Earlier snapshots remain invalid.
+  if(!Number.isFinite(checkedAt)||checkedAt<Math.max(requestedAt,receivedAt-PILOT_BUDGET.controlMs)-1000||checkedAt>receivedAt+1000)throw Error('PILOT_CONTEXT_FRESH_READ_REQUIRED');
+- const packet=await compileDbStartedCloudSourcePublication({control:{...control,planned:input.planned,context},source:input.source});
++ const packet=await compileDbStartedCloudSourcePublication({control:{...control,planned:input.planned,context},source:input.source,publicationDeadline});
+  const expiresAt=Date.parse(packet.expiresAt);
+- if(expiresAt>evidenceExpiry)throw Error('PILOT_EVIDENCE_EXPIRY_CHANGED');
++ if(!Number.isFinite(expiresAt)||expiresAt>publicationDeadline)throw Error('PILOT_EVIDENCE_EXPIRY_CHANGED');
+  input.signal?.throwIfAborted();
+  if(Date.now()+PILOT_BUDGET.publishDbMs+PILOT_BUDGET.publishTransportMs>=expiresAt)throw Error('PILOT_PUBLICATION_BUDGET_EXHAUSTED');
+  let publishAcknowledged=false;
+@@ -36,13 +49,20 @@
+  catch(error){
+   // A stopped response wait does not stop SQL. Its DB entry/terminal gates use
+   // this same absolute proof cutoff, so wait before one read-only reconciliation.
+-  if(!(error instanceof PilotSqlFailure&&error.outcome!=='UNKNOWN'))await delay(Math.max(0,expiresAt-Date.now()));
++  if(!(error instanceof PilotSqlFailure&&error.outcome!=='UNKNOWN')&&Date.now()<expiresAt)await delay(expiresAt-Date.now());
+  }
+  const literal=(value:string)=>`E'${value.replaceAll('\\','\\\\').replaceAll("'","''")}'`;
+- const resultRows=await input.relay.sql('READ_OUTCOME',`SELECT
++ const outcomeDeadline=Math.min(overallDeadline-PILOT_BUDGET.controlMs,Date.now()+PILOT_BUDGET.controlMs);
++ // A delayed event loop/response may consume the reserve. Never report absence
++ // as a resolved outcome without a completed final read, or restart the budget.
++ if(Date.now()+PILOT_BUDGET.controlCompletionMs>=outcomeDeadline)throw Error('PILOT_OUTCOME_UNKNOWN_REQUIRES_READONLY_RECONCILIATION');
++ let resultRows:Record<string,unknown>[];
++ try{resultRows=await input.relay.sql('READ_OUTCOME',`SELECT
+  (SELECT to_jsonb(s) FROM public."CrawlBatchSourceResult" s WHERE id=${literal(packet.commit.sourceResult.id)}) AS row,
+  (SELECT to_jsonb(b) FROM public."CrawlBatch" b WHERE id=${literal(packet.commit.sourceResult.batchId)}) AS batch,
+- (SELECT "holderId" FROM public."CrawlCoordinatorLock" WHERE id='formal-crawl') AS "holderId"`,Date.now()+PILOT_BUDGET.controlMs);
++ (SELECT "holderId" FROM public."CrawlCoordinatorLock" WHERE id='formal-crawl') AS "holderId"`,outcomeDeadline,AbortSignal.timeout(Math.max(1,outcomeDeadline-Date.now())));
++ if(Date.now()>=outcomeDeadline)throw Error('RELAY_DEADLINE');
++ }catch(cause){throw new Error('PILOT_OUTCOME_UNKNOWN_REQUIRES_READONLY_RECONCILIATION',{cause});}
+  if(resultRows.length!==1)throw Error('PILOT_OUTCOME_ROW_COUNT');
+  const persisted=resultRows[0]!.row===null?null:reviveUtcFields(z.record(z.unknown()).parse(resultRows[0]!.row),['startedAt','finishedAt']);
+  const outcome=await inspectPersistedAtomicCommitOutcome(packet.commit,{crawlBatchSourceResult:{findUnique:async()=>persisted,findMany:async()=>{throw Error('PILOT_OUTCOME_FIND_MANY_FORBIDDEN');}}});
+diff --git a/src/db/ingestionRepository.ts b/src/db/ingestionRepository.ts
+--- a/src/db/ingestionRepository.ts
++++ b/src/db/ingestionRepository.ts
+@@ -1191,7 +1191,7 @@
+ /** Opt-in, local preparation only. Builds from the exact context subsequently
+  * compared in PostgreSQL; accepts neither serialized write plans nor leases.
+  * The prospective holder is acquired and released by the same atomic DO. */
+-export async function compileDbStartedCloudSourcePublication(input:{source:DbStartedCloudSourceInput;control:CloudPilotDbStartedInput}){
++export async function compileDbStartedCloudSourcePublication(input:{source:DbStartedCloudSourceInput;control:CloudPilotDbStartedInput;publicationDeadline?:number}){
+  const {loadPilotContext}=await import('../crawler/cloudPilotContext');
+  const {buildAtomicRuntimeCommit}=await import('../crawler/runtimeAtomicEvidence');
+  const {buildJobDedupeKey}=await import('../crawler/normalizedJob');
+@@ -1209,7 +1209,10 @@
+  if(commit.sourceResult.completenessState!=='VERIFIED'||!(portable?[SOURCE_QUALITY_RECEIPT_SCHEMA]:['a-grade-official-total-v2','b-grade-independent-traversal-v2']).includes(certificate?.schemaVersion??''))throw Error('PILOT_REAL_CERTIFICATE_REQUIRED');
+  // Original acquisition and B validation times are preserved. No renewed local
+  // lease/acknowledgement can manufacture a later deadline for this packet.
+- const deadline=deriveDbStartedPublicationExpiry(commit.sourceResult);
++ if(input.publicationDeadline!==undefined&&!Number.isSafeInteger(input.publicationDeadline))throw Error('PILOT_PUBLICATION_DEADLINE_INVALID');
++ // The outer worker can shorten this packet's DB/relay cutoff, never extend
++ // the original acquisition or validation proof window.
++ const deadline=Math.min(deriveDbStartedPublicationExpiry(commit.sourceResult),input.publicationDeadline??Infinity);
+  if(!Number.isFinite(captureStarted)||!Number.isFinite(deadline)||captureStarted>Date.now()||Date.now()>=deadline)throw Error('PILOT_A_CAPTURE_NOT_FRESH');
+  if(commit.artifacts.some(a=>a.capturedAt.getTime()<captureStarted||a.capturedAt.getTime()>Date.now()))throw Error('PILOT_ORIGINAL_CAPTURE_TIMES');
+  let stage:AtomicEvidencePersistenceStage='ATTESTATION';
+diff --git a/tests/crawler/httpDiagnosticWrapper.test.ts b/tests/crawler/httpDiagnosticWrapper.test.ts
+--- a/tests/crawler/httpDiagnosticWrapper.test.ts
++++ b/tests/crawler/httpDiagnosticWrapper.test.ts
+@@ -7,11 +7,11 @@
+ 
+ const directories: string[] = [];
+ afterEach(() => directories.splice(0).forEach(path => rmSync(path, { recursive: true, force: true })));
+-function fixture(code: string, timeout = 5000, preload?: string) {
++function fixture(code: string, timeout = 5000, preload?: string, env: NodeJS.ProcessEnv = {}) {
+   const directory = mkdtempSync(join(tmpdir(), "http-wrapper-test-")); directories.push(directory);
+   const output = join(directory, "attempt");
+   const child = spawn(process.execPath, [...(preload ? ["--import", preload] : []), "scripts/run-with-http-diagnostics.mjs", output, String(timeout), "--",
+-    process.execPath, "-e", code], { cwd: resolve("."), stdio: "pipe" });
++    process.execPath, "-e", code], { cwd: resolve("."), stdio: "pipe", env: { ...process.env, ...env } });
+   let wrapperStderr = "";
+   child.stderr.on("data", chunk => { wrapperStderr += String(chunk); });
+   const completed = new Promise<{ code: number | null; signal: string | null }>((resolve, reject) => {
+@@ -19,6 +19,33 @@
+   });
+   return { output, completed, child, stderr: () => wrapperStderr,
+     records: () => readFileSync(join(output, "process.jsonl"), "utf8").trim().split("\n").map(line => JSON.parse(line)) };
++}
++
++function childRecords(output: string): Array<Record<string, any>> {
++  return readFileSync(join(output, "stdout.log"), "utf8").trim().split("\n").map(line => JSON.parse(line));
++}
++
++// Scaled, local-only counterexample for wrapper/publication time handoff.
++// These fake child events do not execute the actual runner, relay, or SQL.
++function publicationTimeline(capped: boolean, acknowledgement: "late" | "none", earlierEvidence = false): string {
++  return `
++    const { setTimeout: delay } = require("node:timers/promises");
++    const outer = Number(process.env.P0_PILOT_OUTER_DEADLINE_MS);
++    const evidenceExpiry = outer + ${earlierEvidence ? -650 : 1000};
++    const cutoff = ${capped ? "Math.min(evidenceExpiry, outer - 400)" : "evidenceExpiry"};
++    const record = (event) => process.stdout.write(JSON.stringify({ event, at: Date.now(), outer, evidenceExpiry, cutoff }) + "\\n");
++    process.on("SIGTERM", () => { record("CANCELLED"); process.exit(23); });
++    (async () => {
++      record("PUBLISH");
++      ${acknowledgement === "late" ? 'setTimeout(() => record("LATE_ACK"), Math.max(0, outer - 500 - Date.now()));' : ""}
++      await delay(20);
++      record("UNKNOWN");
++      await delay(Math.max(0, cutoff - Date.now()));
++      record("READ_OUTCOME");
++      await delay(75);
++      record("SIMULATED_READ_COMPLETE");
++    })().catch(() => { process.exitCode = 1; });
++  `;
+ }
+ 
+ describe("same-cloud diagnostic wrapper (no network)", () => {
+@@ -31,6 +58,86 @@
+     expect(run.records().at(-1)).toMatchObject({ exitCode: 7, signal: null, wrapperExitCode: 7, deadlineReached: false });
+     expect(readFileSync(join(run.output, "process.jsonl"), "utf8")).not.toContain("DO_NOT_LOG_ARG");
+     expect(statSync(join(run.output, "stdout.log")).mode & 0o777).toBe(0o600);
++  });
++
++  it("overrides an inherited later outer deadline with the wrapper's absolute deadline before starting the child", async () => {
++    const inheritedDeadline = Date.now() + 3_600_000;
++    const run = fixture('process.stdout.write(JSON.stringify({ deadline: Number(process.env.P0_PILOT_OUTER_DEADLINE_MS), startedAt: Date.now() }));',
++      5000, undefined, { P0_PILOT_OUTER_DEADLINE_MS: String(inheritedDeadline) });
++    expect(await run.completed).toEqual({ code: 0, signal: null });
++    const actual = JSON.parse(readFileSync(join(run.output, "stdout.log"), "utf8"));
++    const start = run.records()[0]!;
++    expect(actual.deadline).toBe(start.outerDeadline);
++    expect(actual.deadline).toBeLessThan(inheritedDeadline);
++    expect(actual.deadline - start.timeoutMs).toBeLessThanOrEqual(actual.startedAt);
++    expect(actual.deadline).toBeLessThan(actual.startedAt + start.timeoutMs);
++  });
++
++  it("charges wrapper spawn preparation and delayed child initialization to the original timeout", async () => {
++    const timeout = 1800, spawnDelay = 800, childDelay = 250;
++    const preload = "data:text/javascript," + encodeURIComponent(`
++      import cp from "node:child_process";
++      import { syncBuiltinESMExports } from "node:module";
++      const original = cp.spawn;
++      cp.spawn = (...args) => {
++        Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ${spawnDelay});
++        return original(...args);
++      };
++      syncBuiltinESMExports();
++    `);
++    const run = fixture(`
++      const childEnteredAt = Date.now();
++      process.on("SIGTERM", () => process.exit(23));
++      Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ${childDelay});
++      process.stdout.write(JSON.stringify({ childEnteredAt, readyAt: Date.now(), deadline: Number(process.env.P0_PILOT_OUTER_DEADLINE_MS) }));
++      setInterval(() => {}, 1000);
++    `, timeout, preload);
++    expect(await run.completed).toEqual({ code: 124, signal: null });
++    const actual = JSON.parse(readFileSync(join(run.output, "stdout.log"), "utf8"));
++    const records = run.records(), started = records[0]!, deadline = records.find(row => row.event === "DEADLINE_REACHED")!;
++    expect(actual.deadline).toBe(started.outerDeadline);
++    expect(actual.childEnteredAt - (actual.deadline - timeout)).toBeGreaterThanOrEqual(spawnDelay - 20);
++    expect(actual.readyAt - actual.childEnteredAt).toBeGreaterThanOrEqual(childDelay - 20);
++    expect(actual.deadline - actual.readyAt).toBeLessThanOrEqual(timeout - spawnDelay - childDelay + 40);
++    // Wide scheduling tolerance, still excluding a fresh timeout after the 800ms spawn delay.
++    expect(deadline.durationMs).toBeGreaterThanOrEqual(timeout - 30);
++    expect(deadline.durationMs).toBeLessThan(timeout + spawnDelay / 2);
++    expect(records.at(-1)).toMatchObject({ exitCode: 23, wrapperExitCode: 124, deadlineReached: true });
++  });
++
++  it.each(["late", "none"] as const)("leaves one read-only reconciliation window after UNKNOWN with %s acknowledgement in a scaled child timeline", async acknowledgement => {
++    const old = fixture(publicationTimeline(false, acknowledgement), 1200);
++    const bounded = fixture(publicationTimeline(true, acknowledgement), 1200);
++    const [oldExit, boundedExit] = await Promise.all([old.completed, bounded.completed]);
++    expect(oldExit).toEqual({ code: 124, signal: null });
++    expect(boundedExit).toEqual({ code: 0, signal: null });
++    const oldEvents = childRecords(old.output), events = childRecords(bounded.output);
++    expect(oldEvents.filter(row => row.event === "PUBLISH")).toHaveLength(1);
++    expect(oldEvents.map(row => row.event)).not.toContain("READ_OUTCOME");
++    expect(oldEvents.at(-1)!.event).toBe("CANCELLED");
++    expect(events.filter(row => row.event === "PUBLISH")).toHaveLength(1);
++    expect(events.filter(row => row.event === "READ_OUTCOME")).toHaveLength(1);
++    const read = events.find(row => row.event === "READ_OUTCOME")!;
++    expect(read.cutoff).toBe(read.outer - 400);
++    expect(read.evidenceExpiry).toBeGreaterThan(read.outer);
++    expect(read.at).toBeGreaterThanOrEqual(read.cutoff);
++    expect(events.at(-1)).toMatchObject({ event: "SIMULATED_READ_COMPLETE" });
++    expect(events.at(-1)!.at).toBeLessThan(read.outer - 200);
++    expect(events.filter(row => row.event === "LATE_ACK")).toHaveLength(acknowledgement === "late" ? 1 : 0);
++    expect(bounded.records().at(-1)).toMatchObject({ wrapperExitCode: 0, deadlineReached: false });
++  });
++
++  it("preserves an earlier original evidence expiry in the scaled child timeline", async () => {
++    const run = fixture(publicationTimeline(true, "none", true), 1200);
++    expect(await run.completed).toEqual({ code: 0, signal: null });
++    const events = childRecords(run.output), read = events.find(row => row.event === "READ_OUTCOME")!;
++    expect(read.cutoff).toBe(read.evidenceExpiry);
++    expect(read.cutoff).toBeLessThan(read.outer - 400);
++    expect(read.at).toBeGreaterThanOrEqual(read.evidenceExpiry);
++    expect(events.filter(row => row.event === "PUBLISH")).toHaveLength(1);
++    expect(events.filter(row => row.event === "READ_OUTCOME")).toHaveLength(1);
++    expect(events.at(-1)).toMatchObject({ event: "SIMULATED_READ_COMPLETE" });
++    expect(events.at(-1)!.at).toBeLessThan(read.outer - 200);
+   });
+ 
+   it("bounds the child with SIGTERM and records the child's real exit separately from deadline status", async () => {
+diff --git a/tests/db/cloudPilotDbStartedPublication.test.ts b/tests/db/cloudPilotDbStartedPublication.test.ts
+--- a/tests/db/cloudPilotDbStartedPublication.test.ts
++++ b/tests/db/cloudPilotDbStartedPublication.test.ts
+@@ -100,6 +100,33 @@
+   await rejects(packet.sql,/PILOT_CONTEXT_CHANGED|PILOT_REQUEST_ALREADY_APPLIED/);
+   expect((await pg.query('SELECT count(*)::int n FROM "Job"')).rows[0].n).toBe(1);
+  }));
++ it('uses a shorter outer cutoff in every SQL entry/terminal gate without changing the certificate',async()=>isolated(async()=>{
++  const f=await fixture('outer-cutoff'),publicationDeadline=Date.now()+5*60_000;
++  const packet=await compileDbStartedCloudSourcePublication({...f,publicationDeadline});
++  expect(packet.expiresAt).toBe(new Date(publicationDeadline).toISOString());
++  expect(packet.sql.split(`clock_timestamp() >= E'${packet.expiresAt}'::timestamptz`).length-1).toBeGreaterThanOrEqual(4);
++  expect(packet.commit.sourceResult.completenessCertificate).toEqual(f.initialCertificate);
++  expect(packet.commit.sourceResult.startedAt).toEqual(f.source.pending.startedAt);
++  await pg.exec(packet.sql);await pg.exec('SET CONSTRAINTS ALL IMMEDIATE');
++  expect((await pg.query('SELECT status FROM "CrawlBatch"')).rows).toEqual([{status:'SUCCESS'}]);
++ }));
++ it('cannot enlarge the original proof expiry through a later outer cap',async()=>isolated(async()=>{
++  const f=await fixture('later-outer-cap'),original=deriveDbStartedPublicationExpiry({startedAt:f.source.pending.startedAt,completenessCertificate:f.initialCertificate});
++  const packet=await compileDbStartedCloudSourcePublication({...f,publicationDeadline:original+60*60_000});
++  expect(Date.parse(packet.expiresAt)).toBe(original);
++ }));
++ it('rejects a shortened cutoff at actual DB entry while the original evidence is still fresh',async()=>isolated(async()=>{
++  const f=await fixture('expired-outer-cap'),now=Date.now(),before=await lock();
++  expect(deriveDbStartedPublicationExpiry({startedAt:f.source.pending.startedAt,completenessCertificate:f.initialCertificate})).toBeGreaterThan(now);
++  vi.useFakeTimers({toFake:['Date']});vi.setSystemTime(now-2000);
++  const packet=await compileDbStartedCloudSourcePublication({...f,publicationDeadline:now-1000});vi.useRealTimers();
++  await rejects(packet.sql,/PILOT_REQUEST_EXPIRED/);await noPublication();expect(await lock()).toEqual(before);
++ }));
++ it.each([NaN,Infinity,Date.now()+0.5])('refuses invalid publication cap %s before producing SQL',async publicationDeadline=>isolated(async()=>{
++  const f=await fixture('invalid-cap');
++  await expect(compileDbStartedCloudSourcePublication({...f,publicationDeadline})).rejects.toThrow('PILOT_PUBLICATION_DEADLINE_INVALID');
++  await noPublication();
++ }));
+  it.each(['acknowledged','unknown','queued-20-minutes'] as const)('uses the opt-in relay path with %s result, no pre-acquired lease, and exactly one publication',async mode=>isolated(async()=>{
+   const f=await fixture('relay-'+mode),dir=await mkdtemp(join(tmpdir(),'db-started-control-'));dirs.push(dir);
+   const controlPath=join(dir,'control.json');await writeFile(controlPath,JSON.stringify(common));
+@@ -125,7 +152,7 @@
+    throw Error('UNEXPECTED_LEASE_OR_CONTROL_REQUEST');
+   });
+   try{
+-   const result=await runDbStartedCloudPublication({relay,controlPath,planned:f.control.planned,source:f.source,initialCertificate:f.initialCertificate});
++   const result=await runDbStartedCloudPublication({relay,controlPath,planned:f.control.planned,source:f.source,initialCertificate:f.initialCertificate,overallDeadline:f.source.pending.startedAt.getTime()+32*60_000});
+    expect(result).toMatchObject({state:'COMMITTED_EXACT',publishAcknowledged:mode!=='unknown',batchFinalizationRequired:false,publicationMode:'DB_STARTED_OWNER_V1'});
+    expect(calls).toEqual(['READ_PUBLICATION_CONTEXT','PUBLISH','READ_OUTCOME']);
+    expect((await pg.query('SELECT "holderId" FROM "CrawlCoordinatorLock"')).rows[0].holderId).toBe('');
+@@ -146,7 +173,7 @@
+    return rows;
+   });
+   try{
+-   await expect(runDbStartedCloudPublication({relay,controlPath,planned:f.control.planned,source:f.source,initialCertificate:f.initialCertificate})).rejects.toThrow(mode==='stale-response'||mode==='pre-request-response'?'PILOT_CONTEXT_FRESH_READ_REQUIRED':'PILOT_PUBLICATION_BUDGET_EXHAUSTED');
++   await expect(runDbStartedCloudPublication({relay,controlPath,planned:f.control.planned,source:f.source,initialCertificate:f.initialCertificate,overallDeadline:f.source.pending.startedAt.getTime()+32*60_000})).rejects.toThrow(mode==='stale-response'||mode==='pre-request-response'?'PILOT_CONTEXT_FRESH_READ_REQUIRED':'PILOT_PUBLICATION_BUDGET_EXHAUSTED');
+    expect(calls).toEqual(mode==='exhausted-before-read'||mode==='insufficient-read-reserve'?[]:['READ_PUBLICATION_CONTEXT']);
+    await noPublication();
+   }finally{spy.mockRestore();vi.useRealTimers();}
+@@ -165,7 +192,7 @@
+    throw new PilotSqlFailure('NOT_DISPATCHED','TEST_READ_STOP');
+   });
+   try{
+-   await expect(runDbStartedCloudPublication({relay,controlPath,planned:f.control.planned,source:f.source,initialCertificate})).rejects.toThrow('TEST_READ_STOP');
++   await expect(runDbStartedCloudPublication({relay,controlPath,planned:f.control.planned,source:f.source,initialCertificate,overallDeadline:now+30*60_000})).rejects.toThrow('TEST_READ_STOP');
+    expect(spy).toHaveBeenCalledTimes(1);await noPublication();
+   }finally{spy.mockRestore();vi.useRealTimers();}
+  }));
+diff --git a/tests/db/cloudPilotPortableDbStartedPublication.test.ts b/tests/db/cloudPilotPortableDbStartedPublication.test.ts
+--- a/tests/db/cloudPilotPortableDbStartedPublication.test.ts
++++ b/tests/db/cloudPilotPortableDbStartedPublication.test.ts
+@@ -121,7 +121,7 @@
+   vi.spyOn(FilePilotRelay.prototype,'sql').mockImplementation(async(kind,sql,deadline)=>{
+    calls.push(kind);
+    if(kind==='READ_PUBLICATION_CONTEXT'){
+-    expect(deadline).toBe(captureAt+30*60_000-PILOT_BUDGET.publishDbMs-PILOT_BUDGET.publishTransportMs);
++    expect(deadline).toBe(captureAt+28*60_000-PILOT_BUDGET.publishDbMs-PILOT_BUDGET.publishTransportMs);
+     expect((await pg.query('SELECT "holderId" FROM "CrawlCoordinatorLock"')).rows).toEqual([{holderId:''}]);
+     vi.setSystemTime(now);return (await pg.query(sql)).rows;
+    }
+@@ -129,7 +129,7 @@
+    if(kind==='READ_OUTCOME')return (await pg.query(sql)).rows;
+    throw Error('UNEXPECTED_PRE_ACQUIRED_LEASE');
+   });
+-  const report=await runCloudPortableSourcePilot({bootstrapPath,reviewedSha256:sha256(bytes),workspaceRoot,relayDirectory:join(workspaceRoot,'relay'),dbStartedControlPath:controlPath});
++  const report=await runCloudPortableSourcePilot({bootstrapPath,reviewedSha256:sha256(bytes),workspaceRoot,relayDirectory:join(workspaceRoot,'relay'),dbStartedControlPath:controlPath,overallDeadline:captureAt+30*60_000});
+   expect(report).toMatchObject({state:'COMMITTED_EXACT',publicationMode:'DB_STARTED_OWNER_V1',batchFinalizationRequired:false,jobCount:1});
+   expect(calls).toEqual(['READ_CONTEXT','READ_PUBLICATION_CONTEXT','PUBLISH','READ_OUTCOME']);
+  }));
+diff --git a/tests/scripts/cloudDbStartedDeadline.test.ts b/tests/scripts/cloudDbStartedDeadline.test.ts
+new file mode 100644
+--- /dev/null
++++ b/tests/scripts/cloudDbStartedDeadline.test.ts
+@@ -0,0 +1,147 @@
++// @vitest-environment node
++// Scheduling-only fixtures: no HTTP, PostgreSQL, credentials or real relay.
++// Real compiler/SQL semantics are tested in cloudPilot*DbStartedPublication.
++import {afterEach,beforeEach,describe,expect,it,vi} from 'vitest';
++import {setTimeout as delay} from 'node:timers/promises';
++import {runDbStartedCloudPublication,requireDbStartedOuterDeadline} from '../../src/crawler/cloudDbStartedPilot';
++import {runCloudSourcePilot} from '../../scripts/p0-cloud-source-pilot';
++import {runCloudPortableSourcePilot} from '../../scripts/p0-cloud-portable-source-pilot';
++import {FilePilotRelay,PilotSqlFailure,PILOT_BUDGET} from '../../src/crawler/cloudSourcePilotRelay';
++import {compileDbStartedCloudSourcePublication} from '../../src/db/ingestionRepository';
++
++vi.mock('node:fs/promises',async importOriginal=>({...await importOriginal<typeof import('node:fs/promises')>(),readFile:vi.fn(async()=> '{}')}));
++vi.mock('node:timers/promises',()=>({setTimeout:(ms:number)=>new Promise(resolve=>setTimeout(resolve,ms))}));
++vi.mock('../../src/db/cloudPilotSqlControl',async importOriginal=>({...await importOriginal<typeof import('../../src/db/cloudPilotSqlControl')>(),compileCloudPilotPublicationContextSql:()=> 'SELECT synthetic_context'}));
++vi.mock('../../src/db/ingestionRepository',async importOriginal=>({
++ ...await importOriginal<typeof import('../../src/db/ingestionRepository')>(),
++ compileDbStartedCloudSourcePublication:vi.fn(),
++ inspectPersistedAtomicCommitOutcome:vi.fn(async(_commit,db)=>({state:await db.crawlBatchSourceResult.findUnique()===null?'CONFLICT':'COMMITTED_EXACT'}))
++}));
++const NOW=Date.parse('2026-10-06T09:00:00Z');
++const MINIMUM=2*PILOT_BUDGET.controlMs+PILOT_BUDGET.publishDbMs+PILOT_BUDGET.publishTransportMs+PILOT_BUDGET.controlCompletionMs;
++beforeEach(()=>{vi.useFakeTimers();vi.setSystemTime(NOW);});
++afterEach(()=>{vi.useRealTimers();vi.restoreAllMocks();vi.clearAllMocks();});
++
++type Mode='ack'|'unknown'|'no-ack'|'late-ack'|'cancelled'|'rollback'|'not-dispatched'|'ambiguous-rollback';
++function fixture(mode:Mode='unknown',evidenceExpiry=NOW+31*60_000,overallDeadline=NOW+30*60_000){
++ const planned={batch:{id:'synthetic-batch',releaseCandidateId:'synthetic-candidate'}};
++ const commit={sourceResult:{id:'synthetic-source-result',batchId:planned.batch.id,dedupeOutputCount:7}};
++ const source={pending:{startedAt:new Date(evidenceExpiry-30*60_000)}};
++ const controller=new AbortController(),calls:Array<{kind:string;at:number;deadline:number;signal?:AbortSignal}>=[];
++ let published!:()=>void;const publishStarted=new Promise<void>(resolve=>{published=resolve;});
++ const compiler=vi.mocked(compileDbStartedCloudSourcePublication);
++ compiler.mockImplementation(async input=>({sql:'SYNTHETIC_NON_EXECUTABLE_PACKET',commit,holderId:'synthetic-holder',expiresAt:new Date(Math.min(evidenceExpiry,input.publicationDeadline!)).toISOString()}) as unknown as Awaited<ReturnType<typeof compileDbStartedCloudSourcePublication>>);
++ const relay=new FilePilotRelay('unused');
++ const sql=vi.spyOn(relay,'sql').mockImplementation(async(kind,_sql,deadline,signal)=>{
++  calls.push({kind,at:Date.now(),deadline,...(signal?{signal}:{})});
++  if(kind==='READ_PUBLICATION_CONTEXT')return [{context:{checkedAt:new Date().toISOString()}}];
++  if(kind==='PUBLISH'){
++   published();
++   if(mode==='ack')return [];
++   if(mode==='late-ack'){await delay(deadline-Date.now()-1000);return [];}
++   if(mode==='no-ack'){await delay(deadline-Date.now());throw Error('RELAY_DEADLINE');}
++   if(mode==='cancelled'){controller.abort();throw new DOMException('cancelled','AbortError');}
++   if(mode==='rollback')throw new PilotSqlFailure('ROLLED_BACK','57014');
++   if(mode==='not-dispatched')throw new PilotSqlFailure('NOT_DISPATCHED','REVIEW_DENIED');
++   if(mode==='ambiguous-rollback')throw new PilotSqlFailure('ROLLED_BACK','40003');
++   throw new PilotSqlFailure('UNKNOWN','CONNECTION_LOST');
++  }
++  if(kind==='READ_OUTCOME')return [{row:null,batch:null,holderId:''}];
++  throw Error('UNEXPECTED_WRITE_OR_RETRY');
++ });
++ const input={relay,controlPath:'synthetic-control.json',planned,source,initialCertificate:{},overallDeadline,signal:controller.signal} as unknown as Parameters<typeof runDbStartedCloudPublication>[0];
++ return {input,relay,sql,calls,controller,compiler,publishStarted,cutoff:Math.min(evidenceExpiry,overallDeadline-2*PILOT_BUDGET.controlMs)};
++}
++
++describe('DB-started publication stays inside the original outer budget',()=>{
++ it.each(['unknown','no-ack','cancelled','ambiguous-rollback'] as const)('waits for the same shortened cutoff after %s, then reads once without replaying',async mode=>{
++  const f=fixture(mode),run=runDbStartedCloudPublication(f.input);await f.publishStarted;
++  expect(f.compiler.mock.calls[0]![0].publicationDeadline).toBe(f.cutoff);
++  expect(f.calls[0]!.deadline).toBe(f.cutoff-PILOT_BUDGET.publishDbMs-PILOT_BUDGET.publishTransportMs);
++  expect(f.calls[1]!.deadline).toBe(f.cutoff);
++  await vi.advanceTimersByTimeAsync(f.cutoff-Date.now()-1);
++  expect(f.calls.map(c=>c.kind)).toEqual(['READ_PUBLICATION_CONTEXT','PUBLISH']);
++  await vi.advanceTimersByTimeAsync(1);
++  expect(await run).toMatchObject({state:'CONFLICT',publishAcknowledged:false});
++  const read=f.calls[2]!;
++  expect(read.kind).toBe('READ_OUTCOME');expect(read.at).toBe(f.cutoff);
++  expect(read.deadline).toBe(f.input.overallDeadline-PILOT_BUDGET.controlMs);
++  expect(read.signal).not.toBe(f.controller.signal);expect(read.signal?.aborted).toBe(false);
++  expect(f.calls.map(c=>c.kind)).toEqual(['READ_PUBLICATION_CONTEXT','PUBLISH','READ_OUTCOME']);
++ });
++
++ it('keeps an earlier evidence expiry unchanged',async()=>{
++  const f=fixture('unknown',NOW+10*60_000),run=runDbStartedCloudPublication(f.input);await f.publishStarted;
++  await vi.advanceTimersByTimeAsync(10*60_000);
++  expect(await run).toMatchObject({publishAcknowledged:false});
++  expect(f.calls[1]!.deadline).toBe(NOW+10*60_000);
++  expect(f.calls[2]!.deadline).toBe(NOW+11*60_000);
++ });
++
++ it.each(['ack','late-ack','rollback','not-dispatched'] as const)('preserves %s handling and still reads the persisted result',async mode=>{
++  const f=fixture(mode),run=runDbStartedCloudPublication(f.input);await f.publishStarted;
++  if(mode==='late-ack')await vi.advanceTimersByTimeAsync(f.cutoff-Date.now()-1000);
++  expect(await run).toMatchObject({publishAcknowledged:mode==='ack'||mode==='late-ack'});
++  expect(f.calls.map(c=>c.kind)).toEqual(['READ_PUBLICATION_CONTEXT','PUBLISH','READ_OUTCOME']);
++  expect(f.calls[2]!.at).toBe(mode==='late-ack'?f.cutoff-1000:NOW);
++ });
++
++ it('hands off UNKNOWN without reading when a late wake consumed the final read reserve',async()=>{
++  const f=fixture(),run=runDbStartedCloudPublication(f.input);const failed=expect(run).rejects.toThrow('PILOT_OUTCOME_UNKNOWN_REQUIRES_READONLY_RECONCILIATION');await f.publishStarted;
++  vi.setSystemTime(f.input.overallDeadline-PILOT_BUDGET.controlMs-PILOT_BUDGET.controlCompletionMs);
++  await vi.advanceTimersByTimeAsync(f.cutoff-NOW);
++  await failed;expect(f.calls.map(c=>c.kind)).toEqual(['READ_PUBLICATION_CONTEXT','PUBLISH']);
++ });
++
++ it.each(['failure','cancelled','late-response'] as const)('retains UNKNOWN on a final read %s',async mode=>{
++  const f=fixture('ack'),base=f.sql.getMockImplementation()!;
++  f.sql.mockImplementation(async(...args)=>{
++   if(args[0]!=='READ_OUTCOME')return base(...args);
++   if(mode==='late-response'){vi.setSystemTime(args[2]);return [{row:null,batch:null,holderId:''}];}
++   throw mode==='cancelled'?new DOMException('cancelled','AbortError'):Error('READ_FAILED');
++  });
++  await expect(runDbStartedCloudPublication(f.input)).rejects.toThrow('PILOT_OUTCOME_UNKNOWN_REQUIRES_READONLY_RECONCILIATION');
++  expect(f.sql.mock.calls.filter(c=>c[0]==='PUBLISH')).toHaveLength(1);
++  expect(f.sql.mock.calls.filter(c=>c[0]==='READ_OUTCOME')).toHaveLength(1);
++ });
++
++ it('gives the read its own bounded cancellation even when the write was cancelled',async()=>{
++  const f=fixture('cancelled'),base=f.sql.getMockImplementation()!;let readSignal:AbortSignal|undefined;
++  f.sql.mockImplementation(async(...args)=>{
++   if(args[0]!=='READ_OUTCOME')return base(...args);
++   readSignal=args[3];expect(readSignal?.aborted).toBe(false);
++   await delay(args[2]-Date.now());throw new DOMException('read deadline','TimeoutError');
++  });
++  const run=runDbStartedCloudPublication(f.input),failed=expect(run).rejects.toThrow('PILOT_OUTCOME_UNKNOWN_REQUIRES_READONLY_RECONCILIATION');await f.publishStarted;
++  await vi.advanceTimersByTimeAsync(f.cutoff-NOW+PILOT_BUDGET.controlMs);
++  await failed;expect(readSignal).toBeDefined();expect(readSignal).not.toBe(f.controller.signal);
++  expect(f.sql.mock.calls.filter(c=>c[0]==='PUBLISH')).toHaveLength(1);
++ });
++
++ it('rejects a compiler response that attempts to enlarge the cutoff',async()=>{
++  const f=fixture();const base=f.compiler.getMockImplementation()!;
++  f.compiler.mockImplementation(async input=>({...await base(input),expiresAt:new Date(f.cutoff+1).toISOString()}));
++  await expect(runDbStartedCloudPublication(f.input)).rejects.toThrow('PILOT_EVIDENCE_EXPIRY_CHANGED');
++  expect(f.calls.map(c=>c.kind)).toEqual(['READ_PUBLICATION_CONTEXT']);
++ });
++
++ it('rechecks the write reserve after slow compilation',async()=>{
++  const f=fixture();const base=f.compiler.getMockImplementation()!;
++  f.compiler.mockImplementation(async input=>{const packet=await base(input);vi.setSystemTime(f.cutoff-PILOT_BUDGET.publishDbMs-PILOT_BUDGET.publishTransportMs);return packet;});
++  await expect(runDbStartedCloudPublication(f.input)).rejects.toThrow('PILOT_PUBLICATION_BUDGET_EXHAUSTED');
++  expect(f.calls.map(c=>c.kind)).toEqual(['READ_PUBLICATION_CONTEXT']);
++ });
++
++ it('accepts only strictly more than the minimum scheduling reserve',()=>{
++  expect(()=>requireDbStartedOuterDeadline(NOW+MINIMUM)).toThrow('PILOT_PUBLICATION_BUDGET_EXHAUSTED');
++  expect(requireDbStartedOuterDeadline(NOW+MINIMUM+1)).toBe(NOW+MINIMUM+1);
++ });
++});
++
++describe.each([runCloudSourcePilot,runCloudPortableSourcePilot])('DB-started entry fails before any capture or relay',runner=>{
++ it.each([undefined,NaN,Infinity,NOW+0.5,Number.MAX_SAFE_INTEGER+1,NOW-1,NOW+MINIMUM])('rejects invalid or insufficient outer deadline %s',async overallDeadline=>{
++  const http=vi.spyOn(globalThis,'fetch'),sql=vi.spyOn(FilePilotRelay.prototype,'sql'),request=vi.spyOn(FilePilotRelay.prototype,'request');
++  await expect(runner({bootstrapPath:'never-read',reviewedSha256:'unused',workspaceRoot:'unused',relayDirectory:'unused',dbStartedControlPath:'unused',...(overallDeadline===undefined?{}:{overallDeadline})})).rejects.toThrow(/PILOT_(OUTER_DEADLINE_REQUIRED|PUBLICATION_BUDGET_EXHAUSTED)/);
++  expect(http).not.toHaveBeenCalled();expect(sql).not.toHaveBeenCalled();expect(request).not.toHaveBeenCalled();
++ });
++});

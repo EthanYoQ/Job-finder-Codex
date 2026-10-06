@@ -5,7 +5,7 @@
 import { mkdtemp, readFile, writeFile } from "node:fs/promises";
 import { join, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
-import { runDbStartedCloudPublication } from "../src/crawler/cloudDbStartedPilot";
+import { runDbStartedCloudPublication, requireDbStartedOuterDeadline } from "../src/crawler/cloudDbStartedPilot";
 import { z } from "zod";
 import { archiveSourceEvidence } from "../src/crawler/artifactArchive";
 import { FilePilotRelay, PILOT_BUDGET, acquireCloudPilotLease, makeArchiveBundle, restoreArchiveBundle, reviveUtcFields, sha256 } from "../src/crawler/cloudSourcePilotRelay";
@@ -47,7 +47,8 @@ export function portablePreLockReadyDeadline(acquisition:{startedAt:string;finis
 function assertProjection(actual:Record<string,unknown>,expected:object){
   for(const [key,value] of Object.entries(expected))if(JSON.stringify(actual[key])!==JSON.stringify(value))throw Error(`PILOT_BOOTSTRAP_MISMATCH:${key}`);
 }
-export async function runCloudPortableSourcePilot(input:{bootstrapPath:string;reviewedSha256:string;workspaceRoot:string;relayDirectory:string;signal?:AbortSignal;dbStartedControlPath?:string}){
+export async function runCloudPortableSourcePilot(input:{bootstrapPath:string;reviewedSha256:string;workspaceRoot:string;relayDirectory:string;signal?:AbortSignal;dbStartedControlPath?:string;overallDeadline?:number}){
+  if(input.dbStartedControlPath)requireDbStartedOuterDeadline(input.overallDeadline);
   const bytes=await readFile(input.bootstrapPath);if(sha256(bytes)!==input.reviewedSha256)throw Error("PILOT_REVIEWED_BOOTSTRAP_HASH_REQUIRED");
   const bootstrap=z.object({schemaVersion:z.literal(1),checkedAt:z.string().datetime(),candidateRows:z.array(record),batchId:z.string().regex(/^[A-Za-z0-9][A-Za-z0-9._-]{0,80}$/)}).strict().parse(JSON.parse(bytes.toString("utf8")));
   const age=Date.now()-Date.parse(bootstrap.checkedAt);if(age<0||age>60000)throw Error("PILOT_BOOTSTRAP_FRESH_READ_REQUIRED");
@@ -98,7 +99,7 @@ export async function runCloudPortableSourcePilot(input:{bootstrapPath:string;re
       const admission=await issueSourceQualityAdmission({plan,result,binding:{releaseCandidateId:identity.releaseCandidateId,batchId,sourceResultId:pending.id,sourceConfigSha256:pending.sourceConfigHash,adapterVersion:pending.adapterVersion},archive:{workspaceRoot:restoredRoot,evidenceSubdirectory:EVIDENCE,artifacts}});
       if(admission.status!=="ACCEPTED")throw Error(`PILOT_ADMISSION_REJECTED:${admission.codes.join(",")}`);
       phase="DB_STARTED_PUBLICATION";
-      const outcome=await runDbStartedCloudPublication({relay,controlPath:input.dbStartedControlPath,planned,initialCertificate:admission.receipt,
+      const outcome=await runDbStartedCloudPublication({relay,controlPath:input.dbStartedControlPath,planned,initialCertificate:admission.receipt,overallDeadline:input.overallDeadline!,
         source:{plan,pending,identity,batchId,result,artifacts,attemptTracker,publicationPolicy:"SOURCE_ATOMIC_LAST_GOOD_V1",sourceAdmissionPolicy:SOURCE_QUALITY_POLICY_ID,sourceQualityAdmission:admission},
         ...(input.signal?{signal:input.signal}:{})});
       const report={...outcome,batchId,sourceResultId:pending.id,sourceId:PILOT_SOURCE,bundlePath,bundleSha256,bundleByteCount,archiveRetention:"PENDING",recoveryVerification:"PENDING",certificateGrade:SOURCE_QUALITY_POLICY_ID};
@@ -154,6 +155,6 @@ if(process.argv[1]&&import.meta.url===pathToFileURL(resolve(process.argv[1])).hr
   const [bootstrapPath,reviewedSha256,workspaceRoot,relayDirectory,...extra]=process.argv.slice(2);
   if(!bootstrapPath||!reviewedSha256||!workspaceRoot||!relayDirectory||extra.length&&!(extra.length===2&&extra[0]==="--db-started-control"&&extra[1])){console.error("Usage: p0-cloud-portable-source-pilot.ts <fresh-reviewed-bootstrap.json> <sha256> <artifact-workspace> <relay-directory> [--db-started-control <control-base.json>]");process.exitCode=2;}
   else{const controller=new AbortController();process.once("SIGINT",()=>controller.abort());process.once("SIGTERM",()=>controller.abort());
-    try{const report=await runCloudPortableSourcePilot({bootstrapPath,reviewedSha256,workspaceRoot,relayDirectory,signal:controller.signal,...(extra[1]?{dbStartedControlPath:extra[1]}:{})});console.log(JSON.stringify(report));if(report.state!=="COMMITTED_EXACT")process.exitCode=1;}
+    try{const report=await runCloudPortableSourcePilot({bootstrapPath,reviewedSha256,workspaceRoot,relayDirectory,signal:controller.signal,...(extra[1]?{dbStartedControlPath:extra[1],overallDeadline:Number(process.env.P0_PILOT_OUTER_DEADLINE_MS)}:{})});console.log(JSON.stringify(report));if(report.state!=="COMMITTED_EXACT")process.exitCode=1;}
     catch{console.error("CLOUD_SOURCE_PILOT_STOPPED_REVIEW_RELAY_AND_PERSISTED_OUTCOME");process.exitCode=1;}}
 }
