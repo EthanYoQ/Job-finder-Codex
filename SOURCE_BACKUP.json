@@ -1,68 +1,68 @@
 {
   "format": "safe-source-backup/v1",
-  "snapshot": "agent-log-reader-python-compatibility",
-  "sourcePlanSha256": "33bf4ac79842b60aa855e7b1d7805c8c3f4ed064ec3c2ccb3359f7d21c522330",
-  "sourceCutoff": "2026-10-06T19:21:39.608474+00:00",
-  "originalSourceFiles": 4,
-  "originalSourceBytes": 18131,
+  "snapshot": "incremental-reader-legacy-replay",
+  "sourcePlanSha256": "5c0290a3bc04ed5d2dd4555284555e9122cc32239d73704ae7e4f88ed32d2c0c",
+  "sourceCutoff": "2026-10-06T21:05:57.823667+00:00",
+  "originalSourceFiles": 5,
+  "originalSourceBytes": 39773,
   "originalBytesUnchanged": true,
-  "scope": "Source with non-secret instance/path/time-window and invocation matching constants, plus synthetic tests; no actual logs, API results or credentials.",
-  "dependencies": [
-    "Python 3.6+ standard library",
-    "POSIX shell",
-    "Existing official Aliyun CLI 3.5.1 and external configured profile for separately authorized controller use"
-  ],
+  "scope": "Source retaining necessary non-secret source/result/config/input hash pins; no actual Job rows, response arrays or execution results.",
+  "applicationIncrementCommit": "a47ed7feeb93e99d45633795cb5fecebc8c0818f",
+  "priorReaderReplayCommit": "2cabd430c3b8f0314f0d6c0459c05ca1450d3fb4",
+  "applicationSourceChangedByThisBackup": false,
   "restorationLimits": [
-    "Preserve source layout and review fixed matching constants before future use.",
-    "eventTags are lexical matches, not task terminal states.",
-    "Absence of log evidence does not prove absence of submission or execution.",
-    "Query only the saved original InvokeId; UNKNOWN is not permission to resubmit.",
-    "Intent, actual response, profile and runtime state are excluded; this source snapshot is not an execution grant.",
-    "Time/byte thresholds are soft checks; text-derived exitCode is not an authoritative API terminal status.",
-    "The source sets a 60-second API command timeout and a separate 75-second CLI communication timeout.",
-    "Query JSON fallback is specific to the reviewed diagnostic script and is not a general-purpose log sanitizer."
+    "The five files require the exact three reader trees, Node22, genuine Prisma Client/locked dependencies and a matching sibling directory layout.",
+    "run-replay.py additionally requires Python with datetime.fromisoformat, Linux/libseccomp and support for the listed syscall filter.",
+    "Exact private refreshed/old inputs, old a775 projection and trusted BEFORE_INTEGRITY are excluded; this is not independent data recovery.",
+    "sourceJobId/listUrl are selected existing columns; no migration or fabricated replacement for missing fields.",
+    "Operational use requires separate review and authorization. No query or kernel filter was run by this backup."
   ],
   "excluded": [
-    "actual intents/submission/query/CLI metadata",
-    "audit.json",
-    "FINAL_AGENT_LOG_RECONCILIATION.json",
-    "original failure diagnosis",
-    "support drafts",
-    "deployment decision notes"
+    "all actual snapshots and private projections",
+    "all manifests/reports/results/logs/query responses",
+    "installed dependencies and credentials"
   ],
-  "verificationScope": "Static hashes and Python grammar/embedding checks plus exact remote Git/content verification; no project source or test execution.",
+  "verificationScope": "Static source review, precise comparison with prior safe adapter/query/guards, and exact remote path/mode/blob/content verification; no application, test or SQL execution.",
   "files": [
     {
-      "path": "read_agent_logs.py",
-      "sha256": "95a5711a5e50ccd83a64d3445aa6eb87d2bf69514b3650380bbea1c4f3928a88",
-      "bytes": 6501,
+      "path": "compare-current-sanofi.mts",
+      "bytes": 12098,
+      "sha256": "e581ad1a50e2f51ff14a6068e75587ae1b896237919874320c0b314287aea2bd",
       "mode": "100644",
       "type": "blob",
-      "sha": "8af0ca8d577bd6ddd6d75d085e498c13e6504eb9"
+      "sha": "2bf988aa2897d9fd202b66fe54a44f09fec61f05"
     },
     {
-      "path": "read-agent-logs.sh",
-      "sha256": "e73931343c75b6849687ce40d618adf70019d03dd0cf2a78b40dd9c66e5410a3",
-      "bytes": 6572,
+      "path": "run-replay.py",
+      "bytes": 14065,
+      "sha256": "b838244471fd2e5406e9612ac81b4d76babdb943e6106c10afa6331ba2d7949b",
       "mode": "100644",
       "type": "blob",
-      "sha": "c370d45f21e9a6a02c6a12fec6af1bc970820233"
+      "sha": "88524fd56919cca2386af780b845a9fa873320ca"
     },
     {
-      "path": "control.py",
-      "sha256": "2398891d92cdf109b05a355c3a0a8fbd4ce083d86f87a933d62acaf9be3a6d15",
-      "bytes": 3553,
+      "path": "no-network.cjs",
+      "bytes": 2009,
+      "sha256": "bb9689f7aa893eb09d94b2bd2b6ca3e0828eafea6f9f41b5087b8f0d89a876fb",
       "mode": "100644",
       "type": "blob",
-      "sha": "9d140185b3786aa6603462389ff798675bb7892d"
+      "sha": "c37dbdade016c6dcf33c45b795a696af2c7709dc"
     },
     {
-      "path": "test_reader.py",
-      "sha256": "7e48c7151820df63b6a4d3d0f6b33f49ddf889a2470e456942b1c0e6cbcffa0b",
-      "bytes": 1505,
+      "path": "trace-loader-sockets.cjs",
+      "bytes": 713,
+      "sha256": "87c89069e7fcec8fb3aa291336c8f36a0bb4389741188d5c5504e08af6b0de7a",
       "mode": "100644",
       "type": "blob",
-      "sha": "f10e5efa4c8325599e00f67e95356436f687c8c2"
+      "sha": "0b1f13e3e5c04caf262622953da8b860b309ced5"
+    },
+    {
+      "path": "READ_ONLY_EXPORT_WITH_EXISTING_TWO_COLUMNS.sql",
+      "bytes": 10888,
+      "sha256": "9d58999661358508dba8a70fba0e6de68ffcd2f6a90d217c62d19fdfeb59b10e",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "2371b6aef84ac27dd56c113e0b5e3b0a5690464e"
     }
   ]
 }
