@@ -1,0 +1,34 @@
+import {readFile,writeFile} from 'node:fs/promises';
+import {pathToFileURL} from 'node:url';
+import {join,resolve} from 'node:path';
+const host=resolve(process.argv[2]),cfg=JSON.parse(await readFile(join(host,'host-config.json'))),spec=JSON.parse(await readFile(join(host,'SPEC.json'))),plan=JSON.parse(await readFile(join(host,'source-plan.json')));
+if(!host.endsWith('/hosts46/'+spec.key)||process.env.JOBFINDER_CLOUD_SOURCE_ID!==cfg.sourceId||process.env.TSX_DISABLE_CACHE!=='1'||process.env.NODE_DISABLE_COMPILE_CACHE!=='1')throw Error('OFFLINE_SCOPE');
+globalThis.fetch=async()=>{throw Error('OFFLINE_NETWORK_FORBIDDEN');};
+const imp=p=>import(pathToFileURL(join(cfg.repo,p)).href);
+const {getSourceQualityPolicy,SOURCE_QUALITY_POLICY_ID}=await imp('src/crawler/sourceQualityAdmission.ts');
+const {assertPortableRefreshPlan}=await imp('scripts/p0-cloud-portable-source-pilot.ts');
+const {CLOUD_PILOT_SQL45}=await imp('src/db/cloudPilotSql45Manifest.ts');
+const checks=[];const ok=name=>checks.push({name,passed:true});
+async function rejects(fn,code){let error;try{await fn();}catch(e){error=e;}if(!String(error).includes(code))throw Error('EXPECTED_REJECTION:'+code+':'+error);}
+assertPortableRefreshPlan(plan);
+if(getSourceQualityPolicy(plan)!==SOURCE_QUALITY_POLICY_ID||SOURCE_QUALITY_POLICY_ID!=='PLAN_BOUND_SOURCE_QUALITY_V1')throw Error('POLICY_DRIFT');
+const wrong=structuredClone(plan);wrong.source.officialEntryUrl+='?NONQUAL_WRONG_CONFIG';
+if(getSourceQualityPolicy(wrong)!==null)throw Error('ALTERED_PLAN_ADMITTED');
+await rejects(()=>assertPortableRefreshPlan(wrong),'PILOT_PORTABLE_REFRESH_CONFIG_NOT_REVIEWED');
+ok('exact canonical source plan receives current reviewed policy; changed config denied');
+if(CLOUD_PILOT_SQL45.sourceResultGuardMd5!=='8fd00ed15932e3101eec3908ac3f33f3'||CLOUD_PILOT_SQL45.migrations.length!==48)throw Error('SQL48_GUARD_DRIFT');
+ok('original 48 migrations and exact source state guard retained');
+const A=Object.getPrototypeOf(async function(){}).constructor;
+const state=new Map([[spec.prefix+'cloudPilotHostConfig',cfg],[spec.prefix+'cloudPilotHostHelpers',await readFile(join(host,'host-helper-functions.js'),'utf8')]]);
+let calls=0;globalThis.load=k=>state.get(k);globalThis.store=(k,v)=>{throw Error('UNEXPECTED_STORE');};globalThis.tools=new Proxy({},{get(){return async()=>{calls++;throw Error('NO_EXTERNAL_TOOL_ALLOWED');};}});
+const stages=await new A(await readFile(join(host,'host-stage-functions.js'),'utf8'))();
+for(const delta of [{sourceId:'source-wrong-social'},{sourceConfigSha256:'0'.repeat(64)},{projectId:'WRONG'}])await rejects(()=>stages.handle({kind:'READ_CONTEXT',payload:{projectId:cfg.project,sourceId:cfg.sourceId,sourceConfigSha256:cfg.sourceConfigSha256,...delta}},host+'/NONQUAL-NOT-CREATED'),'HOST_CONTEXT_SOURCE_BINDING');
+if(calls!==0)throw Error('WRONG_SCOPE_DISPATCHED');
+ok('wrong source/config/project READ_CONTEXT rejected before all tool/file/SQL calls');
+const loader=await readFile(join(host,'runtime/load-host-state.js'),'utf8');
+const args=[host,cfg.sourceId,spec.candidate.id,spec.build.commitSha];
+for(const [index,value]of [[0,host+'-wrong'],[1,'source-wrong-social'],[2,'dot-cloud-restored-fb0b8e3-20261004'],[3,'0'.repeat(40)]]){const bad=[...args];bad[index]=value;await rejects(()=>new A('root','sourceId','candidateId','commit',loader)(...bad),'HOST_LOAD_ARGUMENT');}
+if(calls!==0)throw Error('WRONG_LOADER_SCOPE_CALLED_TOOLS');
+ok('exact host/source/candidate/commit loader binding rejects mismatches before tools');
+const report={schemaVersion:1,scope:'OFFLINE_CURRENT_PRODUCER_POLICY_AND_NEGATIVE_BINDING_CHECKS',sourceId:cfg.sourceId,passed:true,sourceNetworkAccessed:false,databaseAccessed:false,producerLaunched:false,externalToolCalls:calls,checks};
+await writeFile(join(host,'CONTRACT_CHECKS.json'),JSON.stringify(report,null,2)+'\n',{flag:'wx',mode:0o600});console.log(JSON.stringify({sourceId:cfg.sourceId,passed:true,checks:checks.length,externalToolCalls:calls}));

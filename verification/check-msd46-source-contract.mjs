@@ -1,0 +1,36 @@
+import assert from 'node:assert/strict';
+import {readFile,writeFile} from 'node:fs/promises';
+import {dirname,join} from 'node:path';
+import {fileURLToPath,pathToFileURL} from 'node:url';
+import {createHash} from 'node:crypto';
+const R=dirname(dirname(fileURLToPath(import.meta.url))),host=join(R,'hosts46/msd'),repo=join(R,'producer42');
+if(process.env.JOBFINDER_CLOUD_SOURCE_ID!=='source-msd-china-social'||process.env.TSX_DISABLE_CACHE!=='1'||process.env.NODE_DISABLE_COMPILE_CACHE!=='1')throw Error('OFFLINE_SOURCE_AUDIT_ENV');
+globalThis.fetch=async()=>{throw Error('SOURCE_NETWORK_FORBIDDEN');};
+const sha=b=>createHash('sha256').update(b).digest('hex'),imp=p=>import(pathToFileURL(join(repo,p)).href);
+const {deriveCurrentStagedScheduleExpectation}=await imp('src/crawler/stagedScheduleAuthority.ts');
+const {sourcePlanConfigSha256}=await imp('src/crawler/sourcePlan.ts');
+const {getStrictMsdAjingaPolicy}=await imp('src/crawler/msdAjingaSourceFetch.ts');
+const control=JSON.parse(await readFile(join(host,'control-base.json'))),plan=deriveCurrentStagedScheduleExpectation(control.build).plans.find(p=>p.source.id==='source-msd-china-social');
+assert.equal(sourcePlanConfigSha256(plan),'7772b32344c3485af4cb54e3ad17a7a78335800282682450da213c7544f6fc30');
+assert.deepEqual(plan,JSON.parse(await readFile(join(host,'source-plan.json'))));
+assert.equal(plan.profileBoundSource.kind,'msd-ajinga');assert.equal(plan.expectedChannels.length,1);assert.equal(plan.expectedChannels[0].channelId,'source:source-msd-china-social:default');
+assert.deepEqual(plan.transientRetryPolicy,{maxRetries:1,backoffMs:10000});assert.deepEqual(plan.transportPolicy,{primary:'DIRECT_HTTP'});
+assert.deepEqual(plan.profileBoundSource.config,{entryUrl:'https://www.ajinga.com/msdchina/professionals',companyId:13471,pageSize:30,maxPages:20});
+const policy=getStrictMsdAjingaPolicy(plan);assert.ok(policy);assert.equal(policy.urlRules.length,22);
+const checks=[],pending=[];
+function subset(actual,expected){if(expected!==null&&typeof expected==='object'){assert.ok(actual!==null&&typeof actual==='object');for(const[k,v]of Object.entries(expected))subset(actual[k],v);}else assert.deepEqual(actual,expected);}
+const expect=value=>({toEqual:expected=>assert.deepEqual(value,expected),toMatchObject:expected=>subset(value,expected),toBeUndefined:()=>assert.equal(value,undefined),toHaveLength:n=>assert.equal(value.length,n),toContain:v=>assert.ok(value.includes(v))});
+const describe=(name,fn)=>fn();const it=(name,fn)=>pending.push(Promise.resolve().then(fn).then(()=>checks.push({name,passed:true})));it.each=values=>(name,fn)=>{for(const v of values)it(name.replace('%s',v),()=>fn(v));};
+const originalTest=await readFile(join(repo,'tests/crawler/msdAjingaSourceFetch.test.ts'),'utf8');
+let test=originalTest.replace('import {describe,expect,it} from "vitest";','');
+// Reuse the exact checked-in synthetic source tests through a small assertion adapter; producer files stay untouched.
+test=test.replaceAll('"../../src/','"'+pathToFileURL(join(repo,'src')).href+'/').replace(/(from "file:[^"]+)";/g,'$1.ts";');
+const fixturePath=join(host,'SYNTHETIC_SOURCE_TEST.mts');
+await writeFile(fixturePath,'export default async function testSource(describe:any,it:any,expect:any){\n'+test.split('\n').filter(l=>!l.startsWith('import ')).join('\n')+'\n}\n'+test.split('\n').filter(l=>l.startsWith('import ')).join('\n'),{flag:'wx',mode:0o600});
+await (await import(pathToFileURL(fixturePath).href)).default(describe,it,expect);await Promise.all(pending);assert.equal(checks.length,9);
+const audited=['src/crawler/companyRecruitmentProfiles/profiles/msd-china.ts','src/crawler/msdAjingaSourceFetch.ts','src/crawler/msdDualOfficialSourceFetch.ts','src/crawler/completenessCertificate.ts','src/db/cloudPilotSql45Manifest.ts','tests/crawler/msdAjingaSourceFetch.test.ts'];
+const files=[];for(const path of audited)files.push({path,sha256:sha(await readFile(join(repo,path)))});
+const source={key:'msd',sourceId:plan.source.id,sourceConfigSha256:sourcePlanConfigSha256(plan),companyId:plan.company.id,profileBoundKind:plan.profileBoundSource.kind,officialEntryUrl:plan.source.officialEntryUrl,expectedChannels:plan.expectedChannels,expectedChannelSetHash:plan.expectedChannelSetHash,transientRetryPolicy:plan.transientRetryPolicy,transportPolicy:plan.transportPolicy,route:'TRUE_A',authoritativeContract:'Frozen C46/config7772b323 canonical Ajinga plan. Dormant Workday/Phenom dual-official code is present but is not selected; no adapter/channel/quality/retry change is made.',pagination:'Native count, page size 30, maximum 20 pages; exact native terminal flag/page count and unique pk/short ID closure; stable total on every page.',detailApply:'Each current list record requires its own native Ajinga detail plus apply-status response, exact company/root/ID/title, open visibility/application, nonempty description, mainland bilingual detail city binding. Four records concurrently, two native calls per record.',qualification:'Exact entry+script bootstrap, native list/detail/apply response identity/hash/coordinates, 30-minute source capture interval, artifact cardinality 2+pages+2*total, zero losses, strict reconstructed normalized output; a-grade-official-total-v2 with STRICT_PLAN_BOUND_OFFICIAL_TOTAL_REPLAY_V1. No fixed historical count.',retry:'Original maxRetries 1 / backoff 10000ms retained; original retryable transport classification retained.',syntheticVerification:{scope:'FROZEN_AJINGA_ADAPTER_AND_A_CERTIFICATE_TESTS_WITH_IN_MEMORY_HTTP',passed:true,tests:checks,sourceNetworkAccessed:false,databaseAccessed:false,producerLaunched:false,countsAreSynthetic:true,fullSuiteRun:false},auditedFiles:files};
+await writeFile(join(host,'SOURCE_CONTRACT_AUDIT.json'),JSON.stringify(source,null,2)+'\n',{flag:'wx',mode:0o600});
+await writeFile(join(R,'verification/msd46-contract-audit.json'),JSON.stringify({schemaVersion:1,createdAt:new Date().toISOString(),passed:true,sourceNetworkAccessed:false,databaseAccessed:false,producerLaunched:false,sources:[source]},null,2)+'\n',{flag:'wx',mode:0o600});
+console.log(JSON.stringify({passed:true,profileBoundKind:plan.profileBoundSource.kind,channels:plan.expectedChannels.length,syntheticSourceTests:checks.length,networkCalls:0}));
