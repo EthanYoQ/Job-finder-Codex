@@ -1,3 +1,4 @@
+import { replayHansohGraceDom } from "./hansohGraceDomEvidence";
 import { createHash } from "node:crypto";
 import type { SourceCrawlPlan } from "./sourcePlan";
 import type { PersistentSourceFetchEvidence } from "./sourceFetchEvidence";
@@ -45,7 +46,8 @@ export function validateStrictHansohNativeWindowEvidence(
   try {
     if (!hasStrictHansohNativeWindowPlan(plan) || evidence.supportingArtifactOnlyFailure ||
         evidence.pages.length === 0 || evidence.pages.length > 10 ||
-        evidence.artifacts.length !== evidence.pages.length || evidence.fetchLosses.length !== 0) return false;
+        evidence.artifacts.length < evidence.pages.length || evidence.fetchLosses.length !== 0) return false;
+    replayHansohGraceDom(plan,evidence,jobs);
     const declaration = evidence.declaredCompleteness;
     if (declaration?.kind !== "OFFICIAL_TOTAL_COUNT" || declaration.scope !== "SOURCE" ||
         declaration.channelId !== undefined || declaration.artifactLogicalKey !== evidence.pages[0]!.artifactLogicalKey) return false;

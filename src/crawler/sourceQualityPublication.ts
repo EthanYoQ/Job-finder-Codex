@@ -1,3 +1,4 @@
+import { replayHansohGraceDom } from "./hansohGraceDomEvidence";
 import { exactNovoChinaQualityPlan, novoClosedSourceJobIds } from "./novoChinaQuality";
 import { hasNovartisOfficialPresencePlan, replayNovartisOfficialPresence } from "./novartisOfficialPresence";
 import { buildIngestionCommands, type IngestionCommand } from "./ingestion";
@@ -57,6 +58,9 @@ export function buildSourceQualityJobCommands(input:SourceQualityPublicationInpu
     observation:{disposition:"TRUSTED_COMPLETE",atomicCommitEligible:true},observedAt:receipt.issuedAt,
     baselineCompletedBeforeCrawl:input.baselineCompletedBeforeCrawl
   });
-  return {jobCommands:buildIngestionCommands(input.result,lifecycle).filter(
+  const protectedKeys=input.plan.source.id==="source-hansoh-social"?replayHansohGraceDom(input.plan,input.result.fetchEvidence!,input.result.jobs,{...receipt.binding,sourceId:"source-hansoh-social"},{previousJobs:input.previousJobs,visibilityFloor:priorReceipt?.issuedAt??null}):new Set<string>();
+  const priorByKey=new Map(previous.map(job=>[job.dedupeKey,job]));
+  const decisions=lifecycle.map(job=>protectedKeys.has(job.dedupeKey)?{...priorByKey.get(job.dedupeKey)!,isNew:false}:job);
+  return {jobCommands:buildIngestionCommands(input.result,decisions).filter(
     (command):command is Extract<IngestionCommand,{type:"UPSERT_JOB"}>=>command.type==="UPSERT_JOB"),visibilityFloor};
 }

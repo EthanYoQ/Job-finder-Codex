@@ -1,3 +1,5 @@
+import { acquireHansohGraceDom, type HansohGraceDomAcquisition } from "./hansohGraceDomAcquisition";
+import { replayHansohGraceDom } from "./hansohGraceDomEvidence";
 import { createAstraZenecaDetailSourceFetch, hasAstraZenecaDetailPlan } from "./astraZenecaDetailAcquisition";
 import { readFile } from "node:fs/promises";
 import { deserialize } from "node:v8";
@@ -108,7 +110,8 @@ export function getSourceQualityPolicy(plan:SourceCrawlPlan): typeof SOURCE_QUAL
   } catch { return null; }
 }
 
-/** Normal acquisition route. No imported-evidence or caller-supplied transport option.
+/** Normal acquisition route. No imported ready-made proof or caller-supplied HTTP transport.
+ * Hansoh can request same-run auxiliary DOM observations through its bounded contract.
  * The volatile registration prevents files/receipts from being relabeled as a new fetch.
  * It trusts this process and its ordinary transport; it is not remote attestation. */
 export function createHttpOnlyOfficialSourceFetch(): SourceFetchFunction {
@@ -117,7 +120,7 @@ export function createHttpOnlyOfficialSourceFetch(): SourceFetchFunction {
     workday:createWorkdaySourceFetch(),hotjob:createHotjobWecruitSourceFetch(),hotjobLegacy:createHotjobLegacySourceFetch(),
     profileBoundSource:createProfileBoundSourceFetch(),fallback:createUnsupportedSourceFetch()});
 }
-export function createOwnedSourceQualityFetch(): SourceFetchFunction {
+export function createOwnedSourceQualityFetch(options:{hansohGraceDom?:HansohGraceDomAcquisition}={}): SourceFetchFunction {
   const fetch = createHttpOnlyOfficialSourceFetch();
   return async (plan,tracker) => {
     const coverageHold=getPortableSourceCoverageHold(plan.source.id);
@@ -129,7 +132,8 @@ export function createOwnedSourceQualityFetch(): SourceFetchFunction {
     const immutablePlan=structuredClone(plan);
     const configHash=sourcePlanConfigSha256(immutablePlan);
     const startedAt = new Date().toISOString();
-    const result = await acquireAstellasPdfCities(immutablePlan, await fetch(immutablePlan,tracker));
+    let result = await acquireAstellasPdfCities(immutablePlan, await fetch(immutablePlan,tracker));
+    if(options.hansohGraceDom)result=await acquireHansohGraceDom(immutablePlan,result,options.hansohGraceDom,startedAt);
     const finishedAt = new Date().toISOString();
     if (result.ok && result.fetchEvidence) {
       acquisitions.set(result.fetchEvidence,{id:randomUUID(),sourceId:plan.source.id,configHash,
@@ -217,6 +221,7 @@ export async function issueSourceQualityAdmission(input:SourceQualityAdmissionIn
     result=structuredClone(input.result);
     evidence=parsePersistentSourceFetchEvidence(result.fetchEvidence);
     if (hasNovartisOfficialPresencePlan(plan)) replayNovartisOfficialPresence(plan,evidence);
+    if(plan.source.id==="source-hansoh-social")replayHansohGraceDom(plan,evidence,result.jobs,{...binding,sourceId:"source-hansoh-social"});
     if (!sourceQualityPageBodiesMatchFingerprints(evidence)) return reject("PAGE_BODY_FINGERPRINT_MISMATCH");
     if (!owned.fetched.ok || result.status!=="SUCCESS" || !result.paginationEvaluation ||
         !evidence.declaredCompleteness || evidence.declaredCompleteness.scope==="GLOBAL_UNFILTERED") return reject("SOURCE_QUALITY_REPLAY_FAILED");
@@ -268,7 +273,7 @@ export async function issueSourceQualityAdmission(input:SourceQualityAdmissionIn
   });
   const decision:Extract<SourceQualityAdmission,{status:"ACCEPTED"}>={status:"ACCEPTED",receipt,receiptSha256:digest(receipt)};
   verifySourceQualityReceipt({receipt,receiptSha256:decision.receiptSha256,expected:binding});
-  if (hasAstellasPdfCityPlan(plan)) issuedArchiveReplays.set(decision,structuredClone({...input,plan,result,archive:archiveInput}));
+  if (hasAstellasPdfCityPlan(plan)||plan.source.id==="source-hansoh-social") issuedArchiveReplays.set(decision,structuredClone({...input,plan,result,archive:archiveInput}));
   deepFreeze(decision);issued.set(decision,{receiptSha256:decision.receiptSha256,resultSha256,planSha256});owned.accepted=decision;
   return decision;
 }
@@ -289,11 +294,16 @@ async function replayAstellasArchivedSourceQuality(input:SourceQualityAdmissionI
     jobs:input.result.jobs,capturedAt:input.result.observation.crawledAt.toISOString()}))throw Error("ASTELLAS_ARCHIVED_REPLAY_FAILED");
 }
 export async function verifyIssuedSourceQualityArchiveForPersistence(admission:SourceQualityAdmission):Promise<void> {
-  if(admission.status!=="ACCEPTED"||admission.receipt.binding.sourceId!=="source-astellas-china-social")return;
+  if(admission.status!=="ACCEPTED"||!["source-astellas-china-social","source-hansoh-social"].includes(admission.receipt.binding.sourceId))return;
   const input=issuedArchiveReplays.get(admission);
-  if(!input)throw Error("ASTELLAS_ISSUED_ARCHIVE_REPLAY_REQUIRED");
+  if(!input)throw Error(admission.receipt.binding.sourceId==="source-hansoh-social"?"HANSOH_GRACE_ISSUED_ARCHIVE_REPLAY_REQUIRED":"ASTELLAS_ISSUED_ARCHIVE_REPLAY_REQUIRED");
   await verifyArchivedSourceEvidence({...input.archive,artifacts:[...input.archive.artifacts],...input.binding,sourceId:input.plan.source.id});
-  await replayAstellasArchivedSourceQuality(input);
+  if(input.plan.source.id==="source-hansoh-social"){
+    const evidence=parsePersistentSourceFetchEvidence(structuredClone(input.result.fetchEvidence));
+    for(const draft of evidence.artifacts){const archived=input.archive.artifacts.find(a=>a.logicalKey===draft.logicalKey)!;const bytes=await readFile(join(input.archive.workspaceRoot,archived.path));draft.body=typeof draft.body==="string"?bytes.toString("utf8"):bytes;}
+    replayHansohGraceDom(input.plan,evidence,input.result.jobs,{...admission.receipt.binding,sourceId:"source-hansoh-social"});
+    if(digest(evidence)!==admission.receipt.sourceEvidenceSha256)throw Error("HANSOH_GRACE_ARCHIVED_EVIDENCE_CHANGED");
+  }else await replayAstellasArchivedSourceQuality(input);
 }
 
 /** Durable integrity/binding validation, not authentication of a new acquisition.

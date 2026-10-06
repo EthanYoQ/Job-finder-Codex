@@ -49,7 +49,7 @@ import {
 const sha256 = (value: string): string =>
   createHash("sha256").update(value, "utf8").digest("hex");
 const attestationKey=randomBytes(32);
-const runtimeAstellasAdmissions=new WeakMap<AtomicSourceEvidenceCommit,SourceQualityAdmission>();
+const runtimeArchiveReplayAdmissions=new WeakMap<AtomicSourceEvidenceCommit,SourceQualityAdmission>();
 const runtimeCommitAttestations=new WeakMap<AtomicSourceEvidenceCommit,Buffer>();
 const failedRuntimeCommitAttestations=new WeakMap<FailedSourceEvidenceCommit,Buffer>();
 
@@ -148,12 +148,12 @@ export function verifyAtomicRuntimeCommitAttestation(commit: AtomicSourceEvidenc
   if(sealed.length!==current.length||!timingSafeEqual(sealed,current))throw new Error("ATOMIC_RUNTIME_COMMIT_ATTESTATION_INVALID");
 }
 
-/** Async replay is mandatory on the actual persistence route for Astellas. */
+/** Recheck the physical source-local auxiliary evidence on persistence. */
 export async function verifyAtomicRuntimeCommitForPersistence(commit:AtomicSourceEvidenceCommit):Promise<void> {
   verifyAtomicRuntimeCommitAttestation(commit);
-  if(commit.sourceResult.sourceId==="source-astellas-china-social"&&commit.publicationPolicy==="SOURCE_ATOMIC_LAST_GOOD_V1"&&commit.sourceResult.completenessState==="VERIFIED"){
-    const admission=runtimeAstellasAdmissions.get(commit);
-    if(!admission)throw Error("ASTELLAS_COMMIT_ARCHIVE_REPLAY_REQUIRED");
+  if(["source-astellas-china-social","source-hansoh-social"].includes(commit.sourceResult.sourceId)&&commit.publicationPolicy==="SOURCE_ATOMIC_LAST_GOOD_V1"&&commit.sourceResult.completenessState==="VERIFIED"){
+    const admission=runtimeArchiveReplayAdmissions.get(commit);
+    if(!admission)throw Error(commit.sourceResult.sourceId==="source-hansoh-social"?"HANSOH_GRACE_COMMIT_ARCHIVE_REPLAY_REQUIRED":"ASTELLAS_COMMIT_ARCHIVE_REPLAY_REQUIRED");
     await verifyIssuedSourceQualityArchiveForPersistence(admission);
     verifyAtomicRuntimeCommitAttestation(commit);
   }
@@ -707,7 +707,7 @@ export function buildAtomicRuntimeCommit(input: {
     commands: buildIngestionCommands({ ...result, observation: observationForCommit }, lifecycle)
   };
   if (qualityAccepted && completenessVerified) verifySourceQualityAtomicCommit({ plan, commit });
-  if (qualityAccepted && plan.source.id==="source-astellas-china-social") runtimeAstellasAdmissions.set(commit,qualityAdmission);
+  if (qualityAccepted && ["source-astellas-china-social","source-hansoh-social"].includes(plan.source.id)) runtimeArchiveReplayAdmissions.set(commit,qualityAdmission);
   runtimeCommitAttestations.set(commit,attestationSignature(commit));
   return commit;
 }
