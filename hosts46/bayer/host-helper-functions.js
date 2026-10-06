@@ -1,19 +1,19 @@
 
-const cfg=load("restored46:pfizer:cloudPilotHostConfig");
+const cfg=load("restored46:bayer:cloudPilotHostConfig");
 const q=s=>"'"+String(s).replaceAll("'","'\\''")+"'";
 async function cmd(command,max=10000,deadline=Date.now()+90000){
  const startedAt=Date.now();if(!Number.isFinite(deadline)||deadline<=startedAt)throw Error("HOST_LOCAL_COMMAND_BUDGET_EXHAUSTED");
- let r=await tools.exec_command({cmd:"env TSX_DISABLE_CACHE=1 JOBFINDER_CLOUD_SOURCE_ID=source-pfizer-china-social "+command,workdir:cfg.repo,max_output_tokens:max,yield_time_ms:Math.min(10000,Math.max(1,deadline-startedAt))});
+ let r=await tools.exec_command({cmd:"env TSX_DISABLE_CACHE=1 JOBFINDER_CLOUD_SOURCE_ID=source-bayer-healthcare-social "+command,workdir:cfg.repo,max_output_tokens:max,yield_time_ms:Math.min(10000,Math.max(1,deadline-startedAt))});
  let output=r.output??"",session=r.session_id;
  if(session)notify({status:"HOST_LOCAL_COMMAND_RUNNING",session,deadline:new Date(deadline).toISOString()});
  while(r.session_id){
   session=r.session_id;const remaining=deadline-Date.now();
-  if(remaining<=0){store("restored46:pfizer:cloudHostLocalCommandOutcome",{status:"BUDGET_EXHAUSTED",session,startedAt,deadline});throw Error("HOST_LOCAL_COMMAND_BUDGET_EXHAUSTED:"+session);}
+  if(remaining<=0){store("restored46:bayer:cloudHostLocalCommandOutcome",{status:"BUDGET_EXHAUSTED",session,startedAt,deadline});throw Error("HOST_LOCAL_COMMAND_BUDGET_EXHAUSTED:"+session);}
   try{r=await tools.write_stdin({session_id:session,chars:"",yield_time_ms:Math.min(1000,remaining),max_output_tokens:max});}
-  catch(error){store("restored46:pfizer:cloudHostLocalCommandOutcome",{status:"POLL_UNRESOLVED_NO_RETRY",session,startedAt,deadline,error:String(error)});throw error;}
+  catch(error){store("restored46:bayer:cloudHostLocalCommandOutcome",{status:"POLL_UNRESOLVED_NO_RETRY",session,startedAt,deadline,error:String(error)});throw error;}
   output+=r.output??"";
  }
- store("restored46:pfizer:cloudHostLocalCommandOutcome",{status:"TERMINAL",session,startedAt,finishedAt:Date.now(),exitCode:r.exit_code});
+ store("restored46:bayer:cloudHostLocalCommandOutcome",{status:"TERMINAL",session,startedAt,finishedAt:Date.now(),exitCode:r.exit_code});
  if(r.exit_code!==0)throw Error("HOST_COMMAND:"+output);return output;
 }
 async function save(path,value){if(typeof path!=="string"||!path.startsWith(cfg.root+"/")||path.split("/").some(p=>p===".."||p===".")||/[\r\n]/.test(path))throw Error("HOST_SAVE_SCOPE");const data=typeof value==="string"?value:JSON.stringify(value);const result=await tools.apply_patch("*** Begin Patch\n*** Add File: "+path+"\n"+data.split("\n").map(x=>"+"+x).join("\n")+"\n*** End Patch");if(result?.isError)throw Error("HOST_SAVE");return path;}
@@ -41,10 +41,10 @@ async function sqlDispatch(r,dir,sql){
  if(typeof sql!=="string"||sql!==r.payload?.sql||cfg.project!==r.payload?.projectId)throw Error("HOST_SQL_BINDING");
  if(r.kind==="PUBLISH")await cmd("node "+q(cfg.root+"/runtime/publisher-state-guard.mjs")+" publish "+q(dir.split("/").at(-2)),2000,Date.parse(r.payload.dispatchBefore??r.expiresAt));
  await mark(r,dir);let result,raw,diagnostic;
- try{raw=await tools.mcp__codex_apps__supabase_execute_sql({project_id:cfg.project,query:sql});store("restored46:pfizer:cloudLastSqlToolResult",raw);result={status:"SUCCEEDED",rows:rows(raw)};}
+ try{raw=await tools.mcp__codex_apps__supabase_execute_sql({project_id:cfg.project,query:sql});store("restored46:bayer:cloudLastSqlToolResult",raw);result={status:"SUCCEEDED",rows:rows(raw)};}
  catch(error){
   diagnostic={recordedAt:new Date().toISOString(),responseExpired:Date.now()>=Date.parse(r.expiresAt),toolResult:raw??null,error:{message:String(error),name:error?.name,stack:error?.stack}};
-  store("restored46:pfizer:cloudHostLastDispatchError",diagnostic);result=publicationFailure(raw,r,sql);
+  store("restored46:bayer:cloudHostLastDispatchError",diagnostic);result=publicationFailure(raw,r,sql);
  }
  await respond(r,dir,result,diagnostic);return result;
 }

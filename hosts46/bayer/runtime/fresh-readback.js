@@ -1,5 +1,5 @@
 // functions.exec fragment. Read-only database/state gate, callable before capture and again at launch.
-const A=Object.getPrototypeOf(async function(){}).constructor,h=await new A(load('restored46:pfizer:cloudPilotHostHelpers'))();
+const A=Object.getPrototypeOf(async function(){}).constructor,h=await new A(load('restored46:bayer:cloudPilotHostHelpers'))();
 await h.cmd('node '+h.q(h.cfg.root+'/runtime/publisher-state-guard.mjs')+' idle',2000);
 const expected=JSON.parse((await h.readFile(h.cfg.root+'/runtime/expected-database.json')).text);
 const query=(await h.readFile(h.cfg.root+'/runtime/fresh-readback.sql')).text;
@@ -14,6 +14,6 @@ for(const m of expected.migrations){const found=row.migrationRows.find(r=>r.migr
 const requireDue=await new A((await h.readFile(h.cfg.root+'/runtime/observation-due-gate.js')).text)();
 const due=requireDue(row,h.cfg);
 const overlap={checkedAt:row.checkedAt,sourceId:h.cfg.sourceId,ignoredHistoricalRows:[],blockingRows:row.sameSourceRunning};
-store('restored46:pfizer:lastOverlapReadback',overlap);store('restored46:pfizer:lastFreshReadbackRaw',raw);
+store('restored46:bayer:lastOverlapReadback',overlap);store('restored46:bayer:lastFreshReadbackRaw',raw);
 if(overlap.blockingRows.length)throw Error('FRESH_HOLDER_OR_SAME_SOURCE_OVERLAP:'+overlap.blockingRows.length);
 return {raw,row,due,overlap};

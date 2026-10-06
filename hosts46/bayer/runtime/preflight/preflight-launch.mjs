@@ -81,7 +81,7 @@ export async function preflight(args) {
   const gitOptions = { cwd: repo, env: { ...process.env, GIT_OPTIONAL_LOCKS: '0' }, timeout: 15000 };
   if ((await execute('git', ['rev-parse', 'HEAD'], gitOptions)).stdout.trim() !== control.build.commitSha) fail('PREFLIGHT_FROZEN_COMMIT');
   if ((await execute('git', ['status', '--porcelain'], gitOptions)).stdout.trim()) fail('PREFLIGHT_DIRTY_PRODUCER');
-  for (const name of ['node_modules/tsx/dist/loader.mjs', 'node_modules/zod/package.json', 'node_modules/cheerio/package.json', 'scripts/run-with-http-diagnostics.mjs', 'scripts/p0-cloud-portable-source-pilot.ts', 'scripts/p0-cloud-source-pilot.ts', 'scripts/capture-pfizer-b-source.ts']) await regularFile(join(repo, name));
+  for (const name of ['node_modules/tsx/dist/loader.mjs', 'node_modules/zod/package.json', 'node_modules/cheerio/package.json', 'scripts/run-with-http-diagnostics.mjs', 'scripts/p0-cloud-portable-source-pilot.ts', 'scripts/p0-cloud-source-pilot.ts', 'scripts/capture-bayer-b-source.ts']) await regularFile(join(repo, name));
   const diagnostics = join(root, 'diagnostics');
   try { await lstat(diagnostics); fail('PREFLIGHT_DIAGNOSTICS_ALREADY_EXISTS'); }
   catch (error) { if (error.code !== 'ENOENT') throw error; }

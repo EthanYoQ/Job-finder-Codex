@@ -23,7 +23,7 @@ async function writeResponse(dir,r,result){
 }
 const [command,directory,arg,expectedRequestSha256,...extra]=process.argv.slice(2);if(extra.length||typeof directory!=='string')throw Error('RELAY_ARGUMENTS');const dir=resolve(directory);
 await noLinks(dir);
-if(!dir.startsWith('/workspace/scratch/5e9614251709/jb-workspace-recovery-20261005T2019Z/hosts46/pfizer/'))throw Error('RELAY_DIRECTORY_OUTSIDE_TASK');
+if(!dir.startsWith('/workspace/scratch/5e9614251709/jb-workspace-recovery-20261005T2019Z/hosts46/bayer/'))throw Error('RELAY_DIRECTORY_OUTSIDE_TASK');
 if(command==='next'||command==='next-meta'){
  const names=await readdir(dir),rows=[];
  for(const name of names.filter(n=>n.endsWith('.request.json')).sort()){

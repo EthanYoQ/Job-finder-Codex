@@ -1,244 +1,12 @@
 {
   "schemaVersion": 1,
-  "kind": "safe-reconstructed-pfizer-host-source",
-  "repository": "EthanYoQ/Job-finder-Codex",
-  "branch": "backup/pfizer46-host-20261005-2356",
-  "preparedAt": "2026-10-05T23:56:00Z",
-  "sourceFrozenAt": "2026-10-05T23:43:20.814939Z",
-  "sourceManifestSha256": "7f2eec27d479cc7e5941c07945d4a1d11d906b74724ce451fd9eddc4471e9da5",
-  "hostRuntimeChecksumInventorySha256": "3c7ceae8aeb8deae19e08264d4400bfb50b6ac7ae0a4682329077ae50373f5b7",
-  "producerReferenceChecksumInventorySha256": "6ae9692d3e8d66c36b60e087c21bd46cbc6e78187dcdbf78e12918e668a3d3ec",
-  "testToolAddendumSha256": "05f6f405ef86f0faaf947e8ae197a27205d22f9ed0470a2ca194722f01397750",
-  "sourceCommit": null,
-  "runtimeIdentityReusable": false,
-  "historyImported": false,
-  "safeParentCommit": "f34eeaf0b68f9ace6aaddce6cf424207c2d57cbe",
-  "sourceFiles": 27,
-  "sourceBytes": 105463,
-  "hostInventory": {
-    "originalMinimalFiles": 28,
-    "selectedRuntimeSourceFiles": 24,
-    "excludedActualConfigFiles": 4,
-    "additionalTestToolSourceFiles": 3
+  "sourceArchive": {
+    "name": "bayer46-safe-source-20261006T0201Z.tar.gz",
+    "sha256": "ff202f673ab5a48f6fd3672306246012918fa84f136973a13ec1fcd33ce0638c"
   },
-  "subsequentPublisherReport": {
-    "at": "2026-10-05T23:44:00Z",
-    "status": "CAPTURE_PAUSED_BY_FIVE_HISTORICAL_PFIZER_RUNNING_ROWS",
-    "newMainCaptures": 0,
-    "newIndependentDomCaptures": 0,
-    "newPublications": 0,
-    "originalC26ProcessTerminationUnverified": true,
-    "backupIndependentlyQueriedDatabase": false
-  },
-  "validation": {
-    "publisherReportedNestedChecks": 7,
-    "publisherReportedGuardChecks": 49,
-    "publisherReportedInlineLaunchNegatives": 2,
-    "publisherReportedExistingPfizerTests": 21,
-    "persistedLocalCheckSourceCovers": 56,
-    "full58ReplayFromStandaloneSourcesAvailable": false,
-    "backupRanTestsSourceCIOrDatabase": false,
-    "selectedHashesMatch": true,
-    "secretScanFindings": 0
-  },
-  "omittedGenerator": {
-    "path": "verification/restore-pfizer46.py",
-    "sha256": "e8be1c0fce13ff5c57945f1ecc4367c9062596066bd3aff2425585fff774aca0",
-    "reason": "owner-classified actual identity replacements/private inputs and incomplete final manual additions; whole source excluded"
-  },
-  "recoveryGaps": [
-    "final freeze generator and two NONQUAL launch negatives have no standalone saved source",
-    "host/control/source-plan/expected-database and registration identity excluded",
-    "ARCHIVE_STORE missing audit helper; supported DB_STARTED path uses separate evidence archive",
-    "some helpers reconstructed from surviving source copies, not full original archive bytes",
-    "actual old process termination proof and new live gates/evidence not included"
-  ],
-  "previousProducerBackupCommit": "0c4586b82690203b93475551bd3409e2fbcb1574",
-  "producerReferencesMatchedBySha256AndBytes": [
-    {
-      "path": "scripts/capture-pfizer-b-source.ts",
-      "mode": "100644",
-      "sha": "36bf403dd4b4a79e9ad55cbdfd746bc10c602c2d",
-      "sha256": "82a2e09170c219e17c81f9d45452745e80b13629373eb84fb7c179d1afd9d5f4",
-      "bytes": 5503
-    },
-    {
-      "path": "scripts/p0-cloud-source-pilot.ts",
-      "mode": "100644",
-      "sha": "05f3b1ca31f0965dfa17480563b777aecdd523e0",
-      "sha256": "800814d7f859cbc08b4558ebe1ff2fbc1074d9fcee7ba6886177642f33716e01",
-      "bytes": 21896
-    },
-    {
-      "path": "scripts/run-with-http-diagnostics.mjs",
-      "mode": "100644",
-      "sha": "a756d99e206c4ba2110a10584caf11641ac6f6d9",
-      "sha256": "d8627edbdc118f8d747f77f22459768f76184171e715a8fd29c76a69a3c82930",
-      "bytes": 3327
-    },
-    {
-      "path": "src/crawler/cloudDbStartedPilot.ts",
-      "mode": "100644",
-      "sha": "4895fdd7ffa9a05a29d9aab0db32e3007a226a26",
-      "sha256": "4b180869b19ce58e0497eb2e39047d5b153c50a64209e6d124debe8cd46720f0",
-      "bytes": 5111
-    },
-    {
-      "path": "src/crawler/cloudSourcePilotRelay.ts",
-      "mode": "100644",
-      "sha": "9a4ef2276707fa28329fee20aa5a7c3c85f0d382",
-      "sha256": "06a0a626947365e241ae9d7de02e11f21496da21f4d3d8d497a6b6739f7823e6",
-      "bytes": 13222
-    },
-    {
-      "path": "src/crawler/currentWorkerCapture.ts",
-      "mode": "100644",
-      "sha": "e962774482864ed171ed206022baed6eb25f129e",
-      "sha256": "17a24619380e264d9f6ac01f75d969a56c785ea1d7d98803c18aa29b67f979bd",
-      "bytes": 2633
-    },
-    {
-      "path": "src/crawler/officialJsonRenderedTraversalValidator.ts",
-      "mode": "100644",
-      "sha": "e1957f42094db47fc5049fbb7ebe3b67040ab88e",
-      "sha256": "5b54d90b3263574dcd5a7df60c6c64ddc1b215231f13b454c6ae2442f3f63f36",
-      "bytes": 52514
-    },
-    {
-      "path": "src/crawler/pfizerOfficialLocalities.ts",
-      "mode": "100644",
-      "sha": "7fa8329f1ee59fb420da122882082b9717eef307",
-      "sha256": "161b412456a7b5ed9716513dfcbab95596573f91fec9c0d24c6a0243e28890b2",
-      "bytes": 4980
-    },
-    {
-      "path": "src/crawler/pfizerRenderedTraversal.ts",
-      "mode": "100644",
-      "sha": "ce32397ff2be9e13e833441db3724837138999f3",
-      "sha256": "a360e25209ec53beea72e6c787d90930a15dfe06ab6244e17eb80d09d4a6dd1a",
-      "bytes": 16003
-    },
-    {
-      "path": "src/crawler/pfizerWorkdayTraversal.ts",
-      "mode": "100644",
-      "sha": "5c0329048262afceab1b82ba116fc6cc671f0c0c",
-      "sha256": "5ed1f2cfc09424833531e684bad92feccf0f8309b8e70c2e452c8ad7f2aa1796",
-      "bytes": 22874
-    },
-    {
-      "path": "src/crawler/runSourceCrawl.ts",
-      "mode": "100644",
-      "sha": "6fb4c1fbaf4ef142039c6641dc9ca48bcb5ade2f",
-      "sha256": "8dd5c8497bf4c5ee878e26db3ef40cf1bd6510dcc4b8ea117ba82a8b8ecbed93",
-      "bytes": 262272
-    },
-    {
-      "path": "src/crawler/sourcePlan.ts",
-      "mode": "100644",
-      "sha": "359fbf499c84f2b7d1f095dd81dd9da2bae5a6b1",
-      "sha256": "1f1345f74ad41adaa0778eaf301f6b1c38ca68f091d81b116556771d18c71987",
-      "bytes": 23620
-    },
-    {
-      "path": "src/crawler/stagedScheduleAuthority.ts",
-      "mode": "100644",
-      "sha": "7f169b843c3bc0fa0c0ce4888894b5a2c7afa9c9",
-      "sha256": "e591bc6c8ff6b20651fea1b0647eadd50126358bb3ceb7aec4a19833ffb91970",
-      "bytes": 19677
-    },
-    {
-      "path": "src/crawler/traversalCertificate.ts",
-      "mode": "100644",
-      "sha": "220cc6f0b62497dc2afc9a344467e34311b946a0",
-      "sha256": "acd28a4e48afda436600efe06ccbda33bb2a67f16856d2250a57cb1417771605",
-      "bytes": 90194
-    },
-    {
-      "path": "src/db/cloudPilotSqlControl.ts",
-      "mode": "100644",
-      "sha": "b18998bc84993ee60c70315fdc441472cc887010",
-      "sha256": "77361a3a0bb104ec5d3c9faed12032d4989008238257da703ac0a142b8470620",
-      "bytes": 28018
-    },
-    {
-      "path": "src/db/ingestionRepository.ts",
-      "mode": "100644",
-      "sha": "bd6e766674cc21e93ac7e184fdd84bef379248b4",
-      "sha256": "788d9868d732e57fa79851c5a2a69b94dadf78ade8cf6c3d596d39a7fb42414b",
-      "bytes": 123360
-    },
-    {
-      "path": "src/readiness/buildIdentity.ts",
-      "mode": "100644",
-      "sha": "1f2a49663bcbba5c5de6677d6a2684f70b8b6896",
-      "sha256": "869c7126185c4812556bf783131bc7d69864ba24b6e7949dbf885b11e5e265f2",
-      "bytes": 4829
-    },
-    {
-      "path": "tests/crawler/pfizerBrowserTraversal.test.ts",
-      "mode": "100644",
-      "sha": "68c90f68ea7975395452ca8b87b767e9aec920e3",
-      "sha256": "1c00b361fc73a62f135a6f156a9449420c39abde9bc6068cc7a0f1e957c324bd",
-      "bytes": 6392
-    },
-    {
-      "path": "tests/crawler/pfizerStrictCompletenessReplay.test.ts",
-      "mode": "100644",
-      "sha": "4a17b86bfdb37c5b5be831e464bfcbcff88e5370",
-      "sha256": "02098df1c1b62606326ebed86d4f49edacafbfcb112c99390b29f564b44f8df6",
-      "bytes": 1650
-    },
-    {
-      "path": "tests/crawler/pfizerWorkdayTraversal.test.ts",
-      "mode": "100644",
-      "sha": "939a8523d75df21f1f73720a1a2b6559bd612a66",
-      "sha256": "72f38c431c09607e36e2744642bac7b8d9dc260db061067c88321e2642dd7e2d",
-      "bytes": 15954
-    }
-  ],
   "files": [
     {
-      "path": "hosts46/pfizer/context-read.sql",
-      "mode": "100644",
-      "type": "blob",
-      "sha": "c5f606ddb3de6f44cd59c93ba1f8941549dba625",
-      "sha256": "8ba751ea62db7e29dafbd0db1293b20e2935c8be30fc2a9359d15c0d93bfab83",
-      "bytes": 2215
-    },
-    {
-      "path": "hosts46/pfizer/host-helper-functions.js",
-      "mode": "100644",
-      "type": "blob",
-      "sha": "3226e8c8cdc7238313636db8cbb63282a2e04630",
-      "sha256": "b5f5131fb246fa51261b670cefb9720bb229bc0feaaf9311f33495b01c7a9052",
-      "bytes": 7369
-    },
-    {
-      "path": "hosts46/pfizer/host-stage-functions.js",
-      "mode": "100644",
-      "type": "blob",
-      "sha": "0cac981e973c57da5ba6d3ed762f853d37e92f3f",
-      "sha256": "785d2cb6c293c24b677263c7397e1a15724499a5d258d571c5afb29c4b63c2dc",
-      "bytes": 6128
-    },
-    {
-      "path": "hosts46/pfizer/host-files.mts",
-      "mode": "100644",
-      "type": "blob",
-      "sha": "0bc87e80868c34d9b918b02a38c32f836f44a1b0",
-      "sha256": "ad1203c304a2ae4fcbd36284d7760fc32abcdbd2420b34246ab01ca34d598a10",
-      "bytes": 4488
-    },
-    {
-      "path": "hosts46/pfizer/relay-files.mjs",
-      "mode": "100644",
-      "type": "blob",
-      "sha": "937bcdc954e5b14480004286f09c6b2b8cbb23ff",
-      "sha256": "e15146e60af6edb3fe3afa88ada7b7859fa7e6ec2c67ad36530a4a9aaace988f",
-      "bytes": 5639
-    },
-    {
-      "path": "hosts46/pfizer/archive-transfer.mjs",
+      "path": "hosts46/bayer/archive-transfer.mjs",
       "mode": "100644",
       "type": "blob",
       "sha": "5a454d21f34f9680221bbee2c98b3fecb94884f0",
@@ -246,79 +14,55 @@
       "bytes": 1777
     },
     {
-      "path": "hosts46/pfizer/runtime/load-host-state.js",
+      "path": "hosts46/bayer/context-read.sql",
       "mode": "100644",
       "type": "blob",
-      "sha": "c10ac3c06a3b6a6e066b58b67d796475461cb0d7",
-      "sha256": "85693e9180145bebc83c685e9fffe88fdc047d67dea467941887fdc15ff39985",
-      "bytes": 1899
+      "sha": "a35479ab7e3caf2335fbd6d6726c6af15f8a14da",
+      "sha256": "93a17ed08165bbd6c1e25b2031716052b83b51c813496339038a2c3b6c5c8e78",
+      "bytes": 2235
     },
     {
-      "path": "hosts46/pfizer/runtime/load-pfizer42-runtime.js",
+      "path": "hosts46/bayer/host-files.mts",
       "mode": "100644",
       "type": "blob",
-      "sha": "6de1f042ec863f6e70243c49277e0b4a3afa6d81",
-      "sha256": "1d6fd408c805b63ca19ec655ff48e96e01e8fd928bb384be30d04471706e6bba",
-      "bytes": 1597
+      "sha": "df399445483f024f9839c0f212642b7b76b70dd1",
+      "sha256": "2441d39a0a9f5bb9ae1f47a67994bef78b0c5fa42ffe3c585859257e1bce2dae",
+      "bytes": 3962
     },
     {
-      "path": "hosts46/pfizer/runtime/start-monitor-pfizer42.js",
+      "path": "hosts46/bayer/host-helper-functions.js",
       "mode": "100644",
       "type": "blob",
-      "sha": "23f3723364e03535f1f93f3eb5504b6fcc056863",
-      "sha256": "db11f5f8bcb6c8f0d74b9ac47c49a705d9bacc10056ab8f3b86460513ecdb8ea",
-      "bytes": 3744
+      "sha": "e501c75141139b739b6e2f53bf499ef81e4da07e",
+      "sha256": "867c4eca7df102c71208f218cd691ce42d56a019fef7d0be2f4ac27011c49bfc",
+      "bytes": 7367
     },
     {
-      "path": "hosts46/pfizer/runtime/continuous-relay-v3-durable-monitor.js",
+      "path": "hosts46/bayer/host-stage-functions.js",
       "mode": "100644",
       "type": "blob",
-      "sha": "53dccce97de41784f8d1068789161fd5521a25d1",
-      "sha256": "6aed62f814b096b1ae26a64285a72b157d72722f08c1ddf178af13f03bec12f4",
-      "bytes": 2894
+      "sha": "3c77d592ea3d4df2d7107175e922544d985147ae",
+      "sha256": "6f61b31be362ab861a048cccf914825c492260ec185b09a09dc70ddd717d90f0",
+      "bytes": 3417
     },
     {
-      "path": "hosts46/pfizer/runtime/describe-inputs.mjs",
+      "path": "hosts46/bayer/relay-files.mjs",
       "mode": "100644",
       "type": "blob",
-      "sha": "b2a7111ae8f011360540f6f05a685ea8da0af7f9",
-      "sha256": "81d3f8e7150cf7868b36a97e35dc745468ae1244a8e3b22d7cb335d1b38493c9",
-      "bytes": 687
+      "sha": "b423aa0571067edfcc747632e0ff4c43128b0119",
+      "sha256": "ed8218afc16d1190e3ed996177e25b8b4c7447f2605456f95b4fadaee830572a",
+      "bytes": 5638
     },
     {
-      "path": "hosts46/pfizer/runtime/fresh-readback.js",
+      "path": "hosts46/bayer/runtime/check-guards.mjs",
       "mode": "100644",
       "type": "blob",
-      "sha": "84b2b77d2c177960ef88fcc2ff9b782529549ae5",
-      "sha256": "5edcddff42236e23a775846a8894712e380dbbf2bb82ebd3e118f8811c907ec2",
-      "bytes": 2096
+      "sha": "5c9efb1858a47ae464b49a3ec9bc74bbdd6b098c",
+      "sha256": "2672a06471e3e3d00a5ef2ef14d9f020071cc23c676f39389061fd7c09ef5f59",
+      "bytes": 13222
     },
     {
-      "path": "hosts46/pfizer/runtime/fresh-readback.sql",
-      "mode": "100644",
-      "type": "blob",
-      "sha": "a6620536f23a8866dbdbed9a21526ef5274b740e",
-      "sha256": "643b5ae76b9d92b9c00d6bdaf460e8eb22dce3817d63660a20990fae6b3ab8df",
-      "bytes": 2865
-    },
-    {
-      "path": "hosts46/pfizer/runtime/observation-due-gate.js",
-      "mode": "100644",
-      "type": "blob",
-      "sha": "a91f19e46c8b7e9222fa6e76f5b8709f8b804c4d",
-      "sha256": "0df0ccfa54458fd490558fd7df62883095fc3735328bb657c14b1f0b79516535",
-      "bytes": 2124
-    },
-    {
-      "path": "hosts46/pfizer/runtime/publisher-state-guard.mjs",
-      "mode": "100644",
-      "type": "blob",
-      "sha": "c9ffc629252ccc444aff3e706985f57452d1aa94",
-      "sha256": "d8062a3abee43838004d99afad4f992f9e2398e05960ba4560056b2cd504511f",
-      "bytes": 2173
-    },
-    {
-      "path": "hosts46/pfizer/runtime/check-new-run.mjs",
+      "path": "hosts46/bayer/runtime/check-new-run.mjs",
       "mode": "100644",
       "type": "blob",
       "sha": "ad94d3986a07cc031bdd68f4a60ab3324f473f8a",
@@ -326,47 +70,15 @@
       "bytes": 1111
     },
     {
-      "path": "hosts46/pfizer/runtime/pre-capture-check.mjs",
+      "path": "hosts46/bayer/runtime/check-restoration.mjs",
       "mode": "100644",
       "type": "blob",
-      "sha": "5b56bb985b1c0c616dac41d064a31c34f7134ad2",
-      "sha256": "091fedc14ca0a4d04ebaa6e7dfe3fd0923cbb19caea64bea087de7e0147e2996",
-      "bytes": 2122
+      "sha": "d4c42dabf8cf17a8368fb5b409242c6e8ec21fae",
+      "sha256": "6cc83a2741a06964682e8b546d638c3d32f4cb663ae66acac61da5e6df5a61b0",
+      "bytes": 8519
     },
     {
-      "path": "hosts46/pfizer/runtime/validate-capture-inputs.mjs",
-      "mode": "100644",
-      "type": "blob",
-      "sha": "a86d4b971f6bdcb12cb90251763bf656cae70802",
-      "sha256": "c9c8817bfa3efa8eb4dc95ec77be46213406a941022d33908e41f13840300d5e",
-      "bytes": 5388
-    },
-    {
-      "path": "hosts46/pfizer/runtime/preflight/preflight-launch.mjs",
-      "mode": "100644",
-      "type": "blob",
-      "sha": "ed62f16f903bf76edaab95ed6c7e944696ed2d31",
-      "sha256": "9a3830777d620ce5c90b267c85268c82ba06235cc376190e73fba3a8cb7a3d3a",
-      "bytes": 10742
-    },
-    {
-      "path": "hosts46/pfizer/runtime/preflight/runtime-check.mjs",
-      "mode": "100644",
-      "type": "blob",
-      "sha": "1aaf44921d83b86bb9c0065a46393286a8b725c3",
-      "sha256": "0f55d1f662d9eb3329298c68cff3b4a6161dedbefe95c86084bb451bd9e75ee7",
-      "bytes": 3523
-    },
-    {
-      "path": "hosts46/pfizer/runtime/review-publication.py",
-      "mode": "100644",
-      "type": "blob",
-      "sha": "58822eaba4967dbf9c4feb969f2f834500411e69",
-      "sha256": "24c18da9565d972b1616c18816680e74d34c8b6d3f507897259383e446594c5d",
-      "bytes": 9036
-    },
-    {
-      "path": "hosts46/pfizer/runtime/compact-json-review.inc.py",
+      "path": "hosts46/bayer/runtime/compact-json-review.inc.py",
       "mode": "100644",
       "type": "blob",
       "sha": "bafdf1880f6793fef02bc5824547b15cb1faef37",
@@ -374,44 +86,237 @@
       "bytes": 1558
     },
     {
-      "path": "hosts46/pfizer/runtime/verify-certificate.mjs",
+      "path": "hosts46/bayer/runtime/continuous-relay-v3-durable-monitor.js",
       "mode": "100644",
       "type": "blob",
-      "sha": "95061bba6ca9d185024f79aa7a9253f824d2fe7a",
-      "sha256": "6c8bf43151a4bcdcb1d0354cb24e488e189ea7a6a94370809fe8d415f3383c99",
-      "bytes": 1707
+      "sha": "d05639befd0017a28e427ec0cb28de8d29d0ed8a",
+      "sha256": "a64ea6192b74a0f3232f4713f18ca071d6e7ac7a4be79161a990f4131a08186b",
+      "bytes": 2887
     },
     {
-      "path": "hosts46/pfizer/runtime/dispatch-reviewed-publication.js",
+      "path": "hosts46/bayer/runtime/describe-inputs.mjs",
       "mode": "100644",
       "type": "blob",
-      "sha": "62993fdc4281c06e723b923f8dd1432364490cf9",
-      "sha256": "9a1fb29f18ed34c2739f6584cbcd73123f166c578f15f4dda31b15ec60fb4a3a",
-      "bytes": 1302
+      "sha": "b2a7111ae8f011360540f6f05a685ea8da0af7f9",
+      "sha256": "81d3f8e7150cf7868b36a97e35dc745468ae1244a8e3b22d7cb335d1b38493c9",
+      "bytes": 687
     },
     {
-      "path": "hosts46/pfizer/runtime/check-restoration.mjs",
+      "path": "hosts46/bayer/runtime/dispatch-reviewed-publication.js",
       "mode": "100644",
       "type": "blob",
-      "sha": "c4758502b2ee748dc5386bf73292bba35e4c8678",
-      "sha256": "1e4b62421d5b8d5436c4b238b213d59c6104c2665635cc617061e5800bd68442",
-      "bytes": 8522
+      "sha": "1e22c474333d8a7d6107c012e74c6005bf2910eb",
+      "sha256": "8e51ef2adde45a619bb83480cecfb7d251935a2e1de33d97ad3fa9b9496ba03b",
+      "bytes": 1296
     },
     {
-      "path": "hosts46/pfizer/runtime/check-guards.mjs",
+      "path": "hosts46/bayer/runtime/fresh-readback.js",
       "mode": "100644",
       "type": "blob",
-      "sha": "6f979fca4365a8fb324c6c8fa9244b8d1c24055c",
-      "sha256": "ba3f7e740fe538ed466b3d74fe0fd9241bf0836d7fa123b1a66ea8168973e56e",
-      "bytes": 12666
+      "sha": "c7e890bd13b6dc9a8cef9c5d0674df43dda212b2",
+      "sha256": "0279b19138e4932a019a56963edde7ef81e30c8932e5b083ffb65d1c3584498c",
+      "bytes": 2093
     },
     {
-      "path": "hosts46/pfizer/runtime/vitest-offline.config.mjs",
+      "path": "hosts46/bayer/runtime/fresh-readback.sql",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "78effed0de62f74c4dc60b89f7b5ae08a9b06dd9",
+      "sha256": "37b17df180103ccf1fcf2bdcbe80473611c8795fcaa3b9b7a23df2b633dabb84",
+      "bytes": 2873
+    },
+    {
+      "path": "hosts46/bayer/runtime/load-bayer42-runtime.js",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "1a27fa265926f706fd6b92f9c488074ec50d8bd0",
+      "sha256": "b423ee4565e6f3ada69e1a5721c9505f86f29bd66f30be2135c2ef8242a07482",
+      "bytes": 1591
+    },
+    {
+      "path": "hosts46/bayer/runtime/load-host-state.js",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "17e95ab970bc5c2cdef6b70309df0cb9dd1b3baa",
+      "sha256": "c08e2b3ca6cb15e1f73aaa69f5f2455ba347a6f2fc567f3f3de8b55819ebf09b",
+      "bytes": 1899
+    },
+    {
+      "path": "hosts46/bayer/runtime/observation-due-gate.js",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "a91f19e46c8b7e9222fa6e76f5b8709f8b804c4d",
+      "sha256": "0df0ccfa54458fd490558fd7df62883095fc3735328bb657c14b1f0b79516535",
+      "bytes": 2124
+    },
+    {
+      "path": "hosts46/bayer/runtime/pre-capture-check.mjs",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "5b56bb985b1c0c616dac41d064a31c34f7134ad2",
+      "sha256": "091fedc14ca0a4d04ebaa6e7dfe3fd0923cbb19caea64bea087de7e0147e2996",
+      "bytes": 2122
+    },
+    {
+      "path": "hosts46/bayer/runtime/preflight/preflight-launch.mjs",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "d50110f2909ee5522605f2bbc7efa31c7d8a101c",
+      "sha256": "e3259a6a2cbfd7f539db41e92c163b2de341c025c553c94ebeff8e35dcf5361a",
+      "bytes": 10741
+    },
+    {
+      "path": "hosts46/bayer/runtime/preflight/runtime-check.mjs",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "1aaf44921d83b86bb9c0065a46393286a8b725c3",
+      "sha256": "0f55d1f662d9eb3329298c68cff3b4a6161dedbefe95c86084bb451bd9e75ee7",
+      "bytes": 3523
+    },
+    {
+      "path": "hosts46/bayer/runtime/publisher-state-guard.mjs",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "d44001c03ef1a390ffd6c2a5b00a536a2b0c4868",
+      "sha256": "eed791f6826bd9efd74e0ef96597b8269897db126039f1f96beacaae9d4434cf",
+      "bytes": 2179
+    },
+    {
+      "path": "hosts46/bayer/runtime/review-publication.py",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "6c0cb623542e05db6211536a2a04fd176a07cada",
+      "sha256": "2f789d72d297e2bafa4fe87474e51b421802409d6c60abacc4398a1d2da7259e",
+      "bytes": 9899
+    },
+    {
+      "path": "hosts46/bayer/runtime/start-monitor-bayer42.js",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "8176d3f08c1ab0e05b0451bef654b69079755b7f",
+      "sha256": "6ba95f18accc58488a32481fae19f9ef916e106dcead891e1b005d992f49f0e9",
+      "bytes": 3737
+    },
+    {
+      "path": "hosts46/bayer/runtime/validate-capture-inputs.mjs",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "504430b646a7bac082c586034871dfb4f8e1539a",
+      "sha256": "0c5656fd839eb19264dadbaa4936a9e0821c2541674e2e2d07d04c6b1f7255c6",
+      "bytes": 7866
+    },
+    {
+      "path": "hosts46/bayer/runtime/verify-certificate.mjs",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "51528268d3f9294eb456426e106e9abe631c55e2",
+      "sha256": "b1dceffabcf32dcfb8934c69a4331de017f49c5e388efccdd5cb8b5cd951fab9",
+      "bytes": 1711
+    },
+    {
+      "path": "hosts46/bayer/runtime/vitest-offline.config.mjs",
       "mode": "100644",
       "type": "blob",
       "sha": "181f2ebec1940346267549042333a24d929b9e66",
       "sha256": "e42ebdb66652842599d5ef2d7415b6c151fc1f6d65b36b76f1fae175dae85d10",
       "bytes": 91
     }
+  ],
+  "producerSourceReferences": [
+    {
+      "path": "scripts/capture-bayer-b-source.ts",
+      "sha256": "4be9330e78b6d558d6630a1a8ea521f6bd33640912e1c3eb51c09557e3c9a29f",
+      "bytes": 5093,
+      "gitBlobSha": "beec382ff2c6999ca283cd76b7106d1eb631de0b",
+      "safeBackupCommit": "0c4586b82690203b93475551bd3409e2fbcb1574"
+    },
+    {
+      "path": "scripts/p0-cloud-source-pilot.ts",
+      "sha256": "800814d7f859cbc08b4558ebe1ff2fbc1074d9fcee7ba6886177642f33716e01",
+      "bytes": 21896,
+      "gitBlobSha": "05f3b1ca31f0965dfa17480563b777aecdd523e0",
+      "safeBackupCommit": "0c4586b82690203b93475551bd3409e2fbcb1574"
+    },
+    {
+      "path": "scripts/run-with-http-diagnostics.mjs",
+      "sha256": "d8627edbdc118f8d747f77f22459768f76184171e715a8fd29c76a69a3c82930",
+      "bytes": 3327,
+      "gitBlobSha": "a756d99e206c4ba2110a10584caf11641ac6f6d9",
+      "safeBackupCommit": "0c4586b82690203b93475551bd3409e2fbcb1574"
+    },
+    {
+      "path": "src/crawler/bayerMokaRenderedTraversal.ts",
+      "sha256": "9e9a2915f70685003a5359fe27c6e2a37ac6bfbb76a81304d9adeceb567bd5d8",
+      "bytes": 13645,
+      "gitBlobSha": "e1b47cb72f2866f2de8eeff7b4be665e2aa5f1d4",
+      "safeBackupCommit": "0c4586b82690203b93475551bd3409e2fbcb1574"
+    },
+    {
+      "path": "src/crawler/bayerMokaScope.ts",
+      "sha256": "fb0c970a58ef785a914047d09e1dfd984cbc4545df8b79d76a2e0e728316a966",
+      "bytes": 15700,
+      "gitBlobSha": "a5d9f51c3fb6fc759e2e4946bc184cd14e4b887a",
+      "safeBackupCommit": "0c4586b82690203b93475551bd3409e2fbcb1574"
+    },
+    {
+      "path": "src/crawler/mokaSourceFetch.ts",
+      "sha256": "eea01769928fe807055951e225210fbd71df7b52fbbf1225615d4994c13a6e3a",
+      "bytes": 62902,
+      "gitBlobSha": "2f1ddbf004252dc17d422d0a85a51eb7e25ab725",
+      "safeBackupCommit": "0c4586b82690203b93475551bd3409e2fbcb1574"
+    },
+    {
+      "path": "src/crawler/currentWorkerCapture.ts",
+      "sha256": "17a24619380e264d9f6ac01f75d969a56c785ea1d7d98803c18aa29b67f979bd",
+      "bytes": 2633,
+      "gitBlobSha": "e962774482864ed171ed206022baed6eb25f129e",
+      "safeBackupCommit": "0c4586b82690203b93475551bd3409e2fbcb1574"
+    },
+    {
+      "path": "src/crawler/traversalCertificate.ts",
+      "sha256": "acd28a4e48afda436600efe06ccbda33bb2a67f16856d2250a57cb1417771605",
+      "bytes": 90194,
+      "gitBlobSha": "220cc6f0b62497dc2afc9a344467e34311b946a0",
+      "safeBackupCommit": "0c4586b82690203b93475551bd3409e2fbcb1574"
+    },
+    {
+      "path": "src/crawler/sourcePlan.ts",
+      "sha256": "1f1345f74ad41adaa0778eaf301f6b1c38ca68f091d81b116556771d18c71987",
+      "bytes": 23620,
+      "gitBlobSha": "359fbf499c84f2b7d1f095dd81dd9da2bae5a6b1",
+      "safeBackupCommit": "0c4586b82690203b93475551bd3409e2fbcb1574"
+    },
+    {
+      "path": "src/crawler/companyRecruitmentProfiles/profiles/bayer-healthcare.ts",
+      "sha256": "4bb3db97068946369df383fb3b9acf941b5100e93cd301841f019f6bb92ea38a",
+      "bytes": 765,
+      "gitBlobSha": "dfc6747f87121e1fcbedadd60d6f7818f24264c0",
+      "safeBackupCommit": "0c4586b82690203b93475551bd3409e2fbcb1574"
+    },
+    {
+      "path": "src/db/ingestionRepository.ts",
+      "sha256": "788d9868d732e57fa79851c5a2a69b94dadf78ade8cf6c3d596d39a7fb42414b",
+      "bytes": 123360,
+      "gitBlobSha": "bd6e766674cc21e93ac7e184fdd84bef379248b4",
+      "safeBackupCommit": "0c4586b82690203b93475551bd3409e2fbcb1574"
+    },
+    {
+      "path": "tests/crawler/bayerMokaTraversal.test.ts",
+      "sha256": "a9ad0eda6c2eb5a8a2321e320c49023decc1e1c9d52b8468fd15d85f4a6f71be",
+      "bytes": 14779,
+      "gitBlobSha": "042ae592438b6ba0a6db9e49cfb741c50f657bb9",
+      "safeBackupCommit": "0c4586b82690203b93475551bd3409e2fbcb1574"
+    }
+  ],
+  "omittedDependencyInputs": [
+    "Node.js dependencies",
+    "Configuration and source plan",
+    "Schema expectations and identity documents"
+  ],
+  "excludedCategories": [
+    "Credentials and environment files",
+    "Captured data and database replies",
+    "Runtime outputs and internal reports",
+    "Historical source copies and diffs"
   ]
 }

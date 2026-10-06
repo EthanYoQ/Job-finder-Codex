@@ -2,8 +2,8 @@
 import json,re,hashlib,datetime,sys,subprocess,os
 from pathlib import Path
 host,run=Path(sys.argv[1]).resolve(),Path(sys.argv[2]).resolve();rid=sys.argv[3]
-assert run.parent==host and str(host)=='/workspace/scratch/5e9614251709/jb-workspace-recovery-20261005T2019Z/hosts46/pfizer' and re.fullmatch(r'[a-f0-9-]{36}',rid)
-cfg=json.loads((host/'host-config.json').read_text());assert cfg['sourceId']=='source-pfizer-china-social'
+assert run.parent==host and str(host)=='/workspace/scratch/5e9614251709/jb-workspace-recovery-20261005T2019Z/hosts46/bayer' and re.fullmatch(r'[a-f0-9-]{36}',rid)
+cfg=json.loads((host/'host-config.json').read_text());assert cfg['sourceId']=='source-bayer-healthcare-social'
 env={**os.environ,'TSX_DISABLE_CACHE':'1','NODE_DISABLE_COMPILE_CACHE':'1','PYTHONDONTWRITEBYTECODE':'1','JOBFINDER_CLOUD_SOURCE_ID':cfg['sourceId']}
 subprocess.run(['node',str(host/'runtime/publisher-state-guard.mjs'),'publish',run.name],check=True,capture_output=True,env=env)
 req=json.loads((run/'relay'/f'{rid}.request.json').read_text());sql=(run/'relay'/f'{rid}.request.json.sql').read_text()
@@ -18,13 +18,13 @@ assert [row[k] for k in ['transportState','adapterState','completenessState','at
 assert cert['schemaVersion']=='b-grade-independent-traversal-v2' and cert['grade']=='B' and cert['validationPolicy']['execution']=='CURRENT_RUN'
 for a,b in [('sourceId','sourceId'),('sourceResultId','id'),('batchId','batchId'),('releaseCandidateId','releaseCandidateId'),('sourceConfigSha256','sourceConfigHash')]:assert cert['binding'][a]==row[b]
 iv=json.loads((run/'artifacts'/f'{run.name}.independent-validation.json').read_text());assert cert['independentValidation']==iv
-assert iv['sourceId']==cfg['sourceId'] and iv['companyId']=='company-pfizer-china' and iv['sourceConfigSha256']==cfg['sourceConfigSha256']
+assert iv['sourceId']==cfg['sourceId'] and iv['companyId']=='company-bayer-healthcare' and iv['sourceConfigSha256']==cfg['sourceConfigSha256']
 assert iv['canonicalMatchKeySetSha256']==cert['mainTraversal']['canonicalMatchKeySetSha256']
 raw=[r for page in iv['pages'] for r in page['rawRows']]
 included=[r['sourceJobId'] for r in raw if r['scopeDecision']=='INCLUDED_MAINLAND'];excluded=[r['sourceJobId'] for r in raw if r['scopeDecision']=='EXCLUDED_AUDITED']
 assert len(raw)==len(set(r['sourceJobId'] for r in raw))==row['rawCount']==row['parsedCount']
 assert len(included)+len(excluded)==len(raw) and len(included)==row['validCount']==row['dedupeOutputCount']
-assert len(excluded)==row['validationDiscardCount'] and all(r['scopeMarker']=='India' for r in raw if r['scopeDecision']=='EXCLUDED_AUDITED')
+assert len(excluded)==row['validationDiscardCount'] and all(r['scopeMarker']=='pause' for r in raw if r['scopeDecision']=='EXCLUDED_AUDITED')
 # Read both exact frozen sqlRecords encodings: one full object or common fields
 # plus indexed tuples for multiple rows. Semicolons inside loss reasons are data.
 def recordsets(table):
@@ -51,8 +51,8 @@ assert len(losses)==len(excluded)
 for loss in losses:
     for key in ['releaseCandidateId','batchId','sourceId']:assert loss[key]==row[key]
     assert loss['sourceResultId']==row['id'] and loss['stage']=='VALIDATION'
-    assert loss['reason']=='Official detail establishes India and no explicit mainland posting location'
-    assert loss['details']['code']=='PFIZER_VERIFIED_INDIA_SCOPE'
+    assert loss['reason']=='Bayer official requisition is paused'
+    assert loss['details']['code']=='BAYER_OFFICIAL_PAUSED'
 def sethash(values):return hashlib.sha256(json.dumps(sorted(set(values),key=lambda s:s.encode()),ensure_ascii=False,separators=(',',':')).encode()).hexdigest()
 members=recordsets('LifecycleSetEvidenceMember');current=[m for m in members if m['setKind']=='CURRENT']
 assert len(current)==len({m['jobKey'] for m in current})==row['dedupeOutputCount']
@@ -74,12 +74,22 @@ boot=json.loads((run/'bootstrap.json').read_text());due=json.loads((run/'source-
 capture=boot['currentCapture'];validation=boot['independentValidation']
 inputs=json.loads(subprocess.check_output(['node','--import',str(Path(cfg['repo'])/'node_modules/tsx/dist/loader.mjs'),str(host/'runtime/validate-capture-inputs.mjs'),capture['path'],capture['sha256'],validation['path'],validation['sha256'],due['nextEligibleAt']],cwd=cfg['repo'],env=env))
 assert row['startedAt']==inputs['mainStartedAt'] and iv['observedAt']==inputs['independentObservedAt']
+assert (row['rawCount'],row['validCount'],row['validationDiscardCount'])==(inputs['rawCount'],inputs['includedCount'],inputs['excludedCount'])
+prior_inputs=json.loads((run/'capture-input-check.json').read_text())
+assert prior_inputs['originalsSha256']==inputs['originalsSha256'] and prior_inputs['originalCount']==inputs['originalCount']
+assert inputs['auditedPausedLossesCount']==len(losses)==len({x['rawLocator'] for x in losses})
+loss_tuples=[]
+for loss in losses:
+    assert set(loss['details'])=={'code','pageSequence','recordIndex'}
+    loss_tuples.append([loss['stage'],loss['reason'],loss['rawLocator'],[loss['details']['code'],loss['details']['pageSequence'],loss['details']['recordIndex']],loss['recordedAt']])
+loss_tuples.sort(key=lambda x:x[2])
+assert hashlib.sha256(json.dumps(loss_tuples,ensure_ascii=False,separators=(',',':')).encode()).hexdigest()==inputs['auditedPausedLossTuplesSha256']
 row_path=run/'reviewed-source-result.private.json'
 with row_path.open('x') as f:json.dump(row,f,ensure_ascii=False,separators=(',',':'));f.write('\n')
 verified=json.loads(subprocess.check_output(['node','--import',str(Path(cfg['repo'])/'node_modules/tsx/dist/loader.mjs'),str(host/'runtime/verify-certificate.mjs'),str(row_path)],cwd=cfg['repo'],env=env))
 assert verified['publicationExpiresAt']==inputs['publicationExpiresAt']==req['expiresAt']
 now=datetime.datetime.now(datetime.timezone.utc);assert now<datetime.datetime.fromisoformat(req['payload']['dispatchBefore'].replace('Z','+00:00'))
 a=run/'artifacts'/f'{run.name}.archive.json';assert a.is_file()
-report={'reviewedAt':now.isoformat(),'requestId':rid,'requestSha256':req['requestSha256'],'sqlSha256':hashlib.sha256(sql.encode()).hexdigest(),'sqlBytes':len(sql.encode()),'sourceResult':{k:row[k] for k in ['id','releaseCandidateId','sourceId','sourceConfigHash','startedAt','finishedAt','rawCount','validCount','validationDiscardCount','dedupeOutputCount','canonicalCurrentJobSetSha256','completenessCertificateSha256']},'rawCount':len(raw),'includedMainlandCount':len(included),'auditedIndiaExcludedCount':len(excluded),'persistedAuditedIndiaLossCount':len(losses),'persistedCurrentMemberCount':len(current),'includedSetSha256':sethash(included),'excludedSetSha256':sethash(excluded),'frozenCertificateVerification':verified,'inputTimeCheck':inputs,'tables':tables,'archiveSha256':hashlib.sha256(a.read_bytes()).hexdigest(),'archiveBytes':a.stat().st_size,'noDdlOrDelete':True,'atomicFinalizationAndRelease':True,'countsAreCurrentEvidenceNotHistoricTargets':True}
+report={'reviewedAt':now.isoformat(),'requestId':rid,'requestSha256':req['requestSha256'],'sqlSha256':hashlib.sha256(sql.encode()).hexdigest(),'sqlBytes':len(sql.encode()),'sourceResult':{k:row[k] for k in ['id','releaseCandidateId','sourceId','sourceConfigHash','startedAt','finishedAt','rawCount','validCount','validationDiscardCount','dedupeOutputCount','canonicalCurrentJobSetSha256','completenessCertificateSha256']},'rawCount':len(raw),'includedMainlandCount':len(included),'auditedPausedExcludedCount':len(excluded),'persistedPausedLossCount':len(losses),'persistedCurrentMemberCount':len(current),'includedSetSha256':sethash(included),'excludedSetSha256':sethash(excluded),'frozenCertificateVerification':verified,'inputTimeCheck':inputs,'tables':tables,'archiveSha256':hashlib.sha256(a.read_bytes()).hexdigest(),'archiveBytes':a.stat().st_size,'noDdlOrDelete':True,'atomicFinalizationAndRelease':True,'countsAreCurrentEvidenceNotHistoricTargets':True}
 with (run/'publication-review.json').open('x') as f:json.dump(report,f,indent=2);f.write('\n')
 print(json.dumps(report))

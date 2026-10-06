@@ -31,14 +31,7 @@ if(op==='read'){
  await writeFile(path+'.sql-binding.json',JSON.stringify(binding),{flag:'wx',mode:0o600});
  console.log(JSON.stringify(binding));
  }else if(op==='prepare-archive-upload'){
- const {auditNovoPublicArchive}=await import('./audit-novo-public-archive.mjs');
- const path=scoped(pathArg),bytes=await readFile(path),bundle=JSON.parse(bytes.toString('utf8'));
- const expected=JSON.parse(await readFile(scoped(arg),'utf8'));
-
- const audit=auditNovoPublicArchive(bundle,{expected,sourceConfigSha256:expected.sourceConfigSha256});
- const packed=packArchiveTransfer(bytes),output=path+'.transfer.json';
- await writeFile(output,packed,{flag:'wx',mode:0o600});
- console.log(JSON.stringify({sha256:sha(bytes),bytes:bytes.length,audit,output,packedSha256:sha(packed),packedBytes:packed.length}));
+ throw Error('BAYER_LEGACY_ARCHIVE_STORE_UNSUPPORTED_PARENT_RETENTION_REQUIRED');
 }else if(op==='publish'){
  const path=scoped(pathArg),r=JSON.parse(await readFile(path,'utf8')),{requestSha256,...body}=r;
  if(r.kind!=='PUBLISH'||sha(JSON.stringify(body))!==requestSha256)throw Error('HOST_PUBLISH_REQUEST');
