@@ -1,119 +1,45 @@
 {
   "format": "safe-source-backup/v1",
-  "snapshot": "deployment-backup-contract-r2",
-  "sourcePlanSha256": "4814c82c1868ba7380376eade143fe566a0d9b03e684d8d0422224eeaa87c2b3",
-  "originalSourceFiles": 12,
-  "originalSourceBytes": 42842,
-  "originalBytesUnchanged": true,
-  "dependencies": [
-    "Python 3 standard library; preserve the relative layout so test_validate.py imports validate.py."
-  ],
-  "restorationNotes": [
-    "Run from the restored repository directory; the original README contains the historical preparation path.",
-    "TEST_RESULTS.txt and EXAMPLE_VALIDATION.json mentioned in the original README are deliberately not included.",
-    "All example bodies, scope and review attestations are synthetic. Archive-only examples grant no execution or replay authority.",
-    "CLI exit 0 also allows valid partial archives; check recoveryComplete separately.",
-    "The independent frozen scope, review truthfulness and immutable input directory are caller prerequisites. This source backup does not wire the validator into any publisher."
-  ],
+  "snapshot": "sanofi-reader-replay-r2",
+  "sourcePlanSha256": "dc70404d99e8fc7fb2b4f7dfd28f7dacaebb5979603839e37603fbd5108ad927",
+  "sourceArchiveSha256": "0edaa9d579d2b6eec4eab808a38546b1db9421ad77e4c013b0b95a3913c27a01",
+  "originalSourceFiles": 717,
+  "originalSourceBytes": 11373709,
+  "originalSourceBytesUnchanged": true,
+  "priorLocalSnapshotPlanSha256": "6031c00511382797455e5c34506bcc6178b04c9e1dd1091e8a2ae5adceaafb9c",
+  "revision": {
+    "changed": 8,
+    "added": 2,
+    "unchanged": 707,
+    "readerSourcesUnchanged": 700
+  },
+  "sourceFileManifest": {
+    "path": "validation/sanofi-node22-current-20261006/SOURCE_FILE_MANIFEST.json",
+    "sha256": "2f400634871aae892e968f288600a83f96116677c3dac5cad422459e515aedbb",
+    "bytes": 148149,
+    "entriesCoverEveryOtherSourceFile": true
+  },
+  "readerClosureManifest": {
+    "path": "validation/sanofi-node22-current-20261006/READER_CLOSURE_MANIFEST.json",
+    "sha256": "2ab37704115185c2baba0e89c716f4369d8024055a0828c7240200f66f32a599",
+    "bytes": 888078
+  },
+  "verifiedReusableGitObjects": {
+    "sourcePaths": 700,
+    "uniqueBlobs": 259,
+    "uniqueBytes": 3861405,
+    "a775Commit": "50b00efd080408befb0d4156e8b462b85d6cd191",
+    "mainCommit": "6f82160f209ac4556da8578a85de7da9ffc3ff41",
+    "fallbackCommit": "a6ced5737df2b4ebc4800fa547c874e79ad6a41c"
+  },
   "excluded": [
-    "Actual deployment materials, approval text, runtime/control data, credentials, raw or database records, internal reports and generated validation outputs."
+    "Actual DB snapshots",
+    "Actual job projections and comparison outputs",
+    "Logs and execution receipts",
+    "Private reports and approval text",
+    "Credentials and activation/control payloads",
+    "node_modules, generated Prisma Client and runtime binaries",
+    "Unavailable historical fixture"
   ],
-  "verificationScope": "Exact source bytes and Git objects only; no tests, CI, deployment or source execution were performed by this backup.",
-  "files": [
-    {
-      "path": "CONTRACT.json",
-      "bytes": 3225,
-      "sha256": "dfd0594bcbbeb6ea0f9269224afe37695135926b64f4d41fffeece01349e0093",
-      "mode": "100644",
-      "gitBlob": "2cedc0942bba55793fb14a1caac3d98ab6bdef89"
-    },
-    {
-      "path": "README.md",
-      "bytes": 4925,
-      "sha256": "44a84de7f494aa6d597c1dcf748d7ece01cb91446522566490558cfa306b7de8",
-      "mode": "100644",
-      "gitBlob": "d61b647eb48cfb11c3a5fb2dd3ea3839a204bf79"
-    },
-    {
-      "path": "example/bodies/archive-only/intent.txt",
-      "bytes": 67,
-      "sha256": "5cfa53308a02a0683775c196ac02686af5696e3dc20ba9cce4ab07403b1765c8",
-      "mode": "100644",
-      "gitBlob": "bac7da9b56e39c760ff55c694e86e011fc86406a"
-    },
-    {
-      "path": "example/bodies/archive-only/receipt.txt",
-      "bytes": 65,
-      "sha256": "49f3a5831a8192dc62ca4b51a3535d70ba29aa104917cbef716d12e2d4db58c0",
-      "mode": "100644",
-      "gitBlob": "b4cef548145b71c437072006a06a18c5ff10ed8d"
-    },
-    {
-      "path": "example/bodies/materials/bootstrap.txt",
-      "bytes": 56,
-      "sha256": "70104d0d4be35fd22016c7441c022605f61e1cce9415b6aff22f6e6db0d8b10f",
-      "mode": "100644",
-      "gitBlob": "0c10125927f50a2420aabc752cbefd1ded5a90e0"
-    },
-    {
-      "path": "example/bodies/materials/chunk-000.txt",
-      "bytes": 23,
-      "sha256": "3213241a2f773bb1a98346b286ff353864a951498d6fd4a85cdfc81e64807df4",
-      "mode": "100644",
-      "gitBlob": "d23ba4c1f3ae9c40f6e2bd48ff4a4d6f696407d5"
-    },
-    {
-      "path": "example/bodies/materials/chunk-001.txt",
-      "bytes": 26,
-      "sha256": "ddac54760cb02bc76c3a99efecb30e248a509d738334e759b5a6ad91a13a0e1d",
-      "mode": "100644",
-      "gitBlob": "9da948eeb8372fe6698107c2a58cc218cdbadca2"
-    },
-    {
-      "path": "example/bodies/materials/payload.txt",
-      "bytes": 49,
-      "sha256": "d4aa1339e90ce58f91232cdb19773cb49dabda3773214feaa782f4aa9fe38903",
-      "mode": "100644",
-      "gitBlob": "a404bc82e2f8a493e157b413eb8970bc7b6438d1"
-    },
-    {
-      "path": "example/expected-scope.json",
-      "bytes": 1504,
-      "sha256": "65f8042fd27b0e2b4e6220130a87f949a043e89fef2626e61305fdd10ae5dff0",
-      "mode": "100644",
-      "gitBlob": "a76db50ddcd51f125677bc88ada603bcfdc3d8a5"
-    },
-    {
-      "path": "example/manifest.json",
-      "bytes": 5114,
-      "sha256": "abf4196b52d6676a4f11bf98c868bfce450f097ff8287e419a2f6888811122e3",
-      "mode": "100644",
-      "gitBlob": "f09152e61b6ff313f53b562c0ae831170a266f01"
-    },
-    {
-      "path": "test_validate.py",
-      "bytes": 14730,
-      "sha256": "b18bda5aa8ee8ad6c9f8f6e7ab3b2ea61878a2e0b3af33f8b42a0bc62559a8ee",
-      "mode": "100644",
-      "gitBlob": "93bc21aceda341e49944afc8f11cf18a6701c9a1"
-    },
-    {
-      "path": "validate.py",
-      "bytes": 13058,
-      "sha256": "28f41b2cc321122d6edc2f63b8cb09648c37394f2892ae915dd20bebf58f66b9",
-      "mode": "100644",
-      "gitBlob": "1ec7bde5e6d4f444126ef58963b5f546d5164598"
-    }
-  ],
-  "knownStaticLimitations": [
-    "Input directories must remain immutable during validation; TOCTOU isolation is not provided.",
-    "Manifest and scope must be trusted ordinary JSON files supplied by the caller; their paths are not covered by the archive-body tree gate."
-  ],
-  "sourcePlanScope": "Two-file revision, composed with the ten unchanged v1 source files.",
-  "baseCommit": "31ec917e1f0c122806da20a4db28c7952b4af736",
-  "revisionNotes": [
-    "Before archive-body enumeration or reads, inspect every body-root ancestor top-down with lstat, even for partial manifests with all bodies omitted.",
-    "Reject symlinks and all nonregular archive nodes before opening any body, including FIFO and socket inodes.",
-    "The 25 original test functions are AST-identical and seven synthetic cases are added. Backup verification did not execute tests. New tests require POSIX symlink, FIFO and S_IFSOCK inode creation support."
-  ]
+  "verificationScope": "Static source review and exact remote Git path/mode/blob plus content hashes; no application tests, CI, database or deployment execution by the backup."
 }
