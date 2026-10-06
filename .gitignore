@@ -1,5 +1,0 @@
-# Local measurements, mocked readbacks, and verification receipts are evidence,
-# not the fixed source handoff. Never add them to the source backup.
-verification/
-__pycache__/
-*.pyc

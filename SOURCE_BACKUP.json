@@ -2,12 +2,84 @@
   "schemaVersion": 1,
   "files": [
     {
-      "path": ".gitignore",
+      "path": "combined-takeda-20261006T0550Z/supervise-cancel.mjs",
       "mode": "100644",
       "type": "blob",
-      "sha": "c13654528939a453c4c364043d6d8af50d765965",
-      "sha256": "2184c7d1e3ea4614157b6d48f4b46e63f134bb4acb0c2a15ae56818825bda733",
-      "bytes": 182
+      "sha": "963ff946812a247ddc3c18e97a365022a85426be",
+      "sha256": "5cb86785a4362a4d346dab233f30697c0af4d54757e2a911cab98377a8578f35",
+      "bytes": 7252
+    },
+    {
+      "path": "combined-takeda-20261006T0550Z/build-combined-command.mjs",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "864757aa663adbbd7916ad246736a7a79ceb8329",
+      "sha256": "884760bece78974e87a3790a8ffe34d7c5d33b969b792b9a8d7d84c9c6f9c552",
+      "bytes": 1131
+    },
+    {
+      "path": "combined-takeda-20261006T0550Z/inspect-launch-identity.mjs",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "6083858daf1b55f62c25bd12e405df5cff35812d",
+      "sha256": "015b9181a640bcb4e4c68d7bfcef598e826c93fe6f8aaf31d33cf59780e3d81f",
+      "bytes": 706
+    },
+    {
+      "path": "combined-takeda-20261006T0550Z/create-combined-starter.mjs",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "378e4285ba27f1d54b5951fb3fb47ffb5f51b5f5",
+      "sha256": "facb603df456ddb075324fb22a2a83ab16ec0dbcc98632becd2dbe1371de59fc",
+      "bytes": 5500
+    },
+    {
+      "path": "combined-takeda-20261006T0550Z/fixture-inner.mjs",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "cedb1f10cc6289dbf58e3c47568cc117280c6ca3",
+      "sha256": "e9aae09f5e0218af12fe12be2f73e69309da2e7aeebfa14059fd8ce79ed7a51d",
+      "bytes": 803
+    },
+    {
+      "path": "combined-takeda-20261006T0550Z/test-combined.mjs",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "f3b9f76b90083ed78b31adabb1dd5a58e483aa4a",
+      "sha256": "4560d934b208af88fc97fa760f1846fde0c1cb5d0ba0f77971710a483f67ec2a",
+      "bytes": 8215
+    },
+    {
+      "path": "combined-takeda-20261006T0550Z/test-starter-integration.mjs",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "0d6f00a94b27cf93904304e0df858bae5d5608a4",
+      "sha256": "a691081f30a2eaf9d8745c1932cc4893acb7c7dd99a9105aa60ca3a0812b6d83",
+      "bytes": 6228
+    },
+    {
+      "path": "combined-takeda-20261006T0550Z/cross-exec-fixture.mjs",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "c2dbedfb1238d0d96e04883048dcc6023ca002c8",
+      "sha256": "a8651dcd23b6249b7b90aaa0d1225427d982bea6c180485770ea28f7e475c347",
+      "bytes": 3866
+    },
+    {
+      "path": "combined-takeda-20261006T0550Z/start-monitor-takeda46-combined.js",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "05276c86d95736dc996662aa869f2d93df0171e6",
+      "sha256": "b05bb25e10ef49479d9f41a43494983a35e83ac5655065e48fd2bc018dbc9e3e",
+      "bytes": 12701
+    },
+    {
+      "path": "combined-takeda-20261006T0550Z/starter.patch",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "f1187b540d7a57fb9e23e3fb966d734f79f281a7",
+      "sha256": "0989dcc33aadebc821b742160c79f2425bb470f458204ee225ca2b0172f1becd",
+      "bytes": 7689
     },
     {
       "path": "sample_process_tree.py",
@@ -15,7 +87,8 @@
       "type": "blob",
       "sha": "bf279a88e4e4bc33d751894afef8a93428f3bb4d",
       "sha256": "18bc3c99319b3af0941b6499bf71b5bfcd7d5808003a6b2c8e8a1a20eae88a85",
-      "bytes": 11778
+      "bytes": 11778,
+      "reusedFromCommit": "946fb0c15a411a77d6099febdd47997130308e0c"
     },
     {
       "path": "build-observed-command.mjs",
@@ -23,56 +96,9 @@
       "type": "blob",
       "sha": "23f748a3a05ddc682d1f66c82e8699682cfa2517",
       "sha256": "44ac3615ccfc91e9889ddb5e0a9e8d4e4323c6f3da1f6a1ba958223425a699f8",
-      "bytes": 672
-    },
-    {
-      "path": "create-observed-starter.mjs",
-      "mode": "100644",
-      "type": "blob",
-      "sha": "f2546b9885edfd6be18305b8ec6b6a9f185bf975",
-      "sha256": "fbdebe312ba9429069276f21580c9abd39c66b8ac665c059d952d8e70b6f563b",
-      "bytes": 4568
-    },
-    {
-      "path": "fixture-capture.mjs",
-      "mode": "100644",
-      "type": "blob",
-      "sha": "33ebc46d5b5fba2bbf0e6bd23663bba943578231",
-      "sha256": "270a9c1345fc647e36891e702dff7d82d231743b2cbe0ebb76a3db7ab7abfa08",
-      "bytes": 945
-    },
-    {
-      "path": "test-memory-observation.mjs",
-      "mode": "100644",
-      "type": "blob",
-      "sha": "9e7e5b93e4692ea8612f4ea57ebf49228a175fd5",
-      "sha256": "80738e470f03db998f811501a67315ebb1d738a44daeea2e1888e05b8369342a",
-      "bytes": 9508
-    },
-    {
-      "path": "start-monitor-kelun46-observed.js",
-      "mode": "100644",
-      "type": "blob",
-      "sha": "0c7ca8b6749c8fca1874ebb0074d382c3e15040d",
-      "sha256": "89f4d691518e62b78f234fe1afabb18a8d3d96fd914f9f41c3f5319f5b111f98",
-      "bytes": 8515
-    },
-    {
-      "path": "start-monitor-msd46-observed.js",
-      "mode": "100644",
-      "type": "blob",
-      "sha": "3fcad0517ff1bc4c3646009b117f35ae9a2c609b",
-      "sha256": "bb93979e5fe684a46a6530587aeaeecdb47a0d227634fada33098b8cf3cc482a",
-      "bytes": 8445
-    },
-    {
-      "path": "start-monitor-takeda46-observed.js",
-      "mode": "100644",
-      "type": "blob",
-      "sha": "0e917f6cf5b0883cd9ee37772dcc5563522e3fa2",
-      "sha256": "26e7fce5f617324d4e54eae249030bef8963e27ca06f15110741b14e9a869ebf",
-      "bytes": 8531
+      "bytes": 672,
+      "reusedFromCommit": "946fb0c15a411a77d6099febdd47997130308e0c"
     }
   ],
-  "sourceInventorySha256": "59f45f8ea6ba323bac9b1b937af1d348a93920a53781b9ee3d506181b4fdb518"
+  "sourceInventorySha256": "d6abfd393aedfe8380b2ea16edf7f6f597b26d8fdec6908063c3949a3e564e92"
 }

@@ -1,0 +1,47 @@
+--- hosts46/takeda/runtime/start-monitor-portable42.js
++++ combined-takeda/start-monitor-takeda46-combined.js
+@@ -48,6 +48,43 @@
+ if(Date.now()-new Date(row.checkedAt).getTime()>60000)throw Error("FRESH_BOOTSTRAP_EXPIRED_BEFORE_LAUNCH");
+ const command="env TSX_DISABLE_CACHE=1 NODE_DISABLE_COMPILE_CACHE=1 JOBFINDER_CLOUD_SOURCE_ID="+h.q(h.cfg.sourceId)+" P0_SOURCE_HTTP_TIMEOUT_MS=45000 node scripts/run-with-http-diagnostics.mjs "+h.q(run+"/diagnostics")+" 1800000 -- node --max-old-space-size=256 --import /workspace/scratch/5e9614251709/jb-workspace-recovery-20261005T2019Z/producer42/node_modules/tsx/dist/loader.mjs scripts/p0-cloud-portable-source-pilot.ts "+h.q(run+"/bootstrap.json")+" "+h.q(boot.hash)+" "+h.q(run+"/artifacts")+" "+h.q(run+"/relay")+" --db-started-control "+h.q(h.cfg.root+"/control-base.json");
+ await h.save(run+"/reviewed-command.txt",command);
+-const started=await tools.exec_command({cmd:command,workdir:h.cfg.repo,yield_time_ms:1000,max_output_tokens:1500});store("restored46:takeda:refreshSession",started.session_id);notify({phase:"FRESH_PORTABLE_DB_STARTED_LAUNCH",batch,session:started.session_id,output:started.output});if(!started.session_id)throw Error("NO_RUNNING_LAUNCH_SESSION");
++// BEGIN COMBINED_MEMORY_CANCEL_PROPOSAL
++function buildObservedCommand(command, metadata, quote) {
++ return [
++  '(exec '+command+') &',
++  'capture_root_pid=$!',
++  'if python3 '+quote(metadata.samplerPath)+' --root-pid "$capture_root_pid" --expected-arg '+quote(metadata.expectedArg)+' --output-dir '+quote(metadata.outputDir)+' --label '+quote(metadata.label)+' --interval 1 --pss-interval 5; then memory_observer_exit=0; else memory_observer_exit=$?; fi',
++  'if wait "$capture_root_pid"; then capture_exit=0; else capture_exit=$?; fi',
++  "printf 'MEMORY_OBSERVER_EXIT=%s CAPTURE_EXIT=%s\\n' \"$memory_observer_exit\" \"$capture_exit\"",
++  'exit "$capture_exit"'
++ ].join('\n');
++}
++function buildCombinedCommand(command, metadata, quote) {
++  const seam = ' node scripts/run-with-http-diagnostics.mjs ';
++  const parts = command.split(seam);
++  if (parts.length !== 2 || !parts[0].startsWith('env ') || !parts[1]) throw Error('ORIGINAL_WRAPPER_SEAM_REQUIRED');
++  if (!/^jb-[a-f0-9]{64}$/.test(metadata.controlRunId)) throw Error('FULL_BATCH_HASH_REQUIRED');
++  const captureCommand = parts[0] + ' ' + quote(metadata.nodePath) + ' ' + quote(metadata.supervisorPath)
++    + ' start ' + quote(metadata.controlDirectory) + ' ' + quote(metadata.controlRunId)
++    + ' -- ' + quote(metadata.nodePath) + ' ' + quote(metadata.wrapperPath) + ' ' + parts[1];
++  return { captureCommand, observedCommand: buildObservedCommand(captureCommand, {
++    samplerPath: metadata.samplerPath, expectedArg: metadata.supervisorPath,
++    outputDir: metadata.outputDir, label: metadata.label
++  }, quote), originalEnvironmentPrefix: parts[0], originalWrapperArgumentSuffix: parts[1] };
++}
++const combinedPaths={"base":"/workspace/scratch/5e9614251709/jb-workspace-recovery-20261005T2019Z/memory-observation-recovery-20261006T0536Z/combined-takeda-20261006T0550Z","r2":"/workspace/scratch/5e9614251709/jb-workspace-recovery-20261005T2019Z","sampler":"/workspace/scratch/5e9614251709/jb-workspace-recovery-20261005T2019Z/memory-observation-recovery-20261006T0536Z/sample_process_tree.py","supervisor":"/workspace/scratch/5e9614251709/jb-workspace-recovery-20261005T2019Z/memory-observation-recovery-20261006T0536Z/combined-takeda-20261006T0550Z/supervise-cancel.mjs","inspector":"/workspace/scratch/5e9614251709/jb-workspace-recovery-20261005T2019Z/memory-observation-recovery-20261006T0536Z/combined-takeda-20261006T0550Z/inspect-launch-identity.mjs","wrapper":"/workspace/scratch/5e9614251709/jb-workspace-recovery-20261005T2019Z/producer42/scripts/run-with-http-diagnostics.mjs","original":"/workspace/scratch/5e9614251709/jb-workspace-recovery-20261005T2019Z/hosts46/takeda/runtime/start-monitor-portable42.js"};
++const combinedHashes=await tools.exec_command({cmd:"sha256sum -- "+[combinedPaths.sampler,combinedPaths.supervisor,combinedPaths.wrapper,combinedPaths.inspector].map(h.q).join(" "),yield_time_ms:1000,max_output_tokens:1500});
++if(combinedHashes.exit_code!==0||combinedHashes.session_id||combinedHashes.output.trim()!=="18bc3c99319b3af0941b6499bf71b5bfcd7d5808003a6b2c8e8a1a20eae88a85  /workspace/scratch/5e9614251709/jb-workspace-recovery-20261005T2019Z/memory-observation-recovery-20261006T0536Z/sample_process_tree.py\n5cb86785a4362a4d346dab233f30697c0af4d54757e2a911cab98377a8578f35  /workspace/scratch/5e9614251709/jb-workspace-recovery-20261005T2019Z/memory-observation-recovery-20261006T0536Z/combined-takeda-20261006T0550Z/supervise-cancel.mjs\nd8627edbdc118f8d747f77f22459768f76184171e715a8fd29c76a69a3c82930  /workspace/scratch/5e9614251709/jb-workspace-recovery-20261005T2019Z/producer42/scripts/run-with-http-diagnostics.mjs\n015b9181a640bcb4e4c68d7bfcef598e826c93fe6f8aaf31d33cf59780e3d81f  /workspace/scratch/5e9614251709/jb-workspace-recovery-20261005T2019Z/memory-observation-recovery-20261006T0536Z/combined-takeda-20261006T0550Z/inspect-launch-identity.mjs")throw Error("COMBINED_SOURCE_HASH_MISMATCH");
++const combinedIdentityCheck=await tools.exec_command({cmd:"node "+h.q(combinedPaths.inspector)+" "+h.q(batch),workdir:h.cfg.repo,yield_time_ms:1000,max_output_tokens:1500});
++if(combinedIdentityCheck.exit_code!==0||combinedIdentityCheck.session_id)throw Error("COMBINED_NORMALIZATION_CHECK");
++const combinedIdentity=JSON.parse(combinedIdentityCheck.output);
++if(combinedIdentity.cwd!==h.cfg.repo||combinedIdentity.cwdRealPath!==h.cfg.repo||combinedIdentity.wrapperPath!==combinedPaths.wrapper||combinedIdentity.wrapperRealPath!==combinedPaths.wrapper||combinedIdentity.nodePath!==combinedIdentity.nodeRealPath)throw Error("COMBINED_NORMALIZATION_MISMATCH");
++const combinedMetadata={nodePath:combinedIdentity.nodePath,supervisorPath:combinedPaths.supervisor,wrapperPath:combinedPaths.wrapper,samplerPath:combinedPaths.sampler,controlDirectory:run+"/cancel-control",controlRunId:combinedIdentity.controlRunId,outputDir:run+"/memory-observation",label:h.cfg.sourceId+"/"+batch+"/includes-supervisor"};
++const combined=buildCombinedCommand(command,combinedMetadata,h.q);
++await h.save(run+"/reviewed-combined-command.txt",combined.observedCommand);
++await h.save(run+"/reviewed-cancel-contract.json",{status:"PREPARED_REQUEST_NOT_SENT",originalBatch:batch,controlDirectory:combinedMetadata.controlDirectory,controlRunId:combinedMetadata.controlRunId,nodeNormalization:{original:"node",resolved:combinedIdentity.nodePath},wrapperNormalization:{original:"scripts/run-with-http-diagnostics.mjs",resolved:combinedPaths.wrapper},samplerExpectedArg:combinedPaths.supervisor,memoryScope:"Supervisor root, unchanged wrapper and observed descendants; sampler excluded",requestCommand:h.q(combinedIdentity.nodePath)+" "+h.q(combinedPaths.supervisor)+" request "+h.q(combinedMetadata.controlDirectory)+" "+h.q(combinedMetadata.controlRunId)});
++{const combinedBootstrapAge=Date.now()-new Date(row.checkedAt).getTime();if(!Number.isFinite(combinedBootstrapAge)||combinedBootstrapAge<0||combinedBootstrapAge>60000)throw Error("FRESH_BOOTSTRAP_EXPIRED_BEFORE_LAUNCH");}
++// END COMBINED_MEMORY_CANCEL_PROPOSAL
++const started=await tools.exec_command({cmd:combined.observedCommand,workdir:h.cfg.repo,yield_time_ms:1000,max_output_tokens:1500});store("restored46:takeda:refreshSession",started.session_id);notify({phase:"FRESH_PORTABLE_DB_STARTED_LAUNCH",batch,session:started.session_id,output:started.output});if(!started.session_id)throw Error("NO_RUNNING_LAUNCH_SESSION");
+ await new A(load("restored46:takeda:continuousPortableRelayCodeWithPoll"))();
+ 
