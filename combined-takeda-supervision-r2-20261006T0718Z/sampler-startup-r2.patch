@@ -1,0 +1,58 @@
+--- a/sample_process_tree.py
++++ b/sample_process_tree.py
+@@ -49,6 +49,36 @@
+     """Skip missed slots rather than burst-read /proc to catch up after a pause."""
+     planned = previous_deadline + interval
+     return now + interval if planned <= now else planned
++
++
++def verify_startup_identity(pid, expected_arg):
++    """Allow only a bounded exec transition of the supplied, unchanged PID."""
++    root = stat(pid)
++    if root is None or root["state"] == "Z":
++        raise RuntimeError("Root PID is absent or already exited in this PID namespace")
++    root_key = (root["pid"], root["startTicks"])
++    deadline = time.monotonic() + 1.0
++    while True:
++        if time.monotonic() >= deadline:
++            raise RuntimeError("Root argv identity check timed out; refusing to sample unrelated PID")
++        before = stat(pid)
++        if before is None or before["state"] == "Z" or (before["pid"], before["startTicks"]) != root_key:
++            raise RuntimeError("Root identity changed before exact argv verification")
++        try:
++            argv = Path(f"/proc/{pid}/cmdline").read_bytes().split(b"\0")
++        except OSError as e:
++            raise RuntimeError(f"Cannot verify root identity: {type(e).__name__}") from e
++        after = stat(pid)
++        if after is None or after["state"] == "Z" or (after["pid"], after["startTicks"]) != root_key:
++            raise RuntimeError("Root identity changed during exact argv verification")
++        if time.monotonic() >= deadline:
++            raise RuntimeError("Root argv identity check timed out; refusing to sample unrelated PID")
++        if os.fsencode(expected_arg) in argv:
++            return after
++        remaining = deadline - time.monotonic()
++        if remaining <= 0:
++            raise RuntimeError("Root argv identity check failed within 1 second; refusing to sample unrelated PID")
++        time.sleep(min(0.025, remaining))
+ 
+ 
+ def main():
+@@ -67,15 +97,10 @@
+     sample_path = a.output_dir / "samples.jsonl"
+     if sample_path.exists():
+         p.error("Refusing to overwrite prior samples; use a unique output directory")
+-    root = stat(a.root_pid)
+-    if root is None or root["state"] == "Z":
+-        p.error("Root PID is absent or already exited in this PID namespace")
+     try:
+-        argv = Path(f"/proc/{a.root_pid}/cmdline").read_bytes().split(b"\0")
+-    except OSError as e:
+-        p.error(f"Cannot verify root identity: {type(e).__name__}")
+-    if os.fsencode(a.expected_arg) not in argv:
+-        p.error("Root argv identity check failed; refusing to sample unrelated PID")
++        root = verify_startup_identity(a.root_pid, a.expected_arg)
++    except RuntimeError as e:
++        p.error(str(e))
+     root_key = (root["pid"], root["startTicks"])
+     started_at, started = utc(), time.monotonic()
+     interrupted = []

@@ -11,6 +11,7 @@ const label=batch=>'jb-'+sha(batch);
 const sleep=ms=>new Promise(r=>setTimeout(r,ms));
 const until=async fn=>{const end=Date.now()+4000;while(!fn()){if(Date.now()>end)throw Error('FIXTURE_WAIT_TIMEOUT');await sleep(25);}};
 const events=file=>existsSync(file)?readFileSync(file,'utf8').trim().split('\n').filter(Boolean).map(JSON.parse):[];
+mkdirSync(join(paths.base,'verification'),{recursive:true,mode:0o700});
 const privateRoot=mkdtempSync(join(paths.base,'verification/synthetic-'));
 const tests=[];
 const pass=(name,detail={})=>tests.push({name,passed:true,...detail});
@@ -89,6 +90,6 @@ cases.push(await runCase('graceful-with-invalid-requests','graceful',{rejects:tr
 cases.push(await runCase('default-cancel','default',{request:true}));
 cases.push(await runCase('wrapper-timeout','timeout',{timeout:1200}));
 cases.push(await runCase('directory-replacement','replacement',{replace:true}));
-const report={status:'PASS_SYNTHETIC_ONLY',checkedAt:new Date().toISOString(),tests,cases,networkUsed:false,databaseAccessed:false,realProducerExecuted:false,oldUnknownProcessesTouched:false,scope:'Tests use unchanged real wrapper and exact restored supervisor, with local synthetic inner only. Production timeout/argv preserved by separate starter proof.'};
-writeFileSync(join(paths.base,'verification/TEST_RESULTS.json'),JSON.stringify(report,null,2)+'\n');
+const report={artifactRoot:privateRoot,status:'PASS_SYNTHETIC_ONLY',checkedAt:new Date().toISOString(),tests,cases,networkUsed:false,databaseAccessed:false,realProducerExecuted:false,oldUnknownProcessesTouched:false,scope:'Tests use unchanged real wrapper and exact restored supervisor, with local synthetic inner only. Production timeout/argv preserved by separate starter proof.'};
+writeFileSync(join(privateRoot,'TEST_RESULTS.json'),JSON.stringify(report,null,2)+'\n');
 console.log(JSON.stringify(report));

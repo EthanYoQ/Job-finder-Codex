@@ -1,11 +1,12 @@
 import assert from 'node:assert/strict';
-import { readFileSync, writeFileSync, mkdtempSync, realpathSync } from 'node:fs';
+import { readFileSync, writeFileSync, mkdtempSync, mkdirSync, realpathSync } from 'node:fs';
 import { spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { join } from 'node:path';
 import { paths, addCombinedObservation } from './create-combined-starter.mjs';
 const q=s=>"'"+s.replaceAll("'","'\\''")+"'",sha=s=>createHash('sha256').update(s).digest('hex');
 const A=Object.getPrototypeOf(async function(){}).constructor;
+mkdirSync(join(paths.base,'verification'),{recursive:true,mode:0o700});
 const privateRoot=mkdtempSync(join(paths.base,'verification/integration-'));
 const sourceId='source-takeda-china-social';
 const original=readFileSync(paths.original,'utf8'),combined=addCombinedObservation(original);
@@ -61,6 +62,6 @@ assert.ok(shell.includes('--expected-arg '+q(paths.supervisor)));
 for(const [option,pattern] of [['badHash',/COMBINED_SOURCE_HASH_MISMATCH/],['badCwd',/COMBINED_NORMALIZATION_MISMATCH/],['expire',/FRESH_BOOTSTRAP_EXPIRED_BEFORE_LAUNCH/]]) {
   const failed=await simulate(combined,{[option]:true});assert.match(failed.error.message,pattern);assert.equal(failed.launches.length,0);
 }
-const report={checkedAt:new Date().toISOString(),status:'PASS_MOCKED_INTEGRATION',sourceSha256:sha(original),combinedSha256:sha(combined),originalCommandSha256:sha(originalCommand),originalCommandSavedUnchanged:true,wrapperAndInnerArgvEqualAfterExplicitPathNormalization:true,environmentPrefixUnchanged:true,cwdUnchanged:true,heapMiB:256,wrapperDeadlineMs:1800000,bootstrapReadCount:observed.reads.length,sourceHashMismatchBlocked:true,pathNormalizationMismatchBlocked:true,postSaveBootstrapExpiryBlocked:true,normalization:{originalNode:'node',absoluteNode:process.execPath,originalWrapper:'scripts/run-with-http-diagnostics.mjs',absoluteWrapper:paths.wrapper},noRealProducerOrDatabase:true};
-writeFileSync(join(paths.base,'verification/STARTER_INTEGRATION.json'),JSON.stringify(report,null,2)+'\n');
+const report={artifactRoot:privateRoot,checkedAt:new Date().toISOString(),status:'PASS_MOCKED_INTEGRATION',sourceSha256:sha(original),combinedSha256:sha(combined),originalCommandSha256:sha(originalCommand),originalCommandSavedUnchanged:true,wrapperAndInnerArgvEqualAfterExplicitPathNormalization:true,environmentPrefixUnchanged:true,cwdUnchanged:true,heapMiB:256,wrapperDeadlineMs:1800000,bootstrapReadCount:observed.reads.length,sourceHashMismatchBlocked:true,pathNormalizationMismatchBlocked:true,postSaveBootstrapExpiryBlocked:true,normalization:{originalNode:'node',absoluteNode:process.execPath,originalWrapper:'scripts/run-with-http-diagnostics.mjs',absoluteWrapper:paths.wrapper},noRealProducerOrDatabase:true};
+writeFileSync(join(privateRoot,'STARTER_INTEGRATION.json'),JSON.stringify(report,null,2)+'\n');
 console.log(JSON.stringify(report));

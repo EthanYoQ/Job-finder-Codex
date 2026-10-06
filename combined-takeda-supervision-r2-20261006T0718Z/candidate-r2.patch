@@ -1,0 +1,566 @@
+--- a/supervise-cancel.mjs
++++ b/supervise-cancel.mjs
+@@ -36,9 +36,18 @@
+     return JSON.parse(readFileSync(fd, 'utf8'));
+   } finally { closeSync(fd); }
+ };
++const writeAll = (fd, text) => {
++  const bytes = Buffer.from(text);
++  let offset = 0;
++  while (offset < bytes.length) {
++    const written = writeSync(fd, bytes, offset, bytes.length - offset);
++    if (written <= 0) throw Error('SUPERVISOR_SHORT_WRITE');
++    offset += written;
++  }
++};
+ const writeJson = (name, value) => {
+   const fd = openSync(anchored(name), F.O_WRONLY | F.O_CREAT | F.O_EXCL | F.O_NOFOLLOW, 0o600);
+-  try { writeSync(fd, JSON.stringify(value) + '\n'); fsyncSync(fd); } finally { closeSync(fd); }
++  try { writeAll(fd, JSON.stringify(value) + '\n'); fsyncSync(fd); } finally { closeSync(fd); }
+   fsyncSync(dirFd);
+ };
+ const readIdentity = pid => {
+@@ -65,21 +74,60 @@
+       argv[3] !== '--' || !argv[4]) throw Error('ORIGINAL_WRAPPER_COMMAND_REQUIRED');
+   const startedAtMs = Date.now(), nonce = randomBytes(32).toString('hex');
+   const lifecycle = openSync(anchored('supervisor.jsonl'), F.O_WRONLY | F.O_CREAT | F.O_EXCL, 0o600);
++  let identity, poll, closed = false, sent = false, lastRejection;
++  let measurementAvailable = true, controlAvailable = true;
++  const failures = [];
++  const reasonOf = e => String(e?.code ?? e?.message ?? 'UNKNOWN_ERROR');
++  // Stderr is an independent, best-effort channel. Never throw into a child
++  // callback, including when both the audit file and stderr are unavailable.
++  const fallback = record => {
++    try { writeSync(2, JSON.stringify(record) + '\n'); } catch { /* keep waiting */ }
++  };
++  const unavailable = (stage, e, measurement = false) => {
++    controlAvailable = false;
++    if (measurement) measurementAvailable = false;
++    clearInterval(poll);
++    const failure = { stage, reason: reasonOf(e) };
++    failures.push(failure);
++    fallback({ event: 'SUPERVISOR_MEASUREMENT_CONTROL_UNAVAILABLE', runId,
++      measurementAvailable, controlAvailable, ...failure });
++  };
+   const mark = (event, extra = {}) => {
+-    writeSync(lifecycle, JSON.stringify({ event, recordedAt: new Date().toISOString(), runId, ...extra }) + '\n');
+-    fsyncSync(lifecycle);
++    const record = { event, recordedAt: new Date().toISOString(), runId, ...extra };
++    if (!measurementAvailable) { fallback(record); return false; }
++    try {
++      writeAll(lifecycle, JSON.stringify(record) + '\n');
++      fsyncSync(lifecycle);
++      return true;
++    } catch (e) {
++      // A partially written/fsynced line is retained. Do not append further
++      // records to a possibly broken JSONL tail or treat it as durable success.
++      unavailable('lifecycle:' + event, e, true);
++      fallback({ ...record, measurementAvailable: false, controlAvailable: false,
++        persistence: 'UNAVAILABLE' });
++      return false;
++    }
++  };
++  const closeSafely = (fd, stage) => {
++    try { closeSync(fd); } catch (e) { unavailable(stage, e, true); }
+   };
+   // Pass original argv, environment, cwd and foreground stdio through unchanged.
+   const child = spawn(command, argv, { shell: false, stdio: 'inherit', env: process.env, detached: false });
+-  let identity, poll, closed = false, sent = false, lastRejection;
+   child.once('spawn', () => {
+-    identity = readIdentity(child.pid);
+-    if (identity.ppid !== process.pid) throw Error('SPAWN_IDENTITY_MISMATCH');
+-    writeJson('descriptor.json', { schemaVersion: 1, runId, nonce, startedAtMs,
+-      supervisorPid: process.pid, wrapperPid: child.pid, startTicks: identity.startTicks, wrapperSha256 });
+-    mark('SUPERVISOR_READY', { wrapperPid: child.pid, startTicks: identity.startTicks });
++    try {
++      identity = readIdentity(child.pid);
++      if (identity.ppid !== process.pid || !/^[0-9]+$/.test(identity.startTicks ?? ''))
++        throw Error('SPAWN_IDENTITY_MISMATCH');
++      writeJson('descriptor.json', { schemaVersion: 1, runId, nonce, startedAtMs,
++        supervisorPid: process.pid, wrapperPid: child.pid, startTicks: identity.startTicks, wrapperSha256 });
++    } catch (e) {
++      unavailable('spawn-identity-or-descriptor', e);
++      mark('CONTROL_UNAVAILABLE', { reason: reasonOf(e), wrapperPid: child.pid });
++      return; // The unchanged wrapper still owns its deadline and terminal result.
++    }
++    if (!mark('SUPERVISOR_READY', { wrapperPid: child.pid, startTicks: identity.startTicks })) return;
+     poll = setInterval(() => {
+-      if (closed || sent) return;
++      if (closed || sent || !controlAvailable) return;
+       try {
+         const r = readJson('cancel.json'), now = Date.now();
+         if (Object.keys(r).sort().join(',') !== 'action,nonce,requestedAtMs,runId,schemaVersion' ||
+@@ -98,21 +146,38 @@
+         if (closed || child.exitCode !== null || child.signalCode !== null ||
+             current.ppid !== process.pid || current.startTicks !== identity.startTicks)
+           throw Error('WRAPPER_IDENTITY_CHANGED');
++        // Losing the acceptance audit disables cancellation, not supervision.
++        if (!mark('CANCEL_ACCEPTED', { wrapperPid: child.pid, startTicks: identity.startTicks })) return;
+         sent = true;
+-        mark('CANCEL_ACCEPTED', { wrapperPid: child.pid, startTicks: identity.startTicks });
+         mark('SIGNAL_SENT', { signal: 'SIGTERM', accepted: child.kill('SIGTERM') });
+       } catch (e) {
+         if (e.code === 'ENOENT') return;
+-        const reason = e.code ?? e.message;
+-        if (reason !== lastRejection) { mark('CANCEL_REJECTED', { reason }); lastRejection = reason; }
++        const reason = reasonOf(e);
++        if (reason !== lastRejection) {
++          lastRejection = reason;
++          mark('CANCEL_REJECTED', { reason });
++        }
+       }
+     }, 50);
+   });
+-  child.once('error', e => mark('WRAPPER_SPAWN_ERROR', { code: e.code }));
++  child.once('error', e => mark('WRAPPER_ERROR', { code: e.code, wrapperPid: child.pid ?? null }));
+   child.once('close', (code, signal) => {
+     closed = true; clearInterval(poll);
+     const exitCode = code ?? (signal ? 128 + (O.signals[signal] ?? 1) : 127);
+-    mark('WRAPPER_EXIT', { wrapperPid: child.pid ?? null, code, signal, supervisorExitCode: exitCode });
+-    closeSync(lifecycle); closeSync(dirFd); process.exitCode = exitCode;
++    // Set the real exit first; no diagnostic failure may replace it.
++    process.exitCode = exitCode;
++    const terminal = { wrapperPid: child.pid ?? null, code, signal, supervisorExitCode: exitCode };
++    mark('WRAPPER_EXIT', { ...terminal, measurementAvailable, controlAvailable });
++    closeSafely(lifecycle, 'lifecycle-close');
++    // This exclusive receipt preserves the wrapper result, not a claim that
++    // its own write/fsync/close or the final directory close later succeeded.
++    try { writeJson('terminal.json', { schemaVersion: 1, runId, ...terminal,
++      measurementAvailableAtReceiptWrite: measurementAvailable,
++      controlAvailableAtReceiptWrite: controlAvailable,
++      failuresAtReceiptWrite: failures, receiptCoversFinalCleanup: false }); }
++    catch (e) { unavailable('terminal-receipt', e, true); }
++    closeSafely(dirFd, 'directory-close');
++    fallback({ event: 'WRAPPER_TERMINAL', runId, ...terminal,
++      measurementAvailable, controlAvailable, failures });
+   });
+ }
+--- a/sample_process_tree.py
++++ b/sample_process_tree.py
+@@ -49,6 +49,36 @@
+     """Skip missed slots rather than burst-read /proc to catch up after a pause."""
+     planned = previous_deadline + interval
+     return now + interval if planned <= now else planned
++
++
++def verify_startup_identity(pid, expected_arg):
++    """Allow only a bounded exec transition of the supplied, unchanged PID."""
++    root = stat(pid)
++    if root is None or root["state"] == "Z":
++        raise RuntimeError("Root PID is absent or already exited in this PID namespace")
++    root_key = (root["pid"], root["startTicks"])
++    deadline = time.monotonic() + 1.0
++    while True:
++        if time.monotonic() >= deadline:
++            raise RuntimeError("Root argv identity check timed out; refusing to sample unrelated PID")
++        before = stat(pid)
++        if before is None or before["state"] == "Z" or (before["pid"], before["startTicks"]) != root_key:
++            raise RuntimeError("Root identity changed before exact argv verification")
++        try:
++            argv = Path(f"/proc/{pid}/cmdline").read_bytes().split(b"\0")
++        except OSError as e:
++            raise RuntimeError(f"Cannot verify root identity: {type(e).__name__}") from e
++        after = stat(pid)
++        if after is None or after["state"] == "Z" or (after["pid"], after["startTicks"]) != root_key:
++            raise RuntimeError("Root identity changed during exact argv verification")
++        if time.monotonic() >= deadline:
++            raise RuntimeError("Root argv identity check timed out; refusing to sample unrelated PID")
++        if os.fsencode(expected_arg) in argv:
++            return after
++        remaining = deadline - time.monotonic()
++        if remaining <= 0:
++            raise RuntimeError("Root argv identity check failed within 1 second; refusing to sample unrelated PID")
++        time.sleep(min(0.025, remaining))
+ 
+ 
+ def main():
+@@ -67,15 +97,10 @@
+     sample_path = a.output_dir / "samples.jsonl"
+     if sample_path.exists():
+         p.error("Refusing to overwrite prior samples; use a unique output directory")
+-    root = stat(a.root_pid)
+-    if root is None or root["state"] == "Z":
+-        p.error("Root PID is absent or already exited in this PID namespace")
+     try:
+-        argv = Path(f"/proc/{a.root_pid}/cmdline").read_bytes().split(b"\0")
+-    except OSError as e:
+-        p.error(f"Cannot verify root identity: {type(e).__name__}")
+-    if os.fsencode(a.expected_arg) not in argv:
+-        p.error("Root argv identity check failed; refusing to sample unrelated PID")
++        root = verify_startup_identity(a.root_pid, a.expected_arg)
++    except RuntimeError as e:
++        p.error(str(e))
+     root_key = (root["pid"], root["startTicks"])
+     started_at, started = utc(), time.monotonic()
+     interrupted = []
+--- a/create-combined-starter.mjs
++++ b/create-combined-starter.mjs
+@@ -5,8 +5,8 @@
+ import { buildCombinedCommand } from './build-combined-command.mjs';
+ import { buildObservedCommand } from '../build-observed-command.mjs';
+ const base=dirname(fileURLToPath(import.meta.url)),r2=dirname(dirname(base));
+-export const paths={base,r2,sampler:join(dirname(base),'sample_process_tree.py'),supervisor:join(base,'supervise-cancel.mjs'),inspector:join(base,'inspect-launch-identity.mjs'),wrapper:join(r2,'producer42/scripts/run-with-http-diagnostics.mjs'),original:join(r2,'hosts46/takeda/runtime/start-monitor-portable42.js')};
+-export const hashes={sampler:'18bc3c99319b3af0941b6499bf71b5bfcd7d5808003a6b2c8e8a1a20eae88a85',supervisor:'5cb86785a4362a4d346dab233f30697c0af4d54757e2a911cab98377a8578f35',wrapper:'d8627edbdc118f8d747f77f22459768f76184171e715a8fd29c76a69a3c82930',original:'d5c9b6ef0eed05f2a3783a09db726846df1993ff6534306f95ad6b6e8eb7bab9'};
++export const paths={base,r2,sampler:join(base,'sample_process_tree.py'),supervisor:join(base,'supervise-cancel.mjs'),inspector:join(base,'inspect-launch-identity.mjs'),wrapper:join(r2,'producer42/scripts/run-with-http-diagnostics.mjs'),original:join(r2,'hosts46/takeda/runtime/start-monitor-portable42.js')};
++export const hashes={sampler:'3fa6daa1af1afee94d19801edfd8bcb538e1243476b5adb253e50de162a27bd6',supervisor:'62d3b778eddd9915c191f27f852dca94e2b3da608bd37d27cea2990bf7b74267',wrapper:'d8627edbdc118f8d747f77f22459768f76184171e715a8fd29c76a69a3c82930',original:'d5c9b6ef0eed05f2a3783a09db726846df1993ff6534306f95ad6b6e8eb7bab9'};
+ const sha=x=>createHash('sha256').update(x).digest('hex');
+ const launch='const started=await tools.exec_command({cmd:command,workdir:h.cfg.repo,yield_time_ms:1000,max_output_tokens:1500});';
+ export function addCombinedObservation(original) {
+--- a/fixture-fault-inner.mjs
++++ b/fixture-fault-inner.mjs
+@@ -0,0 +1,6 @@
++// Test-only local child with a fixed natural exit. No network or descendants.
++import { writeFileSync } from 'node:fs';
++const [ready,duration,exitText,signalMode]=process.argv.slice(2);
++if(signalMode==='graceful')process.once('SIGTERM',()=>process.exit(42));
++writeFileSync(ready,JSON.stringify({pid:process.pid,wrapperPid:process.ppid,startedAt:Date.now()})+'\n',{flag:'wx',mode:0o600});
++setTimeout(()=>process.exit(Number(exitText)),Number(duration));
+--- a/inject-supervisor-fault.cjs
++++ b/inject-supervisor-fault.cjs
+@@ -0,0 +1,81 @@
++// Test-only preload. No production source imports this file. No network or signals.
++const fs = require('node:fs');
++const { syncBuiltinESMExports } = require('node:module');
++if (process.argv[1]?.endsWith('/supervise-cancel.mjs') && process.argv[2] === 'start') {
++  const fault = process.env.SYNTHETIC_SUPERVISOR_FAULT;
++  const receipt = process.env.SYNTHETIC_SUPERVISOR_FAULT_RECEIPT;
++  const original = Object.fromEntries(['openSync','readFileSync','writeSync','fsyncSync','closeSync','writeFileSync'].map(k=>[k,fs[k]]));
++  const descriptors = new Map();
++  let injections = 0, identityReads = 0, lastEvent;
++  const inject = name => {
++    injections++;
++    original.writeFileSync(receipt,JSON.stringify({fault,injections,name,pid:process.pid})+'\n');
++    throw Object.assign(new Error('SYNTHETIC_'+name),{code:'EIO'});
++  };
++  fs.openSync = function(path,...args) {
++    const p=String(path);
++    if ((fault==='descriptor-open' && p.endsWith('/descriptor.json')) || (fault==='terminal-open' && p.endsWith('/terminal.json'))) inject(fault);
++    const fd=original.openSync.call(this,path,...args);descriptors.set(fd,p);return fd;
++  };
++  fs.readFileSync = function(path,...args) {
++    if (/^\/proc\/[0-9]+\/stat$/.test(String(path))) {
++      identityReads++;
++      if ((fault==='spawn-identity' && identityReads===1) || (fault==='poll-identity' && identityReads>1)) inject(fault);
++    }
++    if(fault==='wrapper-events-read' && String(path).endsWith('/process.jsonl'))inject(fault);
++    const result=original.readFileSync.call(this,path,...args);
++    if (/^\/proc\/[0-9]+\/stat$/.test(String(path)) &&
++        (fault==='spawn-identity-mismatch' && identityReads===1 || fault==='poll-reused-pid' && identityReads>1)) {
++      original.writeFileSync(receipt,JSON.stringify({fault,injections:++injections})+'\n');
++      const cut=result.lastIndexOf(')')+2,fields=result.slice(cut).trim().split(/\s+/);
++      if(fault==='spawn-identity-mismatch')fields[1]='0';else fields[19]=String(Number(fields[19])+1);
++      return result.slice(0,cut)+fields.join(' ')+'\n';
++    }
++    return result;
++  };
++  fs.writeSync = function(fd,data,...args) {
++    const p=descriptors.get(fd) ?? '', text=Buffer.isBuffer(data)?data.toString():String(data);
++    if(p.endsWith('/supervisor.jsonl')) {
++      const event=/"event":"([^"]+)"/.exec(text)?.[1];lastEvent=event;
++      if (fault==='log-ready-write' && event==='SUPERVISOR_READY' ||
++          fault==='log-rejected-write' && event==='CANCEL_REJECTED' ||
++          fault==='log-accepted-write' && event==='CANCEL_ACCEPTED' ||
++          fault==='log-signal-write' && event==='SIGNAL_SENT' ||
++          fault==='log-exit-write' && event==='WRAPPER_EXIT' ||
++          fault==='all-logging')inject(fault);
++      if(fault==='log-rejected-partial-write' && event==='CANCEL_REJECTED') {
++        if(!injections) {
++          original.writeFileSync(receipt,JSON.stringify({fault,injections:++injections})+'\n');
++          return original.writeSync(fd,Buffer.from(data),0,9);
++        }
++        inject(fault);
++      }
++      if(fault==='log-zero-write'){original.writeFileSync(receipt,JSON.stringify({fault,injections:++injections})+'\n');return 0;}
++    }
++    if(fault==='all-logging' && fd===2)inject('stderr-write');
++    if(p.endsWith('/descriptor.json')) {
++      if(fault==='descriptor-write')inject(fault);
++      if(fault==='descriptor-short-write' && !injections) {
++        original.writeFileSync(receipt,JSON.stringify({fault,injections:++injections})+'\n');
++        const buffer=Buffer.from(data);return original.writeSync(fd,buffer,0,5);
++      }
++    }
++    return original.writeSync.call(this,fd,data,...args);
++  };
++  fs.fsyncSync = function(fd,...args) {
++    const p=descriptors.get(fd)??'';
++    if(fault==='descriptor-fsync' && p.endsWith('/descriptor.json') ||
++       fault==='directory-fsync' && p.endsWith('/control') ||
++       fault==='log-ready-fsync' && p.endsWith('/supervisor.jsonl') && lastEvent==='SUPERVISOR_READY' ||
++       fault==='log-accepted-fsync' && p.endsWith('/supervisor.jsonl') && lastEvent==='CANCEL_ACCEPTED' ||
++       fault==='log-exit-fsync' && p.endsWith('/supervisor.jsonl') && lastEvent==='WRAPPER_EXIT' ||
++       fault==='terminal-fsync' && p.endsWith('/terminal.json'))inject(fault);
++    return original.fsyncSync.call(this,fd,...args);
++  };
++  fs.closeSync = function(fd,...args) {
++    const p=descriptors.get(fd)??'';
++    if(fault==='lifecycle-close' && p.endsWith('/supervisor.jsonl') || fault==='directory-close' && p.endsWith('/control') || fault==='descriptor-close' && p.endsWith('/descriptor.json') || fault==='terminal-close' && p.endsWith('/terminal.json'))inject(fault);
++    const result=original.closeSync.call(this,fd,...args);descriptors.delete(fd);return result;
++  };
++  syncBuiltinESMExports();
++}
+--- a/test-combined.mjs
++++ b/test-combined.mjs
+@@ -11,6 +11,7 @@
+ const sleep=ms=>new Promise(r=>setTimeout(r,ms));
+ const until=async fn=>{const end=Date.now()+4000;while(!fn()){if(Date.now()>end)throw Error('FIXTURE_WAIT_TIMEOUT');await sleep(25);}};
+ const events=file=>existsSync(file)?readFileSync(file,'utf8').trim().split('\n').filter(Boolean).map(JSON.parse):[];
++mkdirSync(join(paths.base,'verification'),{recursive:true,mode:0o700});
+ const privateRoot=mkdtempSync(join(paths.base,'verification/synthetic-'));
+ const tests=[];
+ const pass=(name,detail={})=>tests.push({name,passed:true,...detail});
+@@ -89,6 +90,6 @@
+ cases.push(await runCase('default-cancel','default',{request:true}));
+ cases.push(await runCase('wrapper-timeout','timeout',{timeout:1200}));
+ cases.push(await runCase('directory-replacement','replacement',{replace:true}));
+-const report={status:'PASS_SYNTHETIC_ONLY',checkedAt:new Date().toISOString(),tests,cases,networkUsed:false,databaseAccessed:false,realProducerExecuted:false,oldUnknownProcessesTouched:false,scope:'Tests use unchanged real wrapper and exact restored supervisor, with local synthetic inner only. Production timeout/argv preserved by separate starter proof.'};
+-writeFileSync(join(paths.base,'verification/TEST_RESULTS.json'),JSON.stringify(report,null,2)+'\n');
++const report={artifactRoot:privateRoot,status:'PASS_SYNTHETIC_ONLY',checkedAt:new Date().toISOString(),tests,cases,networkUsed:false,databaseAccessed:false,realProducerExecuted:false,oldUnknownProcessesTouched:false,scope:'Tests use unchanged real wrapper and exact restored supervisor, with local synthetic inner only. Production timeout/argv preserved by separate starter proof.'};
++writeFileSync(join(privateRoot,'TEST_RESULTS.json'),JSON.stringify(report,null,2)+'\n');
+ console.log(JSON.stringify(report));
+--- a/test-starter-integration.mjs
++++ b/test-starter-integration.mjs
+@@ -1,11 +1,12 @@
+ import assert from 'node:assert/strict';
+-import { readFileSync, writeFileSync, mkdtempSync, realpathSync } from 'node:fs';
++import { readFileSync, writeFileSync, mkdtempSync, mkdirSync, realpathSync } from 'node:fs';
+ import { spawnSync } from 'node:child_process';
+ import { createHash } from 'node:crypto';
+ import { join } from 'node:path';
+ import { paths, addCombinedObservation } from './create-combined-starter.mjs';
+ const q=s=>"'"+s.replaceAll("'","'\\''")+"'",sha=s=>createHash('sha256').update(s).digest('hex');
+ const A=Object.getPrototypeOf(async function(){}).constructor;
++mkdirSync(join(paths.base,'verification'),{recursive:true,mode:0o700});
+ const privateRoot=mkdtempSync(join(paths.base,'verification/integration-'));
+ const sourceId='source-takeda-china-social';
+ const original=readFileSync(paths.original,'utf8'),combined=addCombinedObservation(original);
+@@ -61,6 +62,6 @@
+ for(const [option,pattern] of [['badHash',/COMBINED_SOURCE_HASH_MISMATCH/],['badCwd',/COMBINED_NORMALIZATION_MISMATCH/],['expire',/FRESH_BOOTSTRAP_EXPIRED_BEFORE_LAUNCH/]]) {
+   const failed=await simulate(combined,{[option]:true});assert.match(failed.error.message,pattern);assert.equal(failed.launches.length,0);
+ }
+-const report={checkedAt:new Date().toISOString(),status:'PASS_MOCKED_INTEGRATION',sourceSha256:sha(original),combinedSha256:sha(combined),originalCommandSha256:sha(originalCommand),originalCommandSavedUnchanged:true,wrapperAndInnerArgvEqualAfterExplicitPathNormalization:true,environmentPrefixUnchanged:true,cwdUnchanged:true,heapMiB:256,wrapperDeadlineMs:1800000,bootstrapReadCount:observed.reads.length,sourceHashMismatchBlocked:true,pathNormalizationMismatchBlocked:true,postSaveBootstrapExpiryBlocked:true,normalization:{originalNode:'node',absoluteNode:process.execPath,originalWrapper:'scripts/run-with-http-diagnostics.mjs',absoluteWrapper:paths.wrapper},noRealProducerOrDatabase:true};
+-writeFileSync(join(paths.base,'verification/STARTER_INTEGRATION.json'),JSON.stringify(report,null,2)+'\n');
++const report={artifactRoot:privateRoot,checkedAt:new Date().toISOString(),status:'PASS_MOCKED_INTEGRATION',sourceSha256:sha(original),combinedSha256:sha(combined),originalCommandSha256:sha(originalCommand),originalCommandSavedUnchanged:true,wrapperAndInnerArgvEqualAfterExplicitPathNormalization:true,environmentPrefixUnchanged:true,cwdUnchanged:true,heapMiB:256,wrapperDeadlineMs:1800000,bootstrapReadCount:observed.reads.length,sourceHashMismatchBlocked:true,pathNormalizationMismatchBlocked:true,postSaveBootstrapExpiryBlocked:true,normalization:{originalNode:'node',absoluteNode:process.execPath,originalWrapper:'scripts/run-with-http-diagnostics.mjs',absoluteWrapper:paths.wrapper},noRealProducerOrDatabase:true};
++writeFileSync(join(privateRoot,'STARTER_INTEGRATION.json'),JSON.stringify(report,null,2)+'\n');
+ console.log(JSON.stringify(report));
+--- a/cross-exec-fixture.mjs
++++ b/cross-exec-fixture.mjs
+@@ -1,13 +1,16 @@
+ // Synthetic start and request deliberately run in different tool exec sessions.
+ import { spawn, spawnSync } from 'node:child_process';
+-import { readFileSync, writeFileSync, existsSync, mkdtempSync } from 'node:fs';
+-import { join } from 'node:path';
++import { readFileSync, writeFileSync, existsSync, mkdtempSync, mkdirSync } from 'node:fs';
++import { dirname, isAbsolute, join } from 'node:path';
+ import { createHash } from 'node:crypto';
+ import assert from 'node:assert/strict';
+ import { paths } from './create-combined-starter.mjs';
+ import { buildCombinedCommand } from './build-combined-command.mjs';
+ const q=s=>"'"+s.replaceAll("'","'\\''")+"'";
+-const receipt=join(paths.base,'verification/CROSS_EXEC_PENDING.json');
++const receipt=process.argv[3];
++if(!receipt || !isAbsolute(receipt))throw Error('EXPLICIT_UNIQUE_ABSOLUTE_TEST_RECEIPT_REQUIRED');
++mkdirSync(dirname(receipt),{recursive:true,mode:0o700});
++mkdirSync(join(paths.base,'verification'),{recursive:true,mode:0o700});
+ const events=p=>readFileSync(p,'utf8').trim().split('\n').map(JSON.parse);
+ const mode=process.argv[2];
+ if(mode==='start') {
+@@ -38,6 +41,6 @@
+   assert.equal(memory.root.pid,descriptor.supervisorPid);assert.equal(memory.status,'TARGET_TREE_EXITED');
+   assert.ok(!memory.processLifetimes.some(p=>p.pid===memory.samplerPid));
+   const report={status:'PASS_CROSS_EXEC_SYNTHETIC_CANCEL',checkedAt:new Date().toISOString(),wrapperExit:42,supervisorExit:42,shellExit:42,oneSigterm:true,wrapperTerminalPersisted:true,memoryRoot:'supervisor',observedProcessCount:memory.processLifetimes.length,sampleCount:memory.sampleCount,samplerExcluded:true,realRunTouched:false};
+-  writeFileSync(join(paths.base,'verification/CROSS_EXEC_RESULT.json'),JSON.stringify(report,null,2)+'\n');
++  writeFileSync(join(dirname(receipt),'CROSS_EXEC_RESULT.json'),JSON.stringify(report,null,2)+'\n');
+   console.log(JSON.stringify(report));
+ } else throw Error('Use start, request, or verify for this synthetic fixture only');
+--- a/test-supervisor-faults.mjs
++++ b/test-supervisor-faults.mjs
+@@ -0,0 +1,72 @@
++import assert from 'node:assert/strict';
++import { spawn, spawnSync } from 'node:child_process';
++import { existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
++import { join } from 'node:path';
++import { paths } from './create-combined-starter.mjs';
++const sleep=ms=>new Promise(r=>setTimeout(r,ms));
++const until=async fn=>{const end=Date.now()+5000;while(!fn()){if(Date.now()>end)throw Error('SYNTHETIC_WAIT_TIMEOUT');await sleep(10);}};
++const lines=p=>existsSync(p)?readFileSync(p,'utf8').trim().split('\n').filter(Boolean).map(JSON.parse):[];
++mkdirSync(join(paths.base,'verification'),{recursive:true,mode:0o700});
++const root=mkdtempSync(join(paths.base,'verification/faults-')),results=[];
++async function run(name,{fault='',request='',exit=17,duration=650,timeout=5000,expected=exit,signalMode='',baseline=false}={}) {
++  const dir=join(root,name);mkdirSync(dir,{mode:0o700});
++  const control=join(dir,'control'),ready=join(dir,'ready.json'),diagnostics=join(dir,'diagnostics'),injected=join(dir,'injected.json');
++  const supervisor=baseline?join(paths.base,'../combined-takeda-20261006T0550Z/supervise-cancel.mjs'):paths.supervisor;
++  const args=[supervisor,'start',control,name,'--',process.execPath,paths.wrapper,diagnostics,String(timeout),'--',process.execPath,join(paths.base,'fixture-fault-inner.mjs'),ready,String(duration),String(exit),signalMode];
++  const env={...process.env,NODE_OPTIONS:'--require '+join(paths.base,'inject-supervisor-fault.cjs'),SYNTHETIC_SUPERVISOR_FAULT:fault,SYNTHETIC_SUPERVISOR_FAULT_RECEIPT:injected};
++  const child=spawn(process.execPath,args,{env,cwd:join(paths.r2,'producer42'),stdio:['ignore','pipe','pipe']});
++  let stderr='',stdout='';child.stderr.on('data',x=>stderr+=x);child.stdout.on('data',x=>stdout+=x);
++  let wrapperAtSupervisorExit;
++  child.once('exit',()=>{wrapperAtSupervisorExit=lines(join(diagnostics,'process.jsonl'));});
++  const terminal=new Promise((resolve,reject)=>{child.once('error',reject);child.once('close',(code,signal)=>resolve({code,signal,closedAt:Date.now()}));});
++  await until(()=>existsSync(ready));
++  if(request) {
++    await until(()=>existsSync(join(control,'descriptor.json')));
++    if(request==='invalid')writeFileSync(join(control,'cancel.json'),JSON.stringify({schemaVersion:1,runId:name,nonce:'0'.repeat(64),action:'SIGTERM',requestedAtMs:Date.now()})+'\n',{flag:'wx',mode:0o600});
++    else {const r=spawnSync(process.execPath,[supervisor,'request',control,name],{encoding:'utf8'});assert.equal(r.status,0,r.stderr);}
++  }
++  const result=await terminal;
++  // Even baseline counterexamples are bounded and fully waited; leave no child running.
++  await until(()=>lines(join(diagnostics,'process.jsonl')).some(e=>e.event==='CHILD_EXIT'));
++  const wrapper=lines(join(diagnostics,'process.jsonl')),end=wrapper.find(e=>e.event==='CHILD_EXIT');
++  assert.equal(end.wrapperExitCode,expected,name);
++  if(fault)assert.ok(existsSync(injected),'fault was actually reached: '+name);
++  const signals=wrapper.filter(e=>e.event==='SIGNAL_RECEIVED');
++  if(baseline) {
++    assert.notEqual(result.code,expected);assert.ok(!wrapperAtSupervisorExit.some(e=>e.event==='CHILD_EXIT'));
++  } else {
++    assert.equal(result.code,expected,stderr);assert.equal(result.signal,null);
++    assert.ok(wrapperAtSupervisorExit.some(e=>e.event==='CHILD_EXIT'),'supervisor must await wrapper terminal: '+name);
++    const stderrRecords=stderr.split('\n').filter(x=>x.startsWith('{')).map(JSON.parse);
++    const last=stderrRecords.findLast(e=>e.event==='WRAPPER_TERMINAL');
++    if(fault!=='all-logging') {
++      assert.equal(last.supervisorExitCode,expected,name);
++      if(fault && fault!=='descriptor-short-write' && fault!=='poll-identity' && fault!=='wrapper-events-read' && fault!=='poll-reused-pid')assert.equal(last.controlAvailable,false,name);
++    }
++    if(['spawn-identity','spawn-identity-mismatch','descriptor-close','descriptor-open','descriptor-write','descriptor-fsync','directory-fsync','log-ready-write','log-ready-fsync','log-zero-write','log-rejected-write','log-rejected-partial-write','log-accepted-write','log-accepted-fsync','poll-reused-pid','poll-identity','wrapper-events-read','all-logging'].includes(fault))assert.equal(signals.length,0,name);
++    if(fault==='log-rejected-partial-write') { const audit=readFileSync(join(control,'supervisor.jsonl'),'utf8'); assert.equal(JSON.parse(audit.split('\n')[0]).event,'SUPERVISOR_READY'); assert.equal(audit.split('\n')[1],'{"event":'); }
++    if(fault==='descriptor-short-write')assert.equal(JSON.parse(readFileSync(join(control,'descriptor.json'),'utf8')).runId,name);
++    if(request==='valid' && !['log-accepted-write','log-accepted-fsync','poll-identity','poll-reused-pid','wrapper-events-read'].includes(fault))assert.equal(signals.length,1,name);
++  }
++  const row={name,fault,expectedWrapperExit:expected,actualSupervisorExit:result.code,wrapperTerminalExistedBeforeSupervisorExit:wrapperAtSupervisorExit.some(e=>e.event==='CHILD_EXIT'),wrapperTerminalPersisted:true,signalCount:signals.length,baselineCounterexample:baseline};
++  writeFileSync(join(dir,'supervisor.stderr'),stderr);writeFileSync(join(dir,'case-result.json'),JSON.stringify(row,null,2)+'\n');results.push(row);
++}
++await run('baseline-start-identity-exits-early',{fault:'spawn-identity',baseline:true});
++await run('baseline-rejection-log-exits-early',{fault:'log-rejected-write',request:'invalid',baseline:true});
++for(const fault of ['spawn-identity','spawn-identity-mismatch','descriptor-close','descriptor-open','descriptor-write','descriptor-fsync','directory-fsync','descriptor-short-write','log-ready-write','log-ready-fsync','log-zero-write','all-logging','log-exit-write','terminal-open','terminal-fsync','terminal-close','log-exit-fsync','lifecycle-close','directory-close'])await run(fault,{fault});
++await run('rejected-cancel-log-failure',{fault:'log-rejected-write',request:'invalid'});
++await run('rejected-cancel-partial-log-failure',{fault:'log-rejected-partial-write',request:'invalid'});
++await run('accepted-cancel-fsync-failure',{fault:'log-accepted-fsync',request:'valid'});
++await run('reused-pid-identity-refused',{fault:'poll-reused-pid',request:'valid'});
++await run('accepted-cancel-log-failure',{fault:'log-accepted-write',request:'valid'});
++await run('poll-identity-failure',{fault:'poll-identity',request:'valid'});
++await run('wrapper-events-read-failure',{fault:'wrapper-events-read',request:'valid'});
++await run('signal-audit-failure',{fault:'log-signal-write',request:'valid',signalMode:'graceful',expected:42});
++await run('normal-zero',{exit:0});
++await run('normal-nonzero',{exit:23});
++await run('normal-timeout',{duration:1800,timeout:300,expected:124});
++await run('timeout-with-log-failure',{fault:'log-ready-write',duration:1800,timeout:300,expected:124});
++await run('controlled-cancel',{request:'valid',signalMode:'graceful',expected:42});
++await run('default-cancel',{request:'valid',expected:143});
++const report={status:'PASS_SYNTHETIC_FAULT_INJECTION',artifactRoot:root,checkedAt:new Date().toISOString(),results,networkUsed:false,databaseUsed:false,realProducerExecuted:false,originalWrapperUnchanged:true,allSyntheticChildrenWaited:true,productionCommandEnvCwdUnmodified:true};
++writeFileSync(join(root,'FAULT_RESULTS.json'),JSON.stringify(report,null,2)+'\n');console.log(JSON.stringify(report));
+--- a/test-sampler-startup.py
++++ b/test-sampler-startup.py
+@@ -0,0 +1,99 @@
++#!/usr/bin/env python3
++"""Local, no-network identity tests. Only the fixed fake root is selected."""
++import importlib.util
++import json
++import os
++from pathlib import Path
++import shutil
++import subprocess
++import sys
++import tempfile
++import time
++
++BASE = Path(__file__).resolve().parent
++FROZEN = BASE.parent / 'sample_process_tree.py'
++CANDIDATE = BASE / 'sample_process_tree.py'
++(BASE / 'verification').mkdir(exist_ok=True, mode=0o700)
++ROOT = Path(tempfile.mkdtemp(prefix='sampler-startup-', dir=BASE / 'verification'))
++results = []
++spec = importlib.util.spec_from_file_location('candidate_sampler', CANDIDATE)
++m = importlib.util.module_from_spec(spec)
++spec.loader.exec_module(m)
++original_stat, original_path, original_time = m.stat, m.Path, m.time
++
++def check_mock(name, stats, cmdlines, success, oversleep=0, read_delay=0):
++    calls, clock, reads, requested_sleep = [], [0.0], [0], [0.0]
++    stable = {'pid': 123, 'startTicks': 456, 'state': 'S', 'comm': 'fixture', 'ppid': 1}
++    def fake_stat(pid):
++        assert pid == 123
++        calls.append(pid)
++        value = stats[min(len(calls)-1, len(stats)-1)]
++        return {**stable, **value} if value is not None else None
++    class FakePath:
++        def __init__(self, path):
++            assert path == '/proc/123/cmdline'
++        def read_bytes(self):
++            value = cmdlines[min(reads[0], len(cmdlines)-1)]
++            reads[0] += 1
++            clock[0] += read_delay
++            if isinstance(value, Exception):
++                raise value
++            return value
++    class Clock:
++        @staticmethod
++        def monotonic(): return clock[0]
++        @staticmethod
++        def sleep(seconds):
++            requested_sleep[0] += seconds
++            clock[0] += seconds + oversleep
++    m.stat, m.Path, m.time = fake_stat, FakePath, Clock
++    try:
++        found = m.verify_startup_identity(123, '/expected.js')
++        assert success and found['startTicks'] == 456, name
++    except RuntimeError:
++        assert not success, name
++    finally:
++        m.stat, m.Path, m.time = original_stat, original_path, original_time
++    assert requested_sleep[0] <= 1.00001
++    results.append({'name': name, 'passed': True, 'success': success, 'elapsedSeconds': clock[0], 'cmdlineReads': reads[0], 'onlyRequestedPidRead': True})
++
++check_mock('exec-transition', [{}], [b'python\0', b'', b'node\0/expected.js\0'], True)
++check_mock('same-pid-new-start-ticks-before-read', [{}, {'startTicks': 999}], [b'node\0/expected.js\0'], False)
++check_mock('same-pid-new-start-ticks-after-read', [{}, {}, {'startTicks': 999}], [b'node\0/expected.js\0'], False)
++check_mock('zombie-after-read', [{}, {}, {'state': 'Z'}], [b'node\0/expected.js\0'], False)
++check_mock('disappeared-after-read', [{}, {}, None], [b'node\0/expected.js\0'], False)
++check_mock('permission-error-no-retry', [{}], [PermissionError('synthetic')], False)
++check_mock('substring-never-accepted', [{}], [b'node\0prefix/expected.js-suffix\0'], False)
++check_mock('wrong-exact-token-deadline', [{}], [b'node\0/other.js\0'], False)
++check_mock('late-wake-exact-token-refused', [{}], [b'python\0', b'node\0/expected.js\0'], False, oversleep=2)
++check_mock('late-read-exact-token-refused', [{}], [b'node\0/expected.js\0'], False, read_delay=2)
++
++ready = ROOT / 'ready.json'
++node = shutil.which('node')
++fixture = BASE / 'fixture-fault-inner.mjs'
++program = 'import os,time;time.sleep(.35);os.execl(' + ','.join(repr(x) for x in [node,node,str(fixture),str(ready),'1100','17','']) + ')'
++target = subprocess.Popen([sys.executable, '-c', program], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
++def sampler(path, folder):
++    return subprocess.Popen([sys.executable, str(path), '--root-pid', str(target.pid), '--expected-arg', str(fixture), '--output-dir', str(ROOT/folder), '--label', 'SYNTHETIC_STARTUP_ONLY', '--interval', '.2', '--pss-interval', '.2'], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
++old, new = sampler(FROZEN, 'frozen'), sampler(CANDIDATE, 'candidate')
++oldout, olderr = old.communicate(timeout=5)
++newout, newerr = new.communicate(timeout=5)
++target.communicate(timeout=5)
++assert old.returncode == 2 and b'Root argv identity check failed' in olderr
++assert new.returncode == 0, newerr.decode()
++assert target.returncode == 17
++summary = json.loads((ROOT/'candidate'/'summary.json').read_text())
++assert summary['root']['pid'] == target.pid and summary['status'] == 'TARGET_TREE_EXITED'
++assert summary['rootIdentityVerifiedByExactArg'] is True
++assert summary['sampleCount'] >= 2
++assert not (ROOT/'frozen'/'samples.jsonl').exists()
++results.append({'name':'real-delayed-exec-same-pid', 'passed':True, 'frozenExit':old.returncode, 'candidateExit':new.returncode, 'targetExit':target.returncode, 'candidateSampleCount':summary['sampleCount'], 'rootPidUnchanged':True})
++old_source, new_source = FROZEN.read_text(), CANDIDATE.read_text()
++old_tail=old_source[old_source.index('    root_key = ',old_source.index('def main():')):]
++new_tail=new_source[new_source.index('    root_key = ',new_source.index('def main():')):]
++assert old_tail == new_tail
++assert old_source.split('def main():')[0] == new_source.split('def verify_startup_identity')[0]
++report={'status':'PASS_STARTUP_IDENTITY_ONLY','artifactRoot':str(ROOT),'tests':results,'samplingLoopByteIdentical':True,'networkUsed':False,'realProducerExecuted':False,'allSyntheticChildrenWaited':True}
++(ROOT/'SAMPLER_STARTUP_RESULTS.json').write_text(json.dumps(report,indent=2)+'\n')
++(ROOT/'frozen.stderr').write_bytes(olderr)
++print(json.dumps(report))
+--- a/start-monitor-takeda46-combined.js
++++ b/start-monitor-takeda46-combined.js
+@@ -72,9 +72,9 @@
+     outputDir: metadata.outputDir, label: metadata.label
+   }, quote), originalEnvironmentPrefix: parts[0], originalWrapperArgumentSuffix: parts[1] };
+ }
+-const combinedPaths={"base":"/workspace/scratch/5e9614251709/jb-workspace-recovery-20261005T2019Z/memory-observation-recovery-20261006T0536Z/combined-takeda-20261006T0550Z","r2":"/workspace/scratch/5e9614251709/jb-workspace-recovery-20261005T2019Z","sampler":"/workspace/scratch/5e9614251709/jb-workspace-recovery-20261005T2019Z/memory-observation-recovery-20261006T0536Z/sample_process_tree.py","supervisor":"/workspace/scratch/5e9614251709/jb-workspace-recovery-20261005T2019Z/memory-observation-recovery-20261006T0536Z/combined-takeda-20261006T0550Z/supervise-cancel.mjs","inspector":"/workspace/scratch/5e9614251709/jb-workspace-recovery-20261005T2019Z/memory-observation-recovery-20261006T0536Z/combined-takeda-20261006T0550Z/inspect-launch-identity.mjs","wrapper":"/workspace/scratch/5e9614251709/jb-workspace-recovery-20261005T2019Z/producer42/scripts/run-with-http-diagnostics.mjs","original":"/workspace/scratch/5e9614251709/jb-workspace-recovery-20261005T2019Z/hosts46/takeda/runtime/start-monitor-portable42.js"};
++const combinedPaths={"base":"/workspace/scratch/5e9614251709/jb-workspace-recovery-20261005T2019Z/memory-observation-recovery-20261006T0536Z/combined-takeda-supervision-r2-20261006T0718Z","r2":"/workspace/scratch/5e9614251709/jb-workspace-recovery-20261005T2019Z","sampler":"/workspace/scratch/5e9614251709/jb-workspace-recovery-20261005T2019Z/memory-observation-recovery-20261006T0536Z/combined-takeda-supervision-r2-20261006T0718Z/sample_process_tree.py","supervisor":"/workspace/scratch/5e9614251709/jb-workspace-recovery-20261005T2019Z/memory-observation-recovery-20261006T0536Z/combined-takeda-supervision-r2-20261006T0718Z/supervise-cancel.mjs","inspector":"/workspace/scratch/5e9614251709/jb-workspace-recovery-20261005T2019Z/memory-observation-recovery-20261006T0536Z/combined-takeda-supervision-r2-20261006T0718Z/inspect-launch-identity.mjs","wrapper":"/workspace/scratch/5e9614251709/jb-workspace-recovery-20261005T2019Z/producer42/scripts/run-with-http-diagnostics.mjs","original":"/workspace/scratch/5e9614251709/jb-workspace-recovery-20261005T2019Z/hosts46/takeda/runtime/start-monitor-portable42.js"};
+ const combinedHashes=await tools.exec_command({cmd:"sha256sum -- "+[combinedPaths.sampler,combinedPaths.supervisor,combinedPaths.wrapper,combinedPaths.inspector].map(h.q).join(" "),yield_time_ms:1000,max_output_tokens:1500});
+-if(combinedHashes.exit_code!==0||combinedHashes.session_id||combinedHashes.output.trim()!=="18bc3c99319b3af0941b6499bf71b5bfcd7d5808003a6b2c8e8a1a20eae88a85  /workspace/scratch/5e9614251709/jb-workspace-recovery-20261005T2019Z/memory-observation-recovery-20261006T0536Z/sample_process_tree.py\n5cb86785a4362a4d346dab233f30697c0af4d54757e2a911cab98377a8578f35  /workspace/scratch/5e9614251709/jb-workspace-recovery-20261005T2019Z/memory-observation-recovery-20261006T0536Z/combined-takeda-20261006T0550Z/supervise-cancel.mjs\nd8627edbdc118f8d747f77f22459768f76184171e715a8fd29c76a69a3c82930  /workspace/scratch/5e9614251709/jb-workspace-recovery-20261005T2019Z/producer42/scripts/run-with-http-diagnostics.mjs\n015b9181a640bcb4e4c68d7bfcef598e826c93fe6f8aaf31d33cf59780e3d81f  /workspace/scratch/5e9614251709/jb-workspace-recovery-20261005T2019Z/memory-observation-recovery-20261006T0536Z/combined-takeda-20261006T0550Z/inspect-launch-identity.mjs")throw Error("COMBINED_SOURCE_HASH_MISMATCH");
++if(combinedHashes.exit_code!==0||combinedHashes.session_id||combinedHashes.output.trim()!=="3fa6daa1af1afee94d19801edfd8bcb538e1243476b5adb253e50de162a27bd6  /workspace/scratch/5e9614251709/jb-workspace-recovery-20261005T2019Z/memory-observation-recovery-20261006T0536Z/combined-takeda-supervision-r2-20261006T0718Z/sample_process_tree.py\n62d3b778eddd9915c191f27f852dca94e2b3da608bd37d27cea2990bf7b74267  /workspace/scratch/5e9614251709/jb-workspace-recovery-20261005T2019Z/memory-observation-recovery-20261006T0536Z/combined-takeda-supervision-r2-20261006T0718Z/supervise-cancel.mjs\nd8627edbdc118f8d747f77f22459768f76184171e715a8fd29c76a69a3c82930  /workspace/scratch/5e9614251709/jb-workspace-recovery-20261005T2019Z/producer42/scripts/run-with-http-diagnostics.mjs\n015b9181a640bcb4e4c68d7bfcef598e826c93fe6f8aaf31d33cf59780e3d81f  /workspace/scratch/5e9614251709/jb-workspace-recovery-20261005T2019Z/memory-observation-recovery-20261006T0536Z/combined-takeda-supervision-r2-20261006T0718Z/inspect-launch-identity.mjs")throw Error("COMBINED_SOURCE_HASH_MISMATCH");
+ const combinedIdentityCheck=await tools.exec_command({cmd:"node "+h.q(combinedPaths.inspector)+" "+h.q(batch),workdir:h.cfg.repo,yield_time_ms:1000,max_output_tokens:1500});
+ if(combinedIdentityCheck.exit_code!==0||combinedIdentityCheck.session_id)throw Error("COMBINED_NORMALIZATION_CHECK");
+ const combinedIdentity=JSON.parse(combinedIdentityCheck.output);

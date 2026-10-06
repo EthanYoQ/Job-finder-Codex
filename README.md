@@ -1,9 +1,9 @@
-# Combined starter candidate source backup
+# Supervisor and sampler revision 2 source backup
 
-Ten unchanged source, patch, and synthetic-test files (54,091 bytes), plus two unchanged prerequisite files (12,450 bytes) reused from the earlier memory-observation backup. Source inventory SHA-256: `d6abfd393aedfe8380b2ea16edf7f6f597b26d8fdec6908063c3949a3e564e92`. Verify SOURCE_BACKUP.json and SHA256SUMS before restoring.
+Eighteen unchanged source, patch, and synthetic-test files (141,527 bytes), plus the unchanged 672-byte build-observed-command.mjs prerequisite. Source inventory SHA-256: `0bec95076e305cbb19e097b67ed023b9fba9cb714f421c4bf74ba04aa5b01f7f`. Verify SOURCE_BACKUP.json and SHA256SUMS before restoring.
 
-Keep combined-takeda-20261006T0550Z/ beneath the directory containing sample_process_tree.py and build-observed-command.mjs. Dependencies include Node.js, Python 3 standard libraries, Bash, Linux /proc, process-group support, and writable verification/ directories. The original Takeda starter and external host bindings are separate dependencies; this snapshot alone cannot run all integration checks. Fixed absolute paths in prepared code require deliberate review and regeneration for another location.
+Preserve combined-takeda-supervision-r2-20261006T0718Z/ beneath build-observed-command.mjs. Dependencies include Node.js, Python 3 standard libraries, Bash, sha256sum, Linux /proc, process-group/signal support, and writable test directories. Integration checks also depend on separately restored normal Takeda starter and producer wrapper sources. Regression tests additionally require the earlier supervisor at ../combined-takeda-20261006T0550Z/supervise-cancel.mjs and earlier sampler at ../sample_process_tree.py, relative to the revision directory; they are not duplicated here. Fixed absolute paths and source bindings require review and regeneration when relocating.
 
-REVIEW.md, generated metrics, descriptors, cancellation/nonce files, real configuration and database results, captured data, credentials, and operational reports are excluded. These are source and synthetic-test inputs, with no runtime or test-execution claim.
+Git records these as non-executable source files; original POSIX modes are retained in the manifest where provided. Synthetic workloads can create real local test processes and files if run. The cross-exec fixture is for controlled synthetic receipts only; do not give it operational receipts. No source or tests were executed for this backup, and no real-capture or deployment validation is claimed.
 
-Known source limitation: startup identity, descriptor, and log I/O failures are not fully guarded. A later exception-handling correction is required before adopting this supervisor.
+REVIEW.md, generated descriptors, nonce/cancellation state, metrics, actual configuration/database responses, credentials, and operational reports are excluded. The earlier candidate remains available separately.

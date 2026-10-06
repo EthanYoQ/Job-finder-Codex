@@ -1,13 +1,16 @@
 // Synthetic start and request deliberately run in different tool exec sessions.
 import { spawn, spawnSync } from 'node:child_process';
-import { readFileSync, writeFileSync, existsSync, mkdtempSync } from 'node:fs';
-import { join } from 'node:path';
+import { readFileSync, writeFileSync, existsSync, mkdtempSync, mkdirSync } from 'node:fs';
+import { dirname, isAbsolute, join } from 'node:path';
 import { createHash } from 'node:crypto';
 import assert from 'node:assert/strict';
 import { paths } from './create-combined-starter.mjs';
 import { buildCombinedCommand } from './build-combined-command.mjs';
 const q=s=>"'"+s.replaceAll("'","'\\''")+"'";
-const receipt=join(paths.base,'verification/CROSS_EXEC_PENDING.json');
+const receipt=process.argv[3];
+if(!receipt || !isAbsolute(receipt))throw Error('EXPLICIT_UNIQUE_ABSOLUTE_TEST_RECEIPT_REQUIRED');
+mkdirSync(dirname(receipt),{recursive:true,mode:0o700});
+mkdirSync(join(paths.base,'verification'),{recursive:true,mode:0o700});
 const events=p=>readFileSync(p,'utf8').trim().split('\n').map(JSON.parse);
 const mode=process.argv[2];
 if(mode==='start') {
@@ -38,6 +41,6 @@ if(mode==='start') {
   assert.equal(memory.root.pid,descriptor.supervisorPid);assert.equal(memory.status,'TARGET_TREE_EXITED');
   assert.ok(!memory.processLifetimes.some(p=>p.pid===memory.samplerPid));
   const report={status:'PASS_CROSS_EXEC_SYNTHETIC_CANCEL',checkedAt:new Date().toISOString(),wrapperExit:42,supervisorExit:42,shellExit:42,oneSigterm:true,wrapperTerminalPersisted:true,memoryRoot:'supervisor',observedProcessCount:memory.processLifetimes.length,sampleCount:memory.sampleCount,samplerExcluded:true,realRunTouched:false};
-  writeFileSync(join(paths.base,'verification/CROSS_EXEC_RESULT.json'),JSON.stringify(report,null,2)+'\n');
+  writeFileSync(join(dirname(receipt),'CROSS_EXEC_RESULT.json'),JSON.stringify(report,null,2)+'\n');
   console.log(JSON.stringify(report));
 } else throw Error('Use start, request, or verify for this synthetic fixture only');

@@ -2,93 +2,166 @@
   "schemaVersion": 1,
   "files": [
     {
-      "path": "combined-takeda-20261006T0550Z/supervise-cancel.mjs",
+      "path": "combined-takeda-supervision-r2-20261006T0718Z/supervise-cancel.mjs",
       "mode": "100644",
+      "originalPosixMode": "0o644",
       "type": "blob",
-      "sha": "963ff946812a247ddc3c18e97a365022a85426be",
-      "sha256": "5cb86785a4362a4d346dab233f30697c0af4d54757e2a911cab98377a8578f35",
-      "bytes": 7252
+      "sha": "cbc88f918f2c5cf251a11830e346f9e87031efaf",
+      "sha256": "62d3b778eddd9915c191f27f852dca94e2b3da608bd37d27cea2990bf7b74267",
+      "bytes": 10268
     },
     {
-      "path": "combined-takeda-20261006T0550Z/build-combined-command.mjs",
+      "path": "combined-takeda-supervision-r2-20261006T0718Z/sample_process_tree.py",
       "mode": "100644",
+      "originalPosixMode": "0o644",
+      "type": "blob",
+      "sha": "5c2924dc067309525018e4903741dc33e796b546",
+      "sha256": "3fa6daa1af1afee94d19801edfd8bcb538e1243476b5adb253e50de162a27bd6",
+      "bytes": 13065
+    },
+    {
+      "path": "combined-takeda-supervision-r2-20261006T0718Z/build-combined-command.mjs",
+      "mode": "100644",
+      "originalPosixMode": "0o644",
       "type": "blob",
       "sha": "864757aa663adbbd7916ad246736a7a79ceb8329",
       "sha256": "884760bece78974e87a3790a8ffe34d7c5d33b969b792b9a8d7d84c9c6f9c552",
       "bytes": 1131
     },
     {
-      "path": "combined-takeda-20261006T0550Z/inspect-launch-identity.mjs",
+      "path": "combined-takeda-supervision-r2-20261006T0718Z/inspect-launch-identity.mjs",
       "mode": "100644",
+      "originalPosixMode": "0o644",
       "type": "blob",
       "sha": "6083858daf1b55f62c25bd12e405df5cff35812d",
       "sha256": "015b9181a640bcb4e4c68d7bfcef598e826c93fe6f8aaf31d33cf59780e3d81f",
       "bytes": 706
     },
     {
-      "path": "combined-takeda-20261006T0550Z/create-combined-starter.mjs",
+      "path": "combined-takeda-supervision-r2-20261006T0718Z/create-combined-starter.mjs",
       "mode": "100644",
+      "originalPosixMode": "0o644",
       "type": "blob",
-      "sha": "378e4285ba27f1d54b5951fb3fb47ffb5f51b5f5",
-      "sha256": "facb603df456ddb075324fb22a2a83ab16ec0dbcc98632becd2dbe1371de59fc",
-      "bytes": 5500
+      "sha": "f25f656f60c242f1b165e82dfbaa66f1c81d654f",
+      "sha256": "6778c77e9bcf283a93aca8a4c204c07f9658af4cc1e2d3126c3ccc05d924f229",
+      "bytes": 5491
     },
     {
-      "path": "combined-takeda-20261006T0550Z/fixture-inner.mjs",
+      "path": "combined-takeda-supervision-r2-20261006T0718Z/fixture-inner.mjs",
       "mode": "100644",
+      "originalPosixMode": "0o644",
       "type": "blob",
       "sha": "cedb1f10cc6289dbf58e3c47568cc117280c6ca3",
       "sha256": "e9aae09f5e0218af12fe12be2f73e69309da2e7aeebfa14059fd8ce79ed7a51d",
       "bytes": 803
     },
     {
-      "path": "combined-takeda-20261006T0550Z/test-combined.mjs",
+      "path": "combined-takeda-supervision-r2-20261006T0718Z/fixture-fault-inner.mjs",
       "mode": "100644",
+      "originalPosixMode": "0o644",
       "type": "blob",
-      "sha": "f3b9f76b90083ed78b31adabb1dd5a58e483aa4a",
-      "sha256": "4560d934b208af88fc97fa760f1846fde0c1cb5d0ba0f77971710a483f67ec2a",
-      "bytes": 8215
+      "sha": "d0c726caa7944ba4db3bfb76b614be4f427a964b",
+      "sha256": "598fbbdb6fb3ec81c8dafa3a096b10468948728523c2455ac4ebb967920ad5b2",
+      "bytes": 453
     },
     {
-      "path": "combined-takeda-20261006T0550Z/test-starter-integration.mjs",
+      "path": "combined-takeda-supervision-r2-20261006T0718Z/inject-supervisor-fault.cjs",
       "mode": "100644",
+      "originalPosixMode": "0o644",
       "type": "blob",
-      "sha": "0d6f00a94b27cf93904304e0df858bae5d5608a4",
-      "sha256": "a691081f30a2eaf9d8745c1932cc4893acb7c7dd99a9105aa60ca3a0812b6d83",
-      "bytes": 6228
+      "sha": "c6c568ce138960f1851c2ac215337d04b43f307f",
+      "sha256": "6ad24493486cea118860b22c469afc387e047f3d753002df9b9f779c1bf87fdc",
+      "bytes": 4758
     },
     {
-      "path": "combined-takeda-20261006T0550Z/cross-exec-fixture.mjs",
+      "path": "combined-takeda-supervision-r2-20261006T0718Z/test-combined.mjs",
       "mode": "100644",
+      "originalPosixMode": "0o644",
       "type": "blob",
-      "sha": "c2dbedfb1238d0d96e04883048dcc6023ca002c8",
-      "sha256": "a8651dcd23b6249b7b90aaa0d1225427d982bea6c180485770ea28f7e475c347",
-      "bytes": 3866
+      "sha": "05a7e1edb90daddfc963a69f079a55406005a94e",
+      "sha256": "8653ce232885a9f69280e6341e210fc8affbd97c4a22eac9d4bdf0d8f29a8da5",
+      "bytes": 8300
     },
     {
-      "path": "combined-takeda-20261006T0550Z/start-monitor-takeda46-combined.js",
+      "path": "combined-takeda-supervision-r2-20261006T0718Z/test-starter-integration.mjs",
       "mode": "100644",
+      "originalPosixMode": "0o644",
       "type": "blob",
-      "sha": "05276c86d95736dc996662aa869f2d93df0171e6",
-      "sha256": "b05bb25e10ef49479d9f41a43494983a35e83ac5655065e48fd2bc018dbc9e3e",
-      "bytes": 12701
+      "sha": "24d02dcc348bb053cd112ee87fd2a31d1b34955f",
+      "sha256": "a6cdd10e1df1ecfa4fe8dec9a3728053a83eb21229690b7f574183a871082be1",
+      "bytes": 6324
     },
     {
-      "path": "combined-takeda-20261006T0550Z/starter.patch",
+      "path": "combined-takeda-supervision-r2-20261006T0718Z/cross-exec-fixture.mjs",
       "mode": "100644",
+      "originalPosixMode": "0o644",
       "type": "blob",
-      "sha": "f1187b540d7a57fb9e23e3fb966d734f79f281a7",
-      "sha256": "0989dcc33aadebc821b742160c79f2425bb470f458204ee225ca2b0172f1becd",
-      "bytes": 7689
+      "sha": "0cd0deab7f58d98355a6d73191b54218eae9acdf",
+      "sha256": "b3fa625027db22e6a3b609a1190b741bf1b4aebeb01e1facf0833b77bd80b722",
+      "bytes": 4079
     },
     {
-      "path": "sample_process_tree.py",
+      "path": "combined-takeda-supervision-r2-20261006T0718Z/test-supervisor-faults.mjs",
       "mode": "100644",
+      "originalPosixMode": "0o644",
       "type": "blob",
-      "sha": "bf279a88e4e4bc33d751894afef8a93428f3bb4d",
-      "sha256": "18bc3c99319b3af0941b6499bf71b5bfcd7d5808003a6b2c8e8a1a20eae88a85",
-      "bytes": 11778,
-      "reusedFromCommit": "946fb0c15a411a77d6099febdd47997130308e0c"
+      "sha": "866bd4188de8d93a7fe598ed6681b6f2c403e427",
+      "sha256": "2b4e405d35cfcce56b4dcbd27ebf9951e9bc55b5faf0fe1d77862f757cd29bde",
+      "bytes": 7335
+    },
+    {
+      "path": "combined-takeda-supervision-r2-20261006T0718Z/test-sampler-startup.py",
+      "mode": "100644",
+      "originalPosixMode": "0o644",
+      "type": "blob",
+      "sha": "6f8b793a520db788afae8bc9f2f81d78bfa75062",
+      "sha256": "b0429b44933bdeea6fba74a9965397456553d0af1841f53952ebea3d0e186acb",
+      "bytes": 5484
+    },
+    {
+      "path": "combined-takeda-supervision-r2-20261006T0718Z/start-monitor-takeda46-combined.js",
+      "mode": "100644",
+      "originalPosixMode": "0o600",
+      "type": "blob",
+      "sha": "1b609422d51b7fc48f356648551dea30dd969d32",
+      "sha256": "d7632f2f1f62dc8a42c048783f45b9120d6ead4689a5f58908e3d9a2e14af9c0",
+      "bytes": 12868
+    },
+    {
+      "path": "combined-takeda-supervision-r2-20261006T0718Z/supervisor-r2.patch",
+      "mode": "100644",
+      "originalPosixMode": "0o644",
+      "type": "blob",
+      "sha": "f869c4032532115e5a3d6c14adc9889b4353368a",
+      "sha256": "70bd1c39e9c2847b8513d6bcfdaeaf6a42667c57b3e7207118b65b3f0ea9f8f3",
+      "bytes": 7300
+    },
+    {
+      "path": "combined-takeda-supervision-r2-20261006T0718Z/sampler-startup-r2.patch",
+      "mode": "100644",
+      "originalPosixMode": "0o644",
+      "type": "blob",
+      "sha": "2d6cd8ca5309950631bae9f24d3dc4d757db182e",
+      "sha256": "3cbbf3ad4a457ed25ad657e49013074078c2172e66ec8a87a3a13b2d8f71077d",
+      "bytes": 2837
+    },
+    {
+      "path": "combined-takeda-supervision-r2-20261006T0718Z/starter.patch",
+      "mode": "100644",
+      "originalPosixMode": "0o644",
+      "type": "blob",
+      "sha": "fce21b3f13bba98a1aaa61fd277d4be785bd90c4",
+      "sha256": "3638d2d438115c5b6b6aec72dc56f6a674b516037599f97bd767b5bdcea98dc2",
+      "bytes": 7828
+    },
+    {
+      "path": "combined-takeda-supervision-r2-20261006T0718Z/candidate-r2.patch",
+      "mode": "100644",
+      "originalPosixMode": "0o644",
+      "type": "blob",
+      "sha": "1e84ee913ce098ba09b667ce054fab9cc3fc2201",
+      "sha256": "df046d4e069ea6ea63949f8dec04ab667d1df2fee3ca3eb9c34498d2f29e940f",
+      "bytes": 42497
     },
     {
       "path": "build-observed-command.mjs",
@@ -100,5 +173,5 @@
       "reusedFromCommit": "946fb0c15a411a77d6099febdd47997130308e0c"
     }
   ],
-  "sourceInventorySha256": "d6abfd393aedfe8380b2ea16edf7f6f597b26d8fdec6908063c3949a3e564e92"
+  "sourceInventorySha256": "0bec95076e305cbb19e097b67ed023b9fba9cb714f421c4bf74ba04aa5b01f7f"
 }

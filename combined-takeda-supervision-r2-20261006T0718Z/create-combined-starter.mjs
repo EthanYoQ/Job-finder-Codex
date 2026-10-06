@@ -5,8 +5,8 @@ import { createHash } from 'node:crypto';
 import { buildCombinedCommand } from './build-combined-command.mjs';
 import { buildObservedCommand } from '../build-observed-command.mjs';
 const base=dirname(fileURLToPath(import.meta.url)),r2=dirname(dirname(base));
-export const paths={base,r2,sampler:join(dirname(base),'sample_process_tree.py'),supervisor:join(base,'supervise-cancel.mjs'),inspector:join(base,'inspect-launch-identity.mjs'),wrapper:join(r2,'producer42/scripts/run-with-http-diagnostics.mjs'),original:join(r2,'hosts46/takeda/runtime/start-monitor-portable42.js')};
-export const hashes={sampler:'18bc3c99319b3af0941b6499bf71b5bfcd7d5808003a6b2c8e8a1a20eae88a85',supervisor:'5cb86785a4362a4d346dab233f30697c0af4d54757e2a911cab98377a8578f35',wrapper:'d8627edbdc118f8d747f77f22459768f76184171e715a8fd29c76a69a3c82930',original:'d5c9b6ef0eed05f2a3783a09db726846df1993ff6534306f95ad6b6e8eb7bab9'};
+export const paths={base,r2,sampler:join(base,'sample_process_tree.py'),supervisor:join(base,'supervise-cancel.mjs'),inspector:join(base,'inspect-launch-identity.mjs'),wrapper:join(r2,'producer42/scripts/run-with-http-diagnostics.mjs'),original:join(r2,'hosts46/takeda/runtime/start-monitor-portable42.js')};
+export const hashes={sampler:'3fa6daa1af1afee94d19801edfd8bcb538e1243476b5adb253e50de162a27bd6',supervisor:'62d3b778eddd9915c191f27f852dca94e2b3da608bd37d27cea2990bf7b74267',wrapper:'d8627edbdc118f8d747f77f22459768f76184171e715a8fd29c76a69a3c82930',original:'d5c9b6ef0eed05f2a3783a09db726846df1993ff6534306f95ad6b6e8eb7bab9'};
 const sha=x=>createHash('sha256').update(x).digest('hex');
 const launch='const started=await tools.exec_command({cmd:command,workdir:h.cfg.repo,yield_time_ms:1000,max_output_tokens:1500});';
 export function addCombinedObservation(original) {

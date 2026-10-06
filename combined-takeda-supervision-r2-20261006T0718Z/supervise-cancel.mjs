@@ -36,9 +36,18 @@ const readJson = name => {
     return JSON.parse(readFileSync(fd, 'utf8'));
   } finally { closeSync(fd); }
 };
+const writeAll = (fd, text) => {
+  const bytes = Buffer.from(text);
+  let offset = 0;
+  while (offset < bytes.length) {
+    const written = writeSync(fd, bytes, offset, bytes.length - offset);
+    if (written <= 0) throw Error('SUPERVISOR_SHORT_WRITE');
+    offset += written;
+  }
+};
 const writeJson = (name, value) => {
   const fd = openSync(anchored(name), F.O_WRONLY | F.O_CREAT | F.O_EXCL | F.O_NOFOLLOW, 0o600);
-  try { writeSync(fd, JSON.stringify(value) + '\n'); fsyncSync(fd); } finally { closeSync(fd); }
+  try { writeAll(fd, JSON.stringify(value) + '\n'); fsyncSync(fd); } finally { closeSync(fd); }
   fsyncSync(dirFd);
 };
 const readIdentity = pid => {
@@ -65,21 +74,60 @@ if (mode === 'request') {
       argv[3] !== '--' || !argv[4]) throw Error('ORIGINAL_WRAPPER_COMMAND_REQUIRED');
   const startedAtMs = Date.now(), nonce = randomBytes(32).toString('hex');
   const lifecycle = openSync(anchored('supervisor.jsonl'), F.O_WRONLY | F.O_CREAT | F.O_EXCL, 0o600);
+  let identity, poll, closed = false, sent = false, lastRejection;
+  let measurementAvailable = true, controlAvailable = true;
+  const failures = [];
+  const reasonOf = e => String(e?.code ?? e?.message ?? 'UNKNOWN_ERROR');
+  // Stderr is an independent, best-effort channel. Never throw into a child
+  // callback, including when both the audit file and stderr are unavailable.
+  const fallback = record => {
+    try { writeSync(2, JSON.stringify(record) + '\n'); } catch { /* keep waiting */ }
+  };
+  const unavailable = (stage, e, measurement = false) => {
+    controlAvailable = false;
+    if (measurement) measurementAvailable = false;
+    clearInterval(poll);
+    const failure = { stage, reason: reasonOf(e) };
+    failures.push(failure);
+    fallback({ event: 'SUPERVISOR_MEASUREMENT_CONTROL_UNAVAILABLE', runId,
+      measurementAvailable, controlAvailable, ...failure });
+  };
   const mark = (event, extra = {}) => {
-    writeSync(lifecycle, JSON.stringify({ event, recordedAt: new Date().toISOString(), runId, ...extra }) + '\n');
-    fsyncSync(lifecycle);
+    const record = { event, recordedAt: new Date().toISOString(), runId, ...extra };
+    if (!measurementAvailable) { fallback(record); return false; }
+    try {
+      writeAll(lifecycle, JSON.stringify(record) + '\n');
+      fsyncSync(lifecycle);
+      return true;
+    } catch (e) {
+      // A partially written/fsynced line is retained. Do not append further
+      // records to a possibly broken JSONL tail or treat it as durable success.
+      unavailable('lifecycle:' + event, e, true);
+      fallback({ ...record, measurementAvailable: false, controlAvailable: false,
+        persistence: 'UNAVAILABLE' });
+      return false;
+    }
+  };
+  const closeSafely = (fd, stage) => {
+    try { closeSync(fd); } catch (e) { unavailable(stage, e, true); }
   };
   // Pass original argv, environment, cwd and foreground stdio through unchanged.
   const child = spawn(command, argv, { shell: false, stdio: 'inherit', env: process.env, detached: false });
-  let identity, poll, closed = false, sent = false, lastRejection;
   child.once('spawn', () => {
-    identity = readIdentity(child.pid);
-    if (identity.ppid !== process.pid) throw Error('SPAWN_IDENTITY_MISMATCH');
-    writeJson('descriptor.json', { schemaVersion: 1, runId, nonce, startedAtMs,
-      supervisorPid: process.pid, wrapperPid: child.pid, startTicks: identity.startTicks, wrapperSha256 });
-    mark('SUPERVISOR_READY', { wrapperPid: child.pid, startTicks: identity.startTicks });
+    try {
+      identity = readIdentity(child.pid);
+      if (identity.ppid !== process.pid || !/^[0-9]+$/.test(identity.startTicks ?? ''))
+        throw Error('SPAWN_IDENTITY_MISMATCH');
+      writeJson('descriptor.json', { schemaVersion: 1, runId, nonce, startedAtMs,
+        supervisorPid: process.pid, wrapperPid: child.pid, startTicks: identity.startTicks, wrapperSha256 });
+    } catch (e) {
+      unavailable('spawn-identity-or-descriptor', e);
+      mark('CONTROL_UNAVAILABLE', { reason: reasonOf(e), wrapperPid: child.pid });
+      return; // The unchanged wrapper still owns its deadline and terminal result.
+    }
+    if (!mark('SUPERVISOR_READY', { wrapperPid: child.pid, startTicks: identity.startTicks })) return;
     poll = setInterval(() => {
-      if (closed || sent) return;
+      if (closed || sent || !controlAvailable) return;
       try {
         const r = readJson('cancel.json'), now = Date.now();
         if (Object.keys(r).sort().join(',') !== 'action,nonce,requestedAtMs,runId,schemaVersion' ||
@@ -98,21 +146,38 @@ if (mode === 'request') {
         if (closed || child.exitCode !== null || child.signalCode !== null ||
             current.ppid !== process.pid || current.startTicks !== identity.startTicks)
           throw Error('WRAPPER_IDENTITY_CHANGED');
+        // Losing the acceptance audit disables cancellation, not supervision.
+        if (!mark('CANCEL_ACCEPTED', { wrapperPid: child.pid, startTicks: identity.startTicks })) return;
         sent = true;
-        mark('CANCEL_ACCEPTED', { wrapperPid: child.pid, startTicks: identity.startTicks });
         mark('SIGNAL_SENT', { signal: 'SIGTERM', accepted: child.kill('SIGTERM') });
       } catch (e) {
         if (e.code === 'ENOENT') return;
-        const reason = e.code ?? e.message;
-        if (reason !== lastRejection) { mark('CANCEL_REJECTED', { reason }); lastRejection = reason; }
+        const reason = reasonOf(e);
+        if (reason !== lastRejection) {
+          lastRejection = reason;
+          mark('CANCEL_REJECTED', { reason });
+        }
       }
     }, 50);
   });
-  child.once('error', e => mark('WRAPPER_SPAWN_ERROR', { code: e.code }));
+  child.once('error', e => mark('WRAPPER_ERROR', { code: e.code, wrapperPid: child.pid ?? null }));
   child.once('close', (code, signal) => {
     closed = true; clearInterval(poll);
     const exitCode = code ?? (signal ? 128 + (O.signals[signal] ?? 1) : 127);
-    mark('WRAPPER_EXIT', { wrapperPid: child.pid ?? null, code, signal, supervisorExitCode: exitCode });
-    closeSync(lifecycle); closeSync(dirFd); process.exitCode = exitCode;
+    // Set the real exit first; no diagnostic failure may replace it.
+    process.exitCode = exitCode;
+    const terminal = { wrapperPid: child.pid ?? null, code, signal, supervisorExitCode: exitCode };
+    mark('WRAPPER_EXIT', { ...terminal, measurementAvailable, controlAvailable });
+    closeSafely(lifecycle, 'lifecycle-close');
+    // This exclusive receipt preserves the wrapper result, not a claim that
+    // its own write/fsync/close or the final directory close later succeeded.
+    try { writeJson('terminal.json', { schemaVersion: 1, runId, ...terminal,
+      measurementAvailableAtReceiptWrite: measurementAvailable,
+      controlAvailableAtReceiptWrite: controlAvailable,
+      failuresAtReceiptWrite: failures, receiptCoversFinalCleanup: false }); }
+    catch (e) { unavailable('terminal-receipt', e, true); }
+    closeSafely(dirFd, 'directory-close');
+    fallback({ event: 'WRAPPER_TERMINAL', runId, ...terminal,
+      measurementAvailable, controlAvailable, failures });
   });
 }
