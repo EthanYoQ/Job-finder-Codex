@@ -1,16 +1,9 @@
 {
   "schemaVersion": 1,
+  "frozenSourceManifestSha256": "93915cedd77cd9038a45c43ec23f7f93da84e3ae27be41faced8ee40ac689688",
   "files": [
     {
-      "path": "companion/LOCAL_COMMIT_OBJECT.txt",
-      "mode": "100644",
-      "type": "blob",
-      "sha": "7d1301e2c1bc658b5c9ea035d82575d15103d13e",
-      "sha256": "b42ce033e38813975d6d5ffff8f02e27d9ca007af70ba50bc7b2212d4f9d8642",
-      "bytes": 270
-    },
-    {
-      "path": "companion/bind-registered-readback.mjs",
+      "path": "merck/bind-registered-readback.mjs",
       "mode": "100644",
       "type": "blob",
       "sha": "5de6ff0d873b55597b06bd34c1c2a8a17e094206",
@@ -18,7 +11,7 @@
       "bytes": 2707
     },
     {
-      "path": "companion/build-observed-command.mjs",
+      "path": "merck/build-observed-command.mjs",
       "mode": "100644",
       "type": "blob",
       "sha": "23f748a3a05ddc682d1f66c82e8699682cfa2517",
@@ -26,15 +19,15 @@
       "bytes": 672
     },
     {
-      "path": "companion/combined-takeda-20261006T0550Z/supervise-cancel.mjs",
+      "path": "merck/check-only.mjs",
       "mode": "100644",
       "type": "blob",
-      "sha": "900e455aabc83af787fd08f46ecfc6bdc6cd4fc8",
-      "sha256": "c6527e9a0f37c29e8fc0305185212f25a87be273b1ad1693071ee8e496eab584",
-      "bytes": 7246
+      "sha": "95791158bab7b38392aa8a27258750ab149b6519",
+      "sha256": "2ebdcf4bc230592e0f5c0b032ce8ce8427993f4971b7fec9fd7fa36a3c172de2",
+      "bytes": 206
     },
     {
-      "path": "companion/host/archive-transfer.mjs",
+      "path": "merck/host/archive-transfer.mjs",
       "mode": "100644",
       "type": "blob",
       "sha": "5a454d21f34f9680221bbee2c98b3fecb94884f0",
@@ -42,63 +35,79 @@
       "bytes": 1777
     },
     {
-      "path": "companion/host/host-files.mts",
+      "path": "merck/host/context-read.sql",
       "mode": "100644",
       "type": "blob",
-      "sha": "da05fae148a83373d01cbd529bafd54a8734d7d5",
-      "sha256": "6664172aa248a3c9baaaaebedd81a07e49846b79e469d486e47e0018686701a1",
-      "bytes": 4107
+      "sha": "4bd4216d56538a5efec27baa4a4559966c35e185",
+      "sha256": "6cca7b22299224dfcf1b7ec6cdfc309da00e2cad87bf4292ae07de6869aff847",
+      "bytes": 2131
     },
     {
-      "path": "companion/host/host-helper-functions.js",
+      "path": "merck/host/host-files.mts",
       "mode": "100644",
       "type": "blob",
-      "sha": "6b9a55a066d9afc148753846dbf62647c0c29848",
-      "sha256": "3a68398b39057b7c2a5d9cbbf0bc1784631c3aa966a1c533111b0870dc402890",
-      "bytes": 7102
+      "sha": "8c351e49c14ee76ad7c938431d3cee4da7feb09e",
+      "sha256": "8db5796aaeaa428ec06084e753c08c9078cf01421f9f90f81038bdb9d5255f3f",
+      "bytes": 4091
     },
     {
-      "path": "companion/host/host-stage-functions.js",
+      "path": "merck/host/host-helper-functions.js",
       "mode": "100644",
       "type": "blob",
-      "sha": "06e4e39e8461928b7d639803c227c215572899bc",
-      "sha256": "492d175e155edf50b5c8b686229abd95ddeaaaf4adc2418299451b934bd70e8d",
-      "bytes": 6092
+      "sha": "f7034306f066fa3418a4dce87b0c77b86b01cce0",
+      "sha256": "7988fa4024239bf5dfd9082eec42d9eb2b39b48f17c2aa98f5c9de8fcffe386f",
+      "bytes": 7113
     },
     {
-      "path": "companion/host/relay-files.mjs",
+      "path": "merck/host/host-stage-functions.js",
       "mode": "100644",
       "type": "blob",
-      "sha": "aea515b3f377f65c6f2d957f98dc98842eed0004",
-      "sha256": "70afb74f3d1c265c5ff233579d32814daa90f5937617086a5010b64c20d7e206",
-      "bytes": 5508
+      "sha": "817614af07bfe8b7a30d6e4fa306fcceed60a399",
+      "sha256": "5f97707fdd3e840c6881a838ff71f167d242ec018a2f93981b943765f0be0074",
+      "bytes": 6076
     },
     {
-      "path": "companion/host/runtime/complete-reviewed-source-readback.js",
+      "path": "merck/host/relay-files.mjs",
       "mode": "100644",
       "type": "blob",
-      "sha": "c4eebd915b04b142c8ba1a0d53a93ba9a0e608a9",
-      "sha256": "7bde5e4c1b11bba6a3db870fc32a48accdb7c63d48f9776355f6f1bed97c3a32",
-      "bytes": 5582
+      "sha": "b5d3c81a7bb78cbc1f01047c70ac2088881576d4",
+      "sha256": "df2ea134be48fc4be289597a3613de9da3a4a9c1c09ca004df4bf399dfc2db5d",
+      "bytes": 5479
     },
     {
-      "path": "companion/host/runtime/continuous-relay-v3-durable-monitor.js",
+      "path": "merck/host/runtime/complete-reviewed-source-readback.js",
       "mode": "100644",
       "type": "blob",
-      "sha": "cfa9d4179927989ff2528d0413cf57dad7192e75",
-      "sha256": "ef07b0aaa6406a64b0b73f1345a7aff05a97f38f6b6db8ae6dd019d68268a71d",
-      "bytes": 5244
+      "sha": "ad527523128656c7084e7b91bc2e08c2ac75719f",
+      "sha256": "001e1fd029adcc47e834a016173f48be84f0d2d219a96e311aeb1c5f0f0a8658",
+      "bytes": 5584
     },
     {
-      "path": "companion/host/runtime/load-source-runtime.js",
+      "path": "merck/host/runtime/continuous-relay-v3-durable-monitor.js",
       "mode": "100644",
       "type": "blob",
-      "sha": "23e1366701c9d6171b09a955e4e0940b82c94069",
-      "sha256": "2b4386d364eefa8cf8e5945e22c2b6592852df4451254226dd91349941751000",
-      "bytes": 2092
+      "sha": "5d944af02be308f3f7fba54c1b8c6090437e0732",
+      "sha256": "c0866781b1d94f103043b683dc1947f7a2933ffecda566be2d69bdcc94c3e809",
+      "bytes": 5268
     },
     {
-      "path": "companion/host/runtime/preflight/preflight-launch.mjs",
+      "path": "merck/host/runtime/load-host-state.js",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "40d7b19aa7b12eddb84f1934fd88ef4195079c68",
+      "sha256": "3e1de7fcc647809637df7251ed50adcaa7ed20bd4bf0b94ffca5f496dfd4660b",
+      "bytes": 3463
+    },
+    {
+      "path": "merck/host/runtime/load-source-runtime.js",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "fe127e8bd30e42155713a86f63a81aa561928424",
+      "sha256": "585b7648b4032c2006a0ea2648991ec8d92893e1510d8eef651f648ef7ca0fec",
+      "bytes": 2046
+    },
+    {
+      "path": "merck/host/runtime/preflight/preflight-launch.mjs",
       "mode": "100644",
       "type": "blob",
       "sha": "d6d143f5688edf7bbf923100cfda79284254271a",
@@ -106,7 +115,7 @@
       "bytes": 10454
     },
     {
-      "path": "companion/host/runtime/preflight/runtime-check.mjs",
+      "path": "merck/host/runtime/preflight/runtime-check.mjs",
       "mode": "100644",
       "type": "blob",
       "sha": "1aaf44921d83b86bb9c0065a46393286a8b725c3",
@@ -114,23 +123,23 @@
       "bytes": 3523
     },
     {
-      "path": "companion/host/runtime/review-publication.py",
+      "path": "merck/host/runtime/review-publication.py",
       "mode": "100644",
       "type": "blob",
-      "sha": "35613885dd03067d36c984c715c69f67d17ef47e",
-      "sha256": "adba3b4d6786c453b7e1a93e81c9079ebdd8d11a7e9ff81eb521adb35220b596",
-      "bytes": 3680
+      "sha": "98d2e419adeb594d3b1e8f1aab15a2d38bdd497b",
+      "sha256": "01557c224ce5f728dc718ca874d027e6756a4de8a32d578f05cfb02e2936f626",
+      "bytes": 3679
     },
     {
-      "path": "companion/host/runtime/start-monitor-portable42.js",
+      "path": "merck/host/runtime/start-monitor-portable42.js",
       "mode": "100644",
       "type": "blob",
-      "sha": "e16bcfba1f0abb51d2209d0082a374733f2a403b",
-      "sha256": "db6c58edc51d7e95198502a9c4290dc21487bf65b706b7c969810092c2a38688",
-      "bytes": 7326
+      "sha": "ca7d12e45bd4a8bf5f6f75fc23179acc6831fa84",
+      "sha256": "b7f2975b2a1a8f46575de2814b623980585ddfc50c55919faec745ca0ec4bc95",
+      "bytes": 7298
     },
     {
-      "path": "companion/host/runtime/update-candidate-completion-state.mjs",
+      "path": "merck/host/runtime/update-candidate-completion-state.mjs",
       "mode": "100644",
       "type": "blob",
       "sha": "ec886e3dd2b52805daccddcdcd862b6afbaeec29",
@@ -138,7 +147,7 @@
       "bytes": 3654
     },
     {
-      "path": "companion/sample_process_tree.py",
+      "path": "merck/sample_process_tree.py",
       "mode": "100644",
       "type": "blob",
       "sha": "bf279a88e4e4bc33d751894afef8a93428f3bb4d",
@@ -146,7 +155,7 @@
       "bytes": 11778
     },
     {
-      "path": "companion/supervision/build-combined-command.mjs",
+      "path": "merck/supervision/build-combined-command.mjs",
       "mode": "100644",
       "type": "blob",
       "sha": "864757aa663adbbd7916ad246736a7a79ceb8329",
@@ -154,15 +163,15 @@
       "bytes": 1131
     },
     {
-      "path": "companion/supervision/create-combined-starter.mjs",
+      "path": "merck/supervision/create-combined-starter.mjs",
       "mode": "100644",
       "type": "blob",
-      "sha": "acb83b61b36f99db0afe67b462909b2582fa1346",
-      "sha256": "bec6f9051fb3c02f36f7b0ac58a7edbf9ef6db21043e12de0e57039cebf4ef31",
-      "bytes": 5521
+      "sha": "e709321bd87ea2bcb720bdf7e93ed8e7a4273a62",
+      "sha256": "bf5b156f25a55cec0d6ea36b3897a85d9e9b15fdcda3879b07168b53ebdb771d",
+      "bytes": 5553
     },
     {
-      "path": "companion/supervision/fixture-fault-inner.mjs",
+      "path": "merck/supervision/fixture-fault-inner.mjs",
       "mode": "100644",
       "type": "blob",
       "sha": "d0c726caa7944ba4db3bfb76b614be4f427a964b",
@@ -170,7 +179,7 @@
       "bytes": 453
     },
     {
-      "path": "companion/supervision/fixture-inner.mjs",
+      "path": "merck/supervision/fixture-inner.mjs",
       "mode": "100644",
       "type": "blob",
       "sha": "cedb1f10cc6289dbf58e3c47568cc117280c6ca3",
@@ -178,15 +187,7 @@
       "bytes": 803
     },
     {
-      "path": "companion/supervision/inject-supervisor-fault.cjs",
-      "mode": "100644",
-      "type": "blob",
-      "sha": "c6c568ce138960f1851c2ac215337d04b43f307f",
-      "sha256": "6ad24493486cea118860b22c469afc387e047f3d753002df9b9f779c1bf87fdc",
-      "bytes": 4758
-    },
-    {
-      "path": "companion/supervision/inspect-launch-identity.mjs",
+      "path": "merck/supervision/inspect-launch-identity.mjs",
       "mode": "100644",
       "type": "blob",
       "sha": "6083858daf1b55f62c25bd12e405df5cff35812d",
@@ -194,7 +195,7 @@
       "bytes": 706
     },
     {
-      "path": "companion/supervision/sample_process_tree.py",
+      "path": "merck/supervision/sample_process_tree.py",
       "mode": "100644",
       "type": "blob",
       "sha": "5c2924dc067309525018e4903741dc33e796b546",
@@ -202,31 +203,31 @@
       "bytes": 13065
     },
     {
-      "path": "companion/supervision/start-monitor-takeda46-combined.js",
+      "path": "merck/supervision/start-monitor-merck47b-combined.js",
       "mode": "100644",
       "type": "blob",
-      "sha": "d026e5cce963e4523ad06170d4744d64a2ac2a83",
-      "sha256": "6aa557727390adf84591adcd7a76fb84f218049d9416aa34f3a029705d389430",
-      "bytes": 13381
+      "sha": "f58bbbb2063c91611d03705ef434993c8bfe6a34",
+      "sha256": "9eb4ba5429a7cf0026c5d6365bbab49b2e7239f55eaf1744079439c630936857",
+      "bytes": 13089
     },
     {
-      "path": "companion/supervision/supervise-cancel.mjs",
+      "path": "merck/supervision/supervise-cancel.mjs",
       "mode": "100644",
       "type": "blob",
-      "sha": "0689275b0ced053b3d659bea648449337de06379",
-      "sha256": "9c4a4430bcd2b9fe31343dcbea116c2fc68b89edb200ad3e85c90b0d1aedb2d5",
-      "bytes": 10262
+      "sha": "331200cd47ae305e1b2d6c4fd686354c4c9d2a8a",
+      "sha256": "489864d0691750583a7d99659aae80b43b63acc89659cf05a6138c37539175d4",
+      "bytes": 10246
     },
     {
-      "path": "companion/supervision/test-combined.mjs",
+      "path": "merck/supervision/test-combined.mjs",
       "mode": "100644",
       "type": "blob",
-      "sha": "6e17b5470ee6015d127200a80d8f3c8c23bdb7fd",
-      "sha256": "6d26edf0dd6b91e4a0def8463530619a979ca46873087d627b98242e698761b0",
-      "bytes": 8370
+      "sha": "e77f1218cbbb250f1508a1e6e3e59395bde9bf24",
+      "sha256": "3ced49d6444c9baffdbccbfc49851128af173050bbd8de57cce17dfcadd2b463",
+      "bytes": 8338
     },
     {
-      "path": "companion/supervision/test-sampler-startup.py",
+      "path": "merck/supervision/test-sampler-startup.py",
       "mode": "100644",
       "type": "blob",
       "sha": "6f8b793a520db788afae8bc9f2f81d78bfa75062",
@@ -234,140 +235,101 @@
       "bytes": 5484
     },
     {
-      "path": "companion/supervision/test-starter-integration.mjs",
+      "path": "merck/supervision/test-starter-integration.mjs",
       "mode": "100644",
       "type": "blob",
-      "sha": "fbdf689deb884f08ad701f8bef20c684cbc04766",
-      "sha256": "3055719138e3e4d9be879d913515ff95996967de8fffc9c972f6b0dae456b11f",
-      "bytes": 6707
+      "sha": "69b11e42f533e1d212363ee583470496495ea1b8",
+      "sha256": "5ea0ba8b04ceb7cace22bd16aa61bbda057c266fe256fc29e2e7ea00f0efb01c",
+      "bytes": 6674
     },
     {
-      "path": "companion/supervision/test-supervisor-faults.mjs",
+      "path": "merck/supervision/test-supervisor-faults.mjs",
       "mode": "100644",
       "type": "blob",
-      "sha": "ff50b0797b8672921cbf05bbadbbe7706eb662df",
-      "sha256": "e503f5db3f5b21b194e88659f75e55c905a162d1bdc3e9a1e81a829cc642cdf4",
-      "bytes": 7370
+      "sha": "21d98dfaec09ed1cbd19bc45ebd8264887a2c59b",
+      "sha256": "8ca9577d9e85f278cb1bc34804c804e9115b47066944f7404cfc40758f2e913d",
+      "bytes": 7354
     },
     {
-      "path": "companion/test-binding-and-paths.mjs",
+      "path": "merck/test-binding-and-paths.mjs",
       "mode": "100644",
       "type": "blob",
-      "sha": "a498d4da7341795b1977dcc5b320d8c6f4c62935",
-      "sha256": "2b62d2ff237d05a161702c721575c16787a2a8b2574cc76da71741385dfdad5b",
-      "bytes": 9738
+      "sha": "c45577ea3fcbf2abd97802851e18ca9003b2f29b",
+      "sha256": "199188ba8d06c13d2f362962658a927d925e4a211700ac1d21ae258cb6a03c59",
+      "bytes": 7835
     },
     {
-      "path": "companion/test-completion-binding.mjs",
+      "path": "merck/test-completion-binding.mjs",
       "mode": "100644",
       "type": "blob",
-      "sha": "38173c59f9166f8c96821fc5035795d0c7d6a9d2",
-      "sha256": "98cf7005e351402a50c77b8fc0eef9720f1d481386d13ce0f32ecbcead6223b1",
-      "bytes": 8122
+      "sha": "1c667c59679b2aff18f37d08de3b401d81f442b0",
+      "sha256": "261eaf9c6645e9732534cca9099cb761375c4b33a54fd333adf2fb549a7e3a18",
+      "bytes": 8305
     },
     {
-      "path": "companion/test-local-preflight.mjs",
+      "path": "merck/test-local-preflight.mjs",
       "mode": "100644",
       "type": "blob",
-      "sha": "4fb27a2d2f943812e92eacf278895f6ff361041f",
-      "sha256": "1eea3a9a2895b46f217a3f31e08d20214265a79c2dadfcbb974ac3bad75ff447",
-      "bytes": 2320
+      "sha": "8896195ad32b9479273fa944fd62b3d6dd3005fd",
+      "sha256": "58182e03c313df229fb450e87b886ddf005e6df31d0c3e48e31ca71c15aff95d",
+      "bytes": 2387
     },
     {
-      "path": "companion/test-terminal-and-launch.mjs",
+      "path": "merck/test-terminal-and-launch.mjs",
       "mode": "100644",
       "type": "blob",
-      "sha": "ebe20564b014d75cfadfde232d17ce51d558b1a1",
-      "sha256": "e93c4e2a025ad85891369f3370c7714ba95894493f243a20282cfab6cf449068",
-      "bytes": 5065
+      "sha": "522e5431509b57bd6ad77801836967cdeb651b3b",
+      "sha256": "b69f285e6c5dbb499828f286369a0167c3209c52d9f7a7d6dc5c0d38db2140f3",
+      "bytes": 5066
     },
     {
-      "path": "companion/source-only.diff",
+      "path": "merck/EXPECTED_REGISTRATION.json",
       "mode": "100644",
       "type": "blob",
-      "sha": "0698c52a048f72dc831aa245e446e6e4654c890b",
-      "sha256": "c22953bcc024742737f10069d379b7577de7d9ee10b0412441feceb18b7c520f",
-      "bytes": 98891
+      "sha": "ebe7fd81a4cca318adc51772658eff3a754cc14c",
+      "sha256": "623eaaae137853ef0801c1d6e7603a7761a6115722e7670af1dbe2a36b49ad7c",
+      "bytes": 960
     },
     {
-      "path": "companion/source-diff-bases.json",
+      "path": "merck/LOCAL_UNREGISTERED_BUILD_IDENTITY.json",
       "mode": "100644",
       "type": "blob",
-      "sha": "40f9033e129faa894f2bdbbc4df96c0458f6df41",
-      "sha256": "c0ad612df62569ad1b74ca4be57c4eb64c3c1f2678cc597382268f9a82183e42",
-      "bytes": 8980
+      "sha": "41252ad091ae0c1274709dfa65e24751570260a8",
+      "sha256": "3ea564462da2603f6ae1d7b409b673a9039224f39a28c4295ca9786ffde09c9c",
+      "bytes": 434
     },
     {
-      "path": "sql-test-support/node_modules/native-single-test/contrib/pgcrypto.js",
+      "path": "merck/host/host-config.json",
       "mode": "100644",
       "type": "blob",
-      "sha": "9de2b3cca686ee8db8ce264af7d64fd06acc1ced",
-      "sha256": "68dbf69c35d0570a4e44ad6550c3cf35165235c4499e74d82b771165d4975699",
-      "bytes": 151
+      "sha": "4db55fb64e5a01676d1264e3f295fdd53362410a",
+      "sha256": "54030b7c23128f0f9bcec2a4f7f38502132d0a5db7716e556d9457d3255da134",
+      "bytes": 391
     },
     {
-      "path": "sql-test-support/node_modules/native-single-test/index.js",
+      "path": "merck/host/control-base.template.json",
       "mode": "100644",
       "type": "blob",
-      "sha": "b457736687c7896564c51addb491eb58fc85655c",
-      "sha256": "04256a6a4f1d1166ba5b4393736e57b4fd586f60edc6233fd8b342f7226ef1e0",
-      "bytes": 3743
+      "sha": "e698b71cc4aee579e707b83c04816f3c994a7d31",
+      "sha256": "349c3409840fed19f9f6e3fff469b1f0f19a50aebc5c94337825a446ef927290",
+      "bytes": 439
     },
     {
-      "path": "sql-test-support/node_modules/native-single-test/package.json",
+      "path": "operations/observe-company-public.py",
       "mode": "100644",
       "type": "blob",
-      "sha": "f9ec9b62f616f5c61144ef14c6cbbb1f8454f745",
-      "sha256": "89c47db7851f89caec72da4f215ebc21cf1e294aeef3b45d2583562d846ab035",
-      "bytes": 33
-    },
-    {
-      "path": "sql-test-support/node_modules/native-single-test/sql-framing.js",
-      "mode": "100644",
-      "type": "blob",
-      "sha": "2f3f0ea46c0c0ab8678dd7488ca8e29bae588408",
-      "sha256": "09ff73c999d790fca51cd34eb166361c5a26daa006b8885156f7515c5b535e49",
-      "bytes": 3949
-    },
-    {
-      "path": "sql-test-support/rebuild-official-engine.sh",
-      "mode": "100644",
-      "type": "blob",
-      "sha": "66947091537e29bfc0ed6ed48e6aa503dffe317a",
-      "sha256": "d46e6d7d4b91db4802b63b9c0e639d0786ca715dc7ec718f3065463deb2824f0",
-      "bytes": 1064
-    },
-    {
-      "path": "sql-test-support/test-lexical-boundaries.mjs",
-      "mode": "100644",
-      "type": "blob",
-      "sha": "923dcdca2a383e22ca26c4102fda81103994053e",
-      "sha256": "baff59fb51507f29454677d40ca38c45c8003b329ae082d6abef8a0e2d9587c9",
-      "bytes": 2936
-    },
-    {
-      "path": "sql-test-support/test-native-adapter.mjs",
-      "mode": "100644",
-      "type": "blob",
-      "sha": "3f4e9043baa7357ccd8a69fb27a69962b3b217a6",
-      "sha256": "bc73882d1dbde4ef3b485cfb1d95caad895b41735165e0cd627a6378a2f4e54c",
-      "bytes": 1887
-    },
-    {
-      "path": "sql-test-support/OFFICIAL_SOURCE.json",
-      "mode": "100644",
-      "type": "blob",
-      "sha": "979c2f8546a79a7ce11c023d844acf6f9738a290",
-      "sha256": "1b9036ad34a74c54882c439a354212aaf4ffa6c46bca752e81fe215e452de30a",
-      "bytes": 1161
-    },
-    {
-      "path": "SOURCE_EXCLUSIONS.json",
-      "mode": "100644",
-      "type": "blob",
-      "sha": "33a2fbf8f24c7520388992644e633b339e789c2d",
-      "sha256": "a6be4c5f5b2c4c03f9a1547edfbc67d6dabf31d7b9b783e56420a6647b4b331b",
-      "bytes": 4949
+      "sha": "66dfe265b9b00f5ae6fa6408a1a9e4584e5f7eb2",
+      "sha256": "bcb69993591670242810bfda15beff0c6a6c5d0bb5562c93872de8d019ddfccc",
+      "bytes": 3666
     }
+  ],
+  "excluded": [
+    "Actual activation and control files",
+    "Run folders and data",
+    "Actual SQL requests and database responses",
+    "Credentials and environment values",
+    "Original captures, public response JSON, generated logs and metrics",
+    "Original frozen manifest/check results and LAUNCH_HOLD state",
+    "Original application bundle and complete Git graph"
   ]
 }
