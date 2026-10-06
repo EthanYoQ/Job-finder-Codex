@@ -1,0 +1,15 @@
+{
+  "goalId": "jobfinder-portable-required-40",
+  "commitSha": "47b74924f850a4d329460b71717b36df9a5159b8",
+  "migrationVersion": "20261003055000_jnj_dom_evidence_admission",
+  "schemaHash": "f1bae6bd06dd70bccdc9066b7394b16ef3ad71372ebcd64e49f0535af3405a59",
+  "dbSnapshotHash": "6b03926be321dc6dec6d2969c0bc4eab64544c567d2ac065911011becd33f42e",
+  "rosterHash": "ac44a7c7077e23ffa5367dc4bb8a11b254feebc8a190ae7c27481c7269a5a659",
+  "sourcePlanHash": "331cc04ae9fb82aeb8001df41c720d0a308dc1402f63b612dcc924276438e1fc",
+  "sourceConfigHash": "dce68ae12803ac1278fe2c4bac5457e63c41f58164ceeb2841322e2ee87a1ef3",
+  "adapterBundleHash": "6bf2c5a4adac80c1a1bdfc8fb351886ff7333c1dea8f78ff71bbf0889240d044",
+  "sourceTreeHash": "2b69db23fda340bea9a9a6931aa58426e80599c82251909424f61cae5f3f7894",
+  "runtimeTreeHash": "b59a746109d74eea22cab9c4c3154de5954bae3b900ed0e7032a20d4ea510bd1",
+  "oracleVersion": "staged-official-source-v1",
+  "minimumStableCompanyCount": 41
+}

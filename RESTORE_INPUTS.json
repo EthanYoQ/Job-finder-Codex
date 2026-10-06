@@ -1,0 +1,139 @@
+{
+  "schemaVersion": 1,
+  "directoryLayout": "Repository paths match paths relative to the recovered project root",
+  "frozenHostSources": [
+    {
+      "source": "bms",
+      "manifestSha256": "39a9fe7e937f7b5d28310d6492995578c473b5834f252e38b57c4655b2bd1dc7",
+      "frozenAt": "2026-10-06T13:31:03.782338+00:00",
+      "selected": 41
+    },
+    {
+      "source": "astellas",
+      "manifestSha256": "39a129c9a19a7464329b7c462a888883e6df7b3da7a2518a1bb1aaa6f2ada596",
+      "frozenAt": "2026-10-06T13:43:22.108237+00:00",
+      "selected": 41
+    },
+    {
+      "source": "grifols",
+      "manifestSha256": "2e21d23691d7429c3f1265ab8c52e55b879cb2e6e5829e20f893e8d115ace25b",
+      "frozenAt": "2026-10-06T13:44:13.025402+00:00",
+      "selected": 41
+    },
+    {
+      "source": "biogen",
+      "manifestSha256": "93e5fc917858069f29436cfafdc8db94b82fadc2cfbcc42bc064395d05c22368",
+      "frozenAt": "2026-10-06T13:44:16.580685+00:00",
+      "selected": 41
+    }
+  ],
+  "commonDeliverySha256": "e917d232491405cca16129d9d05b12b19fbaf5649c794a48f1b8a2ab7742aba8",
+  "recipeExternalInputs": [
+    {
+      "path": "hosts-next/bms/FROZEN_SOURCE_MANIFEST.json",
+      "sha256": "39a9fe7e937f7b5d28310d6492995578c473b5834f252e38b57c4655b2bd1dc7",
+      "scope": "manifest and files[] only"
+    },
+    {
+      "path": "verification/STATIC_SOURCE_PLAN_REFERENCE.json",
+      "sha256": "771bf4ea2ae391424e9451e9b5e12be9c03b3e069f9dc1b5cba9a7cc178fbbd6"
+    },
+    {
+      "path": "verification/source-route-bounded-reconcile.parsed.json",
+      "sha256": "b83870618c61bf197ee98231c32e0a3bc9f2cbb286285c99c3e7b8b8bc9aa902"
+    },
+    {
+      "path": "preparation/merck-runtime-binding-20261006T1231Z/DEPENDENCY_MANIFEST.json",
+      "sha256": "d6e865e8b2ae1c6bc4a2be35dba7b17d75a59a71be731e19dae9032d6382b9a3",
+      "scope": "Original supplement whitelist; only legacy due-gate reference used by this recipe"
+    }
+  ],
+  "reusedTestDependencies": [
+    {
+      "repositoryPath": "hosts-next/bms/supervision/inject-supervisor-fault.cjs",
+      "restoreRelativeToR3": "hosts-next/bms/supervision/inject-supervisor-fault.cjs",
+      "baseSafeCommit": "5d3918ca49b094f6aefbb14e70ec6691f363dd7d",
+      "basePath": "organon/supervision/inject-supervisor-fault.cjs",
+      "sha256": "6ad24493486cea118860b22c469afc387e047f3d753002df9b9f779c1bf87fdc"
+    },
+    {
+      "repositoryPath": "hosts-next/bms/combined-takeda-20261006T0550Z/supervise-cancel.mjs",
+      "restoreRelativeToR3": "hosts-next/bms/combined-takeda-20261006T0550Z/supervise-cancel.mjs",
+      "baseSafeCommit": "5d3918ca49b094f6aefbb14e70ec6691f363dd7d",
+      "basePath": "organon/combined-takeda-20261006T0550Z/supervise-cancel.mjs",
+      "sha256": "c6527e9a0f37c29e8fc0305185212f25a87be273b1ad1693071ee8e496eab584"
+    },
+    {
+      "repositoryPath": "hosts-next/astellas/supervision/inject-supervisor-fault.cjs",
+      "restoreRelativeToR3": "hosts-next/astellas/supervision/inject-supervisor-fault.cjs",
+      "baseSafeCommit": "5d3918ca49b094f6aefbb14e70ec6691f363dd7d",
+      "basePath": "organon/supervision/inject-supervisor-fault.cjs",
+      "sha256": "6ad24493486cea118860b22c469afc387e047f3d753002df9b9f779c1bf87fdc"
+    },
+    {
+      "repositoryPath": "hosts-next/astellas/combined-takeda-20261006T0550Z/supervise-cancel.mjs",
+      "restoreRelativeToR3": "hosts-next/astellas/combined-takeda-20261006T0550Z/supervise-cancel.mjs",
+      "baseSafeCommit": "5d3918ca49b094f6aefbb14e70ec6691f363dd7d",
+      "basePath": "organon/combined-takeda-20261006T0550Z/supervise-cancel.mjs",
+      "sha256": "c6527e9a0f37c29e8fc0305185212f25a87be273b1ad1693071ee8e496eab584"
+    },
+    {
+      "repositoryPath": "hosts-next/grifols/supervision/inject-supervisor-fault.cjs",
+      "restoreRelativeToR3": "hosts-next/grifols/supervision/inject-supervisor-fault.cjs",
+      "baseSafeCommit": "5d3918ca49b094f6aefbb14e70ec6691f363dd7d",
+      "basePath": "organon/supervision/inject-supervisor-fault.cjs",
+      "sha256": "6ad24493486cea118860b22c469afc387e047f3d753002df9b9f779c1bf87fdc"
+    },
+    {
+      "repositoryPath": "hosts-next/grifols/combined-takeda-20261006T0550Z/supervise-cancel.mjs",
+      "restoreRelativeToR3": "hosts-next/grifols/combined-takeda-20261006T0550Z/supervise-cancel.mjs",
+      "baseSafeCommit": "5d3918ca49b094f6aefbb14e70ec6691f363dd7d",
+      "basePath": "organon/combined-takeda-20261006T0550Z/supervise-cancel.mjs",
+      "sha256": "c6527e9a0f37c29e8fc0305185212f25a87be273b1ad1693071ee8e496eab584"
+    },
+    {
+      "repositoryPath": "hosts-next/biogen/supervision/inject-supervisor-fault.cjs",
+      "restoreRelativeToR3": "hosts-next/biogen/supervision/inject-supervisor-fault.cjs",
+      "baseSafeCommit": "5d3918ca49b094f6aefbb14e70ec6691f363dd7d",
+      "basePath": "organon/supervision/inject-supervisor-fault.cjs",
+      "sha256": "6ad24493486cea118860b22c469afc387e047f3d753002df9b9f779c1bf87fdc"
+    },
+    {
+      "repositoryPath": "hosts-next/biogen/combined-takeda-20261006T0550Z/supervise-cancel.mjs",
+      "restoreRelativeToR3": "hosts-next/biogen/combined-takeda-20261006T0550Z/supervise-cancel.mjs",
+      "baseSafeCommit": "5d3918ca49b094f6aefbb14e70ec6691f363dd7d",
+      "basePath": "organon/combined-takeda-20261006T0550Z/supervise-cancel.mjs",
+      "sha256": "c6527e9a0f37c29e8fc0305185212f25a87be273b1ad1693071ee8e496eab584"
+    },
+    {
+      "repositoryPath": "workspaces/deadline-companion-r3-safe/host/runtime/start-monitor-portable42.js",
+      "restoreRelativeToR3": "workspaces/deadline-companion-r3-safe/host/runtime/start-monitor-portable42.js",
+      "baseSafeCommit": "5d3918ca49b094f6aefbb14e70ec6691f363dd7d",
+      "basePath": "workspaces/deadline-companion-r3-safe/host/runtime/start-monitor-portable42.js",
+      "sha256": "db6c58edc51d7e95198502a9c4290dc21487bf65b706b7c969810092c2a38688"
+    }
+  ],
+  "excludedCommonOriginals": [
+    {
+      "path": "REBUILD_RECIPE.md",
+      "sha256": "c84010138bd37f47d9d4977ce2a98675c3de6ff62f8a104806a5f90f65bfc7f7",
+      "bytes": 8090
+    },
+    {
+      "path": "RECIPE_GUARD_RESULTS.json",
+      "sha256": "1f99d1c8690cbd76bb607bf3401cee2e566cf43d2daed37846649ca9b1587d52",
+      "bytes": 652
+    },
+    {
+      "path": "RECIPE_REVIEW.json",
+      "sha256": "28ee0e7669a2f54af21c493319e3ffef44997928ee2b0a699487c8023b8311a8",
+      "bytes": 1523
+    }
+  ],
+  "limitations": [
+    "Recipe requires full pinned BMS 42-file baseline including omitted LAUNCH_HOLD and original manifest",
+    "External reference JSON contents are not included or read by this backup",
+    "Legacy supervisor fixtures retain historical absolute paths; not full-suite runnability",
+    "Actual activation/control, run inputs, SQL requests, raw records and credentials are excluded"
+  ]
+}
