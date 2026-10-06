@@ -321,6 +321,46 @@
       "sha": "66dfe265b9b00f5ae6fa6408a1a9e4584e5f7eb2",
       "sha256": "bcb69993591670242810bfda15beff0c6a6c5d0bb5562c93872de8d019ddfccc",
       "bytes": 3666
+    },
+    {
+      "path": "merck/host/host-config.template.json",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "4db55fb64e5a01676d1264e3f295fdd53362410a",
+      "sha256": "54030b7c23128f0f9bcec2a4f7f38502132d0a5db7716e556d9457d3255da134",
+      "bytes": 391
+    },
+    {
+      "path": "merck/supervision/inject-supervisor-fault.cjs",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "c6c568ce138960f1851c2ac215337d04b43f307f",
+      "sha256": "6ad24493486cea118860b22c469afc387e047f3d753002df9b9f779c1bf87fdc",
+      "bytes": 4758
+    },
+    {
+      "path": "workspaces/deadline-companion-r3-safe/host/runtime/start-monitor-portable42.js",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "e16bcfba1f0abb51d2209d0082a374733f2a403b",
+      "sha256": "db6c58edc51d7e95198502a9c4290dc21487bf65b706b7c969810092c2a38688",
+      "bytes": 7326
+    },
+    {
+      "path": "merck/combined-takeda-20261006T0550Z/supervise-cancel.mjs",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "900e455aabc83af787fd08f46ecfc6bdc6cd4fc8",
+      "sha256": "c6527e9a0f37c29e8fc0305185212f25a87be273b1ad1693071ee8e496eab584",
+      "bytes": 7246
+    },
+    {
+      "path": "RESTORE_LAYOUT.json",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "ed9abd12c085fd5bdd25a57bec880dd271c7cef4",
+      "sha256": "e8423223ba93943b5269b4d8b13f4e309d803428e913c0ffa7f608351aaef162",
+      "bytes": 1899
     }
   ],
   "excluded": [
@@ -331,5 +371,10 @@
     "Original captures, public response JSON, generated logs and metrics",
     "Original frozen manifest/check results and LAUNCH_HOLD state",
     "Original application bundle and complete Git graph"
-  ]
+  ],
+  "sourceAddendum": {
+    "manifestSha256": "d6e865e8b2ae1c6bc4a2be35dba7b17d75a59a71be731e19dae9032d6382b9a3",
+    "files": 4,
+    "sourceBytes": 19721
+  }
 }
