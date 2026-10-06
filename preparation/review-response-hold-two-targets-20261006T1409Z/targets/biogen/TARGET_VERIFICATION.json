@@ -1,0 +1,26 @@
+{
+  "source": "hosts-next/biogen",
+  "sourceManifestSha256": "93e5fc917858069f29436cfafdc8db94b82fadc2cfbcc42bc064395d05c22368",
+  "sourceFilesExact": true,
+  "adaptationOnly": [
+    "existing namespace",
+    "existing source environment ID",
+    "existing relay allowed directory"
+  ],
+  "modifiedHostSource": false,
+  "canonicalManifestSha256": "2b09c6371961d436831b425942a583c2135e135450605504a73f6633cab3d386",
+  "changes": [
+    {
+      "path": "host/host-helper-functions.js",
+      "beforeSha256": "858c5bdfa1a6c6130a29cf202f8c341cf1cd2eb4f6192bf7b4fd80fd0d818c47",
+      "afterSha256": "55ebb386391ad4efcb2b9b6760b9b385d52f5408069d773d848bfc20449d4429",
+      "afterBytes": 8509
+    },
+    {
+      "path": "host/relay-files.mjs",
+      "beforeSha256": "7e0c10f0f2121e86c8be172f14a2b75c03a2edca1d248800018b4cc5755ce0df",
+      "afterSha256": "736af0977259d871ba4a7024873fd12059814cf445979c3471903b5c9b3dea00",
+      "afterBytes": 7906
+    }
+  ]
+}

@@ -1,0 +1,26 @@
+{
+  "source": "hosts-next/grifols",
+  "sourceManifestSha256": "2e21d23691d7429c3f1265ab8c52e55b879cb2e6e5829e20f893e8d115ace25b",
+  "sourceFilesExact": true,
+  "adaptationOnly": [
+    "existing namespace",
+    "existing source environment ID",
+    "existing relay allowed directory"
+  ],
+  "modifiedHostSource": false,
+  "canonicalManifestSha256": "2b09c6371961d436831b425942a583c2135e135450605504a73f6633cab3d386",
+  "changes": [
+    {
+      "path": "host/host-helper-functions.js",
+      "beforeSha256": "6fcef01587cdcc01b1b34c905626b44887b0c75d6a7ec618bb7fb3c2db3ad53e",
+      "afterSha256": "57b5600d0e3a2c6358d5b6598050fcc4c86a7575fdc278878251a1a3e28af93c",
+      "afterBytes": 8516
+    },
+    {
+      "path": "host/relay-files.mjs",
+      "beforeSha256": "b28f7c86b699e01106b47478b0fbe4e892390d55d91f47cd54cf25385ff95861",
+      "afterSha256": "5390efb88294e6091041fb535be63fc43ba11bdfe9ae4698d8f7573419615d2b",
+      "afterBytes": 7907
+    }
+  ]
+}
