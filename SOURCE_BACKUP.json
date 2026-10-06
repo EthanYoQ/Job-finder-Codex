@@ -1,276 +1,112 @@
 {
-  "schemaVersion": 1,
-  "frozenSourceManifestSha256": "2b09c6371961d436831b425942a583c2135e135450605504a73f6633cab3d386",
-  "files": [
-    {
-      "path": "preparation/review-response-hold-20261006T1347Z/baseline/host-helper-functions.js",
-      "mode": "100644",
-      "type": "blob",
-      "sha": "f7034306f066fa3418a4dce87b0c77b86b01cce0",
-      "sha256": "7988fa4024239bf5dfd9082eec42d9eb2b39b48f17c2aa98f5c9de8fcffe386f",
-      "bytes": 7113
-    },
-    {
-      "path": "preparation/review-response-hold-20261006T1347Z/baseline/relay-files.mjs",
-      "mode": "100644",
-      "type": "blob",
-      "sha": "b5d3c81a7bb78cbc1f01047c70ac2088881576d4",
-      "sha256": "df2ea134be48fc4be289597a3613de9da3a4a9c1c09ca004df4bf399dfc2db5d",
-      "bytes": 5479
-    },
-    {
-      "path": "preparation/review-response-hold-20261006T1347Z/review-response-hold.patch",
-      "mode": "100644",
-      "type": "blob",
-      "sha": "f8c829625a3cf16bef0591405b464a2579e6003b",
-      "sha256": "b6eb189dc95bfbec0d80aa841ce0a90b65f1b27d53dc0697a180d598c1164183",
-      "bytes": 6794
-    },
-    {
-      "path": "preparation/review-response-hold-20261006T1347Z/revised/host-helper-functions.js",
-      "mode": "100644",
-      "type": "blob",
-      "sha": "9986ca0bd93665e3f3f3ae33ee64c65833c10eee",
-      "sha256": "a40b984d70da155eac0ad1dc85cbb2ded3020916c677e26f8f269663aed98e4c",
-      "bytes": 8502
-    },
-    {
-      "path": "preparation/review-response-hold-20261006T1347Z/revised/relay-files.mjs",
-      "mode": "100644",
-      "type": "blob",
-      "sha": "015dcad007454ea7dcbcf1adb834f107b630e3b2",
-      "sha256": "a0d8afc4699659328a4d720603bf43eb78546b7d9a3d232d50e3149d23b3c83f",
-      "bytes": 7905
-    },
-    {
-      "path": "preparation/review-response-hold-20261006T1347Z/targets/astellas/baseline/host-helper-functions.js",
-      "mode": "100644",
-      "type": "blob",
-      "sha": "7dfca95f85d9d7f8485e3528be8b42650a477da3",
-      "sha256": "46d4ff6040e19ace9e996760492294dd4137d14b5dca38dbc57c4936daac2031",
-      "bytes": 7134
-    },
-    {
-      "path": "preparation/review-response-hold-20261006T1347Z/targets/astellas/baseline/relay-files.mjs",
-      "mode": "100644",
-      "type": "blob",
-      "sha": "b04277d48d06f60950531fcb773086fab0feb053",
-      "sha256": "03c33cd8530dc51b1cd5dd89e1aa5b3f8d9df7a6b5aed79eaca57e19d47d19bb",
-      "bytes": 5482
-    },
-    {
-      "path": "preparation/review-response-hold-20261006T1347Z/targets/astellas/review-response-hold.patch",
-      "mode": "100644",
-      "type": "blob",
-      "sha": "50557883804ba4151d396870502cbcb88d97224f",
-      "sha256": "13873fa5aa46321f70e0a46c90a4d60f3ef65fe368fd68424c6c2ffe8a860411",
-      "bytes": 6800
-    },
-    {
-      "path": "preparation/review-response-hold-20261006T1347Z/targets/astellas/revised/host-helper-functions.js",
-      "mode": "100644",
-      "type": "blob",
-      "sha": "8d1fd549ab1d3b38f35f7ba0ed8734f527352e3e",
-      "sha256": "3376768048683599742fe7389c6c1eac85c6a24a19341172ac34282ef10e5d3e",
-      "bytes": 8523
-    },
-    {
-      "path": "preparation/review-response-hold-20261006T1347Z/targets/astellas/revised/relay-files.mjs",
-      "mode": "100644",
-      "type": "blob",
-      "sha": "e76e47b1fcfd397d2d95369af76ed6e620028dbe",
-      "sha256": "da619f04d14d9a68695ef6a872e7940acddc905ab1551b4c1b3a34c264ff5302",
-      "bytes": 7908
-    },
-    {
-      "path": "preparation/review-response-hold-20261006T1347Z/tests/baseline.test.mjs",
-      "mode": "100644",
-      "type": "blob",
-      "sha": "f67ae133c5f6b5b797faaa5ab5d826ba7d98255f",
-      "sha256": "8a77827941042ceac6c618a101871ca82535058e86cbc3b4d39cd2e39ca5353e",
-      "bytes": 2219
-    },
-    {
-      "path": "preparation/review-response-hold-20261006T1347Z/tests/expiry.test.mjs",
-      "mode": "100644",
-      "type": "blob",
-      "sha": "3a0b6d923ae1381c1cb501bd4faef72f7d97b26d",
-      "sha256": "c22195ca82ec3fe9d7502d998f28dbc213d7d11bb84a8c48c1a632d0901235cc",
-      "bytes": 8496
-    },
-    {
-      "path": "preparation/review-response-hold-20261006T1347Z/tests/harness.mjs",
-      "mode": "100644",
-      "type": "blob",
-      "sha": "5ffc0041dc2c5b4427f21114aeadf320514a6003",
-      "sha256": "c2674d44a026fff510efe89e1ddb37f110f5a2e91d17b160ce20c7a49a7858e7",
-      "bytes": 6781
-    },
-    {
-      "path": "preparation/review-response-hold-20261006T1347Z/tests/relay-child.mjs",
-      "mode": "100644",
-      "type": "blob",
-      "sha": "9671a5fb4a0b439253932867350bca195cb867d6",
-      "sha256": "ae0f25dc22c2c1bfa3c9d0e337bcb8cb3f32f8025cdd449a6a5fc471064b1627",
-      "bytes": 1628
-    },
-    {
-      "path": "preparation/review-response-hold-20261006T1347Z/tests/review-hold.test.mjs",
-      "mode": "100644",
-      "type": "blob",
-      "sha": "3c014107fa757956885f46f379178b34efd529ec",
-      "sha256": "d217abad9b4846bcaaf29a03a5c83bcb535ce3e5d315fb373943773dba0b325f",
-      "bytes": 8265
-    },
-    {
-      "path": "preparation/review-response-hold-20261006T1347Z/tests/target.test.mjs",
-      "mode": "100644",
-      "type": "blob",
-      "sha": "af678951c02679bbf4ebaf0d5eaf6131724d2ce9",
-      "sha256": "efd355e4757ed1de06c71e76916672c2c88099050c7c13aaed39ee580bd93160",
-      "bytes": 1587
-    },
-    {
-      "path": "preparation/review-response-hold-two-targets-20261006T1409Z/targets/biogen/baseline/host-helper-functions.js",
-      "mode": "100644",
-      "type": "blob",
-      "sha": "64841e9156336107467bc5ff6cebdae37fce1064",
-      "sha256": "858c5bdfa1a6c6130a29cf202f8c341cf1cd2eb4f6192bf7b4fd80fd0d818c47",
-      "bytes": 7120
-    },
-    {
-      "path": "preparation/review-response-hold-two-targets-20261006T1409Z/targets/biogen/baseline/relay-files.mjs",
-      "mode": "100644",
-      "type": "blob",
-      "sha": "abf843d7d03152df9c5e56ed46e42fdfeab7e4e9",
-      "sha256": "7e0c10f0f2121e86c8be172f14a2b75c03a2edca1d248800018b4cc5755ce0df",
-      "bytes": 5480
-    },
-    {
-      "path": "preparation/review-response-hold-two-targets-20261006T1409Z/targets/biogen/review-response-hold.patch",
-      "mode": "100644",
-      "type": "blob",
-      "sha": "a03ad6fa3638586d70f0b43aa5c482ee12bfdcd0",
-      "sha256": "aa9aee6e7a25593436063fa1663d9be3c903a16a7f138a7e3f3364bd405b552c",
-      "bytes": 6796
-    },
-    {
-      "path": "preparation/review-response-hold-two-targets-20261006T1409Z/targets/biogen/revised/host-helper-functions.js",
-      "mode": "100644",
-      "type": "blob",
-      "sha": "6a5bd6acc6be320fd665db54503866605910a34c",
-      "sha256": "55ebb386391ad4efcb2b9b6760b9b385d52f5408069d773d848bfc20449d4429",
-      "bytes": 8509
-    },
-    {
-      "path": "preparation/review-response-hold-two-targets-20261006T1409Z/targets/biogen/revised/relay-files.mjs",
-      "mode": "100644",
-      "type": "blob",
-      "sha": "b4a8b36207821d01d3159b8cf4034bcf1a1c2b8a",
-      "sha256": "736af0977259d871ba4a7024873fd12059814cf445979c3471903b5c9b3dea00",
-      "bytes": 7906
-    },
-    {
-      "path": "preparation/review-response-hold-two-targets-20261006T1409Z/targets/grifols/baseline/host-helper-functions.js",
-      "mode": "100644",
-      "type": "blob",
-      "sha": "c2f23b33c4fb9296b3cfc91b9efe7e4a73fa5e15",
-      "sha256": "6fcef01587cdcc01b1b34c905626b44887b0c75d6a7ec618bb7fb3c2db3ad53e",
-      "bytes": 7127
-    },
-    {
-      "path": "preparation/review-response-hold-two-targets-20261006T1409Z/targets/grifols/baseline/relay-files.mjs",
-      "mode": "100644",
-      "type": "blob",
-      "sha": "9503ebbfe3e9706d0b56e34e3ff03a73165a9664",
-      "sha256": "b28f7c86b699e01106b47478b0fbe4e892390d55d91f47cd54cf25385ff95861",
-      "bytes": 5481
-    },
-    {
-      "path": "preparation/review-response-hold-two-targets-20261006T1409Z/targets/grifols/review-response-hold.patch",
-      "mode": "100644",
-      "type": "blob",
-      "sha": "43940a5a61125ea5688f4e8073280c99da4e5fd1",
-      "sha256": "da21bd8d2a841dd78bee1dd50a9a2b68b635e8408547c75749d5b812126016d1",
-      "bytes": 6798
-    },
-    {
-      "path": "preparation/review-response-hold-two-targets-20261006T1409Z/targets/grifols/revised/host-helper-functions.js",
-      "mode": "100644",
-      "type": "blob",
-      "sha": "2b8685eb287d5949a1bab8246332aeaff864f9f0",
-      "sha256": "57b5600d0e3a2c6358d5b6598050fcc4c86a7575fdc278878251a1a3e28af93c",
-      "bytes": 8516
-    },
-    {
-      "path": "preparation/review-response-hold-two-targets-20261006T1409Z/targets/grifols/revised/relay-files.mjs",
-      "mode": "100644",
-      "type": "blob",
-      "sha": "15ae63579935d88aea488bebee00f82972501a3f",
-      "sha256": "5390efb88294e6091041fb535be63fc43ba11bdfe9ae4698d8f7573419615d2b",
-      "bytes": 7907
-    },
-    {
-      "path": "preparation/review-response-hold-two-targets-20261006T1409Z/tests/harness.mjs",
-      "mode": "100644",
-      "type": "blob",
-      "sha": "afb6b7cc5546669219b31a6d9b6f4f150082cdb0",
-      "sha256": "1bfeb2745ada95464bb1fd34ad573786beb9f93629c40a9a715931d01e78006d",
-      "bytes": 6781
-    },
-    {
-      "path": "preparation/review-response-hold-two-targets-20261006T1409Z/tests/targets.test.mjs",
-      "mode": "100644",
-      "type": "blob",
-      "sha": "c885264ca52e9e09b88e619659a0235e5555e15e",
-      "sha256": "19cf1ef62721f3e31de21707631adce5ed52df913ebdd8c8256ad487a56bed4f",
-      "bytes": 4186
-    },
-    {
-      "path": "preparation/review-response-hold-20261006T1347Z/DELIVERY_MANIFEST.json",
-      "mode": "100644",
-      "type": "blob",
-      "sha": "6d1d062e5557b759867e659eeb25b42d3833ece9",
-      "sha256": "2b09c6371961d436831b425942a583c2135e135450605504a73f6633cab3d386",
-      "bytes": 5254
-    },
-    {
-      "path": "preparation/review-response-hold-20261006T1347Z/targets/astellas/TARGET_VERIFICATION.json",
-      "mode": "100644",
-      "type": "blob",
-      "sha": "ef7dac18737349e64f5ddd7a720bffcf4ceb07e1",
-      "sha256": "689af242a922cc100ac53783bece2fb3329b5b8d832e54b2d06740b426154d88",
-      "bytes": 840
-    },
-    {
-      "path": "preparation/review-response-hold-two-targets-20261006T1409Z/targets/grifols/TARGET_VERIFICATION.json",
-      "mode": "100644",
-      "type": "blob",
-      "sha": "74e645bec2957823ed789574534b20b7c4fd9327",
-      "sha256": "871f9d134d5dbd565c9bc4636a18a187e86b4b19e90e2d3580aba23e1ffa9dbe",
-      "bytes": 955
-    },
-    {
-      "path": "preparation/review-response-hold-two-targets-20261006T1409Z/targets/biogen/TARGET_VERIFICATION.json",
-      "mode": "100644",
-      "type": "blob",
-      "sha": "303c48cd3015597377a6a2fa6eebb4668443076c",
-      "sha256": "c929f7d2ca9328f8939c704df14d8e657f917e95fd22768674c93a222864cba4",
-      "bytes": 954
-    }
+  "format": "safe-source-backup/v1",
+  "snapshot": "deployment-backup-contract-v1",
+  "sourcePlanSha256": "23b44fd804f227c19e8fd4d411a2e5901aec84c9b2b85a371b950174307efefd",
+  "originalSourceFiles": 12,
+  "originalSourceBytes": 36566,
+  "originalBytesUnchanged": true,
+  "dependencies": [
+    "Python 3 standard library; preserve the relative layout so test_validate.py imports validate.py."
+  ],
+  "restorationNotes": [
+    "Run from the restored repository directory; the original README contains the historical preparation path.",
+    "TEST_RESULTS.txt and EXAMPLE_VALIDATION.json mentioned in the original README are deliberately not included.",
+    "All example bodies, scope and review attestations are synthetic. Archive-only examples grant no execution or replay authority.",
+    "CLI exit 0 also allows valid partial archives; check recoveryComplete separately.",
+    "The independent frozen scope, review truthfulness and immutable input directory are caller prerequisites. This source backup does not wire the validator into any publisher."
   ],
   "excluded": [
-    "Actual activation and control files",
-    "Run folders and data",
-    "Actual SQL requests and database responses",
-    "Credentials and environment values",
-    "Original captures, public response JSON, generated logs and metrics",
-    "Original standalone review/result reports and actual runtime state",
-    "Original application bundle and complete Git graph"
+    "Actual deployment materials, approval text, runtime/control data, credentials, raw or database records, internal reports and generated validation outputs."
   ],
-  "sourceAddendum": {
-    "canonicalManifestSha256": "2b09c6371961d436831b425942a583c2135e135450605504a73f6633cab3d386",
-    "twoTargetsManifestSha256": "024be3ffe16a6f857f2c0598eb159d8ebf2f0812041ea9b9b8b440b6159e99be",
-    "includedTestMetadataFiles": 4
-  }
+  "verificationScope": "Exact source bytes and Git objects only; no tests, CI, deployment or source execution were performed by this backup.",
+  "files": [
+    {
+      "path": "CONTRACT.json",
+      "bytes": 3225,
+      "sha256": "dfd0594bcbbeb6ea0f9269224afe37695135926b64f4d41fffeece01349e0093",
+      "mode": "100644",
+      "gitBlob": "2cedc0942bba55793fb14a1caac3d98ab6bdef89"
+    },
+    {
+      "path": "README.md",
+      "bytes": 4925,
+      "sha256": "44a84de7f494aa6d597c1dcf748d7ece01cb91446522566490558cfa306b7de8",
+      "mode": "100644",
+      "gitBlob": "d61b647eb48cfb11c3a5fb2dd3ea3839a204bf79"
+    },
+    {
+      "path": "example/bodies/archive-only/intent.txt",
+      "bytes": 67,
+      "sha256": "5cfa53308a02a0683775c196ac02686af5696e3dc20ba9cce4ab07403b1765c8",
+      "mode": "100644",
+      "gitBlob": "bac7da9b56e39c760ff55c694e86e011fc86406a"
+    },
+    {
+      "path": "example/bodies/archive-only/receipt.txt",
+      "bytes": 65,
+      "sha256": "49f3a5831a8192dc62ca4b51a3535d70ba29aa104917cbef716d12e2d4db58c0",
+      "mode": "100644",
+      "gitBlob": "b4cef548145b71c437072006a06a18c5ff10ed8d"
+    },
+    {
+      "path": "example/bodies/materials/bootstrap.txt",
+      "bytes": 56,
+      "sha256": "70104d0d4be35fd22016c7441c022605f61e1cce9415b6aff22f6e6db0d8b10f",
+      "mode": "100644",
+      "gitBlob": "0c10125927f50a2420aabc752cbefd1ded5a90e0"
+    },
+    {
+      "path": "example/bodies/materials/chunk-000.txt",
+      "bytes": 23,
+      "sha256": "3213241a2f773bb1a98346b286ff353864a951498d6fd4a85cdfc81e64807df4",
+      "mode": "100644",
+      "gitBlob": "d23ba4c1f3ae9c40f6e2bd48ff4a4d6f696407d5"
+    },
+    {
+      "path": "example/bodies/materials/chunk-001.txt",
+      "bytes": 26,
+      "sha256": "ddac54760cb02bc76c3a99efecb30e248a509d738334e759b5a6ad91a13a0e1d",
+      "mode": "100644",
+      "gitBlob": "9da948eeb8372fe6698107c2a58cc218cdbadca2"
+    },
+    {
+      "path": "example/bodies/materials/payload.txt",
+      "bytes": 49,
+      "sha256": "d4aa1339e90ce58f91232cdb19773cb49dabda3773214feaa782f4aa9fe38903",
+      "mode": "100644",
+      "gitBlob": "a404bc82e2f8a493e157b413eb8970bc7b6438d1"
+    },
+    {
+      "path": "example/expected-scope.json",
+      "bytes": 1504,
+      "sha256": "65f8042fd27b0e2b4e6220130a87f949a043e89fef2626e61305fdd10ae5dff0",
+      "mode": "100644",
+      "gitBlob": "a76db50ddcd51f125677bc88ada603bcfdc3d8a5"
+    },
+    {
+      "path": "example/manifest.json",
+      "bytes": 5114,
+      "sha256": "abf4196b52d6676a4f11bf98c868bfce450f097ff8287e419a2f6888811122e3",
+      "mode": "100644",
+      "gitBlob": "f09152e61b6ff313f53b562c0ae831170a266f01"
+    },
+    {
+      "path": "test_validate.py",
+      "bytes": 9828,
+      "sha256": "4f2200357c0618b273d01719a4036c1c49a01d8f741610eba8a6df490a68b73c",
+      "mode": "100644",
+      "gitBlob": "6c6b8f23d5bca0904ce472c94db6cec9758982df"
+    },
+    {
+      "path": "validate.py",
+      "bytes": 11684,
+      "sha256": "fa75f7d40d86228ecfede33351120f431ad0cd6e7626f817d840752c58b9066f",
+      "mode": "100644",
+      "gitBlob": "a24e349e22e5176a4578a4722f2b60d5e03aecb3"
+    }
+  ],
+  "knownStaticLimitations": [
+    "Directory inventory checks the body root itself for symlinks but not every ancestor before walking. Missing-body partial entries skip per-body ancestor checks; callers must supply an independently checked nonsymlink root path.",
+    "Directory inventory ignores unlisted FIFO, socket and other nonregular entries. This snapshot does not establish rejection of every special filesystem entry."
+  ]
 }
