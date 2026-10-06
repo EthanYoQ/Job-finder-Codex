@@ -1,0 +1,29 @@
+--- originals/runtime/preflight/preflight-launch.mjs
++++ runtime/preflight/preflight-launch.mjs
+@@ -45,7 +45,7 @@
+ export function validateBootstrapShape(bootstrap) {
+   const base = ['batchId', 'candidateRows', 'checkedAt', 'schemaVersion'];
+   const optional = ['independentValidation', 'currentCapture', 'retainedCapture'];
+-  if (!bootstrap || typeof bootstrap !== 'object' || Array.isArray(bootstrap) || bootstrap.schemaVersion !== 1 || base.some(key => !(key in bootstrap)) || Object.keys(bootstrap).some(key => !base.includes(key) && !optional.includes(key)) || !/^[A-Za-z0-9][A-Za-z0-9._-]{0,80}$/.test(bootstrap.batchId) || !Array.isArray(bootstrap.candidateRows) || bootstrap.candidateRows.length !== 1) fail('PREFLIGHT_BOOTSTRAP_SCHEMA');
++  if (!bootstrap || typeof bootstrap !== 'object' || Array.isArray(bootstrap) || bootstrap.schemaVersion !== 1 || base.some(key => !(key in bootstrap)) || Object.keys(bootstrap).some(key => !base.includes(key) && !optional.includes(key)) || typeof bootstrap.batchId !== 'string' || !/^[A-Za-z0-9][A-Za-z0-9._-]{0,80}$/.test(bootstrap.batchId) || !Array.isArray(bootstrap.candidateRows) || bootstrap.candidateRows.length !== 1) fail('PREFLIGHT_BOOTSTRAP_SCHEMA');
+   if (bootstrap.currentCapture && bootstrap.retainedCapture) fail('PREFLIGHT_MULTIPLE_CAPTURE_INPUTS');
+   return optional.filter(key => key in bootstrap).map(key => {
+     const value = bootstrap[key];
+@@ -90,7 +90,7 @@
+   const smokeRoot = await mkdtemp(join(checks, 'archive-smoke-'));
+   await writableDirectory(smokeRoot);
+   const helper = await execute(process.execPath, ['--max-old-space-size=256', '--import', join(repo, 'node_modules/tsx/dist/loader.mjs'), join(here, 'runtime-check.mjs'), configFile.path, controlFile.path, bootstrapFile.path, smokeRoot], {
+-    cwd: repo, env: { ...process.env, TSX_DISABLE_CACHE: '1', GIT_OPTIONAL_LOCKS: '0', JOBFINDER_CLOUD_SOURCE_ID: cfg.sourceId }, timeout: 45000, maxBuffer: 100000
++    cwd: repo, env: { ...process.env, TSX_DISABLE_CACHE: '1', NODE_DISABLE_COMPILE_CACHE: '1', PYTHONDONTWRITEBYTECODE: '1', GIT_OPTIONAL_LOCKS: '0', JOBFINDER_CLOUD_SOURCE_ID: cfg.sourceId }, timeout: 45000, maxBuffer: 100000
+   });
+   const runtime = JSON.parse(helper.stdout);
+   for (const file of files) if (sha(await readFile(file.path)) !== sha(file.bytes)) fail('PREFLIGHT_INPUT_CHANGED');
+@@ -113,7 +113,7 @@
+   if (Date.now() - Date.parse(bootstrap.checkedAt) > 60000 || Date.now() < Date.parse(bootstrap.checkedAt)) fail('PREFLIGHT_BOOTSTRAP_STALE');
+   await writeFile(join(report.outputRoot, 'launch-intent.json'), JSON.stringify({ reportPath, startedAt: new Date().toISOString(), command: report.command }), { flag: 'wx', mode: 0o600 });
+   const [command, ...args] = report.command;
+-  const child = spawn(command, args, { cwd: report.cwd, stdio: 'inherit', detached: false, env: { ...process.env, TSX_DISABLE_CACHE: '1', GIT_OPTIONAL_LOCKS: '0', JOBFINDER_CLOUD_SOURCE_ID: config.sourceId, P0_SOURCE_HTTP_TIMEOUT_MS: '45000' } });
++  const child = spawn(command, args, { cwd: report.cwd, stdio: 'inherit', detached: false, env: { ...process.env, TSX_DISABLE_CACHE: '1', NODE_DISABLE_COMPILE_CACHE: '1', PYTHONDONTWRITEBYTECODE: '1', GIT_OPTIONAL_LOCKS: '0', JOBFINDER_CLOUD_SOURCE_ID: config.sourceId, P0_SOURCE_HTTP_TIMEOUT_MS: '45000' } });
+   const signal = name => { if (child.pid) child.kill(name); };
+   process.on('SIGTERM', () => signal('SIGTERM')); process.on('SIGINT', () => signal('SIGINT'));
+   await new Promise((resolve, reject) => { child.once('error', reject); child.once('close', (code, killed) => { process.exitCode = code ?? (killed ? 1 : 0); resolve(); }); });

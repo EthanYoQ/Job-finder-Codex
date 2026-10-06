@@ -1,29 +1,30 @@
-# Astra C46 and Amgen C47 external host source increment
+# 五个 TRUE_A host 的源码备份
 
-This independent source archive contains 43 reviewed files: 22 Astra C46 host/preparation/check sources and 21 Amgen source-specific C47 host/check/finalizer sources. It adds no application source beyond the existing [Amgen e5a2a018 candidate archive](https://github.com/EthanYoQ/Job-finder-Codex/tree/2fab322695f71d2e69a6d3c6a8f067725d9c4fb0). It does not change the default branch, deploy services, run CI or restore a registered runtime identity.
+本备份保存 cr、csl、daiichi、lilly、sph 五个 host 的冻结准备源码。归档标识为 `due-a46-safe-source-20261006T0113Z.tar.gz`，其 SHA256 为 `49d43b6726b0ac0088c57303821ac32bcb649a4fa3d52243cefc67388f8538a5`。`20261006T0113Z` 是归档名称中的时间标识；本备份不把它当作数据库观测时间。
 
-## Frozen scope and later status
+状态界限是该归档的 prepared 冻结范围。本备份没有加入冻结之后的 SPH 运行结果，也不据此推断其他 source 是否运行。源码存在、准备完成和公开验收是不同状态；此备份不证明生产运行成功或公众验收完成。
 
-Astra's frozen preparation manifest SHA256 is `4dc1aaded00630e9baf4eb23d7be11c0e2af82295d1c977d608e230cdd79d9b0`, recorded at 2026-10-05 22:48:33 UTC. Its original preparation state was offline/not launched. The 22 selected source files retain those original bytes; generated report status strings in source are not a claim about later operation.
+## 文件范围
 
-Amgen's preparation file index SHA256 is `294280a45b897506480955f2e9d17551a727a339efa3c1af146fdfbf1ae83def`. It records preparation and compiled registration before execution. The separate finalizer source is bound by SHA256 `8365fdcfc66fc45b1059f980ad5090554ff36ffa9302013209397ec8a2c1fb0d`.
+原归档中经过逐文件选择的 215 个安全成员保持原字节和相对布局，统一放在 `backup/due-a46-source-20261006T0113Z/` 下：
 
-The publisher's subsequent handoff distinguishes these phases: C47 had been registered by 23:00 UTC, its first capture started at 23:12, and the 23:14 frozen status still had zero accepted successes. Later it reported an exact 50-job commit at 23:18 and public CURRENT 50 at 23:30. Those are later publisher-reported outcomes, not preparation-test results or database reads performed for this backup. The same handoff reports regular C46 at 11 successful sources/1330 current jobs and source-specific Amgen C47 at 1/50. The original earlier offline-candidate backup keeps its own historical cutoff.
+- 130 个 host 源码文件，包含当前源码与 `originals/`
+- 65 个原始与当前源码之间的 `diffs/` 文件
+- 8 个恢复、准备、检查、合成测试与冻结工具源码
+- 12 个原始源文件列表和 SHA256 清单
 
-## Source and identity boundaries
+这 215 个源文件共 863,496 字节。仓库根目录额外包含本说明、`SOURCE_BACKUP.json` 和 `SHA256SUMS`，所以本次完整文件树有 218 个文件。所有 Git 文件模式都是 `100644`。
 
-Astra remains bound to the regular restored producer `fb0b8e3b708d4f57cae09b465fb1c9ceddf7ad8d` and C46 namespace. Amgen uses candidate source `e5a2a01836fa16669a88fa2604a6ca1a007939fe`, its matching issuer/capture implementation, and an isolated C47 namespace. C47 is source-specific; it does not replace the regular C46 identity or counters.
+五个 `hosts46/{cr,csl,daiichi,lilly,sph}/RUNBOOK.md` 未纳入，因为它们包含实际离线验证和归档烟测结果。原包内的 `SOURCE_BACKUP_FILELIST.txt`、`SOURCE_BACKUP_SHA256SUMS`、`DUE_A46_SOURCE_FILELIST.txt` 和 `DUE_A46_SOURCE_SHA256SUMS` 保留原字节，因此仍引用这五个排除文件。它们仅记录原包来源，不能当作本次上传全集。本次选择以根目录 `SOURCE_BACKUP.json` 为准；根目录 `SHA256SUMS` 校验全部源文件及两个根目录说明文件，其自身不在其校验范围内。
 
-The original source scope, source-config hashes, official acquisition routes, freshness/12-hour observation gates, bootstrap timing, uncertainty guards and dedicated starters remain pinned. New Amgen host code was compared to the already reviewed C46 Amgen host; differences are its source root, candidate/source Git and namespace bindings. Nonsecret project references, exact candidate IDs, source pins and absolute restoration paths are preserved as code.
+## 恢复范围与限制
 
-The finalizer issues SELECT-only database readback, requires actual zero process exit and exact committed source/batch/receipt hashes, then records local summaries and source-specific C47 state. It is executable operational source, not a saved database response or an automatic execution instruction. External exclusive-publisher ownership remains necessary.
+这是源码备份，不是完整主机、工作区、数据库或运行状态快照。包内没有 producer42 源码和依赖，也没有实际 host-config/control/source-plan/context SQL、候选与活动状态读回、SPEC/PREPARED/FROZEN/IDENTITY/GUARD 结果文件、bootstrap、run、raw、捕获结果或凭据。
 
-## Review and recovery limitations
+恢复和冻结生成器只保留源码。它们在运行时仍需要包外的真实配置、身份输入、producer 及 code80/code84 来源材料；本包不能独立重建完整运行环境。源码中必要的非秘密 source ID、source-config hash、project、candidate、commit、路径与 namespace 约束保持原字节，不能把这些常量当作当前执行授权。原始文件和当前文件中的固定工作区路径也没有自动改写。
 
-All 43 selected file lengths and SHA256 hashes matched their fixed audit inputs. Static review found no embedded credentials, real response payloads or copied private authorization text. Synthetic checks use explicit NONQUAL data. No source or test was executed, no live capture/run data was read for this backup, and no functional/CI pass is implied by source preservation.
+`preflight-launch.mjs` 的入口只接受 `check`。保留的历史 256 MiB launch 分支不可作为 TRUE_A 启动依据；真正的 TRUE_A starter 使用 384 MiB，仍需新鲜 candidate、锁和唯一成功 CrawlObservation 检查。`PUBLISH` 停在 `AWAITING_PARENT_REVIEW`。
 
-`verification/amgen-e5-runtime-20261005T2248Z/derive-identity.mjs` is excluded unchanged because it embeds actual historical database-observation values. Its SHA256 is `432dbacb7e08afe858d95d88ecc9359b609df79148e6643d1a2936f61ceedb6d` and size is 5093 bytes. The archive preserves this exclusion and its recovery gap instead of altering the frozen script. Its build/expectation/history/source-plan and candidate-template outputs must be supplied through a separately authorized identity derivation/recovery process.
+历史 `ARCHIVE_STORE` 路径依赖未包含的 `audit-novo-public-archive.mjs` 和外部 Library helper。本备份保留这些源码，不代表该路径已可运行。合成测试代码不等于真实采集证据；恢复后仍需按授权范围重新核验。
 
-Host/control configuration, runtime and registration identity objects, original templates, dependencies and fresh authorized evidence are not included. Preparation/check tools depend on those excluded inputs and cannot be run from this source increment alone. A backup Git commit is not a reusable production runtime identity. The inherited ARCHIVE_STORE audit helper remains absent and that branch unsupported; use the established separate archive flow. Generic preflight launch remains a diagnostic path: use the matching dedicated source starter. Network-block hooks in tests are not a complete process/network security sandbox.
-
-`SOURCE_BACKUP.json` maps every retained source to path, mode, Git blob SHA, SHA256 and byte length; `SHA256SUMS` covers these sources and the new recovery documents. Original broad manifests, reports, configs, registration SQL, actual or generated request/control/DB packets, raw jobs, headers/responses, originals/diffs and internal operation notes are excluded. No active GitHub workflow is included.
+本次备份准备只检查归档结构、文件选择、字节与哈希，没有执行包内代码或测试，没有启动 host，也没有调用网络或数据库。
