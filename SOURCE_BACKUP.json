@@ -1,45 +1,21 @@
 {
   "schemaVersion": 1,
-  "sourceInventorySha256": "b2626ff0c9791d2748f5234f62c2dbbd99ec22d689ea9d8a3e845e652ae235a7",
   "files": [
     {
-      "path": "collector-before.js",
+      "path": "list-readiness-proposal.cjs",
       "mode": "100644",
       "type": "blob",
-      "sha": "cb9333e4946f4adb1a83467264d3e46ac3f99c9e",
-      "sha256": "64edc7d4683921d98c0bbd35141eb377d3b2d777b24963435ab83421df6bfd30",
-      "bytes": 1149
+      "sha": "c2f7c13eec1de1e58b7f5d0462bc4646efb7288f",
+      "sha256": "f0cf3c5a3ffe9e4cedaffd19ea21cdaae93a6377db82bf2c1a9423fa72f72b31",
+      "bytes": 5691
     },
     {
-      "path": "collector-fixed.js",
+      "path": "test-list-readiness.cjs",
       "mode": "100644",
       "type": "blob",
-      "sha": "eac78c21750d2e6a5676f4ff2260719b6eb193fa",
-      "sha256": "96572b205c2ff271a8d075269bf8fa998be9891f04214733f7f3c5b99f8bee95",
-      "bytes": 1520
-    },
-    {
-      "path": "collector.diff",
-      "mode": "100644",
-      "type": "blob",
-      "sha": "9bb70cb90577d8a0310c8c81bbb7ff4752289022",
-      "sha256": "8fa98b547e6b3169a89ddaf5104c6f477a78f18f7014d746d3d3abdce66f00be",
-      "bytes": 1952
-    },
-    {
-      "path": "test-collector.cjs",
-      "mode": "100644",
-      "type": "blob",
-      "sha": "a1316177353c089151b098b12ca80f34ed787e84",
-      "sha256": "db37925df2adff24a3921fb1d7a615d79fa82bf340bfdaa8b404b909b73a39e9",
-      "bytes": 5709
+      "sha": "d9f0b5af769b3daac8133bf3672b9168d36b71c4",
+      "sha256": "515b15f190235acf7f5cd2b6f745c0c68ecf636774ac43f6bddd31d213eaa76f",
+      "bytes": 5002
     }
-  ],
-  "requiredLayout": "collector-before.js, collector-fixed.js, test-collector.cjs in the same directory",
-  "testDependencies": [
-    "Node.js built-in modules"
-  ],
-  "omittedDependencies": [
-    "Browser execution context and session state"
   ]
 }
