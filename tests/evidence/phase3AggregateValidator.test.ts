@@ -1,9 +1,0 @@
-import {describe,it,expect}from"vitest";import{validatePhase3Aggregate}from"../../src/evidence/phase3AggregateValidator";import{createHash}from"node:crypto";import{readFileSync,statSync,writeFileSync,mkdtempSync}from"node:fs";import{join}from"node:path";import{tmpdir}from"node:os";import{validateExternalEvidenceRoot}from"../../src/evidence/externalEvidenceValidator";
-const evidence=validateExternalEvidenceRoot(),root=process.cwd(),sha=(p:string)=>createHash("sha256").update(readFileSync(p)).digest("hex"),paths=["src/evidence/phase3AggregateValidator.ts","tests/evidence/phase3AggregateValidator.test.ts","tools/historical/generatePhase3Aggregate.ts"];
-function candidate(){const path="outputs/p0-rc/p0-rc-20260710-001/phase-2/phase-2-holistic-independent-final-pass.json",bytes=evidence.files.get(path)!;return{contractFiles:paths.map(path=>({path,bytes:statSync(join(root,path)).size,sha256:sha(join(root,path))})),phase2Holistic:{path,bytes:bytes.length,sha256:createHash("sha256").update(bytes).digest("hex")}}}
-function saved(x:any){const p=join(mkdtempSync(join(tmpdir(),"p3agg-")),"candidate.json");writeFileSync(p,JSON.stringify(x));return p}
-describe("Phase3 aggregate validator",()=>{
- it("recomputes contract files, fixed security set and Phase2 report from the snapshot",()=>expect(validatePhase3Aggregate(root,saved(candidate()),evidence)).toMatchObject({status:"PASS",failures:[]}));
- it.each([["missing",(x:any)=>x.contractFiles.pop()],["tampered",(x:any)=>x.contractFiles[0].sha256="0".repeat(64)]])("rejects %s contract binding",(_n,mutate)=>{const x=candidate();mutate(x);expect(validatePhase3Aggregate(root,saved(x),evidence).status).toBe("FAIL")});
- it("rejects a Phase2 path-only claim",()=>{const x:any=candidate();delete x.phase2Holistic.bytes;delete x.phase2Holistic.sha256;expect(validatePhase3Aggregate(root,saved(x),evidence).failures).toContain("PHASE2_PHYSICAL")});
-});

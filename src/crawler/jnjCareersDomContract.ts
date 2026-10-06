@@ -1,3 +1,4 @@
+import { jnjDomCaptureProfile } from "./jnjCareersDomUrlProfile";
 /** Source-local observation identity. These are DOM snapshots, never HTTP responses. */
 export const JNJ_DOM_SOURCE = "source-johnson-innovative-medicine-social";
 export const JNJ_DOM_COMPANY = "company-johnson-innovative-medicine";
@@ -14,7 +15,7 @@ export function isJnjDomListArtifact(tool: { name: string; version: string }, ar
   requestedUrl?: unknown; finalUrl?: unknown; httpStatus?: unknown; contentType?: unknown;
   channelId?: unknown; rawBodySha256?: unknown; redactionDescriptors?: unknown;
 }): boolean {
-  return tool.name === JNJ_DOM_CAPTURE_TOOL.name && tool.version === JNJ_DOM_CAPTURE_TOOL.version &&
+  return jnjDomCaptureProfile(tool) !== null &&
     artifact.kind === "COMMAND_OUTPUT" && /^jnj-dom-list-\d{4}$/u.test(artifact.logicalKey) &&
     artifact.extractorLocator === JNJ_DOM_LIST_LOCATOR && artifact.bodyRepresentation === "EXACT" &&
     [artifact.requestedUrl, artifact.finalUrl, artifact.httpStatus, artifact.contentType, artifact.channelId,

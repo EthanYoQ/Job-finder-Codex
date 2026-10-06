@@ -1,0 +1,4 @@
+{
+ "extends":"./tsconfig.json",
+ "include":["src/crawler/jnjCareersDomUrlProfile.ts","src/crawler/jnjCareersDomContract.ts","src/crawler/jnjCareersDomEvidence.ts","src/db/jnjDomEvidenceAdmission.ts","tests/helpers/jnjNativeSyntheticFixture.ts","tests/crawler/jnjNativeUrlProfile.test.ts","tests/domain/jnjNativeReaderCompatibility.test.ts","tests/prisma/jnjNativeUrlMigration.test.ts","vitest.jnj-native.config.ts"]
+}

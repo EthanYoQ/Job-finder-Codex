@@ -9,9 +9,9 @@ import { parseJnjCareersChinaCards, type JnjCareersChinaJobSummary } from "./jnj
 import { hasUniqueJsonObjectKeys } from "./strictJsonObjectKeys";
 import { deriveCanonicalPaginationEvidence, evaluatePaginationEvidence } from "./paginationEvidence";
 import { parsePersistentSourceFetchEvidence, sha256Bytes, type PersistentSourceFetchEvidence, type SourceFetchArtifactDraft, type SourceFetchPageTrace } from "./sourceFetchEvidence";
-import { JNJ_DOM_CAPTURE_TOOL, JNJ_DOM_COMPANY, JNJ_DOM_CONFIG_SHA256, JNJ_DOM_DETAIL_LOCATOR, JNJ_DOM_LIST_LOCATOR, JNJ_DOM_OBSERVATION_KIND, JNJ_DOM_SOURCE, isJnjDomListArtifact } from "./jnjCareersDomContract";
+import { JNJ_DOM_COMPANY, JNJ_DOM_CONFIG_SHA256, JNJ_DOM_DETAIL_LOCATOR, JNJ_DOM_LIST_LOCATOR, JNJ_DOM_OBSERVATION_KIND, JNJ_DOM_SOURCE, isJnjDomListArtifact } from "./jnjCareersDomContract";
 
-const ORIGIN = "https://www.careers.jnj.com";
+import { jnjDomListUrl, jnjDomObservedUrlProfile, jnjDomCaptureTool, jnjDomCaptureProfile, type JnjDomUrlProfile } from "./jnjCareersDomUrlProfile";
 const text = (value: string) => value.replace(/\s+/gu, " ").trim();
 const stamp = z.string().datetime({ offset: true });
 const base = z.object({ kind: z.literal(JNJ_DOM_OBSERVATION_KIND), url: z.string().url(), observedAt: stamp,
@@ -38,20 +38,15 @@ export function isJnjDomPlan(plan: SourceCrawlPlan): boolean {
     plan.executionAuthority === "STAGED" && plan.adapterId === "official-json" && plan.profileBoundSource?.kind === "jnj-careers-china" &&
     sourcePlanConfigSha256(plan) === JNJ_DOM_CONFIG_SHA256;
 }
-function listUrl(page: number): string {
-  return `${ORIGIN}/en/jobs/?${page === 1 ? "" : `page=${page}&`}country=China&origin=global#results`;
-}
 const listKey = (sequence: number) => `jnj-dom-list-${String(sequence).padStart(4, "0")}`;
 const detailKey = (id: string) => `jnj-dom-detail-${id}`;
 const evidenceId = (id: string) => `jnj:sha256:${sha256Bytes(Buffer.from(id)).sha256}`;
-function parseList(body: string, page: number) {
+function parseList(body: string, page: number, expectedProfile?: JnjDomUrlProfile) {
   const original = listSchema.parse(json(body));
-  // Submitting the native empty search form leaves its exact page-one URL in
-  // the address bar; the native Page 1 pagination link uses listUrl(1).
-  // Admit only these observed aliases, with no nonempty search or extra filter.
-  const observedListUrl = original.url === listUrl(page) ||
-    (page === 1 && original.url === `${ORIGIN}/en/jobs/?search=&country=China&origin=global`);
-  assert(observedListUrl && original.fragment.html.length === original.fragment.htmlLength);
+  const profile = jnjDomObservedUrlProfile(original.url, page);
+  assert(profile !== null && (expectedProfile === undefined || profile === expectedProfile));
+  const listUrl = (number: number) => jnjDomListUrl(profile, number);
+  assert(original.fragment.html.length === original.fragment.htmlLength);
   assert(original.sameIdentityOrderAsEarlier !== false);
   const filters = original.filters;
   assert(isDeepStrictEqual(filters.map(f => f.name), ["team", "subteam", "country", "state", "location", "type", "pattern"]));
@@ -75,12 +70,16 @@ function parseList(body: string, page: number) {
   assert(next.length === (page < lastPage ? 1 : 0) && (!next.length || next[0]!.url === listUrl(page + 1)));
   assert(previous.length === (page > 1 ? 1 : 0) && (!previous.length || previous[0]!.url === listUrl(page - 1)));
   assert(original.pagination.some(a => a.label === `Page ${page}` && a.url === listUrl(page)));
+  assert(new Set(original.pagination.map(link => link.label)).size === original.pagination.length);
   for (const link of original.pagination) {
     const n = /^Page (\d+)$/u.exec(link.label);
-    assert(n ? Number(n[1]) >= 1 && Number(n[1]) <= lastPage && link.url === listUrl(Number(n[1])) : ["Next page", "Previous page"].includes(link.label));
+    const last = /^Last page (\d+)$/u.exec(link.label);
+    assert(n ? Number(n[1]) >= 1 && Number(n[1]) <= lastPage && link.url === listUrl(Number(n[1])) :
+      last ? Number(last[1]) === lastPage && link.url === listUrl(lastPage) :
+      ["Next page", "Previous page"].includes(link.label));
   }
   assert((page < lastPage) === original.dom.includes('link "Next page"'));
-  return { original, jobs, total };
+  return { original, jobs, total, profile };
 }
 function parseDetail(body: string, job: JnjCareersChinaJobSummary) {
   const original = detailSchema.parse(json(body));
@@ -119,7 +118,8 @@ function artifact(key: string, body: string, capturedAt: string, locator: string
 }
 export function auditJnjCareersDomObservations(lists: readonly string[], details: readonly string[]) {
   assert(lists.length > 0 && lists.length <= 20);
-  const parsed = lists.map((body, i) => parseList(body, i + 1)), total = parsed[0]!.total;
+  const first = parseList(lists[0]!, 1);
+  const parsed = [first, ...lists.slice(1).map((body, i) => parseList(body, i + 2, first.profile))], total = first.total;
   assert(parsed.every(p => p.total === total) && lists.length === Math.ceil(total / 20));
   const jobs = parsed.flatMap(p => p.jobs);
   assert(jobs.length === total && new Set(jobs.map(j => j.officialId)).size === total && details.length === total);
@@ -134,17 +134,17 @@ export function auditJnjCareersDomObservations(lists: readonly string[], details
     requestedPage: sequence + 1, returnedPage: sequence + 1, requestedPageSize: 20, returnedPageSize: 20,
     rawJobIds: p.jobs.map(j => evidenceId(j.officialId)), validJobIds: p.jobs.map(j => evidenceId(j.officialId)),
     declaredTotal: total, declaredCount: total, declaredPages: parsed.length,
-    nextPageSignalBefore: sequence === 0 ? null : listUrl(sequence + 1),
-    nextPageSignalAfter: sequence + 1 === parsed.length ? null : listUrl(sequence + 2),
+    nextPageSignalBefore: sequence === 0 ? null : parsed[sequence - 1]!.original.pagination.find(a => a.label === "Next page")!.url,
+    nextPageSignalAfter: sequence + 1 === parsed.length ? null : p.original.pagination.find(a => a.label === "Next page")!.url,
     responseFingerprintSha256: sha256Bytes(Buffer.from(lists[sequence]!)).sha256,
     termination: sequence + 1 === parsed.length ? "DECLARED_TOTAL_REACHED" : "CONTINUE", anomalyCodes: [], capturedAt: p.original.observedAt }));
-  const evidence = deriveCanonicalPaginationEvidence({ evidence: parsePersistentSourceFetchEvidence({ captureTool: JNJ_DOM_CAPTURE_TOOL,
+  const evidence = deriveCanonicalPaginationEvidence({ evidence: parsePersistentSourceFetchEvidence({ captureTool: jnjDomCaptureTool(first.profile),
     artifacts, pages, declaredCompleteness: { kind: "OFFICIAL_TOTAL_COUNT", value: total, artifactLogicalKey: listKey(0), extractorLocator: JNJ_DOM_LIST_LOCATOR, scope: "SOURCE" },
     fetchCounts: { rawCount: total, parsedCount: total, validCount: total, parseDiscardCount: 0, validationDiscardCount: 0 }, fetchLosses: [] }),
     expectedChannelIds: [], filteredOutput: true, allowPositiveOfficialTotalCountAfterAdapterReconciliation: true });
   const paginationEvaluation = evaluatePaginationEvidence({ evidence, expectedChannelIds: [], filteredOutput: true, allowPositiveOfficialTotalCountAfterAdapterReconciliation: true });
   assert(paginationEvaluation.safeCompleteness && paginationEvaluation.verifiedEligible);
-  return { jobs, total, evidence, paginationEvaluation, startedAt, finishedAt };
+  return { jobs, total, evidence, paginationEvaluation, startedAt, finishedAt, urlProfile: first.profile };
 }
 /** Retains the unmodified UI tool JSON bytes. No HTTP envelope is manufactured. */
 export function createJnjCareersDomSourceFetch(input: { lists: readonly string[]; details: readonly string[] }): SourceFetchFunction {
@@ -162,7 +162,7 @@ export function createJnjCareersDomSourceFetch(input: { lists: readonly string[]
 }
 export function replayJnjCareersDomEvidence(plan: SourceCrawlPlan, evidence: PersistentSourceFetchEvidence, outputJobs: readonly NormalizedJobRecord[]): boolean {
   try {
-    if (!isJnjDomPlan(plan) || !isDeepStrictEqual(evidence.captureTool, JNJ_DOM_CAPTURE_TOOL)) return false;
+    if (!isJnjDomPlan(plan) || jnjDomCaptureProfile(evidence.captureTool) === null) return false;
     const listArtifacts = evidence.artifacts.filter(a => a.logicalKey.startsWith("jnj-dom-list-"));
     if (listArtifacts.length !== evidence.pages.length || !listArtifacts.every(a => isJnjDomListArtifact(evidence.captureTool, a))) return false;
     const details = evidence.artifacts.filter(a => a.logicalKey.startsWith("jnj-dom-detail-"));

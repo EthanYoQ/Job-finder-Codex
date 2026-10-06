@@ -1,5 +1,6 @@
+import { jnjDomCaptureProfile, jnjDomListUrl } from "../crawler/jnjCareersDomUrlProfile";
 import { createHash } from "node:crypto";
-import { JNJ_DOM_CAPTURE_TOOL, JNJ_DOM_COMPANY, JNJ_DOM_CONFIG_SHA256, JNJ_DOM_DETAIL_LOCATOR, JNJ_DOM_LIST_LOCATOR, JNJ_DOM_SOURCE } from "../crawler/jnjCareersDomContract";
+import { JNJ_DOM_COMPANY, JNJ_DOM_CONFIG_SHA256, JNJ_DOM_DETAIL_LOCATOR, JNJ_DOM_LIST_LOCATOR, JNJ_DOM_SOURCE } from "../crawler/jnjCareersDomContract";
 import { verifyAGradeCompletenessCertificateReceipt } from "../crawler/completenessCertificate";
 import type { AtomicEvidenceArtifactInput, AtomicSourceEvidenceCommit } from "./ingestionRepository";
 
@@ -8,6 +9,8 @@ import type { AtomicEvidenceArtifactInput, AtomicSourceEvidenceCommit } from "./
 export function hasBoundJnjDomOfficialArtifact(input: AtomicSourceEvidenceCommit, official: AtomicEvidenceArtifactInput): boolean {
   try {
     const r = input.sourceResult, p = input.observationProvenance, total = r.expectedJobCount;
+    const profile = jnjDomCaptureProfile({ name: official.captureToolName, version: official.captureToolVersion });
+    if (!profile) return false;
     if (r.sourceId !== JNJ_DOM_SOURCE || r.sourceConfigHash !== JNJ_DOM_CONFIG_SHA256 || r.atomicCommitState !== "COMMITTED" ||
         r.completenessState !== "VERIFIED" || r.expectedEvidenceKind !== "OFFICIAL_TOTAL_COUNT" || total === null || total <= 0 || total > 400 ||
         r.completenessCertificateSha256 === null || !r.finishedAt || official.logicalKey !== "jnj-dom-list-0000" ||
@@ -37,7 +40,7 @@ export function hasBoundJnjDomOfficialArtifact(input: AtomicSourceEvidenceCommit
     const details = input.artifacts.filter(a => /^jnj-dom-detail-r-\d+$/u.test(a.logicalKey));
     if (details.length !== total || input.pagination.length !== Math.ceil(total / 20) || input.artifacts.length !== total + input.pagination.length) return false;
     for (const a of input.artifacts) {
-      if (a.kind !== "COMMAND_OUTPUT" || a.captureToolName !== JNJ_DOM_CAPTURE_TOOL.name || a.captureToolVersion !== JNJ_DOM_CAPTURE_TOOL.version ||
+      if (a.kind !== "COMMAND_OUTPUT" || a.captureToolName !== official.captureToolName || a.captureToolVersion !== official.captureToolVersion ||
           [a.requestedUrl,a.finalUrl,a.httpStatus,a.contentType,a.channelId].some(v => v != null) || a.redactionCommitmentSha256 !== a.sha256 ||
           a.capturedAt < r.startedAt || a.capturedAt > r.finishedAt ||
           a.extractorLocator !== (/^jnj-dom-detail-r-\d+$/u.test(a.logicalKey) ? JNJ_DOM_DETAIL_LOCATOR : JNJ_DOM_LIST_LOCATOR)) return false;
@@ -50,8 +53,8 @@ export function hasBoundJnjDomOfficialArtifact(input: AtomicSourceEvidenceCommit
           page.responseFingerprintSha256!==a.sha256 || page.capturedAt.getTime()!==a.capturedAt.getTime() || page.anomalyCodes.length ||
           page.termination!==(i+1===input.pagination.length?"DECLARED_TOTAL_REACHED":"CONTINUE") ||
           [page.requestedCursor,page.returnedCursor,page.channelId].some(v=>v!=null) ||
-          (page.nextPageSignalBefore??null)!==(i===0?null:`https://www.careers.jnj.com/en/jobs/?page=${i+1}&country=China&origin=global#results`) ||
-          (page.nextPageSignalAfter??null)!==(i+1===input.pagination.length?null:`https://www.careers.jnj.com/en/jobs/?page=${i+2}&country=China&origin=global#results`)) return false;
+          (page.nextPageSignalBefore??null)!==(i===0?null:jnjDomListUrl(profile,i+1)) ||
+          (page.nextPageSignalAfter??null)!==(i+1===input.pagination.length?null:jnjDomListUrl(profile,i+2))) return false;
     }
     return true;
   } catch { return false; }
