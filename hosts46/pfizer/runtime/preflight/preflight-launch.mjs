@@ -57,6 +57,7 @@ export function validateBootstrapShape(bootstrap) {
 export async function preflight(args) {
   const [mode, configPath, controlPath, bootstrapPath, reviewedSha256, outputPath, ...extra] = args;
   if (!['check', 'launch'].includes(mode) || !outputPath || extra.length || !/^[a-f0-9]{64}$/.test(reviewedSha256 ?? '')) fail('Usage: preflight-launch.mjs <check|launch> <host-config.json> <control-base.json> <bootstrap.json> <reviewed-bootstrap-sha256> <new-run-root>');
+  if(mode!=='check')fail('PREFLIGHT_B_REQUIRES_REVIEWED_STARTER');
   const files = await Promise.all([configPath, controlPath, bootstrapPath].map(regularFile));
   const [configFile, controlFile, bootstrapFile] = files;
   if (sha(bootstrapFile.bytes) !== reviewedSha256) fail('PREFLIGHT_BOOTSTRAP_HASH');
@@ -65,10 +66,12 @@ export async function preflight(args) {
   const repo = await noLinks(cfg.repo), host = await noLinks(cfg.root), root = await noLinks(outputPath);
   if (await realpath(repo) !== repo || await realpath(host) !== host || dirname(configFile.path) !== host) fail('PREFLIGHT_HOST_PATH_BINDING');
   if (root === repo || root.startsWith(repo + '/') || root === host) fail('PREFLIGHT_OUTPUT_INSIDE_FROZEN_REPOSITORY');
+  if(dirname(root)!==host||root!==join(host,bootstrap.batchId)||controlFile.path!==join(host,'control-base.json'))fail('PREFLIGHT_RUN_SCOPE');
   const optionalInputs = validateBootstrapShape(bootstrap);
   if (mode !== 'check' && optionalInputs.length) fail('PREFLIGHT_OPTIONAL_INPUT_REQUIRES_REVIEWED_SOURCE_LAUNCH');
   for (const [name, descriptor] of optionalInputs) {
     const input = await regularFile(descriptor.path);
+    if(!input.path.startsWith(host+'/captures/'))fail('PREFLIGHT_CAPTURE_SCOPE');
     if (sha(input.bytes) !== descriptor.sha256) fail('PREFLIGHT_OPTIONAL_INPUT_HASH:' + name);
     files.push(input);
   }
@@ -78,7 +81,7 @@ export async function preflight(args) {
   const gitOptions = { cwd: repo, env: { ...process.env, GIT_OPTIONAL_LOCKS: '0' }, timeout: 15000 };
   if ((await execute('git', ['rev-parse', 'HEAD'], gitOptions)).stdout.trim() !== control.build.commitSha) fail('PREFLIGHT_FROZEN_COMMIT');
   if ((await execute('git', ['status', '--porcelain'], gitOptions)).stdout.trim()) fail('PREFLIGHT_DIRTY_PRODUCER');
-  for (const name of ['node_modules/tsx/dist/loader.mjs', 'node_modules/zod/package.json', 'node_modules/cheerio/package.json', 'scripts/run-with-http-diagnostics.mjs', 'scripts/p0-cloud-portable-source-pilot.ts', 'scripts/p0-cloud-source-pilot.ts', 'scripts/capture-servier-b-source.ts']) await regularFile(join(repo, name));
+  for (const name of ['node_modules/tsx/dist/loader.mjs', 'node_modules/zod/package.json', 'node_modules/cheerio/package.json', 'scripts/run-with-http-diagnostics.mjs', 'scripts/p0-cloud-portable-source-pilot.ts', 'scripts/p0-cloud-source-pilot.ts', 'scripts/capture-pfizer-b-source.ts']) await regularFile(join(repo, name));
   const diagnostics = join(root, 'diagnostics');
   try { await lstat(diagnostics); fail('PREFLIGHT_DIAGNOSTICS_ALREADY_EXISTS'); }
   catch (error) { if (error.code !== 'ENOENT') throw error; }

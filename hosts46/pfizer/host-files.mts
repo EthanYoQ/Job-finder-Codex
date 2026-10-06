@@ -2,11 +2,16 @@ import { readFile, writeFile, readdir, lstat } from 'node:fs/promises';
 import { createHash } from 'node:crypto';
 import { resolve, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { noLinks } from './runtime/preflight/preflight-launch.mjs';
 import { packArchiveTransfer,unpackArchiveTransfer } from './archive-transfer.mjs';
 const root=resolve(fileURLToPath(new URL('.',import.meta.url)))+'/';
 const sha=(x:string|Buffer)=>createHash('sha256').update(x).digest('hex');
 const scoped=(p:string)=>{const full=resolve(p);if(!full.startsWith(root))throw Error('HOST_PATH_SCOPE');return full;};
-const [op,pathArg,arg]=process.argv.slice(2);
+const [op,pathArg,arg,...extra]=process.argv.slice(2);
+if(extra.length||typeof pathArg!=='string')throw Error('HOST_ARGUMENTS');
+await noLinks(scoped(pathArg));
+if(['prepare-archive-upload','restore-transfer'].includes(op)){if(typeof arg!=='string')throw Error('HOST_ARGUMENTS');await noLinks(scoped(arg));}
+if(['pending','publish'].includes(op)&&arg!==undefined)throw Error('HOST_ARGUMENTS');
 if(op==='read'){
  const path=scoped(pathArg);if((await lstat(path)).isSymbolicLink())throw Error('HOST_SYMLINK');
  const bytes=await readFile(path),text=bytes.toString('utf8'),offset=Number(arg??0);

@@ -1,276 +1,417 @@
 {
   "schemaVersion": 1,
-  "kind": "safe-external-host-source-snapshot",
+  "kind": "safe-reconstructed-pfizer-host-source",
   "repository": "EthanYoQ/Job-finder-Codex",
-  "branch": "backup/servier46-host-20261005-2203",
-  "preparedAt": "2026-10-05T22:03:00Z",
-  "sourceFrozenAt": "2026-10-05T21:53:58.321360Z",
-  "sourceManifestSha256": "b987b8dc225690b34788800bb6096acf123100d01197aba2256fdb3b485257c7",
-  "sourceChecksumInventorySha256": "4a1170561fc7a511368668638993e9f8de1a5b8c42a1c1d6bd141ec322d95f56",
+  "branch": "backup/pfizer46-host-20261005-2356",
+  "preparedAt": "2026-10-05T23:56:00Z",
+  "sourceFrozenAt": "2026-10-05T23:43:20.814939Z",
+  "sourceManifestSha256": "7f2eec27d479cc7e5941c07945d4a1d11d906b74724ce451fd9eddc4471e9da5",
+  "hostRuntimeChecksumInventorySha256": "3c7ceae8aeb8deae19e08264d4400bfb50b6ac7ae0a4682329077ae50373f5b7",
+  "producerReferenceChecksumInventorySha256": "6ae9692d3e8d66c36b60e087c21bd46cbc6e78187dcdbf78e12918e668a3d3ec",
+  "testToolAddendumSha256": "05f6f405ef86f0faaf947e8ae197a27205d22f9ed0470a2ca194722f01397750",
   "sourceCommit": null,
-  "sourceNature": "non-Git external host snapshot; matching producer is fb0b8e3, runtime identity excluded",
-  "parentSafeBackupCommit": "40f65562867ad6e8dc6b35745ca3b96eec77577c",
-  "statusCutoff": "2026-10-05T22:00:00Z",
-  "statusAtCutoff": "prepared; no new Servier capture, database action or publication",
-  "sourceCount": 28,
-  "sourceBytes": 128501,
+  "runtimeIdentityReusable": false,
+  "historyImported": false,
+  "safeParentCommit": "f34eeaf0b68f9ace6aaddce6cf424207c2d57cbe",
+  "sourceFiles": 27,
+  "sourceBytes": 105463,
+  "hostInventory": {
+    "originalMinimalFiles": 28,
+    "selectedRuntimeSourceFiles": 24,
+    "excludedActualConfigFiles": 4,
+    "additionalTestToolSourceFiles": 3
+  },
+  "subsequentPublisherReport": {
+    "at": "2026-10-05T23:44:00Z",
+    "status": "CAPTURE_PAUSED_BY_FIVE_HISTORICAL_PFIZER_RUNNING_ROWS",
+    "newMainCaptures": 0,
+    "newIndependentDomCaptures": 0,
+    "newPublications": 0,
+    "originalC26ProcessTerminationUnverified": true,
+    "backupIndependentlyQueriedDatabase": false
+  },
   "validation": {
-    "publisherReportedPrimaryChecks": 13,
-    "publisherReportedSupplementalChecks": 56,
-    "publisherReportedOriginalHashesMatched": 33,
-    "publisherReportedMissingReferencesReconstructed": 6,
-    "independentlyCheckedSourceHashes": 28,
-    "secretScanFindings": 0,
-    "ranSourceOrTests": false,
-    "ranCI": false,
-    "ranSQLOrCapture": false
+    "publisherReportedNestedChecks": 7,
+    "publisherReportedGuardChecks": 49,
+    "publisherReportedInlineLaunchNegatives": 2,
+    "publisherReportedExistingPfizerTests": 21,
+    "persistedLocalCheckSourceCovers": 56,
+    "full58ReplayFromStandaloneSourcesAvailable": false,
+    "backupRanTestsSourceCIOrDatabase": false,
+    "selectedHashesMatch": true,
+    "secretScanFindings": 0
   },
-  "inventory": {
-    "manifestListedFiles": 99,
-    "frozenChecksumEntries": 100,
-    "selectedCurrentEntries": 25,
-    "excludedInventoryEntries": 75,
-    "separatelyListedPreparationTools": 3
+  "omittedGenerator": {
+    "path": "verification/restore-pfizer46.py",
+    "sha256": "e8be1c0fce13ff5c57945f1ecc4367c9062596066bd3aff2425585fff774aca0",
+    "reason": "owner-classified actual identity replacements/private inputs and incomplete final manual additions; whole source excluded"
   },
-  "files": [
+  "recoveryGaps": [
+    "final freeze generator and two NONQUAL launch negatives have no standalone saved source",
+    "host/control/source-plan/expected-database and registration identity excluded",
+    "ARCHIVE_STORE missing audit helper; supported DB_STARTED path uses separate evidence archive",
+    "some helpers reconstructed from surviving source copies, not full original archive bytes",
+    "actual old process termination proof and new live gates/evidence not included"
+  ],
+  "previousProducerBackupCommit": "0c4586b82690203b93475551bd3409e2fbcb1574",
+  "producerReferencesMatchedBySha256AndBytes": [
     {
-      "path": "hosts46/servier/archive-transfer.mjs",
-      "bytes": 1777,
-      "sha256": "698e966e5552967845a5252d2b3df2acca28dcd8dbbb0ae41755a3a6231e6a99",
+      "path": "scripts/capture-pfizer-b-source.ts",
       "mode": "100644",
-      "type": "blob",
-      "sha": "5a454d21f34f9680221bbee2c98b3fecb94884f0"
+      "sha": "36bf403dd4b4a79e9ad55cbdfd746bc10c602c2d",
+      "sha256": "82a2e09170c219e17c81f9d45452745e80b13629373eb84fb7c179d1afd9d5f4",
+      "bytes": 5503
     },
     {
-      "path": "hosts46/servier/context-read.sql",
-      "bytes": 2220,
-      "sha256": "51fa0a873e8fd429be3fc9f5de7370af5fc55b7e5447ccfa31eb0d93be1f3851",
+      "path": "scripts/p0-cloud-source-pilot.ts",
       "mode": "100644",
-      "type": "blob",
-      "sha": "5053eb86353a1cc052e9aba77e2282211bc3d533"
+      "sha": "05f3b1ca31f0965dfa17480563b777aecdd523e0",
+      "sha256": "800814d7f859cbc08b4558ebe1ff2fbc1074d9fcee7ba6886177642f33716e01",
+      "bytes": 21896
     },
     {
-      "path": "hosts46/servier/host-files.mts",
-      "bytes": 4072,
-      "sha256": "c0433bd1a968fbe411f38f7c4a908d2106a64ca937724149315cbc134c931198",
+      "path": "scripts/run-with-http-diagnostics.mjs",
       "mode": "100644",
-      "type": "blob",
-      "sha": "f130e14ace5f1b66bbbf3f86e8e2ed55f0db7b7b"
+      "sha": "a756d99e206c4ba2110a10584caf11641ac6f6d9",
+      "sha256": "d8627edbdc118f8d747f77f22459768f76184171e715a8fd29c76a69a3c82930",
+      "bytes": 3327
     },
     {
-      "path": "hosts46/servier/host-helper-functions.js",
-      "bytes": 7277,
-      "sha256": "b22e8b2599d3be3d3db75d844606243cd37dc53f1f36cc1365cd8567bb546539",
+      "path": "src/crawler/cloudDbStartedPilot.ts",
       "mode": "100644",
-      "type": "blob",
-      "sha": "0954d9a85f36c417dbf79a1e4e316739a90f8ee1"
+      "sha": "4895fdd7ffa9a05a29d9aab0db32e3007a226a26",
+      "sha256": "4b180869b19ce58e0497eb2e39047d5b153c50a64209e6d124debe8cd46720f0",
+      "bytes": 5111
     },
     {
-      "path": "hosts46/servier/host-stage-functions.js",
-      "bytes": 6139,
-      "sha256": "00ad1ef762fb799058d97cad360624d14053c555745840dc562494cb376c415c",
+      "path": "src/crawler/cloudSourcePilotRelay.ts",
       "mode": "100644",
-      "type": "blob",
-      "sha": "4ab755b89535673937f47034a4c22a35e6d45bc6"
+      "sha": "9a4ef2276707fa28329fee20aa5a7c3c85f0d382",
+      "sha256": "06a0a626947365e241ae9d7de02e11f21496da21f4d3d8d497a6b6739f7823e6",
+      "bytes": 13222
     },
     {
-      "path": "hosts46/servier/relay-files.mjs",
-      "bytes": 5473,
-      "sha256": "0365a97d0c80de4bd4c3c069134da41e0213dc2faba25ed99b8411c0aa6f8017",
+      "path": "src/crawler/currentWorkerCapture.ts",
       "mode": "100644",
-      "type": "blob",
-      "sha": "ae5c35db34e9a2754a9d86989fc3f1fdf6b8573f"
+      "sha": "e962774482864ed171ed206022baed6eb25f129e",
+      "sha256": "17a24619380e264d9f6ac01f75d969a56c785ea1d7d98803c18aa29b67f979bd",
+      "bytes": 2633
     },
     {
-      "path": "hosts46/servier/runtime/check-host.mjs",
-      "bytes": 16003,
-      "sha256": "008b00777218a7eb808ec839fa70b335c0a6d1511f4b2d2c50cdeccd1783e3a4",
+      "path": "src/crawler/officialJsonRenderedTraversalValidator.ts",
       "mode": "100644",
-      "type": "blob",
-      "sha": "afe338c9bf133d57684098a0f3af1bbd696e92d1"
+      "sha": "e1957f42094db47fc5049fbb7ebe3b67040ab88e",
+      "sha256": "5b54d90b3263574dcd5a7df60c6c64ddc1b215231f13b454c6ae2442f3f63f36",
+      "bytes": 52514
     },
     {
-      "path": "hosts46/servier/runtime/check-restoration.mjs",
-      "bytes": 12366,
-      "sha256": "a57065b69cf7547ecc87843cb8a8430c7cf1340904a177d611ff59d53de9919e",
+      "path": "src/crawler/pfizerOfficialLocalities.ts",
       "mode": "100644",
-      "type": "blob",
-      "sha": "d2b24a01b27c46fb33468b8b3ba36f796c071fd3"
+      "sha": "7fa8329f1ee59fb420da122882082b9717eef307",
+      "sha256": "161b412456a7b5ed9716513dfcbab95596573f91fec9c0d24c6a0243e28890b2",
+      "bytes": 4980
     },
     {
-      "path": "hosts46/servier/runtime/compact-json-review.inc.py",
-      "bytes": 1558,
-      "sha256": "7f23b26241ad6bffa9f5f453bfb294b89ddd54ad5f02d001a599f6cc81d8af6c",
+      "path": "src/crawler/pfizerRenderedTraversal.ts",
       "mode": "100644",
-      "type": "blob",
-      "sha": "bafdf1880f6793fef02bc5824547b15cb1faef37"
+      "sha": "ce32397ff2be9e13e833441db3724837138999f3",
+      "sha256": "a360e25209ec53beea72e6c787d90930a15dfe06ab6244e17eb80d09d4a6dd1a",
+      "bytes": 16003
     },
     {
-      "path": "hosts46/servier/runtime/continuous-relay-v3-durable-monitor.js",
-      "bytes": 2901,
-      "sha256": "9f56dfeb4f5390ff5e907d912a34d767556752be538a1942467187c650eccedd",
+      "path": "src/crawler/pfizerWorkdayTraversal.ts",
       "mode": "100644",
-      "type": "blob",
-      "sha": "73fb3849a358d55723479252362cdcf3b589e723"
+      "sha": "5c0329048262afceab1b82ba116fc6cc671f0c0c",
+      "sha256": "5ed1f2cfc09424833531e684bad92feccf0f8309b8e70c2e452c8ad7f2aa1796",
+      "bytes": 22874
     },
     {
-      "path": "hosts46/servier/runtime/describe-inputs.mjs",
-      "bytes": 687,
-      "sha256": "81d3f8e7150cf7868b36a97e35dc745468ae1244a8e3b22d7cb335d1b38493c9",
+      "path": "src/crawler/runSourceCrawl.ts",
       "mode": "100644",
-      "type": "blob",
-      "sha": "b2a7111ae8f011360540f6f05a685ea8da0af7f9"
+      "sha": "6fb4c1fbaf4ef142039c6641dc9ca48bcb5ade2f",
+      "sha256": "8dd5c8497bf4c5ee878e26db3ef40cf1bd6510dcc4b8ea117ba82a8b8ecbed93",
+      "bytes": 262272
     },
     {
-      "path": "hosts46/servier/runtime/dispatch-reviewed-publication.js",
-      "bytes": 1308,
-      "sha256": "8fe89485b4a4197060d0af8837ebc3d19f49c01bd6bb13f4a27ef6d5aaa0c4df",
+      "path": "src/crawler/sourcePlan.ts",
       "mode": "100644",
-      "type": "blob",
-      "sha": "20f7c6fdb51bff264ed7a13767eaa0d923402ec3"
+      "sha": "359fbf499c84f2b7d1f095dd81dd9da2bae5a6b1",
+      "sha256": "1f1345f74ad41adaa0778eaf301f6b1c38ca68f091d81b116556771d18c71987",
+      "bytes": 23620
     },
     {
-      "path": "hosts46/servier/runtime/fresh-readback.js",
-      "bytes": 6290,
-      "sha256": "17b4bf9451bd37fcf98ff3d4f7f1ac163eaa59936f2dc053d1639084b4d500f1",
+      "path": "src/crawler/stagedScheduleAuthority.ts",
       "mode": "100644",
-      "type": "blob",
-      "sha": "bb6b316b870815696a6355857316f325ba2de136"
+      "sha": "7f169b843c3bc0fa0c0ce4888894b5a2c7afa9c9",
+      "sha256": "e591bc6c8ff6b20651fea1b0647eadd50126358bb3ceb7aec4a19833ffb91970",
+      "bytes": 19677
     },
     {
-      "path": "hosts46/servier/runtime/fresh-readback.sql",
-      "bytes": 2867,
-      "sha256": "29392044794ddbf06badaeb1e1c03c13b3c647803c6f803b99555abad4bde9a2",
+      "path": "src/crawler/traversalCertificate.ts",
       "mode": "100644",
-      "type": "blob",
-      "sha": "bb9ee4122a245350f38d32097190b636ad91ec3c"
+      "sha": "220cc6f0b62497dc2afc9a344467e34311b946a0",
+      "sha256": "acd28a4e48afda436600efe06ccbda33bb2a67f16856d2250a57cb1417771605",
+      "bytes": 90194
     },
     {
-      "path": "hosts46/servier/runtime/load-host-state.js",
-      "bytes": 1873,
-      "sha256": "66b1cddb460c200281746e04d55cbfb20be017f0f9c3133f3394a68a98a180c1",
+      "path": "src/db/cloudPilotSqlControl.ts",
       "mode": "100644",
-      "type": "blob",
-      "sha": "941f7593b95dee8a41ac3914082447be9de5c178"
+      "sha": "b18998bc84993ee60c70315fdc441472cc887010",
+      "sha256": "77361a3a0bb104ec5d3c9faed12032d4989008238257da703ac0a142b8470620",
+      "bytes": 28018
     },
     {
-      "path": "hosts46/servier/runtime/load-servier42-runtime.js",
-      "bytes": 1608,
-      "sha256": "38ee810864b1bfb66104bede8956d8a1508f3cc4298898583d147c8a19a43e1a",
+      "path": "src/db/ingestionRepository.ts",
       "mode": "100644",
-      "type": "blob",
-      "sha": "981f3be4ad9f0743c676a9f6a34480d5078f966e"
+      "sha": "bd6e766674cc21e93ac7e184fdd84bef379248b4",
+      "sha256": "788d9868d732e57fa79851c5a2a69b94dadf78ade8cf6c3d596d39a7fb42414b",
+      "bytes": 123360
     },
     {
-      "path": "hosts46/servier/runtime/observation-due-gate.js",
-      "bytes": 2124,
-      "sha256": "0df0ccfa54458fd490558fd7df62883095fc3735328bb657c14b1f0b79516535",
+      "path": "src/readiness/buildIdentity.ts",
       "mode": "100644",
-      "type": "blob",
-      "sha": "a91f19e46c8b7e9222fa6e76f5b8709f8b804c4d"
+      "sha": "1f2a49663bcbba5c5de6677d6a2684f70b8b6896",
+      "sha256": "869c7126185c4812556bf783131bc7d69864ba24b6e7949dbf885b11e5e265f2",
+      "bytes": 4829
     },
     {
-      "path": "hosts46/servier/runtime/pre-capture-check.mjs",
-      "bytes": 2122,
-      "sha256": "091fedc14ca0a4d04ebaa6e7dfe3fd0923cbb19caea64bea087de7e0147e2996",
+      "path": "tests/crawler/pfizerBrowserTraversal.test.ts",
       "mode": "100644",
-      "type": "blob",
-      "sha": "5b56bb985b1c0c616dac41d064a31c34f7134ad2"
+      "sha": "68c90f68ea7975395452ca8b87b767e9aec920e3",
+      "sha256": "1c00b361fc73a62f135a6f156a9449420c39abde9bc6068cc7a0f1e957c324bd",
+      "bytes": 6392
     },
     {
-      "path": "hosts46/servier/runtime/preflight/preflight-launch.mjs",
-      "bytes": 10451,
-      "sha256": "1d4902ed64d46f366726ecf6eb5de9ee7201d2cd4364e73268c335fa9aeca2a0",
+      "path": "tests/crawler/pfizerStrictCompletenessReplay.test.ts",
       "mode": "100644",
-      "type": "blob",
-      "sha": "410074a2913596573ec6ac7efe9c0b42fa161293"
+      "sha": "4a17b86bfdb37c5b5be831e464bfcbcff88e5370",
+      "sha256": "02098df1c1b62606326ebed86d4f49edacafbfcb112c99390b29f564b44f8df6",
+      "bytes": 1650
     },
     {
-      "path": "hosts46/servier/runtime/preflight/runtime-check.mjs",
-      "bytes": 3523,
-      "sha256": "0f55d1f662d9eb3329298c68cff3b4a6161dedbefe95c86084bb451bd9e75ee7",
+      "path": "tests/crawler/pfizerWorkdayTraversal.test.ts",
       "mode": "100644",
-      "type": "blob",
-      "sha": "1aaf44921d83b86bb9c0065a46393286a8b725c3"
-    },
-    {
-      "path": "hosts46/servier/runtime/publisher-state-guard.mjs",
-      "bytes": 1448,
-      "sha256": "a21cb794b65f515bb448fd166a14f20f5307837d749593e6e6cd6adfa70f378e",
-      "mode": "100644",
-      "type": "blob",
-      "sha": "080e6f67cc67812907b7a87e77014e5e051fa8dd"
-    },
-    {
-      "path": "hosts46/servier/runtime/review-publication.py",
-      "bytes": 9184,
-      "sha256": "9e485cf27419aa2ef1b5539ce6c86513d7d0c160c8ffcb652915625a6dc7e01b",
-      "mode": "100644",
-      "type": "blob",
-      "sha": "a0faf60c0e21da6367613c7166272e1157d15aba"
-    },
-    {
-      "path": "hosts46/servier/runtime/start-monitor-servier42.js",
-      "bytes": 3481,
-      "sha256": "591ff96ad0899bdd684ebfb6991be2acda9a5c1da07c7ff16064a6b2bb16c1b1",
-      "mode": "100644",
-      "type": "blob",
-      "sha": "9abb7ef7779f897a281c7379c70b4e42f8e37238"
-    },
-    {
-      "path": "hosts46/servier/runtime/validate-capture-inputs.mjs",
-      "bytes": 3695,
-      "sha256": "f58f5ecb5d0fc579f30d2b714f2e5595f7f29d5c045382fd6c64e4a65ffae3dc",
-      "mode": "100644",
-      "type": "blob",
-      "sha": "c6b4c6d03535a179f2ddd4ea199aa83eaf32815e"
-    },
-    {
-      "path": "hosts46/servier/runtime/verify-certificate.mjs",
-      "bytes": 1708,
-      "sha256": "add56629c8491a462007dadd2d6b6408702f1ae39b9759caf648be9186c1ab88",
-      "mode": "100644",
-      "type": "blob",
-      "sha": "147f3b2a9d05ed20cb045d44bb40650872fcfe69"
-    },
-    {
-      "path": "verification/restore-servier46.py",
-      "sha256": "c41641db88554d62b2a4f079e2e12ece12526048b9b6ed15bbac9d2f30039efb",
-      "mode": "100644",
-      "type": "blob",
-      "sha": "00b311dee0cca5f8691c151b4a006f4ef2dfde2a",
-      "bytes": 5546
-    },
-    {
-      "path": "verification/prepare-servier46.mjs",
-      "sha256": "e0717cf128b4a2f88b87b2ad54385f2eb50bbf113e1110fbb5f6c7c27408e881",
-      "mode": "100644",
-      "type": "blob",
-      "sha": "23a9c2c45f79dd3181ecdfe3c15852b866319379",
-      "bytes": 5854
-    },
-    {
-      "path": "verification/freeze-servier46.py",
-      "sha256": "549fe9a42350350f8bfb1298db6d2bb5697ce159b7e5df6f01bca57385bce51e",
-      "mode": "100644",
-      "type": "blob",
-      "sha": "e372ffba69582ba98c4e6cab32d46ca9d8847984",
-      "bytes": 4946
+      "sha": "939a8523d75df21f1f73720a1a2b6559bd612a66",
+      "sha256": "72f38c431c09607e36e2744642bac7b8d9dc260db061067c88321e2642dd7e2d",
+      "bytes": 15954
     }
   ],
-  "recoveryLimitations": [
-    "runtime/configuration/registration/evidence and producer dependencies are separate",
-    "synthetic checks depend on omitted config, expected database and historical originals",
-    "ARCHIVE_STORE missing helper remains unsupported; DB_STARTED_OWNER_V1 does not use it",
-    "preflight launch is portable-only; dedicated Servier starter required",
-    "local state guards do not acquire ownership; external single-publisher coordination required",
-    "preparation outputs are broad inventories, never safe export allowlists"
-  ],
-  "excludedCategories": [
-    "original reference files and diffs",
-    "actual config/control/source-plan/expected-database/runtime identity",
-    "original reports and operational handoffs",
-    "raw captures, database responses, SQL publication packets and live outputs",
-    "credentials and environment files"
+  "files": [
+    {
+      "path": "hosts46/pfizer/context-read.sql",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "c5f606ddb3de6f44cd59c93ba1f8941549dba625",
+      "sha256": "8ba751ea62db7e29dafbd0db1293b20e2935c8be30fc2a9359d15c0d93bfab83",
+      "bytes": 2215
+    },
+    {
+      "path": "hosts46/pfizer/host-helper-functions.js",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "3226e8c8cdc7238313636db8cbb63282a2e04630",
+      "sha256": "b5f5131fb246fa51261b670cefb9720bb229bc0feaaf9311f33495b01c7a9052",
+      "bytes": 7369
+    },
+    {
+      "path": "hosts46/pfizer/host-stage-functions.js",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "0cac981e973c57da5ba6d3ed762f853d37e92f3f",
+      "sha256": "785d2cb6c293c24b677263c7397e1a15724499a5d258d571c5afb29c4b63c2dc",
+      "bytes": 6128
+    },
+    {
+      "path": "hosts46/pfizer/host-files.mts",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "0bc87e80868c34d9b918b02a38c32f836f44a1b0",
+      "sha256": "ad1203c304a2ae4fcbd36284d7760fc32abcdbd2420b34246ab01ca34d598a10",
+      "bytes": 4488
+    },
+    {
+      "path": "hosts46/pfizer/relay-files.mjs",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "937bcdc954e5b14480004286f09c6b2b8cbb23ff",
+      "sha256": "e15146e60af6edb3fe3afa88ada7b7859fa7e6ec2c67ad36530a4a9aaace988f",
+      "bytes": 5639
+    },
+    {
+      "path": "hosts46/pfizer/archive-transfer.mjs",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "5a454d21f34f9680221bbee2c98b3fecb94884f0",
+      "sha256": "698e966e5552967845a5252d2b3df2acca28dcd8dbbb0ae41755a3a6231e6a99",
+      "bytes": 1777
+    },
+    {
+      "path": "hosts46/pfizer/runtime/load-host-state.js",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "c10ac3c06a3b6a6e066b58b67d796475461cb0d7",
+      "sha256": "85693e9180145bebc83c685e9fffe88fdc047d67dea467941887fdc15ff39985",
+      "bytes": 1899
+    },
+    {
+      "path": "hosts46/pfizer/runtime/load-pfizer42-runtime.js",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "6de1f042ec863f6e70243c49277e0b4a3afa6d81",
+      "sha256": "1d6fd408c805b63ca19ec655ff48e96e01e8fd928bb384be30d04471706e6bba",
+      "bytes": 1597
+    },
+    {
+      "path": "hosts46/pfizer/runtime/start-monitor-pfizer42.js",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "23f3723364e03535f1f93f3eb5504b6fcc056863",
+      "sha256": "db11f5f8bcb6c8f0d74b9ac47c49a705d9bacc10056ab8f3b86460513ecdb8ea",
+      "bytes": 3744
+    },
+    {
+      "path": "hosts46/pfizer/runtime/continuous-relay-v3-durable-monitor.js",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "53dccce97de41784f8d1068789161fd5521a25d1",
+      "sha256": "6aed62f814b096b1ae26a64285a72b157d72722f08c1ddf178af13f03bec12f4",
+      "bytes": 2894
+    },
+    {
+      "path": "hosts46/pfizer/runtime/describe-inputs.mjs",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "b2a7111ae8f011360540f6f05a685ea8da0af7f9",
+      "sha256": "81d3f8e7150cf7868b36a97e35dc745468ae1244a8e3b22d7cb335d1b38493c9",
+      "bytes": 687
+    },
+    {
+      "path": "hosts46/pfizer/runtime/fresh-readback.js",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "84b2b77d2c177960ef88fcc2ff9b782529549ae5",
+      "sha256": "5edcddff42236e23a775846a8894712e380dbbf2bb82ebd3e118f8811c907ec2",
+      "bytes": 2096
+    },
+    {
+      "path": "hosts46/pfizer/runtime/fresh-readback.sql",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "a6620536f23a8866dbdbed9a21526ef5274b740e",
+      "sha256": "643b5ae76b9d92b9c00d6bdaf460e8eb22dce3817d63660a20990fae6b3ab8df",
+      "bytes": 2865
+    },
+    {
+      "path": "hosts46/pfizer/runtime/observation-due-gate.js",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "a91f19e46c8b7e9222fa6e76f5b8709f8b804c4d",
+      "sha256": "0df0ccfa54458fd490558fd7df62883095fc3735328bb657c14b1f0b79516535",
+      "bytes": 2124
+    },
+    {
+      "path": "hosts46/pfizer/runtime/publisher-state-guard.mjs",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "c9ffc629252ccc444aff3e706985f57452d1aa94",
+      "sha256": "d8062a3abee43838004d99afad4f992f9e2398e05960ba4560056b2cd504511f",
+      "bytes": 2173
+    },
+    {
+      "path": "hosts46/pfizer/runtime/check-new-run.mjs",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "ad94d3986a07cc031bdd68f4a60ab3324f473f8a",
+      "sha256": "e199767934fa9c4ed486c9508dac0a110a8210171993bae27af22ac16c14df01",
+      "bytes": 1111
+    },
+    {
+      "path": "hosts46/pfizer/runtime/pre-capture-check.mjs",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "5b56bb985b1c0c616dac41d064a31c34f7134ad2",
+      "sha256": "091fedc14ca0a4d04ebaa6e7dfe3fd0923cbb19caea64bea087de7e0147e2996",
+      "bytes": 2122
+    },
+    {
+      "path": "hosts46/pfizer/runtime/validate-capture-inputs.mjs",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "a86d4b971f6bdcb12cb90251763bf656cae70802",
+      "sha256": "c9c8817bfa3efa8eb4dc95ec77be46213406a941022d33908e41f13840300d5e",
+      "bytes": 5388
+    },
+    {
+      "path": "hosts46/pfizer/runtime/preflight/preflight-launch.mjs",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "ed62f16f903bf76edaab95ed6c7e944696ed2d31",
+      "sha256": "9a3830777d620ce5c90b267c85268c82ba06235cc376190e73fba3a8cb7a3d3a",
+      "bytes": 10742
+    },
+    {
+      "path": "hosts46/pfizer/runtime/preflight/runtime-check.mjs",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "1aaf44921d83b86bb9c0065a46393286a8b725c3",
+      "sha256": "0f55d1f662d9eb3329298c68cff3b4a6161dedbefe95c86084bb451bd9e75ee7",
+      "bytes": 3523
+    },
+    {
+      "path": "hosts46/pfizer/runtime/review-publication.py",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "58822eaba4967dbf9c4feb969f2f834500411e69",
+      "sha256": "24c18da9565d972b1616c18816680e74d34c8b6d3f507897259383e446594c5d",
+      "bytes": 9036
+    },
+    {
+      "path": "hosts46/pfizer/runtime/compact-json-review.inc.py",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "bafdf1880f6793fef02bc5824547b15cb1faef37",
+      "sha256": "7f23b26241ad6bffa9f5f453bfb294b89ddd54ad5f02d001a599f6cc81d8af6c",
+      "bytes": 1558
+    },
+    {
+      "path": "hosts46/pfizer/runtime/verify-certificate.mjs",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "95061bba6ca9d185024f79aa7a9253f824d2fe7a",
+      "sha256": "6c8bf43151a4bcdcb1d0354cb24e488e189ea7a6a94370809fe8d415f3383c99",
+      "bytes": 1707
+    },
+    {
+      "path": "hosts46/pfizer/runtime/dispatch-reviewed-publication.js",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "62993fdc4281c06e723b923f8dd1432364490cf9",
+      "sha256": "9a1fb29f18ed34c2739f6584cbcd73123f166c578f15f4dda31b15ec60fb4a3a",
+      "bytes": 1302
+    },
+    {
+      "path": "hosts46/pfizer/runtime/check-restoration.mjs",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "c4758502b2ee748dc5386bf73292bba35e4c8678",
+      "sha256": "1e4b62421d5b8d5436c4b238b213d59c6104c2665635cc617061e5800bd68442",
+      "bytes": 8522
+    },
+    {
+      "path": "hosts46/pfizer/runtime/check-guards.mjs",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "6f979fca4365a8fb324c6c8fa9244b8d1c24055c",
+      "sha256": "ba3f7e740fe538ed466b3d74fe0fd9241bf0836d7fa123b1a66ea8168973e56e",
+      "bytes": 12666
+    },
+    {
+      "path": "hosts46/pfizer/runtime/vitest-offline.config.mjs",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "181f2ebec1940346267549042333a24d929b9e66",
+      "sha256": "e42ebdb66652842599d5ef2d7415b6c151fc1f6d65b36b76f1fae175dae85d10",
+      "bytes": 91
+    }
   ]
 }

@@ -1,3 +1,4 @@
+import {noLinks} from './runtime/preflight/preflight-launch.mjs';
 import {readFile,writeFile,readdir,lstat,link,unlink} from 'node:fs/promises';
 import {resolve,join,basename} from 'node:path';
 import {createHash,randomUUID} from 'node:crypto';
@@ -20,8 +21,9 @@ async function writeResponse(dir,r,result){
  await writeFile(temp,text,{flag:'wx',mode:0o600});
  try{await link(temp,dest);}finally{await unlink(temp);}
 }
-const [command,directory,arg,expectedRequestSha256]=process.argv.slice(2);const dir=resolve(directory??'');
-if(!dir.startsWith('/workspace/scratch/5e9614251709/jb-workspace-recovery-20261005T2019Z/hosts46/servier/'))throw Error('RELAY_DIRECTORY_OUTSIDE_TASK');
+const [command,directory,arg,expectedRequestSha256,...extra]=process.argv.slice(2);if(extra.length||typeof directory!=='string')throw Error('RELAY_ARGUMENTS');const dir=resolve(directory);
+await noLinks(dir);
+if(!dir.startsWith('/workspace/scratch/5e9614251709/jb-workspace-recovery-20261005T2019Z/hosts46/pfizer/'))throw Error('RELAY_DIRECTORY_OUTSIDE_TASK');
 if(command==='next'||command==='next-meta'){
  const names=await readdir(dir),rows=[];
  for(const name of names.filter(n=>n.endsWith('.request.json')).sort()){

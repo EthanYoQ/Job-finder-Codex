@@ -1,12 +1,15 @@
 // functions.exec fragment. Parent-only launch using two new local capture descriptors.
-const A=Object.getPrototypeOf(async function(){}).constructor,h=await new A(load('restored46:servier:cloudPilotHostHelpers'))();
-if(h.cfg.sourceId!=='source-servier-china-social')throw Error('SOURCE_SCOPE');
-const currentCapture=load('restored46:servier:currentCaptureInput'),independentValidation=load('restored46:servier:currentIndependentValidationInput'),batch=load('restored46:servier:nextBatchId');
+const A=Object.getPrototypeOf(async function(){}).constructor,h=await new A(load('restored46:pfizer:cloudPilotHostHelpers'))();
+if(h.cfg.sourceId!=='source-pfizer-china-social')throw Error('SOURCE_SCOPE');
+const currentCapture=load('restored46:pfizer:currentCaptureInput'),independentValidation=load('restored46:pfizer:currentIndependentValidationInput'),batch=load('restored46:pfizer:nextBatchId');
 if(typeof batch!=='string'||!/^[A-Za-z0-9][A-Za-z0-9._-]{0,80}$/.test(batch))throw Error('BATCH_ID');
-for(const [name,value] of Object.entries({currentCapture,independentValidation}))if(!value||Object.keys(value).sort().join(',')!=='path,sha256'||typeof value.path!=='string'||!value.path.startsWith(h.cfg.root+'/')||!/^[a-f0-9]{64}$/.test(value.sha256??''))throw Error('CURRENT_B_INPUT_REQUIRED:'+name);
-const {raw,row,due,overlap}=await new A(load('restored46:servier:freshReadbackCode'))();
+for(const [name,value] of Object.entries({currentCapture,independentValidation}))if(!value||Object.keys(value).sort().join(',')!=='path,sha256'||typeof value.path!=='string'||!value.path.startsWith(h.cfg.root+'/captures/')||!/^[a-f0-9]{64}$/.test(value.sha256??''))throw Error('CURRENT_B_INPUT_REQUIRED:'+name);
+if(batch.startsWith('NONQUAL-')||[currentCapture.path,independentValidation.path].some(p=>p.split('/').some(x=>x.startsWith('NONQUAL-'))))throw Error('CURRENT_B_NONQUAL_INPUT');
+const {raw,row,due,overlap}=await new A(load('restored46:pfizer:freshReadbackCode'))();
 const inputs=JSON.parse(await h.cmd('node --import '+h.q(h.cfg.repo+'/node_modules/tsx/dist/loader.mjs')+' '+h.q(h.cfg.root+'/runtime/validate-capture-inputs.mjs')+' '+[currentCapture.path,currentCapture.sha256,independentValidation.path,independentValidation.sha256,due.nextEligibleAt].map(h.q).join(' '),3000));
 const run=h.cfg.root+'/'+batch;
+await h.cmd('node '+h.q(h.cfg.root+'/runtime/check-new-run.mjs')+' '+h.q(batch),2000);
+
 await h.save(run+'/candidate-readback.json',raw);await h.save(run+'/source-due-readback.json',due);await h.save(run+'/capture-input-check.json',inputs);
 await h.save(run+'/source-overlap-readback.json',overlap);
 await h.save(run+'/bootstrap.json',{schemaVersion:1,checkedAt:new Date(row.checkedAt).toISOString(),candidateRows:row.candidateRows,batchId:batch,currentCapture,independentValidation});
@@ -17,6 +20,6 @@ await h.cmd('node '+h.q(h.cfg.root+'/runtime/publisher-state-guard.mjs')+' idle'
 const age=Date.now()-Date.parse(row.checkedAt);if(age<0||age>60000)throw Error('FRESH_BOOTSTRAP_EXPIRED_BEFORE_LAUNCH');
 const command='env TSX_DISABLE_CACHE=1 NODE_DISABLE_COMPILE_CACHE=1 PYTHONDONTWRITEBYTECODE=1 JOBFINDER_CLOUD_SOURCE_ID='+h.q(h.cfg.sourceId)+' P0_SOURCE_HTTP_TIMEOUT_MS=45000 node scripts/run-with-http-diagnostics.mjs '+h.q(run+'/diagnostics')+' 1800000 -- node --max-old-space-size=256 --import ./node_modules/tsx/dist/loader.mjs scripts/p0-cloud-source-pilot.ts '+[run+'/bootstrap.json',boot.hash,run+'/artifacts',run+'/relay'].map(h.q).join(' ')+' --db-started-control '+h.q(h.cfg.root+'/control-base.json');
 await h.save(run+'/reviewed-command.txt',command);
-store('restored46:servier:refreshCurrentRun',run);store('restored46:servier:refreshCurrentBatch',batch);store('restored46:servier:cloudPilotPublishRequest',null);store('restored46:servier:cloudPilotPendingRequest',null);
-const started=await tools.exec_command({cmd:command,workdir:h.cfg.repo,yield_time_ms:1000,max_output_tokens:1500});store('restored46:servier:refreshSession',started.session_id);notify({phase:'FRESH_B_SOURCE_LAUNCH',batch,session:started.session_id,output:started.output});if(!started.session_id)throw Error('NO_RUNNING_LAUNCH_SESSION');
-await new A(load('restored46:servier:continuousPortableRelayCodeWithPoll'))();
+store('restored46:pfizer:refreshCurrentRun',run);store('restored46:pfizer:refreshCurrentBatch',batch);store('restored46:pfizer:cloudPilotPublishRequest',null);store('restored46:pfizer:cloudPilotPendingRequest',null);
+const started=await tools.exec_command({cmd:command,workdir:h.cfg.repo,yield_time_ms:1000,max_output_tokens:1500});store('restored46:pfizer:refreshSession',started.session_id);notify({phase:'FRESH_B_SOURCE_LAUNCH',batch,session:started.session_id,output:started.output});if(!started.session_id)throw Error('NO_RUNNING_LAUNCH_SESSION');
+await new A(load('restored46:pfizer:continuousPortableRelayCodeWithPoll'))();

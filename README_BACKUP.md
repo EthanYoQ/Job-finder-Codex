@@ -1,38 +1,37 @@
-# Servier C46 external host source backup
+# Pfizer C46 TRUE_B host source backup
 
-This branch preserves the frozen Servier host source adapted to the restored regular C46 producer. It is a source-only archive, not a registered runtime image or a deployment. Producer source remains `fb0b8e3b708d4f57cae09b465fb1c9ceddf7ad8d`; C46 here is the regular restored producer, not the unrelated offline Sanofi candidate whose Git SHA starts with `46beb14`.
+This source increment preserves 27 reviewed files for the reconstructed Pfizer host: 24 host/source/read-only-SQL files, two synthetic check scripts and their offline Vitest configuration. It is not a deployment, registration or proof of a new capture. The producer remains the regular C46 source `fb0b8e3b708d4f57cae09b465fb1c9ceddf7ad8d`.
 
-## Cutoff and provenance
+## Frozen preparation and blocked live gate
 
-- Source manifest frozen at 2026-10-05 21:53:58 UTC; SHA256 `b987b8dc225690b34788800bb6096acf123100d01197aba2256fdb3b485257c7`.
-- At the publisher's 2026-10-05 22:00 UTC handoff, no new Servier capture, producer launch, database operation or publication had occurred for this host. An active CTTQ round is a separate source and provides no Servier success evidence.
-- The publisher reports 13 primary checks plus 56 supplemental synthetic/hash checks passed. It also reports all 33 original PREPARED-file hashes matched, including six omitted source/config references regenerated against exact historical hashes. These are local preparation results, not a real capture, database acceptance, full CI or public validation.
-- This backup independently checked the 28 selected source hashes, scanned/reviewed their content, and verified the resulting GitHub tree and file bytes. It did not execute the backed-up code, run tests or access a live capture/run directory.
+The host manifest was frozen at 2026-10-05 23:43:20 UTC, SHA256 `7f2eec27d479cc7e5941c07945d4a1d11d906b74724ce451fd9eddc4471e9da5`. Preparation was offline and pending fresh database/capture gates.
 
-Historical source: [Servier C42 host archive](https://github.com/EthanYoQ/Job-finder-Codex/tree/40f65562867ad6e8dc6b35745ca3b96eec77577c). Original reference files are not duplicated here. The backup commit identifies this filtered archive and does not recreate an original runtime identity or Git history.
+The publisher subsequently reported that the 23:44 fresh database gate blocked on five historical Pfizer same-source RUNNING records. No new official main traversal, independent DOM traversal or publication occurred. The C26 record with the same source configuration still lacked verified original-process termination evidence. Capture remained paused and the overlap gate was not relaxed. The five-record count refers specifically to this Pfizer overlap check.
 
-## Preserved contract
+The publisher reports 58 local checks (7 nested-host checks, 49 guard checks and 2 extra NONQUAL launch negatives) plus 21 existing Pfizer producer tests passed. The two persisted check scripts cover the 7 + 49 checks; the two extra launch checks and final freeze generator were inline commands with no standalone source file. This backup therefore cannot claim exact standalone replay of all 58 checks. It ran no tests, source, database query, browser capture, CI or deployment.
 
-The source keeps the existing TRUE_B Chinese rendered-DOM collection route: fresh main traversal and separate independent traversal both require complete details and exact source/config bindings. Main evidence has a 30-minute freshness window; independent CURRENT_RUN validation retains its 60-minute window; the final database bootstrap must be no more than 60 seconds old. Natural due time comes from the exact successful CrawlObservation tuple plus 12 hours, not a historical count or a scheduler guess. Publication expiry/reserve checks and parent review remain required.
+## Preserved route and guards
 
-The adaptation changes host/producer paths, C46 candidate bindings and the `restored46:servier:` namespace, and adds early string checks for batch IDs. Exact historical overlap exceptions remain narrowly pinned to their established tuples and current non-writable qualification conditions; they do not permit ignoring arbitrary BUILDING/current/unknown work. Expected database identity, migration/guard checks and actual current readback remain necessary.
+The original TRUE_B route requires a fresh complete official main JSON traversal and original SourceFetchResult checkpoint, plus a separate new native DOM/JSON-LD traversal with all pages/details. The validator reconstructs the independent traversal from its original managed-browser bytes, checks hashes, source/config and current-run timing, and keeps counts derived from current evidence. It does not convert historical counts into capture targets.
 
-Before launch, publisher state must have `active` exactly null. Publication additionally permits only its own exact Servier batch. These local state checks do not atomically acquire ownership: the external single-publisher rule remains a prerequisite. The inherited `ARCHIVE_STORE` helper dependency is absent; that unsupported branch is unused by `DB_STARTED_OWNER_V1`. Generic preflight launch is portable-only; Servier uses preflight check plus its dedicated B starter.
+Fresh launch checks retain the matching C46 identity, 48 schema checksums/guard, free formal lock, exact successful observation and 12-hour due gate, zero same-source RUNNING results, and bootstrap age at most 60 seconds. Main evidence retains 30 minutes and independent CURRENT_RUN retains one hour. Existing NONQUAL inputs, reused run output, sibling paths and symlinks are rejected. Preflight now explicitly permits check mode only; the dedicated Pfizer starter is required. Publication still requires exact parent-reviewed packet/hash and exclusive one-time dispatch.
 
-The CSPC stale-context reread change is not included. Servier SQL dispatch remains single-dispatch. Main and independent capture inputs must be fresh, separately bound descriptors; old results/raw packages cannot supply a new success.
+The publisher guard retains exact nonsecret source-tree/runtime-tree/adapter integrity hashes as code constants. Actual runtime identity documents and configuration remain excluded. These constants are not credentials and must not be loosened during recovery. Local state inspection is not atomic ownership acquisition; external single-publisher coordination remains required.
 
-## Recovery and included files
+## Provenance and recovery
 
-The archive contains 25 current host/source/read-only-SQL files and 3 preparation tools, copied without modification. Paths are relative to the restoration workspace: `hosts46/servier/` and `verification/`. Some preserved filenames end in `42`; the current C46 bindings are inside the frozen source.
+Two historical reference files have independent recorded hash anchors: describe-inputs and the old Pfizer loader. The active describe-inputs bytes match that anchor; the active loader was adapted for C46 and has a different current hash. Some helper source was reconstructed from surviving source copies, rather than recovered from a complete byte-identical archive. Other pieces were adapted from the reviewed B-host family and tightened for Pfizer. This is documented reconstruction, not a claim that all historical Pfizer host bytes survived unchanged.
 
-`SOURCE_BACKUP.json` records each source's SHA256 and Git blob SHA. `SHA256SUMS` covers source plus this README and the new manifest. Necessary nonsecret project references, source IDs, code hash pins, fixed candidate IDs, strict historical tuple pins and original workspace paths remain intact.
+Twenty frozen producer source/test references in the supplied inventory match the existing [safe producer41 source archive](https://github.com/EthanYoQ/Job-finder-Codex/tree/0c4586b82690203b93475551bd3409e2fbcb1574) by SHA256 and byte length. Those already backed-up sources are referenced in the manifest instead of duplicated here. The restored fb0 Git root is a distinct identity from the original b41 Git history despite matching safe source bytes.
 
-Runnable restoration additionally needs correct producer/dependencies, separately authorized matching host/control configuration, source plan, expected database identity, registration, live publisher state and fresh evidence. The synthetic checks read omitted files and historical originals, so this filtered branch alone cannot rerun all 69 reported preparation checks. Preserve fail-closed assertions; never substitute synthetic data for missing runtime identity or live evidence. Checks also create local artifacts; their stubs are not a general network/process sandbox.
+`verification/restore-pfizer46.py` is omitted whole; SHA256 `e8be1c0fce13ff5c57945f1ecc4367c9062596066bd3aff2425585fff774aca0`. The restoration owner classified it as embedding actual identity replacement constants/private configuration inputs, and it did not include all subsequent manual safety additions. The final freeze generator and two inline launch checks are also unavailable as standalone source. These are explicit recovery gaps, not reconstructed scripts.
 
-The preparation tools read external configuration/identity and generate broad local inventories, including runtime outputs. Those generated manifests/directories are not safe upload allowlists and must never be exported wholesale. Historical inputs and original PREPARED references must be recovered separately and checked before using the tools.
+The archive excludes host/control/source-plan and expected-database JSON. Matching configuration, registration, dependencies, original reference inputs, live publisher state, new capture bytes and actual DB readback must be supplied separately through the authorized restoration process. Synthetic tests create local NONQUAL artifacts and depend on excluded inputs; they are not a launch authority or a general process/network sandbox.
 
-## Exclusions
+The inherited ARCHIVE_STORE branch still lacks its audit helper and remains unused by the supported DB_STARTED route. Preserve the separate authorized evidence archival flow. No CI or deployment workflow is included in this backup branch.
 
-The original manifest lists 99 files; original SHA256SUMS contains those plus the manifest itself, totaling 100 entries. This archive selects 25 current source entries and excludes 75 inventory entries. Three separately listed preparation tools are also included.
+## Included and excluded material
 
-Excluded: originals, original diffs/reports, RUNBOOK/COLLECTOR handoffs, source-plan/host-config/control-base/expected-database JSON, PREPARED/SPEC/FROZEN manifests, registration/runtime identity and internal preparation reports. The original checksum file is replaced with the selected-file list. No actual database response, SQL publication request, captured job/raw content, capture descriptor, live-run output, credential or environment file is included. The branch has no workflow entrypoint and does not change the default branch.
+`SOURCE_BACKUP.json` records each included source path, mode, Git blob SHA, SHA256 and length, plus the 20 prior producer references and original input-manifest hashes. `SHA256SUMS` covers selected source and new metadata.
+
+Actual configs/identity, readiness results, registration/publication SQL, DB responses, raw jobs, capture descriptors, original reports/handoffs, old copies/diffs, runtime output, environment files and credentials are excluded. Original broad source manifests are replaced by this selected-file inventory. The synthetic Pfizer DOM fixture is generated test data, not a real captured response.
