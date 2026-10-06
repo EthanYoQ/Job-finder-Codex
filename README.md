@@ -5,3 +5,5 @@ Ten unchanged source, patch, and synthetic-test files (54,091 bytes), plus two u
 Keep combined-takeda-20261006T0550Z/ beneath the directory containing sample_process_tree.py and build-observed-command.mjs. Dependencies include Node.js, Python 3 standard libraries, Bash, Linux /proc, process-group support, and writable verification/ directories. The original Takeda starter and external host bindings are separate dependencies; this snapshot alone cannot run all integration checks. Fixed absolute paths in prepared code require deliberate review and regeneration for another location.
 
 REVIEW.md, generated metrics, descriptors, cancellation/nonce files, real configuration and database results, captured data, credentials, and operational reports are excluded. These are source and synthetic-test inputs, with no runtime or test-execution claim.
+
+Known source limitation: startup identity, descriptor, and log I/O failures are not fully guarded. A later exception-handling correction is required before adopting this supervisor.
