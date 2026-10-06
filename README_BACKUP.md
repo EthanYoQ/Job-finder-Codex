@@ -1,27 +1,43 @@
-# Offline a775-based Sanofi-compatible fallback candidate
+# Sanofi rebuilt compatible fallback web source backup
 
-Original source commit: c754d92e98d964655abdca783d9ed1e52b19c3e3. Actual direct parent: a775d114668c466562660105ee52dc2306b6fdeb. At the 2026-10-05 17:07 UTC handoff this was an offline application fallback candidate, unregistered and undeployed. It did not replace protected port 3031 or change any running service.
+Actual frozen source Git commit: `a38cbeb014d6ce3d7648218d8d4a96264ae42bf8`. This source has a new root commit, with no Git parent. The historical `c754d92e98d964655abdca783d9ed1e52b19c3e3` identifies provenance only; neither its old Git graph nor its registered runtime identity was restored.
 
-It pairs with publisher 46beb14fcca2dd05854f45781abbc1b43da90ea1 on [the publisher backup branch](https://github.com/EthanYoQ/Job-finder-Codex/tree/backup/sanofi-paired-publisher-20261005-1700). The separate main Web candidate 7e5390495bc41b846d6a4a6d12a7f9061bbb745f is on [the main Web backup branch](https://github.com/EthanYoQ/Job-finder-Codex/tree/backup/sanofi-paired-web-20261005-1700).
+This is the compatible fallback application logic from the previously reviewed c754d92 source. It retains the a775 foreground/performance behavior with the paired Chinese Sanofi reader changes, without the main web nonblocking changes. It is a distinct fallback candidate, not the protected legacy 3031 runtime.
 
-## Compatibility and behavior
+## Status and paired roles
 
-The same six reader source files are byte-identical to the main Web candidate. They enforce the same Chinese Sanofi receipt and independently persisted seven-field artifact commitments. All other runtime source preserves a775 behavior: readWithStatus has two arguments; even a warm cache waits for foreground version SQL and rejects query failure. Only an existing background rebuild may serve a cloned old verified projection immediately. Original barriers, per-request timing, retries and post-build checks remain. No e4cd nonblocking/HMAC correlation behavior was added.
+The reconstructed source/package manifest was frozen at 2026-10-06 00:27:57 UTC (SHA256 `2a28ef4cbfab3c48125627156c47778b6d75c93806163931a7d9de1a0a2f7b36`). At the subsequent 01:10 UTC handoff all three roles remained unregistered and undeployed; production web was still a775. This archive does not constitute target-runtime or production acceptance.
 
-Strictly pinned historical A88 remains valid only before a newer committed Chinese writer. A valid new B may display its CURRENT set; invalid/expired B or an unknown writer produces HOLD, without republishing old88. Arbitrary historical A or older Chinese B missing the new persisted commitments remain unsupported.
+Paired actual source identities:
+- Publisher: `7783b73e9f56b3d181a64b74288a714116bbf150`
+- Main web: `b60390477578be18d0f4319eb2a3db888c4fcb17`
+- Compatible fallback: `a38cbeb014d6ce3d7648218d8d4a96264ae42bf8`
 
-Original a775 and original 3031/db56 are still incompatible with the new B contract. This c754 application candidate addresses receipt compatibility only. It does not change or bypass deployment database-version, schema, build or routing checks. In particular it is not permission to overwrite 3031 or relax its rollback controller. Target environment verification and an authorized deployment decision remain separate.
+The original a775 and protected legacy 3031 reader verifier modules reject the new paired Sanofi B packet. The compatible fallback is separate; preserving 3031 does not make it a compatible reader for newly published B data. Any deployment/registration/capture remains a separate authorized qualification step.
 
-## Reported verification and limits
+## Verification limits
 
-The author reports 15 suites / 383 focused tests, a 24-root focused TypeScript check and a Vite build passing. Six new paired cases use the final publisher's two-job synthetic receipt alongside the historical fixture. All 171 build files reportedly match the original a775 target-dist manifest, including original logo/fonts/CSS/JS. Tests ran in groups, not full CI. The listener-based httpServer suite was not run; native response barriers used in-memory streams.
+All selected source files match previously reviewed private GitHub objects by path, mode and Git blob. No application-source bytes were added or changed by reconstruction. The reported local application TypeScript checks and all three Vite builds passed. Main historical transition 51/51 and fallback transition 53/53 were reported passed; the private actual old-88 context used for these checks is excluded and is not an archived original fixture.
 
-No database connection, SQL execution, official request, service/listener start, registration, deployment, mobile/browser visual or public performance acceptance was performed. No full repository test/typecheck success is claimed. This backup did not execute tests or source. These source commits and local build results are not registered production identities.
+Full CI has not passed. The local main full-repository type check has seven inherited test diagnostics. Publisher's corrected broader local run reports 180 passed, 2 failed and 50 skipped: the failures are inherited policy-count and Qilu owner-ID expectations. Optional retained replay/PGlite inputs were omitted or unavailable, not replaced with fake live evidence. Main broader tests reported 215 passed/1 existing skip and static/UI tests 94 passed; fallback broader tests reported 245 passed. These overlapping groups must not be summed as unique test totals. This backup did not rerun source/tests or GitHub CI.
 
-## Safe snapshot and recovery
+A local dependency-cache packaging difference was corrected in the independent candidate copy. The publisher reports all three final archive round trips matched their recomputed local source/runtime identities. Those results cover local Linux x64 Node 24.19.0 only. Actual Ali Node22/OS/native-engine compatibility, dependencies and runtime identity still require target verification. No node_modules, built runtime archives, local build-identity files or private diagnostics are uploaded here.
 
-The tree contains 970 exact source/test/config/asset files and two backup metadata files. Thirty-five tracked private or operational files remain excluded. The six reader source blobs and most changed tests reuse the already verified main-pair objects. Necessary fonts, logos and licenses are retained.
+## Exact scope and recovery
 
-The self-authored contract fixture has only two invented jobs, short synthetic HTML and test-only bindings. Real historical88 database/control data, captured-page gzip fixtures, original job bodies, actual SQL/request/response evidence, operation/proof notes and user authorization text, credentials/environments, runtime identities, generated dependencies/builds, uncommitted files and original Git history are excluded. The six new paired cases and historical tests need the separately excluded historical88 fixture; they cannot all run from this safe tree alone.
+This role contains 963 safe source files, all reused without byte changes from [its prior safe snapshot](https://github.com/EthanYoQ/Job-finder-Codex/tree/12336a67422cba4c66b5bda9e6d8030eabf13913). The current Git tree has one additional tracked `RECOVERY_SOURCE_IDENTITY.json`; it is excluded and replaced by the narrowly scoped mapping in `SOURCE_BACKUP.json`. The backup Git commit is distinct from the actual frozen source Git commit.
 
-Workflow source is relocated under backup/disabled-workflows. This independent branch performs no CI, merge, default-branch update or deployment. A compatible candidate is not an approved or verified live rollback.
+The filtered reconstruction omitted seven files that existed in that prior safe snapshot:
+- `backup/disabled-workflows/production-image.yml`
+- `ops/run-fixed-cohort-qualification.sh`
+- `tests/db/emptyDatabaseMigrationVerification.test.ts`
+- `tests/ops/deploymentConfig.test.ts`
+- `tests/ops/formalQualificationRunner.test.ts`
+- `tests/ops/opsBootstrap.test.ts`
+- `tests/readiness/p0StagedReleaseCandidateCli.test.ts`
+
+Those omissions are preserved rather than silently reintroducing files absent from the new source Git object. They affect historical operation/qualification and some test workflows. Recovering them, if required, would be a separately reviewed source change. There is no active GitHub workflow in this backup branch.
+
+Previously excluded raw/retained job fixtures, real DB context and reader inputs, operational evidence and internal notes remain excluded. Credentials, environment files, actual configuration/registration/runtime identity, generated dependencies/builds, artifacts/private package directories and original history are not included. Necessary exact nonsecret source-policy/receipt hash pins and synthetic fixture source remain unchanged.
+
+The source archive alone does not supply missing retained inputs, matching runtime dependencies or target registration. Rebuilding a source tree does not recreate an old runtime identity. Obtain and verify authorized dependencies and fresh target evidence before any use; this backup does not merge, deploy or alter the default branch.
