@@ -1,1 +1,0 @@
-{"extends":"./tsconfig.json","include":["src/app/**/*.ts","src/app/**/*.tsx","src/main.tsx","src/style.d.ts"],"exclude":["tests"]}

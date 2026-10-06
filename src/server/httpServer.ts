@@ -57,7 +57,7 @@ export interface PortableSnapshotReader {
 
 /** Serve an owned verified display; correlate one bounded follow-up with a
  * version check that starts after its original request. Never poll while idle. */
-export function createPortableSnapshotReader(db: PortableSnapshotDb): PortableSnapshotReader {
+export function createPortableSnapshotReader(db: PortableSnapshotDb, options: {reuseIdenticalMvccSnapshot?: boolean} = {}): PortableSnapshotReader {
   let inFlight: Promise<PortableSnapshotRead> | undefined;
   let background: Promise<void> | undefined;
   let timer: ReturnType<typeof setTimeout> | undefined;
@@ -68,7 +68,7 @@ export function createPortableSnapshotReader(db: PortableSnapshotDb): PortableSn
   let nextResponses: Promise<void>[] | undefined;
   let acceptingQueuedResponses = false, acceptingNextResponses = false;
   let status: PortableSnapshotRefreshStatus = {state: "CURRENT", failures: 0, nextRetryAt: null, lastVerifiedAt: null};
-  const cache = new PortableSnapshotCache();
+  const cache = new PortableSnapshotCache(undefined, options);
   const checks = createSnapshotRefreshChecks();
   const scheduleRefresh = (delay = 0, responses: readonly Promise<void>[] = []): void => {
     if (closed || background || timer || waitingForResponses) return;

@@ -1,5 +1,6 @@
 import { createHash } from "node:crypto";
 import type { PortablePublicSnapshot } from "./portablePublicSnapshotRepository";
+import { PortableSnapshotVersionMemo } from "./portableSnapshotVersionMemo";
 
 /** Every table read directly or through portableSourceResultSelect relations. */
 export const PORTABLE_SNAPSHOT_VERSION_TABLES = [
@@ -82,7 +83,16 @@ export function portableDisplayVersion(snapshot: PortablePublicSnapshot): string
 /** One owned, verified projection per reader, bounded independently of DB size. */
 export class PortableSnapshotCache {
   private entry: { version: string; scope: string; from: number; until: number; snapshot: PortablePublicSnapshot; displayVersion: string } | undefined;
-  constructor(private readonly maximumBytes = 16 * 1024 * 1024) {}
+  private readonly versionMemo: PortableSnapshotVersionMemo | undefined;
+  constructor(private readonly maximumBytes = 16 * 1024 * 1024, options: {reuseIdenticalMvccSnapshot?: boolean} = {}) {
+    this.versionMemo = options.reuseIdenticalMvccSnapshot ? new PortableSnapshotVersionMemo() : undefined;
+  }
+
+  /** Always invoked from the same read transaction as a possible projection fill. */
+  async readDatabaseVersion(query: (sql: string) => PromiseLike<unknown>): Promise<string> {
+    return this.versionMemo ? this.versionMemo.read(query, PORTABLE_SNAPSHOT_VERSION_SQL, portableSnapshotVersion) :
+      portableSnapshotVersion(await query(PORTABLE_SNAPSHOT_VERSION_SQL));
+  }
 
   get(version: string, scope: string, now: number): PortablePublicSnapshot | undefined {
     return this.getRead(version, scope, now)?.snapshot;

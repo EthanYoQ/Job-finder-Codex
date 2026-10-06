@@ -9,7 +9,7 @@ import { P0_LAUNCH_MANIFEST, selectLaunchCompanies, validateLaunchManifest } fro
 import { supportsPublicBGrade, selectPortableSourceSnapshots, projectPortableSourceJobs, type PortableProjectedSource, type PortablePublicJob, type PortableSnapshotOptions } from "../domain/portablePublicSnapshot";
 import { SOURCE_QUALITY_POLICY_ID } from "../crawler/sourceQualityAdmission";
 import { DAILY_PUBLICATION_FRESHNESS_MAXIMUM_MS } from "../domain/publicationEligibility";
-import { portableDisplayVersion, PortableSnapshotCache, PORTABLE_SNAPSHOT_VERSION_SQL, portableSnapshotVersion, portableSnapshotValidUntil } from "./portableSnapshotCache";
+import { portableDisplayVersion, PortableSnapshotCache, portableSnapshotValidUntil } from "./portableSnapshotCache";
 
 export const portableSourceResultSelect = {
   id: true, releaseCandidateId: true, batchId: true, sourceId: true, sourceConfigHash: true, adapterVersion: true,
@@ -168,9 +168,8 @@ export async function readPortablePublicSnapshotWithStatus(
     let version: string | undefined;
     if (cache && tx.$queryRawUnsafe) {
       const versionStartedAt = performance.now();
-      const rows = await tx.$queryRawUnsafe(PORTABLE_SNAPSHOT_VERSION_SQL);
+      version = await cache.readDatabaseVersion(sql => tx.$queryRawUnsafe!(sql));
       timing?.record("versionSQL", performance.now() - versionStartedAt);
-      version = portableSnapshotVersion(rows);
     }
     const cloneStartedAt = performance.now();
     const cached = version === undefined ? undefined : cache!.getRead(version, cacheScope, readOptions.currentTime.getTime());
