@@ -2,101 +2,45 @@
   "schemaVersion": 1,
   "files": [
     {
-      "path": "src/crawler/jnjCareersDomUrlProfile.ts",
+      "path": "run-predicate.mts",
       "mode": "100644",
       "type": "blob",
-      "sha": "d019f41550f2c0f3f56e251ecf77e1d70ac14d08",
-      "sha256": "a6de10d88daa8f63b06c750ab5f17507d65a71afd82daacae52479c84710e629",
-      "bytes": 1747
+      "sha": "6d4f2f67e4dd01c768c89a1858e9c5981deac333",
+      "sha256": "985a9ec822af177b5b89dd8914888965b62d29f048220065fbfc51de3037ae5f",
+      "bytes": 23113
     },
     {
-      "path": "src/crawler/jnjCareersDomContract.ts",
+      "path": "run-reader-appendix.mts",
       "mode": "100644",
       "type": "blob",
-      "sha": "45720c2197fb2653f6719786bad651e106f28c57",
-      "sha256": "51e11e2790ec3c36c22eb799ba781ea11ce729be5e4a7b51fd65a47342ec92eb",
-      "bytes": 1776
+      "sha": "5e3cf26f4325cf4a2bd3c42e708f131e3a936b98",
+      "sha256": "eb6df008c4efe0d48c63562ff503eade7522da774d6b1d2575a677170ec9cc25",
+      "bytes": 4844
     },
     {
-      "path": "src/crawler/jnjCareersDomEvidence.ts",
+      "path": "dependencies/package.json",
       "mode": "100644",
       "type": "blob",
-      "sha": "ea2ce9e4dfd579dbd4372271612e835d20fee98f",
-      "sha256": "9575af9c48c140c3868d375506b3792fe4bc1a26cab220a84770fe0876493b0a",
-      "bytes": 16146
+      "sha": "f2bd796819bdb591a08d5e49077496441c9266c1",
+      "sha256": "d01b41ddb8a9a0c5a864f1539e5213d9a45246a46ec84d94b2c7c550dfe1b4b2",
+      "bytes": 127
     },
     {
-      "path": "src/db/jnjDomEvidenceAdmission.ts",
+      "path": "dependencies/package-lock.json",
       "mode": "100644",
       "type": "blob",
-      "sha": "c63fbd60600dcc3339086ddd052de13ea46d6c7d",
-      "sha256": "b52a8ff6d3236cb2695451766c9361223fb904c7a25f7ae99bd85f3115b1bb85",
-      "bytes": 5972
+      "sha": "4a1d2effbe3647793c8f4aab2a495da6ca2319f6",
+      "sha256": "8b08c8e7c25f4300071a597318795df96aac46f527fac99351fe2dedbc23eb2e",
+      "bytes": 561
     },
     {
-      "path": "prisma/migrations/20261006071300_jnj_native_url_profile/migration.sql",
+      "path": "install-test-dependencies.sh",
       "mode": "100644",
       "type": "blob",
-      "sha": "6f8484d7ef3beb441cc0c13a17f238bd9370419d",
-      "sha256": "02d873624b339fa9d54e61dc3b4aac001e9896cd11836f758fb67be3b7a3a7d6",
-      "bytes": 48024
-    },
-    {
-      "path": "tests/helpers/jnjNativeSyntheticFixture.ts",
-      "mode": "100644",
-      "type": "blob",
-      "sha": "76650773cde86388f433d1b94aef4fc281d35bf7",
-      "sha256": "6d8e76eafeb4c009233b7d54cc1e380b3b2e7cac9ffb858a448c04333fda9fc6",
-      "bytes": 5935
-    },
-    {
-      "path": "tests/crawler/jnjNativeUrlProfile.test.ts",
-      "mode": "100644",
-      "type": "blob",
-      "sha": "8460d529983f3bda1a4911a6e600d2bf1c829d30",
-      "sha256": "d48a1488d836d3fdb04691277da33ea3b06d1a5556f9cdd8f360eb257736b6e8",
-      "bytes": 6976
-    },
-    {
-      "path": "tests/domain/jnjNativeReaderCompatibility.test.ts",
-      "mode": "100644",
-      "type": "blob",
-      "sha": "689c6f9a363967a5260325c8d5970329d881957d",
-      "sha256": "bc894931398781cde7aa57f5bfd315819ab30e953fd73d79c5d6888a59c32510",
-      "bytes": 3872
-    },
-    {
-      "path": "tests/prisma/jnjNativeUrlMigration.test.ts",
-      "mode": "100644",
-      "type": "blob",
-      "sha": "55a91e2171c4cf1aa0fb35452ce2db755d4e067e",
-      "sha256": "65f40743502313779bc337d9f252f32206ca6b73a21411ba01b45ce6ca7f6ad3",
-      "bytes": 2500
-    },
-    {
-      "path": "tsconfig.jnj-native.json",
-      "mode": "100644",
-      "type": "blob",
-      "sha": "ab6ee09a4acd260d5f3c2a6a187fc9419c43d9d2",
-      "sha256": "c5a77360233acb463d303c7f1aa5e98ba7c0f3596289815881b2f28d4f0e2f0e",
-      "bytes": 418
-    },
-    {
-      "path": "vitest.jnj-native.config.ts",
-      "mode": "100644",
-      "type": "blob",
-      "sha": "ec6b471b74cbdb2310c18c1249e2d647e36c8733",
-      "sha256": "3a98c6d75f3459e7e4d33f9e76e57b051a8d1833becd0eaf2aa28402120287c5",
-      "bytes": 492
-    },
-    {
-      "path": "candidate.patch",
-      "mode": "100644",
-      "type": "blob",
-      "sha": "d7f826ad0d34775966e8bcc7c2dfdbba2e7054a3",
-      "sha256": "9bdb3bf2d18349b74d65298866f13a07f323cf19d39945c010bf7d6c4b2e3652",
-      "bytes": 84214
+      "sha": "57a251c39a75ad48f9553f531d1351eee938397f",
+      "sha256": "8691cbb3990be33874726ef2522a4c58c17655f328c83481ba4d90b888e47285",
+      "bytes": 268
     }
   ],
-  "sourceInventorySha256": "84a540d4313f141724f8f51965c0f7aa414b6966dd112022678eb414cc1110b0"
+  "sourceInventorySha256": "f67a6e84ae0f0ab421f47620196a1cb144dcc278bf7829f7ae68c5df8eb3448f"
 }

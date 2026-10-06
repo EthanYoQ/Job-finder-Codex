@@ -1,0 +1,7 @@
+{
+  "name": "jnj-native-postgres-test-deps",
+  "private": true,
+  "dependencies": {
+    "@electric-sql/pglite": "0.3.14"
+  }
+}
