@@ -1,0 +1,512 @@
+From d6190919d17c8ba4ee721daa2087d3c09bded7fa Mon Sep 17 00:00:00 2001
+From: dot <dot@localhost>
+Date: Tue, 6 Oct 2026 22:51:50 -0700
+Subject: [PATCH] Preserve Gilead official totals with verified mainland
+ partition
+
+---
+ src/crawler/officialJsonSourceFetch.ts        |  26 ++-
+ src/crawler/runSourceCrawl.ts                 |  24 ++-
+ src/crawler/yelloJobBoardEvidence.ts          |  80 ++++++--
+ tests/crawler/gileadMainlandPartition.test.ts | 187 ++++++++++++++++++
+ 4 files changed, 287 insertions(+), 30 deletions(-)
+ create mode 100644 tests/crawler/gileadMainlandPartition.test.ts
+
+diff --git a/src/crawler/officialJsonSourceFetch.ts b/src/crawler/officialJsonSourceFetch.ts
+index b4f192e..c47b95a 100644
+--- a/src/crawler/officialJsonSourceFetch.ts
++++ b/src/crawler/officialJsonSourceFetch.ts
+@@ -71,7 +71,9 @@ import { exactGileadPublicAgePlan } from "./gileadPublicAge";
+ import {
+   parseYelloJobBoardResponse,
+   yelloJobBoardBinding,
++  yelloScopeExclusionLoss,
+   YelloPublicAgeError,
++  YelloScopeReviewError,
+   type YelloJobBoardConfig
+ } from "./yelloJobBoardEvidence";
+ 
+@@ -570,8 +572,9 @@ async function fetchYelloJobBoard({
+   try {
+     parsed = parseYelloJobBoardResponse(response.body, config);
+   } catch (error) {
+-    if (error instanceof YelloPublicAgeError) {
+-      // Hold the whole partition atomically; these are diagnostic losses, never age exclusions.
++    if (error instanceof YelloPublicAgeError || error instanceof YelloScopeReviewError) {
++      // Hold the whole partition atomically. Unresolved rows are diagnostic losses,
++      // never proven scope/age exclusions or authority to advance missing jobs.
+       failureState.rawCount = error.rawRows.length;
+       failureState.parsedCount = error.rawRows.length;
+       failureState.validationDiscardCount = error.rawRows.length;
+@@ -579,9 +582,12 @@ async function fetchYelloJobBoard({
+       failureState.page.declaredCount = error.rawRows.length;
+       for (const [index, row] of error.rawRows.entries()) {
+         failureState.page.rawJobIds.push(irreversibleOfficialJsonEvidenceId([index, row]));
+-        const code = index === error.rowIndex ? "GILEAD_PUBLIC_AGE_INVALID" : "GILEAD_PUBLIC_AGE_SOURCE_HELD";
++        const scopeReview = error instanceof YelloScopeReviewError;
++        const code = scopeReview
++          ? index === error.rowIndex ? "GILEAD_SCOPE_REVIEW_REQUIRED" : "GILEAD_SCOPE_SOURCE_HELD"
++          : index === error.rowIndex ? "GILEAD_PUBLIC_AGE_INVALID" : "GILEAD_PUBLIC_AGE_SOURCE_HELD";
+         failureState.fetchLosses.push({stage: "VALIDATION", reason: code,
+-          rawLocator: officialJsonRawLocator(row, index), details: {code, field: "publicAge", pageSequence: 0, recordIndex: index},
++          rawLocator: officialJsonRawLocator(row, index), details: {code, field: scopeReview ? "location" : "publicAge", pageSequence: 0, recordIndex: index},
+           recordedAt: artifact.capturedAt});
+       }
+       return failedWithEvidence(capturedAt, error.message, finalizeOfficialJsonFailureEvidence(failureState));
+@@ -593,11 +599,15 @@ async function fetchYelloJobBoard({
+   const state = initialOfficialJsonEvidenceState({ artifact, declaredTotal: count, termination: "ABORTED" });
+   state.page.declaredCount = count;
+   const jobs: NormalizedOfficialJsonJob[] = [];
+-  for (let index = 0; index < parsed.jobs.length; index += 1) {
+-    const row = parsed.jobs[index]!;
++  for (const row of parsed.rows) {
+     state.rawCount += 1;
+-    state.page.rawJobIds.push(irreversibleOfficialJsonEvidenceId([index, row.rawHtml]));
++    state.page.rawJobIds.push(irreversibleOfficialJsonEvidenceId([row.rowIndex, row.rawHtml]));
+     state.parsedCount += 1;
++    if (row.scopeDecision === "EXCLUDED_HONG_KONG") {
++      state.validationDiscardCount += 1;
++      state.fetchLosses.push(yelloScopeExclusionLoss(row, artifact));
++      continue;
++    }
+     const sourceJobId = persistentOfficialJsonJobId(row.officialId);
+     jobs.push({ sourceJobId, title: row.title, officialUrl: row.officialUrl, locationRaw: row.locationRaw,
+       cities: row.cities });
+@@ -652,7 +662,7 @@ function attachOfficialJsonPageCapacity(
+     const allowMissingReturnedPage = config.kind === "beisen-zhiye-2022";
+     const allowPositiveOfficialTotalCountAfterAdapterReconciliation =
+       config.kind === "sandoz-jsonapi" || config.kind === "yello-job-board" || config.kind === "51job-coapi";
+-    const allowIndependentlyVerifiedProfileBoundExclusions = config.kind === "51job-coapi";
++    const allowIndependentlyVerifiedProfileBoundExclusions = config.kind === "51job-coapi" || config.kind === "yello-job-board";
+     const allowRawIdOverlapAcrossPages = config.kind === "phenom" &&
+       config.exactDuplicateReconciliationPolicy === "ROCHE_IDENTICAL_CROSS_PAGE_V1";
+     const canonical = deriveCanonicalPaginationEvidence({
+diff --git a/src/crawler/runSourceCrawl.ts b/src/crawler/runSourceCrawl.ts
+index 6fb4c1f..0f3e88d 100644
+--- a/src/crawler/runSourceCrawl.ts
++++ b/src/crawler/runSourceCrawl.ts
+@@ -68,7 +68,7 @@ import {
+ import type { SourceTransportFailure } from "./sourceFetchFailure";
+ import type { RetryableSourceTransportFailureCode } from "./sourceFetchFailure";
+ import { validateStrictHotjobLegacyEvidence } from "./hotjobLegacySourceFetch";
+-import { attachYelloPublicAgeEvidence, parseYelloJobBoardResponse, yelloJobBoardBinding, yelloPublicAgeEvidence } from "./yelloJobBoardEvidence";
++import { attachYelloPublicAgeEvidence, parseYelloJobBoardResponse, yelloJobBoardBinding, yelloPublicAgeEvidence, yelloScopeExclusionLoss } from "./yelloJobBoardEvidence";
+ import { exactGileadPublicAgePlan } from "./gileadPublicAge";
+ import { hasBiSemanticPlan, replayBiSemanticCompleteness } from "./biSemanticCompleteness";
+ import { BI_API_URL, BI_SCRIPT_URL } from "./biUiSemanticContract";
+@@ -570,8 +570,11 @@ function strictCompletenessGate(
+     if (isServierTraversalPlan(plan) && !mokaScopeProof) return strictGateTrace(plan, "SERVIER_SCOPE_PROOF");
+     if (isBayerMedicalTraversalPlan(plan) && !mokaScopeProof) return strictGateTrace(plan, "BAYER_SCOPE_PROOF");
+     if (hasHengruiScopeExclusionPolicy(plan) && !mokaScopeProof) return strictGateTrace(plan, "MOKA_SCOPE_PROOF");
++    // strictPageRequestContracts above has already replayed the complete Yello
++    // partition and its exact exclusion ledger. No other source inherits this opt-in.
++    const yelloScopeProof = exactGileadPublicAgePlan(plan);
+     const hasScopeExclusionProof = hasConfiguredScopeExclusionProof(plan);
+-    if (evidence.fetchLosses.length > 0 && !hasScopeExclusionProof && !profileBoundEvidenceValidated && !mokaScopeProof && !biProof && !novoProof) {
++    if (evidence.fetchLosses.length > 0 && !hasScopeExclusionProof && !profileBoundEvidenceValidated && !mokaScopeProof && !biProof && !novoProof && !yelloScopeProof) {
+       return strictGateTrace(plan, "UNPROVEN_FETCH_LOSS");
+     }
+     if (hasScopeExclusionProof && !validateStrictSourceScopeExclusionProof(plan, evidence, outputJobs)) {
+@@ -625,7 +628,7 @@ function strictCompletenessGate(
+       : artifactUrlBindings?.get(artifact.logicalKey);
+     if (!declaredArtifactRules) return strictGateTrace(plan, "DECLARATION_URL_RULE");
+     if (declared.kind === "OFFICIAL_TOTAL_COUNT") {
+-      const profileBoundExclusionReconciled = (profileBoundEvidenceValidated || mokaScopeProof !== undefined || biProof !== undefined || novoProof) &&
++      const profileBoundExclusionReconciled = (profileBoundEvidenceValidated || mokaScopeProof !== undefined || biProof !== undefined || novoProof || yelloScopeProof) &&
+         replayPolicy?.allowIndependentlyVerifiedProfileBoundExclusions === true &&
+         declared.value === evidence.fetchCounts.rawCount &&
+         ledger.rawInputCount === evidence.fetchCounts.validCount;
+@@ -875,13 +878,16 @@ function strictYelloRequestContracts(
+   const compare = (left: string, right: string) => Buffer.from(left).compare(Buffer.from(right));
+   const expectedSourceIds = parsed.jobs.map(({ officialId }) => persistentOfficialJsonJobId(officialId)).sort(compare);
+   const actualSourceIds = outputJobs.flatMap(({ sourceJobId }) => sourceJobId ? [sourceJobId] : []).sort(compare);
+-  const rawIds = parsed.jobs.map((row, index) => irreversibleOfficialJsonEvidenceId([index, row.rawHtml])).sort(compare);
++  const rawIds = parsed.rows.map(row => irreversibleOfficialJsonEvidenceId([row.rowIndex, row.rawHtml])).sort(compare);
+   const validIds = expectedSourceIds.map(id => irreversibleOfficialJsonEvidenceId(id)).sort(compare);
+   if (!isDeepStrictEqual(rawIds, [...page.rawJobIds].sort(compare)) || !isDeepStrictEqual(validIds, [...page.validJobIds].sort(compare))) return false;
++  if (!isDeepStrictEqual(evidence.fetchLosses, parsed.excludedJobs.map(row => yelloScopeExclusionLoss(row, artifact))) ||
++      !isDeepStrictEqual(evidence.fetchCounts, { rawCount: parsed.rows.length, parsedCount: parsed.rows.length,
++        validCount: parsed.jobs.length, parseDiscardCount: 0, validationDiscardCount: parsed.excludedJobs.length })) return false;
+   const byId = new Map(outputJobs.map(job => [job.sourceJobId, job]));
+   // Match the adapter's text cleanup; exact source spelling/whitespace remains bound by the row hash.
+   const normalizedText = (value: string) => value.replace(/\s+/gu, " ").trim();
+-  for (const [index, row] of parsed.jobs.entries()) {
++  for (const row of parsed.jobs) {
+     const job = byId.get(persistentOfficialJsonJobId(row.officialId));
+     if (!job || job.companyId !== plan.company.id || job.sourceId !== plan.source.id || job.sourceKind !== "SOCIAL" ||
+         job.atsKind !== "OFFICIAL_JSON" || job.officialChineseCompanyName !== plan.company.officialChineseName ||
+@@ -889,10 +895,11 @@ function strictYelloRequestContracts(
+         job.officialUrl !== row.officialUrl || job.listUrl !== plan.source.officialEntryUrl ||
+         job.officialPublishedAt !== undefined || job.auxiliaryChineseTitle !== undefined || job.category !== "其他" ||
+         job.evidence.officialEntryUrl !== plan.source.officialEntryUrl || job.evidence.officialChainEvidenceUrl !== plan.source.officialChainEvidenceUrl ||
+-        job.evidence.capturedAt !== capturedAt || !isDeepStrictEqual(job.evidence.gileadPublicAge, yelloPublicAgeEvidence(row, index, artifact))) return false;
++        job.evidence.capturedAt !== capturedAt || !isDeepStrictEqual(job.evidence.gileadPublicAge, yelloPublicAgeEvidence(row, row.rowIndex, artifact))) return false;
+   }
+   const declaration = evidence.declaredCompleteness;
+-  return parsed.declaredTotal === parsed.jobs.length && page.rawJobIds.length === parsed.jobs.length &&
++  return parsed.declaredTotal === parsed.rows.length && parsed.rows.length === parsed.jobs.length + parsed.excludedJobs.length &&
++    page.rawJobIds.length === parsed.rows.length &&
+     page.validJobIds.length === parsed.jobs.length && page.declaredTotal === parsed.declaredTotal &&
+     page.declaredCount === parsed.declaredTotal && page.termination === "NEXT_ABSENT" &&
+     actualSourceIds.length === outputJobs.length &&
+@@ -4766,7 +4773,8 @@ function strictPositiveOfficialTotalReplayPolicy(
+     if (plan.source.atsKind !== "OFFICIAL_JSON") return undefined;
+     try { yelloJobBoardBinding(plan.source.officialEntryUrl, strategy); }
+     catch { return undefined; }
+-    return { allowPositiveOfficialTotalCountAfterAdapterReconciliation: true };
++    return { allowPositiveOfficialTotalCountAfterAdapterReconciliation: true,
++      allowIndependentlyVerifiedProfileBoundExclusions: true };
+   }
+   return undefined;
+ }
+diff --git a/src/crawler/yelloJobBoardEvidence.ts b/src/crawler/yelloJobBoardEvidence.ts
+index 15e9c28..5d44d29 100644
+--- a/src/crawler/yelloJobBoardEvidence.ts
++++ b/src/crawler/yelloJobBoardEvidence.ts
+@@ -8,7 +8,8 @@ import { hasUniqueJsonObjectKeys } from "./strictJsonObjectKeys";
+ import {
+   explicitlyForeignOrNonMainlandLocation,
+   explicitlyGenericOrAmbiguousLocation,
+-  persistentOfficialJsonJobId
++  persistentOfficialJsonJobId,
++  officialJsonRawLocator
+ } from "./officialJsonEvidence";
+ 
+ export interface YelloJobBoardConfig {
+@@ -19,16 +20,24 @@ export interface YelloJobBoardConfig {
+   publicAgePolicy: typeof GILEAD_PUBLIC_AGE_POLICY;
+ }
+ 
+-export interface ParsedYelloJob {
++interface ParsedYelloIdentity {
++  rowIndex: number;
+   officialId: string;
+   title: string;
+   officialUrl: string;
+   locationRaw: string;
+   rawHtml: string;
+-  cities: string[];
+   publicAgeRaw: string;
++}
++export interface ParsedYelloJob extends ParsedYelloIdentity {
++  scopeDecision: "INCLUDED_MAINLAND";
++  cities: string[];
+   publicAgeClassification: GileadPublicAgeClassification;
+ }
++export interface ParsedYelloExcludedJob extends ParsedYelloIdentity {
++  scopeDecision: "EXCLUDED_HONG_KONG";
++  publicAgeStatus: "NOT_EVALUATED_OUT_OF_SCOPE";
++}
+ 
+ export class YelloPublicAgeError extends Error {
+   constructor(readonly rawRows: string[], readonly rowIndex: number) {
+@@ -37,6 +46,13 @@ export class YelloPublicAgeError extends Error {
+   }
+ }
+ 
++export class YelloScopeReviewError extends Error {
++  constructor(readonly rawRows: string[], readonly rowIndex: number) {
++    super(`GILEAD_SCOPE_REVIEW_REQUIRED:row:${rowIndex}`);
++    this.name = "YelloScopeReviewError";
++  }
++}
++
+ export function yelloJobBoardBinding(entryUrl: string, config: YelloJobBoardConfig): {
+   entryUrl: string;
+   endpointUrl: string;
+@@ -57,7 +73,9 @@ export function yelloJobBoardBinding(entryUrl: string, config: YelloJobBoardConf
+ 
+ export function parseYelloJobBoardResponse(body: string, config: YelloJobBoardConfig): {
+   declaredTotal: number;
++  rows: Array<ParsedYelloJob | ParsedYelloExcludedJob>;
+   jobs: ParsedYelloJob[];
++  excludedJobs: ParsedYelloExcludedJob[];
+ } {
+   yelloJobBoardBinding(`https://gilead.yello.co/job_boards/${GILEAD_YELLO_BOARD}`, config);
+   if (!hasUniqueJsonObjectKeys(body)) throw new Error("Yello response is not strict JSON");
+@@ -76,12 +94,21 @@ export function parseYelloJobBoardResponse(body: string, config: YelloJobBoardCo
+   if (rows.length !== count) throw new Error("Yello result count does not match rendered rows");
+   const seen = new Set<string>();
+   const rawRows = rows.map(element => $.html(element));
+-  const jobs = rows.map((element, rowIndex): ParsedYelloJob => {
++  const parsedRows = rows.map((element, rowIndex): ParsedYelloJob | ParsedYelloExcludedJob => {
+     const row = $(element);
+     const link = row.find("a.search-results__req_title");
+-    const locationSpans = row.find(".search-results__jobinfo > div > span");
++    const jobInfo = row.find(".search-results__jobinfo");
++    const locationContainer = jobInfo.children("div");
++    const locationSpans = locationContainer.children("span");
+     const flag = row.find(".search-results__flag img");
+-    if (link.length !== 1 || locationSpans.length < 1 || flag.length !== 1) {
++    const unexpectedLocationContent = locationContainer.contents().toArray().some(node =>
++      node.type === "text" ? /\S/u.test(node.data) : node.type !== "tag" || node.name !== "span");
++    const unexpectedJobInfoContent = jobInfo.contents().toArray().some(node =>
++      node.type === "text" ? /\S/u.test(node.data) : node.type !== "tag" || !["a", "div"].includes(node.name));
++    if (link.length !== 1 || jobInfo.length !== 1 || jobInfo.children().length !== 2 ||
++        jobInfo.children("a.search-results__req_title").length !== 1 || locationContainer.length !== 1 ||
++        locationSpans.length < 1 || locationContainer.children().length !== locationSpans.length ||
++        unexpectedLocationContent || unexpectedJobInfoContent || locationSpans.first().children().length !== 0 || flag.length !== 1) {
+       throw new Error("Yello result row structure is invalid");
+     }
+     const title = link.text().trim();
+@@ -91,23 +118,48 @@ export function parseYelloJobBoardResponse(body: string, config: YelloJobBoardCo
+     const query = [...officialUrl.searchParams.entries()];
+     if (!title || !officialId || seen.has(officialId) || officialUrl.origin !== "https://gilead.yello.co" ||
+         officialUrl.username || officialUrl.password || officialUrl.hash || query.length !== 1 || query[0]![0] !== "job_board_id" ||
+-        query[0]![1] !== config.boardId || flag.attr("alt") !== "China flag" ||
+-        flag.attr("src") !== "/assets/images/flags/cn.png" || !/^China - \S/u.test(locationRaw) ||
+-        explicitlyForeignOrNonMainlandLocation(locationRaw) ||
+-        explicitlyGenericOrAmbiguousLocation(locationRaw)) {
++        query[0]![1] !== config.boardId) {
+       throw new Error("Yello result row identity or China scope is invalid");
+     }
+     seen.add(officialId);
+     const age = row.find(".search-results__post-time");
+     const publicAgeRaw = age.text();
++    const identity = { rowIndex, officialId, title, officialUrl: officialUrl.toString(), locationRaw,
++      rawHtml: rawRows[rowIndex]!, publicAgeRaw };
++    // Only this exact, mutually consistent location/flag pair is a proven exclusion.
++    // A China filter is not a mainland guarantee. Mixed, contradictory or unknown
++    // geography still holds the source; it cannot justify missing-job lifecycle changes.
++    if (locationRaw === "China - Hong Kong" && flag.attr("alt") === "Hong Kong flag" &&
++        flag.attr("src") === "/assets/images/flags/hk.png" && locationSpans.length === 3 &&
++        locationSpans.toArray().every(span => $(span).children().length === 0)) {
++      if (age.length !== 1 || age.children().length !== 0) throw new Error("Yello result row structure is invalid");
++      return { ...identity, scopeDecision: "EXCLUDED_HONG_KONG", publicAgeStatus: "NOT_EVALUATED_OUT_OF_SCOPE" };
++    }
++    if (flag.attr("alt") !== "China flag" || flag.attr("src") !== "/assets/images/flags/cn.png" ||
++        !/^China - \S/u.test(locationRaw) || explicitlyForeignOrNonMainlandLocation(locationRaw) ||
++        explicitlyGenericOrAmbiguousLocation(locationRaw)) {
++      throw new YelloScopeReviewError(rawRows, rowIndex);
++    }
+     const publicAgeClassification = classifyGileadPublicAge(publicAgeRaw);
+     if (age.length !== 1 || age.children().length !== 0 || !publicAgeClassification) {
+       throw new YelloPublicAgeError(rawRows, rowIndex);
+     }
+-    return { officialId, title, officialUrl: officialUrl.toString(), locationRaw, rawHtml: rawRows[rowIndex]!,
+-      cities: gileadOfficialCities(locationRaw), publicAgeRaw, publicAgeClassification };
++    return { ...identity, scopeDecision: "INCLUDED_MAINLAND", cities: gileadOfficialCities(locationRaw), publicAgeClassification };
+   });
+-  return { declaredTotal: count, jobs };
++  return { declaredTotal: count, rows: parsedRows,
++    jobs: parsedRows.filter((row): row is ParsedYelloJob => row.scopeDecision === "INCLUDED_MAINLAND"),
++    excludedJobs: parsedRows.filter((row): row is ParsedYelloExcludedJob => row.scopeDecision === "EXCLUDED_HONG_KONG") };
++}
++
++/** The original artifact retains the official ID, full row and unclassified age.
++ * The loss locator binds that complete row at its original position, never a compacted index. */
++export function yelloScopeExclusionLoss(row: ParsedYelloExcludedJob,
++  artifact: Pick<SourceFetchArtifactDraft, "capturedAt">): PersistentSourceFetchEvidence["fetchLosses"][number] {
++  return { stage: "VALIDATION", reason: "Yello row is explicitly outside mainland China scope",
++    rawLocator: officialJsonRawLocator(row.rawHtml, row.rowIndex),
++    details: { code: "GILEAD_VERIFIED_HONG_KONG_ONLY", field: "location", pageSequence: 0,
++      recordIndex: row.rowIndex, noteCode: "PUBLIC_AGE_NOT_EVALUATED_OUT_OF_SCOPE" },
++    recordedAt: artifact.capturedAt };
+ }
+ 
+ export function yelloPublicAgeEvidence(row: ParsedYelloJob, rowIndex: number, artifact: Pick<SourceFetchArtifactDraft, "logicalKey" | "capturedAt">): GileadPublicAgeEvidence {
+@@ -122,7 +174,7 @@ export function attachYelloPublicAgeEvidence(plan: SourceCrawlPlan, evidence: Pe
+   if (!exactGileadPublicAgePlan(plan) || plan.adapterId !== "official-json" || plan.officialJsonFetch?.kind !== "yello-job-board" || !evidence || evidence.artifacts.length !== 1) return;
+   const artifact = evidence.artifacts[0]!;
+   const parsed = parseYelloJobBoardResponse(typeof artifact.body === "string" ? artifact.body : Buffer.from(artifact.body).toString("utf8"), plan.officialJsonFetch);
+-  const byId = new Map(parsed.jobs.map((row, index) => [persistentOfficialJsonJobId(row.officialId), yelloPublicAgeEvidence(row, index, artifact)]));
++  const byId = new Map(parsed.jobs.map(row => [persistentOfficialJsonJobId(row.officialId), yelloPublicAgeEvidence(row, row.rowIndex, artifact)]));
+   for (const job of jobs) {
+     const age = job.sourceJobId && byId.get(job.sourceJobId);
+     if (age) job.evidence.gileadPublicAge = age;
+diff --git a/tests/crawler/gileadMainlandPartition.test.ts b/tests/crawler/gileadMainlandPartition.test.ts
+new file mode 100644
+index 0000000..356d376
+--- /dev/null
++++ b/tests/crawler/gileadMainlandPartition.test.ts
+@@ -0,0 +1,187 @@
++// @vitest-environment node
++/** Invented titles/IDs only. Never live evidence or a production admission. */
++import { afterEach, describe, expect, it } from "vitest";
++import { createHash } from "node:crypto";
++import { mkdtemp, rm } from "node:fs/promises";
++import { tmpdir } from "node:os";
++import { join } from "node:path";
++import { captureSyntheticGileadQuality, buildSyntheticGileadAtomicFixture } from "../helpers/gileadQualityFixture";
++import { syntheticGileadBody, syntheticGileadRow } from "../helpers/gileadYello";
++import { parseYelloJobBoardResponse, yelloScopeExclusionLoss } from "../../src/crawler/yelloJobBoardEvidence";
++import { replayStrictSourceQualityEvidence } from "../../src/crawler/runSourceCrawl";
++import { issueSourceQualityAdmission, verifySourceQualityAtomicCommit } from "../../src/crawler/sourceQualityAdmission";
++import { buildSourceQualityJobCommands } from "../../src/crawler/sourceQualityPublication";
++import { acquirePortableCrawlLease } from "../../src/crawler/portableCrawlLease";
++import { compilePortableAtomicSourceEvidenceSql } from "../../src/db/ingestionRepository";
++import { deriveCanonicalPaginationEvidence, evaluatePaginationEvidence } from "../../src/crawler/paginationEvidence";
++import { selectPortableSourceSnapshots } from "../../src/domain/portablePublicSnapshot";
++import { accepted, digest, FIRST, NOW } from "../helpers/portablePublicSnapshotFixture";
++import { buildJobDedupeKey, type NormalizedJobRecord } from "../../src/crawler/normalizedJob";
++
++const dirs: string[] = [];
++afterEach(async () => { await Promise.all(dirs.splice(0).map(path => rm(path, { recursive: true, force: true }))); });
++async function capture(body: string) {
++  const root = await mkdtemp(join(tmpdir(), "gilead-mainland-synthetic-")); dirs.push(root);
++  return captureSyntheticGileadQuality(root, body);
++}
++function hongKong(index = 0, age = "NEW") {
++  return syntheticGileadRow(index, age, "China - Hong Kong")
++    .replace('alt="China flag"', 'alt="Hong Kong flag"').replace("/flags/cn.png", "/flags/hk.png");
++}
++const mainland = () => Array.from({ length: 10 }, (_, i) => syntheticGileadRow(i + 1, "1w", i === 0 ? "China - Beijing" : "China - Shanghai"));
++const body = () => syntheticGileadBody([hongKong(), ...mainland()]);
++function parsed(input: Awaited<ReturnType<typeof capture>>) {
++  const p = input.plan;
++  if (p.adapterId !== "official-json" || p.officialJsonFetch?.kind !== "yello-job-board") throw Error("PLAN");
++  return parseYelloJobBoardResponse(String(input.result.fetchEvidence!.artifacts[0]!.body), p.officialJsonFetch);
++}
++function replay(input: Awaited<ReturnType<typeof capture>>, evidence = input.result.fetchEvidence!, jobs = input.result.jobs) {
++  return replayStrictSourceQualityEvidence({ plan: input.plan, evidence, jobs,
++    reconciliation: input.result.reconciliation!, paginationEvaluation: input.result.paginationEvaluation!,
++    capturedAt: input.result.observation.crawledAt.toISOString() });
++}
++
++describe("Gilead original China result set with explicit mainland partition", () => {
++  it("preserves all eleven rows, admits ten mainland jobs and archives one exact Hong Kong exclusion before age classification", async () => {
++    const input = await capture(body()); const p = parsed(input); const evidence = input.result.fetchEvidence!;
++    expect(input.requests).toHaveLength(1);
++    expect(input.result.truth.completenessVerified).toBe(true);
++    expect(p.declaredTotal).toBe(11); expect(p.rows).toHaveLength(11); expect(p.jobs).toHaveLength(10); expect(p.excludedJobs).toHaveLength(1);
++    expect(new Set(p.rows.map(row => row.officialId)).size).toBe(11);
++    expect(p.excludedJobs[0]).toMatchObject({ rowIndex: 0, locationRaw: "China - Hong Kong", publicAgeRaw: "NEW", publicAgeStatus: "NOT_EVALUATED_OUT_OF_SCOPE" });
++    expect(p.excludedJobs[0]).not.toHaveProperty("publicAgeClassification");
++    expect(evidence.artifacts[0]!.body).toBe(body());
++    expect(evidence.fetchCounts).toEqual({ rawCount: 11, parsedCount: 11, validCount: 10, parseDiscardCount: 0, validationDiscardCount: 1 });
++    expect(evidence.declaredCompleteness).toMatchObject({ kind: "OFFICIAL_TOTAL_COUNT", value: 11, scope: "SOURCE" });
++    expect(evidence.pages[0]).toMatchObject({ declaredTotal: 11, declaredCount: 11, termination: "NEXT_ABSENT" });
++    expect(evidence.pages[0]!.rawJobIds).toHaveLength(11); expect(evidence.pages[0]!.validJobIds).toHaveLength(10);
++    expect(evidence.fetchLosses).toEqual([yelloScopeExclusionLoss(p.excludedJobs[0]!, evidence.artifacts[0]!)]);
++    expect(input.result.observation.expectedJobCount).toBe(11);
++    expect(input.result.jobs).toHaveLength(10);
++    expect(input.result.jobs[0]!.evidence.gileadPublicAge!.rowLocator).toContain("item[1]");
++    expect(input.result.jobs.every(job => job.officialPublishedAt === undefined)).toBe(true);
++    const { admission, commit } = await buildSyntheticGileadAtomicFixture(input);
++    expect(admission.status).toBe("ACCEPTED");
++    expect(admission.receipt.counts).toMatchObject({ rawCount: 11, finalUniqueJobCount: 10, validationDiscardCount: 1 });
++    expect(admission.receipt.observation.expectedJobCount).toBe(11);
++    expect(admission.receipt.declaredCompleteness.value).toBe(11);
++    expect(commit.sourceResult).toMatchObject({ rawCount: 11, parsedCount: 11, validCount: 10, expectedJobCount: 11, validationDiscardCount: 1, dedupeOutputCount: 10 });
++    expect(commit.lossLedger).toHaveLength(1);
++    expect(commit.commands.filter(command => command.type === "UPSERT_JOB")).toHaveLength(10);
++    expect(() => verifySourceQualityAtomicCommit({ plan: input.plan, commit })).not.toThrow();
++    let holder = "";
++    const lease = await acquirePortableCrawlLease({ $transaction: async work => work({ $queryRawUnsafe: async <T>(_sql: string, ...values: unknown[]) => { holder = String(values[1]); return [{ holderId: holder }] as T; } }) });
++    const sql = await compilePortableAtomicSourceEvidenceSql(commit, lease);
++    expect(sql).toContain('"LossLedgerEntry"'); expect(sql).toContain("GILEAD_VERIFIED_HONG_KONG_ONLY");
++    // Compiler only: no SQL is executed and the lease above is entirely in memory.
++  });
++
++  it("keeps original positions when the excluded row is in the middle", async () => {
++    const rows = mainland(); rows.splice(4, 0, hongKong());
++    const input = await capture(syntheticGileadBody(rows));
++    expect(input.result.truth.completenessVerified).toBe(true);
++    expect(input.result.fetchEvidence!.fetchLosses[0]!.details.recordIndex).toBe(4);
++    expect(input.result.jobs[4]!.evidence.gileadPublicAge!.rowLocator).toContain("item[5]");
++  });
++
++  it("can prove zero mainland jobs from a complete explicitly excluded nonempty official set", async () => {
++    const input = await capture(syntheticGileadBody([hongKong()]));
++    expect(input.result.truth.completenessVerified).toBe(true);
++    expect(input.result.observation.expectedJobCount).toBe(1);
++    expect(input.result.jobs).toEqual([]);
++    const { admission } = await buildSyntheticGileadAtomicFixture(input);
++    expect(admission.receipt.counts).toMatchObject({ rawCount: 1, validCount: 0, finalUniqueJobCount: 0, validationDiscardCount: 1 });
++  });
++
++  it.each(["duplicatesAcrossPartitions", "duplicateExcluded", "wrongFlag", "wrongCountry", "mixedLocation", "secondaryLocationContainer", "additionalLocationSpan", "unwrappedLocationText", "unwrappedJobInfoLocation", "nestedLocationInDepartment", "crossOrigin", "missingId", "unsupportedMacau", "unknownCountry", "ambiguousLocation", "inScopeNew", "countMismatch", "canContinue"])("holds %s without converting an unknown or invalid row into an exclusion", async mutation => {
++    let hk = hongKong(); let rows = mainland(); const overrides: Record<string, unknown> = {};
++    if (mutation === "duplicatesAcrossPartitions") hk = hongKong(1);
++    if (mutation === "duplicateExcluded") rows.push(hongKong());
++    if (mutation === "wrongFlag") hk = hk.replace("Hong Kong flag", "China flag");
++    if (mutation === "wrongCountry") hk = hk.replace("China - Hong Kong", "Japan - Hong Kong");
++    if (mutation === "mixedLocation") hk = hk.replace("China - Hong Kong", "China - Hong Kong / Shanghai");
++    if (mutation === "secondaryLocationContainer") hk = hk.replace("</span></div></div>", "</span></div><div><span>China - Shanghai</span></div></div>");
++    if (mutation === "additionalLocationSpan") hk = hk.replace("<span>Regular</span>", "<span>Regular</span><span>China - Shanghai</span>");
++    if (mutation === "unwrappedLocationText") hk = hk.replace("China - Hong Kong</span>", "China - Hong Kong</span> / China - Shanghai");
++    if (mutation === "unwrappedJobInfoLocation") hk = hk.replace("</a><div>", "</a>China - Shanghai<div>");
++    if (mutation === "nestedLocationInDepartment") hk = hk.replace("Synthetic department", "Synthetic department<span>China - Shanghai</span>");
++    if (mutation === "crossOrigin") hk = hk.replace('href="/jobs/', 'href="https://evil.example/jobs/');
++    if (mutation === "missingId") hk = hk.replace(/\/jobs\/S+0/u, "/jobs/bad");
++    if (mutation === "unsupportedMacau") hk = hk.replaceAll("Hong Kong", "Macau").replace("hk.png", "mo.png");
++    if (mutation === "unknownCountry") hk = hk.replace("China - Hong Kong", "Unverified country - Unknown");
++    if (mutation === "ambiguousLocation") hk = syntheticGileadRow(0, "1w", "China - Remote");
++    if (mutation === "inScopeNew") rows[0] = syntheticGileadRow(1, "NEW", "China - Beijing");
++    if (mutation === "countMismatch") { overrides.count_on_page = 10; overrides.display_count_text = "10 Results"; }
++    if (mutation === "canContinue") overrides.more_requisitions = true;
++    const input = await capture(syntheticGileadBody([hk, ...rows], overrides));
++    expect(input.result.truth.completenessVerified).toBe(false);
++    expect(input.result.jobs).toEqual([]);
++    expect(input.result.fetchEvidence!.declaredCompleteness).toBeUndefined();
++    expect((await issueSourceQualityAdmission(input)).status).toBe("REJECTED");
++  });
++
++  it("quarantines the exact unresolved row and keeps previous active/GRACE jobs untouched", async () => {
++    const old = await capture(syntheticGileadBody(mainland()));
++    const previousJobs = old.result.jobs.slice(0, 2).map((record, index) => ({ record, dedupeKey: buildJobDedupeKey(record), lifecycleStatus: "ACTIVE" as const,
++      missingSuccessfulCrawlCount: index, firstSeenAt: FIRST, lastSeenAt: FIRST }));
++    const before = structuredClone(previousJobs);
++    const input = await capture(syntheticGileadBody([syntheticGileadRow(0, "1w", "China - Remote"), ...mainland().slice(2)]));
++    expect(input.result.observation.failureReason).toBe("GILEAD_SCOPE_REVIEW_REQUIRED:row:0");
++    expect(input.result.fetchEvidence!.fetchLosses[0]!.details).toMatchObject({ code: "GILEAD_SCOPE_REVIEW_REQUIRED", recordIndex: 0, field: "location" });
++    const admission = await issueSourceQualityAdmission(input);
++    expect(admission.status).toBe("REJECTED");
++    const commands = buildSourceQualityJobCommands({ ...input, admission, previousJobs, firstAcceptedCurrentPolicyReceipt: null, baselineCompletedBeforeCrawl: true });
++    expect(commands.jobCommands).toEqual([]); expect(previousJobs).toEqual(before);
++  });
++
++  it.each(["lossMissing", "lossExtra", "reason", "index", "locator", "ageNote", "rawId", "validId", "compactAgeIndex", "includeExcluded", "omitIncluded", "alterRawExclusion"])("rejects independent replay after %s mutation", async mutation => {
++    const input = await capture(body()); const evidence = structuredClone(input.result.fetchEvidence!); const jobs: NormalizedJobRecord[] = structuredClone(input.result.jobs);
++    if (mutation === "lossMissing") evidence.fetchLosses = [];
++    if (mutation === "lossExtra") evidence.fetchLosses.push(structuredClone(evidence.fetchLosses[0]!));
++    if (mutation === "reason") evidence.fetchLosses[0]!.reason = "unreviewed reason";
++    if (mutation === "index") evidence.fetchLosses[0]!.details.recordIndex = 1;
++    if (mutation === "locator") evidence.fetchLosses[0]!.rawLocator += "changed";
++    if (mutation === "ageNote") evidence.fetchLosses[0]!.details.noteCode = "AGE_VERIFIED";
++    if (mutation === "rawId") evidence.pages[0]!.rawJobIds[0] = `sha256:${"f".repeat(64)}`;
++    if (mutation === "validId") evidence.pages[0]!.validJobIds[0] = `sha256:${"f".repeat(64)}`;
++    if (mutation === "compactAgeIndex") jobs[0]!.evidence.gileadPublicAge!.rowLocator = "$.html|li.search-results__item[0]|.search-results__post-time";
++    if (mutation === "includeExcluded") jobs.push(structuredClone(jobs[0]!));
++    if (mutation === "omitIncluded") jobs.pop();
++    if (mutation === "alterRawExclusion") {
++      evidence.artifacts[0]!.body = String(evidence.artifacts[0]!.body).replace("Hong Kong", "Shanghai");
++      evidence.pages[0]!.responseFingerprintSha256 = createHash("sha256").update(String(evidence.artifacts[0]!.body)).digest("hex");
++    }
++    expect(replay(input, evidence, jobs)).toBe(false);
++  });
++
++  it("rejects a coherently rehashed false exclusion after generic pagination passes", async () => {
++    const input = await capture(body()); const evidence = structuredClone(input.result.fetchEvidence!);
++    evidence.fetchLosses[0]!.details.recordIndex = 1;
++    const policy = { expectedChannelIds: [], filteredOutput: true, allowPositiveOfficialTotalCountAfterAdapterReconciliation: true, allowIndependentlyVerifiedProfileBoundExclusions: true };
++    const canonical = deriveCanonicalPaginationEvidence({ evidence, ...policy });
++    const evaluation = evaluatePaginationEvidence({ evidence: canonical, ...policy });
++    expect(evaluation.safeCompleteness).toBe(true);
++    expect(replayStrictSourceQualityEvidence({ plan: input.plan, evidence: canonical, paginationEvaluation: evaluation,
++      reconciliation: input.result.reconciliation!, jobs: input.result.jobs, capturedAt: input.result.observation.crawledAt.toISOString() })).toBe(false);
++  });
++
++  it("does not let imported evidence or transformed output become an owned admission", async () => {
++    const input = await capture(body());
++    expect(await issueSourceQualityAdmission({ ...input, result: structuredClone(input.result) })).toMatchObject({ status: "REJECTED", codes: ["OWNED_ACQUISITION_REQUIRED"] });
++    input.result.jobs[0]!.locationRaw = "China - Hong Kong";
++    expect((await issueSourceQualityAdmission(input)).status).toBe("REJECTED");
++  });
++
++  it("keeps durable reader raw/official eleven and visible ten distinct under existing schema", async () => {
++    const input = await capture(body()); const f = accepted(FIRST, Array.from({ length: 10 }, (_, i) => `synthetic-${i}`), [], input.plan);
++    Object.assign(f.receipt.counts, { rawCount: 11, parsedCount: 11, validationDiscardCount: 1 });
++    f.receipt.observation.expectedJobCount = 11; f.receipt.declaredCompleteness.value = 11;
++    Object.assign(f.result, { rawCount: 11, parsedCount: 11, validationDiscardCount: 1, discardCount: 1, expectedJobCount: 11 });
++    f.result._count.lossLedgerEntries = 1; f.result.completenessCertificateSha256 = digest(f.receipt);
++    const selected = selectPortableSourceSnapshots([input.plan], [f.result], { currentTime: NOW })[0]!;
++    expect(selected.state).toBe("PUBLISHING"); expect(selected.lastAcceptedJobCount).toBe(10);
++    expect(selected.selected!.result.expectedJobCount).toBe(11);
++    f.result.validationDiscardCount = 0;
++    expect(selectPortableSourceSnapshots([input.plan], [f.result], { currentTime: NOW })[0]!.state).toBe("HOLD");
++  });
++});
+-- 
+2.52.0
+
