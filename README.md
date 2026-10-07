@@ -1,13 +1,32 @@
-# Continuous publication and monitor owner source snapshot
+# Novo e56 settled-timeout producer source delta
 
-This snapshot preserves seven exact frozen source, synthetic-test and baseline-hash files. It does not establish an application/runtime identity, a deployment, or a completed publication. Original review, test output and live diagnostic/terminal receipts are excluded.
+This backup contains the exact eight-file reviewed source/test patch from `e815a79bc8478e5400e0b8b66ddf0aa3b285d50f` to `e56e5c52f418376025c657ce35e62c0935c5794e`, the separate offline PORTABLE-entry test and the network-denial helper. It preserves the original patch bytes and SHA-256. This is an increment that requires an existing exact base, not a complete source or operational runtime backup.
 
-Keep the files and tests directory together. The JavaScript entry files are functions.exec AsyncFunction bodies, not standalone Node programs. They require the existing injected tools/load/store environment, pinned host helper/stage/monitor code, producer 28402a299bb04cbf5873da66c2fe8ca76827c0d1 and its Node/runtime dependencies. Baseline-manifest.json records 45 host source files; SOURCE_BACKUP.json maps them to prior immutable source backups. Those host files are dependencies, not duplicated in this snapshot.
+## Recover source into an isolated checkout
 
-The existing source loader and actual authorized candidate/configuration, original session/run/request/review and current state bindings are also required. None of those operational bindings or actual SQL requests, responses, raw captures, credentials or logs is included. Exact absolute paths remain in the originals. build-fragments.py requires Python 3 and writes entry fragments using its current directory and source hashes; regenerating them after relocation changes bytes and is a new adaptation, not restoration of the original frozen fragments. Python assertion checks in the preload must remain enabled.
+1. Independently retain the authorized existing e815 baseline, including its existing test fixtures. This backup does not provide that baseline or imply that another GitHub branch fully preserves it. `BASE_AND_PATCH.json` fixes the Git commit/tree, every changed path's before/after identities, unchanged contract files, and required fixture hashes.
+2. Prepare a new checkout at that exact baseline with clean tracked files. Keep the old producer and all historical evidence unchanged. Run `python3 verify-snapshot.py` for the backup, then `python3 check-or-apply.py --repository /path/to/new/checkout` for a read-only applicability check.
+3. After choosing to apply the source repair, run the same command with `--apply`. It verifies the baseline, performs `git apply --check`, applies the exact patch and verifies all eight resulting files. It does not create candidate commit metadata or a physical build identity.
+4. If the baseline or required raw test fixture is missing or mismatched, stop. Do not fill the gap from a different source version or silently substitute a synthetic page for the original fixture.
 
-The owner awaits the original PUBLISH dispatch and the existing monitor in one lifetime. Resume is monitor-only. Durable dispatch exclusivity, request expiry, official SQL connector behavior and outcome handling remain dependencies of the unchanged host code. A yielded active call must be continued through its original execution session. This archive does not authorize invoking a publication or a retry.
+## Offline tests and their limits
 
-Terminal evidence readback accepts exact serialized JSON or that JSON followed by one LF, without arbitrary trimming. A validated process terminal is separate from publication reconciliation: the source returns publicationReconciled:false. No successful capture, publication or public acceptance result is asserted here.
+Use already installed matching locked dependencies. Do not download or install dependencies as part of this backup. The pinned Node runtime used for the original focused/PORTABLE checks is v22.23.3. Create `logs/` beside the included `no-network.cjs` before using it with NODE_OPTIONS, since attempted transport calls are recorded there. Keep generated logs out of source backup.
 
-The fixture under tests is synthetic. Tests require the separately restored baseline host sources and their expected layout; they are not standalone. Backup verification was limited to static source review, exact hashes, the generator's literal/template relationship and matching prior-source hashes. The source and tests were not executed for this backup.
+From the isolated producer checkout, with JOBFINDER_CLOUD_SOURCE_ID=source-novo-nordisk-china-social and NODE_OPTIONS set to `--require /absolute/path/to/this/backup/no-network.cjs`, the focused command is:
+
+    /path/to/node-v22.23.3 node_modules/vitest/vitest.mjs run tests/crawler/novoTimeoutAdmission.test.ts tests/crawler/officialHttpSettledTimeout.test.ts tests/crawler/portableSourceCancellation.test.ts tests/scripts/cloudDbStartedDeadline.test.ts --pool=threads --maxWorkers=1
+
+The reviewed focused result was 104/104. The two retained Novo fixtures required by admission tests are already in the exact base and explicitly excluded from this upload. In particular, the raw application-page archive contains CSRF-bearing HTML. Its path/hash is recorded without raw bytes or secret values. The backup must not be represented as a fully self-contained admission-fixture archive.
+
+For the separate PORTABLE verification, copy `tests/scripts/cloudPortableNovoTimeoutEntryVerification.test.ts` into the same relative path of a separate disposable patched producer copy. Run it with the same environment, Node v22.23.3, `--pool=threads --maxWorkers=1`. Its reviewed result was 4/4 and zero SQL calls. It exercises real acquisition/archive/restore/admission code with offline retained inputs, synthetic build identity, synthetic context and a mocked final publication seam. Its COMMITTED_EXACT return is a simulation.
+
+Source typecheck and Vite build passed in review. The full typecheck retained ten baseline-identical test errors. A broad crawler run was incomplete after an IPC error. Four legacy native-A entry tests failed on both baseline and candidate. Therefore this backup does not claim a full-suite pass. See `REVIEW_SCOPE.json` for the exact reported offline counts and boundaries.
+
+## Operational boundary and excluded materials
+
+This source delta is not installed, registered, activated, deployed or published by backing it up. Physical runtime preparation requires the actual dependency tree, source/runtime/build identity recalculation and separately reviewed matching owner/helper r4 integration. Do not reuse the old candidate's build identity, failed batch artifacts or original UNKNOWN state. Preserve the original PORTABLE source selection, 45-second HTTP limit, 20-minute source deadline, 30-minute wrapper deadline and existing proxy/memory contract.
+
+The historical Novo 9f3 backup branch/object reconciliation is a separate stopped workflow. This backup neither resumes it nor uploads that earlier whole-source payload. Only the newly reviewed e56 patch and its necessary source-level verification/support files are included.
+
+Excluded: baseline producer, raw page fixtures, private evidence/reports, test and runtime logs, query results, operational configuration/binding/activation/control/nonce/run data, secrets, binaries and installed dependencies. The patch contains three deliberately synthetic example.test URL token values for redaction tests. Those literals are test data, not credentials; no real credential-bearing URL is included.

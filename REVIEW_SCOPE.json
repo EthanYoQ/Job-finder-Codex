@@ -1,0 +1,51 @@
+{
+  "classification": "REVIEWED_OFFLINE_PRODUCER_DELTA_ONLY_NOT_ACTIVATED",
+  "candidateCommit": "e56e5c52f418376025c657ce35e62c0935c5794e",
+  "validation": {
+    "node24CompleteCrawlerRelevant": {
+      "tests": 428,
+      "passed": 428,
+      "note": "All13 crawler files in completed433-test report;4 legacy native-A tests separately fail on unchanged baseline."
+    },
+    "node22PinnedFocusedAndBudget": {
+      "tests": 104,
+      "passed": 104
+    },
+    "node22ActualPortableEntry": {
+      "tests": 4,
+      "passed": 4,
+      "sqlCalls": 0,
+      "buildIdentity": "SYNTHETIC_SETUP",
+      "publication": "MOCKED_EXTERNAL_SEAM_ONLY",
+      "frozenTrackedFilesVerified": 912
+    },
+    "independentReviewNode24": {
+      "tests": 158,
+      "passed": 158
+    },
+    "sourceTypecheck": "PASS",
+    "viteBuild": "PASS",
+    "fullTypecheck": "10 baseline-identical existing test errors",
+    "broadCrawlerSuite": "INCOMPLETE_ERR_IPC_CHANNEL_CLOSED_NOT_A_FULL_PASS",
+    "knownFailingSubset": "No newly failing test names;104 matched failures plus one baseline-only missing test directory, passing when prepared",
+    "legacyNativeAPilot": "4 failures reproduced on baseline with explicitNovo;not actual launcher entry"
+  },
+  "limits": [
+    "Raw source test fixtures are baseline inputs, not uploaded evidence.",
+    "Physical runtime/build identity is not established.",
+    "PORTABLE entry uses synthetic build identity and mocked final publication seam, with zero SQL calls.",
+    "Owner r4 is a separate repair and is not included.",
+    "Full typecheck has ten baseline-identical errors; broad suite was incomplete; no full-suite pass is claimed.",
+    "Historical 9f3 backup is separate and not resumed by this backup."
+  ],
+  "syntheticTokenLiterals": [
+    "example.test SECRET_A",
+    "example.test SECRET_B",
+    "example.test fixture-secret"
+  ],
+  "containsCredentials": false,
+  "containsRuntimeEvidence": false,
+  "containsOwnerBinding": false,
+  "containsActualSQLRequests": false,
+  "containsActualQueryResults": false
+}

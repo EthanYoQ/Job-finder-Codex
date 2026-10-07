@@ -1,0 +1,65 @@
+{
+  "format": "safe-source-snapshot-v1",
+  "scope": "Novo e56 source delta requiring exact existing e815 baseline",
+  "fileCountExcludingManifest": 8,
+  "sourceBytesExcludingManifest": 106934,
+  "operationalRestore": false,
+  "files": [
+    {
+      "path": "BASE_AND_PATCH.json",
+      "bytes": 6501,
+      "sha256": "32e7a7884d562dc4ba5b288db388b6fa2090dd343ae963b94e5d8d5cb4fa95c5",
+      "gitBlob": "68a2d4d418f0ac77eb12fd59f37625fba89dd13e",
+      "mode": "100644"
+    },
+    {
+      "path": "README.md",
+      "bytes": 5098,
+      "sha256": "2bc8f1251e36772bd90bb54568b67cb54239db04f4b25c2b7d14a6934a5f414a",
+      "gitBlob": "ec9419890ef7c5ac086df32cfc35b87ce6e68127",
+      "mode": "100644"
+    },
+    {
+      "path": "REVIEW_SCOPE.json",
+      "bytes": 2043,
+      "sha256": "e26bd50d69ac9885c5a9ee98d2019568bdf39912bdeb47f2793cfaef3134d9cd",
+      "gitBlob": "eb6ffc36362505f85db1bac500a45a71838c9d60",
+      "mode": "100644"
+    },
+    {
+      "path": "TIMEOUT-CANDIDATE.patch",
+      "bytes": 70467,
+      "sha256": "40ba623b0cd2d9424b0ea63ab359df2b40c8892b7775cd0825439d93df060404",
+      "gitBlob": "8d1577fd003d3d717bc4449dae135abd96789c71",
+      "mode": "100644"
+    },
+    {
+      "path": "check-or-apply.py",
+      "bytes": 2139,
+      "sha256": "8ecbc679e5e855200111e21ccbeca3f334fe6dfc591af60d1244114a9cae6f73",
+      "gitBlob": "f161d3ab22d7afd577f644cad34cc0840249e8af",
+      "mode": "100644"
+    },
+    {
+      "path": "no-network.cjs",
+      "bytes": 2286,
+      "sha256": "96ff75daf84943d7542e84cb3ed7f1979b12a019508da36330dcefda31e5497b",
+      "gitBlob": "1199b946b2c19c0557f5bf9239b120189ac45a30",
+      "mode": "100644"
+    },
+    {
+      "path": "tests/scripts/cloudPortableNovoTimeoutEntryVerification.test.ts",
+      "bytes": 17661,
+      "sha256": "df5aa3ecccc375423b767122ddf76ec973d8dd560996412c8fde8a464dcd05ce",
+      "gitBlob": "4c2b3b1b4b99d813e54be5a77fe0d619ed8ce1de",
+      "mode": "100644"
+    },
+    {
+      "path": "verify-snapshot.py",
+      "bytes": 739,
+      "sha256": "f0bb8af53253293127da6a0f731c13865b193540e97b70ea2de6148457e568ba",
+      "gitBlob": "07f2547b59237f70a5db89da4eed711cabff7c37",
+      "mode": "100644"
+    }
+  ]
+}

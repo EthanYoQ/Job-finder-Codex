@@ -1,0 +1,1150 @@
+diff --git a/src/crawler/novoChinaQuality.ts b/src/crawler/novoChinaQuality.ts
+index ae285d4..8e0cd3c 100644
+--- a/src/crawler/novoChinaQuality.ts
++++ b/src/crawler/novoChinaQuality.ts
+@@ -1,3 +1,4 @@
++import { parseNovoTimeoutReceipt, novoNativeTimeoutArtifact, novoNativeTimeoutRetryArtifact, type NovoTimeoutRetryStart } from "./novoNativeTimeout";
+ import { load as loadHtml } from "cheerio";
+ import { createHash } from "node:crypto";
+ import { isDeepStrictEqual as same } from "node:util";
+@@ -226,9 +227,11 @@ export function replayNovoChinaRows(plan: SourceCrawlPlan, evidence: PersistentS
+   if (!parsed || !entry || !exact(entry, ENTRY) || entry.finalUrl !== safeOfficialJsonEvidenceUrl(ENTRY) ||
+     entry.logicalKey !== "novo-native-entry" || !novoNativeDetailBase(body(entry))) return false;
+   let cursor = 2, previousTime = Date.parse(entry.capturedAt);
++  let sourceDeadlineAt: string | undefined;
+   if (!Number.isFinite(previousTime) || previousTime < Date.parse(capturedAt) || previousTime < Date.parse(artifact.capturedAt)) return false;
+   const readNative = (requestedUrl: string, logicalKey: string): typeof artifact | undefined => {
+     let retryResponse: OfficialJsonHttpResponse | undefined;
++    let timeoutRetry: NovoTimeoutRetryStart | undefined;
+     const failed = evidence.artifacts[cursor];
+     // Exactly one optional failed-response prefix per native slot. Unique source
+     // job IDs bind the 2N slots to distinct original URLs; every artifact is consumed.
+@@ -243,6 +246,25 @@ export function replayNovoChinaRows(plan: SourceCrawlPlan, evidence: PersistentS
+       } catch { return undefined; }
+       cursor++;
+     }
++    if (failed?.logicalKey === `${logicalKey}-request-error-1`) {
++      if (!hasUniqueJsonObjectKeys(body(failed))) return undefined;
++      try {
++        const receipt = parseNovoTimeoutReceipt(JSON.parse(body(failed)), requestedUrl);
++        const regenerated = novoNativeTimeoutArtifact(receipt, requestedUrl, logicalKey, 1);
++        const deadline = Date.parse(receipt.sourceDeadlineAt);
++        if (!same({ ...failed, id: regenerated.id }, regenerated) ||
++            Date.parse(receipt.requestStartedAt) < previousTime ||
++            deadline > Date.parse(capturedAt) + 20 * 60_000 ||
++            (sourceDeadlineAt !== undefined && sourceDeadlineAt !== receipt.sourceDeadlineAt)) return undefined;
++        sourceDeadlineAt = receipt.sourceDeadlineAt;
++        cursor++;
++        const started = evidence.artifacts[cursor++];
++        if (!started || !hasUniqueJsonObjectKeys(body(started))) return undefined;
++        timeoutRetry = JSON.parse(body(started)) as NovoTimeoutRetryStart;
++        const regeneratedStart = novoNativeTimeoutRetryArtifact(timeoutRetry, receipt, requestedUrl, logicalKey);
++        if (!same({ ...started, id: regeneratedStart.id }, regeneratedStart)) return undefined;
++      } catch { return undefined; }
++    }
+     const page = evidence.artifacts[cursor++];
+     if (!page || !exact(page, requestedUrl) || page.logicalKey !== logicalKey || page.kind !== "OFFICIAL_COMPANY_PAGE" ||
+         page.extractorLocator !== logicalKey || !Number.isFinite(Date.parse(page.capturedAt)) ||
+@@ -253,6 +275,9 @@ export function replayNovoChinaRows(plan: SourceCrawlPlan, evidence: PersistentS
+       // an already resolved posting must remain the same posting after retry.
+       if (new URL(retryResponse.finalUrl!).pathname.startsWith("/job/") && page.finalUrl !== retryResponse.finalUrl) return undefined;
+     }
++    if (timeoutRetry && (Date.parse(page.capturedAt) < Date.parse(timeoutRetry.startedAt) ||
++        Date.parse(page.capturedAt) > Date.parse(timeoutRetry.startedAt) + 45_000)) return undefined;
++    if (sourceDeadlineAt !== undefined && Date.parse(page.capturedAt) >= Date.parse(sourceDeadlineAt)) return undefined;
+     previousTime = Date.parse(page.capturedAt);
+     return page;
+   };
+diff --git a/src/crawler/novoNativeTimeout.ts b/src/crawler/novoNativeTimeout.ts
+new file mode 100644
+index 0000000..2338274
+--- /dev/null
++++ b/src/crawler/novoNativeTimeout.ts
+@@ -0,0 +1,51 @@
++import { createHash } from "node:crypto";
++import { z } from "zod";
++import { officialRequestHeadersSha256, type SettledOfficialHttpTimeoutEvidence } from "./officialHttpRuntimeLimits";
++import type { SourceFetchArtifactDraft } from "./sourceFetchEvidence";
++
++export const NOVO_NATIVE_HEADERS = Object.freeze({ Accept: "text/html", "User-Agent": "job-search-crawler/0.1" });
++const hash = (url: string) => createHash("sha256").update(url).digest("hex");
++const iso = z.string().datetime();
++const digest = z.string().regex(/^[a-f0-9]{64}$/u);
++const receiptSchema = z.object({
++  schemaVersion: z.literal(1), kind: z.literal("NO_RESPONSE_REQUEST_ERROR"), code: z.literal("OFFICIAL_HTTP_TIMEOUT"),
++  requestedUrlSha256: digest, requestHeadersSha256: digest, method: z.literal("GET"),
++  requestStartedAt: iso, timeoutAt: iso, settledAt: iso, timeoutMs: z.literal(45_000),
++  responseReceived: z.literal(false), settlement: z.literal("FETCH_REJECTED"), cause: z.literal("REQUEST_TIMER"),
++  sourceDeadlineAt: iso
++}).strict();
++const retrySchema = z.object({
++  schemaVersion: z.literal(1), kind: z.literal("REQUEST_RETRY_START"), method: z.literal("GET"), attempt: z.literal(2),
++  requestedUrlSha256: digest, requestHeadersSha256: digest, startedAt: iso, sourceDeadlineAt: iso
++}).strict();
++export type NovoTimeoutRetryStart = z.infer<typeof retrySchema>;
++
++export function parseNovoTimeoutReceipt(value: unknown, requestedUrl: string): SettledOfficialHttpTimeoutEvidence {
++  const receipt = receiptSchema.parse(value);
++  if (receipt.requestedUrlSha256 !== hash(requestedUrl) ||
++      receipt.requestHeadersSha256 !== officialRequestHeadersSha256(NOVO_NATIVE_HEADERS) ||
++      Date.parse(receipt.timeoutAt) < Date.parse(receipt.requestStartedAt) + 45_000 ||
++      Date.parse(receipt.settledAt) < Date.parse(receipt.timeoutAt) ||
++      Date.parse(receipt.settledAt) >= Date.parse(receipt.sourceDeadlineAt)) throw Error("Invalid Novo no-response receipt");
++  return receipt;
++}
++const nativeKey = (key: string) => /^(?:novo-detail|novo-application)-[1-9][0-9]{5}\.en_GB$/u.test(key);
++export function novoNativeTimeoutArtifact(value: unknown, requestedUrl: string, logicalKey: string, attempt: 1 | 2): SourceFetchArtifactDraft {
++  const receipt = parseNovoTimeoutReceipt(value, requestedUrl);
++  if (!nativeKey(logicalKey) || (attempt !== 1 && attempt !== 2)) throw Error("Invalid Novo timeout slot");
++  const key = `${logicalKey}-request-error-${attempt}`;
++  return { id: key, logicalKey: key, kind: "COMMAND_OUTPUT", bodyRepresentation: "EXACT",
++    capturedAt: receipt.settledAt, extractorLocator: `novo-native-no-response-v1|page:${logicalKey}|attempt:${attempt}`,
++    body: JSON.stringify(receipt) };
++}
++export function novoNativeTimeoutRetryArtifact(value: unknown, receipt: SettledOfficialHttpTimeoutEvidence,
++  requestedUrl: string, logicalKey: string): SourceFetchArtifactDraft {
++  const retry = retrySchema.parse(value);
++  if (!nativeKey(logicalKey) || retry.requestedUrlSha256 !== hash(requestedUrl) ||
++      retry.requestHeadersSha256 !== receipt.requestHeadersSha256 || retry.sourceDeadlineAt !== receipt.sourceDeadlineAt ||
++      Date.parse(retry.startedAt) < Date.parse(receipt.settledAt) + 10_000 ||
++      Date.parse(retry.startedAt) + 45_000 >= Date.parse(retry.sourceDeadlineAt)) throw Error("Invalid Novo timeout retry start");
++  const key = `${logicalKey}-request-retry-1`;
++  return { id: key, logicalKey: key, kind: "COMMAND_OUTPUT", bodyRepresentation: "EXACT", capturedAt: retry.startedAt,
++    extractorLocator: `novo-native-timeout-retry-v1|page:${logicalKey}|attempt:2`, body: JSON.stringify(retry) };
++}
+diff --git a/src/crawler/officialHttpRequestDiagnostics.ts b/src/crawler/officialHttpRequestDiagnostics.ts
+index d25b38c..412ec3a 100644
+--- a/src/crawler/officialHttpRequestDiagnostics.ts
++++ b/src/crawler/officialHttpRequestDiagnostics.ts
+@@ -67,12 +67,13 @@ export function officialHttpRequestDiagnostics(input: Parameters<typeof fetch>[0
+   const path = process.env.P0_OFFICIAL_HTTP_DIAGNOSTICS_PATH;
+   if (!path) return undefined;
+   const rawUrl = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
+-  let url: { origin: string; endpointSha256: string; hasQuery: boolean } | undefined;
++  let url: { origin: string; endpointSha256: string; requestUrlSha256: string; hasQuery: boolean } | undefined;
+   try {
+     const parsed = new URL(rawUrl);
+     if (parsed.protocol === "http:" || parsed.protocol === "https:") {
+       url = { origin: parsed.origin,
+         endpointSha256: createHash("sha256").update(parsed.origin + parsed.pathname).digest("hex"),
++        requestUrlSha256: createHash("sha256").update(rawUrl).digest("hex"),
+         hasQuery: Boolean(parsed.search) };
+     }
+   } catch { /* Invalid inputs still get a request marker without URL content. */ }
+diff --git a/src/crawler/officialHttpRuntimeLimits.ts b/src/crawler/officialHttpRuntimeLimits.ts
+index e303e94..090e0b1 100644
+--- a/src/crawler/officialHttpRuntimeLimits.ts
++++ b/src/crawler/officialHttpRuntimeLimits.ts
+@@ -1,3 +1,4 @@
++import { createHash } from "node:crypto";
+ import { AsyncLocalStorage } from "node:async_hooks";
+ import { officialHttpRequestDiagnostics } from "./officialHttpRequestDiagnostics";
+ import { assertOfficialHttpProxyRuntime } from "./officialHttpProxyRuntime";
+@@ -157,7 +158,26 @@ export async function runWithOfficialSourceCancellation<T>(
+   } finally { combined.dispose(); }
+ }
+ 
+-type OfficialHttpDependencies = { fetchImpl?: typeof fetch; timeoutMs?: number };
++export type SettledOfficialHttpTimeoutEvidence = Readonly<{
++  schemaVersion: 1; kind: "NO_RESPONSE_REQUEST_ERROR"; code: "OFFICIAL_HTTP_TIMEOUT";
++  requestedUrlSha256: string; requestHeadersSha256: string; method: "GET";
++  requestStartedAt: string; timeoutAt: string; settledAt: string; timeoutMs: 45000;
++  responseReceived: false; settlement: "FETCH_REJECTED"; cause: "REQUEST_TIMER";
++  sourceDeadlineAt: string;
++}>;
++// Only this transport can attest timer ownership and fetch-promise settlement.
++// This is not a claim that an OS socket or process terminated.
++const settledTimeouts = new WeakMap<OfficialHttpTimeoutError, SettledOfficialHttpTimeoutEvidence>();
++export function settledOfficialHttpTimeoutEvidence(error: unknown): SettledOfficialHttpTimeoutEvidence | undefined {
++  return error instanceof OfficialHttpTimeoutError ? settledTimeouts.get(error) : undefined;
++}
++export function officialRequestHeadersSha256(headers: HeadersInit | undefined): string {
++  return createHash("sha256").update(JSON.stringify([...new Headers(headers).entries()])).digest("hex");
++}
++export function currentOfficialSourceAttemptDeadlineAtMs(): number | undefined {
++  return sourceAttemptContext.getStore()?.deadlineAtMs;
++}
++type OfficialHttpDependencies = { fetchImpl?: typeof fetch; timeoutMs?: number; retainSettledRequestTimeout?: boolean };
+ 
+ export function fetchWithOfficialTimeout<T>(
+   input: Parameters<typeof fetch>[0],
+@@ -183,10 +203,21 @@ export async function fetchWithOfficialTimeout<T>(
+   // Fail before diagnostics or HTTP when native fetch cannot honor the requested proxy.
+   if (!deps.fetchImpl) assertOfficialHttpProxyRuntime();
+   const diagnostic = officialHttpRequestDiagnostics(input, timeoutMs);
++  const requestStartedAtMs = Date.now();
+   const deadline = AbortSignal.timeout(timeoutMs);
++  let timeoutAtMs: number | undefined;
++  const recordTimeout = () => { timeoutAtMs = Date.now(); };
++  deadline.addEventListener("abort", recordTimeout, { once: true });
+   const sourceSignal = currentOfficialSourceAttemptSignal();
+   const signals = [init.signal, sourceSignal, deadline].filter((signal): signal is AbortSignal => signal != null);
+   const combined = combineAbortSignals(signals);
++  const sourceDeadlineAtMs = currentOfficialSourceAttemptDeadlineAtMs();
++  const retainSettledTimeout = deps.retainSettledRequestTimeout === true && timeoutMs === 45_000 &&
++    typeof input === "string" && (init.method ?? "GET") === "GET" && init.body === undefined &&
++    sourceSignal !== undefined && sourceDeadlineAtMs !== undefined;
++  const requestHeadersDigest = retainSettledTimeout ? officialRequestHeadersSha256(init.headers) : undefined;
++  type Settlement = { rejected: boolean; error?: unknown; atMs: number };
++  let settlement: Promise<Settlement> | undefined;
+   let headersReceived = false;
+   let abortListener: (() => void) | undefined;
+   try {
+@@ -196,7 +227,11 @@ export async function fetchWithOfficialTimeout<T>(
+       abortListener = () => reject(combined.signal.reason);
+       combined.signal.addEventListener("abort", abortListener, { once: true });
+     });
+-    const response = await Promise.race([(deps.fetchImpl ?? fetch)(input, { ...init, signal: combined.signal }), aborted]);
++    const pending = (deps.fetchImpl ?? fetch)(input, { ...init, signal: combined.signal });
++    // Install both handlers immediately: a late rejection must never escape.
++    settlement = pending.then(() => ({ rejected: false, atMs: Date.now() }),
++      error => ({ rejected: true, error, atMs: Date.now() }));
++    const response = await Promise.race([pending, aborted]);
+     headersReceived = true;
+     diagnostic?.("HEADERS_RECEIVED", { status: response.status });
+     if (!deps.consumeResponse) return response;
+@@ -215,11 +250,41 @@ export async function fetchWithOfficialTimeout<T>(
+         callerAborted ? "CALLER_ABORT" : "TRANSPORT_OR_BODY_ERROR"
+     });
+     if (timedOut) {
+-      throw new OfficialHttpTimeoutError();
++      const failure = new OfficialHttpTimeoutError();
++      if (retainSettledTimeout && !headersReceived && combined.signal.reason === deadline.reason && settlement) {
++        // The HTTP timer alone cannot prove settlement. Wait only within the
++        // existing caller/source cancellation scope and its original deadline.
++        const cancellation = combineAbortSignals([sourceSignal!, ...(init.signal ? [init.signal] : [])]);
++        let cancelListener: (() => void) | undefined;
++        try {
++          cancellation.signal.throwIfAborted();
++          const cancelled = new Promise<never>((_resolve, reject) => {
++            cancelListener = () => reject(cancellation.signal.reason);
++            cancellation.signal.addEventListener("abort", cancelListener, { once: true });
++          });
++          const settled = await Promise.race([settlement, cancelled]);
++          cancellation.signal.throwIfAborted();
++          if (settled.rejected && settled.error === deadline.reason && timeoutAtMs !== undefined &&
++              timeoutAtMs >= requestStartedAtMs + timeoutMs && settled.atMs >= timeoutAtMs &&
++              Date.now() < sourceDeadlineAtMs! && settled.atMs < sourceDeadlineAtMs!) {
++            settledTimeouts.set(failure, Object.freeze({ schemaVersion: 1, kind: "NO_RESPONSE_REQUEST_ERROR",
++              code: "OFFICIAL_HTTP_TIMEOUT", requestedUrlSha256: createHash("sha256").update(input as string).digest("hex"),
++              requestHeadersSha256: requestHeadersDigest!, method: "GET",
++              requestStartedAt: new Date(requestStartedAtMs).toISOString(), timeoutAt: new Date(timeoutAtMs).toISOString(),
++              settledAt: new Date(settled.atMs).toISOString(), timeoutMs: 45_000, responseReceived: false,
++              settlement: "FETCH_REJECTED", cause: "REQUEST_TIMER", sourceDeadlineAt: new Date(sourceDeadlineAtMs!).toISOString() }));
++          }
++        } finally {
++          if (cancelListener) cancellation.signal.removeEventListener("abort", cancelListener);
++          cancellation.dispose();
++        }
++      }
++      throw failure;
+     }
+     throw error;
+   } finally {
+     if (abortListener) combined.signal.removeEventListener("abort", abortListener);
++    deadline.removeEventListener("abort", recordTimeout);
+     combined.dispose();
+   }
+ }
+diff --git a/src/crawler/officialJsonSourceFetch.ts b/src/crawler/officialJsonSourceFetch.ts
+index 8ae6265..f307e0f 100644
+--- a/src/crawler/officialJsonSourceFetch.ts
++++ b/src/crawler/officialJsonSourceFetch.ts
+@@ -1,3 +1,4 @@
++import { NOVO_NATIVE_HEADERS, novoNativeTimeoutArtifact, novoNativeTimeoutRetryArtifact } from "./novoNativeTimeout";
+ import { ROCHE_NATIVE_DETAIL_POLICY, rocheNativeDetail, rocheNativeDetailUrl } from "./rocheChinaQuality";
+ import { acquireBeisenDetailDates } from "./beisenDetailDates";
+ import { requiresOrganonPostedDate, exactOrganonPostedDatePlan, exactOrganonPostedDateBootstrap } from "./organonOfficialPostedDate";
+@@ -14,6 +15,8 @@ import {
+   createAbortableClose,
+   currentOfficialSourceAttemptSignal,
+   currentOfficialSourceAttemptRemainingMs,
++  currentOfficialSourceAttemptDeadlineAtMs,
++  settledOfficialHttpTimeoutEvidence,
+   fetchWithOfficialTimeout,
+   hcmCloudBrowserSettleMs,
+   officialBrowserTimeoutMs,
+@@ -237,6 +240,7 @@ export type OfficialJsonFetchConfig =
+ 
+ export interface OfficialJsonHttpRequest {
+   url: string;
++  retainSettledRequestTimeout?: boolean;
+   method?: "GET" | "POST";
+   headers: Record<string, string>;
+   body?: string;
+@@ -916,7 +920,33 @@ async function fetchSingleResponseOfficialJson({
+         currentOfficialSourceAttemptSignal()?.throwIfAborted();
+         if (remaining() <= 0) throw new Error("Novo original acquisition budget exhausted");
+         if (nativePage) nativeRequestStarted = true;
+-        const response = await http({ url, method: "GET", headers: { Accept: "text/html", "User-Agent": "job-search-crawler/0.1" } });
++        nativeHttpFailure = undefined;
++        let response: OfficialJsonHttpResponse;
++        try {
++          response = await http({ url, method: "GET", headers: { ...NOVO_NATIVE_HEADERS },
++            ...(nativePage ? { retainSettledRequestTimeout: true } : {}) });
++        } catch (error) {
++          const timeout = nativePage ? settledOfficialHttpTimeoutEvidence(error) : undefined;
++          if (timeout) {
++            // A no-Response error is never represented as an HTTP status/body.
++            artifacts.push(novoNativeTimeoutArtifact(timeout, url, logicalKey, retriesForRequest === 0 ? 1 : 2));
++            if (retriesForRequest < NOVO_NATIVE_GET_RETRY.maxRetries &&
++                remaining() > NOVO_NATIVE_GET_RETRY.backoffMs + 45_000 &&
++                currentOfficialSourceAttemptDeadlineAtMs() === Date.parse(timeout.sourceDeadlineAt) &&
++                !currentOfficialSourceAttemptSignal()?.aborted) {
++              retriesForRequest++;
++              await nativeHttpRetryDelay(NOVO_NATIVE_GET_RETRY.backoffMs);
++              currentOfficialSourceAttemptSignal()?.throwIfAborted();
++              if (remaining() <= 45_000) throw new Error("Novo original acquisition budget exhausted");
++              artifacts.push(novoNativeTimeoutRetryArtifact({ schemaVersion: 1, kind: "REQUEST_RETRY_START",
++                method: "GET", attempt: 2, requestedUrlSha256: timeout.requestedUrlSha256,
++                requestHeadersSha256: timeout.requestHeadersSha256, startedAt: now().toISOString(),
++                sourceDeadlineAt: timeout.sourceDeadlineAt }, timeout, url, logicalKey));
++              continue;
++            }
++          }
++          throw error;
++        }
+         assertOfficialJsonEvidenceResponse(response, { requestedUrl: allowApplicationRedirect ? response.finalUrl! : url,
+           crawlStartedAtMs: Date.parse(capturedAt), observedNowMs: now().getTime() });
+         const retained = officialJsonNetworkArtifact({ id: logicalKey, logicalKey, kind: "OFFICIAL_COMPANY_PAGE",
+@@ -967,8 +997,8 @@ async function fetchSingleResponseOfficialJson({
+       }
+     } catch (error) {
+       // Preserve failure classification without allowing a second native traversal.
+-      // Native timeout/network/429/other-5xx failures now stop this source. Their
+-      // former whole-source retry is intentionally unavailable in this narrow policy.
++      // Exhausted or unproven timeout/network/429/other-5xx failures stop this source.
++      // The former whole-source retry is never re-used here.
+       // Unknown content, access blocks and source cancellation still fail closed.
+       const transportFailure = nativeHttpFailure ?? retryableTransportFailureFromError(error);
+       return { ...failedWithEvidence(capturedAt, transportFailure
+@@ -8525,7 +8555,8 @@ function createDefaultHttpClient(now: () => Date): OfficialJsonHttpClient {
+       method: request.method ?? "GET",
+       ...(request.body === undefined ? {} : { body: request.body }),
+       redirect: "follow"
+-    }, { consumeResponse: async (response) => ({ response, body: await response.text() }) });
++    }, { retainSettledRequestTimeout: request.retainSettledRequestTimeout === true,
++      consumeResponse: async (response) => ({ response, body: await response.text() }) });
+     const responseHeaders = response.headers as Headers & { getSetCookie?: () => string[] };
+     const capturedAt = now().toISOString();
+     const retryAfter = parseOfficialRetryAfter(response.headers.get("retry-after"), Date.parse(capturedAt));
+diff --git a/tests/crawler/novoTimeoutAdmission.test.ts b/tests/crawler/novoTimeoutAdmission.test.ts
+new file mode 100644
+index 0000000..48a966e
+--- /dev/null
++++ b/tests/crawler/novoTimeoutAdmission.test.ts
+@@ -0,0 +1,336 @@
++// @vitest-environment node
++import { afterEach, describe, expect, it, vi } from "vitest";
++import { createHash } from "node:crypto";
++import { readFileSync } from "node:fs";
++import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
++import { tmpdir } from "node:os";
++import { join } from "node:path";
++import { gunzipSync } from "node:zlib";
++import { candidateCompanies } from "../../src/data/companyRegistry";
++import { archiveSourceEvidence } from "../../src/crawler/artifactArchive";
++import { NOVO_CHINA_ENDPOINT, replayNovoChinaRows } from "../../src/crawler/novoChinaQuality";
++import { NOVO_NATIVE_HEADERS } from "../../src/crawler/novoNativeTimeout";
++import { OfficialHttpTimeoutError, officialRequestHeadersSha256, runWithOfficialSourceAttemptTimeout } from "../../src/crawler/officialHttpRuntimeLimits";
++import { createSourceFetchAttemptTracker, runSourceCrawl } from "../../src/crawler/runSourceCrawl";
++import { bindRuntimeEvidenceArtifactIds, buildAtomicRuntimeCommit, buildPendingRuntimeBatch, verifyAtomicRuntimeCommitForPersistence } from "../../src/crawler/runtimeAtomicEvidence";
++import { buildStagedSourceCrawlPlans, getPlanBySourceId, sourcePlanConfigSha256 } from "../../src/crawler/sourcePlan";
++import { createOwnedSourceQualityFetch, issueSourceQualityAdmission } from "../../src/crawler/sourceQualityAdmission";
++import { buildSourceQualityJobCommands } from "../../src/crawler/sourceQualityPublication";
++import type { PersistentSourceFetchEvidence, SourceFetchArtifactDraft } from "../../src/crawler/sourceFetchEvidence";
++
++// Retained fixtures are offline inputs only. Every HTTP response and clock below
++// is synthetic; this suite performs no live acquisition or database operation.
++const START = Date.parse("2026-10-07T21:30:00.000Z");
++const SOURCE_BUDGET_MS = 20 * 60_000;
++const retainedList = readFileSync("tests/fixtures/novo-nordisk/retained-china-list-20261002.json", "utf8");
++const retainedPages: Record<string, { body: string; finalUrl: string; contentType: string }> = JSON.parse(
++  gunzipSync(readFileSync("tests/fixtures/novo-nordisk/retained-native-applications-20261002.json.gz")).toString());
++const ENTRY = "https://www.novonordisk.com.cn/careers/find-a-job/career-search-results.html?searchText=&countries=China&categories=";
++const DETAIL_A = "https://www.novonordisk.com.cn/content/nncorp/cn/zh_cn/careers/find-a-job/job-ad.346133.en_GB.html";
++const DETAIL_B = "https://www.novonordisk.com.cn/content/nncorp/cn/zh_cn/careers/find-a-job/job-ad.345925.en_GB.html";
++const applicationFor = (id: string) => {
++  const url = Object.keys(retainedPages).find(value => value.includes(`career_job_req_id=${id}&`));
++  if (!url) throw Error(`Missing retained application fixture ${id}`);
++  return url;
++};
++const APPLICATION_A = applicationFor("346133"), APPLICATION_B = applicationFor("345925");
++const sha = (value: string) => createHash("sha256").update(value).digest("hex");
++const iso = (offsetMs: number) => new Date(START + offsetMs).toISOString();
++const advance = (milliseconds: number) => vi.setSystemTime(Date.now() + milliseconds);
++const directories: string[] = [];
++const jsonBody = (artifact: SourceFetchArtifactDraft): Record<string, unknown> => JSON.parse(String(artifact.body));
++type Outcome = "timeout" | "gateway" | "bare-timeout" | "wrong-rejection" | "body-timeout";
++type Script = Readonly<Record<string, readonly Outcome[]>>;
++
++async function capture(script: Script, options: { budgetMs?: number; delayMs?: number } = {}) {
++  vi.useFakeTimers({ toFake: ["Date"] });
++  vi.setSystemTime(START);
++  vi.stubEnv("P0_SOURCE_HTTP_TIMEOUT_MS", "45000");
++  vi.stubEnv("P0_OFFICIAL_HTTP_DIAGNOSTICS_PATH", "");
++  const realTimeout = globalThis.setTimeout;
++  let requestTimer: AbortController | undefined;
++  // AbortSignal.timeout otherwise follows Node's real clock. The fixture aborts
++  // the actual transport signal at +45s, and fetch rejects that exact reason.
++  vi.spyOn(AbortSignal, "timeout").mockImplementation(milliseconds => {
++    expect(milliseconds).toBe(45_000);
++    requestTimer = new AbortController();
++    return requestTimer.signal;
++  });
++  const delayCalls: number[] = [];
++  vi.spyOn(globalThis, "setTimeout").mockImplementation(((callback: (...args: unknown[]) => void, ms?: number, ...args: unknown[]) => {
++    if (ms === 10_000) {
++      delayCalls.push(ms);
++      advance(options.delayMs ?? ms);
++      return realTimeout(callback, 0, ...args);
++    }
++    return realTimeout(callback, ms, ...args);
++  }) as typeof setTimeout);
++  const calls: Array<{ url: string; at: number; headersSha256: string }> = [];
++  const counts = new Map<string, number>();
++  vi.stubGlobal("fetch", vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
++    if (typeof input !== "string") throw Error("Unexpected non-string synthetic request");
++    const url = input;
++    expect(init?.method).toBe("GET");
++    expect(init?.body).toBeUndefined();
++    expect(init?.redirect).toBe("follow");
++    expect(init?.signal).toBeDefined();
++    const count = (counts.get(url) ?? 0) + 1;
++    counts.set(url, count);
++    calls.push({ url, at: Date.now(), headersSha256: officialRequestHeadersSha256(init?.headers) });
++    // Fail immediately if the router replays a native URL a third time.
++    expect(count).toBeLessThanOrEqual(2);
++    const retained = url === NOVO_CHINA_ENDPOINT
++      ? { body: retainedList, finalUrl: url, contentType: "application/json;charset=utf-8" } : retainedPages[url];
++    if (!retained) throw Error(`Unexpected offline fixture URL ${url}`);
++    const outcome = script[url]?.[count - 1];
++    if (outcome === "bare-timeout") throw new OfficialHttpTimeoutError();
++    if (outcome === "gateway") return {
++      status: 502, url: retained.finalUrl, headers: new Headers({ "content-type": "text/html" }),
++      text: async () => "<html><h1>502 Bad Gateway</h1> <p>Connection refused</p></html>"
++    };
++    if (outcome === "timeout" || outcome === "wrong-rejection" || outcome === "body-timeout") {
++      const signal = init!.signal!, controller = requestTimer!;
++      const abortingBody = () => new Promise<never>((_resolve, reject) => {
++        signal.addEventListener("abort", () => reject(outcome === "wrong-rejection"
++          ? new Error("An unrelated synthetic failure") : signal.reason), { once: true });
++        realTimeout(() => {
++          advance(45_000);
++          controller.abort(new DOMException("Synthetic request timer", "TimeoutError"));
++        }, 0);
++      });
++      if (outcome === "body-timeout") return {
++        status: 200, url: retained.finalUrl, headers: new Headers({ "content-type": retained.contentType }), text: abortingBody
++      };
++      return abortingBody();
++    }
++    return {
++      status: 200, url: retained.finalUrl, headers: new Headers({ "content-type": retained.contentType }),
++      text: async () => retained.body
++    };
++  }));
++  const plan = getPlanBySourceId(buildStagedSourceCrawlPlans(candidateCompanies), "source-novo-nordisk-china-social")!;
++  const tracker = createSourceFetchAttemptTracker();
++  const result = await runWithOfficialSourceAttemptTimeout(() => runSourceCrawl(plan, {
++    fetch: createOwnedSourceQualityFetch(), isBaseline: true, attemptTracker: tracker
++  }), options.budgetMs ?? SOURCE_BUDGET_MS);
++  const workspaceRoot = await mkdtemp(join(tmpdir(), "novo-offline-timeout-admission-"));
++  directories.push(workspaceRoot);
++  const identity = {
++    releaseCandidateId: "novo-synthetic-timeout", commitSha: "a".repeat(40), rosterSha256: "a".repeat(64),
++    sourcePlanSha256: "a".repeat(64), sourceConfigSha256: "a".repeat(64), adapterBundleSha256: "a".repeat(64),
++    batchKind: "SCHEDULED" as const, ownerId: "synthetic-offline-test", expectedPlannedSourceIds: [plan.source.id],
++    expectedPlannedSourceSetSha256: "a".repeat(64), expectedPlannedSourceCount: 1
++  };
++  const batchId = "novo-synthetic-timeout-batch";
++  const pending = buildPendingRuntimeBatch(batchId, [plan], identity, new Date(START)).sources[0]!;
++  const binding = { releaseCandidateId: identity.releaseCandidateId, batchId, sourceResultId: pending.id,
++    sourceConfigSha256: sourcePlanConfigSha256(plan), adapterVersion: pending.adapterVersion };
++  const evidenceSubdirectory = "quality/runtime-evidence";
++  const archived = await archiveSourceEvidence({ workspaceRoot, ...binding, sourceId: plan.source.id, evidenceSubdirectory,
++    captureTool: result.fetchEvidence!.captureTool,
++    artifacts: bindRuntimeEvidenceArtifactIds({ ...binding, sourceId: plan.source.id, artifacts: result.fetchEvidence!.artifacts }) });
++  return { plan, result, tracker, binding, identity, pending, calls, counts, delayCalls,
++    archive: { workspaceRoot, evidenceSubdirectory, artifacts: archived.artifacts } };
++}
++
++type Capture = Awaited<ReturnType<typeof capture>>;
++const replay = (input: Capture, evidence = input.result.fetchEvidence!) =>
++  replayNovoChinaRows(input.plan, evidence, input.result.jobs, input.result.observation.crawledAt.toISOString());
++async function archivedEvidence(input: Capture): Promise<PersistentSourceFetchEvidence> {
++  const evidence = structuredClone(input.result.fetchEvidence!);
++  evidence.artifacts = await Promise.all(input.archive.artifacts.map(async archived => {
++    const draft = evidence.artifacts.find(candidate => candidate.logicalKey === archived.logicalKey)!;
++    const bytes = await readFile(join(input.archive.workspaceRoot, archived.path));
++    expect(sha(bytes.toString())).toBe(archived.sha256);
++    expect(bytes.byteLength).toBe(archived.byteCount);
++    return { ...draft, id: archived.id, body: bytes.toString() };
++  }));
++  return evidence;
++}
++async function expectAdmitted(input: Capture) {
++  expect(input.result.status).toBe("SUCCESS");
++  expect(input.result.jobs).toHaveLength(20);
++  expect(input.result.fetchEvidence!.fetchCounts).toMatchObject({ rawCount: 27, parsedCount: 27, validCount: 20, validationDiscardCount: 7 });
++  expect(input.result.fetchEvidence!.fetchLosses).toHaveLength(7);
++  expect(input.tracker).toEqual({ fetchAttemptCount: 1, retryCount: 0, retryReasonCodes: [] });
++  expect(replay(input, await archivedEvidence(input))).toBe(true);
++  const admission = await issueSourceQualityAdmission(input);
++  expect(admission.status).toBe("ACCEPTED");
++  const commit = buildAtomicRuntimeCommit({ ...input, batchId: input.binding.batchId, previousJobs: [], baselineCompletedBeforeCrawl: true,
++    artifacts: input.archive.artifacts, sourceAdmissionPolicy: "PLAN_BOUND_SOURCE_QUALITY_V1", sourceQualityAdmission: admission,
++    firstAcceptedCurrentPolicyReceipt: null });
++  await expect(verifyAtomicRuntimeCommitForPersistence(commit)).resolves.toBeUndefined();
++  return admission;
++}
++
++afterEach(async () => {
++  vi.restoreAllMocks(); vi.useRealTimers(); vi.unstubAllGlobals(); vi.unstubAllEnvs();
++  await Promise.all(directories.splice(0).map(path => rm(path, { recursive: true, force: true })));
++});
++
++describe("Novo native settled-timeout owned admission (offline)", () => {
++  it.each([DETAIL_A, APPLICATION_A])("admits an exact timeout then 200 from %s through owned fetch, archive, replay and atomic verification", async url => {
++    const input = await capture({ [url]: ["timeout"] });
++    await expectAdmitted(input);
++    expect(input.calls).toHaveLength(57);
++    expect(input.archive.artifacts).toHaveLength(58);
++    expect(input.counts.get(url)).toBe(2);
++    expect(input.delayCalls).toEqual([10_000]);
++    const commands = input.result.fetchEvidence!.artifacts.filter(a => a.kind === "COMMAND_OUTPUT");
++    expect(commands).toHaveLength(2);
++    const receipt = jsonBody(commands[0]!);
++    expect(receipt).toEqual({ schemaVersion: 1, kind: "NO_RESPONSE_REQUEST_ERROR", code: "OFFICIAL_HTTP_TIMEOUT",
++      requestedUrlSha256: sha(url), requestHeadersSha256: officialRequestHeadersSha256(NOVO_NATIVE_HEADERS), method: "GET",
++      requestStartedAt: iso(0), timeoutAt: iso(45_000), settledAt: iso(45_000), timeoutMs: 45_000,
++      responseReceived: false, settlement: "FETCH_REJECTED", cause: "REQUEST_TIMER", sourceDeadlineAt: iso(SOURCE_BUDGET_MS) });
++    expect(jsonBody(commands[1]!)).toEqual({ schemaVersion: 1, kind: "REQUEST_RETRY_START", method: "GET", attempt: 2,
++      requestedUrlSha256: sha(url), requestHeadersSha256: receipt.requestHeadersSha256,
++      startedAt: iso(55_000), sourceDeadlineAt: iso(SOURCE_BUDGET_MS) });
++    for (const command of commands) {
++      expect(command).not.toHaveProperty("httpStatus"); expect(command).not.toHaveProperty("requestedUrl");
++      expect(command).not.toHaveProperty("finalUrl"); expect(command).not.toHaveProperty("contentType");
++      expect(String(command.body)).not.toContain(url);
++    }
++    const attempts = input.calls.filter(call => call.url === url);
++    expect(attempts.map(call => call.at)).toEqual([START, START + 55_000]);
++    expect(new Set(attempts.map(call => call.headersSha256)).size).toBe(1);
++  });
++
++  it("binds two query-distinct application URLs to distinct full-URL hashes and keeps the same original deadline", async () => {
++    const input = await capture({ [APPLICATION_A]: ["timeout"], [APPLICATION_B]: ["timeout"] });
++    await expectAdmitted(input);
++    expect(new URL(APPLICATION_A).origin + new URL(APPLICATION_A).pathname).toBe(new URL(APPLICATION_B).origin + new URL(APPLICATION_B).pathname);
++    const receipts = input.result.fetchEvidence!.artifacts.filter(a => a.logicalKey.endsWith("-request-error-1")).map(jsonBody);
++    expect(receipts.map(receipt => receipt.requestedUrlSha256)).toEqual([sha(APPLICATION_A), sha(APPLICATION_B)]);
++    expect(new Set(receipts.map(receipt => receipt.requestedUrlSha256)).size).toBe(2);
++    expect(receipts.map(receipt => receipt.sourceDeadlineAt)).toEqual([iso(SOURCE_BUDGET_MS), iso(SOURCE_BUDGET_MS)]);
++    expect(receipts.map(receipt => receipt.requestStartedAt)).toEqual([iso(0), iso(55_000)]);
++    expect(input.calls).toHaveLength(58); expect(input.archive.artifacts).toHaveLength(60);
++    expect(input.delayCalls).toEqual([10_000, 10_000]);
++    expect(input.counts.get(NOVO_CHINA_ENDPOINT)).toBe(1); expect(input.counts.get(ENTRY)).toBe(1);
++  });
++
++  it("admits a gateway retry and a timeout retry on separate original URLs", async () => {
++    const input = await capture({ [DETAIL_A]: ["gateway"], [APPLICATION_B]: ["timeout"] });
++    await expectAdmitted(input);
++    expect(input.calls).toHaveLength(58); expect(input.archive.artifacts).toHaveLength(59);
++    expect(input.delayCalls).toEqual([10_000, 10_000]);
++    expect(input.result.fetchEvidence!.artifacts.filter(a => a.kind === "COMMAND_OUTPUT").map(a => a.logicalKey)).toEqual([
++      "novo-detail-346133.en_GB-http-retry-1", "novo-application-345925.en_GB-request-error-1", "novo-application-345925.en_GB-request-retry-1"
++    ]);
++  });
++
++  it.each([
++    ["timeout", "timeout"], ["timeout", "gateway"], ["gateway", "timeout"]
++  ] as const)("shares one retry between %s and %s on the same URL, then retains partial evidence and publishes nothing", async (first, second) => {
++    const input = await capture({ [APPLICATION_B]: [first, second] });
++    expect(input.result.status).toBe("FAILED"); expect(input.result.jobs).toEqual([]);
++    expect(input.counts.get(APPLICATION_B)).toBe(2);
++    expect(input.counts.get(NOVO_CHINA_ENDPOINT)).toBe(1); expect(input.counts.get(ENTRY)).toBe(1);
++    expect(input.delayCalls).toEqual([10_000]);
++    expect(input.tracker).toEqual({ fetchAttemptCount: 1, retryCount: 0, retryReasonCodes: [] });
++    expect(input.result.fetchEvidence!.artifacts.some(a => a.logicalKey === "novo-application-346133.en_GB")).toBe(true);
++    expect(input.result.fetchEvidence!.artifacts.some(a => a.logicalKey === "novo-detail-345696.en_GB")).toBe(false);
++    const last = input.result.fetchEvidence!.artifacts.at(-1)!;
++    if (second === "timeout") {
++      expect(last.logicalKey).toBe("novo-application-345925.en_GB-request-error-2");
++      expect(jsonBody(last)).toMatchObject({ responseReceived: false, settlement: "FETCH_REJECTED" });
++      expect(last).not.toHaveProperty("httpStatus");
++    } else expect(last).toMatchObject({ logicalKey: "novo-application-345925.en_GB", httpStatus: 502 });
++    expect(replay(input, await archivedEvidence(input))).toBe(false);
++    const admission = await issueSourceQualityAdmission(input); expect(admission.status).toBe("REJECTED");
++    expect(buildSourceQualityJobCommands({ ...input, admission, previousJobs: [], firstAcceptedCurrentPolicyReceipt: null,
++      baselineCompletedBeforeCrawl: true }).jobCommands).toEqual([]);
++  });
++
++  it.each(["bare-timeout", "wrong-rejection", "body-timeout"] as const)("does not manufacture a no-Response receipt or retry for %s", async outcome => {
++    const input = await capture({ [DETAIL_A]: [outcome] });
++    expect(input.result.status).toBe("FAILED"); expect(input.counts.get(DETAIL_A)).toBe(1);
++    expect(input.delayCalls).toEqual([]); expect(input.counts.get(NOVO_CHINA_ENDPOINT)).toBe(1);
++    expect(input.result.fetchEvidence!.artifacts.some(a => a.logicalKey.includes("346133"))).toBe(false);
++    expect((await issueSourceQualityAdmission(input)).status).toBe("REJECTED");
++  });
++
++  it("retains a settled failure but starts no retry when the original budget has exactly 55 seconds left", async () => {
++    const input = await capture({ [DETAIL_A]: ["timeout"] }, { budgetMs: 100_000 });
++    expect(input.result.status).toBe("FAILED"); expect(input.counts.get(DETAIL_A)).toBe(1);
++    expect(input.delayCalls).toEqual([]);
++    expect(jsonBody(input.result.fetchEvidence!.artifacts.at(-1)!)).toMatchObject({ sourceDeadlineAt: iso(100_000), settledAt: iso(45_000) });
++  });
++
++  it("does not start a second call if backoff consumes the remaining retry budget", async () => {
++    const input = await capture({ [DETAIL_A]: ["timeout"] }, { delayMs: SOURCE_BUDGET_MS - 90_000 });
++    expect(input.result.status).toBe("FAILED"); expect(input.counts.get(DETAIL_A)).toBe(1);
++    expect(input.delayCalls).toEqual([10_000]);
++    expect(input.result.fetchEvidence!.artifacts.filter(a => a.logicalKey.includes("request-retry"))).toEqual([]);
++  });
++});
++
++type Tamper = "missing-detail" | "missing-application" | "missing-receipt" | "missing-retry-start" | "duplicate-receipt" |
++  "duplicate-retry-start" | "extra-receipt" | "cross-url-hash" | "retry-cross-url-hash" | "fake-http-status" |
++  "fake-response-body" | "fake-final-url" | "response-received" | "timeout-too-early" | "settled-too-early" |
++  "settled-at-deadline" | "extend-source-deadline" | "retry-deadline-changed" | "delay-too-short" |
++  "retry-insufficient-budget" | "changed-request-headers" | "changed-retry-headers" | "duplicate-json-key";
++const tampering: readonly Tamper[] = ["missing-detail", "missing-application", "missing-receipt", "missing-retry-start", "duplicate-receipt",
++  "duplicate-retry-start", "extra-receipt", "cross-url-hash", "retry-cross-url-hash", "fake-http-status", "fake-response-body", "fake-final-url",
++  "response-received", "timeout-too-early", "settled-too-early", "settled-at-deadline", "extend-source-deadline", "retry-deadline-changed",
++  "delay-too-short", "retry-insufficient-budget", "changed-request-headers", "changed-retry-headers", "duplicate-json-key"];
++
++function tamper(evidence: PersistentSourceFetchEvidence, mode: Tamper) {
++  const artifacts = evidence.artifacts;
++  const receiptIndex = artifacts.findIndex(a => a.logicalKey === "novo-application-346133.en_GB-request-error-1");
++  const receipt = artifacts[receiptIndex]!, retry = artifacts[receiptIndex + 1]!;
++  if (mode.startsWith("missing-")) {
++    const key = mode === "missing-detail" ? "novo-detail-346133.en_GB" : mode === "missing-application" ? "novo-application-346133.en_GB"
++      : mode === "missing-receipt" ? receipt.logicalKey : retry.logicalKey;
++    artifacts.splice(artifacts.findIndex(a => a.logicalKey === key), 1); return;
++  }
++  if (mode === "duplicate-receipt" || mode === "duplicate-retry-start") {
++    artifacts.splice(receiptIndex, 0, structuredClone(mode === "duplicate-receipt" ? receipt : retry)); return;
++  }
++  if (mode === "extra-receipt") { artifacts.push(structuredClone(receipt)); return; }
++  if (mode === "fake-http-status") { receipt.httpStatus = 504; return; }
++  if (mode === "fake-final-url") { receipt.finalUrl = APPLICATION_A; return; }
++  if (mode === "duplicate-json-key") { receipt.body = String(receipt.body).replace('"schemaVersion":1', '"schemaVersion":1,"schemaVersion":1'); return; }
++  const raw = jsonBody(receipt), retryRaw = jsonBody(retry);
++  if (mode === "cross-url-hash") raw.requestedUrlSha256 = sha(APPLICATION_B);
++  else if (mode === "retry-cross-url-hash") retryRaw.requestedUrlSha256 = sha(APPLICATION_B);
++  else if (mode === "fake-response-body") raw.body = "<html>504 Gateway Timeout</html>";
++  else if (mode === "response-received") raw.responseReceived = true;
++  else if (mode === "timeout-too-early") raw.timeoutAt = iso(44_999);
++  else if (mode === "settled-too-early") raw.settledAt = iso(44_999);
++  else if (mode === "settled-at-deadline") raw.settledAt = raw.sourceDeadlineAt;
++  else if (mode === "extend-source-deadline") { raw.sourceDeadlineAt = iso(SOURCE_BUDGET_MS + 1); retryRaw.sourceDeadlineAt = raw.sourceDeadlineAt; }
++  else if (mode === "retry-deadline-changed") retryRaw.sourceDeadlineAt = iso(SOURCE_BUDGET_MS + 1);
++  else if (mode === "delay-too-short") { retryRaw.startedAt = iso(54_999); retry.capturedAt = String(retryRaw.startedAt); }
++  else if (mode === "retry-insufficient-budget") { raw.sourceDeadlineAt = iso(100_000); retryRaw.sourceDeadlineAt = raw.sourceDeadlineAt; }
++  else if (mode === "changed-request-headers") { raw.requestHeadersSha256 = sha("other headers"); retryRaw.requestHeadersSha256 = raw.requestHeadersSha256; }
++  else if (mode === "changed-retry-headers") retryRaw.requestHeadersSha256 = sha("other headers");
++  receipt.body = JSON.stringify(raw); retry.body = JSON.stringify(retryRaw);
++}
++
++describe("Novo timeout evidence rejects incomplete or forged chains", () => {
++  it.each(tampering)("independent archived-byte replay and owned admission reject %s", async mode => {
++    const input = await capture({ [APPLICATION_A]: ["timeout"] });
++    const independent = await archivedEvidence(input);
++    expect(replay(input, independent)).toBe(true);
++    tamper(independent, mode);
++    expect(replay(input, independent)).toBe(false);
++    // Keep the owned evidence object, then change its contents: admission must
++    // reject this too, independently of the pure archived-byte replay check.
++    tamper(input.result.fetchEvidence!, mode);
++    expect(await issueSourceQualityAdmission(input)).toMatchObject({ status: "REJECTED", codes: ["ACQUISITION_MUTATED"] });
++  });
++
++  it.each(["changed-bytes", "missing-file", "missing-manifest-row", "duplicate-manifest-row"] as const)("rejects an unchanged owned result with a %s archive", async mode => {
++    const input = await capture({ [APPLICATION_A]: ["timeout"] });
++    const index = input.archive.artifacts.findIndex(a => a.logicalKey.endsWith("-request-error-1"));
++    const artifact = input.archive.artifacts[index]!;
++    if (mode === "changed-bytes") await writeFile(join(input.archive.workspaceRoot, artifact.path), "{}");
++    else if (mode === "missing-file") await rm(join(input.archive.workspaceRoot, artifact.path));
++    else if (mode === "missing-manifest-row") input.archive.artifacts.splice(index, 1);
++    else input.archive.artifacts.push(structuredClone(artifact));
++    expect(replay(input)).toBe(true);
++    expect(await issueSourceQualityAdmission(input)).toMatchObject({ status: "REJECTED", codes: ["ARCHIVE_VERIFICATION_FAILED"] });
++  });
++});
+diff --git a/tests/crawler/officialHttpRequestDiagnostics.test.ts b/tests/crawler/officialHttpRequestDiagnostics.test.ts
+index 737f1e2..b63f347 100644
+--- a/tests/crawler/officialHttpRequestDiagnostics.test.ts
++++ b/tests/crawler/officialHttpRequestDiagnostics.test.ts
+@@ -1,6 +1,7 @@
+ // @vitest-environment node
+ import { afterEach, describe, expect, it, vi } from "vitest";
+ import { mkdtempSync, readFileSync, rmSync } from "node:fs";
++import { createHash } from "node:crypto";
+ import { tmpdir } from "node:os";
+ import { join } from "node:path";
+ import { officialHttpRequestDiagnostics } from "../../src/crawler/officialHttpRequestDiagnostics";
+@@ -21,6 +22,23 @@ function diagnostics() {
+ }
+ 
+ describe("bounded official HTTP failure diagnostics (no network)", () => {
++  it("distinguishes exact original URLs with different query identities without logging their contents", () => {
++    const log = diagnostics();
++    const urls = ["https://jobs.example.test/career?job=111111&token=SECRET_A", "https://jobs.example.test/career?job=222222&token=SECRET_B"];
++    for (const url of urls) {
++      const write = officialHttpRequestDiagnostics(url, 45_000)!;
++      write("REQUEST_START"); write("REQUEST_FAILED", { failureKind: "HTTP_TIMEOUT" });
++    }
++    const records = log.read();
++    expect(records[0].url.endpointSha256).toBe(records[2].url.endpointSha256);
++    expect(records[0].url.requestUrlSha256).not.toBe(records[2].url.requestUrlSha256);
++    for (let i = 0; i < 2; i++) {
++      expect(records[i * 2].url.requestUrlSha256).toBe(createHash("sha256").update(urls[i]!).digest("hex"));
++      expect(records[i * 2].requestId).toBe(records[i * 2 + 1].requestId);
++    }
++    expect(records[0].requestId).not.toBe(records[2].requestId);
++    expect(log.raw()).not.toMatch(/SECRET|111111|222222|token=|job=/u);
++  });
+   it("records a nested network cause and preserves the exact original fetch error", async () => {
+     const log = diagnostics();
+     const reason = new TypeError("fetch failed SECRET", {
+diff --git a/tests/crawler/officialHttpSettledTimeout.test.ts b/tests/crawler/officialHttpSettledTimeout.test.ts
+new file mode 100644
+index 0000000..e3e5c59
+--- /dev/null
++++ b/tests/crawler/officialHttpSettledTimeout.test.ts
+@@ -0,0 +1,436 @@
++// @vitest-environment node
++import { createHash } from "node:crypto";
++import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
++import {
++  currentOfficialSourceAttemptRemainingMs,
++  fetchWithOfficialTimeout,
++  OfficialHttpTimeoutError,
++  OfficialSourceAttemptTimeoutError,
++  runWithOfficialSourceAttemptTimeout,
++  runWithOfficialSourceCancellation,
++  settledOfficialHttpTimeoutEvidence
++} from "../../src/crawler/officialHttpRuntimeLimits";
++
++const REQUEST_TIMEOUT_MS = 45_000;
++const SOURCE_TIMEOUT_MS = 20 * 60 * 1_000;
++const START_AT = Date.parse("2026-10-07T21:30:00.000Z");
++// Deliberately retain case, explicit port, dot segment, escaped query and fragment.
++// Evidence must bind the full input string, not a normalized URL or endpoint hash.
++const REQUEST_URL = "https://Jobs.Example.test:443/search/../jobs?token=fixture-secret&lang=zh%2Fcn#snapshot";
++const isoAfter = (milliseconds: number) => new Date(START_AT + milliseconds).toISOString();
++
++type Outcome<T> =
++  | { state: "pending" }
++  | { state: "fulfilled"; value: T }
++  | { state: "rejected"; error: unknown };
++
++function observe<T>(promise: Promise<T>) {
++  let outcome: Outcome<T> = { state: "pending" };
++  // Attach both handlers before advancing time, including to expected failures.
++  const result = promise.then(
++    value => { outcome = { state: "fulfilled", value }; return outcome; },
++    error => { outcome = { state: "rejected", error }; return outcome; }
++  );
++  return { result, outcome: () => outcome };
++}
++
++async function rejected<T>(watched: ReturnType<typeof observe<T>>): Promise<unknown> {
++  const outcome = await watched.result;
++  expect(outcome.state).toBe("rejected");
++  if (outcome.state !== "rejected") throw new Error("Expected a rejected fixture request");
++  return outcome.error;
++}
++
++function controlledFetch() {
++  let requestSignal: AbortSignal | undefined;
++  let resolveFetch: ((response: Response) => void) | undefined;
++  let rejectFetch: ((error: unknown) => void) | undefined;
++  const fetchImpl = vi.fn<typeof fetch>((_input, init) => {
++    requestSignal = init?.signal ?? undefined;
++    return new Promise<Response>((resolve, reject) => {
++      resolveFetch = resolve;
++      rejectFetch = reject;
++    });
++  });
++  return {
++    fetchImpl,
++    signal: () => {
++      if (!requestSignal) throw new Error("The fixture fetch did not receive an abort signal");
++      return requestSignal;
++    },
++    resolve: (response: Response) => {
++      if (!resolveFetch) throw new Error("The fixture fetch has not started");
++      resolveFetch(response);
++    },
++    reject: (error: unknown) => {
++      if (!rejectFetch) throw new Error("The fixture fetch has not started");
++      rejectFetch(error);
++    }
++  };
++}
++
++function retainedRequest(fetchImpl: typeof fetch, init: RequestInit = {}) {
++  return fetchWithOfficialTimeout(REQUEST_URL, init, {
++    fetchImpl,
++    timeoutMs: REQUEST_TIMEOUT_MS,
++    retainSettledRequestTimeout: true
++  });
++}
++
++beforeEach(() => {
++  vi.useFakeTimers();
++  vi.setSystemTime(START_AT);
++  vi.stubEnv("P0_OFFICIAL_HTTP_DIAGNOSTICS_PATH", "");
++  // Native AbortSignal.timeout uses Node's real clock. Keep every deadline in
++  // these tests on the same synthetic clock, without making a network request.
++  vi.spyOn(AbortSignal, "timeout").mockImplementation(milliseconds => {
++    const controller = new AbortController();
++    setTimeout(() => controller.abort(new DOMException("Synthetic request deadline", "TimeoutError")), milliseconds);
++    return controller.signal;
++  });
++});
++
++afterEach(() => {
++  vi.clearAllTimers();
++  vi.useRealTimers();
++  vi.restoreAllMocks();
++  vi.unstubAllEnvs();
++});
++
++describe("settled official HTTP request timeout evidence (offline)", () => {
++  it("leaves the default path bounded by 45 seconds even if fetch ignores abort", async () => {
++    const pending = controlledFetch();
++    const watched = observe(runWithOfficialSourceAttemptTimeout(() => fetchWithOfficialTimeout(REQUEST_URL, {}, {
++      fetchImpl: pending.fetchImpl, timeoutMs: REQUEST_TIMEOUT_MS
++    }), SOURCE_TIMEOUT_MS));
++
++    await vi.advanceTimersByTimeAsync(REQUEST_TIMEOUT_MS - 1);
++    expect(watched.outcome().state).toBe("pending");
++    await vi.advanceTimersByTimeAsync(1);
++    const error = await rejected(watched);
++    expect(error).toBeInstanceOf(OfficialHttpTimeoutError);
++    expect(settledOfficialHttpTimeoutEvidence(error)).toBeUndefined();
++    expect(pending.signal().aborted).toBe(true);
++    expect(pending.fetchImpl).toHaveBeenCalledOnce();
++    // A later transport settlement cannot retroactively authenticate the error.
++    pending.reject(pending.signal().reason);
++    await vi.advanceTimersByTimeAsync(0);
++    expect(settledOfficialHttpTimeoutEvidence(error)).toBeUndefined();
++  });
++
++  it("does not return evidence at the timer and waits for matching fetch rejection", async () => {
++    const pending = controlledFetch();
++    const watched = observe(runWithOfficialSourceAttemptTimeout(
++      () => retainedRequest(pending.fetchImpl), SOURCE_TIMEOUT_MS));
++
++    await vi.advanceTimersByTimeAsync(REQUEST_TIMEOUT_MS);
++    expect(pending.signal().aborted).toBe(true);
++    expect(watched.outcome().state).toBe("pending");
++    expect(settledOfficialHttpTimeoutEvidence(pending.signal().reason)).toBeUndefined();
++    await vi.advanceTimersByTimeAsync(5_000);
++    expect(watched.outcome().state).toBe("pending");
++    pending.reject(pending.signal().reason);
++
++    const error = await rejected(watched);
++    expect(error).toBeInstanceOf(OfficialHttpTimeoutError);
++    expect(settledOfficialHttpTimeoutEvidence(error)).toEqual({
++      schemaVersion: 1,
++      kind: "NO_RESPONSE_REQUEST_ERROR",
++      code: "OFFICIAL_HTTP_TIMEOUT",
++      requestedUrlSha256: createHash("sha256").update(REQUEST_URL).digest("hex"),
++      requestHeadersSha256: createHash("sha256").update("[]").digest("hex"),
++      method: "GET",
++      requestStartedAt: isoAfter(0),
++      timeoutAt: isoAfter(REQUEST_TIMEOUT_MS),
++      settledAt: isoAfter(REQUEST_TIMEOUT_MS + 5_000),
++      timeoutMs: REQUEST_TIMEOUT_MS,
++      responseReceived: false,
++      settlement: "FETCH_REJECTED",
++      cause: "REQUEST_TIMER",
++      sourceDeadlineAt: isoAfter(SOURCE_TIMEOUT_MS)
++    });
++    expect(JSON.stringify(settledOfficialHttpTimeoutEvidence(error))).not.toContain("fixture-secret");
++    expect(pending.fetchImpl).toHaveBeenCalledOnce();
++  });
++
++  it("can retain a synchronous abort-driven rejection without a second fetch", async () => {
++    const fetchImpl = vi.fn<typeof fetch>((_input, init) => new Promise<Response>((_resolve, reject) => {
++      init!.signal!.addEventListener("abort", () => reject(init!.signal!.reason), { once: true });
++    }));
++    const watched = observe(runWithOfficialSourceAttemptTimeout(() => retainedRequest(fetchImpl), SOURCE_TIMEOUT_MS));
++    await vi.advanceTimersByTimeAsync(REQUEST_TIMEOUT_MS);
++    const receipt = settledOfficialHttpTimeoutEvidence(await rejected(watched));
++    expect(receipt).toMatchObject({ timeoutAt: isoAfter(REQUEST_TIMEOUT_MS), settledAt: isoAfter(REQUEST_TIMEOUT_MS),
++      sourceDeadlineAt: isoAfter(SOURCE_TIMEOUT_MS), responseReceived: false, cause: "REQUEST_TIMER" });
++    expect(fetchImpl).toHaveBeenCalledOnce();
++  });
++
++  it("keeps an abort-ignoring fetch pending only until the original 20-minute source deadline", async () => {
++    const pending = controlledFetch();
++    let requestOutcome: ReturnType<typeof observe<Response>> | undefined;
++    const watched = observe(runWithOfficialSourceAttemptTimeout(() => {
++      expect(currentOfficialSourceAttemptRemainingMs()).toBe(SOURCE_TIMEOUT_MS);
++      const request = retainedRequest(pending.fetchImpl);
++      requestOutcome = observe(request);
++      return request;
++    }, SOURCE_TIMEOUT_MS));
++
++    await vi.advanceTimersByTimeAsync(REQUEST_TIMEOUT_MS);
++    expect(watched.outcome().state).toBe("pending");
++    expect(requestOutcome!.outcome().state).toBe("pending");
++    await vi.advanceTimersByTimeAsync(SOURCE_TIMEOUT_MS - REQUEST_TIMEOUT_MS - 1);
++    expect(watched.outcome().state).toBe("pending");
++    await vi.advanceTimersByTimeAsync(1);
++    const error = await rejected(watched);
++    expect(error).toBeInstanceOf(OfficialSourceAttemptTimeoutError);
++    expect(settledOfficialHttpTimeoutEvidence(error)).toBeUndefined();
++    expect(settledOfficialHttpTimeoutEvidence(await rejected(requestOutcome!))).toBeUndefined();
++    expect(pending.fetchImpl).toHaveBeenCalledOnce();
++    // Release the fixture after cancellation. No second operation may start.
++    pending.reject(pending.signal().reason);
++    await vi.advanceTimersByTimeAsync(0);
++    expect(pending.fetchImpl).toHaveBeenCalledOnce();
++  });
++
++  it("uses the earlier nested source deadline instead of extending the original budget", async () => {
++    const pending = controlledFetch();
++    const watched = observe(runWithOfficialSourceAttemptTimeout(() => runWithOfficialSourceAttemptTimeout(
++      () => retainedRequest(pending.fetchImpl), SOURCE_TIMEOUT_MS), 90_000));
++    await vi.advanceTimersByTimeAsync(50_000);
++    pending.reject(pending.signal().reason);
++    expect(settledOfficialHttpTimeoutEvidence(await rejected(watched))).toMatchObject({
++      timeoutAt: isoAfter(REQUEST_TIMEOUT_MS), settledAt: isoAfter(50_000), sourceDeadlineAt: isoAfter(90_000)
++    });
++  });
++
++  it("does not issue a fetch for an already-aborted caller", async () => {
++    const pending = controlledFetch(), caller = new AbortController();
++    const reason = new Error("caller already cancelled");
++    caller.abort(reason);
++    const watched = observe(runWithOfficialSourceAttemptTimeout(
++      () => retainedRequest(pending.fetchImpl, { signal: caller.signal }), SOURCE_TIMEOUT_MS));
++    expect(await rejected(watched)).toBe(reason);
++    expect(settledOfficialHttpTimeoutEvidence(reason)).toBeUndefined();
++    expect(pending.fetchImpl).not.toHaveBeenCalled();
++  });
++
++  it.each(["caller", "source"] as const)("lets %s cancellation end settlement without waiting for fetch", async owner => {
++    const pending = controlledFetch(), cancellation = new AbortController();
++    const reason = new Error(`${owner} cancelled during transport settlement`);
++    const watched = observe(runWithOfficialSourceAttemptTimeout(() => owner === "source"
++      ? runWithOfficialSourceCancellation(cancellation.signal, () => retainedRequest(pending.fetchImpl))
++      : retainedRequest(pending.fetchImpl, { signal: cancellation.signal }), SOURCE_TIMEOUT_MS));
++    await vi.advanceTimersByTimeAsync(REQUEST_TIMEOUT_MS + 5_000);
++    expect(watched.outcome().state).toBe("pending");
++    cancellation.abort(reason);
++    expect(await rejected(watched)).toBe(reason);
++    expect(settledOfficialHttpTimeoutEvidence(reason)).toBeUndefined();
++    pending.reject(pending.signal().reason);
++    await vi.advanceTimersByTimeAsync(0);
++    expect(pending.fetchImpl).toHaveBeenCalledOnce();
++  });
++
++  it("does not accept a Response that arrives after the request timer", async () => {
++    const pending = controlledFetch();
++    const consumeResponse = vi.fn(async (response: Response) => response.text());
++    const watched = observe(runWithOfficialSourceAttemptTimeout(() => fetchWithOfficialTimeout(REQUEST_URL, {}, {
++      fetchImpl: pending.fetchImpl, timeoutMs: REQUEST_TIMEOUT_MS, retainSettledRequestTimeout: true, consumeResponse
++    }), SOURCE_TIMEOUT_MS));
++    await vi.advanceTimersByTimeAsync(REQUEST_TIMEOUT_MS + 2_000);
++    expect(watched.outcome().state).toBe("pending");
++    pending.resolve(new Response("late response", { status: 200 }));
++    const error = await rejected(watched);
++    expect(error).toBeInstanceOf(OfficialHttpTimeoutError);
++    expect(settledOfficialHttpTimeoutEvidence(error)).toBeUndefined();
++    expect(consumeResponse).not.toHaveBeenCalled();
++    expect(pending.fetchImpl).toHaveBeenCalledOnce();
++  });
++
++  it("cannot create request-settlement evidence from a response body timeout", async () => {
++    const consumeResponse = vi.fn((_response: Response) => new Promise<string>(() => undefined));
++    const fetchImpl = vi.fn<typeof fetch>(async () => new Response("headers have arrived"));
++    const watched = observe(runWithOfficialSourceAttemptTimeout(() => fetchWithOfficialTimeout(REQUEST_URL, {}, {
++      fetchImpl, timeoutMs: REQUEST_TIMEOUT_MS, retainSettledRequestTimeout: true, consumeResponse
++    }), SOURCE_TIMEOUT_MS));
++    await vi.advanceTimersByTimeAsync(0);
++    expect(consumeResponse).toHaveBeenCalledOnce();
++    await vi.advanceTimersByTimeAsync(REQUEST_TIMEOUT_MS);
++    const error = await rejected(watched);
++    expect(error).toBeInstanceOf(OfficialHttpTimeoutError);
++    expect(settledOfficialHttpTimeoutEvidence(error)).toBeUndefined();
++    expect(fetchImpl).toHaveBeenCalledOnce();
++  });
++
++  it("preserves an ordinary transport rejection before the request deadline", async () => {
++    const pending = controlledFetch(), error = new TypeError("synthetic network failure");
++    const watched = observe(runWithOfficialSourceAttemptTimeout(() => retainedRequest(pending.fetchImpl), SOURCE_TIMEOUT_MS));
++    await vi.advanceTimersByTimeAsync(1_000);
++    pending.reject(error);
++    expect(await rejected(watched)).toBe(error);
++    expect(settledOfficialHttpTimeoutEvidence(error)).toBeUndefined();
++    expect(pending.signal().aborted).toBe(false);
++  });
++
++  it.each([
++    ["network error", () => new TypeError("fetch failed for another reason")],
++    ["different TimeoutError object", () => new DOMException("Synthetic request deadline", "TimeoutError")],
++    ["ordinary HTTP timeout error", () => new OfficialHttpTimeoutError()],
++    ["code-only timeout object", () => ({ code: "OFFICIAL_HTTP_TIMEOUT" })]
++  ] as const)("does not authenticate a %s merely because the request timer has fired", async (_name, makeError) => {
++    const pending = controlledFetch();
++    const watched = observe(runWithOfficialSourceAttemptTimeout(() => retainedRequest(pending.fetchImpl), SOURCE_TIMEOUT_MS));
++    await vi.advanceTimersByTimeAsync(REQUEST_TIMEOUT_MS + 1);
++    const error = makeError();
++    expect(error).not.toBe(pending.signal().reason);
++    pending.reject(error);
++    expect(settledOfficialHttpTimeoutEvidence(await rejected(watched))).toBeUndefined();
++    expect(settledOfficialHttpTimeoutEvidence(error)).toBeUndefined();
++    expect(pending.fetchImpl).toHaveBeenCalledOnce();
++  });
++
++  it("does not authenticate a request when source cancellation wins at the same timer boundary", async () => {
++    const pending = controlledFetch(), owner = new AbortController();
++    const sourceReason = new Error("source cancellation at request deadline");
++    // Register first so the source wins even though both timers share a timestamp.
++    setTimeout(() => owner.abort(sourceReason), REQUEST_TIMEOUT_MS);
++    const watched = observe(runWithOfficialSourceAttemptTimeout(() => runWithOfficialSourceCancellation(owner.signal,
++      () => retainedRequest(pending.fetchImpl)), SOURCE_TIMEOUT_MS));
++    await vi.advanceTimersByTimeAsync(REQUEST_TIMEOUT_MS);
++    expect(await rejected(watched)).toBe(sourceReason);
++    expect(pending.signal().reason).toBe(sourceReason);
++    pending.reject(sourceReason);
++    await vi.advanceTimersByTimeAsync(0);
++    expect(settledOfficialHttpTimeoutEvidence(sourceReason)).toBeUndefined();
++  });
++
++  it("cannot authenticate a matching rejection that occurs after the source deadline", async () => {
++    const pending = controlledFetch();
++    const watched = observe(runWithOfficialSourceAttemptTimeout(() => retainedRequest(pending.fetchImpl), 50_000));
++    await vi.advanceTimersByTimeAsync(50_000);
++    const error = await rejected(watched);
++    expect(error).toBeInstanceOf(OfficialSourceAttemptTimeoutError);
++    pending.reject(pending.signal().reason);
++    await vi.advanceTimersByTimeAsync(1);
++    expect(settledOfficialHttpTimeoutEvidence(error)).toBeUndefined();
++  });
++
++  it("does not retain evidence at the source deadline even before its abort callback runs", async () => {
++    const pending = controlledFetch();
++    const watched = observe(runWithOfficialSourceAttemptTimeout(() => retainedRequest(pending.fetchImpl), SOURCE_TIMEOUT_MS));
++    await vi.advanceTimersByTimeAsync(REQUEST_TIMEOUT_MS);
++    // Only the wall clock moves. The source's synthetic timer is still pending.
++    vi.setSystemTime(START_AT + SOURCE_TIMEOUT_MS);
++    pending.reject(pending.signal().reason);
++    expect(settledOfficialHttpTimeoutEvidence(await rejected(watched))).toBeUndefined();
++  });
++
++  it("keeps the original Response result for successful opted-in GET requests", async () => {
++    const response = new Response("original response", { status: 200, headers: { "x-fixture": "value" } });
++    const fetchImpl = vi.fn<typeof fetch>(async () => response);
++    await expect(runWithOfficialSourceAttemptTimeout(() => retainedRequest(fetchImpl), SOURCE_TIMEOUT_MS))
++      .resolves.toBe(response);
++    expect(response.headers.get("x-fixture")).toBe("value");
++    expect(await response.text()).toBe("original response");
++    expect(settledOfficialHttpTimeoutEvidence(response)).toBeUndefined();
++    expect(fetchImpl).toHaveBeenCalledOnce();
++  });
++
++  it.each([
++    ["HEAD", { method: "HEAD" }, REQUEST_TIMEOUT_MS],
++    ["POST", { method: "POST" }, REQUEST_TIMEOUT_MS],
++    ["GET with a body", { method: "GET", body: "fixture body" }, REQUEST_TIMEOUT_MS],
++    ["GET with an empty body", { method: "GET", body: "" }, REQUEST_TIMEOUT_MS],
++    ["different request timeout", { method: "GET" }, 30_000]
++  ] satisfies [string, RequestInit, number][])("does not retain evidence for opt-in %s", async (_name, init, timeoutMs) => {
++    const pending = controlledFetch();
++    const watched = observe(runWithOfficialSourceAttemptTimeout(() => fetchWithOfficialTimeout(REQUEST_URL, init, {
++      fetchImpl: pending.fetchImpl, timeoutMs, retainSettledRequestTimeout: true
++    }), SOURCE_TIMEOUT_MS));
++    await vi.advanceTimersByTimeAsync(timeoutMs);
++    expect(watched.outcome().state).toBe("rejected");
++    if (pending.fetchImpl.mock.calls.length > 0) pending.reject(pending.signal().reason);
++    expect(settledOfficialHttpTimeoutEvidence(await rejected(watched))).toBeUndefined();
++  });
++
++  it.each(["no source context", "cancellation-only source context"] as const)(
++    "does not enter unbounded settlement waiting with %s", async context => {
++      const pending = controlledFetch(), cancellation = new AbortController();
++      const watched = observe(context === "no source context"
++        ? retainedRequest(pending.fetchImpl)
++        : runWithOfficialSourceCancellation(cancellation.signal, () => retainedRequest(pending.fetchImpl)));
++      await vi.advanceTimersByTimeAsync(REQUEST_TIMEOUT_MS);
++      expect(watched.outcome().state).toBe("rejected");
++      const error = await rejected(watched);
++      expect(settledOfficialHttpTimeoutEvidence(error)).toBeUndefined();
++      if (pending.fetchImpl.mock.calls.length > 0) pending.reject(pending.signal().reason);
++    }
++  );
++
++  it("does not retain evidence for URL or Request inputs outside the narrow string-GET path", async () => {
++    for (const input of [
++      new URL(REQUEST_URL),
++      new Request(REQUEST_URL),
++      new Request(REQUEST_URL, { method: "POST", body: "fixture body" })
++    ]) {
++      const pending = controlledFetch();
++      const watched = observe(runWithOfficialSourceAttemptTimeout(() => fetchWithOfficialTimeout(input, {}, {
++        fetchImpl: pending.fetchImpl, timeoutMs: REQUEST_TIMEOUT_MS, retainSettledRequestTimeout: true
++      }), SOURCE_TIMEOUT_MS));
++      await vi.advanceTimersByTimeAsync(REQUEST_TIMEOUT_MS);
++      expect(watched.outcome().state).toBe("rejected");
++      expect(settledOfficialHttpTimeoutEvidence(await rejected(watched))).toBeUndefined();
++      pending.reject(pending.signal().reason);
++    }
++  });
++
++  it("records the timer callback's actual timestamp when the timer is delayed", async () => {
++    const pending = controlledFetch();
++    const watched = observe(runWithOfficialSourceAttemptTimeout(() => retainedRequest(pending.fetchImpl), SOURCE_TIMEOUT_MS));
++    await vi.advanceTimersByTimeAsync(REQUEST_TIMEOUT_MS - 1);
++    // Model clock advancement while the callback cannot run, then allow it to fire.
++    vi.setSystemTime(START_AT + 60_000);
++    await vi.advanceTimersByTimeAsync(1);
++    expect(watched.outcome().state).toBe("pending");
++    pending.reject(pending.signal().reason);
++    expect(settledOfficialHttpTimeoutEvidence(await rejected(watched))).toMatchObject({
++      requestStartedAt: isoAfter(0), timeoutAt: isoAfter(60_001), settledAt: isoAfter(60_001),
++      sourceDeadlineAt: isoAfter(SOURCE_TIMEOUT_MS)
++    });
++  });
++
++  it("binds evidence to the request-start header snapshot rather than later caller mutations", async () => {
++    const pending = controlledFetch();
++    const headers = new Headers({ "X-Fixture-Token": "original-private-value", Accept: "application/json" });
++    const initialHeaderEntries = [...headers.entries()];
++    const expectedHash = createHash("sha256").update(JSON.stringify(initialHeaderEntries)).digest("hex");
++    const watched = observe(runWithOfficialSourceAttemptTimeout(
++      () => retainedRequest(pending.fetchImpl, { method: "GET", headers }), SOURCE_TIMEOUT_MS));
++    await vi.advanceTimersByTimeAsync(10_000);
++    headers.set("X-Fixture-Token", "changed-private-value");
++    await vi.advanceTimersByTimeAsync(REQUEST_TIMEOUT_MS - 10_000);
++    pending.reject(pending.signal().reason);
++    const receipt = settledOfficialHttpTimeoutEvidence(await rejected(watched));
++    expect(receipt).toMatchObject({ requestHeadersSha256: expectedHash });
++    expect(JSON.stringify(receipt)).not.toMatch(/original-private-value|changed-private-value/u);
++  });
++
++  it("rejects forged, copied and wrapped timeout errors as settlement evidence", async () => {
++    const pending = controlledFetch();
++    const watched = observe(runWithOfficialSourceAttemptTimeout(() => retainedRequest(pending.fetchImpl), SOURCE_TIMEOUT_MS));
++    await vi.advanceTimersByTimeAsync(REQUEST_TIMEOUT_MS);
++    pending.reject(pending.signal().reason);
++    const original = await rejected(watched);
++    const receipt = settledOfficialHttpTimeoutEvidence(original);
++    expect(receipt).toBeDefined();
++    for (const error of [
++      new OfficialHttpTimeoutError(),
++      { code: "OFFICIAL_HTTP_TIMEOUT" },
++      { ...Object(original) },
++      Object.assign(new OfficialHttpTimeoutError(), { evidence: receipt }),
++      Object.create(Object(original)),
++      new Error("wrapped timeout", { cause: original }),
++      null, undefined, "OFFICIAL_HTTP_TIMEOUT", 45_000
++    ]) expect(settledOfficialHttpTimeoutEvidence(error)).toBeUndefined();
++    expect(settledOfficialHttpTimeoutEvidence(original)).toEqual(receipt);
++  });
++});

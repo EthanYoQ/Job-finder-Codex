@@ -1,0 +1,159 @@
+{
+  "classification": "SOURCE_DELTA_REQUIRES_EXACT_EXISTING_BASELINE",
+  "baseCommit": "e815a79bc8478e5400e0b8b66ddf0aa3b285d50f",
+  "baseGitTree": "9585d7d7a9f84e0af7217e1d83abf14ae5072ce6",
+  "candidateCommit": "e56e5c52f418376025c657ce35e62c0935c5794e",
+  "candidateGitTree": "8dd781910a90753bf1019edfc83701e187c1c53a",
+  "patchSha256": "40ba623b0cd2d9424b0ea63ab359df2b40c8892b7775cd0825439d93df060404",
+  "files": [
+    {
+      "path": "src/crawler/novoChinaQuality.ts",
+      "bytes": 24373,
+      "sha256": "952d1bf3845f19494d4d4e82e618b14e4444b6340f9a3e3f7e68d2a04576768f",
+      "before": {
+        "sha256": "73eba515bbc55ce2e6ce23f0100f90e8d51bdcf1f28588f7c98f1600d302bfb9",
+        "bytes": 22568,
+        "gitBlob": "ae285d4282eab93371a11f901e86cdeb1acb927d"
+      },
+      "afterGitBlob": "8e0cd3cbfdb57311327df812885cfb08d015dc6e"
+    },
+    {
+      "path": "src/crawler/novoNativeTimeout.ts",
+      "bytes": 3604,
+      "sha256": "015afa237e95fc21f7d53f5a4d93428eeabe0d8e7523ffae734061095dfafe6c",
+      "before": null,
+      "afterGitBlob": "23382748a4e5494d197b513878d9466b92f977e9"
+    },
+    {
+      "path": "src/crawler/officialHttpRequestDiagnostics.ts",
+      "bytes": 5814,
+      "sha256": "a01e844f021d4b623c09c029311fd3ee15c77760b5c7d0941c8e3ed10963cc28",
+      "before": {
+        "sha256": "8a371038039d1d9090d48bfc1802289a5395b900edb315b7db44365e8c3c443a",
+        "bytes": 5711,
+        "gitBlob": "d25b38c2983c337a267e3eddc9bf087306d577dc"
+      },
+      "afterGitBlob": "412ec3a51f9b799340fd67e827a4d9ae24bc7b03"
+    },
+    {
+      "path": "src/crawler/officialHttpRuntimeLimits.ts",
+      "bytes": 15111,
+      "sha256": "c1f27c10f704b101afadb842182142ede01f8804a8c19b3e990460f9fc2946a3",
+      "before": {
+        "sha256": "446e8bc7d142524502df73f72e30918695b6e70d298d6e53b9e7e0383ea8874d",
+        "bytes": 10705,
+        "gitBlob": "e303e945645bef1f26fab9492c647f12dea92620"
+      },
+      "afterGitBlob": "090e0b1f9122d72c2f6e81e24bd977539e4e1bee"
+    },
+    {
+      "path": "src/crawler/officialJsonSourceFetch.ts",
+      "bytes": 408435,
+      "sha256": "b05cf9b5d5d1588bcfc931ad0b22f4abb3f1a03cbb4482e30fcc973bc1431382",
+      "before": {
+        "sha256": "5271a3378b366498c55822cf3dc988ee24d5715e7daf9ae4b7c567763253f098",
+        "bytes": 406588,
+        "gitBlob": "8ae62653ae10b217f01de7057677ea2dc9fb3c8f"
+      },
+      "afterGitBlob": "f307e0f787747a5fe00547c1ba7452d0b2662bc4"
+    },
+    {
+      "path": "tests/crawler/novoTimeoutAdmission.test.ts",
+      "bytes": 23467,
+      "sha256": "8a1dbb120a9c586e8cc63f45110b6363fe84fde420c4f4600446eaf132827188",
+      "before": null,
+      "afterGitBlob": "48a966ee087684dfb059c0a55d7817b6d366e971"
+    },
+    {
+      "path": "tests/crawler/officialHttpRequestDiagnostics.test.ts",
+      "bytes": 6206,
+      "sha256": "611078b690f66fc9b8948104815dd49daa5e480e45233f4635bcd23608b5b17e",
+      "before": {
+        "sha256": "c904c696da10a1d05101721bcc319fe2461d8a3fd55f178bbf05e44286f2846b",
+        "bytes": 5122,
+        "gitBlob": "737f1e228e6d6c4a6896db40b174a599e4a9ed73"
+      },
+      "afterGitBlob": "b63f3474768be04b453803ad8b5758a44bdc4e99"
+    },
+    {
+      "path": "tests/crawler/officialHttpSettledTimeout.test.ts",
+      "bytes": 22599,
+      "sha256": "ebaaefc8593c82da44db995dbbee34ff15a75fba7a3d84859489c16fda138ea8",
+      "before": null,
+      "afterGitBlob": "e3e5c59ee786106fceb29549c73cba659ee6e949"
+    }
+  ],
+  "unchangedContracts": [
+    {
+      "path": "scripts/p0-cloud-source-pilot.ts",
+      "sha256": "e4299018aa4b17cd7d0ff756ea45b779479708e02c400be9a1c8ffc0c2c1abaa",
+      "bytes": 22138,
+      "gitBlob": "72af4c0e7578c089f2aca135fafb2c653f8310f3"
+    },
+    {
+      "path": "scripts/p0-cloud-portable-source-pilot.ts",
+      "sha256": "a62a002c67716551ed23af7263b08a3d2d6486efcf31d9b4889b7042731fe98f",
+      "bytes": 18211,
+      "gitBlob": "c9679d1066ed9cb1d15b158a95a4b3873cc8a92c"
+    },
+    {
+      "path": "src/crawler/sourceFetchRouter.ts",
+      "sha256": "87a1067e19d2e4a39a5a601f54700d19cafb31948cebb1d8e3c7edd167cb5550",
+      "bytes": 4232,
+      "gitBlob": "6ede39496581db30c8f536f7d92863a0f4132468"
+    },
+    {
+      "path": "src/crawler/sourceQualityAdmission.ts",
+      "sha256": "f6d2381fd0eabedcdf49c8faf32545b1f301522e1cab7d8f8c299212cfe94866",
+      "bytes": 37595,
+      "gitBlob": "5099d42827fe10d46570ef9660a1813a98dd1123"
+    },
+    {
+      "path": "src/crawler/sourceFetchEvidence.ts",
+      "sha256": "a0f97abe48b20a0383e6754c863c4dc3672f0047acc122fac47ec7e18cce2d96",
+      "bytes": 20717,
+      "gitBlob": "603c3bef319933cced1fb80b7cb2a96d91302faa"
+    },
+    {
+      "path": "src/crawler/sourcePlan.ts",
+      "sha256": "1f1345f74ad41adaa0778eaf301f6b1c38ca68f091d81b116556771d18c71987",
+      "bytes": 23620,
+      "gitBlob": "359fbf499c84f2b7d1f095dd81dd9da2bae5a6b1"
+    },
+    {
+      "path": "package.json",
+      "sha256": "6a08adb18651704b67541c9cc6593de3f232909b39aedf6902d7481f8e06c134",
+      "bytes": 4540,
+      "gitBlob": "e162aa19e24742520d75dcee5a1289a5f844abb5"
+    },
+    {
+      "path": "package-lock.json",
+      "sha256": "3f45f2db3f910be83bb57630db121a175b0375fe216a2fa110cab99ec149fae9",
+      "bytes": 162783,
+      "gitBlob": "37cd8aafc33156d537f55fdf2891f6205dba9918"
+    }
+  ],
+  "baselineFixtures": [
+    {
+      "path": "tests/fixtures/novo-nordisk/retained-china-list-20261002.json",
+      "bytes": 21691,
+      "sha256": "dbcb26cdb6364e210447c946610dbf51a33680efc5d7a9e6c823c0b368a9c9f3",
+      "gitBlob": "accf21885e1e40f0f527b4a2964678e87a024af6",
+      "includedInBackup": false,
+      "reason": "Already present in exact pinned baseline; raw retained web evidence is deliberately excluded, including CSRF-bearing HTML in compressed fixture."
+    },
+    {
+      "path": "tests/fixtures/novo-nordisk/retained-native-applications-20261002.json.gz",
+      "bytes": 651386,
+      "sha256": "1e0603221b85933f9054b93d502580423bf6c354a710b9503e0fc6c6efdc1de5",
+      "gitBlob": "d1a67dfec2b4ea7096bebb6a73ec5a7082c5fbb4",
+      "includedInBackup": false,
+      "reason": "Already present in exact pinned baseline; raw retained web evidence is deliberately excluded, including CSRF-bearing HTML in compressed fixture."
+    }
+  ],
+  "baseSourceIncluded": false,
+  "rawFixtureBytesIncluded": false,
+  "runtimeIncluded": false,
+  "reviewedSourceFreezeSha256": "3c09384f7f5d6f6ab61926252367f093661ad4d833d55c5a9b89b55df4f0277f",
+  "reviewReportSha256": "eb124637e383cc439db53efa85ffce3e5fdb1087a61d587b78744547497b03ca"
+}
