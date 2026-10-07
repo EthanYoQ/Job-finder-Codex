@@ -85,9 +85,9 @@ const CITY_PROVINCES = new Map<string, string>([
 ]);
 
 
-// Only this reviewed district tuple is currently needed by the retained synthetic
-// full-location regression. Unlisted district tails stay UNKNOWN.
-const DISTRICTS = new Map([["成都", new Set(["青羊区"])]]);
+// Exact Chengdu district tuples; positive province/city identity remains mandatory.
+// Unlisted district tails and nationwide-only labels stay UNKNOWN.
+const DISTRICTS = new Map([["成都", new Set(["青羊区", "双流区"])]]);
 const OUTSIDE = new Set([
   "香港", "香港特别行政区", "香港特別行政區", "hong kong", "hong kong sar", "hong kong sar china",
   "澳门", "澳門", "澳门特别行政区", "澳門特別行政區", "macau", "macao",
@@ -128,7 +128,10 @@ function validDetailContext(url: URL, pageSequence: number): boolean {
   const canonical = (params: URLSearchParams) => JSON.stringify([...params].sort(([a, av], [b, bv]) => a.localeCompare(b) || av.localeCompare(bv)));
   const entry = new URL(KELUN_ENTRY).searchParams;
   const page = new URLSearchParams({p: "1^2", PageIndex: String(pageSequence + 1)});
-  return canonical(url.searchParams) === canonical(entry) || pageSequence > 0 && canonical(url.searchParams) === canonical(page);
+  const fullPage = new URLSearchParams(entry);
+  fullPage.set("PageIndex", String(pageSequence + 1));
+  return canonical(url.searchParams) === canonical(entry) || pageSequence > 0 &&
+    (canonical(url.searchParams) === canonical(page) || canonical(url.searchParams) === canonical(fullPage));
 }
 export interface KelunScopeRow {
   pageSequence: number; recordIndex: number; artifactLogicalKey: string;

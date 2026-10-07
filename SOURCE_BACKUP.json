@@ -1,117 +1,41 @@
 {
   "schema": "safe-source-delta-v1",
-  "sourceCommit": "6c6f4e3f4f2d80bbcc8639df5016aad102844be4",
-  "actualParent": "0edb12df2ea9b466b25eb388eff1f230636bbd7e",
-  "preparationManifestHistoricalBase": "28402a299bb04cbf5873da66c2fe8ca76827c0d1",
-  "originalPreparationPatchSha256": "bc3e537e2cc4c8c7d38252473ff95bd934109560df15e64f59c0f1e269f77045",
-  "exactParentDiffSha256": "912eab83f3359573490e5605324a4d4f5fb8e4c0da25afd829a5edc6b2503901",
-  "dependencies": [
-    {
-      "commit": "0c4586b82690203b93475551bd3409e2fbcb1574",
-      "prefix": "",
-      "role": "filtered producer baseline"
-    },
-    {
-      "commit": "368733577fe5a3d395393c6464fc23eb3fa99c80",
-      "prefix": "",
-      "role": "nine deadline source changes"
-    },
-    {
-      "commit": "a47ed7feeb93e99d45633795cb5fecebc8c0818f",
-      "prefix": "producer/",
-      "role": "incremental producer source overlay; retain documented inactive Lilly migration deletion"
-    },
-    {
-      "commit": "5820ceb6f1d9b329e11f3619f7bb3156b19f7079",
-      "prefix": "producer/",
-      "role": "seven proxy and pinned Node runtime source changes"
-    },
-    {
-      "commit": "28bf063fba9622d36126f0eb4deda86395f85acc",
-      "prefix": "",
-      "role": "two document-reuse source changes"
-    }
-  ],
+  "baseSourceCommit": "6c6f4e3f4f2d80bbcc8639df5016aad102844be4",
+  "sourceCommit": null,
+  "status": "frozen intermediate source candidate; nationwide scope remains unresolved",
   "files": [
     {
       "path": "src/crawler/kelunMainlandScope.ts",
       "mode": "100644",
       "type": "blob",
-      "bytes": 16698,
-      "sha256": "22695867d3d19043efcee5595e9038dbfef7774da4d65ec778c84ca8fc00ddcd",
-      "sha": "80b435972a01ddbc827c410adcb2cd1d6da75f04"
+      "bytes": 16877,
+      "sha256": "4058ac2bf46322576c1c5ca5d40c630cee631ec06f77e6da1e91b855daaf36b5",
+      "sha": "a1f1303e12c6b88f6eaf75a7cabe8fc15fcbb165"
     },
     {
-      "path": "src/crawler/httpHtmlSourceFetch.ts",
+      "path": "tests/crawler/kelunDetailPageContext.test.ts",
       "mode": "100644",
       "type": "blob",
-      "bytes": 72264,
-      "sha256": "654ff31d14d977fc51c592e497984f80ef957f8515d53c8823252e1d9f77f436",
-      "sha": "4ea3926f2490d7310eed2042339005cb7d9181df"
-    },
-    {
-      "path": "src/crawler/strictHtmlCompletenessProof.ts",
-      "mode": "100644",
-      "type": "blob",
-      "bytes": 81903,
-      "sha256": "b89ce1acdb14803acd700681e3edb5b209e45614c8438fdf92f30ff69f7f22a3",
-      "sha": "b4b721cb2b549b47f993e83440d65150d3796e88"
-    },
-    {
-      "path": "src/crawler/runSourceCrawl.ts",
-      "mode": "100644",
-      "type": "blob",
-      "bytes": 262509,
-      "sha256": "0b2e4e1fb57e94728f919346746538b74e4ff2d5ad3f14e35388730e1e74fb2d",
-      "sha": "31da4d0547c187885872e8c2c858707d7f6afe77"
-    },
-    {
-      "path": "tests/helpers/kelunQualityFixture.ts",
-      "mode": "100644",
-      "type": "blob",
-      "bytes": 4839,
-      "sha256": "4077a82a513fe9b30ca82a58ba47c98b9c6c9d951e01b398022bf24c7a3b131c",
-      "sha": "a3e427995bbdbf56c289baa03f77acfd9bdee768"
-    },
-    {
-      "path": "tests/crawler/kelunMainlandScope.test.ts",
-      "mode": "100644",
-      "type": "blob",
-      "bytes": 16336,
-      "sha256": "7857e63c9d9d81f19820c4f06fb82daa1d91ce613f956193aa5af128550ba71d",
-      "sha": "16f0d1cbe3aec3be2ba088e1801db4e3ac49c2f7"
-    },
-    {
-      "path": "tests/crawler/kelunPortableProducer.test.ts",
-      "mode": "100644",
-      "type": "blob",
-      "bytes": 8696,
-      "sha256": "036f45a78f7091b5be85e15870094181700acc1a78db5d72003d08fb07ad50d7",
-      "sha": "b3ba62bd8060eb83be332aeaf8d0bc910a1e5ccb"
-    },
-    {
-      "path": "tests/crawler/strictHtmlCompletenessProof.test.ts",
-      "mode": "100644",
-      "type": "blob",
-      "bytes": 26273,
-      "sha256": "ac05dfbc5c032e3cbcbf66f20abc61cbef4611b526368efdd7f4289c51b60697",
-      "sha": "c020d9282ff8971cf000927a73ff223297e9c504"
+      "bytes": 4108,
+      "sha256": "231725ea280077ed94abc1b3536cb552565dafcb23830e248c7cb066142a885b",
+      "sha": "3fdb6b4ecfc3c597fff6f582354e36f6d5ab0e03"
     },
     {
       "path": "source-only.patch",
       "mode": "100644",
       "type": "blob",
-      "bytes": 54628,
-      "sha256": "912eab83f3359573490e5605324a4d4f5fb8e4c0da25afd829a5edc6b2503901",
-      "sha": "9eb3e92d3bad07e2a893bf9a39de0b224df5233c"
+      "bytes": 5870,
+      "sha256": "46ac49d3d2a68b2ca67d0a9fb038c1dd6f6b21116c7299f57890716d40490939",
+      "sha": "c97ce583f5894f981ed71f49890e63002fe94332"
     }
   ],
+  "originalSafeTarSha256": "de0ec65453098d70663f1b77c41e7d0b3341ca56d496d0e1cba3fd505fc41435",
+  "patchSha256": "46ac49d3d2a68b2ca67d0a9fb038c1dd6f6b21116c7299f57890716d40490939",
+  "requires": "exact source baseline and matching package/lockfile/physical Node dependencies",
   "excluded": [
-    "actual source bodies and job rows",
-    "runtime and registration inputs/readbacks",
-    "credentials and environment values",
-    "private diagnostics and validation reports",
-    "installed dependencies and complete Git history"
-  ],
-  "verificationScope": "fixed Git objects, static exact patch application and remote content verification only"
+    "actual captured bodies and job rows",
+    "runtime controls and registration inputs/readbacks",
+    "private diagnostics and test-result reports",
+    "credentials and installed dependencies"
+  ]
 }
