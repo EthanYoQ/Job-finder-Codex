@@ -1,31 +1,17 @@
 {
   "schemaVersion": 1,
-  "currentSource": "read-refresh-diagnostics-r2.sh",
-  "historicalSource": "read-refresh-diagnostics.sh",
+  "kind": "read-only-diagnostic-source",
+  "baselineBackup": "eb84097c185b1489ae2ab33d4463fd69fc9d1cd2",
+  "baselineSourceSHA256": "831bc8fe4101cb09af12181bf321c93d850d75614a010f284f3c9e328ee00dc9",
   "files": [
     {
-      "path": "read-refresh-diagnostics.sh",
+      "path": "read-refresh-state-0748.sh",
       "mode": "100644",
       "type": "blob",
-      "sha": "d4d3c31ba3c0672273ecd75adc2f4064c05fb5a1",
-      "sha256": "947077aa459fcbd2f8a58cf57a7f595a8d133c8f9408691daf2e680d98f418ad",
-      "bytes": 2326
-    },
-    {
-      "path": "read-refresh-diagnostics-r2.sh",
-      "mode": "100644",
-      "type": "blob",
-      "sha": "1e9c5baa3d59aaec0a4a75a7d02a89d93d8daa4d",
-      "sha256": "831bc8fe4101cb09af12181bf321c93d850d75614a010f284f3c9e328ee00dc9",
-      "bytes": 8075
+      "bytes": 8849,
+      "sha256": "266edf0a9afaf26dd8fe88d3f857b1f0ca17689a392dbe34d2e618246d69673f",
+      "sha": "da887ea69518f76a9ee2b8bf593c41c0f067e8a9"
     }
   ],
-  "exclusions": [
-    "Actual logs and log tails",
-    "PM2 process or environment outputs",
-    "Invocation, query and diagnostic receipts",
-    "Local execution reports",
-    "Credentials and environment values"
-  ],
-  "review": "Static content, exact hashes and embedded Python AST only; no source execution."
+  "review": "Exact hash, source delta and embedded Python AST inspected without execution. No actual outputs or runtime environment included."
 }

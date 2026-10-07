@@ -112,7 +112,13 @@ def read_log(role,kind,value):
  text=raw.decode('utf8','replace')
  return {'role':role,'kind':kind,'path':str(p),'fileBytes':st.st_size,'mtimeUtc':datetime.datetime.fromtimestamp(st.st_mtime,datetime.timezone.utc).isoformat(),'tailBytes':len(raw),'tailSha256':hashlib.sha256(raw).hexdigest(),'events':extract_events(text),'tailLevelKnownErrorCounts':error_counts(text),'countsAttributedToSpecificEvent':False}
 def main():
- out={'status':'READ_ONLY_REFRESH_LOG_DIAGNOSTICS_R2','at':datetime.datetime.now(datetime.timezone.utc).isoformat(),'pm2Home':str(PM2_HOME),'pm2Binary':PM2_BIN,'files':[]}
+ out={'status':'READ_ONLY_REFRESH_RESOURCE_DIAGNOSTICS_R3','at':datetime.datetime.now(datetime.timezone.utc).isoformat(),'pm2Home':str(PM2_HOME),'pm2Binary':PM2_BIN,'files':[],'roles':[]}
+ out['memAvailableKiB']=int(re.search(r'^MemAvailable:\s+(\d+) kB$',Path('/proc/meminfo').read_text(),re.M).group(1))
+ conf=Path('/etc/nginx/conf.d/job.conf');fd=secure_fd(conf)
+ try:
+  require(stat.S_ISREG(os.fstat(fd).st_mode) and os.fstat(fd).st_size<=65536,'NGINX_FILE_LIMIT');raw_conf=os.read(fd,65537)
+ finally:os.close(fd)
+ out['nginxConfigSha256']=hashlib.sha256(raw_conf).hexdigest()
  before=daemon_binding()
  binary_fd=secure_fd(PM2_BIN)
  try:require(stat.S_ISREG(os.fstat(binary_fd).st_mode),'PM2_BINARY_NOT_REGULAR')
@@ -138,6 +144,7 @@ const entry=process.argv[1];process.argv=[process.execPath,entry,'jlist'];requir
   require(len(found)==1,'PM2_ROLE_NOT_UNIQUE')
   e=found[0].get('pm2_env');require(isinstance(e,dict),'PM2_ROLE_METADATA_MISSING')
   require(e.get('pm_cwd')==str(RELEASE/subdir) and e.get('pm_exec_path')==NODE,'PM2_ROLE_BINDING_CHANGED')
+  out['roles'].append({'role':role,'status':e.get('status'),'pid':found[0].get('pid'),'cwd':e.get('pm_cwd'),'rssBytes':found[0].get('monit',{}).get('memory'),'port':str(e.get('PORT')) if str(e.get('PORT')) in ('3031','3036') else 'UNEXPECTED','heap256':e.get('NODE_OPTIONS')=='--max-old-space-size=256','heap192':e.get('NODE_OPTIONS')=='--max-old-space-size=192'})
   for kind,key in [('out','pm_out_log_path'),('error','pm_err_log_path')]:
    try:out['files'].append(read_log(role,kind,e.get(key)))
    except Refusal as error:out['files'].append({'role':role,'kind':kind,'refusalCode':str(error)})
