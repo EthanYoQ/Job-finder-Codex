@@ -1,0 +1,8 @@
+{
+  "root": "/workspace/scratch/5e9614251709/jb-incremental-proxy-runtime-20261007T0057Z/verification/kelun-reviewed-national-runtime-0853Z/hosts/kelun/host",
+  "repo": "/workspace/scratch/5e9614251709/jb-incremental-proxy-runtime-20261007T0057Z/verification/kelun-reviewed-national-runtime-0853Z/producer",
+  "node": "/workspace/scratch/5e9614251709/jb-incremental-proxy-runtime-20261007T0057Z/runtime/node-v22.23.3-linux-x64/bin/node",
+  "project": "yiopvxysxrtrnvqxwgbx",
+  "sourceId": "source-kelun-social",
+  "sourceConfigSha256": "9fe0cb0d7c308567f6010aa6181f36c595b97df739ecd528cab97070f47572cb"
+}

@@ -1,0 +1,201 @@
+diff --git a/src/crawler/kelunMainlandScope.ts b/src/crawler/kelunMainlandScope.ts
+index 80b4359..d45f01c 100644
+--- a/src/crawler/kelunMainlandScope.ts
++++ b/src/crawler/kelunMainlandScope.ts
+@@ -85,9 +85,9 @@ const CITY_PROVINCES = new Map<string, string>([
+ ]);
+ 
+ 
+-// Only this reviewed district tuple is currently needed by the retained synthetic
+-// full-location regression. Unlisted district tails stay UNKNOWN.
+-const DISTRICTS = new Map([["成都", new Set(["青羊区"])]]);
++// Exact Chengdu district tuples; positive province/city identity remains mandatory.
++// Unlisted district tails and nationwide-only labels stay UNKNOWN.
++const DISTRICTS = new Map([["成都", new Set(["青羊区", "双流区"])]]);
+ const OUTSIDE = new Set([
+   "香港", "香港特别行政区", "香港特別行政區", "hong kong", "hong kong sar", "hong kong sar china",
+   "澳门", "澳門", "澳门特别行政区", "澳門特別行政區", "macau", "macao",
+@@ -123,12 +123,30 @@ export function classifyKelunLocation(locationRaw: string): KelunScopeDecision {
+   if (alternatives.every(outsideHierarchy)) return "EXPLICIT_OUTSIDE";
+   return "UNKNOWN";
+ }
++// These three original nationwide labels were explicitly reviewed for this
++// source on 2026-10-07. This is an identity-bound exception, not a nationwide
++// location rule. A changed subject/title, ID or location needs new review.
++const REVIEWED_NATIONWIDE_TITLES = new Map([
++  ["230783266", "科伦博泰-区域市场经理（北区或南区）(J12400)"],
++  ["230690782", "科伦嘉讯-省区经理(J11794)"],
++  ["230685318", "科伦嘉讯-业务经理(J11762)"]
++]);
++function classifyKelunRowScope(sourceJobId: string, title: string, locationRaw: string): KelunScopeDecision {
++  const ordinary = classifyKelunLocation(locationRaw);
++  const reviewedTitle = REVIEWED_NATIONWIDE_TITLES.get(sourceJobId);
++  return ordinary === "UNKNOWN" && key(locationRaw) === "全国" && reviewedTitle !== undefined &&
++    key(title) === key(reviewedTitle) ? "MAINLAND" : ordinary;
++}
++
+ function validDetailContext(url: URL, pageSequence: number): boolean {
+   if (!url.search) return true;
+   const canonical = (params: URLSearchParams) => JSON.stringify([...params].sort(([a, av], [b, bv]) => a.localeCompare(b) || av.localeCompare(bv)));
+   const entry = new URL(KELUN_ENTRY).searchParams;
+   const page = new URLSearchParams({p: "1^2", PageIndex: String(pageSequence + 1)});
+-  return canonical(url.searchParams) === canonical(entry) || pageSequence > 0 && canonical(url.searchParams) === canonical(page);
++  const fullPage = new URLSearchParams(entry);
++  fullPage.set("PageIndex", String(pageSequence + 1));
++  return canonical(url.searchParams) === canonical(entry) || pageSequence > 0 &&
++    (canonical(url.searchParams) === canonical(page) || canonical(url.searchParams) === canonical(fullPage));
+ }
+ export interface KelunScopeRow {
+   pageSequence: number; recordIndex: number; artifactLogicalKey: string;
+@@ -158,7 +176,7 @@ export function inspectKelunScopeRows(plan: SourceCrawlPlan, evidence: Persisten
+       const rawHtml = $.html(element), locationRaw = clean(location.attr("title") ?? "");
+       const visible = key(location.text()), full = key(locationRaw);
+       const clipped = /(?:\.{3}|…)$/.test(visible) && full.startsWith(visible.replace(/(?:\.{3}|…)$/u, ""));
+-      const decision = visible && visible !== full && !clipped ? "UNKNOWN" : classifyKelunLocation(locationRaw);
++      const decision = visible && visible !== full && !clipped ? "UNKNOWN" : classifyKelunRowScope(match[1]!, clean(link.text()), locationRaw);
+       return { pageSequence: page.sequence, recordIndex, artifactLogicalKey: artifact.logicalKey,
+         sourceJobId: match[1]!, officialUrl: url.toString(), title: clean(link.text()), locationRaw,
+         rawHtml, rawId: `html-row:sha256:${sha256Bytes(Buffer.from(rawHtml)).sha256}`, decision };
+diff --git a/tests/crawler/kelunDetailPageContext.test.ts b/tests/crawler/kelunDetailPageContext.test.ts
+new file mode 100644
+index 0000000..3fdb6b4
+--- /dev/null
++++ b/tests/crawler/kelunDetailPageContext.test.ts
+@@ -0,0 +1,39 @@
++// @vitest-environment node
++/** Invented rows only. No fixed real capture, IDs, titles or response bodies. */
++import {describe,expect,it} from "vitest";
++import {createHttpHtmlSourceFetch} from "../../src/crawler/httpHtmlSourceFetch";
++import {buildStagedSourceCrawlPlans,sourcePlanConfigSha256} from "../../src/crawler/sourcePlan";
++import {candidateCompanies} from "../../src/data/companyRegistry";
++import {classifyKelunLocation,inspectKelunScopeRows,kelunScopeCounts,KELUN_CONFIG_SHA256} from "../../src/crawler/kelunMainlandScope";
++import {runSourceCrawl} from "../../src/crawler/runSourceCrawl";
++import {validateStrictHtmlCompletenessProof} from "../../src/crawler/strictHtmlCompletenessProof";
++const at="2026-10-01T00:00:00.000Z";
++const plan=buildStagedSourceCrawlPlans(candidateCompanies).find(p=>p.source.id==="source-kelun-social")!;
++const row=(id:string,location:string,query:string)=>`<tr><td><a href="/job_show/${id}${query}">合成测试职位</a></td><td></td><td></td><td></td><td title="${location}">${location}</td></tr>`;
++const page=(rows:string)=>`<a href="/social?p=1%5E2&PageIndex=2">2</a><table class="jobsTable">${rows}</table>`;
++async function capture(query="?r=&p=1%5E2&c=&d=&k=&PageIndex=2",location="四川省-成都市-双流区") {
++ const requests:string[]=[];
++ const fetched=await createHttpHtmlSourceFetch({now:()=>new Date(at),http:async r=>{
++   requests.push(r.url);const number=Number(new URL(r.url).searchParams.get("PageIndex")??"1");
++   return {status:200,body:page(number===1?row("990100001","上海市","?r=&p=1%5E2&c=&d=&k="):row("990100002",location,query)),finalUrl:r.url,contentType:"text/html",capturedAt:at};
++ }})(plan);
++ return {requests,fetched,result:await runSourceCrawl(plan,{fetch:()=>fetched})};
++}
++describe("Kelun complete later-page URL context",()=>{
++ it("retains full empty filters plus exact current PageIndex without changing source or row URLs",async()=>{
++  const {requests,fetched,result}=await capture();expect(requests).toHaveLength(2);expect(sourcePlanConfigSha256(plan)).toBe(KELUN_CONFIG_SHA256);
++  expect(result.truth.completenessVerified).toBe(true);expect(result.jobs[1]!.officialUrl).toBe("https://kelun.zhiye.com/job_show/990100002?r=&p=1%5E2&c=&d=&k=&PageIndex=2");
++  expect(result.jobs[1]!.locationRaw).toBe("四川省-成都市-双流区");expect(fetched.fetchEvidence!.fetchCounts).toMatchObject({rawCount:2,validCount:2,validationDiscardCount:0});
++  if(plan.adapterId!=="html-table")throw Error();expect(validateStrictHtmlCompletenessProof(plan,fetched.fetchEvidence!,result.jobs)).toBe(true);
++ });
++ it.each(["?r=&p=1%5E3&c=&d=&k=&PageIndex=2","?r=&p=1%5E2&c=香港&d=&k=&PageIndex=2","?r=&p=1%5E2&c=&d=&k=foreign&PageIndex=2","?r=&p=1%5E2&c=&d=&k=&PageIndex=3","?r=&p=1%5E2&c=&d=&k=&PageIndex=02","?r=&p=1%5E2&c=&d=&k=&PageIndex=2&PageIndex=2","?r=&p=1%5E2&c=&d=&k=&PageIndex=2&x=1"])("rejects changed or duplicated query context %s",async query=>{
++  const {result}=await capture(query);expect(result.truth.completenessVerified).toBe(false);expect(result.jobs).toEqual([]);
++ });
++ it.each(["四川省-成都市-双流区","中国-四川省-成都市-双流区"])("includes exact positive district tuple %s",value=>expect(classifyKelunLocation(value)).toBe("MAINLAND"));
++ it.each(["广东省-成都市-双流区","四川省-广州市-双流区","四川省-成都市-双流区,香港","四川省-成都市-双流区-美国","双流区","全国"])("keeps ambiguous or contradictory %s unknown",value=>expect(classifyKelunLocation(value)).toBe("UNKNOWN"));
++ it("a nationwide label stays UNKNOWN after the URL fix, retaining raw evidence without complete authority",async()=>{
++  const {fetched,result}=await capture(undefined,"全国");expect(fetched.ok).toBe(false);expect(result.truth.completenessVerified).toBe(false);
++  expect(fetched.fetchEvidence!.declaredCompleteness).toBeUndefined();expect(kelunScopeCounts(inspectKelunScopeRows(plan,fetched.fetchEvidence!))).toEqual({rawCount:2,mainlandCount:1,outsideCount:0,unknownCount:1});
++  expect(fetched.fetchEvidence!.fetchLosses[0]!.details.code).toBe("KELUN_GEOGRAPHY_UNKNOWN");
++ });
++});
+diff --git a/tests/crawler/kelunReviewedNationwide.test.ts b/tests/crawler/kelunReviewedNationwide.test.ts
+new file mode 100644
+index 0000000..9910203
+--- /dev/null
++++ b/tests/crawler/kelunReviewedNationwide.test.ts
+@@ -0,0 +1,92 @@
++// @vitest-environment node
++/** Synthetic page bodies/transport only. The three public identity triples are
++ * the explicitly approved policy inputs; no captured detail HTML is embedded. */
++import {afterEach,describe,expect,it} from "vitest";
++import {mkdtemp,rm} from "node:fs/promises";
++import {join} from "node:path";
++import {tmpdir} from "node:os";
++import {captureSyntheticKelunQuality,buildSyntheticKelunAtomicFixture,syntheticKelunRow,syntheticKelunPage as page} from "../helpers/kelunQualityFixture";
++import {classifyKelunLocation,inspectKelunScopeRows,kelunScopeCounts,KELUN_CONFIG_SHA256} from "../../src/crawler/kelunMainlandScope";
++import {sourcePlanConfigSha256} from "../../src/crawler/sourcePlan";
++import {issueSourceQualityAdmission,verifySourceQualityAtomicCommit} from "../../src/crawler/sourceQualityAdmission";
++import {buildSourceQualityJobCommands} from "../../src/crawler/sourceQualityPublication";
++import {buildJobDedupeKey} from "../../src/crawler/normalizedJob";
++import {replayStrictSourceQualityEvidence} from "../../src/crawler/runSourceCrawl";
++const approved=[
++ {id:"230783266",title:"科伦博泰-区域市场经理（北区或南区）(J12400)"},
++ {id:"230690782",title:"科伦嘉讯-省区经理(J11794)"},
++ {id:"230685318",title:"科伦嘉讯-业务经理(J11762)"}
++] as const;
++const row=(id:string,title:string,location="全国",visible=location)=>syntheticKelunRow(id,location,visible).replace(`合成职位 ${id}`,title);
++const dirs:string[]=[];
++afterEach(async()=>{await Promise.all(dirs.splice(0).map(p=>rm(p,{recursive:true,force:true})));});
++async function capture(bodies:string[]){const p=await mkdtemp(join(tmpdir(),"kelun-approved-nationwide-synthetic-"));dirs.push(p);return captureSyntheticKelunQuality(p,bodies);}
++function replay(input:Awaited<ReturnType<typeof capture>>,evidence=input.result.fetchEvidence!,jobs=input.result.jobs){
++ return replayStrictSourceQualityEvidence({plan:input.plan,evidence,jobs,reconciliation:input.result.reconciliation!,paginationEvaluation:input.result.paginationEvaluation!,capturedAt:input.result.observation.crawledAt.toISOString()});
++}
++describe("Kelun exactly reviewed nationwide identities",()=>{
++ it("keeps nationwide location unchanged and admits only the three approved identity/title pairs",async()=>{
++  const input=await capture([page(approved.map(v=>row(v.id,v.title)))]);
++  expect(input.requests).toHaveLength(1);expect(sourcePlanConfigSha256(input.plan)).toBe(KELUN_CONFIG_SHA256);
++  expect(input.result.truth.completenessVerified).toBe(true);
++  expect(input.result.jobs.map(j=>({id:j.sourceJobId,title:j.officialTitle,location:j.locationRaw,cities:j.cities}))).toEqual(approved.map(v=>({id:v.id,title:v.title,location:"全国",cities:["全国"]})));
++  expect(classifyKelunLocation("全国")).toBe("UNKNOWN");
++  expect(kelunScopeCounts(inspectKelunScopeRows(input.plan,input.result.fetchEvidence!))).toEqual({rawCount:3,mainlandCount:3,outsideCount:0,unknownCount:0});
++  const {admission,commit}=await buildSyntheticKelunAtomicFixture(input);
++  expect(admission.receipt.counts).toMatchObject({rawCount:3,validCount:3,finalUniqueJobCount:3,validationDiscardCount:0});
++  expect(() => verifySourceQualityAtomicCommit({plan:input.plan,commit})).not.toThrow();expect(replay(input)).toBe(true);
++ });
++ it("keeps all original rows and exclusions across pages without an expected target count",async()=>{
++  const first=page([row(approved[0].id,approved[0].title),row("990200001","合成内地岗位","上海市")],2);
++  const second=page([row(approved[1].id,approved[1].title),row(approved[2].id,approved[2].title),row("990200002","合成域外岗位","香港")],2)
++   .replaceAll(/href="\/job_show\/(\d+)"/g,'href="/job_show/$1?r=&p=1%5E2&c=&d=&k=&PageIndex=2"');
++  const input=await capture([first,second]);expect(input.result.truth.completenessVerified).toBe(true);expect(input.requests).toHaveLength(2);
++  expect(input.result.fetchEvidence!.artifacts.map(a=>a.body)).toEqual([first,second]);
++  expect(input.result.fetchEvidence!.fetchCounts).toMatchObject({rawCount:5,validCount:4,validationDiscardCount:1});
++  expect(input.result.fetchEvidence!.fetchLosses[0]!.rawLocator).toContain('row:2;id:990200002;');
++  expect(input.result.jobs).toHaveLength(4);expect(replay(input)).toBe(true);
++  const missing=structuredClone(input.result.fetchEvidence!);missing.artifacts.pop();missing.pages.pop();expect(replay(input,missing)).toBe(false);
++ });
++ it.each(["idMismatch","titleSubjectChanged","requisitionChanged","roleChanged","unknownLocation","mixedOutside","visibleConflict","nationwideOutsideThree","trailingTitleClaim"])("returns to explicit rules or UNKNOWN for %s",async mutation=>{
++  let id:string=approved[0].id,title:string=approved[0].title,location="全国",visible=location;
++  if(mutation==="idMismatch"||mutation==="nationwideOutsideThree")id="990201001";
++  if(mutation==="titleSubjectChanged")title=title.replace("科伦博泰","其他公司");
++  if(mutation==="requisitionChanged")title=title.replace("J12400","J99999");
++  if(mutation==="roleChanged")title=title.replace("区域市场经理","国际业务经理");
++  if(mutation==="unknownLocation")location="待定";
++  if(mutation==="mixedOutside")location="全国,香港";
++  if(mutation==="visibleConflict")visible="香港";
++  if(mutation==="trailingTitleClaim")title+="（香港办公）";
++  if(mutation!=="visibleConflict")visible=location;
++  const input=await capture([page([row(id,title,location,visible)])]);
++  expect(input.result.truth.completenessVerified).toBe(false);expect((await issueSourceQualityAdmission(input)).status).toBe("REJECTED");
++  expect(input.result.fetchEvidence!.fetchLosses[0]!.details.code).toBe("KELUN_GEOGRAPHY_UNKNOWN");
++ });
++ it.each(["香港","澳门","台湾","美国"])("never overrides explicit outside geography %s for an approved ID",async location=>{
++  const v=approved[1],input=await capture([page([row(v.id,v.title,location)])]);
++  expect(input.result.truth.completenessVerified).toBe(true);expect(input.result.jobs).toEqual([]);
++  expect(input.result.fetchEvidence!.fetchCounts).toMatchObject({rawCount:1,validCount:0,validationDiscardCount:1});
++  expect(input.result.fetchEvidence!.fetchLosses[0]!.details.code).toBe("KELUN_EXPLICIT_OUTSIDE_MAINLAND");
++ });
++ it("accepts typography normalization only, with original title and location retained",async()=>{
++  const v=approved[0],title=v.title.normalize("NFKC"),input=await capture([page([row(v.id,title,"全国")])]);
++  expect(input.result.truth.completenessVerified).toBe(true);expect(input.result.jobs[0]!.officialTitle).toBe(title);
++ });
++ it("rejects duplicate approved identities even with different titles or locations",async()=>{
++  const v=approved[0],input=await capture([page([row(v.id,v.title),row(v.id,v.title,"上海市")])]);
++  expect(input.result.truth.completenessVerified).toBe(false);expect((await issueSourceQualityAdmission(input)).status).toBe("REJECTED");
++ });
++ it("does not mutate prior ACTIVE/GRACE rows when one reviewed identity has a new unknown claim",async()=>{
++  const v=approved[0],good=await capture([page([row(v.id,v.title),row("990202001","合成内地岗位","上海市")])]);
++  const previousJobs=good.result.jobs.map((record,i)=>({dedupeKey:buildJobDedupeKey(record),record,lifecycleStatus:"ACTIVE" as const,missingSuccessfulCrawlCount:i?1:0,firstSeenAt:"2026-01-01T00:00:00.000Z",lastSeenAt:"2026-01-02T00:00:00.000Z"}));
++  const input=await capture([page([row(v.id,v.title,"全国,香港")])]),before=structuredClone(previousJobs),admission=await issueSourceQualityAdmission(input);
++  expect(admission.status).toBe("REJECTED");expect(buildSourceQualityJobCommands({...input,admission,previousJobs,firstAcceptedCurrentPolicyReceipt:null,baselineCompletedBeforeCrawl:true}).jobCommands).toEqual([]);expect(previousJobs).toEqual(before);
++ });
++ it("rejects post-capture raw identity changes and post-admission normalized location changes",async()=>{
++  const v=approved[0],input=await capture([page([row(v.id,v.title)])]);
++  const mutated=structuredClone(input.result.fetchEvidence!);mutated.artifacts[0]!.body=String(mutated.artifacts[0]!.body).replace(v.title,"其他主体全国岗位(J12400)");
++  expect(replay(input,mutated)).toBe(false);
++  const {admission}=await buildSyntheticKelunAtomicFixture(input);input.result.jobs[0]!.locationRaw="香港";
++  expect(()=>buildSourceQualityJobCommands({...input,admission,previousJobs:[],firstAcceptedCurrentPolicyReceipt:null,baselineCompletedBeforeCrawl:true})).toThrow();
++ });
++});

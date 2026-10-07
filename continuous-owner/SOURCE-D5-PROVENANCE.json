@@ -1,0 +1,6 @@
+{
+  "sourcePath": "/workspace/scratch/5e9614251709/jb-publish-relay-owner-20261007T0300Z",
+  "sourceFactorySha256": "d5f3decc6bd41e4dff201b7e5b0d9e5dc1d384f8813de5f3fd5d908b73a488b1",
+  "sourceManifestSha256": "e2dfa145ec2e7e045e4064e7baccb755664cb9d94fbc1ffbe50f2a23f673c129",
+  "adaptation": "Only source/namespace/real build and preloaded actual binding gates; original awaited monitor, one-PUBLISH, original deadlines/session, UNKNOWN and exact-LF rules retained."
+}

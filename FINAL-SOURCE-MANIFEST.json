@@ -1,0 +1,26 @@
+{
+  "baseCommit": "6c6f4e3f4f2d80bbcc8639df5016aad102844be4",
+  "commitSha": "239def3a29c9270d706425c810eb4a85d452fa1c",
+  "allowedFiles": [
+    {
+      "path": "src/crawler/kelunMainlandScope.ts",
+      "sha256": "947c54f88e555a56ae25b3fafa40008750f020b3390661dbcb0b55fd4600e904",
+      "bytes": 17775
+    },
+    {
+      "path": "tests/crawler/kelunDetailPageContext.test.ts",
+      "sha256": "231725ea280077ed94abc1b3536cb552565dafcb23830e248c7cb066142a885b",
+      "bytes": 4108
+    },
+    {
+      "path": "tests/crawler/kelunReviewedNationwide.test.ts",
+      "sha256": "c5fc80537d0723a8a2445e67ca04f55a734fa3602b947cf68987ebebe8fb2028",
+      "bytes": 8496
+    }
+  ],
+  "sourceConfigSha256Unchanged": "9fe0cb0d7c308567f6010aa6181f36c595b97df739ecd528cab97070f47572cb",
+  "classification": "SOURCE_AND_SYNTHETIC_TRANSPORT_FIXTURES_ONLY",
+  "publicApprovedIdentityTriplesIncluded": 3,
+  "privateRawListOrDetailBodiesIncluded": false,
+  "networkInstall": false
+}

@@ -1,0 +1,57 @@
+{
+  "schemaVersion": 1,
+  "sourceId": "source-kelun-social",
+  "producer": {
+    "commit": "239def3a29c9270d706425c810eb4a85d452fa1c",
+    "path": "/workspace/scratch/5e9614251709/jb-incremental-proxy-runtime-20261007T0057Z/verification/kelun-reviewed-national-runtime-0853Z/producer",
+    "mustBeClean": true
+  },
+  "node": {
+    "version": "v22.23.3",
+    "path": "/workspace/scratch/5e9614251709/jb-incremental-proxy-runtime-20261007T0057Z/runtime/node-v22.23.3-linux-x64/bin/node",
+    "profile": "producer/ops/node-runtime-profile.json",
+    "binaryAndRuntimeIdentityMustMatch": true
+  },
+  "nonSecretConfig": {
+    "template": "host/host-config.template.json",
+    "installAs": "host/host-config.json",
+    "staticSourceReference": "host/source-config-reference.json",
+    "sourceConfigSha256": "9fe0cb0d7c308567f6010aa6181f36c595b97df739ecd528cab97070f47572cb"
+  },
+  "privateBindingDependencies": {
+    "requiredFiles": [
+      "host/control-base.json",
+      "host/context-read.sql",
+      "host/activation.json"
+    ],
+    "registrationReadback": "Owner-provided actual candidate registration readback matching commit 239def3a29c9270d706425c810eb4a85d452fa1c and its full build and database identity; the recovery source is intentionally unbound and contains no actual binding",
+    "preparationEntrypoint": "host/runtime/prepare-owner-binding.mts",
+    "contextCompilerPolicy": "PLAN_BOUND_SOURCE_QUALITY_V1",
+    "controlTemplate": "host/owner-binding-input.template.json: candidate=null/databaseIdentity=null until sole owner provides actual values",
+    "unboundSourceTemplates": [
+      "host/runtime/load-host-state.unbound.template.js",
+      "supervision/start-monitor-kelun-next-combined.unbound.template.js"
+    ]
+  },
+  "runtimeMustNeverBeRestoredFromSafeArchive": [
+    "run directories",
+    "relay requests/responses",
+    "HTTP payloads",
+    "DB results",
+    "bootstrap/due/lock freshness",
+    "publication outcome"
+  ],
+  "launchRequiresOwnerFreshChecks": true,
+  "publisher": "single parent owner",
+  "candidateState": "UNREGISTERED_NOT_ACTIVATED",
+  "sessionNamespace": "proxyNode22:kelunNext:",
+  "uniquePublisherState": {
+    "path": "/workspace/scratch/5e9614251709/jb-incremental-proxy-runtime-20261007T0057Z/PUBLISHER-ACTIVE-STATE.json",
+    "ownership": "SINGLE_EXISTING_PARENT_OWNER",
+    "relocationPolicy": "MUST_NOT_FOLLOW_RUNTIME_ROOT_REBASE",
+    "createMissingState": false,
+    "successfulCompletionSourceSha256": "ef336c3276d86b178e66ff5adb72c788f91c0b4be6b8445997e5c5f47ad9a2d4",
+    "recoveryRecipe": "verification/refresh-fixed-manifests.py:rebase_completion_source",
+    "verification": "Manifest generation refuses any different or duplicate publisher-state path"
+  }
+}

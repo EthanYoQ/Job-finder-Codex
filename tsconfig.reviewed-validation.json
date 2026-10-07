@@ -1,0 +1,1 @@
+{"extends": "./producer/tsconfig.json", "include": ["producer/src/**/*.ts", "producer/src/**/*.tsx", "producer/tests/crawler/kelunReviewedNationwide.test.ts", "producer/tests/crawler/kelunDetailPageContext.test.ts"]}
