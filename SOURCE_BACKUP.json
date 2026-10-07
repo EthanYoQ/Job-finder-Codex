@@ -1,517 +1,437 @@
 {
   "schemaVersion": 1,
-  "kind": "source-only-backup",
-  "producerSourceIdentity": "28402a299bb04cbf5873da66c2fe8ca76827c0d1",
-  "producerSafeBackup": "5820ceb6f1d9b329e11f3619f7bb3156b19f7079",
-  "sourceArchives": [
+  "kind": "owner-source-snapshot",
+  "files": [
     {
-      "source": "viatris",
-      "archiveSha256": "3f5f2592fcf695c6db90e38b35190f5477d6cfa237a74e37a6dda20681aa39e4",
-      "archiveBytes": 50077,
-      "originalSafeManifestSHA256": "f159f198e7b4c2d1d9a7af62d07bce08c10c4b2cea5f8dc9277a7b0d7672f42e",
-      "originalSafeCount": 30,
-      "excluded": [
-        "host/activation.json",
-        "host/control-base.json",
-        "host/context-read.sql",
-        "host/host-config.json"
-      ],
-      "configReconstructed": false
+      "path": "baseline-manifest.json",
+      "mode": "100644",
+      "type": "blob",
+      "bytes": 11118,
+      "sha256": "e2dfa145ec2e7e045e4064e7baccb755664cb9d94fbc1ffbe50f2a23f673c129",
+      "sha": "9f5759b50174e44160bfc7fe28ff020ee324db98"
     },
     {
-      "source": "cspc",
-      "archiveSha256": "615d24338e5c796d1d73e60875b1b8c4f5702e2f438c3c2a36ad3b9d3efc05f6",
-      "archiveBytes": 50061,
-      "originalSafeManifestSHA256": "582361c368df4d83b858b54492e01f647ca1efda47bdfcbfedf59677a4a61f7d",
-      "originalSafeCount": 30,
-      "excluded": [
-        "host/activation.json",
-        "host/control-base.json",
-        "host/context-read.sql",
-        "host/host-config.json"
-      ],
-      "configReconstructed": false
+      "path": "build-fragments.py",
+      "mode": "100644",
+      "type": "blob",
+      "bytes": 4229,
+      "sha256": "122a28e671a3c557216bdca194c2483c6326fc84cd5f1230fbeff311f2ca08a2",
+      "sha": "0875e33c86a8cba813d308185d62cdfe9639c0ca"
+    },
+    {
+      "path": "preload-owner.exec.js",
+      "mode": "100644",
+      "type": "blob",
+      "bytes": 2574,
+      "sha256": "b08aa9c4b01993f72ffd35ad29d78cc29ffc64db542f6b32094a30735f0cd855",
+      "sha": "c6d6fedfeca023f8f4a2597319ab40d57d0767dd"
+    },
+    {
+      "path": "publish-and-monitor-owner.js",
+      "mode": "100644",
+      "type": "blob",
+      "bytes": 10830,
+      "sha256": "d5f3decc6bd41e4dff201b7e5b0d9e5dc1d384f8813de5f3fd5d908b73a488b1",
+      "sha": "bee6bb5afef23796c183f263682a70461b44c2b0"
+    },
+    {
+      "path": "publish-reviewed-and-monitor.exec.js",
+      "mode": "100644",
+      "type": "blob",
+      "bytes": 1281,
+      "sha256": "175ec4222a15a7f7e3405af3c3737c2d453cb71dddf3f60544e50bbc8e6bdede",
+      "sha": "0045a44413438982b600deb9d9269752a678ce80"
+    },
+    {
+      "path": "tests/owner.test.mjs",
+      "mode": "100644",
+      "type": "blob",
+      "bytes": 20267,
+      "sha256": "8c0e2c462df58522166a01f8c08afc39e7dc73d3de76f13bcb67ac8d3dd1d11c",
+      "sha": "4a9fc60975b54ba2d0c32af50c40b73f754c885e"
+    },
+    {
+      "path": "tests/real-apply-patch-terminal-fixture.json",
+      "mode": "100644",
+      "type": "blob",
+      "bytes": 195,
+      "sha256": "307bf4c005329901bf5a26ab460a8af31759cf874c7a5a60527a88d367fdd4ac",
+      "sha": "d8751c2a90320750ca73c618827d5fbd82398b3b"
     }
   ],
-  "sourceFiles": [
+  "baselineSourceBackups": [
     {
-      "path": "hosts/viatris/RESTORE_DEPENDENCIES.json",
-      "mode": "100644",
-      "type": "blob",
-      "bytes": 1676,
-      "sha256": "3aeb4a562ad468a36aeb31bf2039f130eb009036b5ca01292e5bd74f8214eee1",
-      "sha": "d027ec4fd8131be5d591b914ff62aea76f37b896"
+      "path": "hosts/abbvie/host/host-helper-functions.js",
+      "repository": "EthanYoQ/Job-finder-Codex",
+      "commit": "e82801257c48399d12ddf7d1cc38c38e35747313",
+      "gitBlob": "7980c836207802173b4030a44da9a6bbcfba9700",
+      "sha256": "4bc66fdbea2f4e9df6052a9ef6f4954221fbf4f8567ba2fcad61ba0b8c9d35c6",
+      "bytes": 9762
     },
     {
-      "path": "hosts/viatris/host/archive-transfer.mjs",
-      "mode": "100644",
-      "type": "blob",
-      "bytes": 1777,
-      "sha256": "698e966e5552967845a5252d2b3df2acca28dcd8dbbb0ae41755a3a6231e6a99",
-      "sha": "5a454d21f34f9680221bbee2c98b3fecb94884f0"
+      "path": "hosts/abbvie/host/host-stage-functions.js",
+      "repository": "EthanYoQ/Job-finder-Codex",
+      "commit": "e82801257c48399d12ddf7d1cc38c38e35747313",
+      "gitBlob": "3113bfc02d7a9b715c4ad49284c586da9e23b4c8",
+      "sha256": "2c6d37deae616431943aec4537c8016440023f60098b05f356e17ccd93fea9a2",
+      "bytes": 6323
     },
     {
-      "path": "hosts/viatris/host/host-config.template.json",
-      "mode": "100644",
-      "type": "blob",
-      "bytes": 507,
-      "sha256": "c2f5c61adc92cf9df7b06607525a88aa26d9e6c7114be740e983b7c5af190f41",
-      "sha": "abea4ff99907fc1d61aed4c105e379418beba675"
+      "path": "hosts/abbvie/host/relay-files.mjs",
+      "repository": "EthanYoQ/Job-finder-Codex",
+      "commit": "e82801257c48399d12ddf7d1cc38c38e35747313",
+      "gitBlob": "e7c6c134e232b38c7c7b31cef3868b537d29519d",
+      "sha256": "68d43dacc20482cfd917a416f990c639404584bcd10f6671c7f08e12c51e601e",
+      "bytes": 7908
     },
     {
-      "path": "hosts/viatris/host/host-files.mts",
-      "mode": "100644",
-      "type": "blob",
-      "bytes": 4077,
-      "sha256": "c8033565b3c368bf369fc7507f9d1ff8fa87bc0dde0a84a10a95373473dc6f3a",
-      "sha": "8c8f201640071565320343e74c6919d1e83fd9b5"
+      "path": "hosts/abbvie/host/runtime/continuous-relay-v3-durable-monitor.js",
+      "repository": "EthanYoQ/Job-finder-Codex",
+      "commit": "e82801257c48399d12ddf7d1cc38c38e35747313",
+      "gitBlob": "d688e702886e07e404750a56b0746577481ace13",
+      "sha256": "cd16442860455b8eb8e6acffba339bcb6830f42ae59cf50fc6eeacafe5dee2c7",
+      "bytes": 5172
     },
     {
-      "path": "hosts/viatris/host/host-helper-functions.js",
-      "mode": "100644",
-      "type": "blob",
-      "bytes": 9765,
-      "sha256": "4ab668dec13fafeac0b84bc076c21ab5c3ed676666ba1deb4a00f7bf3cf2ead4",
-      "sha": "6dc93369c3338165780739c6639c0ea8d13f74a8"
-    },
-    {
-      "path": "hosts/viatris/host/host-stage-functions.js",
-      "mode": "100644",
-      "type": "blob",
-      "bytes": 6322,
-      "sha256": "cf3c3bcf100e78459717d001f5974b1013400bf879d1d3eadfa7ddfcd22a1836",
-      "sha": "74c7aad8fcd2f9c300aaa705c8d26e9663266d40"
-    },
-    {
-      "path": "hosts/viatris/host/machine-json.js",
-      "mode": "100644",
-      "type": "blob",
-      "bytes": 807,
-      "sha256": "3484738bd095a9d57da70c6392af78865a53759a9e8499316941157b6210e9f6",
-      "sha": "7b927e85ca286ffa900ca93462deee5b9988ed49"
-    },
-    {
-      "path": "hosts/viatris/host/relay-files.mjs",
-      "mode": "100644",
-      "type": "blob",
-      "bytes": 7909,
-      "sha256": "637dbab39bde702756f5360f589ffb58398b10608f5cc955111fa23d95725134",
-      "sha": "d5de26fb606216166ef35244fc31260d126ebd87"
-    },
-    {
-      "path": "hosts/viatris/host/runtime/complete-reviewed-source-readback.js",
-      "mode": "100644",
-      "type": "blob",
-      "bytes": 5696,
-      "sha256": "f033e4a6c133336ccb68f643319507c7c764b8fe3469f12d17474a7a9145b8b7",
-      "sha": "4fbe6a06a12cef86e3aa49cfbd8f475ee2833106"
-    },
-    {
-      "path": "hosts/viatris/host/runtime/continuous-relay-v3-durable-monitor.js",
-      "mode": "100644",
-      "type": "blob",
-      "bytes": 5184,
-      "sha256": "b2f284a29b826b44c2cd926bf903d8b8c9b61f06326332cbd624c32d2f4ea6ca",
-      "sha": "d00e0e1b5ba1a390f4e80db5dc087047bf929fb5"
-    },
-    {
-      "path": "hosts/viatris/host/runtime/inspect-host-binding.mts",
-      "mode": "100644",
-      "type": "blob",
-      "bytes": 2568,
-      "sha256": "fe33b177e0bf40da2b1035a9482699954803d513f29092153fd61c11e7c34b78",
-      "sha": "16c2e92f6d2cbcbc23731e31c5a8a1a4d7660944"
-    },
-    {
-      "path": "hosts/viatris/host/runtime/load-host-state.js",
-      "mode": "100644",
-      "type": "blob",
-      "bytes": 5075,
-      "sha256": "4e10d950ba3dfcafbfaa8d67ea512ef5ab200a0f2315cb5c75a7fd65466da1be",
-      "sha": "2b990207f890a28d8b42bb9602710440b5f08352"
-    },
-    {
-      "path": "hosts/viatris/host/runtime/load-source-runtime.js",
-      "mode": "100644",
-      "type": "blob",
-      "bytes": 2005,
-      "sha256": "2cdeae017d12abfe8f47ec0a6dea76fe13aae077833d87313ed5a209ba4a46e3",
-      "sha": "cf733b135139b8ba50905a662ae11f96e180865b"
-    },
-    {
-      "path": "hosts/viatris/host/runtime/machine-json.py",
-      "mode": "100644",
-      "type": "blob",
-      "bytes": 1119,
-      "sha256": "67611e749eddc6bf8c591fef11f2efa82e2a73ce0bb51b2779fab4ae68b77f50",
-      "sha": "3dda394ae2fe15b8740c8db2f0adcf6a9e19e3cf"
-    },
-    {
-      "path": "hosts/viatris/host/runtime/preflight/preflight-launch.mjs",
-      "mode": "100644",
-      "type": "blob",
-      "bytes": 11035,
-      "sha256": "89099e0dedbffc36cbe31a9e1e4b458aedf512cc367141af22709a068cd2f968",
-      "sha": "b262b245572d09576f2d5151d5a22799897cb8d5"
-    },
-    {
-      "path": "hosts/viatris/host/runtime/preflight/runtime-check.mjs",
-      "mode": "100644",
-      "type": "blob",
-      "bytes": 3815,
-      "sha256": "e01c5b953283535757e2fcc67df80dd3e86948709dde0b488235a7edee017785",
-      "sha": "275890f0f3584e99e0f0f57a4492fd95ad6c248d"
-    },
-    {
-      "path": "hosts/viatris/host/runtime/prepare-registered-control.mts",
-      "mode": "100644",
-      "type": "blob",
-      "bytes": 4179,
-      "sha256": "9f2090d76cf854e49ff47b66dabaaa599a6bf3252d083a5c5541c29114591230",
-      "sha": "afc02a97bf321411724ea919545bc83dc5910c53"
-    },
-    {
-      "path": "hosts/viatris/host/runtime/review-packet-envelope.mts",
-      "mode": "100644",
-      "type": "blob",
-      "bytes": 5535,
+      "path": "hosts/abbvie/host/runtime/review-packet-envelope.mts",
+      "repository": "EthanYoQ/Job-finder-Codex",
+      "commit": "e82801257c48399d12ddf7d1cc38c38e35747313",
+      "gitBlob": "a550d0fd80f032ae7ed2633e88b2cd2c748c6969",
       "sha256": "40cb1e3ede867f0e9d171605e7454fc71a6f774dfdf910f68ff668722bba69cb",
-      "sha": "a550d0fd80f032ae7ed2633e88b2cd2c748c6969"
+      "bytes": 5535
     },
     {
-      "path": "hosts/viatris/host/runtime/review-publication.py",
-      "mode": "100644",
-      "type": "blob",
-      "bytes": 5387,
-      "sha256": "3a77fab8e695528b797aae2d10ff9064457f100d6a44f037757919eaa1b4558d",
-      "sha": "5436781e86f862679d6b2cadcc2cd21cfe248065"
+      "path": "hosts/biogen/host/host-helper-functions.js",
+      "repository": "EthanYoQ/Job-finder-Codex",
+      "commit": "e82801257c48399d12ddf7d1cc38c38e35747313",
+      "gitBlob": "a73bf791b6e4a54234eed551933b2359cf13e8cb",
+      "sha256": "6b454d411ce1b65f5aa011aeb8c0477c286e428c7e826bd92c1932fb89523f03",
+      "bytes": 9762
     },
     {
-      "path": "hosts/viatris/host/runtime/update-candidate-completion-state.mjs",
-      "mode": "100644",
-      "type": "blob",
-      "bytes": 3654,
-      "sha256": "ae5ad99411b014c8ffff615a0b06af1e1fdfd2ed7f7265c9c9cee0128339bb06",
-      "sha": "ec886e3dd2b52805daccddcdcd862b6afbaeec29"
+      "path": "hosts/biogen/host/host-stage-functions.js",
+      "repository": "EthanYoQ/Job-finder-Codex",
+      "commit": "e82801257c48399d12ddf7d1cc38c38e35747313",
+      "gitBlob": "06fa1745b8f8ddcd0f428342842ea2b95af26396",
+      "sha256": "f467387a55f74b654be4c24eb6b008c479609aa638b70ba8a9c44532c41d8853",
+      "bytes": 6323
     },
     {
-      "path": "hosts/viatris/host/source-config-reference.json",
-      "mode": "100644",
-      "type": "blob",
-      "bytes": 3618,
-      "sha256": "3873ea12b5a2f533314cb8422c283d7d894966440ae0dac514f421ab084737ed",
-      "sha": "eeb2a5bc550137f1f3ebdcaeccdc79db95545d2f"
+      "path": "hosts/biogen/host/relay-files.mjs",
+      "repository": "EthanYoQ/Job-finder-Codex",
+      "commit": "e82801257c48399d12ddf7d1cc38c38e35747313",
+      "gitBlob": "312ea693f652fe67ef7db48126c4998d580dfd64",
+      "sha256": "621c4743432ab89a770b66678ff1d526f8be26386384c297384af8bfee05942d",
+      "bytes": 7908
     },
     {
-      "path": "hosts/viatris/supervision/inspect-launch-identity.mjs",
-      "mode": "100644",
-      "type": "blob",
-      "bytes": 871,
-      "sha256": "7bc818ae831081b7e91819ad772b950d08e7d06dc741730c0bd54698d6fe8b37",
-      "sha": "0fc3dd6c1dde3cc7759848f18c795792c38c800c"
+      "path": "hosts/biogen/host/runtime/continuous-relay-v3-durable-monitor.js",
+      "repository": "EthanYoQ/Job-finder-Codex",
+      "commit": "e82801257c48399d12ddf7d1cc38c38e35747313",
+      "gitBlob": "42a060c7815687753d0506083809d4cedbb3a2bf",
+      "sha256": "57b15869864480d4e342a56364afdaf19c7179272ba82eab80fa720e9ac1b884",
+      "bytes": 5172
     },
     {
-      "path": "hosts/viatris/supervision/sample_process_tree.py",
-      "mode": "100644",
-      "type": "blob",
-      "bytes": 13065,
-      "sha256": "3fa6daa1af1afee94d19801edfd8bcb538e1243476b5adb253e50de162a27bd6",
-      "sha": "5c2924dc067309525018e4903741dc33e796b546"
+      "path": "hosts/biogen/host/runtime/review-packet-envelope.mts",
+      "repository": "EthanYoQ/Job-finder-Codex",
+      "commit": "e82801257c48399d12ddf7d1cc38c38e35747313",
+      "gitBlob": "a550d0fd80f032ae7ed2633e88b2cd2c748c6969",
+      "sha256": "40cb1e3ede867f0e9d171605e7454fc71a6f774dfdf910f68ff668722bba69cb",
+      "bytes": 5535
     },
     {
-      "path": "hosts/viatris/supervision/start-monitor-viatris51-combined.js",
-      "mode": "100644",
-      "type": "blob",
-      "bytes": 14014,
-      "sha256": "b2146e1befc3fe1e8de21663dd77b458e79a93e6031e6781413168989f2e1a9d",
-      "sha": "147d8cace4503a207576b790845e78c7b4fb2bc7"
+      "path": "hosts/bms/host/host-helper-functions.js",
+      "repository": "EthanYoQ/Job-finder-Codex",
+      "commit": "a469112b68a0b0d9a0d2a084fbbfff29d8bd4a2c",
+      "gitBlob": "b2ff0216b56e6657e3c2394392ee4a6f596bec6e",
+      "sha256": "5e2e8cb84e6c4fa3f7fab190e7880e235b757becb079a54630723512c396c037",
+      "bytes": 9735
     },
     {
-      "path": "hosts/viatris/supervision/supervise-cancel.mjs",
-      "mode": "100644",
-      "type": "blob",
-      "bytes": 10232,
-      "sha256": "083435a5344a47b86f84184bbe1d2711b0d35def4670afb2ab3c8391ed442e7e",
-      "sha": "efe376ba3dbe501d5a2b1bece2c7ac46471aca7d"
+      "path": "hosts/bms/host/host-stage-functions.js",
+      "repository": "EthanYoQ/Job-finder-Codex",
+      "commit": "a469112b68a0b0d9a0d2a084fbbfff29d8bd4a2c",
+      "gitBlob": "dab766b4f01208157f14d6cdf04b1f8b252c1072",
+      "sha256": "7674f4d53a6c683f729711e6b283173ae0cd6c833fbd36ef73905f9e5f3ce258",
+      "bytes": 6290
     },
     {
-      "path": "hosts/viatris/verification/SAFE_SOURCE_ALLOWLIST.json",
-      "mode": "100644",
-      "type": "blob",
-      "bytes": 11050,
-      "sha256": "1e7655952d0429214d51832b2fd527614cf358d09b2443c1c0d02159af321c77",
-      "sha": "9f48d9cb4659d16948907caf959c3a5ff44f813c"
+      "path": "hosts/bms/host/relay-files.mjs",
+      "repository": "EthanYoQ/Job-finder-Codex",
+      "commit": "a469112b68a0b0d9a0d2a084fbbfff29d8bd4a2c",
+      "gitBlob": "c09799422d7c8f5fa7fe786c2f51841b093635ca",
+      "sha256": "7c99f9dbdad0caa0e6812434cf5f876c8f30d496a403b976aa4de16a8f644541",
+      "bytes": 7905
     },
     {
-      "path": "hosts/viatris/verification/verify-machine-json.py",
-      "mode": "100644",
-      "type": "blob",
-      "bytes": 1040,
-      "sha256": "5de73481cea05886ad8515fee4b6c8b98629fc50d1a5392a764d18180191bd3d",
-      "sha": "20ed5095bcf4a5300931ccdfdfc87775e4f9202e"
+      "path": "hosts/bms/host/runtime/continuous-relay-v3-durable-monitor.js",
+      "repository": "EthanYoQ/Job-finder-Codex",
+      "commit": "a469112b68a0b0d9a0d2a084fbbfff29d8bd4a2c",
+      "gitBlob": "c17176ad3963b565c4bd4072e821ef9d4e885a23",
+      "sha256": "24231e13ec4b4f34692574abe87865e629c60f7b2ce1eb2cacac621300a06718",
+      "bytes": 5136
     },
     {
-      "path": "hosts/viatris/verification/verify-runtime-host.mts",
-      "mode": "100644",
-      "type": "blob",
-      "bytes": 10959,
-      "sha256": "5e750a1072d329b6439e9ccb76796696cc568efca4433670994fe597741134e9",
-      "sha": "5b099ea5eff9735284fa83fa654cff257e7309bb"
-    },
-    {
-      "path": "hosts/viatris/verification/verify-source-host.mjs",
-      "mode": "100644",
-      "type": "blob",
-      "bytes": 8345,
-      "sha256": "badceeffd4bd4e52da08d2935acea24cf8e661cec7c0b26b8b0552230f82feef",
-      "sha": "49e1b33dfb1ea0cc681a3ae17a73461ea0e59354"
-    },
-    {
-      "path": "hosts/cspc/RESTORE_DEPENDENCIES.json",
-      "mode": "100644",
-      "type": "blob",
-      "bytes": 1673,
-      "sha256": "cf7894fa867fda179485d476d0738d353d19af67929bea074e01b6ba060b81c3",
-      "sha": "6150a8f45d685e53c2122f7e6e1f500356147f92"
-    },
-    {
-      "path": "hosts/cspc/host/archive-transfer.mjs",
-      "mode": "100644",
-      "type": "blob",
-      "bytes": 1777,
-      "sha256": "698e966e5552967845a5252d2b3df2acca28dcd8dbbb0ae41755a3a6231e6a99",
-      "sha": "5a454d21f34f9680221bbee2c98b3fecb94884f0"
-    },
-    {
-      "path": "hosts/cspc/host/host-config.template.json",
-      "mode": "100644",
-      "type": "blob",
-      "bytes": 501,
-      "sha256": "9f46b8e00776626bf2f81a8c69bea3247e5d9f96da15fcf50e6a3f74b18eca8f",
-      "sha": "8ba640d3401345ea683572e05ed4cbe97ef11eea"
-    },
-    {
-      "path": "hosts/cspc/host/host-files.mts",
-      "mode": "100644",
-      "type": "blob",
-      "bytes": 4077,
-      "sha256": "c8033565b3c368bf369fc7507f9d1ff8fa87bc0dde0a84a10a95373473dc6f3a",
-      "sha": "8c8f201640071565320343e74c6919d1e83fd9b5"
+      "path": "hosts/bms/host/runtime/review-packet-envelope.mts",
+      "repository": "EthanYoQ/Job-finder-Codex",
+      "commit": "a469112b68a0b0d9a0d2a084fbbfff29d8bd4a2c",
+      "gitBlob": "a550d0fd80f032ae7ed2633e88b2cd2c748c6969",
+      "sha256": "40cb1e3ede867f0e9d171605e7454fc71a6f774dfdf910f68ff668722bba69cb",
+      "bytes": 5535
     },
     {
       "path": "hosts/cspc/host/host-helper-functions.js",
-      "mode": "100644",
-      "type": "blob",
-      "bytes": 9738,
+      "repository": "EthanYoQ/Job-finder-Codex",
+      "commit": "fdfee63d2e28d43709fe0e305a4157a7f2a3d98d",
+      "gitBlob": "7b4d0f2cc86a28f9d74cb4d52f770a0a404d567a",
       "sha256": "ea8719f192148bebcdc0294a94886893b47e603e9e1fe7b93098558ae50f5f58",
-      "sha": "7b4d0f2cc86a28f9d74cb4d52f770a0a404d567a"
+      "bytes": 9738
     },
     {
       "path": "hosts/cspc/host/host-stage-functions.js",
-      "mode": "100644",
-      "type": "blob",
-      "bytes": 6289,
+      "repository": "EthanYoQ/Job-finder-Codex",
+      "commit": "fdfee63d2e28d43709fe0e305a4157a7f2a3d98d",
+      "gitBlob": "d1b160ea8f3995e914cf38035c6599e1d857e766",
       "sha256": "310caf958ad4ec6fbdb008b9f51aaaf1a4620095470a4136bba0f0ce814ebc65",
-      "sha": "d1b160ea8f3995e914cf38035c6599e1d857e766"
-    },
-    {
-      "path": "hosts/cspc/host/machine-json.js",
-      "mode": "100644",
-      "type": "blob",
-      "bytes": 807,
-      "sha256": "3484738bd095a9d57da70c6392af78865a53759a9e8499316941157b6210e9f6",
-      "sha": "7b927e85ca286ffa900ca93462deee5b9988ed49"
+      "bytes": 6289
     },
     {
       "path": "hosts/cspc/host/relay-files.mjs",
-      "mode": "100644",
-      "type": "blob",
-      "bytes": 7906,
+      "repository": "EthanYoQ/Job-finder-Codex",
+      "commit": "fdfee63d2e28d43709fe0e305a4157a7f2a3d98d",
+      "gitBlob": "d0a855bcd0349c2034619a330240c35fe997e918",
       "sha256": "87c1b40b65398380913105ad2c2babf0917db439f15e3746f2db336635f6ab6c",
-      "sha": "d0a855bcd0349c2034619a330240c35fe997e918"
-    },
-    {
-      "path": "hosts/cspc/host/runtime/complete-reviewed-source-readback.js",
-      "mode": "100644",
-      "type": "blob",
-      "bytes": 5693,
-      "sha256": "90e39260f40425562b0761fb0836b9e34176b36113ea0e374e89684cf5bac48a",
-      "sha": "728cfc5e9d820ba8335a9cd25c9a34439d5c8103"
+      "bytes": 7906
     },
     {
       "path": "hosts/cspc/host/runtime/continuous-relay-v3-durable-monitor.js",
-      "mode": "100644",
-      "type": "blob",
-      "bytes": 5148,
+      "repository": "EthanYoQ/Job-finder-Codex",
+      "commit": "fdfee63d2e28d43709fe0e305a4157a7f2a3d98d",
+      "gitBlob": "fc008df282f388908b85431fe3871644d1fbc8ec",
       "sha256": "6cc47739bedf0cd16f4714e48cb3dc06606d43b709d03d411c59573decc0304d",
-      "sha": "fc008df282f388908b85431fe3871644d1fbc8ec"
-    },
-    {
-      "path": "hosts/cspc/host/runtime/inspect-host-binding.mts",
-      "mode": "100644",
-      "type": "blob",
-      "bytes": 2568,
-      "sha256": "fe33b177e0bf40da2b1035a9482699954803d513f29092153fd61c11e7c34b78",
-      "sha": "16c2e92f6d2cbcbc23731e31c5a8a1a4d7660944"
-    },
-    {
-      "path": "hosts/cspc/host/runtime/load-host-state.js",
-      "mode": "100644",
-      "type": "blob",
-      "bytes": 5054,
-      "sha256": "e479c4eab9f482ae27f10460a65ec9bbfd2ded01c3b54f2486cd12cebbd205a4",
-      "sha": "33cb34851f8850c302eae535e35cfaac9b84cab8"
-    },
-    {
-      "path": "hosts/cspc/host/runtime/load-source-runtime.js",
-      "mode": "100644",
-      "type": "blob",
-      "bytes": 1966,
-      "sha256": "afda9ba72040acb253069c5b3ed4bf9ca62ee1722c5063d163f231ece55a06a9",
-      "sha": "8f8d5f7fc588c1acc31c8d4393135c117f8227ca"
-    },
-    {
-      "path": "hosts/cspc/host/runtime/machine-json.py",
-      "mode": "100644",
-      "type": "blob",
-      "bytes": 1119,
-      "sha256": "67611e749eddc6bf8c591fef11f2efa82e2a73ce0bb51b2779fab4ae68b77f50",
-      "sha": "3dda394ae2fe15b8740c8db2f0adcf6a9e19e3cf"
-    },
-    {
-      "path": "hosts/cspc/host/runtime/preflight/preflight-launch.mjs",
-      "mode": "100644",
-      "type": "blob",
-      "bytes": 11035,
-      "sha256": "89099e0dedbffc36cbe31a9e1e4b458aedf512cc367141af22709a068cd2f968",
-      "sha": "b262b245572d09576f2d5151d5a22799897cb8d5"
-    },
-    {
-      "path": "hosts/cspc/host/runtime/preflight/runtime-check.mjs",
-      "mode": "100644",
-      "type": "blob",
-      "bytes": 3815,
-      "sha256": "e01c5b953283535757e2fcc67df80dd3e86948709dde0b488235a7edee017785",
-      "sha": "275890f0f3584e99e0f0f57a4492fd95ad6c248d"
-    },
-    {
-      "path": "hosts/cspc/host/runtime/prepare-registered-control.mts",
-      "mode": "100644",
-      "type": "blob",
-      "bytes": 4179,
-      "sha256": "9f2090d76cf854e49ff47b66dabaaa599a6bf3252d083a5c5541c29114591230",
-      "sha": "afc02a97bf321411724ea919545bc83dc5910c53"
+      "bytes": 5148
     },
     {
       "path": "hosts/cspc/host/runtime/review-packet-envelope.mts",
-      "mode": "100644",
-      "type": "blob",
-      "bytes": 5535,
+      "repository": "EthanYoQ/Job-finder-Codex",
+      "commit": "fdfee63d2e28d43709fe0e305a4157a7f2a3d98d",
+      "gitBlob": "a550d0fd80f032ae7ed2633e88b2cd2c748c6969",
       "sha256": "40cb1e3ede867f0e9d171605e7454fc71a6f774dfdf910f68ff668722bba69cb",
-      "sha": "a550d0fd80f032ae7ed2633e88b2cd2c748c6969"
+      "bytes": 5535
     },
     {
-      "path": "hosts/cspc/host/runtime/review-publication.py",
-      "mode": "100644",
-      "type": "blob",
-      "bytes": 5384,
-      "sha256": "4ec3fa236f758b3b10625be94935fb16e84eab59f68b7b17d7b535a33792fa70",
-      "sha": "d3cd1d55245b9922f79d6e48fd724bc97818d1ca"
+      "path": "hosts/gilead/host/host-helper-functions.js",
+      "repository": "EthanYoQ/Job-finder-Codex",
+      "commit": "e82801257c48399d12ddf7d1cc38c38e35747313",
+      "gitBlob": "0668087ffc0ffb9f531b03113d34c3e0b4102f91",
+      "sha256": "ef2e78997f5ebe5296e0d61472e893aec372ce8c1610921403653c9413beeeac",
+      "bytes": 9762
     },
     {
-      "path": "hosts/cspc/host/runtime/update-candidate-completion-state.mjs",
-      "mode": "100644",
-      "type": "blob",
-      "bytes": 3654,
-      "sha256": "ae5ad99411b014c8ffff615a0b06af1e1fdfd2ed7f7265c9c9cee0128339bb06",
-      "sha": "ec886e3dd2b52805daccddcdcd862b6afbaeec29"
+      "path": "hosts/gilead/host/host-stage-functions.js",
+      "repository": "EthanYoQ/Job-finder-Codex",
+      "commit": "e82801257c48399d12ddf7d1cc38c38e35747313",
+      "gitBlob": "76de816ee3cc8bebc331214473ae4ba7938819c2",
+      "sha256": "6269989642bafbcc5e7e36be54c773c39f3bd6587fadf88ecd2b44a4e38c4941",
+      "bytes": 6323
     },
     {
-      "path": "hosts/cspc/host/source-config-reference.json",
-      "mode": "100644",
-      "type": "blob",
-      "bytes": 3418,
-      "sha256": "ba6f65ebf8e445c0939a8a31a49b3aad73f92a19081bffe9c0e9c5474f81c8af",
-      "sha": "56f01215859c8981ddf952b99300d4087007785d"
+      "path": "hosts/gilead/host/relay-files.mjs",
+      "repository": "EthanYoQ/Job-finder-Codex",
+      "commit": "e82801257c48399d12ddf7d1cc38c38e35747313",
+      "gitBlob": "b5b649d96659e8a460d2be82831869319bc907d7",
+      "sha256": "b69b04efa7d14698ab24a31fdfeb914d73908c1acd8132643fd71f9a0c8eb24e",
+      "bytes": 7908
     },
     {
-      "path": "hosts/cspc/supervision/inspect-launch-identity.mjs",
-      "mode": "100644",
-      "type": "blob",
-      "bytes": 871,
-      "sha256": "7bc818ae831081b7e91819ad772b950d08e7d06dc741730c0bd54698d6fe8b37",
-      "sha": "0fc3dd6c1dde3cc7759848f18c795792c38c800c"
+      "path": "hosts/gilead/host/runtime/continuous-relay-v3-durable-monitor.js",
+      "repository": "EthanYoQ/Job-finder-Codex",
+      "commit": "e82801257c48399d12ddf7d1cc38c38e35747313",
+      "gitBlob": "9a0d1a4766e29c1a5fc014dbd91b57e17364f17c",
+      "sha256": "a3d671a34bffca9c60a82704563add56f4f33eec3d34ab3fb18797fbaf0c0700",
+      "bytes": 5172
     },
     {
-      "path": "hosts/cspc/supervision/sample_process_tree.py",
-      "mode": "100644",
-      "type": "blob",
-      "bytes": 13065,
-      "sha256": "3fa6daa1af1afee94d19801edfd8bcb538e1243476b5adb253e50de162a27bd6",
-      "sha": "5c2924dc067309525018e4903741dc33e796b546"
+      "path": "hosts/gilead/host/runtime/review-packet-envelope.mts",
+      "repository": "EthanYoQ/Job-finder-Codex",
+      "commit": "e82801257c48399d12ddf7d1cc38c38e35747313",
+      "gitBlob": "a550d0fd80f032ae7ed2633e88b2cd2c748c6969",
+      "sha256": "40cb1e3ede867f0e9d171605e7454fc71a6f774dfdf910f68ff668722bba69cb",
+      "bytes": 5535
     },
     {
-      "path": "hosts/cspc/supervision/start-monitor-cspc51-combined.js",
-      "mode": "100644",
-      "type": "blob",
-      "bytes": 13954,
-      "sha256": "c2ca761476a42b05a60bf38b4839feb06d8a55c8b1250a74d8f492cad9358ba7",
-      "sha": "a7fe9eb6ee356dbb5fe48a85b39ba2e38a31e8f4"
+      "path": "hosts/grifols/host/host-helper-functions.js",
+      "repository": "EthanYoQ/Job-finder-Codex",
+      "commit": "5820ceb6f1d9b329e11f3619f7bb3156b19f7079",
+      "gitBlob": "deaf1a30e3452f1b9fdfe67ed2c821eda7bbeb65",
+      "sha256": "96685e4f41cd31c2574d61776347938d5445166c747063bfee79126f6f77b0a6",
+      "bytes": 9771
     },
     {
-      "path": "hosts/cspc/supervision/supervise-cancel.mjs",
-      "mode": "100644",
-      "type": "blob",
-      "bytes": 10232,
-      "sha256": "083435a5344a47b86f84184bbe1d2711b0d35def4670afb2ab3c8391ed442e7e",
-      "sha": "efe376ba3dbe501d5a2b1bece2c7ac46471aca7d"
+      "path": "hosts/grifols/host/host-stage-functions.js",
+      "repository": "EthanYoQ/Job-finder-Codex",
+      "commit": "5820ceb6f1d9b329e11f3619f7bb3156b19f7079",
+      "gitBlob": "74b9dacd339335caf89cfd2623618997bda5dc39",
+      "sha256": "0d6152b30f34993ab5f80f34b252d279795885a18e7d7b30ef38f3149a20103e",
+      "bytes": 6334
     },
     {
-      "path": "hosts/cspc/verification/SAFE_SOURCE_ALLOWLIST.json",
-      "mode": "100644",
-      "type": "blob",
-      "bytes": 11047,
-      "sha256": "4d212e47d9e1d3d672332211d392300f755fd2738c59a5bf6c73913fe23b276c",
-      "sha": "5cec836d69b1a2a54408a560b0cccee4f4fac0d6"
+      "path": "hosts/grifols/host/relay-files.mjs",
+      "repository": "EthanYoQ/Job-finder-Codex",
+      "commit": "5820ceb6f1d9b329e11f3619f7bb3156b19f7079",
+      "gitBlob": "4218bf27ee30079dfc4a8e1ef48f318e42bbfb6c",
+      "sha256": "5311fb5709e0fec4c8253f72d963fc1a1a050830f2ab9bc391ee79a826f2396e",
+      "bytes": 7909
     },
     {
-      "path": "hosts/cspc/verification/verify-machine-json.py",
-      "mode": "100644",
-      "type": "blob",
-      "bytes": 1040,
-      "sha256": "5de73481cea05886ad8515fee4b6c8b98629fc50d1a5392a764d18180191bd3d",
-      "sha": "20ed5095bcf4a5300931ccdfdfc87775e4f9202e"
+      "path": "hosts/grifols/host/runtime/continuous-relay-v3-durable-monitor.js",
+      "repository": "EthanYoQ/Job-finder-Codex",
+      "commit": "5820ceb6f1d9b329e11f3619f7bb3156b19f7079",
+      "gitBlob": "f3a5394debfb1147952fb2257dfcdac1b4949f95",
+      "sha256": "a951cb41d6eaff71ba910ea47e42716edd896e245a0b692b81bdfb8e315ed318",
+      "bytes": 5184
     },
     {
-      "path": "hosts/cspc/verification/verify-runtime-host.mts",
-      "mode": "100644",
-      "type": "blob",
-      "bytes": 10950,
-      "sha256": "17578f021123e38511fdccf2cdbcca598bb51395b75d67e0549ecb99d11f432f",
-      "sha": "45b1e63120dedac1dbca40f0e30ed535c6858f4b"
+      "path": "hosts/grifols/host/runtime/review-packet-envelope.mts",
+      "repository": "EthanYoQ/Job-finder-Codex",
+      "commit": "5820ceb6f1d9b329e11f3619f7bb3156b19f7079",
+      "gitBlob": "a550d0fd80f032ae7ed2633e88b2cd2c748c6969",
+      "sha256": "40cb1e3ede867f0e9d171605e7454fc71a6f774dfdf910f68ff668722bba69cb",
+      "bytes": 5535
     },
     {
-      "path": "hosts/cspc/verification/verify-source-host.mjs",
-      "mode": "100644",
-      "type": "blob",
-      "bytes": 8345,
-      "sha256": "badceeffd4bd4e52da08d2935acea24cf8e661cec7c0b26b8b0552230f82feef",
-      "sha": "49e1b33dfb1ea0cc681a3ae17a73461ea0e59354"
+      "path": "hosts/merck/host/host-helper-functions.js",
+      "repository": "EthanYoQ/Job-finder-Codex",
+      "commit": "a469112b68a0b0d9a0d2a084fbbfff29d8bd4a2c",
+      "gitBlob": "f6c9b2fee2d708258900dd9c39bdf7c131c752d7",
+      "sha256": "6458885dc8a59415bb08b1d065d3b853e34784ee37a49eb1a27b26644ee040dc",
+      "bytes": 9753
+    },
+    {
+      "path": "hosts/merck/host/host-stage-functions.js",
+      "repository": "EthanYoQ/Job-finder-Codex",
+      "commit": "a469112b68a0b0d9a0d2a084fbbfff29d8bd4a2c",
+      "gitBlob": "de0dcff095e0824c31acc74fd1931cd0db42998f",
+      "sha256": "c8ecfd0af3c08c312f3405058ad0640837cfaca4b8a6d728ddaac1fd056e19d2",
+      "bytes": 6312
+    },
+    {
+      "path": "hosts/merck/host/relay-files.mjs",
+      "repository": "EthanYoQ/Job-finder-Codex",
+      "commit": "a469112b68a0b0d9a0d2a084fbbfff29d8bd4a2c",
+      "gitBlob": "7bf102bd89c200324db467d2fd592a3b8a467e2b",
+      "sha256": "9ac6111d77ade4215f9e6eb3f4eb9b95c46d9ba30dc843c00264130a4e447c25",
+      "bytes": 7907
+    },
+    {
+      "path": "hosts/merck/host/runtime/continuous-relay-v3-durable-monitor.js",
+      "repository": "EthanYoQ/Job-finder-Codex",
+      "commit": "a469112b68a0b0d9a0d2a084fbbfff29d8bd4a2c",
+      "gitBlob": "33b572b4f4bf328ba4f53c863d871cc4a70192fd",
+      "sha256": "b3e98c0a36bd8f75ea594380c2e2afedfc6b43cb8be9059cb7606b28473dde3a",
+      "bytes": 5160
+    },
+    {
+      "path": "hosts/merck/host/runtime/review-packet-envelope.mts",
+      "repository": "EthanYoQ/Job-finder-Codex",
+      "commit": "a469112b68a0b0d9a0d2a084fbbfff29d8bd4a2c",
+      "gitBlob": "a550d0fd80f032ae7ed2633e88b2cd2c748c6969",
+      "sha256": "40cb1e3ede867f0e9d171605e7454fc71a6f774dfdf910f68ff668722bba69cb",
+      "bytes": 5535
+    },
+    {
+      "path": "hosts/organon/host/host-helper-functions.js",
+      "repository": "EthanYoQ/Job-finder-Codex",
+      "commit": "a469112b68a0b0d9a0d2a084fbbfff29d8bd4a2c",
+      "gitBlob": "65ccf350c3f140e51bba4c03a3858363e1986942",
+      "sha256": "4ef85709686c41a73f384a41ccc08e423337990807b030a4c66c1f143c8a60ad",
+      "bytes": 9771
+    },
+    {
+      "path": "hosts/organon/host/host-stage-functions.js",
+      "repository": "EthanYoQ/Job-finder-Codex",
+      "commit": "a469112b68a0b0d9a0d2a084fbbfff29d8bd4a2c",
+      "gitBlob": "83f4b85a33615197c2ed53a49f16814027337698",
+      "sha256": "dc7ec221b7887e1518fe6b7c47d6a10010635ddbd74910ec21976ce08b7cb16c",
+      "bytes": 6334
+    },
+    {
+      "path": "hosts/organon/host/relay-files.mjs",
+      "repository": "EthanYoQ/Job-finder-Codex",
+      "commit": "a469112b68a0b0d9a0d2a084fbbfff29d8bd4a2c",
+      "gitBlob": "91619e7dcbe47e1f0c51ee3de971944e7d4127c4",
+      "sha256": "886e20acac56e0d9ca9b3d114642e6c210360ea5a96fced28fd865622678a132",
+      "bytes": 7909
+    },
+    {
+      "path": "hosts/organon/host/runtime/continuous-relay-v3-durable-monitor.js",
+      "repository": "EthanYoQ/Job-finder-Codex",
+      "commit": "a469112b68a0b0d9a0d2a084fbbfff29d8bd4a2c",
+      "gitBlob": "1c20215a0666f3c7c398b42b3a8c980abe292b58",
+      "sha256": "8ecbf535daf9e5db68cf98bab6807f96b8386e95a9274d1823e5e81a619b6abe",
+      "bytes": 5184
+    },
+    {
+      "path": "hosts/organon/host/runtime/review-packet-envelope.mts",
+      "repository": "EthanYoQ/Job-finder-Codex",
+      "commit": "a469112b68a0b0d9a0d2a084fbbfff29d8bd4a2c",
+      "gitBlob": "a550d0fd80f032ae7ed2633e88b2cd2c748c6969",
+      "sha256": "40cb1e3ede867f0e9d171605e7454fc71a6f774dfdf910f68ff668722bba69cb",
+      "bytes": 5535
+    },
+    {
+      "path": "hosts/viatris/host/host-helper-functions.js",
+      "repository": "EthanYoQ/Job-finder-Codex",
+      "commit": "fdfee63d2e28d43709fe0e305a4157a7f2a3d98d",
+      "gitBlob": "6dc93369c3338165780739c6639c0ea8d13f74a8",
+      "sha256": "4ab668dec13fafeac0b84bc076c21ab5c3ed676666ba1deb4a00f7bf3cf2ead4",
+      "bytes": 9765
+    },
+    {
+      "path": "hosts/viatris/host/host-stage-functions.js",
+      "repository": "EthanYoQ/Job-finder-Codex",
+      "commit": "fdfee63d2e28d43709fe0e305a4157a7f2a3d98d",
+      "gitBlob": "74c7aad8fcd2f9c300aaa705c8d26e9663266d40",
+      "sha256": "cf3c3bcf100e78459717d001f5974b1013400bf879d1d3eadfa7ddfcd22a1836",
+      "bytes": 6322
+    },
+    {
+      "path": "hosts/viatris/host/relay-files.mjs",
+      "repository": "EthanYoQ/Job-finder-Codex",
+      "commit": "fdfee63d2e28d43709fe0e305a4157a7f2a3d98d",
+      "gitBlob": "d5de26fb606216166ef35244fc31260d126ebd87",
+      "sha256": "637dbab39bde702756f5360f589ffb58398b10608f5cc955111fa23d95725134",
+      "bytes": 7909
+    },
+    {
+      "path": "hosts/viatris/host/runtime/continuous-relay-v3-durable-monitor.js",
+      "repository": "EthanYoQ/Job-finder-Codex",
+      "commit": "fdfee63d2e28d43709fe0e305a4157a7f2a3d98d",
+      "gitBlob": "d00e0e1b5ba1a390f4e80db5dc087047bf929fb5",
+      "sha256": "b2f284a29b826b44c2cd926bf903d8b8c9b61f06326332cbd624c32d2f4ea6ca",
+      "bytes": 5184
+    },
+    {
+      "path": "hosts/viatris/host/runtime/review-packet-envelope.mts",
+      "repository": "EthanYoQ/Job-finder-Codex",
+      "commit": "fdfee63d2e28d43709fe0e305a4157a7f2a3d98d",
+      "gitBlob": "a550d0fd80f032ae7ed2633e88b2cd2c748c6969",
+      "sha256": "40cb1e3ede867f0e9d171605e7454fc71a6f774dfdf910f68ff668722bba69cb",
+      "bytes": 5535
     }
   ],
-  "omittedDocuments": [
-    {
-      "path": "hosts/viatris/SAFE_SOURCE_README.md",
-      "sha256": "d6b2740ee341c589a7a91f277efb411b0024b16c296a5ab69c95db78d72c3e74",
-      "bytes": 4647,
-      "reason": "Operational preparation narrative omitted; minimum dependencies are stated in root README."
-    },
-    {
-      "path": "hosts/cspc/SAFE_SOURCE_README.md",
-      "sha256": "40200e4acdf5df5cb23654be1c575342ac42548ec8505b491f9b90df3af4079d",
-      "bytes": 4626,
-      "reason": "Operational preparation narrative omitted; minimum dependencies are stated in root README."
-    }
+  "excludedDocuments": [
+    "REVIEW.md",
+    "real-apply-patch-roundtrip-proof.json",
+    "test-results.txt",
+    "DELIVERY-MANIFEST.json"
   ],
-  "review": "Static hash and source comparison only; no source/test execution."
+  "excludedRuntimeData": [
+    "Actual configuration and control bindings",
+    "Original sessions and runtime state",
+    "SQL requests, responses and DB results",
+    "Raw captures, logs and credentials"
+  ],
+  "review": "Static hashes, exact generator-literal reconstruction and 45 prior-backup source mappings checked. No code or tests executed."
 }

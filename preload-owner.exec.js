@@ -1,0 +1,30 @@
+// functions.exec AsyncFunction body. Required parameter: sourceKey.
+// Run once after the original source loader, before launch/review deadlines.
+// This reads/pins local code only; it does not submit SQL or start a producer.
+if(!/^[a-z][a-z0-9]*$/.test(sourceKey))throw Error('OWNER_SOURCE_KEY');
+const ns='proxyNode22:'+sourceKey+':';
+const q=s=>"'"+String(s).replaceAll("'","'\\''")+"'";
+const result=await tools.exec_command({cmd:'python3 - '+q('/workspace/scratch/5e9614251709/jb-publish-relay-owner-20261007T0300Z')+' '+q(sourceKey)+" <<'PY_OWNER_LOAD'\n"+
+`from pathlib import Path
+import hashlib,json,sys
+p=Path(sys.argv[1]);source=sys.argv[2]
+owner=(p/'publish-and-monitor-owner.js').read_bytes();manifest_bytes=(p/'baseline-manifest.json').read_bytes()
+assert hashlib.sha256(owner).hexdigest()=='d5f3decc6bd41e4dff201b7e5b0d9e5dc1d384f8813de5f3fd5d908b73a488b1'
+assert hashlib.sha256(manifest_bytes).hexdigest()=='e2dfa145ec2e7e045e4064e7baccb755664cb9d94fbc1ffbe50f2a23f673c129'
+m=json.loads(manifest_bytes);root=Path(m['runtimeRoot'])/'hosts'/source/'host'
+files={}
+for name in ['host-helper-functions.js','host-stage-functions.js','runtime/continuous-relay-v3-durable-monitor.js','relay-files.mjs','runtime/review-packet-envelope.mts']:
+ path=root/name;data=path.read_bytes();assert hashlib.sha256(data).hexdigest()==m['files'][str(path)]['sha256']
+ if name in ['host-helper-functions.js','host-stage-functions.js','runtime/continuous-relay-v3-durable-monitor.js']:files[name]=data.decode()
+print(json.dumps({'ownerCode':owner.decode(),'ownerSha256':'d5f3decc6bd41e4dff201b7e5b0d9e5dc1d384f8813de5f3fd5d908b73a488b1','hostRoot':str(root),'files':files}))
+`+'PY_OWNER_LOAD',max_output_tokens:20000,yield_time_ms:1000});
+if(result.exit_code!==0||result.session_id)throw Error('OWNER_PRELOAD_LOCAL_READ_FAILED');
+const p=JSON.parse(result.output);
+if(load(ns+'cloudPilotHostHelpers')!==p.files['host-helper-functions.js']||
+ load(ns+'cloudPilotHostStages')!==p.files['host-stage-functions.js']||
+ load(ns+'continuousPortableRelayCodeWithPoll')!==p.files['runtime/continuous-relay-v3-durable-monitor.js']||
+ load(ns+'cloudPilotHostConfig')?.root!==p.hostRoot)throw Error('OWNER_PRELOAD_STORED_CODE_MISMATCH');
+store(ns+'publishMonitorPrepared',{ownerCode:p.ownerCode,ownerSha256:p.ownerSha256,
+ helperCode:p.files['host-helper-functions.js'],stageCode:p.files['host-stage-functions.js'],
+ monitorCode:p.files['runtime/continuous-relay-v3-durable-monitor.js'],hostRoot:p.hostRoot});
+text({status:'OWNER_CODE_PINNED_NO_LAUNCH',sourceKey,ownerSha256:p.ownerSha256});
