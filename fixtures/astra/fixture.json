@@ -1,0 +1,53 @@
+{
+  "schemaVersion": "deterministic-true-a-reviewer-fixture-v1",
+  "classification": "NEW_SYNTHETIC_CODE_AND_SEED_ONLY",
+  "sourceKey": "astra",
+  "sourceId": "source-astrazeneca-social",
+  "seed": "deterministic-true-a-reviewer-v1",
+  "clock": {
+    "sourceStartedAt": "2026-10-07T13:45:00.000Z",
+    "officialObservationAt": "2026-10-07T13:45:11.000Z",
+    "compileAndDatabaseAt": "2026-10-07T13:45:30.000Z"
+  },
+  "logicalWorkspaceRoot": "synthetic-fixture://true-a-reviewer-v1/astra",
+  "batchId": "synthetic-deterministic-astra-v1",
+  "sourceResultId": "synthetic-deterministic-astra-v1--source-astrazeneca-social",
+  "sourceConfigSha256": "ed85e5a1e4798e4393003cccd6899db986a90c9ff180e95425a63e622cd8ccc5",
+  "syntheticControl": {
+    "projectId": "yiopvxysxrtrnvqxwgbx",
+    "build": {
+      "schemaVersion": 2,
+      "commitSha": "d58b51d0405dbcf7bc822e5ad9a3f64963ee68f6",
+      "sourceTreeSha256": "6de0735c47a7e97aae30a4add469cf6cf60f8a2006fe2b24d1d4fe69bb9e1c52",
+      "runtimeTreeSha256": "a0a3e578db4255b805f76f24b06931235535c29dfdef33907e65ded3d68c631a",
+      "contentSha256": "ed651049e6deb96c4661bdbad557dc87c070e1e5d457b76cf0633cd7e42ed5ce"
+    },
+    "candidate": {
+      "id": "synthetic-deterministic-true-a-reviewer-v1",
+      "goalId": "jobfinder-portable-required-40",
+      "version": 900001
+    },
+    "databaseIdentity": {
+      "migrationVersion": "20261006172300_job_projection_delta_contract",
+      "schemaHash": "6a5c4818bf174af6c8ee69cb0c8ffae8c2d99a79130768742f887031aa28c527",
+      "dbSnapshotHash": "ade1bebc3cd9c26f9f0c6e21ceeba82bfc588945b36a8210e891be0ecd76bbd7"
+    }
+  },
+  "requestId": "94f1f413-62b0-410c-b638-3f34321fafd1",
+  "compilerUuidCount": 13,
+  "artifacts": 3,
+  "mockHttpResponseCount": 3,
+  "localSqlResult": {
+    "atomicCommitState": "COMMITTED",
+    "completenessState": "VERIFIED",
+    "dedupeOutputCount": 2,
+    "physicalJobCount": 2,
+    "lockReleased": true
+  },
+  "observations": {
+    "outer": "2026-10-07T13:45:00.000Z",
+    "inner": "2026-10-07T13:45:11.000Z"
+  },
+  "schemaContractConstantsAreNotLiveAuthority": true,
+  "originalRestrictedPacketRead": false
+}

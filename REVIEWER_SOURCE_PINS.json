@@ -1,0 +1,44 @@
+[
+  {
+    "sourceKey": "astra",
+    "filename": "review-publication.py",
+    "sha256": "82bbf680f3dfbbb4ce7c6be20803a94feb510b650433a60031cd04240c70fd4a",
+    "source": "Previously reviewed static TRUE_A host source",
+    "functionalSourceChanged": false
+  },
+  {
+    "sourceKey": "astra",
+    "filename": "machine-json.py",
+    "sha256": "67611e749eddc6bf8c591fef11f2efa82e2a73ce0bb51b2779fab4ae68b77f50",
+    "source": "Previously reviewed static TRUE_A host source",
+    "functionalSourceChanged": false
+  },
+  {
+    "sourceKey": "astra",
+    "filename": "review-packet-envelope.mts",
+    "sha256": "40cb1e3ede867f0e9d171605e7454fc71a6f774dfdf910f68ff668722bba69cb",
+    "source": "Previously reviewed static TRUE_A host source",
+    "functionalSourceChanged": false
+  },
+  {
+    "sourceKey": "amgen",
+    "filename": "review-publication.py",
+    "sha256": "baa95c5997c7142b164895fa1ecfe6cab396fefd8623625e3a0398d06c70c254",
+    "source": "Previously reviewed static TRUE_A host source",
+    "functionalSourceChanged": false
+  },
+  {
+    "sourceKey": "amgen",
+    "filename": "machine-json.py",
+    "sha256": "67611e749eddc6bf8c591fef11f2efa82e2a73ce0bb51b2779fab4ae68b77f50",
+    "source": "Previously reviewed static TRUE_A host source",
+    "functionalSourceChanged": false
+  },
+  {
+    "sourceKey": "amgen",
+    "filename": "review-packet-envelope.mts",
+    "sha256": "40cb1e3ede867f0e9d171605e7454fc71a6f774dfdf910f68ff668722bba69cb",
+    "source": "Previously reviewed static TRUE_A host source",
+    "functionalSourceChanged": false
+  }
+]

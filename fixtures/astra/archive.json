@@ -1,0 +1,106 @@
+{
+  "schemaVersion": 1,
+  "sidecar": {
+    "releaseCandidateId": "synthetic-deterministic-true-a-reviewer-v1",
+    "batchId": "synthetic-deterministic-astra-v1",
+    "sourceId": "source-astrazeneca-social",
+    "sourceResultId": "synthetic-deterministic-astra-v1--source-astrazeneca-social",
+    "evidenceSubdirectory": "synthetic-fixture",
+    "artifacts": [
+      {
+        "id": "22c95e94c16dd335966402cfca5cb53bd09a1e48251606636294a2497de702ed",
+        "logicalKey": "official-html-page-0000",
+        "releaseCandidateId": "synthetic-deterministic-true-a-reviewer-v1",
+        "batchId": "synthetic-deterministic-astra-v1",
+        "sourceId": "source-astrazeneca-social",
+        "sourceResultId": "synthetic-deterministic-astra-v1--source-astrazeneca-social",
+        "kind": "PAGINATION_PAGE",
+        "requestedUrl": "https://job-search.astrazeneca.cn/%e6%b1%82%e8%81%8c?p=sha256%3A6b86b273ff34fce19d6b804eff5a3f5747ada4eaa22f1d49c01e52ddb7875b4b",
+        "finalUrl": "https://job-search.astrazeneca.cn/%e6%b1%82%e8%81%8c?p=sha256%3A6b86b273ff34fce19d6b804eff5a3f5747ada4eaa22f1d49c01e52ddb7875b4b",
+        "httpStatus": 200,
+        "contentType": "text/html; charset=utf-8",
+        "bodyRepresentation": "EXACT",
+        "capturedAt": "2026-10-07T13:45:11.000Z",
+        "sha256": "641273d0112720bcea2c55be47bd09b53edce3fb28d5a3b179f3f5913964fc38",
+        "byteCount": 966,
+        "path": "outputs/p0-rc/synthetic-deterministic-true-a-reviewer-v1/synthetic-fixture/artifacts/synthetic-deterministic-astra-v1/source-astrazeneca-social/synthetic-deterministic-astra-v1--source-astrazeneca-social/22c95e94c16dd335966402cfca5cb53bd09a1e48251606636294a2497de702ed--official-html-page-0000.html",
+        "extractorLocator": "#search-results-list li|request-contract-v2|sha256:e260e5b8fb8b2c1a86058c26c12ca205e81a43edbdce36ac76ddb23b4d9db8db",
+        "captureToolName": "official-html-http",
+        "captureToolVersion": "1"
+      },
+      {
+        "id": "357d5f13fd15248a2d98c89caee9953f61bd681727e06fb10282b33e02014afd",
+        "logicalKey": "astrazeneca-detail-990000000001",
+        "releaseCandidateId": "synthetic-deterministic-true-a-reviewer-v1",
+        "batchId": "synthetic-deterministic-astra-v1",
+        "sourceId": "source-astrazeneca-social",
+        "sourceResultId": "synthetic-deterministic-astra-v1--source-astrazeneca-social",
+        "kind": "ATS_PAGE",
+        "requestedUrl": "https://job-search.astrazeneca.cn/%e5%b7%a5%e4%bd%9c/synthetic-fixture/role/12977/990000000001",
+        "finalUrl": "https://job-search.astrazeneca.cn/%e5%b7%a5%e4%bd%9c/synthetic-fixture/role/12977/990000000001",
+        "httpStatus": 200,
+        "contentType": "text/html; charset=utf-8",
+        "bodyRepresentation": "EXACT",
+        "capturedAt": "2026-10-07T13:45:11.000Z",
+        "sha256": "49a75a35fa69f3150e982c50271fb2f4d5c00f1959907711955bcafdc0fd3554",
+        "byteCount": 1607,
+        "path": "outputs/p0-rc/synthetic-deterministic-true-a-reviewer-v1/synthetic-fixture/artifacts/synthetic-deterministic-astra-v1/source-astrazeneca-social/synthetic-deterministic-astra-v1--source-astrazeneca-social/357d5f13fd15248a2d98c89caee9953f61bd681727e06fb10282b33e02014afd--astrazeneca-detail-990000000001.html",
+        "extractorLocator": "ASTRAZENECA_JOBPOSTING_DOM_V1",
+        "captureToolName": "official-html-http",
+        "captureToolVersion": "1"
+      },
+      {
+        "id": "d485c276502f73e7a77aed95d2574cebe29b2e951a1c37ad70a2a9bf1b8cd7ee",
+        "logicalKey": "astrazeneca-detail-990000000002",
+        "releaseCandidateId": "synthetic-deterministic-true-a-reviewer-v1",
+        "batchId": "synthetic-deterministic-astra-v1",
+        "sourceId": "source-astrazeneca-social",
+        "sourceResultId": "synthetic-deterministic-astra-v1--source-astrazeneca-social",
+        "kind": "ATS_PAGE",
+        "requestedUrl": "https://job-search.astrazeneca.cn/%e5%b7%a5%e4%bd%9c/synthetic-fixture/role/12977/990000000002",
+        "finalUrl": "https://job-search.astrazeneca.cn/%e5%b7%a5%e4%bd%9c/synthetic-fixture/role/12977/990000000002",
+        "httpStatus": 200,
+        "contentType": "text/html; charset=utf-8",
+        "bodyRepresentation": "EXACT",
+        "capturedAt": "2026-10-07T13:45:11.000Z",
+        "sha256": "7ddf5e4c604b5a0723ebc68eb6e95f367fa8f686acd8073ebb484691f0298286",
+        "byteCount": 1607,
+        "path": "outputs/p0-rc/synthetic-deterministic-true-a-reviewer-v1/synthetic-fixture/artifacts/synthetic-deterministic-astra-v1/source-astrazeneca-social/synthetic-deterministic-astra-v1--source-astrazeneca-social/d485c276502f73e7a77aed95d2574cebe29b2e951a1c37ad70a2a9bf1b8cd7ee--astrazeneca-detail-990000000002.html",
+        "extractorLocator": "ASTRAZENECA_JOBPOSTING_DOM_V1",
+        "captureToolName": "official-html-http",
+        "captureToolVersion": "1"
+      }
+    ]
+  },
+  "files": [
+    {
+      "path": "outputs/p0-rc/synthetic-deterministic-true-a-reviewer-v1/synthetic-fixture/artifacts/synthetic-deterministic-astra-v1/source-astrazeneca-social/synthetic-deterministic-astra-v1--source-astrazeneca-social/22c95e94c16dd335966402cfca5cb53bd09a1e48251606636294a2497de702ed--official-html-page-0000.html",
+      "sha256": "641273d0112720bcea2c55be47bd09b53edce3fb28d5a3b179f3f5913964fc38",
+      "byteCount": 966,
+      "chunks": [
+        "PHNlY3Rpb24gZGF0YS1maWx0ZXItaWQ9IjIiPjxpbnB1dCB0eXBlPSJjaGVja2JveCIgaWQ9ImNvdW50cnktZmlsdGVyLTAiIGRhdGEtZmFjZXQtdHlwZT0iMiIgZGF0YS1pZD0iMTgxNDk5MSIgZGF0YS1jb3VudD0iMiIgZGF0YS1kaXNwbGF5PSLkuK3lm70iPjxsYWJlbCBmb3I9ImNvdW50cnktZmlsdGVyLTAiPjxiIGNsYXNzPSJmaWx0ZXIiPuS4reWbvTwvYj48Yj4yPC9iPjwvbGFiZWw+PC9zZWN0aW9uPjxzZWN0aW9uIGlkPSJzZWFyY2gtcmVzdWx0cyIgZGF0YS10b3RhbC1qb2ItcmVzdWx0cz0iMiIgZGF0YS10b3RhbC1yZXN1bHRzPSIyIiBkYXRhLXRvdGFsLXBhZ2VzPSIxIiBkYXRhLWN1cnJlbnQtcGFnZT0iMSIgZGF0YS1yZWNvcmRzLXBlci1wYWdlPSIxNSI+PHNlY3Rpb24gaWQ9InNlYXJjaC1yZXN1bHRzLWxpc3QiPjx1bD48bGk+PGEgY2xhc3M9InNlYXJjaC1yZXN1bHRzLWxpbmsiIGRhdGEtam9iLWlkPSI5OTAwMDAwMDAwMDEiIGhyZWY9Imh0dHBzOi8vam9iLXNlYXJjaC5hc3RyYXplbmVjYS5jbi8lZTUlYjclYTUlZTQlYmQlOWMvc3ludGhldGljLWZpeHR1cmUvcm9sZS8xMjk3Ny85OTAwMDAw",
+        "MDAwMDEiPjxoMj5TWU5USEVUSUMgRklYVFVSRSBST0xFIDAwMDE8L2gyPjwvYT48c3BhbiBjbGFzcz0iam9iLWxvY2F0aW9uIj5NdWx0aXBsZSBsb2NhdGlvbnM8L3NwYW4+PC9saT48bGk+PGEgY2xhc3M9InNlYXJjaC1yZXN1bHRzLWxpbmsiIGRhdGEtam9iLWlkPSI5OTAwMDAwMDAwMDIiIGhyZWY9Imh0dHBzOi8vam9iLXNlYXJjaC5hc3RyYXplbmVjYS5jbi8lZTUlYjclYTUlZTQlYmQlOWMvc3ludGhldGljLWZpeHR1cmUvcm9sZS8xMjk3Ny85OTAwMDAwMDAwMDIiPjxoMj5TWU5USEVUSUMgRklYVFVSRSBST0xFIDAwMDI8L2gyPjwvYT48c3BhbiBjbGFzcz0iam9iLWxvY2F0aW9uIj5NdWx0aXBsZSBsb2NhdGlvbnM8L3NwYW4+PC9saT48L3VsPjwvc2VjdGlvbj48L3NlY3Rpb24+"
+      ]
+    },
+    {
+      "path": "outputs/p0-rc/synthetic-deterministic-true-a-reviewer-v1/synthetic-fixture/artifacts/synthetic-deterministic-astra-v1/source-astrazeneca-social/synthetic-deterministic-astra-v1--source-astrazeneca-social/357d5f13fd15248a2d98c89caee9953f61bd681727e06fb10282b33e02014afd--astrazeneca-detail-990000000001.html",
+      "sha256": "49a75a35fa69f3150e982c50271fb2f4d5c00f1959907711955bcafdc0fd3554",
+      "byteCount": 1607,
+      "chunks": [
+        "PGh0bWw+PGhlYWQ+PGxpbmsgcmVsPSJjYW5vbmljYWwiIGhyZWY9Imh0dHBzOi8vam9iLXNlYXJjaC5hc3RyYXplbmVjYS5jbi8lZTUlYjclYTUlZTQlYmQlOWMvc3ludGhldGljLWZpeHR1cmUvcm9sZS8xMjk3Ny85OTAwMDAwMDAwMDEiPjxtZXRhIG5hbWU9ImpvYi1hdHMtcmVxLWlkIiBjb250ZW50PSJUUDk5MDAwMDAwMSI+PHNjcmlwdCB0eXBlPSJhcHBsaWNhdGlvbi9sZCtqc29uIj57IkBjb250ZXh0IjoiaHR0cHM6Ly9zY2hlbWEub3JnIiwiQHR5cGUiOiJKb2JQb3N0aW5nIiwiaWRlbnRpZmllciI6IlRQOTkwMDAwMDAxIiwidGl0bGUiOiJTWU5USEVUSUMgRklYVFVSRSBST0xFIDAwMDEiLCJ1cmwiOiJodHRwczovL2pvYi1zZWFyY2guYXN0cmF6ZW5lY2EuY24vJWU1JWI3JWE1JWU0JWJkJTljL3N5bnRoZXRpYy1maXh0dXJlL3JvbGUvMTI5NzcvOTkwMDAwMDAwMDAxIiwiZGF0ZVBvc3RlZCI6IjIwMjUtMDEtMDIiLCJkZXNjcmlwdGlvbiI6IjxwPlNZTlRIRVRJQyBGSVhUVVJFIE9OTFkuIFRoaXMgaXMgYW4gaW52ZW50ZWQgdGVzdCBqb2IuIE5vIGFjdHVhbCB2YWNhbmN5IG9yIHNvdXJjZSByZXNwb25z",
+        "ZSBpcyByZXByZXNlbnRlZC48L3A+IiwiaGlyaW5nT3JnYW5pemF0aW9uIjp7IkB0eXBlIjoiT3JnYW5pemF0aW9uIiwibmFtZSI6IkFzdHJhemVuZWNhIn0sImpvYkxvY2F0aW9uIjpbeyJAdHlwZSI6IlBsYWNlIiwiYWRkcmVzcyI6eyJAdHlwZSI6IlBvc3RhbEFkZHJlc3MiLCJhZGRyZXNzTG9jYWxpdHkiOiJXdXhpIiwiYWRkcmVzc1JlZ2lvbiI6IkppYW5nc3UiLCJhZGRyZXNzQ291bnRyeSI6IkNOIn19XX08L3NjcmlwdD48L2hlYWQ+PGJvZHk+PHNlY3Rpb24gY2xhc3M9ImpvYi1kZXNjcmlwdGlvbi10aXRsZSIgZGF0YS1vcmctaWQ9IjEyOTc3IiBkYXRhLWpvYi1pZD0iOTkwMDAwMDAwMDAxIj48aDE+U1lOVEhFVElDIEZJWFRVUkUgUk9MRSAwMDAxPC9oMT48L3NlY3Rpb24+PHNlY3Rpb24gY2xhc3M9ImpvYi1kZXNjcmlwdGlvbiIgZGF0YS1vcmctaWQ9IjEyOTc3IiBkYXRhLWpvYi1pZD0iOTkwMDAwMDAwMDAxIj48c3BhbiBjbGFzcz0iam9iLWxvY2F0aW9ucyI+PHNwYW4+5peg6ZSh5biCLCA8L3NwYW4+PHNwYW4+5rGf6IuPLCA8L3NwYW4+PHNwYW4+5Lit5Zu9PC9zcGFuPjwvc3Bhbj48c3BhbiBjbGFz",
+        "cz0iam9iLWlkIGpvYi1pbmZvIj48Yj7ogYzkvY0gSUQ8L2I+IFRQOTkwMDAwMDAxPC9zcGFuPjxzcGFuIGNsYXNzPSJqb2ItZGF0ZSBqb2ItaW5mbyI+PGI+5Y+R5biD5pel5pyfPC9iPiAwMS8wMi8yMDI1PC9zcGFuPjxhIGNsYXNzPSJqb2ItYXBwbHkiIGRhdGEtam9iLWlkPSI5OTAwMDAwMDAwMDEiIGhyZWY9Imh0dHBzOi8vY2FyZWVyc2l0ZS50dXB1MzYwLmNvbS9hc3RyYXplbmVjYS9wb3NpdGlvbi9kZXRhaWw/cG9zaXRpb25JZD1TWU5USEVUSUMtRklYVFVSRS05OTAwMDAwMDAwMDEiPueUs+ivtzwvYT48ZGl2IGNsYXNzPSJhdHMtZGVzY3JpcHRpb24iPlNZTlRIRVRJQyBGSVhUVVJFIE9OTFkuIFRoaXMgaXMgYW4gaW52ZW50ZWQgdGVzdCBqb2IuIE5vIGFjdHVhbCB2YWNhbmN5IG9yIHNvdXJjZSByZXNwb25zZSBpcyByZXByZXNlbnRlZC48L2Rpdj48L3NlY3Rpb24+PC9ib2R5PjwvaHRtbD4="
+      ]
+    },
+    {
+      "path": "outputs/p0-rc/synthetic-deterministic-true-a-reviewer-v1/synthetic-fixture/artifacts/synthetic-deterministic-astra-v1/source-astrazeneca-social/synthetic-deterministic-astra-v1--source-astrazeneca-social/d485c276502f73e7a77aed95d2574cebe29b2e951a1c37ad70a2a9bf1b8cd7ee--astrazeneca-detail-990000000002.html",
+      "sha256": "7ddf5e4c604b5a0723ebc68eb6e95f367fa8f686acd8073ebb484691f0298286",
+      "byteCount": 1607,
+      "chunks": [
+        "PGh0bWw+PGhlYWQ+PGxpbmsgcmVsPSJjYW5vbmljYWwiIGhyZWY9Imh0dHBzOi8vam9iLXNlYXJjaC5hc3RyYXplbmVjYS5jbi8lZTUlYjclYTUlZTQlYmQlOWMvc3ludGhldGljLWZpeHR1cmUvcm9sZS8xMjk3Ny85OTAwMDAwMDAwMDIiPjxtZXRhIG5hbWU9ImpvYi1hdHMtcmVxLWlkIiBjb250ZW50PSJUUDk5MDAwMDAwMiI+PHNjcmlwdCB0eXBlPSJhcHBsaWNhdGlvbi9sZCtqc29uIj57IkBjb250ZXh0IjoiaHR0cHM6Ly9zY2hlbWEub3JnIiwiQHR5cGUiOiJKb2JQb3N0aW5nIiwiaWRlbnRpZmllciI6IlRQOTkwMDAwMDAyIiwidGl0bGUiOiJTWU5USEVUSUMgRklYVFVSRSBST0xFIDAwMDIiLCJ1cmwiOiJodHRwczovL2pvYi1zZWFyY2guYXN0cmF6ZW5lY2EuY24vJWU1JWI3JWE1JWU0JWJkJTljL3N5bnRoZXRpYy1maXh0dXJlL3JvbGUvMTI5NzcvOTkwMDAwMDAwMDAyIiwiZGF0ZVBvc3RlZCI6IjIwMjUtMDEtMDIiLCJkZXNjcmlwdGlvbiI6IjxwPlNZTlRIRVRJQyBGSVhUVVJFIE9OTFkuIFRoaXMgaXMgYW4gaW52ZW50ZWQgdGVzdCBqb2IuIE5vIGFjdHVhbCB2YWNhbmN5IG9yIHNvdXJjZSByZXNwb25z",
+        "ZSBpcyByZXByZXNlbnRlZC48L3A+IiwiaGlyaW5nT3JnYW5pemF0aW9uIjp7IkB0eXBlIjoiT3JnYW5pemF0aW9uIiwibmFtZSI6IkFzdHJhemVuZWNhIn0sImpvYkxvY2F0aW9uIjpbeyJAdHlwZSI6IlBsYWNlIiwiYWRkcmVzcyI6eyJAdHlwZSI6IlBvc3RhbEFkZHJlc3MiLCJhZGRyZXNzTG9jYWxpdHkiOiJXdXhpIiwiYWRkcmVzc1JlZ2lvbiI6IkppYW5nc3UiLCJhZGRyZXNzQ291bnRyeSI6IkNOIn19XX08L3NjcmlwdD48L2hlYWQ+PGJvZHk+PHNlY3Rpb24gY2xhc3M9ImpvYi1kZXNjcmlwdGlvbi10aXRsZSIgZGF0YS1vcmctaWQ9IjEyOTc3IiBkYXRhLWpvYi1pZD0iOTkwMDAwMDAwMDAyIj48aDE+U1lOVEhFVElDIEZJWFRVUkUgUk9MRSAwMDAyPC9oMT48L3NlY3Rpb24+PHNlY3Rpb24gY2xhc3M9ImpvYi1kZXNjcmlwdGlvbiIgZGF0YS1vcmctaWQ9IjEyOTc3IiBkYXRhLWpvYi1pZD0iOTkwMDAwMDAwMDAyIj48c3BhbiBjbGFzcz0iam9iLWxvY2F0aW9ucyI+PHNwYW4+5peg6ZSh5biCLCA8L3NwYW4+PHNwYW4+5rGf6IuPLCA8L3NwYW4+PHNwYW4+5Lit5Zu9PC9zcGFuPjwvc3Bhbj48c3BhbiBjbGFz",
+        "cz0iam9iLWlkIGpvYi1pbmZvIj48Yj7ogYzkvY0gSUQ8L2I+IFRQOTkwMDAwMDAyPC9zcGFuPjxzcGFuIGNsYXNzPSJqb2ItZGF0ZSBqb2ItaW5mbyI+PGI+5Y+R5biD5pel5pyfPC9iPiAwMS8wMi8yMDI1PC9zcGFuPjxhIGNsYXNzPSJqb2ItYXBwbHkiIGRhdGEtam9iLWlkPSI5OTAwMDAwMDAwMDIiIGhyZWY9Imh0dHBzOi8vY2FyZWVyc2l0ZS50dXB1MzYwLmNvbS9hc3RyYXplbmVjYS9wb3NpdGlvbi9kZXRhaWw/cG9zaXRpb25JZD1TWU5USEVUSUMtRklYVFVSRS05OTAwMDAwMDAwMDIiPueUs+ivtzwvYT48ZGl2IGNsYXNzPSJhdHMtZGVzY3JpcHRpb24iPlNZTlRIRVRJQyBGSVhUVVJFIE9OTFkuIFRoaXMgaXMgYW4gaW52ZW50ZWQgdGVzdCBqb2IuIE5vIGFjdHVhbCB2YWNhbmN5IG9yIHNvdXJjZSByZXNwb25zZSBpcyByZXByZXNlbnRlZC48L2Rpdj48L3NlY3Rpb24+PC9ib2R5PjwvaHRtbD4="
+      ]
+    }
+  ]
+}

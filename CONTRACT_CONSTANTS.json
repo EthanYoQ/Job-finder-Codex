@@ -1,0 +1,126 @@
+{
+  "classification": "REQUIRED_STATIC_PARSER_AND_COMPILER_CONTRACTS_NOT_LIVE_IDENTITIES",
+  "values": [
+    {
+      "kind": "project-literal",
+      "value": "yiopvxysxrtrnvqxwgbx",
+      "origin": [
+        "producer/src/db/cloudPilotSqlControl.ts",
+        "reviewer-source/*/review-publication.py",
+        "reviewer-source/*/review-packet-envelope.mts"
+      ],
+      "reason": "Unchanged compiler and reviewer literal check; never used with a network or official database tool"
+    },
+    {
+      "kind": "goal-literal",
+      "value": "jobfinder-portable-required-40",
+      "origin": [
+        "producer/src/db/cloudPilotSqlControl.ts candidateSchema"
+      ],
+      "reason": "Original candidate schema literal"
+    },
+    {
+      "kind": "sources",
+      "values": [
+        {
+          "sourceKey": "astra",
+          "sourceId": "source-astrazeneca-social",
+          "sourceConfigSha256": "ed85e5a1e4798e4393003cccd6899db986a90c9ff180e95425a63e622cd8ccc5"
+        },
+        {
+          "sourceKey": "amgen",
+          "sourceId": "source-amgen-china-social",
+          "sourceConfigSha256": "1854166be2d563e3e9cc075df017d3f04e1f65e3b06186bb64c95a3c8676f6a6"
+        }
+      ],
+      "origin": [
+        "Original sourcePlan and static reviewer source/hash checks"
+      ],
+      "reason": "Select and validate unchanged native A parser contract"
+    },
+    {
+      "kind": "public-routing-and-geography",
+      "values": {
+        "astra": {
+          "domain": "job-search.astrazeneca.cn",
+          "organizationId": "12977",
+          "countryFacet": "1814991",
+          "organizationName": "Astrazeneca",
+          "applicationDomain": "careersite.tupu360.com"
+        },
+        "amgen": {
+          "domains": [
+            "careers.amgen.com",
+            "amgen.wd1.myworkdayjobs.com"
+          ],
+          "organizationId": "87",
+          "countryFacet": "1814991",
+          "workdayChinaId": "6cb77610a8a543aea2d6bc10457e35d4",
+          "organizationName": "Amgen"
+        },
+        "geography": [
+          "China",
+          "CN",
+          "Wuxi",
+          "Jiangsu",
+          "Shanghai",
+          "中国",
+          "无锡市",
+          "江苏"
+        ]
+      },
+      "origin": [
+        "producer/src/crawler/astraZenecaDetails.ts",
+        "producer/src/crawler/astraZenecaDetailContract.ts",
+        "producer/src/crawler/amgenManualWorkdaySourceFetch.ts",
+        "producer/src/crawler/amgenNativeSourceFetch.ts",
+        "original source plan"
+      ],
+      "reason": "Required identity, country and URL parser checks; all HTTP response bodies are authored mock data, and none of these URLs is fetched"
+    },
+    {
+      "kind": "schemas-and-policy",
+      "values": [
+        "build schemaVersion 2",
+        "a-grade-official-total-v2",
+        "job-projection-delta-receipt-v1",
+        "STRICT_PLAN_BOUND_OFFICIAL_TOTAL_REPLAY_V1",
+        "AMGEN_MANUAL_WORKDAY_LOOKUP_V2",
+        "20261006172300_job_projection_delta_contract"
+      ],
+      "origin": [
+        "producer/src/crawler/completenessCertificate.ts",
+        "producer/src/domain/jobProjectionDeltaReceipt.ts",
+        "producer/src/db/jobProjectionDeltaProfile.ts",
+        "producer/src/crawler/amgenManualWorkdaySourceFetch.ts"
+      ],
+      "reason": "Original proof and SQL schema compatibility"
+    },
+    {
+      "kind": "code-defined-predecessor-and-migrations",
+      "origin": [
+        "producer/src/db/cloudPilotSql45Manifest.ts",
+        "producer/tests/helpers/incrementalPglite.ts"
+      ],
+      "reason": "Synthetic memory database migration/bootstrap only. No predecessor is retrieved from a database; no real predecessor row is exported as fixture metadata."
+    }
+  ],
+  "explicitlySynthetic": [
+    "Candidate id synthetic-deterministic-true-a-reviewer-v1 and version 900001",
+    "Build commit/tree/runtime and schema/database snapshot hashes derived from NEW SYNTHETIC labels",
+    "Batch/result/request/holder and SQL row ids",
+    "All job IDs, requisitions, titles, descriptions, details, dates and job URL suffixes",
+    "Seeded UUID sequence and fixed 2026-10-07T13:45:00/11/30Z clock schedule",
+    "Logical workspace roots synthetic-fixture://true-a-reviewer-v1/<source>"
+  ],
+  "oldRestrictedInputs": {
+    "read": false,
+    "copied": false,
+    "splitOrRenamed": false,
+    "amgenOriginalSha256": "940afae32ba655f3a0cb2ea71e6470f50c9c4b5b1858a024fc735b3ae3d0a23c",
+    "astraOriginalSha256": "1c551b69ca53b32ff4718a558498f5b97ecb4c994e80fa2f58b7178fd6893617",
+    "metadataSource": "Hashes supplied by the sole backup writer; original content not read",
+    "originalByteReproductionClaimed": false,
+    "originalGap": "Original generator used unrecorded Date.now/mkdtemp/UUID state; exact old bytes cannot be reconstructed from a complete recorded seed"
+  }
+}

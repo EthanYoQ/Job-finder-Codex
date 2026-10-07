@@ -1,856 +1,187 @@
 {
   "schemaVersion": 1,
   "scope": "Unbound host source, static configuration templates, synthetic test code and exact regeneration inputs",
-  "reviewedPlanSha256": "a4393628c72b43626ac009ae51ba46bddc531fcd04229511977d6cd416a52dc5",
-  "additionalExclusions": {},
+  "reviewedPlanSha256": "025e794165daab79f350201ad0871c863ade2014a6a340c9187146208c4e2f60",
+  "additionalExclusions": {
+    "README.md": "Mixed original operational/test-result narrative replaced by minimal recovery note",
+    "DETERMINISM_ACCEPTANCE.json": "Original execution acceptance report omitted; raw fixture hashes and source dependencies remain"
+  },
   "sourceExecutionPerformed": false,
   "sourceFiles": [
     {
-      "path": "RESTORE_DEPENDENCIES.json",
+      "path": "CONTRACT_CONSTANTS.json",
       "mode": "100644",
-      "bytes": 2912,
-      "sha256": "e8be9b6985607c4fbcd40ad6a30918c8288c1b2bdb62f46bdf8f8a97d824eff1",
-      "sha": "ed7cc855908a49c57c0cc7fb0b4adc8a112e3b14"
+      "bytes": 4813,
+      "sha256": "b4248f7db6154ed6527e2034b3134e1c9930df37e51da0950f90d5d87f0d569b",
+      "sha": "7d48836d88e1e895678c661ea085f98ab04bf8ae"
     },
     {
-      "path": "hosts/crpharma/RESTORE_DEPENDENCIES.json",
+      "path": "DEPENDENCY_PROVENANCE.json",
       "mode": "100644",
-      "bytes": 1154,
-      "sha256": "470c972d7a9560fe1a8f8d4841cb91f92f3009ac04aa8eeacfae6d85cf5b9012",
-      "sha": "4308b39d233fc8b5aa48199122dae8b0ed2da1e4"
+      "bytes": 58692,
+      "sha256": "590a4ce05c0d8757e53e9ee6789af4df859753598b0d42186dbcf49bacf66664",
+      "sha": "8f495550c94cce5d33966b568443de7216d0bea3"
     },
     {
-      "path": "hosts/crpharma/host/archive-transfer.mjs",
+      "path": "PAYLOAD_SHA256SUMS.txt",
       "mode": "100644",
-      "bytes": 1777,
-      "sha256": "698e966e5552967845a5252d2b3df2acca28dcd8dbbb0ae41755a3a6231e6a99",
-      "sha": "5a454d21f34f9680221bbee2c98b3fecb94884f0"
+      "bytes": 800,
+      "sha256": "afb80ecdaede93e4c14ca421caab07b4a8a6b1e981a4261421f998f657677bc2",
+      "sha": "ed83d77ab5b59b4d54a56a4254bfc1a1bf2d1d4d"
     },
     {
-      "path": "hosts/crpharma/host/context-read.sql.template",
+      "path": "REVIEWER_SOURCE_PINS.json",
       "mode": "100644",
-      "bytes": 2372,
-      "sha256": "fd865878da173235fa148c7e8eabaea2ff093e08e27268455bf87f2ec771aea6",
-      "sha": "e12fdeaf0650397232a62e7179f3af00045a33b4"
+      "bytes": 1549,
+      "sha256": "a8e5979586851e020d1d225f1477a81093eee6e3329b9948f73c3af468d527ab",
+      "sha": "e88fb0d7e507d9b2758d3d224ea8a7ebb6441171"
     },
     {
-      "path": "hosts/crpharma/host/context-template-proof.json",
+      "path": "compare-runs.py",
       "mode": "100644",
-      "bytes": 2550,
-      "sha256": "54d4af26eeca985b7233d0292e7e753941f16e31d2e1ab9cff3e3d19061b9313",
-      "sha": "402fdc3619c77e4688b2f495c605522dcabf3438"
+      "bytes": 868,
+      "sha256": "f0fb01767ef5f604affaa7ca81043335a72a51e1b33a8d5687b680700f01aefb",
+      "sha": "eb0d8a06bbbdb83e446024e44d8edf670378b43d"
     },
     {
-      "path": "hosts/crpharma/host/control-base.template.json",
+      "path": "fixtures/amgen/archive.json",
       "mode": "100644",
-      "bytes": 467,
-      "sha256": "3634b5cc4c996565263cdae4b168cb519556c2401367f33511b426fd0ae48897",
-      "sha": "f315252ccc1b63c4b75f86f3ab6dcacdccbeaa1d"
+      "bytes": 24208,
+      "sha256": "4f7628594b011e35e5df814dc68208705d2bab02d19a29f2ffd8e71be61863e4",
+      "sha": "332479c035df1c8b3d8b175cb298c7038f140103"
     },
     {
-      "path": "hosts/crpharma/host/host-config.json",
+      "path": "fixtures/amgen/fixture.json",
       "mode": "100644",
-      "bytes": 510,
-      "sha256": "e6dc1d38b060500de118b16ecff42310c4dd36f14103af5ed8e5278478f1ae25",
-      "sha": "4b3e806f513367f14f869a2df02679b66e494fb6"
+      "bytes": 2130,
+      "sha256": "d4c9905f0e42fc3324d7fa9173e1a749ac7984c23de8bea92820bd809a03637c",
+      "sha": "f06a0da8cc0a664fee6ba5903efc3e8a79c63c22"
     },
     {
-      "path": "hosts/crpharma/host/host-config.template.json",
+      "path": "fixtures/amgen/generation-verification.json",
       "mode": "100644",
-      "bytes": 510,
-      "sha256": "e6dc1d38b060500de118b16ecff42310c4dd36f14103af5ed8e5278478f1ae25",
-      "sha": "4b3e806f513367f14f869a2df02679b66e494fb6"
+      "bytes": 9411,
+      "sha256": "da3da86a65f40728d5a2f082d1fbbdab78a7a849a8c6f624751e37c9d14d3f81",
+      "sha": "6fb2938fc09895c2bddeed448f775f6b0ceb8bdb"
     },
     {
-      "path": "hosts/crpharma/host/host-files.mts",
+      "path": "fixtures/amgen/publish-request.json",
       "mode": "100644",
-      "bytes": 4077,
-      "sha256": "c8033565b3c368bf369fc7507f9d1ff8fa87bc0dde0a84a10a95373473dc6f3a",
-      "sha": "8c8f201640071565320343e74c6919d1e83fd9b5"
+      "bytes": 70111,
+      "sha256": "7de2d4ead29a506440b299fc66cf4395bc6c419df3b8df52dac8690247fb6d6b",
+      "sha": "af49ce7a75bbb8afcc16b13a311e1dc670d4d691"
     },
     {
-      "path": "hosts/crpharma/host/host-helper-functions.js",
+      "path": "fixtures/astra/archive.json",
       "mode": "100644",
-      "bytes": 9775,
-      "sha256": "4a20b0eca47f0edb1f6a36c46b7b2a704977df8ac549335ddfad1f26b92e612f",
-      "sha": "f8115a1b8501447ca96f12367fb8ee7309fcc14d"
+      "bytes": 11937,
+      "sha256": "5d898454abe0e5bc3a3c0e39e3dab247b375942d43fa7f1ffb37e7f44d4da71c",
+      "sha": "cffa3ddce67c09b31ea600716a7663fbe55d4e9a"
     },
     {
-      "path": "hosts/crpharma/host/host-stage-functions.js",
+      "path": "fixtures/astra/fixture.json",
       "mode": "100644",
-      "bytes": 6580,
-      "sha256": "91e6d8b6c95576c59d4f2a50cef85935488f6824f7b0858c0390c753a7b6c21a",
-      "sha": "f26a431ad57ae41a6499734ea89d56c80acd0de2"
+      "bytes": 2130,
+      "sha256": "f14f40a1425a30915b702cdab77b379a2ce89647b9073cb93a25089dddbd4a27",
+      "sha": "dd94bd2ee21b05e0067b20309c13306fc4d97d01"
     },
     {
-      "path": "hosts/crpharma/host/machine-json.js",
+      "path": "fixtures/astra/generation-verification.json",
       "mode": "100644",
-      "bytes": 807,
-      "sha256": "3484738bd095a9d57da70c6392af78865a53759a9e8499316941157b6210e9f6",
-      "sha": "7b927e85ca286ffa900ca93462deee5b9988ed49"
+      "bytes": 9411,
+      "sha256": "96c9be47aee5ef9eef6e4b8bf182fd58f0ce4df75031dac84d92224f8a484edd",
+      "sha": "d6d19dcc9ce7de9cd4ea4e1cf93cd23f6f2a534d"
     },
     {
-      "path": "hosts/crpharma/host/owner-binding-input.template.json",
+      "path": "fixtures/astra/publish-request.json",
       "mode": "100644",
-      "bytes": 616,
-      "sha256": "c9bbddcc3fe1b7081c612f49db614477d4427496af7a37167fe1166fd09e1f9b",
-      "sha": "50cfd02c56b24fab3733ee432d1c1a9a3b8799f1"
+      "bytes": 65313,
+      "sha256": "4ab656317644b913d1a5c8a1a6ac2c36efcdef1798fb4fb5d095610ae11349e3",
+      "sha": "9cdb0fcb3ed22cc30464f498ba76a79702bf6419"
     },
     {
-      "path": "hosts/crpharma/host/relay-files.mjs",
+      "path": "review-new-fixtures.py",
       "mode": "100644",
-      "bytes": 7910,
-      "sha256": "72411826caed662afb7f89bfef6e33cb747a00b3ef0a8e1c22b92c27d1e5267a",
-      "sha": "f3c893bc46c4c7fbe1e9ac93632d9e66571c2fec"
+      "bytes": 6245,
+      "sha256": "cecbce293367c51d69d216872350eef663601006945545a7e32ff7ff3bd61781",
+      "sha": "65e28d2ce76adcd708713b1e7964f40b3f092681"
     },
     {
-      "path": "hosts/crpharma/host/runtime/complete-reviewed-source-readback.js",
-      "mode": "100644",
-      "bytes": 5697,
-      "sha256": "38e717fd736a21387bd9257673745db7f9d2ec794c5bffe26e956a8988649b8f",
-      "sha": "632015bec39023a99feb68aba7935efb2fffa916"
-    },
-    {
-      "path": "hosts/crpharma/host/runtime/continuous-relay-v3-durable-monitor.js",
-      "mode": "100644",
-      "bytes": 5196,
-      "sha256": "1825a6400063e8b73c828b16d6c22a70536f50a90f07412a491c113fdf576550",
-      "sha": "b548d0ce985b2c426d8248545554818d3a11ccf8"
-    },
-    {
-      "path": "hosts/crpharma/host/runtime/inspect-host-binding.mts",
-      "mode": "100644",
-      "bytes": 3272,
-      "sha256": "11ce7f25fa48a23e8559712f32b7eb5218e5caa617bf4cdf08b17b3085cd28af",
-      "sha": "2ac95e486b0d7de70c63bc8079a1c9ad8871bcc5"
-    },
-    {
-      "path": "hosts/crpharma/host/runtime/load-host-state.js",
-      "mode": "100644",
-      "bytes": 5328,
-      "sha256": "93eb2311defd340287970ab96ed6fb683ffb04bb683071c3b9726913a7804f86",
-      "sha": "0240afeb65078b9a6425a06fbff45ecbdf61a2a7"
-    },
-    {
-      "path": "hosts/crpharma/host/runtime/load-host-state.unbound.template.js",
-      "mode": "100644",
-      "bytes": 5328,
-      "sha256": "93eb2311defd340287970ab96ed6fb683ffb04bb683071c3b9726913a7804f86",
-      "sha": "0240afeb65078b9a6425a06fbff45ecbdf61a2a7"
-    },
-    {
-      "path": "hosts/crpharma/host/runtime/load-source-runtime.js",
-      "mode": "100644",
-      "bytes": 2428,
-      "sha256": "3318f7cf3fabf67e0e94ef010a80dbaf3391ceac3af9541ad06645883a0be909",
-      "sha": "e1f796e4526f61d1f3f357fe1a7897383efceb03"
-    },
-    {
-      "path": "hosts/crpharma/host/runtime/machine-json.py",
+      "path": "reviewer-source/amgen/machine-json.py",
       "mode": "100644",
       "bytes": 1119,
       "sha256": "67611e749eddc6bf8c591fef11f2efa82e2a73ce0bb51b2779fab4ae68b77f50",
       "sha": "3dda394ae2fe15b8740c8db2f0adcf6a9e19e3cf"
     },
     {
-      "path": "hosts/crpharma/host/runtime/preflight/preflight-launch.mjs",
-      "mode": "100644",
-      "bytes": 11017,
-      "sha256": "ab4cffa673ada36078014e20778eeea39d8e5fb208d04f54dc3ff0913a73d2de",
-      "sha": "8dc9163aa18f6f8106aafadb2b258e09a3513e72"
-    },
-    {
-      "path": "hosts/crpharma/host/runtime/preflight/runtime-check.mjs",
-      "mode": "100644",
-      "bytes": 3815,
-      "sha256": "e01c5b953283535757e2fcc67df80dd3e86948709dde0b488235a7edee017785",
-      "sha": "275890f0f3584e99e0f0f57a4492fd95ad6c248d"
-    },
-    {
-      "path": "hosts/crpharma/host/runtime/prepare-owner-binding.mts",
-      "mode": "100644",
-      "bytes": 8125,
-      "sha256": "3cfefce8e2839d73372b7b56daa6c3fd197ecf2625b158696dcd37b6e4f4c117",
-      "sha": "881ea02ac743dfeffa8e4791938610452dc299e1"
-    },
-    {
-      "path": "hosts/crpharma/host/runtime/prepare-registered-control.mts",
-      "mode": "100644",
-      "bytes": 123,
-      "sha256": "75b04c3bf46a0c81529e1322c74a02ccddb88b6edb161c39e36fc082ad1c89d8",
-      "sha": "323b7860456a264d9c9f144e7343376ba43131d1"
-    },
-    {
-      "path": "hosts/crpharma/host/runtime/review-packet-envelope.mts",
+      "path": "reviewer-source/amgen/review-packet-envelope.mts",
       "mode": "100644",
       "bytes": 5535,
       "sha256": "40cb1e3ede867f0e9d171605e7454fc71a6f774dfdf910f68ff668722bba69cb",
       "sha": "a550d0fd80f032ae7ed2633e88b2cd2c748c6969"
     },
     {
-      "path": "hosts/crpharma/host/runtime/review-publication.py",
-      "mode": "100644",
-      "bytes": 5762,
-      "sha256": "662e7d44daa3d6944e03a196bdc5ed2e49d55a1720a60f3c65bd1bd86756f6d2",
-      "sha": "ac5488dad0e2abae194bc85033bed654ddf1f162"
-    },
-    {
-      "path": "hosts/crpharma/host/runtime/update-candidate-completion-state.mjs",
-      "mode": "100644",
-      "bytes": 3654,
-      "sha256": "ae5ad99411b014c8ffff615a0b06af1e1fdfd2ed7f7265c9c9cee0128339bb06",
-      "sha": "ec886e3dd2b52805daccddcdcd862b6afbaeec29"
-    },
-    {
-      "path": "hosts/crpharma/host/source-config-reference.json",
-      "mode": "100644",
-      "bytes": 895,
-      "sha256": "945a0c3dfefe0431b3e1947e5d665a48a2ac59e134f9bce242ebe6d9adea4c9b",
-      "sha": "92dd19ad50f6f8b2628b5774540596b5e1eebc82"
-    },
-    {
-      "path": "hosts/crpharma/supervision/inspect-launch-identity.mjs",
-      "mode": "100644",
-      "bytes": 871,
-      "sha256": "7bc818ae831081b7e91819ad772b950d08e7d06dc741730c0bd54698d6fe8b37",
-      "sha": "0fc3dd6c1dde3cc7759848f18c795792c38c800c"
-    },
-    {
-      "path": "hosts/crpharma/supervision/sample_process_tree.py",
-      "mode": "100644",
-      "bytes": 13065,
-      "sha256": "3fa6daa1af1afee94d19801edfd8bcb538e1243476b5adb253e50de162a27bd6",
-      "sha": "5c2924dc067309525018e4903741dc33e796b546"
-    },
-    {
-      "path": "hosts/crpharma/supervision/start-monitor-crpharma51-combined.js",
-      "mode": "100644",
-      "bytes": 14824,
-      "sha256": "7951187213eeeb2105e446be094c809f2b9b5960adb31b6624df81713c997cff",
-      "sha": "d9a6fcffacd574f0f166c6895787c107a3deb72c"
-    },
-    {
-      "path": "hosts/crpharma/supervision/start-monitor-crpharma51-combined.unbound.template.js",
-      "mode": "100644",
-      "bytes": 14824,
-      "sha256": "7951187213eeeb2105e446be094c809f2b9b5960adb31b6624df81713c997cff",
-      "sha": "d9a6fcffacd574f0f166c6895787c107a3deb72c"
-    },
-    {
-      "path": "hosts/crpharma/supervision/supervise-cancel.mjs",
-      "mode": "100644",
-      "bytes": 10232,
-      "sha256": "083435a5344a47b86f84184bbe1d2711b0d35def4670afb2ab3c8391ed442e7e",
-      "sha": "efe376ba3dbe501d5a2b1bece2c7ac46471aca7d"
-    },
-    {
-      "path": "hosts/csl/RESTORE_DEPENDENCIES.json",
-      "mode": "100644",
-      "bytes": 1149,
-      "sha256": "0afc8511ed5e50077f967148efc9649234bdeef356ede8402f5ce1243e92bebf",
-      "sha": "d62c8cc6fb5eb133f4eac93fc7d5e2cb5335cac4"
-    },
-    {
-      "path": "hosts/csl/host/archive-transfer.mjs",
-      "mode": "100644",
-      "bytes": 1777,
-      "sha256": "698e966e5552967845a5252d2b3df2acca28dcd8dbbb0ae41755a3a6231e6a99",
-      "sha": "5a454d21f34f9680221bbee2c98b3fecb94884f0"
-    },
-    {
-      "path": "hosts/csl/host/context-read.sql.template",
-      "mode": "100644",
-      "bytes": 2372,
-      "sha256": "26ef5d3a0ada20cef36845ced21989b1bc02aa97517efd2222db0fbf790209c6",
-      "sha": "8f78b093a051d96ab0684276ce30b399723a586e"
-    },
-    {
-      "path": "hosts/csl/host/context-template-proof.json",
-      "mode": "100644",
-      "bytes": 2246,
-      "sha256": "eb6cab99c49d26aafd0aacb5e16124df3136f69ecc0117c1cf17c4b501b74a8e",
-      "sha": "3a4af40e622e97434443298ddf24bf0ddacb4148"
-    },
-    {
-      "path": "hosts/csl/host/control-base.template.json",
-      "mode": "100644",
-      "bytes": 467,
-      "sha256": "3634b5cc4c996565263cdae4b168cb519556c2401367f33511b426fd0ae48897",
-      "sha": "f315252ccc1b63c4b75f86f3ab6dcacdccbeaa1d"
-    },
-    {
-      "path": "hosts/csl/host/host-config.json",
-      "mode": "100644",
-      "bytes": 505,
-      "sha256": "2821bb9458481399a81802aef463d44568be3d9eb3c8ccaeff7e50169b51b035",
-      "sha": "ca78fcc4f7289b4f4f6814c408897eccb307d295"
-    },
-    {
-      "path": "hosts/csl/host/host-config.template.json",
-      "mode": "100644",
-      "bytes": 505,
-      "sha256": "2821bb9458481399a81802aef463d44568be3d9eb3c8ccaeff7e50169b51b035",
-      "sha": "ca78fcc4f7289b4f4f6814c408897eccb307d295"
-    },
-    {
-      "path": "hosts/csl/host/host-files.mts",
-      "mode": "100644",
-      "bytes": 4077,
-      "sha256": "c8033565b3c368bf369fc7507f9d1ff8fa87bc0dde0a84a10a95373473dc6f3a",
-      "sha": "8c8f201640071565320343e74c6919d1e83fd9b5"
-    },
-    {
-      "path": "hosts/csl/host/host-helper-functions.js",
-      "mode": "100644",
-      "bytes": 9735,
-      "sha256": "de930fb81121bf8efe88210144f0811ca57942469ce230fbb6851a9c04d71514",
-      "sha": "46f237b38a8a84f4db2fb3d9cb881068cf3904be"
-    },
-    {
-      "path": "hosts/csl/host/host-stage-functions.js",
-      "mode": "100644",
-      "bytes": 6535,
-      "sha256": "b2fc5f2dff6576f0508df5bcf9517bdae93fef2ba6c7f76e8cd280b8947eaf51",
-      "sha": "fdb68ead0b5b8d3fbc57dde92d34841f8f652d44"
-    },
-    {
-      "path": "hosts/csl/host/machine-json.js",
-      "mode": "100644",
-      "bytes": 807,
-      "sha256": "3484738bd095a9d57da70c6392af78865a53759a9e8499316941157b6210e9f6",
-      "sha": "7b927e85ca286ffa900ca93462deee5b9988ed49"
-    },
-    {
-      "path": "hosts/csl/host/owner-binding-input.template.json",
-      "mode": "100644",
-      "bytes": 616,
-      "sha256": "367e94ec24d06c55b1a9a54e175067c405f9d99434ef5d82ea55750fa699009d",
-      "sha": "d3dd2b38ab934ecfa7b575c2d99812d81db19eef"
-    },
-    {
-      "path": "hosts/csl/host/relay-files.mjs",
-      "mode": "100644",
-      "bytes": 7905,
-      "sha256": "591c75a3cd6fcd8ca923fc121294b17ad2ca9f120f8bb918526e07522d5dddd3",
-      "sha": "7048954a9e8b45933f27dd1c18c50d1b89de293f"
-    },
-    {
-      "path": "hosts/csl/host/runtime/complete-reviewed-source-readback.js",
-      "mode": "100644",
-      "bytes": 5692,
-      "sha256": "3f256b1cbb2ff33e9b472fdcad650afdb2441cd64f413ad9a59048633299c27d",
-      "sha": "3747e93869cd5bd8ed05c19188d0329b4997ec96"
-    },
-    {
-      "path": "hosts/csl/host/runtime/continuous-relay-v3-durable-monitor.js",
-      "mode": "100644",
-      "bytes": 5136,
-      "sha256": "b213ad8f114da136262116b27b5700ff1f9c3f86e04f4454cad8ab5c4d715176",
-      "sha": "89b7ce06432ad053d0cefaff3e03fd83b0fa23c0"
-    },
-    {
-      "path": "hosts/csl/host/runtime/inspect-host-binding.mts",
-      "mode": "100644",
-      "bytes": 3272,
-      "sha256": "11ce7f25fa48a23e8559712f32b7eb5218e5caa617bf4cdf08b17b3085cd28af",
-      "sha": "2ac95e486b0d7de70c63bc8079a1c9ad8871bcc5"
-    },
-    {
-      "path": "hosts/csl/host/runtime/load-host-state.js",
-      "mode": "100644",
-      "bytes": 5298,
-      "sha256": "c9f0ac980cc4966468a6ebee371a6e2a8f6e2d5fd0ad2fd4d319e66994977e3b",
-      "sha": "2e6f4a4ef3ace16662478e205302200c1b950dce"
-    },
-    {
-      "path": "hosts/csl/host/runtime/load-host-state.unbound.template.js",
-      "mode": "100644",
-      "bytes": 5298,
-      "sha256": "c9f0ac980cc4966468a6ebee371a6e2a8f6e2d5fd0ad2fd4d319e66994977e3b",
-      "sha": "2e6f4a4ef3ace16662478e205302200c1b950dce"
-    },
-    {
-      "path": "hosts/csl/host/runtime/load-source-runtime.js",
-      "mode": "100644",
-      "bytes": 2363,
-      "sha256": "db4728f6535e46af0c0d015af303023617ecda13ee2bb78489465b7901292376",
-      "sha": "c4911d762f5d1dd5ed97d5f81625d1a8f62220ec"
-    },
-    {
-      "path": "hosts/csl/host/runtime/machine-json.py",
-      "mode": "100644",
-      "bytes": 1119,
-      "sha256": "67611e749eddc6bf8c591fef11f2efa82e2a73ce0bb51b2779fab4ae68b77f50",
-      "sha": "3dda394ae2fe15b8740c8db2f0adcf6a9e19e3cf"
-    },
-    {
-      "path": "hosts/csl/host/runtime/preflight/preflight-launch.mjs",
-      "mode": "100644",
-      "bytes": 11017,
-      "sha256": "ab4cffa673ada36078014e20778eeea39d8e5fb208d04f54dc3ff0913a73d2de",
-      "sha": "8dc9163aa18f6f8106aafadb2b258e09a3513e72"
-    },
-    {
-      "path": "hosts/csl/host/runtime/preflight/runtime-check.mjs",
-      "mode": "100644",
-      "bytes": 3815,
-      "sha256": "e01c5b953283535757e2fcc67df80dd3e86948709dde0b488235a7edee017785",
-      "sha": "275890f0f3584e99e0f0f57a4492fd95ad6c248d"
-    },
-    {
-      "path": "hosts/csl/host/runtime/prepare-owner-binding.mts",
-      "mode": "100644",
-      "bytes": 8115,
-      "sha256": "97510082089a58b42b41acff6c1bf4e4aa560ca1a64cda4162cf190cd307aabb",
-      "sha": "5f5d84223a67655733a52c0a7e6a7856dcfe168a"
-    },
-    {
-      "path": "hosts/csl/host/runtime/prepare-registered-control.mts",
-      "mode": "100644",
-      "bytes": 123,
-      "sha256": "75b04c3bf46a0c81529e1322c74a02ccddb88b6edb161c39e36fc082ad1c89d8",
-      "sha": "323b7860456a264d9c9f144e7343376ba43131d1"
-    },
-    {
-      "path": "hosts/csl/host/runtime/review-packet-envelope.mts",
-      "mode": "100644",
-      "bytes": 5535,
-      "sha256": "40cb1e3ede867f0e9d171605e7454fc71a6f774dfdf910f68ff668722bba69cb",
-      "sha": "a550d0fd80f032ae7ed2633e88b2cd2c748c6969"
-    },
-    {
-      "path": "hosts/csl/host/runtime/review-publication.py",
-      "mode": "100644",
-      "bytes": 5762,
-      "sha256": "16ee596cfa7d97c7b6288978efdc3418f336e9dd3c5afbae2883d73d1f5641cf",
-      "sha": "6b2300699ca4ddbeb10bbbf892517988fa2d7e62"
-    },
-    {
-      "path": "hosts/csl/host/runtime/update-candidate-completion-state.mjs",
-      "mode": "100644",
-      "bytes": 3654,
-      "sha256": "ae5ad99411b014c8ffff615a0b06af1e1fdfd2ed7f7265c9c9cee0128339bb06",
-      "sha": "ec886e3dd2b52805daccddcdcd862b6afbaeec29"
-    },
-    {
-      "path": "hosts/csl/host/source-config-reference.json",
-      "mode": "100644",
-      "bytes": 890,
-      "sha256": "c528dfd390a2b150ab738971bfbaeac4d52ce65c574adb3157a3a649eaa1ab87",
-      "sha": "c12699ee4f9a3a061b7a9f62141d1562f630bae0"
-    },
-    {
-      "path": "hosts/csl/supervision/inspect-launch-identity.mjs",
-      "mode": "100644",
-      "bytes": 871,
-      "sha256": "7bc818ae831081b7e91819ad772b950d08e7d06dc741730c0bd54698d6fe8b37",
-      "sha": "0fc3dd6c1dde3cc7759848f18c795792c38c800c"
-    },
-    {
-      "path": "hosts/csl/supervision/sample_process_tree.py",
-      "mode": "100644",
-      "bytes": 13065,
-      "sha256": "3fa6daa1af1afee94d19801edfd8bcb538e1243476b5adb253e50de162a27bd6",
-      "sha": "5c2924dc067309525018e4903741dc33e796b546"
-    },
-    {
-      "path": "hosts/csl/supervision/start-monitor-csl51-combined.js",
-      "mode": "100644",
-      "bytes": 14719,
-      "sha256": "31ad333efb96b7b760b09134f0c249c1f4ea4d8df95c5e1a58d40dd6050cc058",
-      "sha": "b08289a6b2bc8215ce015717af841a803930d7d1"
-    },
-    {
-      "path": "hosts/csl/supervision/start-monitor-csl51-combined.unbound.template.js",
-      "mode": "100644",
-      "bytes": 14719,
-      "sha256": "31ad333efb96b7b760b09134f0c249c1f4ea4d8df95c5e1a58d40dd6050cc058",
-      "sha": "b08289a6b2bc8215ce015717af841a803930d7d1"
-    },
-    {
-      "path": "hosts/csl/supervision/supervise-cancel.mjs",
-      "mode": "100644",
-      "bytes": 10232,
-      "sha256": "083435a5344a47b86f84184bbe1d2711b0d35def4670afb2ab3c8391ed442e7e",
-      "sha": "efe376ba3dbe501d5a2b1bece2c7ac46471aca7d"
-    },
-    {
-      "path": "no-network.cjs",
-      "mode": "100644",
-      "bytes": 2286,
-      "sha256": "96ff75daf84943d7542e84cb3ed7f1979b12a019508da36330dcefda31e5497b",
-      "sha": "1199b946b2c19c0557f5bf9239b120189ac45a30"
-    },
-    {
-      "path": "owner-adaptations/true-a-due-20261007T1256Z/SAFE_SOURCE_FILE_MANIFEST.json",
-      "mode": "100644",
-      "bytes": 1717,
-      "sha256": "f693f14e28b0fd17817832507b2fb3277cb983925497e66b16739baae7e111b3",
-      "sha": "dd9e4eb65cc505c76d1c96d11cae41575a5245cf"
-    },
-    {
-      "path": "owner-adaptations/true-a-due-20261007T1256Z/baseline-manifest.json",
-      "mode": "100644",
-      "bytes": 2609,
-      "sha256": "f7609110e2ab95aae7857dc7407a90c137cc430c72c6f6b5e586cdc4d01d26af",
-      "sha": "450dc436d16b13a99b08435d2e073222ab37b07b"
-    },
-    {
-      "path": "owner-adaptations/true-a-due-20261007T1256Z/build-fragments.py",
-      "mode": "100644",
-      "bytes": 4463,
-      "sha256": "1f03fee8b375360bd6294b09fed5eccbbe1787bda8f5cf5523c743bde23de28e",
-      "sha": "fe3faea145e2d549d371677a3cfc5b70fb7634d2"
-    },
-    {
-      "path": "owner-adaptations/true-a-due-20261007T1256Z/preload-owner.exec.js",
-      "mode": "100644",
-      "bytes": 2741,
-      "sha256": "d2d57fce16ee76eb77935eaf91a7f1739513d1ad8e1c0ee7c3b818bba8ed7c16",
-      "sha": "6685dfd6f01fb447df11765696dfa93b64aff178"
-    },
-    {
-      "path": "owner-adaptations/true-a-due-20261007T1256Z/publish-and-monitor-owner.js",
-      "mode": "100644",
-      "bytes": 10947,
-      "sha256": "78a716a79d905dc7bb02715967c43b74566d496bea5b6c24a2d6139dbb1f1894",
-      "sha": "0dd4a4418305703482f62d135c4e129f5c8f8dc1"
-    },
-    {
-      "path": "owner-adaptations/true-a-due-20261007T1256Z/publish-reviewed-and-monitor.exec.js",
-      "mode": "100644",
-      "bytes": 1398,
-      "sha256": "56607634facc379fba8b401258d490abb258ba993aeabdf6865d4bd63296ed9d",
-      "sha": "cfca76156031fb8205befce9ad497289734a340c"
-    },
-    {
-      "path": "owner-adaptations/true-a-due-20261007T1256Z/tests/generate-full-chain-tests.py",
-      "mode": "100644",
-      "bytes": 2800,
-      "sha256": "e93dc52bf20d0a52af2fb22b6bd5ad022cd6d0172e9169aa3d004f74badf14d2",
-      "sha": "7fbfca0a55fd194d2ba46c9f39a344255dcda541"
-    },
-    {
-      "path": "owner-adaptations/true-a-due-20261007T1256Z/tests/generated-crpharma-full-chain.test.mjs",
-      "mode": "100644",
-      "bytes": 21547,
-      "sha256": "faac9bf7481f45e20bf956aca37f366d3af9999343f9e51fddde4f4398ae6565",
-      "sha": "4bf5d9ea9d6f5bde2b6b8ede47fb6d84b279a895"
-    },
-    {
-      "path": "owner-adaptations/true-a-due-20261007T1256Z/tests/generated-csl-full-chain.test.mjs",
-      "mode": "100644",
-      "bytes": 21517,
-      "sha256": "e4e37c7d64cf28ccbd4dfd1337ccbe141165bcaad1a51c1919428d40271371cd",
-      "sha": "dcf299f87677575506dc5731984a76f8a6dc79af"
-    },
-    {
-      "path": "owner-adaptations/true-a-due-20261007T1256Z/tests/key-and-preload.test.mjs",
-      "mode": "100644",
-      "bytes": 3898,
-      "sha256": "950762519ee05cdb55ff710affcab0025b240297e484ab534c8c6ce75e0173a5",
-      "sha": "803571d936a6608aeaf3325b80cf1cb0d2b088b3"
-    },
-    {
-      "path": "owner-adaptations/true-a-due-20261007T1256Z/tests/owner.test.mjs",
-      "mode": "100644",
-      "bytes": 20267,
-      "sha256": "8c0e2c462df58522166a01f8c08afc39e7dc73d3de76f13bcb67ac8d3dd1d11c",
-      "sha": "4a9fc60975b54ba2d0c32af50c40b73f754c885e"
-    },
-    {
-      "path": "owner-adaptations/true-a-due-20261007T1256Z/tests/real-apply-patch-terminal-fixture.json",
-      "mode": "100644",
-      "bytes": 195,
-      "sha256": "aff94e02c5266ff389e8cbd2da3774b9eaf00cbf204bf9484a1b5eaace576f2e",
-      "sha": "2bb6d2d309c400a32ab73ce3dbdcf1760102319f"
-    },
-    {
-      "path": "verification/true-a-due-host-preparation-20261007T1256Z/baseline-source-plan.json",
-      "mode": "100644",
-      "bytes": 13506,
-      "sha256": "3d8f92a99c4e13528ef946c7d17a15dd240aa1efab1039308b4a449b6c0786f8",
-      "sha": "0e84ce96bc7b2b8e84a13d0236604e6970eb2548"
-    },
-    {
-      "path": "verification/true-a-due-host-preparation-20261007T1256Z/generate-context.mts",
-      "mode": "100644",
-      "bytes": 3557,
-      "sha256": "e602744f69d1b23e5486399d06ebe260935623df679b676433b8fbf5e2163dad",
-      "sha": "dc00b5ee5a06a69f767dfc81a8effa8d2f655169"
-    },
-    {
-      "path": "verification/true-a-due-host-preparation-20261007T1256Z/host-base/host/archive-transfer.mjs",
-      "mode": "100644",
-      "bytes": 1777,
-      "sha256": "698e966e5552967845a5252d2b3df2acca28dcd8dbbb0ae41755a3a6231e6a99",
-      "sha": "5a454d21f34f9680221bbee2c98b3fecb94884f0"
-    },
-    {
-      "path": "verification/true-a-due-host-preparation-20261007T1256Z/host-base/host/context-read.sql.template",
-      "mode": "100644",
-      "bytes": 2382,
-      "sha256": "d265c8a292d8d610c9e14fb42bde695dfd4d9d9d0a2e9ba36e029a9d8b5c12c7",
-      "sha": "dc5a0b758bad90262557db81013b5fdaffb9f3cf"
-    },
-    {
-      "path": "verification/true-a-due-host-preparation-20261007T1256Z/host-base/host/control-base.template.json",
-      "mode": "100644",
-      "bytes": 467,
-      "sha256": "3634b5cc4c996565263cdae4b168cb519556c2401367f33511b426fd0ae48897",
-      "sha": "f315252ccc1b63c4b75f86f3ab6dcacdccbeaa1d"
-    },
-    {
-      "path": "verification/true-a-due-host-preparation-20261007T1256Z/host-base/host/host-config.json",
-      "mode": "100644",
-      "bytes": 509,
-      "sha256": "35a2afdc60260c1bb675b0b64423f3d9c06a71504df5fd314ee77c69dbdc945f",
-      "sha": "cc880fda5035df3b16fac9e3c7e6c9f8b0367760"
-    },
-    {
-      "path": "verification/true-a-due-host-preparation-20261007T1256Z/host-base/host/host-config.template.json",
-      "mode": "100644",
-      "bytes": 509,
-      "sha256": "35a2afdc60260c1bb675b0b64423f3d9c06a71504df5fd314ee77c69dbdc945f",
-      "sha": "cc880fda5035df3b16fac9e3c7e6c9f8b0367760"
-    },
-    {
-      "path": "verification/true-a-due-host-preparation-20261007T1256Z/host-base/host/host-files.mts",
-      "mode": "100644",
-      "bytes": 4077,
-      "sha256": "c8033565b3c368bf369fc7507f9d1ff8fa87bc0dde0a84a10a95373473dc6f3a",
-      "sha": "8c8f201640071565320343e74c6919d1e83fd9b5"
-    },
-    {
-      "path": "verification/true-a-due-host-preparation-20261007T1256Z/host-base/host/host-helper-functions.js",
-      "mode": "100644",
-      "bytes": 9753,
-      "sha256": "e435807a3accb90b3bb63ce6c132a9b7beabff50c00b24b1f12597d75e243a54",
-      "sha": "91b425170ca01d7a635a48cc062d0a2b8437e949"
-    },
-    {
-      "path": "verification/true-a-due-host-preparation-20261007T1256Z/host-base/host/host-stage-functions.js",
-      "mode": "100644",
-      "bytes": 6557,
-      "sha256": "c7960c2df7dd082cfe8071daa0f9a350952c2a827bbf7d5ef44dbdbc0398c452",
-      "sha": "161df497c42624c48c99f0af476bb70e37694068"
-    },
-    {
-      "path": "verification/true-a-due-host-preparation-20261007T1256Z/host-base/host/machine-json.js",
-      "mode": "100644",
-      "bytes": 807,
-      "sha256": "3484738bd095a9d57da70c6392af78865a53759a9e8499316941157b6210e9f6",
-      "sha": "7b927e85ca286ffa900ca93462deee5b9988ed49"
-    },
-    {
-      "path": "verification/true-a-due-host-preparation-20261007T1256Z/host-base/host/relay-files.mjs",
-      "mode": "100644",
-      "bytes": 7907,
-      "sha256": "6cff7c2c0d507dd1542316859c95fed907b1cceee3174e2b2de48689b3b00b9d",
-      "sha": "799df1793342000c8b0edf5e79890f158ecfa66e"
-    },
-    {
-      "path": "verification/true-a-due-host-preparation-20261007T1256Z/host-base/host/runtime/complete-reviewed-source-readback.js",
-      "mode": "100644",
-      "bytes": 5694,
-      "sha256": "e176d105073b225be5fb724be8bbe6cc1b39437bef85d5ebb8587bd6ad240765",
-      "sha": "32b3b5eb2cfc0dec5dae0fea926b1d7b7eb68c6c"
-    },
-    {
-      "path": "verification/true-a-due-host-preparation-20261007T1256Z/host-base/host/runtime/continuous-relay-v3-durable-monitor.js",
-      "mode": "100644",
-      "bytes": 5160,
-      "sha256": "d9bb23b0c18b260c1ec6b0272682992680d012491d1c3ab19e2ad25116e85f77",
-      "sha": "ceb72baf2820d4fe9601843c3c0d29f83720792c"
-    },
-    {
-      "path": "verification/true-a-due-host-preparation-20261007T1256Z/host-base/host/runtime/inspect-host-binding.mts",
-      "mode": "100644",
-      "bytes": 3272,
-      "sha256": "11ce7f25fa48a23e8559712f32b7eb5218e5caa617bf4cdf08b17b3085cd28af",
-      "sha": "2ac95e486b0d7de70c63bc8079a1c9ad8871bcc5"
-    },
-    {
-      "path": "verification/true-a-due-host-preparation-20261007T1256Z/host-base/host/runtime/load-host-state.js",
-      "mode": "100644",
-      "bytes": 4902,
-      "sha256": "3fb9fde91dbc5bd5458df892b1d5747b184051e3a73992deefcf050fd57cb096",
-      "sha": "cd8f9e6529f91fb48b75a7ac3afd68e8b76e754f"
-    },
-    {
-      "path": "verification/true-a-due-host-preparation-20261007T1256Z/host-base/host/runtime/load-source-runtime.js",
-      "mode": "100644",
-      "bytes": 2000,
-      "sha256": "ae049e168e87982138cbba4ce48e8ff600cd5717bee2b87bebd3fe279f02007a",
-      "sha": "937201c1813202c26b510cfadc03817b475e4bdc"
-    },
-    {
-      "path": "verification/true-a-due-host-preparation-20261007T1256Z/host-base/host/runtime/machine-json.py",
-      "mode": "100644",
-      "bytes": 1119,
-      "sha256": "67611e749eddc6bf8c591fef11f2efa82e2a73ce0bb51b2779fab4ae68b77f50",
-      "sha": "3dda394ae2fe15b8740c8db2f0adcf6a9e19e3cf"
-    },
-    {
-      "path": "verification/true-a-due-host-preparation-20261007T1256Z/host-base/host/runtime/preflight/preflight-launch.mjs",
-      "mode": "100644",
-      "bytes": 11017,
-      "sha256": "ab4cffa673ada36078014e20778eeea39d8e5fb208d04f54dc3ff0913a73d2de",
-      "sha": "8dc9163aa18f6f8106aafadb2b258e09a3513e72"
-    },
-    {
-      "path": "verification/true-a-due-host-preparation-20261007T1256Z/host-base/host/runtime/preflight/runtime-check.mjs",
-      "mode": "100644",
-      "bytes": 3815,
-      "sha256": "e01c5b953283535757e2fcc67df80dd3e86948709dde0b488235a7edee017785",
-      "sha": "275890f0f3584e99e0f0f57a4492fd95ad6c248d"
-    },
-    {
-      "path": "verification/true-a-due-host-preparation-20261007T1256Z/host-base/host/runtime/prepare-registered-control.mts",
-      "mode": "100644",
-      "bytes": 4760,
-      "sha256": "90cb147bc50523423b890837ae82710460eb65bfedf932f15e580b07e685a74b",
-      "sha": "9dbc8aac8249c366aad1905e281b9e95f6c7e3b5"
-    },
-    {
-      "path": "verification/true-a-due-host-preparation-20261007T1256Z/host-base/host/runtime/review-packet-envelope.mts",
-      "mode": "100644",
-      "bytes": 5535,
-      "sha256": "40cb1e3ede867f0e9d171605e7454fc71a6f774dfdf910f68ff668722bba69cb",
-      "sha": "a550d0fd80f032ae7ed2633e88b2cd2c748c6969"
-    },
-    {
-      "path": "verification/true-a-due-host-preparation-20261007T1256Z/host-base/host/runtime/review-publication.py",
+      "path": "reviewer-source/amgen/review-publication.py",
       "mode": "100644",
       "bytes": 5764,
       "sha256": "baa95c5997c7142b164895fa1ecfe6cab396fefd8623625e3a0398d06c70c254",
       "sha": "7a6c606928fa0318f53c89c912d15e1710fbe8b3"
     },
     {
-      "path": "verification/true-a-due-host-preparation-20261007T1256Z/host-base/host/runtime/update-candidate-completion-state.mjs",
+      "path": "reviewer-source/astra/machine-json.py",
       "mode": "100644",
-      "bytes": 3654,
-      "sha256": "ae5ad99411b014c8ffff615a0b06af1e1fdfd2ed7f7265c9c9cee0128339bb06",
-      "sha": "ec886e3dd2b52805daccddcdcd862b6afbaeec29"
+      "bytes": 1119,
+      "sha256": "67611e749eddc6bf8c591fef11f2efa82e2a73ce0bb51b2779fab4ae68b77f50",
+      "sha": "3dda394ae2fe15b8740c8db2f0adcf6a9e19e3cf"
     },
     {
-      "path": "verification/true-a-due-host-preparation-20261007T1256Z/host-base/host/source-config-reference.json",
+      "path": "reviewer-source/astra/review-packet-envelope.mts",
       "mode": "100644",
-      "bytes": 955,
-      "sha256": "64454660f8605b65603d09fdc15e8718f18d334383b3db831c454bdc646896d6",
-      "sha": "f9a43cb2774931505331eb41918e4cc5e1c09e06"
+      "bytes": 5535,
+      "sha256": "40cb1e3ede867f0e9d171605e7454fc71a6f774dfdf910f68ff668722bba69cb",
+      "sha": "a550d0fd80f032ae7ed2633e88b2cd2c748c6969"
     },
     {
-      "path": "verification/true-a-due-host-preparation-20261007T1256Z/host-base/supervision/inspect-launch-identity.mjs",
+      "path": "reviewer-source/astra/review-publication.py",
       "mode": "100644",
-      "bytes": 871,
-      "sha256": "7bc818ae831081b7e91819ad772b950d08e7d06dc741730c0bd54698d6fe8b37",
-      "sha": "0fc3dd6c1dde3cc7759848f18c795792c38c800c"
+      "bytes": 5764,
+      "sha256": "82bbf680f3dfbbb4ce7c6be20803a94feb510b650433a60031cd04240c70fd4a",
+      "sha": "316b5ff47ad80d675c8b4573ce6f6c5785e7fd11"
     },
     {
-      "path": "verification/true-a-due-host-preparation-20261007T1256Z/host-base/supervision/sample_process_tree.py",
+      "path": "run-generation.py",
       "mode": "100644",
-      "bytes": 13065,
-      "sha256": "3fa6daa1af1afee94d19801edfd8bcb538e1243476b5adb253e50de162a27bd6",
-      "sha": "5c2924dc067309525018e4903741dc33e796b546"
+      "bytes": 2149,
+      "sha256": "38bdf85093cdc9b7f39b9d18cee962a8e9dc2cd0e06ca323a17402228e42ccf2",
+      "sha": "4b3b7041404b2e89495699633439b39bf4bf85af"
     },
     {
-      "path": "verification/true-a-due-host-preparation-20261007T1256Z/host-base/supervision/start-monitor-amgen51-combined.js",
+      "path": "src/generate.test.ts",
       "mode": "100644",
-      "bytes": 14430,
-      "sha256": "d7a6daa2c3739cecb8dfbb510f1d3aff908eb5e6a791beaeee88a2599b48798e",
-      "sha": "f71b400b2761cc6199233cd7da2d215d6317d50a"
+      "bytes": 14713,
+      "sha256": "f6c2f58cc91d2bda171bdafee3e59ffaa60ad507c847372cadbf57e52bf942c0",
+      "sha": "64a96ae0607e4f0b33f68591a830e3be3daef39a"
     },
     {
-      "path": "verification/true-a-due-host-preparation-20261007T1256Z/host-base/supervision/supervise-cancel.mjs",
+      "path": "src/mock-http.ts",
       "mode": "100644",
-      "bytes": 10232,
-      "sha256": "083435a5344a47b86f84184bbe1d2711b0d35def4670afb2ab3c8391ed442e7e",
-      "sha": "efe376ba3dbe501d5a2b1bece2c7ac46471aca7d"
+      "bytes": 6931,
+      "sha256": "92c2aa5a73d1401618ba3c4cce5a721821dd0f368e1a7205ffdbb477b304692a",
+      "sha": "c6b88bd052f19c56903350de81e356bc0226540b"
     },
     {
-      "path": "verification/true-a-due-host-preparation-20261007T1256Z/owner-base/build-fragments.py",
+      "path": "src/network-deny.cjs",
       "mode": "100644",
-      "bytes": 4463,
-      "sha256": "1f03fee8b375360bd6294b09fed5eccbbe1787bda8f5cf5523c743bde23de28e",
-      "sha": "fe3faea145e2d549d371677a3cfc5b70fb7634d2"
+      "bytes": 1334,
+      "sha256": "3bda4ac8b39367859c35a4c27aa56bf0f0af48920b1bc265ec0bb34f32c28b89",
+      "sha": "d18944185597a0bbc351b5d88972a38abae209aa"
     },
     {
-      "path": "verification/true-a-due-host-preparation-20261007T1256Z/owner-base/publish-and-monitor-owner.js",
+      "path": "src/vitest.config.mjs",
       "mode": "100644",
-      "bytes": 10947,
-      "sha256": "78a716a79d905dc7bb02715967c43b74566d496bea5b6c24a2d6139dbb1f1894",
-      "sha": "0dd4a4418305703482f62d135c4e129f5c8f8dc1"
-    },
-    {
-      "path": "verification/true-a-due-host-preparation-20261007T1256Z/owner-base/tests/generate-full-chain-tests.py",
-      "mode": "100644",
-      "bytes": 2805,
-      "sha256": "32cc52742ccc99d7ad396f40f6dafc4e3682c3e4b4bb794e63ad6d893b25e655",
-      "sha": "7b0b7e452aeca0ab08dbd3220286479bfea2783e"
-    },
-    {
-      "path": "verification/true-a-due-host-preparation-20261007T1256Z/owner-base/tests/key-and-preload.test.mjs",
-      "mode": "100644",
-      "bytes": 3896,
-      "sha256": "78042858206817ee42b186ba65237b3483c3fe6ecd192bc4c24418574a7673d5",
-      "sha": "cb5c7639bfafbf6d050f690f8cfa9145d65c33cc"
-    },
-    {
-      "path": "verification/true-a-due-host-preparation-20261007T1256Z/owner-base/tests/owner.test.mjs",
-      "mode": "100644",
-      "bytes": 20267,
-      "sha256": "8c0e2c462df58522166a01f8c08afc39e7dc73d3de76f13bcb67ac8d3dd1d11c",
-      "sha": "4a9fc60975b54ba2d0c32af50c40b73f754c885e"
-    },
-    {
-      "path": "verification/true-a-due-host-preparation-20261007T1256Z/owner-base/tests/real-apply-patch-terminal-fixture.json",
-      "mode": "100644",
-      "bytes": 195,
-      "sha256": "aff94e02c5266ff389e8cbd2da3774b9eaf00cbf204bf9484a1b5eaace576f2e",
-      "sha": "2bb6d2d309c400a32ab73ce3dbdcf1760102319f"
-    },
-    {
-      "path": "verification/true-a-due-host-preparation-20261007T1256Z/prepare-hosts.py",
-      "mode": "100644",
-      "bytes": 9114,
-      "sha256": "e41655104be4d657560d23b6841de6dc2892dfcb226e3cc4353c662daccf19dd",
-      "sha": "9e3aa29e13e791441e2fdbb713c23609ca0972a7"
-    },
-    {
-      "path": "verification/true-a-due-host-preparation-20261007T1256Z/prepare-owner-binding.base.mts",
-      "mode": "100644",
-      "bytes": 7626,
-      "sha256": "0f4fd59de1b366e5d2ff39df1b67b83dc9d97f26a25187e804263e82bec67cd4",
-      "sha": "116cdb8c8f2d824a8e1cd252e3b9c50b46280191"
-    },
-    {
-      "path": "verification/true-a-due-host-preparation-20261007T1256Z/static-true-a-source-routes.json",
-      "mode": "100644",
-      "bytes": 2124,
-      "sha256": "ad4d8dbc5e0376224df407ddcbcefe5b7bc4ff408aac7b2c5b778cc9c29b256e",
-      "sha": "f3258ffc9232a03f72d46dc691e9d00e941aa053"
-    },
-    {
-      "path": "verification/true-a-due-host-preparation-20261007T1256Z/verify-hosts.mts",
-      "mode": "100644",
-      "bytes": 8979,
-      "sha256": "d4bd3304a031f2999fdca132905a53525463e9e01063a23580f09bc068fd9f6e",
-      "sha": "a3e6e81540cbe6073837f02c4c58f2926d2f0782"
-    },
-    {
-      "path": "verification/true-a-due-host-preparation-20261007T1256Z/verify-loader-pins.mjs",
-      "mode": "100644",
-      "bytes": 2743,
-      "sha256": "1557b9cde369ebd9abca2868310adfef4b419126403322e4ac9c91dfd7ef2afd",
-      "sha": "d6b215ee74b6cad9a3380a522e8f36345db02353"
-    },
-    {
-      "path": "verification/true-a-due-host-preparation-20261007T1256Z/vitest.config.mjs",
-      "mode": "100644",
-      "bytes": 563,
-      "sha256": "21676b9dc1580e93a73bdb7830f2cfef6ea7ff9833a193dd0018142e81646ac6",
-      "sha": "51644f60a89bbe8691da846369cc1fe23e4cdd6a"
+      "bytes": 204,
+      "sha256": "be9e4df1d6ad31881bda58e742d841e369af5c23640d9f658f05384a469dd014",
+      "sha": "ed0ba1a688d4c051325e2c7e01e494c3455beadc"
     }
   ],
   "recoveryLimits": "BACKUP_RECOVERY.md"

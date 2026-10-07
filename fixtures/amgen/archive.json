@@ -1,0 +1,222 @@
+{
+  "schemaVersion": 1,
+  "sidecar": {
+    "releaseCandidateId": "synthetic-deterministic-true-a-reviewer-v1",
+    "batchId": "synthetic-deterministic-amgen-v1",
+    "sourceId": "source-amgen-china-social",
+    "sourceResultId": "synthetic-deterministic-amgen-v1--source-amgen-china-social",
+    "evidenceSubdirectory": "synthetic-fixture",
+    "artifacts": [
+      {
+        "id": "58c494cd12bc6ae158750e6eb21d3ee177a733bc6a059ff2eede224e9b753e95",
+        "logicalKey": "amgen-v2-list-0001",
+        "releaseCandidateId": "synthetic-deterministic-true-a-reviewer-v1",
+        "batchId": "synthetic-deterministic-amgen-v1",
+        "sourceId": "source-amgen-china-social",
+        "sourceResultId": "synthetic-deterministic-amgen-v1--source-amgen-china-social",
+        "kind": "PAGINATION_PAGE",
+        "requestedUrl": "https://careers.amgen.com/en/search-jobs/China/87/2/1814991/35/105/50/2",
+        "finalUrl": "https://careers.amgen.com/en/search-jobs/China/87/2/1814991/35/105/50/2",
+        "httpStatus": 200,
+        "contentType": "text/html",
+        "bodyRepresentation": "EXACT",
+        "capturedAt": "2026-10-07T13:45:11.000Z",
+        "sha256": "0f35196f5d55cf88c9df889fa744815280c2b626b5586b39a5d5e63a30797e50",
+        "byteCount": 1669,
+        "path": "outputs/p0-rc/synthetic-deterministic-true-a-reviewer-v1/synthetic-fixture/artifacts/synthetic-deterministic-amgen-v1/source-amgen-china-social/synthetic-deterministic-amgen-v1--source-amgen-china-social/58c494cd12bc6ae158750e6eb21d3ee177a733bc6a059ff2eede224e9b753e95--amgen-v2-list-0001.html",
+        "extractorLocator": "#search-results@data-total-job-results|request-contract-v2|sha256:b5338086c3530fbc67e5629a48a41baa18d04a2145937672b6e7cf87803f9f5b",
+        "captureToolName": "amgen-manual-workday-http",
+        "captureToolVersion": "2"
+      },
+      {
+        "id": "c3b73587cd4681d5ac5a61fa36a4af8997474ab0411b4ee46cfc2f97d08dfc79",
+        "logicalKey": "amgen-v2-lookup-0000",
+        "releaseCandidateId": "synthetic-deterministic-true-a-reviewer-v1",
+        "batchId": "synthetic-deterministic-amgen-v1",
+        "sourceId": "source-amgen-china-social",
+        "sourceResultId": "synthetic-deterministic-amgen-v1--source-amgen-china-social",
+        "kind": "ATS_API_RESPONSE",
+        "requestedUrl": "https://amgen.wd1.myworkdayjobs.com/wday/cxs/amgen/Careers/jobs",
+        "finalUrl": "https://amgen.wd1.myworkdayjobs.com/wday/cxs/amgen/Careers/jobs",
+        "httpStatus": 200,
+        "contentType": "application/json",
+        "bodyRepresentation": "EXACT",
+        "capturedAt": "2026-10-07T13:45:11.000Z",
+        "sha256": "3e997a9b51c51f099092f24d08cdd43317339ce8d7db8de318ae5360c0d5efca",
+        "byteCount": 848,
+        "path": "outputs/p0-rc/synthetic-deterministic-true-a-reviewer-v1/synthetic-fixture/artifacts/synthetic-deterministic-amgen-v1/source-amgen-china-social/synthetic-deterministic-amgen-v1--source-amgen-china-social/c3b73587cd4681d5ac5a61fa36a4af8997474ab0411b4ee46cfc2f97d08dfc79--amgen-v2-lookup-0000.json",
+        "extractorLocator": "$.jobPostings:lookup-only|request-contract-v2|sha256:0764a283d4b8cd45f95499e14d7fda6c06bd5eedabd0f4768d6164d61b23d846",
+        "captureToolName": "amgen-manual-workday-http",
+        "captureToolVersion": "2"
+      },
+      {
+        "id": "f5da5ef053965e934192cd4a94214b611b4c8d63b48975e510b772e45c096195",
+        "logicalKey": "amgen-v2-identity-0000",
+        "releaseCandidateId": "synthetic-deterministic-true-a-reviewer-v1",
+        "batchId": "synthetic-deterministic-amgen-v1",
+        "sourceId": "source-amgen-china-social",
+        "sourceResultId": "synthetic-deterministic-amgen-v1--source-amgen-china-social",
+        "kind": "ATS_PAGE",
+        "requestedUrl": "https://careers.amgen.com/en/job/shanghai/synthetic-fixture-role/87/990000001",
+        "finalUrl": "https://careers.amgen.com/en/job/shanghai/synthetic-fixture-role/87/990000001",
+        "httpStatus": 200,
+        "contentType": "text/html",
+        "bodyRepresentation": "EXACT",
+        "capturedAt": "2026-10-07T13:45:11.000Z",
+        "sha256": "10c94ead28b94115fbfaa3f8249d81c50c4429d8666aae797536028f8424072f",
+        "byteCount": 982,
+        "path": "outputs/p0-rc/synthetic-deterministic-true-a-reviewer-v1/synthetic-fixture/artifacts/synthetic-deterministic-amgen-v1/source-amgen-china-social/synthetic-deterministic-amgen-v1--source-amgen-china-social/f5da5ef053965e934192cd4a94214b611b4c8d63b48975e510b772e45c096195--amgen-v2-identity-0000.html",
+        "extractorLocator": "schema:JobPosting:identity-only|request-contract-v2|sha256:b6f3f2392ba12aac55aee77cedae509915f16828ed931b46a538ee4e2b0b9a6a",
+        "captureToolName": "amgen-manual-workday-http",
+        "captureToolVersion": "2"
+      },
+      {
+        "id": "7310a69f3458b6607b69eeaf4d766a1e4c1556add58a77cd211f3bce466da3aa",
+        "logicalKey": "amgen-v2-application-0000",
+        "releaseCandidateId": "synthetic-deterministic-true-a-reviewer-v1",
+        "batchId": "synthetic-deterministic-amgen-v1",
+        "sourceId": "source-amgen-china-social",
+        "sourceResultId": "synthetic-deterministic-amgen-v1--source-amgen-china-social",
+        "kind": "ATS_API_RESPONSE",
+        "requestedUrl": "https://amgen.wd1.myworkdayjobs.com/wday/cxs/amgen/Careers/job/China---Shanghai/SYNTHETIC-FIXTURE-ROLE_R-99000001",
+        "finalUrl": "https://amgen.wd1.myworkdayjobs.com/wday/cxs/amgen/Careers/job/China---Shanghai/SYNTHETIC-FIXTURE-ROLE_R-99000001",
+        "httpStatus": 200,
+        "contentType": "application/json",
+        "bodyRepresentation": "EXACT",
+        "capturedAt": "2026-10-07T13:45:11.000Z",
+        "sha256": "2df47518cb676d9e68c1e3332a74e224157355269d18b159f2f3a546a04520d4",
+        "byteCount": 759,
+        "path": "outputs/p0-rc/synthetic-deterministic-true-a-reviewer-v1/synthetic-fixture/artifacts/synthetic-deterministic-amgen-v1/source-amgen-china-social/synthetic-deterministic-amgen-v1--source-amgen-china-social/7310a69f3458b6607b69eeaf4d766a1e4c1556add58a77cd211f3bce466da3aa--amgen-v2-application-0000.json",
+        "extractorLocator": "$.jobPostingInfo|request-contract-v2|sha256:f11d54e924d421a0147919716673717a4b6961bd840c96e6a457d76a87a340af",
+        "captureToolName": "amgen-manual-workday-http",
+        "captureToolVersion": "2"
+      },
+      {
+        "id": "727d60e2f989e58e74cea581b198ce585dcc593590aa1e60be3f4ffe49c43caa",
+        "logicalKey": "amgen-v2-identity-0001",
+        "releaseCandidateId": "synthetic-deterministic-true-a-reviewer-v1",
+        "batchId": "synthetic-deterministic-amgen-v1",
+        "sourceId": "source-amgen-china-social",
+        "sourceResultId": "synthetic-deterministic-amgen-v1--source-amgen-china-social",
+        "kind": "ATS_PAGE",
+        "requestedUrl": "https://careers.amgen.com/en/job/shanghai/synthetic-fixture-role/87/990000002",
+        "finalUrl": "https://careers.amgen.com/en/job/shanghai/synthetic-fixture-role/87/990000002",
+        "httpStatus": 200,
+        "contentType": "text/html",
+        "bodyRepresentation": "EXACT",
+        "capturedAt": "2026-10-07T13:45:11.000Z",
+        "sha256": "06fc281262f4f3dbd288e308a586f96cb11c719e0366723a69580801795f520c",
+        "byteCount": 982,
+        "path": "outputs/p0-rc/synthetic-deterministic-true-a-reviewer-v1/synthetic-fixture/artifacts/synthetic-deterministic-amgen-v1/source-amgen-china-social/synthetic-deterministic-amgen-v1--source-amgen-china-social/727d60e2f989e58e74cea581b198ce585dcc593590aa1e60be3f4ffe49c43caa--amgen-v2-identity-0001.html",
+        "extractorLocator": "schema:JobPosting:identity-only|request-contract-v2|sha256:eced797d9395bd3dc18876b6b5dccca68ed06937b2cb72622e3fb3bbb42f09f6",
+        "captureToolName": "amgen-manual-workday-http",
+        "captureToolVersion": "2"
+      },
+      {
+        "id": "1eba901f85bdd72878912b86c41a2535be0549cdb3093347d1430505bec67ddd",
+        "logicalKey": "amgen-v2-application-0001",
+        "releaseCandidateId": "synthetic-deterministic-true-a-reviewer-v1",
+        "batchId": "synthetic-deterministic-amgen-v1",
+        "sourceId": "source-amgen-china-social",
+        "sourceResultId": "synthetic-deterministic-amgen-v1--source-amgen-china-social",
+        "kind": "ATS_API_RESPONSE",
+        "requestedUrl": "https://amgen.wd1.myworkdayjobs.com/wday/cxs/amgen/Careers/job/China---Shanghai/SYNTHETIC-FIXTURE-ROLE_R-99000002",
+        "finalUrl": "https://amgen.wd1.myworkdayjobs.com/wday/cxs/amgen/Careers/job/China---Shanghai/SYNTHETIC-FIXTURE-ROLE_R-99000002",
+        "httpStatus": 200,
+        "contentType": "application/json",
+        "bodyRepresentation": "EXACT",
+        "capturedAt": "2026-10-07T13:45:11.000Z",
+        "sha256": "eecef36f7eaf6c49bdc24b03d98a7e9af03228dabe483c4c4ecfc5fcb687dfe7",
+        "byteCount": 759,
+        "path": "outputs/p0-rc/synthetic-deterministic-true-a-reviewer-v1/synthetic-fixture/artifacts/synthetic-deterministic-amgen-v1/source-amgen-china-social/synthetic-deterministic-amgen-v1--source-amgen-china-social/1eba901f85bdd72878912b86c41a2535be0549cdb3093347d1430505bec67ddd--amgen-v2-application-0001.json",
+        "extractorLocator": "$.jobPostingInfo|request-contract-v2|sha256:1ac41e4c8b6d3dea48cabdc50ddac0c7ccd9d0c8a09f2c352940e2d86b5be372",
+        "captureToolName": "amgen-manual-workday-http",
+        "captureToolVersion": "2"
+      },
+      {
+        "id": "4be9d70eade60560f96602ef7a8c95602f98e0fe8ef6595b958d3f7cb73e9a19",
+        "logicalKey": "amgen-v2-binding-report",
+        "releaseCandidateId": "synthetic-deterministic-true-a-reviewer-v1",
+        "batchId": "synthetic-deterministic-amgen-v1",
+        "sourceId": "source-amgen-china-social",
+        "sourceResultId": "synthetic-deterministic-amgen-v1--source-amgen-china-social",
+        "kind": "ORACLE_RESULT",
+        "bodyRepresentation": "EXACT",
+        "capturedAt": "2026-10-07T13:45:11.000Z",
+        "sha256": "2c2ddfae4b8d648d586ebb433ee1453a83228e915752e3713c6d0f4635439940",
+        "byteCount": 1684,
+        "path": "outputs/p0-rc/synthetic-deterministic-true-a-reviewer-v1/synthetic-fixture/artifacts/synthetic-deterministic-amgen-v1/source-amgen-china-social/synthetic-deterministic-amgen-v1--source-amgen-china-social/4be9d70eade60560f96602ef7a8c95602f98e0fe8ef6595b958d3f7cb73e9a19--amgen-v2-binding-report.bin",
+        "extractorLocator": "amgen-manual-workday-v2:replayed-bindings-and-lookup-only-difference",
+        "captureToolName": "amgen-manual-workday-http",
+        "captureToolVersion": "2"
+      }
+    ]
+  },
+  "files": [
+    {
+      "path": "outputs/p0-rc/synthetic-deterministic-true-a-reviewer-v1/synthetic-fixture/artifacts/synthetic-deterministic-amgen-v1/source-amgen-china-social/synthetic-deterministic-amgen-v1--source-amgen-china-social/58c494cd12bc6ae158750e6eb21d3ee177a733bc6a059ff2eede224e9b753e95--amgen-v2-list-0001.html",
+      "sha256": "0f35196f5d55cf88c9df889fa744815280c2b626b5586b39a5d5e63a30797e50",
+      "byteCount": 1669,
+      "chunks": [
+        "PHNlY3Rpb24gaWQ9InNlYXJjaC1yZXN1bHRzIiBkYXRhLWxvY2F0aW9uPSJDaGluYSIgZGF0YS1rZXl3b3Jkcz0iIiBkYXRhLWxvY2F0aW9uLXR5cGU9IjIiIGRhdGEtbG9jYXRpb24tcGF0aD0iMTgxNDk5MSIgZGF0YS1vcmdhbml6YXRpb24taWRzPSI4NyIgZGF0YS1sYXRpdHVkZT0iMzUiIGRhdGEtbG9uZ2l0dWRlPSIxMDUiIGRhdGEtZGlzdGFuY2U9IjUwIiBkYXRhLXNob3ctcmFkaXVzPSJGYWxzZSIgZGF0YS10b3RhbC1qb2ItcmVzdWx0cz0iMiIgZGF0YS10b3RhbC1wYWdlcz0iMSIgZGF0YS1jdXJyZW50LXBhZ2U9IjEiIGRhdGEtcmVjb3Jkcy1wZXItcGFnZT0iMTIiIGRhdGEtYWpheC1wb3N0LXVybD0iL2VuL3NlYXJjaC1qb2JzL3Jlc3VsdHNwb3N0IiBkYXRhLXNlYXJjaC1yZXN1bHRzLW1vZHVsZS1uYW1lPSJTZWFyY2ggUmVzdWx0cyB2MiAtIE1vZHVsZSIgZGF0YS1hY3RpdmUtZmFjZXQtaWQ9IjAiIGRhdGEtZmFjZXQtdHlwZT0iMCIgZGF0YS1mYWNldC10ZXJtPSIiIGRhdGEtc29ydC1jcml0ZXJpYT0iMCIgZGF0YS1zb3J0LWRpcmVjdGlvbj0iMCIgZGF0YS1zZWFyY2gtdHlwZT0iMSIgZGF0YS1y",
+        "ZWZpbmVkLWtleXdvcmRzPSJbXSIgZGF0YS10b3RhbC1jb250ZW50LXJlc3VsdHM9IjAiPjx1bCBpZD0ic2VhcmNoLXJlc3VsdHMtam9icyI+PGxpPjxhIGhyZWY9Imh0dHBzOi8vY2FyZWVycy5hbWdlbi5jb20vZW4vam9iL3NoYW5naGFpL3N5bnRoZXRpYy1maXh0dXJlLXJvbGUvODcvOTkwMDAwMDAxIiBkYXRhLWpvYi1pZD0iOTkwMDAwMDAxIj48aDM+U1lOVEhFVElDIEZJWFRVUkUgUk9MRSAwMDAxPC9oMz48c3BhbiBjbGFzcz0iam9iLWxvY2F0aW9uIj5DaGluYSAtIFNoYW5naGFpPC9zcGFuPjwvYT48YnV0dG9uIGNsYXNzPSJqcy1zYXZlLWpvYi1idG4iIGRhdGEtam9iLWlkPSI5OTAwMDAwMDEiIGRhdGEtb3JnLWlkPSI4NyI+PC9idXR0b24+PC9saT48bGk+PGEgaHJlZj0iaHR0cHM6Ly9jYXJlZXJzLmFtZ2VuLmNvbS9lbi9qb2Ivc2hhbmdoYWkvc3ludGhldGljLWZpeHR1cmUtcm9sZS84Ny85OTAwMDAwMDIiIGRhdGEtam9iLWlkPSI5OTAwMDAwMDIiPjxoMz5TWU5USEVUSUMgRklYVFVSRSBST0xFIDAwMDI8L2gzPjxzcGFuIGNsYXNzPSJqb2ItbG9jYXRpb24iPkNoaW5hIC0gU2hhbmdoYWk8L3NwYW4+",
+        "PC9hPjxidXR0b24gY2xhc3M9ImpzLXNhdmUtam9iLWJ0biIgZGF0YS1qb2ItaWQ9Ijk5MDAwMDAwMiIgZGF0YS1vcmctaWQ9Ijg3Ij48L2J1dHRvbj48L2xpPjwvdWw+PGRpdiBjbGFzcz0icGFnaW5hdGlvbiI+PGEgY2xhc3M9Im5leHQgZGlzYWJsZWQiIGRhdGEtZGlzcGxheS10eXBlPSJKb2JzIj5OZXh0PC9hPjwvZGl2Pjwvc2VjdGlvbj48c2VjdGlvbiBpZD0ic2VhcmNoLWZpbHRlcnMiIGRhdGEtc2VhcmNoLWZpbHRlcnMtbW9kdWxlLW5hbWU9IlNlYXJjaCBGaWx0ZXJzIHYyIC0gTW9kdWxlIiBkYXRhLXJhZGl1cy11bml0LXR5cGU9IjAiIGRhdGEtZmlsdGVyZWQtY2F0ZWdvcmllcz0iIiBkYXRhLWZpbHRlcmVkLWxvY2F0aW9ucz0iIiBkYXRhLWZpbHRlcmVkLWN1c3RvbS1mYWNldD0iIiBkYXRhLWZpbHRlcmVkLWFkdmFuY2VkLWNhdGVnb3JpZXM9IiIgZGF0YS1maWx0ZXJlZC1hZHZhbmNlZC1sb2NhdGlvbnM9IiIgZGF0YS1maWx0ZXJlZC1hZHZhbmNlZC1jdXN0b20tZmFjZXQ9IiI+PC9zZWN0aW9uPg=="
+      ]
+    },
+    {
+      "path": "outputs/p0-rc/synthetic-deterministic-true-a-reviewer-v1/synthetic-fixture/artifacts/synthetic-deterministic-amgen-v1/source-amgen-china-social/synthetic-deterministic-amgen-v1--source-amgen-china-social/c3b73587cd4681d5ac5a61fa36a4af8997474ab0411b4ee46cfc2f97d08dfc79--amgen-v2-lookup-0000.json",
+      "sha256": "3e997a9b51c51f099092f24d08cdd43317339ce8d7db8de318ae5360c0d5efca",
+      "byteCount": 848,
+      "chunks": [
+        "eyJ0b3RhbCI6Mywiam9iUG9zdGluZ3MiOlt7InRpdGxlIjoiU1lOVEhFVElDIEZJWFRVUkUgUk9MRSAwMDAxIiwiZXh0ZXJuYWxQYXRoIjoiL2pvYi9DaGluYS0tLVNoYW5naGFpL1NZTlRIRVRJQy1GSVhUVVJFLVJPTEVfUi05OTAwMDAwMSIsImxvY2F0aW9uc1RleHQiOiJDaGluYSAtIFNoYW5naGFpIiwicG9zdGVkT24iOiJTeW50aGV0aWMgcmVsYXRpdmUgZGF0ZSB1bnVzZWQiLCJidWxsZXRGaWVsZHMiOlsiUi05OTAwMDAwMSJdfSx7InRpdGxlIjoiU1lOVEhFVElDIEZJWFRVUkUgUk9MRSAwMDAyIiwiZXh0ZXJuYWxQYXRoIjoiL2pvYi9DaGluYS0tLVNoYW5naGFpL1NZTlRIRVRJQy1GSVhUVVJFLVJPTEVfUi05OTAwMDAwMiIsImxvY2F0aW9uc1RleHQiOiJDaGluYSAtIFNoYW5naGFpIiwicG9zdGVkT24iOiJTeW50aGV0aWMgcmVsYXRpdmUgZGF0ZSB1bnVzZWQiLCJidWxsZXRGaWVsZHMiOlsiUi05OTAwMDAwMiJdfSx7InRpdGxlIjoiU1lOVEhFVElDIEZJWFRVUkUgUk9MRSAwMDAzIiwiZXh0ZXJuYWxQYXRoIjoiL2pvYi9DaGluYS0tLVNoYW5naGFpL1NZTlRIRVRJQy1GSVhUVVJFLVJPTEVfUi05OTAw",
+        "MDAwMyIsImxvY2F0aW9uc1RleHQiOiJDaGluYSAtIFNoYW5naGFpIiwicG9zdGVkT24iOiJTeW50aGV0aWMgcmVsYXRpdmUgZGF0ZSB1bnVzZWQiLCJidWxsZXRGaWVsZHMiOlsiUi05OTAwMDAwMyJdfV0sImZhY2V0cyI6W3siZmFjZXRQYXJhbWV0ZXIiOiJMb2NhdGlvbkNvdW50cnkiLCJkZXNjcmlwdG9yIjoiQ291bnRyeSIsInZhbHVlcyI6W3siZGVzY3JpcHRvciI6IkNoaW5hIiwiaWQiOiI2Y2I3NzYxMGE4YTU0M2FlYTJkNmJjMTA0NTdlMzVkNCIsImNvdW50IjozfV19XX0="
+      ]
+    },
+    {
+      "path": "outputs/p0-rc/synthetic-deterministic-true-a-reviewer-v1/synthetic-fixture/artifacts/synthetic-deterministic-amgen-v1/source-amgen-china-social/synthetic-deterministic-amgen-v1--source-amgen-china-social/f5da5ef053965e934192cd4a94214b611b4c8d63b48975e510b772e45c096195--amgen-v2-identity-0000.html",
+      "sha256": "10c94ead28b94115fbfaa3f8249d81c50c4429d8666aae797536028f8424072f",
+      "byteCount": 982,
+      "chunks": [
+        "PGxpbmsgcmVsPSJjYW5vbmljYWwiIGhyZWY9Imh0dHBzOi8vY2FyZWVycy5hbWdlbi5jb20vZW4vam9iL3NoYW5naGFpL3N5bnRoZXRpYy1maXh0dXJlLXJvbGUvODcvOTkwMDAwMDAxIj48aDE+U1lOVEhFVElDIEZJWFRVUkUgUk9MRSAwMDAxPC9oMT48c2NyaXB0IHR5cGU9ImFwcGxpY2F0aW9uL2xkK2pzb24iPnsiQHR5cGUiOiJKb2JQb3N0aW5nIiwidGl0bGUiOiJTWU5USEVUSUMgRklYVFVSRSBST0xFIDAwMDEiLCJ1cmwiOiJodHRwczovL2NhcmVlcnMuYW1nZW4uY29tL2VuL2pvYi9zaGFuZ2hhaS9zeW50aGV0aWMtZml4dHVyZS1yb2xlLzg3Lzk5MDAwMDAwMSIsImlkZW50aWZpZXIiOiJSLTk5MDAwMDAxIiwiZGVzY3JpcHRpb24iOiI8cD5TWU5USEVUSUMgRklYVFVSRSBPTkxZLiBUaGlzIGlzIGFuIGludmVudGVkIHRlc3Qgam9iLiBObyBhY3R1YWwgdmFjYW5jeSBvciBzb3VyY2UgcmVzcG9uc2UgaXMgcmVwcmVzZW50ZWQuPC9wPiIsImRhdGVQb3N0ZWQiOiIyMDI1LTAxLTAyIiwiaGlyaW5nT3JnYW5pemF0aW9uIjp7Im5hbWUiOiJBbWdlbiJ9LCJqb2JMb2NhdGlvbiI6W3siYWRkcmVzcyI6eyJhZGRy",
+        "ZXNzQ291bnRyeSI6IkNoaW5hIiwiYWRkcmVzc1JlZ2lvbiI6IlNoYW5naGFpIiwiYWRkcmVzc0xvY2FsaXR5IjoiU2hhbmdoYWkifX1dfTwvc2NyaXB0PjxhIGNsYXNzPSJqb2ItYXBwbHkiIGRhdGEtam9iLWlkPSI5OTAwMDAwMDEiIGRhdGEtam9iLW9yZ2FuaXphdGlvbi1pZD0iODciIGRhdGEtYXBwbHktdXJsPSJodHRwczovL2FtZ2VuLndkMS5teXdvcmtkYXlqb2JzLmNvbS9DYXJlZXJzL2pvYi9DaGluYS0tLVNoYW5naGFpL1NZTlRIRVRJQy1GSVhUVVJFLVJPTEVfUi05OTAwMDAwMS9hcHBseSIgaHJlZj0iaHR0cHM6Ly9hbWdlbi53ZDEubXl3b3JrZGF5am9icy5jb20vQ2FyZWVycy9qb2IvQ2hpbmEtLS1TaGFuZ2hhaS9TWU5USEVUSUMtRklYVFVSRS1ST0xFX1ItOTkwMDAwMDEvYXBwbHkiPkFwcGx5PC9hPg=="
+      ]
+    },
+    {
+      "path": "outputs/p0-rc/synthetic-deterministic-true-a-reviewer-v1/synthetic-fixture/artifacts/synthetic-deterministic-amgen-v1/source-amgen-china-social/synthetic-deterministic-amgen-v1--source-amgen-china-social/7310a69f3458b6607b69eeaf4d766a1e4c1556add58a77cd211f3bce466da3aa--amgen-v2-application-0000.json",
+      "sha256": "2df47518cb676d9e68c1e3332a74e224157355269d18b159f2f3a546a04520d4",
+      "byteCount": 759,
+      "chunks": [
+        "eyJ1c2VyQXV0aGVudGljYXRlZCI6ZmFsc2UsImpvYlBvc3RpbmdJbmZvIjp7ImlkIjoiZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmMDAwMDAwMDEiLCJ0aXRsZSI6IlNZTlRIRVRJQyBGSVhUVVJFIFJPTEUgMDAwMSIsImpvYkRlc2NyaXB0aW9uIjoiPHA+U1lOVEhFVElDIEZJWFRVUkUgT05MWS4gVGhpcyBpcyBhbiBpbnZlbnRlZCB0ZXN0IGpvYi4gTm8gYWN0dWFsIHZhY2FuY3kgb3Igc291cmNlIHJlc3BvbnNlIGlzIHJlcHJlc2VudGVkLjwvcD4iLCJsb2NhdGlvbiI6IkNoaW5hIC0gU2hhbmdoYWkiLCJqb2JSZXFJZCI6IlItOTkwMDAwMDEiLCJqb2JQb3N0aW5nSWQiOiJTWU5USEVUSUMtRklYVFVSRS1ST0xFX1ItOTkwMDAwMDEiLCJqb2JQb3N0aW5nU2l0ZUlkIjoiQ2FyZWVycyIsImNvdW50cnkiOnsiZGVzY3JpcHRvciI6IkNoaW5hIiwiaWQiOiI2Y2I3NzYxMGE4YTU0M2FlYTJkNmJjMTA0NTdlMzVkNCJ9LCJqb2JSZXF1aXNpdGlvbkxvY2F0aW9uIjp7ImRlc2NyaXB0b3IiOiJDaGluYSAtIFNoYW5naGFpIiwiY291bnRyeSI6eyJkZXNjcmlwdG9yIjoiQ2hpbmEiLCJpZCI6IjZjYjc3NjEwYThhNTQzYWVh",
+        "MmQ2YmMxMDQ1N2UzNWQ0IiwiYWxwaGEyQ29kZSI6IkNOIn19LCJwb3N0ZWQiOnRydWUsImNhbkFwcGx5Ijp0cnVlLCJleHRlcm5hbFVybCI6Imh0dHBzOi8vYW1nZW4ud2QxLm15d29ya2RheWpvYnMuY29tL0NhcmVlcnMvam9iL0NoaW5hLS0tU2hhbmdoYWkvU1lOVEhFVElDLUZJWFRVUkUtUk9MRV9SLTk5MDAwMDAxIn19"
+      ]
+    },
+    {
+      "path": "outputs/p0-rc/synthetic-deterministic-true-a-reviewer-v1/synthetic-fixture/artifacts/synthetic-deterministic-amgen-v1/source-amgen-china-social/synthetic-deterministic-amgen-v1--source-amgen-china-social/727d60e2f989e58e74cea581b198ce585dcc593590aa1e60be3f4ffe49c43caa--amgen-v2-identity-0001.html",
+      "sha256": "06fc281262f4f3dbd288e308a586f96cb11c719e0366723a69580801795f520c",
+      "byteCount": 982,
+      "chunks": [
+        "PGxpbmsgcmVsPSJjYW5vbmljYWwiIGhyZWY9Imh0dHBzOi8vY2FyZWVycy5hbWdlbi5jb20vZW4vam9iL3NoYW5naGFpL3N5bnRoZXRpYy1maXh0dXJlLXJvbGUvODcvOTkwMDAwMDAyIj48aDE+U1lOVEhFVElDIEZJWFRVUkUgUk9MRSAwMDAyPC9oMT48c2NyaXB0IHR5cGU9ImFwcGxpY2F0aW9uL2xkK2pzb24iPnsiQHR5cGUiOiJKb2JQb3N0aW5nIiwidGl0bGUiOiJTWU5USEVUSUMgRklYVFVSRSBST0xFIDAwMDIiLCJ1cmwiOiJodHRwczovL2NhcmVlcnMuYW1nZW4uY29tL2VuL2pvYi9zaGFuZ2hhaS9zeW50aGV0aWMtZml4dHVyZS1yb2xlLzg3Lzk5MDAwMDAwMiIsImlkZW50aWZpZXIiOiJSLTk5MDAwMDAyIiwiZGVzY3JpcHRpb24iOiI8cD5TWU5USEVUSUMgRklYVFVSRSBPTkxZLiBUaGlzIGlzIGFuIGludmVudGVkIHRlc3Qgam9iLiBObyBhY3R1YWwgdmFjYW5jeSBvciBzb3VyY2UgcmVzcG9uc2UgaXMgcmVwcmVzZW50ZWQuPC9wPiIsImRhdGVQb3N0ZWQiOiIyMDI1LTAxLTAyIiwiaGlyaW5nT3JnYW5pemF0aW9uIjp7Im5hbWUiOiJBbWdlbiJ9LCJqb2JMb2NhdGlvbiI6W3siYWRkcmVzcyI6eyJhZGRy",
+        "ZXNzQ291bnRyeSI6IkNoaW5hIiwiYWRkcmVzc1JlZ2lvbiI6IlNoYW5naGFpIiwiYWRkcmVzc0xvY2FsaXR5IjoiU2hhbmdoYWkifX1dfTwvc2NyaXB0PjxhIGNsYXNzPSJqb2ItYXBwbHkiIGRhdGEtam9iLWlkPSI5OTAwMDAwMDIiIGRhdGEtam9iLW9yZ2FuaXphdGlvbi1pZD0iODciIGRhdGEtYXBwbHktdXJsPSJodHRwczovL2FtZ2VuLndkMS5teXdvcmtkYXlqb2JzLmNvbS9DYXJlZXJzL2pvYi9DaGluYS0tLVNoYW5naGFpL1NZTlRIRVRJQy1GSVhUVVJFLVJPTEVfUi05OTAwMDAwMi9hcHBseSIgaHJlZj0iaHR0cHM6Ly9hbWdlbi53ZDEubXl3b3JrZGF5am9icy5jb20vQ2FyZWVycy9qb2IvQ2hpbmEtLS1TaGFuZ2hhaS9TWU5USEVUSUMtRklYVFVSRS1ST0xFX1ItOTkwMDAwMDIvYXBwbHkiPkFwcGx5PC9hPg=="
+      ]
+    },
+    {
+      "path": "outputs/p0-rc/synthetic-deterministic-true-a-reviewer-v1/synthetic-fixture/artifacts/synthetic-deterministic-amgen-v1/source-amgen-china-social/synthetic-deterministic-amgen-v1--source-amgen-china-social/1eba901f85bdd72878912b86c41a2535be0549cdb3093347d1430505bec67ddd--amgen-v2-application-0001.json",
+      "sha256": "eecef36f7eaf6c49bdc24b03d98a7e9af03228dabe483c4c4ecfc5fcb687dfe7",
+      "byteCount": 759,
+      "chunks": [
+        "eyJ1c2VyQXV0aGVudGljYXRlZCI6ZmFsc2UsImpvYlBvc3RpbmdJbmZvIjp7ImlkIjoiZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmMDAwMDAwMDIiLCJ0aXRsZSI6IlNZTlRIRVRJQyBGSVhUVVJFIFJPTEUgMDAwMiIsImpvYkRlc2NyaXB0aW9uIjoiPHA+U1lOVEhFVElDIEZJWFRVUkUgT05MWS4gVGhpcyBpcyBhbiBpbnZlbnRlZCB0ZXN0IGpvYi4gTm8gYWN0dWFsIHZhY2FuY3kgb3Igc291cmNlIHJlc3BvbnNlIGlzIHJlcHJlc2VudGVkLjwvcD4iLCJsb2NhdGlvbiI6IkNoaW5hIC0gU2hhbmdoYWkiLCJqb2JSZXFJZCI6IlItOTkwMDAwMDIiLCJqb2JQb3N0aW5nSWQiOiJTWU5USEVUSUMtRklYVFVSRS1ST0xFX1ItOTkwMDAwMDIiLCJqb2JQb3N0aW5nU2l0ZUlkIjoiQ2FyZWVycyIsImNvdW50cnkiOnsiZGVzY3JpcHRvciI6IkNoaW5hIiwiaWQiOiI2Y2I3NzYxMGE4YTU0M2FlYTJkNmJjMTA0NTdlMzVkNCJ9LCJqb2JSZXF1aXNpdGlvbkxvY2F0aW9uIjp7ImRlc2NyaXB0b3IiOiJDaGluYSAtIFNoYW5naGFpIiwiY291bnRyeSI6eyJkZXNjcmlwdG9yIjoiQ2hpbmEiLCJpZCI6IjZjYjc3NjEwYThhNTQzYWVh",
+        "MmQ2YmMxMDQ1N2UzNWQ0IiwiYWxwaGEyQ29kZSI6IkNOIn19LCJwb3N0ZWQiOnRydWUsImNhbkFwcGx5Ijp0cnVlLCJleHRlcm5hbFVybCI6Imh0dHBzOi8vYW1nZW4ud2QxLm15d29ya2RheWpvYnMuY29tL0NhcmVlcnMvam9iL0NoaW5hLS0tU2hhbmdoYWkvU1lOVEhFVElDLUZJWFRVUkUtUk9MRV9SLTk5MDAwMDAyIn19"
+      ]
+    },
+    {
+      "path": "outputs/p0-rc/synthetic-deterministic-true-a-reviewer-v1/synthetic-fixture/artifacts/synthetic-deterministic-amgen-v1/source-amgen-china-social/synthetic-deterministic-amgen-v1--source-amgen-china-social/4be9d70eade60560f96602ef7a8c95602f98e0fe8ef6595b958d3f7cb73e9a19--amgen-v2-binding-report.bin",
+      "sha256": "2c2ddfae4b8d648d586ebb433ee1453a83228e915752e3713c6d0f4635439940",
+      "byteCount": 1684,
+      "chunks": [
+        "eyJwb2xpY3kiOiJBTUdFTl9NQU5VQUxfV09SS0RBWV9MT09LVVBfVjIiLCJtYW51YWxUb3RhbCI6MiwibG9va3VwVG90YWwiOjMsImxvb2t1cE9ubHlSZXFJZHMiOlsiUi05OTAwMDAwMyJdLCJiaW5kaW5ncyI6W3sibnVtZXJpY0lkIjoiOTkwMDAwMDAxIiwicmVxSWQiOiJSLTk5MDAwMDAxIiwiZXh0ZXJuYWxQYXRoIjoiL2pvYi9DaGluYS0tLVNoYW5naGFpL1NZTlRIRVRJQy1GSVhUVVJFLVJPTEVfUi05OTAwMDAwMSIsIm9mZmljaWFsVXJsIjoiaHR0cHM6Ly9hbWdlbi53ZDEubXl3b3JrZGF5am9icy5jb20vQ2FyZWVycy9qb2IvQ2hpbmEtLS1TaGFuZ2hhaS9TWU5USEVUSUMtRklYVFVSRS1ST0xFX1ItOTkwMDAwMDEiLCJhcHBsaWNhdGlvbiI6eyJsYW5kaW5nVXJsIjoiaHR0cHM6Ly9hbWdlbi53ZDEubXl3b3JrZGF5am9icy5jb20vQ2FyZWVycy9qb2IvQ2hpbmEtLS1TaGFuZ2hhaS9TWU5USEVUSUMtRklYVFVSRS1ST0xFX1ItOTkwMDAwMDEiLCJjYW5BcHBseSI6dHJ1ZSwicG9zdGVkIjp0cnVlfSwiZGlzcGxheUNvbmZsaWN0Ijp7ImhlYWRpbmciOiJTWU5USEVUSUMgRklYVFVSRSBST0xFIDAwMDEiLCJt",
+        "YWluSm9iSWRzIjpbXSwiYXBwbHlMaW5rcyI6W3sibnVtZXJpY0lkIjoiOTkwMDAwMDAxIiwib3JnSWQiOiI4NyIsImhyZWYiOiJodHRwczovL2FtZ2VuLndkMS5teXdvcmtkYXlqb2JzLmNvbS9DYXJlZXJzL2pvYi9DaGluYS0tLVNoYW5naGFpL1NZTlRIRVRJQy1GSVhUVVJFLVJPTEVfUi05OTAwMDAwMS9hcHBseSIsImRhdGFBcHBseVVybCI6Imh0dHBzOi8vYW1nZW4ud2QxLm15d29ya2RheWpvYnMuY29tL0NhcmVlcnMvam9iL0NoaW5hLS0tU2hhbmdoYWkvU1lOVEhFVElDLUZJWFRVUkUtUk9MRV9SLTk5MDAwMDAxL2FwcGx5In1dLCJoYXNDb25mbGljdCI6ZmFsc2V9fSx7Im51bWVyaWNJZCI6Ijk5MDAwMDAwMiIsInJlcUlkIjoiUi05OTAwMDAwMiIsImV4dGVybmFsUGF0aCI6Ii9qb2IvQ2hpbmEtLS1TaGFuZ2hhaS9TWU5USEVUSUMtRklYVFVSRS1ST0xFX1ItOTkwMDAwMDIiLCJvZmZpY2lhbFVybCI6Imh0dHBzOi8vYW1nZW4ud2QxLm15d29ya2RheWpvYnMuY29tL0NhcmVlcnMvam9iL0NoaW5hLS0tU2hhbmdoYWkvU1lOVEhFVElDLUZJWFRVUkUtUk9MRV9SLTk5MDAwMDAyIiwiYXBwbGljYXRpb24iOnsi",
+        "bGFuZGluZ1VybCI6Imh0dHBzOi8vYW1nZW4ud2QxLm15d29ya2RheWpvYnMuY29tL0NhcmVlcnMvam9iL0NoaW5hLS0tU2hhbmdoYWkvU1lOVEhFVElDLUZJWFRVUkUtUk9MRV9SLTk5MDAwMDAyIiwiY2FuQXBwbHkiOnRydWUsInBvc3RlZCI6dHJ1ZX0sImRpc3BsYXlDb25mbGljdCI6eyJoZWFkaW5nIjoiU1lOVEhFVElDIEZJWFRVUkUgUk9MRSAwMDAyIiwibWFpbkpvYklkcyI6W10sImFwcGx5TGlua3MiOlt7Im51bWVyaWNJZCI6Ijk5MDAwMDAwMiIsIm9yZ0lkIjoiODciLCJocmVmIjoiaHR0cHM6Ly9hbWdlbi53ZDEubXl3b3JrZGF5am9icy5jb20vQ2FyZWVycy9qb2IvQ2hpbmEtLS1TaGFuZ2hhaS9TWU5USEVUSUMtRklYVFVSRS1ST0xFX1ItOTkwMDAwMDIvYXBwbHkiLCJkYXRhQXBwbHlVcmwiOiJodHRwczovL2FtZ2VuLndkMS5teXdvcmtkYXlqb2JzLmNvbS9DYXJlZXJzL2pvYi9DaGluYS0tLVNoYW5naGFpL1NZTlRIRVRJQy1GSVhUVVJFLVJPTEVfUi05OTAwMDAwMi9hcHBseSJ9XSwiaGFzQ29uZmxpY3QiOmZhbHNlfX1dfQ=="
+      ]
+    }
+  ]
+}

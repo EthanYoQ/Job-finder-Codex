@@ -1,0 +1,1 @@
+export default {cacheDir:process.env.FIXTURE_WORK_ROOT+'/cache',test:{environment:'node',include:['generate.test.ts'],maxWorkers:1,fileParallelism:false,testTimeout:60000,hookTimeout:60000,cache:false}};
