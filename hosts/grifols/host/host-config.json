@@ -1,0 +1,8 @@
+{
+  "root": "/workspace/scratch/5e9614251709/jb-incremental-producer-runtime-20261007T0036Z/hosts/grifols/host",
+  "repo": "/workspace/scratch/5e9614251709/jb-incremental-producer-runtime-20261007T0036Z/producer",
+  "node": "/workspace/scratch/5e9614251709/jb-incremental-producer-runtime-20261007T0036Z/runtime/node-v22.19.0-linux-x64/bin/node",
+  "project": "yiopvxysxrtrnvqxwgbx",
+  "sourceId": "source-grifols-china-social",
+  "sourceConfigSha256": "614ac95db03986792bf1a42a856a403e747165f1b3a94d8588d49f2016c522c7"
+}

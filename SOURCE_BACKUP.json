@@ -1,92 +1,193 @@
 {
-  "format": "safe-skill-backup/v1",
-  "snapshot": "aliyun-safe-cleanup",
-  "originalDeliveryManifestSha256": "e1d8f51a74913bd6503c33d6f6939a7d6f08ccc41c875b1dd9c973803e44864e",
-  "originalSkillSourceFiles": 7,
-  "originalSkillSourceBytes": 29885,
-  "originalDeliveryManifestBytes": 1888,
+  "format": "safe-host-source-backup/v1",
+  "originalHostManifestSha256": "7199bcaf715223623c141ea5b50955d11b2026422d5fddbeb46b9508a5c021aa",
+  "manifestSelection": "23 fixed entries minus host/activation.json and host/control-base.json; all other 21 entries preserved.",
+  "sourceFiles": 21,
+  "sourceBytes": 117953,
   "originalBytesUnchanged": true,
-  "restoreRoot": "skills/aliyun-safe-cleanup",
-  "manifestPathBase": "All paths listed by DELIVERY_MANIFEST.json are relative to the skill root. The original delivery used an aliyun-safe-cleanup subdirectory; this unchanged manifest copy is colocated with SKILL.md.",
-  "authorStatements": "Original inventory and validation status in the skill and manifest are author-reported historical context, not results rerun during this backup.",
-  "restorationLimits": [
-    "Keep all seven skill/source/test paths together; their original 0644 modes are preserved. Use sh/python3 for the entry scripts.",
-    "Python 3 standard library, compatible Linux APIs/system tools and existing authorized official Alibaba Cloud connection are external operational dependencies.",
-    "Inventory summaries are incomplete reference evidence and may contain private host metadata; actual outputs are not included.",
-    "Archive content verification is not a Docker load test, full layer/config validity proof, registry-digest restoration or deletion authorization.",
-    "No actual cleanup, image removal or Docker load was performed by this backup."
-  ],
+  "restorePrefix": "hosts/grifols",
+  "producerSourceCommit": "dfd22f642469888eb781f5e7b93964a60e082ca0",
+  "producerSafeIncrementCommit": "a47ed7feeb93e99d45633795cb5fecebc8c0818f",
+  "sourceContainsNonsecretBindingConstants": true,
+  "actualRuntimeBindingsIncluded": false,
   "excluded": [
-    "Real host inventory/results/receipts",
-    "Image archives and real fixed image IDs",
-    "Credentials and deployment configuration",
-    "Business data and unrelated workspace material"
+    "host/activation.json",
+    "host/control-base.json",
+    "Original internal verification metadata",
+    "All actual run/relay/artifact/diagnostic/registration/DB outputs",
+    "Environment/proxy values and credentials",
+    "Producer Git history, installed dependencies and runtime binaries",
+    "Unlisted tests and other source candidates"
   ],
-  "verificationScope": "Static source/hash/reference review and exact remote Git/content readback; no helper, test, server command or cleanup execution.",
+  "verificationScope": "Static exact-source review and remote path/mode/blob/content verification only. No source, test, SQL, capture or deployment execution.",
   "files": [
     {
-      "path": "skills/aliyun-safe-cleanup/SKILL.md",
+      "path": "hosts/grifols/host/host-files.mts",
+      "sha256": "f0a03d7f5af5fbe863679b9757385bf99729660014e42ed01f60a5eca87c1d09",
+      "bytes": 4080,
       "mode": "100644",
       "type": "blob",
-      "sha": "d38bb98a92918f8deb292d41c7ee86d0b265dfbe",
-      "sha256": "9fb7c2a4242d595090acff0e34eedcc993415008ea23df6405ea1dd30593f6d8",
-      "bytes": 6982
+      "sha": "ea2c0f31f231a8eebe3d883dc8d807a364e92f87"
     },
     {
-      "path": "skills/aliyun-safe-cleanup/agents/openai.yaml",
+      "path": "hosts/grifols/host/relay-files.mjs",
+      "sha256": "927861287253d765ee3b0c6522c65cd7ed9624851093e4632085e474386f5614",
+      "bytes": 7912,
       "mode": "100644",
       "type": "blob",
-      "sha": "2fa48a49be2db0b3a3fcbe62f92d138e4190682d",
-      "sha256": "531297ed7e48f178c31b3ff3ae895add302b5ceba24f1b8c07a24a65261ccd3e",
-      "bytes": 309
+      "sha": "a61cd4acd217c316df8ec32ce577b8301189ae40"
     },
     {
-      "path": "skills/aliyun-safe-cleanup/references/recovery-boundaries.md",
+      "path": "hosts/grifols/host/archive-transfer.mjs",
+      "sha256": "698e966e5552967845a5252d2b3df2acca28dcd8dbbb0ae41755a3a6231e6a99",
+      "bytes": 1777,
       "mode": "100644",
       "type": "blob",
-      "sha": "b9599654590c0f6643cd74ad9d9989a4110c61b9",
-      "sha256": "4e0055fa3e399f62a03e4d8aa012c4fd918203a8919142512f9dac3dd39e1230",
-      "bytes": 2450
+      "sha": "5a454d21f34f9680221bbee2c98b3fecb94884f0"
     },
     {
-      "path": "skills/aliyun-safe-cleanup/scripts/inventory-readonly.sh",
+      "path": "hosts/grifols/host/host-helper-functions.js",
+      "sha256": "d1da8001621997cccb683371109678d1f0e46d2e348ac97b4923767b2b3d99ce",
+      "bytes": 8917,
       "mode": "100644",
       "type": "blob",
-      "sha": "18dfa5c55f5c15d26752e8c8515cf35af620983e",
-      "sha256": "b7ec7e10d0bef4f357417aa5098000090a139f38b09cd2cc724eee41fd586b4e",
-      "bytes": 5214
+      "sha": "b7619418a9f29a86681f893b3f5bc0ed9062efd0"
     },
     {
-      "path": "skills/aliyun-safe-cleanup/scripts/test_inventory_helper.py",
+      "path": "hosts/grifols/host/host-stage-functions.js",
+      "sha256": "24ed4e75d934b96bccc058bc113456ea0b7a6b3ffcd0358f4296dcdd24c5e118",
+      "bytes": 6067,
       "mode": "100644",
       "type": "blob",
-      "sha": "33544d1848e3d2eb9f7e9b609b281d41db1475c2",
-      "sha256": "db20c7a95efc08eadc1d29628b6670971547b4b5c05a7a437d173fba54fc6f8f",
-      "bytes": 2742
+      "sha": "401336d3b92b0b851a49162a4e055a822294d9e8"
     },
     {
-      "path": "skills/aliyun-safe-cleanup/scripts/verify_docker_archive.py",
+      "path": "hosts/grifols/host/runtime/load-host-state.js",
+      "sha256": "7a6572bcebccb19863ab83cec5de92f0167caa45e564a688bf5ca9b8f5264106",
+      "bytes": 4237,
       "mode": "100644",
       "type": "blob",
-      "sha": "350d8d384ac594b2dcd541fd31e60298cb979a55",
-      "sha256": "aa254a7ff599b8a8015a39c89e9f24b77de7a990ffc6880e48ce62ed9e00e460",
-      "bytes": 6748
+      "sha": "542c7bb1847c51c55a9560ad9af0d9e185550988"
     },
     {
-      "path": "skills/aliyun-safe-cleanup/scripts/test_verify_docker_archive.py",
+      "path": "hosts/grifols/host/runtime/load-source-runtime.js",
+      "sha256": "f67aadc483ba5924dd9aa6d5b4d3c86451b4e0cc511a23379ca06b0fb5bba785",
+      "bytes": 2075,
       "mode": "100644",
       "type": "blob",
-      "sha": "89408025c30d015f4746faa74f06d6b71547d890",
-      "sha256": "8cdfdf7984bc57a4218ebccd0ad1da6a7c6be786cd22ac2c13af9f0f8a501a00",
-      "bytes": 5440
+      "sha": "e3565f5060ab324b6493177e22509cdff6fb5be8"
     },
     {
-      "path": "skills/aliyun-safe-cleanup/DELIVERY_MANIFEST.json",
+      "path": "hosts/grifols/host/runtime/continuous-relay-v3-durable-monitor.js",
+      "sha256": "63484534b70d1f7f2cfb2f444f8c292c67c8d3ebc2e3ef796709c9e36ddd27d8",
+      "bytes": 5280,
       "mode": "100644",
       "type": "blob",
-      "sha": "93656b97125acd9512a10de852c2b0a28cf6fd37",
-      "sha256": "e1d8f51a74913bd6503c33d6f6939a7d6f08ccc41c875b1dd9c973803e44864e",
-      "bytes": 1888
+      "sha": "a0a33015c6e352d2b7d91dcbd2a342375f644354"
+    },
+    {
+      "path": "hosts/grifols/host/runtime/complete-reviewed-source-readback.js",
+      "sha256": "04cded12639f874157bbc0182a3a7edd29a6992737f7ff24830ed0f91dacba45",
+      "bytes": 5595,
+      "mode": "100644",
+      "type": "blob",
+      "sha": "00f5ece04b82e76b2ce50c6d9b7133c29f09c7bb"
+    },
+    {
+      "path": "hosts/grifols/host/runtime/update-candidate-completion-state.mjs",
+      "sha256": "ae5ad99411b014c8ffff615a0b06af1e1fdfd2ed7f7265c9c9cee0128339bb06",
+      "bytes": 3654,
+      "mode": "100644",
+      "type": "blob",
+      "sha": "ec886e3dd2b52805daccddcdcd862b6afbaeec29"
+    },
+    {
+      "path": "hosts/grifols/host/runtime/review-publication.py",
+      "sha256": "04b226254cfd5dd6b1c9e81b9172a6c4824fe7d0cf0eb68d56d93e9f6afda5cd",
+      "bytes": 4574,
+      "mode": "100644",
+      "type": "blob",
+      "sha": "b5429d8dab3bc6f7a6b37b4b395a604dba743632"
+    },
+    {
+      "path": "hosts/grifols/host/runtime/preflight/preflight-launch.mjs",
+      "sha256": "3eda669035bb3f163af0796caeefbc7554b23353e7aed3d908ed2ef4c8fef445",
+      "bytes": 10454,
+      "mode": "100644",
+      "type": "blob",
+      "sha": "d6d143f5688edf7bbf923100cfda79284254271a"
+    },
+    {
+      "path": "hosts/grifols/host/runtime/preflight/runtime-check.mjs",
+      "sha256": "0f55d1f662d9eb3329298c68cff3b4a6161dedbefe95c86084bb451bd9e75ee7",
+      "bytes": 3523,
+      "mode": "100644",
+      "type": "blob",
+      "sha": "1aaf44921d83b86bb9c0065a46393286a8b725c3"
+    },
+    {
+      "path": "hosts/grifols/supervision/start-monitor-grifols47b-combined.js",
+      "sha256": "09c900dd596b6bf43b8c36ca48870b7acf510db1aa8e95283f19cdcb7c39c00f",
+      "bytes": 13795,
+      "mode": "100644",
+      "type": "blob",
+      "sha": "b48df589219b2286fc802f977d799d3c453d26e8"
+    },
+    {
+      "path": "hosts/grifols/supervision/supervise-cancel.mjs",
+      "sha256": "629eabf9387240c8b255c0ae1dd6c509c4591284526f9e1c992caecba562ca5f",
+      "bytes": 10235,
+      "mode": "100644",
+      "type": "blob",
+      "sha": "52605153bd1b5a939d21512bd7dac29e61e96d4e"
+    },
+    {
+      "path": "hosts/grifols/supervision/sample_process_tree.py",
+      "sha256": "3fa6daa1af1afee94d19801edfd8bcb538e1243476b5adb253e50de162a27bd6",
+      "bytes": 13065,
+      "mode": "100644",
+      "type": "blob",
+      "sha": "5c2924dc067309525018e4903741dc33e796b546"
+    },
+    {
+      "path": "hosts/grifols/supervision/inspect-launch-identity.mjs",
+      "sha256": "015b9181a640bcb4e4c68d7bfcef598e826c93fe6f8aaf31d33cf59780e3d81f",
+      "bytes": 706,
+      "mode": "100644",
+      "type": "blob",
+      "sha": "6083858daf1b55f62c25bd12e405df5cff35812d"
+    },
+    {
+      "path": "hosts/grifols/host/runtime/review-packet-envelope.mts",
+      "sha256": "6fa32d3afe0b6a716a1243bf0cb0f6a8435b262ea584bc4041526a881d61a9d7",
+      "bytes": 5395,
+      "mode": "100644",
+      "type": "blob",
+      "sha": "aaa5e783b2b3ca193e8d4605a6544e4faa1c1f5c"
+    },
+    {
+      "path": "hosts/grifols/host/runtime/prepare-registered-control.mts",
+      "sha256": "8dab0f48286dc0d1f61087068a30b1b5b7bce13884e855e298651d4d2db19f1a",
+      "bytes": 3463,
+      "mode": "100644",
+      "type": "blob",
+      "sha": "951f02d3d908ed61b587e6788b2912ebb14d3c3e"
+    },
+    {
+      "path": "hosts/grifols/host/host-config.json",
+      "sha256": "2628b36d4f30a52c639601b974936992454d5444c3c6c0de56ff2787b4632c93",
+      "bytes": 522,
+      "mode": "100644",
+      "type": "blob",
+      "sha": "58c96c7128a3b4837294181582a11affeafc9ae0"
+    },
+    {
+      "path": "hosts/grifols/host/context-read.sql",
+      "sha256": "281280d4d59e04858538cd400b4546c45bc6c5288351bcb5d413b4ac81d51e71",
+      "bytes": 2627,
+      "mode": "100644",
+      "type": "blob",
+      "sha": "f839f24902fe773a12f9c70805f6d5b50b3c942f"
     }
   ]
 }
