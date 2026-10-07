@@ -20,7 +20,7 @@ description: 恢复和验收 Job Finder 在既有阿里云实例上的配对网�
 
 提交不明、MCP 取消/拒绝、告警归因或备份时读[命令证据与恢复契约](references/command-evidence-and-recovery.md)。
 
-原 exec 监控缺失、预算恢复、异步作用域漂移或应用层功能隔离时，读[原执行监控与功能隔离](references/monitor-evidence-and-functional-isolation.md)。它区分 OS UNKNOWN 与已证明不能继续 HTTP/PUBLISH 的特定应用路径；不放宽未决 root 命令、原调用重投或部署授权门。
+原 exec 监控缺失、预算恢复、异步作用域漂移或应用层功能隔离时，读[原执行监控与功能隔离](references/monitor-evidence-and-functional-isolation.md)。沿真实 helper 调用链核对最终 SQL 门，不能把 owner 调用 helper 前的检查当成工具执行边界；终态回包先保存原证据，再核对完整身份后接受。该参考区分 OS UNKNOWN 与已证明不能继续 HTTP/PUBLISH 的特定应用路径，不放宽未决 root 命令、原调用重投或部署授权门。
 
 ## 重建运行身份
 

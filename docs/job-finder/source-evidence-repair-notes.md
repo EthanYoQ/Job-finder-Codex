@@ -70,7 +70,23 @@ R2 修正了读取固定文件时的 hash 边界：先对原 Buffer 求 SHA-256�
 - 旧运行最后应用层错误后，精确源码/运行树及全部已审控制流证明未来没有新的应用层 HTTP/PUBLISH 路径；原 dispatch owner 已结束且无在途 SQL，当前相关锁/事务为空。保持旧 OS UNKNOWN，在唯一 publisher、独立新 batch/run 和原 starter 条件下继续。取消文件没有确认，不写取消成功；此判断不能用于盲重投旧调用或未知 root 命令
 - 新运行改用同一串行 loop 在采集期间轮询原 exec，而非等 CHILD_EXIT 后才取证。十五个原回包已保存回读，真实非零退出与各监督层一致。本次单 URL 四十五秒限制导致采集失败，零 PUBLISH、无新成功观测；只证明监督恢复，不是 Novo 成功，也没有证明延迟属于官方站点或平台代理
 - 恢复预算固定来自原 WRAPPER_START.outerDeadline 与 timeoutMs，不从较晚 recordedAt 或丢失 store 后的当前时刻重新计时。PUBLISH 前读取同一原预算；该预算不改变数据库自己的期限门
-- r3 独立审查又发现 await 后未重核 run/batch/session，以及预算读取失败后残留半成品 lease。原代码的三项 scope 反例、两项 lease 反例先红灯；窄修后 129 项通过，独立审查闭合并在无 active 时安装。r3 尚未有真实 PUBLISH 成功验证，旧 UNKNOWN 保持原结论
+- r3 独立审查又发现 await 后未重核 run/batch/session，以及预算读取失败后残留半成品 lease。原代码的三项 scope 反例、两项 lease 反例先红灯；窄修后 129 项通过，当时独立审查只闭合这两项已报告问题，并在无 active 时安装。这不证明真实 SQL 边界或完整身份已闭合；后续纠正见下节。r3 尚未有真实 PUBLISH 成功验证，旧 UNKNOWN 保持原结论
+
+### 后续独立复核：r3 仍有最终执行边界缺口
+
+2026-10-07 对 Hansoh/Fosun C51 r3 候选的独立 VM 检查复现八项问题。owner 在调用 helper 前检查了 scope，但 helper 随后还等待 envelope 和 dispatch marker；这些等待中 scope 变化或原预算到期，实际 SQL stub 仍被调用。入口的候选、build、来源等验证也没有固定完整原快照并在最终边界重核。terminal poll 的 await 返回后，旧 session 的终态还可能被接受到已变化的当前作用域。已安装 Novo C59 r3 的相关文件哈希与受影响实现相符。
+
+因此，早先“独立审查闭合”只描述当时两项发现。完整调用链的审查与测试覆盖不足已经确认，不能把 129 项通过写成所有异步边界都安全，也不能把后续 C51 修复自动算到 Novo C59。
+
+r4 将同步、必须返回 true 的最终 guard 放在 helper 全部准备 await 之后，紧邻真实 SQL 调用；guard 与调用之间没有 await。原身份使用独立深拷贝快照，覆盖完整 source/project/config/root、build/candidate、review/request/hash/SQL 与 run/batch/session/relay。最终门同时重核原绝对预算和请求期限，并传递到 owner 管辖的非 PUBLISH SQL 路径。terminal raw 先按原身份保存，证据回读与 wrapper 状态读取后的作用域都须重核，接受终态前再次核对。
+
+晚拒绝时可能已有 dispatch marker。保留 marker 与原请求；本次 NOT_INVOKED 不代表回滚、全局零写入或允许重投。原 UNKNOWN、noWriteEstablished=false、retryAuthorized=false 与不重放 PUBLISH 的边界保持。
+
+独立审查对冻结的 Hansoh/Fosun C51 r4 包运行 683 项，全部通过；原八项反例也全部闭合，其中六项没有 SQL 调用，两项保留完整 raw 且没有接受终态。本文核对该审查与证据字节，没有重新执行这 683 项。复用实际 r4 代码的合成回归，不增加另一份简化监控模型。
+
+2026-10-07 22:05 UTC 的准备检查点：Hansoh/Fosun 的 69 个未绑定 r4 源文件已安装并核验字节，两份独立 PREPARED 已生成；activation 尚未安装，也没有真实采集或 PUBLISH 成功验证。该检查点的已安装 Novo C59 仍为受影响的 r3，保持禁止新启动，未由此 r4 包修复。各对象后续状态须按其新回执分别更新；旧 OS UNKNOWN、未确认取消与 r2 零 PUBLISH 的采集失败保持原结论。
+
+已逐内容远端回读核验的 [Hansoh/Fosun C51 r4 安全源码备份](https://github.com/EthanYoQ/Job-finder-Codex/tree/312a82ac604ff4ad236a86141386066574ae37cc)包含 69 个精确未绑定源文件及合成夹具、恢复说明，共 86 个路径。备份方在新建隔离恢复树复跑 683 项全部通过；这与本文只核对测试记录是两次不同的工作。恢复仍需原 C51 producer、物理依赖与另行核验的实际绑定，不能称完整运行恢复或真实发布成功。
 
 本次文档工作只核对安全源码、修前反例日志、最终测试记录和已批准的最小失败闭环字段，不读取真实响应正文或 nonce，不修改生产。复用已有实际源码的合成回归，不把新写的简化模型当该监控程序的验证。
 

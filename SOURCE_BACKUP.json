@@ -1,8 +1,8 @@
 {
   "schemaVersion": 1,
   "repository": "EthanYoQ/Job-finder-Codex",
-  "scope": "First-party skills, project repair documentation, and retained pure synthetic tests only",
-  "sourceManifestSha256": "e764c142e3507f436a1e40860ece64fee8beb04b3f16702b71f1c97cad76551c",
+  "scope": "Correction of earlier r3 review coverage and scoped r4 helper-boundary lessons; safe first-party docs, skills and retained synthetic teaching tests only",
+  "sourceManifestSha256": "bb928a68d0f406ffe6391c0d580be8f6e050dd56b8813bcfe010b4375ef39272",
   "originalFiles": [
     {
       "path": "skills/diagnose-batch-memory-amplification/SKILL.md",
@@ -38,11 +38,11 @@
     },
     {
       "path": "skills/job-finder-aliyun-release-recovery/SKILL.md",
-      "bytes": 6387,
-      "sha256": "df7c06d34772b96af43b495375dccfa5268d11aaa6df8017c4283717d5d27675",
+      "bytes": 6577,
+      "sha256": "d4cb1f50f4a6360570d12711cbbddfe052b29cc1a82eed2df8d6619f878b4a1a",
       "mode": "100644",
       "type": "blob",
-      "sha": "bc637bdff650001af7d38f3099e2eb0ed05c43a9"
+      "sha": "22e81cea1cb8676573f5ed57c43d3483eb62df68"
     },
     {
       "path": "skills/job-finder-aliyun-release-recovery/references/command-evidence-and-recovery.md",
@@ -54,11 +54,11 @@
     },
     {
       "path": "skills/job-finder-aliyun-release-recovery/references/monitor-evidence-and-functional-isolation.md",
-      "bytes": 7812,
-      "sha256": "73335f6427b27da7aed57e1d5d37ad86783e0dd8d2a18f19db4e4d38f68e1469",
+      "bytes": 11784,
+      "sha256": "ad6316ebae232308f436e7ec3653430b945902804174dd9b090ec453b461746c",
       "mode": "100644",
       "type": "blob",
-      "sha": "52e6bb4f83a983538f775a1de6265d6de98c6576"
+      "sha": "87f017d7453ff41f89757e9d4bb120406b805ce2"
     },
     {
       "path": "skills/job-finder-aliyun-release-recovery/references/proxy-runtime-and-same-batch-readback.md",
@@ -94,11 +94,11 @@
     },
     {
       "path": "docs/job-finder/source-evidence-repair-notes.md",
-      "bytes": 11374,
-      "sha256": "7c3d5052857bd09464ee1884e5fa5677fdd848fe8a6556259fbc33508b95212c",
+      "bytes": 14447,
+      "sha256": "a5da9b883c62d4299d32ff5d5b539106931da6319f56e61f58e7e9e50b3f081d",
       "mode": "100644",
       "type": "blob",
-      "sha": "bbef49a90606c595eb96a30db4179ee5b0e89f32"
+      "sha": "c6cb8c8b271bc92fefae3850851d73521c8261dd"
     },
     {
       "path": "docs/job-finder/tests/source-evidence-invariants.test.mjs",
@@ -109,27 +109,40 @@
       "sha": "8eebfaf268d6474bbae0c2e5497d5d7f68b7c0f7"
     }
   ],
-  "checksPerformedForThisBackup": {
-    "retainedProjectSyntheticTests": 22,
-    "retainedReleaseSyntheticTests": 15,
-    "retainedMemorySyntheticChecks": 17,
-    "skillValidators": 2,
-    "nodeVersion": "24.19.0",
-    "relativeLinks": "PASS",
-    "actualR3Tests": "129 recorded passes, 3 scope and 2 lease failures before repair; evidence hashes verified, not rerun here",
-    "sourceExecutionPerformed": "Only the included pure synthetic teaching tests; no application, capture, publication or deployment code"
-  },
-  "excluded": [
-    "LOCAL_PROVENANCE_EXCLUDED.json",
-    "before copies",
-    "local validation logs",
-    "original runtime evidence",
-    "tool poll objects",
-    "nonce",
-    "actual run/session/batch identities",
-    "production paths",
-    "credentials",
-    "complete SQL and response bodies"
+  "changedFiles": [
+    "skills/job-finder-aliyun-release-recovery/SKILL.md",
+    "skills/job-finder-aliyun-release-recovery/references/monitor-evidence-and-functional-isolation.md",
+    "docs/job-finder/source-evidence-repair-notes.md"
   ],
-  "limitations": "See BACKUP_RECOVERY.md. Historical UNKNOWN and unconfirmed cancellation remain unresolved; r2 capture failed and r3 has no verified real PUBLISH success."
+  "validation": {
+    "skillValidators": 2,
+    "retainedSyntheticChecks": {
+      "project": 22,
+      "release": 15,
+      "memory": 17
+    },
+    "r4IndependentRecord": {
+      "passed": 683,
+      "originalCounterexamplesClosed": 8,
+      "rerunHere": false
+    },
+    "newIndependentDocumentationWorker": false
+  },
+  "retainedTestsScope": "Pure teaching models on Node 24.19.0/Python 3; no production or actual r4 execution here",
+  "r4SafeSource": "https://github.com/EthanYoQ/Job-finder-Codex/tree/312a82ac604ff4ad236a86141386066574ae37cc",
+  "exclusions": [
+    "private provenance",
+    "before snapshots",
+    "local test/review logs",
+    "actual runtime/registration/binding identities",
+    "real poll/response/SQL evidence",
+    "nonce",
+    "credentials"
+  ],
+  "limits": [
+    "HF C51 scoped r4 offline proof only; unbound install and PREPARED are not activation or real success",
+    "Installed Novo C59 r3 remains affected and held from new launch",
+    "Historical OS UNKNOWN and unconfirmed cancellation remain",
+    "No real response, SQL, nonce, bindings or credentials included"
+  ]
 }
