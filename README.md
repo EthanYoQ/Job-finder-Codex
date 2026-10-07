@@ -1,16 +1,9 @@
-# Incremental reader legacy replay source
+# Job Finder release recovery skill backup
 
-This preserves five fixed offline replay and read-only export source files. The export adds the already-existing sourceJobId and listUrl columns; it does not create or migrate them. It uses a READ ONLY transaction with a 5-second statement timeout and 1-second lock timeout. The adapter requires its exact input hash and actual selected fields; it does not fill the missing fields in an older input.
+This preserves the exact three Markdown files of the custom [Job Finder Aliyun release recovery skill](skills/job-finder-aliyun-release-recovery/SKILL.md), frozen on 2026-10-07 at 00:29:45 UTC.
 
-The application increment is separate: [a47ed7f](https://github.com/EthanYoQ/Job-finder-Codex/tree/a47ed7feeb93e99d45633795cb5fecebc8c0818f) and its declared main/fallback baselines. The a775 source and Node22/Prisma recovery requirements are preserved in the earlier [reader replay backup](https://github.com/EthanYoQ/Job-finder-Codex/tree/2cabd430c3b8f0314f0d6c0459c05ca1450d3fb4). These source snapshots do not recreate the original full Git or runtime identity.
+Restore SKILL.md and both references together under skills/job-finder-aliyun-release-recovery/ with their relative paths unchanged. No executable helper, dependency package or installation is required to restore these documents. The official vendor skill is separate and is not modified or included here.
 
-## Required recovery inputs
+The skill describes recovery and acceptance boundaries. It is not a deployment receipt, current server-state record, credential store or execution authorization. Historical examples and resource thresholds in the text must not be generalized into proof of whole-server security, browser timing, resolved UNKNOWN commands or database migration completion.
 
-- Restore the three matching reader trees, Node 22.19.0, locked dependencies/tsx and genuine generated Prisma Client. The fixed runner expects specific sibling directory names and Git metadata; review its ROOT/BASE/PRIOR/INC paths before use
-- Python with datetime.fromisoformat support, Linux, ctypes/libseccomp and support for the specified inherited kernel filter are required by run-replay.py. The two CJS guards are unchanged source from the earlier replay
-- The exact refreshed private input, old private input, original a775 projection and trusted BEFORE_INTEGRITY.json are required but deliberately absent. Recreate the directory layout, logs/tmp/task-home and independently verified integrity prerequisites; do not invent missing inputs or silently replace the recorded source identity
-- This snapshot has no actual job rows or comparison output. GitHub alone cannot restore the input data or independently replay this fixed case
-
-The runner rejects existing comparison outputs and checks the three complete projections, job IDs and original timestamps. The input and private comparison artifacts remain subject to separate authorization and safety review. Output filenames containing SAFE are not a permission to publish their contents.
-
-This backup did not run the program, tests, query or security filter. It is not proof of migration/concurrency acceptance, full-site CI, registered runtime identity or deployment readiness. Actual snapshots, projections, integrity records, logs, reports, query responses, installed dependencies and credentials are excluded.
+Only the three allowed original documents and this minimal hash/recovery metadata are included. Validation reports, actual alerts, deployment payloads, API receipts, server IPs, credentials and unrelated workspace files are excluded. Backup verification checked original bytes, relative references and the remote file tree/content; it did not execute the skill or rerun its author's validation.
