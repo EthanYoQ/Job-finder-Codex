@@ -1,306 +1,719 @@
 {
-  "format": "safe-runtime-source-increment/v1",
-  "producerManifestSha256": "eafe81e56cf540e1096a2576b3ab0444b5d6565cff14ee0abfca1bad0d39fd24",
-  "hostSafeManifestSha256": "d04439c6b8b826b5a8a9eb6b263de6f3c60af1eb53a3046bea2e443e599ec23e",
-  "producerCommit": "28402a299bb04cbf5873da66c2fe8ca76827c0d1",
-  "producerParentCommit": "dfd22f642469888eb781f5e7b93964a60e082ca0",
-  "producerSafeBaselineIncrement": "a47ed7feeb93e99d45633795cb5fecebc8c0818f",
-  "producerSourceFiles": 7,
-  "producerSourceBytes": 41113,
-  "hostSourceFiles": 27,
-  "hostSourceBytes": 154845,
-  "totalOriginalSourceFiles": 34,
-  "totalOriginalSourceBytes": 195958,
-  "originalBytesUnchanged": true,
-  "starterPinRepair": {
-    "beforeSha256": "8899b37f985221666ebf6a0fb6c6ddaff858811aa46703d48f2cf661daedfb9b",
-    "afterSha256": "7be0282ab0de5d0b77b334c812f46ca8c783a1d7a201328b55cbb6b22ca669bf",
-    "supervisorSha256": "083435a5344a47b86f84184bbe1d2711b0d35def4670afb2ab3c8391ed442e7e",
-    "onlySupervisorPinLiteralChanged": true
-  },
-  "sourceConstantBoundary": "Non-secret source/build/project/path pins and explicitly synthetic test proxy literals are preserved. Actual proxy or credential values are excluded.",
-  "manifestLocationNote": "The original SAFE_SOURCE_FILE_MANIFEST is represented by its SHA and this complete current file map; the included SAFE_SOURCE_ALLOWLIST only describes earlier source provenance.",
-  "excluded": [
-    "PRIVATE_BINDING_FILE_MANIFEST and actual binding files",
-    "Host configuration/control/activation/context/registration/bootstrap and active state",
-    "HTTP/DB results, real captures, run/relay artifacts, diagnostics and reports",
-    "Actual proxy/CA/environment values and credentials",
-    "Runtime binaries and installed dependencies",
-    "Unlisted public observer scripts and other source candidates"
-  ],
-  "verificationScope": "Static source/hash/parent checks, exact starter pin repair and remote Git/content verification; no project code, test, network probe, SQL or deployment execution.",
-  "files": [
+  "schemaVersion": 1,
+  "kind": "source-only-backup",
+  "sourceIdentity": "28402a299bb04cbf5873da66c2fe8ca76827c0d1",
+  "producerParent": "dfd22f642469888eb781f5e7b93964a60e082ca0",
+  "producerSafeBackup": "5820ceb6f1d9b329e11f3619f7bb3156b19f7079",
+  "sources": [
     {
-      "path": "producer/ops/node-runtime-profile.json",
-      "mode": "100644",
-      "type": "blob",
-      "sha": "e1ac8a59e6211bf9cde8f7302d8c78e6577cfc7d",
-      "sha256": "46281c4b5fa8a1d6eadc57a2aa63a721f77e092100c556ae9d523164c84f7baf",
-      "bytes": 532
+      "source": "merck",
+      "safeManifestSha256": "fa417acbfac775a708a14e9ed07b73714b4dc1d1ad5f04a34b22ae7c55a035cb",
+      "archiveSha256": "0ec353d16d6db7004748d2924c759fdcb5247ab07ea5e3d403749011eec42062",
+      "archiveBytes": 47711,
+      "fileCount": 28,
+      "excluded": [
+        "host/activation.json",
+        "host/context-read.sql",
+        "host/control-base.json",
+        "host/host-config.json"
+      ]
     },
     {
-      "path": "producer/scripts/verify-node-runtime-profile.ts",
-      "mode": "100644",
-      "type": "blob",
-      "sha": "56509f537f380f616f5dff67a50842eba2e458a2",
-      "sha256": "807b6d9bbc0a0aad7eae3987d226e3ed094b0169456bd5d9f4a875f42e93a7e3",
-      "bytes": 5095
+      "source": "organon",
+      "safeManifestSha256": "7fc7ea41a716f798467997c2bab4d2a9b041218aa312d30c0002cfb497682ec1",
+      "archiveSha256": "74781c0ab5738058af12f85b226413bf3f8337dc934567ef726d56ef1190a42c",
+      "archiveBytes": 47703,
+      "fileCount": 28,
+      "excluded": [
+        "host/activation.json",
+        "host/context-read.sql",
+        "host/control-base.json",
+        "host/host-config.json"
+      ]
     },
     {
-      "path": "producer/src/crawler/officialHttpProxyRuntime.ts",
-      "mode": "100644",
-      "type": "blob",
-      "sha": "db6142b08efc93b25e00e301e09415a6b2c1ff51",
-      "sha256": "9a99c75cac1e78a83d04e36c13727e5c14ea3c820688c126f0c7f621b582cfd0",
-      "bytes": 1576
-    },
-    {
-      "path": "producer/src/crawler/officialHttpRuntimeLimits.ts",
-      "mode": "100644",
-      "type": "blob",
-      "sha": "e303e945645bef1f26fab9492c647f12dea92620",
-      "sha256": "446e8bc7d142524502df73f72e30918695b6e70d298d6e53b9e7e0383ea8874d",
-      "bytes": 10705
-    },
-    {
-      "path": "producer/tests/crawler/officialHttpProxyRuntime.test.ts",
-      "mode": "100644",
-      "type": "blob",
-      "sha": "f2b8e84f4b2894fde36cf4c3830fdc17a42ff684",
-      "sha256": "ac624451c31f39a2f7c93ec7e495eac967f284b7d6ac2c8108fa3f98735cb4c9",
-      "bytes": 4172
-    },
-    {
-      "path": "producer/tests/crawler/httpDiagnosticWrapper.test.ts",
-      "mode": "100644",
-      "type": "blob",
-      "sha": "9f39a6d90c9e842e45e615eb9a1ace60287089b5",
-      "sha256": "f174247bb770842dfd826466ef6ccc0e61991c912be90ca395438a465ffe0650",
-      "bytes": 14271
-    },
-    {
-      "path": "producer/tests/ops/nodeRuntimeProfile.test.ts",
-      "mode": "100644",
-      "type": "blob",
-      "sha": "d524c8263314092f4023619199040d15d8705419",
-      "sha256": "2f7b6a0c01dfba66399b54d2c07caba1040c3cf019c7b48a793bccbe177a1982",
-      "bytes": 4762
-    },
-    {
-      "path": "hosts/grifols/SAFE_SOURCE_README.md",
-      "mode": "100644",
-      "type": "blob",
-      "sha": "35a8b05cd1017bff6df06609b43a8f234bd781f5",
-      "sha256": "85ebab4309c735b7bd772ec98e395143bdaebca76502bbb9bdbf3185af4a0f18",
-      "bytes": 3671
-    },
-    {
-      "path": "hosts/grifols/host/archive-transfer.mjs",
-      "mode": "100644",
-      "type": "blob",
-      "sha": "5a454d21f34f9680221bbee2c98b3fecb94884f0",
-      "sha256": "698e966e5552967845a5252d2b3df2acca28dcd8dbbb0ae41755a3a6231e6a99",
-      "bytes": 1777
-    },
-    {
-      "path": "hosts/grifols/host/host-files.mts",
-      "mode": "100644",
-      "type": "blob",
-      "sha": "8c8f201640071565320343e74c6919d1e83fd9b5",
-      "sha256": "c8033565b3c368bf369fc7507f9d1ff8fa87bc0dde0a84a10a95373473dc6f3a",
-      "bytes": 4077
-    },
-    {
-      "path": "hosts/grifols/host/host-helper-functions.js",
-      "mode": "100644",
-      "type": "blob",
-      "sha": "deaf1a30e3452f1b9fdfe67ed2c821eda7bbeb65",
-      "sha256": "96685e4f41cd31c2574d61776347938d5445166c747063bfee79126f6f77b0a6",
-      "bytes": 9771
-    },
-    {
-      "path": "hosts/grifols/host/host-stage-functions.js",
-      "mode": "100644",
-      "type": "blob",
-      "sha": "74b9dacd339335caf89cfd2623618997bda5dc39",
-      "sha256": "0d6152b30f34993ab5f80f34b252d279795885a18e7d7b30ef38f3149a20103e",
-      "bytes": 6334
-    },
-    {
-      "path": "hosts/grifols/host/machine-json.js",
-      "mode": "100644",
-      "type": "blob",
-      "sha": "7b927e85ca286ffa900ca93462deee5b9988ed49",
-      "sha256": "3484738bd095a9d57da70c6392af78865a53759a9e8499316941157b6210e9f6",
-      "bytes": 807
-    },
-    {
-      "path": "hosts/grifols/host/relay-files.mjs",
-      "mode": "100644",
-      "type": "blob",
-      "sha": "4218bf27ee30079dfc4a8e1ef48f318e42bbfb6c",
-      "sha256": "5311fb5709e0fec4c8253f72d963fc1a1a050830f2ab9bc391ee79a826f2396e",
-      "bytes": 7909
-    },
-    {
-      "path": "hosts/grifols/host/runtime/complete-reviewed-source-readback.js",
-      "mode": "100644",
-      "type": "blob",
-      "sha": "b282208243523a415746ef32fc1de995af2fa639",
-      "sha256": "f66f89352ae0779ae1caaead403fc21f2d8b1453dcf824b2d33e4584748029ea",
-      "bytes": 5696
-    },
-    {
-      "path": "hosts/grifols/host/runtime/continuous-relay-v3-durable-monitor.js",
-      "mode": "100644",
-      "type": "blob",
-      "sha": "f3a5394debfb1147952fb2257dfcdac1b4949f95",
-      "sha256": "a951cb41d6eaff71ba910ea47e42716edd896e245a0b692b81bdfb8e315ed318",
-      "bytes": 5184
-    },
-    {
-      "path": "hosts/grifols/host/runtime/inspect-host-binding.mts",
-      "mode": "100644",
-      "type": "blob",
-      "sha": "16c2e92f6d2cbcbc23731e31c5a8a1a4d7660944",
-      "sha256": "fe33b177e0bf40da2b1035a9482699954803d513f29092153fd61c11e7c34b78",
-      "bytes": 2568
-    },
-    {
-      "path": "hosts/grifols/host/runtime/load-host-state.js",
-      "mode": "100644",
-      "type": "blob",
-      "sha": "af2b919b7e28c1338cc50115101fff9711eba47d",
-      "sha256": "1a316bc2ecf0a96b73cb987861d094c31051222b199ab10e8f24a1014871f86c",
-      "bytes": 5081
-    },
-    {
-      "path": "hosts/grifols/host/runtime/load-source-runtime.js",
-      "mode": "100644",
-      "type": "blob",
-      "sha": "da8e062cb3d3af510b0cda9eba00576df78296de",
-      "sha256": "35b83cff0f782edbf64f51533ff938e5ae959c9344b712f3ded905b97a0ec6f9",
-      "bytes": 2013
-    },
-    {
-      "path": "hosts/grifols/host/runtime/machine-json.py",
-      "mode": "100644",
-      "type": "blob",
-      "sha": "3dda394ae2fe15b8740c8db2f0adcf6a9e19e3cf",
-      "sha256": "67611e749eddc6bf8c591fef11f2efa82e2a73ce0bb51b2779fab4ae68b77f50",
-      "bytes": 1119
-    },
-    {
-      "path": "hosts/grifols/host/runtime/preflight/preflight-launch.mjs",
-      "mode": "100644",
-      "type": "blob",
-      "sha": "b262b245572d09576f2d5151d5a22799897cb8d5",
-      "sha256": "89099e0dedbffc36cbe31a9e1e4b458aedf512cc367141af22709a068cd2f968",
-      "bytes": 11035
-    },
-    {
-      "path": "hosts/grifols/host/runtime/preflight/runtime-check.mjs",
-      "mode": "100644",
-      "type": "blob",
-      "sha": "275890f0f3584e99e0f0f57a4492fd95ad6c248d",
-      "sha256": "e01c5b953283535757e2fcc67df80dd3e86948709dde0b488235a7edee017785",
-      "bytes": 3815
-    },
-    {
-      "path": "hosts/grifols/host/runtime/prepare-registered-control.mts",
-      "mode": "100644",
-      "type": "blob",
-      "sha": "afc02a97bf321411724ea919545bc83dc5910c53",
-      "sha256": "9f2090d76cf854e49ff47b66dabaaa599a6bf3252d083a5c5541c29114591230",
-      "bytes": 4179
-    },
-    {
-      "path": "hosts/grifols/host/runtime/review-packet-envelope.mts",
-      "mode": "100644",
-      "type": "blob",
-      "sha": "a550d0fd80f032ae7ed2633e88b2cd2c748c6969",
-      "sha256": "40cb1e3ede867f0e9d171605e7454fc71a6f774dfdf910f68ff668722bba69cb",
-      "bytes": 5535
-    },
-    {
-      "path": "hosts/grifols/host/runtime/review-publication.py",
-      "mode": "100644",
-      "type": "blob",
-      "sha": "21c7407405ce2bb4757fedc189b06a7594e0f2fc",
-      "sha256": "f7866c5cec51a200b444a536330d096035838986a50329b2893ce603d2cd26e3",
-      "bytes": 5393
-    },
-    {
-      "path": "hosts/grifols/host/runtime/update-candidate-completion-state.mjs",
-      "mode": "100644",
-      "type": "blob",
-      "sha": "ec886e3dd2b52805daccddcdcd862b6afbaeec29",
-      "sha256": "ae5ad99411b014c8ffff615a0b06af1e1fdfd2ed7f7265c9c9cee0128339bb06",
-      "bytes": 3654
-    },
-    {
-      "path": "hosts/grifols/supervision/inspect-launch-identity.mjs",
-      "mode": "100644",
-      "type": "blob",
-      "sha": "0fc3dd6c1dde3cc7759848f18c795792c38c800c",
-      "sha256": "7bc818ae831081b7e91819ad772b950d08e7d06dc741730c0bd54698d6fe8b37",
-      "bytes": 871
-    },
-    {
-      "path": "hosts/grifols/supervision/sample_process_tree.py",
-      "mode": "100644",
-      "type": "blob",
-      "sha": "5c2924dc067309525018e4903741dc33e796b546",
-      "sha256": "3fa6daa1af1afee94d19801edfd8bcb538e1243476b5adb253e50de162a27bd6",
-      "bytes": 13065
-    },
-    {
-      "path": "hosts/grifols/supervision/start-monitor-grifols47b-combined.js",
-      "mode": "100644",
-      "type": "blob",
-      "sha": "66acb11f18f2f239c1d7835085f782f9cde5e8d1",
-      "sha256": "7be0282ab0de5d0b77b334c812f46ca8c783a1d7a201328b55cbb6b22ca669bf",
-      "bytes": 14021
-    },
-    {
-      "path": "hosts/grifols/supervision/supervise-cancel.mjs",
-      "mode": "100644",
-      "type": "blob",
-      "sha": "efe376ba3dbe501d5a2b1bece2c7ac46471aca7d",
-      "sha256": "083435a5344a47b86f84184bbe1d2711b0d35def4670afb2ab3c8391ed442e7e",
-      "bytes": 10232
-    },
-    {
-      "path": "hosts/grifols/verification/SAFE_SOURCE_ALLOWLIST.json",
-      "mode": "100644",
-      "type": "blob",
-      "sha": "4cb019a3c3672327c6e6008eb0771f502420b2a3",
-      "sha256": "a2e5e0c28fcfa9887f139fe3a32ab5484bde2f833ce04b6e30c952d64e9fb6c7",
-      "bytes": 5993
-    },
-    {
-      "path": "hosts/grifols/verification/verify-host-offline.mts",
-      "mode": "100644",
-      "type": "blob",
-      "sha": "bf691a82c234912540be62d7e51a854672cd9044",
-      "sha256": "48d9db88bffa19516e21d218732891258eb0edf3e2decd606bea420603e47ed0",
-      "bytes": 9045
-    },
-    {
-      "path": "hosts/grifols/verification/verify-machine-json.py",
-      "mode": "100644",
-      "type": "blob",
-      "sha": "20ed5095bcf4a5300931ccdfdfc87775e4f9202e",
-      "sha256": "5de73481cea05886ad8515fee4b6c8b98629fc50d1a5392a764d18180191bd3d",
-      "bytes": 1040
-    },
-    {
-      "path": "hosts/grifols/verification/verify-runtime-host.mts",
-      "mode": "100644",
-      "type": "blob",
-      "sha": "95e86f5d2903a701a06c56e4a1de9a8c7850bff1",
-      "sha256": "25969a1914df8225e7e3a40f0d5567ddc7c162be2dfd9e3a70a0c254348fe2ac",
-      "bytes": 10960
+      "source": "bms",
+      "safeManifestSha256": "51985d724d3d4cb97f7a2ceb902df9af450a387a6c5df9deb6c3909c7c25254b",
+      "archiveSha256": "a45d772a4d1ab6d0dc005476f1fd102828062064f88c4e32a9bbc995ab9533c4",
+      "archiveBytes": 47718,
+      "fileCount": 28,
+      "excluded": [
+        "host/activation.json",
+        "host/context-read.sql",
+        "host/control-base.json",
+        "host/host-config.json"
+      ]
     }
-  ]
+  ],
+  "sourceFiles": [
+    {
+      "path": "hosts/merck/host/archive-transfer.mjs",
+      "sha256": "698e966e5552967845a5252d2b3df2acca28dcd8dbbb0ae41755a3a6231e6a99",
+      "bytes": 1777,
+      "mode": "100644",
+      "type": "blob",
+      "sha": "5a454d21f34f9680221bbee2c98b3fecb94884f0"
+    },
+    {
+      "path": "hosts/merck/host/host-config.template.json",
+      "sha256": "cafe80e2d9399e1938cce326ec6ab9288b3faac6efb427b659f6c68f1b413744",
+      "bytes": 509,
+      "mode": "100644",
+      "type": "blob",
+      "sha": "1b977becca3ac12eb9871b33629d86fe16dd09a8"
+    },
+    {
+      "path": "hosts/merck/host/host-files.mts",
+      "sha256": "c8033565b3c368bf369fc7507f9d1ff8fa87bc0dde0a84a10a95373473dc6f3a",
+      "bytes": 4077,
+      "mode": "100644",
+      "type": "blob",
+      "sha": "8c8f201640071565320343e74c6919d1e83fd9b5"
+    },
+    {
+      "path": "hosts/merck/host/host-helper-functions.js",
+      "sha256": "6458885dc8a59415bb08b1d065d3b853e34784ee37a49eb1a27b26644ee040dc",
+      "bytes": 9753,
+      "mode": "100644",
+      "type": "blob",
+      "sha": "f6c9b2fee2d708258900dd9c39bdf7c131c752d7"
+    },
+    {
+      "path": "hosts/merck/host/host-stage-functions.js",
+      "sha256": "c8ecfd0af3c08c312f3405058ad0640837cfaca4b8a6d728ddaac1fd056e19d2",
+      "bytes": 6312,
+      "mode": "100644",
+      "type": "blob",
+      "sha": "de0dcff095e0824c31acc74fd1931cd0db42998f"
+    },
+    {
+      "path": "hosts/merck/host/machine-json.js",
+      "sha256": "3484738bd095a9d57da70c6392af78865a53759a9e8499316941157b6210e9f6",
+      "bytes": 807,
+      "mode": "100644",
+      "type": "blob",
+      "sha": "7b927e85ca286ffa900ca93462deee5b9988ed49"
+    },
+    {
+      "path": "hosts/merck/host/relay-files.mjs",
+      "sha256": "9ac6111d77ade4215f9e6eb3f4eb9b95c46d9ba30dc843c00264130a4e447c25",
+      "bytes": 7907,
+      "mode": "100644",
+      "type": "blob",
+      "sha": "7bf102bd89c200324db467d2fd592a3b8a467e2b"
+    },
+    {
+      "path": "hosts/merck/host/runtime/complete-reviewed-source-readback.js",
+      "sha256": "41926a7cae0f3abb19372b68ad9385d9b993c0d72e6140db9a0a036148e01644",
+      "bytes": 5694,
+      "mode": "100644",
+      "type": "blob",
+      "sha": "be187aea826f4f29f72d3808c6d343aed236fb33"
+    },
+    {
+      "path": "hosts/merck/host/runtime/continuous-relay-v3-durable-monitor.js",
+      "sha256": "b3e98c0a36bd8f75ea594380c2e2afedfc6b43cb8be9059cb7606b28473dde3a",
+      "bytes": 5160,
+      "mode": "100644",
+      "type": "blob",
+      "sha": "33b572b4f4bf328ba4f53c863d871cc4a70192fd"
+    },
+    {
+      "path": "hosts/merck/host/runtime/inspect-host-binding.mts",
+      "sha256": "fe33b177e0bf40da2b1035a9482699954803d513f29092153fd61c11e7c34b78",
+      "bytes": 2568,
+      "mode": "100644",
+      "type": "blob",
+      "sha": "16c2e92f6d2cbcbc23731e31c5a8a1a4d7660944"
+    },
+    {
+      "path": "hosts/merck/host/runtime/load-host-state.js",
+      "sha256": "927c0085ca1e3edaf38dcbc072f5a2eebe762eda272c2f6c0d16af1a72eed0e6",
+      "bytes": 5067,
+      "mode": "100644",
+      "type": "blob",
+      "sha": "c19292ebbff01cf31fa5ef0de7fe32e3082544c8"
+    },
+    {
+      "path": "hosts/merck/host/runtime/load-source-runtime.js",
+      "sha256": "c03883dda1d3d22fde7f07b69c1d7397b9f5dbaa3ffa111327bf1b32c2ebef93",
+      "bytes": 1985,
+      "mode": "100644",
+      "type": "blob",
+      "sha": "7309259621505cb7bbd0ad736955dd716fc6f1d3"
+    },
+    {
+      "path": "hosts/merck/host/runtime/machine-json.py",
+      "sha256": "67611e749eddc6bf8c591fef11f2efa82e2a73ce0bb51b2779fab4ae68b77f50",
+      "bytes": 1119,
+      "mode": "100644",
+      "type": "blob",
+      "sha": "3dda394ae2fe15b8740c8db2f0adcf6a9e19e3cf"
+    },
+    {
+      "path": "hosts/merck/host/runtime/preflight/preflight-launch.mjs",
+      "sha256": "89099e0dedbffc36cbe31a9e1e4b458aedf512cc367141af22709a068cd2f968",
+      "bytes": 11035,
+      "mode": "100644",
+      "type": "blob",
+      "sha": "b262b245572d09576f2d5151d5a22799897cb8d5"
+    },
+    {
+      "path": "hosts/merck/host/runtime/preflight/runtime-check.mjs",
+      "sha256": "e01c5b953283535757e2fcc67df80dd3e86948709dde0b488235a7edee017785",
+      "bytes": 3815,
+      "mode": "100644",
+      "type": "blob",
+      "sha": "275890f0f3584e99e0f0f57a4492fd95ad6c248d"
+    },
+    {
+      "path": "hosts/merck/host/runtime/prepare-registered-control.mts",
+      "sha256": "9f2090d76cf854e49ff47b66dabaaa599a6bf3252d083a5c5541c29114591230",
+      "bytes": 4179,
+      "mode": "100644",
+      "type": "blob",
+      "sha": "afc02a97bf321411724ea919545bc83dc5910c53"
+    },
+    {
+      "path": "hosts/merck/host/runtime/review-packet-envelope.mts",
+      "sha256": "40cb1e3ede867f0e9d171605e7454fc71a6f774dfdf910f68ff668722bba69cb",
+      "bytes": 5535,
+      "mode": "100644",
+      "type": "blob",
+      "sha": "a550d0fd80f032ae7ed2633e88b2cd2c748c6969"
+    },
+    {
+      "path": "hosts/merck/host/runtime/review-publication.py",
+      "sha256": "ddac4237f0ddc94a9e0c900dafd60e239fd78d6012b52977191c2c91062ebc1f",
+      "bytes": 5391,
+      "mode": "100644",
+      "type": "blob",
+      "sha": "b5f0afe2fe34902cb82932914c6679da37142703"
+    },
+    {
+      "path": "hosts/merck/host/runtime/update-candidate-completion-state.mjs",
+      "sha256": "ae5ad99411b014c8ffff615a0b06af1e1fdfd2ed7f7265c9c9cee0128339bb06",
+      "bytes": 3654,
+      "mode": "100644",
+      "type": "blob",
+      "sha": "ec886e3dd2b52805daccddcdcd862b6afbaeec29"
+    },
+    {
+      "path": "hosts/merck/supervision/inspect-launch-identity.mjs",
+      "sha256": "7bc818ae831081b7e91819ad772b950d08e7d06dc741730c0bd54698d6fe8b37",
+      "bytes": 871,
+      "mode": "100644",
+      "type": "blob",
+      "sha": "0fc3dd6c1dde3cc7759848f18c795792c38c800c"
+    },
+    {
+      "path": "hosts/merck/supervision/sample_process_tree.py",
+      "sha256": "3fa6daa1af1afee94d19801edfd8bcb538e1243476b5adb253e50de162a27bd6",
+      "bytes": 13065,
+      "mode": "100644",
+      "type": "blob",
+      "sha": "5c2924dc067309525018e4903741dc33e796b546"
+    },
+    {
+      "path": "hosts/merck/supervision/start-monitor-merck51-combined.js",
+      "sha256": "34f0a27b1ab762b6c0646ce85705f1377862880605ac353bf33580ddf1d1cc10",
+      "bytes": 13980,
+      "mode": "100644",
+      "type": "blob",
+      "sha": "6f92b5dd99534a389cf5c5a7d2071db4273005e8"
+    },
+    {
+      "path": "hosts/merck/supervision/supervise-cancel.mjs",
+      "sha256": "083435a5344a47b86f84184bbe1d2711b0d35def4670afb2ab3c8391ed442e7e",
+      "bytes": 10232,
+      "mode": "100644",
+      "type": "blob",
+      "sha": "efe376ba3dbe501d5a2b1bece2c7ac46471aca7d"
+    },
+    {
+      "path": "hosts/merck/verification/SAFE_SOURCE_ALLOWLIST.json",
+      "sha256": "e9a73aeb29c7f0e9f60c643195404971efceba088e0c7a1bb9751893b47a834f",
+      "bytes": 9914,
+      "mode": "100644",
+      "type": "blob",
+      "sha": "0762642127a9efce3a0fb5f64b359bc39fb4d632"
+    },
+    {
+      "path": "hosts/merck/verification/verify-machine-json.py",
+      "sha256": "5de73481cea05886ad8515fee4b6c8b98629fc50d1a5392a764d18180191bd3d",
+      "bytes": 1040,
+      "mode": "100644",
+      "type": "blob",
+      "sha": "20ed5095bcf4a5300931ccdfdfc87775e4f9202e"
+    },
+    {
+      "path": "hosts/merck/verification/verify-runtime-host.mts",
+      "sha256": "e1433dc8c72478ae02fbcdb96bec7904fe8a8cd832bc41217c5a1b4b15f79e2c",
+      "bytes": 10953,
+      "mode": "100644",
+      "type": "blob",
+      "sha": "090e9a3740d517fd5573b729777d623751bc5fed"
+    },
+    {
+      "path": "hosts/merck/verification/verify-source-host.mjs",
+      "sha256": "a79d3564b4974589695b6e0e2ddf240b55388343d7a3b62238e1fb453caf4501",
+      "bytes": 8352,
+      "mode": "100644",
+      "type": "blob",
+      "sha": "086f421063d24a8191b2c0507a155509afe03039"
+    },
+    {
+      "path": "hosts/organon/host/archive-transfer.mjs",
+      "sha256": "698e966e5552967845a5252d2b3df2acca28dcd8dbbb0ae41755a3a6231e6a99",
+      "bytes": 1777,
+      "mode": "100644",
+      "type": "blob",
+      "sha": "5a454d21f34f9680221bbee2c98b3fecb94884f0"
+    },
+    {
+      "path": "hosts/organon/host/host-config.template.json",
+      "sha256": "18cb3404b85493ee726d13603dd4b229026379ba4ddc17b60aed7569c24b2899",
+      "bytes": 513,
+      "mode": "100644",
+      "type": "blob",
+      "sha": "aeaa5efe7d08bf66eede0094389c922312c2f53e"
+    },
+    {
+      "path": "hosts/organon/host/host-files.mts",
+      "sha256": "c8033565b3c368bf369fc7507f9d1ff8fa87bc0dde0a84a10a95373473dc6f3a",
+      "bytes": 4077,
+      "mode": "100644",
+      "type": "blob",
+      "sha": "8c8f201640071565320343e74c6919d1e83fd9b5"
+    },
+    {
+      "path": "hosts/organon/host/host-helper-functions.js",
+      "sha256": "4ef85709686c41a73f384a41ccc08e423337990807b030a4c66c1f143c8a60ad",
+      "bytes": 9771,
+      "mode": "100644",
+      "type": "blob",
+      "sha": "65ccf350c3f140e51bba4c03a3858363e1986942"
+    },
+    {
+      "path": "hosts/organon/host/host-stage-functions.js",
+      "sha256": "dc7ec221b7887e1518fe6b7c47d6a10010635ddbd74910ec21976ce08b7cb16c",
+      "bytes": 6334,
+      "mode": "100644",
+      "type": "blob",
+      "sha": "83f4b85a33615197c2ed53a49f16814027337698"
+    },
+    {
+      "path": "hosts/organon/host/machine-json.js",
+      "sha256": "3484738bd095a9d57da70c6392af78865a53759a9e8499316941157b6210e9f6",
+      "bytes": 807,
+      "mode": "100644",
+      "type": "blob",
+      "sha": "7b927e85ca286ffa900ca93462deee5b9988ed49"
+    },
+    {
+      "path": "hosts/organon/host/relay-files.mjs",
+      "sha256": "886e20acac56e0d9ca9b3d114642e6c210360ea5a96fced28fd865622678a132",
+      "bytes": 7909,
+      "mode": "100644",
+      "type": "blob",
+      "sha": "91619e7dcbe47e1f0c51ee3de971944e7d4127c4"
+    },
+    {
+      "path": "hosts/organon/host/runtime/complete-reviewed-source-readback.js",
+      "sha256": "22e29e84612ab381be24dd958195a4ee9b1cc0cb549c5ea8cdf7ae656eba0d35",
+      "bytes": 5696,
+      "mode": "100644",
+      "type": "blob",
+      "sha": "77e3449b6ae390d30cef1a824b1e9c08d91dc773"
+    },
+    {
+      "path": "hosts/organon/host/runtime/continuous-relay-v3-durable-monitor.js",
+      "sha256": "8ecbf535daf9e5db68cf98bab6807f96b8386e95a9274d1823e5e81a619b6abe",
+      "bytes": 5184,
+      "mode": "100644",
+      "type": "blob",
+      "sha": "1c20215a0666f3c7c398b42b3a8c980abe292b58"
+    },
+    {
+      "path": "hosts/organon/host/runtime/inspect-host-binding.mts",
+      "sha256": "fe33b177e0bf40da2b1035a9482699954803d513f29092153fd61c11e7c34b78",
+      "bytes": 2568,
+      "mode": "100644",
+      "type": "blob",
+      "sha": "16c2e92f6d2cbcbc23731e31c5a8a1a4d7660944"
+    },
+    {
+      "path": "hosts/organon/host/runtime/load-host-state.js",
+      "sha256": "e461406ac1d1d5fcec0df3e7b1d96e7223697ab4e7c4ed14928128b9be951482",
+      "bytes": 5081,
+      "mode": "100644",
+      "type": "blob",
+      "sha": "f0a46c98a299028ef2f781bfbf9c320bfd627128"
+    },
+    {
+      "path": "hosts/organon/host/runtime/load-source-runtime.js",
+      "sha256": "e2f660c543d0e8fd8943fa94b3aeffdb9d4a1300d5409d05cabd3cd3d96e6440",
+      "bytes": 2011,
+      "mode": "100644",
+      "type": "blob",
+      "sha": "83a885cda5efa4e984601b4ecb4888183162385f"
+    },
+    {
+      "path": "hosts/organon/host/runtime/machine-json.py",
+      "sha256": "67611e749eddc6bf8c591fef11f2efa82e2a73ce0bb51b2779fab4ae68b77f50",
+      "bytes": 1119,
+      "mode": "100644",
+      "type": "blob",
+      "sha": "3dda394ae2fe15b8740c8db2f0adcf6a9e19e3cf"
+    },
+    {
+      "path": "hosts/organon/host/runtime/preflight/preflight-launch.mjs",
+      "sha256": "89099e0dedbffc36cbe31a9e1e4b458aedf512cc367141af22709a068cd2f968",
+      "bytes": 11035,
+      "mode": "100644",
+      "type": "blob",
+      "sha": "b262b245572d09576f2d5151d5a22799897cb8d5"
+    },
+    {
+      "path": "hosts/organon/host/runtime/preflight/runtime-check.mjs",
+      "sha256": "e01c5b953283535757e2fcc67df80dd3e86948709dde0b488235a7edee017785",
+      "bytes": 3815,
+      "mode": "100644",
+      "type": "blob",
+      "sha": "275890f0f3584e99e0f0f57a4492fd95ad6c248d"
+    },
+    {
+      "path": "hosts/organon/host/runtime/prepare-registered-control.mts",
+      "sha256": "9f2090d76cf854e49ff47b66dabaaa599a6bf3252d083a5c5541c29114591230",
+      "bytes": 4179,
+      "mode": "100644",
+      "type": "blob",
+      "sha": "afc02a97bf321411724ea919545bc83dc5910c53"
+    },
+    {
+      "path": "hosts/organon/host/runtime/review-packet-envelope.mts",
+      "sha256": "40cb1e3ede867f0e9d171605e7454fc71a6f774dfdf910f68ff668722bba69cb",
+      "bytes": 5535,
+      "mode": "100644",
+      "type": "blob",
+      "sha": "a550d0fd80f032ae7ed2633e88b2cd2c748c6969"
+    },
+    {
+      "path": "hosts/organon/host/runtime/review-publication.py",
+      "sha256": "366c07853d61e0006336a2b2816b29fc6b39882a51e8ca54e43beee7f2c7d072",
+      "bytes": 5393,
+      "mode": "100644",
+      "type": "blob",
+      "sha": "1dbdff7fdc78cf122bd3e2940ca81bd1d317f3fc"
+    },
+    {
+      "path": "hosts/organon/host/runtime/update-candidate-completion-state.mjs",
+      "sha256": "ae5ad99411b014c8ffff615a0b06af1e1fdfd2ed7f7265c9c9cee0128339bb06",
+      "bytes": 3654,
+      "mode": "100644",
+      "type": "blob",
+      "sha": "ec886e3dd2b52805daccddcdcd862b6afbaeec29"
+    },
+    {
+      "path": "hosts/organon/supervision/inspect-launch-identity.mjs",
+      "sha256": "7bc818ae831081b7e91819ad772b950d08e7d06dc741730c0bd54698d6fe8b37",
+      "bytes": 871,
+      "mode": "100644",
+      "type": "blob",
+      "sha": "0fc3dd6c1dde3cc7759848f18c795792c38c800c"
+    },
+    {
+      "path": "hosts/organon/supervision/sample_process_tree.py",
+      "sha256": "3fa6daa1af1afee94d19801edfd8bcb538e1243476b5adb253e50de162a27bd6",
+      "bytes": 13065,
+      "mode": "100644",
+      "type": "blob",
+      "sha": "5c2924dc067309525018e4903741dc33e796b546"
+    },
+    {
+      "path": "hosts/organon/supervision/start-monitor-organon51-combined.js",
+      "sha256": "576aa9b3a6e1bea2c131d67b6db6cb0bd07eb7e506dba930d9e86da4971f5356",
+      "bytes": 14020,
+      "mode": "100644",
+      "type": "blob",
+      "sha": "de4a7b622c87c9bd421b9c97cdbdd7eed7ca2108"
+    },
+    {
+      "path": "hosts/organon/supervision/supervise-cancel.mjs",
+      "sha256": "083435a5344a47b86f84184bbe1d2711b0d35def4670afb2ab3c8391ed442e7e",
+      "bytes": 10232,
+      "mode": "100644",
+      "type": "blob",
+      "sha": "efe376ba3dbe501d5a2b1bece2c7ac46471aca7d"
+    },
+    {
+      "path": "hosts/organon/verification/SAFE_SOURCE_ALLOWLIST.json",
+      "sha256": "15a0eb58fcd5d7d5bbe8fe39934332c8250f6421ba0a09ce363088e4c1603ab0",
+      "bytes": 9916,
+      "mode": "100644",
+      "type": "blob",
+      "sha": "76fd8218bc62a9a4f95cd5f30077f4aefc8f42a4"
+    },
+    {
+      "path": "hosts/organon/verification/verify-machine-json.py",
+      "sha256": "5de73481cea05886ad8515fee4b6c8b98629fc50d1a5392a764d18180191bd3d",
+      "bytes": 1040,
+      "mode": "100644",
+      "type": "blob",
+      "sha": "20ed5095bcf4a5300931ccdfdfc87775e4f9202e"
+    },
+    {
+      "path": "hosts/organon/verification/verify-runtime-host.mts",
+      "sha256": "e10a5b4b67634aca154b9f929cae623c8fdd59f0d38b4447125cfd99ca85fdbb",
+      "bytes": 10959,
+      "mode": "100644",
+      "type": "blob",
+      "sha": "31d892a594cdd00198754fac98ed00121792e062"
+    },
+    {
+      "path": "hosts/organon/verification/verify-source-host.mjs",
+      "sha256": "a79d3564b4974589695b6e0e2ddf240b55388343d7a3b62238e1fb453caf4501",
+      "bytes": 8352,
+      "mode": "100644",
+      "type": "blob",
+      "sha": "086f421063d24a8191b2c0507a155509afe03039"
+    },
+    {
+      "path": "hosts/bms/host/archive-transfer.mjs",
+      "sha256": "698e966e5552967845a5252d2b3df2acca28dcd8dbbb0ae41755a3a6231e6a99",
+      "bytes": 1777,
+      "mode": "100644",
+      "type": "blob",
+      "sha": "5a454d21f34f9680221bbee2c98b3fecb94884f0"
+    },
+    {
+      "path": "hosts/bms/host/host-config.template.json",
+      "sha256": "2e40feb9d175532411e204cc94aa36aee7aafaf4e0a7ae494035617876a1bf47",
+      "bytes": 505,
+      "mode": "100644",
+      "type": "blob",
+      "sha": "10174e6139f878b9b8519bb618bd2e35cb838b16"
+    },
+    {
+      "path": "hosts/bms/host/host-files.mts",
+      "sha256": "c8033565b3c368bf369fc7507f9d1ff8fa87bc0dde0a84a10a95373473dc6f3a",
+      "bytes": 4077,
+      "mode": "100644",
+      "type": "blob",
+      "sha": "8c8f201640071565320343e74c6919d1e83fd9b5"
+    },
+    {
+      "path": "hosts/bms/host/host-helper-functions.js",
+      "sha256": "5e2e8cb84e6c4fa3f7fab190e7880e235b757becb079a54630723512c396c037",
+      "bytes": 9735,
+      "mode": "100644",
+      "type": "blob",
+      "sha": "b2ff0216b56e6657e3c2394392ee4a6f596bec6e"
+    },
+    {
+      "path": "hosts/bms/host/host-stage-functions.js",
+      "sha256": "7674f4d53a6c683f729711e6b283173ae0cd6c833fbd36ef73905f9e5f3ce258",
+      "bytes": 6290,
+      "mode": "100644",
+      "type": "blob",
+      "sha": "dab766b4f01208157f14d6cdf04b1f8b252c1072"
+    },
+    {
+      "path": "hosts/bms/host/machine-json.js",
+      "sha256": "3484738bd095a9d57da70c6392af78865a53759a9e8499316941157b6210e9f6",
+      "bytes": 807,
+      "mode": "100644",
+      "type": "blob",
+      "sha": "7b927e85ca286ffa900ca93462deee5b9988ed49"
+    },
+    {
+      "path": "hosts/bms/host/relay-files.mjs",
+      "sha256": "7c99f9dbdad0caa0e6812434cf5f876c8f30d496a403b976aa4de16a8f644541",
+      "bytes": 7905,
+      "mode": "100644",
+      "type": "blob",
+      "sha": "c09799422d7c8f5fa7fe786c2f51841b093635ca"
+    },
+    {
+      "path": "hosts/bms/host/runtime/complete-reviewed-source-readback.js",
+      "sha256": "b5745af68fef0ad506a0239de82f5944eaf2c53fca30e0c2a5187c8afff1fab0",
+      "bytes": 5692,
+      "mode": "100644",
+      "type": "blob",
+      "sha": "c6383402dfe7818042748421740b457996f543f4"
+    },
+    {
+      "path": "hosts/bms/host/runtime/continuous-relay-v3-durable-monitor.js",
+      "sha256": "24231e13ec4b4f34692574abe87865e629c60f7b2ce1eb2cacac621300a06718",
+      "bytes": 5136,
+      "mode": "100644",
+      "type": "blob",
+      "sha": "c17176ad3963b565c4bd4072e821ef9d4e885a23"
+    },
+    {
+      "path": "hosts/bms/host/runtime/inspect-host-binding.mts",
+      "sha256": "fe33b177e0bf40da2b1035a9482699954803d513f29092153fd61c11e7c34b78",
+      "bytes": 2568,
+      "mode": "100644",
+      "type": "blob",
+      "sha": "16c2e92f6d2cbcbc23731e31c5a8a1a4d7660944"
+    },
+    {
+      "path": "hosts/bms/host/runtime/load-host-state.js",
+      "sha256": "9072e4f93c6614e1cbde2a06be43fda6a5117e25a1eab5f0ea6c17300724b5ed",
+      "bytes": 5053,
+      "mode": "100644",
+      "type": "blob",
+      "sha": "1b3d77a7f2cf91c175d63b8b78c462bf0e976e14"
+    },
+    {
+      "path": "hosts/bms/host/runtime/load-source-runtime.js",
+      "sha256": "8bfcf4a1334619591c3d1581b44c05c1fe34bdb84efc88ab8ec8677bd491c4e0",
+      "bytes": 1959,
+      "mode": "100644",
+      "type": "blob",
+      "sha": "c0bdc9706b9dfccf434c208f1ce9875da173f516"
+    },
+    {
+      "path": "hosts/bms/host/runtime/machine-json.py",
+      "sha256": "67611e749eddc6bf8c591fef11f2efa82e2a73ce0bb51b2779fab4ae68b77f50",
+      "bytes": 1119,
+      "mode": "100644",
+      "type": "blob",
+      "sha": "3dda394ae2fe15b8740c8db2f0adcf6a9e19e3cf"
+    },
+    {
+      "path": "hosts/bms/host/runtime/preflight/preflight-launch.mjs",
+      "sha256": "89099e0dedbffc36cbe31a9e1e4b458aedf512cc367141af22709a068cd2f968",
+      "bytes": 11035,
+      "mode": "100644",
+      "type": "blob",
+      "sha": "b262b245572d09576f2d5151d5a22799897cb8d5"
+    },
+    {
+      "path": "hosts/bms/host/runtime/preflight/runtime-check.mjs",
+      "sha256": "e01c5b953283535757e2fcc67df80dd3e86948709dde0b488235a7edee017785",
+      "bytes": 3815,
+      "mode": "100644",
+      "type": "blob",
+      "sha": "275890f0f3584e99e0f0f57a4492fd95ad6c248d"
+    },
+    {
+      "path": "hosts/bms/host/runtime/prepare-registered-control.mts",
+      "sha256": "9f2090d76cf854e49ff47b66dabaaa599a6bf3252d083a5c5541c29114591230",
+      "bytes": 4179,
+      "mode": "100644",
+      "type": "blob",
+      "sha": "afc02a97bf321411724ea919545bc83dc5910c53"
+    },
+    {
+      "path": "hosts/bms/host/runtime/review-packet-envelope.mts",
+      "sha256": "40cb1e3ede867f0e9d171605e7454fc71a6f774dfdf910f68ff668722bba69cb",
+      "bytes": 5535,
+      "mode": "100644",
+      "type": "blob",
+      "sha": "a550d0fd80f032ae7ed2633e88b2cd2c748c6969"
+    },
+    {
+      "path": "hosts/bms/host/runtime/review-publication.py",
+      "sha256": "39fe1f5b7e8274c44b522aa466d3cf525a4fce45c90fd1225564d7adbbb922e9",
+      "bytes": 5389,
+      "mode": "100644",
+      "type": "blob",
+      "sha": "0ff48e9c3171bb627683f89e5a0f15ad5176c786"
+    },
+    {
+      "path": "hosts/bms/host/runtime/update-candidate-completion-state.mjs",
+      "sha256": "ae5ad99411b014c8ffff615a0b06af1e1fdfd2ed7f7265c9c9cee0128339bb06",
+      "bytes": 3654,
+      "mode": "100644",
+      "type": "blob",
+      "sha": "ec886e3dd2b52805daccddcdcd862b6afbaeec29"
+    },
+    {
+      "path": "hosts/bms/supervision/inspect-launch-identity.mjs",
+      "sha256": "7bc818ae831081b7e91819ad772b950d08e7d06dc741730c0bd54698d6fe8b37",
+      "bytes": 871,
+      "mode": "100644",
+      "type": "blob",
+      "sha": "0fc3dd6c1dde3cc7759848f18c795792c38c800c"
+    },
+    {
+      "path": "hosts/bms/supervision/sample_process_tree.py",
+      "sha256": "3fa6daa1af1afee94d19801edfd8bcb538e1243476b5adb253e50de162a27bd6",
+      "bytes": 13065,
+      "mode": "100644",
+      "type": "blob",
+      "sha": "5c2924dc067309525018e4903741dc33e796b546"
+    },
+    {
+      "path": "hosts/bms/supervision/start-monitor-bms51-combined.js",
+      "sha256": "675d5a22edf1facceb0b33338685ff2e640246b65da8d9650247bbcbee15c28d",
+      "bytes": 13940,
+      "mode": "100644",
+      "type": "blob",
+      "sha": "00f77820e275c8627536e7d64a6cd8bfcd30704b"
+    },
+    {
+      "path": "hosts/bms/supervision/supervise-cancel.mjs",
+      "sha256": "083435a5344a47b86f84184bbe1d2711b0d35def4670afb2ab3c8391ed442e7e",
+      "bytes": 10232,
+      "mode": "100644",
+      "type": "blob",
+      "sha": "efe376ba3dbe501d5a2b1bece2c7ac46471aca7d"
+    },
+    {
+      "path": "hosts/bms/verification/SAFE_SOURCE_ALLOWLIST.json",
+      "sha256": "bcad9e5de9493814e87078f8bff4e36436c2823a59b79962d8d95ef826ac4a2b",
+      "bytes": 9912,
+      "mode": "100644",
+      "type": "blob",
+      "sha": "941169f64234791b72c6022dda845d951d0dcde1"
+    },
+    {
+      "path": "hosts/bms/verification/verify-machine-json.py",
+      "sha256": "5de73481cea05886ad8515fee4b6c8b98629fc50d1a5392a764d18180191bd3d",
+      "bytes": 1040,
+      "mode": "100644",
+      "type": "blob",
+      "sha": "20ed5095bcf4a5300931ccdfdfc87775e4f9202e"
+    },
+    {
+      "path": "hosts/bms/verification/verify-runtime-host.mts",
+      "sha256": "23d3f7a1bb4b3b3b99bebfc60954ae9e65ac4b900b4ce90cd0335b7adc4230f5",
+      "bytes": 10947,
+      "mode": "100644",
+      "type": "blob",
+      "sha": "7d2ec19baf86667e8a7c4e4bc1aa44a0319974dd"
+    },
+    {
+      "path": "hosts/bms/verification/verify-source-host.mjs",
+      "sha256": "a79d3564b4974589695b6e0e2ddf240b55388343d7a3b62238e1fb453caf4501",
+      "bytes": 8352,
+      "mode": "100644",
+      "type": "blob",
+      "sha": "086f421063d24a8191b2c0507a155509afe03039"
+    }
+  ],
+  "omittedDocuments": [
+    {
+      "path": "hosts/merck/SAFE_SOURCE_README.md",
+      "sha256": "6f852a9168765e89412cdca1edcb9e595b4c6632be0dac47a1a18cd7e3b2627f",
+      "bytes": 3691,
+      "reason": "Original preparation and operational narrative omitted; minimal recovery dependencies are documented in the root README."
+    },
+    {
+      "path": "hosts/organon/SAFE_SOURCE_README.md",
+      "sha256": "de97db239841dbf56c90caa3dae6f6cbb912fa18786fe0042f8bcdb94691ed40",
+      "bytes": 3705,
+      "reason": "Original preparation and operational narrative omitted; minimal recovery dependencies are documented in the root README."
+    },
+    {
+      "path": "hosts/bms/SAFE_SOURCE_README.md",
+      "sha256": "7b23477964f32bfce91ef5ccbc524e2a1ba58b2dd756667d9f864202775c1aaa",
+      "bytes": 3677,
+      "reason": "Original preparation and operational narrative omitted; minimal recovery dependencies are documented in the root README."
+    }
+  ],
+  "execution": "No backed-up source or tests executed during backup."
 }
