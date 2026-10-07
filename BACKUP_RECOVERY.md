@@ -1,0 +1,9 @@
+# Repair notes and project skills
+
+Contains the complete 12-file frozen documentation/skill/test set from manifest SHA256 6e1d4e8dad69bf544bbf61227afa1b859adab140c527364500974bc998c155b0, plus this recovery note and a per-file hash index. Preserve the repository-relative layout: both first-party skills link to docs/job-finder/source-evidence-repair-notes.md and their included references. Third-party skills are unchanged.
+
+The notes cover strict byte-preserving evidence compilation, raw Buffer hashing before UTF-8 decoding, explicit source selection for child processes, bounded official-field location fallback and evidence replay. The included tests are standalone synthetic teaching models using Node built-ins or Python standard libraries; they are not application compiler/parser tests. Node22.23.3 and24.19.0 were reported by the author for the new22 tests. Existing17 memory checks,15 release checks and skill validators are author records. This backup process checked source bytes, secret patterns and local links only, without executing those tests or production code.
+
+Historical case counts and outcomes in the authored notes retain their stated scope. R1 live publication and later R2 local validation remain distinct. The source repair backups are independently verified at commits 118de4c1e4cc72ebc0eaa354246fe3d9f92abfe9 and 6b5e9f60a5472abc2309d13a8f9fc296bb15e66b in this repository. These references do not provide original production data or reconstruct runtime identity by themselves.
+
+No official HTML, captured response, credential value, complete SQL/context, private receipt, host activation, environment file or local validation log is included. No workflow, merge or deployment is performed. Restore skills and documentation together so their relative reference links remain valid.

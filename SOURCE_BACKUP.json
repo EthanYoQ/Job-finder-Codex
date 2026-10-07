@@ -1,24 +1,48 @@
 {
-  "schema": "safe-skill-backup-v1",
-  "skill": "job-finder-aliyun-release-recovery",
-  "revision": "r4",
-  "parentBackup": "cf708a756d33e67b5a6c498b5955e8d430059a0a",
-  "originalManifestSha256": "a84a8dde9a62073291d7ed335c36678d6803263fc1ae3d4765a02e0daef28fcd",
-  "originalSkillFileCount": 6,
-  "originalSkillBytes": 45093,
-  "files": [
+  "schemaVersion": 1,
+  "scope": "Unbound host source, static configuration templates, synthetic test code and exact regeneration inputs",
+  "reviewedPlanSha256": "514a4b2dbb989dbb2f56b272d7ee1d3bb559d8a8d0005aad8baf13a16bcd12a1",
+  "additionalExclusions": {},
+  "sourceExecutionPerformed": false,
+  "sourceFiles": [
+    {
+      "path": "skills/diagnose-batch-memory-amplification/SKILL.md",
+      "mode": "100644",
+      "bytes": 5669,
+      "sha256": "6ff1845e41f251691ecde2d789ea18a60829f96e4757fb48947b823f56809135",
+      "sha": "f89f8223a436d56aadaff21ba2de9df8e4bb64f8"
+    },
+    {
+      "path": "skills/diagnose-batch-memory-amplification/references/case-boundaries.md",
+      "mode": "100644",
+      "bytes": 1065,
+      "sha256": "7945f0f19d677eb4c497e44cdd236ced94883027296240c49418a345cce3a67f",
+      "sha": "148296f20b7d2ef921b6a735a8c5ed982a54ff08"
+    },
+    {
+      "path": "skills/diagnose-batch-memory-amplification/references/measurement-and-acceptance.md",
+      "mode": "100644",
+      "bytes": 2163,
+      "sha256": "6a164e3754b092d2d92543927b202dd8b8afa5d4853f0658cdfd0aadc22f17df",
+      "sha": "09335f60ef2809edc23ee0a5220d1e64301796d0"
+    },
+    {
+      "path": "skills/diagnose-batch-memory-amplification/scripts/test-scoped-parse-reuse.mjs",
+      "mode": "100644",
+      "bytes": 4423,
+      "sha256": "7dcabced02d0a6d6f0760717b2c6249945c4e4b5f15f549087caec5023f937bf",
+      "sha": "ba7d8f1ae14dac01c9cd51860cd1d644303a1fdf"
+    },
     {
       "path": "skills/job-finder-aliyun-release-recovery/SKILL.md",
       "mode": "100644",
-      "type": "blob",
-      "bytes": 5749,
-      "sha256": "e829a430fd9b80a41957cb26bac7a7de1740f3e5c4700b7aa005e295a1e884d6",
-      "sha": "8afeef931a3d4b2318e58e997877649b1c4d25c8"
+      "bytes": 6051,
+      "sha256": "7801cc94a2787e7439714d4e79d49eb0777d3e51ea5b70c084ea60bc59e79862",
+      "sha": "10ba082121abd1c640188f900745c89d0de7b95d"
     },
     {
       "path": "skills/job-finder-aliyun-release-recovery/references/command-evidence-and-recovery.md",
       "mode": "100644",
-      "type": "blob",
       "bytes": 9386,
       "sha256": "0b5b75a1818bf2716fbf0cc8a7f86ad49811759f30ee28727f3258c8e13e4caa",
       "sha": "6b6193f228ae15e6687d1d8dc2cb1adebcea35d6"
@@ -26,7 +50,6 @@
     {
       "path": "skills/job-finder-aliyun-release-recovery/references/proxy-runtime-and-same-batch-readback.md",
       "mode": "100644",
-      "type": "blob",
       "bytes": 7759,
       "sha256": "b18c8a8dd69703eb4390b3daf0909be003f8686abc0a6cfd9d68ebd650a7a87c",
       "sha": "3fb5c6c578f20c195a5fb5055e143604bfc24be1"
@@ -34,7 +57,6 @@
     {
       "path": "skills/job-finder-aliyun-release-recovery/references/runtime-and-acceptance.md",
       "mode": "100644",
-      "type": "blob",
       "bytes": 6334,
       "sha256": "0984ffb63ca245bb93d710e96198d03372775eab723d2541b0a2efaa8e4f0957",
       "sha": "8e3e1d737faa8abad486f8592e240087c4ac9f78"
@@ -42,29 +64,31 @@
     {
       "path": "skills/job-finder-aliyun-release-recovery/references/time-semantics-and-failed-acceptance.md",
       "mode": "100644",
-      "type": "blob",
-      "bytes": 6527,
-      "sha256": "84b542a410026f105febd23cb72173c52be4965c65c2caa1f5da2c15a830df83",
-      "sha": "52f012c8ffff12e37d701ac42a14431cfb074013"
+      "bytes": 6799,
+      "sha256": "4c93f496f0d955f4c245fb270b3b62c8b067918cc00ed399e937b1bfaf354206",
+      "sha": "a03234a46d4528bc30ae220ca309395636484d6d"
     },
     {
       "path": "skills/job-finder-aliyun-release-recovery/scripts/test-acceptance-invariants.py",
       "mode": "100644",
-      "type": "blob",
       "bytes": 9338,
       "sha256": "c0116ba21cecb08d641a13cd1e90810b862c4bfdd8f996aa6077f689e53630a3",
       "sha": "2072c3404be2348047df7dc4c4a91d433d6ac045"
+    },
+    {
+      "path": "docs/job-finder/source-evidence-repair-notes.md",
+      "mode": "100644",
+      "bytes": 9438,
+      "sha256": "dc9edef9b565b4dc8605a2d0bbf218a0fb86f26715be6e787bef39244c173b97",
+      "sha": "c83c26b23bee61c58fe3ff67cb01b43e288584cb"
+    },
+    {
+      "path": "docs/job-finder/tests/source-evidence-invariants.test.mjs",
+      "mode": "100644",
+      "bytes": 14413,
+      "sha256": "7656398971649af1c858cf2ab39f500691a507b49cf567d72ac125922dee1628",
+      "sha": "8eebfaf268d6474bbae0c2e5497d5d7f68b7c0f7"
     }
   ],
-  "retainedContent": "Skill guidance, generalized case outcomes, references and simplified synthetic tests",
-  "excluded": [
-    "original production receipts",
-    "actual business or database data",
-    "runtime command/binding material",
-    "credentials",
-    "private validation reports",
-    "original mixed-result delivery manifest"
-  ],
-  "testScope": "Synthetic teaching examples; not production reader or deployment verification",
-  "backupSourceExecution": false
+  "recoveryLimits": "BACKUP_RECOVERY.md"
 }
