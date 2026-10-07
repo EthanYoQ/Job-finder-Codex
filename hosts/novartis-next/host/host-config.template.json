@@ -1,0 +1,8 @@
+{
+  "root": "/workspace/scratch/5e9614251709/jb-incremental-proxy-runtime-20261007T0057Z/novartis-producer-runtime-0750Z/hosts/novartis-next/host",
+  "repo": "/workspace/scratch/5e9614251709/jb-incremental-proxy-runtime-20261007T0057Z/novartis-producer-runtime-0750Z/producer",
+  "node": "/workspace/scratch/5e9614251709/jb-incremental-proxy-runtime-20261007T0057Z/runtime/node-v22.23.3-linux-x64/bin/node",
+  "project": "yiopvxysxrtrnvqxwgbx",
+  "sourceId": "source-novartis-social",
+  "sourceConfigSha256": "1dcb83b63182c3b496a1137678baae55201276b4e041b60b6cbe1fab30990a91"
+}

@@ -1,48 +1,454 @@
 {
-  "schemaVersion": 1,
-  "kind": "two-file-source-delta",
-  "applicationCommit": "0edb12df2ea9b466b25eb388eff1f230636bbd7e",
-  "applicationParent": "28402a299bb04cbf5873da66c2fe8ca76827c0d1",
+  "schema": "safe-source-backup-v1",
+  "sourceCommit": "0edb12df2ea9b466b25eb388eff1f230636bbd7e",
+  "scope": "Frozen Novartis host/owner safe sources and immutable unbound templates",
+  "originalSafeFiles": 50,
+  "requiredIntegrityManifests": 1,
   "files": [
     {
-      "path": "src/crawler/adapters/htmlTable.ts",
+      "path": "NEW_LOCAL_BUILD_IDENTITY.json",
       "mode": "100644",
       "type": "blob",
-      "bytes": 11254,
-      "sha256": "1799fc24eeac948feb157a41419b42ef17718bdca28925fce5cdc320605ffb8c",
-      "sha": "d7ce139f01fab1b3aee8008e88e3d785fc07209f"
+      "bytes": 352,
+      "sha256": "20836abae8d5f22c4f9e112b49a768c73542f0e080afe34294df2ffeff5a8aa0",
+      "sha": "fe82352449d8ad76507415229533ad79538747ff"
     },
     {
-      "path": "tests/crawler/htmlTableDocumentReuse.test.ts",
+      "path": "REGISTRATION_EXPECTED_PROJECTION.json",
       "mode": "100644",
       "type": "blob",
-      "bytes": 2992,
-      "sha256": "d68db78baaa37244f23f4d28f69d659765bc62c674f6598297e963fa57e1f4e3",
-      "sha": "6015c93dc9a76c45098e2273d2cd974c2a19d13a"
+      "bytes": 2162,
+      "sha256": "9b0bfbe93cfe5b1d7008f92ba91a3de198c77ef4bb4f8d83bf5c858cc0c9ada6",
+      "sha": "b73d60e99763011396efefa3635d56f1db47b43f"
     },
     {
-      "path": "novartis-heap-source-only.patch",
+      "path": "SAFE_SOURCE_README.md",
       "mode": "100644",
       "type": "blob",
-      "bytes": 5708,
-      "sha256": "9be029f25d94b8d390790655e7c651101ad545fbe1d39e04d0c143308984b947",
-      "sha": "b158dadd87c84759bea3431263a569f72c93531c"
+      "bytes": 4072,
+      "sha256": "6275c2bebcccaa4ec1a7f7d9a7609e685bfe0d87f1550502ce91de29f93c1219",
+      "sha": "bb3459ff52caacb2ba9813603e5ef33f59ca521d"
+    },
+    {
+      "path": "host-gate-tests/fixtures/real-supervisor-exit42-exec-result.json",
+      "mode": "100644",
+      "type": "blob",
+      "bytes": 704,
+      "sha256": "e998f02ab2a161588404533f532d1a59862821be2f0f0e16210381688b1b9941",
+      "sha": "2cd6184f50dd3c49d542944cee2707135623ca27"
+    },
+    {
+      "path": "host-gate-tests/run-offline.sh",
+      "mode": "100644",
+      "type": "blob",
+      "bytes": 851,
+      "sha256": "fd440f08c52df6055ac685f2ef2a04acaf27769e1a7b5e13281ca979f7b308ef",
+      "sha": "c67a7f2bb66ff1fcf7d616b9b504eedbaef60d3c"
+    },
+    {
+      "path": "host-gate-tests/verify-binder-restoration.mts",
+      "mode": "100644",
+      "type": "blob",
+      "bytes": 4831,
+      "sha256": "0db0ddf42110d4bb4af6e869691e8fc35ea7419cf85f0b012b4b5b6975978757",
+      "sha": "0db2a729f05b8e83c50189ff087946e8f261f883"
+    },
+    {
+      "path": "host-gate-tests/verify-completion-gates.mjs",
+      "mode": "100644",
+      "type": "blob",
+      "bytes": 5185,
+      "sha256": "86702ca58e6fe8cc5e5c470d6a98666bf27f6565739ab3d8f34d260baebb4827",
+      "sha": "198971f9122c11e33753002a5553c8b0103e7470"
+    },
+    {
+      "path": "host-gate-tests/verify-owner-gates.mts",
+      "mode": "100644",
+      "type": "blob",
+      "bytes": 19077,
+      "sha256": "be4fe0a6d5b6f811453401b483257fb0015a712cee407c4444e3eef787d24e6a",
+      "sha": "32be5a147e890dff25e3a941b70a72cd78c6b260"
+    },
+    {
+      "path": "host-gate-tests/verify-starter-gates.mjs",
+      "mode": "100644",
+      "type": "blob",
+      "bytes": 7369,
+      "sha256": "77b477ad61d8adad9e5a97a29bd0db67f214a3ca81e068596d65cbcc99bae1b1",
+      "sha": "8a9d7812a706987ee8102da154ff20406d694e46"
+    },
+    {
+      "path": "host-gate-tests/verify-supervisor-launch-boundary.mjs",
+      "mode": "100644",
+      "type": "blob",
+      "bytes": 19130,
+      "sha256": "c590ff8188cd73b85fbc57f652ae9e31cc7f876d3a3fe36944218e67da6cc3fa",
+      "sha": "df56ce4fcf7c275070832da2fee94aa66957dab5"
+    },
+    {
+      "path": "hosts/novartis-next/host/activation.unbound.template.json",
+      "mode": "100644",
+      "type": "blob",
+      "bytes": 561,
+      "sha256": "6f720dc5bd8d7cab2f2b3efe160e7cd1f426c41b0dd36bd33daf884291ba58de",
+      "sha": "f76e581bc82728a6f270839b9ce0c6beec2efda2"
+    },
+    {
+      "path": "hosts/novartis-next/host/archive-transfer.mjs",
+      "mode": "100644",
+      "type": "blob",
+      "bytes": 1777,
+      "sha256": "698e966e5552967845a5252d2b3df2acca28dcd8dbbb0ae41755a3a6231e6a99",
+      "sha": "5a454d21f34f9680221bbee2c98b3fecb94884f0"
+    },
+    {
+      "path": "hosts/novartis-next/host/context-read.unbound.template.sql",
+      "mode": "100644",
+      "type": "blob",
+      "bytes": 79,
+      "sha256": "c84c225b0607daabdcac0ecd05fde8ba6f42e485b9552018d50e4fef682bbd15",
+      "sha": "c2031a8aef23b74f8bc94a99a6a6c48bb290eca2"
+    },
+    {
+      "path": "hosts/novartis-next/host/control-base.template.json",
+      "mode": "100644",
+      "type": "blob",
+      "bytes": 467,
+      "sha256": "73090f5cd8e673a74a8fa9675e04cca28d22781ccc9a49fdc85861a893aa6699",
+      "sha": "f043b87557db1e703dbcdd9e0c1886b0be29e834"
+    },
+    {
+      "path": "hosts/novartis-next/host/host-config.template.json",
+      "mode": "100644",
+      "type": "blob",
+      "bytes": 578,
+      "sha256": "12bfafbeab783598a30aae05199b94ab739b9b328b41c7152b7bed3104ae4940",
+      "sha": "b58f55d032e29f3d33468aadaf83ad2e8c19f854"
+    },
+    {
+      "path": "hosts/novartis-next/host/host-files.mts",
+      "mode": "100644",
+      "type": "blob",
+      "bytes": 4109,
+      "sha256": "84f497991caca20ff97a9616444662648bc2640a60e4e72bca94fc35de32d731",
+      "sha": "ab5e2c9ba1458dba6b8aa5269a209870b28ca937"
+    },
+    {
+      "path": "hosts/novartis-next/host/host-helper-functions.js",
+      "mode": "100644",
+      "type": "blob",
+      "bytes": 9806,
+      "sha256": "bd18f0cd78259a99cbeebe6d224a9cc1210030cd217c792a8f6d36240abecaed",
+      "sha": "3c95761852c89c0043f766842c61a978809ed8c6"
+    },
+    {
+      "path": "hosts/novartis-next/host/host-stage-functions.js",
+      "mode": "100644",
+      "type": "blob",
+      "bytes": 6433,
+      "sha256": "cc4bb9818820ed37184a58a331eae95e658fc53c78a9a4c35dff7b50df115e4b",
+      "sha": "1b2ed4aa7097f770b132f549daaba386759e58ec"
+    },
+    {
+      "path": "hosts/novartis-next/host/machine-json.js",
+      "mode": "100644",
+      "type": "blob",
+      "bytes": 807,
+      "sha256": "3484738bd095a9d57da70c6392af78865a53759a9e8499316941157b6210e9f6",
+      "sha": "7b927e85ca286ffa900ca93462deee5b9988ed49"
+    },
+    {
+      "path": "hosts/novartis-next/host/owner-binding-input.template.json",
+      "mode": "100644",
+      "type": "blob",
+      "bytes": 615,
+      "sha256": "2113ec9edb363ff15805dd8bb57e9008a4515dbc9006a95f39ff5e985d07691d",
+      "sha": "c636d9ce79f8874a1c4f50a2bdae52e359c453c4"
+    },
+    {
+      "path": "hosts/novartis-next/host/prepare-owner-binding.command.template.txt",
+      "mode": "100644",
+      "type": "blob",
+      "bytes": 724,
+      "sha256": "ef0cdde9dbdf3f394090cdf238fd050b14857203fa66ab3bc1864b64bb45e8f4",
+      "sha": "6b6d2e482537c19f8ad9d5067556fb31929c166b"
+    },
+    {
+      "path": "hosts/novartis-next/host/relay-files.mjs",
+      "mode": "100644",
+      "type": "blob",
+      "bytes": 7947,
+      "sha256": "026fe3f463cf19ec796b0c145b50abb18ecf732ddf5fb77fe8e4a0d624fcac41",
+      "sha": "980a3b005971ec4955b59848f3fe70c344fb5f3a"
+    },
+    {
+      "path": "hosts/novartis-next/host/runtime/complete-reviewed-source-readback.js",
+      "mode": "100644",
+      "type": "blob",
+      "bytes": 5701,
+      "sha256": "c000a9a13b41cbab223bd1a41f8be937d1800a614a3c105d82baaea570aeff20",
+      "sha": "5abe91272e0b7d1c2f6d8b0f89b7d4470c23bf15"
+    },
+    {
+      "path": "hosts/novartis-next/host/runtime/continuous-relay-v3-durable-monitor.js",
+      "mode": "100644",
+      "type": "blob",
+      "bytes": 5244,
+      "sha256": "e06c149a8ce319d01259bfe202214f9e4d208e3ea76e2bc967ba135d774ff98b",
+      "sha": "fb82e43082ffa369ddeb92eee55747efbcfda874"
+    },
+    {
+      "path": "hosts/novartis-next/host/runtime/inspect-host-binding.mts",
+      "mode": "100644",
+      "type": "blob",
+      "bytes": 2568,
+      "sha256": "d39332fc1f793d9660dbdcb88633b773ebaedc2cb34a5b662d70eda6864d6cb0",
+      "sha": "4ed0e831aef20437298a6009b69b3b13a960f9a3"
+    },
+    {
+      "path": "hosts/novartis-next/host/runtime/load-host-state.unbound.template.js",
+      "mode": "100644",
+      "type": "blob",
+      "bytes": 5349,
+      "sha256": "0fdb24ba398e8086aeb8dc5b43711943c442a2dab50fa0a64ed15a35fd7f40ba",
+      "sha": "ef2a6c9e16f75c966fdd4496adbd183d4885254d"
+    },
+    {
+      "path": "hosts/novartis-next/host/runtime/load-source-runtime.js",
+      "mode": "100644",
+      "type": "blob",
+      "bytes": 2130,
+      "sha256": "28384821c3a71355b9b5482facad8a99291e8e51b071b0ff25ae61fc5a511eee",
+      "sha": "eeae38d6a9951d95b1217108da094b6d74f70260"
+    },
+    {
+      "path": "hosts/novartis-next/host/runtime/machine-json.py",
+      "mode": "100644",
+      "type": "blob",
+      "bytes": 1119,
+      "sha256": "67611e749eddc6bf8c591fef11f2efa82e2a73ce0bb51b2779fab4ae68b77f50",
+      "sha": "3dda394ae2fe15b8740c8db2f0adcf6a9e19e3cf"
+    },
+    {
+      "path": "hosts/novartis-next/host/runtime/preflight/preflight-launch.mjs",
+      "mode": "100644",
+      "type": "blob",
+      "bytes": 11035,
+      "sha256": "89099e0dedbffc36cbe31a9e1e4b458aedf512cc367141af22709a068cd2f968",
+      "sha": "b262b245572d09576f2d5151d5a22799897cb8d5"
+    },
+    {
+      "path": "hosts/novartis-next/host/runtime/preflight/runtime-check.mjs",
+      "mode": "100644",
+      "type": "blob",
+      "bytes": 3815,
+      "sha256": "e01c5b953283535757e2fcc67df80dd3e86948709dde0b488235a7edee017785",
+      "sha": "275890f0f3584e99e0f0f57a4492fd95ad6c248d"
+    },
+    {
+      "path": "hosts/novartis-next/host/runtime/prepare-owner-binding.mts",
+      "mode": "100644",
+      "type": "blob",
+      "bytes": 7638,
+      "sha256": "5c659829e018099308be3888ad2b5b6efe654c67524e7cb8bc2d5441a16aae76",
+      "sha": "338561967f4edfbfead1087339880b28eb0555f3"
+    },
+    {
+      "path": "hosts/novartis-next/host/runtime/prepare-registered-control.mts",
+      "mode": "100644",
+      "type": "blob",
+      "bytes": 234,
+      "sha256": "eb5f644c1c6c43e86e6bc65bfce8a3ced75beb424861aa9306468929303cf8a1",
+      "sha": "b40567617fe67a98c2f9062c1dfd00ec6026a861"
+    },
+    {
+      "path": "hosts/novartis-next/host/runtime/review-packet-envelope.mts",
+      "mode": "100644",
+      "type": "blob",
+      "bytes": 5535,
+      "sha256": "40cb1e3ede867f0e9d171605e7454fc71a6f774dfdf910f68ff668722bba69cb",
+      "sha": "a550d0fd80f032ae7ed2633e88b2cd2c748c6969"
+    },
+    {
+      "path": "hosts/novartis-next/host/runtime/review-publication.py",
+      "mode": "100644",
+      "type": "blob",
+      "bytes": 5825,
+      "sha256": "fa6871a06aa306f0b822513b6cff73302e0f691c132a6f4c66c7b23628b09075",
+      "sha": "8735b8810b2e6e914df28b88666aa6d032e7ceb5"
+    },
+    {
+      "path": "hosts/novartis-next/host/runtime/update-candidate-completion-state.mjs",
+      "mode": "100644",
+      "type": "blob",
+      "bytes": 3721,
+      "sha256": "932b4db9a74d0b872d326ff665647c837515c541f9535b1e4a40d1995d404bc2",
+      "sha": "2212aec67440d117f624f77977fe044a72b204ef"
+    },
+    {
+      "path": "hosts/novartis-next/host/source-config-reference.json",
+      "mode": "100644",
+      "type": "blob",
+      "bytes": 3724,
+      "sha256": "81390101a34e3557eef76ecdbe1c35055d5694f5a72b39821dfc6ba42fe240aa",
+      "sha": "272c26878444699f9bb387dff7573e97e2cba18a"
+    },
+    {
+      "path": "hosts/novartis-next/supervision/inspect-launch-identity.mjs",
+      "mode": "100644",
+      "type": "blob",
+      "bytes": 871,
+      "sha256": "7bc818ae831081b7e91819ad772b950d08e7d06dc741730c0bd54698d6fe8b37",
+      "sha": "0fc3dd6c1dde3cc7759848f18c795792c38c800c"
+    },
+    {
+      "path": "hosts/novartis-next/supervision/sample_process_tree.py",
+      "mode": "100644",
+      "type": "blob",
+      "bytes": 13065,
+      "sha256": "3fa6daa1af1afee94d19801edfd8bcb538e1243476b5adb253e50de162a27bd6",
+      "sha": "5c2924dc067309525018e4903741dc33e796b546"
+    },
+    {
+      "path": "hosts/novartis-next/supervision/start-monitor-novartis-next-combined.unbound.template.js",
+      "mode": "100644",
+      "type": "blob",
+      "bytes": 15277,
+      "sha256": "b156352a5a48b4f1f7595169da27b19777388626d051402cbbc8cbc8c5d33eeb",
+      "sha": "4725d5e1415aebeee078d4f0189f3180efa37d28"
+    },
+    {
+      "path": "hosts/novartis-next/supervision/supervise-cancel.mjs",
+      "mode": "100644",
+      "type": "blob",
+      "bytes": 10264,
+      "sha256": "7e598585181791c7161c5ed38a6c0258e127710cfcc971bdbb441a8b3b290f17",
+      "sha": "fb5f9fcb6ca57926a838ec5dc209ac4b9e67fbd6"
+    },
+    {
+      "path": "owner/baseline-manifest.template.json",
+      "mode": "100644",
+      "type": "blob",
+      "bytes": 3157,
+      "sha256": "653da4e721a301823c68b8a4aa474163574b46ac93ef76b450722b9a4f7907ce",
+      "sha": "43514d0f58bf412a2cdd2e847648f24013f03ead"
+    },
+    {
+      "path": "owner/build-fragments.py",
+      "mode": "100644",
+      "type": "blob",
+      "bytes": 6245,
+      "sha256": "9303844dbaedb98d104c159f6b6b51badcce2a2339af833b074e9ad54c028447",
+      "sha": "210bad55fe8c4effce9ef4d36af804cd1fe98192"
+    },
+    {
+      "path": "owner/publish-and-monitor-owner.template.js",
+      "mode": "100644",
+      "type": "blob",
+      "bytes": 12508,
+      "sha256": "06bc5006720ff167683160bfe2f8ef99f945d0798f835c0193eda7320a73163b",
+      "sha": "00eb1e5406a36c12defea100211b370dd806cc74"
+    },
+    {
+      "path": "owner/tests/original-22-case-names.json",
+      "mode": "100644",
+      "type": "blob",
+      "bytes": 1804,
+      "sha256": "668f77d2a67a6e61416a91067789b5f17ba559364372ad0200324f0bf0b72257",
+      "sha": "72130bc4ca90b1f957067e4e57ac520091dcfcc8"
+    },
+    {
+      "path": "owner/tests/owner.test.mjs",
+      "mode": "100644",
+      "type": "blob",
+      "bytes": 34340,
+      "sha256": "feeed5c3cf20c89bec01e3436f730efcbb6764210abd4bfd3ad5f6694b615c24",
+      "sha": "31ec2ce1a82deab6245a49f2b372c65d169d7d46"
+    },
+    {
+      "path": "owner/tests/real-apply-patch-terminal-fixture.json",
+      "mode": "100644",
+      "type": "blob",
+      "bytes": 195,
+      "sha256": "307bf4c005329901bf5a26ab460a8af31759cf874c7a5a60527a88d367fdd4ac",
+      "sha": "d8751c2a90320750ca73c618827d5fbd82398b3b"
+    },
+    {
+      "path": "owner/tests/run-owner-tests.sh",
+      "mode": "100644",
+      "type": "blob",
+      "bytes": 552,
+      "sha256": "4e068a75ff66a5c03469699c86dbcb68e6568645758b406e5375a52453eef80d",
+      "sha": "9cf21afd988956cb67fb5d485e5b7743553ee10b"
+    },
+    {
+      "path": "verification/SAFE_SOURCE_ALLOWLIST.json",
+      "mode": "100644",
+      "type": "blob",
+      "bytes": 5147,
+      "sha256": "dc4c9a0c9d027d431365cb65f1bf51ef86402ea252cb81d70620a1eb332921d5",
+      "sha": "4b461d379fda6502b5d8118b5facdf8b54ae1578"
+    },
+    {
+      "path": "verification/refresh-fixed-manifests.py",
+      "mode": "100644",
+      "type": "blob",
+      "bytes": 5741,
+      "sha256": "d15ca840c49c326a4771898e30be7295769c0c8751889582201bc39c6142d704",
+      "sha": "1ac0c02d5f9033ec9da6715bee473c3aed1cdbc5"
+    },
+    {
+      "path": "verification/verify-restoration-closure.py",
+      "mode": "100644",
+      "type": "blob",
+      "bytes": 2894,
+      "sha256": "c5293d2b1716ff48628eddabff08d9cfbd0b1b600453d3b889aca821f5896443",
+      "sha": "373535ebe543195ec3cf1c43ada4ba2b49f40b5f"
+    },
+    {
+      "path": "verification/SAFE_SOURCE_FILE_MANIFEST.json",
+      "mode": "100644",
+      "type": "blob",
+      "bytes": 8718,
+      "sha256": "a37b4f57e225a595b75191d0d6ed4ff9500bf8212c61d8b87fb936eacb27990f",
+      "sha": "1a6855e76d77345a3b69ef7b75d6083bea1a653b"
     }
   ],
-  "beforeFiles": [
-    {
-      "path": "src/crawler/adapters/htmlTable.ts",
-      "sha": "ec150caf976a74eaecb5137153429bf1f6691ab1",
-      "sha256": "1b64e5e2450b237a82f61f6435f9508daa3cbc77c54851ef81b3f9d971b36ae4",
-      "bytes": 11092
-    },
-    {
-      "path": "tests/crawler/htmlTableDocumentReuse.test.ts",
-      "sha": null,
-      "sha256": null,
-      "bytes": 0
-    }
+  "sourceManifestSha256": "a37b4f57e225a595b75191d0d6ed4ff9500bf8212c61d8b87fb936eacb27990f",
+  "sourceAllowlistSha256": "dc4c9a0c9d027d431365cb65f1bf51ef86402ea252cb81d70620a1eb332921d5",
+  "excludedBindingPaths": [
+    "hosts/novartis-next/host/activation.json",
+    "hosts/novartis-next/host/context-read.sql",
+    "hosts/novartis-next/host/control-base.json",
+    "hosts/novartis-next/host/host-config.json",
+    "hosts/novartis-next/host/runtime/load-host-state.js",
+    "hosts/novartis-next/supervision/start-monitor-novartis-next-combined.js",
+    "owner/baseline-manifest.json",
+    "owner/preload-owner.exec.js",
+    "owner/publish-and-monitor-owner.js",
+    "owner/publish-reviewed-and-monitor.exec.js"
   ],
-  "sourceCutoff": "Offline source candidate; no later operational acceptance is asserted.",
-  "review": "Static Git objects and exact patch reconstruction only; no source/test execution."
+  "otherExclusions": [
+    "actual registration inputs/readbacks",
+    "run artifacts and logs",
+    "captured content and database rows",
+    "credentials and environment values",
+    "installed dependencies and complete producer runtime"
+  ],
+  "syntheticFixture": "host-gate-tests/fixtures/real-supervisor-exit42-exec-result.json contains metadata from a pure synthetic process execution",
+  "externalWrapper": {
+    "commit": "368733577fe5a3d395393c6464fc23eb3fa99c80",
+    "path": "scripts/run-with-http-diagnostics.mjs",
+    "bytes": 3565,
+    "sha256": "f15522e6f209bfe99bfa258b5dffbce1f74d6af662c4c2ee682604e0798bbc88"
+  },
+  "unsupportedOptionalBranch": {
+    "name": "ARCHIVE_STORE",
+    "missingDependencies": [
+      "audit-novo-public-archive.mjs",
+      "library_file_transfer.py"
+    ]
+  },
+  "sourceExecutionPerformed": false,
+  "deploymentPerformed": false
 }

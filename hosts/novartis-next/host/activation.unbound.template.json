@@ -1,0 +1,15 @@
+{
+  "status": "UNREGISTERED_NOT_ACTIVATED",
+  "contextReadSha256": null,
+  "registrationReadbackPath": null,
+  "registrationReadbackSha256": null,
+  "candidate": null,
+  "build": {
+  "schemaVersion": 2,
+  "commitSha": "0edb12df2ea9b466b25eb388eff1f230636bbd7e",
+  "sourceTreeSha256": "9bc3565d15b90c6c02c214e18123f0ced6e9b936ffb673734cb5b0045d21371d",
+  "runtimeTreeSha256": "8c3279add218c7234b15075c5eebdfcf7e0d77dc81e17e4990e90b3d9c3ddb24",
+  "contentSha256": "84cc8906e37dc41165e88e0de8118342f414c88b7712cd80d2644ce3bc257a98"
+},
+  "databaseIdentity": null
+}

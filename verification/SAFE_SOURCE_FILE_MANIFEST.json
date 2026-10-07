@@ -1,0 +1,252 @@
+[
+  {
+    "path": "NEW_LOCAL_BUILD_IDENTITY.json",
+    "sha256": "20836abae8d5f22c4f9e112b49a768c73542f0e080afe34294df2ffeff5a8aa0",
+    "bytes": 352
+  },
+  {
+    "path": "REGISTRATION_EXPECTED_PROJECTION.json",
+    "sha256": "9b0bfbe93cfe5b1d7008f92ba91a3de198c77ef4bb4f8d83bf5c858cc0c9ada6",
+    "bytes": 2162
+  },
+  {
+    "path": "SAFE_SOURCE_README.md",
+    "sha256": "6275c2bebcccaa4ec1a7f7d9a7609e685bfe0d87f1550502ce91de29f93c1219",
+    "bytes": 4072
+  },
+  {
+    "path": "host-gate-tests/fixtures/real-supervisor-exit42-exec-result.json",
+    "sha256": "e998f02ab2a161588404533f532d1a59862821be2f0f0e16210381688b1b9941",
+    "bytes": 704
+  },
+  {
+    "path": "host-gate-tests/run-offline.sh",
+    "sha256": "fd440f08c52df6055ac685f2ef2a04acaf27769e1a7b5e13281ca979f7b308ef",
+    "bytes": 851
+  },
+  {
+    "path": "host-gate-tests/verify-binder-restoration.mts",
+    "sha256": "0db0ddf42110d4bb4af6e869691e8fc35ea7419cf85f0b012b4b5b6975978757",
+    "bytes": 4831
+  },
+  {
+    "path": "host-gate-tests/verify-completion-gates.mjs",
+    "sha256": "86702ca58e6fe8cc5e5c470d6a98666bf27f6565739ab3d8f34d260baebb4827",
+    "bytes": 5185
+  },
+  {
+    "path": "host-gate-tests/verify-owner-gates.mts",
+    "sha256": "be4fe0a6d5b6f811453401b483257fb0015a712cee407c4444e3eef787d24e6a",
+    "bytes": 19077
+  },
+  {
+    "path": "host-gate-tests/verify-starter-gates.mjs",
+    "sha256": "77b477ad61d8adad9e5a97a29bd0db67f214a3ca81e068596d65cbcc99bae1b1",
+    "bytes": 7369
+  },
+  {
+    "path": "host-gate-tests/verify-supervisor-launch-boundary.mjs",
+    "sha256": "c590ff8188cd73b85fbc57f652ae9e31cc7f876d3a3fe36944218e67da6cc3fa",
+    "bytes": 19130
+  },
+  {
+    "path": "hosts/novartis-next/host/activation.unbound.template.json",
+    "sha256": "6f720dc5bd8d7cab2f2b3efe160e7cd1f426c41b0dd36bd33daf884291ba58de",
+    "bytes": 561
+  },
+  {
+    "path": "hosts/novartis-next/host/archive-transfer.mjs",
+    "sha256": "698e966e5552967845a5252d2b3df2acca28dcd8dbbb0ae41755a3a6231e6a99",
+    "bytes": 1777
+  },
+  {
+    "path": "hosts/novartis-next/host/context-read.unbound.template.sql",
+    "sha256": "c84c225b0607daabdcac0ecd05fde8ba6f42e485b9552018d50e4fef682bbd15",
+    "bytes": 79
+  },
+  {
+    "path": "hosts/novartis-next/host/control-base.template.json",
+    "sha256": "73090f5cd8e673a74a8fa9675e04cca28d22781ccc9a49fdc85861a893aa6699",
+    "bytes": 467
+  },
+  {
+    "path": "hosts/novartis-next/host/host-config.template.json",
+    "sha256": "12bfafbeab783598a30aae05199b94ab739b9b328b41c7152b7bed3104ae4940",
+    "bytes": 578
+  },
+  {
+    "path": "hosts/novartis-next/host/host-files.mts",
+    "sha256": "84f497991caca20ff97a9616444662648bc2640a60e4e72bca94fc35de32d731",
+    "bytes": 4109
+  },
+  {
+    "path": "hosts/novartis-next/host/host-helper-functions.js",
+    "sha256": "bd18f0cd78259a99cbeebe6d224a9cc1210030cd217c792a8f6d36240abecaed",
+    "bytes": 9806
+  },
+  {
+    "path": "hosts/novartis-next/host/host-stage-functions.js",
+    "sha256": "cc4bb9818820ed37184a58a331eae95e658fc53c78a9a4c35dff7b50df115e4b",
+    "bytes": 6433
+  },
+  {
+    "path": "hosts/novartis-next/host/machine-json.js",
+    "sha256": "3484738bd095a9d57da70c6392af78865a53759a9e8499316941157b6210e9f6",
+    "bytes": 807
+  },
+  {
+    "path": "hosts/novartis-next/host/owner-binding-input.template.json",
+    "sha256": "2113ec9edb363ff15805dd8bb57e9008a4515dbc9006a95f39ff5e985d07691d",
+    "bytes": 615
+  },
+  {
+    "path": "hosts/novartis-next/host/prepare-owner-binding.command.template.txt",
+    "sha256": "ef0cdde9dbdf3f394090cdf238fd050b14857203fa66ab3bc1864b64bb45e8f4",
+    "bytes": 724
+  },
+  {
+    "path": "hosts/novartis-next/host/relay-files.mjs",
+    "sha256": "026fe3f463cf19ec796b0c145b50abb18ecf732ddf5fb77fe8e4a0d624fcac41",
+    "bytes": 7947
+  },
+  {
+    "path": "hosts/novartis-next/host/runtime/complete-reviewed-source-readback.js",
+    "sha256": "c000a9a13b41cbab223bd1a41f8be937d1800a614a3c105d82baaea570aeff20",
+    "bytes": 5701
+  },
+  {
+    "path": "hosts/novartis-next/host/runtime/continuous-relay-v3-durable-monitor.js",
+    "sha256": "e06c149a8ce319d01259bfe202214f9e4d208e3ea76e2bc967ba135d774ff98b",
+    "bytes": 5244
+  },
+  {
+    "path": "hosts/novartis-next/host/runtime/inspect-host-binding.mts",
+    "sha256": "d39332fc1f793d9660dbdcb88633b773ebaedc2cb34a5b662d70eda6864d6cb0",
+    "bytes": 2568
+  },
+  {
+    "path": "hosts/novartis-next/host/runtime/load-host-state.unbound.template.js",
+    "sha256": "0fdb24ba398e8086aeb8dc5b43711943c442a2dab50fa0a64ed15a35fd7f40ba",
+    "bytes": 5349
+  },
+  {
+    "path": "hosts/novartis-next/host/runtime/load-source-runtime.js",
+    "sha256": "28384821c3a71355b9b5482facad8a99291e8e51b071b0ff25ae61fc5a511eee",
+    "bytes": 2130
+  },
+  {
+    "path": "hosts/novartis-next/host/runtime/machine-json.py",
+    "sha256": "67611e749eddc6bf8c591fef11f2efa82e2a73ce0bb51b2779fab4ae68b77f50",
+    "bytes": 1119
+  },
+  {
+    "path": "hosts/novartis-next/host/runtime/preflight/preflight-launch.mjs",
+    "sha256": "89099e0dedbffc36cbe31a9e1e4b458aedf512cc367141af22709a068cd2f968",
+    "bytes": 11035
+  },
+  {
+    "path": "hosts/novartis-next/host/runtime/preflight/runtime-check.mjs",
+    "sha256": "e01c5b953283535757e2fcc67df80dd3e86948709dde0b488235a7edee017785",
+    "bytes": 3815
+  },
+  {
+    "path": "hosts/novartis-next/host/runtime/prepare-owner-binding.mts",
+    "sha256": "5c659829e018099308be3888ad2b5b6efe654c67524e7cb8bc2d5441a16aae76",
+    "bytes": 7638
+  },
+  {
+    "path": "hosts/novartis-next/host/runtime/prepare-registered-control.mts",
+    "sha256": "eb5f644c1c6c43e86e6bc65bfce8a3ced75beb424861aa9306468929303cf8a1",
+    "bytes": 234
+  },
+  {
+    "path": "hosts/novartis-next/host/runtime/review-packet-envelope.mts",
+    "sha256": "40cb1e3ede867f0e9d171605e7454fc71a6f774dfdf910f68ff668722bba69cb",
+    "bytes": 5535
+  },
+  {
+    "path": "hosts/novartis-next/host/runtime/review-publication.py",
+    "sha256": "fa6871a06aa306f0b822513b6cff73302e0f691c132a6f4c66c7b23628b09075",
+    "bytes": 5825
+  },
+  {
+    "path": "hosts/novartis-next/host/runtime/update-candidate-completion-state.mjs",
+    "sha256": "932b4db9a74d0b872d326ff665647c837515c541f9535b1e4a40d1995d404bc2",
+    "bytes": 3721
+  },
+  {
+    "path": "hosts/novartis-next/host/source-config-reference.json",
+    "sha256": "81390101a34e3557eef76ecdbe1c35055d5694f5a72b39821dfc6ba42fe240aa",
+    "bytes": 3724
+  },
+  {
+    "path": "hosts/novartis-next/supervision/inspect-launch-identity.mjs",
+    "sha256": "7bc818ae831081b7e91819ad772b950d08e7d06dc741730c0bd54698d6fe8b37",
+    "bytes": 871
+  },
+  {
+    "path": "hosts/novartis-next/supervision/sample_process_tree.py",
+    "sha256": "3fa6daa1af1afee94d19801edfd8bcb538e1243476b5adb253e50de162a27bd6",
+    "bytes": 13065
+  },
+  {
+    "path": "hosts/novartis-next/supervision/start-monitor-novartis-next-combined.unbound.template.js",
+    "sha256": "b156352a5a48b4f1f7595169da27b19777388626d051402cbbc8cbc8c5d33eeb",
+    "bytes": 15277
+  },
+  {
+    "path": "hosts/novartis-next/supervision/supervise-cancel.mjs",
+    "sha256": "7e598585181791c7161c5ed38a6c0258e127710cfcc971bdbb441a8b3b290f17",
+    "bytes": 10264
+  },
+  {
+    "path": "owner/baseline-manifest.template.json",
+    "sha256": "653da4e721a301823c68b8a4aa474163574b46ac93ef76b450722b9a4f7907ce",
+    "bytes": 3157
+  },
+  {
+    "path": "owner/build-fragments.py",
+    "sha256": "9303844dbaedb98d104c159f6b6b51badcce2a2339af833b074e9ad54c028447",
+    "bytes": 6245
+  },
+  {
+    "path": "owner/publish-and-monitor-owner.template.js",
+    "sha256": "06bc5006720ff167683160bfe2f8ef99f945d0798f835c0193eda7320a73163b",
+    "bytes": 12508
+  },
+  {
+    "path": "owner/tests/original-22-case-names.json",
+    "sha256": "668f77d2a67a6e61416a91067789b5f17ba559364372ad0200324f0bf0b72257",
+    "bytes": 1804
+  },
+  {
+    "path": "owner/tests/owner.test.mjs",
+    "sha256": "feeed5c3cf20c89bec01e3436f730efcbb6764210abd4bfd3ad5f6694b615c24",
+    "bytes": 34340
+  },
+  {
+    "path": "owner/tests/real-apply-patch-terminal-fixture.json",
+    "sha256": "307bf4c005329901bf5a26ab460a8af31759cf874c7a5a60527a88d367fdd4ac",
+    "bytes": 195
+  },
+  {
+    "path": "owner/tests/run-owner-tests.sh",
+    "sha256": "4e068a75ff66a5c03469699c86dbcb68e6568645758b406e5375a52453eef80d",
+    "bytes": 552
+  },
+  {
+    "path": "verification/SAFE_SOURCE_ALLOWLIST.json",
+    "sha256": "dc4c9a0c9d027d431365cb65f1bf51ef86402ea252cb81d70620a1eb332921d5",
+    "bytes": 5147
+  },
+  {
+    "path": "verification/refresh-fixed-manifests.py",
+    "sha256": "d15ca840c49c326a4771898e30be7295769c0c8751889582201bc39c6142d704",
+    "bytes": 5741
+  },
+  {
+    "path": "verification/verify-restoration-closure.py",
+    "sha256": "c5293d2b1716ff48628eddabff08d9cfbd0b1b600453d3b889aca821f5896443",
+    "bytes": 2894
+  }
+]

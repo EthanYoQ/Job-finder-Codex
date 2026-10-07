@@ -1,0 +1,50 @@
+{
+  "schemaVersion": 1,
+  "sourceKey": "novartisNext",
+  "namespace": "proxyNode22:novartisNext:",
+  "sourceId": "source-novartis-social",
+  "sourceConfigSha256": "1dcb83b63182c3b496a1137678baae55201276b4e041b60b6cbe1fab30990a91",
+  "producerCommit": "0edb12df2ea9b466b25eb388eff1f230636bbd7e",
+  "runtimeRoot": "/workspace/scratch/5e9614251709/jb-incremental-proxy-runtime-20261007T0057Z/novartis-producer-runtime-0750Z",
+  "hostRoot": "/workspace/scratch/5e9614251709/jb-incremental-proxy-runtime-20261007T0057Z/novartis-producer-runtime-0750Z/hosts/novartis-next/host",
+  "hostConfig": {
+    "root": "/workspace/scratch/5e9614251709/jb-incremental-proxy-runtime-20261007T0057Z/novartis-producer-runtime-0750Z/hosts/novartis-next/host",
+    "repo": "/workspace/scratch/5e9614251709/jb-incremental-proxy-runtime-20261007T0057Z/novartis-producer-runtime-0750Z/producer",
+    "node": "/workspace/scratch/5e9614251709/jb-incremental-proxy-runtime-20261007T0057Z/runtime/node-v22.23.3-linux-x64/bin/node",
+    "project": "yiopvxysxrtrnvqxwgbx",
+    "sourceId": "source-novartis-social",
+    "sourceConfigSha256": "1dcb83b63182c3b496a1137678baae55201276b4e041b60b6cbe1fab30990a91"
+  },
+  "build": {
+    "schemaVersion": 2,
+    "commitSha": "0edb12df2ea9b466b25eb388eff1f230636bbd7e",
+    "sourceTreeSha256": "9bc3565d15b90c6c02c214e18123f0ced6e9b936ffb673734cb5b0045d21371d",
+    "runtimeTreeSha256": "8c3279add218c7234b15075c5eebdfcf7e0d77dc81e17e4990e90b3d9c3ddb24",
+    "contentSha256": "84cc8906e37dc41165e88e0de8118342f414c88b7712cd80d2644ce3bc257a98"
+  },
+  "expectedCandidate": null,
+  "actualCandidatePersistedInManifest": false,
+  "files": {
+    "/workspace/scratch/5e9614251709/jb-incremental-proxy-runtime-20261007T0057Z/novartis-producer-runtime-0750Z/hosts/novartis-next/host/host-helper-functions.js": {
+      "sha256": "bd18f0cd78259a99cbeebe6d224a9cc1210030cd217c792a8f6d36240abecaed",
+      "bytes": 9806
+    },
+    "/workspace/scratch/5e9614251709/jb-incremental-proxy-runtime-20261007T0057Z/novartis-producer-runtime-0750Z/hosts/novartis-next/host/host-stage-functions.js": {
+      "sha256": "cc4bb9818820ed37184a58a331eae95e658fc53c78a9a4c35dff7b50df115e4b",
+      "bytes": 6433
+    },
+    "/workspace/scratch/5e9614251709/jb-incremental-proxy-runtime-20261007T0057Z/novartis-producer-runtime-0750Z/hosts/novartis-next/host/runtime/continuous-relay-v3-durable-monitor.js": {
+      "sha256": "e06c149a8ce319d01259bfe202214f9e4d208e3ea76e2bc967ba135d774ff98b",
+      "bytes": 5244
+    },
+    "/workspace/scratch/5e9614251709/jb-incremental-proxy-runtime-20261007T0057Z/novartis-producer-runtime-0750Z/hosts/novartis-next/host/relay-files.mjs": {
+      "sha256": "026fe3f463cf19ec796b0c145b50abb18ecf732ddf5fb77fe8e4a0d624fcac41",
+      "bytes": 7947
+    },
+    "/workspace/scratch/5e9614251709/jb-incremental-proxy-runtime-20261007T0057Z/novartis-producer-runtime-0750Z/hosts/novartis-next/host/runtime/review-packet-envelope.mts": {
+      "sha256": "40cb1e3ede867f0e9d171605e7454fc71a6f774dfdf910f68ff668722bba69cb",
+      "bytes": 5535
+    }
+  },
+  "sourceFactorySha256": "78a716a79d905dc7bb02715967c43b74566d496bea5b6c24a2d6139dbb1f1894"
+}
