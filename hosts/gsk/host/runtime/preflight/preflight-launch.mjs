@@ -95,13 +95,13 @@ export async function preflight(args) {
   const checks = await writableDirectory(join(root, 'preflight'));
   const smokeRoot = await mkdtemp(join(checks, 'archive-smoke-'));
   await writableDirectory(smokeRoot);
-  const helper = await execute(process.execPath, ['--max-old-space-size=256', '--import', join(repo, 'node_modules/tsx/dist/loader.mjs'), join(here, 'runtime-check.mjs'), configFile.path, controlFile.path, bootstrapFile.path, smokeRoot], {
+  const helper = await execute(process.execPath, ['--max-old-space-size=384', '--import', join(repo, 'node_modules/tsx/dist/loader.mjs'), join(here, 'runtime-check.mjs'), configFile.path, controlFile.path, bootstrapFile.path, smokeRoot], {
     cwd: repo, env: { ...process.env, TSX_DISABLE_CACHE: '1', NODE_DISABLE_COMPILE_CACHE: '1', GIT_OPTIONAL_LOCKS: '0', JOBFINDER_CLOUD_SOURCE_ID: cfg.sourceId }, timeout: 45000, maxBuffer: 100000
   });
   const runtime = JSON.parse(helper.stdout);
   for (const file of files) if (sha(await readFile(file.path)) !== sha(file.bytes)) fail('PREFLIGHT_INPUT_CHANGED');
   const ageMs = Date.now() - Date.parse(bootstrap.checkedAt), bootstrapFresh = Number.isFinite(ageMs) && ageMs >= 0 && ageMs <= 60000;
-  const command = [process.execPath, 'scripts/run-with-http-diagnostics.mjs', diagnostics, '1800000', '--', process.execPath, '--max-old-space-size=256', '--import', './node_modules/tsx/dist/loader.mjs', 'scripts/p0-cloud-source-pilot.ts', bootstrapFile.path, reviewedSha256, artifacts, relay];
+  const command = [process.execPath, 'scripts/run-with-http-diagnostics.mjs', diagnostics, '1800000', '--', process.execPath, '--max-old-space-size=384', '--import', join(repo, 'node_modules/tsx/dist/loader.mjs'), 'scripts/p0-cloud-source-pilot.ts', bootstrapFile.path, reviewedSha256, artifacts, relay, '--db-started-control', controlFile.path];
   const report = { schemaVersion: 1, purpose: 'NON_QUALIFYING_LOCAL_STARTUP_DIAGNOSTIC', checkedAt: new Date().toISOString(), mode, localChecksPassed: true, bootstrapFresh, bootstrapAgeMs: ageMs, launchPermitted: bootstrapFresh, sourceId: cfg.sourceId, sourceConfigSha256: cfg.sourceConfigSha256, candidateId: row.id, cwd: repo, outputRoot: root, diagnosticsMustBeCreatedByOriginalWrapper: diagnostics, inputs: files.map(file => ({ path: file.path, sha256: sha(file.bytes) })), runtime, nodeRuntime, machineDiagnostics: { profile: { stdout: nodeProof.stdout, stderr: nodeProof.stderr }, runtime: { stdout: helper.stdout, stderr: helper.stderr } }, command, noNetworkDuringPreflight: true, noDatabaseDuringPreflight: true };
   const reportPath = join(checks, `preflight-${randomUUID()}.json`);
   await writeFile(reportPath, JSON.stringify(report, null, 2) + '\n', { flag: 'wx', mode: 0o600 });

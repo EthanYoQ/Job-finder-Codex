@@ -1,240 +1,30 @@
 {
   "schemaVersion": 1,
   "scope": "Unbound host source, static configuration templates, synthetic test code and exact regeneration inputs",
-  "reviewedPlanSha256": "8bc19da3dbec5e1b367e3f6fc3b50c8f36bc963e8ab80a0cb3a0eb53da5043d9",
+  "reviewedPlanSha256": "e3a290d1e8fc9686d1203e2a19ccc20bfc09a79b69a559cbca481a7bb92f538d",
   "additionalExclusions": {},
   "sourceExecutionPerformed": false,
   "sourceFiles": [
     {
+      "path": "GSK-LOCATION-SOURCE.patch",
+      "mode": "100644",
+      "bytes": 31018,
+      "sha256": "bc3b42bdd6d5c7aec314e959eb402a136c8f97e7c47a48b972de8c29710c8ee0",
+      "sha": "86ecc00a5326a522f1d4ec214db7afaae1c77645"
+    },
+    {
+      "path": "NEW_LOCAL_BUILD_IDENTITY.json",
+      "mode": "100644",
+      "bytes": 352,
+      "sha256": "ee743be33e79856b9dbf7bff569cc3560c58e8816b344ccd1ab46689eae8d950",
+      "sha": "2e6003fd73e24ff213ae82b4e094ecd3457cf0f9"
+    },
+    {
       "path": "RESTORE_DEPENDENCIES.json",
       "mode": "100644",
-      "bytes": 2954,
-      "sha256": "e563a932f47a74f9896c8851a38295602075ff9587447998b79d02d9c2a95d3e",
-      "sha": "482337dfca3c4009847dc009c83fd6a4ff3b5882"
-    },
-    {
-      "path": "hosts/cttq/host/archive-transfer.mjs",
-      "mode": "100644",
-      "bytes": 1777,
-      "sha256": "698e966e5552967845a5252d2b3df2acca28dcd8dbbb0ae41755a3a6231e6a99",
-      "sha": "5a454d21f34f9680221bbee2c98b3fecb94884f0"
-    },
-    {
-      "path": "hosts/cttq/host/context-read.sql.template",
-      "mode": "100644",
-      "bytes": 2347,
-      "sha256": "11fe6157d263b1991707b476fd9b93364351f6285d800f4627a6ac83fe7ba6fd",
-      "sha": "994be2924a1301e41a9ce56dc79106b89755c738"
-    },
-    {
-      "path": "hosts/cttq/host/context-template-proof.json",
-      "mode": "100644",
-      "bytes": 2312,
-      "sha256": "6da884f4fb01e55bbb13aeb2bac225363565163391272299a0170e3845a46060",
-      "sha": "519a4f06ab48d36f03b2da8e5398e5cfe61dd9fe"
-    },
-    {
-      "path": "hosts/cttq/host/control-base.template.json",
-      "mode": "100644",
-      "bytes": 467,
-      "sha256": "3634b5cc4c996565263cdae4b168cb519556c2401367f33511b426fd0ae48897",
-      "sha": "f315252ccc1b63c4b75f86f3ab6dcacdccbeaa1d"
-    },
-    {
-      "path": "hosts/cttq/host/host-config.json",
-      "mode": "100644",
-      "bytes": 501,
-      "sha256": "1317a4a06122e29c6b9940bd3e37dc3707fcf2067b3714674b950aff1553affd",
-      "sha": "c0b48a0c979b2b3fcefb17540eaba0e2e9c078af"
-    },
-    {
-      "path": "hosts/cttq/host/host-config.template.json",
-      "mode": "100644",
-      "bytes": 501,
-      "sha256": "1317a4a06122e29c6b9940bd3e37dc3707fcf2067b3714674b950aff1553affd",
-      "sha": "c0b48a0c979b2b3fcefb17540eaba0e2e9c078af"
-    },
-    {
-      "path": "hosts/cttq/host/host-files.mts",
-      "mode": "100644",
-      "bytes": 4077,
-      "sha256": "c8033565b3c368bf369fc7507f9d1ff8fa87bc0dde0a84a10a95373473dc6f3a",
-      "sha": "8c8f201640071565320343e74c6919d1e83fd9b5"
-    },
-    {
-      "path": "hosts/cttq/host/host-helper-functions.js",
-      "mode": "100644",
-      "bytes": 9738,
-      "sha256": "8be7694039f38529a0bb04520ebe975c7620af64d66d24f7d0c71e9289dd47c6",
-      "sha": "1552472768c9b7fcf5264bc3659ace53488820d2"
-    },
-    {
-      "path": "hosts/cttq/host/host-stage-functions.js",
-      "mode": "100644",
-      "bytes": 6534,
-      "sha256": "25a23a4e44b55fe3de8d9700d66765ed7b95499e993c566559fd9bc3511f34be",
-      "sha": "f9309ce04d235f32d92d3b2c1df5c133750d6e45"
-    },
-    {
-      "path": "hosts/cttq/host/machine-json.js",
-      "mode": "100644",
-      "bytes": 807,
-      "sha256": "3484738bd095a9d57da70c6392af78865a53759a9e8499316941157b6210e9f6",
-      "sha": "7b927e85ca286ffa900ca93462deee5b9988ed49"
-    },
-    {
-      "path": "hosts/cttq/host/owner-binding-input.template.json",
-      "mode": "100644",
-      "bytes": 611,
-      "sha256": "c7143ebefc6b673dc5da9321808bfd691df38c6ed73eb9640ab905b9bf93711b",
-      "sha": "b94cb6fc4f6f4dfe65951055e4c1099222464acd"
-    },
-    {
-      "path": "hosts/cttq/host/relay-files.mjs",
-      "mode": "100644",
-      "bytes": 7906,
-      "sha256": "c72df8861c74d864c99a24969ca00ff86e05c971606e1478bc9ef786e05c0a18",
-      "sha": "1078001564873bdce88bc05c59f9287ef775d177"
-    },
-    {
-      "path": "hosts/cttq/host/runtime/complete-reviewed-source-readback.js",
-      "mode": "100644",
-      "bytes": 5693,
-      "sha256": "fde84e1a283f6c6ed2eee2907c47190edb96177c753fd3724d15695b2278ed76",
-      "sha": "8745b605a19d830e48e161feb7946db49cfe72e9"
-    },
-    {
-      "path": "hosts/cttq/host/runtime/continuous-relay-v3-durable-monitor.js",
-      "mode": "100644",
-      "bytes": 5148,
-      "sha256": "19298ab13547345f63d4bcd153a9e805dec5fe9994c2e16c1288c418a5ff3987",
-      "sha": "5fc10cdedea76e50048ff00786faa3694e43228b"
-    },
-    {
-      "path": "hosts/cttq/host/runtime/inspect-host-binding.mts",
-      "mode": "100644",
-      "bytes": 3272,
-      "sha256": "11ce7f25fa48a23e8559712f32b7eb5218e5caa617bf4cdf08b17b3085cd28af",
-      "sha": "2ac95e486b0d7de70c63bc8079a1c9ad8871bcc5"
-    },
-    {
-      "path": "hosts/cttq/host/runtime/load-host-state.js",
-      "mode": "100644",
-      "bytes": 5299,
-      "sha256": "8f383577fd9cc0e377ad5f1cb50594cb77ff70e94e2b03499bd367d20fb1ace1",
-      "sha": "d7e0b0fe4c4e5ec0dc7f6583bbb6968568deda3f"
-    },
-    {
-      "path": "hosts/cttq/host/runtime/load-host-state.unbound.template.js",
-      "mode": "100644",
-      "bytes": 5299,
-      "sha256": "8f383577fd9cc0e377ad5f1cb50594cb77ff70e94e2b03499bd367d20fb1ace1",
-      "sha": "d7e0b0fe4c4e5ec0dc7f6583bbb6968568deda3f"
-    },
-    {
-      "path": "hosts/cttq/host/runtime/load-source-runtime.js",
-      "mode": "100644",
-      "bytes": 2371,
-      "sha256": "f66a7c782944649abda487cd46b9896a732ee4d17a93ab3dd7c1f79ecfed0a29",
-      "sha": "4c453481c1f6d5835e60870f323e508a3319ffdc"
-    },
-    {
-      "path": "hosts/cttq/host/runtime/machine-json.py",
-      "mode": "100644",
-      "bytes": 1119,
-      "sha256": "67611e749eddc6bf8c591fef11f2efa82e2a73ce0bb51b2779fab4ae68b77f50",
-      "sha": "3dda394ae2fe15b8740c8db2f0adcf6a9e19e3cf"
-    },
-    {
-      "path": "hosts/cttq/host/runtime/preflight/preflight-launch.mjs",
-      "mode": "100644",
-      "bytes": 11017,
-      "sha256": "ab4cffa673ada36078014e20778eeea39d8e5fb208d04f54dc3ff0913a73d2de",
-      "sha": "8dc9163aa18f6f8106aafadb2b258e09a3513e72"
-    },
-    {
-      "path": "hosts/cttq/host/runtime/preflight/runtime-check.mjs",
-      "mode": "100644",
-      "bytes": 3815,
-      "sha256": "e01c5b953283535757e2fcc67df80dd3e86948709dde0b488235a7edee017785",
-      "sha": "275890f0f3584e99e0f0f57a4492fd95ad6c248d"
-    },
-    {
-      "path": "hosts/cttq/host/runtime/prepare-owner-binding.mts",
-      "mode": "100644",
-      "bytes": 8107,
-      "sha256": "fe3dd867228c73cb7b08ca681b2a6e585a87f4633888aa4035fe40daac0b7774",
-      "sha": "a28b0a698efc560d60c88cc656badca801dc70c5"
-    },
-    {
-      "path": "hosts/cttq/host/runtime/prepare-registered-control.mts",
-      "mode": "100644",
-      "bytes": 123,
-      "sha256": "75b04c3bf46a0c81529e1322c74a02ccddb88b6edb161c39e36fc082ad1c89d8",
-      "sha": "323b7860456a264d9c9f144e7343376ba43131d1"
-    },
-    {
-      "path": "hosts/cttq/host/runtime/review-packet-envelope.mts",
-      "mode": "100644",
-      "bytes": 5535,
-      "sha256": "40cb1e3ede867f0e9d171605e7454fc71a6f774dfdf910f68ff668722bba69cb",
-      "sha": "a550d0fd80f032ae7ed2633e88b2cd2c748c6969"
-    },
-    {
-      "path": "hosts/cttq/host/runtime/review-publication.py",
-      "mode": "100644",
-      "bytes": 5757,
-      "sha256": "6ab4f8bac9cef4f40ce9f21bb70e97c6485e224c468fca245b2273b1b19e3a0b",
-      "sha": "5e21056b3c3a980e5d02cc9b8795b2db4701713f"
-    },
-    {
-      "path": "hosts/cttq/host/runtime/update-candidate-completion-state.mjs",
-      "mode": "100644",
-      "bytes": 3654,
-      "sha256": "ae5ad99411b014c8ffff615a0b06af1e1fdfd2ed7f7265c9c9cee0128339bb06",
-      "sha": "ec886e3dd2b52805daccddcdcd862b6afbaeec29"
-    },
-    {
-      "path": "hosts/cttq/host/source-config-reference.json",
-      "mode": "100644",
-      "bytes": 895,
-      "sha256": "a82f29b71267f84dedfc6d84e6de8877d501f79077b2cb3a4fd2b7a5767ccf8b",
-      "sha": "f703d90dee4fe5ab0e78c6f2a7691655b3d0b329"
-    },
-    {
-      "path": "hosts/cttq/supervision/inspect-launch-identity.mjs",
-      "mode": "100644",
-      "bytes": 871,
-      "sha256": "7bc818ae831081b7e91819ad772b950d08e7d06dc741730c0bd54698d6fe8b37",
-      "sha": "0fc3dd6c1dde3cc7759848f18c795792c38c800c"
-    },
-    {
-      "path": "hosts/cttq/supervision/sample_process_tree.py",
-      "mode": "100644",
-      "bytes": 13065,
-      "sha256": "3fa6daa1af1afee94d19801edfd8bcb538e1243476b5adb253e50de162a27bd6",
-      "sha": "5c2924dc067309525018e4903741dc33e796b546"
-    },
-    {
-      "path": "hosts/cttq/supervision/start-monitor-cttq51-combined.js",
-      "mode": "100644",
-      "bytes": 14735,
-      "sha256": "6261c1a57a54e544dbae13267b676a48c2750fc15e60f83dd088ebf495a0bdc1",
-      "sha": "8b60f58073f6f792441011994f5461e27ddeed2e"
-    },
-    {
-      "path": "hosts/cttq/supervision/start-monitor-cttq51-combined.unbound.template.js",
-      "mode": "100644",
-      "bytes": 14735,
-      "sha256": "6261c1a57a54e544dbae13267b676a48c2750fc15e60f83dd088ebf495a0bdc1",
-      "sha": "8b60f58073f6f792441011994f5461e27ddeed2e"
-    },
-    {
-      "path": "hosts/cttq/supervision/supervise-cancel.mjs",
-      "mode": "100644",
-      "bytes": 10232,
-      "sha256": "083435a5344a47b86f84184bbe1d2711b0d35def4670afb2ab3c8391ed442e7e",
-      "sha": "efe376ba3dbe501d5a2b1bece2c7ac46471aca7d"
+      "bytes": 9402,
+      "sha256": "486b596aafe5a1be89b870d010ee92e73e70d8076303a1ffafcb802a7a7653ba",
+      "sha": "555e5670e61f04e6747d361877fa541d03e8c3dd"
     },
     {
       "path": "hosts/gsk/host/archive-transfer.mjs",
@@ -244,46 +34,39 @@
       "sha": "5a454d21f34f9680221bbee2c98b3fecb94884f0"
     },
     {
-      "path": "hosts/gsk/host/context-read.sql.template",
-      "mode": "100644",
-      "bytes": 2372,
-      "sha256": "d928a0512ab1db3ec1db035107b58d2df00fb21854445f36d7cc6d2b3cc42ac8",
-      "sha": "fb7d6297f92ab8334d896ce265d50b2e0423ceae"
-    },
-    {
       "path": "hosts/gsk/host/context-template-proof.json",
       "mode": "100644",
       "bytes": 2397,
-      "sha256": "2e4e0470cc65437cad6f13854fc0d3559cbbf4aca93aa0cce2a3223948bc2726",
-      "sha": "bb489265c7716314913e231803151f521dc083c4"
+      "sha256": "931325b72199a16577f3a21c37a2f60e858f66c2bb5b0d208527de25e3c8e453",
+      "sha": "c8c3894d6a66e77ac9f2533148573c4d7d9f1345"
     },
     {
       "path": "hosts/gsk/host/control-base.template.json",
       "mode": "100644",
       "bytes": 467,
-      "sha256": "3634b5cc4c996565263cdae4b168cb519556c2401367f33511b426fd0ae48897",
-      "sha": "f315252ccc1b63c4b75f86f3ab6dcacdccbeaa1d"
+      "sha256": "adf5bddebb488c00afd77fdb5c0e03e0e93c1d5cfb4c2e8d466de241170d6433",
+      "sha": "900289605958c4ed5ccabacd07ade509ff6a434f"
     },
     {
       "path": "hosts/gsk/host/host-config.json",
       "mode": "100644",
-      "bytes": 505,
-      "sha256": "03e98ea94e9bb8449db13c8ec8231821ced0f92e22909711d0ce2745e8d00836",
-      "sha": "0503ca3945ae64f9280a9548dd210b9bb55d8741"
+      "bytes": 559,
+      "sha256": "7136927fe7be357c09b99a7210d9f12e6cdcd3e4baaafc0d3d6060a3654d29f1",
+      "sha": "871a4618d9ceff37849f5d43f43dc29c919c9d13"
     },
     {
       "path": "hosts/gsk/host/host-config.template.json",
       "mode": "100644",
-      "bytes": 505,
-      "sha256": "03e98ea94e9bb8449db13c8ec8231821ced0f92e22909711d0ce2745e8d00836",
-      "sha": "0503ca3945ae64f9280a9548dd210b9bb55d8741"
+      "bytes": 559,
+      "sha256": "7136927fe7be357c09b99a7210d9f12e6cdcd3e4baaafc0d3d6060a3654d29f1",
+      "sha": "871a4618d9ceff37849f5d43f43dc29c919c9d13"
     },
     {
       "path": "hosts/gsk/host/host-files.mts",
       "mode": "100644",
-      "bytes": 4077,
-      "sha256": "c8033565b3c368bf369fc7507f9d1ff8fa87bc0dde0a84a10a95373473dc6f3a",
-      "sha": "8c8f201640071565320343e74c6919d1e83fd9b5"
+      "bytes": 4104,
+      "sha256": "1a99c905305cf3aa1bf0ce6e03143c65f40d22bb5c80ebc5422ce05138539113",
+      "sha": "66ecfc75f56121161b25c142e99f7ef39904e489"
     },
     {
       "path": "hosts/gsk/host/host-helper-functions.js",
@@ -295,9 +78,9 @@
     {
       "path": "hosts/gsk/host/host-stage-functions.js",
       "mode": "100644",
-      "bytes": 6535,
-      "sha256": "c62c99885b84e6c19b560afd4d4f8b3ef84e16085c4b1a7609d569757054be4d",
-      "sha": "346e8f7745f7b6cb6c6c73a36da198595bafb749"
+      "bytes": 6589,
+      "sha256": "baaad5b505cf0cccd811e470b445b609951d4b8fbf05bc3c10300e62c43ab869",
+      "sha": "ed871f02ea87285cc24805dcdd61d42e783d82ac"
     },
     {
       "path": "hosts/gsk/host/machine-json.js",
@@ -310,15 +93,15 @@
       "path": "hosts/gsk/host/owner-binding-input.template.json",
       "mode": "100644",
       "bytes": 616,
-      "sha256": "2f002335dfe91f6632721c68e4ab23dade60a0c4323ed9facf40158f0d7aca57",
-      "sha": "01d74de664744bcd366f41cb60e0d97bfb8a07d7"
+      "sha256": "df19eaee21c5c137472add321367800252e73abe03a83895cb3aab7c75351808",
+      "sha": "3ae207bc19904ea3732049f34c0160886643aeed"
     },
     {
       "path": "hosts/gsk/host/relay-files.mjs",
       "mode": "100644",
-      "bytes": 7905,
-      "sha256": "c1947f71261a068ee86afca844d9d5eec60aa6f301aad7c6a4dc04500191a846",
-      "sha": "9fbb0cbc880d84c3675ed60e2b9590f00bcc6a13"
+      "bytes": 7932,
+      "sha256": "c31b36e5bfb766a8b5d838d0b77dde2bac18ae1c138b5bf1513ae928bf1d36f0",
+      "sha": "57553143aa4f36ce845b731f3df24781fcbffc54"
     },
     {
       "path": "hosts/gsk/host/runtime/complete-reviewed-source-readback.js",
@@ -337,30 +120,30 @@
     {
       "path": "hosts/gsk/host/runtime/inspect-host-binding.mts",
       "mode": "100644",
-      "bytes": 3272,
-      "sha256": "11ce7f25fa48a23e8559712f32b7eb5218e5caa617bf4cdf08b17b3085cd28af",
-      "sha": "2ac95e486b0d7de70c63bc8079a1c9ad8871bcc5"
+      "bytes": 3204,
+      "sha256": "128adeb5467ee401b3d9ac5a45bf439bc0e22cea1074389e7c1706f136afcd5e",
+      "sha": "4a36b0d7fc661805e60864946b9cb3f7e5d14ab0"
     },
     {
       "path": "hosts/gsk/host/runtime/load-host-state.js",
       "mode": "100644",
-      "bytes": 5298,
-      "sha256": "c306585770c0a39b9361ed0c5f8b5ad886b801d108a982f2523791b490cc0d51",
-      "sha": "4189d090f69365217cdcdf3ea52da850084aa302"
+      "bytes": 5284,
+      "sha256": "56037dc6f5d38b923798b5b9cb3cb98b1be4a01e1ca3172dc912ace1e6c18924",
+      "sha": "f1856cf4f47873022b6473611de8643615a71da9"
     },
     {
       "path": "hosts/gsk/host/runtime/load-host-state.unbound.template.js",
       "mode": "100644",
-      "bytes": 5298,
-      "sha256": "c306585770c0a39b9361ed0c5f8b5ad886b801d108a982f2523791b490cc0d51",
-      "sha": "4189d090f69365217cdcdf3ea52da850084aa302"
+      "bytes": 5284,
+      "sha256": "56037dc6f5d38b923798b5b9cb3cb98b1be4a01e1ca3172dc912ace1e6c18924",
+      "sha": "f1856cf4f47873022b6473611de8643615a71da9"
     },
     {
       "path": "hosts/gsk/host/runtime/load-source-runtime.js",
       "mode": "100644",
-      "bytes": 2363,
-      "sha256": "3aae5b18694e69487f8b667ffce6ab3ae41a1853b1ce5a84dc8631549ebb8bd8",
-      "sha": "e3d172b9365d2a92ac03db8b7df172f4b1a316c1"
+      "bytes": 2426,
+      "sha256": "ea2459ffd19b46017f15d5525ef8bc074fdda511771efec2eb7a90e8379c72e4",
+      "sha": "d8a609c81ef84a4df06f143695472b95f0408552"
     },
     {
       "path": "hosts/gsk/host/runtime/machine-json.py",
@@ -372,23 +155,23 @@
     {
       "path": "hosts/gsk/host/runtime/preflight/preflight-launch.mjs",
       "mode": "100644",
-      "bytes": 11017,
-      "sha256": "ab4cffa673ada36078014e20778eeea39d8e5fb208d04f54dc3ff0913a73d2de",
-      "sha": "8dc9163aa18f6f8106aafadb2b258e09a3513e72"
+      "bytes": 11069,
+      "sha256": "7c7a94038fb42975ae50a98757a1c5f12dfe7c90db9d86a074550f1351e5caaa",
+      "sha": "0ecae0f412a40e0bd671e32e8bba3d0f218bef47"
     },
     {
       "path": "hosts/gsk/host/runtime/preflight/runtime-check.mjs",
       "mode": "100644",
-      "bytes": 3815,
-      "sha256": "e01c5b953283535757e2fcc67df80dd3e86948709dde0b488235a7edee017785",
-      "sha": "275890f0f3584e99e0f0f57a4492fd95ad6c248d"
+      "bytes": 4099,
+      "sha256": "8c5a8a018bfe07f7b38c703811f48b0be23426af0299ecbdf3005be4e47dc48a",
+      "sha": "1cc8f59fc18a6558a59b3ea0b20ff6b325cbb0bb"
     },
     {
       "path": "hosts/gsk/host/runtime/prepare-owner-binding.mts",
       "mode": "100644",
-      "bytes": 8115,
-      "sha256": "a1c386a3969e543d67b8f12b5b785c23593dd3a361417bd174f7c3a4a901a087",
-      "sha": "0beef565902b8bc3fa1029f9f22eb547f6f55133"
+      "bytes": 8182,
+      "sha256": "80f4d793abdb8686f7629c0def26cb1d1837e5445877aa0e9e4e108590244360",
+      "sha": "a341c478bd6b00989ad0fc543be741b21bc40af4"
     },
     {
       "path": "hosts/gsk/host/runtime/prepare-registered-control.mts",
@@ -421,9 +204,9 @@
     {
       "path": "hosts/gsk/host/source-config-reference.json",
       "mode": "100644",
-      "bytes": 902,
-      "sha256": "447914182e379b00a7f1eee3906c094461d32956661b95cb83ae9d7b8b6ca774",
-      "sha": "3f9540bf8ea659b48715c5f1d73fefb5eaf11d5c"
+      "bytes": 904,
+      "sha256": "f8b68a0827377c0370c3731c57cdc1d6e1fd29a6601b39ba8b7c62d08ace8c16",
+      "sha": "e04948d875684554a90e83fdf39864db52dff5d0"
     },
     {
       "path": "hosts/gsk/supervision/inspect-launch-identity.mjs",
@@ -440,25 +223,25 @@
       "sha": "5c2924dc067309525018e4903741dc33e796b546"
     },
     {
-      "path": "hosts/gsk/supervision/start-monitor-gsk51-combined.js",
+      "path": "hosts/gsk/supervision/start-monitor-gsk-next-combined.js",
       "mode": "100644",
-      "bytes": 14719,
-      "sha256": "98525de958dd5289eb647285ecccf78bb94f835f79c60b21b7cde454bc2fcbae",
-      "sha": "8dec01e3d76a065a2d17826da17213c73006da82"
+      "bytes": 15032,
+      "sha256": "a49dc63fb72f28d0b64ea3421942309aaaafa0d180a465f9fd2c53931d896339",
+      "sha": "2bdedfe6d815b37617572ce9e5451a0080df0e3d"
     },
     {
-      "path": "hosts/gsk/supervision/start-monitor-gsk51-combined.unbound.template.js",
+      "path": "hosts/gsk/supervision/start-monitor-gsk-next-combined.unbound.template.js",
       "mode": "100644",
-      "bytes": 14719,
-      "sha256": "98525de958dd5289eb647285ecccf78bb94f835f79c60b21b7cde454bc2fcbae",
-      "sha": "8dec01e3d76a065a2d17826da17213c73006da82"
+      "bytes": 15032,
+      "sha256": "a49dc63fb72f28d0b64ea3421942309aaaafa0d180a465f9fd2c53931d896339",
+      "sha": "2bdedfe6d815b37617572ce9e5451a0080df0e3d"
     },
     {
       "path": "hosts/gsk/supervision/supervise-cancel.mjs",
       "mode": "100644",
-      "bytes": 10232,
-      "sha256": "083435a5344a47b86f84184bbe1d2711b0d35def4670afb2ab3c8391ed442e7e",
-      "sha": "efe376ba3dbe501d5a2b1bece2c7ac46471aca7d"
+      "bytes": 10259,
+      "sha256": "c86259a8bd54bb936367644952a31ffea3d4664c8db338915a714b764038be4f",
+      "sha": "530dfd7294dd79b18b2da8ccda2805905faadc7c"
     },
     {
       "path": "no-network.cjs",
@@ -468,375 +251,410 @@
       "sha": "1199b946b2c19c0557f5bf9239b120189ac45a30"
     },
     {
-      "path": "owner-adaptations/true-a-cttq-gsk-20261007T1348Z/baseline-manifest.json",
+      "path": "owner-adaptations/gsk-true-a-1537Z/baseline-manifest.json",
       "mode": "100644",
-      "bytes": 2589,
-      "sha256": "4fa4d6ff6c11a1317e414d9fca109826fdfe67c5f13ed649542bead3bc6e4319",
-      "sha": "33dca019c6b9c73c3d4693066c877bc3daddbec5"
+      "bytes": 1544,
+      "sha256": "430be8c3a1e42ba9bc0abed11c0aab31bf5d453fab2b54678afc843160b97115",
+      "sha": "0e2dd786df56909f45f073419519d4beb67fafd2"
     },
     {
-      "path": "owner-adaptations/true-a-cttq-gsk-20261007T1348Z/build-fragments.py",
+      "path": "owner-adaptations/gsk-true-a-1537Z/build-fragments.py",
       "mode": "100644",
       "bytes": 4463,
       "sha256": "1f03fee8b375360bd6294b09fed5eccbbe1787bda8f5cf5523c743bde23de28e",
       "sha": "fe3faea145e2d549d371677a3cfc5b70fb7634d2"
     },
     {
-      "path": "owner-adaptations/true-a-cttq-gsk-20261007T1348Z/preload-owner.exec.js",
+      "path": "owner-adaptations/gsk-true-a-1537Z/preload-owner.exec.js",
       "mode": "100644",
-      "bytes": 2746,
-      "sha256": "a4de1e4149e8ddd76b1ebcf3fede6928e4dd19e2816c796172ce5bd4ede21d50",
-      "sha": "bd2b6e11575a59e583c746f91caf66dcc80d403c"
+      "bytes": 2759,
+      "sha256": "121ba9fc287455cf63903fa5aa4619182013bc16ebeb60efb1ecd158dcd3d013",
+      "sha": "305e7afbd1ac264af00062e70bd0d2b9ccea7799"
     },
     {
-      "path": "owner-adaptations/true-a-cttq-gsk-20261007T1348Z/publish-and-monitor-owner.js",
+      "path": "owner-adaptations/gsk-true-a-1537Z/publish-and-monitor-owner.js",
       "mode": "100644",
-      "bytes": 10947,
-      "sha256": "78a716a79d905dc7bb02715967c43b74566d496bea5b6c24a2d6139dbb1f1894",
-      "sha": "0dd4a4418305703482f62d135c4e129f5c8f8dc1"
+      "bytes": 11168,
+      "sha256": "f50afb91e8006b14a1336e09fc917606d834220aec5e8980d9c71697ae8bf344",
+      "sha": "3cf426eda6686f035b06c8f6f352faef5b61a9c9"
     },
     {
-      "path": "owner-adaptations/true-a-cttq-gsk-20261007T1348Z/publish-reviewed-and-monitor.exec.js",
+      "path": "owner-adaptations/gsk-true-a-1537Z/publish-reviewed-and-monitor.exec.js",
       "mode": "100644",
       "bytes": 1398,
-      "sha256": "56607634facc379fba8b401258d490abb258ba993aeabdf6865d4bd63296ed9d",
-      "sha": "cfca76156031fb8205befce9ad497289734a340c"
+      "sha256": "a5c4d92bc710a47bf5fad648b8f3b61f9ac900cbcb8d0656557ba49e8398bdd7",
+      "sha": "a9d5d01099260ed13d722ba55787d74ec5c46982"
     },
     {
-      "path": "owner-adaptations/true-a-cttq-gsk-20261007T1348Z/tests/generate-full-chain-tests.py",
+      "path": "owner-adaptations/gsk-true-a-1537Z/tests/generate-full-chain-tests.py",
       "mode": "100644",
-      "bytes": 2792,
-      "sha256": "18c90192838a450ce6723b414c7aa097fad42c33f10757410855b77375cda91f",
-      "sha": "8596e3eff0eaee136f1ff3d56f3806e83a5f81f6"
+      "bytes": 2739,
+      "sha256": "17e90b0d2d4821e234d6baf8cb9f2fbe2a99b43d2111a9aa805f721d1452b8f5",
+      "sha": "20be738583e03364d86d774b33819117a568c023"
     },
     {
-      "path": "owner-adaptations/true-a-cttq-gsk-20261007T1348Z/tests/generated-cttq-full-chain.test.mjs",
+      "path": "owner-adaptations/gsk-true-a-1537Z/tests/generated-gsk-full-chain.test.mjs",
       "mode": "100644",
-      "bytes": 21518,
-      "sha256": "f8e56a7d5c668f8158254fc22429f8e01437cdf38e6c6807836cd4b279730a8d",
-      "sha": "22e282813f608ea8913dec48bfdc89a1d78df518"
+      "bytes": 22121,
+      "sha256": "6320808d9433a18e7fd28a9d86c01021f147e372a34364672adbbe48a0cb0015",
+      "sha": "d385c20a9d4450224cbb6fae363b84eff6fc2ac2"
     },
     {
-      "path": "owner-adaptations/true-a-cttq-gsk-20261007T1348Z/tests/generated-gsk-full-chain.test.mjs",
+      "path": "owner-adaptations/gsk-true-a-1537Z/tests/key-and-preload.test.mjs",
       "mode": "100644",
-      "bytes": 21517,
-      "sha256": "0a281b597a8020460cac331eb164cc9d8094b88705b3a791d4168b91e477ce63",
-      "sha": "a0785d77da1ed3eb78c738d177ca8a0895acc35f"
+      "bytes": 3875,
+      "sha256": "80b6617462b7ecbf17a64177293fb5372f94e7ea5cfec2cb2b67ec99af8f17f8",
+      "sha": "1f9294b0ca377c2f5d005d24dff177854301f19d"
     },
     {
-      "path": "owner-adaptations/true-a-cttq-gsk-20261007T1348Z/tests/key-and-preload.test.mjs",
+      "path": "owner-adaptations/gsk-true-a-1537Z/tests/owner.test.mjs",
       "mode": "100644",
-      "bytes": 3890,
-      "sha256": "323c8baf68894f3664608c24d2b2a8fdad507b45dc11550375d3900974f73873",
-      "sha": "c85a21bfc4789c9e399ca73a93e6e1359f83a5ac"
+      "bytes": 20856,
+      "sha256": "be3181a3745a2418b29d355452962b483a68b70767b62243cfa7866fb7516f37",
+      "sha": "ade700b778ca3f5d82b58ad4e9a19b7616b81efc"
     },
     {
-      "path": "owner-adaptations/true-a-cttq-gsk-20261007T1348Z/tests/owner.test.mjs",
-      "mode": "100644",
-      "bytes": 20267,
-      "sha256": "8c0e2c462df58522166a01f8c08afc39e7dc73d3de76f13bcb67ac8d3dd1d11c",
-      "sha": "4a9fc60975b54ba2d0c32af50c40b73f754c885e"
-    },
-    {
-      "path": "owner-adaptations/true-a-cttq-gsk-20261007T1348Z/tests/real-apply-patch-terminal-fixture.json",
+      "path": "owner-adaptations/gsk-true-a-1537Z/tests/real-apply-patch-terminal-fixture.json",
       "mode": "100644",
       "bytes": 195,
       "sha256": "aff94e02c5266ff389e8cbd2da3774b9eaf00cbf204bf9484a1b5eaace576f2e",
       "sha": "2bb6d2d309c400a32ab73ce3dbdcf1760102319f"
     },
     {
-      "path": "verification/true-a-cttq-gsk-preparation-20261007T1348Z/baseline-source-plan.json",
+      "path": "producer/src/crawler/gskMokaDetailLocations.ts",
       "mode": "100644",
-      "bytes": 13506,
-      "sha256": "51e746c2ad1ebf8e1d3e62e312e65043dd97e85f71faa99940a8f64c3cf9bfde",
-      "sha": "7291ff745cf1681dad97aeb581f3fd77dfc0e3cb"
+      "bytes": 6195,
+      "sha256": "a187fedae4fe17dc36028989a42d5ab88ece68ebc11f8860d3349807b76feefc",
+      "sha": "6ad34d37601e7d4e994dae4eeb5067e793c08661"
     },
     {
-      "path": "verification/true-a-cttq-gsk-preparation-20261007T1348Z/generate-context.mts",
+      "path": "producer/src/crawler/mokaSourceFetch.ts",
       "mode": "100644",
-      "bytes": 3718,
-      "sha256": "84292e7520f8e47233a4700963467cd4c5a84b69bd0ff31fbb5ceb89b5533e54",
-      "sha": "c1bb1ca68b2bff031abd346129bddc7ee0da44c8"
+      "bytes": 63666,
+      "sha256": "c79dc06445753bb91d715c54fbacd4da88a40d0c2e14969b6f2764cb12dedc2b",
+      "sha": "4f5aa04315d0366073335e1837810ef1db667fe3"
     },
     {
-      "path": "verification/true-a-cttq-gsk-preparation-20261007T1348Z/host-base/host/archive-transfer.mjs",
+      "path": "producer/src/crawler/runSourceCrawl.ts",
+      "mode": "100644",
+      "bytes": 263791,
+      "sha256": "bc79baea47d8f141d570f82e2f62c3e666f404f84f92aa1c6d57345ea825f449",
+      "sha": "c9da7265e9f23e58bb8838ec47791eade86f1e88"
+    },
+    {
+      "path": "producer/tests/crawler/gskMokaDetailLocations.test.ts",
+      "mode": "100644",
+      "bytes": 13590,
+      "sha256": "ab36800930e090b8b2f4ad1f27882b56eb49f79ab37c1812c3461b422560f8fe",
+      "sha": "7e7d2c4dbc6c31987dc32c617f261b7e25a37a26"
+    },
+    {
+      "path": "verification/gsk-host-preparation-1537Z/BASELINE_SOURCE_MANIFEST.json",
+      "mode": "100644",
+      "bytes": 11244,
+      "sha256": "a9c6a0ed11f186f8b851bdcdcd424a27844d4132b8f13118e96dccb0608c1ee0",
+      "sha": "e51f04b3e12c1b254d01182988a4d49a0da9555e"
+    },
+    {
+      "path": "verification/gsk-host-preparation-1537Z/baseline/hosts/gsk/host/archive-transfer.mjs",
       "mode": "100644",
       "bytes": 1777,
       "sha256": "698e966e5552967845a5252d2b3df2acca28dcd8dbbb0ae41755a3a6231e6a99",
       "sha": "5a454d21f34f9680221bbee2c98b3fecb94884f0"
     },
     {
-      "path": "verification/true-a-cttq-gsk-preparation-20261007T1348Z/host-base/host/context-read.sql.template",
-      "mode": "100644",
-      "bytes": 2382,
-      "sha256": "d265c8a292d8d610c9e14fb42bde695dfd4d9d9d0a2e9ba36e029a9d8b5c12c7",
-      "sha": "dc5a0b758bad90262557db81013b5fdaffb9f3cf"
-    },
-    {
-      "path": "verification/true-a-cttq-gsk-preparation-20261007T1348Z/host-base/host/control-base.template.json",
+      "path": "verification/gsk-host-preparation-1537Z/baseline/hosts/gsk/host/control-base.template.json",
       "mode": "100644",
       "bytes": 467,
       "sha256": "3634b5cc4c996565263cdae4b168cb519556c2401367f33511b426fd0ae48897",
       "sha": "f315252ccc1b63c4b75f86f3ab6dcacdccbeaa1d"
     },
     {
-      "path": "verification/true-a-cttq-gsk-preparation-20261007T1348Z/host-base/host/host-config.json",
+      "path": "verification/gsk-host-preparation-1537Z/baseline/hosts/gsk/host/host-config.json",
       "mode": "100644",
-      "bytes": 509,
-      "sha256": "35a2afdc60260c1bb675b0b64423f3d9c06a71504df5fd314ee77c69dbdc945f",
-      "sha": "cc880fda5035df3b16fac9e3c7e6c9f8b0367760"
+      "bytes": 505,
+      "sha256": "03e98ea94e9bb8449db13c8ec8231821ced0f92e22909711d0ce2745e8d00836",
+      "sha": "0503ca3945ae64f9280a9548dd210b9bb55d8741"
     },
     {
-      "path": "verification/true-a-cttq-gsk-preparation-20261007T1348Z/host-base/host/host-config.template.json",
+      "path": "verification/gsk-host-preparation-1537Z/baseline/hosts/gsk/host/host-config.template.json",
       "mode": "100644",
-      "bytes": 509,
-      "sha256": "35a2afdc60260c1bb675b0b64423f3d9c06a71504df5fd314ee77c69dbdc945f",
-      "sha": "cc880fda5035df3b16fac9e3c7e6c9f8b0367760"
+      "bytes": 505,
+      "sha256": "03e98ea94e9bb8449db13c8ec8231821ced0f92e22909711d0ce2745e8d00836",
+      "sha": "0503ca3945ae64f9280a9548dd210b9bb55d8741"
     },
     {
-      "path": "verification/true-a-cttq-gsk-preparation-20261007T1348Z/host-base/host/host-files.mts",
+      "path": "verification/gsk-host-preparation-1537Z/baseline/hosts/gsk/host/host-files.mts",
       "mode": "100644",
       "bytes": 4077,
       "sha256": "c8033565b3c368bf369fc7507f9d1ff8fa87bc0dde0a84a10a95373473dc6f3a",
       "sha": "8c8f201640071565320343e74c6919d1e83fd9b5"
     },
     {
-      "path": "verification/true-a-cttq-gsk-preparation-20261007T1348Z/host-base/host/host-helper-functions.js",
+      "path": "verification/gsk-host-preparation-1537Z/baseline/hosts/gsk/host/host-helper-functions.js",
       "mode": "100644",
-      "bytes": 9753,
-      "sha256": "e435807a3accb90b3bb63ce6c132a9b7beabff50c00b24b1f12597d75e243a54",
-      "sha": "91b425170ca01d7a635a48cc062d0a2b8437e949"
+      "bytes": 9735,
+      "sha256": "40c9f124df68fefa400c099dee060e64a3190ebf5f341150b64b55e4e479d300",
+      "sha": "8a1d81b98433a47f79356c232279840b1dd42d58"
     },
     {
-      "path": "verification/true-a-cttq-gsk-preparation-20261007T1348Z/host-base/host/host-stage-functions.js",
+      "path": "verification/gsk-host-preparation-1537Z/baseline/hosts/gsk/host/host-stage-functions.js",
       "mode": "100644",
-      "bytes": 6557,
-      "sha256": "c7960c2df7dd082cfe8071daa0f9a350952c2a827bbf7d5ef44dbdbc0398c452",
-      "sha": "161df497c42624c48c99f0af476bb70e37694068"
+      "bytes": 6535,
+      "sha256": "c62c99885b84e6c19b560afd4d4f8b3ef84e16085c4b1a7609d569757054be4d",
+      "sha": "346e8f7745f7b6cb6c6c73a36da198595bafb749"
     },
     {
-      "path": "verification/true-a-cttq-gsk-preparation-20261007T1348Z/host-base/host/machine-json.js",
+      "path": "verification/gsk-host-preparation-1537Z/baseline/hosts/gsk/host/machine-json.js",
       "mode": "100644",
       "bytes": 807,
       "sha256": "3484738bd095a9d57da70c6392af78865a53759a9e8499316941157b6210e9f6",
       "sha": "7b927e85ca286ffa900ca93462deee5b9988ed49"
     },
     {
-      "path": "verification/true-a-cttq-gsk-preparation-20261007T1348Z/host-base/host/relay-files.mjs",
+      "path": "verification/gsk-host-preparation-1537Z/baseline/hosts/gsk/host/owner-binding-input.template.json",
       "mode": "100644",
-      "bytes": 7907,
-      "sha256": "6cff7c2c0d507dd1542316859c95fed907b1cceee3174e2b2de48689b3b00b9d",
-      "sha": "799df1793342000c8b0edf5e79890f158ecfa66e"
+      "bytes": 616,
+      "sha256": "2f002335dfe91f6632721c68e4ab23dade60a0c4323ed9facf40158f0d7aca57",
+      "sha": "01d74de664744bcd366f41cb60e0d97bfb8a07d7"
     },
     {
-      "path": "verification/true-a-cttq-gsk-preparation-20261007T1348Z/host-base/host/runtime/complete-reviewed-source-readback.js",
+      "path": "verification/gsk-host-preparation-1537Z/baseline/hosts/gsk/host/relay-files.mjs",
       "mode": "100644",
-      "bytes": 5694,
-      "sha256": "e176d105073b225be5fb724be8bbe6cc1b39437bef85d5ebb8587bd6ad240765",
-      "sha": "32b3b5eb2cfc0dec5dae0fea926b1d7b7eb68c6c"
+      "bytes": 7905,
+      "sha256": "c1947f71261a068ee86afca844d9d5eec60aa6f301aad7c6a4dc04500191a846",
+      "sha": "9fbb0cbc880d84c3675ed60e2b9590f00bcc6a13"
     },
     {
-      "path": "verification/true-a-cttq-gsk-preparation-20261007T1348Z/host-base/host/runtime/continuous-relay-v3-durable-monitor.js",
+      "path": "verification/gsk-host-preparation-1537Z/baseline/hosts/gsk/host/runtime/complete-reviewed-source-readback.js",
       "mode": "100644",
-      "bytes": 5160,
-      "sha256": "d9bb23b0c18b260c1ec6b0272682992680d012491d1c3ab19e2ad25116e85f77",
-      "sha": "ceb72baf2820d4fe9601843c3c0d29f83720792c"
+      "bytes": 5692,
+      "sha256": "ee141c861323096f31caf5e37dbf6e93c10a0f35d2bd95a5d3a2f3f25392ba07",
+      "sha": "7b408e2ee8f0ea9b6e6d854b3c34b1c06fa4093a"
     },
     {
-      "path": "verification/true-a-cttq-gsk-preparation-20261007T1348Z/host-base/host/runtime/inspect-host-binding.mts",
+      "path": "verification/gsk-host-preparation-1537Z/baseline/hosts/gsk/host/runtime/continuous-relay-v3-durable-monitor.js",
+      "mode": "100644",
+      "bytes": 5136,
+      "sha256": "5ef029081bc731358cb0e3f8515b9206470c05235d975b22558a2d303f7a6c96",
+      "sha": "3526bd50cc6f56785a247c92d40739c931d82657"
+    },
+    {
+      "path": "verification/gsk-host-preparation-1537Z/baseline/hosts/gsk/host/runtime/inspect-host-binding.mts",
       "mode": "100644",
       "bytes": 3272,
       "sha256": "11ce7f25fa48a23e8559712f32b7eb5218e5caa617bf4cdf08b17b3085cd28af",
       "sha": "2ac95e486b0d7de70c63bc8079a1c9ad8871bcc5"
     },
     {
-      "path": "verification/true-a-cttq-gsk-preparation-20261007T1348Z/host-base/host/runtime/load-host-state.js",
+      "path": "verification/gsk-host-preparation-1537Z/baseline/hosts/gsk/host/runtime/load-host-state.js",
       "mode": "100644",
-      "bytes": 4902,
-      "sha256": "3fb9fde91dbc5bd5458df892b1d5747b184051e3a73992deefcf050fd57cb096",
-      "sha": "cd8f9e6529f91fb48b75a7ac3afd68e8b76e754f"
+      "bytes": 5298,
+      "sha256": "c306585770c0a39b9361ed0c5f8b5ad886b801d108a982f2523791b490cc0d51",
+      "sha": "4189d090f69365217cdcdf3ea52da850084aa302"
     },
     {
-      "path": "verification/true-a-cttq-gsk-preparation-20261007T1348Z/host-base/host/runtime/load-source-runtime.js",
+      "path": "verification/gsk-host-preparation-1537Z/baseline/hosts/gsk/host/runtime/load-host-state.unbound.template.js",
       "mode": "100644",
-      "bytes": 2000,
-      "sha256": "ae049e168e87982138cbba4ce48e8ff600cd5717bee2b87bebd3fe279f02007a",
-      "sha": "937201c1813202c26b510cfadc03817b475e4bdc"
+      "bytes": 5298,
+      "sha256": "c306585770c0a39b9361ed0c5f8b5ad886b801d108a982f2523791b490cc0d51",
+      "sha": "4189d090f69365217cdcdf3ea52da850084aa302"
     },
     {
-      "path": "verification/true-a-cttq-gsk-preparation-20261007T1348Z/host-base/host/runtime/machine-json.py",
+      "path": "verification/gsk-host-preparation-1537Z/baseline/hosts/gsk/host/runtime/load-source-runtime.js",
+      "mode": "100644",
+      "bytes": 2363,
+      "sha256": "3aae5b18694e69487f8b667ffce6ab3ae41a1853b1ce5a84dc8631549ebb8bd8",
+      "sha": "e3d172b9365d2a92ac03db8b7df172f4b1a316c1"
+    },
+    {
+      "path": "verification/gsk-host-preparation-1537Z/baseline/hosts/gsk/host/runtime/machine-json.py",
       "mode": "100644",
       "bytes": 1119,
       "sha256": "67611e749eddc6bf8c591fef11f2efa82e2a73ce0bb51b2779fab4ae68b77f50",
       "sha": "3dda394ae2fe15b8740c8db2f0adcf6a9e19e3cf"
     },
     {
-      "path": "verification/true-a-cttq-gsk-preparation-20261007T1348Z/host-base/host/runtime/preflight/preflight-launch.mjs",
+      "path": "verification/gsk-host-preparation-1537Z/baseline/hosts/gsk/host/runtime/preflight/preflight-launch.mjs",
       "mode": "100644",
       "bytes": 11017,
       "sha256": "ab4cffa673ada36078014e20778eeea39d8e5fb208d04f54dc3ff0913a73d2de",
       "sha": "8dc9163aa18f6f8106aafadb2b258e09a3513e72"
     },
     {
-      "path": "verification/true-a-cttq-gsk-preparation-20261007T1348Z/host-base/host/runtime/preflight/runtime-check.mjs",
+      "path": "verification/gsk-host-preparation-1537Z/baseline/hosts/gsk/host/runtime/preflight/runtime-check.mjs",
       "mode": "100644",
       "bytes": 3815,
       "sha256": "e01c5b953283535757e2fcc67df80dd3e86948709dde0b488235a7edee017785",
       "sha": "275890f0f3584e99e0f0f57a4492fd95ad6c248d"
     },
     {
-      "path": "verification/true-a-cttq-gsk-preparation-20261007T1348Z/host-base/host/runtime/prepare-registered-control.mts",
+      "path": "verification/gsk-host-preparation-1537Z/baseline/hosts/gsk/host/runtime/prepare-owner-binding.mts",
       "mode": "100644",
-      "bytes": 4760,
-      "sha256": "90cb147bc50523423b890837ae82710460eb65bfedf932f15e580b07e685a74b",
-      "sha": "9dbc8aac8249c366aad1905e281b9e95f6c7e3b5"
+      "bytes": 8115,
+      "sha256": "a1c386a3969e543d67b8f12b5b785c23593dd3a361417bd174f7c3a4a901a087",
+      "sha": "0beef565902b8bc3fa1029f9f22eb547f6f55133"
     },
     {
-      "path": "verification/true-a-cttq-gsk-preparation-20261007T1348Z/host-base/host/runtime/review-packet-envelope.mts",
+      "path": "verification/gsk-host-preparation-1537Z/baseline/hosts/gsk/host/runtime/prepare-registered-control.mts",
+      "mode": "100644",
+      "bytes": 123,
+      "sha256": "75b04c3bf46a0c81529e1322c74a02ccddb88b6edb161c39e36fc082ad1c89d8",
+      "sha": "323b7860456a264d9c9f144e7343376ba43131d1"
+    },
+    {
+      "path": "verification/gsk-host-preparation-1537Z/baseline/hosts/gsk/host/runtime/review-packet-envelope.mts",
       "mode": "100644",
       "bytes": 5535,
       "sha256": "40cb1e3ede867f0e9d171605e7454fc71a6f774dfdf910f68ff668722bba69cb",
       "sha": "a550d0fd80f032ae7ed2633e88b2cd2c748c6969"
     },
     {
-      "path": "verification/true-a-cttq-gsk-preparation-20261007T1348Z/host-base/host/runtime/review-publication.py",
+      "path": "verification/gsk-host-preparation-1537Z/baseline/hosts/gsk/host/runtime/review-publication.py",
       "mode": "100644",
-      "bytes": 5764,
-      "sha256": "baa95c5997c7142b164895fa1ecfe6cab396fefd8623625e3a0398d06c70c254",
-      "sha": "7a6c606928fa0318f53c89c912d15e1710fbe8b3"
+      "bytes": 5762,
+      "sha256": "9214aa4097e06c4e927d1ba367e05dbb1cfee22feb85c35bc92dc2bc71d6be3f",
+      "sha": "24bb3507e44b834fb2c07c13b1d9a03389302a57"
     },
     {
-      "path": "verification/true-a-cttq-gsk-preparation-20261007T1348Z/host-base/host/runtime/update-candidate-completion-state.mjs",
+      "path": "verification/gsk-host-preparation-1537Z/baseline/hosts/gsk/host/runtime/update-candidate-completion-state.mjs",
       "mode": "100644",
       "bytes": 3654,
       "sha256": "ae5ad99411b014c8ffff615a0b06af1e1fdfd2ed7f7265c9c9cee0128339bb06",
       "sha": "ec886e3dd2b52805daccddcdcd862b6afbaeec29"
     },
     {
-      "path": "verification/true-a-cttq-gsk-preparation-20261007T1348Z/host-base/host/source-config-reference.json",
+      "path": "verification/gsk-host-preparation-1537Z/baseline/hosts/gsk/host/source-config-reference.json",
       "mode": "100644",
-      "bytes": 955,
-      "sha256": "64454660f8605b65603d09fdc15e8718f18d334383b3db831c454bdc646896d6",
-      "sha": "f9a43cb2774931505331eb41918e4cc5e1c09e06"
+      "bytes": 902,
+      "sha256": "447914182e379b00a7f1eee3906c094461d32956661b95cb83ae9d7b8b6ca774",
+      "sha": "3f9540bf8ea659b48715c5f1d73fefb5eaf11d5c"
     },
     {
-      "path": "verification/true-a-cttq-gsk-preparation-20261007T1348Z/host-base/supervision/inspect-launch-identity.mjs",
+      "path": "verification/gsk-host-preparation-1537Z/baseline/hosts/gsk/supervision/inspect-launch-identity.mjs",
       "mode": "100644",
       "bytes": 871,
       "sha256": "7bc818ae831081b7e91819ad772b950d08e7d06dc741730c0bd54698d6fe8b37",
       "sha": "0fc3dd6c1dde3cc7759848f18c795792c38c800c"
     },
     {
-      "path": "verification/true-a-cttq-gsk-preparation-20261007T1348Z/host-base/supervision/sample_process_tree.py",
+      "path": "verification/gsk-host-preparation-1537Z/baseline/hosts/gsk/supervision/sample_process_tree.py",
       "mode": "100644",
       "bytes": 13065,
       "sha256": "3fa6daa1af1afee94d19801edfd8bcb538e1243476b5adb253e50de162a27bd6",
       "sha": "5c2924dc067309525018e4903741dc33e796b546"
     },
     {
-      "path": "verification/true-a-cttq-gsk-preparation-20261007T1348Z/host-base/supervision/start-monitor-amgen51-combined.js",
+      "path": "verification/gsk-host-preparation-1537Z/baseline/hosts/gsk/supervision/start-monitor-gsk51-combined.js",
       "mode": "100644",
-      "bytes": 14430,
-      "sha256": "d7a6daa2c3739cecb8dfbb510f1d3aff908eb5e6a791beaeee88a2599b48798e",
-      "sha": "f71b400b2761cc6199233cd7da2d215d6317d50a"
+      "bytes": 14719,
+      "sha256": "98525de958dd5289eb647285ecccf78bb94f835f79c60b21b7cde454bc2fcbae",
+      "sha": "8dec01e3d76a065a2d17826da17213c73006da82"
     },
     {
-      "path": "verification/true-a-cttq-gsk-preparation-20261007T1348Z/host-base/supervision/supervise-cancel.mjs",
+      "path": "verification/gsk-host-preparation-1537Z/baseline/hosts/gsk/supervision/start-monitor-gsk51-combined.unbound.template.js",
+      "mode": "100644",
+      "bytes": 14719,
+      "sha256": "98525de958dd5289eb647285ecccf78bb94f835f79c60b21b7cde454bc2fcbae",
+      "sha": "8dec01e3d76a065a2d17826da17213c73006da82"
+    },
+    {
+      "path": "verification/gsk-host-preparation-1537Z/baseline/hosts/gsk/supervision/supervise-cancel.mjs",
       "mode": "100644",
       "bytes": 10232,
       "sha256": "083435a5344a47b86f84184bbe1d2711b0d35def4670afb2ab3c8391ed442e7e",
       "sha": "efe376ba3dbe501d5a2b1bece2c7ac46471aca7d"
     },
     {
-      "path": "verification/true-a-cttq-gsk-preparation-20261007T1348Z/owner-base/build-fragments.py",
+      "path": "verification/gsk-host-preparation-1537Z/baseline/owner/build-fragments.py",
       "mode": "100644",
       "bytes": 4463,
       "sha256": "1f03fee8b375360bd6294b09fed5eccbbe1787bda8f5cf5523c743bde23de28e",
       "sha": "fe3faea145e2d549d371677a3cfc5b70fb7634d2"
     },
     {
-      "path": "verification/true-a-cttq-gsk-preparation-20261007T1348Z/owner-base/publish-and-monitor-owner.js",
+      "path": "verification/gsk-host-preparation-1537Z/baseline/owner/publish-and-monitor-owner.js",
       "mode": "100644",
       "bytes": 10947,
       "sha256": "78a716a79d905dc7bb02715967c43b74566d496bea5b6c24a2d6139dbb1f1894",
       "sha": "0dd4a4418305703482f62d135c4e129f5c8f8dc1"
     },
     {
-      "path": "verification/true-a-cttq-gsk-preparation-20261007T1348Z/owner-base/tests/generate-full-chain-tests.py",
+      "path": "verification/gsk-host-preparation-1537Z/baseline/owner/tests/generate-full-chain-tests.py",
       "mode": "100644",
-      "bytes": 2805,
-      "sha256": "32cc52742ccc99d7ad396f40f6dafc4e3682c3e4b4bb794e63ad6d893b25e655",
-      "sha": "7b0b7e452aeca0ab08dbd3220286479bfea2783e"
+      "bytes": 2792,
+      "sha256": "18c90192838a450ce6723b414c7aa097fad42c33f10757410855b77375cda91f",
+      "sha": "8596e3eff0eaee136f1ff3d56f3806e83a5f81f6"
     },
     {
-      "path": "verification/true-a-cttq-gsk-preparation-20261007T1348Z/owner-base/tests/key-and-preload.test.mjs",
+      "path": "verification/gsk-host-preparation-1537Z/baseline/owner/tests/key-and-preload.test.mjs",
       "mode": "100644",
-      "bytes": 3896,
-      "sha256": "78042858206817ee42b186ba65237b3483c3fe6ecd192bc4c24418574a7673d5",
-      "sha": "cb5c7639bfafbf6d050f690f8cfa9145d65c33cc"
+      "bytes": 3890,
+      "sha256": "323c8baf68894f3664608c24d2b2a8fdad507b45dc11550375d3900974f73873",
+      "sha": "c85a21bfc4789c9e399ca73a93e6e1359f83a5ac"
     },
     {
-      "path": "verification/true-a-cttq-gsk-preparation-20261007T1348Z/owner-base/tests/owner.test.mjs",
+      "path": "verification/gsk-host-preparation-1537Z/baseline/owner/tests/owner.test.mjs",
       "mode": "100644",
       "bytes": 20267,
       "sha256": "8c0e2c462df58522166a01f8c08afc39e7dc73d3de76f13bcb67ac8d3dd1d11c",
       "sha": "4a9fc60975b54ba2d0c32af50c40b73f754c885e"
     },
     {
-      "path": "verification/true-a-cttq-gsk-preparation-20261007T1348Z/owner-base/tests/real-apply-patch-terminal-fixture.json",
+      "path": "verification/gsk-host-preparation-1537Z/baseline/owner/tests/real-apply-patch-terminal-fixture.json",
       "mode": "100644",
       "bytes": 195,
       "sha256": "aff94e02c5266ff389e8cbd2da3774b9eaf00cbf204bf9484a1b5eaace576f2e",
       "sha": "2bb6d2d309c400a32ab73ce3dbdcf1760102319f"
     },
     {
-      "path": "verification/true-a-cttq-gsk-preparation-20261007T1348Z/prepare-hosts.py",
+      "path": "verification/gsk-host-preparation-1537Z/generate-context.mts",
       "mode": "100644",
-      "bytes": 10072,
-      "sha256": "7bce5839bd001a16bc1d9d5050a3df8336204bc6092388fa4fdcdc1dd27a7e8c",
-      "sha": "e5a70acf4864f77d28b0af5342216e74387a9145"
+      "bytes": 3551,
+      "sha256": "0c31668a4ee205b52f44d962ee7fa1e1e625c677f43a8f22c277ed3adf73d456",
+      "sha": "5ead9a07f1273d3a31c04970fedb2a6fe3ede30c"
     },
     {
-      "path": "verification/true-a-cttq-gsk-preparation-20261007T1348Z/prepare-owner-binding.base.mts",
+      "path": "verification/gsk-host-preparation-1537Z/prepare-host.py",
       "mode": "100644",
-      "bytes": 7626,
-      "sha256": "0f4fd59de1b366e5d2ff39df1b67b83dc9d97f26a25187e804263e82bec67cd4",
-      "sha": "116cdb8c8f2d824a8e1cd252e3b9c50b46280191"
+      "bytes": 8729,
+      "sha256": "7c0229c8a9618f323a19965adbaed0aa5ba84e10c9ab5952ecb876ec41c98ea4",
+      "sha": "c816ecf0635b0c64fa1a4d44396d5ebc32766c1b"
     },
     {
-      "path": "verification/true-a-cttq-gsk-preparation-20261007T1348Z/static-true-a-source-routes.json",
+      "path": "verification/gsk-host-preparation-1537Z/verify-combined-pins.mjs",
       "mode": "100644",
-      "bytes": 2136,
-      "sha256": "d81c298dba8c528e6ef55792285b828921a5c8f8e3225269aad55bd19eadbdda",
-      "sha": "766e737d847debb754d35eb1f1df65023c48e626"
+      "bytes": 3847,
+      "sha256": "82ae4693053e3929a44b3c111419565d397798cbf9078efdddd922049686674b",
+      "sha": "46e196eb371f45052ba426014c765fcaf514f492"
     },
     {
-      "path": "verification/true-a-cttq-gsk-preparation-20261007T1348Z/verify-combined-pins.mjs",
+      "path": "verification/gsk-host-preparation-1537Z/verify-hosts.mts",
       "mode": "100644",
-      "bytes": 3962,
-      "sha256": "4b46900df2f851182088b51ca38173dc90637412a546b20b7b127702e9194b2f",
-      "sha": "24c8aac889fee758e8a3349d851151d3ee5a6350"
+      "bytes": 8971,
+      "sha256": "29c02a5ad1dfce62f6a82c49dac54f156921fb3726effc8fa4670157041bbce6",
+      "sha": "05040e25ec03a9541d131ea3532b9982327f6713"
     },
     {
-      "path": "verification/true-a-cttq-gsk-preparation-20261007T1348Z/verify-hosts.mts",
+      "path": "verification/gsk-host-preparation-1537Z/verify-loader-pins.mjs",
       "mode": "100644",
-      "bytes": 8975,
-      "sha256": "323abc4fb55d59e27e87b0daefcbe6e1a318d3d8cff4dc360daed28186bdfd33",
-      "sha": "3576c23bb3ee7c7ed9d9b2b760cc637af6d056e5"
+      "bytes": 2723,
+      "sha256": "79730bf5f4528822517f79daa386012693dd484b48f92c06c3536b8474b62d93",
+      "sha": "a2547700bb1fb18f6ef2769a8a9d0a95b14efef1"
     },
     {
-      "path": "verification/true-a-cttq-gsk-preparation-20261007T1348Z/verify-loader-pins.mjs",
+      "path": "verification/gsk-host-preparation-1537Z/verify-preflight-and-startup.mjs",
       "mode": "100644",
-      "bytes": 2739,
-      "sha256": "87a39ca2ef9264b6700b4fb8c243a3e446c0f895ad277456816c7f66bfd88010",
-      "sha": "157039ccfef312b5a44ddffe8ad42b2992c74c44"
+      "bytes": 7184,
+      "sha256": "e68bd660c3147613ea1b60ba49efa1dcee0f69ad892a8086da90090a7a73dc44",
+      "sha": "6d2a7cc92910b7be413a99c7fa0f8f2d20605b63"
     },
     {
-      "path": "verification/true-a-cttq-gsk-preparation-20261007T1348Z/vitest.config.mjs",
+      "path": "verify-offline-identity.mts",
       "mode": "100644",
-      "bytes": 347,
-      "sha256": "583c0cdfa051b11cb75c0ba239a2f1a38090f1044e8356d794eac4b95ba3dda9",
-      "sha": "94e41bbf797c9c0113d6648fd8f36f6dda6d6c6d"
+      "bytes": 7029,
+      "sha256": "6b54cc18f1a36e0ec2aea77ed4070d407564dab5bf9b9b88192589aae63ad53d",
+      "sha": "fa96e8f5918b25a81d49c3ac3386d3952a3bee01"
     }
   ],
   "recoveryLimits": "BACKUP_RECOVERY.md"

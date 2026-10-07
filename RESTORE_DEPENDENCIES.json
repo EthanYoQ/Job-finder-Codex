@@ -1,57 +1,182 @@
 {
   "schemaVersion": 1,
-  "artifactKind": "STATIC_UNBOUND_TRUE_A_SOURCE_CLOSURE",
+  "artifactKind": "STATIC_UNBOUND_GSK_SOURCE_AND_REBUILD_INPUTS",
+  "restoreScope": "Source files, static configuration, unbound templates, synthetic test source and exact baseline inputs only. This package cannot by itself reconstruct Git history, installed dependencies, a registered candidate, or a running service.",
   "runtimeRoot": "/workspace/scratch/5e9614251709/jb-incremental-proxy-runtime-20261007T0057Z",
-  "producer": {
-    "path": "/workspace/scratch/5e9614251709/jb-incremental-proxy-runtime-20261007T0057Z/producer",
-    "commit": "28402a299bb04cbf5873da66c2fe8ca76827c0d1",
-    "cleanRequired": true,
-    "build": {
-      "schemaVersion": 2,
-      "commitSha": "28402a299bb04cbf5873da66c2fe8ca76827c0d1",
-      "sourceTreeSha256": "114011f4dedc6de630200fb12ab9a2177b91b575ff7843fbe3d7d36c9683ace6",
-      "runtimeTreeSha256": "26beba5064ba95e0e916ee4e7d38c9e9a30b23d64ff7d50d9840e430c7ce893a",
-      "contentSha256": "6651fbf50b53f2c5666135935300c3c479112d898beed9b354a057d4591a1d4d"
+  "gskRoot": "/workspace/scratch/5e9614251709/jb-incremental-proxy-runtime-20261007T0057Z/gsk-producer-runtime-1529Z",
+  "producerRoot": "/workspace/scratch/5e9614251709/jb-incremental-proxy-runtime-20261007T0057Z/gsk-producer-runtime-1529Z/producer",
+  "declaredGitChain": [
+    "58aa0e413eec27813483996f5dea6c708a7757c4",
+    "a6a23b89e8e5ecfec1394584ad11f1a3e9fc35c2",
+    "28402a299bb04cbf5873da66c2fe8ca76827c0d1"
+  ],
+  "gitHistoryIncluded": false,
+  "buildIdentity": {
+    "schemaVersion": 2,
+    "commitSha": "58aa0e413eec27813483996f5dea6c708a7757c4",
+    "sourceTreeSha256": "0931758946d7e94f6b1f6bd4fd1068a29be134b7cac33c008e89c4517a526bd4",
+    "runtimeTreeSha256": "3e8df8612c54b4c2c3abec8c6e47501433044d591202b4c8bea5dfac89b9002b",
+    "contentSha256": "a3c20c8a133908c292d53438210efdd6abf20b93195fab17b1a235627b80cd00"
+  },
+  "sourceConfigSha256": "aa9bf82308c3b818a8c33b80561712b932389186c160ae83583a8c869eb54d74",
+  "producerChanges": [
+    {
+      "path": "src/crawler/gskMokaDetailLocations.ts",
+      "sha256": "a187fedae4fe17dc36028989a42d5ab88ece68ebc11f8860d3349807b76feefc",
+      "bytes": 6195
     },
-    "entrypoint": "scripts/p0-cloud-source-pilot.ts",
-    "entrypointSha256": "e4299018aa4b17cd7d0ff756ea45b779479708e02c400be9a1c8ffc0c2c1abaa",
-    "qualityImplementation": "src/crawler/completenessCertificate.ts",
-    "qualityImplementationSha256": "6dcf1ca30aa2f6b8d3f7b4079147010dd63c5718c52dc8a83269f97dfe6a18be",
-    "dependencyLockfile": "package-lock.json",
-    "dependencyLockfileSha256": "3f45f2db3f910be83bb57630db121a175b0375fe216a2fa110cab99ec149fae9"
+    {
+      "path": "src/crawler/mokaSourceFetch.ts",
+      "sha256": "c79dc06445753bb91d715c54fbacd4da88a40d0c2e14969b6f2764cb12dedc2b",
+      "bytes": 63666
+    },
+    {
+      "path": "src/crawler/runSourceCrawl.ts",
+      "sha256": "bc79baea47d8f141d570f82e2f62c3e666f404f84f92aa1c6d57345ea825f449",
+      "bytes": 263791
+    },
+    {
+      "path": "tests/crawler/gskMokaDetailLocations.test.ts",
+      "sha256": "ab36800930e090b8b2f4ad1f27882b56eb49f79ab37c1812c3461b422560f8fe",
+      "bytes": 13590
+    }
+  ],
+  "patch": {
+    "path": "GSK-LOCATION-SOURCE.patch",
+    "sha256": "bc3b42bdd6d5c7aec314e959eb402a136c8f97e7c47a48b972de8c29710c8ee0",
+    "baseCommitRequired": "28402a299bb04cbf5873da66c2fe8ca76827c0d1",
+    "scope": "Four-file final source delta; does not recreate commit objects or prove ancestry"
   },
-  "node": {
-    "path": "/workspace/scratch/5e9614251709/jb-incremental-proxy-runtime-20261007T0057Z/runtime/node-v22.23.3-linux-x64/bin/node",
-    "version": "v22.23.3",
-    "sha256": "fde6a4bf8d0562f7751d1a2d6cb9b417c4cfe107bbcb0aa3e9a24e125e348f48"
+  "externalPrerequisites": {
+    "producer": {
+      "baseCommitRequired": "28402a299bb04cbf5873da66c2fe8ca76827c0d1",
+      "completeTrackedTreeRequired": true,
+      "completeTreeIncluded": false,
+      "lockfile": "package-lock.json",
+      "lockfileSha256": "3f45f2db3f910be83bb57630db121a175b0375fe216a2fa110cab99ec149fae9"
+    },
+    "wrapper": {
+      "path": "producer/scripts/run-with-http-diagnostics.mjs",
+      "sha256": "f15522e6f209bfe99bfa258b5dffbce1f74d6af662c4c2ee682604e0798bbc88",
+      "verification": "PARENT_VERIFIED_EXTERNAL_FIXED_SEED_REFERENCE",
+      "sourceCommit": "368733577fe5a3d395393c6464fc23eb3fa99c80",
+      "sourcePath": "scripts/run-with-http-diagnostics.mjs",
+      "readInThisReview": false
+    },
+    "hostSeed": {
+      "backupCommit": "7a41825c764ff6201ac6755710b1ddbb100166f5",
+      "includedBaselineInputs": 36,
+      "allBaselineInputsIncluded": true
+    },
+    "node": {
+      "path": "/workspace/scratch/5e9614251709/jb-incremental-proxy-runtime-20261007T0057Z/runtime/node-v22.23.3-linux-x64/bin/node",
+      "version": "v22.23.3",
+      "sha256FromVerifiedSeedMetadata": "fde6a4bf8d0562f7751d1a2d6cb9b417c4cfe107bbcb0aa3e9a24e125e348f48",
+      "binaryIncluded": false
+    },
+    "installedRuntime": [
+      "producer/node_modules/tsx/dist/loader.mjs",
+      "producer/node_modules/zod/package.json",
+      "producer/node_modules/cheerio/package.json",
+      "Matching generated Prisma client and native engine required by the source identity verifier"
+    ]
   },
+  "fourFilePins": [
+    {
+      "path": "hosts/gsk/supervision/sample_process_tree.py",
+      "sha256": "3fa6daa1af1afee94d19801edfd8bcb538e1243476b5adb253e50de162a27bd6",
+      "verification": "INDEPENDENT_SAFE_FILE_BYTES"
+    },
+    {
+      "path": "hosts/gsk/supervision/supervise-cancel.mjs",
+      "sha256": "c86259a8bd54bb936367644952a31ffea3d4664c8db338915a714b764038be4f",
+      "verification": "INDEPENDENT_SAFE_FILE_BYTES"
+    },
+    {
+      "path": "producer/scripts/run-with-http-diagnostics.mjs",
+      "sha256": "f15522e6f209bfe99bfa258b5dffbce1f74d6af662c4c2ee682604e0798bbc88",
+      "verification": "PARENT_VERIFIED_EXTERNAL_FIXED_SEED_REFERENCE",
+      "sourceCommit": "368733577fe5a3d395393c6464fc23eb3fa99c80",
+      "sourcePath": "scripts/run-with-http-diagnostics.mjs",
+      "readInThisReview": false
+    },
+    {
+      "path": "hosts/gsk/supervision/inspect-launch-identity.mjs",
+      "sha256": "7bc818ae831081b7e91819ad772b950d08e7d06dc741730c0bd54698d6fe8b37",
+      "verification": "INDEPENDENT_SAFE_FILE_BYTES"
+    }
+  ],
   "owner": {
-    "path": "/workspace/scratch/5e9614251709/jb-incremental-proxy-runtime-20261007T0057Z/owner-adaptations/true-a-cttq-gsk-20261007T1348Z",
-    "factorySha256": "78a716a79d905dc7bb02715967c43b74566d496bea5b6c24a2d6139dbb1f1894",
-    "baselineManifestSha256": "4fa4d6ff6c11a1317e414d9fca109826fdfe67c5f13ed649542bead3bc6e4319",
-    "preloadSha256": "a4de1e4149e8ddd76b1ebcf3fede6928e4dd19e2816c796172ce5bd4ede21d50",
-    "reviewedEntrySha256": "56607634facc379fba8b401258d490abb258ba993aeabdf6865d4bd63296ed9d"
+    "path": "owner-adaptations/gsk-true-a-1537Z",
+    "factorySha256": "f50afb91e8006b14a1336e09fc917606d834220aec5e8980d9c71697ae8bf344",
+    "baselineManifestSha256": "430be8c3a1e42ba9bc0abed11c0aab31bf5d453fab2b54678afc843160b97115",
+    "fixedHostDependencies": [
+      {
+        "path": "hosts/gsk/host/host-helper-functions.js",
+        "bytes": 9735,
+        "sha256": "40c9f124df68fefa400c099dee060e64a3190ebf5f341150b64b55e4e479d300"
+      },
+      {
+        "path": "hosts/gsk/host/host-stage-functions.js",
+        "bytes": 6589,
+        "sha256": "baaad5b505cf0cccd811e470b445b609951d4b8fbf05bc3c10300e62c43ab869"
+      },
+      {
+        "path": "hosts/gsk/host/relay-files.mjs",
+        "bytes": 7932,
+        "sha256": "c31b36e5bfb766a8b5d838d0b77dde2bac18ae1c138b5bf1513ae928bf1d36f0"
+      },
+      {
+        "path": "hosts/gsk/host/runtime/continuous-relay-v3-durable-monitor.js",
+        "bytes": 5136,
+        "sha256": "5ef029081bc731358cb0e3f8515b9206470c05235d975b22558a2d303f7a6c96"
+      },
+      {
+        "path": "hosts/gsk/host/runtime/review-packet-envelope.mts",
+        "bytes": 5535,
+        "sha256": "40cb1e3ede867f0e9d171605e7454fc71a6f774dfdf910f68ff668722bba69cb"
+      }
+    ]
+  },
+  "binding": {
+    "state": "UNBOUND_TEMPLATES_ONLY",
+    "candidate": null,
+    "databaseIdentity": null,
+    "minimumCandidateVersion": 52,
+    "newOwnerBindingRequiredBeforeAnyRuntimeUse": true
   },
   "globalStatePath": "/workspace/scratch/5e9614251709/jb-incremental-proxy-runtime-20261007T0057Z/PUBLISHER-ACTIVE-STATE.json",
   "globalStateIncluded": false,
-  "binding": "UNBOUND_TEMPLATES_ONLY",
-  "databaseIdentity": null,
-  "candidate": null,
-  "requiredRuntimeFiles": [
-    "producer/node_modules/tsx/dist/loader.mjs",
-    "producer/node_modules/zod/package.json",
-    "producer/node_modules/cheerio/package.json"
+  "staticStartupContract": {
+    "oldSpaceMiB": 384,
+    "sourceBudgetMs": 1800000,
+    "sourceHttpTimeoutMs": 45000,
+    "entrypoint": "scripts/p0-cloud-source-pilot.ts",
+    "dbStartedControlRequired": true
+  },
+  "restoreRestrictions": [
+    "Do not place this unbound package over an existing bound or running host.",
+    "Preserve the declared R/N layout. Relocation changes absolute-path source bytes and requires explicitly authorized regeneration and repinning before use.",
+    "Materialize the complete trusted producer base separately, then review the supplied final four-file delta. No source.bundle or historical Git objects are supplied here.",
+    "prepare-host.py requires NEW_LOCAL_BUILD_IDENTITY.json, its BASELINE_SOURCE_MANIFEST.json, all 36 baseline files, and separately restored producer files. Its output root must be new; the preserved source still pins N.",
+    "context-read.sql.template is intentionally excluded by the supplied safe boundary. generate-context.mts can only be used later under separate execution authorization and with restored producer dependencies. Use a fresh output host containing required input templates because it creates context files with exclusive writes.",
+    "verify-offline-identity.mts additionally expects the prior R producer, prior registration expected projection, formatted schema, actual Git chain, installed runtime and generated Prisma artifacts. These are not supplied by this minimal package; do not treat that script as currently runnable.",
+    "verify-preflight-and-startup.mjs requires newly generated synthetic fixtures from verify-hosts.mts. Test source is preserved, but no fixtures, logs, execution reports or pass claims are supplied.",
+    "verify-combined-pins.mjs requires an explicitly reviewed stale-template input and restored wrapper/Node dependencies; its source file alone is not a completed verification.",
+    "Do not fabricate or restore a candidate/database identity/activation from null templates. Registration, binding, startup, source HTTP, DB read/write and publication need their own authorization and fresh checks.",
+    "Do not duplicate, clear, reconstruct or overwrite the single R-level PUBLISHER-ACTIVE-STATE.json from this package.",
+    "Old 169 packet evidence and new 27 fixture evidence remain separate and excluded. Neither count is asserted as a test result of this review."
   ],
-  "offlineTestingRequiredDirectories": [
-    "logs"
-  ],
-  "excluded": [
-    "actual bindings and activation",
-    "actual runtime directories and captures",
-    "global active state",
-    "official DB readbacks",
-    "original reconstructed 36-source routes with historical bindings"
-  ],
-  "restoreScope": "Source-only closure. Producer Git/dependency runtime and Node binary are separately required. Never overwrite a bound live host with this unbound package.",
-  "actualFourFilePinsChecked": true
+  "excludedClasses": [
+    "source.bundle and Git history",
+    "official responses and source captures",
+    "original failure artifact containing a credential-like value",
+    "actual database registration/readbacks",
+    "actual owner bindings/control/activation",
+    "active global state",
+    "run directories, logs and execution reports",
+    "runtime-produced synthetic output",
+    "mixed README reports",
+    "redundant provenance inventories"
+  ]
 }

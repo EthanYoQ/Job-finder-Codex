@@ -17,7 +17,7 @@ const nodeRuntime=await verifyNodeRuntimeProfile();
 if(CLOUD_PILOT_SOURCE.id!==cfg.sourceId||CLOUD_PILOT_SOURCE.sourceConfigSha256!==cfg.sourceConfigSha256)throw Error('HOST_SOURCE_CONFIG_MISMATCH');
 const control=JSON.parse(readFileSync(join(host,'control-base.json'),'utf8'));
 const binding=JSON.parse(readFileSync(join(host,'activation.json'),'utf8'));
-if(binding.status!=='REGISTERED_VERIFIED'||!control.candidate||!Number.isSafeInteger(control.candidate.version)||control.candidate.version!==51||control.candidate.id!=='dot-cloud-delta-proxy-28402a29-20261007')throw Error('CANDIDATE_NOT_REGISTERED');
+if(binding.status!=='REGISTERED_VERIFIED'||!control.candidate||!Number.isSafeInteger(control.candidate.version)||control.candidate.version<52)throw Error('CANDIDATE_NOT_REGISTERED');
 const commit=execFileSync('git',['rev-parse','HEAD'],{cwd:cfg.repo,encoding:'utf8',env:{...process.env,GIT_OPTIONAL_LOCKS:'0'}}).trim();
 if(execFileSync('git',['status','--porcelain'],{cwd:cfg.repo,encoding:'utf8',env:{...process.env,GIT_OPTIONAL_LOCKS:'0'}}).trim())throw Error('HOST_DIRTY_PRODUCER');
 const build=createBuildIdentity(cfg.repo,commit);

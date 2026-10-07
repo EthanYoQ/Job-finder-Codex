@@ -7,7 +7,7 @@ async function handle(r,dir){
  if(r.kind==="ARCHIVE_STORE")throw Error("UNSELECTED_LEGACY_ARCHIVE_STORE_UNSUPPORTED");
  if(["LEASE_ACQUIRE","LEASE_RENEW","LEASE_RELEASE","READ_OUTCOME","READ_PUBLICATION_CONTEXT"].includes(r.kind))return h.sqlDispatch(r,dir,r.payload.sql);
  if(r.kind==="CREATE_PENDING"){
-  const made=h.machineJson(await h.cmd("/workspace/scratch/5e9614251709/jb-incremental-proxy-runtime-20261007T0057Z/runtime/node-v22.23.3-linux-x64/bin/node --import /workspace/scratch/5e9614251709/jb-incremental-proxy-runtime-20261007T0057Z/producer/node_modules/tsx/dist/loader.mjs "+h.q(cfg.root+"/host-files.mts")+" pending "+h.q(dir+"/"+r.requestId+".request.json"),10000,Date.parse(r.payload.dispatchBefore??r.expiresAt)));
+  const made=h.machineJson(await h.cmd("/workspace/scratch/5e9614251709/jb-incremental-proxy-runtime-20261007T0057Z/runtime/node-v22.23.3-linux-x64/bin/node --import /workspace/scratch/5e9614251709/jb-incremental-proxy-runtime-20261007T0057Z/gsk-producer-runtime-1529Z/producer/node_modules/tsx/dist/loader.mjs "+h.q(cfg.root+"/host-files.mts")+" pending "+h.q(dir+"/"+r.requestId+".request.json"),10000,Date.parse(r.payload.dispatchBefore??r.expiresAt)));
   if(made.requestSha256!==r.requestSha256||made.requestId!==r.requestId||made.projectId!==cfg.project||r.payload.projectId!==cfg.project)throw Error("HOST_CONTROL_REQUEST_BINDING");
   const sql=await h.readFile(made.output,Date.parse(r.payload.dispatchBefore??r.expiresAt));if(sql.hash!==made.sha256)throw Error("HOST_CONTROL_HASH");
   await h.mark(r,dir);const raw=await tools.mcp__codex_apps__supabase_execute_sql({project_id:cfg.project,query:sql.text});store("proxyNode22:gsk:cloudPendingToolResult",raw);
@@ -43,7 +43,7 @@ async function handle(r,dir){
   store("proxyNode22:gsk:cloudLiveArchiveIdentity",{...item,...receipt});return {status:"ARCHIVE_STORED_RECOVERY_PENDING",libraryFileId:item.library_file_id};
  }
  if(r.kind==="PUBLISH"){
-  const packet=h.machineJson(await h.cmd("/workspace/scratch/5e9614251709/jb-incremental-proxy-runtime-20261007T0057Z/runtime/node-v22.23.3-linux-x64/bin/node --import /workspace/scratch/5e9614251709/jb-incremental-proxy-runtime-20261007T0057Z/producer/node_modules/tsx/dist/loader.mjs "+h.q(cfg.root+"/host-files.mts")+" publish "+h.q(dir+"/"+r.requestId+".request.json"),10000,Date.parse(r.payload.dispatchBefore??r.expiresAt)));
+  const packet=h.machineJson(await h.cmd("/workspace/scratch/5e9614251709/jb-incremental-proxy-runtime-20261007T0057Z/runtime/node-v22.23.3-linux-x64/bin/node --import /workspace/scratch/5e9614251709/jb-incremental-proxy-runtime-20261007T0057Z/gsk-producer-runtime-1529Z/producer/node_modules/tsx/dist/loader.mjs "+h.q(cfg.root+"/host-files.mts")+" publish "+h.q(dir+"/"+r.requestId+".request.json"),10000,Date.parse(r.payload.dispatchBefore??r.expiresAt)));
   const sqlPath=packet.output;
   store("proxyNode22:gsk:cloudPilotPublishRequest",r);store("proxyNode22:gsk:cloudPilotPublishDirectory",dir);
   return {...packet,status:"AWAITING_PARENT_REVIEW",requestId:r.requestId,requestSha256:r.requestSha256,sqlPath,dispatchBefore:r.payload.dispatchBefore,expiresAt:r.expiresAt,characters:r.payload.sql.length};

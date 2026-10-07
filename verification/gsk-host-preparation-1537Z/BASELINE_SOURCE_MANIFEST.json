@@ -1,0 +1,185 @@
+{
+  "purpose": "FROZEN_SAFE_GSK_SOURCE_INPUTS_NO_ACTUAL_BINDING",
+  "files": [
+    {
+      "path": "hosts/gsk/host/archive-transfer.mjs",
+      "sourcePath": "/workspace/scratch/5e9614251709/jb-incremental-proxy-runtime-20261007T0057Z/hosts/gsk/host/archive-transfer.mjs",
+      "sha256": "698e966e5552967845a5252d2b3df2acca28dcd8dbbb0ae41755a3a6231e6a99"
+    },
+    {
+      "path": "hosts/gsk/host/control-base.template.json",
+      "sourcePath": "/workspace/scratch/5e9614251709/jb-incremental-proxy-runtime-20261007T0057Z/hosts/gsk/host/control-base.template.json",
+      "sha256": "3634b5cc4c996565263cdae4b168cb519556c2401367f33511b426fd0ae48897"
+    },
+    {
+      "path": "hosts/gsk/host/host-config.json",
+      "sourcePath": "/workspace/scratch/5e9614251709/jb-incremental-proxy-runtime-20261007T0057Z/hosts/gsk/host/host-config.template.json",
+      "sha256": "03e98ea94e9bb8449db13c8ec8231821ced0f92e22909711d0ce2745e8d00836"
+    },
+    {
+      "path": "hosts/gsk/host/host-config.template.json",
+      "sourcePath": "/workspace/scratch/5e9614251709/jb-incremental-proxy-runtime-20261007T0057Z/hosts/gsk/host/host-config.template.json",
+      "sha256": "03e98ea94e9bb8449db13c8ec8231821ced0f92e22909711d0ce2745e8d00836"
+    },
+    {
+      "path": "hosts/gsk/host/host-files.mts",
+      "sourcePath": "/workspace/scratch/5e9614251709/jb-incremental-proxy-runtime-20261007T0057Z/hosts/gsk/host/host-files.mts",
+      "sha256": "c8033565b3c368bf369fc7507f9d1ff8fa87bc0dde0a84a10a95373473dc6f3a"
+    },
+    {
+      "path": "hosts/gsk/host/host-helper-functions.js",
+      "sourcePath": "/workspace/scratch/5e9614251709/jb-incremental-proxy-runtime-20261007T0057Z/hosts/gsk/host/host-helper-functions.js",
+      "sha256": "40c9f124df68fefa400c099dee060e64a3190ebf5f341150b64b55e4e479d300"
+    },
+    {
+      "path": "hosts/gsk/host/host-stage-functions.js",
+      "sourcePath": "/workspace/scratch/5e9614251709/jb-incremental-proxy-runtime-20261007T0057Z/hosts/gsk/host/host-stage-functions.js",
+      "sha256": "c62c99885b84e6c19b560afd4d4f8b3ef84e16085c4b1a7609d569757054be4d"
+    },
+    {
+      "path": "hosts/gsk/host/machine-json.js",
+      "sourcePath": "/workspace/scratch/5e9614251709/jb-incremental-proxy-runtime-20261007T0057Z/hosts/gsk/host/machine-json.js",
+      "sha256": "3484738bd095a9d57da70c6392af78865a53759a9e8499316941157b6210e9f6"
+    },
+    {
+      "path": "hosts/gsk/host/owner-binding-input.template.json",
+      "sourcePath": "/workspace/scratch/5e9614251709/jb-incremental-proxy-runtime-20261007T0057Z/hosts/gsk/host/owner-binding-input.template.json",
+      "sha256": "2f002335dfe91f6632721c68e4ab23dade60a0c4323ed9facf40158f0d7aca57"
+    },
+    {
+      "path": "hosts/gsk/host/relay-files.mjs",
+      "sourcePath": "/workspace/scratch/5e9614251709/jb-incremental-proxy-runtime-20261007T0057Z/hosts/gsk/host/relay-files.mjs",
+      "sha256": "c1947f71261a068ee86afca844d9d5eec60aa6f301aad7c6a4dc04500191a846"
+    },
+    {
+      "path": "hosts/gsk/host/runtime/complete-reviewed-source-readback.js",
+      "sourcePath": "/workspace/scratch/5e9614251709/jb-incremental-proxy-runtime-20261007T0057Z/hosts/gsk/host/runtime/complete-reviewed-source-readback.js",
+      "sha256": "ee141c861323096f31caf5e37dbf6e93c10a0f35d2bd95a5d3a2f3f25392ba07"
+    },
+    {
+      "path": "hosts/gsk/host/runtime/continuous-relay-v3-durable-monitor.js",
+      "sourcePath": "/workspace/scratch/5e9614251709/jb-incremental-proxy-runtime-20261007T0057Z/hosts/gsk/host/runtime/continuous-relay-v3-durable-monitor.js",
+      "sha256": "5ef029081bc731358cb0e3f8515b9206470c05235d975b22558a2d303f7a6c96"
+    },
+    {
+      "path": "hosts/gsk/host/runtime/inspect-host-binding.mts",
+      "sourcePath": "/workspace/scratch/5e9614251709/jb-incremental-proxy-runtime-20261007T0057Z/hosts/gsk/host/runtime/inspect-host-binding.mts",
+      "sha256": "11ce7f25fa48a23e8559712f32b7eb5218e5caa617bf4cdf08b17b3085cd28af"
+    },
+    {
+      "path": "hosts/gsk/host/runtime/load-host-state.js",
+      "sourcePath": "/workspace/scratch/5e9614251709/jb-incremental-proxy-runtime-20261007T0057Z/hosts/gsk/host/runtime/load-host-state.unbound.template.js",
+      "sha256": "c306585770c0a39b9361ed0c5f8b5ad886b801d108a982f2523791b490cc0d51"
+    },
+    {
+      "path": "hosts/gsk/host/runtime/load-host-state.unbound.template.js",
+      "sourcePath": "/workspace/scratch/5e9614251709/jb-incremental-proxy-runtime-20261007T0057Z/hosts/gsk/host/runtime/load-host-state.unbound.template.js",
+      "sha256": "c306585770c0a39b9361ed0c5f8b5ad886b801d108a982f2523791b490cc0d51"
+    },
+    {
+      "path": "hosts/gsk/host/runtime/load-source-runtime.js",
+      "sourcePath": "/workspace/scratch/5e9614251709/jb-incremental-proxy-runtime-20261007T0057Z/hosts/gsk/host/runtime/load-source-runtime.js",
+      "sha256": "3aae5b18694e69487f8b667ffce6ab3ae41a1853b1ce5a84dc8631549ebb8bd8"
+    },
+    {
+      "path": "hosts/gsk/host/runtime/machine-json.py",
+      "sourcePath": "/workspace/scratch/5e9614251709/jb-incremental-proxy-runtime-20261007T0057Z/hosts/gsk/host/runtime/machine-json.py",
+      "sha256": "67611e749eddc6bf8c591fef11f2efa82e2a73ce0bb51b2779fab4ae68b77f50"
+    },
+    {
+      "path": "hosts/gsk/host/runtime/preflight/preflight-launch.mjs",
+      "sourcePath": "/workspace/scratch/5e9614251709/jb-incremental-proxy-runtime-20261007T0057Z/hosts/gsk/host/runtime/preflight/preflight-launch.mjs",
+      "sha256": "ab4cffa673ada36078014e20778eeea39d8e5fb208d04f54dc3ff0913a73d2de"
+    },
+    {
+      "path": "hosts/gsk/host/runtime/preflight/runtime-check.mjs",
+      "sourcePath": "/workspace/scratch/5e9614251709/jb-incremental-proxy-runtime-20261007T0057Z/hosts/gsk/host/runtime/preflight/runtime-check.mjs",
+      "sha256": "e01c5b953283535757e2fcc67df80dd3e86948709dde0b488235a7edee017785"
+    },
+    {
+      "path": "hosts/gsk/host/runtime/prepare-owner-binding.mts",
+      "sourcePath": "/workspace/scratch/5e9614251709/jb-incremental-proxy-runtime-20261007T0057Z/hosts/gsk/host/runtime/prepare-owner-binding.mts",
+      "sha256": "a1c386a3969e543d67b8f12b5b785c23593dd3a361417bd174f7c3a4a901a087"
+    },
+    {
+      "path": "hosts/gsk/host/runtime/prepare-registered-control.mts",
+      "sourcePath": "/workspace/scratch/5e9614251709/jb-incremental-proxy-runtime-20261007T0057Z/hosts/gsk/host/runtime/prepare-registered-control.mts",
+      "sha256": "75b04c3bf46a0c81529e1322c74a02ccddb88b6edb161c39e36fc082ad1c89d8"
+    },
+    {
+      "path": "hosts/gsk/host/runtime/review-packet-envelope.mts",
+      "sourcePath": "/workspace/scratch/5e9614251709/jb-incremental-proxy-runtime-20261007T0057Z/hosts/gsk/host/runtime/review-packet-envelope.mts",
+      "sha256": "40cb1e3ede867f0e9d171605e7454fc71a6f774dfdf910f68ff668722bba69cb"
+    },
+    {
+      "path": "hosts/gsk/host/runtime/review-publication.py",
+      "sourcePath": "/workspace/scratch/5e9614251709/jb-incremental-proxy-runtime-20261007T0057Z/hosts/gsk/host/runtime/review-publication.py",
+      "sha256": "9214aa4097e06c4e927d1ba367e05dbb1cfee22feb85c35bc92dc2bc71d6be3f"
+    },
+    {
+      "path": "hosts/gsk/host/runtime/update-candidate-completion-state.mjs",
+      "sourcePath": "/workspace/scratch/5e9614251709/jb-incremental-proxy-runtime-20261007T0057Z/hosts/gsk/host/runtime/update-candidate-completion-state.mjs",
+      "sha256": "ae5ad99411b014c8ffff615a0b06af1e1fdfd2ed7f7265c9c9cee0128339bb06"
+    },
+    {
+      "path": "hosts/gsk/host/source-config-reference.json",
+      "sourcePath": "/workspace/scratch/5e9614251709/jb-incremental-proxy-runtime-20261007T0057Z/hosts/gsk/host/source-config-reference.json",
+      "sha256": "447914182e379b00a7f1eee3906c094461d32956661b95cb83ae9d7b8b6ca774"
+    },
+    {
+      "path": "hosts/gsk/supervision/inspect-launch-identity.mjs",
+      "sourcePath": "/workspace/scratch/5e9614251709/jb-incremental-proxy-runtime-20261007T0057Z/hosts/gsk/supervision/inspect-launch-identity.mjs",
+      "sha256": "7bc818ae831081b7e91819ad772b950d08e7d06dc741730c0bd54698d6fe8b37"
+    },
+    {
+      "path": "hosts/gsk/supervision/sample_process_tree.py",
+      "sourcePath": "/workspace/scratch/5e9614251709/jb-incremental-proxy-runtime-20261007T0057Z/hosts/gsk/supervision/sample_process_tree.py",
+      "sha256": "3fa6daa1af1afee94d19801edfd8bcb538e1243476b5adb253e50de162a27bd6"
+    },
+    {
+      "path": "hosts/gsk/supervision/start-monitor-gsk51-combined.js",
+      "sourcePath": "/workspace/scratch/5e9614251709/jb-incremental-proxy-runtime-20261007T0057Z/hosts/gsk/supervision/start-monitor-gsk51-combined.unbound.template.js",
+      "sha256": "98525de958dd5289eb647285ecccf78bb94f835f79c60b21b7cde454bc2fcbae"
+    },
+    {
+      "path": "hosts/gsk/supervision/start-monitor-gsk51-combined.unbound.template.js",
+      "sourcePath": "/workspace/scratch/5e9614251709/jb-incremental-proxy-runtime-20261007T0057Z/hosts/gsk/supervision/start-monitor-gsk51-combined.unbound.template.js",
+      "sha256": "98525de958dd5289eb647285ecccf78bb94f835f79c60b21b7cde454bc2fcbae"
+    },
+    {
+      "path": "hosts/gsk/supervision/supervise-cancel.mjs",
+      "sourcePath": "/workspace/scratch/5e9614251709/jb-incremental-proxy-runtime-20261007T0057Z/hosts/gsk/supervision/supervise-cancel.mjs",
+      "sha256": "083435a5344a47b86f84184bbe1d2711b0d35def4670afb2ab3c8391ed442e7e"
+    },
+    {
+      "path": "owner/publish-and-monitor-owner.js",
+      "sourcePath": "/workspace/scratch/5e9614251709/jb-incremental-proxy-runtime-20261007T0057Z/owner-adaptations/true-a-cttq-gsk-20261007T1348Z/publish-and-monitor-owner.js",
+      "sha256": "78a716a79d905dc7bb02715967c43b74566d496bea5b6c24a2d6139dbb1f1894"
+    },
+    {
+      "path": "owner/build-fragments.py",
+      "sourcePath": "/workspace/scratch/5e9614251709/jb-incremental-proxy-runtime-20261007T0057Z/owner-adaptations/true-a-cttq-gsk-20261007T1348Z/build-fragments.py",
+      "sha256": "1f03fee8b375360bd6294b09fed5eccbbe1787bda8f5cf5523c743bde23de28e"
+    },
+    {
+      "path": "owner/tests/owner.test.mjs",
+      "sourcePath": "/workspace/scratch/5e9614251709/jb-incremental-proxy-runtime-20261007T0057Z/owner-adaptations/true-a-cttq-gsk-20261007T1348Z/tests/owner.test.mjs",
+      "sha256": "8c0e2c462df58522166a01f8c08afc39e7dc73d3de76f13bcb67ac8d3dd1d11c"
+    },
+    {
+      "path": "owner/tests/generate-full-chain-tests.py",
+      "sourcePath": "/workspace/scratch/5e9614251709/jb-incremental-proxy-runtime-20261007T0057Z/owner-adaptations/true-a-cttq-gsk-20261007T1348Z/tests/generate-full-chain-tests.py",
+      "sha256": "18c90192838a450ce6723b414c7aa097fad42c33f10757410855b77375cda91f"
+    },
+    {
+      "path": "owner/tests/key-and-preload.test.mjs",
+      "sourcePath": "/workspace/scratch/5e9614251709/jb-incremental-proxy-runtime-20261007T0057Z/owner-adaptations/true-a-cttq-gsk-20261007T1348Z/tests/key-and-preload.test.mjs",
+      "sha256": "323c8baf68894f3664608c24d2b2a8fdad507b45dc11550375d3900974f73873"
+    },
+    {
+      "path": "owner/tests/real-apply-patch-terminal-fixture.json",
+      "sourcePath": "/workspace/scratch/5e9614251709/jb-incremental-proxy-runtime-20261007T0057Z/owner-adaptations/true-a-cttq-gsk-20261007T1348Z/tests/real-apply-patch-terminal-fixture.json",
+      "sha256": "aff94e02c5266ff389e8cbd2da3774b9eaf00cbf204bf9484a1b5eaace576f2e"
+    }
+  ]
+}

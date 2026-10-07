@@ -12,12 +12,12 @@
   },
   "sourceConfigSha256": "aa9bf82308c3b818a8c33b80561712b932389186c160ae83583a8c869eb54d74",
   "mainImplementation": {
-    "role": "deadline-restored-47b74924",
+    "role": "gsk-custom-location-58aa0e4",
     "path": "scripts/p0-cloud-source-pilot.ts",
     "sha256": "e4299018aa4b17cd7d0ff756ea45b779479708e02c400be9a1c8ffc0c2c1abaa"
   },
   "qualityImplementation": {
-    "role": "deadline-restored-47b74924",
+    "role": "gsk-custom-location-58aa0e4",
     "path": "src/crawler/completenessCertificate.ts",
     "sha256": "6dcf1ca30aa2f6b8d3f7b4079147010dd63c5718c52dc8a83269f97dfe6a18be"
   }

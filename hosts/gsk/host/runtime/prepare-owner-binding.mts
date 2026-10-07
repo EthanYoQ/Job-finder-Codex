@@ -20,9 +20,9 @@ const [ownerPath,readbackPath,outputPath,...extra]=process.argv.slice(2);
 if(!ownerPath||!readbackPath||!outputPath||extra.length)throw Error('Usage: JOBFINDER_CLOUD_SOURCE_ID=source-gsk-china-social <pinned-node> --import <new-loader> prepare-owner-binding.mts <owner-binding-input.json> <registration-readback.json> <new-prepared-directory>');
 const sha=(bytes:string|Buffer)=>createHash('sha256').update(bytes).digest('hex');
 const SHA=z.string().regex(/^[0-9a-f]{64}$/);
-const candidateSchema=z.object({id:z.literal('dot-cloud-delta-proxy-28402a29-20261007'),goalId:z.literal('jobfinder-portable-required-40'),version:z.literal(51)}).strict();
+const candidateSchema=z.object({id:z.string().regex(/^[-A-Za-z0-9._]{1,100}$/).refine(id=>id!=='dot-cloud-delta-proxy-28402a29-20261007'),goalId:z.literal('jobfinder-portable-required-40'),version:z.number().int().min(52)}).strict();
 const databaseSchema=z.object({migrationVersion:z.literal('20261006172300_job_projection_delta_contract'),schemaHash:SHA,dbSnapshotHash:SHA}).strict();
-const ownerSchema=z.object({schemaVersion:z.literal(1),build:z.object({schemaVersion:z.literal(2),commitSha:z.literal('28402a299bb04cbf5873da66c2fe8ca76827c0d1'),sourceTreeSha256:SHA,runtimeTreeSha256:SHA,contentSha256:SHA}).strict(),candidate:candidateSchema,databaseIdentity:databaseSchema,minimumCandidateVersion:z.literal(51),sourceId:z.literal('source-gsk-china-social'),sourceConfigSha256:z.literal('aa9bf82308c3b818a8c33b80561712b932389186c160ae83583a8c869eb54d74')}).strict();
+const ownerSchema=z.object({schemaVersion:z.literal(1),build:z.object({schemaVersion:z.literal(2),commitSha:z.literal('58aa0e413eec27813483996f5dea6c708a7757c4'),sourceTreeSha256:SHA,runtimeTreeSha256:SHA,contentSha256:SHA}).strict(),candidate:candidateSchema,databaseIdentity:databaseSchema,minimumCandidateVersion:z.literal(52),sourceId:z.literal('source-gsk-china-social'),sourceConfigSha256:z.literal('aa9bf82308c3b818a8c33b80561712b932389186c160ae83583a8c869eb54d74')}).strict();
 const ownerBytes=readFileSync(ownerPath),owner=ownerSchema.parse(JSON.parse(ownerBytes.toString('utf8')));
 assert.deepEqual(owner.build,template.build,'OWNER_BUILD_MISMATCH');
 if(cfg.root!==host||process.cwd()!==cfg.repo||process.execPath!==cfg.node||realpathSync(process.execPath)!==cfg.node)throw Error('HOST_PATH_OR_NODE_BINDING');
@@ -53,7 +53,7 @@ function render(source:string,includeDatabase=false){
  return out;
 }
 const loader=render(readFileSync(join(host,'runtime/load-host-state.unbound.template.js'),'utf8'),true);
-const starter=render(readFileSync(join(base,'supervision/start-monitor-gsk51-combined.unbound.template.js'),'utf8'));
+const starter=render(readFileSync(join(base,'supervision/start-monitor-gsk-next-combined.unbound.template.js'),'utf8'));
 const A=Object.getPrototypeOf(async function(){}).constructor;
 new A('root','sourceId','candidateId','commit','tools','load','store','notify',loader);new A('tools','load','store','notify',starter);
 const contextReadSha256=sha(context);
@@ -62,7 +62,7 @@ const files:Record<string,string>={
  'host/control-base.json':JSON.stringify(control,null,2)+'\n',
  'host/context-read.sql':context+'\n',
  'host/runtime/load-host-state.js':loader,
- 'supervision/start-monitor-gsk51-combined.js':starter,
+ 'supervision/start-monitor-gsk-next-combined.js':starter,
  'host/activation.prepared.json':JSON.stringify(activation,null,2)+'\n',
  'owner-binding-input.json':JSON.stringify(owner,null,2)+'\n'
 };

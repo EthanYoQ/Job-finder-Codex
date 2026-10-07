@@ -6,7 +6,7 @@ import { createHash, randomBytes } from 'node:crypto';
 import { constants as O } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 
-const R2 = '/workspace/scratch/5e9614251709/jb-incremental-proxy-runtime-20261007T0057Z';
+const R2 = '/workspace/scratch/5e9614251709/jb-incremental-proxy-runtime-20261007T0057Z/gsk-producer-runtime-1529Z';
 const allowedWrappers = ['producer']
   .map(p => join(R2, p, 'scripts/run-with-http-diagnostics.mjs'));
 const wrapperSha256 = 'f15522e6f209bfe99bfa258b5dffbce1f74d6af662c4c2ee682604e0798bbc88';

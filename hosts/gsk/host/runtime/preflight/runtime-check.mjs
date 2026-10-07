@@ -1,3 +1,4 @@
+import { getHeapStatistics } from 'node:v8';
 import { readFile, realpath } from 'node:fs/promises';
 import { execFileSync } from 'node:child_process';
 import { join } from 'node:path';
@@ -7,6 +8,8 @@ const [configPath, controlPath, bootstrapPath, smokeRoot] = process.argv.slice(2
 const cfg = JSON.parse(await readFile(configPath)), control = JSON.parse(await readFile(controlPath)), bootstrap = JSON.parse(await readFile(bootstrapPath));
 if (await realpath(process.cwd()) !== cfg.repo) throw Error('PREFLIGHT_RUNTIME_CWD');
 globalThis.fetch = async () => { throw Error('PREFLIGHT_NETWORK_FORBIDDEN'); };
+if (!process.execArgv.includes('--max-old-space-size=384')) throw Error('PREFLIGHT_HEAP_384_REQUIRED');
+const heapProof={execArgv:process.execArgv,heapSizeLimitBytes:getHeapStatistics().heap_size_limit,requiredOldSpaceMiB:384};
 const fromRepo = path => import(pathToFileURL(join(cfg.repo, path)).href);
 const { verifyNodeRuntimeProfile } = await fromRepo('scripts/verify-node-runtime-profile.ts');
 const nodeRuntime = await verifyNodeRuntimeProfile();
@@ -29,4 +32,4 @@ const request = { workspaceRoot: smokeRoot, releaseCandidateId: id, batchId: id,
 const archive = await archiveSourceEvidence(request);
 const verified = await verifyArchivedSourceEvidence({ ...request, artifacts: archive.artifacts });
 if (verified.length !== 1) throw Error('PREFLIGHT_ARCHIVE_SMOKE');
-console.log(JSON.stringify({ build, nodeRuntime, sourceConfigSha256: sourcePlanConfigSha256(plan), archiveSmoke: { passed: true, qualification: false, network: false, database: false, workspaceRoot: smokeRoot, path: verified[0].path, sha256: verified[0].sha256, byteCount: verified[0].byteCount } }));
+console.log(JSON.stringify({ build, nodeRuntime, heapProof, sourceConfigSha256: sourcePlanConfigSha256(plan), archiveSmoke: { passed: true, qualification: false, network: false, database: false, workspaceRoot: smokeRoot, path: verified[0].path, sha256: verified[0].sha256, byteCount: verified[0].byteCount } }));

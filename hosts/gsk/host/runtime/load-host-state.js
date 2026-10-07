@@ -2,7 +2,7 @@
 // functions.exec AsyncFunction parameters: root, sourceId, candidateId, commit.
 // Read and validate every binding before replacing any session state.
 const q=s=>"'"+String(s).replaceAll("'","'\\''")+"'";
-const expectedRoot="/workspace/scratch/5e9614251709/jb-incremental-proxy-runtime-20261007T0057Z/hosts/gsk/host",expectedRepo="/workspace/scratch/5e9614251709/jb-incremental-proxy-runtime-20261007T0057Z/producer",expectedBuild={"schemaVersion":2,"commitSha":"28402a299bb04cbf5873da66c2fe8ca76827c0d1","sourceTreeSha256":"114011f4dedc6de630200fb12ab9a2177b91b575ff7843fbe3d7d36c9683ace6","runtimeTreeSha256":"26beba5064ba95e0e916ee4e7d38c9e9a30b23d64ff7d50d9840e430c7ce893a","contentSha256":"6651fbf50b53f2c5666135935300c3c479112d898beed9b354a057d4591a1d4d"};
+const expectedRoot="/workspace/scratch/5e9614251709/jb-incremental-proxy-runtime-20261007T0057Z/gsk-producer-runtime-1529Z/hosts/gsk/host",expectedRepo="/workspace/scratch/5e9614251709/jb-incremental-proxy-runtime-20261007T0057Z/gsk-producer-runtime-1529Z/producer",expectedBuild={"schemaVersion":2,"commitSha":"58aa0e413eec27813483996f5dea6c708a7757c4","sourceTreeSha256":"0931758946d7e94f6b1f6bd4fd1068a29be134b7cac33c008e89c4517a526bd4","runtimeTreeSha256":"3e8df8612c54b4c2c3abec8c6e47501433044d591202b4c8bea5dfac89b9002b","contentSha256":"a3c20c8a133908c292d53438210efdd6abf20b93195fab17b1a235627b80cd00"};
 const expectedDatabaseIdentity=null; // OWNER_DATABASE_BINDING
 const expectedCandidate=null; // OWNER_CANDIDATE_BINDING
 const expectedSourceId="source-gsk-china-social",expectedHash="aa9bf82308c3b818a8c33b80561712b932389186c160ae83583a8c869eb54d74";
@@ -13,7 +13,7 @@ const command="python3 - "+q(root)+" <<'PY'\nfrom pathlib import Path\nimport js
 const result=await tools.exec_command({cmd:command,max_output_tokens:18000});
 if(result.exit_code!==0||result.session_id)throw Error("HOST_LOAD_READ_FAILED");
 const files=JSON.parse(result.output),cfg=JSON.parse(files['host-config.json']),control=JSON.parse(files['control-base.json']),binding=JSON.parse(files['activation.json']);
-if(binding.status!=="REGISTERED_VERIFIED"||!binding.candidate||!Number.isSafeInteger(binding.candidate.version)||binding.candidate.version!==51||binding.candidate.id!=="dot-cloud-delta-proxy-28402a29-20261007")throw Error("CANDIDATE_NOT_REGISTERED");
+if(binding.status!=="REGISTERED_VERIFIED"||!binding.candidate||!Number.isSafeInteger(binding.candidate.version)||binding.candidate.version<52)throw Error("CANDIDATE_NOT_REGISTERED");
 const exact=(a,b)=>a&&b&&Object.keys(a).sort().join(',')===Object.keys(b).sort().join(',')&&Object.keys(b).every(k=>a[k]===b[k]);
 if(!exact(binding.candidate,expectedCandidate)||!exact(control.candidate,expectedCandidate))throw Error('HOST_CANDIDATE_IDENTITY_MISMATCH');
 if(binding.contextReadSha256!==files.__contextReadSha256)throw Error('HOST_CONTEXT_COMPILER_BINDING_MISMATCH');
