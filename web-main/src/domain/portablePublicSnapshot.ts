@@ -111,6 +111,24 @@ function observedAt(receipt: PublicReceipt, row: PortableSourceResultRow): strin
   return receipt.schemaVersion === A_GRADE_COMPLETENESS_CERTIFICATE_SCHEMA_VERSION ? receipt.observedAt :
     receipt.schemaVersion === B_GRADE_TRAVERSAL_CERTIFICATE_SCHEMA_VERSION ? row.observations[0]!.crawledAt.toISOString() : receipt.observation.crawledAt;
 }
+/** Delta manifests commit the original crawl observation, which can precede
+ * an A certificate's independent official-total observation. Keep the latter
+ * as source freshness/quality authority; bind job sightings to the former. */
+function deltaObservationAt(receipt: PublicReceipt, row: PortableSourceResultRow): string {
+  if (receipt.schemaVersion !== A_GRADE_COMPLETENESS_CERTIFICATE_SCHEMA_VERSION) return observedAt(receipt, row);
+  const observation = row.observations?.[0];
+  if (row.observations?.length !== 1 || !observation ||
+      !validDate(row.startedAt) || !validDate(row.finishedAt) ||
+      !validDate(observation.observedFrom) || !validDate(observation.observedTo) || !validDate(observation.crawledAt) ||
+      observation.observedFrom.getTime() !== row.startedAt.getTime() || observation.observedTo.getTime() !== row.finishedAt.getTime() ||
+      observation.crawledAt < row.startedAt || observation.crawledAt > row.finishedAt ||
+      observation.sourceId !== row.sourceId || observation.sourceResultId !== row.id || observation.batchId !== row.batchId ||
+      observation.releaseCandidateId !== row.releaseCandidateId || observation.sourceConfigSha256 !== row.sourceConfigHash ||
+      observation.adapterVersion !== row.adapterVersion || observation.successful !== true || observation.transportSucceeded !== true ||
+      observation.adapterSucceeded !== true || observation.completenessVerified !== true || observation.atomicCommitSucceeded !== true ||
+      observation.canonicalOutputSha256 !== row.canonicalOutputSetSha256) throw new Error("PORTABLE_DELTA_OBSERVATION_DRIFT");
+  return observation.crawledAt.toISOString();
+}
 function acceptedAt(selected: NonNullable<PortableSourceSelection["selected"]>): string {
   return selected.result.finishedAt!.toISOString();
 }
@@ -257,7 +275,7 @@ function verifyAccepted(row: PortableSourceResultRow, plan: SourceCrawlPlan, now
   const receipt = verifyLegacyAccepted({...row, completenessCertificate: deltaReceipt.legacyCertificate as PortableSourceResultRow["completenessCertificate"],
     completenessCertificateSha256: deltaReceipt.legacyCertificateSha256}, plan, now);
   if (!validDate(row.finishedAt) || deltaReceipt.verifiedAt !== row.finishedAt.toISOString() ||
-      deltaReceipt.observedAt !== observedAt(receipt, row)) throw new Error("PORTABLE_DELTA_OBSERVATION_DRIFT");
+      deltaReceipt.observedAt !== deltaObservationAt(receipt, row)) throw new Error("PORTABLE_DELTA_OBSERVATION_DRIFT");
   return {result: row, receipt, deltaReceipt};
 }
 
@@ -410,7 +428,7 @@ function verifiedDeltaMembers(selected: AcceptedPortableSource, members: readonl
     if (member.missingCount === 1) {
       const reference = selected.historicalObservations?.get(member.lastPresentResultId);
       if (!reference || reference.result.sourceId !== selected.result.sourceId ||
-          member.lastConfirmedObservedAt !== observedAt(reference.receipt, reference.result) ||
+          member.lastConfirmedObservedAt !== deltaObservationAt(reference.receipt, reference.result) ||
           member.lifecycleLastSeenAt !== acceptedAt(reference)) throw new Error("PORTABLE_DELTA_LAST_PRESENT_DRIFT");
       const previousMembers = historicalMembers.filter(row => row.sourceResultId === reference.result.id);
       if (!validatedHistory.has(reference.result.id)) {

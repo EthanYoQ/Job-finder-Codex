@@ -1,25 +1,11 @@
-# Incremental job projection candidate source backup
+# A-grade delta reader observation fix
 
-Frozen source cutoff: 2026-10-06 18:40:05 UTC. This is a three-role source increment, with exact patches and synthetic test support. It is not a full application or registered runtime backup.
+This frozen source delta contains five files and one exact patch for each of the main and compatible fallback roles. Both roles have identical changed bytes. Their source baselines are main 964be0f8385e1b5bf2028ab445c1cf0bf7e850a5 and fallback 3c29c0798de063d141b866c05e5f78f99b922e35. The source copies had no new Git commits at the 2026-10-07T10:51:31Z freeze; this backup commit is not a runtime or deployment identity.
 
-## Restore the correct baselines
+The reader keeps the A certificate's independent observation time for source freshness. Delta job sightings instead bind to the original crawl observation. The current and GRACE-history paths retain exact source/result/batch/release/config/adapter and output-hash checks, successful-state flags, one observation, exact start/end bounds, and crawl time inside that interval. Legacy A rows without a delta wrapper and non-A paths retain their prior behavior. No stored timestamp is rewritten by this change.
 
-- Producer: safe source [0c4586b](https://github.com/EthanYoQ/Job-finder-Codex/tree/0c4586b82690203b93475551bd3409e2fbcb1574), then the nine-file deadline source overlay [3687335](https://github.com/EthanYoQ/Job-finder-Codex/tree/368733577fe5a3d395393c6464fc23eb3fa99c80). This preserves the relevant bytes of the 47b74924 baseline; it does not reconstruct the original full Git/runtime identity.
-- Main reader: the 966-file safe [6f82160](https://github.com/EthanYoQ/Job-finder-Codex/tree/6f82160f209ac4556da8578a85de7da9ffc3ff41) source snapshot.
-- Compatible fallback: the 963-file safe [a6ced57](https://github.com/EthanYoQ/Job-finder-Codex/tree/a6ced5737df2b4ebc4800fa547c874e79ad6a41c) source snapshot.
+## Recovery
 
-Apply each exact patch once at its matching baseline root. Alternatively overlay the role's source files and explicitly perform the deletion below; do not apply the patch again after overlaying. SOURCE_ROLE_MAP.json distinguishes actual producer ancestry from the two rebuilt web Git roots. The 62 original files remain byte-for-byte unchanged.
+Restore each complete matching role baseline with its package/lockfile, fixtures, generated client and physical runtime dependencies, then apply that role's five paths or patch. The existing [incremental source backup](https://github.com/EthanYoQ/Job-finder-Codex/commit/a47ed7feeb93e99d45633795cb5fecebc8c0818f) supplies the matching reader delta baseline; its parent role snapshots are recorded in SOURCE_BACKUP.json. Retain the baseline's documented exclusions and migration layout. This incremental package cannot independently recreate the original Git graph or a complete runtime.
 
-## Required deletion and schema boundary
-
-The producer patch deletes prisma/migrations/20261002103742_lilly_source_policy/migration.sql from the executable migration chain. Its copy under contract/unapplied-source-only is source preservation only and must not be copied back into active migrations. Its historical introductory comment does not mean this backup imports capture data.
-
-The new projection migration requires the precise SQL48 baseline and its guards. It has not been applied by this backup and is not an idempotent migration for arbitrary databases. The older a775 reader and original rollback reader do not understand the new receipt wrapper; the supplied main and compatible fallback changes are a required pair.
-
-## Dependencies and limits
-
-Keep the producer/web-main/compatible-fallback/contract layout and restore dependencies from DEPENDENCY_REQUIREMENTS.json. The PGLITE_MODULE dependency and explicit test-only SHA256 adapter are required for the in-memory tests; missing PGlite can skip that test group. No installed dependencies or binaries are included.
-
-publisher-generated-fixtures.json contains generated synthetic scenarios. SQL_FUNCTION_FINGERPRINTS.json contains schema definitions and fingerprints from a synthetic in-memory environment. Neither is a backup or acceptance record of production data. Fixed public source identifiers and non-secret policy hashes remain in the original code.
-
-This backup excludes actual database/capture data, runtime controls, activation state, credentials, logs, reports and workflows. It does not establish full CI, registered runtime identity, native PostgreSQL/pgcrypto or multiple-backend acceptance, measured physical I/O savings, or deployment readiness. Backup validation checked exact patch reversal/application, baseline Git objects and remote source bytes; it did not execute application code, tests, migrations, CI or deployment.
+The added tests use synthetic dates, records and injected HTTP responses. Actual database snapshots, replay inputs/results, production identities, logs, credentials and validation reports are excluded, including the original mixed-result MANIFEST.json. Its hash is retained only as provenance. The backup verified all original hashes and exact patch contexts against the prior safe baselines without running application code, tests, builds, migrations or deployment. Source preservation does not establish production rollout success.

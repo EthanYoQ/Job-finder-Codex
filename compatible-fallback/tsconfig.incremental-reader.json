@@ -10,7 +10,8 @@
     "tests/db/portableSnapshotCache.test.ts",
     "tests/server/portableSnapshotRefresh.test.ts",
     "tests/fixtures/legacyA775PortablePublicSnapshot.ts",
-    "tests/db/publisherGeneratedDeltaPairing.test.ts"
+    "tests/db/publisherGeneratedDeltaPairing.test.ts",
+    "tests/domain/portableDeltaAGradeObservation.test.ts"
   ],
   "exclude": [
     "node_modules"

@@ -74,6 +74,12 @@ describe("delta wrappers retain the actual A/B certificate and artifact gates", 
     const jobs = crawl.jobs.map(record => ({...job(record.sourceJobId!, "2026-10-01T00:00:00.000Z"), sourceId: plan.source.id, companyId: plan.company.id,
       dedupeKey: `${plan.source.id}:${record.sourceJobId}`, officialTitle: record.officialTitle, officialUrl: record.officialUrl, cities: record.cities, city: record.cities[0]!, locationRaw: record.locationRaw,
       officialPublishedAt: new Date(record.officialPublishedAt!)}));
+    f.result.observations = [{sourceId: f.result.sourceId, sourceResultId: f.result.id, batchId: f.result.batchId,
+      releaseCandidateId: f.result.releaseCandidateId, sourceConfigSha256: f.result.sourceConfigHash, adapterVersion: f.result.adapterVersion,
+      observedFrom: f.result.startedAt, observedTo: f.result.finishedAt!, crawledAt: new Date(c.observedAt), successful: true,
+      transportSucceeded: true, adapterSucceeded: true, completenessVerified: true, atomicCommitSucceeded: true,
+      canonicalOutputSha256: f.result.canonicalOutputSetSha256, canonicalRawSha256: c.pagination.canonicalRawOfficialIdSetSha256,
+      paginationTraceSha256: c.pagination.paginationTraceSha256}];
     const r = repository(wrap(f.result, f.members, jobs, c.observedAt));
     const snapshot = await readPortablePublicSnapshot(r.db, {currentTime: new Date(at)}, [plan]);
     expect(snapshot.sources[0]).toMatchObject({state: "PUBLISHING", lastSuccessAt: c.observedAt, visibleJobCount: 1, jobs: [{lastConfirmedObservedAt: c.observedAt, lastSeenAt: at}]});
