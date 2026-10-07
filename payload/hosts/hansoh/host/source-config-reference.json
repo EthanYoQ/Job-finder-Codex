@@ -1,0 +1,83 @@
+{
+  "sourceKey": "hansoh",
+  "sourceId": "source-hansoh-social",
+  "route": "PORTABLE",
+  "sourceConfigSha256": "94d0982064af5a70386e017dec29cec1115c08480df2934e8d4cf0ddf644d740",
+  "source": {
+    "id": "source-hansoh-social",
+    "companyId": "company-hansoh",
+    "kind": "SOCIAL",
+    "atsKind": "BEISEN_ZHIYE",
+    "status": "VERIFIED_SCRAPABLE",
+    "officialEntryUrl": "https://hspharm.zhiye.com/social",
+    "officialChainEvidenceUrl": "https://www.hansoh.cn/job/career-development.htm"
+  },
+  "currentSourcePlan": {
+    "adapterId": "official-json",
+    "company": {
+      "id": "company-hansoh",
+      "officialChineseName": "江苏豪森药业集团有限公司",
+      "category": "DOMESTIC_PHARMA"
+    },
+    "source": {
+      "id": "source-hansoh-social",
+      "surfaceId": "surface-hansoh-social",
+      "companyId": "company-hansoh",
+      "kind": "SOCIAL",
+      "atsKind": "BEISEN_ZHIYE",
+      "status": "VERIFIED_SCRAPABLE",
+      "officialEntryUrl": "https://hspharm.zhiye.com/social",
+      "officialChainEvidenceUrl": "https://www.hansoh.cn/job/career-development.htm"
+    },
+    "executionAuthority": "STAGED",
+    "expectedChannels": [
+      {
+        "channelId": "source:source-hansoh-social:default",
+        "kind": "SOCIAL"
+      }
+    ],
+    "expectedChannelSetHash": "8fdcf77425e360a0b709f9b64acabe39a3579c260463fc7fa0065000c3a4a71e",
+    "json": {
+      "jobsPath": "jobs",
+      "fields": {
+        "sourceJobId": "sourceJobId",
+        "officialTitle": "title",
+        "officialUrl": "officialUrl",
+        "locationRaw": "locationRaw",
+        "cities": "cities"
+      },
+      "defaultCategory": "其他"
+    },
+    "officialJsonFetch": {
+      "kind": "beisen-zhiye-2022",
+      "postDateWithinDays": 180,
+      "geographyScope": "DOMESTIC_OFFICIAL_TENANT",
+      "category": "1",
+      "displayFields": [
+        "Category",
+        "Kind",
+        "LocId",
+        "Salary",
+        "Degree",
+        "YearsOfWorking",
+        "ClassificationOne",
+        "WorkWeChatQrCode",
+        "PostDate"
+      ],
+      "pageSize": 100,
+      "maxPages": 10,
+      "detailPath": "social/detail"
+    },
+    "transportPolicy": {
+      "primary": "DIRECT_HTTP"
+    }
+  },
+  "currentQualityPolicy": "PLAN_BOUND_SOURCE_QUALITY_V1",
+  "implementation": {
+    "profilePath": "/workspace/scratch/5e9614251709/jb-incremental-proxy-runtime-20261007T0057Z/producer/src/crawler/companyRecruitmentProfiles/profiles/hansoh.ts",
+    "profileSha256": "54490394bea55fa17279dcbc650a9c4079ac7520bb4611dda8e894ad205e2ee2",
+    "sourcePlanPath": "/workspace/scratch/5e9614251709/jb-incremental-proxy-runtime-20261007T0057Z/producer/src/crawler/sourcePlan.ts",
+    "sourcePlanSha256": "1f1345f74ad41adaa0778eaf301f6b1c38ca68f091d81b116556771d18c71987"
+  },
+  "staticRouteSha256": "773abaf6cfa1196590330dee6a88afc3b4b6ae507d81cb2e163a387727ca2ec8"
+}

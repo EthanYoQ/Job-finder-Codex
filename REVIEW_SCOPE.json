@@ -1,0 +1,26 @@
+{
+  "classification": "SOURCE_ONLY_OFFLINE_REVIEWED_NOT_AN_OPERATIONAL_RESTORE",
+  "sourceManifestSha256": "8b292e33443927e09da641f3deac8d2647d42f4a0b8b346a32875a00501aae56",
+  "independentReviewStatus": "PASS_OFFLINE_C51_HANSOH_FOSUN_R4_ONLY",
+  "independentReviewReportSha256": "1f66621508f505f8bc18a36d60496b4b52f6e89697d29c4de4ff30b8a5b5b3d3",
+  "reviewedSourceCount": 69,
+  "reviewedSourceBytes": 365208,
+  "producerDependencyCommit": "28402a299bb04cbf5873da66c2fe8ca76827c0d1",
+  "independentOfflineTests": {
+    "passed": 683,
+    "failed": 0,
+    "skipped": 0
+  },
+  "repairBoundaries": [
+    "Synchronous final SQL guard after all awaited prechecks",
+    "Deep immutable identity snapshots and live scope comparison",
+    "Raw terminal evidence retained before terminal scope rejection",
+    "Existing no-retry, UNKNOWN, original-deadline and unbound-installation requirements retained"
+  ],
+  "containsActualBinding": false,
+  "containsActualActivation": false,
+  "containsActualControl": false,
+  "containsRuntimeDependencies": false,
+  "containsPrivateEvidence": false,
+  "installationOrLaunchAuthorizedByBackup": false
+}

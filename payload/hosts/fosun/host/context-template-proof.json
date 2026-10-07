@@ -1,0 +1,68 @@
+{
+  "schemaVersion": 1,
+  "sourceId": "source-fosun-pharma-social",
+  "sourceConfigSha256": "0227ec8d384900a48b2973f128908f7e9435d4bc991efd9a5b14ea5a3d1042b2",
+  "route": "PORTABLE",
+  "entrypoint": "scripts/p0-cloud-portable-source-pilot.ts",
+  "entrypointSha256": "a62a002c67716551ed23af7263b08a3d2d6486efcf31d9b4889b7042731fe98f",
+  "sourceAdmissionPolicy": "PLAN_BOUND_SOURCE_QUALITY_V1",
+  "certificateSchema": "plan-bound-source-quality-v1",
+  "publicationMode": "DB_STARTED_JOB_PROJECTION_DELTA_V1",
+  "candidate": null,
+  "databaseIdentity": null,
+  "templatePlaceholderOnly": true,
+  "contextSha256": "677e4032cf66c89f2ca73e1480176d3e8c3c56319fc0761d7971170c81eb4190",
+  "expiryBasis": "original acquisition startedAt plus at most 30m capture and 30m evidence expiry",
+  "originalSourcePlan": {
+    "adapterId": "official-json",
+    "company": {
+      "id": "company-fosun-pharma",
+      "officialChineseName": "上海复星医药（集团）股份有限公司",
+      "category": "DOMESTIC_PHARMA"
+    },
+    "source": {
+      "id": "source-fosun-pharma-social",
+      "surfaceId": "surface-fosun-pharma-social",
+      "companyId": "company-fosun-pharma",
+      "kind": "SOCIAL",
+      "atsKind": "BEISEN_ZHIYE",
+      "status": "VERIFIED_SCRAPABLE",
+      "officialEntryUrl": "https://fosunpharma.zhiye.com/social",
+      "officialChainEvidenceUrl": "https://www.fosunpharma.com/careers/"
+    },
+    "executionAuthority": "STAGED",
+    "expectedChannels": [
+      {
+        "channelId": "source:source-fosun-pharma-social:default",
+        "kind": "SOCIAL"
+      }
+    ],
+    "expectedChannelSetHash": "9b074959015f02084234cb1e14dbdba768012fe3370d5525044d1dbffcc94a87",
+    "json": {
+      "jobsPath": "jobs",
+      "fields": {
+        "sourceJobId": "sourceJobId",
+        "officialTitle": "title",
+        "officialUrl": "officialUrl",
+        "locationRaw": "locationRaw",
+        "cities": "cities"
+      },
+      "defaultCategory": "其他"
+    },
+    "officialJsonFetch": {
+      "kind": "beisen-zhiye-2022",
+      "geographyScope": "DOMESTIC_OFFICIAL_TENANT",
+      "scopeExclusionProof": "FOSUN_EXPLICIT_HONG_KONG_ONLY_V1",
+      "category": "1",
+      "pageSize": 100,
+      "maxPages": 5,
+      "detailPath": "social/detail"
+    },
+    "transportPolicy": {
+      "primary": "DIRECT_HTTP"
+    }
+  },
+  "network": false,
+  "database": false,
+  "launch": false
+}

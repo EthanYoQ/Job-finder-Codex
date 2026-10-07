@@ -1,0 +1,604 @@
+{
+  "format": "safe-source-snapshot-v1",
+  "scope": "Hansoh/Fosun C51 r4 unbound source and synthetic tests",
+  "fileCountExcludingManifest": 85,
+  "sourceBytesExcludingManifest": 543803,
+  "operationalRestore": false,
+  "files": [
+    {
+      "path": "R3_TO_R4_SOURCE.patch",
+      "bytes": 38290,
+      "sha256": "4122079880a6d5ac29b625db91363867fab91ad72b449b9cbcc0fedcda33d2f3",
+      "gitBlob": "e3eee5cfebbe62262b2016733b95ed9fd189bcee",
+      "mode": "100644"
+    },
+    {
+      "path": "README.md",
+      "bytes": 4659,
+      "sha256": "4120469385ed7abff8ca1b8a72d940e4fb96b0f2a29e4077620b95484e887f50",
+      "gitBlob": "a8830ff34b4273f79d14a291907cba13b1d87353",
+      "mode": "100644"
+    },
+    {
+      "path": "REVIEW_SCOPE.json",
+      "bytes": 1134,
+      "sha256": "6757d05311a5c12054132a8ee957177d6ddc0aee084af916374934799d2a0301",
+      "gitBlob": "03d16e02b9b0250d4f5ce65337cb4ee5e77d8da1",
+      "mode": "100644"
+    },
+    {
+      "path": "generate-context.mts",
+      "bytes": 4486,
+      "sha256": "a1b77099911d63f396b0511a26e85aede3cb33af6f99cbaca27f9c6e0bd5aff9",
+      "gitBlob": "23923bae49b6d77e38bb979b9084b4854748970f",
+      "mode": "100644"
+    },
+    {
+      "path": "payload/hosts/fosun/host/archive-transfer.mjs",
+      "bytes": 1777,
+      "sha256": "698e966e5552967845a5252d2b3df2acca28dcd8dbbb0ae41755a3a6231e6a99",
+      "gitBlob": "5a454d21f34f9680221bbee2c98b3fecb94884f0",
+      "mode": "100644"
+    },
+    {
+      "path": "payload/hosts/fosun/host/context-read.sql.template",
+      "bytes": 2622,
+      "sha256": "677e4032cf66c89f2ca73e1480176d3e8c3c56319fc0761d7971170c81eb4190",
+      "gitBlob": "54bd9d4324500e9224bd5ca68ea9d2d983aa40c1",
+      "mode": "100644"
+    },
+    {
+      "path": "payload/hosts/fosun/host/context-template-proof.json",
+      "bytes": 2381,
+      "sha256": "cd5df5396d21e8927ad5a7e3c0af05d8a90eed1586b44d4caa2b2d13c7ffdb18",
+      "gitBlob": "98594370d0348cc6abb769e6d5542dcbd176e8da",
+      "mode": "100644"
+    },
+    {
+      "path": "payload/hosts/fosun/host/control-base.template.json",
+      "bytes": 467,
+      "sha256": "3634b5cc4c996565263cdae4b168cb519556c2401367f33511b426fd0ae48897",
+      "gitBlob": "f315252ccc1b63c4b75f86f3ab6dcacdccbeaa1d",
+      "mode": "100644"
+    },
+    {
+      "path": "payload/hosts/fosun/host/host-config.json",
+      "bytes": 510,
+      "sha256": "e118a686ac638815dd78c576a2098e71e75e862b24e84c568d88c9919e87f63d",
+      "gitBlob": "3c266560c3ff4e8e05a27e9d2c619086514ac623",
+      "mode": "100644"
+    },
+    {
+      "path": "payload/hosts/fosun/host/host-config.template.json",
+      "bytes": 510,
+      "sha256": "e118a686ac638815dd78c576a2098e71e75e862b24e84c568d88c9919e87f63d",
+      "gitBlob": "3c266560c3ff4e8e05a27e9d2c619086514ac623",
+      "mode": "100644"
+    },
+    {
+      "path": "payload/hosts/fosun/host/host-files.mts",
+      "bytes": 4077,
+      "sha256": "c8033565b3c368bf369fc7507f9d1ff8fa87bc0dde0a84a10a95373473dc6f3a",
+      "gitBlob": "8c8f201640071565320343e74c6919d1e83fd9b5",
+      "mode": "100644"
+    },
+    {
+      "path": "payload/hosts/fosun/host/host-helper-functions.js",
+      "bytes": 11217,
+      "sha256": "ef3577a24500a5e462d13384b4ff8ccecb7b2b7e033e084130e4fbbc249fc832",
+      "gitBlob": "972c0636149d68febfabe7a6afb6ac1bd13d5708",
+      "mode": "100644"
+    },
+    {
+      "path": "payload/hosts/fosun/host/host-stage-functions.js",
+      "bytes": 6977,
+      "sha256": "e2d49acde87841ae2d9e58207310c33f807b82512c946b6337a9c306128870af",
+      "gitBlob": "6c6f4490435f147ee578e8c88e6643ae44e2262f",
+      "mode": "100644"
+    },
+    {
+      "path": "payload/hosts/fosun/host/machine-json.js",
+      "bytes": 807,
+      "sha256": "3484738bd095a9d57da70c6392af78865a53759a9e8499316941157b6210e9f6",
+      "gitBlob": "7b927e85ca286ffa900ca93462deee5b9988ed49",
+      "mode": "100644"
+    },
+    {
+      "path": "payload/hosts/fosun/host/owner-binding-input.template.json",
+      "bytes": 619,
+      "sha256": "c08e26daa98b4a293ced8e1df927559994904e6854270a7c58273f3b7ac238b4",
+      "gitBlob": "1885644178aebe9b8d2d13bff11986061148bd67",
+      "mode": "100644"
+    },
+    {
+      "path": "payload/hosts/fosun/host/relay-files.mjs",
+      "bytes": 7907,
+      "sha256": "c9f2b6002d50a2d98513a92bcec62eb78ab24d4346ef9e80c9e08622d73b5fc1",
+      "gitBlob": "5fef03eea1be665217c9226c0e0ba20bcd6872e7",
+      "mode": "100644"
+    },
+    {
+      "path": "payload/hosts/fosun/host/runtime/complete-reviewed-source-readback.js",
+      "bytes": 5694,
+      "sha256": "3f61443f0702caa634adc48b3ced2f18a93697c3bedf3a3bcb7701bb83d81668",
+      "gitBlob": "2f4fcdbb98443d3c12da9f469bc8a6fb1df66e4a",
+      "mode": "100644"
+    },
+    {
+      "path": "payload/hosts/fosun/host/runtime/continuous-relay-v3-durable-monitor.js",
+      "bytes": 11575,
+      "sha256": "3481682b9cbf88fea535f329c59bfec17e18820e18e4b82480886b273f10a6cb",
+      "gitBlob": "a29eee0acd37aa7483ae6dd95efd1aa909a66169",
+      "mode": "100644"
+    },
+    {
+      "path": "payload/hosts/fosun/host/runtime/inspect-host-binding.mts",
+      "bytes": 3279,
+      "sha256": "05a2113d836cacc993c379caea58828ec45fbb55f5bc3a3c63ecc2101301b3fa",
+      "gitBlob": "ff593ca8208ca3a46a12d8bc0f448cff4f2aa2d2",
+      "mode": "100644"
+    },
+    {
+      "path": "payload/hosts/fosun/host/runtime/load-host-state.js",
+      "bytes": 5313,
+      "sha256": "8f3cc9427fd5ffe40f790ef87023555976f09882f8a54500ce52908ce7940298",
+      "gitBlob": "cc6e92bcdccae2cd681a830a85022315633d3edd",
+      "mode": "100644"
+    },
+    {
+      "path": "payload/hosts/fosun/host/runtime/load-host-state.unbound.template.js",
+      "bytes": 5313,
+      "sha256": "8f3cc9427fd5ffe40f790ef87023555976f09882f8a54500ce52908ce7940298",
+      "gitBlob": "cc6e92bcdccae2cd681a830a85022315633d3edd",
+      "mode": "100644"
+    },
+    {
+      "path": "payload/hosts/fosun/host/runtime/load-source-runtime.js",
+      "bytes": 2392,
+      "sha256": "f0e9fbf6d43c6b8e9754d4cf227510c4d8c7895eeb3ed7e1c3dbe09e01b23115",
+      "gitBlob": "d1bba4916f7028afb355df2a6e19b0c181f77ac5",
+      "mode": "100644"
+    },
+    {
+      "path": "payload/hosts/fosun/host/runtime/machine-json.py",
+      "bytes": 1119,
+      "sha256": "67611e749eddc6bf8c591fef11f2efa82e2a73ce0bb51b2779fab4ae68b77f50",
+      "gitBlob": "3dda394ae2fe15b8740c8db2f0adcf6a9e19e3cf",
+      "mode": "100644"
+    },
+    {
+      "path": "payload/hosts/fosun/host/runtime/preflight/preflight-launch.mjs",
+      "bytes": 11059,
+      "sha256": "e20240ae97a00a5f546e93e87a47033bfb94474c205507200979183a9361b755",
+      "gitBlob": "1a6eb4603a84bbcb1e15261e13bc8da6f7ef2011",
+      "mode": "100644"
+    },
+    {
+      "path": "payload/hosts/fosun/host/runtime/preflight/runtime-check.mjs",
+      "bytes": 3815,
+      "sha256": "e01c5b953283535757e2fcc67df80dd3e86948709dde0b488235a7edee017785",
+      "gitBlob": "275890f0f3584e99e0f0f57a4492fd95ad6c248d",
+      "mode": "100644"
+    },
+    {
+      "path": "payload/hosts/fosun/host/runtime/prepare-owner-binding.mts",
+      "bytes": 8408,
+      "sha256": "1b57e1d53e2a4c4ca82678f627f0fe678660be271ff6446010bee845b8d1766c",
+      "gitBlob": "c8db00a20328f1c989363e1d0b7da11579e84a6a",
+      "mode": "100644"
+    },
+    {
+      "path": "payload/hosts/fosun/host/runtime/prepare-registered-control.mts",
+      "bytes": 123,
+      "sha256": "75b04c3bf46a0c81529e1322c74a02ccddb88b6edb161c39e36fc082ad1c89d8",
+      "gitBlob": "323b7860456a264d9c9f144e7343376ba43131d1",
+      "mode": "100644"
+    },
+    {
+      "path": "payload/hosts/fosun/host/runtime/review-packet-envelope.mts",
+      "bytes": 5535,
+      "sha256": "40cb1e3ede867f0e9d171605e7454fc71a6f774dfdf910f68ff668722bba69cb",
+      "gitBlob": "a550d0fd80f032ae7ed2633e88b2cd2c748c6969",
+      "mode": "100644"
+    },
+    {
+      "path": "payload/hosts/fosun/host/runtime/review-publication.py",
+      "bytes": 5392,
+      "sha256": "4f64d2bb9580a0136f29b6dac0cdea20ad751179a1b664660eb10c9b5b47b059",
+      "gitBlob": "1bd87bcb45923bb6878aa29fa1d752bd0be61755",
+      "mode": "100644"
+    },
+    {
+      "path": "payload/hosts/fosun/host/runtime/update-candidate-completion-state.mjs",
+      "bytes": 3654,
+      "sha256": "ae5ad99411b014c8ffff615a0b06af1e1fdfd2ed7f7265c9c9cee0128339bb06",
+      "gitBlob": "ec886e3dd2b52805daccddcdcd862b6afbaeec29",
+      "mode": "100644"
+    },
+    {
+      "path": "payload/hosts/fosun/host/source-config-reference.json",
+      "bytes": 2714,
+      "sha256": "0a2fa32e8befd7848b2feb63918ca53e911bed2715cccf84f0875eb8ce9b8285",
+      "gitBlob": "43add73e8e448827f434b8a6287d6853a7efeb95",
+      "mode": "100644"
+    },
+    {
+      "path": "payload/hosts/fosun/supervision/inspect-launch-identity.mjs",
+      "bytes": 871,
+      "sha256": "7bc818ae831081b7e91819ad772b950d08e7d06dc741730c0bd54698d6fe8b37",
+      "gitBlob": "0fc3dd6c1dde3cc7759848f18c795792c38c800c",
+      "mode": "100644"
+    },
+    {
+      "path": "payload/hosts/fosun/supervision/sample_process_tree.py",
+      "bytes": 13065,
+      "sha256": "3fa6daa1af1afee94d19801edfd8bcb538e1243476b5adb253e50de162a27bd6",
+      "gitBlob": "5c2924dc067309525018e4903741dc33e796b546",
+      "mode": "100644"
+    },
+    {
+      "path": "payload/hosts/fosun/supervision/start-monitor-fosun51-combined.js",
+      "bytes": 14842,
+      "sha256": "3e6526c4aa00c968740fdd0de2b809ca4678c2bf01c9d766cfc563c5769a5349",
+      "gitBlob": "86969ca103b3ac83d2d59c1be119a8fda8bd531f",
+      "mode": "100644"
+    },
+    {
+      "path": "payload/hosts/fosun/supervision/start-monitor-fosun51-combined.unbound.template.js",
+      "bytes": 14842,
+      "sha256": "3e6526c4aa00c968740fdd0de2b809ca4678c2bf01c9d766cfc563c5769a5349",
+      "gitBlob": "86969ca103b3ac83d2d59c1be119a8fda8bd531f",
+      "mode": "100644"
+    },
+    {
+      "path": "payload/hosts/fosun/supervision/supervise-cancel.mjs",
+      "bytes": 10232,
+      "sha256": "083435a5344a47b86f84184bbe1d2711b0d35def4670afb2ab3c8391ed442e7e",
+      "gitBlob": "efe376ba3dbe501d5a2b1bece2c7ac46471aca7d",
+      "mode": "100644"
+    },
+    {
+      "path": "payload/hosts/hansoh/host/archive-transfer.mjs",
+      "bytes": 1777,
+      "sha256": "698e966e5552967845a5252d2b3df2acca28dcd8dbbb0ae41755a3a6231e6a99",
+      "gitBlob": "5a454d21f34f9680221bbee2c98b3fecb94884f0",
+      "mode": "100644"
+    },
+    {
+      "path": "payload/hosts/hansoh/host/context-read.sql.template",
+      "bytes": 2592,
+      "sha256": "e14905e069d7220fddf97ce9ba65c9f98bc534721babd6495284652e9b163122",
+      "gitBlob": "364c9fd955ac7ace5486b9cdad462bda0d32ae08",
+      "mode": "100644"
+    },
+    {
+      "path": "payload/hosts/hansoh/host/context-template-proof.json",
+      "bytes": 2535,
+      "sha256": "4b19dcaccd3d200ef9b2d1654e069a6bffc72a85f3a91a0c7b9ba6e22f5a5de4",
+      "gitBlob": "7995bdd04ae59b2c9654c24c7c36302231acfa59",
+      "mode": "100644"
+    },
+    {
+      "path": "payload/hosts/hansoh/host/control-base.template.json",
+      "bytes": 467,
+      "sha256": "3634b5cc4c996565263cdae4b168cb519556c2401367f33511b426fd0ae48897",
+      "gitBlob": "f315252ccc1b63c4b75f86f3ab6dcacdccbeaa1d",
+      "mode": "100644"
+    },
+    {
+      "path": "payload/hosts/hansoh/host/host-config.json",
+      "bytes": 505,
+      "sha256": "b68f0f793d7f6a0debb395f479353eca3d9c54e5ebf1cf1dc57f44f72bedfb87",
+      "gitBlob": "2a923e4a5ef277deae3d08dfead7ff3896ece3b6",
+      "mode": "100644"
+    },
+    {
+      "path": "payload/hosts/hansoh/host/host-config.template.json",
+      "bytes": 505,
+      "sha256": "b68f0f793d7f6a0debb395f479353eca3d9c54e5ebf1cf1dc57f44f72bedfb87",
+      "gitBlob": "2a923e4a5ef277deae3d08dfead7ff3896ece3b6",
+      "mode": "100644"
+    },
+    {
+      "path": "payload/hosts/hansoh/host/host-files.mts",
+      "bytes": 4077,
+      "sha256": "c8033565b3c368bf369fc7507f9d1ff8fa87bc0dde0a84a10a95373473dc6f3a",
+      "gitBlob": "8c8f201640071565320343e74c6919d1e83fd9b5",
+      "mode": "100644"
+    },
+    {
+      "path": "payload/hosts/hansoh/host/host-helper-functions.js",
+      "bytes": 11220,
+      "sha256": "953dd97e75752e4101a5cf2b51bb57c9bed7e0ca7f4f218eaaf01a46e3542282",
+      "gitBlob": "61768d47b37ca95b6e6170d6555a803fcac50200",
+      "mode": "100644"
+    },
+    {
+      "path": "payload/hosts/hansoh/host/host-stage-functions.js",
+      "bytes": 6974,
+      "sha256": "23a8e0a3c2752bd17b102183d668229247ad2c75351a4cfb975888170a1cd0cb",
+      "gitBlob": "7320a1f77378da6da0a2fa7f086acc43f847ecf7",
+      "mode": "100644"
+    },
+    {
+      "path": "payload/hosts/hansoh/host/machine-json.js",
+      "bytes": 807,
+      "sha256": "3484738bd095a9d57da70c6392af78865a53759a9e8499316941157b6210e9f6",
+      "gitBlob": "7b927e85ca286ffa900ca93462deee5b9988ed49",
+      "mode": "100644"
+    },
+    {
+      "path": "payload/hosts/hansoh/host/owner-binding-input.template.json",
+      "bytes": 613,
+      "sha256": "a6c4f0f51e21d2bcdaf8c5e790046f27853fa7ddc52a0bb81c36bb09eaf0d7e9",
+      "gitBlob": "0472947cc1e8eb9a901d7b4590de76fe84b916d6",
+      "mode": "100644"
+    },
+    {
+      "path": "payload/hosts/hansoh/host/relay-files.mjs",
+      "bytes": 7908,
+      "sha256": "5833c3aafd4b85045b00b733ce868db16a8a3cc566179f44c9c021b479fdacda",
+      "gitBlob": "4b7894dc2c62e412646ddde8df1e174c7e182a1c",
+      "mode": "100644"
+    },
+    {
+      "path": "payload/hosts/hansoh/host/runtime/complete-reviewed-source-readback.js",
+      "bytes": 5695,
+      "sha256": "0d7aa983391ede0471e880b6d34f7781fe142b1d0203bd0b1bc3b6f0ef182b65",
+      "gitBlob": "0c8cb303eec801e7532d0e9a640104b86c0b173f",
+      "mode": "100644"
+    },
+    {
+      "path": "payload/hosts/hansoh/host/runtime/continuous-relay-v3-durable-monitor.js",
+      "bytes": 11577,
+      "sha256": "aa3720591d445581ca06b5fa27c56dbd486c16fe7fdd4c79441e6fb51975f44c",
+      "gitBlob": "1ada9b7e76c2a12685a43516928bf04aa1a3ea8c",
+      "mode": "100644"
+    },
+    {
+      "path": "payload/hosts/hansoh/host/runtime/inspect-host-binding.mts",
+      "bytes": 3279,
+      "sha256": "05a2113d836cacc993c379caea58828ec45fbb55f5bc3a3c63ecc2101301b3fa",
+      "gitBlob": "ff593ca8208ca3a46a12d8bc0f448cff4f2aa2d2",
+      "mode": "100644"
+    },
+    {
+      "path": "payload/hosts/hansoh/host/runtime/load-host-state.js",
+      "bytes": 5313,
+      "sha256": "dabb6ac1c223f637a8bff31a171d9b6368979477dfc2a1cd0598359c397b516c",
+      "gitBlob": "c55ae390aab87b1644711f7e84ea5e2a7e91ac26",
+      "mode": "100644"
+    },
+    {
+      "path": "payload/hosts/hansoh/host/runtime/load-host-state.unbound.template.js",
+      "bytes": 5313,
+      "sha256": "dabb6ac1c223f637a8bff31a171d9b6368979477dfc2a1cd0598359c397b516c",
+      "gitBlob": "c55ae390aab87b1644711f7e84ea5e2a7e91ac26",
+      "mode": "100644"
+    },
+    {
+      "path": "payload/hosts/hansoh/host/runtime/load-source-runtime.js",
+      "bytes": 2399,
+      "sha256": "048b105fe0a5b5d317bb5e1fceefa54a93fb73412f8f260681a4d4fdc5f95ba9",
+      "gitBlob": "9456fbfabe25385f4db58629dc70559997617ae5",
+      "mode": "100644"
+    },
+    {
+      "path": "payload/hosts/hansoh/host/runtime/machine-json.py",
+      "bytes": 1119,
+      "sha256": "67611e749eddc6bf8c591fef11f2efa82e2a73ce0bb51b2779fab4ae68b77f50",
+      "gitBlob": "3dda394ae2fe15b8740c8db2f0adcf6a9e19e3cf",
+      "mode": "100644"
+    },
+    {
+      "path": "payload/hosts/hansoh/host/runtime/preflight/preflight-launch.mjs",
+      "bytes": 11059,
+      "sha256": "e20240ae97a00a5f546e93e87a47033bfb94474c205507200979183a9361b755",
+      "gitBlob": "1a6eb4603a84bbcb1e15261e13bc8da6f7ef2011",
+      "mode": "100644"
+    },
+    {
+      "path": "payload/hosts/hansoh/host/runtime/preflight/runtime-check.mjs",
+      "bytes": 3815,
+      "sha256": "e01c5b953283535757e2fcc67df80dd3e86948709dde0b488235a7edee017785",
+      "gitBlob": "275890f0f3584e99e0f0f57a4492fd95ad6c248d",
+      "mode": "100644"
+    },
+    {
+      "path": "payload/hosts/hansoh/host/runtime/prepare-owner-binding.mts",
+      "bytes": 8398,
+      "sha256": "f6ffc1122e9af136a11824e71636d55bda94248e25c95e20e8d56bb97fb4f069",
+      "gitBlob": "4e560a1bc278c06d0fbcecf8d237eaaf4a1a4de0",
+      "mode": "100644"
+    },
+    {
+      "path": "payload/hosts/hansoh/host/runtime/prepare-registered-control.mts",
+      "bytes": 123,
+      "sha256": "75b04c3bf46a0c81529e1322c74a02ccddb88b6edb161c39e36fc082ad1c89d8",
+      "gitBlob": "323b7860456a264d9c9f144e7343376ba43131d1",
+      "mode": "100644"
+    },
+    {
+      "path": "payload/hosts/hansoh/host/runtime/review-packet-envelope.mts",
+      "bytes": 5535,
+      "sha256": "40cb1e3ede867f0e9d171605e7454fc71a6f774dfdf910f68ff668722bba69cb",
+      "gitBlob": "a550d0fd80f032ae7ed2633e88b2cd2c748c6969",
+      "mode": "100644"
+    },
+    {
+      "path": "payload/hosts/hansoh/host/runtime/review-publication.py",
+      "bytes": 5386,
+      "sha256": "e897014139d6d1e23027e4494e3fc657c285d10a54af97a1544207b2c2dcaa04",
+      "gitBlob": "ca02800c95cb8ff4d4053ada111ace57efb2e130",
+      "mode": "100644"
+    },
+    {
+      "path": "payload/hosts/hansoh/host/runtime/update-candidate-completion-state.mjs",
+      "bytes": 3654,
+      "sha256": "ae5ad99411b014c8ffff615a0b06af1e1fdfd2ed7f7265c9c9cee0128339bb06",
+      "gitBlob": "ec886e3dd2b52805daccddcdcd862b6afbaeec29",
+      "mode": "100644"
+    },
+    {
+      "path": "payload/hosts/hansoh/host/source-config-reference.json",
+      "bytes": 2859,
+      "sha256": "876b7da10ae07b6436bcbc68db3b81da3c03814332a25b63813e4df4fff42236",
+      "gitBlob": "ea6ca9af2f3c61fb591b030c29cf0d9e276d2857",
+      "mode": "100644"
+    },
+    {
+      "path": "payload/hosts/hansoh/supervision/inspect-launch-identity.mjs",
+      "bytes": 871,
+      "sha256": "7bc818ae831081b7e91819ad772b950d08e7d06dc741730c0bd54698d6fe8b37",
+      "gitBlob": "0fc3dd6c1dde3cc7759848f18c795792c38c800c",
+      "mode": "100644"
+    },
+    {
+      "path": "payload/hosts/hansoh/supervision/sample_process_tree.py",
+      "bytes": 13065,
+      "sha256": "3fa6daa1af1afee94d19801edfd8bcb538e1243476b5adb253e50de162a27bd6",
+      "gitBlob": "5c2924dc067309525018e4903741dc33e796b546",
+      "mode": "100644"
+    },
+    {
+      "path": "payload/hosts/hansoh/supervision/start-monitor-hansoh51-combined.js",
+      "bytes": 14858,
+      "sha256": "82fd5ceadfa5d239ac80e489b8e6536c09e4c25c5f6bc8c119670833f5b67c0c",
+      "gitBlob": "7342fe6995ffef6c373757e9e0e58bc8768080fa",
+      "mode": "100644"
+    },
+    {
+      "path": "payload/hosts/hansoh/supervision/start-monitor-hansoh51-combined.unbound.template.js",
+      "bytes": 14858,
+      "sha256": "82fd5ceadfa5d239ac80e489b8e6536c09e4c25c5f6bc8c119670833f5b67c0c",
+      "gitBlob": "7342fe6995ffef6c373757e9e0e58bc8768080fa",
+      "mode": "100644"
+    },
+    {
+      "path": "payload/hosts/hansoh/supervision/supervise-cancel.mjs",
+      "bytes": 10232,
+      "sha256": "083435a5344a47b86f84184bbe1d2711b0d35def4670afb2ab3c8391ed442e7e",
+      "gitBlob": "efe376ba3dbe501d5a2b1bece2c7ac46471aca7d",
+      "mode": "100644"
+    },
+    {
+      "path": "payload/owner-adaptations/hansoh-fosun-c51-r4-20261007T2149Z/baseline-manifest.json",
+      "bytes": 2613,
+      "sha256": "3bc8f4665d7c0164a1142f504a20982836fb8e974acc7e43b1a7f103f8c47857",
+      "gitBlob": "4da179b8f9efbc09d537e81bb872fccab018797f",
+      "mode": "100644"
+    },
+    {
+      "path": "payload/owner-adaptations/hansoh-fosun-c51-r4-20261007T2149Z/build-fragments.py",
+      "bytes": 4463,
+      "sha256": "1f03fee8b375360bd6294b09fed5eccbbe1787bda8f5cf5523c743bde23de28e",
+      "gitBlob": "fe3faea145e2d549d371677a3cfc5b70fb7634d2",
+      "mode": "100644"
+    },
+    {
+      "path": "payload/owner-adaptations/hansoh-fosun-c51-r4-20261007T2149Z/preload-owner.exec.js",
+      "bytes": 2750,
+      "sha256": "39792f271273a20c6596cefb15ea0e50bc68b5112fe981ae510f796761f4ca6d",
+      "gitBlob": "51174bb2c9abffa193874c0d56218c8a2dbce09e",
+      "mode": "100644"
+    },
+    {
+      "path": "payload/owner-adaptations/hansoh-fosun-c51-r4-20261007T2149Z/publish-and-monitor-owner.js",
+      "bytes": 15488,
+      "sha256": "64b5319017988113160a7b34f70f32fd09329051a5b77ad122c1fce3b0584cf5",
+      "gitBlob": "1637fb9f91b6cb56241fe6f0daa7203ef4b05dce",
+      "mode": "100644"
+    },
+    {
+      "path": "payload/owner-adaptations/hansoh-fosun-c51-r4-20261007T2149Z/publish-reviewed-and-monitor.exec.js",
+      "bytes": 1398,
+      "sha256": "74c386211600ff65ef1b38f718e5dc497feff954c124fc822f545dafb41423d3",
+      "gitBlob": "526c31f914df430b8955e28fd160f724c01b6006",
+      "mode": "100644"
+    },
+    {
+      "path": "run-offline-tests.py",
+      "bytes": 3562,
+      "sha256": "4ec7f15d2c6770089f51b73a1ecb257cb5e0983b05b718b7508a87889c9815de",
+      "gitBlob": "a5bc14f3aff1b9380da3a9d02e7298767b605d7e",
+      "mode": "100644"
+    },
+    {
+      "path": "synthetic-tests/fixtures/run-with-http-diagnostics.mjs",
+      "bytes": 3565,
+      "sha256": "f15522e6f209bfe99bfa258b5dffbce1f74d6af662c4c2ee682604e0798bbc88",
+      "gitBlob": "e7da989b4ba0cc821c1a766cbd2cbe01c0dad857",
+      "mode": "100644"
+    },
+    {
+      "path": "synthetic-tests/generated-fosun-full-chain.test.mjs",
+      "bytes": 26035,
+      "sha256": "682fd19b2389f07c7edb4f46112df4a32a58c789e54eb5cb38249eec312cd0f6",
+      "gitBlob": "121182c2a4e1f73ca172bd4e8de07f6ad60efdad",
+      "mode": "100644"
+    },
+    {
+      "path": "synthetic-tests/generated-hansoh-full-chain.test.mjs",
+      "bytes": 26037,
+      "sha256": "5c14aea1a6906cb25b1705d75039e9cd42c45df8dcafb4273a2eeedcca6da777",
+      "gitBlob": "e7ff61525c1b104f090ef54e3b5a95d375eda334",
+      "mode": "100644"
+    },
+    {
+      "path": "synthetic-tests/inert-monitor.test.mjs",
+      "bytes": 4915,
+      "sha256": "88ef065e15afc1d99bda71b1556e065a7dc4a4af405801c578dc5b33a3030e21",
+      "gitBlob": "9a90abab76bd19f7c4c7b829e631c3d2e8fe2cfc",
+      "mode": "100644"
+    },
+    {
+      "path": "synthetic-tests/key-and-preload.test.mjs",
+      "bytes": 3896,
+      "sha256": "e470988fa68b825717fd014457b33a72df0acc8fbb63ccf900d45aab4592e6c6",
+      "gitBlob": "7e164d1283306a9d67736eaa70510bdf54e8835f",
+      "mode": "100644"
+    },
+    {
+      "path": "synthetic-tests/monitor-stale.test.mjs",
+      "bytes": 18454,
+      "sha256": "9f4c2c5525cd3eec9dcd0d5e4be4f99cceedca02a6b208a29decda579630e182",
+      "gitBlob": "dad49537fad97d4d390acc80e7e0c70c49d1b277",
+      "mode": "100644"
+    },
+    {
+      "path": "synthetic-tests/real-apply-patch-terminal-fixture.json",
+      "bytes": 195,
+      "sha256": "aff94e02c5266ff389e8cbd2da3774b9eaf00cbf204bf9484a1b5eaace576f2e",
+      "gitBlob": "2bb6d2d309c400a32ab73ce3dbdcf1760102319f",
+      "mode": "100644"
+    },
+    {
+      "path": "tests/dispatch-and-terminal-r4.test.mjs",
+      "bytes": 14115,
+      "sha256": "1db57aa17a0af9674118924cfbcacd5a72832806e12f96de09b002ce105d5bc6",
+      "gitBlob": "171d1f5b231bbd20a8d3b8afc7a64f5502bf8ed5",
+      "mode": "100644"
+    },
+    {
+      "path": "tests/host-boundaries-recovered-r2.test.mjs",
+      "bytes": 25556,
+      "sha256": "16be0cf684ae8c0038d9e0468c0c22fbf38063e03ae96b501ecfc7451025c348",
+      "gitBlob": "33bd52b985341511384ad51d3b5356b70b8d011c",
+      "mode": "100644"
+    },
+    {
+      "path": "verify-context-recovered.mts",
+      "bytes": 2957,
+      "sha256": "e750cd9a7f088b698e9f77aa64ddedbfaf45fad1ceda2c12970fec0e1de50415",
+      "gitBlob": "ace107c7a49d47f7ef939335371d3f4af535629b",
+      "mode": "100644"
+    },
+    {
+      "path": "verify-snapshot.py",
+      "bytes": 739,
+      "sha256": "f0bb8af53253293127da6a0f731c13865b193540e97b70ea2de6148457e568ba",
+      "gitBlob": "07f2547b59237f70a5db89da4eed711cabff7c37",
+      "mode": "100644"
+    }
+  ]
+}

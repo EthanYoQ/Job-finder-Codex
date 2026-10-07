@@ -1,0 +1,79 @@
+{
+  "schemaVersion": 1,
+  "sourceId": "source-hansoh-social",
+  "sourceConfigSha256": "94d0982064af5a70386e017dec29cec1115c08480df2934e8d4cf0ddf644d740",
+  "route": "PORTABLE",
+  "entrypoint": "scripts/p0-cloud-portable-source-pilot.ts",
+  "entrypointSha256": "a62a002c67716551ed23af7263b08a3d2d6486efcf31d9b4889b7042731fe98f",
+  "sourceAdmissionPolicy": "PLAN_BOUND_SOURCE_QUALITY_V1",
+  "certificateSchema": "plan-bound-source-quality-v1",
+  "publicationMode": "DB_STARTED_JOB_PROJECTION_DELTA_V1",
+  "candidate": null,
+  "databaseIdentity": null,
+  "templatePlaceholderOnly": true,
+  "contextSha256": "e14905e069d7220fddf97ce9ba65c9f98bc534721babd6495284652e9b163122",
+  "expiryBasis": "original acquisition startedAt plus at most 30m capture and 30m evidence expiry",
+  "originalSourcePlan": {
+    "adapterId": "official-json",
+    "company": {
+      "id": "company-hansoh",
+      "officialChineseName": "江苏豪森药业集团有限公司",
+      "category": "DOMESTIC_PHARMA"
+    },
+    "source": {
+      "id": "source-hansoh-social",
+      "surfaceId": "surface-hansoh-social",
+      "companyId": "company-hansoh",
+      "kind": "SOCIAL",
+      "atsKind": "BEISEN_ZHIYE",
+      "status": "VERIFIED_SCRAPABLE",
+      "officialEntryUrl": "https://hspharm.zhiye.com/social",
+      "officialChainEvidenceUrl": "https://www.hansoh.cn/job/career-development.htm"
+    },
+    "executionAuthority": "STAGED",
+    "expectedChannels": [
+      {
+        "channelId": "source:source-hansoh-social:default",
+        "kind": "SOCIAL"
+      }
+    ],
+    "expectedChannelSetHash": "8fdcf77425e360a0b709f9b64acabe39a3579c260463fc7fa0065000c3a4a71e",
+    "json": {
+      "jobsPath": "jobs",
+      "fields": {
+        "sourceJobId": "sourceJobId",
+        "officialTitle": "title",
+        "officialUrl": "officialUrl",
+        "locationRaw": "locationRaw",
+        "cities": "cities"
+      },
+      "defaultCategory": "其他"
+    },
+    "officialJsonFetch": {
+      "kind": "beisen-zhiye-2022",
+      "postDateWithinDays": 180,
+      "geographyScope": "DOMESTIC_OFFICIAL_TENANT",
+      "category": "1",
+      "displayFields": [
+        "Category",
+        "Kind",
+        "LocId",
+        "Salary",
+        "Degree",
+        "YearsOfWorking",
+        "ClassificationOne",
+        "WorkWeChatQrCode",
+        "PostDate"
+      ],
+      "pageSize": 100,
+      "maxPages": 10,
+      "detailPath": "social/detail"
+    },
+    "transportPolicy": {
+      "primary": "DIRECT_HTTP"
+    }
+  },
+  "network": false,
+  "database": false,
+  "launch": false
+}

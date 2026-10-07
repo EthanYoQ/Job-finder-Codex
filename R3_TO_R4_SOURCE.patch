@@ -1,0 +1,460 @@
+--- r3/hosts/fosun/host/host-helper-functions.js
++++ r4/hosts/fosun/host/host-helper-functions.js
+@@ -48,12 +48,28 @@
+   Object.keys(raw.content[0]).sort().join(',')==='text,type'&&typeof raw.content[0].text==='string'&&
+   /^This action was rejected due to unacceptable risk\.\nReason: \S[\s\S]*$/.test(raw.content[0].text);
+ }
+-async function sqlDispatch(r,dir,sql){
++async function sqlDispatch(r,dir,sql,beforeSqlInvoke){
+  if(typeof sql!=="string"||sql!==r.payload?.sql||cfg.project!==r.payload?.projectId)throw Error("HOST_SQL_BINDING");
++ const isPublish=r.kind==='PUBLISH',guarded=isPublish||beforeSqlInvoke!==undefined;
++ if(guarded&&(typeof beforeSqlInvoke!=='function'||beforeSqlInvoke.constructor?.name==='AsyncFunction'))throw Error('HOST_PUBLISH_FINAL_GUARD_REQUIRED');
++ const boundary={schemaVersion:1,requestId:r.requestId,requestSha256:r.requestSha256,sourceId:cfg.sourceId,projectId:cfg.project,dir,envelopeCompleted:false,markAttempted:false,markCompleted:false,requestMayBeMarked:false,toolInvocationAttempted:false,transportOutcome:'NOT_INVOKED'};
++ const recordBoundary=()=>{if(guarded)store("proxyNode22:fosun:sqlDispatchBoundary:"+r.requestId,JSON.parse(JSON.stringify(boundary)));};
++ recordBoundary();
+  let proof;
+- if(r.kind==='PUBLISH'){proof=machineJson(await cmd("/workspace/scratch/5e9614251709/jb-incremental-proxy-runtime-20261007T0057Z/runtime/node-v22.23.3-linux-x64/bin/node --import "+q(cfg.repo+"/node_modules/tsx/dist/loader.mjs")+" "+q(cfg.root+"/runtime/review-packet-envelope.mts")+" "+q(dir+"/"+r.requestId+".request.json")+" summary",2000,Date.parse(r.payload.dispatchBefore??r.expiresAt)));}
+- await mark(r,dir);let result,raw,diagnostic;
+- try{raw=await tools.mcp__codex_apps__supabase_execute_sql({project_id:cfg.project,query:sql});store("proxyNode22:fosun:cloudLastSqlToolResult",raw);result={status:"SUCCEEDED",rows:rows(raw)};}
++ try{
++ if(isPublish){proof=machineJson(await cmd("/workspace/scratch/5e9614251709/jb-incremental-proxy-runtime-20261007T0057Z/runtime/node-v22.23.3-linux-x64/bin/node --import "+q(cfg.repo+"/node_modules/tsx/dist/loader.mjs")+" "+q(cfg.root+"/runtime/review-packet-envelope.mts")+" "+q(dir+"/"+r.requestId+".request.json")+" summary",2000,Date.parse(r.payload.dispatchBefore??r.expiresAt)));}
++ boundary.envelopeCompleted=true;boundary.markAttempted=true;boundary.requestMayBeMarked=true;recordBoundary();
++ await mark(r,dir);boundary.markCompleted=true;recordBoundary();
++ // The owner's synchronous check is at the true tool invocation boundary.
++ // The marker may exist even when this check rejects. Keep it; never replay.
++ }catch(error){boundary.guardOrPreparationError=String(error);recordBoundary();throw error;}
++ // Preparation is finished; no await occurs between this final check and call.
++ try{if(guarded&&beforeSqlInvoke()!==true)throw Error('HOST_PUBLISH_FINAL_GUARD_NOT_CONFIRMED');}
++ catch(error){boundary.guardOrPreparationError=String(error);recordBoundary();throw error;}
++ let result,raw,diagnostic;
++ try{
++ boundary.toolInvocationAttempted=true;boundary.transportOutcome='UNKNOWN';recordBoundary();
++ raw=await tools.mcp__codex_apps__supabase_execute_sql({project_id:cfg.project,query:sql});store("proxyNode22:fosun:cloudLastSqlToolResult",raw);result={status:"SUCCEEDED",rows:rows(raw)};}
+  catch(error){
+   diagnostic={recordedAt:new Date().toISOString(),responseExpired:Date.now()>=Date.parse(r.expiresAt),toolResult:raw??null,error:{message:String(error),name:error?.name,stack:error?.stack}};
+   store("proxyNode22:fosun:cloudHostLastDispatchError",diagnostic);result=publicationFailure(raw,r,sql,proof);
+--- r3/hosts/fosun/host/host-stage-functions.js
++++ r4/hosts/fosun/host/host-stage-functions.js
+@@ -1,23 +1,24 @@
+ 
+ const AsyncFunction=Object.getPrototypeOf(async function(){}).constructor;const h=await new AsyncFunction(load("proxyNode22:fosun:cloudPilotHostHelpers"))(); const {cfg}=h;
+-async function handle(r,dir){
++async function handle(r,dir,beforeSqlInvoke){
++ if(beforeSqlInvoke!==undefined&&(typeof beforeSqlInvoke!=='function'||beforeSqlInvoke.constructor?.name==='AsyncFunction'))throw Error("HOST_FINAL_GUARD_REQUIRED_SYNCHRONOUS");
+  if(r.expired||r.dispatchRecorded)throw Error("HOST_STALE_OR_UNCERTAIN_REQUEST:"+r.kind);
+  // The selected DB-started PORTABLE path retains its owned archive locally.
+  // This legacy upload branch is outside that path and is deliberately disabled.
+  if(r.kind==="ARCHIVE_STORE")throw Error("UNSELECTED_LEGACY_ARCHIVE_STORE_UNSUPPORTED");
+- if(["LEASE_ACQUIRE","LEASE_RENEW","LEASE_RELEASE","READ_OUTCOME","READ_PUBLICATION_CONTEXT"].includes(r.kind))return h.sqlDispatch(r,dir,r.payload.sql);
++ if(["LEASE_ACQUIRE","LEASE_RENEW","LEASE_RELEASE","READ_OUTCOME","READ_PUBLICATION_CONTEXT"].includes(r.kind))return h.sqlDispatch(r,dir,r.payload.sql,beforeSqlInvoke);
+  if(r.kind==="CREATE_PENDING"){
+   const made=h.machineJson(await h.cmd("/workspace/scratch/5e9614251709/jb-incremental-proxy-runtime-20261007T0057Z/runtime/node-v22.23.3-linux-x64/bin/node --import /workspace/scratch/5e9614251709/jb-incremental-proxy-runtime-20261007T0057Z/producer/node_modules/tsx/dist/loader.mjs "+h.q(cfg.root+"/host-files.mts")+" pending "+h.q(dir+"/"+r.requestId+".request.json"),10000,Date.parse(r.payload.dispatchBefore??r.expiresAt)));
+   if(made.requestSha256!==r.requestSha256||made.requestId!==r.requestId||made.projectId!==cfg.project||r.payload.projectId!==cfg.project)throw Error("HOST_CONTROL_REQUEST_BINDING");
+   const sql=await h.readFile(made.output,Date.parse(r.payload.dispatchBefore??r.expiresAt));if(sql.hash!==made.sha256)throw Error("HOST_CONTROL_HASH");
+-  await h.mark(r,dir);const raw=await tools.mcp__codex_apps__supabase_execute_sql({project_id:cfg.project,query:sql.text});store("proxyNode22:fosun:cloudPendingToolResult",raw);
++  await h.mark(r,dir);if(beforeSqlInvoke!==undefined&&beforeSqlInvoke()!==true)throw Error("HOST_FINAL_GUARD_NOT_CONFIRMED");const raw=await tools.mcp__codex_apps__supabase_execute_sql({project_id:cfg.project,query:sql.text});store("proxyNode22:fosun:cloudPendingToolResult",raw);
+   const out=h.rows(raw);if(out.length!==1||!out[0].result)throw Error("HOST_PENDING_RESPONSE");
+   await h.respond(r,dir,out[0].result);store("proxyNode22:fosun:cloudPilotPendingRequest",r);return {status:"CREATED_PENDING"};
+  }
+  if(r.kind==="READ_CONTEXT"){
+   if(r.payload.projectId!==cfg.project||r.payload.sourceId!=="source-fosun-pharma-social"||r.payload.sourceConfigSha256!=="0227ec8d384900a48b2973f128908f7e9435d4bc991efd9a5b14ea5a3d1042b2")throw Error("HOST_CONTEXT_SOURCE_BINDING");
+   const query=(await h.readFile(cfg.root+"/context-read.sql")).text;
+-  await h.mark(r,dir);const raw=await tools.mcp__codex_apps__supabase_execute_sql({project_id:cfg.project,query});store("proxyNode22:fosun:cloudLiveContextToolResult",raw);
++  await h.mark(r,dir);if(beforeSqlInvoke!==undefined&&beforeSqlInvoke()!==true)throw Error("HOST_FINAL_GUARD_NOT_CONFIRMED");const raw=await tools.mcp__codex_apps__supabase_execute_sql({project_id:cfg.project,query});store("proxyNode22:fosun:cloudLiveContextToolResult",raw);
+   const out=h.rows(raw);if(out.length!==1||!out[0].context)throw Error("HOST_CONTEXT_RESPONSE");
+   const context=out[0].context;if(!/^\d{4}-\d{2}-\d{2}T.*(?:Z|[+]00:00)$/.test(context.checkedAt))throw Error("HOST_CONTEXT_UTC");
+   await h.respond(r,dir,{...context,checkedAt:new Date(context.checkedAt).toISOString()});return {status:"READ_CONTEXT"};
+--- r3/hosts/fosun/host/runtime/continuous-relay-v3-durable-monitor.js
++++ r4/hosts/fosun/host/runtime/continuous-relay-v3-durable-monitor.js
+@@ -2,7 +2,11 @@
+ const A=Object.getPrototypeOf(async function(){}).constructor;
+ const s=await new A(load("proxyNode22:fosun:cloudPilotHostStages"))();
+ const ns="proxyNode22:fosun:",run=load(ns+"refreshCurrentRun"),dir=run+"/relay";
+-const activeSession=load(ns+"refreshSession");
++const activeSession=load(ns+"refreshSession"),activeBatch=load(ns+"refreshCurrentBatch");
++const assertCurrentScope=()=>{
++ if(load(ns+"refreshCurrentRun")!==run||load(ns+"refreshCurrentBatch")!==activeBatch||load(ns+"refreshSession")!==activeSession)throw Error("ORIGINAL_EXEC_MONITOR_SCOPE_CHANGED");
++ if(typeof s.assertOwnerScope==='function')s.assertOwnerScope();
++};
+ if(!Number.isSafeInteger(activeSession)||activeSession<1)throw Error("NO_ORIGINAL_EXEC_SESSION");
+ const leaseKey=ns+"durableMonitorLease:"+run,previous=load(leaseKey);
+ if(previous?.active)throw Error("ORIGINAL_EXEC_MONITOR_ALREADY_ACTIVE");
+@@ -76,7 +80,7 @@
+  // Evidence names remain distinct after a lost store/generation counter.
+  const invocationId=Date.now()+"-"+Math.random().toString(36).slice(2);
+  while(Date.now()<stopAt){
+-  if(load(ns+"refreshCurrentRun")!==run||load(ns+"refreshSession")!==activeSession)throw Error("ORIGINAL_EXEC_MONITOR_SCOPE_CHANGED");
++  assertCurrentScope();
+   let req;try{req=await s.h.next(dir);}catch(error){if(!(Date.now()-loopStarted<60000&&String(error).includes("ENOENT")&&String(error).includes("scandir '"+dir+"'")))throw error;}
+   if(Date.now()>=stopAt)break;
+   if(req){
+@@ -85,11 +89,11 @@
+    notify({at:iso(),phase:req.kind,status:out.status,rowCount:out.rows?.length});
+    if(req.kind==="PUBLISH"){text(out);break;}
+   }
+-  if(Date.now()-lastStatus>20000){status=await readStatus();store(ns+"portableCurrentProcessStatus",status);lastStatus=Date.now();}
++  if(Date.now()-lastStatus>20000){status=await readStatus();assertCurrentScope();store(ns+"portableCurrentProcessStatus",status);lastStatus=Date.now();}
+   // One serialized poll path serves capture and terminal observation. It never
+   // stops servicing relay requests to enter a competing terminal-only loop.
+   if((!sequence||Date.now()-lastPoll>=20000)&&Date.now()<stopAt){
+-   if(load(ns+"refreshCurrentRun")!==run||load(ns+"refreshSession")!==activeSession)throw Error("ORIGINAL_EXEC_MONITOR_SCOPE_CHANGED");
++   assertCurrentScope();
+    const startedAt=iso();let poll,pollError;
+    try{poll=await tools.write_stdin({session_id:activeSession,chars:"",yield_time_ms:Math.min(1000,stopAt-Date.now()),max_output_tokens:100000});}
+    catch(error){pollError={message:String(error),detail:errorData(error)};}
+@@ -107,6 +111,8 @@
+     if(saved!==serialized&&saved!==serialized+"\n")throw Error("MONITOR_POLL_EVIDENCE_READBACK");
+    }catch(error){unresolved("ORIGINAL_EXEC_EVIDENCE_UNSAVED_NO_RETRY",{evidencePath,evidenceError:String(error)});return;}
+    store(ns+"lastPortableExecPollRaw",{...evidence,evidencePath,evidenceVerified:true});
++   // Keep the full original response before rejecting a changed owner scope.
++   assertCurrentScope();
+    if(pollError){unresolved("ORIGINAL_EXEC_POLL_UNRESOLVED_NO_RETRY",{evidencePath,error:pollError});return;}
+    if(!poll||poll.isError||poll.cancelled===true||/unknown|cancel|reject|denied/i.test(String(poll.status??""))){
+     unresolved("ORIGINAL_EXEC_TOOL_UNRESOLVED_NO_RETRY",{evidencePath});return;
+@@ -115,7 +121,7 @@
+     originalExec={state:"TERMINATED",sessionId:activeSession,exitCode:poll.exit_code,observedAt:evidence.at};
+     // The terminal tool response can race the durable writer. Read once after
+     // saving it; missing/conflicting wrapper evidence still cannot mean success.
+-    status=await readStatus();store(ns+"portableCurrentProcessStatus",status);
++    status=await readStatus();assertCurrentScope();store(ns+"portableCurrentProcessStatus",status);
+     if(status.process?.event!=="CHILD_EXIT"||!Number.isInteger(poll.exit_code)||poll.exit_code!==status.process.wrapperExitCode){
+      unresolved(status.process?.event!=="CHILD_EXIT"?"DURABLE_WRAPPER_TERMINAL_MISSING":"DURABLE_EXIT_TOOL_EXIT_MISMATCH",{evidencePath,terminalToolPoll:poll});return;
+     }
+--- r3/hosts/hansoh/host/host-helper-functions.js
++++ r4/hosts/hansoh/host/host-helper-functions.js
+@@ -48,12 +48,28 @@
+   Object.keys(raw.content[0]).sort().join(',')==='text,type'&&typeof raw.content[0].text==='string'&&
+   /^This action was rejected due to unacceptable risk\.\nReason: \S[\s\S]*$/.test(raw.content[0].text);
+ }
+-async function sqlDispatch(r,dir,sql){
++async function sqlDispatch(r,dir,sql,beforeSqlInvoke){
+  if(typeof sql!=="string"||sql!==r.payload?.sql||cfg.project!==r.payload?.projectId)throw Error("HOST_SQL_BINDING");
++ const isPublish=r.kind==='PUBLISH',guarded=isPublish||beforeSqlInvoke!==undefined;
++ if(guarded&&(typeof beforeSqlInvoke!=='function'||beforeSqlInvoke.constructor?.name==='AsyncFunction'))throw Error('HOST_PUBLISH_FINAL_GUARD_REQUIRED');
++ const boundary={schemaVersion:1,requestId:r.requestId,requestSha256:r.requestSha256,sourceId:cfg.sourceId,projectId:cfg.project,dir,envelopeCompleted:false,markAttempted:false,markCompleted:false,requestMayBeMarked:false,toolInvocationAttempted:false,transportOutcome:'NOT_INVOKED'};
++ const recordBoundary=()=>{if(guarded)store("proxyNode22:hansoh:sqlDispatchBoundary:"+r.requestId,JSON.parse(JSON.stringify(boundary)));};
++ recordBoundary();
+  let proof;
+- if(r.kind==='PUBLISH'){proof=machineJson(await cmd("/workspace/scratch/5e9614251709/jb-incremental-proxy-runtime-20261007T0057Z/runtime/node-v22.23.3-linux-x64/bin/node --import "+q(cfg.repo+"/node_modules/tsx/dist/loader.mjs")+" "+q(cfg.root+"/runtime/review-packet-envelope.mts")+" "+q(dir+"/"+r.requestId+".request.json")+" summary",2000,Date.parse(r.payload.dispatchBefore??r.expiresAt)));}
+- await mark(r,dir);let result,raw,diagnostic;
+- try{raw=await tools.mcp__codex_apps__supabase_execute_sql({project_id:cfg.project,query:sql});store("proxyNode22:hansoh:cloudLastSqlToolResult",raw);result={status:"SUCCEEDED",rows:rows(raw)};}
++ try{
++ if(isPublish){proof=machineJson(await cmd("/workspace/scratch/5e9614251709/jb-incremental-proxy-runtime-20261007T0057Z/runtime/node-v22.23.3-linux-x64/bin/node --import "+q(cfg.repo+"/node_modules/tsx/dist/loader.mjs")+" "+q(cfg.root+"/runtime/review-packet-envelope.mts")+" "+q(dir+"/"+r.requestId+".request.json")+" summary",2000,Date.parse(r.payload.dispatchBefore??r.expiresAt)));}
++ boundary.envelopeCompleted=true;boundary.markAttempted=true;boundary.requestMayBeMarked=true;recordBoundary();
++ await mark(r,dir);boundary.markCompleted=true;recordBoundary();
++ // The owner's synchronous check is at the true tool invocation boundary.
++ // The marker may exist even when this check rejects. Keep it; never replay.
++ }catch(error){boundary.guardOrPreparationError=String(error);recordBoundary();throw error;}
++ // Preparation is finished; no await occurs between this final check and call.
++ try{if(guarded&&beforeSqlInvoke()!==true)throw Error('HOST_PUBLISH_FINAL_GUARD_NOT_CONFIRMED');}
++ catch(error){boundary.guardOrPreparationError=String(error);recordBoundary();throw error;}
++ let result,raw,diagnostic;
++ try{
++ boundary.toolInvocationAttempted=true;boundary.transportOutcome='UNKNOWN';recordBoundary();
++ raw=await tools.mcp__codex_apps__supabase_execute_sql({project_id:cfg.project,query:sql});store("proxyNode22:hansoh:cloudLastSqlToolResult",raw);result={status:"SUCCEEDED",rows:rows(raw)};}
+  catch(error){
+   diagnostic={recordedAt:new Date().toISOString(),responseExpired:Date.now()>=Date.parse(r.expiresAt),toolResult:raw??null,error:{message:String(error),name:error?.name,stack:error?.stack}};
+   store("proxyNode22:hansoh:cloudHostLastDispatchError",diagnostic);result=publicationFailure(raw,r,sql,proof);
+--- r3/hosts/hansoh/host/host-stage-functions.js
++++ r4/hosts/hansoh/host/host-stage-functions.js
+@@ -1,23 +1,24 @@
+ 
+ const AsyncFunction=Object.getPrototypeOf(async function(){}).constructor;const h=await new AsyncFunction(load("proxyNode22:hansoh:cloudPilotHostHelpers"))(); const {cfg}=h;
+-async function handle(r,dir){
++async function handle(r,dir,beforeSqlInvoke){
++ if(beforeSqlInvoke!==undefined&&(typeof beforeSqlInvoke!=='function'||beforeSqlInvoke.constructor?.name==='AsyncFunction'))throw Error("HOST_FINAL_GUARD_REQUIRED_SYNCHRONOUS");
+  if(r.expired||r.dispatchRecorded)throw Error("HOST_STALE_OR_UNCERTAIN_REQUEST:"+r.kind);
+  // The selected DB-started PORTABLE path retains its owned archive locally.
+  // This legacy upload branch is outside that path and is deliberately disabled.
+  if(r.kind==="ARCHIVE_STORE")throw Error("UNSELECTED_LEGACY_ARCHIVE_STORE_UNSUPPORTED");
+- if(["LEASE_ACQUIRE","LEASE_RENEW","LEASE_RELEASE","READ_OUTCOME","READ_PUBLICATION_CONTEXT"].includes(r.kind))return h.sqlDispatch(r,dir,r.payload.sql);
++ if(["LEASE_ACQUIRE","LEASE_RENEW","LEASE_RELEASE","READ_OUTCOME","READ_PUBLICATION_CONTEXT"].includes(r.kind))return h.sqlDispatch(r,dir,r.payload.sql,beforeSqlInvoke);
+  if(r.kind==="CREATE_PENDING"){
+   const made=h.machineJson(await h.cmd("/workspace/scratch/5e9614251709/jb-incremental-proxy-runtime-20261007T0057Z/runtime/node-v22.23.3-linux-x64/bin/node --import /workspace/scratch/5e9614251709/jb-incremental-proxy-runtime-20261007T0057Z/producer/node_modules/tsx/dist/loader.mjs "+h.q(cfg.root+"/host-files.mts")+" pending "+h.q(dir+"/"+r.requestId+".request.json"),10000,Date.parse(r.payload.dispatchBefore??r.expiresAt)));
+   if(made.requestSha256!==r.requestSha256||made.requestId!==r.requestId||made.projectId!==cfg.project||r.payload.projectId!==cfg.project)throw Error("HOST_CONTROL_REQUEST_BINDING");
+   const sql=await h.readFile(made.output,Date.parse(r.payload.dispatchBefore??r.expiresAt));if(sql.hash!==made.sha256)throw Error("HOST_CONTROL_HASH");
+-  await h.mark(r,dir);const raw=await tools.mcp__codex_apps__supabase_execute_sql({project_id:cfg.project,query:sql.text});store("proxyNode22:hansoh:cloudPendingToolResult",raw);
++  await h.mark(r,dir);if(beforeSqlInvoke!==undefined&&beforeSqlInvoke()!==true)throw Error("HOST_FINAL_GUARD_NOT_CONFIRMED");const raw=await tools.mcp__codex_apps__supabase_execute_sql({project_id:cfg.project,query:sql.text});store("proxyNode22:hansoh:cloudPendingToolResult",raw);
+   const out=h.rows(raw);if(out.length!==1||!out[0].result)throw Error("HOST_PENDING_RESPONSE");
+   await h.respond(r,dir,out[0].result);store("proxyNode22:hansoh:cloudPilotPendingRequest",r);return {status:"CREATED_PENDING"};
+  }
+  if(r.kind==="READ_CONTEXT"){
+   if(r.payload.projectId!==cfg.project||r.payload.sourceId!=="source-hansoh-social"||r.payload.sourceConfigSha256!=="94d0982064af5a70386e017dec29cec1115c08480df2934e8d4cf0ddf644d740")throw Error("HOST_CONTEXT_SOURCE_BINDING");
+   const query=(await h.readFile(cfg.root+"/context-read.sql")).text;
+-  await h.mark(r,dir);const raw=await tools.mcp__codex_apps__supabase_execute_sql({project_id:cfg.project,query});store("proxyNode22:hansoh:cloudLiveContextToolResult",raw);
++  await h.mark(r,dir);if(beforeSqlInvoke!==undefined&&beforeSqlInvoke()!==true)throw Error("HOST_FINAL_GUARD_NOT_CONFIRMED");const raw=await tools.mcp__codex_apps__supabase_execute_sql({project_id:cfg.project,query});store("proxyNode22:hansoh:cloudLiveContextToolResult",raw);
+   const out=h.rows(raw);if(out.length!==1||!out[0].context)throw Error("HOST_CONTEXT_RESPONSE");
+   const context=out[0].context;if(!/^\d{4}-\d{2}-\d{2}T.*(?:Z|[+]00:00)$/.test(context.checkedAt))throw Error("HOST_CONTEXT_UTC");
+   await h.respond(r,dir,{...context,checkedAt:new Date(context.checkedAt).toISOString()});return {status:"READ_CONTEXT"};
+--- r3/hosts/hansoh/host/runtime/continuous-relay-v3-durable-monitor.js
++++ r4/hosts/hansoh/host/runtime/continuous-relay-v3-durable-monitor.js
+@@ -2,7 +2,11 @@
+ const A=Object.getPrototypeOf(async function(){}).constructor;
+ const s=await new A(load("proxyNode22:hansoh:cloudPilotHostStages"))();
+ const ns="proxyNode22:hansoh:",run=load(ns+"refreshCurrentRun"),dir=run+"/relay";
+-const activeSession=load(ns+"refreshSession");
++const activeSession=load(ns+"refreshSession"),activeBatch=load(ns+"refreshCurrentBatch");
++const assertCurrentScope=()=>{
++ if(load(ns+"refreshCurrentRun")!==run||load(ns+"refreshCurrentBatch")!==activeBatch||load(ns+"refreshSession")!==activeSession)throw Error("ORIGINAL_EXEC_MONITOR_SCOPE_CHANGED");
++ if(typeof s.assertOwnerScope==='function')s.assertOwnerScope();
++};
+ if(!Number.isSafeInteger(activeSession)||activeSession<1)throw Error("NO_ORIGINAL_EXEC_SESSION");
+ const leaseKey=ns+"durableMonitorLease:"+run,previous=load(leaseKey);
+ if(previous?.active)throw Error("ORIGINAL_EXEC_MONITOR_ALREADY_ACTIVE");
+@@ -76,7 +80,7 @@
+  // Evidence names remain distinct after a lost store/generation counter.
+  const invocationId=Date.now()+"-"+Math.random().toString(36).slice(2);
+  while(Date.now()<stopAt){
+-  if(load(ns+"refreshCurrentRun")!==run||load(ns+"refreshSession")!==activeSession)throw Error("ORIGINAL_EXEC_MONITOR_SCOPE_CHANGED");
++  assertCurrentScope();
+   let req;try{req=await s.h.next(dir);}catch(error){if(!(Date.now()-loopStarted<60000&&String(error).includes("ENOENT")&&String(error).includes("scandir '"+dir+"'")))throw error;}
+   if(Date.now()>=stopAt)break;
+   if(req){
+@@ -85,11 +89,11 @@
+    notify({at:iso(),phase:req.kind,status:out.status,rowCount:out.rows?.length});
+    if(req.kind==="PUBLISH"){text(out);break;}
+   }
+-  if(Date.now()-lastStatus>20000){status=await readStatus();store(ns+"portableCurrentProcessStatus",status);lastStatus=Date.now();}
++  if(Date.now()-lastStatus>20000){status=await readStatus();assertCurrentScope();store(ns+"portableCurrentProcessStatus",status);lastStatus=Date.now();}
+   // One serialized poll path serves capture and terminal observation. It never
+   // stops servicing relay requests to enter a competing terminal-only loop.
+   if((!sequence||Date.now()-lastPoll>=20000)&&Date.now()<stopAt){
+-   if(load(ns+"refreshCurrentRun")!==run||load(ns+"refreshSession")!==activeSession)throw Error("ORIGINAL_EXEC_MONITOR_SCOPE_CHANGED");
++   assertCurrentScope();
+    const startedAt=iso();let poll,pollError;
+    try{poll=await tools.write_stdin({session_id:activeSession,chars:"",yield_time_ms:Math.min(1000,stopAt-Date.now()),max_output_tokens:100000});}
+    catch(error){pollError={message:String(error),detail:errorData(error)};}
+@@ -107,6 +111,8 @@
+     if(saved!==serialized&&saved!==serialized+"\n")throw Error("MONITOR_POLL_EVIDENCE_READBACK");
+    }catch(error){unresolved("ORIGINAL_EXEC_EVIDENCE_UNSAVED_NO_RETRY",{evidencePath,evidenceError:String(error)});return;}
+    store(ns+"lastPortableExecPollRaw",{...evidence,evidencePath,evidenceVerified:true});
++   // Keep the full original response before rejecting a changed owner scope.
++   assertCurrentScope();
+    if(pollError){unresolved("ORIGINAL_EXEC_POLL_UNRESOLVED_NO_RETRY",{evidencePath,error:pollError});return;}
+    if(!poll||poll.isError||poll.cancelled===true||/unknown|cancel|reject|denied/i.test(String(poll.status??""))){
+     unresolved("ORIGINAL_EXEC_TOOL_UNRESOLVED_NO_RETRY",{evidencePath});return;
+@@ -115,7 +121,7 @@
+     originalExec={state:"TERMINATED",sessionId:activeSession,exitCode:poll.exit_code,observedAt:evidence.at};
+     // The terminal tool response can race the durable writer. Read once after
+     // saving it; missing/conflicting wrapper evidence still cannot mean success.
+-    status=await readStatus();store(ns+"portableCurrentProcessStatus",status);
++    status=await readStatus();assertCurrentScope();store(ns+"portableCurrentProcessStatus",status);
+     if(status.process?.event!=="CHILD_EXIT"||!Number.isInteger(poll.exit_code)||poll.exit_code!==status.process.wrapperExitCode){
+      unresolved(status.process?.event!=="CHILD_EXIT"?"DURABLE_WRAPPER_TERMINAL_MISSING":"DURABLE_EXIT_TOOL_EXIT_MISMATCH",{evidencePath,terminalToolPoll:poll});return;
+     }
+--- r3/owner-adaptations/hansoh-fosun-c51-r3-20261007T2125Z/baseline-manifest.json
++++ r4/owner-adaptations/hansoh-fosun-c51-r4-20261007T2149Z/baseline-manifest.json
+@@ -3,40 +3,40 @@
+   "runtimeRoot": "/workspace/scratch/5e9614251709/jb-incremental-proxy-runtime-20261007T0057Z",
+   "files": {
+     "/workspace/scratch/5e9614251709/jb-incremental-proxy-runtime-20261007T0057Z/hosts/hansoh/host/host-helper-functions.js": {
+-      "sha256": "608633d38d61aa5775a73e9642562c0e9388a7421e0961f6a77f1aa8093f78e2",
+-      "bytes": 9756
++      "sha256": "953dd97e75752e4101a5cf2b51bb57c9bed7e0ca7f4f218eaaf01a46e3542282",
++      "bytes": 11220
+     },
+     "/workspace/scratch/5e9614251709/jb-incremental-proxy-runtime-20261007T0057Z/hosts/hansoh/host/host-stage-functions.js": {
+-      "sha256": "a41173f56bdbd1d28e0b8684e938797803e99a3515262702f162c012715e49ab",
+-      "bytes": 6558
++      "sha256": "23a8e0a3c2752bd17b102183d668229247ad2c75351a4cfb975888170a1cd0cb",
++      "bytes": 6974
+     },
+     "/workspace/scratch/5e9614251709/jb-incremental-proxy-runtime-20261007T0057Z/hosts/hansoh/host/relay-files.mjs": {
+       "sha256": "5833c3aafd4b85045b00b733ce868db16a8a3cc566179f44c9c021b479fdacda",
+       "bytes": 7908
+     },
+     "/workspace/scratch/5e9614251709/jb-incremental-proxy-runtime-20261007T0057Z/hosts/hansoh/host/runtime/continuous-relay-v3-durable-monitor.js": {
+-      "sha256": "24573e9d0ef558f9ff263b6eafd504e76a712ba5e703f0f850ffcb1c56d99018",
+-      "bytes": 11332
++      "sha256": "aa3720591d445581ca06b5fa27c56dbd486c16fe7fdd4c79441e6fb51975f44c",
++      "bytes": 11577
+     },
+     "/workspace/scratch/5e9614251709/jb-incremental-proxy-runtime-20261007T0057Z/hosts/hansoh/host/runtime/review-packet-envelope.mts": {
+       "sha256": "40cb1e3ede867f0e9d171605e7454fc71a6f774dfdf910f68ff668722bba69cb",
+       "bytes": 5535
+     },
+     "/workspace/scratch/5e9614251709/jb-incremental-proxy-runtime-20261007T0057Z/hosts/fosun/host/host-helper-functions.js": {
+-      "sha256": "86c5cc1a90dbcd180d15d0034d0cd0a4636471347ce3892d4f59e50cc6195af7",
+-      "bytes": 9754
++      "sha256": "ef3577a24500a5e462d13384b4ff8ccecb7b2b7e033e084130e4fbbc249fc832",
++      "bytes": 11217
+     },
+     "/workspace/scratch/5e9614251709/jb-incremental-proxy-runtime-20261007T0057Z/hosts/fosun/host/host-stage-functions.js": {
+-      "sha256": "5d09380817bc2c5defb0256338a909c176f0931442482c929bc445fe0809d70d",
+-      "bytes": 6561
++      "sha256": "e2d49acde87841ae2d9e58207310c33f807b82512c946b6337a9c306128870af",
++      "bytes": 6977
+     },
+     "/workspace/scratch/5e9614251709/jb-incremental-proxy-runtime-20261007T0057Z/hosts/fosun/host/relay-files.mjs": {
+       "sha256": "c9f2b6002d50a2d98513a92bcec62eb78ab24d4346ef9e80c9e08622d73b5fc1",
+       "bytes": 7907
+     },
+     "/workspace/scratch/5e9614251709/jb-incremental-proxy-runtime-20261007T0057Z/hosts/fosun/host/runtime/continuous-relay-v3-durable-monitor.js": {
+-      "sha256": "8dafe366cde88e9bf6cfc8726785c7f678cff6f7b19f210f2f9ff0e8784bf317",
+-      "bytes": 11330
++      "sha256": "3481682b9cbf88fea535f329c59bfec17e18820e18e4b82480886b273f10a6cb",
++      "bytes": 11575
+     },
+     "/workspace/scratch/5e9614251709/jb-incremental-proxy-runtime-20261007T0057Z/hosts/fosun/host/runtime/review-packet-envelope.mts": {
+       "sha256": "40cb1e3ede867f0e9d171605e7454fc71a6f774dfdf910f68ff668722bba69cb",
+--- r3/owner-adaptations/hansoh-fosun-c51-r3-20261007T2125Z/preload-owner.exec.js
++++ r4/owner-adaptations/hansoh-fosun-c51-r4-20261007T2149Z/preload-owner.exec.js
+@@ -4,19 +4,19 @@
+ if(typeof sourceKey !== 'string' || sourceKey.length > 64 || sourceKey !== sourceKey.trim() || !/^(?:[a-z][a-z0-9]*|boehringer-ingelheim)$/.test(sourceKey))throw Error('OWNER_SOURCE_KEY');
+ const ns='proxyNode22:'+sourceKey+':';
+ const q=s=>"'"+String(s).replaceAll("'","'\\''")+"'";
+-const result=await tools.exec_command({cmd:'python3 - '+q('/workspace/scratch/5e9614251709/jb-incremental-proxy-runtime-20261007T0057Z/owner-adaptations/hansoh-fosun-c51-r3-20261007T2125Z')+' '+q(sourceKey)+" <<'PY_OWNER_LOAD'\n"+
++const result=await tools.exec_command({cmd:'python3 - '+q('/workspace/scratch/5e9614251709/jb-incremental-proxy-runtime-20261007T0057Z/owner-adaptations/hansoh-fosun-c51-r4-20261007T2149Z')+' '+q(sourceKey)+" <<'PY_OWNER_LOAD'\n"+
+ `from pathlib import Path
+ import hashlib,json,sys
+ p=Path(sys.argv[1]);source=sys.argv[2]
+ owner=(p/'publish-and-monitor-owner.js').read_bytes();manifest_bytes=(p/'baseline-manifest.json').read_bytes()
+-assert hashlib.sha256(owner).hexdigest()=='20c738c41431d33d7da22a0ea07377af1c732ab730337458d440b5ff45e4f257'
+-assert hashlib.sha256(manifest_bytes).hexdigest()=='271daeb75b14ae94f4f6490fedcd5ed4481e788207b9ef846e56dd5b50cbcec3'
++assert hashlib.sha256(owner).hexdigest()=='64b5319017988113160a7b34f70f32fd09329051a5b77ad122c1fce3b0584cf5'
++assert hashlib.sha256(manifest_bytes).hexdigest()=='3bc8f4665d7c0164a1142f504a20982836fb8e974acc7e43b1a7f103f8c47857'
+ m=json.loads(manifest_bytes);root=Path(m['runtimeRoot'])/'hosts'/source/'host'
+ files={}
+ for name in ['host-helper-functions.js','host-stage-functions.js','runtime/continuous-relay-v3-durable-monitor.js','relay-files.mjs','runtime/review-packet-envelope.mts']:
+  path=root/name;data=path.read_bytes();assert hashlib.sha256(data).hexdigest()==m['files'][str(path)]['sha256']
+  if name in ['host-helper-functions.js','host-stage-functions.js','runtime/continuous-relay-v3-durable-monitor.js']:files[name]=data.decode()
+-print(json.dumps({'ownerCode':owner.decode(),'ownerSha256':'20c738c41431d33d7da22a0ea07377af1c732ab730337458d440b5ff45e4f257','hostRoot':str(root),'files':files}))
++print(json.dumps({'ownerCode':owner.decode(),'ownerSha256':'64b5319017988113160a7b34f70f32fd09329051a5b77ad122c1fce3b0584cf5','hostRoot':str(root),'files':files}))
+ `+'PY_OWNER_LOAD',max_output_tokens:20000,yield_time_ms:1000});
+ if(result.exit_code!==0||result.session_id)throw Error('OWNER_PRELOAD_LOCAL_READ_FAILED');
+ const p=JSON.parse(result.output);
+--- r3/owner-adaptations/hansoh-fosun-c51-r3-20261007T2125Z/publish-and-monitor-owner.js
++++ r4/owner-adaptations/hansoh-fosun-c51-r4-20261007T2149Z/publish-and-monitor-owner.js
+@@ -28,6 +28,9 @@
+       reviewedSource?.id !== batch+'--'+cfg.sourceId || reviewedSource.sourceId !== cfg.sourceId ||
+       reviewedSource.sourceConfigHash !== cfg.sourceConfigSha256 || reviewedSource.releaseCandidateId !== binding.candidate.id ||
+       !/^[a-f0-9]{64}$/.test(review.sqlSha256)) fail('OWNER_REVIEW_BINDING');
++  // Immutable original authority snapshots. Awaited code must not silently
++  // replace candidate, build, source/config, review or the original request.
++  const frozenCfg=clone(cfg),frozenBinding=clone(binding),frozenReview=clone(review),frozenRequest=clone(suppliedRequest);
+   // This exact, checked seam only replaces the monitor's dependency lookup.
+   // It supplies the same single monitor loop; this owner adds no polling loop.
+   const seam = 'const A=Object.getPrototypeOf(async function(){}).constructor;\nconst s=await new A(load("'+ns+'cloudPilotHostStages"))();';
+@@ -61,14 +64,31 @@
+   const assertScope = () => {
+     if (load(ns+'refreshCurrentRun') !== run || load(ns+'refreshCurrentBatch') !== batch ||
+         load(ns+'refreshSession') !== originalSessionId) fail('OWNER_ACTIVE_SCOPE_CHANGED');
++    if (!same(h.cfg,frozenCfg)||!same(load(ns+'cloudPilotHostConfig'),frozenCfg)||
++        !same(load(ns+'registeredCandidateBinding'),frozenBinding)||
++        !same(load(ns+'publicationReview'),frozenReview)||
++        !same(load(ns+'cloudPilotPublishRequest'),frozenRequest)||
++        load(ns+'cloudPilotPublishDirectory')!==run+'/relay') fail('OWNER_ACTIVE_BINDING_CHANGED');
+   };
+   const frozenLoads = new Map([[ns+'refreshCurrentRun',run],[ns+'refreshCurrentBatch',batch],[ns+'refreshSession',originalSessionId]]);
+   const scopedLoad = name => frozenLoads.has(name) ? frozenLoads.get(name) : load(name);
+-  let rawPoll, validatedSummary, monitorResult, monitorError, dispatchError;
++  let rawPoll, validatedSummary, monitorResult, monitorError, dispatchError, checkedBudget;
++  const finalSqlGuardFor = req => {
++    const frozenRelayRequest=clone(req);
++    const expiry=Clock.parse(req.expiresAt),cutoff=Clock.parse(req.payload?.dispatchBefore??req.expiresAt);
++    return ()=>{
++      assertScope();
++      if(!same(req,frozenRelayRequest))fail("OWNER_RELAY_REQUEST_CHANGED");
++      if(!checkedBudget?.budget||Clock.now()>=checkedBudget.budget.stopAt)fail("OWNER_MONITOR_ORIGINAL_BUDGET_EXHAUSTED");
++      if(!Number.isFinite(expiry)||!Number.isFinite(cutoff)||Clock.now()>=expiry||Clock.now()>=cutoff)fail("OWNER_STALE_OR_UNCERTAIN_NO_SUBMIT");
++      return true;
++    };
++  };
+   const scopedStore = (name,value) => {
+     if (name === ns+'lastPortableExecPollRaw') rawPoll = clone(value);
+     if (name === ns+'lastPortableExecPoll' && value?.exit_code !== undefined && value?.session_id === undefined &&
+         !value?.classification && value?.originalSessionId === originalSessionId) {
++      assertScope();
+       // The monitor has already compared exit_code against the durable wrapper.
+       // Delay accepted state until the *full actual raw* is persisted and reread.
+       validatedSummary = clone(value);
+@@ -79,11 +99,13 @@
+   const ownerStages = {
+     ...stages,
+     monitorOwnerIdentity: identity,
++    assertOwnerScope: assertScope,
+     monitorInvocationMode: mode === 'publish' ? 'start' : 'resume',
+     h: {...h, next: async dir => {
+       assertScope();
+       if (dir !== run+'/relay') fail('OWNER_RELAY_SCOPE');
+       const req = await h.next(dir);
++      assertScope();
+       if (req?.kind === 'PUBLISH') {
+         if (req.requestId !== r.requestId || req.requestSha256 !== r.requestSha256 ||
+             req.payload?.sql !== sql || req.expiresAt !== r.expiresAt ||
+@@ -100,7 +122,10 @@
+     handle: async (req,dir) => {
+       assertScope();
+       if (dir !== run+'/relay' || req.kind === 'PUBLISH') fail('OWNER_NO_PUBLISH_REPLAY');
+-      return stages.handle(req,dir);
++      const ownedRequest=clone(req);
++      const result=await stages.handle(ownedRequest,dir,finalSqlGuardFor(ownedRequest));
++      assertScope();
++      return result;
+     }
+   };
+   const scopedTools = {...tools, write_stdin: async args => {
+@@ -111,7 +136,6 @@
+   try {
+     // Read the original durable launch budget before the only SQL dispatch.
+     // Reuse the monitor's validator; this preflight has no relay/poll loop.
+-    let checkedBudget;
+     await new A('ownerStages','load','store','tools','notify','text','Date','setTimeout',scopedMonitorCode)(
+       {...ownerStages,monitorBudgetCheckOnly:true},scopedLoad,scopedStore,scopedTools,notify,
+       value=>{checkedBudget=clone(value);},Clock,schedule);
+@@ -125,7 +149,7 @@
+     assertScope();
+     if (mode === 'publish') {
+       try {
+-        state.publicationResult = clone(await h.sqlDispatch(r,run+'/relay',sql));
++        state.publicationResult = clone(await h.sqlDispatch(r,run+'/relay',sql,finalSqlGuardFor(r)));
+       } catch (error) {
+         dispatchError = String(error);
+         state.dispatchError = dispatchError;
+@@ -134,6 +158,8 @@
+         state.publicationResult = {status:'UNKNOWN',outcome:'UNKNOWN'};
+       }
+     }
++    const dispatchBoundary=load(ns+'sqlDispatchBoundary:'+r.requestId);
++    if(dispatchBoundary)state.dispatchBoundary=clone(dispatchBoundary);
+     state.phase = 'MONITORING';
+     state.outcome = state.publicationResult?.outcome ?? 'UNKNOWN';
+     store(key,clone(state));
+@@ -162,6 +188,8 @@
+       if (savedText !== serialized && savedText !== serialized+'\n') fail('OWNER_TERMINAL_EVIDENCE_READBACK');
+     } catch (error) { evidenceError = String(error); }
+   }
++  // Final acceptance follows awaited evidence persistence/readback, too.
++  try{assertScope();}catch(error){monitorError=String(error);}
+   const valid = !monitorError && !evidenceError && rawPoll?.evidenceVerified === true && actualRawTerminal && Number.isInteger(rawPoll.raw.exit_code) &&
+     validatedSummary?.originalSessionId === originalSessionId && validatedSummary.exit_code === rawPoll.raw.exit_code &&
+     monitorResult?.status === 'PROCESS_TERMINATED' && monitorResult.originalExec?.state === 'TERMINATED' &&
+@@ -173,7 +201,7 @@
+     store(ns+'lastPortableExecPoll',accepted);
+     store(ns+'lastPortableExecTerminalAccepted',accepted);
+     result = {status:'PROCESS_TERMINATED',originalExec:monitorResult.originalExec,evidencePath,
+-      publicationResult:state.publicationResult,dispatchError:dispatchError??state.dispatchError??null,
++      publicationResult:state.publicationResult,dispatchBoundary:state.dispatchBoundary??null,dispatchError:dispatchError??state.dispatchError??null,
+       publicationReconciled:false,successfulCompletionEligible:rawPoll.raw.exit_code===0,
+       noWriteEstablished:false,retryAuthorized:false};
+     state.phase = 'TERMINATED_VALIDATED';
+@@ -181,7 +209,7 @@
+     result = {status:state.publicationResult?.status==='AWAITING_OWNER_RECONCILIATION'
+       ? 'AWAITING_OWNER_RECONCILIATION' : 'ORIGINAL_EXEC_UNKNOWN',
+       originalSessionId,evidencePath,evidenceError,monitorError,monitorResult:monitorResult??null,
+-      publicationResult:state.publicationResult,dispatchError:dispatchError??state.dispatchError??null,
++      publicationResult:state.publicationResult,dispatchBoundary:state.dispatchBoundary??null,dispatchError:dispatchError??state.dispatchError??null,
+       outcome:'UNKNOWN',noWriteEstablished:false,retryAuthorized:false,
+       continuation:{mode:actualRawTerminal?'reconcile-retained-terminal':'resume',sourceKey,requestId:r.requestId,requestSha256:r.requestSha256,originalSessionId}};
+     state.phase = 'UNRESOLVED';
+--- r3/owner-adaptations/hansoh-fosun-c51-r3-20261007T2125Z/publish-reviewed-and-monitor.exec.js
++++ r4/owner-adaptations/hansoh-fosun-c51-r4-20261007T2149Z/publish-reviewed-and-monitor.exec.js
+@@ -4,7 +4,7 @@
+ // A yielded/running cell must be continued with functions.wait, never duplicated.
+ if(typeof sourceKey !== 'string' || sourceKey.length > 64 || sourceKey !== sourceKey.trim() || !/^(?:[a-z][a-z0-9]*|boehringer-ingelheim)$/.test(sourceKey)||!['publish','resume'].includes(ownerMode))throw Error('OWNER_ENTRY_ARGUMENT');
+ const ns='proxyNode22:'+sourceKey+':',p=load(ns+'publishMonitorPrepared');
+-if(p?.ownerSha256!=='20c738c41431d33d7da22a0ea07377af1c732ab730337458d440b5ff45e4f257'||
++if(p?.ownerSha256!=='64b5319017988113160a7b34f70f32fd09329051a5b77ad122c1fce3b0584cf5'||
+  p.helperCode!==load(ns+'cloudPilotHostHelpers')||p.stageCode!==load(ns+'cloudPilotHostStages')||
+  p.monitorCode!==load(ns+'continuousPortableRelayCodeWithPoll')||p.hostRoot!==load(ns+'cloudPilotHostConfig')?.root)throw Error('OWNER_ENTRY_NOT_PINNED');
+ const A=Object.getPrototypeOf(async function(){}).constructor;

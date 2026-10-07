@@ -1,0 +1,46 @@
+{
+  "producerCommit": "28402a299bb04cbf5873da66c2fe8ca76827c0d1",
+  "runtimeRoot": "/workspace/scratch/5e9614251709/jb-incremental-proxy-runtime-20261007T0057Z",
+  "files": {
+    "/workspace/scratch/5e9614251709/jb-incremental-proxy-runtime-20261007T0057Z/hosts/hansoh/host/host-helper-functions.js": {
+      "sha256": "953dd97e75752e4101a5cf2b51bb57c9bed7e0ca7f4f218eaaf01a46e3542282",
+      "bytes": 11220
+    },
+    "/workspace/scratch/5e9614251709/jb-incremental-proxy-runtime-20261007T0057Z/hosts/hansoh/host/host-stage-functions.js": {
+      "sha256": "23a8e0a3c2752bd17b102183d668229247ad2c75351a4cfb975888170a1cd0cb",
+      "bytes": 6974
+    },
+    "/workspace/scratch/5e9614251709/jb-incremental-proxy-runtime-20261007T0057Z/hosts/hansoh/host/relay-files.mjs": {
+      "sha256": "5833c3aafd4b85045b00b733ce868db16a8a3cc566179f44c9c021b479fdacda",
+      "bytes": 7908
+    },
+    "/workspace/scratch/5e9614251709/jb-incremental-proxy-runtime-20261007T0057Z/hosts/hansoh/host/runtime/continuous-relay-v3-durable-monitor.js": {
+      "sha256": "aa3720591d445581ca06b5fa27c56dbd486c16fe7fdd4c79441e6fb51975f44c",
+      "bytes": 11577
+    },
+    "/workspace/scratch/5e9614251709/jb-incremental-proxy-runtime-20261007T0057Z/hosts/hansoh/host/runtime/review-packet-envelope.mts": {
+      "sha256": "40cb1e3ede867f0e9d171605e7454fc71a6f774dfdf910f68ff668722bba69cb",
+      "bytes": 5535
+    },
+    "/workspace/scratch/5e9614251709/jb-incremental-proxy-runtime-20261007T0057Z/hosts/fosun/host/host-helper-functions.js": {
+      "sha256": "ef3577a24500a5e462d13384b4ff8ccecb7b2b7e033e084130e4fbbc249fc832",
+      "bytes": 11217
+    },
+    "/workspace/scratch/5e9614251709/jb-incremental-proxy-runtime-20261007T0057Z/hosts/fosun/host/host-stage-functions.js": {
+      "sha256": "e2d49acde87841ae2d9e58207310c33f807b82512c946b6337a9c306128870af",
+      "bytes": 6977
+    },
+    "/workspace/scratch/5e9614251709/jb-incremental-proxy-runtime-20261007T0057Z/hosts/fosun/host/relay-files.mjs": {
+      "sha256": "c9f2b6002d50a2d98513a92bcec62eb78ab24d4346ef9e80c9e08622d73b5fc1",
+      "bytes": 7907
+    },
+    "/workspace/scratch/5e9614251709/jb-incremental-proxy-runtime-20261007T0057Z/hosts/fosun/host/runtime/continuous-relay-v3-durable-monitor.js": {
+      "sha256": "3481682b9cbf88fea535f329c59bfec17e18820e18e4b82480886b273f10a6cb",
+      "bytes": 11575
+    },
+    "/workspace/scratch/5e9614251709/jb-incremental-proxy-runtime-20261007T0057Z/hosts/fosun/host/runtime/review-packet-envelope.mts": {
+      "sha256": "40cb1e3ede867f0e9d171605e7454fc71a6f774dfdf910f68ff668722bba69cb",
+      "bytes": 5535
+    }
+  }
+}

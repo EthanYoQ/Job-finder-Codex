@@ -1,0 +1,26 @@
+// Offline verification only. Read existing templates and recompile in memory.
+import assert from 'node:assert/strict';
+import {readFileSync} from 'node:fs';
+import {resolve,join} from 'node:path';
+import {createHash} from 'node:crypto';
+import {compileCloudPilotPublicationContextSql,CLOUD_PILOT_SOURCE} from '../../producer/src/db/cloudPilotSqlControl.ts';
+import {deriveCurrentStagedScheduleExpectation} from '../../producer/src/crawler/stagedScheduleAuthority.ts';
+import {sourcePlanConfigSha256} from '../../producer/src/crawler/sourcePlan.ts';
+import {assertPortableRefreshPlan} from '../../producer/scripts/p0-cloud-portable-source-pilot.ts';
+import {getSourceQualityPolicy,SOURCE_QUALITY_POLICY_ID} from '../../producer/src/crawler/sourceQualityAdmission.ts';
+const P=import.meta.dirname,R=resolve(P,'../..'),key=process.argv[2];
+const expected:any={hansoh:['source-hansoh-social','94d0982064af5a70386e017dec29cec1115c08480df2934e8d4cf0ddf644d740'],fosun:['source-fosun-pharma-social','0227ec8d384900a48b2973f128908f7e9435d4bc991efd9a5b14ea5a3d1042b2']};
+assert(key in expected);const [id,hash]=expected[key];
+assert.equal(CLOUD_PILOT_SOURCE.id,id);assert.equal(CLOUD_PILOT_SOURCE.sourceConfigSha256,hash);
+const host=join(P,'payload/hosts',key,'host'),read=(name:string)=>JSON.parse(readFileSync(join(host,name),'utf8'));
+const cfg=read('host-config.json'),template=read('control-base.template.json'),proof=read('context-template-proof.json');
+assert.equal(cfg.sourceId,id);assert.equal(cfg.sourceConfigSha256,hash);assert.equal(template.candidate,null);assert.equal(template.databaseIdentity,null);
+const plans=deriveCurrentStagedScheduleExpectation(template.build).plans;const matches=plans.filter(p=>p.source.id===id);assert.equal(matches.length,1);const plan=matches[0]!;
+assert.equal(sourcePlanConfigSha256(plan),hash);assertPortableRefreshPlan(plan);assert.equal(getSourceQualityPolicy(plan),SOURCE_QUALITY_POLICY_ID);
+const control={...template,candidate:{id:'OWNER_REGISTERED_C51_CANDIDATE_ID',goalId:'jobfinder-portable-required-40',version:51},databaseIdentity:{migrationVersion:'20261006172300_job_projection_delta_contract',schemaHash:'0'.repeat(64),dbSnapshotHash:'0'.repeat(64)}};
+const sql=compileCloudPilotPublicationContextSql(control,'PLAN_BOUND_SOURCE_QUALITY_V1');
+assert.equal(sql,readFileSync(join(host,'context-read.sql.template'),'utf8'));assert.equal(createHash('sha256').update(sql).digest('hex'),proof.contextSha256);
+assert.equal(proof.entrypointSha256,createHash('sha256').update(readFileSync(join(R,'producer/scripts/p0-cloud-portable-source-pilot.ts'))).digest('hex'));
+assert.equal(proof.route,'PORTABLE');assert.equal(proof.publicationMode,'DB_STARTED_JOB_PROJECTION_DELTA_V1');
+assert.deepEqual(plan,proof.originalSourcePlan);
+console.log(JSON.stringify({status:'PASS',sourceId:id,contextSha256:proof.contextSha256,exactCurrentPlan:true,templateCandidate:null,templateDatabaseIdentity:null,noSqlOrNetwork:true}));

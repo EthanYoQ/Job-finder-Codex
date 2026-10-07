@@ -1,0 +1,72 @@
+{
+  "sourceKey": "fosun",
+  "sourceId": "source-fosun-pharma-social",
+  "route": "PORTABLE",
+  "sourceConfigSha256": "0227ec8d384900a48b2973f128908f7e9435d4bc991efd9a5b14ea5a3d1042b2",
+  "source": {
+    "id": "source-fosun-pharma-social",
+    "companyId": "company-fosun-pharma",
+    "kind": "SOCIAL",
+    "atsKind": "BEISEN_ZHIYE",
+    "status": "VERIFIED_SCRAPABLE",
+    "officialEntryUrl": "https://fosunpharma.zhiye.com/social",
+    "officialChainEvidenceUrl": "https://www.fosunpharma.com/careers/"
+  },
+  "currentSourcePlan": {
+    "adapterId": "official-json",
+    "company": {
+      "id": "company-fosun-pharma",
+      "officialChineseName": "上海复星医药（集团）股份有限公司",
+      "category": "DOMESTIC_PHARMA"
+    },
+    "source": {
+      "id": "source-fosun-pharma-social",
+      "surfaceId": "surface-fosun-pharma-social",
+      "companyId": "company-fosun-pharma",
+      "kind": "SOCIAL",
+      "atsKind": "BEISEN_ZHIYE",
+      "status": "VERIFIED_SCRAPABLE",
+      "officialEntryUrl": "https://fosunpharma.zhiye.com/social",
+      "officialChainEvidenceUrl": "https://www.fosunpharma.com/careers/"
+    },
+    "executionAuthority": "STAGED",
+    "expectedChannels": [
+      {
+        "channelId": "source:source-fosun-pharma-social:default",
+        "kind": "SOCIAL"
+      }
+    ],
+    "expectedChannelSetHash": "9b074959015f02084234cb1e14dbdba768012fe3370d5525044d1dbffcc94a87",
+    "json": {
+      "jobsPath": "jobs",
+      "fields": {
+        "sourceJobId": "sourceJobId",
+        "officialTitle": "title",
+        "officialUrl": "officialUrl",
+        "locationRaw": "locationRaw",
+        "cities": "cities"
+      },
+      "defaultCategory": "其他"
+    },
+    "officialJsonFetch": {
+      "kind": "beisen-zhiye-2022",
+      "geographyScope": "DOMESTIC_OFFICIAL_TENANT",
+      "scopeExclusionProof": "FOSUN_EXPLICIT_HONG_KONG_ONLY_V1",
+      "category": "1",
+      "pageSize": 100,
+      "maxPages": 5,
+      "detailPath": "social/detail"
+    },
+    "transportPolicy": {
+      "primary": "DIRECT_HTTP"
+    }
+  },
+  "currentQualityPolicy": "PLAN_BOUND_SOURCE_QUALITY_V1",
+  "implementation": {
+    "profilePath": "/workspace/scratch/5e9614251709/jb-incremental-proxy-runtime-20261007T0057Z/producer/src/crawler/companyRecruitmentProfiles/profiles/fosun-pharma.ts",
+    "profileSha256": "4e78c13d979a857061ba441769776684bd5d166f9336e10e19ddac738b1b9783",
+    "sourcePlanPath": "/workspace/scratch/5e9614251709/jb-incremental-proxy-runtime-20261007T0057Z/producer/src/crawler/sourcePlan.ts",
+    "sourcePlanSha256": "1f1345f74ad41adaa0778eaf301f6b1c38ca68f091d81b116556771d18c71987"
+  },
+  "staticRouteSha256": "773abaf6cfa1196590330dee6a88afc3b4b6ae507d81cb2e163a387727ca2ec8"
+}

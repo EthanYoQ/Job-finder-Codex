@@ -6,7 +6,7 @@ manifest_sha=hashlib.sha256((base/'baseline-manifest.json').read_bytes()).hexdig
 preload='''// functions.exec AsyncFunction body. Required parameter: sourceKey.
 // Run once after the original source loader, before launch/review deadlines.
 // This reads/pins local code only; it does not submit SQL or start a producer.
-if(!/^[a-z][a-z0-9]*$/.test(sourceKey))throw Error('OWNER_SOURCE_KEY');
+if(typeof sourceKey !== 'string' || sourceKey.length > 64 || sourceKey !== sourceKey.trim() || !/^(?:[a-z][a-z0-9]*|boehringer-ingelheim)$/.test(sourceKey))throw Error('OWNER_SOURCE_KEY');
 const ns='proxyNode22:'+sourceKey+':';
 const q=s=>"'"+String(s).replaceAll("'","'\\\\''")+"'";
 const result=await tools.exec_command({cmd:'python3 - '+q('__BASE__')+' '+q(sourceKey)+" <<'PY_OWNER_LOAD'\\n"+
@@ -39,7 +39,7 @@ entry='''// functions.exec AsyncFunction body. Required parameters: sourceKey, o
 // ownerMode='publish' only for a new, parent-reviewed original PUBLISH request.
 // ownerMode='resume' only after this owner's prior cell returned UNRESOLVED.
 // A yielded/running cell must be continued with functions.wait, never duplicated.
-if(!/^[a-z][a-z0-9]*$/.test(sourceKey)||!['publish','resume'].includes(ownerMode))throw Error('OWNER_ENTRY_ARGUMENT');
+if(typeof sourceKey !== 'string' || sourceKey.length > 64 || sourceKey !== sourceKey.trim() || !/^(?:[a-z][a-z0-9]*|boehringer-ingelheim)$/.test(sourceKey)||!['publish','resume'].includes(ownerMode))throw Error('OWNER_ENTRY_ARGUMENT');
 const ns='proxyNode22:'+sourceKey+':',p=load(ns+'publishMonitorPrepared');
 if(p?.ownerSha256!=='__OWNER_SHA__'||
  p.helperCode!==load(ns+'cloudPilotHostHelpers')||p.stageCode!==load(ns+'cloudPilotHostStages')||
