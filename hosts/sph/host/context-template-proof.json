@@ -1,0 +1,69 @@
+{
+  "schemaVersion": 1,
+  "sourceId": "source-shanghai-pharma-social",
+  "sourceConfigSha256": "bc8041ef07df70a7c07a6a14487ee84e230a2b0d6efe1e095aded1a3f7dc7df9",
+  "route": "TRUE_A",
+  "entrypoint": "scripts/p0-cloud-source-pilot.ts",
+  "entrypointSha256": "e4299018aa4b17cd7d0ff756ea45b779479708e02c400be9a1c8ffc0c2c1abaa",
+  "sourceAdmissionPolicy": null,
+  "certificateSchema": "a-grade-official-total-v2",
+  "publicationMode": "DB_STARTED_JOB_PROJECTION_DELTA_V1",
+  "candidate": null,
+  "databaseIdentity": null,
+  "templatePlaceholderOnly": true,
+  "contextSha256": "d246edc80dc8573416557d67b9981b467c3d14e7b755933d93f6d4795dc869b5",
+  "expiryBasis": "source.startedAt+1800000",
+  "originalSourcePlan": {
+    "adapterId": "official-json",
+    "company": {
+      "id": "company-shanghai-pharma",
+      "officialChineseName": "上海医药集团股份有限公司",
+      "category": "DOMESTIC_PHARMA"
+    },
+    "source": {
+      "id": "source-shanghai-pharma-social",
+      "surfaceId": "surface-shanghai-pharma-social",
+      "companyId": "company-shanghai-pharma",
+      "kind": "SOCIAL",
+      "atsKind": "BEISEN_ZHIYE",
+      "status": "VERIFIED_SCRAPABLE",
+      "officialEntryUrl": "https://sph.zhiye.com/social/jobs",
+      "officialChainEvidenceUrl": "https://www.sphchina.com/html/footer.html"
+    },
+    "executionAuthority": "STAGED",
+    "expectedChannels": [
+      {
+        "channelId": "source:source-shanghai-pharma-social:default",
+        "kind": "SOCIAL"
+      }
+    ],
+    "expectedChannelSetHash": "b8b096f5007dcddfc9b6d1733b4ec3454e723c00e601f622b2fbdf16b3cef596",
+    "json": {
+      "jobsPath": "jobs",
+      "fields": {
+        "sourceJobId": "sourceJobId",
+        "officialTitle": "title",
+        "officialUrl": "officialUrl",
+        "locationRaw": "locationRaw",
+        "cities": "cities",
+        "officialPublishedAt": "officialPublishedAt"
+      },
+      "defaultCategory": "其他"
+    },
+    "officialJsonFetch": {
+      "kind": "beisen-zhiye-2022",
+      "detailPostedDatePolicy": "BEISEN_NATIVE_DETAIL_POSTDATE_V1",
+      "geographyScope": "DOMESTIC_OFFICIAL_TENANT",
+      "mixedLocationPolicy": "INHERIT_MAINLAND_PARENT_FOR_SIBLING_LOCATIONS",
+      "category": "1",
+      "pageSize": 100,
+      "detailPath": "social/detail"
+    },
+    "transportPolicy": {
+      "primary": "DIRECT_HTTP"
+    }
+  },
+  "network": false,
+  "database": false,
+  "launch": false
+}

@@ -1,0 +1,64 @@
+{
+  "schemaVersion": 1,
+  "sourceId": "source-daiichi-sankyo-china-social",
+  "sourceConfigSha256": "4cfbb43973c55db406d1e10ab9aed53bc72b8ccfbb7ed9a66745fd3cbf459e03",
+  "route": "TRUE_A",
+  "entrypoint": "scripts/p0-cloud-source-pilot.ts",
+  "entrypointSha256": "e4299018aa4b17cd7d0ff756ea45b779479708e02c400be9a1c8ffc0c2c1abaa",
+  "sourceAdmissionPolicy": null,
+  "certificateSchema": "a-grade-official-total-v2",
+  "publicationMode": "DB_STARTED_JOB_PROJECTION_DELTA_V1",
+  "candidate": null,
+  "databaseIdentity": null,
+  "templatePlaceholderOnly": true,
+  "contextSha256": "0bf6c28e359d0fd4e5fba4a601d5db5edeba1d20f58ddcac73e8a11ea6896ad9",
+  "expiryBasis": "source.startedAt+1800000",
+  "originalSourcePlan": {
+    "adapterId": "official-json",
+    "company": {
+      "id": "company-daiichi-sankyo-china",
+      "officialChineseName": "第一三共中国",
+      "category": "FOREIGN_PHARMA"
+    },
+    "source": {
+      "id": "source-daiichi-sankyo-china-social",
+      "surfaceId": "surface-daiichi-sankyo-china-social",
+      "companyId": "company-daiichi-sankyo-china",
+      "kind": "SOCIAL",
+      "atsKind": "OFFICIAL_JSON",
+      "status": "VERIFIED_SCRAPABLE",
+      "officialEntryUrl": "https://daiichisankyo.cnstaff.com/recruit",
+      "officialChainEvidenceUrl": "https://www.daiichisankyo.com.cn/"
+    },
+    "executionAuthority": "STAGED",
+    "expectedChannels": [
+      {
+        "channelId": "source:source-daiichi-sankyo-china-social:default",
+        "kind": "SOCIAL"
+      }
+    ],
+    "expectedChannelSetHash": "b4a9e9fe3301e66158c69d49c515c19ac807751a6c441443b3f784366bdd09f8",
+    "json": {
+      "jobsPath": "jobs",
+      "fields": {
+        "sourceJobId": "sourceJobId",
+        "officialTitle": "title",
+        "officialUrl": "officialUrl",
+        "locationRaw": "locationRaw",
+        "cities": "cities"
+      },
+      "defaultCategory": "其他"
+    },
+    "officialJsonFetch": {
+      "kind": "cnstaff",
+      "pageSize": 15,
+      "maxPages": 10
+    },
+    "transportPolicy": {
+      "primary": "DIRECT_HTTP"
+    }
+  },
+  "network": false,
+  "database": false,
+  "launch": false
+}

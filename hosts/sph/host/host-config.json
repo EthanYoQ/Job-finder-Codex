@@ -1,0 +1,8 @@
+{
+  "root": "/workspace/scratch/5e9614251709/jb-incremental-proxy-runtime-20261007T0057Z/hosts/sph/host",
+  "repo": "/workspace/scratch/5e9614251709/jb-incremental-proxy-runtime-20261007T0057Z/producer",
+  "node": "/workspace/scratch/5e9614251709/jb-incremental-proxy-runtime-20261007T0057Z/runtime/node-v22.23.3-linux-x64/bin/node",
+  "project": "yiopvxysxrtrnvqxwgbx",
+  "sourceId": "source-shanghai-pharma-social",
+  "sourceConfigSha256": "bc8041ef07df70a7c07a6a14487ee84e230a2b0d6efe1e095aded1a3f7dc7df9"
+}

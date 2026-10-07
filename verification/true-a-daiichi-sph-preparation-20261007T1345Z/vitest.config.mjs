@@ -1,0 +1,2 @@
+import {fileURLToPath} from 'node:url';
+export default {root:fileURLToPath(new URL('../../producer',import.meta.url)),cacheDir:'../verification/true-a-daiichi-sph-preparation-20261007T1345Z/vitest-cache',test:{environment:'node',include:['tests/crawler/cnstaffEvidenceInstrumentation.test.ts','tests/crawler/shanghaiPharmaRecruitmentProfile.test.ts','tests/crawler/beisenDetailDates.test.ts'],maxWorkers:1,fileParallelism:false,testTimeout:30000,cache:false}};

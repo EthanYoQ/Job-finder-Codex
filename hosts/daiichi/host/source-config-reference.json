@@ -1,0 +1,24 @@
+{
+  "sourceId": "source-daiichi-sankyo-china-social",
+  "route": "TRUE_A",
+  "source": {
+    "id": "source-daiichi-sankyo-china-social",
+    "companyId": "company-daiichi-sankyo-china",
+    "kind": "SOCIAL",
+    "atsKind": "OFFICIAL_JSON",
+    "status": "VERIFIED_SCRAPABLE",
+    "officialEntryUrl": "https://daiichisankyo.cnstaff.com/recruit",
+    "officialChainEvidenceUrl": "https://www.daiichisankyo.com.cn/"
+  },
+  "sourceConfigSha256": "4cfbb43973c55db406d1e10ab9aed53bc72b8ccfbb7ed9a66745fd3cbf459e03",
+  "mainImplementation": {
+    "role": "deadline-restored-47b74924",
+    "path": "scripts/p0-cloud-source-pilot.ts",
+    "sha256": "e4299018aa4b17cd7d0ff756ea45b779479708e02c400be9a1c8ffc0c2c1abaa"
+  },
+  "qualityImplementation": {
+    "role": "deadline-restored-47b74924",
+    "path": "src/crawler/completenessCertificate.ts",
+    "sha256": "6dcf1ca30aa2f6b8d3f7b4079147010dd63c5718c52dc8a83269f97dfe6a18be"
+  }
+}

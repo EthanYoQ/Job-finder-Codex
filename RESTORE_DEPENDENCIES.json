@@ -26,10 +26,10 @@
     "sha256": "fde6a4bf8d0562f7751d1a2d6cb9b417c4cfe107bbcb0aa3e9a24e125e348f48"
   },
   "owner": {
-    "path": "/workspace/scratch/5e9614251709/jb-incremental-proxy-runtime-20261007T0057Z/owner-adaptations/true-a-due-20261007T1256Z",
+    "path": "/workspace/scratch/5e9614251709/jb-incremental-proxy-runtime-20261007T0057Z/owner-adaptations/true-a-daiichi-sph-20261007T1345Z",
     "factorySha256": "78a716a79d905dc7bb02715967c43b74566d496bea5b6c24a2d6139dbb1f1894",
-    "baselineManifestSha256": "f7609110e2ab95aae7857dc7407a90c137cc430c72c6f6b5e586cdc4d01d26af",
-    "preloadSha256": "d2d57fce16ee76eb77935eaf91a7f1739513d1ad8e1c0ee7c3b818bba8ed7c16",
+    "baselineManifestSha256": "8aac015fc02127c96cfd2ff24364974d8713dd778ed76c77408f8a7d192303d5",
+    "preloadSha256": "f09d5b6bf4acfbff604f7542a8f5ad2a56ea3e3c69aa30cc0baf7883ace768cc",
     "reviewedEntrySha256": "56607634facc379fba8b401258d490abb258ba993aeabdf6865d4bd63296ed9d"
   },
   "globalStatePath": "/workspace/scratch/5e9614251709/jb-incremental-proxy-runtime-20261007T0057Z/PUBLISHER-ACTIVE-STATE.json",
@@ -52,5 +52,6 @@
     "official DB readbacks",
     "original reconstructed 36-source routes with historical bindings"
   ],
-  "restoreScope": "Source-only closure. Producer Git/dependency runtime and Node binary are separately required. Never overwrite a bound live host with this unbound package."
+  "restoreScope": "Source-only closure. Producer Git/dependency runtime and Node binary are separately required. Never overwrite a bound live host with this unbound package.",
+  "actualFourFilePinsChecked": true
 }
