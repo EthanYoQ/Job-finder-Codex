@@ -1,0 +1,185 @@
+{
+  "format": "source-increment-v1",
+  "sourceFileCount": 25,
+  "sourceBytes": 181879,
+  "reviewSourceManifestSha256": "12a9fcb7b8f8be7dba1503a018802e03b99ed475be4c6553bbe4a8bb19540dc5",
+  "requiredProducerCommit": "e815a79bc8478e5400e0b8b66ddf0aa3b285d50f",
+  "wrapperFixtureSha256": "f15522e6f209bfe99bfa258b5dffbce1f74d6af662c4c2ee682604e0798bbc88",
+  "files": [
+    {
+      "path": "hosts/novo/host/host-config.template.json",
+      "sha256": "7d5f2fa5938655ce46b80f22b096f190cfb0d984822c4bf609deda5e11238902",
+      "bytes": 587,
+      "gitBlob": "bda78767a859658b6fcacb2cc198f1d760a513b2",
+      "mode": "100644"
+    },
+    {
+      "path": "hosts/novo/host/host-helper-functions.js",
+      "sha256": "8351c26d75370d2b9e2dbb6c4c8d496820ce0c1328a5cc913174aac27f4ca30e",
+      "bytes": 9752,
+      "gitBlob": "7089ba8eaf90a3043588205603bf8d4bd8c56471",
+      "mode": "100644"
+    },
+    {
+      "path": "hosts/novo/host/host-stage-functions.js",
+      "sha256": "bdf5c4f7dfbbec5d47639087d73d1d5316627e113f932b90040c43b72b36afe2",
+      "bytes": 6636,
+      "gitBlob": "a6b5ea3da6868a7fbe69e4af11ff59a74799d267",
+      "mode": "100644"
+    },
+    {
+      "path": "hosts/novo/host/relay-files.mjs",
+      "sha256": "d905c3a57a91b42eb0385a85d4b01281b146089d31a9e3a48fb39e73f528adf5",
+      "bytes": 7942,
+      "gitBlob": "350f9ca8b942087c9d6e755b03153dd84fd04cb4",
+      "mode": "100644"
+    },
+    {
+      "path": "hosts/novo/host/runtime/continuous-relay-v3-durable-monitor.js",
+      "sha256": "13948048a91f6e17569a0a19fca36411481cfb8e8ca3b15a7cfc2a2f645d5794",
+      "bytes": 11328,
+      "gitBlob": "4a5dbe476a8420380545af758247b6711ceb737f",
+      "mode": "100644"
+    },
+    {
+      "path": "hosts/novo/host/runtime/review-packet-envelope.mts",
+      "sha256": "40cb1e3ede867f0e9d171605e7454fc71a6f774dfdf910f68ff668722bba69cb",
+      "bytes": 5535,
+      "gitBlob": "a550d0fd80f032ae7ed2633e88b2cd2c748c6969",
+      "mode": "100644"
+    },
+    {
+      "path": "owner-adaptations/novo-per-url-1930Z/baseline-manifest.json",
+      "sha256": "185092e0127fd635f5e4d6db3ccdb33c0c3291cc80ab449d43a0298a0c093c8c",
+      "bytes": 1406,
+      "gitBlob": "69b02c05ad066fcada6657f998753723bd640832",
+      "mode": "100644"
+    },
+    {
+      "path": "owner-adaptations/novo-per-url-1930Z/build-fragments.py",
+      "sha256": "1f03fee8b375360bd6294b09fed5eccbbe1787bda8f5cf5523c743bde23de28e",
+      "bytes": 4463,
+      "gitBlob": "fe3faea145e2d549d371677a3cfc5b70fb7634d2",
+      "mode": "100644"
+    },
+    {
+      "path": "owner-adaptations/novo-per-url-1930Z/preload-owner.exec.js",
+      "sha256": "e102f26bba318731a2e94f0802880978351dd1ca209573f656e66f02b4f3d42a",
+      "bytes": 2737,
+      "gitBlob": "5adbd914b4c4e342c0cbe1452f4002c6b8c01064",
+      "mode": "100644"
+    },
+    {
+      "path": "owner-adaptations/novo-per-url-1930Z/publish-and-monitor-owner.js",
+      "sha256": "e71c62e56e5cc1483f1482fcd10fffc6146f9895125f692d85ea960ead98a3aa",
+      "bytes": 12627,
+      "gitBlob": "de7591a6379065764526ab3a7ee53af72bf89eaa",
+      "mode": "100644"
+    },
+    {
+      "path": "owner-adaptations/novo-per-url-1930Z/publish-reviewed-and-monitor.exec.js",
+      "sha256": "3067ccee556ba1bd3d9ee6476c823d6bb1acabd92a853ec914e6f3ab98df2c7e",
+      "bytes": 1398,
+      "gitBlob": "43c5f38af537bd33ca7284b554379441163701f3",
+      "mode": "100644"
+    },
+    {
+      "path": "owner-adaptations/novo-per-url-1930Z/tests/fixtures/run-with-http-diagnostics.mjs",
+      "sha256": "f15522e6f209bfe99bfa258b5dffbce1f74d6af662c4c2ee682604e0798bbc88",
+      "bytes": 3565,
+      "gitBlob": "e7da989b4ba0cc821c1a766cbd2cbe01c0dad857",
+      "mode": "100644"
+    },
+    {
+      "path": "owner-adaptations/novo-per-url-1930Z/tests/generate-full-chain-tests.py",
+      "sha256": "65a25e7927e0988832cf4387cb09f395948b64a97716eebd4c32f0029a51ef56",
+      "bytes": 2760,
+      "gitBlob": "1f6c67e018c06459d905c850f3ae5c8d31f50a89",
+      "mode": "100644"
+    },
+    {
+      "path": "owner-adaptations/novo-per-url-1930Z/tests/generated-novo-full-chain.test.mjs",
+      "sha256": "cefff2fe2729faf51730d5493232628d7fe3e5683919bae963dc01c812d05ba3",
+      "bytes": 24722,
+      "gitBlob": "c2d3da9ad90fc6c6a4ced8905dbd36f7db918f19",
+      "mode": "100644"
+    },
+    {
+      "path": "owner-adaptations/novo-per-url-1930Z/tests/inert-monitor.test.mjs",
+      "sha256": "e1b088254c623afc795b94673946dc84f246cda925af6a750d7933ef854a8d0f",
+      "bytes": 4907,
+      "gitBlob": "f2eff9fd1d2e6e4a21427079820218b4944006b9",
+      "mode": "100644"
+    },
+    {
+      "path": "owner-adaptations/novo-per-url-1930Z/tests/key-and-preload.test.mjs",
+      "sha256": "934a5d4b4c824645c5a0b305fabc81dd62ef197bda75c385c579e3d5d2bbc722",
+      "bytes": 3878,
+      "gitBlob": "a406dee9da8ad082ebffd9dae8ef56c284831fba",
+      "mode": "100644"
+    },
+    {
+      "path": "owner-adaptations/novo-per-url-1930Z/tests/monitor-stale.test.mjs",
+      "sha256": "19cf994832cf659bd6a7cac9043ad129a64354cff893add37368101ae8245df3",
+      "bytes": 18448,
+      "gitBlob": "887b19d1ddebfb93ce72e5fab6f3ec9ea9fd79cf",
+      "mode": "100644"
+    },
+    {
+      "path": "owner-adaptations/novo-per-url-1930Z/tests/owner.test.mjs",
+      "sha256": "ccacee17c26dea9972b63a4a06c2d2ccb981e8521c3e73da289dad7f80e6ef51",
+      "bytes": 24142,
+      "gitBlob": "9aacfd6ff79b5543515be56aba7cf9d2c3ac660f",
+      "mode": "100644"
+    },
+    {
+      "path": "owner-adaptations/novo-per-url-1930Z/tests/real-apply-patch-terminal-fixture.json",
+      "sha256": "aff94e02c5266ff389e8cbd2da3774b9eaf00cbf204bf9484a1b5eaace576f2e",
+      "bytes": 195,
+      "gitBlob": "2bb6d2d309c400a32ab73ce3dbdcf1760102319f",
+      "mode": "100644"
+    },
+    {
+      "path": "integration/hosts/novo/host/runtime/continuous-relay-v3-durable-monitor.js",
+      "sha256": "13948048a91f6e17569a0a19fca36411481cfb8e8ca3b15a7cfc2a2f645d5794",
+      "bytes": 11328,
+      "gitBlob": "4a5dbe476a8420380545af758247b6711ceb737f",
+      "mode": "100644"
+    },
+    {
+      "path": "integration/owner-adaptations/novo-per-url-1930Z/publish-and-monitor-owner.js",
+      "sha256": "e71c62e56e5cc1483f1482fcd10fffc6146f9895125f692d85ea960ead98a3aa",
+      "bytes": 12627,
+      "gitBlob": "de7591a6379065764526ab3a7ee53af72bf89eaa",
+      "mode": "100644"
+    },
+    {
+      "path": "integration/owner-adaptations/novo-per-url-1930Z/baseline-manifest.json",
+      "sha256": "064358226def89c515f819b20e9d3621bb6e211c058d6e247904f6b7d0cf380c",
+      "bytes": 1604,
+      "gitBlob": "3a5c810ed1989676619e1b7cac899b8dd536d34b",
+      "mode": "100644"
+    },
+    {
+      "path": "integration/owner-adaptations/novo-per-url-1930Z/preload-owner.exec.js",
+      "sha256": "4672a429d4176a56ac78d6a328911393e4c56314766a84208b5771f3575c7ee4",
+      "bytes": 2770,
+      "gitBlob": "56b798f4d246b1462d74f9a85f9776545745d1a3",
+      "mode": "100644"
+    },
+    {
+      "path": "integration/owner-adaptations/novo-per-url-1930Z/publish-reviewed-and-monitor.exec.js",
+      "sha256": "3067ccee556ba1bd3d9ee6476c823d6bb1acabd92a853ec914e6f3ab98df2c7e",
+      "bytes": 1398,
+      "gitBlob": "43c5f38af537bd33ca7284b554379441163701f3",
+      "mode": "100644"
+    },
+    {
+      "path": "integration-r2-to-r3.patch",
+      "sha256": "02b878176c78329888abec517ddbace36db57396c413697dee1b3b3bfdbd02d0",
+      "bytes": 5124,
+      "gitBlob": "5d7b9ca8a86890b031107aa2ebc992467cc6a1b0",
+      "mode": "100644"
+    }
+  ]
+}

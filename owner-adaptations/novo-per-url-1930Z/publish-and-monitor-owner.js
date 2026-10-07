@@ -7,10 +7,11 @@ const same = (a,b) => JSON.stringify(a) === JSON.stringify(b);
 const fail = code => { throw Error(code); };
 return async function publishAndMonitorOwner(input) {
   const {sourceKey, stages, monitorCode, request: suppliedRequest, sql, mode = 'publish'} = input;
-  if (!/^[a-z][a-z0-9]*$/.test(sourceKey) || !['publish','resume'].includes(mode)) fail('OWNER_ARGUMENT');
+  if (typeof sourceKey !== 'string' || sourceKey.length > 64 || sourceKey !== sourceKey.trim() || !/^(?:[a-z][a-z0-9]*|boehringer-ingelheim)$/.test(sourceKey) || !['publish','resume'].includes(mode)) fail('OWNER_ARGUMENT');
   const ns = 'proxyNode22:' + sourceKey + ':', h = stages?.h;
   if (!h || typeof stages.handle !== 'function' || typeof monitorCode !== 'string') fail('OWNER_DEPENDENCY');
   const r = clone(suppliedRequest), cfg = h.cfg;
+  if (sourceKey !== 'novo' || cfg.sourceId !== 'source-novo-nordisk-china-social') fail('OWNER_SOURCE_SCOPE');
   const run = load(ns+'refreshCurrentRun'), batch = load(ns+'refreshCurrentBatch');
   const originalSessionId = load(ns+'refreshSession'), binding = load(ns+'registeredCandidateBinding');
   const review = load(ns+'publicationReview'), reviewedSource = review?.sourceResult;
@@ -19,16 +20,19 @@ return async function publishAndMonitorOwner(input) {
       !Number.isSafeInteger(originalSessionId) || originalSessionId < 1 || typeof batch !== 'string' ||
       run !== cfg.root+'/'+batch || load(ns+'cloudPilotPublishDirectory') !== run+'/relay' ||
       !same(load(ns+'cloudPilotPublishRequest'), suppliedRequest)) fail('OWNER_ORIGINAL_REQUEST_BINDING');
-  if (binding?.status !== 'REGISTERED_VERIFIED' || binding.build?.commitSha !== '28402a299bb04cbf5873da66c2fe8ca76827c0d1' ||
-      binding.candidate?.version !== 51 || review?.requestId !== r.requestId || review?.requestSha256 !== r.requestSha256 ||
+  if (binding?.status !== 'REGISTERED_VERIFIED' || binding.build?.commitSha !== 'e815a79bc8478e5400e0b8b66ddf0aa3b285d50f' ||
+      !Number.isSafeInteger(binding.candidate?.version) || binding.candidate.version < 52 || binding.candidate.id === 'dot-cloud-delta-proxy-28402a29-20261007' || review?.requestId !== r.requestId || review?.requestSha256 !== r.requestSha256 ||
       reviewedSource?.id !== batch+'--'+cfg.sourceId || reviewedSource.sourceId !== cfg.sourceId ||
       reviewedSource.sourceConfigHash !== cfg.sourceConfigSha256 || reviewedSource.releaseCandidateId !== binding.candidate.id ||
       !/^[a-f0-9]{64}$/.test(review.sqlSha256)) fail('OWNER_REVIEW_BINDING');
   // This exact, checked seam only replaces the monitor's dependency lookup.
-  // Its loops, TTLs, original-session poll, exit comparison, and return rules stay intact.
+  // It supplies the same single monitor loop; this owner adds no polling loop.
   const seam = 'const A=Object.getPrototypeOf(async function(){}).constructor;\nconst s=await new A(load("'+ns+'cloudPilotHostStages"))();';
   if (monitorCode.split(seam).length !== 2) fail('OWNER_MONITOR_SEAM');
   const scopedMonitorCode = monitorCode.replace(seam, 'const s=ownerStages;');
+  const monitorLease = load(ns+'durableMonitorLease:'+run);
+  if (monitorLease?.active) fail('OWNER_MONITOR_ALREADY_ACTIVE');
+  if (monitorLease && Clock.now() >= monitorLease.stopAt) fail('OWNER_MONITOR_ORIGINAL_BUDGET_EXHAUSTED');
   const key = ns+'publishMonitorOwner:'+r.requestId;
   const identity = {sourceKey, sourceId:cfg.sourceId, batch, run, originalSessionId, requestId:r.requestId,
     requestSha256:r.requestSha256, sqlSha256:review.sqlSha256, dispatchBefore:r.payload.dispatchBefore, expiresAt:r.expiresAt};
@@ -38,8 +42,9 @@ return async function publishAndMonitorOwner(input) {
     const expiry = Clock.parse(r.expiresAt), cutoff = Clock.parse(r.payload.dispatchBefore ?? r.expiresAt);
     if (r.expired || r.dispatchRecorded || !Number.isFinite(expiry) || !Number.isFinite(cutoff) ||
         Clock.now() >= expiry || Clock.now() >= cutoff) fail('OWNER_STALE_OR_UNCERTAIN_NO_SUBMIT');
-    // Synchronous claim precedes the only PUBLISH call. The host's exclusive
-    // dispatch marker remains the cross-cell/process authority.
+    // Same-store reentry guard only; not an atomic cross-isolate/process lock.
+    // The existing host dispatch marker and formal DB atomic lock remain the
+    // authorities. This owner is still the single designated publisher.
     state = {schemaVersion:1, identity, active:true, invocation:1, phase:'DISPATCHING',
       outcome:'UNKNOWN', noWriteEstablished:false, retryAuthorized:false, dispatchAttempted:true};
   } else {
@@ -70,6 +75,8 @@ return async function publishAndMonitorOwner(input) {
   };
   const ownerStages = {
     ...stages,
+    monitorOwnerIdentity: identity,
+    monitorInvocationMode: mode === 'publish' ? 'start' : 'resume',
     h: {...h, next: async dir => {
       assertScope();
       if (dir !== run+'/relay') fail('OWNER_RELAY_SCOPE');
@@ -99,6 +106,20 @@ return async function publishAndMonitorOwner(input) {
     return tools.write_stdin(args);
   }};
   try {
+    // Read the original durable launch budget before the only SQL dispatch.
+    // Reuse the monitor's validator; this preflight has no relay/poll loop.
+    let checkedBudget;
+    await new A('ownerStages','load','store','tools','notify','text','Date','setTimeout',scopedMonitorCode)(
+      {...ownerStages,monitorBudgetCheckOnly:true},scopedLoad,scopedStore,scopedTools,notify,
+      value=>{checkedBudget=clone(value);},Clock,schedule);
+    if (checkedBudget?.status !== 'MONITOR_BUDGET_VERIFIED') {
+      monitorResult=checkedBudget;
+      fail('OWNER_ORIGINAL_BUDGET_UNVERIFIED_NO_PUBLISH');
+    }
+    ownerStages.expectedMonitorBudget=checkedBudget.budget;
+    if (Clock.now() >= checkedBudget.budget.stopAt) fail('OWNER_MONITOR_ORIGINAL_BUDGET_EXHAUSTED');
+    // Recheck the live owner scope after the awaited budget read, before dispatch.
+    assertScope();
     if (mode === 'publish') {
       try {
         state.publicationResult = clone(await h.sqlDispatch(r,run+'/relay',sql));
@@ -122,10 +143,11 @@ return async function publishAndMonitorOwner(input) {
   } catch (error) {
     monitorError = String(error);
   }
-  let evidencePath = null, evidenceError = null;
+  let evidencePath = rawPoll?.evidencePath ?? monitorResult?.evidencePath ?? null;
+  let evidenceError = monitorResult?.evidenceError ?? null;
   const actualRawTerminal = rawPoll?.originalSessionId === originalSessionId &&
     rawPoll.raw?.exit_code !== undefined && rawPoll.raw?.session_id === undefined;
-  if (actualRawTerminal) {
+  if (actualRawTerminal && rawPoll.evidenceVerified === true) {
     evidencePath = run+'/owner-relay-evidence/'+r.requestId+'/invocation-'+state.invocation+'-original-exec-tool-terminal.json';
     try {
       const complete = {...rawPoll,ownerIdentity:identity,invocation:state.invocation};
@@ -137,7 +159,7 @@ return async function publishAndMonitorOwner(input) {
       if (savedText !== serialized && savedText !== serialized+'\n') fail('OWNER_TERMINAL_EVIDENCE_READBACK');
     } catch (error) { evidenceError = String(error); }
   }
-  const valid = !monitorError && !evidenceError && actualRawTerminal && Number.isInteger(rawPoll.raw.exit_code) &&
+  const valid = !monitorError && !evidenceError && rawPoll?.evidenceVerified === true && actualRawTerminal && Number.isInteger(rawPoll.raw.exit_code) &&
     validatedSummary?.originalSessionId === originalSessionId && validatedSummary.exit_code === rawPoll.raw.exit_code &&
     monitorResult?.status === 'PROCESS_TERMINATED' && monitorResult.originalExec?.state === 'TERMINATED' &&
     monitorResult.originalExec?.sessionId === originalSessionId && monitorResult.originalExec.exitCode === rawPoll.raw.exit_code &&

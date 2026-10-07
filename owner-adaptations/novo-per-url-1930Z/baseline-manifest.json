@@ -1,0 +1,26 @@
+{
+  "producerCommit": "e815a79bc8478e5400e0b8b66ddf0aa3b285d50f",
+  "runtimeRoot": "/workspace/scratch/5e9614251709/novo-monitor-stale-candidate-20261007T1954Z-r3",
+  "files": {
+    "/workspace/scratch/5e9614251709/novo-monitor-stale-candidate-20261007T1954Z-r3/hosts/novo/host/host-helper-functions.js": {
+      "sha256": "8351c26d75370d2b9e2dbb6c4c8d496820ce0c1328a5cc913174aac27f4ca30e",
+      "bytes": 9752
+    },
+    "/workspace/scratch/5e9614251709/novo-monitor-stale-candidate-20261007T1954Z-r3/hosts/novo/host/host-stage-functions.js": {
+      "sha256": "bdf5c4f7dfbbec5d47639087d73d1d5316627e113f932b90040c43b72b36afe2",
+      "bytes": 6636
+    },
+    "/workspace/scratch/5e9614251709/novo-monitor-stale-candidate-20261007T1954Z-r3/hosts/novo/host/relay-files.mjs": {
+      "sha256": "d905c3a57a91b42eb0385a85d4b01281b146089d31a9e3a48fb39e73f528adf5",
+      "bytes": 7942
+    },
+    "/workspace/scratch/5e9614251709/novo-monitor-stale-candidate-20261007T1954Z-r3/hosts/novo/host/runtime/continuous-relay-v3-durable-monitor.js": {
+      "sha256": "13948048a91f6e17569a0a19fca36411481cfb8e8ca3b15a7cfc2a2f645d5794",
+      "bytes": 11328
+    },
+    "/workspace/scratch/5e9614251709/novo-monitor-stale-candidate-20261007T1954Z-r3/hosts/novo/host/runtime/review-packet-envelope.mts": {
+      "sha256": "40cb1e3ede867f0e9d171605e7454fc71a6f774dfdf910f68ff668722bba69cb",
+      "bytes": 5535
+    }
+  }
+}
