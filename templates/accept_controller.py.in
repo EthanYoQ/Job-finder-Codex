@@ -1,0 +1,208 @@
+raise RuntimeError("UNBOUND_SOURCE_TEMPLATE: render with explicit local bindings before use")
+import pathlib,hashlib,stat,importlib.util
+_r=pathlib.Path('__BIND_RELEASE_ROOT__')
+if (_r.stat().st_dev,_r.stat().st_ino)!=(__BIND_RELEASE_DEVICE__,__BIND_RELEASE_INODE__):raise RuntimeError('RELEASE_SEAL_CHANGED')
+for _d in [_r]+list(_r.parents):
+ _s=_d.lstat()
+ if not stat.S_ISDIR(_s.st_mode) or _s.st_uid!=0 or _s.st_mode&0o022:raise RuntimeError('HELPER_DIRECTORY_CHANGED')
+_p=_r/'__FILE_RESTORE_FAILED_PAIR__';_s=_p.lstat()
+if not stat.S_ISREG(_s.st_mode) or _s.st_uid!=0 or _s.st_mode&0o022 or hashlib.sha256(_p.read_bytes()).hexdigest()!='__SHA_RESTORE_FAILED_PAIR__':raise RuntimeError('FIXED_HELPER_HASH')
+_spec=importlib.util.spec_from_file_location('fixed_a02_recovery',str(_p));J=importlib.util.module_from_spec(_spec);_spec.loader.exec_module(J)
+import pathlib,hashlib,stat,importlib.util
+_r=pathlib.Path('__BIND_RELEASE_ROOT__')
+if (_r.stat().st_dev,_r.stat().st_ino)!=(__BIND_RELEASE_DEVICE__,__BIND_RELEASE_INODE__):raise RuntimeError('RELEASE_SEAL_CHANGED')
+for _d in [_r]+list(_r.parents):
+ _s=_d.lstat()
+ if not stat.S_ISDIR(_s.st_mode) or _s.st_uid!=0 or _s.st_mode&0o022:raise RuntimeError('HELPER_DIRECTORY_CHANGED')
+_p=_r/'__FILE_ROLL_FALLBACK__';_s=_p.lstat()
+if not stat.S_ISREG(_s.st_mode) or _s.st_uid!=0 or _s.st_mode&0o022 or hashlib.sha256(_p.read_bytes()).hexdigest()!='__SHA_ROLL_FALLBACK__':raise RuntimeError('FIXED_HELPER_HASH')
+_spec=importlib.util.spec_from_file_location('fixed_a02_fallback',str(_p));F=importlib.util.module_from_spec(_spec);_spec.loader.exec_module(F)
+H=F.H
+R=H.ROOT
+STATE=H.STATE
+import datetime,json,os,pathlib,re,stat,subprocess,sys,time,urllib.request
+HTTP_FILE='__FILE_HTTP_ACCEPT_REFRESH__'
+HTTP_SHA='__SHA_HTTP_ACCEPT_REFRESH__'
+ASSET_FILE='__ASSET_FILE__'
+ASSET_SHA='__BIND_ASSET_MANIFEST_SHA256__'
+PHASES={'main-precut':('accept-main.json','web-main'), 'fallback-precut':('accept-fallback.json','compatible-fallback'), 'main-final':('accept-main-final.json','web-main'), 'fallback-final':('accept-fallback-final.json','compatible-fallback')}
+def read_state(name):return F.read_state(name)[0]
+def save(name,value):
+ fd=os.open(str(STATE/name),os.O_WRONLY|os.O_CREAT|os.O_EXCL|os.O_NOFOLLOW,0o600)
+ with os.fdopen(fd,'w') as f:json.dump(value,f,separators=(',',':'));f.write('\n');f.flush();os.fsync(f.fileno())
+
+ERROR_CODES=frozenset(('HTTP_ACCEPTANCE_FAILED','ACCEPT_OUTPUT_TOO_LARGE','ASTRA_ACCEPTANCE_CONTRACT_FAILED','HTTP_ACCEPTANCE_JSON_PARSE_FAILED','HTTP_ACCEPTANCE_TIMEOUT','HTTP_ACCEPTANCE_EXECUTION_FAILED','DIAGNOSTICS_PERSISTENCE_FAILED','ACCEPT_HELPER_HASH','UNKNOWN_ACCEPTANCE_PHASE','UNKNOWN_ACTION','ACCEPTANCE_RECEIPT_EXISTS_RECONCILE','ACCEPT_MAIN_LAUNCH_BINDING','ACCEPT_FALLBACK_LAUNCH_BINDING','ACCEPT_PROCESS_LISTENER','ACCEPT_NEW_RESTARTED','ROLES_OR_ROUTE_CHANGED_DURING_ACCEPTANCE','ROLES_OR_ROUTE_CHANGED_DURING_IDENTITY','STATIC_DIRECTORY_CHANGED','STATIC_FILE_CHANGED','STATIC_INVENTORY_SIZE','UNEXPECTED_RETAINED_STATIC_PATH','RETAINED_STATIC_BUDGET','RETAINED_STATIC_HTTP','RETAINED_STATIC_BYTES','STATIC_INVENTORY_KNOWN_COUNT','DIAGNOSTICS_DIRECTORY_UNSAFE','DIAGNOSTICS_NAME_INVALID'))
+def error_summary(error):
+ # Exception text is never emitted, even for RuntimeError from dependencies.
+ message=str(error)
+ code=message if type(error) is RuntimeError and message in ERROR_CODES else 'ACCEPTANCE_EXCEPTION'
+ return {'code':code,'sha256':H.sha((type(error).__name__+'\n'+message).encode('utf-8','backslashreplace'))}
+def safe_recovery_report(value):
+ if isinstance(value,dict):
+  return {key:(error_summary(RuntimeError(str(item))) if key in ('reason','error') else safe_recovery_report(item)) for key,item in value.items()}
+ if isinstance(value,list):return [safe_recovery_report(item) for item in value]
+ return value
+def save_helper_report(name,value):
+ # Write privately, fsync, publish with an exclusive hard link, then fsync
+ # the directory. A pre-existing destination (including a symlink) is never
+ # replaced. Readers can see only a complete report at the final name.
+ if re.fullmatch(r'accept-(?:main|fallback)(?:-final)?-helper-report\.json',name) is None:raise RuntimeError('DIAGNOSTICS_NAME_INVALID')
+ raw=(json.dumps(value,ensure_ascii=True,separators=(',',':'),allow_nan=False)+'\n').encode('utf-8')
+ directory=os.open(str(STATE),os.O_RDONLY|os.O_DIRECTORY|os.O_NOFOLLOW)
+ temporary=None
+ try:
+  meta=os.fstat(directory)
+  if not stat.S_ISDIR(meta.st_mode) or meta.st_uid!=0 or meta.st_mode&0o022:raise RuntimeError('DIAGNOSTICS_DIRECTORY_UNSAFE')
+  candidate='.'+name+'.'+os.urandom(16).hex()+'.tmp'
+  fd=os.open(candidate,os.O_WRONLY|os.O_CREAT|os.O_EXCL|os.O_NOFOLLOW,0o600,dir_fd=directory)
+  temporary=candidate
+  with os.fdopen(fd,'wb') as stream:
+   os.fchmod(stream.fileno(),0o600)
+   stream.write(raw);stream.flush();os.fsync(stream.fileno())
+  os.link(temporary,name,src_dir_fd=directory,dst_dir_fd=directory,follow_symlinks=False)
+  os.fsync(directory)
+  os.unlink(temporary,dir_fd=directory);temporary=None
+  os.fsync(directory)
+ finally:
+  if temporary is not None:
+   try:os.unlink(temporary,dir_fd=directory)
+   except OSError:pass
+  os.close(directory)
+ return {'state':'SAVED','file':name,'bytes':len(raw),'sha256':H.sha(raw)}
+def helper_bytes(value):
+ if value is None:return b''
+ if isinstance(value,bytes):return value
+ # subprocess is deliberately binary; this fallback only handles a mocked
+ # or platform-supplied text TimeoutExpired field without losing evidence.
+ return value.encode('utf-8','surrogatepass')
+def stream_evidence(raw):return {'bytes':len(raw),'sha256':H.sha(raw)}
+def recognized_helper_report(value):
+ # This is an evidence allowlist, not a replacement acceptance/quality gate.
+ # The exact pinned helper emits only these report envelopes. Unknown JSON
+ # and every raw stream remain hash/length-only, never a private log archive.
+ required={'status','phase','role','helperExitCode'}
+ if not isinstance(value,dict) or not required<=set(value):return False
+ if not all(isinstance(value[key],str) for key in ('status','phase','role')):return False
+ if value['phase'] not in PHASES or value['role'] not in ('web-main','compatible-fallback') or type(value['helperExitCode']) is not int:return False
+ if value['status'] in ('BLOCKED','BLOCKED_CHECK_UNAVAILABLE'):return set(value)<=required|{'reason','requests'}
+ if value['status'] in ('PASS','MISMATCH'):
+  return set(value)<=required|{'recommended_receipt','ports','expected_commits','old','new','business_projection_differences','source_status_and_original_times_differences','cross_reader_identities','doubleCaptureStability','secondCapture','assets','comparator_assets','normalization','limits','requests','acceptanceContract','contractFailure'}
+ return False
+def reject_json_constant(value):raise ValueError('NONFINITE_JSON')
+def observe_helper(command,phase,role,receipt):
+ value=None;parse_error=None;execution_error=None;returncode=None;timed_out=False
+ stdout=b'';stderr=b''
+ try:
+  q=subprocess.run(command,env=H.ENV,stdout=subprocess.PIPE,stderr=subprocess.PIPE,timeout=480)
+  stdout=helper_bytes(q.stdout);stderr=helper_bytes(q.stderr);returncode=q.returncode
+ except subprocess.TimeoutExpired as error:
+  timed_out=True;execution_error=error_summary(error)
+  stdout=helper_bytes(error.output);stderr=helper_bytes(error.stderr)
+ except Exception as error:execution_error=error_summary(error)
+ try:
+  value=json.loads(stdout,parse_constant=reject_json_constant)
+  parse_state='OBJECT' if isinstance(value,dict) else 'NON_OBJECT'
+ except Exception as error:
+  parse_state='INVALID_JSON';parse_error=error_summary(error)
+ overlimit=len(stdout)>1024*1024
+ classification=('TIMEOUT' if timed_out else 'EXECUTION_ERROR' if execution_error else 'OVERLIMIT' if overlimit else 'INVALID_JSON' if parse_state!='OBJECT' else 'HELPER_COMPLETED')
+ recognized=recognized_helper_report(value)
+ structured=value if recognized and not timed_out and execution_error is None else None
+ report={'schemaVersion':1,'phase':phase,'role':role,'helperFile':HTTP_FILE,'helperSha256':HTTP_SHA,'timeoutSeconds':480,'returncode':returncode,'returncodeAvailable':returncode is not None,'timedOut':timed_out,'classification':classification,'stdoutOverLimit':overlimit,'parse':{'state':parse_state,'error':parse_error},'executionError':execution_error,'structuredReportState':'RECOGNIZED' if structured is not None else 'OMITTED','helperReport':structured,'stdout':stream_evidence(stdout),'stderr':stream_evidence(stderr)}
+ name=receipt.replace('.json','-helper-report.json')
+ try:diagnostics=save_helper_report(name,report)
+ except Exception as error:diagnostics={'state':'DIAGNOSTICS_PERSISTENCE_FAILED','file':name,'error':error_summary(error)}
+ diagnostics.update(classification=classification,returncode=returncode,parseState=parse_state,timedOut=timed_out,stdoutBytes=len(stdout),stdoutSha256=H.sha(stdout),stderrBytes=len(stderr),stderrSha256=H.sha(stderr))
+ return value,report,diagnostics
+
+def exact(name,digest):
+ p=R/name;s=p.lstat();H.require(stat.S_ISREG(s.st_mode) and s.st_uid==0 and not s.st_mode&0o022 and H.sha(p.read_bytes())==digest,'ACCEPT_HELPER_HASH');return p
+def bindings(phase):
+ specs=[H.OLD_MAIN,H.NEW_MAIN] if phase=='main-precut' else [H.NEW_MAIN,F.NEW_FALLBACK]
+ result={}
+ for spec in specs:
+  row=H.find(spec);pid=row['pid'];token=H.process_token(pid)
+  H.require(token is not None and H.owns_listener(pid,spec['port']),'ACCEPT_PROCESS_LISTENER')
+  if spec in (H.NEW_MAIN,F.NEW_FALLBACK):H.require(row['pm2_env'].get('restart_time')==0,'ACCEPT_NEW_RESTARTED')
+  result[spec['name']]={'pid':pid,'startTicks':token,'port':spec['port'],'cwd':spec['cwd'],'restarts':row['pm2_env'].get('restart_time')}
+ return result
+def verify_retained_static(phase):
+ class NoRedirect(urllib.request.HTTPRedirectHandler):
+  def redirect_request(self,*args,**kwargs):return None
+ opener=urllib.request.build_opener(urllib.request.ProxyHandler({}),NoRedirect())
+ manifest=json.loads(exact(ASSET_FILE,ASSET_SHA).read_text());results=[];deadline=time.monotonic()+60
+ specs=[(H.OLD_MAIN,'web-main'),(H.NEW_MAIN,'web-main')] if phase=='main-precut' else [(H.NEW_MAIN,'web-main'),(F.NEW_FALLBACK,'compatible-fallback')]
+ for spec,role in specs:
+  root=pathlib.Path(spec['cwd']);base=root/'dist';known=set(manifest['roles'][role]['files']);count=0;extra=[]
+  for parent,dirs,files in os.walk(str(base),followlinks=False):
+   for directory in [pathlib.Path(parent)]+[pathlib.Path(parent)/d for d in dirs]:
+    meta=directory.lstat();H.require(stat.S_ISDIR(meta.st_mode) and meta.st_uid==0 and not meta.st_mode&0o022,'STATIC_DIRECTORY_CHANGED')
+   for name in sorted(files):
+    path=pathlib.Path(parent)/name;rel=path.relative_to(root).as_posix();count+=1
+    H.require(count<=512,'STATIC_INVENTORY_SIZE')
+    meta=path.lstat();H.require(stat.S_ISREG(meta.st_mode) and meta.st_uid==0 and not meta.st_mode&0o022,'STATIC_FILE_CHANGED')
+    if rel in known:continue
+    H.require(re.fullmatch(r'dist/(?:assets|fonts)/[A-Za-z0-9_.-]+\.(?:js|css|webp|png|svg|jpg|jpeg|gif|woff|woff2|ttf|otf)',rel) is not None,'UNEXPECTED_RETAINED_STATIC_PATH')
+    H.require(time.monotonic()<deadline and 0<meta.st_size<=32*1024*1024,'RETAINED_STATIC_BUDGET')
+    expected=path.read_bytes();url='http://127.0.0.1:'+str(spec['port'])+'/'+rel[5:]
+    request=urllib.request.Request(url,headers={'Accept-Encoding':'identity'},method='GET')
+    with opener.open(request,timeout=min(15,max(.1,deadline-time.monotonic()))) as response:
+     actual=response.read(len(expected)+1);H.require(response.status==200 and response.headers.get('Content-Encoding','identity') in ('identity',''),'RETAINED_STATIC_HTTP')
+    H.require(actual==expected,'RETAINED_STATIC_BYTES');extra.append({'path':rel,'bytes':len(actual),'sha256':H.sha(actual)})
+  H.require(count==171+len(extra),'STATIC_INVENTORY_KNOWN_COUNT')
+  results.append({'name':spec['name'],'port':spec['port'],'totalStaticFiles':count,'retainedExtraCount':len(extra),'extraFiles':extra})
+ return results
+def recover(phase):
+ if phase in ('fallback-precut','main-final','fallback-final'):return J.restore_failed_pair(phase)
+ if phase=='main-precut':
+  intent=read_state('launch-main-intent.json');main=H.find(H.OLD_MAIN)
+  anchor={'mainPid':main['pid'],'mainStartTicks':H.process_token(main['pid']),'mainRestarts':main['pm2_env'].get('restart_time')}
+  H.lock_old_main(anchor,True)
+  return H.rollback(anchor,intent['oldBackupPid'],intent['oldBackupStartTicks'],True)
+ H.require(False,'UNKNOWN_RECOVERY_PHASE')
+def accept(phase):
+ H.require(phase in PHASES,'UNKNOWN_ACCEPTANCE_PHASE')
+ receipt,role=PHASES[phase];H.require(not (STATE/receipt).exists(),'ACCEPTANCE_RECEIPT_EXISTS_RECONCILE')
+ http=exact(HTTP_FILE,HTTP_SHA);assets=exact(ASSET_FILE,ASSET_SHA)
+ diagnostics={'state':'NOT_RUN'}
+ try:
+  if phase=='main-precut':H.fixed_guard()
+  elif phase in ('fallback-precut','main-final','fallback-final'):J.recovery_context()
+  else:F.guard()
+  before=bindings(phase);route_sha=H.sha(H.CONF.read_bytes())
+  # A completed launch receipt must bind the exact process about to be read.
+  launch=read_state('launch-main-result.json');H.require(launch['pid']==before[H.NEW_MAIN['name']]['pid'] and launch['startTicks']==before[H.NEW_MAIN['name']]['startTicks'],'ACCEPT_MAIN_LAUNCH_BINDING')
+  if phase!='main-precut':
+   launch_fallback=read_state('launch-fallback-result.json');b=before[F.NEW_FALLBACK['name']]
+   H.require(launch_fallback['pid']==b['pid'] and launch_fallback['startTicks']==b['startTicks'],'ACCEPT_FALLBACK_LAUNCH_BINDING')
+  command=['python3','-I',str(http),'--phase',phase,'--asset-manifest',str(assets)]
+  if phase=='main-precut':command+=['--expectation-file',str(R/'acceptance-private'/'ASTRA_ACCEPTANCE_HASHES_PRIVATE.json'),'--facet-expectation-file',str(R/'acceptance-private'/'EXPECTED_ASTRA_FACETS_web-main.json')]
+  value,helper_report,diagnostics=observe_helper(command,phase,role,receipt)
+  # All output gates and any recovery happen only after evidence persistence.
+  H.require(diagnostics['state']=='SAVED','DIAGNOSTICS_PERSISTENCE_FAILED')
+  H.require(not helper_report['timedOut'],'HTTP_ACCEPTANCE_TIMEOUT')
+  H.require(helper_report['executionError'] is None,'HTTP_ACCEPTANCE_EXECUTION_FAILED')
+  H.require(not helper_report['stdoutOverLimit'],'ACCEPT_OUTPUT_TOO_LARGE')
+  H.require(helper_report['parse']['state']=='OBJECT','HTTP_ACCEPTANCE_JSON_PARSE_FAILED')
+  H.require(helper_report['returncode']==value.get('helperExitCode')==0 and value.get('status')=='PASS' and value.get('phase')==phase and value.get('role')==role,'HTTP_ACCEPTANCE_FAILED')
+  if phase=='main-precut':H.require(H.main_pre_cut_contract_valid(value),'ASTRA_ACCEPTANCE_CONTRACT_FAILED')
+  retained=verify_retained_static(phase)
+  H.require(bindings(phase)==before and H.sha(H.CONF.read_bytes())==route_sha,'ROLES_OR_ROUTE_CHANGED_DURING_ACCEPTANCE')
+  H.verify_identities()
+  H.require(bindings(phase)==before and H.sha(H.CONF.read_bytes())==route_sha,'ROLES_OR_ROUTE_CHANGED_DURING_IDENTITY')
+  qualified=read_state('runtime-qualified.json');identities={v['role']:v['result']['identity'] for v in qualified['identities']}
+  value.update(at=datetime.datetime.now(datetime.timezone.utc).isoformat(),retainedAssets=retained,processBindings=before,nginxSha256=route_sha,runtimeIdentities=identities,helperStdoutSha256=helper_report['stdout']['sha256'],helperStderrSha256=helper_report['stderr']['sha256'],helperDiagnostics=diagnostics)
+  save(receipt,value);H.emit({'status':'HTTP_ACCEPTANCE_SAVED','phase':phase,'role':role,'result':'PASS','receipt':receipt,'filesPerReader':171,'diagnostics':diagnostics,'processBindings':before,'nginxSha256':route_sha});return value
+ except Exception as e:
+  rollback={'state':'not-attempted'}
+  try:rollback=recover(phase)
+  except Exception as recovery_error:rollback={'state':'READBACK_REQUIRED','reason':error_summary(recovery_error)}
+  result={'status':'HTTP_ACCEPTANCE_STOPPED','phase':phase,'reason':error_summary(e),'rollback':safe_recovery_report(rollback),'diagnostics':diagnostics,'diagnosticsPersistenceFailed':diagnostics['state']=='DIAGNOSTICS_PERSISTENCE_FAILED'}
+  try:save(receipt.replace('.json','-failed.json'),result)
+  except Exception as receipt_error:
+   result['diagnosticsPersistenceFailed']=True
+   result['failedReceipt']={'state':'DIAGNOSTICS_PERSISTENCE_FAILED','error':error_summary(receipt_error)}
+  H.emit(result);raise SystemExit(1)
+if __name__=='__main__':
+ try:H.require(len(sys.argv)==2,'UNKNOWN_ACTION');accept(sys.argv[1])
+ except Exception as e:H.emit({'status':'ACCEPTANCE_REFUSED','reason':error_summary(e)});raise SystemExit(1)

@@ -1,0 +1,92 @@
+raise RuntimeError("UNBOUND_SOURCE_TEMPLATE: render with explicit local bindings before use")
+import pathlib,hashlib,stat,importlib.util
+_r=pathlib.Path('__BIND_RELEASE_ROOT__')
+if (_r.stat().st_dev,_r.stat().st_ino)!=(__BIND_RELEASE_DEVICE__,__BIND_RELEASE_INODE__):raise RuntimeError('RELEASE_SEAL_CHANGED')
+for _d in [_r]+list(_r.parents):
+ _s=_d.lstat()
+ if not stat.S_ISDIR(_s.st_mode) or _s.st_uid!=0 or _s.st_mode&0o022:raise RuntimeError('HELPER_DIRECTORY_CHANGED')
+_p=_r/'__FILE_ROLL_FALLBACK__';_s=_p.lstat()
+if not stat.S_ISREG(_s.st_mode) or _s.st_uid!=0 or _s.st_mode&0o022 or hashlib.sha256(_p.read_bytes()).hexdigest()!='__SHA_ROLL_FALLBACK__':raise RuntimeError('FIXED_HELPER_HASH')
+_spec=importlib.util.spec_from_file_location('fixed_a02_fallback',str(_p));F=importlib.util.module_from_spec(_spec);_spec.loader.exec_module(F)
+import pathlib,hashlib,stat,importlib.util
+_r=pathlib.Path('__BIND_RELEASE_ROOT__')
+if (_r.stat().st_dev,_r.stat().st_ino)!=(__BIND_RELEASE_DEVICE__,__BIND_RELEASE_INODE__):raise RuntimeError('RELEASE_SEAL_CHANGED')
+for _d in [_r]+list(_r.parents):
+ _s=_d.lstat()
+ if not stat.S_ISDIR(_s.st_mode) or _s.st_uid!=0 or _s.st_mode&0o022:raise RuntimeError('HELPER_DIRECTORY_CHANGED')
+_p=_r/'__FILE_SWITCH_TRAFFIC__';_s=_p.lstat()
+if not stat.S_ISREG(_s.st_mode) or _s.st_uid!=0 or _s.st_mode&0o022 or hashlib.sha256(_p.read_bytes()).hexdigest()!='__SHA_SWITCH_TRAFFIC__':raise RuntimeError('FIXED_HELPER_HASH')
+_spec=importlib.util.spec_from_file_location('fixed_a02_switch',str(_p));S=importlib.util.module_from_spec(_spec);_spec.loader.exec_module(S)
+H=F.H
+R=H.ROOT
+STATE=H.STATE
+import datetime,json,os,pathlib,stat,subprocess
+BASELINES={'web-main':{'fileSha256':'__BIND_BASELINE_WEB_MAIN_FILE_SHA256__','identity':{'schemaVersion':2,'commitSha':'__BIND_BASELINE_WEB_MAIN_COMMIT_SHA__','sourceTreeSha256':'__BIND_BASELINE_WEB_MAIN_SOURCE_TREE_SHA256__','runtimeTreeSha256':'__BIND_BASELINE_WEB_MAIN_RUNTIME_TREE_SHA256__','contentSha256':'__BIND_BASELINE_WEB_MAIN_CONTENT_SHA256__'}},'compatible-fallback':{'fileSha256':'__BIND_BASELINE_COMPATIBLE_FALLBACK_FILE_SHA256__','identity':{'schemaVersion':2,'commitSha':'__BIND_BASELINE_COMPATIBLE_FALLBACK_COMMIT_SHA__','sourceTreeSha256':'__BIND_BASELINE_COMPATIBLE_FALLBACK_SOURCE_TREE_SHA256__','runtimeTreeSha256':'__BIND_BASELINE_COMPATIBLE_FALLBACK_RUNTIME_TREE_SHA256__','contentSha256':'__BIND_BASELINE_COMPATIBLE_FALLBACK_CONTENT_SHA256__'}}}
+def save(name,value):
+ fd=os.open(str(STATE/('recover-rejected-pair-'+name+'.json')),os.O_WRONLY|os.O_CREAT|os.O_EXCL|os.O_NOFOLLOW,0o600)
+ with os.fdopen(fd,'w') as stream:json.dump(dict(at=datetime.datetime.now(datetime.timezone.utc).isoformat(),**value),stream,separators=(',',':'));stream.write('\n');stream.flush();os.fsync(stream.fileno())
+def read(name):return F.read_state(name)[0]
+def original_bytes():
+ p=STATE/'nginx-original-r2.conf';meta=p.lstat();H.require(stat.S_ISREG(meta.st_mode) and meta.st_uid==0 and not meta.st_mode&0o022,'ORIGINAL_NGINX_FILE_BINDING')
+ raw=p.read_bytes();H.require(H.sha(raw)==H.CONF_SHA and raw.count(b'proxy_pass http://127.0.0.1:3031;')==1,'ORIGINAL_NGINX_CONTENT_BINDING');return raw
+def candidate_binding(spec,receipt,state_fn):
+ current=state_fn(spec)
+ if current['status']=='online':
+  H.require(current['pid']==receipt['pid'] and current['startTicks']==receipt['startTicks'] and current['restarts']==receipt['restarts']==0,'RECOVERY_UNKNOWN_CANDIDATE_PROCESS')
+ else:H.require(current['status'] in ('stopped','errored','absent'),'RECOVERY_CANDIDATE_TRANSITIONAL')
+ return current
+def recovery_context():
+ # No readiness check of the failed candidate: it is not a recovery prerequisite.
+ cutover=read('cutover-result.json');cutover_intent=read('cutover-r2-intent.json')
+ main_launch=read('launch-main-result.json');fallback_launch=read('launch-fallback-result.json')
+ fallback_intent=read('launch-fallback-intent.json');main_intent=read('launch-main-intent.json')
+ accepted,accepted_sha=F.read_state('accept-main.json');original=original_bytes();candidate=H.sha(original.replace(b'proxy_pass http://127.0.0.1:3031;',b'proxy_pass http://127.0.0.1:3036;'))
+ H.require(cutover.get('status')=='TRAFFIC_ON_NEW_MAIN' and cutover.get('port')==3036 and cutover.get('nginxSha256')==candidate==cutover_intent.get('candidateSha256'),'RECOVERY_CUTOVER_BINDING')
+ H.require(not H.CONF.is_symlink() and H.sha(H.CONF.read_bytes())==candidate and cutover_intent.get('originalSha256')==H.CONF_SHA,'RECOVERY_ROUTE_CHANGED')
+ H.require(accepted.get('status')=='PASS' and accepted.get('phase')=='main-precut' and accepted.get('role')=='web-main' and accepted.get('helperExitCode')==0 and accepted_sha==cutover_intent.get('acceptanceSha256'),'RECOVERY_ORIGINAL_ACCEPTANCE_BINDING')
+ H.require(H.main_pre_cut_contract_valid(accepted),'RECOVERY_ORIGINAL_DATA_ACCEPTANCE')
+ H.require(accepted['expected_commits']=={'old':BASELINES['web-main']['identity']['commitSha'],'new':'__BIND_CANDIDATE_WEB_MAIN_COMMIT_SHA__'},'RECOVERY_ACCEPTED_COMMITS')
+ old=accepted['processBindings'][H.OLD_MAIN['name']]
+ H.require(old['cwd']==H.OLD_MAIN['cwd'] and old['port']==3031 and old['pid']==fallback_intent['oldMainPid'] and old['startTicks']==fallback_intent['oldMainStartTicks'],'RECOVERY_ORIGINAL_PROCESS_BINDING')
+ H.require(main_intent['newName']==H.NEW_MAIN['name'] and main_intent['nginxSha256']==H.CONF_SHA and main_launch['pid']==cutover['mainPid']==cutover_intent['newMainPid'],'RECOVERY_MAIN_LAUNCH_BINDING')
+ H.require(main_launch.get('status')=='NEW_MAIN_HEALTHY_TRAFFIC_UNCHANGED' and main_launch.get('port')==3036 and fallback_launch.get('status')=='NEW_FALLBACK_HEALTHY_TRAFFIC_UNCHANGED' and fallback_launch.get('port')==3031,'RECOVERY_COMPLETED_LAUNCH_RECEIPTS')
+ H.require(fallback_intent['newFallback']==F.NEW_FALLBACK and fallback_intent['protectedMain']['mainPid']==main_launch['pid'] and fallback_intent['protectedMain']['mainStartTicks']==main_launch['startTicks'],'RECOVERY_FALLBACK_LAUNCH_BINDING')
+ candidate_binding(H.NEW_MAIN,main_launch,H.state);candidate_binding(F.NEW_FALLBACK,fallback_launch,F.state)
+ return {'original':original,'candidateSha256':candidate,'mainLaunch':main_launch,'fallbackLaunch':fallback_launch,'mainIntent':main_intent,'fallbackIntent':fallback_intent,'oldAcceptedBinding':old}
+def verify_baselines():
+ for role,spec in [('web-main',H.OLD_MAIN),('compatible-fallback',H.OLD_BACKUP)]:
+  cwd=pathlib.Path(spec['cwd']);p=cwd/'build-identity.json';meta=p.lstat();expected=BASELINES[role]
+  H.require(stat.S_ISREG(meta.st_mode) and meta.st_uid==0 and not meta.st_mode&0o022 and H.sha(p.read_bytes())==expected['fileSha256'],'RECOVERY_BASELINE_IDENTITY_FILE')
+  code="import {readAndValidateBakedBuildIdentity} from './src/readiness/buildIdentity.ts';console.log(JSON.stringify(readAndValidateBakedBuildIdentity()));"
+  q=subprocess.run([H.NODE,'--import','./node_modules/tsx/dist/loader.mjs','--input-type=module','-e',code],cwd=str(cwd),env=dict(H.ENV,TSX_DISABLE_CACHE='1'),stdout=subprocess.PIPE,stderr=subprocess.PIPE,timeout=180)
+  H.require(q.returncode==0 and json.loads(q.stdout)==expected['identity'],'RECOVERY_BASELINE_RUNTIME_IDENTITY')
+def restore_failed_pair(phase):
+ stage='context';progress={'failedPhase':phase}
+ H.require(phase in ('fallback-precut','main-final','fallback-final'),'UNKNOWN_PAIR_RECOVERY_PHASE')
+ try:
+  context=recovery_context();save('intent',{'candidateSha256':context['candidateSha256'],'newMainPid':context['mainLaunch']['pid'],'newFallbackPid':context['fallbackLaunch']['pid']})
+  stage='baseline-identities';verify_baselines()
+  candidate_binding(H.NEW_MAIN,context['mainLaunch'],H.state);candidate_binding(F.NEW_FALLBACK,context['fallbackLaunch'],F.state)
+  stage='restore-original-main'
+  # F.rollback is the exact-role reconciler and does not call F.guard or require
+  # the rejected candidate's /livez or /readyz to pass.
+  anchor={'nginxSha256':context['candidateSha256']};intent=context['fallbackIntent']
+  restored=F.rollback(anchor,intent['oldMainPid'],intent['oldMainStartTicks'],True)
+  H.require(restored.get('state') in ('ORIGINAL_MAIN_RESTORED_HEALTHY','ORIGINAL_MAIN_CONFIRMED_ONLINE'),'RECOVERY_OLD_MAIN_NOT_CONFIRMED')
+  progress['originalMainRecovery']=restored;save('old-main-restored',restored)
+  old=H.find(H.OLD_MAIN);H.require(H.process_token(old['pid']) is not None and H.owns_listener(old['pid'],3031),'RECOVERY_ORIGINAL_MAIN_LISTENER');H.health(3031)
+  candidate_binding(H.NEW_MAIN,context['mainLaunch'],H.state)
+  index=(pathlib.Path(H.OLD_MAIN['cwd'])/'dist/index.html').read_bytes();stage='restore-original-route'
+  route=S.restore_original_route(context['candidateSha256'],context['original'],H.sha(index),'pair-rejection-rollback')
+  progress['routeRecovery']=route;save('route-restored-and-drained',route)
+  # Only the verified return to3031 and full drain authorizes retiring3036.
+  candidate_binding(H.NEW_MAIN,context['mainLaunch'],H.state);old=H.find(H.OLD_MAIN)
+  protected={'mainPid':old['pid'],'mainStartTicks':H.process_token(old['pid']),'mainRestarts':old['pm2_env'].get('restart_time')}
+  H.lock_old_main(protected,True);stage='restore-original-backup';intent=context['mainIntent']
+  backup=H.rollback(protected,intent['oldBackupPid'],intent['oldBackupStartTicks'],True)
+  H.require(backup.get('state') in ('ORIGINAL_BACKUP_RESTORED_HEALTHY','ORIGINAL_BACKUP_CONFIRMED_ONLINE'),'RECOVERY_OLD_BACKUP_NOT_CONFIRMED')
+  progress['originalBackupRecovery']=backup
+  result=dict(state='ORIGINAL_DEPLOYMENT_RESTORED_AFTER_PAIR_REJECTION',trafficPort=3031,**progress);save('result',result);return result
+ except Exception as error:
+  result=dict(state='READBACK_REQUIRED',stage=stage,reason=str(error) if isinstance(error,RuntimeError) else type(error).__name__,**progress)
+  save('failed',result);return result

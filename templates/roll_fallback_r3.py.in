@@ -1,0 +1,238 @@
+raise RuntimeError("UNBOUND_SOURCE_TEMPLATE: render with explicit local bindings before use")
+import pathlib,hashlib,stat,importlib.util
+_r=pathlib.Path('__BIND_RELEASE_ROOT__')
+if (_r.stat().st_dev,_r.stat().st_ino)!=(__BIND_RELEASE_DEVICE__,__BIND_RELEASE_INODE__):raise RuntimeError('RELEASE_SEAL_CHANGED')
+for _d in [_r]+list(_r.parents):
+ _s=_d.lstat()
+ if not stat.S_ISDIR(_s.st_mode) or _s.st_uid!=0 or _s.st_mode&0o022:raise RuntimeError('HELPER_DIRECTORY_CHANGED')
+_p=_r/'__FILE_ROLL_ROLES__';_s=_p.lstat()
+if not stat.S_ISREG(_s.st_mode) or _s.st_uid!=0 or _s.st_mode&0o022 or hashlib.sha256(_p.read_bytes()).hexdigest()!='__SHA_ROLL_ROLES__':raise RuntimeError('FIXED_HELPER_HASH')
+_spec=importlib.util.spec_from_file_location('fixed_a02_roll',str(_p));H=importlib.util.module_from_spec(_spec);_spec.loader.exec_module(H)
+import datetime,json,os,pathlib,stat,sys,time
+R=H.ROOT
+STATE=H.STATE
+NEW_FALLBACK={'name':'__BIND_NEW_BACKUP_NAME__','cwd':str(R/'compatible-fallback'),'port':3031,'heap':192}
+FALLBACK_COMMIT='__BIND_CANDIDATE_COMPATIBLE_FALLBACK_COMMIT_SHA__'
+
+def store(name,value):
+ p=STATE/('launch-fallback-'+name+'.json')
+ fd=os.open(str(p),os.O_WRONLY|os.O_CREAT|os.O_EXCL|os.O_NOFOLLOW,0o600)
+ with os.fdopen(fd,'w') as f:
+  json.dump(dict(at=datetime.datetime.now(datetime.timezone.utc).isoformat(),**value),f,separators=(',',':'));f.write('\n');f.flush();os.fsync(f.fileno())
+
+def read_state(name):
+ H.check_attempt();p=(R if name in ('RELEASE_ID.json','runtime-qualified.json') else STATE)/name;s=p.lstat()
+ H.require(stat.S_ISREG(s.st_mode) and s.st_uid==0 and not s.st_mode&0o022,'STATE_FILE_TYPE_OWNER_'+name)
+ data=p.read_bytes();return json.loads(data),H.sha(data)
+
+def tokens(value,label):
+ H.require(isinstance(value,dict) and bool(value),'EMPTY_PROCESS_BINDING_'+label)
+ result={}
+ for pid,token in value.items():
+  H.require(str(pid).isdigit() and int(pid)>0 and isinstance(token,str) and token.isdigit(),'INVALID_PROCESS_BINDING_'+label)
+  result[int(pid)]=token
+ return result
+
+def workers_drained(workers):
+ return all(H.process_token(pid)!=token for pid,token in workers.items())
+
+def process_set(spec):
+ found={}
+ for path in pathlib.Path('/proc').iterdir():
+  if not path.name.isdigit():continue
+  try:
+   if (path/'cwd').resolve()==pathlib.Path(spec['cwd']):
+    token=H.process_token(int(path.name))
+    if token is not None:found[int(path.name)]=token
+  except (OSError,RuntimeError):pass
+ return found
+
+def lock_new(anchor,check_health=False):
+ H.require(not H.CONF.is_symlink() and H.sha(H.CONF.read_bytes())==anchor['nginxSha256'],'NGINX_CHANGED_NO_FALLBACK_MUTATION')
+ row=H.find(H.NEW_MAIN);pid=anchor['mainPid']
+ H.require(row['pid']==pid and H.process_token(pid)==anchor['mainStartTicks'] and row['pm2_env'].get('restart_time')==0 and H.owns_listener(pid,3036),'PROTECTED_NEW_MAIN_CHANGED')
+ if check_health:
+  H.health(3036)
+  return lock_new(anchor,False)
+ return row
+
+def guard():
+ H.verify_identities()
+ for path in [R]+list(R.parents):
+  s=path.lstat();H.require(stat.S_ISDIR(s.st_mode) and s.st_uid==0 and not s.st_mode&0o022,'RELEASE_ANCESTOR')
+ s=R.stat();H.require((s.st_dev,s.st_ino)==(__BIND_RELEASE_DEVICE__,__BIND_RELEASE_INODE__),'RELEASE_SEAL_CHANGED');identity,_=read_state('RELEASE_ID.json')
+ H.require(identity=={'sha256':'__BIND_ARCHIVE_SHA256__','device':s.st_dev,'inode':s.st_ino},'RELEASE_BINDING')
+ qualified,_=read_state('runtime-qualified.json')
+ expected={'web-main':'__BIND_CANDIDATE_WEB_MAIN_COMMIT_SHA__','compatible-fallback':FALLBACK_COMMIT}
+ H.require(len(qualified['identities'])==2,'QUALIFICATION_MISSING')
+ for role,commit in expected.items():
+  matches=[entry for entry in qualified['identities'] if entry['role']==role]
+  H.require(len(matches)==1 and matches[0]['result']['identity']['commitSha']==commit,'ROLE_IDENTITY_'+role)
+ cutover,cutover_sha=read_state('cutover-result.json');intent,intent_sha=read_state('cutover-r2-intent.json')
+ H.require(cutover.get('status')=='TRAFFIC_ON_NEW_MAIN' and cutover.get('port')==3036,'TRAFFIC_NOT_ON_NEW_MAIN')
+ original=STATE/'nginx-original-r2.conf';s=original.lstat()
+ H.require(stat.S_ISREG(s.st_mode) and s.st_uid==0 and not s.st_mode&0o022,'ORIGINAL_CONFIG_TYPE_OWNER')
+ data=original.read_bytes();needle=b'proxy_pass http://127.0.0.1:3031;'
+ H.require(H.sha(data)==H.CONF_SHA and data.count(needle)==1,'ORIGINAL_CONFIG_BINDING')
+ candidate=H.sha(data.replace(needle,b'proxy_pass http://127.0.0.1:3036;'))
+ H.require(intent.get('originalSha256')==H.CONF_SHA and intent.get('candidateSha256')==candidate and cutover.get('nginxSha256')==candidate,'CUTOVER_CONFIG_BINDING')
+ old_workers=tokens(cutover.get('oldWorkers'),'oldWorkers')
+ H.require(old_workers==tokens(intent.get('oldWorkers'),'intentOldWorkers'),'CUTOVER_WORKER_BINDING')
+ masters=tokens(intent.get('masters'),'masters')
+ H.require(len(masters)==1 and all(H.process_token(pid)==token for pid,token in masters.items()),'NGINX_MASTER_CHANGED')
+ H.require(workers_drained(old_workers),'OLD_NGINX_WORKERS_NOT_DRAINED')
+ new=H.find(H.NEW_MAIN);pid=new['pid'];token=H.process_token(pid)
+ launch,_=read_state('launch-main-result.json')
+ H.require(token is not None and pid==cutover.get('mainPid')==intent.get('newMainPid')==launch.get('pid'),'NEW_MAIN_PID_BINDING')
+ anchor={'mainPid':pid,'mainStartTicks':token,'nginxSha256':candidate,'oldWorkers':old_workers,'cutoverResultSha256':cutover_sha,'cutoverIntentSha256':intent_sha}
+ lock_new(anchor,True)
+ H.require(H.memory()>=196608,'RUNNING_MEMORY_FLOOR')
+ return anchor
+
+def prepare_config(backup):
+ e=backup['pm2_env']
+ # The original Node --env-file contract supplies secrets. Do not read .env,
+ # print credentials, or copy PM2 credential overrides into a new file.
+ H.require(not any(key in e for key in ('DATABASE_URL','ADMIN_EMAIL','ADMIN_PASSWORD_HASH')),'PM2_SENSITIVE_OVERRIDE_PRESENT_REVIEW_REQUIRED')
+ envfile=pathlib.Path('__BIND_ENV_FILE__');s=envfile.lstat()
+ H.require(stat.S_ISREG(s.st_mode) and (s.st_dev,s.st_ino,s.st_uid,s.st_gid,stat.S_IMODE(s.st_mode))==__BIND_ENV_FILE_METADATA__,'EXISTING_ENV_FILE_BINDING_CHANGED')
+ for parent in envfile.parents:
+  s=parent.lstat()
+  if str(parent)=='__BIND_SERVICE_DIRECTORY__':
+   H.require(stat.S_ISDIR(s.st_mode) and (s.st_dev,s.st_ino,s.st_uid,s.st_gid,stat.S_IMODE(s.st_mode))==__BIND_SERVICE_DIRECTORY_METADATA__,'EXISTING_SERVICE_DIRECTORY_CHANGED')
+  else:H.require(stat.S_ISDIR(s.st_mode) and s.st_uid==0 and not s.st_mode&0o022,'EXISTING_ENV_FILE_ANCESTOR')
+ H.require(not any(e.get(key) for key in ('PRISMA_QUERY_ENGINE_LIBRARY','PRISMA_QUERY_ENGINE_BINARY')),'CUSTOM_ENGINE_REQUIRES_REVIEW')
+ env={}
+ for key in ('TRUSTED_PROXY_CIDRS','POSTGRES_READINESS_TIMEOUT_MS','NODE_ENV','TZ'):
+  if key in e:H.require(isinstance(e[key],str),'ENV_TYPE');env[key]=e[key]
+ env.update({'PORT':'3031','HOST':'127.0.0.1','JOBFINDER_PUBLICATION_POLICY':H.POLICY,'NODE_OPTIONS':'--max-old-space-size=192','PATH':H.ENV['PATH']})
+ config={'name':NEW_FALLBACK['name'],'script':H.NODE,'interpreter':'none','args':H.ARGS,'cwd':NEW_FALLBACK['cwd'],'instances':1,'exec_mode':'fork','watch':False,'env':env}
+ for key in ('autorestart','restart_delay','max_restarts','min_uptime','kill_timeout'):
+  if key in e:config[key]=e[key]
+ path=STATE/'fallback-service-private.json';fd=os.open(str(path),os.O_WRONLY|os.O_CREAT|os.O_EXCL|os.O_NOFOLLOW,0o600)
+ with os.fdopen(fd,'w') as f:json.dump({'apps':[config]},f,separators=(',',':'));f.flush();os.fsync(f.fileno())
+ return path
+
+def state(spec,original_pid=None,original_token=None):
+ matches=[row for row in H.rows() if row.get('name')==spec['name']]
+ H.require(len(matches)<=1,'RECONCILE_DUPLICATE_NAME')
+ processes=process_set(spec);port_bound=spec['port'] in H.ports()
+ if not matches:
+  H.require(not processes and not port_bound,'RECONCILE_ABSENT_ROLE_HAS_PROCESS_OR_PORT')
+  return {'status':'absent','processes':{}}
+ status=matches[0]['pm2_env'].get('status')
+ if status=='online':
+  row=H.find(spec);pid=row['pid'];token=H.process_token(pid)
+  H.require(token is not None and processes.get(pid)==token and H.owns_listener(pid,spec['port']),'RECONCILE_ONLINE_LISTENER')
+  return {'status':'online','pid':pid,'startTicks':token,'restarts':row['pm2_env'].get('restart_time'),'processes':processes}
+ terminal_error=status=='errored' and spec==NEW_FALLBACK
+ H.require(status=='stopped' or terminal_error,'RECONCILE_TRANSITIONAL_STATUS')
+ confirmed=H.find(spec,status)
+ H.require(not processes and not port_bound,'RECONCILE_STOPPED_ROLE_HAS_PROCESS_OR_PORT')
+ if original_pid is not None:H.require(H.process_token(original_pid)!=original_token,'RECONCILE_ORIGINAL_PROCESS_STILL_LIVE')
+ if terminal_error:
+  reported_pid=confirmed.get('pid')
+  H.require(isinstance(reported_pid,int) and reported_pid>=0,'RECONCILE_ERRORED_PID_INVALID')
+  H.require(reported_pid==0 or H.process_token(reported_pid) is None,'RECONCILE_ERRORED_PID_STILL_LIVE')
+  return {'status':'errored','pm2Status':'errored','processes':{},'portReleased':True,'reportedPid':reported_pid,'reportedPidAbsent':True,'originalPidChecked':original_pid}
+ return {'status':'stopped','processes':{}}
+
+def await_stopped(spec,pid,token,anchor=None):
+ deadline=time.monotonic()+25
+ while time.monotonic()<deadline:
+  if anchor is not None:lock_new(anchor)
+  try:
+   current=state(spec,pid,token)
+   if current['status']=='stopped' or (spec==NEW_FALLBACK and current['status']=='errored'):return current
+  except RuntimeError:pass
+  time.sleep(.5)
+ current=state(spec,pid,token)
+ H.require(current['status']=='stopped' or (spec==NEW_FALLBACK and current['status']=='errored'),'ROLE_NOT_TERMINAL_STOPPED')
+ return current
+
+def await_healthy(spec,anchor=None,zero_restarts=False):
+ deadline=time.monotonic()+100
+ while time.monotonic()<deadline:
+  H.require(H.memory()>=196608,'RUNNING_MEMORY_FLOOR')
+  if anchor is not None:lock_new(anchor)
+  try:
+   before=state(spec);H.require(before['status']=='online','ROLE_NOT_ONLINE')
+   H.health(spec['port']);after=state(spec)
+   H.require(before['pid']==after['pid'] and before['startTicks']==after['startTicks'],'ROLE_CHANGED_DURING_HEALTH')
+   if zero_restarts:H.require(before['restarts']==after['restarts']==0,'NEW_FALLBACK_RESTARTED')
+   return after
+  except Exception:time.sleep(1)
+ raise RuntimeError('ROLE_HEALTH_TIMEOUT')
+
+def rollback(anchor,old_pid,old_token,new_attempted):
+ # Any command exception is reconciled through read-only state before another
+ # mutation. No request here can target the protected 3036 role or nginx.
+ H.require(not H.CONF.is_symlink() and H.sha(H.CONF.read_bytes())==anchor['nginxSha256'],'ROLLBACK_ROUTING_CHANGED_READBACK_REQUIRED')
+ result={'state':'RECONCILING','newFallbackStop':'not-needed','oldMainRestore':'pending'}
+ if new_attempted:
+  candidate=state(NEW_FALLBACK)
+  result['newObserved']=candidate
+  if candidate['status']=='online':
+   try:H.run(['pm2','stop',NEW_FALLBACK['name']])
+   except Exception:
+    observed=state(NEW_FALLBACK,candidate['pid'],candidate['startTicks'])
+    H.require(observed['status'] in ('stopped','errored'),'NEW_STOP_OUTCOME_REQUIRES_READBACK')
+   await_stopped(NEW_FALLBACK,candidate['pid'],candidate['startTicks'])
+   result['newFallbackStop']='confirmed-stopped'
+  else:
+   H.require(candidate['status'] in ('stopped','absent','errored'),'NEW_START_OUTCOME_UNKNOWN')
+   if candidate['status']=='errored':result['newFallbackStop']='already-errored-confirmed-quiescent'
+ old=state(H.OLD_MAIN,old_pid,old_token);result['oldObserved']=old
+ if old['status']=='online':
+  recovered=await_healthy(H.OLD_MAIN)
+  result.update(state='ORIGINAL_MAIN_CONFIRMED_ONLINE',oldMainRestore='already-online',restoredPid=recovered['pid'])
+  return result
+ H.require(old['status']=='stopped','OLD_MAIN_RECORD_MISSING_NO_RECREATE')
+ H.require(3031 not in H.ports() and not process_set(H.OLD_MAIN) and not process_set(NEW_FALLBACK),'ROLLBACK_3031_NOT_CLEAR')
+ H.require(H.memory()>=614400,'ROLLBACK_MEMORY_BEFORE_START')
+ try:H.run(['pm2','restart',H.OLD_MAIN['name']],40)
+ except Exception:
+  observed=state(H.OLD_MAIN,old_pid,old_token)
+  H.require(observed['status']=='online','OLD_RESTART_OUTCOME_REQUIRES_READBACK')
+ recovered=await_healthy(H.OLD_MAIN)
+ H.require(H.sha(H.CONF.read_bytes())==anchor['nginxSha256'],'ROUTING_CHANGED_DURING_RESTORE')
+ result.update(state='ORIGINAL_MAIN_RESTORED_HEALTHY',oldMainRestore='restarted',restoredPid=recovered['pid'],availableKiB=H.memory())
+ return result
+
+def launch():
+ anchor=guard();old=H.find(H.OLD_MAIN);backup=H.find(H.OLD_BACKUP,'stopped')
+ H.require(H.owns_listener(old['pid'],3031),'OLD_MAIN_LISTENER_MISMATCH');H.health(3031)
+ H.require(not any(row.get('name')==NEW_FALLBACK['name'] for row in H.rows()),'NEW_FALLBACK_EXISTS_RECONCILE')
+ H.require(not process_set(NEW_FALLBACK),'NEW_FALLBACK_PROCESS_ALREADY_PRESENT')
+ H.require(not process_set(H.OLD_BACKUP),'OLD_BACKUP_PROCESS_STILL_LIVE')
+ old_pid=old['pid'];old_token=H.process_token(old_pid);H.require(old_token is not None,'OLD_MAIN_IDENTITY_ABSENT')
+ config=prepare_config(backup)
+ lock_new(anchor,True);H.require(workers_drained(anchor['oldWorkers']),'OLD_NGINX_WORKERS_NOT_DRAINED')
+ store('intent',{'oldMainPid':old_pid,'oldMainStartTicks':old_token,'newFallback':NEW_FALLBACK,'protectedMain':anchor,'availableBeforeStopKiB':H.memory()})
+ stop_attempted=False;new_attempted=False
+ try:
+  stop_attempted=True;H.run(['pm2','stop',H.OLD_MAIN['name']])
+  await_stopped(H.OLD_MAIN,old_pid,old_token,anchor)
+  before=H.memory();H.require(before>=614400,'MEMORY_BEFORE_START_'+str(before))
+  lock_new(anchor,True);H.require(workers_drained(anchor['oldWorkers']),'OLD_NGINX_WORKERS_NOT_DRAINED')
+  store('old-main-stopped',{'oldMainPid':old_pid,'oldMainStartTicks':old_token,'availableKiB':before,'port3031Released':True})
+  new_attempted=True;H.run(['pm2','start',str(config),'--only',NEW_FALLBACK['name']],40)
+  ready=await_healthy(NEW_FALLBACK,anchor,True);lock_new(anchor,True)
+  H.require(H.memory()>=196608,'RUNNING_MEMORY_FLOOR')
+  result={'status':'NEW_FALLBACK_HEALTHY_TRAFFIC_UNCHANGED','name':NEW_FALLBACK['name'],'pid':ready['pid'],'startTicks':ready['startTicks'],'port':3031,'heapMiB':192,'restarts':ready['restarts'],'protectedMainPid':anchor['mainPid'],'protectedMainPort':3036,'nginxSha256':anchor['nginxSha256'],'oldMainStoppedRecoverable':True,'oldBackupStoppedRecoverable':True,'availableKiB':H.memory()}
+  store('result',result);H.emit(result);return result
+ except Exception as error:
+  reason=str(error) if isinstance(error,RuntimeError) else type(error).__name__
+  recovery={'state':'not-needed'}
+  if stop_attempted:
+   try:recovery=rollback(anchor,old_pid,old_token,new_attempted)
+   except Exception as restore_error:recovery={'state':'READBACK_REQUIRED','reason':str(restore_error) if isinstance(restore_error,RuntimeError) else type(restore_error).__name__}
+  result={'status':'FALLBACK_LAUNCH_STOPPED','reason':reason,'rollback':recovery,'protectedMainPort':3036,'nginxModifiedByThisStage':False}
+  store('failed',result);H.emit(result);return result
+
+if __name__=='__main__':
+ try:
+  H.require(len(sys.argv)==2 and sys.argv[1]=='launch-fallback','UNKNOWN_ACTION')
+  result=launch();raise SystemExit(0 if result['status']=='NEW_FALLBACK_HEALTHY_TRAFFIC_UNCHANGED' else 1)
+ except Exception as error:
+  H.emit({'status':'PRE_FALLBACK_REFUSED','reason':str(error) if isinstance(error,RuntimeError) else type(error).__name__});raise SystemExit(1)

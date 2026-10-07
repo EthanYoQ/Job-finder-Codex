@@ -1,0 +1,84 @@
+{
+  "schemaVersion": 1,
+  "guard": "raise RuntimeError(\"UNBOUND_SOURCE_TEMPLATE: render with explicit local bindings before use\")\n",
+  "components": [
+    {
+      "id": "predecessor",
+      "token": "PREDECESSOR",
+      "template": "templates/predecessor_roll_roles.py.in",
+      "templateSha256": "87852900222f28abf48ae176e8e716bc053cdc4301d620c82bdabd38e64fa50e",
+      "filenamePrefix": "controller-roll-roles-",
+      "originalSourceSha256": "f9197df4fa3ca6c4d0af3dd4bf8efa455728a4558527db58ce2bdb0b0571ccfa"
+    },
+    {
+      "id": "state",
+      "token": "STATE",
+      "template": "templates/attempt_state.py.in",
+      "templateSha256": "00775f9a162e67af697946b5e52ea16558ebfb8abca33600d6bc0afd964df32c",
+      "filenamePrefix": "controller-a02-state-",
+      "originalSourceSha256": "0c4d9c28d69fecd08b45d98089c4e552277512476873d98d8a932e54d5d8303a"
+    },
+    {
+      "id": "roll-roles",
+      "token": "ROLL_ROLES",
+      "template": "templates/roll_roles.py.in",
+      "templateSha256": "b526bd46bf9e81ac57fbc66141580f2bd096f1e2b32250cc410740bc23a692bb",
+      "filenamePrefix": "controller-a02-roll-roles-",
+      "originalSourceSha256": "ff862fc781b098c25e300c280742b3929898ecee778376ef316be92cc868b2f0"
+    },
+    {
+      "id": "roll-fallback",
+      "token": "ROLL_FALLBACK",
+      "template": "templates/roll_fallback_r3.py.in",
+      "templateSha256": "d53c8219a1209a02f7ff64e45469364706fd916d92185af9bd1bdc813e578e0d",
+      "filenamePrefix": "controller-a02-roll-fallback-",
+      "originalSourceSha256": "a89216ce450a025aa1029f84035223769c33d51f6b6599e31c298e758b3fffcf"
+    },
+    {
+      "id": "switch-traffic",
+      "token": "SWITCH_TRAFFIC",
+      "template": "templates/switch_traffic_r2.py.in",
+      "templateSha256": "5828db78038b9ef7c8482a57220a9b2442cdd8db77677ad6dc2667873370bfd0",
+      "filenamePrefix": "controller-a02-switch-traffic-",
+      "originalSourceSha256": "211d593070f3e7fdc1570df6a473f0cca27462c88fbe7b39384b2611bd2d18e5"
+    },
+    {
+      "id": "restore-failed-pair",
+      "token": "RESTORE_FAILED_PAIR",
+      "template": "templates/restore_failed_main.py.in",
+      "templateSha256": "ebbb44dcf779e93850536f04a3fcc5eb4c79756434af967814abc1b7277b1686",
+      "filenamePrefix": "controller-a02-restore-failed-pair-",
+      "originalSourceSha256": "bc84c88afc9607e87c8b3002743661c3133f35438f9571215549220f803823bc"
+    },
+    {
+      "id": "http-accept-refresh",
+      "token": "HTTP_ACCEPT_REFRESH",
+      "template": "templates/http_accept_refresh.py.in",
+      "templateSha256": "5e1e8759a1034b89b79f8e2bb47b6e9b2fdfe0f56e7e943ad8fef0e08265fe2f",
+      "filenamePrefix": "controller-a02-http-accept-refresh-",
+      "originalSourceSha256": "5c5efe57954f32c09b5f103d36605bdb83bcf8a0473b6d69c1aa462642130911"
+    },
+    {
+      "id": "accept-controller",
+      "token": "ACCEPT_CONTROLLER",
+      "template": "templates/accept_controller.py.in",
+      "templateSha256": "1d49aa2f819bfc3dd71f9f685b86a2621f0521cd070a50c0d8bd986b6f9bb237",
+      "filenamePrefix": "controller-a02-accept-controller-",
+      "originalSourceSha256": "c06ab88405f357f182826f8550ea28f8588159f4c6105c2a9cabc5635e83ab94"
+    },
+    {
+      "id": "persist-roles",
+      "token": "PERSIST_ROLES",
+      "template": "templates/persist_verified_roles.py.in",
+      "templateSha256": "0c17c70674aeec54269679cd87bd262412ad2a692c5a851dbc7877ca43ee3e5b",
+      "filenamePrefix": "controller-a02-persist-roles-",
+      "originalSourceSha256": "684cfec4b3968022b902e07c5301dde0560c24b8494834e188b1fb2c4f521b93"
+    }
+  ],
+  "facet": {
+    "path": "facet_projection.js",
+    "sha256": "7d16ed6c5d16a4b5305d136ca584f915af05a126032e71001e6be2bf1be4e097"
+  },
+  "bindingSchema": "bindings.schema.json",
+  "assetFilenamePrefix": "controller-assets-"
+}

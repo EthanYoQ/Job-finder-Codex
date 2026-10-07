@@ -1,165 +1,144 @@
 {
-  "schema": "safe-paired-reader-delta-v1",
-  "sourceFrozenAt": "2026-10-07T10:51:31Z",
-  "newSourceCommit": null,
-  "sharedRuntimeSourceSha256": "9d45413701e4cd72c53fcfdf3c032d202a5e3a13186c20b07fc067b0dea09de1",
-  "originalArchiveSha256": "610ae3055e2134c3384d57ef594b6edc451fbbbd439debf788682b65715dbde8",
-  "excludedOriginalManifestSha256": "f8f85534175e6cf9c1716a09cb4f32871e706a0ff29558f6420d7cc269b9ce1e",
-  "roles": {
-    "web-main": {
-      "baselineSourceCommit": "964be0f8385e1b5bf2028ab445c1cf0bf7e850a5",
-      "patchSha256": "1283368cf5da428b61958c90daa172fa6d726e43aa60edfcaadc005f61b657d2",
-      "baselineFiles": [
-        {
-          "path": "src/domain/portablePublicSnapshot.ts",
-          "sha256": "115bec601cf3d385a8280739c50a9a7806574355134e3c4c1634bcc003d04238"
-        },
-        {
-          "path": "tests/domain/portableDeltaCertifiedSources.test.ts",
-          "sha256": "05b5ae53698ff09cc4a0d8ce3d06dbf97a540a471e6d05f66ff4f15f5dd15b12"
-        },
-        {
-          "path": "tests/helpers/lillyAGradeFixture.ts",
-          "sha256": "8b0ac00db82d46ae113a5ab602f2bcde115b08f8de3c4998d7c53efbf95bb069"
-        },
-        {
-          "path": "tsconfig.incremental-reader.json",
-          "sha256": "3a3d9b08d90d7ed062d125a0c85f6e861a8349aa34950e49d52d595fb87da549"
-        }
-      ]
-    },
-    "compatible-fallback": {
-      "baselineSourceCommit": "3c29c0798de063d141b866c05e5f78f99b922e35",
-      "patchSha256": "1283368cf5da428b61958c90daa172fa6d726e43aa60edfcaadc005f61b657d2",
-      "baselineFiles": [
-        {
-          "path": "src/domain/portablePublicSnapshot.ts",
-          "sha256": "115bec601cf3d385a8280739c50a9a7806574355134e3c4c1634bcc003d04238"
-        },
-        {
-          "path": "tests/domain/portableDeltaCertifiedSources.test.ts",
-          "sha256": "05b5ae53698ff09cc4a0d8ce3d06dbf97a540a471e6d05f66ff4f15f5dd15b12"
-        },
-        {
-          "path": "tests/helpers/lillyAGradeFixture.ts",
-          "sha256": "8b0ac00db82d46ae113a5ab602f2bcde115b08f8de3c4998d7c53efbf95bb069"
-        },
-        {
-          "path": "tsconfig.incremental-reader.json",
-          "sha256": "3a3d9b08d90d7ed062d125a0c85f6e861a8349aa34950e49d52d595fb87da549"
-        }
-      ]
-    }
-  },
-  "backupBaselines": {
-    "incrementalBothRoles": "a47ed7feeb93e99d45633795cb5fecebc8c0818f",
-    "webMainBase": "6f82160f209ac4556da8578a85de7da9ffc3ff41",
-    "compatibleFallbackBase": "a6ced5737df2b4ebc4800fa547c874e79ad6a41c"
-  },
-  "files": [
+  "schemaVersion": 1,
+  "repository": "EthanYoQ/Job-finder-Codex",
+  "scope": "Reviewed source, static nonsecret references, synthetic test source and recovery dependencies only",
+  "sourceManifestSha256": "5f15d761f343bd926f4eec8e579f1f9eeb62899ba1117d7f8a0cd00cba990234",
+  "excludedOriginalFiles": {},
+  "sourceExecutionPerformed": false,
+  "originalFiles": [
     {
-      "path": "compatible-fallback.patch",
+      "path": ".gitignore",
       "mode": "100644",
-      "type": "blob",
-      "bytes": 18696,
-      "sha256": "1283368cf5da428b61958c90daa172fa6d726e43aa60edfcaadc005f61b657d2",
-      "sha": "ddd17d2c9f19ee4ef5097c1a2f17cc1260fd5ee4"
+      "bytes": 126,
+      "sha256": "6064b96f7a02b3df204e028437f719bd9f566ffdcdf78fafdeb01c5d7adc2804",
+      "sha": "e57153df66abaef74f7f80a017972ae5de421b58"
     },
     {
-      "path": "compatible-fallback/src/domain/portablePublicSnapshot.ts",
+      "path": "README.md",
       "mode": "100644",
-      "type": "blob",
-      "bytes": 40694,
-      "sha256": "9d45413701e4cd72c53fcfdf3c032d202a5e3a13186c20b07fc067b0dea09de1",
-      "sha": "41109292effc1e7473e9e242913bcc4a2198980a"
+      "bytes": 4368,
+      "sha256": "ec1571a86d8d26cfc36e6b2590dd09319435b3da54907c66e7eb6660498794d7",
+      "sha": "30f2c9f2f5f435a213219f99b40569b0d30d7d66"
     },
     {
-      "path": "compatible-fallback/tests/domain/portableDeltaAGradeObservation.test.ts",
+      "path": "VALIDATION.json",
       "mode": "100644",
-      "type": "blob",
-      "bytes": 10244,
-      "sha256": "6f46eaaee081b57b8e29e6f16311eee881a059809148863043058365bcf1d30d",
-      "sha": "857d158ad0651b53948822ba99cf3076f50a59f9"
+      "bytes": 494,
+      "sha256": "08af3d6f2aef16362f3b9ecf36a51b84058cd6b245856cdacea70b463b190f56",
+      "sha": "9b7aa86110387c72dcf7103a280e30f997e8371c"
     },
     {
-      "path": "compatible-fallback/tests/domain/portableDeltaCertifiedSources.test.ts",
+      "path": "bindings.schema.json",
       "mode": "100644",
-      "type": "blob",
-      "bytes": 8621,
-      "sha256": "4b27adfcd3526c11473c5cbb3a6bc48344fc780a5dee8d8efe7b241b44a9efd6",
-      "sha": "e3c83a631cb5498d45a41d5e38bb30972cd3cf54"
+      "bytes": 5264,
+      "sha256": "ae3d599d1af150f6a6f0fb9fe8c995b164167ea24604b3749e5a4ea648a07ae6",
+      "sha": "9a3f155d387facf25f3eea20a4924a5e13edbeb4"
     },
     {
-      "path": "compatible-fallback/tests/helpers/lillyAGradeFixture.ts",
+      "path": "facet_projection.js",
       "mode": "100644",
-      "type": "blob",
-      "bytes": 1973,
-      "sha256": "b91e25a03df5cdef1f56a92ce82592dc0e276944801c05939a704cf2b5002635",
-      "sha": "284e6f5221b18a0acf0adbb15e24a2ca21d3e894"
+      "bytes": 1537,
+      "sha256": "7d16ed6c5d16a4b5305d136ca584f915af05a126032e71001e6be2bf1be4e097",
+      "sha": "c88f72ab68db48b579e7d49823f27a08c25b8bf4"
     },
     {
-      "path": "compatible-fallback/tsconfig.incremental-reader.json",
+      "path": "recipe.json",
       "mode": "100644",
-      "type": "blob",
-      "bytes": 612,
-      "sha256": "80e1e85624cb81b2b2ff4b5616a1c5b65e048d93b224629efb6c3b61c2f08e53",
-      "sha": "f51a0539d0297f77b9571a6546bd3d315f08590d"
+      "bytes": 3767,
+      "sha256": "d14a4730488cf702e1e75b58032a1ca0f4e0fb063a021cf9c39d2c5849ab4599",
+      "sha": "789152e05c4501009298ec52b96565bfbdadf03b"
     },
     {
-      "path": "web-main.patch",
+      "path": "render.py",
       "mode": "100644",
-      "type": "blob",
-      "bytes": 18696,
-      "sha256": "1283368cf5da428b61958c90daa172fa6d726e43aa60edfcaadc005f61b657d2",
-      "sha": "ddd17d2c9f19ee4ef5097c1a2f17cc1260fd5ee4"
+      "bytes": 4775,
+      "sha256": "eb032771eab1f1f70c1280c551db0a58017a896677386e845cae1810a27e0de4",
+      "sha": "fe4f278029de39a8af8418ba1cda7be1776cded5"
     },
     {
-      "path": "web-main/src/domain/portablePublicSnapshot.ts",
+      "path": "synthetic.bindings.json",
       "mode": "100644",
-      "type": "blob",
-      "bytes": 40694,
-      "sha256": "9d45413701e4cd72c53fcfdf3c032d202a5e3a13186c20b07fc067b0dea09de1",
-      "sha": "41109292effc1e7473e9e242913bcc4a2198980a"
+      "bytes": 4675,
+      "sha256": "beb502dcd3e7379d630f025abc8109956f29d9279878396b7167926bcfe44ca0",
+      "sha": "fe9157e99079b038e765470437aa1f8c7981219b"
     },
     {
-      "path": "web-main/tests/domain/portableDeltaAGradeObservation.test.ts",
+      "path": "templates/accept_controller.py.in",
       "mode": "100644",
-      "type": "blob",
-      "bytes": 10244,
-      "sha256": "6f46eaaee081b57b8e29e6f16311eee881a059809148863043058365bcf1d30d",
-      "sha": "857d158ad0651b53948822ba99cf3076f50a59f9"
+      "bytes": 16611,
+      "sha256": "1d49aa2f819bfc3dd71f9f685b86a2621f0521cd070a50c0d8bd986b6f9bb237",
+      "sha": "960104711f08abded2fbdbbd1692fb43b4b773c2"
     },
     {
-      "path": "web-main/tests/domain/portableDeltaCertifiedSources.test.ts",
+      "path": "templates/attempt_state.py.in",
       "mode": "100644",
-      "type": "blob",
-      "bytes": 8621,
-      "sha256": "4b27adfcd3526c11473c5cbb3a6bc48344fc780a5dee8d8efe7b241b44a9efd6",
-      "sha": "e3c83a631cb5498d45a41d5e38bb30972cd3cf54"
+      "bytes": 6770,
+      "sha256": "00775f9a162e67af697946b5e52ea16558ebfb8abca33600d6bc0afd964df32c",
+      "sha": "c8d67250279323fa6f346b1b4922a41ac20008b0"
     },
     {
-      "path": "web-main/tests/helpers/lillyAGradeFixture.ts",
+      "path": "templates/http_accept_refresh.py.in",
       "mode": "100644",
-      "type": "blob",
-      "bytes": 1973,
-      "sha256": "b91e25a03df5cdef1f56a92ce82592dc0e276944801c05939a704cf2b5002635",
-      "sha": "284e6f5221b18a0acf0adbb15e24a2ca21d3e894"
+      "bytes": 50602,
+      "sha256": "5e1e8759a1034b89b79f8e2bb47b6e9b2fdfe0f56e7e943ad8fef0e08265fe2f",
+      "sha": "c5bd8a7d383e73f7255b4c18ca821e5775e61548"
     },
     {
-      "path": "web-main/tsconfig.incremental-reader.json",
+      "path": "templates/persist_verified_roles.py.in",
       "mode": "100644",
-      "type": "blob",
-      "bytes": 612,
-      "sha256": "80e1e85624cb81b2b2ff4b5616a1c5b65e048d93b224629efb6c3b61c2f08e53",
-      "sha": "f51a0539d0297f77b9571a6546bd3d315f08590d"
+      "bytes": 6321,
+      "sha256": "0c17c70674aeec54269679cd87bd262412ad2a692c5a851dbc7877ca43ee3e5b",
+      "sha": "88e12f9f9f1a84d3853e73bffd666e929013f4b9"
+    },
+    {
+      "path": "templates/predecessor_roll_roles.py.in",
+      "mode": "100644",
+      "bytes": 25191,
+      "sha256": "87852900222f28abf48ae176e8e716bc053cdc4301d620c82bdabd38e64fa50e",
+      "sha": "4346c6c98e12d2aeab83142289cc7cb3a7543527"
+    },
+    {
+      "path": "templates/restore_failed_main.py.in",
+      "mode": "100644",
+      "bytes": 9783,
+      "sha256": "ebbb44dcf779e93850536f04a3fcc5eb4c79756434af967814abc1b7277b1686",
+      "sha": "cab15fbedaddd4eedc6ce3dda3881dd9c6c45f1a"
+    },
+    {
+      "path": "templates/roll_fallback_r3.py.in",
+      "mode": "100644",
+      "bytes": 15376,
+      "sha256": "d53c8219a1209a02f7ff64e45469364706fd916d92185af9bd1bdc813e578e0d",
+      "sha": "2e5c8493d57e23583508e199283c2a72f5bb6b8d"
+    },
+    {
+      "path": "templates/roll_roles.py.in",
+      "mode": "100644",
+      "bytes": 26092,
+      "sha256": "b526bd46bf9e81ac57fbc66141580f2bd096f1e2b32250cc410740bc23a692bb",
+      "sha": "ccf1fbf5e9a3eab0adada796611c022228e07748"
+    },
+    {
+      "path": "templates/switch_traffic_r2.py.in",
+      "mode": "100644",
+      "bytes": 11586,
+      "sha256": "5828db78038b9ef7c8482a57220a9b2442cdd8db77677ad6dc2667873370bfd0",
+      "sha": "8b978822233db98eb33df05fd808ef2a7ff34447"
+    },
+    {
+      "path": "test_synthetic.py",
+      "mode": "100644",
+      "bytes": 15294,
+      "sha256": "90b077c8d9c46c43a450d807e8f42d0abaa92ee399e8e54f5d385459f4d4e558",
+      "sha": "28850db5672c5260be9862245ffc353046964ae6"
+    },
+    {
+      "path": "PUBLICATION_MANIFEST.json",
+      "mode": "100644",
+      "bytes": 3207,
+      "sha256": "5f15d761f343bd926f4eec8e579f1f9eeb62899ba1117d7f8a0cd00cba990234",
+      "sha": "8735f245f318592b6029b78bcd32e242e21a277d"
     }
   ],
-  "excluded": [
-    "real database and replay inputs/results",
-    "production registration or runtime identities",
-    "credentials and environment values",
-    "logs and validation reports",
-    "installed dependencies and full Git history"
-  ],
-  "sourceExecutionPerformed": false
+  "limitations": "See BACKUP_RECOVERY.md; static identity hashes do not establish registration or deployment; original test summaries are author reports."
 }

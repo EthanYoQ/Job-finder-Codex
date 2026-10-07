@@ -1,0 +1,419 @@
+raise RuntimeError("UNBOUND_SOURCE_TEMPLATE: render with explicit local bindings before use")
+import pathlib,hashlib,stat,importlib.util
+_r=pathlib.Path('__BIND_RELEASE_ROOT__')
+if (_r.stat().st_dev,_r.stat().st_ino)!=(__BIND_RELEASE_DEVICE__,__BIND_RELEASE_INODE__):raise RuntimeError('RELEASE_SEAL_CHANGED')
+for _d in [_r]+list(_r.parents):
+ _s=_d.lstat()
+ if not stat.S_ISDIR(_s.st_mode) or _s.st_uid!=0 or _s.st_mode&0o022:raise RuntimeError('HELPER_DIRECTORY_CHANGED')
+_p=_r/'__FILE_STATE__';_s=_p.lstat()
+if not stat.S_ISREG(_s.st_mode) or _s.st_uid!=0 or _s.st_mode&0o022 or hashlib.sha256(_p.read_bytes()).hexdigest()!='__SHA_STATE__':raise RuntimeError('FIXED_HELPER_HASH')
+_spec=importlib.util.spec_from_file_location('fixed_a02_state',str(_p));T=importlib.util.module_from_spec(_spec);_spec.loader.exec_module(T)
+import types
+#!/usr/bin/env python3
+"""Fixed first-role rolling launch. Traffic stays on old 3031 in this phase."""
+import datetime, hashlib, json, os, pathlib, re, stat, subprocess, sys, time, urllib.request
+ROOT=pathlib.Path('__BIND_RELEASE_ROOT__')
+NODE='__BIND_NODE_BINARY__'
+CONF=pathlib.Path('__BIND_NGINX_CONFIG__')
+CONF_SHA='__BIND_NGINX_CONFIG_SHA256__'
+ENV={'PATH':'__BIND_EXEC_PATH__','HOME':'__BIND_EXEC_HOME__','NODE_OPTIONS':'--max-old-space-size=256'}
+POLICY='PLAN_BOUND_SOURCE_QUALITY_V1'
+OLD_MAIN={'name':'__BIND_OLD_MAIN_NAME__','cwd':'__BIND_BASELINE_ROOT__/web-main','port':3031,'heap':256}
+OLD_BACKUP={'name':'__BIND_OLD_BACKUP_NAME__','cwd':'__BIND_BASELINE_ROOT__/compatible-fallback','port':3036,'heap':192}
+NEW_MAIN={'name':'__BIND_NEW_MAIN_NAME__','cwd':str(ROOT/'web-main'),'port':3036,'heap':256}
+STATE=T.STATE
+def check_attempt():return T.require_initialized()
+ARGS=['--env-file=__BIND_ENV_FILE__','--import','./node_modules/tsx/dist/loader.mjs','src/server/httpServer.ts']
+
+def require(ok,code):
+ if not ok:raise RuntimeError(code)
+def sha(b):return hashlib.sha256(b).hexdigest()
+def emit(v):print('JF_RELEASE_RESULT='+json.dumps(v,separators=(',',':')))
+def event(name,v):
+ p=STATE/('launch-main-'+name+'.json')
+ fd=os.open(str(p),os.O_WRONLY|os.O_CREAT|os.O_EXCL|os.O_NOFOLLOW,0o600)
+ with os.fdopen(fd,'w') as f:json.dump(dict(at=datetime.datetime.now(datetime.timezone.utc).isoformat(),**v),f,separators=(',',':'));f.write('\n');f.flush();os.fsync(f.fileno())
+def run(argv,timeout=25):
+ q=subprocess.run(argv,env=ENV,stdout=subprocess.PIPE,stderr=subprocess.PIPE,timeout=timeout)
+ require(q.returncode==0,'COMMAND_FAILED_'+pathlib.Path(argv[0]).name+'_'+str(q.returncode)+'_'+sha(q.stderr))
+ return q.stdout
+def rows():
+ pidfile=pathlib.Path('__BIND_PM2_PID_FILE__');require(pidfile.is_file(),'PM2_DAEMON_MISSING')
+ pid=pidfile.read_text().strip();require(pid.isdigit() and pathlib.Path('/proc',pid).exists(),'PM2_DAEMON_ABSENT')
+ return json.loads(run(['pm2','jlist']))
+def find(spec,status='online'):
+ matches=[r for r in rows() if r.get('name')==spec['name']];require(len(matches)==1,'PM2_NAME_NOT_UNIQUE')
+ row=matches[0];e=row['pm2_env']
+ require(e['status']==status and e['pm_cwd']==spec['cwd'] and str(e['PORT'])==str(spec['port']),'PM2_STATUS_PATH_PORT')
+ require(e['HOST']=='127.0.0.1' and e['JOBFINDER_PUBLICATION_POLICY']==POLICY,'PM2_HOST_POLICY')
+ require(e['pm_exec_path']==NODE and e['args']==ARGS and e['NODE_OPTIONS']=='--max-old-space-size='+str(spec['heap']),'PM2_EXEC_ARGS_HEAP')
+ if status=='online':
+  pid=int(row['pid']);require(pid>0 and pathlib.Path('/proc',str(pid),'cwd').resolve()==pathlib.Path(spec['cwd']),'PM2_PID_CWD')
+ return row
+def memory():return int(re.search(r'^MemAvailable:\s+(\d+) kB$',pathlib.Path('/proc/meminfo').read_text(),re.M).group(1))
+def process_token(pid):
+ try:
+  data=pathlib.Path('/proc',str(pid),'stat').read_text();return data.rsplit(')',1)[1].split()[19]
+ except (FileNotFoundError,ProcessLookupError):return None
+def ports():
+ values=set()
+ for name in ('tcp','tcp6'):
+  for line in pathlib.Path('/proc/net',name).read_text().splitlines()[1:]:
+   f=line.split()
+   if f[3]=='0A':values.add(int(f[1].rsplit(':',1)[1],16))
+ return values
+def owns_listener(pid,port):
+ inodes=set()
+ for name in ('tcp','tcp6'):
+  for line in pathlib.Path('/proc/net',name).read_text().splitlines()[1:]:
+   f=line.split()
+   if f[3]=='0A' and int(f[1].rsplit(':',1)[1],16)==port:inodes.add('socket:['+f[9]+']')
+ for fd in pathlib.Path('/proc',str(pid),'fd').iterdir():
+  try:
+   if os.readlink(str(fd)) in inodes:return True
+  except OSError:pass
+ return False
+def health(port):
+ for path in ('/livez','/readyz'):
+  req=urllib.request.Request('http://127.0.0.1:'+str(port)+path,headers={'x-job-search-consent':'accepted'})
+  with urllib.request.urlopen(req,timeout=5) as r:
+   require(r.status==200,'HEALTH_HTTP');b=r.read(65537);require(len(b)<=65536,'HEALTH_BODY');require(json.loads(b).get('ok') is True,'HEALTH_NOT_OK')
+def fixed_guard():
+ check_attempt()
+ for p in [ROOT]+list(ROOT.parents):
+  s=p.lstat();require(stat.S_ISDIR(s.st_mode) and s.st_uid==0 and not s.st_mode&0o022,'RELEASE_ANCESTOR')
+ s=ROOT.stat();require((s.st_dev,s.st_ino)==(__BIND_RELEASE_DEVICE__,__BIND_RELEASE_INODE__),'RELEASE_SEAL_CHANGED');require(json.loads((ROOT/'RELEASE_ID.json').read_text())=={'sha256':'__BIND_ARCHIVE_SHA256__','device':s.st_dev,'inode':s.st_ino},'RELEASE_BINDING')
+ require(not CONF.is_symlink() and sha(CONF.read_bytes())==CONF_SHA,'NGINX_NOT_ORIGINAL')
+ qualified=json.loads((ROOT/'runtime-qualified.json').read_text());require(len(qualified['identities'])==2,'QUALIFICATION_MISSING')
+ main=[x for x in qualified['identities'] if x['role']=='web-main'];require(len(main)==1 and main[0]['result']['identity']['commitSha']=='__BIND_CANDIDATE_WEB_MAIN_COMMIT_SHA__','MAIN_IDENTITY')
+
+ verify_identities()
+
+def prepare_config(main):
+ e=main['pm2_env'];appenv={}
+ require(not any(key in e for key in ('DATABASE_URL','ADMIN_EMAIL','ADMIN_PASSWORD_HASH')),'PM2_SENSITIVE_OVERRIDE_PRESENT_REVIEW_REQUIRED')
+ for key in ('TRUSTED_PROXY_CIDRS','POSTGRES_READINESS_TIMEOUT_MS','NODE_ENV','TZ'):
+  if key in e:require(isinstance(e[key],str),'ENV_TYPE');appenv[key]=e[key]
+ # Preserve the exact already-running Node env-file contract; never read or copy its secret values.
+ envfile=pathlib.Path('__BIND_ENV_FILE__');envstat=envfile.lstat()
+ require(stat.S_ISREG(envstat.st_mode) and envstat.st_uid==0 and not envstat.st_mode&0o022,'EXISTING_ENV_FILE_TYPE_OWNER')
+ require((envstat.st_dev,envstat.st_ino,envstat.st_uid,envstat.st_gid,stat.S_IMODE(envstat.st_mode))==__BIND_ENV_FILE_METADATA__,'EXISTING_ENV_FILE_BINDING_CHANGED')
+ for parent in envfile.parents:
+  parentstat=parent.lstat()
+  if str(parent)=='__BIND_SERVICE_DIRECTORY__':
+   # This is the existing service-account directory, observed read-only, not a new permission grant.
+   require(stat.S_ISDIR(parentstat.st_mode) and (parentstat.st_dev,parentstat.st_ino,parentstat.st_uid,parentstat.st_gid,stat.S_IMODE(parentstat.st_mode))==__BIND_SERVICE_DIRECTORY_METADATA__,'EXISTING_SERVICE_DIRECTORY_CHANGED')
+  else:require(stat.S_ISDIR(parentstat.st_mode) and parentstat.st_uid==0 and not parentstat.st_mode&0o022,'EXISTING_ENV_FILE_ANCESTOR')
+ require(not any(e.get(k) for k in ('PRISMA_QUERY_ENGINE_LIBRARY','PRISMA_QUERY_ENGINE_BINARY')),'CUSTOM_ENGINE_REQUIRES_REVIEW')
+ appenv.update({'PORT':'3036','HOST':'127.0.0.1','JOBFINDER_PUBLICATION_POLICY':POLICY,'NODE_OPTIONS':'--max-old-space-size=256','PATH':ENV['PATH']})
+ config={'name':NEW_MAIN['name'],'script':NODE,'interpreter':'none','args':ARGS,'cwd':NEW_MAIN['cwd'],'instances':1,'exec_mode':'fork','watch':False,'env':appenv}
+ for key in ('autorestart','restart_delay','max_restarts','min_uptime','kill_timeout'):
+  if key in e:config[key]=e[key]
+ p=STATE/'main-service-private.json';fd=os.open(str(p),os.O_WRONLY|os.O_CREAT|os.O_EXCL|os.O_NOFOLLOW,0o600)
+ with os.fdopen(fd,'w') as f:json.dump({'apps':[config]},f,separators=(',',':'));f.flush();os.fsync(f.fileno())
+ return p
+
+
+NEW_RUNTIME_BINDINGS={'web-main': {'identity': {'schemaVersion': 2, 'commitSha': '__BIND_CANDIDATE_WEB_MAIN_COMMIT_SHA__', 'sourceTreeSha256': '__BIND_CANDIDATE_WEB_MAIN_SOURCE_TREE_SHA256__', 'runtimeTreeSha256': '__BIND_CANDIDATE_WEB_MAIN_RUNTIME_TREE_SHA256__', 'contentSha256': '__BIND_CANDIDATE_WEB_MAIN_CONTENT_SHA256__'}, 'fileSha256': '__BIND_CANDIDATE_WEB_MAIN_FILE_SHA256__'}, 'compatible-fallback': {'identity': {'schemaVersion': 2, 'commitSha': '__BIND_CANDIDATE_COMPATIBLE_FALLBACK_COMMIT_SHA__', 'sourceTreeSha256': '__BIND_CANDIDATE_COMPATIBLE_FALLBACK_SOURCE_TREE_SHA256__', 'runtimeTreeSha256': '__BIND_CANDIDATE_COMPATIBLE_FALLBACK_RUNTIME_TREE_SHA256__', 'contentSha256': '__BIND_CANDIDATE_COMPATIBLE_FALLBACK_CONTENT_SHA256__'}, 'fileSha256': '__BIND_CANDIDATE_COMPATIBLE_FALLBACK_FILE_SHA256__'}}
+
+def verify_identities():
+ expected={'web-main':('__BIND_CANDIDATE_WEB_MAIN_COMMIT_SHA__','__BIND_CANDIDATE_WEB_MAIN_SOURCE_TREE_SHA256__'),'compatible-fallback':('__BIND_CANDIDATE_COMPATIBLE_FALLBACK_COMMIT_SHA__','__BIND_CANDIDATE_COMPATIBLE_FALLBACK_SOURCE_TREE_SHA256__')}
+ qualified=json.loads((ROOT/'runtime-qualified.json').read_text())
+ require(len(qualified['identities'])==2,'QUALIFIED_COUNT')
+ for role,(commit,source) in expected.items():
+  matches=[v for v in qualified['identities'] if v['role']==role];require(len(matches)==1,'QUALIFIED_DUPLICATE')
+  item=matches[0];identity=item['result']['identity'];path=ROOT/role/'build-identity.json';meta=path.lstat()
+  require(stat.S_ISREG(meta.st_mode) and meta.st_uid==0 and not meta.st_mode&0o022,'IDENTITY_TYPE_OWNER')
+  require(identity['commitSha']==commit and identity['sourceTreeSha256']==source and identity['schemaVersion']==2,'QUALIFIED_SOURCE_BINDING')
+  require(identity==NEW_RUNTIME_BINDINGS[role]['identity'] and sha(path.read_bytes())==NEW_RUNTIME_BINDINGS[role]['fileSha256'],'QUALIFIED_OBSERVED_RUNTIME_BINDING')
+  require(item['classifier']=={'status':'PASS','cases':6,'node':'v22.19.0','prismaVersion':'6.19.3'},'NATIVE_CLASSIFIER_UNQUALIFIED')
+  require(path.read_bytes()==(json.dumps(identity,separators=(',',':'))+'\n').encode(),'BAKED_IDENTITY_CHANGED')
+  code="import {readAndValidateBakedBuildIdentity} from './src/readiness/buildIdentity.ts';console.log(JSON.stringify(readAndValidateBakedBuildIdentity()));"
+  q=subprocess.run([NODE,'--import','./node_modules/tsx/dist/loader.mjs','--input-type=module','-e',code],cwd=str(ROOT/role),env=dict(ENV,TSX_DISABLE_CACHE='1'),stdout=subprocess.PIPE,stderr=subprocess.PIPE,timeout=180)
+  require(q.returncode==0 and json.loads(q.stdout)==identity,'RUNTIME_BYTES_CHANGED')
+ old={'web-main':'__BIND_BASELINE_WEB_MAIN_FILE_SHA256__','compatible-fallback':'__BIND_BASELINE_COMPATIBLE_FALLBACK_FILE_SHA256__'}
+ for role,digest in old.items():
+  path=pathlib.Path('__BIND_BASELINE_ROOT__')/role/'build-identity.json';meta=path.lstat()
+  require(stat.S_ISREG(meta.st_mode) and meta.st_uid==0 and not meta.st_mode&0o022 and sha(path.read_bytes())==digest,'BASELINE_IDENTITY_CHANGED')
+
+def lock_old_main(anchor,check_health=False):
+ require(not CONF.is_symlink() and sha(CONF.read_bytes())==CONF_SHA,'ORIGINAL_ROUTE_CHANGED')
+ row=find(OLD_MAIN);pid=anchor['mainPid']
+ require(row['pid']==pid and process_token(pid)==anchor['mainStartTicks'] and row['pm2_env'].get('restart_time')==anchor['mainRestarts'] and owns_listener(pid,OLD_MAIN['port']),'PROTECTED_OLD_MAIN_CHANGED')
+ if check_health:
+  health(OLD_MAIN['port']);return lock_old_main(anchor,False)
+ return row
+
+def process_set(spec):
+ found={}
+ for path in pathlib.Path('/proc').iterdir():
+  if not path.name.isdigit():continue
+  try:
+   if (path/'cwd').resolve()==pathlib.Path(spec['cwd']):
+    token=process_token(int(path.name))
+    if token is not None:found[int(path.name)]=token
+  except (OSError,RuntimeError):pass
+ return found
+
+def state(spec,original_pid=None,original_token=None):
+ matches=[row for row in rows() if row.get('name')==spec['name']]
+ require(len(matches)<=1,'RECONCILE_DUPLICATE_NAME')
+ processes=process_set(spec);port_bound=spec['port'] in ports()
+ if not matches:
+  require(not processes and not port_bound,'RECONCILE_ABSENT_ROLE_HAS_PROCESS_OR_PORT')
+  return {'status':'absent','processes':{}}
+ status=matches[0]['pm2_env'].get('status')
+ if status=='online':
+  row=find(spec);pid=row['pid'];token=process_token(pid)
+  require(token is not None and processes.get(pid)==token and owns_listener(pid,spec['port']),'RECONCILE_ONLINE_LISTENER')
+  return {'status':'online','pid':pid,'startTicks':token,'restarts':row['pm2_env'].get('restart_time'),'processes':processes}
+ terminal_error=status=='errored' and spec==NEW_MAIN
+ require(status=='stopped' or terminal_error,'RECONCILE_TRANSITIONAL_STATUS')
+ confirmed=find(spec,status)
+ require(not processes and not port_bound,'RECONCILE_STOPPED_ROLE_HAS_PROCESS_OR_PORT')
+ if original_pid is not None:require(process_token(original_pid)!=original_token,'RECONCILE_ORIGINAL_PROCESS_STILL_LIVE')
+ if terminal_error:
+  reported_pid=confirmed.get('pid')
+  require(isinstance(reported_pid,int) and reported_pid>=0,'RECONCILE_ERRORED_PID_INVALID')
+  require(reported_pid==0 or process_token(reported_pid) is None,'RECONCILE_ERRORED_PID_STILL_LIVE')
+  return {'status':'errored','pm2Status':'errored','processes':{},'portReleased':True,'reportedPid':reported_pid,'reportedPidAbsent':True,'originalPidChecked':original_pid}
+ return {'status':'stopped','processes':{}}
+
+def await_stopped(spec,pid,token,anchor=None):
+ deadline=time.monotonic()+25
+ while time.monotonic()<deadline:
+  if anchor is not None:lock_old_main(anchor)
+  try:
+   current=state(spec,pid,token)
+   if current['status']=='stopped' or (spec==NEW_MAIN and current['status']=='errored'):return current
+  except RuntimeError:pass
+  time.sleep(.5)
+ current=state(spec,pid,token)
+ require(current['status']=='stopped' or (spec==NEW_MAIN and current['status']=='errored'),'ROLE_NOT_TERMINAL_STOPPED')
+ return current
+
+def await_healthy(spec,anchor=None,zero_restarts=False):
+ deadline=time.monotonic()+100
+ while time.monotonic()<deadline:
+  require(memory()>=196608,'RUNNING_MEMORY_FLOOR')
+  if anchor is not None:lock_old_main(anchor)
+  try:
+   before=state(spec);require(before['status']=='online','ROLE_NOT_ONLINE')
+   health(spec['port']);after=state(spec)
+   require(before['pid']==after['pid'] and before['startTicks']==after['startTicks'],'ROLE_CHANGED_DURING_HEALTH')
+   if zero_restarts:require(before['restarts']==after['restarts']==0,'NEW_MAIN_RESTARTED')
+   return after
+  except Exception:time.sleep(1)
+ raise RuntimeError('ROLE_HEALTH_TIMEOUT')
+
+
+def rollback(anchor,old_pid,old_token,new_attempted):
+ # Any command exception is reconciled through read-only state before another
+ # mutation. No request here can target the protected 3031 role or nginx.
+ require(not CONF.is_symlink() and sha(CONF.read_bytes())==CONF_SHA,'ROLLBACK_ROUTING_CHANGED_READBACK_REQUIRED')
+ result={'state':'RECONCILING','newMainStop':'not-needed','oldBackupRestore':'pending'}
+ if new_attempted:
+  candidate=state(NEW_MAIN)
+  result['newObserved']=candidate
+  if candidate['status']=='online':
+   try:run(['pm2','stop',NEW_MAIN['name']])
+   except Exception:
+    observed=state(NEW_MAIN,candidate['pid'],candidate['startTicks'])
+    require(observed['status'] in ('stopped','errored'),'NEW_STOP_OUTCOME_REQUIRES_READBACK')
+   await_stopped(NEW_MAIN,candidate['pid'],candidate['startTicks'])
+   result['newMainStop']='confirmed-stopped'
+  else:
+   require(candidate['status'] in ('stopped','absent','errored'),'NEW_START_OUTCOME_UNKNOWN')
+   if candidate['status']=='errored':result['newMainStop']='already-errored-confirmed-quiescent'
+ old=state(OLD_BACKUP,old_pid,old_token);result['oldObserved']=old
+ if old['status']=='online':
+  recovered=await_healthy(OLD_BACKUP)
+  result.update(state='ORIGINAL_BACKUP_CONFIRMED_ONLINE',oldBackupRestore='already-online',restoredPid=recovered['pid'])
+  return result
+ require(old['status']=='stopped','OLD_BACKUP_RECORD_MISSING_NO_RECREATE')
+ require(3036 not in ports() and not process_set(OLD_BACKUP) and not process_set(NEW_MAIN),'ROLLBACK_3036_NOT_CLEAR')
+ require(memory()>=614400,'ROLLBACK_MEMORY_BEFORE_START')
+ try:run(['pm2','restart',OLD_BACKUP['name']],40)
+ except Exception:
+  observed=state(OLD_BACKUP,old_pid,old_token)
+  require(observed['status']=='online','OLD_RESTART_OUTCOME_REQUIRES_READBACK')
+ recovered=await_healthy(OLD_BACKUP)
+ require(sha(CONF.read_bytes())==CONF_SHA,'ROUTING_CHANGED_DURING_RESTORE')
+ result.update(state='ORIGINAL_BACKUP_RESTORED_HEALTHY',oldBackupRestore='restarted',restoredPid=recovered['pid'],availableKiB=memory())
+ return result
+
+
+
+def launch():
+ T.require_initialized();T.live_precondition(types.SimpleNamespace(**globals()))
+ fixed_guard();require(memory()>=196608,'RUNNING_MEMORY_FLOOR');main=find(OLD_MAIN);backup=find(OLD_BACKUP)
+ require(owns_listener(main['pid'],OLD_MAIN['port']) and owns_listener(backup['pid'],OLD_BACKUP['port']),'OLD_ROLE_LISTENER_MISMATCH')
+ anchor={'mainPid':main['pid'],'mainStartTicks':process_token(main['pid']),'mainRestarts':main['pm2_env'].get('restart_time')}
+ require(anchor['mainStartTicks'] is not None,'OLD_MAIN_IDENTITY_ABSENT');lock_old_main(anchor,True)
+ expected_index=(pathlib.Path(OLD_MAIN['cwd'])/'dist/index.html').read_bytes()
+ routed=run(['curl','--fail','--silent','--show-error','--noproxy','*','--resolve','__BIND_PUBLIC_HOST__:443:127.0.0.1','--connect-timeout','5','--max-time','15','--header','Accept-Encoding: identity','https://__BIND_PUBLIC_HOST__/'],20)
+ require(routed==expected_index,'ORIGINAL_DOMAIN_ROUTE_INDEX_MISMATCH');lock_old_main(anchor,True)
+ require(not any(r.get('name')==NEW_MAIN['name'] for r in rows()),'NEW_NAME_EXISTS_RECONCILE')
+ require(not process_set(NEW_MAIN),'NEW_MAIN_PROCESS_ALREADY_PRESENT')
+ config=prepare_config(main);old_pid=backup['pid'];old_token=process_token(old_pid)
+ require(old_token is not None,'OLD_BACKUP_IDENTITY_ABSENT')
+ event('intent',{'oldMainPid':main['pid'],'oldBackupPid':old_pid,'oldBackupStartTicks':old_token,'newName':NEW_MAIN['name'],'availableBeforeStopKiB':memory(),'nginxSha256':CONF_SHA})
+ stop_attempted=False;new_attempted=False
+ try:
+  lock_old_main(anchor,True)
+  stop_attempted=True;run(['pm2','stop',OLD_BACKUP['name']])
+  await_stopped(OLD_BACKUP,old_pid,old_token,anchor)
+  before=memory();require(before>=614400,'MEMORY_BEFORE_START_'+str(before))
+  lock_old_main(anchor,True)
+  event('old-backup-stopped',{'availableKiB':before,'oldBackupStatus':'stopped','oldBackupPid':old_pid,'oldBackupStartTicks':old_token})
+  new_attempted=True;run(['pm2','start',str(config),'--only',NEW_MAIN['name']],40)
+  ready=await_healthy(NEW_MAIN,anchor,True);lock_old_main(anchor,True)
+  result={'status':'NEW_MAIN_HEALTHY_TRAFFIC_UNCHANGED','newName':NEW_MAIN['name'],'pid':ready['pid'],'startTicks':ready['startTicks'],'port':NEW_MAIN['port'],'cwd':NEW_MAIN['cwd'],'restarts':ready['restarts'],'availableKiB':memory(),'oldMainStillOnline':True,'oldBackupStoppedRecoverable':True}
+  event('result',result);emit(result);return result
+ except Exception as error:
+  recovery={'state':'not-needed'}
+  if stop_attempted:
+   try:recovery=rollback(anchor,old_pid,old_token,new_attempted)
+   except Exception as e:recovery={'state':'READBACK_REQUIRED','reason':str(e) if isinstance(e,RuntimeError) else type(e).__name__}
+  result={'status':'LAUNCH_STOPPED','reason':str(error) if isinstance(error,RuntimeError) else type(error).__name__,'rollback':recovery}
+  event('failed',result);emit(result);return result
+
+
+# Begin exact private-data-free acceptance receipt guard.
+"""Pure, fail-closed acceptance receipt guard. Import and calls have no I/O."""
+
+EXPECTATION_SHA256 = '__BIND_EXPECTATION_SHA256__'
+FACET_EXPECTATION_SHA256 = '__BIND_FACET_EXPECTATION_SHA256__'
+CONTRACT = 'ASTRA_181_READER_RECOVERY_V1'
+STRICT_CONTRACT = 'STRICT_GLOBAL_EQUALITY_V1'
+COMPANY_ID = 'company-astrazeneca'
+CHECK_FLAGS = (
+    'fullCompanyHashMatched', 'coverageHashMatched', 'jobIdsHashMatched',
+    'sourceAndObservationFieldsMatched', 'otherCompanyProjectionEqual',
+    'otherCompanyStatusAndTimesEqual', 'otherMetadataEqual',
+    'facetsExactlyRecomputed', 'summaryExactlyRecomputed',
+    'bothReadersDoubleCaptureStable',
+)
+CHECK_NUMBERS = (
+    'oldAstraJobCount', 'newAstraJobCount', 'jobCountDelta',
+    'oldTotalJobs', 'newTotalJobs',
+    'publishingCompanyCountDelta', 'degradedCompanyCountDelta',
+)
+CONTRACT_KEYS = frozenset((
+    'schemaVersion', 'name', 'phase', 'expectationSha256', 'facetExpectationSha256', 'companyId',
+    'expectedChangeChecks', 'unexpectedBusinessDifferences',
+    'unexpectedStatusDifferences', 'rawBusinessDifferenceCount',
+    'rawStatusDifferenceCount',
+))
+
+
+def _integer(value):
+    return type(value) is int
+
+
+def _zero_difference(value):
+    return (isinstance(value, dict) and set(value) == {'count', 'fields'}
+            and _integer(value['count']) and value['count'] == 0
+            and value['fields'] == [])
+
+
+def _raw_difference(value, count):
+    if not (isinstance(value, dict) and set(value) == {'count', 'fields'}
+            and _integer(value['count']) and value['count'] == count
+            and isinstance(value['fields'], list) and len(value['fields']) == min(count, 200)):
+        return False
+    for field in value['fields']:
+        if not isinstance(field, dict) or not isinstance(field.get('path'), str) or not field['path'].startswith('$'):
+            return False
+        if set(field) == {'path', 'change'}:
+            if field['change'] not in ('added', 'removed'):
+                return False
+        elif set(field) == {'path', 'old_sha256', 'new_sha256'}:
+            for name in ('old_sha256', 'new_sha256'):
+                if not (isinstance(field[name], str) and len(field[name]) == 64
+                        and all(char in '0123456789abcdef' for char in field[name])):
+                    return False
+        else:
+            return False
+    return True
+
+
+def main_pre_cut_contract_valid(receipt):
+    """Validate structure and checked invariants, not receipt authenticity.
+
+    The controller must separately bind the receipt to its pinned helper,
+    runtime identity, invocation, assets and captured receipt bytes.
+    """
+    try:
+        if not isinstance(receipt, dict):
+            return False
+        if (receipt.get('status') != 'PASS' or receipt.get('phase') != 'main-precut'
+                or receipt.get('role') != 'web-main'
+                or type(receipt.get('helperExitCode')) is not int
+                or receipt['helperExitCode'] != 0):
+            return False
+        contract = receipt['acceptanceContract']
+        if not isinstance(contract, dict) or set(contract) != CONTRACT_KEYS:
+            return False
+        if (type(contract['schemaVersion']) is not int or contract['schemaVersion'] != 1
+                or contract['name'] != CONTRACT or contract['phase'] != 'main-precut'
+                or contract['expectationSha256'] != EXPECTATION_SHA256
+                or contract['facetExpectationSha256'] != FACET_EXPECTATION_SHA256
+                or contract['companyId'] != COMPANY_ID):
+            return False
+        checks = contract['expectedChangeChecks']
+        if not isinstance(checks, dict) or set(checks) != set(CHECK_FLAGS + CHECK_NUMBERS):
+            return False
+        if not all(checks[name] is True for name in CHECK_FLAGS):
+            return False
+        if not all(_integer(checks[name]) for name in CHECK_NUMBERS):
+            return False
+        if (checks['oldAstraJobCount'] != 0 or checks['newAstraJobCount'] != 181
+                or checks['jobCountDelta'] != 181
+                or checks['oldTotalJobs'] < 0
+                or checks['newTotalJobs'] != checks['oldTotalJobs'] + 181
+                or checks['publishingCompanyCountDelta'] != 1
+                or checks['degradedCompanyCountDelta'] != -1):
+            return False
+        if not _zero_difference(contract['unexpectedBusinessDifferences']):
+            return False
+        if not _zero_difference(contract['unexpectedStatusDifferences']):
+            return False
+        for count_key, raw_key in (
+                ('rawBusinessDifferenceCount', 'business_projection_differences'),
+                ('rawStatusDifferenceCount', 'source_status_and_original_times_differences')):
+            count = contract[count_key]
+            if not _integer(count) or count <= 0 or not _raw_difference(receipt[raw_key], count):
+                return False
+        for label, count in (('old', checks['oldTotalJobs']), ('new', checks['newTotalJobs'])):
+            if type(receipt[label]['jobs']) is not int or receipt[label]['jobs'] != count:
+                return False
+        identities = receipt['cross_reader_identities']
+        if not isinstance(identities, dict) or set(identities) != {'displayDataVersion', 'statusVersion'}:
+            return False
+        for value in identities.values():
+            if (not isinstance(value, dict) or set(value) != {'comparable', 'equal'}
+                    or value['comparable'] is not True or value['equal'] is not False):
+                return False
+        stability = receipt['doubleCaptureStability']
+        if not isinstance(stability, dict) or set(stability) != {'old', 'new'}:
+            return False
+        for value in stability.values():
+            if (not isinstance(value, dict)
+                    or set(value) != {'businessProjectionDifferences', 'sourceStatusDifferences', 'identitiesEqual'}
+                    or not _zero_difference(value['businessProjectionDifferences'])
+                    or not _zero_difference(value['sourceStatusDifferences'])
+                    or value['identitiesEqual'] is not True):
+                return False
+        return True
+    except (KeyError, TypeError, ValueError):
+        return False
+
+# End exact acceptance receipt guard.
+
+if __name__=='__main__':
+ try:
+  require(len(sys.argv)==2 and sys.argv[1]=='launch-main','UNKNOWN_ACTION')
+  result=launch();raise SystemExit(0 if result['status']=='NEW_MAIN_HEALTHY_TRAFFIC_UNCHANGED' else 1)
+ except Exception as e:
+  emit({'status':'PRE_LAUNCH_REFUSED','reason':str(e) if isinstance(e,RuntimeError) else type(e).__name__});raise SystemExit(1)

@@ -1,0 +1,245 @@
+{
+  "fields": {
+    "ARCHIVE_SHA256": {
+      "required": true,
+      "type": "sha256"
+    },
+    "ASSET_MANIFEST_SHA256": {
+      "required": true,
+      "type": "sha256"
+    },
+    "ATTEMPT_LABEL": {
+      "required": true,
+      "type": "text"
+    },
+    "BASELINE_COMPATIBLE_FALLBACK_COMMIT_SHA": {
+      "required": true,
+      "type": "sha1"
+    },
+    "BASELINE_COMPATIBLE_FALLBACK_CONTENT_SHA256": {
+      "required": true,
+      "type": "sha256"
+    },
+    "BASELINE_COMPATIBLE_FALLBACK_FILE_SHA256": {
+      "required": true,
+      "type": "sha256"
+    },
+    "BASELINE_COMPATIBLE_FALLBACK_RUNTIME_TREE_SHA256": {
+      "required": true,
+      "type": "sha256"
+    },
+    "BASELINE_COMPATIBLE_FALLBACK_SOURCE_TREE_SHA256": {
+      "required": true,
+      "type": "sha256"
+    },
+    "BASELINE_ROOT": {
+      "required": true,
+      "type": "text"
+    },
+    "BASELINE_WEB_MAIN_COMMIT_SHA": {
+      "required": true,
+      "type": "sha1"
+    },
+    "BASELINE_WEB_MAIN_CONTENT_SHA256": {
+      "required": true,
+      "type": "sha256"
+    },
+    "BASELINE_WEB_MAIN_FILE_SHA256": {
+      "required": true,
+      "type": "sha256"
+    },
+    "BASELINE_WEB_MAIN_RUNTIME_TREE_SHA256": {
+      "required": true,
+      "type": "sha256"
+    },
+    "BASELINE_WEB_MAIN_SOURCE_TREE_SHA256": {
+      "required": true,
+      "type": "sha256"
+    },
+    "CANDIDATE_COMPATIBLE_FALLBACK_COMMIT_SHA": {
+      "required": true,
+      "type": "sha1"
+    },
+    "CANDIDATE_COMPATIBLE_FALLBACK_CONTENT_SHA256": {
+      "required": true,
+      "type": "sha256"
+    },
+    "CANDIDATE_COMPATIBLE_FALLBACK_FILE_SHA256": {
+      "required": true,
+      "type": "sha256"
+    },
+    "CANDIDATE_COMPATIBLE_FALLBACK_RUNTIME_TREE_SHA256": {
+      "required": true,
+      "type": "sha256"
+    },
+    "CANDIDATE_COMPATIBLE_FALLBACK_SOURCE_TREE_SHA256": {
+      "required": true,
+      "type": "sha256"
+    },
+    "CANDIDATE_WEB_MAIN_COMMIT_SHA": {
+      "required": true,
+      "type": "sha1"
+    },
+    "CANDIDATE_WEB_MAIN_CONTENT_SHA256": {
+      "required": true,
+      "type": "sha256"
+    },
+    "CANDIDATE_WEB_MAIN_FILE_SHA256": {
+      "required": true,
+      "type": "sha256"
+    },
+    "CANDIDATE_WEB_MAIN_RUNTIME_TREE_SHA256": {
+      "required": true,
+      "type": "sha256"
+    },
+    "CANDIDATE_WEB_MAIN_SOURCE_TREE_SHA256": {
+      "required": true,
+      "type": "sha256"
+    },
+    "ENV_FILE": {
+      "required": true,
+      "type": "text"
+    },
+    "ENV_FILE_METADATA": {
+      "required": true,
+      "type": "metadata_tuple"
+    },
+    "EXEC_HOME": {
+      "required": true,
+      "type": "text"
+    },
+    "EXEC_PATH": {
+      "required": true,
+      "type": "text"
+    },
+    "EXPECTATION_SHA256": {
+      "required": true,
+      "type": "sha256"
+    },
+    "FACET_EXPECTATION_SHA256": {
+      "required": true,
+      "type": "sha256"
+    },
+    "NEW_BACKUP_NAME": {
+      "required": true,
+      "type": "text"
+    },
+    "NEW_MAIN_NAME": {
+      "required": true,
+      "type": "text"
+    },
+    "NGINX_BINARY": {
+      "required": true,
+      "type": "text"
+    },
+    "NGINX_CONFIG": {
+      "required": true,
+      "type": "text"
+    },
+    "NGINX_CONFIG_SHA256": {
+      "required": true,
+      "type": "sha256"
+    },
+    "NGINX_TEMP_LABEL": {
+      "required": true,
+      "type": "text"
+    },
+    "NODE_BINARY": {
+      "required": true,
+      "type": "text"
+    },
+    "OLD_BACKUP_NAME": {
+      "required": true,
+      "type": "text"
+    },
+    "OLD_BACKUP_PID": {
+      "required": true,
+      "type": "uint"
+    },
+    "OLD_BACKUP_START_TICKS": {
+      "required": true,
+      "type": "uint"
+    },
+    "OLD_MAIN_NAME": {
+      "required": true,
+      "type": "text"
+    },
+    "OLD_MAIN_PID": {
+      "required": true,
+      "type": "uint"
+    },
+    "OLD_MAIN_START_TICKS": {
+      "required": true,
+      "type": "uint"
+    },
+    "PM2_DUMP_FILE": {
+      "required": true,
+      "type": "text"
+    },
+    "PM2_PID_FILE": {
+      "required": true,
+      "type": "text"
+    },
+    "PRIOR_ACCEPT_MAIN_FAILED_SHA256": {
+      "required": true,
+      "type": "sha256"
+    },
+    "PRIOR_CANDIDATE_NAME": {
+      "required": true,
+      "type": "text"
+    },
+    "PRIOR_CANDIDATE_PID": {
+      "required": true,
+      "type": "uint"
+    },
+    "PRIOR_CANDIDATE_START_TICKS": {
+      "required": true,
+      "type": "uint"
+    },
+    "PRIOR_INVOKE": {
+      "required": true,
+      "type": "text"
+    },
+    "PRIOR_LAUNCH_MAIN_INTENT_SHA256": {
+      "required": true,
+      "type": "sha256"
+    },
+    "PRIOR_LAUNCH_MAIN_RESULT_SHA256": {
+      "required": true,
+      "type": "sha256"
+    },
+    "PRIOR_RECEIPT_SHA256": {
+      "required": true,
+      "type": "sha256"
+    },
+    "PUBLIC_HOST": {
+      "required": true,
+      "type": "text"
+    },
+    "RELEASE_DEVICE": {
+      "required": true,
+      "type": "uint"
+    },
+    "RELEASE_INODE": {
+      "required": true,
+      "type": "uint"
+    },
+    "RELEASE_PARENT": {
+      "required": true,
+      "type": "text"
+    },
+    "RELEASE_ROOT": {
+      "required": true,
+      "type": "text"
+    },
+    "SERVICE_DIRECTORY": {
+      "required": true,
+      "type": "text"
+    },
+    "SERVICE_DIRECTORY_METADATA": {
+      "required": true,
+      "type": "metadata_tuple"
+    }
+  },
+  "schemaVersion": 1
+}

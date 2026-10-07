@@ -1,0 +1,101 @@
+{
+  "schemaVersion": 1,
+  "purpose": "Recoverable source-only template backup; sole writer publishes exactly this allowlist",
+  "controllerTemplates": 8,
+  "requiredPredecessorHelperTemplates": 1,
+  "requiredPureJavaScriptHelpers": 1,
+  "realDeploymentBindingsIncluded": false,
+  "runtimeBodiesOrReceiptsIncluded": false,
+  "files": [
+    {
+      "path": ".gitignore",
+      "bytes": 126,
+      "sha256": "6064b96f7a02b3df204e028437f719bd9f566ffdcdf78fafdeb01c5d7adc2804"
+    },
+    {
+      "path": "README.md",
+      "bytes": 4368,
+      "sha256": "ec1571a86d8d26cfc36e6b2590dd09319435b3da54907c66e7eb6660498794d7"
+    },
+    {
+      "path": "VALIDATION.json",
+      "bytes": 494,
+      "sha256": "08af3d6f2aef16362f3b9ecf36a51b84058cd6b245856cdacea70b463b190f56"
+    },
+    {
+      "path": "bindings.schema.json",
+      "bytes": 5264,
+      "sha256": "ae3d599d1af150f6a6f0fb9fe8c995b164167ea24604b3749e5a4ea648a07ae6"
+    },
+    {
+      "path": "facet_projection.js",
+      "bytes": 1537,
+      "sha256": "7d16ed6c5d16a4b5305d136ca584f915af05a126032e71001e6be2bf1be4e097"
+    },
+    {
+      "path": "recipe.json",
+      "bytes": 3767,
+      "sha256": "d14a4730488cf702e1e75b58032a1ca0f4e0fb063a021cf9c39d2c5849ab4599"
+    },
+    {
+      "path": "render.py",
+      "bytes": 4775,
+      "sha256": "eb032771eab1f1f70c1280c551db0a58017a896677386e845cae1810a27e0de4"
+    },
+    {
+      "path": "synthetic.bindings.json",
+      "bytes": 4675,
+      "sha256": "beb502dcd3e7379d630f025abc8109956f29d9279878396b7167926bcfe44ca0"
+    },
+    {
+      "path": "templates/accept_controller.py.in",
+      "bytes": 16611,
+      "sha256": "1d49aa2f819bfc3dd71f9f685b86a2621f0521cd070a50c0d8bd986b6f9bb237"
+    },
+    {
+      "path": "templates/attempt_state.py.in",
+      "bytes": 6770,
+      "sha256": "00775f9a162e67af697946b5e52ea16558ebfb8abca33600d6bc0afd964df32c"
+    },
+    {
+      "path": "templates/http_accept_refresh.py.in",
+      "bytes": 50602,
+      "sha256": "5e1e8759a1034b89b79f8e2bb47b6e9b2fdfe0f56e7e943ad8fef0e08265fe2f"
+    },
+    {
+      "path": "templates/persist_verified_roles.py.in",
+      "bytes": 6321,
+      "sha256": "0c17c70674aeec54269679cd87bd262412ad2a692c5a851dbc7877ca43ee3e5b"
+    },
+    {
+      "path": "templates/predecessor_roll_roles.py.in",
+      "bytes": 25191,
+      "sha256": "87852900222f28abf48ae176e8e716bc053cdc4301d620c82bdabd38e64fa50e"
+    },
+    {
+      "path": "templates/restore_failed_main.py.in",
+      "bytes": 9783,
+      "sha256": "ebbb44dcf779e93850536f04a3fcc5eb4c79756434af967814abc1b7277b1686"
+    },
+    {
+      "path": "templates/roll_fallback_r3.py.in",
+      "bytes": 15376,
+      "sha256": "d53c8219a1209a02f7ff64e45469364706fd916d92185af9bd1bdc813e578e0d"
+    },
+    {
+      "path": "templates/roll_roles.py.in",
+      "bytes": 26092,
+      "sha256": "b526bd46bf9e81ac57fbc66141580f2bd096f1e2b32250cc410740bc23a692bb"
+    },
+    {
+      "path": "templates/switch_traffic_r2.py.in",
+      "bytes": 11586,
+      "sha256": "5828db78038b9ef7c8482a57220a9b2442cdd8db77677ad6dc2667873370bfd0"
+    },
+    {
+      "path": "test_synthetic.py",
+      "bytes": 15294,
+      "sha256": "90b077c8d9c46c43a450d807e8f42d0abaa92ee399e8e54f5d385459f4d4e558"
+    }
+  ]
+}

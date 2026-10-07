@@ -1,0 +1,65 @@
+raise RuntimeError("UNBOUND_SOURCE_TEMPLATE: render with explicit local bindings before use")
+import pathlib,hashlib,stat,importlib.util
+_r=pathlib.Path('__BIND_RELEASE_ROOT__')
+if (_r.stat().st_dev,_r.stat().st_ino)!=(__BIND_RELEASE_DEVICE__,__BIND_RELEASE_INODE__):raise RuntimeError('RELEASE_SEAL_CHANGED')
+for _d in [_r]+list(_r.parents):
+ _s=_d.lstat()
+ if not stat.S_ISDIR(_s.st_mode) or _s.st_uid!=0 or _s.st_mode&0o022:raise RuntimeError('HELPER_DIRECTORY_CHANGED')
+_p=_r/'__FILE_ROLL_FALLBACK__';_s=_p.lstat()
+if not stat.S_ISREG(_s.st_mode) or _s.st_uid!=0 or _s.st_mode&0o022 or hashlib.sha256(_p.read_bytes()).hexdigest()!='__SHA_ROLL_FALLBACK__':raise RuntimeError('FIXED_HELPER_HASH')
+_spec=importlib.util.spec_from_file_location('fixed_a02_fallback',str(_p));M=importlib.util.module_from_spec(_spec);_spec.loader.exec_module(M)
+import pathlib,hashlib,json,os,stat,subprocess,datetime,re,time
+H=M.H
+R=H.ROOT
+STATE=H.STATE
+def save(name,value):
+ fd=os.open(str(STATE/name),os.O_WRONLY|os.O_CREAT|os.O_EXCL|os.O_NOFOLLOW,0o600)
+ with os.fdopen(fd,'w') as f:json.dump(value,f,separators=(',',':'));f.flush();os.fsync(f.fileno())
+def validate():
+ anchor=M.guard();main=H.find(H.NEW_MAIN);fallback=H.find(M.NEW_FALLBACK);bindings={}
+ for row,spec in [(main,H.NEW_MAIN),(fallback,M.NEW_FALLBACK)]:
+  pid=row['pid'];token=H.process_token(pid)
+  H.require(row['pm2_env'].get('restart_time')==0 and token is not None and H.owns_listener(pid,spec['port']),'LIVE_ROLE_CHANGED');H.health(spec['port'])
+  bindings[spec['name']]={'pid':pid,'startTicks':token,'port':spec['port'],'cwd':spec['cwd'],'restarts':0}
+ H.find(H.OLD_MAIN,'stopped');H.find(H.OLD_BACKUP,'stopped')
+ H.require(not M.process_set(H.OLD_MAIN) and not M.process_set(H.OLD_BACKUP),'OLD_ROLE_PROCESS_REMAINS')
+ qualified,_=M.read_state('runtime-qualified.json');identities={v['role']:v['result']['identity'] for v in qualified['identities']}
+ for name,role,phase in [('accept-main-final.json','web-main','main-final'),('accept-fallback-final.json','compatible-fallback','fallback-final')]:
+  path=STATE/name;meta=path.lstat();H.require(0<=time.time()-meta.st_mtime<=600,'FINAL_ACCEPTANCE_STALE')
+  value,_=M.read_state(name)
+  H.require(value.get('status')=='PASS' and value.get('role')==role and value.get('phase')==phase and value.get('helperExitCode')==0,'HTTP_ACCEPTANCE_MISSING')
+  H.require(value['business_projection_differences']['count']==0 and value['source_status_and_original_times_differences']['count']==0 and all(v['equal'] for v in value['cross_reader_identities'].values()),'HTTP_DATA_MISMATCH')
+  H.require(value['processBindings']==bindings and value['nginxSha256']==anchor['nginxSha256'] and value['runtimeIdentities']==identities,'FINAL_ACCEPTANCE_BINDING')
+  H.require(value['assets']['file_count']==value['comparator_assets']['file_count']==171,'FINAL_STATIC_COVERAGE')
+  retained=value['retainedAssets'];H.require(len(retained)==2 and {v['name'] for v in retained}==set(bindings) and all(v['totalStaticFiles']==171+v['retainedExtraCount']==171+len(v['extraFiles']) for v in retained),'FINAL_RETAINED_STATIC_COVERAGE')
+ active=[x for x in H.rows() if str(x['pm2_env'].get('pm_cwd','')).startswith('__BIND_RELEASE_PARENT__') and x['pm2_env'].get('status')=='online']
+ H.require(set(x['name'] for x in active)=={H.NEW_MAIN['name'],M.NEW_FALLBACK['name']},'OTHER_ACTIVE_CANDIDATE')
+ H.require(H.memory()>=196608,'RUNNING_MEMORY_FLOOR')
+ return main,fallback,bindings
+def main():
+ main,fallback,bindings=validate();dump=pathlib.Path('__BIND_PM2_DUMP_FILE__');before=None
+ H.require(not dump.is_symlink(),'PM2_DUMP_SYMLINK')
+ if dump.exists():
+  s=dump.lstat();H.require(stat.S_ISREG(s.st_mode) and s.st_uid==0,'PM2_DUMP_TYPE_OWNER');raw=dump.read_bytes();before=H.sha(raw)
+  fd=os.open(str(STATE/'pm2-dump-before-persist.private.json'),os.O_WRONLY|os.O_CREAT|os.O_EXCL|os.O_NOFOLLOW,0o600)
+  with os.fdopen(fd,'wb') as f:f.write(raw);f.flush();os.fsync(f.fileno())
+ save('pm2-persist-intent.json',{'at':datetime.datetime.now(datetime.timezone.utc).isoformat(),'oldDumpSha256':before,'bindings':bindings})
+ p=subprocess.run(['pm2','save'],env=H.ENV,stdout=subprocess.PIPE,stderr=subprocess.PIPE,timeout=25)
+ raw=dump.read_bytes();entries=json.loads(raw);summary=[]
+ for expected,status in [(H.NEW_MAIN,'online'),(M.NEW_FALLBACK,'online'),(H.OLD_MAIN,'stopped'),(H.OLD_BACKUP,'stopped')]:
+  selected=[x for x in entries if x.get('name')==expected['name']];H.require(len(selected)==1,'DUMP_ROLE_COUNT');x=selected[0]
+  H.require(x.get('status')==status and x.get('pm_cwd')==expected['cwd'] and str(x.get('PORT'))==str(expected['port']) and x.get('args')==H.ARGS,'DUMP_ROLE_BINDING')
+  H.require(x.get('pm_exec_path')==H.NODE and x.get('HOST')=='127.0.0.1' and x.get('JOBFINDER_PUBLICATION_POLICY')==H.POLICY and x.get('NODE_OPTIONS')=='--max-old-space-size='+str(expected['heap']),'DUMP_RUNTIME_CONTRACT')
+  summary.append({'name':expected['name'],'status':status,'cwd':expected['cwd'],'port':expected['port']})
+ main,fallback,after=validate();H.require(after==bindings,'ROLES_CHANGED_DURING_PM2_SAVE')
+ memory={}
+ for row in (main,fallback):
+  data=pathlib.Path('/proc',str(row['pid']),'status').read_text();memory[row['name']]={'pid':row['pid'],**{k:int(v) for k,v in re.findall(r'^(VmRSS|VmHWM|VmSwap):\s+(\d+) kB$',data,re.M)}}
+ before_start={}
+ for name in ['launch-main-old-backup-stopped.json','launch-fallback-old-main-stopped.json']:
+  value,_=M.read_state(name);before_start[name]=value.get('availableKiB');H.require(before_start[name]>=614400,'RECORDED_START_MEMORY_GATE')
+ result={'status':'PAIRED_REFRESH_DIAGNOSTICS_DEPLOYMENT_PERSISTED','at':datetime.datetime.now(datetime.timezone.utc).isoformat(),'dumpSha256':H.sha(raw),'dumpBytes':len(raw),'saveCliExitCode':p.returncode,'saveStderrSha256':H.sha(p.stderr),'roles':summary,'nginxSha256':H.sha(H.CONF.read_bytes()),'availableKiB':H.memory(),'beforeStartAvailableKiB':before_start,'processMemoryKiBSnapshot':memory,'oldUnknownResolved':False,'sourceOrDatabaseMutationByThisWorkflow':False,'speedImprovementClaimed':False}
+ save('pm2-persist-result.json',result);H.emit(result)
+if __name__=='__main__':
+ try:main()
+ except Exception as e:H.emit({'status':'PERSIST_READBACK_REQUIRED','reason':str(e) if isinstance(e,RuntimeError) else type(e).__name__});raise SystemExit(1)

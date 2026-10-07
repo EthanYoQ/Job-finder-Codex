@@ -1,0 +1,148 @@
+raise RuntimeError("UNBOUND_SOURCE_TEMPLATE: render with explicit local bindings before use")
+import pathlib,hashlib,stat,importlib.util
+_r=pathlib.Path('__BIND_RELEASE_ROOT__')
+if (_r.stat().st_dev,_r.stat().st_ino)!=(__BIND_RELEASE_DEVICE__,__BIND_RELEASE_INODE__):raise RuntimeError('RELEASE_SEAL_CHANGED')
+for _d in [_r]+list(_r.parents):
+ _s=_d.lstat()
+ if not stat.S_ISDIR(_s.st_mode) or _s.st_uid!=0 or _s.st_mode&0o022:raise RuntimeError('HELPER_DIRECTORY_CHANGED')
+_p=_r/'__FILE_ROLL_ROLES__';_s=_p.lstat()
+if not stat.S_ISREG(_s.st_mode) or _s.st_uid!=0 or _s.st_mode&0o022 or hashlib.sha256(_p.read_bytes()).hexdigest()!='__SHA_ROLL_ROLES__':raise RuntimeError('FIXED_HELPER_HASH')
+_spec=importlib.util.spec_from_file_location('fixed_a02_roll',str(_p));H=importlib.util.module_from_spec(_spec);_spec.loader.exec_module(H)
+import json,os,pathlib,stat,time,urllib.request,hashlib
+R=H.ROOT
+STATE=H.STATE
+
+def store(name,v):
+ p=STATE/(('cutover-' if name=='result' else 'cutover-r2-')+name+'.json');fd=os.open(str(p),os.O_WRONLY|os.O_CREAT|os.O_EXCL|os.O_NOFOLLOW,0o600)
+ with os.fdopen(fd,'w') as f:json.dump(v,f,separators=(',',':'));f.flush();os.fsync(f.fileno())
+def processes():
+ masters={};workers={}
+ for p in pathlib.Path('/proc').iterdir():
+  if not p.name.isdigit():continue
+  try:
+   cmd=(p/'cmdline').read_bytes();token=H.process_token(int(p.name))
+   if cmd.startswith(b'nginx: master process'):masters[int(p.name)]=token
+   elif cmd.startswith(b'nginx: worker process'):workers[int(p.name)]=token
+  except OSError:pass
+ H.require(len(masters)==1 and workers,'NGINX_PROCESS_LAYOUT')
+ return masters,workers
+
+def write_config(expected,content,label):
+ H.require(not H.CONF.is_symlink() and H.sha(H.CONF.read_bytes())==expected,'CONFIG_CHANGED')
+ s=H.CONF.stat();H.require(s.st_uid==0 and stat.S_ISREG(s.st_mode),'CONFIG_OWNER_TYPE')
+ tmp=H.CONF.with_name(H.CONF.name+'__BIND_NGINX_TEMP_LABEL__'+label)
+ fd=os.open(str(tmp),os.O_WRONLY|os.O_CREAT|os.O_EXCL|os.O_NOFOLLOW,stat.S_IMODE(s.st_mode))
+ with os.fdopen(fd,'wb') as f:
+  f.write(content);f.flush();os.fchmod(f.fileno(),stat.S_IMODE(s.st_mode));os.fchown(f.fileno(),s.st_uid,s.st_gid);os.fsync(f.fileno())
+ H.require(H.sha(H.CONF.read_bytes())==expected,'CONFIG_CHANGED_BEFORE_REPLACE')
+ os.replace(str(tmp),str(H.CONF))
+ d=os.open(str(H.CONF.parent),os.O_RDONLY|os.O_DIRECTORY)
+ try:os.fsync(d)
+ finally:os.close(d)
+
+def domain_index():
+ return H.run(['curl','--fail','--silent','--show-error','--noproxy','*','--resolve','__BIND_PUBLIC_HOST__:443:127.0.0.1','--connect-timeout','5','--max-time','15','--header','Accept-Encoding: identity','https://__BIND_PUBLIC_HOST__/'],20)
+
+def restore_original_route(candidate_hash,original,old_index_hash,label):
+ # The old role must be identified and healthy independently of the failed candidate.
+ old=H.find(H.OLD_MAIN);old_pid=old['pid'];old_token=H.process_token(old_pid);old_restarts=old['pm2_env'].get('restart_time')
+ H.require(old_token is not None and H.owns_listener(old_pid,3031),'ORIGINAL_MAIN_LISTENER')
+ def lock_old():
+  current=H.find(H.OLD_MAIN)
+  H.require(current['pid']==old_pid and H.process_token(old_pid)==old_token and current['pm2_env'].get('restart_time')==old_restarts and H.owns_listener(old_pid,3031),'ORIGINAL_MAIN_CHANGED_DURING_ROUTING')
+ H.health(3031);lock_old()
+ H.require(H.sha(original)==H.CONF_SHA and original.count(b'proxy_pass http://127.0.0.1:3031;')==1,'ORIGINAL_CONFIG_BINDING')
+ H.require(H.sha(original.replace(b'proxy_pass http://127.0.0.1:3031;',b'proxy_pass http://127.0.0.1:3036;'))==candidate_hash,'CANDIDATE_CONFIG_BINDING')
+ actual=H.sha(H.CONF.read_bytes());H.require(not H.CONF.is_symlink() and actual in (candidate_hash,H.CONF_SHA),'CONFIG_EXTERNAL_CHANGE_NO_ROLLBACK')
+ if actual==candidate_hash:write_config(candidate_hash,original,label)
+ H.run(['__BIND_NGINX_BINARY__','-t']);masters,workers=processes();lock_old()
+ reload_error=None
+ try:H.run(['__BIND_NGINX_BINARY__','-s','reload'])
+ except Exception as error:reload_error=type(error).__name__
+ deadline=time.monotonic()+30;fresh={}
+ while time.monotonic()<deadline:
+  lock_old();H.require(H.sha(H.CONF.read_bytes())==H.CONF_SHA,'ORIGINAL_CONFIG_CHANGED_DURING_RELOAD')
+  current_masters,current_workers=processes();H.require(current_masters==masters,'ROLLBACK_NGINX_MASTER_CHANGED')
+  fresh={pid:token for pid,token in current_workers.items() if workers.get(pid)!=token}
+  old_accepting=any(H.process_token(pid)==token and H.owns_listener(pid,443) for pid,token in workers.items())
+  if fresh and any(H.owns_listener(pid,443) for pid in fresh) and not old_accepting:break
+  time.sleep(.5)
+ H.require(fresh and any(H.owns_listener(pid,443) for pid in fresh) and not old_accepting,'ROLLBACK_NGINX_RELOAD_BARRIER')
+ # Losing the listening socket does not mean existing upstream requests finished.
+ # Never allow a caller to stop candidate3036 before every old worker exits.
+ drain_deadline=time.monotonic()+60
+ while any(H.process_token(pid)==token for pid,token in workers.items()) and time.monotonic()<drain_deadline:
+  lock_old();H.require(H.sha(H.CONF.read_bytes())==H.CONF_SHA,'ORIGINAL_CONFIG_CHANGED_DURING_DRAIN');time.sleep(.5)
+ H.require(all(H.process_token(pid)!=token for pid,token in workers.items()),'ROLLBACK_NGINX_WORKERS_NOT_DRAINED')
+ current_masters,current_workers=processes();H.require(current_masters==masters and any(H.owns_listener(pid,443) for pid in current_workers),'ROLLBACK_NGINX_CHANGED_DURING_DRAIN')
+ lock_old();H.health(3031);H.require(H.sha(H.CONF.read_bytes())==H.CONF_SHA,'ORIGINAL_CONFIG_CHANGED_AFTER_DRAIN')
+ H.require(H.sha(domain_index())==old_index_hash,'ORIGINAL_DOMAIN_INDEX_NOT_VERIFIED');lock_old()
+ return {'state':'ORIGINAL_ROUTE_VERIFIED_AND_WORKERS_DRAINED','port':3031,'nginxSha256':H.CONF_SHA,'oldMainPid':old_pid,'oldMainStartTicks':old_token,'previousWorkers':workers,'newWorkers':fresh,'reloadCommandException':reload_error}
+
+def main():
+ H.fixed_guard()
+ H.require(pathlib.Path('__BIND_NGINX_BINARY__').is_file() and os.access('__BIND_NGINX_BINARY__',os.X_OK),'NGINX_BINARY_UNAVAILABLE')
+ H.run(['__BIND_NGINX_BINARY__','-t'])
+ accept_path=STATE/'accept-main.json';s=accept_path.lstat()
+ H.require(stat.S_ISREG(s.st_mode) and s.st_uid==0 and 0<=time.time()-s.st_mtime<=300,'ACCEPTANCE_MISSING_OR_STALE')
+ accept=json.loads(accept_path.read_text())
+ H.require(accept.get('status')=='PASS' and accept.get('role')=='web-main' and accept.get('helperExitCode')==0 and accept.get('phase')=='main-precut','MAIN_NOT_ACCEPTED')
+ H.require(accept['assets']['target_commit']=='__BIND_CANDIDATE_WEB_MAIN_COMMIT_SHA__' and H.main_pre_cut_contract_valid(accept),'ACCEPTANCE_BINDING')
+ new=H.find(H.NEW_MAIN);old=H.find(H.OLD_MAIN)
+ launch=json.loads((STATE/'launch-main-result.json').read_text());H.require(launch['pid']==new['pid'],'NEW_PID_NOT_LAUNCHED_ROLE')
+ new_token=H.process_token(new['pid'])
+ def lock_new():
+  current=H.find(H.NEW_MAIN)
+  H.require(current['pid']==new['pid'] and new_token is not None and H.process_token(new['pid'])==new_token and current['pm2_env'].get('restart_time')==0 and H.owns_listener(new['pid'],3036),'NEW_MAIN_CHANGED_OR_RESTARTED')
+ lock_new()
+ old_index=(pathlib.Path(H.OLD_MAIN['cwd'])/'dist/index.html').read_bytes();old_index_hash=H.sha(old_index)
+ H.require(H.owns_listener(new['pid'],3036) and H.owns_listener(old['pid'],3031),'ROLE_LISTENERS')
+ H.health(3036);H.health(3031);lock_new();H.require(H.memory()>=196608,'MEMORY_FLOOR')
+ original=H.CONF.read_bytes();needle=b'proxy_pass http://127.0.0.1:3031;'
+ H.require(original.count(needle)==1,'EXACT_UPSTREAM_NOT_UNIQUE')
+ candidate=original.replace(needle,b'proxy_pass http://127.0.0.1:3036;');candidate_hash=H.sha(candidate)
+ masters,workers=processes()
+ backup=STATE/'nginx-original-r2.conf'
+ fd=os.open(str(backup),os.O_WRONLY|os.O_CREAT|os.O_EXCL|os.O_NOFOLLOW,0o600)
+ with os.fdopen(fd,'wb') as f:f.write(original);f.flush();os.fsync(f.fileno())
+ store('intent',{'at':time.time(),'originalSha256':H.CONF_SHA,'candidateSha256':candidate_hash,'newMainPid':new['pid'],'oldMainPid':old['pid'],'masters':masters,'oldWorkers':workers,'acceptanceSha256':H.sha(accept_path.read_bytes())})
+ try:
+  write_config(H.CONF_SHA,candidate,'forward')
+  H.run(['__BIND_NGINX_BINARY__','-t']);store('config-validated',{'sha256':candidate_hash})
+  store('reload-intent',{'at':time.time()});H.run(['__BIND_NGINX_BINARY__','-s','reload'])
+  deadline=time.monotonic()+30;fresh={}
+  while time.monotonic()<deadline:
+   current_master,current_workers=processes();H.require(current_master==masters,'NGINX_MASTER_CHANGED')
+   fresh={pid:token for pid,token in current_workers.items() if workers.get(pid)!=token}
+   old_accepting=any(H.process_token(pid)==token and H.owns_listener(pid,443) for pid,token in workers.items())
+   if fresh and any(H.owns_listener(pid,443) for pid in fresh) and not old_accepting:break
+   time.sleep(.25)
+  H.require(fresh and any(H.owns_listener(pid,443) for pid in fresh) and not old_accepting,'NGINX_RELOAD_BARRIER')
+  drain_deadline=time.monotonic()+60
+  while any(H.process_token(pid)==token for pid,token in workers.items()) and time.monotonic()<drain_deadline:lock_new();time.sleep(.5)
+  H.require(all(H.process_token(pid)!=token for pid,token in workers.items()),'OLD_NGINX_WORKERS_NOT_DRAINED')
+  H.require(H.sha(H.CONF.read_bytes())==candidate_hash,'CONFIG_CHANGED_AFTER_RELOAD');lock_new();H.find(H.OLD_MAIN)
+  # HTTPS local virtual-host read verifies the actual domain route and new index bytes.
+  expected=next(x for x in accept['assets']['files'] if x['path']=='dist/index.html')
+  body=domain_index();lock_new()
+  H.require(H.sha(body)==expected['sha256'] and len(body)==expected['bytes'],'DOMAIN_NEW_INDEX_MISMATCH')
+  H.require(H.memory()>=196608,'MEMORY_AFTER_CUTOVER')
+  result={'status':'TRAFFIC_ON_NEW_MAIN','port':3036,'nginxSha256':candidate_hash,'mainPid':new['pid'],'newWorkers':fresh,'oldWorkers':workers,'oldMainStillOnline':True,'availableKiB':H.memory(),'domainIndexSha256':H.sha(body)}
+  store('result',result);H.emit(result)
+ except Exception as error:
+  rollback={'state':'not-attempted'}
+  try:
+   route_recovery=restore_original_route(candidate_hash,original,old_index_hash,'rollback')
+   intent_path=STATE/'launch-main-intent.json';meta=intent_path.lstat();H.require(stat.S_ISREG(meta.st_mode) and meta.st_uid==0 and not meta.st_mode&0o022,'LAUNCH_INTENT_TYPE_OWNER')
+   main_intent=json.loads(intent_path.read_text());H.require(main_intent.get('newName')==H.NEW_MAIN['name'] and main_intent.get('nginxSha256')==H.CONF_SHA,'LAUNCH_INTENT_BINDING')
+   protected=H.find(H.OLD_MAIN);anchor={'mainPid':protected['pid'],'mainStartTicks':H.process_token(protected['pid']),'mainRestarts':protected['pm2_env'].get('restart_time')}
+   H.lock_old_main(anchor,True);role_recovery=H.rollback(anchor,main_intent['oldBackupPid'],main_intent['oldBackupStartTicks'],True)
+   rollback={'state':'ORIGINAL_CONFIGURATION_AND_DOMAIN_VERIFIED','sha256':H.CONF_SHA,'domainIndexSha256':old_index_hash,'originalBackupRecovery':role_recovery,'routeRecovery':route_recovery}
+  except Exception as e:rollback={'state':'READBACK_REQUIRED','reason':str(e) if isinstance(e,RuntimeError) else type(e).__name__}
+  value={'status':'CUTOVER_STOPPED','reason':str(error) if isinstance(error,RuntimeError) else type(error).__name__,'rollback':rollback}
+  store('failed',value);H.emit(value);raise SystemExit(1)
+
+if __name__=='__main__':
+ try:main()
+ except Exception as error:
+  H.emit({'status':'CUTOVER_REFUSED','reason':str(error) if isinstance(error,RuntimeError) else type(error).__name__});raise SystemExit(1)

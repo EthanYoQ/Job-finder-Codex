@@ -1,0 +1,883 @@
+raise RuntimeError("UNBOUND_SOURCE_TEMPLATE: render with explicit local bindings before use")
+#!/usr/bin/env python3
+"""Python 3.6+, fixed-phase bounded GET-only HTTP acceptance. Import has no I/O.
+
+Covers complete public coverage/search pagination and all 171 known dist files
+per reader. Runtime identity, retained extra assets and routing are external gates.
+"""
+import argparse
+import copy
+from datetime import datetime
+import hashlib
+import json
+import re
+import os
+import stat
+import subprocess
+from html.parser import HTMLParser
+import time
+from urllib.error import HTTPError
+from urllib.parse import urlencode, urlsplit
+from urllib.request import Request, ProxyHandler, HTTPRedirectHandler, build_opener
+# BEGIN EMBEDDED RECEIPT GUARD
+"""Pure, fail-closed acceptance receipt guard. Import and calls have no I/O."""
+
+EXPECTATION_SHA256 = '__BIND_EXPECTATION_SHA256__'
+FACET_EXPECTATION_SHA256 = '__BIND_FACET_EXPECTATION_SHA256__'
+CONTRACT = 'ASTRA_181_READER_RECOVERY_V1'
+STRICT_CONTRACT = 'STRICT_GLOBAL_EQUALITY_V1'
+COMPANY_ID = 'company-astrazeneca'
+CHECK_FLAGS = (
+    'fullCompanyHashMatched', 'coverageHashMatched', 'jobIdsHashMatched',
+    'sourceAndObservationFieldsMatched', 'otherCompanyProjectionEqual',
+    'otherCompanyStatusAndTimesEqual', 'otherMetadataEqual',
+    'facetsExactlyRecomputed', 'summaryExactlyRecomputed',
+    'bothReadersDoubleCaptureStable',
+)
+CHECK_NUMBERS = (
+    'oldAstraJobCount', 'newAstraJobCount', 'jobCountDelta',
+    'oldTotalJobs', 'newTotalJobs',
+    'publishingCompanyCountDelta', 'degradedCompanyCountDelta',
+)
+CONTRACT_KEYS = frozenset((
+    'schemaVersion', 'name', 'phase', 'expectationSha256', 'facetExpectationSha256', 'companyId',
+    'expectedChangeChecks', 'unexpectedBusinessDifferences',
+    'unexpectedStatusDifferences', 'rawBusinessDifferenceCount',
+    'rawStatusDifferenceCount',
+))
+
+
+def _integer(value):
+    return type(value) is int
+
+
+def _zero_difference(value):
+    return (isinstance(value, dict) and set(value) == {'count', 'fields'}
+            and _integer(value['count']) and value['count'] == 0
+            and value['fields'] == [])
+
+
+def _raw_difference(value, count):
+    if not (isinstance(value, dict) and set(value) == {'count', 'fields'}
+            and _integer(value['count']) and value['count'] == count
+            and isinstance(value['fields'], list) and len(value['fields']) == min(count, 200)):
+        return False
+    for field in value['fields']:
+        if not isinstance(field, dict) or not isinstance(field.get('path'), str) or not field['path'].startswith('$'):
+            return False
+        if set(field) == {'path', 'change'}:
+            if field['change'] not in ('added', 'removed'):
+                return False
+        elif set(field) == {'path', 'old_sha256', 'new_sha256'}:
+            for name in ('old_sha256', 'new_sha256'):
+                if not (isinstance(field[name], str) and len(field[name]) == 64
+                        and all(char in '0123456789abcdef' for char in field[name])):
+                    return False
+        else:
+            return False
+    return True
+
+
+def main_pre_cut_contract_valid(receipt):
+    """Validate structure and checked invariants, not receipt authenticity.
+
+    The controller must separately bind the receipt to its pinned helper,
+    runtime identity, invocation, assets and captured receipt bytes.
+    """
+    try:
+        if not isinstance(receipt, dict):
+            return False
+        if (receipt.get('status') != 'PASS' or receipt.get('phase') != 'main-precut'
+                or receipt.get('role') != 'web-main'
+                or type(receipt.get('helperExitCode')) is not int
+                or receipt['helperExitCode'] != 0):
+            return False
+        contract = receipt['acceptanceContract']
+        if not isinstance(contract, dict) or set(contract) != CONTRACT_KEYS:
+            return False
+        if (type(contract['schemaVersion']) is not int or contract['schemaVersion'] != 1
+                or contract['name'] != CONTRACT or contract['phase'] != 'main-precut'
+                or contract['expectationSha256'] != EXPECTATION_SHA256
+                or contract['facetExpectationSha256'] != FACET_EXPECTATION_SHA256
+                or contract['companyId'] != COMPANY_ID):
+            return False
+        checks = contract['expectedChangeChecks']
+        if not isinstance(checks, dict) or set(checks) != set(CHECK_FLAGS + CHECK_NUMBERS):
+            return False
+        if not all(checks[name] is True for name in CHECK_FLAGS):
+            return False
+        if not all(_integer(checks[name]) for name in CHECK_NUMBERS):
+            return False
+        if (checks['oldAstraJobCount'] != 0 or checks['newAstraJobCount'] != 181
+                or checks['jobCountDelta'] != 181
+                or checks['oldTotalJobs'] < 0
+                or checks['newTotalJobs'] != checks['oldTotalJobs'] + 181
+                or checks['publishingCompanyCountDelta'] != 1
+                or checks['degradedCompanyCountDelta'] != -1):
+            return False
+        if not _zero_difference(contract['unexpectedBusinessDifferences']):
+            return False
+        if not _zero_difference(contract['unexpectedStatusDifferences']):
+            return False
+        for count_key, raw_key in (
+                ('rawBusinessDifferenceCount', 'business_projection_differences'),
+                ('rawStatusDifferenceCount', 'source_status_and_original_times_differences')):
+            count = contract[count_key]
+            if not _integer(count) or count <= 0 or not _raw_difference(receipt[raw_key], count):
+                return False
+        for label, count in (('old', checks['oldTotalJobs']), ('new', checks['newTotalJobs'])):
+            if type(receipt[label]['jobs']) is not int or receipt[label]['jobs'] != count:
+                return False
+        identities = receipt['cross_reader_identities']
+        if not isinstance(identities, dict) or set(identities) != {'displayDataVersion', 'statusVersion'}:
+            return False
+        for value in identities.values():
+            if (not isinstance(value, dict) or set(value) != {'comparable', 'equal'}
+                    or value['comparable'] is not True or value['equal'] is not False):
+                return False
+        stability = receipt['doubleCaptureStability']
+        if not isinstance(stability, dict) or set(stability) != {'old', 'new'}:
+            return False
+        for value in stability.values():
+            if (not isinstance(value, dict)
+                    or set(value) != {'businessProjectionDifferences', 'sourceStatusDifferences', 'identitiesEqual'}
+                    or not _zero_difference(value['businessProjectionDifferences'])
+                    or not _zero_difference(value['sourceStatusDifferences'])
+                    or value['identitiesEqual'] is not True):
+                return False
+        return True
+    except (KeyError, TypeError, ValueError):
+        return False
+
+# END EMBEDDED RECEIPT GUARD
+
+LIMIT = 50
+MAX_WINDOW = 500
+MAX_BYTES = 32 * 1024 * 1024
+MAX_TOTAL_BYTES = 128 * 1024 * 1024
+MAX_REQUESTS = 256
+TOTAL_SECONDS = 450
+PHASES = {
+    "main-precut": ("web-main", "web-main", 3031, 3036, "accept-main.json"),
+    "fallback-precut": ("web-main", "compatible-fallback", 3036, 3031, "accept-fallback.json"),
+    "main-final": ("compatible-fallback", "web-main", 3031, 3036, "accept-main-final.json"),
+    "fallback-final": ("web-main", "compatible-fallback", 3036, 3031, "accept-fallback-final.json"),
+}
+IDENTITIES = ('version', 'displayDataVersion', 'statusVersion', 'verificationVersion')
+SEARCH = {'city': '\u5168\u90e8\u57ce\u5e02', 'province': '\u5168\u90e8\u5730\u533a', 'sort': 'COMPANY_PINYIN_ASC'}
+SHA = re.compile(r'^[0-9a-f]{64}$')
+TOKEN = re.compile(r'^[1-9]\d*\.\d+\.[A-Za-z0-9_-]{43}$')
+ASSET_MANIFEST_SHA256 = '__BIND_ASSET_MANIFEST_SHA256__'
+TARGET_COMMITS = {'web-main': '__BIND_CANDIDATE_WEB_MAIN_COMMIT_SHA__',
+                  'compatible-fallback': '__BIND_CANDIDATE_COMPATIBLE_FALLBACK_COMMIT_SHA__'}
+FACET_PROJECTION_SHA256 = '__SHA_FACET__'
+NODE_BINARY = '__BIND_NODE_BINARY__'
+
+def canonical(value):
+    return json.dumps(value, ensure_ascii=False, sort_keys=True, separators=(',', ':'), allow_nan=False).encode('utf-8')
+
+def digest(value):
+    return hashlib.sha256(canonical(value)).hexdigest()
+
+def require(condition, field):
+    if not condition:
+        raise ValueError('CONTRACT_FAILED:' + field)
+
+def loopback_base(value):
+    parsed = urlsplit(value)
+    require(parsed.scheme == 'http' and parsed.hostname in ('127.0.0.1', 'localhost', '::1'), 'loopback_http_base')
+    require(parsed.username is None and parsed.password is None and not parsed.query and not parsed.fragment and parsed.path in ('', '/'), 'base_has_no_credentials_or_suffix')
+    require(parsed.port is not None and 1024 <= parsed.port <= 65535, 'explicit_local_port')
+    return value.rstrip('/')
+
+class NoRedirect(HTTPRedirectHandler):
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
+        return None
+
+class HttpReader:
+    def __init__(self, base, timeout, deadline=None):
+        self.base = loopback_base(base)
+        self.timeout = timeout
+        self.opener = build_opener(ProxyHandler({}), NoRedirect())
+        self.events = []
+        self.total_bytes = 0
+        self.deadline = deadline if deadline is not None else time.monotonic() + TOTAL_SECONDS
+
+    def get(self, path, params=None, token=None):
+        require(path.startswith('/') and not path.startswith('//') and '?' not in path and '#' not in path, 'request_path')
+        require(len(self.events) < MAX_REQUESTS, 'bounded_request_count')
+        remaining = self.deadline - time.monotonic()
+        require(remaining > 0, 'acceptance_wall_clock_budget')
+        query = '?' + urlencode(params) if params else ''
+        headers = {'Accept-Encoding': 'identity', 'User-Agent': 'jobfinder-local-acceptance/1'}
+        if path.startswith('/api/'):
+            headers['x-job-search-consent'] = 'accepted'
+        if token is not None:
+            require(TOKEN.match(token) is not None and len(token) <= 96, 'check_token_shape')
+            headers['x-job-snapshot-check'] = token
+        request = Request(self.base + path + query, headers=headers, method='GET')
+        start = time.monotonic()
+        try:
+            with self.opener.open(request, timeout=min(self.timeout, remaining)) as response:
+                data = response.read(MAX_BYTES + 1)
+                require(len(data) <= MAX_BYTES, 'response_size_cap')
+                require(response.headers.get('Content-Encoding', 'identity') in ('identity', ''), 'identity_encoding')
+                status = response.status
+                self.total_bytes += len(data)
+                require(self.total_bytes <= MAX_TOTAL_BYTES, 'reader_total_byte_budget')
+        except HTTPError as error:
+            status = error.code
+            error.close()
+            self.events.append({'path': path, 'offset': (params or {}).get('offset'), 'status': status, 'check_sent': token is not None})
+            raise ValueError('HTTP_STATUS:' + path + ':' + str(status))
+        elapsed = time.monotonic() - start
+        self.events.append({'path': path, 'offset': (params or {}).get('offset'), 'status': status, 'bytes': len(data), 'body_sha256': hashlib.sha256(data).hexdigest(), 'check_sent': token is not None, 'elapsed_ms': round(elapsed * 1000, 1)})
+        require(elapsed <= self.timeout, path + '.completed_request_exceeded_timeout')
+        require(time.monotonic() <= self.deadline, 'acceptance_wall_clock_budget')
+        require(status == 200, path + '.http_status')
+        return data
+
+    def json(self, path, params=None, token=None):
+        body = json.loads(self.get(path, params, token).decode('utf-8'))
+        require(isinstance(body, dict), path + '.object')
+        return body
+
+def refresh(body, label, role=None):
+    value = body.get('snapshotRefresh')
+    require(isinstance(value, dict), label + '.snapshotRefresh')
+    require(value.get('state') in ('CURRENT', 'UPDATING', 'FAILED'), label + '.snapshotRefresh.state')
+    require(isinstance(value.get('version'), str) and SHA.match(value['version']), label + '.snapshotRefresh.version')
+    if role is not None or all(name in value for name in IDENTITIES):
+        for name in IDENTITIES:
+            require(isinstance(value.get(name), str) and SHA.match(value[name]), label + '.snapshotRefresh.' + name)
+        binding = {name: value[name] for name in ('version', 'displayDataVersion', 'statusVersion')}
+        expected = hashlib.sha256(b'portable-snapshot-verification-v1\n' + canonical(binding)).hexdigest()
+        require(value['verificationVersion'] == expected, label + '.verificationVersion_binding')
+        require(isinstance(value.get('verifiedAt'), str) and re.match(r'^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d(?:\.\d+)?Z$', value['verifiedAt']), label + '.verifiedAt')
+    if role == 'compatible-fallback':
+        require('check' not in value, label + '.fallback_check_absent')
+    if 'check' in value:
+        require(isinstance(value['check'], str) and TOKEN.match(value['check']) and len(value['check']) <= 96, label + '.check_shape')
+    return value
+
+def settle(reader, body, role, wait_seconds, sleep=time.sleep):
+    deadline = time.monotonic() + wait_seconds
+    first = refresh(body, 'coverage.initial', role)
+    token = first.get('check')
+    checks = 0
+    acquisition_reads = 0
+    if role == 'web-main' and token is None:
+        if first['state'] == 'UPDATING':
+            raise ValueError('BLOCKED_CHECK_UNAVAILABLE:initial_updating_without_check')
+        if first['state'] == 'CURRENT':
+            if time.monotonic() >= deadline:
+                raise ValueError('BLOCKED_CHECK_UNAVAILABLE:acquisition_budget_exhausted')
+            previous = first
+            # A strict cache refill can legitimately return CURRENT without a
+            # token. One ordinary read may establish the next bounded round.
+            body = reader.json('/api/coverage', {'offset': 0, 'limit': LIMIT})
+            acquisition_reads = 1
+            checks = 1
+            if time.monotonic() > deadline:
+                raise ValueError('BLOCKED_CHECK_UNAVAILABLE:acquisition_budget_exhausted')
+            first = refresh(body, 'coverage.acquire_check', role)
+            if first['version'] == previous['version']:
+                require(all(first.get(key) == previous.get(key) for key in IDENTITIES + ('verifiedAt',)), 'same_snapshot_preserves_identities_and_original_verifiedAt')
+            token = first.get('check')
+            if token is None:
+                raise ValueError('BLOCKED_CHECK_UNAVAILABLE:single_acquisition_returned_no_check')
+            if time.monotonic() > deadline:
+                raise ValueError('BLOCKED_CHECK_UNAVAILABLE:acquisition_budget_exhausted')
+    while first['state'] == 'UPDATING':
+        require(checks < 8 and time.monotonic() < deadline, 'refresh_not_current_within_bound')
+        sleep(min(0.25 * (2 ** checks), 4.0, max(0, deadline - time.monotonic())))
+        require(time.monotonic() < deadline, 'refresh_not_current_within_bound')
+        body = reader.json('/api/coverage', {'offset': 0, 'limit': LIMIT}, token)
+        require(time.monotonic() <= deadline, 'refresh_response_exceeded_deadline')
+        current = refresh(body, 'coverage.check', role)
+        require(current.get('check') == token, 'same_check_token_returned')
+        if current['version'] == first['version']:
+            require(all(current.get(key) == first.get(key) for key in IDENTITIES + ('verifiedAt',)), 'same_snapshot_preserves_identities_and_original_verifiedAt')
+        checks += 1
+        first = current
+    require(first['state'] == 'CURRENT', 'refresh_failed')
+    require(time.monotonic() <= deadline, 'current_return_exceeded_deadline')
+    return body, first, token, checks, acquisition_reads
+
+def stable_refresh(body, anchor, token, label, role):
+    value = refresh(body, label, role)
+    require(value['state'] == 'CURRENT', label + '.not_current')
+    for name in IDENTITIES + ('verifiedAt',):
+        require(value.get(name) == anchor.get(name), label + '.snapshot_changed.' + name)
+    require(value.get('check') == token, label + '.check_changed')
+
+def metadata(body, coverage=False):
+    excluded = {'companies', 'snapshotRefresh', 'generatedAt'}
+    if coverage:
+        excluded.update(('offset', 'limit', 'hasMore'))
+    return {key: value for key, value in body.items() if key not in excluded}
+
+def capture(reader, role=None, wait_seconds=30, sleep=time.sleep):
+    for path in ('/livez', '/readyz'):
+        require(reader.json(path).get('ok') is True, path + '.ok')
+    initial = reader.json('/api/coverage', {'offset': 0, 'limit': LIMIT})
+    body, anchor, token, checks, acquisition_reads = settle(reader, initial, role, wait_seconds, sleep)
+    companies = []
+    coverage_meta = metadata(body, True)
+    offset = 0
+    coverage_pages = 0
+    while True:
+        stable_refresh(body, anchor, token, 'coverage.page.' + str(offset), role)
+        require(metadata(body, True) == coverage_meta, 'coverage.metadata_stable')
+        rows = body.get('companies')
+        require(isinstance(rows, list) and len(rows) <= LIMIT, 'coverage.companies')
+        require(body.get('offset') == offset and body.get('limit') == LIMIT and isinstance(body.get('hasMore'), bool), 'coverage.pagination')
+        companies.extend(rows)
+        coverage_pages += 1
+        if not body['hasMore']:
+            break
+        require(len(rows) == LIMIT, 'coverage.full_nonfinal_page')
+        offset += LIMIT
+        require(offset + LIMIT <= MAX_WINDOW, 'coverage.within_window')
+        body = reader.json('/api/coverage', {'offset': offset, 'limit': LIMIT}, token)
+    ids = [row['id'] for row in companies]
+    require(len(ids) == len(set(ids)), 'coverage.unique_company_ids')
+    require(len(ids) > 0, 'coverage.nonempty')
+    coverage = dict(coverage_meta, companies=companies)
+    search_companies = []
+    offset = 0
+    search_meta = None
+    search_pages = 0
+    while True:
+        params = dict(SEARCH, offset=offset, limit=LIMIT)
+        body = reader.json('/api/search', params, token)
+        stable_refresh(body, anchor, token, 'search.page.' + str(offset), role)
+        current_meta = metadata(body)
+        if search_meta is None:
+            search_meta = current_meta
+        require(current_meta == search_meta, 'search.metadata_stable')
+        rows = body.get('companies')
+        require(isinstance(rows, list) and len(rows) <= LIMIT, 'search.companies')
+        search_companies.extend(rows)
+        search_pages += 1
+        if len(rows) < LIMIT:
+            break
+        offset += LIMIT
+        require(offset + LIMIT <= MAX_WINDOW, 'search.within_window')
+    ids = [row['id'] for row in search_companies]
+    require(len(ids) == len(set(ids)), 'search.unique_company_ids')
+    require(set(ids).issubset(set(row['id'] for row in companies)), 'search.companies_in_coverage')
+    jobs = [job for row in search_companies for job in row['jobs']]
+    require(len(jobs) == len(set(job['id'] for job in jobs)), 'search.unique_job_ids')
+    require(search_meta.get('totalJobs') == len(jobs), 'search.complete_totalJobs')
+    require(search_meta.get('publishedJobSummary', {}).get('totalJobs') == len(jobs), 'search.complete_publishedJobSummary')
+    search = dict(search_meta, companies=search_companies)
+    exposed_status = {
+        'coverage': [{key: row[key] for key in ('id', 'state', 'health', 'lastSuccessAt', 'sourceScopeNote') if key in row} for row in companies],
+        'jobs': [{key: job[key] for key in ('id', 'companyId', 'sourceId', 'sourceResultId', 'lastSeenAt', 'lastConfirmedObservedAt', 'inGrace') if key in job} for job in jobs],
+        'lastUpdatedAt': search_meta.get('lastUpdatedAt')
+    }
+    audit = {
+        'coverage_companies': len(companies), 'search_companies': len(search_companies), 'jobs': len(jobs),
+        'coverage_pages': coverage_pages, 'search_pages': search_pages, 'settle_checks': checks,
+        'ordinary_check_acquisition_reads': acquisition_reads,
+        'full_projection_sha256': digest({'coverage': coverage, 'search': search}),
+        'exposed_source_status_and_original_times_sha256': digest(exposed_status),
+        'snapshotRefresh': {key: anchor[key] for key in IDENTITIES + ('state',) if key in anchor},
+        'verifiedAt_sha256': digest(anchor.get('verifiedAt')), 'check_present': token is not None,
+        'check_sha256': digest(token) if token is not None else None,
+        'check_reused_on_all_following_api_gets': True
+    }
+    return {'coverage': coverage, 'search': search}, exposed_status, audit
+
+def differences(left, right, path='$', result=None):
+    if result is None:
+        result = {'count': 0, 'fields': []}
+    if type(left) is not type(right):
+        same = False
+    elif isinstance(left, dict):
+        for key in sorted(set(left) | set(right)):
+            child = path + '.' + str(key)
+            if key not in left or key not in right:
+                result['count'] += 1
+                if len(result['fields']) < 200:
+                    result['fields'].append({'path': child, 'change': 'added' if key not in left else 'removed'})
+            else:
+                differences(left[key], right[key], child, result)
+        return result
+    elif isinstance(left, list):
+        for index in range(max(len(left), len(right))):
+            child = path + '[' + str(index) + ']'
+            if index >= len(left) or index >= len(right):
+                result['count'] += 1
+                if len(result['fields']) < 200:
+                    result['fields'].append({'path': child, 'change': 'added' if index >= len(left) else 'removed'})
+            else:
+                differences(left[index], right[index], child, result)
+        return result
+    else:
+        same = left == right
+    if not same:
+        result['count'] += 1
+        if len(result['fields']) < 200:
+            result['fields'].append({'path': path, 'old_sha256': digest(left), 'new_sha256': digest(right)})
+    return result
+
+def trusted_path(path, directory=False):
+    """Reject symlinks and writable/non-root filesystem ancestry before use."""
+    require(os.path.isabs(path), 'trusted_path_absolute')
+    current = os.path.normpath(path)
+    first = True
+    while True:
+        info = os.lstat(current)
+        require(info.st_uid == 0 and not info.st_mode & 0o022, 'trusted_path_owner_mode')
+        is_directory = directory if first else True
+        require(stat.S_ISDIR(info.st_mode) if is_directory else stat.S_ISREG(info.st_mode), 'trusted_path_type')
+        if first and not is_directory:
+            require(info.st_nlink == 1, 'trusted_path_single_link')
+        if current == '/':
+            break
+        current = os.path.dirname(current)
+        first = False
+
+
+def read_pinned_file(path, expected_sha, maximum, label, trusted=False):
+    if trusted:
+        trusted_path(path)
+    descriptor = os.open(path, os.O_RDONLY | getattr(os, 'O_NOFOLLOW', 0))
+    with os.fdopen(descriptor, 'rb') as stream:
+        info = os.fstat(stream.fileno())
+        require(stat.S_ISREG(info.st_mode) and info.st_nlink == 1, label + '.regular_single_link_file')
+        if trusted:
+            require(info.st_uid == 0 and not info.st_mode & 0o022, label + '.trusted_owner_mode')
+        raw = stream.read(maximum + 1)
+    require(len(raw) <= maximum, label + '.size')
+    require(hashlib.sha256(raw).hexdigest() == expected_sha, label + '.fixed_sha256')
+    return raw
+
+
+def read_expectation(path):
+    raw = read_pinned_file(path, EXPECTATION_SHA256, 8192, 'expectation', trusted=True)
+    value = json.loads(raw.decode('utf-8'))
+    fields = {'businessCompanySha256', 'canonicalization', 'companyId', 'coverageLastSuccessAt',
+              'coverageSha256', 'fullCompanySha256', 'jobCount', 'jobIdsSha256',
+              'lastConfirmedObservedAt', 'lastSeenAt', 'onlyPermittedCompanyDelta',
+              'privateRuntimeInput', 'schemaVersion', 'sourceId', 'sourceResultId'}
+    require(isinstance(value, dict) and set(value) == fields, 'expectation.schema')
+    require(value['companyId'] == COMPANY_ID and type(value['jobCount']) is int
+            and value['jobCount'] == 181 and value['privateRuntimeInput'] is True, 'expectation.scope')
+    for name in ('businessCompanySha256', 'coverageSha256', 'fullCompanySha256', 'jobIdsSha256'):
+        require(isinstance(value[name], str) and SHA.match(value[name]), 'expectation.hash_shape')
+    for name in fields - {'jobCount', 'privateRuntimeInput'}:
+        require(isinstance(value[name], str) and value[name], 'expectation.string_shape')
+    return value
+
+
+def read_facet_expectation(path):
+    raw = read_pinned_file(path, FACET_EXPECTATION_SHA256, 8192, 'facet_expectation', trusted=True)
+    value = json.loads(raw.decode('utf-8'))
+    require(isinstance(value, dict) and set(value) == {
+        'schemaVersion', 'companyId', 'sourceResultId', 'publishedJobSummary',
+        'cityFacets', 'provinceFacets', 'privateRuntimeAcceptanceOnly'}, 'facet_expectation.schema')
+    require(value['companyId'] == COMPANY_ID and value['privateRuntimeAcceptanceOnly'] is True,
+            'facet_expectation.scope')
+    require(isinstance(value['schemaVersion'], str) and value['schemaVersion']
+            and isinstance(value['sourceResultId'], str) and value['sourceResultId'], 'facet_expectation.metadata')
+    validate_facet_projection(value, 181)
+    return value
+
+
+def locale_order(city_names, province_names, companies):
+    """Pinned Node22 executes only native sorting, with no environment inheritance."""
+    path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'facet_projection.js')
+    source = read_pinned_file(path, FACET_PROJECTION_SHA256, 8192, 'facet_helper', trusted=True)
+    payload = canonical({'cities': city_names, 'provinces': province_names,
+                         'companies': [{'id': row['id'], 'pinyin': row['pinyin']} for row in companies]})
+    require(len(payload) <= 1024 * 1024, 'facet_sort_input_size')
+    try:
+        result = subprocess.run([NODE_BINARY, '--max-old-space-size=64', '-e', source.decode('utf-8')],
+                                input=payload, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                                env={}, cwd='/', timeout=5, check=False)
+    except subprocess.TimeoutExpired:
+        raise ValueError('CONTRACT_FAILED:facet_sort_timeout')
+    require(result.returncode == 0, 'facet_sort_failed')
+    require(len(result.stdout) <= 1024 * 1024 and len(result.stderr) <= 4096, 'facet_sort_output_size')
+    value = json.loads(result.stdout.decode('utf-8'))
+    require(isinstance(value, dict) and set(value) == {'cities', 'provinces', 'companies'}, 'facet_sort_output_schema')
+    require(sorted(value['cities']) == sorted(city_names) and sorted(value['provinces']) == sorted(province_names)
+            and sorted(value['companies']) == sorted(row['id'] for row in companies), 'facet_sort_exact_membership')
+    return value
+
+
+def validate_facet_projection(value, total):
+    summary = value.get('publishedJobSummary')
+    require(isinstance(summary, dict) and set(summary) == {'totalJobs', 'cityPendingJobs'}, 'facets.summary_schema')
+    require(type(summary['totalJobs']) is int and summary['totalJobs'] == total
+            and type(summary['cityPendingJobs']) is int and 0 <= summary['cityPendingJobs'] <= total,
+            'facets.summary_counts')
+    cities, provinces = value.get('cityFacets'), value.get('provinceFacets')
+    require(isinstance(cities, list) and 2 <= len(cities) <= 10000 and isinstance(provinces, list)
+            and len(provinces) <= 10000, 'facets.arrays')
+    for row in cities:
+        require(isinstance(row, dict) and set(row) == {'city', 'province', 'jobCount'}, 'facets.city_schema')
+        require(isinstance(row['city'], str) and row['city'] and
+                (row['province'] is None or isinstance(row['province'], str) and row['province']), 'facets.city_labels')
+        require(type(row['jobCount']) is int and 0 <= row['jobCount'] <= total, 'facets.city_count')
+    require(len({row['city'] for row in cities}) == len(cities), 'facets.unique_cities')
+    require([row['city'] for row in cities[-2:]] == ['全国', '城市待核']
+            and all(row['province'] is None for row in cities[-2:])
+            and cities[-1]['jobCount'] == summary['cityPendingJobs'], 'facets.special_tail')
+    require(all(row['jobCount'] > 0 for row in cities[:-2]), 'facets.ordinary_cities_positive')
+    for row in provinces:
+        require(isinstance(row, dict) and set(row) == {'province', 'jobCount', 'cityPendingJobs'}, 'facets.province_schema')
+        require(isinstance(row['province'], str) and row['province'], 'facets.province_label')
+        require(type(row['jobCount']) is int and 0 < row['jobCount'] <= total
+                and type(row['cityPendingJobs']) is int and 0 <= row['cityPendingJobs'] <= row['jobCount'],
+                'facets.province_counts')
+    require(len({row['province'] for row in provinces}) == len(provinces), 'facets.unique_provinces')
+
+
+def exact_facet_merge(baseline, contribution, old_companies, new_companies):
+    old_total = baseline['totalJobs']
+    validate_facet_projection(baseline, old_total)
+    validate_facet_projection(contribution, 181)
+    old_pending = sum(job['cityPending'] is True for row in old_companies for job in row['jobs'])
+    require(all(type(job.get('cityPending')) is bool for row in old_companies for job in row['jobs']), 'facets.baseline_pending_type')
+    require(old_pending == baseline['publishedJobSummary']['cityPendingJobs'], 'facets.baseline_pending_exact')
+    city_map = {row['city']: dict(row) for row in baseline['cityFacets']}
+    for added in contribution['cityFacets']:
+        previous = city_map.get(added['city'])
+        if previous is None:
+            city_map[added['city']] = dict(added)
+        else:
+            previous['province'] = previous['province'] if previous['province'] == added['province'] else None
+            previous['jobCount'] += added['jobCount']
+    province_map = {row['province']: dict(row) for row in baseline['provinceFacets']}
+    for added in contribution['provinceFacets']:
+        previous = province_map.get(added['province'])
+        if previous is None:
+            province_map[added['province']] = dict(added)
+        else:
+            previous['jobCount'] += added['jobCount']
+            previous['cityPendingJobs'] += added['cityPendingJobs']
+    old_order = locale_order([row['city'] for row in baseline['cityFacets'][:-2]],
+                             [row['province'] for row in baseline['provinceFacets']], old_companies)
+    require(old_order['cities'] == [row['city'] for row in baseline['cityFacets'][:-2]]
+            and old_order['provinces'] == [row['province'] for row in baseline['provinceFacets']]
+            and old_order['companies'] == [row['id'] for row in old_companies], 'facets.baseline_exact_order')
+    new_order = locale_order([name for name in city_map if name not in ('全国', '城市待核')],
+                            list(province_map), new_companies)
+    require(new_order['companies'] == [row['id'] for row in new_companies], 'facets.candidate_company_exact_order')
+    expected = {
+        'cityFacets': [city_map[name] for name in new_order['cities'] + ['全国', '城市待核']],
+        'provinceFacets': [province_map[name] for name in new_order['provinces']],
+        'publishedJobSummary': {'totalJobs': old_total + 181,
+                               'cityPendingJobs': old_pending + contribution['publishedJobSummary']['cityPendingJobs']}}
+    require(all(type(job.get('cityPending')) is bool for row in new_companies for job in row['jobs']), 'facets.candidate_pending_type')
+    require(sum(job['cityPending'] is True for row in new_companies for job in row['jobs'])
+            == expected['publishedJobSummary']['cityPendingJobs'], 'facets.candidate_pending_exact')
+    return expected
+
+
+def company_canonical(company):
+    value = copy.deepcopy(company)
+    value['jobs'] = sorted(value['jobs'], key=lambda job: job['id'])
+    return value
+
+
+def no_astra_status(status):
+    value = copy.deepcopy(status)
+    value['coverage'] = [row for row in value['coverage'] if row.get('id') != COMPANY_ID]
+    value['jobs'] = [row for row in value['jobs'] if row.get('companyId') != COMPANY_ID]
+    return value
+
+
+def global_last_updated_at(baseline, coverage_success):
+    def parsed(value):
+        require(isinstance(value, str) and re.fullmatch(
+            r'\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,6})?Z', value),
+            'astra.global_last_updated_at')
+        try:
+            return datetime.strptime(value, '%Y-%m-%dT%H:%M:%S.%fZ' if '.' in value else '%Y-%m-%dT%H:%M:%SZ')
+        except ValueError:
+            raise ValueError('CONTRACT_FAILED:astra.global_last_updated_at')
+    return max((baseline, coverage_success), key=parsed)
+
+
+def astra_contract(old, new, old_status, new_status, expectation, raw_business, raw_status, stable, facet_expectation):
+    require(isinstance(expectation, dict), 'astra.runtime_expectation_required')
+    require(expectation.get('companyId') == COMPANY_ID and expectation.get('jobCount') == 181, 'astra.expectation_scope')
+    old_search = old['search']['companies']
+    new_search = new['search']['companies']
+    old_astra = [row for row in old_search if row.get('id') == COMPANY_ID]
+    new_astra = [row for row in new_search if row.get('id') == COMPANY_ID]
+    require(len(old_astra) == 0, 'astra.baseline_hidden_zero_jobs')
+    require(len(new_astra) == 1 and len(new_astra[0]['jobs']) == 181, 'astra.candidate_exact_181_jobs')
+    company = new_astra[0]
+    require(digest(company_canonical(company)) == expectation['fullCompanySha256'], 'astra.full_company_hash')
+    jobs = company['jobs']
+    require(digest(sorted(job['id'] for job in jobs)) == expectation['jobIdsSha256'], 'astra.job_ids_hash')
+    for job in jobs:
+        require(job.get('companyId') == COMPANY_ID, 'astra.job_company_binding')
+        for name in ('sourceId', 'sourceResultId', 'lastSeenAt', 'lastConfirmedObservedAt'):
+            require(name in job and job[name] == expectation[name], 'astra.job_' + name)
+    old_cov = [row for row in old['coverage']['companies'] if row.get('id') == COMPANY_ID]
+    new_cov = [row for row in new['coverage']['companies'] if row.get('id') == COMPANY_ID]
+    require(len(old_cov) == len(new_cov) == 1, 'astra.coverage_single_company')
+    require(old_cov[0].get('state') == 'VERIFYING' and old_cov[0].get('health') == 'DEGRADED', 'astra.baseline_coverage')
+    require(new_cov[0].get('state') == 'PUBLISHING' and new_cov[0].get('health') == 'HEALTHY', 'astra.candidate_coverage')
+    require(digest(new_cov[0]) == expectation['coverageSha256'], 'astra.coverage_hash')
+    require(new_cov[0].get('lastSuccessAt') == expectation['coverageLastSuccessAt'], 'astra.coverage_original_time')
+    old_total, new_total = old['search']['totalJobs'], new['search']['totalJobs']
+    require(type(old_total) is int and type(new_total) is int and new_total == old_total + 181, 'astra.total_jobs_delta')
+    require(isinstance(facet_expectation, dict) and facet_expectation.get('companyId') == COMPANY_ID
+            and facet_expectation.get('sourceResultId') == expectation['sourceResultId'], 'astra.facet_expectation_binding')
+    merged_facets = exact_facet_merge(old['search'], facet_expectation, old_search, new_search)
+    validate_facet_projection(new['search'], new_total)
+    for key, value in merged_facets.items():
+        require(new['search'].get(key) == value, 'astra.' + key + '_exact')
+    expected = copy.deepcopy(old)
+    expected['coverage']['companies'] = [copy.deepcopy(new_cov[0]) if row['id'] == COMPANY_ID else row
+                                        for row in expected['coverage']['companies']]
+    # The inserted company is bound by full canonical hash; all existing company
+    # rows and their relative order remain byte-for-byte JSON-equivalent.
+    expected['search']['companies'].insert(new_search.index(company), copy.deepcopy(company))
+    expected['search']['totalJobs'] = old_total + 181
+    expected['search']['lastUpdatedAt'] = global_last_updated_at(
+        old['search']['lastUpdatedAt'], expectation['coverageLastSuccessAt'])
+    for key in ('cityFacets', 'provinceFacets', 'publishedJobSummary'):
+        expected['search'][key] = merged_facets[key]
+    summaries = []
+    for section in ('coverage', 'search'):
+        before = old[section]['coverageSummary']
+        require(set(before) == {'requiredCompanyCount', 'publishingCompanyCount', 'excludedCompanyCount', 'degradedCompanyCount'},
+                'astra.' + section + '.coverage_summary_schema')
+        require(all(type(count) is int and count >= 0 for count in before.values()), 'astra.coverage_summary_nonnegative_integers')
+        after = dict(before)
+        after['publishingCompanyCount'] += 1
+        after['degradedCompanyCount'] -= 1
+        require(after['degradedCompanyCount'] >= 0, 'astra.baseline_degraded_count')
+        expected[section]['coverageSummary'] = after
+        summaries.append(before)
+    require(summaries[0] == summaries[1], 'astra.coverage_and_search_summary_match')
+    other_business = differences(expected, new)
+    expected_status = no_astra_status(old_status)
+    expected_status['lastUpdatedAt'] = expected['search']['lastUpdatedAt']
+    other_status = differences(expected_status, no_astra_status(new_status))
+    flags = {name: True for name in CHECK_FLAGS}
+    flags['otherCompanyProjectionEqual'] = other_business['count'] == 0
+    flags['otherMetadataEqual'] = other_business['count'] == 0
+    flags['otherCompanyStatusAndTimesEqual'] = other_status['count'] == 0
+    flags['bothReadersDoubleCaptureStable'] = stable
+    flags.update(oldAstraJobCount=0, newAstraJobCount=181, jobCountDelta=181,
+                 oldTotalJobs=old_total, newTotalJobs=new_total,
+                 publishingCompanyCountDelta=1, degradedCompanyCountDelta=-1)
+    return {'schemaVersion': 1, 'name': CONTRACT, 'phase': 'main-precut',
+            'expectationSha256': EXPECTATION_SHA256, 'facetExpectationSha256': FACET_EXPECTATION_SHA256, 'companyId': COMPANY_ID,
+            'expectedChangeChecks': flags, 'unexpectedBusinessDifferences': other_business,
+            'unexpectedStatusDifferences': other_status,
+            'rawBusinessDifferenceCount': raw_business['count'], 'rawStatusDifferenceCount': raw_status['count']}
+
+
+def capture_stability(before, before_status, before_audit, after, after_status, after_audit):
+    return {'businessProjectionDifferences': differences(before, after),
+            'sourceStatusDifferences': differences(before_status, after_status),
+            'identitiesEqual': before_audit['snapshotRefresh'] == after_audit['snapshotRefresh']
+            and before_audit['verifiedAt_sha256'] == after_audit['verifiedAt_sha256']}
+
+
+def stability_pass(value):
+    return all(item['businessProjectionDifferences']['count'] == item['sourceStatusDifferences']['count'] == 0
+               and item['identitiesEqual'] is True for item in value.values())
+
+
+class IndexReferences(HTMLParser):
+    def __init__(self):
+        HTMLParser.__init__(self)
+        self.references = set()
+
+    def handle_starttag(self, tag, attrs):
+        for name, value in attrs:
+            if name in ('src', 'href') and value and value.startswith('/'):
+                self.references.add(value)
+
+
+def asset_path(path):
+    require(isinstance(path, str), 'pinned_asset_path.type')
+    require(path == 'dist/index.html' or re.match(
+        r'^dist/(?:assets|fonts|brand-logos)/[A-Za-z0-9_.-]+\.(?:js|css|png|webp|svg|ico|woff2|txt|json)$', path),
+        'pinned_asset_path')
+    require('/../' not in path and '/./' not in path, 'pinned_asset_path.components')
+    return '/' if path == 'dist/index.html' else '/' + path[len('dist/'):]
+
+
+def read_asset_manifest(path):
+    flags = os.O_RDONLY | getattr(os, 'O_NOFOLLOW', 0)
+    descriptor = os.open(path, flags)
+    with os.fdopen(descriptor, 'rb') as stream:
+        require(stat.S_ISREG(os.fstat(stream.fileno()).st_mode), 'asset_manifest_regular_file')
+        raw = stream.read(256 * 1024 + 1)
+    require(len(raw) <= 256 * 1024, 'asset_manifest_size')
+    require(hashlib.sha256(raw).hexdigest() == ASSET_MANIFEST_SHA256, 'asset_manifest_fixed_sha256')
+    manifest = json.loads(raw.decode('utf-8'))
+    require(manifest.get('schema_version') == 1, 'asset_manifest_schema')
+    require(set(manifest.get('roles', {})) == {'web-main', 'compatible-fallback'}, 'asset_manifest_roles')
+    for role, expected in manifest['roles'].items():
+        require(expected.get('target_commit') == TARGET_COMMITS[role], role + '.asset_target_commit')
+        require(expected['file_count'] == len(expected['files']) == 171, role + '.asset_manifest_count')
+        require('dist/index.html' in expected['files'], role + '.asset_manifest_index')
+        for path, record in expected['files'].items():
+            asset_path(path)
+            require(isinstance(record['bytes'], int) and not isinstance(record['bytes'], bool) and 0 < record['bytes'] <= MAX_BYTES, 'asset_manifest_bytes')
+            require(isinstance(record['sha256'], str) and SHA.match(record['sha256']), 'asset_manifest_digest')
+        require(all('dist' + ref in expected['files'] for ref in expected['direct_index_references']), role + '.index_references_declared')
+    return manifest
+
+
+def verify_assets(reader, expected, commit):
+    rows = []
+    references = None
+    for path, record in sorted(expected['files'].items()):
+        data = reader.get(asset_path(path))
+        actual = hashlib.sha256(data).hexdigest()
+        require(actual == record['sha256'] and len(data) == record['bytes'], 'asset.' + path)
+        if path == 'dist/index.html':
+            parser = IndexReferences()
+            parser.feed(data.decode('utf-8'))
+            references = sorted(parser.references)
+            require(references == expected['direct_index_references'], 'index.direct_references_exact')
+        rows.append({'path': path, 'bytes': len(data), 'sha256': actual})
+    require(len(rows) == 171, 'all_known_dist_files_verified')
+    return {
+        'target_commit': commit,
+        'status': 'PASS',
+        'files': rows,
+        'file_count': len(rows),
+        'direct_index_references': references,
+        'manifest_sha256': ASSET_MANIFEST_SHA256,
+        'commit_binding': 'Expected identity label; validated externally against process cwd and baked runtime identity',
+        'retained_production_extras': 'Not enumerated by this fixed manifest; bind and verify through final runtime identity'
+    }
+
+
+def run(old_reader, new_reader, phase, manifest, wait_seconds=40, sleep=time.sleep, expectation=None, facet_expectation=None):
+    old_role, role, old_port, new_port, receipt = PHASES[phase]
+    assets = manifest['roles']
+    old, old_status, old_audit = capture(old_reader, old_role, wait_seconds, sleep)
+    new, new_status, new_audit = capture(new_reader, role, wait_seconds, sleep)
+    compared = differences(old, new)
+    status_compared = differences(old_status, new_status)
+    identity_comparison = {}
+    for key in ('displayDataVersion', 'statusVersion'):
+        before = old_audit['snapshotRefresh'].get(key)
+        after = new_audit['snapshotRefresh'].get(key)
+        require(before is not None and after is not None, key + '.both_readers_required')
+        identity_comparison[key] = {'comparable': True, 'equal': before == after}
+    old_commit = assets[old_role]['baseline_commit'] if phase == 'main-precut' else assets[old_role]['target_commit']
+    comparator_assets = verify_assets(old_reader, assets[old_role], old_commit)
+    assets_result = verify_assets(new_reader, assets[role], assets[role]['target_commit'])
+    old_again, old_status_again, old_audit_again = capture(old_reader, old_role, wait_seconds, sleep)
+    new_again, new_status_again, new_audit_again = capture(new_reader, role, wait_seconds, sleep)
+    stability = {
+        'old': capture_stability(old, old_status, old_audit, old_again, old_status_again, old_audit_again),
+        'new': capture_stability(new, new_status, new_audit, new_again, new_status_again, new_audit_again)
+    }
+    # Ensure each process is still serving after the full static pass. These
+    # endpoints prove liveness/readiness only, never commit or runtime identity.
+    for reader in (old_reader, new_reader):
+        for path in ('/livez', '/readyz'):
+            require(reader.json(path).get('ok') is True, path + '.post_static_ok')
+    passed = (compared['count'] == 0 and status_compared['count'] == 0
+              and all(item['equal'] for item in identity_comparison.values()) and stability_pass(stability))
+    result = {
+        'status': 'PASS' if passed else 'MISMATCH',
+        'role': role,
+        'phase': phase,
+        'recommended_receipt': receipt,
+        'ports': {'old': old_port, 'new': new_port},
+        'expected_commits': {'old': old_commit, 'new': assets[role]['target_commit']},
+        'old': old_audit,
+        'new': new_audit,
+        'business_projection_differences': compared,
+        'source_status_and_original_times_differences': status_compared,
+        'cross_reader_identities': identity_comparison,
+        'doubleCaptureStability': stability,
+        'secondCapture': {'old': old_audit_again, 'new': new_audit_again},
+        'assets': assets_result,
+        'comparator_assets': comparator_assets,
+        'normalization': [
+            'Top-level generatedAt only, if present',
+            'snapshotRefresh compared separately; cross-process verifiedAt/version/verificationVersion may differ',
+            'coverage offset/limit/hasMore removed only after complete pagination validation'
+        ],
+        'limits': [
+            'HTTP covers all public coverage and all public search companies/jobs within the fixed 500-company window; exceeding that bound blocks',
+            'HTTP exposes coverage state/health/original times and public job source identities, not complete internal sources or the database',
+            'All other fields, timestamps and array order are compared exactly; both snapshot states must settle to CURRENT',
+            'Every declared dist file on both readers is byte-verified; production retained extras require separate final runtime identity validation',
+            'Commit/process cwd/runtime identity, PM2 environment, nginx routing, diagnostic logs and persistence are separate owner gates',
+            'No response text or check token is printed; differences contain counts, hashes and field paths',
+            'Sequential captures are not an atomic cross-process database snapshot; any observed drift fails and requires owner reconciliation'
+        ],
+        'requests': {'old': old_reader.events, 'new': new_reader.events}
+    }
+    if phase == 'main-precut':
+        try:
+            result['acceptanceContract'] = astra_contract(old, new, old_status, new_status, expectation,
+                                                        compared, status_compared, stability_pass(stability),
+                                                        facet_expectation)
+            result['status'] = 'PASS'
+            result['helperExitCode'] = 0
+            if not main_pre_cut_contract_valid(result):
+                result['status'] = 'MISMATCH'
+                result['helperExitCode'] = 2
+        except ValueError as error:
+            result['status'] = 'MISMATCH'
+            result['helperExitCode'] = 2
+            result['contractFailure'] = str(error) if str(error).startswith('CONTRACT_FAILED:') else type(error).__name__
+        result['normalization'].append('Only the fixed ASTRA_181_READER_RECOVERY_V1 change may differ; raw cross-reader differences are retained')
+        result['limits'].append('main-precut permits only exact private-input-bound Astra recovery and exactly derived aggregates; every other difference fails')
+    else:
+        result['acceptanceContract'] = {'schemaVersion': 1, 'name': STRICT_CONTRACT, 'phase': phase,
+                                        'expectationSha256': None,
+                                        'unexpectedBusinessDifferences': compared,
+                                        'unexpectedStatusDifferences': status_compared}
+    return result
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('--phase', required=True, choices=tuple(PHASES))
+    parser.add_argument('--asset-manifest', required=True)
+    parser.add_argument('--expectation-file')
+    parser.add_argument('--facet-expectation-file')
+    args = parser.parse_args()
+    readers = []
+    role = PHASES[args.phase][1]
+    try:
+        manifest = read_asset_manifest(args.asset_manifest)
+        if args.phase == 'main-precut':
+            require(args.expectation_file and args.facet_expectation_file, 'main_pre_cut_private_inputs_required')
+            expectation = read_expectation(args.expectation_file)
+            facet_expectation = read_facet_expectation(args.facet_expectation_file)
+        else:
+            require(args.expectation_file is None and args.facet_expectation_file is None, 'private_inputs_only_main_pre_cut')
+            expectation = facet_expectation = None
+        old_port, new_port = PHASES[args.phase][2:4]
+        deadline = time.monotonic() + TOTAL_SECONDS
+        readers = [HttpReader('http://127.0.0.1:' + str(port), 15, deadline) for port in (old_port, new_port)]
+        result = run(readers[0], readers[1], args.phase, manifest, expectation=expectation, facet_expectation=facet_expectation)
+        require(time.monotonic() <= deadline, 'acceptance_wall_clock_budget')
+        result['helperExitCode'] = 0 if result['status'] == 'PASS' else 2
+        print(json.dumps(result, ensure_ascii=False, sort_keys=True, allow_nan=False))
+        return result['helperExitCode']
+    except Exception as error:
+        message = str(error) if isinstance(error, ValueError) and str(error).startswith(('CONTRACT_FAILED:', 'HTTP_STATUS:', 'BLOCKED_CHECK_UNAVAILABLE:')) else type(error).__name__
+        status = 'BLOCKED_CHECK_UNAVAILABLE' if message.startswith('BLOCKED_CHECK_UNAVAILABLE:') else 'BLOCKED'
+        print(json.dumps({'status': status, 'role': role, 'phase': args.phase, 'helperExitCode': 3,
+                          'reason': message, 'requests': [reader.events for reader in readers]}, sort_keys=True))
+        return 3
+
+
+if __name__ == '__main__':
+    raise SystemExit(main())

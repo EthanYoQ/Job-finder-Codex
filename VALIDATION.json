@@ -1,0 +1,15 @@
+{
+  "schemaVersion": 1,
+  "status": "PASS",
+  "originalPythonComponentsExactlyReconstructed": 9,
+  "originalRequiredJavaScriptHelpersExactlyReconstructed": 1,
+  "originalControllerSubsetExactlyReconstructed": 8,
+  "helperHashAndFilenameClosure": "PASS",
+  "unboundTemplateGuard": "PASS",
+  "privateBindingLeakScan": "PASS",
+  "localSyntheticUnitTests": 16,
+  "productionControllersExecuted": false,
+  "servicesContacted": false,
+  "runtimeInputsCopied": false,
+  "sourceFilesModified": false
+}

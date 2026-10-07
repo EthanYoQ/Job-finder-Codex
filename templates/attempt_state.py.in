@@ -1,0 +1,76 @@
+raise RuntimeError("UNBOUND_SOURCE_TEMPLATE: render with explicit local bindings before use")
+"""Known-terminal a02 admission; no old receipts or roles are overwritten."""
+import datetime,hashlib,importlib.util,json,os,pathlib,stat,sys
+ROOT=pathlib.Path('__BIND_RELEASE_ROOT__')
+STATE=ROOT/'attempts'/'__BIND_ATTEMPT_LABEL__'
+ARCHIVE='__BIND_ARCHIVE_SHA256__'
+PRIOR_INVOKE='__BIND_PRIOR_INVOKE__'
+PRIOR_RECEIPT_SHA='__BIND_PRIOR_RECEIPT_SHA256__'
+PRIOR_FILES={'accept-main-failed.json':'__BIND_PRIOR_ACCEPT_MAIN_FAILED_SHA256__','launch-main-result.json':'__BIND_PRIOR_LAUNCH_MAIN_RESULT_SHA256__','launch-main-intent.json':'__BIND_PRIOR_LAUNCH_MAIN_INTENT_SHA256__'}
+BASE_FILE='__FILE_PREDECESSOR__'
+BASE_SHA='__SHA_PREDECESSOR__'
+INITIAL={'__BIND_OLD_MAIN_NAME__':{'pid':__BIND_OLD_MAIN_PID__,'startTicks':'__BIND_OLD_MAIN_START_TICKS__','port':3031,'restarts':0},'__BIND_OLD_BACKUP_NAME__':{'pid':__BIND_OLD_BACKUP_PID__,'startTicks':'__BIND_OLD_BACKUP_START_TICKS__','port':3036,'restarts':0}}
+NEW_NAMES={'main':'__BIND_NEW_MAIN_NAME__','fallback':'__BIND_NEW_BACKUP_NAME__'}
+def need(ok,code):
+ if not ok:raise RuntimeError(code)
+def sha(raw):return hashlib.sha256(raw).hexdigest()
+def regular(path):
+ s=path.lstat();need(stat.S_ISREG(s.st_mode) and s.st_uid==0 and not s.st_mode&0o022,'ATTEMPT_FILE_TYPE_OWNER');return path.read_bytes()
+def trusted(path):
+ for p in [path]+list(path.parents):
+  s=p.lstat();need(stat.S_ISDIR(s.st_mode) and s.st_uid==0 and not s.st_mode&0o022,'ATTEMPT_DIRECTORY_TYPE_OWNER')
+def root_guard():
+ trusted(ROOT);s=ROOT.stat();need((s.st_dev,s.st_ino)==(__BIND_RELEASE_DEVICE__,__BIND_RELEASE_INODE__),'RELEASE_SEAL_CHANGED')
+ need(json.loads(regular(ROOT/'RELEASE_ID.json'))=={'sha256':ARCHIVE,'device':__BIND_RELEASE_DEVICE__,'inode':__BIND_RELEASE_INODE__},'RELEASE_BINDING')
+def predecessor():
+ root_guard();values={}
+ for name,digest in PRIOR_FILES.items():
+  raw=regular(ROOT/name);need(sha(raw)==digest,'PREDECESSOR_RECEIPT_CHANGED');values[name]=json.loads(raw)
+ failure=values['accept-main-failed.json'];launch=values['launch-main-result.json']
+ need(failure.get('status')=='HTTP_ACCEPTANCE_STOPPED' and failure.get('phase')=='main-precut' and failure.get('reason')=='HTTP_ACCEPTANCE_FAILED','PREDECESSOR_NOT_EXPECTED_FAILURE')
+ restore=failure.get('rollback',{})
+ need(restore.get('state')=='ORIGINAL_BACKUP_RESTORED_HEALTHY' and restore.get('newMainStop')=='confirmed-stopped' and restore.get('oldBackupRestore')=='restarted' and restore.get('restoredPid')==__BIND_OLD_BACKUP_PID__,'PREDECESSOR_NOT_CONFIRMED_RESTORED')
+ need(launch.get('status')=='NEW_MAIN_HEALTHY_TRAFFIC_UNCHANGED' and launch.get('pid')==__BIND_PRIOR_CANDIDATE_PID__ and launch.get('startTicks')=='__BIND_PRIOR_CANDIDATE_START_TICKS__' and launch.get('port')==3036,'PREDECESSOR_LAUNCH_BINDING')
+ for name in ('accept-main.json','cutover-r2-intent.json','cutover-result.json','launch-fallback-intent.json','pm2-persist-intent.json'):
+  p=ROOT/name;need(not p.exists() and not p.is_symlink(),'PREDECESSOR_ADVANCED_BEYOND_FAILURE')
+ return values
+def original_helpers():
+ p=ROOT/BASE_FILE;need(sha(regular(p))==BASE_SHA,'ORIGINAL_HELPER_HASH')
+ spec=importlib.util.spec_from_file_location('a02_original_fixed_helpers',str(p));module=importlib.util.module_from_spec(spec);spec.loader.exec_module(module);return module
+def live_precondition(H):
+ predecessor()
+ for spec in (H.OLD_MAIN,H.OLD_BACKUP):
+  expected=INITIAL[spec['name']];row=H.find(spec);pid=row['pid']
+  need(pid==expected['pid'] and H.process_token(pid)==expected['startTicks'] and row['pm2_env'].get('restart_time')==expected['restarts'] and H.owns_listener(pid,expected['port']),'ORIGINAL_PAIR_CHANGED_SINCE_RESTORATION')
+  H.health(expected['port'])
+  again=H.find(spec);need(again['pid']==pid and H.process_token(pid)==expected['startTicks'],'ORIGINAL_PAIR_CHANGED_DURING_HEALTH')
+ previous={'name':'__BIND_PRIOR_CANDIDATE_NAME__','cwd':str(ROOT/'web-main'),'port':3036,'heap':256}
+ stopped=H.find(previous,'stopped');need(stopped.get('pid')==0 and stopped['pm2_env'].get('restart_time')==0,'PREVIOUS_CANDIDATE_NOT_CONFIRMED_STOPPED')
+ need(H.process_token(__BIND_PRIOR_CANDIDATE_PID__)!='__BIND_PRIOR_CANDIDATE_START_TICKS__' and not H.process_set(previous),'PREVIOUS_CANDIDATE_PROCESS_STILL_LIVE')
+ need(not any(row.get('name') in NEW_NAMES.values() for row in H.rows()),'A02_NAME_ALREADY_EXISTS')
+ need(not H.CONF.is_symlink() and H.sha(H.CONF.read_bytes())==H.CONF_SHA,'ORIGINAL_ROUTE_CHANGED')
+ return INITIAL
+def require_initialized():
+ predecessor();trusted(STATE);s=STATE.stat();seal=json.loads(regular(STATE/'ATTEMPT_ID.json'))
+ expected={'attempt':'__BIND_ATTEMPT_LABEL__','archiveSha256':ARCHIVE,'releaseDevice':__BIND_RELEASE_DEVICE__,'releaseInode':__BIND_RELEASE_INODE__,'stateDevice':s.st_dev,'stateInode':s.st_ino,'priorInvokeId':PRIOR_INVOKE,'priorInvocationStatus':'Failed','priorExitCode':1,'priorOfficialReceiptSha256':PRIOR_RECEIPT_SHA,'priorFileSha256':PRIOR_FILES,'initialBindings':INITIAL,'newNames':NEW_NAMES}
+ need(seal==expected,'ATTEMPT_SEAL_CHANGED')
+ return seal
+def write_once(path,value):
+ fd=os.open(str(path),os.O_WRONLY|os.O_CREAT|os.O_EXCL|os.O_NOFOLLOW,0o600)
+ with os.fdopen(fd,'w') as f:json.dump(value,f,separators=(',',':'));f.write('\n');f.flush();os.fsync(f.fileno())
+def prepare():
+ predecessor();H=original_helpers();H.fixed_guard();live_precondition(H)
+ parent=STATE.parent
+ if parent.exists():trusted(parent)
+ else:parent.mkdir(mode=0o700)
+ need(not STATE.exists() and not STATE.is_symlink(),'ATTEMPT_ALREADY_EXISTS_NO_REPLAY');STATE.mkdir(mode=0o700);s=STATE.stat()
+ seal={'attempt':'__BIND_ATTEMPT_LABEL__','archiveSha256':ARCHIVE,'releaseDevice':__BIND_RELEASE_DEVICE__,'releaseInode':__BIND_RELEASE_INODE__,'stateDevice':s.st_dev,'stateInode':s.st_ino,'priorInvokeId':PRIOR_INVOKE,'priorInvocationStatus':'Failed','priorExitCode':1,'priorOfficialReceiptSha256':PRIOR_RECEIPT_SHA,'priorFileSha256':PRIOR_FILES,'initialBindings':INITIAL,'newNames':NEW_NAMES}
+ write_once(STATE/'ATTEMPT_ID.json',seal)
+ descriptor=os.open(str(STATE),os.O_RDONLY|os.O_DIRECTORY)
+ try:os.fsync(descriptor)
+ finally:os.close(descriptor)
+ require_initialized();print('JF_RELEASE_RESULT='+json.dumps({'status':'KNOWN_TERMINAL_A02_PREPARED','attempt':seal['attempt'],'stateDevice':s.st_dev,'stateInode':s.st_ino,'priorInvokeId':PRIOR_INVOKE,'priorInvocationStatus':'Failed','oldReceiptsPreserved':True},separators=(',',':')))
+if __name__=='__main__':
+ try:need(len(sys.argv)==2 and sys.argv[1]=='prepare-attempt','UNKNOWN_ACTION');prepare()
+ except Exception as error:
+  print('JF_RELEASE_RESULT='+json.dumps({'status':'A02_ADMISSION_REFUSED','reason':str(error) if isinstance(error,RuntimeError) else type(error).__name__},separators=(',',':')));raise SystemExit(1)
