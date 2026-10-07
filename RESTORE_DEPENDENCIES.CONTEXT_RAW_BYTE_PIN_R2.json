@@ -1,0 +1,32 @@
+{
+  "schemaVersion": 1,
+  "layer": "SERVIER_CONTEXT_RAW_BYTE_PIN_R2",
+  "previousR1SourcePlanSha256": "80eb6aadb3136d588cf28ac5065833dc21434a4d68986566aa9ff19050c0386d",
+  "reviewedBaseSourcePlanSha256": "6d8449055bd8a8fc2f491bc6cb02bec380cd48b9d2ae1e0f2164a5da977db180",
+  "producerCommit": "28402a299bb04cbf5873da66c2fe8ca76827c0d1",
+  "unchangedProofSha256": "f5309504703232ff8f05793a70003a7c648bef59de4c524475e6e7906a4bf15b",
+  "restoreOrder": [
+    "reviewed-base",
+    "R1-context-order",
+    "R2-raw-byte-pin"
+  ],
+  "oldGeneratorMustNotOverwriteFinalOverlay": true,
+  "requiredSourceEnvironment": "JOBFINDER_CLOUD_SOURCE_ID=source-servier-china-social",
+  "currentFiles": [
+    {
+      "path": "hosts/servier/host/runtime/review-packet-envelope.mts",
+      "sha256": "7d843c8a2d54c5bb1a7b1abec896294e18e3ef081ab9c97ef0c809f5db3ee173",
+      "bytes": 11318
+    },
+    {
+      "path": "owner-adaptations/servier-b-20261007T1356Z/baseline-manifest.json",
+      "sha256": "3accddb2e128f63ae6cacf7f126165ac76a233818f2f4bf02b74bbe93f9b1a86",
+      "bytes": 1403
+    },
+    {
+      "path": "owner-adaptations/servier-b-20261007T1356Z/preload-owner.exec.js",
+      "sha256": "37a930b157aaa6930c535f07d172f5c83a60a50bc350413451e919c1531145c5",
+      "bytes": 2740
+    }
+  ]
+}

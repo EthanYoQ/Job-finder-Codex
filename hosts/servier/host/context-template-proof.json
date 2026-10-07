@@ -1,0 +1,76 @@
+{
+  "schemaVersion": 1,
+  "sourceId": "source-servier-china-social",
+  "sourceConfigSha256": "3c87c89d3bdc74275a0b66a9a27a9eaf76f99da8ee7aa3af835eb87e2b028e17",
+  "route": "TRUE_B",
+  "entrypoint": "scripts/p0-cloud-source-pilot.ts",
+  "entrypointSha256": "e4299018aa4b17cd7d0ff756ea45b779479708e02c400be9a1c8ffc0c2c1abaa",
+  "sourceAdmissionPolicy": null,
+  "certificateSchema": "b-grade-independent-traversal-v2",
+  "publicationMode": "DB_STARTED_JOB_PROJECTION_DELTA_V1",
+  "candidate": null,
+  "databaseIdentity": null,
+  "templatePlaceholderOnly": true,
+  "contextSha256": "8723366d9805ff73e64e9ef3df9d5b88c959b60b83c4ddc4b6cb2c93eaa80e49",
+  "expiryBasis": "min(source.startedAt+30min, independent.expiresAt, independent.observedAt+1h)",
+  "originalSourcePlan": {
+    "adapterId": "official-json",
+    "company": {
+      "id": "company-servier-china",
+      "officialChineseName": "施维雅中国",
+      "category": "FOREIGN_PHARMA"
+    },
+    "source": {
+      "id": "source-servier-china-social",
+      "surfaceId": "surface-servier-china-social",
+      "companyId": "company-servier-china",
+      "kind": "SOCIAL",
+      "atsKind": "MOKA",
+      "status": "VERIFIED_SCRAPABLE",
+      "officialEntryUrl": "https://app.mokahr.com/social-recruitment/shiweiya/47734",
+      "officialChainEvidenceUrl": "https://www.servier.com.cn/social-recruitment/shiweiya/47734"
+    },
+    "executionAuthority": "STAGED",
+    "expectedChannels": [
+      {
+        "channelId": "source:source-servier-china-social:default",
+        "kind": "SOCIAL"
+      }
+    ],
+    "expectedChannelSetHash": "4fa6146ed0601dce26df9f17475d9bf986a397413fbac507cc56e429866d0479",
+    "json": {
+      "jobsPath": "data.jobs",
+      "fields": {
+        "sourceJobId": "id",
+        "officialTitle": "title",
+        "officialUrl": "officialUrl",
+        "locationRaw": "locationRaw",
+        "cities": "cities"
+      },
+      "defaultCategory": "其他"
+    },
+    "moka": {
+      "expectedOrgId": "shiweiya",
+      "expectedSiteId": "47734",
+      "expectedMode": "social",
+      "campaignUrl": "https://app.mokahr.com/social-recruitment/shiweiya/47734",
+      "allowedEntryRedirect": {
+        "origin": "https://app.mokahr.com",
+        "pathname": "/social-recruitment/shiweiya/47734"
+      },
+      "hydrateMissingLocationsFromDetail": true,
+      "allowDetailSiteIdOmission": true,
+      "scopeExclusionProof": "SERVIER_OPEN_PORTAL_UNKNOWN_GEOGRAPHY_V1"
+    },
+    "transientRetryPolicy": {
+      "maxRetries": 1,
+      "backoffMs": 10000
+    },
+    "transportPolicy": {
+      "primary": "DIRECT_HTTP"
+    }
+  },
+  "network": false,
+  "database": false,
+  "launch": false
+}

@@ -1,0 +1,26 @@
+{
+  "producerCommit": "28402a299bb04cbf5873da66c2fe8ca76827c0d1",
+  "runtimeRoot": "/workspace/scratch/5e9614251709/jb-incremental-proxy-runtime-20261007T0057Z",
+  "files": {
+    "/workspace/scratch/5e9614251709/jb-incremental-proxy-runtime-20261007T0057Z/hosts/servier/host/host-helper-functions.js": {
+      "sha256": "a94b2ac60ff11dadf7ebb760696ca08f4fcf285df2747535ae28124635d4db44",
+      "bytes": 9771
+    },
+    "/workspace/scratch/5e9614251709/jb-incremental-proxy-runtime-20261007T0057Z/hosts/servier/host/host-stage-functions.js": {
+      "sha256": "0762921f03b60181f27551a9f005189b2cab92f8c35fc557f5b0bc2a4377e6b2",
+      "bytes": 6579
+    },
+    "/workspace/scratch/5e9614251709/jb-incremental-proxy-runtime-20261007T0057Z/hosts/servier/host/relay-files.mjs": {
+      "sha256": "5582a2b098007cb768b50be2c6b7253ee399ebfd594c6d1842774070eacdb58d",
+      "bytes": 7909
+    },
+    "/workspace/scratch/5e9614251709/jb-incremental-proxy-runtime-20261007T0057Z/hosts/servier/host/runtime/continuous-relay-v3-durable-monitor.js": {
+      "sha256": "3405b463dba7bb904a051b3dc70be2b38c82297bb82d1b1996845f5d07ca3e26",
+      "bytes": 5184
+    },
+    "/workspace/scratch/5e9614251709/jb-incremental-proxy-runtime-20261007T0057Z/hosts/servier/host/runtime/review-packet-envelope.mts": {
+      "sha256": "7d843c8a2d54c5bb1a7b1abec896294e18e3ef081ab9c97ef0c809f5db3ee173",
+      "bytes": 11318
+    }
+  }
+}

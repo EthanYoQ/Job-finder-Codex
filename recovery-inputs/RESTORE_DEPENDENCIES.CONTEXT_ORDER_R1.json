@@ -1,0 +1,15 @@
+{
+  "schemaVersion": 1,
+  "artifactKind": "SOURCE_ONLY_LOCAL_REVIEWER_REPAIR_OVERLAY",
+  "runtimeRoot": "/workspace/scratch/5e9614251709/jb-incremental-proxy-runtime-20261007T0057Z",
+  "producerCommit": "28402a299bb04cbf5873da66c2fe8ca76827c0d1",
+  "baseUnboundSourcePlanSha256": "578413b4df12075d42b967ae57b10e700a0fb3ccf6d6e677d60183bcd09725ce",
+  "frozenContextSchemaSha256": "a869bf0bf8508eeb3361612fb3eadcfc1de167d4cff3aa762343e216598edce1",
+  "frozenJsonCompilerSha256": "346d5af4ee2ebecb88e81aede9886d315dc39732c35ff2ce1c4da28e3f2f5b2e",
+  "ownerFactoryUnchanged": true,
+  "ownerReviewedEntryUnchanged": true,
+  "requiresNewPrivateParentApprovedOriginDescriptorPerAffectedRequest": true,
+  "privateOriginalDataIncluded": false,
+  "explicitSourceEnvironmentRequired": true,
+  "notSelectedPythonProposalIncluded": false
+}
