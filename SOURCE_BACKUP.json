@@ -1,92 +1,89 @@
 {
-  "format": "safe-skill-backup/v1",
-  "snapshot": "aliyun-safe-cleanup",
-  "originalDeliveryManifestSha256": "e1d8f51a74913bd6503c33d6f6939a7d6f08ccc41c875b1dd9c973803e44864e",
-  "originalSkillSourceFiles": 7,
-  "originalSkillSourceBytes": 29885,
-  "originalDeliveryManifestBytes": 1888,
-  "originalBytesUnchanged": true,
-  "restoreRoot": "skills/aliyun-safe-cleanup",
-  "manifestPathBase": "All paths listed by DELIVERY_MANIFEST.json are relative to the skill root. The original delivery used an aliyun-safe-cleanup subdirectory; this unchanged manifest copy is colocated with SKILL.md.",
-  "authorStatements": "Original inventory and validation status in the skill and manifest are author-reported historical context, not results rerun during this backup.",
-  "restorationLimits": [
-    "Keep all seven skill/source/test paths together; their original 0644 modes are preserved. Use sh/python3 for the entry scripts.",
-    "Python 3 standard library, compatible Linux APIs/system tools and existing authorized official Alibaba Cloud connection are external operational dependencies.",
-    "Inventory summaries are incomplete reference evidence and may contain private host metadata; actual outputs are not included.",
-    "Archive content verification is not a Docker load test, full layer/config validity proof, registry-digest restoration or deletion authorization.",
-    "No actual cleanup, image removal or Docker load was performed by this backup."
-  ],
-  "excluded": [
-    "Real host inventory/results/receipts",
-    "Image archives and real fixed image IDs",
-    "Credentials and deployment configuration",
-    "Business data and unrelated workspace material"
-  ],
-  "verificationScope": "Static source/hash/reference review and exact remote Git/content readback; no helper, test, server command or cleanup execution.",
+  "schemaVersion": 1,
+  "kind": "skill-source-backup",
+  "previousBackup": "e0ab678cd139b2a04277bf0d0f9cc99a0b7f8f30",
   "files": [
     {
       "path": "skills/aliyun-safe-cleanup/SKILL.md",
       "mode": "100644",
       "type": "blob",
-      "sha": "d38bb98a92918f8deb292d41c7ee86d0b265dfbe",
-      "sha256": "9fb7c2a4242d595090acff0e34eedcc993415008ea23df6405ea1dd30593f6d8",
-      "bytes": 6982
+      "sha256": "a3c3fbf5a28bd8c65e4180804a9b799650ab159f7c7968b3903048f0ed3e7a41",
+      "sha": "8350a33daafa667d4bb305042c7c01f94bfc9486",
+      "bytes": 7790
     },
     {
       "path": "skills/aliyun-safe-cleanup/agents/openai.yaml",
       "mode": "100644",
       "type": "blob",
-      "sha": "2fa48a49be2db0b3a3fcbe62f92d138e4190682d",
       "sha256": "531297ed7e48f178c31b3ff3ae895add302b5ceba24f1b8c07a24a65261ccd3e",
+      "sha": "2fa48a49be2db0b3a3fcbe62f92d138e4190682d",
       "bytes": 309
     },
     {
       "path": "skills/aliyun-safe-cleanup/references/recovery-boundaries.md",
       "mode": "100644",
       "type": "blob",
-      "sha": "b9599654590c0f6643cd74ad9d9989a4110c61b9",
       "sha256": "4e0055fa3e399f62a03e4d8aa012c4fd918203a8919142512f9dac3dd39e1230",
+      "sha": "b9599654590c0f6643cd74ad9d9989a4110c61b9",
       "bytes": 2450
+    },
+    {
+      "path": "skills/aliyun-safe-cleanup/references/resource-window.md",
+      "mode": "100644",
+      "type": "blob",
+      "sha256": "546342734340b4996ddcffcc0eea2fd0b3cc4e686d626b32075f9bae2557c72d",
+      "sha": "64e36abdd3b7c69cfb452e63f88363bf2a0648e0",
+      "bytes": 2845
     },
     {
       "path": "skills/aliyun-safe-cleanup/scripts/inventory-readonly.sh",
       "mode": "100644",
       "type": "blob",
-      "sha": "18dfa5c55f5c15d26752e8c8515cf35af620983e",
       "sha256": "b7ec7e10d0bef4f357417aa5098000090a139f38b09cd2cc724eee41fd586b4e",
+      "sha": "18dfa5c55f5c15d26752e8c8515cf35af620983e",
       "bytes": 5214
     },
     {
       "path": "skills/aliyun-safe-cleanup/scripts/test_inventory_helper.py",
       "mode": "100644",
       "type": "blob",
-      "sha": "33544d1848e3d2eb9f7e9b609b281d41db1475c2",
       "sha256": "db20c7a95efc08eadc1d29628b6670971547b4b5c05a7a437d173fba54fc6f8f",
+      "sha": "33544d1848e3d2eb9f7e9b609b281d41db1475c2",
       "bytes": 2742
     },
     {
       "path": "skills/aliyun-safe-cleanup/scripts/verify_docker_archive.py",
       "mode": "100644",
       "type": "blob",
-      "sha": "350d8d384ac594b2dcd541fd31e60298cb979a55",
       "sha256": "aa254a7ff599b8a8015a39c89e9f24b77de7a990ffc6880e48ce62ed9e00e460",
+      "sha": "350d8d384ac594b2dcd541fd31e60298cb979a55",
       "bytes": 6748
     },
     {
       "path": "skills/aliyun-safe-cleanup/scripts/test_verify_docker_archive.py",
       "mode": "100644",
       "type": "blob",
-      "sha": "89408025c30d015f4746faa74f06d6b71547d890",
       "sha256": "8cdfdf7984bc57a4218ebccd0ad1da6a7c6be786cd22ac2c13af9f0f8a501a00",
+      "sha": "89408025c30d015f4746faa74f06d6b71547d890",
       "bytes": 5440
     },
     {
       "path": "skills/aliyun-safe-cleanup/DELIVERY_MANIFEST.json",
       "mode": "100644",
       "type": "blob",
-      "sha": "93656b97125acd9512a10de852c2b0a28cf6fd37",
-      "sha256": "e1d8f51a74913bd6503c33d6f6939a7d6f08ccc41c875b1dd9c973803e44864e",
-      "bytes": 1888
+      "sha256": "4356a7ca5ef620a1f2867fbe06c01d01e184d48982477b5f8d225a1b0df14274",
+      "sha": "415f3eef49516a863689b4ab38db2eb7e307aae2",
+      "bytes": 2334
     }
-  ]
+  ],
+  "unchangedFromPrevious": [
+    "skills/aliyun-safe-cleanup/agents/openai.yaml",
+    "skills/aliyun-safe-cleanup/references/recovery-boundaries.md",
+    "skills/aliyun-safe-cleanup/scripts/inventory-readonly.sh",
+    "skills/aliyun-safe-cleanup/scripts/test_inventory_helper.py",
+    "skills/aliyun-safe-cleanup/scripts/verify_docker_archive.py",
+    "skills/aliyun-safe-cleanup/scripts/test_verify_docker_archive.py"
+  ],
+  "originalDeliveryManifestSHA256": "4356a7ca5ef620a1f2867fbe06c01d01e184d48982477b5f8d225a1b0df14274",
+  "review": "Static hash/content/link inspection only; no backed-up source or tests executed. Source manifest reports 0 deletion and 0 active bytes freed."
 }

@@ -25,6 +25,8 @@ For Docker, enumerate full image IDs and **all** containers, including stopped c
 
 ## Gate a cleanup change
 
+If there is no disk pressure and available memory is below the reviewed starting reserve, postpone before creating archives or starting Docker work. Keep existing services running and preserve the originals. Do not lower the reserve merely to finish cleanup. Read [references/resource-window.md](references/resource-window.md) for the verified stop boundary and how to resume within the existing scope.
+
 Proceed only for an exact, frozen candidate with an identified recovery route. A general cleanup request does not authorize an irreversible purge.
 
 - Existing source, runtime, database data, protected rollback packages, security logs, and unresolved evidence remain protected.
@@ -35,7 +37,7 @@ Proceed only for an exact, frozen candidate with an identified recovery route. A
 
 For an already available archive of exact untagged image IDs, [scripts/verify_docker_archive.py](scripts/verify_docker_archive.py) performs a bounded, read-only check of compressed integrity, config/image IDs, and layer-byte hashes. It supports classic Docker save archives with raw layer files; it rejects nonempty repository tags and OCI layouts. Its result explicitly does not prove `docker load`, registry-digest restoration, or a complete recovery. It must not be used as deletion authorization.
 
-No destructive command is provided here because the verified run reached the recovery/approval boundary without performing cleanup.
+No destructive command is provided here because the observed runs reached the recovery/approval boundary, and a later approved archive attempt stopped at the initial resource guard, without performing cleanup.
 
 ## Verify and report
 
@@ -47,4 +49,4 @@ When the user requested a skill/code backup, hand only the sanitized skill, help
 
 ## Validation status
 
-Validated on 2026-10-07: bounded remote inventory, retention of partial `du` output, sanitized PM2/Docker reporting, exact image/container reference enumeration, and distinguishing a compressed rollback package from an expanded duplicate. The bundled helper was subsequently hardened with bounded stream capture, explicit incomplete-root labels, missing-command handling, and no PM2 CLI call. Those changes passed 7 local subprocess-fixture tests; that revised helper has not been rerun on the server. The observed server inventory made **no cleanup change**. The archive checker passed 17 local synthetic tests, including corrupt/truncated gzip, path/member faults, decoded-stream and cumulative metadata budgets, concurrent file changes, unexpected references, and output redaction. Image removal, archive restoration, and freed disk space have **not** been validated by this skill's originating run.
+Validated on 2026-10-07: bounded remote inventory, retention of partial `du` output, sanitized PM2/Docker reporting, exact image/container reference enumeration, and distinguishing a compressed rollback package from an expanded duplicate. The bundled helper was subsequently hardened with bounded stream capture, explicit incomplete-root labels, missing-command handling, and no PM2 CLI call. Those changes passed 7 local subprocess-fixture tests; that revised helper has not been rerun on the server. The observed server inventory made **no cleanup change**. A later explicitly approved archive-only attempt was observed stopping at its initial memory reserve, before creating the recovery directory or invoking Docker save. A read-only recheck confirmed no archive directory was created; the operator retained the reserve and deferred the task because storage was not under pressure. The archive checker passed 17 local synthetic tests, including corrupt/truncated gzip, path/member faults, decoded-stream and cumulative metadata budgets, concurrent file changes, unexpected references, and output redaction. Image removal, archive restoration, and freed disk space have **not** been validated by this skill's originating run.

@@ -1,13 +1,11 @@
-# Aliyun safe cleanup project skill backup
+# Aliyun safe cleanup skill: resource-window update
 
-This preserves seven original skill/helper/test files and the unchanged delivery manifest. Start with [SKILL.md](skills/aliyun-safe-cleanup/SKILL.md). Keep the skill's relative paths together.
+This snapshot preserves eight original skill files and their delivery manifest. Restore the complete skills/aliyun-safe-cleanup directory. The manifest is colocated with SKILL.md so its relative file paths resolve; its source originally lived one directory above the skill. All original contents are unchanged.
 
-The manifest's file paths are relative to the skill root, which was the aliyun-safe-cleanup/ subdirectory in the original delivery. Its unchanged copy is stored beside SKILL.md in this backup. All original files had mode 0644; invoke the helpers through sh or python3 rather than treating them as directly executable.
+This revision updates SKILL.md and adds references/resource-window.md. Six existing helper, test and reference files are byte-identical to [the previous cleanup skill](https://github.com/EthanYoQ/Job-finder-Codex/tree/e0ab678cd139b2a04277bf0d0f9cc99a0b7f8f30). Source hashes are recorded in SOURCE_BACKUP.json and the original delivery manifest.
 
-The author's validation and original inventory status are preserved as historical statements. This backup only reviewed the frozen files, hashes and source boundaries; it did not rerun the 7 inventory-fixture or 17 archive tests. The originating work had not removed images, run docker load or actively freed storage. This is a skill backup, not a cleanup receipt.
+The manifest records a resource-guard deferral: zero deletions and zero actively freed bytes. The original files were retained; no successful archive, import, removal or cleanup is claimed. The backup does not change that outcome or grant permission to execute cleanup procedures.
 
-The inventory helper uses Python 3 standard-library APIs and Linux system tools. Future operational use also requires the existing official Alibaba Cloud connection and external CLI-guidance skill. It reports selected paths and Docker metadata, so actual inventory output still requires private handling and is excluded here. A successful process exit can coexist with incomplete inventory in its errors list.
+Markdown/YAML require no runtime installation to restore. Optional helper use requires the documented Linux/POSIX/Python standard-library environment and applicable system tools; scripts are preserved with mode 100644. The archive checker is limited to its documented classic Docker-save format and is not proof of docker load or complete recovery. Actual host results, image contents/IDs, credentials, operational receipts and unexecuted export/load drafts are excluded.
 
-The archive checker reads gzip-wrapped classic Docker save archives and checks the implemented path/member/hash/identity budgets. It does not validate layer-tar internals, complete Docker config semantics, docker load, registry-digest restoration or a complete recovery. Its success does not authorize deleting an image.
-
-Real host receipts, image payloads or fixed real image IDs, deployment configuration, credentials and business data are absent. Actual cleanup still needs the exact reference graph, protected recovery materials, demonstrated recovery, appropriate approval and measured before/after filesystem results. No cleanup, load, service change, merge or deployment was performed by this backup.
+Backup validation checked exact hashes, unchanged-source equality, static content and local links. It did not run the skill, helper tests, inventory, archive or cleanup commands. The delivery manifest's test counts are preserved as source-provided validation records.
