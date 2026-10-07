@@ -1,0 +1,46 @@
+{
+  "producerCommit": "28402a299bb04cbf5873da66c2fe8ca76827c0d1",
+  "runtimeRoot": "/workspace/scratch/5e9614251709/jb-incremental-proxy-runtime-20261007T0057Z",
+  "files": {
+    "/workspace/scratch/5e9614251709/jb-incremental-proxy-runtime-20261007T0057Z/hosts/cttq/host/host-helper-functions.js": {
+      "sha256": "8be7694039f38529a0bb04520ebe975c7620af64d66d24f7d0c71e9289dd47c6",
+      "bytes": 9738
+    },
+    "/workspace/scratch/5e9614251709/jb-incremental-proxy-runtime-20261007T0057Z/hosts/cttq/host/host-stage-functions.js": {
+      "sha256": "25a23a4e44b55fe3de8d9700d66765ed7b95499e993c566559fd9bc3511f34be",
+      "bytes": 6534
+    },
+    "/workspace/scratch/5e9614251709/jb-incremental-proxy-runtime-20261007T0057Z/hosts/cttq/host/relay-files.mjs": {
+      "sha256": "c72df8861c74d864c99a24969ca00ff86e05c971606e1478bc9ef786e05c0a18",
+      "bytes": 7906
+    },
+    "/workspace/scratch/5e9614251709/jb-incremental-proxy-runtime-20261007T0057Z/hosts/cttq/host/runtime/continuous-relay-v3-durable-monitor.js": {
+      "sha256": "19298ab13547345f63d4bcd153a9e805dec5fe9994c2e16c1288c418a5ff3987",
+      "bytes": 5148
+    },
+    "/workspace/scratch/5e9614251709/jb-incremental-proxy-runtime-20261007T0057Z/hosts/cttq/host/runtime/review-packet-envelope.mts": {
+      "sha256": "40cb1e3ede867f0e9d171605e7454fc71a6f774dfdf910f68ff668722bba69cb",
+      "bytes": 5535
+    },
+    "/workspace/scratch/5e9614251709/jb-incremental-proxy-runtime-20261007T0057Z/hosts/gsk/host/host-helper-functions.js": {
+      "sha256": "40c9f124df68fefa400c099dee060e64a3190ebf5f341150b64b55e4e479d300",
+      "bytes": 9735
+    },
+    "/workspace/scratch/5e9614251709/jb-incremental-proxy-runtime-20261007T0057Z/hosts/gsk/host/host-stage-functions.js": {
+      "sha256": "c62c99885b84e6c19b560afd4d4f8b3ef84e16085c4b1a7609d569757054be4d",
+      "bytes": 6535
+    },
+    "/workspace/scratch/5e9614251709/jb-incremental-proxy-runtime-20261007T0057Z/hosts/gsk/host/relay-files.mjs": {
+      "sha256": "c1947f71261a068ee86afca844d9d5eec60aa6f301aad7c6a4dc04500191a846",
+      "bytes": 7905
+    },
+    "/workspace/scratch/5e9614251709/jb-incremental-proxy-runtime-20261007T0057Z/hosts/gsk/host/runtime/continuous-relay-v3-durable-monitor.js": {
+      "sha256": "5ef029081bc731358cb0e3f8515b9206470c05235d975b22558a2d303f7a6c96",
+      "bytes": 5136
+    },
+    "/workspace/scratch/5e9614251709/jb-incremental-proxy-runtime-20261007T0057Z/hosts/gsk/host/runtime/review-packet-envelope.mts": {
+      "sha256": "40cb1e3ede867f0e9d171605e7454fc71a6f774dfdf910f68ff668722bba69cb",
+      "bytes": 5535
+    }
+  }
+}

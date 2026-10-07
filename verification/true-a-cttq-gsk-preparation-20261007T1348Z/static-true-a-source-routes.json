@@ -1,0 +1,55 @@
+{
+  "schemaVersion": 1,
+  "artifactKind": "STATIC_TRUE_A_ROUTE_PROJECTION",
+  "routeCountsAreNotQualificationThresholds": true,
+  "rows": [
+    {
+      "sourceId": "source-cttq-social",
+      "route": "TRUE_A",
+      "source": {
+        "id": "source-cttq-social",
+        "companyId": "company-cttq",
+        "kind": "SOCIAL",
+        "atsKind": "BEISEN_ZHIYE",
+        "status": "VERIFIED_SCRAPABLE",
+        "officialEntryUrl": "https://cttq.zhiye.com/social/jobs",
+        "officialChainEvidenceUrl": "https://www.cttq.com/personnel/xiao-yuan-zhao-pin-list-0.htm"
+      },
+      "sourceConfigSha256": "ffdac7a24fcdc6aeabfc9abebfbc49fac8a3cb110a218c61fae6dc0f4e75dbb7",
+      "mainImplementation": {
+        "role": "deadline-restored-47b74924",
+        "path": "scripts/p0-cloud-source-pilot.ts",
+        "sha256": "e4299018aa4b17cd7d0ff756ea45b779479708e02c400be9a1c8ffc0c2c1abaa"
+      },
+      "qualityImplementation": {
+        "role": "deadline-restored-47b74924",
+        "path": "src/crawler/completenessCertificate.ts",
+        "sha256": "6dcf1ca30aa2f6b8d3f7b4079147010dd63c5718c52dc8a83269f97dfe6a18be"
+      }
+    },
+    {
+      "sourceId": "source-gsk-china-social",
+      "route": "TRUE_A",
+      "source": {
+        "id": "source-gsk-china-social",
+        "companyId": "company-gsk-china",
+        "kind": "SOCIAL",
+        "atsKind": "MOKA",
+        "status": "VERIFIED_SCRAPABLE",
+        "officialEntryUrl": "https://app.mokahr.com/social-recruitment/gsk/148067#/",
+        "officialChainEvidenceUrl": "https://www.gsk-china.com/zh-cn/careers/"
+      },
+      "sourceConfigSha256": "aa9bf82308c3b818a8c33b80561712b932389186c160ae83583a8c869eb54d74",
+      "mainImplementation": {
+        "role": "deadline-restored-47b74924",
+        "path": "scripts/p0-cloud-source-pilot.ts",
+        "sha256": "e4299018aa4b17cd7d0ff756ea45b779479708e02c400be9a1c8ffc0c2c1abaa"
+      },
+      "qualityImplementation": {
+        "role": "deadline-restored-47b74924",
+        "path": "src/crawler/completenessCertificate.ts",
+        "sha256": "6dcf1ca30aa2f6b8d3f7b4079147010dd63c5718c52dc8a83269f97dfe6a18be"
+      }
+    }
+  ]
+}

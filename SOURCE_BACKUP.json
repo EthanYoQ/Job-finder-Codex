@@ -1,474 +1,460 @@
 {
   "schemaVersion": 1,
   "scope": "Unbound host source, static configuration templates, synthetic test code and exact regeneration inputs",
-  "reviewedPlanSha256": "a4393628c72b43626ac009ae51ba46bddc531fcd04229511977d6cd416a52dc5",
+  "reviewedPlanSha256": "8bc19da3dbec5e1b367e3f6fc3b50c8f36bc963e8ab80a0cb3a0eb53da5043d9",
   "additionalExclusions": {},
   "sourceExecutionPerformed": false,
   "sourceFiles": [
     {
       "path": "RESTORE_DEPENDENCIES.json",
       "mode": "100644",
-      "bytes": 2912,
-      "sha256": "e8be9b6985607c4fbcd40ad6a30918c8288c1b2bdb62f46bdf8f8a97d824eff1",
-      "sha": "ed7cc855908a49c57c0cc7fb0b4adc8a112e3b14"
+      "bytes": 2954,
+      "sha256": "e563a932f47a74f9896c8851a38295602075ff9587447998b79d02d9c2a95d3e",
+      "sha": "482337dfca3c4009847dc009c83fd6a4ff3b5882"
     },
     {
-      "path": "hosts/crpharma/RESTORE_DEPENDENCIES.json",
-      "mode": "100644",
-      "bytes": 1154,
-      "sha256": "470c972d7a9560fe1a8f8d4841cb91f92f3009ac04aa8eeacfae6d85cf5b9012",
-      "sha": "4308b39d233fc8b5aa48199122dae8b0ed2da1e4"
-    },
-    {
-      "path": "hosts/crpharma/host/archive-transfer.mjs",
+      "path": "hosts/cttq/host/archive-transfer.mjs",
       "mode": "100644",
       "bytes": 1777,
       "sha256": "698e966e5552967845a5252d2b3df2acca28dcd8dbbb0ae41755a3a6231e6a99",
       "sha": "5a454d21f34f9680221bbee2c98b3fecb94884f0"
     },
     {
-      "path": "hosts/crpharma/host/context-read.sql.template",
+      "path": "hosts/cttq/host/context-read.sql.template",
       "mode": "100644",
-      "bytes": 2372,
-      "sha256": "fd865878da173235fa148c7e8eabaea2ff093e08e27268455bf87f2ec771aea6",
-      "sha": "e12fdeaf0650397232a62e7179f3af00045a33b4"
+      "bytes": 2347,
+      "sha256": "11fe6157d263b1991707b476fd9b93364351f6285d800f4627a6ac83fe7ba6fd",
+      "sha": "994be2924a1301e41a9ce56dc79106b89755c738"
     },
     {
-      "path": "hosts/crpharma/host/context-template-proof.json",
+      "path": "hosts/cttq/host/context-template-proof.json",
       "mode": "100644",
-      "bytes": 2550,
-      "sha256": "54d4af26eeca985b7233d0292e7e753941f16e31d2e1ab9cff3e3d19061b9313",
-      "sha": "402fdc3619c77e4688b2f495c605522dcabf3438"
+      "bytes": 2312,
+      "sha256": "6da884f4fb01e55bbb13aeb2bac225363565163391272299a0170e3845a46060",
+      "sha": "519a4f06ab48d36f03b2da8e5398e5cfe61dd9fe"
     },
     {
-      "path": "hosts/crpharma/host/control-base.template.json",
+      "path": "hosts/cttq/host/control-base.template.json",
       "mode": "100644",
       "bytes": 467,
       "sha256": "3634b5cc4c996565263cdae4b168cb519556c2401367f33511b426fd0ae48897",
       "sha": "f315252ccc1b63c4b75f86f3ab6dcacdccbeaa1d"
     },
     {
-      "path": "hosts/crpharma/host/host-config.json",
+      "path": "hosts/cttq/host/host-config.json",
       "mode": "100644",
-      "bytes": 510,
-      "sha256": "e6dc1d38b060500de118b16ecff42310c4dd36f14103af5ed8e5278478f1ae25",
-      "sha": "4b3e806f513367f14f869a2df02679b66e494fb6"
+      "bytes": 501,
+      "sha256": "1317a4a06122e29c6b9940bd3e37dc3707fcf2067b3714674b950aff1553affd",
+      "sha": "c0b48a0c979b2b3fcefb17540eaba0e2e9c078af"
     },
     {
-      "path": "hosts/crpharma/host/host-config.template.json",
+      "path": "hosts/cttq/host/host-config.template.json",
       "mode": "100644",
-      "bytes": 510,
-      "sha256": "e6dc1d38b060500de118b16ecff42310c4dd36f14103af5ed8e5278478f1ae25",
-      "sha": "4b3e806f513367f14f869a2df02679b66e494fb6"
+      "bytes": 501,
+      "sha256": "1317a4a06122e29c6b9940bd3e37dc3707fcf2067b3714674b950aff1553affd",
+      "sha": "c0b48a0c979b2b3fcefb17540eaba0e2e9c078af"
     },
     {
-      "path": "hosts/crpharma/host/host-files.mts",
+      "path": "hosts/cttq/host/host-files.mts",
       "mode": "100644",
       "bytes": 4077,
       "sha256": "c8033565b3c368bf369fc7507f9d1ff8fa87bc0dde0a84a10a95373473dc6f3a",
       "sha": "8c8f201640071565320343e74c6919d1e83fd9b5"
     },
     {
-      "path": "hosts/crpharma/host/host-helper-functions.js",
+      "path": "hosts/cttq/host/host-helper-functions.js",
       "mode": "100644",
-      "bytes": 9775,
-      "sha256": "4a20b0eca47f0edb1f6a36c46b7b2a704977df8ac549335ddfad1f26b92e612f",
-      "sha": "f8115a1b8501447ca96f12367fb8ee7309fcc14d"
+      "bytes": 9738,
+      "sha256": "8be7694039f38529a0bb04520ebe975c7620af64d66d24f7d0c71e9289dd47c6",
+      "sha": "1552472768c9b7fcf5264bc3659ace53488820d2"
     },
     {
-      "path": "hosts/crpharma/host/host-stage-functions.js",
+      "path": "hosts/cttq/host/host-stage-functions.js",
       "mode": "100644",
-      "bytes": 6580,
-      "sha256": "91e6d8b6c95576c59d4f2a50cef85935488f6824f7b0858c0390c753a7b6c21a",
-      "sha": "f26a431ad57ae41a6499734ea89d56c80acd0de2"
+      "bytes": 6534,
+      "sha256": "25a23a4e44b55fe3de8d9700d66765ed7b95499e993c566559fd9bc3511f34be",
+      "sha": "f9309ce04d235f32d92d3b2c1df5c133750d6e45"
     },
     {
-      "path": "hosts/crpharma/host/machine-json.js",
+      "path": "hosts/cttq/host/machine-json.js",
       "mode": "100644",
       "bytes": 807,
       "sha256": "3484738bd095a9d57da70c6392af78865a53759a9e8499316941157b6210e9f6",
       "sha": "7b927e85ca286ffa900ca93462deee5b9988ed49"
     },
     {
-      "path": "hosts/crpharma/host/owner-binding-input.template.json",
+      "path": "hosts/cttq/host/owner-binding-input.template.json",
       "mode": "100644",
-      "bytes": 616,
-      "sha256": "c9bbddcc3fe1b7081c612f49db614477d4427496af7a37167fe1166fd09e1f9b",
-      "sha": "50cfd02c56b24fab3733ee432d1c1a9a3b8799f1"
+      "bytes": 611,
+      "sha256": "c7143ebefc6b673dc5da9321808bfd691df38c6ed73eb9640ab905b9bf93711b",
+      "sha": "b94cb6fc4f6f4dfe65951055e4c1099222464acd"
     },
     {
-      "path": "hosts/crpharma/host/relay-files.mjs",
+      "path": "hosts/cttq/host/relay-files.mjs",
       "mode": "100644",
-      "bytes": 7910,
-      "sha256": "72411826caed662afb7f89bfef6e33cb747a00b3ef0a8e1c22b92c27d1e5267a",
-      "sha": "f3c893bc46c4c7fbe1e9ac93632d9e66571c2fec"
+      "bytes": 7906,
+      "sha256": "c72df8861c74d864c99a24969ca00ff86e05c971606e1478bc9ef786e05c0a18",
+      "sha": "1078001564873bdce88bc05c59f9287ef775d177"
     },
     {
-      "path": "hosts/crpharma/host/runtime/complete-reviewed-source-readback.js",
+      "path": "hosts/cttq/host/runtime/complete-reviewed-source-readback.js",
       "mode": "100644",
-      "bytes": 5697,
-      "sha256": "38e717fd736a21387bd9257673745db7f9d2ec794c5bffe26e956a8988649b8f",
-      "sha": "632015bec39023a99feb68aba7935efb2fffa916"
+      "bytes": 5693,
+      "sha256": "fde84e1a283f6c6ed2eee2907c47190edb96177c753fd3724d15695b2278ed76",
+      "sha": "8745b605a19d830e48e161feb7946db49cfe72e9"
     },
     {
-      "path": "hosts/crpharma/host/runtime/continuous-relay-v3-durable-monitor.js",
+      "path": "hosts/cttq/host/runtime/continuous-relay-v3-durable-monitor.js",
       "mode": "100644",
-      "bytes": 5196,
-      "sha256": "1825a6400063e8b73c828b16d6c22a70536f50a90f07412a491c113fdf576550",
-      "sha": "b548d0ce985b2c426d8248545554818d3a11ccf8"
+      "bytes": 5148,
+      "sha256": "19298ab13547345f63d4bcd153a9e805dec5fe9994c2e16c1288c418a5ff3987",
+      "sha": "5fc10cdedea76e50048ff00786faa3694e43228b"
     },
     {
-      "path": "hosts/crpharma/host/runtime/inspect-host-binding.mts",
+      "path": "hosts/cttq/host/runtime/inspect-host-binding.mts",
       "mode": "100644",
       "bytes": 3272,
       "sha256": "11ce7f25fa48a23e8559712f32b7eb5218e5caa617bf4cdf08b17b3085cd28af",
       "sha": "2ac95e486b0d7de70c63bc8079a1c9ad8871bcc5"
     },
     {
-      "path": "hosts/crpharma/host/runtime/load-host-state.js",
+      "path": "hosts/cttq/host/runtime/load-host-state.js",
       "mode": "100644",
-      "bytes": 5328,
-      "sha256": "93eb2311defd340287970ab96ed6fb683ffb04bb683071c3b9726913a7804f86",
-      "sha": "0240afeb65078b9a6425a06fbff45ecbdf61a2a7"
+      "bytes": 5299,
+      "sha256": "8f383577fd9cc0e377ad5f1cb50594cb77ff70e94e2b03499bd367d20fb1ace1",
+      "sha": "d7e0b0fe4c4e5ec0dc7f6583bbb6968568deda3f"
     },
     {
-      "path": "hosts/crpharma/host/runtime/load-host-state.unbound.template.js",
+      "path": "hosts/cttq/host/runtime/load-host-state.unbound.template.js",
       "mode": "100644",
-      "bytes": 5328,
-      "sha256": "93eb2311defd340287970ab96ed6fb683ffb04bb683071c3b9726913a7804f86",
-      "sha": "0240afeb65078b9a6425a06fbff45ecbdf61a2a7"
+      "bytes": 5299,
+      "sha256": "8f383577fd9cc0e377ad5f1cb50594cb77ff70e94e2b03499bd367d20fb1ace1",
+      "sha": "d7e0b0fe4c4e5ec0dc7f6583bbb6968568deda3f"
     },
     {
-      "path": "hosts/crpharma/host/runtime/load-source-runtime.js",
+      "path": "hosts/cttq/host/runtime/load-source-runtime.js",
       "mode": "100644",
-      "bytes": 2428,
-      "sha256": "3318f7cf3fabf67e0e94ef010a80dbaf3391ceac3af9541ad06645883a0be909",
-      "sha": "e1f796e4526f61d1f3f357fe1a7897383efceb03"
+      "bytes": 2371,
+      "sha256": "f66a7c782944649abda487cd46b9896a732ee4d17a93ab3dd7c1f79ecfed0a29",
+      "sha": "4c453481c1f6d5835e60870f323e508a3319ffdc"
     },
     {
-      "path": "hosts/crpharma/host/runtime/machine-json.py",
+      "path": "hosts/cttq/host/runtime/machine-json.py",
       "mode": "100644",
       "bytes": 1119,
       "sha256": "67611e749eddc6bf8c591fef11f2efa82e2a73ce0bb51b2779fab4ae68b77f50",
       "sha": "3dda394ae2fe15b8740c8db2f0adcf6a9e19e3cf"
     },
     {
-      "path": "hosts/crpharma/host/runtime/preflight/preflight-launch.mjs",
+      "path": "hosts/cttq/host/runtime/preflight/preflight-launch.mjs",
       "mode": "100644",
       "bytes": 11017,
       "sha256": "ab4cffa673ada36078014e20778eeea39d8e5fb208d04f54dc3ff0913a73d2de",
       "sha": "8dc9163aa18f6f8106aafadb2b258e09a3513e72"
     },
     {
-      "path": "hosts/crpharma/host/runtime/preflight/runtime-check.mjs",
+      "path": "hosts/cttq/host/runtime/preflight/runtime-check.mjs",
       "mode": "100644",
       "bytes": 3815,
       "sha256": "e01c5b953283535757e2fcc67df80dd3e86948709dde0b488235a7edee017785",
       "sha": "275890f0f3584e99e0f0f57a4492fd95ad6c248d"
     },
     {
-      "path": "hosts/crpharma/host/runtime/prepare-owner-binding.mts",
+      "path": "hosts/cttq/host/runtime/prepare-owner-binding.mts",
       "mode": "100644",
-      "bytes": 8125,
-      "sha256": "3cfefce8e2839d73372b7b56daa6c3fd197ecf2625b158696dcd37b6e4f4c117",
-      "sha": "881ea02ac743dfeffa8e4791938610452dc299e1"
+      "bytes": 8107,
+      "sha256": "fe3dd867228c73cb7b08ca681b2a6e585a87f4633888aa4035fe40daac0b7774",
+      "sha": "a28b0a698efc560d60c88cc656badca801dc70c5"
     },
     {
-      "path": "hosts/crpharma/host/runtime/prepare-registered-control.mts",
+      "path": "hosts/cttq/host/runtime/prepare-registered-control.mts",
       "mode": "100644",
       "bytes": 123,
       "sha256": "75b04c3bf46a0c81529e1322c74a02ccddb88b6edb161c39e36fc082ad1c89d8",
       "sha": "323b7860456a264d9c9f144e7343376ba43131d1"
     },
     {
-      "path": "hosts/crpharma/host/runtime/review-packet-envelope.mts",
+      "path": "hosts/cttq/host/runtime/review-packet-envelope.mts",
       "mode": "100644",
       "bytes": 5535,
       "sha256": "40cb1e3ede867f0e9d171605e7454fc71a6f774dfdf910f68ff668722bba69cb",
       "sha": "a550d0fd80f032ae7ed2633e88b2cd2c748c6969"
     },
     {
-      "path": "hosts/crpharma/host/runtime/review-publication.py",
+      "path": "hosts/cttq/host/runtime/review-publication.py",
       "mode": "100644",
-      "bytes": 5762,
-      "sha256": "662e7d44daa3d6944e03a196bdc5ed2e49d55a1720a60f3c65bd1bd86756f6d2",
-      "sha": "ac5488dad0e2abae194bc85033bed654ddf1f162"
+      "bytes": 5757,
+      "sha256": "6ab4f8bac9cef4f40ce9f21bb70e97c6485e224c468fca245b2273b1b19e3a0b",
+      "sha": "5e21056b3c3a980e5d02cc9b8795b2db4701713f"
     },
     {
-      "path": "hosts/crpharma/host/runtime/update-candidate-completion-state.mjs",
+      "path": "hosts/cttq/host/runtime/update-candidate-completion-state.mjs",
       "mode": "100644",
       "bytes": 3654,
       "sha256": "ae5ad99411b014c8ffff615a0b06af1e1fdfd2ed7f7265c9c9cee0128339bb06",
       "sha": "ec886e3dd2b52805daccddcdcd862b6afbaeec29"
     },
     {
-      "path": "hosts/crpharma/host/source-config-reference.json",
+      "path": "hosts/cttq/host/source-config-reference.json",
       "mode": "100644",
       "bytes": 895,
-      "sha256": "945a0c3dfefe0431b3e1947e5d665a48a2ac59e134f9bce242ebe6d9adea4c9b",
-      "sha": "92dd19ad50f6f8b2628b5774540596b5e1eebc82"
+      "sha256": "a82f29b71267f84dedfc6d84e6de8877d501f79077b2cb3a4fd2b7a5767ccf8b",
+      "sha": "f703d90dee4fe5ab0e78c6f2a7691655b3d0b329"
     },
     {
-      "path": "hosts/crpharma/supervision/inspect-launch-identity.mjs",
+      "path": "hosts/cttq/supervision/inspect-launch-identity.mjs",
       "mode": "100644",
       "bytes": 871,
       "sha256": "7bc818ae831081b7e91819ad772b950d08e7d06dc741730c0bd54698d6fe8b37",
       "sha": "0fc3dd6c1dde3cc7759848f18c795792c38c800c"
     },
     {
-      "path": "hosts/crpharma/supervision/sample_process_tree.py",
+      "path": "hosts/cttq/supervision/sample_process_tree.py",
       "mode": "100644",
       "bytes": 13065,
       "sha256": "3fa6daa1af1afee94d19801edfd8bcb538e1243476b5adb253e50de162a27bd6",
       "sha": "5c2924dc067309525018e4903741dc33e796b546"
     },
     {
-      "path": "hosts/crpharma/supervision/start-monitor-crpharma51-combined.js",
+      "path": "hosts/cttq/supervision/start-monitor-cttq51-combined.js",
       "mode": "100644",
-      "bytes": 14824,
-      "sha256": "7951187213eeeb2105e446be094c809f2b9b5960adb31b6624df81713c997cff",
-      "sha": "d9a6fcffacd574f0f166c6895787c107a3deb72c"
+      "bytes": 14735,
+      "sha256": "6261c1a57a54e544dbae13267b676a48c2750fc15e60f83dd088ebf495a0bdc1",
+      "sha": "8b60f58073f6f792441011994f5461e27ddeed2e"
     },
     {
-      "path": "hosts/crpharma/supervision/start-monitor-crpharma51-combined.unbound.template.js",
+      "path": "hosts/cttq/supervision/start-monitor-cttq51-combined.unbound.template.js",
       "mode": "100644",
-      "bytes": 14824,
-      "sha256": "7951187213eeeb2105e446be094c809f2b9b5960adb31b6624df81713c997cff",
-      "sha": "d9a6fcffacd574f0f166c6895787c107a3deb72c"
+      "bytes": 14735,
+      "sha256": "6261c1a57a54e544dbae13267b676a48c2750fc15e60f83dd088ebf495a0bdc1",
+      "sha": "8b60f58073f6f792441011994f5461e27ddeed2e"
     },
     {
-      "path": "hosts/crpharma/supervision/supervise-cancel.mjs",
+      "path": "hosts/cttq/supervision/supervise-cancel.mjs",
       "mode": "100644",
       "bytes": 10232,
       "sha256": "083435a5344a47b86f84184bbe1d2711b0d35def4670afb2ab3c8391ed442e7e",
       "sha": "efe376ba3dbe501d5a2b1bece2c7ac46471aca7d"
     },
     {
-      "path": "hosts/csl/RESTORE_DEPENDENCIES.json",
-      "mode": "100644",
-      "bytes": 1149,
-      "sha256": "0afc8511ed5e50077f967148efc9649234bdeef356ede8402f5ce1243e92bebf",
-      "sha": "d62c8cc6fb5eb133f4eac93fc7d5e2cb5335cac4"
-    },
-    {
-      "path": "hosts/csl/host/archive-transfer.mjs",
+      "path": "hosts/gsk/host/archive-transfer.mjs",
       "mode": "100644",
       "bytes": 1777,
       "sha256": "698e966e5552967845a5252d2b3df2acca28dcd8dbbb0ae41755a3a6231e6a99",
       "sha": "5a454d21f34f9680221bbee2c98b3fecb94884f0"
     },
     {
-      "path": "hosts/csl/host/context-read.sql.template",
+      "path": "hosts/gsk/host/context-read.sql.template",
       "mode": "100644",
       "bytes": 2372,
-      "sha256": "26ef5d3a0ada20cef36845ced21989b1bc02aa97517efd2222db0fbf790209c6",
-      "sha": "8f78b093a051d96ab0684276ce30b399723a586e"
+      "sha256": "d928a0512ab1db3ec1db035107b58d2df00fb21854445f36d7cc6d2b3cc42ac8",
+      "sha": "fb7d6297f92ab8334d896ce265d50b2e0423ceae"
     },
     {
-      "path": "hosts/csl/host/context-template-proof.json",
+      "path": "hosts/gsk/host/context-template-proof.json",
       "mode": "100644",
-      "bytes": 2246,
-      "sha256": "eb6cab99c49d26aafd0aacb5e16124df3136f69ecc0117c1cf17c4b501b74a8e",
-      "sha": "3a4af40e622e97434443298ddf24bf0ddacb4148"
+      "bytes": 2397,
+      "sha256": "2e4e0470cc65437cad6f13854fc0d3559cbbf4aca93aa0cce2a3223948bc2726",
+      "sha": "bb489265c7716314913e231803151f521dc083c4"
     },
     {
-      "path": "hosts/csl/host/control-base.template.json",
+      "path": "hosts/gsk/host/control-base.template.json",
       "mode": "100644",
       "bytes": 467,
       "sha256": "3634b5cc4c996565263cdae4b168cb519556c2401367f33511b426fd0ae48897",
       "sha": "f315252ccc1b63c4b75f86f3ab6dcacdccbeaa1d"
     },
     {
-      "path": "hosts/csl/host/host-config.json",
+      "path": "hosts/gsk/host/host-config.json",
       "mode": "100644",
       "bytes": 505,
-      "sha256": "2821bb9458481399a81802aef463d44568be3d9eb3c8ccaeff7e50169b51b035",
-      "sha": "ca78fcc4f7289b4f4f6814c408897eccb307d295"
+      "sha256": "03e98ea94e9bb8449db13c8ec8231821ced0f92e22909711d0ce2745e8d00836",
+      "sha": "0503ca3945ae64f9280a9548dd210b9bb55d8741"
     },
     {
-      "path": "hosts/csl/host/host-config.template.json",
+      "path": "hosts/gsk/host/host-config.template.json",
       "mode": "100644",
       "bytes": 505,
-      "sha256": "2821bb9458481399a81802aef463d44568be3d9eb3c8ccaeff7e50169b51b035",
-      "sha": "ca78fcc4f7289b4f4f6814c408897eccb307d295"
+      "sha256": "03e98ea94e9bb8449db13c8ec8231821ced0f92e22909711d0ce2745e8d00836",
+      "sha": "0503ca3945ae64f9280a9548dd210b9bb55d8741"
     },
     {
-      "path": "hosts/csl/host/host-files.mts",
+      "path": "hosts/gsk/host/host-files.mts",
       "mode": "100644",
       "bytes": 4077,
       "sha256": "c8033565b3c368bf369fc7507f9d1ff8fa87bc0dde0a84a10a95373473dc6f3a",
       "sha": "8c8f201640071565320343e74c6919d1e83fd9b5"
     },
     {
-      "path": "hosts/csl/host/host-helper-functions.js",
+      "path": "hosts/gsk/host/host-helper-functions.js",
       "mode": "100644",
       "bytes": 9735,
-      "sha256": "de930fb81121bf8efe88210144f0811ca57942469ce230fbb6851a9c04d71514",
-      "sha": "46f237b38a8a84f4db2fb3d9cb881068cf3904be"
+      "sha256": "40c9f124df68fefa400c099dee060e64a3190ebf5f341150b64b55e4e479d300",
+      "sha": "8a1d81b98433a47f79356c232279840b1dd42d58"
     },
     {
-      "path": "hosts/csl/host/host-stage-functions.js",
+      "path": "hosts/gsk/host/host-stage-functions.js",
       "mode": "100644",
       "bytes": 6535,
-      "sha256": "b2fc5f2dff6576f0508df5bcf9517bdae93fef2ba6c7f76e8cd280b8947eaf51",
-      "sha": "fdb68ead0b5b8d3fbc57dde92d34841f8f652d44"
+      "sha256": "c62c99885b84e6c19b560afd4d4f8b3ef84e16085c4b1a7609d569757054be4d",
+      "sha": "346e8f7745f7b6cb6c6c73a36da198595bafb749"
     },
     {
-      "path": "hosts/csl/host/machine-json.js",
+      "path": "hosts/gsk/host/machine-json.js",
       "mode": "100644",
       "bytes": 807,
       "sha256": "3484738bd095a9d57da70c6392af78865a53759a9e8499316941157b6210e9f6",
       "sha": "7b927e85ca286ffa900ca93462deee5b9988ed49"
     },
     {
-      "path": "hosts/csl/host/owner-binding-input.template.json",
+      "path": "hosts/gsk/host/owner-binding-input.template.json",
       "mode": "100644",
       "bytes": 616,
-      "sha256": "367e94ec24d06c55b1a9a54e175067c405f9d99434ef5d82ea55750fa699009d",
-      "sha": "d3dd2b38ab934ecfa7b575c2d99812d81db19eef"
+      "sha256": "2f002335dfe91f6632721c68e4ab23dade60a0c4323ed9facf40158f0d7aca57",
+      "sha": "01d74de664744bcd366f41cb60e0d97bfb8a07d7"
     },
     {
-      "path": "hosts/csl/host/relay-files.mjs",
+      "path": "hosts/gsk/host/relay-files.mjs",
       "mode": "100644",
       "bytes": 7905,
-      "sha256": "591c75a3cd6fcd8ca923fc121294b17ad2ca9f120f8bb918526e07522d5dddd3",
-      "sha": "7048954a9e8b45933f27dd1c18c50d1b89de293f"
+      "sha256": "c1947f71261a068ee86afca844d9d5eec60aa6f301aad7c6a4dc04500191a846",
+      "sha": "9fbb0cbc880d84c3675ed60e2b9590f00bcc6a13"
     },
     {
-      "path": "hosts/csl/host/runtime/complete-reviewed-source-readback.js",
+      "path": "hosts/gsk/host/runtime/complete-reviewed-source-readback.js",
       "mode": "100644",
       "bytes": 5692,
-      "sha256": "3f256b1cbb2ff33e9b472fdcad650afdb2441cd64f413ad9a59048633299c27d",
-      "sha": "3747e93869cd5bd8ed05c19188d0329b4997ec96"
+      "sha256": "ee141c861323096f31caf5e37dbf6e93c10a0f35d2bd95a5d3a2f3f25392ba07",
+      "sha": "7b408e2ee8f0ea9b6e6d854b3c34b1c06fa4093a"
     },
     {
-      "path": "hosts/csl/host/runtime/continuous-relay-v3-durable-monitor.js",
+      "path": "hosts/gsk/host/runtime/continuous-relay-v3-durable-monitor.js",
       "mode": "100644",
       "bytes": 5136,
-      "sha256": "b213ad8f114da136262116b27b5700ff1f9c3f86e04f4454cad8ab5c4d715176",
-      "sha": "89b7ce06432ad053d0cefaff3e03fd83b0fa23c0"
+      "sha256": "5ef029081bc731358cb0e3f8515b9206470c05235d975b22558a2d303f7a6c96",
+      "sha": "3526bd50cc6f56785a247c92d40739c931d82657"
     },
     {
-      "path": "hosts/csl/host/runtime/inspect-host-binding.mts",
+      "path": "hosts/gsk/host/runtime/inspect-host-binding.mts",
       "mode": "100644",
       "bytes": 3272,
       "sha256": "11ce7f25fa48a23e8559712f32b7eb5218e5caa617bf4cdf08b17b3085cd28af",
       "sha": "2ac95e486b0d7de70c63bc8079a1c9ad8871bcc5"
     },
     {
-      "path": "hosts/csl/host/runtime/load-host-state.js",
+      "path": "hosts/gsk/host/runtime/load-host-state.js",
       "mode": "100644",
       "bytes": 5298,
-      "sha256": "c9f0ac980cc4966468a6ebee371a6e2a8f6e2d5fd0ad2fd4d319e66994977e3b",
-      "sha": "2e6f4a4ef3ace16662478e205302200c1b950dce"
+      "sha256": "c306585770c0a39b9361ed0c5f8b5ad886b801d108a982f2523791b490cc0d51",
+      "sha": "4189d090f69365217cdcdf3ea52da850084aa302"
     },
     {
-      "path": "hosts/csl/host/runtime/load-host-state.unbound.template.js",
+      "path": "hosts/gsk/host/runtime/load-host-state.unbound.template.js",
       "mode": "100644",
       "bytes": 5298,
-      "sha256": "c9f0ac980cc4966468a6ebee371a6e2a8f6e2d5fd0ad2fd4d319e66994977e3b",
-      "sha": "2e6f4a4ef3ace16662478e205302200c1b950dce"
+      "sha256": "c306585770c0a39b9361ed0c5f8b5ad886b801d108a982f2523791b490cc0d51",
+      "sha": "4189d090f69365217cdcdf3ea52da850084aa302"
     },
     {
-      "path": "hosts/csl/host/runtime/load-source-runtime.js",
+      "path": "hosts/gsk/host/runtime/load-source-runtime.js",
       "mode": "100644",
       "bytes": 2363,
-      "sha256": "db4728f6535e46af0c0d015af303023617ecda13ee2bb78489465b7901292376",
-      "sha": "c4911d762f5d1dd5ed97d5f81625d1a8f62220ec"
+      "sha256": "3aae5b18694e69487f8b667ffce6ab3ae41a1853b1ce5a84dc8631549ebb8bd8",
+      "sha": "e3d172b9365d2a92ac03db8b7df172f4b1a316c1"
     },
     {
-      "path": "hosts/csl/host/runtime/machine-json.py",
+      "path": "hosts/gsk/host/runtime/machine-json.py",
       "mode": "100644",
       "bytes": 1119,
       "sha256": "67611e749eddc6bf8c591fef11f2efa82e2a73ce0bb51b2779fab4ae68b77f50",
       "sha": "3dda394ae2fe15b8740c8db2f0adcf6a9e19e3cf"
     },
     {
-      "path": "hosts/csl/host/runtime/preflight/preflight-launch.mjs",
+      "path": "hosts/gsk/host/runtime/preflight/preflight-launch.mjs",
       "mode": "100644",
       "bytes": 11017,
       "sha256": "ab4cffa673ada36078014e20778eeea39d8e5fb208d04f54dc3ff0913a73d2de",
       "sha": "8dc9163aa18f6f8106aafadb2b258e09a3513e72"
     },
     {
-      "path": "hosts/csl/host/runtime/preflight/runtime-check.mjs",
+      "path": "hosts/gsk/host/runtime/preflight/runtime-check.mjs",
       "mode": "100644",
       "bytes": 3815,
       "sha256": "e01c5b953283535757e2fcc67df80dd3e86948709dde0b488235a7edee017785",
       "sha": "275890f0f3584e99e0f0f57a4492fd95ad6c248d"
     },
     {
-      "path": "hosts/csl/host/runtime/prepare-owner-binding.mts",
+      "path": "hosts/gsk/host/runtime/prepare-owner-binding.mts",
       "mode": "100644",
       "bytes": 8115,
-      "sha256": "97510082089a58b42b41acff6c1bf4e4aa560ca1a64cda4162cf190cd307aabb",
-      "sha": "5f5d84223a67655733a52c0a7e6a7856dcfe168a"
+      "sha256": "a1c386a3969e543d67b8f12b5b785c23593dd3a361417bd174f7c3a4a901a087",
+      "sha": "0beef565902b8bc3fa1029f9f22eb547f6f55133"
     },
     {
-      "path": "hosts/csl/host/runtime/prepare-registered-control.mts",
+      "path": "hosts/gsk/host/runtime/prepare-registered-control.mts",
       "mode": "100644",
       "bytes": 123,
       "sha256": "75b04c3bf46a0c81529e1322c74a02ccddb88b6edb161c39e36fc082ad1c89d8",
       "sha": "323b7860456a264d9c9f144e7343376ba43131d1"
     },
     {
-      "path": "hosts/csl/host/runtime/review-packet-envelope.mts",
+      "path": "hosts/gsk/host/runtime/review-packet-envelope.mts",
       "mode": "100644",
       "bytes": 5535,
       "sha256": "40cb1e3ede867f0e9d171605e7454fc71a6f774dfdf910f68ff668722bba69cb",
       "sha": "a550d0fd80f032ae7ed2633e88b2cd2c748c6969"
     },
     {
-      "path": "hosts/csl/host/runtime/review-publication.py",
+      "path": "hosts/gsk/host/runtime/review-publication.py",
       "mode": "100644",
       "bytes": 5762,
-      "sha256": "16ee596cfa7d97c7b6288978efdc3418f336e9dd3c5afbae2883d73d1f5641cf",
-      "sha": "6b2300699ca4ddbeb10bbbf892517988fa2d7e62"
+      "sha256": "9214aa4097e06c4e927d1ba367e05dbb1cfee22feb85c35bc92dc2bc71d6be3f",
+      "sha": "24bb3507e44b834fb2c07c13b1d9a03389302a57"
     },
     {
-      "path": "hosts/csl/host/runtime/update-candidate-completion-state.mjs",
+      "path": "hosts/gsk/host/runtime/update-candidate-completion-state.mjs",
       "mode": "100644",
       "bytes": 3654,
       "sha256": "ae5ad99411b014c8ffff615a0b06af1e1fdfd2ed7f7265c9c9cee0128339bb06",
       "sha": "ec886e3dd2b52805daccddcdcd862b6afbaeec29"
     },
     {
-      "path": "hosts/csl/host/source-config-reference.json",
+      "path": "hosts/gsk/host/source-config-reference.json",
       "mode": "100644",
-      "bytes": 890,
-      "sha256": "c528dfd390a2b150ab738971bfbaeac4d52ce65c574adb3157a3a649eaa1ab87",
-      "sha": "c12699ee4f9a3a061b7a9f62141d1562f630bae0"
+      "bytes": 902,
+      "sha256": "447914182e379b00a7f1eee3906c094461d32956661b95cb83ae9d7b8b6ca774",
+      "sha": "3f9540bf8ea659b48715c5f1d73fefb5eaf11d5c"
     },
     {
-      "path": "hosts/csl/supervision/inspect-launch-identity.mjs",
+      "path": "hosts/gsk/supervision/inspect-launch-identity.mjs",
       "mode": "100644",
       "bytes": 871,
       "sha256": "7bc818ae831081b7e91819ad772b950d08e7d06dc741730c0bd54698d6fe8b37",
       "sha": "0fc3dd6c1dde3cc7759848f18c795792c38c800c"
     },
     {
-      "path": "hosts/csl/supervision/sample_process_tree.py",
+      "path": "hosts/gsk/supervision/sample_process_tree.py",
       "mode": "100644",
       "bytes": 13065,
       "sha256": "3fa6daa1af1afee94d19801edfd8bcb538e1243476b5adb253e50de162a27bd6",
       "sha": "5c2924dc067309525018e4903741dc33e796b546"
     },
     {
-      "path": "hosts/csl/supervision/start-monitor-csl51-combined.js",
+      "path": "hosts/gsk/supervision/start-monitor-gsk51-combined.js",
       "mode": "100644",
       "bytes": 14719,
-      "sha256": "31ad333efb96b7b760b09134f0c249c1f4ea4d8df95c5e1a58d40dd6050cc058",
-      "sha": "b08289a6b2bc8215ce015717af841a803930d7d1"
+      "sha256": "98525de958dd5289eb647285ecccf78bb94f835f79c60b21b7cde454bc2fcbae",
+      "sha": "8dec01e3d76a065a2d17826da17213c73006da82"
     },
     {
-      "path": "hosts/csl/supervision/start-monitor-csl51-combined.unbound.template.js",
+      "path": "hosts/gsk/supervision/start-monitor-gsk51-combined.unbound.template.js",
       "mode": "100644",
       "bytes": 14719,
-      "sha256": "31ad333efb96b7b760b09134f0c249c1f4ea4d8df95c5e1a58d40dd6050cc058",
-      "sha": "b08289a6b2bc8215ce015717af841a803930d7d1"
+      "sha256": "98525de958dd5289eb647285ecccf78bb94f835f79c60b21b7cde454bc2fcbae",
+      "sha": "8dec01e3d76a065a2d17826da17213c73006da82"
     },
     {
-      "path": "hosts/csl/supervision/supervise-cancel.mjs",
+      "path": "hosts/gsk/supervision/supervise-cancel.mjs",
       "mode": "100644",
       "bytes": 10232,
       "sha256": "083435a5344a47b86f84184bbe1d2711b0d35def4670afb2ab3c8391ed442e7e",
@@ -482,375 +468,375 @@
       "sha": "1199b946b2c19c0557f5bf9239b120189ac45a30"
     },
     {
-      "path": "owner-adaptations/true-a-due-20261007T1256Z/SAFE_SOURCE_FILE_MANIFEST.json",
+      "path": "owner-adaptations/true-a-cttq-gsk-20261007T1348Z/baseline-manifest.json",
       "mode": "100644",
-      "bytes": 1717,
-      "sha256": "f693f14e28b0fd17817832507b2fb3277cb983925497e66b16739baae7e111b3",
-      "sha": "dd9e4eb65cc505c76d1c96d11cae41575a5245cf"
+      "bytes": 2589,
+      "sha256": "4fa4d6ff6c11a1317e414d9fca109826fdfe67c5f13ed649542bead3bc6e4319",
+      "sha": "33dca019c6b9c73c3d4693066c877bc3daddbec5"
     },
     {
-      "path": "owner-adaptations/true-a-due-20261007T1256Z/baseline-manifest.json",
-      "mode": "100644",
-      "bytes": 2609,
-      "sha256": "f7609110e2ab95aae7857dc7407a90c137cc430c72c6f6b5e586cdc4d01d26af",
-      "sha": "450dc436d16b13a99b08435d2e073222ab37b07b"
-    },
-    {
-      "path": "owner-adaptations/true-a-due-20261007T1256Z/build-fragments.py",
+      "path": "owner-adaptations/true-a-cttq-gsk-20261007T1348Z/build-fragments.py",
       "mode": "100644",
       "bytes": 4463,
       "sha256": "1f03fee8b375360bd6294b09fed5eccbbe1787bda8f5cf5523c743bde23de28e",
       "sha": "fe3faea145e2d549d371677a3cfc5b70fb7634d2"
     },
     {
-      "path": "owner-adaptations/true-a-due-20261007T1256Z/preload-owner.exec.js",
+      "path": "owner-adaptations/true-a-cttq-gsk-20261007T1348Z/preload-owner.exec.js",
       "mode": "100644",
-      "bytes": 2741,
-      "sha256": "d2d57fce16ee76eb77935eaf91a7f1739513d1ad8e1c0ee7c3b818bba8ed7c16",
-      "sha": "6685dfd6f01fb447df11765696dfa93b64aff178"
+      "bytes": 2746,
+      "sha256": "a4de1e4149e8ddd76b1ebcf3fede6928e4dd19e2816c796172ce5bd4ede21d50",
+      "sha": "bd2b6e11575a59e583c746f91caf66dcc80d403c"
     },
     {
-      "path": "owner-adaptations/true-a-due-20261007T1256Z/publish-and-monitor-owner.js",
+      "path": "owner-adaptations/true-a-cttq-gsk-20261007T1348Z/publish-and-monitor-owner.js",
       "mode": "100644",
       "bytes": 10947,
       "sha256": "78a716a79d905dc7bb02715967c43b74566d496bea5b6c24a2d6139dbb1f1894",
       "sha": "0dd4a4418305703482f62d135c4e129f5c8f8dc1"
     },
     {
-      "path": "owner-adaptations/true-a-due-20261007T1256Z/publish-reviewed-and-monitor.exec.js",
+      "path": "owner-adaptations/true-a-cttq-gsk-20261007T1348Z/publish-reviewed-and-monitor.exec.js",
       "mode": "100644",
       "bytes": 1398,
       "sha256": "56607634facc379fba8b401258d490abb258ba993aeabdf6865d4bd63296ed9d",
       "sha": "cfca76156031fb8205befce9ad497289734a340c"
     },
     {
-      "path": "owner-adaptations/true-a-due-20261007T1256Z/tests/generate-full-chain-tests.py",
+      "path": "owner-adaptations/true-a-cttq-gsk-20261007T1348Z/tests/generate-full-chain-tests.py",
       "mode": "100644",
-      "bytes": 2800,
-      "sha256": "e93dc52bf20d0a52af2fb22b6bd5ad022cd6d0172e9169aa3d004f74badf14d2",
-      "sha": "7fbfca0a55fd194d2ba46c9f39a344255dcda541"
+      "bytes": 2792,
+      "sha256": "18c90192838a450ce6723b414c7aa097fad42c33f10757410855b77375cda91f",
+      "sha": "8596e3eff0eaee136f1ff3d56f3806e83a5f81f6"
     },
     {
-      "path": "owner-adaptations/true-a-due-20261007T1256Z/tests/generated-crpharma-full-chain.test.mjs",
+      "path": "owner-adaptations/true-a-cttq-gsk-20261007T1348Z/tests/generated-cttq-full-chain.test.mjs",
       "mode": "100644",
-      "bytes": 21547,
-      "sha256": "faac9bf7481f45e20bf956aca37f366d3af9999343f9e51fddde4f4398ae6565",
-      "sha": "4bf5d9ea9d6f5bde2b6b8ede47fb6d84b279a895"
+      "bytes": 21518,
+      "sha256": "f8e56a7d5c668f8158254fc22429f8e01437cdf38e6c6807836cd4b279730a8d",
+      "sha": "22e282813f608ea8913dec48bfdc89a1d78df518"
     },
     {
-      "path": "owner-adaptations/true-a-due-20261007T1256Z/tests/generated-csl-full-chain.test.mjs",
+      "path": "owner-adaptations/true-a-cttq-gsk-20261007T1348Z/tests/generated-gsk-full-chain.test.mjs",
       "mode": "100644",
       "bytes": 21517,
-      "sha256": "e4e37c7d64cf28ccbd4dfd1337ccbe141165bcaad1a51c1919428d40271371cd",
-      "sha": "dcf299f87677575506dc5731984a76f8a6dc79af"
+      "sha256": "0a281b597a8020460cac331eb164cc9d8094b88705b3a791d4168b91e477ce63",
+      "sha": "a0785d77da1ed3eb78c738d177ca8a0895acc35f"
     },
     {
-      "path": "owner-adaptations/true-a-due-20261007T1256Z/tests/key-and-preload.test.mjs",
+      "path": "owner-adaptations/true-a-cttq-gsk-20261007T1348Z/tests/key-and-preload.test.mjs",
       "mode": "100644",
-      "bytes": 3898,
-      "sha256": "950762519ee05cdb55ff710affcab0025b240297e484ab534c8c6ce75e0173a5",
-      "sha": "803571d936a6608aeaf3325b80cf1cb0d2b088b3"
+      "bytes": 3890,
+      "sha256": "323c8baf68894f3664608c24d2b2a8fdad507b45dc11550375d3900974f73873",
+      "sha": "c85a21bfc4789c9e399ca73a93e6e1359f83a5ac"
     },
     {
-      "path": "owner-adaptations/true-a-due-20261007T1256Z/tests/owner.test.mjs",
+      "path": "owner-adaptations/true-a-cttq-gsk-20261007T1348Z/tests/owner.test.mjs",
       "mode": "100644",
       "bytes": 20267,
       "sha256": "8c0e2c462df58522166a01f8c08afc39e7dc73d3de76f13bcb67ac8d3dd1d11c",
       "sha": "4a9fc60975b54ba2d0c32af50c40b73f754c885e"
     },
     {
-      "path": "owner-adaptations/true-a-due-20261007T1256Z/tests/real-apply-patch-terminal-fixture.json",
+      "path": "owner-adaptations/true-a-cttq-gsk-20261007T1348Z/tests/real-apply-patch-terminal-fixture.json",
       "mode": "100644",
       "bytes": 195,
       "sha256": "aff94e02c5266ff389e8cbd2da3774b9eaf00cbf204bf9484a1b5eaace576f2e",
       "sha": "2bb6d2d309c400a32ab73ce3dbdcf1760102319f"
     },
     {
-      "path": "verification/true-a-due-host-preparation-20261007T1256Z/baseline-source-plan.json",
+      "path": "verification/true-a-cttq-gsk-preparation-20261007T1348Z/baseline-source-plan.json",
       "mode": "100644",
       "bytes": 13506,
-      "sha256": "3d8f92a99c4e13528ef946c7d17a15dd240aa1efab1039308b4a449b6c0786f8",
-      "sha": "0e84ce96bc7b2b8e84a13d0236604e6970eb2548"
+      "sha256": "51e746c2ad1ebf8e1d3e62e312e65043dd97e85f71faa99940a8f64c3cf9bfde",
+      "sha": "7291ff745cf1681dad97aeb581f3fd77dfc0e3cb"
     },
     {
-      "path": "verification/true-a-due-host-preparation-20261007T1256Z/generate-context.mts",
+      "path": "verification/true-a-cttq-gsk-preparation-20261007T1348Z/generate-context.mts",
       "mode": "100644",
-      "bytes": 3557,
-      "sha256": "e602744f69d1b23e5486399d06ebe260935623df679b676433b8fbf5e2163dad",
-      "sha": "dc00b5ee5a06a69f767dfc81a8effa8d2f655169"
+      "bytes": 3718,
+      "sha256": "84292e7520f8e47233a4700963467cd4c5a84b69bd0ff31fbb5ceb89b5533e54",
+      "sha": "c1bb1ca68b2bff031abd346129bddc7ee0da44c8"
     },
     {
-      "path": "verification/true-a-due-host-preparation-20261007T1256Z/host-base/host/archive-transfer.mjs",
+      "path": "verification/true-a-cttq-gsk-preparation-20261007T1348Z/host-base/host/archive-transfer.mjs",
       "mode": "100644",
       "bytes": 1777,
       "sha256": "698e966e5552967845a5252d2b3df2acca28dcd8dbbb0ae41755a3a6231e6a99",
       "sha": "5a454d21f34f9680221bbee2c98b3fecb94884f0"
     },
     {
-      "path": "verification/true-a-due-host-preparation-20261007T1256Z/host-base/host/context-read.sql.template",
+      "path": "verification/true-a-cttq-gsk-preparation-20261007T1348Z/host-base/host/context-read.sql.template",
       "mode": "100644",
       "bytes": 2382,
       "sha256": "d265c8a292d8d610c9e14fb42bde695dfd4d9d9d0a2e9ba36e029a9d8b5c12c7",
       "sha": "dc5a0b758bad90262557db81013b5fdaffb9f3cf"
     },
     {
-      "path": "verification/true-a-due-host-preparation-20261007T1256Z/host-base/host/control-base.template.json",
+      "path": "verification/true-a-cttq-gsk-preparation-20261007T1348Z/host-base/host/control-base.template.json",
       "mode": "100644",
       "bytes": 467,
       "sha256": "3634b5cc4c996565263cdae4b168cb519556c2401367f33511b426fd0ae48897",
       "sha": "f315252ccc1b63c4b75f86f3ab6dcacdccbeaa1d"
     },
     {
-      "path": "verification/true-a-due-host-preparation-20261007T1256Z/host-base/host/host-config.json",
+      "path": "verification/true-a-cttq-gsk-preparation-20261007T1348Z/host-base/host/host-config.json",
       "mode": "100644",
       "bytes": 509,
       "sha256": "35a2afdc60260c1bb675b0b64423f3d9c06a71504df5fd314ee77c69dbdc945f",
       "sha": "cc880fda5035df3b16fac9e3c7e6c9f8b0367760"
     },
     {
-      "path": "verification/true-a-due-host-preparation-20261007T1256Z/host-base/host/host-config.template.json",
+      "path": "verification/true-a-cttq-gsk-preparation-20261007T1348Z/host-base/host/host-config.template.json",
       "mode": "100644",
       "bytes": 509,
       "sha256": "35a2afdc60260c1bb675b0b64423f3d9c06a71504df5fd314ee77c69dbdc945f",
       "sha": "cc880fda5035df3b16fac9e3c7e6c9f8b0367760"
     },
     {
-      "path": "verification/true-a-due-host-preparation-20261007T1256Z/host-base/host/host-files.mts",
+      "path": "verification/true-a-cttq-gsk-preparation-20261007T1348Z/host-base/host/host-files.mts",
       "mode": "100644",
       "bytes": 4077,
       "sha256": "c8033565b3c368bf369fc7507f9d1ff8fa87bc0dde0a84a10a95373473dc6f3a",
       "sha": "8c8f201640071565320343e74c6919d1e83fd9b5"
     },
     {
-      "path": "verification/true-a-due-host-preparation-20261007T1256Z/host-base/host/host-helper-functions.js",
+      "path": "verification/true-a-cttq-gsk-preparation-20261007T1348Z/host-base/host/host-helper-functions.js",
       "mode": "100644",
       "bytes": 9753,
       "sha256": "e435807a3accb90b3bb63ce6c132a9b7beabff50c00b24b1f12597d75e243a54",
       "sha": "91b425170ca01d7a635a48cc062d0a2b8437e949"
     },
     {
-      "path": "verification/true-a-due-host-preparation-20261007T1256Z/host-base/host/host-stage-functions.js",
+      "path": "verification/true-a-cttq-gsk-preparation-20261007T1348Z/host-base/host/host-stage-functions.js",
       "mode": "100644",
       "bytes": 6557,
       "sha256": "c7960c2df7dd082cfe8071daa0f9a350952c2a827bbf7d5ef44dbdbc0398c452",
       "sha": "161df497c42624c48c99f0af476bb70e37694068"
     },
     {
-      "path": "verification/true-a-due-host-preparation-20261007T1256Z/host-base/host/machine-json.js",
+      "path": "verification/true-a-cttq-gsk-preparation-20261007T1348Z/host-base/host/machine-json.js",
       "mode": "100644",
       "bytes": 807,
       "sha256": "3484738bd095a9d57da70c6392af78865a53759a9e8499316941157b6210e9f6",
       "sha": "7b927e85ca286ffa900ca93462deee5b9988ed49"
     },
     {
-      "path": "verification/true-a-due-host-preparation-20261007T1256Z/host-base/host/relay-files.mjs",
+      "path": "verification/true-a-cttq-gsk-preparation-20261007T1348Z/host-base/host/relay-files.mjs",
       "mode": "100644",
       "bytes": 7907,
       "sha256": "6cff7c2c0d507dd1542316859c95fed907b1cceee3174e2b2de48689b3b00b9d",
       "sha": "799df1793342000c8b0edf5e79890f158ecfa66e"
     },
     {
-      "path": "verification/true-a-due-host-preparation-20261007T1256Z/host-base/host/runtime/complete-reviewed-source-readback.js",
+      "path": "verification/true-a-cttq-gsk-preparation-20261007T1348Z/host-base/host/runtime/complete-reviewed-source-readback.js",
       "mode": "100644",
       "bytes": 5694,
       "sha256": "e176d105073b225be5fb724be8bbe6cc1b39437bef85d5ebb8587bd6ad240765",
       "sha": "32b3b5eb2cfc0dec5dae0fea926b1d7b7eb68c6c"
     },
     {
-      "path": "verification/true-a-due-host-preparation-20261007T1256Z/host-base/host/runtime/continuous-relay-v3-durable-monitor.js",
+      "path": "verification/true-a-cttq-gsk-preparation-20261007T1348Z/host-base/host/runtime/continuous-relay-v3-durable-monitor.js",
       "mode": "100644",
       "bytes": 5160,
       "sha256": "d9bb23b0c18b260c1ec6b0272682992680d012491d1c3ab19e2ad25116e85f77",
       "sha": "ceb72baf2820d4fe9601843c3c0d29f83720792c"
     },
     {
-      "path": "verification/true-a-due-host-preparation-20261007T1256Z/host-base/host/runtime/inspect-host-binding.mts",
+      "path": "verification/true-a-cttq-gsk-preparation-20261007T1348Z/host-base/host/runtime/inspect-host-binding.mts",
       "mode": "100644",
       "bytes": 3272,
       "sha256": "11ce7f25fa48a23e8559712f32b7eb5218e5caa617bf4cdf08b17b3085cd28af",
       "sha": "2ac95e486b0d7de70c63bc8079a1c9ad8871bcc5"
     },
     {
-      "path": "verification/true-a-due-host-preparation-20261007T1256Z/host-base/host/runtime/load-host-state.js",
+      "path": "verification/true-a-cttq-gsk-preparation-20261007T1348Z/host-base/host/runtime/load-host-state.js",
       "mode": "100644",
       "bytes": 4902,
       "sha256": "3fb9fde91dbc5bd5458df892b1d5747b184051e3a73992deefcf050fd57cb096",
       "sha": "cd8f9e6529f91fb48b75a7ac3afd68e8b76e754f"
     },
     {
-      "path": "verification/true-a-due-host-preparation-20261007T1256Z/host-base/host/runtime/load-source-runtime.js",
+      "path": "verification/true-a-cttq-gsk-preparation-20261007T1348Z/host-base/host/runtime/load-source-runtime.js",
       "mode": "100644",
       "bytes": 2000,
       "sha256": "ae049e168e87982138cbba4ce48e8ff600cd5717bee2b87bebd3fe279f02007a",
       "sha": "937201c1813202c26b510cfadc03817b475e4bdc"
     },
     {
-      "path": "verification/true-a-due-host-preparation-20261007T1256Z/host-base/host/runtime/machine-json.py",
+      "path": "verification/true-a-cttq-gsk-preparation-20261007T1348Z/host-base/host/runtime/machine-json.py",
       "mode": "100644",
       "bytes": 1119,
       "sha256": "67611e749eddc6bf8c591fef11f2efa82e2a73ce0bb51b2779fab4ae68b77f50",
       "sha": "3dda394ae2fe15b8740c8db2f0adcf6a9e19e3cf"
     },
     {
-      "path": "verification/true-a-due-host-preparation-20261007T1256Z/host-base/host/runtime/preflight/preflight-launch.mjs",
+      "path": "verification/true-a-cttq-gsk-preparation-20261007T1348Z/host-base/host/runtime/preflight/preflight-launch.mjs",
       "mode": "100644",
       "bytes": 11017,
       "sha256": "ab4cffa673ada36078014e20778eeea39d8e5fb208d04f54dc3ff0913a73d2de",
       "sha": "8dc9163aa18f6f8106aafadb2b258e09a3513e72"
     },
     {
-      "path": "verification/true-a-due-host-preparation-20261007T1256Z/host-base/host/runtime/preflight/runtime-check.mjs",
+      "path": "verification/true-a-cttq-gsk-preparation-20261007T1348Z/host-base/host/runtime/preflight/runtime-check.mjs",
       "mode": "100644",
       "bytes": 3815,
       "sha256": "e01c5b953283535757e2fcc67df80dd3e86948709dde0b488235a7edee017785",
       "sha": "275890f0f3584e99e0f0f57a4492fd95ad6c248d"
     },
     {
-      "path": "verification/true-a-due-host-preparation-20261007T1256Z/host-base/host/runtime/prepare-registered-control.mts",
+      "path": "verification/true-a-cttq-gsk-preparation-20261007T1348Z/host-base/host/runtime/prepare-registered-control.mts",
       "mode": "100644",
       "bytes": 4760,
       "sha256": "90cb147bc50523423b890837ae82710460eb65bfedf932f15e580b07e685a74b",
       "sha": "9dbc8aac8249c366aad1905e281b9e95f6c7e3b5"
     },
     {
-      "path": "verification/true-a-due-host-preparation-20261007T1256Z/host-base/host/runtime/review-packet-envelope.mts",
+      "path": "verification/true-a-cttq-gsk-preparation-20261007T1348Z/host-base/host/runtime/review-packet-envelope.mts",
       "mode": "100644",
       "bytes": 5535,
       "sha256": "40cb1e3ede867f0e9d171605e7454fc71a6f774dfdf910f68ff668722bba69cb",
       "sha": "a550d0fd80f032ae7ed2633e88b2cd2c748c6969"
     },
     {
-      "path": "verification/true-a-due-host-preparation-20261007T1256Z/host-base/host/runtime/review-publication.py",
+      "path": "verification/true-a-cttq-gsk-preparation-20261007T1348Z/host-base/host/runtime/review-publication.py",
       "mode": "100644",
       "bytes": 5764,
       "sha256": "baa95c5997c7142b164895fa1ecfe6cab396fefd8623625e3a0398d06c70c254",
       "sha": "7a6c606928fa0318f53c89c912d15e1710fbe8b3"
     },
     {
-      "path": "verification/true-a-due-host-preparation-20261007T1256Z/host-base/host/runtime/update-candidate-completion-state.mjs",
+      "path": "verification/true-a-cttq-gsk-preparation-20261007T1348Z/host-base/host/runtime/update-candidate-completion-state.mjs",
       "mode": "100644",
       "bytes": 3654,
       "sha256": "ae5ad99411b014c8ffff615a0b06af1e1fdfd2ed7f7265c9c9cee0128339bb06",
       "sha": "ec886e3dd2b52805daccddcdcd862b6afbaeec29"
     },
     {
-      "path": "verification/true-a-due-host-preparation-20261007T1256Z/host-base/host/source-config-reference.json",
+      "path": "verification/true-a-cttq-gsk-preparation-20261007T1348Z/host-base/host/source-config-reference.json",
       "mode": "100644",
       "bytes": 955,
       "sha256": "64454660f8605b65603d09fdc15e8718f18d334383b3db831c454bdc646896d6",
       "sha": "f9a43cb2774931505331eb41918e4cc5e1c09e06"
     },
     {
-      "path": "verification/true-a-due-host-preparation-20261007T1256Z/host-base/supervision/inspect-launch-identity.mjs",
+      "path": "verification/true-a-cttq-gsk-preparation-20261007T1348Z/host-base/supervision/inspect-launch-identity.mjs",
       "mode": "100644",
       "bytes": 871,
       "sha256": "7bc818ae831081b7e91819ad772b950d08e7d06dc741730c0bd54698d6fe8b37",
       "sha": "0fc3dd6c1dde3cc7759848f18c795792c38c800c"
     },
     {
-      "path": "verification/true-a-due-host-preparation-20261007T1256Z/host-base/supervision/sample_process_tree.py",
+      "path": "verification/true-a-cttq-gsk-preparation-20261007T1348Z/host-base/supervision/sample_process_tree.py",
       "mode": "100644",
       "bytes": 13065,
       "sha256": "3fa6daa1af1afee94d19801edfd8bcb538e1243476b5adb253e50de162a27bd6",
       "sha": "5c2924dc067309525018e4903741dc33e796b546"
     },
     {
-      "path": "verification/true-a-due-host-preparation-20261007T1256Z/host-base/supervision/start-monitor-amgen51-combined.js",
+      "path": "verification/true-a-cttq-gsk-preparation-20261007T1348Z/host-base/supervision/start-monitor-amgen51-combined.js",
       "mode": "100644",
       "bytes": 14430,
       "sha256": "d7a6daa2c3739cecb8dfbb510f1d3aff908eb5e6a791beaeee88a2599b48798e",
       "sha": "f71b400b2761cc6199233cd7da2d215d6317d50a"
     },
     {
-      "path": "verification/true-a-due-host-preparation-20261007T1256Z/host-base/supervision/supervise-cancel.mjs",
+      "path": "verification/true-a-cttq-gsk-preparation-20261007T1348Z/host-base/supervision/supervise-cancel.mjs",
       "mode": "100644",
       "bytes": 10232,
       "sha256": "083435a5344a47b86f84184bbe1d2711b0d35def4670afb2ab3c8391ed442e7e",
       "sha": "efe376ba3dbe501d5a2b1bece2c7ac46471aca7d"
     },
     {
-      "path": "verification/true-a-due-host-preparation-20261007T1256Z/owner-base/build-fragments.py",
+      "path": "verification/true-a-cttq-gsk-preparation-20261007T1348Z/owner-base/build-fragments.py",
       "mode": "100644",
       "bytes": 4463,
       "sha256": "1f03fee8b375360bd6294b09fed5eccbbe1787bda8f5cf5523c743bde23de28e",
       "sha": "fe3faea145e2d549d371677a3cfc5b70fb7634d2"
     },
     {
-      "path": "verification/true-a-due-host-preparation-20261007T1256Z/owner-base/publish-and-monitor-owner.js",
+      "path": "verification/true-a-cttq-gsk-preparation-20261007T1348Z/owner-base/publish-and-monitor-owner.js",
       "mode": "100644",
       "bytes": 10947,
       "sha256": "78a716a79d905dc7bb02715967c43b74566d496bea5b6c24a2d6139dbb1f1894",
       "sha": "0dd4a4418305703482f62d135c4e129f5c8f8dc1"
     },
     {
-      "path": "verification/true-a-due-host-preparation-20261007T1256Z/owner-base/tests/generate-full-chain-tests.py",
+      "path": "verification/true-a-cttq-gsk-preparation-20261007T1348Z/owner-base/tests/generate-full-chain-tests.py",
       "mode": "100644",
       "bytes": 2805,
       "sha256": "32cc52742ccc99d7ad396f40f6dafc4e3682c3e4b4bb794e63ad6d893b25e655",
       "sha": "7b0b7e452aeca0ab08dbd3220286479bfea2783e"
     },
     {
-      "path": "verification/true-a-due-host-preparation-20261007T1256Z/owner-base/tests/key-and-preload.test.mjs",
+      "path": "verification/true-a-cttq-gsk-preparation-20261007T1348Z/owner-base/tests/key-and-preload.test.mjs",
       "mode": "100644",
       "bytes": 3896,
       "sha256": "78042858206817ee42b186ba65237b3483c3fe6ecd192bc4c24418574a7673d5",
       "sha": "cb5c7639bfafbf6d050f690f8cfa9145d65c33cc"
     },
     {
-      "path": "verification/true-a-due-host-preparation-20261007T1256Z/owner-base/tests/owner.test.mjs",
+      "path": "verification/true-a-cttq-gsk-preparation-20261007T1348Z/owner-base/tests/owner.test.mjs",
       "mode": "100644",
       "bytes": 20267,
       "sha256": "8c0e2c462df58522166a01f8c08afc39e7dc73d3de76f13bcb67ac8d3dd1d11c",
       "sha": "4a9fc60975b54ba2d0c32af50c40b73f754c885e"
     },
     {
-      "path": "verification/true-a-due-host-preparation-20261007T1256Z/owner-base/tests/real-apply-patch-terminal-fixture.json",
+      "path": "verification/true-a-cttq-gsk-preparation-20261007T1348Z/owner-base/tests/real-apply-patch-terminal-fixture.json",
       "mode": "100644",
       "bytes": 195,
       "sha256": "aff94e02c5266ff389e8cbd2da3774b9eaf00cbf204bf9484a1b5eaace576f2e",
       "sha": "2bb6d2d309c400a32ab73ce3dbdcf1760102319f"
     },
     {
-      "path": "verification/true-a-due-host-preparation-20261007T1256Z/prepare-hosts.py",
+      "path": "verification/true-a-cttq-gsk-preparation-20261007T1348Z/prepare-hosts.py",
       "mode": "100644",
-      "bytes": 9114,
-      "sha256": "e41655104be4d657560d23b6841de6dc2892dfcb226e3cc4353c662daccf19dd",
-      "sha": "9e3aa29e13e791441e2fdbb713c23609ca0972a7"
+      "bytes": 10072,
+      "sha256": "7bce5839bd001a16bc1d9d5050a3df8336204bc6092388fa4fdcdc1dd27a7e8c",
+      "sha": "e5a70acf4864f77d28b0af5342216e74387a9145"
     },
     {
-      "path": "verification/true-a-due-host-preparation-20261007T1256Z/prepare-owner-binding.base.mts",
+      "path": "verification/true-a-cttq-gsk-preparation-20261007T1348Z/prepare-owner-binding.base.mts",
       "mode": "100644",
       "bytes": 7626,
       "sha256": "0f4fd59de1b366e5d2ff39df1b67b83dc9d97f26a25187e804263e82bec67cd4",
       "sha": "116cdb8c8f2d824a8e1cd252e3b9c50b46280191"
     },
     {
-      "path": "verification/true-a-due-host-preparation-20261007T1256Z/static-true-a-source-routes.json",
+      "path": "verification/true-a-cttq-gsk-preparation-20261007T1348Z/static-true-a-source-routes.json",
       "mode": "100644",
-      "bytes": 2124,
-      "sha256": "ad4d8dbc5e0376224df407ddcbcefe5b7bc4ff408aac7b2c5b778cc9c29b256e",
-      "sha": "f3258ffc9232a03f72d46dc691e9d00e941aa053"
+      "bytes": 2136,
+      "sha256": "d81c298dba8c528e6ef55792285b828921a5c8f8e3225269aad55bd19eadbdda",
+      "sha": "766e737d847debb754d35eb1f1df65023c48e626"
     },
     {
-      "path": "verification/true-a-due-host-preparation-20261007T1256Z/verify-hosts.mts",
+      "path": "verification/true-a-cttq-gsk-preparation-20261007T1348Z/verify-combined-pins.mjs",
       "mode": "100644",
-      "bytes": 8979,
-      "sha256": "d4bd3304a031f2999fdca132905a53525463e9e01063a23580f09bc068fd9f6e",
-      "sha": "a3e6e81540cbe6073837f02c4c58f2926d2f0782"
+      "bytes": 3962,
+      "sha256": "4b46900df2f851182088b51ca38173dc90637412a546b20b7b127702e9194b2f",
+      "sha": "24c8aac889fee758e8a3349d851151d3ee5a6350"
     },
     {
-      "path": "verification/true-a-due-host-preparation-20261007T1256Z/verify-loader-pins.mjs",
+      "path": "verification/true-a-cttq-gsk-preparation-20261007T1348Z/verify-hosts.mts",
       "mode": "100644",
-      "bytes": 2743,
-      "sha256": "1557b9cde369ebd9abca2868310adfef4b419126403322e4ac9c91dfd7ef2afd",
-      "sha": "d6b215ee74b6cad9a3380a522e8f36345db02353"
+      "bytes": 8975,
+      "sha256": "323abc4fb55d59e27e87b0daefcbe6e1a318d3d8cff4dc360daed28186bdfd33",
+      "sha": "3576c23bb3ee7c7ed9d9b2b760cc637af6d056e5"
     },
     {
-      "path": "verification/true-a-due-host-preparation-20261007T1256Z/vitest.config.mjs",
+      "path": "verification/true-a-cttq-gsk-preparation-20261007T1348Z/verify-loader-pins.mjs",
       "mode": "100644",
-      "bytes": 563,
-      "sha256": "21676b9dc1580e93a73bdb7830f2cfef6ea7ff9833a193dd0018142e81646ac6",
-      "sha": "51644f60a89bbe8691da846369cc1fe23e4cdd6a"
+      "bytes": 2739,
+      "sha256": "87a39ca2ef9264b6700b4fb8c243a3e446c0f895ad277456816c7f66bfd88010",
+      "sha": "157039ccfef312b5a44ddffe8ad42b2992c74c44"
+    },
+    {
+      "path": "verification/true-a-cttq-gsk-preparation-20261007T1348Z/vitest.config.mjs",
+      "mode": "100644",
+      "bytes": 347,
+      "sha256": "583c0cdfa051b11cb75c0ba239a2f1a38090f1044e8356d794eac4b95ba3dda9",
+      "sha": "94e41bbf797c9c0113d6648fd8f36f6dda6d6c6d"
     }
   ],
   "recoveryLimits": "BACKUP_RECOVERY.md"
