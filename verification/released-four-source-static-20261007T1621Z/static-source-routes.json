@@ -1,0 +1,388 @@
+{
+  "schemaVersion": 1,
+  "artifactKind": "STATIC_SOURCE_CONFIGURATION_ONLY",
+  "runtimeRoot": "/workspace/scratch/5e9614251709/jb-incremental-proxy-runtime-20261007T0057Z",
+  "producerCommit": "28402a299bb04cbf5873da66c2fe8ca76827c0d1",
+  "nodeVersion": "v22.23.3",
+  "sources": [
+    {
+      "sourceKey": "novo",
+      "sourceId": "source-novo-nordisk-china-social",
+      "route": "PORTABLE",
+      "source": {
+        "id": "source-novo-nordisk-china-social",
+        "companyId": "company-novo-nordisk-china",
+        "kind": "SOCIAL",
+        "atsKind": "OFFICIAL_JSON",
+        "status": "VERIFIED_SCRAPABLE",
+        "officialEntryUrl": "https://www.novonordisk.com.cn/careers/find-a-job/career-search-results.html?searchText=&countries=China&categories=",
+        "officialChainEvidenceUrl": "https://www.novonordisk.com.cn/careers.html"
+      },
+      "sourceConfigSha256": "40305820c3aa3f36e74f06873c0ddd1a52266cb74d277b3a36137c81fc5c604e",
+      "currentSourcePlan": {
+        "adapterId": "official-json",
+        "company": {
+          "id": "company-novo-nordisk-china",
+          "officialChineseName": "诺和诺德中国",
+          "category": "FOREIGN_PHARMA"
+        },
+        "source": {
+          "id": "source-novo-nordisk-china-social",
+          "surfaceId": "surface-novo-nordisk-china-social",
+          "companyId": "company-novo-nordisk-china",
+          "kind": "SOCIAL",
+          "atsKind": "OFFICIAL_JSON",
+          "status": "VERIFIED_SCRAPABLE",
+          "officialEntryUrl": "https://www.novonordisk.com.cn/careers/find-a-job/career-search-results.html?searchText=&countries=China&categories=",
+          "officialChainEvidenceUrl": "https://www.novonordisk.com.cn/careers.html"
+        },
+        "executionAuthority": "STAGED",
+        "expectedChannels": [
+          {
+            "channelId": "source:source-novo-nordisk-china-social:default",
+            "kind": "SOCIAL"
+          }
+        ],
+        "expectedChannelSetHash": "210dae00c3e72ebfb73e6a125c14bee457154a98fc582e21320c16b431809c87",
+        "json": {
+          "jobsPath": "jobs",
+          "fields": {
+            "sourceJobId": "sourceJobId",
+            "officialTitle": "title",
+            "officialUrl": "officialUrl",
+            "locationRaw": "locationRaw",
+            "cities": "cities"
+          },
+          "defaultCategory": "其他"
+        },
+        "officialJsonFetch": {
+          "kind": "novo-nordisk",
+          "endpointUrl": "https://www.novonordisk.com.cn/bin/nncorp/careersearch?keyword=&country=China&category=&locale=zh-cn",
+          "cityScopePolicy": "NOVO_CHINA_NESTED_LOCATION_V2",
+          "applicationStatusPolicy": "NOVO_NATIVE_APPLICATION_V1"
+        },
+        "transientRetryPolicy": {
+          "maxRetries": 1,
+          "backoffMs": 10000
+        },
+        "transportPolicy": {
+          "primary": "DIRECT_HTTP"
+        }
+      },
+      "implementations": [
+        {
+          "role": "entrypoint",
+          "path": "scripts/p0-cloud-portable-source-pilot.ts",
+          "sha256": "a62a002c67716551ed23af7263b08a3d2d6486efcf31d9b4889b7042731fe98f"
+        },
+        {
+          "role": "quality",
+          "path": "src/crawler/sourceQualityAdmission.ts",
+          "sha256": "f6d2381fd0eabedcdf49c8faf32545b1f301522e1cab7d8f8c299212cfe94866"
+        },
+        {
+          "role": "sourcePlan",
+          "path": "src/crawler/sourcePlan.ts",
+          "sha256": "1f1345f74ad41adaa0778eaf301f6b1c38ca68f091d81b116556771d18c71987"
+        },
+        {
+          "role": "archive",
+          "path": "src/crawler/artifactArchive.ts",
+          "sha256": "575a5fe0144cd443e5308d29ce25641981282a0f34b5e1beebed723cc7ff6ac1"
+        },
+        {
+          "role": "wrapper",
+          "path": "scripts/run-with-http-diagnostics.mjs",
+          "sha256": "f15522e6f209bfe99bfa258b5dffbce1f74d6af662c4c2ee682604e0798bbc88"
+        }
+      ]
+    },
+    {
+      "sourceKey": "ucb",
+      "sourceId": "source-ucb-china-social",
+      "route": "PORTABLE",
+      "source": {
+        "id": "source-ucb-china-social",
+        "companyId": "company-ucb-china",
+        "kind": "SOCIAL",
+        "atsKind": "OFFICIAL_JSON",
+        "status": "VERIFIED_SCRAPABLE",
+        "officialEntryUrl": "https://careers.ucb.com/global/zh/search-results?keywords=China",
+        "officialChainEvidenceUrl": "https://careers.ucb.com/"
+      },
+      "sourceConfigSha256": "0423b01f438925ad3e34e29aeda58fe6353fbd264d4472a09bcb1fba281bd146",
+      "currentSourcePlan": {
+        "adapterId": "official-json",
+        "company": {
+          "id": "company-ucb-china",
+          "officialChineseName": "优时比中国",
+          "category": "FOREIGN_PHARMA"
+        },
+        "source": {
+          "id": "source-ucb-china-social",
+          "surfaceId": "surface-ucb-china-social",
+          "companyId": "company-ucb-china",
+          "kind": "SOCIAL",
+          "atsKind": "OFFICIAL_JSON",
+          "status": "VERIFIED_SCRAPABLE",
+          "officialEntryUrl": "https://careers.ucb.com/global/zh/search-results?keywords=China",
+          "officialChainEvidenceUrl": "https://careers.ucb.com/"
+        },
+        "executionAuthority": "STAGED",
+        "expectedChannels": [
+          {
+            "channelId": "source:source-ucb-china-social:default",
+            "kind": "SOCIAL"
+          }
+        ],
+        "expectedChannelSetHash": "e205beb21a975dddfe94bb8c3d47963a8bc7fb86d28718767b44365ce2c4cdc8",
+        "json": {
+          "jobsPath": "jobs",
+          "fields": {
+            "sourceJobId": "sourceJobId",
+            "officialTitle": "title",
+            "officialUrl": "officialUrl",
+            "locationRaw": "locationRaw",
+            "cities": "cities",
+            "officialPublishedAt": "officialPublishedAt"
+          },
+          "defaultCategory": "其他"
+        },
+        "officialJsonFetch": {
+          "kind": "phenom",
+          "postedDatePolicy": "UCB_PHENOM_POSTED_DATE_V1",
+          "cityScopePolicy": "UCB_PRIMARY_CITY_AGREEMENT_V1",
+          "detailBaseUrl": "https://careers.ucb.com/global/en/job",
+          "countryFilter": "China",
+          "allowOmittedOffsetForSinglePage": true,
+          "pageSize": 50,
+          "maxPages": 5
+        },
+        "transportPolicy": {
+          "primary": "DIRECT_HTTP"
+        }
+      },
+      "implementations": [
+        {
+          "role": "entrypoint",
+          "path": "scripts/p0-cloud-portable-source-pilot.ts",
+          "sha256": "a62a002c67716551ed23af7263b08a3d2d6486efcf31d9b4889b7042731fe98f"
+        },
+        {
+          "role": "quality",
+          "path": "src/crawler/sourceQualityAdmission.ts",
+          "sha256": "f6d2381fd0eabedcdf49c8faf32545b1f301522e1cab7d8f8c299212cfe94866"
+        },
+        {
+          "role": "sourcePlan",
+          "path": "src/crawler/sourcePlan.ts",
+          "sha256": "1f1345f74ad41adaa0778eaf301f6b1c38ca68f091d81b116556771d18c71987"
+        },
+        {
+          "role": "archive",
+          "path": "src/crawler/artifactArchive.ts",
+          "sha256": "575a5fe0144cd443e5308d29ce25641981282a0f34b5e1beebed723cc7ff6ac1"
+        },
+        {
+          "role": "wrapper",
+          "path": "scripts/run-with-http-diagnostics.mjs",
+          "sha256": "f15522e6f209bfe99bfa258b5dffbce1f74d6af662c4c2ee682604e0798bbc88"
+        }
+      ]
+    },
+    {
+      "sourceKey": "hengrui",
+      "sourceId": "source-hengrui-social",
+      "route": "PORTABLE",
+      "source": {
+        "id": "source-hengrui-social",
+        "companyId": "company-hengrui",
+        "kind": "SOCIAL",
+        "atsKind": "MOKA",
+        "status": "VERIFIED_SCRAPABLE",
+        "officialEntryUrl": "https://app.mokahr.com/social-recruitment/hengrui/145996#/jobs",
+        "officialChainEvidenceUrl": "https://www.hengrui.com/development/joinUs.html"
+      },
+      "sourceConfigSha256": "93dcadb4a572da022694b3ab3040fad541fe674107e3dc66fd2323709e374b4e",
+      "currentSourcePlan": {
+        "adapterId": "official-json",
+        "company": {
+          "id": "company-hengrui",
+          "officialChineseName": "江苏恒瑞医药股份有限公司",
+          "category": "DOMESTIC_PHARMA"
+        },
+        "source": {
+          "id": "source-hengrui-social",
+          "surfaceId": "surface-hengrui-social",
+          "companyId": "company-hengrui",
+          "kind": "SOCIAL",
+          "atsKind": "MOKA",
+          "status": "VERIFIED_SCRAPABLE",
+          "officialEntryUrl": "https://app.mokahr.com/social-recruitment/hengrui/145996#/jobs",
+          "officialChainEvidenceUrl": "https://www.hengrui.com/development/joinUs.html"
+        },
+        "executionAuthority": "STAGED",
+        "expectedChannels": [
+          {
+            "channelId": "source:source-hengrui-social:default",
+            "kind": "SOCIAL"
+          }
+        ],
+        "expectedChannelSetHash": "5a5f7e019387281dc5e3a50dbb446561828c47e79fe4d9d6ac316772af0b100f",
+        "json": {
+          "jobsPath": "data.jobs",
+          "fields": {
+            "sourceJobId": "id",
+            "officialTitle": "title",
+            "officialUrl": "officialUrl",
+            "locationRaw": "locationRaw",
+            "cities": "cities"
+          },
+          "defaultCategory": "其他"
+        },
+        "moka": {
+          "expectedOrgId": "hengrui",
+          "expectedSiteId": "145996",
+          "expectedMode": "social",
+          "campaignUrl": "https://app.mokahr.com/social-recruitment/hengrui/145996",
+          "hydrateMissingLocationsFromDetail": true,
+          "scopeExclusionProof": "HENGRUI_EXPLICIT_US_WALTHAM_OR_HONG_KONG_ONLY_V1"
+        },
+        "transportPolicy": {
+          "primary": "DIRECT_HTTP"
+        }
+      },
+      "implementations": [
+        {
+          "role": "entrypoint",
+          "path": "scripts/p0-cloud-portable-source-pilot.ts",
+          "sha256": "a62a002c67716551ed23af7263b08a3d2d6486efcf31d9b4889b7042731fe98f"
+        },
+        {
+          "role": "quality",
+          "path": "src/crawler/sourceQualityAdmission.ts",
+          "sha256": "f6d2381fd0eabedcdf49c8faf32545b1f301522e1cab7d8f8c299212cfe94866"
+        },
+        {
+          "role": "sourcePlan",
+          "path": "src/crawler/sourcePlan.ts",
+          "sha256": "1f1345f74ad41adaa0778eaf301f6b1c38ca68f091d81b116556771d18c71987"
+        },
+        {
+          "role": "archive",
+          "path": "src/crawler/artifactArchive.ts",
+          "sha256": "575a5fe0144cd443e5308d29ce25641981282a0f34b5e1beebed723cc7ff6ac1"
+        },
+        {
+          "role": "wrapper",
+          "path": "scripts/run-with-http-diagnostics.mjs",
+          "sha256": "f15522e6f209bfe99bfa258b5dffbce1f74d6af662c4c2ee682604e0798bbc88"
+        }
+      ]
+    },
+    {
+      "sourceKey": "roche",
+      "sourceId": "source-roche-china-social",
+      "route": "TRUE_A",
+      "source": {
+        "id": "source-roche-china-social",
+        "companyId": "company-roche-china",
+        "kind": "SOCIAL",
+        "atsKind": "OFFICIAL_JSON",
+        "status": "VERIFIED_SCRAPABLE",
+        "officialEntryUrl": "https://careers.roche.com/cn/zh/search-results",
+        "officialChainEvidenceUrl": "https://careers.roche.com/cn/zh/mainland-china-jobs"
+      },
+      "sourceConfigSha256": "d0e8002bbc03e3da46bbb02c30b533b5b968f38ac5db2c357c009de2eb4066ed",
+      "currentSourcePlan": {
+        "adapterId": "official-json",
+        "company": {
+          "id": "company-roche-china",
+          "officialChineseName": "罗氏制药中国",
+          "category": "FOREIGN_PHARMA"
+        },
+        "source": {
+          "id": "source-roche-china-social",
+          "surfaceId": "surface-roche-china-social",
+          "companyId": "company-roche-china",
+          "kind": "SOCIAL",
+          "atsKind": "OFFICIAL_JSON",
+          "status": "VERIFIED_SCRAPABLE",
+          "officialEntryUrl": "https://careers.roche.com/cn/zh/search-results",
+          "officialChainEvidenceUrl": "https://careers.roche.com/cn/zh/mainland-china-jobs"
+        },
+        "executionAuthority": "STAGED",
+        "expectedChannels": [
+          {
+            "channelId": "source:source-roche-china-social:default",
+            "kind": "SOCIAL"
+          }
+        ],
+        "expectedChannelSetHash": "d5aa87a622e8b15f12ea1b2213ad17dce4b17d892a1098f41c8750c69b9e6646",
+        "json": {
+          "jobsPath": "jobs",
+          "fields": {
+            "sourceJobId": "sourceJobId",
+            "officialTitle": "title",
+            "officialUrl": "officialUrl",
+            "locationRaw": "locationRaw",
+            "cities": "cities",
+            "officialPublishedAt": "officialPublishedAt"
+          },
+          "defaultCategory": "其他"
+        },
+        "officialJsonFetch": {
+          "kind": "phenom",
+          "nativeDetailPolicy": "ROCHE_WORKDAY_NATIVE_V1",
+          "detailBaseUrl": "https://careers.roche.com/cn/zh/job",
+          "allowedApplyOrigins": [
+            "https://roche.wd3.myworkdayjobs.com"
+          ],
+          "mixedLocationScopePolicy": "EXACTLY_ONE_MAINLAND_ALTERNATIVE_V1",
+          "facetScope": {
+            "countryIncludeDescriptor": "中国大陆",
+            "categoryExcludeDescriptors": []
+          },
+          "requestBoundOmittedOffsetPolicy": "ROCHE_REQUEST_BOUND_OMITTED_OFFSET_V1",
+          "exactDuplicateReconciliationPolicy": "ROCHE_IDENTICAL_CROSS_PAGE_V1",
+          "pageSize": 250,
+          "maxPages": 10
+        },
+        "transientRetryPolicy": {
+          "maxRetries": 1,
+          "backoffMs": 10000
+        },
+        "transportPolicy": {
+          "primary": "DIRECT_HTTP"
+        }
+      },
+      "implementations": [
+        {
+          "role": "entrypoint",
+          "path": "scripts/p0-cloud-source-pilot.ts",
+          "sha256": "e4299018aa4b17cd7d0ff756ea45b779479708e02c400be9a1c8ffc0c2c1abaa"
+        },
+        {
+          "role": "quality",
+          "path": "src/crawler/completenessCertificate.ts",
+          "sha256": "6dcf1ca30aa2f6b8d3f7b4079147010dd63c5718c52dc8a83269f97dfe6a18be"
+        },
+        {
+          "role": "sourcePlan",
+          "path": "src/crawler/sourcePlan.ts",
+          "sha256": "1f1345f74ad41adaa0778eaf301f6b1c38ca68f091d81b116556771d18c71987"
+        },
+        {
+          "role": "archive",
+          "path": "src/crawler/artifactArchive.ts",
+          "sha256": "575a5fe0144cd443e5308d29ce25641981282a0f34b5e1beebed723cc7ff6ac1"
+        },
+        {
+          "role": "wrapper",
+          "path": "scripts/run-with-http-diagnostics.mjs",
+          "sha256": "f15522e6f209bfe99bfa258b5dffbce1f74d6af662c4c2ee682604e0798bbc88"
+        }
+      ]
+    }
+  ]
+}

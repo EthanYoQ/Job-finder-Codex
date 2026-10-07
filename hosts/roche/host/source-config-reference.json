@@ -1,0 +1,104 @@
+{
+  "sourceKey": "roche",
+  "sourceId": "source-roche-china-social",
+  "route": "TRUE_A",
+  "source": {
+    "id": "source-roche-china-social",
+    "companyId": "company-roche-china",
+    "kind": "SOCIAL",
+    "atsKind": "OFFICIAL_JSON",
+    "status": "VERIFIED_SCRAPABLE",
+    "officialEntryUrl": "https://careers.roche.com/cn/zh/search-results",
+    "officialChainEvidenceUrl": "https://careers.roche.com/cn/zh/mainland-china-jobs"
+  },
+  "sourceConfigSha256": "d0e8002bbc03e3da46bbb02c30b533b5b968f38ac5db2c357c009de2eb4066ed",
+  "currentSourcePlan": {
+    "adapterId": "official-json",
+    "company": {
+      "id": "company-roche-china",
+      "officialChineseName": "罗氏制药中国",
+      "category": "FOREIGN_PHARMA"
+    },
+    "source": {
+      "id": "source-roche-china-social",
+      "surfaceId": "surface-roche-china-social",
+      "companyId": "company-roche-china",
+      "kind": "SOCIAL",
+      "atsKind": "OFFICIAL_JSON",
+      "status": "VERIFIED_SCRAPABLE",
+      "officialEntryUrl": "https://careers.roche.com/cn/zh/search-results",
+      "officialChainEvidenceUrl": "https://careers.roche.com/cn/zh/mainland-china-jobs"
+    },
+    "executionAuthority": "STAGED",
+    "expectedChannels": [
+      {
+        "channelId": "source:source-roche-china-social:default",
+        "kind": "SOCIAL"
+      }
+    ],
+    "expectedChannelSetHash": "d5aa87a622e8b15f12ea1b2213ad17dce4b17d892a1098f41c8750c69b9e6646",
+    "json": {
+      "jobsPath": "jobs",
+      "fields": {
+        "sourceJobId": "sourceJobId",
+        "officialTitle": "title",
+        "officialUrl": "officialUrl",
+        "locationRaw": "locationRaw",
+        "cities": "cities",
+        "officialPublishedAt": "officialPublishedAt"
+      },
+      "defaultCategory": "其他"
+    },
+    "officialJsonFetch": {
+      "kind": "phenom",
+      "nativeDetailPolicy": "ROCHE_WORKDAY_NATIVE_V1",
+      "detailBaseUrl": "https://careers.roche.com/cn/zh/job",
+      "allowedApplyOrigins": [
+        "https://roche.wd3.myworkdayjobs.com"
+      ],
+      "mixedLocationScopePolicy": "EXACTLY_ONE_MAINLAND_ALTERNATIVE_V1",
+      "facetScope": {
+        "countryIncludeDescriptor": "中国大陆",
+        "categoryExcludeDescriptors": []
+      },
+      "requestBoundOmittedOffsetPolicy": "ROCHE_REQUEST_BOUND_OMITTED_OFFSET_V1",
+      "exactDuplicateReconciliationPolicy": "ROCHE_IDENTICAL_CROSS_PAGE_V1",
+      "pageSize": 250,
+      "maxPages": 10
+    },
+    "transientRetryPolicy": {
+      "maxRetries": 1,
+      "backoffMs": 10000
+    },
+    "transportPolicy": {
+      "primary": "DIRECT_HTTP"
+    }
+  },
+  "implementations": [
+    {
+      "role": "entrypoint",
+      "path": "scripts/p0-cloud-source-pilot.ts",
+      "sha256": "e4299018aa4b17cd7d0ff756ea45b779479708e02c400be9a1c8ffc0c2c1abaa"
+    },
+    {
+      "role": "quality",
+      "path": "src/crawler/completenessCertificate.ts",
+      "sha256": "6dcf1ca30aa2f6b8d3f7b4079147010dd63c5718c52dc8a83269f97dfe6a18be"
+    },
+    {
+      "role": "sourcePlan",
+      "path": "src/crawler/sourcePlan.ts",
+      "sha256": "1f1345f74ad41adaa0778eaf301f6b1c38ca68f091d81b116556771d18c71987"
+    },
+    {
+      "role": "archive",
+      "path": "src/crawler/artifactArchive.ts",
+      "sha256": "575a5fe0144cd443e5308d29ce25641981282a0f34b5e1beebed723cc7ff6ac1"
+    },
+    {
+      "role": "wrapper",
+      "path": "scripts/run-with-http-diagnostics.mjs",
+      "sha256": "f15522e6f209bfe99bfa258b5dffbce1f74d6af662c4c2ee682604e0798bbc88"
+    }
+  ]
+}

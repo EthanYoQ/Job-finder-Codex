@@ -1,0 +1,90 @@
+{
+  "sourceKey": "hengrui",
+  "sourceId": "source-hengrui-social",
+  "route": "PORTABLE",
+  "source": {
+    "id": "source-hengrui-social",
+    "companyId": "company-hengrui",
+    "kind": "SOCIAL",
+    "atsKind": "MOKA",
+    "status": "VERIFIED_SCRAPABLE",
+    "officialEntryUrl": "https://app.mokahr.com/social-recruitment/hengrui/145996#/jobs",
+    "officialChainEvidenceUrl": "https://www.hengrui.com/development/joinUs.html"
+  },
+  "sourceConfigSha256": "93dcadb4a572da022694b3ab3040fad541fe674107e3dc66fd2323709e374b4e",
+  "currentSourcePlan": {
+    "adapterId": "official-json",
+    "company": {
+      "id": "company-hengrui",
+      "officialChineseName": "江苏恒瑞医药股份有限公司",
+      "category": "DOMESTIC_PHARMA"
+    },
+    "source": {
+      "id": "source-hengrui-social",
+      "surfaceId": "surface-hengrui-social",
+      "companyId": "company-hengrui",
+      "kind": "SOCIAL",
+      "atsKind": "MOKA",
+      "status": "VERIFIED_SCRAPABLE",
+      "officialEntryUrl": "https://app.mokahr.com/social-recruitment/hengrui/145996#/jobs",
+      "officialChainEvidenceUrl": "https://www.hengrui.com/development/joinUs.html"
+    },
+    "executionAuthority": "STAGED",
+    "expectedChannels": [
+      {
+        "channelId": "source:source-hengrui-social:default",
+        "kind": "SOCIAL"
+      }
+    ],
+    "expectedChannelSetHash": "5a5f7e019387281dc5e3a50dbb446561828c47e79fe4d9d6ac316772af0b100f",
+    "json": {
+      "jobsPath": "data.jobs",
+      "fields": {
+        "sourceJobId": "id",
+        "officialTitle": "title",
+        "officialUrl": "officialUrl",
+        "locationRaw": "locationRaw",
+        "cities": "cities"
+      },
+      "defaultCategory": "其他"
+    },
+    "moka": {
+      "expectedOrgId": "hengrui",
+      "expectedSiteId": "145996",
+      "expectedMode": "social",
+      "campaignUrl": "https://app.mokahr.com/social-recruitment/hengrui/145996",
+      "hydrateMissingLocationsFromDetail": true,
+      "scopeExclusionProof": "HENGRUI_EXPLICIT_US_WALTHAM_OR_HONG_KONG_ONLY_V1"
+    },
+    "transportPolicy": {
+      "primary": "DIRECT_HTTP"
+    }
+  },
+  "implementations": [
+    {
+      "role": "entrypoint",
+      "path": "scripts/p0-cloud-portable-source-pilot.ts",
+      "sha256": "a62a002c67716551ed23af7263b08a3d2d6486efcf31d9b4889b7042731fe98f"
+    },
+    {
+      "role": "quality",
+      "path": "src/crawler/sourceQualityAdmission.ts",
+      "sha256": "f6d2381fd0eabedcdf49c8faf32545b1f301522e1cab7d8f8c299212cfe94866"
+    },
+    {
+      "role": "sourcePlan",
+      "path": "src/crawler/sourcePlan.ts",
+      "sha256": "1f1345f74ad41adaa0778eaf301f6b1c38ca68f091d81b116556771d18c71987"
+    },
+    {
+      "role": "archive",
+      "path": "src/crawler/artifactArchive.ts",
+      "sha256": "575a5fe0144cd443e5308d29ce25641981282a0f34b5e1beebed723cc7ff6ac1"
+    },
+    {
+      "role": "wrapper",
+      "path": "scripts/run-with-http-diagnostics.mjs",
+      "sha256": "f15522e6f209bfe99bfa258b5dffbce1f74d6af662c4c2ee682604e0798bbc88"
+    }
+  ]
+}

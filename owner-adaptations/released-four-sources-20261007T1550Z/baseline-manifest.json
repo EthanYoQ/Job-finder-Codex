@@ -1,0 +1,86 @@
+{
+  "producerCommit": "28402a299bb04cbf5873da66c2fe8ca76827c0d1",
+  "runtimeRoot": "/workspace/scratch/5e9614251709/jb-incremental-proxy-runtime-20261007T0057Z",
+  "files": {
+    "/workspace/scratch/5e9614251709/jb-incremental-proxy-runtime-20261007T0057Z/hosts/novo/host/host-helper-functions.js": {
+      "sha256": "8351c26d75370d2b9e2dbb6c4c8d496820ce0c1328a5cc913174aac27f4ca30e",
+      "bytes": 9752
+    },
+    "/workspace/scratch/5e9614251709/jb-incremental-proxy-runtime-20261007T0057Z/hosts/novo/host/host-stage-functions.js": {
+      "sha256": "32eb51c2ffb0b499ecfb35183ab8bc35d55e496b7aef1ddce00f387bd5d455e6",
+      "bytes": 6564
+    },
+    "/workspace/scratch/5e9614251709/jb-incremental-proxy-runtime-20261007T0057Z/hosts/novo/host/relay-files.mjs": {
+      "sha256": "d879a67b85c0d4569cfdd25afe41a62690d283b8288da93f1af092ac625f5320",
+      "bytes": 7906
+    },
+    "/workspace/scratch/5e9614251709/jb-incremental-proxy-runtime-20261007T0057Z/hosts/novo/host/runtime/continuous-relay-v3-durable-monitor.js": {
+      "sha256": "80b4e8677d43db28a2063fa6cf5f93b50a236e603d8ce85423218f030f08cb3c",
+      "bytes": 5148
+    },
+    "/workspace/scratch/5e9614251709/jb-incremental-proxy-runtime-20261007T0057Z/hosts/novo/host/runtime/review-packet-envelope.mts": {
+      "sha256": "40cb1e3ede867f0e9d171605e7454fc71a6f774dfdf910f68ff668722bba69cb",
+      "bytes": 5535
+    },
+    "/workspace/scratch/5e9614251709/jb-incremental-proxy-runtime-20261007T0057Z/hosts/ucb/host/host-helper-functions.js": {
+      "sha256": "e3951887395430969fff38cac97e989b9866b041c8caf1dbd08c3bc2cbfd6b9b",
+      "bytes": 9735
+    },
+    "/workspace/scratch/5e9614251709/jb-incremental-proxy-runtime-20261007T0057Z/hosts/ucb/host/host-stage-functions.js": {
+      "sha256": "85f5214f845dea9e37c0d6a5e642e4055afc24445ff14733794f688bb1e318c9",
+      "bytes": 6537
+    },
+    "/workspace/scratch/5e9614251709/jb-incremental-proxy-runtime-20261007T0057Z/hosts/ucb/host/relay-files.mjs": {
+      "sha256": "eb52b15ae21e583c17bedcee972229a58110900f60f79d2a5dd950a83d7caa90",
+      "bytes": 7905
+    },
+    "/workspace/scratch/5e9614251709/jb-incremental-proxy-runtime-20261007T0057Z/hosts/ucb/host/runtime/continuous-relay-v3-durable-monitor.js": {
+      "sha256": "24d09be7445cee3ae1344c6aafd4e23b3a966a97b0f373cc51eaa339a23b8d09",
+      "bytes": 5136
+    },
+    "/workspace/scratch/5e9614251709/jb-incremental-proxy-runtime-20261007T0057Z/hosts/ucb/host/runtime/review-packet-envelope.mts": {
+      "sha256": "40cb1e3ede867f0e9d171605e7454fc71a6f774dfdf910f68ff668722bba69cb",
+      "bytes": 5535
+    },
+    "/workspace/scratch/5e9614251709/jb-incremental-proxy-runtime-20261007T0057Z/hosts/hengrui/host/host-helper-functions.js": {
+      "sha256": "210c74eb0134afe167767a3442926c1839257b67b56cf2fc2c4c98d6f5898e0d",
+      "bytes": 9765
+    },
+    "/workspace/scratch/5e9614251709/jb-incremental-proxy-runtime-20261007T0057Z/hosts/hengrui/host/host-stage-functions.js": {
+      "sha256": "7443ad9757f8e94c9278aa9cb230b5557f93c8d866ef0a292453c8c65f86c08b",
+      "bytes": 6569
+    },
+    "/workspace/scratch/5e9614251709/jb-incremental-proxy-runtime-20261007T0057Z/hosts/hengrui/host/relay-files.mjs": {
+      "sha256": "5957b26ff4eefde5cd9312755a46b964ff3ab2ee403254aa87051a0acfa812ce",
+      "bytes": 7909
+    },
+    "/workspace/scratch/5e9614251709/jb-incremental-proxy-runtime-20261007T0057Z/hosts/hengrui/host/runtime/continuous-relay-v3-durable-monitor.js": {
+      "sha256": "eef2b34fa90cfd2f3d6f48d10363fc7e19776fb029a477c314d5a6c01e60e6ec",
+      "bytes": 5184
+    },
+    "/workspace/scratch/5e9614251709/jb-incremental-proxy-runtime-20261007T0057Z/hosts/hengrui/host/runtime/review-packet-envelope.mts": {
+      "sha256": "40cb1e3ede867f0e9d171605e7454fc71a6f774dfdf910f68ff668722bba69cb",
+      "bytes": 5535
+    },
+    "/workspace/scratch/5e9614251709/jb-incremental-proxy-runtime-20261007T0057Z/hosts/roche/host/host-helper-functions.js": {
+      "sha256": "8c8032e71205006151f4d53360ba6622af2762297f943fdb6db2cdfc3b1aef89",
+      "bytes": 9753
+    },
+    "/workspace/scratch/5e9614251709/jb-incremental-proxy-runtime-20261007T0057Z/hosts/roche/host/host-stage-functions.js": {
+      "sha256": "3e29ae2183cd3628d447d42566dea05c4fb3e3172cc73c63a317aa46cc3862f4",
+      "bytes": 6557
+    },
+    "/workspace/scratch/5e9614251709/jb-incremental-proxy-runtime-20261007T0057Z/hosts/roche/host/relay-files.mjs": {
+      "sha256": "9a0b65afdb325ae804fc4acb7b3de7705a0f55db53e7e1170bf3dc417e2032a0",
+      "bytes": 7907
+    },
+    "/workspace/scratch/5e9614251709/jb-incremental-proxy-runtime-20261007T0057Z/hosts/roche/host/runtime/continuous-relay-v3-durable-monitor.js": {
+      "sha256": "169f65ce984b7a21f3e2adee4bfd820e75e4aab974c9742c43c2dd04ff63ce67",
+      "bytes": 5160
+    },
+    "/workspace/scratch/5e9614251709/jb-incremental-proxy-runtime-20261007T0057Z/hosts/roche/host/runtime/review-packet-envelope.mts": {
+      "sha256": "40cb1e3ede867f0e9d171605e7454fc71a6f774dfdf910f68ff668722bba69cb",
+      "bytes": 5535
+    }
+  }
+}

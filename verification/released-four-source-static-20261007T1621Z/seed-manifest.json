@@ -1,0 +1,993 @@
+{
+  "schemaVersion": 1,
+  "artifactKind": "EXACT_UNBOUND_SOURCE_SEEDS",
+  "files": [
+    {
+      "path": "hosts/hengrui/RESTORE_DEPENDENCIES.json",
+      "seedPath": "seed/hosts/hengrui/RESTORE_DEPENDENCIES.json",
+      "sha256": "55214e9e1ac6781ae922ec16b37b1b4904a31a4479b4f7ec1e3d7a4cb77a4da5",
+      "bytes": 1766,
+      "mode": "100644"
+    },
+    {
+      "path": "hosts/hengrui/SAFE_SOURCE_README.md",
+      "seedPath": "seed/hosts/hengrui/SAFE_SOURCE_README.md",
+      "sha256": "d176c96f7302a5c8eb60e06ae955c3b31fbd2286d0a97d8f2a73217a8b512668",
+      "bytes": 1299,
+      "mode": "100644"
+    },
+    {
+      "path": "hosts/hengrui/host/archive-transfer.mjs",
+      "seedPath": "seed/hosts/hengrui/host/archive-transfer.mjs",
+      "sha256": "698e966e5552967845a5252d2b3df2acca28dcd8dbbb0ae41755a3a6231e6a99",
+      "bytes": 1777,
+      "mode": "100644"
+    },
+    {
+      "path": "hosts/hengrui/host/context-read.sql.template",
+      "seedPath": "seed/hosts/hengrui/host/context-read.sql.template",
+      "sha256": "ee115701264c8198202c080123f884253ca3cc00c0497053cfc71e9a5c60e3b8",
+      "bytes": 2597,
+      "mode": "100644"
+    },
+    {
+      "path": "hosts/hengrui/host/context-template-proof.json",
+      "seedPath": "seed/hosts/hengrui/host/context-template-proof.json",
+      "sha256": "b5a263d21fce587a44a9c75bf46bb918c312431715fd174b44a54cbb52104c9e",
+      "bytes": 2346,
+      "mode": "100644"
+    },
+    {
+      "path": "hosts/hengrui/host/control-base.template.json",
+      "seedPath": "seed/hosts/hengrui/host/control-base.template.json",
+      "sha256": "3634b5cc4c996565263cdae4b168cb519556c2401367f33511b426fd0ae48897",
+      "bytes": 467,
+      "mode": "100644"
+    },
+    {
+      "path": "hosts/hengrui/host/host-config.json",
+      "seedPath": "seed/hosts/hengrui/host/host-config.json",
+      "sha256": "dc490296a92320694ca4b1818dcb9366443eca346b3e70cc98a593c7cb36b245",
+      "bytes": 507,
+      "mode": "100644"
+    },
+    {
+      "path": "hosts/hengrui/host/host-config.template.json",
+      "seedPath": "seed/hosts/hengrui/host/host-config.template.json",
+      "sha256": "dc490296a92320694ca4b1818dcb9366443eca346b3e70cc98a593c7cb36b245",
+      "bytes": 507,
+      "mode": "100644"
+    },
+    {
+      "path": "hosts/hengrui/host/host-files.mts",
+      "seedPath": "seed/hosts/hengrui/host/host-files.mts",
+      "sha256": "c8033565b3c368bf369fc7507f9d1ff8fa87bc0dde0a84a10a95373473dc6f3a",
+      "bytes": 4077,
+      "mode": "100644"
+    },
+    {
+      "path": "hosts/hengrui/host/host-helper-functions.js",
+      "seedPath": "seed/hosts/hengrui/host/host-helper-functions.js",
+      "sha256": "210c74eb0134afe167767a3442926c1839257b67b56cf2fc2c4c98d6f5898e0d",
+      "bytes": 9765,
+      "mode": "100644"
+    },
+    {
+      "path": "hosts/hengrui/host/host-stage-functions.js",
+      "seedPath": "seed/hosts/hengrui/host/host-stage-functions.js",
+      "sha256": "7443ad9757f8e94c9278aa9cb230b5557f93c8d866ef0a292453c8c65f86c08b",
+      "bytes": 6569,
+      "mode": "100644"
+    },
+    {
+      "path": "hosts/hengrui/host/machine-json.js",
+      "seedPath": "seed/hosts/hengrui/host/machine-json.js",
+      "sha256": "3484738bd095a9d57da70c6392af78865a53759a9e8499316941157b6210e9f6",
+      "bytes": 807,
+      "mode": "100644"
+    },
+    {
+      "path": "hosts/hengrui/host/owner-binding-input.template.json",
+      "seedPath": "seed/hosts/hengrui/host/owner-binding-input.template.json",
+      "sha256": "43f58de61b443fd16d4fee7835a20025b85b50873153682a2bd93fd9729a0ff4",
+      "bytes": 614,
+      "mode": "100644"
+    },
+    {
+      "path": "hosts/hengrui/host/relay-files.mjs",
+      "seedPath": "seed/hosts/hengrui/host/relay-files.mjs",
+      "sha256": "5957b26ff4eefde5cd9312755a46b964ff3ab2ee403254aa87051a0acfa812ce",
+      "bytes": 7909,
+      "mode": "100644"
+    },
+    {
+      "path": "hosts/hengrui/host/runtime/complete-reviewed-source-readback.js",
+      "seedPath": "seed/hosts/hengrui/host/runtime/complete-reviewed-source-readback.js",
+      "sha256": "4e888b7874379e8dcfd9662c3cda070f0a73049e1fdc41cb2f597694ffb8ec21",
+      "bytes": 5696,
+      "mode": "100644"
+    },
+    {
+      "path": "hosts/hengrui/host/runtime/continuous-relay-v3-durable-monitor.js",
+      "seedPath": "seed/hosts/hengrui/host/runtime/continuous-relay-v3-durable-monitor.js",
+      "sha256": "eef2b34fa90cfd2f3d6f48d10363fc7e19776fb029a477c314d5a6c01e60e6ec",
+      "bytes": 5184,
+      "mode": "100644"
+    },
+    {
+      "path": "hosts/hengrui/host/runtime/inspect-host-binding.mts",
+      "seedPath": "seed/hosts/hengrui/host/runtime/inspect-host-binding.mts",
+      "sha256": "610dec317e2013fd1533f4c8315d415452792c0125aa9405f2450e30289436ef",
+      "bytes": 3438,
+      "mode": "100644"
+    },
+    {
+      "path": "hosts/hengrui/host/runtime/load-host-state.js",
+      "seedPath": "seed/hosts/hengrui/host/runtime/load-host-state.js",
+      "sha256": "3b70377da29e48105913575b4741968e39b2d8f73cbcbb04fd511e48844bd047",
+      "bytes": 5320,
+      "mode": "100644"
+    },
+    {
+      "path": "hosts/hengrui/host/runtime/load-host-state.unbound.template.js",
+      "seedPath": "seed/hosts/hengrui/host/runtime/load-host-state.unbound.template.js",
+      "sha256": "3b70377da29e48105913575b4741968e39b2d8f73cbcbb04fd511e48844bd047",
+      "bytes": 5320,
+      "mode": "100644"
+    },
+    {
+      "path": "hosts/hengrui/host/runtime/load-source-runtime.js",
+      "seedPath": "seed/hosts/hengrui/host/runtime/load-source-runtime.js",
+      "sha256": "b75a21ba3003f6d7620ee3bd26e19184d5bbd4c83a015acb6d188807282bc970",
+      "bytes": 2413,
+      "mode": "100644"
+    },
+    {
+      "path": "hosts/hengrui/host/runtime/machine-json.py",
+      "seedPath": "seed/hosts/hengrui/host/runtime/machine-json.py",
+      "sha256": "67611e749eddc6bf8c591fef11f2efa82e2a73ce0bb51b2779fab4ae68b77f50",
+      "bytes": 1119,
+      "mode": "100644"
+    },
+    {
+      "path": "hosts/hengrui/host/runtime/preflight/preflight-launch.mjs",
+      "seedPath": "seed/hosts/hengrui/host/runtime/preflight/preflight-launch.mjs",
+      "sha256": "e20240ae97a00a5f546e93e87a47033bfb94474c205507200979183a9361b755",
+      "bytes": 11059,
+      "mode": "100644"
+    },
+    {
+      "path": "hosts/hengrui/host/runtime/preflight/runtime-check.mjs",
+      "seedPath": "seed/hosts/hengrui/host/runtime/preflight/runtime-check.mjs",
+      "sha256": "e01c5b953283535757e2fcc67df80dd3e86948709dde0b488235a7edee017785",
+      "bytes": 3815,
+      "mode": "100644"
+    },
+    {
+      "path": "hosts/hengrui/host/runtime/prepare-owner-binding.mts",
+      "seedPath": "seed/hosts/hengrui/host/runtime/prepare-owner-binding.mts",
+      "sha256": "2a32d1bd79be4da878694f1370441b21009413921f3da242e227f069c6f0a82c",
+      "bytes": 8561,
+      "mode": "100644"
+    },
+    {
+      "path": "hosts/hengrui/host/runtime/prepare-registered-control.mts",
+      "seedPath": "seed/hosts/hengrui/host/runtime/prepare-registered-control.mts",
+      "sha256": "75b04c3bf46a0c81529e1322c74a02ccddb88b6edb161c39e36fc082ad1c89d8",
+      "bytes": 123,
+      "mode": "100644"
+    },
+    {
+      "path": "hosts/hengrui/host/runtime/review-packet-envelope.mts",
+      "seedPath": "seed/hosts/hengrui/host/runtime/review-packet-envelope.mts",
+      "sha256": "40cb1e3ede867f0e9d171605e7454fc71a6f774dfdf910f68ff668722bba69cb",
+      "bytes": 5535,
+      "mode": "100644"
+    },
+    {
+      "path": "hosts/hengrui/host/runtime/review-publication.py",
+      "seedPath": "seed/hosts/hengrui/host/runtime/review-publication.py",
+      "sha256": "0d2a5026ca6ac6d8d83d9c2b69cf88b3f657dd232b27fad3932f02c9cc64789c",
+      "bytes": 5387,
+      "mode": "100644"
+    },
+    {
+      "path": "hosts/hengrui/host/runtime/update-candidate-completion-state.mjs",
+      "seedPath": "seed/hosts/hengrui/host/runtime/update-candidate-completion-state.mjs",
+      "sha256": "ae5ad99411b014c8ffff615a0b06af1e1fdfd2ed7f7265c9c9cee0128339bb06",
+      "bytes": 3654,
+      "mode": "100644"
+    },
+    {
+      "path": "hosts/hengrui/host/source-config-reference.json",
+      "seedPath": "seed/hosts/hengrui/host/source-config-reference.json",
+      "sha256": "34a557e46e57b59a1fabe8a074e871ecc18679c093046ca5dc38b8e971e6fb8c",
+      "bytes": 2995,
+      "mode": "100644"
+    },
+    {
+      "path": "hosts/hengrui/supervision/inspect-launch-identity.mjs",
+      "seedPath": "seed/hosts/hengrui/supervision/inspect-launch-identity.mjs",
+      "sha256": "7bc818ae831081b7e91819ad772b950d08e7d06dc741730c0bd54698d6fe8b37",
+      "bytes": 871,
+      "mode": "100644"
+    },
+    {
+      "path": "hosts/hengrui/supervision/sample_process_tree.py",
+      "seedPath": "seed/hosts/hengrui/supervision/sample_process_tree.py",
+      "sha256": "3fa6daa1af1afee94d19801edfd8bcb538e1243476b5adb253e50de162a27bd6",
+      "bytes": 13065,
+      "mode": "100644"
+    },
+    {
+      "path": "hosts/hengrui/supervision/start-monitor-hengrui51-combined.js",
+      "seedPath": "seed/hosts/hengrui/supervision/start-monitor-hengrui51-combined.js",
+      "sha256": "0c31bb91a6f2eb4db9da485fad467d55dcb0afb7e0e929525deb7a333746f235",
+      "bytes": 14814,
+      "mode": "100644"
+    },
+    {
+      "path": "hosts/hengrui/supervision/start-monitor-hengrui51-combined.unbound.template.js",
+      "seedPath": "seed/hosts/hengrui/supervision/start-monitor-hengrui51-combined.unbound.template.js",
+      "sha256": "0c31bb91a6f2eb4db9da485fad467d55dcb0afb7e0e929525deb7a333746f235",
+      "bytes": 14814,
+      "mode": "100644"
+    },
+    {
+      "path": "hosts/hengrui/supervision/supervise-cancel.mjs",
+      "seedPath": "seed/hosts/hengrui/supervision/supervise-cancel.mjs",
+      "sha256": "083435a5344a47b86f84184bbe1d2711b0d35def4670afb2ab3c8391ed442e7e",
+      "bytes": 10232,
+      "mode": "100644"
+    },
+    {
+      "path": "hosts/novo/RESTORE_DEPENDENCIES.json",
+      "seedPath": "seed/hosts/novo/RESTORE_DEPENDENCIES.json",
+      "sha256": "f59da667987f19ff6f68aff1d9e205943234c69173d5fbdf0c64a9291b647ef9",
+      "bytes": 1774,
+      "mode": "100644"
+    },
+    {
+      "path": "hosts/novo/SAFE_SOURCE_README.md",
+      "seedPath": "seed/hosts/novo/SAFE_SOURCE_README.md",
+      "sha256": "e956ab737348a4c986cdb6d76520714314d3620471c961f71e90ffbe6fbbbc6f",
+      "bytes": 1307,
+      "mode": "100644"
+    },
+    {
+      "path": "hosts/novo/host/archive-transfer.mjs",
+      "seedPath": "seed/hosts/novo/host/archive-transfer.mjs",
+      "sha256": "698e966e5552967845a5252d2b3df2acca28dcd8dbbb0ae41755a3a6231e6a99",
+      "bytes": 1777,
+      "mode": "100644"
+    },
+    {
+      "path": "hosts/novo/host/context-read.sql.template",
+      "seedPath": "seed/hosts/novo/host/context-read.sql.template",
+      "sha256": "ffbd6014a5b5a02cc4c4239971d66eea143ddddd3760e157834b9e4e52d7bb89",
+      "bytes": 2652,
+      "mode": "100644"
+    },
+    {
+      "path": "hosts/novo/host/context-template-proof.json",
+      "seedPath": "seed/hosts/novo/host/context-template-proof.json",
+      "sha256": "5b5a0d5142c53aa3ac1884416455293b6ff0194a8831c57b1d4f809e00efd7e0",
+      "bytes": 2519,
+      "mode": "100644"
+    },
+    {
+      "path": "hosts/novo/host/control-base.template.json",
+      "seedPath": "seed/hosts/novo/host/control-base.template.json",
+      "sha256": "3634b5cc4c996565263cdae4b168cb519556c2401367f33511b426fd0ae48897",
+      "bytes": 467,
+      "mode": "100644"
+    },
+    {
+      "path": "hosts/novo/host/host-config.json",
+      "seedPath": "seed/hosts/novo/host/host-config.json",
+      "sha256": "3b37316ac70bf81ead116c5be5065b08b009ee2063a95e98968fd0ca1da63d64",
+      "bytes": 515,
+      "mode": "100644"
+    },
+    {
+      "path": "hosts/novo/host/host-config.template.json",
+      "seedPath": "seed/hosts/novo/host/host-config.template.json",
+      "sha256": "3b37316ac70bf81ead116c5be5065b08b009ee2063a95e98968fd0ca1da63d64",
+      "bytes": 515,
+      "mode": "100644"
+    },
+    {
+      "path": "hosts/novo/host/host-files.mts",
+      "seedPath": "seed/hosts/novo/host/host-files.mts",
+      "sha256": "c8033565b3c368bf369fc7507f9d1ff8fa87bc0dde0a84a10a95373473dc6f3a",
+      "bytes": 4077,
+      "mode": "100644"
+    },
+    {
+      "path": "hosts/novo/host/host-helper-functions.js",
+      "seedPath": "seed/hosts/novo/host/host-helper-functions.js",
+      "sha256": "8351c26d75370d2b9e2dbb6c4c8d496820ce0c1328a5cc913174aac27f4ca30e",
+      "bytes": 9752,
+      "mode": "100644"
+    },
+    {
+      "path": "hosts/novo/host/host-stage-functions.js",
+      "seedPath": "seed/hosts/novo/host/host-stage-functions.js",
+      "sha256": "32eb51c2ffb0b499ecfb35183ab8bc35d55e496b7aef1ddce00f387bd5d455e6",
+      "bytes": 6564,
+      "mode": "100644"
+    },
+    {
+      "path": "hosts/novo/host/machine-json.js",
+      "seedPath": "seed/hosts/novo/host/machine-json.js",
+      "sha256": "3484738bd095a9d57da70c6392af78865a53759a9e8499316941157b6210e9f6",
+      "bytes": 807,
+      "mode": "100644"
+    },
+    {
+      "path": "hosts/novo/host/owner-binding-input.template.json",
+      "seedPath": "seed/hosts/novo/host/owner-binding-input.template.json",
+      "sha256": "ce743292fbf39743cd47709c2ec6f289445243a4a5dc122eef50db8e112b9247",
+      "bytes": 625,
+      "mode": "100644"
+    },
+    {
+      "path": "hosts/novo/host/relay-files.mjs",
+      "seedPath": "seed/hosts/novo/host/relay-files.mjs",
+      "sha256": "d879a67b85c0d4569cfdd25afe41a62690d283b8288da93f1af092ac625f5320",
+      "bytes": 7906,
+      "mode": "100644"
+    },
+    {
+      "path": "hosts/novo/host/runtime/complete-reviewed-source-readback.js",
+      "seedPath": "seed/hosts/novo/host/runtime/complete-reviewed-source-readback.js",
+      "sha256": "d714ae72b5f8e73ea5ef7e10e05a226b985752ba43b97ebef0311e48f39df7cf",
+      "bytes": 5693,
+      "mode": "100644"
+    },
+    {
+      "path": "hosts/novo/host/runtime/continuous-relay-v3-durable-monitor.js",
+      "seedPath": "seed/hosts/novo/host/runtime/continuous-relay-v3-durable-monitor.js",
+      "sha256": "80b4e8677d43db28a2063fa6cf5f93b50a236e603d8ce85423218f030f08cb3c",
+      "bytes": 5148,
+      "mode": "100644"
+    },
+    {
+      "path": "hosts/novo/host/runtime/inspect-host-binding.mts",
+      "seedPath": "seed/hosts/novo/host/runtime/inspect-host-binding.mts",
+      "sha256": "610dec317e2013fd1533f4c8315d415452792c0125aa9405f2450e30289436ef",
+      "bytes": 3438,
+      "mode": "100644"
+    },
+    {
+      "path": "hosts/novo/host/runtime/load-host-state.js",
+      "seedPath": "seed/hosts/novo/host/runtime/load-host-state.js",
+      "sha256": "6b588575ef3ede6495b2fa948069fce88b719a39226ca87471b3a73399e12d72",
+      "bytes": 5313,
+      "mode": "100644"
+    },
+    {
+      "path": "hosts/novo/host/runtime/load-host-state.unbound.template.js",
+      "seedPath": "seed/hosts/novo/host/runtime/load-host-state.unbound.template.js",
+      "sha256": "6b588575ef3ede6495b2fa948069fce88b719a39226ca87471b3a73399e12d72",
+      "bytes": 5313,
+      "mode": "100644"
+    },
+    {
+      "path": "hosts/novo/host/runtime/load-source-runtime.js",
+      "seedPath": "seed/hosts/novo/host/runtime/load-source-runtime.js",
+      "sha256": "aa53b36a7144965778b7a3227b166477c91af9a3275ecf0f1f2bc7b55a1042aa",
+      "bytes": 2385,
+      "mode": "100644"
+    },
+    {
+      "path": "hosts/novo/host/runtime/machine-json.py",
+      "seedPath": "seed/hosts/novo/host/runtime/machine-json.py",
+      "sha256": "67611e749eddc6bf8c591fef11f2efa82e2a73ce0bb51b2779fab4ae68b77f50",
+      "bytes": 1119,
+      "mode": "100644"
+    },
+    {
+      "path": "hosts/novo/host/runtime/preflight/preflight-launch.mjs",
+      "seedPath": "seed/hosts/novo/host/runtime/preflight/preflight-launch.mjs",
+      "sha256": "e20240ae97a00a5f546e93e87a47033bfb94474c205507200979183a9361b755",
+      "bytes": 11059,
+      "mode": "100644"
+    },
+    {
+      "path": "hosts/novo/host/runtime/preflight/runtime-check.mjs",
+      "seedPath": "seed/hosts/novo/host/runtime/preflight/runtime-check.mjs",
+      "sha256": "e01c5b953283535757e2fcc67df80dd3e86948709dde0b488235a7edee017785",
+      "bytes": 3815,
+      "mode": "100644"
+    },
+    {
+      "path": "hosts/novo/host/runtime/prepare-owner-binding.mts",
+      "seedPath": "seed/hosts/novo/host/runtime/prepare-owner-binding.mts",
+      "sha256": "5d3b4aad80b3e9fed548d77b773875a7c787ddc1db9fed905af3674b2733b2d6",
+      "bytes": 8577,
+      "mode": "100644"
+    },
+    {
+      "path": "hosts/novo/host/runtime/prepare-registered-control.mts",
+      "seedPath": "seed/hosts/novo/host/runtime/prepare-registered-control.mts",
+      "sha256": "75b04c3bf46a0c81529e1322c74a02ccddb88b6edb161c39e36fc082ad1c89d8",
+      "bytes": 123,
+      "mode": "100644"
+    },
+    {
+      "path": "hosts/novo/host/runtime/review-packet-envelope.mts",
+      "seedPath": "seed/hosts/novo/host/runtime/review-packet-envelope.mts",
+      "sha256": "40cb1e3ede867f0e9d171605e7454fc71a6f774dfdf910f68ff668722bba69cb",
+      "bytes": 5535,
+      "mode": "100644"
+    },
+    {
+      "path": "hosts/novo/host/runtime/review-publication.py",
+      "seedPath": "seed/hosts/novo/host/runtime/review-publication.py",
+      "sha256": "c53de6537907de1605ac72105dcdfa794fb4c09a9ffba7108e623c5f74262ce2",
+      "bytes": 5398,
+      "mode": "100644"
+    },
+    {
+      "path": "hosts/novo/host/runtime/update-candidate-completion-state.mjs",
+      "seedPath": "seed/hosts/novo/host/runtime/update-candidate-completion-state.mjs",
+      "sha256": "ae5ad99411b014c8ffff615a0b06af1e1fdfd2ed7f7265c9c9cee0128339bb06",
+      "bytes": 3654,
+      "mode": "100644"
+    },
+    {
+      "path": "hosts/novo/host/source-config-reference.json",
+      "seedPath": "seed/hosts/novo/host/source-config-reference.json",
+      "sha256": "708d4e96a0c7dc0e18d6f250b39deee6adaec22001722a38c34d16f3ab59a9e8",
+      "bytes": 3246,
+      "mode": "100644"
+    },
+    {
+      "path": "hosts/novo/supervision/inspect-launch-identity.mjs",
+      "seedPath": "seed/hosts/novo/supervision/inspect-launch-identity.mjs",
+      "sha256": "7bc818ae831081b7e91819ad772b950d08e7d06dc741730c0bd54698d6fe8b37",
+      "bytes": 871,
+      "mode": "100644"
+    },
+    {
+      "path": "hosts/novo/supervision/sample_process_tree.py",
+      "seedPath": "seed/hosts/novo/supervision/sample_process_tree.py",
+      "sha256": "3fa6daa1af1afee94d19801edfd8bcb538e1243476b5adb253e50de162a27bd6",
+      "bytes": 13065,
+      "mode": "100644"
+    },
+    {
+      "path": "hosts/novo/supervision/start-monitor-novo51-combined.js",
+      "seedPath": "seed/hosts/novo/supervision/start-monitor-novo51-combined.js",
+      "sha256": "942a65eb3c3cf38e713d831fa398bbbfca176a39d3718fe72692245ef708324f",
+      "bytes": 14762,
+      "mode": "100644"
+    },
+    {
+      "path": "hosts/novo/supervision/start-monitor-novo51-combined.unbound.template.js",
+      "seedPath": "seed/hosts/novo/supervision/start-monitor-novo51-combined.unbound.template.js",
+      "sha256": "942a65eb3c3cf38e713d831fa398bbbfca176a39d3718fe72692245ef708324f",
+      "bytes": 14762,
+      "mode": "100644"
+    },
+    {
+      "path": "hosts/novo/supervision/supervise-cancel.mjs",
+      "seedPath": "seed/hosts/novo/supervision/supervise-cancel.mjs",
+      "sha256": "083435a5344a47b86f84184bbe1d2711b0d35def4670afb2ab3c8391ed442e7e",
+      "bytes": 10232,
+      "mode": "100644"
+    },
+    {
+      "path": "hosts/roche/RESTORE_DEPENDENCIES.json",
+      "seedPath": "seed/hosts/roche/RESTORE_DEPENDENCIES.json",
+      "sha256": "d16d81ffdb2894bbb4a7a9182d90edd23d71cec20bf7b0bf404cca215b24e78c",
+      "bytes": 1757,
+      "mode": "100644"
+    },
+    {
+      "path": "hosts/roche/SAFE_SOURCE_README.md",
+      "seedPath": "seed/hosts/roche/SAFE_SOURCE_README.md",
+      "sha256": "0a57d162f395aca083c4cd3572e15baa471fc9ad43e2807c89f23f2710591646",
+      "bytes": 1299,
+      "mode": "100644"
+    },
+    {
+      "path": "hosts/roche/host/archive-transfer.mjs",
+      "seedPath": "seed/hosts/roche/host/archive-transfer.mjs",
+      "sha256": "698e966e5552967845a5252d2b3df2acca28dcd8dbbb0ae41755a3a6231e6a99",
+      "bytes": 1777,
+      "mode": "100644"
+    },
+    {
+      "path": "hosts/roche/host/context-read.sql.template",
+      "seedPath": "seed/hosts/roche/host/context-read.sql.template",
+      "sha256": "8acc407dc913ca6ff90b88749b74922b9ca07f4df88286e60f2bae3bc7926875",
+      "bytes": 2382,
+      "mode": "100644"
+    },
+    {
+      "path": "hosts/roche/host/context-template-proof.json",
+      "seedPath": "seed/hosts/roche/host/context-template-proof.json",
+      "sha256": "1375cd922ce7755b877d48b375fb9410e84deefbb053dce0601b2f4a000ceaa5",
+      "bytes": 2726,
+      "mode": "100644"
+    },
+    {
+      "path": "hosts/roche/host/control-base.template.json",
+      "seedPath": "seed/hosts/roche/host/control-base.template.json",
+      "sha256": "3634b5cc4c996565263cdae4b168cb519556c2401367f33511b426fd0ae48897",
+      "bytes": 467,
+      "mode": "100644"
+    },
+    {
+      "path": "hosts/roche/host/host-config.json",
+      "seedPath": "seed/hosts/roche/host/host-config.json",
+      "sha256": "2653377568bf7eff5a5153bd0bde8ab3233838782826ce1edeca9c411df60984",
+      "bytes": 509,
+      "mode": "100644"
+    },
+    {
+      "path": "hosts/roche/host/host-config.template.json",
+      "seedPath": "seed/hosts/roche/host/host-config.template.json",
+      "sha256": "2653377568bf7eff5a5153bd0bde8ab3233838782826ce1edeca9c411df60984",
+      "bytes": 509,
+      "mode": "100644"
+    },
+    {
+      "path": "hosts/roche/host/host-files.mts",
+      "seedPath": "seed/hosts/roche/host/host-files.mts",
+      "sha256": "c8033565b3c368bf369fc7507f9d1ff8fa87bc0dde0a84a10a95373473dc6f3a",
+      "bytes": 4077,
+      "mode": "100644"
+    },
+    {
+      "path": "hosts/roche/host/host-helper-functions.js",
+      "seedPath": "seed/hosts/roche/host/host-helper-functions.js",
+      "sha256": "8c8032e71205006151f4d53360ba6622af2762297f943fdb6db2cdfc3b1aef89",
+      "bytes": 9753,
+      "mode": "100644"
+    },
+    {
+      "path": "hosts/roche/host/host-stage-functions.js",
+      "seedPath": "seed/hosts/roche/host/host-stage-functions.js",
+      "sha256": "3e29ae2183cd3628d447d42566dea05c4fb3e3172cc73c63a317aa46cc3862f4",
+      "bytes": 6557,
+      "mode": "100644"
+    },
+    {
+      "path": "hosts/roche/host/machine-json.js",
+      "seedPath": "seed/hosts/roche/host/machine-json.js",
+      "sha256": "3484738bd095a9d57da70c6392af78865a53759a9e8499316941157b6210e9f6",
+      "bytes": 807,
+      "mode": "100644"
+    },
+    {
+      "path": "hosts/roche/host/owner-binding-input.template.json",
+      "seedPath": "seed/hosts/roche/host/owner-binding-input.template.json",
+      "sha256": "c78255eb4eedb7106cbe334739dda8b9d8bfea11e3d822ffd3d9a2d78e6c89bc",
+      "bytes": 618,
+      "mode": "100644"
+    },
+    {
+      "path": "hosts/roche/host/relay-files.mjs",
+      "seedPath": "seed/hosts/roche/host/relay-files.mjs",
+      "sha256": "9a0b65afdb325ae804fc4acb7b3de7705a0f55db53e7e1170bf3dc417e2032a0",
+      "bytes": 7907,
+      "mode": "100644"
+    },
+    {
+      "path": "hosts/roche/host/runtime/complete-reviewed-source-readback.js",
+      "seedPath": "seed/hosts/roche/host/runtime/complete-reviewed-source-readback.js",
+      "sha256": "a88aafd5369c5db46edb9caff49e13695c0c51a13f606facc5e66019fce125e4",
+      "bytes": 5694,
+      "mode": "100644"
+    },
+    {
+      "path": "hosts/roche/host/runtime/continuous-relay-v3-durable-monitor.js",
+      "seedPath": "seed/hosts/roche/host/runtime/continuous-relay-v3-durable-monitor.js",
+      "sha256": "169f65ce984b7a21f3e2adee4bfd820e75e4aab974c9742c43c2dd04ff63ce67",
+      "bytes": 5160,
+      "mode": "100644"
+    },
+    {
+      "path": "hosts/roche/host/runtime/inspect-host-binding.mts",
+      "seedPath": "seed/hosts/roche/host/runtime/inspect-host-binding.mts",
+      "sha256": "11ce7f25fa48a23e8559712f32b7eb5218e5caa617bf4cdf08b17b3085cd28af",
+      "bytes": 3272,
+      "mode": "100644"
+    },
+    {
+      "path": "hosts/roche/host/runtime/load-host-state.js",
+      "seedPath": "seed/hosts/roche/host/runtime/load-host-state.js",
+      "sha256": "9a86c3fa999e8e35182e0e302a9d9ebf42241104c4607a3f3fb300ea7481ea5d",
+      "bytes": 5312,
+      "mode": "100644"
+    },
+    {
+      "path": "hosts/roche/host/runtime/load-host-state.unbound.template.js",
+      "seedPath": "seed/hosts/roche/host/runtime/load-host-state.unbound.template.js",
+      "sha256": "9a86c3fa999e8e35182e0e302a9d9ebf42241104c4607a3f3fb300ea7481ea5d",
+      "bytes": 5312,
+      "mode": "100644"
+    },
+    {
+      "path": "hosts/roche/host/runtime/load-source-runtime.js",
+      "seedPath": "seed/hosts/roche/host/runtime/load-source-runtime.js",
+      "sha256": "175e07586c5b30cdd2838cbd49104145f2bf4d0290c9afead19ea454f7831e71",
+      "bytes": 2391,
+      "mode": "100644"
+    },
+    {
+      "path": "hosts/roche/host/runtime/machine-json.py",
+      "seedPath": "seed/hosts/roche/host/runtime/machine-json.py",
+      "sha256": "67611e749eddc6bf8c591fef11f2efa82e2a73ce0bb51b2779fab4ae68b77f50",
+      "bytes": 1119,
+      "mode": "100644"
+    },
+    {
+      "path": "hosts/roche/host/runtime/preflight/preflight-launch.mjs",
+      "seedPath": "seed/hosts/roche/host/runtime/preflight/preflight-launch.mjs",
+      "sha256": "bc6368b3238f049d04b4a1f72c03e88f4b00dd76057f51a17e364db31ecb057f",
+      "bytes": 11041,
+      "mode": "100644"
+    },
+    {
+      "path": "hosts/roche/host/runtime/preflight/runtime-check.mjs",
+      "seedPath": "seed/hosts/roche/host/runtime/preflight/runtime-check.mjs",
+      "sha256": "e01c5b953283535757e2fcc67df80dd3e86948709dde0b488235a7edee017785",
+      "bytes": 3815,
+      "mode": "100644"
+    },
+    {
+      "path": "hosts/roche/host/runtime/prepare-owner-binding.mts",
+      "seedPath": "seed/hosts/roche/host/runtime/prepare-owner-binding.mts",
+      "sha256": "5b649cadc4cafc596d78c59e72d1d6c45740adcb804053c3ef2a4147ebafaa75",
+      "bytes": 8399,
+      "mode": "100644"
+    },
+    {
+      "path": "hosts/roche/host/runtime/prepare-registered-control.mts",
+      "seedPath": "seed/hosts/roche/host/runtime/prepare-registered-control.mts",
+      "sha256": "75b04c3bf46a0c81529e1322c74a02ccddb88b6edb161c39e36fc082ad1c89d8",
+      "bytes": 123,
+      "mode": "100644"
+    },
+    {
+      "path": "hosts/roche/host/runtime/review-packet-envelope.mts",
+      "seedPath": "seed/hosts/roche/host/runtime/review-packet-envelope.mts",
+      "sha256": "40cb1e3ede867f0e9d171605e7454fc71a6f774dfdf910f68ff668722bba69cb",
+      "bytes": 5535,
+      "mode": "100644"
+    },
+    {
+      "path": "hosts/roche/host/runtime/review-publication.py",
+      "seedPath": "seed/hosts/roche/host/runtime/review-publication.py",
+      "sha256": "b28df40895b9f68633e893087443bf80bf483b8e865253442cc418f106b2a0ea",
+      "bytes": 5764,
+      "mode": "100644"
+    },
+    {
+      "path": "hosts/roche/host/runtime/update-candidate-completion-state.mjs",
+      "seedPath": "seed/hosts/roche/host/runtime/update-candidate-completion-state.mjs",
+      "sha256": "ae5ad99411b014c8ffff615a0b06af1e1fdfd2ed7f7265c9c9cee0128339bb06",
+      "bytes": 3654,
+      "mode": "100644"
+    },
+    {
+      "path": "hosts/roche/host/source-config-reference.json",
+      "seedPath": "seed/hosts/roche/host/source-config-reference.json",
+      "sha256": "e3374a52a118f00b62cf94c08912f9702874738e453de61f5a423276d5b7b834",
+      "bytes": 3463,
+      "mode": "100644"
+    },
+    {
+      "path": "hosts/roche/supervision/inspect-launch-identity.mjs",
+      "seedPath": "seed/hosts/roche/supervision/inspect-launch-identity.mjs",
+      "sha256": "7bc818ae831081b7e91819ad772b950d08e7d06dc741730c0bd54698d6fe8b37",
+      "bytes": 871,
+      "mode": "100644"
+    },
+    {
+      "path": "hosts/roche/supervision/sample_process_tree.py",
+      "seedPath": "seed/hosts/roche/supervision/sample_process_tree.py",
+      "sha256": "3fa6daa1af1afee94d19801edfd8bcb538e1243476b5adb253e50de162a27bd6",
+      "bytes": 13065,
+      "mode": "100644"
+    },
+    {
+      "path": "hosts/roche/supervision/start-monitor-roche51-combined.js",
+      "seedPath": "seed/hosts/roche/supervision/start-monitor-roche51-combined.js",
+      "sha256": "eda7c8594eb62eb9940ac2fa431d5d2d5635ec50082c2fa2f73422e220b9bc45",
+      "bytes": 14763,
+      "mode": "100644"
+    },
+    {
+      "path": "hosts/roche/supervision/start-monitor-roche51-combined.unbound.template.js",
+      "seedPath": "seed/hosts/roche/supervision/start-monitor-roche51-combined.unbound.template.js",
+      "sha256": "eda7c8594eb62eb9940ac2fa431d5d2d5635ec50082c2fa2f73422e220b9bc45",
+      "bytes": 14763,
+      "mode": "100644"
+    },
+    {
+      "path": "hosts/roche/supervision/supervise-cancel.mjs",
+      "seedPath": "seed/hosts/roche/supervision/supervise-cancel.mjs",
+      "sha256": "083435a5344a47b86f84184bbe1d2711b0d35def4670afb2ab3c8391ed442e7e",
+      "bytes": 10232,
+      "mode": "100644"
+    },
+    {
+      "path": "hosts/ucb/RESTORE_DEPENDENCIES.json",
+      "seedPath": "seed/hosts/ucb/RESTORE_DEPENDENCIES.json",
+      "sha256": "ff24476770653ab71dc071109fcb359a6b6a4f34846abe73b98aab3d87d713a3",
+      "bytes": 1764,
+      "mode": "100644"
+    },
+    {
+      "path": "hosts/ucb/SAFE_SOURCE_README.md",
+      "seedPath": "seed/hosts/ucb/SAFE_SOURCE_README.md",
+      "sha256": "15f6dfab0a40ccc5e074a96e73c07812447e9587162984fec612ff97cff61434",
+      "bytes": 1297,
+      "mode": "100644"
+    },
+    {
+      "path": "hosts/ucb/host/archive-transfer.mjs",
+      "seedPath": "seed/hosts/ucb/host/archive-transfer.mjs",
+      "sha256": "698e966e5552967845a5252d2b3df2acca28dcd8dbbb0ae41755a3a6231e6a99",
+      "bytes": 1777,
+      "mode": "100644"
+    },
+    {
+      "path": "hosts/ucb/host/context-read.sql.template",
+      "seedPath": "seed/hosts/ucb/host/context-read.sql.template",
+      "sha256": "22e18ed47c124b1060001e33e474d97b6c7f49b93ab8b7cb187127119af6478d",
+      "bytes": 2607,
+      "mode": "100644"
+    },
+    {
+      "path": "hosts/ucb/host/context-template-proof.json",
+      "seedPath": "seed/hosts/ucb/host/context-template-proof.json",
+      "sha256": "9f282f66ebf23c8497dc8dc556afc5045d0da1d48c7cf870b417f114aaf6ebbf",
+      "bytes": 2406,
+      "mode": "100644"
+    },
+    {
+      "path": "hosts/ucb/host/control-base.template.json",
+      "seedPath": "seed/hosts/ucb/host/control-base.template.json",
+      "sha256": "3634b5cc4c996565263cdae4b168cb519556c2401367f33511b426fd0ae48897",
+      "bytes": 467,
+      "mode": "100644"
+    },
+    {
+      "path": "hosts/ucb/host/host-config.json",
+      "seedPath": "seed/hosts/ucb/host/host-config.json",
+      "sha256": "f043e00b13edfc8ed5f2c092bfc82adccbf40c5b0084cbf057c8191b6245ac66",
+      "bytes": 505,
+      "mode": "100644"
+    },
+    {
+      "path": "hosts/ucb/host/host-config.template.json",
+      "seedPath": "seed/hosts/ucb/host/host-config.template.json",
+      "sha256": "f043e00b13edfc8ed5f2c092bfc82adccbf40c5b0084cbf057c8191b6245ac66",
+      "bytes": 505,
+      "mode": "100644"
+    },
+    {
+      "path": "hosts/ucb/host/host-files.mts",
+      "seedPath": "seed/hosts/ucb/host/host-files.mts",
+      "sha256": "c8033565b3c368bf369fc7507f9d1ff8fa87bc0dde0a84a10a95373473dc6f3a",
+      "bytes": 4077,
+      "mode": "100644"
+    },
+    {
+      "path": "hosts/ucb/host/host-helper-functions.js",
+      "seedPath": "seed/hosts/ucb/host/host-helper-functions.js",
+      "sha256": "e3951887395430969fff38cac97e989b9866b041c8caf1dbd08c3bc2cbfd6b9b",
+      "bytes": 9735,
+      "mode": "100644"
+    },
+    {
+      "path": "hosts/ucb/host/host-stage-functions.js",
+      "seedPath": "seed/hosts/ucb/host/host-stage-functions.js",
+      "sha256": "85f5214f845dea9e37c0d6a5e642e4055afc24445ff14733794f688bb1e318c9",
+      "bytes": 6537,
+      "mode": "100644"
+    },
+    {
+      "path": "hosts/ucb/host/machine-json.js",
+      "seedPath": "seed/hosts/ucb/host/machine-json.js",
+      "sha256": "3484738bd095a9d57da70c6392af78865a53759a9e8499316941157b6210e9f6",
+      "bytes": 807,
+      "mode": "100644"
+    },
+    {
+      "path": "hosts/ucb/host/owner-binding-input.template.json",
+      "seedPath": "seed/hosts/ucb/host/owner-binding-input.template.json",
+      "sha256": "123d579b1d3e68af00edc978872e5236964287c036b872295c9956a034aec5b2",
+      "bytes": 616,
+      "mode": "100644"
+    },
+    {
+      "path": "hosts/ucb/host/relay-files.mjs",
+      "seedPath": "seed/hosts/ucb/host/relay-files.mjs",
+      "sha256": "eb52b15ae21e583c17bedcee972229a58110900f60f79d2a5dd950a83d7caa90",
+      "bytes": 7905,
+      "mode": "100644"
+    },
+    {
+      "path": "hosts/ucb/host/runtime/complete-reviewed-source-readback.js",
+      "seedPath": "seed/hosts/ucb/host/runtime/complete-reviewed-source-readback.js",
+      "sha256": "960848c274a76e03e9fe283c97f0e020ac451f9e786fa338f04ffb6cbf630859",
+      "bytes": 5692,
+      "mode": "100644"
+    },
+    {
+      "path": "hosts/ucb/host/runtime/continuous-relay-v3-durable-monitor.js",
+      "seedPath": "seed/hosts/ucb/host/runtime/continuous-relay-v3-durable-monitor.js",
+      "sha256": "24d09be7445cee3ae1344c6aafd4e23b3a966a97b0f373cc51eaa339a23b8d09",
+      "bytes": 5136,
+      "mode": "100644"
+    },
+    {
+      "path": "hosts/ucb/host/runtime/inspect-host-binding.mts",
+      "seedPath": "seed/hosts/ucb/host/runtime/inspect-host-binding.mts",
+      "sha256": "610dec317e2013fd1533f4c8315d415452792c0125aa9405f2450e30289436ef",
+      "bytes": 3438,
+      "mode": "100644"
+    },
+    {
+      "path": "hosts/ucb/host/runtime/load-host-state.js",
+      "seedPath": "seed/hosts/ucb/host/runtime/load-host-state.js",
+      "sha256": "0a5054a23aa227b57dc49aa3d484627177af45bcffe9539109c8b794829d0d7f",
+      "bytes": 5298,
+      "mode": "100644"
+    },
+    {
+      "path": "hosts/ucb/host/runtime/load-host-state.unbound.template.js",
+      "seedPath": "seed/hosts/ucb/host/runtime/load-host-state.unbound.template.js",
+      "sha256": "0a5054a23aa227b57dc49aa3d484627177af45bcffe9539109c8b794829d0d7f",
+      "bytes": 5298,
+      "mode": "100644"
+    },
+    {
+      "path": "hosts/ucb/host/runtime/load-source-runtime.js",
+      "seedPath": "seed/hosts/ucb/host/runtime/load-source-runtime.js",
+      "sha256": "9ba7be155bb9a43a3ab9511a68e1d8f2f7dd1d7034bae99e291405c2657c488a",
+      "bytes": 2363,
+      "mode": "100644"
+    },
+    {
+      "path": "hosts/ucb/host/runtime/machine-json.py",
+      "seedPath": "seed/hosts/ucb/host/runtime/machine-json.py",
+      "sha256": "67611e749eddc6bf8c591fef11f2efa82e2a73ce0bb51b2779fab4ae68b77f50",
+      "bytes": 1119,
+      "mode": "100644"
+    },
+    {
+      "path": "hosts/ucb/host/runtime/preflight/preflight-launch.mjs",
+      "seedPath": "seed/hosts/ucb/host/runtime/preflight/preflight-launch.mjs",
+      "sha256": "e20240ae97a00a5f546e93e87a47033bfb94474c205507200979183a9361b755",
+      "bytes": 11059,
+      "mode": "100644"
+    },
+    {
+      "path": "hosts/ucb/host/runtime/preflight/runtime-check.mjs",
+      "seedPath": "seed/hosts/ucb/host/runtime/preflight/runtime-check.mjs",
+      "sha256": "e01c5b953283535757e2fcc67df80dd3e86948709dde0b488235a7edee017785",
+      "bytes": 3815,
+      "mode": "100644"
+    },
+    {
+      "path": "hosts/ucb/host/runtime/prepare-owner-binding.mts",
+      "seedPath": "seed/hosts/ucb/host/runtime/prepare-owner-binding.mts",
+      "sha256": "cfcf864f8ef68e86b0b06629f59d426a247ccfc2524dff8c0139151d51887d6b",
+      "bytes": 8557,
+      "mode": "100644"
+    },
+    {
+      "path": "hosts/ucb/host/runtime/prepare-registered-control.mts",
+      "seedPath": "seed/hosts/ucb/host/runtime/prepare-registered-control.mts",
+      "sha256": "75b04c3bf46a0c81529e1322c74a02ccddb88b6edb161c39e36fc082ad1c89d8",
+      "bytes": 123,
+      "mode": "100644"
+    },
+    {
+      "path": "hosts/ucb/host/runtime/review-packet-envelope.mts",
+      "seedPath": "seed/hosts/ucb/host/runtime/review-packet-envelope.mts",
+      "sha256": "40cb1e3ede867f0e9d171605e7454fc71a6f774dfdf910f68ff668722bba69cb",
+      "bytes": 5535,
+      "mode": "100644"
+    },
+    {
+      "path": "hosts/ucb/host/runtime/review-publication.py",
+      "seedPath": "seed/hosts/ucb/host/runtime/review-publication.py",
+      "sha256": "b3be0366bd17887c649447f825ce8f2537ac9316d2de390b875ab1ec0ab9a33f",
+      "bytes": 5389,
+      "mode": "100644"
+    },
+    {
+      "path": "hosts/ucb/host/runtime/update-candidate-completion-state.mjs",
+      "seedPath": "seed/hosts/ucb/host/runtime/update-candidate-completion-state.mjs",
+      "sha256": "ae5ad99411b014c8ffff615a0b06af1e1fdfd2ed7f7265c9c9cee0128339bb06",
+      "bytes": 3654,
+      "mode": "100644"
+    },
+    {
+      "path": "hosts/ucb/host/source-config-reference.json",
+      "seedPath": "seed/hosts/ucb/host/source-config-reference.json",
+      "sha256": "55551e0d27fe0c54bb6fa1f5a28821c03a52524126cab97a2413da1b9a45866b",
+      "bytes": 3042,
+      "mode": "100644"
+    },
+    {
+      "path": "hosts/ucb/supervision/inspect-launch-identity.mjs",
+      "seedPath": "seed/hosts/ucb/supervision/inspect-launch-identity.mjs",
+      "sha256": "7bc818ae831081b7e91819ad772b950d08e7d06dc741730c0bd54698d6fe8b37",
+      "bytes": 871,
+      "mode": "100644"
+    },
+    {
+      "path": "hosts/ucb/supervision/sample_process_tree.py",
+      "seedPath": "seed/hosts/ucb/supervision/sample_process_tree.py",
+      "sha256": "3fa6daa1af1afee94d19801edfd8bcb538e1243476b5adb253e50de162a27bd6",
+      "bytes": 13065,
+      "mode": "100644"
+    },
+    {
+      "path": "hosts/ucb/supervision/start-monitor-ucb51-combined.js",
+      "seedPath": "seed/hosts/ucb/supervision/start-monitor-ucb51-combined.js",
+      "sha256": "739287e99244285c92d746226da360fc3ae2cfbcf2b4b1d45985efb1d32fcf21",
+      "bytes": 14732,
+      "mode": "100644"
+    },
+    {
+      "path": "hosts/ucb/supervision/start-monitor-ucb51-combined.unbound.template.js",
+      "seedPath": "seed/hosts/ucb/supervision/start-monitor-ucb51-combined.unbound.template.js",
+      "sha256": "739287e99244285c92d746226da360fc3ae2cfbcf2b4b1d45985efb1d32fcf21",
+      "bytes": 14732,
+      "mode": "100644"
+    },
+    {
+      "path": "hosts/ucb/supervision/supervise-cancel.mjs",
+      "seedPath": "seed/hosts/ucb/supervision/supervise-cancel.mjs",
+      "sha256": "083435a5344a47b86f84184bbe1d2711b0d35def4670afb2ab3c8391ed442e7e",
+      "bytes": 10232,
+      "mode": "100644"
+    },
+    {
+      "path": "owner-adaptations/released-four-sources-20261007T1550Z/baseline-manifest.json",
+      "seedPath": "seed/owner-adaptations/released-four-sources-20261007T1550Z/baseline-manifest.json",
+      "sha256": "79ec28a0f868ecea4be9ebc8a755e27b97261d50e7db471b9e368eb806be66a8",
+      "bytes": 5023,
+      "mode": "100644"
+    },
+    {
+      "path": "owner-adaptations/released-four-sources-20261007T1550Z/build-fragments.py",
+      "seedPath": "seed/owner-adaptations/released-four-sources-20261007T1550Z/build-fragments.py",
+      "sha256": "1f03fee8b375360bd6294b09fed5eccbbe1787bda8f5cf5523c743bde23de28e",
+      "bytes": 4463,
+      "mode": "100644"
+    },
+    {
+      "path": "owner-adaptations/released-four-sources-20261007T1550Z/preload-owner.exec.js",
+      "seedPath": "seed/owner-adaptations/released-four-sources-20261007T1550Z/preload-owner.exec.js",
+      "sha256": "61745021623454ca7d3a570b1abc4fd013e6e38152b5f3dbf09ed0a5b91344f0",
+      "bytes": 2752,
+      "mode": "100644"
+    },
+    {
+      "path": "owner-adaptations/released-four-sources-20261007T1550Z/publish-and-monitor-owner.js",
+      "seedPath": "seed/owner-adaptations/released-four-sources-20261007T1550Z/publish-and-monitor-owner.js",
+      "sha256": "78a716a79d905dc7bb02715967c43b74566d496bea5b6c24a2d6139dbb1f1894",
+      "bytes": 10947,
+      "mode": "100644"
+    },
+    {
+      "path": "owner-adaptations/released-four-sources-20261007T1550Z/publish-reviewed-and-monitor.exec.js",
+      "seedPath": "seed/owner-adaptations/released-four-sources-20261007T1550Z/publish-reviewed-and-monitor.exec.js",
+      "sha256": "56607634facc379fba8b401258d490abb258ba993aeabdf6865d4bd63296ed9d",
+      "bytes": 1398,
+      "mode": "100644"
+    }
+  ]
+}

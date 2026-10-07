@@ -1,0 +1,66 @@
+{
+  "schemaVersion": 1,
+  "sourceId": "source-novo-nordisk-china-social",
+  "sourceConfigSha256": "40305820c3aa3f36e74f06873c0ddd1a52266cb74d277b3a36137c81fc5c604e",
+  "route": "PORTABLE",
+  "entrypoint": "scripts/p0-cloud-portable-source-pilot.ts",
+  "entrypointSha256": "a62a002c67716551ed23af7263b08a3d2d6486efcf31d9b4889b7042731fe98f",
+  "sourceAdmissionPolicy": "PLAN_BOUND_SOURCE_QUALITY_V1",
+  "certificateSchema": "plan-bound-source-quality-v1",
+  "publicationMode": "DB_STARTED_JOB_PROJECTION_DELTA_V1",
+  "candidate": null,
+  "databaseIdentity": null,
+  "templatePlaceholderOnly": true,
+  "contextSha256": "ffbd6014a5b5a02cc4c4239971d66eea143ddddd3760e157834b9e4e52d7bb89",
+  "expiryBasis": "original acquisition startedAt plus at most 30m capture and 30m evidence expiry",
+  "originalSourcePlan": {
+    "adapterId": "official-json",
+    "company": {
+      "id": "company-novo-nordisk-china",
+      "officialChineseName": "诺和诺德中国",
+      "category": "FOREIGN_PHARMA"
+    },
+    "source": {
+      "id": "source-novo-nordisk-china-social",
+      "surfaceId": "surface-novo-nordisk-china-social",
+      "companyId": "company-novo-nordisk-china",
+      "kind": "SOCIAL",
+      "atsKind": "OFFICIAL_JSON",
+      "status": "VERIFIED_SCRAPABLE",
+      "officialEntryUrl": "https://www.novonordisk.com.cn/careers/find-a-job/career-search-results.html?searchText=&countries=China&categories=",
+      "officialChainEvidenceUrl": "https://www.novonordisk.com.cn/careers.html"
+    },
+    "executionAuthority": "STAGED",
+    "expectedChannels": [
+      {
+        "channelId": "source:source-novo-nordisk-china-social:default",
+        "kind": "SOCIAL"
+      }
+    ],
+    "expectedChannelSetHash": "210dae00c3e72ebfb73e6a125c14bee457154a98fc582e21320c16b431809c87",
+    "json": {
+      "jobsPath": "jobs",
+      "fields": {
+        "sourceJobId": "sourceJobId",
+        "officialTitle": "title",
+        "officialUrl": "officialUrl",
+        "locationRaw": "locationRaw",
+        "cities": "cities"
+      },
+      "defaultCategory": "其他"
+    },
+    "officialJsonFetch": {
+      "kind": "novo-nordisk",
+      "endpointUrl": "https://www.novonordisk.com.cn/bin/nncorp/careersearch?keyword=&country=China&category=&locale=zh-cn",
+      "cityScopePolicy": "NOVO_CHINA_NESTED_LOCATION_V2",
+      "applicationStatusPolicy": "NOVO_NATIVE_APPLICATION_V1"
+    },
+    "transientRetryPolicy": {
+      "maxRetries": 1,
+      "backoffMs": 10000
+    },
+    "transportPolicy": {
+      "primary": "DIRECT_HTTP"
+    }
+  }
+}

@@ -1,0 +1,37 @@
+{
+  "schemaVersion": 1,
+  "sourceKey": "ucb",
+  "sourceId": "source-ucb-china-social",
+  "sourceConfigSha256": "0423b01f438925ad3e34e29aeda58fe6353fbd264d4472a09bcb1fba281bd146",
+  "route": "PORTABLE",
+  "producer": {
+    "path": "/workspace/scratch/5e9614251709/jb-incremental-proxy-runtime-20261007T0057Z/producer",
+    "commit": "28402a299bb04cbf5873da66c2fe8ca76827c0d1",
+    "mustBeClean": true,
+    "entrypoint": "scripts/p0-cloud-portable-source-pilot.ts",
+    "entrypointSha256": "a62a002c67716551ed23af7263b08a3d2d6486efcf31d9b4889b7042731fe98f"
+  },
+  "node": {
+    "path": "/workspace/scratch/5e9614251709/jb-incremental-proxy-runtime-20261007T0057Z/runtime/node-v22.23.3-linux-x64/bin/node",
+    "version": "v22.23.3",
+    "binarySha256": "fde6a4bf8d0562f7751d1a2d6cb9b417c4cfe107bbcb0aa3e9a24e125e348f48",
+    "maxOldSpaceSizeMiB": 384,
+    "httpTimeoutMs": 45000,
+    "totalTimeoutMs": 1800000
+  },
+  "bindingTemplates": {
+    "candidate": null,
+    "databaseIdentity": null,
+    "ownerInput": "host/owner-binding-input.template.json",
+    "preparationEntrypoint": "host/runtime/prepare-owner-binding.mts"
+  },
+  "ownerClosure": "/workspace/scratch/5e9614251709/jb-incremental-proxy-runtime-20261007T0057Z/owner-adaptations/released-four-sources-20261007T1550Z",
+  "globalStatePath": "/workspace/scratch/5e9614251709/jb-incremental-proxy-runtime-20261007T0057Z/PUBLISHER-ACTIVE-STATE.json",
+  "archiveProtocol": {
+    "implementation": "producer/src/crawler/artifactArchive.ts",
+    "implementationSha256": "575a5fe0144cd443e5308d29ce25641981282a0f34b5e1beebed723cc7ff6ac1",
+    "mode": "LOCAL_OWNED_ARCHIVE_VERIFIED_BY_DB_STARTED_RUNNER",
+    "legacyArchiveStoreEnabled": false
+  },
+  "scope": "Mainland China as defined by the exact source plan"
+}

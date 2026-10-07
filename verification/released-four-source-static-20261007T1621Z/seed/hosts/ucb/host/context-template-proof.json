@@ -1,0 +1,67 @@
+{
+  "schemaVersion": 1,
+  "sourceId": "source-ucb-china-social",
+  "sourceConfigSha256": "0423b01f438925ad3e34e29aeda58fe6353fbd264d4472a09bcb1fba281bd146",
+  "route": "PORTABLE",
+  "entrypoint": "scripts/p0-cloud-portable-source-pilot.ts",
+  "entrypointSha256": "a62a002c67716551ed23af7263b08a3d2d6486efcf31d9b4889b7042731fe98f",
+  "sourceAdmissionPolicy": "PLAN_BOUND_SOURCE_QUALITY_V1",
+  "certificateSchema": "plan-bound-source-quality-v1",
+  "publicationMode": "DB_STARTED_JOB_PROJECTION_DELTA_V1",
+  "candidate": null,
+  "databaseIdentity": null,
+  "templatePlaceholderOnly": true,
+  "contextSha256": "22e18ed47c124b1060001e33e474d97b6c7f49b93ab8b7cb187127119af6478d",
+  "expiryBasis": "original acquisition startedAt plus at most 30m capture and 30m evidence expiry",
+  "originalSourcePlan": {
+    "adapterId": "official-json",
+    "company": {
+      "id": "company-ucb-china",
+      "officialChineseName": "优时比中国",
+      "category": "FOREIGN_PHARMA"
+    },
+    "source": {
+      "id": "source-ucb-china-social",
+      "surfaceId": "surface-ucb-china-social",
+      "companyId": "company-ucb-china",
+      "kind": "SOCIAL",
+      "atsKind": "OFFICIAL_JSON",
+      "status": "VERIFIED_SCRAPABLE",
+      "officialEntryUrl": "https://careers.ucb.com/global/zh/search-results?keywords=China",
+      "officialChainEvidenceUrl": "https://careers.ucb.com/"
+    },
+    "executionAuthority": "STAGED",
+    "expectedChannels": [
+      {
+        "channelId": "source:source-ucb-china-social:default",
+        "kind": "SOCIAL"
+      }
+    ],
+    "expectedChannelSetHash": "e205beb21a975dddfe94bb8c3d47963a8bc7fb86d28718767b44365ce2c4cdc8",
+    "json": {
+      "jobsPath": "jobs",
+      "fields": {
+        "sourceJobId": "sourceJobId",
+        "officialTitle": "title",
+        "officialUrl": "officialUrl",
+        "locationRaw": "locationRaw",
+        "cities": "cities",
+        "officialPublishedAt": "officialPublishedAt"
+      },
+      "defaultCategory": "其他"
+    },
+    "officialJsonFetch": {
+      "kind": "phenom",
+      "postedDatePolicy": "UCB_PHENOM_POSTED_DATE_V1",
+      "cityScopePolicy": "UCB_PRIMARY_CITY_AGREEMENT_V1",
+      "detailBaseUrl": "https://careers.ucb.com/global/en/job",
+      "countryFilter": "China",
+      "allowOmittedOffsetForSinglePage": true,
+      "pageSize": 50,
+      "maxPages": 5
+    },
+    "transportPolicy": {
+      "primary": "DIRECT_HTTP"
+    }
+  }
+}

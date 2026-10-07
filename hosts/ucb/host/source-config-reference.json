@@ -1,0 +1,93 @@
+{
+  "sourceKey": "ucb",
+  "sourceId": "source-ucb-china-social",
+  "route": "PORTABLE",
+  "source": {
+    "id": "source-ucb-china-social",
+    "companyId": "company-ucb-china",
+    "kind": "SOCIAL",
+    "atsKind": "OFFICIAL_JSON",
+    "status": "VERIFIED_SCRAPABLE",
+    "officialEntryUrl": "https://careers.ucb.com/global/zh/search-results?keywords=China",
+    "officialChainEvidenceUrl": "https://careers.ucb.com/"
+  },
+  "sourceConfigSha256": "0423b01f438925ad3e34e29aeda58fe6353fbd264d4472a09bcb1fba281bd146",
+  "currentSourcePlan": {
+    "adapterId": "official-json",
+    "company": {
+      "id": "company-ucb-china",
+      "officialChineseName": "优时比中国",
+      "category": "FOREIGN_PHARMA"
+    },
+    "source": {
+      "id": "source-ucb-china-social",
+      "surfaceId": "surface-ucb-china-social",
+      "companyId": "company-ucb-china",
+      "kind": "SOCIAL",
+      "atsKind": "OFFICIAL_JSON",
+      "status": "VERIFIED_SCRAPABLE",
+      "officialEntryUrl": "https://careers.ucb.com/global/zh/search-results?keywords=China",
+      "officialChainEvidenceUrl": "https://careers.ucb.com/"
+    },
+    "executionAuthority": "STAGED",
+    "expectedChannels": [
+      {
+        "channelId": "source:source-ucb-china-social:default",
+        "kind": "SOCIAL"
+      }
+    ],
+    "expectedChannelSetHash": "e205beb21a975dddfe94bb8c3d47963a8bc7fb86d28718767b44365ce2c4cdc8",
+    "json": {
+      "jobsPath": "jobs",
+      "fields": {
+        "sourceJobId": "sourceJobId",
+        "officialTitle": "title",
+        "officialUrl": "officialUrl",
+        "locationRaw": "locationRaw",
+        "cities": "cities",
+        "officialPublishedAt": "officialPublishedAt"
+      },
+      "defaultCategory": "其他"
+    },
+    "officialJsonFetch": {
+      "kind": "phenom",
+      "postedDatePolicy": "UCB_PHENOM_POSTED_DATE_V1",
+      "cityScopePolicy": "UCB_PRIMARY_CITY_AGREEMENT_V1",
+      "detailBaseUrl": "https://careers.ucb.com/global/en/job",
+      "countryFilter": "China",
+      "allowOmittedOffsetForSinglePage": true,
+      "pageSize": 50,
+      "maxPages": 5
+    },
+    "transportPolicy": {
+      "primary": "DIRECT_HTTP"
+    }
+  },
+  "implementations": [
+    {
+      "role": "entrypoint",
+      "path": "scripts/p0-cloud-portable-source-pilot.ts",
+      "sha256": "a62a002c67716551ed23af7263b08a3d2d6486efcf31d9b4889b7042731fe98f"
+    },
+    {
+      "role": "quality",
+      "path": "src/crawler/sourceQualityAdmission.ts",
+      "sha256": "f6d2381fd0eabedcdf49c8faf32545b1f301522e1cab7d8f8c299212cfe94866"
+    },
+    {
+      "role": "sourcePlan",
+      "path": "src/crawler/sourcePlan.ts",
+      "sha256": "1f1345f74ad41adaa0778eaf301f6b1c38ca68f091d81b116556771d18c71987"
+    },
+    {
+      "role": "archive",
+      "path": "src/crawler/artifactArchive.ts",
+      "sha256": "575a5fe0144cd443e5308d29ce25641981282a0f34b5e1beebed723cc7ff6ac1"
+    },
+    {
+      "role": "wrapper",
+      "path": "scripts/run-with-http-diagnostics.mjs",
+      "sha256": "f15522e6f209bfe99bfa258b5dffbce1f74d6af662c4c2ee682604e0798bbc88"
+    }
+  ]
+}
