@@ -1,0 +1,101 @@
+{
+  "name": "abbvie",
+  "sourceId": "source-abbvie-china-social",
+  "route": "PORTABLE",
+  "source": {
+    "id": "source-abbvie-china-social",
+    "companyId": "company-abbvie-china",
+    "kind": "SOCIAL",
+    "atsKind": "OFFICIAL_HTML",
+    "status": "VERIFIED_SCRAPABLE",
+    "officialEntryUrl": "https://careers.abbvie.com/zh-hans/jobs",
+    "officialChainEvidenceUrl": "https://careers.abbvie.com/zh-hans/"
+  },
+  "sourceConfigSha256": "4bc13113d0ea829b7df6935081d009ac389f24c97340390f09bbb7ad5234e5a9",
+  "configurationOrigin": "OFFICIAL_SOURCE_ROW_AND_RECOVERED_PLAN_HASH_CROSSCHECK",
+  "referenceCheckedAt": "2026-10-06 12:20:38.287555+00",
+  "selectedReferenceArtifact": {
+    "path": "/workspace/scratch/5e9614251709/dot-drive-runtime-config-20261006T1240Z/package/reference/current-36-source-routes.json",
+    "sha256": "773abaf6cfa1196590330dee6a88afc3b4b6ae507d81cb2e163a387727ca2ec8",
+    "artifactKind": "RECONSTRUCTED_REFERENCE_ROUTES"
+  },
+  "currentSourcePlan": {
+    "adapterId": "html-table",
+    "company": {
+      "id": "company-abbvie-china",
+      "officialChineseName": "\u827e\u4f2f\u7ef4\u4e2d\u56fd",
+      "category": "FOREIGN_PHARMA"
+    },
+    "source": {
+      "id": "source-abbvie-china-social",
+      "surfaceId": "surface-abbvie-china-social",
+      "companyId": "company-abbvie-china",
+      "kind": "SOCIAL",
+      "atsKind": "OFFICIAL_HTML",
+      "status": "VERIFIED_SCRAPABLE",
+      "officialEntryUrl": "https://careers.abbvie.com/zh-hans/jobs",
+      "officialChainEvidenceUrl": "https://careers.abbvie.com/zh-hans/"
+    },
+    "executionAuthority": "STAGED",
+    "expectedChannels": [
+      {
+        "channelId": "source:source-abbvie-china-social:default",
+        "kind": "SOCIAL"
+      }
+    ],
+    "expectedChannelSetHash": "3c4bc508ed633fa36274cda68eb00c4aab6ca9dfaa30ae009bdc71079e99f1e6",
+    "table": {
+      "abbvieRowScopePolicy": "ABBVIE_CHINA_LISTED_ROWS_V1",
+      "rowSelector": ".attrax-vacancy-tile",
+      "completenessProof": {
+        "kind": "OFFICIAL_TOTAL_PAGES"
+      },
+      "pagination": {
+        "totalPagesSelector": ".attrax-pagination__results-of--2",
+        "totalPagesAttribute": "data-total-pages",
+        "totalPagesPattern": "(\\d+)",
+        "pageSearchParam": "page",
+        "maxPages": 10,
+        "expectedJobCountSelector": ".attrax-pagination__total-results",
+        "expectedJobCountPattern": "(\\d+)"
+      },
+      "fields": {
+        "sourceJobId": {
+          "selector": ".attrax-vacancy-tile__title",
+          "attribute": "href",
+          "pattern": "jid-(\\d+)"
+        },
+        "officialTitle": {
+          "selector": ".attrax-vacancy-tile__title"
+        },
+        "officialUrl": {
+          "selector": ".attrax-vacancy-tile__title",
+          "attribute": "href"
+        },
+        "locationRaw": {
+          "selector": ".attrax-vacancy-tile__location-freetext .attrax-vacancy-tile__item-value"
+        }
+      }
+    },
+    "transportPolicy": {
+      "primary": "DIRECT_HTTP"
+    }
+  },
+  "currentQualityPolicy": "PLAN_BOUND_SOURCE_QUALITY_V1",
+  "portableEligible": true,
+  "reconstructedHostConfig": false,
+  "noExternalLookup": true,
+  "historicalHostConfigEvidence": {
+    "path": "/workspace/scratch/5e9614251709/library-code90-20261006T1419Z/official-restore-proof/legacy89/operations/prepared-host-templates-0247/refresh-next-abbvie-20261004-c40-host/host-config.json",
+    "sha256": "4fd6d8307ca088d7728616b02bc5463a18bc6662a28f383b807b5c96547a4980",
+    "sourceId": "source-abbvie-china-social",
+    "sourceConfigSha256": "4bc13113d0ea829b7df6935081d009ac389f24c97340390f09bbb7ad5234e5a9"
+  },
+  "hostConfigConstruction": "ADAPTED_FROM_VERIFIED_HISTORICAL_STATIC_HOST_CONFIG",
+  "classificationCountsPreserved": {
+    "PORTABLE": 20,
+    "TRUE_A": 13,
+    "TRUE_B": 3
+  },
+  "historicalBindingOrExecutionStateIncluded": false
+}
