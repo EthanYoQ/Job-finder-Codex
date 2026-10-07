@@ -1,31 +1,145 @@
 {
   "schemaVersion": 1,
-  "currentSource": "read-refresh-diagnostics-r2.sh",
-  "historicalSource": "read-refresh-diagnostics.sh",
-  "files": [
+  "kind": "uncommitted-source-delta",
+  "baselines": {
+    "web-main": {
+      "baseCommit": "964be0f8385e1b5bf2028ab445c1cf0bf7e850a5",
+      "patch": "web-main.patch",
+      "patchSha256": "94ea6a14d761074ba7210cd9b47bff95e7c4398da039610adcd1ee147515e8bc",
+      "files": [
+        {
+          "path": "src/server/httpServer.ts",
+          "beforeSha256": "b06f1c3de757b399afac191055bc44a20441f288fa9bcbd1605ef8c3aa75cc7b",
+          "afterSha256": "51868b6c2d6961f9b7e63ddc8c80ff29f41d4b605685e00e81f0b06956682567"
+        },
+        {
+          "path": "src/server/snapshotRefreshError.ts",
+          "beforeSha256": null,
+          "afterSha256": "96c1f34da1d37d96b10df4520a8dda3b87ca68c0f62443e2144d3e985e20159b"
+        },
+        {
+          "path": "tests/server/portableSnapshotRefresh.test.ts",
+          "beforeSha256": "b31db104a5c78c9658539a0226b6bf9c1145c0067a2df522929313762a334792",
+          "afterSha256": "dde8dafaa425663561e9c74765340f4932b87d264cfeced7f33f9bf66cdf423a"
+        },
+        {
+          "path": "tests/server/snapshotRefreshError.test.ts",
+          "beforeSha256": null,
+          "afterSha256": "7448d855a513281cbfffec8bef3eff56e312af9736a7cd820de6649abee02824"
+        }
+      ]
+    },
+    "compatible-fallback": {
+      "baseCommit": "3c29c0798de063d141b866c05e5f78f99b922e35",
+      "patch": "compatible-fallback.patch",
+      "patchSha256": "57e5b12fecd6da7787b662e703fe9850a6cfd094f6a77e2152ee42cdebd3bea4",
+      "files": [
+        {
+          "path": "src/server/httpServer.ts",
+          "beforeSha256": "1dc666ca1b596b024a5d8d146faf4a25180ebffc00ed45c70f17ca615f29c1ca",
+          "afterSha256": "a43882e88c2412dafb07ceacad2faf5a8e0b86bee6e808c08e3ac410b9bba860"
+        },
+        {
+          "path": "src/server/snapshotRefreshError.ts",
+          "beforeSha256": null,
+          "afterSha256": "96c1f34da1d37d96b10df4520a8dda3b87ca68c0f62443e2144d3e985e20159b"
+        },
+        {
+          "path": "tests/server/portableSnapshotRefresh.test.ts",
+          "beforeSha256": "4ce2de0c06567c5c49b6c42a455b12d40af7098546677193384612c9d9d73938",
+          "afterSha256": "f6fd70092749137b924fcf4f566e203ed8d0ad20a4339d02e7d34e9f08ac3ab5"
+        },
+        {
+          "path": "tests/server/snapshotRefreshError.test.ts",
+          "beforeSha256": null,
+          "afterSha256": "7448d855a513281cbfffec8bef3eff56e312af9736a7cd820de6649abee02824"
+        }
+      ]
+    }
+  },
+  "sourceFiles": [
     {
-      "path": "read-refresh-diagnostics.sh",
+      "path": "web-main/src/server/httpServer.ts",
       "mode": "100644",
       "type": "blob",
-      "sha": "d4d3c31ba3c0672273ecd75adc2f4064c05fb5a1",
-      "sha256": "947077aa459fcbd2f8a58cf57a7f595a8d133c8f9408691daf2e680d98f418ad",
-      "bytes": 2326
+      "sha256": "51868b6c2d6961f9b7e63ddc8c80ff29f41d4b605685e00e81f0b06956682567",
+      "sha": "5593d29c508371f747a1d7ed48aa01c883abdaca",
+      "bytes": 23407
     },
     {
-      "path": "read-refresh-diagnostics-r2.sh",
+      "path": "web-main/src/server/snapshotRefreshError.ts",
       "mode": "100644",
       "type": "blob",
-      "sha": "1e9c5baa3d59aaec0a4a75a7d02a89d93d8daa4d",
-      "sha256": "831bc8fe4101cb09af12181bf321c93d850d75614a010f284f3c9e328ee00dc9",
-      "bytes": 8075
+      "sha256": "96c1f34da1d37d96b10df4520a8dda3b87ca68c0f62443e2144d3e985e20159b",
+      "sha": "31c00db838405d1377ea1819b415856f22c4c0c2",
+      "bytes": 3524
+    },
+    {
+      "path": "web-main/tests/server/portableSnapshotRefresh.test.ts",
+      "mode": "100644",
+      "type": "blob",
+      "sha256": "dde8dafaa425663561e9c74765340f4932b87d264cfeced7f33f9bf66cdf423a",
+      "sha": "62c848afa27c99e1e5288df0002c9ca600732e31",
+      "bytes": 18593
+    },
+    {
+      "path": "web-main/tests/server/snapshotRefreshError.test.ts",
+      "mode": "100644",
+      "type": "blob",
+      "sha256": "7448d855a513281cbfffec8bef3eff56e312af9736a7cd820de6649abee02824",
+      "sha": "f6c311f12ffd0c5a2b5820c4937fdcff75ac7aae",
+      "bytes": 4251
+    },
+    {
+      "path": "patches/web-main.patch",
+      "mode": "100644",
+      "type": "blob",
+      "sha256": "94ea6a14d761074ba7210cd9b47bff95e7c4398da039610adcd1ee147515e8bc",
+      "sha": "1965ff339ffc8ef6c9411f6f69be6d51855b9200",
+      "bytes": 12943
+    },
+    {
+      "path": "compatible-fallback/src/server/httpServer.ts",
+      "mode": "100644",
+      "type": "blob",
+      "sha256": "a43882e88c2412dafb07ceacad2faf5a8e0b86bee6e808c08e3ac410b9bba860",
+      "sha": "ce98af886ef4f87fc286161ead506f8d44d96782",
+      "bytes": 21079
+    },
+    {
+      "path": "compatible-fallback/src/server/snapshotRefreshError.ts",
+      "mode": "100644",
+      "type": "blob",
+      "sha256": "96c1f34da1d37d96b10df4520a8dda3b87ca68c0f62443e2144d3e985e20159b",
+      "sha": "31c00db838405d1377ea1819b415856f22c4c0c2",
+      "bytes": 3524
+    },
+    {
+      "path": "compatible-fallback/tests/server/portableSnapshotRefresh.test.ts",
+      "mode": "100644",
+      "type": "blob",
+      "sha256": "f6fd70092749137b924fcf4f566e203ed8d0ad20a4339d02e7d34e9f08ac3ab5",
+      "sha": "51b6c0d7b648567995b20a38001eb81076c5de37",
+      "bytes": 17972
+    },
+    {
+      "path": "compatible-fallback/tests/server/snapshotRefreshError.test.ts",
+      "mode": "100644",
+      "type": "blob",
+      "sha256": "7448d855a513281cbfffec8bef3eff56e312af9736a7cd820de6649abee02824",
+      "sha": "f6c311f12ffd0c5a2b5820c4937fdcff75ac7aae",
+      "bytes": 4251
+    },
+    {
+      "path": "patches/compatible-fallback.patch",
+      "mode": "100644",
+      "type": "blob",
+      "sha256": "57e5b12fecd6da7787b662e703fe9850a6cfd094f6a77e2152ee42cdebd3bea4",
+      "sha": "368038e8144b8b31a0df04a0b28b9e33c59e6835",
+      "bytes": 12713
     }
   ],
-  "exclusions": [
-    "Actual logs and log tails",
-    "PM2 process or environment outputs",
-    "Invocation, query and diagnostic receipts",
-    "Local execution reports",
-    "Credentials and environment values"
-  ],
-  "review": "Static content, exact hashes and embedded Python AST only; no source execution."
+  "archiveSourceSha256": "e4b22a17ff301f80e4fb34706888bdb253e007a08969aa0ff6705d4affc84e3a",
+  "archiveNotUploaded": true,
+  "restorationCheck": "Exact forward/reverse/forward patch hashes checked; application/tests not executed."
 }
