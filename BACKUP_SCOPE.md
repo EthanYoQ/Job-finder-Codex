@@ -1,9 +1,0 @@
-# Backup scope
-
-This snapshot preserves the reviewed explicit export recipe: 130 unchanged safe members selected from the earlier frozen source archive, plus six new source-only export, validation, test and dependency files. The original 164-member archive is not uploaded. Historical authority and hold summaries, actual configuration instances, bytecode, old mixed inventories and recursive export recipes are excluded.
-
-The two host templates retain non-secret C51 build/database hash pins and a null candidate. Static source definitions, project identifiers, fixed code paths and required synthetic tool-result metadata remain. Actual current binding/readback, activation/control/context, captures, database rows, runtime logs, secrets and installed dependencies are absent.
-
-The new recipe selects from an immutable allowlist and verifies the exact 130 source members, their static source-plan contracts and all 65 owner-code mappings. The two unchanged original owner maps and the selected source dependencies are preserved. Sources are nested under sources/; preserve that layout for the recipe's source-only checks. Runtime reconstruction still needs the exact producer Git/runtime, Node 22.23.3, locked physical dependencies and separately authorized current bindings at the fixed paths. This is not a runnable or activated host package.
-
-The source provider reports 24 local export-boundary tests. This backup independently checks hashes, frozen selection and remote contents without executing any source or tests. It does not establish collection, publication, CI or deployment success. The verifier is a source consistency check, not a current authority or freshness check; use it only with an exclusively controlled source tree rather than assuming isolation against concurrent filesystem replacement.

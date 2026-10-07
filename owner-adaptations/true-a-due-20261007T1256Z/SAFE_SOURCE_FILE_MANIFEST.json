@@ -1,0 +1,57 @@
+[
+  {
+    "path": "baseline-manifest.json",
+    "sha256": "f7609110e2ab95aae7857dc7407a90c137cc430c72c6f6b5e586cdc4d01d26af",
+    "bytes": 2609
+  },
+  {
+    "path": "build-fragments.py",
+    "sha256": "1f03fee8b375360bd6294b09fed5eccbbe1787bda8f5cf5523c743bde23de28e",
+    "bytes": 4463
+  },
+  {
+    "path": "preload-owner.exec.js",
+    "sha256": "d2d57fce16ee76eb77935eaf91a7f1739513d1ad8e1c0ee7c3b818bba8ed7c16",
+    "bytes": 2741
+  },
+  {
+    "path": "publish-and-monitor-owner.js",
+    "sha256": "78a716a79d905dc7bb02715967c43b74566d496bea5b6c24a2d6139dbb1f1894",
+    "bytes": 10947
+  },
+  {
+    "path": "publish-reviewed-and-monitor.exec.js",
+    "sha256": "56607634facc379fba8b401258d490abb258ba993aeabdf6865d4bd63296ed9d",
+    "bytes": 1398
+  },
+  {
+    "path": "tests/generate-full-chain-tests.py",
+    "sha256": "e93dc52bf20d0a52af2fb22b6bd5ad022cd6d0172e9169aa3d004f74badf14d2",
+    "bytes": 2800
+  },
+  {
+    "path": "tests/generated-crpharma-full-chain.test.mjs",
+    "sha256": "faac9bf7481f45e20bf956aca37f366d3af9999343f9e51fddde4f4398ae6565",
+    "bytes": 21547
+  },
+  {
+    "path": "tests/generated-csl-full-chain.test.mjs",
+    "sha256": "e4e37c7d64cf28ccbd4dfd1337ccbe141165bcaad1a51c1919428d40271371cd",
+    "bytes": 21517
+  },
+  {
+    "path": "tests/key-and-preload.test.mjs",
+    "sha256": "950762519ee05cdb55ff710affcab0025b240297e484ab534c8c6ce75e0173a5",
+    "bytes": 3898
+  },
+  {
+    "path": "tests/owner.test.mjs",
+    "sha256": "8c0e2c462df58522166a01f8c08afc39e7dc73d3de76f13bcb67ac8d3dd1d11c",
+    "bytes": 20267
+  },
+  {
+    "path": "tests/real-apply-patch-terminal-fixture.json",
+    "sha256": "aff94e02c5266ff389e8cbd2da3774b9eaf00cbf204bf9484a1b5eaace576f2e",
+    "bytes": 195
+  }
+]

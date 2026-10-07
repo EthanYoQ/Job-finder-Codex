@@ -1,0 +1,71 @@
+{
+  "schemaVersion": 1,
+  "sourceId": "source-csl-china-social",
+  "sourceConfigSha256": "eb4583bc629171783b293f162837776c6f68e63b7e81cc40540b83aed6e06694",
+  "route": "TRUE_A",
+  "entrypoint": "scripts/p0-cloud-source-pilot.ts",
+  "entrypointSha256": "e4299018aa4b17cd7d0ff756ea45b779479708e02c400be9a1c8ffc0c2c1abaa",
+  "sourceAdmissionPolicy": null,
+  "certificateSchema": "a-grade-official-total-v2",
+  "publicationMode": "DB_STARTED_JOB_PROJECTION_DELTA_V1",
+  "candidate": null,
+  "databaseIdentity": null,
+  "templatePlaceholderOnly": true,
+  "contextSha256": "26ef5d3a0ada20cef36845ced21989b1bc02aa97517efd2222db0fbf790209c6",
+  "expiryBasis": "source.startedAt+1800000",
+  "originalSourcePlan": {
+    "adapterId": "official-json",
+    "company": {
+      "id": "company-csl-china",
+      "officialChineseName": "杰特贝林",
+      "category": "FOREIGN_PHARMA"
+    },
+    "source": {
+      "id": "source-csl-china-social",
+      "surfaceId": "surface-csl-china-social",
+      "companyId": "company-csl-china",
+      "kind": "SOCIAL",
+      "atsKind": "WORKDAY",
+      "status": "VERIFIED_SCRAPABLE",
+      "officialEntryUrl": "https://csl.wd1.myworkdayjobs.com/zh-CN/CSL_External",
+      "officialChainEvidenceUrl": "https://www.csl.com/careers"
+    },
+    "executionAuthority": "STAGED",
+    "expectedChannels": [
+      {
+        "channelId": "source:source-csl-china-social:default",
+        "kind": "SOCIAL"
+      }
+    ],
+    "expectedChannelSetHash": "2aa4e10642c5cb07e532f75d54a93967959fba78e3366c7bd7d9182f50406f53",
+    "json": {
+      "jobsPath": "jobPostings",
+      "fields": {
+        "sourceJobId": "sourceJobId",
+        "officialTitle": "title",
+        "officialUrl": "officialUrl",
+        "locationRaw": "locationRaw",
+        "cities": "cities"
+      },
+      "defaultCategory": "其他"
+    },
+    "workday": {
+      "mainlandQualityPolicy": "CSL_MAINLAND_DETAIL_V1",
+      "tenant": "csl",
+      "site": "CSL_External",
+      "appliedFacets": {
+        "locationCountry": [
+          "6cb77610a8a543aea2d6bc10457e35d4"
+        ]
+      },
+      "pageSize": 20,
+      "maxPages": 10
+    },
+    "transportPolicy": {
+      "primary": "DIRECT_HTTP"
+    }
+  },
+  "network": false,
+  "database": false,
+  "launch": false
+}
