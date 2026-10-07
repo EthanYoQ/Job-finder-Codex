@@ -26,6 +26,8 @@ description: 恢复和验收 Job Finder 在既有阿里云实例上的配对网�
 
 恢复读合同、环境绑定和运行身份细节见[运行与验收要点](references/runtime-and-acceptance.md)。
 
+已授权恢复涉及 dot 云网络/runtime 诊断、启动文件 pin 或同批公开验收时，另读[代理运行时与同批验收](references/proxy-runtime-and-same-batch-readback.md)。该参考不授予采集、数据库写入或部署权限，不改变本技能的发布恢复职责。
+
 ## 受约束滚动与验收
 
 - 内存、堆上限跟随角色和实际测量，不跟随端口，也不把历史阈值推广成所有服务器硬门槛。在本次授权的顺序内，先停非路由后备腾内存，验证新主后才切流；旧 nginx worker 按 PID + startticks 排空后，才停旧主并启动新后备。

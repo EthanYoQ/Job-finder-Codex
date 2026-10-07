@@ -1,45 +1,44 @@
 {
-  "format": "safe-skill-backup/v1",
-  "allowlistSha256": "086f9ee6633409a7c87184ce2cefb65d8b38ca3f20db100f4b70987d861b62f6",
-  "sourceCutoff": "2026-10-07T00:29:45.105878+00:00",
-  "originalDocuments": 3,
-  "originalSourceBytes": 16863,
-  "originalBytesUnchanged": true,
-  "restoreRoot": "skills/job-finder-aliyun-release-recovery",
-  "minimumRestoreDependencies": "Exactly SKILL.md and its two relative Markdown references. No executable helper or package install.",
-  "officialVendorSkillChanged": false,
-  "excluded": [
-    "This delivery directory",
-    "Production payloads and receipts",
-    "Private materials and credentials",
-    "Other skills and workspace files",
-    "Actual security alerts, server addresses, validation/evaluation reports and deployment receipts"
+  "schemaVersion": 1,
+  "kind": "skill-source-backup",
+  "previousSkillBackup": "246cfe0fd4bdcfc71a65e467a7ebd9f51fb8da09",
+  "changedPaths": [
+    "skills/job-finder-aliyun-release-recovery/SKILL.md",
+    "skills/job-finder-aliyun-release-recovery/references/proxy-runtime-and-same-batch-readback.md"
   ],
-  "verificationScope": "Static byte/hash and relative-link checks plus exact remote Git tree/content verification; no execution of skill instructions, tests or deployment.",
   "files": [
     {
       "path": "skills/job-finder-aliyun-release-recovery/SKILL.md",
-      "bytes": 5057,
-      "sha256": "d662a855d79b788b0d0f538e920aed0ae6112eea6bf6daac26c022e1eec990cc",
       "mode": "100644",
       "type": "blob",
-      "sha": "e3800ee966b872dfdecdb910c02c4986ceec0d91"
+      "sha256": "40c64d0ddb1a2b812615ecc332b0b683d2380dd7b24861bed6e5a0a143631986",
+      "sha": "5500b8ca6c419c85ee11897635d96e2d05c73044",
+      "bytes": 5352
     },
     {
       "path": "skills/job-finder-aliyun-release-recovery/references/command-evidence-and-recovery.md",
-      "bytes": 5472,
-      "sha256": "05ab1242e9f287f1e9525708924e63e4cacc89cd6d3992e67c319da222dbbfeb",
       "mode": "100644",
       "type": "blob",
-      "sha": "7dee64584ecd7a8d1b436bc67e58739e24bb1155"
+      "sha256": "05ab1242e9f287f1e9525708924e63e4cacc89cd6d3992e67c319da222dbbfeb",
+      "sha": "7dee64584ecd7a8d1b436bc67e58739e24bb1155",
+      "bytes": 5472
+    },
+    {
+      "path": "skills/job-finder-aliyun-release-recovery/references/proxy-runtime-and-same-batch-readback.md",
+      "mode": "100644",
+      "type": "blob",
+      "sha256": "b18c8a8dd69703eb4390b3daf0909be003f8686abc0a6cfd9d68ebd650a7a87c",
+      "sha": "3fb5c6c578f20c195a5fb5055e143604bfc24be1",
+      "bytes": 7759
     },
     {
       "path": "skills/job-finder-aliyun-release-recovery/references/runtime-and-acceptance.md",
-      "bytes": 6334,
-      "sha256": "0984ffb63ca245bb93d710e96198d03372775eab723d2541b0a2efaa8e4f0957",
       "mode": "100644",
       "type": "blob",
-      "sha": "8e3e1d737faa8abad486f8592e240087c4ac9f78"
+      "sha256": "0984ffb63ca245bb93d710e96198d03372775eab723d2541b0a2efaa8e4f0957",
+      "sha": "8e3e1d737faa8abad486f8592e240087c4ac9f78",
+      "bytes": 6334
     }
-  ]
+  ],
+  "review": "Static hash, diff, content and relative-link checks only. No operational commands executed."
 }
