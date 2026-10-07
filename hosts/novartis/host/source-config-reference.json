@@ -1,0 +1,96 @@
+{
+  "name": "novartis",
+  "sourceId": "source-novartis-social",
+  "route": "PORTABLE",
+  "source": {
+    "id": "source-novartis-social",
+    "companyId": "company-novartis",
+    "kind": "SOCIAL",
+    "atsKind": "OFFICIAL_HTML",
+    "status": "VERIFIED_SCRAPABLE",
+    "officialEntryUrl": "https://www.novartis.com.cn/careers/career-search?search_api_fulltext=&country%5B0%5D=LOC_CN&op=Submit&field_job_posted_date=All&sort=asc&order=%E8%81%8C%E4%BD%8D%E5%90%8D%E7%A7%B0",
+    "officialChainEvidenceUrl": "https://www.novartis.com.cn/careers"
+  },
+  "sourceConfigSha256": "1dcb83b63182c3b496a1137678baae55201276b4e041b60b6cbe1fab30990a91",
+  "configurationOrigin": "OFFICIAL_SOURCE_ROW_AND_RECOVERED_PLAN_HASH_CROSSCHECK",
+  "referenceCheckedAt": "2026-10-06 12:20:38.287555+00",
+  "selectedReferenceArtifact": {
+    "path": "/workspace/scratch/5e9614251709/dot-drive-runtime-config-20261006T1240Z/package/reference/current-36-source-routes.json",
+    "sha256": "773abaf6cfa1196590330dee6a88afc3b4b6ae507d81cb2e163a387727ca2ec8",
+    "artifactKind": "RECONSTRUCTED_REFERENCE_ROUTES"
+  },
+  "currentSourcePlan": {
+    "adapterId": "html-table",
+    "company": {
+      "id": "company-novartis",
+      "officialChineseName": "\u8bfa\u534e\u4e2d\u56fd",
+      "category": "FOREIGN_PHARMA"
+    },
+    "source": {
+      "id": "source-novartis-social",
+      "surfaceId": "surface-novartis-social",
+      "companyId": "company-novartis",
+      "kind": "SOCIAL",
+      "atsKind": "OFFICIAL_HTML",
+      "status": "VERIFIED_SCRAPABLE",
+      "officialEntryUrl": "https://www.novartis.com.cn/careers/career-search?search_api_fulltext=&country%5B0%5D=LOC_CN&op=Submit&field_job_posted_date=All&sort=asc&order=%E8%81%8C%E4%BD%8D%E5%90%8D%E7%A7%B0",
+      "officialChainEvidenceUrl": "https://www.novartis.com.cn/careers"
+    },
+    "executionAuthority": "STAGED",
+    "expectedChannels": [
+      {
+        "channelId": "source:source-novartis-social:default",
+        "kind": "SOCIAL"
+      }
+    ],
+    "expectedChannelSetHash": "0a54910a729576f1de9ba19140fbf507cab3fd91c4785dfe4f0fe40af7eae51d",
+    "table": {
+      "rowSelector": "table.views-table tbody tr",
+      "strictLocationScope": {
+        "allowUnknownEnglishLocalityWithParenthesizedMainlandProvince": true
+      },
+      "completenessProof": {
+        "kind": "OFFICIAL_TOTAL_PAGES",
+        "sourcePolicy": "NOVARTIS_CHINA_SLIDING_WINDOW_V1"
+      },
+      "pagination": {
+        "totalPagesSelector": ".pagination .page-link[title*='out of'][title*='pages']",
+        "totalPagesAttribute": "title",
+        "totalPagesPattern": "out of\\s+([1-9]\\d*)\\s+pages",
+        "totalPagesMode": "max",
+        "pageSearchParam": "page",
+        "pageNumberOffset": -1,
+        "maxPages": 20,
+        "totalPagesDeclaredOnEntryOnly": true,
+        "officialWindowMode": "NOVARTIS_PAGE_WINDOW_V1"
+      },
+      "fields": {
+        "officialTitle": {
+          "selector": "td.views-field-field-job-title a"
+        },
+        "officialUrl": {
+          "selector": "td.views-field-field-job-title a",
+          "attribute": "href"
+        },
+        "locationRaw": {
+          "selector": "td.views-field-field-job-work-location"
+        }
+      }
+    },
+    "transportPolicy": {
+      "primary": "DIRECT_HTTP"
+    }
+  },
+  "currentQualityPolicy": "PLAN_BOUND_SOURCE_QUALITY_V1",
+  "portableEligible": true,
+  "executableChannelBindingVerified": true,
+  "noExternalLookup": true,
+  "historicalHostConfigEvidence": null,
+  "hostConfigConstruction": "RECONSTRUCTED_FROM_VERIFIED_STATIC_OFFICIAL_SOURCE_ROW_AND_CURRENT_PLAN",
+  "classificationCountsPreserved": {
+    "PORTABLE": 20,
+    "TRUE_A": 13,
+    "TRUE_B": 3
+  },
+  "historicalBindingOrExecutionStateIncluded": false
+}

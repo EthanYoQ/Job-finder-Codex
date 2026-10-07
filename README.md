@@ -1,6 +1,6 @@
-# Viatris and CSPC C51 host source snapshots
+# Novartis and Boehringer Ingelheim C51 preparation sources
 
-This snapshot preserves 29 original source, test, provenance, static-template and dependency/reference files each for Viatris and CSPC. It records the frozen preparation sources, not a current runtime or deployment result. Original operational README files are omitted; their hashes remain in SOURCE_BACKUP.json.
+This snapshot preserves 29 original source, test, provenance, static-template and dependency/reference files each for Novartis and Boehringer Ingelheim. It records the frozen preparation sources, not a current runtime or deployment result. Original operational README files are omitted; their hashes remain in SOURCE_BACKUP.json.
 
 ## Dependencies and layout
 
@@ -22,4 +22,8 @@ The inherited ARCHIVE_STORE branch still lacks its separately required helper an
 
 ## Static source references
 
-Each host also retains RESTORE_DEPENDENCIES.json and host/source-config-reference.json. These are non-secret static source-plan/provenance and reconstruction inputs, not job rows or runtime activation data. References to source authority, capture eligibility and historical timestamps preserve their original frozen configuration context; they do not establish current readiness. Both static configuration references identify adaptation from matching historical static host configurations, with original provenance hashes retained. This does not restore previous runtime bindings or execution state. Original source names, public official URLs, project IDs, source configuration hashes and provenance paths are retained. Referenced private binding and run files are not included.
+Each host also retains RESTORE_DEPENDENCIES.json and host/source-config-reference.json. These are non-secret static source-plan/provenance and reconstruction inputs, not job rows or runtime activation data. References to source authority, capture eligibility and historical timestamps preserve their original frozen configuration context; they do not establish current readiness. Both static configuration references explicitly identify reconstruction from the checked static source row and current source plan/hash. Neither is a claim of recovered earlier host-config bytes or runtime bindings. Original source names, public official URLs, project IDs, source configuration hashes and provenance paths are retained. Referenced private binding and run files are not included.
+
+## Separate continuous-owner compatibility
+
+This host snapshot does not include a compatible continuous-publication owner update. The earlier owner source d5f3decc6bd41e4dff201b7e5b0d9e5dc1d384f8813de5f3fd5d908b73a488b1 in backup commit 8c23d3382f9ca1010d4ce0b722ca02e8e87bb13b accepts only alphanumeric source keys, while this BI loader requires boehringer-ingelheim. Its baseline manifest also lacks both new host dependency sets. Restoring that earlier owner unchanged cannot satisfy these integration dependencies. Any compatible owner revision and its exact host hashes must be supplied and checked separately. The source-verification helper also retains an unused Kelun argument in its list; no Kelun host or configuration is included or authorized by this backup.

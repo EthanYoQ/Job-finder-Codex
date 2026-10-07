@@ -1,8 +1,0 @@
-{
-  "root": "/workspace/scratch/5e9614251709/jb-incremental-proxy-runtime-20261007T0057Z/hosts/viatris/host",
-  "repo": "/workspace/scratch/5e9614251709/jb-incremental-proxy-runtime-20261007T0057Z/producer",
-  "node": "/workspace/scratch/5e9614251709/jb-incremental-proxy-runtime-20261007T0057Z/runtime/node-v22.23.3-linux-x64/bin/node",
-  "project": "yiopvxysxrtrnvqxwgbx",
-  "sourceId": "source-viatris-social",
-  "sourceConfigSha256": "5eab6bd8ba6973176376f492b9ce2105d81d8cae5afd4d3518daa6ad3dfcdad9"
-}

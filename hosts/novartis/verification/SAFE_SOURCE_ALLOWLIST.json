@@ -1,0 +1,164 @@
+[
+  {
+    "path": "host/archive-transfer.mjs",
+    "sourcePath": "/workspace/scratch/5e9614251709/jb-incremental-proxy-runtime-20261007T0057Z/hosts/bms/host/archive-transfer.mjs",
+    "sourceSha256": "698e966e5552967845a5252d2b3df2acca28dcd8dbbb0ae41755a3a6231e6a99",
+    "adaptation": "Selected source ID/hash, local host path, namespace, entry filename, and test source allowlist only"
+  },
+  {
+    "path": "host/control-base.json",
+    "sourcePath": "/workspace/scratch/5e9614251709/jb-incremental-proxy-runtime-20261007T0057Z/hosts/bms/host/control-base.json",
+    "sourceSha256": "c5d9b852c32016ac1c0492e46d4812fa209cd54ef1cb47a7ded94c3a246f730d",
+    "adaptation": "Selected source ID/hash, local host path, namespace, entry filename, and test source allowlist only"
+  },
+  {
+    "path": "host/host-config.json",
+    "sourcePath": "/workspace/scratch/5e9614251709/jb-incremental-proxy-runtime-20261007T0057Z/hosts/bms/host/host-config.json",
+    "sourceSha256": "2e40feb9d175532411e204cc94aa36aee7aafaf4e0a7ae494035617876a1bf47",
+    "adaptation": "Selected source ID/hash, local host path, namespace, entry filename, and test source allowlist only"
+  },
+  {
+    "path": "host/host-files.mts",
+    "sourcePath": "/workspace/scratch/5e9614251709/jb-incremental-proxy-runtime-20261007T0057Z/hosts/bms/host/host-files.mts",
+    "sourceSha256": "c8033565b3c368bf369fc7507f9d1ff8fa87bc0dde0a84a10a95373473dc6f3a",
+    "adaptation": "Selected source ID/hash, local host path, namespace, entry filename, and test source allowlist only"
+  },
+  {
+    "path": "host/host-helper-functions.js",
+    "sourcePath": "/workspace/scratch/5e9614251709/jb-incremental-proxy-runtime-20261007T0057Z/hosts/bms/host/host-helper-functions.js",
+    "sourceSha256": "5e2e8cb84e6c4fa3f7fab190e7880e235b757becb079a54630723512c396c037",
+    "adaptation": "Selected source ID/hash, local host path, namespace, entry filename, and test source allowlist only"
+  },
+  {
+    "path": "host/host-stage-functions.js",
+    "sourcePath": "/workspace/scratch/5e9614251709/jb-incremental-proxy-runtime-20261007T0057Z/hosts/bms/host/host-stage-functions.js",
+    "sourceSha256": "7674f4d53a6c683f729711e6b283173ae0cd6c833fbd36ef73905f9e5f3ce258",
+    "adaptation": "Selected source ID/hash, local host path, namespace, entry filename, and test source allowlist only"
+  },
+  {
+    "path": "host/machine-json.js",
+    "sourcePath": "/workspace/scratch/5e9614251709/jb-incremental-proxy-runtime-20261007T0057Z/hosts/bms/host/machine-json.js",
+    "sourceSha256": "3484738bd095a9d57da70c6392af78865a53759a9e8499316941157b6210e9f6",
+    "adaptation": "Selected source ID/hash, local host path, namespace, entry filename, and test source allowlist only"
+  },
+  {
+    "path": "host/relay-files.mjs",
+    "sourcePath": "/workspace/scratch/5e9614251709/jb-incremental-proxy-runtime-20261007T0057Z/hosts/bms/host/relay-files.mjs",
+    "sourceSha256": "7c99f9dbdad0caa0e6812434cf5f876c8f30d496a403b976aa4de16a8f644541",
+    "adaptation": "Selected source ID/hash, local host path, namespace, entry filename, and test source allowlist only"
+  },
+  {
+    "path": "host/runtime/complete-reviewed-source-readback.js",
+    "sourcePath": "/workspace/scratch/5e9614251709/jb-incremental-proxy-runtime-20261007T0057Z/hosts/bms/host/runtime/complete-reviewed-source-readback.js",
+    "sourceSha256": "b5745af68fef0ad506a0239de82f5944eaf2c53fca30e0c2a5187c8afff1fab0",
+    "adaptation": "Selected source ID/hash, local host path, namespace, entry filename, and test source allowlist only"
+  },
+  {
+    "path": "host/runtime/continuous-relay-v3-durable-monitor.js",
+    "sourcePath": "/workspace/scratch/5e9614251709/jb-incremental-proxy-runtime-20261007T0057Z/hosts/bms/host/runtime/continuous-relay-v3-durable-monitor.js",
+    "sourceSha256": "24231e13ec4b4f34692574abe87865e629c60f7b2ce1eb2cacac621300a06718",
+    "adaptation": "Selected source ID/hash, local host path, namespace, entry filename, and test source allowlist only"
+  },
+  {
+    "path": "host/runtime/inspect-host-binding.mts",
+    "sourcePath": "/workspace/scratch/5e9614251709/jb-incremental-proxy-runtime-20261007T0057Z/hosts/bms/host/runtime/inspect-host-binding.mts",
+    "sourceSha256": "fe33b177e0bf40da2b1035a9482699954803d513f29092153fd61c11e7c34b78",
+    "adaptation": "Selected source ID/hash, local host path, namespace, entry filename, and test source allowlist only"
+  },
+  {
+    "path": "host/runtime/load-host-state.js",
+    "sourcePath": "/workspace/scratch/5e9614251709/jb-incremental-proxy-runtime-20261007T0057Z/hosts/bms/host/runtime/load-host-state.js",
+    "sourceSha256": "9072e4f93c6614e1cbde2a06be43fda6a5117e25a1eab5f0ea6c17300724b5ed",
+    "adaptation": "Selected source ID/hash, local host path, namespace, entry filename, and test source allowlist only"
+  },
+  {
+    "path": "host/runtime/load-source-runtime.js",
+    "sourcePath": "/workspace/scratch/5e9614251709/jb-incremental-proxy-runtime-20261007T0057Z/hosts/bms/host/runtime/load-source-runtime.js",
+    "sourceSha256": "8bfcf4a1334619591c3d1581b44c05c1fe34bdb84efc88ab8ec8677bd491c4e0",
+    "adaptation": "Selected source ID/hash, local host path, namespace, entry filename, and test source allowlist only"
+  },
+  {
+    "path": "host/runtime/machine-json.py",
+    "sourcePath": "/workspace/scratch/5e9614251709/jb-incremental-proxy-runtime-20261007T0057Z/hosts/bms/host/runtime/machine-json.py",
+    "sourceSha256": "67611e749eddc6bf8c591fef11f2efa82e2a73ce0bb51b2779fab4ae68b77f50",
+    "adaptation": "Selected source ID/hash, local host path, namespace, entry filename, and test source allowlist only"
+  },
+  {
+    "path": "host/runtime/preflight/preflight-launch.mjs",
+    "sourcePath": "/workspace/scratch/5e9614251709/jb-incremental-proxy-runtime-20261007T0057Z/hosts/bms/host/runtime/preflight/preflight-launch.mjs",
+    "sourceSha256": "89099e0dedbffc36cbe31a9e1e4b458aedf512cc367141af22709a068cd2f968",
+    "adaptation": "Selected source ID/hash, local host path, namespace, entry filename, and test source allowlist only"
+  },
+  {
+    "path": "host/runtime/preflight/runtime-check.mjs",
+    "sourcePath": "/workspace/scratch/5e9614251709/jb-incremental-proxy-runtime-20261007T0057Z/hosts/bms/host/runtime/preflight/runtime-check.mjs",
+    "sourceSha256": "e01c5b953283535757e2fcc67df80dd3e86948709dde0b488235a7edee017785",
+    "adaptation": "Selected source ID/hash, local host path, namespace, entry filename, and test source allowlist only"
+  },
+  {
+    "path": "host/runtime/prepare-registered-control.mts",
+    "sourcePath": "/workspace/scratch/5e9614251709/jb-incremental-proxy-runtime-20261007T0057Z/hosts/bms/host/runtime/prepare-registered-control.mts",
+    "sourceSha256": "9f2090d76cf854e49ff47b66dabaaa599a6bf3252d083a5c5541c29114591230",
+    "adaptation": "Selected source ID/hash, local host path, namespace, entry filename, and test source allowlist only"
+  },
+  {
+    "path": "host/runtime/review-packet-envelope.mts",
+    "sourcePath": "/workspace/scratch/5e9614251709/jb-incremental-proxy-runtime-20261007T0057Z/hosts/bms/host/runtime/review-packet-envelope.mts",
+    "sourceSha256": "40cb1e3ede867f0e9d171605e7454fc71a6f774dfdf910f68ff668722bba69cb",
+    "adaptation": "Selected source ID/hash, local host path, namespace, entry filename, and test source allowlist only"
+  },
+  {
+    "path": "host/runtime/review-publication.py",
+    "sourcePath": "/workspace/scratch/5e9614251709/jb-incremental-proxy-runtime-20261007T0057Z/hosts/bms/host/runtime/review-publication.py",
+    "sourceSha256": "39fe1f5b7e8274c44b522aa466d3cf525a4fce45c90fd1225564d7adbbb922e9",
+    "adaptation": "Selected source ID/hash, local host path, namespace, entry filename, and test source allowlist only"
+  },
+  {
+    "path": "host/runtime/update-candidate-completion-state.mjs",
+    "sourcePath": "/workspace/scratch/5e9614251709/jb-incremental-proxy-runtime-20261007T0057Z/hosts/bms/host/runtime/update-candidate-completion-state.mjs",
+    "sourceSha256": "ae5ad99411b014c8ffff615a0b06af1e1fdfd2ed7f7265c9c9cee0128339bb06",
+    "adaptation": "Selected source ID/hash, local host path, namespace, entry filename, and test source allowlist only"
+  },
+  {
+    "path": "supervision/inspect-launch-identity.mjs",
+    "sourcePath": "/workspace/scratch/5e9614251709/jb-incremental-proxy-runtime-20261007T0057Z/hosts/bms/supervision/inspect-launch-identity.mjs",
+    "sourceSha256": "7bc818ae831081b7e91819ad772b950d08e7d06dc741730c0bd54698d6fe8b37",
+    "adaptation": "Selected source ID/hash, local host path, namespace, entry filename, and test source allowlist only"
+  },
+  {
+    "path": "supervision/sample_process_tree.py",
+    "sourcePath": "/workspace/scratch/5e9614251709/jb-incremental-proxy-runtime-20261007T0057Z/hosts/bms/supervision/sample_process_tree.py",
+    "sourceSha256": "3fa6daa1af1afee94d19801edfd8bcb538e1243476b5adb253e50de162a27bd6",
+    "adaptation": "Selected source ID/hash, local host path, namespace, entry filename, and test source allowlist only"
+  },
+  {
+    "path": "supervision/start-monitor-novartis51-combined.js",
+    "sourcePath": "/workspace/scratch/5e9614251709/jb-incremental-proxy-runtime-20261007T0057Z/hosts/bms/supervision/start-monitor-bms51-combined.js",
+    "sourceSha256": "675d5a22edf1facceb0b33338685ff2e640246b65da8d9650247bbcbee15c28d",
+    "adaptation": "Selected source ID/hash, local host path, namespace, entry filename, and test source allowlist only"
+  },
+  {
+    "path": "supervision/supervise-cancel.mjs",
+    "sourcePath": "/workspace/scratch/5e9614251709/jb-incremental-proxy-runtime-20261007T0057Z/hosts/bms/supervision/supervise-cancel.mjs",
+    "sourceSha256": "083435a5344a47b86f84184bbe1d2711b0d35def4670afb2ab3c8391ed442e7e",
+    "adaptation": "Selected source ID/hash, local host path, namespace, entry filename, and test source allowlist only"
+  },
+  {
+    "path": "verification/verify-machine-json.py",
+    "sourcePath": "/workspace/scratch/5e9614251709/jb-incremental-proxy-runtime-20261007T0057Z/hosts/bms/verification/verify-machine-json.py",
+    "sourceSha256": "5de73481cea05886ad8515fee4b6c8b98629fc50d1a5392a764d18180191bd3d",
+    "adaptation": "Selected source ID/hash, local host path, namespace, entry filename, and test source allowlist only"
+  },
+  {
+    "path": "verification/verify-runtime-host.mts",
+    "sourcePath": "/workspace/scratch/5e9614251709/jb-incremental-proxy-runtime-20261007T0057Z/hosts/bms/verification/verify-runtime-host.mts",
+    "sourceSha256": "23d3f7a1bb4b3b3b99bebfc60954ae9e65ac4b900b4ce90cd0335b7adc4230f5",
+    "adaptation": "Selected source ID/hash, local host path, namespace, entry filename, and test source allowlist only"
+  },
+  {
+    "path": "verification/verify-source-host.mjs",
+    "sourcePath": "/workspace/scratch/5e9614251709/jb-incremental-proxy-runtime-20261007T0057Z/hosts/bms/verification/verify-source-host.mjs",
+    "sourceSha256": "a79d3564b4974589695b6e0e2ddf240b55388343d7a3b62238e1fb453caf4501",
+    "adaptation": "Selected source ID/hash, local host path, namespace, entry filename, and test source allowlist only"
+  }
+]

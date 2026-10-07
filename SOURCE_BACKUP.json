@@ -1,14 +1,14 @@
 {
   "schemaVersion": 1,
-  "kind": "source-only-backup",
+  "kind": "host-preparation-source-backup",
   "producerSourceIdentity": "28402a299bb04cbf5873da66c2fe8ca76827c0d1",
   "producerSafeBackup": "5820ceb6f1d9b329e11f3619f7bb3156b19f7079",
   "sourceArchives": [
     {
-      "source": "viatris",
-      "archiveSha256": "3f5f2592fcf695c6db90e38b35190f5477d6cfa237a74e37a6dda20681aa39e4",
-      "archiveBytes": 50077,
-      "originalSafeManifestSHA256": "f159f198e7b4c2d1d9a7af62d07bce08c10c4b2cea5f8dc9277a7b0d7672f42e",
+      "source": "novartis",
+      "archiveSha256": "0f4f6ce199877057bc8682adce9379c77186a09922c3fe529558807bbdcc24f1",
+      "archiveBytes": 50189,
+      "originalSafeManifestSHA256": "448e7004284e0ada2adb49b57a7dff0bd5c9dce397a833367b2c63676d2334c9",
       "originalSafeCount": 30,
       "excluded": [
         "host/activation.json",
@@ -16,13 +16,13 @@
         "host/context-read.sql",
         "host/host-config.json"
       ],
-      "configReconstructed": false
+      "configReconstructed": true
     },
     {
-      "source": "cspc",
-      "archiveSha256": "615d24338e5c796d1d73e60875b1b8c4f5702e2f438c3c2a36ad3b9d3efc05f6",
-      "archiveBytes": 50061,
-      "originalSafeManifestSHA256": "582361c368df4d83b858b54492e01f647ca1efda47bdfcbfedf59677a4a61f7d",
+      "source": "boehringer-ingelheim",
+      "archiveSha256": "e3004c283825c71322d676ac12c8ff74f31c588e966c07c9d89ddbedb46f46f3",
+      "archiveBytes": 50002,
+      "originalSafeManifestSHA256": "7c560ae2298335a46bc21ce5e2e1f9d1a06cb567adc7ee858f60ddcf095b661a",
       "originalSafeCount": 30,
       "excluded": [
         "host/activation.json",
@@ -30,20 +30,20 @@
         "host/context-read.sql",
         "host/host-config.json"
       ],
-      "configReconstructed": false
+      "configReconstructed": true
     }
   ],
   "sourceFiles": [
     {
-      "path": "hosts/viatris/RESTORE_DEPENDENCIES.json",
+      "path": "hosts/novartis/RESTORE_DEPENDENCIES.json",
       "mode": "100644",
       "type": "blob",
-      "bytes": 1676,
-      "sha256": "3aeb4a562ad468a36aeb31bf2039f130eb009036b5ca01292e5bd74f8214eee1",
-      "sha": "d027ec4fd8131be5d591b914ff62aea76f37b896"
+      "bytes": 1677,
+      "sha256": "c27879f5e6c52db17d7e5d97e35d9dcc4fadbf36a81b463dec77a75659e8d13b",
+      "sha": "b90b3a9f96df869c9c4793ef0eeaa3ffe91fd38f"
     },
     {
-      "path": "hosts/viatris/host/archive-transfer.mjs",
+      "path": "hosts/novartis/host/archive-transfer.mjs",
       "mode": "100644",
       "type": "blob",
       "bytes": 1777,
@@ -51,15 +51,15 @@
       "sha": "5a454d21f34f9680221bbee2c98b3fecb94884f0"
     },
     {
-      "path": "hosts/viatris/host/host-config.template.json",
+      "path": "hosts/novartis/host/host-config.template.json",
       "mode": "100644",
       "type": "blob",
-      "bytes": 507,
-      "sha256": "c2f5c61adc92cf9df7b06607525a88aa26d9e6c7114be740e983b7c5af190f41",
-      "sha": "abea4ff99907fc1d61aed4c105e379418beba675"
+      "bytes": 509,
+      "sha256": "98f5b5fba40e2dc46de27051165609fdc3f623937555cb61473b7dcb20233c46",
+      "sha": "7670aa293479115adc697a6dc3003c2117d9fb15"
     },
     {
-      "path": "hosts/viatris/host/host-files.mts",
+      "path": "hosts/novartis/host/host-files.mts",
       "mode": "100644",
       "type": "blob",
       "bytes": 4077,
@@ -67,23 +67,23 @@
       "sha": "8c8f201640071565320343e74c6919d1e83fd9b5"
     },
     {
-      "path": "hosts/viatris/host/host-helper-functions.js",
+      "path": "hosts/novartis/host/host-helper-functions.js",
       "mode": "100644",
       "type": "blob",
-      "bytes": 9765,
-      "sha256": "4ab668dec13fafeac0b84bc076c21ab5c3ed676666ba1deb4a00f7bf3cf2ead4",
-      "sha": "6dc93369c3338165780739c6639c0ea8d13f74a8"
+      "bytes": 9774,
+      "sha256": "b6dde2076cfd91e07e51bd3a69583b8a4470e87fc873d8ff86f4997a8a716a8a",
+      "sha": "ea070d46a880daf55bd0a622a7313105a23c071e"
     },
     {
-      "path": "hosts/viatris/host/host-stage-functions.js",
+      "path": "hosts/novartis/host/host-stage-functions.js",
       "mode": "100644",
       "type": "blob",
-      "bytes": 6322,
-      "sha256": "cf3c3bcf100e78459717d001f5974b1013400bf879d1d3eadfa7ddfcd22a1836",
-      "sha": "74c7aad8fcd2f9c300aaa705c8d26e9663266d40"
+      "bytes": 6333,
+      "sha256": "74d888fad07f0d0a26fbcdbc2cd64d3e4416a5b292ec6b803eca37b5437657f1",
+      "sha": "929cda1d9fe648a41009a72224a4f0b3d7451dd2"
     },
     {
-      "path": "hosts/viatris/host/machine-json.js",
+      "path": "hosts/novartis/host/machine-json.js",
       "mode": "100644",
       "type": "blob",
       "bytes": 807,
@@ -91,31 +91,31 @@
       "sha": "7b927e85ca286ffa900ca93462deee5b9988ed49"
     },
     {
-      "path": "hosts/viatris/host/relay-files.mjs",
+      "path": "hosts/novartis/host/relay-files.mjs",
       "mode": "100644",
       "type": "blob",
-      "bytes": 7909,
-      "sha256": "637dbab39bde702756f5360f589ffb58398b10608f5cc955111fa23d95725134",
-      "sha": "d5de26fb606216166ef35244fc31260d126ebd87"
+      "bytes": 7910,
+      "sha256": "ee4a412372406307ab445ef604cf10d71fc28958cb84d7d8b0aa948824520f2e",
+      "sha": "8090e163da8360e7837564912146ad959e500679"
     },
     {
-      "path": "hosts/viatris/host/runtime/complete-reviewed-source-readback.js",
+      "path": "hosts/novartis/host/runtime/complete-reviewed-source-readback.js",
       "mode": "100644",
       "type": "blob",
-      "bytes": 5696,
-      "sha256": "f033e4a6c133336ccb68f643319507c7c764b8fe3469f12d17474a7a9145b8b7",
-      "sha": "4fbe6a06a12cef86e3aa49cfbd8f475ee2833106"
+      "bytes": 5697,
+      "sha256": "aea1dfd1412f2e54137cd2ffc894f72b098ee66ea5b20d58837304e36e200450",
+      "sha": "48d95da1c327901bf99808a0a7555cc722304673"
     },
     {
-      "path": "hosts/viatris/host/runtime/continuous-relay-v3-durable-monitor.js",
+      "path": "hosts/novartis/host/runtime/continuous-relay-v3-durable-monitor.js",
       "mode": "100644",
       "type": "blob",
-      "bytes": 5184,
-      "sha256": "b2f284a29b826b44c2cd926bf903d8b8c9b61f06326332cbd624c32d2f4ea6ca",
-      "sha": "d00e0e1b5ba1a390f4e80db5dc087047bf929fb5"
+      "bytes": 5196,
+      "sha256": "0c0e21731c3bd84ed3e66d5889ba4c17ea0141891ddfe1c8b9c2777242816192",
+      "sha": "3f421ccf117e209195f91ad0a53d7355239f86ff"
     },
     {
-      "path": "hosts/viatris/host/runtime/inspect-host-binding.mts",
+      "path": "hosts/novartis/host/runtime/inspect-host-binding.mts",
       "mode": "100644",
       "type": "blob",
       "bytes": 2568,
@@ -123,23 +123,23 @@
       "sha": "16c2e92f6d2cbcbc23731e31c5a8a1a4d7660944"
     },
     {
-      "path": "hosts/viatris/host/runtime/load-host-state.js",
+      "path": "hosts/novartis/host/runtime/load-host-state.js",
       "mode": "100644",
       "type": "blob",
-      "bytes": 5075,
-      "sha256": "4e10d950ba3dfcafbfaa8d67ea512ef5ab200a0f2315cb5c75a7fd65466da1be",
-      "sha": "2b990207f890a28d8b42bb9602710440b5f08352"
+      "bytes": 5082,
+      "sha256": "143898ef627e599ac6d9f5ba01f0e572506667ea52b31ee9234c95939ac796a6",
+      "sha": "85ae073054179b10bb51a981f27fddc962487634"
     },
     {
-      "path": "hosts/viatris/host/runtime/load-source-runtime.js",
+      "path": "hosts/novartis/host/runtime/load-source-runtime.js",
       "mode": "100644",
       "type": "blob",
-      "bytes": 2005,
-      "sha256": "2cdeae017d12abfe8f47ec0a6dea76fe13aae077833d87313ed5a209ba4a46e3",
-      "sha": "cf733b135139b8ba50905a662ae11f96e180865b"
+      "bytes": 2018,
+      "sha256": "8daeb5229cc3aabec7efbd3ba05f6b9edfa20ca21ee61712ed3b406f83eb4948",
+      "sha": "dcba7548a7f0c0d107ea98f5517d33855704982b"
     },
     {
-      "path": "hosts/viatris/host/runtime/machine-json.py",
+      "path": "hosts/novartis/host/runtime/machine-json.py",
       "mode": "100644",
       "type": "blob",
       "bytes": 1119,
@@ -147,7 +147,7 @@
       "sha": "3dda394ae2fe15b8740c8db2f0adcf6a9e19e3cf"
     },
     {
-      "path": "hosts/viatris/host/runtime/preflight/preflight-launch.mjs",
+      "path": "hosts/novartis/host/runtime/preflight/preflight-launch.mjs",
       "mode": "100644",
       "type": "blob",
       "bytes": 11035,
@@ -155,7 +155,7 @@
       "sha": "b262b245572d09576f2d5151d5a22799897cb8d5"
     },
     {
-      "path": "hosts/viatris/host/runtime/preflight/runtime-check.mjs",
+      "path": "hosts/novartis/host/runtime/preflight/runtime-check.mjs",
       "mode": "100644",
       "type": "blob",
       "bytes": 3815,
@@ -163,7 +163,7 @@
       "sha": "275890f0f3584e99e0f0f57a4492fd95ad6c248d"
     },
     {
-      "path": "hosts/viatris/host/runtime/prepare-registered-control.mts",
+      "path": "hosts/novartis/host/runtime/prepare-registered-control.mts",
       "mode": "100644",
       "type": "blob",
       "bytes": 4179,
@@ -171,7 +171,7 @@
       "sha": "afc02a97bf321411724ea919545bc83dc5910c53"
     },
     {
-      "path": "hosts/viatris/host/runtime/review-packet-envelope.mts",
+      "path": "hosts/novartis/host/runtime/review-packet-envelope.mts",
       "mode": "100644",
       "type": "blob",
       "bytes": 5535,
@@ -179,15 +179,15 @@
       "sha": "a550d0fd80f032ae7ed2633e88b2cd2c748c6969"
     },
     {
-      "path": "hosts/viatris/host/runtime/review-publication.py",
+      "path": "hosts/novartis/host/runtime/review-publication.py",
       "mode": "100644",
       "type": "blob",
-      "bytes": 5387,
-      "sha256": "3a77fab8e695528b797aae2d10ff9064457f100d6a44f037757919eaa1b4558d",
-      "sha": "5436781e86f862679d6b2cadcc2cd21cfe248065"
+      "bytes": 5388,
+      "sha256": "8057d5877fea69261649440a689233ea0e3dbb2f2327f5ec1cd02e53fc15fb92",
+      "sha": "5c04d080f5881969709cbe21b7f165f50b66fa2a"
     },
     {
-      "path": "hosts/viatris/host/runtime/update-candidate-completion-state.mjs",
+      "path": "hosts/novartis/host/runtime/update-candidate-completion-state.mjs",
       "mode": "100644",
       "type": "blob",
       "bytes": 3654,
@@ -195,15 +195,15 @@
       "sha": "ec886e3dd2b52805daccddcdcd862b6afbaeec29"
     },
     {
-      "path": "hosts/viatris/host/source-config-reference.json",
+      "path": "hosts/novartis/host/source-config-reference.json",
       "mode": "100644",
       "type": "blob",
-      "bytes": 3618,
-      "sha256": "3873ea12b5a2f533314cb8422c283d7d894966440ae0dac514f421ab084737ed",
-      "sha": "eeb2a5bc550137f1f3ebdcaeccdc79db95545d2f"
+      "bytes": 3724,
+      "sha256": "81390101a34e3557eef76ecdbe1c35055d5694f5a72b39821dfc6ba42fe240aa",
+      "sha": "272c26878444699f9bb387dff7573e97e2cba18a"
     },
     {
-      "path": "hosts/viatris/supervision/inspect-launch-identity.mjs",
+      "path": "hosts/novartis/supervision/inspect-launch-identity.mjs",
       "mode": "100644",
       "type": "blob",
       "bytes": 871,
@@ -211,7 +211,7 @@
       "sha": "0fc3dd6c1dde3cc7759848f18c795792c38c800c"
     },
     {
-      "path": "hosts/viatris/supervision/sample_process_tree.py",
+      "path": "hosts/novartis/supervision/sample_process_tree.py",
       "mode": "100644",
       "type": "blob",
       "bytes": 13065,
@@ -219,15 +219,15 @@
       "sha": "5c2924dc067309525018e4903741dc33e796b546"
     },
     {
-      "path": "hosts/viatris/supervision/start-monitor-viatris51-combined.js",
+      "path": "hosts/novartis/supervision/start-monitor-novartis51-combined.js",
       "mode": "100644",
       "type": "blob",
-      "bytes": 14014,
-      "sha256": "b2146e1befc3fe1e8de21663dd77b458e79a93e6031e6781413168989f2e1a9d",
-      "sha": "147d8cace4503a207576b790845e78c7b4fb2bc7"
+      "bytes": 14034,
+      "sha256": "954e2e8c87bab2628992b5b337ff0ea9628d005fc542b30833f75dd3d631594c",
+      "sha": "a089ece58ac39699878f9365ef8b5adeeaa6da0d"
     },
     {
-      "path": "hosts/viatris/supervision/supervise-cancel.mjs",
+      "path": "hosts/novartis/supervision/supervise-cancel.mjs",
       "mode": "100644",
       "type": "blob",
       "bytes": 10232,
@@ -235,15 +235,15 @@
       "sha": "efe376ba3dbe501d5a2b1bece2c7ac46471aca7d"
     },
     {
-      "path": "hosts/viatris/verification/SAFE_SOURCE_ALLOWLIST.json",
+      "path": "hosts/novartis/verification/SAFE_SOURCE_ALLOWLIST.json",
       "mode": "100644",
       "type": "blob",
-      "bytes": 11050,
-      "sha256": "1e7655952d0429214d51832b2fd527614cf358d09b2443c1c0d02159af321c77",
-      "sha": "9f48d9cb4659d16948907caf959c3a5ff44f813c"
+      "bytes": 11051,
+      "sha256": "21a46980a9fe56af61c60edb59e0846b78e2cfe06377cc6cd45f29640cffdf3d",
+      "sha": "5ee40dac5b7b0bb96fc122803991da34ad5433d7"
     },
     {
-      "path": "hosts/viatris/verification/verify-machine-json.py",
+      "path": "hosts/novartis/verification/verify-machine-json.py",
       "mode": "100644",
       "type": "blob",
       "bytes": 1040,
@@ -251,31 +251,31 @@
       "sha": "20ed5095bcf4a5300931ccdfdfc87775e4f9202e"
     },
     {
-      "path": "hosts/viatris/verification/verify-runtime-host.mts",
+      "path": "hosts/novartis/verification/verify-runtime-host.mts",
       "mode": "100644",
       "type": "blob",
-      "bytes": 10959,
-      "sha256": "5e750a1072d329b6439e9ccb76796696cc568efca4433670994fe597741134e9",
-      "sha": "5b099ea5eff9735284fa83fa654cff257e7309bb"
+      "bytes": 10962,
+      "sha256": "6b15dcc1ddd1817db353ce4bb7eaa10ba80abd765acfcb7aa77866fb7721e51e",
+      "sha": "83a9cf33f734c1363ed0156fddb8cc8701273314"
     },
     {
-      "path": "hosts/viatris/verification/verify-source-host.mjs",
+      "path": "hosts/novartis/verification/verify-source-host.mjs",
       "mode": "100644",
       "type": "blob",
-      "bytes": 8345,
-      "sha256": "badceeffd4bd4e52da08d2935acea24cf8e661cec7c0b26b8b0552230f82feef",
-      "sha": "49e1b33dfb1ea0cc681a3ae17a73461ea0e59354"
+      "bytes": 8370,
+      "sha256": "369b736bf327d473fc34d7414b16291b5f66c4195bb47efdbb7b27fbe9ca43fb",
+      "sha": "1c5ccf493b8c80c03905214c327b8448923a8389"
     },
     {
-      "path": "hosts/cspc/RESTORE_DEPENDENCIES.json",
+      "path": "hosts/boehringer-ingelheim/RESTORE_DEPENDENCIES.json",
       "mode": "100644",
       "type": "blob",
-      "bytes": 1673,
-      "sha256": "cf7894fa867fda179485d476d0738d353d19af67929bea074e01b6ba060b81c3",
-      "sha": "6150a8f45d685e53c2122f7e6e1f500356147f92"
+      "bytes": 1695,
+      "sha256": "48559ae49603195778baee568db989f270807be0aaeca15191bb8b4a831476f2",
+      "sha": "6dfa474f92197aed9424c10409dc7e6baea40277"
     },
     {
-      "path": "hosts/cspc/host/archive-transfer.mjs",
+      "path": "hosts/boehringer-ingelheim/host/archive-transfer.mjs",
       "mode": "100644",
       "type": "blob",
       "bytes": 1777,
@@ -283,15 +283,15 @@
       "sha": "5a454d21f34f9680221bbee2c98b3fecb94884f0"
     },
     {
-      "path": "hosts/cspc/host/host-config.template.json",
+      "path": "hosts/boehringer-ingelheim/host/host-config.template.json",
       "mode": "100644",
       "type": "blob",
-      "bytes": 501,
-      "sha256": "9f46b8e00776626bf2f81a8c69bea3247e5d9f96da15fcf50e6a3f74b18eca8f",
-      "sha": "8ba640d3401345ea683572e05ed4cbe97ef11eea"
+      "bytes": 539,
+      "sha256": "e338a30e5a8f6681bfff84d231f2a998766125117edcbc0a37c9569a007709e7",
+      "sha": "b7d3011e19ecfb33cd7bfee26c155594cd04d8b3"
     },
     {
-      "path": "hosts/cspc/host/host-files.mts",
+      "path": "hosts/boehringer-ingelheim/host/host-files.mts",
       "mode": "100644",
       "type": "blob",
       "bytes": 4077,
@@ -299,23 +299,23 @@
       "sha": "8c8f201640071565320343e74c6919d1e83fd9b5"
     },
     {
-      "path": "hosts/cspc/host/host-helper-functions.js",
+      "path": "hosts/boehringer-ingelheim/host/host-helper-functions.js",
       "mode": "100644",
       "type": "blob",
-      "bytes": 9738,
-      "sha256": "ea8719f192148bebcdc0294a94886893b47e603e9e1fe7b93098558ae50f5f58",
-      "sha": "7b4d0f2cc86a28f9d74cb4d52f770a0a404d567a"
+      "bytes": 9888,
+      "sha256": "da9ee4c4906150b7757119ea82c07c3ba0cb35f27cf0fa8802235dbfdbf05a91",
+      "sha": "a670a6f7d6240c5947708fcee68e7de7a7adac22"
     },
     {
-      "path": "hosts/cspc/host/host-stage-functions.js",
+      "path": "hosts/boehringer-ingelheim/host/host-stage-functions.js",
       "mode": "100644",
       "type": "blob",
-      "bytes": 6289,
-      "sha256": "310caf958ad4ec6fbdb008b9f51aaaf1a4620095470a4136bba0f0ce814ebc65",
-      "sha": "d1b160ea8f3995e914cf38035c6599e1d857e766"
+      "bytes": 6477,
+      "sha256": "e3e26bfcac6f868b2abb284abb79f2e2c041f48edb0dad5c2623056e2ebced9f",
+      "sha": "f96a533e21b35ea60c073c4833b81308606df6d7"
     },
     {
-      "path": "hosts/cspc/host/machine-json.js",
+      "path": "hosts/boehringer-ingelheim/host/machine-json.js",
       "mode": "100644",
       "type": "blob",
       "bytes": 807,
@@ -323,31 +323,31 @@
       "sha": "7b927e85ca286ffa900ca93462deee5b9988ed49"
     },
     {
-      "path": "hosts/cspc/host/relay-files.mjs",
+      "path": "hosts/boehringer-ingelheim/host/relay-files.mjs",
       "mode": "100644",
       "type": "blob",
-      "bytes": 7906,
-      "sha256": "87c1b40b65398380913105ad2c2babf0917db439f15e3746f2db336635f6ab6c",
-      "sha": "d0a855bcd0349c2034619a330240c35fe997e918"
+      "bytes": 7922,
+      "sha256": "6781575a5a486b06dc8a3cde762b41e54775126382ed425e875268c400129ef4",
+      "sha": "60077d74f6c78a2519ae9fcc0ce3177e5a15f44d"
     },
     {
-      "path": "hosts/cspc/host/runtime/complete-reviewed-source-readback.js",
+      "path": "hosts/boehringer-ingelheim/host/runtime/complete-reviewed-source-readback.js",
       "mode": "100644",
       "type": "blob",
-      "bytes": 5693,
-      "sha256": "90e39260f40425562b0761fb0836b9e34176b36113ea0e374e89684cf5bac48a",
-      "sha": "728cfc5e9d820ba8335a9cd25c9a34439d5c8103"
+      "bytes": 5709,
+      "sha256": "5682e586705a195b49b1e78cb88ed855a05854bbc335535cb05e09367806e916",
+      "sha": "ace71b80f860dd720ae5ab74b7de5e276dc08e93"
     },
     {
-      "path": "hosts/cspc/host/runtime/continuous-relay-v3-durable-monitor.js",
+      "path": "hosts/boehringer-ingelheim/host/runtime/continuous-relay-v3-durable-monitor.js",
       "mode": "100644",
       "type": "blob",
-      "bytes": 5148,
-      "sha256": "6cc47739bedf0cd16f4714e48cb3dc06606d43b709d03d411c59573decc0304d",
-      "sha": "fc008df282f388908b85431fe3871644d1fbc8ec"
+      "bytes": 5340,
+      "sha256": "9b67d5f24c072978892740889cb4dce2962fcd59ccaaa132ee6e1d06906f2051",
+      "sha": "f03997da48c985b50f3832f9e574ccf26ada43c5"
     },
     {
-      "path": "hosts/cspc/host/runtime/inspect-host-binding.mts",
+      "path": "hosts/boehringer-ingelheim/host/runtime/inspect-host-binding.mts",
       "mode": "100644",
       "type": "blob",
       "bytes": 2568,
@@ -355,23 +355,23 @@
       "sha": "16c2e92f6d2cbcbc23731e31c5a8a1a4d7660944"
     },
     {
-      "path": "hosts/cspc/host/runtime/load-host-state.js",
+      "path": "hosts/boehringer-ingelheim/host/runtime/load-host-state.js",
       "mode": "100644",
       "type": "blob",
-      "bytes": 5054,
-      "sha256": "e479c4eab9f482ae27f10460a65ec9bbfd2ded01c3b54f2486cd12cebbd205a4",
-      "sha": "33cb34851f8850c302eae535e35cfaac9b84cab8"
+      "bytes": 5172,
+      "sha256": "362bcba485347e3700e42a884dee833b44d73603f7ecc1627cd66ab4f79e2f3d",
+      "sha": "428517a601e3f36ce2334fa71fc0eef1c1ef64ae"
     },
     {
-      "path": "hosts/cspc/host/runtime/load-source-runtime.js",
+      "path": "hosts/boehringer-ingelheim/host/runtime/load-source-runtime.js",
       "mode": "100644",
       "type": "blob",
-      "bytes": 1966,
-      "sha256": "afda9ba72040acb253069c5b3ed4bf9ca62ee1722c5063d163f231ece55a06a9",
-      "sha": "8f8d5f7fc588c1acc31c8d4393135c117f8227ca"
+      "bytes": 2180,
+      "sha256": "6e8adf05fef19ecf0f08902714f7a846e780810a29ebde6ba70d87f9e96d15c6",
+      "sha": "2bfa5fc8832eab467683e5b0c7ba410271a10744"
     },
     {
-      "path": "hosts/cspc/host/runtime/machine-json.py",
+      "path": "hosts/boehringer-ingelheim/host/runtime/machine-json.py",
       "mode": "100644",
       "type": "blob",
       "bytes": 1119,
@@ -379,7 +379,7 @@
       "sha": "3dda394ae2fe15b8740c8db2f0adcf6a9e19e3cf"
     },
     {
-      "path": "hosts/cspc/host/runtime/preflight/preflight-launch.mjs",
+      "path": "hosts/boehringer-ingelheim/host/runtime/preflight/preflight-launch.mjs",
       "mode": "100644",
       "type": "blob",
       "bytes": 11035,
@@ -387,7 +387,7 @@
       "sha": "b262b245572d09576f2d5151d5a22799897cb8d5"
     },
     {
-      "path": "hosts/cspc/host/runtime/preflight/runtime-check.mjs",
+      "path": "hosts/boehringer-ingelheim/host/runtime/preflight/runtime-check.mjs",
       "mode": "100644",
       "type": "blob",
       "bytes": 3815,
@@ -395,7 +395,7 @@
       "sha": "275890f0f3584e99e0f0f57a4492fd95ad6c248d"
     },
     {
-      "path": "hosts/cspc/host/runtime/prepare-registered-control.mts",
+      "path": "hosts/boehringer-ingelheim/host/runtime/prepare-registered-control.mts",
       "mode": "100644",
       "type": "blob",
       "bytes": 4179,
@@ -403,7 +403,7 @@
       "sha": "afc02a97bf321411724ea919545bc83dc5910c53"
     },
     {
-      "path": "hosts/cspc/host/runtime/review-packet-envelope.mts",
+      "path": "hosts/boehringer-ingelheim/host/runtime/review-packet-envelope.mts",
       "mode": "100644",
       "type": "blob",
       "bytes": 5535,
@@ -411,15 +411,15 @@
       "sha": "a550d0fd80f032ae7ed2633e88b2cd2c748c6969"
     },
     {
-      "path": "hosts/cspc/host/runtime/review-publication.py",
+      "path": "hosts/boehringer-ingelheim/host/runtime/review-publication.py",
       "mode": "100644",
       "type": "blob",
-      "bytes": 5384,
-      "sha256": "4ec3fa236f758b3b10625be94935fb16e84eab59f68b7b17d7b535a33792fa70",
-      "sha": "d3cd1d55245b9922f79d6e48fd724bc97818d1ca"
+      "bytes": 5406,
+      "sha256": "a19030ab63827e306c05e175f9951d366a0ab34fa479de27e75128fe1209ac3b",
+      "sha": "85daf627e498af97e56c0b59764a4906c31f45e3"
     },
     {
-      "path": "hosts/cspc/host/runtime/update-candidate-completion-state.mjs",
+      "path": "hosts/boehringer-ingelheim/host/runtime/update-candidate-completion-state.mjs",
       "mode": "100644",
       "type": "blob",
       "bytes": 3654,
@@ -427,15 +427,15 @@
       "sha": "ec886e3dd2b52805daccddcdcd862b6afbaeec29"
     },
     {
-      "path": "hosts/cspc/host/source-config-reference.json",
+      "path": "hosts/boehringer-ingelheim/host/source-config-reference.json",
       "mode": "100644",
       "type": "blob",
-      "bytes": 3418,
-      "sha256": "ba6f65ebf8e445c0939a8a31a49b3aad73f92a19081bffe9c0e9c5474f81c8af",
-      "sha": "56f01215859c8981ddf952b99300d4087007785d"
+      "bytes": 3102,
+      "sha256": "8b43c0448d419bdfd46d308d1fea77b71d8a6b5d90296b7e350c082afdb6c17a",
+      "sha": "073c572938fbe0e35f1d7b7dac335addcbf0b017"
     },
     {
-      "path": "hosts/cspc/supervision/inspect-launch-identity.mjs",
+      "path": "hosts/boehringer-ingelheim/supervision/inspect-launch-identity.mjs",
       "mode": "100644",
       "type": "blob",
       "bytes": 871,
@@ -443,7 +443,7 @@
       "sha": "0fc3dd6c1dde3cc7759848f18c795792c38c800c"
     },
     {
-      "path": "hosts/cspc/supervision/sample_process_tree.py",
+      "path": "hosts/boehringer-ingelheim/supervision/sample_process_tree.py",
       "mode": "100644",
       "type": "blob",
       "bytes": 13065,
@@ -451,15 +451,15 @@
       "sha": "5c2924dc067309525018e4903741dc33e796b546"
     },
     {
-      "path": "hosts/cspc/supervision/start-monitor-cspc51-combined.js",
+      "path": "hosts/boehringer-ingelheim/supervision/start-monitor-boehringer-ingelheim51-combined.js",
       "mode": "100644",
       "type": "blob",
-      "bytes": 13954,
-      "sha256": "c2ca761476a42b05a60bf38b4839feb06d8a55c8b1250a74d8f492cad9358ba7",
-      "sha": "a7fe9eb6ee356dbb5fe48a85b39ba2e38a31e8f4"
+      "bytes": 14280,
+      "sha256": "25759078c74ad0439d758b7a3096e22f6d3f1f6a38fb57f1efe26fe89f682647",
+      "sha": "8bc209b577aafd12ced9f38652f7eed2f02b4bb3"
     },
     {
-      "path": "hosts/cspc/supervision/supervise-cancel.mjs",
+      "path": "hosts/boehringer-ingelheim/supervision/supervise-cancel.mjs",
       "mode": "100644",
       "type": "blob",
       "bytes": 10232,
@@ -467,15 +467,15 @@
       "sha": "efe376ba3dbe501d5a2b1bece2c7ac46471aca7d"
     },
     {
-      "path": "hosts/cspc/verification/SAFE_SOURCE_ALLOWLIST.json",
+      "path": "hosts/boehringer-ingelheim/verification/SAFE_SOURCE_ALLOWLIST.json",
       "mode": "100644",
       "type": "blob",
-      "bytes": 11047,
-      "sha256": "4d212e47d9e1d3d672332211d392300f755fd2738c59a5bf6c73913fe23b276c",
-      "sha": "5cec836d69b1a2a54408a560b0cccee4f4fac0d6"
+      "bytes": 11063,
+      "sha256": "fe51221601fc9739bb63e6e736cff00b7c8a7112313bc4b7984d41d27b6d0369",
+      "sha": "96a28cc1e5e5e449bf7bde72049f9f67cea654d2"
     },
     {
-      "path": "hosts/cspc/verification/verify-machine-json.py",
+      "path": "hosts/boehringer-ingelheim/verification/verify-machine-json.py",
       "mode": "100644",
       "type": "blob",
       "bytes": 1040,
@@ -483,35 +483,35 @@
       "sha": "20ed5095bcf4a5300931ccdfdfc87775e4f9202e"
     },
     {
-      "path": "hosts/cspc/verification/verify-runtime-host.mts",
+      "path": "hosts/boehringer-ingelheim/verification/verify-runtime-host.mts",
       "mode": "100644",
       "type": "blob",
-      "bytes": 10950,
-      "sha256": "17578f021123e38511fdccf2cdbcca598bb51395b75d67e0549ecb99d11f432f",
-      "sha": "45b1e63120dedac1dbca40f0e30ed535c6858f4b"
+      "bytes": 10998,
+      "sha256": "5482a929303566ddce95acb3670ee371e46285162a8c6b64007076aef7841100",
+      "sha": "edaca6aa7ff95822ccc481d4983f81d181bd82bf"
     },
     {
-      "path": "hosts/cspc/verification/verify-source-host.mjs",
+      "path": "hosts/boehringer-ingelheim/verification/verify-source-host.mjs",
       "mode": "100644",
       "type": "blob",
-      "bytes": 8345,
-      "sha256": "badceeffd4bd4e52da08d2935acea24cf8e661cec7c0b26b8b0552230f82feef",
-      "sha": "49e1b33dfb1ea0cc681a3ae17a73461ea0e59354"
+      "bytes": 8370,
+      "sha256": "369b736bf327d473fc34d7414b16291b5f66c4195bb47efdbb7b27fbe9ca43fb",
+      "sha": "1c5ccf493b8c80c03905214c327b8448923a8389"
     }
   ],
   "omittedDocuments": [
     {
-      "path": "hosts/viatris/SAFE_SOURCE_README.md",
-      "sha256": "d6b2740ee341c589a7a91f277efb411b0024b16c296a5ab69c95db78d72c3e74",
-      "bytes": 4647,
+      "path": "hosts/novartis/SAFE_SOURCE_README.md",
+      "sha256": "84acc01abf1042f64aa64d38704bd652348f721376f3025a60dde493fef3c16b",
+      "bytes": 4736,
       "reason": "Operational preparation narrative omitted; minimum dependencies are stated in root README."
     },
     {
-      "path": "hosts/cspc/SAFE_SOURCE_README.md",
-      "sha256": "40200e4acdf5df5cb23654be1c575342ac42548ec8505b491f9b90df3af4079d",
-      "bytes": 4626,
+      "path": "hosts/boehringer-ingelheim/SAFE_SOURCE_README.md",
+      "sha256": "c6da90a7ba22317acaf83fdcb886d3edb0a813602b259f998e7fb61e35ca2f55",
+      "bytes": 4826,
       "reason": "Operational preparation narrative omitted; minimum dependencies are stated in root README."
     }
   ],
-  "review": "Static hash and source comparison only; no source/test execution."
+  "review": "Fixed hashes, normalized source diff, static configuration and dependency pins checked without code/test execution. Separate earlier continuous-owner source is not compatible without its own revision."
 }

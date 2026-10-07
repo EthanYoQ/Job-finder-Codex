@@ -1,0 +1,8 @@
+{
+  "root": "/workspace/scratch/5e9614251709/jb-incremental-proxy-runtime-20261007T0057Z/hosts/boehringer-ingelheim/host",
+  "repo": "/workspace/scratch/5e9614251709/jb-incremental-proxy-runtime-20261007T0057Z/producer",
+  "node": "/workspace/scratch/5e9614251709/jb-incremental-proxy-runtime-20261007T0057Z/runtime/node-v22.23.3-linux-x64/bin/node",
+  "project": "yiopvxysxrtrnvqxwgbx",
+  "sourceId": "source-boehringer-ingelheim-china-social",
+  "sourceConfigSha256": "86abb89ac25980acc5e9e3c82741a3415138f53f321f1050c4ae849efd4132de"
+}
