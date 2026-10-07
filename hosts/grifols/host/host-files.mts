@@ -13,7 +13,7 @@ if(op==='read'){
  if(!Number.isInteger(offset)||offset<0)throw Error('HOST_OFFSET');
  console.log(JSON.stringify({sha256:sha(bytes),byteCount:bytes.length,charCount:text.length,offset,text:text.slice(offset,offset+100000),next:offset+100000<text.length?offset+100000:null}));
 }else if(op==='pending'){
- const { compileCloudPilotCreatePendingSql }=await import('/workspace/scratch/5e9614251709/jb-incremental-producer-runtime-20261007T0036Z/producer/src/db/cloudPilotSqlControl.ts');
+ const { compileCloudPilotCreatePendingSql }=await import('/workspace/scratch/5e9614251709/jb-incremental-proxy-runtime-20261007T0057Z/producer/src/db/cloudPilotSqlControl.ts');
  const path=scoped(pathArg),r=JSON.parse(await readFile(path,'utf8'));
  const {requestSha256,...body}=r;
  if(r.kind!=='CREATE_PENDING'||sha(JSON.stringify(body))!==requestSha256||Date.now()>=Date.parse(r.expiresAt))throw Error('HOST_PENDING_REQUEST');

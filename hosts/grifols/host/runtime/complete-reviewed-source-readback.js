@@ -1,4 +1,4 @@
-const ns="incrementalDfd22f64:grifols:";
+const ns="proxyNode22:grifols:";
 const A=Object.getPrototypeOf(async function(){}).constructor;
 const h=await new A(load(ns+"cloudPilotHostHelpers"))();
 const run=load(ns+"refreshCurrentRun"),batch=load(ns+"refreshCurrentBatch"),binding=load(ns+"registeredCandidateBinding");
@@ -24,7 +24,7 @@ const summary={recordedAt:new Date().toISOString(),state:"COMMITTED_EXACT",candi
 await h.save(run+"/FINALIZED_BATCH_AND_RELEASE.json",rows);
 await h.save(run+"/POST_COMMIT_OBSERVATION.json",{checkedAt:r.checkedAt,observation:o});
 await h.save(run+"/completion-summary.json",summary);
-const statePath="/workspace/scratch/5e9614251709/jb-incremental-producer-runtime-20261007T0036Z/PUBLISHER-ACTIVE-STATE.json";
+const statePath="/workspace/scratch/5e9614251709/jb-incremental-proxy-runtime-20261007T0057Z/PUBLISHER-ACTIVE-STATE.json";
 const data={summary,run,binding,terminal,sourceCount,jobCount};
-await h.cmd("node "+h.q(h.cfg.root+"/runtime/update-candidate-completion-state.mjs")+" "+h.q(statePath)+" "+h.q(JSON.stringify(data)),1200);
+await h.cmd("/workspace/scratch/5e9614251709/jb-incremental-proxy-runtime-20261007T0057Z/runtime/node-v22.23.3-linux-x64/bin/node "+h.q(h.cfg.root+"/runtime/update-candidate-completion-state.mjs")+" "+h.q(statePath)+" "+h.q(JSON.stringify(data)),1200);
 text({...summary,successfulSourceCount:sourceCount,successfulCurrentJobCount:jobCount});

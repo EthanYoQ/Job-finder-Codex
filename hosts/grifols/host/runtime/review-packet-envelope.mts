@@ -1,6 +1,7 @@
 // Local, non-executing parser for the frozen compiler's exact JSON declarations.
 import { readFileSync } from 'node:fs';
 import { createHash } from 'node:crypto';
+import { verifyNodeRuntimeProfile } from '../../../../producer/scripts/verify-node-runtime-profile.ts';
 import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { compileAtomicJsonDeclarations } from '../../../..//producer/src/db/atomicJsonDeclarations.ts';
@@ -45,6 +46,7 @@ export function inspectRequest(request:any){
   return {...packet,requestId:request.requestId,requestSha256,validated:true};
 }
 if(process.argv[1]&&resolve(process.argv[1])===fileURLToPath(import.meta.url)){
+  await verifyNodeRuntimeProfile();
   const [requestPath,mode,...extra]=process.argv.slice(2);if(!requestPath||extra.length||mode&&mode!=='summary')throw Error('HOST_PACKET_REVIEW_ARGUMENTS');
   const out=inspectRequest(JSON.parse(readFileSync(requestPath,'utf8')));
   if(mode==='summary'){const {terminal,context,legacyCertificate,delta,...summary}=out;console.log(JSON.stringify(summary));}else console.log(JSON.stringify(out));

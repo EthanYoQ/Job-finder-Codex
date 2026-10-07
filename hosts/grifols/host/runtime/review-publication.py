@@ -2,6 +2,9 @@
 """Local read-only packet review for the four restored portable hosts; never executes SQL."""
 import datetime,hashlib,json,re,sys,subprocess
 from pathlib import Path
+from importlib.util import spec_from_file_location,module_from_spec
+_parser_spec=spec_from_file_location("host_machine_json",Path(__file__).resolve().parent/"machine-json.py")
+_parser=module_from_spec(_parser_spec);_parser_spec.loader.exec_module(_parser)
 host=Path(sys.argv[1]);run=Path(sys.argv[2]);request_id=sys.argv[3]
 assert run.parent==host and re.fullmatch(r'[a-f0-9-]{36}',request_id)
 cfg=json.loads((host/'host-config.json').read_text())
@@ -12,7 +15,14 @@ assert cfg['sourceId']=="source-grifols-china-social" and cfg['sourceConfigSha25
 request=json.loads((run/'relay'/f'{request_id}.request.json').read_text())
 assert request['kind']=='PUBLISH' and request['requestId']==request_id and request['payload']['projectId']==cfg['project']=='yiopvxysxrtrnvqxwgbx'
 sql=(run/'relay'/f'{request_id}.request.json.sql').read_text();assert sql==request['payload']['sql']
-packet=json.loads(subprocess.check_output([cfg['node'],'--import',cfg['repo']+'/node_modules/tsx/dist/loader.mjs',str(Path(__file__).resolve().parent/'review-packet-envelope.mts'),str(run/'relay'/f'{request_id}.request.json')],text=True))
+packet_process=subprocess.run([cfg['node'],'--import',cfg['repo']+'/node_modules/tsx/dist/loader.mjs',str(Path(__file__).resolve().parent/'review-packet-envelope.mts'),str(run/'relay'/f'{request_id}.request.json')],text=True,capture_output=True)
+def record_machine_output(value):
+ with (run/'packet-machine-diagnostics.jsonl').open('a') as diagnostic:
+  diagnostic.write(json.dumps({'requestId':request_id,'requestSha256':request['requestSha256'],'returncode':packet_process.returncode,**value})+'\n')
+if packet_process.returncode!=0:
+ record_machine_output({'stdout':packet_process.stdout,'stderr':packet_process.stderr,'recognizedWarningLines':[]})
+ raise RuntimeError('HOST_PACKET_MACHINE_FAILED')
+packet=_parser.parse_machine_json(packet_process.stdout,packet_process.stderr,record_machine_output)
 row=packet['terminal']
 assert packet['requestSha256']==request['requestSha256'] and packet['sqlSha256']==hashlib.sha256(sql.encode()).hexdigest()
 now=datetime.datetime.now(datetime.timezone.utc).timestamp()

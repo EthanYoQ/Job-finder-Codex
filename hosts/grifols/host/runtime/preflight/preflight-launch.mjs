@@ -66,6 +66,9 @@ export async function preflight(args) {
   const cfg = JSON.parse(configFile.bytes), control = JSON.parse(controlFile.bytes), bootstrap = JSON.parse(bootstrapFile.bytes);
   if (!cfg.repo || !cfg.root || !cfg.sourceId || !/^[a-f0-9]{64}$/.test(cfg.sourceConfigSha256) || cfg.project !== control.projectId) fail('PREFLIGHT_HOST_CONFIG');
   const repo = await noLinks(cfg.repo), host = await noLinks(cfg.root), root = await noLinks(outputPath);
+  if (process.execPath !== cfg.node || await realpath(process.execPath) !== cfg.node) fail('PREFLIGHT_NODE_BINARY_BINDING');
+  const nodeProof = await execute(process.execPath, ['--import', join(repo, 'node_modules/tsx/dist/loader.mjs'), join(repo, 'scripts/verify-node-runtime-profile.ts')], { cwd: repo, env: { ...process.env }, timeout: 15000, maxBuffer: 10000 });
+  const nodeRuntime = JSON.parse(nodeProof.stdout);
   if (await realpath(repo) !== repo || await realpath(host) !== host || dirname(configFile.path) !== host) fail('PREFLIGHT_HOST_PATH_BINDING');
   if (root === repo || root.startsWith(repo + '/') || root === host) fail('PREFLIGHT_OUTPUT_INSIDE_FROZEN_REPOSITORY');
   const optionalInputs = validateBootstrapShape(bootstrap);
@@ -99,7 +102,7 @@ export async function preflight(args) {
   for (const file of files) if (sha(await readFile(file.path)) !== sha(file.bytes)) fail('PREFLIGHT_INPUT_CHANGED');
   const ageMs = Date.now() - Date.parse(bootstrap.checkedAt), bootstrapFresh = Number.isFinite(ageMs) && ageMs >= 0 && ageMs <= 60000;
   const command = [process.execPath, 'scripts/run-with-http-diagnostics.mjs', diagnostics, '1800000', '--', process.execPath, '--max-old-space-size=256', '--import', './node_modules/tsx/dist/loader.mjs', 'scripts/p0-cloud-portable-source-pilot.ts', bootstrapFile.path, reviewedSha256, artifacts, relay];
-  const report = { schemaVersion: 1, purpose: 'NON_QUALIFYING_LOCAL_STARTUP_DIAGNOSTIC', checkedAt: new Date().toISOString(), mode, localChecksPassed: true, bootstrapFresh, bootstrapAgeMs: ageMs, launchPermitted: bootstrapFresh, sourceId: cfg.sourceId, sourceConfigSha256: cfg.sourceConfigSha256, candidateId: row.id, cwd: repo, outputRoot: root, diagnosticsMustBeCreatedByOriginalWrapper: diagnostics, inputs: files.map(file => ({ path: file.path, sha256: sha(file.bytes) })), runtime, command, noNetworkDuringPreflight: true, noDatabaseDuringPreflight: true };
+  const report = { schemaVersion: 1, purpose: 'NON_QUALIFYING_LOCAL_STARTUP_DIAGNOSTIC', checkedAt: new Date().toISOString(), mode, localChecksPassed: true, bootstrapFresh, bootstrapAgeMs: ageMs, launchPermitted: bootstrapFresh, sourceId: cfg.sourceId, sourceConfigSha256: cfg.sourceConfigSha256, candidateId: row.id, cwd: repo, outputRoot: root, diagnosticsMustBeCreatedByOriginalWrapper: diagnostics, inputs: files.map(file => ({ path: file.path, sha256: sha(file.bytes) })), runtime, nodeRuntime, machineDiagnostics: { profile: { stdout: nodeProof.stdout, stderr: nodeProof.stderr }, runtime: { stdout: helper.stdout, stderr: helper.stderr } }, command, noNetworkDuringPreflight: true, noDatabaseDuringPreflight: true };
   const reportPath = join(checks, `preflight-${randomUUID()}.json`);
   await writeFile(reportPath, JSON.stringify(report, null, 2) + '\n', { flag: 'wx', mode: 0o600 });
   if (mode === 'launch' && !bootstrapFresh) fail(`PREFLIGHT_BOOTSTRAP_STALE:${reportPath}`);

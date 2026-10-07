@@ -8,6 +8,9 @@ const cfg = JSON.parse(await readFile(configPath)), control = JSON.parse(await r
 if (await realpath(process.cwd()) !== cfg.repo) throw Error('PREFLIGHT_RUNTIME_CWD');
 globalThis.fetch = async () => { throw Error('PREFLIGHT_NETWORK_FORBIDDEN'); };
 const fromRepo = path => import(pathToFileURL(join(cfg.repo, path)).href);
+const { verifyNodeRuntimeProfile } = await fromRepo('scripts/verify-node-runtime-profile.ts');
+const nodeRuntime = await verifyNodeRuntimeProfile();
+if (process.execPath !== cfg.node || await realpath(process.execPath) !== cfg.node) throw Error('PREFLIGHT_NODE_BINARY_BINDING');
 const { createBuildIdentity } = await fromRepo('src/readiness/buildIdentity.ts');
 const { deriveCurrentStagedScheduleExpectation } = await fromRepo('src/crawler/stagedScheduleAuthority.ts');
 const { sourcePlanConfigSha256 } = await fromRepo('src/crawler/sourcePlan.ts');
@@ -26,4 +29,4 @@ const request = { workspaceRoot: smokeRoot, releaseCandidateId: id, batchId: id,
 const archive = await archiveSourceEvidence(request);
 const verified = await verifyArchivedSourceEvidence({ ...request, artifacts: archive.artifacts });
 if (verified.length !== 1) throw Error('PREFLIGHT_ARCHIVE_SMOKE');
-console.log(JSON.stringify({ build, sourceConfigSha256: sourcePlanConfigSha256(plan), archiveSmoke: { passed: true, qualification: false, network: false, database: false, workspaceRoot: smokeRoot, path: verified[0].path, sha256: verified[0].sha256, byteCount: verified[0].byteCount } }));
+console.log(JSON.stringify({ build, nodeRuntime, sourceConfigSha256: sourcePlanConfigSha256(plan), archiveSmoke: { passed: true, qualification: false, network: false, database: false, workspaceRoot: smokeRoot, path: verified[0].path, sha256: verified[0].sha256, byteCount: verified[0].byteCount } }));

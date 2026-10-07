@@ -1,10 +1,12 @@
 // Local preparation only. Does not write activation or execute any SQL.
 import { readFileSync, writeFileSync, mkdirSync, realpathSync } from 'node:fs';
 import { createHash } from 'node:crypto';
+import { execFileSync } from 'node:child_process';
 import { resolve, dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { compileCloudPilotPublicationContextSql, CLOUD_PILOT_SOURCE } from '../../../..//producer/src/db/cloudPilotSqlControl.ts';
 import { deriveCurrentStagedScheduleExpectation } from '../../../..//producer/src/crawler/stagedScheduleAuthority.ts';
+import { verifyNodeRuntimeProfile } from '../../../../producer/scripts/verify-node-runtime-profile.ts';
 import { createBuildIdentity } from '../../../..//producer/src/readiness/buildIdentity.ts';
 const host=resolve(dirname(fileURLToPath(import.meta.url)),'..');
 const cfg=JSON.parse(readFileSync(join(host,'host-config.json'),'utf8'));
@@ -12,8 +14,10 @@ const template=JSON.parse(readFileSync(join(host,'control-base.json'),'utf8'));
 const [readbackPath,outputPath,...extra]=process.argv.slice(2);
 if(!readbackPath||!outputPath||extra.length)throw Error('Usage: prepare-registered-control.mts <fresh-registration-readback.json> <new-preparation-directory>');
 if(process.execPath!==cfg.node||realpathSync(process.execPath)!==cfg.node)throw Error('HOST_NODE22_BINDING');
+const nodeRuntime=await verifyNodeRuntimeProfile();
 const readback=JSON.parse(readFileSync(readbackPath,'utf8')),row=readback.candidateRow??readback.row;
-if(!row||typeof row.id!=='string'||!Number.isSafeInteger(row.version)||row.version<=49||row.goalId!=='jobfinder-portable-required-40')throw Error('REGISTERED_CANDIDATE_READBACK_REQUIRED');
+if(!row||typeof row.id!=='string'||!Number.isSafeInteger(row.version)||row.version<=50||row.goalId!=='jobfinder-portable-required-40')throw Error('REGISTERED_CANDIDATE_READBACK_REQUIRED');
+if(execFileSync('git',['rev-parse','HEAD'],{cwd:cfg.repo,encoding:'utf8'}).trim()!==template.build?.commitSha||execFileSync('git',['status','--porcelain'],{cwd:cfg.repo,encoding:'utf8',env:{...process.env,GIT_OPTIONAL_LOCKS:'0'}}).trim())throw Error('HOST_FROZEN_PRODUCER_REQUIRED');
 const actual=createBuildIdentity(cfg.repo,template.build.commitSha);
 if(JSON.stringify(actual)!==JSON.stringify(template.build))throw Error('HOST_BUILD_IDENTITY_MISMATCH');
 const e=deriveCurrentStagedScheduleExpectation(template.build);
@@ -25,5 +29,5 @@ const context=compileCloudPilotPublicationContextSql(control,'PLAN_BOUND_SOURCE_
 if(!context.includes('j."visibleInFrontend",j."isNew"')||!context.includes("'legacyCertificate'")||!context.includes('AS observations'))throw Error('HOST_INCREMENTAL_CONTEXT_REQUIRED');
 const output=resolve(outputPath);if(output===host||output.startsWith(cfg.repo+'/')||output===cfg.repo)throw Error('PREPARATION_OUTPUT_SCOPE');
 mkdirSync(output,{recursive:false,mode:0o700});
-for(const [name,value] of [['control-base.json',JSON.stringify(control,null,2)+'\n'],['context-read.sql',context],['activation.prepared.json',JSON.stringify({status:'PREPARED_NOT_ACTIVATED',candidate:control.candidate,build:control.build,databaseIdentity:control.databaseIdentity},null,2)+'\n']] as const)writeFileSync(join(output,name),value,{flag:'wx',mode:0o600});
-console.log(JSON.stringify({status:'PREPARED_NOT_ACTIVATED',output,candidate:control.candidate,contextSha256:createHash('sha256').update(context).digest('hex')}));
+for(const [name,value] of [['control-base.json',JSON.stringify(control,null,2)+'\n'],['context-read.sql',context],['activation.prepared.json',JSON.stringify({status:'PREPARED_NOT_ACTIVATED',contextReadSha256:createHash('sha256').update(context).digest('hex'),registrationReadbackPath:resolve(readbackPath),registrationReadbackSha256:createHash('sha256').update(readFileSync(readbackPath)).digest('hex'),candidate:control.candidate,build:control.build,databaseIdentity:control.databaseIdentity},null,2)+'\n']] as const)writeFileSync(join(output,name),value,{flag:'wx',mode:0o600});
+console.log(JSON.stringify({status:'PREPARED_NOT_ACTIVATED',output,nodeRuntime,candidate:control.candidate,contextSha256:createHash('sha256').update(context).digest('hex')}));

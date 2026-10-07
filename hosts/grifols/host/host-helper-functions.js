@@ -1,26 +1,28 @@
 
-const cfg=load("incrementalDfd22f64:grifols:cloudPilotHostConfig");
+const cfg=load("proxyNode22:grifols:cloudPilotHostConfig");
+const parseMachineJson=new Function('output','record',load('proxyNode22:grifols:cloudPilotMachineJson'));
+const machineJson=output=>parseMachineJson(output,diagnostic=>store('proxyNode22:grifols:lastMachineJsonDiagnostic',diagnostic));
 const q=s=>"'"+String(s).replaceAll("'","'\\''")+"'";
 async function cmd(command,max=10000,deadline=Date.now()+90000){
  const startedAt=Date.now();if(!Number.isFinite(deadline)||deadline<=startedAt)throw Error("HOST_LOCAL_COMMAND_BUDGET_EXHAUSTED");
- let r=await tools.exec_command({cmd:"env PATH=/workspace/scratch/5e9614251709/jb-incremental-producer-runtime-20261007T0036Z/runtime/node-v22.19.0-linux-x64/bin:/usr/local/bin:/usr/bin:/bin JOBFINDER_CLOUD_SOURCE_ID=source-grifols-china-social TSX_DISABLE_CACHE=1 NODE_DISABLE_COMPILE_CACHE=1 "+command,workdir:cfg.repo,max_output_tokens:max,yield_time_ms:Math.min(10000,Math.max(1,deadline-startedAt))});
+ let r=await tools.exec_command({cmd:"env PATH=/workspace/scratch/5e9614251709/jb-incremental-proxy-runtime-20261007T0057Z/runtime/node-v22.23.3-linux-x64/bin:\"$PATH\" JOBFINDER_CLOUD_SOURCE_ID=source-grifols-china-social TSX_DISABLE_CACHE=1 NODE_DISABLE_COMPILE_CACHE=1 "+command,workdir:cfg.repo,max_output_tokens:max,yield_time_ms:Math.min(10000,Math.max(1,deadline-startedAt))});
  let output=r.output??"",session=r.session_id;
  if(session)notify({status:"HOST_LOCAL_COMMAND_RUNNING",session,deadline:new Date(deadline).toISOString()});
  while(r.session_id){
   session=r.session_id;const remaining=deadline-Date.now();
-  if(remaining<=0){store("incrementalDfd22f64:grifols:cloudHostLocalCommandOutcome",{status:"BUDGET_EXHAUSTED",session,startedAt,deadline});throw Error("HOST_LOCAL_COMMAND_BUDGET_EXHAUSTED:"+session);}
+  if(remaining<=0){store("proxyNode22:grifols:cloudHostLocalCommandOutcome",{status:"BUDGET_EXHAUSTED",session,startedAt,deadline});throw Error("HOST_LOCAL_COMMAND_BUDGET_EXHAUSTED:"+session);}
   try{r=await tools.write_stdin({session_id:session,chars:"",yield_time_ms:Math.min(1000,remaining),max_output_tokens:max});}
-  catch(error){store("incrementalDfd22f64:grifols:cloudHostLocalCommandOutcome",{status:"POLL_UNRESOLVED_NO_RETRY",session,startedAt,deadline,error:String(error)});throw error;}
+  catch(error){store("proxyNode22:grifols:cloudHostLocalCommandOutcome",{status:"POLL_UNRESOLVED_NO_RETRY",session,startedAt,deadline,error:String(error)});throw error;}
   output+=r.output??"";
  }
- store("incrementalDfd22f64:grifols:cloudHostLocalCommandOutcome",{status:"TERMINAL",session,startedAt,finishedAt:Date.now(),exitCode:r.exit_code});
+ store("proxyNode22:grifols:cloudHostLocalCommandOutcome",{status:"TERMINAL",session,startedAt,finishedAt:Date.now(),exitCode:r.exit_code});
  if(r.exit_code!==0)throw Error("HOST_COMMAND:"+output);return output;
 }
 async function save(path,value){const data=typeof value==="string"?value:JSON.stringify(value);const result=await tools.apply_patch("*** Begin Patch\n*** Add File: "+path+"\n"+data.split("\n").map(x=>"+"+x).join("\n")+"\n*** End Patch");if(result?.isError)throw Error("HOST_SAVE");return path;}
-async function readFile(path,deadline=Date.now()+90000){let offset=0,parts=[],hash,total;while(true){const r=JSON.parse(await cmd("node "+q(cfg.root+"/host-files.mts")+" read "+q(path)+" "+offset,100000,deadline));if(hash&&hash!==r.sha256)throw Error("HOST_READ_CHANGED");hash=r.sha256;total=r.charCount;parts.push(r.text);if(r.next===null)break;offset=r.next;}const text=parts.join("");if(text.length!==total)throw Error("HOST_READ_INCOMPLETE");return {text,hash};}
+async function readFile(path,deadline=Date.now()+90000){let offset=0,parts=[],hash,total;while(true){const r=machineJson(await cmd("/workspace/scratch/5e9614251709/jb-incremental-proxy-runtime-20261007T0057Z/runtime/node-v22.23.3-linux-x64/bin/node "+q(cfg.root+"/host-files.mts")+" read "+q(path)+" "+offset,100000,deadline));if(hash&&hash!==r.sha256)throw Error("HOST_READ_CHANGED");hash=r.sha256;total=r.charCount;parts.push(r.text);if(r.next===null)break;offset=r.next;}const text=parts.join("");if(text.length!==total)throw Error("HOST_READ_INCOMPLETE");return {text,hash};}
 function rows(result){if(result.isError)throw Error("HOST_SQL_TOOL_ERROR:"+JSON.stringify(result));const t=result.structuredContent?.result??JSON.parse(result.content.find(x=>x.type==="text").text).result; if(typeof t!=="string")throw Error("HOST_SQL_RESULT_SHAPE");const m=t.match(/\n<untrusted-data-[^>]+>\n([\s\S]*?)\n<\/untrusted-data-/);if(!m)throw Error("HOST_SQL_ROWS_MISSING");const r=JSON.parse(m[1]);if(!Array.isArray(r))throw Error("HOST_SQL_ROWS_INVALID");return r;}
-async function mark(r,dir){const deadline=Date.parse(r.payload?.dispatchBefore??r.expiresAt);const current=JSON.parse((await readFile(dir+"/"+r.requestId+".request.json",deadline)).text);const {expired,dispatchRecorded,...expected}=r;if(JSON.stringify(current)!==JSON.stringify(expected))throw Error("HOST_REQUEST_CHANGED");await cmd("node "+q(cfg.root+"/relay-files.mjs")+" mark-dispatch "+q(dir)+" "+q(r.requestId)+" "+q(r.requestSha256),10000,deadline);}
-async function respond(r,dir,result,diagnostic){const p=dir+"/"+r.requestId+".host-result.json";await save(p,{requestId:r.requestId,requestSha256:r.requestSha256,result,...diagnostic?{diagnostic}:{}});await cmd("node "+q(cfg.root+"/relay-files.mjs")+" respond "+q(dir)+" "+q(p));}
+async function mark(r,dir){const deadline=Date.parse(r.payload?.dispatchBefore??r.expiresAt);const current=JSON.parse((await readFile(dir+"/"+r.requestId+".request.json",deadline)).text);const {expired,dispatchRecorded,...expected}=r;if(JSON.stringify(current)!==JSON.stringify(expected))throw Error("HOST_REQUEST_CHANGED");await cmd("/workspace/scratch/5e9614251709/jb-incremental-proxy-runtime-20261007T0057Z/runtime/node-v22.23.3-linux-x64/bin/node "+q(cfg.root+"/relay-files.mjs")+" mark-dispatch "+q(dir)+" "+q(r.requestId)+" "+q(r.requestSha256),10000,deadline);}
+async function respond(r,dir,result,diagnostic){const p=dir+"/"+r.requestId+".host-result.json";await save(p,{requestId:r.requestId,requestSha256:r.requestSha256,result,...diagnostic?{diagnostic}:{}});await cmd("/workspace/scratch/5e9614251709/jb-incremental-proxy-runtime-20261007T0057Z/runtime/node-v22.23.3-linux-x64/bin/node "+q(cfg.root+"/relay-files.mjs")+" respond "+q(dir)+" "+q(p));}
 function publicationFailure(raw,r,sql,proof){
  // Only the observed database error envelope for one compiler-produced atomic
  // DO establishes rollback. Transport exceptions and arbitrary error-like text
@@ -49,12 +51,12 @@ function publicationReviewRejected(raw,r){
 async function sqlDispatch(r,dir,sql){
  if(typeof sql!=="string"||sql!==r.payload?.sql||cfg.project!==r.payload?.projectId)throw Error("HOST_SQL_BINDING");
  let proof;
- if(r.kind==='PUBLISH'){proof=JSON.parse(await cmd("node --import "+q(cfg.repo+"/node_modules/tsx/dist/loader.mjs")+" "+q(cfg.root+"/runtime/review-packet-envelope.mts")+" "+q(dir+"/"+r.requestId+".request.json")+" summary",2000,Date.parse(r.payload.dispatchBefore??r.expiresAt)));}
+ if(r.kind==='PUBLISH'){proof=machineJson(await cmd("/workspace/scratch/5e9614251709/jb-incremental-proxy-runtime-20261007T0057Z/runtime/node-v22.23.3-linux-x64/bin/node --import "+q(cfg.repo+"/node_modules/tsx/dist/loader.mjs")+" "+q(cfg.root+"/runtime/review-packet-envelope.mts")+" "+q(dir+"/"+r.requestId+".request.json")+" summary",2000,Date.parse(r.payload.dispatchBefore??r.expiresAt)));}
  await mark(r,dir);let result,raw,diagnostic;
- try{raw=await tools.mcp__codex_apps__supabase_execute_sql({project_id:cfg.project,query:sql});store("incrementalDfd22f64:grifols:cloudLastSqlToolResult",raw);result={status:"SUCCEEDED",rows:rows(raw)};}
+ try{raw=await tools.mcp__codex_apps__supabase_execute_sql({project_id:cfg.project,query:sql});store("proxyNode22:grifols:cloudLastSqlToolResult",raw);result={status:"SUCCEEDED",rows:rows(raw)};}
  catch(error){
   diagnostic={recordedAt:new Date().toISOString(),responseExpired:Date.now()>=Date.parse(r.expiresAt),toolResult:raw??null,error:{message:String(error),name:error?.name,stack:error?.stack}};
-  store("incrementalDfd22f64:grifols:cloudHostLastDispatchError",diagnostic);result=publicationFailure(raw,r,sql,proof);
+  store("proxyNode22:grifols:cloudHostLastDispatchError",diagnostic);result=publicationFailure(raw,r,sql,proof);
   if(publicationReviewRejected(raw,r)){
    // Separate from *.host-result.json and *.response.json. Keep the dispatch
    // marker, original request/hash/project, and both absolute deadlines intact.
@@ -67,11 +69,11 @@ async function sqlDispatch(r,dir,sql){
  await respond(r,dir,result,diagnostic);return result;
 }
 async function next(dir){
- const metadata=async()=>JSON.parse(await cmd("node "+q(cfg.root+"/relay-files.mjs")+" next-meta "+q(dir),2000));
+ const metadata=async()=>machineJson(await cmd("/workspace/scratch/5e9614251709/jb-incremental-proxy-runtime-20261007T0057Z/runtime/node-v22.23.3-linux-x64/bin/node "+q(cfg.root+"/relay-files.mjs")+" next-meta "+q(dir),2000));
  let a=await metadata();if(!Array.isArray(a))throw Error("HOST_PENDING_METADATA");
  let settled=false;
  for(const meta of a)if(meta.expired){
-  const result=JSON.parse(await cmd("node "+q(cfg.root+"/relay-files.mjs")+" expire-undispatched "+q(dir)+" "+q(meta.requestId)+" "+q(meta.requestSha256),2000));
+  const result=machineJson(await cmd("/workspace/scratch/5e9614251709/jb-incremental-proxy-runtime-20261007T0057Z/runtime/node-v22.23.3-linux-x64/bin/node "+q(cfg.root+"/relay-files.mjs")+" expire-undispatched "+q(dir)+" "+q(meta.requestId)+" "+q(meta.requestSha256),2000));
   if(result.settled===true)settled=true;else if(result.settled!==false||result.reason!=="DISPATCH_UNCERTAIN")throw Error("HOST_EXPIRY_RESULT");
  }
  if(settled)a=await metadata();
@@ -80,4 +82,4 @@ async function next(dir){
  if(r.requestId!==meta.requestId||r.requestSha256!==meta.requestSha256||r.kind!==meta.kind)throw Error("HOST_NEXT_REQUEST_CHANGED");
  return {...r,expired:meta.expired,dispatchRecorded:meta.dispatchRecorded};
 }
-return {cfg,q,cmd,save,readFile,rows,mark,respond,sqlDispatch,next};
+return {cfg,q,cmd,save,readFile,rows,mark,respond,sqlDispatch,next,machineJson};

@@ -50,8 +50,8 @@ for(const [name,change] of [
 writeFileSync(join(run,'relay',requestId+'.request.json'),JSON.stringify(request));writeFileSync(join(run,'relay',requestId+'.request.json.sql'),request.payload.sql);
 
 const A=Object.getPrototypeOf(async function(){}).constructor;
-const helperSource=readFileSync(join(host,'host-helper-functions.js'),'utf8').replace('return {cfg,q,cmd,save,readFile,rows,mark,respond,sqlDispatch,next};','return {cfg,q,cmd,save,readFile,rows,mark,respond,sqlDispatch,next,publicationFailure};');
-const helper=await new A('load','store','tools','notify',helperSource)(()=>cfg,()=>{},{},()=>{});
+const helperSource=readFileSync(join(host,'host-helper-functions.js'),'utf8').replace('return {cfg,q,cmd,save,readFile,rows,mark,respond,sqlDispatch,next,machineJson};','return {cfg,q,cmd,save,readFile,rows,mark,respond,sqlDispatch,next,machineJson,publicationFailure};');
+const helper=await new A('load','store','tools','notify',helperSource)((key:string)=>key==='proxyNode22:grifols:cloudPilotMachineJson'?readFileSync(join(host,'machine-json.js'),'utf8'):cfg,()=>{},{},()=>{});
 const error=(code:string)=>({isError:true,structuredContent:{error_code:'INVALID_ARGUMENT'},content:[{type:'text',text:JSON.stringify({error:{name:'HttpException',message:code==='P0001'?'Failed to run sql query: ERROR:  P0001: PILOT_CONTEXT_CHANGED\nCONTEXT:  PL/pgSQL function inline_code_block line 12 at RAISE':`Failed to run sql query: ERROR:  ${code}: exact database error`}})}]});
 for(const code of ['P0001','55P03','57014']){assert.equal(helper.publicationFailure(error(code),request,fixture.packet.sql,proof).outcome,'ROLLED_BACK');pass('Classify exact '+code+' rollback after declaration proof');}
 assert.equal(helper.publicationFailure(error('P0001'),request,fixture.packet.sql).outcome,'UNKNOWN');pass('No declaration proof remains UNKNOWN');

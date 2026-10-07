@@ -43,7 +43,7 @@ async function settleExpiredReviewHold(dir,r){
  return true;
 }
 const [command,directory,arg,expectedRequestSha256]=process.argv.slice(2);const dir=resolve(directory??'');
-if(!dir.startsWith('/workspace/scratch/5e9614251709/jb-incremental-producer-runtime-20261007T0036Z/hosts/grifols/host/'))throw Error('RELAY_DIRECTORY_OUTSIDE_TASK');
+if(!dir.startsWith('/workspace/scratch/5e9614251709/jb-incremental-proxy-runtime-20261007T0057Z/hosts/grifols/host/'))throw Error('RELAY_DIRECTORY_OUTSIDE_TASK');
 if(command==='next'||command==='next-meta'){
  const names=await readdir(dir),rows=[];
  for(const name of names.filter(n=>n.endsWith('.request.json')).sort()){
