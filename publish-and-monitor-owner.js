@@ -7,7 +7,7 @@ const same = (a,b) => JSON.stringify(a) === JSON.stringify(b);
 const fail = code => { throw Error(code); };
 return async function publishAndMonitorOwner(input) {
   const {sourceKey, stages, monitorCode, request: suppliedRequest, sql, mode = 'publish'} = input;
-  if (!/^[a-z][a-z0-9]*$/.test(sourceKey) || !['publish','resume'].includes(mode)) fail('OWNER_ARGUMENT');
+  if (typeof sourceKey !== 'string' || sourceKey.length > 64 || sourceKey !== sourceKey.trim() || !/^(?:[a-z][a-z0-9]*|boehringer-ingelheim)$/.test(sourceKey) || !['publish','resume'].includes(mode)) fail('OWNER_ARGUMENT');
   const ns = 'proxyNode22:' + sourceKey + ':', h = stages?.h;
   if (!h || typeof stages.handle !== 'function' || typeof monitorCode !== 'string') fail('OWNER_DEPENDENCY');
   const r = clone(suppliedRequest), cfg = h.cfg;

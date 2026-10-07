@@ -1,22 +1,22 @@
 // functions.exec AsyncFunction body. Required parameter: sourceKey.
 // Run once after the original source loader, before launch/review deadlines.
 // This reads/pins local code only; it does not submit SQL or start a producer.
-if(!/^[a-z][a-z0-9]*$/.test(sourceKey))throw Error('OWNER_SOURCE_KEY');
+if(typeof sourceKey !== 'string' || sourceKey.length > 64 || sourceKey !== sourceKey.trim() || !/^(?:[a-z][a-z0-9]*|boehringer-ingelheim)$/.test(sourceKey))throw Error('OWNER_SOURCE_KEY');
 const ns='proxyNode22:'+sourceKey+':';
 const q=s=>"'"+String(s).replaceAll("'","'\\''")+"'";
-const result=await tools.exec_command({cmd:'python3 - '+q('/workspace/scratch/5e9614251709/jb-publish-relay-owner-20261007T0300Z')+' '+q(sourceKey)+" <<'PY_OWNER_LOAD'\n"+
+const result=await tools.exec_command({cmd:'python3 - '+q('/workspace/scratch/5e9614251709/jb-incremental-proxy-runtime-20261007T0057Z/owner-adaptations/novartis-bi-20261007T0710Z')+' '+q(sourceKey)+" <<'PY_OWNER_LOAD'\n"+
 `from pathlib import Path
 import hashlib,json,sys
 p=Path(sys.argv[1]);source=sys.argv[2]
 owner=(p/'publish-and-monitor-owner.js').read_bytes();manifest_bytes=(p/'baseline-manifest.json').read_bytes()
-assert hashlib.sha256(owner).hexdigest()=='d5f3decc6bd41e4dff201b7e5b0d9e5dc1d384f8813de5f3fd5d908b73a488b1'
-assert hashlib.sha256(manifest_bytes).hexdigest()=='e2dfa145ec2e7e045e4064e7baccb755664cb9d94fbc1ffbe50f2a23f673c129'
+assert hashlib.sha256(owner).hexdigest()=='78a716a79d905dc7bb02715967c43b74566d496bea5b6c24a2d6139dbb1f1894'
+assert hashlib.sha256(manifest_bytes).hexdigest()=='173c998ecc08f1d08a55e577f56e4ce0b9d6aed9c728fe11c2c3942dd25415d3'
 m=json.loads(manifest_bytes);root=Path(m['runtimeRoot'])/'hosts'/source/'host'
 files={}
 for name in ['host-helper-functions.js','host-stage-functions.js','runtime/continuous-relay-v3-durable-monitor.js','relay-files.mjs','runtime/review-packet-envelope.mts']:
  path=root/name;data=path.read_bytes();assert hashlib.sha256(data).hexdigest()==m['files'][str(path)]['sha256']
  if name in ['host-helper-functions.js','host-stage-functions.js','runtime/continuous-relay-v3-durable-monitor.js']:files[name]=data.decode()
-print(json.dumps({'ownerCode':owner.decode(),'ownerSha256':'d5f3decc6bd41e4dff201b7e5b0d9e5dc1d384f8813de5f3fd5d908b73a488b1','hostRoot':str(root),'files':files}))
+print(json.dumps({'ownerCode':owner.decode(),'ownerSha256':'78a716a79d905dc7bb02715967c43b74566d496bea5b6c24a2d6139dbb1f1894','hostRoot':str(root),'files':files}))
 `+'PY_OWNER_LOAD',max_output_tokens:20000,yield_time_ms:1000});
 if(result.exit_code!==0||result.session_id)throw Error('OWNER_PRELOAD_LOCAL_READ_FAILED');
 const p=JSON.parse(result.output);
