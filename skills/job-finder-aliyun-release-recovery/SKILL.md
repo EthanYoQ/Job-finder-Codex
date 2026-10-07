@@ -20,6 +20,8 @@ description: 恢复和验收 Job Finder 在既有阿里云实例上的配对网�
 
 提交不明、MCP 取消/拒绝、告警归因或备份时读[命令证据与恢复契约](references/command-evidence-and-recovery.md)。
 
+原 exec 监控缺失、预算恢复、异步作用域漂移或应用层功能隔离时，读[原执行监控与功能隔离](references/monitor-evidence-and-functional-isolation.md)。它区分 OS UNKNOWN 与已证明不能继续 HTTP/PUBLISH 的特定应用路径；不放宽未决 root 命令、原调用重投或部署授权门。
+
 ## 重建运行身份
 
 - 安全 Git 镜像身份不等于原生产运行身份。用清单验证每个必需基线文件的路径、字节、哈希和适用 mode，再恢复到新的不存在目录；缺少必需基线就停在缺口，不把猜测当完整恢复。

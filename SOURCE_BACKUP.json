@@ -1,94 +1,135 @@
 {
   "schemaVersion": 1,
-  "scope": "Unbound host source, static configuration templates, synthetic test code and exact regeneration inputs",
-  "reviewedPlanSha256": "514a4b2dbb989dbb2f56b272d7ee1d3bb559d8a8d0005aad8baf13a16bcd12a1",
-  "additionalExclusions": {},
-  "sourceExecutionPerformed": false,
-  "sourceFiles": [
+  "repository": "EthanYoQ/Job-finder-Codex",
+  "scope": "First-party skills, project repair documentation, and retained pure synthetic tests only",
+  "sourceManifestSha256": "e764c142e3507f436a1e40860ece64fee8beb04b3f16702b71f1c97cad76551c",
+  "originalFiles": [
     {
       "path": "skills/diagnose-batch-memory-amplification/SKILL.md",
-      "mode": "100644",
       "bytes": 5669,
       "sha256": "6ff1845e41f251691ecde2d789ea18a60829f96e4757fb48947b823f56809135",
+      "mode": "100644",
+      "type": "blob",
       "sha": "f89f8223a436d56aadaff21ba2de9df8e4bb64f8"
     },
     {
       "path": "skills/diagnose-batch-memory-amplification/references/case-boundaries.md",
-      "mode": "100644",
       "bytes": 1065,
       "sha256": "7945f0f19d677eb4c497e44cdd236ced94883027296240c49418a345cce3a67f",
+      "mode": "100644",
+      "type": "blob",
       "sha": "148296f20b7d2ef921b6a735a8c5ed982a54ff08"
     },
     {
       "path": "skills/diagnose-batch-memory-amplification/references/measurement-and-acceptance.md",
-      "mode": "100644",
       "bytes": 2163,
       "sha256": "6a164e3754b092d2d92543927b202dd8b8afa5d4853f0658cdfd0aadc22f17df",
+      "mode": "100644",
+      "type": "blob",
       "sha": "09335f60ef2809edc23ee0a5220d1e64301796d0"
     },
     {
       "path": "skills/diagnose-batch-memory-amplification/scripts/test-scoped-parse-reuse.mjs",
-      "mode": "100644",
       "bytes": 4423,
       "sha256": "7dcabced02d0a6d6f0760717b2c6249945c4e4b5f15f549087caec5023f937bf",
+      "mode": "100644",
+      "type": "blob",
       "sha": "ba7d8f1ae14dac01c9cd51860cd1d644303a1fdf"
     },
     {
       "path": "skills/job-finder-aliyun-release-recovery/SKILL.md",
+      "bytes": 6387,
+      "sha256": "df7c06d34772b96af43b495375dccfa5268d11aaa6df8017c4283717d5d27675",
       "mode": "100644",
-      "bytes": 6051,
-      "sha256": "7801cc94a2787e7439714d4e79d49eb0777d3e51ea5b70c084ea60bc59e79862",
-      "sha": "10ba082121abd1c640188f900745c89d0de7b95d"
+      "type": "blob",
+      "sha": "bc637bdff650001af7d38f3099e2eb0ed05c43a9"
     },
     {
       "path": "skills/job-finder-aliyun-release-recovery/references/command-evidence-and-recovery.md",
-      "mode": "100644",
       "bytes": 9386,
       "sha256": "0b5b75a1818bf2716fbf0cc8a7f86ad49811759f30ee28727f3258c8e13e4caa",
+      "mode": "100644",
+      "type": "blob",
       "sha": "6b6193f228ae15e6687d1d8dc2cb1adebcea35d6"
     },
     {
-      "path": "skills/job-finder-aliyun-release-recovery/references/proxy-runtime-and-same-batch-readback.md",
+      "path": "skills/job-finder-aliyun-release-recovery/references/monitor-evidence-and-functional-isolation.md",
+      "bytes": 7812,
+      "sha256": "73335f6427b27da7aed57e1d5d37ad86783e0dd8d2a18f19db4e4d38f68e1469",
       "mode": "100644",
+      "type": "blob",
+      "sha": "52e6bb4f83a983538f775a1de6265d6de98c6576"
+    },
+    {
+      "path": "skills/job-finder-aliyun-release-recovery/references/proxy-runtime-and-same-batch-readback.md",
       "bytes": 7759,
       "sha256": "b18c8a8dd69703eb4390b3daf0909be003f8686abc0a6cfd9d68ebd650a7a87c",
+      "mode": "100644",
+      "type": "blob",
       "sha": "3fb5c6c578f20c195a5fb5055e143604bfc24be1"
     },
     {
       "path": "skills/job-finder-aliyun-release-recovery/references/runtime-and-acceptance.md",
-      "mode": "100644",
       "bytes": 6334,
       "sha256": "0984ffb63ca245bb93d710e96198d03372775eab723d2541b0a2efaa8e4f0957",
+      "mode": "100644",
+      "type": "blob",
       "sha": "8e3e1d737faa8abad486f8592e240087c4ac9f78"
     },
     {
       "path": "skills/job-finder-aliyun-release-recovery/references/time-semantics-and-failed-acceptance.md",
-      "mode": "100644",
       "bytes": 6799,
       "sha256": "4c93f496f0d955f4c245fb270b3b62c8b067918cc00ed399e937b1bfaf354206",
+      "mode": "100644",
+      "type": "blob",
       "sha": "a03234a46d4528bc30ae220ca309395636484d6d"
     },
     {
       "path": "skills/job-finder-aliyun-release-recovery/scripts/test-acceptance-invariants.py",
-      "mode": "100644",
       "bytes": 9338,
       "sha256": "c0116ba21cecb08d641a13cd1e90810b862c4bfdd8f996aa6077f689e53630a3",
+      "mode": "100644",
+      "type": "blob",
       "sha": "2072c3404be2348047df7dc4c4a91d433d6ac045"
     },
     {
       "path": "docs/job-finder/source-evidence-repair-notes.md",
+      "bytes": 11374,
+      "sha256": "7c3d5052857bd09464ee1884e5fa5677fdd848fe8a6556259fbc33508b95212c",
       "mode": "100644",
-      "bytes": 9438,
-      "sha256": "dc9edef9b565b4dc8605a2d0bbf218a0fb86f26715be6e787bef39244c173b97",
-      "sha": "c83c26b23bee61c58fe3ff67cb01b43e288584cb"
+      "type": "blob",
+      "sha": "bbef49a90606c595eb96a30db4179ee5b0e89f32"
     },
     {
       "path": "docs/job-finder/tests/source-evidence-invariants.test.mjs",
-      "mode": "100644",
       "bytes": 14413,
       "sha256": "7656398971649af1c858cf2ab39f500691a507b49cf567d72ac125922dee1628",
+      "mode": "100644",
+      "type": "blob",
       "sha": "8eebfaf268d6474bbae0c2e5497d5d7f68b7c0f7"
     }
   ],
-  "recoveryLimits": "BACKUP_RECOVERY.md"
+  "checksPerformedForThisBackup": {
+    "retainedProjectSyntheticTests": 22,
+    "retainedReleaseSyntheticTests": 15,
+    "retainedMemorySyntheticChecks": 17,
+    "skillValidators": 2,
+    "nodeVersion": "24.19.0",
+    "relativeLinks": "PASS",
+    "actualR3Tests": "129 recorded passes, 3 scope and 2 lease failures before repair; evidence hashes verified, not rerun here",
+    "sourceExecutionPerformed": "Only the included pure synthetic teaching tests; no application, capture, publication or deployment code"
+  },
+  "excluded": [
+    "LOCAL_PROVENANCE_EXCLUDED.json",
+    "before copies",
+    "local validation logs",
+    "original runtime evidence",
+    "tool poll objects",
+    "nonce",
+    "actual run/session/batch identities",
+    "production paths",
+    "credentials",
+    "complete SQL and response bodies"
+  ],
+  "limitations": "See BACKUP_RECOVERY.md. Historical UNKNOWN and unconfirmed cancellation remain unresolved; r2 capture failed and r3 has no verified real PUBLISH success."
 }
