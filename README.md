@@ -1,11 +1,35 @@
-# Continuous owner adaptation for Novartis and BI
+# Astellas and Takeda C51 source-only package
 
-This isolated copy retains the original owner dispatch, UNKNOWN, resume, original-session and terminal-evidence behavior. Only the three sourceKey validations change: a key must be a string, at most 64 characters, without surrounding whitespace, and match the original lowercase alphanumeric form or the exact known key boehringer-ingelheim. Other hyphenated keys and path syntax are rejected. No key is normalized.
+This package preserves selected host and continuous-owner source, unbound templates, synthetic test fixtures, and four static source/source-plan snapshots. Selection is the fixed 130-entry source-allowlist.json. Its exact SHA-256 is embedded in safe_source.py. Neither script discovers source from a live host, a producer checkout or a prior report.
 
-baseline-manifest.json preserves all 45 original mappings and adds exactly five source dependencies for each of Novartis and Boehringer Ingelheim, totalling 55. The mapped host files are external dependencies, not copied here. dependency-source-map.json preserves their exact immutable backup references. The two hosts, original owner, producer commit 28402a299bb04cbf5873da66c2fe8ca76827c0d1, Node v22.23.3 and SQL delta contract remain unchanged.
+The two control templates retain the original C51 build and database identity pins; candidate is null. Host configuration is supplied only as a non-secret template. Context SQL contains OWNER_REGISTERED_C51_CANDIDATE_ID. Actual activation, control, context, nonce, run directories, bytecode, source-config-reference, historical holds, authority-result reports, private input inventories and operational summaries are excluded. This package makes no claim about source execution or publication.
 
-Keep the source files and tests directory together. The entry fragments are functions.exec AsyncFunction bodies; they are not standalone Node executables. After the existing source loader has loaded the selected host, call preload-owner.exec.js with sourceKey equal to novartis or boehringer-ingelheim. Preload reads fixed code and hashes only and stores publishMonitorPrepared in the matching namespace. It does not publish or launch. Use publish-reviewed-and-monitor.exec.js with the same sourceKey and ownerMode only after the owner's normal review. publish is for a new original reviewed request; resume is monitor-only for a returned unresolved owner. An active/yielded owner must be continued via its original execution, not duplicated.
+## Verify the checked-out source
 
-The exact generated fragments bind this copy's absolute path, owner hash and baseline hash. build-fragments.py regenerates them for its own location; relocation is a new adaptation with new pins. Python assertion checks must remain enabled. Original actual candidate/config/run/session/request/review bindings and original fresh gates remain mandatory and are not included. No authority to launch, register or publish is granted by this source copy or backup.
+Use Python 3 from this package directory:
 
-The unchanged original22 owner tests remain in tests/owner.test.mjs. tests/source-key-preload.test.mjs uses actual local preload/compiler/hash reads with isolated synthetic state and no SQL/launch. Each generated new-source suite runs 22 synthetic owner scenarios. Exactly one reviewed-entry scenario per source invokes actual preload, then the actual reviewed entry, then the owner: two complete entry flows in total. The other scenarios call the owner directly. Regenerate them with tests/generate-new-source-owner-tests.py. The real-apply-patch fixture is synthetic JSON written using the actual apply_patch tool; the owner accepts exact JSON or JSON plus one LF, never arbitrary trimming. Verification outputs and mutation fixtures under verification are excluded from the safe source payload.
+    PYTHONDONTWRITEBYTECODE=1 python3 safe_source.py verify-tree sources
+    PYTHONDONTWRITEBYTECODE=1 python3 test_safe_source.py
+
+Verification reads only the explicit source tree and the fixed allowlist. It checks exact bytes, required unbound templates, original C51 database/build pins, canonical hashes of the complete source plans, and all 65 owner mappings, including the unchanged prior 55. It never executes the packaged host/producer code, accesses a database or resolves the absolute runtime paths recorded inside that source.
+
+The tests use temporary synthetic copies. They cover a safe round trip, extra reports/bytecode/run directories/bindings/nonces, missing templates, modified files or allowlist, path traversal, file/directory symlinks, output-parent symlinks, existing destinations, tar links, duplicate members and template/source/mapping inconsistency. Temporary test products are not publication inputs.
+
+## Pack and restore only this source set
+
+    PYTHONDONTWRITEBYTECODE=1 python3 safe_source.py pack sources source-only.tar.gz
+    PYTHONDONTWRITEBYTECODE=1 python3 safe_source.py restore source-only.tar.gz new-source-tree
+
+Both output paths must be new. The verifier rejects every unlisted tar member and every unlisted file or directory in a staged source tree. Symlinks, hardlinks, traversal, duplicate tar members and missing required members are rejected before restoration. Enumeration checks for extras; only explicit allowlist entries can be selected for output.
+
+For the one-time migration from the separately held frozen input archive, extract-frozen accepts only the exact inputArchiveSha256 recorded in the allowlist. It selects the 130 listed members from that sealed archive, verifies every selected byte, and writes a new source tree. It does not rescan or read current runtime paths. The original input archive is not part of this source-only publication.
+
+## Runtime and authority limits
+
+DEPENDENCIES.json records the non-secret C51 pins and separately required runtime dependencies. The older host and owner synthetic test sources are preserved for a future clean reconstruction at their encoded absolute runtime root. They require the exact producer, locked Node dependencies and pinned Node binary, which are not included here. They are not run by the source-only verifier, and this export makes no new claim that those runtime tests have run.
+
+Current official registration, fresh due/lock/bootstrap state and actual bindings remain separate owner responsibilities. Re-verifying historical official authority would also require private provenance inputs deliberately omitted here. This package's source-plan consistency check is independent of those inputs and is not a substitute for that authority verification. Never reconstruct actual state from a source-only package or treat an absent report as a successful check.
+
+## Publication inputs
+
+make_publish_plan.py admits only these six recipe files and the 130 allowlisted source members. It writes a source-plan.json for a publisher to review, hash-check and use. Local archives, extraction/audit/test output and delivery receipts are excluded. Adding any member or changing the allowlist requires a new reviewed source selection and new hashes; there is no recursive inclusion rule.
