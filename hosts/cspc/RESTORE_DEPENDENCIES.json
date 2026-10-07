@@ -1,0 +1,42 @@
+{
+  "schemaVersion": 1,
+  "sourceId": "source-cspc-social",
+  "producer": {
+    "commit": "28402a299bb04cbf5873da66c2fe8ca76827c0d1",
+    "path": "/workspace/scratch/5e9614251709/jb-incremental-proxy-runtime-20261007T0057Z/producer",
+    "mustBeClean": true
+  },
+  "node": {
+    "version": "v22.23.3",
+    "path": "/workspace/scratch/5e9614251709/jb-incremental-proxy-runtime-20261007T0057Z/runtime/node-v22.23.3-linux-x64/bin/node",
+    "profile": "producer/ops/node-runtime-profile.json",
+    "binaryAndRuntimeIdentityMustMatch": true
+  },
+  "nonSecretConfig": {
+    "template": "host/host-config.template.json",
+    "installAs": "host/host-config.json",
+    "staticSourceReference": "host/source-config-reference.json",
+    "sourceConfigSha256": "5fbeee6e6b8d95f05d2b8771908f206ba8f45eea32a6208f21490a058332d409"
+  },
+  "privateBindingDependencies": {
+    "requiredFiles": [
+      "host/control-base.json",
+      "host/context-read.sql",
+      "host/activation.json"
+    ],
+    "registrationReadback": "Owner-provided current official C51 registration readback; excluded from SAFE payload",
+    "preparationEntrypoint": "host/runtime/prepare-registered-control.mts",
+    "contextCompilerPolicy": "PLAN_BOUND_SOURCE_QUALITY_V1",
+    "controlTemplate": "Use current owner-approved C51 build and database identity; never recreate an actual registration from safe source alone"
+  },
+  "runtimeMustNeverBeRestoredFromSafeArchive": [
+    "run directories",
+    "relay requests/responses",
+    "HTTP payloads",
+    "DB results",
+    "bootstrap/due/lock freshness",
+    "publication outcome"
+  ],
+  "launchRequiresOwnerFreshChecks": true,
+  "publisher": "single parent owner"
+}

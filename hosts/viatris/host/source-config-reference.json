@@ -1,0 +1,99 @@
+{
+  "name": "viatris",
+  "sourceId": "source-viatris-social",
+  "route": "PORTABLE",
+  "source": {
+    "id": "source-viatris-social",
+    "companyId": "company-viatris",
+    "kind": "SOCIAL",
+    "atsKind": "OFFICIAL_HTML",
+    "status": "VERIFIED_SCRAPABLE",
+    "officialEntryUrl": "https://careersite.tupu360.com/Viatris/position/index?recruitmentType=SOCIALRECRUITMENT",
+    "officialChainEvidenceUrl": "https://viatris.cn/careers"
+  },
+  "sourceConfigSha256": "5eab6bd8ba6973176376f492b9ce2105d81d8cae5afd4d3518daa6ad3dfcdad9",
+  "configurationOrigin": "OFFICIAL_SOURCE_ROW_AND_RECOVERED_PLAN_HASH_CROSSCHECK",
+  "referenceCheckedAt": "2026-10-06 12:20:38.287555+00",
+  "selectedReferenceArtifact": {
+    "path": "/workspace/scratch/5e9614251709/dot-drive-runtime-config-20261006T1240Z/package/reference/current-36-source-routes.json",
+    "sha256": "773abaf6cfa1196590330dee6a88afc3b4b6ae507d81cb2e163a387727ca2ec8",
+    "artifactKind": "RECONSTRUCTED_REFERENCE_ROUTES"
+  },
+  "currentSourcePlan": {
+    "adapterId": "html-table",
+    "company": {
+      "id": "company-viatris",
+      "officialChineseName": "\u6656\u81f4\u4e2d\u56fd",
+      "category": "FOREIGN_PHARMA"
+    },
+    "source": {
+      "id": "source-viatris-social",
+      "surfaceId": "surface-viatris-social",
+      "companyId": "company-viatris",
+      "kind": "SOCIAL",
+      "atsKind": "OFFICIAL_HTML",
+      "status": "VERIFIED_SCRAPABLE",
+      "officialEntryUrl": "https://careersite.tupu360.com/Viatris/position/index?recruitmentType=SOCIALRECRUITMENT",
+      "officialChainEvidenceUrl": "https://viatris.cn/careers"
+    },
+    "executionAuthority": "STAGED",
+    "expectedChannels": [
+      {
+        "channelId": "source:source-viatris-social:default",
+        "kind": "SOCIAL"
+      }
+    ],
+    "expectedChannelSetHash": "7e089a301c24c8f696795db950acd6b95fac0020206bc4306df7f50e25f10bce",
+    "table": {
+      "rowSelector": ".position-list-body .position-item",
+      "completenessProof": {
+        "kind": "CONFIGURED_CHANNEL_TRAVERSAL"
+      },
+      "pagination": {
+        "totalPagesSelector": "#pageTurnUl li:first-child",
+        "totalPagesAttribute": "data-total-pages",
+        "pageSearchParam": "offset",
+        "pageSearchParamMode": "offset",
+        "pageSize": 10,
+        "maxPages": 60,
+        "ajaxMode": "tupu360"
+      },
+      "fields": {
+        "sourceJobId": {
+          "selector": ".e-title a",
+          "attribute": "href",
+          "pattern": "positionId=([^&]+)"
+        },
+        "officialTitle": {
+          "selector": ".e-title a"
+        },
+        "officialUrl": {
+          "selector": ".e-title a",
+          "attribute": "href"
+        },
+        "locationRaw": {
+          "selector": ".e-city"
+        }
+      }
+    },
+    "transportPolicy": {
+      "primary": "DIRECT_HTTP"
+    }
+  },
+  "currentQualityPolicy": "PLAN_BOUND_SOURCE_QUALITY_V1",
+  "portableEligible": true,
+  "noExternalLookup": true,
+  "historicalHostConfigEvidence": {
+    "path": "/workspace/scratch/5e9614251709/library-code90-20261006T1419Z/official-restore-proof/legacy89/operations/producer41/host-templates/refresh-viatris-20261004-c41-host/host-config.json",
+    "sha256": "a1a1e3a6603dfa8959e5451a9fe5245f3a9b71b9da1458fc400999a569075ebe",
+    "sourceId": "source-viatris-social",
+    "sourceConfigSha256": "5eab6bd8ba6973176376f492b9ce2105d81d8cae5afd4d3518daa6ad3dfcdad9"
+  },
+  "hostConfigConstruction": "ADAPTED_FROM_VERIFIED_HISTORICAL_STATIC_HOST_CONFIG",
+  "classificationCountsPreserved": {
+    "PORTABLE": 20,
+    "TRUE_A": 13,
+    "TRUE_B": 3
+  },
+  "historicalBindingOrExecutionStateIncluded": false
+}

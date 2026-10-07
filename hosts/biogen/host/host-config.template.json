@@ -1,8 +1,0 @@
-{
-  "root": "/workspace/scratch/5e9614251709/jb-incremental-proxy-runtime-20261007T0057Z/hosts/biogen/host",
-  "repo": "/workspace/scratch/5e9614251709/jb-incremental-proxy-runtime-20261007T0057Z/producer",
-  "node": "/workspace/scratch/5e9614251709/jb-incremental-proxy-runtime-20261007T0057Z/runtime/node-v22.23.3-linux-x64/bin/node",
-  "project": "yiopvxysxrtrnvqxwgbx",
-  "sourceId": "source-biogen-china-social",
-  "sourceConfigSha256": "47107a3a1f9dbd3411a1f9244866be7c4bc52422b94a1c92204dc66ac4340348"
-}

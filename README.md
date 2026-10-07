@@ -1,6 +1,6 @@
-# Additional C51 host source snapshots
+# Viatris and CSPC C51 host source snapshots
 
-This snapshot preserves 29 original source, test, provenance, static-template and dependency/reference files each for Biogen, Gilead and AbbVie. It records the frozen preparation sources, not a current runtime or deployment result. Original operational README files are omitted; their hashes remain in SOURCE_BACKUP.json.
+This snapshot preserves 29 original source, test, provenance, static-template and dependency/reference files each for Viatris and CSPC. It records the frozen preparation sources, not a current runtime or deployment result. Original operational README files are omitted; their hashes remain in SOURCE_BACKUP.json.
 
 ## Dependencies and layout
 
@@ -22,4 +22,4 @@ The inherited ARCHIVE_STORE branch still lacks its separately required helper an
 
 ## Static source references
 
-Each host also retains RESTORE_DEPENDENCIES.json and host/source-config-reference.json. These are non-secret static source-plan/provenance and reconstruction inputs, not job rows or runtime activation data. References to source authority, capture eligibility and historical timestamps preserve their original frozen configuration context; they do not establish current readiness. Gilead explicitly records a reconstruction from a checked official source row and the matching source plan/hash, not restoration of earlier host-config bytes. Original source names, public official URLs, project IDs, source configuration hashes and provenance paths are retained. Referenced private binding and run files are not included.
+Each host also retains RESTORE_DEPENDENCIES.json and host/source-config-reference.json. These are non-secret static source-plan/provenance and reconstruction inputs, not job rows or runtime activation data. References to source authority, capture eligibility and historical timestamps preserve their original frozen configuration context; they do not establish current readiness. Both static configuration references identify adaptation from matching historical static host configurations, with original provenance hashes retained. This does not restore previous runtime bindings or execution state. Original source names, public official URLs, project IDs, source configuration hashes and provenance paths are retained. Referenced private binding and run files are not included.

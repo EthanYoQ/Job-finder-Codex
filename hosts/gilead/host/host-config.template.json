@@ -1,8 +1,0 @@
-{
-  "root": "/workspace/scratch/5e9614251709/jb-incremental-proxy-runtime-20261007T0057Z/hosts/gilead/host",
-  "repo": "/workspace/scratch/5e9614251709/jb-incremental-proxy-runtime-20261007T0057Z/producer",
-  "node": "/workspace/scratch/5e9614251709/jb-incremental-proxy-runtime-20261007T0057Z/runtime/node-v22.23.3-linux-x64/bin/node",
-  "project": "yiopvxysxrtrnvqxwgbx",
-  "sourceId": "source-gilead-china-social",
-  "sourceConfigSha256": "bdb31408948240f810347b6ba217407b0b50c9327c9600b4115a2a7a0869e40c"
-}
