@@ -1,0 +1,4 @@
+interface:
+  display_name: "安全清理阿里云服务器"
+  short_description: "先盘点并锁定保护范围，再验证恢复依据和实际空间变化"
+  default_prompt: "检查阿里云服务器占用，在明确授权范围内清理可恢复的多余副本，并验证恢复依据与服务状态。"

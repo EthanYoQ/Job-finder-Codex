@@ -1,0 +1,55 @@
+{
+  "artifact": "aliyun-safe-cleanup project skill",
+  "status": "read-only inventory workflow and local tested helpers; cleanup awaits approval and demonstrated recovery",
+  "files": [
+    {
+      "path": "SKILL.md",
+      "bytes": 6982,
+      "sha256": "9fb7c2a4242d595090acff0e34eedcc993415008ea23df6405ea1dd30593f6d8"
+    },
+    {
+      "path": "agents/openai.yaml",
+      "bytes": 309,
+      "sha256": "531297ed7e48f178c31b3ff3ae895add302b5ceba24f1b8c07a24a65261ccd3e"
+    },
+    {
+      "path": "references/recovery-boundaries.md",
+      "bytes": 2450,
+      "sha256": "4e0055fa3e399f62a03e4d8aa012c4fd918203a8919142512f9dac3dd39e1230"
+    },
+    {
+      "path": "scripts/inventory-readonly.sh",
+      "bytes": 5214,
+      "sha256": "b7ec7e10d0bef4f357417aa5098000090a139f38b09cd2cc724eee41fd586b4e"
+    },
+    {
+      "path": "scripts/test_inventory_helper.py",
+      "bytes": 2742,
+      "sha256": "db20c7a95efc08eadc1d29628b6670971547b4b5c05a7a437d173fba54fc6f8f"
+    },
+    {
+      "path": "scripts/verify_docker_archive.py",
+      "bytes": 6748,
+      "sha256": "aa254a7ff599b8a8015a39c89e9f24b77de7a990ffc6880e48ce62ed9e00e460"
+    },
+    {
+      "path": "scripts/test_verify_docker_archive.py",
+      "bytes": 5440,
+      "sha256": "8cdfdf7984bc57a4218ebccd0ad1da6a7c6be786cd22ac2c13af9f0f8a501a00"
+    }
+  ],
+  "tests": {
+    "inventory_subprocess_fixtures": 7,
+    "archive_content_synthetic": 17,
+    "skill_structure": "passed"
+  },
+  "runtime_claims": {
+    "original_readonly_server_inventory_completed": true,
+    "hardened_inventory_helper_run_on_server": false,
+    "archive_checker_run_on_real_docker_archive": false,
+    "image_removed": false,
+    "docker_load_executed": false,
+    "active_cleanup_bytes_freed": 0
+  },
+  "excluded": "No real host receipts, image payloads, fixed image IDs, deployment configuration, credentials or business data are included."
+}
