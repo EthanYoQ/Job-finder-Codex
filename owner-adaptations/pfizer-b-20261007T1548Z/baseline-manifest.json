@@ -1,0 +1,26 @@
+{
+  "producerCommit": "28402a299bb04cbf5873da66c2fe8ca76827c0d1",
+  "runtimeRoot": "/workspace/scratch/5e9614251709/jb-incremental-proxy-runtime-20261007T0057Z",
+  "files": {
+    "/workspace/scratch/5e9614251709/jb-incremental-proxy-runtime-20261007T0057Z/hosts/pfizer/host/host-helper-functions.js": {
+      "sha256": "02a6f634d71c8a5ad9157df4ca710c0ab68c635c0d49e2a6b51254a9753c4f58",
+      "bytes": 9762
+    },
+    "/workspace/scratch/5e9614251709/jb-incremental-proxy-runtime-20261007T0057Z/hosts/pfizer/host/host-stage-functions.js": {
+      "sha256": "96ad1df71a28a2a6df9ed18dc595c17a31d4ff673f5aef41376d929d6fdffaa4",
+      "bytes": 6568
+    },
+    "/workspace/scratch/5e9614251709/jb-incremental-proxy-runtime-20261007T0057Z/hosts/pfizer/host/relay-files.mjs": {
+      "sha256": "61da0eaaff86ead083ecae455bb85e609fc031354e5ce02f9e482add5ca04139",
+      "bytes": 7908
+    },
+    "/workspace/scratch/5e9614251709/jb-incremental-proxy-runtime-20261007T0057Z/hosts/pfizer/host/runtime/continuous-relay-v3-durable-monitor.js": {
+      "sha256": "9e48dfd1e6ac24e8786b0e042ce736e4d730122cb69c026ba97c46cea172fd55",
+      "bytes": 5172
+    },
+    "/workspace/scratch/5e9614251709/jb-incremental-proxy-runtime-20261007T0057Z/hosts/pfizer/host/runtime/review-packet-envelope.mts": {
+      "sha256": "7d843c8a2d54c5bb1a7b1abec896294e18e3ef081ab9c97ef0c809f5db3ee173",
+      "bytes": 11318
+    }
+  }
+}

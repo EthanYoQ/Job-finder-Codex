@@ -1,0 +1,77 @@
+{
+  "schemaVersion": 1,
+  "sourceId": "source-pfizer-china-social",
+  "sourceConfigSha256": "84aaab8bad3579630eec1b12d3f09236755b3a25d0b7751ca8584a9a53a83413",
+  "route": "TRUE_B",
+  "entrypoint": "scripts/p0-cloud-source-pilot.ts",
+  "entrypointSha256": "e4299018aa4b17cd7d0ff756ea45b779479708e02c400be9a1c8ffc0c2c1abaa",
+  "sourceAdmissionPolicy": null,
+  "certificateSchema": "b-grade-independent-traversal-v2",
+  "publicationMode": "DB_STARTED_JOB_PROJECTION_DELTA_V1",
+  "candidate": null,
+  "databaseIdentity": null,
+  "templatePlaceholderOnly": true,
+  "contextSha256": "8c31699ea358a5daba7d3761d5a60b595de75bdd8bbc9e1c4a78ce2619ae8535",
+  "expiryBasis": "min(source.startedAt+30min, independent.expiresAt, independent.observedAt+1h)",
+  "originalSourcePlan": {
+    "adapterId": "official-json",
+    "company": {
+      "id": "company-pfizer-china",
+      "officialChineseName": "辉瑞中国",
+      "category": "FOREIGN_PHARMA"
+    },
+    "source": {
+      "id": "source-pfizer-china-social",
+      "surfaceId": "surface-pfizer-china-social",
+      "companyId": "company-pfizer-china",
+      "kind": "SOCIAL",
+      "atsKind": "WORKDAY",
+      "status": "VERIFIED_SCRAPABLE",
+      "officialEntryUrl": "https://pfizer.wd1.myworkdayjobs.com/PfizerCareers",
+      "officialChainEvidenceUrl": "https://www.pfizer.com/about/careers/search-results"
+    },
+    "executionAuthority": "STAGED",
+    "expectedChannels": [
+      {
+        "channelId": "source:source-pfizer-china-social:default",
+        "kind": "SOCIAL"
+      }
+    ],
+    "expectedChannelSetHash": "e2aa83b0c80282c58d50b48f2345da203e274fc8475d8900c2d11b0596825a52",
+    "json": {
+      "jobsPath": "jobPostings",
+      "fields": {
+        "sourceJobId": "sourceJobId",
+        "officialTitle": "title",
+        "officialUrl": "officialUrl",
+        "locationRaw": "locationRaw",
+        "cities": "cities",
+        "officialPublishedAt": "officialPublishedAt"
+      },
+      "defaultCategory": "其他"
+    },
+    "workday": {
+      "tenant": "pfizer",
+      "traversalScopePolicy": "PFIZER_COUNTRY_DETAIL_COMPLETE_TRAVERSAL_V1",
+      "site": "PfizerCareers",
+      "laterZeroTotalPolicy": "PFIZER_AUDITED_EXACT_RECONCILIATION",
+      "appliedFacets": {
+        "Location_Country": [
+          "6cb77610a8a543aea2d6bc10457e35d4"
+        ]
+      },
+      "pageSize": 20,
+      "maxPages": 20
+    },
+    "transientRetryPolicy": {
+      "maxRetries": 1,
+      "backoffMs": 10000
+    },
+    "transportPolicy": {
+      "primary": "DIRECT_HTTP"
+    }
+  },
+  "network": false,
+  "database": false,
+  "launch": false
+}

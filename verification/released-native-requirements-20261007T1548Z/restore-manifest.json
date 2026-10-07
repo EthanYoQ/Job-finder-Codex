@@ -1,0 +1,415 @@
+{
+  "schemaVersion": 1,
+  "staticInputsPath": "verification/released-native-requirements-20261007T1548Z/static-inputs.json",
+  "staticInputsSha256": "65ba50bdb6cd16d3b80d1e7a7390e1851edcf4444808820542651868aeddc84e",
+  "files": [
+    {
+      "path": "hosts/pfizer/README.UNBOUND.md",
+      "mode": "100644",
+      "bytes": 1762,
+      "sha256": "a5b75d4d2e041173f4a51bbd9e7f6f3ce6bd53c97ea00c295806c4943fa93725"
+    },
+    {
+      "path": "hosts/pfizer/RESTORE_DEPENDENCIES.json",
+      "mode": "100644",
+      "bytes": 731,
+      "sha256": "f86e440f23ffaaf75b2a00ab3f9b82b2d7fa0b7040989738a16924e1d2b3f539"
+    },
+    {
+      "path": "hosts/pfizer/host/archive-transfer.mjs",
+      "mode": "100644",
+      "bytes": 1777,
+      "sha256": "698e966e5552967845a5252d2b3df2acca28dcd8dbbb0ae41755a3a6231e6a99"
+    },
+    {
+      "path": "hosts/pfizer/host/context-read.sql.template",
+      "mode": "100644",
+      "bytes": 2394,
+      "sha256": "8c31699ea358a5daba7d3761d5a60b595de75bdd8bbc9e1c4a78ce2619ae8535"
+    },
+    {
+      "path": "hosts/pfizer/host/context-template-proof.json",
+      "mode": "100644",
+      "bytes": 2579,
+      "sha256": "da3adc65003de82eda17a10b77b7311a5751c51554f88c9f39761a0f7b5a22a0"
+    },
+    {
+      "path": "hosts/pfizer/host/control-base.template.json",
+      "mode": "100644",
+      "bytes": 467,
+      "sha256": "3634b5cc4c996565263cdae4b168cb519556c2401367f33511b426fd0ae48897"
+    },
+    {
+      "path": "hosts/pfizer/host/host-config.json",
+      "mode": "100644",
+      "bytes": 511,
+      "sha256": "222f9a67343b248e306dad5266aa446b3ee1e22666c7e569c6178b928f203a80"
+    },
+    {
+      "path": "hosts/pfizer/host/host-config.template.json",
+      "mode": "100644",
+      "bytes": 511,
+      "sha256": "222f9a67343b248e306dad5266aa446b3ee1e22666c7e569c6178b928f203a80"
+    },
+    {
+      "path": "hosts/pfizer/host/host-files.mts",
+      "mode": "100644",
+      "bytes": 4077,
+      "sha256": "c8033565b3c368bf369fc7507f9d1ff8fa87bc0dde0a84a10a95373473dc6f3a"
+    },
+    {
+      "path": "hosts/pfizer/host/host-helper-functions.js",
+      "mode": "100644",
+      "bytes": 9762,
+      "sha256": "02a6f634d71c8a5ad9157df4ca710c0ab68c635c0d49e2a6b51254a9753c4f58"
+    },
+    {
+      "path": "hosts/pfizer/host/host-stage-functions.js",
+      "mode": "100644",
+      "bytes": 6568,
+      "sha256": "96ad1df71a28a2a6df9ed18dc595c17a31d4ff673f5aef41376d929d6fdffaa4"
+    },
+    {
+      "path": "hosts/pfizer/host/machine-json.js",
+      "mode": "100644",
+      "bytes": 807,
+      "sha256": "3484738bd095a9d57da70c6392af78865a53759a9e8499316941157b6210e9f6"
+    },
+    {
+      "path": "hosts/pfizer/host/owner-binding-input.template.json",
+      "mode": "100644",
+      "bytes": 619,
+      "sha256": "4de56b990e5acc9e5177fcca4f8667766279c157e606c283894b717a73ef1239"
+    },
+    {
+      "path": "hosts/pfizer/host/relay-files.mjs",
+      "mode": "100644",
+      "bytes": 7908,
+      "sha256": "61da0eaaff86ead083ecae455bb85e609fc031354e5ce02f9e482add5ca04139"
+    },
+    {
+      "path": "hosts/pfizer/host/runtime/compact-json-review.inc.py",
+      "mode": "100644",
+      "bytes": 1558,
+      "sha256": "7f23b26241ad6bffa9f5f453bfb294b89ddd54ad5f02d001a599f6cc81d8af6c"
+    },
+    {
+      "path": "hosts/pfizer/host/runtime/complete-reviewed-source-readback.js",
+      "mode": "100644",
+      "bytes": 5695,
+      "sha256": "1351c7d59ae0c20f8db4e00791da47d0081a23acda3ef57578a42db5a2c51cdb"
+    },
+    {
+      "path": "hosts/pfizer/host/runtime/continuous-relay-v3-durable-monitor.js",
+      "mode": "100644",
+      "bytes": 5172,
+      "sha256": "9e48dfd1e6ac24e8786b0e042ce736e4d730122cb69c026ba97c46cea172fd55"
+    },
+    {
+      "path": "hosts/pfizer/host/runtime/inspect-host-binding.mts",
+      "mode": "100644",
+      "bytes": 3219,
+      "sha256": "2886f1ada6ae7fb0fd47ea886da220c4b45479220497fdcb5d8f38c7ef77fe38"
+    },
+    {
+      "path": "hosts/pfizer/host/runtime/load-host-state.js",
+      "mode": "100644",
+      "bytes": 5319,
+      "sha256": "cbc8cff938236a6d931be0b64b3ac42fc37d359ff8021558899c2df0f86d646a"
+    },
+    {
+      "path": "hosts/pfizer/host/runtime/load-host-state.unbound.template.js",
+      "mode": "100644",
+      "bytes": 5319,
+      "sha256": "cbc8cff938236a6d931be0b64b3ac42fc37d359ff8021558899c2df0f86d646a"
+    },
+    {
+      "path": "hosts/pfizer/host/runtime/load-source-runtime.js",
+      "mode": "100644",
+      "bytes": 2405,
+      "sha256": "a3c0f37a117be91271e269263eb7c2ff8be9f36f214ef422b95e633faf50d481"
+    },
+    {
+      "path": "hosts/pfizer/host/runtime/machine-json.py",
+      "mode": "100644",
+      "bytes": 1119,
+      "sha256": "67611e749eddc6bf8c591fef11f2efa82e2a73ce0bb51b2779fab4ae68b77f50"
+    },
+    {
+      "path": "hosts/pfizer/host/runtime/preflight/preflight-launch.mjs",
+      "mode": "100644",
+      "bytes": 11041,
+      "sha256": "bc6368b3238f049d04b4a1f72c03e88f4b00dd76057f51a17e364db31ecb057f"
+    },
+    {
+      "path": "hosts/pfizer/host/runtime/preflight/runtime-check.mjs",
+      "mode": "100644",
+      "bytes": 3815,
+      "sha256": "e01c5b953283535757e2fcc67df80dd3e86948709dde0b488235a7edee017785"
+    },
+    {
+      "path": "hosts/pfizer/host/runtime/prepare-owner-binding.mts",
+      "mode": "100644",
+      "bytes": 8306,
+      "sha256": "a89d9bdc1a5c04f2d5dfe0d68b352175a3651941b8a96f33a325c711843a9c2a"
+    },
+    {
+      "path": "hosts/pfizer/host/runtime/prepare-registered-control.mts",
+      "mode": "100644",
+      "bytes": 123,
+      "sha256": "75b04c3bf46a0c81529e1322c74a02ccddb88b6edb161c39e36fc082ad1c89d8"
+    },
+    {
+      "path": "hosts/pfizer/host/runtime/review-packet-envelope.mts",
+      "mode": "100644",
+      "bytes": 11318,
+      "sha256": "7d843c8a2d54c5bb1a7b1abec896294e18e3ef081ab9c97ef0c809f5db3ee173"
+    },
+    {
+      "path": "hosts/pfizer/host/runtime/review-publication.py",
+      "mode": "100644",
+      "bytes": 10281,
+      "sha256": "9a30f93f6d064ba9068bdbd9a854c27bba6b30a0a4af9109169619766791f272"
+    },
+    {
+      "path": "hosts/pfizer/host/runtime/update-candidate-completion-state.mjs",
+      "mode": "100644",
+      "bytes": 3654,
+      "sha256": "ae5ad99411b014c8ffff615a0b06af1e1fdfd2ed7f7265c9c9cee0128339bb06"
+    },
+    {
+      "path": "hosts/pfizer/host/runtime/verify-independent-validation.mts",
+      "mode": "100644",
+      "bytes": 3208,
+      "sha256": "1731f080f79d1e0fb8862ef4bbe066ad204298c918255d61b753ee1e27403c40"
+    },
+    {
+      "path": "hosts/pfizer/host/runtime/verify-pfizer-b-proof.mts",
+      "mode": "100644",
+      "bytes": 8769,
+      "sha256": "0c79dc45c7f046aea952e52bff6db32abf112e8c29ebd392f74af8c95c9f379a"
+    },
+    {
+      "path": "hosts/pfizer/host/source-config-reference.json",
+      "mode": "100644",
+      "bytes": 508,
+      "sha256": "a705938fc4869ad45df068edd07e26a72f4ca97363967b83718ebca573314180"
+    },
+    {
+      "path": "hosts/pfizer/supervision/inspect-launch-identity.mjs",
+      "mode": "100644",
+      "bytes": 871,
+      "sha256": "7bc818ae831081b7e91819ad772b950d08e7d06dc741730c0bd54698d6fe8b37"
+    },
+    {
+      "path": "hosts/pfizer/supervision/sample_process_tree.py",
+      "mode": "100644",
+      "bytes": 13065,
+      "sha256": "3fa6daa1af1afee94d19801edfd8bcb538e1243476b5adb253e50de162a27bd6"
+    },
+    {
+      "path": "hosts/pfizer/supervision/start-monitor-pfizer51-combined.js",
+      "mode": "100644",
+      "bytes": 16080,
+      "sha256": "c77a48a60a0d09740a8581886fcdc94cb4e0d95bedb0bae4a8cec15735a7b6c4"
+    },
+    {
+      "path": "hosts/pfizer/supervision/start-monitor-pfizer51-combined.unbound.template.js",
+      "mode": "100644",
+      "bytes": 16080,
+      "sha256": "c77a48a60a0d09740a8581886fcdc94cb4e0d95bedb0bae4a8cec15735a7b6c4"
+    },
+    {
+      "path": "hosts/pfizer/supervision/supervise-cancel.mjs",
+      "mode": "100644",
+      "bytes": 10232,
+      "sha256": "083435a5344a47b86f84184bbe1d2711b0d35def4670afb2ab3c8391ed442e7e"
+    },
+    {
+      "path": "owner-adaptations/pfizer-b-20261007T1548Z/baseline-manifest.json",
+      "mode": "100644",
+      "bytes": 1398,
+      "sha256": "c33bad5ebb3f71017b1baf66a6b74f7231aff5b064c57697b7d777a1ad86c68b"
+    },
+    {
+      "path": "owner-adaptations/pfizer-b-20261007T1548Z/build-fragments.py",
+      "mode": "100644",
+      "bytes": 4463,
+      "sha256": "1f03fee8b375360bd6294b09fed5eccbbe1787bda8f5cf5523c743bde23de28e"
+    },
+    {
+      "path": "owner-adaptations/pfizer-b-20261007T1548Z/preload-owner.exec.js",
+      "mode": "100644",
+      "bytes": 2739,
+      "sha256": "b38dd79bb7c65d06f6bd324be5585d8b41c909eb7b3b3d8723e67140bf51b12a"
+    },
+    {
+      "path": "owner-adaptations/pfizer-b-20261007T1548Z/publish-and-monitor-owner.js",
+      "mode": "100644",
+      "bytes": 10947,
+      "sha256": "78a716a79d905dc7bb02715967c43b74566d496bea5b6c24a2d6139dbb1f1894"
+    },
+    {
+      "path": "owner-adaptations/pfizer-b-20261007T1548Z/publish-reviewed-and-monitor.exec.js",
+      "mode": "100644",
+      "bytes": 1398,
+      "sha256": "56607634facc379fba8b401258d490abb258ba993aeabdf6865d4bd63296ed9d"
+    },
+    {
+      "path": "owner-adaptations/pfizer-b-20261007T1548Z/tests/generate-full-chain-tests.py",
+      "mode": "100644",
+      "bytes": 2748,
+      "sha256": "e2f3aa531f56f90b457465cacf73f68066f1e9c3968005dae4e1b3820b9d2074"
+    },
+    {
+      "path": "owner-adaptations/pfizer-b-20261007T1548Z/tests/generated-pfizer-full-chain.test.mjs",
+      "mode": "100644",
+      "bytes": 21538,
+      "sha256": "dfedab7c16fbfe5e7f0f6aab4485713d61ff3b4b13583bb510dc2375c7ca0362"
+    },
+    {
+      "path": "owner-adaptations/pfizer-b-20261007T1548Z/tests/key-and-preload.test.mjs",
+      "mode": "100644",
+      "bytes": 3886,
+      "sha256": "8a3d9de1b2fa5601155f335a6c3957bcf5c06d970b5145c2e9471ab96f222067"
+    },
+    {
+      "path": "owner-adaptations/pfizer-b-20261007T1548Z/tests/owner.test.mjs",
+      "mode": "100644",
+      "bytes": 20267,
+      "sha256": "8c0e2c462df58522166a01f8c08afc39e7dc73d3de76f13bcb67ac8d3dd1d11c"
+    },
+    {
+      "path": "owner-adaptations/pfizer-b-20261007T1548Z/tests/real-apply-patch-terminal-fixture.json",
+      "mode": "100644",
+      "bytes": 195,
+      "sha256": "aff94e02c5266ff389e8cbd2da3774b9eaf00cbf204bf9484a1b5eaace576f2e"
+    },
+    {
+      "path": "verification/released-native-requirements-20261007T1548Z/FRESH_PFIZER_COLLECTION_HANDOFF.md",
+      "mode": "100644",
+      "bytes": 9238,
+      "sha256": "afd650e80d27aeee6760b45842d6e1b21450f6675b21197c88f9bfc3d11f78a3"
+    },
+    {
+      "path": "verification/released-native-requirements-20261007T1548Z/SOURCE_RESTORE_EXPERIENCE.md",
+      "mode": "100644",
+      "bytes": 2705,
+      "sha256": "024e7c0eeb2df479301b254626843f3d5da69e9d4a381fa5472e8ffe1afb3f19"
+    },
+    {
+      "path": "verification/released-native-requirements-20261007T1548Z/SOURCE_ROUTE_CONTRACT.md",
+      "mode": "100644",
+      "bytes": 1575,
+      "sha256": "4681dbfc3e09943f75f462731753e7a8add8a07b9f9c890fd67128551135af89"
+    },
+    {
+      "path": "verification/released-native-requirements-20261007T1548Z/export-route-audit.mts",
+      "mode": "100644",
+      "bytes": 3332,
+      "sha256": "6f2c61197fc7a05a88d663f414a8a024bb61586d189696c0cf69cdad71817c26"
+    },
+    {
+      "path": "verification/released-native-requirements-20261007T1548Z/finish-pfizer-static.py",
+      "mode": "100644",
+      "bytes": 197,
+      "sha256": "384a76bacd4aa62786874922c48a8fd59a231de0e8a3a303a0550c896ae77a18"
+    },
+    {
+      "path": "verification/released-native-requirements-20261007T1548Z/generate-context.mts",
+      "mode": "100644",
+      "bytes": 3740,
+      "sha256": "3228ce22a2c1c105648c55d36d166b59fff91431908cb95be2f82e4cd53636cc"
+    },
+    {
+      "path": "verification/released-native-requirements-20261007T1548Z/offline.cjs",
+      "mode": "100644",
+      "bytes": 476,
+      "sha256": "5538c42ea4c1dfe57c5d389fea1d1b11f1d3ec035fc5eb1613ea7874eed3b717"
+    },
+    {
+      "path": "verification/released-native-requirements-20261007T1548Z/pfizer-b-proof.fixture.mts",
+      "mode": "100644",
+      "bytes": 9398,
+      "sha256": "cdc3b4c0fcd70b506ee077e136b77b84f1fc32d36fb8d054d48fc0b1652159e2"
+    },
+    {
+      "path": "verification/released-native-requirements-20261007T1548Z/pfizer-b-proof.test.mts",
+      "mode": "100644",
+      "bytes": 5161,
+      "sha256": "41ee6402ef565550d5f013ff95caec27fd100bc83dab0eb718ec78b72a406d03"
+    },
+    {
+      "path": "verification/released-native-requirements-20261007T1548Z/pfizer-b-python-reviewer.test.mts",
+      "mode": "100644",
+      "bytes": 10826,
+      "sha256": "35e9b702d71704f548d7cb52060d5805e8abf1bf24ab30d2981033d13c4a3a61"
+    },
+    {
+      "path": "verification/released-native-requirements-20261007T1548Z/prepare-pfizer-host.py",
+      "mode": "100644",
+      "bytes": 213,
+      "sha256": "5d40d0bb81b67355535611ddcfaa6902f46e356a2a745868d563ef4c8ca6e60a"
+    },
+    {
+      "path": "verification/released-native-requirements-20261007T1548Z/raw-byte-pin-regression.test.mts",
+      "mode": "100644",
+      "bytes": 2776,
+      "sha256": "dfbd0daa1c5b8f688150c780134e70d7b715cba63ad6b09d1fa131554febc1c2"
+    },
+    {
+      "path": "verification/released-native-requirements-20261007T1548Z/restore-lib.py",
+      "mode": "100644",
+      "bytes": 7937,
+      "sha256": "caa829f0ec77b847df9de32b84b098ece60215b843f7ffaf77118283e825d24b"
+    },
+    {
+      "path": "verification/released-native-requirements-20261007T1548Z/static-inputs.json",
+      "mode": "100644",
+      "bytes": 23447,
+      "sha256": "65ba50bdb6cd16d3b80d1e7a7390e1851edcf4444808820542651868aeddc84e"
+    },
+    {
+      "path": "verification/released-native-requirements-20261007T1548Z/verify-combined-pins.mjs",
+      "mode": "100644",
+      "bytes": 3962,
+      "sha256": "4b46900df2f851182088b51ca38173dc90637412a546b20b7b127702e9194b2f"
+    },
+    {
+      "path": "verification/released-native-requirements-20261007T1548Z/verify-hosts.mts",
+      "mode": "100644",
+      "bytes": 8968,
+      "sha256": "bc3a97b4f5568fe772d463e997ac905b612fba6b677fcd6015bc7e2090b8fbb4"
+    },
+    {
+      "path": "verification/released-native-requirements-20261007T1548Z/verify-input-wiring.test.mts",
+      "mode": "100644",
+      "bytes": 6609,
+      "sha256": "cc1dcf9509477e0bbd300f3b0ac67f15272cca113d2cab19e803e78f737ce87b"
+    },
+    {
+      "path": "verification/released-native-requirements-20261007T1548Z/verify-loader-pins.mjs",
+      "mode": "100644",
+      "bytes": 2735,
+      "sha256": "47fc07b4d6ad76d6660bb3c3ab981330d6730ab76f4cb5f507b35ba67188ada5"
+    },
+    {
+      "path": "verification/released-native-requirements-20261007T1548Z/verify-native-preflight.mts",
+      "mode": "100644",
+      "bytes": 3079,
+      "sha256": "bbdcddbb3e1e5e760c4fc772414bb5e80ac619b64f003bd25b34b89944276bac"
+    },
+    {
+      "path": "verification/released-native-requirements-20261007T1548Z/verify-output-paths.mts",
+      "mode": "100644",
+      "bytes": 2167,
+      "sha256": "827f1faa7e51d4dd9a113d39adf94d32aef5e54d323d4163ee4da148e22550c9"
+    },
+    {
+      "path": "verification/released-native-requirements-20261007T1548Z/verify-source-startup.mts",
+      "mode": "100644",
+      "bytes": 14350,
+      "sha256": "8ff9b6a8051a7b485514993f45410db6ce0bb3dd7f29320a17a8efc45993b578"
+    }
+  ]
+}

@@ -1,0 +1,8 @@
+{
+  "root": "/workspace/scratch/5e9614251709/jb-incremental-proxy-runtime-20261007T0057Z/hosts/pfizer/host",
+  "repo": "/workspace/scratch/5e9614251709/jb-incremental-proxy-runtime-20261007T0057Z/producer",
+  "node": "/workspace/scratch/5e9614251709/jb-incremental-proxy-runtime-20261007T0057Z/runtime/node-v22.23.3-linux-x64/bin/node",
+  "project": "yiopvxysxrtrnvqxwgbx",
+  "sourceId": "source-pfizer-china-social",
+  "sourceConfigSha256": "84aaab8bad3579630eec1b12d3f09236755b3a25d0b7751ca8584a9a53a83413"
+}

@@ -1,8 +1,0 @@
-{
-  "root": "/workspace/scratch/5e9614251709/jb-incremental-proxy-runtime-20261007T0057Z/hosts/servier/host",
-  "repo": "/workspace/scratch/5e9614251709/jb-incremental-proxy-runtime-20261007T0057Z/producer",
-  "node": "/workspace/scratch/5e9614251709/jb-incremental-proxy-runtime-20261007T0057Z/runtime/node-v22.23.3-linux-x64/bin/node",
-  "project": "yiopvxysxrtrnvqxwgbx",
-  "sourceId": "source-servier-china-social",
-  "sourceConfigSha256": "3c87c89d3bdc74275a0b66a9a27a9eaf76f99da8ee7aa3af835eb87e2b028e17"
-}

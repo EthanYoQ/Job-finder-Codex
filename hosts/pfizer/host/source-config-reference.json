@@ -1,0 +1,14 @@
+{
+  "sourceId": "source-pfizer-china-social",
+  "route": "TRUE_B",
+  "sourceConfigSha256": "84aaab8bad3579630eec1b12d3f09236755b3a25d0b7751ca8584a9a53a83413",
+  "source": {
+    "id": "source-pfizer-china-social",
+    "companyId": "company-pfizer-china",
+    "kind": "SOCIAL",
+    "atsKind": "WORKDAY",
+    "status": "VERIFIED_SCRAPABLE",
+    "officialEntryUrl": "https://pfizer.wd1.myworkdayjobs.com/PfizerCareers",
+    "officialChainEvidenceUrl": "https://www.pfizer.com/about/careers/search-results"
+  }
+}

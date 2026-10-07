@@ -1,0 +1,13 @@
+{
+  "schemaVersion": 1,
+  "producerCommit": "28402a299bb04cbf5873da66c2fe8ca76827c0d1",
+  "route": "TRUE_B",
+  "runtimeRoot": "/workspace/scratch/5e9614251709/jb-incremental-proxy-runtime-20261007T0057Z",
+  "nodeVersion": "22.23.3",
+  "nodePath": "/workspace/scratch/5e9614251709/jb-incremental-proxy-runtime-20261007T0057Z/runtime/node-v22.23.3-linux-x64/bin/node",
+  "producerRoot": "/workspace/scratch/5e9614251709/jb-incremental-proxy-runtime-20261007T0057Z/producer",
+  "staticInputsPath": "verification/released-native-requirements-20261007T1548Z/static-inputs.json",
+  "restoreManifestPath": "verification/released-native-requirements-20261007T1548Z/restore-manifest.json",
+  "candidate": null,
+  "databaseIdentity": null
+}
