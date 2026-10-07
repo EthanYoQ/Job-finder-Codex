@@ -1,8 +1,0 @@
-{
-  "root": "/workspace/scratch/5e9614251709/jb-incremental-proxy-runtime-20261007T0057Z/hosts/bms/host",
-  "repo": "/workspace/scratch/5e9614251709/jb-incremental-proxy-runtime-20261007T0057Z/producer",
-  "node": "/workspace/scratch/5e9614251709/jb-incremental-proxy-runtime-20261007T0057Z/runtime/node-v22.23.3-linux-x64/bin/node",
-  "project": "yiopvxysxrtrnvqxwgbx",
-  "sourceId": "source-bms-china-social",
-  "sourceConfigSha256": "e0d783cbc8fc887e1697db6d86cb0abb8058ca6793cd32752055271c022ca137"
-}
