@@ -1,0 +1,15 @@
+{
+  "schemaVersion": 1,
+  "build": {
+    "schemaVersion": 2,
+    "commitSha": "d6190919d17c8ba4ee721daa2087d3c09bded7fa",
+    "sourceTreeSha256": "0656b47c4b78ef0a704e3f40680f0e0d76571dd309e8ff3dfb0c5f08d1207fdb",
+    "runtimeTreeSha256": "28b315a78b76029fe838501d8d6e0d9b00c52d24ab6736d4b5f9612bcf34fc54",
+    "contentSha256": "59ebc9d60a4de54c91174d8725c8240fad40ece2c29e150b1a1d3ad78abc4f65"
+  },
+  "candidate": null,
+  "databaseIdentity": null,
+  "minimumCandidateVersion": 52,
+  "sourceId": "source-gilead-china-social",
+  "sourceConfigSha256": "bdb31408948240f810347b6ba217407b0b50c9327c9600b4115a2a7a0869e40c"
+}

@@ -1,0 +1,74 @@
+{
+  "classification": "SAFE_HOST_GATE_SOURCE_CLOSURE",
+  "testSourceFiles": [
+    "host-gate-tests/README.md",
+    "host-gate-tests/generate-synthetic-packet.mts",
+    "host-gate-tests/run-offline.sh",
+    "host-gate-tests/verify-completion-gates.mjs",
+    "host-gate-tests/verify-host-offline.mts",
+    "host-gate-tests/verify-owner-gates.mts",
+    "host-gate-tests/verify-starter-gates.mjs"
+  ],
+  "additionalSourceFiles": [
+    "recovery-templates/load-host-state.unbound.js",
+    "recovery-templates/start-monitor-gilead-next-combined.unbound.js",
+    "recovery-templates/restore-unbound-host.py",
+    "recovery-tests/verify-restore-binder.mts"
+  ],
+  "hostDependencies": "All 36 explicit host safe files from hosts/gilead/verification/SAFE_SOURCE_ALLOWLIST.json; no private bindings required",
+  "producerDependency": {
+    "commit": "d6190919d17c8ba4ee721daa2087d3c09bded7fa",
+    "fullSourceAndInstalledRuntimeRequired": true,
+    "identitySource": "hosts/gilead/host/control-base.template.json:build",
+    "modules": "Imports resolve into that exact producer tree, including tests/helpers/gileadYello.ts and scripts/verify-node-runtime-profile.ts",
+    "newLocalBuildIdentityJsonRequired": false
+  },
+  "externalTools": [
+    "pinned Node v22.23.3 matching producer/ops/node-runtime-profile.json",
+    "Python 3",
+    "Bash",
+    "Git",
+    "/usr/local/bin/apply_patch"
+  ],
+  "privateDependencies": [],
+  "generatedDependencies": [],
+  "entrypoints": {
+    "narrow": "bash host-gate-tests/run-offline.sh --restore-only",
+    "fullHistoricalSuite": "bash host-gate-tests/run-offline.sh"
+  },
+  "testHistory": {
+    "originalAssertionsRetained": 118,
+    "full118RerunAfterFixtureAdaptation": false,
+    "narrowRestoreBinderCases": 7
+  },
+  "sourceHashes": [
+    {
+      "path": "host-gate-tests/README.md",
+      "sha256": "669b7d67ecd4d71c700258359e063e81a45657df38b9a7d7664e24cd5d143ad2"
+    },
+    {
+      "path": "host-gate-tests/generate-synthetic-packet.mts",
+      "sha256": "e3cd39c7d82b86f7f43a25a80349b21579853485f03e0087185d18bd36a32ca3"
+    },
+    {
+      "path": "host-gate-tests/run-offline.sh",
+      "sha256": "6ad274b76a753f13ee54e2b82d36fd4d2567299a8fea7de219e6f0a3f11b2973"
+    },
+    {
+      "path": "host-gate-tests/verify-completion-gates.mjs",
+      "sha256": "578aa994e7b4bf32a6b4c2cb667e553b730929c38a046ed8b8f453708d157b0f"
+    },
+    {
+      "path": "host-gate-tests/verify-host-offline.mts",
+      "sha256": "88b43543f285e760a4c50c6bee23ee66931b601ecf6e11ff591f6eebea676486"
+    },
+    {
+      "path": "host-gate-tests/verify-owner-gates.mts",
+      "sha256": "e1b0ae30bfc2090b3e475d6d8591b250a4a578d7e78b8b443d514a14296e1a41"
+    },
+    {
+      "path": "host-gate-tests/verify-starter-gates.mjs",
+      "sha256": "d65a3529eab38a8abdd1b7a31dae46fac3caafc14f10bd81b9d8f6d6d07f7059"
+    }
+  ]
+}

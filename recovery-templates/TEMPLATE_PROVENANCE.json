@@ -1,0 +1,25 @@
+{
+  "classification": "SAFE_ORIGINAL_UNBOUND_TEMPLATE_SOURCE",
+  "origin": "registration/pre-activation-templates-0722Z; only the two JavaScript sources copied",
+  "privateFilesCopied": false,
+  "templates": [
+    {
+      "path": "recovery-templates/load-host-state.unbound.js",
+      "originalRelativePath": "host/runtime/load-host-state.js",
+      "restoreTarget": "hosts/gilead/host/runtime/load-host-state.js",
+      "sha256": "e12fdec0403c58c1d6f7c014bd4d3c3b0d34bdb4c443c901611a5443eafa71b4",
+      "bytes": 5358,
+      "candidate": null,
+      "databaseIdentity": null
+    },
+    {
+      "path": "recovery-templates/start-monitor-gilead-next-combined.unbound.js",
+      "originalRelativePath": "supervision/start-monitor-gilead-next-combined.js",
+      "restoreTarget": "hosts/gilead/supervision/start-monitor-gilead-next-combined.js",
+      "sha256": "89487bf2378f4fdca66096d645557872ba67cce2b78f7bdbb189210594ce939b",
+      "bytes": 14974,
+      "candidate": null,
+      "databaseIdentity": "not embedded by original starter"
+    }
+  ]
+}
