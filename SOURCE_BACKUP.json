@@ -1,23 +1,19 @@
 {
   "schema": "safe-skill-backup-v1",
   "skill": "job-finder-aliyun-release-recovery",
-  "parentBackup": "19a90a8ed79478bc5c5f4795c51025e734d4fc6f",
-  "changedFiles": [
-    "SKILL.md",
-    "references/command-evidence-and-recovery.md"
-  ],
-  "retainedReferences": [
-    "references/proxy-runtime-and-same-batch-readback.md",
-    "references/runtime-and-acceptance.md"
-  ],
+  "revision": "r4",
+  "parentBackup": "cf708a756d33e67b5a6c498b5955e8d430059a0a",
+  "originalManifestSha256": "a84a8dde9a62073291d7ed335c36678d6803263fc1ae3d4765a02e0daef28fcd",
+  "originalSkillFileCount": 6,
+  "originalSkillBytes": 45093,
   "files": [
     {
       "path": "skills/job-finder-aliyun-release-recovery/SKILL.md",
       "mode": "100644",
       "type": "blob",
-      "bytes": 5372,
-      "sha256": "bac893ec6e64f765910b7322c1b1bea49a81e191cae40bd576dcd69fb4cb2495",
-      "sha": "59d113572d6f0558389f5df2c2e3ee66d6ed5836"
+      "bytes": 5749,
+      "sha256": "e829a430fd9b80a41957cb26bac7a7de1740f3e5c4700b7aa005e295a1e884d6",
+      "sha": "8afeef931a3d4b2318e58e997877649b1c4d25c8"
     },
     {
       "path": "skills/job-finder-aliyun-release-recovery/references/command-evidence-and-recovery.md",
@@ -42,13 +38,33 @@
       "bytes": 6334,
       "sha256": "0984ffb63ca245bb93d710e96198d03372775eab723d2541b0a2efaa8e4f0957",
       "sha": "8e3e1d737faa8abad486f8592e240087c4ac9f78"
+    },
+    {
+      "path": "skills/job-finder-aliyun-release-recovery/references/time-semantics-and-failed-acceptance.md",
+      "mode": "100644",
+      "type": "blob",
+      "bytes": 6527,
+      "sha256": "84b542a410026f105febd23cb72173c52be4965c65c2caa1f5da2c15a830df83",
+      "sha": "52f012c8ffff12e37d701ac42a14431cfb074013"
+    },
+    {
+      "path": "skills/job-finder-aliyun-release-recovery/scripts/test-acceptance-invariants.py",
+      "mode": "100644",
+      "type": "blob",
+      "bytes": 9338,
+      "sha256": "c0116ba21cecb08d641a13cd1e90810b862c4bfdd8f996aa6077f689e53630a3",
+      "sha": "2072c3404be2348047df7dc4c4a91d433d6ac045"
     }
   ],
+  "retainedContent": "Skill guidance, generalized case outcomes, references and simplified synthetic tests",
   "excluded": [
-    "actual tool and diagnostic receipts",
-    "concrete runtime or database data",
+    "original production receipts",
+    "actual business or database data",
+    "runtime command/binding material",
     "credentials",
-    "private validation reports"
+    "private validation reports",
+    "original mixed-result delivery manifest"
   ],
-  "sourceExecutionPerformed": false
+  "testScope": "Synthetic teaching examples; not production reader or deployment verification",
+  "backupSourceExecution": false
 }
