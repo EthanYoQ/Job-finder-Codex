@@ -1,0 +1,27 @@
+{
+  "mode": "OFFLINE_PHYSICAL_COPY_FROM_VERIFIED_BASE_RUNTIME",
+  "packageLockSha256": "3f45f2db3f910be83bb57630db121a175b0375fe216a2fa110cab99ec149fae9",
+  "sourceSchemaSha256": "0582f24fc0733b4d72e0224bf40152a381047d4b6f107d663f82901edcfe8c44",
+  "generatedSchemaSha256": "05630f8b32d54227f24bc10f168a47d5c122706556d4444b180e13eba59675d1",
+  "generatedSchemaMatchesPriorAndPriorFormattedSource": true,
+  "sourceSchemaMatchesPrior": true,
+  "prismaVersion": {
+    "client": "6.19.3",
+    "engine": "c2990dca591cba766e3b7ef5d9e8a84796e47ab7"
+  },
+  "nativeEngineVersion": {
+    "commit": "c2990dca591cba766e3b7ef5d9e8a84796e47ab7",
+    "version": "0.1.0"
+  },
+  "sourceChangedAt": {
+    "name": "sourceChangedAt",
+    "type": "DateTime",
+    "isRequired": false,
+    "kind": "scalar"
+  },
+  "nodeModulesIsDirectorySymlink": false,
+  "internalBinSymlinksPreservedAndRootBound": true,
+  "prismaClientConstructed": false,
+  "networkInstall": false,
+  "prismaRegenerated": false
+}

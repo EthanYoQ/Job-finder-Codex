@@ -1,0 +1,435 @@
+From 629294b49212e4fb3fceb14f88cdf37fca17b451 Mon Sep 17 00:00:00 2001
+From: dot <dot@local>
+Date: Wed, 7 Oct 2026 06:07:39 -0700
+Subject: [PATCH] Retry one transient Amgen detail GET with retained evidence
+
+---
+ src/crawler/amgenManualWorkdaySourceFetch.ts  |  84 +++++++-
+ src/crawler/workdayMainlandQuality.ts         |   7 +-
+ .../amgenManualWorkdayGetRetry.test.ts        | 190 ++++++++++++++++++
+ .../workdayMainlandHttpRetryAfter.test.ts     |  23 +++
+ 4 files changed, 291 insertions(+), 13 deletions(-)
+ create mode 100644 tests/crawler/amgenManualWorkdayGetRetry.test.ts
+ create mode 100644 tests/crawler/workdayMainlandHttpRetryAfter.test.ts
+
+diff --git a/src/crawler/amgenManualWorkdaySourceFetch.ts b/src/crawler/amgenManualWorkdaySourceFetch.ts
+index 649cb40..64ba74e 100644
+--- a/src/crawler/amgenManualWorkdaySourceFetch.ts
++++ b/src/crawler/amgenManualWorkdaySourceFetch.ts
+@@ -7,6 +7,8 @@ import { deriveCanonicalPaginationEvidence, evaluatePaginationEvidence } from ".
+ import { parsePersistentSourceFetchEvidence, type PersistentSourceFetchEvidence, type SourceFetchArtifactDraft } from "./sourceFetchEvidence";
+ import { requestContractV2Locator } from "./strictPageRequestContract";
+ import { hasUniqueJsonObjectKeys } from "./strictJsonObjectKeys";
++import { retryableHttpTransportFailure, type OfficialRetryAfter } from "./sourceFetchFailure";
++import { currentOfficialSourceAttemptRemainingMs, currentOfficialSourceAttemptSignal } from "./officialHttpRuntimeLimits";
+ import { fetchWorkdayMainlandHttp, projectAmgenNativeCities } from "./workdayMainlandQuality";
+ import type { SourceCrawlPlan } from "./sourcePlan";
+ import type { NormalizedJobRecord } from "./normalizedJob";
+@@ -20,8 +22,11 @@ const PAGES = `${ORIGIN}/en/search-jobs/resultspost`, LOOKUP = `${WD}/wday/cxs/a
+ const CHAIN = `${ORIGIN}/en/location/china-jobs/87/1814991/2`, CHINA = "6cb77610a8a543aea2d6bc10457e35d4";
+ const REPORT = "amgen-v2-binding-report", LIMIT = 32 * 1024 * 1024, WINDOW = 10 * 60 * 1000;
+ const FAILURE = "AMGEN_MANUAL_WORKDAY_INVALID";
++// Request-level recovery only: one additional original Workday detail GET in the
++// entire source capture. Never replay the list/lookup POSTs or reset its deadline.
++export const AMGEN_MANUAL_WORKDAY_GET_RETRY = Object.freeze({ maxRetries: 1, backoffMs: 10_000, statuses: Object.freeze([502, 503, 504] as number[]) });
+ type Request = { url: string; method: "GET" | "POST"; headers: Record<string, string>; body?: string };
+-type Response = { body: string; status: number; finalUrl?: string; contentType?: string; capturedAt?: string };
++type Response = { body: string; status: number; finalUrl?: string; contentType?: string; capturedAt?: string; retryAfter?: OfficialRetryAfter };
+ type Http = (request: Request) => Promise<Response>;
+ type Role = "list" | "lookup" | "identity" | "application";
+ type Row = { id: string; title: string; url: string };
+@@ -56,6 +61,33 @@ function artifact(role: Role, index: number, req: Request, response: Response, n
+       body: req.body ? JSON.parse(req.body) : null, coordinate: { index }
+     }) };
+ }
++function failedResponseArtifact(role: Role, index: number, req: Request, response: Response, attempt: number, now: string): SourceFetchArtifactDraft {
++  assert(typeof response.body === "string" && Buffer.byteLength(response.body) <= 2 * 1024 * 1024);
++  const capturedAt = response.capturedAt ?? now; assert(Number.isFinite(Date.parse(capturedAt)));
++  const logicalKey = `${key(role, index)}-failed-attempt-${attempt}`;
++  // A diagnostic record, not a successful HTTP page or completeness claim. The
++  // complete response body and observed metadata survive JSON string escaping.
++  return { id: logicalKey, logicalKey, kind: "COMMAND_OUTPUT", capturedAt, bodyRepresentation: "EXACT",
++    body: JSON.stringify(response), extractorLocator: requestContractV2Locator("amgen-manual-workday-v2:failed-http-response", {
++      family: role === "lookup" || role === "application" ? "workday" : "html", role: `amgen-manual-workday-v2-${role}-failed-attempt`,
++      method: req.method, url: req.url, body: req.body ? JSON.parse(req.body) : null, coordinate: { index, attempt }
++    }) };
++}
++function canRetryResponse(role: Role, req: Request, response: Response): boolean {
++  const failure = retryableHttpTransportFailure(response.status, response.retryAfter);
++  return role === "application" && req.method === "GET" && req.body === undefined && response.finalUrl === req.url &&
++    AMGEN_MANUAL_WORKDAY_GET_RETRY.statuses.includes(response.status) && failure !== undefined &&
++    (failure.retryAfterMs === undefined || failure.retryAfterMs <= AMGEN_MANUAL_WORKDAY_GET_RETRY.backoffMs);
++}
++async function retryDelay(milliseconds: number): Promise<void> {
++  const signal = currentOfficialSourceAttemptSignal(); signal?.throwIfAborted();
++  await new Promise<void>((resolve, reject) => {
++    const finish = () => { signal?.removeEventListener("abort", abort); resolve(); };
++    const timer = setTimeout(finish, milliseconds);
++    const abort = () => { clearTimeout(timer); signal?.removeEventListener("abort", abort); reject(signal?.reason); };
++    signal?.addEventListener("abort", abort, { once: true });
++  });
++}
+ function lookupPage(body: string, index: number, declared?: number): { total: number; rows: LookupRow[] } {
+   const root = json(body), total = index === 0 ? root.total : declared;
+   assert(Number.isSafeInteger(total) && (total as number) >= 0 && (total as number) <= 20 * AMGEN_MANUAL_WORKDAY_CONFIG.lookupMaxPages && Array.isArray(root.jobPostings));
+@@ -112,10 +144,11 @@ function project(row: Row, html: string, lookup: LookupRow, body: string) {
+   return { job: { sourceJobId: `workday:sha256:${hash(lookup.path)}`, title: row.title, officialUrl, locationRaw: locations.join(" | "), cities },
+     binding: { numericId: row.id, reqId: id.req, externalPath: lookup.path, officialUrl, application: { landingUrl: info.externalUrl, canApply: info.canApply, posted: info.posted }, displayConflict: { heading, mainJobIds, applyLinks, hasConflict } } };
+ }
+-function reportArtifact(manualTotal: number, catalog: LookupRow[], bindings: ReturnType<typeof project>["binding"][], capturedAt: string): SourceFetchArtifactDraft {
++function reportArtifact(manualTotal: number, catalog: LookupRow[], bindings: ReturnType<typeof project>["binding"][], capturedAt: string, failedResponses: SourceFetchArtifactDraft[] = []): SourceFetchArtifactDraft {
+   const selected = new Set(bindings.map(b => b.reqId));
+   return { id: REPORT, logicalKey: REPORT, kind: "ORACLE_RESULT", capturedAt, bodyRepresentation: "EXACT", extractorLocator: "amgen-manual-workday-v2:replayed-bindings-and-lookup-only-difference",
+-    body: JSON.stringify({ policy: AMGEN_MANUAL_WORKDAY_CONFIG.policy, manualTotal, lookupTotal: catalog.length, lookupOnlyReqIds: catalog.filter(r => !selected.has(r.req)).map(r => r.req), bindings }) };
++    body: JSON.stringify({ policy: AMGEN_MANUAL_WORKDAY_CONFIG.policy, manualTotal, lookupTotal: catalog.length, lookupOnlyReqIds: catalog.filter(r => !selected.has(r.req)).map(r => r.req), bindings,
++      ...(failedResponses.length ? { httpRetryFailures: failedResponses.map(a => ({ logicalKey: a.logicalKey, bodySha256: hash(a.body) })) } : {}) }) };
+ }
+ function assemble(artifacts: SourceFetchArtifactDraft[], pages: ReturnType<typeof parsePage>[], jobs: ReturnType<typeof project>["job"][]): PersistentSourceFetchEvidence {
+   let offset = 0;
+@@ -127,10 +160,21 @@ function assemble(artifacts: SourceFetchArtifactDraft[], pages: ReturnType<typeo
+ }
+ function replay(artifacts: SourceFetchArtifactDraft[]) {
+   const map = new Map(artifacts.map(a => [a.logicalKey, a])); assert(map.size === artifacts.length && artifacts.reduce((n, a) => n + Buffer.byteLength(a.body), 0) <= LIMIT);
+-  let consumed = 0, previous = Date.parse(artifacts[0]!.capturedAt); const start = previous;
++  let consumed = 0, retries = 0, previous = Date.parse(artifacts[0]!.capturedAt); const start = previous;
+   const read = (role: Role, index: number, req: Request) => {
++    let retryCapturedAt: number | undefined;
++    const failed = artifacts[consumed];
++    if (failed?.logicalKey === `${key(role, index)}-failed-attempt-1`) {
++      assert(++retries <= AMGEN_MANUAL_WORKDAY_GET_RETRY.maxRetries && typeof failed.body === "string");
++      const response = json(failed.body) as Response;
++      const expected = failedResponseArtifact(role, index, req, response, 1, failed.capturedAt);
++      assert(canRetryResponse(role, req, response) && same({ ...failed, id: expected.id }, expected));
++      retryCapturedAt = Date.parse(failed.capturedAt);
++      assert(retryCapturedAt >= previous && retryCapturedAt - start <= WINDOW); previous = retryCapturedAt; consumed++;
++    }
+     const a = map.get(key(role, index)); assert(a && typeof a.body === "string" && a.logicalKey === artifacts[consumed++]?.logicalKey);
+-    const time = Date.parse(a.capturedAt); assert(time >= previous && time - start <= WINDOW); previous = time;
++    const time = Date.parse(a.capturedAt); assert(time >= previous && time - start <= WINDOW &&
++      (retryCapturedAt === undefined || time - retryCapturedAt >= AMGEN_MANUAL_WORKDAY_GET_RETRY.backoffMs)); previous = time;
+     const expected = artifact(role, index, req, { body: a.body, status: a.httpStatus!, finalUrl: a.finalUrl!, contentType: a.contentType!, capturedAt: a.capturedAt }, a.capturedAt);
+     assert(same({ ...a, id: expected.id }, expected)); return a.body;
+   };
+@@ -144,17 +188,35 @@ function replay(artifacts: SourceFetchArtifactDraft[]) {
+   const selected = new Set<string>(), projected = rows.map((row, i) => { const html = read("identity", i, request(row.url)), id = identity(html, row), match = catalog.find(r => r.req === id.req);
+     assert(match && !selected.has(id.req)); selected.add(id.req); return project(row, html, match, read("application", i, request(`${WD}/wday/cxs/amgen/Careers${match.path}`))); });
+   assert(artifacts.length === consumed + 1);
+-  const report = reportArtifact(rows.length, catalog, projected.map(p => p.binding), artifacts[consumed - 1]!.capturedAt);
++  const report = reportArtifact(rows.length, catalog, projected.map(p => p.binding), artifacts[consumed - 1]!.capturedAt, artifacts.slice(0, consumed).filter(a => a.kind === "COMMAND_OUTPUT"));
+   assert(same(artifacts[consumed], report));
+   const jobs = projected.map(p => p.job); assert(new Set(jobs.map(j => j.sourceJobId)).size === jobs.length);
+   return { evidence: assemble(artifacts, pages, jobs), jobs };
+ }
+-export function createAmgenManualWorkdaySourceFetch(deps: { http?: Http; now?: () => Date } = {}): SourceFetchFunction {
++export function createAmgenManualWorkdaySourceFetch(deps: { http?: Http; now?: () => Date; delay?: (milliseconds: number) => Promise<void> } = {}): SourceFetchFunction {
+   return async plan => {
+-    const now = deps.now ?? (() => new Date()), startedAt = now().toISOString(), artifacts: SourceFetchArtifactDraft[] = []; let bytes = 0;
++    const now = deps.now ?? (() => new Date()), startedAt = now().toISOString(), artifacts: SourceFetchArtifactDraft[] = []; let bytes = 0, retries = 0;
+     try {
+       assert(exactPlan(plan)); const http: Http = deps.http ?? (r => fetchWorkdayMainlandHttp(r.method === "POST" ? { ...r, method: "POST", body: r.body! } : { ...r, method: "GET" }));
+-      const acquire = async (role: Role, index: number, req: Request) => { const a = artifact(role, index, req, await http(req), now().toISOString()); bytes += Buffer.byteLength(a.body); assert(bytes <= LIMIT); artifacts.push(a); return a.body as string; };
++      const retain = (a: SourceFetchArtifactDraft) => { bytes += Buffer.byteLength(a.body); assert(bytes <= LIMIT); artifacts.push(a); };
++      const remaining = () => Math.min(Date.parse(startedAt) + WINDOW - now().getTime(), currentOfficialSourceAttemptRemainingMs() ?? Infinity);
++      const acquire = async (role: Role, index: number, req: Request) => {
++        for (let attempt = 1; ; attempt++) {
++          currentOfficialSourceAttemptSignal()?.throwIfAborted(); assert(remaining() > 0);
++          const response = await http(req), capturedNow = now().toISOString();
++          if (response.status === 200) {
++            let a: SourceFetchArtifactDraft;
++            try { a = artifact(role, index, req, response, capturedNow); }
++            catch (error) { retain(failedResponseArtifact(role, index, req, response, attempt, capturedNow)); throw error; }
++            retain(a); currentOfficialSourceAttemptSignal()?.throwIfAborted(); assert(remaining() > 0); return a.body as string;
++          }
++          retain(failedResponseArtifact(role, index, req, response, attempt, capturedNow));
++          assert(canRetryResponse(role, req, response) && retries < AMGEN_MANUAL_WORKDAY_GET_RETRY.maxRetries);
++          currentOfficialSourceAttemptSignal()?.throwIfAborted(); assert(remaining() > AMGEN_MANUAL_WORKDAY_GET_RETRY.backoffMs);
++          await (deps.delay ?? retryDelay)(AMGEN_MANUAL_WORKDAY_GET_RETRY.backoffMs);
++          currentOfficialSourceAttemptSignal()?.throwIfAborted(); assert(remaining() > 0); retries++;
++        }
++      };
+       const entry = await acquire("list", 1, request(AMGEN_NATIVE_ENTRY)), pages = [parsePage(entry, 1)]; pageBody(entry, 2);
+       for (let i = 2; i <= pages[0]!.totalPages; i++) pages.push(parsePage(await acquire("list", i, request(PAGES, pageBody(entry, i))), i));
+       const rows = pages.flatMap(p => p.rows); assert(rows.length === pages[0]!.total && new Set(rows.map(r => r.id)).size === rows.length);
+@@ -165,14 +227,14 @@ export function createAmgenManualWorkdaySourceFetch(deps: { http?: Http; now?: (
+       for (let i = 0; i < rows.length; i++) { const row = rows[i]!, html = await acquire("identity", i, request(row.url)), id = identity(html, row), match = catalog.find(r => r.req === id.req);
+         assert(match && !seen.has(id.req)); seen.add(id.req);
+         bindings.push(project(row, html, match, await acquire("application", i, request(`${WD}/wday/cxs/amgen/Careers${match.path}`))).binding); }
+-      const report = reportArtifact(rows.length, catalog, bindings, artifacts.at(-1)!.capturedAt);
++      const report = reportArtifact(rows.length, catalog, bindings, artifacts.at(-1)!.capturedAt, artifacts.filter(a => a.kind === "COMMAND_OUTPUT"));
+       assert(bytes + Buffer.byteLength(report.body) <= LIMIT); artifacts.push(report);
+       const result = replay(artifacts), paginationEvaluation = evaluatePaginationEvidence({ ...options, evidence: result.evidence }); assert(paginationEvaluation.safeCompleteness && paginationEvaluation.verifiedEligible);
+       return { ok: true, capturedAt: artifacts[0]!.capturedAt, payload: { jobPostings: result.jobs }, fetchEvidence: result.evidence, paginationEvaluation,
+         completeness: { completenessStatus: "NEEDS_MANUAL_COMPLETENESS_REVIEW", expectedJobCount: rows.length, completenessEvidenceKind: "OFFICIAL_TOTAL_COUNT", completenessEvidenceUrl: AMGEN_NATIVE_ENTRY,
+           completenessBlockerReason: "Amgen manual denominator and independent Workday lookup/detail replay required", totalPages: pages.length, pageSize: 12, pagesVisited: pages.length } };
+     } catch {
+-      const fetchEvidence = artifacts.length ? parsePersistentSourceFetchEvidence({ captureTool: { name: "amgen-manual-workday-http", version: "2" }, artifacts: artifacts.map(a => a.kind === "ORACLE_RESULT" ? a : { ...a, kind: "ATS_PAGE" }), pages: [], supportingArtifactOnlyFailure: { code: FAILURE },
++      const fetchEvidence = artifacts.length ? parsePersistentSourceFetchEvidence({ captureTool: { name: "amgen-manual-workday-http", version: "2" }, artifacts: artifacts.map(a => a.kind === "ORACLE_RESULT" || a.kind === "COMMAND_OUTPUT" ? a : { ...a, kind: "ATS_PAGE" }), pages: [], supportingArtifactOnlyFailure: { code: FAILURE },
+         fetchCounts: { rawCount: 0, parsedCount: 0, validCount: 0, parseDiscardCount: 0, validationDiscardCount: 0 }, fetchLosses: [] }) : undefined;
+       return { ok: false, capturedAt: startedAt, failureReason: FAILURE, ...(fetchEvidence ? { fetchEvidence } : {}) };
+     }
+diff --git a/src/crawler/workdayMainlandQuality.ts b/src/crawler/workdayMainlandQuality.ts
+index d89683f..7b11b24 100644
+--- a/src/crawler/workdayMainlandQuality.ts
++++ b/src/crawler/workdayMainlandQuality.ts
+@@ -7,6 +7,7 @@ import type { PersistentSourceFetchEvidence, SourceFetchArtifactDraft } from "./
+ import { hasUniqueJsonObjectKeys } from "./strictJsonObjectKeys";
+ import { requestContractV2Locator } from "./strictPageRequestContract";
+ import { currentOfficialSourceAttemptSignal, fetchWithOfficialTimeout, officialHttpTimeoutMs } from "./officialHttpRuntimeLimits";
++import { parseOfficialRetryAfter, type OfficialRetryAfter } from "./sourceFetchFailure";
+ import type { WorkdayHttpRequest, WorkdayDetailHttpRequest, WorkdayHttpResponse } from "./workdaySourceFetch";
+ 
+ export const AMGEN_MAINLAND_POLICY = "AMGEN_MAINLAND_DETAIL_V1" as const;
+@@ -246,7 +247,7 @@ export function replayWorkdayMainlandQuality(plan: SourceCrawlPlan, evidence: Pe
+ 
+ /** Exact-source transport only. The deadline and source cancellation remain live
+  * through bounded body consumption, with no redirects or retry route. */
+-export async function fetchWorkdayMainlandHttp(request: WorkdayHttpRequest | WorkdayDetailHttpRequest): Promise<WorkdayHttpResponse> {
++export async function fetchWorkdayMainlandHttp(request: WorkdayHttpRequest | WorkdayDetailHttpRequest): Promise<WorkdayHttpResponse & { retryAfter?: OfficialRetryAfter }> {
+   const controller = new AbortController(), source = currentOfficialSourceAttemptSignal();
+   const abort = () => controller.abort(source?.reason), deadline = setTimeout(() => controller.abort(new Error("Workday mainland body deadline exceeded")), officialHttpTimeoutMs());
+   if (source?.aborted) abort(); else source?.addEventListener("abort", abort, { once: true });
+@@ -257,6 +258,7 @@ export async function fetchWorkdayMainlandHttp(request: WorkdayHttpRequest | Wor
+     controller.signal.throwIfAborted();
+     const response = await fetchWithOfficialTimeout(request.url, { method: request.method, headers: request.headers,
+       ...("body" in request ? { body: request.body } : {}), signal: controller.signal, redirect: "error" });
++    const retryAfter = parseOfficialRetryAfter(response.headers.get("retry-after"), Date.now());
+     const limit = request.method === "GET" ? WORKDAY_MAINLAND_DETAIL_BODY_LIMIT : WORKDAY_MAINLAND_BODY_LIMIT;
+     const declared = response.headers.get("content-length");
+     if (declared && (!/^[0-9]+$/u.test(declared) || Number(declared) > limit)) { void response.body?.cancel().catch(() => undefined); throw Error("Workday mainland body exceeds byte limit"); }
+@@ -269,6 +271,7 @@ export async function fetchWorkdayMainlandHttp(request: WorkdayHttpRequest | Wor
+       chunks.push(chunk.value);
+     }
+     return { status: response.status, finalUrl: response.url, contentType: response.headers.get("content-type") ?? "",
+-      body: new TextDecoder("utf-8", { fatal: true }).decode(Buffer.concat(chunks)), capturedAt: new Date().toISOString() };
++      body: new TextDecoder("utf-8", { fatal: true }).decode(Buffer.concat(chunks)), capturedAt: new Date().toISOString(),
++      ...(retryAfter ? { retryAfter } : {}) };
+   } finally { clearTimeout(deadline); source?.removeEventListener("abort", abort); controller.signal.removeEventListener("abort", cancel); reader?.releaseLock(); }
+ }
+diff --git a/tests/crawler/amgenManualWorkdayGetRetry.test.ts b/tests/crawler/amgenManualWorkdayGetRetry.test.ts
+new file mode 100644
+index 0000000..1054c53
+--- /dev/null
++++ b/tests/crawler/amgenManualWorkdayGetRetry.test.ts
+@@ -0,0 +1,190 @@
++import { createHash } from "node:crypto";
++import { afterEach, beforeEach, expect, it, vi } from "vitest";
++import { candidateCompanies } from "../../src/data/companyRegistry";
++import { buildStagedSourceCrawlPlans, sourcePlanConfigSha256 } from "../../src/crawler/sourcePlan";
++import { AMGEN_MANUAL_WORKDAY_GET_RETRY, createAmgenManualWorkdaySourceFetch, validateStrictAmgenManualWorkdayEvidence } from "../../src/crawler/amgenManualWorkdaySourceFetch";
++import { OfficialHttpTimeoutError, OfficialSourceAttemptTimeoutError, runWithOfficialSourceAttemptTimeout, runWithOfficialSourceCancellation } from "../../src/crawler/officialHttpRuntimeLimits";
++import { runSourceCrawl } from "../../src/crawler/runSourceCrawl";
++import { issueAGradeOfficialTotalCertificate } from "../../src/crawler/completenessCertificate";
++import { amgenManualWorkdayFixture, AMGEN_LOOKUP_ENDPOINT } from "../helpers/amgenManualWorkdayFixture";
++import { AMGEN_TIME } from "../helpers/amgenNativeFixture";
++
++beforeEach(() => { vi.useFakeTimers(); vi.setSystemTime(new Date(AMGEN_TIME)); });
++afterEach(() => { vi.useRealTimers(); });
++const plan = () => buildStagedSourceCrawlPlans(candidateCompanies).find(p => p.source.id === "source-amgen-china-social")!;
++const failureBody = '<html>upstream "gateway"\nfailed without any job body</html>';
++type Http = NonNullable<Parameters<typeof createAmgenManualWorkdaySourceFetch>[0]>["http"];
++type Response = Awaited<ReturnType<NonNullable<Http>>>;
++function harness(statuses: number[] = [502, 200], total = 13) {
++  const fixture = amgenManualWorkdayFixture(total), target = fixture.rows.at(-1)!.apiUrl;
++  const delay = vi.fn(async (ms: number) => { vi.setSystemTime(Date.now() + ms); });
++  const http = vi.fn(async (request: Parameters<NonNullable<Http>>[0]): Promise<Response> => {
++    const response = { ...await fixture.http(request), capturedAt: new Date().toISOString() };
++    if (request.url !== target) return response;
++    const status = statuses.shift() ?? 502;
++    return status === 200 ? response : { ...response, status, contentType: "text/html", body: failureBody };
++  });
++  return { fixture, target, delay, http, run: () => runSourceCrawl(plan(), { fetch: createAmgenManualWorkdaySourceFetch({ http, delay }) }) };
++}
++const diagnostics = (result: Awaited<ReturnType<ReturnType<typeof harness>["run"]>>) => result.fetchEvidence!.artifacts.filter(a => a.kind === "COMMAND_OUTPUT");
++
++it.each([502, 503, 504])("recovers one detail GET HTTP %i with both originals and unchanged complete denominator", async status => {
++  const h = harness([status, 200]), result = await h.run();
++  expect(result.status).toBe("SUCCESS");
++  expect(result.jobs).toHaveLength(13);
++  expect(h.http.mock.calls.filter(([r]) => r.url === h.target)).toHaveLength(2);
++  expect(h.delay.mock.calls).toEqual([[10_000]]);
++  const failed = diagnostics(result); expect(failed).toHaveLength(1);
++  expect(JSON.parse(String(failed[0]!.body))).toMatchObject({ status, finalUrl: h.target, body: failureBody, capturedAt: AMGEN_TIME });
++  const success = result.fetchEvidence!.artifacts.find(a => a.requestedUrl === h.target)!;
++  expect(success.httpStatus).toBe(200);
++  expect(JSON.parse(String(success.body)).jobPostingInfo).toEqual(h.fixture.rows.at(-1)!.info);
++  expect(Date.parse(success.capturedAt) - Date.parse(failed[0]!.capturedAt)).toBe(10_000);
++  expect(result.fetchEvidence!.declaredCompleteness).toMatchObject({ kind: "OFFICIAL_TOTAL_COUNT", value: 13 });
++  expect(result.fetchEvidence!.fetchCounts).toEqual({ rawCount: 13, parsedCount: 13, validCount: 13, parseDiscardCount: 0, validationDiscardCount: 0 });
++  expect(result.fetchEvidence!.fetchLosses).toEqual([]);
++  expect(h.fixture.requests.filter(r => r.url === AMGEN_LOOKUP_ENDPOINT)).toHaveLength(1);
++  expect(validateStrictAmgenManualWorkdayEvidence(plan(), result.fetchEvidence!, result.jobs)).toBe(true);
++  const p = plan(), evidence = result.fetchEvidence!, declaration = evidence.artifacts.find(a => a.logicalKey === evidence.declaredCompleteness!.artifactLogicalKey)!;
++  const decision = issueAGradeOfficialTotalCertificate({ plan: p, transportSuccess: true, adapterSuccess: true, evidence,
++    paginationEvaluation: result.paginationEvaluation!, reconciliation: result.reconciliation!, jobs: result.jobs,
++    officialArtifactSha256: createHash("sha256").update(declaration.body).digest("hex"),
++    binding: { releaseCandidateId: "synthetic-amgen-retry", batchId: "synthetic-amgen-retry-batch", sourceResultId: "synthetic-amgen-retry-result", sourceConfigSha256: sourcePlanConfigSha256(p) } });
++  expect(decision.status).toBe("CERTIFIED");
++  if (decision.status === "CERTIFIED") expect(decision.certificate.counts).toMatchObject({ officialTotal: 13, validCount: 13, finalUniqueJobCount: 13 });
++});
++
++it("retains both failed originals and returns zero jobs after a persistent 502", async () => {
++  const h = harness([502, 502]), result = await h.run();
++  expect(result.status).toBe("FAILED"); expect(result.jobs).toHaveLength(0);
++  expect(h.http.mock.calls.filter(([r]) => r.url === h.target)).toHaveLength(2);
++  expect(h.delay).toHaveBeenCalledTimes(1);
++  expect(diagnostics(result).map(a => JSON.parse(String(a.body)).body)).toEqual([failureBody, failureBody]);
++  expect(result.fetchEvidence!.pages).toEqual([]);
++  expect(result.fetchEvidence!.declaredCompleteness).toBeUndefined();
++  expect(result.fetchEvidence!.fetchCounts.validCount).toBe(0);
++});
++
++it.each([400, 401, 403, 404, 408, 429, 500, 501])("does not retry HTTP %i", async status => {
++  const h = harness([status, 200]), result = await h.run();
++  expect(result.status).toBe("FAILED"); expect(h.delay).not.toHaveBeenCalled();
++  expect(h.http.mock.calls.filter(([r]) => r.url === h.target)).toHaveLength(1);
++  expect(JSON.parse(String(diagnostics(result)[0]!.body)).status).toBe(status);
++});
++
++it.each(["list", "lookup", "identity"])("does not retry a 502 at the %s stage", async stage => {
++  const h = harness([200], 13), base = h.http.getMockImplementation()!;
++  h.http.mockImplementation(async req => {
++    const response = await base(req);
++    const fail = stage === "lookup" ? req.url === AMGEN_LOOKUP_ENDPOINT : stage === "identity" ? req.url === h.fixture.rows[0]!.url : req.method === "POST" && req.url !== AMGEN_LOOKUP_ENDPOINT;
++    return fail ? { ...response, status: 502, body: failureBody } : response;
++  });
++  const result = await h.run(); expect(result.status).toBe("FAILED"); expect(h.delay).not.toHaveBeenCalled();
++  expect(diagnostics(result)).toHaveLength(1);
++});
++
++it.each([new OfficialHttpTimeoutError(), new OfficialSourceAttemptTimeoutError(60_000), Object.assign(new Error("network"), { code: "ECONNRESET" })])("does not retry a thrown timeout or transport error", async error => {
++  const h = harness([200]), base = h.http.getMockImplementation()!;
++  h.http.mockImplementation(async req => { if (req.url === h.target) throw error; return base(req); });
++  const result = await h.run(); expect(result.status).toBe("FAILED"); expect(h.delay).not.toHaveBeenCalled();
++  expect(h.http.mock.calls.filter(([r]) => r.url === h.target)).toHaveLength(1);
++  expect(result.fetchEvidence!.artifacts.length).toBeGreaterThan(0);
++});
++
++it.each([{ value: "11", delayMs: 11_000 }, { invalid: true } as const])("honors a Retry-After outside the fixed policy: %j", async retryAfter => {
++  const h = harness(), base = h.http.getMockImplementation()!;
++  h.http.mockImplementation(async req => ({ ...await base(req), ...(req.url === h.target ? { retryAfter } : {}) }));
++  const result = await h.run(); expect(result.status).toBe("FAILED"); expect(h.delay).not.toHaveBeenCalled();
++  expect(JSON.parse(String(diagnostics(result)[0]!.body)).retryAfter).toEqual(retryAfter);
++});
++
++it("uses the fixed delay when Retry-After fits, and fails on a redirected response", async () => {
++  const h = harness(), base = h.http.getMockImplementation()!;
++  h.http.mockImplementation(async req => ({ ...await base(req), ...(req.url === h.target ? { retryAfter: { value: "5", delayMs: 5_000 } } : {}) }));
++  expect((await h.run()).status).toBe("SUCCESS"); expect(h.delay).toHaveBeenCalledWith(10_000);
++  const redirected = harness(), next = redirected.http.getMockImplementation()!;
++  redirected.http.mockImplementation(async req => ({ ...await next(req), ...(req.url === redirected.target ? { finalUrl: req.url + "?changed=1" } : {}) }));
++  expect((await redirected.run()).status).toBe("FAILED"); expect(redirected.delay).not.toHaveBeenCalled();
++});
++
++it("never starts a retry delay when the original source budget cannot fit it", async () => {
++  const h = harness(), result = await runWithOfficialSourceAttemptTimeout(h.run, 10_000);
++  expect(result.status).toBe("FAILED"); expect(h.delay).not.toHaveBeenCalled();
++  expect(h.http.mock.calls.filter(([r]) => r.url === h.target)).toHaveLength(1);
++});
++
++it("does not dispatch a GET if the original source deadline expires during backoff", async () => {
++  const h = harness(); h.delay.mockImplementation(async () => { vi.setSystemTime(Date.now() + 20_000); });
++  const result = await runWithOfficialSourceAttemptTimeout(h.run, 20_000);
++  expect(result.status).toBe("FAILED"); expect(h.delay).toHaveBeenCalledOnce();
++  expect(h.http.mock.calls.filter(([r]) => r.url === h.target)).toHaveLength(1);
++});
++
++it("does not dispatch a GET after cancellation during backoff", async () => {
++  const h = harness(), controller = new AbortController();
++  h.delay.mockImplementation(async () => { controller.abort(new Error("stop")); });
++  const result = await runWithOfficialSourceCancellation(controller.signal, h.run);
++  expect(result.status).toBe("FAILED"); expect(h.http.mock.calls.filter(([r]) => r.url === h.target)).toHaveLength(1);
++});
++
++it("does not extend the original ten-minute evidence capture window", async () => {
++  const h = harness(); h.delay.mockImplementation(async () => { vi.setSystemTime(Date.now() + 600_000); });
++  const result = await h.run(); expect(result.status).toBe("FAILED");
++  expect(h.http.mock.calls.filter(([r]) => r.url === h.target)).toHaveLength(1);
++});
++
++it("keeps the one-retry bound across different details", async () => {
++  const h = harness([502, 200], 2), base = h.http.getMockImplementation()!, first = h.fixture.rows[0]!.apiUrl; let firstCalls = 0;
++  h.http.mockImplementation(async req => {
++    const response = await base(req);
++    return req.url === first && ++firstCalls === 1 ? { ...response, status: 502, body: failureBody } : response;
++  });
++  const result = await h.run(); expect(result.status).toBe("FAILED"); expect(h.delay).toHaveBeenCalledTimes(1);
++  expect(h.http.mock.calls.filter(([r]) => r.url === first)).toHaveLength(2);
++  expect(h.http.mock.calls.filter(([r]) => r.url === h.target)).toHaveLength(1);
++  expect(diagnostics(result)).toHaveLength(2);
++});
++
++it("fails closed on changed successful response quality after retry", async () => {
++  const h = harness(); h.fixture.rows.at(-1)!.info.canApply = false;
++  const result = await h.run(); expect(result.status).toBe("FAILED"); expect(result.jobs).toHaveLength(0);
++  expect(h.http.mock.calls.filter(([r]) => r.url === h.target)).toHaveLength(2);
++  expect(diagnostics(result)).toHaveLength(1);
++});
++
++it("rejects deletion, mutation, relabeling or insufficient spacing of failed-attempt evidence", async () => {
++  const h = harness(), result = await h.run(); expect(result.status).toBe("SUCCESS");
++  type Evidence = NonNullable<typeof result.fetchEvidence>;
++  const failed = (e: Evidence) => e.artifacts.find(a => a.kind === "COMMAND_OUTPUT")!;
++  const mutations: Array<(e: Evidence) => void> = [
++    e => { e.artifacts.splice(e.artifacts.indexOf(failed(e)), 1); },
++    e => { failed(e).body = String(failed(e).body).replace("502", "404"); },
++    e => { failed(e).body = String(failed(e).body).replace("gateway", "changed"); },
++    e => { failed(e).extractorLocator += "changed"; },
++    e => { failed(e).capturedAt = new Date(Date.parse(AMGEN_TIME) + 1).toISOString(); },
++    e => { failed(e).bodyRepresentation = "REDACTED"; },
++    e => { failed(e).logicalKey += "changed"; }
++  ];
++  for (const mutate of mutations) { const e = structuredClone(result.fetchEvidence!); mutate(e); expect(validateStrictAmgenManualWorkdayEvidence(plan(), e, result.jobs)).toBe(false); }
++  expect(AMGEN_MANUAL_WORKDAY_GET_RETRY.maxRetries).toBe(1);
++});
++
++it("retains a late final HTTP 200 but cannot return success after the source deadline", async () => {
++  const h = harness([200]), base = h.http.getMockImplementation()!;
++  h.http.mockImplementation(async req => { const response = await base(req); if (req.url === h.target) vi.setSystemTime(Date.now() + 20_000); return response; });
++  const result = await runWithOfficialSourceAttemptTimeout(h.run, 20_000);
++  expect(result.status).toBe("FAILED"); expect(result.jobs).toHaveLength(0);
++  expect(result.fetchEvidence!.artifacts.find(a => a.requestedUrl === h.target)?.httpStatus).toBe(200);
++});
++
++it("cancels the production delay timer without a second GET or timer leak", async () => {
++  const h = harness(), controller = new AbortController();
++  const pending = runWithOfficialSourceCancellation(controller.signal, () => runSourceCrawl(plan(), { fetch: createAmgenManualWorkdaySourceFetch({ http: h.http }) }));
++  await vi.advanceTimersByTimeAsync(0);
++  expect(h.http.mock.calls.filter(([r]) => r.url === h.target)).toHaveLength(1);
++  expect(vi.getTimerCount()).toBe(1);
++  controller.abort(new Error("cancel during production delay"));
++  const result = await pending; expect(result.status).toBe("FAILED");
++  expect(h.http.mock.calls.filter(([r]) => r.url === h.target)).toHaveLength(1);
++  expect(vi.getTimerCount()).toBe(0);
++});
+diff --git a/tests/crawler/workdayMainlandHttpRetryAfter.test.ts b/tests/crawler/workdayMainlandHttpRetryAfter.test.ts
+new file mode 100644
+index 0000000..f5407da
+--- /dev/null
++++ b/tests/crawler/workdayMainlandHttpRetryAfter.test.ts
+@@ -0,0 +1,23 @@
++// @vitest-environment node
++import { afterEach, expect, it, vi } from "vitest";
++import { fetchWithOfficialTimeout } from "../../src/crawler/officialHttpRuntimeLimits";
++import { fetchWorkdayMainlandHttp } from "../../src/crawler/workdayMainlandQuality";
++vi.mock("../../src/crawler/officialHttpRuntimeLimits", async importOriginal => ({
++  ...await importOriginal<typeof import("../../src/crawler/officialHttpRuntimeLimits")>(), fetchWithOfficialTimeout: vi.fn()
++}));
++afterEach(() => { vi.clearAllMocks(); });
++
++it.each([
++  ["5", { value: "5", delayMs: 5_000 }],
++  ["60", { value: "60", delayMs: 60_000 }],
++  ["untrusted value", { invalid: true }],
++  [null, undefined]
++])("retains bounded Retry-After metadata from the actual response headers: %s", async (header, expected) => {
++  const response = new Response("upstream gateway body", { status: 502, headers: { "content-type": "text/html", ...(header === null ? {} : { "retry-after": header as string }) } });
++  vi.mocked(fetchWithOfficialTimeout).mockResolvedValue(response);
++  const result = await fetchWorkdayMainlandHttp({ method: "GET", url: "https://amgen.wd1.myworkdayjobs.com/wday/cxs/amgen/Careers/job/China---Shanghai/Role_R-10001", headers: { Accept: "application/json" } });
++  expect(result).toMatchObject({ status: 502, body: "upstream gateway body", contentType: "text/html" });
++  expect(result.retryAfter).toEqual(expected);
++  expect(fetchWithOfficialTimeout).toHaveBeenCalledTimes(1);
++  expect(vi.mocked(fetchWithOfficialTimeout).mock.calls[0]![1]).toMatchObject({ method: "GET", redirect: "error" });
++});
+-- 
+2.52.0
+

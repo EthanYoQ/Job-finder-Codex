@@ -1,306 +1,91 @@
 {
-  "format": "safe-runtime-source-increment/v1",
-  "producerManifestSha256": "eafe81e56cf540e1096a2576b3ab0444b5d6565cff14ee0abfca1bad0d39fd24",
-  "hostSafeManifestSha256": "d04439c6b8b826b5a8a9eb6b263de6f3c60af1eb53a3046bea2e443e599ec23e",
-  "producerCommit": "28402a299bb04cbf5873da66c2fe8ca76827c0d1",
-  "producerParentCommit": "dfd22f642469888eb781f5e7b93964a60e082ca0",
-  "producerSafeBaselineIncrement": "a47ed7feeb93e99d45633795cb5fecebc8c0818f",
-  "producerSourceFiles": 7,
-  "producerSourceBytes": 41113,
-  "hostSourceFiles": 27,
-  "hostSourceBytes": 154845,
-  "totalOriginalSourceFiles": 34,
-  "totalOriginalSourceBytes": 195958,
-  "originalBytesUnchanged": true,
-  "starterPinRepair": {
-    "beforeSha256": "8899b37f985221666ebf6a0fb6c6ddaff858811aa46703d48f2cf661daedfb9b",
-    "afterSha256": "7be0282ab0de5d0b77b334c812f46ca8c783a1d7a201328b55cbb6b22ca669bf",
-    "supervisorSha256": "083435a5344a47b86f84184bbe1d2711b0d35def4670afb2ab3c8391ed442e7e",
-    "onlySupervisorPinLiteralChanged": true
+  "schemaVersion": 1,
+  "repository": "EthanYoQ/Job-finder-Codex",
+  "scope": "Reviewed source, static nonsecret references, synthetic test source and recovery dependencies only",
+  "sourceManifestSha256": "bb06ffffe994646eccfabc22371eb04468e99edb71aacbd438abcad626440f60",
+  "excludedOriginalFiles": {
+    "amgen-get-retry-commit.bundle": "Full Git bundle omitted",
+    "PRODUCER_PREPARATION_REPORT.md": "Original execution report omitted"
   },
-  "sourceConstantBoundary": "Non-secret source/build/project/path pins and explicitly synthetic test proxy literals are preserved. Actual proxy or credential values are excluded.",
-  "manifestLocationNote": "The original SAFE_SOURCE_FILE_MANIFEST is represented by its SHA and this complete current file map; the included SAFE_SOURCE_ALLOWLIST only describes earlier source provenance.",
-  "excluded": [
-    "PRIVATE_BINDING_FILE_MANIFEST and actual binding files",
-    "Host configuration/control/activation/context/registration/bootstrap and active state",
-    "HTTP/DB results, real captures, run/relay artifacts, diagnostics and reports",
-    "Actual proxy/CA/environment values and credentials",
-    "Runtime binaries and installed dependencies",
-    "Unlisted public observer scripts and other source candidates"
-  ],
-  "verificationScope": "Static source/hash/parent checks, exact starter pin repair and remote Git/content verification; no project code, test, network probe, SQL or deployment execution.",
-  "files": [
+  "sourceExecutionPerformed": false,
+  "originalFiles": [
     {
-      "path": "producer/ops/node-runtime-profile.json",
+      "path": "AMGEN-GET-RETRY-COMMIT.patch",
       "mode": "100644",
-      "type": "blob",
-      "sha": "e1ac8a59e6211bf9cde8f7302d8c78e6577cfc7d",
-      "sha256": "46281c4b5fa8a1d6eadc57a2aa63a721f77e092100c556ae9d523164c84f7baf",
-      "bytes": 532
+      "bytes": 35417,
+      "sha256": "60e2c80303fa31189a6e56defc5ece54df6c4096e363025cdf8d5636bfd5c1d3",
+      "sha": "97cd10fa03747ead7174a0ff84bb3a0c0ef470cb"
     },
     {
-      "path": "producer/scripts/verify-node-runtime-profile.ts",
+      "path": "verify-offline-identity.mts",
       "mode": "100644",
-      "type": "blob",
-      "sha": "56509f537f380f616f5dff67a50842eba2e458a2",
-      "sha256": "807b6d9bbc0a0aad7eae3987d226e3ed094b0169456bd5d9f4a875f42e93a7e3",
-      "bytes": 5095
+      "bytes": 6936,
+      "sha256": "7f2a41d07be5770f1567526c1dc7eb6a35b803c4671a701a108f981e8bea8072",
+      "sha": "3a11cc726e98bf12f118010a5813644e2f109586"
     },
     {
-      "path": "producer/src/crawler/officialHttpProxyRuntime.ts",
+      "path": "no-network.cjs",
       "mode": "100644",
-      "type": "blob",
-      "sha": "db6142b08efc93b25e00e301e09415a6b2c1ff51",
-      "sha256": "9a99c75cac1e78a83d04e36c13727e5c14ea3c820688c126f0c7f621b582cfd0",
-      "bytes": 1576
+      "bytes": 2286,
+      "sha256": "96ff75daf84943d7542e84cb3ed7f1979b12a019508da36330dcefda31e5497b",
+      "sha": "1199b946b2c19c0557f5bf9239b120189ac45a30"
     },
     {
-      "path": "producer/src/crawler/officialHttpRuntimeLimits.ts",
+      "path": "NEW_LOCAL_BUILD_IDENTITY.json",
       "mode": "100644",
-      "type": "blob",
-      "sha": "e303e945645bef1f26fab9492c647f12dea92620",
-      "sha256": "446e8bc7d142524502df73f72e30918695b6e70d298d6e53b9e7e0383ea8874d",
-      "bytes": 10705
+      "bytes": 352,
+      "sha256": "6ca2ebc9c0d5a16567e169d04d1ddf3ccec1aae412e98ed0458e3ac2bcc7441d",
+      "sha": "eeaed4e79f030b6ac5b5e982e2b4066b674ed6b1"
     },
     {
-      "path": "producer/tests/crawler/officialHttpProxyRuntime.test.ts",
+      "path": "REGISTRATION_EXPECTED_PROJECTION.json",
       "mode": "100644",
-      "type": "blob",
-      "sha": "f2b8e84f4b2894fde36cf4c3830fdc17a42ff684",
-      "sha256": "ac624451c31f39a2f7c93ec7e495eac967f284b7d6ac2c8108fa3f98735cb4c9",
-      "bytes": 4172
+      "bytes": 2162,
+      "sha256": "6b16b9b8046387a87c43d9ebc4e9acf8340acb0c9ccd38d071448d4c9eae9b27",
+      "sha": "d33eb27027481697f39559173b47ead2f8e12b9c"
     },
     {
-      "path": "producer/tests/crawler/httpDiagnosticWrapper.test.ts",
+      "path": "DEPENDENCY-PROVENANCE.json",
       "mode": "100644",
-      "type": "blob",
-      "sha": "9f39a6d90c9e842e45e615eb9a1ace60287089b5",
-      "sha256": "f174247bb770842dfd826466ef6ccc0e61991c912be90ca395438a465ffe0650",
-      "bytes": 14271
+      "bytes": 977,
+      "sha256": "31a57a8ba8d2dac3d0844400bf18f416b250e92ce71275674051f7bcd9ec587a",
+      "sha": "db842363b59b2ab94697cf6970a281b67fed30f4"
     },
     {
-      "path": "producer/tests/ops/nodeRuntimeProfile.test.ts",
+      "path": "verification/check-amgen-reader-compatibility.ts",
       "mode": "100644",
-      "type": "blob",
-      "sha": "d524c8263314092f4023619199040d15d8705419",
-      "sha256": "2f7b6a0c01dfba66399b54d2c07caba1040c3cf019c7b48a793bccbe177a1982",
-      "bytes": 4762
+      "bytes": 8870,
+      "sha256": "4307ebf538f00abb7c16439a01d2bfa9d268baa732b541ff66d5fd461e7cf406",
+      "sha": "d326a4241edfc9177e0d62a0b92a25e30c5babf3"
     },
     {
-      "path": "hosts/grifols/SAFE_SOURCE_README.md",
+      "path": "producer/src/crawler/amgenManualWorkdaySourceFetch.ts",
       "mode": "100644",
-      "type": "blob",
-      "sha": "35a8b05cd1017bff6df06609b43a8f234bd781f5",
-      "sha256": "85ebab4309c735b7bd772ec98e395143bdaebca76502bbb9bdbf3185af4a0f18",
-      "bytes": 3671
+      "bytes": 27046,
+      "sha256": "a8def0fb79a49559e35276172127ed65a72fbfd2ebe3669798d38270ef61f722",
+      "sha": "64ba74e1f41fabb8c58bc85962b86aca432c2310"
     },
     {
-      "path": "hosts/grifols/host/archive-transfer.mjs",
+      "path": "producer/src/crawler/workdayMainlandQuality.ts",
       "mode": "100644",
-      "type": "blob",
-      "sha": "5a454d21f34f9680221bbee2c98b3fecb94884f0",
-      "sha256": "698e966e5552967845a5252d2b3df2acca28dcd8dbbb0ae41755a3a6231e6a99",
-      "bytes": 1777
+      "bytes": 25058,
+      "sha256": "f7b1250647e1549b7a724c32f5557be29899aff1e9d5607c6980e5ef1aa42e36",
+      "sha": "7b11b248dd1bf1e1b83796a4a8d30ee5cee73346"
     },
     {
-      "path": "hosts/grifols/host/host-files.mts",
+      "path": "producer/tests/crawler/amgenManualWorkdayGetRetry.test.ts",
       "mode": "100644",
-      "type": "blob",
-      "sha": "8c8f201640071565320343e74c6919d1e83fd9b5",
-      "sha256": "c8033565b3c368bf369fc7507f9d1ff8fa87bc0dde0a84a10a95373473dc6f3a",
-      "bytes": 4077
+      "bytes": 13591,
+      "sha256": "59da444a72308a6ff8ffc4c0dea04a0f21af8bc0e3ff7fb36fd4ba958052a9cd",
+      "sha": "1054c53251dcd46adbc55d93d05d42c87eb3eb6f"
     },
     {
-      "path": "hosts/grifols/host/host-helper-functions.js",
+      "path": "producer/tests/crawler/workdayMainlandHttpRetryAfter.test.ts",
       "mode": "100644",
-      "type": "blob",
-      "sha": "deaf1a30e3452f1b9fdfe67ed2c821eda7bbeb65",
-      "sha256": "96685e4f41cd31c2574d61776347938d5445166c747063bfee79126f6f77b0a6",
-      "bytes": 9771
-    },
-    {
-      "path": "hosts/grifols/host/host-stage-functions.js",
-      "mode": "100644",
-      "type": "blob",
-      "sha": "74b9dacd339335caf89cfd2623618997bda5dc39",
-      "sha256": "0d6152b30f34993ab5f80f34b252d279795885a18e7d7b30ef38f3149a20103e",
-      "bytes": 6334
-    },
-    {
-      "path": "hosts/grifols/host/machine-json.js",
-      "mode": "100644",
-      "type": "blob",
-      "sha": "7b927e85ca286ffa900ca93462deee5b9988ed49",
-      "sha256": "3484738bd095a9d57da70c6392af78865a53759a9e8499316941157b6210e9f6",
-      "bytes": 807
-    },
-    {
-      "path": "hosts/grifols/host/relay-files.mjs",
-      "mode": "100644",
-      "type": "blob",
-      "sha": "4218bf27ee30079dfc4a8e1ef48f318e42bbfb6c",
-      "sha256": "5311fb5709e0fec4c8253f72d963fc1a1a050830f2ab9bc391ee79a826f2396e",
-      "bytes": 7909
-    },
-    {
-      "path": "hosts/grifols/host/runtime/complete-reviewed-source-readback.js",
-      "mode": "100644",
-      "type": "blob",
-      "sha": "b282208243523a415746ef32fc1de995af2fa639",
-      "sha256": "f66f89352ae0779ae1caaead403fc21f2d8b1453dcf824b2d33e4584748029ea",
-      "bytes": 5696
-    },
-    {
-      "path": "hosts/grifols/host/runtime/continuous-relay-v3-durable-monitor.js",
-      "mode": "100644",
-      "type": "blob",
-      "sha": "f3a5394debfb1147952fb2257dfcdac1b4949f95",
-      "sha256": "a951cb41d6eaff71ba910ea47e42716edd896e245a0b692b81bdfb8e315ed318",
-      "bytes": 5184
-    },
-    {
-      "path": "hosts/grifols/host/runtime/inspect-host-binding.mts",
-      "mode": "100644",
-      "type": "blob",
-      "sha": "16c2e92f6d2cbcbc23731e31c5a8a1a4d7660944",
-      "sha256": "fe33b177e0bf40da2b1035a9482699954803d513f29092153fd61c11e7c34b78",
-      "bytes": 2568
-    },
-    {
-      "path": "hosts/grifols/host/runtime/load-host-state.js",
-      "mode": "100644",
-      "type": "blob",
-      "sha": "af2b919b7e28c1338cc50115101fff9711eba47d",
-      "sha256": "1a316bc2ecf0a96b73cb987861d094c31051222b199ab10e8f24a1014871f86c",
-      "bytes": 5081
-    },
-    {
-      "path": "hosts/grifols/host/runtime/load-source-runtime.js",
-      "mode": "100644",
-      "type": "blob",
-      "sha": "da8e062cb3d3af510b0cda9eba00576df78296de",
-      "sha256": "35b83cff0f782edbf64f51533ff938e5ae959c9344b712f3ded905b97a0ec6f9",
-      "bytes": 2013
-    },
-    {
-      "path": "hosts/grifols/host/runtime/machine-json.py",
-      "mode": "100644",
-      "type": "blob",
-      "sha": "3dda394ae2fe15b8740c8db2f0adcf6a9e19e3cf",
-      "sha256": "67611e749eddc6bf8c591fef11f2efa82e2a73ce0bb51b2779fab4ae68b77f50",
-      "bytes": 1119
-    },
-    {
-      "path": "hosts/grifols/host/runtime/preflight/preflight-launch.mjs",
-      "mode": "100644",
-      "type": "blob",
-      "sha": "b262b245572d09576f2d5151d5a22799897cb8d5",
-      "sha256": "89099e0dedbffc36cbe31a9e1e4b458aedf512cc367141af22709a068cd2f968",
-      "bytes": 11035
-    },
-    {
-      "path": "hosts/grifols/host/runtime/preflight/runtime-check.mjs",
-      "mode": "100644",
-      "type": "blob",
-      "sha": "275890f0f3584e99e0f0f57a4492fd95ad6c248d",
-      "sha256": "e01c5b953283535757e2fcc67df80dd3e86948709dde0b488235a7edee017785",
-      "bytes": 3815
-    },
-    {
-      "path": "hosts/grifols/host/runtime/prepare-registered-control.mts",
-      "mode": "100644",
-      "type": "blob",
-      "sha": "afc02a97bf321411724ea919545bc83dc5910c53",
-      "sha256": "9f2090d76cf854e49ff47b66dabaaa599a6bf3252d083a5c5541c29114591230",
-      "bytes": 4179
-    },
-    {
-      "path": "hosts/grifols/host/runtime/review-packet-envelope.mts",
-      "mode": "100644",
-      "type": "blob",
-      "sha": "a550d0fd80f032ae7ed2633e88b2cd2c748c6969",
-      "sha256": "40cb1e3ede867f0e9d171605e7454fc71a6f774dfdf910f68ff668722bba69cb",
-      "bytes": 5535
-    },
-    {
-      "path": "hosts/grifols/host/runtime/review-publication.py",
-      "mode": "100644",
-      "type": "blob",
-      "sha": "21c7407405ce2bb4757fedc189b06a7594e0f2fc",
-      "sha256": "f7866c5cec51a200b444a536330d096035838986a50329b2893ce603d2cd26e3",
-      "bytes": 5393
-    },
-    {
-      "path": "hosts/grifols/host/runtime/update-candidate-completion-state.mjs",
-      "mode": "100644",
-      "type": "blob",
-      "sha": "ec886e3dd2b52805daccddcdcd862b6afbaeec29",
-      "sha256": "ae5ad99411b014c8ffff615a0b06af1e1fdfd2ed7f7265c9c9cee0128339bb06",
-      "bytes": 3654
-    },
-    {
-      "path": "hosts/grifols/supervision/inspect-launch-identity.mjs",
-      "mode": "100644",
-      "type": "blob",
-      "sha": "0fc3dd6c1dde3cc7759848f18c795792c38c800c",
-      "sha256": "7bc818ae831081b7e91819ad772b950d08e7d06dc741730c0bd54698d6fe8b37",
-      "bytes": 871
-    },
-    {
-      "path": "hosts/grifols/supervision/sample_process_tree.py",
-      "mode": "100644",
-      "type": "blob",
-      "sha": "5c2924dc067309525018e4903741dc33e796b546",
-      "sha256": "3fa6daa1af1afee94d19801edfd8bcb538e1243476b5adb253e50de162a27bd6",
-      "bytes": 13065
-    },
-    {
-      "path": "hosts/grifols/supervision/start-monitor-grifols47b-combined.js",
-      "mode": "100644",
-      "type": "blob",
-      "sha": "66acb11f18f2f239c1d7835085f782f9cde5e8d1",
-      "sha256": "7be0282ab0de5d0b77b334c812f46ca8c783a1d7a201328b55cbb6b22ca669bf",
-      "bytes": 14021
-    },
-    {
-      "path": "hosts/grifols/supervision/supervise-cancel.mjs",
-      "mode": "100644",
-      "type": "blob",
-      "sha": "efe376ba3dbe501d5a2b1bece2c7ac46471aca7d",
-      "sha256": "083435a5344a47b86f84184bbe1d2711b0d35def4670afb2ab3c8391ed442e7e",
-      "bytes": 10232
-    },
-    {
-      "path": "hosts/grifols/verification/SAFE_SOURCE_ALLOWLIST.json",
-      "mode": "100644",
-      "type": "blob",
-      "sha": "4cb019a3c3672327c6e6008eb0771f502420b2a3",
-      "sha256": "a2e5e0c28fcfa9887f139fe3a32ab5484bde2f833ce04b6e30c952d64e9fb6c7",
-      "bytes": 5993
-    },
-    {
-      "path": "hosts/grifols/verification/verify-host-offline.mts",
-      "mode": "100644",
-      "type": "blob",
-      "sha": "bf691a82c234912540be62d7e51a854672cd9044",
-      "sha256": "48d9db88bffa19516e21d218732891258eb0edf3e2decd606bea420603e47ed0",
-      "bytes": 9045
-    },
-    {
-      "path": "hosts/grifols/verification/verify-machine-json.py",
-      "mode": "100644",
-      "type": "blob",
-      "sha": "20ed5095bcf4a5300931ccdfdfc87775e4f9202e",
-      "sha256": "5de73481cea05886ad8515fee4b6c8b98629fc50d1a5392a764d18180191bd3d",
-      "bytes": 1040
-    },
-    {
-      "path": "hosts/grifols/verification/verify-runtime-host.mts",
-      "mode": "100644",
-      "type": "blob",
-      "sha": "95e86f5d2903a701a06c56e4a1de9a8c7850bff1",
-      "sha256": "25969a1914df8225e7e3a40f0d5567ddc7c162be2dfd9e3a70a0c254348fe2ac",
-      "bytes": 10960
+      "bytes": 1569,
+      "sha256": "7ce27fa45babb57f94756a0669d8de106b59eb85faaf827054436b921ef5430d",
+      "sha": "f5407da4453b08f7b3e3a506a69724b3751242af"
     }
-  ]
+  ],
+  "limitations": "See BACKUP_RECOVERY.md; static identity hashes do not establish registration or deployment; original test summaries are author reports."
 }
