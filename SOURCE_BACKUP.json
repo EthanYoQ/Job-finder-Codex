@@ -1,474 +1,460 @@
 {
   "schemaVersion": 1,
   "scope": "Unbound host source, static configuration templates, synthetic test code and exact regeneration inputs",
-  "reviewedPlanSha256": "a4393628c72b43626ac009ae51ba46bddc531fcd04229511977d6cd416a52dc5",
+  "reviewedPlanSha256": "e511123d0f33eaec523133ab39cf446ce17abd354dea063ad0cb9700d3d51452",
   "additionalExclusions": {},
   "sourceExecutionPerformed": false,
   "sourceFiles": [
     {
       "path": "RESTORE_DEPENDENCIES.json",
       "mode": "100644",
-      "bytes": 2912,
-      "sha256": "e8be9b6985607c4fbcd40ad6a30918c8288c1b2bdb62f46bdf8f8a97d824eff1",
-      "sha": "ed7cc855908a49c57c0cc7fb0b4adc8a112e3b14"
+      "bytes": 2955,
+      "sha256": "deb2050baa3a5d3ecb594a58e0adad7398732e6f4f09ef9775b635751af044c0",
+      "sha": "26fbec5f8a7e9480a2cfcd89da295887a1c3f802"
     },
     {
-      "path": "hosts/crpharma/RESTORE_DEPENDENCIES.json",
-      "mode": "100644",
-      "bytes": 1154,
-      "sha256": "470c972d7a9560fe1a8f8d4841cb91f92f3009ac04aa8eeacfae6d85cf5b9012",
-      "sha": "4308b39d233fc8b5aa48199122dae8b0ed2da1e4"
-    },
-    {
-      "path": "hosts/crpharma/host/archive-transfer.mjs",
+      "path": "hosts/lilly/host/archive-transfer.mjs",
       "mode": "100644",
       "bytes": 1777,
       "sha256": "698e966e5552967845a5252d2b3df2acca28dcd8dbbb0ae41755a3a6231e6a99",
       "sha": "5a454d21f34f9680221bbee2c98b3fecb94884f0"
     },
     {
-      "path": "hosts/crpharma/host/context-read.sql.template",
+      "path": "hosts/lilly/host/context-read.sql.template",
       "mode": "100644",
-      "bytes": 2372,
-      "sha256": "fd865878da173235fa148c7e8eabaea2ff093e08e27268455bf87f2ec771aea6",
-      "sha": "e12fdeaf0650397232a62e7179f3af00045a33b4"
+      "bytes": 2382,
+      "sha256": "650203184d602226be38d5def38688a4c6f5fc67a47b7d338862b44207d434de",
+      "sha": "c0c08f81cc276cb3a982ce9cc7d8b29f34996e94"
     },
     {
-      "path": "hosts/crpharma/host/context-template-proof.json",
+      "path": "hosts/lilly/host/context-template-proof.json",
       "mode": "100644",
-      "bytes": 2550,
-      "sha256": "54d4af26eeca985b7233d0292e7e753941f16e31d2e1ab9cff3e3d19061b9313",
-      "sha": "402fdc3619c77e4688b2f495c605522dcabf3438"
+      "bytes": 2522,
+      "sha256": "92693066bf4b8543b3ccf3febe236cd97f8206dae0ac032667bb537686eb096b",
+      "sha": "4a26bfcfd4cdce18f2d629be1a7b8b4dbc78134d"
     },
     {
-      "path": "hosts/crpharma/host/control-base.template.json",
+      "path": "hosts/lilly/host/control-base.template.json",
       "mode": "100644",
       "bytes": 467,
       "sha256": "3634b5cc4c996565263cdae4b168cb519556c2401367f33511b426fd0ae48897",
       "sha": "f315252ccc1b63c4b75f86f3ab6dcacdccbeaa1d"
     },
     {
-      "path": "hosts/crpharma/host/host-config.json",
+      "path": "hosts/lilly/host/host-config.json",
       "mode": "100644",
-      "bytes": 510,
-      "sha256": "e6dc1d38b060500de118b16ecff42310c4dd36f14103af5ed8e5278478f1ae25",
-      "sha": "4b3e806f513367f14f869a2df02679b66e494fb6"
+      "bytes": 509,
+      "sha256": "4c13f913b02046a35af8da3864c5b1be073adf881b427a6a3a1e474266e8f385",
+      "sha": "97464bbed82376ee8769b3464cdeb77dd003ece5"
     },
     {
-      "path": "hosts/crpharma/host/host-config.template.json",
+      "path": "hosts/lilly/host/host-config.template.json",
       "mode": "100644",
-      "bytes": 510,
-      "sha256": "e6dc1d38b060500de118b16ecff42310c4dd36f14103af5ed8e5278478f1ae25",
-      "sha": "4b3e806f513367f14f869a2df02679b66e494fb6"
+      "bytes": 509,
+      "sha256": "4c13f913b02046a35af8da3864c5b1be073adf881b427a6a3a1e474266e8f385",
+      "sha": "97464bbed82376ee8769b3464cdeb77dd003ece5"
     },
     {
-      "path": "hosts/crpharma/host/host-files.mts",
+      "path": "hosts/lilly/host/host-files.mts",
       "mode": "100644",
       "bytes": 4077,
       "sha256": "c8033565b3c368bf369fc7507f9d1ff8fa87bc0dde0a84a10a95373473dc6f3a",
       "sha": "8c8f201640071565320343e74c6919d1e83fd9b5"
     },
     {
-      "path": "hosts/crpharma/host/host-helper-functions.js",
+      "path": "hosts/lilly/host/host-helper-functions.js",
       "mode": "100644",
-      "bytes": 9775,
-      "sha256": "4a20b0eca47f0edb1f6a36c46b7b2a704977df8ac549335ddfad1f26b92e612f",
-      "sha": "f8115a1b8501447ca96f12367fb8ee7309fcc14d"
+      "bytes": 9753,
+      "sha256": "ca8f4fe1549e36c0522998bde3f8a67dbe78f39f04b92a169020dc1a4f20a608",
+      "sha": "3ae9971509cbcf72c1d3ea07dc798e193d5d7c3f"
     },
     {
-      "path": "hosts/crpharma/host/host-stage-functions.js",
+      "path": "hosts/lilly/host/host-stage-functions.js",
       "mode": "100644",
-      "bytes": 6580,
-      "sha256": "91e6d8b6c95576c59d4f2a50cef85935488f6824f7b0858c0390c753a7b6c21a",
-      "sha": "f26a431ad57ae41a6499734ea89d56c80acd0de2"
+      "bytes": 6557,
+      "sha256": "bef588a914703314aea4b39ffac74d828ad116b66b154ae9df31b6ab85f8425e",
+      "sha": "7f05ca591649fa5d03fb2a1c3b29727060530070"
     },
     {
-      "path": "hosts/crpharma/host/machine-json.js",
+      "path": "hosts/lilly/host/machine-json.js",
       "mode": "100644",
       "bytes": 807,
       "sha256": "3484738bd095a9d57da70c6392af78865a53759a9e8499316941157b6210e9f6",
       "sha": "7b927e85ca286ffa900ca93462deee5b9988ed49"
     },
     {
-      "path": "hosts/crpharma/host/owner-binding-input.template.json",
+      "path": "hosts/lilly/host/owner-binding-input.template.json",
       "mode": "100644",
-      "bytes": 616,
-      "sha256": "c9bbddcc3fe1b7081c612f49db614477d4427496af7a37167fe1166fd09e1f9b",
-      "sha": "50cfd02c56b24fab3733ee432d1c1a9a3b8799f1"
+      "bytes": 618,
+      "sha256": "0364a856208a51066e9e6ef042bf3fea2fdc617b9b1cf46fcc479450b7314ba5",
+      "sha": "1f760a2a2461908d6244d7775c5a974adc677efb"
     },
     {
-      "path": "hosts/crpharma/host/relay-files.mjs",
+      "path": "hosts/lilly/host/relay-files.mjs",
       "mode": "100644",
-      "bytes": 7910,
-      "sha256": "72411826caed662afb7f89bfef6e33cb747a00b3ef0a8e1c22b92c27d1e5267a",
-      "sha": "f3c893bc46c4c7fbe1e9ac93632d9e66571c2fec"
+      "bytes": 7907,
+      "sha256": "282aecccb39b10ee492187ea64016dc808c161e971c94f3ad272fc04f9a2afe9",
+      "sha": "4b5d4310126e71ac3846db395ae8dcb934be0945"
     },
     {
-      "path": "hosts/crpharma/host/runtime/complete-reviewed-source-readback.js",
+      "path": "hosts/lilly/host/runtime/complete-reviewed-source-readback.js",
       "mode": "100644",
-      "bytes": 5697,
-      "sha256": "38e717fd736a21387bd9257673745db7f9d2ec794c5bffe26e956a8988649b8f",
-      "sha": "632015bec39023a99feb68aba7935efb2fffa916"
+      "bytes": 5694,
+      "sha256": "0180bbfc20595f52d3494133abb40f810df6016ec666e58cca8b191f21193785",
+      "sha": "ef513b474a0e5b5953ad3443d79a62c2834430c7"
     },
     {
-      "path": "hosts/crpharma/host/runtime/continuous-relay-v3-durable-monitor.js",
+      "path": "hosts/lilly/host/runtime/continuous-relay-v3-durable-monitor.js",
       "mode": "100644",
-      "bytes": 5196,
-      "sha256": "1825a6400063e8b73c828b16d6c22a70536f50a90f07412a491c113fdf576550",
-      "sha": "b548d0ce985b2c426d8248545554818d3a11ccf8"
+      "bytes": 5160,
+      "sha256": "6bb98c1eb70802e3887be23de23b39d532696fb6aec22d57971755656a9fa433",
+      "sha": "289d7d7e157b09c095f3e4eccd6fd87d71e0b4e0"
     },
     {
-      "path": "hosts/crpharma/host/runtime/inspect-host-binding.mts",
+      "path": "hosts/lilly/host/runtime/inspect-host-binding.mts",
       "mode": "100644",
       "bytes": 3272,
       "sha256": "11ce7f25fa48a23e8559712f32b7eb5218e5caa617bf4cdf08b17b3085cd28af",
       "sha": "2ac95e486b0d7de70c63bc8079a1c9ad8871bcc5"
     },
     {
-      "path": "hosts/crpharma/host/runtime/load-host-state.js",
+      "path": "hosts/lilly/host/runtime/load-host-state.js",
       "mode": "100644",
-      "bytes": 5328,
-      "sha256": "93eb2311defd340287970ab96ed6fb683ffb04bb683071c3b9726913a7804f86",
-      "sha": "0240afeb65078b9a6425a06fbff45ecbdf61a2a7"
+      "bytes": 5312,
+      "sha256": "975bf9096041d89080e62f92bfb132ca9592a63bfdf7d9ead668a638f8693642",
+      "sha": "a8190ee2bee282f3db3c7d879f53c48da1e232d1"
     },
     {
-      "path": "hosts/crpharma/host/runtime/load-host-state.unbound.template.js",
+      "path": "hosts/lilly/host/runtime/load-host-state.unbound.template.js",
       "mode": "100644",
-      "bytes": 5328,
-      "sha256": "93eb2311defd340287970ab96ed6fb683ffb04bb683071c3b9726913a7804f86",
-      "sha": "0240afeb65078b9a6425a06fbff45ecbdf61a2a7"
+      "bytes": 5312,
+      "sha256": "975bf9096041d89080e62f92bfb132ca9592a63bfdf7d9ead668a638f8693642",
+      "sha": "a8190ee2bee282f3db3c7d879f53c48da1e232d1"
     },
     {
-      "path": "hosts/crpharma/host/runtime/load-source-runtime.js",
+      "path": "hosts/lilly/host/runtime/load-source-runtime.js",
       "mode": "100644",
-      "bytes": 2428,
-      "sha256": "3318f7cf3fabf67e0e94ef010a80dbaf3391ceac3af9541ad06645883a0be909",
-      "sha": "e1f796e4526f61d1f3f357fe1a7897383efceb03"
+      "bytes": 2391,
+      "sha256": "6c147692ccadacf21a922c140e0a81fb11dd60352d7bba44ecb3e0cf59b5f8eb",
+      "sha": "5bdc3510970d5fed6298996e660a1f6a3760b236"
     },
     {
-      "path": "hosts/crpharma/host/runtime/machine-json.py",
+      "path": "hosts/lilly/host/runtime/machine-json.py",
       "mode": "100644",
       "bytes": 1119,
       "sha256": "67611e749eddc6bf8c591fef11f2efa82e2a73ce0bb51b2779fab4ae68b77f50",
       "sha": "3dda394ae2fe15b8740c8db2f0adcf6a9e19e3cf"
     },
     {
-      "path": "hosts/crpharma/host/runtime/preflight/preflight-launch.mjs",
+      "path": "hosts/lilly/host/runtime/preflight/preflight-launch.mjs",
       "mode": "100644",
       "bytes": 11017,
       "sha256": "ab4cffa673ada36078014e20778eeea39d8e5fb208d04f54dc3ff0913a73d2de",
       "sha": "8dc9163aa18f6f8106aafadb2b258e09a3513e72"
     },
     {
-      "path": "hosts/crpharma/host/runtime/preflight/runtime-check.mjs",
+      "path": "hosts/lilly/host/runtime/preflight/runtime-check.mjs",
       "mode": "100644",
       "bytes": 3815,
       "sha256": "e01c5b953283535757e2fcc67df80dd3e86948709dde0b488235a7edee017785",
       "sha": "275890f0f3584e99e0f0f57a4492fd95ad6c248d"
     },
     {
-      "path": "hosts/crpharma/host/runtime/prepare-owner-binding.mts",
+      "path": "hosts/lilly/host/runtime/prepare-owner-binding.mts",
       "mode": "100644",
-      "bytes": 8125,
-      "sha256": "3cfefce8e2839d73372b7b56daa6c3fd197ecf2625b158696dcd37b6e4f4c117",
-      "sha": "881ea02ac743dfeffa8e4791938610452dc299e1"
+      "bytes": 8123,
+      "sha256": "81d9daa3d7cd111fe19fbe02fdc6c1f9f690a9383fc22256f7477fc0055d55a8",
+      "sha": "3840f4ba5e4260dfd617e72e37dc842a03927d0e"
     },
     {
-      "path": "hosts/crpharma/host/runtime/prepare-registered-control.mts",
+      "path": "hosts/lilly/host/runtime/prepare-registered-control.mts",
       "mode": "100644",
       "bytes": 123,
       "sha256": "75b04c3bf46a0c81529e1322c74a02ccddb88b6edb161c39e36fc082ad1c89d8",
       "sha": "323b7860456a264d9c9f144e7343376ba43131d1"
     },
     {
-      "path": "hosts/crpharma/host/runtime/review-packet-envelope.mts",
+      "path": "hosts/lilly/host/runtime/review-packet-envelope.mts",
       "mode": "100644",
       "bytes": 5535,
       "sha256": "40cb1e3ede867f0e9d171605e7454fc71a6f774dfdf910f68ff668722bba69cb",
       "sha": "a550d0fd80f032ae7ed2633e88b2cd2c748c6969"
     },
     {
-      "path": "hosts/crpharma/host/runtime/review-publication.py",
+      "path": "hosts/lilly/host/runtime/review-publication.py",
       "mode": "100644",
-      "bytes": 5762,
-      "sha256": "662e7d44daa3d6944e03a196bdc5ed2e49d55a1720a60f3c65bd1bd86756f6d2",
-      "sha": "ac5488dad0e2abae194bc85033bed654ddf1f162"
+      "bytes": 5764,
+      "sha256": "7522f6e58c63a63512fd11754313674a67a82814ca3af652e58059f3bdf9cce3",
+      "sha": "dfa3c10c3ec36bcdac43fffc2af7015cdf810c47"
     },
     {
-      "path": "hosts/crpharma/host/runtime/update-candidate-completion-state.mjs",
+      "path": "hosts/lilly/host/runtime/update-candidate-completion-state.mjs",
       "mode": "100644",
       "bytes": 3654,
       "sha256": "ae5ad99411b014c8ffff615a0b06af1e1fdfd2ed7f7265c9c9cee0128339bb06",
       "sha": "ec886e3dd2b52805daccddcdcd862b6afbaeec29"
     },
     {
-      "path": "hosts/crpharma/host/source-config-reference.json",
+      "path": "hosts/lilly/host/source-config-reference.json",
       "mode": "100644",
-      "bytes": 895,
-      "sha256": "945a0c3dfefe0431b3e1947e5d665a48a2ac59e134f9bce242ebe6d9adea4c9b",
-      "sha": "92dd19ad50f6f8b2628b5774540596b5e1eebc82"
+      "bytes": 925,
+      "sha256": "bcddb0f84109f5bff5ba1be830950fa3e31305ee8e9df7ee00a985366d9b31a6",
+      "sha": "bedbe01a20bb79ceed734f61c5e08ccd32395681"
     },
     {
-      "path": "hosts/crpharma/supervision/inspect-launch-identity.mjs",
+      "path": "hosts/lilly/supervision/inspect-launch-identity.mjs",
       "mode": "100644",
       "bytes": 871,
       "sha256": "7bc818ae831081b7e91819ad772b950d08e7d06dc741730c0bd54698d6fe8b37",
       "sha": "0fc3dd6c1dde3cc7759848f18c795792c38c800c"
     },
     {
-      "path": "hosts/crpharma/supervision/sample_process_tree.py",
+      "path": "hosts/lilly/supervision/sample_process_tree.py",
       "mode": "100644",
       "bytes": 13065,
       "sha256": "3fa6daa1af1afee94d19801edfd8bcb538e1243476b5adb253e50de162a27bd6",
       "sha": "5c2924dc067309525018e4903741dc33e796b546"
     },
     {
-      "path": "hosts/crpharma/supervision/start-monitor-crpharma51-combined.js",
+      "path": "hosts/lilly/supervision/start-monitor-lilly51-combined.js",
       "mode": "100644",
-      "bytes": 14824,
-      "sha256": "7951187213eeeb2105e446be094c809f2b9b5960adb31b6624df81713c997cff",
-      "sha": "d9a6fcffacd574f0f166c6895787c107a3deb72c"
+      "bytes": 14763,
+      "sha256": "d2901cc4158574e2863a91b6495c842c048d0ed6a7cf819f754ba63be7703e05",
+      "sha": "09668d9039b75ba80fabf9e17a4a55ce977fa2c9"
     },
     {
-      "path": "hosts/crpharma/supervision/start-monitor-crpharma51-combined.unbound.template.js",
+      "path": "hosts/lilly/supervision/start-monitor-lilly51-combined.unbound.template.js",
       "mode": "100644",
-      "bytes": 14824,
-      "sha256": "7951187213eeeb2105e446be094c809f2b9b5960adb31b6624df81713c997cff",
-      "sha": "d9a6fcffacd574f0f166c6895787c107a3deb72c"
+      "bytes": 14763,
+      "sha256": "d2901cc4158574e2863a91b6495c842c048d0ed6a7cf819f754ba63be7703e05",
+      "sha": "09668d9039b75ba80fabf9e17a4a55ce977fa2c9"
     },
     {
-      "path": "hosts/crpharma/supervision/supervise-cancel.mjs",
+      "path": "hosts/lilly/supervision/supervise-cancel.mjs",
       "mode": "100644",
       "bytes": 10232,
       "sha256": "083435a5344a47b86f84184bbe1d2711b0d35def4670afb2ab3c8391ed442e7e",
       "sha": "efe376ba3dbe501d5a2b1bece2c7ac46471aca7d"
     },
     {
-      "path": "hosts/csl/RESTORE_DEPENDENCIES.json",
-      "mode": "100644",
-      "bytes": 1149,
-      "sha256": "0afc8511ed5e50077f967148efc9649234bdeef356ede8402f5ce1243e92bebf",
-      "sha": "d62c8cc6fb5eb133f4eac93fc7d5e2cb5335cac4"
-    },
-    {
-      "path": "hosts/csl/host/archive-transfer.mjs",
+      "path": "hosts/msd/host/archive-transfer.mjs",
       "mode": "100644",
       "bytes": 1777,
       "sha256": "698e966e5552967845a5252d2b3df2acca28dcd8dbbb0ae41755a3a6231e6a99",
       "sha": "5a454d21f34f9680221bbee2c98b3fecb94884f0"
     },
     {
-      "path": "hosts/csl/host/context-read.sql.template",
+      "path": "hosts/msd/host/context-read.sql.template",
       "mode": "100644",
       "bytes": 2372,
-      "sha256": "26ef5d3a0ada20cef36845ced21989b1bc02aa97517efd2222db0fbf790209c6",
-      "sha": "8f78b093a051d96ab0684276ce30b399723a586e"
+      "sha256": "7a968ad91e3703327a1d8973a9e80d831f3fbba5f36c5fe45e823bbe85bbfa02",
+      "sha": "f396b001ed3dd91c0a68f1aaa40fd8e4d87a49cd"
     },
     {
-      "path": "hosts/csl/host/context-template-proof.json",
+      "path": "hosts/msd/host/context-template-proof.json",
       "mode": "100644",
-      "bytes": 2246,
-      "sha256": "eb6cab99c49d26aafd0aacb5e16124df3136f69ecc0117c1cf17c4b501b74a8e",
-      "sha": "3a4af40e622e97434443298ddf24bf0ddacb4148"
+      "bytes": 2282,
+      "sha256": "aa97e3bd3a701405e5ddcbc57aae0e5dd01406ab0172b7bfa2eecbb0c952328b",
+      "sha": "20eb859d6229547c8e0cb2ad972ab694e02ecfbe"
     },
     {
-      "path": "hosts/csl/host/control-base.template.json",
+      "path": "hosts/msd/host/control-base.template.json",
       "mode": "100644",
       "bytes": 467,
       "sha256": "3634b5cc4c996565263cdae4b168cb519556c2401367f33511b426fd0ae48897",
       "sha": "f315252ccc1b63c4b75f86f3ab6dcacdccbeaa1d"
     },
     {
-      "path": "hosts/csl/host/host-config.json",
+      "path": "hosts/msd/host/host-config.json",
       "mode": "100644",
       "bytes": 505,
-      "sha256": "2821bb9458481399a81802aef463d44568be3d9eb3c8ccaeff7e50169b51b035",
-      "sha": "ca78fcc4f7289b4f4f6814c408897eccb307d295"
+      "sha256": "0f865edb859f278dd093dbc3f64d5c6ad405f65ca9537009d1cda7533a8e62fd",
+      "sha": "1a9f33862fdc4f620b4e460ce45cd1fae71f6bb7"
     },
     {
-      "path": "hosts/csl/host/host-config.template.json",
+      "path": "hosts/msd/host/host-config.template.json",
       "mode": "100644",
       "bytes": 505,
-      "sha256": "2821bb9458481399a81802aef463d44568be3d9eb3c8ccaeff7e50169b51b035",
-      "sha": "ca78fcc4f7289b4f4f6814c408897eccb307d295"
+      "sha256": "0f865edb859f278dd093dbc3f64d5c6ad405f65ca9537009d1cda7533a8e62fd",
+      "sha": "1a9f33862fdc4f620b4e460ce45cd1fae71f6bb7"
     },
     {
-      "path": "hosts/csl/host/host-files.mts",
+      "path": "hosts/msd/host/host-files.mts",
       "mode": "100644",
       "bytes": 4077,
       "sha256": "c8033565b3c368bf369fc7507f9d1ff8fa87bc0dde0a84a10a95373473dc6f3a",
       "sha": "8c8f201640071565320343e74c6919d1e83fd9b5"
     },
     {
-      "path": "hosts/csl/host/host-helper-functions.js",
+      "path": "hosts/msd/host/host-helper-functions.js",
       "mode": "100644",
       "bytes": 9735,
-      "sha256": "de930fb81121bf8efe88210144f0811ca57942469ce230fbb6851a9c04d71514",
-      "sha": "46f237b38a8a84f4db2fb3d9cb881068cf3904be"
+      "sha256": "3b8c7c241aef0834178e60e6077aacfd1be7b5b56cd849233ca46091a7d488e7",
+      "sha": "85672c32ee7ef8f0ce06d838d3687695fc734834"
     },
     {
-      "path": "hosts/csl/host/host-stage-functions.js",
+      "path": "hosts/msd/host/host-stage-functions.js",
       "mode": "100644",
       "bytes": 6535,
-      "sha256": "b2fc5f2dff6576f0508df5bcf9517bdae93fef2ba6c7f76e8cd280b8947eaf51",
-      "sha": "fdb68ead0b5b8d3fbc57dde92d34841f8f652d44"
+      "sha256": "4bfad62408b9eef445f26ff0f177e31c06a90f9fe3ea3d1daaffeee883e72ea2",
+      "sha": "b6125266ab759b4323803a138e1db6f8cb32d3d9"
     },
     {
-      "path": "hosts/csl/host/machine-json.js",
+      "path": "hosts/msd/host/machine-json.js",
       "mode": "100644",
       "bytes": 807,
       "sha256": "3484738bd095a9d57da70c6392af78865a53759a9e8499316941157b6210e9f6",
       "sha": "7b927e85ca286ffa900ca93462deee5b9988ed49"
     },
     {
-      "path": "hosts/csl/host/owner-binding-input.template.json",
+      "path": "hosts/msd/host/owner-binding-input.template.json",
       "mode": "100644",
       "bytes": 616,
-      "sha256": "367e94ec24d06c55b1a9a54e175067c405f9d99434ef5d82ea55750fa699009d",
-      "sha": "d3dd2b38ab934ecfa7b575c2d99812d81db19eef"
+      "sha256": "1b45263b5c2889f940ddfcd38b0f69896149872d0f0edf6a4dcfa43e127dde64",
+      "sha": "f7053f212cc17b80343ea307be3c20ac3181883f"
     },
     {
-      "path": "hosts/csl/host/relay-files.mjs",
+      "path": "hosts/msd/host/relay-files.mjs",
       "mode": "100644",
       "bytes": 7905,
-      "sha256": "591c75a3cd6fcd8ca923fc121294b17ad2ca9f120f8bb918526e07522d5dddd3",
-      "sha": "7048954a9e8b45933f27dd1c18c50d1b89de293f"
+      "sha256": "f7e992891920068db858d195aabf6afa89d80a8aa35477911b14fd1dac1787c6",
+      "sha": "c49f6f78173405b211b539c39a4239e92b38c6b0"
     },
     {
-      "path": "hosts/csl/host/runtime/complete-reviewed-source-readback.js",
+      "path": "hosts/msd/host/runtime/complete-reviewed-source-readback.js",
       "mode": "100644",
       "bytes": 5692,
-      "sha256": "3f256b1cbb2ff33e9b472fdcad650afdb2441cd64f413ad9a59048633299c27d",
-      "sha": "3747e93869cd5bd8ed05c19188d0329b4997ec96"
+      "sha256": "f322684631afea3adf40da1e7b9356068f4171b47391e2e5b4fc1274c067f725",
+      "sha": "0bd89a6883f445cc447197e7c32408d3837234e5"
     },
     {
-      "path": "hosts/csl/host/runtime/continuous-relay-v3-durable-monitor.js",
+      "path": "hosts/msd/host/runtime/continuous-relay-v3-durable-monitor.js",
       "mode": "100644",
       "bytes": 5136,
-      "sha256": "b213ad8f114da136262116b27b5700ff1f9c3f86e04f4454cad8ab5c4d715176",
-      "sha": "89b7ce06432ad053d0cefaff3e03fd83b0fa23c0"
+      "sha256": "90b8381a273c5032c4eaef09b4beeed1b5db6882c183f705e275683549c5d468",
+      "sha": "c4f84fe1a6594cafc4ddbce0518f39659d701a4b"
     },
     {
-      "path": "hosts/csl/host/runtime/inspect-host-binding.mts",
+      "path": "hosts/msd/host/runtime/inspect-host-binding.mts",
       "mode": "100644",
       "bytes": 3272,
       "sha256": "11ce7f25fa48a23e8559712f32b7eb5218e5caa617bf4cdf08b17b3085cd28af",
       "sha": "2ac95e486b0d7de70c63bc8079a1c9ad8871bcc5"
     },
     {
-      "path": "hosts/csl/host/runtime/load-host-state.js",
+      "path": "hosts/msd/host/runtime/load-host-state.js",
       "mode": "100644",
       "bytes": 5298,
-      "sha256": "c9f0ac980cc4966468a6ebee371a6e2a8f6e2d5fd0ad2fd4d319e66994977e3b",
-      "sha": "2e6f4a4ef3ace16662478e205302200c1b950dce"
+      "sha256": "f46a5815d377d6c86fa8143fb11ca1bb9d783513f5a53167e1660e7ed595e965",
+      "sha": "f140961bdf7f879769e1d60625efe25cf7dfd8f8"
     },
     {
-      "path": "hosts/csl/host/runtime/load-host-state.unbound.template.js",
+      "path": "hosts/msd/host/runtime/load-host-state.unbound.template.js",
       "mode": "100644",
       "bytes": 5298,
-      "sha256": "c9f0ac980cc4966468a6ebee371a6e2a8f6e2d5fd0ad2fd4d319e66994977e3b",
-      "sha": "2e6f4a4ef3ace16662478e205302200c1b950dce"
+      "sha256": "f46a5815d377d6c86fa8143fb11ca1bb9d783513f5a53167e1660e7ed595e965",
+      "sha": "f140961bdf7f879769e1d60625efe25cf7dfd8f8"
     },
     {
-      "path": "hosts/csl/host/runtime/load-source-runtime.js",
+      "path": "hosts/msd/host/runtime/load-source-runtime.js",
       "mode": "100644",
       "bytes": 2363,
-      "sha256": "db4728f6535e46af0c0d015af303023617ecda13ee2bb78489465b7901292376",
-      "sha": "c4911d762f5d1dd5ed97d5f81625d1a8f62220ec"
+      "sha256": "ef1b7ba54095e9d48318aee1d43116828912a872008a799336e1dc59ebd5a9ae",
+      "sha": "5ee018070722590cfd02d28025e762a7c9a3a9b5"
     },
     {
-      "path": "hosts/csl/host/runtime/machine-json.py",
+      "path": "hosts/msd/host/runtime/machine-json.py",
       "mode": "100644",
       "bytes": 1119,
       "sha256": "67611e749eddc6bf8c591fef11f2efa82e2a73ce0bb51b2779fab4ae68b77f50",
       "sha": "3dda394ae2fe15b8740c8db2f0adcf6a9e19e3cf"
     },
     {
-      "path": "hosts/csl/host/runtime/preflight/preflight-launch.mjs",
+      "path": "hosts/msd/host/runtime/preflight/preflight-launch.mjs",
       "mode": "100644",
       "bytes": 11017,
       "sha256": "ab4cffa673ada36078014e20778eeea39d8e5fb208d04f54dc3ff0913a73d2de",
       "sha": "8dc9163aa18f6f8106aafadb2b258e09a3513e72"
     },
     {
-      "path": "hosts/csl/host/runtime/preflight/runtime-check.mjs",
+      "path": "hosts/msd/host/runtime/preflight/runtime-check.mjs",
       "mode": "100644",
       "bytes": 3815,
       "sha256": "e01c5b953283535757e2fcc67df80dd3e86948709dde0b488235a7edee017785",
       "sha": "275890f0f3584e99e0f0f57a4492fd95ad6c248d"
     },
     {
-      "path": "hosts/csl/host/runtime/prepare-owner-binding.mts",
+      "path": "hosts/msd/host/runtime/prepare-owner-binding.mts",
       "mode": "100644",
       "bytes": 8115,
-      "sha256": "97510082089a58b42b41acff6c1bf4e4aa560ca1a64cda4162cf190cd307aabb",
-      "sha": "5f5d84223a67655733a52c0a7e6a7856dcfe168a"
+      "sha256": "5ea2a51a5fb2680a49147e1de46f8e42bd914d7287a841d202548cfd135d2e44",
+      "sha": "2220270e76591bb1bb9909dd492f51fae202bd65"
     },
     {
-      "path": "hosts/csl/host/runtime/prepare-registered-control.mts",
+      "path": "hosts/msd/host/runtime/prepare-registered-control.mts",
       "mode": "100644",
       "bytes": 123,
       "sha256": "75b04c3bf46a0c81529e1322c74a02ccddb88b6edb161c39e36fc082ad1c89d8",
       "sha": "323b7860456a264d9c9f144e7343376ba43131d1"
     },
     {
-      "path": "hosts/csl/host/runtime/review-packet-envelope.mts",
+      "path": "hosts/msd/host/runtime/review-packet-envelope.mts",
       "mode": "100644",
       "bytes": 5535,
       "sha256": "40cb1e3ede867f0e9d171605e7454fc71a6f774dfdf910f68ff668722bba69cb",
       "sha": "a550d0fd80f032ae7ed2633e88b2cd2c748c6969"
     },
     {
-      "path": "hosts/csl/host/runtime/review-publication.py",
+      "path": "hosts/msd/host/runtime/review-publication.py",
       "mode": "100644",
       "bytes": 5762,
-      "sha256": "16ee596cfa7d97c7b6288978efdc3418f336e9dd3c5afbae2883d73d1f5641cf",
-      "sha": "6b2300699ca4ddbeb10bbbf892517988fa2d7e62"
+      "sha256": "8bc354e62357ca2e0e1519b00d3e68379f502b7d297aebe9014e596559ba1a33",
+      "sha": "4eb0e14751dfc64e04f8eb1d12dab3aa4810eabc"
     },
     {
-      "path": "hosts/csl/host/runtime/update-candidate-completion-state.mjs",
+      "path": "hosts/msd/host/runtime/update-candidate-completion-state.mjs",
       "mode": "100644",
       "bytes": 3654,
       "sha256": "ae5ad99411b014c8ffff615a0b06af1e1fdfd2ed7f7265c9c9cee0128339bb06",
       "sha": "ec886e3dd2b52805daccddcdcd862b6afbaeec29"
     },
     {
-      "path": "hosts/csl/host/source-config-reference.json",
+      "path": "hosts/msd/host/source-config-reference.json",
       "mode": "100644",
-      "bytes": 890,
-      "sha256": "c528dfd390a2b150ab738971bfbaeac4d52ce65c574adb3157a3a649eaa1ab87",
-      "sha": "c12699ee4f9a3a061b7a9f62141d1562f630bae0"
+      "bytes": 907,
+      "sha256": "ac4fed148cc723fcf28488eb6dd948d5fada2fd6e3b24a753745c4f8a502885a",
+      "sha": "d87482b6e8a64c63e9c8833cd70a7d8068ee3856"
     },
     {
-      "path": "hosts/csl/supervision/inspect-launch-identity.mjs",
+      "path": "hosts/msd/supervision/inspect-launch-identity.mjs",
       "mode": "100644",
       "bytes": 871,
       "sha256": "7bc818ae831081b7e91819ad772b950d08e7d06dc741730c0bd54698d6fe8b37",
       "sha": "0fc3dd6c1dde3cc7759848f18c795792c38c800c"
     },
     {
-      "path": "hosts/csl/supervision/sample_process_tree.py",
+      "path": "hosts/msd/supervision/sample_process_tree.py",
       "mode": "100644",
       "bytes": 13065,
       "sha256": "3fa6daa1af1afee94d19801edfd8bcb538e1243476b5adb253e50de162a27bd6",
       "sha": "5c2924dc067309525018e4903741dc33e796b546"
     },
     {
-      "path": "hosts/csl/supervision/start-monitor-csl51-combined.js",
+      "path": "hosts/msd/supervision/start-monitor-msd51-combined.js",
       "mode": "100644",
       "bytes": 14719,
-      "sha256": "31ad333efb96b7b760b09134f0c249c1f4ea4d8df95c5e1a58d40dd6050cc058",
-      "sha": "b08289a6b2bc8215ce015717af841a803930d7d1"
+      "sha256": "e89c9ff72ecc485a7cf46ab56a0defd9f7dd02a6196120057b22d3200e5b1b5e",
+      "sha": "c05252241da18213a102bb54d9fb14140a38cbd3"
     },
     {
-      "path": "hosts/csl/supervision/start-monitor-csl51-combined.unbound.template.js",
+      "path": "hosts/msd/supervision/start-monitor-msd51-combined.unbound.template.js",
       "mode": "100644",
       "bytes": 14719,
-      "sha256": "31ad333efb96b7b760b09134f0c249c1f4ea4d8df95c5e1a58d40dd6050cc058",
-      "sha": "b08289a6b2bc8215ce015717af841a803930d7d1"
+      "sha256": "e89c9ff72ecc485a7cf46ab56a0defd9f7dd02a6196120057b22d3200e5b1b5e",
+      "sha": "c05252241da18213a102bb54d9fb14140a38cbd3"
     },
     {
-      "path": "hosts/csl/supervision/supervise-cancel.mjs",
+      "path": "hosts/msd/supervision/supervise-cancel.mjs",
       "mode": "100644",
       "bytes": 10232,
       "sha256": "083435a5344a47b86f84184bbe1d2711b0d35def4670afb2ab3c8391ed442e7e",
@@ -482,375 +468,389 @@
       "sha": "1199b946b2c19c0557f5bf9239b120189ac45a30"
     },
     {
-      "path": "owner-adaptations/true-a-due-20261007T1256Z/SAFE_SOURCE_FILE_MANIFEST.json",
+      "path": "owner-adaptations/true-a-lilly-msd-20261007T1329Z/baseline-manifest.json",
       "mode": "100644",
-      "bytes": 1717,
-      "sha256": "f693f14e28b0fd17817832507b2fb3277cb983925497e66b16739baae7e111b3",
-      "sha": "dd9e4eb65cc505c76d1c96d11cae41575a5245cf"
+      "bytes": 2594,
+      "sha256": "4d888fcb3a6ddea2e3b7fe87a064c17038b4cbebec45a528fc033eeccd9d5cb6",
+      "sha": "19bcd27a3441d1e8084c6a627101a52d3352da85"
     },
     {
-      "path": "owner-adaptations/true-a-due-20261007T1256Z/baseline-manifest.json",
-      "mode": "100644",
-      "bytes": 2609,
-      "sha256": "f7609110e2ab95aae7857dc7407a90c137cc430c72c6f6b5e586cdc4d01d26af",
-      "sha": "450dc436d16b13a99b08435d2e073222ab37b07b"
-    },
-    {
-      "path": "owner-adaptations/true-a-due-20261007T1256Z/build-fragments.py",
+      "path": "owner-adaptations/true-a-lilly-msd-20261007T1329Z/build-fragments.py",
       "mode": "100644",
       "bytes": 4463,
       "sha256": "1f03fee8b375360bd6294b09fed5eccbbe1787bda8f5cf5523c743bde23de28e",
       "sha": "fe3faea145e2d549d371677a3cfc5b70fb7634d2"
     },
     {
-      "path": "owner-adaptations/true-a-due-20261007T1256Z/preload-owner.exec.js",
+      "path": "owner-adaptations/true-a-lilly-msd-20261007T1329Z/preload-owner.exec.js",
       "mode": "100644",
-      "bytes": 2741,
-      "sha256": "d2d57fce16ee76eb77935eaf91a7f1739513d1ad8e1c0ee7c3b818bba8ed7c16",
-      "sha": "6685dfd6f01fb447df11765696dfa93b64aff178"
+      "bytes": 2747,
+      "sha256": "cccb5f6f2a439356a62cf8f7f0d4b458085049b4839cf62463723d2c343f25fe",
+      "sha": "91c2557487e2e2f9bdb0335b0ea5bd21c6e613a5"
     },
     {
-      "path": "owner-adaptations/true-a-due-20261007T1256Z/publish-and-monitor-owner.js",
+      "path": "owner-adaptations/true-a-lilly-msd-20261007T1329Z/publish-and-monitor-owner.js",
       "mode": "100644",
       "bytes": 10947,
       "sha256": "78a716a79d905dc7bb02715967c43b74566d496bea5b6c24a2d6139dbb1f1894",
       "sha": "0dd4a4418305703482f62d135c4e129f5c8f8dc1"
     },
     {
-      "path": "owner-adaptations/true-a-due-20261007T1256Z/publish-reviewed-and-monitor.exec.js",
+      "path": "owner-adaptations/true-a-lilly-msd-20261007T1329Z/publish-reviewed-and-monitor.exec.js",
       "mode": "100644",
       "bytes": 1398,
       "sha256": "56607634facc379fba8b401258d490abb258ba993aeabdf6865d4bd63296ed9d",
       "sha": "cfca76156031fb8205befce9ad497289734a340c"
     },
     {
-      "path": "owner-adaptations/true-a-due-20261007T1256Z/tests/generate-full-chain-tests.py",
+      "path": "owner-adaptations/true-a-lilly-msd-20261007T1329Z/tests/generate-full-chain-tests.py",
       "mode": "100644",
-      "bytes": 2800,
-      "sha256": "e93dc52bf20d0a52af2fb22b6bd5ad022cd6d0172e9169aa3d004f74badf14d2",
-      "sha": "7fbfca0a55fd194d2ba46c9f39a344255dcda541"
+      "bytes": 2801,
+      "sha256": "8c33183933beac090772a626482333d7f5a7f519b0abb14df04668b1a72974a0",
+      "sha": "70d9b4e00dc6dbf92274bef533f6b84dc2dbc908"
     },
     {
-      "path": "owner-adaptations/true-a-due-20261007T1256Z/tests/generated-crpharma-full-chain.test.mjs",
+      "path": "owner-adaptations/true-a-lilly-msd-20261007T1329Z/tests/generated-lilly-full-chain.test.mjs",
       "mode": "100644",
-      "bytes": 21547,
-      "sha256": "faac9bf7481f45e20bf956aca37f366d3af9999343f9e51fddde4f4398ae6565",
-      "sha": "4bf5d9ea9d6f5bde2b6b8ede47fb6d84b279a895"
+      "bytes": 21531,
+      "sha256": "853e68dbdc86c88bbca00bbd4d2bfaa7f0221b4bc071999b3f618618cd5a5015",
+      "sha": "0c9026a441baf05bf4d985f36f67c7fc72bcbf86"
     },
     {
-      "path": "owner-adaptations/true-a-due-20261007T1256Z/tests/generated-csl-full-chain.test.mjs",
+      "path": "owner-adaptations/true-a-lilly-msd-20261007T1329Z/tests/generated-msd-full-chain.test.mjs",
       "mode": "100644",
       "bytes": 21517,
-      "sha256": "e4e37c7d64cf28ccbd4dfd1337ccbe141165bcaad1a51c1919428d40271371cd",
-      "sha": "dcf299f87677575506dc5731984a76f8a6dc79af"
+      "sha256": "d2546de5764ef603696ab580a9b37e11e52386ab415fe41b0b6eab833ce1cc26",
+      "sha": "a9c9b3bccde5a3c47477a82d31e0b70e2077d93a"
     },
     {
-      "path": "owner-adaptations/true-a-due-20261007T1256Z/tests/key-and-preload.test.mjs",
+      "path": "owner-adaptations/true-a-lilly-msd-20261007T1329Z/tests/key-and-preload.test.mjs",
       "mode": "100644",
-      "bytes": 3898,
-      "sha256": "950762519ee05cdb55ff710affcab0025b240297e484ab534c8c6ce75e0173a5",
-      "sha": "803571d936a6608aeaf3325b80cf1cb0d2b088b3"
+      "bytes": 3892,
+      "sha256": "5c4f361149fe0f60dc05bfa29925c7c74a8b61733f3ed4ad952bc5305e32091a",
+      "sha": "f3e66c110810872a3b9476f5e343154f3b15b39c"
     },
     {
-      "path": "owner-adaptations/true-a-due-20261007T1256Z/tests/owner.test.mjs",
+      "path": "owner-adaptations/true-a-lilly-msd-20261007T1329Z/tests/owner.test.mjs",
       "mode": "100644",
       "bytes": 20267,
       "sha256": "8c0e2c462df58522166a01f8c08afc39e7dc73d3de76f13bcb67ac8d3dd1d11c",
       "sha": "4a9fc60975b54ba2d0c32af50c40b73f754c885e"
     },
     {
-      "path": "owner-adaptations/true-a-due-20261007T1256Z/tests/real-apply-patch-terminal-fixture.json",
+      "path": "owner-adaptations/true-a-lilly-msd-20261007T1329Z/tests/real-apply-patch-terminal-fixture.json",
       "mode": "100644",
       "bytes": 195,
       "sha256": "aff94e02c5266ff389e8cbd2da3774b9eaf00cbf204bf9484a1b5eaace576f2e",
       "sha": "2bb6d2d309c400a32ab73ce3dbdcf1760102319f"
     },
     {
-      "path": "verification/true-a-due-host-preparation-20261007T1256Z/baseline-source-plan.json",
+      "path": "verification/true-a-lilly-msd-preparation-20261007T1329Z/baseline-source-plan.json",
       "mode": "100644",
-      "bytes": 13506,
-      "sha256": "3d8f92a99c4e13528ef946c7d17a15dd240aa1efab1039308b4a449b6c0786f8",
-      "sha": "0e84ce96bc7b2b8e84a13d0236604e6970eb2548"
+      "bytes": 13533,
+      "sha256": "1e08d22fa32f9d54d643b7cd1f1cccc326591b0cafbb53d6994a93cde7a35d6c",
+      "sha": "44c23894e7450bc2421000898bfeca4b5a3f2bd1"
     },
     {
-      "path": "verification/true-a-due-host-preparation-20261007T1256Z/generate-context.mts",
+      "path": "verification/true-a-lilly-msd-preparation-20261007T1329Z/generate-context.mts",
       "mode": "100644",
-      "bytes": 3557,
-      "sha256": "e602744f69d1b23e5486399d06ebe260935623df679b676433b8fbf5e2163dad",
-      "sha": "dc00b5ee5a06a69f767dfc81a8effa8d2f655169"
+      "bytes": 3554,
+      "sha256": "ea9f51fbf6528894dae0d5645fb6f678d28ed86a4240153c13abf44a3fec6828",
+      "sha": "8beb4597bd3e9e110661026b5833e21644a1b276"
     },
     {
-      "path": "verification/true-a-due-host-preparation-20261007T1256Z/host-base/host/archive-transfer.mjs",
+      "path": "verification/true-a-lilly-msd-preparation-20261007T1329Z/host-base/host/archive-transfer.mjs",
       "mode": "100644",
       "bytes": 1777,
       "sha256": "698e966e5552967845a5252d2b3df2acca28dcd8dbbb0ae41755a3a6231e6a99",
       "sha": "5a454d21f34f9680221bbee2c98b3fecb94884f0"
     },
     {
-      "path": "verification/true-a-due-host-preparation-20261007T1256Z/host-base/host/context-read.sql.template",
+      "path": "verification/true-a-lilly-msd-preparation-20261007T1329Z/host-base/host/context-read.sql.template",
       "mode": "100644",
       "bytes": 2382,
       "sha256": "d265c8a292d8d610c9e14fb42bde695dfd4d9d9d0a2e9ba36e029a9d8b5c12c7",
       "sha": "dc5a0b758bad90262557db81013b5fdaffb9f3cf"
     },
     {
-      "path": "verification/true-a-due-host-preparation-20261007T1256Z/host-base/host/control-base.template.json",
+      "path": "verification/true-a-lilly-msd-preparation-20261007T1329Z/host-base/host/control-base.template.json",
       "mode": "100644",
       "bytes": 467,
       "sha256": "3634b5cc4c996565263cdae4b168cb519556c2401367f33511b426fd0ae48897",
       "sha": "f315252ccc1b63c4b75f86f3ab6dcacdccbeaa1d"
     },
     {
-      "path": "verification/true-a-due-host-preparation-20261007T1256Z/host-base/host/host-config.json",
+      "path": "verification/true-a-lilly-msd-preparation-20261007T1329Z/host-base/host/host-config.json",
       "mode": "100644",
       "bytes": 509,
       "sha256": "35a2afdc60260c1bb675b0b64423f3d9c06a71504df5fd314ee77c69dbdc945f",
       "sha": "cc880fda5035df3b16fac9e3c7e6c9f8b0367760"
     },
     {
-      "path": "verification/true-a-due-host-preparation-20261007T1256Z/host-base/host/host-config.template.json",
+      "path": "verification/true-a-lilly-msd-preparation-20261007T1329Z/host-base/host/host-config.template.json",
       "mode": "100644",
       "bytes": 509,
       "sha256": "35a2afdc60260c1bb675b0b64423f3d9c06a71504df5fd314ee77c69dbdc945f",
       "sha": "cc880fda5035df3b16fac9e3c7e6c9f8b0367760"
     },
     {
-      "path": "verification/true-a-due-host-preparation-20261007T1256Z/host-base/host/host-files.mts",
+      "path": "verification/true-a-lilly-msd-preparation-20261007T1329Z/host-base/host/host-files.mts",
       "mode": "100644",
       "bytes": 4077,
       "sha256": "c8033565b3c368bf369fc7507f9d1ff8fa87bc0dde0a84a10a95373473dc6f3a",
       "sha": "8c8f201640071565320343e74c6919d1e83fd9b5"
     },
     {
-      "path": "verification/true-a-due-host-preparation-20261007T1256Z/host-base/host/host-helper-functions.js",
+      "path": "verification/true-a-lilly-msd-preparation-20261007T1329Z/host-base/host/host-helper-functions.js",
       "mode": "100644",
       "bytes": 9753,
       "sha256": "e435807a3accb90b3bb63ce6c132a9b7beabff50c00b24b1f12597d75e243a54",
       "sha": "91b425170ca01d7a635a48cc062d0a2b8437e949"
     },
     {
-      "path": "verification/true-a-due-host-preparation-20261007T1256Z/host-base/host/host-stage-functions.js",
+      "path": "verification/true-a-lilly-msd-preparation-20261007T1329Z/host-base/host/host-stage-functions.js",
       "mode": "100644",
       "bytes": 6557,
       "sha256": "c7960c2df7dd082cfe8071daa0f9a350952c2a827bbf7d5ef44dbdbc0398c452",
       "sha": "161df497c42624c48c99f0af476bb70e37694068"
     },
     {
-      "path": "verification/true-a-due-host-preparation-20261007T1256Z/host-base/host/machine-json.js",
+      "path": "verification/true-a-lilly-msd-preparation-20261007T1329Z/host-base/host/machine-json.js",
       "mode": "100644",
       "bytes": 807,
       "sha256": "3484738bd095a9d57da70c6392af78865a53759a9e8499316941157b6210e9f6",
       "sha": "7b927e85ca286ffa900ca93462deee5b9988ed49"
     },
     {
-      "path": "verification/true-a-due-host-preparation-20261007T1256Z/host-base/host/relay-files.mjs",
+      "path": "verification/true-a-lilly-msd-preparation-20261007T1329Z/host-base/host/relay-files.mjs",
       "mode": "100644",
       "bytes": 7907,
       "sha256": "6cff7c2c0d507dd1542316859c95fed907b1cceee3174e2b2de48689b3b00b9d",
       "sha": "799df1793342000c8b0edf5e79890f158ecfa66e"
     },
     {
-      "path": "verification/true-a-due-host-preparation-20261007T1256Z/host-base/host/runtime/complete-reviewed-source-readback.js",
+      "path": "verification/true-a-lilly-msd-preparation-20261007T1329Z/host-base/host/runtime/complete-reviewed-source-readback.js",
       "mode": "100644",
       "bytes": 5694,
       "sha256": "e176d105073b225be5fb724be8bbe6cc1b39437bef85d5ebb8587bd6ad240765",
       "sha": "32b3b5eb2cfc0dec5dae0fea926b1d7b7eb68c6c"
     },
     {
-      "path": "verification/true-a-due-host-preparation-20261007T1256Z/host-base/host/runtime/continuous-relay-v3-durable-monitor.js",
+      "path": "verification/true-a-lilly-msd-preparation-20261007T1329Z/host-base/host/runtime/continuous-relay-v3-durable-monitor.js",
       "mode": "100644",
       "bytes": 5160,
       "sha256": "d9bb23b0c18b260c1ec6b0272682992680d012491d1c3ab19e2ad25116e85f77",
       "sha": "ceb72baf2820d4fe9601843c3c0d29f83720792c"
     },
     {
-      "path": "verification/true-a-due-host-preparation-20261007T1256Z/host-base/host/runtime/inspect-host-binding.mts",
+      "path": "verification/true-a-lilly-msd-preparation-20261007T1329Z/host-base/host/runtime/inspect-host-binding.mts",
       "mode": "100644",
       "bytes": 3272,
       "sha256": "11ce7f25fa48a23e8559712f32b7eb5218e5caa617bf4cdf08b17b3085cd28af",
       "sha": "2ac95e486b0d7de70c63bc8079a1c9ad8871bcc5"
     },
     {
-      "path": "verification/true-a-due-host-preparation-20261007T1256Z/host-base/host/runtime/load-host-state.js",
+      "path": "verification/true-a-lilly-msd-preparation-20261007T1329Z/host-base/host/runtime/load-host-state.js",
       "mode": "100644",
       "bytes": 4902,
       "sha256": "3fb9fde91dbc5bd5458df892b1d5747b184051e3a73992deefcf050fd57cb096",
       "sha": "cd8f9e6529f91fb48b75a7ac3afd68e8b76e754f"
     },
     {
-      "path": "verification/true-a-due-host-preparation-20261007T1256Z/host-base/host/runtime/load-source-runtime.js",
+      "path": "verification/true-a-lilly-msd-preparation-20261007T1329Z/host-base/host/runtime/load-source-runtime.js",
       "mode": "100644",
       "bytes": 2000,
       "sha256": "ae049e168e87982138cbba4ce48e8ff600cd5717bee2b87bebd3fe279f02007a",
       "sha": "937201c1813202c26b510cfadc03817b475e4bdc"
     },
     {
-      "path": "verification/true-a-due-host-preparation-20261007T1256Z/host-base/host/runtime/machine-json.py",
+      "path": "verification/true-a-lilly-msd-preparation-20261007T1329Z/host-base/host/runtime/machine-json.py",
       "mode": "100644",
       "bytes": 1119,
       "sha256": "67611e749eddc6bf8c591fef11f2efa82e2a73ce0bb51b2779fab4ae68b77f50",
       "sha": "3dda394ae2fe15b8740c8db2f0adcf6a9e19e3cf"
     },
     {
-      "path": "verification/true-a-due-host-preparation-20261007T1256Z/host-base/host/runtime/preflight/preflight-launch.mjs",
+      "path": "verification/true-a-lilly-msd-preparation-20261007T1329Z/host-base/host/runtime/preflight/preflight-launch.mjs",
       "mode": "100644",
       "bytes": 11017,
       "sha256": "ab4cffa673ada36078014e20778eeea39d8e5fb208d04f54dc3ff0913a73d2de",
       "sha": "8dc9163aa18f6f8106aafadb2b258e09a3513e72"
     },
     {
-      "path": "verification/true-a-due-host-preparation-20261007T1256Z/host-base/host/runtime/preflight/runtime-check.mjs",
+      "path": "verification/true-a-lilly-msd-preparation-20261007T1329Z/host-base/host/runtime/preflight/runtime-check.mjs",
       "mode": "100644",
       "bytes": 3815,
       "sha256": "e01c5b953283535757e2fcc67df80dd3e86948709dde0b488235a7edee017785",
       "sha": "275890f0f3584e99e0f0f57a4492fd95ad6c248d"
     },
     {
-      "path": "verification/true-a-due-host-preparation-20261007T1256Z/host-base/host/runtime/prepare-registered-control.mts",
+      "path": "verification/true-a-lilly-msd-preparation-20261007T1329Z/host-base/host/runtime/prepare-registered-control.mts",
       "mode": "100644",
       "bytes": 4760,
       "sha256": "90cb147bc50523423b890837ae82710460eb65bfedf932f15e580b07e685a74b",
       "sha": "9dbc8aac8249c366aad1905e281b9e95f6c7e3b5"
     },
     {
-      "path": "verification/true-a-due-host-preparation-20261007T1256Z/host-base/host/runtime/review-packet-envelope.mts",
+      "path": "verification/true-a-lilly-msd-preparation-20261007T1329Z/host-base/host/runtime/review-packet-envelope.mts",
       "mode": "100644",
       "bytes": 5535,
       "sha256": "40cb1e3ede867f0e9d171605e7454fc71a6f774dfdf910f68ff668722bba69cb",
       "sha": "a550d0fd80f032ae7ed2633e88b2cd2c748c6969"
     },
     {
-      "path": "verification/true-a-due-host-preparation-20261007T1256Z/host-base/host/runtime/review-publication.py",
+      "path": "verification/true-a-lilly-msd-preparation-20261007T1329Z/host-base/host/runtime/review-publication.py",
       "mode": "100644",
       "bytes": 5764,
       "sha256": "baa95c5997c7142b164895fa1ecfe6cab396fefd8623625e3a0398d06c70c254",
       "sha": "7a6c606928fa0318f53c89c912d15e1710fbe8b3"
     },
     {
-      "path": "verification/true-a-due-host-preparation-20261007T1256Z/host-base/host/runtime/update-candidate-completion-state.mjs",
+      "path": "verification/true-a-lilly-msd-preparation-20261007T1329Z/host-base/host/runtime/update-candidate-completion-state.mjs",
       "mode": "100644",
       "bytes": 3654,
       "sha256": "ae5ad99411b014c8ffff615a0b06af1e1fdfd2ed7f7265c9c9cee0128339bb06",
       "sha": "ec886e3dd2b52805daccddcdcd862b6afbaeec29"
     },
     {
-      "path": "verification/true-a-due-host-preparation-20261007T1256Z/host-base/host/source-config-reference.json",
+      "path": "verification/true-a-lilly-msd-preparation-20261007T1329Z/host-base/host/source-config-reference.json",
       "mode": "100644",
       "bytes": 955,
       "sha256": "64454660f8605b65603d09fdc15e8718f18d334383b3db831c454bdc646896d6",
       "sha": "f9a43cb2774931505331eb41918e4cc5e1c09e06"
     },
     {
-      "path": "verification/true-a-due-host-preparation-20261007T1256Z/host-base/supervision/inspect-launch-identity.mjs",
+      "path": "verification/true-a-lilly-msd-preparation-20261007T1329Z/host-base/supervision/inspect-launch-identity.mjs",
       "mode": "100644",
       "bytes": 871,
       "sha256": "7bc818ae831081b7e91819ad772b950d08e7d06dc741730c0bd54698d6fe8b37",
       "sha": "0fc3dd6c1dde3cc7759848f18c795792c38c800c"
     },
     {
-      "path": "verification/true-a-due-host-preparation-20261007T1256Z/host-base/supervision/sample_process_tree.py",
+      "path": "verification/true-a-lilly-msd-preparation-20261007T1329Z/host-base/supervision/sample_process_tree.py",
       "mode": "100644",
       "bytes": 13065,
       "sha256": "3fa6daa1af1afee94d19801edfd8bcb538e1243476b5adb253e50de162a27bd6",
       "sha": "5c2924dc067309525018e4903741dc33e796b546"
     },
     {
-      "path": "verification/true-a-due-host-preparation-20261007T1256Z/host-base/supervision/start-monitor-amgen51-combined.js",
+      "path": "verification/true-a-lilly-msd-preparation-20261007T1329Z/host-base/supervision/start-monitor-amgen51-combined.js",
       "mode": "100644",
       "bytes": 14430,
       "sha256": "d7a6daa2c3739cecb8dfbb510f1d3aff908eb5e6a791beaeee88a2599b48798e",
       "sha": "f71b400b2761cc6199233cd7da2d215d6317d50a"
     },
     {
-      "path": "verification/true-a-due-host-preparation-20261007T1256Z/host-base/supervision/supervise-cancel.mjs",
+      "path": "verification/true-a-lilly-msd-preparation-20261007T1329Z/host-base/supervision/supervise-cancel.mjs",
       "mode": "100644",
       "bytes": 10232,
       "sha256": "083435a5344a47b86f84184bbe1d2711b0d35def4670afb2ab3c8391ed442e7e",
       "sha": "efe376ba3dbe501d5a2b1bece2c7ac46471aca7d"
     },
     {
-      "path": "verification/true-a-due-host-preparation-20261007T1256Z/owner-base/build-fragments.py",
+      "path": "verification/true-a-lilly-msd-preparation-20261007T1329Z/inspect-lilly-legacy-fixture.mts",
+      "mode": "100644",
+      "bytes": 764,
+      "sha256": "3896c7265662ea3b45d260a9463342f6e15c93ff56790f0c824ff3e3f24c4c4e",
+      "sha": "35bf2d91e091d9826eaca9300b9d6a25a1487ee3"
+    },
+    {
+      "path": "verification/true-a-lilly-msd-preparation-20261007T1329Z/owner-base/build-fragments.py",
       "mode": "100644",
       "bytes": 4463,
       "sha256": "1f03fee8b375360bd6294b09fed5eccbbe1787bda8f5cf5523c743bde23de28e",
       "sha": "fe3faea145e2d549d371677a3cfc5b70fb7634d2"
     },
     {
-      "path": "verification/true-a-due-host-preparation-20261007T1256Z/owner-base/publish-and-monitor-owner.js",
+      "path": "verification/true-a-lilly-msd-preparation-20261007T1329Z/owner-base/publish-and-monitor-owner.js",
       "mode": "100644",
       "bytes": 10947,
       "sha256": "78a716a79d905dc7bb02715967c43b74566d496bea5b6c24a2d6139dbb1f1894",
       "sha": "0dd4a4418305703482f62d135c4e129f5c8f8dc1"
     },
     {
-      "path": "verification/true-a-due-host-preparation-20261007T1256Z/owner-base/tests/generate-full-chain-tests.py",
+      "path": "verification/true-a-lilly-msd-preparation-20261007T1329Z/owner-base/tests/generate-full-chain-tests.py",
       "mode": "100644",
       "bytes": 2805,
       "sha256": "32cc52742ccc99d7ad396f40f6dafc4e3682c3e4b4bb794e63ad6d893b25e655",
       "sha": "7b0b7e452aeca0ab08dbd3220286479bfea2783e"
     },
     {
-      "path": "verification/true-a-due-host-preparation-20261007T1256Z/owner-base/tests/key-and-preload.test.mjs",
+      "path": "verification/true-a-lilly-msd-preparation-20261007T1329Z/owner-base/tests/key-and-preload.test.mjs",
       "mode": "100644",
       "bytes": 3896,
       "sha256": "78042858206817ee42b186ba65237b3483c3fe6ecd192bc4c24418574a7673d5",
       "sha": "cb5c7639bfafbf6d050f690f8cfa9145d65c33cc"
     },
     {
-      "path": "verification/true-a-due-host-preparation-20261007T1256Z/owner-base/tests/owner.test.mjs",
+      "path": "verification/true-a-lilly-msd-preparation-20261007T1329Z/owner-base/tests/owner.test.mjs",
       "mode": "100644",
       "bytes": 20267,
       "sha256": "8c0e2c462df58522166a01f8c08afc39e7dc73d3de76f13bcb67ac8d3dd1d11c",
       "sha": "4a9fc60975b54ba2d0c32af50c40b73f754c885e"
     },
     {
-      "path": "verification/true-a-due-host-preparation-20261007T1256Z/owner-base/tests/real-apply-patch-terminal-fixture.json",
+      "path": "verification/true-a-lilly-msd-preparation-20261007T1329Z/owner-base/tests/real-apply-patch-terminal-fixture.json",
       "mode": "100644",
       "bytes": 195,
       "sha256": "aff94e02c5266ff389e8cbd2da3774b9eaf00cbf204bf9484a1b5eaace576f2e",
       "sha": "2bb6d2d309c400a32ab73ce3dbdcf1760102319f"
     },
     {
-      "path": "verification/true-a-due-host-preparation-20261007T1256Z/prepare-hosts.py",
+      "path": "verification/true-a-lilly-msd-preparation-20261007T1329Z/prepare-hosts.py",
       "mode": "100644",
-      "bytes": 9114,
-      "sha256": "e41655104be4d657560d23b6841de6dc2892dfcb226e3cc4353c662daccf19dd",
-      "sha": "9e3aa29e13e791441e2fdbb713c23609ca0972a7"
+      "bytes": 10092,
+      "sha256": "374bf2ae5ee2cd57d20452c7fafe8c2dcb583b9599ec1d080399e22cc72eb843",
+      "sha": "c25be1b5f5fc4f92f7cf690df2af9a318b8bfbd4"
     },
     {
-      "path": "verification/true-a-due-host-preparation-20261007T1256Z/prepare-owner-binding.base.mts",
+      "path": "verification/true-a-lilly-msd-preparation-20261007T1329Z/prepare-owner-binding.base.mts",
       "mode": "100644",
       "bytes": 7626,
       "sha256": "0f4fd59de1b366e5d2ff39df1b67b83dc9d97f26a25187e804263e82bec67cd4",
       "sha": "116cdb8c8f2d824a8e1cd252e3b9c50b46280191"
     },
     {
-      "path": "verification/true-a-due-host-preparation-20261007T1256Z/static-true-a-source-routes.json",
+      "path": "verification/true-a-lilly-msd-preparation-20261007T1329Z/static-true-a-source-routes.json",
       "mode": "100644",
-      "bytes": 2124,
-      "sha256": "ad4d8dbc5e0376224df407ddcbcefe5b7bc4ff408aac7b2c5b778cc9c29b256e",
-      "sha": "f3258ffc9232a03f72d46dc691e9d00e941aa053"
+      "bytes": 2171,
+      "sha256": "b1e0f7ee56fbecb0ce34d0139ed9f4cd9610e2b661620c4ef2f164c4c7ccc71a",
+      "sha": "47915fe01236a4ff945bf8e64e29daf5d1a3dc79"
     },
     {
-      "path": "verification/true-a-due-host-preparation-20261007T1256Z/verify-hosts.mts",
+      "path": "verification/true-a-lilly-msd-preparation-20261007T1329Z/verify-combined-pins.mjs",
       "mode": "100644",
-      "bytes": 8979,
-      "sha256": "d4bd3304a031f2999fdca132905a53525463e9e01063a23580f09bc068fd9f6e",
-      "sha": "a3e6e81540cbe6073837f02c4c58f2926d2f0782"
+      "bytes": 3962,
+      "sha256": "4b46900df2f851182088b51ca38173dc90637412a546b20b7b127702e9194b2f",
+      "sha": "24c8aac889fee758e8a3349d851151d3ee5a6350"
     },
     {
-      "path": "verification/true-a-due-host-preparation-20261007T1256Z/verify-loader-pins.mjs",
+      "path": "verification/true-a-lilly-msd-preparation-20261007T1329Z/verify-hosts.mts",
       "mode": "100644",
-      "bytes": 2743,
-      "sha256": "1557b9cde369ebd9abca2868310adfef4b419126403322e4ac9c91dfd7ef2afd",
-      "sha": "d6b215ee74b6cad9a3380a522e8f36345db02353"
+      "bytes": 8976,
+      "sha256": "20b604fd5094e10db80070869385f4fb633f33689a61adb8e19bd77b7c0246b6",
+      "sha": "55994622daea415c9c815d6c6dcbf5572590156d"
     },
     {
-      "path": "verification/true-a-due-host-preparation-20261007T1256Z/vitest.config.mjs",
+      "path": "verification/true-a-lilly-msd-preparation-20261007T1329Z/verify-loader-pins.mjs",
       "mode": "100644",
-      "bytes": 563,
-      "sha256": "21676b9dc1580e93a73bdb7830f2cfef6ea7ff9833a193dd0018142e81646ac6",
-      "sha": "51644f60a89bbe8691da846369cc1fe23e4cdd6a"
+      "bytes": 2740,
+      "sha256": "77c4edcd9193fe2e36ee2c5f7ef539d7642fb20c92690f8509790e21b4cf2276",
+      "sha": "c701d5c31573c83acc7c67df840792e008ce15fe"
+    },
+    {
+      "path": "verification/true-a-lilly-msd-preparation-20261007T1329Z/verify-native-policy.mts",
+      "mode": "100644",
+      "bytes": 4610,
+      "sha256": "ddeefcec9bff7614431a3cff9bf168ad6e900c485cdecc6578b64f0037a074fb",
+      "sha": "313d88661dc79bfb024bdd5b4304d9ce5594a547"
+    },
+    {
+      "path": "verification/true-a-lilly-msd-preparation-20261007T1329Z/vitest.config.mjs",
+      "mode": "100644",
+      "bytes": 392,
+      "sha256": "e950cca6c7fa45527d559d6bccba628156fc925bc9fff28cb6e85c0c2f1141cd",
+      "sha": "ce2e8799d5c3b872fd61a5b57f85f84e08b4a7af"
     }
   ],
   "recoveryLimits": "BACKUP_RECOVERY.md"

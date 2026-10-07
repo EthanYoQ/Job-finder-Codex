@@ -1,0 +1,72 @@
+{
+  "schemaVersion": 1,
+  "sourceId": "source-msd-china-social",
+  "sourceConfigSha256": "7772b32344c3485af4cb54e3ad17a7a78335800282682450da213c7544f6fc30",
+  "route": "TRUE_A",
+  "entrypoint": "scripts/p0-cloud-source-pilot.ts",
+  "entrypointSha256": "e4299018aa4b17cd7d0ff756ea45b779479708e02c400be9a1c8ffc0c2c1abaa",
+  "sourceAdmissionPolicy": null,
+  "certificateSchema": "a-grade-official-total-v2",
+  "publicationMode": "DB_STARTED_JOB_PROJECTION_DELTA_V1",
+  "candidate": null,
+  "databaseIdentity": null,
+  "templatePlaceholderOnly": true,
+  "contextSha256": "7a968ad91e3703327a1d8973a9e80d831f3fbba5f36c5fe45e823bbe85bbfa02",
+  "expiryBasis": "source.startedAt+1800000",
+  "originalSourcePlan": {
+    "adapterId": "official-json",
+    "company": {
+      "id": "company-msd-china",
+      "officialChineseName": "默沙东中国",
+      "category": "FOREIGN_PHARMA"
+    },
+    "source": {
+      "id": "source-msd-china-social",
+      "surfaceId": "surface-msd-china-social",
+      "companyId": "company-msd-china",
+      "kind": "SOCIAL",
+      "atsKind": "OFFICIAL_JSON",
+      "status": "VERIFIED_SCRAPABLE",
+      "officialEntryUrl": "https://www.ajinga.com/msdchina/professionals",
+      "officialChainEvidenceUrl": "https://www.ajinga.com/msdchina/professionals"
+    },
+    "executionAuthority": "STAGED",
+    "expectedChannels": [
+      {
+        "channelId": "source:source-msd-china-social:default",
+        "kind": "SOCIAL"
+      }
+    ],
+    "expectedChannelSetHash": "ba19f0ef193fd068ef7ea9c7a649681251d9983f4bf64917773f8ec2118aab0d",
+    "json": {
+      "jobsPath": "jobs",
+      "fields": {
+        "sourceJobId": "sourceJobId",
+        "officialTitle": "title",
+        "officialUrl": "officialUrl",
+        "locationRaw": "locationRaw",
+        "cities": "cities"
+      },
+      "defaultCategory": "其他"
+    },
+    "profileBoundSource": {
+      "kind": "msd-ajinga",
+      "config": {
+        "entryUrl": "https://www.ajinga.com/msdchina/professionals",
+        "companyId": 13471,
+        "pageSize": 30,
+        "maxPages": 20
+      }
+    },
+    "transientRetryPolicy": {
+      "maxRetries": 1,
+      "backoffMs": 10000
+    },
+    "transportPolicy": {
+      "primary": "DIRECT_HTTP"
+    }
+  },
+  "network": false,
+  "database": false,
+  "launch": false
+}

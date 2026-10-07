@@ -1,0 +1,73 @@
+{
+  "schemaVersion": 1,
+  "sourceId": "source-lilly-china-social",
+  "sourceConfigSha256": "34ac4d47a1b69389e567b53df64062f10ed50a1d34cb0b4876d3c9af85e68c97",
+  "route": "TRUE_A",
+  "entrypoint": "scripts/p0-cloud-source-pilot.ts",
+  "entrypointSha256": "e4299018aa4b17cd7d0ff756ea45b779479708e02c400be9a1c8ffc0c2c1abaa",
+  "sourceAdmissionPolicy": null,
+  "certificateSchema": "a-grade-official-total-v2",
+  "publicationMode": "DB_STARTED_JOB_PROJECTION_DELTA_V1",
+  "candidate": null,
+  "databaseIdentity": null,
+  "templatePlaceholderOnly": true,
+  "contextSha256": "650203184d602226be38d5def38688a4c6f5fc67a47b7d338862b44207d434de",
+  "expiryBasis": "source.startedAt+1800000",
+  "originalSourcePlan": {
+    "adapterId": "official-json",
+    "company": {
+      "id": "company-lilly-china",
+      "officialChineseName": "礼来中国",
+      "category": "FOREIGN_PHARMA"
+    },
+    "source": {
+      "id": "source-lilly-china-social",
+      "surfaceId": "surface-lilly-china-social",
+      "companyId": "company-lilly-china",
+      "kind": "SOCIAL",
+      "atsKind": "OFFICIAL_JSON",
+      "status": "VERIFIED_SCRAPABLE",
+      "officialEntryUrl": "https://careers.lilly.com/us/en/search-results?keywords=China",
+      "officialChainEvidenceUrl": "https://careers.lilly.com/global/zh/china"
+    },
+    "executionAuthority": "STAGED",
+    "expectedChannels": [
+      {
+        "channelId": "source:source-lilly-china-social:default",
+        "kind": "SOCIAL"
+      }
+    ],
+    "expectedChannelSetHash": "fc78b856530c2fe2739c7a78a61ccadf3c0184c22b024bd46ae149fa689563e9",
+    "json": {
+      "jobsPath": "jobs",
+      "fields": {
+        "sourceJobId": "sourceJobId",
+        "officialTitle": "title",
+        "officialUrl": "officialUrl",
+        "locationRaw": "locationRaw",
+        "cities": "cities",
+        "officialPublishedAt": "officialPublishedAt"
+      },
+      "defaultCategory": "其他"
+    },
+    "officialJsonFetch": {
+      "kind": "phenom",
+      "postedDatePolicy": "LILLY_CHINA_PHENOM_POSTED_DATE_V1",
+      "cityScopePolicy": "LILLY_CHINA_REVIEWED_LOCATION_PENDING_V1",
+      "publicVisibilityPolicy": "LILLY_CHINA_PUBLIC_VISIBILITY_V1",
+      "detailBaseUrl": "https://careers.lilly.com/us/en/job",
+      "countryFilter": "China",
+      "allowedApplyOrigins": [
+        "https://lilly.wd115.myworkdayjobs.com"
+      ],
+      "pageSize": 50,
+      "maxPages": 10
+    },
+    "transportPolicy": {
+      "primary": "DIRECT_HTTP"
+    }
+  },
+  "network": false,
+  "database": false,
+  "launch": false
+}
