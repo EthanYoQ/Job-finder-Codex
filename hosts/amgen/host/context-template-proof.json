@@ -1,0 +1,69 @@
+{
+  "schemaVersion": 1,
+  "sourceId": "source-amgen-china-social",
+  "sourceConfigSha256": "1854166be2d563e3e9cc075df017d3f04e1f65e3b06186bb64c95a3c8676f6a6",
+  "route": "TRUE_A",
+  "entrypoint": "scripts/p0-cloud-source-pilot.ts",
+  "entrypointSha256": "e4299018aa4b17cd7d0ff756ea45b779479708e02c400be9a1c8ffc0c2c1abaa",
+  "sourceAdmissionPolicy": null,
+  "certificateSchema": "a-grade-official-total-v2",
+  "publicationMode": "DB_STARTED_JOB_PROJECTION_DELTA_V1",
+  "candidate": null,
+  "databaseIdentity": null,
+  "templatePlaceholderOnly": true,
+  "contextSha256": "8427478e1c31e1da75877a391a0fdd0da69406411fff003bb0bc917912b50d6d",
+  "expiryBasis": "source.startedAt+1800000",
+  "originalSourcePlan": {
+    "adapterId": "official-json",
+    "company": {
+      "id": "company-amgen-china",
+      "officialChineseName": "安进中国",
+      "category": "FOREIGN_PHARMA"
+    },
+    "source": {
+      "id": "source-amgen-china-social",
+      "surfaceId": "surface-amgen-china-social",
+      "companyId": "company-amgen-china",
+      "kind": "SOCIAL",
+      "atsKind": "OFFICIAL_JSON",
+      "status": "VERIFIED_SCRAPABLE",
+      "officialEntryUrl": "https://careers.amgen.com/en/search-jobs/China/87/2/1814991/35/105/50/2",
+      "officialChainEvidenceUrl": "https://careers.amgen.com/en/location/china-jobs/87/1814991/2"
+    },
+    "executionAuthority": "STAGED",
+    "expectedChannels": [
+      {
+        "channelId": "source:source-amgen-china-social:default",
+        "kind": "SOCIAL"
+      }
+    ],
+    "expectedChannelSetHash": "61b5f9ec3a1e88b4940a98f9ad6458cb204cbc774209bb9c0c3b6e234396ee4d",
+    "json": {
+      "jobsPath": "jobPostings",
+      "fields": {
+        "sourceJobId": "sourceJobId",
+        "officialTitle": "title",
+        "officialUrl": "officialUrl",
+        "locationRaw": "locationRaw",
+        "cities": "cities"
+      },
+      "defaultCategory": "其他"
+    },
+    "profileBoundSource": {
+      "kind": "amgen-manual-workday-lookup",
+      "config": {
+        "policy": "AMGEN_MANUAL_WORKDAY_LOOKUP_V2",
+        "pageSize": 12,
+        "maxPages": 30,
+        "lookupPageSize": 20,
+        "lookupMaxPages": 30
+      }
+    },
+    "transportPolicy": {
+      "primary": "DIRECT_HTTP"
+    }
+  },
+  "network": false,
+  "database": false,
+  "launch": false
+}

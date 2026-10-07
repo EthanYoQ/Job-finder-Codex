@@ -1,0 +1,240 @@
+{
+  "schemaVersion": 1,
+  "basisPlanSha256": "c09c1da16e1da169fe01a56400a2308e2c793c70986c88175de0a8c1c1975265",
+  "files": [
+    {
+      "path": "hosts/csl/host/archive-transfer.mjs",
+      "sourcePath": "/workspace/scratch/5e9614251709/jb-incremental-proxy-runtime-20261007T0057Z/amgen-producer-runtime-1307Z/verification/amgen-host-preparation-1313Z/baseline/hosts/csl/host/archive-transfer.mjs",
+      "sha256": "698e966e5552967845a5252d2b3df2acca28dcd8dbbb0ae41755a3a6231e6a99",
+      "bytes": 1777
+    },
+    {
+      "path": "hosts/csl/host/context-read.sql.template",
+      "sourcePath": "/workspace/scratch/5e9614251709/jb-incremental-proxy-runtime-20261007T0057Z/amgen-producer-runtime-1307Z/verification/amgen-host-preparation-1313Z/baseline/hosts/csl/host/context-read.sql.template",
+      "sha256": "26ef5d3a0ada20cef36845ced21989b1bc02aa97517efd2222db0fbf790209c6",
+      "bytes": 2372
+    },
+    {
+      "path": "hosts/csl/host/context-template-proof.json",
+      "sourcePath": "/workspace/scratch/5e9614251709/jb-incremental-proxy-runtime-20261007T0057Z/amgen-producer-runtime-1307Z/verification/amgen-host-preparation-1313Z/baseline/hosts/csl/host/context-template-proof.json",
+      "sha256": "eb6cab99c49d26aafd0aacb5e16124df3136f69ecc0117c1cf17c4b501b74a8e",
+      "bytes": 2246
+    },
+    {
+      "path": "hosts/csl/host/control-base.template.json",
+      "sourcePath": "/workspace/scratch/5e9614251709/jb-incremental-proxy-runtime-20261007T0057Z/amgen-producer-runtime-1307Z/verification/amgen-host-preparation-1313Z/baseline/hosts/csl/host/control-base.template.json",
+      "sha256": "3634b5cc4c996565263cdae4b168cb519556c2401367f33511b426fd0ae48897",
+      "bytes": 467
+    },
+    {
+      "path": "hosts/csl/host/host-config.json",
+      "sourcePath": "/workspace/scratch/5e9614251709/jb-incremental-proxy-runtime-20261007T0057Z/amgen-producer-runtime-1307Z/verification/amgen-host-preparation-1313Z/baseline/hosts/csl/host/host-config.json",
+      "sha256": "2821bb9458481399a81802aef463d44568be3d9eb3c8ccaeff7e50169b51b035",
+      "bytes": 505
+    },
+    {
+      "path": "hosts/csl/host/host-config.template.json",
+      "sourcePath": "/workspace/scratch/5e9614251709/jb-incremental-proxy-runtime-20261007T0057Z/amgen-producer-runtime-1307Z/verification/amgen-host-preparation-1313Z/baseline/hosts/csl/host/host-config.template.json",
+      "sha256": "2821bb9458481399a81802aef463d44568be3d9eb3c8ccaeff7e50169b51b035",
+      "bytes": 505
+    },
+    {
+      "path": "hosts/csl/host/host-files.mts",
+      "sourcePath": "/workspace/scratch/5e9614251709/jb-incremental-proxy-runtime-20261007T0057Z/amgen-producer-runtime-1307Z/verification/amgen-host-preparation-1313Z/baseline/hosts/csl/host/host-files.mts",
+      "sha256": "c8033565b3c368bf369fc7507f9d1ff8fa87bc0dde0a84a10a95373473dc6f3a",
+      "bytes": 4077
+    },
+    {
+      "path": "hosts/csl/host/host-helper-functions.js",
+      "sourcePath": "/workspace/scratch/5e9614251709/jb-incremental-proxy-runtime-20261007T0057Z/amgen-producer-runtime-1307Z/verification/amgen-host-preparation-1313Z/baseline/hosts/csl/host/host-helper-functions.js",
+      "sha256": "de930fb81121bf8efe88210144f0811ca57942469ce230fbb6851a9c04d71514",
+      "bytes": 9735
+    },
+    {
+      "path": "hosts/csl/host/host-stage-functions.js",
+      "sourcePath": "/workspace/scratch/5e9614251709/jb-incremental-proxy-runtime-20261007T0057Z/amgen-producer-runtime-1307Z/verification/amgen-host-preparation-1313Z/baseline/hosts/csl/host/host-stage-functions.js",
+      "sha256": "b2fc5f2dff6576f0508df5bcf9517bdae93fef2ba6c7f76e8cd280b8947eaf51",
+      "bytes": 6535
+    },
+    {
+      "path": "hosts/csl/host/machine-json.js",
+      "sourcePath": "/workspace/scratch/5e9614251709/jb-incremental-proxy-runtime-20261007T0057Z/amgen-producer-runtime-1307Z/verification/amgen-host-preparation-1313Z/baseline/hosts/csl/host/machine-json.js",
+      "sha256": "3484738bd095a9d57da70c6392af78865a53759a9e8499316941157b6210e9f6",
+      "bytes": 807
+    },
+    {
+      "path": "hosts/csl/host/owner-binding-input.template.json",
+      "sourcePath": "/workspace/scratch/5e9614251709/jb-incremental-proxy-runtime-20261007T0057Z/amgen-producer-runtime-1307Z/verification/amgen-host-preparation-1313Z/baseline/hosts/csl/host/owner-binding-input.template.json",
+      "sha256": "367e94ec24d06c55b1a9a54e175067c405f9d99434ef5d82ea55750fa699009d",
+      "bytes": 616
+    },
+    {
+      "path": "hosts/csl/host/relay-files.mjs",
+      "sourcePath": "/workspace/scratch/5e9614251709/jb-incremental-proxy-runtime-20261007T0057Z/amgen-producer-runtime-1307Z/verification/amgen-host-preparation-1313Z/baseline/hosts/csl/host/relay-files.mjs",
+      "sha256": "591c75a3cd6fcd8ca923fc121294b17ad2ca9f120f8bb918526e07522d5dddd3",
+      "bytes": 7905
+    },
+    {
+      "path": "hosts/csl/host/runtime/complete-reviewed-source-readback.js",
+      "sourcePath": "/workspace/scratch/5e9614251709/jb-incremental-proxy-runtime-20261007T0057Z/amgen-producer-runtime-1307Z/verification/amgen-host-preparation-1313Z/baseline/hosts/csl/host/runtime/complete-reviewed-source-readback.js",
+      "sha256": "3f256b1cbb2ff33e9b472fdcad650afdb2441cd64f413ad9a59048633299c27d",
+      "bytes": 5692
+    },
+    {
+      "path": "hosts/csl/host/runtime/continuous-relay-v3-durable-monitor.js",
+      "sourcePath": "/workspace/scratch/5e9614251709/jb-incremental-proxy-runtime-20261007T0057Z/amgen-producer-runtime-1307Z/verification/amgen-host-preparation-1313Z/baseline/hosts/csl/host/runtime/continuous-relay-v3-durable-monitor.js",
+      "sha256": "b213ad8f114da136262116b27b5700ff1f9c3f86e04f4454cad8ab5c4d715176",
+      "bytes": 5136
+    },
+    {
+      "path": "hosts/csl/host/runtime/inspect-host-binding.mts",
+      "sourcePath": "/workspace/scratch/5e9614251709/jb-incremental-proxy-runtime-20261007T0057Z/amgen-producer-runtime-1307Z/verification/amgen-host-preparation-1313Z/baseline/hosts/csl/host/runtime/inspect-host-binding.mts",
+      "sha256": "11ce7f25fa48a23e8559712f32b7eb5218e5caa617bf4cdf08b17b3085cd28af",
+      "bytes": 3272
+    },
+    {
+      "path": "hosts/csl/host/runtime/load-host-state.js",
+      "sourcePath": "/workspace/scratch/5e9614251709/jb-incremental-proxy-runtime-20261007T0057Z/amgen-producer-runtime-1307Z/verification/amgen-host-preparation-1313Z/baseline/hosts/csl/host/runtime/load-host-state.js",
+      "sha256": "c9f0ac980cc4966468a6ebee371a6e2a8f6e2d5fd0ad2fd4d319e66994977e3b",
+      "bytes": 5298
+    },
+    {
+      "path": "hosts/csl/host/runtime/load-host-state.unbound.template.js",
+      "sourcePath": "/workspace/scratch/5e9614251709/jb-incremental-proxy-runtime-20261007T0057Z/amgen-producer-runtime-1307Z/verification/amgen-host-preparation-1313Z/baseline/hosts/csl/host/runtime/load-host-state.unbound.template.js",
+      "sha256": "c9f0ac980cc4966468a6ebee371a6e2a8f6e2d5fd0ad2fd4d319e66994977e3b",
+      "bytes": 5298
+    },
+    {
+      "path": "hosts/csl/host/runtime/load-source-runtime.js",
+      "sourcePath": "/workspace/scratch/5e9614251709/jb-incremental-proxy-runtime-20261007T0057Z/amgen-producer-runtime-1307Z/verification/amgen-host-preparation-1313Z/baseline/hosts/csl/host/runtime/load-source-runtime.js",
+      "sha256": "db4728f6535e46af0c0d015af303023617ecda13ee2bb78489465b7901292376",
+      "bytes": 2363
+    },
+    {
+      "path": "hosts/csl/host/runtime/machine-json.py",
+      "sourcePath": "/workspace/scratch/5e9614251709/jb-incremental-proxy-runtime-20261007T0057Z/amgen-producer-runtime-1307Z/verification/amgen-host-preparation-1313Z/baseline/hosts/csl/host/runtime/machine-json.py",
+      "sha256": "67611e749eddc6bf8c591fef11f2efa82e2a73ce0bb51b2779fab4ae68b77f50",
+      "bytes": 1119
+    },
+    {
+      "path": "hosts/csl/host/runtime/preflight/preflight-launch.mjs",
+      "sourcePath": "/workspace/scratch/5e9614251709/jb-incremental-proxy-runtime-20261007T0057Z/amgen-producer-runtime-1307Z/verification/amgen-host-preparation-1313Z/baseline/hosts/csl/host/runtime/preflight/preflight-launch.mjs",
+      "sha256": "ab4cffa673ada36078014e20778eeea39d8e5fb208d04f54dc3ff0913a73d2de",
+      "bytes": 11017
+    },
+    {
+      "path": "hosts/csl/host/runtime/preflight/runtime-check.mjs",
+      "sourcePath": "/workspace/scratch/5e9614251709/jb-incremental-proxy-runtime-20261007T0057Z/amgen-producer-runtime-1307Z/verification/amgen-host-preparation-1313Z/baseline/hosts/csl/host/runtime/preflight/runtime-check.mjs",
+      "sha256": "e01c5b953283535757e2fcc67df80dd3e86948709dde0b488235a7edee017785",
+      "bytes": 3815
+    },
+    {
+      "path": "hosts/csl/host/runtime/prepare-owner-binding.mts",
+      "sourcePath": "/workspace/scratch/5e9614251709/jb-incremental-proxy-runtime-20261007T0057Z/amgen-producer-runtime-1307Z/verification/amgen-host-preparation-1313Z/baseline/hosts/csl/host/runtime/prepare-owner-binding.mts",
+      "sha256": "97510082089a58b42b41acff6c1bf4e4aa560ca1a64cda4162cf190cd307aabb",
+      "bytes": 8115
+    },
+    {
+      "path": "hosts/csl/host/runtime/prepare-registered-control.mts",
+      "sourcePath": "/workspace/scratch/5e9614251709/jb-incremental-proxy-runtime-20261007T0057Z/amgen-producer-runtime-1307Z/verification/amgen-host-preparation-1313Z/baseline/hosts/csl/host/runtime/prepare-registered-control.mts",
+      "sha256": "75b04c3bf46a0c81529e1322c74a02ccddb88b6edb161c39e36fc082ad1c89d8",
+      "bytes": 123
+    },
+    {
+      "path": "hosts/csl/host/runtime/review-packet-envelope.mts",
+      "sourcePath": "/workspace/scratch/5e9614251709/jb-incremental-proxy-runtime-20261007T0057Z/amgen-producer-runtime-1307Z/verification/amgen-host-preparation-1313Z/baseline/hosts/csl/host/runtime/review-packet-envelope.mts",
+      "sha256": "40cb1e3ede867f0e9d171605e7454fc71a6f774dfdf910f68ff668722bba69cb",
+      "bytes": 5535
+    },
+    {
+      "path": "hosts/csl/host/runtime/review-publication.py",
+      "sourcePath": "/workspace/scratch/5e9614251709/jb-incremental-proxy-runtime-20261007T0057Z/amgen-producer-runtime-1307Z/verification/amgen-host-preparation-1313Z/baseline/hosts/csl/host/runtime/review-publication.py",
+      "sha256": "16ee596cfa7d97c7b6288978efdc3418f336e9dd3c5afbae2883d73d1f5641cf",
+      "bytes": 5762
+    },
+    {
+      "path": "hosts/csl/host/runtime/update-candidate-completion-state.mjs",
+      "sourcePath": "/workspace/scratch/5e9614251709/jb-incremental-proxy-runtime-20261007T0057Z/amgen-producer-runtime-1307Z/verification/amgen-host-preparation-1313Z/baseline/hosts/csl/host/runtime/update-candidate-completion-state.mjs",
+      "sha256": "ae5ad99411b014c8ffff615a0b06af1e1fdfd2ed7f7265c9c9cee0128339bb06",
+      "bytes": 3654
+    },
+    {
+      "path": "hosts/csl/host/source-config-reference.json",
+      "sourcePath": "/workspace/scratch/5e9614251709/jb-incremental-proxy-runtime-20261007T0057Z/amgen-producer-runtime-1307Z/verification/amgen-host-preparation-1313Z/baseline/hosts/csl/host/source-config-reference.json",
+      "sha256": "c528dfd390a2b150ab738971bfbaeac4d52ce65c574adb3157a3a649eaa1ab87",
+      "bytes": 890
+    },
+    {
+      "path": "hosts/csl/supervision/inspect-launch-identity.mjs",
+      "sourcePath": "/workspace/scratch/5e9614251709/jb-incremental-proxy-runtime-20261007T0057Z/amgen-producer-runtime-1307Z/verification/amgen-host-preparation-1313Z/baseline/hosts/csl/supervision/inspect-launch-identity.mjs",
+      "sha256": "7bc818ae831081b7e91819ad772b950d08e7d06dc741730c0bd54698d6fe8b37",
+      "bytes": 871
+    },
+    {
+      "path": "hosts/csl/supervision/sample_process_tree.py",
+      "sourcePath": "/workspace/scratch/5e9614251709/jb-incremental-proxy-runtime-20261007T0057Z/amgen-producer-runtime-1307Z/verification/amgen-host-preparation-1313Z/baseline/hosts/csl/supervision/sample_process_tree.py",
+      "sha256": "3fa6daa1af1afee94d19801edfd8bcb538e1243476b5adb253e50de162a27bd6",
+      "bytes": 13065
+    },
+    {
+      "path": "hosts/csl/supervision/start-monitor-csl51-combined.js",
+      "sourcePath": "/workspace/scratch/5e9614251709/jb-incremental-proxy-runtime-20261007T0057Z/amgen-producer-runtime-1307Z/verification/amgen-host-preparation-1313Z/baseline/hosts/csl/supervision/start-monitor-csl51-combined.js",
+      "sha256": "31ad333efb96b7b760b09134f0c249c1f4ea4d8df95c5e1a58d40dd6050cc058",
+      "bytes": 14719
+    },
+    {
+      "path": "hosts/csl/supervision/start-monitor-csl51-combined.unbound.template.js",
+      "sourcePath": "/workspace/scratch/5e9614251709/jb-incremental-proxy-runtime-20261007T0057Z/amgen-producer-runtime-1307Z/verification/amgen-host-preparation-1313Z/baseline/hosts/csl/supervision/start-monitor-csl51-combined.unbound.template.js",
+      "sha256": "31ad333efb96b7b760b09134f0c249c1f4ea4d8df95c5e1a58d40dd6050cc058",
+      "bytes": 14719
+    },
+    {
+      "path": "hosts/csl/supervision/supervise-cancel.mjs",
+      "sourcePath": "/workspace/scratch/5e9614251709/jb-incremental-proxy-runtime-20261007T0057Z/amgen-producer-runtime-1307Z/verification/amgen-host-preparation-1313Z/baseline/hosts/csl/supervision/supervise-cancel.mjs",
+      "sha256": "083435a5344a47b86f84184bbe1d2711b0d35def4670afb2ab3c8391ed442e7e",
+      "bytes": 10232
+    },
+    {
+      "path": "owner-adaptations/true-a-due-20261007T1256Z/build-fragments.py",
+      "sourcePath": "/workspace/scratch/5e9614251709/jb-incremental-proxy-runtime-20261007T0057Z/amgen-producer-runtime-1307Z/verification/amgen-host-preparation-1313Z/baseline/owner-adaptations/true-a-due-20261007T1256Z/build-fragments.py",
+      "sha256": "1f03fee8b375360bd6294b09fed5eccbbe1787bda8f5cf5523c743bde23de28e",
+      "bytes": 4463
+    },
+    {
+      "path": "owner-adaptations/true-a-due-20261007T1256Z/publish-and-monitor-owner.js",
+      "sourcePath": "/workspace/scratch/5e9614251709/jb-incremental-proxy-runtime-20261007T0057Z/amgen-producer-runtime-1307Z/verification/amgen-host-preparation-1313Z/baseline/owner-adaptations/true-a-due-20261007T1256Z/publish-and-monitor-owner.js",
+      "sha256": "78a716a79d905dc7bb02715967c43b74566d496bea5b6c24a2d6139dbb1f1894",
+      "bytes": 10947
+    },
+    {
+      "path": "owner-adaptations/true-a-due-20261007T1256Z/tests/generate-full-chain-tests.py",
+      "sourcePath": "/workspace/scratch/5e9614251709/jb-incremental-proxy-runtime-20261007T0057Z/amgen-producer-runtime-1307Z/verification/amgen-host-preparation-1313Z/baseline/owner-adaptations/true-a-due-20261007T1256Z/tests/generate-full-chain-tests.py",
+      "sha256": "e93dc52bf20d0a52af2fb22b6bd5ad022cd6d0172e9169aa3d004f74badf14d2",
+      "bytes": 2800
+    },
+    {
+      "path": "owner-adaptations/true-a-due-20261007T1256Z/tests/key-and-preload.test.mjs",
+      "sourcePath": "/workspace/scratch/5e9614251709/jb-incremental-proxy-runtime-20261007T0057Z/amgen-producer-runtime-1307Z/verification/amgen-host-preparation-1313Z/baseline/owner-adaptations/true-a-due-20261007T1256Z/tests/key-and-preload.test.mjs",
+      "sha256": "950762519ee05cdb55ff710affcab0025b240297e484ab534c8c6ce75e0173a5",
+      "bytes": 3898
+    },
+    {
+      "path": "owner-adaptations/true-a-due-20261007T1256Z/tests/owner.test.mjs",
+      "sourcePath": "/workspace/scratch/5e9614251709/jb-incremental-proxy-runtime-20261007T0057Z/amgen-producer-runtime-1307Z/verification/amgen-host-preparation-1313Z/baseline/owner-adaptations/true-a-due-20261007T1256Z/tests/owner.test.mjs",
+      "sha256": "8c0e2c462df58522166a01f8c08afc39e7dc73d3de76f13bcb67ac8d3dd1d11c",
+      "bytes": 20267
+    },
+    {
+      "path": "owner-adaptations/true-a-due-20261007T1256Z/tests/real-apply-patch-terminal-fixture.json",
+      "sourcePath": "/workspace/scratch/5e9614251709/jb-incremental-proxy-runtime-20261007T0057Z/amgen-producer-runtime-1307Z/verification/amgen-host-preparation-1313Z/baseline/owner-adaptations/true-a-due-20261007T1256Z/tests/real-apply-patch-terminal-fixture.json",
+      "sha256": "aff94e02c5266ff389e8cbd2da3774b9eaf00cbf204bf9484a1b5eaace576f2e",
+      "bytes": 195
+    },
+    {
+      "path": "verification/true-a-due-host-preparation-20261007T1256Z/host-base/host/source-config-reference.json",
+      "sourcePath": "/workspace/scratch/5e9614251709/jb-incremental-proxy-runtime-20261007T0057Z/amgen-producer-runtime-1307Z/verification/amgen-host-preparation-1313Z/baseline/verification/true-a-due-host-preparation-20261007T1256Z/host-base/host/source-config-reference.json",
+      "sha256": "64454660f8605b65603d09fdc15e8718f18d334383b3db831c454bdc646896d6",
+      "bytes": 955
+    }
+  ]
+}

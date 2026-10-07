@@ -1,0 +1,55 @@
+{
+  "schemaVersion": 1,
+  "artifactKind": "UNBOUND_AMGEN_C56_TRUE_A_HOST_OWNER",
+  "runtimeRoot": "/workspace/scratch/5e9614251709/jb-incremental-proxy-runtime-20261007T0057Z/amgen-producer-runtime-1307Z",
+  "globalStatePath": "/workspace/scratch/5e9614251709/jb-incremental-proxy-runtime-20261007T0057Z/PUBLISHER-ACTIVE-STATE.json",
+  "globalStateIncluded": false,
+  "candidate": null,
+  "databaseIdentity": null,
+  "requiredCandidateConstraints": {
+    "id": "dot-cloud-amgen-get-retry-629294b4-20261007",
+    "version": 56,
+    "goalId": "jobfinder-portable-required-40"
+  },
+  "producer": {
+    "path": "/workspace/scratch/5e9614251709/jb-incremental-proxy-runtime-20261007T0057Z/amgen-producer-runtime-1307Z/producer",
+    "commit": "629294b49212e4fb3fceb14f88cdf37fca17b451",
+    "parentCommit": "28402a299bb04cbf5873da66c2fe8ca76827c0d1",
+    "build": {
+      "schemaVersion": 2,
+      "commitSha": "629294b49212e4fb3fceb14f88cdf37fca17b451",
+      "sourceTreeSha256": "7090113a7ba898df8f207fb8158fb75ae1e992da038eb51252fe1ed9f053ead3",
+      "runtimeTreeSha256": "24a997236e48b378f84d94c951c25e5abe825474d32b7f7e3bbef16afe8f7eb2",
+      "contentSha256": "659cb25920dcae9e488fa75700db7292a293e6efd76dc2eb056c0a0177708429"
+    },
+    "mustBeClean": true,
+    "dependencyLockfileSha256": "3f45f2db3f910be83bb57630db121a175b0375fe216a2fa110cab99ec149fae9",
+    "entrypoint": "scripts/p0-cloud-source-pilot.ts",
+    "entrypointSha256": "e4299018aa4b17cd7d0ff756ea45b779479708e02c400be9a1c8ffc0c2c1abaa",
+    "wrapperSha256": "f15522e6f209bfe99bfa258b5dffbce1f74d6af662c4c2ee682604e0798bbc88"
+  },
+  "node": {
+    "path": "/workspace/scratch/5e9614251709/jb-incremental-proxy-runtime-20261007T0057Z/runtime/node-v22.23.3-linux-x64/bin/node",
+    "version": "v22.23.3",
+    "sha256": "fde6a4bf8d0562f7751d1a2d6cb9b417c4cfe107bbcb0aa3e9a24e125e348f48"
+  },
+  "owner": {
+    "path": "/workspace/scratch/5e9614251709/jb-incremental-proxy-runtime-20261007T0057Z/amgen-producer-runtime-1307Z/owner-adaptations/amgen-true-a-1313Z",
+    "factorySha256": "0417e06e511acb2ebb609b899e8704ac27a828d34e4eb65d2e69b12bdba8b33b",
+    "baselineManifestSha256": "df4400e53fafdbd1687a76b7f1a8a0ac9a10f273bb5c2c4b5bac231628aa4b6f",
+    "preloadSha256": "76ca33351a3947ddef6564b50f2155fe179ad8c47fd2bd9168214a0825968e67",
+    "reviewedEntrySha256": "cf5d12f5e0968067aa85a478d5c4d21cbc612a42017b5476e6e824498afe5de1"
+  },
+  "sourceConfigSha256": "1854166be2d563e3e9cc075df017d3f04e1f65e3b06186bb64c95a3c8676f6a6",
+  "offlineTestingRequiredDirectories": [
+    "logs"
+  ],
+  "restoreScope": "Static host/owner source only; new producer, physical dependencies, and outer pinned Node are prerequisites. No registration readback or actual binding is included.",
+  "supervisionSha256": {
+    "sample_process_tree.py": "3fa6daa1af1afee94d19801edfd8bcb538e1243476b5adb253e50de162a27bd6",
+    "supervise-cancel.mjs": "7c84fe0fa2e01ec84c9928c91207532b1551741339582bb5769b0045acd172c5",
+    "inspect-launch-identity.mjs": "7bc818ae831081b7e91819ad772b950d08e7d06dc741730c0bd54698d6fe8b37",
+    "start-monitor-amgen-next-combined.unbound.template.js": "ccb020cdcd83982d8d9d31e05262e1992afba658560b3e2fcbd3e7e740eda51e"
+  },
+  "supersedesSourcePlanSha256": "61440baf891c1364e0b9225e219c5fc67175b2bee46abc51e0efd6202e70fc51"
+}

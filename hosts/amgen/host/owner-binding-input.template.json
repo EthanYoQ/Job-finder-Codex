@@ -1,0 +1,15 @@
+{
+  "schemaVersion": 1,
+  "build": {
+    "schemaVersion": 2,
+    "commitSha": "629294b49212e4fb3fceb14f88cdf37fca17b451",
+    "sourceTreeSha256": "7090113a7ba898df8f207fb8158fb75ae1e992da038eb51252fe1ed9f053ead3",
+    "runtimeTreeSha256": "24a997236e48b378f84d94c951c25e5abe825474d32b7f7e3bbef16afe8f7eb2",
+    "contentSha256": "659cb25920dcae9e488fa75700db7292a293e6efd76dc2eb056c0a0177708429"
+  },
+  "candidate": null,
+  "databaseIdentity": null,
+  "minimumCandidateVersion": 56,
+  "sourceId": "source-amgen-china-social",
+  "sourceConfigSha256": "1854166be2d563e3e9cc075df017d3f04e1f65e3b06186bb64c95a3c8676f6a6"
+}
