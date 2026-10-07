@@ -1,7 +1,9 @@
-# Job Finder release recovery skill: runtime and public readback update
+# Release recovery skill update
 
-This snapshot preserves the four original Markdown files under skills/job-finder-aliyun-release-recovery. Restore them together at that relative layout. SKILL.md adds a reference link; proxy-runtime-and-same-batch-readback.md is new. The two earlier references are byte-identical to [the previous skill snapshot](https://github.com/EthanYoQ/Job-finder-Codex/tree/246cfe0fd4bdcfc71a65e467a7ebd9f51fb8da09).
+Two updated Markdown files extend the existing release-recovery skill with evidence-based classification of interrupted GitHub/MCP writes, whole-manifest authorization checks, and exact remote reconciliation. The two unchanged references are retained by their existing Git objects so the skill's links remain complete.
 
-No installation dependencies are required to restore these Markdown files. The documentation describes separately authorized operational work and references external application/runtime dependencies; those dependencies, actual environment, data, credentials and execution evidence are not included here. Preserving the skill does not grant permission to execute its examples or procedures.
+Restore the skills/job-finder-aliyun-release-recovery directory into the chosen local skills location. No package installation is required for these Markdown instructions. Applying the skill still requires the current task's permissions and tools.
 
-The backup checked original hashes, unchanged-reference equality, source text and local link closure. It did not execute the skill or verify production behavior. No validation reports, actual deployment receipts, proxy values or private runtime inputs are part of this snapshot. SOURCE_BACKUP.json records exact file hashes.
+An unattributed cancellation message does not identify a human actor. A later explicit approval failure is a separate fact, and one successful recovery does not establish that a platform defect has been fixed. This backup contains generic guidance and source hashes; no original diagnostic receipts or actual execution data are included.
+
+The source provider reported structural/link validation and nine read-only synthetic scenarios. This backup independently checks the frozen files and remote contents; it does not execute the skill, deploy code or change the default branch.
