@@ -2,8 +2,8 @@
   "format": "safe-host-source-backup/v1",
   "originalHostManifestSha256": "7199bcaf715223623c141ea5b50955d11b2026422d5fddbeb46b9508a5c021aa",
   "manifestSelection": "23 fixed entries minus host/activation.json and host/control-base.json; all other 21 entries preserved.",
-  "sourceFiles": 21,
-  "sourceBytes": 117953,
+  "sourceFiles": 25,
+  "sourceBytes": 279941,
   "originalBytesUnchanged": true,
   "restorePrefix": "hosts/grifols",
   "producerSourceCommit": "dfd22f642469888eb781f5e7b93964a60e082ca0",
@@ -188,6 +188,46 @@
       "mode": "100644",
       "type": "blob",
       "sha": "f839f24902fe773a12f9c70805f6d5b50b3c942f"
+    },
+    {
+      "path": "hosts/grifols/verification/verify-host-offline.mts",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "4e55c3c73aa991539f9d3c39a21b5018abe029db",
+      "sha256": "daebfbdfd7fa40e7fe71768703c3ca73dbde19d64506bc37ee5502a88f0af719",
+      "bytes": 8911
+    },
+    {
+      "path": "generate-synthetic-grifols-packet.mts",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "97e8bce6478d5ad2ff67feb67b2bca85dc6f8a1a",
+      "sha256": "8711dc2a2932cb51f28d85a91399ab02b4cf9f5ad8319f893d1cfdf79887751e",
+      "bytes": 7248
+    },
+    {
+      "path": "verification/synthetic-grifols-packet/fixture.json",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "b04d9ab7695b04fa52470b80c0add7cc40481426",
+      "sha256": "19e097dba2b65354e0824bb9bb1ac7784d38770809e957b345d4298352a4d8eb",
+      "bytes": 86572
+    },
+    {
+      "path": "verification/synthetic-grifols-packet/publication.sql",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "8cffab5a2fee998fc91a09b537c9d48599b65e6f",
+      "sha256": "c4b105132c631f900018fd4a5cabee64369646a6dd1334f2ea754acdb9e5f9e4",
+      "bytes": 59257
     }
+  ],
+  "hostSourceFiles": 21,
+  "supplementalSyntheticFiles": 4,
+  "sourceManifestScope": "21 selected original-manifest files plus four exact supplemental paths/hashes.",
+  "syntheticRecoveryLimits": [
+    "Synthetic fixture SQL exactly matches fixture.packet.sql; it is not actual publication data.",
+    "The fixed positive packet expires. Regenerate synthetic test inputs through the reviewed generator rather than rewriting archived dates.",
+    "Generator requires a separately verified NEW_LOCAL_BUILD_IDENTITY; tests also require generated synthetic-evidence and full producer dependencies."
   ]
 }
