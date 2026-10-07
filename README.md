@@ -1,7 +1,9 @@
-# Job Finder release recovery skill: runtime and public readback update
+# Batch memory amplification diagnosis skill
 
-This snapshot preserves the four original Markdown files under skills/job-finder-aliyun-release-recovery. Restore them together at that relative layout. SKILL.md adds a reference link; proxy-runtime-and-same-batch-readback.md is new. The two earlier references are byte-identical to [the previous skill snapshot](https://github.com/EthanYoQ/Job-finder-Codex/tree/246cfe0fd4bdcfc71a65e467a7ebd9f51fb8da09).
+This snapshot preserves four original files under skills/diagnose-batch-memory-amplification. Restore the directory together so its local references and synthetic script remain connected. The Markdown describes diagnosis, scoped parse reuse, measurement boundaries and layered acceptance. It does not grant production, network, database-write or deployment permission.
 
-No installation dependencies are required to restore these Markdown files. The documentation describes separately authorized operational work and references external application/runtime dependencies; those dependencies, actual environment, data, credentials and execution evidence are not included here. Preserving the skill does not grant permission to execute its examples or procedures.
+The script uses only Node's built-in assertion module and generated JSON. It is an illustrative scoped-reuse model, not the production HTML parser or an OOM reproduction. Its 156-to-1 parse-count assertion concerns that synthetic model; it does not measure GC, RSS or production peak memory. Source-provided anonymized case measurements describe one observation, not universal savings or a verified whole-machine safety margin.
 
-The backup checked original hashes, unchanged-reference equality, source text and local link closure. It did not execute the skill or verify production behavior. No validation reports, actual deployment receipts, proxy values or private runtime inputs are part of this snapshot. SOURCE_BACKUP.json records exact file hashes.
+No dependencies are needed to restore the Markdown files. Executing the illustrative script requires a compatible Node runtime and the specified command in the skill; it is stored as mode 100644. This backup did not run the script, remeasure the case or execute any operational instructions.
+
+Backup checks cover the exact four author-provided hashes, static source/privacy review and relative-link closure. No credentials, actual production inputs, log/output files, host identifiers or runtime receipts are included. SOURCE_BACKUP.json records the original byte hashes.

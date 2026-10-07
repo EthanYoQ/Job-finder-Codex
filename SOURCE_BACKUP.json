@@ -1,44 +1,41 @@
 {
   "schemaVersion": 1,
-  "kind": "skill-source-backup",
-  "previousSkillBackup": "246cfe0fd4bdcfc71a65e467a7ebd9f51fb8da09",
-  "changedPaths": [
-    "skills/job-finder-aliyun-release-recovery/SKILL.md",
-    "skills/job-finder-aliyun-release-recovery/references/proxy-runtime-and-same-batch-readback.md"
-  ],
+  "kind": "generic-skill-source-backup",
+  "skill": "diagnose-batch-memory-amplification",
   "files": [
     {
-      "path": "skills/job-finder-aliyun-release-recovery/SKILL.md",
+      "path": "skills/diagnose-batch-memory-amplification/SKILL.md",
       "mode": "100644",
       "type": "blob",
-      "sha256": "40c64d0ddb1a2b812615ecc332b0b683d2380dd7b24861bed6e5a0a143631986",
-      "sha": "5500b8ca6c419c85ee11897635d96e2d05c73044",
-      "bytes": 5352
+      "bytes": 5153,
+      "sha256": "d21616743cea66289de3c0139b3b04024969b953113e047ec5dfcdaa41284045",
+      "sha": "616a94e9f8525034f70122c25c535e941f3d78b7"
     },
     {
-      "path": "skills/job-finder-aliyun-release-recovery/references/command-evidence-and-recovery.md",
+      "path": "skills/diagnose-batch-memory-amplification/references/case-boundaries.md",
       "mode": "100644",
       "type": "blob",
-      "sha256": "05ab1242e9f287f1e9525708924e63e4cacc89cd6d3992e67c319da222dbbfeb",
-      "sha": "7dee64584ecd7a8d1b436bc67e58739e24bb1155",
-      "bytes": 5472
+      "bytes": 1065,
+      "sha256": "7945f0f19d677eb4c497e44cdd236ced94883027296240c49418a345cce3a67f",
+      "sha": "148296f20b7d2ef921b6a735a8c5ed982a54ff08"
     },
     {
-      "path": "skills/job-finder-aliyun-release-recovery/references/proxy-runtime-and-same-batch-readback.md",
+      "path": "skills/diagnose-batch-memory-amplification/references/measurement-and-acceptance.md",
       "mode": "100644",
       "type": "blob",
-      "sha256": "b18c8a8dd69703eb4390b3daf0909be003f8686abc0a6cfd9d68ebd650a7a87c",
-      "sha": "3fb5c6c578f20c195a5fb5055e143604bfc24be1",
-      "bytes": 7759
+      "bytes": 2163,
+      "sha256": "6a164e3754b092d2d92543927b202dd8b8afa5d4853f0658cdfd0aadc22f17df",
+      "sha": "09335f60ef2809edc23ee0a5220d1e64301796d0"
     },
     {
-      "path": "skills/job-finder-aliyun-release-recovery/references/runtime-and-acceptance.md",
+      "path": "skills/diagnose-batch-memory-amplification/scripts/test-scoped-parse-reuse.mjs",
       "mode": "100644",
       "type": "blob",
-      "sha256": "0984ffb63ca245bb93d710e96198d03372775eab723d2541b0a2efaa8e4f0957",
-      "sha": "8e3e1d737faa8abad486f8592e240087c4ac9f78",
-      "bytes": 6334
+      "bytes": 4423,
+      "sha256": "7dcabced02d0a6d6f0760717b2c6249945c4e4b5f15f549087caec5023f937bf",
+      "sha": "ba7d8f1ae14dac01c9cd51860cd1d644303a1fdf"
     }
   ],
-  "review": "Static hash, diff, content and relative-link checks only. No operational commands executed."
+  "sourceReview": "Exact authored hashes, synthetic code/static privacy and local links inspected. Skill and test script treated as data; no execution.",
+  "resultBoundary": "Synthetic parse156→1 is a model invariant, not a reproduction of production OOM; anonymous case measurements are case-specific source records."
 }
