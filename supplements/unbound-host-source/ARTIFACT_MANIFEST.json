@@ -1,0 +1,469 @@
+{
+  "excludesSelf": "ARTIFACT_MANIFEST.json",
+  "fileCount": 77,
+  "totalBytes": 439961,
+  "files": [
+    {
+      "path": "LOCAL_SECRET_SCAN.json",
+      "bytes": 118,
+      "mode": "0o644",
+      "sha256": "c477278b988c6da3ddd197000365345072fa69c75934ea33efb18ac585f3c259"
+    },
+    {
+      "path": "README.md",
+      "bytes": 2452,
+      "mode": "0o644",
+      "sha256": "bd7e21e247c64008e13c7897996ca9aa589a73aef0cec1cfe479eb40558f26d8"
+    },
+    {
+      "path": "SOURCE_MANIFEST.json",
+      "bytes": 12950,
+      "mode": "0o644",
+      "sha256": "1eaee0170b0bbe48f70d6ecb8d8d736a3ee792127ae5f1d415ada24a8ce7f16b"
+    },
+    {
+      "path": "hosts/fosun/host/archive-transfer.mjs",
+      "bytes": 1777,
+      "mode": "0o600",
+      "sha256": "698e966e5552967845a5252d2b3df2acca28dcd8dbbb0ae41755a3a6231e6a99"
+    },
+    {
+      "path": "hosts/fosun/host/context-read.sql.template",
+      "bytes": 2622,
+      "mode": "0o600",
+      "sha256": "677e4032cf66c89f2ca73e1480176d3e8c3c56319fc0761d7971170c81eb4190"
+    },
+    {
+      "path": "hosts/fosun/host/context-template-proof.json",
+      "bytes": 2381,
+      "mode": "0o600",
+      "sha256": "cd5df5396d21e8927ad5a7e3c0af05d8a90eed1586b44d4caa2b2d13c7ffdb18"
+    },
+    {
+      "path": "hosts/fosun/host/control-base.template.json",
+      "bytes": 467,
+      "mode": "0o600",
+      "sha256": "71e0e6fb81bf8a013a16a8310f9bfece21981d734c528d6f4c5f56552c2d54a4"
+    },
+    {
+      "path": "hosts/fosun/host/host-config.json",
+      "bytes": 511,
+      "mode": "0o600",
+      "sha256": "f5c6f126fae50367b899ff6566e71ee3eb8e996fb8a23013a15d5fecc825c462"
+    },
+    {
+      "path": "hosts/fosun/host/host-config.template.json",
+      "bytes": 511,
+      "mode": "0o600",
+      "sha256": "f5c6f126fae50367b899ff6566e71ee3eb8e996fb8a23013a15d5fecc825c462"
+    },
+    {
+      "path": "hosts/fosun/host/host-files.mts",
+      "bytes": 4080,
+      "mode": "0o600",
+      "sha256": "275f44c00b816fc88580418bb8386b3a7f416bcfed977adf9e60e307caddcfa1"
+    },
+    {
+      "path": "hosts/fosun/host/host-helper-functions.js",
+      "bytes": 11182,
+      "mode": "0o600",
+      "sha256": "84e644d7c9c57a80c28b5faf8d77ad55c43c5f6d92800937a5f9fa48a3ff2077"
+    },
+    {
+      "path": "hosts/fosun/host/host-stage-functions.js",
+      "bytes": 6968,
+      "mode": "0o600",
+      "sha256": "bf52a9619f5b6548fbce64e93dd0343974ab4d636035c04d8d91499fdff8447c"
+    },
+    {
+      "path": "hosts/fosun/host/machine-json.js",
+      "bytes": 807,
+      "mode": "0o600",
+      "sha256": "3484738bd095a9d57da70c6392af78865a53759a9e8499316941157b6210e9f6"
+    },
+    {
+      "path": "hosts/fosun/host/owner-binding-input.template.json",
+      "bytes": 619,
+      "mode": "0o600",
+      "sha256": "27daa89670535b8e0b6a3b518e124ba121b4c1d1c64b1c16e8b02075a85073a5"
+    },
+    {
+      "path": "hosts/fosun/host/relay-files.mjs",
+      "bytes": 7910,
+      "mode": "0o600",
+      "sha256": "558e0edc9930bdc258e18434e7bdeb95c0e7381fee624fd22df6bb656ed83294"
+    },
+    {
+      "path": "hosts/fosun/host/runtime/complete-reviewed-source-readback.js",
+      "bytes": 5692,
+      "mode": "0o600",
+      "sha256": "587d64ca5d511ed415eb8d7b83938a351e9be7a5208d2952145e65a65dc08474"
+    },
+    {
+      "path": "hosts/fosun/host/runtime/continuous-relay-v3-durable-monitor.js",
+      "bytes": 11575,
+      "mode": "0o600",
+      "sha256": "3481682b9cbf88fea535f329c59bfec17e18820e18e4b82480886b273f10a6cb"
+    },
+    {
+      "path": "hosts/fosun/host/runtime/inspect-host-binding.mts",
+      "bytes": 3281,
+      "mode": "0o600",
+      "sha256": "b2343ddd8bdedb864ceb2cac9c61ccdb45299dca8f5ea27a7a6c86f40296b012"
+    },
+    {
+      "path": "hosts/fosun/host/runtime/load-host-state.js",
+      "bytes": 5316,
+      "mode": "0o600",
+      "sha256": "9357e51e260077a4d44acc2980cea3d9ac87d0f85e62b32ee913a2404d458c39"
+    },
+    {
+      "path": "hosts/fosun/host/runtime/load-host-state.unbound.template.js",
+      "bytes": 5316,
+      "mode": "0o600",
+      "sha256": "9357e51e260077a4d44acc2980cea3d9ac87d0f85e62b32ee913a2404d458c39"
+    },
+    {
+      "path": "hosts/fosun/host/runtime/load-source-runtime.js",
+      "bytes": 2398,
+      "mode": "0o600",
+      "sha256": "8719efa3c26e78e9b5d9b6b4f1e740da34370fc55d855007297987e51cac3974"
+    },
+    {
+      "path": "hosts/fosun/host/runtime/machine-json.py",
+      "bytes": 1119,
+      "mode": "0o600",
+      "sha256": "67611e749eddc6bf8c591fef11f2efa82e2a73ce0bb51b2779fab4ae68b77f50"
+    },
+    {
+      "path": "hosts/fosun/host/runtime/preflight/preflight-launch.mjs",
+      "bytes": 11059,
+      "mode": "0o600",
+      "sha256": "e20240ae97a00a5f546e93e87a47033bfb94474c205507200979183a9361b755"
+    },
+    {
+      "path": "hosts/fosun/host/runtime/preflight/runtime-check.mjs",
+      "bytes": 3815,
+      "mode": "0o600",
+      "sha256": "e01c5b953283535757e2fcc67df80dd3e86948709dde0b488235a7edee017785"
+    },
+    {
+      "path": "hosts/fosun/host/runtime/prepare-owner-binding.mts",
+      "bytes": 8410,
+      "mode": "0o600",
+      "sha256": "65a6769b09babcc20cd64cc824bef3ef185828a6f1607c00e6225c465d444844"
+    },
+    {
+      "path": "hosts/fosun/host/runtime/prepare-registered-control.mts",
+      "bytes": 123,
+      "mode": "0o600",
+      "sha256": "75b04c3bf46a0c81529e1322c74a02ccddb88b6edb161c39e36fc082ad1c89d8"
+    },
+    {
+      "path": "hosts/fosun/host/runtime/review-packet-envelope.mts",
+      "bytes": 5535,
+      "mode": "0o600",
+      "sha256": "40cb1e3ede867f0e9d171605e7454fc71a6f774dfdf910f68ff668722bba69cb"
+    },
+    {
+      "path": "hosts/fosun/host/runtime/review-publication.py",
+      "bytes": 5392,
+      "mode": "0o600",
+      "sha256": "4f64d2bb9580a0136f29b6dac0cdea20ad751179a1b664660eb10c9b5b47b059"
+    },
+    {
+      "path": "hosts/fosun/host/runtime/update-candidate-completion-state.mjs",
+      "bytes": 3654,
+      "mode": "0o600",
+      "sha256": "ae5ad99411b014c8ffff615a0b06af1e1fdfd2ed7f7265c9c9cee0128339bb06"
+    },
+    {
+      "path": "hosts/fosun/host/source-config-reference.json",
+      "bytes": 2720,
+      "mode": "0o600",
+      "sha256": "a1b6e47a8e9f4268400658ded4d6f47dc52086134dae2c9999a7b3383afae940"
+    },
+    {
+      "path": "hosts/fosun/supervision/inspect-launch-identity.mjs",
+      "bytes": 871,
+      "mode": "0o600",
+      "sha256": "7bc818ae831081b7e91819ad772b950d08e7d06dc741730c0bd54698d6fe8b37"
+    },
+    {
+      "path": "hosts/fosun/supervision/sample_process_tree.py",
+      "bytes": 13065,
+      "mode": "0o600",
+      "sha256": "3fa6daa1af1afee94d19801edfd8bcb538e1243476b5adb253e50de162a27bd6"
+    },
+    {
+      "path": "hosts/fosun/supervision/start-monitor-fosun51-combined.js",
+      "bytes": 14851,
+      "mode": "0o600",
+      "sha256": "25b0cb48cdc668383448c60aa25d74b68e4935c1a42bd0062c863788cf5818cf"
+    },
+    {
+      "path": "hosts/fosun/supervision/start-monitor-fosun51-combined.unbound.template.js",
+      "bytes": 14851,
+      "mode": "0o600",
+      "sha256": "25b0cb48cdc668383448c60aa25d74b68e4935c1a42bd0062c863788cf5818cf"
+    },
+    {
+      "path": "hosts/fosun/supervision/supervise-cancel.mjs",
+      "bytes": 10235,
+      "mode": "0o600",
+      "sha256": "773fbc6350f30fb5d008b4d1beb7c2652915a6ab8794020a20ff2f008652df62"
+    },
+    {
+      "path": "hosts/hansoh/host/archive-transfer.mjs",
+      "bytes": 1777,
+      "mode": "0o600",
+      "sha256": "698e966e5552967845a5252d2b3df2acca28dcd8dbbb0ae41755a3a6231e6a99"
+    },
+    {
+      "path": "hosts/hansoh/host/context-read.sql.template",
+      "bytes": 2592,
+      "mode": "0o600",
+      "sha256": "e14905e069d7220fddf97ce9ba65c9f98bc534721babd6495284652e9b163122"
+    },
+    {
+      "path": "hosts/hansoh/host/context-template-proof.json",
+      "bytes": 2535,
+      "mode": "0o600",
+      "sha256": "4b19dcaccd3d200ef9b2d1654e069a6bffc72a85f3a91a0c7b9ba6e22f5a5de4"
+    },
+    {
+      "path": "hosts/hansoh/host/control-base.template.json",
+      "bytes": 467,
+      "mode": "0o600",
+      "sha256": "71e0e6fb81bf8a013a16a8310f9bfece21981d734c528d6f4c5f56552c2d54a4"
+    },
+    {
+      "path": "hosts/hansoh/host/host-config.json",
+      "bytes": 506,
+      "mode": "0o600",
+      "sha256": "7007268d2d60e080ad5454bab2c2e0267814819f1e3544ac4bdd8feb83b85ed1"
+    },
+    {
+      "path": "hosts/hansoh/host/host-config.template.json",
+      "bytes": 506,
+      "mode": "0o600",
+      "sha256": "7007268d2d60e080ad5454bab2c2e0267814819f1e3544ac4bdd8feb83b85ed1"
+    },
+    {
+      "path": "hosts/hansoh/host/host-files.mts",
+      "bytes": 4080,
+      "mode": "0o600",
+      "sha256": "275f44c00b816fc88580418bb8386b3a7f416bcfed977adf9e60e307caddcfa1"
+    },
+    {
+      "path": "hosts/hansoh/host/host-helper-functions.js",
+      "bytes": 11185,
+      "mode": "0o600",
+      "sha256": "745e5a0c50bec6dc63ac41a274588020fa7099abc81285558eec00aa68a6cc0e"
+    },
+    {
+      "path": "hosts/hansoh/host/host-stage-functions.js",
+      "bytes": 6965,
+      "mode": "0o600",
+      "sha256": "c0a8eeac14249c70d84cc1b070dd716b918fc60934fdd881df6ff24af1fff9ab"
+    },
+    {
+      "path": "hosts/hansoh/host/machine-json.js",
+      "bytes": 807,
+      "mode": "0o600",
+      "sha256": "3484738bd095a9d57da70c6392af78865a53759a9e8499316941157b6210e9f6"
+    },
+    {
+      "path": "hosts/hansoh/host/owner-binding-input.template.json",
+      "bytes": 613,
+      "mode": "0o600",
+      "sha256": "1810a5d54be788dee0b1dc3a8de1ccaf4d595c8b50c804b10ce20de49dfc3705"
+    },
+    {
+      "path": "hosts/hansoh/host/relay-files.mjs",
+      "bytes": 7911,
+      "mode": "0o600",
+      "sha256": "117690879a547ccf370fdfec8eef6aad99df93c18739620ce62e2f2c14e6b9bc"
+    },
+    {
+      "path": "hosts/hansoh/host/runtime/complete-reviewed-source-readback.js",
+      "bytes": 5693,
+      "mode": "0o600",
+      "sha256": "0464b6ce04b2f1fe8817af1902359c63d203a36fe9fe8c27bfdd2024447bf534"
+    },
+    {
+      "path": "hosts/hansoh/host/runtime/continuous-relay-v3-durable-monitor.js",
+      "bytes": 11577,
+      "mode": "0o600",
+      "sha256": "aa3720591d445581ca06b5fa27c56dbd486c16fe7fdd4c79441e6fb51975f44c"
+    },
+    {
+      "path": "hosts/hansoh/host/runtime/inspect-host-binding.mts",
+      "bytes": 3281,
+      "mode": "0o600",
+      "sha256": "b2343ddd8bdedb864ceb2cac9c61ccdb45299dca8f5ea27a7a6c86f40296b012"
+    },
+    {
+      "path": "hosts/hansoh/host/runtime/load-host-state.js",
+      "bytes": 5316,
+      "mode": "0o600",
+      "sha256": "71b7134564ee7bed8ce95411d303556468362f488542b4d7dad7e11a0282265f"
+    },
+    {
+      "path": "hosts/hansoh/host/runtime/load-host-state.unbound.template.js",
+      "bytes": 5316,
+      "mode": "0o600",
+      "sha256": "71b7134564ee7bed8ce95411d303556468362f488542b4d7dad7e11a0282265f"
+    },
+    {
+      "path": "hosts/hansoh/host/runtime/load-source-runtime.js",
+      "bytes": 2405,
+      "mode": "0o600",
+      "sha256": "8ac0503197aaf03693ffa4b89c3b66bd667669127e448103bed0aa83ef0071e4"
+    },
+    {
+      "path": "hosts/hansoh/host/runtime/machine-json.py",
+      "bytes": 1119,
+      "mode": "0o600",
+      "sha256": "67611e749eddc6bf8c591fef11f2efa82e2a73ce0bb51b2779fab4ae68b77f50"
+    },
+    {
+      "path": "hosts/hansoh/host/runtime/preflight/preflight-launch.mjs",
+      "bytes": 11059,
+      "mode": "0o600",
+      "sha256": "e20240ae97a00a5f546e93e87a47033bfb94474c205507200979183a9361b755"
+    },
+    {
+      "path": "hosts/hansoh/host/runtime/preflight/runtime-check.mjs",
+      "bytes": 3815,
+      "mode": "0o600",
+      "sha256": "e01c5b953283535757e2fcc67df80dd3e86948709dde0b488235a7edee017785"
+    },
+    {
+      "path": "hosts/hansoh/host/runtime/prepare-owner-binding.mts",
+      "bytes": 8400,
+      "mode": "0o600",
+      "sha256": "4d1ef372c8c94528d3f15143cd4d7a8493b57d9805cb574cecea3e7939c1c432"
+    },
+    {
+      "path": "hosts/hansoh/host/runtime/prepare-registered-control.mts",
+      "bytes": 123,
+      "mode": "0o600",
+      "sha256": "75b04c3bf46a0c81529e1322c74a02ccddb88b6edb161c39e36fc082ad1c89d8"
+    },
+    {
+      "path": "hosts/hansoh/host/runtime/review-packet-envelope.mts",
+      "bytes": 5535,
+      "mode": "0o600",
+      "sha256": "40cb1e3ede867f0e9d171605e7454fc71a6f774dfdf910f68ff668722bba69cb"
+    },
+    {
+      "path": "hosts/hansoh/host/runtime/review-publication.py",
+      "bytes": 5386,
+      "mode": "0o600",
+      "sha256": "e897014139d6d1e23027e4494e3fc657c285d10a54af97a1544207b2c2dcaa04"
+    },
+    {
+      "path": "hosts/hansoh/host/runtime/update-candidate-completion-state.mjs",
+      "bytes": 3654,
+      "mode": "0o600",
+      "sha256": "ae5ad99411b014c8ffff615a0b06af1e1fdfd2ed7f7265c9c9cee0128339bb06"
+    },
+    {
+      "path": "hosts/hansoh/host/source-config-reference.json",
+      "bytes": 2865,
+      "mode": "0o600",
+      "sha256": "86b0e92e3599ad5dfe99a4e46d6a4bccad4819ff709eb714dce91e39ec05a42d"
+    },
+    {
+      "path": "hosts/hansoh/supervision/inspect-launch-identity.mjs",
+      "bytes": 871,
+      "mode": "0o600",
+      "sha256": "7bc818ae831081b7e91819ad772b950d08e7d06dc741730c0bd54698d6fe8b37"
+    },
+    {
+      "path": "hosts/hansoh/supervision/sample_process_tree.py",
+      "bytes": 13065,
+      "mode": "0o600",
+      "sha256": "3fa6daa1af1afee94d19801edfd8bcb538e1243476b5adb253e50de162a27bd6"
+    },
+    {
+      "path": "hosts/hansoh/supervision/start-monitor-hansoh51-combined.js",
+      "bytes": 14867,
+      "mode": "0o600",
+      "sha256": "5a4f9eef53ca3fb9d3c6242c7abe5460d1731830f831fb185b35faa8c3398db9"
+    },
+    {
+      "path": "hosts/hansoh/supervision/start-monitor-hansoh51-combined.unbound.template.js",
+      "bytes": 14867,
+      "mode": "0o600",
+      "sha256": "5a4f9eef53ca3fb9d3c6242c7abe5460d1731830f831fb185b35faa8c3398db9"
+    },
+    {
+      "path": "hosts/hansoh/supervision/supervise-cancel.mjs",
+      "bytes": 10235,
+      "mode": "0o600",
+      "sha256": "773fbc6350f30fb5d008b4d1beb7c2652915a6ab8794020a20ff2f008652df62"
+    },
+    {
+      "path": "metadata/FRESH_UNBOUND_HOST_MANIFEST.json",
+      "bytes": 34765,
+      "mode": "0o600",
+      "sha256": "bc8bf5b46a0bbd4db872b40563ebd23b503af495271e95278d5150d93b3bcde8"
+    },
+    {
+      "path": "metadata/PIN_ONLY_ADAPTATION_REVIEW.json",
+      "bytes": 8710,
+      "mode": "0o644",
+      "sha256": "e0c7ac0285ed4987516b59e5e807166ede7f397a850d2c4faffcc9db67211338"
+    },
+    {
+      "path": "owner-adaptations/hansoh-fosun-c51-r4-20261007T2149Z/baseline-manifest.json",
+      "bytes": 2646,
+      "mode": "0o600",
+      "sha256": "5fcf857440a4f4a91ed1a35725e1dae4bbdf306f1d6c2e83efd2eb2d8cf7caae"
+    },
+    {
+      "path": "owner-adaptations/hansoh-fosun-c51-r4-20261007T2149Z/build-fragments.py",
+      "bytes": 4463,
+      "mode": "0o600",
+      "sha256": "1f03fee8b375360bd6294b09fed5eccbbe1787bda8f5cf5523c743bde23de28e"
+    },
+    {
+      "path": "owner-adaptations/hansoh-fosun-c51-r4-20261007T2149Z/preload-owner.exec.js",
+      "bytes": 2753,
+      "mode": "0o600",
+      "sha256": "11ab91e2a8b9a4f9878f108efee583a767301e2575ff49483de5f590c5d0eca4"
+    },
+    {
+      "path": "owner-adaptations/hansoh-fosun-c51-r4-20261007T2149Z/publish-and-monitor-owner.js",
+      "bytes": 15490,
+      "mode": "0o600",
+      "sha256": "13e5c1d6b4c482a88ce07e8a2e5948e758faf12a349b8b8a81b8617fc4ad1252"
+    },
+    {
+      "path": "owner-adaptations/hansoh-fosun-c51-r4-20261007T2149Z/publish-reviewed-and-monitor.exec.js",
+      "bytes": 1398,
+      "mode": "0o600",
+      "sha256": "488f2da234696ef85903f4505ceac5ba281ebd375f6b4fc9ef6475def82b821c"
+    },
+    {
+      "path": "preparation-scripts/install-prepared-binding.py",
+      "bytes": 4332,
+      "mode": "0o644",
+      "sha256": "4f15df23c5f8cb192d6c859df3c4292d8059b4c2364ddd437a09b31e02d4bf91"
+    },
+    {
+      "path": "preparation-scripts/prepare-fresh-unbound-hosts.py",
+      "bytes": 8918,
+      "mode": "0o644",
+      "sha256": "f18cedd3c40ca0563a5c20e96550fb762025c3541a96a8b9f54bb8779ef0fef1"
+    },
+    {
+      "path": "preparation-scripts/prepare-owner-inputs-from-readback.py",
+      "bytes": 2460,
+      "mode": "0o644",
+      "sha256": "35744908f651a6ceb4c7d2f5a64d0c3bc1fabcce719bf538adc6294dc62f0fac"
+    }
+  ]
+}
