@@ -1,0 +1,5336 @@
+{
+  "classification": "COMPLETE_BACKUP_PACKAGE_MANIFEST",
+  "excludesSelf": "ARTIFACT_MANIFEST.json",
+  "fileCount": 888,
+  "totalBytes": 19019967,
+  "files": [
+    {
+      "path": "DEPENDENCY_REBUILD_INPUTS.json",
+      "bytes": 108768,
+      "mode": "0o644",
+      "sha256": "7db20081ce600e66098bad7a2053bea75b0b1afcd01d45550791cd44ad6cb30c"
+    },
+    {
+      "path": "LOCAL_RESTORE_VERIFICATION.json",
+      "bytes": 452,
+      "mode": "0o644",
+      "sha256": "5337a58efc01b516e79ca892eaf58889392d8e65cfcc99245f3a58a53c6201ca"
+    },
+    {
+      "path": "README.md",
+      "bytes": 7002,
+      "mode": "0o644",
+      "sha256": "f8fee460aab37d71fc42e1f45981980026bf81fd4e5aaaf6a869970444685a79"
+    },
+    {
+      "path": "RECOVERY_IDENTITY.json",
+      "bytes": 1691,
+      "mode": "0o644",
+      "sha256": "3045e01544e4c98f8b9ded743eb8f0172d9f839f50478d98b029a959b337c453"
+    },
+    {
+      "path": "SOURCE_MANIFEST.json",
+      "bytes": 230266,
+      "mode": "0o644",
+      "sha256": "2d10328c5e2e47264511c57cb99fbf55ccbab451abc19ccfb8506c209dea36c0"
+    },
+    {
+      "path": "SOURCE_SECRET_SCAN.json",
+      "bytes": 42451,
+      "mode": "0o644",
+      "sha256": "cb9b834a1e2746ffa1fab37ddc512d0accdde4c95c57f106d206d17e7fd89a42"
+    },
+    {
+      "path": "git/commit.raw",
+      "bytes": 473,
+      "mode": "0o644",
+      "sha256": "54668da46fc9e377bc17e50b3727ee28ea7b89273409b33de010af64a51a071d"
+    },
+    {
+      "path": "git/producer-3a240076.bundle",
+      "bytes": 2389455,
+      "mode": "0o644",
+      "sha256": "6064609a5ffae26ce0d7c33b783308f2218c57ed3a51847271acaf16463d291d"
+    },
+    {
+      "path": "metadata/dependency-copy.json",
+      "bytes": 429,
+      "mode": "0o644",
+      "sha256": "ea207a61b7e5b4122f1434807e51650e9f90007ac4e85adea58ef5a0bd7588c5"
+    },
+    {
+      "path": "metadata/dependency-final-tree.json",
+      "bytes": 3101728,
+      "mode": "0o644",
+      "sha256": "fb3c3f17161d7d6b6fc93c06ee8ddee7f9557b94b231e278c04acf1838dba96f"
+    },
+    {
+      "path": "metadata/dependency-source-tree.json",
+      "bytes": 3171270,
+      "mode": "0o644",
+      "sha256": "aa24e2a6770bf7c97197f51b2043249f84daeaf0d38115735f81fee8da27a033"
+    },
+    {
+      "path": "metadata/derived-build-and-expectation.json",
+      "bytes": 2639,
+      "mode": "0o644",
+      "sha256": "a365ceb24b14d5d73fe605c38b777840181c446844ebb3f4f5e760398f45dbd2"
+    },
+    {
+      "path": "metadata/derived-build-readback.json",
+      "bytes": 389,
+      "mode": "0o644",
+      "sha256": "07cd82da852f9fa4421c02a8cc5d27eeca637b3c98f4539f01f52aa7066f4f7c"
+    },
+    {
+      "path": "metadata/derived-source-commit.json",
+      "bytes": 2995,
+      "mode": "0o644",
+      "sha256": "7209b822daca13574f49296939229fbae9e941a4ab72e1346c7d27d4d8971d96"
+    },
+    {
+      "path": "metadata/excluded42-classification.json",
+      "bytes": 11653,
+      "mode": "0o644",
+      "sha256": "f40db717a31b5e9cde0c9c64b8685dc8cc88a9d584b55f29fab9ec8625551110"
+    },
+    {
+      "path": "metadata/node-download.json",
+      "bytes": 505,
+      "mode": "0o644",
+      "sha256": "f8f76d6503802fd7baff5e6acabab9a116a5af9a0ac645bd9ca08c337a9a6d59"
+    },
+    {
+      "path": "metadata/node-runtime-profile.json",
+      "bytes": 533,
+      "mode": "0o644",
+      "sha256": "9c701915a0ee016ddee07b96358e1ab32a952f1eb09ef27a8d8a23ebe96d1346"
+    },
+    {
+      "path": "metadata/node-v22.23.3-SHASUMS256.txt",
+      "bytes": 3981,
+      "mode": "0o644",
+      "sha256": "4fe99a2ba9d552a6f51c13ed68fb11104cfa5df601aec616be689253a8139e7a"
+    },
+    {
+      "path": "metadata/observed-build-identity.json",
+      "bytes": 352,
+      "mode": "0o644",
+      "sha256": "4c7737257ebcd3605c6c3fc33858957e8074472eb1b537ccbc61a2117359293e"
+    },
+    {
+      "path": "metadata/optional-dependency-final-audit.json",
+      "bytes": 18607,
+      "mode": "0o644",
+      "sha256": "5c037dfb2e9f384fa0d14c021080a9fb607073c1a94fb907f01fe9cfaff7ba2b"
+    },
+    {
+      "path": "metadata/prisma-import-final.json",
+      "bytes": 992,
+      "mode": "0o644",
+      "sha256": "818da04861a5f7fd0312f498463621f1e169240a853bbc37f324b8562424a04e"
+    },
+    {
+      "path": "metadata/source-copy.json",
+      "bytes": 378902,
+      "mode": "0o644",
+      "sha256": "aae108e009e67e44f5b5daf14b73506bd982d4d0ac681cbd0cccaffc78d89680"
+    },
+    {
+      "path": "scripts/verify-source.py",
+      "bytes": 1560,
+      "mode": "0o644",
+      "sha256": "41dda539c1d32e00d8f04f10c3e189213ca034038c101a982951024023155124"
+    },
+    {
+      "path": "source/.dockerignore",
+      "bytes": 369,
+      "mode": "0o644",
+      "sha256": "563e25734e844b1954847c94cc1ba474641b8e45edda8110231a8bb37fdab996"
+    },
+    {
+      "path": "source/.gitignore",
+      "bytes": 213,
+      "mode": "0o644",
+      "sha256": "5e48dfca741803397d7c1d7b391575566984d5fefd49c86e5b67e732f8b46303"
+    },
+    {
+      "path": "source/Dockerfile",
+      "bytes": 10841,
+      "mode": "0o644",
+      "sha256": "ea4553751f63e98fb68c8991f174a4eb1de5231fb793715cec24ceb490e2fb19"
+    },
+    {
+      "path": "source/backup/disabled-workflows/production-image.yml",
+      "bytes": 41193,
+      "mode": "0o644",
+      "sha256": "9577368636b3d1d4fa45ba4fc9cd9fe79cab0aa0ab0b19e97023bbcbc254f33d"
+    },
+    {
+      "path": "source/config/phase4-code-candidate-manifest.json",
+      "bytes": 1897,
+      "mode": "0o644",
+      "sha256": "38fb00ef6dd54617cb9eb0f424b351e4cdaa46ce1611f8c4085610a28dcfca50"
+    },
+    {
+      "path": "source/config/phase4-task0-evidence-allowlist.json",
+      "bytes": 529,
+      "mode": "0o644",
+      "sha256": "25175bab1a3c93d3c0ecc2da4b427d5ae00e3642802f53956bfb31ab30306db5"
+    },
+    {
+      "path": "source/index.html",
+      "bytes": 474,
+      "mode": "0o644",
+      "sha256": "cd61697523781ad99eab629702cce5d705a03e2b1a25153f35c43624a8dc5364"
+    },
+    {
+      "path": "source/ops/backup.ps1",
+      "bytes": 5827,
+      "mode": "0o644",
+      "sha256": "37c955a861ee6f247438594a4ac4a53e70dc2ab6345a375bc6004384a43f48e9"
+    },
+    {
+      "path": "source/ops/backup.sh",
+      "bytes": 5610,
+      "mode": "0o644",
+      "sha256": "34e5fc4b69f57c9f7580684dd30261b21c8829c3d981364d2cb984f17ab362c5"
+    },
+    {
+      "path": "source/ops/cloud-pilot-host/archive-transfer.mjs",
+      "bytes": 1777,
+      "mode": "0o644",
+      "sha256": "698e966e5552967845a5252d2b3df2acca28dcd8dbbb0ae41755a3a6231e6a99"
+    },
+    {
+      "path": "source/ops/cloud-pilot-host/archive-transfer.test.mjs",
+      "bytes": 1671,
+      "mode": "0o644",
+      "sha256": "a47dc2f9f3bda38b79a41837e3261e96b5c65242e729e7cde086d840651825cf"
+    },
+    {
+      "path": "source/ops/cloud-pilot-host/audit-novo-public-archive.mjs",
+      "bytes": 3038,
+      "mode": "0o644",
+      "sha256": "b262210d0d2af1411cfc5ac0d5100f00faa8a592f64c8084ec29371fb796b538"
+    },
+    {
+      "path": "source/ops/cloud-pilot-host/audit-qilu-public-archive.mjs",
+      "bytes": 19517,
+      "mode": "0o644",
+      "sha256": "6e8ce5c0ad3ea60de027ee1789bbd43163ec7bd277b9654a0ad97d366ccfe709"
+    },
+    {
+      "path": "source/ops/cloud-pilot-host/audit-qilu-public-archive.test.mjs",
+      "bytes": 8043,
+      "mode": "0o644",
+      "sha256": "4dc790a0d85d3ecc4092391ce80713f7727df0d30d32e2b644f0c7239efaf3a7"
+    },
+    {
+      "path": "source/ops/cloud-pilot-host/host-bindings.test.mjs",
+      "bytes": 10195,
+      "mode": "0o644",
+      "sha256": "963e8a474dc54b3961f57700953ecd6a201d3457ae8ef2b529657cf99ffee0ae"
+    },
+    {
+      "path": "source/ops/cloud-pilot-host/host-files.mts",
+      "bytes": 4079,
+      "mode": "0o644",
+      "sha256": "4a8df2db69cf0d09f6f58f1ec9e7c7ebe532c75542453e71e237e74a574367c2"
+    },
+    {
+      "path": "source/ops/cloud-pilot-host/host-helper-functions.js",
+      "bytes": 5759,
+      "mode": "0o644",
+      "sha256": "885ac8e12c3465451fcf8604166a9fc1f69c184ca7fe58a5b7ea3ec7683a4d23"
+    },
+    {
+      "path": "source/ops/cloud-pilot-host/host-stage-functions.js",
+      "bytes": 5482,
+      "mode": "0o644",
+      "sha256": "7171a80f703481f0c3095f6da7be8b4901eda3093a9aa3bf04a0a2aa66f39f2e"
+    },
+    {
+      "path": "source/ops/cloud-pilot-host/lilly-migration-metadata.json",
+      "bytes": 410,
+      "mode": "0o644",
+      "sha256": "7e64feeaaf3f7b89e75b5e50828059872f9601d62d03533f9b00852e0068a185"
+    },
+    {
+      "path": "source/ops/cloud-pilot-host/novo-migration-metadata.json",
+      "bytes": 598,
+      "mode": "0o644",
+      "sha256": "5ae959dc02c13324b0026746f0ce9cfeb5c910772dfbfd578c76fda8ecba6b41"
+    },
+    {
+      "path": "source/ops/cloud-pilot-host/organon-migration-metadata.json",
+      "bytes": 416,
+      "mode": "0o644",
+      "sha256": "bcefb48436dc0af41d59baef2fd7a5259e0a1f6d873177feec84817452a8a5a1"
+    },
+    {
+      "path": "source/ops/cloud-pilot-host/publication-failure-cleanup.test.mjs",
+      "bytes": 10440,
+      "mode": "0o644",
+      "sha256": "6bafe33fd7d31b79d34147c91fa89a23411d31a5e03bb20c9023bced85cee4b1"
+    },
+    {
+      "path": "source/ops/cloud-pilot-host/publication-tool-wait.diagnostic.test.mjs",
+      "bytes": 3095,
+      "mode": "0o644",
+      "sha256": "5c4ef6ac18bd0f37e50d2bfb7aedf892010865697a525b29b6bfeb65507e4b6a"
+    },
+    {
+      "path": "source/ops/cloud-pilot-host/qilu-context-read.sql",
+      "bytes": 2243,
+      "mode": "0o644",
+      "sha256": "a5890a64afc324da95cdc3e6b6a8df5e80542fbfd13913297d38978f7269a487"
+    },
+    {
+      "path": "source/ops/cloud-pilot-host/qilu-public-archive-rule.json",
+      "bytes": 5746,
+      "mode": "0o644",
+      "sha256": "41b35a7f7d2c270a843f138c92fd840ffa28a98ff05cdb165ede089b10fdc7c5"
+    },
+    {
+      "path": "source/ops/cloud-pilot-host/relay-files.mjs",
+      "bytes": 5426,
+      "mode": "0o644",
+      "sha256": "a4adb5462b5e7e82f18dc93aedf77c92ae82244214ef65dccacb02d2fe225198"
+    },
+    {
+      "path": "source/ops/docker-compose.yml",
+      "bytes": 13362,
+      "mode": "0o644",
+      "sha256": "e778fe2b447c1204683338d8960ad7740f342709aee20e3494a6d3c231aefee5"
+    },
+    {
+      "path": "source/ops/install-apt-packages.sh",
+      "bytes": 1331,
+      "mode": "0o644",
+      "sha256": "e1fec2ab433acad5244883476633d7ce8bfbec1e68530bfd61315b81511e5064"
+    },
+    {
+      "path": "source/ops/libpq-url.sh",
+      "bytes": 825,
+      "mode": "0o644",
+      "sha256": "a3b7577a396c109bf44d18398551a8a153939c5a74ee017d347a620f3138e13e"
+    },
+    {
+      "path": "source/ops/monitoring-check.ts",
+      "bytes": 12825,
+      "mode": "0o644",
+      "sha256": "a5c8a863c676397f7e7c6ad17cc920b7fd9743526355e6941983666626ac080d"
+    },
+    {
+      "path": "source/ops/nginx-main.conf",
+      "bytes": 646,
+      "mode": "0o644",
+      "sha256": "5a172f591c5d4abd2c6d03908fd26ffc5801d9adde4e39766889f31194f477bb"
+    },
+    {
+      "path": "source/ops/nginx.conf",
+      "bytes": 4001,
+      "mode": "0o644",
+      "sha256": "3ffbe8b3ac1fbbf19f958ab67ed9eabf3a678e8e75b3d97f8a8423f7112b479d"
+    },
+    {
+      "path": "source/ops/node-runtime-profile.json",
+      "bytes": 532,
+      "mode": "0o644",
+      "sha256": "46281c4b5fa8a1d6eadc57a2aa63a721f77e092100c556ae9d523164c84f7baf"
+    },
+    {
+      "path": "source/ops/render-nginx-config.sh",
+      "bytes": 1008,
+      "mode": "0o644",
+      "sha256": "74576a6a35139f5c22d14c1b5b930b50c03e78eda59d53897feb9024f0f94480"
+    },
+    {
+      "path": "source/ops/restore-test.ps1",
+      "bytes": 3350,
+      "mode": "0o644",
+      "sha256": "5501391f6f0c48f641b205eb73bfe39077ebf188433724a493a3f6a841847c7c"
+    },
+    {
+      "path": "source/ops/restore-test.sh",
+      "bytes": 3198,
+      "mode": "0o644",
+      "sha256": "decf199882a6cae83862a39e914efe534da630e7ecabc17dcb2bae4653dafb8e"
+    },
+    {
+      "path": "source/ops/run-fixed-cohort-qualification.sh",
+      "bytes": 29631,
+      "mode": "0o644",
+      "sha256": "26d9b93acca52bb64c1c93ac2edc87612d40bbba464c8572f1b07be87470f554"
+    },
+    {
+      "path": "source/package-lock.json",
+      "bytes": 162783,
+      "mode": "0o644",
+      "sha256": "3f45f2db3f910be83bb57630db121a175b0375fe216a2fa110cab99ec149fae9"
+    },
+    {
+      "path": "source/package.json",
+      "bytes": 4540,
+      "mode": "0o644",
+      "sha256": "6a08adb18651704b67541c9cc6593de3f232909b39aedf6902d7481f8e06c134"
+    },
+    {
+      "path": "source/prisma/migrations/20260710000000_baseline/migration.sql",
+      "bytes": 11861,
+      "mode": "0o644",
+      "sha256": "4fdcb581708ac58a54076042daeede1e95e0e30b70ecb44746628628899f9ea5"
+    },
+    {
+      "path": "source/prisma/migrations/20260710005000_crawl_status_values/migration.sql",
+      "bytes": 288,
+      "mode": "0o644",
+      "sha256": "0b8b060cc62a6cddfac1f0ae2571abd10f05ea20fe218fa1084973443ef4985d"
+    },
+    {
+      "path": "source/prisma/migrations/20260710010000_phase1_evidence/migration.sql",
+      "bytes": 27309,
+      "mode": "0o644",
+      "sha256": "85cfca6b4430baaf58a168175e18446d428808d69ab14758fcc46ebed377d749"
+    },
+    {
+      "path": "source/prisma/migrations/20260710015000_completeness_pending/migration.sql",
+      "bytes": 71,
+      "mode": "0o644",
+      "sha256": "323a5d11ef6f48dc5b65e4605190e11f21dac7cdf6b8f4d86aaf23d9e4e45551"
+    },
+    {
+      "path": "source/prisma/migrations/20260710020000_source_result_state_machine/migration.sql",
+      "bytes": 11863,
+      "mode": "0o644",
+      "sha256": "29af5ebcafa874a829be6a071a0ae7e4c00ffed22e2b1b41acd5799680014998"
+    },
+    {
+      "path": "source/prisma/migrations/20260711050000_task5g_truth_persistence/migration.sql",
+      "bytes": 6187,
+      "mode": "0o644",
+      "sha256": "ea4c8416dd62bb7368c9b79b0cdfe2987afa3bcc5e9726c02b482b1c553e978b"
+    },
+    {
+      "path": "source/prisma/migrations/20260711060000_transport_attempt_artifact_immutability/migration.sql",
+      "bytes": 1014,
+      "mode": "0o644",
+      "sha256": "74748a3e48319b6e39aead158e658ed384e54fd874eb8c9f2ea58f6c303dd454"
+    },
+    {
+      "path": "source/prisma/migrations/20260711150000_task5h_runtime_truth_closure/migration.sql",
+      "bytes": 690,
+      "mode": "0o644",
+      "sha256": "046381cc43edf9551e1ebd4629c4add665556ea4d89cc2b9962cd9158df34972"
+    },
+    {
+      "path": "source/prisma/migrations/20260711210000_lifecycle_set_evidence_members/migration.sql",
+      "bytes": 3598,
+      "mode": "0o644",
+      "sha256": "3152d9cdf10b4d04c1b775546d1127f6d689c21179ec4907b5f77e98e7bf741d"
+    },
+    {
+      "path": "source/prisma/migrations/20260711220000_lifecycle_set_cryptographic_closure/migration.sql",
+      "bytes": 3203,
+      "mode": "0o644",
+      "sha256": "f7c5bacc9d558cedbbaf332ea384b8d01c635a9f94495e375df752861f2ca4c9"
+    },
+    {
+      "path": "source/prisma/migrations/20260711230000_parent_lifecycle_projection_gate/migration.sql",
+      "bytes": 2772,
+      "mode": "0o644",
+      "sha256": "5eece361b4d5b01f6e867ff28e2081ee1febc499c218d675b09c9331d7bf35bf"
+    },
+    {
+      "path": "source/prisma/migrations/20260711240000_lifecycle_trigger_security_closure/migration.sql",
+      "bytes": 5824,
+      "mode": "0o644",
+      "sha256": "5ebb0b22c7c14e02de0de0df6e5ec88de1b9e12105b2b7ea064c6532fec93d22"
+    },
+    {
+      "path": "source/prisma/migrations/20260712020000_release_runtime_identity/migration.sql",
+      "bytes": 2057,
+      "mode": "0o644",
+      "sha256": "a9e02aa75fda3f91831acba4893f6a9c6fb723b0e47b829acfcf29c94a5050df"
+    },
+    {
+      "path": "source/prisma/migrations/20260713010000_manual_crawl_request_ownership/migration.sql",
+      "bytes": 5116,
+      "mode": "0o644",
+      "sha256": "f3b2fec28c76402d95d712a9f07b532fe6368a2e23bb551310fd116aff0fca96"
+    },
+    {
+      "path": "source/prisma/migrations/20260713020000_privacy_request_retention/migration.sql",
+      "bytes": 128,
+      "mode": "0o644",
+      "sha256": "0502883a5386be381be4b93f27a4968b88f7c0cb9cb71f79069eeddff083c09d"
+    },
+    {
+      "path": "source/prisma/migrations/20260713030000_manual_crawl_preview_isolation/migration.sql",
+      "bytes": 5974,
+      "mode": "0o644",
+      "sha256": "76ee502c2329ff180e61b0e1ee6081bb2f6a6925baa950b639ef32b72b8789c9"
+    },
+    {
+      "path": "source/prisma/migrations/20260713035000_quarantine_legacy_unbound_manual_batches/migration.sql",
+      "bytes": 2624,
+      "mode": "0o644",
+      "sha256": "dc44a8720be3980d8350871a6c7ba39dee6e59897954caed9b1c27dcd4eeceb5"
+    },
+    {
+      "path": "source/prisma/migrations/20260713040000_manual_batch_binding_and_kind_immutability/migration.sql",
+      "bytes": 3945,
+      "mode": "0o644",
+      "sha256": "f80a08566fa3d6a891551cf6a2c04c8d4cd04ecf56748527d20c518da711ed17"
+    },
+    {
+      "path": "source/prisma/migrations/20260713050000_ai_enrichment_persistence/migration.sql",
+      "bytes": 8988,
+      "mode": "0o644",
+      "sha256": "99760a680cf3e8109c06f36e1f3ec09ac6d636c017d2fb7a1edac1a5bc612864"
+    },
+    {
+      "path": "source/prisma/migrations/20260714053000_repair_legacy_offline_count_two/migration.sql",
+      "bytes": 354,
+      "mode": "0o644",
+      "sha256": "9f0d24e3e69c62194212b73028b2ce189da3921120eec28d4019d98cb5008c64"
+    },
+    {
+      "path": "source/prisma/migrations/20260715090000_atomic_evidence_commit_scaling/migration.sql",
+      "bytes": 2049,
+      "mode": "0o644",
+      "sha256": "3ba00cb12be5b70f71b421f010ece0e21d9fd0dda451e8b882a499bd5a3bfb2b"
+    },
+    {
+      "path": "source/prisma/migrations/20260716190000_release_candidate_qualification_threshold/migration.sql",
+      "bytes": 1590,
+      "mode": "0o644",
+      "sha256": "3b359a8c7d66128a849b651644bf79598a28394fdb7ec98c22c6cadbf860c220"
+    },
+    {
+      "path": "source/prisma/migrations/20260716210000_release_candidate_promotion_gate/migration.sql",
+      "bytes": 2561,
+      "mode": "0o644",
+      "sha256": "aade090681832348f44f8002f9cf64dad79f64db991637a5c39f5d8675d3b54e"
+    },
+    {
+      "path": "source/prisma/migrations/20260717090000_source_failure_diagnostics/migration.sql",
+      "bytes": 2124,
+      "mode": "0o644",
+      "sha256": "c1d858486c56a41ddbc46489ae39a3a221234a33951ddbd96685a18cf393a02f"
+    },
+    {
+      "path": "source/prisma/migrations/20260812231000_a_grade_completeness_certificate/migration.sql",
+      "bytes": 130,
+      "mode": "0o644",
+      "sha256": "57e5d92b5520bce6817dbf067001037e596ae09fdf01d34a47af656aa12b3fc7"
+    },
+    {
+      "path": "source/prisma/migrations/20260813002000_trusted_completeness_baseline/migration.sql",
+      "bytes": 2388,
+      "mode": "0o644",
+      "sha256": "c9067ade70b02c5204f988604c273db34a1a94d0c0b4d84fe9d99955b743fb11"
+    },
+    {
+      "path": "source/prisma/migrations/20260813013000_transport_policy_retry_diagnostics/migration.sql",
+      "bytes": 1699,
+      "mode": "0o644",
+      "sha256": "49d2bbec31985956304c829818ccd3d2b0279dfeef6be88555ce7d224e5c8e69"
+    },
+    {
+      "path": "source/prisma/migrations/20260824070000_official_network_retry_diagnostics/migration.sql",
+      "bytes": 867,
+      "mode": "0o644",
+      "sha256": "522f1d52846568579dd56896c99d83680e528de525a21424892599a2533a338c"
+    },
+    {
+      "path": "source/prisma/migrations/20260825093000_browser_and_pagination_retry_diagnostics/migration.sql",
+      "bytes": 1137,
+      "mode": "0o644",
+      "sha256": "31656155cad70ac5a841b4b022c11c27056d0fa2d2cc7c80e17bea710158d6c6"
+    },
+    {
+      "path": "source/prisma/migrations/20260825113000_failed_source_diagnostic_evidence/migration.sql",
+      "bytes": 1572,
+      "mode": "0o644",
+      "sha256": "f4af5d9b982e42c55f53d415baac1934568ed2b587b3e27fa186d194d6a2e514"
+    },
+    {
+      "path": "source/prisma/migrations/20260902090000_jnj_and_grifols_atomic_persistence/migration.sql",
+      "bytes": 15434,
+      "mode": "0o644",
+      "sha256": "6897c9b49f215383954f0c7326574dfd0fb2f6944bfd8bf9a5b6a30b79fc1296"
+    },
+    {
+      "path": "source/prisma/migrations/20260902093000_grifols_trigger_artifact_binding/migration.sql",
+      "bytes": 1351,
+      "mode": "0o644",
+      "sha256": "8f997add3cf96d44e188f4fdab71e54a7896336e2c09fb9f79e1748d697ac645"
+    },
+    {
+      "path": "source/prisma/migrations/20260902094500_a_grade_official_total_dedupe/migration.sql",
+      "bytes": 4439,
+      "mode": "0o644",
+      "sha256": "1d7be8f1fe26e033478694687963a805281af61de6575222ecc40335cd721ad9"
+    },
+    {
+      "path": "source/prisma/migrations/20260902095500_boehringer_verified_ui_exclusions/migration.sql",
+      "bytes": 5652,
+      "mode": "0o644",
+      "sha256": "f6ad25e94c6a8971f4545880e20037c6eb3814c130f51c926ea6886568c5f06b"
+    },
+    {
+      "path": "source/prisma/migrations/20260927110000_crawl_coordinator_table_lock/migration.sql",
+      "bytes": 1403,
+      "mode": "0o644",
+      "sha256": "5b8c19c744abe771124f4f0a9e7f985e34693ab05dc7a50da87d77b2bb69ca0c"
+    },
+    {
+      "path": "source/prisma/migrations/20260927120000_p0_launch_cohort_41_companies/migration.sql",
+      "bytes": 9147,
+      "mode": "0o644",
+      "sha256": "17b71a51cb5fd63575e7f04ac9f51fe9af72c85d70dd8badb5430ed259606c4d"
+    },
+    {
+      "path": "source/prisma/migrations/20261001120000_portable_source_quality_policy/migration.sql",
+      "bytes": 34193,
+      "mode": "0o644",
+      "sha256": "efabdfad4df69d179a252d12781c320475b1e17e038d918243bc195c2e15b496"
+    },
+    {
+      "path": "source/prisma/migrations/20261001151000_portable_loss_position_identity/migration.sql",
+      "bytes": 31778,
+      "mode": "0o644",
+      "sha256": "6d8d551d9725348aef46c95ebcae876c82fcd77186495c73f9e8a7c29c2bcbba"
+    },
+    {
+      "path": "source/prisma/migrations/20261001163000_portable_zero_based_loss_pages/migration.sql",
+      "bytes": 31775,
+      "mode": "0o644",
+      "sha256": "5b4bce23e62c78a198c011a0eba37f80f90fb03b0e9591d888188d9c15d224bf"
+    },
+    {
+      "path": "source/prisma/migrations/20261001174000_astellas_pdf_city_policy/migration.sql",
+      "bytes": 31628,
+      "mode": "0o644",
+      "sha256": "d01d1b7099c4de2c05d234a7a22fd7278f5dc3b8c1fd982613bf2b068f4fca50"
+    },
+    {
+      "path": "source/prisma/migrations/20261001181500_abbvie_reviewed_row_policy/migration.sql",
+      "bytes": 31768,
+      "mode": "0o644",
+      "sha256": "b26a25ae30ca08a2beeb60ac72238218543296e2c1bb691e8d811c46965bdc82"
+    },
+    {
+      "path": "source/prisma/migrations/20261001233000_verified_date_source_policy/migration.sql",
+      "bytes": 32028,
+      "mode": "0o644",
+      "sha256": "865a0dce5252e52614aef3232822e1f2acd7b42b26b8df629fe470b34e8b1713"
+    },
+    {
+      "path": "source/prisma/migrations/20261002001500_bms_mainland_geography_policy/migration.sql",
+      "bytes": 32161,
+      "mode": "0o644",
+      "sha256": "9ec3df9622f42d48b8472ee6e3bcd7421b0b0f7f0ae480e81d4ae7041636c791"
+    },
+    {
+      "path": "source/prisma/migrations/20261002011500_city_pending_source_policies/migration.sql",
+      "bytes": 32456,
+      "mode": "0o644",
+      "sha256": "35607b7bf3fd71424144c5958a8dfaedbca2bcfe69a63d55b43449f964d69774"
+    },
+    {
+      "path": "source/prisma/migrations/20261002020000_gilead_novo_source_policies/migration.sql",
+      "bytes": 32728,
+      "mode": "0o644",
+      "sha256": "fd24e0f031f9a34cb8ca1ef7c57703795735ddc386e5c0c62a8e3d175b73f18c"
+    },
+    {
+      "path": "source/prisma/migrations/20261002093322_novo_native_application_policy/migration.sql",
+      "bytes": 33117,
+      "mode": "0o644",
+      "sha256": "d0bc0f9092560bad7d0f77fde63b0df2db1cbc512f3babaf3bdd3328291c834d"
+    },
+    {
+      "path": "source/prisma/migrations/20261002101515_organon_source_policy/migration.sql",
+      "bytes": 33226,
+      "mode": "0o644",
+      "sha256": "96bb2c79d1bc4cdcaeeddb1e994b826cd7287f2de3654807c64aea3b2f8f214e"
+    },
+    {
+      "path": "source/prisma/migrations/20261003055000_jnj_dom_evidence_admission/migration.sql",
+      "bytes": 47710,
+      "mode": "0o644",
+      "sha256": "5b3c8bc039960433709fc7cd1c9d66b6d939c7a7068c00d4b304d4b4ea5e17ac"
+    },
+    {
+      "path": "source/prisma/migrations/20261006172300_job_projection_delta_contract/migration.sql",
+      "bytes": 76179,
+      "mode": "0o644",
+      "sha256": "25e30c2075a4116220a2d5f0765a076381d7cb219a94f1276c414164dc122c31"
+    },
+    {
+      "path": "source/prisma/migrations/migration_lock.toml",
+      "bytes": 127,
+      "mode": "0o644",
+      "sha256": "d6bae7899f05da956e1070ba5703455503208ef79e161acb18c93bfe3c6cd236"
+    },
+    {
+      "path": "source/prisma/schema.prisma",
+      "bytes": 32578,
+      "mode": "0o644",
+      "sha256": "0582f24fc0733b4d72e0224bf40152a381047d4b6f107d663f82901edcfe8c44"
+    },
+    {
+      "path": "source/scripts/audit-phase4-curated-evidence.ts",
+      "bytes": 1596,
+      "mode": "0o644",
+      "sha256": "d5c62f5d9813c01716e80b0354cce9733524e68cbee9a1045b3691ac6829f9a8"
+    },
+    {
+      "path": "source/scripts/bind-browser-runtime-report.ts",
+      "bytes": 864,
+      "mode": "0o644",
+      "sha256": "5927e15327964d7ee459be323c56560fc9f06a4c539b912e1be4103df1a4e6ca"
+    },
+    {
+      "path": "source/scripts/bind-npm-audit-report.ts",
+      "bytes": 1686,
+      "mode": "0o644",
+      "sha256": "50118f252461d75bfcef2b27fc947ac7862e4a69026c1a474d56fdfe75bb2db3"
+    },
+    {
+      "path": "source/scripts/bind-runtime-exposure-report.ts",
+      "bytes": 799,
+      "mode": "0o644",
+      "sha256": "c7e987dae7de3d26a30a838f2815668accf07e6ca99c4a084c3484f1edb4f932"
+    },
+    {
+      "path": "source/scripts/browser-runtime-smoke.mjs",
+      "bytes": 529,
+      "mode": "0o644",
+      "sha256": "277966c9f038e8acf7e6bd211bc275b8cdc2e2de20424b158f1f902f28520ce3"
+    },
+    {
+      "path": "source/scripts/capture-bayer-b-source.ts",
+      "bytes": 5093,
+      "mode": "0o644",
+      "sha256": "4be9330e78b6d558d6630a1a8ea521f6bd33640912e1c3eb51c09557e3c9a29f"
+    },
+    {
+      "path": "source/scripts/capture-domestic-a-source.ts",
+      "bytes": 2959,
+      "mode": "0o644",
+      "sha256": "844666aef0ca83796aca7154c1d0acd35f52a3ed5db3442d05afcc4df58b0f4e"
+    },
+    {
+      "path": "source/scripts/capture-pfizer-b-source.ts",
+      "bytes": 5503,
+      "mode": "0o644",
+      "sha256": "82a2e09170c219e17c81f9d45452745e80b13629373eb84fb7c179d1afd9d5f4"
+    },
+    {
+      "path": "source/scripts/capture-servier-b-source.ts",
+      "bytes": 5102,
+      "mode": "0o644",
+      "sha256": "d5d08257a6f72ecc8bafcf2021e01e4f8085f00e8eeac775708a64c4e1948d81"
+    },
+    {
+      "path": "source/scripts/check-production-image-context.mjs",
+      "bytes": 1820,
+      "mode": "0o644",
+      "sha256": "572c924ff0247788857d4bfced6ca856390513387fbec638e923caa2077f778b"
+    },
+    {
+      "path": "source/scripts/check-production-runtime-contract.ts",
+      "bytes": 1271,
+      "mode": "0o644",
+      "sha256": "157acf4653f8e19ca5672ef59299d8f7454b04edd1f432c398c1c8f3c8a5956a"
+    },
+    {
+      "path": "source/scripts/check-restore-receipt.ts",
+      "bytes": 658,
+      "mode": "0o644",
+      "sha256": "2f14f1323ffb8db48f69a5a5f55bda9e5693bb5284b4ae521e34b5818355adbd"
+    },
+    {
+      "path": "source/scripts/check-reviewed-novo-capture.ts",
+      "bytes": 3170,
+      "mode": "0o644",
+      "sha256": "f6d1046085c31225db2fa59bcd2e0971a56897b95d8fe4fe7bc4c9ebe767d494"
+    },
+    {
+      "path": "source/scripts/deploy-qualified-stack.ts",
+      "bytes": 2809,
+      "mode": "0o644",
+      "sha256": "0e4413e4ffb94179bb69ee0b4bb9f4d1185eafe746a13ef67c64781e8ff1a31c"
+    },
+    {
+      "path": "source/scripts/diagnose-human-recruitment-baseline.ts",
+      "bytes": 7035,
+      "mode": "0o644",
+      "sha256": "cab5f3ffc8db04849750fe10d9b9e316d469826c121f11275956a223d3ebfda3"
+    },
+    {
+      "path": "source/scripts/export-docker-build-provenance.ts",
+      "bytes": 221,
+      "mode": "0o644",
+      "sha256": "b0ace0d6e864c1bb42fcf3d6c00e27c18df3a47583f5657392cede35c37c2e85"
+    },
+    {
+      "path": "source/scripts/generate-build-identity.ts",
+      "bytes": 723,
+      "mode": "0o644",
+      "sha256": "84a653396106c81d61ff11976421d56f854950d2e8440f17253d35132500a5e7"
+    },
+    {
+      "path": "source/scripts/generate-cloud-pilot-control.ts",
+      "bytes": 1238,
+      "mode": "0o644",
+      "sha256": "fd362dc36bc6b82287ee861c5e44af427cbc47eb66701ec06e8933ff642a1983"
+    },
+    {
+      "path": "source/scripts/generate-phase4-code-candidate-manifest.ts",
+      "bytes": 1465,
+      "mode": "0o644",
+      "sha256": "bab60399163370766f8139387f5757a808d3d806a9deb58dc6ce63ae87446fd6"
+    },
+    {
+      "path": "source/scripts/generate-phase4-release-manifest.ts",
+      "bytes": 3269,
+      "mode": "0o644",
+      "sha256": "21d7164bb4a5f2a805bb44f276bb66f6d7fd05fa026496e090c0ce6f9a1ad120"
+    },
+    {
+      "path": "source/scripts/human-baseline-discrepancy-policy.ts",
+      "bytes": 3733,
+      "mode": "0o644",
+      "sha256": "f7d4085853a8146e66cc8088fc48c2e10ca54e6c2c12a41e36c33edc48c97ed6"
+    },
+    {
+      "path": "source/scripts/migrate-independent-oracle-v2.ts",
+      "bytes": 617,
+      "mode": "0o644",
+      "sha256": "122c8f5b4fcbebf558a4dac34fb6d4b0dea462823851e7aaa762ca84118e42f5"
+    },
+    {
+      "path": "source/scripts/ops-bootstrap-existing.ts",
+      "bytes": 1400,
+      "mode": "0o644",
+      "sha256": "af332c09a4368035d875694f1f13c97d0c10246bea02ceeb0e90a8178390f085"
+    },
+    {
+      "path": "source/scripts/ops-bootstrap.ts",
+      "bytes": 3449,
+      "mode": "0o644",
+      "sha256": "8a3f8695845bf7406e60518cb5c60d2eb44520dc293c3e051fc0a785efdf4ccc"
+    },
+    {
+      "path": "source/scripts/ops-migrate.ts",
+      "bytes": 624,
+      "mode": "0o644",
+      "sha256": "b7e7741af79638da763a6b2122b08f9e06a549e2baf7aea1fb374767561d6405"
+    },
+    {
+      "path": "source/scripts/ops-preflight-existing.ts",
+      "bytes": 836,
+      "mode": "0o644",
+      "sha256": "5656211aa224ee1147cd3bd2b7d8e3f9449a994fae61d9b3eb92120c84ddd775"
+    },
+    {
+      "path": "source/scripts/p0-assert-long-tail-runtime.ts",
+      "bytes": 816,
+      "mode": "0o644",
+      "sha256": "24425ba319a5aa67925b1512d5ca467b5ad747b313b94fae185f7d293915255c"
+    },
+    {
+      "path": "source/scripts/p0-authoritative-launch-receipt.ts",
+      "bytes": 10882,
+      "mode": "0o644",
+      "sha256": "7edeafee8e12575420fd1b8a0cd07ddffae7a008f90e35403d52ae78dfc7b565"
+    },
+    {
+      "path": "source/scripts/p0-b-grade-validator.ts",
+      "bytes": 1132,
+      "mode": "0o644",
+      "sha256": "eae65e4e75a90b6fddd4db6a63fe6d4b27906a9ccbbdacd9000de8fee21d3092"
+    },
+    {
+      "path": "source/scripts/p0-cloud-portable-source-pilot.ts",
+      "bytes": 18211,
+      "mode": "0o644",
+      "sha256": "a62a002c67716551ed23af7263b08a3d2d6486efcf31d9b4889b7042731fe98f"
+    },
+    {
+      "path": "source/scripts/p0-cloud-source-pilot.ts",
+      "bytes": 22138,
+      "mode": "0o644",
+      "sha256": "e4299018aa4b17cd7d0ff756ea45b779479708e02c400be9a1c8ffc0c2c1abaa"
+    },
+    {
+      "path": "source/scripts/p0-crawl-capacity-report.ts",
+      "bytes": 1962,
+      "mode": "0o644",
+      "sha256": "1268c4eb66f71113507b1bace9770baf8c27410811276a0a2291c51e6bad167c"
+    },
+    {
+      "path": "source/scripts/p0-crawl.ts",
+      "bytes": 10986,
+      "mode": "0o644",
+      "sha256": "a30ddbe582b9a9d4c117714a571faff9dd9f71c1f1a2329e73d548159a053c32"
+    },
+    {
+      "path": "source/scripts/p0-data-quality.ts",
+      "bytes": 5010,
+      "mode": "0o644",
+      "sha256": "d3e211dc8835d9e0196c6c29229d01cfec62e21899a85f07a20afadcd792878b"
+    },
+    {
+      "path": "source/scripts/p0-exact-source-diagnostic.ts",
+      "bytes": 7676,
+      "mode": "0o644",
+      "sha256": "224cf304b9412946a2cd36400979405e8977ce754877fac7d43ed34da31c6893"
+    },
+    {
+      "path": "source/scripts/p0-fixed-cohort-audit.ts",
+      "bytes": 12530,
+      "mode": "0o644",
+      "sha256": "8f1ee6aa5d6d5d7fe6bdeac93adfe519b22273e53c369acb8e0c8830f94aefb1"
+    },
+    {
+      "path": "source/scripts/p0-formal-crawl-once.ts",
+      "bytes": 395,
+      "mode": "0o644",
+      "sha256": "3e96d0ceba1bd26ab0d3cb1a02a5a2e294598e0fe2b7e60e9bbc08520f9c58df"
+    },
+    {
+      "path": "source/scripts/p0-formal-qualification-state.ts",
+      "bytes": 11784,
+      "mode": "0o644",
+      "sha256": "b018b31832ea115743efe3f95699338b2e184664c1fdfc2c61126fee8bb360f7"
+    },
+    {
+      "path": "source/scripts/p0-launch-readiness.ts",
+      "bytes": 5922,
+      "mode": "0o644",
+      "sha256": "37de784cc1ac855eea5750b1347eac578176f4c0455175f53691ec84d394fe25"
+    },
+    {
+      "path": "source/scripts/p0-manual-crawl-worker.ts",
+      "bytes": 3866,
+      "mode": "0o644",
+      "sha256": "5905957fb62f76ec5bd9126dde0ad4925560ce2affcb79c940fa5bfd560d7dff"
+    },
+    {
+      "path": "source/scripts/p0-portable-crawl.ts",
+      "bytes": 1320,
+      "mode": "0o644",
+      "sha256": "8423389728ce2204090501c36656bf0b473022099858e29842a5aa3daa966a3b"
+    },
+    {
+      "path": "source/scripts/p0-portable-scheduler.ts",
+      "bytes": 2359,
+      "mode": "0o644",
+      "sha256": "78e0d2d804517446f507739ccd2cba7df0e8f15b1666209264f49adbb9972fed"
+    },
+    {
+      "path": "source/scripts/p0-readiness-report.ts",
+      "bytes": 2981,
+      "mode": "0o644",
+      "sha256": "399888e0e97d60cc8a4b626867ea7dbb9276df1a9faec32625d3f165e4bcf118"
+    },
+    {
+      "path": "source/scripts/p0-recover-formal-crawl-lock.ts",
+      "bytes": 1468,
+      "mode": "0o644",
+      "sha256": "2ef095ae959e4064f04c2c362c1850e0a82c4c64cebf565842c6202554126950"
+    },
+    {
+      "path": "source/scripts/p0-scheduler.ts",
+      "bytes": 4200,
+      "mode": "0o644",
+      "sha256": "d3b63eb99cce1866e45e1e7bb976046619a8ccb7ba88999eb41c5846c56442a5"
+    },
+    {
+      "path": "source/scripts/p0-staged-crawl.ts",
+      "bytes": 559,
+      "mode": "0o644",
+      "sha256": "6ec66b0d17a275c36eab5989583e46958a358c747f1a1f0a6b320828568ba1fc"
+    },
+    {
+      "path": "source/scripts/p0-staged-data-quality.ts",
+      "bytes": 18950,
+      "mode": "0o644",
+      "sha256": "5d360f960c0be05353a066a7efffad7ede73e366d6fbe31dc6b7618aeb1c4403"
+    },
+    {
+      "path": "source/scripts/p0-staged-readiness.ts",
+      "bytes": 3474,
+      "mode": "0o644",
+      "sha256": "a6c2637d109df117052300bb5626f0e4a9dabc13d3ac7438773127cf28ae92d2"
+    },
+    {
+      "path": "source/scripts/p0-staged-release-candidate.ts",
+      "bytes": 5846,
+      "mode": "0o644",
+      "sha256": "ac0be200885d674594b4c8a6243d6a8a91f463662fc6c17507293aa4337ee403"
+    },
+    {
+      "path": "source/scripts/p0-staged-release-promotion.ts",
+      "bytes": 4230,
+      "mode": "0o644",
+      "sha256": "df3bb4c006b75768e19ac459c4e4760cbdb071a59a2e9ab1e3f08d08aaf9b156"
+    },
+    {
+      "path": "source/scripts/prepare-jnj-dom-current-capture.ts",
+      "bytes": 4814,
+      "mode": "0o644",
+      "sha256": "3aef80cf70f4e5c8e506f1c823c25cca8615af4b0988ed2a9563f734987b358d"
+    },
+    {
+      "path": "source/scripts/prisma-validate.mjs",
+      "bytes": 931,
+      "mode": "0o644",
+      "sha256": "27a0cffc5d58f38f9d586c8c7d2d428b5ed742f63fd1d77e691f26e98d08ecc4"
+    },
+    {
+      "path": "source/scripts/production-security-gate.ts",
+      "bytes": 9833,
+      "mode": "0o644",
+      "sha256": "19403a351a64a12ebb6dade1ecd0a100255d723bda32082fb64a16173bb29b97"
+    },
+    {
+      "path": "source/scripts/qualify-backup-restore.ts",
+      "bytes": 6626,
+      "mode": "0o644",
+      "sha256": "cbc348cceed6223f6739ab80d563adeec6f4c08ff582e180b032c97a9baa826b"
+    },
+    {
+      "path": "source/scripts/replay-amgen-native.ts",
+      "bytes": 5307,
+      "mode": "0o644",
+      "sha256": "320aa132ce3ab60f73384c573e68675671fd77e9cd0ddbd7142ef41f2c409086"
+    },
+    {
+      "path": "source/scripts/replay-bms-grifols-official-posted-dates.ts",
+      "bytes": 6873,
+      "mode": "0o644",
+      "sha256": "b309e1e75ec1d73c974f2860c8997d27964a4c00c8784cf10e5056977ab5c945"
+    },
+    {
+      "path": "source/scripts/replay-lilly-native-details.ts",
+      "bytes": 4787,
+      "mode": "0o644",
+      "sha256": "1e7a1a7f8553da4cd80ef0f6b8a4a9624d031c5942f4329d1c33b553757c5774"
+    },
+    {
+      "path": "source/scripts/replay-lilly-retained.ts",
+      "bytes": 4593,
+      "mode": "0o644",
+      "sha256": "03f7a212efa872a50e0c1d55d992d67cf60c0731313231a5315c1cf9288506dc"
+    },
+    {
+      "path": "source/scripts/replay-merck-official-posted-date.ts",
+      "bytes": 6255,
+      "mode": "0o644",
+      "sha256": "f1bdb2a918202345d10a2756eeb99ec8cdb809d70914497011e8b8d965b96951"
+    },
+    {
+      "path": "source/scripts/replay-organon-quality-retained.ts",
+      "bytes": 7142,
+      "mode": "0o644",
+      "sha256": "e587aa431403a2d8d8a8b9fc8feb225c48bb1e32daccab28276bf5e3df74fe51"
+    },
+    {
+      "path": "source/scripts/replay-ucb-official-posted-date.ts",
+      "bytes": 4828,
+      "mode": "0o644",
+      "sha256": "92ff84940497ac3485ddbf9252854d841bb24d16087f72463c40b848d3586e06"
+    },
+    {
+      "path": "source/scripts/require-external-evidence.ts",
+      "bytes": 122,
+      "mode": "0o644",
+      "sha256": "e7da14d125717548d58682b27077ddb404ff2107eaecdf4657d97f46d14457d4"
+    },
+    {
+      "path": "source/scripts/run-privacy-retention.ts",
+      "bytes": 310,
+      "mode": "0o644",
+      "sha256": "57378dabe04bd7eac64b6f5e648920ada711bf990e4e455d80c4a5dbd5e25e59"
+    },
+    {
+      "path": "source/scripts/run-with-http-diagnostics.mjs",
+      "bytes": 3565,
+      "mode": "0o644",
+      "sha256": "f15522e6f209bfe99bfa258b5dffbce1f74d6af662c4c2ee682604e0798bbc88"
+    },
+    {
+      "path": "source/scripts/runtime-exposure-probe.mjs",
+      "bytes": 4402,
+      "mode": "0o644",
+      "sha256": "69609e40436367f76aa5a4a28b76376e98f578b58241230b2c51c09e8d697329"
+    },
+    {
+      "path": "source/scripts/scan-phase4-candidate.ts",
+      "bytes": 2454,
+      "mode": "0o644",
+      "sha256": "dce3034fac6993daf0fc13312a5a8163a5dadc45306b37c675ad8373c39ce08c"
+    },
+    {
+      "path": "source/scripts/systemic-completeness-audit.ts",
+      "bytes": 23082,
+      "mode": "0o644",
+      "sha256": "bd4f513baf1361cf92a0ee158666b2965295a2b00d3fc62a92742f74700e404a"
+    },
+    {
+      "path": "source/scripts/validate-official-source-candidates.ts",
+      "bytes": 1943,
+      "mode": "0o644",
+      "sha256": "e5826fd0ec8314f9ce278d48a7eeb961f3e420a0b15f55dc4eff954bc701ec49"
+    },
+    {
+      "path": "source/scripts/validate-production-deployment-image.ts",
+      "bytes": 3732,
+      "mode": "0o644",
+      "sha256": "08910f3eaa03fedf68ab2267c73379eb7cea75afa03ef7f5d082585c8023c5f3"
+    },
+    {
+      "path": "source/scripts/verify-abbvie-owned-retained.ts",
+      "bytes": 6212,
+      "mode": "0o644",
+      "sha256": "6eef2d8ccf2d7a9a0be6de85377ca48d2fc86108ad84fc514062e0b620b4638d"
+    },
+    {
+      "path": "source/scripts/verify-astellas-owned-retained.ts",
+      "bytes": 6823,
+      "mode": "0o644",
+      "sha256": "166a7f89c802bef774c4b3c0b88073c6edca433cb42e23cd7eb406d9f4cb0d90"
+    },
+    {
+      "path": "source/scripts/verify-astellas-retained-pdfs.ts",
+      "bytes": 2997,
+      "mode": "0o644",
+      "sha256": "42897ad929b90fac6964deec7860cdc6ccaf207b1d8def4e944ae9bfe7eda543"
+    },
+    {
+      "path": "source/scripts/verify-bms-owned-retained.ts",
+      "bytes": 8115,
+      "mode": "0o644",
+      "sha256": "f543324bb51b6ff1fcab2b877ddcb44bfd9be1404437738e49dee75bf26811c5"
+    },
+    {
+      "path": "source/scripts/verify-clean-no-outputs.ps1",
+      "bytes": 2850,
+      "mode": "0o644",
+      "sha256": "90e5aff216f88a3d5452ec0212d9f7e7c2cf8f71ead145a0f6531e8eb6dfc67f"
+    },
+    {
+      "path": "source/scripts/verify-dated-sources-owned-retained.ts",
+      "bytes": 9267,
+      "mode": "0o644",
+      "sha256": "37e33d8df8db5daf7529e702865748b4f4e5cc8c836e493a287c0d43bc187cae"
+    },
+    {
+      "path": "source/scripts/verify-empty-db-migrations.ts",
+      "bytes": 425,
+      "mode": "0o644",
+      "sha256": "3732acf7587f82c9501fa2a8cc9ea614a83fd1a31aa52e2fb0f0ae20c01621ca"
+    },
+    {
+      "path": "source/scripts/verify-gilead-synthetic.ts",
+      "bytes": 3703,
+      "mode": "0o644",
+      "sha256": "5e8740e67e6ee1dccd083f2b06d0bfdf357bd3d285d91a8bb145b72278060725"
+    },
+    {
+      "path": "source/scripts/verify-lilly-synthetic.ts",
+      "bytes": 3770,
+      "mode": "0o644",
+      "sha256": "1b0c9c014b2af5695c9c1faca1e73178b095175d78d1c128061b492d39f3155f"
+    },
+    {
+      "path": "source/scripts/verify-merck-owned-retained.ts",
+      "bytes": 8595,
+      "mode": "0o644",
+      "sha256": "af7f5e01939e7a35c4d2617c3c8e5409e1d4fa94d7998cc4be034d68655dcd3b"
+    },
+    {
+      "path": "source/scripts/verify-node-runtime-profile.ts",
+      "bytes": 5095,
+      "mode": "0o644",
+      "sha256": "807b6d9bbc0a0aad7eae3987d226e3ed094b0169456bd5d9f4a875f42e93a7e3"
+    },
+    {
+      "path": "source/scripts/verify-organon-owned-retained.ts",
+      "bytes": 9083,
+      "mode": "0o644",
+      "sha256": "96221f39eef752a2c6b42405d574e92d2679501f738b6abd009bfa7ef4a5d250"
+    },
+    {
+      "path": "source/scripts/write-backup-attempt-receipt.ts",
+      "bytes": 676,
+      "mode": "0o644",
+      "sha256": "c63e9d3e22d6d1936fe6ff3814c429cc94b01f6f04d95710de0d5caed11fa886"
+    },
+    {
+      "path": "source/scripts/write-deployment-image-receipt.ts",
+      "bytes": 1894,
+      "mode": "0o644",
+      "sha256": "01aaf545da417da69d42f2b9aa6a30d62bbfa35cfff7911ea0feaeae6ba16f6a"
+    },
+    {
+      "path": "source/scripts/write-image-qualification-receipt.ts",
+      "bytes": 2515,
+      "mode": "0o644",
+      "sha256": "8c72801ce9cc71a1eb9fd0052421afd63d87827f7cc91c6a0ca9cab7f1f4ebe8"
+    },
+    {
+      "path": "source/security/production-reachability.json",
+      "bytes": 44,
+      "mode": "0o644",
+      "sha256": "995ae6ea1953ff5f8fc2aa561dad9f43a86f7fb6cfc5b37d0e6f5481577c6dae"
+    },
+    {
+      "path": "source/security/production-vulnerability-exceptions.json",
+      "bytes": 45,
+      "mode": "0o644",
+      "sha256": "af779c1dea4c6b472330c33e22f55b6e880c3973478e0a3639ed3e4a9fa62ac4"
+    },
+    {
+      "path": "source/src/admin/AdminApp.tsx",
+      "bytes": 11141,
+      "mode": "0o644",
+      "sha256": "6cc07c1cecd86e1bf6a093f5e7eb5c90d033935cb03987175afc43e80249cf86"
+    },
+    {
+      "path": "source/src/admin/BrowserAdminApp.tsx",
+      "bytes": 2976,
+      "mode": "0o644",
+      "sha256": "77e376cf5eef8e034e08c95b5809af095fb93a524e074d38d8646cac8e544224"
+    },
+    {
+      "path": "source/src/admin/adminViewModel.ts",
+      "bytes": 5751,
+      "mode": "0o644",
+      "sha256": "55fa47f1c234e144c4d57621fac33241532c63a50db1163368095c82488ecbe3"
+    },
+    {
+      "path": "source/src/admin/auth.ts",
+      "bytes": 3634,
+      "mode": "0o644",
+      "sha256": "d2b068f45c8278949a823834084a31b909eff9c1ed2b175cc571ad40dc26c4e1"
+    },
+    {
+      "path": "source/src/admin/manualCrawlStatus.ts",
+      "bytes": 1630,
+      "mode": "0o644",
+      "sha256": "b94f5e257e351a2e4f0f3bf71e32cf1fdf08b177379adef5c21daef6eac1714b"
+    },
+    {
+      "path": "source/src/admin/operations.ts",
+      "bytes": 12147,
+      "mode": "0o644",
+      "sha256": "277eddca5d4565c78cda35a747bc2f377b19ac6d45096e571a154b747f8da96c"
+    },
+    {
+      "path": "source/src/admin/privacyOperations.ts",
+      "bytes": 3397,
+      "mode": "0o644",
+      "sha256": "f7c4c18621602dae4328c96d2c3fac41e158d5a5dd2175a02c5b8641d2d36e1b"
+    },
+    {
+      "path": "source/src/app/App.css",
+      "bytes": 11428,
+      "mode": "0o644",
+      "sha256": "37a8b0bd62d6cedebf1444e3f8e87d765bcdd0d825ba38826fe445485d5102d4"
+    },
+    {
+      "path": "source/src/app/App.tsx",
+      "bytes": 36885,
+      "mode": "0o644",
+      "sha256": "80a436abe9a3828fd11306dfbcc6da4bf67a6a03758fabda83a5a3fa1c9a047a"
+    },
+    {
+      "path": "source/src/app/appDataProvider.ts",
+      "bytes": 9449,
+      "mode": "0o644",
+      "sha256": "901e9a154554ad6b40179cb34bd3d85cc51af3c20207698862c0e753f0e81be4"
+    },
+    {
+      "path": "source/src/app/jobData.ts",
+      "bytes": 3376,
+      "mode": "0o644",
+      "sha256": "456cea28cf82a191589cc09a3c509e2154dcfa1ab53fd0f80d04a1b5f7f0388b"
+    },
+    {
+      "path": "source/src/app/jobSearch.ts",
+      "bytes": 2683,
+      "mode": "0o644",
+      "sha256": "8127047932a175ac3af023a44df5aeb50f405de783d3c0cf23123a05600a5b93"
+    },
+    {
+      "path": "source/src/crawler/abbvieChinaRowScope.ts",
+      "bytes": 5077,
+      "mode": "0o644",
+      "sha256": "faf3185ead0e51915d7e17ed0dd7822c4b9c4b99ee4ba4da8359fe3c2fac2606"
+    },
+    {
+      "path": "source/src/crawler/adapters/completeness.ts",
+      "bytes": 2279,
+      "mode": "0o644",
+      "sha256": "3b54912b0ece4f3943fec7999eeaa58c4fafef075988c04d84003ee242843918"
+    },
+    {
+      "path": "source/src/crawler/adapters/dedupe.ts",
+      "bytes": 442,
+      "mode": "0o644",
+      "sha256": "c76e93963c2f55939cc2be5b907bdca637aaf4280b51861a5cdcee0355138b2f"
+    },
+    {
+      "path": "source/src/crawler/adapters/htmlTable.ts",
+      "bytes": 11092,
+      "mode": "0o644",
+      "sha256": "1b64e5e2450b237a82f61f6435f9508daa3cbc77c54851ef81b3f9d971b36ae4"
+    },
+    {
+      "path": "source/src/crawler/adapters/officialJson.ts",
+      "bytes": 9326,
+      "mode": "0o644",
+      "sha256": "459ef4b801bb8783abc0e2b9a5568bd996297c87cfafd14c408ff7420bd09b86"
+    },
+    {
+      "path": "source/src/crawler/adapters/reconciliation.ts",
+      "bytes": 5050,
+      "mode": "0o644",
+      "sha256": "a0fed86ad3f14e46c88894b99a55a4a524ef11f3acc258fb98a3ef72fa24664d"
+    },
+    {
+      "path": "source/src/crawler/adapters/safeAdapterValue.ts",
+      "bytes": 1169,
+      "mode": "0o644",
+      "sha256": "eed6ded4737880895ed8762f2cc4a3735ce1d1603f174e1be05663b32b42c5dc"
+    },
+    {
+      "path": "source/src/crawler/adapters/types.ts",
+      "bytes": 7243,
+      "mode": "0o644",
+      "sha256": "b6f9a261afe924836806be8919556559605f0c7e40e4b2aab9bce5acfe33eaf4"
+    },
+    {
+      "path": "source/src/crawler/amgenManualWorkdaySourceFetch.ts",
+      "bytes": 21860,
+      "mode": "0o644",
+      "sha256": "9827e5d05af21e16a52290ebf1666034ff8afdce50adc1b0514319dde9cbdc98"
+    },
+    {
+      "path": "source/src/crawler/amgenNativeSourceFetch.ts",
+      "bytes": 23730,
+      "mode": "0o644",
+      "sha256": "6b669448c7fb4fff9d99286cdda045bf918bff876726c196c9ac5507d8ad0b78"
+    },
+    {
+      "path": "source/src/crawler/artifactArchive.ts",
+      "bytes": 31316,
+      "mode": "0o644",
+      "sha256": "575a5fe0144cd443e5308d29ce25641981282a0f34b5e1beebed723cc7ff6ac1"
+    },
+    {
+      "path": "source/src/crawler/astellasPdfCityAcquisition.ts",
+      "bytes": 8814,
+      "mode": "0o644",
+      "sha256": "3cabd4577d07e5cf6e4a33fd902eaf00f3b6f9745a87ed980feee89e0da5b49f"
+    },
+    {
+      "path": "source/src/crawler/astellasPdfCityContract.ts",
+      "bytes": 1627,
+      "mode": "0o644",
+      "sha256": "20504c31302de4623ec7ec4f1636180e9ea78e395ee141c8cfc288621b7aad4c"
+    },
+    {
+      "path": "source/src/crawler/astellasPdfLocations.ts",
+      "bytes": 12635,
+      "mode": "0o644",
+      "sha256": "60c62cc800ce24663358e49954200410c9b6904156b7a40ed9365e9841bda262"
+    },
+    {
+      "path": "source/src/crawler/astraZenecaDetailAcquisition.ts",
+      "bytes": 17611,
+      "mode": "0o644",
+      "sha256": "eba50c500d7f0217a41c417fd9e1467160714abdce84a138ecc31e80a877aebb"
+    },
+    {
+      "path": "source/src/crawler/astraZenecaDetailContract.ts",
+      "bytes": 4832,
+      "mode": "0o644",
+      "sha256": "7c6dada5698a12e661bb3fd934fa96a1e846cad773290eb6a4056663b8c5f9d1"
+    },
+    {
+      "path": "source/src/crawler/astraZenecaDetails.ts",
+      "bytes": 20471,
+      "mode": "0o644",
+      "sha256": "46b268dda0a91a2325504bfd556428b2f392f6bcd2bb1daeb0c724ea6ce2d996"
+    },
+    {
+      "path": "source/src/crawler/astraZenecaLocations.ts",
+      "bytes": 5025,
+      "mode": "0o644",
+      "sha256": "21d7e832f4eb41b133bccf64f9e75cb5f013c5012ec73a02b126b8d907046a87"
+    },
+    {
+      "path": "source/src/crawler/authoritativeReleaseMembership.ts",
+      "bytes": 8820,
+      "mode": "0o644",
+      "sha256": "4954ce75d43e9cdaee616419442c58b4a5abfb95541d830326e9bfe42ec9c872"
+    },
+    {
+      "path": "source/src/crawler/bayerMokaRenderedTraversal.ts",
+      "bytes": 13645,
+      "mode": "0o644",
+      "sha256": "9e9a2915f70685003a5359fe27c6e2a37ac6bfbb76a81304d9adeceb567bd5d8"
+    },
+    {
+      "path": "source/src/crawler/bayerMokaScope.ts",
+      "bytes": 15700,
+      "mode": "0o644",
+      "sha256": "fb0c970a58ef785a914047d09e1dfd984cbc4545df8b79d76a2e0e728316a966"
+    },
+    {
+      "path": "source/src/crawler/beisenDetailDates.ts",
+      "bytes": 15538,
+      "mode": "0o644",
+      "sha256": "0e8da6d2f3d6ce9bc05425099567eb5422346cbf24e0cf7175b281b78093429c"
+    },
+    {
+      "path": "source/src/crawler/biSemanticCompleteness.ts",
+      "bytes": 12587,
+      "mode": "0o644",
+      "sha256": "b9cdb9ab89176826d6f09af5c229da684100d8038b88c0778e2015a0d9726d42"
+    },
+    {
+      "path": "source/src/crawler/biUiSemanticContract.ts",
+      "bytes": 6441,
+      "mode": "0o644",
+      "sha256": "2b12a5c87cd151a5c769d7d55edfd7e8dda82328c91f243b8a72ddc1887ba2cb"
+    },
+    {
+      "path": "source/src/crawler/biogenListGeographyGuard.ts",
+      "bytes": 10369,
+      "mode": "0o644",
+      "sha256": "dda9b23a06f84449b6329dfea4cfdcb107c0c18de9aa25d6d3b9d08f51ce1f35"
+    },
+    {
+      "path": "source/src/crawler/bmsMainlandGeography.ts",
+      "bytes": 1996,
+      "mode": "0o644",
+      "sha256": "b774f4aed0cb0dcb224579ff6cb1801088af1e36a7cea8dbe6529d3bac437a0c"
+    },
+    {
+      "path": "source/src/crawler/bmsOfficialPostedDate.ts",
+      "bytes": 2812,
+      "mode": "0o644",
+      "sha256": "8df66b7857d3f082c2be106c44a6b669f1ed92c918b0a22043d5c4e66c4b92e8"
+    },
+    {
+      "path": "source/src/crawler/browserSourceConcurrency.ts",
+      "bytes": 1131,
+      "mode": "0o644",
+      "sha256": "1eaacf993c92a4f4591fdc961c3100ae72fd30af85662b2182209282fd3fbd89"
+    },
+    {
+      "path": "source/src/crawler/cloudDbStartedPilot.ts",
+      "bytes": 6911,
+      "mode": "0o644",
+      "sha256": "42d9f7df49559f1f969aba6296c7d6c9bab226d73fb9186ed6f86f87d54cb6b3"
+    },
+    {
+      "path": "source/src/crawler/cloudPilotContext.ts",
+      "bytes": 7156,
+      "mode": "0o644",
+      "sha256": "a5281f8e4a87248cb87076eed359c79ae5ad33f3c974b98139d36efeeceb1488"
+    },
+    {
+      "path": "source/src/crawler/cloudSourcePilotRelay.ts",
+      "bytes": 13222,
+      "mode": "0o644",
+      "sha256": "06a0a626947365e241ae9d7de02e11f21496da21f4d3d8d497a6b6739f7823e6"
+    },
+    {
+      "path": "source/src/crawler/companyRecruitmentProfiles/README.md",
+      "bytes": 1349,
+      "mode": "0o644",
+      "sha256": "c8974f1c462138ca885259fcc9950a3ad7ef13c9bd9cf04d603c9c06107268e5"
+    },
+    {
+      "path": "source/src/crawler/companyRecruitmentProfiles/catalog.ts",
+      "bytes": 5125,
+      "mode": "0o644",
+      "sha256": "5dacb82323767663687ef392825a1c67d80868d32b069d69eab5463c004eeb87"
+    },
+    {
+      "path": "source/src/crawler/companyRecruitmentProfiles/index.ts",
+      "bytes": 4479,
+      "mode": "0o644",
+      "sha256": "03fca072268edade71e6c688ebc11380f401f25b058d103443903e4c05b7d7c8"
+    },
+    {
+      "path": "source/src/crawler/companyRecruitmentProfiles/profiles/3sbio.ts",
+      "bytes": 902,
+      "mode": "0o644",
+      "sha256": "6856134b71cdbb1e8129576b9298530eb610058fe54e2864b6c725cc16818a3f"
+    },
+    {
+      "path": "source/src/crawler/companyRecruitmentProfiles/profiles/abbvie-china.ts",
+      "bytes": 1613,
+      "mode": "0o644",
+      "sha256": "82ebf137cdec302bd91a46ce6b6486ee0536ee9126d466d1122da373d3c969d0"
+    },
+    {
+      "path": "source/src/crawler/companyRecruitmentProfiles/profiles/amgen-china.ts",
+      "bytes": 550,
+      "mode": "0o644",
+      "sha256": "129195c147d16544ca7d0d612858dc248b18d440643f0bbc1a6be0499073b446"
+    },
+    {
+      "path": "source/src/crawler/companyRecruitmentProfiles/profiles/apeloa.ts",
+      "bytes": 1462,
+      "mode": "0o644",
+      "sha256": "04508e6a9bd371e5adefe21d32716201ac672f9b6f33b3af6e683e55a85e7750"
+    },
+    {
+      "path": "source/src/crawler/companyRecruitmentProfiles/profiles/astellas-china.ts",
+      "bytes": 1527,
+      "mode": "0o644",
+      "sha256": "329a9f37c752f5387f04cd8a75d9bac25c3e266a75b36e271d6dc121a354d276"
+    },
+    {
+      "path": "source/src/crawler/companyRecruitmentProfiles/profiles/astrazeneca.ts",
+      "bytes": 1396,
+      "mode": "0o644",
+      "sha256": "70a2f0a6b3ca6b50d2637993ee45ee3aada75df4e49c09055348e924c896e325"
+    },
+    {
+      "path": "source/src/crawler/companyRecruitmentProfiles/profiles/bayer-healthcare.ts",
+      "bytes": 765,
+      "mode": "0o644",
+      "sha256": "4bb3db97068946369df383fb3b9acf941b5100e93cd301841f019f6bb92ea38a"
+    },
+    {
+      "path": "source/src/crawler/companyRecruitmentProfiles/profiles/biogen-china.ts",
+      "bytes": 756,
+      "mode": "0o644",
+      "sha256": "3d0e5b31b7c0b5c3596ffa94818e0a679e6834fdeeb0435c136bc8feac11cfbb"
+    },
+    {
+      "path": "source/src/crawler/companyRecruitmentProfiles/profiles/bms-china.ts",
+      "bytes": 1029,
+      "mode": "0o644",
+      "sha256": "2a3f7c4c4dba7630a7973a6662834d553ddaae758bce3bcc04c96bd36f6c7e24"
+    },
+    {
+      "path": "source/src/crawler/companyRecruitmentProfiles/profiles/boehringer-ingelheim-china.ts",
+      "bytes": 744,
+      "mode": "0o644",
+      "sha256": "b763d26f55394c7d4326382784c5717018f6f7c12bb8e43cdd9be2149d2261af"
+    },
+    {
+      "path": "source/src/crawler/companyRecruitmentProfiles/profiles/buchang.ts",
+      "bytes": 1277,
+      "mode": "0o644",
+      "sha256": "50e9e370bd2e204924f3371521083969aef82cad537f72094108746717f191d3"
+    },
+    {
+      "path": "source/src/crawler/companyRecruitmentProfiles/profiles/changchun-high-tech.ts",
+      "bytes": 213,
+      "mode": "0o644",
+      "sha256": "b30a7a5757f34961812f1664e78418ca7ecb931ce98eba705439de9079e2eb3b"
+    },
+    {
+      "path": "source/src/crawler/companyRecruitmentProfiles/profiles/cr-pharma.ts",
+      "bytes": 1075,
+      "mode": "0o644",
+      "sha256": "509063bfc21c4eb2188cd03ce9795e3c6f5471b515c96b7464d8969751e3cefb"
+    },
+    {
+      "path": "source/src/crawler/companyRecruitmentProfiles/profiles/csl-china.ts",
+      "bytes": 742,
+      "mode": "0o644",
+      "sha256": "50f62d4e009b9a50c92d07a32a23fc0aae60005150bfd3526c819e4edc914d97"
+    },
+    {
+      "path": "source/src/crawler/companyRecruitmentProfiles/profiles/cspc.ts",
+      "bytes": 716,
+      "mode": "0o644",
+      "sha256": "9629529cbf095ebfccba262a984af84711fd1cca3be0521200085a9a01b2bbcc"
+    },
+    {
+      "path": "source/src/crawler/companyRecruitmentProfiles/profiles/cttq.ts",
+      "bytes": 844,
+      "mode": "0o644",
+      "sha256": "a018380c1e2a5bfcb3343d0b1743a18f28561e75e2ae73f57c66a867dfd9cbc5"
+    },
+    {
+      "path": "source/src/crawler/companyRecruitmentProfiles/profiles/daiichi-sankyo-china.ts",
+      "bytes": 578,
+      "mode": "0o644",
+      "sha256": "0718284e71e79e1fad2570197b2abadc0b40c6fab621a53aac85a4d8132d9d7e"
+    },
+    {
+      "path": "source/src/crawler/companyRecruitmentProfiles/profiles/dongyangguang.ts",
+      "bytes": 774,
+      "mode": "0o644",
+      "sha256": "f98223f2e7acefddbc431bf47b173af1f6c5e98cf6533d534d38d5688c5d8b50"
+    },
+    {
+      "path": "source/src/crawler/companyRecruitmentProfiles/profiles/fosun-pharma.ts",
+      "bytes": 765,
+      "mode": "0o644",
+      "sha256": "4e78c13d979a857061ba441769776684bd5d166f9336e10e19ddac738b1b9783"
+    },
+    {
+      "path": "source/src/crawler/companyRecruitmentProfiles/profiles/gilead-china.ts",
+      "bytes": 760,
+      "mode": "0o644",
+      "sha256": "250e64b4029c048210f7d7d712a0fb2514e22ca26f702ecdc969ba2567068769"
+    },
+    {
+      "path": "source/src/crawler/companyRecruitmentProfiles/profiles/gphl.ts",
+      "bytes": 183,
+      "mode": "0o644",
+      "sha256": "e946a6e2cc86254cff1264f0a80f593a83e5e8c1f799dccae56a43acf6243321"
+    },
+    {
+      "path": "source/src/crawler/companyRecruitmentProfiles/profiles/grand-pharma.ts",
+      "bytes": 1309,
+      "mode": "0o644",
+      "sha256": "179b55709d61cd89b892d092968f2323112dc3ccb2f8b956e6bf3d56aa9cb241"
+    },
+    {
+      "path": "source/src/crawler/companyRecruitmentProfiles/profiles/grifols-china.ts",
+      "bytes": 853,
+      "mode": "0o644",
+      "sha256": "be08056ad38822393040c3abd63402773bf37174639f25254d830b4326387b23"
+    },
+    {
+      "path": "source/src/crawler/companyRecruitmentProfiles/profiles/gsk-china.ts",
+      "bytes": 933,
+      "mode": "0o644",
+      "sha256": "0dda4d9fceb3b5f7d441c13bba3702602abfb0ca78adcf240994457a002b7aa6"
+    },
+    {
+      "path": "source/src/crawler/companyRecruitmentProfiles/profiles/hansoh.ts",
+      "bytes": 1003,
+      "mode": "0o644",
+      "sha256": "54490394bea55fa17279dcbc650a9c4079ac7520bb4611dda8e894ad205e2ee2"
+    },
+    {
+      "path": "source/src/crawler/companyRecruitmentProfiles/profiles/hengrui.ts",
+      "bytes": 770,
+      "mode": "0o644",
+      "sha256": "918e34bf5fe54e308796741284b1fcfb6952e6c272c292765e45947fffe0c91a"
+    },
+    {
+      "path": "source/src/crawler/companyRecruitmentProfiles/profiles/huahai.ts",
+      "bytes": 1275,
+      "mode": "0o644",
+      "sha256": "ffa8ce569c577695480cc7ee1d4dba647cf66d286a88e04e3b2bbf1c1f91b038"
+    },
+    {
+      "path": "source/src/crawler/companyRecruitmentProfiles/profiles/humanwell.ts",
+      "bytes": 193,
+      "mode": "0o644",
+      "sha256": "b959514c667abd838c9a59ab2405248208e26e645d002de6975492dddccf7bba"
+    },
+    {
+      "path": "source/src/crawler/companyRecruitmentProfiles/profiles/jimin-kexin.ts",
+      "bytes": 697,
+      "mode": "0o644",
+      "sha256": "10382ec40faebede78c9c5dc6cbfdbad1ab57c5b744b195cd12e7d9980e19009"
+    },
+    {
+      "path": "source/src/crawler/companyRecruitmentProfiles/profiles/johnson-innovative-medicine.ts",
+      "bytes": 761,
+      "mode": "0o644",
+      "sha256": "59571566a4d4acff470c5e3d0435eba3508294560e01b5b9bf1b2a60e67997cd"
+    },
+    {
+      "path": "source/src/crawler/companyRecruitmentProfiles/profiles/kelun.ts",
+      "bytes": 1371,
+      "mode": "0o644",
+      "sha256": "671f677dba18397df38982210471127a1528ccc30bc15ef15ea3992ea7fe7772"
+    },
+    {
+      "path": "source/src/crawler/companyRecruitmentProfiles/profiles/lilly-china.ts",
+      "bytes": 1051,
+      "mode": "0o644",
+      "sha256": "2d75305eb5ce7699a035edbd538621a929e44dc51793459c8240b2bc1bbdb6d7"
+    },
+    {
+      "path": "source/src/crawler/companyRecruitmentProfiles/profiles/livzon.ts",
+      "bytes": 2707,
+      "mode": "0o644",
+      "sha256": "42c904443ba733627e5812670de9cf6ba1ddd59c4412141f20808f66ed8dfc0c"
+    },
+    {
+      "path": "source/src/crawler/companyRecruitmentProfiles/profiles/lunan.ts",
+      "bytes": 837,
+      "mode": "0o644",
+      "sha256": "37f6e7ffd42f98666856521377a2cac28fef2020431a0c9b210c87f10208cadb"
+    },
+    {
+      "path": "source/src/crawler/companyRecruitmentProfiles/profiles/merck-china.ts",
+      "bytes": 1026,
+      "mode": "0o644",
+      "sha256": "9f1f82ec1566064bae280a8758dba77b787c0f81dfdaecd5578aad851f5a8671"
+    },
+    {
+      "path": "source/src/crawler/companyRecruitmentProfiles/profiles/msd-china.ts",
+      "bytes": 698,
+      "mode": "0o644",
+      "sha256": "78382684bb38bf9181de4385f69222f2784db58d490231b09c2da611241a5621"
+    },
+    {
+      "path": "source/src/crawler/companyRecruitmentProfiles/profiles/nhu.ts",
+      "bytes": 806,
+      "mode": "0o644",
+      "sha256": "7aefe3a2e8fadbbae4163b116b12f31d13e361bdd752e19d39ae464930c6b00d"
+    },
+    {
+      "path": "source/src/crawler/companyRecruitmentProfiles/profiles/north-china-pharma.ts",
+      "bytes": 211,
+      "mode": "0o644",
+      "sha256": "ed8139b785127844b647a07b7ee922310bcd43f3f3e3e8fd58f4b468f53f1db3"
+    },
+    {
+      "path": "source/src/crawler/companyRecruitmentProfiles/profiles/novartis.ts",
+      "bytes": 1615,
+      "mode": "0o644",
+      "sha256": "3f6cd7d07af0589dbec06eaed83b088fd80009925f009e477e320f43b5fa903d"
+    },
+    {
+      "path": "source/src/crawler/companyRecruitmentProfiles/profiles/novo-nordisk-china.ts",
+      "bytes": 855,
+      "mode": "0o644",
+      "sha256": "9827c94f88b9729a9774850105135380992137b75c081ed5a9600ab7790c17de"
+    },
+    {
+      "path": "source/src/crawler/companyRecruitmentProfiles/profiles/organon-china.ts",
+      "bytes": 1241,
+      "mode": "0o644",
+      "sha256": "a4db0b1250b1523309655dcfc0a119028e55cd899e0a98e0314f26d0721fd9a1"
+    },
+    {
+      "path": "source/src/crawler/companyRecruitmentProfiles/profiles/otsuka-china.ts",
+      "bytes": 1396,
+      "mode": "0o644",
+      "sha256": "88d3fe8719e231081ba153bed9db9424794de48fc66678fb3150e2dd96af8abd"
+    },
+    {
+      "path": "source/src/crawler/companyRecruitmentProfiles/profiles/pfizer-china.ts",
+      "bytes": 1015,
+      "mode": "0o644",
+      "sha256": "6294d0cfbaca1ba6176507a7634d089dc1ef7817d5e00658200117f6115ac776"
+    },
+    {
+      "path": "source/src/crawler/companyRecruitmentProfiles/profiles/qilu.ts",
+      "bytes": 480,
+      "mode": "0o644",
+      "sha256": "0421812f58fe97ad7adfeb03f0510262206b0032114ec1f95f0510db7c01de5d"
+    },
+    {
+      "path": "source/src/crawler/companyRecruitmentProfiles/profiles/roche-china.ts",
+      "bytes": 1367,
+      "mode": "0o644",
+      "sha256": "214faa71496c01657082abf12419b4a2db82d0f609095f4aa73be02b3480c835"
+    },
+    {
+      "path": "source/src/crawler/companyRecruitmentProfiles/profiles/sandoz-china.ts",
+      "bytes": 1360,
+      "mode": "0o644",
+      "sha256": "e04bf3e7d4da784779e738d9e60efa9cc53b7d258d856b66c46ead77be9da302"
+    },
+    {
+      "path": "source/src/crawler/companyRecruitmentProfiles/profiles/sanofi-china.ts",
+      "bytes": 1627,
+      "mode": "0o644",
+      "sha256": "85726d745ac7032d0b7ed2028a3bab30cb62bccb626c75f185167ec721435008"
+    },
+    {
+      "path": "source/src/crawler/companyRecruitmentProfiles/profiles/servier-china.ts",
+      "bytes": 1069,
+      "mode": "0o644",
+      "sha256": "522fdfb57dcdd5b87a3b4101b28127c0d9371244141107da6d4b127667cb6deb"
+    },
+    {
+      "path": "source/src/crawler/companyRecruitmentProfiles/profiles/shanghai-pharma.ts",
+      "bytes": 896,
+      "mode": "0o644",
+      "sha256": "c0d4e5a7c1ec6be78001f7cce0f4f7936eda3e7a60e99f7f85b89180ac20f054"
+    },
+    {
+      "path": "source/src/crawler/companyRecruitmentProfiles/profiles/sinopharm.ts",
+      "bytes": 1614,
+      "mode": "0o644",
+      "sha256": "92757f4b02fea996b571a05219ee50f000e37e0781345c548b6a633d2f206039"
+    },
+    {
+      "path": "source/src/crawler/companyRecruitmentProfiles/profiles/takeda-china.ts",
+      "bytes": 1254,
+      "mode": "0o644",
+      "sha256": "6fb6a9ae83d3e58a97d9e7ab471845147947662d0a3b9954c20de1ae07debbd8"
+    },
+    {
+      "path": "source/src/crawler/companyRecruitmentProfiles/profiles/teva-china.ts",
+      "bytes": 895,
+      "mode": "0o644",
+      "sha256": "df6deae067538ea22c752dc4b298d4ddad7591b8367930c3300ec23ef2f9e05f"
+    },
+    {
+      "path": "source/src/crawler/companyRecruitmentProfiles/profiles/tianjin-pharma.ts",
+      "bytes": 700,
+      "mode": "0o644",
+      "sha256": "50950effb5db871304d113c027acfd09746ae00d89ba766fd0588f11a6e6daf5"
+    },
+    {
+      "path": "source/src/crawler/companyRecruitmentProfiles/profiles/tongrentang.ts",
+      "bytes": 1291,
+      "mode": "0o644",
+      "sha256": "c2b627478b24121ad0d55c247a2d726f961a2d9c09153f61f6bb9926747b7867"
+    },
+    {
+      "path": "source/src/crawler/companyRecruitmentProfiles/profiles/ucb-china.ts",
+      "bytes": 966,
+      "mode": "0o644",
+      "sha256": "fa59aaf0f2ffd764a83c790c4c667394d602a037fed3d6b8dc47d1418f75a45c"
+    },
+    {
+      "path": "source/src/crawler/companyRecruitmentProfiles/profiles/united-lab.ts",
+      "bytes": 890,
+      "mode": "0o644",
+      "sha256": "ae406c4b2f99f208bb3378c6597af6ca57b6c7420aa16969f0d8f28d6460bcf2"
+    },
+    {
+      "path": "source/src/crawler/companyRecruitmentProfiles/profiles/viatris.ts",
+      "bytes": 1277,
+      "mode": "0o644",
+      "sha256": "b822b0535f1ff5972e39e0d36f2abc639ca56f877cc21c1c6e3f6cbb96c4a816"
+    },
+    {
+      "path": "source/src/crawler/companyRecruitmentProfiles/profiles/xinhua-pharma.ts",
+      "bytes": 729,
+      "mode": "0o644",
+      "sha256": "b6939c8ac9a6ef882cedbb2d5b9969761f7b6442d2e0bbfaed13a36dfeb11bdb"
+    },
+    {
+      "path": "source/src/crawler/companyRecruitmentProfiles/profiles/xiuzheng.ts",
+      "bytes": 828,
+      "mode": "0o644",
+      "sha256": "1379de2699ee9325b8ee22ff94dad63e4334a1ee531cc47aec9c94a6ca6bef99"
+    },
+    {
+      "path": "source/src/crawler/companyRecruitmentProfiles/profiles/yangzijiang.ts",
+      "bytes": 738,
+      "mode": "0o644",
+      "sha256": "16e64a581d418696aa90a7688b1db502384e028e90ae8878f03251c1ffb6a020"
+    },
+    {
+      "path": "source/src/crawler/companyRecruitmentProfiles/shared.ts",
+      "bytes": 1931,
+      "mode": "0o644",
+      "sha256": "3c0216fac95c49a19a40e82e0f4f1f63f1b1e7c923f86d42b0e05860fbd9863d"
+    },
+    {
+      "path": "source/src/crawler/companyRecruitmentProfiles/types.ts",
+      "bytes": 4822,
+      "mode": "0o644",
+      "sha256": "4c41a91fbafa0b5a56b55529ca38a001b6486f13d1e7d9622f2820ffcf0a74e2"
+    },
+    {
+      "path": "source/src/crawler/completenessAnomalyPolicy.ts",
+      "bytes": 12794,
+      "mode": "0o644",
+      "sha256": "ca58a779b0d4f673f8a76657e17db0d71aef9a65533bdbe37128800e99909ff7"
+    },
+    {
+      "path": "source/src/crawler/completenessCertificate.ts",
+      "bytes": 24688,
+      "mode": "0o644",
+      "sha256": "6dcf1ca30aa2f6b8d3f7b4079147010dd63c5718c52dc8a83269f97dfe6a18be"
+    },
+    {
+      "path": "source/src/crawler/crawlAttemptEvidence.ts",
+      "bytes": 16875,
+      "mode": "0o644",
+      "sha256": "adb9ec4fc24cd34effc3c3aad0955100f1b31b6b831bdb54450a01f66162bb70"
+    },
+    {
+      "path": "source/src/crawler/crawlAttemptOrchestration.ts",
+      "bytes": 3471,
+      "mode": "0o644",
+      "sha256": "205795087d9c7df9dc8608dda705abaa0f30e5104466a8c395fbfc0fb25f19f1"
+    },
+    {
+      "path": "source/src/crawler/crawlSummary.ts",
+      "bytes": 21440,
+      "mode": "0o644",
+      "sha256": "27590ee57f3c8b49f822b3ab81844b004fd9668cfb33500864ff10e95cc987f5"
+    },
+    {
+      "path": "source/src/crawler/currentWorkerCapture.ts",
+      "bytes": 2633,
+      "mode": "0o644",
+      "sha256": "17a24619380e264d9f6ac01f75d969a56c785ea1d7d98803c18aa29b67f979bd"
+    },
+    {
+      "path": "source/src/crawler/exactSourceDiagnostic.ts",
+      "bytes": 13921,
+      "mode": "0o644",
+      "sha256": "2c5ee156d38cb43e00156a3818fafc32f20db791284d1685c7777389b24e74ca"
+    },
+    {
+      "path": "source/src/crawler/formalAdvisoryLock.ts",
+      "bytes": 2707,
+      "mode": "0o644",
+      "sha256": "388ae276d4a61e0552a4c42156731c24b5f645bc2625416bb228a90694f9ab30"
+    },
+    {
+      "path": "source/src/crawler/formalCleanup.ts",
+      "bytes": 453,
+      "mode": "0o644",
+      "sha256": "705ca3b799d3517924669fb941e6aa7d25c49d61d4a27360702397571cb4ad49"
+    },
+    {
+      "path": "source/src/crawler/formalCrawlLock.ts",
+      "bytes": 4658,
+      "mode": "0o644",
+      "sha256": "e22cef6e44a3363397fb3e168c1f6c96824ac6c540dea925d32f77e40e51cfcb"
+    },
+    {
+      "path": "source/src/crawler/fosunScopeGeography.ts",
+      "bytes": 7006,
+      "mode": "0o644",
+      "sha256": "8fcbb6c0f9e3ea16b79874a0e4fc5af0098ca7621390efb842bf347fb779e171"
+    },
+    {
+      "path": "source/src/crawler/gileadPublicAge.ts",
+      "bytes": 5079,
+      "mode": "0o644",
+      "sha256": "0a08b3ef16c5e0785c3a8787d0340179cdab766a92c8542b16e03d8dad0e5b0b"
+    },
+    {
+      "path": "source/src/crawler/grifolsChinaSourceFetch.ts",
+      "bytes": 30532,
+      "mode": "0o644",
+      "sha256": "70e1273617e5349ccb91988c383da8f51143ecd25a942170d3f1fd7ee3b3b8d1"
+    },
+    {
+      "path": "source/src/crawler/grifolsOfficialPostedDate.ts",
+      "bytes": 1734,
+      "mode": "0o644",
+      "sha256": "de37884f4a52b03f4cbb11daa7bf16010dc2ad5ad608b5a2fa3e9a70244ef134"
+    },
+    {
+      "path": "source/src/crawler/hansohNativeWindowEvidence.ts",
+      "bytes": 11560,
+      "mode": "0o644",
+      "sha256": "6df9e19ecc860f90f8da77c292857bc5faae88b565aff0ccd93bc843193e9fe8"
+    },
+    {
+      "path": "source/src/crawler/hengruiMainlandGeography.ts",
+      "bytes": 7226,
+      "mode": "0o644",
+      "sha256": "c576f2762cba1d35f98e5f080348a21ecb69ebc0c672350d3af08774db86c0cb"
+    },
+    {
+      "path": "source/src/crawler/hotjobEvidence.ts",
+      "bytes": 9583,
+      "mode": "0o644",
+      "sha256": "e3f305339b889b800fbb2b86c7d2294fa4d06fed9c711bca4d822ce7e5e76f34"
+    },
+    {
+      "path": "source/src/crawler/hotjobLegacySourceFetch.ts",
+      "bytes": 29949,
+      "mode": "0o644",
+      "sha256": "bce3fe94c4b3ed37298d1542ee7fe01ff2019856de09268a7a880b13a47d31f2"
+    },
+    {
+      "path": "source/src/crawler/hotjobWecruitSourceFetch.ts",
+      "bytes": 20891,
+      "mode": "0o644",
+      "sha256": "c008671f9b82b8e42f238a4f89e9cf9cdcbffab8cf4716623f3f7da4afa018c1"
+    },
+    {
+      "path": "source/src/crawler/htmlTableRows.ts",
+      "bytes": 848,
+      "mode": "0o644",
+      "sha256": "5279e07cb076da569f963f23577c07eefee51bdc7e2fba7caabbf9ac92a01167"
+    },
+    {
+      "path": "source/src/crawler/httpHtmlSourceFetch.ts",
+      "bytes": 71927,
+      "mode": "0o644",
+      "sha256": "7cdb5fdfafcb315bcd5934c3443f1ed2b26c4c296c05cbaeacd56f6700eb88a6"
+    },
+    {
+      "path": "source/src/crawler/independentOracleMigration.ts",
+      "bytes": 14596,
+      "mode": "0o644",
+      "sha256": "9535bb70c5dc65761c0e15b4665f85d7811e7a96f8cf38eb16131bbf54b723f9"
+    },
+    {
+      "path": "source/src/crawler/independentSourceSurfaceOracle.ts",
+      "bytes": 27706,
+      "mode": "0o644",
+      "sha256": "f6612e5287f1b642fa48109a5004d605457a8cc6d3bd8ed2bf769d656b371f1c"
+    },
+    {
+      "path": "source/src/crawler/independentTraversalDiagnostics.ts",
+      "bytes": 7076,
+      "mode": "0o644",
+      "sha256": "ff0b2a25f95cc1a521d2e90c833df8c8108581c1cb80c3628964f9221f81fb11"
+    },
+    {
+      "path": "source/src/crawler/ingestion.ts",
+      "bytes": 1455,
+      "mode": "0o644",
+      "sha256": "270823d58d9a61c2f11497e56f53116eda019c4952493fb8ff6565f869721987"
+    },
+    {
+      "path": "source/src/crawler/initialQualificationPauseBundle.ts",
+      "bytes": 3837,
+      "mode": "0o644",
+      "sha256": "14c310a720c0c230cc49656e32caf36f00c0d3f6c9728123393bd02cefe080ba"
+    },
+    {
+      "path": "source/src/crawler/initialQualificationPauseCandidate.ts",
+      "bytes": 3740,
+      "mode": "0o644",
+      "sha256": "145cddcdd05ebe71bd296bc49c5e125892b6faeb0d3b2be856d7de2f70df1d3d"
+    },
+    {
+      "path": "source/src/crawler/initialQualificationPauseEvidence.ts",
+      "bytes": 10297,
+      "mode": "0o644",
+      "sha256": "b8034219cb78c10e7019f5c89dcb4dbc3bd816775d582ca452f07e8062eb4358"
+    },
+    {
+      "path": "source/src/crawler/isolatedBGradeTraversalValidator.ts",
+      "bytes": 9342,
+      "mode": "0o644",
+      "sha256": "b0c2ad0a0d7d64bd7c0d0bf24df4cad3314a2a3bfd27e93436c747329c2ac295"
+    },
+    {
+      "path": "source/src/crawler/jnjCareersChinaSourceFetch.ts",
+      "bytes": 28995,
+      "mode": "0o644",
+      "sha256": "89bd6c66ee6ba0b337fb2d385963d9573a339a28972cc5a367c386a138dbb7fb"
+    },
+    {
+      "path": "source/src/crawler/jnjCareersDomContract.ts",
+      "bytes": 1763,
+      "mode": "0o644",
+      "sha256": "2fa3c8afd770d176b2d0ffdc653025607cc93e9a431b5f471af74684c523d29b"
+    },
+    {
+      "path": "source/src/crawler/jnjCareersDomEvidence.ts",
+      "bytes": 15904,
+      "mode": "0o644",
+      "sha256": "f0fc4945ce3df996c5e086479931d9325c5f979fe37711b504bbf47e6d2816ce"
+    },
+    {
+      "path": "source/src/crawler/lifecycle.ts",
+      "bytes": 6389,
+      "mode": "0o644",
+      "sha256": "435dfb0b65c92f77ae2697efaaeb81dd169cf9fd68629d25e3938d5a2c9a93f2"
+    },
+    {
+      "path": "source/src/crawler/lillyChinaQuality.ts",
+      "bytes": 22089,
+      "mode": "0o644",
+      "sha256": "1a0716695ca5ec29d34d76425963c3c4a47ef42c67e5737dca369620f0a2818d"
+    },
+    {
+      "path": "source/src/crawler/livzonCeccEvidenceVerifier.ts",
+      "bytes": 24474,
+      "mode": "0o644",
+      "sha256": "c45b5d43bf176b6ff30cec7efd01b28168eba80094743a2714acd122642eb418"
+    },
+    {
+      "path": "source/src/crawler/livzonCeccSourceFetch.ts",
+      "bytes": 28458,
+      "mode": "0o644",
+      "sha256": "1ccdb6c5795b5af5864ffe58c1cf61e07feaaf7f3db397ea6e994a93d3f7cc96"
+    },
+    {
+      "path": "source/src/crawler/manualChromeCaptureEvidence.ts",
+      "bytes": 9902,
+      "mode": "0o644",
+      "sha256": "a29c6220847d5057218ce2a4b58de10d98ae463a719ac4eaea8e21658dc80dbb"
+    },
+    {
+      "path": "source/src/crawler/manualChromeCspcReplay.ts",
+      "bytes": 8328,
+      "mode": "0o644",
+      "sha256": "a8d5140c7a8bfbdf13a111f54439aec60786c2fde3c679b7d9aa76e185212d8c"
+    },
+    {
+      "path": "source/src/crawler/manualChromeQiluReplay.ts",
+      "bytes": 10379,
+      "mode": "0o644",
+      "sha256": "92ffb0055995753c3a292de31c07d7fbc49ee0bc043337d590f27b3cf438fb3b"
+    },
+    {
+      "path": "source/src/crawler/manualCrawlWorker.ts",
+      "bytes": 7931,
+      "mode": "0o644",
+      "sha256": "1c8af9d4380ec38808ef9f4e745e1b142923d61109367a9bda4940aba479424f"
+    },
+    {
+      "path": "source/src/crawler/manualCrawlWorkerCli.ts",
+      "bytes": 508,
+      "mode": "0o644",
+      "sha256": "906a862362d7735f4a3c6d2f81ba30ef802ae51ba11fe341f00fe762669b5b4f"
+    },
+    {
+      "path": "source/src/crawler/manualSourceBatchExecutor.ts",
+      "bytes": 2619,
+      "mode": "0o644",
+      "sha256": "eeff898e6f0799bbff0f0f6479a1465452e9e71b49d02ebaaae6effc8a43cd8e"
+    },
+    {
+      "path": "source/src/crawler/merckChinaQuality.ts",
+      "bytes": 11449,
+      "mode": "0o644",
+      "sha256": "ccf05fdcd9a522ac7e6658b5fdbd345d4bc2dc33e65301acf1b40a311d7a7ea4"
+    },
+    {
+      "path": "source/src/crawler/mokaSourceFetch.ts",
+      "bytes": 62902,
+      "mode": "0o644",
+      "sha256": "eea01769928fe807055951e225210fbd71df7b52fbbf1225615d4994c13a6e3a"
+    },
+    {
+      "path": "source/src/crawler/monitoringReleaseIdentity.ts",
+      "bytes": 9462,
+      "mode": "0o644",
+      "sha256": "1bb53284ea248c20d004174b841eefdc3a793722d447364498706b1571ff2ce9"
+    },
+    {
+      "path": "source/src/crawler/msdAjingaSourceFetch.ts",
+      "bytes": 18353,
+      "mode": "0o644",
+      "sha256": "e41ca1fb4cdc53e10e9cb2700aa8a0f451acb7d52bbd88624ac425bdb52f0b45"
+    },
+    {
+      "path": "source/src/crawler/msdDualOfficialSourceFetch.ts",
+      "bytes": 70326,
+      "mode": "0o644",
+      "sha256": "79d6a92591d3022d49fa386b0073386de391c79f3f7c15ecb0035eee689bd311"
+    },
+    {
+      "path": "source/src/crawler/normalizedJob.ts",
+      "bytes": 2918,
+      "mode": "0o644",
+      "sha256": "9076d9b633e196a4037fedbe400610678c3c32337892378dc1f9c2af725fa7e4"
+    },
+    {
+      "path": "source/src/crawler/novartisOfficialPresence.ts",
+      "bytes": 13652,
+      "mode": "0o644",
+      "sha256": "1b8ede76ff08cf0e255e5c072cead244e79de5824171e7e18abfbdaf2243092b"
+    },
+    {
+      "path": "source/src/crawler/novoChinaQuality.ts",
+      "bytes": 15951,
+      "mode": "0o644",
+      "sha256": "2f9692fb2973171f1113beb1bb573927e8398a4391199360acffc8a8267b80bb"
+    },
+    {
+      "path": "source/src/crawler/officialHttpProxyRuntime.ts",
+      "bytes": 1576,
+      "mode": "0o644",
+      "sha256": "9a99c75cac1e78a83d04e36c13727e5c14ea3c820688c126f0c7f621b582cfd0"
+    },
+    {
+      "path": "source/src/crawler/officialHttpRequestDiagnostics.ts",
+      "bytes": 5711,
+      "mode": "0o644",
+      "sha256": "8a371038039d1d9090d48bfc1802289a5395b900edb315b7db44365e8c3c443a"
+    },
+    {
+      "path": "source/src/crawler/officialHttpRuntimeLimits.ts",
+      "bytes": 10705,
+      "mode": "0o644",
+      "sha256": "446e8bc7d142524502df73f72e30918695b6e70d298d6e53b9e7e0383ea8874d"
+    },
+    {
+      "path": "source/src/crawler/officialJsonEvidence.ts",
+      "bytes": 18419,
+      "mode": "0o644",
+      "sha256": "ca0dd0116da6edd357ea9d9310128ce96936a3929bb4089a5696dac9cc9df26b"
+    },
+    {
+      "path": "source/src/crawler/officialJsonRenderedTraversalValidator.ts",
+      "bytes": 52514,
+      "mode": "0o644",
+      "sha256": "5b54d90b3263574dcd5a7df60c6c64ddc1b215231f13b454c6ae2442f3f63f36"
+    },
+    {
+      "path": "source/src/crawler/officialJsonSourceFetch.ts",
+      "bytes": 405107,
+      "mode": "0o644",
+      "sha256": "d132a53f6a10fae1a3c566c33359c0532b9f9c9cac85226bd0c7f1b708ed051f"
+    },
+    {
+      "path": "source/src/crawler/organonChinaQuality.ts",
+      "bytes": 13808,
+      "mode": "0o644",
+      "sha256": "ee6d782e0f171145891e8be774756451060e6059b031bd428e1629d7a9c45642"
+    },
+    {
+      "path": "source/src/crawler/organonOfficialPostedDate.ts",
+      "bytes": 4557,
+      "mode": "0o644",
+      "sha256": "96a2bc9685c8cd7ed9af3ac1f55cde9c9ad081989e2747f09c03bd300f4262e0"
+    },
+    {
+      "path": "source/src/crawler/p0CrawlCommand.ts",
+      "bytes": 8559,
+      "mode": "0o644",
+      "sha256": "264afea3864dd91fa78af2976a459eec098e55db7fa3d47b22ba431bdaeb4006"
+    },
+    {
+      "path": "source/src/crawler/paginationEvidence.ts",
+      "bytes": 26268,
+      "mode": "0o644",
+      "sha256": "86bf548a451937244ff3a8a10d03265809850985db6a35f3f9b6277da0bf76db"
+    },
+    {
+      "path": "source/src/crawler/pfizerOfficialLocalities.ts",
+      "bytes": 4980,
+      "mode": "0o644",
+      "sha256": "161b412456a7b5ed9716513dfcbab95596573f91fec9c0d24c6a0243e28890b2"
+    },
+    {
+      "path": "source/src/crawler/pfizerRenderedTraversal.ts",
+      "bytes": 16003,
+      "mode": "0o644",
+      "sha256": "a360e25209ec53beea72e6c787d90930a15dfe06ab6244e17eb80d09d4a6dd1a"
+    },
+    {
+      "path": "source/src/crawler/pfizerWorkdayTraversal.ts",
+      "bytes": 22874,
+      "mode": "0o644",
+      "sha256": "5ed1f2cfc09424833531e684bad92feccf0f8309b8e70c2e452c8ad7f2aa1796"
+    },
+    {
+      "path": "source/src/crawler/phenomOfficialPostedDate.ts",
+      "bytes": 1465,
+      "mode": "0o644",
+      "sha256": "f1bb93ac8ae2d2b135945adb9b2720557efc3461b3057cee7dc13cc576e35988"
+    },
+    {
+      "path": "source/src/crawler/planBoundHtmlTraversalValidator.ts",
+      "bytes": 66951,
+      "mode": "0o644",
+      "sha256": "a7ee5fd8e03f8774502fb155334bdf45a0251592f67485ef153fe0afdc79bd66"
+    },
+    {
+      "path": "source/src/crawler/portableCrawlLease.ts",
+      "bytes": 8300,
+      "mode": "0o644",
+      "sha256": "cc5c561e11d96fac635856769dc1c4ac22c7715e15ddb3759f44d47e99fcadf1"
+    },
+    {
+      "path": "source/src/crawler/portableRuntimeDiagnostics.ts",
+      "bytes": 1968,
+      "mode": "0o644",
+      "sha256": "5e1352882f4c74f281943ac82f9e732541863548e8c9779ecace9d848c0d6a6a"
+    },
+    {
+      "path": "source/src/crawler/portableScheduledCrawl.ts",
+      "bytes": 3701,
+      "mode": "0o644",
+      "sha256": "5a03371c3953ae83bf4d40c505b369e0c0e39f31f2fcbd19087aa120544d6b58"
+    },
+    {
+      "path": "source/src/crawler/profileBoundSourceEvidence.ts",
+      "bytes": 10189,
+      "mode": "0o644",
+      "sha256": "79289f6b7ea7e91610a9557ac9678d127e958e11272aa114fc5228bfe31f8a55"
+    },
+    {
+      "path": "source/src/crawler/profileBoundSourceFetch.ts",
+      "bytes": 2196,
+      "mode": "0o644",
+      "sha256": "7998385bae469b7a7e434ee35d8f273f30889e60b36274187dd99689ea16ebc3"
+    },
+    {
+      "path": "source/src/crawler/qiluDualPartitionConfig.ts",
+      "bytes": 696,
+      "mode": "0o644",
+      "sha256": "aa68ce3857695613cfae68bb95f51449b90b7049f000f7e1fe20f0fc2216b071"
+    },
+    {
+      "path": "source/src/crawler/qiluDualPartitionMainCapture.ts",
+      "bytes": 9487,
+      "mode": "0o644",
+      "sha256": "f126291407a84e530017a858f5fb7297f8cbf5b315b5938c62e55dd4305ce8bb"
+    },
+    {
+      "path": "source/src/crawler/qiluDualPartitionSourceFetch.ts",
+      "bytes": 18444,
+      "mode": "0o644",
+      "sha256": "1635bd3f5c0b2e3e64156523e59fdb7c4353ba73ad24495777ea8dc92597b745"
+    },
+    {
+      "path": "source/src/crawler/qiluRenderedTraversalValidator.ts",
+      "bytes": 10031,
+      "mode": "0o644",
+      "sha256": "287099b01cfc9556196722f06b0f6fc6016670ead56937816b9ba203d2a315db"
+    },
+    {
+      "path": "source/src/crawler/redseaCandidateScope.ts",
+      "bytes": 8220,
+      "mode": "0o644",
+      "sha256": "9d8cfb2df814130782ee7c4500ccce7ae170fd72707f9b684197663c85e889ed"
+    },
+    {
+      "path": "source/src/crawler/releaseMembershipAuthority.ts",
+      "bytes": 2292,
+      "mode": "0o644",
+      "sha256": "a5a62d57106f7a912c1b2c3093461f52d9a0c36ab04ae6d6ab96f603a276d8fd"
+    },
+    {
+      "path": "source/src/crawler/reviewerSignatureCore.ts",
+      "bytes": 3795,
+      "mode": "0o644",
+      "sha256": "562145a5409629ab55ee1b56d4c138dbb8529ca44f32475ec879cae94182a402"
+    },
+    {
+      "path": "source/src/crawler/reviewerSignatureTrust.ts",
+      "bytes": 1093,
+      "mode": "0o644",
+      "sha256": "f40a776276811c52770d903044bf1b7974c471bde17dd7178e1704424da8e74b"
+    },
+    {
+      "path": "source/src/crawler/rocheChinaQuality.ts",
+      "bytes": 5917,
+      "mode": "0o644",
+      "sha256": "210e442ce0b46cfbc01f1a1717672f85195f174f38b029831ea628f8ab0c9833"
+    },
+    {
+      "path": "source/src/crawler/runCrawlBatch.ts",
+      "bytes": 51620,
+      "mode": "0o644",
+      "sha256": "eea47ce762ae619a25c372d35cfaee85c289ba53b506419d3cc572a43e6f401b"
+    },
+    {
+      "path": "source/src/crawler/runSourceCrawl.ts",
+      "bytes": 262272,
+      "mode": "0o644",
+      "sha256": "8dd5c8497bf4c5ee878e26db3ef40cf1bd6510dcc4b8ea117ba82a8b8ecbed93"
+    },
+    {
+      "path": "source/src/crawler/runtimeAtomicEvidence.ts",
+      "bytes": 41712,
+      "mode": "0o644",
+      "sha256": "1e5ba12f073781f3506114c234bf8916b8d6f5c39b6345647018cbe231036e76"
+    },
+    {
+      "path": "source/src/crawler/runtimeBatchIdentity.ts",
+      "bytes": 4188,
+      "mode": "0o644",
+      "sha256": "81485e7d021984da07d2fc78cfeb4733ce75d9affad88a376168fcf8c0201c6c"
+    },
+    {
+      "path": "source/src/crawler/sanofiNativeQuality.ts",
+      "bytes": 24507,
+      "mode": "0o644",
+      "sha256": "b0517fddb5824c86f2b8d0d51efb6852f7999d8148140abf459ae531fc86a8b6"
+    },
+    {
+      "path": "source/src/crawler/schedule.ts",
+      "bytes": 3735,
+      "mode": "0o644",
+      "sha256": "1f176c39577843db3d27ba8dba44bf4c6f3bdc5ef465a280511df2d5bb7f567e"
+    },
+    {
+      "path": "source/src/crawler/servierMokaRenderedTraversal.ts",
+      "bytes": 15657,
+      "mode": "0o644",
+      "sha256": "95a601d54ddc82b6a7fe130418e920da1127266007ec11c0eb02d98f5d45b473"
+    },
+    {
+      "path": "source/src/crawler/servierMokaScope.ts",
+      "bytes": 18747,
+      "mode": "0o644",
+      "sha256": "402f9dd8f7841fd83074de667ea3ff9c9719048ef9b942f33e7725ca4a5f4df1"
+    },
+    {
+      "path": "source/src/crawler/sinopharmIguopinSourceFetch.ts",
+      "bytes": 41628,
+      "mode": "0o644",
+      "sha256": "38eb5873cd9ea73deea57a2abd47cc83f276be69b5bd891575eaf9f740fae918"
+    },
+    {
+      "path": "source/src/crawler/sourceDiscovery.ts",
+      "bytes": 1659,
+      "mode": "0o644",
+      "sha256": "f2aec8f249afe372ea1e34fa9b09b9e0f853a3048a616c0a63375cac658c6d3a"
+    },
+    {
+      "path": "source/src/crawler/sourceFailureDiagnostics.ts",
+      "bytes": 11109,
+      "mode": "0o644",
+      "sha256": "f989fad78b5b28ce2fe50ec9f82de77f667a84527ff36850da7a5611130999fa"
+    },
+    {
+      "path": "source/src/crawler/sourceFetchEvidence.ts",
+      "bytes": 20717,
+      "mode": "0o644",
+      "sha256": "a0f97abe48b20a0383e6754c863c4dc3672f0047acc122fac47ec7e18cce2d96"
+    },
+    {
+      "path": "source/src/crawler/sourceFetchFailure.ts",
+      "bytes": 5383,
+      "mode": "0o644",
+      "sha256": "59ab35cb8fe45ba82ef2049d3f33af1151d30a4a76d1e003d25fd54aab7aa64d"
+    },
+    {
+      "path": "source/src/crawler/sourceFetchRouter.ts",
+      "bytes": 4201,
+      "mode": "0o644",
+      "sha256": "caa2572e6ae0e6b99aeb5d6f65ebd721789598f8a17058a4827bb2a137c8ca71"
+    },
+    {
+      "path": "source/src/crawler/sourcePlan.ts",
+      "bytes": 23620,
+      "mode": "0o644",
+      "sha256": "1f1345f74ad41adaa0778eaf301f6b1c38ca68f091d81b116556771d18c71987"
+    },
+    {
+      "path": "source/src/crawler/sourceQualityAdmission.ts",
+      "bytes": 37595,
+      "mode": "0o644",
+      "sha256": "f6d2381fd0eabedcdf49c8faf32545b1f301522e1cab7d8f8c299212cfe94866"
+    },
+    {
+      "path": "source/src/crawler/sourceQualityPublication.ts",
+      "bytes": 4706,
+      "mode": "0o644",
+      "sha256": "f48f22dee67358d5d50644c248a35034c4370d935b6817d99f6e2fded58cc6b5"
+    },
+    {
+      "path": "source/src/crawler/sourceSurfaceOracleAuthority.ts",
+      "bytes": 2904,
+      "mode": "0o644",
+      "sha256": "0d5643f987844809297a52de45e4c5d534a1b04fe46196177e4190e408fc8b7f"
+    },
+    {
+      "path": "source/src/crawler/stagedCrawlCli.ts",
+      "bytes": 25486,
+      "mode": "0o644",
+      "sha256": "10f689506296ed7447b5233fea48bde212076a3af38b5fa1b68bcdd01e89bfac"
+    },
+    {
+      "path": "source/src/crawler/stagedCrawlEvidencePaths.ts",
+      "bytes": 3534,
+      "mode": "0o644",
+      "sha256": "6cb22428d4479787bd6de3edcee0a41eca6d0fb7abcb84e91acc4b6882408a0c"
+    },
+    {
+      "path": "source/src/crawler/stagedMonitoringIdentity.ts",
+      "bytes": 2213,
+      "mode": "0o644",
+      "sha256": "24b043eb36f013b59d17a878a9c006d557fd3a4ccc53d6667ba543dd1971819b"
+    },
+    {
+      "path": "source/src/crawler/stagedScheduleAuthority.ts",
+      "bytes": 19677,
+      "mode": "0o644",
+      "sha256": "e591bc6c8ff6b20651fea1b0647eadd50126358bb3ceb7aec4a19833ffb91970"
+    },
+    {
+      "path": "source/src/crawler/stagedScheduledCrawl.ts",
+      "bytes": 1415,
+      "mode": "0o644",
+      "sha256": "47ce9d1c6a687d9e2e8b3a84b665e8df5f8cd864a0d264d929bbf452e600a767"
+    },
+    {
+      "path": "source/src/crawler/strictCompletenessTrace.ts",
+      "bytes": 515,
+      "mode": "0o644",
+      "sha256": "ed27dcbf61f35ea877f0c434f78534f29a320fb3f18bad015937b600fcd13ccd"
+    },
+    {
+      "path": "source/src/crawler/strictHtmlCompletenessProof.ts",
+      "bytes": 81386,
+      "mode": "0o644",
+      "sha256": "9ed3acf7558b58f6e0f3a81a47ed236fadfbd7b50977091b2f127a373e935573"
+    },
+    {
+      "path": "source/src/crawler/strictJsonObjectKeys.ts",
+      "bytes": 1728,
+      "mode": "0o644",
+      "sha256": "06755d9fe4ce30f8536e6481d4fa3d405f95652e59e3e09c43d0d05cdb3e2ea5"
+    },
+    {
+      "path": "source/src/crawler/strictMokaScopeExclusionProof.ts",
+      "bytes": 17114,
+      "mode": "0o644",
+      "sha256": "c433a6dae94200b273ae0c77ef0fda024f76e51ebfe98c38c1df32b8d7399ff2"
+    },
+    {
+      "path": "source/src/crawler/strictPageRequestContract.ts",
+      "bytes": 1718,
+      "mode": "0o644",
+      "sha256": "101902e5aef62c7ad52fd779d89ad1a7f37bb3f5dca1e8edc77f1b8610164532"
+    },
+    {
+      "path": "source/src/crawler/strictSourceScopeExclusionProof.ts",
+      "bytes": 30593,
+      "mode": "0o644",
+      "sha256": "f24e9796df968a4932a7e83e2f418c14395d6e510e2c264bd3e693bee507454e"
+    },
+    {
+      "path": "source/src/crawler/tavily.ts",
+      "bytes": 8131,
+      "mode": "0o644",
+      "sha256": "fe5aa46d151551beac87af70637a39c0b08d812e1f53bbd6c4825b74f82f2215"
+    },
+    {
+      "path": "source/src/crawler/tavilySourceFetch.ts",
+      "bytes": 2379,
+      "mode": "0o644",
+      "sha256": "eed03a0db87fe76c064e30204ecf887856413e52cfd3c6b515dea8351c6ba682"
+    },
+    {
+      "path": "source/src/crawler/traversalCertificate.ts",
+      "bytes": 90194,
+      "mode": "0o644",
+      "sha256": "acd28a4e48afda436600efe06ccbda33bb2a67f16856d2250a57cb1417771605"
+    },
+    {
+      "path": "source/src/crawler/ucbOfficialPostedDate.ts",
+      "bytes": 5735,
+      "mode": "0o644",
+      "sha256": "f9ad33d6acf0a885196540fb302f57494e0a8acf7e73c6a951acfb797f29b025"
+    },
+    {
+      "path": "source/src/crawler/unsupportedSourceFetch.ts",
+      "bytes": 662,
+      "mode": "0o644",
+      "sha256": "4fbf615152000a8d89f05c274118b0546df889c790355931e6262c7823170e0e"
+    },
+    {
+      "path": "source/src/crawler/workdayMainlandQuality.ts",
+      "bytes": 24789,
+      "mode": "0o644",
+      "sha256": "fc8b4018ee3fe37931b67d2f7abf1d6122c216bfe35a482ff9534e761714928c"
+    },
+    {
+      "path": "source/src/crawler/workdaySourceFetch.ts",
+      "bytes": 115166,
+      "mode": "0o644",
+      "sha256": "7bf08b87c461afdb84fca9c1732b8ac5160ec6afac72545c63422633471f45e3"
+    },
+    {
+      "path": "source/src/crawler/xinhuaOfficialAnnouncementSourceFetch.ts",
+      "bytes": 40673,
+      "mode": "0o644",
+      "sha256": "94cae0c7e95a7781d13d54cbd08b547b129ea41e12078bf05f0e1dceaf5bf209"
+    },
+    {
+      "path": "source/src/crawler/yelloJobBoardEvidence.ts",
+      "bytes": 9108,
+      "mode": "0o644",
+      "sha256": "a34b4782ca2dcc20755d1c2ec5c371657cc7a3aa1936a3007d39d80d37b7dc22"
+    },
+    {
+      "path": "source/src/data/companyRegistry.ts",
+      "bytes": 56108,
+      "mode": "0o644",
+      "sha256": "2b214f5ba030954a5da5d39668b5a792df40a1efab8e1adceddf94fcf599ef9a"
+    },
+    {
+      "path": "source/src/data/confirmedCompanyRosterV3.ts",
+      "bytes": 1394,
+      "mode": "0o644",
+      "sha256": "055cd36f6458381f722f7d0fc7d68aad7346164c94f1b633b2898fe0bdbd5fd8"
+    },
+    {
+      "path": "source/src/data/confirmedCompanyRosterV3Members.ts",
+      "bytes": 1279,
+      "mode": "0o644",
+      "sha256": "c3e71393942b3eb61db591fd437b7a8cb04af8f91479ff1c239b0298656caeca"
+    },
+    {
+      "path": "source/src/data/futureCrawlExpansionCandidates.ts",
+      "bytes": 6287,
+      "mode": "0o644",
+      "sha256": "5855b69b6b288f36ef6faf5e31086a74b0c01a12a7c62e3412cdb37cdbbb8768"
+    },
+    {
+      "path": "source/src/data/humanVerifiedRecruitmentBaseline.ts",
+      "bytes": 5774,
+      "mode": "0o644",
+      "sha256": "f2ab2243e439d852dbbf581000f3f8f0f6c8d6649fb13c90277a934573203ed6"
+    },
+    {
+      "path": "source/src/data/officialSourceResearchCandidate.ts",
+      "bytes": 29568,
+      "mode": "0o644",
+      "sha256": "57a84036f0b5c41cbff19e456572e1487d7d946342fbf83ae92001dfbdaf66b0"
+    },
+    {
+      "path": "source/src/data/phase1ScopePolicy.ts",
+      "bytes": 5647,
+      "mode": "0o644",
+      "sha256": "643134e7a6ea69792bc91fbc98740d1f062fdf0284bfb089b7802a6402d4b23b"
+    },
+    {
+      "path": "source/src/db/aiEnrichmentRepository.ts",
+      "bytes": 17608,
+      "mode": "0o644",
+      "sha256": "071bc7a63231c56c47c2f8b99d7d706f2d1dcfdab31b96958084a8215d3b01cf"
+    },
+    {
+      "path": "source/src/db/atomicJsonDeclarations.ts",
+      "bytes": 3825,
+      "mode": "0o644",
+      "sha256": "346d5af4ee2ebecb88e81aede9886d315dc39732c35ff2ce1c4da28e3f2f5b2e"
+    },
+    {
+      "path": "source/src/db/cloudPilotSql45Manifest.ts",
+      "bytes": 8708,
+      "mode": "0o644",
+      "sha256": "ef5342949a876ea836e7444b943d7ea5395ca052a74aec975ae2124e1534ab6a"
+    },
+    {
+      "path": "source/src/db/cloudPilotSqlControl.ts",
+      "bytes": 31168,
+      "mode": "0o644",
+      "sha256": "a869bf0bf8508eeb3361612fb3eadcfc1de167d4cff3aa762343e216598edce1"
+    },
+    {
+      "path": "source/src/db/companyRegistrySync.ts",
+      "bytes": 13659,
+      "mode": "0o644",
+      "sha256": "581a63a1b7954cb7a979b24d1866cc8703d25c320f88f7e14495eeb3b50cef9e"
+    },
+    {
+      "path": "source/src/db/crawlRuntimeRepository.ts",
+      "bytes": 11830,
+      "mode": "0o644",
+      "sha256": "005a244298254af9825fb6bfda627a1f2c3af2ad49f82258c6251f28102be8e8"
+    },
+    {
+      "path": "source/src/db/crawlStateRepository.ts",
+      "bytes": 3516,
+      "mode": "0o644",
+      "sha256": "2266e2d79905237555cc6f527bb3b572dc258f417d75d96bc3c5c60d3783be7b"
+    },
+    {
+      "path": "source/src/db/emptyDatabaseMigrationVerification.ts",
+      "bytes": 20459,
+      "mode": "0o644",
+      "sha256": "d72b6884efda2955051d3436a7289dbdcfac43933fe8cdd408dc957ebe9f4dd2"
+    },
+    {
+      "path": "source/src/db/emptyDatabaseMigrationVerificationCli.ts",
+      "bytes": 12694,
+      "mode": "0o644",
+      "sha256": "1cff02c1fe2b54233dadf5ea0e4903902851fd778c54317ff3f5783263ca5d22"
+    },
+    {
+      "path": "source/src/db/existingDatabasePreflight.ts",
+      "bytes": 10200,
+      "mode": "0o644",
+      "sha256": "79e6f651cbdaf1943fec26fed7b3d03920661ed603c58d861080722c3ba2e8f2"
+    },
+    {
+      "path": "source/src/db/ingestionRepository.ts",
+      "bytes": 126571,
+      "mode": "0o644",
+      "sha256": "56a16ca89ae417c1613cb37f7beb53db82dbc55f181219c6db7f48b7e487223b"
+    },
+    {
+      "path": "source/src/db/jnjDomEvidenceAdmission.ts",
+      "bytes": 5878,
+      "mode": "0o644",
+      "sha256": "039eefe6a2c2aebf99273791654cdddc4e10ec5785e4d26c8163a8ce94c6d6a7"
+    },
+    {
+      "path": "source/src/db/jobProjectionDeltaCompiler.ts",
+      "bytes": 6721,
+      "mode": "0o644",
+      "sha256": "e34cebde4f8433e9b58e69e110d356ce476cfa09ba203bcfc11e0d5a6da52c36"
+    },
+    {
+      "path": "source/src/db/jobProjectionDeltaProfile.ts",
+      "bytes": 1721,
+      "mode": "0o644",
+      "sha256": "24c3dd03e893d725477406fba5b11e9e572e8ed87439822c82799ae5f5211919"
+    },
+    {
+      "path": "source/src/db/manualCrawlRequestRepository.ts",
+      "bytes": 17318,
+      "mode": "0o644",
+      "sha256": "80fe8fea31c2cae63833a5fbc291cfc71b0825edee6d21252729df110b7ae0cb"
+    },
+    {
+      "path": "source/src/db/portablePublicSnapshotRepository.ts",
+      "bytes": 13468,
+      "mode": "0o644",
+      "sha256": "bb1ddc80292274adb5510cf5ad36260493b8617df1b07bea39a66414797b28e9"
+    },
+    {
+      "path": "source/src/db/portableRuntimeDatabase.ts",
+      "bytes": 2058,
+      "mode": "0o644",
+      "sha256": "40738f35c649091d353c88afff2fb6d2a95e692cb39561fc99e1bd522ff3d57b"
+    },
+    {
+      "path": "source/src/db/portableScheduleObservations.ts",
+      "bytes": 3856,
+      "mode": "0o644",
+      "sha256": "59a4e4a5ee34a0979a5e1180cfae23d64591f489bbad37012d18a970f2da5edd"
+    },
+    {
+      "path": "source/src/db/prismaMappers.ts",
+      "bytes": 3356,
+      "mode": "0o644",
+      "sha256": "da2d751fced4c482d185d59aea342fd52ab5eedd444f4081f841d97c24e39c56"
+    },
+    {
+      "path": "source/src/db/prismaMigrationManifest.ts",
+      "bytes": 2236,
+      "mode": "0o644",
+      "sha256": "075829ee27ccf5553ed1ead9b03383cf9f87325afb972b6ac283c49e1a183e57"
+    },
+    {
+      "path": "source/src/db/publicationEligibilityRepository.ts",
+      "bytes": 13193,
+      "mode": "0o644",
+      "sha256": "0efdc0d87f0e5b9fde55ddc0ba0554d955ba85bd015dc46fdaa331c1479b56c4"
+    },
+    {
+      "path": "source/src/domain/company.ts",
+      "bytes": 3014,
+      "mode": "0o644",
+      "sha256": "6cd3e9dca7e5a63129ee934095be021b47aa66611135fe3cb89d418e925afc38"
+    },
+    {
+      "path": "source/src/domain/jobLocation.ts",
+      "bytes": 1412,
+      "mode": "0o644",
+      "sha256": "9e759ae7f210f7c0a214cde6c1b0ef9bdec8347079105336ae1949e479746232"
+    },
+    {
+      "path": "source/src/domain/jobProjectionDeltaReceipt.ts",
+      "bytes": 8443,
+      "mode": "0o644",
+      "sha256": "1accefb16c321dfb87fc2a1c0abdef9d0deaff2be20e084ba47004d780130f63"
+    },
+    {
+      "path": "source/src/domain/jobRecencyPolicy.ts",
+      "bytes": 772,
+      "mode": "0o644",
+      "sha256": "dc228131237ea456dc25d1d2d1d1dcd4fae40c64657c58525776453c746575cc"
+    },
+    {
+      "path": "source/src/domain/manualCrawlLeasePolicy.ts",
+      "bytes": 469,
+      "mode": "0o644",
+      "sha256": "52bf9e21c64372dfbc4d256d9399c0b34fc533cb08e168bfb5c2c6572e29e19e"
+    },
+    {
+      "path": "source/src/domain/portablePublicSnapshot.ts",
+      "bytes": 31542,
+      "mode": "0o644",
+      "sha256": "44b55618af7fc175fe7344b92545f4ee55b993a9fba083655f9141c0e66d5c1f"
+    },
+    {
+      "path": "source/src/domain/publicationEligibility.ts",
+      "bytes": 21716,
+      "mode": "0o644",
+      "sha256": "3820a2dd0de4913c90051328db6edae8e1b0fe3f0e0e70552ae2ef321e2f9d38"
+    },
+    {
+      "path": "source/src/domain/route-policy.ts",
+      "bytes": 790,
+      "mode": "0o644",
+      "sha256": "b439967ac2da7995f7aab7add05f946b1bb3848d1ace765a0a9408193ceacb95"
+    },
+    {
+      "path": "source/src/domain/search.ts",
+      "bytes": 1956,
+      "mode": "0o644",
+      "sha256": "5875fbce71c82d8c657ae40de7d2d3d5c4fd52a1325de16b56fcc11cf2f9d415"
+    },
+    {
+      "path": "source/src/domain/unstartedBatchAbort.ts",
+      "bytes": 2994,
+      "mode": "0o644",
+      "sha256": "7b0bce862ed8d03c204712f5bdb547f6455c4ef377aa5d93c24213e841e291e3"
+    },
+    {
+      "path": "source/src/domain/verification.ts",
+      "bytes": 4167,
+      "mode": "0o644",
+      "sha256": "0c30a7813a6f0f6baa7c84f37614d02eda7f05323a0fe34d8ce04c199254e305"
+    },
+    {
+      "path": "source/src/evidence/externalEvidenceValidator.ts",
+      "bytes": 11737,
+      "mode": "0o644",
+      "sha256": "6dd57bd286bc309cbe8d1ac755a89361eef9f5bbb04cbfc4f5aa28b81006f676"
+    },
+    {
+      "path": "source/src/evidence/phase2AggregateManifest.ts",
+      "bytes": 16658,
+      "mode": "0o644",
+      "sha256": "2d3a7b25347db7660e90d231561e40a45bea0d0d3d365fc5d3f1e0c65e95eb1a"
+    },
+    {
+      "path": "source/src/evidence/phase3AggregateValidator.ts",
+      "bytes": 6627,
+      "mode": "0o644",
+      "sha256": "661c51893753fda09daef6456e562a39c4a50c9337669e568084efcaea3bf686"
+    },
+    {
+      "path": "source/src/evidence/phase4ReleaseManifest.ts",
+      "bytes": 26006,
+      "mode": "0o644",
+      "sha256": "190105bb0fcf54df2b62af51f649d5a495fe9ebdaadd8ba559d0834a7a8a8b90"
+    },
+    {
+      "path": "source/src/main.tsx",
+      "bytes": 575,
+      "mode": "0o644",
+      "sha256": "88e58eddfec61f602a561915d700e83a1303be9ab6c7e2d8432eab88c04bbb33"
+    },
+    {
+      "path": "source/src/ops/backupAttemptReceipt.ts",
+      "bytes": 7028,
+      "mode": "0o644",
+      "sha256": "7925906ddf753ea6e6beaaad637af9c2e300add44e3fa913b4a813a00acabbc3"
+    },
+    {
+      "path": "source/src/ops/deploymentBootstrap.ts",
+      "bytes": 3243,
+      "mode": "0o644",
+      "sha256": "33f18ebc3a06602fa7bcd8cd129fed80338c47f454f990d2dba993afad960ec5"
+    },
+    {
+      "path": "source/src/ops/productionTsxProcess.ts",
+      "bytes": 258,
+      "mode": "0o644",
+      "sha256": "63bb74f14070d95f2d63d6c59333148b9c1862eb1f2376bcbed24b2227eb8cf4"
+    },
+    {
+      "path": "source/src/ops/restoreQualification.ts",
+      "bytes": 13756,
+      "mode": "0o644",
+      "sha256": "5eb361b5b4ec682b635aaa567a658a95576230a93b492fe7b34ea6314d1ef5e0"
+    },
+    {
+      "path": "source/src/readiness/buildIdentity.ts",
+      "bytes": 4829,
+      "mode": "0o644",
+      "sha256": "869c7126185c4812556bf783131bc7d69864ba24b6e7949dbf885b11e5e265f2"
+    },
+    {
+      "path": "source/src/readiness/currentReleaseIdentity.ts",
+      "bytes": 5010,
+      "mode": "0o644",
+      "sha256": "9b8998bf5e8b98265cd49e5aab4cd36dce853d7b8c7be4996d6bf0fb0a6262fa"
+    },
+    {
+      "path": "source/src/readiness/dataQuality.ts",
+      "bytes": 11095,
+      "mode": "0o644",
+      "sha256": "8d79e456b0e031aae3089996edce2465789518c1e229e556ba88dd94b8b9f455"
+    },
+    {
+      "path": "source/src/readiness/dockerBuildProvenance.ts",
+      "bytes": 9461,
+      "mode": "0o644",
+      "sha256": "dc514a759f9d36a7b46b1938cd9474b74acef5c33c362ece3e5556a03f8a5e65"
+    },
+    {
+      "path": "source/src/readiness/formalBrowserPreflight.ts",
+      "bytes": 3664,
+      "mode": "0o644",
+      "sha256": "e9d0a7cacbf09ed735c78f39b88563075920e113d10be381e8703cab517e6b8c"
+    },
+    {
+      "path": "source/src/readiness/lifecycleSetReconciliation.ts",
+      "bytes": 4350,
+      "mode": "0o644",
+      "sha256": "6989704db84e8d3396416443ce90696b9ed81ba8cae5cfcb81c42520b04b33aa"
+    },
+    {
+      "path": "source/src/readiness/p0Readiness.ts",
+      "bytes": 10254,
+      "mode": "0o644",
+      "sha256": "af8e4bb5edcc638f067949aac00c466f56a9a3758807a98141203e6478877295"
+    },
+    {
+      "path": "source/src/readiness/persistedReadiness.ts",
+      "bytes": 4531,
+      "mode": "0o644",
+      "sha256": "7ce21fc636005d795c70eeca2a9cb8c2bc0b2b52122884074c2363859bc62d88"
+    },
+    {
+      "path": "source/src/readiness/prismaReadiness.ts",
+      "bytes": 1245,
+      "mode": "0o644",
+      "sha256": "e43097f2950d0c305fda35532408f9deb87881b3b4f216529dab62063112c2c7"
+    },
+    {
+      "path": "source/src/readiness/productionImageContract.ts",
+      "bytes": 3305,
+      "mode": "0o644",
+      "sha256": "5662dafb34333dbe28141fdcfb630f7cbcb62d3cbe4c4c1b2c881c501db283ee"
+    },
+    {
+      "path": "source/src/readiness/stagedDataQuality.ts",
+      "bytes": 9253,
+      "mode": "0o644",
+      "sha256": "ad695912989b93b2d2aad2a1c8d1e54336c985dd81a24797ab50b0d107a3b80c"
+    },
+    {
+      "path": "source/src/readiness/stagedReleaseCandidateBootstrap.ts",
+      "bytes": 11844,
+      "mode": "0o644",
+      "sha256": "db6532a4b092afe2aa6ae18c78dc4c02f835465e629ecb477d192a0f77089ab1"
+    },
+    {
+      "path": "source/src/readiness/stagedReleasePromotion.ts",
+      "bytes": 9262,
+      "mode": "0o644",
+      "sha256": "c51cd6b29f986b68e44f3733bed02ea5ee3d033bce03dfa7cf2637e98dd32ad5"
+    },
+    {
+      "path": "source/src/readiness/stagedReleaseReadiness.ts",
+      "bytes": 9901,
+      "mode": "0o644",
+      "sha256": "8e76309b5200e0034c28e7975bd24e513116da797865758507a3b24fafbc667b"
+    },
+    {
+      "path": "source/src/readiness/strictPersistedReadiness.ts",
+      "bytes": 10507,
+      "mode": "0o644",
+      "sha256": "8ddc679c2467e13286b2895a92814e06b410b8c855151e247717ba671603e946"
+    },
+    {
+      "path": "source/src/readiness/strictPrismaReadiness.ts",
+      "bytes": 15231,
+      "mode": "0o644",
+      "sha256": "aa32d43c1e4f5b17dfa329e80ac71de6032e3501afa507560081e2f48699382f"
+    },
+    {
+      "path": "source/src/release/authoritativeLaunchReceipt.ts",
+      "bytes": 16566,
+      "mode": "0o644",
+      "sha256": "fa02babd537c1778d85cf6173654c4e8bc76de32a1ab465f4fe323affe968155"
+    },
+    {
+      "path": "source/src/release/fixedCohortAuditSourceProjection.ts",
+      "bytes": 2505,
+      "mode": "0o644",
+      "sha256": "61f02dbbea1f149305f5dca53584773581f5e0a5c69ff3a0321843fbaef7ed22"
+    },
+    {
+      "path": "source/src/release/fixedCohortCompletenessAudit.ts",
+      "bytes": 28713,
+      "mode": "0o644",
+      "sha256": "43c14fafafae69f8d8248b59854ff2398ab96fc60e3bd0e04706021607f3406d"
+    },
+    {
+      "path": "source/src/release/formalQualificationState.ts",
+      "bytes": 10928,
+      "mode": "0o644",
+      "sha256": "a868cf38eaf95e980b1edc52bda99b155bfbc3cce0045c92a3a9b35b38bab87f"
+    },
+    {
+      "path": "source/src/release/formalQualificationTiming.ts",
+      "bytes": 1052,
+      "mode": "0o644",
+      "sha256": "339d17e3c8f8be264c11cf84e3b92a66a6315c7c9c9b39f8f01618f30e2614fd"
+    },
+    {
+      "path": "source/src/release/launchManifest.ts",
+      "bytes": 13940,
+      "mode": "0o644",
+      "sha256": "2bf4014fbddeebd3b600556f1d64eb1d5b08ebce2782eb85fdbefae1b7cc46d8"
+    },
+    {
+      "path": "source/src/release/launchReceiptFiles.ts",
+      "bytes": 3778,
+      "mode": "0o644",
+      "sha256": "dd7d431ae12a90156e90daa5e412b06398cd424b6dd99f77ebd707b7fe3222d5"
+    },
+    {
+      "path": "source/src/release/portableCoveragePolicy.ts",
+      "bytes": 1794,
+      "mode": "0o644",
+      "sha256": "2ce257bddb3e09fdbcc7abd9f7d8838ac04a61dff8959c0022c436d25283d9ae"
+    },
+    {
+      "path": "source/src/release/portableSourceCoverageHolds.ts",
+      "bytes": 704,
+      "mode": "0o644",
+      "sha256": "b5ff9f97e9a7e40171b7af6dd47ec914028f76a07d706cb2c71559e8f568c90b"
+    },
+    {
+      "path": "source/src/security/browserRuntimeQualification.ts",
+      "bytes": 6931,
+      "mode": "0o644",
+      "sha256": "0b1faf3cceb5796ccb39199457726b2749648688305f8216b7fab503f29cffa9"
+    },
+    {
+      "path": "source/src/security/credentialMaterial.ts",
+      "bytes": 789,
+      "mode": "0o644",
+      "sha256": "cc50761f01fb7f97ad934003059669d3934efb52ab7dc4f48ffd1ba61667b5ed"
+    },
+    {
+      "path": "source/src/security/productionSecurityGate.ts",
+      "bytes": 25219,
+      "mode": "0o644",
+      "sha256": "3d2f88d720f8d48e0968cf13ef6b4ffd40e3ee464165faf8eb0ed85d4c9041ba"
+    },
+    {
+      "path": "source/src/security/runtimeExposureContract.json",
+      "bytes": 377,
+      "mode": "0o644",
+      "sha256": "20f292c794460c973e79433fbd838e28f7c14ff16ad792ecf69ec094061033c0"
+    },
+    {
+      "path": "source/src/security/runtimeExposureQualification.ts",
+      "bytes": 8057,
+      "mode": "0o644",
+      "sha256": "7cba88546ebc3c24a9b54390ae486a1239eba18cc5fc77009dacf7396bb6092e"
+    },
+    {
+      "path": "source/src/server/adminApi.ts",
+      "bytes": 11500,
+      "mode": "0o644",
+      "sha256": "de6677d36980cc06dbcbd7e1706223c156a1a271b68a5bfbda652d1dcd4afa7a"
+    },
+    {
+      "path": "source/src/server/alertDelivery.ts",
+      "bytes": 2912,
+      "mode": "0o644",
+      "sha256": "f35ea13adec56f2ec16143da1354552856d64b9fbfc761b41acc240ff3c1350d"
+    },
+    {
+      "path": "source/src/server/coverageService.ts",
+      "bytes": 2747,
+      "mode": "0o644",
+      "sha256": "74684fb6bb54adce16c2a81e99c2f0f795f7e3d05b09c7e228f565ce4f06636b"
+    },
+    {
+      "path": "source/src/server/deploymentReadiness.ts",
+      "bytes": 4679,
+      "mode": "0o644",
+      "sha256": "9472b94d8e605b86da0cfca18cb6c091f67b2a999528f0dd4ba41b6312fd7ac8"
+    },
+    {
+      "path": "source/src/server/feedbackService.ts",
+      "bytes": 2092,
+      "mode": "0o644",
+      "sha256": "089c994b5543c07e75fa053f3bca11fdc030d47e3d45eab556489fa97d6aefec"
+    },
+    {
+      "path": "source/src/server/httpServer.ts",
+      "bytes": 10612,
+      "mode": "0o644",
+      "sha256": "384bca99967d1a1e8feedca6392a1b179ccc572c18eab164443fc5b7015c0454"
+    },
+    {
+      "path": "source/src/server/jobSearchService.ts",
+      "bytes": 10692,
+      "mode": "0o644",
+      "sha256": "b4b9a6efd16c5ac622ee27323cbe790fbeaa111b202e3d43c55ef9a38cd2bfd1"
+    },
+    {
+      "path": "source/src/server/oneShotAlertDelivery.ts",
+      "bytes": 5523,
+      "mode": "0o644",
+      "sha256": "6faab5a4a63043a789d3d3f033ed6d413980777105795aa9cdb176abe1a29c59"
+    },
+    {
+      "path": "source/src/server/opsMonitoring.ts",
+      "bytes": 8561,
+      "mode": "0o644",
+      "sha256": "9d202056301ba7bb92c553b85dcdd300b83edb4b0c37ad9b7d80b273600720c9"
+    },
+    {
+      "path": "source/src/server/portablePublicationApi.ts",
+      "bytes": 6145,
+      "mode": "0o644",
+      "sha256": "b8343f287873746df00a4549a51ce4ddc7709abbbde0dd64d6ea391456b54af1"
+    },
+    {
+      "path": "source/src/server/postgresReadiness.ts",
+      "bytes": 4099,
+      "mode": "0o644",
+      "sha256": "bd2f0edd9204c9fb3c2eeca244c00a83c5e5cd9f04c8c383f872845beb522bba"
+    },
+    {
+      "path": "source/src/server/privacyRetention.ts",
+      "bytes": 2161,
+      "mode": "0o644",
+      "sha256": "dd8d60d191cc33479ccef1e25ea18abc32f312e8ff1eabe470b429841bbbe8e5"
+    },
+    {
+      "path": "source/src/server/publicApi.ts",
+      "bytes": 12618,
+      "mode": "0o644",
+      "sha256": "ee4362d763b4e62475d8985f63bae9558e347f27441999d4ab733ad12d87ff68"
+    },
+    {
+      "path": "source/src/server/rateLimit.ts",
+      "bytes": 2034,
+      "mode": "0o644",
+      "sha256": "457ecd3a1eb3f8a28e085906bedc306776cc24bb9125f3a304325f656941c606"
+    },
+    {
+      "path": "source/src/server/staticDocuments.ts",
+      "bytes": 4391,
+      "mode": "0o644",
+      "sha256": "e12ac9936e17be9935920e3928789f18c1bf8b32a9739628da7b305cd7c4f287"
+    },
+    {
+      "path": "source/test.setup.ts",
+      "bytes": 43,
+      "mode": "0o644",
+      "sha256": "9b328c4843431fa76d8de00008fc159e95f99a840211085ff3b8f25e53d14409"
+    },
+    {
+      "path": "source/testExecutionContract.ts",
+      "bytes": 152,
+      "mode": "0o644",
+      "sha256": "9acd035103377eba6cde46da2ade74cbb0a2f0f5e7e4b4dcff7884a4024236b0"
+    },
+    {
+      "path": "source/tests/admin/AdminApp.test.tsx",
+      "bytes": 10992,
+      "mode": "0o644",
+      "sha256": "e1d828081fcb85bd857250171cd90b8e6e962f4d27877233416368c379286158"
+    },
+    {
+      "path": "source/tests/admin/adminPasswordEnvContract.test.ts",
+      "bytes": 1436,
+      "mode": "0o644",
+      "sha256": "086e0a1049b17514bcbf207fde60b11ddac324ef10eacb4fd44aa72bd3230fc2"
+    },
+    {
+      "path": "source/tests/admin/adminViewModel.test.ts",
+      "bytes": 5045,
+      "mode": "0o644",
+      "sha256": "ecb1cb23abd7237f8559ab960b02f7941997513a27a366e3d3108b13dd722840"
+    },
+    {
+      "path": "source/tests/admin/auth.test.ts",
+      "bytes": 5291,
+      "mode": "0o644",
+      "sha256": "c584fa3d729495ac2d04e4ae06a79fd63429603516c4821bad82e6d2da4447c0"
+    },
+    {
+      "path": "source/tests/admin/operations.test.ts",
+      "bytes": 12633,
+      "mode": "0o644",
+      "sha256": "a6adff32d36b4b5e1669e82570b9c4ba26112528de18ad042063ab85811c1903"
+    },
+    {
+      "path": "source/tests/admin/privacyOperations.test.ts",
+      "bytes": 4158,
+      "mode": "0o644",
+      "sha256": "f26bd01a4caf4fc3b5f3bcfd997399b42b37d44baf4aacdc46196c813da3ce3a"
+    },
+    {
+      "path": "source/tests/app/App.test.tsx",
+      "bytes": 24271,
+      "mode": "0o644",
+      "sha256": "f3088ca2239a01dc76cb9bd197a8c9fd1fcc64bd8d63aad292c8de0e14c4d56f"
+    },
+    {
+      "path": "source/tests/app/appDataProvider.test.ts",
+      "bytes": 6663,
+      "mode": "0o644",
+      "sha256": "3beeb0506b0be34baffa985a23c5abe0a47ff318d5c0e86aa1ccf4d78a4433ca"
+    },
+    {
+      "path": "source/tests/app/jobSearch.test.ts",
+      "bytes": 2604,
+      "mode": "0o644",
+      "sha256": "4bc4bece2f9ccf76dbc2e7d73bd2cd58e0674bd32f48ff27fcbbfa537cf6bc09"
+    },
+    {
+      "path": "source/tests/crawler/abbvieChinaRowScope.test.ts",
+      "bytes": 6579,
+      "mode": "0o644",
+      "sha256": "3ce3347f06874e445ce59590918fc628d3fd5bb3544e131cdcd4ea4fc08ba7f3"
+    },
+    {
+      "path": "source/tests/crawler/adapterReconciliation.test.ts",
+      "bytes": 10871,
+      "mode": "0o644",
+      "sha256": "642055dc409f7be96fafb9594eac2b857ae84248485f57551f68c4993fe8a3be"
+    },
+    {
+      "path": "source/tests/crawler/adapters.test.ts",
+      "bytes": 31311,
+      "mode": "0o644",
+      "sha256": "5bd6270166a374ff1a3f0205e108ec13ece3dfb5adb0f326b1e209ca99cff334"
+    },
+    {
+      "path": "source/tests/crawler/amgenManualWorkdaySourceFetch.test.ts",
+      "bytes": 16117,
+      "mode": "0o644",
+      "sha256": "eb97b336e40afb3cc0dedc0211601b6d3297022ad20440297a701e0a418e7120"
+    },
+    {
+      "path": "source/tests/crawler/amgenNativeSourceFetch.test.ts",
+      "bytes": 7941,
+      "mode": "0o644",
+      "sha256": "83269bf6c791872ffcdeef7d72f079b246a1330e6c6109bb8ecb18e3f0d6a783"
+    },
+    {
+      "path": "source/tests/crawler/astellasPdfCityIntegration.test.ts",
+      "bytes": 12046,
+      "mode": "0o644",
+      "sha256": "ee445bf64754df73cb1d0d07e153daca90dd3e407183fb85530d8a44307ba239"
+    },
+    {
+      "path": "source/tests/crawler/astellasPdfLocations.test.ts",
+      "bytes": 12311,
+      "mode": "0o644",
+      "sha256": "d029e6c705cf36fe3f782774cd954260a43fb41944fce5f8042b162647eb8cc2"
+    },
+    {
+      "path": "source/tests/crawler/astellasPdfRuntimeCapability.test.ts",
+      "bytes": 3644,
+      "mode": "0o644",
+      "sha256": "e6e5e436bb5a8515c2bd36f5e886fa073f13e3d0d005e64905b93c24334f2b08"
+    },
+    {
+      "path": "source/tests/crawler/astraExplicitFirstPage.test.ts",
+      "bytes": 3948,
+      "mode": "0o644",
+      "sha256": "e225d1a1b77a815249fd972473a30c9c56533076c647f38ab58cf04220ed850c"
+    },
+    {
+      "path": "source/tests/crawler/astraZenecaAGrade.test.ts",
+      "bytes": 2941,
+      "mode": "0o644",
+      "sha256": "d7c9cc1f18441a81b713f63f7fcb65d778bb74f30b3cad3df60ca89893a7a29a"
+    },
+    {
+      "path": "source/tests/crawler/astrazenecaDetails.test.ts",
+      "bytes": 20908,
+      "mode": "0o644",
+      "sha256": "fba837025301a91666ce0b6ccba8c36883b724767e0822c595792bd5908557bd"
+    },
+    {
+      "path": "source/tests/crawler/authoritativeReleaseMembership.test.ts",
+      "bytes": 9002,
+      "mode": "0o644",
+      "sha256": "add4d2430438d83666a83c1464b90e1e63359cefd5f36f436c2d61d2decdf902"
+    },
+    {
+      "path": "source/tests/crawler/bayerMokaTraversal.test.ts",
+      "bytes": 14779,
+      "mode": "0o644",
+      "sha256": "a9ad0eda6c2eb5a8a2321e320c49023decc1e1c9d52b8468fd15d85f4a6f71be"
+    },
+    {
+      "path": "source/tests/crawler/beisenDetailDates.test.ts",
+      "bytes": 8665,
+      "mode": "0o644",
+      "sha256": "690d3b31b52da4c42fbbee2098a3725dcaa84d1e07a3f0d0486887ed06b272b4"
+    },
+    {
+      "path": "source/tests/crawler/beisenEvidenceInstrumentation.test.ts",
+      "bytes": 40207,
+      "mode": "0o644",
+      "sha256": "2e52b5f4a994ff70ad8e7f0fb46db26dcd31951a9b20973ddb8ddfaf24df84eb"
+    },
+    {
+      "path": "source/tests/crawler/biSemanticCompleteness.test.ts",
+      "bytes": 11920,
+      "mode": "0o644",
+      "sha256": "a8d7bb989003c9ae26187bca7b2a66b4eeda306d6aff1fcf03f00002545389e4"
+    },
+    {
+      "path": "source/tests/crawler/biogenListGeographyGuard.test.ts",
+      "bytes": 9208,
+      "mode": "0o644",
+      "sha256": "78fd99643a1d06c446a8801ade08f109f4bad98fb9aeaa730ad58587fedaacc3"
+    },
+    {
+      "path": "source/tests/crawler/biogenSourceQualityRegistration.test.ts",
+      "bytes": 9393,
+      "mode": "0o644",
+      "sha256": "62ec130a7f4880541da01c4cf317a7558b165de0aee526116b3a3c7ca8135849"
+    },
+    {
+      "path": "source/tests/crawler/bmsGrifolsOfficialPostedDate.test.ts",
+      "bytes": 19540,
+      "mode": "0o644",
+      "sha256": "d058a17b418988b5b1d5d358849564b74ce48a75c32f107f2d00b2f6dabeab30"
+    },
+    {
+      "path": "source/tests/crawler/bmsSourceQualityRegistration.test.ts",
+      "bytes": 6808,
+      "mode": "0o644",
+      "sha256": "42b1eeae57db1ad643ae6d379c5b3fa8740174747942d4b3429646e3429fd35a"
+    },
+    {
+      "path": "source/tests/crawler/bmsStrictCompletenessReplay.test.ts",
+      "bytes": 1545,
+      "mode": "0o644",
+      "sha256": "df2e11c39a01120d25db4a84f2e16ed61c4d5f4fbb0499c4bd6497d7729a4bec"
+    },
+    {
+      "path": "source/tests/crawler/browserRuntimeDependency.test.ts",
+      "bytes": 5347,
+      "mode": "0o644",
+      "sha256": "31435e1c1888b9a87a010efdb8bf290b3506b6c66fa91983a7211c68ffdf3bb2"
+    },
+    {
+      "path": "source/tests/crawler/browserSourceConcurrency.test.ts",
+      "bytes": 735,
+      "mode": "0o644",
+      "sha256": "db6603d72ef3b9ae9fdfb7936994794c7e324481e41d6c1399ed1b6e9b697b5c"
+    },
+    {
+      "path": "source/tests/crawler/buchangOfficialHtml.test.ts",
+      "bytes": 4565,
+      "mode": "0o644",
+      "sha256": "918877f999cd331d738bddc866a33af57d127a0e485285db64bcdebb20299c4b"
+    },
+    {
+      "path": "source/tests/crawler/cnstaffEvidenceInstrumentation.test.ts",
+      "bytes": 19191,
+      "mode": "0o644",
+      "sha256": "96f89bb9f48d688c27f3d4bc5640861e4fa40c4efccbb24ea5a651a7b51e06e7"
+    },
+    {
+      "path": "source/tests/crawler/companyRecruitmentProfiles.test.ts",
+      "bytes": 10209,
+      "mode": "0o644",
+      "sha256": "ef995c50a324b7e35795ad244af82f67a15205e6caa40fd395faedf23bde4abd"
+    },
+    {
+      "path": "source/tests/crawler/completenessAnomalyPolicy.test.ts",
+      "bytes": 7566,
+      "mode": "0o644",
+      "sha256": "721246543561497248acf8b6f9f2ba8ce32278e14f23b37c1d5cf14281a654fd"
+    },
+    {
+      "path": "source/tests/crawler/completenessCertificate.test.ts",
+      "bytes": 15504,
+      "mode": "0o644",
+      "sha256": "858c33ba848d4c201f4f182a1c0f26663f9a6d85a1b98d68fa9313e13b277758"
+    },
+    {
+      "path": "source/tests/crawler/crawlAttemptEvidence.test.ts",
+      "bytes": 8606,
+      "mode": "0o644",
+      "sha256": "fd76be085ff083287f5931c2d5ba9b609520b7b1783b078eb0b9af012f91c99e"
+    },
+    {
+      "path": "source/tests/crawler/crawlAttemptOrchestration.test.ts",
+      "bytes": 5299,
+      "mode": "0o644",
+      "sha256": "97ecce7241c94ceefb5974d209c499a4c596a890e5db7223ea2595a6ff49938e"
+    },
+    {
+      "path": "source/tests/crawler/crawlSummary.test.ts",
+      "bytes": 17697,
+      "mode": "0o644",
+      "sha256": "c4d30de23677abb1bfafd08c006076938a0c8d533648d32e644b5f98fa2d55ea"
+    },
+    {
+      "path": "source/tests/crawler/crossVariantPaginationTruthfulness.test.ts",
+      "bytes": 7214,
+      "mode": "0o644",
+      "sha256": "63e45d8795ebf1f0d9a636f5607ebd82fa3c640fe0c39d880ba1600ee23a53ff"
+    },
+    {
+      "path": "source/tests/crawler/cspcCandidateScope.test.ts",
+      "bytes": 10170,
+      "mode": "0o644",
+      "sha256": "70d59bb676b490a8343485804de12d1abff7da572c1e1c42d6df752719993e86"
+    },
+    {
+      "path": "source/tests/crawler/cspcPortablePublication.test.ts",
+      "bytes": 9569,
+      "mode": "0o644",
+      "sha256": "302f427ac0b183e326f7f3e9cbc797b61c394fb6efafcc16d82404052030a8ac"
+    },
+    {
+      "path": "source/tests/crawler/eightfoldStrictCompletenessReplay.test.ts",
+      "bytes": 4944,
+      "mode": "0o644",
+      "sha256": "b04b6a1d13ee8077586b97c34862fa3ced0437551e6f562351861a7309560751"
+    },
+    {
+      "path": "source/tests/crawler/endToEndTruthfulness.test.ts",
+      "bytes": 6213,
+      "mode": "0o644",
+      "sha256": "7a7ed991b979b5e780e43cafe51b55183bc44cbe4adbe7f7b4853b5e0d08505a"
+    },
+    {
+      "path": "source/tests/crawler/exactSourceDiagnostic.test.ts",
+      "bytes": 12118,
+      "mode": "0o644",
+      "sha256": "21195001d16e9bd08547593cecdb872097b16b0f822da7446eb8309aa0be4500"
+    },
+    {
+      "path": "source/tests/crawler/exactSourceDiagnosticCli.test.ts",
+      "bytes": 1991,
+      "mode": "0o644",
+      "sha256": "e15d4b18d9d9d72f4e156e40dd93b4e275bdf88f9f972378aacd9756abd922be"
+    },
+    {
+      "path": "source/tests/crawler/fiftyOneJobCoapiSourceFetch.test.ts",
+      "bytes": 3198,
+      "mode": "0o644",
+      "sha256": "a0bb9aad5abf5085e132af85155f5df8fb6a1c402eb3f5729794aecf3caeab8f"
+    },
+    {
+      "path": "source/tests/crawler/filteredBeisenBGradeAtomicCommit.test.ts",
+      "bytes": 11433,
+      "mode": "0o644",
+      "sha256": "5a0e90f2684d0417d4ba028c461eb4a51c6228c16fc4d33020633deb87404f3e"
+    },
+    {
+      "path": "source/tests/crawler/formalAdvisoryLock.test.ts",
+      "bytes": 3069,
+      "mode": "0o644",
+      "sha256": "0074f23937fb82ae661d5c17c2591d5c62760630a8806168e11d84d9719a8507"
+    },
+    {
+      "path": "source/tests/crawler/formalCleanup.test.ts",
+      "bytes": 767,
+      "mode": "0o644",
+      "sha256": "b08211dbad1b1da2e93b253e210531030618f93ea9e76ef160975693d4cc19d0"
+    },
+    {
+      "path": "source/tests/crawler/formalCrawlLock.test.ts",
+      "bytes": 3491,
+      "mode": "0o644",
+      "sha256": "65a3a57a97580373ceb5e43bea270f9db49d124d4519a32ca99d6c13ed117989"
+    },
+    {
+      "path": "source/tests/crawler/fosunScopeExclusionProof.test.ts",
+      "bytes": 10333,
+      "mode": "0o644",
+      "sha256": "d5f9202d9e6219cdb66fd20d92909e039f80e45c69d9e1879bb8242f3ffd3211"
+    },
+    {
+      "path": "source/tests/crawler/fourOfficialHtmlCompleteness.test.ts",
+      "bytes": 25865,
+      "mode": "0o644",
+      "sha256": "2580734204f2c46bce59498785f5e6c442453a3866c5d39fd110f1debe479af4"
+    },
+    {
+      "path": "source/tests/crawler/fourStaticOfficialSources.test.ts",
+      "bytes": 13810,
+      "mode": "0o644",
+      "sha256": "95641f44ad56000736aa54fa872dc661056668d6c209acaa337018de43e19d3a"
+    },
+    {
+      "path": "source/tests/crawler/fullReleaseOracleProductionIntegration.test.ts",
+      "bytes": 2688,
+      "mode": "0o644",
+      "sha256": "144a83719e8c9cffe0418ca7cd81fd76b1cc6fdba53f8fdfdce749adb1bee858"
+    },
+    {
+      "path": "source/tests/crawler/gileadPublicAge.test.ts",
+      "bytes": 11814,
+      "mode": "0o644",
+      "sha256": "bf8f6234a06ef2f2d855e83266b4f1d1ca517c4ef323dc4a5f06e86e59f94d23"
+    },
+    {
+      "path": "source/tests/crawler/gileadQualityAdmission.test.ts",
+      "bytes": 8307,
+      "mode": "0o644",
+      "sha256": "375f251acdb42b94991594848c45185c65dff33d7b283e8be7b5439a9e738488"
+    },
+    {
+      "path": "source/tests/crawler/grifolsChinaSourceFetch.test.ts",
+      "bytes": 18264,
+      "mode": "0o644",
+      "sha256": "24b9c1fd6f42a7c22cc9eaa48f44f0f9660d3ea32f785ce5df5396181fdc7b80"
+    },
+    {
+      "path": "source/tests/crawler/gskNativeOpenScope.test.ts",
+      "bytes": 4792,
+      "mode": "0o644",
+      "sha256": "b588b32811ffdb7c8ead6d6532dfc7c7bd10323d02bf0595be04d6ecf09772a1"
+    },
+    {
+      "path": "source/tests/crawler/hansohNativeWindow.test.ts",
+      "bytes": 11502,
+      "mode": "0o644",
+      "sha256": "35dbcd6f3259fdf708f2b21e7146f6d8ade85ae4e32dbb4b159cc297809d2a0a"
+    },
+    {
+      "path": "source/tests/crawler/hansohNativeWindowAtomicCommit.test.ts",
+      "bytes": 5809,
+      "mode": "0o644",
+      "sha256": "089fdb3efcb785235fdf9eea52b91a3c473468beffeea227c0c1cbd6cd8a2a70"
+    },
+    {
+      "path": "source/tests/crawler/hcmCloudBrowserEvidenceInstrumentation.test.ts",
+      "bytes": 16666,
+      "mode": "0o644",
+      "sha256": "3de9313f782bb0a97ac27ff1e9e4e9904de60de9c957a21c97666b95e62fe1dd"
+    },
+    {
+      "path": "source/tests/crawler/hcmCloudEvidenceInstrumentation.test.ts",
+      "bytes": 28189,
+      "mode": "0o644",
+      "sha256": "529d0279ff3e33f5a368382f23f2cab68ffe0a3f7dde7fe32eea4f2c07fadc1c"
+    },
+    {
+      "path": "source/tests/crawler/helpers/fullReleaseOracleProductionScenario.ts",
+      "bytes": 15674,
+      "mode": "0o644",
+      "sha256": "676923ff050dee3b98e941abdee2a5320d9128c034daf4710e73193ed4ad3209"
+    },
+    {
+      "path": "source/tests/crawler/helpers/independentOracleV3Scenario.ts",
+      "bytes": 11781,
+      "mode": "0o644",
+      "sha256": "74bd8798b5ac242746eb51f71a34febe64e9947ccb17897d91e785d5343c9c46"
+    },
+    {
+      "path": "source/tests/crawler/helpers/membershipAuthorityScenario.ts",
+      "bytes": 6276,
+      "mode": "0o644",
+      "sha256": "796d284153d70684daf1560c60fb2c68adaebde626d6616832cd628a358ee952"
+    },
+    {
+      "path": "source/tests/crawler/helpers/redseaCandidates.ts",
+      "bytes": 641,
+      "mode": "0o644",
+      "sha256": "fe55624a57676a539ba1c6422180c8a4c06521f620e66f9443f5e5784dde644f"
+    },
+    {
+      "path": "source/tests/crawler/hengruiScopeAccounting.test.ts",
+      "bytes": 16076,
+      "mode": "0o644",
+      "sha256": "1c6167ba3ef81e8dd74656f60ef9e9fd32c001fdb66c47f7467b1050d74e251d"
+    },
+    {
+      "path": "source/tests/crawler/hotjobEvidenceInstrumentation.test.ts",
+      "bytes": 28646,
+      "mode": "0o644",
+      "sha256": "d75b45a7a2fa84bfe254e9198677071735545156a5ded6db450cf2b40b391df6"
+    },
+    {
+      "path": "source/tests/crawler/hotjobLegacySourceFetch.test.ts",
+      "bytes": 12175,
+      "mode": "0o644",
+      "sha256": "619af2ba0bbd62dbda820bc62da9b99ac391aa47eee592fbbb16d468e2e952db"
+    },
+    {
+      "path": "source/tests/crawler/hotjobWecruitSourceFetch.test.ts",
+      "bytes": 7850,
+      "mode": "0o644",
+      "sha256": "5e0b422bc4818a5e1d51bc2f0271cbcf85dbc7f0bf4b16ff31b8798e17de1366"
+    },
+    {
+      "path": "source/tests/crawler/httpDiagnosticWrapper.test.ts",
+      "bytes": 14271,
+      "mode": "0o644",
+      "sha256": "f174247bb770842dfd826466ef6ccc0e61991c912be90ca395438a465ffe0650"
+    },
+    {
+      "path": "source/tests/crawler/httpHtmlSourceFetch.test.ts",
+      "bytes": 65741,
+      "mode": "0o644",
+      "sha256": "b373ff6c91763b590e0b4a6e47bc9ad6890dab82427b573f29b7c1695c45a949"
+    },
+    {
+      "path": "source/tests/crawler/humanVerifiedFilteredEntries.test.ts",
+      "bytes": 1730,
+      "mode": "0o644",
+      "sha256": "26e8e26fa53c935be2eaa9b94ecb0bd394afe917c9e24144c47c9bccd650309e"
+    },
+    {
+      "path": "source/tests/crawler/humanVerifiedScopeProfiles.test.ts",
+      "bytes": 4031,
+      "mode": "0o644",
+      "sha256": "698c78e10ac60bb822210f494ad8ad4a10895776f4e7a1862288a91452d57004"
+    },
+    {
+      "path": "source/tests/crawler/independentOracleMigration.test.ts",
+      "bytes": 8299,
+      "mode": "0o644",
+      "sha256": "54aab828d14c57bb4656159adb2ffd4fcb71b424858b6b6aaa990d2b6c7c05a1"
+    },
+    {
+      "path": "source/tests/crawler/independentSourceSurfaceOracle.test.ts",
+      "bytes": 12788,
+      "mode": "0o644",
+      "sha256": "4bcf2c88d53f52a7688355db959988bab8ed26d9d79de5fec70f482e1c27abd2"
+    },
+    {
+      "path": "source/tests/crawler/independentSourceSurfaceOracleV3.test.ts",
+      "bytes": 7142,
+      "mode": "0o644",
+      "sha256": "dcde59321717d9071b8496d62fcb26015f473ee558cc568b9fb5007270c2b85d"
+    },
+    {
+      "path": "source/tests/crawler/independentTraversalDiagnostics.test.ts",
+      "bytes": 3456,
+      "mode": "0o644",
+      "sha256": "ee5d0f8380b74c25a737aa54ee842f62873858883f5b84198a1905facea1026d"
+    },
+    {
+      "path": "source/tests/crawler/ingestion.test.ts",
+      "bytes": 5125,
+      "mode": "0o644",
+      "sha256": "7a9cee870062c8a6cf89d590daaecd9b753ecc3e96be54d12007c31c5a85679f"
+    },
+    {
+      "path": "source/tests/crawler/initialQualificationPauseBundle.test.ts",
+      "bytes": 7503,
+      "mode": "0o644",
+      "sha256": "22f68e489bf85ae16aae89862f88bc1b1562c82e3e352dd9f60b7b7b1bf24e76"
+    },
+    {
+      "path": "source/tests/crawler/initialQualificationPauseCandidate.test.ts",
+      "bytes": 5244,
+      "mode": "0o644",
+      "sha256": "4518637fcd5fca6f4b7c24b20241aca35fb506cfab37f47d47ed09d7e3e5d708"
+    },
+    {
+      "path": "source/tests/crawler/initialQualificationPauseEvidence.test.ts",
+      "bytes": 3650,
+      "mode": "0o644",
+      "sha256": "9149f5680d8cbbd02bbf91ba315616199399710c7d7c8bb7e02d64716245f33e"
+    },
+    {
+      "path": "source/tests/crawler/isolatedBGradeTraversalValidator.test.ts",
+      "bytes": 12774,
+      "mode": "0o644",
+      "sha256": "ddf6aee99a4ad88bca1eefb16753e785377c698c759255b1d1c3fe5f3fc4c770"
+    },
+    {
+      "path": "source/tests/crawler/jnjCareersChinaSourceFetch.test.ts",
+      "bytes": 8880,
+      "mode": "0o644",
+      "sha256": "f19ec0f5c92447e52ff2d7e998b220b08ae27669467a81647a431f547ff0260b"
+    },
+    {
+      "path": "source/tests/crawler/jnjCareersDomEvidence.test.ts",
+      "bytes": 14230,
+      "mode": "0o644",
+      "sha256": "44ed6f61d431ce294900b3b48766a3e2815dce6a7953d36800981b76861c191b"
+    },
+    {
+      "path": "source/tests/crawler/jobsynEvidenceInstrumentation.test.ts",
+      "bytes": 15372,
+      "mode": "0o644",
+      "sha256": "88f948590f03c07d825dc419d3c43535b7f5e5e43f48c7c3036b82d04adf630a"
+    },
+    {
+      "path": "source/tests/crawler/kelunFullLocationSynthetic.test.ts",
+      "bytes": 7868,
+      "mode": "0o644",
+      "sha256": "f1b230452bde8f5f496fcb9ddf56a9d35e7d516feb90d1ce43f5e40922684536"
+    },
+    {
+      "path": "source/tests/crawler/kelunRequisitionDeduplication.test.ts",
+      "bytes": 3057,
+      "mode": "0o644",
+      "sha256": "cad631f79b861aac780e8b7a18db78d302ca75cd2aa757799bd04c647ce9aa7f"
+    },
+    {
+      "path": "source/tests/crawler/lifecycle.test.ts",
+      "bytes": 14899,
+      "mode": "0o644",
+      "sha256": "4d1b90a04d50650e9199fac9a2f14fc45ba60787bd50b0bc49d89853733c0e7e"
+    },
+    {
+      "path": "source/tests/crawler/lillyChinaQuality.test.ts",
+      "bytes": 24657,
+      "mode": "0o644",
+      "sha256": "138073d7e902cc8ebaefb6438571de133ee63ad3fa577fd71682d7c227aa0457"
+    },
+    {
+      "path": "source/tests/crawler/lillyQualityAdmission.test.ts",
+      "bytes": 7478,
+      "mode": "0o644",
+      "sha256": "f1f48a79231087513bf44ecac899cb4a5965991676c9dea56fe455b3f6bf8f17"
+    },
+    {
+      "path": "source/tests/crawler/livzonCeccEvidenceVerifier.test.ts",
+      "bytes": 10998,
+      "mode": "0o644",
+      "sha256": "809ab8dd7acd7349317191577b760cec71fdb8b0ce4593fa105db94ee67e0e92"
+    },
+    {
+      "path": "source/tests/crawler/livzonCeccSourceFetch.test.ts",
+      "bytes": 19575,
+      "mode": "0o644",
+      "sha256": "151a4d914ce79f05b02f7a326ee9373449ac6309eeaec616d0e871b088e9f1b9"
+    },
+    {
+      "path": "source/tests/crawler/manualChromeCaptureEvidence.test.ts",
+      "bytes": 8535,
+      "mode": "0o644",
+      "sha256": "d2d3f0168cda1bd96147e2adf9af4c736dabddf99659067b9e0eb16dc8659002"
+    },
+    {
+      "path": "source/tests/crawler/manualChromeCspcReplay.test.ts",
+      "bytes": 7975,
+      "mode": "0o644",
+      "sha256": "04d7b8221cfddfc0510b017a0a4106710441a6a20c89d10e745784ad0c62620d"
+    },
+    {
+      "path": "source/tests/crawler/manualChromeQiluReplay.test.ts",
+      "bytes": 7468,
+      "mode": "0o644",
+      "sha256": "6bb06ce9cfa718c7767af4b81f06de8149d9ec37d82ff214e37fd2aae8d3e9a8"
+    },
+    {
+      "path": "source/tests/crawler/manualCrawlWorker.test.ts",
+      "bytes": 8249,
+      "mode": "0o644",
+      "sha256": "97530f984cc6f49231b60823ec3ef402064dca2900ea4a24f496f10aec9d82a0"
+    },
+    {
+      "path": "source/tests/crawler/manualCrawlWorkerCli.test.ts",
+      "bytes": 948,
+      "mode": "0o644",
+      "sha256": "cdec317759fa03a36787f7c82796bb9558c13775b1bc084fcc3835786fe4f437"
+    },
+    {
+      "path": "source/tests/crawler/manualSourceBatchExecutor.test.ts",
+      "bytes": 4834,
+      "mode": "0o644",
+      "sha256": "0484297f2c33b06e6f9b38c418a56a2d9c0410910fdb903ae2dd8856aaddd3db"
+    },
+    {
+      "path": "source/tests/crawler/merckChinaQuality.test.ts",
+      "bytes": 27906,
+      "mode": "0o644",
+      "sha256": "233800c28ce1d29a579ea9fa4401b4dc8e511dba6c126a20133bfd34fdcf8faf"
+    },
+    {
+      "path": "source/tests/crawler/mokaEvidenceInstrumentation.test.ts",
+      "bytes": 24928,
+      "mode": "0o644",
+      "sha256": "b4c31cd6b495997879a4aace02a697404757e2067de5e11229c7383b29bc9c85"
+    },
+    {
+      "path": "source/tests/crawler/mokaSourceFetch.test.ts",
+      "bytes": 31196,
+      "mode": "0o644",
+      "sha256": "fdf0f86c7790bc5a94f69dc304a1e78eb9f0c34f66fc85520f3c32640c172987"
+    },
+    {
+      "path": "source/tests/crawler/monitoringReleaseIdentity.test.ts",
+      "bytes": 7715,
+      "mode": "0o644",
+      "sha256": "611c6aa74607249a95dd673b0c9b3da8454fd9db0797baec3ce2e37e1cb27768"
+    },
+    {
+      "path": "source/tests/crawler/msdAjingaSourceFetch.test.ts",
+      "bytes": 7283,
+      "mode": "0o644",
+      "sha256": "4cfddfc6d5deeb0c22c528b68247e76f864dfc5088d898a39434ca1e6798d8b7"
+    },
+    {
+      "path": "source/tests/crawler/msdCompanyRecruitmentProfile.test.ts",
+      "bytes": 1912,
+      "mode": "0o644",
+      "sha256": "cca03f9c8939f66ce60b9284e6250fd8b5321f841066830530d255eab1e1327e"
+    },
+    {
+      "path": "source/tests/crawler/msdDualOfficialSourceFetch.test.ts",
+      "bytes": 28214,
+      "mode": "0o644",
+      "sha256": "7a4d95bd99081e59e47eafb65ad7599675fd25afd7ccc976178cf58199d9f19c"
+    },
+    {
+      "path": "source/tests/crawler/normalizedJob.test.ts",
+      "bytes": 3128,
+      "mode": "0o644",
+      "sha256": "66f7445822f2fe1100b361066cb873dcf9c4e1f69a8ec5e6976a4f604d09a981"
+    },
+    {
+      "path": "source/tests/crawler/novartisOfficialPresence.test.ts",
+      "bytes": 16189,
+      "mode": "0o644",
+      "sha256": "37a8a0bacb53488f4b2672362761e38e28cb57eb9bea9d44412fa79aa4cfa144"
+    },
+    {
+      "path": "source/tests/crawler/novoChinaQuality.test.ts",
+      "bytes": 12755,
+      "mode": "0o644",
+      "sha256": "cfd0c032bd9416a0c14754da28203dda336911eb441bb2b0ebd374715f612e6a"
+    },
+    {
+      "path": "source/tests/crawler/novoNordiskCityMapping.test.ts",
+      "bytes": 4775,
+      "mode": "0o644",
+      "sha256": "7ed1d3b29bbd6f4a008670030722dda1a6ffac402281e03c3f5739020e4fd1be"
+    },
+    {
+      "path": "source/tests/crawler/novoSourceQualityRegistration.test.ts",
+      "bytes": 11689,
+      "mode": "0o644",
+      "sha256": "d0957bc7a87783a37f1d0cad1afe338aa368a0da6112ea17f8b2fe1754b32b84"
+    },
+    {
+      "path": "source/tests/crawler/novoTransientRetry.test.ts",
+      "bytes": 16461,
+      "mode": "0o644",
+      "sha256": "a37b2943f7943b438f931df4c7b58beaee9f665320d0fb51b1e613703832df17"
+    },
+    {
+      "path": "source/tests/crawler/officialHttpBodyLifecycle.test.ts",
+      "bytes": 9300,
+      "mode": "0o644",
+      "sha256": "fb582224e75d31d1fef25281506a529aff867a15a60d7b7f3bd405fd55464513"
+    },
+    {
+      "path": "source/tests/crawler/officialHttpProxyRuntime.test.ts",
+      "bytes": 4172,
+      "mode": "0o644",
+      "sha256": "ac624451c31f39a2f7c93ec7e495eac967f284b7d6ac2c8108fa3f98735cb4c9"
+    },
+    {
+      "path": "source/tests/crawler/officialHttpRequestDiagnostics.test.ts",
+      "bytes": 5122,
+      "mode": "0o644",
+      "sha256": "c904c696da10a1d05101721bcc319fe2461d8a3fd55f178bbf05e44286f2846b"
+    },
+    {
+      "path": "source/tests/crawler/officialHttpRuntimeLimits.test.ts",
+      "bytes": 7936,
+      "mode": "0o644",
+      "sha256": "7b3231b72dfaf273e83264a0fb78af4e7844b0676cf67ab8e28cab16970c3d23"
+    },
+    {
+      "path": "source/tests/crawler/officialJsonEvidenceInstrumentation.test.ts",
+      "bytes": 22816,
+      "mode": "0o644",
+      "sha256": "fd55d400a87f516e7a29a8aded827183269aaa532b58f04dc1bb9cb0aef7f65d"
+    },
+    {
+      "path": "source/tests/crawler/officialJsonHttpBodyLifecycle.test.ts",
+      "bytes": 3551,
+      "mode": "0o644",
+      "sha256": "7d984a7093685c7dd775ea9fdb8d244341212be2e895803eb84b7db2c114a80f"
+    },
+    {
+      "path": "source/tests/crawler/officialJsonRenderedTraversalValidator.test.ts",
+      "bytes": 44973,
+      "mode": "0o644",
+      "sha256": "c78909f1d1ee4c350d15072a1dafd9411969d982d1c7fa3cf6528784eae13965"
+    },
+    {
+      "path": "source/tests/crawler/officialJsonSourceFetch.test.ts",
+      "bytes": 71651,
+      "mode": "0o644",
+      "sha256": "566a9ad0adf3e9ca50d87964b853e9e1d9768499b2d6ecdfa22b12e43a9e7042"
+    },
+    {
+      "path": "source/tests/crawler/organonChinaQuality.test.ts",
+      "bytes": 25471,
+      "mode": "0o644",
+      "sha256": "6881fd59d2589811d3bd774819d9f175e29f0fdcc1ae65710dc396b6f67515bc"
+    },
+    {
+      "path": "source/tests/crawler/p0CrawlCapacityReport.test.ts",
+      "bytes": 1719,
+      "mode": "0o644",
+      "sha256": "594997cf690944f62db983f5d9d233e1e8737cbf7ef42ced04d6812a8f6fd7b4"
+    },
+    {
+      "path": "source/tests/crawler/p0CrawlCli.test.ts",
+      "bytes": 4210,
+      "mode": "0o644",
+      "sha256": "1a2527d46f2fe690dd6d26cd362c1fc96a411018dd624663b1e0fa1140253fb5"
+    },
+    {
+      "path": "source/tests/crawler/p0CrawlCommand.test.ts",
+      "bytes": 18738,
+      "mode": "0o644",
+      "sha256": "cca45286db138ef40f24d00aad8d2534e4a9c27af4cdd2c5fbaee6276596efa7"
+    },
+    {
+      "path": "source/tests/crawler/p0StagedCrawlCli.test.ts",
+      "bytes": 23701,
+      "mode": "0o644",
+      "sha256": "d35435e37a3393e39eb401f1aed98464cd4e6402d88be07ba7ebb0de28f56c61"
+    },
+    {
+      "path": "source/tests/crawler/pageCapacityEvidence.test.ts",
+      "bytes": 7328,
+      "mode": "0o644",
+      "sha256": "a34946ecebf442a303ad0a9c6d96ab9f15cc99ec711febf056a40a2885d8410e"
+    },
+    {
+      "path": "source/tests/crawler/paginationEvidence.test.ts",
+      "bytes": 28905,
+      "mode": "0o644",
+      "sha256": "41e1c5da9825a0e16c4b29517d4eb9ae2aed4df86d12ed9154d2ccfb99b9cd91"
+    },
+    {
+      "path": "source/tests/crawler/pfizerBrowserTraversal.test.ts",
+      "bytes": 6392,
+      "mode": "0o644",
+      "sha256": "1c00b361fc73a62f135a6f156a9449420c39abde9bc6068cc7a0f1e957c324bd"
+    },
+    {
+      "path": "source/tests/crawler/pfizerStrictCompletenessReplay.test.ts",
+      "bytes": 1650,
+      "mode": "0o644",
+      "sha256": "02098df1c1b62606326ebed86d4f49edacafbfcb112c99390b29f564b44f8df6"
+    },
+    {
+      "path": "source/tests/crawler/pfizerWorkdayTraversal.test.ts",
+      "bytes": 15954,
+      "mode": "0o644",
+      "sha256": "72f38c431c09607e36e2744642bac7b8d9dc260db061067c88321e2642dd7e2d"
+    },
+    {
+      "path": "source/tests/crawler/phenomEvidenceInstrumentation.test.ts",
+      "bytes": 107803,
+      "mode": "0o644",
+      "sha256": "ea179149f8701618bc50db8a9710d89efb7b17bdf17574ac4d8f6464f574d1c7"
+    },
+    {
+      "path": "source/tests/crawler/planBoundHtmlTraversalCertificate.test.ts",
+      "bytes": 2385,
+      "mode": "0o644",
+      "sha256": "bb88a9dfad297f8839a1b7e8acb60c98c6e57ad5f0619c13843f54c7956d695d"
+    },
+    {
+      "path": "source/tests/crawler/planBoundHtmlTraversalValidator.test.ts",
+      "bytes": 8308,
+      "mode": "0o644",
+      "sha256": "609e980dc95b35295a88bff8e67fa78e2d196fda8e516b21dbc8845509816d55"
+    },
+    {
+      "path": "source/tests/crawler/portableCompletenessBaseline.test.ts",
+      "bytes": 3135,
+      "mode": "0o644",
+      "sha256": "028935efd2b182ffb16d641ea622cd012af3950d99e25f4354d3a2a33fffd99f"
+    },
+    {
+      "path": "source/tests/crawler/portableCrawlLease.test.ts",
+      "bytes": 10522,
+      "mode": "0o644",
+      "sha256": "c4babf0b70bbcf2eb97666e1d8dca1c1e9e767f7c457ac744df65cd3ad877fba"
+    },
+    {
+      "path": "source/tests/crawler/portableLeaseControlClient.test.ts",
+      "bytes": 6956,
+      "mode": "0o644",
+      "sha256": "7a08c37260171bd8ecb8376d3e59b2289b4401da666220a2b40fd819125ee453"
+    },
+    {
+      "path": "source/tests/crawler/portablePolicySkip.test.ts",
+      "bytes": 9910,
+      "mode": "0o644",
+      "sha256": "c623fd9c102db8aba6d96286bff43ffd7cce78761204b1a638646d7e4ecbc0d1"
+    },
+    {
+      "path": "source/tests/crawler/portableQualityAtomicIntegration.test.ts",
+      "bytes": 10040,
+      "mode": "0o644",
+      "sha256": "e7fb2662119e00bf77cc1dc7c2350517de21acd00570292d82b507f590d0705d"
+    },
+    {
+      "path": "source/tests/crawler/portableRuntimeDiagnostics.test.ts",
+      "bytes": 1742,
+      "mode": "0o644",
+      "sha256": "25900937d58785e5736cc1a551e4fb055ead4aad36b3895419b81c99dcb4dfe0"
+    },
+    {
+      "path": "source/tests/crawler/portableScheduledCrawl.test.ts",
+      "bytes": 4680,
+      "mode": "0o644",
+      "sha256": "43b862ff406769e4e85ea038bbd3d6fbe2886cb273d073173a782d2c963455c4"
+    },
+    {
+      "path": "source/tests/crawler/portableSourceCancellation.test.ts",
+      "bytes": 1794,
+      "mode": "0o644",
+      "sha256": "6b082f6b4d231a0afd8e0d9002d134812e3e68886bc669ab9e3d5db8b4150bd4"
+    },
+    {
+      "path": "source/tests/crawler/qiluDualPartitionMainCapture.test.ts",
+      "bytes": 7747,
+      "mode": "0o644",
+      "sha256": "ecbcbd3e7dd000e0aa17f8b4de88516d1343789a3ad6557319f0fdd3e82035e1"
+    },
+    {
+      "path": "source/tests/crawler/qiluDualPartitionSourceFetch.test.ts",
+      "bytes": 13211,
+      "mode": "0o644",
+      "sha256": "2d5a916b4c3c116ebb13376d72424e7e466bcc21424ba9483b52c982e72e0564"
+    },
+    {
+      "path": "source/tests/crawler/qiluRenderedTraversalValidator.test.ts",
+      "bytes": 7769,
+      "mode": "0o644",
+      "sha256": "22b3aea8b773bbea9ba327302906abe4165d27b94e78d86ecc0716ca596e111f"
+    },
+    {
+      "path": "source/tests/crawler/redseaEvidenceInstrumentation.test.ts",
+      "bytes": 12097,
+      "mode": "0o644",
+      "sha256": "80fd9b0373d378c717a1f11b40a059194bb314574f3e1b5c669b97fb6e24a9df"
+    },
+    {
+      "path": "source/tests/crawler/redseaSocialChannelPolicy.test.ts",
+      "bytes": 7880,
+      "mode": "0o644",
+      "sha256": "8ad945840d997fb183f9b1c2606c0f811624d06a471bb331bf0fd7bc24d71427"
+    },
+    {
+      "path": "source/tests/crawler/reviewerSignatureTrust.test.ts",
+      "bytes": 3619,
+      "mode": "0o644",
+      "sha256": "9242271230d1e4da314e3611d847338627e8d3cbf89ee3184cc38d44d5c98c2b"
+    },
+    {
+      "path": "source/tests/crawler/rocheChinaQuality.test.ts",
+      "bytes": 8207,
+      "mode": "0o644",
+      "sha256": "b83d2ec7c9f509d31c51e717059297541b79205235f33960da3cc7490223458f"
+    },
+    {
+      "path": "source/tests/crawler/runCrawlBatch.test.ts",
+      "bytes": 106101,
+      "mode": "0o644",
+      "sha256": "440011726862b9fb26890a18e4c7c5d028e470e0365a3d08c1096a15a4ee88c8"
+    },
+    {
+      "path": "source/tests/crawler/runSourceCrawl.test.ts",
+      "bytes": 21430,
+      "mode": "0o644",
+      "sha256": "1cefdd99345167c77d96bddc9c4a4f07c723b951d7b2ef871df39e42ae1c32bf"
+    },
+    {
+      "path": "source/tests/crawler/runtimeAtomicEvidence.test.ts",
+      "bytes": 41979,
+      "mode": "0o644",
+      "sha256": "1938bf6fc5ef382fb806e1d85b4d971b80ffe2383e9cecd393fc69934beaf202"
+    },
+    {
+      "path": "source/tests/crawler/runtimeBatchIdentity.test.ts",
+      "bytes": 1250,
+      "mode": "0o644",
+      "sha256": "04c1af2b737c4aa861ac2523149716d3e5629f0fc6381360d437bc224839b40a"
+    },
+    {
+      "path": "source/tests/crawler/sandozEvidenceInstrumentation.test.ts",
+      "bytes": 1062,
+      "mode": "0o644",
+      "sha256": "920d97990152c2c0b882e9216ea8e8a772f1c383cfe3f4af73e093e6f197f43a"
+    },
+    {
+      "path": "source/tests/crawler/sanofiNativeQuality.test.ts",
+      "bytes": 11679,
+      "mode": "0o644",
+      "sha256": "152a6c5dc378ef5ac1133493e7697db260065f517e5eeaf68010e19015dcd341"
+    },
+    {
+      "path": "source/tests/crawler/sanofiNativeRealPages.test.ts",
+      "bytes": 3774,
+      "mode": "0o644",
+      "sha256": "f561a61b9434f88b9b6230e3bdfdbabec6c65b7833151bb6eef6bdd4e081c2f7"
+    },
+    {
+      "path": "source/tests/crawler/schedule.test.ts",
+      "bytes": 5194,
+      "mode": "0o644",
+      "sha256": "8ef79a006ab96c9087e4d2c80f14b97d773d74898b2d55dfb3cc6e2b8fdea65f"
+    },
+    {
+      "path": "source/tests/crawler/servierMokaRenderedTraversal.test.ts",
+      "bytes": 17291,
+      "mode": "0o644",
+      "sha256": "d249486c3d52e74e3dd7d5e2bc141f15a0ca5a2ea7ef058300519b8798457844"
+    },
+    {
+      "path": "source/tests/crawler/servierMokaScope.test.ts",
+      "bytes": 8864,
+      "mode": "0o644",
+      "sha256": "66ed0afdbd741ae86f615903b349417243a23cbc5922efc3c38aae606182b71a"
+    },
+    {
+      "path": "source/tests/crawler/servierMokaTraversal.test.ts",
+      "bytes": 15071,
+      "mode": "0o644",
+      "sha256": "d80d09663a5f83548d7e2a4234f31c8e1ac3414e7306ca2174b7a790d39197ae"
+    },
+    {
+      "path": "source/tests/crawler/shanghaiPharmaRecruitmentProfile.test.ts",
+      "bytes": 3074,
+      "mode": "0o644",
+      "sha256": "94ba2aeffea66a84266791f4cd181ed75471a9f7aef9d58af739be2552346760"
+    },
+    {
+      "path": "source/tests/crawler/sinopharmIguopinSourceFetch.test.ts",
+      "bytes": 22087,
+      "mode": "0o644",
+      "sha256": "6ac004ae19b9d0777a53fa80bdc1c52dfa05d080b58c2b107f4eeb4890b4db56"
+    },
+    {
+      "path": "source/tests/crawler/sourceDiscovery.test.ts",
+      "bytes": 3660,
+      "mode": "0o644",
+      "sha256": "c984ed5633f435d07548f6cd2580b743c9a77ca6236ef33fb06ae4a3d7d4e519"
+    },
+    {
+      "path": "source/tests/crawler/sourceFetchEvidence.test.ts",
+      "bytes": 37255,
+      "mode": "0o644",
+      "sha256": "ee0ee4ee7988dc7195273252df6f0a19424c44e4095307f90ba861b0c4345da5"
+    },
+    {
+      "path": "source/tests/crawler/sourceFetchFailure.test.ts",
+      "bytes": 9240,
+      "mode": "0o644",
+      "sha256": "a253e3241baedc54b8c38870f01cc4acac6c664fcbe89b1e2c25b32393be7dfc"
+    },
+    {
+      "path": "source/tests/crawler/sourceFetchRouter.test.ts",
+      "bytes": 21130,
+      "mode": "0o644",
+      "sha256": "b85744eb2fdd12285518ff765a6ddc22c53f06f80eac402fcd9fe5ea67c138ed"
+    },
+    {
+      "path": "source/tests/crawler/sourcePlan.test.ts",
+      "bytes": 45454,
+      "mode": "0o644",
+      "sha256": "400348c33ef17c6fdbbcb1f01e1e8228b5af5ec5e4f829dec81b806858a10b3a"
+    },
+    {
+      "path": "source/tests/crawler/sourcePlanChannels.test.ts",
+      "bytes": 9106,
+      "mode": "0o644",
+      "sha256": "6b6b5d44d4537f3aa96d6cd0ba343bddd489c30740dff399114d3513b4619a26"
+    },
+    {
+      "path": "source/tests/crawler/sourceQualityAdmission.test.ts",
+      "bytes": 15265,
+      "mode": "0o644",
+      "sha256": "c484f8d1090a5d57ea84e0ebd5a61b7ec1e7fd448ad7fee919a072b4b04b971f"
+    },
+    {
+      "path": "source/tests/crawler/sourceQualityDateRegistration.test.ts",
+      "bytes": 8725,
+      "mode": "0o644",
+      "sha256": "fbbef470c2c332cecef9f32d3047973764a766f7ee391c076713ccab35b79f32"
+    },
+    {
+      "path": "source/tests/crawler/sourceQualityExactBodyCompatibility.test.ts",
+      "bytes": 1776,
+      "mode": "0o644",
+      "sha256": "752ce764d565dd93499e10fa8759d185ae0fc76e65528b8cde505eac393c8220"
+    },
+    {
+      "path": "source/tests/crawler/sourceQualityHtmlRegistration.test.ts",
+      "bytes": 3188,
+      "mode": "0o644",
+      "sha256": "0304989aa4e12eae2ae777741a92c0bfc6a0c93ec4f9c4d97f0450f5707390aa"
+    },
+    {
+      "path": "source/tests/crawler/sourceQualityPublication.test.ts",
+      "bytes": 7710,
+      "mode": "0o644",
+      "sha256": "4fef1d262816a2cf68dcff19f0fc55dcded19d2351d3de73af89851e63b502e0"
+    },
+    {
+      "path": "source/tests/crawler/stagedInitialQualification.test.ts",
+      "bytes": 5676,
+      "mode": "0o644",
+      "sha256": "8b458ecef8d3d12246a33da37819f932cdc18319c63ec687316cffa1eaa20e65"
+    },
+    {
+      "path": "source/tests/crawler/stagedMonitoringIdentity.test.ts",
+      "bytes": 5292,
+      "mode": "0o644",
+      "sha256": "a2aa4ce25db139c6ed112857d2a7e212772b80c77686930c69388561ff8990d4"
+    },
+    {
+      "path": "source/tests/crawler/stagedScheduleAuthority.test.ts",
+      "bytes": 12251,
+      "mode": "0o644",
+      "sha256": "268d41f120491d0c37e3212328978ba5de4ab9b3dc9c68f33b32722b9b6a41e4"
+    },
+    {
+      "path": "source/tests/crawler/stagedScheduledCrawl.test.ts",
+      "bytes": 18109,
+      "mode": "0o644",
+      "sha256": "e22fc32924a609d99d90c2bc107638c1d31015d8d475bda8382b9beab1031d7b"
+    },
+    {
+      "path": "source/tests/crawler/strictCompletenessTrace.test.ts",
+      "bytes": 1258,
+      "mode": "0o644",
+      "sha256": "71bdf54cd39cb3b7d0fed163de7196893ec481d5397dba40c95145ed670d1ad6"
+    },
+    {
+      "path": "source/tests/crawler/strictDynamicOfficialTotalCompleteness.test.ts",
+      "bytes": 29455,
+      "mode": "0o644",
+      "sha256": "0d1d9c1de24c61a1e4edd8429d1500c9175f7cc8ef7e19c3d16c03e55aca8f28"
+    },
+    {
+      "path": "source/tests/crawler/strictHtmlCompletenessProof.test.ts",
+      "bytes": 26195,
+      "mode": "0o644",
+      "sha256": "047862cb24e776df91c326e9e550b9e320a4cff0869039fedd419ef0db2214e7"
+    },
+    {
+      "path": "source/tests/crawler/strictJobsynCnstaffCompletenessReplay.test.ts",
+      "bytes": 6662,
+      "mode": "0o644",
+      "sha256": "4de189f35923070b38d9446b148b8c2fe501ea6aa02f44caaa3f45a16d23efdf"
+    },
+    {
+      "path": "source/tests/crawler/strictPositiveOfficialTotalCompleteness.test.ts",
+      "bytes": 47865,
+      "mode": "0o644",
+      "sha256": "3bea78776a5a44e6e6d09b8a721ff98b6bb852c8ff8e1b03e8e14139a97b90cd"
+    },
+    {
+      "path": "source/tests/crawler/strictPurposeBoundCompleteness.test.ts",
+      "bytes": 43828,
+      "mode": "0o644",
+      "sha256": "48614bbaf11e849c19a8a7601dfaab632bbd4f0ce4c50edc6171ce7899a119cc"
+    },
+    {
+      "path": "source/tests/crawler/strictSourceScopeExclusionProof.test.ts",
+      "bytes": 5779,
+      "mode": "0o644",
+      "sha256": "685c4a487713fd37b6ea4ce2e66ca8a8d128d14b871dea0ff99c45c43780c412"
+    },
+    {
+      "path": "source/tests/crawler/talentbrewBGradeCertificate.test.ts",
+      "bytes": 5165,
+      "mode": "0o644",
+      "sha256": "dae6594fab98bc06b071b724d197d71e6bfdd27873d69715f7c94fdfd39e3a1c"
+    },
+    {
+      "path": "source/tests/crawler/tavily.test.ts",
+      "bytes": 4472,
+      "mode": "0o644",
+      "sha256": "853f8baecd04af45583f6c6eb6ccaa28e1af21804fce7412a2dee4c5852bf5ed"
+    },
+    {
+      "path": "source/tests/crawler/tavilySourceFetch.test.ts",
+      "bytes": 4744,
+      "mode": "0o644",
+      "sha256": "6c241476dce9acc9a29786993fa33e756ade1fc00105a76304958f048e92bf93"
+    },
+    {
+      "path": "source/tests/crawler/traversalCertificate.test.ts",
+      "bytes": 23703,
+      "mode": "0o644",
+      "sha256": "5c35409f8f058c42b5918970acd3eee38f20cdcf07bfb349e1854d80fa6bda52"
+    },
+    {
+      "path": "source/tests/crawler/ucbOfficialPostedDate.test.ts",
+      "bytes": 15097,
+      "mode": "0o644",
+      "sha256": "064a0d74fd3989b1fa3f9759f8b33ac5a61cae34c3193d56d1f52f8a3c45e7dc"
+    },
+    {
+      "path": "source/tests/crawler/unprovenCompanyZeroes.test.ts",
+      "bytes": 7268,
+      "mode": "0o644",
+      "sha256": "4ec6b6181504f8da2e0b3228fbf917da3c8c4f77096cd54e67ee2d0fec37c2e5"
+    },
+    {
+      "path": "source/tests/crawler/unsupportedSourceFetch.test.ts",
+      "bytes": 1253,
+      "mode": "0o644",
+      "sha256": "e3e3be26bb27dcec5c6d03d11ef7371a085ed4c692ac2b73e4e19707527fc8e5"
+    },
+    {
+      "path": "source/tests/crawler/workdaySourceFetch.test.ts",
+      "bytes": 178035,
+      "mode": "0o644",
+      "sha256": "f064d818530f3b864376a310ef7b9c34397a450955e7962690ecb0b8bec325a2"
+    },
+    {
+      "path": "source/tests/crawler/xinhuaOfficialAnnouncementSourceFetch.test.ts",
+      "bytes": 15176,
+      "mode": "0o644",
+      "sha256": "8cec5436d07c5249abc43209d76affa3d166a19ae9904a92cf6cc367101a27e5"
+    },
+    {
+      "path": "source/tests/crawler/xiuzhengEvidenceInstrumentation.test.ts",
+      "bytes": 12653,
+      "mode": "0o644",
+      "sha256": "966227a6ef7daecc9dcdd1006519f8d8ae38c83c9ae11ba1e7a1e0d050bfd62f"
+    },
+    {
+      "path": "source/tests/data/companyOfficialLinks.test.ts",
+      "bytes": 14023,
+      "mode": "0o644",
+      "sha256": "61335fd9031f00bc26534f6d2f49d68bdffee7fe22e1c7ac32f6c0368a519a33"
+    },
+    {
+      "path": "source/tests/data/companyOracle.test.ts",
+      "bytes": 13179,
+      "mode": "0o644",
+      "sha256": "9c0765aafa088b979df339e5f04700973e407bb8d8e99f0082434f7fb793c01a"
+    },
+    {
+      "path": "source/tests/data/companyRegistry.test.ts",
+      "bytes": 12166,
+      "mode": "0o644",
+      "sha256": "cbfd46339c287ddf5eca7734167a6e9176d531b2b7e619b11e349bc5f7b5caa8"
+    },
+    {
+      "path": "source/tests/data/confirmedCompanyRosterV3.test.ts",
+      "bytes": 1163,
+      "mode": "0o644",
+      "sha256": "606be66b9f1d96ee3be17b2a1fb2ed0e1cd0b2480aecf3d8377e9eb0f56ca18f"
+    },
+    {
+      "path": "source/tests/data/futureCrawlExpansionCandidates.test.ts",
+      "bytes": 2032,
+      "mode": "0o644",
+      "sha256": "9fd1954eb6f77b79fb9074945db1a34adb097d7cab3926794bf7cf18d78befa0"
+    },
+    {
+      "path": "source/tests/data/humanVerifiedRecruitmentBaseline.test.ts",
+      "bytes": 2665,
+      "mode": "0o644",
+      "sha256": "a1abe5daa8b015fe0167dac4baeef2b3a734befcaf0bd89fe2e1ed86b840afda"
+    },
+    {
+      "path": "source/tests/data/officialSourceResearchCandidate.test.ts",
+      "bytes": 21087,
+      "mode": "0o644",
+      "sha256": "f3ec97c25815beda888e83caf36fc1b6a5af2170ae15e4495ab4ea26ddab6434"
+    },
+    {
+      "path": "source/tests/data/phase1ScopePolicy.test.ts",
+      "bytes": 3496,
+      "mode": "0o644",
+      "sha256": "1c92f9c58e56cb1b3deaf87ec53763720f2d6f434315daf9bc11a85dbfa61f20"
+    },
+    {
+      "path": "source/tests/db/aiEnrichmentRepository.test.ts",
+      "bytes": 9654,
+      "mode": "0o644",
+      "sha256": "20f51ae2a52e09a57145f9caf4cc71b5778f8592c96fee0af1c68fc275466cf6"
+    },
+    {
+      "path": "source/tests/db/atomicJsonDeclarations.test.ts",
+      "bytes": 2788,
+      "mode": "0o644",
+      "sha256": "f5f4861f627b035d546f3effdada5c9c2940367fd975ee8a5e7aa7d0c36da60c"
+    },
+    {
+      "path": "source/tests/db/atomicSourceEvidenceCommit.test.ts",
+      "bytes": 71273,
+      "mode": "0o644",
+      "sha256": "04313cdaabb80b1de7687712cb9db9b330d7fa27f5d96737d47a5263e1627e5a"
+    },
+    {
+      "path": "source/tests/db/cloudPilotBGradeContext.test.ts",
+      "bytes": 5242,
+      "mode": "0o644",
+      "sha256": "5cd52564feb56a8c641d5830dd6e6c4e70ba94281c651463672c6e267f2779dd"
+    },
+    {
+      "path": "source/tests/db/cloudPilotDbStartedPublication.test.ts",
+      "bytes": 26554,
+      "mode": "0o644",
+      "sha256": "df5d2bbda668ddcd559a42b165b466b9b559a02248fc1c942062a1556b9baad9"
+    },
+    {
+      "path": "source/tests/db/cloudPilotPortableDbStartedPublication.test.ts",
+      "bytes": 14952,
+      "mode": "0o644",
+      "sha256": "70f02d4fed3da626bd3e91e00105c33959995597f1bebb22062252d0b69d648a"
+    },
+    {
+      "path": "source/tests/db/cloudPilotSqlControl.test.ts",
+      "bytes": 21350,
+      "mode": "0o644",
+      "sha256": "f39817df103e93cda58e18e178dcb6dea37681b28be66142406069edfd44ba64"
+    },
+    {
+      "path": "source/tests/db/compactAtomicSql.test.ts",
+      "bytes": 2125,
+      "mode": "0o644",
+      "sha256": "7ae752f7a7d4c54cdb8c7a9bb9d075e7694fa96598dee7f0375c7c9e4cc6a6a2"
+    },
+    {
+      "path": "source/tests/db/companyRegistrySync.test.ts",
+      "bytes": 20665,
+      "mode": "0o644",
+      "sha256": "c5f1fa8b4850ba3064b95791d7bb92cd049a1a0763540ba334c1ba86021d4606"
+    },
+    {
+      "path": "source/tests/db/crawlRuntimeRepository.test.ts",
+      "bytes": 9743,
+      "mode": "0o644",
+      "sha256": "5bf74c1e1433b4cd0b161f394269b81ed92eba79ecb64f2b9dcd4f03e116bb7e"
+    },
+    {
+      "path": "source/tests/db/crawlStateRepository.test.ts",
+      "bytes": 2380,
+      "mode": "0o644",
+      "sha256": "0be469b083194f923a81a39730a275c761ce8cdf6e8c4e91e9be194da7183245"
+    },
+    {
+      "path": "source/tests/db/emptyDatabaseMigrationVerification.test.ts",
+      "bytes": 20021,
+      "mode": "0o644",
+      "sha256": "5aea4c7faa37b5becfea9db3f672712ac376b82dc82382452293f2d93662f531"
+    },
+    {
+      "path": "source/tests/db/emptyDatabaseMigrationVerificationCli.test.ts",
+      "bytes": 9594,
+      "mode": "0o644",
+      "sha256": "da127f2ef8af40a857048959dfe2716d54605aacd707da8294307f48df076f5d"
+    },
+    {
+      "path": "source/tests/db/existingDatabasePreflight.test.ts",
+      "bytes": 16040,
+      "mode": "0o644",
+      "sha256": "c6817af98fbd5a6dfb719385db15853444d626591be917fa794bcaf2a32535a7"
+    },
+    {
+      "path": "source/tests/db/helpers/checkAtomicJson.mjs",
+      "bytes": 1033,
+      "mode": "0o644",
+      "sha256": "97b3bfdcf8bbb76c0891922afe0f442205841381a3dc9429a6b8d621a48ac2a1"
+    },
+    {
+      "path": "source/tests/db/helpers/checkCompactSql.mjs",
+      "bytes": 5880,
+      "mode": "0o644",
+      "sha256": "c452aa2a037a8f4fefa6b5814ad93b83d5cd581c3c03981ff65306644c8cef3f"
+    },
+    {
+      "path": "source/tests/db/helpers/denyNetwork.cjs",
+      "bytes": 300,
+      "mode": "0o644",
+      "sha256": "afbc8a9815a919c96738ae1b5ccb82cca3c79743c223a173194492f53f77f991"
+    },
+    {
+      "path": "source/tests/db/helpers/ownedPortableCommit.ts",
+      "bytes": 4627,
+      "mode": "0o644",
+      "sha256": "d9d5d14c89f869788ae65c63638cd51e25c224297c3012040410606ea6d9a416"
+    },
+    {
+      "path": "source/tests/db/incrementalCloudPublication.test.ts",
+      "bytes": 23900,
+      "mode": "0o644",
+      "sha256": "2b12474b60fb197eb3e3a4ab7664580a7811ca6816e0e2e13e08696779bb8ec3"
+    },
+    {
+      "path": "source/tests/db/ingestionRepository.test.ts",
+      "bytes": 12431,
+      "mode": "0o644",
+      "sha256": "d51024eb92fc2546d6cf7ffb07a0dda69031aa8d88615d9c97f513ce131c295e"
+    },
+    {
+      "path": "source/tests/db/jnjDomPreflightExpectation.test.ts",
+      "bytes": 1086,
+      "mode": "0o644",
+      "sha256": "6c0aa87888f06984ffa363d241a74b203fb3b28a9a3dc9fd01f833dc5f64cf56"
+    },
+    {
+      "path": "source/tests/db/jobProjectionDeltaReceipt.test.ts",
+      "bytes": 11302,
+      "mode": "0o644",
+      "sha256": "0e83098961d8a730e7cb6f4d096e8a3e1ad38ed47dac3e6de81c95149b26d611"
+    },
+    {
+      "path": "source/tests/db/manualCrawlRequestRepository.test.ts",
+      "bytes": 19236,
+      "mode": "0o644",
+      "sha256": "387640829a183690fc3aed67c090ba7591c0f10d13ba0b2bac6cb706f6d0090a"
+    },
+    {
+      "path": "source/tests/db/pendingSourceStateMachine.test.ts",
+      "bytes": 10483,
+      "mode": "0o644",
+      "sha256": "a7a60c938cb0385d437976ed3f468d1d04364187542a21eca2e6f80354ba3115"
+    },
+    {
+      "path": "source/tests/db/portableAtomicSql.test.ts",
+      "bytes": 20207,
+      "mode": "0o644",
+      "sha256": "83223f860e1436acc325ed1bb8cbad344aaff2991b1b4af11db4dfc5aea4ef14"
+    },
+    {
+      "path": "source/tests/db/portablePublicSnapshotRepository.test.ts",
+      "bytes": 9273,
+      "mode": "0o644",
+      "sha256": "431d3b4732143b64edf117d9e790fd8002be53cb538a7625f29e1ca66899f31c"
+    },
+    {
+      "path": "source/tests/db/portableRuntimeDatabase.test.ts",
+      "bytes": 2411,
+      "mode": "0o644",
+      "sha256": "2f6391a4c7bae37248732ecbeede4493b45455a359205bada5ae0837d4530083"
+    },
+    {
+      "path": "source/tests/db/portableScheduleObservations.test.ts",
+      "bytes": 6660,
+      "mode": "0o644",
+      "sha256": "4842cabc6a474e3a1a090dc9eed31962def2900df3b9eb95a592a9378d993012"
+    },
+    {
+      "path": "source/tests/db/prismaMappers.test.ts",
+      "bytes": 2132,
+      "mode": "0o644",
+      "sha256": "51ce98f9bde0d0281b984d1c988cc863a9fc6a3aafa31107c88cc9926ca4205f"
+    },
+    {
+      "path": "source/tests/db/publicationEligibilityRepository.test.ts",
+      "bytes": 13525,
+      "mode": "0o644",
+      "sha256": "3242ccffd0fcba8dc575925cc2d007992bb31fb5d975d57efdd023ca83011827"
+    },
+    {
+      "path": "source/tests/db/realAGradeCloudPublication.test.ts",
+      "bytes": 7043,
+      "mode": "0o644",
+      "sha256": "ac8f7063ec310bb0f1518075f37a9bfd869a040a4ee3cd44ce3e311e044c660a"
+    },
+    {
+      "path": "source/tests/domain/jobLocation.test.ts",
+      "bytes": 1555,
+      "mode": "0o644",
+      "sha256": "621a3dd5436e758825e9aa975991bb8662d77baa54d6f7c386f62ac19be01999"
+    },
+    {
+      "path": "source/tests/domain/portableAGradePublicSnapshot.test.ts",
+      "bytes": 10584,
+      "mode": "0o644",
+      "sha256": "0455ba447791a6bdf1d5dc3bbab9117c93e7763d48d5fa3d5f8e3b1cd4760299"
+    },
+    {
+      "path": "source/tests/domain/portablePublicSnapshot.test.ts",
+      "bytes": 12508,
+      "mode": "0o644",
+      "sha256": "6de5d0d7a74f7c71492bddc24140398a00a799923ff76677fb15ecea3cecbb65"
+    },
+    {
+      "path": "source/tests/domain/publicationEligibility.test.ts",
+      "bytes": 27462,
+      "mode": "0o644",
+      "sha256": "c79af8d413af2f45a3cd74b9fd69b849b4cb37bcf44b1a48a4bb9cdb7d87040b"
+    },
+    {
+      "path": "source/tests/domain/route-policy.test.ts",
+      "bytes": 2079,
+      "mode": "0o644",
+      "sha256": "5591222f65763b2d8955d9231742ce6ca9cbfceab3243a80b0eb55cd1993edd8"
+    },
+    {
+      "path": "source/tests/domain/search.test.ts",
+      "bytes": 2474,
+      "mode": "0o644",
+      "sha256": "7730f6202548595631b94088871553319f3dbfbf4a2ee8afb493b25d749db1cb"
+    },
+    {
+      "path": "source/tests/domain/verification.test.ts",
+      "bytes": 16315,
+      "mode": "0o644",
+      "sha256": "1db83c21651e1dfe5e96c30593d5e2c6cfe9bbe1c4bdfed90ae2836e0f1fcb48"
+    },
+    {
+      "path": "source/tests/evidence/cleanNoOutputsSummary.test.ts",
+      "bytes": 733,
+      "mode": "0o644",
+      "sha256": "56af35b101243317f47ad68f91217769f3d8bb2b78d8345328e1faebe287d765"
+    },
+    {
+      "path": "source/tests/evidence/externalEvidenceValidator.test.ts",
+      "bytes": 3374,
+      "mode": "0o644",
+      "sha256": "ae11a9c8ad7efdeb08f08fa25e29afc23e6706141a5dcf90de8ba0b4a922b7dd"
+    },
+    {
+      "path": "source/tests/evidence/generatePhase4ReleaseManifest.test.ts",
+      "bytes": 1433,
+      "mode": "0o644",
+      "sha256": "0ed2e1c49990f61a44630bafb449f85f9e9375633c7c47aaea819ed04ea78323"
+    },
+    {
+      "path": "source/tests/evidence/helpers/phase4ManifestArtifacts.ts",
+      "bytes": 13804,
+      "mode": "0o644",
+      "sha256": "339ce4293506851e85e8b5be8103b2ae21d5b88b30509d1371f133b21039924d"
+    },
+    {
+      "path": "source/tests/evidence/phase2AggregateManifest.test.ts",
+      "bytes": 5789,
+      "mode": "0o644",
+      "sha256": "fb3dd5a6ffd28920ac48201c35d37ee061980762893be16737833a94ea6781a4"
+    },
+    {
+      "path": "source/tests/evidence/phase3AggregateValidator.test.ts",
+      "bytes": 1904,
+      "mode": "0o644",
+      "sha256": "5304813da8306d7e7afa5de72b6af4d2ce0b4a5fa2df131540a8cf1fbdc19d2e"
+    },
+    {
+      "path": "source/tests/evidence/phase3SnapshotValidator.test.ts",
+      "bytes": 4858,
+      "mode": "0o644",
+      "sha256": "b8e1ad2ba6640016a57ada5a92645ca2c2ba86863a808bb403a1335d89716643"
+    },
+    {
+      "path": "source/tests/evidence/phase4ReleaseManifest.test.ts",
+      "bytes": 17675,
+      "mode": "0o644",
+      "sha256": "c98d9a49a550dffc0c27410cfce7665587559ed183f7cdef99294ead3bf5c887"
+    },
+    {
+      "path": "source/tests/fixtures/evidence/clean-no-outputs-summary-v2.json",
+      "bytes": 381,
+      "mode": "0o644",
+      "sha256": "a9a9f903b491af5a574a4dcbf3f958ae8c30585f76f6934c578fafb93c7be736"
+    },
+    {
+      "path": "source/tests/fixtures/organonChinaQuality.ts",
+      "bytes": 2079,
+      "mode": "0o644",
+      "sha256": "d5fb3777e027f2216c928db5d2bc0949ac10eeae9da81310f44d0fe192b8a225"
+    },
+    {
+      "path": "source/tests/helpers/amgenManualWorkdayFixture.ts",
+      "bytes": 1733,
+      "mode": "0o644",
+      "sha256": "a2c281b2a46b8b415648bda2cf7db43d331e97120a7cf4400acb87f6895d1298"
+    },
+    {
+      "path": "source/tests/helpers/amgenNativeFixture.ts",
+      "bytes": 4519,
+      "mode": "0o644",
+      "sha256": "15ac9f8fd566a6a164abb15f716100b724147ae696a3b6e6278ace27d12ceaa9"
+    },
+    {
+      "path": "source/tests/helpers/assertBGradePilotContext.ts",
+      "bytes": 3421,
+      "mode": "0o644",
+      "sha256": "2b98d03987461c5a3b4bf47bedd9e69e9c5e244714145094e53e273f0b2933cd"
+    },
+    {
+      "path": "source/tests/helpers/assertBGradePublicSnapshot.ts",
+      "bytes": 7858,
+      "mode": "0o644",
+      "sha256": "64a586d61602035f8af8baeaabd35450c0fb5e65be4bcbef6d655f9898e6efb7"
+    },
+    {
+      "path": "source/tests/helpers/astellasPdf.ts",
+      "bytes": 1073,
+      "mode": "0o644",
+      "sha256": "edd1b72949556f1d1b4f822103ea02b1d0e7acafa943fc96f4d0eca147e141c8"
+    },
+    {
+      "path": "source/tests/helpers/astrazeneca.ts",
+      "bytes": 4194,
+      "mode": "0o644",
+      "sha256": "82f8b32ef103a3ef34a7a3f00b8ad44f5ada5757834a583b3f0c8f16627057d6"
+    },
+    {
+      "path": "source/tests/helpers/cloudQiluPilotFixture.ts",
+      "bytes": 3254,
+      "mode": "0o644",
+      "sha256": "dee7e196d5907892c85331f66c93e6ec997c250b4a29b00c3a8c4f3f63a43b6a"
+    },
+    {
+      "path": "source/tests/helpers/gileadQualityFixture.ts",
+      "bytes": 4004,
+      "mode": "0o644",
+      "sha256": "1e880a20ee2435f7914447416a803c13622fd009a5997becec78889772450193"
+    },
+    {
+      "path": "source/tests/helpers/gileadYello.ts",
+      "bytes": 1751,
+      "mode": "0o644",
+      "sha256": "92f75c16148bc84fa0fd303c4449cbae6bb1283267e8acfb7c33ca71098dba45"
+    },
+    {
+      "path": "source/tests/helpers/incrementalPglite.ts",
+      "bytes": 5333,
+      "mode": "0o644",
+      "sha256": "73ecf8864ea485ad5a86cb3b1fee1c3d54ac782e77063dd8334e36b8834321c5"
+    },
+    {
+      "path": "source/tests/helpers/legacyBayerPlan.ts",
+      "bytes": 2447,
+      "mode": "0o644",
+      "sha256": "4d6a9462379985dc6cc14a31a8ee92a407fffb7eb3d34ca328789fcdb4a6e44c"
+    },
+    {
+      "path": "source/tests/helpers/lillyAGradeFixture.ts",
+      "bytes": 1733,
+      "mode": "0o644",
+      "sha256": "8b0ac00db82d46ae113a5ab602f2bcde115b08f8de3c4998d7c53efbf95bb069"
+    },
+    {
+      "path": "source/tests/helpers/lillyPhenom.ts",
+      "bytes": 5121,
+      "mode": "0o644",
+      "sha256": "2afa23fe52e30f35285cdce6ffbd7e187e777e2ac37817233e87776dc6b3bc3a"
+    },
+    {
+      "path": "source/tests/helpers/lillyQualityFixture.ts",
+      "bytes": 3350,
+      "mode": "0o644",
+      "sha256": "a7dad563b4c1a51c7febeebae5cd4184d3e7a63fdfe2efb4244376c26eb97660"
+    },
+    {
+      "path": "source/tests/helpers/portablePublicSnapshotFixture.ts",
+      "bytes": 9774,
+      "mode": "0o644",
+      "sha256": "581e1cd2c0f2f0d50b95d18b1fdbe5a711274ca0287ccac795165cc21356f931"
+    },
+    {
+      "path": "source/tests/ops/backupAttemptReceipt.test.ts",
+      "bytes": 3510,
+      "mode": "0o644",
+      "sha256": "86af2f8f3c676b2f1ed83e3e3dda836d94055c150133e2a64be08af9a7730789"
+    },
+    {
+      "path": "source/tests/ops/backupRestore.test.ts",
+      "bytes": 15313,
+      "mode": "0o644",
+      "sha256": "9592dc31e798112cdef3268dceafb09c61aa81547725997d36077c9551dc61e5"
+    },
+    {
+      "path": "source/tests/ops/deploymentBootstrap.test.ts",
+      "bytes": 2320,
+      "mode": "0o644",
+      "sha256": "3759b682c51f3ddb0e87e1507a8d3060dcfc8a91a898e34baac26ddb43660b18"
+    },
+    {
+      "path": "source/tests/ops/deploymentConfig.test.ts",
+      "bytes": 45209,
+      "mode": "0o644",
+      "sha256": "e0a33bce3654760eb3103c1027ee64b78c96e6d0aa75fcb411ae781378f6830c"
+    },
+    {
+      "path": "source/tests/ops/existingDeploymentBootstrap.test.ts",
+      "bytes": 2634,
+      "mode": "0o644",
+      "sha256": "07151669e43a160d689268e0b4c758e2632c25b42396bf9527303c89810a8f7d"
+    },
+    {
+      "path": "source/tests/ops/fixtures/restoreQualificationEvidence.sql",
+      "bytes": 4524,
+      "mode": "0o644",
+      "sha256": "048268210eb5334f20a036c52fb606e86798dbf03bdecd06a51775f7649b43e8"
+    },
+    {
+      "path": "source/tests/ops/formalQualificationRunner.test.ts",
+      "bytes": 20318,
+      "mode": "0o644",
+      "sha256": "a17f8551ce6e7ee561b199519e21eb5483b0650606402fae19e6b0b8a38d3c31"
+    },
+    {
+      "path": "source/tests/ops/monitoringCheckCrawlIntegration.test.ts",
+      "bytes": 7605,
+      "mode": "0o644",
+      "sha256": "839080247e966cf6f65f2147d4f46c2593382929a7c4029214de8eecce42c939"
+    },
+    {
+      "path": "source/tests/ops/nginxConfigRenderer.test.ts",
+      "bytes": 1967,
+      "mode": "0o644",
+      "sha256": "09e4688748566e2d69b12fad228de1247b185af8726ccdd1d34401999d602f8a"
+    },
+    {
+      "path": "source/tests/ops/nodeRuntimeProfile.test.ts",
+      "bytes": 4762,
+      "mode": "0o644",
+      "sha256": "2f7b6a0c01dfba66399b54d2c07caba1040c3cf019c7b48a793bccbe177a1982"
+    },
+    {
+      "path": "source/tests/ops/opsBootstrap.test.ts",
+      "bytes": 3673,
+      "mode": "0o644",
+      "sha256": "99d909df4075f4a6d714e28229454d5ea0343f77040cee1f19971cdcdfa322a9"
+    },
+    {
+      "path": "source/tests/ops/productionDeploymentImage.test.ts",
+      "bytes": 7304,
+      "mode": "0o644",
+      "sha256": "66aad30860400dde86851fc52fc475ab3f0af77ad05cccdeee7a983702a4d673"
+    },
+    {
+      "path": "source/tests/ops/productionImage.test.ts",
+      "bytes": 31584,
+      "mode": "0o644",
+      "sha256": "8afd828fda92ae4e2feaa30172ad6fcf78cbebe8206f7d58d6c0bc545cbc7b7e"
+    },
+    {
+      "path": "source/tests/ops/productionTsxProcess.test.ts",
+      "bytes": 1622,
+      "mode": "0o644",
+      "sha256": "75249edb9058d0be35e2306656aef4165b7ac5d9fe4080f5af3e0c38d716ac29"
+    },
+    {
+      "path": "source/tests/ops/qualificationPauseAlertIntegration.test.ts",
+      "bytes": 15416,
+      "mode": "0o644",
+      "sha256": "5387623e0906c7da3cd56035cd92d6b37ed941a4d7f6706f797fc5bc134d951c"
+    },
+    {
+      "path": "source/tests/ops/restoreQualification.test.ts",
+      "bytes": 7822,
+      "mode": "0o644",
+      "sha256": "9cca5a9893da71f88858075250f2ff38fa0a09ebc53642f0236e24c222590186"
+    },
+    {
+      "path": "source/tests/prisma/abbvieRowPolicyMigration.test.ts",
+      "bytes": 2617,
+      "mode": "0o644",
+      "sha256": "61ae1fdc427a32e56e7ecedebf768c6d5253d7e9d487bb4b16206996ba9c3e88"
+    },
+    {
+      "path": "source/tests/prisma/aiEnrichmentPersistence.test.ts",
+      "bytes": 3106,
+      "mode": "0o644",
+      "sha256": "410c886e5d79991d2ad46baad3ef3f51b16a8bd966fa2bd913559acb64f73787"
+    },
+    {
+      "path": "source/tests/prisma/astellasPdfCityMigration.test.ts",
+      "bytes": 3108,
+      "mode": "0o644",
+      "sha256": "be7b6b89698c6a23de9dacc42d54d633730b4e32141b8a727e06de90d4e477e7"
+    },
+    {
+      "path": "source/tests/prisma/atomicEvidenceCommitScalingMigration.test.ts",
+      "bytes": 1116,
+      "mode": "0o644",
+      "sha256": "12673405f44709ea2a8ac69c6308ea82fe253660c1e52d209e3155193160dda8"
+    },
+    {
+      "path": "source/tests/prisma/bmsMainlandSourceMigration.test.ts",
+      "bytes": 2483,
+      "mode": "0o644",
+      "sha256": "16ef1e24536f4f771893e50cc08102cafa5ea713c193a31fc028178e577be51b"
+    },
+    {
+      "path": "source/tests/prisma/cityPendingSourceMigration.test.ts",
+      "bytes": 2696,
+      "mode": "0o644",
+      "sha256": "417ccc5e737e3d8c0f8529931d25f891a7cca069f237657214750bddcf061d89"
+    },
+    {
+      "path": "source/tests/prisma/gileadNovoSourceMigration.test.ts",
+      "bytes": 2699,
+      "mode": "0o644",
+      "sha256": "e5b921e25fe101663d8894f10f828b6b53864cdf73d52c87d202fa673a676860"
+    },
+    {
+      "path": "source/tests/prisma/jnjDomEvidenceMigration.test.ts",
+      "bytes": 22413,
+      "mode": "0o644",
+      "sha256": "4cbb2c58471bf4bde76f34b47aa78514f92d88299e6c7b7c19665a1b477b8aac"
+    },
+    {
+      "path": "source/tests/prisma/jobProjectionDeltaMigration.test.ts",
+      "bytes": 30919,
+      "mode": "0o644",
+      "sha256": "036659c0fb19c31b93b9e8be58912e3fc6f5b30426ef6f05198fc756f9cf073a"
+    },
+    {
+      "path": "source/tests/prisma/lifecycleLegacyRepair.test.ts",
+      "bytes": 747,
+      "mode": "0o644",
+      "sha256": "03e1d79fe71ec4691f4fc134c6717417f635241172fb5473e040360d16f9099d"
+    },
+    {
+      "path": "source/tests/prisma/manualCrawlRequestPersistence.test.ts",
+      "bytes": 8374,
+      "mode": "0o644",
+      "sha256": "9365f0faeb9000a54516be9fe75d316d7acb87d47a94c8974bdbff7cfe00aa2f"
+    },
+    {
+      "path": "source/tests/prisma/portableZeroBasedLossMigration.test.ts",
+      "bytes": 1913,
+      "mode": "0o644",
+      "sha256": "656c73dbb95f2ff6a70b2664fa216d015ca3cae621847d6cfe09b76d20a6c371"
+    },
+    {
+      "path": "source/tests/prisma/schema.test.ts",
+      "bytes": 49765,
+      "mode": "0o644",
+      "sha256": "3028224b32d0aa7224d8cc267b0117129f247847528d35290675ee2c9b849264"
+    },
+    {
+      "path": "source/tests/prisma/verifiedDateSourceMigration.test.ts",
+      "bytes": 2690,
+      "mode": "0o644",
+      "sha256": "30c6f38f3e8aca79851ad02a9c5a63a65b131c8208ebc7a9a0e77b0113f8f4c0"
+    },
+    {
+      "path": "source/tests/readiness/composeReleaseAuthority.test.ts",
+      "bytes": 4742,
+      "mode": "0o644",
+      "sha256": "5a8b17c620ef7651b66838e9fe69e8d295aa757bf074396da314b9741e541bdc"
+    },
+    {
+      "path": "source/tests/readiness/currentReleaseIdentity.test.ts",
+      "bytes": 5781,
+      "mode": "0o644",
+      "sha256": "ad70f82f439a861b750d136b570763ea25e6a5b6be9a8d22faa14ffdae46e8e7"
+    },
+    {
+      "path": "source/tests/readiness/dataQuality.test.ts",
+      "bytes": 16577,
+      "mode": "0o644",
+      "sha256": "df0ebc8892e07ea273d25a98af0c0458c3545e64f986b3001bb905505e00e02a"
+    },
+    {
+      "path": "source/tests/readiness/dockerAptReliability.test.ts",
+      "bytes": 3802,
+      "mode": "0o644",
+      "sha256": "edd0eca041387736a4f4fdbd680dc755be68c8225b6e0bf893d73cbe204ee6d0"
+    },
+    {
+      "path": "source/tests/readiness/dockerBuildProvenance.test.ts",
+      "bytes": 11416,
+      "mode": "0o644",
+      "sha256": "56c752d3fa55f239c3dc66d0cacf0637c8b5a1eaaf6abc34a6022bb8ec2edddc"
+    },
+    {
+      "path": "source/tests/readiness/dockerTlsTrust.test.ts",
+      "bytes": 1666,
+      "mode": "0o644",
+      "sha256": "ec9d7b0c81bb44cc6f19561a5313df258cb4e068318bb41330f9cc29431896b1"
+    },
+    {
+      "path": "source/tests/readiness/formalBrowserPreflight.test.ts",
+      "bytes": 1343,
+      "mode": "0o644",
+      "sha256": "065f09f5d5e4dfe91d39dd655224ceef51a30fb0143856d185257927fd6276fb"
+    },
+    {
+      "path": "source/tests/readiness/formalBrowserSandbox.test.ts",
+      "bytes": 2836,
+      "mode": "0o644",
+      "sha256": "d919ed99405f0d42ee5518435696d3b1b2b2257a1624755cc0e137bf08395078"
+    },
+    {
+      "path": "source/tests/readiness/lifecycleSetReconciliation.test.ts",
+      "bytes": 3187,
+      "mode": "0o644",
+      "sha256": "db76a722778ce0168539cf3112a06bf8e7ae9baec35c234ed308db9c592574fb"
+    },
+    {
+      "path": "source/tests/readiness/ociImageLabels.test.ts",
+      "bytes": 795,
+      "mode": "0o644",
+      "sha256": "b187112cc0fb03878afecef3a30bb64e10b7b959a120bab57cd38efc0ec22d2d"
+    },
+    {
+      "path": "source/tests/readiness/p0LaunchReadiness.test.ts",
+      "bytes": 4863,
+      "mode": "0o644",
+      "sha256": "292e1e57003e5898b9db443198d0cc831a6e8ad71a31bc8606fb68f10f41a1e4"
+    },
+    {
+      "path": "source/tests/readiness/p0Readiness.test.ts",
+      "bytes": 9086,
+      "mode": "0o644",
+      "sha256": "65756645b18db2c27ced0e489c98f4b8020c9ff3d1ea5d698a89e44069e6e138"
+    },
+    {
+      "path": "source/tests/readiness/p0ReadinessReportCli.test.ts",
+      "bytes": 2395,
+      "mode": "0o644",
+      "sha256": "194f94aea568ab372280ddb440167dd4e6cbfbf137508e88868d541f04a6f03d"
+    },
+    {
+      "path": "source/tests/readiness/p0StagedDataQualityCli.test.ts",
+      "bytes": 3348,
+      "mode": "0o644",
+      "sha256": "52ab7527b0b029c9583052f6765e33199ea290521d39e2744b1081097d841efb"
+    },
+    {
+      "path": "source/tests/readiness/p0StagedReadinessCli.test.ts",
+      "bytes": 2593,
+      "mode": "0o644",
+      "sha256": "eefce0d40d18ff75f2dbdad5d138d1073ca7843bef761de666cc5771af6c121a"
+    },
+    {
+      "path": "source/tests/readiness/p0StagedReleaseCandidateCli.test.ts",
+      "bytes": 8007,
+      "mode": "0o644",
+      "sha256": "a6257a13a944767138f9b614f9745e92278f2c12c98f8c19d6bfe1762b13984e"
+    },
+    {
+      "path": "source/tests/readiness/persistedReadiness.test.ts",
+      "bytes": 5989,
+      "mode": "0o644",
+      "sha256": "a33ba997f901ac28335f1a6584cc9a9efd924195a53feecd154fb8d912066a29"
+    },
+    {
+      "path": "source/tests/readiness/prismaOfflineEngines.test.ts",
+      "bytes": 3125,
+      "mode": "0o644",
+      "sha256": "9201f4319dba25e331c6c4952fb7b5843681dc37455afede408759d63a550bab"
+    },
+    {
+      "path": "source/tests/readiness/prismaReadiness.test.ts",
+      "bytes": 4006,
+      "mode": "0o644",
+      "sha256": "0f15e94608e7a5fefccf0d055196aed99212a4ec08917b481f6bf8a3630d347e"
+    },
+    {
+      "path": "source/tests/readiness/stagedDataQuality.test.ts",
+      "bytes": 4964,
+      "mode": "0o644",
+      "sha256": "49c3dbed6cd93646a0d0daee026310e2f5853e2b4eadb2e634b65b0c8a024061"
+    },
+    {
+      "path": "source/tests/readiness/stagedDataQualityRepository.test.ts",
+      "bytes": 7116,
+      "mode": "0o644",
+      "sha256": "5422b30e345d6b168405bca33183c9123195c73ac825be80290bc604e1bef674"
+    },
+    {
+      "path": "source/tests/readiness/stagedReleaseCandidateBootstrap.test.ts",
+      "bytes": 10542,
+      "mode": "0o644",
+      "sha256": "63d09fb234f27cfaae38d3c3ddcd69703ed57d17b5181c31bf241e02e663bb7c"
+    },
+    {
+      "path": "source/tests/readiness/stagedReleasePromotion.test.ts",
+      "bytes": 6108,
+      "mode": "0o644",
+      "sha256": "29153bec1e7ad32fe34d9b75d08541eeb177c366a3fd8b07fd823497bf5d02cc"
+    },
+    {
+      "path": "source/tests/readiness/stagedReleaseReadiness.test.ts",
+      "bytes": 8763,
+      "mode": "0o644",
+      "sha256": "5786942a922313ed623b1a5023fed4fa268b266a9cf29902d771e028aecb13ea"
+    },
+    {
+      "path": "source/tests/readiness/strictPersistedReadiness.test.ts",
+      "bytes": 7126,
+      "mode": "0o644",
+      "sha256": "86e9835c3beff995b53981c0b081f5edf04a30a3b852cdb20d4b9d18b7a7cf4c"
+    },
+    {
+      "path": "source/tests/readiness/strictPrismaReadiness.test.ts",
+      "bytes": 21151,
+      "mode": "0o644",
+      "sha256": "81a33a76ee4f21147a9ebe90edc74d7e9c24ed2fa71ac27c733cc89d365b45b2"
+    },
+    {
+      "path": "source/tests/readiness/systemicCompletenessAudit.test.ts",
+      "bytes": 3462,
+      "mode": "0o644",
+      "sha256": "33e887bcb201e7ce6bfdd8d106cc06408498f0870f852aa573c819a90b296d13"
+    },
+    {
+      "path": "source/tests/readiness/vitestConfig.test.ts",
+      "bytes": 399,
+      "mode": "0o644",
+      "sha256": "ab81fcaa020f047616423ae93a00b5fccdb9e7bf313bf681d2c526cfdceaeab3"
+    },
+    {
+      "path": "source/tests/release/authoritativeLaunchReceipt.test.ts",
+      "bytes": 7584,
+      "mode": "0o644",
+      "sha256": "adb102994f361637b89b12baa71244a9ea3645cb450574c2829cb2404fbe8208"
+    },
+    {
+      "path": "source/tests/release/fixedCohortCompletenessAudit.test.ts",
+      "bytes": 23397,
+      "mode": "0o644",
+      "sha256": "4d3383655d28f3bc95f9263f477759f3a7276a8131d89c0ddf3e07aca1e8c4d9"
+    },
+    {
+      "path": "source/tests/release/formalQualificationState.test.ts",
+      "bytes": 5637,
+      "mode": "0o644",
+      "sha256": "b9cba3427a4bd76490fa62dacdb9db1320c1f518f4890ca99e075aa2fd2d54c1"
+    },
+    {
+      "path": "source/tests/release/formalQualificationTiming.test.ts",
+      "bytes": 2934,
+      "mode": "0o644",
+      "sha256": "1e6add5ee0199d37fbc9ccc323d18bd2fe3cd356a4602a806dc094fc8531daec"
+    },
+    {
+      "path": "source/tests/release/launchManifest.test.ts",
+      "bytes": 6916,
+      "mode": "0o644",
+      "sha256": "72be46d58061172ff9faa557aa8542ffba5e3e95438cf1504d3a1b1bd4eb6997"
+    },
+    {
+      "path": "source/tests/release/portableCoveragePolicy.test.ts",
+      "bytes": 1462,
+      "mode": "0o644",
+      "sha256": "31eda5d1aeafa4da24512f1e51093769da7a25bf98fd989fc40dc61ff152cdbe"
+    },
+    {
+      "path": "source/tests/scripts/cloudDbStartedDeadline.test.ts",
+      "bytes": 10761,
+      "mode": "0o644",
+      "sha256": "9dbcbfe9ebc32838a9918f2f77e6a6f6bae036d00a340aaf4fc6ab0f35ffb6df"
+    },
+    {
+      "path": "source/tests/scripts/cloudNovoPilotCapture.test.ts",
+      "bytes": 11368,
+      "mode": "0o644",
+      "sha256": "cfd0d76e206e1df3350a1e4403cdee75fd7504e6679580ecbed7fac3fce458ac"
+    },
+    {
+      "path": "source/tests/scripts/cloudPortableSourcePilot.test.ts",
+      "bytes": 15056,
+      "mode": "0o644",
+      "sha256": "bf7e462b306159280cb61cc7bdd0bc543e12b17ad08f9702f03fc43e1ec6b5ec"
+    },
+    {
+      "path": "source/tests/scripts/cloudSourcePilot.test.ts",
+      "bytes": 10067,
+      "mode": "0o644",
+      "sha256": "d7912067782f2faa0d7425ecd976a726ac8c94b7d23ece15c26d483b7e83429a"
+    },
+    {
+      "path": "source/tests/scripts/cloudSourcePilotIntegration.test.ts",
+      "bytes": 15310,
+      "mode": "0o644",
+      "sha256": "c62e8ae8cb868f3d331f5d21f40f2f9efec2d011d5a3f175138716d889c6f273"
+    },
+    {
+      "path": "source/tests/scripts/cloudSourcePilotRelay.test.ts",
+      "bytes": 14836,
+      "mode": "0o644",
+      "sha256": "9aa0452606c6d813dc831c76dc7a96f75a3f1094ff12efae2a031a5b93cd597d"
+    },
+    {
+      "path": "source/tests/scripts/humanBaselineDiscrepancyPolicy.test.ts",
+      "bytes": 3162,
+      "mode": "0o644",
+      "sha256": "876e7cfbc8262e3e102654649d1239fe87ac4f0969ecf0fe59c000489c651783"
+    },
+    {
+      "path": "source/tests/scripts/portableClientLifecycle.test.ts",
+      "bytes": 5156,
+      "mode": "0o644",
+      "sha256": "42debabfcbc50b5f83ce557bbf03d982ec93bf2aa7f78df3de74f8de293fc9ef"
+    },
+    {
+      "path": "source/tests/security/browserRuntimeQualification.test.ts",
+      "bytes": 4048,
+      "mode": "0o644",
+      "sha256": "1ace35487bf972389e0fda6a6a0fbe1b89098405a282c200b1896989b6418470"
+    },
+    {
+      "path": "source/tests/security/productionDependencySecurity.test.ts",
+      "bytes": 848,
+      "mode": "0o644",
+      "sha256": "af466ec03e75d2af25bda3c0fee0567f7aabaaa59d7dc5d58caf99b5402e8249"
+    },
+    {
+      "path": "source/tests/security/productionSecurityGate.test.ts",
+      "bytes": 15041,
+      "mode": "0o644",
+      "sha256": "675423dbfdd1455431101a7d0b4d9441385697b4b016e0b2da4f00ed2d4eca60"
+    },
+    {
+      "path": "source/tests/security/productionSecurityGateCli.test.ts",
+      "bytes": 6847,
+      "mode": "0o644",
+      "sha256": "9e5fc01a6a58e5c54a24e85e9ab3440c41b5c8b6ab63a6a6ba9d8480059008a5"
+    },
+    {
+      "path": "source/tests/security/runtimeExposureQualification.test.ts",
+      "bytes": 4488,
+      "mode": "0o644",
+      "sha256": "2d0fb49e486138106dba89532c77e7dee7c617639d6c44a49cad806060e20a8c"
+    },
+    {
+      "path": "source/tests/security/secretEvidencePolicy.test.ts",
+      "bytes": 7836,
+      "mode": "0o644",
+      "sha256": "ff4904fdc8121869f91eeb9a3b7b65263cf5305cfe5bdc03611dce7ccc6abbc1"
+    },
+    {
+      "path": "source/tests/server/adminApi.test.ts",
+      "bytes": 10457,
+      "mode": "0o644",
+      "sha256": "fec7be84f067516fc55257b8d7d8f2265edb677863c42fcb96f3c045e2165026"
+    },
+    {
+      "path": "source/tests/server/alertDelivery.test.ts",
+      "bytes": 3508,
+      "mode": "0o644",
+      "sha256": "4dc699a9431975d1179cb09c35b5c08c0079eba9af44bbb09a690f8b96d785a3"
+    },
+    {
+      "path": "source/tests/server/coverageService.test.ts",
+      "bytes": 3627,
+      "mode": "0o644",
+      "sha256": "7a679be219285eebadb3297f2dca87b3cf8ccd71f8b93f3303ff2e606532183d"
+    },
+    {
+      "path": "source/tests/server/deploymentReadiness.test.ts",
+      "bytes": 4330,
+      "mode": "0o644",
+      "sha256": "40bed4b8864b1fabbcb82b3eda84194f809eb593409223e248c4d9f156062486"
+    },
+    {
+      "path": "source/tests/server/feedbackService.test.ts",
+      "bytes": 1516,
+      "mode": "0o644",
+      "sha256": "48ecbc0f18091ecfb5f749f5b7594426bcd1a6c32c51668fb9a33229ed69025d"
+    },
+    {
+      "path": "source/tests/server/httpServer.test.ts",
+      "bytes": 5980,
+      "mode": "0o644",
+      "sha256": "86283524f8b792b77708ba9ac80cc3b77a929196c9807c48516e2732d0a1a35c"
+    },
+    {
+      "path": "source/tests/server/jobSearchService.test.ts",
+      "bytes": 21867,
+      "mode": "0o644",
+      "sha256": "1f96b598dcf7b0302a51821bee7f8ae2d6d3be86e0189a2d73ff932fcb4f5d85"
+    },
+    {
+      "path": "source/tests/server/oneShotAlertDelivery.test.ts",
+      "bytes": 1962,
+      "mode": "0o644",
+      "sha256": "c677e42ea7cfec7453af42357f33b102e1c8ab7acaa210c68692200c9b3965b7"
+    },
+    {
+      "path": "source/tests/server/opsMonitoring.test.ts",
+      "bytes": 11294,
+      "mode": "0o644",
+      "sha256": "4641e3ff777ef044bba7ad556255f78c9920d4a6b9bffde2bce1c8a3fa59b629"
+    },
+    {
+      "path": "source/tests/server/portablePublicationApi.test.ts",
+      "bytes": 14689,
+      "mode": "0o644",
+      "sha256": "22dac7a851463c998f31e8ea44ab43023788685da5c88c88606b01a87c5d3e4d"
+    },
+    {
+      "path": "source/tests/server/postgresReadiness.test.ts",
+      "bytes": 5837,
+      "mode": "0o644",
+      "sha256": "c266ec8eeae3c2d0a9ac1ac9b68267e009e0353d112dbef70be73324102b60a2"
+    },
+    {
+      "path": "source/tests/server/privacyRetention.test.ts",
+      "bytes": 3537,
+      "mode": "0o644",
+      "sha256": "0244db8dcf0ee77200efef57a9b39843228609d1667fab0ce460d9aef43d5543"
+    },
+    {
+      "path": "source/tests/server/publicApi.test.ts",
+      "bytes": 16332,
+      "mode": "0o644",
+      "sha256": "8d1e62213bb748c1153ee5dd043faefd1e04c50d904f970e7275db2b921149b9"
+    },
+    {
+      "path": "source/tests/server/rateLimit.test.ts",
+      "bytes": 1831,
+      "mode": "0o644",
+      "sha256": "e75d414faafd74837b9224868a3945672a884aa7d76342d394e1d5e497ae1eaf"
+    },
+    {
+      "path": "source/tests/server/staticDocuments.test.ts",
+      "bytes": 2344,
+      "mode": "0o644",
+      "sha256": "971919cfb8607deafa6f8df4c677c084f05fa318c67619e5dcc4ea6b85e32c7e"
+    },
+    {
+      "path": "source/tests/support/reviewerSignatureTestKeys.ts",
+      "bytes": 141,
+      "mode": "0o644",
+      "sha256": "8fa6205321fbd7a9a72cccff3f5d35f2cd12255dd9b6b15a73c71b0767bc0431"
+    },
+    {
+      "path": "source/tests/support/reviewerSignatureTestVerifier.ts",
+      "bytes": 558,
+      "mode": "0o644",
+      "sha256": "425a4ac9fb03dcd5e7965a1c194bfa1c1a329e87684ac48c391b3eb6eebbda2b"
+    },
+    {
+      "path": "source/tools/historical/create-phase2-aggregate-manifest.ts",
+      "bytes": 7611,
+      "mode": "0o644",
+      "sha256": "709dff1ae3488eac7a0bf07c77d933c912a7552e67fa5b4b2febebc3dfec36b5"
+    },
+    {
+      "path": "source/tools/historical/generatePhase3Aggregate.ts",
+      "bytes": 3596,
+      "mode": "0o644",
+      "sha256": "51c899bb6689dac5e8c66c07fb5f614ee9fcf0c917ba6b9829d75cd3d32f7e30"
+    },
+    {
+      "path": "source/tools/secretEvidencePolicy.ts",
+      "bytes": 9212,
+      "mode": "0o644",
+      "sha256": "78fe92815089282c025908228a565b2894669dca91ae88b743ba7ca5d987bcbc"
+    },
+    {
+      "path": "source/tsconfig.incremental-tests.json",
+      "bytes": 392,
+      "mode": "0o644",
+      "sha256": "74a3c76c26d8a082581348bd128b3954890a07cebe017a904fcf265d535e8ac3"
+    },
+    {
+      "path": "source/tsconfig.incremental.json",
+      "bytes": 128,
+      "mode": "0o644",
+      "sha256": "e9fcc8eeb95e92a863b7f214b7770d1ee131db287f05f8a0cecdd201d02d43f7"
+    },
+    {
+      "path": "source/tsconfig.json",
+      "bytes": 540,
+      "mode": "0o644",
+      "sha256": "dc62ec0b18b47ea881a9fe0bbcb1cb6a39331832cd7de3f7d7a1274402b9c8f8"
+    },
+    {
+      "path": "source/vite.config.ts",
+      "bytes": 469,
+      "mode": "0o644",
+      "sha256": "fb573da5ad36f78c2e4931d1cd53eed29b07a87987a07f7a878e7d0a64b40759"
+    },
+    {
+      "path": "source/vitest.config.ts",
+      "bytes": 41,
+      "mode": "0o644",
+      "sha256": "47d615bf0194b8469c6557e75f9a92e70a4b779ac1699392c2a45289ecf995cd"
+    }
+  ]
+}
