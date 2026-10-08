@@ -1,0 +1,91 @@
+{
+  "excludesSelf": "ARTIFACT_MANIFEST.json",
+  "fileCount": 14,
+  "totalBytes": 171746,
+  "files": [
+    {
+      "path": "CANDIDATE_MANIFEST.json",
+      "bytes": 1855,
+      "mode": "0o644",
+      "sha256": "68848f55ee181c56be8a3c9231b96c1fe243b1de3349f68b6bb53654cc6d0d85"
+    },
+    {
+      "path": "FIVE_BASELINE_SOURCE_MANIFEST.json",
+      "bytes": 1110,
+      "mode": "0o644",
+      "sha256": "7c0f3cc2ad0ff76aec5a9887fc9b5ca0d00d3176e466ea74735ee2aa45bc8d84"
+    },
+    {
+      "path": "PRIVACY_SCAN.json",
+      "bytes": 266,
+      "mode": "0o644",
+      "sha256": "43086ae80b0deaf2808d33f38e02e8dc76b66e43119b519671a1f7663ca9701d"
+    },
+    {
+      "path": "READER_INPUT_AUDIT.json",
+      "bytes": 9926,
+      "mode": "0o644",
+      "sha256": "f8a8e910321424c31a77c5d0be0a8a5ab362c467771fe7bee2a1bd717fbc4179"
+    },
+    {
+      "path": "README.md",
+      "bytes": 3855,
+      "mode": "0o644",
+      "sha256": "06aa8831bbb0078367083ce23e51da17ade5611b011fc789038871bc83c716e3"
+    },
+    {
+      "path": "SIX_SOURCE_FILE_MANIFEST.json",
+      "bytes": 1879,
+      "mode": "0o644",
+      "sha256": "91bea7f2aeba0f44479564bfdccf87c5a4c2d4e1fe290787023af43b74018cb7"
+    },
+    {
+      "path": "baseline-source/src/crawler/completenessCertificate.ts",
+      "bytes": 25648,
+      "mode": "0o644",
+      "sha256": "5da74fb8a89f45d8905b5eb681c66096d5a80124d70b9a1b13aba6cace2a4434"
+    },
+    {
+      "path": "baseline-source/src/db/portablePublicSnapshotRepository.ts",
+      "bytes": 23751,
+      "mode": "0o644",
+      "sha256": "c877eb38a20554ea965a6772b5291b17c1435d6d2f72a90b2c4d7e651eac138b"
+    },
+    {
+      "path": "baseline-source/src/domain/portablePublicSnapshot.ts",
+      "bytes": 40694,
+      "mode": "0o644",
+      "sha256": "9d45413701e4cd72c53fcfdf3c032d202a5e3a13186c20b07fc067b0dea09de1"
+    },
+    {
+      "path": "baseline-source/src/domain/sanofiPublicTransition.ts",
+      "bytes": 2176,
+      "mode": "0o644",
+      "sha256": "0cc65e56a979b7a6077f029698d66a060cc0d5dea5c769ff310ce9703dfd38b9"
+    },
+    {
+      "path": "baseline-source/src/server/portablePublicationApi.ts",
+      "bytes": 8767,
+      "mode": "0o644",
+      "sha256": "f6ab5b0a52acc280e3553f1343b13aabe7304d2b1961ef2ef6260e9563904e85"
+    },
+    {
+      "path": "sanofi-exact-reviewed-reader-source.tar.gz",
+      "bytes": 27573,
+      "mode": "0o644",
+      "sha256": "10626ae31c39995147b6afc9a2d631ca6a3e9dcdf66b708ec60869ec8e03ffc6"
+    },
+    {
+      "path": "sanofi-exact-reviewed-reader.patch",
+      "bytes": 19393,
+      "mode": "0o644",
+      "sha256": "3bd829c979a3adece3ec4efaf5abf07317667318d6515d5b472e17220d76ac11"
+    },
+    {
+      "path": "verify_portable_reader_delta.py",
+      "bytes": 4853,
+      "mode": "0o644",
+      "sha256": "8569ee8fc6a69ecd31e1f7166cdc47f0353b9e85382a534557badcd7fabcfd69"
+    }
+  ]
+}

@@ -1,0 +1,937 @@
+{
+  "excludesSelf": "ARTIFACT_MANIFEST.json",
+  "fileCount": 155,
+  "totalBytes": 908347,
+  "files": [
+    {
+      "path": "PRIVACY_SCAN.json",
+      "bytes": 267,
+      "mode": "0o644",
+      "sha256": "c839471139b7cc9e4007b20a9fc4b7abd55055778c033b7a23c71f6e44aad891"
+    },
+    {
+      "path": "README.md",
+      "bytes": 3417,
+      "mode": "0o644",
+      "sha256": "f6e4c30a1edce0618d22ac361e621054c283a74f15bd9cbd1c27bcb31a8c0f31"
+    },
+    {
+      "path": "SOURCE_MANIFEST.json",
+      "bytes": 63804,
+      "mode": "0o644",
+      "sha256": "91f10319c19131b82b721355a566b237cc6dfba07cd8d0e5b7250af7999c1867"
+    },
+    {
+      "path": "metadata/HOST_LEGACY_UPLOADER_REACHABILITY.json",
+      "bytes": 14452,
+      "mode": "0o644",
+      "sha256": "f9e0c9446c820b20f7d90ce6715ac37e9f5af3a9242fbe13893964cd4fe212e1"
+    },
+    {
+      "path": "metadata/HOST_SOURCE_RESTORE_PREREQUISITES.json",
+      "bytes": 9128,
+      "mode": "0o644",
+      "sha256": "45e6037d80e268e3d994db0adf5ef50196cf915741b3f049faecd5f804c8760e"
+    },
+    {
+      "path": "metadata/bayer-CREATOR_MANIFEST.json",
+      "bytes": 7381,
+      "mode": "0o644",
+      "sha256": "7274355306e55859bcc0944658fca4b656c4ad3d43050d79374f239fd1a544c5"
+    },
+    {
+      "path": "metadata/jnj-CREATOR_MANIFEST.json",
+      "bytes": 7099,
+      "mode": "0o644",
+      "sha256": "8d44592502f6dae878cbf4c3e8c6ad4863cb5764e9aa947b7b665d7382e51682"
+    },
+    {
+      "path": "metadata/qilu-CREATOR_MANIFEST.json",
+      "bytes": 7161,
+      "mode": "0o644",
+      "sha256": "5deb718f25eed48366a24ed820976cd14d6e3bab5c1e115c5c76f9178aede6cc"
+    },
+    {
+      "path": "metadata/sanofi-CREATOR_MANIFEST.json",
+      "bytes": 7207,
+      "mode": "0o644",
+      "sha256": "4d4ba177b4f66697d6a7d8422b3264e44d9ac13503bbefbfc7338350a094d4c2"
+    },
+    {
+      "path": "source/bayer/hosts/bayer/host/archive-transfer.mjs",
+      "bytes": 1777,
+      "mode": "0o600",
+      "sha256": "698e966e5552967845a5252d2b3df2acca28dcd8dbbb0ae41755a3a6231e6a99"
+    },
+    {
+      "path": "source/bayer/hosts/bayer/host/control-base.template.json",
+      "bytes": 467,
+      "mode": "0o600",
+      "sha256": "71e0e6fb81bf8a013a16a8310f9bfece21981d734c528d6f4c5f56552c2d54a4"
+    },
+    {
+      "path": "source/bayer/hosts/bayer/host/host-config.json",
+      "bytes": 522,
+      "mode": "0o600",
+      "sha256": "852ba02c6e92c7e237efa6ec9d5d0c2958899d580351bf1349e75f8e073ed218"
+    },
+    {
+      "path": "source/bayer/hosts/bayer/host/host-config.template.json",
+      "bytes": 522,
+      "mode": "0o600",
+      "sha256": "852ba02c6e92c7e237efa6ec9d5d0c2958899d580351bf1349e75f8e073ed218"
+    },
+    {
+      "path": "source/bayer/hosts/bayer/host/host-files.mts",
+      "bytes": 4080,
+      "mode": "0o600",
+      "sha256": "275f44c00b816fc88580418bb8386b3a7f416bcfed977adf9e60e307caddcfa1"
+    },
+    {
+      "path": "source/bayer/hosts/bayer/host/host-helper-functions.js",
+      "bytes": 11186,
+      "mode": "0o600",
+      "sha256": "dc0f37cc8fbec84b2e2f97917367f2f42ccbcfc854afb81cb8b1dc419dd6f05d"
+    },
+    {
+      "path": "source/bayer/hosts/bayer/host/host-stage-functions.js",
+      "bytes": 6969,
+      "mode": "0o600",
+      "sha256": "bcbdc454bc34598fea96223998d683ff7d2a626e349ba668a2d0754a82589c8d"
+    },
+    {
+      "path": "source/bayer/hosts/bayer/host/machine-json.js",
+      "bytes": 807,
+      "mode": "0o600",
+      "sha256": "3484738bd095a9d57da70c6392af78865a53759a9e8499316941157b6210e9f6"
+    },
+    {
+      "path": "source/bayer/hosts/bayer/host/owner-binding-input.template.json",
+      "bytes": 623,
+      "mode": "0o600",
+      "sha256": "e4baf2d8e1351ab123d49d8b6fa7ba03302e5b72705c3f42a130105521cd241b"
+    },
+    {
+      "path": "source/bayer/hosts/bayer/host/relay-files.mjs",
+      "bytes": 7917,
+      "mode": "0o600",
+      "sha256": "539a8011e968a097a2349fa89ca3d9118e0c76206d5dc6044603149d41157684"
+    },
+    {
+      "path": "source/bayer/hosts/bayer/host/runtime/bayer-b-evidence-guard.mts",
+      "bytes": 8307,
+      "mode": "0o600",
+      "sha256": "15cfd5c7ffe736af4ce17f4cfc8ae9fc0030882fee5680684de7c97e50ed49d8"
+    },
+    {
+      "path": "source/bayer/hosts/bayer/host/runtime/bayer-b-route.mts",
+      "bytes": 1775,
+      "mode": "0o600",
+      "sha256": "eb10a93e23f78510c864a39e821bac2f28f7f559be481364cd87df0caaf3eb96"
+    },
+    {
+      "path": "source/bayer/hosts/bayer/host/runtime/complete-reviewed-source-readback.js",
+      "bytes": 5699,
+      "mode": "0o600",
+      "sha256": "319957c079b3150490a2cb8a5d2142b4e0ad31b5dc1856777304304710231c63"
+    },
+    {
+      "path": "source/bayer/hosts/bayer/host/runtime/continuous-relay-v3-durable-monitor.js",
+      "bytes": 11575,
+      "mode": "0o600",
+      "sha256": "4b7b39a64e1d5c4f3545a666f1755f30b0ec5d0d0e7c8f8b99264066a9ec95d6"
+    },
+    {
+      "path": "source/bayer/hosts/bayer/host/runtime/inspect-host-binding.mts",
+      "bytes": 3198,
+      "mode": "0o600",
+      "sha256": "4e544c7a49c9403b948b1956fb3fd7fab0a3164e7d082a2d335d294fe6601ece"
+    },
+    {
+      "path": "source/bayer/hosts/bayer/host/runtime/load-host-state.js",
+      "bytes": 5327,
+      "mode": "0o600",
+      "sha256": "c933d4c633772ba3c6564ba93862a6016aadbed0c6e4e1f96069fb4961ae25b6"
+    },
+    {
+      "path": "source/bayer/hosts/bayer/host/runtime/load-host-state.unbound.template.js",
+      "bytes": 5327,
+      "mode": "0o600",
+      "sha256": "c933d4c633772ba3c6564ba93862a6016aadbed0c6e4e1f96069fb4961ae25b6"
+    },
+    {
+      "path": "source/bayer/hosts/bayer/host/runtime/load-source-runtime.js",
+      "bytes": 2416,
+      "mode": "0o600",
+      "sha256": "4a4b3b5ccd6921fee2e60080aa87705cf7b7d49ba21c6b975c589d7edb3e2e4d"
+    },
+    {
+      "path": "source/bayer/hosts/bayer/host/runtime/machine-json.py",
+      "bytes": 1119,
+      "mode": "0o600",
+      "sha256": "67611e749eddc6bf8c591fef11f2efa82e2a73ce0bb51b2779fab4ae68b77f50"
+    },
+    {
+      "path": "source/bayer/hosts/bayer/host/runtime/preflight/preflight-launch.mjs",
+      "bytes": 11041,
+      "mode": "0o600",
+      "sha256": "bc6368b3238f049d04b4a1f72c03e88f4b00dd76057f51a17e364db31ecb057f"
+    },
+    {
+      "path": "source/bayer/hosts/bayer/host/runtime/preflight/runtime-check.mjs",
+      "bytes": 5317,
+      "mode": "0o600",
+      "sha256": "6c33caad0bc7083d8f1275d2f33d9e84e9973956c33807f66bd80597eb9fc18b"
+    },
+    {
+      "path": "source/bayer/hosts/bayer/host/runtime/prepare-owner-binding.mts",
+      "bytes": 8402,
+      "mode": "0o600",
+      "sha256": "73167ed0924f3e4856eb253ce3baf9db71ed8d83e8a70a4a5cffa3574c4bc86c"
+    },
+    {
+      "path": "source/bayer/hosts/bayer/host/runtime/prepare-registered-control.mts",
+      "bytes": 123,
+      "mode": "0o600",
+      "sha256": "75b04c3bf46a0c81529e1322c74a02ccddb88b6edb161c39e36fc082ad1c89d8"
+    },
+    {
+      "path": "source/bayer/hosts/bayer/host/runtime/review-packet-envelope.mts",
+      "bytes": 9815,
+      "mode": "0o600",
+      "sha256": "c91dabbea67c806e06fdbdc73e0900b88133b16e7e32b22026c16e3e1c03305d"
+    },
+    {
+      "path": "source/bayer/hosts/bayer/host/runtime/review-publication.py",
+      "bytes": 6094,
+      "mode": "0o600",
+      "sha256": "c9db4992458dcbf020d86faccd4f50d57622018d59ce2576c84f1e6d8bc9bd4e"
+    },
+    {
+      "path": "source/bayer/hosts/bayer/host/runtime/update-candidate-completion-state.mjs",
+      "bytes": 3654,
+      "mode": "0o600",
+      "sha256": "ae5ad99411b014c8ffff615a0b06af1e1fdfd2ed7f7265c9c9cee0128339bb06"
+    },
+    {
+      "path": "source/bayer/hosts/bayer/host/source-config-reference.json",
+      "bytes": 1877,
+      "mode": "0o600",
+      "sha256": "f8bb951ad7ae2048285f1fc6f682469f7184ee81b5c841a21751d593c2d19623"
+    },
+    {
+      "path": "source/bayer/hosts/bayer/supervision/inspect-launch-identity.mjs",
+      "bytes": 941,
+      "mode": "0o600",
+      "sha256": "33210472807e0eb8c19957d2efab4f419ad1b2f21393a58b33dc0cc7a0603e16"
+    },
+    {
+      "path": "source/bayer/hosts/bayer/supervision/sample_process_tree.py",
+      "bytes": 13065,
+      "mode": "0o600",
+      "sha256": "3fa6daa1af1afee94d19801edfd8bcb538e1243476b5adb253e50de162a27bd6"
+    },
+    {
+      "path": "source/bayer/hosts/bayer/supervision/start-monitor-bayer60-combined.js",
+      "bytes": 15649,
+      "mode": "0o600",
+      "sha256": "7f45d2a675fcf8087f10017e210fbe1851f415976d3b9601786244e5ddf7fd16"
+    },
+    {
+      "path": "source/bayer/hosts/bayer/supervision/start-monitor-bayer60-combined.unbound.template.js",
+      "bytes": 15649,
+      "mode": "0o600",
+      "sha256": "7f45d2a675fcf8087f10017e210fbe1851f415976d3b9601786244e5ddf7fd16"
+    },
+    {
+      "path": "source/bayer/hosts/bayer/supervision/supervise-cancel.mjs",
+      "bytes": 10235,
+      "mode": "0o600",
+      "sha256": "773fbc6350f30fb5d008b4d1beb7c2652915a6ab8794020a20ff2f008652df62"
+    },
+    {
+      "path": "source/bayer/owner-adaptations/bayer-c60-r4-r2-20261008T0440Z/baseline-manifest.json",
+      "bytes": 1454,
+      "mode": "0o600",
+      "sha256": "8de160feedc8e8fb0a9a67b0e17431efd45414391d02a7eb3cdee83b72dbbb39"
+    },
+    {
+      "path": "source/bayer/owner-adaptations/bayer-c60-r4-r2-20261008T0440Z/build-fragments.py",
+      "bytes": 4463,
+      "mode": "0o600",
+      "sha256": "1f03fee8b375360bd6294b09fed5eccbbe1787bda8f5cf5523c743bde23de28e"
+    },
+    {
+      "path": "source/bayer/owner-adaptations/bayer-c60-r4-r2-20261008T0440Z/preload-owner.exec.js",
+      "bytes": 2756,
+      "mode": "0o600",
+      "sha256": "15690ac0b21c5ae5f24dfca3fa28b4781b78ec2750e4a9bd0d05db2653bba51f"
+    },
+    {
+      "path": "source/bayer/owner-adaptations/bayer-c60-r4-r2-20261008T0440Z/publish-and-monitor-owner.js",
+      "bytes": 15352,
+      "mode": "0o600",
+      "sha256": "1bc1cd0ec3a57990095779299077f74fcf8b8439f14836953bb656daefbf6405"
+    },
+    {
+      "path": "source/bayer/owner-adaptations/bayer-c60-r4-r2-20261008T0440Z/publish-reviewed-and-monitor.exec.js",
+      "bytes": 1398,
+      "mode": "0o600",
+      "sha256": "e2f3253a259da02bc5a843c77c571ea9c5c6aaa9e8ff9135c9fb0f1ae2054d19"
+    },
+    {
+      "path": "source/jnj/hosts/jnj/host/archive-transfer.mjs",
+      "bytes": 1777,
+      "mode": "0o600",
+      "sha256": "698e966e5552967845a5252d2b3df2acca28dcd8dbbb0ae41755a3a6231e6a99"
+    },
+    {
+      "path": "source/jnj/hosts/jnj/host/control-base.template.json",
+      "bytes": 467,
+      "mode": "0o600",
+      "sha256": "71e0e6fb81bf8a013a16a8310f9bfece21981d734c528d6f4c5f56552c2d54a4"
+    },
+    {
+      "path": "source/jnj/hosts/jnj/host/host-config.json",
+      "bytes": 526,
+      "mode": "0o600",
+      "sha256": "0ff1594f62c6e6ad8e822be84b4649dc72b4351bb3e7c882bebf6c6617c70ab1"
+    },
+    {
+      "path": "source/jnj/hosts/jnj/host/host-config.template.json",
+      "bytes": 526,
+      "mode": "0o600",
+      "sha256": "0ff1594f62c6e6ad8e822be84b4649dc72b4351bb3e7c882bebf6c6617c70ab1"
+    },
+    {
+      "path": "source/jnj/hosts/jnj/host/host-files.mts",
+      "bytes": 4080,
+      "mode": "0o600",
+      "sha256": "275f44c00b816fc88580418bb8386b3a7f416bcfed977adf9e60e307caddcfa1"
+    },
+    {
+      "path": "source/jnj/hosts/jnj/host/host-helper-functions.js",
+      "bytes": 11179,
+      "mode": "0o600",
+      "sha256": "f610b4e426d35d7788ed58abdd3832da5a34dfd4b06f951fed8e2f2f3b063fca"
+    },
+    {
+      "path": "source/jnj/hosts/jnj/host/host-stage-functions.js",
+      "bytes": 6973,
+      "mode": "0o600",
+      "sha256": "543e433321f3458f05cafc7a11fe996fa9eaf44b4480341426359d33462553dc"
+    },
+    {
+      "path": "source/jnj/hosts/jnj/host/machine-json.js",
+      "bytes": 807,
+      "mode": "0o600",
+      "sha256": "3484738bd095a9d57da70c6392af78865a53759a9e8499316941157b6210e9f6"
+    },
+    {
+      "path": "source/jnj/hosts/jnj/host/owner-binding-input.template.json",
+      "bytes": 634,
+      "mode": "0o600",
+      "sha256": "2e20a6bc8138716885064d3f863359d785b6f307aa594670135c72481b6ad2d9"
+    },
+    {
+      "path": "source/jnj/hosts/jnj/host/relay-files.mjs",
+      "bytes": 7910,
+      "mode": "0o600",
+      "sha256": "8f4c6dbaa2305f2cb2c207354219e0b452c457ef7c37169afe01ff4c3dfade81"
+    },
+    {
+      "path": "source/jnj/hosts/jnj/host/runtime/complete-reviewed-source-readback.js",
+      "bytes": 5692,
+      "mode": "0o600",
+      "sha256": "8bf06d3d4167028626df75dbd01bac612975d2c7e57a7c9d2a9bae437bde7da2"
+    },
+    {
+      "path": "source/jnj/hosts/jnj/host/runtime/continuous-relay-v3-durable-monitor.js",
+      "bytes": 11571,
+      "mode": "0o600",
+      "sha256": "d14401f424ffc56f16726e54adbe69ea46677d14901f09256fd52889ef0eae99"
+    },
+    {
+      "path": "source/jnj/hosts/jnj/host/runtime/inspect-host-binding.mts",
+      "bytes": 3192,
+      "mode": "0o600",
+      "sha256": "fa42eab1c8655db18dc2da3b0efda8d6ad123b90481830aa3a1afed38d72f1ce"
+    },
+    {
+      "path": "source/jnj/hosts/jnj/host/runtime/jnj-a-route.mts",
+      "bytes": 1899,
+      "mode": "0o600",
+      "sha256": "7655db90e446c2c4a733a565294f4f6fcd079f608319b97c06470ca0f1097f52"
+    },
+    {
+      "path": "source/jnj/hosts/jnj/host/runtime/load-host-state.js",
+      "bytes": 5321,
+      "mode": "0o600",
+      "sha256": "c7e7afe2cc84167dc6810a486bb8eeb00294dc257154c9a7a33773d0b65bf231"
+    },
+    {
+      "path": "source/jnj/hosts/jnj/host/runtime/load-host-state.unbound.template.js",
+      "bytes": 5321,
+      "mode": "0o600",
+      "sha256": "c7e7afe2cc84167dc6810a486bb8eeb00294dc257154c9a7a33773d0b65bf231"
+    },
+    {
+      "path": "source/jnj/hosts/jnj/host/runtime/load-source-runtime.js",
+      "bytes": 2391,
+      "mode": "0o600",
+      "sha256": "57e42d0ac47c39491b2a02c99c0e7ed4858371605d947fda2d902b6d8163f412"
+    },
+    {
+      "path": "source/jnj/hosts/jnj/host/runtime/machine-json.py",
+      "bytes": 1119,
+      "mode": "0o600",
+      "sha256": "67611e749eddc6bf8c591fef11f2efa82e2a73ce0bb51b2779fab4ae68b77f50"
+    },
+    {
+      "path": "source/jnj/hosts/jnj/host/runtime/preflight/preflight-launch.mjs",
+      "bytes": 11041,
+      "mode": "0o600",
+      "sha256": "bc6368b3238f049d04b4a1f72c03e88f4b00dd76057f51a17e364db31ecb057f"
+    },
+    {
+      "path": "source/jnj/hosts/jnj/host/runtime/preflight/runtime-check.mjs",
+      "bytes": 3900,
+      "mode": "0o600",
+      "sha256": "931b57bda0ea9a00c0e1a221303dffa22e04b120fd66647b923bb01b37187871"
+    },
+    {
+      "path": "source/jnj/hosts/jnj/host/runtime/prepare-owner-binding.mts",
+      "bytes": 8414,
+      "mode": "0o600",
+      "sha256": "52be24a265e2695e7b8e74cd4965ce210536e8fbcefa0dd4fa02ac5125e3065f"
+    },
+    {
+      "path": "source/jnj/hosts/jnj/host/runtime/prepare-registered-control.mts",
+      "bytes": 123,
+      "mode": "0o600",
+      "sha256": "75b04c3bf46a0c81529e1322c74a02ccddb88b6edb161c39e36fc082ad1c89d8"
+    },
+    {
+      "path": "source/jnj/hosts/jnj/host/runtime/review-packet-envelope.mts",
+      "bytes": 7123,
+      "mode": "0o600",
+      "sha256": "0d52e33a70bc0f8e4f013a41df793e5c7651b43b494c9504fe09d0ddc4fae389"
+    },
+    {
+      "path": "source/jnj/hosts/jnj/host/runtime/review-publication.py",
+      "bytes": 5692,
+      "mode": "0o600",
+      "sha256": "9480e9abb8482cf9bd8f3102d6fc2da3a883b758a6dc7d69071c87ea36a64ded"
+    },
+    {
+      "path": "source/jnj/hosts/jnj/host/runtime/update-candidate-completion-state.mjs",
+      "bytes": 3654,
+      "mode": "0o600",
+      "sha256": "ae5ad99411b014c8ffff615a0b06af1e1fdfd2ed7f7265c9c9cee0128339bb06"
+    },
+    {
+      "path": "source/jnj/hosts/jnj/host/source-config-reference.json",
+      "bytes": 2085,
+      "mode": "0o600",
+      "sha256": "f0486a8e6d6105f79e6ff31180d1ea41e74d73e1b52cc2c979fb5d4ac4acff75"
+    },
+    {
+      "path": "source/jnj/hosts/jnj/supervision/inspect-launch-identity.mjs",
+      "bytes": 941,
+      "mode": "0o600",
+      "sha256": "33210472807e0eb8c19957d2efab4f419ad1b2f21393a58b33dc0cc7a0603e16"
+    },
+    {
+      "path": "source/jnj/hosts/jnj/supervision/sample_process_tree.py",
+      "bytes": 13065,
+      "mode": "0o600",
+      "sha256": "3fa6daa1af1afee94d19801edfd8bcb538e1243476b5adb253e50de162a27bd6"
+    },
+    {
+      "path": "source/jnj/hosts/jnj/supervision/start-monitor-jnj60-combined.js",
+      "bytes": 14817,
+      "mode": "0o600",
+      "sha256": "81a00393d071b6574397d581ed27f936279bbb32148d3cdb4e8e96ab0fab0e3d"
+    },
+    {
+      "path": "source/jnj/hosts/jnj/supervision/start-monitor-jnj60-combined.unbound.template.js",
+      "bytes": 14817,
+      "mode": "0o600",
+      "sha256": "81a00393d071b6574397d581ed27f936279bbb32148d3cdb4e8e96ab0fab0e3d"
+    },
+    {
+      "path": "source/jnj/hosts/jnj/supervision/supervise-cancel.mjs",
+      "bytes": 10235,
+      "mode": "0o600",
+      "sha256": "773fbc6350f30fb5d008b4d1beb7c2652915a6ab8794020a20ff2f008652df62"
+    },
+    {
+      "path": "source/jnj/owner-adaptations/jnj-c60-r4-20261008T0403Z/baseline-manifest.json",
+      "bytes": 1414,
+      "mode": "0o600",
+      "sha256": "dc7683796c9163d01877403332fee8939eca2c43b006e797aa2d1d20b8b00be8"
+    },
+    {
+      "path": "source/jnj/owner-adaptations/jnj-c60-r4-20261008T0403Z/build-fragments.py",
+      "bytes": 4463,
+      "mode": "0o600",
+      "sha256": "1f03fee8b375360bd6294b09fed5eccbbe1787bda8f5cf5523c743bde23de28e"
+    },
+    {
+      "path": "source/jnj/owner-adaptations/jnj-c60-r4-20261008T0403Z/preload-owner.exec.js",
+      "bytes": 2746,
+      "mode": "0o600",
+      "sha256": "341d0f3f1ae988b2b03e9b420b3289388eb92b7146e1c6d01d74cb69b5008f78"
+    },
+    {
+      "path": "source/jnj/owner-adaptations/jnj-c60-r4-20261008T0403Z/publish-and-monitor-owner.js",
+      "bytes": 15361,
+      "mode": "0o600",
+      "sha256": "dc679c61f82ef94c369e82f8b5727b9d17f7cceb32cd59130732a0bc3f44ec80"
+    },
+    {
+      "path": "source/jnj/owner-adaptations/jnj-c60-r4-20261008T0403Z/publish-reviewed-and-monitor.exec.js",
+      "bytes": 1398,
+      "mode": "0o600",
+      "sha256": "5df3b7bb9440cc3c8b0bc0b9c8514d1cb64dc235d45cc1d3a0341011a6503a5b"
+    },
+    {
+      "path": "source/qilu/hosts/qilu/host/archive-transfer.mjs",
+      "bytes": 1777,
+      "mode": "0o600",
+      "sha256": "698e966e5552967845a5252d2b3df2acca28dcd8dbbb0ae41755a3a6231e6a99"
+    },
+    {
+      "path": "source/qilu/hosts/qilu/host/context-read.sql.template",
+      "bytes": 2582,
+      "mode": "0o600",
+      "sha256": "ae9ca650f4b1ae96a6e9e5b379ba5d5cdfc20e211bd46a419719dcf6310aea12"
+    },
+    {
+      "path": "source/qilu/hosts/qilu/host/context-template-proof.json",
+      "bytes": 2577,
+      "mode": "0o600",
+      "sha256": "a0a0ee8fc484516ccc6c523ab5a4a62e049438d5fe738243f1df16f59fd43e0d"
+    },
+    {
+      "path": "source/qilu/hosts/qilu/host/control-base.template.json",
+      "bytes": 467,
+      "mode": "0o600",
+      "sha256": "71e0e6fb81bf8a013a16a8310f9bfece21981d734c528d6f4c5f56552c2d54a4"
+    },
+    {
+      "path": "source/qilu/hosts/qilu/host/host-config.json",
+      "bytes": 503,
+      "mode": "0o600",
+      "sha256": "dd2966cdcf9597c7b7ea0c91d4a37983473e8fcd539f1f1c75de3224ed2fb88f"
+    },
+    {
+      "path": "source/qilu/hosts/qilu/host/host-config.template.json",
+      "bytes": 503,
+      "mode": "0o600",
+      "sha256": "dd2966cdcf9597c7b7ea0c91d4a37983473e8fcd539f1f1c75de3224ed2fb88f"
+    },
+    {
+      "path": "source/qilu/hosts/qilu/host/host-files.mts",
+      "bytes": 4080,
+      "mode": "0o600",
+      "sha256": "275f44c00b816fc88580418bb8386b3a7f416bcfed977adf9e60e307caddcfa1"
+    },
+    {
+      "path": "source/qilu/hosts/qilu/host/host-helper-functions.js",
+      "bytes": 11165,
+      "mode": "0o600",
+      "sha256": "1115c7275a50cb402710046b837ada3bd5dafc41d4defb1e123af6f0f6bbdcea"
+    },
+    {
+      "path": "source/qilu/hosts/qilu/host/host-stage-functions.js",
+      "bytes": 6943,
+      "mode": "0o600",
+      "sha256": "dbe7e8a4de241c436a52a6ed90097c7e61b0d113e17cce0467f57e4e7950809b"
+    },
+    {
+      "path": "source/qilu/hosts/qilu/host/machine-json.js",
+      "bytes": 807,
+      "mode": "0o600",
+      "sha256": "3484738bd095a9d57da70c6392af78865a53759a9e8499316941157b6210e9f6"
+    },
+    {
+      "path": "source/qilu/hosts/qilu/host/owner-binding-input.template.json",
+      "bytes": 611,
+      "mode": "0o600",
+      "sha256": "84876efccfb60b3a9a9852ee18aa97e849d5ad30d52063a154ea9ac05d52f563"
+    },
+    {
+      "path": "source/qilu/hosts/qilu/host/relay-files.mjs",
+      "bytes": 7910,
+      "mode": "0o600",
+      "sha256": "c80bb79577e50fd4c25cbbfc6ff04839a5beafef03f97fb8d4cb85e279fdb5f5"
+    },
+    {
+      "path": "source/qilu/hosts/qilu/host/runtime/complete-reviewed-source-readback.js",
+      "bytes": 5692,
+      "mode": "0o600",
+      "sha256": "c5b44179952ce5104919bfd961139ad0aefdc5de6b2d4ff0fad59609d3520907"
+    },
+    {
+      "path": "source/qilu/hosts/qilu/host/runtime/continuous-relay-v3-durable-monitor.js",
+      "bytes": 11573,
+      "mode": "0o600",
+      "sha256": "fc6784980c9eacb428fd10001f86a6e3fadf7a568aa2162a5f1fc4bbe5a651ee"
+    },
+    {
+      "path": "source/qilu/hosts/qilu/host/runtime/inspect-host-binding.mts",
+      "bytes": 3683,
+      "mode": "0o600",
+      "sha256": "476ac61dfa71221cef919d7f07728140751d3b24715afecf11b37d110e8b3074"
+    },
+    {
+      "path": "source/qilu/hosts/qilu/host/runtime/load-host-state.js",
+      "bytes": 5303,
+      "mode": "0o600",
+      "sha256": "a83e92d108bb1d1ff1b621678a43d98b96227a5936944538de66938213969a4b"
+    },
+    {
+      "path": "source/qilu/hosts/qilu/host/runtime/load-host-state.unbound.template.js",
+      "bytes": 5303,
+      "mode": "0o600",
+      "sha256": "a83e92d108bb1d1ff1b621678a43d98b96227a5936944538de66938213969a4b"
+    },
+    {
+      "path": "source/qilu/hosts/qilu/host/runtime/load-source-runtime.js",
+      "bytes": 2379,
+      "mode": "0o600",
+      "sha256": "2f30250e5dd8bc9534f05aa48497b092f0da2ce30b25ce708415a14b562ae537"
+    },
+    {
+      "path": "source/qilu/hosts/qilu/host/runtime/machine-json.py",
+      "bytes": 1119,
+      "mode": "0o600",
+      "sha256": "67611e749eddc6bf8c591fef11f2efa82e2a73ce0bb51b2779fab4ae68b77f50"
+    },
+    {
+      "path": "source/qilu/hosts/qilu/host/runtime/preflight/preflight-launch.mjs",
+      "bytes": 11059,
+      "mode": "0o600",
+      "sha256": "e20240ae97a00a5f546e93e87a47033bfb94474c205507200979183a9361b755"
+    },
+    {
+      "path": "source/qilu/hosts/qilu/host/runtime/preflight/runtime-check.mjs",
+      "bytes": 3815,
+      "mode": "0o600",
+      "sha256": "e01c5b953283535757e2fcc67df80dd3e86948709dde0b488235a7edee017785"
+    },
+    {
+      "path": "source/qilu/hosts/qilu/host/runtime/prepare-owner-binding.mts",
+      "bytes": 8861,
+      "mode": "0o600",
+      "sha256": "82bd883d06a64fb09ae5bcb1f9c3bd9ad51ee2c3c72ddadd80872bbcbda8552d"
+    },
+    {
+      "path": "source/qilu/hosts/qilu/host/runtime/prepare-registered-control.mts",
+      "bytes": 123,
+      "mode": "0o600",
+      "sha256": "75b04c3bf46a0c81529e1322c74a02ccddb88b6edb161c39e36fc082ad1c89d8"
+    },
+    {
+      "path": "source/qilu/hosts/qilu/host/runtime/review-packet-envelope.mts",
+      "bytes": 5800,
+      "mode": "0o600",
+      "sha256": "622d0b18e99cb442da8dd52fcc28ec34ae70db3624b21b22e640d5cc43b6f962"
+    },
+    {
+      "path": "source/qilu/hosts/qilu/host/runtime/review-publication.py",
+      "bytes": 5384,
+      "mode": "0o600",
+      "sha256": "66257a2b022d724655b38bcf752f49b7ce8b95908247bc8059cd9f1a49b6e4fa"
+    },
+    {
+      "path": "source/qilu/hosts/qilu/host/runtime/update-candidate-completion-state.mjs",
+      "bytes": 3654,
+      "mode": "0o600",
+      "sha256": "ae5ad99411b014c8ffff615a0b06af1e1fdfd2ed7f7265c9c9cee0128339bb06"
+    },
+    {
+      "path": "source/qilu/hosts/qilu/host/source-config-reference.json",
+      "bytes": 2861,
+      "mode": "0o600",
+      "sha256": "32e6417f940ad6b82d9034bcd66d7e9912174da53ca922807e7dbc74dce65b0f"
+    },
+    {
+      "path": "source/qilu/hosts/qilu/supervision/inspect-launch-identity.mjs",
+      "bytes": 941,
+      "mode": "0o600",
+      "sha256": "33210472807e0eb8c19957d2efab4f419ad1b2f21393a58b33dc0cc7a0603e16"
+    },
+    {
+      "path": "source/qilu/hosts/qilu/supervision/sample_process_tree.py",
+      "bytes": 13065,
+      "mode": "0o600",
+      "sha256": "3fa6daa1af1afee94d19801edfd8bcb538e1243476b5adb253e50de162a27bd6"
+    },
+    {
+      "path": "source/qilu/hosts/qilu/supervision/start-monitor-qilu60-combined.js",
+      "bytes": 14830,
+      "mode": "0o600",
+      "sha256": "07b91309410ebb1027440208cd4821a88dbce53a06fbc8025249ed321d7dc62f"
+    },
+    {
+      "path": "source/qilu/hosts/qilu/supervision/start-monitor-qilu60-combined.unbound.template.js",
+      "bytes": 14830,
+      "mode": "0o600",
+      "sha256": "07b91309410ebb1027440208cd4821a88dbce53a06fbc8025249ed321d7dc62f"
+    },
+    {
+      "path": "source/qilu/hosts/qilu/supervision/supervise-cancel.mjs",
+      "bytes": 10235,
+      "mode": "0o600",
+      "sha256": "773fbc6350f30fb5d008b4d1beb7c2652915a6ab8794020a20ff2f008652df62"
+    },
+    {
+      "path": "source/qilu/owner-adaptations/qilu-c60-r4-20261008T0330Z/baseline-manifest.json",
+      "bytes": 1413,
+      "mode": "0o600",
+      "sha256": "89d1d754c49eca8adb8336cee2569e483c10ef8956d1e8a55b442107e6ac834a"
+    },
+    {
+      "path": "source/qilu/owner-adaptations/qilu-c60-r4-20261008T0330Z/build-fragments.py",
+      "bytes": 4463,
+      "mode": "0o600",
+      "sha256": "1f03fee8b375360bd6294b09fed5eccbbe1787bda8f5cf5523c743bde23de28e"
+    },
+    {
+      "path": "source/qilu/owner-adaptations/qilu-c60-r4-20261008T0330Z/preload-owner.exec.js",
+      "bytes": 2746,
+      "mode": "0o644",
+      "sha256": "9bc8f4b3f029670fe5e082b539fb8f1a6e8eb3bac91f8fc0723278ee75b1bf3f"
+    },
+    {
+      "path": "source/qilu/owner-adaptations/qilu-c60-r4-20261008T0330Z/publish-and-monitor-owner.js",
+      "bytes": 15339,
+      "mode": "0o600",
+      "sha256": "b2263fb333c1fddf895c6812774e51451e257766ee89620bee50e0d95f8bb647"
+    },
+    {
+      "path": "source/qilu/owner-adaptations/qilu-c60-r4-20261008T0330Z/publish-reviewed-and-monitor.exec.js",
+      "bytes": 1398,
+      "mode": "0o644",
+      "sha256": "ab7b62469f3c860bf428a75d7d0b041d7d7500782f12260486a94aa2fe4e6efe"
+    },
+    {
+      "path": "source/sanofi/hosts/sanofi/host/archive-transfer.mjs",
+      "bytes": 1777,
+      "mode": "0o600",
+      "sha256": "698e966e5552967845a5252d2b3df2acca28dcd8dbbb0ae41755a3a6231e6a99"
+    },
+    {
+      "path": "source/sanofi/hosts/sanofi/host/control-base.template.json",
+      "bytes": 467,
+      "mode": "0o600",
+      "sha256": "71e0e6fb81bf8a013a16a8310f9bfece21981d734c528d6f4c5f56552c2d54a4"
+    },
+    {
+      "path": "source/sanofi/hosts/sanofi/host/host-config.json",
+      "bytes": 517,
+      "mode": "0o600",
+      "sha256": "ce767688c5f7a0754162b9cca3deb7a99878c83feaf90e9abef0361a5722587a"
+    },
+    {
+      "path": "source/sanofi/hosts/sanofi/host/host-config.template.json",
+      "bytes": 517,
+      "mode": "0o600",
+      "sha256": "ce767688c5f7a0754162b9cca3deb7a99878c83feaf90e9abef0361a5722587a"
+    },
+    {
+      "path": "source/sanofi/hosts/sanofi/host/host-files.mts",
+      "bytes": 4080,
+      "mode": "0o600",
+      "sha256": "275f44c00b816fc88580418bb8386b3a7f416bcfed977adf9e60e307caddcfa1"
+    },
+    {
+      "path": "source/sanofi/hosts/sanofi/host/host-helper-functions.js",
+      "bytes": 11191,
+      "mode": "0o600",
+      "sha256": "599ef286a6a9eb01f8e6739a09420b0f1a7322e9703281f17b9af18e219f701c"
+    },
+    {
+      "path": "source/sanofi/hosts/sanofi/host/host-stage-functions.js",
+      "bytes": 6970,
+      "mode": "0o600",
+      "sha256": "1f89a24e1066a582e1a2fa01257ac0f45d19e63a8377e60944965a55a74b40f2"
+    },
+    {
+      "path": "source/sanofi/hosts/sanofi/host/machine-json.js",
+      "bytes": 807,
+      "mode": "0o600",
+      "sha256": "3484738bd095a9d57da70c6392af78865a53759a9e8499316941157b6210e9f6"
+    },
+    {
+      "path": "source/sanofi/hosts/sanofi/host/owner-binding-input.template.json",
+      "bytes": 619,
+      "mode": "0o600",
+      "sha256": "3e8ce926a0c1542a912a0021845bd79f983b23532043c4f930f3015d0d413de3"
+    },
+    {
+      "path": "source/sanofi/hosts/sanofi/host/relay-files.mjs",
+      "bytes": 7916,
+      "mode": "0o600",
+      "sha256": "45a966abfb241beee8db5eb70d2482e8ad017f986dcbd8715326535d9993043e"
+    },
+    {
+      "path": "source/sanofi/hosts/sanofi/host/runtime/complete-reviewed-source-readback.js",
+      "bytes": 5698,
+      "mode": "0o600",
+      "sha256": "a4cdbd7eee9672a8093c87154c118004bbffc6dbb1b4fac18f1af1d847b64d14"
+    },
+    {
+      "path": "source/sanofi/hosts/sanofi/host/runtime/continuous-relay-v3-durable-monitor.js",
+      "bytes": 11577,
+      "mode": "0o600",
+      "sha256": "44b600b3c33540d24f7f5d565f650f925107844b4e831c0bac5abddda0e00a67"
+    },
+    {
+      "path": "source/sanofi/hosts/sanofi/host/runtime/inspect-host-binding.mts",
+      "bytes": 3201,
+      "mode": "0o600",
+      "sha256": "3ffcf8af5bbddd04dd02ec0fb4793b482aea813d82d6075ecd78582e06865f81"
+    },
+    {
+      "path": "source/sanofi/hosts/sanofi/host/runtime/load-host-state.js",
+      "bytes": 5327,
+      "mode": "0o600",
+      "sha256": "6292a9ee8d6b469a5a820ba28b71ad50c3bd7207b8e7a1d45bb8c40422140080"
+    },
+    {
+      "path": "source/sanofi/hosts/sanofi/host/runtime/load-host-state.unbound.template.js",
+      "bytes": 5327,
+      "mode": "0o600",
+      "sha256": "6292a9ee8d6b469a5a820ba28b71ad50c3bd7207b8e7a1d45bb8c40422140080"
+    },
+    {
+      "path": "source/sanofi/hosts/sanofi/host/runtime/load-source-runtime.js",
+      "bytes": 2421,
+      "mode": "0o600",
+      "sha256": "29219fd00abb4f0ccca56e757a7d3fe0fa732aa34e09f9ceb0569b93aaa119d2"
+    },
+    {
+      "path": "source/sanofi/hosts/sanofi/host/runtime/machine-json.py",
+      "bytes": 1119,
+      "mode": "0o600",
+      "sha256": "67611e749eddc6bf8c591fef11f2efa82e2a73ce0bb51b2779fab4ae68b77f50"
+    },
+    {
+      "path": "source/sanofi/hosts/sanofi/host/runtime/preflight/preflight-launch.mjs",
+      "bytes": 11041,
+      "mode": "0o600",
+      "sha256": "bc6368b3238f049d04b4a1f72c03e88f4b00dd76057f51a17e364db31ecb057f"
+    },
+    {
+      "path": "source/sanofi/hosts/sanofi/host/runtime/preflight/runtime-check.mjs",
+      "bytes": 3909,
+      "mode": "0o600",
+      "sha256": "e8ae7f4acf9b42cf8596f58cfc8130938c8fbae22cfd8b6d7e1eb5ea7e34b751"
+    },
+    {
+      "path": "source/sanofi/hosts/sanofi/host/runtime/prepare-owner-binding.mts",
+      "bytes": 8399,
+      "mode": "0o600",
+      "sha256": "620d249da163b4b91dae2ff03ccbd2149a94de1dc1662c3c4d45430bc756b4dd"
+    },
+    {
+      "path": "source/sanofi/hosts/sanofi/host/runtime/prepare-registered-control.mts",
+      "bytes": 123,
+      "mode": "0o600",
+      "sha256": "75b04c3bf46a0c81529e1322c74a02ccddb88b6edb161c39e36fc082ad1c89d8"
+    },
+    {
+      "path": "source/sanofi/hosts/sanofi/host/runtime/review-packet-envelope.mts",
+      "bytes": 7141,
+      "mode": "0o600",
+      "sha256": "b7a711d6816feca5336ac9e899b58bdff4af1d87ec16b40c6ef63ee1239e7a12"
+    },
+    {
+      "path": "source/sanofi/hosts/sanofi/host/runtime/review-publication.py",
+      "bytes": 5680,
+      "mode": "0o600",
+      "sha256": "2dfc8762ebc88831f3e381d4d4e08854dd477deedaf25650baea1cf142e6f9be"
+    },
+    {
+      "path": "source/sanofi/hosts/sanofi/host/runtime/sanofi-a-route.mts",
+      "bytes": 1731,
+      "mode": "0o600",
+      "sha256": "1047144c6ee7ce6487ef027ac4dbbdb2aaf4d543793e8952bb5795f845602e78"
+    },
+    {
+      "path": "source/sanofi/hosts/sanofi/host/runtime/update-candidate-completion-state.mjs",
+      "bytes": 3654,
+      "mode": "0o600",
+      "sha256": "ae5ad99411b014c8ffff615a0b06af1e1fdfd2ed7f7265c9c9cee0128339bb06"
+    },
+    {
+      "path": "source/sanofi/hosts/sanofi/host/source-config-reference.json",
+      "bytes": 2416,
+      "mode": "0o600",
+      "sha256": "3b2465b0c423ca9d667f248e87f429a1eadbcf8709e06724659fab3d48ff3ab0"
+    },
+    {
+      "path": "source/sanofi/hosts/sanofi/supervision/inspect-launch-identity.mjs",
+      "bytes": 941,
+      "mode": "0o600",
+      "sha256": "33210472807e0eb8c19957d2efab4f419ad1b2f21393a58b33dc0cc7a0603e16"
+    },
+    {
+      "path": "source/sanofi/hosts/sanofi/supervision/sample_process_tree.py",
+      "bytes": 13065,
+      "mode": "0o600",
+      "sha256": "3fa6daa1af1afee94d19801edfd8bcb538e1243476b5adb253e50de162a27bd6"
+    },
+    {
+      "path": "source/sanofi/hosts/sanofi/supervision/start-monitor-sanofi60-combined.js",
+      "bytes": 14895,
+      "mode": "0o600",
+      "sha256": "79563cc54d5deea0debb2d23b4a296b71e83e748b2b3edf631729b11cfdf5570"
+    },
+    {
+      "path": "source/sanofi/hosts/sanofi/supervision/start-monitor-sanofi60-combined.unbound.template.js",
+      "bytes": 14895,
+      "mode": "0o600",
+      "sha256": "79563cc54d5deea0debb2d23b4a296b71e83e748b2b3edf631729b11cfdf5570"
+    },
+    {
+      "path": "source/sanofi/hosts/sanofi/supervision/supervise-cancel.mjs",
+      "bytes": 10235,
+      "mode": "0o600",
+      "sha256": "773fbc6350f30fb5d008b4d1beb7c2652915a6ab8794020a20ff2f008652df62"
+    },
+    {
+      "path": "source/sanofi/owner-adaptations/sanofi-c60-r4-20261008T0343Z/baseline-manifest.json",
+      "bytes": 1447,
+      "mode": "0o600",
+      "sha256": "9a51022a8a6715b92f16092d4e59bf8ce68c62f42e8419390d5a9926a638d887"
+    },
+    {
+      "path": "source/sanofi/owner-adaptations/sanofi-c60-r4-20261008T0343Z/build-fragments.py",
+      "bytes": 4463,
+      "mode": "0o600",
+      "sha256": "1f03fee8b375360bd6294b09fed5eccbbe1787bda8f5cf5523c743bde23de28e"
+    },
+    {
+      "path": "source/sanofi/owner-adaptations/sanofi-c60-r4-20261008T0343Z/preload-owner.exec.js",
+      "bytes": 2752,
+      "mode": "0o600",
+      "sha256": "13e91a9ac17574e9e871530f36fb11bb41ef053c9e979fe943ec62c0b2bf45e6"
+    },
+    {
+      "path": "source/sanofi/owner-adaptations/sanofi-c60-r4-20261008T0343Z/publish-and-monitor-owner.js",
+      "bytes": 15349,
+      "mode": "0o600",
+      "sha256": "0373466f44366c0d64d61f193d96ece20f66b49047bf5e21ce0a6f8819811c52"
+    },
+    {
+      "path": "source/sanofi/owner-adaptations/sanofi-c60-r4-20261008T0343Z/publish-reviewed-and-monitor.exec.js",
+      "bytes": 1398,
+      "mode": "0o600",
+      "sha256": "b80b61dac3ec1796f63cb3b9ce3cb7b3e2000c30f66b424c3dfd51cf70fa2717"
+    }
+  ]
+}
